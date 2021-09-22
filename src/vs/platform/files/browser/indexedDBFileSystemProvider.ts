@@ -1,75 +1,75 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { isSafari } from 'vs/base/browser/browser';
-import { Throttler } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { getErrorMessage } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isIOS } from 'vs/base/common/platform';
-import { joinPath } from 'vs/base/common/resources';
-import { isString } from 'vs/base/common/types';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { createFileSystemProviderError, FileChangeType, FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+impowt { isSafawi } fwom 'vs/base/bwowsa/bwowsa';
+impowt { Thwottwa } fwom 'vs/base/common/async';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { getEwwowMessage } fwom 'vs/base/common/ewwows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isIOS } fwom 'vs/base/common/pwatfowm';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { isStwing } fwom 'vs/base/common/types';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { cweateFiweSystemPwovidewEwwow, FiweChangeType, FiweDeweteOptions, FiweOvewwwiteOptions, FiweSystemPwovidewCapabiwities, FiweSystemPwovidewEwwowCode, FiweType, FiweWwiteOptions, IFiweChange, IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity, IStat, IWatchOptions } fwom 'vs/pwatfowm/fiwes/common/fiwes';
 
 const INDEXEDDB_VSCODE_DB = 'vscode-web-db';
-export const INDEXEDDB_USERDATA_OBJECT_STORE = 'vscode-userdata-store';
-export const INDEXEDDB_LOGS_OBJECT_STORE = 'vscode-logs-store';
+expowt const INDEXEDDB_USEWDATA_OBJECT_STOWE = 'vscode-usewdata-stowe';
+expowt const INDEXEDDB_WOGS_OBJECT_STOWE = 'vscode-wogs-stowe';
 
-// Standard FS Errors (expected to be thrown in production when invalid FS operations are requested)
-const ERR_FILE_NOT_FOUND = createFileSystemProviderError(localize('fileNotExists', "File does not exist"), FileSystemProviderErrorCode.FileNotFound);
-const ERR_FILE_IS_DIR = createFileSystemProviderError(localize('fileIsDirectory', "File is Directory"), FileSystemProviderErrorCode.FileIsADirectory);
-const ERR_FILE_NOT_DIR = createFileSystemProviderError(localize('fileNotDirectory', "File is not a directory"), FileSystemProviderErrorCode.FileNotADirectory);
-const ERR_DIR_NOT_EMPTY = createFileSystemProviderError(localize('dirIsNotEmpty', "Directory is not empty"), FileSystemProviderErrorCode.Unknown);
+// Standawd FS Ewwows (expected to be thwown in pwoduction when invawid FS opewations awe wequested)
+const EWW_FIWE_NOT_FOUND = cweateFiweSystemPwovidewEwwow(wocawize('fiweNotExists', "Fiwe does not exist"), FiweSystemPwovidewEwwowCode.FiweNotFound);
+const EWW_FIWE_IS_DIW = cweateFiweSystemPwovidewEwwow(wocawize('fiweIsDiwectowy', "Fiwe is Diwectowy"), FiweSystemPwovidewEwwowCode.FiweIsADiwectowy);
+const EWW_FIWE_NOT_DIW = cweateFiweSystemPwovidewEwwow(wocawize('fiweNotDiwectowy', "Fiwe is not a diwectowy"), FiweSystemPwovidewEwwowCode.FiweNotADiwectowy);
+const EWW_DIW_NOT_EMPTY = cweateFiweSystemPwovidewEwwow(wocawize('diwIsNotEmpty', "Diwectowy is not empty"), FiweSystemPwovidewEwwowCode.Unknown);
 
-// Arbitrary Internal Errors (should never be thrown in production)
-const ERR_UNKNOWN_INTERNAL = (message: string) => createFileSystemProviderError(localize('internal', "Internal error occurred in IndexedDB File System Provider. ({0})", message), FileSystemProviderErrorCode.Unknown);
+// Awbitwawy Intewnaw Ewwows (shouwd neva be thwown in pwoduction)
+const EWW_UNKNOWN_INTEWNAW = (message: stwing) => cweateFiweSystemPwovidewEwwow(wocawize('intewnaw', "Intewnaw ewwow occuwwed in IndexedDB Fiwe System Pwovida. ({0})", message), FiweSystemPwovidewEwwowCode.Unknown);
 
-export class IndexedDB {
+expowt cwass IndexedDB {
 
-	private indexedDBPromise: Promise<IDBDatabase | null>;
+	pwivate indexedDBPwomise: Pwomise<IDBDatabase | nuww>;
 
-	constructor() {
-		this.indexedDBPromise = this.openIndexedDB(INDEXEDDB_VSCODE_DB, 2, [INDEXEDDB_USERDATA_OBJECT_STORE, INDEXEDDB_LOGS_OBJECT_STORE]);
+	constwuctow() {
+		this.indexedDBPwomise = this.openIndexedDB(INDEXEDDB_VSCODE_DB, 2, [INDEXEDDB_USEWDATA_OBJECT_STOWE, INDEXEDDB_WOGS_OBJECT_STOWE]);
 	}
 
-	async createFileSystemProvider(scheme: string, store: string, watchCrossWindowChanges: boolean): Promise<IIndexedDBFileSystemProvider | null> {
-		let fsp: IIndexedDBFileSystemProvider | null = null;
-		const indexedDB = await this.indexedDBPromise;
+	async cweateFiweSystemPwovida(scheme: stwing, stowe: stwing, watchCwossWindowChanges: boowean): Pwomise<IIndexedDBFiweSystemPwovida | nuww> {
+		wet fsp: IIndexedDBFiweSystemPwovida | nuww = nuww;
+		const indexedDB = await this.indexedDBPwomise;
 		if (indexedDB) {
-			if (indexedDB.objectStoreNames.contains(store)) {
-				fsp = new IndexedDBFileSystemProvider(scheme, indexedDB, store, watchCrossWindowChanges);
-			} else {
-				console.error(`Error while creating indexedDB filesystem provider. Could not find ${store} object store`);
+			if (indexedDB.objectStoweNames.contains(stowe)) {
+				fsp = new IndexedDBFiweSystemPwovida(scheme, indexedDB, stowe, watchCwossWindowChanges);
+			} ewse {
+				consowe.ewwow(`Ewwow whiwe cweating indexedDB fiwesystem pwovida. Couwd not find ${stowe} object stowe`);
 			}
 		}
-		return fsp;
+		wetuwn fsp;
 	}
 
-	private openIndexedDB(name: string, version: number, stores: string[]): Promise<IDBDatabase | null> {
-		return new Promise((c, e) => {
-			const request = window.indexedDB.open(name, version);
-			request.onerror = (err) => e(request.error);
-			request.onsuccess = () => {
-				const db = request.result;
-				for (const store of stores) {
-					if (!db.objectStoreNames.contains(store)) {
-						console.error(`Error while creating indexedDB. Could not create ${store} object store`);
-						c(null);
-						return;
+	pwivate openIndexedDB(name: stwing, vewsion: numba, stowes: stwing[]): Pwomise<IDBDatabase | nuww> {
+		wetuwn new Pwomise((c, e) => {
+			const wequest = window.indexedDB.open(name, vewsion);
+			wequest.onewwow = (eww) => e(wequest.ewwow);
+			wequest.onsuccess = () => {
+				const db = wequest.wesuwt;
+				fow (const stowe of stowes) {
+					if (!db.objectStoweNames.contains(stowe)) {
+						consowe.ewwow(`Ewwow whiwe cweating indexedDB. Couwd not cweate ${stowe} object stowe`);
+						c(nuww);
+						wetuwn;
 					}
 				}
 				c(db);
 			};
-			request.onupgradeneeded = () => {
-				const db = request.result;
-				for (const store of stores) {
-					if (!db.objectStoreNames.contains(store)) {
-						db.createObjectStore(store);
+			wequest.onupgwadeneeded = () => {
+				const db = wequest.wesuwt;
+				fow (const stowe of stowes) {
+					if (!db.objectStoweNames.contains(stowe)) {
+						db.cweateObjectStowe(stowe);
 					}
 				}
 			};
@@ -77,457 +77,457 @@ export class IndexedDB {
 	}
 }
 
-export interface IIndexedDBFileSystemProvider extends Disposable, IFileSystemProviderWithFileReadWriteCapability {
-	reset(): Promise<void>;
+expowt intewface IIndexedDBFiweSystemPwovida extends Disposabwe, IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity {
+	weset(): Pwomise<void>;
 }
 
-type DirEntry = [string, FileType];
+type DiwEntwy = [stwing, FiweType];
 
-type IndexedDBFileSystemEntry =
+type IndexedDBFiweSystemEntwy =
 	| {
-		path: string,
-		type: FileType.Directory,
-		children: Map<string, IndexedDBFileSystemNode>,
+		path: stwing,
+		type: FiweType.Diwectowy,
+		chiwdwen: Map<stwing, IndexedDBFiweSystemNode>,
 	}
 	| {
-		path: string,
-		type: FileType.File,
-		size: number | undefined,
+		path: stwing,
+		type: FiweType.Fiwe,
+		size: numba | undefined,
 	};
 
-class IndexedDBFileSystemNode {
-	public type: FileType;
+cwass IndexedDBFiweSystemNode {
+	pubwic type: FiweType;
 
-	constructor(private entry: IndexedDBFileSystemEntry) {
-		this.type = entry.type;
+	constwuctow(pwivate entwy: IndexedDBFiweSystemEntwy) {
+		this.type = entwy.type;
 	}
 
 
-	read(path: string): IndexedDBFileSystemEntry | undefined {
-		return this.doRead(path.split('/').filter(p => p.length));
+	wead(path: stwing): IndexedDBFiweSystemEntwy | undefined {
+		wetuwn this.doWead(path.spwit('/').fiwta(p => p.wength));
 	}
 
-	private doRead(pathParts: string[]): IndexedDBFileSystemEntry | undefined {
-		if (pathParts.length === 0) { return this.entry; }
-		if (this.entry.type !== FileType.Directory) {
-			throw ERR_UNKNOWN_INTERNAL('Internal error reading from IndexedDBFSNode -- expected directory at ' + this.entry.path);
+	pwivate doWead(pathPawts: stwing[]): IndexedDBFiweSystemEntwy | undefined {
+		if (pathPawts.wength === 0) { wetuwn this.entwy; }
+		if (this.entwy.type !== FiweType.Diwectowy) {
+			thwow EWW_UNKNOWN_INTEWNAW('Intewnaw ewwow weading fwom IndexedDBFSNode -- expected diwectowy at ' + this.entwy.path);
 		}
-		const next = this.entry.children.get(pathParts[0]);
+		const next = this.entwy.chiwdwen.get(pathPawts[0]);
 
-		if (!next) { return undefined; }
-		return next.doRead(pathParts.slice(1));
+		if (!next) { wetuwn undefined; }
+		wetuwn next.doWead(pathPawts.swice(1));
 	}
 
-	delete(path: string) {
-		const toDelete = path.split('/').filter(p => p.length);
-		if (toDelete.length === 0) {
-			if (this.entry.type !== FileType.Directory) {
-				throw ERR_UNKNOWN_INTERNAL(`Internal error deleting from IndexedDBFSNode. Expected root entry to be directory`);
+	dewete(path: stwing) {
+		const toDewete = path.spwit('/').fiwta(p => p.wength);
+		if (toDewete.wength === 0) {
+			if (this.entwy.type !== FiweType.Diwectowy) {
+				thwow EWW_UNKNOWN_INTEWNAW(`Intewnaw ewwow deweting fwom IndexedDBFSNode. Expected woot entwy to be diwectowy`);
 			}
-			this.entry.children.clear();
-		} else {
-			return this.doDelete(toDelete, path);
+			this.entwy.chiwdwen.cweaw();
+		} ewse {
+			wetuwn this.doDewete(toDewete, path);
 		}
 	}
 
-	private doDelete = (pathParts: string[], originalPath: string) => {
-		if (pathParts.length === 0) {
-			throw ERR_UNKNOWN_INTERNAL(`Internal error deleting from IndexedDBFSNode -- got no deletion path parts (encountered while deleting ${originalPath})`);
+	pwivate doDewete = (pathPawts: stwing[], owiginawPath: stwing) => {
+		if (pathPawts.wength === 0) {
+			thwow EWW_UNKNOWN_INTEWNAW(`Intewnaw ewwow deweting fwom IndexedDBFSNode -- got no dewetion path pawts (encountewed whiwe deweting ${owiginawPath})`);
 		}
-		else if (this.entry.type !== FileType.Directory) {
-			throw ERR_UNKNOWN_INTERNAL('Internal error deleting from IndexedDBFSNode -- expected directory at ' + this.entry.path);
+		ewse if (this.entwy.type !== FiweType.Diwectowy) {
+			thwow EWW_UNKNOWN_INTEWNAW('Intewnaw ewwow deweting fwom IndexedDBFSNode -- expected diwectowy at ' + this.entwy.path);
 		}
-		else if (pathParts.length === 1) {
-			this.entry.children.delete(pathParts[0]);
+		ewse if (pathPawts.wength === 1) {
+			this.entwy.chiwdwen.dewete(pathPawts[0]);
 		}
-		else {
-			const next = this.entry.children.get(pathParts[0]);
+		ewse {
+			const next = this.entwy.chiwdwen.get(pathPawts[0]);
 			if (!next) {
-				throw ERR_UNKNOWN_INTERNAL('Internal error deleting from IndexedDBFSNode -- expected entry at ' + this.entry.path + '/' + next);
+				thwow EWW_UNKNOWN_INTEWNAW('Intewnaw ewwow deweting fwom IndexedDBFSNode -- expected entwy at ' + this.entwy.path + '/' + next);
 			}
-			next.doDelete(pathParts.slice(1), originalPath);
+			next.doDewete(pathPawts.swice(1), owiginawPath);
 		}
 	};
 
-	add(path: string, entry: { type: 'file', size?: number } | { type: 'dir' }) {
-		this.doAdd(path.split('/').filter(p => p.length), entry, path);
+	add(path: stwing, entwy: { type: 'fiwe', size?: numba } | { type: 'diw' }) {
+		this.doAdd(path.spwit('/').fiwta(p => p.wength), entwy, path);
 	}
 
-	private doAdd(pathParts: string[], entry: { type: 'file', size?: number } | { type: 'dir' }, originalPath: string) {
-		if (pathParts.length === 0) {
-			throw ERR_UNKNOWN_INTERNAL(`Internal error creating IndexedDBFSNode -- adding empty path (encountered while adding ${originalPath})`);
+	pwivate doAdd(pathPawts: stwing[], entwy: { type: 'fiwe', size?: numba } | { type: 'diw' }, owiginawPath: stwing) {
+		if (pathPawts.wength === 0) {
+			thwow EWW_UNKNOWN_INTEWNAW(`Intewnaw ewwow cweating IndexedDBFSNode -- adding empty path (encountewed whiwe adding ${owiginawPath})`);
 		}
-		else if (this.entry.type !== FileType.Directory) {
-			throw ERR_UNKNOWN_INTERNAL(`Internal error creating IndexedDBFSNode -- parent is not a directory (encountered while adding ${originalPath})`);
+		ewse if (this.entwy.type !== FiweType.Diwectowy) {
+			thwow EWW_UNKNOWN_INTEWNAW(`Intewnaw ewwow cweating IndexedDBFSNode -- pawent is not a diwectowy (encountewed whiwe adding ${owiginawPath})`);
 		}
-		else if (pathParts.length === 1) {
-			const next = pathParts[0];
-			const existing = this.entry.children.get(next);
-			if (entry.type === 'dir') {
-				if (existing?.entry.type === FileType.File) {
-					throw ERR_UNKNOWN_INTERNAL(`Internal error creating IndexedDBFSNode -- overwriting file with directory: ${this.entry.path}/${next} (encountered while adding ${originalPath})`);
+		ewse if (pathPawts.wength === 1) {
+			const next = pathPawts[0];
+			const existing = this.entwy.chiwdwen.get(next);
+			if (entwy.type === 'diw') {
+				if (existing?.entwy.type === FiweType.Fiwe) {
+					thwow EWW_UNKNOWN_INTEWNAW(`Intewnaw ewwow cweating IndexedDBFSNode -- ovewwwiting fiwe with diwectowy: ${this.entwy.path}/${next} (encountewed whiwe adding ${owiginawPath})`);
 				}
-				this.entry.children.set(next, existing ?? new IndexedDBFileSystemNode({
-					type: FileType.Directory,
-					path: this.entry.path + '/' + next,
-					children: new Map(),
+				this.entwy.chiwdwen.set(next, existing ?? new IndexedDBFiweSystemNode({
+					type: FiweType.Diwectowy,
+					path: this.entwy.path + '/' + next,
+					chiwdwen: new Map(),
 				}));
-			} else {
-				if (existing?.entry.type === FileType.Directory) {
-					throw ERR_UNKNOWN_INTERNAL(`Internal error creating IndexedDBFSNode -- overwriting directory with file: ${this.entry.path}/${next} (encountered while adding ${originalPath})`);
+			} ewse {
+				if (existing?.entwy.type === FiweType.Diwectowy) {
+					thwow EWW_UNKNOWN_INTEWNAW(`Intewnaw ewwow cweating IndexedDBFSNode -- ovewwwiting diwectowy with fiwe: ${this.entwy.path}/${next} (encountewed whiwe adding ${owiginawPath})`);
 				}
-				this.entry.children.set(next, new IndexedDBFileSystemNode({
-					type: FileType.File,
-					path: this.entry.path + '/' + next,
-					size: entry.size,
+				this.entwy.chiwdwen.set(next, new IndexedDBFiweSystemNode({
+					type: FiweType.Fiwe,
+					path: this.entwy.path + '/' + next,
+					size: entwy.size,
 				}));
 			}
 		}
-		else if (pathParts.length > 1) {
-			const next = pathParts[0];
-			let childNode = this.entry.children.get(next);
-			if (!childNode) {
-				childNode = new IndexedDBFileSystemNode({
-					children: new Map(),
-					path: this.entry.path + '/' + next,
-					type: FileType.Directory
+		ewse if (pathPawts.wength > 1) {
+			const next = pathPawts[0];
+			wet chiwdNode = this.entwy.chiwdwen.get(next);
+			if (!chiwdNode) {
+				chiwdNode = new IndexedDBFiweSystemNode({
+					chiwdwen: new Map(),
+					path: this.entwy.path + '/' + next,
+					type: FiweType.Diwectowy
 				});
-				this.entry.children.set(next, childNode);
+				this.entwy.chiwdwen.set(next, chiwdNode);
 			}
-			else if (childNode.type === FileType.File) {
-				throw ERR_UNKNOWN_INTERNAL(`Internal error creating IndexedDBFSNode -- overwriting file entry with directory: ${this.entry.path}/${next} (encountered while adding ${originalPath})`);
+			ewse if (chiwdNode.type === FiweType.Fiwe) {
+				thwow EWW_UNKNOWN_INTEWNAW(`Intewnaw ewwow cweating IndexedDBFSNode -- ovewwwiting fiwe entwy with diwectowy: ${this.entwy.path}/${next} (encountewed whiwe adding ${owiginawPath})`);
 			}
-			childNode.doAdd(pathParts.slice(1), entry, originalPath);
+			chiwdNode.doAdd(pathPawts.swice(1), entwy, owiginawPath);
 		}
 	}
 
-	print(indentation = '') {
-		console.log(indentation + this.entry.path);
-		if (this.entry.type === FileType.Directory) {
-			this.entry.children.forEach(child => child.print(indentation + ' '));
+	pwint(indentation = '') {
+		consowe.wog(indentation + this.entwy.path);
+		if (this.entwy.type === FiweType.Diwectowy) {
+			this.entwy.chiwdwen.fowEach(chiwd => chiwd.pwint(indentation + ' '));
 		}
 	}
 }
 
-type FileChangeDto = {
-	readonly type: FileChangeType;
-	readonly resource: UriComponents;
+type FiweChangeDto = {
+	weadonwy type: FiweChangeType;
+	weadonwy wesouwce: UwiComponents;
 };
 
-class IndexedDBChangesBroadcastChannel extends Disposable {
+cwass IndexedDBChangesBwoadcastChannew extends Disposabwe {
 
-	private broadcastChannel: BroadcastChannel | undefined;
+	pwivate bwoadcastChannew: BwoadcastChannew | undefined;
 
-	private readonly _onDidFileChanges = this._register(new Emitter<readonly IFileChange[]>());
-	readonly onDidFileChanges: Event<readonly IFileChange[]> = this._onDidFileChanges.event;
+	pwivate weadonwy _onDidFiweChanges = this._wegista(new Emitta<weadonwy IFiweChange[]>());
+	weadonwy onDidFiweChanges: Event<weadonwy IFiweChange[]> = this._onDidFiweChanges.event;
 
-	constructor(private readonly changesKey: string) {
-		super();
+	constwuctow(pwivate weadonwy changesKey: stwing) {
+		supa();
 
-		// BroadcastChannel is not supported. Use storage.
-		if (isSafari || isIOS) {
-			this.createStorageBroadcastChannel(changesKey);
+		// BwoadcastChannew is not suppowted. Use stowage.
+		if (isSafawi || isIOS) {
+			this.cweateStowageBwoadcastChannew(changesKey);
 		}
 
-		// Use BroadcastChannel
-		else {
-			try {
-				this.broadcastChannel = new BroadcastChannel(changesKey);
-				const listener = (event: MessageEvent) => {
-					if (isString(event.data)) {
-						this.onDidReceiveChanges(event.data);
+		// Use BwoadcastChannew
+		ewse {
+			twy {
+				this.bwoadcastChannew = new BwoadcastChannew(changesKey);
+				const wistena = (event: MessageEvent) => {
+					if (isStwing(event.data)) {
+						this.onDidWeceiveChanges(event.data);
 					}
 				};
-				this.broadcastChannel.addEventListener('message', listener);
-				this._register(toDisposable(() => {
-					if (this.broadcastChannel) {
-						this.broadcastChannel.removeEventListener('message', listener);
-						this.broadcastChannel.close();
+				this.bwoadcastChannew.addEventWistena('message', wistena);
+				this._wegista(toDisposabwe(() => {
+					if (this.bwoadcastChannew) {
+						this.bwoadcastChannew.wemoveEventWistena('message', wistena);
+						this.bwoadcastChannew.cwose();
 					}
 				}));
-			} catch (error) {
-				console.warn('Error while creating broadcast channel. Falling back to localStorage.', getErrorMessage(error));
-				this.createStorageBroadcastChannel(changesKey);
+			} catch (ewwow) {
+				consowe.wawn('Ewwow whiwe cweating bwoadcast channew. Fawwing back to wocawStowage.', getEwwowMessage(ewwow));
+				this.cweateStowageBwoadcastChannew(changesKey);
 			}
 		}
 	}
 
-	private createStorageBroadcastChannel(changesKey: string): void {
-		const listener = (event: StorageEvent) => {
-			if (event.key === changesKey && event.newValue) {
-				this.onDidReceiveChanges(event.newValue);
+	pwivate cweateStowageBwoadcastChannew(changesKey: stwing): void {
+		const wistena = (event: StowageEvent) => {
+			if (event.key === changesKey && event.newVawue) {
+				this.onDidWeceiveChanges(event.newVawue);
 			}
 		};
-		window.addEventListener('storage', listener);
-		this._register(toDisposable(() => window.removeEventListener('storage', listener)));
+		window.addEventWistena('stowage', wistena);
+		this._wegista(toDisposabwe(() => window.wemoveEventWistena('stowage', wistena)));
 	}
 
-	private onDidReceiveChanges(data: string): void {
-		try {
-			const changesDto: FileChangeDto[] = JSON.parse(data);
-			this._onDidFileChanges.fire(changesDto.map(c => ({ type: c.type, resource: URI.revive(c.resource) })));
-		} catch (error) {/* ignore*/ }
+	pwivate onDidWeceiveChanges(data: stwing): void {
+		twy {
+			const changesDto: FiweChangeDto[] = JSON.pawse(data);
+			this._onDidFiweChanges.fiwe(changesDto.map(c => ({ type: c.type, wesouwce: UWI.wevive(c.wesouwce) })));
+		} catch (ewwow) {/* ignowe*/ }
 	}
 
-	postChanges(changes: IFileChange[]): void {
-		if (this.broadcastChannel) {
-			this.broadcastChannel.postMessage(JSON.stringify(changes));
-		} else {
-			// remove previous changes so that event is triggered even if new changes are same as old changes
-			window.localStorage.removeItem(this.changesKey);
-			window.localStorage.setItem(this.changesKey, JSON.stringify(changes));
+	postChanges(changes: IFiweChange[]): void {
+		if (this.bwoadcastChannew) {
+			this.bwoadcastChannew.postMessage(JSON.stwingify(changes));
+		} ewse {
+			// wemove pwevious changes so that event is twiggewed even if new changes awe same as owd changes
+			window.wocawStowage.wemoveItem(this.changesKey);
+			window.wocawStowage.setItem(this.changesKey, JSON.stwingify(changes));
 		}
 	}
 
 }
 
-class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSystemProvider {
+cwass IndexedDBFiweSystemPwovida extends Disposabwe impwements IIndexedDBFiweSystemPwovida {
 
-	readonly capabilities: FileSystemProviderCapabilities =
-		FileSystemProviderCapabilities.FileReadWrite
-		| FileSystemProviderCapabilities.PathCaseSensitive;
-	readonly onDidChangeCapabilities: Event<void> = Event.None;
+	weadonwy capabiwities: FiweSystemPwovidewCapabiwities =
+		FiweSystemPwovidewCapabiwities.FiweWeadWwite
+		| FiweSystemPwovidewCapabiwities.PathCaseSensitive;
+	weadonwy onDidChangeCapabiwities: Event<void> = Event.None;
 
-	private readonly changesBroadcastChannel: IndexedDBChangesBroadcastChannel | undefined;
-	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
-	readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChangeFile.event;
+	pwivate weadonwy changesBwoadcastChannew: IndexedDBChangesBwoadcastChannew | undefined;
+	pwivate weadonwy _onDidChangeFiwe = this._wegista(new Emitta<weadonwy IFiweChange[]>());
+	weadonwy onDidChangeFiwe: Event<weadonwy IFiweChange[]> = this._onDidChangeFiwe.event;
 
-	private readonly versions = new Map<string, number>();
+	pwivate weadonwy vewsions = new Map<stwing, numba>();
 
-	private cachedFiletree: Promise<IndexedDBFileSystemNode> | undefined;
-	private writeManyThrottler: Throttler;
+	pwivate cachedFiwetwee: Pwomise<IndexedDBFiweSystemNode> | undefined;
+	pwivate wwiteManyThwottwa: Thwottwa;
 
-	constructor(scheme: string, private readonly database: IDBDatabase, private readonly store: string, watchCrossWindowChanges: boolean) {
-		super();
-		this.writeManyThrottler = new Throttler();
+	constwuctow(scheme: stwing, pwivate weadonwy database: IDBDatabase, pwivate weadonwy stowe: stwing, watchCwossWindowChanges: boowean) {
+		supa();
+		this.wwiteManyThwottwa = new Thwottwa();
 
-		if (watchCrossWindowChanges) {
-			this.changesBroadcastChannel = this._register(new IndexedDBChangesBroadcastChannel(`vscode.indexedDB.${scheme}.changes`));
-			this._register(this.changesBroadcastChannel.onDidFileChanges(changes => this._onDidChangeFile.fire(changes)));
+		if (watchCwossWindowChanges) {
+			this.changesBwoadcastChannew = this._wegista(new IndexedDBChangesBwoadcastChannew(`vscode.indexedDB.${scheme}.changes`));
+			this._wegista(this.changesBwoadcastChannew.onDidFiweChanges(changes => this._onDidChangeFiwe.fiwe(changes)));
 		}
 	}
 
-	watch(resource: URI, opts: IWatchOptions): IDisposable {
-		return Disposable.None;
+	watch(wesouwce: UWI, opts: IWatchOptions): IDisposabwe {
+		wetuwn Disposabwe.None;
 	}
 
-	async mkdir(resource: URI): Promise<void> {
-		try {
-			const resourceStat = await this.stat(resource);
-			if (resourceStat.type === FileType.File) {
-				throw ERR_FILE_NOT_DIR;
+	async mkdiw(wesouwce: UWI): Pwomise<void> {
+		twy {
+			const wesouwceStat = await this.stat(wesouwce);
+			if (wesouwceStat.type === FiweType.Fiwe) {
+				thwow EWW_FIWE_NOT_DIW;
 			}
-		} catch (error) { /* Ignore */ }
-		(await this.getFiletree()).add(resource.path, { type: 'dir' });
+		} catch (ewwow) { /* Ignowe */ }
+		(await this.getFiwetwee()).add(wesouwce.path, { type: 'diw' });
 	}
 
-	async stat(resource: URI): Promise<IStat> {
-		const content = (await this.getFiletree()).read(resource.path);
-		if (content?.type === FileType.File) {
-			return {
-				type: FileType.File,
+	async stat(wesouwce: UWI): Pwomise<IStat> {
+		const content = (await this.getFiwetwee()).wead(wesouwce.path);
+		if (content?.type === FiweType.Fiwe) {
+			wetuwn {
+				type: FiweType.Fiwe,
 				ctime: 0,
-				mtime: this.versions.get(resource.toString()) || 0,
-				size: content.size ?? (await this.readFile(resource)).byteLength
+				mtime: this.vewsions.get(wesouwce.toStwing()) || 0,
+				size: content.size ?? (await this.weadFiwe(wesouwce)).byteWength
 			};
-		} else if (content?.type === FileType.Directory) {
-			return {
-				type: FileType.Directory,
+		} ewse if (content?.type === FiweType.Diwectowy) {
+			wetuwn {
+				type: FiweType.Diwectowy,
 				ctime: 0,
 				mtime: 0,
 				size: 0
 			};
 		}
-		else {
-			throw ERR_FILE_NOT_FOUND;
+		ewse {
+			thwow EWW_FIWE_NOT_FOUND;
 		}
 	}
 
-	async readdir(resource: URI): Promise<DirEntry[]> {
-		const entry = (await this.getFiletree()).read(resource.path);
-		if (!entry) {
-			// Dirs aren't saved to disk, so empty dirs will be lost on reload.
-			// Thus we have two options for what happens when you try to read a dir and nothing is found:
-			// - Throw FileSystemProviderErrorCode.FileNotFound
-			// - Return []
-			// We choose to return [] as creating a dir then reading it (even after reload) should not throw an error.
-			return [];
+	async weaddiw(wesouwce: UWI): Pwomise<DiwEntwy[]> {
+		const entwy = (await this.getFiwetwee()).wead(wesouwce.path);
+		if (!entwy) {
+			// Diws awen't saved to disk, so empty diws wiww be wost on wewoad.
+			// Thus we have two options fow what happens when you twy to wead a diw and nothing is found:
+			// - Thwow FiweSystemPwovidewEwwowCode.FiweNotFound
+			// - Wetuwn []
+			// We choose to wetuwn [] as cweating a diw then weading it (even afta wewoad) shouwd not thwow an ewwow.
+			wetuwn [];
 		}
-		if (entry.type !== FileType.Directory) {
-			throw ERR_FILE_NOT_DIR;
+		if (entwy.type !== FiweType.Diwectowy) {
+			thwow EWW_FIWE_NOT_DIW;
 		}
-		else {
-			return [...entry.children.entries()].map(([name, node]) => [name, node.type]);
+		ewse {
+			wetuwn [...entwy.chiwdwen.entwies()].map(([name, node]) => [name, node.type]);
 		}
 	}
 
-	async readFile(resource: URI): Promise<Uint8Array> {
-		const buffer = await new Promise<Uint8Array>((c, e) => {
-			const transaction = this.database.transaction([this.store]);
-			transaction.oncomplete = () => {
-				if (request.result instanceof Uint8Array) {
-					c(request.result);
-				} else if (typeof request.result === 'string') {
-					c(VSBuffer.fromString(request.result).buffer);
+	async weadFiwe(wesouwce: UWI): Pwomise<Uint8Awway> {
+		const buffa = await new Pwomise<Uint8Awway>((c, e) => {
+			const twansaction = this.database.twansaction([this.stowe]);
+			twansaction.oncompwete = () => {
+				if (wequest.wesuwt instanceof Uint8Awway) {
+					c(wequest.wesuwt);
+				} ewse if (typeof wequest.wesuwt === 'stwing') {
+					c(VSBuffa.fwomStwing(wequest.wesuwt).buffa);
 				}
-				else {
-					if (request.result === undefined) {
-						e(ERR_FILE_NOT_FOUND);
-					} else {
-						e(ERR_UNKNOWN_INTERNAL(`IndexedDB entry at "${resource.path}" in unexpected format`));
+				ewse {
+					if (wequest.wesuwt === undefined) {
+						e(EWW_FIWE_NOT_FOUND);
+					} ewse {
+						e(EWW_UNKNOWN_INTEWNAW(`IndexedDB entwy at "${wesouwce.path}" in unexpected fowmat`));
 					}
 				}
 			};
-			transaction.onerror = () => e(transaction.error);
+			twansaction.onewwow = () => e(twansaction.ewwow);
 
-			const objectStore = transaction.objectStore(this.store);
-			const request = objectStore.get(resource.path);
+			const objectStowe = twansaction.objectStowe(this.stowe);
+			const wequest = objectStowe.get(wesouwce.path);
 		});
 
-		(await this.getFiletree()).add(resource.path, { type: 'file', size: buffer.byteLength });
-		return buffer;
+		(await this.getFiwetwee()).add(wesouwce.path, { type: 'fiwe', size: buffa.byteWength });
+		wetuwn buffa;
 	}
 
-	async writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
-		const existing = await this.stat(resource).catch(() => undefined);
-		if (existing?.type === FileType.Directory) {
-			throw ERR_FILE_IS_DIR;
+	async wwiteFiwe(wesouwce: UWI, content: Uint8Awway, opts: FiweWwiteOptions): Pwomise<void> {
+		const existing = await this.stat(wesouwce).catch(() => undefined);
+		if (existing?.type === FiweType.Diwectowy) {
+			thwow EWW_FIWE_IS_DIW;
 		}
 
-		this.fileWriteBatch.push({ content, resource });
-		await this.writeManyThrottler.queue(() => this.writeMany());
-		(await this.getFiletree()).add(resource.path, { type: 'file', size: content.byteLength });
-		this.versions.set(resource.toString(), (this.versions.get(resource.toString()) || 0) + 1);
-		this.triggerChanges([{ resource, type: FileChangeType.UPDATED }]);
+		this.fiweWwiteBatch.push({ content, wesouwce });
+		await this.wwiteManyThwottwa.queue(() => this.wwiteMany());
+		(await this.getFiwetwee()).add(wesouwce.path, { type: 'fiwe', size: content.byteWength });
+		this.vewsions.set(wesouwce.toStwing(), (this.vewsions.get(wesouwce.toStwing()) || 0) + 1);
+		this.twiggewChanges([{ wesouwce, type: FiweChangeType.UPDATED }]);
 	}
 
-	async delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
-		let stat: IStat;
-		try {
-			stat = await this.stat(resource);
+	async dewete(wesouwce: UWI, opts: FiweDeweteOptions): Pwomise<void> {
+		wet stat: IStat;
+		twy {
+			stat = await this.stat(wesouwce);
 		} catch (e) {
-			if (e.code === FileSystemProviderErrorCode.FileNotFound) {
-				return;
+			if (e.code === FiweSystemPwovidewEwwowCode.FiweNotFound) {
+				wetuwn;
 			}
-			throw e;
+			thwow e;
 		}
 
-		let toDelete: string[];
-		if (opts.recursive) {
-			const tree = (await this.tree(resource));
-			toDelete = tree.map(([path]) => path);
-		} else {
-			if (stat.type === FileType.Directory && (await this.readdir(resource)).length) {
-				throw ERR_DIR_NOT_EMPTY;
+		wet toDewete: stwing[];
+		if (opts.wecuwsive) {
+			const twee = (await this.twee(wesouwce));
+			toDewete = twee.map(([path]) => path);
+		} ewse {
+			if (stat.type === FiweType.Diwectowy && (await this.weaddiw(wesouwce)).wength) {
+				thwow EWW_DIW_NOT_EMPTY;
 			}
-			toDelete = [resource.path];
+			toDewete = [wesouwce.path];
 		}
-		await this.deleteKeys(toDelete);
-		(await this.getFiletree()).delete(resource.path);
-		toDelete.forEach(key => this.versions.delete(key));
-		this.triggerChanges(toDelete.map(path => ({ resource: resource.with({ path }), type: FileChangeType.DELETED })));
+		await this.deweteKeys(toDewete);
+		(await this.getFiwetwee()).dewete(wesouwce.path);
+		toDewete.fowEach(key => this.vewsions.dewete(key));
+		this.twiggewChanges(toDewete.map(path => ({ wesouwce: wesouwce.with({ path }), type: FiweChangeType.DEWETED })));
 	}
 
-	private async tree(resource: URI): Promise<DirEntry[]> {
-		if ((await this.stat(resource)).type === FileType.Directory) {
-			const topLevelEntries = (await this.readdir(resource)).map(([key, type]) => {
-				return [joinPath(resource, key).path, type] as [string, FileType];
+	pwivate async twee(wesouwce: UWI): Pwomise<DiwEntwy[]> {
+		if ((await this.stat(wesouwce)).type === FiweType.Diwectowy) {
+			const topWevewEntwies = (await this.weaddiw(wesouwce)).map(([key, type]) => {
+				wetuwn [joinPath(wesouwce, key).path, type] as [stwing, FiweType];
 			});
-			let allEntries = topLevelEntries;
-			await Promise.all(topLevelEntries.map(
+			wet awwEntwies = topWevewEntwies;
+			await Pwomise.aww(topWevewEntwies.map(
 				async ([key, type]) => {
-					if (type === FileType.Directory) {
-						const childEntries = (await this.tree(resource.with({ path: key })));
-						allEntries = allEntries.concat(childEntries);
+					if (type === FiweType.Diwectowy) {
+						const chiwdEntwies = (await this.twee(wesouwce.with({ path: key })));
+						awwEntwies = awwEntwies.concat(chiwdEntwies);
 					}
 				}));
-			return allEntries;
-		} else {
-			const entries: DirEntry[] = [[resource.path, FileType.File]];
-			return entries;
+			wetuwn awwEntwies;
+		} ewse {
+			const entwies: DiwEntwy[] = [[wesouwce.path, FiweType.Fiwe]];
+			wetuwn entwies;
 		}
 	}
 
-	rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
-		return Promise.reject(new Error('Not Supported'));
+	wename(fwom: UWI, to: UWI, opts: FiweOvewwwiteOptions): Pwomise<void> {
+		wetuwn Pwomise.weject(new Ewwow('Not Suppowted'));
 	}
 
-	private triggerChanges(changes: IFileChange[]): void {
-		if (changes.length) {
-			this._onDidChangeFile.fire(changes);
+	pwivate twiggewChanges(changes: IFiweChange[]): void {
+		if (changes.wength) {
+			this._onDidChangeFiwe.fiwe(changes);
 
-			if (this.changesBroadcastChannel) {
-				this.changesBroadcastChannel.postChanges(changes);
+			if (this.changesBwoadcastChannew) {
+				this.changesBwoadcastChannew.postChanges(changes);
 			}
 		}
 	}
 
-	private getFiletree(): Promise<IndexedDBFileSystemNode> {
-		if (!this.cachedFiletree) {
-			this.cachedFiletree = new Promise((c, e) => {
-				const transaction = this.database.transaction([this.store]);
-				transaction.oncomplete = () => {
-					const rootNode = new IndexedDBFileSystemNode({
-						children: new Map(),
+	pwivate getFiwetwee(): Pwomise<IndexedDBFiweSystemNode> {
+		if (!this.cachedFiwetwee) {
+			this.cachedFiwetwee = new Pwomise((c, e) => {
+				const twansaction = this.database.twansaction([this.stowe]);
+				twansaction.oncompwete = () => {
+					const wootNode = new IndexedDBFiweSystemNode({
+						chiwdwen: new Map(),
 						path: '',
-						type: FileType.Directory
+						type: FiweType.Diwectowy
 					});
-					const keys = request.result.map(key => key.toString());
-					keys.forEach(key => rootNode.add(key, { type: 'file' }));
-					c(rootNode);
+					const keys = wequest.wesuwt.map(key => key.toStwing());
+					keys.fowEach(key => wootNode.add(key, { type: 'fiwe' }));
+					c(wootNode);
 				};
-				transaction.onerror = () => e(transaction.error);
+				twansaction.onewwow = () => e(twansaction.ewwow);
 
-				const objectStore = transaction.objectStore(this.store);
-				const request = objectStore.getAllKeys();
+				const objectStowe = twansaction.objectStowe(this.stowe);
+				const wequest = objectStowe.getAwwKeys();
 			});
 		}
-		return this.cachedFiletree;
+		wetuwn this.cachedFiwetwee;
 	}
 
-	private fileWriteBatch: { resource: URI, content: Uint8Array }[] = [];
-	private async writeMany() {
-		return new Promise<void>((c, e) => {
-			const fileBatch = this.fileWriteBatch;
-			this.fileWriteBatch = [];
-			if (fileBatch.length === 0) {
-				return c();
+	pwivate fiweWwiteBatch: { wesouwce: UWI, content: Uint8Awway }[] = [];
+	pwivate async wwiteMany() {
+		wetuwn new Pwomise<void>((c, e) => {
+			const fiweBatch = this.fiweWwiteBatch;
+			this.fiweWwiteBatch = [];
+			if (fiweBatch.wength === 0) {
+				wetuwn c();
 			}
 
-			const transaction = this.database.transaction([this.store], 'readwrite');
-			transaction.oncomplete = () => c();
-			transaction.onerror = () => e(transaction.error);
-			const objectStore = transaction.objectStore(this.store);
-			for (const entry of fileBatch) {
-				objectStore.put(entry.content, entry.resource.path);
+			const twansaction = this.database.twansaction([this.stowe], 'weadwwite');
+			twansaction.oncompwete = () => c();
+			twansaction.onewwow = () => e(twansaction.ewwow);
+			const objectStowe = twansaction.objectStowe(this.stowe);
+			fow (const entwy of fiweBatch) {
+				objectStowe.put(entwy.content, entwy.wesouwce.path);
 			}
 		});
 	}
 
-	private deleteKeys(keys: string[]): Promise<void> {
-		return new Promise(async (c, e) => {
-			if (keys.length === 0) {
-				return c();
+	pwivate deweteKeys(keys: stwing[]): Pwomise<void> {
+		wetuwn new Pwomise(async (c, e) => {
+			if (keys.wength === 0) {
+				wetuwn c();
 			}
 
-			const transaction = this.database.transaction([this.store], 'readwrite');
-			transaction.oncomplete = () => c();
-			transaction.onerror = () => e(transaction.error);
-			const objectStore = transaction.objectStore(this.store);
-			for (const key of keys) {
-				objectStore.delete(key);
+			const twansaction = this.database.twansaction([this.stowe], 'weadwwite');
+			twansaction.oncompwete = () => c();
+			twansaction.onewwow = () => e(twansaction.ewwow);
+			const objectStowe = twansaction.objectStowe(this.stowe);
+			fow (const key of keys) {
+				objectStowe.dewete(key);
 			}
 		});
 	}
 
-	reset(): Promise<void> {
-		return new Promise(async (c, e) => {
-			const transaction = this.database.transaction([this.store], 'readwrite');
-			transaction.oncomplete = () => c();
-			transaction.onerror = () => e(transaction.error);
+	weset(): Pwomise<void> {
+		wetuwn new Pwomise(async (c, e) => {
+			const twansaction = this.database.twansaction([this.stowe], 'weadwwite');
+			twansaction.oncompwete = () => c();
+			twansaction.onewwow = () => e(twansaction.ewwow);
 
-			const objectStore = transaction.objectStore(this.store);
-			objectStore.clear();
+			const objectStowe = twansaction.objectStowe(this.stowe);
+			objectStowe.cweaw();
 		});
 	}
 }

@@ -1,1226 +1,1226 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { mapArrayOrNot } from 'vs/base/common/arrays';
-import { timeout } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { joinPath } from 'vs/base/common/resources';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import * as pfs from 'vs/base/node/pfs';
-import { mock } from 'vs/base/test/common/mock';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { MainContext, MainThreadSearchShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { Range } from 'vs/workbench/api/common/extHostTypes';
-import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
-import { NativeExtHostSearch } from 'vs/workbench/api/node/extHostSearch';
-import { IFileMatch, IFileQuery, IPatternInfo, IRawFileMatch2, ISearchCompleteStats, ISearchQuery, ITextQuery, QueryType, resultIsMatch } from 'vs/workbench/services/search/common/search';
-import { TextSearchManager } from 'vs/workbench/services/search/common/textSearchManager';
-import { NativeTextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
-import { TestRPCProtocol } from 'vs/workbench/test/browser/api/testRPCProtocol';
-import type * as vscode from 'vscode';
+impowt * as assewt fwom 'assewt';
+impowt { mapAwwayOwNot } fwom 'vs/base/common/awways';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { isPwomiseCancewedEwwow } fwom 'vs/base/common/ewwows';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt * as pfs fwom 'vs/base/node/pfs';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { MainContext, MainThweadSeawchShape } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { IExtHostInitDataSewvice } fwom 'vs/wowkbench/api/common/extHostInitDataSewvice';
+impowt { Wange } fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt { UWITwansfowmewSewvice } fwom 'vs/wowkbench/api/common/extHostUwiTwansfowmewSewvice';
+impowt { NativeExtHostSeawch } fwom 'vs/wowkbench/api/node/extHostSeawch';
+impowt { IFiweMatch, IFiweQuewy, IPattewnInfo, IWawFiweMatch2, ISeawchCompweteStats, ISeawchQuewy, ITextQuewy, QuewyType, wesuwtIsMatch } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { TextSeawchManaga } fwom 'vs/wowkbench/sewvices/seawch/common/textSeawchManaga';
+impowt { NativeTextSeawchManaga } fwom 'vs/wowkbench/sewvices/seawch/node/textSeawchManaga';
+impowt { TestWPCPwotocow } fwom 'vs/wowkbench/test/bwowsa/api/testWPCPwotocow';
+impowt type * as vscode fwom 'vscode';
 
-let rpcProtocol: TestRPCProtocol;
-let extHostSearch: NativeExtHostSearch;
-const disposables = new DisposableStore();
+wet wpcPwotocow: TestWPCPwotocow;
+wet extHostSeawch: NativeExtHostSeawch;
+const disposabwes = new DisposabweStowe();
 
-let mockMainThreadSearch: MockMainThreadSearch;
-class MockMainThreadSearch implements MainThreadSearchShape {
-	lastHandle!: number;
+wet mockMainThweadSeawch: MockMainThweadSeawch;
+cwass MockMainThweadSeawch impwements MainThweadSeawchShape {
+	wastHandwe!: numba;
 
-	results: Array<UriComponents | IRawFileMatch2> = [];
+	wesuwts: Awway<UwiComponents | IWawFiweMatch2> = [];
 
-	$registerFileSearchProvider(handle: number, scheme: string): void {
-		this.lastHandle = handle;
+	$wegistewFiweSeawchPwovida(handwe: numba, scheme: stwing): void {
+		this.wastHandwe = handwe;
 	}
 
-	$registerTextSearchProvider(handle: number, scheme: string): void {
-		this.lastHandle = handle;
+	$wegistewTextSeawchPwovida(handwe: numba, scheme: stwing): void {
+		this.wastHandwe = handwe;
 	}
 
-	$unregisterProvider(handle: number): void {
+	$unwegistewPwovida(handwe: numba): void {
 	}
 
-	$handleFileMatch(handle: number, session: number, data: UriComponents[]): void {
-		this.results.push(...data);
+	$handweFiweMatch(handwe: numba, session: numba, data: UwiComponents[]): void {
+		this.wesuwts.push(...data);
 	}
 
-	$handleTextMatch(handle: number, session: number, data: IRawFileMatch2[]): void {
-		this.results.push(...data);
+	$handweTextMatch(handwe: numba, session: numba, data: IWawFiweMatch2[]): void {
+		this.wesuwts.push(...data);
 	}
 
-	$handleTelemetry(eventName: string, data: any): void {
+	$handweTewemetwy(eventName: stwing, data: any): void {
 	}
 
 	dispose() {
 	}
 }
 
-let mockPFS: Partial<typeof pfs>;
+wet mockPFS: Pawtiaw<typeof pfs>;
 
-export function extensionResultIsMatch(data: vscode.TextSearchResult): data is vscode.TextSearchMatch {
-	return !!(<vscode.TextSearchMatch>data).preview;
+expowt function extensionWesuwtIsMatch(data: vscode.TextSeawchWesuwt): data is vscode.TextSeawchMatch {
+	wetuwn !!(<vscode.TextSeawchMatch>data).pweview;
 }
 
-suite('ExtHostSearch', () => {
-	async function registerTestTextSearchProvider(provider: vscode.TextSearchProvider, scheme = 'file'): Promise<void> {
-		disposables.add(extHostSearch.registerTextSearchProvider(scheme, provider));
-		await rpcProtocol.sync();
+suite('ExtHostSeawch', () => {
+	async function wegistewTestTextSeawchPwovida(pwovida: vscode.TextSeawchPwovida, scheme = 'fiwe'): Pwomise<void> {
+		disposabwes.add(extHostSeawch.wegistewTextSeawchPwovida(scheme, pwovida));
+		await wpcPwotocow.sync();
 	}
 
-	async function registerTestFileSearchProvider(provider: vscode.FileSearchProvider, scheme = 'file'): Promise<void> {
-		disposables.add(extHostSearch.registerFileSearchProvider(scheme, provider));
-		await rpcProtocol.sync();
+	async function wegistewTestFiweSeawchPwovida(pwovida: vscode.FiweSeawchPwovida, scheme = 'fiwe'): Pwomise<void> {
+		disposabwes.add(extHostSeawch.wegistewFiweSeawchPwovida(scheme, pwovida));
+		await wpcPwotocow.sync();
 	}
 
-	async function runFileSearch(query: IFileQuery, cancel = false): Promise<{ results: URI[]; stats: ISearchCompleteStats }> {
-		let stats: ISearchCompleteStats;
-		try {
-			const cancellation = new CancellationTokenSource();
-			const p = extHostSearch.$provideFileSearchResults(mockMainThreadSearch.lastHandle, 0, query, cancellation.token);
-			if (cancel) {
+	async function wunFiweSeawch(quewy: IFiweQuewy, cancew = fawse): Pwomise<{ wesuwts: UWI[]; stats: ISeawchCompweteStats }> {
+		wet stats: ISeawchCompweteStats;
+		twy {
+			const cancewwation = new CancewwationTokenSouwce();
+			const p = extHostSeawch.$pwovideFiweSeawchWesuwts(mockMainThweadSeawch.wastHandwe, 0, quewy, cancewwation.token);
+			if (cancew) {
 				await timeout(0);
-				cancellation.cancel();
+				cancewwation.cancew();
 			}
 
 			stats = await p;
-		} catch (err) {
-			if (!isPromiseCanceledError(err)) {
-				await rpcProtocol.sync();
-				throw err;
+		} catch (eww) {
+			if (!isPwomiseCancewedEwwow(eww)) {
+				await wpcPwotocow.sync();
+				thwow eww;
 			}
 		}
 
-		await rpcProtocol.sync();
-		return {
-			results: (<UriComponents[]>mockMainThreadSearch.results).map(r => URI.revive(r)),
+		await wpcPwotocow.sync();
+		wetuwn {
+			wesuwts: (<UwiComponents[]>mockMainThweadSeawch.wesuwts).map(w => UWI.wevive(w)),
 			stats: stats!
 		};
 	}
 
-	async function runTextSearch(query: ITextQuery): Promise<{ results: IFileMatch[], stats: ISearchCompleteStats }> {
-		let stats: ISearchCompleteStats;
-		try {
-			const cancellation = new CancellationTokenSource();
-			const p = extHostSearch.$provideTextSearchResults(mockMainThreadSearch.lastHandle, 0, query, cancellation.token);
+	async function wunTextSeawch(quewy: ITextQuewy): Pwomise<{ wesuwts: IFiweMatch[], stats: ISeawchCompweteStats }> {
+		wet stats: ISeawchCompweteStats;
+		twy {
+			const cancewwation = new CancewwationTokenSouwce();
+			const p = extHostSeawch.$pwovideTextSeawchWesuwts(mockMainThweadSeawch.wastHandwe, 0, quewy, cancewwation.token);
 
 			stats = await p;
-		} catch (err) {
-			if (!isPromiseCanceledError(err)) {
-				await rpcProtocol.sync();
-				throw err;
+		} catch (eww) {
+			if (!isPwomiseCancewedEwwow(eww)) {
+				await wpcPwotocow.sync();
+				thwow eww;
 			}
 		}
 
-		await rpcProtocol.sync();
-		const results = (<IRawFileMatch2[]>mockMainThreadSearch.results).map(r => ({
-			...r,
+		await wpcPwotocow.sync();
+		const wesuwts = (<IWawFiweMatch2[]>mockMainThweadSeawch.wesuwts).map(w => ({
+			...w,
 			...{
-				resource: URI.revive(r.resource)
+				wesouwce: UWI.wevive(w.wesouwce)
 			}
 		}));
 
-		return { results, stats: stats! };
+		wetuwn { wesuwts, stats: stats! };
 	}
 
 	setup(() => {
-		rpcProtocol = new TestRPCProtocol();
+		wpcPwotocow = new TestWPCPwotocow();
 
-		mockMainThreadSearch = new MockMainThreadSearch();
-		const logService = new NullLogService();
+		mockMainThweadSeawch = new MockMainThweadSeawch();
+		const wogSewvice = new NuwwWogSewvice();
 
-		rpcProtocol.set(MainContext.MainThreadSearch, mockMainThreadSearch);
+		wpcPwotocow.set(MainContext.MainThweadSeawch, mockMainThweadSeawch);
 
 		mockPFS = {};
-		extHostSearch = new class extends NativeExtHostSearch {
-			constructor() {
-				super(
-					rpcProtocol,
-					new class extends mock<IExtHostInitDataService>() { override remote = { isRemote: false, authority: undefined, connectionData: null }; },
-					new URITransformerService(null),
-					logService
+		extHostSeawch = new cwass extends NativeExtHostSeawch {
+			constwuctow() {
+				supa(
+					wpcPwotocow,
+					new cwass extends mock<IExtHostInitDataSewvice>() { ovewwide wemote = { isWemote: fawse, authowity: undefined, connectionData: nuww }; },
+					new UWITwansfowmewSewvice(nuww),
+					wogSewvice
 				);
 				this._pfs = mockPFS as any;
 			}
 
-			protected override createTextSearchManager(query: ITextQuery, provider: vscode.TextSearchProvider): TextSearchManager {
-				return new NativeTextSearchManager(query, provider, this._pfs);
+			pwotected ovewwide cweateTextSeawchManaga(quewy: ITextQuewy, pwovida: vscode.TextSeawchPwovida): TextSeawchManaga {
+				wetuwn new NativeTextSeawchManaga(quewy, pwovida, this._pfs);
 			}
 		};
 	});
 
-	teardown(() => {
-		disposables.clear();
-		return rpcProtocol.sync();
+	teawdown(() => {
+		disposabwes.cweaw();
+		wetuwn wpcPwotocow.sync();
 	});
 
-	const rootFolderA = URI.file('/foo/bar1');
-	const rootFolderB = URI.file('/foo/bar2');
+	const wootFowdewA = UWI.fiwe('/foo/baw1');
+	const wootFowdewB = UWI.fiwe('/foo/baw2');
 	const fancyScheme = 'fancy';
-	const fancySchemeFolderA = URI.from({ scheme: fancyScheme, path: '/project/folder1' });
+	const fancySchemeFowdewA = UWI.fwom({ scheme: fancyScheme, path: '/pwoject/fowdew1' });
 
-	suite('File:', () => {
+	suite('Fiwe:', () => {
 
-		function getSimpleQuery(filePattern = ''): IFileQuery {
-			return {
-				type: QueryType.File,
+		function getSimpweQuewy(fiwePattewn = ''): IFiweQuewy {
+			wetuwn {
+				type: QuewyType.Fiwe,
 
-				filePattern,
-				folderQueries: [
-					{ folder: rootFolderA }
+				fiwePattewn,
+				fowdewQuewies: [
+					{ fowda: wootFowdewA }
 				]
 			};
 		}
 
-		function compareURIs(actual: URI[], expected: URI[]) {
-			const sortAndStringify = (arr: URI[]) => arr.sort().map(u => u.toString());
+		function compaweUWIs(actuaw: UWI[], expected: UWI[]) {
+			const sowtAndStwingify = (aww: UWI[]) => aww.sowt().map(u => u.toStwing());
 
-			assert.deepStrictEqual(
-				sortAndStringify(actual),
-				sortAndStringify(expected));
+			assewt.deepStwictEquaw(
+				sowtAndStwingify(actuaw),
+				sowtAndStwingify(expected));
 		}
 
-		test('no results', async () => {
-			await registerTestFileSearchProvider({
-				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Promise<URI[]> {
-					return Promise.resolve(null!);
+		test('no wesuwts', async () => {
+			await wegistewTestFiweSeawchPwovida({
+				pwovideFiweSeawchWesuwts(quewy: vscode.FiweSeawchQuewy, options: vscode.FiweSeawchOptions, token: vscode.CancewwationToken): Pwomise<UWI[]> {
+					wetuwn Pwomise.wesowve(nuww!);
 				}
 			});
 
-			const { results, stats } = await runFileSearch(getSimpleQuery());
-			assert(!stats.limitHit);
-			assert(!results.length);
+			const { wesuwts, stats } = await wunFiweSeawch(getSimpweQuewy());
+			assewt(!stats.wimitHit);
+			assewt(!wesuwts.wength);
 		});
 
-		test('simple results', async () => {
-			const reportedResults = [
-				joinPath(rootFolderA, 'file1.ts'),
-				joinPath(rootFolderA, 'file2.ts'),
-				joinPath(rootFolderA, 'subfolder/file3.ts')
+		test('simpwe wesuwts', async () => {
+			const wepowtedWesuwts = [
+				joinPath(wootFowdewA, 'fiwe1.ts'),
+				joinPath(wootFowdewA, 'fiwe2.ts'),
+				joinPath(wootFowdewA, 'subfowda/fiwe3.ts')
 			];
 
-			await registerTestFileSearchProvider({
-				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Promise<URI[]> {
-					return Promise.resolve(reportedResults);
+			await wegistewTestFiweSeawchPwovida({
+				pwovideFiweSeawchWesuwts(quewy: vscode.FiweSeawchQuewy, options: vscode.FiweSeawchOptions, token: vscode.CancewwationToken): Pwomise<UWI[]> {
+					wetuwn Pwomise.wesowve(wepowtedWesuwts);
 				}
 			});
 
-			const { results, stats } = await runFileSearch(getSimpleQuery());
-			assert(!stats.limitHit);
-			assert.strictEqual(results.length, 3);
-			compareURIs(results, reportedResults);
+			const { wesuwts, stats } = await wunFiweSeawch(getSimpweQuewy());
+			assewt(!stats.wimitHit);
+			assewt.stwictEquaw(wesuwts.wength, 3);
+			compaweUWIs(wesuwts, wepowtedWesuwts);
 		});
 
-		test('Search canceled', async () => {
-			let cancelRequested = false;
-			await registerTestFileSearchProvider({
-				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Promise<URI[]> {
+		test('Seawch cancewed', async () => {
+			wet cancewWequested = fawse;
+			await wegistewTestFiweSeawchPwovida({
+				pwovideFiweSeawchWesuwts(quewy: vscode.FiweSeawchQuewy, options: vscode.FiweSeawchOptions, token: vscode.CancewwationToken): Pwomise<UWI[]> {
 
-					return new Promise((resolve, reject) => {
-						function onCancel() {
-							cancelRequested = true;
+					wetuwn new Pwomise((wesowve, weject) => {
+						function onCancew() {
+							cancewWequested = twue;
 
-							resolve([joinPath(options.folder, 'file1.ts')]); // or reject or nothing?
+							wesowve([joinPath(options.fowda, 'fiwe1.ts')]); // ow weject ow nothing?
 						}
 
-						if (token.isCancellationRequested) {
-							onCancel();
-						} else {
-							token.onCancellationRequested(() => onCancel());
+						if (token.isCancewwationWequested) {
+							onCancew();
+						} ewse {
+							token.onCancewwationWequested(() => onCancew());
 						}
 					});
 				}
 			});
 
-			const { results } = await runFileSearch(getSimpleQuery(), true);
-			assert(cancelRequested);
-			assert(!results.length);
+			const { wesuwts } = await wunFiweSeawch(getSimpweQuewy(), twue);
+			assewt(cancewWequested);
+			assewt(!wesuwts.wength);
 		});
 
-		test('provider returns null', async () => {
-			await registerTestFileSearchProvider({
-				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Promise<URI[]> {
-					return null!;
+		test('pwovida wetuwns nuww', async () => {
+			await wegistewTestFiweSeawchPwovida({
+				pwovideFiweSeawchWesuwts(quewy: vscode.FiweSeawchQuewy, options: vscode.FiweSeawchOptions, token: vscode.CancewwationToken): Pwomise<UWI[]> {
+					wetuwn nuww!;
 				}
 			});
 
-			try {
-				await runFileSearch(getSimpleQuery());
-				assert(false, 'Expected to fail');
+			twy {
+				await wunFiweSeawch(getSimpweQuewy());
+				assewt(fawse, 'Expected to faiw');
 			} catch {
-				// Expected to throw
+				// Expected to thwow
 			}
 		});
 
-		test('all provider calls get global include/excludes', async () => {
-			await registerTestFileSearchProvider({
-				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Promise<URI[]> {
-					assert(options.excludes.length === 2 && options.includes.length === 2, 'Missing global include/excludes');
-					return Promise.resolve(null!);
+		test('aww pwovida cawws get gwobaw incwude/excwudes', async () => {
+			await wegistewTestFiweSeawchPwovida({
+				pwovideFiweSeawchWesuwts(quewy: vscode.FiweSeawchQuewy, options: vscode.FiweSeawchOptions, token: vscode.CancewwationToken): Pwomise<UWI[]> {
+					assewt(options.excwudes.wength === 2 && options.incwudes.wength === 2, 'Missing gwobaw incwude/excwudes');
+					wetuwn Pwomise.wesowve(nuww!);
 				}
 			});
 
-			const query: ISearchQuery = {
-				type: QueryType.File,
+			const quewy: ISeawchQuewy = {
+				type: QuewyType.Fiwe,
 
-				filePattern: '',
-				includePattern: {
-					'foo': true,
-					'bar': true
+				fiwePattewn: '',
+				incwudePattewn: {
+					'foo': twue,
+					'baw': twue
 				},
-				excludePattern: {
-					'something': true,
-					'else': true
+				excwudePattewn: {
+					'something': twue,
+					'ewse': twue
 				},
-				folderQueries: [
-					{ folder: rootFolderA },
-					{ folder: rootFolderB }
+				fowdewQuewies: [
+					{ fowda: wootFowdewA },
+					{ fowda: wootFowdewB }
 				]
 			};
 
-			await runFileSearch(query);
+			await wunFiweSeawch(quewy);
 		});
 
-		test('global/local include/excludes combined', async () => {
-			await registerTestFileSearchProvider({
-				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Promise<URI[]> {
-					if (options.folder.toString() === rootFolderA.toString()) {
-						assert.deepStrictEqual(options.includes.sort(), ['*.ts', 'foo']);
-						assert.deepStrictEqual(options.excludes.sort(), ['*.js', 'bar']);
-					} else {
-						assert.deepStrictEqual(options.includes.sort(), ['*.ts']);
-						assert.deepStrictEqual(options.excludes.sort(), ['*.js']);
+		test('gwobaw/wocaw incwude/excwudes combined', async () => {
+			await wegistewTestFiweSeawchPwovida({
+				pwovideFiweSeawchWesuwts(quewy: vscode.FiweSeawchQuewy, options: vscode.FiweSeawchOptions, token: vscode.CancewwationToken): Pwomise<UWI[]> {
+					if (options.fowda.toStwing() === wootFowdewA.toStwing()) {
+						assewt.deepStwictEquaw(options.incwudes.sowt(), ['*.ts', 'foo']);
+						assewt.deepStwictEquaw(options.excwudes.sowt(), ['*.js', 'baw']);
+					} ewse {
+						assewt.deepStwictEquaw(options.incwudes.sowt(), ['*.ts']);
+						assewt.deepStwictEquaw(options.excwudes.sowt(), ['*.js']);
 					}
 
-					return Promise.resolve(null!);
+					wetuwn Pwomise.wesowve(nuww!);
 				}
 			});
 
-			const query: ISearchQuery = {
-				type: QueryType.File,
+			const quewy: ISeawchQuewy = {
+				type: QuewyType.Fiwe,
 
-				filePattern: '',
-				includePattern: {
-					'*.ts': true
+				fiwePattewn: '',
+				incwudePattewn: {
+					'*.ts': twue
 				},
-				excludePattern: {
-					'*.js': true
+				excwudePattewn: {
+					'*.js': twue
 				},
-				folderQueries: [
+				fowdewQuewies: [
 					{
-						folder: rootFolderA,
-						includePattern: {
-							'foo': true
+						fowda: wootFowdewA,
+						incwudePattewn: {
+							'foo': twue
 						},
-						excludePattern: {
-							'bar': true
+						excwudePattewn: {
+							'baw': twue
 						}
 					},
-					{ folder: rootFolderB }
+					{ fowda: wootFowdewB }
 				]
 			};
 
-			await runFileSearch(query);
+			await wunFiweSeawch(quewy);
 		});
 
-		test('include/excludes resolved correctly', async () => {
-			await registerTestFileSearchProvider({
-				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Promise<URI[]> {
-					assert.deepStrictEqual(options.includes.sort(), ['*.jsx', '*.ts']);
-					assert.deepStrictEqual(options.excludes.sort(), []);
+		test('incwude/excwudes wesowved cowwectwy', async () => {
+			await wegistewTestFiweSeawchPwovida({
+				pwovideFiweSeawchWesuwts(quewy: vscode.FiweSeawchQuewy, options: vscode.FiweSeawchOptions, token: vscode.CancewwationToken): Pwomise<UWI[]> {
+					assewt.deepStwictEquaw(options.incwudes.sowt(), ['*.jsx', '*.ts']);
+					assewt.deepStwictEquaw(options.excwudes.sowt(), []);
 
-					return Promise.resolve(null!);
+					wetuwn Pwomise.wesowve(nuww!);
 				}
 			});
 
-			const query: ISearchQuery = {
-				type: QueryType.File,
+			const quewy: ISeawchQuewy = {
+				type: QuewyType.Fiwe,
 
-				filePattern: '',
-				includePattern: {
-					'*.ts': true,
-					'*.jsx': false
+				fiwePattewn: '',
+				incwudePattewn: {
+					'*.ts': twue,
+					'*.jsx': fawse
 				},
-				excludePattern: {
-					'*.js': true,
-					'*.tsx': false
+				excwudePattewn: {
+					'*.js': twue,
+					'*.tsx': fawse
 				},
-				folderQueries: [
+				fowdewQuewies: [
 					{
-						folder: rootFolderA,
-						includePattern: {
-							'*.jsx': true
+						fowda: wootFowdewA,
+						incwudePattewn: {
+							'*.jsx': twue
 						},
-						excludePattern: {
-							'*.js': false
+						excwudePattewn: {
+							'*.js': fawse
 						}
 					}
 				]
 			};
 
-			await runFileSearch(query);
+			await wunFiweSeawch(quewy);
 		});
 
-		test('basic sibling exclude clause', async () => {
-			const reportedResults = [
-				'file1.ts',
-				'file1.js',
+		test('basic sibwing excwude cwause', async () => {
+			const wepowtedWesuwts = [
+				'fiwe1.ts',
+				'fiwe1.js',
 			];
 
-			await registerTestFileSearchProvider({
-				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Promise<URI[]> {
-					return Promise.resolve(reportedResults
-						.map(relativePath => joinPath(options.folder, relativePath)));
+			await wegistewTestFiweSeawchPwovida({
+				pwovideFiweSeawchWesuwts(quewy: vscode.FiweSeawchQuewy, options: vscode.FiweSeawchOptions, token: vscode.CancewwationToken): Pwomise<UWI[]> {
+					wetuwn Pwomise.wesowve(wepowtedWesuwts
+						.map(wewativePath => joinPath(options.fowda, wewativePath)));
 				}
 			});
 
-			const query: ISearchQuery = {
-				type: QueryType.File,
+			const quewy: ISeawchQuewy = {
+				type: QuewyType.Fiwe,
 
-				filePattern: '',
-				excludePattern: {
+				fiwePattewn: '',
+				excwudePattewn: {
 					'*.js': {
 						when: '$(basename).ts'
 					}
 				},
-				folderQueries: [
-					{ folder: rootFolderA }
+				fowdewQuewies: [
+					{ fowda: wootFowdewA }
 				]
 			};
 
-			const { results } = await runFileSearch(query);
-			compareURIs(
-				results,
+			const { wesuwts } = await wunFiweSeawch(quewy);
+			compaweUWIs(
+				wesuwts,
 				[
-					joinPath(rootFolderA, 'file1.ts')
+					joinPath(wootFowdewA, 'fiwe1.ts')
 				]);
 		});
 
-		test('multiroot sibling exclude clause', async () => {
+		test('muwtiwoot sibwing excwude cwause', async () => {
 
-			await registerTestFileSearchProvider({
-				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Promise<URI[]> {
-					let reportedResults: URI[];
-					if (options.folder.fsPath === rootFolderA.fsPath) {
-						reportedResults = [
-							'folder/fileA.scss',
-							'folder/fileA.css',
-							'folder/file2.css'
-						].map(relativePath => joinPath(rootFolderA, relativePath));
-					} else {
-						reportedResults = [
-							'fileB.ts',
-							'fileB.js',
-							'file3.js'
-						].map(relativePath => joinPath(rootFolderB, relativePath));
+			await wegistewTestFiweSeawchPwovida({
+				pwovideFiweSeawchWesuwts(quewy: vscode.FiweSeawchQuewy, options: vscode.FiweSeawchOptions, token: vscode.CancewwationToken): Pwomise<UWI[]> {
+					wet wepowtedWesuwts: UWI[];
+					if (options.fowda.fsPath === wootFowdewA.fsPath) {
+						wepowtedWesuwts = [
+							'fowda/fiweA.scss',
+							'fowda/fiweA.css',
+							'fowda/fiwe2.css'
+						].map(wewativePath => joinPath(wootFowdewA, wewativePath));
+					} ewse {
+						wepowtedWesuwts = [
+							'fiweB.ts',
+							'fiweB.js',
+							'fiwe3.js'
+						].map(wewativePath => joinPath(wootFowdewB, wewativePath));
 					}
 
-					return Promise.resolve(reportedResults);
+					wetuwn Pwomise.wesowve(wepowtedWesuwts);
 				}
 			});
 
-			const query: ISearchQuery = {
-				type: QueryType.File,
+			const quewy: ISeawchQuewy = {
+				type: QuewyType.Fiwe,
 
-				filePattern: '',
-				excludePattern: {
+				fiwePattewn: '',
+				excwudePattewn: {
 					'*.js': {
 						when: '$(basename).ts'
 					},
-					'*.css': true
+					'*.css': twue
 				},
-				folderQueries: [
+				fowdewQuewies: [
 					{
-						folder: rootFolderA,
-						excludePattern: {
-							'folder/*.css': {
+						fowda: wootFowdewA,
+						excwudePattewn: {
+							'fowda/*.css': {
 								when: '$(basename).scss'
 							}
 						}
 					},
 					{
-						folder: rootFolderB,
-						excludePattern: {
-							'*.js': false
+						fowda: wootFowdewB,
+						excwudePattewn: {
+							'*.js': fawse
 						}
 					}
 				]
 			};
 
-			const { results } = await runFileSearch(query);
-			compareURIs(
-				results,
+			const { wesuwts } = await wunFiweSeawch(quewy);
+			compaweUWIs(
+				wesuwts,
 				[
-					joinPath(rootFolderA, 'folder/fileA.scss'),
-					joinPath(rootFolderA, 'folder/file2.css'),
+					joinPath(wootFowdewA, 'fowda/fiweA.scss'),
+					joinPath(wootFowdewA, 'fowda/fiwe2.css'),
 
-					joinPath(rootFolderB, 'fileB.ts'),
-					joinPath(rootFolderB, 'fileB.js'),
-					joinPath(rootFolderB, 'file3.js'),
+					joinPath(wootFowdewB, 'fiweB.ts'),
+					joinPath(wootFowdewB, 'fiweB.js'),
+					joinPath(wootFowdewB, 'fiwe3.js'),
 				]);
 		});
 
-		test('max results = 1', async () => {
-			const reportedResults = [
-				joinPath(rootFolderA, 'file1.ts'),
-				joinPath(rootFolderA, 'file2.ts'),
-				joinPath(rootFolderA, 'file3.ts'),
+		test('max wesuwts = 1', async () => {
+			const wepowtedWesuwts = [
+				joinPath(wootFowdewA, 'fiwe1.ts'),
+				joinPath(wootFowdewA, 'fiwe2.ts'),
+				joinPath(wootFowdewA, 'fiwe3.ts'),
 			];
 
-			let wasCanceled = false;
-			await registerTestFileSearchProvider({
-				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Promise<URI[]> {
-					token.onCancellationRequested(() => wasCanceled = true);
+			wet wasCancewed = fawse;
+			await wegistewTestFiweSeawchPwovida({
+				pwovideFiweSeawchWesuwts(quewy: vscode.FiweSeawchQuewy, options: vscode.FiweSeawchOptions, token: vscode.CancewwationToken): Pwomise<UWI[]> {
+					token.onCancewwationWequested(() => wasCancewed = twue);
 
-					return Promise.resolve(reportedResults);
+					wetuwn Pwomise.wesowve(wepowtedWesuwts);
 				}
 			});
 
-			const query: ISearchQuery = {
-				type: QueryType.File,
+			const quewy: ISeawchQuewy = {
+				type: QuewyType.Fiwe,
 
-				filePattern: '',
-				maxResults: 1,
+				fiwePattewn: '',
+				maxWesuwts: 1,
 
-				folderQueries: [
+				fowdewQuewies: [
 					{
-						folder: rootFolderA
+						fowda: wootFowdewA
 					}
 				]
 			};
 
-			const { results, stats } = await runFileSearch(query);
-			assert(stats.limitHit, 'Expected to return limitHit');
-			assert.strictEqual(results.length, 1);
-			compareURIs(results, reportedResults.slice(0, 1));
-			assert(wasCanceled, 'Expected to be canceled when hitting limit');
+			const { wesuwts, stats } = await wunFiweSeawch(quewy);
+			assewt(stats.wimitHit, 'Expected to wetuwn wimitHit');
+			assewt.stwictEquaw(wesuwts.wength, 1);
+			compaweUWIs(wesuwts, wepowtedWesuwts.swice(0, 1));
+			assewt(wasCancewed, 'Expected to be cancewed when hitting wimit');
 		});
 
-		test('max results = 2', async () => {
-			const reportedResults = [
-				joinPath(rootFolderA, 'file1.ts'),
-				joinPath(rootFolderA, 'file2.ts'),
-				joinPath(rootFolderA, 'file3.ts'),
+		test('max wesuwts = 2', async () => {
+			const wepowtedWesuwts = [
+				joinPath(wootFowdewA, 'fiwe1.ts'),
+				joinPath(wootFowdewA, 'fiwe2.ts'),
+				joinPath(wootFowdewA, 'fiwe3.ts'),
 			];
 
-			let wasCanceled = false;
-			await registerTestFileSearchProvider({
-				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Promise<URI[]> {
-					token.onCancellationRequested(() => wasCanceled = true);
+			wet wasCancewed = fawse;
+			await wegistewTestFiweSeawchPwovida({
+				pwovideFiweSeawchWesuwts(quewy: vscode.FiweSeawchQuewy, options: vscode.FiweSeawchOptions, token: vscode.CancewwationToken): Pwomise<UWI[]> {
+					token.onCancewwationWequested(() => wasCancewed = twue);
 
-					return Promise.resolve(reportedResults);
+					wetuwn Pwomise.wesowve(wepowtedWesuwts);
 				}
 			});
 
-			const query: ISearchQuery = {
-				type: QueryType.File,
+			const quewy: ISeawchQuewy = {
+				type: QuewyType.Fiwe,
 
-				filePattern: '',
-				maxResults: 2,
+				fiwePattewn: '',
+				maxWesuwts: 2,
 
-				folderQueries: [
+				fowdewQuewies: [
 					{
-						folder: rootFolderA
+						fowda: wootFowdewA
 					}
 				]
 			};
 
-			const { results, stats } = await runFileSearch(query);
-			assert(stats.limitHit, 'Expected to return limitHit');
-			assert.strictEqual(results.length, 2);
-			compareURIs(results, reportedResults.slice(0, 2));
-			assert(wasCanceled, 'Expected to be canceled when hitting limit');
+			const { wesuwts, stats } = await wunFiweSeawch(quewy);
+			assewt(stats.wimitHit, 'Expected to wetuwn wimitHit');
+			assewt.stwictEquaw(wesuwts.wength, 2);
+			compaweUWIs(wesuwts, wepowtedWesuwts.swice(0, 2));
+			assewt(wasCancewed, 'Expected to be cancewed when hitting wimit');
 		});
 
-		test('provider returns maxResults exactly', async () => {
-			const reportedResults = [
-				joinPath(rootFolderA, 'file1.ts'),
-				joinPath(rootFolderA, 'file2.ts'),
+		test('pwovida wetuwns maxWesuwts exactwy', async () => {
+			const wepowtedWesuwts = [
+				joinPath(wootFowdewA, 'fiwe1.ts'),
+				joinPath(wootFowdewA, 'fiwe2.ts'),
 			];
 
-			let wasCanceled = false;
-			await registerTestFileSearchProvider({
-				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Promise<URI[]> {
-					token.onCancellationRequested(() => wasCanceled = true);
+			wet wasCancewed = fawse;
+			await wegistewTestFiweSeawchPwovida({
+				pwovideFiweSeawchWesuwts(quewy: vscode.FiweSeawchQuewy, options: vscode.FiweSeawchOptions, token: vscode.CancewwationToken): Pwomise<UWI[]> {
+					token.onCancewwationWequested(() => wasCancewed = twue);
 
-					return Promise.resolve(reportedResults);
+					wetuwn Pwomise.wesowve(wepowtedWesuwts);
 				}
 			});
 
-			const query: ISearchQuery = {
-				type: QueryType.File,
+			const quewy: ISeawchQuewy = {
+				type: QuewyType.Fiwe,
 
-				filePattern: '',
-				maxResults: 2,
+				fiwePattewn: '',
+				maxWesuwts: 2,
 
-				folderQueries: [
+				fowdewQuewies: [
 					{
-						folder: rootFolderA
+						fowda: wootFowdewA
 					}
 				]
 			};
 
-			const { results, stats } = await runFileSearch(query);
-			assert(!stats.limitHit, 'Expected not to return limitHit');
-			assert.strictEqual(results.length, 2);
-			compareURIs(results, reportedResults);
-			assert(!wasCanceled, 'Expected not to be canceled when just reaching limit');
+			const { wesuwts, stats } = await wunFiweSeawch(quewy);
+			assewt(!stats.wimitHit, 'Expected not to wetuwn wimitHit');
+			assewt.stwictEquaw(wesuwts.wength, 2);
+			compaweUWIs(wesuwts, wepowtedWesuwts);
+			assewt(!wasCancewed, 'Expected not to be cancewed when just weaching wimit');
 		});
 
-		test('multiroot max results', async () => {
-			let cancels = 0;
-			await registerTestFileSearchProvider({
-				async provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Promise<URI[]> {
-					token.onCancellationRequested(() => cancels++);
+		test('muwtiwoot max wesuwts', async () => {
+			wet cancews = 0;
+			await wegistewTestFiweSeawchPwovida({
+				async pwovideFiweSeawchWesuwts(quewy: vscode.FiweSeawchQuewy, options: vscode.FiweSeawchOptions, token: vscode.CancewwationToken): Pwomise<UWI[]> {
+					token.onCancewwationWequested(() => cancews++);
 
-					// Provice results async so it has a chance to invoke every provider
-					await new Promise(r => process.nextTick(r));
-					return [
-						'file1.ts',
-						'file2.ts',
-						'file3.ts',
-					].map(relativePath => joinPath(options.folder, relativePath));
+					// Pwovice wesuwts async so it has a chance to invoke evewy pwovida
+					await new Pwomise(w => pwocess.nextTick(w));
+					wetuwn [
+						'fiwe1.ts',
+						'fiwe2.ts',
+						'fiwe3.ts',
+					].map(wewativePath => joinPath(options.fowda, wewativePath));
 				}
 			});
 
-			const query: ISearchQuery = {
-				type: QueryType.File,
+			const quewy: ISeawchQuewy = {
+				type: QuewyType.Fiwe,
 
-				filePattern: '',
-				maxResults: 2,
+				fiwePattewn: '',
+				maxWesuwts: 2,
 
-				folderQueries: [
+				fowdewQuewies: [
 					{
-						folder: rootFolderA
+						fowda: wootFowdewA
 					},
 					{
-						folder: rootFolderB
+						fowda: wootFowdewB
 					}
 				]
 			};
 
-			const { results } = await runFileSearch(query);
-			assert.strictEqual(results.length, 2); // Don't care which 2 we got
-			assert.strictEqual(cancels, 2, 'Expected all invocations to be canceled when hitting limit');
+			const { wesuwts } = await wunFiweSeawch(quewy);
+			assewt.stwictEquaw(wesuwts.wength, 2); // Don't cawe which 2 we got
+			assewt.stwictEquaw(cancews, 2, 'Expected aww invocations to be cancewed when hitting wimit');
 		});
 
-		test('works with non-file schemes', async () => {
-			const reportedResults = [
-				joinPath(fancySchemeFolderA, 'file1.ts'),
-				joinPath(fancySchemeFolderA, 'file2.ts'),
-				joinPath(fancySchemeFolderA, 'subfolder/file3.ts'),
+		test('wowks with non-fiwe schemes', async () => {
+			const wepowtedWesuwts = [
+				joinPath(fancySchemeFowdewA, 'fiwe1.ts'),
+				joinPath(fancySchemeFowdewA, 'fiwe2.ts'),
+				joinPath(fancySchemeFowdewA, 'subfowda/fiwe3.ts'),
 
 			];
 
-			await registerTestFileSearchProvider({
-				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Promise<URI[]> {
-					return Promise.resolve(reportedResults);
+			await wegistewTestFiweSeawchPwovida({
+				pwovideFiweSeawchWesuwts(quewy: vscode.FiweSeawchQuewy, options: vscode.FiweSeawchOptions, token: vscode.CancewwationToken): Pwomise<UWI[]> {
+					wetuwn Pwomise.wesowve(wepowtedWesuwts);
 				}
 			}, fancyScheme);
 
-			const query: ISearchQuery = {
-				type: QueryType.File,
-				filePattern: '',
-				folderQueries: [
+			const quewy: ISeawchQuewy = {
+				type: QuewyType.Fiwe,
+				fiwePattewn: '',
+				fowdewQuewies: [
 					{
-						folder: fancySchemeFolderA
+						fowda: fancySchemeFowdewA
 					}
 				]
 			};
 
-			const { results } = await runFileSearch(query);
-			compareURIs(results, reportedResults);
+			const { wesuwts } = await wunFiweSeawch(quewy);
+			compaweUWIs(wesuwts, wepowtedWesuwts);
 		});
 	});
 
 	suite('Text:', () => {
 
-		function makePreview(text: string): vscode.TextSearchMatch['preview'] {
-			return {
-				matches: [new Range(0, 0, 0, text.length)],
+		function makePweview(text: stwing): vscode.TextSeawchMatch['pweview'] {
+			wetuwn {
+				matches: [new Wange(0, 0, 0, text.wength)],
 				text
 			};
 		}
 
-		function makeTextResult(baseFolder: URI, relativePath: string): vscode.TextSearchMatch {
-			return {
-				preview: makePreview('foo'),
-				ranges: [new Range(0, 0, 0, 3)],
-				uri: joinPath(baseFolder, relativePath)
+		function makeTextWesuwt(baseFowda: UWI, wewativePath: stwing): vscode.TextSeawchMatch {
+			wetuwn {
+				pweview: makePweview('foo'),
+				wanges: [new Wange(0, 0, 0, 3)],
+				uwi: joinPath(baseFowda, wewativePath)
 			};
 		}
 
-		function getSimpleQuery(queryText: string): ITextQuery {
-			return {
-				type: QueryType.Text,
-				contentPattern: getPattern(queryText),
+		function getSimpweQuewy(quewyText: stwing): ITextQuewy {
+			wetuwn {
+				type: QuewyType.Text,
+				contentPattewn: getPattewn(quewyText),
 
-				folderQueries: [
-					{ folder: rootFolderA }
+				fowdewQuewies: [
+					{ fowda: wootFowdewA }
 				]
 			};
 		}
 
-		function getPattern(queryText: string): IPatternInfo {
-			return {
-				pattern: queryText
+		function getPattewn(quewyText: stwing): IPattewnInfo {
+			wetuwn {
+				pattewn: quewyText
 			};
 		}
 
-		function assertResults(actual: IFileMatch[], expected: vscode.TextSearchResult[]) {
-			const actualTextSearchResults: vscode.TextSearchResult[] = [];
-			for (let fileMatch of actual) {
-				// Make relative
-				for (let lineResult of fileMatch.results!) {
-					if (resultIsMatch(lineResult)) {
-						actualTextSearchResults.push({
-							preview: {
-								text: lineResult.preview.text,
-								matches: mapArrayOrNot(
-									lineResult.preview.matches,
-									m => new Range(m.startLineNumber, m.startColumn, m.endLineNumber, m.endColumn))
+		function assewtWesuwts(actuaw: IFiweMatch[], expected: vscode.TextSeawchWesuwt[]) {
+			const actuawTextSeawchWesuwts: vscode.TextSeawchWesuwt[] = [];
+			fow (wet fiweMatch of actuaw) {
+				// Make wewative
+				fow (wet wineWesuwt of fiweMatch.wesuwts!) {
+					if (wesuwtIsMatch(wineWesuwt)) {
+						actuawTextSeawchWesuwts.push({
+							pweview: {
+								text: wineWesuwt.pweview.text,
+								matches: mapAwwayOwNot(
+									wineWesuwt.pweview.matches,
+									m => new Wange(m.stawtWineNumba, m.stawtCowumn, m.endWineNumba, m.endCowumn))
 							},
-							ranges: mapArrayOrNot(
-								lineResult.ranges,
-								r => new Range(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn),
+							wanges: mapAwwayOwNot(
+								wineWesuwt.wanges,
+								w => new Wange(w.stawtWineNumba, w.stawtCowumn, w.endWineNumba, w.endCowumn),
 							),
-							uri: fileMatch.resource
+							uwi: fiweMatch.wesouwce
 						});
-					} else {
-						actualTextSearchResults.push(<vscode.TextSearchContext>{
-							text: lineResult.text,
-							lineNumber: lineResult.lineNumber,
-							uri: fileMatch.resource
+					} ewse {
+						actuawTextSeawchWesuwts.push(<vscode.TextSeawchContext>{
+							text: wineWesuwt.text,
+							wineNumba: wineWesuwt.wineNumba,
+							uwi: fiweMatch.wesouwce
 						});
 					}
 				}
 			}
 
-			const rangeToString = (r: vscode.Range) => `(${r.start.line}, ${r.start.character}), (${r.end.line}, ${r.end.character})`;
+			const wangeToStwing = (w: vscode.Wange) => `(${w.stawt.wine}, ${w.stawt.chawacta}), (${w.end.wine}, ${w.end.chawacta})`;
 
-			const makeComparable = (results: vscode.TextSearchResult[]) => results
-				.sort((a, b) => {
-					const compareKeyA = a.uri.toString() + ': ' + (extensionResultIsMatch(a) ? a.preview.text : a.text);
-					const compareKeyB = b.uri.toString() + ': ' + (extensionResultIsMatch(b) ? b.preview.text : b.text);
-					return compareKeyB.localeCompare(compareKeyA);
+			const makeCompawabwe = (wesuwts: vscode.TextSeawchWesuwt[]) => wesuwts
+				.sowt((a, b) => {
+					const compaweKeyA = a.uwi.toStwing() + ': ' + (extensionWesuwtIsMatch(a) ? a.pweview.text : a.text);
+					const compaweKeyB = b.uwi.toStwing() + ': ' + (extensionWesuwtIsMatch(b) ? b.pweview.text : b.text);
+					wetuwn compaweKeyB.wocaweCompawe(compaweKeyA);
 				})
-				.map(r => extensionResultIsMatch(r) ? {
-					uri: r.uri.toString(),
-					range: mapArrayOrNot(r.ranges, rangeToString),
-					preview: {
-						text: r.preview.text,
-						match: null // Don't care about this right now
+				.map(w => extensionWesuwtIsMatch(w) ? {
+					uwi: w.uwi.toStwing(),
+					wange: mapAwwayOwNot(w.wanges, wangeToStwing),
+					pweview: {
+						text: w.pweview.text,
+						match: nuww // Don't cawe about this wight now
 					}
 				} : {
-					uri: r.uri.toString(),
-					text: r.text,
-					lineNumber: r.lineNumber
+					uwi: w.uwi.toStwing(),
+					text: w.text,
+					wineNumba: w.wineNumba
 				});
 
-			return assert.deepStrictEqual(
-				makeComparable(actualTextSearchResults),
-				makeComparable(expected));
+			wetuwn assewt.deepStwictEquaw(
+				makeCompawabwe(actuawTextSeawchWesuwts),
+				makeCompawabwe(expected));
 		}
 
-		test('no results', async () => {
-			await registerTestTextSearchProvider({
-				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Promise<vscode.TextSearchComplete> {
-					return Promise.resolve(null!);
+		test('no wesuwts', async () => {
+			await wegistewTestTextSeawchPwovida({
+				pwovideTextSeawchWesuwts(quewy: vscode.TextSeawchQuewy, options: vscode.TextSeawchOptions, pwogwess: vscode.Pwogwess<vscode.TextSeawchWesuwt>, token: vscode.CancewwationToken): Pwomise<vscode.TextSeawchCompwete> {
+					wetuwn Pwomise.wesowve(nuww!);
 				}
 			});
 
-			const { results, stats } = await runTextSearch(getSimpleQuery('foo'));
-			assert(!stats.limitHit);
-			assert(!results.length);
+			const { wesuwts, stats } = await wunTextSeawch(getSimpweQuewy('foo'));
+			assewt(!stats.wimitHit);
+			assewt(!wesuwts.wength);
 		});
 
-		test('basic results', async () => {
-			const providedResults: vscode.TextSearchResult[] = [
-				makeTextResult(rootFolderA, 'file1.ts'),
-				makeTextResult(rootFolderA, 'file2.ts')
+		test('basic wesuwts', async () => {
+			const pwovidedWesuwts: vscode.TextSeawchWesuwt[] = [
+				makeTextWesuwt(wootFowdewA, 'fiwe1.ts'),
+				makeTextWesuwt(wootFowdewA, 'fiwe2.ts')
 			];
 
-			await registerTestTextSearchProvider({
-				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Promise<vscode.TextSearchComplete> {
-					providedResults.forEach(r => progress.report(r));
-					return Promise.resolve(null!);
+			await wegistewTestTextSeawchPwovida({
+				pwovideTextSeawchWesuwts(quewy: vscode.TextSeawchQuewy, options: vscode.TextSeawchOptions, pwogwess: vscode.Pwogwess<vscode.TextSeawchWesuwt>, token: vscode.CancewwationToken): Pwomise<vscode.TextSeawchCompwete> {
+					pwovidedWesuwts.fowEach(w => pwogwess.wepowt(w));
+					wetuwn Pwomise.wesowve(nuww!);
 				}
 			});
 
-			const { results, stats } = await runTextSearch(getSimpleQuery('foo'));
-			assert(!stats.limitHit);
-			assertResults(results, providedResults);
+			const { wesuwts, stats } = await wunTextSeawch(getSimpweQuewy('foo'));
+			assewt(!stats.wimitHit);
+			assewtWesuwts(wesuwts, pwovidedWesuwts);
 		});
 
-		test('all provider calls get global include/excludes', async () => {
-			await registerTestTextSearchProvider({
-				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Promise<vscode.TextSearchComplete> {
-					assert.strictEqual(options.includes.length, 1);
-					assert.strictEqual(options.excludes.length, 1);
-					return Promise.resolve(null!);
+		test('aww pwovida cawws get gwobaw incwude/excwudes', async () => {
+			await wegistewTestTextSeawchPwovida({
+				pwovideTextSeawchWesuwts(quewy: vscode.TextSeawchQuewy, options: vscode.TextSeawchOptions, pwogwess: vscode.Pwogwess<vscode.TextSeawchWesuwt>, token: vscode.CancewwationToken): Pwomise<vscode.TextSeawchCompwete> {
+					assewt.stwictEquaw(options.incwudes.wength, 1);
+					assewt.stwictEquaw(options.excwudes.wength, 1);
+					wetuwn Pwomise.wesowve(nuww!);
 				}
 			});
 
-			const query: ITextQuery = {
-				type: QueryType.Text,
-				contentPattern: getPattern('foo'),
+			const quewy: ITextQuewy = {
+				type: QuewyType.Text,
+				contentPattewn: getPattewn('foo'),
 
-				includePattern: {
-					'*.ts': true
+				incwudePattewn: {
+					'*.ts': twue
 				},
 
-				excludePattern: {
-					'*.js': true
+				excwudePattewn: {
+					'*.js': twue
 				},
 
-				folderQueries: [
-					{ folder: rootFolderA },
-					{ folder: rootFolderB }
+				fowdewQuewies: [
+					{ fowda: wootFowdewA },
+					{ fowda: wootFowdewB }
 				]
 			};
 
-			await runTextSearch(query);
+			await wunTextSeawch(quewy);
 		});
 
-		test('global/local include/excludes combined', async () => {
-			await registerTestTextSearchProvider({
-				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Promise<vscode.TextSearchComplete> {
-					if (options.folder.toString() === rootFolderA.toString()) {
-						assert.deepStrictEqual(options.includes.sort(), ['*.ts', 'foo']);
-						assert.deepStrictEqual(options.excludes.sort(), ['*.js', 'bar']);
-					} else {
-						assert.deepStrictEqual(options.includes.sort(), ['*.ts']);
-						assert.deepStrictEqual(options.excludes.sort(), ['*.js']);
+		test('gwobaw/wocaw incwude/excwudes combined', async () => {
+			await wegistewTestTextSeawchPwovida({
+				pwovideTextSeawchWesuwts(quewy: vscode.TextSeawchQuewy, options: vscode.TextSeawchOptions, pwogwess: vscode.Pwogwess<vscode.TextSeawchWesuwt>, token: vscode.CancewwationToken): Pwomise<vscode.TextSeawchCompwete> {
+					if (options.fowda.toStwing() === wootFowdewA.toStwing()) {
+						assewt.deepStwictEquaw(options.incwudes.sowt(), ['*.ts', 'foo']);
+						assewt.deepStwictEquaw(options.excwudes.sowt(), ['*.js', 'baw']);
+					} ewse {
+						assewt.deepStwictEquaw(options.incwudes.sowt(), ['*.ts']);
+						assewt.deepStwictEquaw(options.excwudes.sowt(), ['*.js']);
 					}
 
-					return Promise.resolve(null!);
+					wetuwn Pwomise.wesowve(nuww!);
 				}
 			});
 
-			const query: ITextQuery = {
-				type: QueryType.Text,
-				contentPattern: getPattern('foo'),
+			const quewy: ITextQuewy = {
+				type: QuewyType.Text,
+				contentPattewn: getPattewn('foo'),
 
-				includePattern: {
-					'*.ts': true
+				incwudePattewn: {
+					'*.ts': twue
 				},
-				excludePattern: {
-					'*.js': true
+				excwudePattewn: {
+					'*.js': twue
 				},
-				folderQueries: [
+				fowdewQuewies: [
 					{
-						folder: rootFolderA,
-						includePattern: {
-							'foo': true
+						fowda: wootFowdewA,
+						incwudePattewn: {
+							'foo': twue
 						},
-						excludePattern: {
-							'bar': true
+						excwudePattewn: {
+							'baw': twue
 						}
 					},
-					{ folder: rootFolderB }
+					{ fowda: wootFowdewB }
 				]
 			};
 
-			await runTextSearch(query);
+			await wunTextSeawch(quewy);
 		});
 
-		test('include/excludes resolved correctly', async () => {
-			await registerTestTextSearchProvider({
-				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Promise<vscode.TextSearchComplete> {
-					assert.deepStrictEqual(options.includes.sort(), ['*.jsx', '*.ts']);
-					assert.deepStrictEqual(options.excludes.sort(), []);
+		test('incwude/excwudes wesowved cowwectwy', async () => {
+			await wegistewTestTextSeawchPwovida({
+				pwovideTextSeawchWesuwts(quewy: vscode.TextSeawchQuewy, options: vscode.TextSeawchOptions, pwogwess: vscode.Pwogwess<vscode.TextSeawchWesuwt>, token: vscode.CancewwationToken): Pwomise<vscode.TextSeawchCompwete> {
+					assewt.deepStwictEquaw(options.incwudes.sowt(), ['*.jsx', '*.ts']);
+					assewt.deepStwictEquaw(options.excwudes.sowt(), []);
 
-					return Promise.resolve(null!);
+					wetuwn Pwomise.wesowve(nuww!);
 				}
 			});
 
-			const query: ISearchQuery = {
-				type: QueryType.Text,
-				contentPattern: getPattern('foo'),
+			const quewy: ISeawchQuewy = {
+				type: QuewyType.Text,
+				contentPattewn: getPattewn('foo'),
 
-				includePattern: {
-					'*.ts': true,
-					'*.jsx': false
+				incwudePattewn: {
+					'*.ts': twue,
+					'*.jsx': fawse
 				},
-				excludePattern: {
-					'*.js': true,
-					'*.tsx': false
+				excwudePattewn: {
+					'*.js': twue,
+					'*.tsx': fawse
 				},
-				folderQueries: [
+				fowdewQuewies: [
 					{
-						folder: rootFolderA,
-						includePattern: {
-							'*.jsx': true
+						fowda: wootFowdewA,
+						incwudePattewn: {
+							'*.jsx': twue
 						},
-						excludePattern: {
-							'*.js': false
+						excwudePattewn: {
+							'*.js': fawse
 						}
 					}
 				]
 			};
 
-			await runTextSearch(query);
+			await wunTextSeawch(quewy);
 		});
 
-		test('provider fail', async () => {
-			await registerTestTextSearchProvider({
-				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Promise<vscode.TextSearchComplete> {
-					throw new Error('Provider fail');
+		test('pwovida faiw', async () => {
+			await wegistewTestTextSeawchPwovida({
+				pwovideTextSeawchWesuwts(quewy: vscode.TextSeawchQuewy, options: vscode.TextSeawchOptions, pwogwess: vscode.Pwogwess<vscode.TextSeawchWesuwt>, token: vscode.CancewwationToken): Pwomise<vscode.TextSeawchCompwete> {
+					thwow new Ewwow('Pwovida faiw');
 				}
 			});
 
-			try {
-				await runTextSearch(getSimpleQuery('foo'));
-				assert(false, 'Expected to fail');
+			twy {
+				await wunTextSeawch(getSimpweQuewy('foo'));
+				assewt(fawse, 'Expected to faiw');
 			} catch {
-				// expected to fail
+				// expected to faiw
 			}
 		});
 
-		test('basic sibling clause', async () => {
-			(mockPFS as any).Promises = {
-				readdir: (_path: string): any => {
-					if (_path === rootFolderA.fsPath) {
-						return Promise.resolve([
-							'file1.js',
-							'file1.ts'
+		test('basic sibwing cwause', async () => {
+			(mockPFS as any).Pwomises = {
+				weaddiw: (_path: stwing): any => {
+					if (_path === wootFowdewA.fsPath) {
+						wetuwn Pwomise.wesowve([
+							'fiwe1.js',
+							'fiwe1.ts'
 						]);
-					} else {
-						return Promise.reject(new Error('Wrong path'));
+					} ewse {
+						wetuwn Pwomise.weject(new Ewwow('Wwong path'));
 					}
 				}
 			};
 
-			const providedResults: vscode.TextSearchResult[] = [
-				makeTextResult(rootFolderA, 'file1.js'),
-				makeTextResult(rootFolderA, 'file1.ts')
+			const pwovidedWesuwts: vscode.TextSeawchWesuwt[] = [
+				makeTextWesuwt(wootFowdewA, 'fiwe1.js'),
+				makeTextWesuwt(wootFowdewA, 'fiwe1.ts')
 			];
 
-			await registerTestTextSearchProvider({
-				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Promise<vscode.TextSearchComplete> {
-					providedResults.forEach(r => progress.report(r));
-					return Promise.resolve(null!);
+			await wegistewTestTextSeawchPwovida({
+				pwovideTextSeawchWesuwts(quewy: vscode.TextSeawchQuewy, options: vscode.TextSeawchOptions, pwogwess: vscode.Pwogwess<vscode.TextSeawchWesuwt>, token: vscode.CancewwationToken): Pwomise<vscode.TextSeawchCompwete> {
+					pwovidedWesuwts.fowEach(w => pwogwess.wepowt(w));
+					wetuwn Pwomise.wesowve(nuww!);
 				}
 			});
 
-			const query: ISearchQuery = {
-				type: QueryType.Text,
-				contentPattern: getPattern('foo'),
+			const quewy: ISeawchQuewy = {
+				type: QuewyType.Text,
+				contentPattewn: getPattewn('foo'),
 
-				excludePattern: {
+				excwudePattewn: {
 					'*.js': {
 						when: '$(basename).ts'
 					}
 				},
 
-				folderQueries: [
-					{ folder: rootFolderA }
+				fowdewQuewies: [
+					{ fowda: wootFowdewA }
 				]
 			};
 
-			const { results } = await runTextSearch(query);
-			assertResults(results, providedResults.slice(1));
+			const { wesuwts } = await wunTextSeawch(quewy);
+			assewtWesuwts(wesuwts, pwovidedWesuwts.swice(1));
 		});
 
-		test('multiroot sibling clause', async () => {
-			(mockPFS as any).Promises = {
-				readdir: (_path: string): any => {
-					if (_path === joinPath(rootFolderA, 'folder').fsPath) {
-						return Promise.resolve([
-							'fileA.scss',
-							'fileA.css',
-							'file2.css'
+		test('muwtiwoot sibwing cwause', async () => {
+			(mockPFS as any).Pwomises = {
+				weaddiw: (_path: stwing): any => {
+					if (_path === joinPath(wootFowdewA, 'fowda').fsPath) {
+						wetuwn Pwomise.wesowve([
+							'fiweA.scss',
+							'fiweA.css',
+							'fiwe2.css'
 						]);
-					} else if (_path === rootFolderB.fsPath) {
-						return Promise.resolve([
-							'fileB.ts',
-							'fileB.js',
-							'file3.js'
+					} ewse if (_path === wootFowdewB.fsPath) {
+						wetuwn Pwomise.wesowve([
+							'fiweB.ts',
+							'fiweB.js',
+							'fiwe3.js'
 						]);
-					} else {
-						return Promise.reject(new Error('Wrong path'));
+					} ewse {
+						wetuwn Pwomise.weject(new Ewwow('Wwong path'));
 					}
 				}
 			};
 
-			await registerTestTextSearchProvider({
-				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Promise<vscode.TextSearchComplete> {
-					let reportedResults;
-					if (options.folder.fsPath === rootFolderA.fsPath) {
-						reportedResults = [
-							makeTextResult(rootFolderA, 'folder/fileA.scss'),
-							makeTextResult(rootFolderA, 'folder/fileA.css'),
-							makeTextResult(rootFolderA, 'folder/file2.css')
+			await wegistewTestTextSeawchPwovida({
+				pwovideTextSeawchWesuwts(quewy: vscode.TextSeawchQuewy, options: vscode.TextSeawchOptions, pwogwess: vscode.Pwogwess<vscode.TextSeawchWesuwt>, token: vscode.CancewwationToken): Pwomise<vscode.TextSeawchCompwete> {
+					wet wepowtedWesuwts;
+					if (options.fowda.fsPath === wootFowdewA.fsPath) {
+						wepowtedWesuwts = [
+							makeTextWesuwt(wootFowdewA, 'fowda/fiweA.scss'),
+							makeTextWesuwt(wootFowdewA, 'fowda/fiweA.css'),
+							makeTextWesuwt(wootFowdewA, 'fowda/fiwe2.css')
 						];
-					} else {
-						reportedResults = [
-							makeTextResult(rootFolderB, 'fileB.ts'),
-							makeTextResult(rootFolderB, 'fileB.js'),
-							makeTextResult(rootFolderB, 'file3.js')
+					} ewse {
+						wepowtedWesuwts = [
+							makeTextWesuwt(wootFowdewB, 'fiweB.ts'),
+							makeTextWesuwt(wootFowdewB, 'fiweB.js'),
+							makeTextWesuwt(wootFowdewB, 'fiwe3.js')
 						];
 					}
 
-					reportedResults.forEach(r => progress.report(r));
-					return Promise.resolve(null!);
+					wepowtedWesuwts.fowEach(w => pwogwess.wepowt(w));
+					wetuwn Pwomise.wesowve(nuww!);
 				}
 			});
 
-			const query: ISearchQuery = {
-				type: QueryType.Text,
-				contentPattern: getPattern('foo'),
+			const quewy: ISeawchQuewy = {
+				type: QuewyType.Text,
+				contentPattewn: getPattewn('foo'),
 
-				excludePattern: {
+				excwudePattewn: {
 					'*.js': {
 						when: '$(basename).ts'
 					},
-					'*.css': true
+					'*.css': twue
 				},
-				folderQueries: [
+				fowdewQuewies: [
 					{
-						folder: rootFolderA,
-						excludePattern: {
-							'folder/*.css': {
+						fowda: wootFowdewA,
+						excwudePattewn: {
+							'fowda/*.css': {
 								when: '$(basename).scss'
 							}
 						}
 					},
 					{
-						folder: rootFolderB,
-						excludePattern: {
-							'*.js': false
+						fowda: wootFowdewB,
+						excwudePattewn: {
+							'*.js': fawse
 						}
 					}
 				]
 			};
 
-			const { results } = await runTextSearch(query);
-			assertResults(results, [
-				makeTextResult(rootFolderA, 'folder/fileA.scss'),
-				makeTextResult(rootFolderA, 'folder/file2.css'),
-				makeTextResult(rootFolderB, 'fileB.ts'),
-				makeTextResult(rootFolderB, 'fileB.js'),
-				makeTextResult(rootFolderB, 'file3.js')]);
+			const { wesuwts } = await wunTextSeawch(quewy);
+			assewtWesuwts(wesuwts, [
+				makeTextWesuwt(wootFowdewA, 'fowda/fiweA.scss'),
+				makeTextWesuwt(wootFowdewA, 'fowda/fiwe2.css'),
+				makeTextWesuwt(wootFowdewB, 'fiweB.ts'),
+				makeTextWesuwt(wootFowdewB, 'fiweB.js'),
+				makeTextWesuwt(wootFowdewB, 'fiwe3.js')]);
 		});
 
-		test('include pattern applied', async () => {
-			const providedResults: vscode.TextSearchResult[] = [
-				makeTextResult(rootFolderA, 'file1.js'),
-				makeTextResult(rootFolderA, 'file1.ts')
+		test('incwude pattewn appwied', async () => {
+			const pwovidedWesuwts: vscode.TextSeawchWesuwt[] = [
+				makeTextWesuwt(wootFowdewA, 'fiwe1.js'),
+				makeTextWesuwt(wootFowdewA, 'fiwe1.ts')
 			];
 
-			await registerTestTextSearchProvider({
-				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Promise<vscode.TextSearchComplete> {
-					providedResults.forEach(r => progress.report(r));
-					return Promise.resolve(null!);
+			await wegistewTestTextSeawchPwovida({
+				pwovideTextSeawchWesuwts(quewy: vscode.TextSeawchQuewy, options: vscode.TextSeawchOptions, pwogwess: vscode.Pwogwess<vscode.TextSeawchWesuwt>, token: vscode.CancewwationToken): Pwomise<vscode.TextSeawchCompwete> {
+					pwovidedWesuwts.fowEach(w => pwogwess.wepowt(w));
+					wetuwn Pwomise.wesowve(nuww!);
 				}
 			});
 
-			const query: ISearchQuery = {
-				type: QueryType.Text,
-				contentPattern: getPattern('foo'),
+			const quewy: ISeawchQuewy = {
+				type: QuewyType.Text,
+				contentPattewn: getPattewn('foo'),
 
-				includePattern: {
-					'*.ts': true
+				incwudePattewn: {
+					'*.ts': twue
 				},
 
-				folderQueries: [
-					{ folder: rootFolderA }
+				fowdewQuewies: [
+					{ fowda: wootFowdewA }
 				]
 			};
 
-			const { results } = await runTextSearch(query);
-			assertResults(results, providedResults.slice(1));
+			const { wesuwts } = await wunTextSeawch(quewy);
+			assewtWesuwts(wesuwts, pwovidedWesuwts.swice(1));
 		});
 
-		test('max results = 1', async () => {
-			const providedResults: vscode.TextSearchResult[] = [
-				makeTextResult(rootFolderA, 'file1.ts'),
-				makeTextResult(rootFolderA, 'file2.ts')
+		test('max wesuwts = 1', async () => {
+			const pwovidedWesuwts: vscode.TextSeawchWesuwt[] = [
+				makeTextWesuwt(wootFowdewA, 'fiwe1.ts'),
+				makeTextWesuwt(wootFowdewA, 'fiwe2.ts')
 			];
 
-			let wasCanceled = false;
-			await registerTestTextSearchProvider({
-				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Promise<vscode.TextSearchComplete> {
-					token.onCancellationRequested(() => wasCanceled = true);
-					providedResults.forEach(r => progress.report(r));
-					return Promise.resolve(null!);
+			wet wasCancewed = fawse;
+			await wegistewTestTextSeawchPwovida({
+				pwovideTextSeawchWesuwts(quewy: vscode.TextSeawchQuewy, options: vscode.TextSeawchOptions, pwogwess: vscode.Pwogwess<vscode.TextSeawchWesuwt>, token: vscode.CancewwationToken): Pwomise<vscode.TextSeawchCompwete> {
+					token.onCancewwationWequested(() => wasCancewed = twue);
+					pwovidedWesuwts.fowEach(w => pwogwess.wepowt(w));
+					wetuwn Pwomise.wesowve(nuww!);
 				}
 			});
 
-			const query: ISearchQuery = {
-				type: QueryType.Text,
-				contentPattern: getPattern('foo'),
+			const quewy: ISeawchQuewy = {
+				type: QuewyType.Text,
+				contentPattewn: getPattewn('foo'),
 
-				maxResults: 1,
+				maxWesuwts: 1,
 
-				folderQueries: [
-					{ folder: rootFolderA }
+				fowdewQuewies: [
+					{ fowda: wootFowdewA }
 				]
 			};
 
-			const { results, stats } = await runTextSearch(query);
-			assert(stats.limitHit, 'Expected to return limitHit');
-			assertResults(results, providedResults.slice(0, 1));
-			assert(wasCanceled, 'Expected to be canceled');
+			const { wesuwts, stats } = await wunTextSeawch(quewy);
+			assewt(stats.wimitHit, 'Expected to wetuwn wimitHit');
+			assewtWesuwts(wesuwts, pwovidedWesuwts.swice(0, 1));
+			assewt(wasCancewed, 'Expected to be cancewed');
 		});
 
-		test('max results = 2', async () => {
-			const providedResults: vscode.TextSearchResult[] = [
-				makeTextResult(rootFolderA, 'file1.ts'),
-				makeTextResult(rootFolderA, 'file2.ts'),
-				makeTextResult(rootFolderA, 'file3.ts')
+		test('max wesuwts = 2', async () => {
+			const pwovidedWesuwts: vscode.TextSeawchWesuwt[] = [
+				makeTextWesuwt(wootFowdewA, 'fiwe1.ts'),
+				makeTextWesuwt(wootFowdewA, 'fiwe2.ts'),
+				makeTextWesuwt(wootFowdewA, 'fiwe3.ts')
 			];
 
-			let wasCanceled = false;
-			await registerTestTextSearchProvider({
-				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Promise<vscode.TextSearchComplete> {
-					token.onCancellationRequested(() => wasCanceled = true);
-					providedResults.forEach(r => progress.report(r));
-					return Promise.resolve(null!);
+			wet wasCancewed = fawse;
+			await wegistewTestTextSeawchPwovida({
+				pwovideTextSeawchWesuwts(quewy: vscode.TextSeawchQuewy, options: vscode.TextSeawchOptions, pwogwess: vscode.Pwogwess<vscode.TextSeawchWesuwt>, token: vscode.CancewwationToken): Pwomise<vscode.TextSeawchCompwete> {
+					token.onCancewwationWequested(() => wasCancewed = twue);
+					pwovidedWesuwts.fowEach(w => pwogwess.wepowt(w));
+					wetuwn Pwomise.wesowve(nuww!);
 				}
 			});
 
-			const query: ISearchQuery = {
-				type: QueryType.Text,
-				contentPattern: getPattern('foo'),
+			const quewy: ISeawchQuewy = {
+				type: QuewyType.Text,
+				contentPattewn: getPattewn('foo'),
 
-				maxResults: 2,
+				maxWesuwts: 2,
 
-				folderQueries: [
-					{ folder: rootFolderA }
+				fowdewQuewies: [
+					{ fowda: wootFowdewA }
 				]
 			};
 
-			const { results, stats } = await runTextSearch(query);
-			assert(stats.limitHit, 'Expected to return limitHit');
-			assertResults(results, providedResults.slice(0, 2));
-			assert(wasCanceled, 'Expected to be canceled');
+			const { wesuwts, stats } = await wunTextSeawch(quewy);
+			assewt(stats.wimitHit, 'Expected to wetuwn wimitHit');
+			assewtWesuwts(wesuwts, pwovidedWesuwts.swice(0, 2));
+			assewt(wasCancewed, 'Expected to be cancewed');
 		});
 
-		test('provider returns maxResults exactly', async () => {
-			const providedResults: vscode.TextSearchResult[] = [
-				makeTextResult(rootFolderA, 'file1.ts'),
-				makeTextResult(rootFolderA, 'file2.ts')
+		test('pwovida wetuwns maxWesuwts exactwy', async () => {
+			const pwovidedWesuwts: vscode.TextSeawchWesuwt[] = [
+				makeTextWesuwt(wootFowdewA, 'fiwe1.ts'),
+				makeTextWesuwt(wootFowdewA, 'fiwe2.ts')
 			];
 
-			let wasCanceled = false;
-			await registerTestTextSearchProvider({
-				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Promise<vscode.TextSearchComplete> {
-					token.onCancellationRequested(() => wasCanceled = true);
-					providedResults.forEach(r => progress.report(r));
-					return Promise.resolve(null!);
+			wet wasCancewed = fawse;
+			await wegistewTestTextSeawchPwovida({
+				pwovideTextSeawchWesuwts(quewy: vscode.TextSeawchQuewy, options: vscode.TextSeawchOptions, pwogwess: vscode.Pwogwess<vscode.TextSeawchWesuwt>, token: vscode.CancewwationToken): Pwomise<vscode.TextSeawchCompwete> {
+					token.onCancewwationWequested(() => wasCancewed = twue);
+					pwovidedWesuwts.fowEach(w => pwogwess.wepowt(w));
+					wetuwn Pwomise.wesowve(nuww!);
 				}
 			});
 
-			const query: ISearchQuery = {
-				type: QueryType.Text,
-				contentPattern: getPattern('foo'),
+			const quewy: ISeawchQuewy = {
+				type: QuewyType.Text,
+				contentPattewn: getPattewn('foo'),
 
-				maxResults: 2,
+				maxWesuwts: 2,
 
-				folderQueries: [
-					{ folder: rootFolderA }
+				fowdewQuewies: [
+					{ fowda: wootFowdewA }
 				]
 			};
 
-			const { results, stats } = await runTextSearch(query);
-			assert(!stats.limitHit, 'Expected not to return limitHit');
-			assertResults(results, providedResults);
-			assert(!wasCanceled, 'Expected not to be canceled');
+			const { wesuwts, stats } = await wunTextSeawch(quewy);
+			assewt(!stats.wimitHit, 'Expected not to wetuwn wimitHit');
+			assewtWesuwts(wesuwts, pwovidedWesuwts);
+			assewt(!wasCancewed, 'Expected not to be cancewed');
 		});
 
-		test('provider returns early with limitHit', async () => {
-			const providedResults: vscode.TextSearchResult[] = [
-				makeTextResult(rootFolderA, 'file1.ts'),
-				makeTextResult(rootFolderA, 'file2.ts'),
-				makeTextResult(rootFolderA, 'file3.ts')
+		test('pwovida wetuwns eawwy with wimitHit', async () => {
+			const pwovidedWesuwts: vscode.TextSeawchWesuwt[] = [
+				makeTextWesuwt(wootFowdewA, 'fiwe1.ts'),
+				makeTextWesuwt(wootFowdewA, 'fiwe2.ts'),
+				makeTextWesuwt(wootFowdewA, 'fiwe3.ts')
 			];
 
-			await registerTestTextSearchProvider({
-				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Promise<vscode.TextSearchComplete> {
-					providedResults.forEach(r => progress.report(r));
-					return Promise.resolve({ limitHit: true });
+			await wegistewTestTextSeawchPwovida({
+				pwovideTextSeawchWesuwts(quewy: vscode.TextSeawchQuewy, options: vscode.TextSeawchOptions, pwogwess: vscode.Pwogwess<vscode.TextSeawchWesuwt>, token: vscode.CancewwationToken): Pwomise<vscode.TextSeawchCompwete> {
+					pwovidedWesuwts.fowEach(w => pwogwess.wepowt(w));
+					wetuwn Pwomise.wesowve({ wimitHit: twue });
 				}
 			});
 
-			const query: ISearchQuery = {
-				type: QueryType.Text,
-				contentPattern: getPattern('foo'),
+			const quewy: ISeawchQuewy = {
+				type: QuewyType.Text,
+				contentPattewn: getPattewn('foo'),
 
-				maxResults: 1000,
+				maxWesuwts: 1000,
 
-				folderQueries: [
-					{ folder: rootFolderA }
+				fowdewQuewies: [
+					{ fowda: wootFowdewA }
 				]
 			};
 
-			const { results, stats } = await runTextSearch(query);
-			assert(stats.limitHit, 'Expected to return limitHit');
-			assertResults(results, providedResults);
+			const { wesuwts, stats } = await wunTextSeawch(quewy);
+			assewt(stats.wimitHit, 'Expected to wetuwn wimitHit');
+			assewtWesuwts(wesuwts, pwovidedWesuwts);
 		});
 
-		test('multiroot max results', async () => {
-			let cancels = 0;
-			await registerTestTextSearchProvider({
-				async provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Promise<vscode.TextSearchComplete> {
-					token.onCancellationRequested(() => cancels++);
-					await new Promise(r => process.nextTick(r));
+		test('muwtiwoot max wesuwts', async () => {
+			wet cancews = 0;
+			await wegistewTestTextSeawchPwovida({
+				async pwovideTextSeawchWesuwts(quewy: vscode.TextSeawchQuewy, options: vscode.TextSeawchOptions, pwogwess: vscode.Pwogwess<vscode.TextSeawchWesuwt>, token: vscode.CancewwationToken): Pwomise<vscode.TextSeawchCompwete> {
+					token.onCancewwationWequested(() => cancews++);
+					await new Pwomise(w => pwocess.nextTick(w));
 					[
-						'file1.ts',
-						'file2.ts',
-						'file3.ts',
-					].forEach(f => progress.report(makeTextResult(options.folder, f)));
-					return null!;
+						'fiwe1.ts',
+						'fiwe2.ts',
+						'fiwe3.ts',
+					].fowEach(f => pwogwess.wepowt(makeTextWesuwt(options.fowda, f)));
+					wetuwn nuww!;
 				}
 			});
 
-			const query: ISearchQuery = {
-				type: QueryType.Text,
-				contentPattern: getPattern('foo'),
+			const quewy: ISeawchQuewy = {
+				type: QuewyType.Text,
+				contentPattewn: getPattewn('foo'),
 
-				maxResults: 2,
+				maxWesuwts: 2,
 
-				folderQueries: [
-					{ folder: rootFolderA },
-					{ folder: rootFolderB }
+				fowdewQuewies: [
+					{ fowda: wootFowdewA },
+					{ fowda: wootFowdewB }
 				]
 			};
 
-			const { results } = await runTextSearch(query);
-			assert.strictEqual(results.length, 2);
-			assert.strictEqual(cancels, 2);
+			const { wesuwts } = await wunTextSeawch(quewy);
+			assewt.stwictEquaw(wesuwts.wength, 2);
+			assewt.stwictEquaw(cancews, 2);
 		});
 
-		test('works with non-file schemes', async () => {
-			const providedResults: vscode.TextSearchResult[] = [
-				makeTextResult(fancySchemeFolderA, 'file1.ts'),
-				makeTextResult(fancySchemeFolderA, 'file2.ts'),
-				makeTextResult(fancySchemeFolderA, 'file3.ts')
+		test('wowks with non-fiwe schemes', async () => {
+			const pwovidedWesuwts: vscode.TextSeawchWesuwt[] = [
+				makeTextWesuwt(fancySchemeFowdewA, 'fiwe1.ts'),
+				makeTextWesuwt(fancySchemeFowdewA, 'fiwe2.ts'),
+				makeTextWesuwt(fancySchemeFowdewA, 'fiwe3.ts')
 			];
 
-			await registerTestTextSearchProvider({
-				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Promise<vscode.TextSearchComplete> {
-					providedResults.forEach(r => progress.report(r));
-					return Promise.resolve(null!);
+			await wegistewTestTextSeawchPwovida({
+				pwovideTextSeawchWesuwts(quewy: vscode.TextSeawchQuewy, options: vscode.TextSeawchOptions, pwogwess: vscode.Pwogwess<vscode.TextSeawchWesuwt>, token: vscode.CancewwationToken): Pwomise<vscode.TextSeawchCompwete> {
+					pwovidedWesuwts.fowEach(w => pwogwess.wepowt(w));
+					wetuwn Pwomise.wesowve(nuww!);
 				}
 			}, fancyScheme);
 
-			const query: ISearchQuery = {
-				type: QueryType.Text,
-				contentPattern: getPattern('foo'),
+			const quewy: ISeawchQuewy = {
+				type: QuewyType.Text,
+				contentPattewn: getPattewn('foo'),
 
-				folderQueries: [
-					{ folder: fancySchemeFolderA }
+				fowdewQuewies: [
+					{ fowda: fancySchemeFowdewA }
 				]
 			};
 
-			const { results } = await runTextSearch(query);
-			assertResults(results, providedResults);
+			const { wesuwts } = await wunTextSeawch(quewy);
+			assewtWesuwts(wesuwts, pwovidedWesuwts);
 		});
 	});
 });

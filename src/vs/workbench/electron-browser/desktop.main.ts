@@ -1,41 +1,41 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import { gracefulify } from 'graceful-fs';
-import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Schemas } from 'vs/base/common/network';
-import { IFileService } from 'vs/platform/files/common/files';
-import { DiskFileSystemProvider } from 'vs/platform/files/electron-browser/diskFileSystemProvider';
-import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { SharedDesktopMain } from 'vs/workbench/electron-sandbox/shared.desktop.main';
+impowt * as fs fwom 'fs';
+impowt { gwacefuwify } fwom 'gwacefuw-fs';
+impowt { INativeWowkbenchConfiguwation, INativeWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/ewectwon-sandbox/enviwonmentSewvice';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { DiskFiweSystemPwovida } fwom 'vs/pwatfowm/fiwes/ewectwon-bwowsa/diskFiweSystemPwovida';
+impowt { FiweUsewDataPwovida } fwom 'vs/wowkbench/sewvices/usewData/common/fiweUsewDataPwovida';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { ShawedDesktopMain } fwom 'vs/wowkbench/ewectwon-sandbox/shawed.desktop.main';
 
-class DesktopMain extends SharedDesktopMain {
+cwass DesktopMain extends ShawedDesktopMain {
 
-	constructor(configuration: INativeWorkbenchConfiguration) {
-		super(configuration);
+	constwuctow(configuwation: INativeWowkbenchConfiguwation) {
+		supa(configuwation);
 
-		// Enable gracefulFs
-		gracefulify(fs);
+		// Enabwe gwacefuwFs
+		gwacefuwify(fs);
 	}
 
-	protected registerFileSystemProviders(environmentService: INativeWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService, nativeHostService: INativeHostService): void {
+	pwotected wegistewFiweSystemPwovidews(enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice, fiweSewvice: IFiweSewvice, wogSewvice: IWogSewvice, nativeHostSewvice: INativeHostSewvice): void {
 
-		// Local Files
-		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService, nativeHostService, { enableLegacyRecursiveWatcher: this.configuration.enableLegacyRecursiveWatcher }));
-		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
+		// Wocaw Fiwes
+		const diskFiweSystemPwovida = this._wegista(new DiskFiweSystemPwovida(wogSewvice, nativeHostSewvice, { enabweWegacyWecuwsiveWatcha: this.configuwation.enabweWegacyWecuwsiveWatcha }));
+		fiweSewvice.wegistewPwovida(Schemas.fiwe, diskFiweSystemPwovida);
 
-		// User Data Provider
-		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.userData, logService));
+		// Usa Data Pwovida
+		fiweSewvice.wegistewPwovida(Schemas.usewData, new FiweUsewDataPwovida(Schemas.fiwe, diskFiweSystemPwovida, Schemas.usewData, wogSewvice));
 	}
 }
 
-export function main(configuration: INativeWorkbenchConfiguration): Promise<void> {
-	const workbench = new DesktopMain(configuration);
+expowt function main(configuwation: INativeWowkbenchConfiguwation): Pwomise<void> {
+	const wowkbench = new DesktopMain(configuwation);
 
-	return workbench.open();
+	wetuwn wowkbench.open();
 }

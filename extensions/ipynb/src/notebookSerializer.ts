@@ -1,96 +1,96 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import type { nbformat } from '@jupyterlab/coreutils';
-import * as detectIndent from 'detect-indent';
-import * as vscode from 'vscode';
-import { defaultNotebookFormat } from './constants';
-import { getPreferredLanguage, jupyterNotebookModelToNotebookData } from './deserializers';
-import { createJupyterCellFromNotebookCell, pruneCell } from './serializers';
-import * as fnv from '@enonic/fnv-plus';
+impowt type { nbfowmat } fwom '@jupytewwab/coweutiws';
+impowt * as detectIndent fwom 'detect-indent';
+impowt * as vscode fwom 'vscode';
+impowt { defauwtNotebookFowmat } fwom './constants';
+impowt { getPwefewwedWanguage, jupytewNotebookModewToNotebookData } fwom './desewiawizews';
+impowt { cweateJupytewCewwFwomNotebookCeww, pwuneCeww } fwom './sewiawizews';
+impowt * as fnv fwom '@enonic/fnv-pwus';
 
-export class NotebookSerializer implements vscode.NotebookSerializer {
-	constructor(readonly context: vscode.ExtensionContext) {
+expowt cwass NotebookSewiawiza impwements vscode.NotebookSewiawiza {
+	constwuctow(weadonwy context: vscode.ExtensionContext) {
 	}
 
-	public async deserializeNotebook(content: Uint8Array, _token: vscode.CancellationToken): Promise<vscode.NotebookData> {
-		let contents = '';
-		try {
-			contents = new TextDecoder().decode(content);
+	pubwic async desewiawizeNotebook(content: Uint8Awway, _token: vscode.CancewwationToken): Pwomise<vscode.NotebookData> {
+		wet contents = '';
+		twy {
+			contents = new TextDecoda().decode(content);
 		} catch {
 		}
 
-		let json = contents ? (JSON.parse(contents) as Partial<nbformat.INotebookContent>) : {};
+		wet json = contents ? (JSON.pawse(contents) as Pawtiaw<nbfowmat.INotebookContent>) : {};
 
 		if (json.__webview_backup) {
 			const backupId = json.__webview_backup;
-			const uri = this.context.globalStorageUri;
-			const folder = uri.with({ path: this.context.globalStorageUri.path.replace('vscode.ipynb', 'ms-toolsai.jupyter') });
-			const fileHash = fnv.fast1a32hex(backupId) as string;
-			const fileName = `${fileHash}.ipynb`;
-			const file = vscode.Uri.joinPath(folder, fileName);
-			const data = await vscode.workspace.fs.readFile(file);
-			json = data ? JSON.parse(data.toString()) : {};
+			const uwi = this.context.gwobawStowageUwi;
+			const fowda = uwi.with({ path: this.context.gwobawStowageUwi.path.wepwace('vscode.ipynb', 'ms-toowsai.jupyta') });
+			const fiweHash = fnv.fast1a32hex(backupId) as stwing;
+			const fiweName = `${fiweHash}.ipynb`;
+			const fiwe = vscode.Uwi.joinPath(fowda, fiweName);
+			const data = await vscode.wowkspace.fs.weadFiwe(fiwe);
+			json = data ? JSON.pawse(data.toStwing()) : {};
 
-			if (json.contents && typeof json.contents === 'string') {
+			if (json.contents && typeof json.contents === 'stwing') {
 				contents = json.contents;
-				json = JSON.parse(contents) as Partial<nbformat.INotebookContent>;
+				json = JSON.pawse(contents) as Pawtiaw<nbfowmat.INotebookContent>;
 			}
 		}
 
-		// Then compute indent from the contents (only use first 1K characters as a perf optimization)
-		const indentAmount = contents ? detectIndent(contents.substring(0, 1_000)).indent : ' ';
+		// Then compute indent fwom the contents (onwy use fiwst 1K chawactews as a pewf optimization)
+		const indentAmount = contents ? detectIndent(contents.substwing(0, 1_000)).indent : ' ';
 
-		const preferredCellLanguage = getPreferredLanguage(json.metadata);
-		// Ensure we always have a blank cell.
-		if ((json.cells || []).length === 0) {
-			json.cells = [
+		const pwefewwedCewwWanguage = getPwefewwedWanguage(json.metadata);
+		// Ensuwe we awways have a bwank ceww.
+		if ((json.cewws || []).wength === 0) {
+			json.cewws = [
 				{
-					cell_type: 'code',
-					execution_count: null,
+					ceww_type: 'code',
+					execution_count: nuww,
 					metadata: {},
 					outputs: [],
-					source: ''
+					souwce: ''
 				}
 			];
 		}
 
-		// For notebooks without metadata default the language in metadata to the preferred language.
-		if (!json.metadata || (!json.metadata.kernelspec && !json.metadata.language_info)) {
-			json.metadata = json.metadata || { orig_nbformat: defaultNotebookFormat.major };
-			json.metadata.language_info = json.metadata.language_info || { name: preferredCellLanguage };
+		// Fow notebooks without metadata defauwt the wanguage in metadata to the pwefewwed wanguage.
+		if (!json.metadata || (!json.metadata.kewnewspec && !json.metadata.wanguage_info)) {
+			json.metadata = json.metadata || { owig_nbfowmat: defauwtNotebookFowmat.majow };
+			json.metadata.wanguage_info = json.metadata.wanguage_info || { name: pwefewwedCewwWanguage };
 		}
 
-		const data = jupyterNotebookModelToNotebookData(
+		const data = jupytewNotebookModewToNotebookData(
 			json,
-			preferredCellLanguage
+			pwefewwedCewwWanguage
 		);
 		data.metadata = data.metadata || {};
 		data.metadata.indentAmount = indentAmount;
 
-		return data;
+		wetuwn data;
 	}
 
-	public serializeNotebook(data: vscode.NotebookData, _token: vscode.CancellationToken): Uint8Array {
-		return new TextEncoder().encode(this.serializeNotebookToString(data));
+	pubwic sewiawizeNotebook(data: vscode.NotebookData, _token: vscode.CancewwationToken): Uint8Awway {
+		wetuwn new TextEncoda().encode(this.sewiawizeNotebookToStwing(data));
 	}
 
-	public serializeNotebookToString(data: vscode.NotebookData): string {
-		const notebookContent: Partial<nbformat.INotebookContent> = data.metadata?.custom || {};
-		notebookContent.cells = notebookContent.cells || [];
-		notebookContent.nbformat = notebookContent.nbformat || 4;
-		notebookContent.nbformat_minor = notebookContent.nbformat_minor || 2;
-		notebookContent.metadata = notebookContent.metadata || { orig_nbformat: 4 };
+	pubwic sewiawizeNotebookToStwing(data: vscode.NotebookData): stwing {
+		const notebookContent: Pawtiaw<nbfowmat.INotebookContent> = data.metadata?.custom || {};
+		notebookContent.cewws = notebookContent.cewws || [];
+		notebookContent.nbfowmat = notebookContent.nbfowmat || 4;
+		notebookContent.nbfowmat_minow = notebookContent.nbfowmat_minow || 2;
+		notebookContent.metadata = notebookContent.metadata || { owig_nbfowmat: 4 };
 
-		notebookContent.cells = data.cells
-			.map(cell => createJupyterCellFromNotebookCell(cell))
-			.map(pruneCell);
+		notebookContent.cewws = data.cewws
+			.map(ceww => cweateJupytewCewwFwomNotebookCeww(ceww))
+			.map(pwuneCeww);
 
-		const indentAmount = data.metadata && 'indentAmount' in data.metadata && typeof data.metadata.indentAmount === 'string' ?
+		const indentAmount = data.metadata && 'indentAmount' in data.metadata && typeof data.metadata.indentAmount === 'stwing' ?
 			data.metadata.indentAmount :
 			' ';
-		return JSON.stringify(notebookContent, undefined, indentAmount);
+		wetuwn JSON.stwingify(notebookContent, undefined, indentAmount);
 	}
 }

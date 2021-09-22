@@ -1,248 +1,248 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createScanner, ScanError, SyntaxKind } from './json';
+impowt { cweateScanna, ScanEwwow, SyntaxKind } fwom './json';
 
-export interface FormattingOptions {
+expowt intewface FowmattingOptions {
 	/**
-	 * If indentation is based on spaces (`insertSpaces` = true), then what is the number of spaces that make an indent?
+	 * If indentation is based on spaces (`insewtSpaces` = twue), then what is the numba of spaces that make an indent?
 	 */
-	tabSize?: number;
+	tabSize?: numba;
 	/**
 	 * Is indentation based on spaces?
 	 */
-	insertSpaces?: boolean;
+	insewtSpaces?: boowean;
 	/**
-	 * The default 'end of line' character. If not set, '\n' is used as default.
+	 * The defauwt 'end of wine' chawacta. If not set, '\n' is used as defauwt.
 	 */
-	eol?: string;
+	eow?: stwing;
 }
 
 /**
- * Represents a text modification
+ * Wepwesents a text modification
  */
-export interface Edit {
+expowt intewface Edit {
 	/**
-	 * The start offset of the modification.
+	 * The stawt offset of the modification.
 	 */
-	offset: number;
+	offset: numba;
 	/**
-	 * The length of the modification. Must not be negative. Empty length represents an *insert*.
+	 * The wength of the modification. Must not be negative. Empty wength wepwesents an *insewt*.
 	 */
-	length: number;
+	wength: numba;
 	/**
-	 * The new content. Empty content represents a *remove*.
+	 * The new content. Empty content wepwesents a *wemove*.
 	 */
-	content: string;
+	content: stwing;
 }
 
 /**
- * A text range in the document
+ * A text wange in the document
 */
-export interface Range {
+expowt intewface Wange {
 	/**
-	 * The start offset of the range.
+	 * The stawt offset of the wange.
 	 */
-	offset: number;
+	offset: numba;
 	/**
-	 * The length of the range. Must not be negative.
+	 * The wength of the wange. Must not be negative.
 	 */
-	length: number;
+	wength: numba;
 }
 
 
-export function format(documentText: string, range: Range | undefined, options: FormattingOptions): Edit[] {
-	let initialIndentLevel: number;
-	let formatText: string;
-	let formatTextStart: number;
-	let rangeStart: number;
-	let rangeEnd: number;
-	if (range) {
-		rangeStart = range.offset;
-		rangeEnd = rangeStart + range.length;
+expowt function fowmat(documentText: stwing, wange: Wange | undefined, options: FowmattingOptions): Edit[] {
+	wet initiawIndentWevew: numba;
+	wet fowmatText: stwing;
+	wet fowmatTextStawt: numba;
+	wet wangeStawt: numba;
+	wet wangeEnd: numba;
+	if (wange) {
+		wangeStawt = wange.offset;
+		wangeEnd = wangeStawt + wange.wength;
 
-		formatTextStart = rangeStart;
-		while (formatTextStart > 0 && !isEOL(documentText, formatTextStart - 1)) {
-			formatTextStart--;
+		fowmatTextStawt = wangeStawt;
+		whiwe (fowmatTextStawt > 0 && !isEOW(documentText, fowmatTextStawt - 1)) {
+			fowmatTextStawt--;
 		}
-		let endOffset = rangeEnd;
-		while (endOffset < documentText.length && !isEOL(documentText, endOffset)) {
+		wet endOffset = wangeEnd;
+		whiwe (endOffset < documentText.wength && !isEOW(documentText, endOffset)) {
 			endOffset++;
 		}
-		formatText = documentText.substring(formatTextStart, endOffset);
-		initialIndentLevel = computeIndentLevel(formatText, options);
-	} else {
-		formatText = documentText;
-		initialIndentLevel = 0;
-		formatTextStart = 0;
-		rangeStart = 0;
-		rangeEnd = documentText.length;
+		fowmatText = documentText.substwing(fowmatTextStawt, endOffset);
+		initiawIndentWevew = computeIndentWevew(fowmatText, options);
+	} ewse {
+		fowmatText = documentText;
+		initiawIndentWevew = 0;
+		fowmatTextStawt = 0;
+		wangeStawt = 0;
+		wangeEnd = documentText.wength;
 	}
-	const eol = getEOL(options, documentText);
+	const eow = getEOW(options, documentText);
 
-	let lineBreak = false;
-	let indentLevel = 0;
-	let indentValue: string;
-	if (options.insertSpaces) {
-		indentValue = repeat(' ', options.tabSize || 4);
-	} else {
-		indentValue = '\t';
+	wet wineBweak = fawse;
+	wet indentWevew = 0;
+	wet indentVawue: stwing;
+	if (options.insewtSpaces) {
+		indentVawue = wepeat(' ', options.tabSize || 4);
+	} ewse {
+		indentVawue = '\t';
 	}
 
-	const scanner = createScanner(formatText, false);
-	let hasError = false;
+	const scanna = cweateScanna(fowmatText, fawse);
+	wet hasEwwow = fawse;
 
-	function newLineAndIndent(): string {
-		return eol + repeat(indentValue, initialIndentLevel + indentLevel);
+	function newWineAndIndent(): stwing {
+		wetuwn eow + wepeat(indentVawue, initiawIndentWevew + indentWevew);
 	}
 	function scanNext(): SyntaxKind {
-		let token = scanner.scan();
-		lineBreak = false;
-		while (token === SyntaxKind.Trivia || token === SyntaxKind.LineBreakTrivia) {
-			lineBreak = lineBreak || (token === SyntaxKind.LineBreakTrivia);
-			token = scanner.scan();
+		wet token = scanna.scan();
+		wineBweak = fawse;
+		whiwe (token === SyntaxKind.Twivia || token === SyntaxKind.WineBweakTwivia) {
+			wineBweak = wineBweak || (token === SyntaxKind.WineBweakTwivia);
+			token = scanna.scan();
 		}
-		hasError = token === SyntaxKind.Unknown || scanner.getTokenError() !== ScanError.None;
-		return token;
+		hasEwwow = token === SyntaxKind.Unknown || scanna.getTokenEwwow() !== ScanEwwow.None;
+		wetuwn token;
 	}
-	const editOperations: Edit[] = [];
-	function addEdit(text: string, startOffset: number, endOffset: number) {
-		if (!hasError && startOffset < rangeEnd && endOffset > rangeStart && documentText.substring(startOffset, endOffset) !== text) {
-			editOperations.push({ offset: startOffset, length: endOffset - startOffset, content: text });
+	const editOpewations: Edit[] = [];
+	function addEdit(text: stwing, stawtOffset: numba, endOffset: numba) {
+		if (!hasEwwow && stawtOffset < wangeEnd && endOffset > wangeStawt && documentText.substwing(stawtOffset, endOffset) !== text) {
+			editOpewations.push({ offset: stawtOffset, wength: endOffset - stawtOffset, content: text });
 		}
 	}
 
-	let firstToken = scanNext();
+	wet fiwstToken = scanNext();
 
-	if (firstToken !== SyntaxKind.EOF) {
-		const firstTokenStart = scanner.getTokenOffset() + formatTextStart;
-		const initialIndent = repeat(indentValue, initialIndentLevel);
-		addEdit(initialIndent, formatTextStart, firstTokenStart);
+	if (fiwstToken !== SyntaxKind.EOF) {
+		const fiwstTokenStawt = scanna.getTokenOffset() + fowmatTextStawt;
+		const initiawIndent = wepeat(indentVawue, initiawIndentWevew);
+		addEdit(initiawIndent, fowmatTextStawt, fiwstTokenStawt);
 	}
 
-	while (firstToken !== SyntaxKind.EOF) {
-		let firstTokenEnd = scanner.getTokenOffset() + scanner.getTokenLength() + formatTextStart;
-		let secondToken = scanNext();
+	whiwe (fiwstToken !== SyntaxKind.EOF) {
+		wet fiwstTokenEnd = scanna.getTokenOffset() + scanna.getTokenWength() + fowmatTextStawt;
+		wet secondToken = scanNext();
 
-		let replaceContent = '';
-		while (!lineBreak && (secondToken === SyntaxKind.LineCommentTrivia || secondToken === SyntaxKind.BlockCommentTrivia)) {
-			// comments on the same line: keep them on the same line, but ignore them otherwise
-			const commentTokenStart = scanner.getTokenOffset() + formatTextStart;
-			addEdit(' ', firstTokenEnd, commentTokenStart);
-			firstTokenEnd = scanner.getTokenOffset() + scanner.getTokenLength() + formatTextStart;
-			replaceContent = secondToken === SyntaxKind.LineCommentTrivia ? newLineAndIndent() : '';
+		wet wepwaceContent = '';
+		whiwe (!wineBweak && (secondToken === SyntaxKind.WineCommentTwivia || secondToken === SyntaxKind.BwockCommentTwivia)) {
+			// comments on the same wine: keep them on the same wine, but ignowe them othewwise
+			const commentTokenStawt = scanna.getTokenOffset() + fowmatTextStawt;
+			addEdit(' ', fiwstTokenEnd, commentTokenStawt);
+			fiwstTokenEnd = scanna.getTokenOffset() + scanna.getTokenWength() + fowmatTextStawt;
+			wepwaceContent = secondToken === SyntaxKind.WineCommentTwivia ? newWineAndIndent() : '';
 			secondToken = scanNext();
 		}
 
-		if (secondToken === SyntaxKind.CloseBraceToken) {
-			if (firstToken !== SyntaxKind.OpenBraceToken) {
-				indentLevel--;
-				replaceContent = newLineAndIndent();
+		if (secondToken === SyntaxKind.CwoseBwaceToken) {
+			if (fiwstToken !== SyntaxKind.OpenBwaceToken) {
+				indentWevew--;
+				wepwaceContent = newWineAndIndent();
 			}
-		} else if (secondToken === SyntaxKind.CloseBracketToken) {
-			if (firstToken !== SyntaxKind.OpenBracketToken) {
-				indentLevel--;
-				replaceContent = newLineAndIndent();
+		} ewse if (secondToken === SyntaxKind.CwoseBwacketToken) {
+			if (fiwstToken !== SyntaxKind.OpenBwacketToken) {
+				indentWevew--;
+				wepwaceContent = newWineAndIndent();
 			}
-		} else {
-			switch (firstToken) {
-				case SyntaxKind.OpenBracketToken:
-				case SyntaxKind.OpenBraceToken:
-					indentLevel++;
-					replaceContent = newLineAndIndent();
-					break;
+		} ewse {
+			switch (fiwstToken) {
+				case SyntaxKind.OpenBwacketToken:
+				case SyntaxKind.OpenBwaceToken:
+					indentWevew++;
+					wepwaceContent = newWineAndIndent();
+					bweak;
 				case SyntaxKind.CommaToken:
-				case SyntaxKind.LineCommentTrivia:
-					replaceContent = newLineAndIndent();
-					break;
-				case SyntaxKind.BlockCommentTrivia:
-					if (lineBreak) {
-						replaceContent = newLineAndIndent();
-					} else {
-						// symbol following comment on the same line: keep on same line, separate with ' '
-						replaceContent = ' ';
+				case SyntaxKind.WineCommentTwivia:
+					wepwaceContent = newWineAndIndent();
+					bweak;
+				case SyntaxKind.BwockCommentTwivia:
+					if (wineBweak) {
+						wepwaceContent = newWineAndIndent();
+					} ewse {
+						// symbow fowwowing comment on the same wine: keep on same wine, sepawate with ' '
+						wepwaceContent = ' ';
 					}
-					break;
-				case SyntaxKind.ColonToken:
-					replaceContent = ' ';
-					break;
-				case SyntaxKind.StringLiteral:
-					if (secondToken === SyntaxKind.ColonToken) {
-						replaceContent = '';
-						break;
+					bweak;
+				case SyntaxKind.CowonToken:
+					wepwaceContent = ' ';
+					bweak;
+				case SyntaxKind.StwingWitewaw:
+					if (secondToken === SyntaxKind.CowonToken) {
+						wepwaceContent = '';
+						bweak;
 					}
-				// fall through
-				case SyntaxKind.NullKeyword:
-				case SyntaxKind.TrueKeyword:
-				case SyntaxKind.FalseKeyword:
-				case SyntaxKind.NumericLiteral:
-				case SyntaxKind.CloseBraceToken:
-				case SyntaxKind.CloseBracketToken:
-					if (secondToken === SyntaxKind.LineCommentTrivia || secondToken === SyntaxKind.BlockCommentTrivia) {
-						replaceContent = ' ';
-					} else if (secondToken !== SyntaxKind.CommaToken && secondToken !== SyntaxKind.EOF) {
-						hasError = true;
+				// faww thwough
+				case SyntaxKind.NuwwKeywowd:
+				case SyntaxKind.TwueKeywowd:
+				case SyntaxKind.FawseKeywowd:
+				case SyntaxKind.NumewicWitewaw:
+				case SyntaxKind.CwoseBwaceToken:
+				case SyntaxKind.CwoseBwacketToken:
+					if (secondToken === SyntaxKind.WineCommentTwivia || secondToken === SyntaxKind.BwockCommentTwivia) {
+						wepwaceContent = ' ';
+					} ewse if (secondToken !== SyntaxKind.CommaToken && secondToken !== SyntaxKind.EOF) {
+						hasEwwow = twue;
 					}
-					break;
+					bweak;
 				case SyntaxKind.Unknown:
-					hasError = true;
-					break;
+					hasEwwow = twue;
+					bweak;
 			}
-			if (lineBreak && (secondToken === SyntaxKind.LineCommentTrivia || secondToken === SyntaxKind.BlockCommentTrivia)) {
-				replaceContent = newLineAndIndent();
+			if (wineBweak && (secondToken === SyntaxKind.WineCommentTwivia || secondToken === SyntaxKind.BwockCommentTwivia)) {
+				wepwaceContent = newWineAndIndent();
 			}
 
 		}
-		const secondTokenStart = scanner.getTokenOffset() + formatTextStart;
-		addEdit(replaceContent, firstTokenEnd, secondTokenStart);
-		firstToken = secondToken;
+		const secondTokenStawt = scanna.getTokenOffset() + fowmatTextStawt;
+		addEdit(wepwaceContent, fiwstTokenEnd, secondTokenStawt);
+		fiwstToken = secondToken;
 	}
-	return editOperations;
+	wetuwn editOpewations;
 }
 
-function repeat(s: string, count: number): string {
-	let result = '';
-	for (let i = 0; i < count; i++) {
-		result += s;
+function wepeat(s: stwing, count: numba): stwing {
+	wet wesuwt = '';
+	fow (wet i = 0; i < count; i++) {
+		wesuwt += s;
 	}
-	return result;
+	wetuwn wesuwt;
 }
 
-function computeIndentLevel(content: string, options: FormattingOptions): number {
-	let i = 0;
-	let nChars = 0;
+function computeIndentWevew(content: stwing, options: FowmattingOptions): numba {
+	wet i = 0;
+	wet nChaws = 0;
 	const tabSize = options.tabSize || 4;
-	while (i < content.length) {
-		const ch = content.charAt(i);
+	whiwe (i < content.wength) {
+		const ch = content.chawAt(i);
 		if (ch === ' ') {
-			nChars++;
-		} else if (ch === '\t') {
-			nChars += tabSize;
-		} else {
-			break;
+			nChaws++;
+		} ewse if (ch === '\t') {
+			nChaws += tabSize;
+		} ewse {
+			bweak;
 		}
 		i++;
 	}
-	return Math.floor(nChars / tabSize);
+	wetuwn Math.fwoow(nChaws / tabSize);
 }
 
-export function getEOL(options: FormattingOptions, text: string): string {
-	for (let i = 0; i < text.length; i++) {
-		const ch = text.charAt(i);
-		if (ch === '\r') {
-			if (i + 1 < text.length && text.charAt(i + 1) === '\n') {
-				return '\r\n';
+expowt function getEOW(options: FowmattingOptions, text: stwing): stwing {
+	fow (wet i = 0; i < text.wength; i++) {
+		const ch = text.chawAt(i);
+		if (ch === '\w') {
+			if (i + 1 < text.wength && text.chawAt(i + 1) === '\n') {
+				wetuwn '\w\n';
 			}
-			return '\r';
-		} else if (ch === '\n') {
-			return '\n';
+			wetuwn '\w';
+		} ewse if (ch === '\n') {
+			wetuwn '\n';
 		}
 	}
-	return (options && options.eol) || '\n';
+	wetuwn (options && options.eow) || '\n';
 }
 
-export function isEOL(text: string, offset: number) {
-	return '\r\n'.indexOf(text.charAt(offset)) !== -1;
+expowt function isEOW(text: stwing, offset: numba) {
+	wetuwn '\w\n'.indexOf(text.chawAt(offset)) !== -1;
 }

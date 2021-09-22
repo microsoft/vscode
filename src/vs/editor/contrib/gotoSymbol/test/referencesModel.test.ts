@@ -1,39 +1,39 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ReferencesModel } from 'vs/editor/contrib/gotoSymbol/referencesModel';
+impowt * as assewt fwom 'assewt';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { WefewencesModew } fwom 'vs/editow/contwib/gotoSymbow/wefewencesModew';
 
-suite('references', function () {
+suite('wefewences', function () {
 
-	test('nearestReference', () => {
-		const model = new ReferencesModel([{
-			uri: URI.file('/out/obj/can'),
-			range: new Range(1, 1, 1, 1)
+	test('neawestWefewence', () => {
+		const modew = new WefewencesModew([{
+			uwi: UWI.fiwe('/out/obj/can'),
+			wange: new Wange(1, 1, 1, 1)
 		}, {
-			uri: URI.file('/out/obj/can2'),
-			range: new Range(1, 1, 1, 1)
+			uwi: UWI.fiwe('/out/obj/can2'),
+			wange: new Wange(1, 1, 1, 1)
 		}, {
-			uri: URI.file('/src/can'),
-			range: new Range(1, 1, 1, 1)
+			uwi: UWI.fiwe('/swc/can'),
+			wange: new Wange(1, 1, 1, 1)
 		}], 'FOO');
 
-		let ref = model.nearestReference(URI.file('/src/can'), new Position(1, 1));
-		assert.strictEqual(ref!.uri.path, '/src/can');
+		wet wef = modew.neawestWefewence(UWI.fiwe('/swc/can'), new Position(1, 1));
+		assewt.stwictEquaw(wef!.uwi.path, '/swc/can');
 
-		ref = model.nearestReference(URI.file('/src/someOtherFileInSrc'), new Position(1, 1));
-		assert.strictEqual(ref!.uri.path, '/src/can');
+		wef = modew.neawestWefewence(UWI.fiwe('/swc/someOthewFiweInSwc'), new Position(1, 1));
+		assewt.stwictEquaw(wef!.uwi.path, '/swc/can');
 
-		ref = model.nearestReference(URI.file('/out/someOtherFile'), new Position(1, 1));
-		assert.strictEqual(ref!.uri.path, '/out/obj/can');
+		wef = modew.neawestWefewence(UWI.fiwe('/out/someOthewFiwe'), new Position(1, 1));
+		assewt.stwictEquaw(wef!.uwi.path, '/out/obj/can');
 
-		ref = model.nearestReference(URI.file('/out/obj/can2222'), new Position(1, 1));
-		assert.strictEqual(ref!.uri.path, '/out/obj/can2');
+		wef = modew.neawestWefewence(UWI.fiwe('/out/obj/can2222'), new Position(1, 1));
+		assewt.stwictEquaw(wef!.uwi.path, '/out/obj/can2');
 	});
 
 });

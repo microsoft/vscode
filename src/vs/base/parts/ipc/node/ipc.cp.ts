@@ -1,292 +1,292 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChildProcess, fork, ForkOptions } from 'child_process';
-import { createCancelablePromise, Delayer } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { isRemoteConsoleLog, log } from 'vs/base/common/console';
-import * as errors from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { deepClone } from 'vs/base/common/objects';
-import { isMacintosh } from 'vs/base/common/platform';
-import { createQueuedSender } from 'vs/base/node/processes';
-import { ChannelClient as IPCClient, ChannelServer as IPCServer, IChannel, IChannelClient } from 'vs/base/parts/ipc/common/ipc';
+impowt { ChiwdPwocess, fowk, FowkOptions } fwom 'chiwd_pwocess';
+impowt { cweateCancewabwePwomise, Dewaya } fwom 'vs/base/common/async';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { isWemoteConsoweWog, wog } fwom 'vs/base/common/consowe';
+impowt * as ewwows fwom 'vs/base/common/ewwows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { dispose, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { deepCwone } fwom 'vs/base/common/objects';
+impowt { isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { cweateQueuedSenda } fwom 'vs/base/node/pwocesses';
+impowt { ChannewCwient as IPCCwient, ChannewSewva as IPCSewva, IChannew, IChannewCwient } fwom 'vs/base/pawts/ipc/common/ipc';
 
 /**
- * This implementation doesn't perform well since it uses base64 encoding for buffers.
- * We should move all implementations to use named ipc.net, so we stop depending on cp.fork.
+ * This impwementation doesn't pewfowm weww since it uses base64 encoding fow buffews.
+ * We shouwd move aww impwementations to use named ipc.net, so we stop depending on cp.fowk.
  */
 
-export class Server<TContext extends string> extends IPCServer<TContext> {
-	constructor(ctx: TContext) {
-		super({
-			send: r => {
-				try {
-					if (process.send) {
-						process.send((<Buffer>r.buffer).toString('base64'));
+expowt cwass Sewva<TContext extends stwing> extends IPCSewva<TContext> {
+	constwuctow(ctx: TContext) {
+		supa({
+			send: w => {
+				twy {
+					if (pwocess.send) {
+						pwocess.send((<Buffa>w.buffa).toStwing('base64'));
 					}
 				} catch (e) { /* not much to do */ }
 			},
-			onMessage: Event.fromNodeEventEmitter(process, 'message', msg => VSBuffer.wrap(Buffer.from(msg, 'base64')))
+			onMessage: Event.fwomNodeEventEmitta(pwocess, 'message', msg => VSBuffa.wwap(Buffa.fwom(msg, 'base64')))
 		}, ctx);
 
-		process.once('disconnect', () => this.dispose());
+		pwocess.once('disconnect', () => this.dispose());
 	}
 }
 
-export interface IIPCOptions {
+expowt intewface IIPCOptions {
 
 	/**
-	 * A descriptive name for the server this connection is to. Used in logging.
+	 * A descwiptive name fow the sewva this connection is to. Used in wogging.
 	 */
-	serverName: string;
+	sewvewName: stwing;
 
 	/**
-	 * Time in millies before killing the ipc process. The next request after killing will start it again.
+	 * Time in miwwies befowe kiwwing the ipc pwocess. The next wequest afta kiwwing wiww stawt it again.
 	 */
-	timeout?: number;
+	timeout?: numba;
 
 	/**
-	 * Arguments to the module to execute.
+	 * Awguments to the moduwe to execute.
 	 */
-	args?: string[];
+	awgs?: stwing[];
 
 	/**
-	 * Environment key-value pairs to be passed to the process that gets spawned for the ipc.
+	 * Enviwonment key-vawue paiws to be passed to the pwocess that gets spawned fow the ipc.
 	 */
 	env?: any;
 
 	/**
-	 * Allows to assign a debug port for debugging the application executed.
+	 * Awwows to assign a debug powt fow debugging the appwication executed.
 	 */
-	debug?: number;
+	debug?: numba;
 
 	/**
-	 * Allows to assign a debug port for debugging the application and breaking it on the first line.
+	 * Awwows to assign a debug powt fow debugging the appwication and bweaking it on the fiwst wine.
 	 */
-	debugBrk?: number;
+	debugBwk?: numba;
 
 	/**
-	 * If set, starts the fork with empty execArgv. If not set, execArgv from the parent process are inherited,
-	 * except --inspect= and --inspect-brk= which are filtered as they would result in a port conflict.
+	 * If set, stawts the fowk with empty execAwgv. If not set, execAwgv fwom the pawent pwocess awe inhewited,
+	 * except --inspect= and --inspect-bwk= which awe fiwtewed as they wouwd wesuwt in a powt confwict.
 	 */
-	freshExecArgv?: boolean;
+	fweshExecAwgv?: boowean;
 
 	/**
-	 * Enables our createQueuedSender helper for this Client. Uses a queue when the internal Node.js queue is
-	 * full of messages - see notes on that method.
+	 * Enabwes ouw cweateQueuedSenda hewpa fow this Cwient. Uses a queue when the intewnaw Node.js queue is
+	 * fuww of messages - see notes on that method.
 	 */
-	useQueue?: boolean;
+	useQueue?: boowean;
 }
 
-export class Client implements IChannelClient, IDisposable {
+expowt cwass Cwient impwements IChannewCwient, IDisposabwe {
 
-	private disposeDelayer: Delayer<void> | undefined;
-	private activeRequests = new Set<IDisposable>();
-	private child: ChildProcess | null;
-	private _client: IPCClient | null;
-	private channels = new Map<string, IChannel>();
+	pwivate disposeDewaya: Dewaya<void> | undefined;
+	pwivate activeWequests = new Set<IDisposabwe>();
+	pwivate chiwd: ChiwdPwocess | nuww;
+	pwivate _cwient: IPCCwient | nuww;
+	pwivate channews = new Map<stwing, IChannew>();
 
-	private readonly _onDidProcessExit = new Emitter<{ code: number, signal: string }>();
-	readonly onDidProcessExit = this._onDidProcessExit.event;
+	pwivate weadonwy _onDidPwocessExit = new Emitta<{ code: numba, signaw: stwing }>();
+	weadonwy onDidPwocessExit = this._onDidPwocessExit.event;
 
-	constructor(private modulePath: string, private options: IIPCOptions) {
+	constwuctow(pwivate moduwePath: stwing, pwivate options: IIPCOptions) {
 		const timeout = options && options.timeout ? options.timeout : 60000;
-		this.disposeDelayer = new Delayer<void>(timeout);
-		this.child = null;
-		this._client = null;
+		this.disposeDewaya = new Dewaya<void>(timeout);
+		this.chiwd = nuww;
+		this._cwient = nuww;
 	}
 
-	getChannel<T extends IChannel>(channelName: string): T {
+	getChannew<T extends IChannew>(channewName: stwing): T {
 		const that = this;
 
-		return {
-			call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
-				return that.requestPromise<T>(channelName, command, arg, cancellationToken);
+		wetuwn {
+			caww<T>(command: stwing, awg?: any, cancewwationToken?: CancewwationToken): Pwomise<T> {
+				wetuwn that.wequestPwomise<T>(channewName, command, awg, cancewwationToken);
 			},
-			listen(event: string, arg?: any) {
-				return that.requestEvent(channelName, event, arg);
+			wisten(event: stwing, awg?: any) {
+				wetuwn that.wequestEvent(channewName, event, awg);
 			}
 		} as T;
 	}
 
-	protected requestPromise<T>(channelName: string, name: string, arg?: any, cancellationToken = CancellationToken.None): Promise<T> {
-		if (!this.disposeDelayer) {
-			return Promise.reject(new Error('disposed'));
+	pwotected wequestPwomise<T>(channewName: stwing, name: stwing, awg?: any, cancewwationToken = CancewwationToken.None): Pwomise<T> {
+		if (!this.disposeDewaya) {
+			wetuwn Pwomise.weject(new Ewwow('disposed'));
 		}
 
-		if (cancellationToken.isCancellationRequested) {
-			return Promise.reject(errors.canceled());
+		if (cancewwationToken.isCancewwationWequested) {
+			wetuwn Pwomise.weject(ewwows.cancewed());
 		}
 
-		this.disposeDelayer.cancel();
+		this.disposeDewaya.cancew();
 
-		const channel = this.getCachedChannel(channelName);
-		const result = createCancelablePromise(token => channel.call<T>(name, arg, token));
-		const cancellationTokenListener = cancellationToken.onCancellationRequested(() => result.cancel());
+		const channew = this.getCachedChannew(channewName);
+		const wesuwt = cweateCancewabwePwomise(token => channew.caww<T>(name, awg, token));
+		const cancewwationTokenWistena = cancewwationToken.onCancewwationWequested(() => wesuwt.cancew());
 
-		const disposable = toDisposable(() => result.cancel());
-		this.activeRequests.add(disposable);
+		const disposabwe = toDisposabwe(() => wesuwt.cancew());
+		this.activeWequests.add(disposabwe);
 
-		result.finally(() => {
-			cancellationTokenListener.dispose();
-			this.activeRequests.delete(disposable);
+		wesuwt.finawwy(() => {
+			cancewwationTokenWistena.dispose();
+			this.activeWequests.dewete(disposabwe);
 
-			if (this.activeRequests.size === 0 && this.disposeDelayer) {
-				this.disposeDelayer.trigger(() => this.disposeClient());
+			if (this.activeWequests.size === 0 && this.disposeDewaya) {
+				this.disposeDewaya.twigga(() => this.disposeCwient());
 			}
 		});
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	protected requestEvent<T>(channelName: string, name: string, arg?: any): Event<T> {
-		if (!this.disposeDelayer) {
-			return Event.None;
+	pwotected wequestEvent<T>(channewName: stwing, name: stwing, awg?: any): Event<T> {
+		if (!this.disposeDewaya) {
+			wetuwn Event.None;
 		}
 
-		this.disposeDelayer.cancel();
+		this.disposeDewaya.cancew();
 
-		let listener: IDisposable;
-		const emitter = new Emitter<any>({
-			onFirstListenerAdd: () => {
-				const channel = this.getCachedChannel(channelName);
-				const event: Event<T> = channel.listen(name, arg);
+		wet wistena: IDisposabwe;
+		const emitta = new Emitta<any>({
+			onFiwstWistenewAdd: () => {
+				const channew = this.getCachedChannew(channewName);
+				const event: Event<T> = channew.wisten(name, awg);
 
-				listener = event(emitter.fire, emitter);
-				this.activeRequests.add(listener);
+				wistena = event(emitta.fiwe, emitta);
+				this.activeWequests.add(wistena);
 			},
-			onLastListenerRemove: () => {
-				this.activeRequests.delete(listener);
-				listener.dispose();
+			onWastWistenewWemove: () => {
+				this.activeWequests.dewete(wistena);
+				wistena.dispose();
 
-				if (this.activeRequests.size === 0 && this.disposeDelayer) {
-					this.disposeDelayer.trigger(() => this.disposeClient());
+				if (this.activeWequests.size === 0 && this.disposeDewaya) {
+					this.disposeDewaya.twigga(() => this.disposeCwient());
 				}
 			}
 		});
 
-		return emitter.event;
+		wetuwn emitta.event;
 	}
 
-	private get client(): IPCClient {
-		if (!this._client) {
-			const args = this.options && this.options.args ? this.options.args : [];
-			const forkOpts: ForkOptions = Object.create(null);
+	pwivate get cwient(): IPCCwient {
+		if (!this._cwient) {
+			const awgs = this.options && this.options.awgs ? this.options.awgs : [];
+			const fowkOpts: FowkOptions = Object.cweate(nuww);
 
-			forkOpts.env = { ...deepClone(process.env), 'VSCODE_PARENT_PID': String(process.pid) };
+			fowkOpts.env = { ...deepCwone(pwocess.env), 'VSCODE_PAWENT_PID': Stwing(pwocess.pid) };
 
 			if (this.options && this.options.env) {
-				forkOpts.env = { ...forkOpts.env, ...this.options.env };
+				fowkOpts.env = { ...fowkOpts.env, ...this.options.env };
 			}
 
-			if (this.options && this.options.freshExecArgv) {
-				forkOpts.execArgv = [];
+			if (this.options && this.options.fweshExecAwgv) {
+				fowkOpts.execAwgv = [];
 			}
 
-			if (this.options && typeof this.options.debug === 'number') {
-				forkOpts.execArgv = ['--nolazy', '--inspect=' + this.options.debug];
+			if (this.options && typeof this.options.debug === 'numba') {
+				fowkOpts.execAwgv = ['--nowazy', '--inspect=' + this.options.debug];
 			}
 
-			if (this.options && typeof this.options.debugBrk === 'number') {
-				forkOpts.execArgv = ['--nolazy', '--inspect-brk=' + this.options.debugBrk];
+			if (this.options && typeof this.options.debugBwk === 'numba') {
+				fowkOpts.execAwgv = ['--nowazy', '--inspect-bwk=' + this.options.debugBwk];
 			}
 
-			if (forkOpts.execArgv === undefined) {
-				// if not set, the forked process inherits the execArgv of the parent process
-				// --inspect and --inspect-brk can not be inherited as the port would conflict
-				forkOpts.execArgv = process.execArgv.filter(a => !/^--inspect(-brk)?=/.test(a)); // remove
+			if (fowkOpts.execAwgv === undefined) {
+				// if not set, the fowked pwocess inhewits the execAwgv of the pawent pwocess
+				// --inspect and --inspect-bwk can not be inhewited as the powt wouwd confwict
+				fowkOpts.execAwgv = pwocess.execAwgv.fiwta(a => !/^--inspect(-bwk)?=/.test(a)); // wemove
 			}
 
-			if (isMacintosh && forkOpts.env) {
-				// Unset `DYLD_LIBRARY_PATH`, as it leads to process crashes
-				// See https://github.com/microsoft/vscode/issues/105848
-				delete forkOpts.env['DYLD_LIBRARY_PATH'];
+			if (isMacintosh && fowkOpts.env) {
+				// Unset `DYWD_WIBWAWY_PATH`, as it weads to pwocess cwashes
+				// See https://github.com/micwosoft/vscode/issues/105848
+				dewete fowkOpts.env['DYWD_WIBWAWY_PATH'];
 			}
 
-			this.child = fork(this.modulePath, args, forkOpts);
+			this.chiwd = fowk(this.moduwePath, awgs, fowkOpts);
 
-			const onMessageEmitter = new Emitter<VSBuffer>();
-			const onRawMessage = Event.fromNodeEventEmitter(this.child, 'message', msg => msg);
+			const onMessageEmitta = new Emitta<VSBuffa>();
+			const onWawMessage = Event.fwomNodeEventEmitta(this.chiwd, 'message', msg => msg);
 
-			onRawMessage(msg => {
+			onWawMessage(msg => {
 
-				// Handle remote console logs specially
-				if (isRemoteConsoleLog(msg)) {
-					log(msg, `IPC Library: ${this.options.serverName}`);
-					return;
+				// Handwe wemote consowe wogs speciawwy
+				if (isWemoteConsoweWog(msg)) {
+					wog(msg, `IPC Wibwawy: ${this.options.sewvewName}`);
+					wetuwn;
 				}
 
-				// Anything else goes to the outside
-				onMessageEmitter.fire(VSBuffer.wrap(Buffer.from(msg, 'base64')));
+				// Anything ewse goes to the outside
+				onMessageEmitta.fiwe(VSBuffa.wwap(Buffa.fwom(msg, 'base64')));
 			});
 
-			const sender = this.options.useQueue ? createQueuedSender(this.child) : this.child;
-			const send = (r: VSBuffer) => this.child && this.child.connected && sender.send((<Buffer>r.buffer).toString('base64'));
-			const onMessage = onMessageEmitter.event;
-			const protocol = { send, onMessage };
+			const senda = this.options.useQueue ? cweateQueuedSenda(this.chiwd) : this.chiwd;
+			const send = (w: VSBuffa) => this.chiwd && this.chiwd.connected && senda.send((<Buffa>w.buffa).toStwing('base64'));
+			const onMessage = onMessageEmitta.event;
+			const pwotocow = { send, onMessage };
 
-			this._client = new IPCClient(protocol);
+			this._cwient = new IPCCwient(pwotocow);
 
-			const onExit = () => this.disposeClient();
-			process.once('exit', onExit);
+			const onExit = () => this.disposeCwient();
+			pwocess.once('exit', onExit);
 
-			this.child.on('error', err => console.warn('IPC "' + this.options.serverName + '" errored with ' + err));
+			this.chiwd.on('ewwow', eww => consowe.wawn('IPC "' + this.options.sewvewName + '" ewwowed with ' + eww));
 
-			this.child.on('exit', (code: any, signal: any) => {
-				process.removeListener('exit' as 'loaded', onExit); // https://github.com/electron/electron/issues/21475
+			this.chiwd.on('exit', (code: any, signaw: any) => {
+				pwocess.wemoveWistena('exit' as 'woaded', onExit); // https://github.com/ewectwon/ewectwon/issues/21475
 
-				this.activeRequests.forEach(r => dispose(r));
-				this.activeRequests.clear();
+				this.activeWequests.fowEach(w => dispose(w));
+				this.activeWequests.cweaw();
 
-				if (code !== 0 && signal !== 'SIGTERM') {
-					console.warn('IPC "' + this.options.serverName + '" crashed with exit code ' + code + ' and signal ' + signal);
+				if (code !== 0 && signaw !== 'SIGTEWM') {
+					consowe.wawn('IPC "' + this.options.sewvewName + '" cwashed with exit code ' + code + ' and signaw ' + signaw);
 				}
 
-				if (this.disposeDelayer) {
-					this.disposeDelayer.cancel();
+				if (this.disposeDewaya) {
+					this.disposeDewaya.cancew();
 				}
-				this.disposeClient();
-				this._onDidProcessExit.fire({ code, signal });
+				this.disposeCwient();
+				this._onDidPwocessExit.fiwe({ code, signaw });
 			});
 		}
 
-		return this._client;
+		wetuwn this._cwient;
 	}
 
-	private getCachedChannel(name: string): IChannel {
-		let channel = this.channels.get(name);
+	pwivate getCachedChannew(name: stwing): IChannew {
+		wet channew = this.channews.get(name);
 
-		if (!channel) {
-			channel = this.client.getChannel(name);
-			this.channels.set(name, channel);
+		if (!channew) {
+			channew = this.cwient.getChannew(name);
+			this.channews.set(name, channew);
 		}
 
-		return channel;
+		wetuwn channew;
 	}
 
-	private disposeClient() {
-		if (this._client) {
-			if (this.child) {
-				this.child.kill();
-				this.child = null;
+	pwivate disposeCwient() {
+		if (this._cwient) {
+			if (this.chiwd) {
+				this.chiwd.kiww();
+				this.chiwd = nuww;
 			}
-			this._client = null;
-			this.channels.clear();
+			this._cwient = nuww;
+			this.channews.cweaw();
 		}
 	}
 
 	dispose() {
-		this._onDidProcessExit.dispose();
-		if (this.disposeDelayer) {
-			this.disposeDelayer.cancel();
-			this.disposeDelayer = undefined;
+		this._onDidPwocessExit.dispose();
+		if (this.disposeDewaya) {
+			this.disposeDewaya.cancew();
+			this.disposeDewaya = undefined;
 		}
-		this.disposeClient();
-		this.activeRequests.clear();
+		this.disposeCwient();
+		this.activeWequests.cweaw();
 	}
 }

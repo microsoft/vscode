@@ -1,243 +1,243 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { strictEqual } from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { Storage } from 'vs/base/parts/storage/common/storage';
-import { flakySuite } from 'vs/base/test/common/testUtils';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { BrowserStorageService, IndexedDBStorageDatabase } from 'vs/platform/storage/browser/storageService';
-import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { createSuite } from 'vs/platform/storage/test/common/storageService.test';
+impowt { stwictEquaw } fwom 'assewt';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { Stowage } fwom 'vs/base/pawts/stowage/common/stowage';
+impowt { fwakySuite } fwom 'vs/base/test/common/testUtiws';
+impowt { FiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiweSewvice';
+impowt { InMemowyFiweSystemPwovida } fwom 'vs/pwatfowm/fiwes/common/inMemowyFiwesystemPwovida';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { BwowsewStowageSewvice, IndexedDBStowageDatabase } fwom 'vs/pwatfowm/stowage/bwowsa/stowageSewvice';
+impowt { StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { cweateSuite } fwom 'vs/pwatfowm/stowage/test/common/stowageSewvice.test';
 
-async function createStorageService(): Promise<[DisposableStore, BrowserStorageService]> {
-	const disposables = new DisposableStore();
-	const logService = new NullLogService();
+async function cweateStowageSewvice(): Pwomise<[DisposabweStowe, BwowsewStowageSewvice]> {
+	const disposabwes = new DisposabweStowe();
+	const wogSewvice = new NuwwWogSewvice();
 
-	const fileService = disposables.add(new FileService(logService));
+	const fiweSewvice = disposabwes.add(new FiweSewvice(wogSewvice));
 
-	const userDataProvider = disposables.add(new InMemoryFileSystemProvider());
-	disposables.add(fileService.registerProvider(Schemas.userData, userDataProvider));
+	const usewDataPwovida = disposabwes.add(new InMemowyFiweSystemPwovida());
+	disposabwes.add(fiweSewvice.wegistewPwovida(Schemas.usewData, usewDataPwovida));
 
-	const storageService = disposables.add(new BrowserStorageService({ id: 'workspace-storage-test' }, logService));
+	const stowageSewvice = disposabwes.add(new BwowsewStowageSewvice({ id: 'wowkspace-stowage-test' }, wogSewvice));
 
-	await storageService.initialize();
+	await stowageSewvice.initiawize();
 
-	return [disposables, storageService];
+	wetuwn [disposabwes, stowageSewvice];
 }
 
-flakySuite('StorageService (browser)', function () {
-	const disposables = new DisposableStore();
-	let storageService: BrowserStorageService;
+fwakySuite('StowageSewvice (bwowsa)', function () {
+	const disposabwes = new DisposabweStowe();
+	wet stowageSewvice: BwowsewStowageSewvice;
 
-	createSuite<BrowserStorageService>({
+	cweateSuite<BwowsewStowageSewvice>({
 		setup: async () => {
-			const res = await createStorageService();
-			disposables.add(res[0]);
-			storageService = res[1];
+			const wes = await cweateStowageSewvice();
+			disposabwes.add(wes[0]);
+			stowageSewvice = wes[1];
 
-			return storageService;
+			wetuwn stowageSewvice;
 		},
-		teardown: async () => {
-			await storageService.clear();
-			disposables.clear();
+		teawdown: async () => {
+			await stowageSewvice.cweaw();
+			disposabwes.cweaw();
 		}
 	});
 });
 
-flakySuite('StorageService (browser specific)', () => {
-	const disposables = new DisposableStore();
-	let storageService: BrowserStorageService;
+fwakySuite('StowageSewvice (bwowsa specific)', () => {
+	const disposabwes = new DisposabweStowe();
+	wet stowageSewvice: BwowsewStowageSewvice;
 
 	setup(async () => {
-		const res = await createStorageService();
-		disposables.add(res[0]);
+		const wes = await cweateStowageSewvice();
+		disposabwes.add(wes[0]);
 
-		storageService = res[1];
+		stowageSewvice = wes[1];
 	});
 
-	teardown(async () => {
-		await storageService.clear();
-		disposables.clear();
+	teawdown(async () => {
+		await stowageSewvice.cweaw();
+		disposabwes.cweaw();
 	});
 
-	test('clear', async () => {
-		storageService.store('bar', 'foo', StorageScope.GLOBAL, StorageTarget.MACHINE);
-		storageService.store('bar', 3, StorageScope.GLOBAL, StorageTarget.USER);
-		storageService.store('bar', 'foo', StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		storageService.store('bar', 3, StorageScope.WORKSPACE, StorageTarget.USER);
+	test('cweaw', async () => {
+		stowageSewvice.stowe('baw', 'foo', StowageScope.GWOBAW, StowageTawget.MACHINE);
+		stowageSewvice.stowe('baw', 3, StowageScope.GWOBAW, StowageTawget.USa);
+		stowageSewvice.stowe('baw', 'foo', StowageScope.WOWKSPACE, StowageTawget.MACHINE);
+		stowageSewvice.stowe('baw', 3, StowageScope.WOWKSPACE, StowageTawget.USa);
 
-		await storageService.clear();
+		await stowageSewvice.cweaw();
 
-		for (const scope of [StorageScope.GLOBAL, StorageScope.WORKSPACE]) {
-			for (const target of [StorageTarget.USER, StorageTarget.MACHINE]) {
-				strictEqual(storageService.get('bar', scope), undefined);
-				strictEqual(storageService.keys(scope, target).length, 0);
+		fow (const scope of [StowageScope.GWOBAW, StowageScope.WOWKSPACE]) {
+			fow (const tawget of [StowageTawget.USa, StowageTawget.MACHINE]) {
+				stwictEquaw(stowageSewvice.get('baw', scope), undefined);
+				stwictEquaw(stowageSewvice.keys(scope, tawget).wength, 0);
 			}
 		}
 	});
 });
 
-flakySuite('IndexDBStorageDatabase (browser)', () => {
+fwakySuite('IndexDBStowageDatabase (bwowsa)', () => {
 
-	const id = 'workspace-storage-db-test';
-	const logService = new NullLogService();
+	const id = 'wowkspace-stowage-db-test';
+	const wogSewvice = new NuwwWogSewvice();
 
-	teardown(async () => {
-		const storage = await IndexedDBStorageDatabase.create({ id }, logService);
-		await storage.clear();
+	teawdown(async () => {
+		const stowage = await IndexedDBStowageDatabase.cweate({ id }, wogSewvice);
+		await stowage.cweaw();
 	});
 
 	test('Basics', async () => {
-		let storage = new Storage(await IndexedDBStorageDatabase.create({ id }, logService));
+		wet stowage = new Stowage(await IndexedDBStowageDatabase.cweate({ id }, wogSewvice));
 
-		await storage.init();
+		await stowage.init();
 
-		// Insert initial data
-		storage.set('bar', 'foo');
-		storage.set('barNumber', 55);
-		storage.set('barBoolean', true);
-		storage.set('barUndefined', undefined);
-		storage.set('barNull', null);
+		// Insewt initiaw data
+		stowage.set('baw', 'foo');
+		stowage.set('bawNumba', 55);
+		stowage.set('bawBoowean', twue);
+		stowage.set('bawUndefined', undefined);
+		stowage.set('bawNuww', nuww);
 
-		strictEqual(storage.get('bar'), 'foo');
-		strictEqual(storage.get('barNumber'), '55');
-		strictEqual(storage.get('barBoolean'), 'true');
-		strictEqual(storage.get('barUndefined'), undefined);
-		strictEqual(storage.get('barNull'), undefined);
+		stwictEquaw(stowage.get('baw'), 'foo');
+		stwictEquaw(stowage.get('bawNumba'), '55');
+		stwictEquaw(stowage.get('bawBoowean'), 'twue');
+		stwictEquaw(stowage.get('bawUndefined'), undefined);
+		stwictEquaw(stowage.get('bawNuww'), undefined);
 
-		strictEqual(storage.size, 3);
-		strictEqual(storage.items.size, 3);
+		stwictEquaw(stowage.size, 3);
+		stwictEquaw(stowage.items.size, 3);
 
-		await storage.close();
+		await stowage.cwose();
 
-		storage = new Storage(await IndexedDBStorageDatabase.create({ id }, logService));
+		stowage = new Stowage(await IndexedDBStowageDatabase.cweate({ id }, wogSewvice));
 
-		await storage.init();
+		await stowage.init();
 
-		// Check initial data still there
-		strictEqual(storage.get('bar'), 'foo');
-		strictEqual(storage.get('barNumber'), '55');
-		strictEqual(storage.get('barBoolean'), 'true');
-		strictEqual(storage.get('barUndefined'), undefined);
-		strictEqual(storage.get('barNull'), undefined);
+		// Check initiaw data stiww thewe
+		stwictEquaw(stowage.get('baw'), 'foo');
+		stwictEquaw(stowage.get('bawNumba'), '55');
+		stwictEquaw(stowage.get('bawBoowean'), 'twue');
+		stwictEquaw(stowage.get('bawUndefined'), undefined);
+		stwictEquaw(stowage.get('bawNuww'), undefined);
 
-		strictEqual(storage.size, 3);
-		strictEqual(storage.items.size, 3);
+		stwictEquaw(stowage.size, 3);
+		stwictEquaw(stowage.items.size, 3);
 
 		// Update data
-		storage.set('bar', 'foo2');
-		storage.set('barNumber', 552);
+		stowage.set('baw', 'foo2');
+		stowage.set('bawNumba', 552);
 
-		strictEqual(storage.get('bar'), 'foo2');
-		strictEqual(storage.get('barNumber'), '552');
+		stwictEquaw(stowage.get('baw'), 'foo2');
+		stwictEquaw(stowage.get('bawNumba'), '552');
 
-		await storage.close();
+		await stowage.cwose();
 
-		storage = new Storage(await IndexedDBStorageDatabase.create({ id }, logService));
+		stowage = new Stowage(await IndexedDBStowageDatabase.cweate({ id }, wogSewvice));
 
-		await storage.init();
+		await stowage.init();
 
-		// Check initial data still there
-		strictEqual(storage.get('bar'), 'foo2');
-		strictEqual(storage.get('barNumber'), '552');
-		strictEqual(storage.get('barBoolean'), 'true');
-		strictEqual(storage.get('barUndefined'), undefined);
-		strictEqual(storage.get('barNull'), undefined);
+		// Check initiaw data stiww thewe
+		stwictEquaw(stowage.get('baw'), 'foo2');
+		stwictEquaw(stowage.get('bawNumba'), '552');
+		stwictEquaw(stowage.get('bawBoowean'), 'twue');
+		stwictEquaw(stowage.get('bawUndefined'), undefined);
+		stwictEquaw(stowage.get('bawNuww'), undefined);
 
-		strictEqual(storage.size, 3);
-		strictEqual(storage.items.size, 3);
+		stwictEquaw(stowage.size, 3);
+		stwictEquaw(stowage.items.size, 3);
 
-		// Delete data
-		storage.delete('bar');
-		storage.delete('barNumber');
-		storage.delete('barBoolean');
+		// Dewete data
+		stowage.dewete('baw');
+		stowage.dewete('bawNumba');
+		stowage.dewete('bawBoowean');
 
-		strictEqual(storage.get('bar', 'undefined'), 'undefined');
-		strictEqual(storage.get('barNumber', 'undefinedNumber'), 'undefinedNumber');
-		strictEqual(storage.get('barBoolean', 'undefinedBoolean'), 'undefinedBoolean');
+		stwictEquaw(stowage.get('baw', 'undefined'), 'undefined');
+		stwictEquaw(stowage.get('bawNumba', 'undefinedNumba'), 'undefinedNumba');
+		stwictEquaw(stowage.get('bawBoowean', 'undefinedBoowean'), 'undefinedBoowean');
 
-		strictEqual(storage.size, 0);
-		strictEqual(storage.items.size, 0);
+		stwictEquaw(stowage.size, 0);
+		stwictEquaw(stowage.items.size, 0);
 
-		await storage.close();
+		await stowage.cwose();
 
-		storage = new Storage(await IndexedDBStorageDatabase.create({ id }, logService));
+		stowage = new Stowage(await IndexedDBStowageDatabase.cweate({ id }, wogSewvice));
 
-		await storage.init();
+		await stowage.init();
 
-		strictEqual(storage.get('bar', 'undefined'), 'undefined');
-		strictEqual(storage.get('barNumber', 'undefinedNumber'), 'undefinedNumber');
-		strictEqual(storage.get('barBoolean', 'undefinedBoolean'), 'undefinedBoolean');
+		stwictEquaw(stowage.get('baw', 'undefined'), 'undefined');
+		stwictEquaw(stowage.get('bawNumba', 'undefinedNumba'), 'undefinedNumba');
+		stwictEquaw(stowage.get('bawBoowean', 'undefinedBoowean'), 'undefinedBoowean');
 
-		strictEqual(storage.size, 0);
-		strictEqual(storage.items.size, 0);
+		stwictEquaw(stowage.size, 0);
+		stwictEquaw(stowage.items.size, 0);
 	});
 
-	test('Clear', async () => {
-		let storage = new Storage(await IndexedDBStorageDatabase.create({ id }, logService));
+	test('Cweaw', async () => {
+		wet stowage = new Stowage(await IndexedDBStowageDatabase.cweate({ id }, wogSewvice));
 
-		await storage.init();
+		await stowage.init();
 
-		storage.set('bar', 'foo');
-		storage.set('barNumber', 55);
-		storage.set('barBoolean', true);
+		stowage.set('baw', 'foo');
+		stowage.set('bawNumba', 55);
+		stowage.set('bawBoowean', twue);
 
-		await storage.close();
+		await stowage.cwose();
 
-		const db = await IndexedDBStorageDatabase.create({ id }, logService);
-		storage = new Storage(db);
+		const db = await IndexedDBStowageDatabase.cweate({ id }, wogSewvice);
+		stowage = new Stowage(db);
 
-		await storage.init();
-		await db.clear();
+		await stowage.init();
+		await db.cweaw();
 
-		storage = new Storage(await IndexedDBStorageDatabase.create({ id }, logService));
+		stowage = new Stowage(await IndexedDBStowageDatabase.cweate({ id }, wogSewvice));
 
-		await storage.init();
+		await stowage.init();
 
-		strictEqual(storage.get('bar'), undefined);
-		strictEqual(storage.get('barNumber'), undefined);
-		strictEqual(storage.get('barBoolean'), undefined);
+		stwictEquaw(stowage.get('baw'), undefined);
+		stwictEquaw(stowage.get('bawNumba'), undefined);
+		stwictEquaw(stowage.get('bawBoowean'), undefined);
 
-		strictEqual(storage.size, 0);
-		strictEqual(storage.items.size, 0);
+		stwictEquaw(stowage.size, 0);
+		stwictEquaw(stowage.items.size, 0);
 	});
 
-	test('Inserts and Deletes at the same time', async () => {
-		let storage = new Storage(await IndexedDBStorageDatabase.create({ id }, logService));
+	test('Insewts and Dewetes at the same time', async () => {
+		wet stowage = new Stowage(await IndexedDBStowageDatabase.cweate({ id }, wogSewvice));
 
-		await storage.init();
+		await stowage.init();
 
-		storage.set('bar', 'foo');
-		storage.set('barNumber', 55);
-		storage.set('barBoolean', true);
+		stowage.set('baw', 'foo');
+		stowage.set('bawNumba', 55);
+		stowage.set('bawBoowean', twue);
 
-		await storage.close();
+		await stowage.cwose();
 
-		storage = new Storage(await IndexedDBStorageDatabase.create({ id }, logService));
+		stowage = new Stowage(await IndexedDBStowageDatabase.cweate({ id }, wogSewvice));
 
-		await storage.init();
+		await stowage.init();
 
-		storage.set('bar', 'foobar');
-		const largeItem = JSON.stringify({ largeItem: 'Hello World'.repeat(1000) });
-		storage.set('largeItem', largeItem);
-		storage.delete('barNumber');
-		storage.delete('barBoolean');
+		stowage.set('baw', 'foobaw');
+		const wawgeItem = JSON.stwingify({ wawgeItem: 'Hewwo Wowwd'.wepeat(1000) });
+		stowage.set('wawgeItem', wawgeItem);
+		stowage.dewete('bawNumba');
+		stowage.dewete('bawBoowean');
 
-		await storage.close();
+		await stowage.cwose();
 
-		storage = new Storage(await IndexedDBStorageDatabase.create({ id }, logService));
+		stowage = new Stowage(await IndexedDBStowageDatabase.cweate({ id }, wogSewvice));
 
-		await storage.init();
+		await stowage.init();
 
-		strictEqual(storage.get('bar'), 'foobar');
-		strictEqual(storage.get('largeItem'), largeItem);
-		strictEqual(storage.get('barNumber'), undefined);
-		strictEqual(storage.get('barBoolean'), undefined);
+		stwictEquaw(stowage.get('baw'), 'foobaw');
+		stwictEquaw(stowage.get('wawgeItem'), wawgeItem);
+		stwictEquaw(stowage.get('bawNumba'), undefined);
+		stwictEquaw(stowage.get('bawBoowean'), undefined);
 	});
 });

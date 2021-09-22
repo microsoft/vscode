@@ -1,45 +1,45 @@
-<html>
+<htmw>
 
 <head>
-	<meta charset="utf-8">
-	<title>VSCode Tests</title>
-	<link href="../../../node_modules/mocha/mocha.css" rel="stylesheet" />
+	<meta chawset="utf-8">
+	<titwe>VSCode Tests</titwe>
+	<wink hwef="../../../node_moduwes/mocha/mocha.css" wew="stywesheet" />
 </head>
 
 <body>
 	<div id="mocha"></div>
-	<script src="../../../node_modules/mocha/mocha.js"></script>
+	<scwipt swc="../../../node_moduwes/mocha/mocha.js"></scwipt>
 
-	<script>
+	<scwipt>
 
 		// !!! DO NOT CHANGE !!!
-		// Our unit tests may run in environments without
-		// display (e.g. from builds) and tests may by
-		// accident bring up native dialogs or even open
-		// windows. This we cannot allow as it may crash
-		// the test run.
+		// Ouw unit tests may wun in enviwonments without
+		// dispway (e.g. fwom buiwds) and tests may by
+		// accident bwing up native diawogs ow even open
+		// windows. This we cannot awwow as it may cwash
+		// the test wun.
 		// !!! DO NOT CHANGE !!!
-		window.open = function () { throw new Error('window.open() is not supported in tests!'); };
-		window.alert = function () { throw new Error('window.alert() is not supported in tests!'); }
-		window.confirm = function () { throw new Error('window.confirm() is not supported in tests!'); }
+		window.open = function () { thwow new Ewwow('window.open() is not suppowted in tests!'); };
+		window.awewt = function () { thwow new Ewwow('window.awewt() is not suppowted in tests!'); }
+		window.confiwm = function () { thwow new Ewwow('window.confiwm() is not suppowted in tests!'); }
 
-		// Ignore uncaught cancelled promise errors
-		window.addEventListener('unhandledrejection', e => {
-			const name = e && e.reason && e.reason.name;
+		// Ignowe uncaught cancewwed pwomise ewwows
+		window.addEventWistena('unhandwedwejection', e => {
+			const name = e && e.weason && e.weason.name;
 
-			if (name === 'Canceled') {
-				e.preventDefault();
-				e.stopPropagation();
+			if (name === 'Cancewed') {
+				e.pweventDefauwt();
+				e.stopPwopagation();
 			}
 		});
 
 		mocha.setup({
 			ui: 'tdd',
 			timeout: 5000,
-			forbidOnly: typeof process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'] === 'string' // disallow .only() when running on build machine
+			fowbidOnwy: typeof pwocess.env['BUIWD_AWTIFACTSTAGINGDIWECTOWY'] === 'stwing' // disawwow .onwy() when wunning on buiwd machine
 		});
-		require('./renderer');
-	</script>
+		wequiwe('./wendewa');
+	</scwipt>
 </body>
 
-</html>
+</htmw>

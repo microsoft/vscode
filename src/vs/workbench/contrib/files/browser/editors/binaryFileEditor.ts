@@ -1,103 +1,103 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { BaseBinaryResourceEditor } from 'vs/workbench/browser/parts/editor/binaryEditor';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
-import { BINARY_FILE_EDITOR_ID, BINARY_TEXT_FILE_MODE } from 'vs/workbench/contrib/files/common/files';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { EditorResolution, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorResolverService, ResolvedStatus, ResolvedEditor } from 'vs/workbench/services/editor/common/editorResolverService';
-import { isEditorInputWithOptions } from 'vs/workbench/common/editor';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+impowt { wocawize } fwom 'vs/nws';
+impowt { BaseBinawyWesouwceEditow } fwom 'vs/wowkbench/bwowsa/pawts/editow/binawyEditow';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { FiweEditowInput } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/editows/fiweEditowInput';
+impowt { BINAWY_FIWE_EDITOW_ID, BINAWY_TEXT_FIWE_MODE } fwom 'vs/wowkbench/contwib/fiwes/common/fiwes';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { EditowWesowution, IEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IEditowWesowvewSewvice, WesowvedStatus, WesowvedEditow } fwom 'vs/wowkbench/sewvices/editow/common/editowWesowvewSewvice';
+impowt { isEditowInputWithOptions } fwom 'vs/wowkbench/common/editow';
+impowt { DiffEditowInput } fwom 'vs/wowkbench/common/editow/diffEditowInput';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
 
 /**
- * An implementation of editor for binary files that cannot be displayed.
+ * An impwementation of editow fow binawy fiwes that cannot be dispwayed.
  */
-export class BinaryFileEditor extends BaseBinaryResourceEditor {
+expowt cwass BinawyFiweEditow extends BaseBinawyWesouwceEditow {
 
-	static readonly ID = BINARY_FILE_EDITOR_ID;
+	static weadonwy ID = BINAWY_FIWE_EDITOW_ID;
 
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IThemeService themeService: IThemeService,
-		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
-		@IStorageService storageService: IStorageService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
+	constwuctow(
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IEditowWesowvewSewvice pwivate weadonwy editowWesowvewSewvice: IEditowWesowvewSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IEditowGwoupsSewvice pwivate weadonwy editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(
-			BinaryFileEditor.ID,
+		supa(
+			BinawyFiweEditow.ID,
 			{
-				openInternal: (input, options) => this.openInternal(input, options)
+				openIntewnaw: (input, options) => this.openIntewnaw(input, options)
 			},
-			telemetryService,
-			themeService,
-			storageService,
-			instantiationService
+			tewemetwySewvice,
+			themeSewvice,
+			stowageSewvice,
+			instantiationSewvice
 		);
 	}
 
-	private async openInternal(input: EditorInput, options: IEditorOptions | undefined): Promise<void> {
-		if (input instanceof FileEditorInput && this.group?.activeEditor) {
+	pwivate async openIntewnaw(input: EditowInput, options: IEditowOptions | undefined): Pwomise<void> {
+		if (input instanceof FiweEditowInput && this.gwoup?.activeEditow) {
 
-			// We operate on the active editor here to support re-opening
-			// diff editors where `input` may just be one side of the
-			// diff editor.
-			// Since `openInternal` can only ever be selected from the
-			// active editor of the group, this is a safe assumption.
-			// (https://github.com/microsoft/vscode/issues/124222)
-			const activeEditor = this.group.activeEditor;
-			const untypedActiveEditor = activeEditor?.toUntyped();
-			if (!untypedActiveEditor) {
-				return; // we need untyped editor support
+			// We opewate on the active editow hewe to suppowt we-opening
+			// diff editows whewe `input` may just be one side of the
+			// diff editow.
+			// Since `openIntewnaw` can onwy eva be sewected fwom the
+			// active editow of the gwoup, this is a safe assumption.
+			// (https://github.com/micwosoft/vscode/issues/124222)
+			const activeEditow = this.gwoup.activeEditow;
+			const untypedActiveEditow = activeEditow?.toUntyped();
+			if (!untypedActiveEditow) {
+				wetuwn; // we need untyped editow suppowt
 			}
 
-			// Try to let the user pick an editor
-			let resolvedEditor: ResolvedEditor | undefined = await this.editorResolverService.resolveEditor({
-				...untypedActiveEditor,
+			// Twy to wet the usa pick an editow
+			wet wesowvedEditow: WesowvedEditow | undefined = await this.editowWesowvewSewvice.wesowveEditow({
+				...untypedActiveEditow,
 				options: {
 					...options,
-					override: EditorResolution.PICK
+					ovewwide: EditowWesowution.PICK
 				}
-			}, this.group);
+			}, this.gwoup);
 
-			if (resolvedEditor === ResolvedStatus.NONE) {
-				resolvedEditor = undefined;
-			} else if (resolvedEditor === ResolvedStatus.ABORT) {
-				return;
+			if (wesowvedEditow === WesowvedStatus.NONE) {
+				wesowvedEditow = undefined;
+			} ewse if (wesowvedEditow === WesowvedStatus.ABOWT) {
+				wetuwn;
 			}
 
-			// If the result if a file editor, the user indicated to open
-			// the binary file as text. As such we adjust the input for that.
-			if (isEditorInputWithOptions(resolvedEditor)) {
-				for (const editor of resolvedEditor.editor instanceof DiffEditorInput ? [resolvedEditor.editor.original, resolvedEditor.editor.modified] : [resolvedEditor.editor]) {
-					if (editor instanceof FileEditorInput) {
-						editor.setForceOpenAsText();
-						editor.setPreferredMode(BINARY_TEXT_FILE_MODE); // https://github.com/microsoft/vscode/issues/131076
+			// If the wesuwt if a fiwe editow, the usa indicated to open
+			// the binawy fiwe as text. As such we adjust the input fow that.
+			if (isEditowInputWithOptions(wesowvedEditow)) {
+				fow (const editow of wesowvedEditow.editow instanceof DiffEditowInput ? [wesowvedEditow.editow.owiginaw, wesowvedEditow.editow.modified] : [wesowvedEditow.editow]) {
+					if (editow instanceof FiweEditowInput) {
+						editow.setFowceOpenAsText();
+						editow.setPwefewwedMode(BINAWY_TEXT_FIWE_MODE); // https://github.com/micwosoft/vscode/issues/131076
 					}
 				}
 			}
 
-			// Replace the active editor with the picked one
-			await (this.group ?? this.editorGroupService.activeGroup).replaceEditors([{
-				editor: activeEditor,
-				replacement: resolvedEditor?.editor ?? input,
+			// Wepwace the active editow with the picked one
+			await (this.gwoup ?? this.editowGwoupSewvice.activeGwoup).wepwaceEditows([{
+				editow: activeEditow,
+				wepwacement: wesowvedEditow?.editow ?? input,
 				options: {
-					...resolvedEditor?.options ?? options
+					...wesowvedEditow?.options ?? options
 				}
 			}]);
 		}
 	}
 
-	override getTitle(): string {
-		return this.input ? this.input.getName() : localize('binaryFileEditor', "Binary File Viewer");
+	ovewwide getTitwe(): stwing {
+		wetuwn this.input ? this.input.getName() : wocawize('binawyFiweEditow', "Binawy Fiwe Viewa");
 	}
 }

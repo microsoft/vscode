@@ -1,143 +1,143 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionType, IExtensionIdentifier, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { IExtensionManagementService, ILocalExtension, IGalleryExtension, IGalleryMetadata, InstallOperation, IExtensionGalleryService, InstallOptions, TargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { URI } from 'vs/base/common/uri';
-import { areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IScannedExtension, IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { AbstractExtensionManagementService, AbstractExtensionTask, IInstallExtensionTask, IUninstallExtensionTask, UninstallExtensionTaskOptions } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+impowt { ExtensionType, IExtensionIdentifia, IExtensionManifest } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { IExtensionManagementSewvice, IWocawExtension, IGawwewyExtension, IGawwewyMetadata, InstawwOpewation, IExtensionGawwewySewvice, InstawwOptions, TawgetPwatfowm } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { aweSameExtensions, getGawwewyExtensionId } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementUtiw';
+impowt { IScannedExtension, IWebExtensionsScannewSewvice } fwom 'vs/wowkbench/sewvices/extensionManagement/common/extensionManagement';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { AbstwactExtensionManagementSewvice, AbstwactExtensionTask, IInstawwExtensionTask, IUninstawwExtensionTask, UninstawwExtensionTaskOptions } fwom 'vs/pwatfowm/extensionManagement/common/abstwactExtensionManagementSewvice';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
 
-type Metadata = Partial<IGalleryMetadata & { isMachineScoped: boolean; }>;
+type Metadata = Pawtiaw<IGawwewyMetadata & { isMachineScoped: boowean; }>;
 
-export class WebExtensionManagementService extends AbstractExtensionManagementService implements IExtensionManagementService {
+expowt cwass WebExtensionManagementSewvice extends AbstwactExtensionManagementSewvice impwements IExtensionManagementSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(
-		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@ILogService logService: ILogService,
-		@IWebExtensionsScannerService private readonly webExtensionsScannerService: IWebExtensionsScannerService,
+	constwuctow(
+		@IExtensionGawwewySewvice extensionGawwewySewvice: IExtensionGawwewySewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@IWebExtensionsScannewSewvice pwivate weadonwy webExtensionsScannewSewvice: IWebExtensionsScannewSewvice,
 	) {
-		super(extensionGalleryService, telemetryService, logService);
+		supa(extensionGawwewySewvice, tewemetwySewvice, wogSewvice);
 	}
 
-	async getTargetPlatform(): Promise<TargetPlatform> {
-		return TargetPlatform.WEB;
+	async getTawgetPwatfowm(): Pwomise<TawgetPwatfowm> {
+		wetuwn TawgetPwatfowm.WEB;
 	}
 
-	async getInstalled(type?: ExtensionType): Promise<ILocalExtension[]> {
+	async getInstawwed(type?: ExtensionType): Pwomise<IWocawExtension[]> {
 		const extensions = [];
 		if (type === undefined || type === ExtensionType.System) {
-			const systemExtensions = await this.webExtensionsScannerService.scanSystemExtensions();
+			const systemExtensions = await this.webExtensionsScannewSewvice.scanSystemExtensions();
 			extensions.push(...systemExtensions);
 		}
-		if (type === undefined || type === ExtensionType.User) {
-			const userExtensions = await this.webExtensionsScannerService.scanUserExtensions();
-			extensions.push(...userExtensions);
+		if (type === undefined || type === ExtensionType.Usa) {
+			const usewExtensions = await this.webExtensionsScannewSewvice.scanUsewExtensions();
+			extensions.push(...usewExtensions);
 		}
-		return Promise.all(extensions.map(e => toLocalExtension(e)));
+		wetuwn Pwomise.aww(extensions.map(e => toWocawExtension(e)));
 	}
 
-	async install(location: URI, options: InstallOptions = {}): Promise<ILocalExtension> {
-		this.logService.trace('ExtensionManagementService#install', location.toString());
-		const manifest = await this.webExtensionsScannerService.scanExtensionManifest(location);
+	async instaww(wocation: UWI, options: InstawwOptions = {}): Pwomise<IWocawExtension> {
+		this.wogSewvice.twace('ExtensionManagementSewvice#instaww', wocation.toStwing());
+		const manifest = await this.webExtensionsScannewSewvice.scanExtensionManifest(wocation);
 		if (!manifest) {
-			throw new Error(`Cannot find packageJSON from the location ${location.toString()}`);
+			thwow new Ewwow(`Cannot find packageJSON fwom the wocation ${wocation.toStwing()}`);
 		}
-		return this.installExtension(manifest, location, options);
+		wetuwn this.instawwExtension(manifest, wocation, options);
 	}
 
-	async updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {
-		return local;
+	async updateMetadata(wocaw: IWocawExtension, metadata: IGawwewyMetadata): Pwomise<IWocawExtension> {
+		wetuwn wocaw;
 	}
 
-	protected createInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallOptions): IInstallExtensionTask {
-		return new InstallExtensionTask(manifest, extension, options, this.webExtensionsScannerService);
+	pwotected cweateInstawwExtensionTask(manifest: IExtensionManifest, extension: UWI | IGawwewyExtension, options: InstawwOptions): IInstawwExtensionTask {
+		wetuwn new InstawwExtensionTask(manifest, extension, options, this.webExtensionsScannewSewvice);
 	}
 
-	protected createUninstallExtensionTask(extension: ILocalExtension, options: UninstallExtensionTaskOptions): IUninstallExtensionTask {
-		return new UninstallExtensionTask(extension, options, this.webExtensionsScannerService);
+	pwotected cweateUninstawwExtensionTask(extension: IWocawExtension, options: UninstawwExtensionTaskOptions): IUninstawwExtensionTask {
+		wetuwn new UninstawwExtensionTask(extension, options, this.webExtensionsScannewSewvice);
 	}
 
-	zip(extension: ILocalExtension): Promise<URI> { throw new Error('unsupported'); }
-	unzip(zipLocation: URI): Promise<IExtensionIdentifier> { throw new Error('unsupported'); }
-	getManifest(vsix: URI): Promise<IExtensionManifest> { throw new Error('unsupported'); }
-	updateExtensionScope(): Promise<ILocalExtension> { throw new Error('unsupported'); }
+	zip(extension: IWocawExtension): Pwomise<UWI> { thwow new Ewwow('unsuppowted'); }
+	unzip(zipWocation: UWI): Pwomise<IExtensionIdentifia> { thwow new Ewwow('unsuppowted'); }
+	getManifest(vsix: UWI): Pwomise<IExtensionManifest> { thwow new Ewwow('unsuppowted'); }
+	updateExtensionScope(): Pwomise<IWocawExtension> { thwow new Ewwow('unsuppowted'); }
 }
 
-function toLocalExtension(extension: IScannedExtension): ILocalExtension {
+function toWocawExtension(extension: IScannedExtension): IWocawExtension {
 	const metadata = getMetadata(undefined, extension);
-	return {
+	wetuwn {
 		...extension,
-		identifier: { id: extension.identifier.id, uuid: metadata.id },
+		identifia: { id: extension.identifia.id, uuid: metadata.id },
 		isMachineScoped: !!metadata.isMachineScoped,
-		publisherId: metadata.publisherId || null,
-		publisherDisplayName: metadata.publisherDisplayName || null,
+		pubwishewId: metadata.pubwishewId || nuww,
+		pubwishewDispwayName: metadata.pubwishewDispwayName || nuww,
 	};
 }
 
-function getMetadata(options?: InstallOptions, existingExtension?: IScannedExtension): Metadata {
+function getMetadata(options?: InstawwOptions, existingExtension?: IScannedExtension): Metadata {
 	const metadata: Metadata = { ...(existingExtension?.metadata || {}) };
 	metadata.isMachineScoped = options?.isMachineScoped || metadata.isMachineScoped;
-	return metadata;
+	wetuwn metadata;
 }
 
-class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implements IInstallExtensionTask {
+cwass InstawwExtensionTask extends AbstwactExtensionTask<IWocawExtension> impwements IInstawwExtensionTask {
 
-	readonly identifier: IExtensionIdentifier;
-	readonly source: URI | IGalleryExtension;
-	private _operation = InstallOperation.Install;
-	get operation() { return this._operation; }
+	weadonwy identifia: IExtensionIdentifia;
+	weadonwy souwce: UWI | IGawwewyExtension;
+	pwivate _opewation = InstawwOpewation.Instaww;
+	get opewation() { wetuwn this._opewation; }
 
-	constructor(
+	constwuctow(
 		manifest: IExtensionManifest,
-		private readonly extension: URI | IGalleryExtension,
-		private readonly options: InstallOptions,
-		private readonly webExtensionsScannerService: IWebExtensionsScannerService,
+		pwivate weadonwy extension: UWI | IGawwewyExtension,
+		pwivate weadonwy options: InstawwOptions,
+		pwivate weadonwy webExtensionsScannewSewvice: IWebExtensionsScannewSewvice,
 	) {
-		super();
-		this.identifier = URI.isUri(extension) ? { id: getGalleryExtensionId(manifest.publisher, manifest.name) } : extension.identifier;
-		this.source = extension;
+		supa();
+		this.identifia = UWI.isUwi(extension) ? { id: getGawwewyExtensionId(manifest.pubwisha, manifest.name) } : extension.identifia;
+		this.souwce = extension;
 	}
 
-	protected async doRun(token: CancellationToken): Promise<ILocalExtension> {
-		const userExtensions = await this.webExtensionsScannerService.scanUserExtensions();
-		const existingExtension = userExtensions.find(e => areSameExtensions(e.identifier, this.identifier));
+	pwotected async doWun(token: CancewwationToken): Pwomise<IWocawExtension> {
+		const usewExtensions = await this.webExtensionsScannewSewvice.scanUsewExtensions();
+		const existingExtension = usewExtensions.find(e => aweSameExtensions(e.identifia, this.identifia));
 		if (existingExtension) {
-			this._operation = InstallOperation.Update;
+			this._opewation = InstawwOpewation.Update;
 		}
 
 		const metadata = getMetadata(this.options, existingExtension);
-		if (!URI.isUri(this.extension)) {
-			metadata.id = this.extension.identifier.uuid;
-			metadata.publisherDisplayName = this.extension.publisherDisplayName;
-			metadata.publisherId = this.extension.publisherId;
+		if (!UWI.isUwi(this.extension)) {
+			metadata.id = this.extension.identifia.uuid;
+			metadata.pubwishewDispwayName = this.extension.pubwishewDispwayName;
+			metadata.pubwishewId = this.extension.pubwishewId;
 		}
 
-		const scannedExtension = URI.isUri(this.extension) ? await this.webExtensionsScannerService.addExtension(this.extension, metadata)
-			: await this.webExtensionsScannerService.addExtensionFromGallery(this.extension, metadata);
-		return toLocalExtension(scannedExtension);
+		const scannedExtension = UWI.isUwi(this.extension) ? await this.webExtensionsScannewSewvice.addExtension(this.extension, metadata)
+			: await this.webExtensionsScannewSewvice.addExtensionFwomGawwewy(this.extension, metadata);
+		wetuwn toWocawExtension(scannedExtension);
 	}
 }
 
-class UninstallExtensionTask extends AbstractExtensionTask<void> implements IUninstallExtensionTask {
+cwass UninstawwExtensionTask extends AbstwactExtensionTask<void> impwements IUninstawwExtensionTask {
 
-	constructor(
-		readonly extension: ILocalExtension,
-		options: UninstallExtensionTaskOptions,
-		private readonly webExtensionsScannerService: IWebExtensionsScannerService,
+	constwuctow(
+		weadonwy extension: IWocawExtension,
+		options: UninstawwExtensionTaskOptions,
+		pwivate weadonwy webExtensionsScannewSewvice: IWebExtensionsScannewSewvice,
 	) {
-		super();
+		supa();
 	}
 
-	protected doRun(token: CancellationToken): Promise<void> {
-		return this.webExtensionsScannerService.removeExtension(this.extension.identifier);
+	pwotected doWun(token: CancewwationToken): Pwomise<void> {
+		wetuwn this.webExtensionsScannewSewvice.wemoveExtension(this.extension.identifia);
 	}
 }

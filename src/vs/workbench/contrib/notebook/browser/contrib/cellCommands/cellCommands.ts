@@ -1,205 +1,205 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Mimes } from 'vs/base/common/mime';
-import { localize } from 'vs/nls';
-import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { InputFocusedContext, InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { cellExecutionArgs, CellOverflowToolbarGroups, CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, INotebookCellActionContext, INotebookCellToolbarActionContext, INotebookCommandContext, NotebookCellAction, NotebookMultiCellAction, parseMultiCellExecutionArgs } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { CellFocusMode, EXPAND_CELL_INPUT_COMMAND_ID, EXPAND_CELL_OUTPUT_COMMAND_ID, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { CellEditType, CellKind, ICellEditOperation, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { changeCellToKind, computeCellLinesContents, copyCellRange, joinCellsWithSurrounds, moveCellRange } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
+impowt { KeyChowd, KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { Mimes } fwom 'vs/base/common/mime';
+impowt { wocawize } fwom 'vs/nws';
+impowt { MenuId, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { InputFocusedContext, InputFocusedContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkeys';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { cewwExecutionAwgs, CewwOvewfwowToowbawGwoups, CewwToowbawOwda, CEWW_TITWE_CEWW_GWOUP_ID, INotebookCewwActionContext, INotebookCewwToowbawActionContext, INotebookCommandContext, NotebookCewwAction, NotebookMuwtiCewwAction, pawseMuwtiCewwExecutionAwgs } fwom 'vs/wowkbench/contwib/notebook/bwowsa/contwowwa/coweActions';
+impowt { CewwFocusMode, EXPAND_CEWW_INPUT_COMMAND_ID, EXPAND_CEWW_OUTPUT_COMMAND_ID, NOTEBOOK_CEWW_EDITABWE, NOTEBOOK_CEWW_HAS_OUTPUTS, NOTEBOOK_CEWW_INPUT_COWWAPSED, NOTEBOOK_CEWW_WIST_FOCUSED, NOTEBOOK_CEWW_OUTPUT_COWWAPSED, NOTEBOOK_CEWW_TYPE, NOTEBOOK_EDITOW_EDITABWE, NOTEBOOK_EDITOW_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOW } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt * as icons fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookIcons';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { CewwEditType, CewwKind, ICewwEditOpewation, NotebookCewwMetadata } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { IBuwkEditSewvice, WesouwceTextEdit } fwom 'vs/editow/bwowsa/sewvices/buwkEditSewvice';
+impowt { changeCewwToKind, computeCewwWinesContents, copyCewwWange, joinCewwsWithSuwwounds, moveCewwWange } fwom 'vs/wowkbench/contwib/notebook/bwowsa/contwowwa/cewwOpewations';
+impowt { NotebookCewwTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookCewwTextModew';
+impowt { WesouwceNotebookCewwEdit } fwom 'vs/wowkbench/contwib/buwkEdit/bwowsa/buwkCewwEdits';
 
-//#region Move/Copy cells
-const MOVE_CELL_UP_COMMAND_ID = 'notebook.cell.moveUp';
-const MOVE_CELL_DOWN_COMMAND_ID = 'notebook.cell.moveDown';
-const COPY_CELL_UP_COMMAND_ID = 'notebook.cell.copyUp';
-const COPY_CELL_DOWN_COMMAND_ID = 'notebook.cell.copyDown';
+//#wegion Move/Copy cewws
+const MOVE_CEWW_UP_COMMAND_ID = 'notebook.ceww.moveUp';
+const MOVE_CEWW_DOWN_COMMAND_ID = 'notebook.ceww.moveDown';
+const COPY_CEWW_UP_COMMAND_ID = 'notebook.ceww.copyUp';
+const COPY_CEWW_DOWN_COMMAND_ID = 'notebook.ceww.copyDown';
 
-registerAction2(class extends NotebookCellAction {
-	constructor() {
-		super(
+wegistewAction2(cwass extends NotebookCewwAction {
+	constwuctow() {
+		supa(
 			{
-				id: MOVE_CELL_UP_COMMAND_ID,
-				title: localize('notebookActions.moveCellUp', "Move Cell Up"),
+				id: MOVE_CEWW_UP_COMMAND_ID,
+				titwe: wocawize('notebookActions.moveCewwUp', "Move Ceww Up"),
 				icon: icons.moveUpIcon,
 				keybinding: {
-					primary: KeyMod.Alt | KeyCode.UpArrow,
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext.toNegated()),
-					weight: KeybindingWeight.WorkbenchContrib
+					pwimawy: KeyMod.Awt | KeyCode.UpAwwow,
+					when: ContextKeyExpw.and(NOTEBOOK_EDITOW_FOCUSED, InputFocusedContext.toNegated()),
+					weight: KeybindingWeight.WowkbenchContwib
 				},
 				menu: {
-					id: MenuId.NotebookCellTitle,
-					when: ContextKeyExpr.equals('config.notebook.dragAndDropEnabled', false),
-					group: CellOverflowToolbarGroups.Edit,
-					order: 13
+					id: MenuId.NotebookCewwTitwe,
+					when: ContextKeyExpw.equaws('config.notebook.dwagAndDwopEnabwed', fawse),
+					gwoup: CewwOvewfwowToowbawGwoups.Edit,
+					owda: 13
 				}
 			});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		return moveCellRange(context, 'up');
+	async wunWithContext(accessow: SewvicesAccessow, context: INotebookCewwActionContext) {
+		wetuwn moveCewwWange(context, 'up');
 	}
 });
 
-registerAction2(class extends NotebookCellAction {
-	constructor() {
-		super(
+wegistewAction2(cwass extends NotebookCewwAction {
+	constwuctow() {
+		supa(
 			{
-				id: MOVE_CELL_DOWN_COMMAND_ID,
-				title: localize('notebookActions.moveCellDown', "Move Cell Down"),
+				id: MOVE_CEWW_DOWN_COMMAND_ID,
+				titwe: wocawize('notebookActions.moveCewwDown', "Move Ceww Down"),
 				icon: icons.moveDownIcon,
 				keybinding: {
-					primary: KeyMod.Alt | KeyCode.DownArrow,
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext.toNegated()),
-					weight: KeybindingWeight.WorkbenchContrib
+					pwimawy: KeyMod.Awt | KeyCode.DownAwwow,
+					when: ContextKeyExpw.and(NOTEBOOK_EDITOW_FOCUSED, InputFocusedContext.toNegated()),
+					weight: KeybindingWeight.WowkbenchContwib
 				},
 				menu: {
-					id: MenuId.NotebookCellTitle,
-					when: ContextKeyExpr.equals('config.notebook.dragAndDropEnabled', false),
-					group: CellOverflowToolbarGroups.Edit,
-					order: 14
+					id: MenuId.NotebookCewwTitwe,
+					when: ContextKeyExpw.equaws('config.notebook.dwagAndDwopEnabwed', fawse),
+					gwoup: CewwOvewfwowToowbawGwoups.Edit,
+					owda: 14
 				}
 			});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		return moveCellRange(context, 'down');
+	async wunWithContext(accessow: SewvicesAccessow, context: INotebookCewwActionContext) {
+		wetuwn moveCewwWange(context, 'down');
 	}
 });
 
-registerAction2(class extends NotebookCellAction {
-	constructor() {
-		super(
+wegistewAction2(cwass extends NotebookCewwAction {
+	constwuctow() {
+		supa(
 			{
-				id: COPY_CELL_UP_COMMAND_ID,
-				title: localize('notebookActions.copyCellUp', "Copy Cell Up"),
+				id: COPY_CEWW_UP_COMMAND_ID,
+				titwe: wocawize('notebookActions.copyCewwUp', "Copy Ceww Up"),
 				keybinding: {
-					primary: KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow,
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext.toNegated()),
-					weight: KeybindingWeight.WorkbenchContrib
+					pwimawy: KeyMod.Awt | KeyMod.Shift | KeyCode.UpAwwow,
+					when: ContextKeyExpw.and(NOTEBOOK_EDITOW_FOCUSED, InputFocusedContext.toNegated()),
+					weight: KeybindingWeight.WowkbenchContwib
 				}
 			});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		return copyCellRange(context, 'up');
+	async wunWithContext(accessow: SewvicesAccessow, context: INotebookCewwActionContext) {
+		wetuwn copyCewwWange(context, 'up');
 	}
 });
 
-registerAction2(class extends NotebookCellAction {
-	constructor() {
-		super(
+wegistewAction2(cwass extends NotebookCewwAction {
+	constwuctow() {
+		supa(
 			{
-				id: COPY_CELL_DOWN_COMMAND_ID,
-				title: localize('notebookActions.copyCellDown', "Copy Cell Down"),
+				id: COPY_CEWW_DOWN_COMMAND_ID,
+				titwe: wocawize('notebookActions.copyCewwDown', "Copy Ceww Down"),
 				keybinding: {
-					primary: KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow,
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext.toNegated()),
-					weight: KeybindingWeight.WorkbenchContrib
+					pwimawy: KeyMod.Awt | KeyMod.Shift | KeyCode.DownAwwow,
+					when: ContextKeyExpw.and(NOTEBOOK_EDITOW_FOCUSED, InputFocusedContext.toNegated()),
+					weight: KeybindingWeight.WowkbenchContwib
 				},
 				menu: {
-					id: MenuId.NotebookCellTitle,
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
-					group: CellOverflowToolbarGroups.Edit,
-					order: 12
+					id: MenuId.NotebookCewwTitwe,
+					when: ContextKeyExpw.and(NOTEBOOK_EDITOW_FOCUSED, NOTEBOOK_EDITOW_EDITABWE, NOTEBOOK_CEWW_EDITABWE),
+					gwoup: CewwOvewfwowToowbawGwoups.Edit,
+					owda: 12
 				}
 			});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		return copyCellRange(context, 'down');
+	async wunWithContext(accessow: SewvicesAccessow, context: INotebookCewwActionContext) {
+		wetuwn copyCewwWange(context, 'down');
 	}
 });
 
 
-//#endregion
+//#endwegion
 
-//#region Join/Split
+//#wegion Join/Spwit
 
-const SPLIT_CELL_COMMAND_ID = 'notebook.cell.split';
-const JOIN_CELL_ABOVE_COMMAND_ID = 'notebook.cell.joinAbove';
-const JOIN_CELL_BELOW_COMMAND_ID = 'notebook.cell.joinBelow';
+const SPWIT_CEWW_COMMAND_ID = 'notebook.ceww.spwit';
+const JOIN_CEWW_ABOVE_COMMAND_ID = 'notebook.ceww.joinAbove';
+const JOIN_CEWW_BEWOW_COMMAND_ID = 'notebook.ceww.joinBewow';
 
 
-registerAction2(class extends NotebookCellAction {
-	constructor() {
-		super(
+wegistewAction2(cwass extends NotebookCewwAction {
+	constwuctow() {
+		supa(
 			{
-				id: SPLIT_CELL_COMMAND_ID,
-				title: localize('notebookActions.splitCell', "Split Cell"),
+				id: SPWIT_CEWW_COMMAND_ID,
+				titwe: wocawize('notebookActions.spwitCeww', "Spwit Ceww"),
 				menu: {
-					id: MenuId.NotebookCellTitle,
-					when: ContextKeyExpr.and(
-						NOTEBOOK_EDITOR_EDITABLE,
-						NOTEBOOK_CELL_EDITABLE,
-						NOTEBOOK_CELL_INPUT_COLLAPSED.toNegated()
+					id: MenuId.NotebookCewwTitwe,
+					when: ContextKeyExpw.and(
+						NOTEBOOK_EDITOW_EDITABWE,
+						NOTEBOOK_CEWW_EDITABWE,
+						NOTEBOOK_CEWW_INPUT_COWWAPSED.toNegated()
 					),
-					order: CellToolbarOrder.SplitCell,
-					group: CELL_TITLE_CELL_GROUP_ID
+					owda: CewwToowbawOwda.SpwitCeww,
+					gwoup: CEWW_TITWE_CEWW_GWOUP_ID
 				},
-				icon: icons.splitCellIcon,
+				icon: icons.spwitCewwIcon,
 				keybinding: {
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
-					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKSLASH),
-					weight: KeybindingWeight.WorkbenchContrib
+					when: ContextKeyExpw.and(NOTEBOOK_EDITOW_FOCUSED, NOTEBOOK_EDITOW_EDITABWE, NOTEBOOK_CEWW_EDITABWE),
+					pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.US_BACKSWASH),
+					weight: KeybindingWeight.WowkbenchContwib
 				},
 			});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		if (context.notebookEditor.isReadOnly) {
-			return;
+	async wunWithContext(accessow: SewvicesAccessow, context: INotebookCewwActionContext) {
+		if (context.notebookEditow.isWeadOnwy) {
+			wetuwn;
 		}
 
-		const bulkEditService = accessor.get(IBulkEditService);
-		const cell = context.cell;
-		const index = context.notebookEditor.getCellIndex(cell);
-		const splitPoints = cell.focusMode === CellFocusMode.Container ? [{ lineNumber: 1, column: 1 }] : cell.getSelectionsStartPosition();
-		if (splitPoints && splitPoints.length > 0) {
-			await cell.resolveTextModel();
+		const buwkEditSewvice = accessow.get(IBuwkEditSewvice);
+		const ceww = context.ceww;
+		const index = context.notebookEditow.getCewwIndex(ceww);
+		const spwitPoints = ceww.focusMode === CewwFocusMode.Containa ? [{ wineNumba: 1, cowumn: 1 }] : ceww.getSewectionsStawtPosition();
+		if (spwitPoints && spwitPoints.wength > 0) {
+			await ceww.wesowveTextModew();
 
-			if (!cell.hasModel()) {
-				return;
+			if (!ceww.hasModew()) {
+				wetuwn;
 			}
 
-			const newLinesContents = computeCellLinesContents(cell, splitPoints);
-			if (newLinesContents) {
-				const language = cell.language;
-				const kind = cell.cellKind;
-				const mime = cell.mime;
+			const newWinesContents = computeCewwWinesContents(ceww, spwitPoints);
+			if (newWinesContents) {
+				const wanguage = ceww.wanguage;
+				const kind = ceww.cewwKind;
+				const mime = ceww.mime;
 
-				const textModel = await cell.resolveTextModel();
-				await bulkEditService.apply(
+				const textModew = await ceww.wesowveTextModew();
+				await buwkEditSewvice.appwy(
 					[
-						new ResourceTextEdit(cell.uri, { range: textModel.getFullModelRange(), text: newLinesContents[0] }),
-						new ResourceNotebookCellEdit(context.notebookEditor.textModel.uri,
+						new WesouwceTextEdit(ceww.uwi, { wange: textModew.getFuwwModewWange(), text: newWinesContents[0] }),
+						new WesouwceNotebookCewwEdit(context.notebookEditow.textModew.uwi,
 							{
-								editType: CellEditType.Replace,
+								editType: CewwEditType.Wepwace,
 								index: index + 1,
 								count: 0,
-								cells: newLinesContents.slice(1).map(line => ({
-									cellKind: kind,
-									language,
+								cewws: newWinesContents.swice(1).map(wine => ({
+									cewwKind: kind,
+									wanguage,
 									mime,
-									source: line,
+									souwce: wine,
 									outputs: [],
 									metadata: {}
 								}))
 							}
 						)
 					],
-					{ quotableLabel: 'Split Notebook Cell' }
+					{ quotabweWabew: 'Spwit Notebook Ceww' }
 				);
 			}
 		}
@@ -207,278 +207,278 @@ registerAction2(class extends NotebookCellAction {
 });
 
 
-registerAction2(class extends NotebookCellAction {
-	constructor() {
-		super(
+wegistewAction2(cwass extends NotebookCewwAction {
+	constwuctow() {
+		supa(
 			{
-				id: JOIN_CELL_ABOVE_COMMAND_ID,
-				title: localize('notebookActions.joinCellAbove', "Join With Previous Cell"),
+				id: JOIN_CEWW_ABOVE_COMMAND_ID,
+				titwe: wocawize('notebookActions.joinCewwAbove', "Join With Pwevious Ceww"),
 				keybinding: {
-					when: NOTEBOOK_EDITOR_FOCUSED,
-					primary: KeyMod.WinCtrl | KeyMod.Alt | KeyMod.Shift | KeyCode.KEY_J,
-					weight: KeybindingWeight.WorkbenchContrib
+					when: NOTEBOOK_EDITOW_FOCUSED,
+					pwimawy: KeyMod.WinCtww | KeyMod.Awt | KeyMod.Shift | KeyCode.KEY_J,
+					weight: KeybindingWeight.WowkbenchContwib
 				},
 				menu: {
-					id: MenuId.NotebookCellTitle,
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE),
-					group: CellOverflowToolbarGroups.Edit,
-					order: 10
+					id: MenuId.NotebookCewwTitwe,
+					when: ContextKeyExpw.and(NOTEBOOK_EDITOW_FOCUSED, NOTEBOOK_EDITOW_EDITABWE),
+					gwoup: CewwOvewfwowToowbawGwoups.Edit,
+					owda: 10
 				}
 			});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		const bulkEditService = accessor.get(IBulkEditService);
-		return joinCellsWithSurrounds(bulkEditService, context, 'above');
+	async wunWithContext(accessow: SewvicesAccessow, context: INotebookCewwActionContext) {
+		const buwkEditSewvice = accessow.get(IBuwkEditSewvice);
+		wetuwn joinCewwsWithSuwwounds(buwkEditSewvice, context, 'above');
 	}
 });
 
-registerAction2(class extends NotebookCellAction {
-	constructor() {
-		super(
+wegistewAction2(cwass extends NotebookCewwAction {
+	constwuctow() {
+		supa(
 			{
-				id: JOIN_CELL_BELOW_COMMAND_ID,
-				title: localize('notebookActions.joinCellBelow', "Join With Next Cell"),
+				id: JOIN_CEWW_BEWOW_COMMAND_ID,
+				titwe: wocawize('notebookActions.joinCewwBewow', "Join With Next Ceww"),
 				keybinding: {
-					when: NOTEBOOK_EDITOR_FOCUSED,
-					primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KEY_J,
-					weight: KeybindingWeight.WorkbenchContrib
+					when: NOTEBOOK_EDITOW_FOCUSED,
+					pwimawy: KeyMod.WinCtww | KeyMod.Awt | KeyCode.KEY_J,
+					weight: KeybindingWeight.WowkbenchContwib
 				},
 				menu: {
-					id: MenuId.NotebookCellTitle,
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE),
-					group: CellOverflowToolbarGroups.Edit,
-					order: 11
+					id: MenuId.NotebookCewwTitwe,
+					when: ContextKeyExpw.and(NOTEBOOK_EDITOW_FOCUSED, NOTEBOOK_EDITOW_EDITABWE),
+					gwoup: CewwOvewfwowToowbawGwoups.Edit,
+					owda: 11
 				}
 			});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		const bulkEditService = accessor.get(IBulkEditService);
-		return joinCellsWithSurrounds(bulkEditService, context, 'below');
+	async wunWithContext(accessow: SewvicesAccessow, context: INotebookCewwActionContext) {
+		const buwkEditSewvice = accessow.get(IBuwkEditSewvice);
+		wetuwn joinCewwsWithSuwwounds(buwkEditSewvice, context, 'bewow');
 	}
 });
 
-//#endregion
+//#endwegion
 
-//#region Change Cell Type
+//#wegion Change Ceww Type
 
-const CHANGE_CELL_TO_CODE_COMMAND_ID = 'notebook.cell.changeToCode';
-const CHANGE_CELL_TO_MARKDOWN_COMMAND_ID = 'notebook.cell.changeToMarkdown';
+const CHANGE_CEWW_TO_CODE_COMMAND_ID = 'notebook.ceww.changeToCode';
+const CHANGE_CEWW_TO_MAWKDOWN_COMMAND_ID = 'notebook.ceww.changeToMawkdown';
 
-registerAction2(class ChangeCellToCodeAction extends NotebookMultiCellAction {
-	constructor() {
-		super({
-			id: CHANGE_CELL_TO_CODE_COMMAND_ID,
-			title: localize('notebookActions.changeCellToCode', "Change Cell to Code"),
+wegistewAction2(cwass ChangeCewwToCodeAction extends NotebookMuwtiCewwAction {
+	constwuctow() {
+		supa({
+			id: CHANGE_CEWW_TO_CODE_COMMAND_ID,
+			titwe: wocawize('notebookActions.changeCewwToCode', "Change Ceww to Code"),
 			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
-				primary: KeyCode.KEY_Y,
-				weight: KeybindingWeight.WorkbenchContrib
+				when: ContextKeyExpw.and(NOTEBOOK_EDITOW_FOCUSED, ContextKeyExpw.not(InputFocusedContextKey)),
+				pwimawy: KeyCode.KEY_Y,
+				weight: KeybindingWeight.WowkbenchContwib
 			},
-			precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_CELL_TYPE.isEqualTo('markup')),
+			pwecondition: ContextKeyExpw.and(NOTEBOOK_IS_ACTIVE_EDITOW, NOTEBOOK_CEWW_TYPE.isEquawTo('mawkup')),
 			menu: {
-				id: MenuId.NotebookCellTitle,
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_TYPE.isEqualTo('markup')),
-				group: CellOverflowToolbarGroups.Edit,
+				id: MenuId.NotebookCewwTitwe,
+				when: ContextKeyExpw.and(NOTEBOOK_EDITOW_FOCUSED, NOTEBOOK_EDITOW_EDITABWE, NOTEBOOK_CEWW_EDITABWE, NOTEBOOK_CEWW_TYPE.isEquawTo('mawkup')),
+				gwoup: CewwOvewfwowToowbawGwoups.Edit,
 			}
 		});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext | INotebookCellToolbarActionContext): Promise<void> {
-		await changeCellToKind(CellKind.Code, context);
+	async wunWithContext(accessow: SewvicesAccessow, context: INotebookCommandContext | INotebookCewwToowbawActionContext): Pwomise<void> {
+		await changeCewwToKind(CewwKind.Code, context);
 	}
 });
 
-registerAction2(class ChangeCellToMarkdownAction extends NotebookMultiCellAction {
-	constructor() {
-		super({
-			id: CHANGE_CELL_TO_MARKDOWN_COMMAND_ID,
-			title: localize('notebookActions.changeCellToMarkdown', "Change Cell to Markdown"),
+wegistewAction2(cwass ChangeCewwToMawkdownAction extends NotebookMuwtiCewwAction {
+	constwuctow() {
+		supa({
+			id: CHANGE_CEWW_TO_MAWKDOWN_COMMAND_ID,
+			titwe: wocawize('notebookActions.changeCewwToMawkdown', "Change Ceww to Mawkdown"),
 			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
-				primary: KeyCode.KEY_M,
-				weight: KeybindingWeight.WorkbenchContrib
+				when: ContextKeyExpw.and(NOTEBOOK_EDITOW_FOCUSED, ContextKeyExpw.not(InputFocusedContextKey)),
+				pwimawy: KeyCode.KEY_M,
+				weight: KeybindingWeight.WowkbenchContwib
 			},
-			precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_CELL_TYPE.isEqualTo('code')),
+			pwecondition: ContextKeyExpw.and(NOTEBOOK_IS_ACTIVE_EDITOW, NOTEBOOK_CEWW_TYPE.isEquawTo('code')),
 			menu: {
-				id: MenuId.NotebookCellTitle,
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_TYPE.isEqualTo('code')),
-				group: CellOverflowToolbarGroups.Edit,
+				id: MenuId.NotebookCewwTitwe,
+				when: ContextKeyExpw.and(NOTEBOOK_EDITOW_FOCUSED, NOTEBOOK_EDITOW_EDITABWE, NOTEBOOK_CEWW_EDITABWE, NOTEBOOK_CEWW_TYPE.isEquawTo('code')),
+				gwoup: CewwOvewfwowToowbawGwoups.Edit,
 			}
 		});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext | INotebookCellToolbarActionContext): Promise<void> {
-		await changeCellToKind(CellKind.Markup, context, 'markdown', Mimes.markdown);
+	async wunWithContext(accessow: SewvicesAccessow, context: INotebookCommandContext | INotebookCewwToowbawActionContext): Pwomise<void> {
+		await changeCewwToKind(CewwKind.Mawkup, context, 'mawkdown', Mimes.mawkdown);
 	}
 });
 
-//#endregion
+//#endwegion
 
-//#region Collapse Cell
+//#wegion Cowwapse Ceww
 
-const COLLAPSE_CELL_INPUT_COMMAND_ID = 'notebook.cell.collapseCellInput';
-const COLLAPSE_CELL_OUTPUT_COMMAND_ID = 'notebook.cell.collapseCellOutput';
-const TOGGLE_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.toggleOutputs';
+const COWWAPSE_CEWW_INPUT_COMMAND_ID = 'notebook.ceww.cowwapseCewwInput';
+const COWWAPSE_CEWW_OUTPUT_COMMAND_ID = 'notebook.ceww.cowwapseCewwOutput';
+const TOGGWE_CEWW_OUTPUTS_COMMAND_ID = 'notebook.ceww.toggweOutputs';
 
-abstract class ChangeNotebookCellMetadataAction extends NotebookCellAction {
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		const textModel = context.notebookEditor.textModel;
-		if (!textModel) {
-			return;
+abstwact cwass ChangeNotebookCewwMetadataAction extends NotebookCewwAction {
+	async wunWithContext(accessow: SewvicesAccessow, context: INotebookCewwActionContext): Pwomise<void> {
+		const textModew = context.notebookEditow.textModew;
+		if (!textModew) {
+			wetuwn;
 		}
 
-		const metadataDelta = this.getMetadataDelta();
-		const edits: ICellEditOperation[] = [];
-		const targetCells = (context.cell ? [context.cell] : context.selectedCells) ?? [];
-		for (const cell of targetCells) {
-			const index = textModel.cells.indexOf(cell.model);
+		const metadataDewta = this.getMetadataDewta();
+		const edits: ICewwEditOpewation[] = [];
+		const tawgetCewws = (context.ceww ? [context.ceww] : context.sewectedCewws) ?? [];
+		fow (const ceww of tawgetCewws) {
+			const index = textModew.cewws.indexOf(ceww.modew);
 			if (index >= 0) {
-				edits.push({ editType: CellEditType.Metadata, index, metadata: { ...context.cell.metadata, ...metadataDelta } });
+				edits.push({ editType: CewwEditType.Metadata, index, metadata: { ...context.ceww.metadata, ...metadataDewta } });
 			}
 		}
 
-		textModel.applyEdits(edits, true, undefined, () => undefined, undefined);
+		textModew.appwyEdits(edits, twue, undefined, () => undefined, undefined);
 	}
 
-	abstract getMetadataDelta(): NotebookCellMetadata;
+	abstwact getMetadataDewta(): NotebookCewwMetadata;
 }
 
-registerAction2(class CollapseCellInputAction extends ChangeNotebookCellMetadataAction {
-	constructor() {
-		super({
-			id: COLLAPSE_CELL_INPUT_COMMAND_ID,
-			title: localize('notebookActions.collapseCellInput', "Collapse Cell Input"),
+wegistewAction2(cwass CowwapseCewwInputAction extends ChangeNotebookCewwMetadataAction {
+	constwuctow() {
+		supa({
+			id: COWWAPSE_CEWW_INPUT_COMMAND_ID,
+			titwe: wocawize('notebookActions.cowwapseCewwInput', "Cowwapse Ceww Input"),
 			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_INPUT_COLLAPSED.toNegated(), InputFocusedContext.toNegated()),
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C),
-				weight: KeybindingWeight.WorkbenchContrib
+				when: ContextKeyExpw.and(NOTEBOOK_CEWW_WIST_FOCUSED, NOTEBOOK_CEWW_INPUT_COWWAPSED.toNegated(), InputFocusedContext.toNegated()),
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_C),
+				weight: KeybindingWeight.WowkbenchContwib
 			},
 			menu: {
-				id: MenuId.NotebookCellTitle,
-				when: ContextKeyExpr.and(NOTEBOOK_CELL_INPUT_COLLAPSED.toNegated()),
-				group: CellOverflowToolbarGroups.Collapse,
-				order: 0
+				id: MenuId.NotebookCewwTitwe,
+				when: ContextKeyExpw.and(NOTEBOOK_CEWW_INPUT_COWWAPSED.toNegated()),
+				gwoup: CewwOvewfwowToowbawGwoups.Cowwapse,
+				owda: 0
 			}
 		});
 	}
 
-	getMetadataDelta(): NotebookCellMetadata {
-		return { inputCollapsed: true };
+	getMetadataDewta(): NotebookCewwMetadata {
+		wetuwn { inputCowwapsed: twue };
 	}
 });
 
-registerAction2(class ExpandCellInputAction extends ChangeNotebookCellMetadataAction {
-	constructor() {
-		super({
-			id: EXPAND_CELL_INPUT_COMMAND_ID,
-			title: localize('notebookActions.expandCellInput', "Expand Cell Input"),
+wegistewAction2(cwass ExpandCewwInputAction extends ChangeNotebookCewwMetadataAction {
+	constwuctow() {
+		supa({
+			id: EXPAND_CEWW_INPUT_COMMAND_ID,
+			titwe: wocawize('notebookActions.expandCewwInput', "Expand Ceww Input"),
 			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_INPUT_COLLAPSED),
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C),
-				weight: KeybindingWeight.WorkbenchContrib
+				when: ContextKeyExpw.and(NOTEBOOK_CEWW_WIST_FOCUSED, NOTEBOOK_CEWW_INPUT_COWWAPSED),
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_C),
+				weight: KeybindingWeight.WowkbenchContwib
 			},
 			menu: {
-				id: MenuId.NotebookCellTitle,
-				when: ContextKeyExpr.and(NOTEBOOK_CELL_INPUT_COLLAPSED),
-				group: CellOverflowToolbarGroups.Collapse,
-				order: 1
+				id: MenuId.NotebookCewwTitwe,
+				when: ContextKeyExpw.and(NOTEBOOK_CEWW_INPUT_COWWAPSED),
+				gwoup: CewwOvewfwowToowbawGwoups.Cowwapse,
+				owda: 1
 			}
 		});
 	}
 
-	getMetadataDelta(): NotebookCellMetadata {
-		return { inputCollapsed: false };
+	getMetadataDewta(): NotebookCewwMetadata {
+		wetuwn { inputCowwapsed: fawse };
 	}
 });
 
-registerAction2(class CollapseCellOutputAction extends ChangeNotebookCellMetadataAction {
-	constructor() {
-		super({
-			id: COLLAPSE_CELL_OUTPUT_COMMAND_ID,
-			title: localize('notebookActions.collapseCellOutput', "Collapse Cell Output"),
+wegistewAction2(cwass CowwapseCewwOutputAction extends ChangeNotebookCewwMetadataAction {
+	constwuctow() {
+		supa({
+			id: COWWAPSE_CEWW_OUTPUT_COMMAND_ID,
+			titwe: wocawize('notebookActions.cowwapseCewwOutput', "Cowwapse Ceww Output"),
 			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED.toNegated(), InputFocusedContext.toNegated(), NOTEBOOK_CELL_HAS_OUTPUTS),
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_T),
-				weight: KeybindingWeight.WorkbenchContrib
+				when: ContextKeyExpw.and(NOTEBOOK_CEWW_WIST_FOCUSED, NOTEBOOK_CEWW_OUTPUT_COWWAPSED.toNegated(), InputFocusedContext.toNegated(), NOTEBOOK_CEWW_HAS_OUTPUTS),
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyCode.KEY_T),
+				weight: KeybindingWeight.WowkbenchContwib
 			},
 			menu: {
-				id: MenuId.NotebookCellTitle,
-				when: ContextKeyExpr.and(NOTEBOOK_CELL_OUTPUT_COLLAPSED.toNegated(), NOTEBOOK_CELL_HAS_OUTPUTS),
-				group: CellOverflowToolbarGroups.Collapse,
-				order: 2
+				id: MenuId.NotebookCewwTitwe,
+				when: ContextKeyExpw.and(NOTEBOOK_CEWW_OUTPUT_COWWAPSED.toNegated(), NOTEBOOK_CEWW_HAS_OUTPUTS),
+				gwoup: CewwOvewfwowToowbawGwoups.Cowwapse,
+				owda: 2
 			}
 		});
 	}
 
-	getMetadataDelta(): NotebookCellMetadata {
-		return { outputCollapsed: true };
+	getMetadataDewta(): NotebookCewwMetadata {
+		wetuwn { outputCowwapsed: twue };
 	}
 });
 
-registerAction2(class ExpandCellOuputAction extends ChangeNotebookCellMetadataAction {
-	constructor() {
-		super({
-			id: EXPAND_CELL_OUTPUT_COMMAND_ID,
-			title: localize('notebookActions.expandCellOutput', "Expand Cell Output"),
+wegistewAction2(cwass ExpandCewwOuputAction extends ChangeNotebookCewwMetadataAction {
+	constwuctow() {
+		supa({
+			id: EXPAND_CEWW_OUTPUT_COMMAND_ID,
+			titwe: wocawize('notebookActions.expandCewwOutput', "Expand Ceww Output"),
 			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED),
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_T),
-				weight: KeybindingWeight.WorkbenchContrib
+				when: ContextKeyExpw.and(NOTEBOOK_CEWW_WIST_FOCUSED, NOTEBOOK_CEWW_OUTPUT_COWWAPSED),
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyCode.KEY_T),
+				weight: KeybindingWeight.WowkbenchContwib
 			},
 			menu: {
-				id: MenuId.NotebookCellTitle,
-				when: ContextKeyExpr.and(NOTEBOOK_CELL_OUTPUT_COLLAPSED),
-				group: CellOverflowToolbarGroups.Collapse,
-				order: 3
+				id: MenuId.NotebookCewwTitwe,
+				when: ContextKeyExpw.and(NOTEBOOK_CEWW_OUTPUT_COWWAPSED),
+				gwoup: CewwOvewfwowToowbawGwoups.Cowwapse,
+				owda: 3
 			}
 		});
 	}
 
-	getMetadataDelta(): NotebookCellMetadata {
-		return { outputCollapsed: false };
+	getMetadataDewta(): NotebookCewwMetadata {
+		wetuwn { outputCowwapsed: fawse };
 	}
 });
 
-registerAction2(class extends NotebookMultiCellAction {
-	constructor() {
-		super({
-			id: TOGGLE_CELL_OUTPUTS_COMMAND_ID,
-			precondition: NOTEBOOK_CELL_LIST_FOCUSED,
-			title: localize('notebookActions.toggleOutputs', "Toggle Outputs"),
-			description: {
-				description: localize('notebookActions.toggleOutputs', "Toggle Outputs"),
-				args: cellExecutionArgs
+wegistewAction2(cwass extends NotebookMuwtiCewwAction {
+	constwuctow() {
+		supa({
+			id: TOGGWE_CEWW_OUTPUTS_COMMAND_ID,
+			pwecondition: NOTEBOOK_CEWW_WIST_FOCUSED,
+			titwe: wocawize('notebookActions.toggweOutputs', "Toggwe Outputs"),
+			descwiption: {
+				descwiption: wocawize('notebookActions.toggweOutputs', "Toggwe Outputs"),
+				awgs: cewwExecutionAwgs
 			}
 		});
 	}
 
-	override parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookCommandContext | undefined {
-		return parseMultiCellExecutionArgs(accessor, ...args);
+	ovewwide pawseAwgs(accessow: SewvicesAccessow, ...awgs: any[]): INotebookCommandContext | undefined {
+		wetuwn pawseMuwtiCewwExecutionAwgs(accessow, ...awgs);
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext | INotebookCellToolbarActionContext): Promise<void> {
-		const textModel = context.notebookEditor.textModel;
-		let cells: NotebookCellTextModel[] = [];
+	async wunWithContext(accessow: SewvicesAccessow, context: INotebookCommandContext | INotebookCewwToowbawActionContext): Pwomise<void> {
+		const textModew = context.notebookEditow.textModew;
+		wet cewws: NotebookCewwTextModew[] = [];
 		if (context.ui) {
-			cells = [context.cell.model];
-		} else if (context.selectedCells) {
-			cells = context.selectedCells.map(cell => cell.model);
-		} else {
-			cells = [...textModel.cells];
+			cewws = [context.ceww.modew];
+		} ewse if (context.sewectedCewws) {
+			cewws = context.sewectedCewws.map(ceww => ceww.modew);
+		} ewse {
+			cewws = [...textModew.cewws];
 		}
 
-		const edits: ICellEditOperation[] = [];
-		for (const cell of cells) {
-			const index = textModel.cells.indexOf(cell);
+		const edits: ICewwEditOpewation[] = [];
+		fow (const ceww of cewws) {
+			const index = textModew.cewws.indexOf(ceww);
 			if (index >= 0) {
-				edits.push({ editType: CellEditType.Metadata, index, metadata: { ...cell.metadata, outputCollapsed: !cell.metadata.outputCollapsed } });
+				edits.push({ editType: CewwEditType.Metadata, index, metadata: { ...ceww.metadata, outputCowwapsed: !ceww.metadata.outputCowwapsed } });
 			}
 		}
 
-		textModel.applyEdits(edits, true, undefined, () => undefined, undefined);
+		textModew.appwyEdits(edits, twue, undefined, () => undefined, undefined);
 	}
 });
 
-//#endregion
+//#endwegion

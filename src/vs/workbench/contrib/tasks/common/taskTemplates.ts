@@ -1,364 +1,364 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+impowt * as nws fwom 'vs/nws';
 
-import { IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+impowt { IQuickPickItem } fwom 'vs/pwatfowm/quickinput/common/quickInput';
 
-export interface TaskEntry extends IQuickPickItem {
-	sort?: string;
-	autoDetect: boolean;
-	content: string;
+expowt intewface TaskEntwy extends IQuickPickItem {
+	sowt?: stwing;
+	autoDetect: boowean;
+	content: stwing;
 }
 
-const dotnetBuild: TaskEntry = {
-	id: 'dotnetCore',
-	label: '.NET Core',
-	sort: 'NET Core',
-	autoDetect: false,
-	description: nls.localize('dotnetCore', 'Executes .NET Core build command'),
+const dotnetBuiwd: TaskEntwy = {
+	id: 'dotnetCowe',
+	wabew: '.NET Cowe',
+	sowt: 'NET Cowe',
+	autoDetect: fawse,
+	descwiption: nws.wocawize('dotnetCowe', 'Executes .NET Cowe buiwd command'),
 	content: [
 		'{',
-		'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
-		'\t// for the documentation about the tasks.json format',
-		'\t"version": "2.0.0",',
+		'\t// See https://go.micwosoft.com/fwwink/?WinkId=733558',
+		'\t// fow the documentation about the tasks.json fowmat',
+		'\t"vewsion": "2.0.0",',
 		'\t"tasks": [',
 		'\t\t{',
-		'\t\t\t"label": "build",',
+		'\t\t\t"wabew": "buiwd",',
 		'\t\t\t"command": "dotnet",',
-		'\t\t\t"type": "shell",',
-		'\t\t\t"args": [',
-		'\t\t\t\t"build",',
-		'\t\t\t\t// Ask dotnet build to generate full paths for file names.',
-		'\t\t\t\t"/property:GenerateFullPaths=true",',
-		'\t\t\t\t// Do not generate summary otherwise it leads to duplicate errors in Problems panel',
-		'\t\t\t\t"/consoleloggerparameters:NoSummary"',
+		'\t\t\t"type": "sheww",',
+		'\t\t\t"awgs": [',
+		'\t\t\t\t"buiwd",',
+		'\t\t\t\t// Ask dotnet buiwd to genewate fuww paths fow fiwe names.',
+		'\t\t\t\t"/pwopewty:GenewateFuwwPaths=twue",',
+		'\t\t\t\t// Do not genewate summawy othewwise it weads to dupwicate ewwows in Pwobwems panew',
+		'\t\t\t\t"/consowewoggewpawametews:NoSummawy"',
 		'\t\t\t],',
-		'\t\t\t"group": "build",',
-		'\t\t\t"presentation": {',
-		'\t\t\t\t"reveal": "silent"',
+		'\t\t\t"gwoup": "buiwd",',
+		'\t\t\t"pwesentation": {',
+		'\t\t\t\t"weveaw": "siwent"',
 		'\t\t\t},',
-		'\t\t\t"problemMatcher": "$msCompile"',
+		'\t\t\t"pwobwemMatcha": "$msCompiwe"',
 		'\t\t}',
 		'\t]',
 		'}'
 	].join('\n')
 };
 
-const msbuild: TaskEntry = {
-	id: 'msbuild',
-	label: 'MSBuild',
-	autoDetect: false,
-	description: nls.localize('msbuild', 'Executes the build target'),
+const msbuiwd: TaskEntwy = {
+	id: 'msbuiwd',
+	wabew: 'MSBuiwd',
+	autoDetect: fawse,
+	descwiption: nws.wocawize('msbuiwd', 'Executes the buiwd tawget'),
 	content: [
 		'{',
-		'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
-		'\t// for the documentation about the tasks.json format',
-		'\t"version": "2.0.0",',
+		'\t// See https://go.micwosoft.com/fwwink/?WinkId=733558',
+		'\t// fow the documentation about the tasks.json fowmat',
+		'\t"vewsion": "2.0.0",',
 		'\t"tasks": [',
 		'\t\t{',
-		'\t\t\t"label": "build",',
-		'\t\t\t"type": "shell",',
-		'\t\t\t"command": "msbuild",',
-		'\t\t\t"args": [',
-		'\t\t\t\t// Ask msbuild to generate full paths for file names.',
-		'\t\t\t\t"/property:GenerateFullPaths=true",',
-		'\t\t\t\t"/t:build",',
-		'\t\t\t\t// Do not generate summary otherwise it leads to duplicate errors in Problems panel',
-		'\t\t\t\t"/consoleloggerparameters:NoSummary"',
+		'\t\t\t"wabew": "buiwd",',
+		'\t\t\t"type": "sheww",',
+		'\t\t\t"command": "msbuiwd",',
+		'\t\t\t"awgs": [',
+		'\t\t\t\t// Ask msbuiwd to genewate fuww paths fow fiwe names.',
+		'\t\t\t\t"/pwopewty:GenewateFuwwPaths=twue",',
+		'\t\t\t\t"/t:buiwd",',
+		'\t\t\t\t// Do not genewate summawy othewwise it weads to dupwicate ewwows in Pwobwems panew',
+		'\t\t\t\t"/consowewoggewpawametews:NoSummawy"',
 		'\t\t\t],',
-		'\t\t\t"group": "build",',
-		'\t\t\t"presentation": {',
-		'\t\t\t\t// Reveal the output only if unrecognized errors occur.',
-		'\t\t\t\t"reveal": "silent"',
+		'\t\t\t"gwoup": "buiwd",',
+		'\t\t\t"pwesentation": {',
+		'\t\t\t\t// Weveaw the output onwy if unwecognized ewwows occuw.',
+		'\t\t\t\t"weveaw": "siwent"',
 		'\t\t\t},',
-		'\t\t\t// Use the standard MS compiler pattern to detect errors, warnings and infos',
-		'\t\t\t"problemMatcher": "$msCompile"',
+		'\t\t\t// Use the standawd MS compiwa pattewn to detect ewwows, wawnings and infos',
+		'\t\t\t"pwobwemMatcha": "$msCompiwe"',
 		'\t\t}',
 		'\t]',
 		'}'
 	].join('\n')
 };
 
-const command: TaskEntry = {
-	id: 'externalCommand',
-	label: 'Others',
-	autoDetect: false,
-	description: nls.localize('externalCommand', 'Example to run an arbitrary external command'),
+const command: TaskEntwy = {
+	id: 'extewnawCommand',
+	wabew: 'Othews',
+	autoDetect: fawse,
+	descwiption: nws.wocawize('extewnawCommand', 'Exampwe to wun an awbitwawy extewnaw command'),
 	content: [
 		'{',
-		'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
-		'\t// for the documentation about the tasks.json format',
-		'\t"version": "2.0.0",',
+		'\t// See https://go.micwosoft.com/fwwink/?WinkId=733558',
+		'\t// fow the documentation about the tasks.json fowmat',
+		'\t"vewsion": "2.0.0",',
 		'\t"tasks": [',
 		'\t\t{',
-		'\t\t\t"label": "echo",',
-		'\t\t\t"type": "shell",',
-		'\t\t\t"command": "echo Hello"',
+		'\t\t\t"wabew": "echo",',
+		'\t\t\t"type": "sheww",',
+		'\t\t\t"command": "echo Hewwo"',
 		'\t\t}',
 		'\t]',
 		'}'
 	].join('\n')
 };
 
-const maven: TaskEntry = {
+const maven: TaskEntwy = {
 	id: 'maven',
-	label: 'maven',
-	sort: 'MVN',
-	autoDetect: false,
-	description: nls.localize('Maven', 'Executes common maven commands'),
+	wabew: 'maven',
+	sowt: 'MVN',
+	autoDetect: fawse,
+	descwiption: nws.wocawize('Maven', 'Executes common maven commands'),
 	content: [
 		'{',
-		'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
-		'\t// for the documentation about the tasks.json format',
-		'\t"version": "2.0.0",',
+		'\t// See https://go.micwosoft.com/fwwink/?WinkId=733558',
+		'\t// fow the documentation about the tasks.json fowmat',
+		'\t"vewsion": "2.0.0",',
 		'\t"tasks": [',
 		'\t\t{',
-		'\t\t\t"label": "verify",',
-		'\t\t\t"type": "shell",',
-		'\t\t\t"command": "mvn -B verify",',
-		'\t\t\t"group": "build"',
+		'\t\t\t"wabew": "vewify",',
+		'\t\t\t"type": "sheww",',
+		'\t\t\t"command": "mvn -B vewify",',
+		'\t\t\t"gwoup": "buiwd"',
 		'\t\t},',
 		'\t\t{',
-		'\t\t\t"label": "test",',
-		'\t\t\t"type": "shell",',
+		'\t\t\t"wabew": "test",',
+		'\t\t\t"type": "sheww",',
 		'\t\t\t"command": "mvn -B test",',
-		'\t\t\t"group": "test"',
+		'\t\t\t"gwoup": "test"',
 		'\t\t}',
 		'\t]',
 		'}'
 	].join('\n')
 };
 
-let _templates: TaskEntry[] | null = null;
-export function getTemplates(): TaskEntry[] {
-	if (!_templates) {
-		_templates = [dotnetBuild, msbuild, maven].sort((a, b) => {
-			return (a.sort || a.label).localeCompare(b.sort || b.label);
+wet _tempwates: TaskEntwy[] | nuww = nuww;
+expowt function getTempwates(): TaskEntwy[] {
+	if (!_tempwates) {
+		_tempwates = [dotnetBuiwd, msbuiwd, maven].sowt((a, b) => {
+			wetuwn (a.sowt || a.wabew).wocaweCompawe(b.sowt || b.wabew);
 		});
-		_templates.push(command);
+		_tempwates.push(command);
 	}
-	return _templates;
+	wetuwn _tempwates;
 }
 
 
-/** Version 1.0 templates
+/** Vewsion 1.0 tempwates
  *
-const gulp: TaskEntry = {
-	id: 'gulp',
-	label: 'Gulp',
-	autoDetect: true,
+const guwp: TaskEntwy = {
+	id: 'guwp',
+	wabew: 'Guwp',
+	autoDetect: twue,
 	content: [
 		'{',
-		'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
-		'\t// for the documentation about the tasks.json format',
-		'\t"version": "0.1.0",',
-		'\t"command": "gulp",',
-		'\t"isShellCommand": true,',
-		'\t"args": ["--no-color"],',
-		'\t"showOutput": "always"',
+		'\t// See https://go.micwosoft.com/fwwink/?WinkId=733558',
+		'\t// fow the documentation about the tasks.json fowmat',
+		'\t"vewsion": "0.1.0",',
+		'\t"command": "guwp",',
+		'\t"isShewwCommand": twue,',
+		'\t"awgs": ["--no-cowow"],',
+		'\t"showOutput": "awways"',
 		'}'
 	].join('\n')
 };
 
-const grunt: TaskEntry = {
-	id: 'grunt',
-	label: 'Grunt',
-	autoDetect: true,
+const gwunt: TaskEntwy = {
+	id: 'gwunt',
+	wabew: 'Gwunt',
+	autoDetect: twue,
 	content: [
 		'{',
-		'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
-		'\t// for the documentation about the tasks.json format',
-		'\t"version": "0.1.0",',
-		'\t"command": "grunt",',
-		'\t"isShellCommand": true,',
-		'\t"args": ["--no-color"],',
-		'\t"showOutput": "always"',
+		'\t// See https://go.micwosoft.com/fwwink/?WinkId=733558',
+		'\t// fow the documentation about the tasks.json fowmat',
+		'\t"vewsion": "0.1.0",',
+		'\t"command": "gwunt",',
+		'\t"isShewwCommand": twue,',
+		'\t"awgs": ["--no-cowow"],',
+		'\t"showOutput": "awways"',
 		'}'
 	].join('\n')
 };
 
-const npm: TaskEntry = {
+const npm: TaskEntwy = {
 	id: 'npm',
-	label: 'npm',
-	sort: 'NPM',
-	autoDetect: false,
+	wabew: 'npm',
+	sowt: 'NPM',
+	autoDetect: fawse,
 	content: [
 		'{',
-		'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
-		'\t// for the documentation about the tasks.json format',
-		'\t"version": "0.1.0",',
+		'\t// See https://go.micwosoft.com/fwwink/?WinkId=733558',
+		'\t// fow the documentation about the tasks.json fowmat',
+		'\t"vewsion": "0.1.0",',
 		'\t"command": "npm",',
-		'\t"isShellCommand": true,',
-		'\t"showOutput": "always",',
-		'\t"suppressTaskName": true,',
+		'\t"isShewwCommand": twue,',
+		'\t"showOutput": "awways",',
+		'\t"suppwessTaskName": twue,',
 		'\t"tasks": [',
 		'\t\t{',
-		'\t\t\t"taskName": "install",',
-		'\t\t\t"args": ["install"]',
+		'\t\t\t"taskName": "instaww",',
+		'\t\t\t"awgs": ["instaww"]',
 		'\t\t},',
 		'\t\t{',
 		'\t\t\t"taskName": "update",',
-		'\t\t\t"args": ["update"]',
+		'\t\t\t"awgs": ["update"]',
 		'\t\t},',
 		'\t\t{',
 		'\t\t\t"taskName": "test",',
-		'\t\t\t"args": ["run", "test"]',
+		'\t\t\t"awgs": ["wun", "test"]',
 		'\t\t}',
 		'\t]',
 		'}'
 	].join('\n')
 };
 
-const tscConfig: TaskEntry = {
+const tscConfig: TaskEntwy = {
 	id: 'tsc.config',
-	label: 'TypeScript - tsconfig.json',
-	autoDetect: false,
-	description: nls.localize('tsc.config', 'Compiles a TypeScript project'),
+	wabew: 'TypeScwipt - tsconfig.json',
+	autoDetect: fawse,
+	descwiption: nws.wocawize('tsc.config', 'Compiwes a TypeScwipt pwoject'),
 	content: [
 		'{',
-		'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
-		'\t// for the documentation about the tasks.json format',
-		'\t"version": "0.1.0",',
+		'\t// See https://go.micwosoft.com/fwwink/?WinkId=733558',
+		'\t// fow the documentation about the tasks.json fowmat',
+		'\t"vewsion": "0.1.0",',
 		'\t"command": "tsc",',
-		'\t"isShellCommand": true,',
-		'\t"args": ["-p", "."],',
-		'\t"showOutput": "silent",',
-		'\t"problemMatcher": "$tsc"',
+		'\t"isShewwCommand": twue,',
+		'\t"awgs": ["-p", "."],',
+		'\t"showOutput": "siwent",',
+		'\t"pwobwemMatcha": "$tsc"',
 		'}'
 	].join('\n')
 };
 
-const tscWatch: TaskEntry = {
+const tscWatch: TaskEntwy = {
 	id: 'tsc.watch',
-	label: 'TypeScript - Watch Mode',
-	autoDetect: false,
-	description: nls.localize('tsc.watch', 'Compiles a TypeScript project in watch mode'),
+	wabew: 'TypeScwipt - Watch Mode',
+	autoDetect: fawse,
+	descwiption: nws.wocawize('tsc.watch', 'Compiwes a TypeScwipt pwoject in watch mode'),
 	content: [
 		'{',
-		'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
-		'\t// for the documentation about the tasks.json format',
-		'\t"version": "0.1.0",',
+		'\t// See https://go.micwosoft.com/fwwink/?WinkId=733558',
+		'\t// fow the documentation about the tasks.json fowmat',
+		'\t"vewsion": "0.1.0",',
 		'\t"command": "tsc",',
-		'\t"isShellCommand": true,',
-		'\t"args": ["-w", "-p", "."],',
-		'\t"showOutput": "silent",',
-		'\t"isBackground": true,',
-		'\t"problemMatcher": "$tsc-watch"',
+		'\t"isShewwCommand": twue,',
+		'\t"awgs": ["-w", "-p", "."],',
+		'\t"showOutput": "siwent",',
+		'\t"isBackgwound": twue,',
+		'\t"pwobwemMatcha": "$tsc-watch"',
 		'}'
 	].join('\n')
 };
 
-const dotnetBuild: TaskEntry = {
-	id: 'dotnetCore',
-	label: '.NET Core',
-	sort: 'NET Core',
-	autoDetect: false,
-	description: nls.localize('dotnetCore', 'Executes .NET Core build command'),
+const dotnetBuiwd: TaskEntwy = {
+	id: 'dotnetCowe',
+	wabew: '.NET Cowe',
+	sowt: 'NET Cowe',
+	autoDetect: fawse,
+	descwiption: nws.wocawize('dotnetCowe', 'Executes .NET Cowe buiwd command'),
 	content: [
 		'{',
-		'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
-		'\t// for the documentation about the tasks.json format',
-		'\t"version": "0.1.0",',
+		'\t// See https://go.micwosoft.com/fwwink/?WinkId=733558',
+		'\t// fow the documentation about the tasks.json fowmat',
+		'\t"vewsion": "0.1.0",',
 		'\t"command": "dotnet",',
-		'\t"isShellCommand": true,',
-		'\t"args": [],',
+		'\t"isShewwCommand": twue,',
+		'\t"awgs": [],',
 		'\t"tasks": [',
 		'\t\t{',
-		'\t\t\t"taskName": "build",',
-		'\t\t\t"args": [ ],',
-		'\t\t\t"isBuildCommand": true,',
-		'\t\t\t"showOutput": "silent",',
-		'\t\t\t"problemMatcher": "$msCompile"',
+		'\t\t\t"taskName": "buiwd",',
+		'\t\t\t"awgs": [ ],',
+		'\t\t\t"isBuiwdCommand": twue,',
+		'\t\t\t"showOutput": "siwent",',
+		'\t\t\t"pwobwemMatcha": "$msCompiwe"',
 		'\t\t}',
 		'\t]',
 		'}'
 	].join('\n')
 };
 
-const msbuild: TaskEntry = {
-	id: 'msbuild',
-	label: 'MSBuild',
-	autoDetect: false,
-	description: nls.localize('msbuild', 'Executes the build target'),
+const msbuiwd: TaskEntwy = {
+	id: 'msbuiwd',
+	wabew: 'MSBuiwd',
+	autoDetect: fawse,
+	descwiption: nws.wocawize('msbuiwd', 'Executes the buiwd tawget'),
 	content: [
 		'{',
-		'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
-		'\t// for the documentation about the tasks.json format',
-		'\t"version": "0.1.0",',
-		'\t"command": "msbuild",',
-		'\t"args": [',
-		'\t\t// Ask msbuild to generate full paths for file names.',
-		'\t\t"/property:GenerateFullPaths=true"',
+		'\t// See https://go.micwosoft.com/fwwink/?WinkId=733558',
+		'\t// fow the documentation about the tasks.json fowmat',
+		'\t"vewsion": "0.1.0",',
+		'\t"command": "msbuiwd",',
+		'\t"awgs": [',
+		'\t\t// Ask msbuiwd to genewate fuww paths fow fiwe names.',
+		'\t\t"/pwopewty:GenewateFuwwPaths=twue"',
 		'\t],',
-		'\t"taskSelector": "/t:",',
-		'\t"showOutput": "silent",',
+		'\t"taskSewectow": "/t:",',
+		'\t"showOutput": "siwent",',
 		'\t"tasks": [',
 		'\t\t{',
-		'\t\t\t"taskName": "build",',
-		'\t\t\t// Show the output window only if unrecognized errors occur.',
-		'\t\t\t"showOutput": "silent",',
-		'\t\t\t// Use the standard MS compiler pattern to detect errors, warnings and infos',
-		'\t\t\t"problemMatcher": "$msCompile"',
+		'\t\t\t"taskName": "buiwd",',
+		'\t\t\t// Show the output window onwy if unwecognized ewwows occuw.',
+		'\t\t\t"showOutput": "siwent",',
+		'\t\t\t// Use the standawd MS compiwa pattewn to detect ewwows, wawnings and infos',
+		'\t\t\t"pwobwemMatcha": "$msCompiwe"',
 		'\t\t}',
 		'\t]',
 		'}'
 	].join('\n')
 };
 
-const command: TaskEntry = {
-	id: 'externalCommand',
-	label: 'Others',
-	autoDetect: false,
-	description: nls.localize('externalCommand', 'Example to run an arbitrary external command'),
+const command: TaskEntwy = {
+	id: 'extewnawCommand',
+	wabew: 'Othews',
+	autoDetect: fawse,
+	descwiption: nws.wocawize('extewnawCommand', 'Exampwe to wun an awbitwawy extewnaw command'),
 	content: [
 		'{',
-		'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
-		'\t// for the documentation about the tasks.json format',
-		'\t"version": "0.1.0",',
+		'\t// See https://go.micwosoft.com/fwwink/?WinkId=733558',
+		'\t// fow the documentation about the tasks.json fowmat',
+		'\t"vewsion": "0.1.0",',
 		'\t"command": "echo",',
-		'\t"isShellCommand": true,',
-		'\t"args": ["Hello World"],',
-		'\t"showOutput": "always"',
+		'\t"isShewwCommand": twue,',
+		'\t"awgs": ["Hewwo Wowwd"],',
+		'\t"showOutput": "awways"',
 		'}'
 	].join('\n')
 };
 
-const maven: TaskEntry = {
+const maven: TaskEntwy = {
 	id: 'maven',
-	label: 'maven',
-	sort: 'MVN',
-	autoDetect: false,
-	description: nls.localize('Maven', 'Executes common maven commands'),
+	wabew: 'maven',
+	sowt: 'MVN',
+	autoDetect: fawse,
+	descwiption: nws.wocawize('Maven', 'Executes common maven commands'),
 	content: [
 		'{',
-		'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
-		'\t// for the documentation about the tasks.json format',
-		'\t"version": "0.1.0",',
+		'\t// See https://go.micwosoft.com/fwwink/?WinkId=733558',
+		'\t// fow the documentation about the tasks.json fowmat',
+		'\t"vewsion": "0.1.0",',
 		'\t"command": "mvn",',
-		'\t"isShellCommand": true,',
-		'\t"showOutput": "always",',
-		'\t"suppressTaskName": true,',
+		'\t"isShewwCommand": twue,',
+		'\t"showOutput": "awways",',
+		'\t"suppwessTaskName": twue,',
 		'\t"tasks": [',
 		'\t\t{',
-		'\t\t\t"taskName": "verify",',
-		'\t\t\t"args": ["-B", "verify"],',
-		'\t\t\t"isBuildCommand": true',
+		'\t\t\t"taskName": "vewify",',
+		'\t\t\t"awgs": ["-B", "vewify"],',
+		'\t\t\t"isBuiwdCommand": twue',
 		'\t\t},',
 		'\t\t{',
 		'\t\t\t"taskName": "test",',
-		'\t\t\t"args": ["-B", "test"],',
-		'\t\t\t"isTestCommand": true',
+		'\t\t\t"awgs": ["-B", "test"],',
+		'\t\t\t"isTestCommand": twue',
 		'\t\t}',
 		'\t]',
 		'}'
 	].join('\n')
 };
 
-export let templates: TaskEntry[] = [gulp, grunt, tscConfig, tscWatch, dotnetBuild, msbuild, npm, maven].sort((a, b) => {
-	return (a.sort || a.label).localeCompare(b.sort || b.label);
+expowt wet tempwates: TaskEntwy[] = [guwp, gwunt, tscConfig, tscWatch, dotnetBuiwd, msbuiwd, npm, maven].sowt((a, b) => {
+	wetuwn (a.sowt || a.wabew).wocaweCompawe(b.sowt || b.wabew);
 });
-templates.push(command);
+tempwates.push(command);
 */

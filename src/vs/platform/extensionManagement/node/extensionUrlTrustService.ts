@@ -1,97 +1,97 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as crypto from 'crypto';
-import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
+impowt * as cwypto fwom 'cwypto';
+impowt { IExtensionUwwTwustSewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionUwwTwust';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
 
-export class ExtensionUrlTrustService implements IExtensionUrlTrustService {
+expowt cwass ExtensionUwwTwustSewvice impwements IExtensionUwwTwustSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private trustedExtensionUrlPublicKeys = new Map<string, (crypto.KeyObject | string | null)[]>();
+	pwivate twustedExtensionUwwPubwicKeys = new Map<stwing, (cwypto.KeyObject | stwing | nuww)[]>();
 
-	constructor(
-		@IProductService private readonly productService: IProductService,
-		@ILogService private readonly logService: ILogService
+	constwuctow(
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice
 	) { }
 
-	async isExtensionUrlTrusted(extensionId: string, url: string): Promise<boolean> {
-		if (!this.productService.trustedExtensionUrlPublicKeys) {
-			this.logService.trace('ExtensionUrlTrustService#isExtensionUrlTrusted', 'There are no configured trusted keys');
-			return false;
+	async isExtensionUwwTwusted(extensionId: stwing, uww: stwing): Pwomise<boowean> {
+		if (!this.pwoductSewvice.twustedExtensionUwwPubwicKeys) {
+			this.wogSewvice.twace('ExtensionUwwTwustSewvice#isExtensionUwwTwusted', 'Thewe awe no configuwed twusted keys');
+			wetuwn fawse;
 		}
 
-		const match = /^(.*)#([^#]+)$/.exec(url);
+		const match = /^(.*)#([^#]+)$/.exec(uww);
 
 		if (!match) {
-			this.logService.trace('ExtensionUrlTrustService#isExtensionUrlTrusted', 'Uri has no fragment', url);
-			return false;
+			this.wogSewvice.twace('ExtensionUwwTwustSewvice#isExtensionUwwTwusted', 'Uwi has no fwagment', uww);
+			wetuwn fawse;
 		}
 
-		const [, originalUrl, fragment] = match;
+		const [, owiginawUww, fwagment] = match;
 
-		let keys = this.trustedExtensionUrlPublicKeys.get(extensionId);
+		wet keys = this.twustedExtensionUwwPubwicKeys.get(extensionId);
 
 		if (!keys) {
-			keys = this.productService.trustedExtensionUrlPublicKeys[extensionId];
+			keys = this.pwoductSewvice.twustedExtensionUwwPubwicKeys[extensionId];
 
-			if (!keys || keys.length === 0) {
-				this.logService.trace('ExtensionUrlTrustService#isExtensionUrlTrusted', 'Extension doesn\'t have any trusted keys', extensionId);
-				return false;
+			if (!keys || keys.wength === 0) {
+				this.wogSewvice.twace('ExtensionUwwTwustSewvice#isExtensionUwwTwusted', 'Extension doesn\'t have any twusted keys', extensionId);
+				wetuwn fawse;
 			}
 
-			this.trustedExtensionUrlPublicKeys.set(extensionId, [...keys]);
+			this.twustedExtensionUwwPubwicKeys.set(extensionId, [...keys]);
 		}
 
-		const fragmentBuffer = Buffer.from(decodeURIComponent(fragment), 'base64');
+		const fwagmentBuffa = Buffa.fwom(decodeUWIComponent(fwagment), 'base64');
 
-		if (fragmentBuffer.length <= 6) {
-			this.logService.trace('ExtensionUrlTrustService#isExtensionUrlTrusted', 'Uri fragment is not a signature', url);
-			return false;
+		if (fwagmentBuffa.wength <= 6) {
+			this.wogSewvice.twace('ExtensionUwwTwustSewvice#isExtensionUwwTwusted', 'Uwi fwagment is not a signatuwe', uww);
+			wetuwn fawse;
 		}
 
-		const timestampBuffer = fragmentBuffer.slice(0, 6);
-		const timestamp = fragmentBuffer.readUIntBE(0, 6);
+		const timestampBuffa = fwagmentBuffa.swice(0, 6);
+		const timestamp = fwagmentBuffa.weadUIntBE(0, 6);
 		const diff = Date.now() - timestamp;
 
-		if (diff < 0 || diff > 3_600_000) { // 1 hour
-			this.logService.trace('ExtensionUrlTrustService#isExtensionUrlTrusted', 'Signed uri has expired', url);
-			return false;
+		if (diff < 0 || diff > 3_600_000) { // 1 houw
+			this.wogSewvice.twace('ExtensionUwwTwustSewvice#isExtensionUwwTwusted', 'Signed uwi has expiwed', uww);
+			wetuwn fawse;
 		}
 
-		const signatureBuffer = fragmentBuffer.slice(6);
-		const verify = crypto.createVerify('SHA256');
-		verify.write(timestampBuffer);
-		verify.write(Buffer.from(originalUrl));
-		verify.end();
+		const signatuweBuffa = fwagmentBuffa.swice(6);
+		const vewify = cwypto.cweateVewify('SHA256');
+		vewify.wwite(timestampBuffa);
+		vewify.wwite(Buffa.fwom(owiginawUww));
+		vewify.end();
 
-		for (let i = 0; i < keys.length; i++) {
-			let key = keys[i];
+		fow (wet i = 0; i < keys.wength; i++) {
+			wet key = keys[i];
 
-			if (key === null) { // failed to be parsed before
+			if (key === nuww) { // faiwed to be pawsed befowe
 				continue;
-			} else if (typeof key === 'string') { // needs to be parsed
-				try {
-					key = crypto.createPublicKey({ key: Buffer.from(key, 'base64'), format: 'der', type: 'spki' });
+			} ewse if (typeof key === 'stwing') { // needs to be pawsed
+				twy {
+					key = cwypto.cweatePubwicKey({ key: Buffa.fwom(key, 'base64'), fowmat: 'dew', type: 'spki' });
 					keys[i] = key;
-				} catch (err) {
-					this.logService.warn('ExtensionUrlTrustService#isExtensionUrlTrusted', `Failed to parse trusted extension uri public key #${i + 1} for ${extensionId}:`, err);
-					keys[i] = null;
+				} catch (eww) {
+					this.wogSewvice.wawn('ExtensionUwwTwustSewvice#isExtensionUwwTwusted', `Faiwed to pawse twusted extension uwi pubwic key #${i + 1} fow ${extensionId}:`, eww);
+					keys[i] = nuww;
 					continue;
 				}
 			}
 
-			if (verify.verify(key, signatureBuffer)) {
-				this.logService.trace('ExtensionUrlTrustService#isExtensionUrlTrusted', 'Signed uri is valid', url);
-				return true;
+			if (vewify.vewify(key, signatuweBuffa)) {
+				this.wogSewvice.twace('ExtensionUwwTwustSewvice#isExtensionUwwTwusted', 'Signed uwi is vawid', uww);
+				wetuwn twue;
 			}
 		}
 
-		this.logService.trace('ExtensionUrlTrustService#isExtensionUrlTrusted', 'Signed uri could not be verified', url);
-		return false;
+		this.wogSewvice.twace('ExtensionUwwTwustSewvice#isExtensionUwwTwusted', 'Signed uwi couwd not be vewified', uww);
+		wetuwn fawse;
 	}
 }

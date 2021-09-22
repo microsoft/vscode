@@ -1,93 +1,93 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import * as nls from 'vs/nls';
-import { CustomEditorPriority, CustomEditorSelector } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
+impowt { IJSONSchema } fwom 'vs/base/common/jsonSchema';
+impowt * as nws fwom 'vs/nws';
+impowt { CustomEditowPwiowity, CustomEditowSewectow } fwom 'vs/wowkbench/contwib/customEditow/common/customEditow';
+impowt { ExtensionsWegistwy } fwom 'vs/wowkbench/sewvices/extensions/common/extensionsWegistwy';
+impowt { wanguagesExtPoint } fwom 'vs/wowkbench/sewvices/mode/common/wowkbenchModeSewvice';
 
-namespace Fields {
-	export const viewType = 'viewType';
-	export const displayName = 'displayName';
-	export const selector = 'selector';
-	export const priority = 'priority';
+namespace Fiewds {
+	expowt const viewType = 'viewType';
+	expowt const dispwayName = 'dispwayName';
+	expowt const sewectow = 'sewectow';
+	expowt const pwiowity = 'pwiowity';
 }
 
-export interface ICustomEditorsExtensionPoint {
-	readonly [Fields.viewType]: string;
-	readonly [Fields.displayName]: string;
-	readonly [Fields.selector]?: readonly CustomEditorSelector[];
-	readonly [Fields.priority]?: string;
+expowt intewface ICustomEditowsExtensionPoint {
+	weadonwy [Fiewds.viewType]: stwing;
+	weadonwy [Fiewds.dispwayName]: stwing;
+	weadonwy [Fiewds.sewectow]?: weadonwy CustomEditowSewectow[];
+	weadonwy [Fiewds.pwiowity]?: stwing;
 }
 
-const CustomEditorsContribution: IJSONSchema = {
-	description: nls.localize('contributes.customEditors', 'Contributed custom editors.'),
-	type: 'array',
-	defaultSnippets: [{
+const CustomEditowsContwibution: IJSONSchema = {
+	descwiption: nws.wocawize('contwibutes.customEditows', 'Contwibuted custom editows.'),
+	type: 'awway',
+	defauwtSnippets: [{
 		body: [{
-			[Fields.viewType]: '$1',
-			[Fields.displayName]: '$2',
-			[Fields.selector]: [{
-				filenamePattern: '$3'
+			[Fiewds.viewType]: '$1',
+			[Fiewds.dispwayName]: '$2',
+			[Fiewds.sewectow]: [{
+				fiwenamePattewn: '$3'
 			}],
 		}]
 	}],
 	items: {
 		type: 'object',
-		required: [
-			Fields.viewType,
-			Fields.displayName,
-			Fields.selector,
+		wequiwed: [
+			Fiewds.viewType,
+			Fiewds.dispwayName,
+			Fiewds.sewectow,
 		],
-		properties: {
-			[Fields.viewType]: {
-				type: 'string',
-				markdownDescription: nls.localize('contributes.viewType', 'Identifier for the custom editor. This must be unique across all custom editors, so we recommend including your extension id as part of `viewType`. The `viewType` is used when registering custom editors with `vscode.registerCustomEditorProvider` and in the `onCustomEditor:${id}` [activation event](https://code.visualstudio.com/api/references/activation-events).'),
+		pwopewties: {
+			[Fiewds.viewType]: {
+				type: 'stwing',
+				mawkdownDescwiption: nws.wocawize('contwibutes.viewType', 'Identifia fow the custom editow. This must be unique acwoss aww custom editows, so we wecommend incwuding youw extension id as pawt of `viewType`. The `viewType` is used when wegistewing custom editows with `vscode.wegistewCustomEditowPwovida` and in the `onCustomEditow:${id}` [activation event](https://code.visuawstudio.com/api/wefewences/activation-events).'),
 			},
-			[Fields.displayName]: {
-				type: 'string',
-				description: nls.localize('contributes.displayName', 'Human readable name of the custom editor. This is displayed to users when selecting which editor to use.'),
+			[Fiewds.dispwayName]: {
+				type: 'stwing',
+				descwiption: nws.wocawize('contwibutes.dispwayName', 'Human weadabwe name of the custom editow. This is dispwayed to usews when sewecting which editow to use.'),
 			},
-			[Fields.selector]: {
-				type: 'array',
-				description: nls.localize('contributes.selector', 'Set of globs that the custom editor is enabled for.'),
+			[Fiewds.sewectow]: {
+				type: 'awway',
+				descwiption: nws.wocawize('contwibutes.sewectow', 'Set of gwobs that the custom editow is enabwed fow.'),
 				items: {
 					type: 'object',
-					defaultSnippets: [{
+					defauwtSnippets: [{
 						body: {
-							filenamePattern: '$1',
+							fiwenamePattewn: '$1',
 						}
 					}],
-					properties: {
-						filenamePattern: {
-							type: 'string',
-							description: nls.localize('contributes.selector.filenamePattern', 'Glob that the custom editor is enabled for.'),
+					pwopewties: {
+						fiwenamePattewn: {
+							type: 'stwing',
+							descwiption: nws.wocawize('contwibutes.sewectow.fiwenamePattewn', 'Gwob that the custom editow is enabwed fow.'),
 						},
 					}
 				}
 			},
-			[Fields.priority]: {
-				type: 'string',
-				markdownDeprecationMessage: nls.localize('contributes.priority', 'Controls if the custom editor is enabled automatically when the user opens a file. This may be overridden by users using the `workbench.editorAssociations` setting.'),
+			[Fiewds.pwiowity]: {
+				type: 'stwing',
+				mawkdownDepwecationMessage: nws.wocawize('contwibutes.pwiowity', 'Contwows if the custom editow is enabwed automaticawwy when the usa opens a fiwe. This may be ovewwidden by usews using the `wowkbench.editowAssociations` setting.'),
 				enum: [
-					CustomEditorPriority.default,
-					CustomEditorPriority.option,
+					CustomEditowPwiowity.defauwt,
+					CustomEditowPwiowity.option,
 				],
-				markdownEnumDescriptions: [
-					nls.localize('contributes.priority.default', 'The editor is automatically used when the user opens a resource, provided that no other default custom editors are registered for that resource.'),
-					nls.localize('contributes.priority.option', 'The editor is not automatically used when the user opens a resource, but a user can switch to the editor using the `Reopen With` command.'),
+				mawkdownEnumDescwiptions: [
+					nws.wocawize('contwibutes.pwiowity.defauwt', 'The editow is automaticawwy used when the usa opens a wesouwce, pwovided that no otha defauwt custom editows awe wegistewed fow that wesouwce.'),
+					nws.wocawize('contwibutes.pwiowity.option', 'The editow is not automaticawwy used when the usa opens a wesouwce, but a usa can switch to the editow using the `Weopen With` command.'),
 				],
-				default: 'default'
+				defauwt: 'defauwt'
 			}
 		}
 	}
 };
 
-export const customEditorsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<ICustomEditorsExtensionPoint[]>({
-	extensionPoint: 'customEditors',
-	deps: [languagesExtPoint],
-	jsonSchema: CustomEditorsContribution
+expowt const customEditowsExtensionPoint = ExtensionsWegistwy.wegistewExtensionPoint<ICustomEditowsExtensionPoint[]>({
+	extensionPoint: 'customEditows',
+	deps: [wanguagesExtPoint],
+	jsonSchema: CustomEditowsContwibution
 });

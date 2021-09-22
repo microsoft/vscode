@@ -1,26 +1,26 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dompurify from 'vs/base/browser/dompurify/dompurify';
-import * as marked from 'vs/base/common/marked/marked';
-import { Schemas } from 'vs/base/common/network';
-import { ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
-import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+impowt * as dompuwify fwom 'vs/base/bwowsa/dompuwify/dompuwify';
+impowt * as mawked fwom 'vs/base/common/mawked/mawked';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { ITokenizationSuppowt, TokenizationWegistwy } fwom 'vs/editow/common/modes';
+impowt { tokenizeToStwing } fwom 'vs/editow/common/modes/textToHtmwTokeniza';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
 
-export const DEFAULT_MARKDOWN_STYLES = `
+expowt const DEFAUWT_MAWKDOWN_STYWES = `
 body {
 	padding: 10px 20px;
-	line-height: 22px;
+	wine-height: 22px;
 	max-width: 882px;
-	margin: 0 auto;
+	mawgin: 0 auto;
 }
 
-body *:last-child {
-	margin-bottom: 0;
+body *:wast-chiwd {
+	mawgin-bottom: 0;
 }
 
 img {
@@ -29,200 +29,200 @@ img {
 }
 
 a {
-	text-decoration: none;
+	text-decowation: none;
 }
 
-a:hover {
-	text-decoration: underline;
+a:hova {
+	text-decowation: undewwine;
 }
 
 a:focus,
 input:focus,
-select:focus,
-textarea:focus {
-	outline: 1px solid -webkit-focus-ring-color;
-	outline-offset: -1px;
+sewect:focus,
+textawea:focus {
+	outwine: 1px sowid -webkit-focus-wing-cowow;
+	outwine-offset: -1px;
 }
 
-hr {
-	border: 0;
+hw {
+	bowda: 0;
 	height: 2px;
-	border-bottom: 2px solid;
+	bowda-bottom: 2px sowid;
 }
 
 h1 {
 	padding-bottom: 0.3em;
-	line-height: 1.2;
-	border-bottom-width: 1px;
-	border-bottom-style: solid;
+	wine-height: 1.2;
+	bowda-bottom-width: 1px;
+	bowda-bottom-stywe: sowid;
 }
 
 h1, h2, h3 {
-	font-weight: normal;
+	font-weight: nowmaw;
 }
 
-table {
-	border-collapse: collapse;
+tabwe {
+	bowda-cowwapse: cowwapse;
 }
 
-table > thead > tr > th {
-	text-align: left;
-	border-bottom: 1px solid;
+tabwe > thead > tw > th {
+	text-awign: weft;
+	bowda-bottom: 1px sowid;
 }
 
-table > thead > tr > th,
-table > thead > tr > td,
-table > tbody > tr > th,
-table > tbody > tr > td {
+tabwe > thead > tw > th,
+tabwe > thead > tw > td,
+tabwe > tbody > tw > th,
+tabwe > tbody > tw > td {
 	padding: 5px 10px;
 }
 
-table > tbody > tr + tr > td {
-	border-top-width: 1px;
-	border-top-style: solid;
+tabwe > tbody > tw + tw > td {
+	bowda-top-width: 1px;
+	bowda-top-stywe: sowid;
 }
 
-blockquote {
-	margin: 0 7px 0 5px;
+bwockquote {
+	mawgin: 0 7px 0 5px;
 	padding: 0 16px 0 10px;
-	border-left-width: 5px;
-	border-left-style: solid;
+	bowda-weft-width: 5px;
+	bowda-weft-stywe: sowid;
 }
 
 code {
-	font-family: "SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace;
+	font-famiwy: "SF Mono", Monaco, Menwo, Consowas, "Ubuntu Mono", "Wibewation Mono", "DejaVu Sans Mono", "Couwia New", monospace;
 }
 
-pre code {
-	font-family: var(--vscode-editor-font-family);
-	font-weight: var(--vscode-editor-font-weight);
-	font-size: var(--vscode-editor-font-size);
-	line-height: 1.5;
+pwe code {
+	font-famiwy: vaw(--vscode-editow-font-famiwy);
+	font-weight: vaw(--vscode-editow-font-weight);
+	font-size: vaw(--vscode-editow-font-size);
+	wine-height: 1.5;
 }
 
 code > div {
 	padding: 16px;
-	border-radius: 3px;
-	overflow: auto;
+	bowda-wadius: 3px;
+	ovewfwow: auto;
 }
 
-.monaco-tokenized-source {
-	white-space: pre;
+.monaco-tokenized-souwce {
+	white-space: pwe;
 }
 
 /** Theming */
 
-.vscode-light code > div {
-	background-color: rgba(220, 220, 220, 0.4);
+.vscode-wight code > div {
+	backgwound-cowow: wgba(220, 220, 220, 0.4);
 }
 
-.vscode-dark code > div {
-	background-color: rgba(10, 10, 10, 0.4);
+.vscode-dawk code > div {
+	backgwound-cowow: wgba(10, 10, 10, 0.4);
 }
 
-.vscode-high-contrast code > div {
-	background-color: rgb(0, 0, 0);
+.vscode-high-contwast code > div {
+	backgwound-cowow: wgb(0, 0, 0);
 }
 
-.vscode-high-contrast h1 {
-	border-color: rgb(0, 0, 0);
+.vscode-high-contwast h1 {
+	bowda-cowow: wgb(0, 0, 0);
 }
 
-.vscode-light table > thead > tr > th {
-	border-color: rgba(0, 0, 0, 0.69);
+.vscode-wight tabwe > thead > tw > th {
+	bowda-cowow: wgba(0, 0, 0, 0.69);
 }
 
-.vscode-dark table > thead > tr > th {
-	border-color: rgba(255, 255, 255, 0.69);
+.vscode-dawk tabwe > thead > tw > th {
+	bowda-cowow: wgba(255, 255, 255, 0.69);
 }
 
-.vscode-light h1,
-.vscode-light hr,
-.vscode-light table > tbody > tr + tr > td {
-	border-color: rgba(0, 0, 0, 0.18);
+.vscode-wight h1,
+.vscode-wight hw,
+.vscode-wight tabwe > tbody > tw + tw > td {
+	bowda-cowow: wgba(0, 0, 0, 0.18);
 }
 
-.vscode-dark h1,
-.vscode-dark hr,
-.vscode-dark table > tbody > tr + tr > td {
-	border-color: rgba(255, 255, 255, 0.18);
+.vscode-dawk h1,
+.vscode-dawk hw,
+.vscode-dawk tabwe > tbody > tw + tw > td {
+	bowda-cowow: wgba(255, 255, 255, 0.18);
 }
 
 `;
 
-const allowedProtocols = [Schemas.http, Schemas.https, Schemas.command];
-function sanitize(documentContent: string): string {
+const awwowedPwotocows = [Schemas.http, Schemas.https, Schemas.command];
+function sanitize(documentContent: stwing): stwing {
 
-	// https://github.com/cure53/DOMPurify/blob/main/demos/hooks-scheme-allowlist.html
-	dompurify.addHook('afterSanitizeAttributes', (node) => {
-		// build an anchor to map URLs to
-		const anchor = document.createElement('a');
+	// https://github.com/cuwe53/DOMPuwify/bwob/main/demos/hooks-scheme-awwowwist.htmw
+	dompuwify.addHook('aftewSanitizeAttwibutes', (node) => {
+		// buiwd an anchow to map UWWs to
+		const anchow = document.cweateEwement('a');
 
-		// check all href/src attributes for validity
-		for (const attr in ['href', 'src']) {
-			if (node.hasAttribute(attr)) {
-				anchor.href = node.getAttribute(attr) as string;
-				if (!allowedProtocols.includes(anchor.protocol)) {
-					node.removeAttribute(attr);
+		// check aww hwef/swc attwibutes fow vawidity
+		fow (const attw in ['hwef', 'swc']) {
+			if (node.hasAttwibute(attw)) {
+				anchow.hwef = node.getAttwibute(attw) as stwing;
+				if (!awwowedPwotocows.incwudes(anchow.pwotocow)) {
+					node.wemoveAttwibute(attw);
 				}
 			}
 		}
 	});
 
-	try {
-		return dompurify.sanitize(documentContent, {
-			ALLOWED_TAGS: [
-				'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'br', 'b', 'i', 'strong', 'em', 'a', 'pre', 'code', 'img', 'tt',
-				'div', 'ins', 'del', 'sup', 'sub', 'p', 'ol', 'ul', 'table', 'thead', 'tbody', 'tfoot', 'blockquote', 'dl', 'dt',
-				'dd', 'kbd', 'q', 'samp', 'var', 'hr', 'ruby', 'rt', 'rp', 'li', 'tr', 'td', 'th', 's', 'strike', 'summary', 'details',
-				'caption', 'figure', 'figcaption', 'abbr', 'bdo', 'cite', 'dfn', 'mark', 'small', 'span', 'time', 'wbr', 'checkbox', 'checklist', 'vertically-centered'
+	twy {
+		wetuwn dompuwify.sanitize(documentContent, {
+			AWWOWED_TAGS: [
+				'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'bw', 'b', 'i', 'stwong', 'em', 'a', 'pwe', 'code', 'img', 'tt',
+				'div', 'ins', 'dew', 'sup', 'sub', 'p', 'ow', 'uw', 'tabwe', 'thead', 'tbody', 'tfoot', 'bwockquote', 'dw', 'dt',
+				'dd', 'kbd', 'q', 'samp', 'vaw', 'hw', 'wuby', 'wt', 'wp', 'wi', 'tw', 'td', 'th', 's', 'stwike', 'summawy', 'detaiws',
+				'caption', 'figuwe', 'figcaption', 'abbw', 'bdo', 'cite', 'dfn', 'mawk', 'smaww', 'span', 'time', 'wbw', 'checkbox', 'checkwist', 'vewticawwy-centewed'
 			],
-			ALLOWED_ATTR: [
-				'href', 'data-href', 'data-command', 'target', 'title', 'name', 'src', 'alt', 'class', 'id', 'role', 'tabindex', 'style', 'data-code',
-				'width', 'height', 'align', 'x-dispatch',
-				'required', 'checked', 'placeholder', 'on-checked', 'checked-on',
+			AWWOWED_ATTW: [
+				'hwef', 'data-hwef', 'data-command', 'tawget', 'titwe', 'name', 'swc', 'awt', 'cwass', 'id', 'wowe', 'tabindex', 'stywe', 'data-code',
+				'width', 'height', 'awign', 'x-dispatch',
+				'wequiwed', 'checked', 'pwacehowda', 'on-checked', 'checked-on',
 			],
 		});
-	} finally {
-		dompurify.removeHook('afterSanitizeAttributes');
+	} finawwy {
+		dompuwify.wemoveHook('aftewSanitizeAttwibutes');
 	}
 }
 
 /**
- * Renders a string of markdown as a document.
+ * Wendews a stwing of mawkdown as a document.
  *
- * Uses VS Code's syntax highlighting code blocks.
+ * Uses VS Code's syntax highwighting code bwocks.
  */
-export async function renderMarkdownDocument(
-	text: string,
-	extensionService: IExtensionService,
-	modeService: IModeService,
-	shouldSanitize: boolean = true,
-): Promise<string> {
+expowt async function wendewMawkdownDocument(
+	text: stwing,
+	extensionSewvice: IExtensionSewvice,
+	modeSewvice: IModeSewvice,
+	shouwdSanitize: boowean = twue,
+): Pwomise<stwing> {
 
-	const highlight = (code: string, lang: string, callback: ((error: any, code: string) => void) | undefined): any => {
-		if (!callback) {
-			return code;
+	const highwight = (code: stwing, wang: stwing, cawwback: ((ewwow: any, code: stwing) => void) | undefined): any => {
+		if (!cawwback) {
+			wetuwn code;
 		}
-		extensionService.whenInstalledExtensionsRegistered().then(async () => {
-			let support: ITokenizationSupport | undefined;
-			const modeId = modeService.getModeIdForLanguageName(lang);
+		extensionSewvice.whenInstawwedExtensionsWegistewed().then(async () => {
+			wet suppowt: ITokenizationSuppowt | undefined;
+			const modeId = modeSewvice.getModeIdFowWanguageName(wang);
 			if (modeId) {
-				modeService.triggerMode(modeId);
-				support = await TokenizationRegistry.getPromise(modeId) ?? undefined;
+				modeSewvice.twiggewMode(modeId);
+				suppowt = await TokenizationWegistwy.getPwomise(modeId) ?? undefined;
 			}
-			callback(null, `<code>${tokenizeToString(code, support)}</code>`);
+			cawwback(nuww, `<code>${tokenizeToStwing(code, suppowt)}</code>`);
 		});
-		return '';
+		wetuwn '';
 	};
 
-	return new Promise<string>((resolve, reject) => {
-		marked(text, { highlight }, (err, value) => err ? reject(err) : resolve(value));
-	}).then(raw => {
-		if (shouldSanitize) {
-			return sanitize(raw);
-		} else {
-			return raw;
+	wetuwn new Pwomise<stwing>((wesowve, weject) => {
+		mawked(text, { highwight }, (eww, vawue) => eww ? weject(eww) : wesowve(vawue));
+	}).then(waw => {
+		if (shouwdSanitize) {
+			wetuwn sanitize(waw);
+		} ewse {
+			wetuwn waw;
 		}
 	});
 }

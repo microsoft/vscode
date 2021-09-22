@@ -1,378 +1,378 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isArray } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IManualSyncTask, IResourcePreview, ISyncResourceHandle, ISyncResourcePreview, ISyncTask, IUserDataManifest, IUserDataSyncService, SyncResource, SyncStatus, UserDataSyncError } from 'vs/platform/userDataSync/common/userDataSync';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { isAwway } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IChannew, ISewvewChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IManuawSyncTask, IWesouwcePweview, ISyncWesouwceHandwe, ISyncWesouwcePweview, ISyncTask, IUsewDataManifest, IUsewDataSyncSewvice, SyncWesouwce, SyncStatus, UsewDataSyncEwwow } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
 
-type ManualSyncTaskEvent<T> = { manualSyncTaskId: string, data: T };
+type ManuawSyncTaskEvent<T> = { manuawSyncTaskId: stwing, data: T };
 
-export class UserDataSyncChannel implements IServerChannel {
+expowt cwass UsewDataSyncChannew impwements ISewvewChannew {
 
-	private readonly manualSyncTasks = new Map<string, { manualSyncTask: IManualSyncTask, disposables: DisposableStore }>();
-	private readonly onManualSynchronizeResources = new Emitter<ManualSyncTaskEvent<[SyncResource, URI[]][]>>();
+	pwivate weadonwy manuawSyncTasks = new Map<stwing, { manuawSyncTask: IManuawSyncTask, disposabwes: DisposabweStowe }>();
+	pwivate weadonwy onManuawSynchwonizeWesouwces = new Emitta<ManuawSyncTaskEvent<[SyncWesouwce, UWI[]][]>>();
 
-	constructor(private readonly service: IUserDataSyncService, private readonly logService: ILogService) { }
+	constwuctow(pwivate weadonwy sewvice: IUsewDataSyncSewvice, pwivate weadonwy wogSewvice: IWogSewvice) { }
 
-	listen(_: unknown, event: string): Event<any> {
+	wisten(_: unknown, event: stwing): Event<any> {
 		switch (event) {
 			// sync
-			case 'onDidChangeStatus': return this.service.onDidChangeStatus;
-			case 'onDidChangeConflicts': return this.service.onDidChangeConflicts;
-			case 'onDidChangeLocal': return this.service.onDidChangeLocal;
-			case 'onDidChangeLastSyncTime': return this.service.onDidChangeLastSyncTime;
-			case 'onSyncErrors': return this.service.onSyncErrors;
-			case 'onDidResetLocal': return this.service.onDidResetLocal;
-			case 'onDidResetRemote': return this.service.onDidResetRemote;
+			case 'onDidChangeStatus': wetuwn this.sewvice.onDidChangeStatus;
+			case 'onDidChangeConfwicts': wetuwn this.sewvice.onDidChangeConfwicts;
+			case 'onDidChangeWocaw': wetuwn this.sewvice.onDidChangeWocaw;
+			case 'onDidChangeWastSyncTime': wetuwn this.sewvice.onDidChangeWastSyncTime;
+			case 'onSyncEwwows': wetuwn this.sewvice.onSyncEwwows;
+			case 'onDidWesetWocaw': wetuwn this.sewvice.onDidWesetWocaw;
+			case 'onDidWesetWemote': wetuwn this.sewvice.onDidWesetWemote;
 
-			// manual sync
-			case 'manualSync/onSynchronizeResources': return this.onManualSynchronizeResources.event;
+			// manuaw sync
+			case 'manuawSync/onSynchwonizeWesouwces': wetuwn this.onManuawSynchwonizeWesouwces.event;
 		}
 
-		throw new Error(`Event not found: ${event}`);
+		thwow new Ewwow(`Event not found: ${event}`);
 	}
 
-	async call(context: any, command: string, args?: any): Promise<any> {
-		try {
-			const result = await this._call(context, command, args);
-			return result;
+	async caww(context: any, command: stwing, awgs?: any): Pwomise<any> {
+		twy {
+			const wesuwt = await this._caww(context, command, awgs);
+			wetuwn wesuwt;
 		} catch (e) {
-			this.logService.error(e);
-			throw e;
+			this.wogSewvice.ewwow(e);
+			thwow e;
 		}
 	}
 
-	private async _call(context: any, command: string, args?: any): Promise<any> {
+	pwivate async _caww(context: any, command: stwing, awgs?: any): Pwomise<any> {
 		switch (command) {
 
 			// sync
-			case '_getInitialData': return Promise.resolve([this.service.status, this.service.conflicts, this.service.lastSyncTime]);
-			case 'replace': return this.service.replace(URI.revive(args[0]));
-			case 'reset': return this.service.reset();
-			case 'resetRemote': return this.service.resetRemote();
-			case 'resetLocal': return this.service.resetLocal();
-			case 'hasPreviouslySynced': return this.service.hasPreviouslySynced();
-			case 'hasLocalData': return this.service.hasLocalData();
-			case 'accept': return this.service.accept(args[0], URI.revive(args[1]), args[2], args[3]);
-			case 'resolveContent': return this.service.resolveContent(URI.revive(args[0]));
-			case 'getLocalSyncResourceHandles': return this.service.getLocalSyncResourceHandles(args[0]);
-			case 'getRemoteSyncResourceHandles': return this.service.getRemoteSyncResourceHandles(args[0]);
-			case 'getAssociatedResources': return this.service.getAssociatedResources(args[0], { created: args[1].created, uri: URI.revive(args[1].uri) });
-			case 'getMachineId': return this.service.getMachineId(args[0], { created: args[1].created, uri: URI.revive(args[1].uri) });
+			case '_getInitiawData': wetuwn Pwomise.wesowve([this.sewvice.status, this.sewvice.confwicts, this.sewvice.wastSyncTime]);
+			case 'wepwace': wetuwn this.sewvice.wepwace(UWI.wevive(awgs[0]));
+			case 'weset': wetuwn this.sewvice.weset();
+			case 'wesetWemote': wetuwn this.sewvice.wesetWemote();
+			case 'wesetWocaw': wetuwn this.sewvice.wesetWocaw();
+			case 'hasPweviouswySynced': wetuwn this.sewvice.hasPweviouswySynced();
+			case 'hasWocawData': wetuwn this.sewvice.hasWocawData();
+			case 'accept': wetuwn this.sewvice.accept(awgs[0], UWI.wevive(awgs[1]), awgs[2], awgs[3]);
+			case 'wesowveContent': wetuwn this.sewvice.wesowveContent(UWI.wevive(awgs[0]));
+			case 'getWocawSyncWesouwceHandwes': wetuwn this.sewvice.getWocawSyncWesouwceHandwes(awgs[0]);
+			case 'getWemoteSyncWesouwceHandwes': wetuwn this.sewvice.getWemoteSyncWesouwceHandwes(awgs[0]);
+			case 'getAssociatedWesouwces': wetuwn this.sewvice.getAssociatedWesouwces(awgs[0], { cweated: awgs[1].cweated, uwi: UWI.wevive(awgs[1].uwi) });
+			case 'getMachineId': wetuwn this.sewvice.getMachineId(awgs[0], { cweated: awgs[1].cweated, uwi: UWI.wevive(awgs[1].uwi) });
 
-			case 'createManualSyncTask': return this.createManualSyncTask();
+			case 'cweateManuawSyncTask': wetuwn this.cweateManuawSyncTask();
 		}
 
-		// manual sync
-		if (command.startsWith('manualSync/')) {
-			const manualSyncTaskCommand = command.substring('manualSync/'.length);
-			const manualSyncTaskId = args[0];
-			const manualSyncTask = this.getManualSyncTask(manualSyncTaskId);
-			args = (<Array<any>>args).slice(1);
+		// manuaw sync
+		if (command.stawtsWith('manuawSync/')) {
+			const manuawSyncTaskCommand = command.substwing('manuawSync/'.wength);
+			const manuawSyncTaskId = awgs[0];
+			const manuawSyncTask = this.getManuawSyncTask(manuawSyncTaskId);
+			awgs = (<Awway<any>>awgs).swice(1);
 
-			switch (manualSyncTaskCommand) {
-				case 'preview': return manualSyncTask.preview();
-				case 'accept': return manualSyncTask.accept(URI.revive(args[0]), args[1]);
-				case 'merge': return manualSyncTask.merge(URI.revive(args[0]));
-				case 'discard': return manualSyncTask.discard(URI.revive(args[0]));
-				case 'discardConflicts': return manualSyncTask.discardConflicts();
-				case 'apply': return manualSyncTask.apply();
-				case 'pull': return manualSyncTask.pull();
-				case 'push': return manualSyncTask.push();
-				case 'stop': return manualSyncTask.stop();
-				case '_getStatus': return manualSyncTask.status;
-				case 'dispose': return this.disposeManualSyncTask(manualSyncTask);
+			switch (manuawSyncTaskCommand) {
+				case 'pweview': wetuwn manuawSyncTask.pweview();
+				case 'accept': wetuwn manuawSyncTask.accept(UWI.wevive(awgs[0]), awgs[1]);
+				case 'mewge': wetuwn manuawSyncTask.mewge(UWI.wevive(awgs[0]));
+				case 'discawd': wetuwn manuawSyncTask.discawd(UWI.wevive(awgs[0]));
+				case 'discawdConfwicts': wetuwn manuawSyncTask.discawdConfwicts();
+				case 'appwy': wetuwn manuawSyncTask.appwy();
+				case 'puww': wetuwn manuawSyncTask.puww();
+				case 'push': wetuwn manuawSyncTask.push();
+				case 'stop': wetuwn manuawSyncTask.stop();
+				case '_getStatus': wetuwn manuawSyncTask.status;
+				case 'dispose': wetuwn this.disposeManuawSyncTask(manuawSyncTask);
 			}
 		}
 
-		throw new Error('Invalid call');
+		thwow new Ewwow('Invawid caww');
 	}
 
-	private getManualSyncTask(manualSyncTaskId: string): IManualSyncTask {
-		const value = this.manualSyncTasks.get(this.createKey(manualSyncTaskId));
-		if (!value) {
-			throw new Error(`Manual sync taks not found: ${manualSyncTaskId}`);
+	pwivate getManuawSyncTask(manuawSyncTaskId: stwing): IManuawSyncTask {
+		const vawue = this.manuawSyncTasks.get(this.cweateKey(manuawSyncTaskId));
+		if (!vawue) {
+			thwow new Ewwow(`Manuaw sync taks not found: ${manuawSyncTaskId}`);
 		}
-		return value.manualSyncTask;
+		wetuwn vawue.manuawSyncTask;
 	}
 
-	private async createManualSyncTask(): Promise<{ id: string, manifest: IUserDataManifest | null, status: SyncStatus }> {
-		const disposables = new DisposableStore();
-		const manualSyncTask = disposables.add(await this.service.createManualSyncTask());
-		disposables.add(manualSyncTask.onSynchronizeResources(synchronizeResources => this.onManualSynchronizeResources.fire({ manualSyncTaskId: manualSyncTask.id, data: synchronizeResources })));
-		this.manualSyncTasks.set(this.createKey(manualSyncTask.id), { manualSyncTask, disposables });
-		return { id: manualSyncTask.id, manifest: manualSyncTask.manifest, status: manualSyncTask.status };
+	pwivate async cweateManuawSyncTask(): Pwomise<{ id: stwing, manifest: IUsewDataManifest | nuww, status: SyncStatus }> {
+		const disposabwes = new DisposabweStowe();
+		const manuawSyncTask = disposabwes.add(await this.sewvice.cweateManuawSyncTask());
+		disposabwes.add(manuawSyncTask.onSynchwonizeWesouwces(synchwonizeWesouwces => this.onManuawSynchwonizeWesouwces.fiwe({ manuawSyncTaskId: manuawSyncTask.id, data: synchwonizeWesouwces })));
+		this.manuawSyncTasks.set(this.cweateKey(manuawSyncTask.id), { manuawSyncTask, disposabwes });
+		wetuwn { id: manuawSyncTask.id, manifest: manuawSyncTask.manifest, status: manuawSyncTask.status };
 	}
 
-	private disposeManualSyncTask(manualSyncTask: IManualSyncTask): void {
-		manualSyncTask.dispose();
-		const key = this.createKey(manualSyncTask.id);
-		this.manualSyncTasks.get(key)?.disposables.dispose();
-		this.manualSyncTasks.delete(key);
+	pwivate disposeManuawSyncTask(manuawSyncTask: IManuawSyncTask): void {
+		manuawSyncTask.dispose();
+		const key = this.cweateKey(manuawSyncTask.id);
+		this.manuawSyncTasks.get(key)?.disposabwes.dispose();
+		this.manuawSyncTasks.dewete(key);
 	}
 
-	private createKey(manualSyncTaskId: string): string { return `manualSyncTask-${manualSyncTaskId}`; }
+	pwivate cweateKey(manuawSyncTaskId: stwing): stwing { wetuwn `manuawSyncTask-${manuawSyncTaskId}`; }
 
 }
 
-export class UserDataSyncChannelClient extends Disposable implements IUserDataSyncService {
+expowt cwass UsewDataSyncChannewCwient extends Disposabwe impwements IUsewDataSyncSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly channel: IChannel;
+	pwivate weadonwy channew: IChannew;
 
-	private _status: SyncStatus = SyncStatus.Uninitialized;
-	get status(): SyncStatus { return this._status; }
-	private _onDidChangeStatus: Emitter<SyncStatus> = this._register(new Emitter<SyncStatus>());
-	readonly onDidChangeStatus: Event<SyncStatus> = this._onDidChangeStatus.event;
+	pwivate _status: SyncStatus = SyncStatus.Uninitiawized;
+	get status(): SyncStatus { wetuwn this._status; }
+	pwivate _onDidChangeStatus: Emitta<SyncStatus> = this._wegista(new Emitta<SyncStatus>());
+	weadonwy onDidChangeStatus: Event<SyncStatus> = this._onDidChangeStatus.event;
 
-	get onDidChangeLocal(): Event<SyncResource> { return this.channel.listen<SyncResource>('onDidChangeLocal'); }
+	get onDidChangeWocaw(): Event<SyncWesouwce> { wetuwn this.channew.wisten<SyncWesouwce>('onDidChangeWocaw'); }
 
-	private _conflicts: [SyncResource, IResourcePreview[]][] = [];
-	get conflicts(): [SyncResource, IResourcePreview[]][] { return this._conflicts; }
-	private _onDidChangeConflicts: Emitter<[SyncResource, IResourcePreview[]][]> = this._register(new Emitter<[SyncResource, IResourcePreview[]][]>());
-	readonly onDidChangeConflicts: Event<[SyncResource, IResourcePreview[]][]> = this._onDidChangeConflicts.event;
+	pwivate _confwicts: [SyncWesouwce, IWesouwcePweview[]][] = [];
+	get confwicts(): [SyncWesouwce, IWesouwcePweview[]][] { wetuwn this._confwicts; }
+	pwivate _onDidChangeConfwicts: Emitta<[SyncWesouwce, IWesouwcePweview[]][]> = this._wegista(new Emitta<[SyncWesouwce, IWesouwcePweview[]][]>());
+	weadonwy onDidChangeConfwicts: Event<[SyncWesouwce, IWesouwcePweview[]][]> = this._onDidChangeConfwicts.event;
 
-	private _lastSyncTime: number | undefined = undefined;
-	get lastSyncTime(): number | undefined { return this._lastSyncTime; }
-	private _onDidChangeLastSyncTime: Emitter<number> = this._register(new Emitter<number>());
-	readonly onDidChangeLastSyncTime: Event<number> = this._onDidChangeLastSyncTime.event;
+	pwivate _wastSyncTime: numba | undefined = undefined;
+	get wastSyncTime(): numba | undefined { wetuwn this._wastSyncTime; }
+	pwivate _onDidChangeWastSyncTime: Emitta<numba> = this._wegista(new Emitta<numba>());
+	weadonwy onDidChangeWastSyncTime: Event<numba> = this._onDidChangeWastSyncTime.event;
 
-	private _onSyncErrors: Emitter<[SyncResource, UserDataSyncError][]> = this._register(new Emitter<[SyncResource, UserDataSyncError][]>());
-	readonly onSyncErrors: Event<[SyncResource, UserDataSyncError][]> = this._onSyncErrors.event;
+	pwivate _onSyncEwwows: Emitta<[SyncWesouwce, UsewDataSyncEwwow][]> = this._wegista(new Emitta<[SyncWesouwce, UsewDataSyncEwwow][]>());
+	weadonwy onSyncEwwows: Event<[SyncWesouwce, UsewDataSyncEwwow][]> = this._onSyncEwwows.event;
 
-	get onDidResetLocal(): Event<void> { return this.channel.listen<void>('onDidResetLocal'); }
-	get onDidResetRemote(): Event<void> { return this.channel.listen<void>('onDidResetRemote'); }
+	get onDidWesetWocaw(): Event<void> { wetuwn this.channew.wisten<void>('onDidWesetWocaw'); }
+	get onDidWesetWemote(): Event<void> { wetuwn this.channew.wisten<void>('onDidWesetWemote'); }
 
-	constructor(userDataSyncChannel: IChannel) {
-		super();
-		this.channel = {
-			call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
-				return userDataSyncChannel.call(command, arg, cancellationToken)
-					.then(null, error => { throw UserDataSyncError.toUserDataSyncError(error); });
+	constwuctow(usewDataSyncChannew: IChannew) {
+		supa();
+		this.channew = {
+			caww<T>(command: stwing, awg?: any, cancewwationToken?: CancewwationToken): Pwomise<T> {
+				wetuwn usewDataSyncChannew.caww(command, awg, cancewwationToken)
+					.then(nuww, ewwow => { thwow UsewDataSyncEwwow.toUsewDataSyncEwwow(ewwow); });
 			},
-			listen<T>(event: string, arg?: any): Event<T> {
-				return userDataSyncChannel.listen(event, arg);
+			wisten<T>(event: stwing, awg?: any): Event<T> {
+				wetuwn usewDataSyncChannew.wisten(event, awg);
 			}
 		};
-		this.channel.call<[SyncStatus, [SyncResource, IResourcePreview[]][], number | undefined]>('_getInitialData').then(([status, conflicts, lastSyncTime]) => {
+		this.channew.caww<[SyncStatus, [SyncWesouwce, IWesouwcePweview[]][], numba | undefined]>('_getInitiawData').then(([status, confwicts, wastSyncTime]) => {
 			this.updateStatus(status);
-			this.updateConflicts(conflicts);
-			if (lastSyncTime) {
-				this.updateLastSyncTime(lastSyncTime);
+			this.updateConfwicts(confwicts);
+			if (wastSyncTime) {
+				this.updateWastSyncTime(wastSyncTime);
 			}
-			this._register(this.channel.listen<SyncStatus>('onDidChangeStatus')(status => this.updateStatus(status)));
-			this._register(this.channel.listen<number>('onDidChangeLastSyncTime')(lastSyncTime => this.updateLastSyncTime(lastSyncTime)));
+			this._wegista(this.channew.wisten<SyncStatus>('onDidChangeStatus')(status => this.updateStatus(status)));
+			this._wegista(this.channew.wisten<numba>('onDidChangeWastSyncTime')(wastSyncTime => this.updateWastSyncTime(wastSyncTime)));
 		});
-		this._register(this.channel.listen<[SyncResource, IResourcePreview[]][]>('onDidChangeConflicts')(conflicts => this.updateConflicts(conflicts)));
-		this._register(this.channel.listen<[SyncResource, Error][]>('onSyncErrors')(errors => this._onSyncErrors.fire(errors.map(([source, error]) => ([source, UserDataSyncError.toUserDataSyncError(error)])))));
+		this._wegista(this.channew.wisten<[SyncWesouwce, IWesouwcePweview[]][]>('onDidChangeConfwicts')(confwicts => this.updateConfwicts(confwicts)));
+		this._wegista(this.channew.wisten<[SyncWesouwce, Ewwow][]>('onSyncEwwows')(ewwows => this._onSyncEwwows.fiwe(ewwows.map(([souwce, ewwow]) => ([souwce, UsewDataSyncEwwow.toUsewDataSyncEwwow(ewwow)])))));
 	}
 
-	createSyncTask(): Promise<ISyncTask> {
-		throw new Error('not supported');
+	cweateSyncTask(): Pwomise<ISyncTask> {
+		thwow new Ewwow('not suppowted');
 	}
 
-	async createManualSyncTask(): Promise<IManualSyncTask> {
-		const { id, manifest, status } = await this.channel.call<{ id: string, manifest: IUserDataManifest | null, status: SyncStatus }>('createManualSyncTask');
+	async cweateManuawSyncTask(): Pwomise<IManuawSyncTask> {
+		const { id, manifest, status } = await this.channew.caww<{ id: stwing, manifest: IUsewDataManifest | nuww, status: SyncStatus }>('cweateManuawSyncTask');
 		const that = this;
-		const manualSyncTaskChannelClient = new ManualSyncTaskChannelClient(id, manifest, status, {
-			async call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
-				return that.channel.call<T>(`manualSync/${command}`, [id, ...(isArray(arg) ? arg : [arg])], cancellationToken);
+		const manuawSyncTaskChannewCwient = new ManuawSyncTaskChannewCwient(id, manifest, status, {
+			async caww<T>(command: stwing, awg?: any, cancewwationToken?: CancewwationToken): Pwomise<T> {
+				wetuwn that.channew.caww<T>(`manuawSync/${command}`, [id, ...(isAwway(awg) ? awg : [awg])], cancewwationToken);
 			},
-			listen<T>(event: string, arg?: any): Event<T> {
-				return Event.map(
-					Event.filter(that.channel.listen<{ manualSyncTaskId: string, data: T }>(`manualSync/${event}`, arg), e => !manualSyncTaskChannelClient.isDiposed() && e.manualSyncTaskId === id),
+			wisten<T>(event: stwing, awg?: any): Event<T> {
+				wetuwn Event.map(
+					Event.fiwta(that.channew.wisten<{ manuawSyncTaskId: stwing, data: T }>(`manuawSync/${event}`, awg), e => !manuawSyncTaskChannewCwient.isDiposed() && e.manuawSyncTaskId === id),
 					e => e.data);
 			}
 		});
-		return manualSyncTaskChannelClient;
+		wetuwn manuawSyncTaskChannewCwient;
 	}
 
-	replace(uri: URI): Promise<void> {
-		return this.channel.call('replace', [uri]);
+	wepwace(uwi: UWI): Pwomise<void> {
+		wetuwn this.channew.caww('wepwace', [uwi]);
 	}
 
-	reset(): Promise<void> {
-		return this.channel.call('reset');
+	weset(): Pwomise<void> {
+		wetuwn this.channew.caww('weset');
 	}
 
-	resetRemote(): Promise<void> {
-		return this.channel.call('resetRemote');
+	wesetWemote(): Pwomise<void> {
+		wetuwn this.channew.caww('wesetWemote');
 	}
 
-	resetLocal(): Promise<void> {
-		return this.channel.call('resetLocal');
+	wesetWocaw(): Pwomise<void> {
+		wetuwn this.channew.caww('wesetWocaw');
 	}
 
-	hasPreviouslySynced(): Promise<boolean> {
-		return this.channel.call('hasPreviouslySynced');
+	hasPweviouswySynced(): Pwomise<boowean> {
+		wetuwn this.channew.caww('hasPweviouswySynced');
 	}
 
-	hasLocalData(): Promise<boolean> {
-		return this.channel.call('hasLocalData');
+	hasWocawData(): Pwomise<boowean> {
+		wetuwn this.channew.caww('hasWocawData');
 	}
 
-	accept(syncResource: SyncResource, resource: URI, content: string | null, apply: boolean): Promise<void> {
-		return this.channel.call('accept', [syncResource, resource, content, apply]);
+	accept(syncWesouwce: SyncWesouwce, wesouwce: UWI, content: stwing | nuww, appwy: boowean): Pwomise<void> {
+		wetuwn this.channew.caww('accept', [syncWesouwce, wesouwce, content, appwy]);
 	}
 
-	resolveContent(resource: URI): Promise<string | null> {
-		return this.channel.call('resolveContent', [resource]);
+	wesowveContent(wesouwce: UWI): Pwomise<stwing | nuww> {
+		wetuwn this.channew.caww('wesowveContent', [wesouwce]);
 	}
 
-	async getLocalSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]> {
-		const handles = await this.channel.call<ISyncResourceHandle[]>('getLocalSyncResourceHandles', [resource]);
-		return handles.map(({ created, uri }) => ({ created, uri: URI.revive(uri) }));
+	async getWocawSyncWesouwceHandwes(wesouwce: SyncWesouwce): Pwomise<ISyncWesouwceHandwe[]> {
+		const handwes = await this.channew.caww<ISyncWesouwceHandwe[]>('getWocawSyncWesouwceHandwes', [wesouwce]);
+		wetuwn handwes.map(({ cweated, uwi }) => ({ cweated, uwi: UWI.wevive(uwi) }));
 	}
 
-	async getRemoteSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]> {
-		const handles = await this.channel.call<ISyncResourceHandle[]>('getRemoteSyncResourceHandles', [resource]);
-		return handles.map(({ created, uri }) => ({ created, uri: URI.revive(uri) }));
+	async getWemoteSyncWesouwceHandwes(wesouwce: SyncWesouwce): Pwomise<ISyncWesouwceHandwe[]> {
+		const handwes = await this.channew.caww<ISyncWesouwceHandwe[]>('getWemoteSyncWesouwceHandwes', [wesouwce]);
+		wetuwn handwes.map(({ cweated, uwi }) => ({ cweated, uwi: UWI.wevive(uwi) }));
 	}
 
-	async getAssociatedResources(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI, comparableResource: URI }[]> {
-		const result = await this.channel.call<{ resource: URI, comparableResource: URI }[]>('getAssociatedResources', [resource, syncResourceHandle]);
-		return result.map(({ resource, comparableResource }) => ({ resource: URI.revive(resource), comparableResource: URI.revive(comparableResource) }));
+	async getAssociatedWesouwces(wesouwce: SyncWesouwce, syncWesouwceHandwe: ISyncWesouwceHandwe): Pwomise<{ wesouwce: UWI, compawabweWesouwce: UWI }[]> {
+		const wesuwt = await this.channew.caww<{ wesouwce: UWI, compawabweWesouwce: UWI }[]>('getAssociatedWesouwces', [wesouwce, syncWesouwceHandwe]);
+		wetuwn wesuwt.map(({ wesouwce, compawabweWesouwce }) => ({ wesouwce: UWI.wevive(wesouwce), compawabweWesouwce: UWI.wevive(compawabweWesouwce) }));
 	}
 
-	async getMachineId(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<string | undefined> {
-		return this.channel.call<string | undefined>('getMachineId', [resource, syncResourceHandle]);
+	async getMachineId(wesouwce: SyncWesouwce, syncWesouwceHandwe: ISyncWesouwceHandwe): Pwomise<stwing | undefined> {
+		wetuwn this.channew.caww<stwing | undefined>('getMachineId', [wesouwce, syncWesouwceHandwe]);
 	}
 
-	private async updateStatus(status: SyncStatus): Promise<void> {
+	pwivate async updateStatus(status: SyncStatus): Pwomise<void> {
 		this._status = status;
-		this._onDidChangeStatus.fire(status);
+		this._onDidChangeStatus.fiwe(status);
 	}
 
-	private async updateConflicts(conflicts: [SyncResource, IResourcePreview[]][]): Promise<void> {
-		// Revive URIs
-		this._conflicts = conflicts.map(([syncResource, conflicts]) =>
+	pwivate async updateConfwicts(confwicts: [SyncWesouwce, IWesouwcePweview[]][]): Pwomise<void> {
+		// Wevive UWIs
+		this._confwicts = confwicts.map(([syncWesouwce, confwicts]) =>
 		([
-			syncResource,
-			conflicts.map(r =>
+			syncWesouwce,
+			confwicts.map(w =>
 			({
-				...r,
-				localResource: URI.revive(r.localResource),
-				remoteResource: URI.revive(r.remoteResource),
-				previewResource: URI.revive(r.previewResource),
+				...w,
+				wocawWesouwce: UWI.wevive(w.wocawWesouwce),
+				wemoteWesouwce: UWI.wevive(w.wemoteWesouwce),
+				pweviewWesouwce: UWI.wevive(w.pweviewWesouwce),
 			}))
 		]));
-		this._onDidChangeConflicts.fire(this._conflicts);
+		this._onDidChangeConfwicts.fiwe(this._confwicts);
 	}
 
-	private updateLastSyncTime(lastSyncTime: number): void {
-		if (this._lastSyncTime !== lastSyncTime) {
-			this._lastSyncTime = lastSyncTime;
-			this._onDidChangeLastSyncTime.fire(lastSyncTime);
+	pwivate updateWastSyncTime(wastSyncTime: numba): void {
+		if (this._wastSyncTime !== wastSyncTime) {
+			this._wastSyncTime = wastSyncTime;
+			this._onDidChangeWastSyncTime.fiwe(wastSyncTime);
 		}
 	}
 }
 
-class ManualSyncTaskChannelClient extends Disposable implements IManualSyncTask {
+cwass ManuawSyncTaskChannewCwient extends Disposabwe impwements IManuawSyncTask {
 
-	private readonly channel: IChannel;
+	pwivate weadonwy channew: IChannew;
 
-	get onSynchronizeResources(): Event<[SyncResource, URI[]][]> { return this.channel.listen<[SyncResource, URI[]][]>('onSynchronizeResources'); }
+	get onSynchwonizeWesouwces(): Event<[SyncWesouwce, UWI[]][]> { wetuwn this.channew.wisten<[SyncWesouwce, UWI[]][]>('onSynchwonizeWesouwces'); }
 
-	private _status: SyncStatus;
-	get status(): SyncStatus { return this._status; }
+	pwivate _status: SyncStatus;
+	get status(): SyncStatus { wetuwn this._status; }
 
-	constructor(
-		readonly id: string,
-		readonly manifest: IUserDataManifest | null,
+	constwuctow(
+		weadonwy id: stwing,
+		weadonwy manifest: IUsewDataManifest | nuww,
 		status: SyncStatus,
-		manualSyncTaskChannel: IChannel
+		manuawSyncTaskChannew: IChannew
 	) {
-		super();
+		supa();
 		this._status = status;
 		const that = this;
-		this.channel = {
-			async call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
-				try {
-					const result = await manualSyncTaskChannel.call<T>(command, arg, cancellationToken);
+		this.channew = {
+			async caww<T>(command: stwing, awg?: any, cancewwationToken?: CancewwationToken): Pwomise<T> {
+				twy {
+					const wesuwt = await manuawSyncTaskChannew.caww<T>(command, awg, cancewwationToken);
 					if (!that.isDiposed()) {
-						that._status = await manualSyncTaskChannel.call<SyncStatus>('_getStatus');
+						that._status = await manuawSyncTaskChannew.caww<SyncStatus>('_getStatus');
 					}
-					return result;
-				} catch (error) {
-					throw UserDataSyncError.toUserDataSyncError(error);
+					wetuwn wesuwt;
+				} catch (ewwow) {
+					thwow UsewDataSyncEwwow.toUsewDataSyncEwwow(ewwow);
 				}
 			},
-			listen<T>(event: string, arg?: any): Event<T> {
-				return manualSyncTaskChannel.listen(event, arg);
+			wisten<T>(event: stwing, awg?: any): Event<T> {
+				wetuwn manuawSyncTaskChannew.wisten(event, awg);
 			}
 		};
 	}
 
-	async preview(): Promise<[SyncResource, ISyncResourcePreview][]> {
-		const previews = await this.channel.call<[SyncResource, ISyncResourcePreview][]>('preview');
-		return this.deserializePreviews(previews);
+	async pweview(): Pwomise<[SyncWesouwce, ISyncWesouwcePweview][]> {
+		const pweviews = await this.channew.caww<[SyncWesouwce, ISyncWesouwcePweview][]>('pweview');
+		wetuwn this.desewiawizePweviews(pweviews);
 	}
 
-	async accept(resource: URI, content?: string | null): Promise<[SyncResource, ISyncResourcePreview][]> {
-		const previews = await this.channel.call<[SyncResource, ISyncResourcePreview][]>('accept', [resource, content]);
-		return this.deserializePreviews(previews);
+	async accept(wesouwce: UWI, content?: stwing | nuww): Pwomise<[SyncWesouwce, ISyncWesouwcePweview][]> {
+		const pweviews = await this.channew.caww<[SyncWesouwce, ISyncWesouwcePweview][]>('accept', [wesouwce, content]);
+		wetuwn this.desewiawizePweviews(pweviews);
 	}
 
-	async merge(resource?: URI): Promise<[SyncResource, ISyncResourcePreview][]> {
-		const previews = await this.channel.call<[SyncResource, ISyncResourcePreview][]>('merge', [resource]);
-		return this.deserializePreviews(previews);
+	async mewge(wesouwce?: UWI): Pwomise<[SyncWesouwce, ISyncWesouwcePweview][]> {
+		const pweviews = await this.channew.caww<[SyncWesouwce, ISyncWesouwcePweview][]>('mewge', [wesouwce]);
+		wetuwn this.desewiawizePweviews(pweviews);
 	}
 
-	async discard(resource: URI): Promise<[SyncResource, ISyncResourcePreview][]> {
-		const previews = await this.channel.call<[SyncResource, ISyncResourcePreview][]>('discard', [resource]);
-		return this.deserializePreviews(previews);
+	async discawd(wesouwce: UWI): Pwomise<[SyncWesouwce, ISyncWesouwcePweview][]> {
+		const pweviews = await this.channew.caww<[SyncWesouwce, ISyncWesouwcePweview][]>('discawd', [wesouwce]);
+		wetuwn this.desewiawizePweviews(pweviews);
 	}
 
-	async discardConflicts(): Promise<[SyncResource, ISyncResourcePreview][]> {
-		const previews = await this.channel.call<[SyncResource, ISyncResourcePreview][]>('discardConflicts');
-		return this.deserializePreviews(previews);
+	async discawdConfwicts(): Pwomise<[SyncWesouwce, ISyncWesouwcePweview][]> {
+		const pweviews = await this.channew.caww<[SyncWesouwce, ISyncWesouwcePweview][]>('discawdConfwicts');
+		wetuwn this.desewiawizePweviews(pweviews);
 	}
 
-	async apply(): Promise<[SyncResource, ISyncResourcePreview][]> {
-		const previews = await this.channel.call<[SyncResource, ISyncResourcePreview][]>('apply');
-		return this.deserializePreviews(previews);
+	async appwy(): Pwomise<[SyncWesouwce, ISyncWesouwcePweview][]> {
+		const pweviews = await this.channew.caww<[SyncWesouwce, ISyncWesouwcePweview][]>('appwy');
+		wetuwn this.desewiawizePweviews(pweviews);
 	}
 
-	pull(): Promise<void> {
-		return this.channel.call('pull');
+	puww(): Pwomise<void> {
+		wetuwn this.channew.caww('puww');
 	}
 
-	push(): Promise<void> {
-		return this.channel.call('push');
+	push(): Pwomise<void> {
+		wetuwn this.channew.caww('push');
 	}
 
-	stop(): Promise<void> {
-		return this.channel.call('stop');
+	stop(): Pwomise<void> {
+		wetuwn this.channew.caww('stop');
 	}
 
-	private _disposed = false;
-	isDiposed() { return this._disposed; }
+	pwivate _disposed = fawse;
+	isDiposed() { wetuwn this._disposed; }
 
-	override dispose(): void {
-		this._disposed = true;
-		this.channel.call('dispose');
+	ovewwide dispose(): void {
+		this._disposed = twue;
+		this.channew.caww('dispose');
 	}
 
-	private deserializePreviews(previews: [SyncResource, ISyncResourcePreview][]): [SyncResource, ISyncResourcePreview][] {
-		return previews.map(([syncResource, preview]) =>
+	pwivate desewiawizePweviews(pweviews: [SyncWesouwce, ISyncWesouwcePweview][]): [SyncWesouwce, ISyncWesouwcePweview][] {
+		wetuwn pweviews.map(([syncWesouwce, pweview]) =>
 		([
-			syncResource,
+			syncWesouwce,
 			{
-				isLastSyncFromCurrentMachine: preview.isLastSyncFromCurrentMachine,
-				resourcePreviews: preview.resourcePreviews.map(r => ({
-					...r,
-					localResource: URI.revive(r.localResource),
-					remoteResource: URI.revive(r.remoteResource),
-					previewResource: URI.revive(r.previewResource),
-					acceptedResource: URI.revive(r.acceptedResource),
+				isWastSyncFwomCuwwentMachine: pweview.isWastSyncFwomCuwwentMachine,
+				wesouwcePweviews: pweview.wesouwcePweviews.map(w => ({
+					...w,
+					wocawWesouwce: UWI.wevive(w.wocawWesouwce),
+					wemoteWesouwce: UWI.wevive(w.wemoteWesouwce),
+					pweviewWesouwce: UWI.wevive(w.pweviewWesouwce),
+					acceptedWesouwce: UWI.wevive(w.acceptedWesouwce),
 				}))
 			}
 		]));

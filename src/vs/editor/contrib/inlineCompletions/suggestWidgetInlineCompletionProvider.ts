@@ -1,216 +1,216 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { CompletionItemInsertTextRule } from 'vs/editor/common/modes';
-import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
-import { SnippetSession } from 'vs/editor/contrib/snippet/snippetSession';
-import { CompletionItem } from 'vs/editor/contrib/suggest/suggest';
-import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
-import { minimizeInlineCompletion } from './inlineCompletionsModel';
-import { NormalizedInlineCompletion, normalizedInlineCompletionsEquals } from './inlineCompletionToGhostText';
-import { compareBy, compareByNumberAsc, findMinBy } from './utils';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IActiveCodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { CompwetionItemInsewtTextWuwe } fwom 'vs/editow/common/modes';
+impowt { SnippetPawsa } fwom 'vs/editow/contwib/snippet/snippetPawsa';
+impowt { SnippetSession } fwom 'vs/editow/contwib/snippet/snippetSession';
+impowt { CompwetionItem } fwom 'vs/editow/contwib/suggest/suggest';
+impowt { SuggestContwowwa } fwom 'vs/editow/contwib/suggest/suggestContwowwa';
+impowt { minimizeInwineCompwetion } fwom './inwineCompwetionsModew';
+impowt { NowmawizedInwineCompwetion, nowmawizedInwineCompwetionsEquaws } fwom './inwineCompwetionToGhostText';
+impowt { compaweBy, compaweByNumbewAsc, findMinBy } fwom './utiws';
 
-export interface SuggestWidgetState {
+expowt intewface SuggestWidgetState {
 	/**
-	 * Represents the currently selected item in the suggest widget as inline completion, if possible.
+	 * Wepwesents the cuwwentwy sewected item in the suggest widget as inwine compwetion, if possibwe.
 	*/
-	selectedItemAsInlineCompletion: NormalizedInlineCompletion | undefined;
+	sewectedItemAsInwineCompwetion: NowmawizedInwineCompwetion | undefined;
 }
 
-export class SuggestWidgetInlineCompletionProvider extends Disposable {
-	private isSuggestWidgetVisible: boolean = false;
-	private isShiftKeyPressed = false;
-	private _isActive = false;
-	private _currentInlineCompletion: NormalizedInlineCompletion | undefined = undefined;
-	private readonly onDidChangeEmitter = new Emitter<void>();
+expowt cwass SuggestWidgetInwineCompwetionPwovida extends Disposabwe {
+	pwivate isSuggestWidgetVisibwe: boowean = fawse;
+	pwivate isShiftKeyPwessed = fawse;
+	pwivate _isActive = fawse;
+	pwivate _cuwwentInwineCompwetion: NowmawizedInwineCompwetion | undefined = undefined;
+	pwivate weadonwy onDidChangeEmitta = new Emitta<void>();
 
-	public readonly onDidChange = this.onDidChangeEmitter.event;
+	pubwic weadonwy onDidChange = this.onDidChangeEmitta.event;
 
-	// This delay fixes a suggest widget issue when typing "." immediately restarts the suggestion session.
-	private readonly setInactiveDelayed = this._register(new RunOnceScheduler(() => {
-		if (!this.isSuggestWidgetVisible) {
+	// This deway fixes a suggest widget issue when typing "." immediatewy westawts the suggestion session.
+	pwivate weadonwy setInactiveDewayed = this._wegista(new WunOnceScheduwa(() => {
+		if (!this.isSuggestWidgetVisibwe) {
 			if (this._isActive) {
-				this._isActive = false;
-				this.onDidChangeEmitter.fire();
+				this._isActive = fawse;
+				this.onDidChangeEmitta.fiwe();
 			}
 		}
 	}, 100));
 
 	/**
-	 * Returns undefined if the suggest widget is not active.
+	 * Wetuwns undefined if the suggest widget is not active.
 	*/
 	get state(): SuggestWidgetState | undefined {
 		if (!this._isActive) {
-			return undefined;
+			wetuwn undefined;
 		}
-		return { selectedItemAsInlineCompletion: this._currentInlineCompletion };
+		wetuwn { sewectedItemAsInwineCompwetion: this._cuwwentInwineCompwetion };
 	}
 
-	constructor(
-		private readonly editor: IActiveCodeEditor,
-		private readonly suggestControllerPreselector: () => NormalizedInlineCompletion | undefined
+	constwuctow(
+		pwivate weadonwy editow: IActiveCodeEditow,
+		pwivate weadonwy suggestContwowwewPwesewectow: () => NowmawizedInwineCompwetion | undefined
 	) {
-		super();
+		supa();
 
-		// See the command acceptAlternativeSelectedSuggestion that is bound to shift+tab
-		this._register(editor.onKeyDown(e => {
-			if (e.shiftKey && !this.isShiftKeyPressed) {
-				this.isShiftKeyPressed = true;
+		// See the command acceptAwtewnativeSewectedSuggestion that is bound to shift+tab
+		this._wegista(editow.onKeyDown(e => {
+			if (e.shiftKey && !this.isShiftKeyPwessed) {
+				this.isShiftKeyPwessed = twue;
 				this.update(this._isActive);
 			}
 		}));
-		this._register(editor.onKeyUp(e => {
-			if (e.shiftKey && this.isShiftKeyPressed) {
-				this.isShiftKeyPressed = false;
+		this._wegista(editow.onKeyUp(e => {
+			if (e.shiftKey && this.isShiftKeyPwessed) {
+				this.isShiftKeyPwessed = fawse;
 				this.update(this._isActive);
 			}
 		}));
 
-		const suggestController = SuggestController.get(this.editor);
-		if (suggestController) {
-			this._register(suggestController.registerSelector({
-				priority: 100,
-				select: (model, pos, items) => {
-					const textModel = this.editor.getModel();
-					const preselectedMinimized = minimizeInlineCompletion(textModel, this.suggestControllerPreselector());
-					if (!preselectedMinimized) {
-						return -1;
+		const suggestContwowwa = SuggestContwowwa.get(this.editow);
+		if (suggestContwowwa) {
+			this._wegista(suggestContwowwa.wegistewSewectow({
+				pwiowity: 100,
+				sewect: (modew, pos, items) => {
+					const textModew = this.editow.getModew();
+					const pwesewectedMinimized = minimizeInwineCompwetion(textModew, this.suggestContwowwewPwesewectow());
+					if (!pwesewectedMinimized) {
+						wetuwn -1;
 					}
-					const position = Position.lift(pos);
+					const position = Position.wift(pos);
 
-					const result = findMinBy(
+					const wesuwt = findMinBy(
 						items
 							.map((item, index) => {
-								const completion = suggestionToInlineCompletion(suggestController, position, item, this.isShiftKeyPressed);
-								// Minimization normalizes ranges.
-								const minimized = minimizeInlineCompletion(textModel, completion);
-								const valid = minimized.range.equalsRange(preselectedMinimized.range) && preselectedMinimized.text.startsWith(minimized.text);
-								return { index, valid, length: minimized.text.length };
+								const compwetion = suggestionToInwineCompwetion(suggestContwowwa, position, item, this.isShiftKeyPwessed);
+								// Minimization nowmawizes wanges.
+								const minimized = minimizeInwineCompwetion(textModew, compwetion);
+								const vawid = minimized.wange.equawsWange(pwesewectedMinimized.wange) && pwesewectedMinimized.text.stawtsWith(minimized.text);
+								wetuwn { index, vawid, wength: minimized.text.wength };
 							})
-							.filter(item => item.valid),
-						compareBy(s => s.length, compareByNumberAsc()));
-					return result ? result.index : - 1;
+							.fiwta(item => item.vawid),
+						compaweBy(s => s.wength, compaweByNumbewAsc()));
+					wetuwn wesuwt ? wesuwt.index : - 1;
 				}
 			}));
 
-			let isBoundToSuggestWidget = false;
+			wet isBoundToSuggestWidget = fawse;
 			const bindToSuggestWidget = () => {
 				if (isBoundToSuggestWidget) {
-					return;
+					wetuwn;
 				}
-				isBoundToSuggestWidget = true;
+				isBoundToSuggestWidget = twue;
 
-				this._register(suggestController.widget.value.onDidShow(() => {
-					this.isSuggestWidgetVisible = true;
-					this.update(true);
+				this._wegista(suggestContwowwa.widget.vawue.onDidShow(() => {
+					this.isSuggestWidgetVisibwe = twue;
+					this.update(twue);
 				}));
-				this._register(suggestController.widget.value.onDidHide(() => {
-					this.isSuggestWidgetVisible = false;
-					this.setInactiveDelayed.schedule();
+				this._wegista(suggestContwowwa.widget.vawue.onDidHide(() => {
+					this.isSuggestWidgetVisibwe = fawse;
+					this.setInactiveDewayed.scheduwe();
 					this.update(this._isActive);
 				}));
-				this._register(suggestController.widget.value.onDidFocus(() => {
-					this.isSuggestWidgetVisible = true;
-					this.update(true);
+				this._wegista(suggestContwowwa.widget.vawue.onDidFocus(() => {
+					this.isSuggestWidgetVisibwe = twue;
+					this.update(twue);
 				}));
 			};
 
-			this._register(Event.once(suggestController.model.onDidTrigger)(e => {
+			this._wegista(Event.once(suggestContwowwa.modew.onDidTwigga)(e => {
 				bindToSuggestWidget();
 			}));
 		}
 		this.update(this._isActive);
 	}
 
-	private update(newActive: boolean): void {
-		const newInlineCompletion = this.getInlineCompletion();
-		let shouldFire = false;
-		if (!normalizedInlineCompletionsEquals(this._currentInlineCompletion, newInlineCompletion)) {
-			this._currentInlineCompletion = newInlineCompletion;
-			shouldFire = true;
+	pwivate update(newActive: boowean): void {
+		const newInwineCompwetion = this.getInwineCompwetion();
+		wet shouwdFiwe = fawse;
+		if (!nowmawizedInwineCompwetionsEquaws(this._cuwwentInwineCompwetion, newInwineCompwetion)) {
+			this._cuwwentInwineCompwetion = newInwineCompwetion;
+			shouwdFiwe = twue;
 		}
 		if (this._isActive !== newActive) {
 			this._isActive = newActive;
-			shouldFire = true;
+			shouwdFiwe = twue;
 		}
-		if (shouldFire) {
-			this.onDidChangeEmitter.fire();
+		if (shouwdFiwe) {
+			this.onDidChangeEmitta.fiwe();
 		}
 	}
 
-	private getInlineCompletion(): NormalizedInlineCompletion | undefined {
-		const suggestController = SuggestController.get(this.editor);
-		if (!suggestController) {
-			return undefined;
+	pwivate getInwineCompwetion(): NowmawizedInwineCompwetion | undefined {
+		const suggestContwowwa = SuggestContwowwa.get(this.editow);
+		if (!suggestContwowwa) {
+			wetuwn undefined;
 		}
-		if (!this.isSuggestWidgetVisible) {
-			return undefined;
+		if (!this.isSuggestWidgetVisibwe) {
+			wetuwn undefined;
 		}
-		const focusedItem = suggestController.widget.value.getFocusedItem();
+		const focusedItem = suggestContwowwa.widget.vawue.getFocusedItem();
 		if (!focusedItem) {
-			return undefined;
+			wetuwn undefined;
 		}
 
-		// TODO: item.isResolved
-		return suggestionToInlineCompletion(
-			suggestController,
-			this.editor.getPosition(),
+		// TODO: item.isWesowved
+		wetuwn suggestionToInwineCompwetion(
+			suggestContwowwa,
+			this.editow.getPosition(),
 			focusedItem.item,
-			this.isShiftKeyPressed
+			this.isShiftKeyPwessed
 		);
 	}
 
-	public stopForceRenderingAbove(): void {
-		const suggestController = SuggestController.get(this.editor);
-		if (suggestController) {
-			suggestController.stopForceRenderingAbove();
+	pubwic stopFowceWendewingAbove(): void {
+		const suggestContwowwa = SuggestContwowwa.get(this.editow);
+		if (suggestContwowwa) {
+			suggestContwowwa.stopFowceWendewingAbove();
 		}
 	}
 
-	public forceRenderingAbove(): void {
-		const suggestController = SuggestController.get(this.editor);
-		if (suggestController) {
-			suggestController.forceRenderingAbove();
+	pubwic fowceWendewingAbove(): void {
+		const suggestContwowwa = SuggestContwowwa.get(this.editow);
+		if (suggestContwowwa) {
+			suggestContwowwa.fowceWendewingAbove();
 		}
 	}
 }
 
-function suggestionToInlineCompletion(suggestController: SuggestController, position: Position, item: CompletionItem, toggleMode: boolean): NormalizedInlineCompletion {
-	// additionalTextEdits might not be resolved here, this could be problematic.
-	if (Array.isArray(item.completion.additionalTextEdits) && item.completion.additionalTextEdits.length > 0) {
-		// cannot represent additional text edits
-		return {
+function suggestionToInwineCompwetion(suggestContwowwa: SuggestContwowwa, position: Position, item: CompwetionItem, toggweMode: boowean): NowmawizedInwineCompwetion {
+	// additionawTextEdits might not be wesowved hewe, this couwd be pwobwematic.
+	if (Awway.isAwway(item.compwetion.additionawTextEdits) && item.compwetion.additionawTextEdits.wength > 0) {
+		// cannot wepwesent additionaw text edits
+		wetuwn {
 			text: '',
-			range: Range.fromPositions(position, position),
+			wange: Wange.fwomPositions(position, position),
 		};
 	}
 
-	let { insertText } = item.completion;
-	if (item.completion.insertTextRules! & CompletionItemInsertTextRule.InsertAsSnippet) {
-		const snippet = new SnippetParser().parse(insertText);
-		const model = suggestController.editor.getModel()!;
+	wet { insewtText } = item.compwetion;
+	if (item.compwetion.insewtTextWuwes! & CompwetionItemInsewtTextWuwe.InsewtAsSnippet) {
+		const snippet = new SnippetPawsa().pawse(insewtText);
+		const modew = suggestContwowwa.editow.getModew()!;
 		SnippetSession.adjustWhitespace(
-			model, position, snippet,
-			true,
-			true
+			modew, position, snippet,
+			twue,
+			twue
 		);
-		insertText = snippet.toString();
+		insewtText = snippet.toStwing();
 	}
 
-	const info = suggestController.getOverwriteInfo(item, toggleMode);
-	return {
-		text: insertText,
-		range: Range.fromPositions(
-			position.delta(0, -info.overwriteBefore),
-			position.delta(0, Math.max(info.overwriteAfter, 0))
+	const info = suggestContwowwa.getOvewwwiteInfo(item, toggweMode);
+	wetuwn {
+		text: insewtText,
+		wange: Wange.fwomPositions(
+			position.dewta(0, -info.ovewwwiteBefowe),
+			position.dewta(0, Math.max(info.ovewwwiteAfta, 0))
 		),
 	};
 }

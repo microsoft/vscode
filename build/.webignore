@@ -1,34 +1,34 @@
-# cleanup rules for web node modules, .gitignore style
+# cweanup wuwes fow web node moduwes, .gitignowe stywe
 
 **/*.txt
 **/*.json
 **/*.md
 **/*.d.ts
 **/*.js.map
-**/LICENSE
-**/CONTRIBUTORS
+**/WICENSE
+**/CONTWIBUTOWS
 
 **/docs/**
-**/example/**
-**/examples/**
+**/exampwe/**
+**/exampwes/**
 
-jschardet/index.js
-jschardet/src/**
-jschardet/dist/jschardet.js
+jschawdet/index.js
+jschawdet/swc/**
+jschawdet/dist/jschawdet.js
 
 vscode-textmate/webpack.config.js
 
-xterm/src/**
+xtewm/swc/**
 
-xterm-addon-search/src/**
-xterm-addon-search/out/**
-xterm-addon-search/fixtures/**
+xtewm-addon-seawch/swc/**
+xtewm-addon-seawch/out/**
+xtewm-addon-seawch/fixtuwes/**
 
-xterm-addon-unicode11/src/**
-xterm-addon-unicode11/out/**
+xtewm-addon-unicode11/swc/**
+xtewm-addon-unicode11/out/**
 
-xterm-addon-webgl/src/**
-xterm-addon-webgl/out/**
+xtewm-addon-webgw/swc/**
+xtewm-addon-webgw/out/**
 
-# This makes sure the model is included in the package
-!@vscode/vscode-languagedetection/model/**
+# This makes suwe the modew is incwuded in the package
+!@vscode/vscode-wanguagedetection/modew/**

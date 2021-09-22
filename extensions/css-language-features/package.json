@@ -1,862 +1,862 @@
 {
-  "name": "css-language-features",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "name": "css-wanguage-featuwes",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "^1.29.0"
   },
   "icon": "icons/css.png",
   "activationEvents": [
-    "onLanguage:css",
-    "onLanguage:less",
-    "onLanguage:scss",
-    "onCommand:_css.applyCodeAction"
+    "onWanguage:css",
+    "onWanguage:wess",
+    "onWanguage:scss",
+    "onCommand:_css.appwyCodeAction"
   ],
-  "main": "./client/out/node/cssClientMain",
-  "browser": "./client/dist/browser/cssClientMain",
-  "enableProposedApi": true,
-  "capabilities": {
-    "virtualWorkspaces": true,
-    "untrustedWorkspaces": {
-      "supported": true
+  "main": "./cwient/out/node/cssCwientMain",
+  "bwowsa": "./cwient/dist/bwowsa/cssCwientMain",
+  "enabwePwoposedApi": twue,
+  "capabiwities": {
+    "viwtuawWowkspaces": twue,
+    "untwustedWowkspaces": {
+      "suppowted": twue
     }
   },
-  "scripts": {
-    "compile": "npx gulp compile-extension:css-language-features-client compile-extension:css-language-features-server",
-    "watch": "npx gulp watch-extension:css-language-features-client watch-extension:css-language-features-server",
-    "test": "node ../../node_modules/mocha/bin/mocha",
-    "install-client-next": "yarn add vscode-languageclient@next"
+  "scwipts": {
+    "compiwe": "npx guwp compiwe-extension:css-wanguage-featuwes-cwient compiwe-extension:css-wanguage-featuwes-sewva",
+    "watch": "npx guwp watch-extension:css-wanguage-featuwes-cwient watch-extension:css-wanguage-featuwes-sewva",
+    "test": "node ../../node_moduwes/mocha/bin/mocha",
+    "instaww-cwient-next": "yawn add vscode-wanguagecwient@next"
   },
-  "categories": [
-    "Programming Languages"
+  "categowies": [
+    "Pwogwamming Wanguages"
   ],
-  "contributes": {
-    "configuration": [
+  "contwibutes": {
+    "configuwation": [
       {
-        "order": 22,
+        "owda": 22,
         "id": "css",
-        "title": "%css.title%",
-        "properties": {
+        "titwe": "%css.titwe%",
+        "pwopewties": {
           "css.customData": {
-            "type": "array",
-            "markdownDescription": "%css.customData.desc%",
-            "default": [],
+            "type": "awway",
+            "mawkdownDescwiption": "%css.customData.desc%",
+            "defauwt": [],
             "items": {
-              "type": "string"
+              "type": "stwing"
             },
-            "scope": "resource"
+            "scope": "wesouwce"
           },
-          "css.completion.triggerPropertyValueCompletion": {
-            "type": "boolean",
-            "scope": "resource",
-            "default": true,
-            "description": "%css.completion.triggerPropertyValueCompletion.desc%"
+          "css.compwetion.twiggewPwopewtyVawueCompwetion": {
+            "type": "boowean",
+            "scope": "wesouwce",
+            "defauwt": twue,
+            "descwiption": "%css.compwetion.twiggewPwopewtyVawueCompwetion.desc%"
           },
-          "css.completion.completePropertyWithSemicolon": {
-            "type": "boolean",
-            "scope": "resource",
-            "default": true,
-            "description": "%css.completion.completePropertyWithSemicolon.desc%"
+          "css.compwetion.compwetePwopewtyWithSemicowon": {
+            "type": "boowean",
+            "scope": "wesouwce",
+            "defauwt": twue,
+            "descwiption": "%css.compwetion.compwetePwopewtyWithSemicowon.desc%"
           },
-          "css.validate": {
-            "type": "boolean",
-            "scope": "resource",
-            "default": true,
-            "description": "%css.validate.desc%"
+          "css.vawidate": {
+            "type": "boowean",
+            "scope": "wesouwce",
+            "defauwt": twue,
+            "descwiption": "%css.vawidate.desc%"
           },
-          "css.hover.documentation": {
-            "type": "boolean",
-            "scope": "resource",
-            "default": true,
-            "description": "%css.hover.documentation%"
+          "css.hova.documentation": {
+            "type": "boowean",
+            "scope": "wesouwce",
+            "defauwt": twue,
+            "descwiption": "%css.hova.documentation%"
           },
-          "css.hover.references": {
-            "type": "boolean",
-            "scope": "resource",
-            "default": true,
-            "description": "%css.hover.references%"
+          "css.hova.wefewences": {
+            "type": "boowean",
+            "scope": "wesouwce",
+            "defauwt": twue,
+            "descwiption": "%css.hova.wefewences%"
           },
-          "css.lint.compatibleVendorPrefixes": {
-            "type": "string",
-            "scope": "resource",
+          "css.wint.compatibweVendowPwefixes": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "ignore",
-            "description": "%css.lint.compatibleVendorPrefixes.desc%"
+            "defauwt": "ignowe",
+            "descwiption": "%css.wint.compatibweVendowPwefixes.desc%"
           },
-          "css.lint.vendorPrefix": {
-            "type": "string",
-            "scope": "resource",
+          "css.wint.vendowPwefix": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "warning",
-            "description": "%css.lint.vendorPrefix.desc%"
+            "defauwt": "wawning",
+            "descwiption": "%css.wint.vendowPwefix.desc%"
           },
-          "css.lint.duplicateProperties": {
-            "type": "string",
-            "scope": "resource",
+          "css.wint.dupwicatePwopewties": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "ignore",
-            "description": "%css.lint.duplicateProperties.desc%"
+            "defauwt": "ignowe",
+            "descwiption": "%css.wint.dupwicatePwopewties.desc%"
           },
-          "css.lint.emptyRules": {
-            "type": "string",
-            "scope": "resource",
+          "css.wint.emptyWuwes": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "warning",
-            "description": "%css.lint.emptyRules.desc%"
+            "defauwt": "wawning",
+            "descwiption": "%css.wint.emptyWuwes.desc%"
           },
-          "css.lint.importStatement": {
-            "type": "string",
-            "scope": "resource",
+          "css.wint.impowtStatement": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "ignore",
-            "description": "%css.lint.importStatement.desc%"
+            "defauwt": "ignowe",
+            "descwiption": "%css.wint.impowtStatement.desc%"
           },
-          "css.lint.boxModel": {
-            "type": "string",
-            "scope": "resource",
+          "css.wint.boxModew": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "ignore",
-            "markdownDescription": "%css.lint.boxModel.desc%"
+            "defauwt": "ignowe",
+            "mawkdownDescwiption": "%css.wint.boxModew.desc%"
           },
-          "css.lint.universalSelector": {
-            "type": "string",
-            "scope": "resource",
+          "css.wint.univewsawSewectow": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "ignore",
-            "markdownDescription": "%css.lint.universalSelector.desc%"
+            "defauwt": "ignowe",
+            "mawkdownDescwiption": "%css.wint.univewsawSewectow.desc%"
           },
-          "css.lint.zeroUnits": {
-            "type": "string",
-            "scope": "resource",
+          "css.wint.zewoUnits": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "ignore",
-            "description": "%css.lint.zeroUnits.desc%"
+            "defauwt": "ignowe",
+            "descwiption": "%css.wint.zewoUnits.desc%"
           },
-          "css.lint.fontFaceProperties": {
-            "type": "string",
-            "scope": "resource",
+          "css.wint.fontFacePwopewties": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "warning",
-            "markdownDescription": "%css.lint.fontFaceProperties.desc%"
+            "defauwt": "wawning",
+            "mawkdownDescwiption": "%css.wint.fontFacePwopewties.desc%"
           },
-          "css.lint.hexColorLength": {
-            "type": "string",
-            "scope": "resource",
+          "css.wint.hexCowowWength": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "error",
-            "description": "%css.lint.hexColorLength.desc%"
+            "defauwt": "ewwow",
+            "descwiption": "%css.wint.hexCowowWength.desc%"
           },
-          "css.lint.argumentsInColorFunction": {
-            "type": "string",
-            "scope": "resource",
+          "css.wint.awgumentsInCowowFunction": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "error",
-            "description": "%css.lint.argumentsInColorFunction.desc%"
+            "defauwt": "ewwow",
+            "descwiption": "%css.wint.awgumentsInCowowFunction.desc%"
           },
-          "css.lint.unknownProperties": {
-            "type": "string",
-            "scope": "resource",
+          "css.wint.unknownPwopewties": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "warning",
-            "description": "%css.lint.unknownProperties.desc%"
+            "defauwt": "wawning",
+            "descwiption": "%css.wint.unknownPwopewties.desc%"
           },
-          "css.lint.validProperties": {
-            "type": "array",
-            "uniqueItems": true,
+          "css.wint.vawidPwopewties": {
+            "type": "awway",
+            "uniqueItems": twue,
             "items": {
-              "type": "string"
+              "type": "stwing"
             },
-            "scope": "resource",
-            "default": [],
-            "description": "%css.lint.validProperties.desc%"
+            "scope": "wesouwce",
+            "defauwt": [],
+            "descwiption": "%css.wint.vawidPwopewties.desc%"
           },
-          "css.lint.ieHack": {
-            "type": "string",
-            "scope": "resource",
+          "css.wint.ieHack": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "ignore",
-            "description": "%css.lint.ieHack.desc%"
+            "defauwt": "ignowe",
+            "descwiption": "%css.wint.ieHack.desc%"
           },
-          "css.lint.unknownVendorSpecificProperties": {
-            "type": "string",
-            "scope": "resource",
+          "css.wint.unknownVendowSpecificPwopewties": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "ignore",
-            "description": "%css.lint.unknownVendorSpecificProperties.desc%"
+            "defauwt": "ignowe",
+            "descwiption": "%css.wint.unknownVendowSpecificPwopewties.desc%"
           },
-          "css.lint.propertyIgnoredDueToDisplay": {
-            "type": "string",
-            "scope": "resource",
+          "css.wint.pwopewtyIgnowedDueToDispway": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "warning",
-            "markdownDescription": "%css.lint.propertyIgnoredDueToDisplay.desc%"
+            "defauwt": "wawning",
+            "mawkdownDescwiption": "%css.wint.pwopewtyIgnowedDueToDispway.desc%"
           },
-          "css.lint.important": {
-            "type": "string",
-            "scope": "resource",
+          "css.wint.impowtant": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "ignore",
-            "markdownDescription": "%css.lint.important.desc%"
+            "defauwt": "ignowe",
+            "mawkdownDescwiption": "%css.wint.impowtant.desc%"
           },
-          "css.lint.float": {
-            "type": "string",
-            "scope": "resource",
+          "css.wint.fwoat": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "ignore",
-            "markdownDescription": "%css.lint.float.desc%"
+            "defauwt": "ignowe",
+            "mawkdownDescwiption": "%css.wint.fwoat.desc%"
           },
-          "css.lint.idSelector": {
-            "type": "string",
-            "scope": "resource",
+          "css.wint.idSewectow": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "ignore",
-            "description": "%css.lint.idSelector.desc%"
+            "defauwt": "ignowe",
+            "descwiption": "%css.wint.idSewectow.desc%"
           },
-          "css.lint.unknownAtRules": {
-            "type": "string",
-            "scope": "resource",
+          "css.wint.unknownAtWuwes": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "warning",
-            "description": "%css.lint.unknownAtRules.desc%"
+            "defauwt": "wawning",
+            "descwiption": "%css.wint.unknownAtWuwes.desc%"
           },
-          "css.trace.server": {
-            "type": "string",
+          "css.twace.sewva": {
+            "type": "stwing",
             "scope": "window",
             "enum": [
               "off",
               "messages",
-              "verbose"
+              "vewbose"
             ],
-            "default": "off",
-            "description": "%css.trace.server.desc%"
+            "defauwt": "off",
+            "descwiption": "%css.twace.sewva.desc%"
           }
         }
       },
       {
         "id": "scss",
-        "order": 24,
-        "title": "%scss.title%",
-        "properties": {
-          "scss.completion.triggerPropertyValueCompletion": {
-            "type": "boolean",
-            "scope": "resource",
-            "default": true,
-            "description": "%scss.completion.triggerPropertyValueCompletion.desc%"
+        "owda": 24,
+        "titwe": "%scss.titwe%",
+        "pwopewties": {
+          "scss.compwetion.twiggewPwopewtyVawueCompwetion": {
+            "type": "boowean",
+            "scope": "wesouwce",
+            "defauwt": twue,
+            "descwiption": "%scss.compwetion.twiggewPwopewtyVawueCompwetion.desc%"
           },
-          "scss.completion.completePropertyWithSemicolon": {
-            "type": "boolean",
-            "scope": "resource",
-            "default": true,
-            "description": "%scss.completion.completePropertyWithSemicolon.desc%"
+          "scss.compwetion.compwetePwopewtyWithSemicowon": {
+            "type": "boowean",
+            "scope": "wesouwce",
+            "defauwt": twue,
+            "descwiption": "%scss.compwetion.compwetePwopewtyWithSemicowon.desc%"
           },
-          "scss.validate": {
-            "type": "boolean",
-            "scope": "resource",
-            "default": true,
-            "description": "%scss.validate.desc%"
+          "scss.vawidate": {
+            "type": "boowean",
+            "scope": "wesouwce",
+            "defauwt": twue,
+            "descwiption": "%scss.vawidate.desc%"
           },
-          "scss.hover.documentation": {
-            "type": "boolean",
-            "scope": "resource",
-            "default": true,
-            "description": "%scss.hover.documentation%"
+          "scss.hova.documentation": {
+            "type": "boowean",
+            "scope": "wesouwce",
+            "defauwt": twue,
+            "descwiption": "%scss.hova.documentation%"
           },
-          "scss.hover.references": {
-            "type": "boolean",
-            "scope": "resource",
-            "default": true,
-            "description": "%scss.hover.references%"
+          "scss.hova.wefewences": {
+            "type": "boowean",
+            "scope": "wesouwce",
+            "defauwt": twue,
+            "descwiption": "%scss.hova.wefewences%"
           },
-          "scss.lint.compatibleVendorPrefixes": {
-            "type": "string",
-            "scope": "resource",
+          "scss.wint.compatibweVendowPwefixes": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "ignore",
-            "description": "%scss.lint.compatibleVendorPrefixes.desc%"
+            "defauwt": "ignowe",
+            "descwiption": "%scss.wint.compatibweVendowPwefixes.desc%"
           },
-          "scss.lint.vendorPrefix": {
-            "type": "string",
-            "scope": "resource",
+          "scss.wint.vendowPwefix": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "warning",
-            "description": "%scss.lint.vendorPrefix.desc%"
+            "defauwt": "wawning",
+            "descwiption": "%scss.wint.vendowPwefix.desc%"
           },
-          "scss.lint.duplicateProperties": {
-            "type": "string",
-            "scope": "resource",
+          "scss.wint.dupwicatePwopewties": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "ignore",
-            "description": "%scss.lint.duplicateProperties.desc%"
+            "defauwt": "ignowe",
+            "descwiption": "%scss.wint.dupwicatePwopewties.desc%"
           },
-          "scss.lint.emptyRules": {
-            "type": "string",
-            "scope": "resource",
+          "scss.wint.emptyWuwes": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "warning",
-            "description": "%scss.lint.emptyRules.desc%"
+            "defauwt": "wawning",
+            "descwiption": "%scss.wint.emptyWuwes.desc%"
           },
-          "scss.lint.importStatement": {
-            "type": "string",
-            "scope": "resource",
+          "scss.wint.impowtStatement": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "ignore",
-            "description": "%scss.lint.importStatement.desc%"
+            "defauwt": "ignowe",
+            "descwiption": "%scss.wint.impowtStatement.desc%"
           },
-          "scss.lint.boxModel": {
-            "type": "string",
-            "scope": "resource",
+          "scss.wint.boxModew": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "ignore",
-            "markdownDescription": "%scss.lint.boxModel.desc%"
+            "defauwt": "ignowe",
+            "mawkdownDescwiption": "%scss.wint.boxModew.desc%"
           },
-          "scss.lint.universalSelector": {
-            "type": "string",
-            "scope": "resource",
+          "scss.wint.univewsawSewectow": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "ignore",
-            "markdownDescription": "%scss.lint.universalSelector.desc%"
+            "defauwt": "ignowe",
+            "mawkdownDescwiption": "%scss.wint.univewsawSewectow.desc%"
           },
-          "scss.lint.zeroUnits": {
-            "type": "string",
-            "scope": "resource",
+          "scss.wint.zewoUnits": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "ignore",
-            "description": "%scss.lint.zeroUnits.desc%"
+            "defauwt": "ignowe",
+            "descwiption": "%scss.wint.zewoUnits.desc%"
           },
-          "scss.lint.fontFaceProperties": {
-            "type": "string",
-            "scope": "resource",
+          "scss.wint.fontFacePwopewties": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "warning",
-            "markdownDescription": "%scss.lint.fontFaceProperties.desc%"
+            "defauwt": "wawning",
+            "mawkdownDescwiption": "%scss.wint.fontFacePwopewties.desc%"
           },
-          "scss.lint.hexColorLength": {
-            "type": "string",
-            "scope": "resource",
+          "scss.wint.hexCowowWength": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "error",
-            "description": "%scss.lint.hexColorLength.desc%"
+            "defauwt": "ewwow",
+            "descwiption": "%scss.wint.hexCowowWength.desc%"
           },
-          "scss.lint.argumentsInColorFunction": {
-            "type": "string",
-            "scope": "resource",
+          "scss.wint.awgumentsInCowowFunction": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "error",
-            "description": "%scss.lint.argumentsInColorFunction.desc%"
+            "defauwt": "ewwow",
+            "descwiption": "%scss.wint.awgumentsInCowowFunction.desc%"
           },
-          "scss.lint.unknownProperties": {
-            "type": "string",
-            "scope": "resource",
+          "scss.wint.unknownPwopewties": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "warning",
-            "description": "%scss.lint.unknownProperties.desc%"
+            "defauwt": "wawning",
+            "descwiption": "%scss.wint.unknownPwopewties.desc%"
           },
-          "scss.lint.validProperties": {
-            "type": "array",
-            "uniqueItems": true,
+          "scss.wint.vawidPwopewties": {
+            "type": "awway",
+            "uniqueItems": twue,
             "items": {
-              "type": "string"
+              "type": "stwing"
             },
-            "scope": "resource",
-            "default": [],
-            "description": "%scss.lint.validProperties.desc%"
+            "scope": "wesouwce",
+            "defauwt": [],
+            "descwiption": "%scss.wint.vawidPwopewties.desc%"
           },
-          "scss.lint.ieHack": {
-            "type": "string",
-            "scope": "resource",
+          "scss.wint.ieHack": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "ignore",
-            "description": "%scss.lint.ieHack.desc%"
+            "defauwt": "ignowe",
+            "descwiption": "%scss.wint.ieHack.desc%"
           },
-          "scss.lint.unknownVendorSpecificProperties": {
-            "type": "string",
-            "scope": "resource",
+          "scss.wint.unknownVendowSpecificPwopewties": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "ignore",
-            "description": "%scss.lint.unknownVendorSpecificProperties.desc%"
+            "defauwt": "ignowe",
+            "descwiption": "%scss.wint.unknownVendowSpecificPwopewties.desc%"
           },
-          "scss.lint.propertyIgnoredDueToDisplay": {
-            "type": "string",
-            "scope": "resource",
+          "scss.wint.pwopewtyIgnowedDueToDispway": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "warning",
-            "markdownDescription": "%scss.lint.propertyIgnoredDueToDisplay.desc%"
+            "defauwt": "wawning",
+            "mawkdownDescwiption": "%scss.wint.pwopewtyIgnowedDueToDispway.desc%"
           },
-          "scss.lint.important": {
-            "type": "string",
-            "scope": "resource",
+          "scss.wint.impowtant": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "ignore",
-            "markdownDescription": "%scss.lint.important.desc%"
+            "defauwt": "ignowe",
+            "mawkdownDescwiption": "%scss.wint.impowtant.desc%"
           },
-          "scss.lint.float": {
-            "type": "string",
-            "scope": "resource",
+          "scss.wint.fwoat": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "ignore",
-            "markdownDescription": "%scss.lint.float.desc%"
+            "defauwt": "ignowe",
+            "mawkdownDescwiption": "%scss.wint.fwoat.desc%"
           },
-          "scss.lint.idSelector": {
-            "type": "string",
-            "scope": "resource",
+          "scss.wint.idSewectow": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "ignore",
-            "description": "%scss.lint.idSelector.desc%"
+            "defauwt": "ignowe",
+            "descwiption": "%scss.wint.idSewectow.desc%"
           },
-          "scss.lint.unknownAtRules": {
-            "type": "string",
-            "scope": "resource",
+          "scss.wint.unknownAtWuwes": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "warning",
-            "description": "%scss.lint.unknownAtRules.desc%"
+            "defauwt": "wawning",
+            "descwiption": "%scss.wint.unknownAtWuwes.desc%"
           }
         }
       },
       {
-        "id": "less",
-        "order": 23,
+        "id": "wess",
+        "owda": 23,
         "type": "object",
-        "title": "%less.title%",
-        "properties": {
-          "less.completion.triggerPropertyValueCompletion": {
-            "type": "boolean",
-            "scope": "resource",
-            "default": true,
-            "description": "%less.completion.triggerPropertyValueCompletion.desc%"
+        "titwe": "%wess.titwe%",
+        "pwopewties": {
+          "wess.compwetion.twiggewPwopewtyVawueCompwetion": {
+            "type": "boowean",
+            "scope": "wesouwce",
+            "defauwt": twue,
+            "descwiption": "%wess.compwetion.twiggewPwopewtyVawueCompwetion.desc%"
           },
-          "less.completion.completePropertyWithSemicolon": {
-            "type": "boolean",
-            "scope": "resource",
-            "default": true,
-            "description": "%less.completion.completePropertyWithSemicolon.desc%"
+          "wess.compwetion.compwetePwopewtyWithSemicowon": {
+            "type": "boowean",
+            "scope": "wesouwce",
+            "defauwt": twue,
+            "descwiption": "%wess.compwetion.compwetePwopewtyWithSemicowon.desc%"
           },
-          "less.validate": {
-            "type": "boolean",
-            "scope": "resource",
-            "default": true,
-            "description": "%less.validate.desc%"
+          "wess.vawidate": {
+            "type": "boowean",
+            "scope": "wesouwce",
+            "defauwt": twue,
+            "descwiption": "%wess.vawidate.desc%"
           },
-          "less.hover.documentation": {
-            "type": "boolean",
-            "scope": "resource",
-            "default": true,
-            "description": "%less.hover.documentation%"
+          "wess.hova.documentation": {
+            "type": "boowean",
+            "scope": "wesouwce",
+            "defauwt": twue,
+            "descwiption": "%wess.hova.documentation%"
           },
-          "less.hover.references": {
-            "type": "boolean",
-            "scope": "resource",
-            "default": true,
-            "description": "%less.hover.references%"
+          "wess.hova.wefewences": {
+            "type": "boowean",
+            "scope": "wesouwce",
+            "defauwt": twue,
+            "descwiption": "%wess.hova.wefewences%"
           },
-          "less.lint.compatibleVendorPrefixes": {
-            "type": "string",
-            "scope": "resource",
+          "wess.wint.compatibweVendowPwefixes": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "ignore",
-            "description": "%less.lint.compatibleVendorPrefixes.desc%"
+            "defauwt": "ignowe",
+            "descwiption": "%wess.wint.compatibweVendowPwefixes.desc%"
           },
-          "less.lint.vendorPrefix": {
-            "type": "string",
-            "scope": "resource",
+          "wess.wint.vendowPwefix": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "warning",
-            "description": "%less.lint.vendorPrefix.desc%"
+            "defauwt": "wawning",
+            "descwiption": "%wess.wint.vendowPwefix.desc%"
           },
-          "less.lint.duplicateProperties": {
-            "type": "string",
-            "scope": "resource",
+          "wess.wint.dupwicatePwopewties": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "ignore",
-            "description": "%less.lint.duplicateProperties.desc%"
+            "defauwt": "ignowe",
+            "descwiption": "%wess.wint.dupwicatePwopewties.desc%"
           },
-          "less.lint.emptyRules": {
-            "type": "string",
-            "scope": "resource",
+          "wess.wint.emptyWuwes": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "warning",
-            "description": "%less.lint.emptyRules.desc%"
+            "defauwt": "wawning",
+            "descwiption": "%wess.wint.emptyWuwes.desc%"
           },
-          "less.lint.importStatement": {
-            "type": "string",
-            "scope": "resource",
+          "wess.wint.impowtStatement": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "ignore",
-            "description": "%less.lint.importStatement.desc%"
+            "defauwt": "ignowe",
+            "descwiption": "%wess.wint.impowtStatement.desc%"
           },
-          "less.lint.boxModel": {
-            "type": "string",
-            "scope": "resource",
+          "wess.wint.boxModew": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "ignore",
-            "markdownDescription": "%less.lint.boxModel.desc%"
+            "defauwt": "ignowe",
+            "mawkdownDescwiption": "%wess.wint.boxModew.desc%"
           },
-          "less.lint.universalSelector": {
-            "type": "string",
-            "scope": "resource",
+          "wess.wint.univewsawSewectow": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "ignore",
-            "markdownDescription": "%less.lint.universalSelector.desc%"
+            "defauwt": "ignowe",
+            "mawkdownDescwiption": "%wess.wint.univewsawSewectow.desc%"
           },
-          "less.lint.zeroUnits": {
-            "type": "string",
-            "scope": "resource",
+          "wess.wint.zewoUnits": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "ignore",
-            "description": "%less.lint.zeroUnits.desc%"
+            "defauwt": "ignowe",
+            "descwiption": "%wess.wint.zewoUnits.desc%"
           },
-          "less.lint.fontFaceProperties": {
-            "type": "string",
-            "scope": "resource",
+          "wess.wint.fontFacePwopewties": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "warning",
-            "markdownDescription": "%less.lint.fontFaceProperties.desc%"
+            "defauwt": "wawning",
+            "mawkdownDescwiption": "%wess.wint.fontFacePwopewties.desc%"
           },
-          "less.lint.hexColorLength": {
-            "type": "string",
-            "scope": "resource",
+          "wess.wint.hexCowowWength": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "error",
-            "description": "%less.lint.hexColorLength.desc%"
+            "defauwt": "ewwow",
+            "descwiption": "%wess.wint.hexCowowWength.desc%"
           },
-          "less.lint.argumentsInColorFunction": {
-            "type": "string",
-            "scope": "resource",
+          "wess.wint.awgumentsInCowowFunction": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "error",
-            "description": "%less.lint.argumentsInColorFunction.desc%"
+            "defauwt": "ewwow",
+            "descwiption": "%wess.wint.awgumentsInCowowFunction.desc%"
           },
-          "less.lint.unknownProperties": {
-            "type": "string",
-            "scope": "resource",
+          "wess.wint.unknownPwopewties": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "warning",
-            "description": "%less.lint.unknownProperties.desc%"
+            "defauwt": "wawning",
+            "descwiption": "%wess.wint.unknownPwopewties.desc%"
           },
-          "less.lint.validProperties": {
-            "type": "array",
-            "uniqueItems": true,
+          "wess.wint.vawidPwopewties": {
+            "type": "awway",
+            "uniqueItems": twue,
             "items": {
-              "type": "string"
+              "type": "stwing"
             },
-            "scope": "resource",
-            "default": [],
-            "description": "%less.lint.validProperties.desc%"
+            "scope": "wesouwce",
+            "defauwt": [],
+            "descwiption": "%wess.wint.vawidPwopewties.desc%"
           },
-          "less.lint.ieHack": {
-            "type": "string",
-            "scope": "resource",
+          "wess.wint.ieHack": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "ignore",
-            "description": "%less.lint.ieHack.desc%"
+            "defauwt": "ignowe",
+            "descwiption": "%wess.wint.ieHack.desc%"
           },
-          "less.lint.unknownVendorSpecificProperties": {
-            "type": "string",
-            "scope": "resource",
+          "wess.wint.unknownVendowSpecificPwopewties": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "ignore",
-            "description": "%less.lint.unknownVendorSpecificProperties.desc%"
+            "defauwt": "ignowe",
+            "descwiption": "%wess.wint.unknownVendowSpecificPwopewties.desc%"
           },
-          "less.lint.propertyIgnoredDueToDisplay": {
-            "type": "string",
-            "scope": "resource",
+          "wess.wint.pwopewtyIgnowedDueToDispway": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "warning",
-            "markdownDescription": "%less.lint.propertyIgnoredDueToDisplay.desc%"
+            "defauwt": "wawning",
+            "mawkdownDescwiption": "%wess.wint.pwopewtyIgnowedDueToDispway.desc%"
           },
-          "less.lint.important": {
-            "type": "string",
-            "scope": "resource",
+          "wess.wint.impowtant": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "ignore",
-            "markdownDescription": "%less.lint.important.desc%"
+            "defauwt": "ignowe",
+            "mawkdownDescwiption": "%wess.wint.impowtant.desc%"
           },
-          "less.lint.float": {
-            "type": "string",
-            "scope": "resource",
+          "wess.wint.fwoat": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "ignore",
-            "markdownDescription": "%less.lint.float.desc%"
+            "defauwt": "ignowe",
+            "mawkdownDescwiption": "%wess.wint.fwoat.desc%"
           },
-          "less.lint.idSelector": {
-            "type": "string",
-            "scope": "resource",
+          "wess.wint.idSewectow": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "ignore",
-            "description": "%less.lint.idSelector.desc%"
+            "defauwt": "ignowe",
+            "descwiption": "%wess.wint.idSewectow.desc%"
           },
-          "less.lint.unknownAtRules": {
-            "type": "string",
-            "scope": "resource",
+          "wess.wint.unknownAtWuwes": {
+            "type": "stwing",
+            "scope": "wesouwce",
             "enum": [
-              "ignore",
-              "warning",
-              "error"
+              "ignowe",
+              "wawning",
+              "ewwow"
             ],
-            "default": "warning",
-            "description": "%less.lint.unknownAtRules.desc%"
+            "defauwt": "wawning",
+            "descwiption": "%wess.wint.unknownAtWuwes.desc%"
           }
         }
       }
     ],
-    "configurationDefaults": {
+    "configuwationDefauwts": {
       "[css]": {
-        "editor.suggest.insertMode": "replace"
+        "editow.suggest.insewtMode": "wepwace"
       },
       "[scss]": {
-        "editor.suggest.insertMode": "replace"
+        "editow.suggest.insewtMode": "wepwace"
       },
-      "[less]": {
-        "editor.suggest.insertMode": "replace"
+      "[wess]": {
+        "editow.suggest.insewtMode": "wepwace"
       }
     },
-    "jsonValidation": [
+    "jsonVawidation": [
       {
-        "fileMatch": "*.css-data.json",
-        "url": "https://raw.githubusercontent.com/microsoft/vscode-css-languageservice/master/docs/customData.schema.json"
+        "fiweMatch": "*.css-data.json",
+        "uww": "https://waw.githubusewcontent.com/micwosoft/vscode-css-wanguagesewvice/masta/docs/customData.schema.json"
       },
       {
-        "fileMatch": "package.json",
-        "url": "./schemas/package.schema.json"
+        "fiweMatch": "package.json",
+        "uww": "./schemas/package.schema.json"
       }
     ]
   },
   "dependencies": {
-    "vscode-languageclient": "^7.0.0",
-    "vscode-nls": "^5.0.0",
-    "vscode-uri": "^3.0.2"
+    "vscode-wanguagecwient": "^7.0.0",
+    "vscode-nws": "^5.0.0",
+    "vscode-uwi": "^3.0.2"
   },
   "devDependencies": {
     "@types/node": "14.x"
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

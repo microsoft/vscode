@@ -1,15 +1,15 @@
 /*---------------------------------------------------------------------------------------------
-*  Copyright (c) Microsoft Corporation. All rights reserved.
-*  Licensed under the MIT License. See License.txt in the project root for license information.
+*  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+*  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
 *--------------------------------------------------------------------------------------------*/
 
-declare module '@emmetio/css-parser' {
-	import { BufferStream, Stylesheet } from 'EmmetNode';
-	import { Stylesheet as FlatStylesheet } from 'EmmetFlatNode';
+decwawe moduwe '@emmetio/css-pawsa' {
+	impowt { BuffewStweam, Stywesheet } fwom 'EmmetNode';
+	impowt { Stywesheet as FwatStywesheet } fwom 'EmmetFwatNode';
 
-	function parseStylesheet(stream: BufferStream): Stylesheet;
-	function parseStylesheet(stream: string): FlatStylesheet;
+	function pawseStywesheet(stweam: BuffewStweam): Stywesheet;
+	function pawseStywesheet(stweam: stwing): FwatStywesheet;
 
-	export default parseStylesheet;
+	expowt defauwt pawseStywesheet;
 }
 

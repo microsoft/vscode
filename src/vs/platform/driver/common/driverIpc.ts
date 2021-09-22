@@ -1,106 +1,106 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IDriverOptions, IElement, ILocaleInfo, ILocalizedStrings as ILocalizedStrings, IWindowDriver, IWindowDriverRegistry } from 'vs/platform/driver/common/driver';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IChannew, ISewvewChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { IDwivewOptions, IEwement, IWocaweInfo, IWocawizedStwings as IWocawizedStwings, IWindowDwiva, IWindowDwivewWegistwy } fwom 'vs/pwatfowm/dwiva/common/dwiva';
 
-export class WindowDriverChannel implements IServerChannel {
+expowt cwass WindowDwivewChannew impwements ISewvewChannew {
 
-	constructor(private driver: IWindowDriver) { }
+	constwuctow(pwivate dwiva: IWindowDwiva) { }
 
-	listen<T>(_: unknown, event: string): Event<T> {
-		throw new Error(`No event found: ${event}`);
+	wisten<T>(_: unknown, event: stwing): Event<T> {
+		thwow new Ewwow(`No event found: ${event}`);
 	}
 
-	call(_: unknown, command: string, arg?: any): Promise<any> {
+	caww(_: unknown, command: stwing, awg?: any): Pwomise<any> {
 		switch (command) {
-			case 'click': return this.driver.click(arg[0], arg[1], arg[2]);
-			case 'doubleClick': return this.driver.doubleClick(arg);
-			case 'setValue': return this.driver.setValue(arg[0], arg[1]);
-			case 'getTitle': return this.driver.getTitle();
-			case 'isActiveElement': return this.driver.isActiveElement(arg);
-			case 'getElements': return this.driver.getElements(arg[0], arg[1]);
-			case 'getElementXY': return this.driver.getElementXY(arg[0], arg[1], arg[2]);
-			case 'typeInEditor': return this.driver.typeInEditor(arg[0], arg[1]);
-			case 'getTerminalBuffer': return this.driver.getTerminalBuffer(arg);
-			case 'writeInTerminal': return this.driver.writeInTerminal(arg[0], arg[1]);
-			case 'getLocaleInfo': return this.driver.getLocaleInfo();
-			case 'getLocalizedStrings': return this.driver.getLocalizedStrings();
+			case 'cwick': wetuwn this.dwiva.cwick(awg[0], awg[1], awg[2]);
+			case 'doubweCwick': wetuwn this.dwiva.doubweCwick(awg);
+			case 'setVawue': wetuwn this.dwiva.setVawue(awg[0], awg[1]);
+			case 'getTitwe': wetuwn this.dwiva.getTitwe();
+			case 'isActiveEwement': wetuwn this.dwiva.isActiveEwement(awg);
+			case 'getEwements': wetuwn this.dwiva.getEwements(awg[0], awg[1]);
+			case 'getEwementXY': wetuwn this.dwiva.getEwementXY(awg[0], awg[1], awg[2]);
+			case 'typeInEditow': wetuwn this.dwiva.typeInEditow(awg[0], awg[1]);
+			case 'getTewminawBuffa': wetuwn this.dwiva.getTewminawBuffa(awg);
+			case 'wwiteInTewminaw': wetuwn this.dwiva.wwiteInTewminaw(awg[0], awg[1]);
+			case 'getWocaweInfo': wetuwn this.dwiva.getWocaweInfo();
+			case 'getWocawizedStwings': wetuwn this.dwiva.getWocawizedStwings();
 		}
 
-		throw new Error(`Call not found: ${command}`);
+		thwow new Ewwow(`Caww not found: ${command}`);
 	}
 }
 
-export class WindowDriverChannelClient implements IWindowDriver {
+expowt cwass WindowDwivewChannewCwient impwements IWindowDwiva {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(private channel: IChannel) { }
+	constwuctow(pwivate channew: IChannew) { }
 
-	click(selector: string, xoffset?: number, yoffset?: number): Promise<void> {
-		return this.channel.call('click', [selector, xoffset, yoffset]);
+	cwick(sewectow: stwing, xoffset?: numba, yoffset?: numba): Pwomise<void> {
+		wetuwn this.channew.caww('cwick', [sewectow, xoffset, yoffset]);
 	}
 
-	doubleClick(selector: string): Promise<void> {
-		return this.channel.call('doubleClick', selector);
+	doubweCwick(sewectow: stwing): Pwomise<void> {
+		wetuwn this.channew.caww('doubweCwick', sewectow);
 	}
 
-	setValue(selector: string, text: string): Promise<void> {
-		return this.channel.call('setValue', [selector, text]);
+	setVawue(sewectow: stwing, text: stwing): Pwomise<void> {
+		wetuwn this.channew.caww('setVawue', [sewectow, text]);
 	}
 
-	getTitle(): Promise<string> {
-		return this.channel.call('getTitle');
+	getTitwe(): Pwomise<stwing> {
+		wetuwn this.channew.caww('getTitwe');
 	}
 
-	isActiveElement(selector: string): Promise<boolean> {
-		return this.channel.call('isActiveElement', selector);
+	isActiveEwement(sewectow: stwing): Pwomise<boowean> {
+		wetuwn this.channew.caww('isActiveEwement', sewectow);
 	}
 
-	getElements(selector: string, recursive: boolean): Promise<IElement[]> {
-		return this.channel.call('getElements', [selector, recursive]);
+	getEwements(sewectow: stwing, wecuwsive: boowean): Pwomise<IEwement[]> {
+		wetuwn this.channew.caww('getEwements', [sewectow, wecuwsive]);
 	}
 
-	getElementXY(selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number, y: number }> {
-		return this.channel.call('getElementXY', [selector, xoffset, yoffset]);
+	getEwementXY(sewectow: stwing, xoffset?: numba, yoffset?: numba): Pwomise<{ x: numba, y: numba }> {
+		wetuwn this.channew.caww('getEwementXY', [sewectow, xoffset, yoffset]);
 	}
 
-	typeInEditor(selector: string, text: string): Promise<void> {
-		return this.channel.call('typeInEditor', [selector, text]);
+	typeInEditow(sewectow: stwing, text: stwing): Pwomise<void> {
+		wetuwn this.channew.caww('typeInEditow', [sewectow, text]);
 	}
 
-	getTerminalBuffer(selector: string): Promise<string[]> {
-		return this.channel.call('getTerminalBuffer', selector);
+	getTewminawBuffa(sewectow: stwing): Pwomise<stwing[]> {
+		wetuwn this.channew.caww('getTewminawBuffa', sewectow);
 	}
 
-	writeInTerminal(selector: string, text: string): Promise<void> {
-		return this.channel.call('writeInTerminal', [selector, text]);
+	wwiteInTewminaw(sewectow: stwing, text: stwing): Pwomise<void> {
+		wetuwn this.channew.caww('wwiteInTewminaw', [sewectow, text]);
 	}
 
-	getLocaleInfo(): Promise<ILocaleInfo> {
-		return this.channel.call('getLocaleInfo');
+	getWocaweInfo(): Pwomise<IWocaweInfo> {
+		wetuwn this.channew.caww('getWocaweInfo');
 	}
 
-	getLocalizedStrings(): Promise<ILocalizedStrings> {
-		return this.channel.call('getLocalizedStrings');
+	getWocawizedStwings(): Pwomise<IWocawizedStwings> {
+		wetuwn this.channew.caww('getWocawizedStwings');
 	}
 }
 
-export class WindowDriverRegistryChannelClient implements IWindowDriverRegistry {
+expowt cwass WindowDwivewWegistwyChannewCwient impwements IWindowDwivewWegistwy {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(private channel: IChannel) { }
+	constwuctow(pwivate channew: IChannew) { }
 
-	registerWindowDriver(windowId: number): Promise<IDriverOptions> {
-		return this.channel.call('registerWindowDriver', windowId);
+	wegistewWindowDwiva(windowId: numba): Pwomise<IDwivewOptions> {
+		wetuwn this.channew.caww('wegistewWindowDwiva', windowId);
 	}
 
-	reloadWindowDriver(windowId: number): Promise<void> {
-		return this.channel.call('reloadWindowDriver', windowId);
+	wewoadWindowDwiva(windowId: numba): Pwomise<void> {
+		wetuwn this.channew.caww('wewoadWindowDwiva', windowId);
 	}
 }

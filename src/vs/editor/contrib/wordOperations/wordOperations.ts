@@ -1,520 +1,520 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, ICommandOptions, registerEditorAction, registerEditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
-import { EditorOption, EditorOptions } from 'vs/editor/common/config/editorOptions';
-import { CursorState } from 'vs/editor/common/controller/cursorCommon';
-import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
-import { DeleteWordContext, WordNavigationType, WordOperations } from 'vs/editor/common/controller/cursorWordOperations';
-import { getMapForWordSeparators, WordCharacterClassifier } from 'vs/editor/common/controller/wordCharacterClassifier';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ITextModel } from 'vs/editor/common/model';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import * as nls from 'vs/nls';
-import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IsWindowsContext } from 'vs/platform/contextkey/common/contextkeys';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, EditowCommand, ICommandOptions, wegistewEditowAction, wegistewEditowCommand, SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { WepwaceCommand } fwom 'vs/editow/common/commands/wepwaceCommand';
+impowt { EditowOption, EditowOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { CuwsowState } fwom 'vs/editow/common/contwowwa/cuwsowCommon';
+impowt { CuwsowChangeWeason } fwom 'vs/editow/common/contwowwa/cuwsowEvents';
+impowt { DeweteWowdContext, WowdNavigationType, WowdOpewations } fwom 'vs/editow/common/contwowwa/cuwsowWowdOpewations';
+impowt { getMapFowWowdSepawatows, WowdChawactewCwassifia } fwom 'vs/editow/common/contwowwa/wowdChawactewCwassifia';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
+impowt * as nws fwom 'vs/nws';
+impowt { CONTEXT_ACCESSIBIWITY_MODE_ENABWED } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IsWindowsContext } fwom 'vs/pwatfowm/contextkey/common/contextkeys';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
 
-export interface MoveWordOptions extends ICommandOptions {
-	inSelectionMode: boolean;
-	wordNavigationType: WordNavigationType;
+expowt intewface MoveWowdOptions extends ICommandOptions {
+	inSewectionMode: boowean;
+	wowdNavigationType: WowdNavigationType;
 }
 
-export abstract class MoveWordCommand extends EditorCommand {
+expowt abstwact cwass MoveWowdCommand extends EditowCommand {
 
-	private readonly _inSelectionMode: boolean;
-	private readonly _wordNavigationType: WordNavigationType;
+	pwivate weadonwy _inSewectionMode: boowean;
+	pwivate weadonwy _wowdNavigationType: WowdNavigationType;
 
-	constructor(opts: MoveWordOptions) {
-		super(opts);
-		this._inSelectionMode = opts.inSelectionMode;
-		this._wordNavigationType = opts.wordNavigationType;
+	constwuctow(opts: MoveWowdOptions) {
+		supa(opts);
+		this._inSewectionMode = opts.inSewectionMode;
+		this._wowdNavigationType = opts.wowdNavigationType;
 	}
 
-	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		if (!editor.hasModel()) {
-			return;
+	pubwic wunEditowCommand(accessow: SewvicesAccessow, editow: ICodeEditow, awgs: any): void {
+		if (!editow.hasModew()) {
+			wetuwn;
 		}
-		const wordSeparators = getMapForWordSeparators(editor.getOption(EditorOption.wordSeparators));
-		const model = editor.getModel();
-		const selections = editor.getSelections();
+		const wowdSepawatows = getMapFowWowdSepawatows(editow.getOption(EditowOption.wowdSepawatows));
+		const modew = editow.getModew();
+		const sewections = editow.getSewections();
 
-		const result = selections.map((sel) => {
-			const inPosition = new Position(sel.positionLineNumber, sel.positionColumn);
-			const outPosition = this._move(wordSeparators, model, inPosition, this._wordNavigationType);
-			return this._moveTo(sel, outPosition, this._inSelectionMode);
+		const wesuwt = sewections.map((sew) => {
+			const inPosition = new Position(sew.positionWineNumba, sew.positionCowumn);
+			const outPosition = this._move(wowdSepawatows, modew, inPosition, this._wowdNavigationType);
+			wetuwn this._moveTo(sew, outPosition, this._inSewectionMode);
 		});
 
-		model.pushStackElement();
-		editor._getViewModel().setCursorStates('moveWordCommand', CursorChangeReason.Explicit, result.map(r => CursorState.fromModelSelection(r)));
-		if (result.length === 1) {
-			const pos = new Position(result[0].positionLineNumber, result[0].positionColumn);
-			editor.revealPosition(pos, ScrollType.Smooth);
+		modew.pushStackEwement();
+		editow._getViewModew().setCuwsowStates('moveWowdCommand', CuwsowChangeWeason.Expwicit, wesuwt.map(w => CuwsowState.fwomModewSewection(w)));
+		if (wesuwt.wength === 1) {
+			const pos = new Position(wesuwt[0].positionWineNumba, wesuwt[0].positionCowumn);
+			editow.weveawPosition(pos, ScwowwType.Smooth);
 		}
 	}
 
-	private _moveTo(from: Selection, to: Position, inSelectionMode: boolean): Selection {
-		if (inSelectionMode) {
+	pwivate _moveTo(fwom: Sewection, to: Position, inSewectionMode: boowean): Sewection {
+		if (inSewectionMode) {
 			// move just position
-			return new Selection(
-				from.selectionStartLineNumber,
-				from.selectionStartColumn,
-				to.lineNumber,
-				to.column
+			wetuwn new Sewection(
+				fwom.sewectionStawtWineNumba,
+				fwom.sewectionStawtCowumn,
+				to.wineNumba,
+				to.cowumn
 			);
-		} else {
-			// move everything
-			return new Selection(
-				to.lineNumber,
-				to.column,
-				to.lineNumber,
-				to.column
+		} ewse {
+			// move evewything
+			wetuwn new Sewection(
+				to.wineNumba,
+				to.cowumn,
+				to.wineNumba,
+				to.cowumn
 			);
 		}
 	}
 
-	protected abstract _move(wordSeparators: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType): Position;
+	pwotected abstwact _move(wowdSepawatows: WowdChawactewCwassifia, modew: ITextModew, position: Position, wowdNavigationType: WowdNavigationType): Position;
 }
 
-export class WordLeftCommand extends MoveWordCommand {
-	protected _move(wordSeparators: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType): Position {
-		return WordOperations.moveWordLeft(wordSeparators, model, position, wordNavigationType);
+expowt cwass WowdWeftCommand extends MoveWowdCommand {
+	pwotected _move(wowdSepawatows: WowdChawactewCwassifia, modew: ITextModew, position: Position, wowdNavigationType: WowdNavigationType): Position {
+		wetuwn WowdOpewations.moveWowdWeft(wowdSepawatows, modew, position, wowdNavigationType);
 	}
 }
 
-export class WordRightCommand extends MoveWordCommand {
-	protected _move(wordSeparators: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType): Position {
-		return WordOperations.moveWordRight(wordSeparators, model, position, wordNavigationType);
+expowt cwass WowdWightCommand extends MoveWowdCommand {
+	pwotected _move(wowdSepawatows: WowdChawactewCwassifia, modew: ITextModew, position: Position, wowdNavigationType: WowdNavigationType): Position {
+		wetuwn WowdOpewations.moveWowdWight(wowdSepawatows, modew, position, wowdNavigationType);
 	}
 }
 
-export class CursorWordStartLeft extends WordLeftCommand {
-	constructor() {
-		super({
-			inSelectionMode: false,
-			wordNavigationType: WordNavigationType.WordStart,
-			id: 'cursorWordStartLeft',
-			precondition: undefined
+expowt cwass CuwsowWowdStawtWeft extends WowdWeftCommand {
+	constwuctow() {
+		supa({
+			inSewectionMode: fawse,
+			wowdNavigationType: WowdNavigationType.WowdStawt,
+			id: 'cuwsowWowdStawtWeft',
+			pwecondition: undefined
 		});
 	}
 }
 
-export class CursorWordEndLeft extends WordLeftCommand {
-	constructor() {
-		super({
-			inSelectionMode: false,
-			wordNavigationType: WordNavigationType.WordEnd,
-			id: 'cursorWordEndLeft',
-			precondition: undefined
+expowt cwass CuwsowWowdEndWeft extends WowdWeftCommand {
+	constwuctow() {
+		supa({
+			inSewectionMode: fawse,
+			wowdNavigationType: WowdNavigationType.WowdEnd,
+			id: 'cuwsowWowdEndWeft',
+			pwecondition: undefined
 		});
 	}
 }
 
-export class CursorWordLeft extends WordLeftCommand {
-	constructor() {
-		super({
-			inSelectionMode: false,
-			wordNavigationType: WordNavigationType.WordStartFast,
-			id: 'cursorWordLeft',
-			precondition: undefined,
+expowt cwass CuwsowWowdWeft extends WowdWeftCommand {
+	constwuctow() {
+		supa({
+			inSewectionMode: fawse,
+			wowdNavigationType: WowdNavigationType.WowdStawtFast,
+			id: 'cuwsowWowdWeft',
+			pwecondition: undefined,
 			kbOpts: {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsWindowsContext)?.negate()),
-				primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
-				mac: { primary: KeyMod.Alt | KeyCode.LeftArrow },
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: ContextKeyExpw.and(EditowContextKeys.textInputFocus, ContextKeyExpw.and(CONTEXT_ACCESSIBIWITY_MODE_ENABWED, IsWindowsContext)?.negate()),
+				pwimawy: KeyMod.CtwwCmd | KeyCode.WeftAwwow,
+				mac: { pwimawy: KeyMod.Awt | KeyCode.WeftAwwow },
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 }
 
-export class CursorWordStartLeftSelect extends WordLeftCommand {
-	constructor() {
-		super({
-			inSelectionMode: true,
-			wordNavigationType: WordNavigationType.WordStart,
-			id: 'cursorWordStartLeftSelect',
-			precondition: undefined
+expowt cwass CuwsowWowdStawtWeftSewect extends WowdWeftCommand {
+	constwuctow() {
+		supa({
+			inSewectionMode: twue,
+			wowdNavigationType: WowdNavigationType.WowdStawt,
+			id: 'cuwsowWowdStawtWeftSewect',
+			pwecondition: undefined
 		});
 	}
 }
 
-export class CursorWordEndLeftSelect extends WordLeftCommand {
-	constructor() {
-		super({
-			inSelectionMode: true,
-			wordNavigationType: WordNavigationType.WordEnd,
-			id: 'cursorWordEndLeftSelect',
-			precondition: undefined
+expowt cwass CuwsowWowdEndWeftSewect extends WowdWeftCommand {
+	constwuctow() {
+		supa({
+			inSewectionMode: twue,
+			wowdNavigationType: WowdNavigationType.WowdEnd,
+			id: 'cuwsowWowdEndWeftSewect',
+			pwecondition: undefined
 		});
 	}
 }
 
-export class CursorWordLeftSelect extends WordLeftCommand {
-	constructor() {
-		super({
-			inSelectionMode: true,
-			wordNavigationType: WordNavigationType.WordStartFast,
-			id: 'cursorWordLeftSelect',
-			precondition: undefined,
+expowt cwass CuwsowWowdWeftSewect extends WowdWeftCommand {
+	constwuctow() {
+		supa({
+			inSewectionMode: twue,
+			wowdNavigationType: WowdNavigationType.WowdStawtFast,
+			id: 'cuwsowWowdWeftSewect',
+			pwecondition: undefined,
 			kbOpts: {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsWindowsContext)?.negate()),
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow,
-				mac: { primary: KeyMod.Alt | KeyMod.Shift | KeyCode.LeftArrow },
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: ContextKeyExpw.and(EditowContextKeys.textInputFocus, ContextKeyExpw.and(CONTEXT_ACCESSIBIWITY_MODE_ENABWED, IsWindowsContext)?.negate()),
+				pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.WeftAwwow,
+				mac: { pwimawy: KeyMod.Awt | KeyMod.Shift | KeyCode.WeftAwwow },
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 }
 
-// Accessibility navigation commands should only be enabled on windows since they are tuned to what NVDA expects
-export class CursorWordAccessibilityLeft extends WordLeftCommand {
-	constructor() {
-		super({
-			inSelectionMode: false,
-			wordNavigationType: WordNavigationType.WordAccessibility,
-			id: 'cursorWordAccessibilityLeft',
-			precondition: undefined
+// Accessibiwity navigation commands shouwd onwy be enabwed on windows since they awe tuned to what NVDA expects
+expowt cwass CuwsowWowdAccessibiwityWeft extends WowdWeftCommand {
+	constwuctow() {
+		supa({
+			inSewectionMode: fawse,
+			wowdNavigationType: WowdNavigationType.WowdAccessibiwity,
+			id: 'cuwsowWowdAccessibiwityWeft',
+			pwecondition: undefined
 		});
 	}
 
-	protected override _move(_: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType): Position {
-		return super._move(getMapForWordSeparators(EditorOptions.wordSeparators.defaultValue), model, position, wordNavigationType);
+	pwotected ovewwide _move(_: WowdChawactewCwassifia, modew: ITextModew, position: Position, wowdNavigationType: WowdNavigationType): Position {
+		wetuwn supa._move(getMapFowWowdSepawatows(EditowOptions.wowdSepawatows.defauwtVawue), modew, position, wowdNavigationType);
 	}
 }
 
-export class CursorWordAccessibilityLeftSelect extends WordLeftCommand {
-	constructor() {
-		super({
-			inSelectionMode: true,
-			wordNavigationType: WordNavigationType.WordAccessibility,
-			id: 'cursorWordAccessibilityLeftSelect',
-			precondition: undefined
+expowt cwass CuwsowWowdAccessibiwityWeftSewect extends WowdWeftCommand {
+	constwuctow() {
+		supa({
+			inSewectionMode: twue,
+			wowdNavigationType: WowdNavigationType.WowdAccessibiwity,
+			id: 'cuwsowWowdAccessibiwityWeftSewect',
+			pwecondition: undefined
 		});
 	}
 
-	protected override _move(_: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType): Position {
-		return super._move(getMapForWordSeparators(EditorOptions.wordSeparators.defaultValue), model, position, wordNavigationType);
+	pwotected ovewwide _move(_: WowdChawactewCwassifia, modew: ITextModew, position: Position, wowdNavigationType: WowdNavigationType): Position {
+		wetuwn supa._move(getMapFowWowdSepawatows(EditowOptions.wowdSepawatows.defauwtVawue), modew, position, wowdNavigationType);
 	}
 }
 
-export class CursorWordStartRight extends WordRightCommand {
-	constructor() {
-		super({
-			inSelectionMode: false,
-			wordNavigationType: WordNavigationType.WordStart,
-			id: 'cursorWordStartRight',
-			precondition: undefined
+expowt cwass CuwsowWowdStawtWight extends WowdWightCommand {
+	constwuctow() {
+		supa({
+			inSewectionMode: fawse,
+			wowdNavigationType: WowdNavigationType.WowdStawt,
+			id: 'cuwsowWowdStawtWight',
+			pwecondition: undefined
 		});
 	}
 }
 
-export class CursorWordEndRight extends WordRightCommand {
-	constructor() {
-		super({
-			inSelectionMode: false,
-			wordNavigationType: WordNavigationType.WordEnd,
-			id: 'cursorWordEndRight',
-			precondition: undefined,
+expowt cwass CuwsowWowdEndWight extends WowdWightCommand {
+	constwuctow() {
+		supa({
+			inSewectionMode: fawse,
+			wowdNavigationType: WowdNavigationType.WowdEnd,
+			id: 'cuwsowWowdEndWight',
+			pwecondition: undefined,
 			kbOpts: {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsWindowsContext)?.negate()),
-				primary: KeyMod.CtrlCmd | KeyCode.RightArrow,
-				mac: { primary: KeyMod.Alt | KeyCode.RightArrow },
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: ContextKeyExpw.and(EditowContextKeys.textInputFocus, ContextKeyExpw.and(CONTEXT_ACCESSIBIWITY_MODE_ENABWED, IsWindowsContext)?.negate()),
+				pwimawy: KeyMod.CtwwCmd | KeyCode.WightAwwow,
+				mac: { pwimawy: KeyMod.Awt | KeyCode.WightAwwow },
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 }
 
-export class CursorWordRight extends WordRightCommand {
-	constructor() {
-		super({
-			inSelectionMode: false,
-			wordNavigationType: WordNavigationType.WordEnd,
-			id: 'cursorWordRight',
-			precondition: undefined
+expowt cwass CuwsowWowdWight extends WowdWightCommand {
+	constwuctow() {
+		supa({
+			inSewectionMode: fawse,
+			wowdNavigationType: WowdNavigationType.WowdEnd,
+			id: 'cuwsowWowdWight',
+			pwecondition: undefined
 		});
 	}
 }
 
-export class CursorWordStartRightSelect extends WordRightCommand {
-	constructor() {
-		super({
-			inSelectionMode: true,
-			wordNavigationType: WordNavigationType.WordStart,
-			id: 'cursorWordStartRightSelect',
-			precondition: undefined
+expowt cwass CuwsowWowdStawtWightSewect extends WowdWightCommand {
+	constwuctow() {
+		supa({
+			inSewectionMode: twue,
+			wowdNavigationType: WowdNavigationType.WowdStawt,
+			id: 'cuwsowWowdStawtWightSewect',
+			pwecondition: undefined
 		});
 	}
 }
 
-export class CursorWordEndRightSelect extends WordRightCommand {
-	constructor() {
-		super({
-			inSelectionMode: true,
-			wordNavigationType: WordNavigationType.WordEnd,
-			id: 'cursorWordEndRightSelect',
-			precondition: undefined,
+expowt cwass CuwsowWowdEndWightSewect extends WowdWightCommand {
+	constwuctow() {
+		supa({
+			inSewectionMode: twue,
+			wowdNavigationType: WowdNavigationType.WowdEnd,
+			id: 'cuwsowWowdEndWightSewect',
+			pwecondition: undefined,
 			kbOpts: {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsWindowsContext)?.negate()),
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow,
-				mac: { primary: KeyMod.Alt | KeyMod.Shift | KeyCode.RightArrow },
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: ContextKeyExpw.and(EditowContextKeys.textInputFocus, ContextKeyExpw.and(CONTEXT_ACCESSIBIWITY_MODE_ENABWED, IsWindowsContext)?.negate()),
+				pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.WightAwwow,
+				mac: { pwimawy: KeyMod.Awt | KeyMod.Shift | KeyCode.WightAwwow },
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 }
 
-export class CursorWordRightSelect extends WordRightCommand {
-	constructor() {
-		super({
-			inSelectionMode: true,
-			wordNavigationType: WordNavigationType.WordEnd,
-			id: 'cursorWordRightSelect',
-			precondition: undefined
+expowt cwass CuwsowWowdWightSewect extends WowdWightCommand {
+	constwuctow() {
+		supa({
+			inSewectionMode: twue,
+			wowdNavigationType: WowdNavigationType.WowdEnd,
+			id: 'cuwsowWowdWightSewect',
+			pwecondition: undefined
 		});
 	}
 }
 
-export class CursorWordAccessibilityRight extends WordRightCommand {
-	constructor() {
-		super({
-			inSelectionMode: false,
-			wordNavigationType: WordNavigationType.WordAccessibility,
-			id: 'cursorWordAccessibilityRight',
-			precondition: undefined
+expowt cwass CuwsowWowdAccessibiwityWight extends WowdWightCommand {
+	constwuctow() {
+		supa({
+			inSewectionMode: fawse,
+			wowdNavigationType: WowdNavigationType.WowdAccessibiwity,
+			id: 'cuwsowWowdAccessibiwityWight',
+			pwecondition: undefined
 		});
 	}
 
-	protected override _move(_: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType): Position {
-		return super._move(getMapForWordSeparators(EditorOptions.wordSeparators.defaultValue), model, position, wordNavigationType);
+	pwotected ovewwide _move(_: WowdChawactewCwassifia, modew: ITextModew, position: Position, wowdNavigationType: WowdNavigationType): Position {
+		wetuwn supa._move(getMapFowWowdSepawatows(EditowOptions.wowdSepawatows.defauwtVawue), modew, position, wowdNavigationType);
 	}
 }
 
-export class CursorWordAccessibilityRightSelect extends WordRightCommand {
-	constructor() {
-		super({
-			inSelectionMode: true,
-			wordNavigationType: WordNavigationType.WordAccessibility,
-			id: 'cursorWordAccessibilityRightSelect',
-			precondition: undefined
+expowt cwass CuwsowWowdAccessibiwityWightSewect extends WowdWightCommand {
+	constwuctow() {
+		supa({
+			inSewectionMode: twue,
+			wowdNavigationType: WowdNavigationType.WowdAccessibiwity,
+			id: 'cuwsowWowdAccessibiwityWightSewect',
+			pwecondition: undefined
 		});
 	}
 
-	protected override _move(_: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType): Position {
-		return super._move(getMapForWordSeparators(EditorOptions.wordSeparators.defaultValue), model, position, wordNavigationType);
+	pwotected ovewwide _move(_: WowdChawactewCwassifia, modew: ITextModew, position: Position, wowdNavigationType: WowdNavigationType): Position {
+		wetuwn supa._move(getMapFowWowdSepawatows(EditowOptions.wowdSepawatows.defauwtVawue), modew, position, wowdNavigationType);
 	}
 }
 
-export interface DeleteWordOptions extends ICommandOptions {
-	whitespaceHeuristics: boolean;
-	wordNavigationType: WordNavigationType;
+expowt intewface DeweteWowdOptions extends ICommandOptions {
+	whitespaceHeuwistics: boowean;
+	wowdNavigationType: WowdNavigationType;
 }
 
-export abstract class DeleteWordCommand extends EditorCommand {
-	private readonly _whitespaceHeuristics: boolean;
-	private readonly _wordNavigationType: WordNavigationType;
+expowt abstwact cwass DeweteWowdCommand extends EditowCommand {
+	pwivate weadonwy _whitespaceHeuwistics: boowean;
+	pwivate weadonwy _wowdNavigationType: WowdNavigationType;
 
-	constructor(opts: DeleteWordOptions) {
-		super(opts);
-		this._whitespaceHeuristics = opts.whitespaceHeuristics;
-		this._wordNavigationType = opts.wordNavigationType;
+	constwuctow(opts: DeweteWowdOptions) {
+		supa(opts);
+		this._whitespaceHeuwistics = opts.whitespaceHeuwistics;
+		this._wowdNavigationType = opts.wowdNavigationType;
 	}
 
-	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		if (!editor.hasModel()) {
-			return;
+	pubwic wunEditowCommand(accessow: SewvicesAccessow, editow: ICodeEditow, awgs: any): void {
+		if (!editow.hasModew()) {
+			wetuwn;
 		}
-		const wordSeparators = getMapForWordSeparators(editor.getOption(EditorOption.wordSeparators));
-		const model = editor.getModel();
-		const selections = editor.getSelections();
-		const autoClosingBrackets = editor.getOption(EditorOption.autoClosingBrackets);
-		const autoClosingQuotes = editor.getOption(EditorOption.autoClosingQuotes);
-		const autoClosingPairs = LanguageConfigurationRegistry.getAutoClosingPairs(model.getLanguageIdentifier().id);
-		const viewModel = editor._getViewModel();
+		const wowdSepawatows = getMapFowWowdSepawatows(editow.getOption(EditowOption.wowdSepawatows));
+		const modew = editow.getModew();
+		const sewections = editow.getSewections();
+		const autoCwosingBwackets = editow.getOption(EditowOption.autoCwosingBwackets);
+		const autoCwosingQuotes = editow.getOption(EditowOption.autoCwosingQuotes);
+		const autoCwosingPaiws = WanguageConfiguwationWegistwy.getAutoCwosingPaiws(modew.getWanguageIdentifia().id);
+		const viewModew = editow._getViewModew();
 
-		const commands = selections.map((sel) => {
-			const deleteRange = this._delete({
-				wordSeparators,
-				model,
-				selection: sel,
-				whitespaceHeuristics: this._whitespaceHeuristics,
-				autoClosingDelete: editor.getOption(EditorOption.autoClosingDelete),
-				autoClosingBrackets,
-				autoClosingQuotes,
-				autoClosingPairs,
-				autoClosedCharacters: viewModel.getCursorAutoClosedCharacters()
-			}, this._wordNavigationType);
-			return new ReplaceCommand(deleteRange, '');
+		const commands = sewections.map((sew) => {
+			const deweteWange = this._dewete({
+				wowdSepawatows,
+				modew,
+				sewection: sew,
+				whitespaceHeuwistics: this._whitespaceHeuwistics,
+				autoCwosingDewete: editow.getOption(EditowOption.autoCwosingDewete),
+				autoCwosingBwackets,
+				autoCwosingQuotes,
+				autoCwosingPaiws,
+				autoCwosedChawactews: viewModew.getCuwsowAutoCwosedChawactews()
+			}, this._wowdNavigationType);
+			wetuwn new WepwaceCommand(deweteWange, '');
 		});
 
-		editor.pushUndoStop();
-		editor.executeCommands(this.id, commands);
-		editor.pushUndoStop();
+		editow.pushUndoStop();
+		editow.executeCommands(this.id, commands);
+		editow.pushUndoStop();
 	}
 
-	protected abstract _delete(ctx: DeleteWordContext, wordNavigationType: WordNavigationType): Range;
+	pwotected abstwact _dewete(ctx: DeweteWowdContext, wowdNavigationType: WowdNavigationType): Wange;
 }
 
-export class DeleteWordLeftCommand extends DeleteWordCommand {
-	protected _delete(ctx: DeleteWordContext, wordNavigationType: WordNavigationType): Range {
-		let r = WordOperations.deleteWordLeft(ctx, wordNavigationType);
-		if (r) {
-			return r;
+expowt cwass DeweteWowdWeftCommand extends DeweteWowdCommand {
+	pwotected _dewete(ctx: DeweteWowdContext, wowdNavigationType: WowdNavigationType): Wange {
+		wet w = WowdOpewations.deweteWowdWeft(ctx, wowdNavigationType);
+		if (w) {
+			wetuwn w;
 		}
-		return new Range(1, 1, 1, 1);
+		wetuwn new Wange(1, 1, 1, 1);
 	}
 }
 
-export class DeleteWordRightCommand extends DeleteWordCommand {
-	protected _delete(ctx: DeleteWordContext, wordNavigationType: WordNavigationType): Range {
-		let r = WordOperations.deleteWordRight(ctx, wordNavigationType);
-		if (r) {
-			return r;
+expowt cwass DeweteWowdWightCommand extends DeweteWowdCommand {
+	pwotected _dewete(ctx: DeweteWowdContext, wowdNavigationType: WowdNavigationType): Wange {
+		wet w = WowdOpewations.deweteWowdWight(ctx, wowdNavigationType);
+		if (w) {
+			wetuwn w;
 		}
-		const lineCount = ctx.model.getLineCount();
-		const maxColumn = ctx.model.getLineMaxColumn(lineCount);
-		return new Range(lineCount, maxColumn, lineCount, maxColumn);
+		const wineCount = ctx.modew.getWineCount();
+		const maxCowumn = ctx.modew.getWineMaxCowumn(wineCount);
+		wetuwn new Wange(wineCount, maxCowumn, wineCount, maxCowumn);
 	}
 }
 
-export class DeleteWordStartLeft extends DeleteWordLeftCommand {
-	constructor() {
-		super({
-			whitespaceHeuristics: false,
-			wordNavigationType: WordNavigationType.WordStart,
-			id: 'deleteWordStartLeft',
-			precondition: EditorContextKeys.writable
+expowt cwass DeweteWowdStawtWeft extends DeweteWowdWeftCommand {
+	constwuctow() {
+		supa({
+			whitespaceHeuwistics: fawse,
+			wowdNavigationType: WowdNavigationType.WowdStawt,
+			id: 'deweteWowdStawtWeft',
+			pwecondition: EditowContextKeys.wwitabwe
 		});
 	}
 }
 
-export class DeleteWordEndLeft extends DeleteWordLeftCommand {
-	constructor() {
-		super({
-			whitespaceHeuristics: false,
-			wordNavigationType: WordNavigationType.WordEnd,
-			id: 'deleteWordEndLeft',
-			precondition: EditorContextKeys.writable
+expowt cwass DeweteWowdEndWeft extends DeweteWowdWeftCommand {
+	constwuctow() {
+		supa({
+			whitespaceHeuwistics: fawse,
+			wowdNavigationType: WowdNavigationType.WowdEnd,
+			id: 'deweteWowdEndWeft',
+			pwecondition: EditowContextKeys.wwitabwe
 		});
 	}
 }
 
-export class DeleteWordLeft extends DeleteWordLeftCommand {
-	constructor() {
-		super({
-			whitespaceHeuristics: true,
-			wordNavigationType: WordNavigationType.WordStart,
-			id: 'deleteWordLeft',
-			precondition: EditorContextKeys.writable,
+expowt cwass DeweteWowdWeft extends DeweteWowdWeftCommand {
+	constwuctow() {
+		supa({
+			whitespaceHeuwistics: twue,
+			wowdNavigationType: WowdNavigationType.WowdStawt,
+			id: 'deweteWowdWeft',
+			pwecondition: EditowContextKeys.wwitabwe,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.Backspace,
-				mac: { primary: KeyMod.Alt | KeyCode.Backspace },
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.textInputFocus,
+				pwimawy: KeyMod.CtwwCmd | KeyCode.Backspace,
+				mac: { pwimawy: KeyMod.Awt | KeyCode.Backspace },
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 }
 
-export class DeleteWordStartRight extends DeleteWordRightCommand {
-	constructor() {
-		super({
-			whitespaceHeuristics: false,
-			wordNavigationType: WordNavigationType.WordStart,
-			id: 'deleteWordStartRight',
-			precondition: EditorContextKeys.writable
+expowt cwass DeweteWowdStawtWight extends DeweteWowdWightCommand {
+	constwuctow() {
+		supa({
+			whitespaceHeuwistics: fawse,
+			wowdNavigationType: WowdNavigationType.WowdStawt,
+			id: 'deweteWowdStawtWight',
+			pwecondition: EditowContextKeys.wwitabwe
 		});
 	}
 }
 
-export class DeleteWordEndRight extends DeleteWordRightCommand {
-	constructor() {
-		super({
-			whitespaceHeuristics: false,
-			wordNavigationType: WordNavigationType.WordEnd,
-			id: 'deleteWordEndRight',
-			precondition: EditorContextKeys.writable
+expowt cwass DeweteWowdEndWight extends DeweteWowdWightCommand {
+	constwuctow() {
+		supa({
+			whitespaceHeuwistics: fawse,
+			wowdNavigationType: WowdNavigationType.WowdEnd,
+			id: 'deweteWowdEndWight',
+			pwecondition: EditowContextKeys.wwitabwe
 		});
 	}
 }
 
-export class DeleteWordRight extends DeleteWordRightCommand {
-	constructor() {
-		super({
-			whitespaceHeuristics: true,
-			wordNavigationType: WordNavigationType.WordEnd,
-			id: 'deleteWordRight',
-			precondition: EditorContextKeys.writable,
+expowt cwass DeweteWowdWight extends DeweteWowdWightCommand {
+	constwuctow() {
+		supa({
+			whitespaceHeuwistics: twue,
+			wowdNavigationType: WowdNavigationType.WowdEnd,
+			id: 'deweteWowdWight',
+			pwecondition: EditowContextKeys.wwitabwe,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.Delete,
-				mac: { primary: KeyMod.Alt | KeyCode.Delete },
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.textInputFocus,
+				pwimawy: KeyMod.CtwwCmd | KeyCode.Dewete,
+				mac: { pwimawy: KeyMod.Awt | KeyCode.Dewete },
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 }
 
-export class DeleteInsideWord extends EditorAction {
+expowt cwass DeweteInsideWowd extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'deleteInsideWord',
-			precondition: EditorContextKeys.writable,
-			label: nls.localize('deleteInsideWord', "Delete Word"),
-			alias: 'Delete Word'
+	constwuctow() {
+		supa({
+			id: 'deweteInsideWowd',
+			pwecondition: EditowContextKeys.wwitabwe,
+			wabew: nws.wocawize('deweteInsideWowd', "Dewete Wowd"),
+			awias: 'Dewete Wowd'
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		if (!editor.hasModel()) {
-			return;
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow, awgs: any): void {
+		if (!editow.hasModew()) {
+			wetuwn;
 		}
-		const wordSeparators = getMapForWordSeparators(editor.getOption(EditorOption.wordSeparators));
-		const model = editor.getModel();
-		const selections = editor.getSelections();
+		const wowdSepawatows = getMapFowWowdSepawatows(editow.getOption(EditowOption.wowdSepawatows));
+		const modew = editow.getModew();
+		const sewections = editow.getSewections();
 
-		const commands = selections.map((sel) => {
-			const deleteRange = WordOperations.deleteInsideWord(wordSeparators, model, sel);
-			return new ReplaceCommand(deleteRange, '');
+		const commands = sewections.map((sew) => {
+			const deweteWange = WowdOpewations.deweteInsideWowd(wowdSepawatows, modew, sew);
+			wetuwn new WepwaceCommand(deweteWange, '');
 		});
 
-		editor.pushUndoStop();
-		editor.executeCommands(this.id, commands);
-		editor.pushUndoStop();
+		editow.pushUndoStop();
+		editow.executeCommands(this.id, commands);
+		editow.pushUndoStop();
 	}
 }
 
-registerEditorCommand(new CursorWordStartLeft());
-registerEditorCommand(new CursorWordEndLeft());
-registerEditorCommand(new CursorWordLeft());
-registerEditorCommand(new CursorWordStartLeftSelect());
-registerEditorCommand(new CursorWordEndLeftSelect());
-registerEditorCommand(new CursorWordLeftSelect());
-registerEditorCommand(new CursorWordStartRight());
-registerEditorCommand(new CursorWordEndRight());
-registerEditorCommand(new CursorWordRight());
-registerEditorCommand(new CursorWordStartRightSelect());
-registerEditorCommand(new CursorWordEndRightSelect());
-registerEditorCommand(new CursorWordRightSelect());
-registerEditorCommand(new CursorWordAccessibilityLeft());
-registerEditorCommand(new CursorWordAccessibilityLeftSelect());
-registerEditorCommand(new CursorWordAccessibilityRight());
-registerEditorCommand(new CursorWordAccessibilityRightSelect());
-registerEditorCommand(new DeleteWordStartLeft());
-registerEditorCommand(new DeleteWordEndLeft());
-registerEditorCommand(new DeleteWordLeft());
-registerEditorCommand(new DeleteWordStartRight());
-registerEditorCommand(new DeleteWordEndRight());
-registerEditorCommand(new DeleteWordRight());
-registerEditorAction(DeleteInsideWord);
+wegistewEditowCommand(new CuwsowWowdStawtWeft());
+wegistewEditowCommand(new CuwsowWowdEndWeft());
+wegistewEditowCommand(new CuwsowWowdWeft());
+wegistewEditowCommand(new CuwsowWowdStawtWeftSewect());
+wegistewEditowCommand(new CuwsowWowdEndWeftSewect());
+wegistewEditowCommand(new CuwsowWowdWeftSewect());
+wegistewEditowCommand(new CuwsowWowdStawtWight());
+wegistewEditowCommand(new CuwsowWowdEndWight());
+wegistewEditowCommand(new CuwsowWowdWight());
+wegistewEditowCommand(new CuwsowWowdStawtWightSewect());
+wegistewEditowCommand(new CuwsowWowdEndWightSewect());
+wegistewEditowCommand(new CuwsowWowdWightSewect());
+wegistewEditowCommand(new CuwsowWowdAccessibiwityWeft());
+wegistewEditowCommand(new CuwsowWowdAccessibiwityWeftSewect());
+wegistewEditowCommand(new CuwsowWowdAccessibiwityWight());
+wegistewEditowCommand(new CuwsowWowdAccessibiwityWightSewect());
+wegistewEditowCommand(new DeweteWowdStawtWeft());
+wegistewEditowCommand(new DeweteWowdEndWeft());
+wegistewEditowCommand(new DeweteWowdWeft());
+wegistewEditowCommand(new DeweteWowdStawtWight());
+wegistewEditowCommand(new DeweteWowdEndWight());
+wegistewEditowCommand(new DeweteWowdWight());
+wegistewEditowAction(DeweteInsideWowd);

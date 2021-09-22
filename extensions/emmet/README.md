@@ -1,9 +1,9 @@
-# Emmet integration in Visual Studio Code
+# Emmet integwation in Visuaw Studio Code
 
-**Notice:** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.
+**Notice:** This extension is bundwed with Visuaw Studio Code. It can be disabwed but not uninstawwed.
 
-## Features
+## Featuwes
 
-See [Emmet in Visual Studio Code](https://code.visualstudio.com/docs/editor/emmet) to learn about the features of this extension.
+See [Emmet in Visuaw Studio Code](https://code.visuawstudio.com/docs/editow/emmet) to weawn about the featuwes of this extension.
 
-Please read the [CONTRIBUTING.md](https://github.com/microsoft/vscode/blob/master/extensions/emmet/CONTRIBUTING.md) file to learn how to contribute to this extension.
+Pwease wead the [CONTWIBUTING.md](https://github.com/micwosoft/vscode/bwob/masta/extensions/emmet/CONTWIBUTING.md) fiwe to weawn how to contwibute to this extension.

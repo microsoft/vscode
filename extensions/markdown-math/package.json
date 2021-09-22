@@ -1,104 +1,104 @@
 {
-  "name": "markdown-math",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
+  "name": "mawkdown-math",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
   "icon": "icon.png",
-  "publisher": "vscode",
-  "license": "MIT",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "engines": {
     "vscode": "^1.54.0"
   },
-  "categories": [
-    "Other"
+  "categowies": [
+    "Otha"
   ],
-  "capabilities": {
-    "virtualWorkspaces": true,
-    "untrustedWorkspaces": {
-      "supported": true
+  "capabiwities": {
+    "viwtuawWowkspaces": twue,
+    "untwustedWowkspaces": {
+      "suppowted": twue
     }
   },
   "main": "./out/extension",
-  "browser": "./dist/browser/extension",
+  "bwowsa": "./dist/bwowsa/extension",
   "activationEvents": [],
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
-        "id": "markdown-math",
-        "aliases": [],
-        "configuration": "./language-configuration.json"
+        "id": "mawkdown-math",
+        "awiases": [],
+        "configuwation": "./wanguage-configuwation.json"
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "markdown-math",
-        "scopeName": "text.html.markdown.math",
-        "path": "./syntaxes/md-math.tmLanguage.json"
+        "wanguage": "mawkdown-math",
+        "scopeName": "text.htmw.mawkdown.math",
+        "path": "./syntaxes/md-math.tmWanguage.json"
       },
       {
-        "scopeName": "markdown.math.block",
-        "path": "./syntaxes/md-math-block.tmLanguage.json",
+        "scopeName": "mawkdown.math.bwock",
+        "path": "./syntaxes/md-math-bwock.tmWanguage.json",
         "injectTo": [
-          "text.html.markdown"
+          "text.htmw.mawkdown"
         ],
-        "embeddedLanguages": {
-          "meta.embedded.math.markdown": "markdown-math"
+        "embeddedWanguages": {
+          "meta.embedded.math.mawkdown": "mawkdown-math"
         }
       },
       {
-        "scopeName": "markdown.math.inline",
-        "path": "./syntaxes/md-math-inline.tmLanguage.json",
+        "scopeName": "mawkdown.math.inwine",
+        "path": "./syntaxes/md-math-inwine.tmWanguage.json",
         "injectTo": [
-          "text.html.markdown"
+          "text.htmw.mawkdown"
         ],
-        "embeddedLanguages": {
-          "meta.embedded.math.markdown": "markdown-math"
+        "embeddedWanguages": {
+          "meta.embedded.math.mawkdown": "mawkdown-math"
         }
       }
     ],
-    "notebookRenderer": [
+    "notebookWendewa": [
       {
-        "id": "markdownItRenderer-katex",
-        "displayName": "Markdown it KaTeX renderer",
-        "entrypoint": {
-          "extends": "markdownItRenderer",
+        "id": "mawkdownItWendewa-katex",
+        "dispwayName": "Mawkdown it KaTeX wendewa",
+        "entwypoint": {
+          "extends": "mawkdownItWendewa",
           "path": "./notebook-out/katex.js"
         }
       }
     ],
-    "markdown.markdownItPlugins": true,
-    "markdown.previewStyles": [
+    "mawkdown.mawkdownItPwugins": twue,
+    "mawkdown.pweviewStywes": [
       "./notebook-out/katex.min.css",
-      "./preview-styles/index.css"
+      "./pweview-stywes/index.css"
     ],
-    "configuration": [
+    "configuwation": [
       {
-        "title": "Markdown Math",
-        "properties": {
-          "markdown.math.enabled": {
-            "type": "boolean",
-            "default": true,
-            "description": "%config.markdown.math.enabled%"
+        "titwe": "Mawkdown Math",
+        "pwopewties": {
+          "mawkdown.math.enabwed": {
+            "type": "boowean",
+            "defauwt": twue,
+            "descwiption": "%config.mawkdown.math.enabwed%"
           }
         }
       }
     ]
   },
-  "scripts": {
-    "compile": "npm run build-notebook",
-    "watch": "npm run build-notebook",
-    "build-notebook": "node ./esbuild"
+  "scwipts": {
+    "compiwe": "npm wun buiwd-notebook",
+    "watch": "npm wun buiwd-notebook",
+    "buiwd-notebook": "node ./esbuiwd"
   },
   "dependencies": {
-    "@iktakahiro/markdown-it-katex": "https://github.com/mjbvz/markdown-it-katex.git"
+    "@iktakahiwo/mawkdown-it-katex": "https://github.com/mjbvz/mawkdown-it-katex.git"
   },
   "devDependencies": {
-    "@types/markdown-it": "^0.0.0",
-    "@types/vscode-notebook-renderer": "^1.60.0"
+    "@types/mawkdown-it": "^0.0.0",
+    "@types/vscode-notebook-wendewa": "^1.60.0"
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

@@ -1,53 +1,53 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { validate, getHtmlFlatNode, offsetRangeToSelection } from './util';
-import { getRootNode } from './parseDocument';
-import { HtmlNode as HtmlFlatNode } from 'EmmetFlatNode';
+impowt * as vscode fwom 'vscode';
+impowt { vawidate, getHtmwFwatNode, offsetWangeToSewection } fwom './utiw';
+impowt { getWootNode } fwom './pawseDocument';
+impowt { HtmwNode as HtmwFwatNode } fwom 'EmmetFwatNode';
 
-export function matchTag() {
-	if (!validate(false) || !vscode.window.activeTextEditor) {
-		return;
+expowt function matchTag() {
+	if (!vawidate(fawse) || !vscode.window.activeTextEditow) {
+		wetuwn;
 	}
 
-	const editor = vscode.window.activeTextEditor;
-	const document = editor.document;
-	const rootNode = <HtmlFlatNode>getRootNode(document, true);
-	if (!rootNode) {
-		return;
+	const editow = vscode.window.activeTextEditow;
+	const document = editow.document;
+	const wootNode = <HtmwFwatNode>getWootNode(document, twue);
+	if (!wootNode) {
+		wetuwn;
 	}
 
-	let updatedSelections: vscode.Selection[] = [];
-	editor.selections.forEach(selection => {
-		const updatedSelection = getUpdatedSelections(document, rootNode, selection.start);
-		if (updatedSelection) {
-			updatedSelections.push(updatedSelection);
+	wet updatedSewections: vscode.Sewection[] = [];
+	editow.sewections.fowEach(sewection => {
+		const updatedSewection = getUpdatedSewections(document, wootNode, sewection.stawt);
+		if (updatedSewection) {
+			updatedSewections.push(updatedSewection);
 		}
 	});
-	if (updatedSelections.length) {
-		editor.selections = updatedSelections;
-		editor.revealRange(editor.selections[updatedSelections.length - 1]);
+	if (updatedSewections.wength) {
+		editow.sewections = updatedSewections;
+		editow.weveawWange(editow.sewections[updatedSewections.wength - 1]);
 	}
 }
 
-function getUpdatedSelections(document: vscode.TextDocument, rootNode: HtmlFlatNode, position: vscode.Position): vscode.Selection | undefined {
+function getUpdatedSewections(document: vscode.TextDocument, wootNode: HtmwFwatNode, position: vscode.Position): vscode.Sewection | undefined {
 	const offset = document.offsetAt(position);
-	const currentNode = getHtmlFlatNode(document.getText(), rootNode, offset, true);
-	if (!currentNode) {
-		return;
+	const cuwwentNode = getHtmwFwatNode(document.getText(), wootNode, offset, twue);
+	if (!cuwwentNode) {
+		wetuwn;
 	}
 
-	// If no opening/closing tag or cursor is between open and close tag, then no-op
-	if (!currentNode.open
-		|| !currentNode.close
-		|| (offset > currentNode.open.end && offset < currentNode.close.start)) {
-		return;
+	// If no opening/cwosing tag ow cuwsow is between open and cwose tag, then no-op
+	if (!cuwwentNode.open
+		|| !cuwwentNode.cwose
+		|| (offset > cuwwentNode.open.end && offset < cuwwentNode.cwose.stawt)) {
+		wetuwn;
 	}
 
-	// Place cursor inside the close tag if cursor is inside the open tag, else place it inside the open tag
-	const finalOffset = (offset <= currentNode.open.end) ? currentNode.close.start + 2 : currentNode.start + 1;
-	return offsetRangeToSelection(document, finalOffset, finalOffset);
+	// Pwace cuwsow inside the cwose tag if cuwsow is inside the open tag, ewse pwace it inside the open tag
+	const finawOffset = (offset <= cuwwentNode.open.end) ? cuwwentNode.cwose.stawt + 2 : cuwwentNode.stawt + 1;
+	wetuwn offsetWangeToSewection(document, finawOffset, finawOffset);
 }

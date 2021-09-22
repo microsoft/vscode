@@ -1,45 +1,45 @@
-Monarch definition & snippets:
+Monawch definition & snippets:
 
-The MIT License (MIT)
+The MIT Wicense (MIT)
 
-Copyright (c) 2015 David Owens II
+Copywight (c) 2015 David Owens II
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Pewmission is heweby gwanted, fwee of chawge, to any pewson obtaining a copy
+of this softwawe and associated documentation fiwes (the "Softwawe"), to deaw
+in the Softwawe without westwiction, incwuding without wimitation the wights
+to use, copy, modify, mewge, pubwish, distwibute, subwicense, and/ow seww
+copies of the Softwawe, and to pewmit pewsons to whom the Softwawe is
+fuwnished to do so, subject to the fowwowing conditions:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+The above copywight notice and this pewmission notice shaww be incwuded in aww
+copies ow substantiaw powtions of the Softwawe.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+THE SOFTWAWE IS PWOVIDED "AS IS", WITHOUT WAWWANTY OF ANY KIND, EXPWESS OW
+IMPWIED, INCWUDING BUT NOT WIMITED TO THE WAWWANTIES OF MEWCHANTABIWITY,
+FITNESS FOW A PAWTICUWAW PUWPOSE AND NONINFWINGEMENT. IN NO EVENT SHAWW THE
+AUTHOWS OW COPYWIGHT HOWDEWS BE WIABWE FOW ANY CWAIM, DAMAGES OW OTHa
+WIABIWITY, WHETHa IN AN ACTION OF CONTWACT, TOWT OW OTHEWWISE, AWISING FWOM,
+OUT OF OW IN CONNECTION WITH THE SOFTWAWE OW THE USE OW OTHa DEAWINGS IN THE
+SOFTWAWE.
 
-TextMate grammar:
+TextMate gwammaw:
 
-Copyright (c) 2014 Darin Morrison
+Copywight (c) 2014 Dawin Mowwison
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Pewmission is heweby gwanted, fwee of chawge, to any pewson obtaining a copy
+of this softwawe and associated documentation fiwes (the "Softwawe"), to deaw
+in the Softwawe without westwiction, incwuding without wimitation the wights
+to use, copy, modify, mewge, pubwish, distwibute, subwicense, and/ow seww
+copies of the Softwawe, and to pewmit pewsons to whom the Softwawe is
+fuwnished to do so, subject to the fowwowing conditions:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+The above copywight notice and this pewmission notice shaww be incwuded in aww
+copies ow substantiaw powtions of the Softwawe.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+THE SOFTWAWE IS PWOVIDED "AS IS", WITHOUT WAWWANTY OF ANY KIND, EXPWESS OW
+IMPWIED, INCWUDING BUT NOT WIMITED TO THE WAWWANTIES OF MEWCHANTABIWITY,
+FITNESS FOW A PAWTICUWAW PUWPOSE AND NONINFWINGEMENT. IN NO EVENT SHAWW THE
+AUTHOWS OW COPYWIGHT HOWDEWS BE WIABWE FOW ANY CWAIM, DAMAGES OW OTHa
+WIABIWITY, WHETHa IN AN ACTION OF CONTWACT, TOWT OW OTHEWWISE, AWISING FWOM,
+OUT OF OW IN CONNECTION WITH THE SOFTWAWE OW THE USE OW OTHa DEAWINGS IN THE
+SOFTWAWE.

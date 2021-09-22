@@ -1,256 +1,256 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThreadDocumentsAndEditors';
-import { SingleProxyRPCProtocol, TestRPCProtocol } from './testRPCProtocol';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ExtHostDocumentsAndEditorsShape, ExtHostContext, ExtHostDocumentsShape, IWorkspaceTextEditDto, WorkspaceEditType } from 'vs/workbench/api/common/extHost.protocol';
-import { mock } from 'vs/base/test/common/mock';
-import { Event } from 'vs/base/common/event';
-import { MainThreadTextEditors } from 'vs/workbench/api/browser/mainThreadEditors';
-import { URI } from 'vs/base/common/uri';
-import { Range } from 'vs/editor/common/core/range';
-import { Position } from 'vs/editor/common/core/position';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { TestFileService, TestEditorService, TestEditorGroupsService, TestEnvironmentService, TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { BulkEditService } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditService';
-import { NullLogService, ILogService } from 'vs/platform/log/common/log';
-import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IReference, ImmortalReference } from 'vs/base/common/lifecycle';
-import { LabelService } from 'vs/workbench/services/label/common/labelService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IWorkingCopyFileService, IMoveOperation, IDeleteOperation, ICopyOperation, ICreateFileOperation, ICreateOperation } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
-import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { TestTextResourcePropertiesService, TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { extUri } from 'vs/base/common/resources';
-import { ITextSnapshot } from 'vs/editor/common/model';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+impowt * as assewt fwom 'assewt';
+impowt { MainThweadDocumentsAndEditows } fwom 'vs/wowkbench/api/bwowsa/mainThweadDocumentsAndEditows';
+impowt { SingwePwoxyWPCPwotocow, TestWPCPwotocow } fwom './testWPCPwotocow';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { ModewSewviceImpw } fwom 'vs/editow/common/sewvices/modewSewviceImpw';
+impowt { TestCodeEditowSewvice } fwom 'vs/editow/test/bwowsa/editowTestSewvices';
+impowt { ITextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { ExtHostDocumentsAndEditowsShape, ExtHostContext, ExtHostDocumentsShape, IWowkspaceTextEditDto, WowkspaceEditType } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { MainThweadTextEditows } fwom 'vs/wowkbench/api/bwowsa/mainThweadEditows';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { EditOpewation } fwom 'vs/editow/common/cowe/editOpewation';
+impowt { TestFiweSewvice, TestEditowSewvice, TestEditowGwoupsSewvice, TestEnviwonmentSewvice, TestWifecycweSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { BuwkEditSewvice } fwom 'vs/wowkbench/contwib/buwkEdit/bwowsa/buwkEditSewvice';
+impowt { NuwwWogSewvice, IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { ITextModewSewvice, IWesowvedTextEditowModew } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { IWefewence, ImmowtawWefewence } fwom 'vs/base/common/wifecycwe';
+impowt { WabewSewvice } fwom 'vs/wowkbench/sewvices/wabew/common/wabewSewvice';
+impowt { TestThemeSewvice } fwom 'vs/pwatfowm/theme/test/common/testThemeSewvice';
+impowt { IEditowWowkewSewvice } fwom 'vs/editow/common/sewvices/editowWowkewSewvice';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { InstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiationSewvice';
+impowt { IBuwkEditSewvice } fwom 'vs/editow/bwowsa/sewvices/buwkEditSewvice';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IWowkingCopyFiweSewvice, IMoveOpewation, IDeweteOpewation, ICopyOpewation, ICweateFiweOpewation, ICweateOpewation } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyFiweSewvice';
+impowt { UndoWedoSewvice } fwom 'vs/pwatfowm/undoWedo/common/undoWedoSewvice';
+impowt { TestDiawogSewvice } fwom 'vs/pwatfowm/diawogs/test/common/testDiawogSewvice';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IUndoWedoSewvice } fwom 'vs/pwatfowm/undoWedo/common/undoWedo';
+impowt { TestNotificationSewvice } fwom 'vs/pwatfowm/notification/test/common/testNotificationSewvice';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { TestTextWesouwcePwopewtiesSewvice, TestContextSewvice } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { extUwi } fwom 'vs/base/common/wesouwces';
+impowt { ITextSnapshot } fwom 'vs/editow/common/modew';
+impowt { IWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
 
-suite('MainThreadEditors', () => {
+suite('MainThweadEditows', () => {
 
-	const resource = URI.parse('foo:bar');
+	const wesouwce = UWI.pawse('foo:baw');
 
-	let modelService: IModelService;
-	let editors: MainThreadTextEditors;
+	wet modewSewvice: IModewSewvice;
+	wet editows: MainThweadTextEditows;
 
-	const movedResources = new Map<URI, URI>();
-	const copiedResources = new Map<URI, URI>();
-	const createdResources = new Set<URI>();
-	const deletedResources = new Set<URI>();
+	const movedWesouwces = new Map<UWI, UWI>();
+	const copiedWesouwces = new Map<UWI, UWI>();
+	const cweatedWesouwces = new Set<UWI>();
+	const dewetedWesouwces = new Set<UWI>();
 
 	setup(() => {
 
-		movedResources.clear();
-		copiedResources.clear();
-		createdResources.clear();
-		deletedResources.clear();
+		movedWesouwces.cweaw();
+		copiedWesouwces.cweaw();
+		cweatedWesouwces.cweaw();
+		dewetedWesouwces.cweaw();
 
 
-		const configService = new TestConfigurationService();
-		const dialogService = new TestDialogService();
-		const notificationService = new TestNotificationService();
-		const undoRedoService = new UndoRedoService(dialogService, notificationService);
-		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService(), new NullLogService(), undoRedoService);
+		const configSewvice = new TestConfiguwationSewvice();
+		const diawogSewvice = new TestDiawogSewvice();
+		const notificationSewvice = new TestNotificationSewvice();
+		const undoWedoSewvice = new UndoWedoSewvice(diawogSewvice, notificationSewvice);
+		modewSewvice = new ModewSewviceImpw(configSewvice, new TestTextWesouwcePwopewtiesSewvice(configSewvice), new TestThemeSewvice(), new NuwwWogSewvice(), undoWedoSewvice);
 
 
-		const services = new ServiceCollection();
-		services.set(IBulkEditService, new SyncDescriptor(BulkEditService));
-		services.set(ILabelService, new SyncDescriptor(LabelService));
-		services.set(ILogService, new NullLogService());
-		services.set(IWorkspaceContextService, new TestContextService());
-		services.set(IEnvironmentService, TestEnvironmentService);
-		services.set(IWorkbenchEnvironmentService, TestEnvironmentService);
-		services.set(IConfigurationService, configService);
-		services.set(IDialogService, dialogService);
-		services.set(INotificationService, notificationService);
-		services.set(IUndoRedoService, undoRedoService);
-		services.set(IModelService, modelService);
-		services.set(ICodeEditorService, new TestCodeEditorService());
-		services.set(IFileService, new TestFileService());
-		services.set(IEditorService, new TestEditorService());
-		services.set(ILifecycleService, new TestLifecycleService());
-		services.set(IEditorGroupsService, new TestEditorGroupsService());
-		services.set(ITextFileService, new class extends mock<ITextFileService>() {
-			override isDirty() { return false; }
-			override files = <any>{
+		const sewvices = new SewviceCowwection();
+		sewvices.set(IBuwkEditSewvice, new SyncDescwiptow(BuwkEditSewvice));
+		sewvices.set(IWabewSewvice, new SyncDescwiptow(WabewSewvice));
+		sewvices.set(IWogSewvice, new NuwwWogSewvice());
+		sewvices.set(IWowkspaceContextSewvice, new TestContextSewvice());
+		sewvices.set(IEnviwonmentSewvice, TestEnviwonmentSewvice);
+		sewvices.set(IWowkbenchEnviwonmentSewvice, TestEnviwonmentSewvice);
+		sewvices.set(IConfiguwationSewvice, configSewvice);
+		sewvices.set(IDiawogSewvice, diawogSewvice);
+		sewvices.set(INotificationSewvice, notificationSewvice);
+		sewvices.set(IUndoWedoSewvice, undoWedoSewvice);
+		sewvices.set(IModewSewvice, modewSewvice);
+		sewvices.set(ICodeEditowSewvice, new TestCodeEditowSewvice());
+		sewvices.set(IFiweSewvice, new TestFiweSewvice());
+		sewvices.set(IEditowSewvice, new TestEditowSewvice());
+		sewvices.set(IWifecycweSewvice, new TestWifecycweSewvice());
+		sewvices.set(IEditowGwoupsSewvice, new TestEditowGwoupsSewvice());
+		sewvices.set(ITextFiweSewvice, new cwass extends mock<ITextFiweSewvice>() {
+			ovewwide isDiwty() { wetuwn fawse; }
+			ovewwide fiwes = <any>{
 				onDidSave: Event.None,
-				onDidRevert: Event.None,
-				onDidChangeDirty: Event.None
+				onDidWevewt: Event.None,
+				onDidChangeDiwty: Event.None
 			};
-			override create(operations: { resource: URI }[]) {
-				for (const o of operations) {
-					createdResources.add(o.resource);
+			ovewwide cweate(opewations: { wesouwce: UWI }[]) {
+				fow (const o of opewations) {
+					cweatedWesouwces.add(o.wesouwce);
 				}
-				return Promise.resolve(Object.create(null));
+				wetuwn Pwomise.wesowve(Object.cweate(nuww));
 			}
-			override async getEncodedReadable(resource: URI, value?: string | ITextSnapshot): Promise<any> {
-				return undefined;
+			ovewwide async getEncodedWeadabwe(wesouwce: UWI, vawue?: stwing | ITextSnapshot): Pwomise<any> {
+				wetuwn undefined;
 			}
 		});
-		services.set(IWorkingCopyFileService, new class extends mock<IWorkingCopyFileService>() {
-			override onDidRunWorkingCopyFileOperation = Event.None;
-			override createFolder(operations: ICreateOperation[]): any {
-				this.create(operations);
+		sewvices.set(IWowkingCopyFiweSewvice, new cwass extends mock<IWowkingCopyFiweSewvice>() {
+			ovewwide onDidWunWowkingCopyFiweOpewation = Event.None;
+			ovewwide cweateFowda(opewations: ICweateOpewation[]): any {
+				this.cweate(opewations);
 			}
-			override create(operations: ICreateFileOperation[]) {
-				for (const operation of operations) {
-					createdResources.add(operation.resource);
+			ovewwide cweate(opewations: ICweateFiweOpewation[]) {
+				fow (const opewation of opewations) {
+					cweatedWesouwces.add(opewation.wesouwce);
 				}
-				return Promise.resolve(Object.create(null));
+				wetuwn Pwomise.wesowve(Object.cweate(nuww));
 			}
-			override move(operations: IMoveOperation[]) {
-				const { source, target } = operations[0].file;
-				movedResources.set(source, target);
-				return Promise.resolve(Object.create(null));
+			ovewwide move(opewations: IMoveOpewation[]) {
+				const { souwce, tawget } = opewations[0].fiwe;
+				movedWesouwces.set(souwce, tawget);
+				wetuwn Pwomise.wesowve(Object.cweate(nuww));
 			}
-			override copy(operations: ICopyOperation[]) {
-				const { source, target } = operations[0].file;
-				copiedResources.set(source, target);
-				return Promise.resolve(Object.create(null));
+			ovewwide copy(opewations: ICopyOpewation[]) {
+				const { souwce, tawget } = opewations[0].fiwe;
+				copiedWesouwces.set(souwce, tawget);
+				wetuwn Pwomise.wesowve(Object.cweate(nuww));
 			}
-			override delete(operations: IDeleteOperation[]) {
-				for (const operation of operations) {
-					deletedResources.add(operation.resource);
+			ovewwide dewete(opewations: IDeweteOpewation[]) {
+				fow (const opewation of opewations) {
+					dewetedWesouwces.add(opewation.wesouwce);
 				}
-				return Promise.resolve(undefined);
+				wetuwn Pwomise.wesowve(undefined);
 			}
 		});
-		services.set(ITextModelService, new class extends mock<ITextModelService>() {
-			override createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
-				const textEditorModel = new class extends mock<IResolvedTextEditorModel>() {
-					override textEditorModel = modelService.getModel(resource)!;
+		sewvices.set(ITextModewSewvice, new cwass extends mock<ITextModewSewvice>() {
+			ovewwide cweateModewWefewence(wesouwce: UWI): Pwomise<IWefewence<IWesowvedTextEditowModew>> {
+				const textEditowModew = new cwass extends mock<IWesowvedTextEditowModew>() {
+					ovewwide textEditowModew = modewSewvice.getModew(wesouwce)!;
 				};
-				textEditorModel.isReadonly = () => false;
-				return Promise.resolve(new ImmortalReference(textEditorModel));
+				textEditowModew.isWeadonwy = () => fawse;
+				wetuwn Pwomise.wesowve(new ImmowtawWefewence(textEditowModew));
 			}
 		});
-		services.set(IEditorWorkerService, new class extends mock<IEditorWorkerService>() {
+		sewvices.set(IEditowWowkewSewvice, new cwass extends mock<IEditowWowkewSewvice>() {
 
 		});
-		services.set(IPaneCompositePartService, new class extends mock<IPaneCompositePartService>() implements IPaneCompositePartService {
-			override onDidPaneCompositeOpen = Event.None;
-			override onDidPaneCompositeClose = Event.None;
-			override getActivePaneComposite() {
-				return undefined;
+		sewvices.set(IPaneCompositePawtSewvice, new cwass extends mock<IPaneCompositePawtSewvice>() impwements IPaneCompositePawtSewvice {
+			ovewwide onDidPaneCompositeOpen = Event.None;
+			ovewwide onDidPaneCompositeCwose = Event.None;
+			ovewwide getActivePaneComposite() {
+				wetuwn undefined;
 			}
 		});
-		services.set(IUriIdentityService, new class extends mock<IUriIdentityService>() {
-			override get extUri() { return extUri; }
+		sewvices.set(IUwiIdentitySewvice, new cwass extends mock<IUwiIdentitySewvice>() {
+			ovewwide get extUwi() { wetuwn extUwi; }
 		});
 
-		const instaService = new InstantiationService(services);
+		const instaSewvice = new InstantiationSewvice(sewvices);
 
-		const rpcProtocol = new TestRPCProtocol();
-		rpcProtocol.set(ExtHostContext.ExtHostDocuments, new class extends mock<ExtHostDocumentsShape>() {
-			override $acceptModelChanged(): void {
+		const wpcPwotocow = new TestWPCPwotocow();
+		wpcPwotocow.set(ExtHostContext.ExtHostDocuments, new cwass extends mock<ExtHostDocumentsShape>() {
+			ovewwide $acceptModewChanged(): void {
 			}
 		});
-		rpcProtocol.set(ExtHostContext.ExtHostDocumentsAndEditors, new class extends mock<ExtHostDocumentsAndEditorsShape>() {
-			override $acceptDocumentsAndEditorsDelta(): void {
+		wpcPwotocow.set(ExtHostContext.ExtHostDocumentsAndEditows, new cwass extends mock<ExtHostDocumentsAndEditowsShape>() {
+			ovewwide $acceptDocumentsAndEditowsDewta(): void {
 			}
 		});
 
-		const documentAndEditor = instaService.createInstance(MainThreadDocumentsAndEditors, rpcProtocol);
+		const documentAndEditow = instaSewvice.cweateInstance(MainThweadDocumentsAndEditows, wpcPwotocow);
 
-		editors = instaService.createInstance(MainThreadTextEditors, documentAndEditor, SingleProxyRPCProtocol(null));
+		editows = instaSewvice.cweateInstance(MainThweadTextEditows, documentAndEditow, SingwePwoxyWPCPwotocow(nuww));
 	});
 
-	test(`applyWorkspaceEdit returns false if model is changed by user`, () => {
+	test(`appwyWowkspaceEdit wetuwns fawse if modew is changed by usa`, () => {
 
-		let model = modelService.createModel('something', null, resource);
+		wet modew = modewSewvice.cweateModew('something', nuww, wesouwce);
 
-		let workspaceResourceEdit: IWorkspaceTextEditDto = {
-			_type: WorkspaceEditType.Text,
-			resource: resource,
-			modelVersionId: model.getVersionId(),
+		wet wowkspaceWesouwceEdit: IWowkspaceTextEditDto = {
+			_type: WowkspaceEditType.Text,
+			wesouwce: wesouwce,
+			modewVewsionId: modew.getVewsionId(),
 			edit: {
 				text: 'asdfg',
-				range: new Range(1, 1, 1, 1)
+				wange: new Wange(1, 1, 1, 1)
 			}
 		};
 
-		// Act as if the user edited the model
-		model.applyEdits([EditOperation.insert(new Position(0, 0), 'something')]);
+		// Act as if the usa edited the modew
+		modew.appwyEdits([EditOpewation.insewt(new Position(0, 0), 'something')]);
 
-		return editors.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit] }).then((result) => {
-			assert.strictEqual(result, false);
+		wetuwn editows.$twyAppwyWowkspaceEdit({ edits: [wowkspaceWesouwceEdit] }).then((wesuwt) => {
+			assewt.stwictEquaw(wesuwt, fawse);
 		});
 	});
 
-	test(`issue #54773: applyWorkspaceEdit checks model version in race situation`, () => {
+	test(`issue #54773: appwyWowkspaceEdit checks modew vewsion in wace situation`, () => {
 
-		let model = modelService.createModel('something', null, resource);
+		wet modew = modewSewvice.cweateModew('something', nuww, wesouwce);
 
-		let workspaceResourceEdit1: IWorkspaceTextEditDto = {
-			_type: WorkspaceEditType.Text,
-			resource: resource,
-			modelVersionId: model.getVersionId(),
+		wet wowkspaceWesouwceEdit1: IWowkspaceTextEditDto = {
+			_type: WowkspaceEditType.Text,
+			wesouwce: wesouwce,
+			modewVewsionId: modew.getVewsionId(),
 			edit: {
 				text: 'asdfg',
-				range: new Range(1, 1, 1, 1)
+				wange: new Wange(1, 1, 1, 1)
 			}
 		};
-		let workspaceResourceEdit2: IWorkspaceTextEditDto = {
-			_type: WorkspaceEditType.Text,
-			resource: resource,
-			modelVersionId: model.getVersionId(),
+		wet wowkspaceWesouwceEdit2: IWowkspaceTextEditDto = {
+			_type: WowkspaceEditType.Text,
+			wesouwce: wesouwce,
+			modewVewsionId: modew.getVewsionId(),
 			edit: {
 				text: 'asdfg',
-				range: new Range(1, 1, 1, 1)
+				wange: new Wange(1, 1, 1, 1)
 			}
 		};
 
-		let p1 = editors.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit1] }).then((result) => {
-			// first edit request succeeds
-			assert.strictEqual(result, true);
+		wet p1 = editows.$twyAppwyWowkspaceEdit({ edits: [wowkspaceWesouwceEdit1] }).then((wesuwt) => {
+			// fiwst edit wequest succeeds
+			assewt.stwictEquaw(wesuwt, twue);
 		});
-		let p2 = editors.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit2] }).then((result) => {
-			// second edit request fails
-			assert.strictEqual(result, false);
+		wet p2 = editows.$twyAppwyWowkspaceEdit({ edits: [wowkspaceWesouwceEdit2] }).then((wesuwt) => {
+			// second edit wequest faiws
+			assewt.stwictEquaw(wesuwt, fawse);
 		});
-		return Promise.all([p1, p2]);
+		wetuwn Pwomise.aww([p1, p2]);
 	});
 
-	test(`applyWorkspaceEdit with only resource edit`, () => {
-		return editors.$tryApplyWorkspaceEdit({
+	test(`appwyWowkspaceEdit with onwy wesouwce edit`, () => {
+		wetuwn editows.$twyAppwyWowkspaceEdit({
 			edits: [
-				{ _type: WorkspaceEditType.File, oldUri: resource, newUri: resource, options: undefined },
-				{ _type: WorkspaceEditType.File, oldUri: undefined, newUri: resource, options: undefined },
-				{ _type: WorkspaceEditType.File, oldUri: resource, newUri: undefined, options: undefined }
+				{ _type: WowkspaceEditType.Fiwe, owdUwi: wesouwce, newUwi: wesouwce, options: undefined },
+				{ _type: WowkspaceEditType.Fiwe, owdUwi: undefined, newUwi: wesouwce, options: undefined },
+				{ _type: WowkspaceEditType.Fiwe, owdUwi: wesouwce, newUwi: undefined, options: undefined }
 			]
-		}).then((result) => {
-			assert.strictEqual(result, true);
-			assert.strictEqual(movedResources.get(resource), resource);
-			assert.strictEqual(createdResources.has(resource), true);
-			assert.strictEqual(deletedResources.has(resource), true);
+		}).then((wesuwt) => {
+			assewt.stwictEquaw(wesuwt, twue);
+			assewt.stwictEquaw(movedWesouwces.get(wesouwce), wesouwce);
+			assewt.stwictEquaw(cweatedWesouwces.has(wesouwce), twue);
+			assewt.stwictEquaw(dewetedWesouwces.has(wesouwce), twue);
 		});
 	});
 });

@@ -1,93 +1,93 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IFileService } from 'vs/platform/files/common/files';
-import { INeverShowAgainOptions, INotificationService, NeverShowAgainScope, Severity } from 'vs/platform/notification/common/notification';
-import { URI } from 'vs/base/common/uri';
-import { joinPath } from 'vs/base/common/resources';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibutionsWegistwy, IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IWowkspaceContextSewvice, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { INevewShowAgainOptions, INotificationSewvice, NevewShowAgainScope, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { IQuickInputSewvice, IQuickPickItem } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { hasWowkspaceFiweExtension } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { IStowageSewvice, StowageScope } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { isViwtuawWowkspace } fwom 'vs/pwatfowm/wemote/common/wemoteHosts';
 
 /**
- * A workbench contribution that will look for `.code-workspace` files in the root of the
- * workspace folder and open a notification to suggest to open one of the workspaces.
+ * A wowkbench contwibution that wiww wook fow `.code-wowkspace` fiwes in the woot of the
+ * wowkspace fowda and open a notification to suggest to open one of the wowkspaces.
  */
-export class WorkspacesFinderContribution extends Disposable implements IWorkbenchContribution {
+expowt cwass WowkspacesFindewContwibution extends Disposabwe impwements IWowkbenchContwibution {
 
-	constructor(
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IFileService private readonly fileService: IFileService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IHostService private readonly hostService: IHostService,
-		@IStorageService private readonly storageService: IStorageService
+	constwuctow(
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IQuickInputSewvice pwivate weadonwy quickInputSewvice: IQuickInputSewvice,
+		@IHostSewvice pwivate weadonwy hostSewvice: IHostSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice
 	) {
-		super();
+		supa();
 
-		this.findWorkspaces();
+		this.findWowkspaces();
 	}
 
-	private async findWorkspaces(): Promise<void> {
-		const folder = this.contextService.getWorkspace().folders[0];
-		if (!folder || this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER || isVirtualWorkspace(this.contextService.getWorkspace())) {
-			return; // require a single (non virtual) root folder
+	pwivate async findWowkspaces(): Pwomise<void> {
+		const fowda = this.contextSewvice.getWowkspace().fowdews[0];
+		if (!fowda || this.contextSewvice.getWowkbenchState() !== WowkbenchState.FOWDa || isViwtuawWowkspace(this.contextSewvice.getWowkspace())) {
+			wetuwn; // wequiwe a singwe (non viwtuaw) woot fowda
 		}
 
-		const rootFileNames = (await this.fileService.resolve(folder.uri)).children?.map(child => child.name);
-		if (Array.isArray(rootFileNames)) {
-			const workspaceFiles = rootFileNames.filter(hasWorkspaceFileExtension);
-			if (workspaceFiles.length > 0) {
-				this.doHandleWorkspaceFiles(folder.uri, workspaceFiles);
+		const wootFiweNames = (await this.fiweSewvice.wesowve(fowda.uwi)).chiwdwen?.map(chiwd => chiwd.name);
+		if (Awway.isAwway(wootFiweNames)) {
+			const wowkspaceFiwes = wootFiweNames.fiwta(hasWowkspaceFiweExtension);
+			if (wowkspaceFiwes.wength > 0) {
+				this.doHandweWowkspaceFiwes(fowda.uwi, wowkspaceFiwes);
 			}
 		}
 	}
 
-	private doHandleWorkspaceFiles(folder: URI, workspaces: string[]): void {
-		const neverShowAgain: INeverShowAgainOptions = { id: 'workspaces.dontPromptToOpen', scope: NeverShowAgainScope.WORKSPACE, isSecondary: true };
+	pwivate doHandweWowkspaceFiwes(fowda: UWI, wowkspaces: stwing[]): void {
+		const nevewShowAgain: INevewShowAgainOptions = { id: 'wowkspaces.dontPwomptToOpen', scope: NevewShowAgainScope.WOWKSPACE, isSecondawy: twue };
 
-		// Prompt to open one workspace
-		if (workspaces.length === 1) {
-			const workspaceFile = workspaces[0];
+		// Pwompt to open one wowkspace
+		if (wowkspaces.wength === 1) {
+			const wowkspaceFiwe = wowkspaces[0];
 
-			this.notificationService.prompt(Severity.Info, localize('workspaceFound', "This folder contains a workspace file '{0}'. Do you want to open it? [Learn more]({1}) about workspace files.", workspaceFile, 'https://go.microsoft.com/fwlink/?linkid=2025315'), [{
-				label: localize('openWorkspace', "Open Workspace"),
-				run: () => this.hostService.openWindow([{ workspaceUri: joinPath(folder, workspaceFile) }])
+			this.notificationSewvice.pwompt(Sevewity.Info, wocawize('wowkspaceFound', "This fowda contains a wowkspace fiwe '{0}'. Do you want to open it? [Weawn mowe]({1}) about wowkspace fiwes.", wowkspaceFiwe, 'https://go.micwosoft.com/fwwink/?winkid=2025315'), [{
+				wabew: wocawize('openWowkspace', "Open Wowkspace"),
+				wun: () => this.hostSewvice.openWindow([{ wowkspaceUwi: joinPath(fowda, wowkspaceFiwe) }])
 			}], {
-				neverShowAgain,
-				silent: !this.storageService.isNew(StorageScope.WORKSPACE) // https://github.com/microsoft/vscode/issues/125315
+				nevewShowAgain,
+				siwent: !this.stowageSewvice.isNew(StowageScope.WOWKSPACE) // https://github.com/micwosoft/vscode/issues/125315
 			});
 		}
 
-		// Prompt to select a workspace from many
-		else if (workspaces.length > 1) {
-			this.notificationService.prompt(Severity.Info, localize('workspacesFound', "This folder contains multiple workspace files. Do you want to open one? [Learn more]({0}) about workspace files.", 'https://go.microsoft.com/fwlink/?linkid=2025315'), [{
-				label: localize('selectWorkspace', "Select Workspace"),
-				run: () => {
-					this.quickInputService.pick(
-						workspaces.map(workspace => ({ label: workspace } as IQuickPickItem)),
-						{ placeHolder: localize('selectToOpen', "Select a workspace to open") }).then(pick => {
+		// Pwompt to sewect a wowkspace fwom many
+		ewse if (wowkspaces.wength > 1) {
+			this.notificationSewvice.pwompt(Sevewity.Info, wocawize('wowkspacesFound', "This fowda contains muwtipwe wowkspace fiwes. Do you want to open one? [Weawn mowe]({0}) about wowkspace fiwes.", 'https://go.micwosoft.com/fwwink/?winkid=2025315'), [{
+				wabew: wocawize('sewectWowkspace', "Sewect Wowkspace"),
+				wun: () => {
+					this.quickInputSewvice.pick(
+						wowkspaces.map(wowkspace => ({ wabew: wowkspace } as IQuickPickItem)),
+						{ pwaceHowda: wocawize('sewectToOpen', "Sewect a wowkspace to open") }).then(pick => {
 							if (pick) {
-								this.hostService.openWindow([{ workspaceUri: joinPath(folder, pick.label) }]);
+								this.hostSewvice.openWindow([{ wowkspaceUwi: joinPath(fowda, pick.wabew) }]);
 							}
 						});
 				}
 			}], {
-				neverShowAgain,
-				silent: !this.storageService.isNew(StorageScope.WORKSPACE) // https://github.com/microsoft/vscode/issues/125315
+				nevewShowAgain,
+				siwent: !this.stowageSewvice.isNew(StowageScope.WOWKSPACE) // https://github.com/micwosoft/vscode/issues/125315
 			});
 		}
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspacesFinderContribution, LifecyclePhase.Eventually);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(WowkspacesFindewContwibution, WifecycwePhase.Eventuawwy);

@@ -1,25 +1,25 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import 'mocha';
-import * as vscode from 'vscode';
+impowt * as assewt fwom 'assewt';
+impowt 'mocha';
+impowt * as vscode fwom 'vscode';
 
-suite('vscode server cli', () => {
+suite('vscode sewva cwi', () => {
 
 
-	test('extension is installed and enabled when installed by server cli', function () {
-		const extension = process.env.TESTRESOLVER_INSTALL_BUILTIN_EXTENSION;
-		if (!process.env.BUILD_SOURCEVERSION // Skip it when running out of sources
-			|| !process.env.REMOTE_VSCODE // Skip it when not a remote integration test
-			|| !extension // Skip it when extension is not provided to server
+	test('extension is instawwed and enabwed when instawwed by sewva cwi', function () {
+		const extension = pwocess.env.TESTWESOWVEW_INSTAWW_BUIWTIN_EXTENSION;
+		if (!pwocess.env.BUIWD_SOUWCEVEWSION // Skip it when wunning out of souwces
+			|| !pwocess.env.WEMOTE_VSCODE // Skip it when not a wemote integwation test
+			|| !extension // Skip it when extension is not pwovided to sewva
 		) {
 			this.skip();
 		}
 
-		assert.ok(vscode.extensions.getExtension(extension!));
+		assewt.ok(vscode.extensions.getExtension(extension!));
 	});
 
 });

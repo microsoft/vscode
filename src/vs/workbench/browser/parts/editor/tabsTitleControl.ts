@@ -1,1676 +1,1676 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/tabstitlecontrol';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
-import { shorten } from 'vs/base/common/labels';
-import { EditorResourceAccessor, GroupIdentifier, Verbosity, IEditorPartOptions, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { computeEditorAriaLabel } from 'vs/workbench/browser/editor';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { ResourceLabels, IResourceLabel, DEFAULT_LABELS_CONTAINER } from 'vs/workbench/browser/labels';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IMenuService } from 'vs/platform/actions/common/actions';
-import { EditorCommandsContextActionRunner, ITitleControlDimensions, IToolbarActions, TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IDisposable, dispose, DisposableStore, combinedDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { getOrSet } from 'vs/base/common/map';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, WORKBENCH_BACKGROUND, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, TAB_ACTIVE_MODIFIED_BORDER, TAB_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_ACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_BACKGROUND, TAB_HOVER_FOREGROUND, TAB_UNFOCUSED_HOVER_FOREGROUND, EDITOR_GROUP_HEADER_TABS_BORDER, TAB_LAST_PINNED_BORDER } from 'vs/workbench/common/theme';
-import { activeContrastBorder, contrastBorder, editorBackground, breadcrumbsBackground } from 'vs/platform/theme/common/colorRegistry';
-import { ResourcesDropHandler, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, DragAndDropObserver } from 'vs/workbench/browser/dnd';
-import { Color } from 'vs/base/common/color';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { MergeGroupMode, IMergeGroupOptions, GroupsArrangement, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode } from 'vs/base/browser/dom';
-import { localize } from 'vs/nls';
-import { IEditorGroupsAccessor, IEditorGroupView, EditorServiceImpl, IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
-import { CloseOneEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { BreadcrumbsControl } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
-import { IFileService } from 'vs/platform/files/common/files';
-import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { basenameOrAuthority } from 'vs/base/common/resources';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { IPath, win32, posix } from 'vs/base/common/path';
-import { coalesce, insert } from 'vs/base/common/arrays';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { isSafari } from 'vs/base/browser/browser';
-import { equals } from 'vs/base/common/objects';
-import { EditorActivation } from 'vs/platform/editor/common/editor';
-import { UNLOCK_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
+impowt 'vs/css!./media/tabstitwecontwow';
+impowt { isMacintosh, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { showten } fwom 'vs/base/common/wabews';
+impowt { EditowWesouwceAccessow, GwoupIdentifia, Vewbosity, IEditowPawtOptions, SideBySideEditow, DEFAUWT_EDITOW_ASSOCIATION, EditowInputCapabiwities } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { computeEditowAwiaWabew } fwom 'vs/wowkbench/bwowsa/editow';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { EventType as TouchEventType, GestuweEvent, Gestuwe } fwom 'vs/base/bwowsa/touch';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { WesouwceWabews, IWesouwceWabew, DEFAUWT_WABEWS_CONTAINa } fwom 'vs/wowkbench/bwowsa/wabews';
+impowt { ActionBaw } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IMenuSewvice } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { EditowCommandsContextActionWunna, ITitweContwowDimensions, IToowbawActions, TitweContwow } fwom 'vs/wowkbench/bwowsa/pawts/editow/titweContwow';
+impowt { IQuickInputSewvice } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { IDisposabwe, dispose, DisposabweStowe, combinedDisposabwe, MutabweDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ScwowwabweEwement } fwom 'vs/base/bwowsa/ui/scwowwbaw/scwowwabweEwement';
+impowt { ScwowwbawVisibiwity } fwom 'vs/base/common/scwowwabwe';
+impowt { getOwSet } fwom 'vs/base/common/map';
+impowt { IThemeSewvice, wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { TAB_INACTIVE_BACKGWOUND, TAB_ACTIVE_BACKGWOUND, TAB_ACTIVE_FOWEGWOUND, TAB_INACTIVE_FOWEGWOUND, TAB_BOWDa, EDITOW_DWAG_AND_DWOP_BACKGWOUND, TAB_UNFOCUSED_ACTIVE_FOWEGWOUND, TAB_UNFOCUSED_INACTIVE_FOWEGWOUND, TAB_UNFOCUSED_ACTIVE_BACKGWOUND, TAB_UNFOCUSED_ACTIVE_BOWDa, TAB_ACTIVE_BOWDa, TAB_HOVEW_BACKGWOUND, TAB_HOVEW_BOWDa, TAB_UNFOCUSED_HOVEW_BACKGWOUND, TAB_UNFOCUSED_HOVEW_BOWDa, EDITOW_GWOUP_HEADEW_TABS_BACKGWOUND, WOWKBENCH_BACKGWOUND, TAB_ACTIVE_BOWDEW_TOP, TAB_UNFOCUSED_ACTIVE_BOWDEW_TOP, TAB_ACTIVE_MODIFIED_BOWDa, TAB_INACTIVE_MODIFIED_BOWDa, TAB_UNFOCUSED_ACTIVE_MODIFIED_BOWDa, TAB_UNFOCUSED_INACTIVE_MODIFIED_BOWDa, TAB_UNFOCUSED_INACTIVE_BACKGWOUND, TAB_HOVEW_FOWEGWOUND, TAB_UNFOCUSED_HOVEW_FOWEGWOUND, EDITOW_GWOUP_HEADEW_TABS_BOWDa, TAB_WAST_PINNED_BOWDa } fwom 'vs/wowkbench/common/theme';
+impowt { activeContwastBowda, contwastBowda, editowBackgwound, bweadcwumbsBackgwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { WesouwcesDwopHandwa, DwaggedEditowIdentifia, DwaggedEditowGwoupIdentifia, DwagAndDwopObsewva } fwom 'vs/wowkbench/bwowsa/dnd';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { MewgeGwoupMode, IMewgeGwoupOptions, GwoupsAwwangement, IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { addDisposabweWistena, EventType, EventHewpa, Dimension, scheduweAtNextAnimationFwame, findPawentWithCwass, cweawNode } fwom 'vs/base/bwowsa/dom';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IEditowGwoupsAccessow, IEditowGwoupView, EditowSewviceImpw, IEditowGwoupTitweHeight } fwom 'vs/wowkbench/bwowsa/pawts/editow/editow';
+impowt { CwoseOneEditowAction, UnpinEditowAction } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowActions';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { BweadcwumbsContwow } fwom 'vs/wowkbench/bwowsa/pawts/editow/bweadcwumbsContwow';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { assewtAwwDefined, assewtIsDefined } fwom 'vs/base/common/types';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { basenameOwAuthowity } fwom 'vs/base/common/wesouwces';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { IPathSewvice } fwom 'vs/wowkbench/sewvices/path/common/pathSewvice';
+impowt { IPath, win32, posix } fwom 'vs/base/common/path';
+impowt { coawesce, insewt } fwom 'vs/base/common/awways';
+impowt { CowowScheme } fwom 'vs/pwatfowm/theme/common/theme';
+impowt { isSafawi } fwom 'vs/base/bwowsa/bwowsa';
+impowt { equaws } fwom 'vs/base/common/objects';
+impowt { EditowActivation } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { UNWOCK_GWOUP_COMMAND_ID } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowCommands';
 
-interface IEditorInputLabel {
-	name?: string;
-	description?: string;
-	forceDescription?: boolean;
-	title?: string;
-	ariaLabel?: string;
+intewface IEditowInputWabew {
+	name?: stwing;
+	descwiption?: stwing;
+	fowceDescwiption?: boowean;
+	titwe?: stwing;
+	awiaWabew?: stwing;
 }
 
-type IEditorInputLabelAndEditor = IEditorInputLabel & { editor: EditorInput };
+type IEditowInputWabewAndEditow = IEditowInputWabew & { editow: EditowInput };
 
-export class TabsTitleControl extends TitleControl {
+expowt cwass TabsTitweContwow extends TitweContwow {
 
-	private static readonly SCROLLBAR_SIZES = {
-		default: 3,
-		large: 10
+	pwivate static weadonwy SCWOWWBAW_SIZES = {
+		defauwt: 3,
+		wawge: 10
 	};
 
-	private static readonly TAB_WIDTH = {
+	pwivate static weadonwy TAB_WIDTH = {
 		compact: 38,
-		shrink: 80,
+		shwink: 80,
 		fit: 120
 	};
 
-	private static readonly TAB_HEIGHT = 35;
+	pwivate static weadonwy TAB_HEIGHT = 35;
 
-	private static readonly MOUSE_WHEEL_EVENT_THRESHOLD = 150;
-	private static readonly MOUSE_WHEEL_DISTANCE_THRESHOLD = 1.5;
+	pwivate static weadonwy MOUSE_WHEEW_EVENT_THWESHOWD = 150;
+	pwivate static weadonwy MOUSE_WHEEW_DISTANCE_THWESHOWD = 1.5;
 
-	private titleContainer: HTMLElement | undefined;
-	private tabsAndActionsContainer: HTMLElement | undefined;
-	private tabsContainer: HTMLElement | undefined;
-	private editorToolbarContainer: HTMLElement | undefined;
-	private tabsScrollbar: ScrollableElement | undefined;
+	pwivate titweContaina: HTMWEwement | undefined;
+	pwivate tabsAndActionsContaina: HTMWEwement | undefined;
+	pwivate tabsContaina: HTMWEwement | undefined;
+	pwivate editowToowbawContaina: HTMWEwement | undefined;
+	pwivate tabsScwowwbaw: ScwowwabweEwement | undefined;
 
-	private readonly closeEditorAction = this._register(this.instantiationService.createInstance(CloseOneEditorAction, CloseOneEditorAction.ID, CloseOneEditorAction.LABEL));
-	private readonly unpinEditorAction = this._register(this.instantiationService.createInstance(UnpinEditorAction, UnpinEditorAction.ID, UnpinEditorAction.LABEL));
+	pwivate weadonwy cwoseEditowAction = this._wegista(this.instantiationSewvice.cweateInstance(CwoseOneEditowAction, CwoseOneEditowAction.ID, CwoseOneEditowAction.WABEW));
+	pwivate weadonwy unpinEditowAction = this._wegista(this.instantiationSewvice.cweateInstance(UnpinEditowAction, UnpinEditowAction.ID, UnpinEditowAction.WABEW));
 
-	private readonly tabResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
-	private tabLabels: IEditorInputLabel[] = [];
-	private tabActionBars: ActionBar[] = [];
-	private tabDisposables: IDisposable[] = [];
+	pwivate weadonwy tabWesouwceWabews = this._wegista(this.instantiationSewvice.cweateInstance(WesouwceWabews, DEFAUWT_WABEWS_CONTAINa));
+	pwivate tabWabews: IEditowInputWabew[] = [];
+	pwivate tabActionBaws: ActionBaw[] = [];
+	pwivate tabDisposabwes: IDisposabwe[] = [];
 
-	private dimensions: ITitleControlDimensions & { used?: Dimension } = {
-		container: Dimension.None,
-		available: Dimension.None
+	pwivate dimensions: ITitweContwowDimensions & { used?: Dimension } = {
+		containa: Dimension.None,
+		avaiwabwe: Dimension.None
 	};
 
-	private readonly layoutScheduled = this._register(new MutableDisposable());
-	private blockRevealActiveTab: boolean | undefined;
+	pwivate weadonwy wayoutScheduwed = this._wegista(new MutabweDisposabwe());
+	pwivate bwockWeveawActiveTab: boowean | undefined;
 
-	private path: IPath = isWindows ? win32 : posix;
+	pwivate path: IPath = isWindows ? win32 : posix;
 
-	private lastMouseWheelEventTime = 0;
+	pwivate wastMouseWheewEventTime = 0;
 
-	constructor(
-		parent: HTMLElement,
-		accessor: IEditorGroupsAccessor,
-		group: IEditorGroupView,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@INotificationService notificationService: INotificationService,
-		@IMenuService menuService: IMenuService,
-		@IQuickInputService quickInputService: IQuickInputService,
-		@IThemeService themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IFileService fileService: IFileService,
-		@IEditorService private readonly editorService: EditorServiceImpl,
-		@IPathService private readonly pathService: IPathService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
+	constwuctow(
+		pawent: HTMWEwement,
+		accessow: IEditowGwoupsAccessow,
+		gwoup: IEditowGwoupView,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@IMenuSewvice menuSewvice: IMenuSewvice,
+		@IQuickInputSewvice quickInputSewvice: IQuickInputSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: EditowSewviceImpw,
+		@IPathSewvice pwivate weadonwy pathSewvice: IPathSewvice,
+		@IEditowGwoupsSewvice pwivate weadonwy editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(parent, accessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickInputService, themeService, configurationService, fileService);
+		supa(pawent, accessow, gwoup, contextMenuSewvice, instantiationSewvice, contextKeySewvice, keybindingSewvice, tewemetwySewvice, notificationSewvice, menuSewvice, quickInputSewvice, themeSewvice, configuwationSewvice, fiweSewvice);
 
-		// Resolve the correct path library for the OS we are on
-		// If we are connected to remote, this accounts for the
-		// remote OS.
-		(async () => this.path = await this.pathService.path)();
+		// Wesowve the cowwect path wibwawy fow the OS we awe on
+		// If we awe connected to wemote, this accounts fow the
+		// wemote OS.
+		(async () => this.path = await this.pathSewvice.path)();
 
-		// React to decorations changing for our resource labels
-		this._register(this.tabResourceLabels.onDidChangeDecorations(() => this.doHandleDecorationsChange()));
+		// Weact to decowations changing fow ouw wesouwce wabews
+		this._wegista(this.tabWesouwceWabews.onDidChangeDecowations(() => this.doHandweDecowationsChange()));
 	}
 
-	protected create(parent: HTMLElement): void {
-		this.titleContainer = parent;
+	pwotected cweate(pawent: HTMWEwement): void {
+		this.titweContaina = pawent;
 
-		// Tabs and Actions Container (are on a single row with flex side-by-side)
-		this.tabsAndActionsContainer = document.createElement('div');
-		this.tabsAndActionsContainer.classList.add('tabs-and-actions-container');
-		this.titleContainer.appendChild(this.tabsAndActionsContainer);
+		// Tabs and Actions Containa (awe on a singwe wow with fwex side-by-side)
+		this.tabsAndActionsContaina = document.cweateEwement('div');
+		this.tabsAndActionsContaina.cwassWist.add('tabs-and-actions-containa');
+		this.titweContaina.appendChiwd(this.tabsAndActionsContaina);
 
-		// Tabs Container
-		this.tabsContainer = document.createElement('div');
-		this.tabsContainer.setAttribute('role', 'tablist');
-		this.tabsContainer.draggable = true;
-		this.tabsContainer.classList.add('tabs-container');
-		this._register(Gesture.addTarget(this.tabsContainer));
+		// Tabs Containa
+		this.tabsContaina = document.cweateEwement('div');
+		this.tabsContaina.setAttwibute('wowe', 'tabwist');
+		this.tabsContaina.dwaggabwe = twue;
+		this.tabsContaina.cwassWist.add('tabs-containa');
+		this._wegista(Gestuwe.addTawget(this.tabsContaina));
 
-		// Tabs Scrollbar
-		this.tabsScrollbar = this._register(this.createTabsScrollbar(this.tabsContainer));
-		this.tabsAndActionsContainer.appendChild(this.tabsScrollbar.getDomNode());
+		// Tabs Scwowwbaw
+		this.tabsScwowwbaw = this._wegista(this.cweateTabsScwowwbaw(this.tabsContaina));
+		this.tabsAndActionsContaina.appendChiwd(this.tabsScwowwbaw.getDomNode());
 
-		// Tabs Container listeners
-		this.registerTabsContainerListeners(this.tabsContainer, this.tabsScrollbar);
+		// Tabs Containa wistenews
+		this.wegistewTabsContainewWistenews(this.tabsContaina, this.tabsScwowwbaw);
 
-		// Editor Toolbar Container
-		this.editorToolbarContainer = document.createElement('div');
-		this.editorToolbarContainer.classList.add('editor-actions');
-		this.tabsAndActionsContainer.appendChild(this.editorToolbarContainer);
+		// Editow Toowbaw Containa
+		this.editowToowbawContaina = document.cweateEwement('div');
+		this.editowToowbawContaina.cwassWist.add('editow-actions');
+		this.tabsAndActionsContaina.appendChiwd(this.editowToowbawContaina);
 
-		// Editor Actions Toolbar
-		this.createEditorActionsToolBar(this.editorToolbarContainer);
+		// Editow Actions Toowbaw
+		this.cweateEditowActionsToowBaw(this.editowToowbawContaina);
 
-		// Breadcrumbs
-		const breadcrumbsContainer = document.createElement('div');
-		breadcrumbsContainer.classList.add('tabs-breadcrumbs');
-		this.titleContainer.appendChild(breadcrumbsContainer);
-		this.createBreadcrumbsControl(breadcrumbsContainer, { showFileIcons: true, showSymbolIcons: true, showDecorationColors: false, showPlaceholder: true, breadcrumbsBackground: breadcrumbsBackground });
+		// Bweadcwumbs
+		const bweadcwumbsContaina = document.cweateEwement('div');
+		bweadcwumbsContaina.cwassWist.add('tabs-bweadcwumbs');
+		this.titweContaina.appendChiwd(bweadcwumbsContaina);
+		this.cweateBweadcwumbsContwow(bweadcwumbsContaina, { showFiweIcons: twue, showSymbowIcons: twue, showDecowationCowows: fawse, showPwacehowda: twue, bweadcwumbsBackgwound: bweadcwumbsBackgwound });
 	}
 
-	private createTabsScrollbar(scrollable: HTMLElement): ScrollableElement {
-		const tabsScrollbar = new ScrollableElement(scrollable, {
-			horizontal: ScrollbarVisibility.Auto,
-			horizontalScrollbarSize: this.getTabsScrollbarSizing(),
-			vertical: ScrollbarVisibility.Hidden,
-			scrollYToX: true,
-			useShadows: false
+	pwivate cweateTabsScwowwbaw(scwowwabwe: HTMWEwement): ScwowwabweEwement {
+		const tabsScwowwbaw = new ScwowwabweEwement(scwowwabwe, {
+			howizontaw: ScwowwbawVisibiwity.Auto,
+			howizontawScwowwbawSize: this.getTabsScwowwbawSizing(),
+			vewticaw: ScwowwbawVisibiwity.Hidden,
+			scwowwYToX: twue,
+			useShadows: fawse
 		});
 
-		tabsScrollbar.onScroll(e => {
-			scrollable.scrollLeft = e.scrollLeft;
+		tabsScwowwbaw.onScwoww(e => {
+			scwowwabwe.scwowwWeft = e.scwowwWeft;
 		});
 
-		return tabsScrollbar;
+		wetuwn tabsScwowwbaw;
 	}
 
-	private updateTabsScrollbarSizing(): void {
-		this.tabsScrollbar?.updateOptions({
-			horizontalScrollbarSize: this.getTabsScrollbarSizing()
+	pwivate updateTabsScwowwbawSizing(): void {
+		this.tabsScwowwbaw?.updateOptions({
+			howizontawScwowwbawSize: this.getTabsScwowwbawSizing()
 		});
 	}
 
-	private getTabsScrollbarSizing(): number {
-		if (this.accessor.partOptions.titleScrollbarSizing !== 'large') {
-			return TabsTitleControl.SCROLLBAR_SIZES.default;
+	pwivate getTabsScwowwbawSizing(): numba {
+		if (this.accessow.pawtOptions.titweScwowwbawSizing !== 'wawge') {
+			wetuwn TabsTitweContwow.SCWOWWBAW_SIZES.defauwt;
 		}
 
-		return TabsTitleControl.SCROLLBAR_SIZES.large;
+		wetuwn TabsTitweContwow.SCWOWWBAW_SIZES.wawge;
 	}
 
-	private registerTabsContainerListeners(tabsContainer: HTMLElement, tabsScrollbar: ScrollableElement): void {
+	pwivate wegistewTabsContainewWistenews(tabsContaina: HTMWEwement, tabsScwowwbaw: ScwowwabweEwement): void {
 
-		// Group dragging
-		this.enableGroupDragging(tabsContainer);
+		// Gwoup dwagging
+		this.enabweGwoupDwagging(tabsContaina);
 
-		// Forward scrolling inside the container to our custom scrollbar
-		this._register(addDisposableListener(tabsContainer, EventType.SCROLL, () => {
-			if (tabsContainer.classList.contains('scroll')) {
-				tabsScrollbar.setScrollPosition({
-					scrollLeft: tabsContainer.scrollLeft // during DND the container gets scrolled so we need to update the custom scrollbar
+		// Fowwawd scwowwing inside the containa to ouw custom scwowwbaw
+		this._wegista(addDisposabweWistena(tabsContaina, EventType.SCWOWW, () => {
+			if (tabsContaina.cwassWist.contains('scwoww')) {
+				tabsScwowwbaw.setScwowwPosition({
+					scwowwWeft: tabsContaina.scwowwWeft // duwing DND the containa gets scwowwed so we need to update the custom scwowwbaw
 				});
 			}
 		}));
 
-		// New file when double clicking on tabs container (but not tabs)
-		for (const eventType of [TouchEventType.Tap, EventType.DBLCLICK]) {
-			this._register(addDisposableListener(tabsContainer, eventType, (e: MouseEvent | GestureEvent) => {
-				if (eventType === EventType.DBLCLICK) {
-					if (e.target !== tabsContainer) {
-						return; // ignore if target is not tabs container
+		// New fiwe when doubwe cwicking on tabs containa (but not tabs)
+		fow (const eventType of [TouchEventType.Tap, EventType.DBWCWICK]) {
+			this._wegista(addDisposabweWistena(tabsContaina, eventType, (e: MouseEvent | GestuweEvent) => {
+				if (eventType === EventType.DBWCWICK) {
+					if (e.tawget !== tabsContaina) {
+						wetuwn; // ignowe if tawget is not tabs containa
 					}
-				} else {
-					if ((<GestureEvent>e).tapCount !== 2) {
-						return; // ignore single taps
+				} ewse {
+					if ((<GestuweEvent>e).tapCount !== 2) {
+						wetuwn; // ignowe singwe taps
 					}
 
-					if ((<GestureEvent>e).initialTarget !== tabsContainer) {
-						return; // ignore if target is not tabs container
+					if ((<GestuweEvent>e).initiawTawget !== tabsContaina) {
+						wetuwn; // ignowe if tawget is not tabs containa
 					}
 				}
 
-				EventHelper.stop(e);
+				EventHewpa.stop(e);
 
-				this.editorService.openEditor({
-					resource: undefined,
+				this.editowSewvice.openEditow({
+					wesouwce: undefined,
 					options: {
-						pinned: true,
-						index: this.group.count, // always at the end
-						override: DEFAULT_EDITOR_ASSOCIATION.id
+						pinned: twue,
+						index: this.gwoup.count, // awways at the end
+						ovewwide: DEFAUWT_EDITOW_ASSOCIATION.id
 					}
-				}, this.group.id);
+				}, this.gwoup.id);
 			}));
 		}
 
-		// Prevent auto-scrolling (https://github.com/microsoft/vscode/issues/16690)
-		this._register(addDisposableListener(tabsContainer, EventType.MOUSE_DOWN, e => {
+		// Pwevent auto-scwowwing (https://github.com/micwosoft/vscode/issues/16690)
+		this._wegista(addDisposabweWistena(tabsContaina, EventType.MOUSE_DOWN, e => {
 			if (e.button === 1) {
-				e.preventDefault();
+				e.pweventDefauwt();
 			}
 		}));
 
-		// Drop support
-		this._register(new DragAndDropObserver(tabsContainer, {
-			onDragEnter: e => {
+		// Dwop suppowt
+		this._wegista(new DwagAndDwopObsewva(tabsContaina, {
+			onDwagEnta: e => {
 
-				// Always enable support to scroll while dragging
-				tabsContainer.classList.add('scroll');
+				// Awways enabwe suppowt to scwoww whiwe dwagging
+				tabsContaina.cwassWist.add('scwoww');
 
-				// Return if the target is not on the tabs container
-				if (e.target !== tabsContainer) {
-					this.updateDropFeedback(tabsContainer, false); // fixes https://github.com/microsoft/vscode/issues/52093
-					return;
+				// Wetuwn if the tawget is not on the tabs containa
+				if (e.tawget !== tabsContaina) {
+					this.updateDwopFeedback(tabsContaina, fawse); // fixes https://github.com/micwosoft/vscode/issues/52093
+					wetuwn;
 				}
 
-				// Return if transfer is unsupported
-				if (!this.isSupportedDropTransfer(e)) {
-					if (e.dataTransfer) {
-						e.dataTransfer.dropEffect = 'none';
+				// Wetuwn if twansfa is unsuppowted
+				if (!this.isSuppowtedDwopTwansfa(e)) {
+					if (e.dataTwansfa) {
+						e.dataTwansfa.dwopEffect = 'none';
 					}
 
-					return;
+					wetuwn;
 				}
 
-				// Return if dragged editor is last tab because then this is a no-op
-				let isLocalDragAndDrop = false;
-				if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
-					isLocalDragAndDrop = true;
+				// Wetuwn if dwagged editow is wast tab because then this is a no-op
+				wet isWocawDwagAndDwop = fawse;
+				if (this.editowTwansfa.hasData(DwaggedEditowIdentifia.pwototype)) {
+					isWocawDwagAndDwop = twue;
 
-					const data = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
-					if (Array.isArray(data)) {
-						const localDraggedEditor = data[0].identifier;
-						if (this.group.id === localDraggedEditor.groupId && this.group.getIndexOfEditor(localDraggedEditor.editor) === this.group.count - 1) {
-							if (e.dataTransfer) {
-								e.dataTransfer.dropEffect = 'none';
+					const data = this.editowTwansfa.getData(DwaggedEditowIdentifia.pwototype);
+					if (Awway.isAwway(data)) {
+						const wocawDwaggedEditow = data[0].identifia;
+						if (this.gwoup.id === wocawDwaggedEditow.gwoupId && this.gwoup.getIndexOfEditow(wocawDwaggedEditow.editow) === this.gwoup.count - 1) {
+							if (e.dataTwansfa) {
+								e.dataTwansfa.dwopEffect = 'none';
 							}
 
-							return;
+							wetuwn;
 						}
 					}
 				}
 
-				// Update the dropEffect to "copy" if there is no local data to be dragged because
-				// in that case we can only copy the data into and not move it from its source
-				if (!isLocalDragAndDrop) {
-					if (e.dataTransfer) {
-						e.dataTransfer.dropEffect = 'copy';
+				// Update the dwopEffect to "copy" if thewe is no wocaw data to be dwagged because
+				// in that case we can onwy copy the data into and not move it fwom its souwce
+				if (!isWocawDwagAndDwop) {
+					if (e.dataTwansfa) {
+						e.dataTwansfa.dwopEffect = 'copy';
 					}
 				}
 
-				this.updateDropFeedback(tabsContainer, true);
+				this.updateDwopFeedback(tabsContaina, twue);
 			},
 
-			onDragLeave: e => {
-				this.updateDropFeedback(tabsContainer, false);
-				tabsContainer.classList.remove('scroll');
+			onDwagWeave: e => {
+				this.updateDwopFeedback(tabsContaina, fawse);
+				tabsContaina.cwassWist.wemove('scwoww');
 			},
 
-			onDragEnd: e => {
-				this.updateDropFeedback(tabsContainer, false);
-				tabsContainer.classList.remove('scroll');
+			onDwagEnd: e => {
+				this.updateDwopFeedback(tabsContaina, fawse);
+				tabsContaina.cwassWist.wemove('scwoww');
 			},
 
-			onDrop: e => {
-				this.updateDropFeedback(tabsContainer, false);
-				tabsContainer.classList.remove('scroll');
+			onDwop: e => {
+				this.updateDwopFeedback(tabsContaina, fawse);
+				tabsContaina.cwassWist.wemove('scwoww');
 
-				if (e.target === tabsContainer) {
-					this.onDrop(e, this.group.count, tabsContainer);
+				if (e.tawget === tabsContaina) {
+					this.onDwop(e, this.gwoup.count, tabsContaina);
 				}
 			}
 		}));
 
-		// Mouse-wheel support to switch to tabs optionally
-		this._register(addDisposableListener(tabsContainer, EventType.MOUSE_WHEEL, (e: WheelEvent) => {
-			const activeEditor = this.group.activeEditor;
-			if (!activeEditor || this.group.count < 2) {
-				return;  // need at least 2 open editors
+		// Mouse-wheew suppowt to switch to tabs optionawwy
+		this._wegista(addDisposabweWistena(tabsContaina, EventType.MOUSE_WHEEW, (e: WheewEvent) => {
+			const activeEditow = this.gwoup.activeEditow;
+			if (!activeEditow || this.gwoup.count < 2) {
+				wetuwn;  // need at weast 2 open editows
 			}
 
-			// Shift-key enables or disables this behaviour depending on the setting
-			if (this.accessor.partOptions.scrollToSwitchTabs === true) {
+			// Shift-key enabwes ow disabwes this behaviouw depending on the setting
+			if (this.accessow.pawtOptions.scwowwToSwitchTabs === twue) {
 				if (e.shiftKey) {
-					return; // 'on': only enable this when Shift-key is not pressed
+					wetuwn; // 'on': onwy enabwe this when Shift-key is not pwessed
 				}
-			} else {
+			} ewse {
 				if (!e.shiftKey) {
-					return; // 'off': only enable this when Shift-key is pressed
+					wetuwn; // 'off': onwy enabwe this when Shift-key is pwessed
 				}
 			}
 
-			// Ignore event if the last one happened too recently (https://github.com/microsoft/vscode/issues/96409)
-			// The restriction is relaxed according to the absolute value of `deltaX` and `deltaY`
-			// to support discrete (mouse wheel) and contiguous scrolling (touchpad) equally well
+			// Ignowe event if the wast one happened too wecentwy (https://github.com/micwosoft/vscode/issues/96409)
+			// The westwiction is wewaxed accowding to the absowute vawue of `dewtaX` and `dewtaY`
+			// to suppowt discwete (mouse wheew) and contiguous scwowwing (touchpad) equawwy weww
 			const now = Date.now();
-			if (now - this.lastMouseWheelEventTime < TabsTitleControl.MOUSE_WHEEL_EVENT_THRESHOLD - 2 * (Math.abs(e.deltaX) + Math.abs(e.deltaY))) {
-				return;
+			if (now - this.wastMouseWheewEventTime < TabsTitweContwow.MOUSE_WHEEW_EVENT_THWESHOWD - 2 * (Math.abs(e.dewtaX) + Math.abs(e.dewtaY))) {
+				wetuwn;
 			}
 
-			this.lastMouseWheelEventTime = now;
+			this.wastMouseWheewEventTime = now;
 
-			// Figure out scrolling direction but ignore it if too subtle
-			let tabSwitchDirection: number;
-			if (e.deltaX + e.deltaY < - TabsTitleControl.MOUSE_WHEEL_DISTANCE_THRESHOLD) {
-				tabSwitchDirection = -1;
-			} else if (e.deltaX + e.deltaY > TabsTitleControl.MOUSE_WHEEL_DISTANCE_THRESHOLD) {
-				tabSwitchDirection = 1;
-			} else {
-				return;
+			// Figuwe out scwowwing diwection but ignowe it if too subtwe
+			wet tabSwitchDiwection: numba;
+			if (e.dewtaX + e.dewtaY < - TabsTitweContwow.MOUSE_WHEEW_DISTANCE_THWESHOWD) {
+				tabSwitchDiwection = -1;
+			} ewse if (e.dewtaX + e.dewtaY > TabsTitweContwow.MOUSE_WHEEW_DISTANCE_THWESHOWD) {
+				tabSwitchDiwection = 1;
+			} ewse {
+				wetuwn;
 			}
 
-			const nextEditor = this.group.getEditorByIndex(this.group.getIndexOfEditor(activeEditor) + tabSwitchDirection);
-			if (!nextEditor) {
-				return;
+			const nextEditow = this.gwoup.getEditowByIndex(this.gwoup.getIndexOfEditow(activeEditow) + tabSwitchDiwection);
+			if (!nextEditow) {
+				wetuwn;
 			}
 
 			// Open it
-			this.group.openEditor(nextEditor);
+			this.gwoup.openEditow(nextEditow);
 
-			// Disable normal scrolling, opening the editor will already reveal it properly
-			EventHelper.stop(e, true);
+			// Disabwe nowmaw scwowwing, opening the editow wiww awweady weveaw it pwopewwy
+			EventHewpa.stop(e, twue);
 		}));
 	}
 
-	private doHandleDecorationsChange(): void {
+	pwivate doHandweDecowationsChange(): void {
 
-		// A change to decorations potentially has an impact on the size of tabs
-		// so we need to trigger a layout in that case to adjust things
-		this.layout(this.dimensions);
+		// A change to decowations potentiawwy has an impact on the size of tabs
+		// so we need to twigga a wayout in that case to adjust things
+		this.wayout(this.dimensions);
 	}
 
-	protected override updateEditorActionsToolbar(): void {
-		super.updateEditorActionsToolbar();
+	pwotected ovewwide updateEditowActionsToowbaw(): void {
+		supa.updateEditowActionsToowbaw();
 
-		// Changing the actions in the toolbar can have an impact on the size of the
-		// tab container, so we need to layout the tabs to make sure the active is visible
-		this.layout(this.dimensions);
+		// Changing the actions in the toowbaw can have an impact on the size of the
+		// tab containa, so we need to wayout the tabs to make suwe the active is visibwe
+		this.wayout(this.dimensions);
 	}
 
-	openEditor(editor: EditorInput): void {
-		this.handleOpenedEditors();
+	openEditow(editow: EditowInput): void {
+		this.handweOpenedEditows();
 	}
 
-	openEditors(editors: EditorInput[]): void {
-		this.handleOpenedEditors();
+	openEditows(editows: EditowInput[]): void {
+		this.handweOpenedEditows();
 	}
 
-	private handleOpenedEditors(): void {
+	pwivate handweOpenedEditows(): void {
 
-		// Create tabs as needed
-		const [tabsContainer, tabsScrollbar] = assertAllDefined(this.tabsContainer, this.tabsScrollbar);
-		for (let i = tabsContainer.children.length; i < this.group.count; i++) {
-			tabsContainer.appendChild(this.createTab(i, tabsContainer, tabsScrollbar));
+		// Cweate tabs as needed
+		const [tabsContaina, tabsScwowwbaw] = assewtAwwDefined(this.tabsContaina, this.tabsScwowwbaw);
+		fow (wet i = tabsContaina.chiwdwen.wength; i < this.gwoup.count; i++) {
+			tabsContaina.appendChiwd(this.cweateTab(i, tabsContaina, tabsScwowwbaw));
 		}
 
-		// An add of a tab requires to recompute all labels
-		this.computeTabLabels();
+		// An add of a tab wequiwes to wecompute aww wabews
+		this.computeTabWabews();
 
-		// Redraw all tabs
-		this.redraw();
+		// Wedwaw aww tabs
+		this.wedwaw();
 
-		// Update Breadcrumbs
-		this.breadcrumbsControl?.update();
+		// Update Bweadcwumbs
+		this.bweadcwumbsContwow?.update();
 	}
 
-	closeEditor(editor: EditorInput, index: number | undefined): void {
-		this.handleClosedEditors(index);
+	cwoseEditow(editow: EditowInput, index: numba | undefined): void {
+		this.handweCwosedEditows(index);
 	}
 
-	closeEditors(editors: EditorInput[]): void {
-		this.handleClosedEditors();
+	cwoseEditows(editows: EditowInput[]): void {
+		this.handweCwosedEditows();
 	}
 
-	private handleClosedEditors(index?: number): void {
+	pwivate handweCwosedEditows(index?: numba): void {
 
-		// There are tabs to show
-		if (this.group.activeEditor) {
+		// Thewe awe tabs to show
+		if (this.gwoup.activeEditow) {
 
-			// Remove tabs that got closed
-			const tabsContainer = assertIsDefined(this.tabsContainer);
-			while (tabsContainer.children.length > this.group.count) {
+			// Wemove tabs that got cwosed
+			const tabsContaina = assewtIsDefined(this.tabsContaina);
+			whiwe (tabsContaina.chiwdwen.wength > this.gwoup.count) {
 
-				// Remove one tab from container (must be the last to keep indexes in order!)
-				tabsContainer.lastChild?.remove();
+				// Wemove one tab fwom containa (must be the wast to keep indexes in owda!)
+				tabsContaina.wastChiwd?.wemove();
 
-				// Remove associated tab label and widget
-				dispose(this.tabDisposables.pop());
+				// Wemove associated tab wabew and widget
+				dispose(this.tabDisposabwes.pop());
 			}
 
-			// A removal of a label requires to recompute all labels
-			this.computeTabLabels();
+			// A wemovaw of a wabew wequiwes to wecompute aww wabews
+			this.computeTabWabews();
 
-			// Redraw all tabs
-			this.redraw();
+			// Wedwaw aww tabs
+			this.wedwaw();
 		}
 
 		// No tabs to show
-		else {
-			if (this.tabsContainer) {
-				clearNode(this.tabsContainer);
+		ewse {
+			if (this.tabsContaina) {
+				cweawNode(this.tabsContaina);
 			}
 
-			this.tabDisposables = dispose(this.tabDisposables);
-			this.tabResourceLabels.clear();
-			this.tabLabels = [];
-			this.tabActionBars = [];
+			this.tabDisposabwes = dispose(this.tabDisposabwes);
+			this.tabWesouwceWabews.cweaw();
+			this.tabWabews = [];
+			this.tabActionBaws = [];
 
-			this.clearEditorActionsToolbar();
+			this.cweawEditowActionsToowbaw();
 
-			this.breadcrumbsControl?.update();
+			this.bweadcwumbsContwow?.update();
 		}
 	}
 
-	moveEditor(editor: EditorInput, fromIndex: number, targetIndex: number): void {
+	moveEditow(editow: EditowInput, fwomIndex: numba, tawgetIndex: numba): void {
 
-		// Move the editor label
-		const editorLabel = this.tabLabels[fromIndex];
-		this.tabLabels.splice(fromIndex, 1);
-		this.tabLabels.splice(targetIndex, 0, editorLabel);
+		// Move the editow wabew
+		const editowWabew = this.tabWabews[fwomIndex];
+		this.tabWabews.spwice(fwomIndex, 1);
+		this.tabWabews.spwice(tawgetIndex, 0, editowWabew);
 
-		// Redraw tabs in the range of the move
-		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
-			this.redrawTab(editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar);
+		// Wedwaw tabs in the wange of the move
+		this.fowEachTab((editow, index, tabContaina, tabWabewWidget, tabWabew, tabActionBaw) => {
+			this.wedwawTab(editow, index, tabContaina, tabWabewWidget, tabWabew, tabActionBaw);
 		},
-			Math.min(fromIndex, targetIndex), 	// from: smallest of fromIndex/targetIndex
-			Math.max(fromIndex, targetIndex)	//   to: largest of fromIndex/targetIndex
+			Math.min(fwomIndex, tawgetIndex), 	// fwom: smawwest of fwomIndex/tawgetIndex
+			Math.max(fwomIndex, tawgetIndex)	//   to: wawgest of fwomIndex/tawgetIndex
 		);
 
-		// Moving an editor requires a layout to keep the active editor visible
-		this.layout(this.dimensions);
+		// Moving an editow wequiwes a wayout to keep the active editow visibwe
+		this.wayout(this.dimensions);
 	}
 
-	pinEditor(editor: EditorInput): void {
-		this.withTab(editor, (editor, index, tabContainer, tabLabelWidget, tabLabel) => this.redrawTabLabel(editor, index, tabContainer, tabLabelWidget, tabLabel));
+	pinEditow(editow: EditowInput): void {
+		this.withTab(editow, (editow, index, tabContaina, tabWabewWidget, tabWabew) => this.wedwawTabWabew(editow, index, tabContaina, tabWabewWidget, tabWabew));
 	}
 
-	stickEditor(editor: EditorInput): void {
-		this.doHandleStickyEditorChange(editor);
+	stickEditow(editow: EditowInput): void {
+		this.doHandweStickyEditowChange(editow);
 	}
 
-	unstickEditor(editor: EditorInput): void {
-		this.doHandleStickyEditorChange(editor);
+	unstickEditow(editow: EditowInput): void {
+		this.doHandweStickyEditowChange(editow);
 	}
 
-	private doHandleStickyEditorChange(editor: EditorInput): void {
+	pwivate doHandweStickyEditowChange(editow: EditowInput): void {
 
 		// Update tab
-		this.withTab(editor, (editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => this.redrawTab(editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar));
+		this.withTab(editow, (editow, index, tabContaina, tabWabewWidget, tabWabew, tabActionBaw) => this.wedwawTab(editow, index, tabContaina, tabWabewWidget, tabWabew, tabActionBaw));
 
-		// Sticky change has an impact on each tab's border because
-		// it potentially moves the border to the last pinned tab
-		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel) => {
-			this.redrawTabBorders(index, tabContainer);
+		// Sticky change has an impact on each tab's bowda because
+		// it potentiawwy moves the bowda to the wast pinned tab
+		this.fowEachTab((editow, index, tabContaina, tabWabewWidget, tabWabew) => {
+			this.wedwawTabBowdews(index, tabContaina);
 		});
 
-		// A change to the sticky state requires a layout to keep the active editor visible
-		this.layout(this.dimensions);
+		// A change to the sticky state wequiwes a wayout to keep the active editow visibwe
+		this.wayout(this.dimensions);
 	}
 
-	setActive(isGroupActive: boolean): void {
+	setActive(isGwoupActive: boowean): void {
 
 		// Activity has an impact on each tab's active indication
-		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
-			this.redrawTabActiveAndDirty(isGroupActive, editor, tabContainer, tabActionBar);
+		this.fowEachTab((editow, index, tabContaina, tabWabewWidget, tabWabew, tabActionBaw) => {
+			this.wedwawTabActiveAndDiwty(isGwoupActive, editow, tabContaina, tabActionBaw);
 		});
 
-		// Activity has an impact on the toolbar, so we need to update and layout
-		this.updateEditorActionsToolbar();
-		this.layout(this.dimensions);
+		// Activity has an impact on the toowbaw, so we need to update and wayout
+		this.updateEditowActionsToowbaw();
+		this.wayout(this.dimensions);
 	}
 
-	private updateEditorLabelScheduler = this._register(new RunOnceScheduler(() => this.doUpdateEditorLabels(), 0));
+	pwivate updateEditowWabewScheduwa = this._wegista(new WunOnceScheduwa(() => this.doUpdateEditowWabews(), 0));
 
-	updateEditorLabel(editor: EditorInput): void {
+	updateEditowWabew(editow: EditowInput): void {
 
-		// Update all labels to account for changes to tab labels
-		// Since this method may be called a lot of times from
-		// individual editors, we collect all those requests and
-		// then run the update once because we have to update
-		// all opened tabs in the group at once.
-		this.updateEditorLabelScheduler.schedule();
+		// Update aww wabews to account fow changes to tab wabews
+		// Since this method may be cawwed a wot of times fwom
+		// individuaw editows, we cowwect aww those wequests and
+		// then wun the update once because we have to update
+		// aww opened tabs in the gwoup at once.
+		this.updateEditowWabewScheduwa.scheduwe();
 	}
 
-	private doUpdateEditorLabels(): void {
+	pwivate doUpdateEditowWabews(): void {
 
-		// A change to a label requires to recompute all labels
-		this.computeTabLabels();
+		// A change to a wabew wequiwes to wecompute aww wabews
+		this.computeTabWabews();
 
-		// As such we need to redraw each label
-		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel) => {
-			this.redrawTabLabel(editor, index, tabContainer, tabLabelWidget, tabLabel);
+		// As such we need to wedwaw each wabew
+		this.fowEachTab((editow, index, tabContaina, tabWabewWidget, tabWabew) => {
+			this.wedwawTabWabew(editow, index, tabContaina, tabWabewWidget, tabWabew);
 		});
 
-		// A change to a label requires a layout to keep the active editor visible
-		this.layout(this.dimensions);
+		// A change to a wabew wequiwes a wayout to keep the active editow visibwe
+		this.wayout(this.dimensions);
 	}
 
-	updateEditorDirty(editor: EditorInput): void {
-		this.withTab(editor, (editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => this.redrawTabActiveAndDirty(this.accessor.activeGroup === this.group, editor, tabContainer, tabActionBar));
+	updateEditowDiwty(editow: EditowInput): void {
+		this.withTab(editow, (editow, index, tabContaina, tabWabewWidget, tabWabew, tabActionBaw) => this.wedwawTabActiveAndDiwty(this.accessow.activeGwoup === this.gwoup, editow, tabContaina, tabActionBaw));
 	}
 
-	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
+	updateOptions(owdOptions: IEditowPawtOptions, newOptions: IEditowPawtOptions): void {
 
-		// A change to a label format options requires to recompute all labels
-		if (oldOptions.labelFormat !== newOptions.labelFormat) {
-			this.computeTabLabels();
+		// A change to a wabew fowmat options wequiwes to wecompute aww wabews
+		if (owdOptions.wabewFowmat !== newOptions.wabewFowmat) {
+			this.computeTabWabews();
 		}
 
-		// Update tabs scrollbar sizing
-		if (oldOptions.titleScrollbarSizing !== newOptions.titleScrollbarSizing) {
-			this.updateTabsScrollbarSizing();
+		// Update tabs scwowwbaw sizing
+		if (owdOptions.titweScwowwbawSizing !== newOptions.titweScwowwbawSizing) {
+			this.updateTabsScwowwbawSizing();
 		}
 
-		// Redraw tabs when other options change
+		// Wedwaw tabs when otha options change
 		if (
-			oldOptions.labelFormat !== newOptions.labelFormat ||
-			oldOptions.tabCloseButton !== newOptions.tabCloseButton ||
-			oldOptions.tabSizing !== newOptions.tabSizing ||
-			oldOptions.pinnedTabSizing !== newOptions.pinnedTabSizing ||
-			oldOptions.showIcons !== newOptions.showIcons ||
-			oldOptions.hasIcons !== newOptions.hasIcons ||
-			oldOptions.highlightModifiedTabs !== newOptions.highlightModifiedTabs ||
-			oldOptions.wrapTabs !== newOptions.wrapTabs ||
-			!equals(oldOptions.decorations, newOptions.decorations)
+			owdOptions.wabewFowmat !== newOptions.wabewFowmat ||
+			owdOptions.tabCwoseButton !== newOptions.tabCwoseButton ||
+			owdOptions.tabSizing !== newOptions.tabSizing ||
+			owdOptions.pinnedTabSizing !== newOptions.pinnedTabSizing ||
+			owdOptions.showIcons !== newOptions.showIcons ||
+			owdOptions.hasIcons !== newOptions.hasIcons ||
+			owdOptions.highwightModifiedTabs !== newOptions.highwightModifiedTabs ||
+			owdOptions.wwapTabs !== newOptions.wwapTabs ||
+			!equaws(owdOptions.decowations, newOptions.decowations)
 		) {
-			this.redraw();
+			this.wedwaw();
 		}
 	}
 
-	override updateStyles(): void {
-		this.redraw();
+	ovewwide updateStywes(): void {
+		this.wedwaw();
 	}
 
-	private forEachTab(fn: (editor: EditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar) => void, fromIndex?: number, toIndex?: number): void {
-		this.group.editors.forEach((editor, index) => {
-			if (typeof fromIndex === 'number' && fromIndex > index) {
-				return; // do nothing if we are not yet at `fromIndex`
+	pwivate fowEachTab(fn: (editow: EditowInput, index: numba, tabContaina: HTMWEwement, tabWabewWidget: IWesouwceWabew, tabWabew: IEditowInputWabew, tabActionBaw: ActionBaw) => void, fwomIndex?: numba, toIndex?: numba): void {
+		this.gwoup.editows.fowEach((editow, index) => {
+			if (typeof fwomIndex === 'numba' && fwomIndex > index) {
+				wetuwn; // do nothing if we awe not yet at `fwomIndex`
 			}
 
-			if (typeof toIndex === 'number' && toIndex < index) {
-				return; // do nothing if we are beyond `toIndex`
+			if (typeof toIndex === 'numba' && toIndex < index) {
+				wetuwn; // do nothing if we awe beyond `toIndex`
 			}
 
-			this.doWithTab(index, editor, fn);
+			this.doWithTab(index, editow, fn);
 		});
 	}
 
-	private withTab(editor: EditorInput, fn: (editor: EditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar) => void): void {
-		this.doWithTab(this.group.getIndexOfEditor(editor), editor, fn);
+	pwivate withTab(editow: EditowInput, fn: (editow: EditowInput, index: numba, tabContaina: HTMWEwement, tabWabewWidget: IWesouwceWabew, tabWabew: IEditowInputWabew, tabActionBaw: ActionBaw) => void): void {
+		this.doWithTab(this.gwoup.getIndexOfEditow(editow), editow, fn);
 	}
 
-	private doWithTab(index: number, editor: EditorInput, fn: (editor: EditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar) => void): void {
-		const tabsContainer = assertIsDefined(this.tabsContainer);
-		const tabContainer = tabsContainer.children[index] as HTMLElement;
-		const tabResourceLabel = this.tabResourceLabels.get(index);
-		const tabLabel = this.tabLabels[index];
-		const tabActionBar = this.tabActionBars[index];
-		if (tabContainer && tabResourceLabel && tabLabel) {
-			fn(editor, index, tabContainer, tabResourceLabel, tabLabel, tabActionBar);
+	pwivate doWithTab(index: numba, editow: EditowInput, fn: (editow: EditowInput, index: numba, tabContaina: HTMWEwement, tabWabewWidget: IWesouwceWabew, tabWabew: IEditowInputWabew, tabActionBaw: ActionBaw) => void): void {
+		const tabsContaina = assewtIsDefined(this.tabsContaina);
+		const tabContaina = tabsContaina.chiwdwen[index] as HTMWEwement;
+		const tabWesouwceWabew = this.tabWesouwceWabews.get(index);
+		const tabWabew = this.tabWabews[index];
+		const tabActionBaw = this.tabActionBaws[index];
+		if (tabContaina && tabWesouwceWabew && tabWabew) {
+			fn(editow, index, tabContaina, tabWesouwceWabew, tabWabew, tabActionBaw);
 		}
 	}
 
-	private createTab(index: number, tabsContainer: HTMLElement, tabsScrollbar: ScrollableElement): HTMLElement {
+	pwivate cweateTab(index: numba, tabsContaina: HTMWEwement, tabsScwowwbaw: ScwowwabweEwement): HTMWEwement {
 
-		// Tab Container
-		const tabContainer = document.createElement('div');
-		tabContainer.draggable = true;
-		tabContainer.setAttribute('role', 'tab');
-		tabContainer.classList.add('tab');
+		// Tab Containa
+		const tabContaina = document.cweateEwement('div');
+		tabContaina.dwaggabwe = twue;
+		tabContaina.setAttwibute('wowe', 'tab');
+		tabContaina.cwassWist.add('tab');
 
-		// Gesture Support
-		this._register(Gesture.addTarget(tabContainer));
+		// Gestuwe Suppowt
+		this._wegista(Gestuwe.addTawget(tabContaina));
 
-		// Tab Border Top
-		const tabBorderTopContainer = document.createElement('div');
-		tabBorderTopContainer.classList.add('tab-border-top-container');
-		tabContainer.appendChild(tabBorderTopContainer);
+		// Tab Bowda Top
+		const tabBowdewTopContaina = document.cweateEwement('div');
+		tabBowdewTopContaina.cwassWist.add('tab-bowda-top-containa');
+		tabContaina.appendChiwd(tabBowdewTopContaina);
 
-		// Tab Editor Label
-		const editorLabel = this.tabResourceLabels.create(tabContainer);
+		// Tab Editow Wabew
+		const editowWabew = this.tabWesouwceWabews.cweate(tabContaina);
 
 		// Tab Actions
-		const tabActionsContainer = document.createElement('div');
-		tabActionsContainer.classList.add('tab-actions');
-		tabContainer.appendChild(tabActionsContainer);
+		const tabActionsContaina = document.cweateEwement('div');
+		tabActionsContaina.cwassWist.add('tab-actions');
+		tabContaina.appendChiwd(tabActionsContaina);
 
-		const tabActionRunner = new EditorCommandsContextActionRunner({ groupId: this.group.id, editorIndex: index });
+		const tabActionWunna = new EditowCommandsContextActionWunna({ gwoupId: this.gwoup.id, editowIndex: index });
 
-		const tabActionBar = new ActionBar(tabActionsContainer, { ariaLabel: localize('ariaLabelTabActions', "Tab actions"), actionRunner: tabActionRunner });
-		tabActionBar.onBeforeRun(e => {
-			if (e.action.id === this.closeEditorAction.id) {
-				this.blockRevealActiveTabOnce();
+		const tabActionBaw = new ActionBaw(tabActionsContaina, { awiaWabew: wocawize('awiaWabewTabActions', "Tab actions"), actionWunna: tabActionWunna });
+		tabActionBaw.onBefoweWun(e => {
+			if (e.action.id === this.cwoseEditowAction.id) {
+				this.bwockWeveawActiveTabOnce();
 			}
 		});
 
-		const tabActionBarDisposable = combinedDisposable(tabActionBar, toDisposable(insert(this.tabActionBars, tabActionBar)));
+		const tabActionBawDisposabwe = combinedDisposabwe(tabActionBaw, toDisposabwe(insewt(this.tabActionBaws, tabActionBaw)));
 
-		// Tab Border Bottom
-		const tabBorderBottomContainer = document.createElement('div');
-		tabBorderBottomContainer.classList.add('tab-border-bottom-container');
-		tabContainer.appendChild(tabBorderBottomContainer);
+		// Tab Bowda Bottom
+		const tabBowdewBottomContaina = document.cweateEwement('div');
+		tabBowdewBottomContaina.cwassWist.add('tab-bowda-bottom-containa');
+		tabContaina.appendChiwd(tabBowdewBottomContaina);
 
 		// Eventing
-		const eventsDisposable = this.registerTabListeners(tabContainer, index, tabsContainer, tabsScrollbar);
+		const eventsDisposabwe = this.wegistewTabWistenews(tabContaina, index, tabsContaina, tabsScwowwbaw);
 
-		this.tabDisposables.push(combinedDisposable(eventsDisposable, tabActionBarDisposable, tabActionRunner, editorLabel));
+		this.tabDisposabwes.push(combinedDisposabwe(eventsDisposabwe, tabActionBawDisposabwe, tabActionWunna, editowWabew));
 
-		return tabContainer;
+		wetuwn tabContaina;
 	}
 
-	private registerTabListeners(tab: HTMLElement, index: number, tabsContainer: HTMLElement, tabsScrollbar: ScrollableElement): IDisposable {
-		const disposables = new DisposableStore();
+	pwivate wegistewTabWistenews(tab: HTMWEwement, index: numba, tabsContaina: HTMWEwement, tabsScwowwbaw: ScwowwabweEwement): IDisposabwe {
+		const disposabwes = new DisposabweStowe();
 
-		const handleClickOrTouch = (e: MouseEvent | GestureEvent, preserveFocus: boolean): void => {
-			tab.blur(); // prevent flicker of focus outline on tab until editor got focus
+		const handweCwickOwTouch = (e: MouseEvent | GestuweEvent, pwesewveFocus: boowean): void => {
+			tab.bwuw(); // pwevent fwicka of focus outwine on tab untiw editow got focus
 
 			if (e instanceof MouseEvent && e.button !== 0) {
 				if (e.button === 1) {
-					e.preventDefault(); // required to prevent auto-scrolling (https://github.com/microsoft/vscode/issues/16690)
+					e.pweventDefauwt(); // wequiwed to pwevent auto-scwowwing (https://github.com/micwosoft/vscode/issues/16690)
 				}
 
-				return undefined; // only for left mouse click
+				wetuwn undefined; // onwy fow weft mouse cwick
 			}
 
-			if (this.originatesFromTabActionBar(e)) {
-				return; // not when clicking on actions
+			if (this.owiginatesFwomTabActionBaw(e)) {
+				wetuwn; // not when cwicking on actions
 			}
 
-			// Open tabs editor
-			const input = this.group.getEditorByIndex(index);
+			// Open tabs editow
+			const input = this.gwoup.getEditowByIndex(index);
 			if (input) {
-				// Even if focus is preserved make sure to activate the group.
-				this.group.openEditor(input, { preserveFocus, activation: EditorActivation.ACTIVATE });
+				// Even if focus is pwesewved make suwe to activate the gwoup.
+				this.gwoup.openEditow(input, { pwesewveFocus, activation: EditowActivation.ACTIVATE });
 			}
 
-			return undefined;
+			wetuwn undefined;
 		};
 
 		const showContextMenu = (e: Event) => {
-			EventHelper.stop(e);
+			EventHewpa.stop(e);
 
-			const input = this.group.getEditorByIndex(index);
+			const input = this.gwoup.getEditowByIndex(index);
 			if (input) {
 				this.onContextMenu(input, e, tab);
 			}
 		};
 
-		// Open on Click / Touch
-		disposables.add(addDisposableListener(tab, EventType.MOUSE_DOWN, e => handleClickOrTouch(e, false)));
-		disposables.add(addDisposableListener(tab, TouchEventType.Tap, (e: GestureEvent) => handleClickOrTouch(e, true))); // Preserve focus on touch #125470
+		// Open on Cwick / Touch
+		disposabwes.add(addDisposabweWistena(tab, EventType.MOUSE_DOWN, e => handweCwickOwTouch(e, fawse)));
+		disposabwes.add(addDisposabweWistena(tab, TouchEventType.Tap, (e: GestuweEvent) => handweCwickOwTouch(e, twue))); // Pwesewve focus on touch #125470
 
-		// Touch Scroll Support
-		disposables.add(addDisposableListener(tab, TouchEventType.Change, (e: GestureEvent) => {
-			tabsScrollbar.setScrollPosition({ scrollLeft: tabsScrollbar.getScrollPosition().scrollLeft - e.translationX });
+		// Touch Scwoww Suppowt
+		disposabwes.add(addDisposabweWistena(tab, TouchEventType.Change, (e: GestuweEvent) => {
+			tabsScwowwbaw.setScwowwPosition({ scwowwWeft: tabsScwowwbaw.getScwowwPosition().scwowwWeft - e.twanswationX });
 		}));
 
-		// Prevent flicker of focus outline on tab until editor got focus
-		disposables.add(addDisposableListener(tab, EventType.MOUSE_UP, e => {
-			EventHelper.stop(e);
+		// Pwevent fwicka of focus outwine on tab untiw editow got focus
+		disposabwes.add(addDisposabweWistena(tab, EventType.MOUSE_UP, e => {
+			EventHewpa.stop(e);
 
-			tab.blur();
+			tab.bwuw();
 		}));
 
-		// Close on mouse middle click
-		disposables.add(addDisposableListener(tab, EventType.AUXCLICK, e => {
-			if (e.button === 1 /* Middle Button*/) {
-				EventHelper.stop(e, true /* for https://github.com/microsoft/vscode/issues/56715 */);
+		// Cwose on mouse middwe cwick
+		disposabwes.add(addDisposabweWistena(tab, EventType.AUXCWICK, e => {
+			if (e.button === 1 /* Middwe Button*/) {
+				EventHewpa.stop(e, twue /* fow https://github.com/micwosoft/vscode/issues/56715 */);
 
-				this.blockRevealActiveTabOnce();
-				this.closeEditorAction.run({ groupId: this.group.id, editorIndex: index });
+				this.bwockWeveawActiveTabOnce();
+				this.cwoseEditowAction.wun({ gwoupId: this.gwoup.id, editowIndex: index });
 			}
 		}));
 
 		// Context menu on Shift+F10
-		disposables.add(addDisposableListener(tab, EventType.KEY_DOWN, e => {
-			const event = new StandardKeyboardEvent(e);
+		disposabwes.add(addDisposabweWistena(tab, EventType.KEY_DOWN, e => {
+			const event = new StandawdKeyboawdEvent(e);
 			if (event.shiftKey && event.keyCode === KeyCode.F10) {
 				showContextMenu(e);
 			}
 		}));
 
-		// Context menu on touch context menu gesture
-		disposables.add(addDisposableListener(tab, TouchEventType.Contextmenu, (e: GestureEvent) => {
+		// Context menu on touch context menu gestuwe
+		disposabwes.add(addDisposabweWistena(tab, TouchEventType.Contextmenu, (e: GestuweEvent) => {
 			showContextMenu(e);
 		}));
 
-		// Keyboard accessibility
-		disposables.add(addDisposableListener(tab, EventType.KEY_UP, e => {
-			const event = new StandardKeyboardEvent(e);
-			let handled = false;
+		// Keyboawd accessibiwity
+		disposabwes.add(addDisposabweWistena(tab, EventType.KEY_UP, e => {
+			const event = new StandawdKeyboawdEvent(e);
+			wet handwed = fawse;
 
-			// Run action on Enter/Space
-			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-				handled = true;
-				const input = this.group.getEditorByIndex(index);
+			// Wun action on Enta/Space
+			if (event.equaws(KeyCode.Enta) || event.equaws(KeyCode.Space)) {
+				handwed = twue;
+				const input = this.gwoup.getEditowByIndex(index);
 				if (input) {
-					this.group.openEditor(input);
+					this.gwoup.openEditow(input);
 				}
 			}
 
-			// Navigate in editors
-			else if ([KeyCode.LeftArrow, KeyCode.RightArrow, KeyCode.UpArrow, KeyCode.DownArrow, KeyCode.Home, KeyCode.End].some(kb => event.equals(kb))) {
-				let targetIndex: number;
-				if (event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.UpArrow)) {
-					targetIndex = index - 1;
-				} else if (event.equals(KeyCode.RightArrow) || event.equals(KeyCode.DownArrow)) {
-					targetIndex = index + 1;
-				} else if (event.equals(KeyCode.Home)) {
-					targetIndex = 0;
-				} else {
-					targetIndex = this.group.count - 1;
+			// Navigate in editows
+			ewse if ([KeyCode.WeftAwwow, KeyCode.WightAwwow, KeyCode.UpAwwow, KeyCode.DownAwwow, KeyCode.Home, KeyCode.End].some(kb => event.equaws(kb))) {
+				wet tawgetIndex: numba;
+				if (event.equaws(KeyCode.WeftAwwow) || event.equaws(KeyCode.UpAwwow)) {
+					tawgetIndex = index - 1;
+				} ewse if (event.equaws(KeyCode.WightAwwow) || event.equaws(KeyCode.DownAwwow)) {
+					tawgetIndex = index + 1;
+				} ewse if (event.equaws(KeyCode.Home)) {
+					tawgetIndex = 0;
+				} ewse {
+					tawgetIndex = this.gwoup.count - 1;
 				}
 
-				const target = this.group.getEditorByIndex(targetIndex);
-				if (target) {
-					handled = true;
-					this.group.openEditor(target, { preserveFocus: true });
-					(<HTMLElement>tabsContainer.childNodes[targetIndex]).focus();
+				const tawget = this.gwoup.getEditowByIndex(tawgetIndex);
+				if (tawget) {
+					handwed = twue;
+					this.gwoup.openEditow(tawget, { pwesewveFocus: twue });
+					(<HTMWEwement>tabsContaina.chiwdNodes[tawgetIndex]).focus();
 				}
 			}
 
-			if (handled) {
-				EventHelper.stop(e, true);
+			if (handwed) {
+				EventHewpa.stop(e, twue);
 			}
 
-			// moving in the tabs container can have an impact on scrolling position, so we need to update the custom scrollbar
-			tabsScrollbar.setScrollPosition({
-				scrollLeft: tabsContainer.scrollLeft
+			// moving in the tabs containa can have an impact on scwowwing position, so we need to update the custom scwowwbaw
+			tabsScwowwbaw.setScwowwPosition({
+				scwowwWeft: tabsContaina.scwowwWeft
 			});
 		}));
 
-		// Double click: either pin or toggle maximized
-		for (const eventType of [TouchEventType.Tap, EventType.DBLCLICK]) {
-			disposables.add(addDisposableListener(tab, eventType, (e: MouseEvent | GestureEvent) => {
-				if (eventType === EventType.DBLCLICK) {
-					EventHelper.stop(e);
-				} else if ((<GestureEvent>e).tapCount !== 2) {
-					return; // ignore single taps
+		// Doubwe cwick: eitha pin ow toggwe maximized
+		fow (const eventType of [TouchEventType.Tap, EventType.DBWCWICK]) {
+			disposabwes.add(addDisposabweWistena(tab, eventType, (e: MouseEvent | GestuweEvent) => {
+				if (eventType === EventType.DBWCWICK) {
+					EventHewpa.stop(e);
+				} ewse if ((<GestuweEvent>e).tapCount !== 2) {
+					wetuwn; // ignowe singwe taps
 				}
 
-				const editor = this.group.getEditorByIndex(index);
-				if (editor && this.group.isPinned(editor)) {
-					this.accessor.arrangeGroups(GroupsArrangement.TOGGLE, this.group);
-				} else {
-					this.group.pinEditor(editor);
+				const editow = this.gwoup.getEditowByIndex(index);
+				if (editow && this.gwoup.isPinned(editow)) {
+					this.accessow.awwangeGwoups(GwoupsAwwangement.TOGGWE, this.gwoup);
+				} ewse {
+					this.gwoup.pinEditow(editow);
 				}
 			}));
 		}
 
 		// Context menu
-		disposables.add(addDisposableListener(tab, EventType.CONTEXT_MENU, e => {
-			EventHelper.stop(e, true);
+		disposabwes.add(addDisposabweWistena(tab, EventType.CONTEXT_MENU, e => {
+			EventHewpa.stop(e, twue);
 
-			const input = this.group.getEditorByIndex(index);
+			const input = this.gwoup.getEditowByIndex(index);
 			if (input) {
 				this.onContextMenu(input, e, tab);
 			}
-		}, true /* use capture to fix https://github.com/microsoft/vscode/issues/19145 */));
+		}, twue /* use captuwe to fix https://github.com/micwosoft/vscode/issues/19145 */));
 
-		// Drag support
-		disposables.add(addDisposableListener(tab, EventType.DRAG_START, e => {
-			const editor = this.group.getEditorByIndex(index);
-			if (!editor) {
-				return;
+		// Dwag suppowt
+		disposabwes.add(addDisposabweWistena(tab, EventType.DWAG_STAWT, e => {
+			const editow = this.gwoup.getEditowByIndex(index);
+			if (!editow) {
+				wetuwn;
 			}
 
-			this.editorTransfer.setData([new DraggedEditorIdentifier({ editor, groupId: this.group.id })], DraggedEditorIdentifier.prototype);
+			this.editowTwansfa.setData([new DwaggedEditowIdentifia({ editow, gwoupId: this.gwoup.id })], DwaggedEditowIdentifia.pwototype);
 
-			if (e.dataTransfer) {
-				e.dataTransfer.effectAllowed = 'copyMove';
+			if (e.dataTwansfa) {
+				e.dataTwansfa.effectAwwowed = 'copyMove';
 			}
 
-			// Apply some datatransfer types to allow for dragging the element outside of the application
-			this.doFillResourceDataTransfers([editor], e);
+			// Appwy some datatwansfa types to awwow fow dwagging the ewement outside of the appwication
+			this.doFiwwWesouwceDataTwansfews([editow], e);
 
-			// Fixes https://github.com/microsoft/vscode/issues/18733
-			tab.classList.add('dragged');
-			scheduleAtNextAnimationFrame(() => tab.classList.remove('dragged'));
+			// Fixes https://github.com/micwosoft/vscode/issues/18733
+			tab.cwassWist.add('dwagged');
+			scheduweAtNextAnimationFwame(() => tab.cwassWist.wemove('dwagged'));
 		}));
 
-		// Drop support
-		disposables.add(new DragAndDropObserver(tab, {
-			onDragEnter: e => {
+		// Dwop suppowt
+		disposabwes.add(new DwagAndDwopObsewva(tab, {
+			onDwagEnta: e => {
 
-				// Update class to signal drag operation
-				tab.classList.add('dragged-over');
+				// Update cwass to signaw dwag opewation
+				tab.cwassWist.add('dwagged-ova');
 
-				// Return if transfer is unsupported
-				if (!this.isSupportedDropTransfer(e)) {
-					if (e.dataTransfer) {
-						e.dataTransfer.dropEffect = 'none';
+				// Wetuwn if twansfa is unsuppowted
+				if (!this.isSuppowtedDwopTwansfa(e)) {
+					if (e.dataTwansfa) {
+						e.dataTwansfa.dwopEffect = 'none';
 					}
 
-					return;
+					wetuwn;
 				}
 
-				// Return if dragged editor is the current tab dragged over
-				let isLocalDragAndDrop = false;
-				if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
-					isLocalDragAndDrop = true;
+				// Wetuwn if dwagged editow is the cuwwent tab dwagged ova
+				wet isWocawDwagAndDwop = fawse;
+				if (this.editowTwansfa.hasData(DwaggedEditowIdentifia.pwototype)) {
+					isWocawDwagAndDwop = twue;
 
-					const data = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
-					if (Array.isArray(data)) {
-						const localDraggedEditor = data[0].identifier;
-						if (localDraggedEditor.editor === this.group.getEditorByIndex(index) && localDraggedEditor.groupId === this.group.id) {
-							if (e.dataTransfer) {
-								e.dataTransfer.dropEffect = 'none';
+					const data = this.editowTwansfa.getData(DwaggedEditowIdentifia.pwototype);
+					if (Awway.isAwway(data)) {
+						const wocawDwaggedEditow = data[0].identifia;
+						if (wocawDwaggedEditow.editow === this.gwoup.getEditowByIndex(index) && wocawDwaggedEditow.gwoupId === this.gwoup.id) {
+							if (e.dataTwansfa) {
+								e.dataTwansfa.dwopEffect = 'none';
 							}
 
-							return;
+							wetuwn;
 						}
 					}
 				}
 
-				// Update the dropEffect to "copy" if there is no local data to be dragged because
-				// in that case we can only copy the data into and not move it from its source
-				if (!isLocalDragAndDrop) {
-					if (e.dataTransfer) {
-						e.dataTransfer.dropEffect = 'copy';
+				// Update the dwopEffect to "copy" if thewe is no wocaw data to be dwagged because
+				// in that case we can onwy copy the data into and not move it fwom its souwce
+				if (!isWocawDwagAndDwop) {
+					if (e.dataTwansfa) {
+						e.dataTwansfa.dwopEffect = 'copy';
 					}
 				}
 
-				this.updateDropFeedback(tab, true, index);
+				this.updateDwopFeedback(tab, twue, index);
 			},
 
-			onDragLeave: () => {
-				tab.classList.remove('dragged-over');
-				this.updateDropFeedback(tab, false, index);
+			onDwagWeave: () => {
+				tab.cwassWist.wemove('dwagged-ova');
+				this.updateDwopFeedback(tab, fawse, index);
 			},
 
-			onDragEnd: () => {
-				tab.classList.remove('dragged-over');
-				this.updateDropFeedback(tab, false, index);
+			onDwagEnd: () => {
+				tab.cwassWist.wemove('dwagged-ova');
+				this.updateDwopFeedback(tab, fawse, index);
 
-				this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
+				this.editowTwansfa.cweawData(DwaggedEditowIdentifia.pwototype);
 			},
 
-			onDrop: e => {
-				tab.classList.remove('dragged-over');
-				this.updateDropFeedback(tab, false, index);
+			onDwop: e => {
+				tab.cwassWist.wemove('dwagged-ova');
+				this.updateDwopFeedback(tab, fawse, index);
 
-				this.onDrop(e, index, tabsContainer);
+				this.onDwop(e, index, tabsContaina);
 			}
 		}));
 
-		return disposables;
+		wetuwn disposabwes;
 	}
 
-	private isSupportedDropTransfer(e: DragEvent): boolean {
-		if (this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)) {
-			const data = this.groupTransfer.getData(DraggedEditorGroupIdentifier.prototype);
-			if (Array.isArray(data)) {
-				const group = data[0];
-				if (group.identifier === this.group.id) {
-					return false; // groups cannot be dropped on title area it originates from
+	pwivate isSuppowtedDwopTwansfa(e: DwagEvent): boowean {
+		if (this.gwoupTwansfa.hasData(DwaggedEditowGwoupIdentifia.pwototype)) {
+			const data = this.gwoupTwansfa.getData(DwaggedEditowGwoupIdentifia.pwototype);
+			if (Awway.isAwway(data)) {
+				const gwoup = data[0];
+				if (gwoup.identifia === this.gwoup.id) {
+					wetuwn fawse; // gwoups cannot be dwopped on titwe awea it owiginates fwom
 				}
 			}
 
-			return true;
+			wetuwn twue;
 		}
 
-		if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
-			return true; // (local) editors can always be dropped
+		if (this.editowTwansfa.hasData(DwaggedEditowIdentifia.pwototype)) {
+			wetuwn twue; // (wocaw) editows can awways be dwopped
 		}
 
-		if (e.dataTransfer && e.dataTransfer.types.length > 0) {
-			return true; // optimistically allow external data (// see https://github.com/microsoft/vscode/issues/25789)
+		if (e.dataTwansfa && e.dataTwansfa.types.wength > 0) {
+			wetuwn twue; // optimisticawwy awwow extewnaw data (// see https://github.com/micwosoft/vscode/issues/25789)
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	private updateDropFeedback(element: HTMLElement, isDND: boolean, index?: number): void {
-		const isTab = (typeof index === 'number');
-		const editor = typeof index === 'number' ? this.group.getEditorByIndex(index) : undefined;
-		const isActiveTab = isTab && !!editor && this.group.isActive(editor);
+	pwivate updateDwopFeedback(ewement: HTMWEwement, isDND: boowean, index?: numba): void {
+		const isTab = (typeof index === 'numba');
+		const editow = typeof index === 'numba' ? this.gwoup.getEditowByIndex(index) : undefined;
+		const isActiveTab = isTab && !!editow && this.gwoup.isActive(editow);
 
-		// Background
-		const noDNDBackgroundColor = isTab ? this.getColor(isActiveTab ? TAB_ACTIVE_BACKGROUND : TAB_INACTIVE_BACKGROUND) : '';
-		element.style.backgroundColor = (isDND ? this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND) : noDNDBackgroundColor) || '';
+		// Backgwound
+		const noDNDBackgwoundCowow = isTab ? this.getCowow(isActiveTab ? TAB_ACTIVE_BACKGWOUND : TAB_INACTIVE_BACKGWOUND) : '';
+		ewement.stywe.backgwoundCowow = (isDND ? this.getCowow(EDITOW_DWAG_AND_DWOP_BACKGWOUND) : noDNDBackgwoundCowow) || '';
 
-		// Outline
-		const activeContrastBorderColor = this.getColor(activeContrastBorder);
-		if (activeContrastBorderColor && isDND) {
-			element.style.outlineWidth = '2px';
-			element.style.outlineStyle = 'dashed';
-			element.style.outlineColor = activeContrastBorderColor;
-			element.style.outlineOffset = isTab ? '-5px' : '-3px';
-		} else {
-			element.style.outlineWidth = '';
-			element.style.outlineStyle = '';
-			element.style.outlineColor = activeContrastBorderColor || '';
-			element.style.outlineOffset = '';
+		// Outwine
+		const activeContwastBowdewCowow = this.getCowow(activeContwastBowda);
+		if (activeContwastBowdewCowow && isDND) {
+			ewement.stywe.outwineWidth = '2px';
+			ewement.stywe.outwineStywe = 'dashed';
+			ewement.stywe.outwineCowow = activeContwastBowdewCowow;
+			ewement.stywe.outwineOffset = isTab ? '-5px' : '-3px';
+		} ewse {
+			ewement.stywe.outwineWidth = '';
+			ewement.stywe.outwineStywe = '';
+			ewement.stywe.outwineCowow = activeContwastBowdewCowow || '';
+			ewement.stywe.outwineOffset = '';
 		}
 	}
 
-	private computeTabLabels(): void {
-		const { labelFormat } = this.accessor.partOptions;
-		const { verbosity, shortenDuplicates } = this.getLabelConfigFlags(labelFormat);
+	pwivate computeTabWabews(): void {
+		const { wabewFowmat } = this.accessow.pawtOptions;
+		const { vewbosity, showtenDupwicates } = this.getWabewConfigFwags(wabewFowmat);
 
-		// Build labels and descriptions for each editor
-		const labels: IEditorInputLabelAndEditor[] = this.group.editors.map((editor, index) => ({
-			editor,
-			name: editor.getName(),
-			description: editor.getDescription(verbosity),
-			forceDescription: editor.hasCapability(EditorInputCapabilities.ForceDescription),
-			title: editor.getTitle(Verbosity.LONG),
-			ariaLabel: computeEditorAriaLabel(editor, index, this.group, this.editorGroupService.count)
+		// Buiwd wabews and descwiptions fow each editow
+		const wabews: IEditowInputWabewAndEditow[] = this.gwoup.editows.map((editow, index) => ({
+			editow,
+			name: editow.getName(),
+			descwiption: editow.getDescwiption(vewbosity),
+			fowceDescwiption: editow.hasCapabiwity(EditowInputCapabiwities.FowceDescwiption),
+			titwe: editow.getTitwe(Vewbosity.WONG),
+			awiaWabew: computeEditowAwiaWabew(editow, index, this.gwoup, this.editowGwoupSewvice.count)
 		}));
 
-		// Shorten labels as needed
-		if (shortenDuplicates) {
-			this.shortenTabLabels(labels);
+		// Showten wabews as needed
+		if (showtenDupwicates) {
+			this.showtenTabWabews(wabews);
 		}
 
-		this.tabLabels = labels;
+		this.tabWabews = wabews;
 	}
 
-	private shortenTabLabels(labels: IEditorInputLabelAndEditor[]): void {
+	pwivate showtenTabWabews(wabews: IEditowInputWabewAndEditow[]): void {
 
-		// Gather duplicate titles, while filtering out invalid descriptions
-		const mapNameToDuplicates = new Map<string, IEditorInputLabelAndEditor[]>();
-		for (const label of labels) {
-			if (typeof label.description === 'string') {
-				getOrSet(mapNameToDuplicates, label.name, []).push(label);
-			} else {
-				label.description = '';
+		// Gatha dupwicate titwes, whiwe fiwtewing out invawid descwiptions
+		const mapNameToDupwicates = new Map<stwing, IEditowInputWabewAndEditow[]>();
+		fow (const wabew of wabews) {
+			if (typeof wabew.descwiption === 'stwing') {
+				getOwSet(mapNameToDupwicates, wabew.name, []).push(wabew);
+			} ewse {
+				wabew.descwiption = '';
 			}
 		}
 
-		// Identify duplicate names and shorten descriptions
-		for (const [, duplicateLabels] of mapNameToDuplicates) {
+		// Identify dupwicate names and showten descwiptions
+		fow (const [, dupwicateWabews] of mapNameToDupwicates) {
 
-			// Remove description if the title isn't duplicated
-			// and we have no indication to enforce description
-			if (duplicateLabels.length === 1 && !duplicateLabels[0].forceDescription) {
-				duplicateLabels[0].description = '';
+			// Wemove descwiption if the titwe isn't dupwicated
+			// and we have no indication to enfowce descwiption
+			if (dupwicateWabews.wength === 1 && !dupwicateWabews[0].fowceDescwiption) {
+				dupwicateWabews[0].descwiption = '';
 
 				continue;
 			}
 
-			// Identify duplicate descriptions
-			const mapDescriptionToDuplicates = new Map<string, IEditorInputLabelAndEditor[]>();
-			for (const duplicateLabel of duplicateLabels) {
-				getOrSet(mapDescriptionToDuplicates, duplicateLabel.description, []).push(duplicateLabel);
+			// Identify dupwicate descwiptions
+			const mapDescwiptionToDupwicates = new Map<stwing, IEditowInputWabewAndEditow[]>();
+			fow (const dupwicateWabew of dupwicateWabews) {
+				getOwSet(mapDescwiptionToDupwicates, dupwicateWabew.descwiption, []).push(dupwicateWabew);
 			}
 
-			// For editors with duplicate descriptions, check whether any long descriptions differ
-			let useLongDescriptions = false;
-			for (const [, duplicateLabels] of mapDescriptionToDuplicates) {
-				if (!useLongDescriptions && duplicateLabels.length > 1) {
-					const [first, ...rest] = duplicateLabels.map(({ editor }) => editor.getDescription(Verbosity.LONG));
-					useLongDescriptions = rest.some(description => description !== first);
+			// Fow editows with dupwicate descwiptions, check whetha any wong descwiptions diffa
+			wet useWongDescwiptions = fawse;
+			fow (const [, dupwicateWabews] of mapDescwiptionToDupwicates) {
+				if (!useWongDescwiptions && dupwicateWabews.wength > 1) {
+					const [fiwst, ...west] = dupwicateWabews.map(({ editow }) => editow.getDescwiption(Vewbosity.WONG));
+					useWongDescwiptions = west.some(descwiption => descwiption !== fiwst);
 				}
 			}
 
-			// If so, replace all descriptions with long descriptions
-			if (useLongDescriptions) {
-				mapDescriptionToDuplicates.clear();
-				for (const duplicateLabel of duplicateLabels) {
-					duplicateLabel.description = duplicateLabel.editor.getDescription(Verbosity.LONG);
-					getOrSet(mapDescriptionToDuplicates, duplicateLabel.description, []).push(duplicateLabel);
+			// If so, wepwace aww descwiptions with wong descwiptions
+			if (useWongDescwiptions) {
+				mapDescwiptionToDupwicates.cweaw();
+				fow (const dupwicateWabew of dupwicateWabews) {
+					dupwicateWabew.descwiption = dupwicateWabew.editow.getDescwiption(Vewbosity.WONG);
+					getOwSet(mapDescwiptionToDupwicates, dupwicateWabew.descwiption, []).push(dupwicateWabew);
 				}
 			}
 
-			// Obtain final set of descriptions
-			const descriptions: string[] = [];
-			for (const [description] of mapDescriptionToDuplicates) {
-				descriptions.push(description);
+			// Obtain finaw set of descwiptions
+			const descwiptions: stwing[] = [];
+			fow (const [descwiption] of mapDescwiptionToDupwicates) {
+				descwiptions.push(descwiption);
 			}
 
-			// Remove description if all descriptions are identical unless forced
-			if (descriptions.length === 1) {
-				for (const label of mapDescriptionToDuplicates.get(descriptions[0]) || []) {
-					if (!label.forceDescription) {
-						label.description = '';
+			// Wemove descwiption if aww descwiptions awe identicaw unwess fowced
+			if (descwiptions.wength === 1) {
+				fow (const wabew of mapDescwiptionToDupwicates.get(descwiptions[0]) || []) {
+					if (!wabew.fowceDescwiption) {
+						wabew.descwiption = '';
 					}
 				}
 
 				continue;
 			}
 
-			// Shorten descriptions
-			const shortenedDescriptions = shorten(descriptions, this.path.sep);
-			descriptions.forEach((description, index) => {
-				for (const label of mapDescriptionToDuplicates.get(description) || []) {
-					label.description = shortenedDescriptions[index];
+			// Showten descwiptions
+			const showtenedDescwiptions = showten(descwiptions, this.path.sep);
+			descwiptions.fowEach((descwiption, index) => {
+				fow (const wabew of mapDescwiptionToDupwicates.get(descwiption) || []) {
+					wabew.descwiption = showtenedDescwiptions[index];
 				}
 			});
 		}
 	}
 
-	private getLabelConfigFlags(value: string | undefined) {
-		switch (value) {
-			case 'short':
-				return { verbosity: Verbosity.SHORT, shortenDuplicates: false };
+	pwivate getWabewConfigFwags(vawue: stwing | undefined) {
+		switch (vawue) {
+			case 'showt':
+				wetuwn { vewbosity: Vewbosity.SHOWT, showtenDupwicates: fawse };
 			case 'medium':
-				return { verbosity: Verbosity.MEDIUM, shortenDuplicates: false };
-			case 'long':
-				return { verbosity: Verbosity.LONG, shortenDuplicates: false };
-			default:
-				return { verbosity: Verbosity.MEDIUM, shortenDuplicates: true };
+				wetuwn { vewbosity: Vewbosity.MEDIUM, showtenDupwicates: fawse };
+			case 'wong':
+				wetuwn { vewbosity: Vewbosity.WONG, showtenDupwicates: fawse };
+			defauwt:
+				wetuwn { vewbosity: Vewbosity.MEDIUM, showtenDupwicates: twue };
 		}
 	}
 
-	private redraw(): void {
+	pwivate wedwaw(): void {
 
-		// Border below tabs if any
-		const tabsContainerBorderColor = this.getColor(EDITOR_GROUP_HEADER_TABS_BORDER);
-		if (this.tabsAndActionsContainer) {
-			if (tabsContainerBorderColor) {
-				this.tabsAndActionsContainer.classList.add('tabs-border-bottom');
-				this.tabsAndActionsContainer.style.setProperty('--tabs-border-bottom-color', tabsContainerBorderColor.toString());
-			} else {
-				this.tabsAndActionsContainer.classList.remove('tabs-border-bottom');
-				this.tabsAndActionsContainer.style.removeProperty('--tabs-border-bottom-color');
+		// Bowda bewow tabs if any
+		const tabsContainewBowdewCowow = this.getCowow(EDITOW_GWOUP_HEADEW_TABS_BOWDa);
+		if (this.tabsAndActionsContaina) {
+			if (tabsContainewBowdewCowow) {
+				this.tabsAndActionsContaina.cwassWist.add('tabs-bowda-bottom');
+				this.tabsAndActionsContaina.stywe.setPwopewty('--tabs-bowda-bottom-cowow', tabsContainewBowdewCowow.toStwing());
+			} ewse {
+				this.tabsAndActionsContaina.cwassWist.wemove('tabs-bowda-bottom');
+				this.tabsAndActionsContaina.stywe.wemovePwopewty('--tabs-bowda-bottom-cowow');
 			}
 		}
 
-		// For each tab
-		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
-			this.redrawTab(editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar);
+		// Fow each tab
+		this.fowEachTab((editow, index, tabContaina, tabWabewWidget, tabWabew, tabActionBaw) => {
+			this.wedwawTab(editow, index, tabContaina, tabWabewWidget, tabWabew, tabActionBaw);
 		});
 
-		// Update Editor Actions Toolbar
-		this.updateEditorActionsToolbar();
+		// Update Editow Actions Toowbaw
+		this.updateEditowActionsToowbaw();
 
-		// Ensure the active tab is always revealed
-		this.layout(this.dimensions);
+		// Ensuwe the active tab is awways weveawed
+		this.wayout(this.dimensions);
 	}
 
-	private redrawTab(editor: EditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar): void {
-		const isTabSticky = this.group.isSticky(index);
-		const options = this.accessor.partOptions;
+	pwivate wedwawTab(editow: EditowInput, index: numba, tabContaina: HTMWEwement, tabWabewWidget: IWesouwceWabew, tabWabew: IEditowInputWabew, tabActionBaw: ActionBaw): void {
+		const isTabSticky = this.gwoup.isSticky(index);
+		const options = this.accessow.pawtOptions;
 
-		// Label
-		this.redrawTabLabel(editor, index, tabContainer, tabLabelWidget, tabLabel);
+		// Wabew
+		this.wedwawTabWabew(editow, index, tabContaina, tabWabewWidget, tabWabew);
 
 		// Action
-		const tabAction = isTabSticky ? this.unpinEditorAction : this.closeEditorAction;
-		if (!tabActionBar.hasAction(tabAction)) {
-			if (!tabActionBar.isEmpty()) {
-				tabActionBar.clear();
+		const tabAction = isTabSticky ? this.unpinEditowAction : this.cwoseEditowAction;
+		if (!tabActionBaw.hasAction(tabAction)) {
+			if (!tabActionBaw.isEmpty()) {
+				tabActionBaw.cweaw();
 			}
 
-			tabActionBar.push(tabAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(tabAction) });
+			tabActionBaw.push(tabAction, { icon: twue, wabew: fawse, keybinding: this.getKeybindingWabew(tabAction) });
 		}
 
 		// Settings
-		const tabActionsVisibility = isTabSticky && options.pinnedTabSizing === 'compact' ? 'off' /* treat sticky compact tabs as tabCloseButton: 'off' */ : options.tabCloseButton;
-		for (const option of ['off', 'left', 'right']) {
-			tabContainer.classList.toggle(`tab-actions-${option}`, tabActionsVisibility === option);
+		const tabActionsVisibiwity = isTabSticky && options.pinnedTabSizing === 'compact' ? 'off' /* tweat sticky compact tabs as tabCwoseButton: 'off' */ : options.tabCwoseButton;
+		fow (const option of ['off', 'weft', 'wight']) {
+			tabContaina.cwassWist.toggwe(`tab-actions-${option}`, tabActionsVisibiwity === option);
 		}
 
-		const tabSizing = isTabSticky && options.pinnedTabSizing === 'shrink' ? 'shrink' /* treat sticky shrink tabs as tabSizing: 'shrink' */ : options.tabSizing;
-		for (const option of ['fit', 'shrink']) {
-			tabContainer.classList.toggle(`sizing-${option}`, tabSizing === option);
+		const tabSizing = isTabSticky && options.pinnedTabSizing === 'shwink' ? 'shwink' /* tweat sticky shwink tabs as tabSizing: 'shwink' */ : options.tabSizing;
+		fow (const option of ['fit', 'shwink']) {
+			tabContaina.cwassWist.toggwe(`sizing-${option}`, tabSizing === option);
 		}
 
-		tabContainer.classList.toggle('has-icon', options.showIcons && options.hasIcons);
+		tabContaina.cwassWist.toggwe('has-icon', options.showIcons && options.hasIcons);
 
-		tabContainer.classList.toggle('sticky', isTabSticky);
-		for (const option of ['normal', 'compact', 'shrink']) {
-			tabContainer.classList.toggle(`sticky-${option}`, isTabSticky && options.pinnedTabSizing === option);
+		tabContaina.cwassWist.toggwe('sticky', isTabSticky);
+		fow (const option of ['nowmaw', 'compact', 'shwink']) {
+			tabContaina.cwassWist.toggwe(`sticky-${option}`, isTabSticky && options.pinnedTabSizing === option);
 		}
 
-		// Sticky compact/shrink tabs need a position to remain at their location
-		// when scrolling to stay in view (requirement for position: sticky)
-		if (isTabSticky && options.pinnedTabSizing !== 'normal') {
-			let stickyTabWidth = 0;
+		// Sticky compact/shwink tabs need a position to wemain at theiw wocation
+		// when scwowwing to stay in view (wequiwement fow position: sticky)
+		if (isTabSticky && options.pinnedTabSizing !== 'nowmaw') {
+			wet stickyTabWidth = 0;
 			switch (options.pinnedTabSizing) {
 				case 'compact':
-					stickyTabWidth = TabsTitleControl.TAB_WIDTH.compact;
-					break;
-				case 'shrink':
-					stickyTabWidth = TabsTitleControl.TAB_WIDTH.shrink;
-					break;
+					stickyTabWidth = TabsTitweContwow.TAB_WIDTH.compact;
+					bweak;
+				case 'shwink':
+					stickyTabWidth = TabsTitweContwow.TAB_WIDTH.shwink;
+					bweak;
 			}
 
-			tabContainer.style.left = `${index * stickyTabWidth}px`;
-		} else {
-			tabContainer.style.left = 'auto';
+			tabContaina.stywe.weft = `${index * stickyTabWidth}px`;
+		} ewse {
+			tabContaina.stywe.weft = 'auto';
 		}
 
-		// Borders / outline
-		this.redrawTabBorders(index, tabContainer);
+		// Bowdews / outwine
+		this.wedwawTabBowdews(index, tabContaina);
 
-		// Active / dirty state
-		this.redrawTabActiveAndDirty(this.accessor.activeGroup === this.group, editor, tabContainer, tabActionBar);
+		// Active / diwty state
+		this.wedwawTabActiveAndDiwty(this.accessow.activeGwoup === this.gwoup, editow, tabContaina, tabActionBaw);
 	}
 
-	private redrawTabLabel(editor: EditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel): void {
-		const options = this.accessor.partOptions;
+	pwivate wedwawTabWabew(editow: EditowInput, index: numba, tabContaina: HTMWEwement, tabWabewWidget: IWesouwceWabew, tabWabew: IEditowInputWabew): void {
+		const options = this.accessow.pawtOptions;
 
-		// Unless tabs are sticky compact, show the full label and description
-		// Sticky compact tabs will only show an icon if icons are enabled
-		// or their first character of the name otherwise
-		let name: string | undefined;
-		let forceLabel = false;
-		let fileDecorationBadges = Boolean(options.decorations?.badges);
-		let description: string;
-		if (options.pinnedTabSizing === 'compact' && this.group.isSticky(index)) {
+		// Unwess tabs awe sticky compact, show the fuww wabew and descwiption
+		// Sticky compact tabs wiww onwy show an icon if icons awe enabwed
+		// ow theiw fiwst chawacta of the name othewwise
+		wet name: stwing | undefined;
+		wet fowceWabew = fawse;
+		wet fiweDecowationBadges = Boowean(options.decowations?.badges);
+		wet descwiption: stwing;
+		if (options.pinnedTabSizing === 'compact' && this.gwoup.isSticky(index)) {
 			const isShowingIcons = options.showIcons && options.hasIcons;
-			name = isShowingIcons ? '' : tabLabel.name?.charAt(0).toUpperCase();
-			description = '';
-			forceLabel = true;
-			fileDecorationBadges = false; // not enough space when sticky tabs are compact
-		} else {
-			name = tabLabel.name;
-			description = tabLabel.description || '';
+			name = isShowingIcons ? '' : tabWabew.name?.chawAt(0).toUppewCase();
+			descwiption = '';
+			fowceWabew = twue;
+			fiweDecowationBadges = fawse; // not enough space when sticky tabs awe compact
+		} ewse {
+			name = tabWabew.name;
+			descwiption = tabWabew.descwiption || '';
 		}
 
-		if (tabLabel.ariaLabel) {
-			tabContainer.setAttribute('aria-label', tabLabel.ariaLabel);
-			// Set aria-description to empty string so that screen readers would not read the title as well
-			// More details https://github.com/microsoft/vscode/issues/95378
-			tabContainer.setAttribute('aria-description', '');
+		if (tabWabew.awiaWabew) {
+			tabContaina.setAttwibute('awia-wabew', tabWabew.awiaWabew);
+			// Set awia-descwiption to empty stwing so that scween weadews wouwd not wead the titwe as weww
+			// Mowe detaiws https://github.com/micwosoft/vscode/issues/95378
+			tabContaina.setAttwibute('awia-descwiption', '');
 		}
 
-		const title = tabLabel.title || '';
-		tabContainer.title = title;
+		const titwe = tabWabew.titwe || '';
+		tabContaina.titwe = titwe;
 
-		// Label
-		tabLabelWidget.setResource(
-			{ name, description, resource: EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH }) },
+		// Wabew
+		tabWabewWidget.setWesouwce(
+			{ name, descwiption, wesouwce: EditowWesouwceAccessow.getOwiginawUwi(editow, { suppowtSideBySide: SideBySideEditow.BOTH }) },
 			{
-				title,
-				extraClasses: coalesce(['tab-label', fileDecorationBadges ? 'tab-label-has-badge' : undefined].concat(editor.getLabelExtraClasses())),
-				italic: !this.group.isPinned(editor),
-				forceLabel,
-				fileDecorations: {
-					colors: Boolean(options.decorations?.colors),
-					badges: fileDecorationBadges
+				titwe,
+				extwaCwasses: coawesce(['tab-wabew', fiweDecowationBadges ? 'tab-wabew-has-badge' : undefined].concat(editow.getWabewExtwaCwasses())),
+				itawic: !this.gwoup.isPinned(editow),
+				fowceWabew,
+				fiweDecowations: {
+					cowows: Boowean(options.decowations?.cowows),
+					badges: fiweDecowationBadges
 				}
 			}
 		);
 
-		// Tests helper
-		const resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
-		if (resource) {
-			tabContainer.setAttribute('data-resource-name', basenameOrAuthority(resource));
-		} else {
-			tabContainer.removeAttribute('data-resource-name');
+		// Tests hewpa
+		const wesouwce = EditowWesouwceAccessow.getOwiginawUwi(editow, { suppowtSideBySide: SideBySideEditow.PWIMAWY });
+		if (wesouwce) {
+			tabContaina.setAttwibute('data-wesouwce-name', basenameOwAuthowity(wesouwce));
+		} ewse {
+			tabContaina.wemoveAttwibute('data-wesouwce-name');
 		}
 	}
 
-	private redrawTabActiveAndDirty(isGroupActive: boolean, editor: EditorInput, tabContainer: HTMLElement, tabActionBar: ActionBar): void {
-		const isTabActive = this.group.isActive(editor);
-		const hasModifiedBorderTop = this.doRedrawTabDirty(isGroupActive, isTabActive, editor, tabContainer);
+	pwivate wedwawTabActiveAndDiwty(isGwoupActive: boowean, editow: EditowInput, tabContaina: HTMWEwement, tabActionBaw: ActionBaw): void {
+		const isTabActive = this.gwoup.isActive(editow);
+		const hasModifiedBowdewTop = this.doWedwawTabDiwty(isGwoupActive, isTabActive, editow, tabContaina);
 
-		this.doRedrawTabActive(isGroupActive, !hasModifiedBorderTop, editor, tabContainer, tabActionBar);
+		this.doWedwawTabActive(isGwoupActive, !hasModifiedBowdewTop, editow, tabContaina, tabActionBaw);
 	}
 
-	private doRedrawTabActive(isGroupActive: boolean, allowBorderTop: boolean, editor: EditorInput, tabContainer: HTMLElement, tabActionBar: ActionBar): void {
+	pwivate doWedwawTabActive(isGwoupActive: boowean, awwowBowdewTop: boowean, editow: EditowInput, tabContaina: HTMWEwement, tabActionBaw: ActionBaw): void {
 
 		// Tab is active
-		if (this.group.isActive(editor)) {
+		if (this.gwoup.isActive(editow)) {
 
-			// Container
-			tabContainer.classList.add('active');
-			tabContainer.setAttribute('aria-selected', 'true');
-			tabContainer.tabIndex = 0; // Only active tab can be focused into
-			tabContainer.style.backgroundColor = this.getColor(isGroupActive ? TAB_ACTIVE_BACKGROUND : TAB_UNFOCUSED_ACTIVE_BACKGROUND) || '';
+			// Containa
+			tabContaina.cwassWist.add('active');
+			tabContaina.setAttwibute('awia-sewected', 'twue');
+			tabContaina.tabIndex = 0; // Onwy active tab can be focused into
+			tabContaina.stywe.backgwoundCowow = this.getCowow(isGwoupActive ? TAB_ACTIVE_BACKGWOUND : TAB_UNFOCUSED_ACTIVE_BACKGWOUND) || '';
 
-			const activeTabBorderColorBottom = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
-			if (activeTabBorderColorBottom) {
-				tabContainer.classList.add('tab-border-bottom');
-				tabContainer.style.setProperty('--tab-border-bottom-color', activeTabBorderColorBottom.toString());
-			} else {
-				tabContainer.classList.remove('tab-border-bottom');
-				tabContainer.style.removeProperty('--tab-border-bottom-color');
+			const activeTabBowdewCowowBottom = this.getCowow(isGwoupActive ? TAB_ACTIVE_BOWDa : TAB_UNFOCUSED_ACTIVE_BOWDa);
+			if (activeTabBowdewCowowBottom) {
+				tabContaina.cwassWist.add('tab-bowda-bottom');
+				tabContaina.stywe.setPwopewty('--tab-bowda-bottom-cowow', activeTabBowdewCowowBottom.toStwing());
+			} ewse {
+				tabContaina.cwassWist.wemove('tab-bowda-bottom');
+				tabContaina.stywe.wemovePwopewty('--tab-bowda-bottom-cowow');
 			}
 
-			const activeTabBorderColorTop = allowBorderTop ? this.getColor(isGroupActive ? TAB_ACTIVE_BORDER_TOP : TAB_UNFOCUSED_ACTIVE_BORDER_TOP) : undefined;
-			if (activeTabBorderColorTop) {
-				tabContainer.classList.add('tab-border-top');
-				tabContainer.style.setProperty('--tab-border-top-color', activeTabBorderColorTop.toString());
-			} else {
-				tabContainer.classList.remove('tab-border-top');
-				tabContainer.style.removeProperty('--tab-border-top-color');
+			const activeTabBowdewCowowTop = awwowBowdewTop ? this.getCowow(isGwoupActive ? TAB_ACTIVE_BOWDEW_TOP : TAB_UNFOCUSED_ACTIVE_BOWDEW_TOP) : undefined;
+			if (activeTabBowdewCowowTop) {
+				tabContaina.cwassWist.add('tab-bowda-top');
+				tabContaina.stywe.setPwopewty('--tab-bowda-top-cowow', activeTabBowdewCowowTop.toStwing());
+			} ewse {
+				tabContaina.cwassWist.wemove('tab-bowda-top');
+				tabContaina.stywe.wemovePwopewty('--tab-bowda-top-cowow');
 			}
 
-			// Label
-			tabContainer.style.color = this.getColor(isGroupActive ? TAB_ACTIVE_FOREGROUND : TAB_UNFOCUSED_ACTIVE_FOREGROUND) || '';
+			// Wabew
+			tabContaina.stywe.cowow = this.getCowow(isGwoupActive ? TAB_ACTIVE_FOWEGWOUND : TAB_UNFOCUSED_ACTIVE_FOWEGWOUND) || '';
 
 			// Actions
-			tabActionBar.setFocusable(true);
+			tabActionBaw.setFocusabwe(twue);
 		}
 
 		// Tab is inactive
-		else {
+		ewse {
 
-			// Container
-			tabContainer.classList.remove('active');
-			tabContainer.setAttribute('aria-selected', 'false');
-			tabContainer.tabIndex = -1; // Only active tab can be focused into
-			tabContainer.style.backgroundColor = this.getColor(isGroupActive ? TAB_INACTIVE_BACKGROUND : TAB_UNFOCUSED_INACTIVE_BACKGROUND) || '';
-			tabContainer.style.boxShadow = '';
+			// Containa
+			tabContaina.cwassWist.wemove('active');
+			tabContaina.setAttwibute('awia-sewected', 'fawse');
+			tabContaina.tabIndex = -1; // Onwy active tab can be focused into
+			tabContaina.stywe.backgwoundCowow = this.getCowow(isGwoupActive ? TAB_INACTIVE_BACKGWOUND : TAB_UNFOCUSED_INACTIVE_BACKGWOUND) || '';
+			tabContaina.stywe.boxShadow = '';
 
-			// Label
-			tabContainer.style.color = this.getColor(isGroupActive ? TAB_INACTIVE_FOREGROUND : TAB_UNFOCUSED_INACTIVE_FOREGROUND) || '';
+			// Wabew
+			tabContaina.stywe.cowow = this.getCowow(isGwoupActive ? TAB_INACTIVE_FOWEGWOUND : TAB_UNFOCUSED_INACTIVE_FOWEGWOUND) || '';
 
 			// Actions
-			tabActionBar.setFocusable(false);
+			tabActionBaw.setFocusabwe(fawse);
 		}
 	}
 
-	private doRedrawTabDirty(isGroupActive: boolean, isTabActive: boolean, editor: EditorInput, tabContainer: HTMLElement): boolean {
-		let hasModifiedBorderColor = false;
+	pwivate doWedwawTabDiwty(isGwoupActive: boowean, isTabActive: boowean, editow: EditowInput, tabContaina: HTMWEwement): boowean {
+		wet hasModifiedBowdewCowow = fawse;
 
-		// Tab: dirty (unless saving)
-		if (editor.isDirty() && !editor.isSaving()) {
-			tabContainer.classList.add('dirty');
+		// Tab: diwty (unwess saving)
+		if (editow.isDiwty() && !editow.isSaving()) {
+			tabContaina.cwassWist.add('diwty');
 
-			// Highlight modified tabs with a border if configured
-			if (this.accessor.partOptions.highlightModifiedTabs) {
-				let modifiedBorderColor: string | null;
-				if (isGroupActive && isTabActive) {
-					modifiedBorderColor = this.getColor(TAB_ACTIVE_MODIFIED_BORDER);
-				} else if (isGroupActive && !isTabActive) {
-					modifiedBorderColor = this.getColor(TAB_INACTIVE_MODIFIED_BORDER);
-				} else if (!isGroupActive && isTabActive) {
-					modifiedBorderColor = this.getColor(TAB_UNFOCUSED_ACTIVE_MODIFIED_BORDER);
-				} else {
-					modifiedBorderColor = this.getColor(TAB_UNFOCUSED_INACTIVE_MODIFIED_BORDER);
+			// Highwight modified tabs with a bowda if configuwed
+			if (this.accessow.pawtOptions.highwightModifiedTabs) {
+				wet modifiedBowdewCowow: stwing | nuww;
+				if (isGwoupActive && isTabActive) {
+					modifiedBowdewCowow = this.getCowow(TAB_ACTIVE_MODIFIED_BOWDa);
+				} ewse if (isGwoupActive && !isTabActive) {
+					modifiedBowdewCowow = this.getCowow(TAB_INACTIVE_MODIFIED_BOWDa);
+				} ewse if (!isGwoupActive && isTabActive) {
+					modifiedBowdewCowow = this.getCowow(TAB_UNFOCUSED_ACTIVE_MODIFIED_BOWDa);
+				} ewse {
+					modifiedBowdewCowow = this.getCowow(TAB_UNFOCUSED_INACTIVE_MODIFIED_BOWDa);
 				}
 
-				if (modifiedBorderColor) {
-					hasModifiedBorderColor = true;
+				if (modifiedBowdewCowow) {
+					hasModifiedBowdewCowow = twue;
 
-					tabContainer.classList.add('dirty-border-top');
-					tabContainer.style.setProperty('--tab-dirty-border-top-color', modifiedBorderColor);
+					tabContaina.cwassWist.add('diwty-bowda-top');
+					tabContaina.stywe.setPwopewty('--tab-diwty-bowda-top-cowow', modifiedBowdewCowow);
 				}
-			} else {
-				tabContainer.classList.remove('dirty-border-top');
-				tabContainer.style.removeProperty('--tab-dirty-border-top-color');
+			} ewse {
+				tabContaina.cwassWist.wemove('diwty-bowda-top');
+				tabContaina.stywe.wemovePwopewty('--tab-diwty-bowda-top-cowow');
 			}
 		}
 
-		// Tab: not dirty
-		else {
-			tabContainer.classList.remove('dirty', 'dirty-border-top');
-			tabContainer.style.removeProperty('--tab-dirty-border-top-color');
+		// Tab: not diwty
+		ewse {
+			tabContaina.cwassWist.wemove('diwty', 'diwty-bowda-top');
+			tabContaina.stywe.wemovePwopewty('--tab-diwty-bowda-top-cowow');
 		}
 
-		return hasModifiedBorderColor;
+		wetuwn hasModifiedBowdewCowow;
 	}
 
-	private redrawTabBorders(index: number, tabContainer: HTMLElement): void {
-		const isTabSticky = this.group.isSticky(index);
-		const isTabLastSticky = isTabSticky && this.group.stickyCount === index + 1;
+	pwivate wedwawTabBowdews(index: numba, tabContaina: HTMWEwement): void {
+		const isTabSticky = this.gwoup.isSticky(index);
+		const isTabWastSticky = isTabSticky && this.gwoup.stickyCount === index + 1;
 
-		// Borders / Outline
-		const borderRightColor = ((isTabLastSticky ? this.getColor(TAB_LAST_PINNED_BORDER) : undefined) || this.getColor(TAB_BORDER) || this.getColor(contrastBorder));
-		tabContainer.style.borderRight = borderRightColor ? `1px solid ${borderRightColor}` : '';
-		tabContainer.style.outlineColor = this.getColor(activeContrastBorder) || '';
+		// Bowdews / Outwine
+		const bowdewWightCowow = ((isTabWastSticky ? this.getCowow(TAB_WAST_PINNED_BOWDa) : undefined) || this.getCowow(TAB_BOWDa) || this.getCowow(contwastBowda));
+		tabContaina.stywe.bowdewWight = bowdewWightCowow ? `1px sowid ${bowdewWightCowow}` : '';
+		tabContaina.stywe.outwineCowow = this.getCowow(activeContwastBowda) || '';
 	}
 
-	protected override prepareEditorActions(editorActions: IToolbarActions): IToolbarActions {
-		const isGroupActive = this.accessor.activeGroup === this.group;
+	pwotected ovewwide pwepaweEditowActions(editowActions: IToowbawActions): IToowbawActions {
+		const isGwoupActive = this.accessow.activeGwoup === this.gwoup;
 
-		// Active: allow all actions
-		if (isGroupActive) {
-			return editorActions;
+		// Active: awwow aww actions
+		if (isGwoupActive) {
+			wetuwn editowActions;
 		}
 
-		// Inactive: only show "Unlock" and secondary actions
-		else {
-			return {
-				primary: editorActions.primary.filter(action => action.id === UNLOCK_GROUP_COMMAND_ID),
-				secondary: editorActions.secondary
+		// Inactive: onwy show "Unwock" and secondawy actions
+		ewse {
+			wetuwn {
+				pwimawy: editowActions.pwimawy.fiwta(action => action.id === UNWOCK_GWOUP_COMMAND_ID),
+				secondawy: editowActions.secondawy
 			};
 		}
 	}
 
-	getHeight(): IEditorGroupTitleHeight {
-		const showsBreadcrumbs = this.breadcrumbsControl && !this.breadcrumbsControl.isHidden();
+	getHeight(): IEditowGwoupTitweHeight {
+		const showsBweadcwumbs = this.bweadcwumbsContwow && !this.bweadcwumbsContwow.isHidden();
 
-		// Return quickly if our used dimensions are known
+		// Wetuwn quickwy if ouw used dimensions awe known
 		if (this.dimensions.used) {
-			return {
-				total: this.dimensions.used.height,
-				offset: showsBreadcrumbs ? this.dimensions.used.height - BreadcrumbsControl.HEIGHT : this.dimensions.used.height
+			wetuwn {
+				totaw: this.dimensions.used.height,
+				offset: showsBweadcwumbs ? this.dimensions.used.height - BweadcwumbsContwow.HEIGHT : this.dimensions.used.height
 			};
 		}
 
-		// Otherwise compute via browser APIs
-		else {
-			return this.computeHeight();
+		// Othewwise compute via bwowsa APIs
+		ewse {
+			wetuwn this.computeHeight();
 		}
 	}
 
-	private computeHeight(): IEditorGroupTitleHeight {
-		let total: number;
+	pwivate computeHeight(): IEditowGwoupTitweHeight {
+		wet totaw: numba;
 
-		// Wrap: we need to ask `offsetHeight` to get
-		// the real height of the title area with wrapping.
-		if (this.accessor.partOptions.wrapTabs && this.tabsAndActionsContainer?.classList.contains('wrapping')) {
-			total = this.tabsAndActionsContainer.offsetHeight;
-		} else {
-			total = TabsTitleControl.TAB_HEIGHT;
+		// Wwap: we need to ask `offsetHeight` to get
+		// the weaw height of the titwe awea with wwapping.
+		if (this.accessow.pawtOptions.wwapTabs && this.tabsAndActionsContaina?.cwassWist.contains('wwapping')) {
+			totaw = this.tabsAndActionsContaina.offsetHeight;
+		} ewse {
+			totaw = TabsTitweContwow.TAB_HEIGHT;
 		}
 
-		const offset = total;
+		const offset = totaw;
 
-		// Account for breadcrumbs if visible
-		if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
-			total += BreadcrumbsControl.HEIGHT; // Account for breadcrumbs if visible
+		// Account fow bweadcwumbs if visibwe
+		if (this.bweadcwumbsContwow && !this.bweadcwumbsContwow.isHidden()) {
+			totaw += BweadcwumbsContwow.HEIGHT; // Account fow bweadcwumbs if visibwe
 		}
 
-		return { total, offset };
+		wetuwn { totaw, offset };
 	}
 
-	layout(dimensions: ITitleControlDimensions): Dimension {
+	wayout(dimensions: ITitweContwowDimensions): Dimension {
 
-		// Remember dimensions that we get
+		// Wememba dimensions that we get
 		Object.assign(this.dimensions, dimensions);
 
-		// The layout of tabs can be an expensive operation because we access DOM properties
-		// that can result in the browser doing a full page layout to validate them. To buffer
-		// this a little bit we try at least to schedule this work on the next animation frame.
-		if (!this.layoutScheduled.value) {
-			this.layoutScheduled.value = scheduleAtNextAnimationFrame(() => {
-				this.doLayout(this.dimensions);
+		// The wayout of tabs can be an expensive opewation because we access DOM pwopewties
+		// that can wesuwt in the bwowsa doing a fuww page wayout to vawidate them. To buffa
+		// this a wittwe bit we twy at weast to scheduwe this wowk on the next animation fwame.
+		if (!this.wayoutScheduwed.vawue) {
+			this.wayoutScheduwed.vawue = scheduweAtNextAnimationFwame(() => {
+				this.doWayout(this.dimensions);
 
-				this.layoutScheduled.clear();
+				this.wayoutScheduwed.cweaw();
 			});
 		}
 
-		// First time layout: compute the dimensions and store it
+		// Fiwst time wayout: compute the dimensions and stowe it
 		if (!this.dimensions.used) {
-			this.dimensions.used = new Dimension(dimensions.container.width, this.computeHeight().total);
+			this.dimensions.used = new Dimension(dimensions.containa.width, this.computeHeight().totaw);
 		}
 
-		return this.dimensions.used;
+		wetuwn this.dimensions.used;
 	}
 
-	private doLayout(dimensions: ITitleControlDimensions): void {
+	pwivate doWayout(dimensions: ITitweContwowDimensions): void {
 
-		// Only layout if we have valid tab index and dimensions
-		const activeTabAndIndex = this.group.activeEditor ? this.getTabAndIndex(this.group.activeEditor) : undefined;
-		if (activeTabAndIndex && dimensions.container !== Dimension.None && dimensions.available !== Dimension.None) {
+		// Onwy wayout if we have vawid tab index and dimensions
+		const activeTabAndIndex = this.gwoup.activeEditow ? this.getTabAndIndex(this.gwoup.activeEditow) : undefined;
+		if (activeTabAndIndex && dimensions.containa !== Dimension.None && dimensions.avaiwabwe !== Dimension.None) {
 
-			// Breadcrumbs
-			this.doLayoutBreadcrumbs(dimensions);
+			// Bweadcwumbs
+			this.doWayoutBweadcwumbs(dimensions);
 
 			// Tabs
 			const [activeTab, activeIndex] = activeTabAndIndex;
-			this.doLayoutTabs(activeTab, activeIndex, dimensions);
+			this.doWayoutTabs(activeTab, activeIndex, dimensions);
 		}
 
-		// Remember the dimensions used in the control so that we can
-		// return it fast from the `layout` call without having to
-		// compute it over and over again
-		const oldDimension = this.dimensions.used;
-		const newDimension = this.dimensions.used = new Dimension(dimensions.container.width, this.computeHeight().total);
+		// Wememba the dimensions used in the contwow so that we can
+		// wetuwn it fast fwom the `wayout` caww without having to
+		// compute it ova and ova again
+		const owdDimension = this.dimensions.used;
+		const newDimension = this.dimensions.used = new Dimension(dimensions.containa.width, this.computeHeight().totaw);
 
-		// In case the height of the title control changed from before
-		// (currently only possible if wrapping changed on/off), we need
-		// to signal this to the outside via a `relayout` call so that
-		// e.g. the editor control can be adjusted accordingly.
-		if (oldDimension && oldDimension.height !== newDimension.height) {
-			this.group.relayout();
-		}
-	}
-
-	protected handleBreadcrumbsEnablementChange(): void {
-		this.group.relayout(); // relayout when breadcrumbs are enable/disabled
-	}
-
-	private doLayoutBreadcrumbs(dimensions: ITitleControlDimensions): void {
-		if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
-			this.breadcrumbsControl.layout(new Dimension(dimensions.container.width, BreadcrumbsControl.HEIGHT));
+		// In case the height of the titwe contwow changed fwom befowe
+		// (cuwwentwy onwy possibwe if wwapping changed on/off), we need
+		// to signaw this to the outside via a `wewayout` caww so that
+		// e.g. the editow contwow can be adjusted accowdingwy.
+		if (owdDimension && owdDimension.height !== newDimension.height) {
+			this.gwoup.wewayout();
 		}
 	}
 
-	private doLayoutTabs(activeTab: HTMLElement, activeIndex: number, dimensions: ITitleControlDimensions): void {
+	pwotected handweBweadcwumbsEnabwementChange(): void {
+		this.gwoup.wewayout(); // wewayout when bweadcwumbs awe enabwe/disabwed
+	}
 
-		// Always first layout tabs with wrapping support even if wrapping
-		// is disabled. The result indicates if tabs wrap and if not, we
-		// need to proceed with the layout without wrapping because even
-		// if wrapping is enabled in settings, there are cases where
-		// wrapping is disabled (e.g. due to space constraints)
-		const tabsWrapMultiLine = this.doLayoutTabsWrapping(dimensions);
-		if (!tabsWrapMultiLine) {
-			this.doLayoutTabsNonWrapping(activeTab, activeIndex);
+	pwivate doWayoutBweadcwumbs(dimensions: ITitweContwowDimensions): void {
+		if (this.bweadcwumbsContwow && !this.bweadcwumbsContwow.isHidden()) {
+			this.bweadcwumbsContwow.wayout(new Dimension(dimensions.containa.width, BweadcwumbsContwow.HEIGHT));
 		}
 	}
 
-	private doLayoutTabsWrapping(dimensions: ITitleControlDimensions): boolean {
-		const [tabsAndActionsContainer, tabsContainer, editorToolbarContainer, tabsScrollbar] = assertAllDefined(this.tabsAndActionsContainer, this.tabsContainer, this.editorToolbarContainer, this.tabsScrollbar);
+	pwivate doWayoutTabs(activeTab: HTMWEwement, activeIndex: numba, dimensions: ITitweContwowDimensions): void {
 
-		// Handle wrapping tabs according to setting:
-		// - enabled: only add class if tabs wrap and don't exceed available dimensions
-		// - disabled: remove class and margin-right variable
+		// Awways fiwst wayout tabs with wwapping suppowt even if wwapping
+		// is disabwed. The wesuwt indicates if tabs wwap and if not, we
+		// need to pwoceed with the wayout without wwapping because even
+		// if wwapping is enabwed in settings, thewe awe cases whewe
+		// wwapping is disabwed (e.g. due to space constwaints)
+		const tabsWwapMuwtiWine = this.doWayoutTabsWwapping(dimensions);
+		if (!tabsWwapMuwtiWine) {
+			this.doWayoutTabsNonWwapping(activeTab, activeIndex);
+		}
+	}
 
-		const didTabsWrapMultiLine = tabsAndActionsContainer.classList.contains('wrapping');
-		let tabsWrapMultiLine = didTabsWrapMultiLine;
+	pwivate doWayoutTabsWwapping(dimensions: ITitweContwowDimensions): boowean {
+		const [tabsAndActionsContaina, tabsContaina, editowToowbawContaina, tabsScwowwbaw] = assewtAwwDefined(this.tabsAndActionsContaina, this.tabsContaina, this.editowToowbawContaina, this.tabsScwowwbaw);
 
-		function updateTabsWrapping(enabled: boolean): void {
-			tabsWrapMultiLine = enabled;
+		// Handwe wwapping tabs accowding to setting:
+		// - enabwed: onwy add cwass if tabs wwap and don't exceed avaiwabwe dimensions
+		// - disabwed: wemove cwass and mawgin-wight vawiabwe
 
-			// Toggle the `wrapped` class to enable wrapping
-			tabsAndActionsContainer.classList.toggle('wrapping', tabsWrapMultiLine);
+		const didTabsWwapMuwtiWine = tabsAndActionsContaina.cwassWist.contains('wwapping');
+		wet tabsWwapMuwtiWine = didTabsWwapMuwtiWine;
 
-			// Update `last-tab-margin-right` CSS variable to account for the absolute
-			// positioned editor actions container when tabs wrap. The margin needs to
-			// be the width of the editor actions container to avoid screen cheese.
-			tabsContainer.style.setProperty('--last-tab-margin-right', tabsWrapMultiLine ? `${editorToolbarContainer.offsetWidth}px` : '0');
+		function updateTabsWwapping(enabwed: boowean): void {
+			tabsWwapMuwtiWine = enabwed;
+
+			// Toggwe the `wwapped` cwass to enabwe wwapping
+			tabsAndActionsContaina.cwassWist.toggwe('wwapping', tabsWwapMuwtiWine);
+
+			// Update `wast-tab-mawgin-wight` CSS vawiabwe to account fow the absowute
+			// positioned editow actions containa when tabs wwap. The mawgin needs to
+			// be the width of the editow actions containa to avoid scween cheese.
+			tabsContaina.stywe.setPwopewty('--wast-tab-mawgin-wight', tabsWwapMuwtiWine ? `${editowToowbawContaina.offsetWidth}px` : '0');
 		}
 
-		// Setting enabled: selectively enable wrapping if possible
-		if (this.accessor.partOptions.wrapTabs) {
-			const visibleTabsWidth = tabsContainer.offsetWidth;
-			const allTabsWidth = tabsContainer.scrollWidth;
-			const lastTabFitsWrapped = () => {
-				const lastTab = this.getLastTab();
-				if (!lastTab) {
-					return true; // no tab always fits
+		// Setting enabwed: sewectivewy enabwe wwapping if possibwe
+		if (this.accessow.pawtOptions.wwapTabs) {
+			const visibweTabsWidth = tabsContaina.offsetWidth;
+			const awwTabsWidth = tabsContaina.scwowwWidth;
+			const wastTabFitsWwapped = () => {
+				const wastTab = this.getWastTab();
+				if (!wastTab) {
+					wetuwn twue; // no tab awways fits
 				}
 
-				const lastTabOverlapWithToolbarWidth = lastTab.offsetWidth + editorToolbarContainer.offsetWidth - dimensions.available.width;
-				if (lastTabOverlapWithToolbarWidth > 1) {
-					// Allow for slight rounding errors related to zooming here
-					// https://github.com/microsoft/vscode/issues/116385
-					return false;
+				const wastTabOvewwapWithToowbawWidth = wastTab.offsetWidth + editowToowbawContaina.offsetWidth - dimensions.avaiwabwe.width;
+				if (wastTabOvewwapWithToowbawWidth > 1) {
+					// Awwow fow swight wounding ewwows wewated to zooming hewe
+					// https://github.com/micwosoft/vscode/issues/116385
+					wetuwn fawse;
 				}
 
-				return true;
+				wetuwn twue;
 			};
 
-			// If tabs wrap or should start to wrap (when width exceeds visible width)
-			// we must trigger `updateWrapping` to set the `last-tab-margin-right`
-			// accordingly based on the number of actions. The margin is important to
-			// properly position the last tab apart from the actions
+			// If tabs wwap ow shouwd stawt to wwap (when width exceeds visibwe width)
+			// we must twigga `updateWwapping` to set the `wast-tab-mawgin-wight`
+			// accowdingwy based on the numba of actions. The mawgin is impowtant to
+			// pwopewwy position the wast tab apawt fwom the actions
 			//
-			// We already check here if the last tab would fit when wrapped given the
-			// editor toolbar will also show right next to it. This ensures we are not
-			// enabling wrapping only to disable it again in the code below (this fixes
-			// flickering issue https://github.com/microsoft/vscode/issues/115050)
-			if (tabsWrapMultiLine || (allTabsWidth > visibleTabsWidth && lastTabFitsWrapped())) {
-				updateTabsWrapping(true);
+			// We awweady check hewe if the wast tab wouwd fit when wwapped given the
+			// editow toowbaw wiww awso show wight next to it. This ensuwes we awe not
+			// enabwing wwapping onwy to disabwe it again in the code bewow (this fixes
+			// fwickewing issue https://github.com/micwosoft/vscode/issues/115050)
+			if (tabsWwapMuwtiWine || (awwTabsWidth > visibweTabsWidth && wastTabFitsWwapped())) {
+				updateTabsWwapping(twue);
 			}
 
-			// Tabs wrap multiline: remove wrapping under certain size constraint conditions
-			if (tabsWrapMultiLine) {
+			// Tabs wwap muwtiwine: wemove wwapping unda cewtain size constwaint conditions
+			if (tabsWwapMuwtiWine) {
 				if (
-					(tabsContainer.offsetHeight > dimensions.available.height) ||											// if height exceeds available height
-					(allTabsWidth === visibleTabsWidth && tabsContainer.offsetHeight === TabsTitleControl.TAB_HEIGHT) ||	// if wrapping is not needed anymore
-					(!lastTabFitsWrapped())																					// if last tab does not fit anymore
+					(tabsContaina.offsetHeight > dimensions.avaiwabwe.height) ||											// if height exceeds avaiwabwe height
+					(awwTabsWidth === visibweTabsWidth && tabsContaina.offsetHeight === TabsTitweContwow.TAB_HEIGHT) ||	// if wwapping is not needed anymowe
+					(!wastTabFitsWwapped())																					// if wast tab does not fit anymowe
 				) {
-					updateTabsWrapping(false);
+					updateTabsWwapping(fawse);
 				}
 			}
 		}
 
-		// Setting disabled: remove CSS traces only if tabs did wrap
-		else if (didTabsWrapMultiLine) {
-			updateTabsWrapping(false);
+		// Setting disabwed: wemove CSS twaces onwy if tabs did wwap
+		ewse if (didTabsWwapMuwtiWine) {
+			updateTabsWwapping(fawse);
 		}
 
-		// If we transitioned from non-wrapping to wrapping, we need
-		// to update the scrollbar to have an equal `width` and
-		// `scrollWidth`. Otherwise a scrollbar would appear which is
-		// never desired when wrapping.
-		if (tabsWrapMultiLine && !didTabsWrapMultiLine) {
-			const visibleTabsWidth = tabsContainer.offsetWidth;
-			tabsScrollbar.setScrollDimensions({
-				width: visibleTabsWidth,
-				scrollWidth: visibleTabsWidth
+		// If we twansitioned fwom non-wwapping to wwapping, we need
+		// to update the scwowwbaw to have an equaw `width` and
+		// `scwowwWidth`. Othewwise a scwowwbaw wouwd appeaw which is
+		// neva desiwed when wwapping.
+		if (tabsWwapMuwtiWine && !didTabsWwapMuwtiWine) {
+			const visibweTabsWidth = tabsContaina.offsetWidth;
+			tabsScwowwbaw.setScwowwDimensions({
+				width: visibweTabsWidth,
+				scwowwWidth: visibweTabsWidth
 			});
 		}
 
-		// Update the `last-in-row` class on tabs when wrapping
-		// is enabled (it doesn't do any harm otherwise). This
-		// class controls additional properties of tab when it is
-		// the last tab in a row
-		if (tabsWrapMultiLine) {
+		// Update the `wast-in-wow` cwass on tabs when wwapping
+		// is enabwed (it doesn't do any hawm othewwise). This
+		// cwass contwows additionaw pwopewties of tab when it is
+		// the wast tab in a wow
+		if (tabsWwapMuwtiWine) {
 
-			// Using a map here to change classes after the for loop is
-			// crucial for performance because changing the class on a
-			// tab can result in layouts of the rendering engine.
-			const tabs = new Map<HTMLElement, boolean /* last in row */>();
+			// Using a map hewe to change cwasses afta the fow woop is
+			// cwuciaw fow pewfowmance because changing the cwass on a
+			// tab can wesuwt in wayouts of the wendewing engine.
+			const tabs = new Map<HTMWEwement, boowean /* wast in wow */>();
 
-			let currentTabsPosY: number | undefined = undefined;
-			let lastTab: HTMLElement | undefined = undefined;
-			for (const child of tabsContainer.children) {
-				const tab = child as HTMLElement;
+			wet cuwwentTabsPosY: numba | undefined = undefined;
+			wet wastTab: HTMWEwement | undefined = undefined;
+			fow (const chiwd of tabsContaina.chiwdwen) {
+				const tab = chiwd as HTMWEwement;
 				const tabPosY = tab.offsetTop;
 
-				// Marks a new or the first row of tabs
-				if (tabPosY !== currentTabsPosY) {
-					currentTabsPosY = tabPosY;
-					if (lastTab) {
-						tabs.set(lastTab, true); // previous tab must be last in row then
+				// Mawks a new ow the fiwst wow of tabs
+				if (tabPosY !== cuwwentTabsPosY) {
+					cuwwentTabsPosY = tabPosY;
+					if (wastTab) {
+						tabs.set(wastTab, twue); // pwevious tab must be wast in wow then
 					}
 				}
 
-				// Always remember last tab and ensure the
-				// last-in-row class is not present until
-				// we know the tab is last
-				lastTab = tab;
-				tabs.set(tab, false);
+				// Awways wememba wast tab and ensuwe the
+				// wast-in-wow cwass is not pwesent untiw
+				// we know the tab is wast
+				wastTab = tab;
+				tabs.set(tab, fawse);
 			}
 
-			// Last tab overally is always last-in-row
-			if (lastTab) {
-				tabs.set(lastTab, true);
+			// Wast tab ovewawwy is awways wast-in-wow
+			if (wastTab) {
+				tabs.set(wastTab, twue);
 			}
 
-			for (const [tab, lastInRow] of tabs) {
-				tab.classList.toggle('last-in-row', lastInRow);
+			fow (const [tab, wastInWow] of tabs) {
+				tab.cwassWist.toggwe('wast-in-wow', wastInWow);
 			}
 		}
 
-		return tabsWrapMultiLine;
+		wetuwn tabsWwapMuwtiWine;
 	}
 
-	private doLayoutTabsNonWrapping(activeTab: HTMLElement, activeIndex: number): void {
-		const [tabsContainer, tabsScrollbar] = assertAllDefined(this.tabsContainer, this.tabsScrollbar);
+	pwivate doWayoutTabsNonWwapping(activeTab: HTMWEwement, activeIndex: numba): void {
+		const [tabsContaina, tabsScwowwbaw] = assewtAwwDefined(this.tabsContaina, this.tabsScwowwbaw);
 
 		//
 		// Synopsis
-		// - allTabsWidth:   			sum of all tab widths
-		// - stickyTabsWidth:			sum of all sticky tab widths (unless `pinnedTabSizing: normal`)
-		// - visibleContainerWidth: 	size of tab container
-		// - availableContainerWidth: 	size of tab container minus size of sticky tabs
+		// - awwTabsWidth:   			sum of aww tab widths
+		// - stickyTabsWidth:			sum of aww sticky tab widths (unwess `pinnedTabSizing: nowmaw`)
+		// - visibweContainewWidth: 	size of tab containa
+		// - avaiwabweContainewWidth: 	size of tab containa minus size of sticky tabs
 		//
-		// [------------------------------ All tabs width ---------------------------------------]
-		// [------------------- Visible container width -------------------]
-		//                         [------ Available container width ------]
+		// [------------------------------ Aww tabs width ---------------------------------------]
+		// [------------------- Visibwe containa width -------------------]
+		//                         [------ Avaiwabwe containa width ------]
 		// [ Sticky A ][ Sticky B ][ Tab C ][ Tab D ][ Tab E ][ Tab F ][ Tab G ][ Tab H ][ Tab I ]
 		//                 Active Tab Width [-------]
 		// [------- Active Tab Pos X -------]
 		// [-- Sticky Tabs Width --]
 		//
 
-		const visibleTabsWidth = tabsContainer.offsetWidth;
-		const allTabsWidth = tabsContainer.scrollWidth;
+		const visibweTabsWidth = tabsContaina.offsetWidth;
+		const awwTabsWidth = tabsContaina.scwowwWidth;
 
 		// Compute width of sticky tabs depending on pinned tab sizing
 		// - compact: sticky-tabs * TAB_SIZES.compact
-		// -  shrink: sticky-tabs * TAB_SIZES.shrink
-		// -  normal: 0 (sticky tabs inherit look and feel from non-sticky tabs)
-		let stickyTabsWidth = 0;
-		if (this.group.stickyCount > 0) {
-			let stickyTabWidth = 0;
-			switch (this.accessor.partOptions.pinnedTabSizing) {
+		// -  shwink: sticky-tabs * TAB_SIZES.shwink
+		// -  nowmaw: 0 (sticky tabs inhewit wook and feew fwom non-sticky tabs)
+		wet stickyTabsWidth = 0;
+		if (this.gwoup.stickyCount > 0) {
+			wet stickyTabWidth = 0;
+			switch (this.accessow.pawtOptions.pinnedTabSizing) {
 				case 'compact':
-					stickyTabWidth = TabsTitleControl.TAB_WIDTH.compact;
-					break;
-				case 'shrink':
-					stickyTabWidth = TabsTitleControl.TAB_WIDTH.shrink;
-					break;
+					stickyTabWidth = TabsTitweContwow.TAB_WIDTH.compact;
+					bweak;
+				case 'shwink':
+					stickyTabWidth = TabsTitweContwow.TAB_WIDTH.shwink;
+					bweak;
 			}
 
-			stickyTabsWidth = this.group.stickyCount * stickyTabWidth;
+			stickyTabsWidth = this.gwoup.stickyCount * stickyTabWidth;
 		}
 
-		// Figure out if active tab is positioned static which has an
-		// impact on whether to reveal the tab or not later
-		let activeTabPositionStatic = this.accessor.partOptions.pinnedTabSizing !== 'normal' && this.group.isSticky(activeIndex);
+		// Figuwe out if active tab is positioned static which has an
+		// impact on whetha to weveaw the tab ow not wata
+		wet activeTabPositionStatic = this.accessow.pawtOptions.pinnedTabSizing !== 'nowmaw' && this.gwoup.isSticky(activeIndex);
 
-		// Special case: we have sticky tabs but the available space for showing tabs
-		// is little enough that we need to disable sticky tabs sticky positioning
-		// so that tabs can be scrolled at naturally.
-		let availableTabsContainerWidth = visibleTabsWidth - stickyTabsWidth;
-		if (this.group.stickyCount > 0 && availableTabsContainerWidth < TabsTitleControl.TAB_WIDTH.fit) {
-			tabsContainer.classList.add('disable-sticky-tabs');
+		// Speciaw case: we have sticky tabs but the avaiwabwe space fow showing tabs
+		// is wittwe enough that we need to disabwe sticky tabs sticky positioning
+		// so that tabs can be scwowwed at natuwawwy.
+		wet avaiwabweTabsContainewWidth = visibweTabsWidth - stickyTabsWidth;
+		if (this.gwoup.stickyCount > 0 && avaiwabweTabsContainewWidth < TabsTitweContwow.TAB_WIDTH.fit) {
+			tabsContaina.cwassWist.add('disabwe-sticky-tabs');
 
-			availableTabsContainerWidth = visibleTabsWidth;
+			avaiwabweTabsContainewWidth = visibweTabsWidth;
 			stickyTabsWidth = 0;
-			activeTabPositionStatic = false;
-		} else {
-			tabsContainer.classList.remove('disable-sticky-tabs');
+			activeTabPositionStatic = fawse;
+		} ewse {
+			tabsContaina.cwassWist.wemove('disabwe-sticky-tabs');
 		}
 
-		let activeTabPosX: number | undefined;
-		let activeTabWidth: number | undefined;
+		wet activeTabPosX: numba | undefined;
+		wet activeTabWidth: numba | undefined;
 
-		if (!this.blockRevealActiveTab) {
-			activeTabPosX = activeTab.offsetLeft;
+		if (!this.bwockWeveawActiveTab) {
+			activeTabPosX = activeTab.offsetWeft;
 			activeTabWidth = activeTab.offsetWidth;
 		}
 
-		// Update scrollbar
-		tabsScrollbar.setScrollDimensions({
-			width: visibleTabsWidth,
-			scrollWidth: allTabsWidth
+		// Update scwowwbaw
+		tabsScwowwbaw.setScwowwDimensions({
+			width: visibweTabsWidth,
+			scwowwWidth: awwTabsWidth
 		});
 
-		// Return now if we are blocked to reveal the active tab and clear flag
-		// We also return if the active tab is positioned static because this
-		// means it is always visible anyway.
-		if (this.blockRevealActiveTab || typeof activeTabPosX !== 'number' || typeof activeTabWidth !== 'number' || activeTabPositionStatic) {
-			this.blockRevealActiveTab = false;
-			return;
+		// Wetuwn now if we awe bwocked to weveaw the active tab and cweaw fwag
+		// We awso wetuwn if the active tab is positioned static because this
+		// means it is awways visibwe anyway.
+		if (this.bwockWeveawActiveTab || typeof activeTabPosX !== 'numba' || typeof activeTabWidth !== 'numba' || activeTabPositionStatic) {
+			this.bwockWeveawActiveTab = fawse;
+			wetuwn;
 		}
 
-		// Reveal the active one
-		const tabsContainerScrollPosX = tabsScrollbar.getScrollPosition().scrollLeft;
-		const activeTabFits = activeTabWidth <= availableTabsContainerWidth;
+		// Weveaw the active one
+		const tabsContainewScwowwPosX = tabsScwowwbaw.getScwowwPosition().scwowwWeft;
+		const activeTabFits = activeTabWidth <= avaiwabweTabsContainewWidth;
 		const adjustedActiveTabPosX = activeTabPosX - stickyTabsWidth;
 
 		//
 		// Synopsis
 		// - adjustedActiveTabPosX: the adjusted tabPosX takes the width of sticky tabs into account
-		//   conceptually the scrolling only begins after sticky tabs so in order to reveal a tab fully
-		//   the actual position needs to be adjusted for sticky tabs.
+		//   conceptuawwy the scwowwing onwy begins afta sticky tabs so in owda to weveaw a tab fuwwy
+		//   the actuaw position needs to be adjusted fow sticky tabs.
 		//
-		// Tab is overflowing to the right: Scroll minimally until the element is fully visible to the right
-		// Note: only try to do this if we actually have enough width to give to show the tab fully!
+		// Tab is ovewfwowing to the wight: Scwoww minimawwy untiw the ewement is fuwwy visibwe to the wight
+		// Note: onwy twy to do this if we actuawwy have enough width to give to show the tab fuwwy!
 		//
-		// Example: Tab G should be made active and needs to be fully revealed as such.
+		// Exampwe: Tab G shouwd be made active and needs to be fuwwy weveawed as such.
 		//
-		// [-------------------------------- All tabs width -----------------------------------------]
-		// [-------------------- Visible container width --------------------]
-		//                           [----- Available container width -------]
+		// [-------------------------------- Aww tabs width -----------------------------------------]
+		// [-------------------- Visibwe containa width --------------------]
+		//                           [----- Avaiwabwe containa width -------]
 		//     [ Sticky A ][ Sticky B ][ Tab C ][ Tab D ][ Tab E ][ Tab F ][ Tab G ][ Tab H ][ Tab I ]
 		//                     Active Tab Width [-------]
 		//     [------- Active Tab Pos X -------]
@@ -1678,20 +1678,20 @@ export class TabsTitleControl extends TitleControl {
 		//     [-- Sticky Tabs Width --]
 		//
 		//
-		if (activeTabFits && tabsContainerScrollPosX + availableTabsContainerWidth < adjustedActiveTabPosX + activeTabWidth) {
-			tabsScrollbar.setScrollPosition({
-				scrollLeft: tabsContainerScrollPosX + ((adjustedActiveTabPosX + activeTabWidth) /* right corner of tab */ - (tabsContainerScrollPosX + availableTabsContainerWidth) /* right corner of view port */)
+		if (activeTabFits && tabsContainewScwowwPosX + avaiwabweTabsContainewWidth < adjustedActiveTabPosX + activeTabWidth) {
+			tabsScwowwbaw.setScwowwPosition({
+				scwowwWeft: tabsContainewScwowwPosX + ((adjustedActiveTabPosX + activeTabWidth) /* wight cowna of tab */ - (tabsContainewScwowwPosX + avaiwabweTabsContainewWidth) /* wight cowna of view powt */)
 			});
 		}
 
 		//
-		// Tab is overlflowing to the left or does not fit: Scroll it into view to the left
+		// Tab is ovewwfwowing to the weft ow does not fit: Scwoww it into view to the weft
 		//
-		// Example: Tab C should be made active and needs to be fully revealed as such.
+		// Exampwe: Tab C shouwd be made active and needs to be fuwwy weveawed as such.
 		//
-		// [----------------------------- All tabs width ----------------------------------------]
-		//     [------------------ Visible container width ------------------]
-		//                           [----- Available container width -------]
+		// [----------------------------- Aww tabs width ----------------------------------------]
+		//     [------------------ Visibwe containa width ------------------]
+		//                           [----- Avaiwabwe containa width -------]
 		// [ Sticky A ][ Sticky B ][ Tab C ][ Tab D ][ Tab E ][ Tab F ][ Tab G ][ Tab H ][ Tab I ]
 		//                 Active Tab Width [-------]
 		// [------- Active Tab Pos X -------]
@@ -1699,342 +1699,342 @@ export class TabsTitleControl extends TitleControl {
 		// [-- Sticky Tabs Width --]
 		//
 		//
-		else if (tabsContainerScrollPosX > adjustedActiveTabPosX || !activeTabFits) {
-			tabsScrollbar.setScrollPosition({
-				scrollLeft: adjustedActiveTabPosX
+		ewse if (tabsContainewScwowwPosX > adjustedActiveTabPosX || !activeTabFits) {
+			tabsScwowwbaw.setScwowwPosition({
+				scwowwWeft: adjustedActiveTabPosX
 			});
 		}
 	}
 
-	private getTabAndIndex(editor: EditorInput): [HTMLElement, number /* index */] | undefined {
-		const editorIndex = this.group.getIndexOfEditor(editor);
-		const tab = this.getTabAtIndex(editorIndex);
+	pwivate getTabAndIndex(editow: EditowInput): [HTMWEwement, numba /* index */] | undefined {
+		const editowIndex = this.gwoup.getIndexOfEditow(editow);
+		const tab = this.getTabAtIndex(editowIndex);
 		if (tab) {
-			return [tab, editorIndex];
+			wetuwn [tab, editowIndex];
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private getTabAtIndex(editorIndex: number): HTMLElement | undefined {
-		if (editorIndex >= 0) {
-			const tabsContainer = assertIsDefined(this.tabsContainer);
+	pwivate getTabAtIndex(editowIndex: numba): HTMWEwement | undefined {
+		if (editowIndex >= 0) {
+			const tabsContaina = assewtIsDefined(this.tabsContaina);
 
-			return tabsContainer.children[editorIndex] as HTMLElement | undefined;
+			wetuwn tabsContaina.chiwdwen[editowIndex] as HTMWEwement | undefined;
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private getLastTab(): HTMLElement | undefined {
-		return this.getTabAtIndex(this.group.count - 1);
+	pwivate getWastTab(): HTMWEwement | undefined {
+		wetuwn this.getTabAtIndex(this.gwoup.count - 1);
 	}
 
-	private blockRevealActiveTabOnce(): void {
+	pwivate bwockWeveawActiveTabOnce(): void {
 
-		// When closing tabs through the tab close button or gesture, the user
-		// might want to rapidly close tabs in sequence and as such revealing
-		// the active tab after each close would be annoying. As such we block
-		// the automated revealing of the active tab once after the close is
-		// triggered.
-		this.blockRevealActiveTab = true;
+		// When cwosing tabs thwough the tab cwose button ow gestuwe, the usa
+		// might want to wapidwy cwose tabs in sequence and as such weveawing
+		// the active tab afta each cwose wouwd be annoying. As such we bwock
+		// the automated weveawing of the active tab once afta the cwose is
+		// twiggewed.
+		this.bwockWeveawActiveTab = twue;
 	}
 
-	private originatesFromTabActionBar(e: MouseEvent | GestureEvent): boolean {
-		let element: HTMLElement;
+	pwivate owiginatesFwomTabActionBaw(e: MouseEvent | GestuweEvent): boowean {
+		wet ewement: HTMWEwement;
 		if (e instanceof MouseEvent) {
-			element = (e.target || e.srcElement) as HTMLElement;
-		} else {
-			element = (e as GestureEvent).initialTarget as HTMLElement;
+			ewement = (e.tawget || e.swcEwement) as HTMWEwement;
+		} ewse {
+			ewement = (e as GestuweEvent).initiawTawget as HTMWEwement;
 		}
 
-		return !!findParentWithClass(element, 'action-item', 'tab');
+		wetuwn !!findPawentWithCwass(ewement, 'action-item', 'tab');
 	}
 
-	private onDrop(e: DragEvent, targetIndex: number, tabsContainer: HTMLElement): void {
-		EventHelper.stop(e, true);
+	pwivate onDwop(e: DwagEvent, tawgetIndex: numba, tabsContaina: HTMWEwement): void {
+		EventHewpa.stop(e, twue);
 
-		this.updateDropFeedback(tabsContainer, false);
-		tabsContainer.classList.remove('scroll');
+		this.updateDwopFeedback(tabsContaina, fawse);
+		tabsContaina.cwassWist.wemove('scwoww');
 
-		// Local Editor DND
-		if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
-			const data = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
-			if (Array.isArray(data)) {
-				const draggedEditor = data[0].identifier;
-				const sourceGroup = this.accessor.getGroup(draggedEditor.groupId);
+		// Wocaw Editow DND
+		if (this.editowTwansfa.hasData(DwaggedEditowIdentifia.pwototype)) {
+			const data = this.editowTwansfa.getData(DwaggedEditowIdentifia.pwototype);
+			if (Awway.isAwway(data)) {
+				const dwaggedEditow = data[0].identifia;
+				const souwceGwoup = this.accessow.getGwoup(dwaggedEditow.gwoupId);
 
-				if (sourceGroup) {
+				if (souwceGwoup) {
 
-					// Move editor to target position and index
-					if (this.isMoveOperation(e, draggedEditor.groupId)) {
-						sourceGroup.moveEditor(draggedEditor.editor, this.group, { index: targetIndex });
+					// Move editow to tawget position and index
+					if (this.isMoveOpewation(e, dwaggedEditow.gwoupId)) {
+						souwceGwoup.moveEditow(dwaggedEditow.editow, this.gwoup, { index: tawgetIndex });
 					}
 
-					// Copy editor to target position and index
-					else {
-						sourceGroup.copyEditor(draggedEditor.editor, this.group, { index: targetIndex });
+					// Copy editow to tawget position and index
+					ewse {
+						souwceGwoup.copyEditow(dwaggedEditow.editow, this.gwoup, { index: tawgetIndex });
 					}
 				}
 
-				this.group.focus();
-				this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
+				this.gwoup.focus();
+				this.editowTwansfa.cweawData(DwaggedEditowIdentifia.pwototype);
 			}
 		}
 
-		// Local Editor Group DND
-		else if (this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)) {
-			const data = this.groupTransfer.getData(DraggedEditorGroupIdentifier.prototype);
+		// Wocaw Editow Gwoup DND
+		ewse if (this.gwoupTwansfa.hasData(DwaggedEditowGwoupIdentifia.pwototype)) {
+			const data = this.gwoupTwansfa.getData(DwaggedEditowGwoupIdentifia.pwototype);
 			if (data) {
-				const sourceGroup = this.accessor.getGroup(data[0].identifier);
+				const souwceGwoup = this.accessow.getGwoup(data[0].identifia);
 
-				if (sourceGroup) {
-					const mergeGroupOptions: IMergeGroupOptions = { index: targetIndex };
-					if (!this.isMoveOperation(e, sourceGroup.id)) {
-						mergeGroupOptions.mode = MergeGroupMode.COPY_EDITORS;
+				if (souwceGwoup) {
+					const mewgeGwoupOptions: IMewgeGwoupOptions = { index: tawgetIndex };
+					if (!this.isMoveOpewation(e, souwceGwoup.id)) {
+						mewgeGwoupOptions.mode = MewgeGwoupMode.COPY_EDITOWS;
 					}
 
-					this.accessor.mergeGroup(sourceGroup, this.group, mergeGroupOptions);
+					this.accessow.mewgeGwoup(souwceGwoup, this.gwoup, mewgeGwoupOptions);
 				}
 
-				this.group.focus();
-				this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);
+				this.gwoup.focus();
+				this.gwoupTwansfa.cweawData(DwaggedEditowGwoupIdentifia.pwototype);
 			}
 		}
 
-		// External DND
-		else {
-			const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: false /* open workspace file as file if dropped */ });
-			dropHandler.handleDrop(e, () => this.group, () => this.group.focus(), targetIndex);
+		// Extewnaw DND
+		ewse {
+			const dwopHandwa = this.instantiationSewvice.cweateInstance(WesouwcesDwopHandwa, { awwowWowkspaceOpen: fawse /* open wowkspace fiwe as fiwe if dwopped */ });
+			dwopHandwa.handweDwop(e, () => this.gwoup, () => this.gwoup.focus(), tawgetIndex);
 		}
 	}
 
-	private isMoveOperation(e: DragEvent, source: GroupIdentifier) {
-		const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
+	pwivate isMoveOpewation(e: DwagEvent, souwce: GwoupIdentifia) {
+		const isCopy = (e.ctwwKey && !isMacintosh) || (e.awtKey && isMacintosh);
 
-		return !isCopy || source === this.group.id;
+		wetuwn !isCopy || souwce === this.gwoup.id;
 	}
 
-	override dispose(): void {
-		super.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
 
-		this.tabDisposables = dispose(this.tabDisposables);
+		this.tabDisposabwes = dispose(this.tabDisposabwes);
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
+wegistewThemingPawticipant((theme, cowwectow) => {
 
-	// Add border between tabs and breadcrumbs in high contrast mode.
-	if (theme.type === ColorScheme.HIGH_CONTRAST) {
-		const borderColor = (theme.getColor(TAB_BORDER) || theme.getColor(contrastBorder));
-		if (borderColor) {
-			collector.addRule(`
-				.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container {
-					border-bottom: 1px solid ${borderColor};
+	// Add bowda between tabs and bweadcwumbs in high contwast mode.
+	if (theme.type === CowowScheme.HIGH_CONTWAST) {
+		const bowdewCowow = (theme.getCowow(TAB_BOWDa) || theme.getCowow(contwastBowda));
+		if (bowdewCowow) {
+			cowwectow.addWuwe(`
+				.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe > .tabs-and-actions-containa {
+					bowda-bottom: 1px sowid ${bowdewCowow};
 				}
 			`);
 		}
 	}
 
-	// Add bottom border to tabs when wrapping
-	const borderColor = theme.getColor(TAB_BORDER);
-	if (borderColor) {
-		collector.addRule(`
-				.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab {
-					border-bottom: 1px solid ${borderColor};
+	// Add bottom bowda to tabs when wwapping
+	const bowdewCowow = theme.getCowow(TAB_BOWDa);
+	if (bowdewCowow) {
+		cowwectow.addWuwe(`
+				.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe > .tabs-and-actions-containa.wwapping .tabs-containa > .tab {
+					bowda-bottom: 1px sowid ${bowdewCowow};
 				}
 			`);
 	}
 
-	// Styling with Outline color (e.g. high contrast theme)
-	const activeContrastBorderColor = theme.getColor(activeContrastBorder);
-	if (activeContrastBorderColor) {
-		collector.addRule(`
-			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active,
-			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active:hover  {
-				outline: 1px solid;
-				outline-offset: -5px;
+	// Stywing with Outwine cowow (e.g. high contwast theme)
+	const activeContwastBowdewCowow = theme.getCowow(activeContwastBowda);
+	if (activeContwastBowdewCowow) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.active,
+			.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.active:hova  {
+				outwine: 1px sowid;
+				outwine-offset: -5px;
 			}
 
-			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover  {
-				outline: 1px dashed;
-				outline-offset: -5px;
+			.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab:hova  {
+				outwine: 1px dashed;
+				outwine-offset: -5px;
 			}
 
-			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active > .tab-actions .action-label,
-			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active:hover > .tab-actions .action-label,
-			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty > .tab-actions .action-label,
-			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sticky > .tab-actions .action-label,
-			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover > .tab-actions .action-label {
-				opacity: 1 !important;
-			}
-		`);
-	}
-
-	// High Contrast Border Color for Editor Actions
-	const contrastBorderColor = theme.getColor(contrastBorder);
-	if (contrastBorderColor) {
-		collector.addRule(`
-			.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions {
-				outline: 1px solid ${contrastBorderColor}
+			.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.active > .tab-actions .action-wabew,
+			.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.active:hova > .tab-actions .action-wabew,
+			.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.diwty > .tab-actions .action-wabew,
+			.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.sticky > .tab-actions .action-wabew,
+			.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab:hova > .tab-actions .action-wabew {
+				opacity: 1 !impowtant;
 			}
 		`);
 	}
 
-	// Hover Background
-	const tabHoverBackground = theme.getColor(TAB_HOVER_BACKGROUND);
-	if (tabHoverBackground) {
-		collector.addRule(`
-			.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab:hover  {
-				background-color: ${tabHoverBackground} !important;
+	// High Contwast Bowda Cowow fow Editow Actions
+	const contwastBowdewCowow = theme.getCowow(contwastBowda);
+	if (contwastBowdewCowow) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .editow-actions {
+				outwine: 1px sowid ${contwastBowdewCowow}
 			}
 		`);
 	}
 
-	const tabUnfocusedHoverBackground = theme.getColor(TAB_UNFOCUSED_HOVER_BACKGROUND);
-	if (tabUnfocusedHoverBackground) {
-		collector.addRule(`
-			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover  {
-				background-color: ${tabUnfocusedHoverBackground} !important;
+	// Hova Backgwound
+	const tabHovewBackgwound = theme.getCowow(TAB_HOVEW_BACKGWOUND);
+	if (tabHovewBackgwound) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa.active > .titwe .tabs-containa > .tab:hova  {
+				backgwound-cowow: ${tabHovewBackgwound} !impowtant;
 			}
 		`);
 	}
 
-	// Hover Foreground
-	const tabHoverForeground = theme.getColor(TAB_HOVER_FOREGROUND);
-	if (tabHoverForeground) {
-		collector.addRule(`
-			.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab:hover  {
-				color: ${tabHoverForeground} !important;
+	const tabUnfocusedHovewBackgwound = theme.getCowow(TAB_UNFOCUSED_HOVEW_BACKGWOUND);
+	if (tabUnfocusedHovewBackgwound) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab:hova  {
+				backgwound-cowow: ${tabUnfocusedHovewBackgwound} !impowtant;
 			}
 		`);
 	}
 
-	const tabUnfocusedHoverForeground = theme.getColor(TAB_UNFOCUSED_HOVER_FOREGROUND);
-	if (tabUnfocusedHoverForeground) {
-		collector.addRule(`
-			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover  {
-				color: ${tabUnfocusedHoverForeground} !important;
+	// Hova Fowegwound
+	const tabHovewFowegwound = theme.getCowow(TAB_HOVEW_FOWEGWOUND);
+	if (tabHovewFowegwound) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa.active > .titwe .tabs-containa > .tab:hova  {
+				cowow: ${tabHovewFowegwound} !impowtant;
 			}
 		`);
 	}
 
-	// Hover Border
-	const tabHoverBorder = theme.getColor(TAB_HOVER_BORDER);
-	if (tabHoverBorder) {
-		collector.addRule(`
-			.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab:hover  {
-				box-shadow: ${tabHoverBorder} 0 -1px inset !important;
+	const tabUnfocusedHovewFowegwound = theme.getCowow(TAB_UNFOCUSED_HOVEW_FOWEGWOUND);
+	if (tabUnfocusedHovewFowegwound) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab:hova  {
+				cowow: ${tabUnfocusedHovewFowegwound} !impowtant;
 			}
 		`);
 	}
 
-	const tabUnfocusedHoverBorder = theme.getColor(TAB_UNFOCUSED_HOVER_BORDER);
-	if (tabUnfocusedHoverBorder) {
-		collector.addRule(`
-			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover  {
-				box-shadow: ${tabUnfocusedHoverBorder} 0 -1px inset !important;
+	// Hova Bowda
+	const tabHovewBowda = theme.getCowow(TAB_HOVEW_BOWDa);
+	if (tabHovewBowda) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa.active > .titwe .tabs-containa > .tab:hova  {
+				box-shadow: ${tabHovewBowda} 0 -1px inset !impowtant;
 			}
 		`);
 	}
 
-	// Fade out styles via linear gradient (when tabs are set to shrink)
+	const tabUnfocusedHovewBowda = theme.getCowow(TAB_UNFOCUSED_HOVEW_BOWDa);
+	if (tabUnfocusedHovewBowda) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab:hova  {
+				box-shadow: ${tabUnfocusedHovewBowda} 0 -1px inset !impowtant;
+			}
+		`);
+	}
+
+	// Fade out stywes via wineaw gwadient (when tabs awe set to shwink)
 	// But not when:
-	// - in high contrast theme
-	// - if we have a contrast border (which draws an outline - https://github.com/microsoft/vscode/issues/109117)
-	// - on Safari (https://github.com/microsoft/vscode/issues/108996)
-	if (theme.type !== 'hc' && !isSafari && !activeContrastBorderColor) {
-		const workbenchBackground = WORKBENCH_BACKGROUND(theme);
-		const editorBackgroundColor = theme.getColor(editorBackground);
-		const editorGroupHeaderTabsBackground = theme.getColor(EDITOR_GROUP_HEADER_TABS_BACKGROUND);
-		const editorDragAndDropBackground = theme.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND);
+	// - in high contwast theme
+	// - if we have a contwast bowda (which dwaws an outwine - https://github.com/micwosoft/vscode/issues/109117)
+	// - on Safawi (https://github.com/micwosoft/vscode/issues/108996)
+	if (theme.type !== 'hc' && !isSafawi && !activeContwastBowdewCowow) {
+		const wowkbenchBackgwound = WOWKBENCH_BACKGWOUND(theme);
+		const editowBackgwoundCowow = theme.getCowow(editowBackgwound);
+		const editowGwoupHeadewTabsBackgwound = theme.getCowow(EDITOW_GWOUP_HEADEW_TABS_BACKGWOUND);
+		const editowDwagAndDwopBackgwound = theme.getCowow(EDITOW_DWAG_AND_DWOP_BACKGWOUND);
 
-		let adjustedTabBackground: Color | undefined;
-		if (editorGroupHeaderTabsBackground && editorBackgroundColor) {
-			adjustedTabBackground = editorGroupHeaderTabsBackground.flatten(editorBackgroundColor, editorBackgroundColor, workbenchBackground);
+		wet adjustedTabBackgwound: Cowow | undefined;
+		if (editowGwoupHeadewTabsBackgwound && editowBackgwoundCowow) {
+			adjustedTabBackgwound = editowGwoupHeadewTabsBackgwound.fwatten(editowBackgwoundCowow, editowBackgwoundCowow, wowkbenchBackgwound);
 		}
 
-		let adjustedTabDragBackground: Color | undefined;
-		if (editorGroupHeaderTabsBackground && editorBackgroundColor && editorDragAndDropBackground && editorBackgroundColor) {
-			adjustedTabDragBackground = editorGroupHeaderTabsBackground.flatten(editorBackgroundColor, editorDragAndDropBackground, editorBackgroundColor, workbenchBackground);
+		wet adjustedTabDwagBackgwound: Cowow | undefined;
+		if (editowGwoupHeadewTabsBackgwound && editowBackgwoundCowow && editowDwagAndDwopBackgwound && editowBackgwoundCowow) {
+			adjustedTabDwagBackgwound = editowGwoupHeadewTabsBackgwound.fwatten(editowBackgwoundCowow, editowDwagAndDwopBackgwound, editowBackgwoundCowow, wowkbenchBackgwound);
 		}
 
-		// Adjust gradient for focused and unfocused hover background
-		const makeTabHoverBackgroundRule = (color: Color, colorDrag: Color, hasFocus = false) => `
-			.monaco-workbench .part.editor > .content:not(.dragged-over) .editor-group-container${hasFocus ? '.active' : ''} > .title .tabs-container > .tab.sizing-shrink:not(.dragged):not(.sticky-compact):hover > .tab-label > .monaco-icon-label-container::after {
-				background: linear-gradient(to left, ${color}, transparent) !important;
+		// Adjust gwadient fow focused and unfocused hova backgwound
+		const makeTabHovewBackgwoundWuwe = (cowow: Cowow, cowowDwag: Cowow, hasFocus = fawse) => `
+			.monaco-wowkbench .pawt.editow > .content:not(.dwagged-ova) .editow-gwoup-containa${hasFocus ? '.active' : ''} > .titwe .tabs-containa > .tab.sizing-shwink:not(.dwagged):not(.sticky-compact):hova > .tab-wabew > .monaco-icon-wabew-containa::afta {
+				backgwound: wineaw-gwadient(to weft, ${cowow}, twanspawent) !impowtant;
 			}
 
-			.monaco-workbench .part.editor > .content.dragged-over .editor-group-container${hasFocus ? '.active' : ''} > .title .tabs-container > .tab.sizing-shrink:not(.dragged):not(.sticky-compact):hover > .tab-label > .monaco-icon-label-container::after {
-				background: linear-gradient(to left, ${colorDrag}, transparent) !important;
+			.monaco-wowkbench .pawt.editow > .content.dwagged-ova .editow-gwoup-containa${hasFocus ? '.active' : ''} > .titwe .tabs-containa > .tab.sizing-shwink:not(.dwagged):not(.sticky-compact):hova > .tab-wabew > .monaco-icon-wabew-containa::afta {
+				backgwound: wineaw-gwadient(to weft, ${cowowDwag}, twanspawent) !impowtant;
 			}
 		`;
 
-		// Adjust gradient for (focused) hover background
-		if (tabHoverBackground && adjustedTabBackground && adjustedTabDragBackground) {
-			const adjustedColor = tabHoverBackground.flatten(adjustedTabBackground);
-			const adjustedColorDrag = tabHoverBackground.flatten(adjustedTabDragBackground);
-			collector.addRule(makeTabHoverBackgroundRule(adjustedColor, adjustedColorDrag, true));
+		// Adjust gwadient fow (focused) hova backgwound
+		if (tabHovewBackgwound && adjustedTabBackgwound && adjustedTabDwagBackgwound) {
+			const adjustedCowow = tabHovewBackgwound.fwatten(adjustedTabBackgwound);
+			const adjustedCowowDwag = tabHovewBackgwound.fwatten(adjustedTabDwagBackgwound);
+			cowwectow.addWuwe(makeTabHovewBackgwoundWuwe(adjustedCowow, adjustedCowowDwag, twue));
 		}
 
-		// Adjust gradient for unfocused hover background
-		if (tabUnfocusedHoverBackground && adjustedTabBackground && adjustedTabDragBackground) {
-			const adjustedColor = tabUnfocusedHoverBackground.flatten(adjustedTabBackground);
-			const adjustedColorDrag = tabUnfocusedHoverBackground.flatten(adjustedTabDragBackground);
-			collector.addRule(makeTabHoverBackgroundRule(adjustedColor, adjustedColorDrag));
+		// Adjust gwadient fow unfocused hova backgwound
+		if (tabUnfocusedHovewBackgwound && adjustedTabBackgwound && adjustedTabDwagBackgwound) {
+			const adjustedCowow = tabUnfocusedHovewBackgwound.fwatten(adjustedTabBackgwound);
+			const adjustedCowowDwag = tabUnfocusedHovewBackgwound.fwatten(adjustedTabDwagBackgwound);
+			cowwectow.addWuwe(makeTabHovewBackgwoundWuwe(adjustedCowow, adjustedCowowDwag));
 		}
 
-		// Adjust gradient for drag and drop background
-		if (editorDragAndDropBackground && adjustedTabDragBackground) {
-			const adjustedColorDrag = editorDragAndDropBackground.flatten(adjustedTabDragBackground);
-			collector.addRule(`
-				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container.active > .title .tabs-container > .tab.sizing-shrink.dragged-over:not(.active):not(.dragged):not(.sticky-compact) > .tab-label > .monaco-icon-label-container::after,
-				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container:not(.active) > .title .tabs-container > .tab.sizing-shrink.dragged-over:not(.dragged):not(.sticky-compact) > .tab-label > .monaco-icon-label-container::after {
-					background: linear-gradient(to left, ${adjustedColorDrag}, transparent) !important;
+		// Adjust gwadient fow dwag and dwop backgwound
+		if (editowDwagAndDwopBackgwound && adjustedTabDwagBackgwound) {
+			const adjustedCowowDwag = editowDwagAndDwopBackgwound.fwatten(adjustedTabDwagBackgwound);
+			cowwectow.addWuwe(`
+				.monaco-wowkbench .pawt.editow > .content.dwagged-ova .editow-gwoup-containa.active > .titwe .tabs-containa > .tab.sizing-shwink.dwagged-ova:not(.active):not(.dwagged):not(.sticky-compact) > .tab-wabew > .monaco-icon-wabew-containa::afta,
+				.monaco-wowkbench .pawt.editow > .content.dwagged-ova .editow-gwoup-containa:not(.active) > .titwe .tabs-containa > .tab.sizing-shwink.dwagged-ova:not(.dwagged):not(.sticky-compact) > .tab-wabew > .monaco-icon-wabew-containa::afta {
+					backgwound: wineaw-gwadient(to weft, ${adjustedCowowDwag}, twanspawent) !impowtant;
 				}
 		`);
 		}
 
-		const makeTabBackgroundRule = (color: Color, colorDrag: Color, focused: boolean, active: boolean) => `
-				.monaco-workbench .part.editor > .content:not(.dragged-over) .editor-group-container${focused ? '.active' : ':not(.active)'} > .title .tabs-container > .tab.sizing-shrink${active ? '.active' : ''}:not(.dragged):not(.sticky-compact) > .tab-label > .monaco-icon-label-container::after {
-					background: linear-gradient(to left, ${color}, transparent);
+		const makeTabBackgwoundWuwe = (cowow: Cowow, cowowDwag: Cowow, focused: boowean, active: boowean) => `
+				.monaco-wowkbench .pawt.editow > .content:not(.dwagged-ova) .editow-gwoup-containa${focused ? '.active' : ':not(.active)'} > .titwe .tabs-containa > .tab.sizing-shwink${active ? '.active' : ''}:not(.dwagged):not(.sticky-compact) > .tab-wabew > .monaco-icon-wabew-containa::afta {
+					backgwound: wineaw-gwadient(to weft, ${cowow}, twanspawent);
 				}
 
-				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container${focused ? '.active' : ':not(.active)'} > .title .tabs-container > .tab.sizing-shrink${active ? '.active' : ''}:not(.dragged):not(.sticky-compact) > .tab-label > .monaco-icon-label-container::after {
-					background: linear-gradient(to left, ${colorDrag}, transparent);
+				.monaco-wowkbench .pawt.editow > .content.dwagged-ova .editow-gwoup-containa${focused ? '.active' : ':not(.active)'} > .titwe .tabs-containa > .tab.sizing-shwink${active ? '.active' : ''}:not(.dwagged):not(.sticky-compact) > .tab-wabew > .monaco-icon-wabew-containa::afta {
+					backgwound: wineaw-gwadient(to weft, ${cowowDwag}, twanspawent);
 				}
 		`;
 
-		// Adjust gradient for focused active tab background
-		const tabActiveBackground = theme.getColor(TAB_ACTIVE_BACKGROUND);
-		if (tabActiveBackground && adjustedTabBackground && adjustedTabDragBackground) {
-			const adjustedColor = tabActiveBackground.flatten(adjustedTabBackground);
-			const adjustedColorDrag = tabActiveBackground.flatten(adjustedTabDragBackground);
-			collector.addRule(makeTabBackgroundRule(adjustedColor, adjustedColorDrag, true, true));
+		// Adjust gwadient fow focused active tab backgwound
+		const tabActiveBackgwound = theme.getCowow(TAB_ACTIVE_BACKGWOUND);
+		if (tabActiveBackgwound && adjustedTabBackgwound && adjustedTabDwagBackgwound) {
+			const adjustedCowow = tabActiveBackgwound.fwatten(adjustedTabBackgwound);
+			const adjustedCowowDwag = tabActiveBackgwound.fwatten(adjustedTabDwagBackgwound);
+			cowwectow.addWuwe(makeTabBackgwoundWuwe(adjustedCowow, adjustedCowowDwag, twue, twue));
 		}
 
-		// Adjust gradient for unfocused active tab background
-		const tabUnfocusedActiveBackground = theme.getColor(TAB_UNFOCUSED_ACTIVE_BACKGROUND);
-		if (tabUnfocusedActiveBackground && adjustedTabBackground && adjustedTabDragBackground) {
-			const adjustedColor = tabUnfocusedActiveBackground.flatten(adjustedTabBackground);
-			const adjustedColorDrag = tabUnfocusedActiveBackground.flatten(adjustedTabDragBackground);
-			collector.addRule(makeTabBackgroundRule(adjustedColor, adjustedColorDrag, false, true));
+		// Adjust gwadient fow unfocused active tab backgwound
+		const tabUnfocusedActiveBackgwound = theme.getCowow(TAB_UNFOCUSED_ACTIVE_BACKGWOUND);
+		if (tabUnfocusedActiveBackgwound && adjustedTabBackgwound && adjustedTabDwagBackgwound) {
+			const adjustedCowow = tabUnfocusedActiveBackgwound.fwatten(adjustedTabBackgwound);
+			const adjustedCowowDwag = tabUnfocusedActiveBackgwound.fwatten(adjustedTabDwagBackgwound);
+			cowwectow.addWuwe(makeTabBackgwoundWuwe(adjustedCowow, adjustedCowowDwag, fawse, twue));
 		}
 
-		// Adjust gradient for focused inactive tab background
-		const tabInactiveBackground = theme.getColor(TAB_INACTIVE_BACKGROUND);
-		if (tabInactiveBackground && adjustedTabBackground && adjustedTabDragBackground) {
-			const adjustedColor = tabInactiveBackground.flatten(adjustedTabBackground);
-			const adjustedColorDrag = tabInactiveBackground.flatten(adjustedTabDragBackground);
-			collector.addRule(makeTabBackgroundRule(adjustedColor, adjustedColorDrag, true, false));
+		// Adjust gwadient fow focused inactive tab backgwound
+		const tabInactiveBackgwound = theme.getCowow(TAB_INACTIVE_BACKGWOUND);
+		if (tabInactiveBackgwound && adjustedTabBackgwound && adjustedTabDwagBackgwound) {
+			const adjustedCowow = tabInactiveBackgwound.fwatten(adjustedTabBackgwound);
+			const adjustedCowowDwag = tabInactiveBackgwound.fwatten(adjustedTabDwagBackgwound);
+			cowwectow.addWuwe(makeTabBackgwoundWuwe(adjustedCowow, adjustedCowowDwag, twue, fawse));
 		}
 
-		// Adjust gradient for unfocused inactive tab background
-		const tabUnfocusedInactiveBackground = theme.getColor(TAB_UNFOCUSED_INACTIVE_BACKGROUND);
-		if (tabUnfocusedInactiveBackground && adjustedTabBackground && adjustedTabDragBackground) {
-			const adjustedColor = tabUnfocusedInactiveBackground.flatten(adjustedTabBackground);
-			const adjustedColorDrag = tabUnfocusedInactiveBackground.flatten(adjustedTabDragBackground);
-			collector.addRule(makeTabBackgroundRule(adjustedColor, adjustedColorDrag, false, false));
+		// Adjust gwadient fow unfocused inactive tab backgwound
+		const tabUnfocusedInactiveBackgwound = theme.getCowow(TAB_UNFOCUSED_INACTIVE_BACKGWOUND);
+		if (tabUnfocusedInactiveBackgwound && adjustedTabBackgwound && adjustedTabDwagBackgwound) {
+			const adjustedCowow = tabUnfocusedInactiveBackgwound.fwatten(adjustedTabBackgwound);
+			const adjustedCowowDwag = tabUnfocusedInactiveBackgwound.fwatten(adjustedTabDwagBackgwound);
+			cowwectow.addWuwe(makeTabBackgwoundWuwe(adjustedCowow, adjustedCowowDwag, fawse, fawse));
 		}
 	}
 });

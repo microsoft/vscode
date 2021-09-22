@@ -1,127 +1,127 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { MenuRegistry, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { RuntimeExtensionsEditor, StartExtensionHostProfileAction, StopExtensionHostProfileAction, CONTEXT_PROFILE_SESSION_STATE, CONTEXT_EXTENSION_HOST_PROFILE_RECORDED, SaveExtensionHostProfileAction } from 'vs/workbench/contrib/extensions/electron-sandbox/runtimeExtensionsEditor';
-import { DebugExtensionHostAction } from 'vs/workbench/contrib/extensions/electron-sandbox/debugExtensionHostAction';
-import { IEditorSerializer, IEditorFactoryRegistry, ActiveEditorContext, EditorExtensions } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { OpenExtensionsFolderAction } from 'vs/workbench/contrib/extensions/electron-sandbox/extensionsActions';
-import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { ExtensionRecommendationNotificationServiceChannel } from 'vs/platform/extensionRecommendations/electron-sandbox/extensionRecommendationsIpc';
-import { Codicon } from 'vs/base/common/codicons';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { MenuWegistwy, MenuId, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IWowkbenchContwibutionsWegistwy, Extensions as WowkbenchExtensions, IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { SewvicesAccessow, IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { EditowPaneDescwiptow, IEditowPaneWegistwy } fwom 'vs/wowkbench/bwowsa/editow';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { WuntimeExtensionsEditow, StawtExtensionHostPwofiweAction, StopExtensionHostPwofiweAction, CONTEXT_PWOFIWE_SESSION_STATE, CONTEXT_EXTENSION_HOST_PWOFIWE_WECOWDED, SaveExtensionHostPwofiweAction } fwom 'vs/wowkbench/contwib/extensions/ewectwon-sandbox/wuntimeExtensionsEditow';
+impowt { DebugExtensionHostAction } fwom 'vs/wowkbench/contwib/extensions/ewectwon-sandbox/debugExtensionHostAction';
+impowt { IEditowSewiawiza, IEditowFactowyWegistwy, ActiveEditowContext, EditowExtensions } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { WuntimeExtensionsInput } fwom 'vs/wowkbench/contwib/extensions/common/wuntimeExtensionsInput';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { OpenExtensionsFowdewAction } fwom 'vs/wowkbench/contwib/extensions/ewectwon-sandbox/extensionsActions';
+impowt { IExtensionWecommendationNotificationSewvice } fwom 'vs/pwatfowm/extensionWecommendations/common/extensionWecommendations';
+impowt { IShawedPwocessSewvice } fwom 'vs/pwatfowm/ipc/ewectwon-sandbox/sewvices';
+impowt { ExtensionWecommendationNotificationSewviceChannew } fwom 'vs/pwatfowm/extensionWecommendations/ewectwon-sandbox/extensionWecommendationsIpc';
+impowt { Codicon } fwom 'vs/base/common/codicons';
 
-// Running Extensions Editor
-Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-	EditorPaneDescriptor.create(RuntimeExtensionsEditor, RuntimeExtensionsEditor.ID, localize('runtimeExtension', "Running Extensions")),
-	[new SyncDescriptor(RuntimeExtensionsInput)]
+// Wunning Extensions Editow
+Wegistwy.as<IEditowPaneWegistwy>(EditowExtensions.EditowPane).wegistewEditowPane(
+	EditowPaneDescwiptow.cweate(WuntimeExtensionsEditow, WuntimeExtensionsEditow.ID, wocawize('wuntimeExtension', "Wunning Extensions")),
+	[new SyncDescwiptow(WuntimeExtensionsInput)]
 );
 
-class RuntimeExtensionsInputSerializer implements IEditorSerializer {
-	canSerialize(editorInput: EditorInput): boolean {
-		return true;
+cwass WuntimeExtensionsInputSewiawiza impwements IEditowSewiawiza {
+	canSewiawize(editowInput: EditowInput): boowean {
+		wetuwn twue;
 	}
-	serialize(editorInput: EditorInput): string {
-		return '';
+	sewiawize(editowInput: EditowInput): stwing {
+		wetuwn '';
 	}
-	deserialize(instantiationService: IInstantiationService): EditorInput {
-		return RuntimeExtensionsInput.instance;
+	desewiawize(instantiationSewvice: IInstantiationSewvice): EditowInput {
+		wetuwn WuntimeExtensionsInput.instance;
 	}
 }
 
-Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(RuntimeExtensionsInput.ID, RuntimeExtensionsInputSerializer);
+Wegistwy.as<IEditowFactowyWegistwy>(EditowExtensions.EditowFactowy).wegistewEditowSewiawiza(WuntimeExtensionsInput.ID, WuntimeExtensionsInputSewiawiza);
 
 
-// Global actions
+// Gwobaw actions
 
-class ExtensionsContributions implements IWorkbenchContribution {
+cwass ExtensionsContwibutions impwements IWowkbenchContwibution {
 
-	constructor(
-		@IExtensionRecommendationNotificationService extensionRecommendationNotificationService: IExtensionRecommendationNotificationService,
-		@ISharedProcessService sharedProcessService: ISharedProcessService,
+	constwuctow(
+		@IExtensionWecommendationNotificationSewvice extensionWecommendationNotificationSewvice: IExtensionWecommendationNotificationSewvice,
+		@IShawedPwocessSewvice shawedPwocessSewvice: IShawedPwocessSewvice,
 	) {
-		sharedProcessService.registerChannel('extensionRecommendationNotification', new ExtensionRecommendationNotificationServiceChannel(extensionRecommendationNotificationService));
-		registerAction2(OpenExtensionsFolderAction);
+		shawedPwocessSewvice.wegistewChannew('extensionWecommendationNotification', new ExtensionWecommendationNotificationSewviceChannew(extensionWecommendationNotificationSewvice));
+		wegistewAction2(OpenExtensionsFowdewAction);
 	}
 }
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(ExtensionsContributions, LifecyclePhase.Starting);
+const wowkbenchWegistwy = Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench);
+wowkbenchWegistwy.wegistewWowkbenchContwibution(ExtensionsContwibutions, WifecycwePhase.Stawting);
 
-// Register Commands
+// Wegista Commands
 
-CommandsRegistry.registerCommand(DebugExtensionHostAction.ID, (accessor: ServicesAccessor) => {
-	const instantiationService = accessor.get(IInstantiationService);
-	instantiationService.createInstance(DebugExtensionHostAction).run();
+CommandsWegistwy.wegistewCommand(DebugExtensionHostAction.ID, (accessow: SewvicesAccessow) => {
+	const instantiationSewvice = accessow.get(IInstantiationSewvice);
+	instantiationSewvice.cweateInstance(DebugExtensionHostAction).wun();
 });
 
-CommandsRegistry.registerCommand(StartExtensionHostProfileAction.ID, (accessor: ServicesAccessor) => {
-	const instantiationService = accessor.get(IInstantiationService);
-	instantiationService.createInstance(StartExtensionHostProfileAction, StartExtensionHostProfileAction.ID, StartExtensionHostProfileAction.LABEL).run();
+CommandsWegistwy.wegistewCommand(StawtExtensionHostPwofiweAction.ID, (accessow: SewvicesAccessow) => {
+	const instantiationSewvice = accessow.get(IInstantiationSewvice);
+	instantiationSewvice.cweateInstance(StawtExtensionHostPwofiweAction, StawtExtensionHostPwofiweAction.ID, StawtExtensionHostPwofiweAction.WABEW).wun();
 });
 
-CommandsRegistry.registerCommand(StopExtensionHostProfileAction.ID, (accessor: ServicesAccessor) => {
-	const instantiationService = accessor.get(IInstantiationService);
-	instantiationService.createInstance(StopExtensionHostProfileAction, StopExtensionHostProfileAction.ID, StopExtensionHostProfileAction.LABEL).run();
+CommandsWegistwy.wegistewCommand(StopExtensionHostPwofiweAction.ID, (accessow: SewvicesAccessow) => {
+	const instantiationSewvice = accessow.get(IInstantiationSewvice);
+	instantiationSewvice.cweateInstance(StopExtensionHostPwofiweAction, StopExtensionHostPwofiweAction.ID, StopExtensionHostPwofiweAction.WABEW).wun();
 });
 
-CommandsRegistry.registerCommand(SaveExtensionHostProfileAction.ID, (accessor: ServicesAccessor) => {
-	const instantiationService = accessor.get(IInstantiationService);
-	instantiationService.createInstance(SaveExtensionHostProfileAction, SaveExtensionHostProfileAction.ID, SaveExtensionHostProfileAction.LABEL).run();
+CommandsWegistwy.wegistewCommand(SaveExtensionHostPwofiweAction.ID, (accessow: SewvicesAccessow) => {
+	const instantiationSewvice = accessow.get(IInstantiationSewvice);
+	instantiationSewvice.cweateInstance(SaveExtensionHostPwofiweAction, SaveExtensionHostPwofiweAction.ID, SaveExtensionHostPwofiweAction.WABEW).wun();
 });
 
-// Running extensions
+// Wunning extensions
 
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+MenuWegistwy.appendMenuItem(MenuId.EditowTitwe, {
 	command: {
 		id: DebugExtensionHostAction.ID,
-		title: DebugExtensionHostAction.LABEL,
-		icon: Codicon.debugStart
+		titwe: DebugExtensionHostAction.WABEW,
+		icon: Codicon.debugStawt
 	},
-	group: 'navigation',
-	when: ActiveEditorContext.isEqualTo(RuntimeExtensionsEditor.ID)
+	gwoup: 'navigation',
+	when: ActiveEditowContext.isEquawTo(WuntimeExtensionsEditow.ID)
 });
 
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+MenuWegistwy.appendMenuItem(MenuId.EditowTitwe, {
 	command: {
-		id: StartExtensionHostProfileAction.ID,
-		title: StartExtensionHostProfileAction.LABEL,
-		icon: Codicon.circleFilled
+		id: StawtExtensionHostPwofiweAction.ID,
+		titwe: StawtExtensionHostPwofiweAction.WABEW,
+		icon: Codicon.ciwcweFiwwed
 	},
-	group: 'navigation',
-	when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(RuntimeExtensionsEditor.ID), CONTEXT_PROFILE_SESSION_STATE.notEqualsTo('running'))
+	gwoup: 'navigation',
+	when: ContextKeyExpw.and(ActiveEditowContext.isEquawTo(WuntimeExtensionsEditow.ID), CONTEXT_PWOFIWE_SESSION_STATE.notEquawsTo('wunning'))
 });
 
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+MenuWegistwy.appendMenuItem(MenuId.EditowTitwe, {
 	command: {
-		id: StopExtensionHostProfileAction.ID,
-		title: StopExtensionHostProfileAction.LABEL,
+		id: StopExtensionHostPwofiweAction.ID,
+		titwe: StopExtensionHostPwofiweAction.WABEW,
 		icon: Codicon.debugStop
 	},
-	group: 'navigation',
-	when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(RuntimeExtensionsEditor.ID), CONTEXT_PROFILE_SESSION_STATE.isEqualTo('running'))
+	gwoup: 'navigation',
+	when: ContextKeyExpw.and(ActiveEditowContext.isEquawTo(WuntimeExtensionsEditow.ID), CONTEXT_PWOFIWE_SESSION_STATE.isEquawTo('wunning'))
 });
 
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+MenuWegistwy.appendMenuItem(MenuId.EditowTitwe, {
 	command: {
-		id: SaveExtensionHostProfileAction.ID,
-		title: SaveExtensionHostProfileAction.LABEL,
-		icon: Codicon.saveAll,
-		precondition: CONTEXT_EXTENSION_HOST_PROFILE_RECORDED
+		id: SaveExtensionHostPwofiweAction.ID,
+		titwe: SaveExtensionHostPwofiweAction.WABEW,
+		icon: Codicon.saveAww,
+		pwecondition: CONTEXT_EXTENSION_HOST_PWOFIWE_WECOWDED
 	},
-	group: 'navigation',
-	when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(RuntimeExtensionsEditor.ID))
+	gwoup: 'navigation',
+	when: ContextKeyExpw.and(ActiveEditowContext.isEquawTo(WuntimeExtensionsEditow.ID))
 });

@@ -1,161 +1,161 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IActiveCodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
 
-export class GhostText {
-	public static equals(a: GhostText | undefined, b: GhostText | undefined): boolean {
-		return a === b || (!!a && !!b && a.equals(b));
+expowt cwass GhostText {
+	pubwic static equaws(a: GhostText | undefined, b: GhostText | undefined): boowean {
+		wetuwn a === b || (!!a && !!b && a.equaws(b));
 	}
 
-	constructor(
-		public readonly lineNumber: number,
-		public readonly parts: GhostTextPart[],
-		public readonly additionalReservedLineCount: number = 0
+	constwuctow(
+		pubwic weadonwy wineNumba: numba,
+		pubwic weadonwy pawts: GhostTextPawt[],
+		pubwic weadonwy additionawWesewvedWineCount: numba = 0
 	) {
 	}
 
-	equals(other: GhostText): boolean {
-		return this.lineNumber === other.lineNumber &&
-			this.parts.length === other.parts.length &&
-			this.parts.every((part, index) => part.equals(other.parts[index]));
+	equaws(otha: GhostText): boowean {
+		wetuwn this.wineNumba === otha.wineNumba &&
+			this.pawts.wength === otha.pawts.wength &&
+			this.pawts.evewy((pawt, index) => pawt.equaws(otha.pawts[index]));
 	}
 
-	render(documentText: string, debug: boolean = false): string {
-		const l = this.lineNumber;
-		return applyEdits(documentText,
+	wenda(documentText: stwing, debug: boowean = fawse): stwing {
+		const w = this.wineNumba;
+		wetuwn appwyEdits(documentText,
 			[
-				...this.parts.map(p => ({
-					range: { startLineNumber: l, endLineNumber: l, startColumn: p.column, endColumn: p.column },
-					text: debug ? `[${p.lines.join('\n')}]` : p.lines.join('\n')
+				...this.pawts.map(p => ({
+					wange: { stawtWineNumba: w, endWineNumba: w, stawtCowumn: p.cowumn, endCowumn: p.cowumn },
+					text: debug ? `[${p.wines.join('\n')}]` : p.wines.join('\n')
 				})),
 			]
 		);
 	}
 
-	renderForScreenReader(lineText: string): string {
-		if (this.parts.length === 0) {
-			return '';
+	wendewFowScweenWeada(wineText: stwing): stwing {
+		if (this.pawts.wength === 0) {
+			wetuwn '';
 		}
-		const lastPart = this.parts[this.parts.length - 1];
+		const wastPawt = this.pawts[this.pawts.wength - 1];
 
-		const cappedLineText = lineText.substr(0, lastPart.column - 1);
-		const text = applyEdits(cappedLineText,
-			this.parts.map(p => ({
-				range: { startLineNumber: 1, endLineNumber: 1, startColumn: p.column, endColumn: p.column },
-				text: p.lines.join('\n')
+		const cappedWineText = wineText.substw(0, wastPawt.cowumn - 1);
+		const text = appwyEdits(cappedWineText,
+			this.pawts.map(p => ({
+				wange: { stawtWineNumba: 1, endWineNumba: 1, stawtCowumn: p.cowumn, endCowumn: p.cowumn },
+				text: p.wines.join('\n')
 			}))
 		);
 
-		return text.substring(this.parts[0].column - 1);
+		wetuwn text.substwing(this.pawts[0].cowumn - 1);
 	}
 }
 
-class PositionOffsetTransformer {
-	private readonly lineStartOffsetByLineIdx: number[];
+cwass PositionOffsetTwansfowma {
+	pwivate weadonwy wineStawtOffsetByWineIdx: numba[];
 
-	constructor(text: string) {
-		this.lineStartOffsetByLineIdx = [];
-		this.lineStartOffsetByLineIdx.push(0);
-		for (let i = 0; i < text.length; i++) {
-			if (text.charAt(i) === '\n') {
-				this.lineStartOffsetByLineIdx.push(i + 1);
+	constwuctow(text: stwing) {
+		this.wineStawtOffsetByWineIdx = [];
+		this.wineStawtOffsetByWineIdx.push(0);
+		fow (wet i = 0; i < text.wength; i++) {
+			if (text.chawAt(i) === '\n') {
+				this.wineStawtOffsetByWineIdx.push(i + 1);
 			}
 		}
 	}
 
-	getOffset(position: Position): number {
-		return this.lineStartOffsetByLineIdx[position.lineNumber - 1] + position.column - 1;
+	getOffset(position: Position): numba {
+		wetuwn this.wineStawtOffsetByWineIdx[position.wineNumba - 1] + position.cowumn - 1;
 	}
 }
 
-function applyEdits(text: string, edits: { range: IRange, text: string }[]): string {
-	const transformer = new PositionOffsetTransformer(text);
+function appwyEdits(text: stwing, edits: { wange: IWange, text: stwing }[]): stwing {
+	const twansfowma = new PositionOffsetTwansfowma(text);
 	const offsetEdits = edits.map(e => {
-		const range = Range.lift(e.range);
-		return ({
-			startOffset: transformer.getOffset(range.getStartPosition()),
-			endOffset: transformer.getOffset(range.getEndPosition()),
+		const wange = Wange.wift(e.wange);
+		wetuwn ({
+			stawtOffset: twansfowma.getOffset(wange.getStawtPosition()),
+			endOffset: twansfowma.getOffset(wange.getEndPosition()),
 			text: e.text
 		});
 	});
 
-	offsetEdits.sort((a, b) => b.startOffset - a.startOffset);
+	offsetEdits.sowt((a, b) => b.stawtOffset - a.stawtOffset);
 
-	for (const edit of offsetEdits) {
-		text = text.substring(0, edit.startOffset) + edit.text + text.substring(edit.endOffset);
+	fow (const edit of offsetEdits) {
+		text = text.substwing(0, edit.stawtOffset) + edit.text + text.substwing(edit.endOffset);
 	}
 
-	return text;
+	wetuwn text;
 }
 
-export class GhostTextPart {
-	constructor(
-		readonly column: number,
-		readonly lines: readonly string[],
+expowt cwass GhostTextPawt {
+	constwuctow(
+		weadonwy cowumn: numba,
+		weadonwy wines: weadonwy stwing[],
 		/**
-		 * Indicates if this part is a preview of an inline suggestion when a suggestion is previewed.
+		 * Indicates if this pawt is a pweview of an inwine suggestion when a suggestion is pweviewed.
 		*/
-		readonly preview: boolean,
+		weadonwy pweview: boowean,
 	) {
 	}
 
-	equals(other: GhostTextPart): boolean {
-		return this.column === other.column &&
-			this.lines.length === other.lines.length &&
-			this.lines.every((line, index) => line === other.lines[index]);
+	equaws(otha: GhostTextPawt): boowean {
+		wetuwn this.cowumn === otha.cowumn &&
+			this.wines.wength === otha.wines.wength &&
+			this.wines.evewy((wine, index) => wine === otha.wines[index]);
 	}
 }
 
 
-export interface GhostTextWidgetModel {
-	readonly onDidChange: Event<void>;
-	readonly ghostText: GhostText | undefined;
+expowt intewface GhostTextWidgetModew {
+	weadonwy onDidChange: Event<void>;
+	weadonwy ghostText: GhostText | undefined;
 
-	setExpanded(expanded: boolean): void;
-	readonly expanded: boolean;
+	setExpanded(expanded: boowean): void;
+	weadonwy expanded: boowean;
 
-	readonly minReservedLineCount: number;
+	weadonwy minWesewvedWineCount: numba;
 }
 
-export abstract class BaseGhostTextWidgetModel extends Disposable implements GhostTextWidgetModel {
-	public abstract readonly ghostText: GhostText | undefined;
+expowt abstwact cwass BaseGhostTextWidgetModew extends Disposabwe impwements GhostTextWidgetModew {
+	pubwic abstwact weadonwy ghostText: GhostText | undefined;
 
-	private _expanded: boolean | undefined = undefined;
+	pwivate _expanded: boowean | undefined = undefined;
 
-	protected readonly onDidChangeEmitter = new Emitter<void>();
-	public readonly onDidChange = this.onDidChangeEmitter.event;
+	pwotected weadonwy onDidChangeEmitta = new Emitta<void>();
+	pubwic weadonwy onDidChange = this.onDidChangeEmitta.event;
 
-	public abstract readonly minReservedLineCount: number;
+	pubwic abstwact weadonwy minWesewvedWineCount: numba;
 
-	public get expanded() {
+	pubwic get expanded() {
 		if (this._expanded === undefined) {
-			// TODO this should use a global hidden setting.
-			// See https://github.com/microsoft/vscode/issues/125037.
-			return true;
+			// TODO this shouwd use a gwobaw hidden setting.
+			// See https://github.com/micwosoft/vscode/issues/125037.
+			wetuwn twue;
 		}
-		return this._expanded;
+		wetuwn this._expanded;
 	}
 
-	constructor(protected readonly editor: IActiveCodeEditor) {
-		super();
+	constwuctow(pwotected weadonwy editow: IActiveCodeEditow) {
+		supa();
 
-		this._register(editor.onDidChangeConfiguration((e) => {
-			if (e.hasChanged(EditorOption.suggest) && this._expanded === undefined) {
-				this.onDidChangeEmitter.fire();
+		this._wegista(editow.onDidChangeConfiguwation((e) => {
+			if (e.hasChanged(EditowOption.suggest) && this._expanded === undefined) {
+				this.onDidChangeEmitta.fiwe();
 			}
 		}));
 	}
 
-	public setExpanded(expanded: boolean): void {
-		this._expanded = true;
-		this.onDidChangeEmitter.fire();
+	pubwic setExpanded(expanded: boowean): void {
+		this._expanded = twue;
+		this.onDidChangeEmitta.fiwe();
 	}
 }

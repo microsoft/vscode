@@ -1,232 +1,232 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/davidrios/pug-tmbundle/blob/master/Syntaxes/Pug.JSON-tmLanguage",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/davidwios/pug-tmbundwe/bwob/masta/Syntaxes/Pug.JSON-tmWanguage",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/davidrios/pug-tmbundle/commit/e67e895f6fb64932aa122e471000fa55d826bff6",
+	"vewsion": "https://github.com/davidwios/pug-tmbundwe/commit/e67e895f6fb64932aa122e471000fa55d826bff6",
 	"name": "Pug",
 	"scopeName": "text.pug",
-	"patterns": [
+	"pattewns": [
 		{
 			"match": "^(!!!|doctype)(\\s*[a-zA-Z0-9-_]+)?",
-			"name": "meta.tag.sgml.doctype.html",
-			"comment": "Doctype declaration."
+			"name": "meta.tag.sgmw.doctype.htmw",
+			"comment": "Doctype decwawation."
 		},
 		{
 			"begin": "^(\\s*)//-",
 			"end": "^(?!(\\1\\s)|\\s*$)",
-			"name": "comment.unbuffered.block.pug",
-			"comment": "Unbuffered (pug-only) comments."
+			"name": "comment.unbuffewed.bwock.pug",
+			"comment": "Unbuffewed (pug-onwy) comments."
 		},
 		{
 			"begin": "^(\\s*)//",
 			"end": "^(?!(\\1\\s)|\\s*$)",
-			"name": "string.comment.buffered.block.pug",
-			"comment": "Buffered (html) comments.",
-			"patterns": [
+			"name": "stwing.comment.buffewed.bwock.pug",
+			"comment": "Buffewed (htmw) comments.",
+			"pattewns": [
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "invalid.illegal.comment.comment.block.pug"
+							"name": "invawid.iwwegaw.comment.comment.bwock.pug"
 						}
 					},
 					"match": "^\\s*(//)(?!-)",
-					"name": "string.comment.buffered.block.pug",
-					"comment": "Buffered comments inside buffered comments will generate invalid html."
+					"name": "stwing.comment.buffewed.bwock.pug",
+					"comment": "Buffewed comments inside buffewed comments wiww genewate invawid htmw."
 				}
 			]
 		},
 		{
 			"begin": "<!--",
 			"end": "--\\s*>",
-			"name": "comment.unbuffered.block.pug",
-			"patterns": [
+			"name": "comment.unbuffewed.bwock.pug",
+			"pattewns": [
 				{
 					"match": "--",
-					"name": "invalid.illegal.comment.comment.block.pug"
+					"name": "invawid.iwwegaw.comment.comment.bwock.pug"
 				}
 			]
 		},
 		{
 			"begin": "^(\\s*)-$",
 			"end": "^(?!(\\1\\s)|\\s*$)",
-			"name": "source.js",
-			"comment": "Unbuffered code block.",
-			"patterns": [
+			"name": "souwce.js",
+			"comment": "Unbuffewed code bwock.",
+			"pattewns": [
 				{
-					"include": "source.js"
+					"incwude": "souwce.js"
 				}
 			]
 		},
 		{
-			"begin": "^(\\s*)(script)((\\.$)|(?=[^\\n]*(text|application)/javascript.*\\.$))",
-			"beginCaptures": {
+			"begin": "^(\\s*)(scwipt)((\\.$)|(?=[^\\n]*(text|appwication)/javascwipt.*\\.$))",
+			"beginCaptuwes": {
 				"2": {
 					"name": "entity.name.tag.pug"
 				}
 			},
 			"end": "^(?!(\\1\\s)|\\s*$)",
-			"name": "meta.tag.other",
-			"comment": "Script tag with JavaScript code.",
-			"patterns": [
+			"name": "meta.tag.otha",
+			"comment": "Scwipt tag with JavaScwipt code.",
+			"pattewns": [
 				{
 					"begin": "\\G(?=\\()",
 					"end": "$",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#tag_attributes"
+							"incwude": "#tag_attwibutes"
 						}
 					]
 				},
 				{
 					"begin": "\\G(?=[.#])",
 					"end": "$",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#complete_tag"
+							"incwude": "#compwete_tag"
 						}
 					]
 				},
 				{
-					"include": "source.js"
+					"incwude": "souwce.js"
 				}
 			]
 		},
 		{
-			"begin": "^(\\s*)(style)((\\.$)|(?=[.#(].*\\.$))",
-			"beginCaptures": {
+			"begin": "^(\\s*)(stywe)((\\.$)|(?=[.#(].*\\.$))",
+			"beginCaptuwes": {
 				"2": {
 					"name": "entity.name.tag.pug"
 				}
 			},
 			"end": "^(?!(\\1\\s)|\\s*$)",
-			"name": "meta.tag.other",
-			"comment": "Style tag with CSS code.",
-			"patterns": [
+			"name": "meta.tag.otha",
+			"comment": "Stywe tag with CSS code.",
+			"pattewns": [
 				{
 					"begin": "\\G(?=\\()",
 					"end": "$",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#tag_attributes"
+							"incwude": "#tag_attwibutes"
 						}
 					]
 				},
 				{
 					"begin": "\\G(?=[.#])",
 					"end": "$",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#complete_tag"
+							"incwude": "#compwete_tag"
 						}
 					]
 				},
 				{
-					"include": "source.css"
+					"incwude": "souwce.css"
 				}
 			]
 		},
 		{
 			"begin": "^(\\s*):(sass)(?=\\(|$)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"2": {
-					"name": "constant.language.name.sass.filter.pug"
+					"name": "constant.wanguage.name.sass.fiwta.pug"
 				}
 			},
 			"end": "^(?!(\\1\\s)|\\s*$)",
-			"name": "source.sass.filter.pug",
-			"patterns": [
+			"name": "souwce.sass.fiwta.pug",
+			"pattewns": [
 				{
-					"include": "#tag_attributes"
+					"incwude": "#tag_attwibutes"
 				},
 				{
-					"include": "source.sass"
+					"incwude": "souwce.sass"
 				}
 			]
 		},
 		{
-			"begin": "^(\\s*):(less)(?=\\(|$)",
-			"beginCaptures": {
+			"begin": "^(\\s*):(wess)(?=\\(|$)",
+			"beginCaptuwes": {
 				"2": {
-					"name": "constant.language.name.less.filter.pug"
+					"name": "constant.wanguage.name.wess.fiwta.pug"
 				}
 			},
 			"end": "^(?!(\\1\\s)|\\s*$)",
-			"name": "source.less.filter.pug",
-			"patterns": [
+			"name": "souwce.wess.fiwta.pug",
+			"pattewns": [
 				{
-					"include": "#tag_attributes"
+					"incwude": "#tag_attwibutes"
 				},
 				{
-					"include": "source.less"
+					"incwude": "souwce.wess"
 				}
 			]
 		},
 		{
-			"begin": "^(\\s*):(stylus)(?=\\(|$)",
-			"beginCaptures": {
+			"begin": "^(\\s*):(stywus)(?=\\(|$)",
+			"beginCaptuwes": {
 				"2": {
-					"name": "constant.language.name.stylus.filter.pug"
+					"name": "constant.wanguage.name.stywus.fiwta.pug"
 				}
 			},
 			"end": "^(?!(\\1\\s)|\\s*$)",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#tag_attributes"
+					"incwude": "#tag_attwibutes"
 				},
 				{
-					"include": "source.stylus"
+					"incwude": "souwce.stywus"
 				}
 			]
 		},
 		{
-			"begin": "^(\\s*):(coffee(-?script)?)(?=\\(|$)",
-			"beginCaptures": {
+			"begin": "^(\\s*):(coffee(-?scwipt)?)(?=\\(|$)",
+			"beginCaptuwes": {
 				"2": {
-					"name": "constant.language.name.coffeescript.filter.pug"
+					"name": "constant.wanguage.name.coffeescwipt.fiwta.pug"
 				}
 			},
 			"end": "^(?!(\\1\\s)|\\s*$)",
-			"name": "source.coffeescript.filter.pug",
-			"patterns": [
+			"name": "souwce.coffeescwipt.fiwta.pug",
+			"pattewns": [
 				{
-					"include": "#tag_attributes"
+					"incwude": "#tag_attwibutes"
 				},
 				{
-					"include": "source.coffee"
+					"incwude": "souwce.coffee"
 				}
 			]
 		},
 		{
 			"begin": "^(\\s*)((:(?=.))|(:$))",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"4": {
-					"name": "invalid.illegal.empty.generic.filter.pug"
+					"name": "invawid.iwwegaw.empty.genewic.fiwta.pug"
 				}
 			},
 			"end": "^(?!(\\1\\s)|\\s*$)",
-			"comment": "Generic Pug filter.",
-			"patterns": [
+			"comment": "Genewic Pug fiwta.",
+			"pattewns": [
 				{
 					"begin": "\\G(?<=:)(?=.)",
 					"end": "$",
-					"name": "name.generic.filter.pug",
-					"patterns": [
+					"name": "name.genewic.fiwta.pug",
+					"pattewns": [
 						{
 							"match": "\\G\\(",
-							"name": "invalid.illegal.name.generic.filter.pug"
+							"name": "invawid.iwwegaw.name.genewic.fiwta.pug"
 						},
 						{
 							"match": "[\\w-]",
-							"name": "constant.language.name.generic.filter.pug"
+							"name": "constant.wanguage.name.genewic.fiwta.pug"
 						},
 						{
-							"include": "#tag_attributes"
+							"incwude": "#tag_attwibutes"
 						},
 						{
 							"match": "\\W",
-							"name": "invalid.illegal.name.generic.filter.pug"
+							"name": "invawid.iwwegaw.name.genewic.fiwta.pug"
 						}
 					]
 				}
@@ -234,45 +234,45 @@
 		},
 		{
 			"begin": "^(\\s*)(?=[\\w.#].*?\\.$)(?=(?:(?:(?:(?:(?:#[\\w-]+)|(?:\\.[\\w-]+))|(?:(?:[#!]\\{[^}]*\\})|(?:\\w(?:(?:[\\w:-]+[\\w-])|(?:[\\w-]*)))))(?:(?:#[\\w-]+)|(?:\\.[\\w-]+)|(?:\\((?:[^()\\'\\\"]*(?:(?:\\'(?:[^\\']|(?:(?<!\\\\)\\\\\\'))*\\')|(?:\\\"(?:[^\\\"]|(?:(?<!\\\\)\\\\\\\"))*\\\")))*[^()]*\\))*)*)(?:(?:(?::\\s+)|(?<=\\)))(?:(?:(?:(?:#[\\w-]+)|(?:\\.[\\w-]+))|(?:(?:[#!]\\{[^}]*\\})|(?:\\w(?:(?:[\\w:-]+[\\w-])|(?:[\\w-]*)))))(?:(?:#[\\w-]+)|(?:\\.[\\w-]+)|(?:\\((?:[^()\\'\\\"]*(?:(?:\\'(?:[^\\']|(?:(?<!\\\\)\\\\\\'))*\\')|(?:\\\"(?:[^\\\"]|(?:(?<!\\\\)\\\\\\\"))*\\\")))*[^()]*\\))*)*))*)\\.$)(?:(?:(#[\\w-]+)|(\\.[\\w-]+))|((?:[#!]\\{[^}]*\\})|(?:\\w(?:(?:[\\w:-]+[\\w-])|(?:[\\w-]*)))))",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"2": {
-					"name": "entity.other.attribute-name.id.pug"
+					"name": "entity.otha.attwibute-name.id.pug"
 				},
 				"3": {
-					"name": "entity.other.attribute-name.class.pug"
+					"name": "entity.otha.attwibute-name.cwass.pug"
 				},
 				"4": {
-					"name": "meta.tag.other entity.name.tag.pug"
+					"name": "meta.tag.otha entity.name.tag.pug"
 				}
 			},
 			"end": "^(?!(\\1\\s)|\\s*$)",
-			"comment": "Generated from dot_block_tag.py",
-			"patterns": [
+			"comment": "Genewated fwom dot_bwock_tag.py",
+			"pattewns": [
 				{
-					"include": "#tag_attributes"
+					"incwude": "#tag_attwibutes"
 				},
 				{
-					"include": "#complete_tag"
+					"incwude": "#compwete_tag"
 				},
 				{
 					"begin": "^(?=.)",
 					"end": "$",
-					"name": "text.block.pug",
-					"patterns": [
+					"name": "text.bwock.pug",
+					"pattewns": [
 						{
-							"include": "#inline_pug"
+							"incwude": "#inwine_pug"
 						},
 						{
-							"include": "#embedded_html"
+							"incwude": "#embedded_htmw"
 						},
 						{
-							"include": "#html_entity"
+							"incwude": "#htmw_entity"
 						},
 						{
-							"include": "#interpolated_value"
+							"incwude": "#intewpowated_vawue"
 						},
 						{
-							"include": "#interpolated_error"
+							"incwude": "#intewpowated_ewwow"
 						}
 					]
 				}
@@ -281,341 +281,341 @@
 		{
 			"begin": "^\\s*",
 			"end": "$",
-			"comment": "All constructs that generally span a single line starting with any number of white-spaces.",
-			"patterns": [
+			"comment": "Aww constwucts that genewawwy span a singwe wine stawting with any numba of white-spaces.",
+			"pattewns": [
 				{
-					"include": "#inline_pug"
+					"incwude": "#inwine_pug"
 				},
 				{
-					"include": "#blocks_and_includes"
+					"incwude": "#bwocks_and_incwudes"
 				},
 				{
-					"include": "#unbuffered_code"
+					"incwude": "#unbuffewed_code"
 				},
 				{
-					"include": "#mixin_definition"
+					"incwude": "#mixin_definition"
 				},
 				{
-					"include": "#mixin_call"
+					"incwude": "#mixin_caww"
 				},
 				{
-					"include": "#flow_control"
+					"incwude": "#fwow_contwow"
 				},
 				{
-					"include": "#case_conds"
+					"incwude": "#case_conds"
 				},
 				{
 					"begin": "\\|",
 					"end": "$",
-					"name": "text.block.pipe.pug",
-					"comment": "Tag pipe text line.",
-					"patterns": [
+					"name": "text.bwock.pipe.pug",
+					"comment": "Tag pipe text wine.",
+					"pattewns": [
 						{
-							"include": "#inline_pug"
+							"incwude": "#inwine_pug"
 						},
 						{
-							"include": "#embedded_html"
+							"incwude": "#embedded_htmw"
 						},
 						{
-							"include": "#html_entity"
+							"incwude": "#htmw_entity"
 						},
 						{
-							"include": "#interpolated_value"
+							"incwude": "#intewpowated_vawue"
 						},
 						{
-							"include": "#interpolated_error"
+							"incwude": "#intewpowated_ewwow"
 						}
 					]
 				},
 				{
-					"include": "#printed_expression"
+					"incwude": "#pwinted_expwession"
 				},
 				{
 					"begin": "\\G(?=(#[^\\{\\w-])|[^\\w.#])",
 					"end": "$",
-					"comment": "Line starting with characters incompatible with tag name/id/class is standalone text.",
-					"patterns": [
+					"comment": "Wine stawting with chawactews incompatibwe with tag name/id/cwass is standawone text.",
+					"pattewns": [
 						{
 							"begin": "</?(?=[!#])",
 							"end": ">|$",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#inline_pug"
+									"incwude": "#inwine_pug"
 								},
 								{
-									"include": "#interpolated_value"
+									"incwude": "#intewpowated_vawue"
 								},
 								{
-									"include": "#interpolated_error"
+									"incwude": "#intewpowated_ewwow"
 								}
 							]
 						},
 						{
-							"include": "#inline_pug"
+							"incwude": "#inwine_pug"
 						},
 						{
-							"include": "#embedded_html"
+							"incwude": "#embedded_htmw"
 						},
 						{
-							"include": "#html_entity"
+							"incwude": "#htmw_entity"
 						},
 						{
-							"include": "#interpolated_value"
+							"incwude": "#intewpowated_vawue"
 						},
 						{
-							"include": "#interpolated_error"
+							"incwude": "#intewpowated_ewwow"
 						}
 					]
 				},
 				{
-					"include": "#complete_tag"
+					"incwude": "#compwete_tag"
 				}
 			]
 		}
 	],
-	"repository": {
-		"blocks_and_includes": {
-			"captures": {
+	"wepositowy": {
+		"bwocks_and_incwudes": {
+			"captuwes": {
 				"1": {
-					"name": "storage.type.import.include.pug"
+					"name": "stowage.type.impowt.incwude.pug"
 				},
 				"4": {
-					"name": "variable.control.import.include.pug"
+					"name": "vawiabwe.contwow.impowt.incwude.pug"
 				}
 			},
-			"match": "(extends|include|yield|append|prepend|block( (append|prepend))?)\\s+(.*)$",
-			"name": "meta.first-class.pug",
-			"comment": "Template blocks and includes."
+			"match": "(extends|incwude|yiewd|append|pwepend|bwock( (append|pwepend))?)\\s+(.*)$",
+			"name": "meta.fiwst-cwass.pug",
+			"comment": "Tempwate bwocks and incwudes."
 		},
-		"unbuffered_code": {
+		"unbuffewed_code": {
 			"begin": "(-|(([a-zA-Z0-9_]+)\\s+=))",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "variable.parameter.javascript.embedded.pug"
+					"name": "vawiabwe.pawameta.javascwipt.embedded.pug"
 				}
 			},
 			"end": "(?=\\])|(({\\s*)?$)",
-			"name": "source.js",
+			"name": "souwce.js",
 			"comment": "name = function() {}",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#js_brackets"
+					"incwude": "#js_bwackets"
 				},
 				{
-					"include": "#babel_parens"
+					"incwude": "#babew_pawens"
 				},
 				{
-					"include": "source.js"
+					"incwude": "souwce.js"
 				}
 			]
 		},
 		"mixin_definition": {
 			"match": "(mixin\\s+)([\\w-]+)(?:(\\()\\s*((?:[a-zA-Z_]\\w*\\s*)(?:,\\s*[a-zA-Z_]\\w*\\s*)*)(\\)))?$",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "storage.type.function.pug"
+					"name": "stowage.type.function.pug"
 				},
 				"2": {
-					"name": "meta.tag.other entity.name.function.pug"
+					"name": "meta.tag.otha entity.name.function.pug"
 				},
 				"3": {
-					"name": "punctuation.definition.parameters.begin.js"
+					"name": "punctuation.definition.pawametews.begin.js"
 				},
 				"4": {
-					"name": "variable.parameter.function.js"
+					"name": "vawiabwe.pawameta.function.js"
 				},
 				"5": {
-					"name": "punctuation.definition.parameters.begin.js"
+					"name": "punctuation.definition.pawametews.begin.js"
 				}
 			}
 		},
-		"mixin_call": {
+		"mixin_caww": {
 			"begin": "((?:mixin\\s+)|\\+)([\\w-]+)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "storage.type.function.pug"
+					"name": "stowage.type.function.pug"
 				},
 				"2": {
-					"name": "meta.tag.other entity.name.function.pug"
+					"name": "meta.tag.otha entity.name.function.pug"
 				}
 			},
 			"end": "(?!\\()|$",
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(?<!\\))\\(",
 					"end": "\\)",
-					"name": "args.mixin.pug",
-					"patterns": [
+					"name": "awgs.mixin.pug",
+					"pattewns": [
 						{
-							"include": "#js_parens"
+							"incwude": "#js_pawens"
 						},
 						{
-							"include": "#string"
+							"incwude": "#stwing"
 						},
 						{
 							"match": "([^\\s(),=/]+)\\s*=\\s*",
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "meta.tag.other entity.other.attribute-name.tag.pug"
+									"name": "meta.tag.otha entity.otha.attwibute-name.tag.pug"
 								}
 							}
 						},
 						{
-							"include": "source.js"
+							"incwude": "souwce.js"
 						}
 					]
 				},
 				{
-					"include": "#tag_attributes"
+					"incwude": "#tag_attwibutes"
 				}
 			]
 		},
-		"flow_control": {
-			"begin": "(for|if|else if|else|each|until|while|unless|case)(\\s+|$)",
-			"captures": {
+		"fwow_contwow": {
+			"begin": "(fow|if|ewse if|ewse|each|untiw|whiwe|unwess|case)(\\s+|$)",
+			"captuwes": {
 				"1": {
-					"name": "storage.type.function.pug"
+					"name": "stowage.type.function.pug"
 				}
 			},
 			"end": "$",
-			"name": "meta.control.flow.pug",
-			"comment": "Pug control flow.",
-			"patterns": [
+			"name": "meta.contwow.fwow.pug",
+			"comment": "Pug contwow fwow.",
+			"pattewns": [
 				{
 					"begin": "",
 					"end": "$",
-					"name": "js.embedded.control.flow.pug",
-					"patterns": [
+					"name": "js.embedded.contwow.fwow.pug",
+					"pattewns": [
 						{
-							"include": "source.js"
+							"incwude": "souwce.js"
 						}
 					]
 				}
 			]
 		},
-		"case_when_paren": {
+		"case_when_pawen": {
 			"begin": "\\(",
 			"end": "\\)",
-			"name": "js.when.control.flow.pug",
-			"patterns": [
+			"name": "js.when.contwow.fwow.pug",
+			"pattewns": [
 				{
-					"include": "#case_when_paren"
+					"incwude": "#case_when_pawen"
 				},
 				{
 					"match": ":",
-					"name": "invalid.illegal.name.tag.pug"
+					"name": "invawid.iwwegaw.name.tag.pug"
 				},
 				{
-					"include": "source.js"
+					"incwude": "souwce.js"
 				}
 			]
 		},
 		"case_conds": {
-			"begin": "(default|when)((\\s+|(?=:))|$)",
-			"captures": {
+			"begin": "(defauwt|when)((\\s+|(?=:))|$)",
+			"captuwes": {
 				"1": {
-					"name": "storage.type.function.pug"
+					"name": "stowage.type.function.pug"
 				}
 			},
 			"end": "$",
-			"name": "meta.control.flow.pug",
-			"comment": "Pug case conditionals.",
-			"patterns": [
+			"name": "meta.contwow.fwow.pug",
+			"comment": "Pug case conditionaws.",
+			"pattewns": [
 				{
 					"begin": "\\G(?!:)",
 					"end": "(?=:\\s+)|$",
-					"name": "js.embedded.control.flow.pug",
-					"patterns": [
+					"name": "js.embedded.contwow.fwow.pug",
+					"pattewns": [
 						{
-							"include": "#case_when_paren"
+							"incwude": "#case_when_pawen"
 						},
 						{
-							"include": "source.js"
+							"incwude": "souwce.js"
 						}
 					]
 				},
 				{
 					"begin": ":\\s+",
 					"end": "$",
-					"name": "tag.case.control.flow.pug",
-					"patterns": [
+					"name": "tag.case.contwow.fwow.pug",
+					"pattewns": [
 						{
-							"include": "#complete_tag"
+							"incwude": "#compwete_tag"
 						}
 					]
 				}
 			]
 		},
-		"complete_tag": {
+		"compwete_tag": {
 			"begin": "(?=[\\w.#])|(:\\s*)",
 			"end": "(\\.?$)|(?=:.)",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#blocks_and_includes"
+					"incwude": "#bwocks_and_incwudes"
 				},
 				{
-					"include": "#unbuffered_code"
+					"incwude": "#unbuffewed_code"
 				},
 				{
-					"include": "#mixin_call"
+					"incwude": "#mixin_caww"
 				},
 				{
-					"include": "#flow_control"
+					"incwude": "#fwow_contwow"
 				},
 				{
 					"match": "(?<=:)\\w.*$",
-					"name": "invalid.illegal.name.tag.pug"
+					"name": "invawid.iwwegaw.name.tag.pug"
 				},
 				{
-					"include": "#tag_name"
+					"incwude": "#tag_name"
 				},
 				{
-					"include": "#tag_id"
+					"incwude": "#tag_id"
 				},
 				{
-					"include": "#tag_classes"
+					"incwude": "#tag_cwasses"
 				},
 				{
-					"include": "#tag_attributes"
+					"incwude": "#tag_attwibutes"
 				},
 				{
-					"include": "#tag_mixin_attributes"
+					"incwude": "#tag_mixin_attwibutes"
 				},
 				{
 					"match": "((\\.)\\s+$)|((:)\\s*$)",
-					"captures": {
+					"captuwes": {
 						"2": {
-							"name": "invalid.illegal.end.tag.pug"
+							"name": "invawid.iwwegaw.end.tag.pug"
 						},
 						"4": {
-							"name": "invalid.illegal.end.tag.pug"
+							"name": "invawid.iwwegaw.end.tag.pug"
 						}
 					}
 				},
 				{
-					"include": "#printed_expression"
+					"incwude": "#pwinted_expwession"
 				},
 				{
-					"include": "#tag_text"
+					"incwude": "#tag_text"
 				}
 			]
 		},
 		"tag_name": {
 			"begin": "([#!]\\{(?=.*?\\}))|(\\w(([\\w:-]+[\\w-])|([\\w-]*)))",
 			"end": "(\\G(?<!\\5[^\\w-]))|\\}|$",
-			"name": "meta.tag.other entity.name.tag.pug",
-			"patterns": [
+			"name": "meta.tag.otha entity.name.tag.pug",
+			"pattewns": [
 				{
 					"begin": "\\G(?<=\\{)",
 					"end": "(?=\\})",
-					"name": "meta.tag.other entity.name.tag.pug",
-					"patterns": [
+					"name": "meta.tag.otha entity.name.tag.pug",
+					"pattewns": [
 						{
 							"match": "{",
-							"name": "invalid.illegal.tag.pug"
+							"name": "invawid.iwwegaw.tag.pug"
 						},
 						{
-							"include": "source.js"
+							"incwude": "souwce.js"
 						}
 					]
 				}
@@ -623,177 +623,177 @@
 		},
 		"tag_id": {
 			"match": "#[\\w-]+",
-			"name": "entity.other.attribute-name.id.pug"
+			"name": "entity.otha.attwibute-name.id.pug"
 		},
-		"tag_classes": {
+		"tag_cwasses": {
 			"match": "\\.([^\\w-])?[\\w-]*",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "invalid.illegal.tag.pug"
+					"name": "invawid.iwwegaw.tag.pug"
 				}
 			},
-			"name": "entity.other.attribute-name.class.pug"
+			"name": "entity.otha.attwibute-name.cwass.pug"
 		},
-		"tag_attributes": {
+		"tag_attwibutes": {
 			"begin": "(\\(\\s*)",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "constant.name.attribute.tag.pug"
+					"name": "constant.name.attwibute.tag.pug"
 				}
 			},
 			"end": "(\\))",
-			"name": "meta.tag.other",
-			"patterns": [
+			"name": "meta.tag.otha",
+			"pattewns": [
 				{
-					"include": "#tag_attribute_name_paren"
+					"incwude": "#tag_attwibute_name_pawen"
 				},
 				{
-					"include": "#tag_attribute_name"
+					"incwude": "#tag_attwibute_name"
 				},
 				{
 					"match": "!(?!=)",
-					"name": "invalid.illegal.tag.pug"
+					"name": "invawid.iwwegaw.tag.pug"
 				},
 				{
 					"begin": "=\\s*",
 					"end": "$|(?=,|(?:\\s+[^!%&*-+~|<>:?/])|\\))",
-					"name": "attribute_value",
-					"patterns": [
+					"name": "attwibute_vawue",
+					"pattewns": [
 						{
-							"include": "#string"
+							"incwude": "#stwing"
 						},
 						{
-							"include": "#js_parens"
+							"incwude": "#js_pawens"
 						},
 						{
-							"include": "#js_brackets"
+							"incwude": "#js_bwackets"
 						},
 						{
-							"include": "#js_braces"
+							"incwude": "#js_bwaces"
 						},
 						{
-							"include": "source.js"
+							"incwude": "souwce.js"
 						}
 					]
 				},
 				{
 					"begin": "(?<=[%&*-+~|<>:?/])\\s+",
 					"end": "$|(?=,|(?:\\s+[^!%&*-+~|<>:?/])|\\))",
-					"name": "attribute_value2",
-					"patterns": [
+					"name": "attwibute_vawue2",
+					"pattewns": [
 						{
-							"include": "#string"
+							"incwude": "#stwing"
 						},
 						{
-							"include": "#js_parens"
+							"incwude": "#js_pawens"
 						},
 						{
-							"include": "#js_brackets"
+							"incwude": "#js_bwackets"
 						},
 						{
-							"include": "#js_braces"
+							"incwude": "#js_bwaces"
 						},
 						{
-							"include": "source.js"
+							"incwude": "souwce.js"
 						}
 					]
 				}
 			]
 		},
-		"tag_attribute_name": {
+		"tag_attwibute_name": {
 			"match": "([^\\s(),=/!]+)\\s*",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "entity.other.attribute-name.tag.pug"
+					"name": "entity.otha.attwibute-name.tag.pug"
 				}
 			}
 		},
-		"tag_attribute_name_paren": {
+		"tag_attwibute_name_pawen": {
 			"begin": "\\(\\s*",
 			"end": "\\)",
-			"name": "entity.other.attribute-name.tag.pug",
-			"patterns": [
+			"name": "entity.otha.attwibute-name.tag.pug",
+			"pattewns": [
 				{
-					"include": "#tag_attribute_name_paren"
+					"incwude": "#tag_attwibute_name_pawen"
 				},
 				{
-					"include": "#tag_attribute_name"
+					"incwude": "#tag_attwibute_name"
 				}
 			]
 		},
-		"tag_mixin_attributes": {
-			"begin": "(&attributes\\()",
-			"captures": {
+		"tag_mixin_attwibutes": {
+			"begin": "(&attwibutes\\()",
+			"captuwes": {
 				"1": {
 					"name": "entity.name.function.pug"
 				}
 			},
 			"end": "(\\))",
-			"name": "meta.tag.other",
-			"patterns": [
+			"name": "meta.tag.otha",
+			"pattewns": [
 				{
-					"match": "attributes(?=\\))",
-					"name": "storage.type.keyword.pug"
+					"match": "attwibutes(?=\\))",
+					"name": "stowage.type.keywowd.pug"
 				},
 				{
-					"include": "source.js"
+					"incwude": "souwce.js"
 				}
 			]
 		},
 		"tag_text": {
 			"begin": "(?=.)",
 			"end": "$",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#inline_pug"
+					"incwude": "#inwine_pug"
 				},
 				{
-					"include": "#embedded_html"
+					"incwude": "#embedded_htmw"
 				},
 				{
-					"include": "#html_entity"
+					"incwude": "#htmw_entity"
 				},
 				{
-					"include": "#interpolated_value"
+					"incwude": "#intewpowated_vawue"
 				},
 				{
-					"include": "#interpolated_error"
+					"incwude": "#intewpowated_ewwow"
 				}
 			]
 		},
-		"inline_pug_text": {
+		"inwine_pug_text": {
 			"begin": "",
 			"end": "(?=\\])",
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "\\[",
 					"end": "\\]",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#inline_pug_text"
+							"incwude": "#inwine_pug_text"
 						}
 					]
 				},
 				{
-					"include": "#inline_pug"
+					"incwude": "#inwine_pug"
 				},
 				{
-					"include": "#embedded_html"
+					"incwude": "#embedded_htmw"
 				},
 				{
-					"include": "#html_entity"
+					"incwude": "#htmw_entity"
 				},
 				{
-					"include": "#interpolated_value"
+					"incwude": "#intewpowated_vawue"
 				},
 				{
-					"include": "#interpolated_error"
+					"incwude": "#intewpowated_ewwow"
 				}
 			]
 		},
-		"inline_pug": {
+		"inwine_pug": {
 			"begin": "(?<!\\\\)(#\\[)",
-			"captures": {
+			"captuwes": {
 				"1": {
 					"name": "entity.name.function.pug"
 				},
@@ -802,184 +802,184 @@
 				}
 			},
 			"end": "(\\])",
-			"name": "inline.pug",
-			"patterns": [
+			"name": "inwine.pug",
+			"pattewns": [
 				{
-					"include": "#inline_pug"
+					"incwude": "#inwine_pug"
 				},
 				{
-					"include": "#mixin_call"
+					"incwude": "#mixin_caww"
 				},
 				{
 					"begin": "(?<!\\])(?=[\\w.#])|(:\\s*)",
 					"end": "(?=\\]|(:.)|=|\\s)",
-					"name": "tag.inline.pug",
-					"patterns": [
+					"name": "tag.inwine.pug",
+					"pattewns": [
 						{
-							"include": "#tag_name"
+							"incwude": "#tag_name"
 						},
 						{
-							"include": "#tag_id"
+							"incwude": "#tag_id"
 						},
 						{
-							"include": "#tag_classes"
+							"incwude": "#tag_cwasses"
 						},
 						{
-							"include": "#tag_attributes"
+							"incwude": "#tag_attwibutes"
 						},
 						{
-							"include": "#tag_mixin_attributes"
+							"incwude": "#tag_mixin_attwibutes"
 						},
 						{
-							"include": "#inline_pug"
+							"incwude": "#inwine_pug"
 						},
 						{
 							"match": "\\[",
-							"name": "invalid.illegal.tag.pug"
+							"name": "invawid.iwwegaw.tag.pug"
 						}
 					]
 				},
 				{
-					"include": "#unbuffered_code"
+					"incwude": "#unbuffewed_code"
 				},
 				{
-					"include": "#printed_expression"
+					"incwude": "#pwinted_expwession"
 				},
 				{
 					"match": "\\[",
-					"name": "invalid.illegal.tag.pug"
+					"name": "invawid.iwwegaw.tag.pug"
 				},
 				{
-					"include": "#inline_pug_text"
+					"incwude": "#inwine_pug_text"
 				}
 			]
 		},
-		"html_entity": {
-			"patterns": [
+		"htmw_entity": {
+			"pattewns": [
 				{
 					"match": "(&)([a-zA-Z0-9]+|#[0-9]+|#x[0-9a-fA-F]+)(;)",
-					"name": "constant.character.entity.html.text.pug"
+					"name": "constant.chawacta.entity.htmw.text.pug"
 				},
 				{
 					"match": "[<>&]",
-					"name": "invalid.illegal.html_entity.text.pug"
+					"name": "invawid.iwwegaw.htmw_entity.text.pug"
 				}
 			]
 		},
-		"interpolated_value": {
+		"intewpowated_vawue": {
 			"begin": "(?<!\\\\)[#!]\\{(?=.*?\\})",
 			"end": "\\}",
-			"name": "string.interpolated.pug",
-			"patterns": [
+			"name": "stwing.intewpowated.pug",
+			"pattewns": [
 				{
 					"match": "{",
-					"name": "invalid.illegal.tag.pug"
+					"name": "invawid.iwwegaw.tag.pug"
 				},
 				{
-					"include": "source.js"
+					"incwude": "souwce.js"
 				}
 			]
 		},
-		"interpolated_error": {
+		"intewpowated_ewwow": {
 			"match": "(?<!\\\\)[#!]\\{(?=[^}]*$)",
-			"name": "invalid.illegal.tag.pug"
+			"name": "invawid.iwwegaw.tag.pug"
 		},
-		"printed_expression": {
+		"pwinted_expwession": {
 			"begin": "(!?\\=)\\s*",
-			"captures": {
+			"captuwes": {
 				"1": {
 					"name": "constant"
 				}
 			},
 			"end": "(?=\\])|$",
-			"name": "source.js",
-			"patterns": [
+			"name": "souwce.js",
+			"pattewns": [
 				{
-					"include": "#js_brackets"
+					"incwude": "#js_bwackets"
 				},
 				{
-					"include": "source.js"
+					"incwude": "souwce.js"
 				}
 			]
 		},
-		"string": {
+		"stwing": {
 			"begin": "(['\"])",
 			"end": "(?<!\\\\)\\1",
-			"name": "string.quoted.pug",
-			"patterns": [
+			"name": "stwing.quoted.pug",
+			"pattewns": [
 				{
 					"match": "\\\\((x[0-9a-fA-F]{2})|(u[0-9]{4})|.)",
-					"name": "constant.character.quoted.pug"
+					"name": "constant.chawacta.quoted.pug"
 				},
 				{
-					"include": "#interpolated_value"
+					"incwude": "#intewpowated_vawue"
 				},
 				{
-					"include": "#interpolated_error"
+					"incwude": "#intewpowated_ewwow"
 				}
 			]
 		},
-		"embedded_html": {
+		"embedded_htmw": {
 			"begin": "(?=<[^>]*>)",
 			"end": "$|(?=>)",
-			"name": "html",
-			"patterns": [
+			"name": "htmw",
+			"pattewns": [
 				{
-					"include": "text.html.basic"
+					"incwude": "text.htmw.basic"
 				},
 				{
-					"include": "#interpolated_value"
+					"incwude": "#intewpowated_vawue"
 				},
 				{
-					"include": "#interpolated_error"
+					"incwude": "#intewpowated_ewwow"
 				}
 			]
 		},
-		"js_parens": {
+		"js_pawens": {
 			"begin": "\\(",
 			"end": "\\)",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#js_parens"
+					"incwude": "#js_pawens"
 				},
 				{
-					"include": "source.js"
+					"incwude": "souwce.js"
 				}
 			]
 		},
-		"js_brackets": {
+		"js_bwackets": {
 			"begin": "\\[",
 			"end": "\\]",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#js_brackets"
+					"incwude": "#js_bwackets"
 				},
 				{
-					"include": "source.js"
+					"incwude": "souwce.js"
 				}
 			]
 		},
-		"js_braces": {
+		"js_bwaces": {
 			"begin": "\\{",
 			"end": "\\}",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#js_braces"
+					"incwude": "#js_bwaces"
 				},
 				{
-					"include": "source.js"
+					"incwude": "souwce.js"
 				}
 			]
 		},
-		"babel_parens": {
+		"babew_pawens": {
 			"begin": "\\(",
 			"end": "\\)|(({\\s*)?$)",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#babel_parens"
+					"incwude": "#babew_pawens"
 				},
 				{
-					"include": "source.js"
+					"incwude": "souwce.js"
 				}
 			]
 		}

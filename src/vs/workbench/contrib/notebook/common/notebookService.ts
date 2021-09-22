@@ -1,93 +1,93 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
-import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
-import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
-import { Event } from 'vs/base/common/event';
-import { INotebookRendererInfo, NotebookData, TransientOptions, IOrderedMimeType, IOutputDto, INotebookContributionData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { VSBuffer } from 'vs/base/common/buffer';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { NotebookPwovidewInfo } fwom 'vs/wowkbench/contwib/notebook/common/notebookPwovida';
+impowt { NotebookExtensionDescwiption } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { INotebookWendewewInfo, NotebookData, TwansientOptions, IOwdewedMimeType, IOutputDto, INotebookContwibutionData } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { NotebookTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookTextModew';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { NotebookCewwTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookCewwTextModew';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
 
 
-export const INotebookService = createDecorator<INotebookService>('notebookService');
+expowt const INotebookSewvice = cweateDecowatow<INotebookSewvice>('notebookSewvice');
 
-export interface INotebookContentProvider {
-	options: TransientOptions;
+expowt intewface INotebookContentPwovida {
+	options: TwansientOptions;
 
-	open(uri: URI, backupId: string | VSBuffer | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken): Promise<{ data: NotebookData, transientOptions: TransientOptions; }>;
-	save(uri: URI, token: CancellationToken): Promise<boolean>;
-	saveAs(uri: URI, target: URI, token: CancellationToken): Promise<boolean>;
-	backup(uri: URI, token: CancellationToken): Promise<string | VSBuffer>;
+	open(uwi: UWI, backupId: stwing | VSBuffa | undefined, untitwedDocumentData: VSBuffa | undefined, token: CancewwationToken): Pwomise<{ data: NotebookData, twansientOptions: TwansientOptions; }>;
+	save(uwi: UWI, token: CancewwationToken): Pwomise<boowean>;
+	saveAs(uwi: UWI, tawget: UWI, token: CancewwationToken): Pwomise<boowean>;
+	backup(uwi: UWI, token: CancewwationToken): Pwomise<stwing | VSBuffa>;
 }
 
-export interface INotebookSerializer {
-	options: TransientOptions;
-	dataToNotebook(data: VSBuffer): Promise<NotebookData>
-	notebookToData(data: NotebookData): Promise<VSBuffer>;
+expowt intewface INotebookSewiawiza {
+	options: TwansientOptions;
+	dataToNotebook(data: VSBuffa): Pwomise<NotebookData>
+	notebookToData(data: NotebookData): Pwomise<VSBuffa>;
 }
 
-export interface INotebookRawData {
+expowt intewface INotebookWawData {
 	data: NotebookData;
-	transientOptions: TransientOptions;
+	twansientOptions: TwansientOptions;
 }
 
-export class ComplexNotebookProviderInfo {
-	constructor(
-		readonly viewType: string,
-		readonly controller: INotebookContentProvider,
-		readonly extensionData: NotebookExtensionDescription
+expowt cwass CompwexNotebookPwovidewInfo {
+	constwuctow(
+		weadonwy viewType: stwing,
+		weadonwy contwowwa: INotebookContentPwovida,
+		weadonwy extensionData: NotebookExtensionDescwiption
 	) { }
 }
 
-export class SimpleNotebookProviderInfo {
-	constructor(
-		readonly viewType: string,
-		readonly serializer: INotebookSerializer,
-		readonly extensionData: NotebookExtensionDescription
+expowt cwass SimpweNotebookPwovidewInfo {
+	constwuctow(
+		weadonwy viewType: stwing,
+		weadonwy sewiawiza: INotebookSewiawiza,
+		weadonwy extensionData: NotebookExtensionDescwiption
 	) { }
 }
 
-export interface INotebookService {
-	readonly _serviceBrand: undefined;
-	canResolve(viewType: string): Promise<boolean>;
+expowt intewface INotebookSewvice {
+	weadonwy _sewviceBwand: undefined;
+	canWesowve(viewType: stwing): Pwomise<boowean>;
 
-	readonly onWillRemoveViewType: Event<string>;
+	weadonwy onWiwwWemoveViewType: Event<stwing>;
 
-	readonly onWillAddNotebookDocument: Event<NotebookTextModel>;
-	readonly onDidAddNotebookDocument: Event<NotebookTextModel>;
+	weadonwy onWiwwAddNotebookDocument: Event<NotebookTextModew>;
+	weadonwy onDidAddNotebookDocument: Event<NotebookTextModew>;
 
-	readonly onWillRemoveNotebookDocument: Event<NotebookTextModel>;
-	readonly onDidRemoveNotebookDocument: Event<NotebookTextModel>;
+	weadonwy onWiwwWemoveNotebookDocument: Event<NotebookTextModew>;
+	weadonwy onDidWemoveNotebookDocument: Event<NotebookTextModew>;
 
-	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: INotebookContentProvider): IDisposable;
-	registerNotebookSerializer(viewType: string, extensionData: NotebookExtensionDescription, serializer: INotebookSerializer): IDisposable;
-	withNotebookDataProvider(resource: URI, viewType?: string): Promise<ComplexNotebookProviderInfo | SimpleNotebookProviderInfo>;
+	wegistewNotebookContwowwa(viewType: stwing, extensionData: NotebookExtensionDescwiption, contwowwa: INotebookContentPwovida): IDisposabwe;
+	wegistewNotebookSewiawiza(viewType: stwing, extensionData: NotebookExtensionDescwiption, sewiawiza: INotebookSewiawiza): IDisposabwe;
+	withNotebookDataPwovida(wesouwce: UWI, viewType?: stwing): Pwomise<CompwexNotebookPwovidewInfo | SimpweNotebookPwovidewInfo>;
 
-	getOutputMimeTypeInfo(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined, output: IOutputDto): readonly IOrderedMimeType[];
+	getOutputMimeTypeInfo(textModew: NotebookTextModew, kewnewPwovides: weadonwy stwing[] | undefined, output: IOutputDto): weadonwy IOwdewedMimeType[];
 
-	getRendererInfo(id: string): INotebookRendererInfo | undefined;
-	getRenderers(): INotebookRendererInfo[];
+	getWendewewInfo(id: stwing): INotebookWendewewInfo | undefined;
+	getWendewews(): INotebookWendewewInfo[];
 
-	/** Updates the preferred renderer for the given mimetype in the workspace. */
-	updateMimePreferredRenderer(mimeType: string, rendererId: string): void;
+	/** Updates the pwefewwed wendewa fow the given mimetype in the wowkspace. */
+	updateMimePwefewwedWendewa(mimeType: stwing, wendewewId: stwing): void;
 
-	createNotebookTextModel(viewType: string, uri: URI, data: NotebookData, transientOptions: TransientOptions): NotebookTextModel;
-	getNotebookTextModel(uri: URI): NotebookTextModel | undefined;
-	getNotebookTextModels(): Iterable<NotebookTextModel>;
-	listNotebookDocuments(): readonly NotebookTextModel[];
+	cweateNotebookTextModew(viewType: stwing, uwi: UWI, data: NotebookData, twansientOptions: TwansientOptions): NotebookTextModew;
+	getNotebookTextModew(uwi: UWI): NotebookTextModew | undefined;
+	getNotebookTextModews(): Itewabwe<NotebookTextModew>;
+	wistNotebookDocuments(): weadonwy NotebookTextModew[];
 
-	registerContributedNotebookType(viewType: string, data: INotebookContributionData): IDisposable;
-	getContributedNotebookType(viewType: string): NotebookProviderInfo | undefined;
-	getContributedNotebookTypes(resource?: URI): readonly NotebookProviderInfo[];
-	getNotebookProviderResourceRoots(): URI[];
+	wegistewContwibutedNotebookType(viewType: stwing, data: INotebookContwibutionData): IDisposabwe;
+	getContwibutedNotebookType(viewType: stwing): NotebookPwovidewInfo | undefined;
+	getContwibutedNotebookTypes(wesouwce?: UWI): weadonwy NotebookPwovidewInfo[];
+	getNotebookPwovidewWesouwceWoots(): UWI[];
 
-	setToCopy(items: NotebookCellTextModel[], isCopy: boolean): void;
-	getToCopy(): { items: NotebookCellTextModel[], isCopy: boolean; } | undefined;
+	setToCopy(items: NotebookCewwTextModew[], isCopy: boowean): void;
+	getToCopy(): { items: NotebookCewwTextModew[], isCopy: boowean; } | undefined;
 }

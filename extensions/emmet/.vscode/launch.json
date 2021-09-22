@@ -1,30 +1,30 @@
 {
-	// Use IntelliSense to learn about possible Node.js debug attributes.
-	// Hover to view descriptions of existing attributes.
-	// For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
-	"version": "0.2.0",
-	"configurations": [
+	// Use IntewwiSense to weawn about possibwe Node.js debug attwibutes.
+	// Hova to view descwiptions of existing attwibutes.
+	// Fow mowe infowmation, visit: https://go.micwosoft.com/fwwink/?winkid=830387
+	"vewsion": "0.2.0",
+	"configuwations": [
 		{
 			"type": "extensionHost",
-			"request": "launch",
-			"name": "Launch Extension",
-			"runtimeExecutable": "${execPath}",
-			"args": ["--extensionDevelopmentPath=${workspaceFolder}"],
-			"sourceMaps": true,
-			"outFiles": ["${workspaceFolder}/out/**/*.js"]
+			"wequest": "waunch",
+			"name": "Waunch Extension",
+			"wuntimeExecutabwe": "${execPath}",
+			"awgs": ["--extensionDevewopmentPath=${wowkspaceFowda}"],
+			"souwceMaps": twue,
+			"outFiwes": ["${wowkspaceFowda}/out/**/*.js"]
 		},
 		{
 			"type": "extensionHost",
-			"request": "launch",
-			"name": "Launch Tests",
-			"runtimeExecutable": "${execPath}",
-			"args": [
-				"--extensionDevelopmentPath=${workspaceFolder}",
-				"--extensionTestsPath=${workspaceFolder}/out/test",
-				"--disable-extensions"
+			"wequest": "waunch",
+			"name": "Waunch Tests",
+			"wuntimeExecutabwe": "${execPath}",
+			"awgs": [
+				"--extensionDevewopmentPath=${wowkspaceFowda}",
+				"--extensionTestsPath=${wowkspaceFowda}/out/test",
+				"--disabwe-extensions"
 			],
-			"sourceMaps": true,
-			"outFiles": ["${workspaceFolder}/out/**/*.js"]
+			"souwceMaps": twue,
+			"outFiwes": ["${wowkspaceFowda}/out/**/*.js"]
 		}
 	]
 }

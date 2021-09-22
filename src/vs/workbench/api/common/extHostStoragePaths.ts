@@ -1,95 +1,95 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IEnvironment, IStaticWorkspaceData } from 'vs/workbench/api/common/extHost.protocol';
-import { IExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
-import { URI } from 'vs/base/common/uri';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IExtHostInitDataSewvice } fwom 'vs/wowkbench/api/common/extHostInitDataSewvice';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IEnviwonment, IStaticWowkspaceData } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { IExtHostConsumewFiweSystem } fwom 'vs/wowkbench/api/common/extHostFiweSystemConsuma';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-export const IExtensionStoragePaths = createDecorator<IExtensionStoragePaths>('IExtensionStoragePaths');
+expowt const IExtensionStowagePaths = cweateDecowatow<IExtensionStowagePaths>('IExtensionStowagePaths');
 
-export interface IExtensionStoragePaths {
-	readonly _serviceBrand: undefined;
-	whenReady: Promise<any>;
-	workspaceValue(extension: IExtensionDescription): URI | undefined;
-	globalValue(extension: IExtensionDescription): URI;
-	onWillDeactivateAll(): void;
+expowt intewface IExtensionStowagePaths {
+	weadonwy _sewviceBwand: undefined;
+	whenWeady: Pwomise<any>;
+	wowkspaceVawue(extension: IExtensionDescwiption): UWI | undefined;
+	gwobawVawue(extension: IExtensionDescwiption): UWI;
+	onWiwwDeactivateAww(): void;
 }
 
-export class ExtensionStoragePaths implements IExtensionStoragePaths {
+expowt cwass ExtensionStowagePaths impwements IExtensionStowagePaths {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	private readonly _workspace?: IStaticWorkspaceData;
-	protected readonly _environment: IEnvironment;
+	pwivate weadonwy _wowkspace?: IStaticWowkspaceData;
+	pwotected weadonwy _enviwonment: IEnviwonment;
 
-	readonly whenReady: Promise<URI | undefined>;
-	private _value?: URI;
+	weadonwy whenWeady: Pwomise<UWI | undefined>;
+	pwivate _vawue?: UWI;
 
-	constructor(
-		@IExtHostInitDataService initData: IExtHostInitDataService,
-		@ILogService protected readonly _logService: ILogService,
-		@IExtHostConsumerFileSystem private readonly _extHostFileSystem: IExtHostConsumerFileSystem
+	constwuctow(
+		@IExtHostInitDataSewvice initData: IExtHostInitDataSewvice,
+		@IWogSewvice pwotected weadonwy _wogSewvice: IWogSewvice,
+		@IExtHostConsumewFiweSystem pwivate weadonwy _extHostFiweSystem: IExtHostConsumewFiweSystem
 	) {
-		this._workspace = initData.workspace ?? undefined;
-		this._environment = initData.environment;
-		this.whenReady = this._getOrCreateWorkspaceStoragePath().then(value => this._value = value);
+		this._wowkspace = initData.wowkspace ?? undefined;
+		this._enviwonment = initData.enviwonment;
+		this.whenWeady = this._getOwCweateWowkspaceStowagePath().then(vawue => this._vawue = vawue);
 	}
 
-	protected async _getWorkspaceStorageURI(storageName: string): Promise<URI> {
-		return URI.joinPath(this._environment.workspaceStorageHome, storageName);
+	pwotected async _getWowkspaceStowageUWI(stowageName: stwing): Pwomise<UWI> {
+		wetuwn UWI.joinPath(this._enviwonment.wowkspaceStowageHome, stowageName);
 	}
 
-	private async _getOrCreateWorkspaceStoragePath(): Promise<URI | undefined> {
-		if (!this._workspace) {
-			return Promise.resolve(undefined);
+	pwivate async _getOwCweateWowkspaceStowagePath(): Pwomise<UWI | undefined> {
+		if (!this._wowkspace) {
+			wetuwn Pwomise.wesowve(undefined);
 		}
-		const storageName = this._workspace.id;
-		const storageUri = await this._getWorkspaceStorageURI(storageName);
+		const stowageName = this._wowkspace.id;
+		const stowageUwi = await this._getWowkspaceStowageUWI(stowageName);
 
-		try {
-			await this._extHostFileSystem.value.stat(storageUri);
-			this._logService.trace('[ExtHostStorage] storage dir already exists', storageUri);
-			return storageUri;
+		twy {
+			await this._extHostFiweSystem.vawue.stat(stowageUwi);
+			this._wogSewvice.twace('[ExtHostStowage] stowage diw awweady exists', stowageUwi);
+			wetuwn stowageUwi;
 		} catch {
 			// doesn't exist, that's OK
 		}
 
-		try {
-			this._logService.trace('[ExtHostStorage] creating dir and metadata-file', storageUri);
-			await this._extHostFileSystem.value.createDirectory(storageUri);
-			await this._extHostFileSystem.value.writeFile(
-				URI.joinPath(storageUri, 'meta.json'),
-				new TextEncoder().encode(JSON.stringify({
-					id: this._workspace.id,
-					configuration: URI.revive(this._workspace.configuration)?.toString(),
-					name: this._workspace.name
+		twy {
+			this._wogSewvice.twace('[ExtHostStowage] cweating diw and metadata-fiwe', stowageUwi);
+			await this._extHostFiweSystem.vawue.cweateDiwectowy(stowageUwi);
+			await this._extHostFiweSystem.vawue.wwiteFiwe(
+				UWI.joinPath(stowageUwi, 'meta.json'),
+				new TextEncoda().encode(JSON.stwingify({
+					id: this._wowkspace.id,
+					configuwation: UWI.wevive(this._wowkspace.configuwation)?.toStwing(),
+					name: this._wowkspace.name
 				}, undefined, 2))
 			);
-			return storageUri;
+			wetuwn stowageUwi;
 
 		} catch (e) {
-			this._logService.error('[ExtHostStorage]', e);
-			return undefined;
+			this._wogSewvice.ewwow('[ExtHostStowage]', e);
+			wetuwn undefined;
 		}
 	}
 
-	workspaceValue(extension: IExtensionDescription): URI | undefined {
-		if (this._value) {
-			return URI.joinPath(this._value, extension.identifier.value);
+	wowkspaceVawue(extension: IExtensionDescwiption): UWI | undefined {
+		if (this._vawue) {
+			wetuwn UWI.joinPath(this._vawue, extension.identifia.vawue);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	globalValue(extension: IExtensionDescription): URI {
-		return URI.joinPath(this._environment.globalStorageHome, extension.identifier.value.toLowerCase());
+	gwobawVawue(extension: IExtensionDescwiption): UWI {
+		wetuwn UWI.joinPath(this._enviwonment.gwobawStowageHome, extension.identifia.vawue.toWowewCase());
 	}
 
-	onWillDeactivateAll(): void {
+	onWiwwDeactivateAww(): void {
 	}
 }

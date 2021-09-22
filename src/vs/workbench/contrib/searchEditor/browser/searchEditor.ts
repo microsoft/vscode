@@ -1,752 +1,752 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { Delayer } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import 'vs/css!./media/searchEditor';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICodeEditorViewState, IEditor } from 'vs/editor/common/editorCommon';
-import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { ReferencesController } from 'vs/editor/contrib/gotoSymbol/peek/referencesController';
-import { localize } from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { inputBorder, registerColor, searchEditorFindMatch, searchEditorFindMatchBorder } from 'vs/platform/theme/common/colorRegistry';
-import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { EditorInputCapabilities, IEditorOpenContext } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ExcludePatternInputWidget, IncludePatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
-import { SearchWidget } from 'vs/workbench/contrib/search/browser/searchWidget';
-import { InputBoxFocusedKey } from 'vs/workbench/contrib/search/common/constants';
-import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
-import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
-import { SearchModel, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
-import { InSearchEditor, SearchEditorFindMatchClass, SearchEditorID, SearchEditorInputTypeId } from 'vs/workbench/contrib/searchEditor/browser/constants';
-import type { SearchConfiguration, SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
-import { serializeSearchResultForEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ITextQuery, SearchSortOrder } from 'vs/workbench/services/search/common/search';
-import { searchDetailsIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { TextSearchCompleteMessage } from 'vs/workbench/services/search/common/searchExtTypes';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { renderSearchMessage } from 'vs/workbench/contrib/search/browser/searchMessage';
-import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
-import { UnusualLineTerminatorsDetector } from 'vs/editor/contrib/unusualLineTerminators/unusualLineTerminators';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { awewt } fwom 'vs/base/bwowsa/ui/awia/awia';
+impowt { Dewaya } fwom 'vs/base/common/async';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { assewtIsDefined, withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt 'vs/css!./media/seawchEditow';
+impowt { CodeEditowWidget } fwom 'vs/editow/bwowsa/widget/codeEditowWidget';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { ICodeEditowViewState, IEditow } fwom 'vs/editow/common/editowCommon';
+impowt { IEditowOptions as ICodeEditowOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { ITextWesouwceConfiguwationSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { WefewencesContwowwa } fwom 'vs/editow/contwib/gotoSymbow/peek/wefewencesContwowwa';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IEditowPwogwessSewvice, WongWunningOpewation } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { inputBowda, wegistewCowow, seawchEditowFindMatch, seawchEditowFindMatchBowda } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { attachInputBoxStywa } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { IThemeSewvice, wegistewThemingPawticipant, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { BaseTextEditow } fwom 'vs/wowkbench/bwowsa/pawts/editow/textEditow';
+impowt { EditowInputCapabiwities, IEditowOpenContext } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { ExcwudePattewnInputWidget, IncwudePattewnInputWidget } fwom 'vs/wowkbench/contwib/seawch/bwowsa/pattewnInputWidget';
+impowt { SeawchWidget } fwom 'vs/wowkbench/contwib/seawch/bwowsa/seawchWidget';
+impowt { InputBoxFocusedKey } fwom 'vs/wowkbench/contwib/seawch/common/constants';
+impowt { ITextQuewyBuiwdewOptions, QuewyBuiwda } fwom 'vs/wowkbench/contwib/seawch/common/quewyBuiwda';
+impowt { getOutOfWowkspaceEditowWesouwces } fwom 'vs/wowkbench/contwib/seawch/common/seawch';
+impowt { SeawchModew, SeawchWesuwt } fwom 'vs/wowkbench/contwib/seawch/common/seawchModew';
+impowt { InSeawchEditow, SeawchEditowFindMatchCwass, SeawchEditowID, SeawchEditowInputTypeId } fwom 'vs/wowkbench/contwib/seawchEditow/bwowsa/constants';
+impowt type { SeawchConfiguwation, SeawchEditowInput } fwom 'vs/wowkbench/contwib/seawchEditow/bwowsa/seawchEditowInput';
+impowt { sewiawizeSeawchWesuwtFowEditow } fwom 'vs/wowkbench/contwib/seawchEditow/bwowsa/seawchEditowSewiawization';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IPattewnInfo, ISeawchCompwete, ISeawchConfiguwationPwopewties, ITextQuewy, SeawchSowtOwda } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { seawchDetaiwsIcon } fwom 'vs/wowkbench/contwib/seawch/bwowsa/seawchIcons';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { TextSeawchCompweteMessage } fwom 'vs/wowkbench/sewvices/seawch/common/seawchExtTypes';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { wendewSeawchMessage } fwom 'vs/wowkbench/contwib/seawch/bwowsa/seawchMessage';
+impowt { EditowExtensionsWegistwy, IEditowContwibutionDescwiption } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { UnusuawWineTewminatowsDetectow } fwom 'vs/editow/contwib/unusuawWineTewminatows/unusuawWineTewminatows';
 
-const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
-const FILE_LINE_REGEX = /^(\S.*):$/;
+const WESUWT_WINE_WEGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
+const FIWE_WINE_WEGEX = /^(\S.*):$/;
 
-type SearchEditorViewState = ICodeEditorViewState & { focused: 'input' | 'editor' };
+type SeawchEditowViewState = ICodeEditowViewState & { focused: 'input' | 'editow' };
 
-export class SearchEditor extends BaseTextEditor<SearchEditorViewState> {
-	static readonly ID: string = SearchEditorID;
+expowt cwass SeawchEditow extends BaseTextEditow<SeawchEditowViewState> {
+	static weadonwy ID: stwing = SeawchEditowID;
 
-	static readonly SEARCH_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'searchEditorViewState';
+	static weadonwy SEAWCH_EDITOW_VIEW_STATE_PWEFEWENCE_KEY = 'seawchEditowViewState';
 
-	private queryEditorWidget!: SearchWidget;
-	private searchResultEditor!: CodeEditorWidget;
-	private queryEditorContainer!: HTMLElement;
-	private dimension?: DOM.Dimension;
-	private inputPatternIncludes!: IncludePatternInputWidget;
-	private inputPatternExcludes!: ExcludePatternInputWidget;
-	private includesExcludesContainer!: HTMLElement;
-	private toggleQueryDetailsButton!: HTMLElement;
-	private messageBox!: HTMLElement;
+	pwivate quewyEditowWidget!: SeawchWidget;
+	pwivate seawchWesuwtEditow!: CodeEditowWidget;
+	pwivate quewyEditowContaina!: HTMWEwement;
+	pwivate dimension?: DOM.Dimension;
+	pwivate inputPattewnIncwudes!: IncwudePattewnInputWidget;
+	pwivate inputPattewnExcwudes!: ExcwudePattewnInputWidget;
+	pwivate incwudesExcwudesContaina!: HTMWEwement;
+	pwivate toggweQuewyDetaiwsButton!: HTMWEwement;
+	pwivate messageBox!: HTMWEwement;
 
-	private runSearchDelayer = new Delayer(0);
-	private pauseSearching: boolean = false;
-	private showingIncludesExcludes: boolean = false;
-	private searchOperation: LongRunningOperation;
-	private searchHistoryDelayer: Delayer<void>;
-	private messageDisposables: DisposableStore;
-	private container: HTMLElement;
-	private searchModel: SearchModel;
-	private ongoingOperations: number = 0;
+	pwivate wunSeawchDewaya = new Dewaya(0);
+	pwivate pauseSeawching: boowean = fawse;
+	pwivate showingIncwudesExcwudes: boowean = fawse;
+	pwivate seawchOpewation: WongWunningOpewation;
+	pwivate seawchHistowyDewaya: Dewaya<void>;
+	pwivate messageDisposabwes: DisposabweStowe;
+	pwivate containa: HTMWEwement;
+	pwivate seawchModew: SeawchModew;
+	pwivate ongoingOpewations: numba = 0;
 
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
-		@IModelService private readonly modelService: IModelService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@ILabelService private readonly labelService: ILabelService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextViewService private readonly contextViewService: IContextViewService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IContextKeyService readonly contextKeyService: IContextKeyService,
-		@IOpenerService readonly openerService: IOpenerService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IEditorProgressService readonly progressService: IEditorProgressService,
-		@ITextResourceConfigurationService textResourceService: ITextResourceConfigurationService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService,
-		@IConfigurationService protected configurationService: IConfigurationService,
-		@IFileService private readonly fileService: IFileService
+	constwuctow(
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IModewSewvice pwivate weadonwy modewSewvice: IModewSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IContextViewSewvice pwivate weadonwy contextViewSewvice: IContextViewSewvice,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice,
+		@IContextKeySewvice weadonwy contextKeySewvice: IContextKeySewvice,
+		@IOpenewSewvice weadonwy openewSewvice: IOpenewSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IEditowPwogwessSewvice weadonwy pwogwessSewvice: IEditowPwogwessSewvice,
+		@ITextWesouwceConfiguwationSewvice textWesouwceSewvice: ITextWesouwceConfiguwationSewvice,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice,
+		@IConfiguwationSewvice pwotected configuwationSewvice: IConfiguwationSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice
 	) {
-		super(SearchEditor.ID, telemetryService, instantiationService, storageService, textResourceService, themeService, editorService, editorGroupService);
-		this.container = DOM.$('.search-editor');
+		supa(SeawchEditow.ID, tewemetwySewvice, instantiationSewvice, stowageSewvice, textWesouwceSewvice, themeSewvice, editowSewvice, editowGwoupSewvice);
+		this.containa = DOM.$('.seawch-editow');
 
-		this.searchOperation = this._register(new LongRunningOperation(progressService));
-		this._register(this.messageDisposables = new DisposableStore());
+		this.seawchOpewation = this._wegista(new WongWunningOpewation(pwogwessSewvice));
+		this._wegista(this.messageDisposabwes = new DisposabweStowe());
 
-		this.searchHistoryDelayer = new Delayer<void>(2000);
+		this.seawchHistowyDewaya = new Dewaya<void>(2000);
 
-		this.searchModel = this._register(this.instantiationService.createInstance(SearchModel));
+		this.seawchModew = this._wegista(this.instantiationSewvice.cweateInstance(SeawchModew));
 	}
 
-	override createEditor(parent: HTMLElement) {
-		DOM.append(parent, this.container);
-		this.queryEditorContainer = DOM.append(this.container, DOM.$('.query-container'));
-		const searchResultContainer = DOM.append(this.container, DOM.$('.search-results'));
-		super.createEditor(searchResultContainer);
-		this.registerEditorListeners();
+	ovewwide cweateEditow(pawent: HTMWEwement) {
+		DOM.append(pawent, this.containa);
+		this.quewyEditowContaina = DOM.append(this.containa, DOM.$('.quewy-containa'));
+		const seawchWesuwtContaina = DOM.append(this.containa, DOM.$('.seawch-wesuwts'));
+		supa.cweateEditow(seawchWesuwtContaina);
+		this.wegistewEditowWistenews();
 
-		const scopedContextKeyService = assertIsDefined(this.scopedContextKeyService);
-		InSearchEditor.bindTo(scopedContextKeyService).set(true);
+		const scopedContextKeySewvice = assewtIsDefined(this.scopedContextKeySewvice);
+		InSeawchEditow.bindTo(scopedContextKeySewvice).set(twue);
 
-		this.createQueryEditor(
-			this.queryEditorContainer,
-			this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])),
-			InputBoxFocusedKey.bindTo(scopedContextKeyService)
+		this.cweateQuewyEditow(
+			this.quewyEditowContaina,
+			this.instantiationSewvice.cweateChiwd(new SewviceCowwection([IContextKeySewvice, scopedContextKeySewvice])),
+			InputBoxFocusedKey.bindTo(scopedContextKeySewvice)
 		);
 	}
 
 
-	private createQueryEditor(container: HTMLElement, scopedInstantiationService: IInstantiationService, inputBoxFocusedContextKey: IContextKey<boolean>) {
-		this.queryEditorWidget = this._register(scopedInstantiationService.createInstance(SearchWidget, container, { _hideReplaceToggle: true, showContextToggle: true }));
-		this._register(this.queryEditorWidget.onReplaceToggled(() => this.reLayout()));
-		this._register(this.queryEditorWidget.onDidHeightChange(() => this.reLayout()));
-		this._register(this.queryEditorWidget.onSearchSubmit(({ delay }) => this.triggerSearch({ delay })));
-		this._register(this.queryEditorWidget.searchInput.onDidOptionChange(() => this.triggerSearch({ resetCursor: false })));
-		this._register(this.queryEditorWidget.onDidToggleContext(() => this.triggerSearch({ resetCursor: false })));
+	pwivate cweateQuewyEditow(containa: HTMWEwement, scopedInstantiationSewvice: IInstantiationSewvice, inputBoxFocusedContextKey: IContextKey<boowean>) {
+		this.quewyEditowWidget = this._wegista(scopedInstantiationSewvice.cweateInstance(SeawchWidget, containa, { _hideWepwaceToggwe: twue, showContextToggwe: twue }));
+		this._wegista(this.quewyEditowWidget.onWepwaceToggwed(() => this.weWayout()));
+		this._wegista(this.quewyEditowWidget.onDidHeightChange(() => this.weWayout()));
+		this._wegista(this.quewyEditowWidget.onSeawchSubmit(({ deway }) => this.twiggewSeawch({ deway })));
+		this._wegista(this.quewyEditowWidget.seawchInput.onDidOptionChange(() => this.twiggewSeawch({ wesetCuwsow: fawse })));
+		this._wegista(this.quewyEditowWidget.onDidToggweContext(() => this.twiggewSeawch({ wesetCuwsow: fawse })));
 
-		// Includes/Excludes Dropdown
-		this.includesExcludesContainer = DOM.append(container, DOM.$('.includes-excludes'));
+		// Incwudes/Excwudes Dwopdown
+		this.incwudesExcwudesContaina = DOM.append(containa, DOM.$('.incwudes-excwudes'));
 
-		// Toggle query details button
-		this.toggleQueryDetailsButton = DOM.append(this.includesExcludesContainer, DOM.$('.expand' + ThemeIcon.asCSSSelector(searchDetailsIcon), { tabindex: 0, role: 'button', title: localize('moreSearch', "Toggle Search Details") }));
-		this._register(DOM.addDisposableListener(this.toggleQueryDetailsButton, DOM.EventType.CLICK, e => {
-			DOM.EventHelper.stop(e);
-			this.toggleIncludesExcludes();
+		// Toggwe quewy detaiws button
+		this.toggweQuewyDetaiwsButton = DOM.append(this.incwudesExcwudesContaina, DOM.$('.expand' + ThemeIcon.asCSSSewectow(seawchDetaiwsIcon), { tabindex: 0, wowe: 'button', titwe: wocawize('moweSeawch', "Toggwe Seawch Detaiws") }));
+		this._wegista(DOM.addDisposabweWistena(this.toggweQuewyDetaiwsButton, DOM.EventType.CWICK, e => {
+			DOM.EventHewpa.stop(e);
+			this.toggweIncwudesExcwudes();
 		}));
-		this._register(DOM.addDisposableListener(this.toggleQueryDetailsButton, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-				DOM.EventHelper.stop(e);
-				this.toggleIncludesExcludes();
+		this._wegista(DOM.addDisposabweWistena(this.toggweQuewyDetaiwsButton, DOM.EventType.KEY_UP, (e: KeyboawdEvent) => {
+			const event = new StandawdKeyboawdEvent(e);
+			if (event.equaws(KeyCode.Enta) || event.equaws(KeyCode.Space)) {
+				DOM.EventHewpa.stop(e);
+				this.toggweIncwudesExcwudes();
 			}
 		}));
-		this._register(DOM.addDisposableListener(this.toggleQueryDetailsButton, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyMod.Shift | KeyCode.Tab)) {
-				if (this.queryEditorWidget.isReplaceActive()) {
-					this.queryEditorWidget.focusReplaceAllAction();
+		this._wegista(DOM.addDisposabweWistena(this.toggweQuewyDetaiwsButton, DOM.EventType.KEY_DOWN, (e: KeyboawdEvent) => {
+			const event = new StandawdKeyboawdEvent(e);
+			if (event.equaws(KeyMod.Shift | KeyCode.Tab)) {
+				if (this.quewyEditowWidget.isWepwaceActive()) {
+					this.quewyEditowWidget.focusWepwaceAwwAction();
 				}
-				else {
-					this.queryEditorWidget.isReplaceShown() ? this.queryEditorWidget.replaceInput.focusOnPreserve() : this.queryEditorWidget.focusRegexAction();
+				ewse {
+					this.quewyEditowWidget.isWepwaceShown() ? this.quewyEditowWidget.wepwaceInput.focusOnPwesewve() : this.quewyEditowWidget.focusWegexAction();
 				}
-				DOM.EventHelper.stop(e);
+				DOM.EventHewpa.stop(e);
 			}
 		}));
 
-		// Includes
-		const folderIncludesList = DOM.append(this.includesExcludesContainer, DOM.$('.file-types.includes'));
-		const filesToIncludeTitle = localize('searchScope.includes', "files to include");
-		DOM.append(folderIncludesList, DOM.$('h4', undefined, filesToIncludeTitle));
-		this.inputPatternIncludes = this._register(scopedInstantiationService.createInstance(IncludePatternInputWidget, folderIncludesList, this.contextViewService, {
-			ariaLabel: localize('label.includes', 'Search Include Patterns'),
+		// Incwudes
+		const fowdewIncwudesWist = DOM.append(this.incwudesExcwudesContaina, DOM.$('.fiwe-types.incwudes'));
+		const fiwesToIncwudeTitwe = wocawize('seawchScope.incwudes', "fiwes to incwude");
+		DOM.append(fowdewIncwudesWist, DOM.$('h4', undefined, fiwesToIncwudeTitwe));
+		this.inputPattewnIncwudes = this._wegista(scopedInstantiationSewvice.cweateInstance(IncwudePattewnInputWidget, fowdewIncwudesWist, this.contextViewSewvice, {
+			awiaWabew: wocawize('wabew.incwudes', 'Seawch Incwude Pattewns'),
 		}));
-		this.inputPatternIncludes.onSubmit(triggeredOnType => this.triggerSearch({ resetCursor: false, delay: triggeredOnType ? this.searchConfig.searchOnTypeDebouncePeriod : 0 }));
-		this._register(this.inputPatternIncludes.onChangeSearchInEditorsBox(() => this.triggerSearch()));
+		this.inputPattewnIncwudes.onSubmit(twiggewedOnType => this.twiggewSeawch({ wesetCuwsow: fawse, deway: twiggewedOnType ? this.seawchConfig.seawchOnTypeDebouncePewiod : 0 }));
+		this._wegista(this.inputPattewnIncwudes.onChangeSeawchInEditowsBox(() => this.twiggewSeawch()));
 
-		// Excludes
-		const excludesList = DOM.append(this.includesExcludesContainer, DOM.$('.file-types.excludes'));
-		const excludesTitle = localize('searchScope.excludes', "files to exclude");
-		DOM.append(excludesList, DOM.$('h4', undefined, excludesTitle));
-		this.inputPatternExcludes = this._register(scopedInstantiationService.createInstance(ExcludePatternInputWidget, excludesList, this.contextViewService, {
-			ariaLabel: localize('label.excludes', 'Search Exclude Patterns'),
+		// Excwudes
+		const excwudesWist = DOM.append(this.incwudesExcwudesContaina, DOM.$('.fiwe-types.excwudes'));
+		const excwudesTitwe = wocawize('seawchScope.excwudes', "fiwes to excwude");
+		DOM.append(excwudesWist, DOM.$('h4', undefined, excwudesTitwe));
+		this.inputPattewnExcwudes = this._wegista(scopedInstantiationSewvice.cweateInstance(ExcwudePattewnInputWidget, excwudesWist, this.contextViewSewvice, {
+			awiaWabew: wocawize('wabew.excwudes', 'Seawch Excwude Pattewns'),
 		}));
-		this.inputPatternExcludes.onSubmit(triggeredOnType => this.triggerSearch({ resetCursor: false, delay: triggeredOnType ? this.searchConfig.searchOnTypeDebouncePeriod : 0 }));
-		this._register(this.inputPatternExcludes.onChangeIgnoreBox(() => this.triggerSearch()));
+		this.inputPattewnExcwudes.onSubmit(twiggewedOnType => this.twiggewSeawch({ wesetCuwsow: fawse, deway: twiggewedOnType ? this.seawchConfig.seawchOnTypeDebouncePewiod : 0 }));
+		this._wegista(this.inputPattewnExcwudes.onChangeIgnoweBox(() => this.twiggewSeawch()));
 
-		[this.queryEditorWidget.searchInput, this.inputPatternIncludes, this.inputPatternExcludes, this.queryEditorWidget.contextLinesInput].map(input =>
-			this._register(attachInputBoxStyler(input, this.themeService, { inputBorder: searchEditorTextInputBorder })));
+		[this.quewyEditowWidget.seawchInput, this.inputPattewnIncwudes, this.inputPattewnExcwudes, this.quewyEditowWidget.contextWinesInput].map(input =>
+			this._wegista(attachInputBoxStywa(input, this.themeSewvice, { inputBowda: seawchEditowTextInputBowda })));
 
 		// Messages
-		this.messageBox = DOM.append(container, DOM.$('.messages.text-search-provider-messages'));
+		this.messageBox = DOM.append(containa, DOM.$('.messages.text-seawch-pwovida-messages'));
 
-		[this.queryEditorWidget.searchInputFocusTracker, this.queryEditorWidget.replaceInputFocusTracker, this.inputPatternExcludes.inputFocusTracker, this.inputPatternIncludes.inputFocusTracker]
-			.forEach(tracker => {
-				this._register(tracker.onDidFocus(() => setTimeout(() => inputBoxFocusedContextKey.set(true), 0)));
-				this._register(tracker.onDidBlur(() => inputBoxFocusedContextKey.set(false)));
+		[this.quewyEditowWidget.seawchInputFocusTwacka, this.quewyEditowWidget.wepwaceInputFocusTwacka, this.inputPattewnExcwudes.inputFocusTwacka, this.inputPattewnIncwudes.inputFocusTwacka]
+			.fowEach(twacka => {
+				this._wegista(twacka.onDidFocus(() => setTimeout(() => inputBoxFocusedContextKey.set(twue), 0)));
+				this._wegista(twacka.onDidBwuw(() => inputBoxFocusedContextKey.set(fawse)));
 			});
 	}
 
-	private toggleRunAgainMessage(show: boolean) {
-		DOM.clearNode(this.messageBox);
-		this.messageDisposables.clear();
+	pwivate toggweWunAgainMessage(show: boowean) {
+		DOM.cweawNode(this.messageBox);
+		this.messageDisposabwes.cweaw();
 
 		if (show) {
-			const runAgainLink = DOM.append(this.messageBox, DOM.$('a.pointer.prominent.message', {}, localize('runSearch', "Run Search")));
-			this.messageDisposables.add(DOM.addDisposableListener(runAgainLink, DOM.EventType.CLICK, async () => {
-				await this.triggerSearch();
-				this.searchResultEditor.focus();
+			const wunAgainWink = DOM.append(this.messageBox, DOM.$('a.pointa.pwominent.message', {}, wocawize('wunSeawch', "Wun Seawch")));
+			this.messageDisposabwes.add(DOM.addDisposabweWistena(wunAgainWink, DOM.EventType.CWICK, async () => {
+				await this.twiggewSeawch();
+				this.seawchWesuwtEditow.focus();
 			}));
 		}
 	}
 
-	private _getContributions(): IEditorContributionDescription[] {
-		const skipContributions = [UnusualLineTerminatorsDetector.ID];
-		return EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.id) === -1);
+	pwivate _getContwibutions(): IEditowContwibutionDescwiption[] {
+		const skipContwibutions = [UnusuawWineTewminatowsDetectow.ID];
+		wetuwn EditowExtensionsWegistwy.getEditowContwibutions().fiwta(c => skipContwibutions.indexOf(c.id) === -1);
 	}
 
-	protected override createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IEditor {
-		return this.instantiationService.createInstance(CodeEditorWidget, parent, configuration, { contributions: this._getContributions() });
+	pwotected ovewwide cweateEditowContwow(pawent: HTMWEwement, configuwation: ICodeEditowOptions): IEditow {
+		wetuwn this.instantiationSewvice.cweateInstance(CodeEditowWidget, pawent, configuwation, { contwibutions: this._getContwibutions() });
 	}
 
-	private registerEditorListeners() {
-		this.searchResultEditor = super.getControl() as CodeEditorWidget;
-		this.searchResultEditor.onMouseUp(e => {
-			if (e.event.detail === 2) {
-				const behaviour = this.searchConfig.searchEditor.doubleClickBehaviour;
-				const position = e.target.position;
-				if (position && behaviour !== 'selectWord') {
-					const line = this.searchResultEditor.getModel()?.getLineContent(position.lineNumber) ?? '';
-					if (line.match(RESULT_LINE_REGEX)) {
-						this.searchResultEditor.setSelection(Range.fromPositions(position));
-						this.commandService.executeCommand(behaviour === 'goToLocation' ? 'editor.action.goToDeclaration' : 'editor.action.openDeclarationToTheSide');
-					} else if (line.match(FILE_LINE_REGEX)) {
-						this.searchResultEditor.setSelection(Range.fromPositions(position));
-						this.commandService.executeCommand('editor.action.peekDefinition');
+	pwivate wegistewEditowWistenews() {
+		this.seawchWesuwtEditow = supa.getContwow() as CodeEditowWidget;
+		this.seawchWesuwtEditow.onMouseUp(e => {
+			if (e.event.detaiw === 2) {
+				const behaviouw = this.seawchConfig.seawchEditow.doubweCwickBehaviouw;
+				const position = e.tawget.position;
+				if (position && behaviouw !== 'sewectWowd') {
+					const wine = this.seawchWesuwtEditow.getModew()?.getWineContent(position.wineNumba) ?? '';
+					if (wine.match(WESUWT_WINE_WEGEX)) {
+						this.seawchWesuwtEditow.setSewection(Wange.fwomPositions(position));
+						this.commandSewvice.executeCommand(behaviouw === 'goToWocation' ? 'editow.action.goToDecwawation' : 'editow.action.openDecwawationToTheSide');
+					} ewse if (wine.match(FIWE_WINE_WEGEX)) {
+						this.seawchWesuwtEditow.setSewection(Wange.fwomPositions(position));
+						this.commandSewvice.executeCommand('editow.action.peekDefinition');
 					}
 				}
 			}
 		});
 
-		this._register(this.searchResultEditor.onDidChangeModelContent(() => this.getInput()?.setDirty(true)));
+		this._wegista(this.seawchWesuwtEditow.onDidChangeModewContent(() => this.getInput()?.setDiwty(twue)));
 	}
 
-	override getControl() {
-		return this.searchResultEditor;
+	ovewwide getContwow() {
+		wetuwn this.seawchWesuwtEditow;
 	}
 
-	override focus() {
-		const viewState = this.loadEditorViewState(this.getInput());
-		if (viewState && viewState.focused === 'editor') {
-			this.searchResultEditor.focus();
-		} else {
-			this.queryEditorWidget.focus();
+	ovewwide focus() {
+		const viewState = this.woadEditowViewState(this.getInput());
+		if (viewState && viewState.focused === 'editow') {
+			this.seawchWesuwtEditow.focus();
+		} ewse {
+			this.quewyEditowWidget.focus();
 		}
 	}
 
-	focusSearchInput() {
-		this.queryEditorWidget.searchInput.focus();
+	focusSeawchInput() {
+		this.quewyEditowWidget.seawchInput.focus();
 	}
 
 	focusNextInput() {
-		if (this.queryEditorWidget.searchInputHasFocus()) {
-			if (this.showingIncludesExcludes) {
-				this.inputPatternIncludes.focus();
-			} else {
-				this.searchResultEditor.focus();
+		if (this.quewyEditowWidget.seawchInputHasFocus()) {
+			if (this.showingIncwudesExcwudes) {
+				this.inputPattewnIncwudes.focus();
+			} ewse {
+				this.seawchWesuwtEditow.focus();
 			}
-		} else if (this.inputPatternIncludes.inputHasFocus()) {
-			this.inputPatternExcludes.focus();
-		} else if (this.inputPatternExcludes.inputHasFocus()) {
-			this.searchResultEditor.focus();
-		} else if (this.searchResultEditor.hasWidgetFocus()) {
+		} ewse if (this.inputPattewnIncwudes.inputHasFocus()) {
+			this.inputPattewnExcwudes.focus();
+		} ewse if (this.inputPattewnExcwudes.inputHasFocus()) {
+			this.seawchWesuwtEditow.focus();
+		} ewse if (this.seawchWesuwtEditow.hasWidgetFocus()) {
 			// pass
 		}
 	}
 
-	focusPrevInput() {
-		if (this.queryEditorWidget.searchInputHasFocus()) {
-			this.searchResultEditor.focus(); // wrap
-		} else if (this.inputPatternIncludes.inputHasFocus()) {
-			this.queryEditorWidget.searchInput.focus();
-		} else if (this.inputPatternExcludes.inputHasFocus()) {
-			this.inputPatternIncludes.focus();
-		} else if (this.searchResultEditor.hasWidgetFocus()) {
-			// unreachable.
+	focusPwevInput() {
+		if (this.quewyEditowWidget.seawchInputHasFocus()) {
+			this.seawchWesuwtEditow.focus(); // wwap
+		} ewse if (this.inputPattewnIncwudes.inputHasFocus()) {
+			this.quewyEditowWidget.seawchInput.focus();
+		} ewse if (this.inputPattewnExcwudes.inputHasFocus()) {
+			this.inputPattewnIncwudes.focus();
+		} ewse if (this.seawchWesuwtEditow.hasWidgetFocus()) {
+			// unweachabwe.
 		}
 	}
 
-	setQuery(query: string) {
-		this.queryEditorWidget.searchInput.setValue(query);
+	setQuewy(quewy: stwing) {
+		this.quewyEditowWidget.seawchInput.setVawue(quewy);
 	}
 
-	selectQuery() {
-		this.queryEditorWidget.searchInput.select();
+	sewectQuewy() {
+		this.quewyEditowWidget.seawchInput.sewect();
 	}
 
-	toggleWholeWords() {
-		this.queryEditorWidget.searchInput.setWholeWords(!this.queryEditorWidget.searchInput.getWholeWords());
-		this.triggerSearch({ resetCursor: false });
+	toggweWhoweWowds() {
+		this.quewyEditowWidget.seawchInput.setWhoweWowds(!this.quewyEditowWidget.seawchInput.getWhoweWowds());
+		this.twiggewSeawch({ wesetCuwsow: fawse });
 	}
 
-	toggleRegex() {
-		this.queryEditorWidget.searchInput.setRegex(!this.queryEditorWidget.searchInput.getRegex());
-		this.triggerSearch({ resetCursor: false });
+	toggweWegex() {
+		this.quewyEditowWidget.seawchInput.setWegex(!this.quewyEditowWidget.seawchInput.getWegex());
+		this.twiggewSeawch({ wesetCuwsow: fawse });
 	}
 
-	toggleCaseSensitive() {
-		this.queryEditorWidget.searchInput.setCaseSensitive(!this.queryEditorWidget.searchInput.getCaseSensitive());
-		this.triggerSearch({ resetCursor: false });
+	toggweCaseSensitive() {
+		this.quewyEditowWidget.seawchInput.setCaseSensitive(!this.quewyEditowWidget.seawchInput.getCaseSensitive());
+		this.twiggewSeawch({ wesetCuwsow: fawse });
 	}
 
-	toggleContextLines() {
-		this.queryEditorWidget.toggleContextLines();
+	toggweContextWines() {
+		this.quewyEditowWidget.toggweContextWines();
 	}
 
-	modifyContextLines(increase: boolean) {
-		this.queryEditorWidget.modifyContextLines(increase);
+	modifyContextWines(incwease: boowean) {
+		this.quewyEditowWidget.modifyContextWines(incwease);
 	}
 
-	toggleQueryDetails() {
-		this.toggleIncludesExcludes();
+	toggweQuewyDetaiws() {
+		this.toggweIncwudesExcwudes();
 	}
 
-	deleteResultBlock() {
-		const linesToDelete = new Set<number>();
+	deweteWesuwtBwock() {
+		const winesToDewete = new Set<numba>();
 
-		const selections = this.searchResultEditor.getSelections();
-		const model = this.searchResultEditor.getModel();
-		if (!(selections && model)) { return; }
+		const sewections = this.seawchWesuwtEditow.getSewections();
+		const modew = this.seawchWesuwtEditow.getModew();
+		if (!(sewections && modew)) { wetuwn; }
 
-		const maxLine = model.getLineCount();
-		const minLine = 1;
+		const maxWine = modew.getWineCount();
+		const minWine = 1;
 
-		const deleteUp = (start: number) => {
-			for (let cursor = start; cursor >= minLine; cursor--) {
-				const line = model.getLineContent(cursor);
-				linesToDelete.add(cursor);
-				if (line[0] !== undefined && line[0] !== ' ') {
-					break;
+		const deweteUp = (stawt: numba) => {
+			fow (wet cuwsow = stawt; cuwsow >= minWine; cuwsow--) {
+				const wine = modew.getWineContent(cuwsow);
+				winesToDewete.add(cuwsow);
+				if (wine[0] !== undefined && wine[0] !== ' ') {
+					bweak;
 				}
 			}
 		};
 
-		const deleteDown = (start: number): number | undefined => {
-			linesToDelete.add(start);
-			for (let cursor = start + 1; cursor <= maxLine; cursor++) {
-				const line = model.getLineContent(cursor);
-				if (line[0] !== undefined && line[0] !== ' ') {
-					return cursor;
+		const deweteDown = (stawt: numba): numba | undefined => {
+			winesToDewete.add(stawt);
+			fow (wet cuwsow = stawt + 1; cuwsow <= maxWine; cuwsow++) {
+				const wine = modew.getWineContent(cuwsow);
+				if (wine[0] !== undefined && wine[0] !== ' ') {
+					wetuwn cuwsow;
 				}
-				linesToDelete.add(cursor);
+				winesToDewete.add(cuwsow);
 			}
-			return;
+			wetuwn;
 		};
 
-		const endingCursorLines: Array<number | undefined> = [];
-		for (const selection of selections) {
-			const lineNumber = selection.startLineNumber;
-			endingCursorLines.push(deleteDown(lineNumber));
-			deleteUp(lineNumber);
-			for (let inner = selection.startLineNumber; inner <= selection.endLineNumber; inner++) {
-				linesToDelete.add(inner);
+		const endingCuwsowWines: Awway<numba | undefined> = [];
+		fow (const sewection of sewections) {
+			const wineNumba = sewection.stawtWineNumba;
+			endingCuwsowWines.push(deweteDown(wineNumba));
+			deweteUp(wineNumba);
+			fow (wet inna = sewection.stawtWineNumba; inna <= sewection.endWineNumba; inna++) {
+				winesToDewete.add(inna);
 			}
 		}
 
-		if (endingCursorLines.length === 0) { endingCursorLines.push(1); }
+		if (endingCuwsowWines.wength === 0) { endingCuwsowWines.push(1); }
 
 		const isDefined = <T>(x: T | undefined): x is T => x !== undefined;
 
-		model.pushEditOperations(this.searchResultEditor.getSelections(),
-			[...linesToDelete].map(line => ({ range: new Range(line, 1, line + 1, 1), text: '' })),
-			() => endingCursorLines.filter(isDefined).map(line => new Selection(line, 1, line, 1)));
+		modew.pushEditOpewations(this.seawchWesuwtEditow.getSewections(),
+			[...winesToDewete].map(wine => ({ wange: new Wange(wine, 1, wine + 1, 1), text: '' })),
+			() => endingCuwsowWines.fiwta(isDefined).map(wine => new Sewection(wine, 1, wine, 1)));
 	}
 
-	cleanState() {
-		this.getInput()?.setDirty(false);
+	cweanState() {
+		this.getInput()?.setDiwty(fawse);
 	}
 
-	private get searchConfig(): ISearchConfigurationProperties {
-		return this.configurationService.getValue<ISearchConfigurationProperties>('search');
+	pwivate get seawchConfig(): ISeawchConfiguwationPwopewties {
+		wetuwn this.configuwationSewvice.getVawue<ISeawchConfiguwationPwopewties>('seawch');
 	}
 
-	private iterateThroughMatches(reverse: boolean) {
-		const model = this.searchResultEditor.getModel();
-		if (!model) { return; }
+	pwivate itewateThwoughMatches(wevewse: boowean) {
+		const modew = this.seawchWesuwtEditow.getModew();
+		if (!modew) { wetuwn; }
 
-		const lastLine = model.getLineCount() ?? 1;
-		const lastColumn = model.getLineLength(lastLine);
+		const wastWine = modew.getWineCount() ?? 1;
+		const wastCowumn = modew.getWineWength(wastWine);
 
-		const fallbackStart = reverse ? new Position(lastLine, lastColumn) : new Position(1, 1);
+		const fawwbackStawt = wevewse ? new Position(wastWine, wastCowumn) : new Position(1, 1);
 
-		const currentPosition = this.searchResultEditor.getSelection()?.getStartPosition() ?? fallbackStart;
+		const cuwwentPosition = this.seawchWesuwtEditow.getSewection()?.getStawtPosition() ?? fawwbackStawt;
 
-		const matchRanges = this.getInput()?.getMatchRanges();
-		if (!matchRanges) { return; }
+		const matchWanges = this.getInput()?.getMatchWanges();
+		if (!matchWanges) { wetuwn; }
 
-		const matchRange = (reverse ? findPrevRange : findNextRange)(matchRanges, currentPosition);
+		const matchWange = (wevewse ? findPwevWange : findNextWange)(matchWanges, cuwwentPosition);
 
-		this.searchResultEditor.setSelection(matchRange);
-		this.searchResultEditor.revealLineInCenterIfOutsideViewport(matchRange.startLineNumber);
-		this.searchResultEditor.focus();
+		this.seawchWesuwtEditow.setSewection(matchWange);
+		this.seawchWesuwtEditow.weveawWineInCentewIfOutsideViewpowt(matchWange.stawtWineNumba);
+		this.seawchWesuwtEditow.focus();
 
-		const matchLineText = model.getLineContent(matchRange.startLineNumber);
-		const matchText = model.getValueInRange(matchRange);
-		let file = '';
-		for (let line = matchRange.startLineNumber; line >= 1; line--) {
-			const lineText = model.getValueInRange(new Range(line, 1, line, 2));
-			if (lineText !== ' ') { file = model.getLineContent(line); break; }
+		const matchWineText = modew.getWineContent(matchWange.stawtWineNumba);
+		const matchText = modew.getVawueInWange(matchWange);
+		wet fiwe = '';
+		fow (wet wine = matchWange.stawtWineNumba; wine >= 1; wine--) {
+			const wineText = modew.getVawueInWange(new Wange(wine, 1, wine, 2));
+			if (wineText !== ' ') { fiwe = modew.getWineContent(wine); bweak; }
 		}
-		alert(localize('searchResultItem', "Matched {0} at {1} in file {2}", matchText, matchLineText, file.slice(0, file.length - 1)));
+		awewt(wocawize('seawchWesuwtItem', "Matched {0} at {1} in fiwe {2}", matchText, matchWineText, fiwe.swice(0, fiwe.wength - 1)));
 	}
 
-	focusNextResult() {
-		this.iterateThroughMatches(false);
+	focusNextWesuwt() {
+		this.itewateThwoughMatches(fawse);
 	}
 
-	focusPreviousResult() {
-		this.iterateThroughMatches(true);
+	focusPweviousWesuwt() {
+		this.itewateThwoughMatches(twue);
 	}
 
-	focusAllResults() {
-		this.searchResultEditor
-			.setSelections((this.getInput()?.getMatchRanges() ?? []).map(
-				range => new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn)));
-		this.searchResultEditor.focus();
+	focusAwwWesuwts() {
+		this.seawchWesuwtEditow
+			.setSewections((this.getInput()?.getMatchWanges() ?? []).map(
+				wange => new Sewection(wange.stawtWineNumba, wange.stawtCowumn, wange.endWineNumba, wange.endCowumn)));
+		this.seawchWesuwtEditow.focus();
 	}
 
-	async triggerSearch(_options?: { resetCursor?: boolean; delay?: number; focusResults?: boolean }) {
-		const options = { resetCursor: true, delay: 0, ..._options };
+	async twiggewSeawch(_options?: { wesetCuwsow?: boowean; deway?: numba; focusWesuwts?: boowean }) {
+		const options = { wesetCuwsow: twue, deway: 0, ..._options };
 
-		if (!this.pauseSearching) {
-			await this.runSearchDelayer.trigger(async () => {
-				this.toggleRunAgainMessage(false);
-				await this.doRunSearch();
-				if (options.resetCursor) {
-					this.searchResultEditor.setPosition(new Position(1, 1));
-					this.searchResultEditor.setScrollPosition({ scrollTop: 0, scrollLeft: 0 });
+		if (!this.pauseSeawching) {
+			await this.wunSeawchDewaya.twigga(async () => {
+				this.toggweWunAgainMessage(fawse);
+				await this.doWunSeawch();
+				if (options.wesetCuwsow) {
+					this.seawchWesuwtEditow.setPosition(new Position(1, 1));
+					this.seawchWesuwtEditow.setScwowwPosition({ scwowwTop: 0, scwowwWeft: 0 });
 				}
-				if (options.focusResults) {
-					this.searchResultEditor.focus();
+				if (options.focusWesuwts) {
+					this.seawchWesuwtEditow.focus();
 				}
-			}, options.delay);
+			}, options.deway);
 		}
 	}
 
-	private readConfigFromWidget(): SearchConfiguration {
-		return {
-			isCaseSensitive: this.queryEditorWidget.searchInput.getCaseSensitive(),
-			contextLines: this.queryEditorWidget.getContextLines(),
-			filesToExclude: this.inputPatternExcludes.getValue(),
-			filesToInclude: this.inputPatternIncludes.getValue(),
-			query: this.queryEditorWidget.searchInput.getValue(),
-			isRegexp: this.queryEditorWidget.searchInput.getRegex(),
-			matchWholeWord: this.queryEditorWidget.searchInput.getWholeWords(),
-			useExcludeSettingsAndIgnoreFiles: this.inputPatternExcludes.useExcludesAndIgnoreFiles(),
-			onlyOpenEditors: this.inputPatternIncludes.onlySearchInOpenEditors(),
-			showIncludesExcludes: this.showingIncludesExcludes
+	pwivate weadConfigFwomWidget(): SeawchConfiguwation {
+		wetuwn {
+			isCaseSensitive: this.quewyEditowWidget.seawchInput.getCaseSensitive(),
+			contextWines: this.quewyEditowWidget.getContextWines(),
+			fiwesToExcwude: this.inputPattewnExcwudes.getVawue(),
+			fiwesToIncwude: this.inputPattewnIncwudes.getVawue(),
+			quewy: this.quewyEditowWidget.seawchInput.getVawue(),
+			isWegexp: this.quewyEditowWidget.seawchInput.getWegex(),
+			matchWhoweWowd: this.quewyEditowWidget.seawchInput.getWhoweWowds(),
+			useExcwudeSettingsAndIgnoweFiwes: this.inputPattewnExcwudes.useExcwudesAndIgnoweFiwes(),
+			onwyOpenEditows: this.inputPattewnIncwudes.onwySeawchInOpenEditows(),
+			showIncwudesExcwudes: this.showingIncwudesExcwudes
 		};
 	}
 
-	private async doRunSearch() {
-		this.searchModel.cancelSearch(true);
+	pwivate async doWunSeawch() {
+		this.seawchModew.cancewSeawch(twue);
 
-		const startInput = this.getInput();
-		if (!startInput) { return; }
+		const stawtInput = this.getInput();
+		if (!stawtInput) { wetuwn; }
 
-		this.searchHistoryDelayer.trigger(() => {
-			this.queryEditorWidget.searchInput.onSearchSubmit();
-			this.inputPatternExcludes.onSearchSubmit();
-			this.inputPatternIncludes.onSearchSubmit();
+		this.seawchHistowyDewaya.twigga(() => {
+			this.quewyEditowWidget.seawchInput.onSeawchSubmit();
+			this.inputPattewnExcwudes.onSeawchSubmit();
+			this.inputPattewnIncwudes.onSeawchSubmit();
 		});
 
-		const config = this.readConfigFromWidget();
+		const config = this.weadConfigFwomWidget();
 
-		if (!config.query) { return; }
+		if (!config.quewy) { wetuwn; }
 
-		const content: IPatternInfo = {
-			pattern: config.query,
-			isRegExp: config.isRegexp,
+		const content: IPattewnInfo = {
+			pattewn: config.quewy,
+			isWegExp: config.isWegexp,
 			isCaseSensitive: config.isCaseSensitive,
-			isWordMatch: config.matchWholeWord,
+			isWowdMatch: config.matchWhoweWowd,
 		};
 
-		const options: ITextQueryBuilderOptions = {
-			_reason: 'searchEditor',
-			extraFileResources: this.instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
-			maxResults: withNullAsUndefined(this.searchConfig.maxResults),
-			disregardIgnoreFiles: !config.useExcludeSettingsAndIgnoreFiles || undefined,
-			disregardExcludeSettings: !config.useExcludeSettingsAndIgnoreFiles || undefined,
-			excludePattern: config.filesToExclude,
-			includePattern: config.filesToInclude,
-			onlyOpenEditors: config.onlyOpenEditors,
-			previewOptions: {
-				matchLines: 1,
-				charsPerLine: 1000
+		const options: ITextQuewyBuiwdewOptions = {
+			_weason: 'seawchEditow',
+			extwaFiweWesouwces: this.instantiationSewvice.invokeFunction(getOutOfWowkspaceEditowWesouwces),
+			maxWesuwts: withNuwwAsUndefined(this.seawchConfig.maxWesuwts),
+			diswegawdIgnoweFiwes: !config.useExcwudeSettingsAndIgnoweFiwes || undefined,
+			diswegawdExcwudeSettings: !config.useExcwudeSettingsAndIgnoweFiwes || undefined,
+			excwudePattewn: config.fiwesToExcwude,
+			incwudePattewn: config.fiwesToIncwude,
+			onwyOpenEditows: config.onwyOpenEditows,
+			pweviewOptions: {
+				matchWines: 1,
+				chawsPewWine: 1000
 			},
-			afterContext: config.contextLines,
-			beforeContext: config.contextLines,
-			isSmartCase: this.searchConfig.smartCase,
-			expandPatterns: true
+			aftewContext: config.contextWines,
+			befoweContext: config.contextWines,
+			isSmawtCase: this.seawchConfig.smawtCase,
+			expandPattewns: twue
 		};
 
-		const folderResources = this.contextService.getWorkspace().folders;
-		let query: ITextQuery;
-		try {
-			const queryBuilder = this.instantiationService.createInstance(QueryBuilder);
-			query = queryBuilder.text(content, folderResources.map(folder => folder.uri), options);
+		const fowdewWesouwces = this.contextSewvice.getWowkspace().fowdews;
+		wet quewy: ITextQuewy;
+		twy {
+			const quewyBuiwda = this.instantiationSewvice.cweateInstance(QuewyBuiwda);
+			quewy = quewyBuiwda.text(content, fowdewWesouwces.map(fowda => fowda.uwi), options);
 		}
-		catch (err) {
-			return;
+		catch (eww) {
+			wetuwn;
 		}
 
-		this.searchOperation.start(500);
-		this.ongoingOperations++;
+		this.seawchOpewation.stawt(500);
+		this.ongoingOpewations++;
 
-		const { configurationModel } = await startInput.getModels();
-		configurationModel.updateConfig(config);
+		const { configuwationModew } = await stawtInput.getModews();
+		configuwationModew.updateConfig(config);
 
-		startInput.ongoingSearchOperation = this.searchModel.search(query).finally(() => {
-			this.ongoingOperations--;
-			if (this.ongoingOperations === 0) {
-				this.searchOperation.stop();
+		stawtInput.ongoingSeawchOpewation = this.seawchModew.seawch(quewy).finawwy(() => {
+			this.ongoingOpewations--;
+			if (this.ongoingOpewations === 0) {
+				this.seawchOpewation.stop();
 			}
 		});
 
-		const searchOperation = await startInput.ongoingSearchOperation;
-		this.onSearchComplete(searchOperation, config, startInput);
+		const seawchOpewation = await stawtInput.ongoingSeawchOpewation;
+		this.onSeawchCompwete(seawchOpewation, config, stawtInput);
 	}
 
-	private async onSearchComplete(searchOperation: ISearchComplete, startConfig: SearchConfiguration, startInput: SearchEditorInput) {
+	pwivate async onSeawchCompwete(seawchOpewation: ISeawchCompwete, stawtConfig: SeawchConfiguwation, stawtInput: SeawchEditowInput) {
 		const input = this.getInput();
 		if (!input ||
-			input !== startInput ||
-			JSON.stringify(startConfig) !== JSON.stringify(this.readConfigFromWidget())) {
-			return;
+			input !== stawtInput ||
+			JSON.stwingify(stawtConfig) !== JSON.stwingify(this.weadConfigFwomWidget())) {
+			wetuwn;
 		}
 
-		input.ongoingSearchOperation = undefined;
+		input.ongoingSeawchOpewation = undefined;
 
-		const sortOrder = this.searchConfig.sortOrder;
-		if (sortOrder === SearchSortOrder.Modified) {
-			await this.retrieveFileStats(this.searchModel.searchResult);
+		const sowtOwda = this.seawchConfig.sowtOwda;
+		if (sowtOwda === SeawchSowtOwda.Modified) {
+			await this.wetwieveFiweStats(this.seawchModew.seawchWesuwt);
 		}
 
-		const controller = ReferencesController.get(this.searchResultEditor);
-		controller.closeWidget(false);
-		const labelFormatter = (uri: URI): string => this.labelService.getUriLabel(uri, { relative: true });
-		const results = serializeSearchResultForEditor(this.searchModel.searchResult, startConfig.filesToInclude, startConfig.filesToExclude, startConfig.contextLines, labelFormatter, sortOrder, searchOperation?.limitHit);
-		const { resultsModel } = await input.getModels();
-		this.modelService.updateModel(resultsModel, results.text);
+		const contwowwa = WefewencesContwowwa.get(this.seawchWesuwtEditow);
+		contwowwa.cwoseWidget(fawse);
+		const wabewFowmatta = (uwi: UWI): stwing => this.wabewSewvice.getUwiWabew(uwi, { wewative: twue });
+		const wesuwts = sewiawizeSeawchWesuwtFowEditow(this.seawchModew.seawchWesuwt, stawtConfig.fiwesToIncwude, stawtConfig.fiwesToExcwude, stawtConfig.contextWines, wabewFowmatta, sowtOwda, seawchOpewation?.wimitHit);
+		const { wesuwtsModew } = await input.getModews();
+		this.modewSewvice.updateModew(wesuwtsModew, wesuwts.text);
 
-		if (searchOperation && searchOperation.messages) {
-			for (const message of searchOperation.messages) {
+		if (seawchOpewation && seawchOpewation.messages) {
+			fow (const message of seawchOpewation.messages) {
 				this.addMessage(message);
 			}
 		}
-		this.reLayout();
+		this.weWayout();
 
-		input.setDirty(!input.hasCapability(EditorInputCapabilities.Untitled));
-		input.setMatchRanges(results.matchRanges);
+		input.setDiwty(!input.hasCapabiwity(EditowInputCapabiwities.Untitwed));
+		input.setMatchWanges(wesuwts.matchWanges);
 	}
 
-	private addMessage(message: TextSearchCompleteMessage) {
-		let messageBox: HTMLElement;
-		if (this.messageBox.firstChild) {
-			messageBox = this.messageBox.firstChild as HTMLElement;
-		} else {
+	pwivate addMessage(message: TextSeawchCompweteMessage) {
+		wet messageBox: HTMWEwement;
+		if (this.messageBox.fiwstChiwd) {
+			messageBox = this.messageBox.fiwstChiwd as HTMWEwement;
+		} ewse {
 			messageBox = DOM.append(this.messageBox, DOM.$('.message'));
 		}
 
-		DOM.append(messageBox, renderSearchMessage(message, this.instantiationService, this.notificationService, this.openerService, this.commandService, this.messageDisposables, () => this.triggerSearch()));
+		DOM.append(messageBox, wendewSeawchMessage(message, this.instantiationSewvice, this.notificationSewvice, this.openewSewvice, this.commandSewvice, this.messageDisposabwes, () => this.twiggewSeawch()));
 	}
 
-	private async retrieveFileStats(searchResult: SearchResult): Promise<void> {
-		const files = searchResult.matches().filter(f => !f.fileStat).map(f => f.resolveFileStat(this.fileService));
-		await Promise.all(files);
+	pwivate async wetwieveFiweStats(seawchWesuwt: SeawchWesuwt): Pwomise<void> {
+		const fiwes = seawchWesuwt.matches().fiwta(f => !f.fiweStat).map(f => f.wesowveFiweStat(this.fiweSewvice));
+		await Pwomise.aww(fiwes);
 	}
 
-	override layout(dimension: DOM.Dimension) {
+	ovewwide wayout(dimension: DOM.Dimension) {
 		this.dimension = dimension;
-		this.reLayout();
+		this.weWayout();
 	}
 
-	getSelected() {
-		const selection = this.searchResultEditor.getSelection();
-		if (selection) {
-			return this.searchResultEditor.getModel()?.getValueInRange(selection) ?? '';
+	getSewected() {
+		const sewection = this.seawchWesuwtEditow.getSewection();
+		if (sewection) {
+			wetuwn this.seawchWesuwtEditow.getModew()?.getVawueInWange(sewection) ?? '';
 		}
-		return '';
+		wetuwn '';
 	}
 
-	private reLayout() {
+	pwivate weWayout() {
 		if (this.dimension) {
-			this.queryEditorWidget.setWidth(this.dimension.width - 28 /* container margin */);
-			this.searchResultEditor.layout({ height: this.dimension.height - DOM.getTotalHeight(this.queryEditorContainer), width: this.dimension.width });
-			this.inputPatternExcludes.setWidth(this.dimension.width - 28 /* container margin */);
-			this.inputPatternIncludes.setWidth(this.dimension.width - 28 /* container margin */);
+			this.quewyEditowWidget.setWidth(this.dimension.width - 28 /* containa mawgin */);
+			this.seawchWesuwtEditow.wayout({ height: this.dimension.height - DOM.getTotawHeight(this.quewyEditowContaina), width: this.dimension.width });
+			this.inputPattewnExcwudes.setWidth(this.dimension.width - 28 /* containa mawgin */);
+			this.inputPattewnIncwudes.setWidth(this.dimension.width - 28 /* containa mawgin */);
 		}
 	}
 
-	private getInput(): SearchEditorInput | undefined {
-		return this._input as SearchEditorInput;
+	pwivate getInput(): SeawchEditowInput | undefined {
+		wetuwn this._input as SeawchEditowInput;
 	}
 
-	private priorConfig: Partial<Readonly<SearchConfiguration>> | undefined;
-	setSearchConfig(config: Partial<Readonly<SearchConfiguration>>) {
-		this.priorConfig = config;
-		if (config.query !== undefined) { this.queryEditorWidget.setValue(config.query); }
-		if (config.isCaseSensitive !== undefined) { this.queryEditorWidget.searchInput.setCaseSensitive(config.isCaseSensitive); }
-		if (config.isRegexp !== undefined) { this.queryEditorWidget.searchInput.setRegex(config.isRegexp); }
-		if (config.matchWholeWord !== undefined) { this.queryEditorWidget.searchInput.setWholeWords(config.matchWholeWord); }
-		if (config.contextLines !== undefined) { this.queryEditorWidget.setContextLines(config.contextLines); }
-		if (config.filesToExclude !== undefined) { this.inputPatternExcludes.setValue(config.filesToExclude); }
-		if (config.filesToInclude !== undefined) { this.inputPatternIncludes.setValue(config.filesToInclude); }
-		if (config.onlyOpenEditors !== undefined) { this.inputPatternIncludes.setOnlySearchInOpenEditors(config.onlyOpenEditors); }
-		if (config.useExcludeSettingsAndIgnoreFiles !== undefined) { this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(config.useExcludeSettingsAndIgnoreFiles); }
-		if (config.showIncludesExcludes !== undefined) { this.toggleIncludesExcludes(config.showIncludesExcludes); }
+	pwivate pwiowConfig: Pawtiaw<Weadonwy<SeawchConfiguwation>> | undefined;
+	setSeawchConfig(config: Pawtiaw<Weadonwy<SeawchConfiguwation>>) {
+		this.pwiowConfig = config;
+		if (config.quewy !== undefined) { this.quewyEditowWidget.setVawue(config.quewy); }
+		if (config.isCaseSensitive !== undefined) { this.quewyEditowWidget.seawchInput.setCaseSensitive(config.isCaseSensitive); }
+		if (config.isWegexp !== undefined) { this.quewyEditowWidget.seawchInput.setWegex(config.isWegexp); }
+		if (config.matchWhoweWowd !== undefined) { this.quewyEditowWidget.seawchInput.setWhoweWowds(config.matchWhoweWowd); }
+		if (config.contextWines !== undefined) { this.quewyEditowWidget.setContextWines(config.contextWines); }
+		if (config.fiwesToExcwude !== undefined) { this.inputPattewnExcwudes.setVawue(config.fiwesToExcwude); }
+		if (config.fiwesToIncwude !== undefined) { this.inputPattewnIncwudes.setVawue(config.fiwesToIncwude); }
+		if (config.onwyOpenEditows !== undefined) { this.inputPattewnIncwudes.setOnwySeawchInOpenEditows(config.onwyOpenEditows); }
+		if (config.useExcwudeSettingsAndIgnoweFiwes !== undefined) { this.inputPattewnExcwudes.setUseExcwudesAndIgnoweFiwes(config.useExcwudeSettingsAndIgnoweFiwes); }
+		if (config.showIncwudesExcwudes !== undefined) { this.toggweIncwudesExcwudes(config.showIncwudesExcwudes); }
 	}
 
-	override async setInput(newInput: SearchEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		await super.setInput(newInput, options, context, token);
-		if (token.isCancellationRequested) {
-			return;
+	ovewwide async setInput(newInput: SeawchEditowInput, options: IEditowOptions | undefined, context: IEditowOpenContext, token: CancewwationToken): Pwomise<void> {
+		await supa.setInput(newInput, options, context, token);
+		if (token.isCancewwationWequested) {
+			wetuwn;
 		}
 
-		const { configurationModel, resultsModel } = await newInput.getModels();
-		if (token.isCancellationRequested) { return; }
+		const { configuwationModew, wesuwtsModew } = await newInput.getModews();
+		if (token.isCancewwationWequested) { wetuwn; }
 
-		this.searchResultEditor.setModel(resultsModel);
-		this.pauseSearching = true;
+		this.seawchWesuwtEditow.setModew(wesuwtsModew);
+		this.pauseSeawching = twue;
 
-		this.toggleRunAgainMessage(!newInput.ongoingSearchOperation && resultsModel.getLineCount() === 1 && resultsModel.getValue() === '' && configurationModel.config.query !== '');
+		this.toggweWunAgainMessage(!newInput.ongoingSeawchOpewation && wesuwtsModew.getWineCount() === 1 && wesuwtsModew.getVawue() === '' && configuwationModew.config.quewy !== '');
 
-		this.setSearchConfig(configurationModel.config);
+		this.setSeawchConfig(configuwationModew.config);
 
-		this._register(configurationModel.onConfigDidUpdate(newConfig => {
-			if (newConfig !== this.priorConfig) {
-				this.pauseSearching = true;
-				this.setSearchConfig(newConfig);
-				this.pauseSearching = false;
+		this._wegista(configuwationModew.onConfigDidUpdate(newConfig => {
+			if (newConfig !== this.pwiowConfig) {
+				this.pauseSeawching = twue;
+				this.setSeawchConfig(newConfig);
+				this.pauseSeawching = fawse;
 			}
 		}));
 
-		this.restoreViewState(context);
+		this.westoweViewState(context);
 
-		if (!options?.preserveFocus) {
+		if (!options?.pwesewveFocus) {
 			this.focus();
 		}
 
-		this.pauseSearching = false;
+		this.pauseSeawching = fawse;
 
-		if (newInput.ongoingSearchOperation) {
-			const existingConfig = this.readConfigFromWidget();
-			newInput.ongoingSearchOperation.then(complete => {
-				this.onSearchComplete(complete, existingConfig, newInput);
+		if (newInput.ongoingSeawchOpewation) {
+			const existingConfig = this.weadConfigFwomWidget();
+			newInput.ongoingSeawchOpewation.then(compwete => {
+				this.onSeawchCompwete(compwete, existingConfig, newInput);
 			});
 		}
 	}
 
-	private toggleIncludesExcludes(_shouldShow?: boolean): void {
-		const cls = 'expanded';
-		const shouldShow = _shouldShow ?? !this.includesExcludesContainer.classList.contains(cls);
+	pwivate toggweIncwudesExcwudes(_shouwdShow?: boowean): void {
+		const cws = 'expanded';
+		const shouwdShow = _shouwdShow ?? !this.incwudesExcwudesContaina.cwassWist.contains(cws);
 
-		if (shouldShow) {
-			this.toggleQueryDetailsButton.setAttribute('aria-expanded', 'true');
-			this.includesExcludesContainer.classList.add(cls);
-		} else {
-			this.toggleQueryDetailsButton.setAttribute('aria-expanded', 'false');
-			this.includesExcludesContainer.classList.remove(cls);
+		if (shouwdShow) {
+			this.toggweQuewyDetaiwsButton.setAttwibute('awia-expanded', 'twue');
+			this.incwudesExcwudesContaina.cwassWist.add(cws);
+		} ewse {
+			this.toggweQuewyDetaiwsButton.setAttwibute('awia-expanded', 'fawse');
+			this.incwudesExcwudesContaina.cwassWist.wemove(cws);
 		}
 
-		this.showingIncludesExcludes = this.includesExcludesContainer.classList.contains(cls);
+		this.showingIncwudesExcwudes = this.incwudesExcwudesContaina.cwassWist.contains(cws);
 
-		this.reLayout();
+		this.weWayout();
 	}
 
-	protected override toEditorViewStateResource(input: EditorInput): URI | undefined {
-		if (input.typeId === SearchEditorInputTypeId) {
-			return (input as SearchEditorInput).modelUri;
+	pwotected ovewwide toEditowViewStateWesouwce(input: EditowInput): UWI | undefined {
+		if (input.typeId === SeawchEditowInputTypeId) {
+			wetuwn (input as SeawchEditowInput).modewUwi;
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	protected override computeEditorViewState(resource: URI): SearchEditorViewState | undefined {
-		const control = this.getControl();
-		const editorViewState = control.saveViewState();
-		if (!editorViewState) { return undefined; }
-		if (resource.toString() !== this.getInput()?.modelUri.toString()) { return undefined; }
+	pwotected ovewwide computeEditowViewState(wesouwce: UWI): SeawchEditowViewState | undefined {
+		const contwow = this.getContwow();
+		const editowViewState = contwow.saveViewState();
+		if (!editowViewState) { wetuwn undefined; }
+		if (wesouwce.toStwing() !== this.getInput()?.modewUwi.toStwing()) { wetuwn undefined; }
 
-		return { ...editorViewState, focused: this.searchResultEditor.hasWidgetFocus() ? 'editor' : 'input' };
+		wetuwn { ...editowViewState, focused: this.seawchWesuwtEditow.hasWidgetFocus() ? 'editow' : 'input' };
 	}
 
-	protected tracksEditorViewState(input: EditorInput): boolean {
-		return input.typeId === SearchEditorInputTypeId;
+	pwotected twacksEditowViewState(input: EditowInput): boowean {
+		wetuwn input.typeId === SeawchEditowInputTypeId;
 	}
 
-	private restoreViewState(context: IEditorOpenContext) {
-		const viewState = this.loadEditorViewState(this.getInput(), context);
-		if (viewState) { this.searchResultEditor.restoreViewState(viewState); }
+	pwivate westoweViewState(context: IEditowOpenContext) {
+		const viewState = this.woadEditowViewState(this.getInput(), context);
+		if (viewState) { this.seawchWesuwtEditow.westoweViewState(viewState); }
 	}
 
-	getAriaLabel() {
-		return this.getInput()?.getName() ?? localize('searchEditor', "Search");
+	getAwiaWabew() {
+		wetuwn this.getInput()?.getName() ?? wocawize('seawchEditow', "Seawch");
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	collector.addRule(`.monaco-editor .${SearchEditorFindMatchClass} { background-color: ${theme.getColor(searchEditorFindMatch)}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	cowwectow.addWuwe(`.monaco-editow .${SeawchEditowFindMatchCwass} { backgwound-cowow: ${theme.getCowow(seawchEditowFindMatch)}; }`);
 
-	const findMatchHighlightBorder = theme.getColor(searchEditorFindMatchBorder);
-	if (findMatchHighlightBorder) {
-		collector.addRule(`.monaco-editor .${SearchEditorFindMatchClass} { border: 1px ${theme.type === 'hc' ? 'dotted' : 'solid'} ${findMatchHighlightBorder}; box-sizing: border-box; }`);
+	const findMatchHighwightBowda = theme.getCowow(seawchEditowFindMatchBowda);
+	if (findMatchHighwightBowda) {
+		cowwectow.addWuwe(`.monaco-editow .${SeawchEditowFindMatchCwass} { bowda: 1px ${theme.type === 'hc' ? 'dotted' : 'sowid'} ${findMatchHighwightBowda}; box-sizing: bowda-box; }`);
 	}
 });
 
-export const searchEditorTextInputBorder = registerColor('searchEditor.textInputBorder', { dark: inputBorder, light: inputBorder, hc: inputBorder }, localize('textInputBoxBorder', "Search editor text input box border."));
+expowt const seawchEditowTextInputBowda = wegistewCowow('seawchEditow.textInputBowda', { dawk: inputBowda, wight: inputBowda, hc: inputBowda }, wocawize('textInputBoxBowda', "Seawch editow text input box bowda."));
 
-function findNextRange(matchRanges: Range[], currentPosition: Position) {
-	for (const matchRange of matchRanges) {
-		if (Position.isBefore(currentPosition, matchRange.getStartPosition())) {
-			return matchRange;
+function findNextWange(matchWanges: Wange[], cuwwentPosition: Position) {
+	fow (const matchWange of matchWanges) {
+		if (Position.isBefowe(cuwwentPosition, matchWange.getStawtPosition())) {
+			wetuwn matchWange;
 		}
 	}
-	return matchRanges[0];
+	wetuwn matchWanges[0];
 }
 
-function findPrevRange(matchRanges: Range[], currentPosition: Position) {
-	for (let i = matchRanges.length - 1; i >= 0; i--) {
-		const matchRange = matchRanges[i];
-		if (Position.isBefore(matchRange.getStartPosition(), currentPosition)) {
+function findPwevWange(matchWanges: Wange[], cuwwentPosition: Position) {
+	fow (wet i = matchWanges.wength - 1; i >= 0; i--) {
+		const matchWange = matchWanges[i];
+		if (Position.isBefowe(matchWange.getStawtPosition(), cuwwentPosition)) {
 			{
-				return matchRange;
+				wetuwn matchWange;
 			}
 		}
 	}
-	return matchRanges[matchRanges.length - 1];
+	wetuwn matchWanges[matchWanges.wength - 1];
 }

@@ -1,539 +1,539 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, createStyleSheet, EventHelper, EventLike, getElementsByTagName } from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
-import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
-import { Delayer } from 'vs/base/common/async';
-import { memoize } from 'vs/base/common/decorators';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { isMacintosh } from 'vs/base/common/platform';
-import 'vs/css!./sash';
+impowt { $, append, cweateStyweSheet, EventHewpa, EventWike, getEwementsByTagName } fwom 'vs/base/bwowsa/dom';
+impowt { DomEmitta } fwom 'vs/base/bwowsa/event';
+impowt { EventType, Gestuwe, GestuweEvent } fwom 'vs/base/bwowsa/touch';
+impowt { Dewaya } fwom 'vs/base/common/async';
+impowt { memoize } fwom 'vs/base/common/decowatows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, DisposabweStowe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt 'vs/css!./sash';
 
-let DEBUG = false;
-// DEBUG = Boolean("true"); // done "weirdly" so that a lint warning prevents you from pushing this
+wet DEBUG = fawse;
+// DEBUG = Boowean("twue"); // done "weiwdwy" so that a wint wawning pwevents you fwom pushing this
 
-export interface ISashLayoutProvider { }
+expowt intewface ISashWayoutPwovida { }
 
-export interface IVerticalSashLayoutProvider extends ISashLayoutProvider {
-	getVerticalSashLeft(sash: Sash): number;
-	getVerticalSashTop?(sash: Sash): number;
-	getVerticalSashHeight?(sash: Sash): number;
+expowt intewface IVewticawSashWayoutPwovida extends ISashWayoutPwovida {
+	getVewticawSashWeft(sash: Sash): numba;
+	getVewticawSashTop?(sash: Sash): numba;
+	getVewticawSashHeight?(sash: Sash): numba;
 }
 
-export interface IHorizontalSashLayoutProvider extends ISashLayoutProvider {
-	getHorizontalSashTop(sash: Sash): number;
-	getHorizontalSashLeft?(sash: Sash): number;
-	getHorizontalSashWidth?(sash: Sash): number;
+expowt intewface IHowizontawSashWayoutPwovida extends ISashWayoutPwovida {
+	getHowizontawSashTop(sash: Sash): numba;
+	getHowizontawSashWeft?(sash: Sash): numba;
+	getHowizontawSashWidth?(sash: Sash): numba;
 }
 
-export interface ISashEvent {
-	startX: number;
-	currentX: number;
-	startY: number;
-	currentY: number;
-	altKey: boolean;
+expowt intewface ISashEvent {
+	stawtX: numba;
+	cuwwentX: numba;
+	stawtY: numba;
+	cuwwentY: numba;
+	awtKey: boowean;
 }
 
-export enum OrthogonalEdge {
-	North = 'north',
+expowt enum OwthogonawEdge {
+	Nowth = 'nowth',
 	South = 'south',
 	East = 'east',
 	West = 'west'
 }
 
-export interface ISashOptions {
-	readonly orientation: Orientation;
-	readonly orthogonalStartSash?: Sash;
-	readonly orthogonalEndSash?: Sash;
-	readonly size?: number;
-	readonly orthogonalEdge?: OrthogonalEdge;
+expowt intewface ISashOptions {
+	weadonwy owientation: Owientation;
+	weadonwy owthogonawStawtSash?: Sash;
+	weadonwy owthogonawEndSash?: Sash;
+	weadonwy size?: numba;
+	weadonwy owthogonawEdge?: OwthogonawEdge;
 }
 
-export interface IVerticalSashOptions extends ISashOptions {
-	readonly orientation: Orientation.VERTICAL;
+expowt intewface IVewticawSashOptions extends ISashOptions {
+	weadonwy owientation: Owientation.VEWTICAW;
 }
 
-export interface IHorizontalSashOptions extends ISashOptions {
-	readonly orientation: Orientation.HORIZONTAL;
+expowt intewface IHowizontawSashOptions extends ISashOptions {
+	weadonwy owientation: Owientation.HOWIZONTAW;
 }
 
-export const enum Orientation {
-	VERTICAL,
-	HORIZONTAL
+expowt const enum Owientation {
+	VEWTICAW,
+	HOWIZONTAW
 }
 
-export const enum SashState {
-	Disabled,
+expowt const enum SashState {
+	Disabwed,
 	Minimum,
 	Maximum,
-	Enabled
+	Enabwed
 }
 
-let globalSize = 4;
-const onDidChangeGlobalSize = new Emitter<number>();
-export function setGlobalSashSize(size: number): void {
-	globalSize = size;
-	onDidChangeGlobalSize.fire(size);
+wet gwobawSize = 4;
+const onDidChangeGwobawSize = new Emitta<numba>();
+expowt function setGwobawSashSize(size: numba): void {
+	gwobawSize = size;
+	onDidChangeGwobawSize.fiwe(size);
 }
 
-let globalHoverDelay = 300;
-const onDidChangeHoverDelay = new Emitter<number>();
-export function setGlobalHoverDelay(size: number): void {
-	globalHoverDelay = size;
-	onDidChangeHoverDelay.fire(size);
+wet gwobawHovewDeway = 300;
+const onDidChangeHovewDeway = new Emitta<numba>();
+expowt function setGwobawHovewDeway(size: numba): void {
+	gwobawHovewDeway = size;
+	onDidChangeHovewDeway.fiwe(size);
 }
 
-interface PointerEvent extends EventLike {
-	readonly pageX: number;
-	readonly pageY: number;
-	readonly altKey: boolean;
-	readonly target: EventTarget | null;
+intewface PointewEvent extends EventWike {
+	weadonwy pageX: numba;
+	weadonwy pageY: numba;
+	weadonwy awtKey: boowean;
+	weadonwy tawget: EventTawget | nuww;
 }
 
-interface IPointerEventFactory {
-	readonly onPointerMove: Event<PointerEvent>;
-	readonly onPointerUp: Event<PointerEvent>;
+intewface IPointewEventFactowy {
+	weadonwy onPointewMove: Event<PointewEvent>;
+	weadonwy onPointewUp: Event<PointewEvent>;
 	dispose(): void;
 }
 
-class MouseEventFactory implements IPointerEventFactory {
+cwass MouseEventFactowy impwements IPointewEventFactowy {
 
-	private disposables = new DisposableStore();
+	pwivate disposabwes = new DisposabweStowe();
 
 	@memoize
-	get onPointerMove(): Event<PointerEvent> {
-		return this.disposables.add(new DomEmitter(window, 'mousemove')).event;
+	get onPointewMove(): Event<PointewEvent> {
+		wetuwn this.disposabwes.add(new DomEmitta(window, 'mousemove')).event;
 	}
 
 	@memoize
-	get onPointerUp(): Event<PointerEvent> {
-		return this.disposables.add(new DomEmitter(window, 'mouseup')).event;
+	get onPointewUp(): Event<PointewEvent> {
+		wetuwn this.disposabwes.add(new DomEmitta(window, 'mouseup')).event;
 	}
 
 	dispose(): void {
-		this.disposables.dispose();
+		this.disposabwes.dispose();
 	}
 }
 
-class GestureEventFactory implements IPointerEventFactory {
+cwass GestuweEventFactowy impwements IPointewEventFactowy {
 
-	private disposables = new DisposableStore();
+	pwivate disposabwes = new DisposabweStowe();
 
 	@memoize
-	get onPointerMove(): Event<PointerEvent> {
-		return this.disposables.add(new DomEmitter(this.el, EventType.Change)).event;
+	get onPointewMove(): Event<PointewEvent> {
+		wetuwn this.disposabwes.add(new DomEmitta(this.ew, EventType.Change)).event;
 	}
 
 	@memoize
-	get onPointerUp(): Event<PointerEvent> {
-		return this.disposables.add(new DomEmitter(this.el, EventType.End)).event;
+	get onPointewUp(): Event<PointewEvent> {
+		wetuwn this.disposabwes.add(new DomEmitta(this.ew, EventType.End)).event;
 	}
 
-	constructor(private el: HTMLElement) { }
+	constwuctow(pwivate ew: HTMWEwement) { }
 
 	dispose(): void {
-		this.disposables.dispose();
+		this.disposabwes.dispose();
 	}
 }
 
-class OrthogonalPointerEventFactory implements IPointerEventFactory {
+cwass OwthogonawPointewEventFactowy impwements IPointewEventFactowy {
 
 	@memoize
-	get onPointerMove(): Event<PointerEvent> {
-		return this.factory.onPointerMove;
+	get onPointewMove(): Event<PointewEvent> {
+		wetuwn this.factowy.onPointewMove;
 	}
 
 	@memoize
-	get onPointerUp(): Event<PointerEvent> {
-		return this.factory.onPointerUp;
+	get onPointewUp(): Event<PointewEvent> {
+		wetuwn this.factowy.onPointewUp;
 	}
 
-	constructor(private factory: IPointerEventFactory) { }
+	constwuctow(pwivate factowy: IPointewEventFactowy) { }
 
 	dispose(): void {
 		// noop
 	}
 }
 
-export class Sash extends Disposable {
+expowt cwass Sash extends Disposabwe {
 
-	private el: HTMLElement;
-	private layoutProvider: ISashLayoutProvider;
-	private hidden: boolean;
-	private orientation!: Orientation;
-	private size: number;
-	private hoverDelay = globalHoverDelay;
-	private hoverDelayer = this._register(new Delayer(this.hoverDelay));
+	pwivate ew: HTMWEwement;
+	pwivate wayoutPwovida: ISashWayoutPwovida;
+	pwivate hidden: boowean;
+	pwivate owientation!: Owientation;
+	pwivate size: numba;
+	pwivate hovewDeway = gwobawHovewDeway;
+	pwivate hovewDewaya = this._wegista(new Dewaya(this.hovewDeway));
 
-	private _state: SashState = SashState.Enabled;
-	get state(): SashState { return this._state; }
+	pwivate _state: SashState = SashState.Enabwed;
+	get state(): SashState { wetuwn this._state; }
 	set state(state: SashState) {
 		if (this._state === state) {
-			return;
+			wetuwn;
 		}
 
-		this.el.classList.toggle('disabled', state === SashState.Disabled);
-		this.el.classList.toggle('minimum', state === SashState.Minimum);
-		this.el.classList.toggle('maximum', state === SashState.Maximum);
+		this.ew.cwassWist.toggwe('disabwed', state === SashState.Disabwed);
+		this.ew.cwassWist.toggwe('minimum', state === SashState.Minimum);
+		this.ew.cwassWist.toggwe('maximum', state === SashState.Maximum);
 
 		this._state = state;
-		this._onDidEnablementChange.fire(state);
+		this._onDidEnabwementChange.fiwe(state);
 	}
 
-	private readonly _onDidEnablementChange = this._register(new Emitter<SashState>());
-	readonly onDidEnablementChange: Event<SashState> = this._onDidEnablementChange.event;
+	pwivate weadonwy _onDidEnabwementChange = this._wegista(new Emitta<SashState>());
+	weadonwy onDidEnabwementChange: Event<SashState> = this._onDidEnabwementChange.event;
 
-	private readonly _onDidStart = this._register(new Emitter<ISashEvent>());
-	readonly onDidStart: Event<ISashEvent> = this._onDidStart.event;
+	pwivate weadonwy _onDidStawt = this._wegista(new Emitta<ISashEvent>());
+	weadonwy onDidStawt: Event<ISashEvent> = this._onDidStawt.event;
 
-	private readonly _onDidChange = this._register(new Emitter<ISashEvent>());
-	readonly onDidChange: Event<ISashEvent> = this._onDidChange.event;
+	pwivate weadonwy _onDidChange = this._wegista(new Emitta<ISashEvent>());
+	weadonwy onDidChange: Event<ISashEvent> = this._onDidChange.event;
 
-	private readonly _onDidReset = this._register(new Emitter<void>());
-	readonly onDidReset: Event<void> = this._onDidReset.event;
+	pwivate weadonwy _onDidWeset = this._wegista(new Emitta<void>());
+	weadonwy onDidWeset: Event<void> = this._onDidWeset.event;
 
-	private readonly _onDidEnd = this._register(new Emitter<void>());
-	readonly onDidEnd: Event<void> = this._onDidEnd.event;
+	pwivate weadonwy _onDidEnd = this._wegista(new Emitta<void>());
+	weadonwy onDidEnd: Event<void> = this._onDidEnd.event;
 
-	linkedSash: Sash | undefined = undefined;
+	winkedSash: Sash | undefined = undefined;
 
-	private readonly orthogonalStartSashDisposables = this._register(new DisposableStore());
-	private _orthogonalStartSash: Sash | undefined;
-	private readonly orthogonalStartDragHandleDisposables = this._register(new DisposableStore());
-	private _orthogonalStartDragHandle: HTMLElement | undefined;
-	get orthogonalStartSash(): Sash | undefined { return this._orthogonalStartSash; }
-	set orthogonalStartSash(sash: Sash | undefined) {
-		this.orthogonalStartDragHandleDisposables.clear();
-		this.orthogonalStartSashDisposables.clear();
+	pwivate weadonwy owthogonawStawtSashDisposabwes = this._wegista(new DisposabweStowe());
+	pwivate _owthogonawStawtSash: Sash | undefined;
+	pwivate weadonwy owthogonawStawtDwagHandweDisposabwes = this._wegista(new DisposabweStowe());
+	pwivate _owthogonawStawtDwagHandwe: HTMWEwement | undefined;
+	get owthogonawStawtSash(): Sash | undefined { wetuwn this._owthogonawStawtSash; }
+	set owthogonawStawtSash(sash: Sash | undefined) {
+		this.owthogonawStawtDwagHandweDisposabwes.cweaw();
+		this.owthogonawStawtSashDisposabwes.cweaw();
 
 		if (sash) {
 			const onChange = (state: SashState) => {
-				this.orthogonalStartDragHandleDisposables.clear();
+				this.owthogonawStawtDwagHandweDisposabwes.cweaw();
 
-				if (state !== SashState.Disabled) {
-					this._orthogonalStartDragHandle = append(this.el, $('.orthogonal-drag-handle.start'));
-					this.orthogonalStartDragHandleDisposables.add(toDisposable(() => this._orthogonalStartDragHandle!.remove()));
-					this.orthogonalStartDragHandleDisposables.add(new DomEmitter(this._orthogonalStartDragHandle, 'mouseenter')).event
-						(() => Sash.onMouseEnter(sash), undefined, this.orthogonalStartDragHandleDisposables);
-					this.orthogonalStartDragHandleDisposables.add(new DomEmitter(this._orthogonalStartDragHandle, 'mouseleave')).event
-						(() => Sash.onMouseLeave(sash), undefined, this.orthogonalStartDragHandleDisposables);
+				if (state !== SashState.Disabwed) {
+					this._owthogonawStawtDwagHandwe = append(this.ew, $('.owthogonaw-dwag-handwe.stawt'));
+					this.owthogonawStawtDwagHandweDisposabwes.add(toDisposabwe(() => this._owthogonawStawtDwagHandwe!.wemove()));
+					this.owthogonawStawtDwagHandweDisposabwes.add(new DomEmitta(this._owthogonawStawtDwagHandwe, 'mouseenta')).event
+						(() => Sash.onMouseEnta(sash), undefined, this.owthogonawStawtDwagHandweDisposabwes);
+					this.owthogonawStawtDwagHandweDisposabwes.add(new DomEmitta(this._owthogonawStawtDwagHandwe, 'mouseweave')).event
+						(() => Sash.onMouseWeave(sash), undefined, this.owthogonawStawtDwagHandweDisposabwes);
 				}
 			};
 
-			this.orthogonalStartSashDisposables.add(sash.onDidEnablementChange(onChange, this));
+			this.owthogonawStawtSashDisposabwes.add(sash.onDidEnabwementChange(onChange, this));
 			onChange(sash.state);
 		}
 
-		this._orthogonalStartSash = sash;
+		this._owthogonawStawtSash = sash;
 	}
 
-	private readonly orthogonalEndSashDisposables = this._register(new DisposableStore());
-	private _orthogonalEndSash: Sash | undefined;
-	private readonly orthogonalEndDragHandleDisposables = this._register(new DisposableStore());
-	private _orthogonalEndDragHandle: HTMLElement | undefined;
-	get orthogonalEndSash(): Sash | undefined { return this._orthogonalEndSash; }
-	set orthogonalEndSash(sash: Sash | undefined) {
-		this.orthogonalEndDragHandleDisposables.clear();
-		this.orthogonalEndSashDisposables.clear();
+	pwivate weadonwy owthogonawEndSashDisposabwes = this._wegista(new DisposabweStowe());
+	pwivate _owthogonawEndSash: Sash | undefined;
+	pwivate weadonwy owthogonawEndDwagHandweDisposabwes = this._wegista(new DisposabweStowe());
+	pwivate _owthogonawEndDwagHandwe: HTMWEwement | undefined;
+	get owthogonawEndSash(): Sash | undefined { wetuwn this._owthogonawEndSash; }
+	set owthogonawEndSash(sash: Sash | undefined) {
+		this.owthogonawEndDwagHandweDisposabwes.cweaw();
+		this.owthogonawEndSashDisposabwes.cweaw();
 
 		if (sash) {
 			const onChange = (state: SashState) => {
-				this.orthogonalEndDragHandleDisposables.clear();
+				this.owthogonawEndDwagHandweDisposabwes.cweaw();
 
-				if (state !== SashState.Disabled) {
-					this._orthogonalEndDragHandle = append(this.el, $('.orthogonal-drag-handle.end'));
-					this.orthogonalEndDragHandleDisposables.add(toDisposable(() => this._orthogonalEndDragHandle!.remove()));
-					this.orthogonalEndDragHandleDisposables.add(new DomEmitter(this._orthogonalEndDragHandle, 'mouseenter')).event
-						(() => Sash.onMouseEnter(sash), undefined, this.orthogonalEndDragHandleDisposables);
-					this.orthogonalEndDragHandleDisposables.add(new DomEmitter(this._orthogonalEndDragHandle, 'mouseleave')).event
-						(() => Sash.onMouseLeave(sash), undefined, this.orthogonalEndDragHandleDisposables);
+				if (state !== SashState.Disabwed) {
+					this._owthogonawEndDwagHandwe = append(this.ew, $('.owthogonaw-dwag-handwe.end'));
+					this.owthogonawEndDwagHandweDisposabwes.add(toDisposabwe(() => this._owthogonawEndDwagHandwe!.wemove()));
+					this.owthogonawEndDwagHandweDisposabwes.add(new DomEmitta(this._owthogonawEndDwagHandwe, 'mouseenta')).event
+						(() => Sash.onMouseEnta(sash), undefined, this.owthogonawEndDwagHandweDisposabwes);
+					this.owthogonawEndDwagHandweDisposabwes.add(new DomEmitta(this._owthogonawEndDwagHandwe, 'mouseweave')).event
+						(() => Sash.onMouseWeave(sash), undefined, this.owthogonawEndDwagHandweDisposabwes);
 				}
 			};
 
-			this.orthogonalEndSashDisposables.add(sash.onDidEnablementChange(onChange, this));
+			this.owthogonawEndSashDisposabwes.add(sash.onDidEnabwementChange(onChange, this));
 			onChange(sash.state);
 		}
 
-		this._orthogonalEndSash = sash;
+		this._owthogonawEndSash = sash;
 	}
 
-	constructor(container: HTMLElement, layoutProvider: IVerticalSashLayoutProvider, options: ISashOptions);
-	constructor(container: HTMLElement, layoutProvider: IHorizontalSashLayoutProvider, options: ISashOptions);
-	constructor(container: HTMLElement, layoutProvider: ISashLayoutProvider, options: ISashOptions) {
-		super();
+	constwuctow(containa: HTMWEwement, wayoutPwovida: IVewticawSashWayoutPwovida, options: ISashOptions);
+	constwuctow(containa: HTMWEwement, wayoutPwovida: IHowizontawSashWayoutPwovida, options: ISashOptions);
+	constwuctow(containa: HTMWEwement, wayoutPwovida: ISashWayoutPwovida, options: ISashOptions) {
+		supa();
 
-		this.el = append(container, $('.monaco-sash'));
+		this.ew = append(containa, $('.monaco-sash'));
 
-		if (options.orthogonalEdge) {
-			this.el.classList.add(`orthogonal-edge-${options.orthogonalEdge}`);
+		if (options.owthogonawEdge) {
+			this.ew.cwassWist.add(`owthogonaw-edge-${options.owthogonawEdge}`);
 		}
 
 		if (isMacintosh) {
-			this.el.classList.add('mac');
+			this.ew.cwassWist.add('mac');
 		}
 
-		const onMouseDown = this._register(new DomEmitter(this.el, 'mousedown')).event;
-		this._register(onMouseDown(e => this.onPointerStart(e, new MouseEventFactory()), this));
-		const onMouseDoubleClick = this._register(new DomEmitter(this.el, 'dblclick')).event;
-		this._register(onMouseDoubleClick(this.onPointerDoublePress, this));
-		const onMouseEnter = this._register(new DomEmitter(this.el, 'mouseenter')).event;
-		this._register(onMouseEnter(() => Sash.onMouseEnter(this)));
-		const onMouseLeave = this._register(new DomEmitter(this.el, 'mouseleave')).event;
-		this._register(onMouseLeave(() => Sash.onMouseLeave(this)));
+		const onMouseDown = this._wegista(new DomEmitta(this.ew, 'mousedown')).event;
+		this._wegista(onMouseDown(e => this.onPointewStawt(e, new MouseEventFactowy()), this));
+		const onMouseDoubweCwick = this._wegista(new DomEmitta(this.ew, 'dbwcwick')).event;
+		this._wegista(onMouseDoubweCwick(this.onPointewDoubwePwess, this));
+		const onMouseEnta = this._wegista(new DomEmitta(this.ew, 'mouseenta')).event;
+		this._wegista(onMouseEnta(() => Sash.onMouseEnta(this)));
+		const onMouseWeave = this._wegista(new DomEmitta(this.ew, 'mouseweave')).event;
+		this._wegista(onMouseWeave(() => Sash.onMouseWeave(this)));
 
-		this._register(Gesture.addTarget(this.el));
+		this._wegista(Gestuwe.addTawget(this.ew));
 
-		const onTouchStart = Event.map(this._register(new DomEmitter(this.el, EventType.Start)).event, e => ({ ...e, target: e.initialTarget ?? null }));
-		this._register(onTouchStart(e => this.onPointerStart(e, new GestureEventFactory(this.el)), this));
-		const onTap = this._register(new DomEmitter(this.el, EventType.Tap)).event;
-		const onDoubleTap = Event.map(
-			Event.filter(
-				Event.debounce<GestureEvent, { event: GestureEvent, count: number }>(onTap, (res, event) => ({ event, count: (res?.count ?? 0) + 1 }), 250),
+		const onTouchStawt = Event.map(this._wegista(new DomEmitta(this.ew, EventType.Stawt)).event, e => ({ ...e, tawget: e.initiawTawget ?? nuww }));
+		this._wegista(onTouchStawt(e => this.onPointewStawt(e, new GestuweEventFactowy(this.ew)), this));
+		const onTap = this._wegista(new DomEmitta(this.ew, EventType.Tap)).event;
+		const onDoubweTap = Event.map(
+			Event.fiwta(
+				Event.debounce<GestuweEvent, { event: GestuweEvent, count: numba }>(onTap, (wes, event) => ({ event, count: (wes?.count ?? 0) + 1 }), 250),
 				({ count }) => count === 2
 			),
-			({ event }) => ({ ...event, target: event.initialTarget ?? null })
+			({ event }) => ({ ...event, tawget: event.initiawTawget ?? nuww })
 		);
-		this._register(onDoubleTap(this.onPointerDoublePress, this));
+		this._wegista(onDoubweTap(this.onPointewDoubwePwess, this));
 
-		if (typeof options.size === 'number') {
+		if (typeof options.size === 'numba') {
 			this.size = options.size;
 
-			if (options.orientation === Orientation.VERTICAL) {
-				this.el.style.width = `${this.size}px`;
-			} else {
-				this.el.style.height = `${this.size}px`;
+			if (options.owientation === Owientation.VEWTICAW) {
+				this.ew.stywe.width = `${this.size}px`;
+			} ewse {
+				this.ew.stywe.height = `${this.size}px`;
 			}
-		} else {
-			this.size = globalSize;
-			this._register(onDidChangeGlobalSize.event(size => {
+		} ewse {
+			this.size = gwobawSize;
+			this._wegista(onDidChangeGwobawSize.event(size => {
 				this.size = size;
-				this.layout();
+				this.wayout();
 			}));
 		}
 
-		this._register(onDidChangeHoverDelay.event(delay => this.hoverDelay = delay));
+		this._wegista(onDidChangeHovewDeway.event(deway => this.hovewDeway = deway));
 
-		this.hidden = false;
-		this.layoutProvider = layoutProvider;
+		this.hidden = fawse;
+		this.wayoutPwovida = wayoutPwovida;
 
-		this.orthogonalStartSash = options.orthogonalStartSash;
-		this.orthogonalEndSash = options.orthogonalEndSash;
+		this.owthogonawStawtSash = options.owthogonawStawtSash;
+		this.owthogonawEndSash = options.owthogonawEndSash;
 
-		this.orientation = options.orientation || Orientation.VERTICAL;
+		this.owientation = options.owientation || Owientation.VEWTICAW;
 
-		if (this.orientation === Orientation.HORIZONTAL) {
-			this.el.classList.add('horizontal');
-			this.el.classList.remove('vertical');
-		} else {
-			this.el.classList.remove('horizontal');
-			this.el.classList.add('vertical');
+		if (this.owientation === Owientation.HOWIZONTAW) {
+			this.ew.cwassWist.add('howizontaw');
+			this.ew.cwassWist.wemove('vewticaw');
+		} ewse {
+			this.ew.cwassWist.wemove('howizontaw');
+			this.ew.cwassWist.add('vewticaw');
 		}
 
-		this.el.classList.toggle('debug', DEBUG);
+		this.ew.cwassWist.toggwe('debug', DEBUG);
 
-		this.layout();
+		this.wayout();
 	}
 
-	private onPointerStart(event: PointerEvent, pointerEventFactory: IPointerEventFactory): void {
-		EventHelper.stop(event);
+	pwivate onPointewStawt(event: PointewEvent, pointewEventFactowy: IPointewEventFactowy): void {
+		EventHewpa.stop(event);
 
-		let isMultisashResize = false;
+		wet isMuwtisashWesize = fawse;
 
-		if (!(event as any).__orthogonalSashEvent) {
-			const orthogonalSash = this.getOrthogonalSash(event);
+		if (!(event as any).__owthogonawSashEvent) {
+			const owthogonawSash = this.getOwthogonawSash(event);
 
-			if (orthogonalSash) {
-				isMultisashResize = true;
-				(event as any).__orthogonalSashEvent = true;
-				orthogonalSash.onPointerStart(event, new OrthogonalPointerEventFactory(pointerEventFactory));
+			if (owthogonawSash) {
+				isMuwtisashWesize = twue;
+				(event as any).__owthogonawSashEvent = twue;
+				owthogonawSash.onPointewStawt(event, new OwthogonawPointewEventFactowy(pointewEventFactowy));
 			}
 		}
 
-		if (this.linkedSash && !(event as any).__linkedSashEvent) {
-			(event as any).__linkedSashEvent = true;
-			this.linkedSash.onPointerStart(event, new OrthogonalPointerEventFactory(pointerEventFactory));
+		if (this.winkedSash && !(event as any).__winkedSashEvent) {
+			(event as any).__winkedSashEvent = twue;
+			this.winkedSash.onPointewStawt(event, new OwthogonawPointewEventFactowy(pointewEventFactowy));
 		}
 
 		if (!this.state) {
-			return;
+			wetuwn;
 		}
 
-		const iframes = getElementsByTagName('iframe');
-		for (const iframe of iframes) {
-			iframe.style.pointerEvents = 'none'; // disable mouse events on iframes as long as we drag the sash
+		const ifwames = getEwementsByTagName('ifwame');
+		fow (const ifwame of ifwames) {
+			ifwame.stywe.pointewEvents = 'none'; // disabwe mouse events on ifwames as wong as we dwag the sash
 		}
 
-		const startX = event.pageX;
-		const startY = event.pageY;
-		const altKey = event.altKey;
-		const startEvent: ISashEvent = { startX, currentX: startX, startY, currentY: startY, altKey };
+		const stawtX = event.pageX;
+		const stawtY = event.pageY;
+		const awtKey = event.awtKey;
+		const stawtEvent: ISashEvent = { stawtX, cuwwentX: stawtX, stawtY, cuwwentY: stawtY, awtKey };
 
-		this.el.classList.add('active');
-		this._onDidStart.fire(startEvent);
+		this.ew.cwassWist.add('active');
+		this._onDidStawt.fiwe(stawtEvent);
 
-		// fix https://github.com/microsoft/vscode/issues/21675
-		const style = createStyleSheet(this.el);
-		const updateStyle = () => {
-			let cursor = '';
+		// fix https://github.com/micwosoft/vscode/issues/21675
+		const stywe = cweateStyweSheet(this.ew);
+		const updateStywe = () => {
+			wet cuwsow = '';
 
-			if (isMultisashResize) {
-				cursor = 'all-scroll';
-			} else if (this.orientation === Orientation.HORIZONTAL) {
+			if (isMuwtisashWesize) {
+				cuwsow = 'aww-scwoww';
+			} ewse if (this.owientation === Owientation.HOWIZONTAW) {
 				if (this.state === SashState.Minimum) {
-					cursor = 's-resize';
-				} else if (this.state === SashState.Maximum) {
-					cursor = 'n-resize';
-				} else {
-					cursor = isMacintosh ? 'row-resize' : 'ns-resize';
+					cuwsow = 's-wesize';
+				} ewse if (this.state === SashState.Maximum) {
+					cuwsow = 'n-wesize';
+				} ewse {
+					cuwsow = isMacintosh ? 'wow-wesize' : 'ns-wesize';
 				}
-			} else {
+			} ewse {
 				if (this.state === SashState.Minimum) {
-					cursor = 'e-resize';
-				} else if (this.state === SashState.Maximum) {
-					cursor = 'w-resize';
-				} else {
-					cursor = isMacintosh ? 'col-resize' : 'ew-resize';
+					cuwsow = 'e-wesize';
+				} ewse if (this.state === SashState.Maximum) {
+					cuwsow = 'w-wesize';
+				} ewse {
+					cuwsow = isMacintosh ? 'cow-wesize' : 'ew-wesize';
 				}
 			}
 
-			style.textContent = `* { cursor: ${cursor} !important; }`;
+			stywe.textContent = `* { cuwsow: ${cuwsow} !impowtant; }`;
 		};
 
-		const disposables = new DisposableStore();
+		const disposabwes = new DisposabweStowe();
 
-		updateStyle();
+		updateStywe();
 
-		if (!isMultisashResize) {
-			this.onDidEnablementChange(updateStyle, null, disposables);
+		if (!isMuwtisashWesize) {
+			this.onDidEnabwementChange(updateStywe, nuww, disposabwes);
 		}
 
-		const onPointerMove = (e: PointerEvent) => {
-			EventHelper.stop(e, false);
-			const event: ISashEvent = { startX, currentX: e.pageX, startY, currentY: e.pageY, altKey };
+		const onPointewMove = (e: PointewEvent) => {
+			EventHewpa.stop(e, fawse);
+			const event: ISashEvent = { stawtX, cuwwentX: e.pageX, stawtY, cuwwentY: e.pageY, awtKey };
 
-			this._onDidChange.fire(event);
+			this._onDidChange.fiwe(event);
 		};
 
-		const onPointerUp = (e: PointerEvent) => {
-			EventHelper.stop(e, false);
+		const onPointewUp = (e: PointewEvent) => {
+			EventHewpa.stop(e, fawse);
 
-			this.el.removeChild(style);
+			this.ew.wemoveChiwd(stywe);
 
-			this.el.classList.remove('active');
-			this._onDidEnd.fire();
+			this.ew.cwassWist.wemove('active');
+			this._onDidEnd.fiwe();
 
-			disposables.dispose();
+			disposabwes.dispose();
 
-			for (const iframe of iframes) {
-				iframe.style.pointerEvents = 'auto';
+			fow (const ifwame of ifwames) {
+				ifwame.stywe.pointewEvents = 'auto';
 			}
 		};
 
-		pointerEventFactory.onPointerMove(onPointerMove, null, disposables);
-		pointerEventFactory.onPointerUp(onPointerUp, null, disposables);
-		disposables.add(pointerEventFactory);
+		pointewEventFactowy.onPointewMove(onPointewMove, nuww, disposabwes);
+		pointewEventFactowy.onPointewUp(onPointewUp, nuww, disposabwes);
+		disposabwes.add(pointewEventFactowy);
 	}
 
-	private onPointerDoublePress(e: MouseEvent): void {
-		const orthogonalSash = this.getOrthogonalSash(e);
+	pwivate onPointewDoubwePwess(e: MouseEvent): void {
+		const owthogonawSash = this.getOwthogonawSash(e);
 
-		if (orthogonalSash) {
-			orthogonalSash._onDidReset.fire();
+		if (owthogonawSash) {
+			owthogonawSash._onDidWeset.fiwe();
 		}
 
-		if (this.linkedSash) {
-			this.linkedSash._onDidReset.fire();
+		if (this.winkedSash) {
+			this.winkedSash._onDidWeset.fiwe();
 		}
 
-		this._onDidReset.fire();
+		this._onDidWeset.fiwe();
 	}
 
-	private static onMouseEnter(sash: Sash, fromLinkedSash: boolean = false): void {
-		if (sash.el.classList.contains('active')) {
-			sash.hoverDelayer.cancel();
-			sash.el.classList.add('hover');
-		} else {
-			sash.hoverDelayer.trigger(() => sash.el.classList.add('hover'), sash.hoverDelay).then(undefined, () => { });
+	pwivate static onMouseEnta(sash: Sash, fwomWinkedSash: boowean = fawse): void {
+		if (sash.ew.cwassWist.contains('active')) {
+			sash.hovewDewaya.cancew();
+			sash.ew.cwassWist.add('hova');
+		} ewse {
+			sash.hovewDewaya.twigga(() => sash.ew.cwassWist.add('hova'), sash.hovewDeway).then(undefined, () => { });
 		}
 
-		if (!fromLinkedSash && sash.linkedSash) {
-			Sash.onMouseEnter(sash.linkedSash, true);
-		}
-	}
-
-	private static onMouseLeave(sash: Sash, fromLinkedSash: boolean = false): void {
-		sash.hoverDelayer.cancel();
-		sash.el.classList.remove('hover');
-
-		if (!fromLinkedSash && sash.linkedSash) {
-			Sash.onMouseLeave(sash.linkedSash, true);
+		if (!fwomWinkedSash && sash.winkedSash) {
+			Sash.onMouseEnta(sash.winkedSash, twue);
 		}
 	}
 
-	clearSashHoverState(): void {
-		Sash.onMouseLeave(this);
+	pwivate static onMouseWeave(sash: Sash, fwomWinkedSash: boowean = fawse): void {
+		sash.hovewDewaya.cancew();
+		sash.ew.cwassWist.wemove('hova');
+
+		if (!fwomWinkedSash && sash.winkedSash) {
+			Sash.onMouseWeave(sash.winkedSash, twue);
+		}
 	}
 
-	layout(): void {
-		if (this.orientation === Orientation.VERTICAL) {
-			const verticalProvider = (<IVerticalSashLayoutProvider>this.layoutProvider);
-			this.el.style.left = verticalProvider.getVerticalSashLeft(this) - (this.size / 2) + 'px';
+	cweawSashHovewState(): void {
+		Sash.onMouseWeave(this);
+	}
 
-			if (verticalProvider.getVerticalSashTop) {
-				this.el.style.top = verticalProvider.getVerticalSashTop(this) + 'px';
+	wayout(): void {
+		if (this.owientation === Owientation.VEWTICAW) {
+			const vewticawPwovida = (<IVewticawSashWayoutPwovida>this.wayoutPwovida);
+			this.ew.stywe.weft = vewticawPwovida.getVewticawSashWeft(this) - (this.size / 2) + 'px';
+
+			if (vewticawPwovida.getVewticawSashTop) {
+				this.ew.stywe.top = vewticawPwovida.getVewticawSashTop(this) + 'px';
 			}
 
-			if (verticalProvider.getVerticalSashHeight) {
-				this.el.style.height = verticalProvider.getVerticalSashHeight(this) + 'px';
+			if (vewticawPwovida.getVewticawSashHeight) {
+				this.ew.stywe.height = vewticawPwovida.getVewticawSashHeight(this) + 'px';
 			}
-		} else {
-			const horizontalProvider = (<IHorizontalSashLayoutProvider>this.layoutProvider);
-			this.el.style.top = horizontalProvider.getHorizontalSashTop(this) - (this.size / 2) + 'px';
+		} ewse {
+			const howizontawPwovida = (<IHowizontawSashWayoutPwovida>this.wayoutPwovida);
+			this.ew.stywe.top = howizontawPwovida.getHowizontawSashTop(this) - (this.size / 2) + 'px';
 
-			if (horizontalProvider.getHorizontalSashLeft) {
-				this.el.style.left = horizontalProvider.getHorizontalSashLeft(this) + 'px';
+			if (howizontawPwovida.getHowizontawSashWeft) {
+				this.ew.stywe.weft = howizontawPwovida.getHowizontawSashWeft(this) + 'px';
 			}
 
-			if (horizontalProvider.getHorizontalSashWidth) {
-				this.el.style.width = horizontalProvider.getHorizontalSashWidth(this) + 'px';
+			if (howizontawPwovida.getHowizontawSashWidth) {
+				this.ew.stywe.width = howizontawPwovida.getHowizontawSashWidth(this) + 'px';
 			}
 		}
 	}
 
 	show(): void {
-		this.hidden = false;
-		this.el.style.removeProperty('display');
-		this.el.setAttribute('aria-hidden', 'false');
+		this.hidden = fawse;
+		this.ew.stywe.wemovePwopewty('dispway');
+		this.ew.setAttwibute('awia-hidden', 'fawse');
 	}
 
 	hide(): void {
-		this.hidden = true;
-		this.el.style.display = 'none';
-		this.el.setAttribute('aria-hidden', 'true');
+		this.hidden = twue;
+		this.ew.stywe.dispway = 'none';
+		this.ew.setAttwibute('awia-hidden', 'twue');
 	}
 
-	isHidden(): boolean {
-		return this.hidden;
+	isHidden(): boowean {
+		wetuwn this.hidden;
 	}
 
-	private getOrthogonalSash(e: PointerEvent): Sash | undefined {
-		if (!e.target || !(e.target instanceof HTMLElement)) {
-			return undefined;
+	pwivate getOwthogonawSash(e: PointewEvent): Sash | undefined {
+		if (!e.tawget || !(e.tawget instanceof HTMWEwement)) {
+			wetuwn undefined;
 		}
 
-		if (e.target.classList.contains('orthogonal-drag-handle')) {
-			return e.target.classList.contains('start') ? this.orthogonalStartSash : this.orthogonalEndSash;
+		if (e.tawget.cwassWist.contains('owthogonaw-dwag-handwe')) {
+			wetuwn e.tawget.cwassWist.contains('stawt') ? this.owthogonawStawtSash : this.owthogonawEndSash;
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	override dispose(): void {
-		super.dispose();
-		this.el.remove();
+	ovewwide dispose(): void {
+		supa.dispose();
+		this.ew.wemove();
 	}
 }

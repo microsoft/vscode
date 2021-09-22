@@ -1,38 +1,38 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ColorTheme, ColorThemeKind } from './extHostTypes';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { ExtHostThemingShape } from 'vs/workbench/api/common/extHost.protocol';
-import { Emitter, Event } from 'vs/base/common/event';
+impowt { CowowTheme, CowowThemeKind } fwom './extHostTypes';
+impowt { IExtHostWpcSewvice } fwom 'vs/wowkbench/api/common/extHostWpcSewvice';
+impowt { ExtHostThemingShape } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
 
-export class ExtHostTheming implements ExtHostThemingShape {
+expowt cwass ExtHostTheming impwements ExtHostThemingShape {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	private _actual: ColorTheme;
-	private _onDidChangeActiveColorTheme: Emitter<ColorTheme>;
+	pwivate _actuaw: CowowTheme;
+	pwivate _onDidChangeActiveCowowTheme: Emitta<CowowTheme>;
 
-	constructor(
-		@IExtHostRpcService _extHostRpc: IExtHostRpcService
+	constwuctow(
+		@IExtHostWpcSewvice _extHostWpc: IExtHostWpcSewvice
 	) {
-		this._actual = new ColorTheme(ColorThemeKind.Dark);
-		this._onDidChangeActiveColorTheme = new Emitter<ColorTheme>();
+		this._actuaw = new CowowTheme(CowowThemeKind.Dawk);
+		this._onDidChangeActiveCowowTheme = new Emitta<CowowTheme>();
 	}
 
-	public get activeColorTheme(): ColorTheme {
-		return this._actual;
+	pubwic get activeCowowTheme(): CowowTheme {
+		wetuwn this._actuaw;
 	}
 
-	$onColorThemeChange(type: string): void {
-		let kind = type === 'light' ? ColorThemeKind.Light : type === 'dark' ? ColorThemeKind.Dark : ColorThemeKind.HighContrast;
-		this._actual = new ColorTheme(kind);
-		this._onDidChangeActiveColorTheme.fire(this._actual);
+	$onCowowThemeChange(type: stwing): void {
+		wet kind = type === 'wight' ? CowowThemeKind.Wight : type === 'dawk' ? CowowThemeKind.Dawk : CowowThemeKind.HighContwast;
+		this._actuaw = new CowowTheme(kind);
+		this._onDidChangeActiveCowowTheme.fiwe(this._actuaw);
 	}
 
-	public get onDidChangeActiveColorTheme(): Event<ColorTheme> {
-		return this._onDidChangeActiveColorTheme.event;
+	pubwic get onDidChangeActiveCowowTheme(): Event<CowowTheme> {
+		wetuwn this._onDidChangeActiveCowowTheme.event;
 	}
 }

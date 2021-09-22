@@ -1,321 +1,321 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { IAction } from 'vs/base/common/actions';
-import { coalesce } from 'vs/base/common/arrays';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { getExtensionForMimeType } from 'vs/base/common/mime';
-import { Schemas } from 'vs/base/common/network';
-import { isMacintosh } from 'vs/base/common/platform';
-import { dirname, joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import * as UUID from 'vs/base/common/uuid';
-import * as nls from 'vs/nls';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { asWebviewUri, webviewGenericCspSource } from 'vs/workbench/api/common/shared/webview';
-import { CellEditState, ICellOutputViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IFocusNotebookCellOptions, IGenericCellViewModel, IInsetRenderOutput, INotebookEditorCreationOptions, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { preloadsScriptStr, RendererMetadata } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
-import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
-import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
-import { INotebookRendererInfo, RendererMessagingSpec } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { IScopedRendererMessaging } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IWebviewService, WebviewContentPurpose, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, IContentWidgetTopRequest, IControllerPreload, ICreationRequestMessage, IMarkupCellInitialization, ToWebviewMessage } from './webviewMessages';
+impowt { IMouseWheewEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { coawesce } fwom 'vs/base/common/awways';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { getExtensionFowMimeType } fwom 'vs/base/common/mime';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { diwname, joinPath } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt * as UUID fwom 'vs/base/common/uuid';
+impowt * as nws fwom 'vs/nws';
+impowt { cweateAndFiwwInContextMenuActions } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { IMenuSewvice, MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IFiweDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IOpenewSewvice, matchesScheme } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IWowkspaceTwustManagementSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { asWebviewUwi, webviewGenewicCspSouwce } fwom 'vs/wowkbench/api/common/shawed/webview';
+impowt { CewwEditState, ICewwOutputViewModew, ICommonCewwInfo, IDispwayOutputWayoutUpdateWequest, IDispwayOutputViewModew, IFocusNotebookCewwOptions, IGenewicCewwViewModew, IInsetWendewOutput, INotebookEditowCweationOptions, WendewOutputType } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { pwewoadsScwiptStw, WendewewMetadata } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/wendewews/webviewPwewoads';
+impowt { twansfowmWebviewThemeVaws } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/wendewews/webviewThemeMapping';
+impowt { MawkupCewwViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/mawkupCewwViewModew';
+impowt { INotebookWendewewInfo, WendewewMessagingSpec } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { INotebookKewnew } fwom 'vs/wowkbench/contwib/notebook/common/notebookKewnewSewvice';
+impowt { IScopedWendewewMessaging } fwom 'vs/wowkbench/contwib/notebook/common/notebookWendewewMessagingSewvice';
+impowt { INotebookSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookSewvice';
+impowt { IWebviewSewvice, WebviewContentPuwpose, WebviewEwement } fwom 'vs/wowkbench/contwib/webview/bwowsa/webview';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { FwomWebviewMessage, IAckOutputHeight, ICwickedDataUwwMessage, IContentWidgetTopWequest, IContwowwewPwewoad, ICweationWequestMessage, IMawkupCewwInitiawization, ToWebviewMessage } fwom './webviewMessages';
 
-export interface ICachedInset<K extends ICommonCellInfo> {
-	outputId: string;
-	cellInfo: K;
-	renderer?: INotebookRendererInfo;
-	cachedCreation: ICreationRequestMessage;
+expowt intewface ICachedInset<K extends ICommonCewwInfo> {
+	outputId: stwing;
+	cewwInfo: K;
+	wendewa?: INotebookWendewewInfo;
+	cachedCweation: ICweationWequestMessage;
 }
 
-function html(strings: TemplateStringsArray, ...values: any[]): string {
-	let str = '';
-	strings.forEach((string, i) => {
-		str += string + (values[i] || '');
+function htmw(stwings: TempwateStwingsAwway, ...vawues: any[]): stwing {
+	wet stw = '';
+	stwings.fowEach((stwing, i) => {
+		stw += stwing + (vawues[i] || '');
 	});
-	return str;
+	wetuwn stw;
 }
 
-export interface INotebookWebviewMessage {
+expowt intewface INotebookWebviewMessage {
 	message: unknown;
 }
 
-export interface IResolvedBackLayerWebview {
-	webview: WebviewElement;
+expowt intewface IWesowvedBackWayewWebview {
+	webview: WebviewEwement;
 }
 
 /**
- * Notebook Editor Delegate for back layer webview
+ * Notebook Editow Dewegate fow back waya webview
  */
-export interface INotebookDelegateForWebview {
-	readonly creationOptions: INotebookEditorCreationOptions;
-	getCellById(cellId: string): IGenericCellViewModel | undefined;
-	focusNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output', options?: IFocusNotebookCellOptions): void;
-	toggleNotebookCellSelection(cell: IGenericCellViewModel, selectFromPrevious: boolean): void;
-	getCellByInfo(cellInfo: ICommonCellInfo): IGenericCellViewModel;
-	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
-	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean, source?: string): void;
-	scheduleOutputHeightAck(cellInfo: ICommonCellInfo, outputId: string, height: number): void;
-	updateMarkupCellHeight(cellId: string, height: number, isInit: boolean): void;
-	setMarkupCellEditState(cellId: string, editState: CellEditState): void;
-	didStartDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void;
-	didDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void;
-	didDropMarkupCell(cellId: string, event: { dragOffsetY: number, ctrlKey: boolean, altKey: boolean; }): void;
-	didEndDragMarkupCell(cellId: string): void;
-	setScrollTop(scrollTop: number): void;
-	triggerScroll(event: IMouseWheelEvent): void;
+expowt intewface INotebookDewegateFowWebview {
+	weadonwy cweationOptions: INotebookEditowCweationOptions;
+	getCewwById(cewwId: stwing): IGenewicCewwViewModew | undefined;
+	focusNotebookCeww(ceww: IGenewicCewwViewModew, focus: 'editow' | 'containa' | 'output', options?: IFocusNotebookCewwOptions): void;
+	toggweNotebookCewwSewection(ceww: IGenewicCewwViewModew, sewectFwomPwevious: boowean): void;
+	getCewwByInfo(cewwInfo: ICommonCewwInfo): IGenewicCewwViewModew;
+	focusNextNotebookCeww(ceww: IGenewicCewwViewModew, focus: 'editow' | 'containa' | 'output'): void;
+	updateOutputHeight(cewwInfo: ICommonCewwInfo, output: IDispwayOutputViewModew, height: numba, isInit: boowean, souwce?: stwing): void;
+	scheduweOutputHeightAck(cewwInfo: ICommonCewwInfo, outputId: stwing, height: numba): void;
+	updateMawkupCewwHeight(cewwId: stwing, height: numba, isInit: boowean): void;
+	setMawkupCewwEditState(cewwId: stwing, editState: CewwEditState): void;
+	didStawtDwagMawkupCeww(cewwId: stwing, event: { dwagOffsetY: numba; }): void;
+	didDwagMawkupCeww(cewwId: stwing, event: { dwagOffsetY: numba; }): void;
+	didDwopMawkupCeww(cewwId: stwing, event: { dwagOffsetY: numba, ctwwKey: boowean, awtKey: boowean; }): void;
+	didEndDwagMawkupCeww(cewwId: stwing): void;
+	setScwowwTop(scwowwTop: numba): void;
+	twiggewScwoww(event: IMouseWheewEvent): void;
 }
 
-export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
-	element: HTMLElement;
-	webview: WebviewElement | undefined = undefined;
-	insetMapping: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
-	readonly markupPreviewMapping = new Map<string, IMarkupCellInitialization>();
-	private hiddenInsetMapping: Set<IDisplayOutputViewModel> = new Set();
-	private reversedInsetMapping: Map<string, IDisplayOutputViewModel> = new Map();
-	private localResourceRootsCache: URI[] | undefined = undefined;
-	private readonly _onMessage = this._register(new Emitter<INotebookWebviewMessage>());
-	private readonly _preloadsCache = new Set<string>();
-	public readonly onMessage: Event<INotebookWebviewMessage> = this._onMessage.event;
-	private _disposed = false;
-	private _currentKernel?: INotebookKernel;
+expowt cwass BackWayewWebView<T extends ICommonCewwInfo> extends Disposabwe {
+	ewement: HTMWEwement;
+	webview: WebviewEwement | undefined = undefined;
+	insetMapping: Map<IDispwayOutputViewModew, ICachedInset<T>> = new Map();
+	weadonwy mawkupPweviewMapping = new Map<stwing, IMawkupCewwInitiawization>();
+	pwivate hiddenInsetMapping: Set<IDispwayOutputViewModew> = new Set();
+	pwivate wevewsedInsetMapping: Map<stwing, IDispwayOutputViewModew> = new Map();
+	pwivate wocawWesouwceWootsCache: UWI[] | undefined = undefined;
+	pwivate weadonwy _onMessage = this._wegista(new Emitta<INotebookWebviewMessage>());
+	pwivate weadonwy _pwewoadsCache = new Set<stwing>();
+	pubwic weadonwy onMessage: Event<INotebookWebviewMessage> = this._onMessage.event;
+	pwivate _disposed = fawse;
+	pwivate _cuwwentKewnew?: INotebookKewnew;
 
-	private readonly nonce = UUID.generateUuid();
+	pwivate weadonwy nonce = UUID.genewateUuid();
 
-	constructor(
-		public readonly notebookEditor: INotebookDelegateForWebview,
-		public readonly id: string,
-		public readonly documentUri: URI,
-		private options: {
-			outputNodePadding: number,
-			outputNodeLeftPadding: number,
-			previewNodePadding: number,
-			markdownLeftMargin: number,
-			leftMargin: number,
-			rightMargin: number,
-			runGutter: number,
-			dragAndDropEnabled: boolean,
-			fontSize: number
+	constwuctow(
+		pubwic weadonwy notebookEditow: INotebookDewegateFowWebview,
+		pubwic weadonwy id: stwing,
+		pubwic weadonwy documentUwi: UWI,
+		pwivate options: {
+			outputNodePadding: numba,
+			outputNodeWeftPadding: numba,
+			pweviewNodePadding: numba,
+			mawkdownWeftMawgin: numba,
+			weftMawgin: numba,
+			wightMawgin: numba,
+			wunGutta: numba,
+			dwagAndDwopEnabwed: boowean,
+			fontSize: numba
 		},
-		private readonly rendererMessaging: IScopedRendererMessaging | undefined,
-		@IWebviewService readonly webviewService: IWebviewService,
-		@IOpenerService readonly openerService: IOpenerService,
-		@INotebookService private readonly notebookService: INotebookService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IFileDialogService private readonly fileDialogService: IFileDialogService,
-		@IFileService private readonly fileService: IFileService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IMenuService private readonly menuService: IMenuService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		pwivate weadonwy wendewewMessaging: IScopedWendewewMessaging | undefined,
+		@IWebviewSewvice weadonwy webviewSewvice: IWebviewSewvice,
+		@IOpenewSewvice weadonwy openewSewvice: IOpenewSewvice,
+		@INotebookSewvice pwivate weadonwy notebookSewvice: INotebookSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IFiweDiawogSewvice pwivate weadonwy fiweDiawogSewvice: IFiweDiawogSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IContextMenuSewvice pwivate weadonwy contextMenuSewvice: IContextMenuSewvice,
+		@IMenuSewvice pwivate weadonwy menuSewvice: IMenuSewvice,
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IWowkspaceTwustManagementSewvice pwivate weadonwy wowkspaceTwustManagementSewvice: IWowkspaceTwustManagementSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
 	) {
-		super();
+		supa();
 
-		this.element = document.createElement('div');
+		this.ewement = document.cweateEwement('div');
 
-		this.element.style.height = '1400px';
-		this.element.style.position = 'absolute';
+		this.ewement.stywe.height = '1400px';
+		this.ewement.stywe.position = 'absowute';
 
-		if (rendererMessaging) {
-			this._register(rendererMessaging);
-			rendererMessaging.receiveMessageHandler = (rendererId, message) => {
+		if (wendewewMessaging) {
+			this._wegista(wendewewMessaging);
+			wendewewMessaging.weceiveMessageHandwa = (wendewewId, message) => {
 				if (!this.webview || this._disposed) {
-					return Promise.resolve(false);
+					wetuwn Pwomise.wesowve(fawse);
 				}
 
 				this._sendMessageToWebview({
-					__vscode_notebook_message: true,
-					type: 'customRendererMessage',
-					rendererId: rendererId,
+					__vscode_notebook_message: twue,
+					type: 'customWendewewMessage',
+					wendewewId: wendewewId,
 					message: message
 				});
 
-				return Promise.resolve(true);
+				wetuwn Pwomise.wesowve(twue);
 			};
 		}
 
-		this._register(workspaceTrustManagementService.onDidChangeTrust(e => {
+		this._wegista(wowkspaceTwustManagementSewvice.onDidChangeTwust(e => {
 			this._sendMessageToWebview({
-				type: 'updateWorkspaceTrust',
-				isTrusted: e,
+				type: 'updateWowkspaceTwust',
+				isTwusted: e,
 			});
 		}));
 	}
 
 	updateOptions(options: {
-		outputNodePadding: number,
-		outputNodeLeftPadding: number,
-		previewNodePadding: number,
-		markdownLeftMargin: number,
-		leftMargin: number,
-		rightMargin: number,
-		runGutter: number,
-		dragAndDropEnabled: boolean,
-		fontSize: number
+		outputNodePadding: numba,
+		outputNodeWeftPadding: numba,
+		pweviewNodePadding: numba,
+		mawkdownWeftMawgin: numba,
+		weftMawgin: numba,
+		wightMawgin: numba,
+		wunGutta: numba,
+		dwagAndDwopEnabwed: boowean,
+		fontSize: numba
 	}) {
 		this.options = options;
-		this._updateStyles();
+		this._updateStywes();
 		this._updateOptions();
 	}
 
-	private _updateStyles() {
+	pwivate _updateStywes() {
 		this._sendMessageToWebview({
-			type: 'notebookStyles',
-			styles: this._generateStyles()
+			type: 'notebookStywes',
+			stywes: this._genewateStywes()
 		});
 	}
 
-	private _updateOptions() {
+	pwivate _updateOptions() {
 		this._sendMessageToWebview({
 			type: 'notebookOptions',
 			options: {
-				dragAndDropEnabled: this.options.dragAndDropEnabled
+				dwagAndDwopEnabwed: this.options.dwagAndDwopEnabwed
 			}
 		});
 	}
 
-	private _generateStyles() {
-		return {
-			'notebook-output-left-margin': `${this.options.leftMargin + this.options.runGutter}px`,
-			'notebook-output-width': `calc(100% - ${this.options.leftMargin + this.options.rightMargin + this.options.runGutter}px)`,
+	pwivate _genewateStywes() {
+		wetuwn {
+			'notebook-output-weft-mawgin': `${this.options.weftMawgin + this.options.wunGutta}px`,
+			'notebook-output-width': `cawc(100% - ${this.options.weftMawgin + this.options.wightMawgin + this.options.wunGutta}px)`,
 			'notebook-output-node-padding': `${this.options.outputNodePadding}px`,
-			'notebook-run-gutter': `${this.options.runGutter}px`,
-			'notebook-preivew-node-padding': `${this.options.previewNodePadding}px`,
-			'notebook-markdown-left-margin': `${this.options.markdownLeftMargin}px`,
-			'notebook-output-node-left-padding': `${this.options.outputNodeLeftPadding}px`,
-			'notebook-markdown-min-height': `${this.options.previewNodePadding * 2}px`,
-			'notebook-cell-output-font-size': `${this.options.fontSize}px`,
-			'notebook-cell-markup-empty-content': nls.localize('notebook.emptyMarkdownPlaceholder', "Empty markdown cell, double click or press enter to edit."),
-			'notebook-cell-renderer-not-found-error': nls.localize({
-				key: 'notebook.error.rendererNotFound',
-				comment: ['$0 is a placeholder for the mime type']
-			}, "No renderer found for '$0' a"),
+			'notebook-wun-gutta': `${this.options.wunGutta}px`,
+			'notebook-pweivew-node-padding': `${this.options.pweviewNodePadding}px`,
+			'notebook-mawkdown-weft-mawgin': `${this.options.mawkdownWeftMawgin}px`,
+			'notebook-output-node-weft-padding': `${this.options.outputNodeWeftPadding}px`,
+			'notebook-mawkdown-min-height': `${this.options.pweviewNodePadding * 2}px`,
+			'notebook-ceww-output-font-size': `${this.options.fontSize}px`,
+			'notebook-ceww-mawkup-empty-content': nws.wocawize('notebook.emptyMawkdownPwacehowda', "Empty mawkdown ceww, doubwe cwick ow pwess enta to edit."),
+			'notebook-ceww-wendewa-not-found-ewwow': nws.wocawize({
+				key: 'notebook.ewwow.wendewewNotFound',
+				comment: ['$0 is a pwacehowda fow the mime type']
+			}, "No wendewa found fow '$0' a"),
 		};
 	}
 
-	private generateContent(baseUrl: string) {
-		const renderersData = this.getRendererData();
-		const preloadScript = preloadsScriptStr(
+	pwivate genewateContent(baseUww: stwing) {
+		const wendewewsData = this.getWendewewData();
+		const pwewoadScwipt = pwewoadsScwiptStw(
 			this.options,
-			{ dragAndDropEnabled: this.options.dragAndDropEnabled },
-			renderersData,
-			this.workspaceTrustManagementService.isWorkspaceTrusted(),
+			{ dwagAndDwopEnabwed: this.options.dwagAndDwopEnabwed },
+			wendewewsData,
+			this.wowkspaceTwustManagementSewvice.isWowkspaceTwusted(),
 			this.nonce);
 
-		const enableCsp = this.configurationService.getValue('notebook.experimental.enableCsp');
-		return html`
-		<html lang="en">
+		const enabweCsp = this.configuwationSewvice.getVawue('notebook.expewimentaw.enabweCsp');
+		wetuwn htmw`
+		<htmw wang="en">
 			<head>
-				<meta charset="UTF-8">
-				<base href="${baseUrl}/" />
-				${enableCsp ?
-				`<meta http-equiv="Content-Security-Policy" content="
-					default-src 'none';
-					script-src ${webviewGenericCspSource} 'unsafe-inline' 'unsafe-eval';
-					style-src ${webviewGenericCspSource} 'unsafe-inline';
-					img-src ${webviewGenericCspSource} https: http: data:;
-					font-src ${webviewGenericCspSource} https:;
-					connect-src https:;
-					child-src https: data:;
+				<meta chawset="UTF-8">
+				<base hwef="${baseUww}/" />
+				${enabweCsp ?
+				`<meta http-equiv="Content-Secuwity-Powicy" content="
+					defauwt-swc 'none';
+					scwipt-swc ${webviewGenewicCspSouwce} 'unsafe-inwine' 'unsafe-evaw';
+					stywe-swc ${webviewGenewicCspSouwce} 'unsafe-inwine';
+					img-swc ${webviewGenewicCspSouwce} https: http: data:;
+					font-swc ${webviewGenewicCspSouwce} https:;
+					connect-swc https:;
+					chiwd-swc https: data:;
 				">` : ''}
-				<style nonce="${this.nonce}">
-					#container .cell_container {
+				<stywe nonce="${this.nonce}">
+					#containa .ceww_containa {
 						width: 100%;
 					}
 
-					#container .output_container {
+					#containa .output_containa {
 						width: 100%;
 					}
 
-					#container > div > div > div.output {
-						font-size: var(--notebook-cell-output-font-size);
-						width: var(--notebook-output-width);
-						margin-left: var(--notebook-output-left-margin);
-						padding-top: var(--notebook-output-node-padding);
-						padding-right: var(--notebook-output-node-padding);
-						padding-bottom: var(--notebook-output-node-padding);
-						padding-left: var(--notebook-output-node-left-padding);
-						box-sizing: border-box;
-						border-top: none !important;
-						border: 1px solid var(--theme-notebook-output-border);
-						background-color: var(--theme-notebook-output-background);
+					#containa > div > div > div.output {
+						font-size: vaw(--notebook-ceww-output-font-size);
+						width: vaw(--notebook-output-width);
+						mawgin-weft: vaw(--notebook-output-weft-mawgin);
+						padding-top: vaw(--notebook-output-node-padding);
+						padding-wight: vaw(--notebook-output-node-padding);
+						padding-bottom: vaw(--notebook-output-node-padding);
+						padding-weft: vaw(--notebook-output-node-weft-padding);
+						box-sizing: bowda-box;
+						bowda-top: none !impowtant;
+						bowda: 1px sowid vaw(--theme-notebook-output-bowda);
+						backgwound-cowow: vaw(--theme-notebook-output-backgwound);
 					}
 
-					/* markdown */
-					#container > div.preview {
+					/* mawkdown */
+					#containa > div.pweview {
 						width: 100%;
-						padding-right: var(--notebook-preivew-node-padding);
-						padding-left: var(--notebook-markdown-left-margin);
-						padding-top: var(--notebook-preivew-node-padding);
-						padding-bottom: var(--notebook-preivew-node-padding);
+						padding-wight: vaw(--notebook-pweivew-node-padding);
+						padding-weft: vaw(--notebook-mawkdown-weft-mawgin);
+						padding-top: vaw(--notebook-pweivew-node-padding);
+						padding-bottom: vaw(--notebook-pweivew-node-padding);
 
-						box-sizing: border-box;
-						white-space: nowrap;
-						overflow: hidden;
-						white-space: initial;
-						color: var(--theme-ui-foreground);
+						box-sizing: bowda-box;
+						white-space: nowwap;
+						ovewfwow: hidden;
+						white-space: initiaw;
+						cowow: vaw(--theme-ui-fowegwound);
 					}
 
-					#container > div.preview.draggable {
-						user-select: none;
-						-webkit-user-select: none;
-						-ms-user-select: none;
-						cursor: grab;
+					#containa > div.pweview.dwaggabwe {
+						usa-sewect: none;
+						-webkit-usa-sewect: none;
+						-ms-usa-sewect: none;
+						cuwsow: gwab;
 					}
 
-					#container > div.preview.selected {
-						background: var(--theme-notebook-cell-selected-background);
+					#containa > div.pweview.sewected {
+						backgwound: vaw(--theme-notebook-ceww-sewected-backgwound);
 					}
 
-					#container > div.preview.dragging {
-						background-color: var(--theme-background);
+					#containa > div.pweview.dwagging {
+						backgwound-cowow: vaw(--theme-backgwound);
 					}
 
-					.monaco-workbench.vs-dark .notebookOverlay .cell.markdown .latex img,
-					.monaco-workbench.vs-dark .notebookOverlay .cell.markdown .latex-block img {
-						filter: brightness(0) invert(1)
+					.monaco-wowkbench.vs-dawk .notebookOvewway .ceww.mawkdown .watex img,
+					.monaco-wowkbench.vs-dawk .notebookOvewway .ceww.mawkdown .watex-bwock img {
+						fiwta: bwightness(0) invewt(1)
 					}
 
-					#container > div.nb-symbolHighlight {
-						background-color: var(--theme-notebook-symbol-highlight-background);
+					#containa > div.nb-symbowHighwight {
+						backgwound-cowow: vaw(--theme-notebook-symbow-highwight-backgwound);
 					}
 
-					#container > div.nb-cellDeleted {
-						background-color: var(--theme-notebook-diff-removed-background);
+					#containa > div.nb-cewwDeweted {
+						backgwound-cowow: vaw(--theme-notebook-diff-wemoved-backgwound);
 					}
 
-					#container > div.nb-cellAdded {
-						background-color: var(--theme-notebook-diff-inserted-background);
+					#containa > div.nb-cewwAdded {
+						backgwound-cowow: vaw(--theme-notebook-diff-insewted-backgwound);
 					}
 
-					#container > div > div:not(.preview) > div {
-						overflow-x: auto;
+					#containa > div > div:not(.pweview) > div {
+						ovewfwow-x: auto;
 					}
 
-					#container .no-renderer-error {
-						color: var(--vscode-editorError-foreground);
+					#containa .no-wendewa-ewwow {
+						cowow: vaw(--vscode-editowEwwow-fowegwound);
 					}
 
 					body {
@@ -324,745 +324,745 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						width: 100%;
 					}
 
-					table, thead, tr, th, td, tbody {
-						border: none !important;
-						border-color: transparent;
-						border-spacing: 0;
-						border-collapse: collapse;
+					tabwe, thead, tw, th, td, tbody {
+						bowda: none !impowtant;
+						bowda-cowow: twanspawent;
+						bowda-spacing: 0;
+						bowda-cowwapse: cowwapse;
 					}
 
-					table, th, tr {
-						vertical-align: middle;
-						text-align: right;
+					tabwe, th, tw {
+						vewticaw-awign: middwe;
+						text-awign: wight;
 					}
 
 					thead {
-						font-weight: bold;
-						background-color: rgba(130, 130, 130, 0.16);
+						font-weight: bowd;
+						backgwound-cowow: wgba(130, 130, 130, 0.16);
 					}
 
 					th, td {
 						padding: 4px 8px;
 					}
 
-					tr:nth-child(even) {
-						background-color: rgba(130, 130, 130, 0.08);
+					tw:nth-chiwd(even) {
+						backgwound-cowow: wgba(130, 130, 130, 0.08);
 					}
 
 					tbody th {
-						font-weight: normal;
+						font-weight: nowmaw;
 					}
 
-				</style>
+				</stywe>
 			</head>
-			<body style="overflow: hidden;">
-				<div id="container" class="widgetarea" style="position: absolute; width:100%; top: 0px"></div>
-				<script type="module" nonce="${this.nonce}">${preloadScript}</script>
+			<body stywe="ovewfwow: hidden;">
+				<div id="containa" cwass="widgetawea" stywe="position: absowute; width:100%; top: 0px"></div>
+				<scwipt type="moduwe" nonce="${this.nonce}">${pwewoadScwipt}</scwipt>
 			</body>
-		</html>`;
+		</htmw>`;
 	}
 
-	private getRendererData(): RendererMetadata[] {
-		return this.notebookService.getRenderers().map((renderer): RendererMetadata => {
-			const entrypoint = this.asWebviewUri(renderer.entrypoint, renderer.extensionLocation).toString();
-			return {
-				id: renderer.id,
-				entrypoint,
-				mimeTypes: renderer.mimeTypes,
-				extends: renderer.extends,
-				messaging: renderer.messaging !== RendererMessagingSpec.Never,
+	pwivate getWendewewData(): WendewewMetadata[] {
+		wetuwn this.notebookSewvice.getWendewews().map((wendewa): WendewewMetadata => {
+			const entwypoint = this.asWebviewUwi(wendewa.entwypoint, wendewa.extensionWocation).toStwing();
+			wetuwn {
+				id: wendewa.id,
+				entwypoint,
+				mimeTypes: wendewa.mimeTypes,
+				extends: wendewa.extends,
+				messaging: wendewa.messaging !== WendewewMessagingSpec.Neva,
 			};
 		});
 	}
 
-	private asWebviewUri(uri: URI, fromExtension: URI | undefined) {
-		return asWebviewUri(uri, fromExtension?.scheme === Schemas.vscodeRemote ? { isRemote: true, authority: fromExtension.authority } : undefined);
+	pwivate asWebviewUwi(uwi: UWI, fwomExtension: UWI | undefined) {
+		wetuwn asWebviewUwi(uwi, fwomExtension?.scheme === Schemas.vscodeWemote ? { isWemote: twue, authowity: fwomExtension.authowity } : undefined);
 	}
 
-	postKernelMessage(message: any) {
+	postKewnewMessage(message: any) {
 		this._sendMessageToWebview({
-			__vscode_notebook_message: true,
-			type: 'customKernelMessage',
+			__vscode_notebook_message: twue,
+			type: 'customKewnewMessage',
 			message,
 		});
 	}
 
-	private resolveOutputId(id: string): { cellInfo: T, output: ICellOutputViewModel } | undefined {
-		const output = this.reversedInsetMapping.get(id);
+	pwivate wesowveOutputId(id: stwing): { cewwInfo: T, output: ICewwOutputViewModew } | undefined {
+		const output = this.wevewsedInsetMapping.get(id);
 		if (!output) {
-			return;
+			wetuwn;
 		}
 
-		const cellInfo = this.insetMapping.get(output)!.cellInfo;
-		return { cellInfo, output };
+		const cewwInfo = this.insetMapping.get(output)!.cewwInfo;
+		wetuwn { cewwInfo, output };
 	}
 
-	isResolved(): this is IResolvedBackLayerWebview {
-		return !!this.webview;
+	isWesowved(): this is IWesowvedBackWayewWebview {
+		wetuwn !!this.webview;
 	}
 
-	createWebview(): void {
-		const baseUrl = this.asWebviewUri(dirname(this.documentUri), undefined);
-		const htmlContent = this.generateContent(baseUrl.toString());
-		this._initialize(htmlContent);
-		return;
+	cweateWebview(): void {
+		const baseUww = this.asWebviewUwi(diwname(this.documentUwi), undefined);
+		const htmwContent = this.genewateContent(baseUww.toStwing());
+		this._initiawize(htmwContent);
+		wetuwn;
 	}
 
-	private _initialize(content: string) {
-		if (!document.body.contains(this.element)) {
-			throw new Error('Element is already detached from the DOM tree');
+	pwivate _initiawize(content: stwing) {
+		if (!document.body.contains(this.ewement)) {
+			thwow new Ewwow('Ewement is awweady detached fwom the DOM twee');
 		}
 
-		this.webview = this._createInset(this.webviewService, content);
-		this.webview.mountTo(this.element);
-		this._register(this.webview);
+		this.webview = this._cweateInset(this.webviewSewvice, content);
+		this.webview.mountTo(this.ewement);
+		this._wegista(this.webview);
 
-		this._register(this.webview.onDidClickLink(link => {
+		this._wegista(this.webview.onDidCwickWink(wink => {
 			if (this._disposed) {
-				return;
+				wetuwn;
 			}
 
-			if (!link) {
-				return;
+			if (!wink) {
+				wetuwn;
 			}
 
-			if (matchesScheme(link, Schemas.command)) {
-				console.warn('Command links are deprecated and will be removed, use messag passing instead: https://github.com/microsoft/vscode/issues/123601');
+			if (matchesScheme(wink, Schemas.command)) {
+				consowe.wawn('Command winks awe depwecated and wiww be wemoved, use messag passing instead: https://github.com/micwosoft/vscode/issues/123601');
 			}
 
-			if (matchesScheme(link, Schemas.http) || matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.mailto)
-				|| matchesScheme(link, Schemas.command)) {
-				this.openerService.open(link, { fromUserGesture: true, allowContributedOpeners: true, allowCommands: true });
+			if (matchesScheme(wink, Schemas.http) || matchesScheme(wink, Schemas.https) || matchesScheme(wink, Schemas.maiwto)
+				|| matchesScheme(wink, Schemas.command)) {
+				this.openewSewvice.open(wink, { fwomUsewGestuwe: twue, awwowContwibutedOpenews: twue, awwowCommands: twue });
 			}
 		}));
 
-		this._register(this.webview.onMessage((message) => {
-			const data: FromWebviewMessage | { readonly __vscode_notebook_message: undefined } = message.message;
+		this._wegista(this.webview.onMessage((message) => {
+			const data: FwomWebviewMessage | { weadonwy __vscode_notebook_message: undefined } = message.message;
 			if (this._disposed) {
-				return;
+				wetuwn;
 			}
 
 			if (!data.__vscode_notebook_message) {
-				return;
+				wetuwn;
 			}
 
 			switch (data.type) {
-				case 'initialized':
-					this.initializeWebViewState();
-					break;
+				case 'initiawized':
+					this.initiawizeWebViewState();
+					bweak;
 				case 'dimension':
 					{
-						for (const update of data.updates) {
+						fow (const update of data.updates) {
 							const height = update.height;
 							if (update.isOutput) {
-								const resolvedResult = this.resolveOutputId(update.id);
-								if (resolvedResult) {
-									const { cellInfo, output } = resolvedResult;
-									this.notebookEditor.updateOutputHeight(cellInfo, output, height, !!update.init, 'webview#dimension');
-									this.notebookEditor.scheduleOutputHeightAck(cellInfo, update.id, height);
+								const wesowvedWesuwt = this.wesowveOutputId(update.id);
+								if (wesowvedWesuwt) {
+									const { cewwInfo, output } = wesowvedWesuwt;
+									this.notebookEditow.updateOutputHeight(cewwInfo, output, height, !!update.init, 'webview#dimension');
+									this.notebookEditow.scheduweOutputHeightAck(cewwInfo, update.id, height);
 								}
-							} else {
-								this.notebookEditor.updateMarkupCellHeight(update.id, height, !!update.init);
+							} ewse {
+								this.notebookEditow.updateMawkupCewwHeight(update.id, height, !!update.init);
 							}
 						}
-						break;
+						bweak;
 					}
-				case 'mouseenter':
+				case 'mouseenta':
 					{
-						const resolvedResult = this.resolveOutputId(data.id);
-						if (resolvedResult) {
-							const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
-							if (latestCell) {
-								latestCell.outputIsHovered = true;
+						const wesowvedWesuwt = this.wesowveOutputId(data.id);
+						if (wesowvedWesuwt) {
+							const watestCeww = this.notebookEditow.getCewwByInfo(wesowvedWesuwt.cewwInfo);
+							if (watestCeww) {
+								watestCeww.outputIsHovewed = twue;
 							}
 						}
-						break;
+						bweak;
 					}
-				case 'mouseleave':
+				case 'mouseweave':
 					{
-						const resolvedResult = this.resolveOutputId(data.id);
-						if (resolvedResult) {
-							const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
-							if (latestCell) {
-								latestCell.outputIsHovered = false;
+						const wesowvedWesuwt = this.wesowveOutputId(data.id);
+						if (wesowvedWesuwt) {
+							const watestCeww = this.notebookEditow.getCewwByInfo(wesowvedWesuwt.cewwInfo);
+							if (watestCeww) {
+								watestCeww.outputIsHovewed = fawse;
 							}
 						}
-						break;
+						bweak;
 					}
 				case 'outputFocus':
 					{
-						const resolvedResult = this.resolveOutputId(data.id);
-						if (resolvedResult) {
-							const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
-							if (latestCell) {
-								latestCell.outputIsFocused = true;
+						const wesowvedWesuwt = this.wesowveOutputId(data.id);
+						if (wesowvedWesuwt) {
+							const watestCeww = this.notebookEditow.getCewwByInfo(wesowvedWesuwt.cewwInfo);
+							if (watestCeww) {
+								watestCeww.outputIsFocused = twue;
 							}
 						}
-						break;
+						bweak;
 					}
-				case 'outputBlur':
+				case 'outputBwuw':
 					{
-						const resolvedResult = this.resolveOutputId(data.id);
-						if (resolvedResult) {
-							const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
-							if (latestCell) {
-								latestCell.outputIsFocused = false;
+						const wesowvedWesuwt = this.wesowveOutputId(data.id);
+						if (wesowvedWesuwt) {
+							const watestCeww = this.notebookEditow.getCewwByInfo(wesowvedWesuwt.cewwInfo);
+							if (watestCeww) {
+								watestCeww.outputIsFocused = fawse;
 							}
 						}
-						break;
+						bweak;
 					}
-				case 'scroll-ack':
+				case 'scwoww-ack':
 					{
 						// const date = new Date();
 						// const top = data.data.top;
-						// console.log('ack top ', top, ' version: ', data.version, ' - ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
-						break;
+						// consowe.wog('ack top ', top, ' vewsion: ', data.vewsion, ' - ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMiwwiseconds());
+						bweak;
 					}
-				case 'scroll-to-reveal':
+				case 'scwoww-to-weveaw':
 					{
-						this.notebookEditor.setScrollTop(data.scrollTop);
-						break;
+						this.notebookEditow.setScwowwTop(data.scwowwTop);
+						bweak;
 					}
-				case 'did-scroll-wheel':
+				case 'did-scwoww-wheew':
 					{
-						this.notebookEditor.triggerScroll({
-							...data.payload,
-							preventDefault: () => { },
-							stopPropagation: () => { }
+						this.notebookEditow.twiggewScwoww({
+							...data.paywoad,
+							pweventDefauwt: () => { },
+							stopPwopagation: () => { }
 						});
-						break;
+						bweak;
 					}
-				case 'focus-editor':
+				case 'focus-editow':
 					{
-						const cell = this.notebookEditor.getCellById(data.cellId);
-						if (cell) {
+						const ceww = this.notebookEditow.getCewwById(data.cewwId);
+						if (ceww) {
 							if (data.focusNext) {
-								this.notebookEditor.focusNextNotebookCell(cell, 'editor');
-							} else {
-								this.notebookEditor.focusNotebookCell(cell, 'editor');
+								this.notebookEditow.focusNextNotebookCeww(ceww, 'editow');
+							} ewse {
+								this.notebookEditow.focusNotebookCeww(ceww, 'editow');
 							}
 						}
-						break;
+						bweak;
 					}
-				case 'clicked-data-url':
+				case 'cwicked-data-uww':
 					{
-						this._onDidClickDataLink(data);
-						break;
+						this._onDidCwickDataWink(data);
+						bweak;
 					}
-				case 'customKernelMessage':
+				case 'customKewnewMessage':
 					{
-						this._onMessage.fire({ message: data.message });
-						break;
+						this._onMessage.fiwe({ message: data.message });
+						bweak;
 					}
-				case 'customRendererMessage':
+				case 'customWendewewMessage':
 					{
-						this.rendererMessaging?.postMessage(data.rendererId, data.message);
-						break;
+						this.wendewewMessaging?.postMessage(data.wendewewId, data.message);
+						bweak;
 					}
-				case 'clickMarkupCell':
+				case 'cwickMawkupCeww':
 					{
-						const cell = this.notebookEditor.getCellById(data.cellId);
-						if (cell) {
-							if (data.shiftKey || (isMacintosh ? data.metaKey : data.ctrlKey)) {
-								// Modify selection
-								this.notebookEditor.toggleNotebookCellSelection(cell, /* fromPrevious */ data.shiftKey);
-							} else {
-								// Normal click
-								this.notebookEditor.focusNotebookCell(cell, 'container', { skipReveal: true });
+						const ceww = this.notebookEditow.getCewwById(data.cewwId);
+						if (ceww) {
+							if (data.shiftKey || (isMacintosh ? data.metaKey : data.ctwwKey)) {
+								// Modify sewection
+								this.notebookEditow.toggweNotebookCewwSewection(ceww, /* fwomPwevious */ data.shiftKey);
+							} ewse {
+								// Nowmaw cwick
+								this.notebookEditow.focusNotebookCeww(ceww, 'containa', { skipWeveaw: twue });
 							}
 						}
-						break;
+						bweak;
 					}
-				case 'contextMenuMarkupCell':
+				case 'contextMenuMawkupCeww':
 					{
-						const cell = this.notebookEditor.getCellById(data.cellId);
-						if (cell) {
-							// Focus the cell first
-							this.notebookEditor.focusNotebookCell(cell, 'container', { skipReveal: true });
+						const ceww = this.notebookEditow.getCewwById(data.cewwId);
+						if (ceww) {
+							// Focus the ceww fiwst
+							this.notebookEditow.focusNotebookCeww(ceww, 'containa', { skipWeveaw: twue });
 
 							// Then show the context menu
-							const webviewRect = this.element.getBoundingClientRect();
-							this.contextMenuService.showContextMenu({
+							const webviewWect = this.ewement.getBoundingCwientWect();
+							this.contextMenuSewvice.showContextMenu({
 								getActions: () => {
-									const result: IAction[] = [];
-									const menu = this.menuService.createMenu(MenuId.NotebookCellTitle, this.contextKeyService);
-									createAndFillInContextMenuActions(menu, undefined, result);
+									const wesuwt: IAction[] = [];
+									const menu = this.menuSewvice.cweateMenu(MenuId.NotebookCewwTitwe, this.contextKeySewvice);
+									cweateAndFiwwInContextMenuActions(menu, undefined, wesuwt);
 									menu.dispose();
-									return result;
+									wetuwn wesuwt;
 								},
-								getAnchor: () => ({
-									x: webviewRect.x + data.clientX,
-									y: webviewRect.y + data.clientY
+								getAnchow: () => ({
+									x: webviewWect.x + data.cwientX,
+									y: webviewWect.y + data.cwientY
 								})
 							});
 						}
-						break;
+						bweak;
 					}
-				case 'toggleMarkupPreview':
+				case 'toggweMawkupPweview':
 					{
-						const cell = this.notebookEditor.getCellById(data.cellId);
-						if (cell && !this.notebookEditor.creationOptions.isReadOnly) {
-							this.notebookEditor.setMarkupCellEditState(data.cellId, CellEditState.Editing);
-							this.notebookEditor.focusNotebookCell(cell, 'editor', { skipReveal: true });
+						const ceww = this.notebookEditow.getCewwById(data.cewwId);
+						if (ceww && !this.notebookEditow.cweationOptions.isWeadOnwy) {
+							this.notebookEditow.setMawkupCewwEditState(data.cewwId, CewwEditState.Editing);
+							this.notebookEditow.focusNotebookCeww(ceww, 'editow', { skipWeveaw: twue });
 						}
-						break;
+						bweak;
 					}
-				case 'mouseEnterMarkupCell':
+				case 'mouseEntewMawkupCeww':
 					{
-						const cell = this.notebookEditor.getCellById(data.cellId);
-						if (cell instanceof MarkupCellViewModel) {
-							cell.cellIsHovered = true;
+						const ceww = this.notebookEditow.getCewwById(data.cewwId);
+						if (ceww instanceof MawkupCewwViewModew) {
+							ceww.cewwIsHovewed = twue;
 						}
-						break;
+						bweak;
 					}
-				case 'mouseLeaveMarkupCell':
+				case 'mouseWeaveMawkupCeww':
 					{
-						const cell = this.notebookEditor.getCellById(data.cellId);
-						if (cell instanceof MarkupCellViewModel) {
-							cell.cellIsHovered = false;
+						const ceww = this.notebookEditow.getCewwById(data.cewwId);
+						if (ceww instanceof MawkupCewwViewModew) {
+							ceww.cewwIsHovewed = fawse;
 						}
-						break;
+						bweak;
 					}
-				case 'cell-drag-start':
+				case 'ceww-dwag-stawt':
 					{
-						this.notebookEditor.didStartDragMarkupCell(data.cellId, data);
-						break;
+						this.notebookEditow.didStawtDwagMawkupCeww(data.cewwId, data);
+						bweak;
 					}
-				case 'cell-drag':
+				case 'ceww-dwag':
 					{
-						this.notebookEditor.didDragMarkupCell(data.cellId, data);
-						break;
+						this.notebookEditow.didDwagMawkupCeww(data.cewwId, data);
+						bweak;
 					}
-				case 'cell-drop':
+				case 'ceww-dwop':
 					{
-						this.notebookEditor.didDropMarkupCell(data.cellId, {
-							dragOffsetY: data.dragOffsetY,
-							ctrlKey: data.ctrlKey,
-							altKey: data.altKey,
+						this.notebookEditow.didDwopMawkupCeww(data.cewwId, {
+							dwagOffsetY: data.dwagOffsetY,
+							ctwwKey: data.ctwwKey,
+							awtKey: data.awtKey,
 						});
-						break;
+						bweak;
 					}
-				case 'cell-drag-end':
+				case 'ceww-dwag-end':
 					{
-						this.notebookEditor.didEndDragMarkupCell(data.cellId);
-						break;
+						this.notebookEditow.didEndDwagMawkupCeww(data.cewwId);
+						bweak;
 					}
-				case 'renderedMarkup':
+				case 'wendewedMawkup':
 					{
-						const cell = this.notebookEditor.getCellById(data.cellId);
-						if (cell instanceof MarkupCellViewModel) {
-							cell.renderedHtml = data.html;
+						const ceww = this.notebookEditow.getCewwById(data.cewwId);
+						if (ceww instanceof MawkupCewwViewModew) {
+							ceww.wendewedHtmw = data.htmw;
 						}
-						break;
+						bweak;
 					}
-				case 'telemetryFoundRenderedMarkdownMath':
+				case 'tewemetwyFoundWendewedMawkdownMath':
 					{
-						this.telemetryService.publicLog2<{}, {}>('notebook/markdown/renderedLatex', {});
-						break;
+						this.tewemetwySewvice.pubwicWog2<{}, {}>('notebook/mawkdown/wendewedWatex', {});
+						bweak;
 					}
-				case 'telemetryFoundUnrenderedMarkdownMath':
+				case 'tewemetwyFoundUnwendewedMawkdownMath':
 					{
-						type Classification = {
-							latexDirective: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+						type Cwassification = {
+							watexDiwective: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight'; };
 						};
 
-						type TelemetryEvent = {
-							latexDirective: string;
+						type TewemetwyEvent = {
+							watexDiwective: stwing;
 						};
 
-						this.telemetryService.publicLog2<TelemetryEvent, Classification>('notebook/markdown/foundUnrenderedLatex', {
-							latexDirective: data.latexDirective
+						this.tewemetwySewvice.pubwicWog2<TewemetwyEvent, Cwassification>('notebook/mawkdown/foundUnwendewedWatex', {
+							watexDiwective: data.watexDiwective
 						});
-						break;
+						bweak;
 					}
 			}
 		}));
 	}
 
-	private async _onDidClickDataLink(event: IClickedDataUrlMessage): Promise<void> {
-		if (typeof event.data !== 'string') {
-			return;
+	pwivate async _onDidCwickDataWink(event: ICwickedDataUwwMessage): Pwomise<void> {
+		if (typeof event.data !== 'stwing') {
+			wetuwn;
 		}
 
-		const [splitStart, splitData] = event.data.split(';base64,');
-		if (!splitData || !splitStart) {
-			return;
+		const [spwitStawt, spwitData] = event.data.spwit(';base64,');
+		if (!spwitData || !spwitStawt) {
+			wetuwn;
 		}
 
-		const defaultDir = dirname(this.documentUri);
-		let defaultName: string;
-		if (event.downloadName) {
-			defaultName = event.downloadName;
-		} else {
-			const mimeType = splitStart.replace(/^data:/, '');
-			const candidateExtension = mimeType && getExtensionForMimeType(mimeType);
-			defaultName = candidateExtension ? `download${candidateExtension}` : 'download';
+		const defauwtDiw = diwname(this.documentUwi);
+		wet defauwtName: stwing;
+		if (event.downwoadName) {
+			defauwtName = event.downwoadName;
+		} ewse {
+			const mimeType = spwitStawt.wepwace(/^data:/, '');
+			const candidateExtension = mimeType && getExtensionFowMimeType(mimeType);
+			defauwtName = candidateExtension ? `downwoad${candidateExtension}` : 'downwoad';
 		}
 
-		const defaultUri = joinPath(defaultDir, defaultName);
-		const newFileUri = await this.fileDialogService.showSaveDialog({
-			defaultUri
+		const defauwtUwi = joinPath(defauwtDiw, defauwtName);
+		const newFiweUwi = await this.fiweDiawogSewvice.showSaveDiawog({
+			defauwtUwi
 		});
-		if (!newFileUri) {
-			return;
+		if (!newFiweUwi) {
+			wetuwn;
 		}
 
-		const decoded = atob(splitData);
-		const typedArray = new Uint8Array(decoded.length);
-		for (let i = 0; i < decoded.length; i++) {
-			typedArray[i] = decoded.charCodeAt(i);
+		const decoded = atob(spwitData);
+		const typedAwway = new Uint8Awway(decoded.wength);
+		fow (wet i = 0; i < decoded.wength; i++) {
+			typedAwway[i] = decoded.chawCodeAt(i);
 		}
 
-		const buff = VSBuffer.wrap(typedArray);
-		await this.fileService.writeFile(newFileUri, buff);
-		await this.openerService.open(newFileUri);
+		const buff = VSBuffa.wwap(typedAwway);
+		await this.fiweSewvice.wwiteFiwe(newFiweUwi, buff);
+		await this.openewSewvice.open(newFiweUwi);
 	}
 
-	private _createInset(webviewService: IWebviewService, content: string) {
-		const workspaceFolders = this.contextService.getWorkspace().folders.map(x => x.uri);
+	pwivate _cweateInset(webviewSewvice: IWebviewSewvice, content: stwing) {
+		const wowkspaceFowdews = this.contextSewvice.getWowkspace().fowdews.map(x => x.uwi);
 
-		this.localResourceRootsCache = [
-			...this.notebookService.getNotebookProviderResourceRoots(),
-			...this.notebookService.getRenderers().map(x => dirname(x.entrypoint)),
-			...workspaceFolders,
+		this.wocawWesouwceWootsCache = [
+			...this.notebookSewvice.getNotebookPwovidewWesouwceWoots(),
+			...this.notebookSewvice.getWendewews().map(x => diwname(x.entwypoint)),
+			...wowkspaceFowdews,
 		];
 
-		const webview = webviewService.createWebviewElement(this.id, {
-			purpose: WebviewContentPurpose.NotebookRenderer,
-			enableFindWidget: false,
-			transformCssVariables: transformWebviewThemeVars,
+		const webview = webviewSewvice.cweateWebviewEwement(this.id, {
+			puwpose: WebviewContentPuwpose.NotebookWendewa,
+			enabweFindWidget: fawse,
+			twansfowmCssVawiabwes: twansfowmWebviewThemeVaws,
 		}, {
-			allowMultipleAPIAcquire: true,
-			allowScripts: true,
-			localResourceRoots: this.localResourceRootsCache,
+			awwowMuwtipweAPIAcquiwe: twue,
+			awwowScwipts: twue,
+			wocawWesouwceWoots: this.wocawWesouwceWootsCache,
 		}, undefined);
-		// console.log(this.localResourceRootsCache);
-		webview.html = content;
-		return webview;
+		// consowe.wog(this.wocawWesouwceWootsCache);
+		webview.htmw = content;
+		wetuwn webview;
 	}
 
-	private initializeWebViewState() {
-		const renderers = new Set<INotebookRendererInfo>();
-		for (const inset of this.insetMapping.values()) {
-			if (inset.renderer) {
-				renderers.add(inset.renderer);
+	pwivate initiawizeWebViewState() {
+		const wendewews = new Set<INotebookWendewewInfo>();
+		fow (const inset of this.insetMapping.vawues()) {
+			if (inset.wendewa) {
+				wendewews.add(inset.wendewa);
 			}
 		}
 
-		this._preloadsCache.clear();
-		if (this._currentKernel) {
-			this._updatePreloadsFromKernel(this._currentKernel);
+		this._pwewoadsCache.cweaw();
+		if (this._cuwwentKewnew) {
+			this._updatePwewoadsFwomKewnew(this._cuwwentKewnew);
 		}
 
-		for (const [output, inset] of this.insetMapping.entries()) {
-			this._sendMessageToWebview({ ...inset.cachedCreation, initiallyHidden: this.hiddenInsetMapping.has(output) });
+		fow (const [output, inset] of this.insetMapping.entwies()) {
+			this._sendMessageToWebview({ ...inset.cachedCweation, initiawwyHidden: this.hiddenInsetMapping.has(output) });
 		}
 
-		const mdCells = [...this.markupPreviewMapping.values()];
-		this.markupPreviewMapping.clear();
-		this.initializeMarkup(mdCells);
-		this._updateStyles();
+		const mdCewws = [...this.mawkupPweviewMapping.vawues()];
+		this.mawkupPweviewMapping.cweaw();
+		this.initiawizeMawkup(mdCewws);
+		this._updateStywes();
 		this._updateOptions();
 	}
 
-	private shouldUpdateInset(cell: IGenericCellViewModel, output: ICellOutputViewModel, cellTop: number, outputOffset: number): boolean {
+	pwivate shouwdUpdateInset(ceww: IGenewicCewwViewModew, output: ICewwOutputViewModew, cewwTop: numba, outputOffset: numba): boowean {
 		if (this._disposed) {
-			return false;
+			wetuwn fawse;
 		}
 
-		if (cell.metadata.outputCollapsed) {
-			return false;
+		if (ceww.metadata.outputCowwapsed) {
+			wetuwn fawse;
 		}
 
 		if (this.hiddenInsetMapping.has(output)) {
-			return true;
+			wetuwn twue;
 		}
 
 		const outputCache = this.insetMapping.get(output);
 		if (!outputCache) {
-			return false;
+			wetuwn fawse;
 		}
 
-		if (outputOffset === outputCache.cachedCreation.outputOffset && cellTop === outputCache.cachedCreation.cellTop) {
-			return false;
+		if (outputOffset === outputCache.cachedCweation.outputOffset && cewwTop === outputCache.cachedCweation.cewwTop) {
+			wetuwn fawse;
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	ackHeight(updates: readonly IAckOutputHeight[]): void {
+	ackHeight(updates: weadonwy IAckOutputHeight[]): void {
 		this._sendMessageToWebview({
 			type: 'ack-dimension',
 			updates
 		});
 	}
 
-	updateScrollTops(outputRequests: IDisplayOutputLayoutUpdateRequest[], markupPreviews: { id: string, top: number }[]) {
+	updateScwowwTops(outputWequests: IDispwayOutputWayoutUpdateWequest[], mawkupPweviews: { id: stwing, top: numba }[]) {
 		if (this._disposed) {
-			return;
+			wetuwn;
 		}
 
-		const widgets = coalesce(outputRequests.map((request): IContentWidgetTopRequest | undefined => {
-			const outputCache = this.insetMapping.get(request.output);
+		const widgets = coawesce(outputWequests.map((wequest): IContentWidgetTopWequest | undefined => {
+			const outputCache = this.insetMapping.get(wequest.output);
 			if (!outputCache) {
-				return;
+				wetuwn;
 			}
 
-			if (!request.forceDisplay && !this.shouldUpdateInset(request.cell, request.output, request.cellTop, request.outputOffset)) {
-				return;
+			if (!wequest.fowceDispway && !this.shouwdUpdateInset(wequest.ceww, wequest.output, wequest.cewwTop, wequest.outputOffset)) {
+				wetuwn;
 			}
 
 			const id = outputCache.outputId;
-			outputCache.cachedCreation.cellTop = request.cellTop;
-			outputCache.cachedCreation.outputOffset = request.outputOffset;
-			this.hiddenInsetMapping.delete(request.output);
+			outputCache.cachedCweation.cewwTop = wequest.cewwTop;
+			outputCache.cachedCweation.outputOffset = wequest.outputOffset;
+			this.hiddenInsetMapping.dewete(wequest.output);
 
-			return {
-				cellId: request.cell.id,
+			wetuwn {
+				cewwId: wequest.ceww.id,
 				outputId: id,
-				cellTop: request.cellTop,
-				outputOffset: request.outputOffset,
-				forceDisplay: request.forceDisplay,
+				cewwTop: wequest.cewwTop,
+				outputOffset: wequest.outputOffset,
+				fowceDispway: wequest.fowceDispway,
 			};
 		}));
 
-		if (!widgets.length && !markupPreviews.length) {
-			return;
+		if (!widgets.wength && !mawkupPweviews.wength) {
+			wetuwn;
 		}
 
 		this._sendMessageToWebview({
-			type: 'view-scroll',
+			type: 'view-scwoww',
 			widgets: widgets,
-			markupCells: markupPreviews,
+			mawkupCewws: mawkupPweviews,
 		});
 	}
 
-	private async createMarkupPreview(initialization: IMarkupCellInitialization) {
+	pwivate async cweateMawkupPweview(initiawization: IMawkupCewwInitiawization) {
 		if (this._disposed) {
-			return;
+			wetuwn;
 		}
 
-		if (this.markupPreviewMapping.has(initialization.cellId)) {
-			console.error('Trying to create markup preview that already exists');
-			return;
+		if (this.mawkupPweviewMapping.has(initiawization.cewwId)) {
+			consowe.ewwow('Twying to cweate mawkup pweview that awweady exists');
+			wetuwn;
 		}
 
-		this.markupPreviewMapping.set(initialization.cellId, initialization);
+		this.mawkupPweviewMapping.set(initiawization.cewwId, initiawization);
 		this._sendMessageToWebview({
-			type: 'createMarkupCell',
-			cell: initialization
+			type: 'cweateMawkupCeww',
+			ceww: initiawization
 		});
 	}
 
-	async showMarkupPreview(initialization: IMarkupCellInitialization) {
+	async showMawkupPweview(initiawization: IMawkupCewwInitiawization) {
 		if (this._disposed) {
-			return;
+			wetuwn;
 		}
 
-		const entry = this.markupPreviewMapping.get(initialization.cellId);
-		if (!entry) {
-			return this.createMarkupPreview(initialization);
+		const entwy = this.mawkupPweviewMapping.get(initiawization.cewwId);
+		if (!entwy) {
+			wetuwn this.cweateMawkupPweview(initiawization);
 		}
 
-		const sameContent = initialization.content === entry.content;
-		if (!sameContent || !entry.visible) {
+		const sameContent = initiawization.content === entwy.content;
+		if (!sameContent || !entwy.visibwe) {
 			this._sendMessageToWebview({
-				type: 'showMarkupCell',
-				id: initialization.cellId,
-				handle: initialization.cellHandle,
-				// If the content has not changed, we still want to make sure the
-				// preview is visible but don't need to send anything over
-				content: sameContent ? undefined : initialization.content,
-				top: initialization.offset
+				type: 'showMawkupCeww',
+				id: initiawization.cewwId,
+				handwe: initiawization.cewwHandwe,
+				// If the content has not changed, we stiww want to make suwe the
+				// pweview is visibwe but don't need to send anything ova
+				content: sameContent ? undefined : initiawization.content,
+				top: initiawization.offset
 			});
 		}
 
-		entry.content = initialization.content;
-		entry.offset = initialization.offset;
-		entry.visible = true;
+		entwy.content = initiawization.content;
+		entwy.offset = initiawization.offset;
+		entwy.visibwe = twue;
 	}
 
-	async hideMarkupPreviews(cellIds: readonly string[]) {
+	async hideMawkupPweviews(cewwIds: weadonwy stwing[]) {
 		if (this._disposed) {
-			return;
+			wetuwn;
 		}
 
-		const cellsToHide: string[] = [];
-		for (const cellId of cellIds) {
-			const entry = this.markupPreviewMapping.get(cellId);
-			if (entry) {
-				if (entry.visible) {
-					cellsToHide.push(cellId);
-					entry.visible = false;
+		const cewwsToHide: stwing[] = [];
+		fow (const cewwId of cewwIds) {
+			const entwy = this.mawkupPweviewMapping.get(cewwId);
+			if (entwy) {
+				if (entwy.visibwe) {
+					cewwsToHide.push(cewwId);
+					entwy.visibwe = fawse;
 				}
 			}
 		}
 
-		if (cellsToHide.length) {
+		if (cewwsToHide.wength) {
 			this._sendMessageToWebview({
-				type: 'hideMarkupCells',
-				ids: cellsToHide
+				type: 'hideMawkupCewws',
+				ids: cewwsToHide
 			});
 		}
 	}
 
-	async unhideMarkupPreviews(cellIds: readonly string[]) {
+	async unhideMawkupPweviews(cewwIds: weadonwy stwing[]) {
 		if (this._disposed) {
-			return;
+			wetuwn;
 		}
 
-		const toUnhide: string[] = [];
-		for (const cellId of cellIds) {
-			const entry = this.markupPreviewMapping.get(cellId);
-			if (entry) {
-				if (!entry.visible) {
-					entry.visible = true;
-					toUnhide.push(cellId);
+		const toUnhide: stwing[] = [];
+		fow (const cewwId of cewwIds) {
+			const entwy = this.mawkupPweviewMapping.get(cewwId);
+			if (entwy) {
+				if (!entwy.visibwe) {
+					entwy.visibwe = twue;
+					toUnhide.push(cewwId);
 				}
-			} else {
-				console.error(`Trying to unhide a preview that does not exist: ${cellId}`);
+			} ewse {
+				consowe.ewwow(`Twying to unhide a pweview that does not exist: ${cewwId}`);
 			}
 		}
 
 		this._sendMessageToWebview({
-			type: 'unhideMarkupCells',
+			type: 'unhideMawkupCewws',
 			ids: toUnhide,
 		});
 	}
 
-	async deleteMarkupPreviews(cellIds: readonly string[]) {
+	async deweteMawkupPweviews(cewwIds: weadonwy stwing[]) {
 		if (this._disposed) {
-			return;
+			wetuwn;
 		}
 
-		for (const id of cellIds) {
-			if (!this.markupPreviewMapping.has(id)) {
-				console.error(`Trying to delete a preview that does not exist: ${id}`);
+		fow (const id of cewwIds) {
+			if (!this.mawkupPweviewMapping.has(id)) {
+				consowe.ewwow(`Twying to dewete a pweview that does not exist: ${id}`);
 			}
-			this.markupPreviewMapping.delete(id);
+			this.mawkupPweviewMapping.dewete(id);
 		}
 
-		if (cellIds.length) {
+		if (cewwIds.wength) {
 			this._sendMessageToWebview({
-				type: 'deleteMarkupCell',
-				ids: cellIds
+				type: 'deweteMawkupCeww',
+				ids: cewwIds
 			});
 		}
 	}
 
-	async updateMarkupPreviewSelections(selectedCellsIds: string[]) {
+	async updateMawkupPweviewSewections(sewectedCewwsIds: stwing[]) {
 		if (this._disposed) {
-			return;
+			wetuwn;
 		}
 
 		this._sendMessageToWebview({
-			type: 'updateSelectedMarkupCells',
-			selectedCellIds: selectedCellsIds.filter(id => this.markupPreviewMapping.has(id)),
+			type: 'updateSewectedMawkupCewws',
+			sewectedCewwIds: sewectedCewwsIds.fiwta(id => this.mawkupPweviewMapping.has(id)),
 		});
 	}
 
-	async initializeMarkup(cells: readonly IMarkupCellInitialization[]): Promise<void> {
+	async initiawizeMawkup(cewws: weadonwy IMawkupCewwInitiawization[]): Pwomise<void> {
 		if (this._disposed) {
-			return;
+			wetuwn;
 		}
 
-		// TODO: use proper handler
-		const p = new Promise<void>(resolve => {
+		// TODO: use pwopa handwa
+		const p = new Pwomise<void>(wesowve => {
 			const sub = this.webview?.onMessage(e => {
-				if (e.message.type === 'initializedMarkup') {
-					resolve();
+				if (e.message.type === 'initiawizedMawkup') {
+					wesowve();
 					sub?.dispose();
 				}
 			});
 		});
 
-		for (const cell of cells) {
-			this.markupPreviewMapping.set(cell.cellId, cell);
+		fow (const ceww of cewws) {
+			this.mawkupPweviewMapping.set(ceww.cewwId, ceww);
 		}
 
 		this._sendMessageToWebview({
-			type: 'initializeMarkup',
-			cells,
+			type: 'initiawizeMawkup',
+			cewws,
 		});
 
 		await p;
 	}
 
-	async createOutput(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number) {
+	async cweateOutput(cewwInfo: T, content: IInsetWendewOutput, cewwTop: numba, offset: numba) {
 		if (this._disposed) {
-			return;
+			wetuwn;
 		}
 
-		if (this.insetMapping.has(content.source)) {
-			const outputCache = this.insetMapping.get(content.source);
+		if (this.insetMapping.has(content.souwce)) {
+			const outputCache = this.insetMapping.get(content.souwce);
 
 			if (outputCache) {
-				this.hiddenInsetMapping.delete(content.source);
+				this.hiddenInsetMapping.dewete(content.souwce);
 				this._sendMessageToWebview({
 					type: 'showOutput',
-					cellId: outputCache.cellInfo.cellId,
+					cewwId: outputCache.cewwInfo.cewwId,
 					outputId: outputCache.outputId,
-					cellTop: cellTop,
+					cewwTop: cewwTop,
 					outputOffset: offset
 				});
-				return;
+				wetuwn;
 			}
 		}
 
 		const messageBase = {
-			type: 'html',
-			cellId: cellInfo.cellId,
-			cellTop: cellTop,
+			type: 'htmw',
+			cewwId: cewwInfo.cewwId,
+			cewwTop: cewwTop,
 			outputOffset: offset,
-			left: 0,
-			requiredPreloads: [],
+			weft: 0,
+			wequiwedPwewoads: [],
 		} as const;
 
-		let message: ICreationRequestMessage;
-		let renderer: INotebookRendererInfo | undefined;
-		if (content.type === RenderOutputType.Extension) {
-			const output = content.source.model;
-			renderer = content.renderer;
-			const first = output.outputs.find(op => op.mime === content.mimeType)!;
+		wet message: ICweationWequestMessage;
+		wet wendewa: INotebookWendewewInfo | undefined;
+		if (content.type === WendewOutputType.Extension) {
+			const output = content.souwce.modew;
+			wendewa = content.wendewa;
+			const fiwst = output.outputs.find(op => op.mime === content.mimeType)!;
 
-			// TODO@jrieken - the message can contain "bytes" and those are transferable
-			// which improves IPC performance and therefore should be used. However, it does
-			// means that the bytes cannot be used here anymore
+			// TODO@jwieken - the message can contain "bytes" and those awe twansfewabwe
+			// which impwoves IPC pewfowmance and thewefowe shouwd be used. Howeva, it does
+			// means that the bytes cannot be used hewe anymowe
 			message = {
 				...messageBase,
 				outputId: output.outputId,
-				rendererId: content.renderer.id,
+				wendewewId: content.wendewa.id,
 				content: {
-					type: RenderOutputType.Extension,
+					type: WendewOutputType.Extension,
 					outputId: output.outputId,
-					mimeType: first.mime,
-					valueBytes: first.data.buffer,
+					mimeType: fiwst.mime,
+					vawueBytes: fiwst.data.buffa,
 					metadata: output.metadata,
 				},
 			};
-		} else {
+		} ewse {
 			message = {
 				...messageBase,
-				outputId: UUID.generateUuid(),
+				outputId: UUID.genewateUuid(),
 				content: {
 					type: content.type,
-					htmlContent: content.htmlContent,
+					htmwContent: content.htmwContent,
 				}
 			};
 		}
 
 		this._sendMessageToWebview(message);
-		this.insetMapping.set(content.source, { outputId: message.outputId, cellInfo: cellInfo, renderer, cachedCreation: message });
-		this.hiddenInsetMapping.delete(content.source);
-		this.reversedInsetMapping.set(message.outputId, content.source);
+		this.insetMapping.set(content.souwce, { outputId: message.outputId, cewwInfo: cewwInfo, wendewa, cachedCweation: message });
+		this.hiddenInsetMapping.dewete(content.souwce);
+		this.wevewsedInsetMapping.set(message.outputId, content.souwce);
 	}
 
-	removeInsets(outputs: readonly ICellOutputViewModel[]) {
+	wemoveInsets(outputs: weadonwy ICewwOutputViewModew[]) {
 		if (this._disposed) {
-			return;
+			wetuwn;
 		}
 
-		for (const output of outputs) {
+		fow (const output of outputs) {
 			const outputCache = this.insetMapping.get(output);
 			if (!outputCache) {
 				continue;
@@ -1071,25 +1071,25 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			const id = outputCache.outputId;
 
 			this._sendMessageToWebview({
-				type: 'clearOutput',
-				rendererId: outputCache.cachedCreation.rendererId,
-				cellUri: outputCache.cellInfo.cellUri.toString(),
+				type: 'cweawOutput',
+				wendewewId: outputCache.cachedCweation.wendewewId,
+				cewwUwi: outputCache.cewwInfo.cewwUwi.toStwing(),
 				outputId: id,
-				cellId: outputCache.cellInfo.cellId
+				cewwId: outputCache.cewwInfo.cewwId
 			});
-			this.insetMapping.delete(output);
-			this.reversedInsetMapping.delete(id);
+			this.insetMapping.dewete(output);
+			this.wevewsedInsetMapping.dewete(id);
 		}
 	}
 
-	hideInset(output: ICellOutputViewModel) {
+	hideInset(output: ICewwOutputViewModew) {
 		if (this._disposed) {
-			return;
+			wetuwn;
 		}
 
 		const outputCache = this.insetMapping.get(output);
 		if (!outputCache) {
-			return;
+			wetuwn;
 		}
 
 		this.hiddenInsetMapping.add(output);
@@ -1097,122 +1097,122 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		this._sendMessageToWebview({
 			type: 'hideOutput',
 			outputId: outputCache.outputId,
-			cellId: outputCache.cellInfo.cellId,
+			cewwId: outputCache.cewwInfo.cewwId,
 		});
 	}
 
-	clearInsets() {
+	cweawInsets() {
 		if (this._disposed) {
-			return;
+			wetuwn;
 		}
 
 		this._sendMessageToWebview({
-			type: 'clear'
+			type: 'cweaw'
 		});
 
 		this.insetMapping = new Map();
-		this.reversedInsetMapping = new Map();
+		this.wevewsedInsetMapping = new Map();
 	}
 
 	focusWebview() {
 		if (this._disposed) {
-			return;
+			wetuwn;
 		}
 
 		this.webview?.focus();
 	}
 
-	focusOutput(cellId: string) {
+	focusOutput(cewwId: stwing) {
 		if (this._disposed) {
-			return;
+			wetuwn;
 		}
 
 		this.webview?.focus();
-		setTimeout(() => { // Need this, or focus decoration is not shown. No clue.
+		setTimeout(() => { // Need this, ow focus decowation is not shown. No cwue.
 			this._sendMessageToWebview({
 				type: 'focus-output',
-				cellId,
+				cewwId,
 			});
 		}, 50);
 	}
 
-	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]) {
+	dewtaCewwOutputContainewCwassNames(cewwId: stwing, added: stwing[], wemoved: stwing[]) {
 		this._sendMessageToWebview({
-			type: 'decorations',
-			cellId,
-			addedClassNames: added,
-			removedClassNames: removed
+			type: 'decowations',
+			cewwId,
+			addedCwassNames: added,
+			wemovedCwassNames: wemoved
 		});
 
 	}
 
-	async updateKernelPreloads(kernel: INotebookKernel | undefined) {
-		if (this._disposed || kernel === this._currentKernel) {
-			return;
+	async updateKewnewPwewoads(kewnew: INotebookKewnew | undefined) {
+		if (this._disposed || kewnew === this._cuwwentKewnew) {
+			wetuwn;
 		}
 
-		const previousKernel = this._currentKernel;
-		this._currentKernel = kernel;
+		const pweviousKewnew = this._cuwwentKewnew;
+		this._cuwwentKewnew = kewnew;
 
-		if (previousKernel && previousKernel.preloadUris.length > 0) {
-			this.webview?.reload(); // preloads will be restored after reload
-		} else if (kernel) {
-			this._updatePreloadsFromKernel(kernel);
+		if (pweviousKewnew && pweviousKewnew.pwewoadUwis.wength > 0) {
+			this.webview?.wewoad(); // pwewoads wiww be westowed afta wewoad
+		} ewse if (kewnew) {
+			this._updatePwewoadsFwomKewnew(kewnew);
 		}
 	}
 
-	private _updatePreloadsFromKernel(kernel: INotebookKernel) {
-		const resources: IControllerPreload[] = [];
-		for (const preload of kernel.preloadUris) {
-			const uri = this.environmentService.isExtensionDevelopment && (preload.scheme === 'http' || preload.scheme === 'https')
-				? preload : this.asWebviewUri(preload, undefined);
+	pwivate _updatePwewoadsFwomKewnew(kewnew: INotebookKewnew) {
+		const wesouwces: IContwowwewPwewoad[] = [];
+		fow (const pwewoad of kewnew.pwewoadUwis) {
+			const uwi = this.enviwonmentSewvice.isExtensionDevewopment && (pwewoad.scheme === 'http' || pwewoad.scheme === 'https')
+				? pwewoad : this.asWebviewUwi(pwewoad, undefined);
 
-			if (!this._preloadsCache.has(uri.toString())) {
-				resources.push({ uri: uri.toString(), originalUri: preload.toString() });
-				this._preloadsCache.add(uri.toString());
+			if (!this._pwewoadsCache.has(uwi.toStwing())) {
+				wesouwces.push({ uwi: uwi.toStwing(), owiginawUwi: pwewoad.toStwing() });
+				this._pwewoadsCache.add(uwi.toStwing());
 			}
 		}
 
-		if (!resources.length) {
-			return;
+		if (!wesouwces.wength) {
+			wetuwn;
 		}
 
-		this._updatePreloads(resources);
+		this._updatePwewoads(wesouwces);
 	}
 
-	private _updatePreloads(resources: IControllerPreload[]) {
+	pwivate _updatePwewoads(wesouwces: IContwowwewPwewoad[]) {
 		if (!this.webview) {
-			return;
+			wetuwn;
 		}
 
-		const mixedResourceRoots = [
-			...(this.localResourceRootsCache || []),
-			...(this._currentKernel ? [this._currentKernel.localResourceRoot] : []),
+		const mixedWesouwceWoots = [
+			...(this.wocawWesouwceWootsCache || []),
+			...(this._cuwwentKewnew ? [this._cuwwentKewnew.wocawWesouwceWoot] : []),
 		];
 
-		this.webview.localResourcesRoot = mixedResourceRoots;
+		this.webview.wocawWesouwcesWoot = mixedWesouwceWoots;
 
 		this._sendMessageToWebview({
-			type: 'preload',
-			resources: resources,
+			type: 'pwewoad',
+			wesouwces: wesouwces,
 		});
 	}
 
-	private _sendMessageToWebview(message: ToWebviewMessage) {
+	pwivate _sendMessageToWebview(message: ToWebviewMessage) {
 		if (this._disposed) {
-			return;
+			wetuwn;
 		}
 
 		this.webview?.postMessage(message);
 	}
 
-	clearPreloadsCache() {
-		this._preloadsCache.clear();
+	cweawPwewoadsCache() {
+		this._pwewoadsCache.cweaw();
 	}
 
-	override dispose() {
-		this._disposed = true;
+	ovewwide dispose() {
+		this._disposed = twue;
 		this.webview?.dispose();
-		super.dispose();
+		supa.dispose();
 	}
 }

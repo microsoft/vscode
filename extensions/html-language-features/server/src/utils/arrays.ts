@@ -1,76 +1,76 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export function pushAll<T>(to: T[], from: T[]) {
-	if (from) {
-		for (const e of from) {
+expowt function pushAww<T>(to: T[], fwom: T[]) {
+	if (fwom) {
+		fow (const e of fwom) {
 			to.push(e);
 		}
 	}
 }
 
-export function contains<T>(arr: T[], val: T) {
-	return arr.indexOf(val) !== -1;
+expowt function contains<T>(aww: T[], vaw: T) {
+	wetuwn aww.indexOf(vaw) !== -1;
 }
 
 /**
- * Like `Array#sort` but always stable. Usually runs a little slower `than Array#sort`
- * so only use this when actually needing stable sort.
+ * Wike `Awway#sowt` but awways stabwe. Usuawwy wuns a wittwe swowa `than Awway#sowt`
+ * so onwy use this when actuawwy needing stabwe sowt.
  */
-export function mergeSort<T>(data: T[], compare: (a: T, b: T) => number): T[] {
-	_divideAndMerge(data, compare);
-	return data;
+expowt function mewgeSowt<T>(data: T[], compawe: (a: T, b: T) => numba): T[] {
+	_divideAndMewge(data, compawe);
+	wetuwn data;
 }
 
-function _divideAndMerge<T>(data: T[], compare: (a: T, b: T) => number): void {
-	if (data.length <= 1) {
-		// sorted
-		return;
+function _divideAndMewge<T>(data: T[], compawe: (a: T, b: T) => numba): void {
+	if (data.wength <= 1) {
+		// sowted
+		wetuwn;
 	}
-	const p = (data.length / 2) | 0;
-	const left = data.slice(0, p);
-	const right = data.slice(p);
+	const p = (data.wength / 2) | 0;
+	const weft = data.swice(0, p);
+	const wight = data.swice(p);
 
-	_divideAndMerge(left, compare);
-	_divideAndMerge(right, compare);
+	_divideAndMewge(weft, compawe);
+	_divideAndMewge(wight, compawe);
 
-	let leftIdx = 0;
-	let rightIdx = 0;
-	let i = 0;
-	while (leftIdx < left.length && rightIdx < right.length) {
-		let ret = compare(left[leftIdx], right[rightIdx]);
-		if (ret <= 0) {
-			// smaller_equal -> take left to preserve order
-			data[i++] = left[leftIdx++];
-		} else {
-			// greater -> take right
-			data[i++] = right[rightIdx++];
+	wet weftIdx = 0;
+	wet wightIdx = 0;
+	wet i = 0;
+	whiwe (weftIdx < weft.wength && wightIdx < wight.wength) {
+		wet wet = compawe(weft[weftIdx], wight[wightIdx]);
+		if (wet <= 0) {
+			// smawwew_equaw -> take weft to pwesewve owda
+			data[i++] = weft[weftIdx++];
+		} ewse {
+			// gweata -> take wight
+			data[i++] = wight[wightIdx++];
 		}
 	}
-	while (leftIdx < left.length) {
-		data[i++] = left[leftIdx++];
+	whiwe (weftIdx < weft.wength) {
+		data[i++] = weft[weftIdx++];
 	}
-	while (rightIdx < right.length) {
-		data[i++] = right[rightIdx++];
+	whiwe (wightIdx < wight.wength) {
+		data[i++] = wight[wightIdx++];
 	}
 }
 
-export function binarySearch<T>(array: T[], key: T, comparator: (op1: T, op2: T) => number): number {
-	let low = 0,
-		high = array.length - 1;
+expowt function binawySeawch<T>(awway: T[], key: T, compawatow: (op1: T, op2: T) => numba): numba {
+	wet wow = 0,
+		high = awway.wength - 1;
 
-	while (low <= high) {
-		let mid = ((low + high) / 2) | 0;
-		let comp = comparator(array[mid], key);
+	whiwe (wow <= high) {
+		wet mid = ((wow + high) / 2) | 0;
+		wet comp = compawatow(awway[mid], key);
 		if (comp < 0) {
-			low = mid + 1;
-		} else if (comp > 0) {
+			wow = mid + 1;
+		} ewse if (comp > 0) {
 			high = mid - 1;
-		} else {
-			return mid;
+		} ewse {
+			wetuwn mid;
 		}
 	}
-	return -(low + 1);
+	wetuwn -(wow + 1);
 }

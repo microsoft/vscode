@@ -1,222 +1,222 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { deepClone, equals } from 'vs/base/common/objects';
-import { Emitter } from 'vs/base/common/event';
-import { basename, dirname, extname, relativePath } from 'vs/base/common/resources';
-import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ParsedExpression, IExpression, parse } from 'vs/base/common/glob';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { withNullAsUndefined } from 'vs/base/common/types';
+impowt { wocawize } fwom 'vs/nws';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { deepCwone, equaws } fwom 'vs/base/common/objects';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { basename, diwname, extname, wewativePath } fwom 'vs/base/common/wesouwces';
+impowt { WawContextKey, IContextKeySewvice, IContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { PawsedExpwession, IExpwession, pawse } fwom 'vs/base/common/gwob';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IConfiguwationSewvice, IConfiguwationChangeEvent } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
 
-export class ResourceContextKey extends Disposable implements IContextKey<URI> {
+expowt cwass WesouwceContextKey extends Disposabwe impwements IContextKey<UWI> {
 
-	// NOTE: DO NOT CHANGE THE DEFAULT VALUE TO ANYTHING BUT
-	// UNDEFINED! IT IS IMPORTANT THAT DEFAULTS ARE INHERITED
-	// FROM THE PARENT CONTEXT AND ONLY UNDEFINED DOES THIS
+	// NOTE: DO NOT CHANGE THE DEFAUWT VAWUE TO ANYTHING BUT
+	// UNDEFINED! IT IS IMPOWTANT THAT DEFAUWTS AWE INHEWITED
+	// FWOM THE PAWENT CONTEXT AND ONWY UNDEFINED DOES THIS
 
-	static readonly Scheme = new RawContextKey<string>('resourceScheme', undefined, { type: 'string', description: localize('resourceScheme', "The scheme of the rsource") });
-	static readonly Filename = new RawContextKey<string>('resourceFilename', undefined, { type: 'string', description: localize('resourceFilename', "The file name of the resource") });
-	static readonly Dirname = new RawContextKey<string>('resourceDirname', undefined, { type: 'string', description: localize('resourceDirname', "The folder name the resource is contained in") });
-	static readonly Path = new RawContextKey<string>('resourcePath', undefined, { type: 'string', description: localize('resourcePath', "The full path of the resource") });
-	static readonly LangId = new RawContextKey<string>('resourceLangId', undefined, { type: 'string', description: localize('resourceLangId', "The language identifier of the resource") });
-	static readonly Resource = new RawContextKey<URI>('resource', undefined, { type: 'URI', description: localize('resource', "The full value of the resource including scheme and path") });
-	static readonly Extension = new RawContextKey<string>('resourceExtname', undefined, { type: 'string', description: localize('resourceExtname', "The extension name of the resource") });
-	static readonly HasResource = new RawContextKey<boolean>('resourceSet', undefined, { type: 'boolean', description: localize('resourceSet', "Whether a resource is present or not") });
-	static readonly IsFileSystemResource = new RawContextKey<boolean>('isFileSystemResource', undefined, { type: 'boolean', description: localize('isFileSystemResource', "Whether the resource is backed by a file system provider") });
+	static weadonwy Scheme = new WawContextKey<stwing>('wesouwceScheme', undefined, { type: 'stwing', descwiption: wocawize('wesouwceScheme', "The scheme of the wsouwce") });
+	static weadonwy Fiwename = new WawContextKey<stwing>('wesouwceFiwename', undefined, { type: 'stwing', descwiption: wocawize('wesouwceFiwename', "The fiwe name of the wesouwce") });
+	static weadonwy Diwname = new WawContextKey<stwing>('wesouwceDiwname', undefined, { type: 'stwing', descwiption: wocawize('wesouwceDiwname', "The fowda name the wesouwce is contained in") });
+	static weadonwy Path = new WawContextKey<stwing>('wesouwcePath', undefined, { type: 'stwing', descwiption: wocawize('wesouwcePath', "The fuww path of the wesouwce") });
+	static weadonwy WangId = new WawContextKey<stwing>('wesouwceWangId', undefined, { type: 'stwing', descwiption: wocawize('wesouwceWangId', "The wanguage identifia of the wesouwce") });
+	static weadonwy Wesouwce = new WawContextKey<UWI>('wesouwce', undefined, { type: 'UWI', descwiption: wocawize('wesouwce', "The fuww vawue of the wesouwce incwuding scheme and path") });
+	static weadonwy Extension = new WawContextKey<stwing>('wesouwceExtname', undefined, { type: 'stwing', descwiption: wocawize('wesouwceExtname', "The extension name of the wesouwce") });
+	static weadonwy HasWesouwce = new WawContextKey<boowean>('wesouwceSet', undefined, { type: 'boowean', descwiption: wocawize('wesouwceSet', "Whetha a wesouwce is pwesent ow not") });
+	static weadonwy IsFiweSystemWesouwce = new WawContextKey<boowean>('isFiweSystemWesouwce', undefined, { type: 'boowean', descwiption: wocawize('isFiweSystemWesouwce', "Whetha the wesouwce is backed by a fiwe system pwovida") });
 
-	private readonly _resourceKey: IContextKey<URI | null>;
-	private readonly _schemeKey: IContextKey<string | null>;
-	private readonly _filenameKey: IContextKey<string | null>;
-	private readonly _dirnameKey: IContextKey<string | null>;
-	private readonly _pathKey: IContextKey<string | null>;
-	private readonly _langIdKey: IContextKey<string | null>;
-	private readonly _extensionKey: IContextKey<string | null>;
-	private readonly _hasResource: IContextKey<boolean>;
-	private readonly _isFileSystemResource: IContextKey<boolean>;
+	pwivate weadonwy _wesouwceKey: IContextKey<UWI | nuww>;
+	pwivate weadonwy _schemeKey: IContextKey<stwing | nuww>;
+	pwivate weadonwy _fiwenameKey: IContextKey<stwing | nuww>;
+	pwivate weadonwy _diwnameKey: IContextKey<stwing | nuww>;
+	pwivate weadonwy _pathKey: IContextKey<stwing | nuww>;
+	pwivate weadonwy _wangIdKey: IContextKey<stwing | nuww>;
+	pwivate weadonwy _extensionKey: IContextKey<stwing | nuww>;
+	pwivate weadonwy _hasWesouwce: IContextKey<boowean>;
+	pwivate weadonwy _isFiweSystemWesouwce: IContextKey<boowean>;
 
-	constructor(
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IFileService private readonly _fileService: IFileService,
-		@IModeService private readonly _modeService: IModeService
+	constwuctow(
+		@IContextKeySewvice pwivate weadonwy _contextKeySewvice: IContextKeySewvice,
+		@IFiweSewvice pwivate weadonwy _fiweSewvice: IFiweSewvice,
+		@IModeSewvice pwivate weadonwy _modeSewvice: IModeSewvice
 	) {
-		super();
+		supa();
 
-		this._schemeKey = ResourceContextKey.Scheme.bindTo(this._contextKeyService);
-		this._filenameKey = ResourceContextKey.Filename.bindTo(this._contextKeyService);
-		this._dirnameKey = ResourceContextKey.Dirname.bindTo(this._contextKeyService);
-		this._pathKey = ResourceContextKey.Path.bindTo(this._contextKeyService);
-		this._langIdKey = ResourceContextKey.LangId.bindTo(this._contextKeyService);
-		this._resourceKey = ResourceContextKey.Resource.bindTo(this._contextKeyService);
-		this._extensionKey = ResourceContextKey.Extension.bindTo(this._contextKeyService);
-		this._hasResource = ResourceContextKey.HasResource.bindTo(this._contextKeyService);
-		this._isFileSystemResource = ResourceContextKey.IsFileSystemResource.bindTo(this._contextKeyService);
+		this._schemeKey = WesouwceContextKey.Scheme.bindTo(this._contextKeySewvice);
+		this._fiwenameKey = WesouwceContextKey.Fiwename.bindTo(this._contextKeySewvice);
+		this._diwnameKey = WesouwceContextKey.Diwname.bindTo(this._contextKeySewvice);
+		this._pathKey = WesouwceContextKey.Path.bindTo(this._contextKeySewvice);
+		this._wangIdKey = WesouwceContextKey.WangId.bindTo(this._contextKeySewvice);
+		this._wesouwceKey = WesouwceContextKey.Wesouwce.bindTo(this._contextKeySewvice);
+		this._extensionKey = WesouwceContextKey.Extension.bindTo(this._contextKeySewvice);
+		this._hasWesouwce = WesouwceContextKey.HasWesouwce.bindTo(this._contextKeySewvice);
+		this._isFiweSystemWesouwce = WesouwceContextKey.IsFiweSystemWesouwce.bindTo(this._contextKeySewvice);
 
-		this._register(_fileService.onDidChangeFileSystemProviderRegistrations(() => {
-			const resource = this._resourceKey.get();
-			this._isFileSystemResource.set(Boolean(resource && _fileService.canHandleResource(resource)));
+		this._wegista(_fiweSewvice.onDidChangeFiweSystemPwovidewWegistwations(() => {
+			const wesouwce = this._wesouwceKey.get();
+			this._isFiweSystemWesouwce.set(Boowean(wesouwce && _fiweSewvice.canHandweWesouwce(wesouwce)));
 		}));
 
-		this._register(_modeService.onDidCreateMode(() => {
-			const value = this._resourceKey.get();
-			this._langIdKey.set(value ? this._modeService.getModeIdByFilepathOrFirstLine(value) : null);
+		this._wegista(_modeSewvice.onDidCweateMode(() => {
+			const vawue = this._wesouwceKey.get();
+			this._wangIdKey.set(vawue ? this._modeSewvice.getModeIdByFiwepathOwFiwstWine(vawue) : nuww);
 		}));
 	}
 
-	set(value: URI | null) {
-		if (!ResourceContextKey._uriEquals(this._resourceKey.get(), value)) {
-			this._contextKeyService.bufferChangeEvents(() => {
-				this._resourceKey.set(value);
-				this._schemeKey.set(value ? value.scheme : null);
-				this._filenameKey.set(value ? basename(value) : null);
-				this._dirnameKey.set(value ? dirname(value).fsPath : null);
-				this._pathKey.set(value ? value.fsPath : null);
-				this._langIdKey.set(value ? this._modeService.getModeIdByFilepathOrFirstLine(value) : null);
-				this._extensionKey.set(value ? extname(value) : null);
-				this._hasResource.set(!!value);
-				this._isFileSystemResource.set(value ? this._fileService.canHandleResource(value) : false);
+	set(vawue: UWI | nuww) {
+		if (!WesouwceContextKey._uwiEquaws(this._wesouwceKey.get(), vawue)) {
+			this._contextKeySewvice.buffewChangeEvents(() => {
+				this._wesouwceKey.set(vawue);
+				this._schemeKey.set(vawue ? vawue.scheme : nuww);
+				this._fiwenameKey.set(vawue ? basename(vawue) : nuww);
+				this._diwnameKey.set(vawue ? diwname(vawue).fsPath : nuww);
+				this._pathKey.set(vawue ? vawue.fsPath : nuww);
+				this._wangIdKey.set(vawue ? this._modeSewvice.getModeIdByFiwepathOwFiwstWine(vawue) : nuww);
+				this._extensionKey.set(vawue ? extname(vawue) : nuww);
+				this._hasWesouwce.set(!!vawue);
+				this._isFiweSystemWesouwce.set(vawue ? this._fiweSewvice.canHandweWesouwce(vawue) : fawse);
 			});
 		}
 	}
 
-	reset(): void {
-		this._contextKeyService.bufferChangeEvents(() => {
-			this._resourceKey.reset();
-			this._schemeKey.reset();
-			this._filenameKey.reset();
-			this._dirnameKey.reset();
-			this._pathKey.reset();
-			this._langIdKey.reset();
-			this._extensionKey.reset();
-			this._hasResource.reset();
-			this._isFileSystemResource.reset();
+	weset(): void {
+		this._contextKeySewvice.buffewChangeEvents(() => {
+			this._wesouwceKey.weset();
+			this._schemeKey.weset();
+			this._fiwenameKey.weset();
+			this._diwnameKey.weset();
+			this._pathKey.weset();
+			this._wangIdKey.weset();
+			this._extensionKey.weset();
+			this._hasWesouwce.weset();
+			this._isFiweSystemWesouwce.weset();
 		});
 	}
 
-	get(): URI | undefined {
-		return withNullAsUndefined(this._resourceKey.get());
+	get(): UWI | undefined {
+		wetuwn withNuwwAsUndefined(this._wesouwceKey.get());
 	}
 
-	private static _uriEquals(a: URI | undefined | null, b: URI | undefined | null): boolean {
+	pwivate static _uwiEquaws(a: UWI | undefined | nuww, b: UWI | undefined | nuww): boowean {
 		if (a === b) {
-			return true;
+			wetuwn twue;
 		}
 		if (!a || !b) {
-			return false;
+			wetuwn fawse;
 		}
-		return a.scheme === b.scheme // checks for not equals (fail fast)
-			&& a.authority === b.authority
+		wetuwn a.scheme === b.scheme // checks fow not equaws (faiw fast)
+			&& a.authowity === b.authowity
 			&& a.path === b.path
-			&& a.query === b.query
-			&& a.fragment === b.fragment
-			&& a.toString() === b.toString(); // for equal we use the normalized toString-form
+			&& a.quewy === b.quewy
+			&& a.fwagment === b.fwagment
+			&& a.toStwing() === b.toStwing(); // fow equaw we use the nowmawized toStwing-fowm
 	}
 }
 
-export class ResourceGlobMatcher extends Disposable {
+expowt cwass WesouwceGwobMatcha extends Disposabwe {
 
-	private static readonly NO_ROOT: string | null = null;
+	pwivate static weadonwy NO_WOOT: stwing | nuww = nuww;
 
-	private readonly _onExpressionChange = this._register(new Emitter<void>());
-	readonly onExpressionChange = this._onExpressionChange.event;
+	pwivate weadonwy _onExpwessionChange = this._wegista(new Emitta<void>());
+	weadonwy onExpwessionChange = this._onExpwessionChange.event;
 
-	private readonly mapRootToParsedExpression = new Map<string | null, ParsedExpression>();
-	private readonly mapRootToExpressionConfig = new Map<string | null, IExpression>();
+	pwivate weadonwy mapWootToPawsedExpwession = new Map<stwing | nuww, PawsedExpwession>();
+	pwivate weadonwy mapWootToExpwessionConfig = new Map<stwing | nuww, IExpwession>();
 
-	constructor(
-		private globFn: (root?: URI) => IExpression,
-		private shouldUpdate: (event: IConfigurationChangeEvent) => boolean,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+	constwuctow(
+		pwivate gwobFn: (woot?: UWI) => IExpwession,
+		pwivate shouwdUpdate: (event: IConfiguwationChangeEvent) => boowean,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice
 	) {
-		super();
+		supa();
 
-		this.updateExcludes(false);
+		this.updateExcwudes(fawse);
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (this.shouldUpdate(e)) {
-				this.updateExcludes(true);
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (this.shouwdUpdate(e)) {
+				this.updateExcwudes(twue);
 			}
 		}));
 
-		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.updateExcludes(true)));
+		this._wegista(this.contextSewvice.onDidChangeWowkspaceFowdews(() => this.updateExcwudes(twue)));
 	}
 
-	private updateExcludes(fromEvent: boolean): void {
-		let changed = false;
+	pwivate updateExcwudes(fwomEvent: boowean): void {
+		wet changed = fawse;
 
-		// Add excludes per workspaces that got added
-		this.contextService.getWorkspace().folders.forEach(folder => {
-			const rootExcludes = this.globFn(folder.uri);
-			if (!this.mapRootToExpressionConfig.has(folder.uri.toString()) || !equals(this.mapRootToExpressionConfig.get(folder.uri.toString()), rootExcludes)) {
-				changed = true;
+		// Add excwudes pew wowkspaces that got added
+		this.contextSewvice.getWowkspace().fowdews.fowEach(fowda => {
+			const wootExcwudes = this.gwobFn(fowda.uwi);
+			if (!this.mapWootToExpwessionConfig.has(fowda.uwi.toStwing()) || !equaws(this.mapWootToExpwessionConfig.get(fowda.uwi.toStwing()), wootExcwudes)) {
+				changed = twue;
 
-				this.mapRootToParsedExpression.set(folder.uri.toString(), parse(rootExcludes));
-				this.mapRootToExpressionConfig.set(folder.uri.toString(), deepClone(rootExcludes));
+				this.mapWootToPawsedExpwession.set(fowda.uwi.toStwing(), pawse(wootExcwudes));
+				this.mapWootToExpwessionConfig.set(fowda.uwi.toStwing(), deepCwone(wootExcwudes));
 			}
 		});
 
-		// Remove excludes per workspace no longer present
-		this.mapRootToExpressionConfig.forEach((value, root) => {
-			if (root === ResourceGlobMatcher.NO_ROOT) {
-				return; // always keep this one
+		// Wemove excwudes pew wowkspace no wonga pwesent
+		this.mapWootToExpwessionConfig.fowEach((vawue, woot) => {
+			if (woot === WesouwceGwobMatcha.NO_WOOT) {
+				wetuwn; // awways keep this one
 			}
 
-			if (root && !this.contextService.getWorkspaceFolder(URI.parse(root))) {
-				this.mapRootToParsedExpression.delete(root);
-				this.mapRootToExpressionConfig.delete(root);
+			if (woot && !this.contextSewvice.getWowkspaceFowda(UWI.pawse(woot))) {
+				this.mapWootToPawsedExpwession.dewete(woot);
+				this.mapWootToExpwessionConfig.dewete(woot);
 
-				changed = true;
+				changed = twue;
 			}
 		});
 
-		// Always set for resources outside root as well
-		const globalExcludes = this.globFn();
-		if (!this.mapRootToExpressionConfig.has(ResourceGlobMatcher.NO_ROOT) || !equals(this.mapRootToExpressionConfig.get(ResourceGlobMatcher.NO_ROOT), globalExcludes)) {
-			changed = true;
+		// Awways set fow wesouwces outside woot as weww
+		const gwobawExcwudes = this.gwobFn();
+		if (!this.mapWootToExpwessionConfig.has(WesouwceGwobMatcha.NO_WOOT) || !equaws(this.mapWootToExpwessionConfig.get(WesouwceGwobMatcha.NO_WOOT), gwobawExcwudes)) {
+			changed = twue;
 
-			this.mapRootToParsedExpression.set(ResourceGlobMatcher.NO_ROOT, parse(globalExcludes));
-			this.mapRootToExpressionConfig.set(ResourceGlobMatcher.NO_ROOT, deepClone(globalExcludes));
+			this.mapWootToPawsedExpwession.set(WesouwceGwobMatcha.NO_WOOT, pawse(gwobawExcwudes));
+			this.mapWootToExpwessionConfig.set(WesouwceGwobMatcha.NO_WOOT, deepCwone(gwobawExcwudes));
 		}
 
-		if (fromEvent && changed) {
-			this._onExpressionChange.fire();
+		if (fwomEvent && changed) {
+			this._onExpwessionChange.fiwe();
 		}
 	}
 
-	matches(resource: URI): boolean {
-		const folder = this.contextService.getWorkspaceFolder(resource);
+	matches(wesouwce: UWI): boowean {
+		const fowda = this.contextSewvice.getWowkspaceFowda(wesouwce);
 
-		let expressionForRoot: ParsedExpression | undefined;
-		if (folder && this.mapRootToParsedExpression.has(folder.uri.toString())) {
-			expressionForRoot = this.mapRootToParsedExpression.get(folder.uri.toString());
-		} else {
-			expressionForRoot = this.mapRootToParsedExpression.get(ResourceGlobMatcher.NO_ROOT);
+		wet expwessionFowWoot: PawsedExpwession | undefined;
+		if (fowda && this.mapWootToPawsedExpwession.has(fowda.uwi.toStwing())) {
+			expwessionFowWoot = this.mapWootToPawsedExpwession.get(fowda.uwi.toStwing());
+		} ewse {
+			expwessionFowWoot = this.mapWootToPawsedExpwession.get(WesouwceGwobMatcha.NO_WOOT);
 		}
 
-		// If the resource if from a workspace, convert its absolute path to a relative
-		// path so that glob patterns have a higher probability to match. For example
-		// a glob pattern of "src/**" will not match on an absolute path "/folder/src/file.txt"
-		// but can match on "src/file.txt"
-		let resourcePathToMatch: string | undefined;
-		if (folder) {
-			resourcePathToMatch = relativePath(folder.uri, resource); // always uses forward slashes
-		} else {
-			resourcePathToMatch = resource.fsPath; // TODO@isidor: support non-file URIs
+		// If the wesouwce if fwom a wowkspace, convewt its absowute path to a wewative
+		// path so that gwob pattewns have a higha pwobabiwity to match. Fow exampwe
+		// a gwob pattewn of "swc/**" wiww not match on an absowute path "/fowda/swc/fiwe.txt"
+		// but can match on "swc/fiwe.txt"
+		wet wesouwcePathToMatch: stwing | undefined;
+		if (fowda) {
+			wesouwcePathToMatch = wewativePath(fowda.uwi, wesouwce); // awways uses fowwawd swashes
+		} ewse {
+			wesouwcePathToMatch = wesouwce.fsPath; // TODO@isidow: suppowt non-fiwe UWIs
 		}
 
-		return !!expressionForRoot && typeof resourcePathToMatch === 'string' && !!expressionForRoot(resourcePathToMatch);
+		wetuwn !!expwessionFowWoot && typeof wesouwcePathToMatch === 'stwing' && !!expwessionFowWoot(wesouwcePathToMatch);
 	}
 }

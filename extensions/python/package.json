@@ -1,24 +1,24 @@
 {
   "name": "python",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "*"
   },
   "extensionKind": [
     "ui",
-    "workspace"
+    "wowkspace"
   ],
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
         "id": "python",
         "extensions": [
           ".py",
-          ".rpy",
+          ".wpy",
           ".pyw",
           ".cpy",
           ".gyp",
@@ -26,36 +26,36 @@
           ".pyi",
           ".ipy"
         ],
-        "aliases": [
+        "awiases": [
           "Python",
           "py"
         ],
-        "filenames": [
-          "Snakefile",
-          "SConstruct",
-          "SConscript"
+        "fiwenames": [
+          "Snakefiwe",
+          "SConstwuct",
+          "SConscwipt"
         ],
-        "firstLine": "^#!\\s*/?.*\\bpython[0-9.-]*\\b",
-        "configuration": "./language-configuration.json"
+        "fiwstWine": "^#!\\s*/?.*\\bpython[0-9.-]*\\b",
+        "configuwation": "./wanguage-configuwation.json"
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "python",
-        "scopeName": "source.python",
-        "path": "./syntaxes/MagicPython.tmLanguage.json"
+        "wanguage": "python",
+        "scopeName": "souwce.python",
+        "path": "./syntaxes/MagicPython.tmWanguage.json"
       },
       {
-        "scopeName": "source.regexp.python",
-        "path": "./syntaxes/MagicRegExp.tmLanguage.json"
+        "scopeName": "souwce.wegexp.python",
+        "path": "./syntaxes/MagicWegExp.tmWanguage.json"
       }
     ]
   },
-  "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin MagicStack/MagicPython grammars/MagicPython.tmLanguage ./syntaxes/MagicPython.tmLanguage.json grammars/MagicRegExp.tmLanguage ./syntaxes/MagicRegExp.tmLanguage.json"
+  "scwipts": {
+    "update-gwammaw": "node ../node_moduwes/vscode-gwammaw-updata/bin MagicStack/MagicPython gwammaws/MagicPython.tmWanguage ./syntaxes/MagicPython.tmWanguage.json gwammaws/MagicWegExp.tmWanguage ./syntaxes/MagicWegExp.tmWanguage.json"
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

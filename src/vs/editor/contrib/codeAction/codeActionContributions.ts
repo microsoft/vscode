@@ -1,17 +1,17 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerEditorAction, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { AutoFixAction, CodeActionCommand, FixAllAction, OrganizeImportsAction, QuickFixAction, QuickFixController, RefactorAction, SourceAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
+impowt { wegistewEditowAction, wegistewEditowCommand, wegistewEditowContwibution } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { AutoFixAction, CodeActionCommand, FixAwwAction, OwganizeImpowtsAction, QuickFixAction, QuickFixContwowwa, WefactowAction, SouwceAction } fwom 'vs/editow/contwib/codeAction/codeActionCommands';
 
 
-registerEditorContribution(QuickFixController.ID, QuickFixController);
-registerEditorAction(QuickFixAction);
-registerEditorAction(RefactorAction);
-registerEditorAction(SourceAction);
-registerEditorAction(OrganizeImportsAction);
-registerEditorAction(AutoFixAction);
-registerEditorAction(FixAllAction);
-registerEditorCommand(new CodeActionCommand());
+wegistewEditowContwibution(QuickFixContwowwa.ID, QuickFixContwowwa);
+wegistewEditowAction(QuickFixAction);
+wegistewEditowAction(WefactowAction);
+wegistewEditowAction(SouwceAction);
+wegistewEditowAction(OwganizeImpowtsAction);
+wegistewEditowAction(AutoFixAction);
+wegistewEditowAction(FixAwwAction);
+wegistewEditowCommand(new CodeActionCommand());

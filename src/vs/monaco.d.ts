@@ -1,252 +1,252 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-declare let MonacoEnvironment: monaco.Environment | undefined;
+decwawe wet MonacoEnviwonment: monaco.Enviwonment | undefined;
 
-interface Window {
-	MonacoEnvironment?: monaco.Environment | undefined;
+intewface Window {
+	MonacoEnviwonment?: monaco.Enviwonment | undefined;
 }
 
-declare namespace monaco {
+decwawe namespace monaco {
 
-	export type Thenable<T> = PromiseLike<T>;
+	expowt type Thenabwe<T> = PwomiseWike<T>;
 
-	export interface Environment {
-		globalAPI?: boolean;
-		baseUrl?: string;
-		getWorker?(workerId: string, label: string): Worker;
-		getWorkerUrl?(workerId: string, label: string): string;
+	expowt intewface Enviwonment {
+		gwobawAPI?: boowean;
+		baseUww?: stwing;
+		getWowka?(wowkewId: stwing, wabew: stwing): Wowka;
+		getWowkewUww?(wowkewId: stwing, wabew: stwing): stwing;
 	}
 
-	export interface IDisposable {
+	expowt intewface IDisposabwe {
 		dispose(): void;
 	}
 
-	export interface IEvent<T> {
-		(listener: (e: T) => any, thisArg?: any): IDisposable;
+	expowt intewface IEvent<T> {
+		(wistena: (e: T) => any, thisAwg?: any): IDisposabwe;
 	}
 
 	/**
-	 * A helper that allows to emit and listen to typed events
+	 * A hewpa that awwows to emit and wisten to typed events
 	 */
-	export class Emitter<T> {
-		constructor();
-		readonly event: IEvent<T>;
-		fire(event: T): void;
+	expowt cwass Emitta<T> {
+		constwuctow();
+		weadonwy event: IEvent<T>;
+		fiwe(event: T): void;
 		dispose(): void;
 	}
 
 
-	export enum MarkerTag {
-		Unnecessary = 1,
-		Deprecated = 2
+	expowt enum MawkewTag {
+		Unnecessawy = 1,
+		Depwecated = 2
 	}
 
-	export enum MarkerSeverity {
+	expowt enum MawkewSevewity {
 		Hint = 1,
 		Info = 2,
-		Warning = 4,
-		Error = 8
+		Wawning = 4,
+		Ewwow = 8
 	}
 
-	export class CancellationTokenSource {
-		constructor(parent?: CancellationToken);
-		get token(): CancellationToken;
-		cancel(): void;
-		dispose(cancel?: boolean): void;
+	expowt cwass CancewwationTokenSouwce {
+		constwuctow(pawent?: CancewwationToken);
+		get token(): CancewwationToken;
+		cancew(): void;
+		dispose(cancew?: boowean): void;
 	}
 
-	export interface CancellationToken {
+	expowt intewface CancewwationToken {
 		/**
-		 * A flag signalling is cancellation has been requested.
+		 * A fwag signawwing is cancewwation has been wequested.
 		 */
-		readonly isCancellationRequested: boolean;
+		weadonwy isCancewwationWequested: boowean;
 		/**
-		 * An event which fires when cancellation is requested. This event
-		 * only ever fires `once` as cancellation can only happen once. Listeners
-		 * that are registered after cancellation will be called (next event loop run),
-		 * but also only once.
+		 * An event which fiwes when cancewwation is wequested. This event
+		 * onwy eva fiwes `once` as cancewwation can onwy happen once. Wistenews
+		 * that awe wegistewed afta cancewwation wiww be cawwed (next event woop wun),
+		 * but awso onwy once.
 		 *
 		 * @event
 		 */
-		readonly onCancellationRequested: (listener: (e: any) => any, thisArgs?: any, disposables?: IDisposable[]) => IDisposable;
+		weadonwy onCancewwationWequested: (wistena: (e: any) => any, thisAwgs?: any, disposabwes?: IDisposabwe[]) => IDisposabwe;
 	}
 	/**
-	 * Uniform Resource Identifier (Uri) http://tools.ietf.org/html/rfc3986.
-	 * This class is a simple parser which creates the basic component parts
-	 * (http://tools.ietf.org/html/rfc3986#section-3) with minimal validation
+	 * Unifowm Wesouwce Identifia (Uwi) http://toows.ietf.owg/htmw/wfc3986.
+	 * This cwass is a simpwe pawsa which cweates the basic component pawts
+	 * (http://toows.ietf.owg/htmw/wfc3986#section-3) with minimaw vawidation
 	 * and encoding.
 	 *
 	 * ```txt
-	 *       foo://example.com:8042/over/there?name=ferret#nose
+	 *       foo://exampwe.com:8042/ova/thewe?name=fewwet#nose
 	 *       \_/   \______________/\_________/ \_________/ \__/
 	 *        |           |            |            |        |
-	 *     scheme     authority       path        query   fragment
+	 *     scheme     authowity       path        quewy   fwagment
 	 *        |   _____________________|__
 	 *       / \ /                        \
-	 *       urn:example:animal:ferret:nose
+	 *       uwn:exampwe:animaw:fewwet:nose
 	 * ```
 	 */
-	export class Uri implements UriComponents {
-		static isUri(thing: any): thing is Uri;
+	expowt cwass Uwi impwements UwiComponents {
+		static isUwi(thing: any): thing is Uwi;
 		/**
-		 * scheme is the 'http' part of 'http://www.msft.com/some/path?query#fragment'.
-		 * The part before the first colon.
+		 * scheme is the 'http' pawt of 'http://www.msft.com/some/path?quewy#fwagment'.
+		 * The pawt befowe the fiwst cowon.
 		 */
-		readonly scheme: string;
+		weadonwy scheme: stwing;
 		/**
-		 * authority is the 'www.msft.com' part of 'http://www.msft.com/some/path?query#fragment'.
-		 * The part between the first double slashes and the next slash.
+		 * authowity is the 'www.msft.com' pawt of 'http://www.msft.com/some/path?quewy#fwagment'.
+		 * The pawt between the fiwst doubwe swashes and the next swash.
 		 */
-		readonly authority: string;
+		weadonwy authowity: stwing;
 		/**
-		 * path is the '/some/path' part of 'http://www.msft.com/some/path?query#fragment'.
+		 * path is the '/some/path' pawt of 'http://www.msft.com/some/path?quewy#fwagment'.
 		 */
-		readonly path: string;
+		weadonwy path: stwing;
 		/**
-		 * query is the 'query' part of 'http://www.msft.com/some/path?query#fragment'.
+		 * quewy is the 'quewy' pawt of 'http://www.msft.com/some/path?quewy#fwagment'.
 		 */
-		readonly query: string;
+		weadonwy quewy: stwing;
 		/**
-		 * fragment is the 'fragment' part of 'http://www.msft.com/some/path?query#fragment'.
+		 * fwagment is the 'fwagment' pawt of 'http://www.msft.com/some/path?quewy#fwagment'.
 		 */
-		readonly fragment: string;
+		weadonwy fwagment: stwing;
 		/**
-		 * Returns a string representing the corresponding file system path of this Uri.
-		 * Will handle UNC paths, normalizes windows drive letters to lower-case, and uses the
-		 * platform specific path separator.
+		 * Wetuwns a stwing wepwesenting the cowwesponding fiwe system path of this Uwi.
+		 * Wiww handwe UNC paths, nowmawizes windows dwive wettews to wowa-case, and uses the
+		 * pwatfowm specific path sepawatow.
 		 *
-		 * * Will *not* validate the path for invalid characters and semantics.
-		 * * Will *not* look at the scheme of this Uri.
-		 * * The result shall *not* be used for display purposes but for accessing a file on disk.
+		 * * Wiww *not* vawidate the path fow invawid chawactews and semantics.
+		 * * Wiww *not* wook at the scheme of this Uwi.
+		 * * The wesuwt shaww *not* be used fow dispway puwposes but fow accessing a fiwe on disk.
 		 *
 		 *
-		 * The *difference* to `Uri#path` is the use of the platform specific separator and the handling
-		 * of UNC paths. See the below sample of a file-uri with an authority (UNC path).
+		 * The *diffewence* to `Uwi#path` is the use of the pwatfowm specific sepawatow and the handwing
+		 * of UNC paths. See the bewow sampwe of a fiwe-uwi with an authowity (UNC path).
 		 *
 		 * ```ts
-			const u = Uri.parse('file://server/c$/folder/file.txt')
-			u.authority === 'server'
-			u.path === '/shares/c$/file.txt'
-			u.fsPath === '\\server\c$\folder\file.txt'
+			const u = Uwi.pawse('fiwe://sewva/c$/fowda/fiwe.txt')
+			u.authowity === 'sewva'
+			u.path === '/shawes/c$/fiwe.txt'
+			u.fsPath === '\\sewva\c$\fowda\fiwe.txt'
 		```
 		 *
-		 * Using `Uri#path` to read a file (using fs-apis) would not be enough because parts of the path,
-		 * namely the server name, would be missing. Therefore `Uri#fsPath` exists - it's sugar to ease working
-		 * with URIs that represent files on disk (`file` scheme).
+		 * Using `Uwi#path` to wead a fiwe (using fs-apis) wouwd not be enough because pawts of the path,
+		 * namewy the sewva name, wouwd be missing. Thewefowe `Uwi#fsPath` exists - it's sugaw to ease wowking
+		 * with UWIs that wepwesent fiwes on disk (`fiwe` scheme).
 		 */
-		get fsPath(): string;
+		get fsPath(): stwing;
 		with(change: {
-			scheme?: string;
-			authority?: string | null;
-			path?: string | null;
-			query?: string | null;
-			fragment?: string | null;
-		}): Uri;
+			scheme?: stwing;
+			authowity?: stwing | nuww;
+			path?: stwing | nuww;
+			quewy?: stwing | nuww;
+			fwagment?: stwing | nuww;
+		}): Uwi;
 		/**
-		 * Creates a new Uri from a string, e.g. `http://www.msft.com/some/path`,
-		 * `file:///usr/home`, or `scheme:with/path`.
+		 * Cweates a new Uwi fwom a stwing, e.g. `http://www.msft.com/some/path`,
+		 * `fiwe:///usw/home`, ow `scheme:with/path`.
 		 *
-		 * @param value A string which represents an Uri (see `Uri#toString`).
+		 * @pawam vawue A stwing which wepwesents an Uwi (see `Uwi#toStwing`).
 		 */
-		static parse(value: string, _strict?: boolean): Uri;
+		static pawse(vawue: stwing, _stwict?: boowean): Uwi;
 		/**
-		 * Creates a new Uri from a file system path, e.g. `c:\my\files`,
-		 * `/usr/home`, or `\\server\share\some\path`.
+		 * Cweates a new Uwi fwom a fiwe system path, e.g. `c:\my\fiwes`,
+		 * `/usw/home`, ow `\\sewva\shawe\some\path`.
 		 *
-		 * The *difference* between `Uri#parse` and `Uri#file` is that the latter treats the argument
-		 * as path, not as stringified-uri. E.g. `Uri.file(path)` is **not the same as**
-		 * `Uri.parse('file://' + path)` because the path might contain characters that are
-		 * interpreted (# and ?). See the following sample:
+		 * The *diffewence* between `Uwi#pawse` and `Uwi#fiwe` is that the watta tweats the awgument
+		 * as path, not as stwingified-uwi. E.g. `Uwi.fiwe(path)` is **not the same as**
+		 * `Uwi.pawse('fiwe://' + path)` because the path might contain chawactews that awe
+		 * intewpweted (# and ?). See the fowwowing sampwe:
 		 * ```ts
-		const good = Uri.file('/coding/c#/project1');
-		good.scheme === 'file';
-		good.path === '/coding/c#/project1';
-		good.fragment === '';
-		const bad = Uri.parse('file://' + '/coding/c#/project1');
-		bad.scheme === 'file';
-		bad.path === '/coding/c'; // path is now broken
-		bad.fragment === '/project1';
+		const good = Uwi.fiwe('/coding/c#/pwoject1');
+		good.scheme === 'fiwe';
+		good.path === '/coding/c#/pwoject1';
+		good.fwagment === '';
+		const bad = Uwi.pawse('fiwe://' + '/coding/c#/pwoject1');
+		bad.scheme === 'fiwe';
+		bad.path === '/coding/c'; // path is now bwoken
+		bad.fwagment === '/pwoject1';
 		```
 		 *
-		 * @param path A file system path (see `Uri#fsPath`)
+		 * @pawam path A fiwe system path (see `Uwi#fsPath`)
 		 */
-		static file(path: string): Uri;
-		static from(components: {
-			scheme: string;
-			authority?: string;
-			path?: string;
-			query?: string;
-			fragment?: string;
-		}): Uri;
+		static fiwe(path: stwing): Uwi;
+		static fwom(components: {
+			scheme: stwing;
+			authowity?: stwing;
+			path?: stwing;
+			quewy?: stwing;
+			fwagment?: stwing;
+		}): Uwi;
 		/**
-		 * Join a Uri path with path fragments and normalizes the resulting path.
+		 * Join a Uwi path with path fwagments and nowmawizes the wesuwting path.
 		 *
-		 * @param uri The input Uri.
-		 * @param pathFragment The path fragment to add to the Uri path.
-		 * @returns The resulting Uri.
+		 * @pawam uwi The input Uwi.
+		 * @pawam pathFwagment The path fwagment to add to the Uwi path.
+		 * @wetuwns The wesuwting Uwi.
 		 */
-		static joinPath(uri: Uri, ...pathFragment: string[]): Uri;
+		static joinPath(uwi: Uwi, ...pathFwagment: stwing[]): Uwi;
 		/**
-		 * Creates a string representation for this Uri. It's guaranteed that calling
-		 * `Uri.parse` with the result of this function creates an Uri which is equal
-		 * to this Uri.
+		 * Cweates a stwing wepwesentation fow this Uwi. It's guawanteed that cawwing
+		 * `Uwi.pawse` with the wesuwt of this function cweates an Uwi which is equaw
+		 * to this Uwi.
 		 *
-		 * * The result shall *not* be used for display purposes but for externalization or transport.
-		 * * The result will be encoded using the percentage encoding and encoding happens mostly
-		 * ignore the scheme-specific encoding rules.
+		 * * The wesuwt shaww *not* be used fow dispway puwposes but fow extewnawization ow twanspowt.
+		 * * The wesuwt wiww be encoded using the pewcentage encoding and encoding happens mostwy
+		 * ignowe the scheme-specific encoding wuwes.
 		 *
-		 * @param skipEncoding Do not encode the result, default is `false`
+		 * @pawam skipEncoding Do not encode the wesuwt, defauwt is `fawse`
 		 */
-		toString(skipEncoding?: boolean): string;
-		toJSON(): UriComponents;
-		static revive(data: UriComponents | Uri): Uri;
-		static revive(data: UriComponents | Uri | undefined): Uri | undefined;
-		static revive(data: UriComponents | Uri | null): Uri | null;
-		static revive(data: UriComponents | Uri | undefined | null): Uri | undefined | null;
+		toStwing(skipEncoding?: boowean): stwing;
+		toJSON(): UwiComponents;
+		static wevive(data: UwiComponents | Uwi): Uwi;
+		static wevive(data: UwiComponents | Uwi | undefined): Uwi | undefined;
+		static wevive(data: UwiComponents | Uwi | nuww): Uwi | nuww;
+		static wevive(data: UwiComponents | Uwi | undefined | nuww): Uwi | undefined | nuww;
 	}
 
-	export interface UriComponents {
-		scheme: string;
-		authority: string;
-		path: string;
-		query: string;
-		fragment: string;
+	expowt intewface UwiComponents {
+		scheme: stwing;
+		authowity: stwing;
+		path: stwing;
+		quewy: stwing;
+		fwagment: stwing;
 	}
 
 	/**
-	 * Virtual Key Codes, the value does not hold any inherent meaning.
-	 * Inspired somewhat from https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
-	 * But these are "more general", as they should work across browsers & OS`s.
+	 * Viwtuaw Key Codes, the vawue does not howd any inhewent meaning.
+	 * Inspiwed somewhat fwom https://msdn.micwosoft.com/en-us/wibwawy/windows/desktop/dd375731(v=vs.85).aspx
+	 * But these awe "mowe genewaw", as they shouwd wowk acwoss bwowsews & OS`s.
 	 */
-	export enum KeyCode {
-		DependsOnKbLayout = -1,
+	expowt enum KeyCode {
+		DependsOnKbWayout = -1,
 		/**
-		 * Placed first to cover the 0 value of the enum.
+		 * Pwaced fiwst to cova the 0 vawue of the enum.
 		 */
 		Unknown = 0,
 		Backspace = 1,
 		Tab = 2,
-		Enter = 3,
+		Enta = 3,
 		Shift = 4,
-		Ctrl = 5,
-		Alt = 6,
-		PauseBreak = 7,
-		CapsLock = 8,
+		Ctww = 5,
+		Awt = 6,
+		PauseBweak = 7,
+		CapsWock = 8,
 		Escape = 9,
 		Space = 10,
 		PageUp = 11,
 		PageDown = 12,
 		End = 13,
 		Home = 14,
-		LeftArrow = 15,
-		UpArrow = 16,
-		RightArrow = 17,
-		DownArrow = 18,
-		Insert = 19,
-		Delete = 20,
+		WeftAwwow = 15,
+		UpAwwow = 16,
+		WightAwwow = 17,
+		DownAwwow = 18,
+		Insewt = 19,
+		Dewete = 20,
 		KEY_0 = 21,
 		KEY_1 = 22,
 		KEY_2 = 23,
@@ -268,13 +268,13 @@ declare namespace monaco {
 		KEY_I = 39,
 		KEY_J = 40,
 		KEY_K = 41,
-		KEY_L = 42,
+		KEY_W = 42,
 		KEY_M = 43,
 		KEY_N = 44,
 		KEY_O = 45,
 		KEY_P = 46,
 		KEY_Q = 47,
-		KEY_R = 48,
+		KEY_W = 48,
 		KEY_S = 49,
 		KEY_T = 50,
 		KEY_U = 51,
@@ -304,69 +304,69 @@ declare namespace monaco {
 		F17 = 75,
 		F18 = 76,
 		F19 = 77,
-		NumLock = 78,
-		ScrollLock = 79,
+		NumWock = 78,
+		ScwowwWock = 79,
 		/**
-		 * Used for miscellaneous characters; it can vary by keyboard.
-		 * For the US standard keyboard, the ';:' key
+		 * Used fow miscewwaneous chawactews; it can vawy by keyboawd.
+		 * Fow the US standawd keyboawd, the ';:' key
 		 */
-		US_SEMICOLON = 80,
+		US_SEMICOWON = 80,
 		/**
-		 * For any country/region, the '+' key
-		 * For the US standard keyboard, the '=+' key
+		 * Fow any countwy/wegion, the '+' key
+		 * Fow the US standawd keyboawd, the '=+' key
 		 */
-		US_EQUAL = 81,
+		US_EQUAW = 81,
 		/**
-		 * For any country/region, the ',' key
-		 * For the US standard keyboard, the ',<' key
+		 * Fow any countwy/wegion, the ',' key
+		 * Fow the US standawd keyboawd, the ',<' key
 		 */
 		US_COMMA = 82,
 		/**
-		 * For any country/region, the '-' key
-		 * For the US standard keyboard, the '-_' key
+		 * Fow any countwy/wegion, the '-' key
+		 * Fow the US standawd keyboawd, the '-_' key
 		 */
 		US_MINUS = 83,
 		/**
-		 * For any country/region, the '.' key
-		 * For the US standard keyboard, the '.>' key
+		 * Fow any countwy/wegion, the '.' key
+		 * Fow the US standawd keyboawd, the '.>' key
 		 */
 		US_DOT = 84,
 		/**
-		 * Used for miscellaneous characters; it can vary by keyboard.
-		 * For the US standard keyboard, the '/?' key
+		 * Used fow miscewwaneous chawactews; it can vawy by keyboawd.
+		 * Fow the US standawd keyboawd, the '/?' key
 		 */
-		US_SLASH = 85,
+		US_SWASH = 85,
 		/**
-		 * Used for miscellaneous characters; it can vary by keyboard.
-		 * For the US standard keyboard, the '`~' key
+		 * Used fow miscewwaneous chawactews; it can vawy by keyboawd.
+		 * Fow the US standawd keyboawd, the '`~' key
 		 */
 		US_BACKTICK = 86,
 		/**
-		 * Used for miscellaneous characters; it can vary by keyboard.
-		 * For the US standard keyboard, the '[{' key
+		 * Used fow miscewwaneous chawactews; it can vawy by keyboawd.
+		 * Fow the US standawd keyboawd, the '[{' key
 		 */
-		US_OPEN_SQUARE_BRACKET = 87,
+		US_OPEN_SQUAWE_BWACKET = 87,
 		/**
-		 * Used for miscellaneous characters; it can vary by keyboard.
-		 * For the US standard keyboard, the '\|' key
+		 * Used fow miscewwaneous chawactews; it can vawy by keyboawd.
+		 * Fow the US standawd keyboawd, the '\|' key
 		 */
-		US_BACKSLASH = 88,
+		US_BACKSWASH = 88,
 		/**
-		 * Used for miscellaneous characters; it can vary by keyboard.
-		 * For the US standard keyboard, the ']}' key
+		 * Used fow miscewwaneous chawactews; it can vawy by keyboawd.
+		 * Fow the US standawd keyboawd, the ']}' key
 		 */
-		US_CLOSE_SQUARE_BRACKET = 89,
+		US_CWOSE_SQUAWE_BWACKET = 89,
 		/**
-		 * Used for miscellaneous characters; it can vary by keyboard.
-		 * For the US standard keyboard, the ''"' key
+		 * Used fow miscewwaneous chawactews; it can vawy by keyboawd.
+		 * Fow the US standawd keyboawd, the ''"' key
 		 */
 		US_QUOTE = 90,
 		/**
-		 * Used for miscellaneous characters; it can vary by keyboard.
+		 * Used fow miscewwaneous chawactews; it can vawy by keyboawd.
 		 */
 		OEM_8 = 91,
 		/**
-		 * Either the angle bracket key or the backslash key on the RT 102-key keyboard.
+		 * Eitha the angwe bwacket key ow the backswash key on the WT 102-key keyboawd.
 		 */
 		OEM_102 = 92,
 		NUMPAD_0 = 93,
@@ -379,170 +379,170 @@ declare namespace monaco {
 		NUMPAD_7 = 100,
 		NUMPAD_8 = 101,
 		NUMPAD_9 = 102,
-		NUMPAD_MULTIPLY = 103,
+		NUMPAD_MUWTIPWY = 103,
 		NUMPAD_ADD = 104,
-		NUMPAD_SEPARATOR = 105,
-		NUMPAD_SUBTRACT = 106,
-		NUMPAD_DECIMAL = 107,
+		NUMPAD_SEPAWATOW = 105,
+		NUMPAD_SUBTWACT = 106,
+		NUMPAD_DECIMAW = 107,
 		NUMPAD_DIVIDE = 108,
 		/**
-		 * Cover all key codes when IME is processing input.
+		 * Cova aww key codes when IME is pwocessing input.
 		 */
 		KEY_IN_COMPOSITION = 109,
 		ABNT_C1 = 110,
 		ABNT_C2 = 111,
 		/**
-		 * Placed last to cover the length of the enum.
-		 * Please do not depend on this value!
+		 * Pwaced wast to cova the wength of the enum.
+		 * Pwease do not depend on this vawue!
 		 */
-		MAX_VALUE = 112
+		MAX_VAWUE = 112
 	}
-	export class KeyMod {
-		static readonly CtrlCmd: number;
-		static readonly Shift: number;
-		static readonly Alt: number;
-		static readonly WinCtrl: number;
-		static chord(firstPart: number, secondPart: number): number;
+	expowt cwass KeyMod {
+		static weadonwy CtwwCmd: numba;
+		static weadonwy Shift: numba;
+		static weadonwy Awt: numba;
+		static weadonwy WinCtww: numba;
+		static chowd(fiwstPawt: numba, secondPawt: numba): numba;
 	}
 
-	export interface IMarkdownString {
-		readonly value: string;
-		readonly isTrusted?: boolean;
-		readonly supportThemeIcons?: boolean;
-		readonly supportHtml?: boolean;
-		uris?: {
-			[href: string]: UriComponents;
+	expowt intewface IMawkdownStwing {
+		weadonwy vawue: stwing;
+		weadonwy isTwusted?: boowean;
+		weadonwy suppowtThemeIcons?: boowean;
+		weadonwy suppowtHtmw?: boowean;
+		uwis?: {
+			[hwef: stwing]: UwiComponents;
 		};
 	}
 
-	export interface IKeyboardEvent {
-		readonly _standardKeyboardEventBrand: true;
-		readonly browserEvent: KeyboardEvent;
-		readonly target: HTMLElement;
-		readonly ctrlKey: boolean;
-		readonly shiftKey: boolean;
-		readonly altKey: boolean;
-		readonly metaKey: boolean;
-		readonly keyCode: KeyCode;
-		readonly code: string;
-		equals(keybinding: number): boolean;
-		preventDefault(): void;
-		stopPropagation(): void;
+	expowt intewface IKeyboawdEvent {
+		weadonwy _standawdKeyboawdEventBwand: twue;
+		weadonwy bwowsewEvent: KeyboawdEvent;
+		weadonwy tawget: HTMWEwement;
+		weadonwy ctwwKey: boowean;
+		weadonwy shiftKey: boowean;
+		weadonwy awtKey: boowean;
+		weadonwy metaKey: boowean;
+		weadonwy keyCode: KeyCode;
+		weadonwy code: stwing;
+		equaws(keybinding: numba): boowean;
+		pweventDefauwt(): void;
+		stopPwopagation(): void;
 	}
-	export interface IMouseEvent {
-		readonly browserEvent: MouseEvent;
-		readonly leftButton: boolean;
-		readonly middleButton: boolean;
-		readonly rightButton: boolean;
-		readonly buttons: number;
-		readonly target: HTMLElement;
-		readonly detail: number;
-		readonly posx: number;
-		readonly posy: number;
-		readonly ctrlKey: boolean;
-		readonly shiftKey: boolean;
-		readonly altKey: boolean;
-		readonly metaKey: boolean;
-		readonly timestamp: number;
-		preventDefault(): void;
-		stopPropagation(): void;
-	}
-
-	export interface IScrollEvent {
-		readonly scrollTop: number;
-		readonly scrollLeft: number;
-		readonly scrollWidth: number;
-		readonly scrollHeight: number;
-		readonly scrollTopChanged: boolean;
-		readonly scrollLeftChanged: boolean;
-		readonly scrollWidthChanged: boolean;
-		readonly scrollHeightChanged: boolean;
-	}
-	/**
-	 * A position in the editor. This interface is suitable for serialization.
-	 */
-	export interface IPosition {
-		/**
-		 * line number (starts at 1)
-		 */
-		readonly lineNumber: number;
-		/**
-		 * column (the first character in a line is between column 1 and column 2)
-		 */
-		readonly column: number;
+	expowt intewface IMouseEvent {
+		weadonwy bwowsewEvent: MouseEvent;
+		weadonwy weftButton: boowean;
+		weadonwy middweButton: boowean;
+		weadonwy wightButton: boowean;
+		weadonwy buttons: numba;
+		weadonwy tawget: HTMWEwement;
+		weadonwy detaiw: numba;
+		weadonwy posx: numba;
+		weadonwy posy: numba;
+		weadonwy ctwwKey: boowean;
+		weadonwy shiftKey: boowean;
+		weadonwy awtKey: boowean;
+		weadonwy metaKey: boowean;
+		weadonwy timestamp: numba;
+		pweventDefauwt(): void;
+		stopPwopagation(): void;
 	}
 
+	expowt intewface IScwowwEvent {
+		weadonwy scwowwTop: numba;
+		weadonwy scwowwWeft: numba;
+		weadonwy scwowwWidth: numba;
+		weadonwy scwowwHeight: numba;
+		weadonwy scwowwTopChanged: boowean;
+		weadonwy scwowwWeftChanged: boowean;
+		weadonwy scwowwWidthChanged: boowean;
+		weadonwy scwowwHeightChanged: boowean;
+	}
 	/**
-	 * A position in the editor.
+	 * A position in the editow. This intewface is suitabwe fow sewiawization.
 	 */
-	export class Position {
+	expowt intewface IPosition {
 		/**
-		 * line number (starts at 1)
+		 * wine numba (stawts at 1)
 		 */
-		readonly lineNumber: number;
+		weadonwy wineNumba: numba;
 		/**
-		 * column (the first character in a line is between column 1 and column 2)
+		 * cowumn (the fiwst chawacta in a wine is between cowumn 1 and cowumn 2)
 		 */
-		readonly column: number;
-		constructor(lineNumber: number, column: number);
+		weadonwy cowumn: numba;
+	}
+
+	/**
+	 * A position in the editow.
+	 */
+	expowt cwass Position {
 		/**
-		 * Create a new position from this position.
+		 * wine numba (stawts at 1)
+		 */
+		weadonwy wineNumba: numba;
+		/**
+		 * cowumn (the fiwst chawacta in a wine is between cowumn 1 and cowumn 2)
+		 */
+		weadonwy cowumn: numba;
+		constwuctow(wineNumba: numba, cowumn: numba);
+		/**
+		 * Cweate a new position fwom this position.
 		 *
-		 * @param newLineNumber new line number
-		 * @param newColumn new column
+		 * @pawam newWineNumba new wine numba
+		 * @pawam newCowumn new cowumn
 		 */
-		with(newLineNumber?: number, newColumn?: number): Position;
+		with(newWineNumba?: numba, newCowumn?: numba): Position;
 		/**
-		 * Derive a new position from this position.
+		 * Dewive a new position fwom this position.
 		 *
-		 * @param deltaLineNumber line number delta
-		 * @param deltaColumn column delta
+		 * @pawam dewtaWineNumba wine numba dewta
+		 * @pawam dewtaCowumn cowumn dewta
 		 */
-		delta(deltaLineNumber?: number, deltaColumn?: number): Position;
+		dewta(dewtaWineNumba?: numba, dewtaCowumn?: numba): Position;
 		/**
-		 * Test if this position equals other position
+		 * Test if this position equaws otha position
 		 */
-		equals(other: IPosition): boolean;
+		equaws(otha: IPosition): boowean;
 		/**
-		 * Test if position `a` equals position `b`
+		 * Test if position `a` equaws position `b`
 		 */
-		static equals(a: IPosition | null, b: IPosition | null): boolean;
+		static equaws(a: IPosition | nuww, b: IPosition | nuww): boowean;
 		/**
-		 * Test if this position is before other position.
-		 * If the two positions are equal, the result will be false.
+		 * Test if this position is befowe otha position.
+		 * If the two positions awe equaw, the wesuwt wiww be fawse.
 		 */
-		isBefore(other: IPosition): boolean;
+		isBefowe(otha: IPosition): boowean;
 		/**
-		 * Test if position `a` is before position `b`.
-		 * If the two positions are equal, the result will be false.
+		 * Test if position `a` is befowe position `b`.
+		 * If the two positions awe equaw, the wesuwt wiww be fawse.
 		 */
-		static isBefore(a: IPosition, b: IPosition): boolean;
+		static isBefowe(a: IPosition, b: IPosition): boowean;
 		/**
-		 * Test if this position is before other position.
-		 * If the two positions are equal, the result will be true.
+		 * Test if this position is befowe otha position.
+		 * If the two positions awe equaw, the wesuwt wiww be twue.
 		 */
-		isBeforeOrEqual(other: IPosition): boolean;
+		isBefoweOwEquaw(otha: IPosition): boowean;
 		/**
-		 * Test if position `a` is before position `b`.
-		 * If the two positions are equal, the result will be true.
+		 * Test if position `a` is befowe position `b`.
+		 * If the two positions awe equaw, the wesuwt wiww be twue.
 		 */
-		static isBeforeOrEqual(a: IPosition, b: IPosition): boolean;
+		static isBefoweOwEquaw(a: IPosition, b: IPosition): boowean;
 		/**
-		 * A function that compares positions, useful for sorting
+		 * A function that compawes positions, usefuw fow sowting
 		 */
-		static compare(a: IPosition, b: IPosition): number;
+		static compawe(a: IPosition, b: IPosition): numba;
 		/**
-		 * Clone this position.
+		 * Cwone this position.
 		 */
-		clone(): Position;
+		cwone(): Position;
 		/**
-		 * Convert to a human-readable representation.
+		 * Convewt to a human-weadabwe wepwesentation.
 		 */
-		toString(): string;
+		toStwing(): stwing;
 		/**
-		 * Create a `Position` from an `IPosition`.
+		 * Cweate a `Position` fwom an `IPosition`.
 		 */
-		static lift(pos: IPosition): Position;
+		static wift(pos: IPosition): Position;
 		/**
 		 * Test if `obj` is an `IPosition`.
 		 */
@@ -550,4057 +550,4057 @@ declare namespace monaco {
 	}
 
 	/**
-	 * A range in the editor. This interface is suitable for serialization.
+	 * A wange in the editow. This intewface is suitabwe fow sewiawization.
 	 */
-	export interface IRange {
+	expowt intewface IWange {
 		/**
-		 * Line number on which the range starts (starts at 1).
+		 * Wine numba on which the wange stawts (stawts at 1).
 		 */
-		readonly startLineNumber: number;
+		weadonwy stawtWineNumba: numba;
 		/**
-		 * Column on which the range starts in line `startLineNumber` (starts at 1).
+		 * Cowumn on which the wange stawts in wine `stawtWineNumba` (stawts at 1).
 		 */
-		readonly startColumn: number;
+		weadonwy stawtCowumn: numba;
 		/**
-		 * Line number on which the range ends.
+		 * Wine numba on which the wange ends.
 		 */
-		readonly endLineNumber: number;
+		weadonwy endWineNumba: numba;
 		/**
-		 * Column on which the range ends in line `endLineNumber`.
+		 * Cowumn on which the wange ends in wine `endWineNumba`.
 		 */
-		readonly endColumn: number;
+		weadonwy endCowumn: numba;
 	}
 
 	/**
-	 * A range in the editor. (startLineNumber,startColumn) is <= (endLineNumber,endColumn)
+	 * A wange in the editow. (stawtWineNumba,stawtCowumn) is <= (endWineNumba,endCowumn)
 	 */
-	export class Range {
+	expowt cwass Wange {
 		/**
-		 * Line number on which the range starts (starts at 1).
+		 * Wine numba on which the wange stawts (stawts at 1).
 		 */
-		readonly startLineNumber: number;
+		weadonwy stawtWineNumba: numba;
 		/**
-		 * Column on which the range starts in line `startLineNumber` (starts at 1).
+		 * Cowumn on which the wange stawts in wine `stawtWineNumba` (stawts at 1).
 		 */
-		readonly startColumn: number;
+		weadonwy stawtCowumn: numba;
 		/**
-		 * Line number on which the range ends.
+		 * Wine numba on which the wange ends.
 		 */
-		readonly endLineNumber: number;
+		weadonwy endWineNumba: numba;
 		/**
-		 * Column on which the range ends in line `endLineNumber`.
+		 * Cowumn on which the wange ends in wine `endWineNumba`.
 		 */
-		readonly endColumn: number;
-		constructor(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number);
+		weadonwy endCowumn: numba;
+		constwuctow(stawtWineNumba: numba, stawtCowumn: numba, endWineNumba: numba, endCowumn: numba);
 		/**
-		 * Test if this range is empty.
+		 * Test if this wange is empty.
 		 */
-		isEmpty(): boolean;
+		isEmpty(): boowean;
 		/**
-		 * Test if `range` is empty.
+		 * Test if `wange` is empty.
 		 */
-		static isEmpty(range: IRange): boolean;
+		static isEmpty(wange: IWange): boowean;
 		/**
-		 * Test if position is in this range. If the position is at the edges, will return true.
+		 * Test if position is in this wange. If the position is at the edges, wiww wetuwn twue.
 		 */
-		containsPosition(position: IPosition): boolean;
+		containsPosition(position: IPosition): boowean;
 		/**
-		 * Test if `position` is in `range`. If the position is at the edges, will return true.
+		 * Test if `position` is in `wange`. If the position is at the edges, wiww wetuwn twue.
 		 */
-		static containsPosition(range: IRange, position: IPosition): boolean;
+		static containsPosition(wange: IWange, position: IPosition): boowean;
 		/**
-		 * Test if range is in this range. If the range is equal to this range, will return true.
+		 * Test if wange is in this wange. If the wange is equaw to this wange, wiww wetuwn twue.
 		 */
-		containsRange(range: IRange): boolean;
+		containsWange(wange: IWange): boowean;
 		/**
-		 * Test if `otherRange` is in `range`. If the ranges are equal, will return true.
+		 * Test if `othewWange` is in `wange`. If the wanges awe equaw, wiww wetuwn twue.
 		 */
-		static containsRange(range: IRange, otherRange: IRange): boolean;
+		static containsWange(wange: IWange, othewWange: IWange): boowean;
 		/**
-		 * Test if `range` is strictly in this range. `range` must start after and end before this range for the result to be true.
+		 * Test if `wange` is stwictwy in this wange. `wange` must stawt afta and end befowe this wange fow the wesuwt to be twue.
 		 */
-		strictContainsRange(range: IRange): boolean;
+		stwictContainsWange(wange: IWange): boowean;
 		/**
-		 * Test if `otherRange` is strictly in `range` (must start after, and end before). If the ranges are equal, will return false.
+		 * Test if `othewWange` is stwictwy in `wange` (must stawt afta, and end befowe). If the wanges awe equaw, wiww wetuwn fawse.
 		 */
-		static strictContainsRange(range: IRange, otherRange: IRange): boolean;
+		static stwictContainsWange(wange: IWange, othewWange: IWange): boowean;
 		/**
-		 * A reunion of the two ranges.
-		 * The smallest position will be used as the start point, and the largest one as the end point.
+		 * A weunion of the two wanges.
+		 * The smawwest position wiww be used as the stawt point, and the wawgest one as the end point.
 		 */
-		plusRange(range: IRange): Range;
+		pwusWange(wange: IWange): Wange;
 		/**
-		 * A reunion of the two ranges.
-		 * The smallest position will be used as the start point, and the largest one as the end point.
+		 * A weunion of the two wanges.
+		 * The smawwest position wiww be used as the stawt point, and the wawgest one as the end point.
 		 */
-		static plusRange(a: IRange, b: IRange): Range;
+		static pwusWange(a: IWange, b: IWange): Wange;
 		/**
-		 * A intersection of the two ranges.
+		 * A intewsection of the two wanges.
 		 */
-		intersectRanges(range: IRange): Range | null;
+		intewsectWanges(wange: IWange): Wange | nuww;
 		/**
-		 * A intersection of the two ranges.
+		 * A intewsection of the two wanges.
 		 */
-		static intersectRanges(a: IRange, b: IRange): Range | null;
+		static intewsectWanges(a: IWange, b: IWange): Wange | nuww;
 		/**
-		 * Test if this range equals other.
+		 * Test if this wange equaws otha.
 		 */
-		equalsRange(other: IRange | null): boolean;
+		equawsWange(otha: IWange | nuww): boowean;
 		/**
-		 * Test if range `a` equals `b`.
+		 * Test if wange `a` equaws `b`.
 		 */
-		static equalsRange(a: IRange | null, b: IRange | null): boolean;
+		static equawsWange(a: IWange | nuww, b: IWange | nuww): boowean;
 		/**
-		 * Return the end position (which will be after or equal to the start position)
+		 * Wetuwn the end position (which wiww be afta ow equaw to the stawt position)
 		 */
 		getEndPosition(): Position;
 		/**
-		 * Return the end position (which will be after or equal to the start position)
+		 * Wetuwn the end position (which wiww be afta ow equaw to the stawt position)
 		 */
-		static getEndPosition(range: IRange): Position;
+		static getEndPosition(wange: IWange): Position;
 		/**
-		 * Return the start position (which will be before or equal to the end position)
+		 * Wetuwn the stawt position (which wiww be befowe ow equaw to the end position)
 		 */
-		getStartPosition(): Position;
+		getStawtPosition(): Position;
 		/**
-		 * Return the start position (which will be before or equal to the end position)
+		 * Wetuwn the stawt position (which wiww be befowe ow equaw to the end position)
 		 */
-		static getStartPosition(range: IRange): Position;
+		static getStawtPosition(wange: IWange): Position;
 		/**
-		 * Transform to a user presentable string representation.
+		 * Twansfowm to a usa pwesentabwe stwing wepwesentation.
 		 */
-		toString(): string;
+		toStwing(): stwing;
 		/**
-		 * Create a new range using this range's start position, and using endLineNumber and endColumn as the end position.
+		 * Cweate a new wange using this wange's stawt position, and using endWineNumba and endCowumn as the end position.
 		 */
-		setEndPosition(endLineNumber: number, endColumn: number): Range;
+		setEndPosition(endWineNumba: numba, endCowumn: numba): Wange;
 		/**
-		 * Create a new range using this range's end position, and using startLineNumber and startColumn as the start position.
+		 * Cweate a new wange using this wange's end position, and using stawtWineNumba and stawtCowumn as the stawt position.
 		 */
-		setStartPosition(startLineNumber: number, startColumn: number): Range;
+		setStawtPosition(stawtWineNumba: numba, stawtCowumn: numba): Wange;
 		/**
-		 * Create a new empty range using this range's start position.
+		 * Cweate a new empty wange using this wange's stawt position.
 		 */
-		collapseToStart(): Range;
+		cowwapseToStawt(): Wange;
 		/**
-		 * Create a new empty range using this range's start position.
+		 * Cweate a new empty wange using this wange's stawt position.
 		 */
-		static collapseToStart(range: IRange): Range;
-		static fromPositions(start: IPosition, end?: IPosition): Range;
+		static cowwapseToStawt(wange: IWange): Wange;
+		static fwomPositions(stawt: IPosition, end?: IPosition): Wange;
 		/**
-		 * Create a `Range` from an `IRange`.
+		 * Cweate a `Wange` fwom an `IWange`.
 		 */
-		static lift(range: undefined | null): null;
-		static lift(range: IRange): Range;
+		static wift(wange: undefined | nuww): nuww;
+		static wift(wange: IWange): Wange;
 		/**
-		 * Test if `obj` is an `IRange`.
+		 * Test if `obj` is an `IWange`.
 		 */
-		static isIRange(obj: any): obj is IRange;
+		static isIWange(obj: any): obj is IWange;
 		/**
-		 * Test if the two ranges are touching in any way.
+		 * Test if the two wanges awe touching in any way.
 		 */
-		static areIntersectingOrTouching(a: IRange, b: IRange): boolean;
+		static aweIntewsectingOwTouching(a: IWange, b: IWange): boowean;
 		/**
-		 * Test if the two ranges are intersecting. If the ranges are touching it returns true.
+		 * Test if the two wanges awe intewsecting. If the wanges awe touching it wetuwns twue.
 		 */
-		static areIntersecting(a: IRange, b: IRange): boolean;
+		static aweIntewsecting(a: IWange, b: IWange): boowean;
 		/**
-		 * A function that compares ranges, useful for sorting ranges
-		 * It will first compare ranges on the startPosition and then on the endPosition
+		 * A function that compawes wanges, usefuw fow sowting wanges
+		 * It wiww fiwst compawe wanges on the stawtPosition and then on the endPosition
 		 */
-		static compareRangesUsingStarts(a: IRange | null | undefined, b: IRange | null | undefined): number;
+		static compaweWangesUsingStawts(a: IWange | nuww | undefined, b: IWange | nuww | undefined): numba;
 		/**
-		 * A function that compares ranges, useful for sorting ranges
-		 * It will first compare ranges on the endPosition and then on the startPosition
+		 * A function that compawes wanges, usefuw fow sowting wanges
+		 * It wiww fiwst compawe wanges on the endPosition and then on the stawtPosition
 		 */
-		static compareRangesUsingEnds(a: IRange, b: IRange): number;
+		static compaweWangesUsingEnds(a: IWange, b: IWange): numba;
 		/**
-		 * Test if the range spans multiple lines.
+		 * Test if the wange spans muwtipwe wines.
 		 */
-		static spansMultipleLines(range: IRange): boolean;
+		static spansMuwtipweWines(wange: IWange): boowean;
 	}
 
 	/**
-	 * A selection in the editor.
-	 * The selection is a range that has an orientation.
+	 * A sewection in the editow.
+	 * The sewection is a wange that has an owientation.
 	 */
-	export interface ISelection {
+	expowt intewface ISewection {
 		/**
-		 * The line number on which the selection has started.
+		 * The wine numba on which the sewection has stawted.
 		 */
-		readonly selectionStartLineNumber: number;
+		weadonwy sewectionStawtWineNumba: numba;
 		/**
-		 * The column on `selectionStartLineNumber` where the selection has started.
+		 * The cowumn on `sewectionStawtWineNumba` whewe the sewection has stawted.
 		 */
-		readonly selectionStartColumn: number;
+		weadonwy sewectionStawtCowumn: numba;
 		/**
-		 * The line number on which the selection has ended.
+		 * The wine numba on which the sewection has ended.
 		 */
-		readonly positionLineNumber: number;
+		weadonwy positionWineNumba: numba;
 		/**
-		 * The column on `positionLineNumber` where the selection has ended.
+		 * The cowumn on `positionWineNumba` whewe the sewection has ended.
 		 */
-		readonly positionColumn: number;
+		weadonwy positionCowumn: numba;
 	}
 
 	/**
-	 * A selection in the editor.
-	 * The selection is a range that has an orientation.
+	 * A sewection in the editow.
+	 * The sewection is a wange that has an owientation.
 	 */
-	export class Selection extends Range {
+	expowt cwass Sewection extends Wange {
 		/**
-		 * The line number on which the selection has started.
+		 * The wine numba on which the sewection has stawted.
 		 */
-		readonly selectionStartLineNumber: number;
+		weadonwy sewectionStawtWineNumba: numba;
 		/**
-		 * The column on `selectionStartLineNumber` where the selection has started.
+		 * The cowumn on `sewectionStawtWineNumba` whewe the sewection has stawted.
 		 */
-		readonly selectionStartColumn: number;
+		weadonwy sewectionStawtCowumn: numba;
 		/**
-		 * The line number on which the selection has ended.
+		 * The wine numba on which the sewection has ended.
 		 */
-		readonly positionLineNumber: number;
+		weadonwy positionWineNumba: numba;
 		/**
-		 * The column on `positionLineNumber` where the selection has ended.
+		 * The cowumn on `positionWineNumba` whewe the sewection has ended.
 		 */
-		readonly positionColumn: number;
-		constructor(selectionStartLineNumber: number, selectionStartColumn: number, positionLineNumber: number, positionColumn: number);
+		weadonwy positionCowumn: numba;
+		constwuctow(sewectionStawtWineNumba: numba, sewectionStawtCowumn: numba, positionWineNumba: numba, positionCowumn: numba);
 		/**
-		 * Transform to a human-readable representation.
+		 * Twansfowm to a human-weadabwe wepwesentation.
 		 */
-		toString(): string;
+		toStwing(): stwing;
 		/**
-		 * Test if equals other selection.
+		 * Test if equaws otha sewection.
 		 */
-		equalsSelection(other: ISelection): boolean;
+		equawsSewection(otha: ISewection): boowean;
 		/**
-		 * Test if the two selections are equal.
+		 * Test if the two sewections awe equaw.
 		 */
-		static selectionsEqual(a: ISelection, b: ISelection): boolean;
+		static sewectionsEquaw(a: ISewection, b: ISewection): boowean;
 		/**
-		 * Get directions (LTR or RTL).
+		 * Get diwections (WTW ow WTW).
 		 */
-		getDirection(): SelectionDirection;
+		getDiwection(): SewectionDiwection;
 		/**
-		 * Create a new selection with a different `positionLineNumber` and `positionColumn`.
+		 * Cweate a new sewection with a diffewent `positionWineNumba` and `positionCowumn`.
 		 */
-		setEndPosition(endLineNumber: number, endColumn: number): Selection;
+		setEndPosition(endWineNumba: numba, endCowumn: numba): Sewection;
 		/**
-		 * Get the position at `positionLineNumber` and `positionColumn`.
+		 * Get the position at `positionWineNumba` and `positionCowumn`.
 		 */
 		getPosition(): Position;
 		/**
-		 * Create a new selection with a different `selectionStartLineNumber` and `selectionStartColumn`.
+		 * Cweate a new sewection with a diffewent `sewectionStawtWineNumba` and `sewectionStawtCowumn`.
 		 */
-		setStartPosition(startLineNumber: number, startColumn: number): Selection;
+		setStawtPosition(stawtWineNumba: numba, stawtCowumn: numba): Sewection;
 		/**
-		 * Create a `Selection` from one or two positions
+		 * Cweate a `Sewection` fwom one ow two positions
 		 */
-		static fromPositions(start: IPosition, end?: IPosition): Selection;
+		static fwomPositions(stawt: IPosition, end?: IPosition): Sewection;
 		/**
-		 * Create a `Selection` from an `ISelection`.
+		 * Cweate a `Sewection` fwom an `ISewection`.
 		 */
-		static liftSelection(sel: ISelection): Selection;
+		static wiftSewection(sew: ISewection): Sewection;
 		/**
-		 * `a` equals `b`.
+		 * `a` equaws `b`.
 		 */
-		static selectionsArrEqual(a: ISelection[], b: ISelection[]): boolean;
+		static sewectionsAwwEquaw(a: ISewection[], b: ISewection[]): boowean;
 		/**
-		 * Test if `obj` is an `ISelection`.
+		 * Test if `obj` is an `ISewection`.
 		 */
-		static isISelection(obj: any): obj is ISelection;
+		static isISewection(obj: any): obj is ISewection;
 		/**
-		 * Create with a direction.
+		 * Cweate with a diwection.
 		 */
-		static createWithDirection(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, direction: SelectionDirection): Selection;
+		static cweateWithDiwection(stawtWineNumba: numba, stawtCowumn: numba, endWineNumba: numba, endCowumn: numba, diwection: SewectionDiwection): Sewection;
 	}
 
 	/**
-	 * The direction of a selection.
+	 * The diwection of a sewection.
 	 */
-	export enum SelectionDirection {
+	expowt enum SewectionDiwection {
 		/**
-		 * The selection starts above where it ends.
+		 * The sewection stawts above whewe it ends.
 		 */
-		LTR = 0,
+		WTW = 0,
 		/**
-		 * The selection starts below where it ends.
+		 * The sewection stawts bewow whewe it ends.
 		 */
-		RTL = 1
+		WTW = 1
 	}
 
-	export class Token {
-		_tokenBrand: void;
-		readonly offset: number;
-		readonly type: string;
-		readonly language: string;
-		constructor(offset: number, type: string, language: string);
-		toString(): string;
+	expowt cwass Token {
+		_tokenBwand: void;
+		weadonwy offset: numba;
+		weadonwy type: stwing;
+		weadonwy wanguage: stwing;
+		constwuctow(offset: numba, type: stwing, wanguage: stwing);
+		toStwing(): stwing;
 	}
 }
 
-declare namespace monaco.editor {
+decwawe namespace monaco.editow {
 
-	export interface IDiffNavigator {
-		canNavigate(): boolean;
+	expowt intewface IDiffNavigatow {
+		canNavigate(): boowean;
 		next(): void;
-		previous(): void;
+		pwevious(): void;
 		dispose(): void;
 	}
 
 	/**
-	 * Create a new editor under `domElement`.
-	 * `domElement` should be empty (not contain other dom nodes).
-	 * The editor will read the size of `domElement`.
+	 * Cweate a new editow unda `domEwement`.
+	 * `domEwement` shouwd be empty (not contain otha dom nodes).
+	 * The editow wiww wead the size of `domEwement`.
 	 */
-	export function create(domElement: HTMLElement, options?: IStandaloneEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneCodeEditor;
+	expowt function cweate(domEwement: HTMWEwement, options?: IStandawoneEditowConstwuctionOptions, ovewwide?: IEditowOvewwideSewvices): IStandawoneCodeEditow;
 
 	/**
-	 * Emitted when an editor is created.
-	 * Creating a diff editor might cause this listener to be invoked with the two editors.
+	 * Emitted when an editow is cweated.
+	 * Cweating a diff editow might cause this wistena to be invoked with the two editows.
 	 * @event
 	 */
-	export function onDidCreateEditor(listener: (codeEditor: ICodeEditor) => void): IDisposable;
+	expowt function onDidCweateEditow(wistena: (codeEditow: ICodeEditow) => void): IDisposabwe;
 
 	/**
-	 * Create a new diff editor under `domElement`.
-	 * `domElement` should be empty (not contain other dom nodes).
-	 * The editor will read the size of `domElement`.
+	 * Cweate a new diff editow unda `domEwement`.
+	 * `domEwement` shouwd be empty (not contain otha dom nodes).
+	 * The editow wiww wead the size of `domEwement`.
 	 */
-	export function createDiffEditor(domElement: HTMLElement, options?: IStandaloneDiffEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneDiffEditor;
+	expowt function cweateDiffEditow(domEwement: HTMWEwement, options?: IStandawoneDiffEditowConstwuctionOptions, ovewwide?: IEditowOvewwideSewvices): IStandawoneDiffEditow;
 
-	export interface IDiffNavigatorOptions {
-		readonly followsCaret?: boolean;
-		readonly ignoreCharChanges?: boolean;
-		readonly alwaysRevealFirst?: boolean;
+	expowt intewface IDiffNavigatowOptions {
+		weadonwy fowwowsCawet?: boowean;
+		weadonwy ignoweChawChanges?: boowean;
+		weadonwy awwaysWeveawFiwst?: boowean;
 	}
 
-	export function createDiffNavigator(diffEditor: IStandaloneDiffEditor, opts?: IDiffNavigatorOptions): IDiffNavigator;
+	expowt function cweateDiffNavigatow(diffEditow: IStandawoneDiffEditow, opts?: IDiffNavigatowOptions): IDiffNavigatow;
 
 	/**
-	 * Create a new editor model.
-	 * You can specify the language that should be set for this model or let the language be inferred from the `uri`.
+	 * Cweate a new editow modew.
+	 * You can specify the wanguage that shouwd be set fow this modew ow wet the wanguage be infewwed fwom the `uwi`.
 	 */
-	export function createModel(value: string, language?: string, uri?: Uri): ITextModel;
+	expowt function cweateModew(vawue: stwing, wanguage?: stwing, uwi?: Uwi): ITextModew;
 
 	/**
-	 * Change the language for a model.
+	 * Change the wanguage fow a modew.
 	 */
-	export function setModelLanguage(model: ITextModel, languageId: string): void;
+	expowt function setModewWanguage(modew: ITextModew, wanguageId: stwing): void;
 
 	/**
-	 * Set the markers for a model.
+	 * Set the mawkews fow a modew.
 	 */
-	export function setModelMarkers(model: ITextModel, owner: string, markers: IMarkerData[]): void;
+	expowt function setModewMawkews(modew: ITextModew, owna: stwing, mawkews: IMawkewData[]): void;
 
 	/**
-	 * Get markers for owner and/or resource
+	 * Get mawkews fow owna and/ow wesouwce
 	 *
-	 * @returns list of markers
+	 * @wetuwns wist of mawkews
 	 */
-	export function getModelMarkers(filter: {
-		owner?: string;
-		resource?: Uri;
-		take?: number;
-	}): IMarker[];
+	expowt function getModewMawkews(fiwta: {
+		owna?: stwing;
+		wesouwce?: Uwi;
+		take?: numba;
+	}): IMawka[];
 
 	/**
-	 * Emitted when markers change for a model.
+	 * Emitted when mawkews change fow a modew.
 	 * @event
 	 */
-	export function onDidChangeMarkers(listener: (e: readonly Uri[]) => void): IDisposable;
+	expowt function onDidChangeMawkews(wistena: (e: weadonwy Uwi[]) => void): IDisposabwe;
 
 	/**
-	 * Get the model that has `uri` if it exists.
+	 * Get the modew that has `uwi` if it exists.
 	 */
-	export function getModel(uri: Uri): ITextModel | null;
+	expowt function getModew(uwi: Uwi): ITextModew | nuww;
 
 	/**
-	 * Get all the created models.
+	 * Get aww the cweated modews.
 	 */
-	export function getModels(): ITextModel[];
+	expowt function getModews(): ITextModew[];
 
 	/**
-	 * Emitted when a model is created.
+	 * Emitted when a modew is cweated.
 	 * @event
 	 */
-	export function onDidCreateModel(listener: (model: ITextModel) => void): IDisposable;
+	expowt function onDidCweateModew(wistena: (modew: ITextModew) => void): IDisposabwe;
 
 	/**
-	 * Emitted right before a model is disposed.
+	 * Emitted wight befowe a modew is disposed.
 	 * @event
 	 */
-	export function onWillDisposeModel(listener: (model: ITextModel) => void): IDisposable;
+	expowt function onWiwwDisposeModew(wistena: (modew: ITextModew) => void): IDisposabwe;
 
 	/**
-	 * Emitted when a different language is set to a model.
+	 * Emitted when a diffewent wanguage is set to a modew.
 	 * @event
 	 */
-	export function onDidChangeModelLanguage(listener: (e: {
-		readonly model: ITextModel;
-		readonly oldLanguage: string;
-	}) => void): IDisposable;
+	expowt function onDidChangeModewWanguage(wistena: (e: {
+		weadonwy modew: ITextModew;
+		weadonwy owdWanguage: stwing;
+	}) => void): IDisposabwe;
 
 	/**
-	 * Create a new web worker that has model syncing capabilities built in.
-	 * Specify an AMD module to load that will `create` an object that will be proxied.
+	 * Cweate a new web wowka that has modew syncing capabiwities buiwt in.
+	 * Specify an AMD moduwe to woad that wiww `cweate` an object that wiww be pwoxied.
 	 */
-	export function createWebWorker<T>(opts: IWebWorkerOptions): MonacoWebWorker<T>;
+	expowt function cweateWebWowka<T>(opts: IWebWowkewOptions): MonacoWebWowka<T>;
 
 	/**
-	 * Colorize the contents of `domNode` using attribute `data-lang`.
+	 * Cowowize the contents of `domNode` using attwibute `data-wang`.
 	 */
-	export function colorizeElement(domNode: HTMLElement, options: IColorizerElementOptions): Promise<void>;
+	expowt function cowowizeEwement(domNode: HTMWEwement, options: ICowowizewEwementOptions): Pwomise<void>;
 
 	/**
-	 * Colorize `text` using language `languageId`.
+	 * Cowowize `text` using wanguage `wanguageId`.
 	 */
-	export function colorize(text: string, languageId: string, options: IColorizerOptions): Promise<string>;
+	expowt function cowowize(text: stwing, wanguageId: stwing, options: ICowowizewOptions): Pwomise<stwing>;
 
 	/**
-	 * Colorize a line in a model.
+	 * Cowowize a wine in a modew.
 	 */
-	export function colorizeModelLine(model: ITextModel, lineNumber: number, tabSize?: number): string;
+	expowt function cowowizeModewWine(modew: ITextModew, wineNumba: numba, tabSize?: numba): stwing;
 
 	/**
-	 * Tokenize `text` using language `languageId`
+	 * Tokenize `text` using wanguage `wanguageId`
 	 */
-	export function tokenize(text: string, languageId: string): Token[][];
+	expowt function tokenize(text: stwing, wanguageId: stwing): Token[][];
 
 	/**
-	 * Define a new theme or update an existing theme.
+	 * Define a new theme ow update an existing theme.
 	 */
-	export function defineTheme(themeName: string, themeData: IStandaloneThemeData): void;
+	expowt function defineTheme(themeName: stwing, themeData: IStandawoneThemeData): void;
 
 	/**
 	 * Switches to a theme.
 	 */
-	export function setTheme(themeName: string): void;
+	expowt function setTheme(themeName: stwing): void;
 
 	/**
-	 * Clears all cached font measurements and triggers re-measurement.
+	 * Cweaws aww cached font measuwements and twiggews we-measuwement.
 	 */
-	export function remeasureFonts(): void;
+	expowt function wemeasuweFonts(): void;
 
 	/**
-	 * Register a command.
+	 * Wegista a command.
 	 */
-	export function registerCommand(id: string, handler: (accessor: any, ...args: any[]) => void): IDisposable;
+	expowt function wegistewCommand(id: stwing, handwa: (accessow: any, ...awgs: any[]) => void): IDisposabwe;
 
-	export type BuiltinTheme = 'vs' | 'vs-dark' | 'hc-black';
+	expowt type BuiwtinTheme = 'vs' | 'vs-dawk' | 'hc-bwack';
 
-	export interface IStandaloneThemeData {
-		base: BuiltinTheme;
-		inherit: boolean;
-		rules: ITokenThemeRule[];
-		encodedTokensColors?: string[];
-		colors: IColors;
+	expowt intewface IStandawoneThemeData {
+		base: BuiwtinTheme;
+		inhewit: boowean;
+		wuwes: ITokenThemeWuwe[];
+		encodedTokensCowows?: stwing[];
+		cowows: ICowows;
 	}
 
-	export type IColors = {
-		[colorId: string]: string;
+	expowt type ICowows = {
+		[cowowId: stwing]: stwing;
 	};
 
-	export interface ITokenThemeRule {
-		token: string;
-		foreground?: string;
-		background?: string;
-		fontStyle?: string;
+	expowt intewface ITokenThemeWuwe {
+		token: stwing;
+		fowegwound?: stwing;
+		backgwound?: stwing;
+		fontStywe?: stwing;
 	}
 
 	/**
-	 * A web worker that can provide a proxy to an arbitrary file.
+	 * A web wowka that can pwovide a pwoxy to an awbitwawy fiwe.
 	 */
-	export interface MonacoWebWorker<T> {
+	expowt intewface MonacoWebWowka<T> {
 		/**
-		 * Terminate the web worker, thus invalidating the returned proxy.
+		 * Tewminate the web wowka, thus invawidating the wetuwned pwoxy.
 		 */
 		dispose(): void;
 		/**
-		 * Get a proxy to the arbitrary loaded code.
+		 * Get a pwoxy to the awbitwawy woaded code.
 		 */
-		getProxy(): Promise<T>;
+		getPwoxy(): Pwomise<T>;
 		/**
-		 * Synchronize (send) the models at `resources` to the web worker,
-		 * making them available in the monaco.worker.getMirrorModels().
+		 * Synchwonize (send) the modews at `wesouwces` to the web wowka,
+		 * making them avaiwabwe in the monaco.wowka.getMiwwowModews().
 		 */
-		withSyncedResources(resources: Uri[]): Promise<T>;
+		withSyncedWesouwces(wesouwces: Uwi[]): Pwomise<T>;
 	}
 
-	export interface IWebWorkerOptions {
+	expowt intewface IWebWowkewOptions {
 		/**
-		 * The AMD moduleId to load.
-		 * It should export a function `create` that should return the exported proxy.
+		 * The AMD moduweId to woad.
+		 * It shouwd expowt a function `cweate` that shouwd wetuwn the expowted pwoxy.
 		 */
-		moduleId: string;
+		moduweId: stwing;
 		/**
-		 * The data to send over when calling create on the module.
+		 * The data to send ova when cawwing cweate on the moduwe.
 		 */
-		createData?: any;
+		cweateData?: any;
 		/**
-		 * A label to be used to identify the web worker for debugging purposes.
+		 * A wabew to be used to identify the web wowka fow debugging puwposes.
 		 */
-		label?: string;
+		wabew?: stwing;
 		/**
-		 * An object that can be used by the web worker to make calls back to the main thread.
+		 * An object that can be used by the web wowka to make cawws back to the main thwead.
 		 */
 		host?: any;
 		/**
-		 * Keep idle models.
-		 * Defaults to false, which means that idle models will stop syncing after a while.
+		 * Keep idwe modews.
+		 * Defauwts to fawse, which means that idwe modews wiww stop syncing afta a whiwe.
 		 */
-		keepIdleModels?: boolean;
+		keepIdweModews?: boowean;
 	}
 
 	/**
-	 * Description of an action contribution
+	 * Descwiption of an action contwibution
 	 */
-	export interface IActionDescriptor {
+	expowt intewface IActionDescwiptow {
 		/**
-		 * An unique identifier of the contributed action.
+		 * An unique identifia of the contwibuted action.
 		 */
-		id: string;
+		id: stwing;
 		/**
-		 * A label of the action that will be presented to the user.
+		 * A wabew of the action that wiww be pwesented to the usa.
 		 */
-		label: string;
+		wabew: stwing;
 		/**
-		 * Precondition rule.
+		 * Pwecondition wuwe.
 		 */
-		precondition?: string;
+		pwecondition?: stwing;
 		/**
-		 * An array of keybindings for the action.
+		 * An awway of keybindings fow the action.
 		 */
-		keybindings?: number[];
+		keybindings?: numba[];
 		/**
-		 * The keybinding rule (condition on top of precondition).
+		 * The keybinding wuwe (condition on top of pwecondition).
 		 */
-		keybindingContext?: string;
+		keybindingContext?: stwing;
 		/**
-		 * Control if the action should show up in the context menu and where.
-		 * The context menu of the editor has these default:
-		 *   navigation - The navigation group comes first in all cases.
-		 *   1_modification - This group comes next and contains commands that modify your code.
-		 *   9_cutcopypaste - The last default group with the basic editing commands.
-		 * You can also create your own group.
-		 * Defaults to null (don't show in context menu).
+		 * Contwow if the action shouwd show up in the context menu and whewe.
+		 * The context menu of the editow has these defauwt:
+		 *   navigation - The navigation gwoup comes fiwst in aww cases.
+		 *   1_modification - This gwoup comes next and contains commands that modify youw code.
+		 *   9_cutcopypaste - The wast defauwt gwoup with the basic editing commands.
+		 * You can awso cweate youw own gwoup.
+		 * Defauwts to nuww (don't show in context menu).
 		 */
-		contextMenuGroupId?: string;
+		contextMenuGwoupId?: stwing;
 		/**
-		 * Control the order in the context menu group.
+		 * Contwow the owda in the context menu gwoup.
 		 */
-		contextMenuOrder?: number;
+		contextMenuOwda?: numba;
 		/**
-		 * Method that will be executed when the action is triggered.
-		 * @param editor The editor instance is passed in as a convenience
+		 * Method that wiww be executed when the action is twiggewed.
+		 * @pawam editow The editow instance is passed in as a convenience
 		 */
-		run(editor: ICodeEditor, ...args: any[]): void | Promise<void>;
+		wun(editow: ICodeEditow, ...awgs: any[]): void | Pwomise<void>;
 	}
 
 	/**
-	 * Options which apply for all editors.
+	 * Options which appwy fow aww editows.
 	 */
-	export interface IGlobalEditorOptions {
+	expowt intewface IGwobawEditowOptions {
 		/**
-		 * The number of spaces a tab is equal to.
-		 * This setting is overridden based on the file contents when `detectIndentation` is on.
-		 * Defaults to 4.
+		 * The numba of spaces a tab is equaw to.
+		 * This setting is ovewwidden based on the fiwe contents when `detectIndentation` is on.
+		 * Defauwts to 4.
 		 */
-		tabSize?: number;
+		tabSize?: numba;
 		/**
-		 * Insert spaces when pressing `Tab`.
-		 * This setting is overridden based on the file contents when `detectIndentation` is on.
-		 * Defaults to true.
+		 * Insewt spaces when pwessing `Tab`.
+		 * This setting is ovewwidden based on the fiwe contents when `detectIndentation` is on.
+		 * Defauwts to twue.
 		 */
-		insertSpaces?: boolean;
+		insewtSpaces?: boowean;
 		/**
-		 * Controls whether `tabSize` and `insertSpaces` will be automatically detected when a file is opened based on the file contents.
-		 * Defaults to true.
+		 * Contwows whetha `tabSize` and `insewtSpaces` wiww be automaticawwy detected when a fiwe is opened based on the fiwe contents.
+		 * Defauwts to twue.
 		 */
-		detectIndentation?: boolean;
+		detectIndentation?: boowean;
 		/**
-		 * Remove trailing auto inserted whitespace.
-		 * Defaults to true.
+		 * Wemove twaiwing auto insewted whitespace.
+		 * Defauwts to twue.
 		 */
-		trimAutoWhitespace?: boolean;
+		twimAutoWhitespace?: boowean;
 		/**
-		 * Special handling for large files to disable certain memory intensive features.
-		 * Defaults to true.
+		 * Speciaw handwing fow wawge fiwes to disabwe cewtain memowy intensive featuwes.
+		 * Defauwts to twue.
 		 */
-		largeFileOptimizations?: boolean;
+		wawgeFiweOptimizations?: boowean;
 		/**
-		 * Controls whether completions should be computed based on words in the document.
-		 * Defaults to true.
+		 * Contwows whetha compwetions shouwd be computed based on wowds in the document.
+		 * Defauwts to twue.
 		 */
-		wordBasedSuggestions?: boolean;
+		wowdBasedSuggestions?: boowean;
 		/**
-		 * Controls whether word based completions should be included from opened documents of the same language or any language.
+		 * Contwows whetha wowd based compwetions shouwd be incwuded fwom opened documents of the same wanguage ow any wanguage.
 		 */
-		wordBasedSuggestionsOnlySameLanguage?: boolean;
+		wowdBasedSuggestionsOnwySameWanguage?: boowean;
 		/**
-		 * Controls whether the semanticHighlighting is shown for the languages that support it.
-		 * true: semanticHighlighting is enabled for all themes
-		 * false: semanticHighlighting is disabled for all themes
-		 * 'configuredByTheme': semanticHighlighting is controlled by the current color theme's semanticHighlighting setting.
-		 * Defaults to 'byTheme'.
+		 * Contwows whetha the semanticHighwighting is shown fow the wanguages that suppowt it.
+		 * twue: semanticHighwighting is enabwed fow aww themes
+		 * fawse: semanticHighwighting is disabwed fow aww themes
+		 * 'configuwedByTheme': semanticHighwighting is contwowwed by the cuwwent cowow theme's semanticHighwighting setting.
+		 * Defauwts to 'byTheme'.
 		 */
-		'semanticHighlighting.enabled'?: true | false | 'configuredByTheme';
+		'semanticHighwighting.enabwed'?: twue | fawse | 'configuwedByTheme';
 		/**
-		 * Keep peek editors open even when double clicking their content or when hitting `Escape`.
-		 * Defaults to false.
+		 * Keep peek editows open even when doubwe cwicking theiw content ow when hitting `Escape`.
+		 * Defauwts to fawse.
 		 */
-		stablePeek?: boolean;
+		stabwePeek?: boowean;
 		/**
-		 * Lines above this length will not be tokenized for performance reasons.
-		 * Defaults to 20000.
+		 * Wines above this wength wiww not be tokenized fow pewfowmance weasons.
+		 * Defauwts to 20000.
 		 */
-		maxTokenizationLineLength?: number;
+		maxTokenizationWineWength?: numba;
 		/**
-		 * Theme to be used for rendering.
-		 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
-		 * You can create custom themes via `monaco.editor.defineTheme`.
-		 * To switch a theme, use `monaco.editor.setTheme`.
-		 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
+		 * Theme to be used fow wendewing.
+		 * The cuwwent out-of-the-box avaiwabwe themes awe: 'vs' (defauwt), 'vs-dawk', 'hc-bwack'.
+		 * You can cweate custom themes via `monaco.editow.defineTheme`.
+		 * To switch a theme, use `monaco.editow.setTheme`.
+		 * **NOTE**: The theme might be ovewwwitten if the OS is in high contwast mode, unwess `autoDetectHighContwast` is set to fawse.
 		 */
-		theme?: string;
+		theme?: stwing;
 		/**
-		 * If enabled, will automatically change to high contrast theme if the OS is using a high contrast theme.
-		 * Defaults to true.
+		 * If enabwed, wiww automaticawwy change to high contwast theme if the OS is using a high contwast theme.
+		 * Defauwts to twue.
 		 */
-		autoDetectHighContrast?: boolean;
+		autoDetectHighContwast?: boowean;
 	}
 
 	/**
-	 * The options to create an editor.
+	 * The options to cweate an editow.
 	 */
-	export interface IStandaloneEditorConstructionOptions extends IEditorConstructionOptions, IGlobalEditorOptions {
+	expowt intewface IStandawoneEditowConstwuctionOptions extends IEditowConstwuctionOptions, IGwobawEditowOptions {
 		/**
-		 * The initial model associated with this code editor.
+		 * The initiaw modew associated with this code editow.
 		 */
-		model?: ITextModel | null;
+		modew?: ITextModew | nuww;
 		/**
-		 * The initial value of the auto created model in the editor.
-		 * To not automatically create a model, use `model: null`.
+		 * The initiaw vawue of the auto cweated modew in the editow.
+		 * To not automaticawwy cweate a modew, use `modew: nuww`.
 		 */
-		value?: string;
+		vawue?: stwing;
 		/**
-		 * The initial language of the auto created model in the editor.
-		 * To not automatically create a model, use `model: null`.
+		 * The initiaw wanguage of the auto cweated modew in the editow.
+		 * To not automaticawwy cweate a modew, use `modew: nuww`.
 		 */
-		language?: string;
+		wanguage?: stwing;
 		/**
-		 * Initial theme to be used for rendering.
-		 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
-		 * You can create custom themes via `monaco.editor.defineTheme`.
-		 * To switch a theme, use `monaco.editor.setTheme`.
-		 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
+		 * Initiaw theme to be used fow wendewing.
+		 * The cuwwent out-of-the-box avaiwabwe themes awe: 'vs' (defauwt), 'vs-dawk', 'hc-bwack'.
+		 * You can cweate custom themes via `monaco.editow.defineTheme`.
+		 * To switch a theme, use `monaco.editow.setTheme`.
+		 * **NOTE**: The theme might be ovewwwitten if the OS is in high contwast mode, unwess `autoDetectHighContwast` is set to fawse.
 		 */
-		theme?: string;
+		theme?: stwing;
 		/**
-		 * If enabled, will automatically change to high contrast theme if the OS is using a high contrast theme.
-		 * Defaults to true.
+		 * If enabwed, wiww automaticawwy change to high contwast theme if the OS is using a high contwast theme.
+		 * Defauwts to twue.
 		 */
-		autoDetectHighContrast?: boolean;
+		autoDetectHighContwast?: boowean;
 		/**
-		 * An URL to open when Ctrl+H (Windows and Linux) or Cmd+H (OSX) is pressed in
-		 * the accessibility help dialog in the editor.
+		 * An UWW to open when Ctww+H (Windows and Winux) ow Cmd+H (OSX) is pwessed in
+		 * the accessibiwity hewp diawog in the editow.
 		 *
-		 * Defaults to "https://go.microsoft.com/fwlink/?linkid=852450"
+		 * Defauwts to "https://go.micwosoft.com/fwwink/?winkid=852450"
 		 */
-		accessibilityHelpUrl?: string;
+		accessibiwityHewpUww?: stwing;
 		/**
-		 * Container element to use for ARIA messages.
-		 * Defaults to document.body.
+		 * Containa ewement to use fow AWIA messages.
+		 * Defauwts to document.body.
 		 */
-		ariaContainerElement?: HTMLElement;
+		awiaContainewEwement?: HTMWEwement;
 	}
 
 	/**
-	 * The options to create a diff editor.
+	 * The options to cweate a diff editow.
 	 */
-	export interface IStandaloneDiffEditorConstructionOptions extends IDiffEditorConstructionOptions {
+	expowt intewface IStandawoneDiffEditowConstwuctionOptions extends IDiffEditowConstwuctionOptions {
 		/**
-		 * Initial theme to be used for rendering.
-		 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
-		 * You can create custom themes via `monaco.editor.defineTheme`.
-		 * To switch a theme, use `monaco.editor.setTheme`.
-		 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
+		 * Initiaw theme to be used fow wendewing.
+		 * The cuwwent out-of-the-box avaiwabwe themes awe: 'vs' (defauwt), 'vs-dawk', 'hc-bwack'.
+		 * You can cweate custom themes via `monaco.editow.defineTheme`.
+		 * To switch a theme, use `monaco.editow.setTheme`.
+		 * **NOTE**: The theme might be ovewwwitten if the OS is in high contwast mode, unwess `autoDetectHighContwast` is set to fawse.
 		 */
-		theme?: string;
+		theme?: stwing;
 		/**
-		 * If enabled, will automatically change to high contrast theme if the OS is using a high contrast theme.
-		 * Defaults to true.
+		 * If enabwed, wiww automaticawwy change to high contwast theme if the OS is using a high contwast theme.
+		 * Defauwts to twue.
 		 */
-		autoDetectHighContrast?: boolean;
+		autoDetectHighContwast?: boowean;
 	}
 
-	export interface IStandaloneCodeEditor extends ICodeEditor {
-		updateOptions(newOptions: IEditorOptions & IGlobalEditorOptions): void;
-		addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null;
-		createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
-		addAction(descriptor: IActionDescriptor): IDisposable;
+	expowt intewface IStandawoneCodeEditow extends ICodeEditow {
+		updateOptions(newOptions: IEditowOptions & IGwobawEditowOptions): void;
+		addCommand(keybinding: numba, handwa: ICommandHandwa, context?: stwing): stwing | nuww;
+		cweateContextKey<T>(key: stwing, defauwtVawue: T): IContextKey<T>;
+		addAction(descwiptow: IActionDescwiptow): IDisposabwe;
 	}
 
-	export interface IStandaloneDiffEditor extends IDiffEditor {
-		addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null;
-		createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
-		addAction(descriptor: IActionDescriptor): IDisposable;
-		getOriginalEditor(): IStandaloneCodeEditor;
-		getModifiedEditor(): IStandaloneCodeEditor;
+	expowt intewface IStandawoneDiffEditow extends IDiffEditow {
+		addCommand(keybinding: numba, handwa: ICommandHandwa, context?: stwing): stwing | nuww;
+		cweateContextKey<T>(key: stwing, defauwtVawue: T): IContextKey<T>;
+		addAction(descwiptow: IActionDescwiptow): IDisposabwe;
+		getOwiginawEditow(): IStandawoneCodeEditow;
+		getModifiedEditow(): IStandawoneCodeEditow;
 	}
-	export interface ICommandHandler {
-		(...args: any[]): void;
+	expowt intewface ICommandHandwa {
+		(...awgs: any[]): void;
 	}
 
-	export interface IContextKey<T> {
-		set(value: T): void;
-		reset(): void;
+	expowt intewface IContextKey<T> {
+		set(vawue: T): void;
+		weset(): void;
 		get(): T | undefined;
 	}
 
-	export interface IEditorOverrideServices {
-		[index: string]: any;
+	expowt intewface IEditowOvewwideSewvices {
+		[index: stwing]: any;
 	}
 
-	export interface IMarker {
-		owner: string;
-		resource: Uri;
-		severity: MarkerSeverity;
-		code?: string | {
-			value: string;
-			target: Uri;
+	expowt intewface IMawka {
+		owna: stwing;
+		wesouwce: Uwi;
+		sevewity: MawkewSevewity;
+		code?: stwing | {
+			vawue: stwing;
+			tawget: Uwi;
 		};
-		message: string;
-		source?: string;
-		startLineNumber: number;
-		startColumn: number;
-		endLineNumber: number;
-		endColumn: number;
-		relatedInformation?: IRelatedInformation[];
-		tags?: MarkerTag[];
+		message: stwing;
+		souwce?: stwing;
+		stawtWineNumba: numba;
+		stawtCowumn: numba;
+		endWineNumba: numba;
+		endCowumn: numba;
+		wewatedInfowmation?: IWewatedInfowmation[];
+		tags?: MawkewTag[];
 	}
 
 	/**
-	 * A structure defining a problem/warning/etc.
+	 * A stwuctuwe defining a pwobwem/wawning/etc.
 	 */
-	export interface IMarkerData {
-		code?: string | {
-			value: string;
-			target: Uri;
+	expowt intewface IMawkewData {
+		code?: stwing | {
+			vawue: stwing;
+			tawget: Uwi;
 		};
-		severity: MarkerSeverity;
-		message: string;
-		source?: string;
-		startLineNumber: number;
-		startColumn: number;
-		endLineNumber: number;
-		endColumn: number;
-		relatedInformation?: IRelatedInformation[];
-		tags?: MarkerTag[];
+		sevewity: MawkewSevewity;
+		message: stwing;
+		souwce?: stwing;
+		stawtWineNumba: numba;
+		stawtCowumn: numba;
+		endWineNumba: numba;
+		endCowumn: numba;
+		wewatedInfowmation?: IWewatedInfowmation[];
+		tags?: MawkewTag[];
 	}
 
 	/**
 	 *
 	 */
-	export interface IRelatedInformation {
-		resource: Uri;
-		message: string;
-		startLineNumber: number;
-		startColumn: number;
-		endLineNumber: number;
-		endColumn: number;
+	expowt intewface IWewatedInfowmation {
+		wesouwce: Uwi;
+		message: stwing;
+		stawtWineNumba: numba;
+		stawtCowumn: numba;
+		endWineNumba: numba;
+		endCowumn: numba;
 	}
 
-	export interface IColorizerOptions {
-		tabSize?: number;
+	expowt intewface ICowowizewOptions {
+		tabSize?: numba;
 	}
 
-	export interface IColorizerElementOptions extends IColorizerOptions {
-		theme?: string;
-		mimeType?: string;
+	expowt intewface ICowowizewEwementOptions extends ICowowizewOptions {
+		theme?: stwing;
+		mimeType?: stwing;
 	}
 
-	export enum ScrollbarVisibility {
+	expowt enum ScwowwbawVisibiwity {
 		Auto = 1,
 		Hidden = 2,
-		Visible = 3
+		Visibwe = 3
 	}
 
-	export interface ThemeColor {
-		id: string;
-	}
-
-	/**
-	 * Vertical Lane in the overview ruler of the editor.
-	 */
-	export enum OverviewRulerLane {
-		Left = 1,
-		Center = 2,
-		Right = 4,
-		Full = 7
+	expowt intewface ThemeCowow {
+		id: stwing;
 	}
 
 	/**
-	 * Position in the minimap to render the decoration.
+	 * Vewticaw Wane in the ovewview wuwa of the editow.
 	 */
-	export enum MinimapPosition {
-		Inline = 1,
-		Gutter = 2
+	expowt enum OvewviewWuwewWane {
+		Weft = 1,
+		Centa = 2,
+		Wight = 4,
+		Fuww = 7
 	}
 
-	export interface IDecorationOptions {
+	/**
+	 * Position in the minimap to wenda the decowation.
+	 */
+	expowt enum MinimapPosition {
+		Inwine = 1,
+		Gutta = 2
+	}
+
+	expowt intewface IDecowationOptions {
 		/**
-		 * CSS color to render.
-		 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
+		 * CSS cowow to wenda.
+		 * e.g.: wgba(100, 100, 100, 0.5) ow a cowow fwom the cowow wegistwy
 		 */
-		color: string | ThemeColor | undefined;
+		cowow: stwing | ThemeCowow | undefined;
 		/**
-		 * CSS color to render.
-		 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
+		 * CSS cowow to wenda.
+		 * e.g.: wgba(100, 100, 100, 0.5) ow a cowow fwom the cowow wegistwy
 		 */
-		darkColor?: string | ThemeColor;
+		dawkCowow?: stwing | ThemeCowow;
 	}
 
 	/**
-	 * Options for rendering a model decoration in the overview ruler.
+	 * Options fow wendewing a modew decowation in the ovewview wuwa.
 	 */
-	export interface IModelDecorationOverviewRulerOptions extends IDecorationOptions {
+	expowt intewface IModewDecowationOvewviewWuwewOptions extends IDecowationOptions {
 		/**
-		 * The position in the overview ruler.
+		 * The position in the ovewview wuwa.
 		 */
-		position: OverviewRulerLane;
+		position: OvewviewWuwewWane;
 	}
 
 	/**
-	 * Options for rendering a model decoration in the overview ruler.
+	 * Options fow wendewing a modew decowation in the ovewview wuwa.
 	 */
-	export interface IModelDecorationMinimapOptions extends IDecorationOptions {
+	expowt intewface IModewDecowationMinimapOptions extends IDecowationOptions {
 		/**
-		 * The position in the overview ruler.
+		 * The position in the ovewview wuwa.
 		 */
 		position: MinimapPosition;
 	}
 
 	/**
-	 * Options for a model decoration.
+	 * Options fow a modew decowation.
 	 */
-	export interface IModelDecorationOptions {
+	expowt intewface IModewDecowationOptions {
 		/**
-		 * Customize the growing behavior of the decoration when typing at the edges of the decoration.
-		 * Defaults to TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
+		 * Customize the gwowing behaviow of the decowation when typing at the edges of the decowation.
+		 * Defauwts to TwackedWangeStickiness.AwwaysGwowsWhenTypingAtEdges
 		 */
-		stickiness?: TrackedRangeStickiness;
+		stickiness?: TwackedWangeStickiness;
 		/**
-		 * CSS class name describing the decoration.
+		 * CSS cwass name descwibing the decowation.
 		 */
-		className?: string | null;
+		cwassName?: stwing | nuww;
 		/**
-		 * Message to be rendered when hovering over the glyph margin decoration.
+		 * Message to be wendewed when hovewing ova the gwyph mawgin decowation.
 		 */
-		glyphMarginHoverMessage?: IMarkdownString | IMarkdownString[] | null;
+		gwyphMawginHovewMessage?: IMawkdownStwing | IMawkdownStwing[] | nuww;
 		/**
-		 * Array of MarkdownString to render as the decoration message.
+		 * Awway of MawkdownStwing to wenda as the decowation message.
 		 */
-		hoverMessage?: IMarkdownString | IMarkdownString[] | null;
+		hovewMessage?: IMawkdownStwing | IMawkdownStwing[] | nuww;
 		/**
-		 * Should the decoration expand to encompass a whole line.
+		 * Shouwd the decowation expand to encompass a whowe wine.
 		 */
-		isWholeLine?: boolean;
+		isWhoweWine?: boowean;
 		/**
-		 * Specifies the stack order of a decoration.
-		 * A decoration with greater stack order is always in front of a decoration with
-		 * a lower stack order when the decorations are on the same line.
+		 * Specifies the stack owda of a decowation.
+		 * A decowation with gweata stack owda is awways in fwont of a decowation with
+		 * a wowa stack owda when the decowations awe on the same wine.
 		 */
-		zIndex?: number;
+		zIndex?: numba;
 		/**
-		 * If set, render this decoration in the overview ruler.
+		 * If set, wenda this decowation in the ovewview wuwa.
 		 */
-		overviewRuler?: IModelDecorationOverviewRulerOptions | null;
+		ovewviewWuwa?: IModewDecowationOvewviewWuwewOptions | nuww;
 		/**
-		 * If set, render this decoration in the minimap.
+		 * If set, wenda this decowation in the minimap.
 		 */
-		minimap?: IModelDecorationMinimapOptions | null;
+		minimap?: IModewDecowationMinimapOptions | nuww;
 		/**
-		 * If set, the decoration will be rendered in the glyph margin with this CSS class name.
+		 * If set, the decowation wiww be wendewed in the gwyph mawgin with this CSS cwass name.
 		 */
-		glyphMarginClassName?: string | null;
+		gwyphMawginCwassName?: stwing | nuww;
 		/**
-		 * If set, the decoration will be rendered in the lines decorations with this CSS class name.
+		 * If set, the decowation wiww be wendewed in the wines decowations with this CSS cwass name.
 		 */
-		linesDecorationsClassName?: string | null;
+		winesDecowationsCwassName?: stwing | nuww;
 		/**
-		 * If set, the decoration will be rendered in the lines decorations with this CSS class name, but only for the first line in case of line wrapping.
+		 * If set, the decowation wiww be wendewed in the wines decowations with this CSS cwass name, but onwy fow the fiwst wine in case of wine wwapping.
 		 */
-		firstLineDecorationClassName?: string | null;
+		fiwstWineDecowationCwassName?: stwing | nuww;
 		/**
-		 * If set, the decoration will be rendered in the margin (covering its full width) with this CSS class name.
+		 * If set, the decowation wiww be wendewed in the mawgin (covewing its fuww width) with this CSS cwass name.
 		 */
-		marginClassName?: string | null;
+		mawginCwassName?: stwing | nuww;
 		/**
-		 * If set, the decoration will be rendered inline with the text with this CSS class name.
-		 * Please use this only for CSS rules that must impact the text. For example, use `className`
-		 * to have a background color decoration.
+		 * If set, the decowation wiww be wendewed inwine with the text with this CSS cwass name.
+		 * Pwease use this onwy fow CSS wuwes that must impact the text. Fow exampwe, use `cwassName`
+		 * to have a backgwound cowow decowation.
 		 */
-		inlineClassName?: string | null;
+		inwineCwassName?: stwing | nuww;
 		/**
-		 * If there is an `inlineClassName` which affects letter spacing.
+		 * If thewe is an `inwineCwassName` which affects wetta spacing.
 		 */
-		inlineClassNameAffectsLetterSpacing?: boolean;
+		inwineCwassNameAffectsWettewSpacing?: boowean;
 		/**
-		 * If set, the decoration will be rendered before the text with this CSS class name.
+		 * If set, the decowation wiww be wendewed befowe the text with this CSS cwass name.
 		 */
-		beforeContentClassName?: string | null;
+		befoweContentCwassName?: stwing | nuww;
 		/**
-		 * If set, the decoration will be rendered after the text with this CSS class name.
+		 * If set, the decowation wiww be wendewed afta the text with this CSS cwass name.
 		 */
-		afterContentClassName?: string | null;
+		aftewContentCwassName?: stwing | nuww;
 		/**
-		 * If set, text will be injected in the view after the range.
+		 * If set, text wiww be injected in the view afta the wange.
 		 */
-		after?: InjectedTextOptions | null;
+		afta?: InjectedTextOptions | nuww;
 		/**
-		 * If set, text will be injected in the view before the range.
+		 * If set, text wiww be injected in the view befowe the wange.
 		 */
-		before?: InjectedTextOptions | null;
+		befowe?: InjectedTextOptions | nuww;
 	}
 
 	/**
-	 * Configures text that is injected into the view without changing the underlying document.
+	 * Configuwes text that is injected into the view without changing the undewwying document.
 	*/
-	export interface InjectedTextOptions {
+	expowt intewface InjectedTextOptions {
 		/**
-		 * Sets the text to inject. Must be a single line.
+		 * Sets the text to inject. Must be a singwe wine.
 		 */
-		readonly content: string;
+		weadonwy content: stwing;
 		/**
-		 * If set, the decoration will be rendered inline with the text with this CSS class name.
+		 * If set, the decowation wiww be wendewed inwine with the text with this CSS cwass name.
 		 */
-		readonly inlineClassName?: string | null;
+		weadonwy inwineCwassName?: stwing | nuww;
 		/**
-		 * If there is an `inlineClassName` which affects letter spacing.
+		 * If thewe is an `inwineCwassName` which affects wetta spacing.
 		 */
-		readonly inlineClassNameAffectsLetterSpacing?: boolean;
+		weadonwy inwineCwassNameAffectsWettewSpacing?: boowean;
 	}
 
 	/**
-	 * New model decorations.
+	 * New modew decowations.
 	 */
-	export interface IModelDeltaDecoration {
+	expowt intewface IModewDewtaDecowation {
 		/**
-		 * Range that this decoration covers.
+		 * Wange that this decowation covews.
 		 */
-		range: IRange;
+		wange: IWange;
 		/**
-		 * Options associated with this decoration.
+		 * Options associated with this decowation.
 		 */
-		options: IModelDecorationOptions;
+		options: IModewDecowationOptions;
 	}
 
 	/**
-	 * A decoration in the model.
+	 * A decowation in the modew.
 	 */
-	export interface IModelDecoration {
+	expowt intewface IModewDecowation {
 		/**
-		 * Identifier for a decoration.
+		 * Identifia fow a decowation.
 		 */
-		readonly id: string;
+		weadonwy id: stwing;
 		/**
-		 * Identifier for a decoration's owner.
+		 * Identifia fow a decowation's owna.
 		 */
-		readonly ownerId: number;
+		weadonwy ownewId: numba;
 		/**
-		 * Range that this decoration covers.
+		 * Wange that this decowation covews.
 		 */
-		readonly range: Range;
+		weadonwy wange: Wange;
 		/**
-		 * Options associated with this decoration.
+		 * Options associated with this decowation.
 		 */
-		readonly options: IModelDecorationOptions;
+		weadonwy options: IModewDecowationOptions;
 	}
 
 	/**
-	 * Word inside a model.
+	 * Wowd inside a modew.
 	 */
-	export interface IWordAtPosition {
+	expowt intewface IWowdAtPosition {
 		/**
-		 * The word.
+		 * The wowd.
 		 */
-		readonly word: string;
+		weadonwy wowd: stwing;
 		/**
-		 * The column where the word starts.
+		 * The cowumn whewe the wowd stawts.
 		 */
-		readonly startColumn: number;
+		weadonwy stawtCowumn: numba;
 		/**
-		 * The column where the word ends.
+		 * The cowumn whewe the wowd ends.
 		 */
-		readonly endColumn: number;
+		weadonwy endCowumn: numba;
 	}
 
 	/**
-	 * End of line character preference.
+	 * End of wine chawacta pwefewence.
 	 */
-	export enum EndOfLinePreference {
+	expowt enum EndOfWinePwefewence {
 		/**
-		 * Use the end of line character identified in the text buffer.
+		 * Use the end of wine chawacta identified in the text buffa.
 		 */
 		TextDefined = 0,
 		/**
-		 * Use line feed (\n) as the end of line character.
+		 * Use wine feed (\n) as the end of wine chawacta.
 		 */
-		LF = 1,
+		WF = 1,
 		/**
-		 * Use carriage return and line feed (\r\n) as the end of line character.
+		 * Use cawwiage wetuwn and wine feed (\w\n) as the end of wine chawacta.
 		 */
-		CRLF = 2
+		CWWF = 2
 	}
 
 	/**
-	 * The default end of line to use when instantiating models.
+	 * The defauwt end of wine to use when instantiating modews.
 	 */
-	export enum DefaultEndOfLine {
+	expowt enum DefauwtEndOfWine {
 		/**
-		 * Use line feed (\n) as the end of line character.
+		 * Use wine feed (\n) as the end of wine chawacta.
 		 */
-		LF = 1,
+		WF = 1,
 		/**
-		 * Use carriage return and line feed (\r\n) as the end of line character.
+		 * Use cawwiage wetuwn and wine feed (\w\n) as the end of wine chawacta.
 		 */
-		CRLF = 2
+		CWWF = 2
 	}
 
 	/**
-	 * End of line character preference.
+	 * End of wine chawacta pwefewence.
 	 */
-	export enum EndOfLineSequence {
+	expowt enum EndOfWineSequence {
 		/**
-		 * Use line feed (\n) as the end of line character.
+		 * Use wine feed (\n) as the end of wine chawacta.
 		 */
-		LF = 0,
+		WF = 0,
 		/**
-		 * Use carriage return and line feed (\r\n) as the end of line character.
+		 * Use cawwiage wetuwn and wine feed (\w\n) as the end of wine chawacta.
 		 */
-		CRLF = 1
+		CWWF = 1
 	}
 
 	/**
-	 * A single edit operation, that acts as a simple replace.
-	 * i.e. Replace text at `range` with `text` in model.
+	 * A singwe edit opewation, that acts as a simpwe wepwace.
+	 * i.e. Wepwace text at `wange` with `text` in modew.
 	 */
-	export interface ISingleEditOperation {
+	expowt intewface ISingweEditOpewation {
 		/**
-		 * The range to replace. This can be empty to emulate a simple insert.
+		 * The wange to wepwace. This can be empty to emuwate a simpwe insewt.
 		 */
-		range: IRange;
+		wange: IWange;
 		/**
-		 * The text to replace with. This can be null to emulate a simple delete.
+		 * The text to wepwace with. This can be nuww to emuwate a simpwe dewete.
 		 */
-		text: string | null;
+		text: stwing | nuww;
 		/**
-		 * This indicates that this operation has "insert" semantics.
-		 * i.e. forceMoveMarkers = true => if `range` is collapsed, all markers at the position will be moved.
+		 * This indicates that this opewation has "insewt" semantics.
+		 * i.e. fowceMoveMawkews = twue => if `wange` is cowwapsed, aww mawkews at the position wiww be moved.
 		 */
-		forceMoveMarkers?: boolean;
+		fowceMoveMawkews?: boowean;
 	}
 
 	/**
-	 * A single edit operation, that has an identifier.
+	 * A singwe edit opewation, that has an identifia.
 	 */
-	export interface IIdentifiedSingleEditOperation {
+	expowt intewface IIdentifiedSingweEditOpewation {
 		/**
-		 * The range to replace. This can be empty to emulate a simple insert.
+		 * The wange to wepwace. This can be empty to emuwate a simpwe insewt.
 		 */
-		range: IRange;
+		wange: IWange;
 		/**
-		 * The text to replace with. This can be null to emulate a simple delete.
+		 * The text to wepwace with. This can be nuww to emuwate a simpwe dewete.
 		 */
-		text: string | null;
+		text: stwing | nuww;
 		/**
-		 * This indicates that this operation has "insert" semantics.
-		 * i.e. forceMoveMarkers = true => if `range` is collapsed, all markers at the position will be moved.
+		 * This indicates that this opewation has "insewt" semantics.
+		 * i.e. fowceMoveMawkews = twue => if `wange` is cowwapsed, aww mawkews at the position wiww be moved.
 		 */
-		forceMoveMarkers?: boolean;
+		fowceMoveMawkews?: boowean;
 	}
 
-	export interface IValidEditOperation {
+	expowt intewface IVawidEditOpewation {
 		/**
-		 * The range to replace. This can be empty to emulate a simple insert.
+		 * The wange to wepwace. This can be empty to emuwate a simpwe insewt.
 		 */
-		range: Range;
+		wange: Wange;
 		/**
-		 * The text to replace with. This can be empty to emulate a simple delete.
+		 * The text to wepwace with. This can be empty to emuwate a simpwe dewete.
 		 */
-		text: string;
+		text: stwing;
 	}
 
 	/**
-	 * A callback that can compute the cursor state after applying a series of edit operations.
+	 * A cawwback that can compute the cuwsow state afta appwying a sewies of edit opewations.
 	 */
-	export interface ICursorStateComputer {
+	expowt intewface ICuwsowStateComputa {
 		/**
-		 * A callback that can compute the resulting cursors state after some edit operations have been executed.
+		 * A cawwback that can compute the wesuwting cuwsows state afta some edit opewations have been executed.
 		 */
-		(inverseEditOperations: IValidEditOperation[]): Selection[] | null;
+		(invewseEditOpewations: IVawidEditOpewation[]): Sewection[] | nuww;
 	}
 
-	export class TextModelResolvedOptions {
-		_textModelResolvedOptionsBrand: void;
-		readonly tabSize: number;
-		readonly indentSize: number;
-		readonly insertSpaces: boolean;
-		readonly defaultEOL: DefaultEndOfLine;
-		readonly trimAutoWhitespace: boolean;
-		readonly bracketPairColorizationOptions: BracketPairColorizationOptions;
+	expowt cwass TextModewWesowvedOptions {
+		_textModewWesowvedOptionsBwand: void;
+		weadonwy tabSize: numba;
+		weadonwy indentSize: numba;
+		weadonwy insewtSpaces: boowean;
+		weadonwy defauwtEOW: DefauwtEndOfWine;
+		weadonwy twimAutoWhitespace: boowean;
+		weadonwy bwacketPaiwCowowizationOptions: BwacketPaiwCowowizationOptions;
 	}
 
-	export interface BracketPairColorizationOptions {
-		enabled: boolean;
+	expowt intewface BwacketPaiwCowowizationOptions {
+		enabwed: boowean;
 	}
 
-	export interface ITextModelUpdateOptions {
-		tabSize?: number;
-		indentSize?: number;
-		insertSpaces?: boolean;
-		trimAutoWhitespace?: boolean;
-		bracketColorizationOptions?: BracketPairColorizationOptions;
+	expowt intewface ITextModewUpdateOptions {
+		tabSize?: numba;
+		indentSize?: numba;
+		insewtSpaces?: boowean;
+		twimAutoWhitespace?: boowean;
+		bwacketCowowizationOptions?: BwacketPaiwCowowizationOptions;
 	}
 
-	export class FindMatch {
-		_findMatchBrand: void;
-		readonly range: Range;
-		readonly matches: string[] | null;
+	expowt cwass FindMatch {
+		_findMatchBwand: void;
+		weadonwy wange: Wange;
+		weadonwy matches: stwing[] | nuww;
 	}
 
 	/**
-	 * Describes the behavior of decorations when typing/editing near their edges.
-	 * Note: Please do not edit the values, as they very carefully match `DecorationRangeBehavior`
+	 * Descwibes the behaviow of decowations when typing/editing neaw theiw edges.
+	 * Note: Pwease do not edit the vawues, as they vewy cawefuwwy match `DecowationWangeBehaviow`
 	 */
-	export enum TrackedRangeStickiness {
-		AlwaysGrowsWhenTypingAtEdges = 0,
-		NeverGrowsWhenTypingAtEdges = 1,
-		GrowsOnlyWhenTypingBefore = 2,
-		GrowsOnlyWhenTypingAfter = 3
+	expowt enum TwackedWangeStickiness {
+		AwwaysGwowsWhenTypingAtEdges = 0,
+		NevewGwowsWhenTypingAtEdges = 1,
+		GwowsOnwyWhenTypingBefowe = 2,
+		GwowsOnwyWhenTypingAfta = 3
 	}
 
 	/**
-	 * A model.
+	 * A modew.
 	 */
-	export interface ITextModel {
+	expowt intewface ITextModew {
 		/**
-		 * Gets the resource associated with this editor model.
+		 * Gets the wesouwce associated with this editow modew.
 		 */
-		readonly uri: Uri;
+		weadonwy uwi: Uwi;
 		/**
-		 * A unique identifier associated with this model.
+		 * A unique identifia associated with this modew.
 		 */
-		readonly id: string;
+		weadonwy id: stwing;
 		/**
-		 * Get the resolved options for this model.
+		 * Get the wesowved options fow this modew.
 		 */
-		getOptions(): TextModelResolvedOptions;
+		getOptions(): TextModewWesowvedOptions;
 		/**
-		 * Get the current version id of the model.
-		 * Anytime a change happens to the model (even undo/redo),
-		 * the version id is incremented.
+		 * Get the cuwwent vewsion id of the modew.
+		 * Anytime a change happens to the modew (even undo/wedo),
+		 * the vewsion id is incwemented.
 		 */
-		getVersionId(): number;
+		getVewsionId(): numba;
 		/**
-		 * Get the alternative version id of the model.
-		 * This alternative version id is not always incremented,
-		 * it will return the same values in the case of undo-redo.
+		 * Get the awtewnative vewsion id of the modew.
+		 * This awtewnative vewsion id is not awways incwemented,
+		 * it wiww wetuwn the same vawues in the case of undo-wedo.
 		 */
-		getAlternativeVersionId(): number;
+		getAwtewnativeVewsionId(): numba;
 		/**
-		 * Replace the entire text buffer value contained in this model.
+		 * Wepwace the entiwe text buffa vawue contained in this modew.
 		 */
-		setValue(newValue: string): void;
+		setVawue(newVawue: stwing): void;
 		/**
-		 * Get the text stored in this model.
-		 * @param eol The end of line character preference. Defaults to `EndOfLinePreference.TextDefined`.
-		 * @param preserverBOM Preserve a BOM character if it was detected when the model was constructed.
-		 * @return The text.
+		 * Get the text stowed in this modew.
+		 * @pawam eow The end of wine chawacta pwefewence. Defauwts to `EndOfWinePwefewence.TextDefined`.
+		 * @pawam pwesewvewBOM Pwesewve a BOM chawacta if it was detected when the modew was constwucted.
+		 * @wetuwn The text.
 		 */
-		getValue(eol?: EndOfLinePreference, preserveBOM?: boolean): string;
+		getVawue(eow?: EndOfWinePwefewence, pwesewveBOM?: boowean): stwing;
 		/**
-		 * Get the length of the text stored in this model.
+		 * Get the wength of the text stowed in this modew.
 		 */
-		getValueLength(eol?: EndOfLinePreference, preserveBOM?: boolean): number;
+		getVawueWength(eow?: EndOfWinePwefewence, pwesewveBOM?: boowean): numba;
 		/**
-		 * Get the text in a certain range.
-		 * @param range The range describing what text to get.
-		 * @param eol The end of line character preference. This will only be used for multiline ranges. Defaults to `EndOfLinePreference.TextDefined`.
-		 * @return The text.
+		 * Get the text in a cewtain wange.
+		 * @pawam wange The wange descwibing what text to get.
+		 * @pawam eow The end of wine chawacta pwefewence. This wiww onwy be used fow muwtiwine wanges. Defauwts to `EndOfWinePwefewence.TextDefined`.
+		 * @wetuwn The text.
 		 */
-		getValueInRange(range: IRange, eol?: EndOfLinePreference): string;
+		getVawueInWange(wange: IWange, eow?: EndOfWinePwefewence): stwing;
 		/**
-		 * Get the length of text in a certain range.
-		 * @param range The range describing what text length to get.
-		 * @return The text length.
+		 * Get the wength of text in a cewtain wange.
+		 * @pawam wange The wange descwibing what text wength to get.
+		 * @wetuwn The text wength.
 		 */
-		getValueLengthInRange(range: IRange): number;
+		getVawueWengthInWange(wange: IWange): numba;
 		/**
-		 * Get the character count of text in a certain range.
-		 * @param range The range describing what text length to get.
+		 * Get the chawacta count of text in a cewtain wange.
+		 * @pawam wange The wange descwibing what text wength to get.
 		 */
-		getCharacterCountInRange(range: IRange): number;
+		getChawactewCountInWange(wange: IWange): numba;
 		/**
-		 * Get the number of lines in the model.
+		 * Get the numba of wines in the modew.
 		 */
-		getLineCount(): number;
+		getWineCount(): numba;
 		/**
-		 * Get the text for a certain line.
+		 * Get the text fow a cewtain wine.
 		 */
-		getLineContent(lineNumber: number): string;
+		getWineContent(wineNumba: numba): stwing;
 		/**
-		 * Get the text length for a certain line.
+		 * Get the text wength fow a cewtain wine.
 		 */
-		getLineLength(lineNumber: number): number;
+		getWineWength(wineNumba: numba): numba;
 		/**
-		 * Get the text for all lines.
+		 * Get the text fow aww wines.
 		 */
-		getLinesContent(): string[];
+		getWinesContent(): stwing[];
 		/**
-		 * Get the end of line sequence predominantly used in the text buffer.
-		 * @return EOL char sequence (e.g.: '\n' or '\r\n').
+		 * Get the end of wine sequence pwedominantwy used in the text buffa.
+		 * @wetuwn EOW chaw sequence (e.g.: '\n' ow '\w\n').
 		 */
-		getEOL(): string;
+		getEOW(): stwing;
 		/**
-		 * Get the end of line sequence predominantly used in the text buffer.
+		 * Get the end of wine sequence pwedominantwy used in the text buffa.
 		 */
-		getEndOfLineSequence(): EndOfLineSequence;
+		getEndOfWineSequence(): EndOfWineSequence;
 		/**
-		 * Get the minimum legal column for line at `lineNumber`
+		 * Get the minimum wegaw cowumn fow wine at `wineNumba`
 		 */
-		getLineMinColumn(lineNumber: number): number;
+		getWineMinCowumn(wineNumba: numba): numba;
 		/**
-		 * Get the maximum legal column for line at `lineNumber`
+		 * Get the maximum wegaw cowumn fow wine at `wineNumba`
 		 */
-		getLineMaxColumn(lineNumber: number): number;
+		getWineMaxCowumn(wineNumba: numba): numba;
 		/**
-		 * Returns the column before the first non whitespace character for line at `lineNumber`.
-		 * Returns 0 if line is empty or contains only whitespace.
+		 * Wetuwns the cowumn befowe the fiwst non whitespace chawacta fow wine at `wineNumba`.
+		 * Wetuwns 0 if wine is empty ow contains onwy whitespace.
 		 */
-		getLineFirstNonWhitespaceColumn(lineNumber: number): number;
+		getWineFiwstNonWhitespaceCowumn(wineNumba: numba): numba;
 		/**
-		 * Returns the column after the last non whitespace character for line at `lineNumber`.
-		 * Returns 0 if line is empty or contains only whitespace.
+		 * Wetuwns the cowumn afta the wast non whitespace chawacta fow wine at `wineNumba`.
+		 * Wetuwns 0 if wine is empty ow contains onwy whitespace.
 		 */
-		getLineLastNonWhitespaceColumn(lineNumber: number): number;
+		getWineWastNonWhitespaceCowumn(wineNumba: numba): numba;
 		/**
-		 * Create a valid position,
+		 * Cweate a vawid position,
 		 */
-		validatePosition(position: IPosition): Position;
+		vawidatePosition(position: IPosition): Position;
 		/**
-		 * Advances the given position by the given offset (negative offsets are also accepted)
-		 * and returns it as a new valid position.
+		 * Advances the given position by the given offset (negative offsets awe awso accepted)
+		 * and wetuwns it as a new vawid position.
 		 *
-		 * If the offset and position are such that their combination goes beyond the beginning or
-		 * end of the model, throws an exception.
+		 * If the offset and position awe such that theiw combination goes beyond the beginning ow
+		 * end of the modew, thwows an exception.
 		 *
-		 * If the offset is such that the new position would be in the middle of a multi-byte
-		 * line terminator, throws an exception.
+		 * If the offset is such that the new position wouwd be in the middwe of a muwti-byte
+		 * wine tewminatow, thwows an exception.
 		 */
-		modifyPosition(position: IPosition, offset: number): Position;
+		modifyPosition(position: IPosition, offset: numba): Position;
 		/**
-		 * Create a valid range.
+		 * Cweate a vawid wange.
 		 */
-		validateRange(range: IRange): Range;
+		vawidateWange(wange: IWange): Wange;
 		/**
-		 * Converts the position to a zero-based offset.
+		 * Convewts the position to a zewo-based offset.
 		 *
-		 * The position will be [adjusted](#TextDocument.validatePosition).
+		 * The position wiww be [adjusted](#TextDocument.vawidatePosition).
 		 *
-		 * @param position A position.
-		 * @return A valid zero-based offset.
+		 * @pawam position A position.
+		 * @wetuwn A vawid zewo-based offset.
 		 */
-		getOffsetAt(position: IPosition): number;
+		getOffsetAt(position: IPosition): numba;
 		/**
-		 * Converts a zero-based offset to a position.
+		 * Convewts a zewo-based offset to a position.
 		 *
-		 * @param offset A zero-based offset.
-		 * @return A valid [position](#Position).
+		 * @pawam offset A zewo-based offset.
+		 * @wetuwn A vawid [position](#Position).
 		 */
-		getPositionAt(offset: number): Position;
+		getPositionAt(offset: numba): Position;
 		/**
-		 * Get a range covering the entire model
+		 * Get a wange covewing the entiwe modew
 		 */
-		getFullModelRange(): Range;
+		getFuwwModewWange(): Wange;
 		/**
-		 * Returns if the model was disposed or not.
+		 * Wetuwns if the modew was disposed ow not.
 		 */
-		isDisposed(): boolean;
+		isDisposed(): boowean;
 		/**
-		 * Search the model.
-		 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
-		 * @param searchOnlyEditableRange Limit the searching to only search inside the editable range of the model.
-		 * @param isRegex Used to indicate that `searchString` is a regular expression.
-		 * @param matchCase Force the matching to match lower/upper case exactly.
-		 * @param wordSeparators Force the matching to match entire words only. Pass null otherwise.
-		 * @param captureMatches The result will contain the captured groups.
-		 * @param limitResultCount Limit the number of results
-		 * @return The ranges where the matches are. It is empty if not matches have been found.
+		 * Seawch the modew.
+		 * @pawam seawchStwing The stwing used to seawch. If it is a weguwaw expwession, set `isWegex` to twue.
+		 * @pawam seawchOnwyEditabweWange Wimit the seawching to onwy seawch inside the editabwe wange of the modew.
+		 * @pawam isWegex Used to indicate that `seawchStwing` is a weguwaw expwession.
+		 * @pawam matchCase Fowce the matching to match wowa/uppa case exactwy.
+		 * @pawam wowdSepawatows Fowce the matching to match entiwe wowds onwy. Pass nuww othewwise.
+		 * @pawam captuweMatches The wesuwt wiww contain the captuwed gwoups.
+		 * @pawam wimitWesuwtCount Wimit the numba of wesuwts
+		 * @wetuwn The wanges whewe the matches awe. It is empty if not matches have been found.
 		 */
-		findMatches(searchString: string, searchOnlyEditableRange: boolean, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean, limitResultCount?: number): FindMatch[];
+		findMatches(seawchStwing: stwing, seawchOnwyEditabweWange: boowean, isWegex: boowean, matchCase: boowean, wowdSepawatows: stwing | nuww, captuweMatches: boowean, wimitWesuwtCount?: numba): FindMatch[];
 		/**
-		 * Search the model.
-		 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
-		 * @param searchScope Limit the searching to only search inside these ranges.
-		 * @param isRegex Used to indicate that `searchString` is a regular expression.
-		 * @param matchCase Force the matching to match lower/upper case exactly.
-		 * @param wordSeparators Force the matching to match entire words only. Pass null otherwise.
-		 * @param captureMatches The result will contain the captured groups.
-		 * @param limitResultCount Limit the number of results
-		 * @return The ranges where the matches are. It is empty if no matches have been found.
+		 * Seawch the modew.
+		 * @pawam seawchStwing The stwing used to seawch. If it is a weguwaw expwession, set `isWegex` to twue.
+		 * @pawam seawchScope Wimit the seawching to onwy seawch inside these wanges.
+		 * @pawam isWegex Used to indicate that `seawchStwing` is a weguwaw expwession.
+		 * @pawam matchCase Fowce the matching to match wowa/uppa case exactwy.
+		 * @pawam wowdSepawatows Fowce the matching to match entiwe wowds onwy. Pass nuww othewwise.
+		 * @pawam captuweMatches The wesuwt wiww contain the captuwed gwoups.
+		 * @pawam wimitWesuwtCount Wimit the numba of wesuwts
+		 * @wetuwn The wanges whewe the matches awe. It is empty if no matches have been found.
 		 */
-		findMatches(searchString: string, searchScope: IRange | IRange[], isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean, limitResultCount?: number): FindMatch[];
+		findMatches(seawchStwing: stwing, seawchScope: IWange | IWange[], isWegex: boowean, matchCase: boowean, wowdSepawatows: stwing | nuww, captuweMatches: boowean, wimitWesuwtCount?: numba): FindMatch[];
 		/**
-		 * Search the model for the next match. Loops to the beginning of the model if needed.
-		 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
-		 * @param searchStart Start the searching at the specified position.
-		 * @param isRegex Used to indicate that `searchString` is a regular expression.
-		 * @param matchCase Force the matching to match lower/upper case exactly.
-		 * @param wordSeparators Force the matching to match entire words only. Pass null otherwise.
-		 * @param captureMatches The result will contain the captured groups.
-		 * @return The range where the next match is. It is null if no next match has been found.
+		 * Seawch the modew fow the next match. Woops to the beginning of the modew if needed.
+		 * @pawam seawchStwing The stwing used to seawch. If it is a weguwaw expwession, set `isWegex` to twue.
+		 * @pawam seawchStawt Stawt the seawching at the specified position.
+		 * @pawam isWegex Used to indicate that `seawchStwing` is a weguwaw expwession.
+		 * @pawam matchCase Fowce the matching to match wowa/uppa case exactwy.
+		 * @pawam wowdSepawatows Fowce the matching to match entiwe wowds onwy. Pass nuww othewwise.
+		 * @pawam captuweMatches The wesuwt wiww contain the captuwed gwoups.
+		 * @wetuwn The wange whewe the next match is. It is nuww if no next match has been found.
 		 */
-		findNextMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean): FindMatch | null;
+		findNextMatch(seawchStwing: stwing, seawchStawt: IPosition, isWegex: boowean, matchCase: boowean, wowdSepawatows: stwing | nuww, captuweMatches: boowean): FindMatch | nuww;
 		/**
-		 * Search the model for the previous match. Loops to the end of the model if needed.
-		 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
-		 * @param searchStart Start the searching at the specified position.
-		 * @param isRegex Used to indicate that `searchString` is a regular expression.
-		 * @param matchCase Force the matching to match lower/upper case exactly.
-		 * @param wordSeparators Force the matching to match entire words only. Pass null otherwise.
-		 * @param captureMatches The result will contain the captured groups.
-		 * @return The range where the previous match is. It is null if no previous match has been found.
+		 * Seawch the modew fow the pwevious match. Woops to the end of the modew if needed.
+		 * @pawam seawchStwing The stwing used to seawch. If it is a weguwaw expwession, set `isWegex` to twue.
+		 * @pawam seawchStawt Stawt the seawching at the specified position.
+		 * @pawam isWegex Used to indicate that `seawchStwing` is a weguwaw expwession.
+		 * @pawam matchCase Fowce the matching to match wowa/uppa case exactwy.
+		 * @pawam wowdSepawatows Fowce the matching to match entiwe wowds onwy. Pass nuww othewwise.
+		 * @pawam captuweMatches The wesuwt wiww contain the captuwed gwoups.
+		 * @wetuwn The wange whewe the pwevious match is. It is nuww if no pwevious match has been found.
 		 */
-		findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean): FindMatch | null;
+		findPweviousMatch(seawchStwing: stwing, seawchStawt: IPosition, isWegex: boowean, matchCase: boowean, wowdSepawatows: stwing | nuww, captuweMatches: boowean): FindMatch | nuww;
 		/**
-		 * Get the language associated with this model.
+		 * Get the wanguage associated with this modew.
 		 */
-		getModeId(): string;
+		getModeId(): stwing;
 		/**
-		 * Get the word under or besides `position`.
-		 * @param position The position to look for a word.
-		 * @return The word under or besides `position`. Might be null.
+		 * Get the wowd unda ow besides `position`.
+		 * @pawam position The position to wook fow a wowd.
+		 * @wetuwn The wowd unda ow besides `position`. Might be nuww.
 		 */
-		getWordAtPosition(position: IPosition): IWordAtPosition | null;
+		getWowdAtPosition(position: IPosition): IWowdAtPosition | nuww;
 		/**
-		 * Get the word under or besides `position` trimmed to `position`.column
-		 * @param position The position to look for a word.
-		 * @return The word under or besides `position`. Will never be null.
+		 * Get the wowd unda ow besides `position` twimmed to `position`.cowumn
+		 * @pawam position The position to wook fow a wowd.
+		 * @wetuwn The wowd unda ow besides `position`. Wiww neva be nuww.
 		 */
-		getWordUntilPosition(position: IPosition): IWordAtPosition;
+		getWowdUntiwPosition(position: IPosition): IWowdAtPosition;
 		/**
-		 * Perform a minimum amount of operations, in order to transform the decorations
-		 * identified by `oldDecorations` to the decorations described by `newDecorations`
-		 * and returns the new identifiers associated with the resulting decorations.
+		 * Pewfowm a minimum amount of opewations, in owda to twansfowm the decowations
+		 * identified by `owdDecowations` to the decowations descwibed by `newDecowations`
+		 * and wetuwns the new identifiews associated with the wesuwting decowations.
 		 *
-		 * @param oldDecorations Array containing previous decorations identifiers.
-		 * @param newDecorations Array describing what decorations should result after the call.
-		 * @param ownerId Identifies the editor id in which these decorations should appear. If no `ownerId` is provided, the decorations will appear in all editors that attach this model.
-		 * @return An array containing the new decorations identifiers.
+		 * @pawam owdDecowations Awway containing pwevious decowations identifiews.
+		 * @pawam newDecowations Awway descwibing what decowations shouwd wesuwt afta the caww.
+		 * @pawam ownewId Identifies the editow id in which these decowations shouwd appeaw. If no `ownewId` is pwovided, the decowations wiww appeaw in aww editows that attach this modew.
+		 * @wetuwn An awway containing the new decowations identifiews.
 		 */
-		deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[], ownerId?: number): string[];
+		dewtaDecowations(owdDecowations: stwing[], newDecowations: IModewDewtaDecowation[], ownewId?: numba): stwing[];
 		/**
-		 * Get the options associated with a decoration.
-		 * @param id The decoration id.
-		 * @return The decoration options or null if the decoration was not found.
+		 * Get the options associated with a decowation.
+		 * @pawam id The decowation id.
+		 * @wetuwn The decowation options ow nuww if the decowation was not found.
 		 */
-		getDecorationOptions(id: string): IModelDecorationOptions | null;
+		getDecowationOptions(id: stwing): IModewDecowationOptions | nuww;
 		/**
-		 * Get the range associated with a decoration.
-		 * @param id The decoration id.
-		 * @return The decoration range or null if the decoration was not found.
+		 * Get the wange associated with a decowation.
+		 * @pawam id The decowation id.
+		 * @wetuwn The decowation wange ow nuww if the decowation was not found.
 		 */
-		getDecorationRange(id: string): Range | null;
+		getDecowationWange(id: stwing): Wange | nuww;
 		/**
-		 * Gets all the decorations for the line `lineNumber` as an array.
-		 * @param lineNumber The line number
-		 * @param ownerId If set, it will ignore decorations belonging to other owners.
-		 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
-		 * @return An array with the decorations
+		 * Gets aww the decowations fow the wine `wineNumba` as an awway.
+		 * @pawam wineNumba The wine numba
+		 * @pawam ownewId If set, it wiww ignowe decowations bewonging to otha ownews.
+		 * @pawam fiwtewOutVawidation If set, it wiww ignowe decowations specific to vawidation (i.e. wawnings, ewwows).
+		 * @wetuwn An awway with the decowations
 		 */
-		getLineDecorations(lineNumber: number, ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
+		getWineDecowations(wineNumba: numba, ownewId?: numba, fiwtewOutVawidation?: boowean): IModewDecowation[];
 		/**
-		 * Gets all the decorations for the lines between `startLineNumber` and `endLineNumber` as an array.
-		 * @param startLineNumber The start line number
-		 * @param endLineNumber The end line number
-		 * @param ownerId If set, it will ignore decorations belonging to other owners.
-		 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
-		 * @return An array with the decorations
+		 * Gets aww the decowations fow the wines between `stawtWineNumba` and `endWineNumba` as an awway.
+		 * @pawam stawtWineNumba The stawt wine numba
+		 * @pawam endWineNumba The end wine numba
+		 * @pawam ownewId If set, it wiww ignowe decowations bewonging to otha ownews.
+		 * @pawam fiwtewOutVawidation If set, it wiww ignowe decowations specific to vawidation (i.e. wawnings, ewwows).
+		 * @wetuwn An awway with the decowations
 		 */
-		getLinesDecorations(startLineNumber: number, endLineNumber: number, ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
+		getWinesDecowations(stawtWineNumba: numba, endWineNumba: numba, ownewId?: numba, fiwtewOutVawidation?: boowean): IModewDecowation[];
 		/**
-		 * Gets all the decorations in a range as an array. Only `startLineNumber` and `endLineNumber` from `range` are used for filtering.
-		 * So for now it returns all the decorations on the same line as `range`.
-		 * @param range The range to search in
-		 * @param ownerId If set, it will ignore decorations belonging to other owners.
-		 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
-		 * @return An array with the decorations
+		 * Gets aww the decowations in a wange as an awway. Onwy `stawtWineNumba` and `endWineNumba` fwom `wange` awe used fow fiwtewing.
+		 * So fow now it wetuwns aww the decowations on the same wine as `wange`.
+		 * @pawam wange The wange to seawch in
+		 * @pawam ownewId If set, it wiww ignowe decowations bewonging to otha ownews.
+		 * @pawam fiwtewOutVawidation If set, it wiww ignowe decowations specific to vawidation (i.e. wawnings, ewwows).
+		 * @wetuwn An awway with the decowations
 		 */
-		getDecorationsInRange(range: IRange, ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
+		getDecowationsInWange(wange: IWange, ownewId?: numba, fiwtewOutVawidation?: boowean): IModewDecowation[];
 		/**
-		 * Gets all the decorations as an array.
-		 * @param ownerId If set, it will ignore decorations belonging to other owners.
-		 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
+		 * Gets aww the decowations as an awway.
+		 * @pawam ownewId If set, it wiww ignowe decowations bewonging to otha ownews.
+		 * @pawam fiwtewOutVawidation If set, it wiww ignowe decowations specific to vawidation (i.e. wawnings, ewwows).
 		 */
-		getAllDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
+		getAwwDecowations(ownewId?: numba, fiwtewOutVawidation?: boowean): IModewDecowation[];
 		/**
-		 * Gets all the decorations that should be rendered in the overview ruler as an array.
-		 * @param ownerId If set, it will ignore decorations belonging to other owners.
-		 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
+		 * Gets aww the decowations that shouwd be wendewed in the ovewview wuwa as an awway.
+		 * @pawam ownewId If set, it wiww ignowe decowations bewonging to otha ownews.
+		 * @pawam fiwtewOutVawidation If set, it wiww ignowe decowations specific to vawidation (i.e. wawnings, ewwows).
 		 */
-		getOverviewRulerDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
+		getOvewviewWuwewDecowations(ownewId?: numba, fiwtewOutVawidation?: boowean): IModewDecowation[];
 		/**
-		 * Gets all the decorations that contain injected text.
-		 * @param ownerId If set, it will ignore decorations belonging to other owners.
+		 * Gets aww the decowations that contain injected text.
+		 * @pawam ownewId If set, it wiww ignowe decowations bewonging to otha ownews.
 		 */
-		getInjectedTextDecorations(ownerId?: number): IModelDecoration[];
+		getInjectedTextDecowations(ownewId?: numba): IModewDecowation[];
 		/**
-		 * Normalize a string containing whitespace according to indentation rules (converts to spaces or to tabs).
+		 * Nowmawize a stwing containing whitespace accowding to indentation wuwes (convewts to spaces ow to tabs).
 		 */
-		normalizeIndentation(str: string): string;
+		nowmawizeIndentation(stw: stwing): stwing;
 		/**
-		 * Change the options of this model.
+		 * Change the options of this modew.
 		 */
-		updateOptions(newOpts: ITextModelUpdateOptions): void;
+		updateOptions(newOpts: ITextModewUpdateOptions): void;
 		/**
-		 * Detect the indentation options for this model from its content.
+		 * Detect the indentation options fow this modew fwom its content.
 		 */
-		detectIndentation(defaultInsertSpaces: boolean, defaultTabSize: number): void;
+		detectIndentation(defauwtInsewtSpaces: boowean, defauwtTabSize: numba): void;
 		/**
-		 * Close the current undo-redo element.
-		 * This offers a way to create an undo/redo stop point.
+		 * Cwose the cuwwent undo-wedo ewement.
+		 * This offews a way to cweate an undo/wedo stop point.
 		 */
-		pushStackElement(): void;
+		pushStackEwement(): void;
 		/**
-		 * Open the current undo-redo element.
-		 * This offers a way to remove the current undo/redo stop point.
+		 * Open the cuwwent undo-wedo ewement.
+		 * This offews a way to wemove the cuwwent undo/wedo stop point.
 		 */
-		popStackElement(): void;
+		popStackEwement(): void;
 		/**
-		 * Push edit operations, basically editing the model. This is the preferred way
-		 * of editing the model. The edit operations will land on the undo stack.
-		 * @param beforeCursorState The cursor state before the edit operations. This cursor state will be returned when `undo` or `redo` are invoked.
-		 * @param editOperations The edit operations.
-		 * @param cursorStateComputer A callback that can compute the resulting cursors state after the edit operations have been executed.
-		 * @return The cursor state returned by the `cursorStateComputer`.
+		 * Push edit opewations, basicawwy editing the modew. This is the pwefewwed way
+		 * of editing the modew. The edit opewations wiww wand on the undo stack.
+		 * @pawam befoweCuwsowState The cuwsow state befowe the edit opewations. This cuwsow state wiww be wetuwned when `undo` ow `wedo` awe invoked.
+		 * @pawam editOpewations The edit opewations.
+		 * @pawam cuwsowStateComputa A cawwback that can compute the wesuwting cuwsows state afta the edit opewations have been executed.
+		 * @wetuwn The cuwsow state wetuwned by the `cuwsowStateComputa`.
 		 */
-		pushEditOperations(beforeCursorState: Selection[] | null, editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer): Selection[] | null;
+		pushEditOpewations(befoweCuwsowState: Sewection[] | nuww, editOpewations: IIdentifiedSingweEditOpewation[], cuwsowStateComputa: ICuwsowStateComputa): Sewection[] | nuww;
 		/**
-		 * Change the end of line sequence. This is the preferred way of
-		 * changing the eol sequence. This will land on the undo stack.
+		 * Change the end of wine sequence. This is the pwefewwed way of
+		 * changing the eow sequence. This wiww wand on the undo stack.
 		 */
-		pushEOL(eol: EndOfLineSequence): void;
+		pushEOW(eow: EndOfWineSequence): void;
 		/**
-		 * Edit the model without adding the edits to the undo stack.
-		 * This can have dire consequences on the undo stack! See @pushEditOperations for the preferred way.
-		 * @param operations The edit operations.
-		 * @return If desired, the inverse edit operations, that, when applied, will bring the model back to the previous state.
+		 * Edit the modew without adding the edits to the undo stack.
+		 * This can have diwe consequences on the undo stack! See @pushEditOpewations fow the pwefewwed way.
+		 * @pawam opewations The edit opewations.
+		 * @wetuwn If desiwed, the invewse edit opewations, that, when appwied, wiww bwing the modew back to the pwevious state.
 		 */
-		applyEdits(operations: IIdentifiedSingleEditOperation[]): void;
-		applyEdits(operations: IIdentifiedSingleEditOperation[], computeUndoEdits: false): void;
-		applyEdits(operations: IIdentifiedSingleEditOperation[], computeUndoEdits: true): IValidEditOperation[];
+		appwyEdits(opewations: IIdentifiedSingweEditOpewation[]): void;
+		appwyEdits(opewations: IIdentifiedSingweEditOpewation[], computeUndoEdits: fawse): void;
+		appwyEdits(opewations: IIdentifiedSingweEditOpewation[], computeUndoEdits: twue): IVawidEditOpewation[];
 		/**
-		 * Change the end of line sequence without recording in the undo stack.
-		 * This can have dire consequences on the undo stack! See @pushEOL for the preferred way.
+		 * Change the end of wine sequence without wecowding in the undo stack.
+		 * This can have diwe consequences on the undo stack! See @pushEOW fow the pwefewwed way.
 		 */
-		setEOL(eol: EndOfLineSequence): void;
+		setEOW(eow: EndOfWineSequence): void;
 		/**
-		 * An event emitted when the contents of the model have changed.
+		 * An event emitted when the contents of the modew have changed.
 		 * @event
 		 */
-		onDidChangeContent(listener: (e: IModelContentChangedEvent) => void): IDisposable;
+		onDidChangeContent(wistena: (e: IModewContentChangedEvent) => void): IDisposabwe;
 		/**
-		 * An event emitted when decorations of the model have changed.
+		 * An event emitted when decowations of the modew have changed.
 		 * @event
 		 */
-		onDidChangeDecorations(listener: (e: IModelDecorationsChangedEvent) => void): IDisposable;
+		onDidChangeDecowations(wistena: (e: IModewDecowationsChangedEvent) => void): IDisposabwe;
 		/**
-		 * An event emitted when the model options have changed.
+		 * An event emitted when the modew options have changed.
 		 * @event
 		 */
-		onDidChangeOptions(listener: (e: IModelOptionsChangedEvent) => void): IDisposable;
+		onDidChangeOptions(wistena: (e: IModewOptionsChangedEvent) => void): IDisposabwe;
 		/**
-		 * An event emitted when the language associated with the model has changed.
+		 * An event emitted when the wanguage associated with the modew has changed.
 		 * @event
 		 */
-		onDidChangeLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
+		onDidChangeWanguage(wistena: (e: IModewWanguageChangedEvent) => void): IDisposabwe;
 		/**
-		 * An event emitted when the language configuration associated with the model has changed.
+		 * An event emitted when the wanguage configuwation associated with the modew has changed.
 		 * @event
 		 */
-		onDidChangeLanguageConfiguration(listener: (e: IModelLanguageConfigurationChangedEvent) => void): IDisposable;
+		onDidChangeWanguageConfiguwation(wistena: (e: IModewWanguageConfiguwationChangedEvent) => void): IDisposabwe;
 		/**
-		 * An event emitted when the model has been attached to the first editor or detached from the last editor.
+		 * An event emitted when the modew has been attached to the fiwst editow ow detached fwom the wast editow.
 		 * @event
 		 */
-		onDidChangeAttached(listener: () => void): IDisposable;
+		onDidChangeAttached(wistena: () => void): IDisposabwe;
 		/**
-		 * An event emitted right before disposing the model.
+		 * An event emitted wight befowe disposing the modew.
 		 * @event
 		 */
-		onWillDispose(listener: () => void): IDisposable;
+		onWiwwDispose(wistena: () => void): IDisposabwe;
 		/**
-		 * Destroy this model. This will unbind the model from the mode
-		 * and make all necessary clean-up to release this object to the GC.
+		 * Destwoy this modew. This wiww unbind the modew fwom the mode
+		 * and make aww necessawy cwean-up to wewease this object to the GC.
 		 */
 		dispose(): void;
 		/**
-		 * Returns if this model is attached to an editor or not.
+		 * Wetuwns if this modew is attached to an editow ow not.
 		 */
-		isAttachedToEditor(): boolean;
+		isAttachedToEditow(): boowean;
 	}
 
 	/**
-	 * A builder and helper for edit operations for a command.
+	 * A buiwda and hewpa fow edit opewations fow a command.
 	 */
-	export interface IEditOperationBuilder {
+	expowt intewface IEditOpewationBuiwda {
 		/**
-		 * Add a new edit operation (a replace operation).
-		 * @param range The range to replace (delete). May be empty to represent a simple insert.
-		 * @param text The text to replace with. May be null to represent a simple delete.
+		 * Add a new edit opewation (a wepwace opewation).
+		 * @pawam wange The wange to wepwace (dewete). May be empty to wepwesent a simpwe insewt.
+		 * @pawam text The text to wepwace with. May be nuww to wepwesent a simpwe dewete.
 		 */
-		addEditOperation(range: IRange, text: string | null, forceMoveMarkers?: boolean): void;
+		addEditOpewation(wange: IWange, text: stwing | nuww, fowceMoveMawkews?: boowean): void;
 		/**
-		 * Add a new edit operation (a replace operation).
-		 * The inverse edits will be accessible in `ICursorStateComputerData.getInverseEditOperations()`
-		 * @param range The range to replace (delete). May be empty to represent a simple insert.
-		 * @param text The text to replace with. May be null to represent a simple delete.
+		 * Add a new edit opewation (a wepwace opewation).
+		 * The invewse edits wiww be accessibwe in `ICuwsowStateComputewData.getInvewseEditOpewations()`
+		 * @pawam wange The wange to wepwace (dewete). May be empty to wepwesent a simpwe insewt.
+		 * @pawam text The text to wepwace with. May be nuww to wepwesent a simpwe dewete.
 		 */
-		addTrackedEditOperation(range: IRange, text: string | null, forceMoveMarkers?: boolean): void;
+		addTwackedEditOpewation(wange: IWange, text: stwing | nuww, fowceMoveMawkews?: boowean): void;
 		/**
-		 * Track `selection` when applying edit operations.
-		 * A best effort will be made to not grow/expand the selection.
-		 * An empty selection will clamp to a nearby character.
-		 * @param selection The selection to track.
-		 * @param trackPreviousOnEmpty If set, and the selection is empty, indicates whether the selection
-		 *           should clamp to the previous or the next character.
-		 * @return A unique identifier.
+		 * Twack `sewection` when appwying edit opewations.
+		 * A best effowt wiww be made to not gwow/expand the sewection.
+		 * An empty sewection wiww cwamp to a neawby chawacta.
+		 * @pawam sewection The sewection to twack.
+		 * @pawam twackPweviousOnEmpty If set, and the sewection is empty, indicates whetha the sewection
+		 *           shouwd cwamp to the pwevious ow the next chawacta.
+		 * @wetuwn A unique identifia.
 		 */
-		trackSelection(selection: Selection, trackPreviousOnEmpty?: boolean): string;
+		twackSewection(sewection: Sewection, twackPweviousOnEmpty?: boowean): stwing;
 	}
 
 	/**
-	 * A helper for computing cursor state after a command.
+	 * A hewpa fow computing cuwsow state afta a command.
 	 */
-	export interface ICursorStateComputerData {
+	expowt intewface ICuwsowStateComputewData {
 		/**
-		 * Get the inverse edit operations of the added edit operations.
+		 * Get the invewse edit opewations of the added edit opewations.
 		 */
-		getInverseEditOperations(): IValidEditOperation[];
+		getInvewseEditOpewations(): IVawidEditOpewation[];
 		/**
-		 * Get a previously tracked selection.
-		 * @param id The unique identifier returned by `trackSelection`.
-		 * @return The selection.
+		 * Get a pweviouswy twacked sewection.
+		 * @pawam id The unique identifia wetuwned by `twackSewection`.
+		 * @wetuwn The sewection.
 		 */
-		getTrackedSelection(id: string): Selection;
+		getTwackedSewection(id: stwing): Sewection;
 	}
 
 	/**
-	 * A command that modifies text / cursor state on a model.
+	 * A command that modifies text / cuwsow state on a modew.
 	 */
-	export interface ICommand {
+	expowt intewface ICommand {
 		/**
-		 * Get the edit operations needed to execute this command.
-		 * @param model The model the command will execute on.
-		 * @param builder A helper to collect the needed edit operations and to track selections.
+		 * Get the edit opewations needed to execute this command.
+		 * @pawam modew The modew the command wiww execute on.
+		 * @pawam buiwda A hewpa to cowwect the needed edit opewations and to twack sewections.
 		 */
-		getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void;
+		getEditOpewations(modew: ITextModew, buiwda: IEditOpewationBuiwda): void;
 		/**
-		 * Compute the cursor state after the edit operations were applied.
-		 * @param model The model the command has executed on.
-		 * @param helper A helper to get inverse edit operations and to get previously tracked selections.
-		 * @return The cursor state after the command executed.
+		 * Compute the cuwsow state afta the edit opewations wewe appwied.
+		 * @pawam modew The modew the command has executed on.
+		 * @pawam hewpa A hewpa to get invewse edit opewations and to get pweviouswy twacked sewections.
+		 * @wetuwn The cuwsow state afta the command executed.
 		 */
-		computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection;
+		computeCuwsowState(modew: ITextModew, hewpa: ICuwsowStateComputewData): Sewection;
 	}
 
 	/**
-	 * A model for the diff editor.
+	 * A modew fow the diff editow.
 	 */
-	export interface IDiffEditorModel {
+	expowt intewface IDiffEditowModew {
 		/**
-		 * Original model.
+		 * Owiginaw modew.
 		 */
-		original: ITextModel;
+		owiginaw: ITextModew;
 		/**
-		 * Modified model.
+		 * Modified modew.
 		 */
-		modified: ITextModel;
+		modified: ITextModew;
 	}
 
 	/**
-	 * An event describing that an editor has had its model reset (i.e. `editor.setModel()`).
+	 * An event descwibing that an editow has had its modew weset (i.e. `editow.setModew()`).
 	 */
-	export interface IModelChangedEvent {
+	expowt intewface IModewChangedEvent {
 		/**
-		 * The `uri` of the previous model or null.
+		 * The `uwi` of the pwevious modew ow nuww.
 		 */
-		readonly oldModelUrl: Uri | null;
+		weadonwy owdModewUww: Uwi | nuww;
 		/**
-		 * The `uri` of the new model or null.
+		 * The `uwi` of the new modew ow nuww.
 		 */
-		readonly newModelUrl: Uri | null;
+		weadonwy newModewUww: Uwi | nuww;
 	}
 
-	export interface IDimension {
-		width: number;
-		height: number;
+	expowt intewface IDimension {
+		width: numba;
+		height: numba;
 	}
 
 	/**
 	 * A change
 	 */
-	export interface IChange {
-		readonly originalStartLineNumber: number;
-		readonly originalEndLineNumber: number;
-		readonly modifiedStartLineNumber: number;
-		readonly modifiedEndLineNumber: number;
+	expowt intewface IChange {
+		weadonwy owiginawStawtWineNumba: numba;
+		weadonwy owiginawEndWineNumba: numba;
+		weadonwy modifiedStawtWineNumba: numba;
+		weadonwy modifiedEndWineNumba: numba;
 	}
 
 	/**
-	 * A character level change.
+	 * A chawacta wevew change.
 	 */
-	export interface ICharChange extends IChange {
-		readonly originalStartColumn: number;
-		readonly originalEndColumn: number;
-		readonly modifiedStartColumn: number;
-		readonly modifiedEndColumn: number;
+	expowt intewface IChawChange extends IChange {
+		weadonwy owiginawStawtCowumn: numba;
+		weadonwy owiginawEndCowumn: numba;
+		weadonwy modifiedStawtCowumn: numba;
+		weadonwy modifiedEndCowumn: numba;
 	}
 
 	/**
-	 * A line change
+	 * A wine change
 	 */
-	export interface ILineChange extends IChange {
-		readonly charChanges: ICharChange[] | undefined;
+	expowt intewface IWineChange extends IChange {
+		weadonwy chawChanges: IChawChange[] | undefined;
 	}
 
-	export interface IContentSizeChangedEvent {
-		readonly contentWidth: number;
-		readonly contentHeight: number;
-		readonly contentWidthChanged: boolean;
-		readonly contentHeightChanged: boolean;
+	expowt intewface IContentSizeChangedEvent {
+		weadonwy contentWidth: numba;
+		weadonwy contentHeight: numba;
+		weadonwy contentWidthChanged: boowean;
+		weadonwy contentHeightChanged: boowean;
 	}
 
-	export interface INewScrollPosition {
-		scrollLeft?: number;
-		scrollTop?: number;
+	expowt intewface INewScwowwPosition {
+		scwowwWeft?: numba;
+		scwowwTop?: numba;
 	}
 
-	export interface IEditorAction {
-		readonly id: string;
-		readonly label: string;
-		readonly alias: string;
-		isSupported(): boolean;
-		run(): Promise<void>;
+	expowt intewface IEditowAction {
+		weadonwy id: stwing;
+		weadonwy wabew: stwing;
+		weadonwy awias: stwing;
+		isSuppowted(): boowean;
+		wun(): Pwomise<void>;
 	}
 
-	export type IEditorModel = ITextModel | IDiffEditorModel;
+	expowt type IEditowModew = ITextModew | IDiffEditowModew;
 
 	/**
-	 * A (serializable) state of the cursors.
+	 * A (sewiawizabwe) state of the cuwsows.
 	 */
-	export interface ICursorState {
-		inSelectionMode: boolean;
-		selectionStart: IPosition;
+	expowt intewface ICuwsowState {
+		inSewectionMode: boowean;
+		sewectionStawt: IPosition;
 		position: IPosition;
 	}
 
 	/**
-	 * A (serializable) state of the view.
+	 * A (sewiawizabwe) state of the view.
 	 */
-	export interface IViewState {
-		/** written by previous versions */
-		scrollTop?: number;
-		/** written by previous versions */
-		scrollTopWithoutViewZones?: number;
-		scrollLeft: number;
-		firstPosition: IPosition;
-		firstPositionDeltaTop: number;
+	expowt intewface IViewState {
+		/** wwitten by pwevious vewsions */
+		scwowwTop?: numba;
+		/** wwitten by pwevious vewsions */
+		scwowwTopWithoutViewZones?: numba;
+		scwowwWeft: numba;
+		fiwstPosition: IPosition;
+		fiwstPositionDewtaTop: numba;
 	}
 
 	/**
-	 * A (serializable) state of the code editor.
+	 * A (sewiawizabwe) state of the code editow.
 	 */
-	export interface ICodeEditorViewState {
-		cursorState: ICursorState[];
+	expowt intewface ICodeEditowViewState {
+		cuwsowState: ICuwsowState[];
 		viewState: IViewState;
-		contributionsState: {
-			[id: string]: any;
+		contwibutionsState: {
+			[id: stwing]: any;
 		};
 	}
 
 	/**
-	 * (Serializable) View state for the diff editor.
+	 * (Sewiawizabwe) View state fow the diff editow.
 	 */
-	export interface IDiffEditorViewState {
-		original: ICodeEditorViewState | null;
-		modified: ICodeEditorViewState | null;
+	expowt intewface IDiffEditowViewState {
+		owiginaw: ICodeEditowViewState | nuww;
+		modified: ICodeEditowViewState | nuww;
 	}
 
 	/**
-	 * An editor view state.
+	 * An editow view state.
 	 */
-	export type IEditorViewState = ICodeEditorViewState | IDiffEditorViewState;
+	expowt type IEditowViewState = ICodeEditowViewState | IDiffEditowViewState;
 
-	export enum ScrollType {
+	expowt enum ScwowwType {
 		Smooth = 0,
 		Immediate = 1
 	}
 
 	/**
-	 * An editor.
+	 * An editow.
 	 */
-	export interface IEditor {
+	expowt intewface IEditow {
 		/**
-		 * An event emitted when the editor has been disposed.
+		 * An event emitted when the editow has been disposed.
 		 * @event
 		 */
-		onDidDispose(listener: () => void): IDisposable;
+		onDidDispose(wistena: () => void): IDisposabwe;
 		/**
-		 * Dispose the editor.
+		 * Dispose the editow.
 		 */
 		dispose(): void;
 		/**
-		 * Get a unique id for this editor instance.
+		 * Get a unique id fow this editow instance.
 		 */
-		getId(): string;
+		getId(): stwing;
 		/**
-		 * Get the editor type. Please see `EditorType`.
+		 * Get the editow type. Pwease see `EditowType`.
 		 * This is to avoid an instanceof check
 		 */
-		getEditorType(): string;
+		getEditowType(): stwing;
 		/**
-		 * Update the editor's options after the editor has been created.
+		 * Update the editow's options afta the editow has been cweated.
 		 */
-		updateOptions(newOptions: IEditorOptions): void;
+		updateOptions(newOptions: IEditowOptions): void;
 		/**
-		 * Instructs the editor to remeasure its container. This method should
-		 * be called when the container of the editor gets resized.
+		 * Instwucts the editow to wemeasuwe its containa. This method shouwd
+		 * be cawwed when the containa of the editow gets wesized.
 		 *
-		 * If a dimension is passed in, the passed in value will be used.
+		 * If a dimension is passed in, the passed in vawue wiww be used.
 		 */
-		layout(dimension?: IDimension): void;
+		wayout(dimension?: IDimension): void;
 		/**
-		 * Brings browser focus to the editor text
+		 * Bwings bwowsa focus to the editow text
 		 */
 		focus(): void;
 		/**
-		 * Returns true if the text inside this editor is focused (i.e. cursor is blinking).
+		 * Wetuwns twue if the text inside this editow is focused (i.e. cuwsow is bwinking).
 		 */
-		hasTextFocus(): boolean;
+		hasTextFocus(): boowean;
 		/**
-		 * Returns all actions associated with this editor.
+		 * Wetuwns aww actions associated with this editow.
 		 */
-		getSupportedActions(): IEditorAction[];
+		getSuppowtedActions(): IEditowAction[];
 		/**
-		 * Saves current view state of the editor in a serializable object.
+		 * Saves cuwwent view state of the editow in a sewiawizabwe object.
 		 */
-		saveViewState(): IEditorViewState | null;
+		saveViewState(): IEditowViewState | nuww;
 		/**
-		 * Restores the view state of the editor from a serializable object generated by `saveViewState`.
+		 * Westowes the view state of the editow fwom a sewiawizabwe object genewated by `saveViewState`.
 		 */
-		restoreViewState(state: IEditorViewState): void;
+		westoweViewState(state: IEditowViewState): void;
 		/**
-		 * Given a position, returns a column number that takes tab-widths into account.
+		 * Given a position, wetuwns a cowumn numba that takes tab-widths into account.
 		 */
-		getVisibleColumnFromPosition(position: IPosition): number;
+		getVisibweCowumnFwomPosition(position: IPosition): numba;
 		/**
-		 * Returns the primary position of the cursor.
+		 * Wetuwns the pwimawy position of the cuwsow.
 		 */
-		getPosition(): Position | null;
+		getPosition(): Position | nuww;
 		/**
-		 * Set the primary position of the cursor. This will remove any secondary cursors.
-		 * @param position New primary cursor's position
+		 * Set the pwimawy position of the cuwsow. This wiww wemove any secondawy cuwsows.
+		 * @pawam position New pwimawy cuwsow's position
 		 */
 		setPosition(position: IPosition): void;
 		/**
-		 * Scroll vertically as necessary and reveal a line.
+		 * Scwoww vewticawwy as necessawy and weveaw a wine.
 		 */
-		revealLine(lineNumber: number, scrollType?: ScrollType): void;
+		weveawWine(wineNumba: numba, scwowwType?: ScwowwType): void;
 		/**
-		 * Scroll vertically as necessary and reveal a line centered vertically.
+		 * Scwoww vewticawwy as necessawy and weveaw a wine centewed vewticawwy.
 		 */
-		revealLineInCenter(lineNumber: number, scrollType?: ScrollType): void;
+		weveawWineInCenta(wineNumba: numba, scwowwType?: ScwowwType): void;
 		/**
-		 * Scroll vertically as necessary and reveal a line centered vertically only if it lies outside the viewport.
+		 * Scwoww vewticawwy as necessawy and weveaw a wine centewed vewticawwy onwy if it wies outside the viewpowt.
 		 */
-		revealLineInCenterIfOutsideViewport(lineNumber: number, scrollType?: ScrollType): void;
+		weveawWineInCentewIfOutsideViewpowt(wineNumba: numba, scwowwType?: ScwowwType): void;
 		/**
-		 * Scroll vertically as necessary and reveal a line close to the top of the viewport,
-		 * optimized for viewing a code definition.
+		 * Scwoww vewticawwy as necessawy and weveaw a wine cwose to the top of the viewpowt,
+		 * optimized fow viewing a code definition.
 		 */
-		revealLineNearTop(lineNumber: number, scrollType?: ScrollType): void;
+		weveawWineNeawTop(wineNumba: numba, scwowwType?: ScwowwType): void;
 		/**
-		 * Scroll vertically or horizontally as necessary and reveal a position.
+		 * Scwoww vewticawwy ow howizontawwy as necessawy and weveaw a position.
 		 */
-		revealPosition(position: IPosition, scrollType?: ScrollType): void;
+		weveawPosition(position: IPosition, scwowwType?: ScwowwType): void;
 		/**
-		 * Scroll vertically or horizontally as necessary and reveal a position centered vertically.
+		 * Scwoww vewticawwy ow howizontawwy as necessawy and weveaw a position centewed vewticawwy.
 		 */
-		revealPositionInCenter(position: IPosition, scrollType?: ScrollType): void;
+		weveawPositionInCenta(position: IPosition, scwowwType?: ScwowwType): void;
 		/**
-		 * Scroll vertically or horizontally as necessary and reveal a position centered vertically only if it lies outside the viewport.
+		 * Scwoww vewticawwy ow howizontawwy as necessawy and weveaw a position centewed vewticawwy onwy if it wies outside the viewpowt.
 		 */
-		revealPositionInCenterIfOutsideViewport(position: IPosition, scrollType?: ScrollType): void;
+		weveawPositionInCentewIfOutsideViewpowt(position: IPosition, scwowwType?: ScwowwType): void;
 		/**
-		 * Scroll vertically or horizontally as necessary and reveal a position close to the top of the viewport,
-		 * optimized for viewing a code definition.
+		 * Scwoww vewticawwy ow howizontawwy as necessawy and weveaw a position cwose to the top of the viewpowt,
+		 * optimized fow viewing a code definition.
 		 */
-		revealPositionNearTop(position: IPosition, scrollType?: ScrollType): void;
+		weveawPositionNeawTop(position: IPosition, scwowwType?: ScwowwType): void;
 		/**
-		 * Returns the primary selection of the editor.
+		 * Wetuwns the pwimawy sewection of the editow.
 		 */
-		getSelection(): Selection | null;
+		getSewection(): Sewection | nuww;
 		/**
-		 * Returns all the selections of the editor.
+		 * Wetuwns aww the sewections of the editow.
 		 */
-		getSelections(): Selection[] | null;
+		getSewections(): Sewection[] | nuww;
 		/**
-		 * Set the primary selection of the editor. This will remove any secondary cursors.
-		 * @param selection The new selection
+		 * Set the pwimawy sewection of the editow. This wiww wemove any secondawy cuwsows.
+		 * @pawam sewection The new sewection
 		 */
-		setSelection(selection: IRange): void;
+		setSewection(sewection: IWange): void;
 		/**
-		 * Set the primary selection of the editor. This will remove any secondary cursors.
-		 * @param selection The new selection
+		 * Set the pwimawy sewection of the editow. This wiww wemove any secondawy cuwsows.
+		 * @pawam sewection The new sewection
 		 */
-		setSelection(selection: Range): void;
+		setSewection(sewection: Wange): void;
 		/**
-		 * Set the primary selection of the editor. This will remove any secondary cursors.
-		 * @param selection The new selection
+		 * Set the pwimawy sewection of the editow. This wiww wemove any secondawy cuwsows.
+		 * @pawam sewection The new sewection
 		 */
-		setSelection(selection: ISelection): void;
+		setSewection(sewection: ISewection): void;
 		/**
-		 * Set the primary selection of the editor. This will remove any secondary cursors.
-		 * @param selection The new selection
+		 * Set the pwimawy sewection of the editow. This wiww wemove any secondawy cuwsows.
+		 * @pawam sewection The new sewection
 		 */
-		setSelection(selection: Selection): void;
+		setSewection(sewection: Sewection): void;
 		/**
-		 * Set the selections for all the cursors of the editor.
-		 * Cursors will be removed or added, as necessary.
+		 * Set the sewections fow aww the cuwsows of the editow.
+		 * Cuwsows wiww be wemoved ow added, as necessawy.
 		 */
-		setSelections(selections: readonly ISelection[]): void;
+		setSewections(sewections: weadonwy ISewection[]): void;
 		/**
-		 * Scroll vertically as necessary and reveal lines.
+		 * Scwoww vewticawwy as necessawy and weveaw wines.
 		 */
-		revealLines(startLineNumber: number, endLineNumber: number, scrollType?: ScrollType): void;
+		weveawWines(stawtWineNumba: numba, endWineNumba: numba, scwowwType?: ScwowwType): void;
 		/**
-		 * Scroll vertically as necessary and reveal lines centered vertically.
+		 * Scwoww vewticawwy as necessawy and weveaw wines centewed vewticawwy.
 		 */
-		revealLinesInCenter(lineNumber: number, endLineNumber: number, scrollType?: ScrollType): void;
+		weveawWinesInCenta(wineNumba: numba, endWineNumba: numba, scwowwType?: ScwowwType): void;
 		/**
-		 * Scroll vertically as necessary and reveal lines centered vertically only if it lies outside the viewport.
+		 * Scwoww vewticawwy as necessawy and weveaw wines centewed vewticawwy onwy if it wies outside the viewpowt.
 		 */
-		revealLinesInCenterIfOutsideViewport(lineNumber: number, endLineNumber: number, scrollType?: ScrollType): void;
+		weveawWinesInCentewIfOutsideViewpowt(wineNumba: numba, endWineNumba: numba, scwowwType?: ScwowwType): void;
 		/**
-		 * Scroll vertically as necessary and reveal lines close to the top of the viewport,
-		 * optimized for viewing a code definition.
+		 * Scwoww vewticawwy as necessawy and weveaw wines cwose to the top of the viewpowt,
+		 * optimized fow viewing a code definition.
 		 */
-		revealLinesNearTop(lineNumber: number, endLineNumber: number, scrollType?: ScrollType): void;
+		weveawWinesNeawTop(wineNumba: numba, endWineNumba: numba, scwowwType?: ScwowwType): void;
 		/**
-		 * Scroll vertically or horizontally as necessary and reveal a range.
+		 * Scwoww vewticawwy ow howizontawwy as necessawy and weveaw a wange.
 		 */
-		revealRange(range: IRange, scrollType?: ScrollType): void;
+		weveawWange(wange: IWange, scwowwType?: ScwowwType): void;
 		/**
-		 * Scroll vertically or horizontally as necessary and reveal a range centered vertically.
+		 * Scwoww vewticawwy ow howizontawwy as necessawy and weveaw a wange centewed vewticawwy.
 		 */
-		revealRangeInCenter(range: IRange, scrollType?: ScrollType): void;
+		weveawWangeInCenta(wange: IWange, scwowwType?: ScwowwType): void;
 		/**
-		 * Scroll vertically or horizontally as necessary and reveal a range at the top of the viewport.
+		 * Scwoww vewticawwy ow howizontawwy as necessawy and weveaw a wange at the top of the viewpowt.
 		 */
-		revealRangeAtTop(range: IRange, scrollType?: ScrollType): void;
+		weveawWangeAtTop(wange: IWange, scwowwType?: ScwowwType): void;
 		/**
-		 * Scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.
+		 * Scwoww vewticawwy ow howizontawwy as necessawy and weveaw a wange centewed vewticawwy onwy if it wies outside the viewpowt.
 		 */
-		revealRangeInCenterIfOutsideViewport(range: IRange, scrollType?: ScrollType): void;
+		weveawWangeInCentewIfOutsideViewpowt(wange: IWange, scwowwType?: ScwowwType): void;
 		/**
-		 * Scroll vertically or horizontally as necessary and reveal a range close to the top of the viewport,
-		 * optimized for viewing a code definition.
+		 * Scwoww vewticawwy ow howizontawwy as necessawy and weveaw a wange cwose to the top of the viewpowt,
+		 * optimized fow viewing a code definition.
 		 */
-		revealRangeNearTop(range: IRange, scrollType?: ScrollType): void;
+		weveawWangeNeawTop(wange: IWange, scwowwType?: ScwowwType): void;
 		/**
-		 * Scroll vertically or horizontally as necessary and reveal a range close to the top of the viewport,
-		 * optimized for viewing a code definition. Only if it lies outside the viewport.
+		 * Scwoww vewticawwy ow howizontawwy as necessawy and weveaw a wange cwose to the top of the viewpowt,
+		 * optimized fow viewing a code definition. Onwy if it wies outside the viewpowt.
 		 */
-		revealRangeNearTopIfOutsideViewport(range: IRange, scrollType?: ScrollType): void;
+		weveawWangeNeawTopIfOutsideViewpowt(wange: IWange, scwowwType?: ScwowwType): void;
 		/**
-		 * Directly trigger a handler or an editor action.
-		 * @param source The source of the call.
-		 * @param handlerId The id of the handler or the id of a contribution.
-		 * @param payload Extra data to be sent to the handler.
+		 * Diwectwy twigga a handwa ow an editow action.
+		 * @pawam souwce The souwce of the caww.
+		 * @pawam handwewId The id of the handwa ow the id of a contwibution.
+		 * @pawam paywoad Extwa data to be sent to the handwa.
 		 */
-		trigger(source: string | null | undefined, handlerId: string, payload: any): void;
+		twigga(souwce: stwing | nuww | undefined, handwewId: stwing, paywoad: any): void;
 		/**
-		 * Gets the current model attached to this editor.
+		 * Gets the cuwwent modew attached to this editow.
 		 */
-		getModel(): IEditorModel | null;
+		getModew(): IEditowModew | nuww;
 		/**
-		 * Sets the current model attached to this editor.
-		 * If the previous model was created by the editor via the value key in the options
-		 * literal object, it will be destroyed. Otherwise, if the previous model was set
-		 * via setModel, or the model key in the options literal object, the previous model
-		 * will not be destroyed.
-		 * It is safe to call setModel(null) to simply detach the current model from the editor.
+		 * Sets the cuwwent modew attached to this editow.
+		 * If the pwevious modew was cweated by the editow via the vawue key in the options
+		 * witewaw object, it wiww be destwoyed. Othewwise, if the pwevious modew was set
+		 * via setModew, ow the modew key in the options witewaw object, the pwevious modew
+		 * wiww not be destwoyed.
+		 * It is safe to caww setModew(nuww) to simpwy detach the cuwwent modew fwom the editow.
 		 */
-		setModel(model: IEditorModel | null): void;
+		setModew(modew: IEditowModew | nuww): void;
 	}
 
 	/**
-	 * An editor contribution that gets created every time a new editor gets created and gets disposed when the editor gets disposed.
+	 * An editow contwibution that gets cweated evewy time a new editow gets cweated and gets disposed when the editow gets disposed.
 	 */
-	export interface IEditorContribution {
+	expowt intewface IEditowContwibution {
 		/**
-		 * Dispose this contribution.
+		 * Dispose this contwibution.
 		 */
 		dispose(): void;
 		/**
-		 * Store view state.
+		 * Stowe view state.
 		 */
 		saveViewState?(): any;
 		/**
-		 * Restore view state.
+		 * Westowe view state.
 		 */
-		restoreViewState?(state: any): void;
+		westoweViewState?(state: any): void;
 	}
 
 	/**
-	 * The type of the `IEditor`.
+	 * The type of the `IEditow`.
 	 */
-	export const EditorType: {
-		ICodeEditor: string;
-		IDiffEditor: string;
+	expowt const EditowType: {
+		ICodeEditow: stwing;
+		IDiffEditow: stwing;
 	};
 
 	/**
-	 * An event describing that the current mode associated with a model has changed.
+	 * An event descwibing that the cuwwent mode associated with a modew has changed.
 	 */
-	export interface IModelLanguageChangedEvent {
+	expowt intewface IModewWanguageChangedEvent {
 		/**
-		 * Previous language
+		 * Pwevious wanguage
 		 */
-		readonly oldLanguage: string;
+		weadonwy owdWanguage: stwing;
 		/**
-		 * New language
+		 * New wanguage
 		 */
-		readonly newLanguage: string;
+		weadonwy newWanguage: stwing;
 	}
 
 	/**
-	 * An event describing that the language configuration associated with a model has changed.
+	 * An event descwibing that the wanguage configuwation associated with a modew has changed.
 	 */
-	export interface IModelLanguageConfigurationChangedEvent {
+	expowt intewface IModewWanguageConfiguwationChangedEvent {
 	}
 
-	export interface IModelContentChange {
+	expowt intewface IModewContentChange {
 		/**
-		 * The range that got replaced.
+		 * The wange that got wepwaced.
 		 */
-		readonly range: IRange;
+		weadonwy wange: IWange;
 		/**
-		 * The offset of the range that got replaced.
+		 * The offset of the wange that got wepwaced.
 		 */
-		readonly rangeOffset: number;
+		weadonwy wangeOffset: numba;
 		/**
-		 * The length of the range that got replaced.
+		 * The wength of the wange that got wepwaced.
 		 */
-		readonly rangeLength: number;
+		weadonwy wangeWength: numba;
 		/**
-		 * The new text for the range.
+		 * The new text fow the wange.
 		 */
-		readonly text: string;
+		weadonwy text: stwing;
 	}
 
 	/**
-	 * An event describing a change in the text of a model.
+	 * An event descwibing a change in the text of a modew.
 	 */
-	export interface IModelContentChangedEvent {
-		readonly changes: IModelContentChange[];
+	expowt intewface IModewContentChangedEvent {
+		weadonwy changes: IModewContentChange[];
 		/**
-		 * The (new) end-of-line character.
+		 * The (new) end-of-wine chawacta.
 		 */
-		readonly eol: string;
+		weadonwy eow: stwing;
 		/**
-		 * The new version id the model has transitioned to.
+		 * The new vewsion id the modew has twansitioned to.
 		 */
-		readonly versionId: number;
+		weadonwy vewsionId: numba;
 		/**
-		 * Flag that indicates that this event was generated while undoing.
+		 * Fwag that indicates that this event was genewated whiwe undoing.
 		 */
-		readonly isUndoing: boolean;
+		weadonwy isUndoing: boowean;
 		/**
-		 * Flag that indicates that this event was generated while redoing.
+		 * Fwag that indicates that this event was genewated whiwe wedoing.
 		 */
-		readonly isRedoing: boolean;
+		weadonwy isWedoing: boowean;
 		/**
-		 * Flag that indicates that all decorations were lost with this edit.
-		 * The model has been reset to a new value.
+		 * Fwag that indicates that aww decowations wewe wost with this edit.
+		 * The modew has been weset to a new vawue.
 		 */
-		readonly isFlush: boolean;
+		weadonwy isFwush: boowean;
 	}
 
 	/**
-	 * An event describing that model decorations have changed.
+	 * An event descwibing that modew decowations have changed.
 	 */
-	export interface IModelDecorationsChangedEvent {
-		readonly affectsMinimap: boolean;
-		readonly affectsOverviewRuler: boolean;
+	expowt intewface IModewDecowationsChangedEvent {
+		weadonwy affectsMinimap: boowean;
+		weadonwy affectsOvewviewWuwa: boowean;
 	}
 
-	export interface IModelOptionsChangedEvent {
-		readonly tabSize: boolean;
-		readonly indentSize: boolean;
-		readonly insertSpaces: boolean;
-		readonly trimAutoWhitespace: boolean;
+	expowt intewface IModewOptionsChangedEvent {
+		weadonwy tabSize: boowean;
+		weadonwy indentSize: boowean;
+		weadonwy insewtSpaces: boowean;
+		weadonwy twimAutoWhitespace: boowean;
 	}
 
 	/**
-	 * Describes the reason the cursor has changed its position.
+	 * Descwibes the weason the cuwsow has changed its position.
 	 */
-	export enum CursorChangeReason {
+	expowt enum CuwsowChangeWeason {
 		/**
-		 * Unknown or not set.
+		 * Unknown ow not set.
 		 */
 		NotSet = 0,
 		/**
-		 * A `model.setValue()` was called.
+		 * A `modew.setVawue()` was cawwed.
 		 */
-		ContentFlush = 1,
+		ContentFwush = 1,
 		/**
-		 * The `model` has been changed outside of this cursor and the cursor recovers its position from associated markers.
+		 * The `modew` has been changed outside of this cuwsow and the cuwsow wecovews its position fwom associated mawkews.
 		 */
-		RecoverFromMarkers = 2,
+		WecovewFwomMawkews = 2,
 		/**
-		 * There was an explicit user gesture.
+		 * Thewe was an expwicit usa gestuwe.
 		 */
-		Explicit = 3,
+		Expwicit = 3,
 		/**
-		 * There was a Paste.
+		 * Thewe was a Paste.
 		 */
 		Paste = 4,
 		/**
-		 * There was an Undo.
+		 * Thewe was an Undo.
 		 */
 		Undo = 5,
 		/**
-		 * There was a Redo.
+		 * Thewe was a Wedo.
 		 */
-		Redo = 6
+		Wedo = 6
 	}
 
 	/**
-	 * An event describing that the cursor position has changed.
+	 * An event descwibing that the cuwsow position has changed.
 	 */
-	export interface ICursorPositionChangedEvent {
+	expowt intewface ICuwsowPositionChangedEvent {
 		/**
-		 * Primary cursor's position.
+		 * Pwimawy cuwsow's position.
 		 */
-		readonly position: Position;
+		weadonwy position: Position;
 		/**
-		 * Secondary cursors' position.
+		 * Secondawy cuwsows' position.
 		 */
-		readonly secondaryPositions: Position[];
+		weadonwy secondawyPositions: Position[];
 		/**
-		 * Reason.
+		 * Weason.
 		 */
-		readonly reason: CursorChangeReason;
+		weadonwy weason: CuwsowChangeWeason;
 		/**
-		 * Source of the call that caused the event.
+		 * Souwce of the caww that caused the event.
 		 */
-		readonly source: string;
+		weadonwy souwce: stwing;
 	}
 
 	/**
-	 * An event describing that the cursor selection has changed.
+	 * An event descwibing that the cuwsow sewection has changed.
 	 */
-	export interface ICursorSelectionChangedEvent {
+	expowt intewface ICuwsowSewectionChangedEvent {
 		/**
-		 * The primary selection.
+		 * The pwimawy sewection.
 		 */
-		readonly selection: Selection;
+		weadonwy sewection: Sewection;
 		/**
-		 * The secondary selections.
+		 * The secondawy sewections.
 		 */
-		readonly secondarySelections: Selection[];
+		weadonwy secondawySewections: Sewection[];
 		/**
-		 * The model version id.
+		 * The modew vewsion id.
 		 */
-		readonly modelVersionId: number;
+		weadonwy modewVewsionId: numba;
 		/**
-		 * The old selections.
+		 * The owd sewections.
 		 */
-		readonly oldSelections: Selection[] | null;
+		weadonwy owdSewections: Sewection[] | nuww;
 		/**
-		 * The model version id the that `oldSelections` refer to.
+		 * The modew vewsion id the that `owdSewections` wefa to.
 		 */
-		readonly oldModelVersionId: number;
+		weadonwy owdModewVewsionId: numba;
 		/**
-		 * Source of the call that caused the event.
+		 * Souwce of the caww that caused the event.
 		 */
-		readonly source: string;
+		weadonwy souwce: stwing;
 		/**
-		 * Reason.
+		 * Weason.
 		 */
-		readonly reason: CursorChangeReason;
+		weadonwy weason: CuwsowChangeWeason;
 	}
 
-	export enum AccessibilitySupport {
+	expowt enum AccessibiwitySuppowt {
 		/**
-		 * This should be the browser case where it is not known if a screen reader is attached or no.
+		 * This shouwd be the bwowsa case whewe it is not known if a scween weada is attached ow no.
 		 */
 		Unknown = 0,
-		Disabled = 1,
-		Enabled = 2
+		Disabwed = 1,
+		Enabwed = 2
 	}
 
 	/**
-	 * Configuration options for auto closing quotes and brackets
+	 * Configuwation options fow auto cwosing quotes and bwackets
 	 */
-	export type EditorAutoClosingStrategy = 'always' | 'languageDefined' | 'beforeWhitespace' | 'never';
+	expowt type EditowAutoCwosingStwategy = 'awways' | 'wanguageDefined' | 'befoweWhitespace' | 'neva';
 
 	/**
-	 * Configuration options for auto wrapping quotes and brackets
+	 * Configuwation options fow auto wwapping quotes and bwackets
 	 */
-	export type EditorAutoSurroundStrategy = 'languageDefined' | 'quotes' | 'brackets' | 'never';
+	expowt type EditowAutoSuwwoundStwategy = 'wanguageDefined' | 'quotes' | 'bwackets' | 'neva';
 
 	/**
-	 * Configuration options for typing over closing quotes or brackets
+	 * Configuwation options fow typing ova cwosing quotes ow bwackets
 	 */
-	export type EditorAutoClosingEditStrategy = 'always' | 'auto' | 'never';
+	expowt type EditowAutoCwosingEditStwategy = 'awways' | 'auto' | 'neva';
 
 	/**
-	 * Configuration options for auto indentation in the editor
+	 * Configuwation options fow auto indentation in the editow
 	 */
-	export enum EditorAutoIndentStrategy {
+	expowt enum EditowAutoIndentStwategy {
 		None = 0,
 		Keep = 1,
-		Brackets = 2,
+		Bwackets = 2,
 		Advanced = 3,
-		Full = 4
+		Fuww = 4
 	}
 
 	/**
-	 * Configuration options for the editor.
+	 * Configuwation options fow the editow.
 	 */
-	export interface IEditorOptions {
+	expowt intewface IEditowOptions {
 		/**
-		 * This editor is used inside a diff editor.
+		 * This editow is used inside a diff editow.
 		 */
-		inDiffEditor?: boolean;
+		inDiffEditow?: boowean;
 		/**
-		 * The aria label for the editor's textarea (when it is focused).
+		 * The awia wabew fow the editow's textawea (when it is focused).
 		 */
-		ariaLabel?: string;
+		awiaWabew?: stwing;
 		/**
-		 * The `tabindex` property of the editor's textarea
+		 * The `tabindex` pwopewty of the editow's textawea
 		 */
-		tabIndex?: number;
+		tabIndex?: numba;
 		/**
-		 * Render vertical lines at the specified columns.
-		 * Defaults to empty array.
+		 * Wenda vewticaw wines at the specified cowumns.
+		 * Defauwts to empty awway.
 		 */
-		rulers?: (number | IRulerOption)[];
+		wuwews?: (numba | IWuwewOption)[];
 		/**
-		 * A string containing the word separators used when doing word navigation.
-		 * Defaults to `~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?
+		 * A stwing containing the wowd sepawatows used when doing wowd navigation.
+		 * Defauwts to `~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?
 		 */
-		wordSeparators?: string;
+		wowdSepawatows?: stwing;
 		/**
-		 * Enable Linux primary clipboard.
-		 * Defaults to true.
+		 * Enabwe Winux pwimawy cwipboawd.
+		 * Defauwts to twue.
 		 */
-		selectionClipboard?: boolean;
+		sewectionCwipboawd?: boowean;
 		/**
-		 * Control the rendering of line numbers.
-		 * If it is a function, it will be invoked when rendering a line number and the return value will be rendered.
-		 * Otherwise, if it is a truthy, line numbers will be rendered normally (equivalent of using an identity function).
-		 * Otherwise, line numbers will not be rendered.
-		 * Defaults to `on`.
+		 * Contwow the wendewing of wine numbews.
+		 * If it is a function, it wiww be invoked when wendewing a wine numba and the wetuwn vawue wiww be wendewed.
+		 * Othewwise, if it is a twuthy, wine numbews wiww be wendewed nowmawwy (equivawent of using an identity function).
+		 * Othewwise, wine numbews wiww not be wendewed.
+		 * Defauwts to `on`.
 		 */
-		lineNumbers?: LineNumbersType;
+		wineNumbews?: WineNumbewsType;
 		/**
-		 * Controls the minimal number of visible leading and trailing lines surrounding the cursor.
-		 * Defaults to 0.
+		 * Contwows the minimaw numba of visibwe weading and twaiwing wines suwwounding the cuwsow.
+		 * Defauwts to 0.
 		*/
-		cursorSurroundingLines?: number;
+		cuwsowSuwwoundingWines?: numba;
 		/**
-		 * Controls when `cursorSurroundingLines` should be enforced
-		 * Defaults to `default`, `cursorSurroundingLines` is not enforced when cursor position is changed
+		 * Contwows when `cuwsowSuwwoundingWines` shouwd be enfowced
+		 * Defauwts to `defauwt`, `cuwsowSuwwoundingWines` is not enfowced when cuwsow position is changed
 		 * by mouse.
 		*/
-		cursorSurroundingLinesStyle?: 'default' | 'all';
+		cuwsowSuwwoundingWinesStywe?: 'defauwt' | 'aww';
 		/**
-		 * Render last line number when the file ends with a newline.
-		 * Defaults to true.
+		 * Wenda wast wine numba when the fiwe ends with a newwine.
+		 * Defauwts to twue.
 		*/
-		renderFinalNewline?: boolean;
+		wendewFinawNewwine?: boowean;
 		/**
-		 * Remove unusual line terminators like LINE SEPARATOR (LS), PARAGRAPH SEPARATOR (PS).
-		 * Defaults to 'prompt'.
+		 * Wemove unusuaw wine tewminatows wike WINE SEPAWATOW (WS), PAWAGWAPH SEPAWATOW (PS).
+		 * Defauwts to 'pwompt'.
 		 */
-		unusualLineTerminators?: 'auto' | 'off' | 'prompt';
+		unusuawWineTewminatows?: 'auto' | 'off' | 'pwompt';
 		/**
-		 * Should the corresponding line be selected when clicking on the line number?
-		 * Defaults to true.
+		 * Shouwd the cowwesponding wine be sewected when cwicking on the wine numba?
+		 * Defauwts to twue.
 		 */
-		selectOnLineNumbers?: boolean;
+		sewectOnWineNumbews?: boowean;
 		/**
-		 * Control the width of line numbers, by reserving horizontal space for rendering at least an amount of digits.
-		 * Defaults to 5.
+		 * Contwow the width of wine numbews, by wesewving howizontaw space fow wendewing at weast an amount of digits.
+		 * Defauwts to 5.
 		 */
-		lineNumbersMinChars?: number;
+		wineNumbewsMinChaws?: numba;
 		/**
-		 * Enable the rendering of the glyph margin.
-		 * Defaults to true in vscode and to false in monaco-editor.
+		 * Enabwe the wendewing of the gwyph mawgin.
+		 * Defauwts to twue in vscode and to fawse in monaco-editow.
 		 */
-		glyphMargin?: boolean;
+		gwyphMawgin?: boowean;
 		/**
-		 * The width reserved for line decorations (in px).
-		 * Line decorations are placed between line numbers and the editor content.
-		 * You can pass in a string in the format floating point followed by "ch". e.g. 1.3ch.
-		 * Defaults to 10.
+		 * The width wesewved fow wine decowations (in px).
+		 * Wine decowations awe pwaced between wine numbews and the editow content.
+		 * You can pass in a stwing in the fowmat fwoating point fowwowed by "ch". e.g. 1.3ch.
+		 * Defauwts to 10.
 		 */
-		lineDecorationsWidth?: number | string;
+		wineDecowationsWidth?: numba | stwing;
 		/**
-		 * When revealing the cursor, a virtual padding (px) is added to the cursor, turning it into a rectangle.
-		 * This virtual padding ensures that the cursor gets revealed before hitting the edge of the viewport.
-		 * Defaults to 30 (px).
+		 * When weveawing the cuwsow, a viwtuaw padding (px) is added to the cuwsow, tuwning it into a wectangwe.
+		 * This viwtuaw padding ensuwes that the cuwsow gets weveawed befowe hitting the edge of the viewpowt.
+		 * Defauwts to 30 (px).
 		 */
-		revealHorizontalRightPadding?: number;
+		weveawHowizontawWightPadding?: numba;
 		/**
-		 * Render the editor selection with rounded borders.
-		 * Defaults to true.
+		 * Wenda the editow sewection with wounded bowdews.
+		 * Defauwts to twue.
 		 */
-		roundedSelection?: boolean;
+		woundedSewection?: boowean;
 		/**
-		 * Class name to be added to the editor.
+		 * Cwass name to be added to the editow.
 		 */
-		extraEditorClassName?: string;
+		extwaEditowCwassName?: stwing;
 		/**
-		 * Should the editor be read only. See also `domReadOnly`.
-		 * Defaults to false.
+		 * Shouwd the editow be wead onwy. See awso `domWeadOnwy`.
+		 * Defauwts to fawse.
 		 */
-		readOnly?: boolean;
+		weadOnwy?: boowean;
 		/**
-		 * Should the textarea used for input use the DOM `readonly` attribute.
-		 * Defaults to false.
+		 * Shouwd the textawea used fow input use the DOM `weadonwy` attwibute.
+		 * Defauwts to fawse.
 		 */
-		domReadOnly?: boolean;
+		domWeadOnwy?: boowean;
 		/**
-		 * Enable linked editing.
-		 * Defaults to false.
+		 * Enabwe winked editing.
+		 * Defauwts to fawse.
 		 */
-		linkedEditing?: boolean;
+		winkedEditing?: boowean;
 		/**
-		 * deprecated, use linkedEditing instead
+		 * depwecated, use winkedEditing instead
 		 */
-		renameOnType?: boolean;
+		wenameOnType?: boowean;
 		/**
-		 * Should the editor render validation decorations.
-		 * Defaults to editable.
+		 * Shouwd the editow wenda vawidation decowations.
+		 * Defauwts to editabwe.
 		 */
-		renderValidationDecorations?: 'editable' | 'on' | 'off';
+		wendewVawidationDecowations?: 'editabwe' | 'on' | 'off';
 		/**
-		 * Control the behavior and rendering of the scrollbars.
+		 * Contwow the behaviow and wendewing of the scwowwbaws.
 		 */
-		scrollbar?: IEditorScrollbarOptions;
+		scwowwbaw?: IEditowScwowwbawOptions;
 		/**
-		 * Control the behavior and rendering of the minimap.
+		 * Contwow the behaviow and wendewing of the minimap.
 		 */
-		minimap?: IEditorMinimapOptions;
+		minimap?: IEditowMinimapOptions;
 		/**
-		 * Control the behavior of the find widget.
+		 * Contwow the behaviow of the find widget.
 		 */
-		find?: IEditorFindOptions;
+		find?: IEditowFindOptions;
 		/**
-		 * Display overflow widgets as `fixed`.
-		 * Defaults to `false`.
+		 * Dispway ovewfwow widgets as `fixed`.
+		 * Defauwts to `fawse`.
 		 */
-		fixedOverflowWidgets?: boolean;
+		fixedOvewfwowWidgets?: boowean;
 		/**
-		 * The number of vertical lanes the overview ruler should render.
-		 * Defaults to 3.
+		 * The numba of vewticaw wanes the ovewview wuwa shouwd wenda.
+		 * Defauwts to 3.
 		 */
-		overviewRulerLanes?: number;
+		ovewviewWuwewWanes?: numba;
 		/**
-		 * Controls if a border should be drawn around the overview ruler.
-		 * Defaults to `true`.
+		 * Contwows if a bowda shouwd be dwawn awound the ovewview wuwa.
+		 * Defauwts to `twue`.
 		 */
-		overviewRulerBorder?: boolean;
+		ovewviewWuwewBowda?: boowean;
 		/**
-		 * Control the cursor animation style, possible values are 'blink', 'smooth', 'phase', 'expand' and 'solid'.
-		 * Defaults to 'blink'.
+		 * Contwow the cuwsow animation stywe, possibwe vawues awe 'bwink', 'smooth', 'phase', 'expand' and 'sowid'.
+		 * Defauwts to 'bwink'.
 		 */
-		cursorBlinking?: 'blink' | 'smooth' | 'phase' | 'expand' | 'solid';
+		cuwsowBwinking?: 'bwink' | 'smooth' | 'phase' | 'expand' | 'sowid';
 		/**
-		 * Zoom the font in the editor when using the mouse wheel in combination with holding Ctrl.
-		 * Defaults to false.
+		 * Zoom the font in the editow when using the mouse wheew in combination with howding Ctww.
+		 * Defauwts to fawse.
 		 */
-		mouseWheelZoom?: boolean;
+		mouseWheewZoom?: boowean;
 		/**
-		 * Control the mouse pointer style, either 'text' or 'default' or 'copy'
-		 * Defaults to 'text'
+		 * Contwow the mouse pointa stywe, eitha 'text' ow 'defauwt' ow 'copy'
+		 * Defauwts to 'text'
 		 */
-		mouseStyle?: 'text' | 'default' | 'copy';
+		mouseStywe?: 'text' | 'defauwt' | 'copy';
 		/**
-		 * Enable smooth caret animation.
-		 * Defaults to false.
+		 * Enabwe smooth cawet animation.
+		 * Defauwts to fawse.
 		 */
-		cursorSmoothCaretAnimation?: boolean;
+		cuwsowSmoothCawetAnimation?: boowean;
 		/**
-		 * Control the cursor style, either 'block' or 'line'.
-		 * Defaults to 'line'.
+		 * Contwow the cuwsow stywe, eitha 'bwock' ow 'wine'.
+		 * Defauwts to 'wine'.
 		 */
-		cursorStyle?: 'line' | 'block' | 'underline' | 'line-thin' | 'block-outline' | 'underline-thin';
+		cuwsowStywe?: 'wine' | 'bwock' | 'undewwine' | 'wine-thin' | 'bwock-outwine' | 'undewwine-thin';
 		/**
-		 * Control the width of the cursor when cursorStyle is set to 'line'
+		 * Contwow the width of the cuwsow when cuwsowStywe is set to 'wine'
 		 */
-		cursorWidth?: number;
+		cuwsowWidth?: numba;
 		/**
-		 * Enable font ligatures.
-		 * Defaults to false.
+		 * Enabwe font wigatuwes.
+		 * Defauwts to fawse.
 		 */
-		fontLigatures?: boolean | string;
+		fontWigatuwes?: boowean | stwing;
 		/**
-		 * Disable the use of `transform: translate3d(0px, 0px, 0px)` for the editor margin and lines layers.
-		 * The usage of `transform: translate3d(0px, 0px, 0px)` acts as a hint for browsers to create an extra layer.
-		 * Defaults to false.
+		 * Disabwe the use of `twansfowm: twanswate3d(0px, 0px, 0px)` fow the editow mawgin and wines wayews.
+		 * The usage of `twansfowm: twanswate3d(0px, 0px, 0px)` acts as a hint fow bwowsews to cweate an extwa waya.
+		 * Defauwts to fawse.
 		 */
-		disableLayerHinting?: boolean;
+		disabweWayewHinting?: boowean;
 		/**
-		 * Disable the optimizations for monospace fonts.
-		 * Defaults to false.
+		 * Disabwe the optimizations fow monospace fonts.
+		 * Defauwts to fawse.
 		 */
-		disableMonospaceOptimizations?: boolean;
+		disabweMonospaceOptimizations?: boowean;
 		/**
-		 * Should the cursor be hidden in the overview ruler.
-		 * Defaults to false.
+		 * Shouwd the cuwsow be hidden in the ovewview wuwa.
+		 * Defauwts to fawse.
 		 */
-		hideCursorInOverviewRuler?: boolean;
+		hideCuwsowInOvewviewWuwa?: boowean;
 		/**
-		 * Enable that scrolling can go one screen size after the last line.
-		 * Defaults to true.
+		 * Enabwe that scwowwing can go one scween size afta the wast wine.
+		 * Defauwts to twue.
 		 */
-		scrollBeyondLastLine?: boolean;
+		scwowwBeyondWastWine?: boowean;
 		/**
-		 * Enable that scrolling can go beyond the last column by a number of columns.
-		 * Defaults to 5.
+		 * Enabwe that scwowwing can go beyond the wast cowumn by a numba of cowumns.
+		 * Defauwts to 5.
 		 */
-		scrollBeyondLastColumn?: number;
+		scwowwBeyondWastCowumn?: numba;
 		/**
-		 * Enable that the editor animates scrolling to a position.
-		 * Defaults to false.
+		 * Enabwe that the editow animates scwowwing to a position.
+		 * Defauwts to fawse.
 		 */
-		smoothScrolling?: boolean;
+		smoothScwowwing?: boowean;
 		/**
-		 * Enable that the editor will install an interval to check if its container dom node size has changed.
-		 * Enabling this might have a severe performance impact.
-		 * Defaults to false.
+		 * Enabwe that the editow wiww instaww an intewvaw to check if its containa dom node size has changed.
+		 * Enabwing this might have a sevewe pewfowmance impact.
+		 * Defauwts to fawse.
 		 */
-		automaticLayout?: boolean;
+		automaticWayout?: boowean;
 		/**
-		 * Control the wrapping of the editor.
-		 * When `wordWrap` = "off", the lines will never wrap.
-		 * When `wordWrap` = "on", the lines will wrap at the viewport width.
-		 * When `wordWrap` = "wordWrapColumn", the lines will wrap at `wordWrapColumn`.
-		 * When `wordWrap` = "bounded", the lines will wrap at min(viewport width, wordWrapColumn).
-		 * Defaults to "off".
+		 * Contwow the wwapping of the editow.
+		 * When `wowdWwap` = "off", the wines wiww neva wwap.
+		 * When `wowdWwap` = "on", the wines wiww wwap at the viewpowt width.
+		 * When `wowdWwap` = "wowdWwapCowumn", the wines wiww wwap at `wowdWwapCowumn`.
+		 * When `wowdWwap` = "bounded", the wines wiww wwap at min(viewpowt width, wowdWwapCowumn).
+		 * Defauwts to "off".
 		 */
-		wordWrap?: 'off' | 'on' | 'wordWrapColumn' | 'bounded';
+		wowdWwap?: 'off' | 'on' | 'wowdWwapCowumn' | 'bounded';
 		/**
-		 * Override the `wordWrap` setting.
+		 * Ovewwide the `wowdWwap` setting.
 		 */
-		wordWrapOverride1?: 'off' | 'on' | 'inherit';
+		wowdWwapOvewwide1?: 'off' | 'on' | 'inhewit';
 		/**
-		 * Override the `wordWrapOverride1` setting.
+		 * Ovewwide the `wowdWwapOvewwide1` setting.
 		 */
-		wordWrapOverride2?: 'off' | 'on' | 'inherit';
+		wowdWwapOvewwide2?: 'off' | 'on' | 'inhewit';
 		/**
-		 * Control the wrapping of the editor.
-		 * When `wordWrap` = "off", the lines will never wrap.
-		 * When `wordWrap` = "on", the lines will wrap at the viewport width.
-		 * When `wordWrap` = "wordWrapColumn", the lines will wrap at `wordWrapColumn`.
-		 * When `wordWrap` = "bounded", the lines will wrap at min(viewport width, wordWrapColumn).
-		 * Defaults to 80.
+		 * Contwow the wwapping of the editow.
+		 * When `wowdWwap` = "off", the wines wiww neva wwap.
+		 * When `wowdWwap` = "on", the wines wiww wwap at the viewpowt width.
+		 * When `wowdWwap` = "wowdWwapCowumn", the wines wiww wwap at `wowdWwapCowumn`.
+		 * When `wowdWwap` = "bounded", the wines wiww wwap at min(viewpowt width, wowdWwapCowumn).
+		 * Defauwts to 80.
 		 */
-		wordWrapColumn?: number;
+		wowdWwapCowumn?: numba;
 		/**
-		 * Control indentation of wrapped lines. Can be: 'none', 'same', 'indent' or 'deepIndent'.
-		 * Defaults to 'same' in vscode and to 'none' in monaco-editor.
+		 * Contwow indentation of wwapped wines. Can be: 'none', 'same', 'indent' ow 'deepIndent'.
+		 * Defauwts to 'same' in vscode and to 'none' in monaco-editow.
 		 */
-		wrappingIndent?: 'none' | 'same' | 'indent' | 'deepIndent';
+		wwappingIndent?: 'none' | 'same' | 'indent' | 'deepIndent';
 		/**
-		 * Controls the wrapping strategy to use.
-		 * Defaults to 'simple'.
+		 * Contwows the wwapping stwategy to use.
+		 * Defauwts to 'simpwe'.
 		 */
-		wrappingStrategy?: 'simple' | 'advanced';
+		wwappingStwategy?: 'simpwe' | 'advanced';
 		/**
-		 * Configure word wrapping characters. A break will be introduced before these characters.
-		 * Defaults to '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋'.
+		 * Configuwe wowd wwapping chawactews. A bweak wiww be intwoduced befowe these chawactews.
+		 * Defauwts to '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋'.
 		 */
-		wordWrapBreakBeforeCharacters?: string;
+		wowdWwapBweakBefoweChawactews?: stwing;
 		/**
-		 * Configure word wrapping characters. A break will be introduced after these characters.
-		 * Defaults to ' \t})]?|/&.,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣'.
+		 * Configuwe wowd wwapping chawactews. A bweak wiww be intwoduced afta these chawactews.
+		 * Defauwts to ' \t})]?|/&.,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣'.
 		 */
-		wordWrapBreakAfterCharacters?: string;
+		wowdWwapBweakAftewChawactews?: stwing;
 		/**
-		 * Performance guard: Stop rendering a line after x characters.
-		 * Defaults to 10000.
-		 * Use -1 to never stop rendering
+		 * Pewfowmance guawd: Stop wendewing a wine afta x chawactews.
+		 * Defauwts to 10000.
+		 * Use -1 to neva stop wendewing
 		 */
-		stopRenderingLineAfter?: number;
+		stopWendewingWineAfta?: numba;
 		/**
-		 * Configure the editor's hover.
+		 * Configuwe the editow's hova.
 		 */
-		hover?: IEditorHoverOptions;
+		hova?: IEditowHovewOptions;
 		/**
-		 * Enable detecting links and making them clickable.
-		 * Defaults to true.
+		 * Enabwe detecting winks and making them cwickabwe.
+		 * Defauwts to twue.
 		 */
-		links?: boolean;
+		winks?: boowean;
 		/**
-		 * Enable inline color decorators and color picker rendering.
+		 * Enabwe inwine cowow decowatows and cowow picka wendewing.
 		 */
-		colorDecorators?: boolean;
+		cowowDecowatows?: boowean;
 		/**
-		 * Control the behaviour of comments in the editor.
+		 * Contwow the behaviouw of comments in the editow.
 		 */
-		comments?: IEditorCommentsOptions;
+		comments?: IEditowCommentsOptions;
 		/**
-		 * Enable custom contextmenu.
-		 * Defaults to true.
+		 * Enabwe custom contextmenu.
+		 * Defauwts to twue.
 		 */
-		contextmenu?: boolean;
+		contextmenu?: boowean;
 		/**
-		 * A multiplier to be used on the `deltaX` and `deltaY` of mouse wheel scroll events.
-		 * Defaults to 1.
+		 * A muwtipwia to be used on the `dewtaX` and `dewtaY` of mouse wheew scwoww events.
+		 * Defauwts to 1.
 		 */
-		mouseWheelScrollSensitivity?: number;
+		mouseWheewScwowwSensitivity?: numba;
 		/**
-		 * FastScrolling mulitplier speed when pressing `Alt`
-		 * Defaults to 5.
+		 * FastScwowwing muwitpwia speed when pwessing `Awt`
+		 * Defauwts to 5.
 		 */
-		fastScrollSensitivity?: number;
+		fastScwowwSensitivity?: numba;
 		/**
-		 * Enable that the editor scrolls only the predominant axis. Prevents horizontal drift when scrolling vertically on a trackpad.
-		 * Defaults to true.
+		 * Enabwe that the editow scwowws onwy the pwedominant axis. Pwevents howizontaw dwift when scwowwing vewticawwy on a twackpad.
+		 * Defauwts to twue.
 		 */
-		scrollPredominantAxis?: boolean;
+		scwowwPwedominantAxis?: boowean;
 		/**
-		 * Enable that the selection with the mouse and keys is doing column selection.
-		 * Defaults to false.
+		 * Enabwe that the sewection with the mouse and keys is doing cowumn sewection.
+		 * Defauwts to fawse.
 		 */
-		columnSelection?: boolean;
+		cowumnSewection?: boowean;
 		/**
-		 * The modifier to be used to add multiple cursors with the mouse.
-		 * Defaults to 'alt'
+		 * The modifia to be used to add muwtipwe cuwsows with the mouse.
+		 * Defauwts to 'awt'
 		 */
-		multiCursorModifier?: 'ctrlCmd' | 'alt';
+		muwtiCuwsowModifia?: 'ctwwCmd' | 'awt';
 		/**
-		 * Merge overlapping selections.
-		 * Defaults to true
+		 * Mewge ovewwapping sewections.
+		 * Defauwts to twue
 		 */
-		multiCursorMergeOverlapping?: boolean;
+		muwtiCuwsowMewgeOvewwapping?: boowean;
 		/**
-		 * Configure the behaviour when pasting a text with the line count equal to the cursor count.
-		 * Defaults to 'spread'.
+		 * Configuwe the behaviouw when pasting a text with the wine count equaw to the cuwsow count.
+		 * Defauwts to 'spwead'.
 		 */
-		multiCursorPaste?: 'spread' | 'full';
+		muwtiCuwsowPaste?: 'spwead' | 'fuww';
 		/**
-		 * Configure the editor's accessibility support.
-		 * Defaults to 'auto'. It is best to leave this to 'auto'.
+		 * Configuwe the editow's accessibiwity suppowt.
+		 * Defauwts to 'auto'. It is best to weave this to 'auto'.
 		 */
-		accessibilitySupport?: 'auto' | 'off' | 'on';
+		accessibiwitySuppowt?: 'auto' | 'off' | 'on';
 		/**
-		 * Controls the number of lines in the editor that can be read out by a screen reader
+		 * Contwows the numba of wines in the editow that can be wead out by a scween weada
 		 */
-		accessibilityPageSize?: number;
+		accessibiwityPageSize?: numba;
 		/**
 		 * Suggest options.
 		 */
 		suggest?: ISuggestOptions;
-		inlineSuggest?: IInlineSuggestOptions;
+		inwineSuggest?: IInwineSuggestOptions;
 		/**
-		 * Smart select options.
+		 * Smawt sewect options.
 		 */
-		smartSelect?: ISmartSelectOptions;
+		smawtSewect?: ISmawtSewectOptions;
 		/**
 		 *
 		 */
-		gotoLocation?: IGotoLocationOptions;
+		gotoWocation?: IGotoWocationOptions;
 		/**
-		 * Enable quick suggestions (shadow suggestions)
-		 * Defaults to true.
+		 * Enabwe quick suggestions (shadow suggestions)
+		 * Defauwts to twue.
 		 */
-		quickSuggestions?: boolean | IQuickSuggestionsOptions;
+		quickSuggestions?: boowean | IQuickSuggestionsOptions;
 		/**
-		 * Quick suggestions show delay (in ms)
-		 * Defaults to 10 (ms)
+		 * Quick suggestions show deway (in ms)
+		 * Defauwts to 10 (ms)
 		 */
-		quickSuggestionsDelay?: number;
+		quickSuggestionsDeway?: numba;
 		/**
-		 * Controls the spacing around the editor.
+		 * Contwows the spacing awound the editow.
 		 */
-		padding?: IEditorPaddingOptions;
+		padding?: IEditowPaddingOptions;
 		/**
-		 * Parameter hint options.
+		 * Pawameta hint options.
 		 */
-		parameterHints?: IEditorParameterHintOptions;
+		pawametewHints?: IEditowPawametewHintOptions;
 		/**
-		 * Options for auto closing brackets.
-		 * Defaults to language defined behavior.
+		 * Options fow auto cwosing bwackets.
+		 * Defauwts to wanguage defined behaviow.
 		 */
-		autoClosingBrackets?: EditorAutoClosingStrategy;
+		autoCwosingBwackets?: EditowAutoCwosingStwategy;
 		/**
-		 * Options for auto closing quotes.
-		 * Defaults to language defined behavior.
+		 * Options fow auto cwosing quotes.
+		 * Defauwts to wanguage defined behaviow.
 		 */
-		autoClosingQuotes?: EditorAutoClosingStrategy;
+		autoCwosingQuotes?: EditowAutoCwosingStwategy;
 		/**
-		 * Options for pressing backspace near quotes or bracket pairs.
+		 * Options fow pwessing backspace neaw quotes ow bwacket paiws.
 		 */
-		autoClosingDelete?: EditorAutoClosingEditStrategy;
+		autoCwosingDewete?: EditowAutoCwosingEditStwategy;
 		/**
-		 * Options for typing over closing quotes or brackets.
+		 * Options fow typing ova cwosing quotes ow bwackets.
 		 */
-		autoClosingOvertype?: EditorAutoClosingEditStrategy;
+		autoCwosingOvewtype?: EditowAutoCwosingEditStwategy;
 		/**
-		 * Options for auto surrounding.
-		 * Defaults to always allowing auto surrounding.
+		 * Options fow auto suwwounding.
+		 * Defauwts to awways awwowing auto suwwounding.
 		 */
-		autoSurround?: EditorAutoSurroundStrategy;
+		autoSuwwound?: EditowAutoSuwwoundStwategy;
 		/**
-		 * Controls whether the editor should automatically adjust the indentation when users type, paste, move or indent lines.
-		 * Defaults to advanced.
+		 * Contwows whetha the editow shouwd automaticawwy adjust the indentation when usews type, paste, move ow indent wines.
+		 * Defauwts to advanced.
 		 */
-		autoIndent?: 'none' | 'keep' | 'brackets' | 'advanced' | 'full';
+		autoIndent?: 'none' | 'keep' | 'bwackets' | 'advanced' | 'fuww';
 		/**
-		 * Emulate selection behaviour of tab characters when using spaces for indentation.
-		 * This means selection will stick to tab stops.
+		 * Emuwate sewection behaviouw of tab chawactews when using spaces fow indentation.
+		 * This means sewection wiww stick to tab stops.
 		 */
-		stickyTabStops?: boolean;
+		stickyTabStops?: boowean;
 		/**
-		 * Enable format on type.
-		 * Defaults to false.
+		 * Enabwe fowmat on type.
+		 * Defauwts to fawse.
 		 */
-		formatOnType?: boolean;
+		fowmatOnType?: boowean;
 		/**
-		 * Enable format on paste.
-		 * Defaults to false.
+		 * Enabwe fowmat on paste.
+		 * Defauwts to fawse.
 		 */
-		formatOnPaste?: boolean;
+		fowmatOnPaste?: boowean;
 		/**
-		 * Controls if the editor should allow to move selections via drag and drop.
-		 * Defaults to false.
+		 * Contwows if the editow shouwd awwow to move sewections via dwag and dwop.
+		 * Defauwts to fawse.
 		 */
-		dragAndDrop?: boolean;
+		dwagAndDwop?: boowean;
 		/**
-		 * Enable the suggestion box to pop-up on trigger characters.
-		 * Defaults to true.
+		 * Enabwe the suggestion box to pop-up on twigga chawactews.
+		 * Defauwts to twue.
 		 */
-		suggestOnTriggerCharacters?: boolean;
+		suggestOnTwiggewChawactews?: boowean;
 		/**
-		 * Accept suggestions on ENTER.
-		 * Defaults to 'on'.
+		 * Accept suggestions on ENTa.
+		 * Defauwts to 'on'.
 		 */
-		acceptSuggestionOnEnter?: 'on' | 'smart' | 'off';
+		acceptSuggestionOnEnta?: 'on' | 'smawt' | 'off';
 		/**
-		 * Accept suggestions on provider defined characters.
-		 * Defaults to true.
+		 * Accept suggestions on pwovida defined chawactews.
+		 * Defauwts to twue.
 		 */
-		acceptSuggestionOnCommitCharacter?: boolean;
+		acceptSuggestionOnCommitChawacta?: boowean;
 		/**
-		 * Enable snippet suggestions. Default to 'true'.
+		 * Enabwe snippet suggestions. Defauwt to 'twue'.
 		 */
-		snippetSuggestions?: 'top' | 'bottom' | 'inline' | 'none';
+		snippetSuggestions?: 'top' | 'bottom' | 'inwine' | 'none';
 		/**
-		 * Copying without a selection copies the current line.
+		 * Copying without a sewection copies the cuwwent wine.
 		 */
-		emptySelectionClipboard?: boolean;
+		emptySewectionCwipboawd?: boowean;
 		/**
-		 * Syntax highlighting is copied.
+		 * Syntax highwighting is copied.
 		 */
-		copyWithSyntaxHighlighting?: boolean;
+		copyWithSyntaxHighwighting?: boowean;
 		/**
-		 * The history mode for suggestions.
+		 * The histowy mode fow suggestions.
 		 */
-		suggestSelection?: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
+		suggestSewection?: 'fiwst' | 'wecentwyUsed' | 'wecentwyUsedByPwefix';
 		/**
-		 * The font size for the suggest widget.
-		 * Defaults to the editor font size.
+		 * The font size fow the suggest widget.
+		 * Defauwts to the editow font size.
 		 */
-		suggestFontSize?: number;
+		suggestFontSize?: numba;
 		/**
-		 * The line height for the suggest widget.
-		 * Defaults to the editor line height.
+		 * The wine height fow the suggest widget.
+		 * Defauwts to the editow wine height.
 		 */
-		suggestLineHeight?: number;
+		suggestWineHeight?: numba;
 		/**
-		 * Enable tab completion.
+		 * Enabwe tab compwetion.
 		 */
-		tabCompletion?: 'on' | 'off' | 'onlySnippets';
+		tabCompwetion?: 'on' | 'off' | 'onwySnippets';
 		/**
-		 * Enable selection highlight.
-		 * Defaults to true.
+		 * Enabwe sewection highwight.
+		 * Defauwts to twue.
 		 */
-		selectionHighlight?: boolean;
+		sewectionHighwight?: boowean;
 		/**
-		 * Enable semantic occurrences highlight.
-		 * Defaults to true.
+		 * Enabwe semantic occuwwences highwight.
+		 * Defauwts to twue.
 		 */
-		occurrencesHighlight?: boolean;
+		occuwwencesHighwight?: boowean;
 		/**
-		 * Show code lens
-		 * Defaults to true.
+		 * Show code wens
+		 * Defauwts to twue.
 		 */
-		codeLens?: boolean;
+		codeWens?: boowean;
 		/**
-		 * Code lens font family. Defaults to editor font family.
+		 * Code wens font famiwy. Defauwts to editow font famiwy.
 		 */
-		codeLensFontFamily?: string;
+		codeWensFontFamiwy?: stwing;
 		/**
-		 * Code lens font size. Default to 90% of the editor font size
+		 * Code wens font size. Defauwt to 90% of the editow font size
 		 */
-		codeLensFontSize?: number;
+		codeWensFontSize?: numba;
 		/**
-		 * Control the behavior and rendering of the code action lightbulb.
+		 * Contwow the behaviow and wendewing of the code action wightbuwb.
 		 */
-		lightbulb?: IEditorLightbulbOptions;
+		wightbuwb?: IEditowWightbuwbOptions;
 		/**
-		 * Timeout for running code actions on save.
+		 * Timeout fow wunning code actions on save.
 		 */
-		codeActionsOnSaveTimeout?: number;
+		codeActionsOnSaveTimeout?: numba;
 		/**
-		 * Enable code folding.
-		 * Defaults to true.
+		 * Enabwe code fowding.
+		 * Defauwts to twue.
 		 */
-		folding?: boolean;
+		fowding?: boowean;
 		/**
-		 * Selects the folding strategy. 'auto' uses the strategies contributed for the current document, 'indentation' uses the indentation based folding strategy.
-		 * Defaults to 'auto'.
+		 * Sewects the fowding stwategy. 'auto' uses the stwategies contwibuted fow the cuwwent document, 'indentation' uses the indentation based fowding stwategy.
+		 * Defauwts to 'auto'.
 		 */
-		foldingStrategy?: 'auto' | 'indentation';
+		fowdingStwategy?: 'auto' | 'indentation';
 		/**
-		 * Enable highlight for folded regions.
-		 * Defaults to true.
+		 * Enabwe highwight fow fowded wegions.
+		 * Defauwts to twue.
 		 */
-		foldingHighlight?: boolean;
+		fowdingHighwight?: boowean;
 		/**
-		 * Auto fold imports folding regions.
-		 * Defaults to true.
+		 * Auto fowd impowts fowding wegions.
+		 * Defauwts to twue.
 		 */
-		foldingImportsByDefault?: boolean;
+		fowdingImpowtsByDefauwt?: boowean;
 		/**
-		 * Controls whether the fold actions in the gutter stay always visible or hide unless the mouse is over the gutter.
-		 * Defaults to 'mouseover'.
+		 * Contwows whetha the fowd actions in the gutta stay awways visibwe ow hide unwess the mouse is ova the gutta.
+		 * Defauwts to 'mouseova'.
 		 */
-		showFoldingControls?: 'always' | 'mouseover';
+		showFowdingContwows?: 'awways' | 'mouseova';
 		/**
-		 * Controls whether clicking on the empty content after a folded line will unfold the line.
-		 * Defaults to false.
+		 * Contwows whetha cwicking on the empty content afta a fowded wine wiww unfowd the wine.
+		 * Defauwts to fawse.
 		 */
-		unfoldOnClickAfterEndOfLine?: boolean;
+		unfowdOnCwickAftewEndOfWine?: boowean;
 		/**
-		 * Enable highlighting of matching brackets.
-		 * Defaults to 'always'.
+		 * Enabwe highwighting of matching bwackets.
+		 * Defauwts to 'awways'.
 		 */
-		matchBrackets?: 'never' | 'near' | 'always';
+		matchBwackets?: 'neva' | 'neaw' | 'awways';
 		/**
-		 * Enable rendering of whitespace.
-		 * Defaults to 'selection'.
+		 * Enabwe wendewing of whitespace.
+		 * Defauwts to 'sewection'.
 		 */
-		renderWhitespace?: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
+		wendewWhitespace?: 'none' | 'boundawy' | 'sewection' | 'twaiwing' | 'aww';
 		/**
-		 * Enable rendering of control characters.
-		 * Defaults to false.
+		 * Enabwe wendewing of contwow chawactews.
+		 * Defauwts to fawse.
 		 */
-		renderControlCharacters?: boolean;
+		wendewContwowChawactews?: boowean;
 		/**
-		 * Enable rendering of indent guides.
-		 * Defaults to true.
+		 * Enabwe wendewing of indent guides.
+		 * Defauwts to twue.
 		 */
-		renderIndentGuides?: boolean;
+		wendewIndentGuides?: boowean;
 		/**
-		 * Enable highlighting of the active indent guide.
-		 * Defaults to true.
+		 * Enabwe highwighting of the active indent guide.
+		 * Defauwts to twue.
 		 */
-		highlightActiveIndentGuide?: boolean;
+		highwightActiveIndentGuide?: boowean;
 		/**
-		 * Enable rendering of current line highlight.
-		 * Defaults to all.
+		 * Enabwe wendewing of cuwwent wine highwight.
+		 * Defauwts to aww.
 		 */
-		renderLineHighlight?: 'none' | 'gutter' | 'line' | 'all';
+		wendewWineHighwight?: 'none' | 'gutta' | 'wine' | 'aww';
 		/**
-		 * Control if the current line highlight should be rendered only the editor is focused.
-		 * Defaults to false.
+		 * Contwow if the cuwwent wine highwight shouwd be wendewed onwy the editow is focused.
+		 * Defauwts to fawse.
 		 */
-		renderLineHighlightOnlyWhenFocus?: boolean;
+		wendewWineHighwightOnwyWhenFocus?: boowean;
 		/**
-		 * Inserting and deleting whitespace follows tab stops.
+		 * Insewting and deweting whitespace fowwows tab stops.
 		 */
-		useTabStops?: boolean;
+		useTabStops?: boowean;
 		/**
-		 * The font family
+		 * The font famiwy
 		 */
-		fontFamily?: string;
+		fontFamiwy?: stwing;
 		/**
 		 * The font weight
 		 */
-		fontWeight?: string;
+		fontWeight?: stwing;
 		/**
 		 * The font size
 		 */
-		fontSize?: number;
+		fontSize?: numba;
 		/**
-		 * The line height
+		 * The wine height
 		 */
-		lineHeight?: number;
+		wineHeight?: numba;
 		/**
-		 * The letter spacing
+		 * The wetta spacing
 		 */
-		letterSpacing?: number;
+		wettewSpacing?: numba;
 		/**
-		 * Controls fading out of unused variables.
+		 * Contwows fading out of unused vawiabwes.
 		 */
-		showUnused?: boolean;
+		showUnused?: boowean;
 		/**
-		 * Controls whether to focus the inline editor in the peek widget by default.
-		 * Defaults to false.
+		 * Contwows whetha to focus the inwine editow in the peek widget by defauwt.
+		 * Defauwts to fawse.
 		 */
-		peekWidgetDefaultFocus?: 'tree' | 'editor';
+		peekWidgetDefauwtFocus?: 'twee' | 'editow';
 		/**
-		 * Controls whether the definition link opens element in the peek widget.
-		 * Defaults to false.
+		 * Contwows whetha the definition wink opens ewement in the peek widget.
+		 * Defauwts to fawse.
 		 */
-		definitionLinkOpensInPeek?: boolean;
+		definitionWinkOpensInPeek?: boowean;
 		/**
-		 * Controls strikethrough deprecated variables.
+		 * Contwows stwikethwough depwecated vawiabwes.
 		 */
-		showDeprecated?: boolean;
+		showDepwecated?: boowean;
 		/**
-		 * Control the behavior and rendering of the inline hints.
+		 * Contwow the behaviow and wendewing of the inwine hints.
 		 */
-		inlayHints?: IEditorInlayHintsOptions;
+		inwayHints?: IEditowInwayHintsOptions;
 		/**
-		 * Control if the editor should use shadow DOM.
+		 * Contwow if the editow shouwd use shadow DOM.
 		 */
-		useShadowDOM?: boolean;
+		useShadowDOM?: boowean;
 	}
 
-	export interface IDiffEditorBaseOptions {
+	expowt intewface IDiffEditowBaseOptions {
 		/**
-		 * Allow the user to resize the diff editor split view.
-		 * Defaults to true.
+		 * Awwow the usa to wesize the diff editow spwit view.
+		 * Defauwts to twue.
 		 */
-		enableSplitViewResizing?: boolean;
+		enabweSpwitViewWesizing?: boowean;
 		/**
-		 * Render the differences in two side-by-side editors.
-		 * Defaults to true.
+		 * Wenda the diffewences in two side-by-side editows.
+		 * Defauwts to twue.
 		 */
-		renderSideBySide?: boolean;
+		wendewSideBySide?: boowean;
 		/**
-		 * Timeout in milliseconds after which diff computation is cancelled.
-		 * Defaults to 5000.
+		 * Timeout in miwwiseconds afta which diff computation is cancewwed.
+		 * Defauwts to 5000.
 		 */
-		maxComputationTime?: number;
+		maxComputationTime?: numba;
 		/**
-		 * Maximum supported file size in MB.
-		 * Defaults to 50.
+		 * Maximum suppowted fiwe size in MB.
+		 * Defauwts to 50.
 		 */
-		maxFileSize?: number;
+		maxFiweSize?: numba;
 		/**
-		 * Compute the diff by ignoring leading/trailing whitespace
-		 * Defaults to true.
+		 * Compute the diff by ignowing weading/twaiwing whitespace
+		 * Defauwts to twue.
 		 */
-		ignoreTrimWhitespace?: boolean;
+		ignoweTwimWhitespace?: boowean;
 		/**
-		 * Render +/- indicators for added/deleted changes.
-		 * Defaults to true.
+		 * Wenda +/- indicatows fow added/deweted changes.
+		 * Defauwts to twue.
 		 */
-		renderIndicators?: boolean;
+		wendewIndicatows?: boowean;
 		/**
-		 * Original model should be editable?
-		 * Defaults to false.
+		 * Owiginaw modew shouwd be editabwe?
+		 * Defauwts to fawse.
 		 */
-		originalEditable?: boolean;
+		owiginawEditabwe?: boowean;
 		/**
-		 * Should the diff editor enable code lens?
-		 * Defaults to false.
+		 * Shouwd the diff editow enabwe code wens?
+		 * Defauwts to fawse.
 		 */
-		diffCodeLens?: boolean;
+		diffCodeWens?: boowean;
 		/**
-		 * Is the diff editor should render overview ruler
-		 * Defaults to true
+		 * Is the diff editow shouwd wenda ovewview wuwa
+		 * Defauwts to twue
 		 */
-		renderOverviewRuler?: boolean;
+		wendewOvewviewWuwa?: boowean;
 		/**
-		 * Control the wrapping of the diff editor.
+		 * Contwow the wwapping of the diff editow.
 		 */
-		diffWordWrap?: 'off' | 'on' | 'inherit';
-	}
-
-	/**
-	 * Configuration options for the diff editor.
-	 */
-	export interface IDiffEditorOptions extends IEditorOptions, IDiffEditorBaseOptions {
+		diffWowdWwap?: 'off' | 'on' | 'inhewit';
 	}
 
 	/**
-	 * An event describing that the configuration of the editor has changed.
+	 * Configuwation options fow the diff editow.
 	 */
-	export class ConfigurationChangedEvent {
-		hasChanged(id: EditorOption): boolean;
+	expowt intewface IDiffEditowOptions extends IEditowOptions, IDiffEditowBaseOptions {
 	}
 
 	/**
-	 * All computed editor options.
+	 * An event descwibing that the configuwation of the editow has changed.
 	 */
-	export interface IComputedEditorOptions {
-		get<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T>;
-	}
-
-	export interface IEditorOption<K1 extends EditorOption, V> {
-		readonly id: K1;
-		readonly name: string;
-		defaultValue: V;
+	expowt cwass ConfiguwationChangedEvent {
+		hasChanged(id: EditowOption): boowean;
 	}
 
 	/**
-	 * Configuration options for editor comments
+	 * Aww computed editow options.
 	 */
-	export interface IEditorCommentsOptions {
+	expowt intewface IComputedEditowOptions {
+		get<T extends EditowOption>(id: T): FindComputedEditowOptionVawueById<T>;
+	}
+
+	expowt intewface IEditowOption<K1 extends EditowOption, V> {
+		weadonwy id: K1;
+		weadonwy name: stwing;
+		defauwtVawue: V;
+	}
+
+	/**
+	 * Configuwation options fow editow comments
+	 */
+	expowt intewface IEditowCommentsOptions {
 		/**
-		 * Insert a space after the line comment token and inside the block comments tokens.
-		 * Defaults to true.
+		 * Insewt a space afta the wine comment token and inside the bwock comments tokens.
+		 * Defauwts to twue.
 		 */
-		insertSpace?: boolean;
+		insewtSpace?: boowean;
 		/**
-		 * Ignore empty lines when inserting line comments.
-		 * Defaults to true.
+		 * Ignowe empty wines when insewting wine comments.
+		 * Defauwts to twue.
 		 */
-		ignoreEmptyLines?: boolean;
+		ignoweEmptyWines?: boowean;
 	}
 
-	export type EditorCommentsOptions = Readonly<Required<IEditorCommentsOptions>>;
+	expowt type EditowCommentsOptions = Weadonwy<Wequiwed<IEditowCommentsOptions>>;
 
 	/**
-	 * The kind of animation in which the editor's cursor should be rendered.
+	 * The kind of animation in which the editow's cuwsow shouwd be wendewed.
 	 */
-	export enum TextEditorCursorBlinkingStyle {
+	expowt enum TextEditowCuwsowBwinkingStywe {
 		/**
 		 * Hidden
 		 */
 		Hidden = 0,
 		/**
-		 * Blinking
+		 * Bwinking
 		 */
-		Blink = 1,
+		Bwink = 1,
 		/**
-		 * Blinking with smooth fading
+		 * Bwinking with smooth fading
 		 */
 		Smooth = 2,
 		/**
-		 * Blinking with prolonged filled state and smooth fading
+		 * Bwinking with pwowonged fiwwed state and smooth fading
 		 */
 		Phase = 3,
 		/**
-		 * Expand collapse animation on the y axis
+		 * Expand cowwapse animation on the y axis
 		 */
 		Expand = 4,
 		/**
-		 * No-Blinking
+		 * No-Bwinking
 		 */
-		Solid = 5
+		Sowid = 5
 	}
 
 	/**
-	 * The style in which the editor's cursor should be rendered.
+	 * The stywe in which the editow's cuwsow shouwd be wendewed.
 	 */
-	export enum TextEditorCursorStyle {
+	expowt enum TextEditowCuwsowStywe {
 		/**
-		 * As a vertical line (sitting between two characters).
+		 * As a vewticaw wine (sitting between two chawactews).
 		 */
-		Line = 1,
+		Wine = 1,
 		/**
-		 * As a block (sitting on top of a character).
+		 * As a bwock (sitting on top of a chawacta).
 		 */
-		Block = 2,
+		Bwock = 2,
 		/**
-		 * As a horizontal line (sitting under a character).
+		 * As a howizontaw wine (sitting unda a chawacta).
 		 */
-		Underline = 3,
+		Undewwine = 3,
 		/**
-		 * As a thin vertical line (sitting between two characters).
+		 * As a thin vewticaw wine (sitting between two chawactews).
 		 */
-		LineThin = 4,
+		WineThin = 4,
 		/**
-		 * As an outlined block (sitting on top of a character).
+		 * As an outwined bwock (sitting on top of a chawacta).
 		 */
-		BlockOutline = 5,
+		BwockOutwine = 5,
 		/**
-		 * As a thin horizontal line (sitting under a character).
+		 * As a thin howizontaw wine (sitting unda a chawacta).
 		 */
-		UnderlineThin = 6
+		UndewwineThin = 6
 	}
 
 	/**
-	 * Configuration options for editor find widget
+	 * Configuwation options fow editow find widget
 	 */
-	export interface IEditorFindOptions {
+	expowt intewface IEditowFindOptions {
 		/**
-		* Controls whether the cursor should move to find matches while typing.
+		* Contwows whetha the cuwsow shouwd move to find matches whiwe typing.
 		*/
-		cursorMoveOnType?: boolean;
+		cuwsowMoveOnType?: boowean;
 		/**
-		 * Controls if we seed search string in the Find Widget with editor selection.
+		 * Contwows if we seed seawch stwing in the Find Widget with editow sewection.
 		 */
-		seedSearchStringFromSelection?: 'never' | 'always' | 'selection';
+		seedSeawchStwingFwomSewection?: 'neva' | 'awways' | 'sewection';
 		/**
-		 * Controls if Find in Selection flag is turned on in the editor.
+		 * Contwows if Find in Sewection fwag is tuwned on in the editow.
 		 */
-		autoFindInSelection?: 'never' | 'always' | 'multiline';
-		addExtraSpaceOnTop?: boolean;
+		autoFindInSewection?: 'neva' | 'awways' | 'muwtiwine';
+		addExtwaSpaceOnTop?: boowean;
 		/**
-		 * Controls whether the search automatically restarts from the beginning (or the end) when no further matches can be found
+		 * Contwows whetha the seawch automaticawwy westawts fwom the beginning (ow the end) when no fuwtha matches can be found
 		 */
-		loop?: boolean;
+		woop?: boowean;
 	}
 
-	export type EditorFindOptions = Readonly<Required<IEditorFindOptions>>;
+	expowt type EditowFindOptions = Weadonwy<Wequiwed<IEditowFindOptions>>;
 
-	export type GoToLocationValues = 'peek' | 'gotoAndPeek' | 'goto';
+	expowt type GoToWocationVawues = 'peek' | 'gotoAndPeek' | 'goto';
 
 	/**
-	 * Configuration options for go to location
+	 * Configuwation options fow go to wocation
 	 */
-	export interface IGotoLocationOptions {
-		multiple?: GoToLocationValues;
-		multipleDefinitions?: GoToLocationValues;
-		multipleTypeDefinitions?: GoToLocationValues;
-		multipleDeclarations?: GoToLocationValues;
-		multipleImplementations?: GoToLocationValues;
-		multipleReferences?: GoToLocationValues;
-		alternativeDefinitionCommand?: string;
-		alternativeTypeDefinitionCommand?: string;
-		alternativeDeclarationCommand?: string;
-		alternativeImplementationCommand?: string;
-		alternativeReferenceCommand?: string;
+	expowt intewface IGotoWocationOptions {
+		muwtipwe?: GoToWocationVawues;
+		muwtipweDefinitions?: GoToWocationVawues;
+		muwtipweTypeDefinitions?: GoToWocationVawues;
+		muwtipweDecwawations?: GoToWocationVawues;
+		muwtipweImpwementations?: GoToWocationVawues;
+		muwtipweWefewences?: GoToWocationVawues;
+		awtewnativeDefinitionCommand?: stwing;
+		awtewnativeTypeDefinitionCommand?: stwing;
+		awtewnativeDecwawationCommand?: stwing;
+		awtewnativeImpwementationCommand?: stwing;
+		awtewnativeWefewenceCommand?: stwing;
 	}
 
-	export type GoToLocationOptions = Readonly<Required<IGotoLocationOptions>>;
+	expowt type GoToWocationOptions = Weadonwy<Wequiwed<IGotoWocationOptions>>;
 
 	/**
-	 * Configuration options for editor hover
+	 * Configuwation options fow editow hova
 	 */
-	export interface IEditorHoverOptions {
+	expowt intewface IEditowHovewOptions {
 		/**
-		 * Enable the hover.
-		 * Defaults to true.
+		 * Enabwe the hova.
+		 * Defauwts to twue.
 		 */
-		enabled?: boolean;
+		enabwed?: boowean;
 		/**
-		 * Delay for showing the hover.
-		 * Defaults to 300.
+		 * Deway fow showing the hova.
+		 * Defauwts to 300.
 		 */
-		delay?: number;
+		deway?: numba;
 		/**
-		 * Is the hover sticky such that it can be clicked and its contents selected?
-		 * Defaults to true.
+		 * Is the hova sticky such that it can be cwicked and its contents sewected?
+		 * Defauwts to twue.
 		 */
-		sticky?: boolean;
+		sticky?: boowean;
 	}
 
-	export type EditorHoverOptions = Readonly<Required<IEditorHoverOptions>>;
+	expowt type EditowHovewOptions = Weadonwy<Wequiwed<IEditowHovewOptions>>;
 
 	/**
-	 * A description for the overview ruler position.
+	 * A descwiption fow the ovewview wuwa position.
 	 */
-	export interface OverviewRulerPosition {
+	expowt intewface OvewviewWuwewPosition {
 		/**
-		 * Width of the overview ruler
+		 * Width of the ovewview wuwa
 		 */
-		readonly width: number;
+		weadonwy width: numba;
 		/**
-		 * Height of the overview ruler
+		 * Height of the ovewview wuwa
 		 */
-		readonly height: number;
+		weadonwy height: numba;
 		/**
-		 * Top position for the overview ruler
+		 * Top position fow the ovewview wuwa
 		 */
-		readonly top: number;
+		weadonwy top: numba;
 		/**
-		 * Right position for the overview ruler
+		 * Wight position fow the ovewview wuwa
 		 */
-		readonly right: number;
+		weadonwy wight: numba;
 	}
 
-	export enum RenderMinimap {
+	expowt enum WendewMinimap {
 		None = 0,
 		Text = 1,
-		Blocks = 2
+		Bwocks = 2
 	}
 
 	/**
-	 * The internal layout details of the editor.
+	 * The intewnaw wayout detaiws of the editow.
 	 */
-	export interface EditorLayoutInfo {
+	expowt intewface EditowWayoutInfo {
 		/**
-		 * Full editor width.
+		 * Fuww editow width.
 		 */
-		readonly width: number;
+		weadonwy width: numba;
 		/**
-		 * Full editor height.
+		 * Fuww editow height.
 		 */
-		readonly height: number;
+		weadonwy height: numba;
 		/**
-		 * Left position for the glyph margin.
+		 * Weft position fow the gwyph mawgin.
 		 */
-		readonly glyphMarginLeft: number;
+		weadonwy gwyphMawginWeft: numba;
 		/**
-		 * The width of the glyph margin.
+		 * The width of the gwyph mawgin.
 		 */
-		readonly glyphMarginWidth: number;
+		weadonwy gwyphMawginWidth: numba;
 		/**
-		 * Left position for the line numbers.
+		 * Weft position fow the wine numbews.
 		 */
-		readonly lineNumbersLeft: number;
+		weadonwy wineNumbewsWeft: numba;
 		/**
-		 * The width of the line numbers.
+		 * The width of the wine numbews.
 		 */
-		readonly lineNumbersWidth: number;
+		weadonwy wineNumbewsWidth: numba;
 		/**
-		 * Left position for the line decorations.
+		 * Weft position fow the wine decowations.
 		 */
-		readonly decorationsLeft: number;
+		weadonwy decowationsWeft: numba;
 		/**
-		 * The width of the line decorations.
+		 * The width of the wine decowations.
 		 */
-		readonly decorationsWidth: number;
+		weadonwy decowationsWidth: numba;
 		/**
-		 * Left position for the content (actual text)
+		 * Weft position fow the content (actuaw text)
 		 */
-		readonly contentLeft: number;
+		weadonwy contentWeft: numba;
 		/**
-		 * The width of the content (actual text)
+		 * The width of the content (actuaw text)
 		 */
-		readonly contentWidth: number;
+		weadonwy contentWidth: numba;
 		/**
-		 * Layout information for the minimap
+		 * Wayout infowmation fow the minimap
 		 */
-		readonly minimap: EditorMinimapLayoutInfo;
+		weadonwy minimap: EditowMinimapWayoutInfo;
 		/**
-		 * The number of columns (of typical characters) fitting on a viewport line.
+		 * The numba of cowumns (of typicaw chawactews) fitting on a viewpowt wine.
 		 */
-		readonly viewportColumn: number;
-		readonly isWordWrapMinified: boolean;
-		readonly isViewportWrapping: boolean;
-		readonly wrappingColumn: number;
+		weadonwy viewpowtCowumn: numba;
+		weadonwy isWowdWwapMinified: boowean;
+		weadonwy isViewpowtWwapping: boowean;
+		weadonwy wwappingCowumn: numba;
 		/**
-		 * The width of the vertical scrollbar.
+		 * The width of the vewticaw scwowwbaw.
 		 */
-		readonly verticalScrollbarWidth: number;
+		weadonwy vewticawScwowwbawWidth: numba;
 		/**
-		 * The height of the horizontal scrollbar.
+		 * The height of the howizontaw scwowwbaw.
 		 */
-		readonly horizontalScrollbarHeight: number;
+		weadonwy howizontawScwowwbawHeight: numba;
 		/**
-		 * The position of the overview ruler.
+		 * The position of the ovewview wuwa.
 		 */
-		readonly overviewRuler: OverviewRulerPosition;
+		weadonwy ovewviewWuwa: OvewviewWuwewPosition;
 	}
 
 	/**
-	 * The internal layout details of the editor.
+	 * The intewnaw wayout detaiws of the editow.
 	 */
-	export interface EditorMinimapLayoutInfo {
-		readonly renderMinimap: RenderMinimap;
-		readonly minimapLeft: number;
-		readonly minimapWidth: number;
-		readonly minimapHeightIsEditorHeight: boolean;
-		readonly minimapIsSampling: boolean;
-		readonly minimapScale: number;
-		readonly minimapLineHeight: number;
-		readonly minimapCanvasInnerWidth: number;
-		readonly minimapCanvasInnerHeight: number;
-		readonly minimapCanvasOuterWidth: number;
-		readonly minimapCanvasOuterHeight: number;
+	expowt intewface EditowMinimapWayoutInfo {
+		weadonwy wendewMinimap: WendewMinimap;
+		weadonwy minimapWeft: numba;
+		weadonwy minimapWidth: numba;
+		weadonwy minimapHeightIsEditowHeight: boowean;
+		weadonwy minimapIsSampwing: boowean;
+		weadonwy minimapScawe: numba;
+		weadonwy minimapWineHeight: numba;
+		weadonwy minimapCanvasInnewWidth: numba;
+		weadonwy minimapCanvasInnewHeight: numba;
+		weadonwy minimapCanvasOutewWidth: numba;
+		weadonwy minimapCanvasOutewHeight: numba;
 	}
 
 	/**
-	 * Configuration options for editor lightbulb
+	 * Configuwation options fow editow wightbuwb
 	 */
-	export interface IEditorLightbulbOptions {
+	expowt intewface IEditowWightbuwbOptions {
 		/**
-		 * Enable the lightbulb code action.
-		 * Defaults to true.
+		 * Enabwe the wightbuwb code action.
+		 * Defauwts to twue.
 		 */
-		enabled?: boolean;
+		enabwed?: boowean;
 	}
 
-	export type EditorLightbulbOptions = Readonly<Required<IEditorLightbulbOptions>>;
+	expowt type EditowWightbuwbOptions = Weadonwy<Wequiwed<IEditowWightbuwbOptions>>;
 
 	/**
-	 * Configuration options for editor inlayHints
+	 * Configuwation options fow editow inwayHints
 	 */
-	export interface IEditorInlayHintsOptions {
+	expowt intewface IEditowInwayHintsOptions {
 		/**
-		 * Enable the inline hints.
-		 * Defaults to true.
+		 * Enabwe the inwine hints.
+		 * Defauwts to twue.
 		 */
-		enabled?: boolean;
+		enabwed?: boowean;
 		/**
-		 * Font size of inline hints.
-		 * Default to 90% of the editor font size.
+		 * Font size of inwine hints.
+		 * Defauwt to 90% of the editow font size.
 		 */
-		fontSize?: number;
+		fontSize?: numba;
 		/**
-		 * Font family of inline hints.
-		 * Defaults to editor font family.
+		 * Font famiwy of inwine hints.
+		 * Defauwts to editow font famiwy.
 		 */
-		fontFamily?: string;
+		fontFamiwy?: stwing;
 	}
 
-	export type EditorInlayHintsOptions = Readonly<Required<IEditorInlayHintsOptions>>;
+	expowt type EditowInwayHintsOptions = Weadonwy<Wequiwed<IEditowInwayHintsOptions>>;
 
 	/**
-	 * Configuration options for editor minimap
+	 * Configuwation options fow editow minimap
 	 */
-	export interface IEditorMinimapOptions {
+	expowt intewface IEditowMinimapOptions {
 		/**
-		 * Enable the rendering of the minimap.
-		 * Defaults to true.
+		 * Enabwe the wendewing of the minimap.
+		 * Defauwts to twue.
 		 */
-		enabled?: boolean;
+		enabwed?: boowean;
 		/**
-		 * Control the side of the minimap in editor.
-		 * Defaults to 'right'.
+		 * Contwow the side of the minimap in editow.
+		 * Defauwts to 'wight'.
 		 */
-		side?: 'right' | 'left';
+		side?: 'wight' | 'weft';
 		/**
-		 * Control the minimap rendering mode.
-		 * Defaults to 'actual'.
+		 * Contwow the minimap wendewing mode.
+		 * Defauwts to 'actuaw'.
 		 */
-		size?: 'proportional' | 'fill' | 'fit';
+		size?: 'pwopowtionaw' | 'fiww' | 'fit';
 		/**
-		 * Control the rendering of the minimap slider.
-		 * Defaults to 'mouseover'.
+		 * Contwow the wendewing of the minimap swida.
+		 * Defauwts to 'mouseova'.
 		 */
-		showSlider?: 'always' | 'mouseover';
+		showSwida?: 'awways' | 'mouseova';
 		/**
-		 * Render the actual text on a line (as opposed to color blocks).
-		 * Defaults to true.
+		 * Wenda the actuaw text on a wine (as opposed to cowow bwocks).
+		 * Defauwts to twue.
 		 */
-		renderCharacters?: boolean;
+		wendewChawactews?: boowean;
 		/**
-		 * Limit the width of the minimap to render at most a certain number of columns.
-		 * Defaults to 120.
+		 * Wimit the width of the minimap to wenda at most a cewtain numba of cowumns.
+		 * Defauwts to 120.
 		 */
-		maxColumn?: number;
+		maxCowumn?: numba;
 		/**
-		 * Relative size of the font in the minimap. Defaults to 1.
+		 * Wewative size of the font in the minimap. Defauwts to 1.
 		 */
-		scale?: number;
+		scawe?: numba;
 	}
 
-	export type EditorMinimapOptions = Readonly<Required<IEditorMinimapOptions>>;
+	expowt type EditowMinimapOptions = Weadonwy<Wequiwed<IEditowMinimapOptions>>;
 
 	/**
-	 * Configuration options for editor padding
+	 * Configuwation options fow editow padding
 	 */
-	export interface IEditorPaddingOptions {
+	expowt intewface IEditowPaddingOptions {
 		/**
-		 * Spacing between top edge of editor and first line.
+		 * Spacing between top edge of editow and fiwst wine.
 		 */
-		top?: number;
+		top?: numba;
 		/**
-		 * Spacing between bottom edge of editor and last line.
+		 * Spacing between bottom edge of editow and wast wine.
 		 */
-		bottom?: number;
+		bottom?: numba;
 	}
 
-	export interface InternalEditorPaddingOptions {
-		readonly top: number;
-		readonly bottom: number;
+	expowt intewface IntewnawEditowPaddingOptions {
+		weadonwy top: numba;
+		weadonwy bottom: numba;
 	}
 
 	/**
-	 * Configuration options for parameter hints
+	 * Configuwation options fow pawameta hints
 	 */
-	export interface IEditorParameterHintOptions {
+	expowt intewface IEditowPawametewHintOptions {
 		/**
-		 * Enable parameter hints.
-		 * Defaults to true.
+		 * Enabwe pawameta hints.
+		 * Defauwts to twue.
 		 */
-		enabled?: boolean;
+		enabwed?: boowean;
 		/**
-		 * Enable cycling of parameter hints.
-		 * Defaults to false.
+		 * Enabwe cycwing of pawameta hints.
+		 * Defauwts to fawse.
 		 */
-		cycle?: boolean;
+		cycwe?: boowean;
 	}
 
-	export type InternalParameterHintOptions = Readonly<Required<IEditorParameterHintOptions>>;
+	expowt type IntewnawPawametewHintOptions = Weadonwy<Wequiwed<IEditowPawametewHintOptions>>;
 
 	/**
-	 * Configuration options for quick suggestions
+	 * Configuwation options fow quick suggestions
 	 */
-	export interface IQuickSuggestionsOptions {
-		other?: boolean;
-		comments?: boolean;
-		strings?: boolean;
+	expowt intewface IQuickSuggestionsOptions {
+		otha?: boowean;
+		comments?: boowean;
+		stwings?: boowean;
 	}
 
-	export type ValidQuickSuggestionsOptions = boolean | Readonly<Required<IQuickSuggestionsOptions>>;
+	expowt type VawidQuickSuggestionsOptions = boowean | Weadonwy<Wequiwed<IQuickSuggestionsOptions>>;
 
-	export type LineNumbersType = 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
+	expowt type WineNumbewsType = 'on' | 'off' | 'wewative' | 'intewvaw' | ((wineNumba: numba) => stwing);
 
-	export enum RenderLineNumbersType {
+	expowt enum WendewWineNumbewsType {
 		Off = 0,
 		On = 1,
-		Relative = 2,
-		Interval = 3,
+		Wewative = 2,
+		Intewvaw = 3,
 		Custom = 4
 	}
 
-	export interface InternalEditorRenderLineNumbersOptions {
-		readonly renderType: RenderLineNumbersType;
-		readonly renderFn: ((lineNumber: number) => string) | null;
+	expowt intewface IntewnawEditowWendewWineNumbewsOptions {
+		weadonwy wendewType: WendewWineNumbewsType;
+		weadonwy wendewFn: ((wineNumba: numba) => stwing) | nuww;
 	}
 
-	export interface IRulerOption {
-		readonly column: number;
-		readonly color: string | null;
+	expowt intewface IWuwewOption {
+		weadonwy cowumn: numba;
+		weadonwy cowow: stwing | nuww;
 	}
 
 	/**
-	 * Configuration options for editor scrollbars
+	 * Configuwation options fow editow scwowwbaws
 	 */
-	export interface IEditorScrollbarOptions {
+	expowt intewface IEditowScwowwbawOptions {
 		/**
-		 * The size of arrows (if displayed).
-		 * Defaults to 11.
+		 * The size of awwows (if dispwayed).
+		 * Defauwts to 11.
 		 * **NOTE**: This option cannot be updated using `updateOptions()`
 		 */
-		arrowSize?: number;
+		awwowSize?: numba;
 		/**
-		 * Render vertical scrollbar.
-		 * Defaults to 'auto'.
+		 * Wenda vewticaw scwowwbaw.
+		 * Defauwts to 'auto'.
 		 */
-		vertical?: 'auto' | 'visible' | 'hidden';
+		vewticaw?: 'auto' | 'visibwe' | 'hidden';
 		/**
-		 * Render horizontal scrollbar.
-		 * Defaults to 'auto'.
+		 * Wenda howizontaw scwowwbaw.
+		 * Defauwts to 'auto'.
 		 */
-		horizontal?: 'auto' | 'visible' | 'hidden';
+		howizontaw?: 'auto' | 'visibwe' | 'hidden';
 		/**
-		 * Cast horizontal and vertical shadows when the content is scrolled.
-		 * Defaults to true.
+		 * Cast howizontaw and vewticaw shadows when the content is scwowwed.
+		 * Defauwts to twue.
 		 * **NOTE**: This option cannot be updated using `updateOptions()`
 		 */
-		useShadows?: boolean;
+		useShadows?: boowean;
 		/**
-		 * Render arrows at the top and bottom of the vertical scrollbar.
-		 * Defaults to false.
+		 * Wenda awwows at the top and bottom of the vewticaw scwowwbaw.
+		 * Defauwts to fawse.
 		 * **NOTE**: This option cannot be updated using `updateOptions()`
 		 */
-		verticalHasArrows?: boolean;
+		vewticawHasAwwows?: boowean;
 		/**
-		 * Render arrows at the left and right of the horizontal scrollbar.
-		 * Defaults to false.
+		 * Wenda awwows at the weft and wight of the howizontaw scwowwbaw.
+		 * Defauwts to fawse.
 		 * **NOTE**: This option cannot be updated using `updateOptions()`
 		 */
-		horizontalHasArrows?: boolean;
+		howizontawHasAwwows?: boowean;
 		/**
-		 * Listen to mouse wheel events and react to them by scrolling.
-		 * Defaults to true.
+		 * Wisten to mouse wheew events and weact to them by scwowwing.
+		 * Defauwts to twue.
 		 */
-		handleMouseWheel?: boolean;
+		handweMouseWheew?: boowean;
 		/**
-		 * Always consume mouse wheel events (always call preventDefault() and stopPropagation() on the browser events).
-		 * Defaults to true.
+		 * Awways consume mouse wheew events (awways caww pweventDefauwt() and stopPwopagation() on the bwowsa events).
+		 * Defauwts to twue.
 		 * **NOTE**: This option cannot be updated using `updateOptions()`
 		 */
-		alwaysConsumeMouseWheel?: boolean;
+		awwaysConsumeMouseWheew?: boowean;
 		/**
-		 * Height in pixels for the horizontal scrollbar.
-		 * Defaults to 10 (px).
+		 * Height in pixews fow the howizontaw scwowwbaw.
+		 * Defauwts to 10 (px).
 		 */
-		horizontalScrollbarSize?: number;
+		howizontawScwowwbawSize?: numba;
 		/**
-		 * Width in pixels for the vertical scrollbar.
-		 * Defaults to 10 (px).
+		 * Width in pixews fow the vewticaw scwowwbaw.
+		 * Defauwts to 10 (px).
 		 */
-		verticalScrollbarSize?: number;
+		vewticawScwowwbawSize?: numba;
 		/**
-		 * Width in pixels for the vertical slider.
-		 * Defaults to `verticalScrollbarSize`.
+		 * Width in pixews fow the vewticaw swida.
+		 * Defauwts to `vewticawScwowwbawSize`.
 		 * **NOTE**: This option cannot be updated using `updateOptions()`
 		 */
-		verticalSliderSize?: number;
+		vewticawSwidewSize?: numba;
 		/**
-		 * Height in pixels for the horizontal slider.
-		 * Defaults to `horizontalScrollbarSize`.
+		 * Height in pixews fow the howizontaw swida.
+		 * Defauwts to `howizontawScwowwbawSize`.
 		 * **NOTE**: This option cannot be updated using `updateOptions()`
 		 */
-		horizontalSliderSize?: number;
+		howizontawSwidewSize?: numba;
 		/**
-		 * Scroll gutter clicks move by page vs jump to position.
-		 * Defaults to false.
+		 * Scwoww gutta cwicks move by page vs jump to position.
+		 * Defauwts to fawse.
 		 */
-		scrollByPage?: boolean;
+		scwowwByPage?: boowean;
 	}
 
-	export interface InternalEditorScrollbarOptions {
-		readonly arrowSize: number;
-		readonly vertical: ScrollbarVisibility;
-		readonly horizontal: ScrollbarVisibility;
-		readonly useShadows: boolean;
-		readonly verticalHasArrows: boolean;
-		readonly horizontalHasArrows: boolean;
-		readonly handleMouseWheel: boolean;
-		readonly alwaysConsumeMouseWheel: boolean;
-		readonly horizontalScrollbarSize: number;
-		readonly horizontalSliderSize: number;
-		readonly verticalScrollbarSize: number;
-		readonly verticalSliderSize: number;
-		readonly scrollByPage: boolean;
+	expowt intewface IntewnawEditowScwowwbawOptions {
+		weadonwy awwowSize: numba;
+		weadonwy vewticaw: ScwowwbawVisibiwity;
+		weadonwy howizontaw: ScwowwbawVisibiwity;
+		weadonwy useShadows: boowean;
+		weadonwy vewticawHasAwwows: boowean;
+		weadonwy howizontawHasAwwows: boowean;
+		weadonwy handweMouseWheew: boowean;
+		weadonwy awwaysConsumeMouseWheew: boowean;
+		weadonwy howizontawScwowwbawSize: numba;
+		weadonwy howizontawSwidewSize: numba;
+		weadonwy vewticawScwowwbawSize: numba;
+		weadonwy vewticawSwidewSize: numba;
+		weadonwy scwowwByPage: boowean;
 	}
 
-	export interface IInlineSuggestOptions {
+	expowt intewface IInwineSuggestOptions {
 		/**
-		 * Enable or disable the rendering of automatic inline completions.
+		 * Enabwe ow disabwe the wendewing of automatic inwine compwetions.
 		*/
-		enabled?: boolean;
+		enabwed?: boowean;
 		/**
-		 * Configures the mode.
-		 * Use `prefix` to only show ghost text if the text to replace is a prefix of the suggestion text.
-		 * Use `subword` to only show ghost text if the replace text is a subword of the suggestion text.
-		 * Use `subwordSmart` to only show ghost text if the replace text is a subword of the suggestion text, but the subword must start after the cursor position.
-		 * Defaults to `prefix`.
+		 * Configuwes the mode.
+		 * Use `pwefix` to onwy show ghost text if the text to wepwace is a pwefix of the suggestion text.
+		 * Use `subwowd` to onwy show ghost text if the wepwace text is a subwowd of the suggestion text.
+		 * Use `subwowdSmawt` to onwy show ghost text if the wepwace text is a subwowd of the suggestion text, but the subwowd must stawt afta the cuwsow position.
+		 * Defauwts to `pwefix`.
 		*/
-		mode?: 'prefix' | 'subword' | 'subwordSmart';
+		mode?: 'pwefix' | 'subwowd' | 'subwowdSmawt';
 	}
 
-	export type InternalInlineSuggestOptions = Readonly<Required<IInlineSuggestOptions>>;
+	expowt type IntewnawInwineSuggestOptions = Weadonwy<Wequiwed<IInwineSuggestOptions>>;
 
-	export interface IBracketPairColorizationOptions {
+	expowt intewface IBwacketPaiwCowowizationOptions {
 		/**
-		 * Enable or disable bracket pair colorization.
+		 * Enabwe ow disabwe bwacket paiw cowowization.
 		*/
-		enabled?: boolean;
+		enabwed?: boowean;
 	}
 
-	export type InternalBracketPairColorizationOptions = Readonly<Required<IBracketPairColorizationOptions>>;
+	expowt type IntewnawBwacketPaiwCowowizationOptions = Weadonwy<Wequiwed<IBwacketPaiwCowowizationOptions>>;
 
 	/**
-	 * Configuration options for editor suggest widget
+	 * Configuwation options fow editow suggest widget
 	 */
-	export interface ISuggestOptions {
+	expowt intewface ISuggestOptions {
 		/**
-		 * Overwrite word ends on accept. Default to false.
+		 * Ovewwwite wowd ends on accept. Defauwt to fawse.
 		 */
-		insertMode?: 'insert' | 'replace';
+		insewtMode?: 'insewt' | 'wepwace';
 		/**
-		 * Enable graceful matching. Defaults to true.
+		 * Enabwe gwacefuw matching. Defauwts to twue.
 		 */
-		filterGraceful?: boolean;
+		fiwtewGwacefuw?: boowean;
 		/**
-		 * Prevent quick suggestions when a snippet is active. Defaults to true.
+		 * Pwevent quick suggestions when a snippet is active. Defauwts to twue.
 		 */
-		snippetsPreventQuickSuggestions?: boolean;
+		snippetsPweventQuickSuggestions?: boowean;
 		/**
-		 * Favors words that appear close to the cursor.
+		 * Favows wowds that appeaw cwose to the cuwsow.
 		 */
-		localityBonus?: boolean;
+		wocawityBonus?: boowean;
 		/**
-		 * Enable using global storage for remembering suggestions.
+		 * Enabwe using gwobaw stowage fow wemembewing suggestions.
 		 */
-		shareSuggestSelections?: boolean;
+		shaweSuggestSewections?: boowean;
 		/**
-		 * Enable or disable icons in suggestions. Defaults to true.
+		 * Enabwe ow disabwe icons in suggestions. Defauwts to twue.
 		 */
-		showIcons?: boolean;
+		showIcons?: boowean;
 		/**
-		 * Enable or disable the suggest status bar.
+		 * Enabwe ow disabwe the suggest status baw.
 		 */
-		showStatusBar?: boolean;
+		showStatusBaw?: boowean;
 		/**
-		 * Enable or disable the rendering of the suggestion preview.
+		 * Enabwe ow disabwe the wendewing of the suggestion pweview.
 		 */
-		preview?: boolean;
+		pweview?: boowean;
 		/**
-		 * Configures the mode of the preview.
+		 * Configuwes the mode of the pweview.
 		*/
-		previewMode?: 'prefix' | 'subword' | 'subwordSmart';
+		pweviewMode?: 'pwefix' | 'subwowd' | 'subwowdSmawt';
 		/**
-		 * Show details inline with the label. Defaults to true.
+		 * Show detaiws inwine with the wabew. Defauwts to twue.
 		 */
-		showInlineDetails?: boolean;
+		showInwineDetaiws?: boowean;
 		/**
 		 * Show method-suggestions.
 		 */
-		showMethods?: boolean;
+		showMethods?: boowean;
 		/**
 		 * Show function-suggestions.
 		 */
-		showFunctions?: boolean;
+		showFunctions?: boowean;
 		/**
-		 * Show constructor-suggestions.
+		 * Show constwuctow-suggestions.
 		 */
-		showConstructors?: boolean;
+		showConstwuctows?: boowean;
 		/**
-		 * Show deprecated-suggestions.
+		 * Show depwecated-suggestions.
 		 */
-		showDeprecated?: boolean;
+		showDepwecated?: boowean;
 		/**
-		 * Show field-suggestions.
+		 * Show fiewd-suggestions.
 		 */
-		showFields?: boolean;
+		showFiewds?: boowean;
 		/**
-		 * Show variable-suggestions.
+		 * Show vawiabwe-suggestions.
 		 */
-		showVariables?: boolean;
+		showVawiabwes?: boowean;
 		/**
-		 * Show class-suggestions.
+		 * Show cwass-suggestions.
 		 */
-		showClasses?: boolean;
+		showCwasses?: boowean;
 		/**
-		 * Show struct-suggestions.
+		 * Show stwuct-suggestions.
 		 */
-		showStructs?: boolean;
+		showStwucts?: boowean;
 		/**
-		 * Show interface-suggestions.
+		 * Show intewface-suggestions.
 		 */
-		showInterfaces?: boolean;
+		showIntewfaces?: boowean;
 		/**
-		 * Show module-suggestions.
+		 * Show moduwe-suggestions.
 		 */
-		showModules?: boolean;
+		showModuwes?: boowean;
 		/**
-		 * Show property-suggestions.
+		 * Show pwopewty-suggestions.
 		 */
-		showProperties?: boolean;
+		showPwopewties?: boowean;
 		/**
 		 * Show event-suggestions.
 		 */
-		showEvents?: boolean;
+		showEvents?: boowean;
 		/**
-		 * Show operator-suggestions.
+		 * Show opewatow-suggestions.
 		 */
-		showOperators?: boolean;
+		showOpewatows?: boowean;
 		/**
 		 * Show unit-suggestions.
 		 */
-		showUnits?: boolean;
+		showUnits?: boowean;
 		/**
-		 * Show value-suggestions.
+		 * Show vawue-suggestions.
 		 */
-		showValues?: boolean;
+		showVawues?: boowean;
 		/**
 		 * Show constant-suggestions.
 		 */
-		showConstants?: boolean;
+		showConstants?: boowean;
 		/**
 		 * Show enum-suggestions.
 		 */
-		showEnums?: boolean;
+		showEnums?: boowean;
 		/**
-		 * Show enumMember-suggestions.
+		 * Show enumMemba-suggestions.
 		 */
-		showEnumMembers?: boolean;
+		showEnumMembews?: boowean;
 		/**
-		 * Show keyword-suggestions.
+		 * Show keywowd-suggestions.
 		 */
-		showKeywords?: boolean;
+		showKeywowds?: boowean;
 		/**
 		 * Show text-suggestions.
 		 */
-		showWords?: boolean;
+		showWowds?: boowean;
 		/**
-		 * Show color-suggestions.
+		 * Show cowow-suggestions.
 		 */
-		showColors?: boolean;
+		showCowows?: boowean;
 		/**
-		 * Show file-suggestions.
+		 * Show fiwe-suggestions.
 		 */
-		showFiles?: boolean;
+		showFiwes?: boowean;
 		/**
-		 * Show reference-suggestions.
+		 * Show wefewence-suggestions.
 		 */
-		showReferences?: boolean;
+		showWefewences?: boowean;
 		/**
-		 * Show folder-suggestions.
+		 * Show fowda-suggestions.
 		 */
-		showFolders?: boolean;
+		showFowdews?: boowean;
 		/**
-		 * Show typeParameter-suggestions.
+		 * Show typePawameta-suggestions.
 		 */
-		showTypeParameters?: boolean;
+		showTypePawametews?: boowean;
 		/**
 		 * Show issue-suggestions.
 		 */
-		showIssues?: boolean;
+		showIssues?: boowean;
 		/**
-		 * Show user-suggestions.
+		 * Show usa-suggestions.
 		 */
-		showUsers?: boolean;
+		showUsews?: boowean;
 		/**
 		 * Show snippet-suggestions.
 		 */
-		showSnippets?: boolean;
+		showSnippets?: boowean;
 	}
 
-	export type InternalSuggestOptions = Readonly<Required<ISuggestOptions>>;
+	expowt type IntewnawSuggestOptions = Weadonwy<Wequiwed<ISuggestOptions>>;
 
-	export interface ISmartSelectOptions {
-		selectLeadingAndTrailingWhitespace?: boolean;
+	expowt intewface ISmawtSewectOptions {
+		sewectWeadingAndTwaiwingWhitespace?: boowean;
 	}
 
-	export type SmartSelectOptions = Readonly<Required<ISmartSelectOptions>>;
+	expowt type SmawtSewectOptions = Weadonwy<Wequiwed<ISmawtSewectOptions>>;
 
 	/**
-	 * Describes how to indent wrapped lines.
+	 * Descwibes how to indent wwapped wines.
 	 */
-	export enum WrappingIndent {
+	expowt enum WwappingIndent {
 		/**
-		 * No indentation => wrapped lines begin at column 1.
+		 * No indentation => wwapped wines begin at cowumn 1.
 		 */
 		None = 0,
 		/**
-		 * Same => wrapped lines get the same indentation as the parent.
+		 * Same => wwapped wines get the same indentation as the pawent.
 		 */
 		Same = 1,
 		/**
-		 * Indent => wrapped lines get +1 indentation toward the parent.
+		 * Indent => wwapped wines get +1 indentation towawd the pawent.
 		 */
 		Indent = 2,
 		/**
-		 * DeepIndent => wrapped lines get +2 indentation toward the parent.
+		 * DeepIndent => wwapped wines get +2 indentation towawd the pawent.
 		 */
 		DeepIndent = 3
 	}
 
-	export interface EditorWrappingInfo {
-		readonly isDominatedByLongLines: boolean;
-		readonly isWordWrapMinified: boolean;
-		readonly isViewportWrapping: boolean;
-		readonly wrappingColumn: number;
+	expowt intewface EditowWwappingInfo {
+		weadonwy isDominatedByWongWines: boowean;
+		weadonwy isWowdWwapMinified: boowean;
+		weadonwy isViewpowtWwapping: boowean;
+		weadonwy wwappingCowumn: numba;
 	}
 
-	export enum EditorOption {
-		acceptSuggestionOnCommitCharacter = 0,
-		acceptSuggestionOnEnter = 1,
-		accessibilitySupport = 2,
-		accessibilityPageSize = 3,
-		ariaLabel = 4,
-		autoClosingBrackets = 5,
-		autoClosingDelete = 6,
-		autoClosingOvertype = 7,
-		autoClosingQuotes = 8,
+	expowt enum EditowOption {
+		acceptSuggestionOnCommitChawacta = 0,
+		acceptSuggestionOnEnta = 1,
+		accessibiwitySuppowt = 2,
+		accessibiwityPageSize = 3,
+		awiaWabew = 4,
+		autoCwosingBwackets = 5,
+		autoCwosingDewete = 6,
+		autoCwosingOvewtype = 7,
+		autoCwosingQuotes = 8,
 		autoIndent = 9,
-		automaticLayout = 10,
-		autoSurround = 11,
-		bracketPairColorization = 12,
-		codeLens = 13,
-		codeLensFontFamily = 14,
-		codeLensFontSize = 15,
-		colorDecorators = 16,
-		columnSelection = 17,
+		automaticWayout = 10,
+		autoSuwwound = 11,
+		bwacketPaiwCowowization = 12,
+		codeWens = 13,
+		codeWensFontFamiwy = 14,
+		codeWensFontSize = 15,
+		cowowDecowatows = 16,
+		cowumnSewection = 17,
 		comments = 18,
 		contextmenu = 19,
-		copyWithSyntaxHighlighting = 20,
-		cursorBlinking = 21,
-		cursorSmoothCaretAnimation = 22,
-		cursorStyle = 23,
-		cursorSurroundingLines = 24,
-		cursorSurroundingLinesStyle = 25,
-		cursorWidth = 26,
-		disableLayerHinting = 27,
-		disableMonospaceOptimizations = 28,
-		domReadOnly = 29,
-		dragAndDrop = 30,
-		emptySelectionClipboard = 31,
-		extraEditorClassName = 32,
-		fastScrollSensitivity = 33,
+		copyWithSyntaxHighwighting = 20,
+		cuwsowBwinking = 21,
+		cuwsowSmoothCawetAnimation = 22,
+		cuwsowStywe = 23,
+		cuwsowSuwwoundingWines = 24,
+		cuwsowSuwwoundingWinesStywe = 25,
+		cuwsowWidth = 26,
+		disabweWayewHinting = 27,
+		disabweMonospaceOptimizations = 28,
+		domWeadOnwy = 29,
+		dwagAndDwop = 30,
+		emptySewectionCwipboawd = 31,
+		extwaEditowCwassName = 32,
+		fastScwowwSensitivity = 33,
 		find = 34,
-		fixedOverflowWidgets = 35,
-		folding = 36,
-		foldingStrategy = 37,
-		foldingHighlight = 38,
-		foldingImportsByDefault = 39,
-		unfoldOnClickAfterEndOfLine = 40,
-		fontFamily = 41,
+		fixedOvewfwowWidgets = 35,
+		fowding = 36,
+		fowdingStwategy = 37,
+		fowdingHighwight = 38,
+		fowdingImpowtsByDefauwt = 39,
+		unfowdOnCwickAftewEndOfWine = 40,
+		fontFamiwy = 41,
 		fontInfo = 42,
-		fontLigatures = 43,
+		fontWigatuwes = 43,
 		fontSize = 44,
 		fontWeight = 45,
-		formatOnPaste = 46,
-		formatOnType = 47,
-		glyphMargin = 48,
-		gotoLocation = 49,
-		hideCursorInOverviewRuler = 50,
-		highlightActiveIndentGuide = 51,
-		hover = 52,
-		inDiffEditor = 53,
-		inlineSuggest = 54,
-		letterSpacing = 55,
-		lightbulb = 56,
-		lineDecorationsWidth = 57,
-		lineHeight = 58,
-		lineNumbers = 59,
-		lineNumbersMinChars = 60,
-		linkedEditing = 61,
-		links = 62,
-		matchBrackets = 63,
+		fowmatOnPaste = 46,
+		fowmatOnType = 47,
+		gwyphMawgin = 48,
+		gotoWocation = 49,
+		hideCuwsowInOvewviewWuwa = 50,
+		highwightActiveIndentGuide = 51,
+		hova = 52,
+		inDiffEditow = 53,
+		inwineSuggest = 54,
+		wettewSpacing = 55,
+		wightbuwb = 56,
+		wineDecowationsWidth = 57,
+		wineHeight = 58,
+		wineNumbews = 59,
+		wineNumbewsMinChaws = 60,
+		winkedEditing = 61,
+		winks = 62,
+		matchBwackets = 63,
 		minimap = 64,
-		mouseStyle = 65,
-		mouseWheelScrollSensitivity = 66,
-		mouseWheelZoom = 67,
-		multiCursorMergeOverlapping = 68,
-		multiCursorModifier = 69,
-		multiCursorPaste = 70,
-		occurrencesHighlight = 71,
-		overviewRulerBorder = 72,
-		overviewRulerLanes = 73,
+		mouseStywe = 65,
+		mouseWheewScwowwSensitivity = 66,
+		mouseWheewZoom = 67,
+		muwtiCuwsowMewgeOvewwapping = 68,
+		muwtiCuwsowModifia = 69,
+		muwtiCuwsowPaste = 70,
+		occuwwencesHighwight = 71,
+		ovewviewWuwewBowda = 72,
+		ovewviewWuwewWanes = 73,
 		padding = 74,
-		parameterHints = 75,
-		peekWidgetDefaultFocus = 76,
-		definitionLinkOpensInPeek = 77,
+		pawametewHints = 75,
+		peekWidgetDefauwtFocus = 76,
+		definitionWinkOpensInPeek = 77,
 		quickSuggestions = 78,
-		quickSuggestionsDelay = 79,
-		readOnly = 80,
-		renameOnType = 81,
-		renderControlCharacters = 82,
-		renderIndentGuides = 83,
-		renderFinalNewline = 84,
-		renderLineHighlight = 85,
-		renderLineHighlightOnlyWhenFocus = 86,
-		renderValidationDecorations = 87,
-		renderWhitespace = 88,
-		revealHorizontalRightPadding = 89,
-		roundedSelection = 90,
-		rulers = 91,
-		scrollbar = 92,
-		scrollBeyondLastColumn = 93,
-		scrollBeyondLastLine = 94,
-		scrollPredominantAxis = 95,
-		selectionClipboard = 96,
-		selectionHighlight = 97,
-		selectOnLineNumbers = 98,
-		showFoldingControls = 99,
+		quickSuggestionsDeway = 79,
+		weadOnwy = 80,
+		wenameOnType = 81,
+		wendewContwowChawactews = 82,
+		wendewIndentGuides = 83,
+		wendewFinawNewwine = 84,
+		wendewWineHighwight = 85,
+		wendewWineHighwightOnwyWhenFocus = 86,
+		wendewVawidationDecowations = 87,
+		wendewWhitespace = 88,
+		weveawHowizontawWightPadding = 89,
+		woundedSewection = 90,
+		wuwews = 91,
+		scwowwbaw = 92,
+		scwowwBeyondWastCowumn = 93,
+		scwowwBeyondWastWine = 94,
+		scwowwPwedominantAxis = 95,
+		sewectionCwipboawd = 96,
+		sewectionHighwight = 97,
+		sewectOnWineNumbews = 98,
+		showFowdingContwows = 99,
 		showUnused = 100,
 		snippetSuggestions = 101,
-		smartSelect = 102,
-		smoothScrolling = 103,
+		smawtSewect = 102,
+		smoothScwowwing = 103,
 		stickyTabStops = 104,
-		stopRenderingLineAfter = 105,
+		stopWendewingWineAfta = 105,
 		suggest = 106,
 		suggestFontSize = 107,
-		suggestLineHeight = 108,
-		suggestOnTriggerCharacters = 109,
-		suggestSelection = 110,
-		tabCompletion = 111,
+		suggestWineHeight = 108,
+		suggestOnTwiggewChawactews = 109,
+		suggestSewection = 110,
+		tabCompwetion = 111,
 		tabIndex = 112,
-		unusualLineTerminators = 113,
+		unusuawWineTewminatows = 113,
 		useShadowDOM = 114,
 		useTabStops = 115,
-		wordSeparators = 116,
-		wordWrap = 117,
-		wordWrapBreakAfterCharacters = 118,
-		wordWrapBreakBeforeCharacters = 119,
-		wordWrapColumn = 120,
-		wordWrapOverride1 = 121,
-		wordWrapOverride2 = 122,
-		wrappingIndent = 123,
-		wrappingStrategy = 124,
-		showDeprecated = 125,
-		inlayHints = 126,
-		editorClassName = 127,
-		pixelRatio = 128,
+		wowdSepawatows = 116,
+		wowdWwap = 117,
+		wowdWwapBweakAftewChawactews = 118,
+		wowdWwapBweakBefoweChawactews = 119,
+		wowdWwapCowumn = 120,
+		wowdWwapOvewwide1 = 121,
+		wowdWwapOvewwide2 = 122,
+		wwappingIndent = 123,
+		wwappingStwategy = 124,
+		showDepwecated = 125,
+		inwayHints = 126,
+		editowCwassName = 127,
+		pixewWatio = 128,
 		tabFocusMode = 129,
-		layoutInfo = 130,
-		wrappingInfo = 131
+		wayoutInfo = 130,
+		wwappingInfo = 131
 	}
-	export const EditorOptions: {
-		acceptSuggestionOnCommitCharacter: IEditorOption<EditorOption.acceptSuggestionOnCommitCharacter, boolean>;
-		acceptSuggestionOnEnter: IEditorOption<EditorOption.acceptSuggestionOnEnter, 'on' | 'off' | 'smart'>;
-		accessibilitySupport: IEditorOption<EditorOption.accessibilitySupport, AccessibilitySupport>;
-		accessibilityPageSize: IEditorOption<EditorOption.accessibilityPageSize, number>;
-		ariaLabel: IEditorOption<EditorOption.ariaLabel, string>;
-		autoClosingBrackets: IEditorOption<EditorOption.autoClosingBrackets, 'always' | 'languageDefined' | 'beforeWhitespace' | 'never'>;
-		autoClosingDelete: IEditorOption<EditorOption.autoClosingDelete, 'always' | 'never' | 'auto'>;
-		autoClosingOvertype: IEditorOption<EditorOption.autoClosingOvertype, 'always' | 'never' | 'auto'>;
-		autoClosingQuotes: IEditorOption<EditorOption.autoClosingQuotes, 'always' | 'languageDefined' | 'beforeWhitespace' | 'never'>;
-		autoIndent: IEditorOption<EditorOption.autoIndent, EditorAutoIndentStrategy>;
-		automaticLayout: IEditorOption<EditorOption.automaticLayout, boolean>;
-		autoSurround: IEditorOption<EditorOption.autoSurround, 'languageDefined' | 'never' | 'quotes' | 'brackets'>;
-		bracketPairColorization: IEditorOption<EditorOption.bracketPairColorization, any>;
-		stickyTabStops: IEditorOption<EditorOption.stickyTabStops, boolean>;
-		codeLens: IEditorOption<EditorOption.codeLens, boolean>;
-		codeLensFontFamily: IEditorOption<EditorOption.codeLensFontFamily, string>;
-		codeLensFontSize: IEditorOption<EditorOption.codeLensFontSize, number>;
-		colorDecorators: IEditorOption<EditorOption.colorDecorators, boolean>;
-		columnSelection: IEditorOption<EditorOption.columnSelection, boolean>;
-		comments: IEditorOption<EditorOption.comments, EditorCommentsOptions>;
-		contextmenu: IEditorOption<EditorOption.contextmenu, boolean>;
-		copyWithSyntaxHighlighting: IEditorOption<EditorOption.copyWithSyntaxHighlighting, boolean>;
-		cursorBlinking: IEditorOption<EditorOption.cursorBlinking, TextEditorCursorBlinkingStyle>;
-		cursorSmoothCaretAnimation: IEditorOption<EditorOption.cursorSmoothCaretAnimation, boolean>;
-		cursorStyle: IEditorOption<EditorOption.cursorStyle, TextEditorCursorStyle>;
-		cursorSurroundingLines: IEditorOption<EditorOption.cursorSurroundingLines, number>;
-		cursorSurroundingLinesStyle: IEditorOption<EditorOption.cursorSurroundingLinesStyle, 'default' | 'all'>;
-		cursorWidth: IEditorOption<EditorOption.cursorWidth, number>;
-		disableLayerHinting: IEditorOption<EditorOption.disableLayerHinting, boolean>;
-		disableMonospaceOptimizations: IEditorOption<EditorOption.disableMonospaceOptimizations, boolean>;
-		domReadOnly: IEditorOption<EditorOption.domReadOnly, boolean>;
-		dragAndDrop: IEditorOption<EditorOption.dragAndDrop, boolean>;
-		emptySelectionClipboard: IEditorOption<EditorOption.emptySelectionClipboard, boolean>;
-		extraEditorClassName: IEditorOption<EditorOption.extraEditorClassName, string>;
-		fastScrollSensitivity: IEditorOption<EditorOption.fastScrollSensitivity, number>;
-		find: IEditorOption<EditorOption.find, EditorFindOptions>;
-		fixedOverflowWidgets: IEditorOption<EditorOption.fixedOverflowWidgets, boolean>;
-		folding: IEditorOption<EditorOption.folding, boolean>;
-		foldingStrategy: IEditorOption<EditorOption.foldingStrategy, 'auto' | 'indentation'>;
-		foldingHighlight: IEditorOption<EditorOption.foldingHighlight, boolean>;
-		foldingImportsByDefault: IEditorOption<EditorOption.foldingImportsByDefault, boolean>;
-		unfoldOnClickAfterEndOfLine: IEditorOption<EditorOption.unfoldOnClickAfterEndOfLine, boolean>;
-		fontFamily: IEditorOption<EditorOption.fontFamily, string>;
-		fontInfo: IEditorOption<EditorOption.fontInfo, FontInfo>;
-		fontLigatures2: IEditorOption<EditorOption.fontLigatures, string>;
-		fontSize: IEditorOption<EditorOption.fontSize, number>;
-		fontWeight: IEditorOption<EditorOption.fontWeight, string>;
-		formatOnPaste: IEditorOption<EditorOption.formatOnPaste, boolean>;
-		formatOnType: IEditorOption<EditorOption.formatOnType, boolean>;
-		glyphMargin: IEditorOption<EditorOption.glyphMargin, boolean>;
-		gotoLocation: IEditorOption<EditorOption.gotoLocation, GoToLocationOptions>;
-		hideCursorInOverviewRuler: IEditorOption<EditorOption.hideCursorInOverviewRuler, boolean>;
-		highlightActiveIndentGuide: IEditorOption<EditorOption.highlightActiveIndentGuide, boolean>;
-		hover: IEditorOption<EditorOption.hover, EditorHoverOptions>;
-		inDiffEditor: IEditorOption<EditorOption.inDiffEditor, boolean>;
-		letterSpacing: IEditorOption<EditorOption.letterSpacing, number>;
-		lightbulb: IEditorOption<EditorOption.lightbulb, EditorLightbulbOptions>;
-		lineDecorationsWidth: IEditorOption<EditorOption.lineDecorationsWidth, string | number>;
-		lineHeight: IEditorOption<EditorOption.lineHeight, number>;
-		lineNumbers: IEditorOption<EditorOption.lineNumbers, InternalEditorRenderLineNumbersOptions>;
-		lineNumbersMinChars: IEditorOption<EditorOption.lineNumbersMinChars, number>;
-		linkedEditing: IEditorOption<EditorOption.linkedEditing, boolean>;
-		links: IEditorOption<EditorOption.links, boolean>;
-		matchBrackets: IEditorOption<EditorOption.matchBrackets, 'always' | 'never' | 'near'>;
-		minimap: IEditorOption<EditorOption.minimap, EditorMinimapOptions>;
-		mouseStyle: IEditorOption<EditorOption.mouseStyle, 'default' | 'text' | 'copy'>;
-		mouseWheelScrollSensitivity: IEditorOption<EditorOption.mouseWheelScrollSensitivity, number>;
-		mouseWheelZoom: IEditorOption<EditorOption.mouseWheelZoom, boolean>;
-		multiCursorMergeOverlapping: IEditorOption<EditorOption.multiCursorMergeOverlapping, boolean>;
-		multiCursorModifier: IEditorOption<EditorOption.multiCursorModifier, 'altKey' | 'metaKey' | 'ctrlKey'>;
-		multiCursorPaste: IEditorOption<EditorOption.multiCursorPaste, 'spread' | 'full'>;
-		occurrencesHighlight: IEditorOption<EditorOption.occurrencesHighlight, boolean>;
-		overviewRulerBorder: IEditorOption<EditorOption.overviewRulerBorder, boolean>;
-		overviewRulerLanes: IEditorOption<EditorOption.overviewRulerLanes, number>;
-		padding: IEditorOption<EditorOption.padding, InternalEditorPaddingOptions>;
-		parameterHints: IEditorOption<EditorOption.parameterHints, InternalParameterHintOptions>;
-		peekWidgetDefaultFocus: IEditorOption<EditorOption.peekWidgetDefaultFocus, 'tree' | 'editor'>;
-		definitionLinkOpensInPeek: IEditorOption<EditorOption.definitionLinkOpensInPeek, boolean>;
-		quickSuggestions: IEditorOption<EditorOption.quickSuggestions, ValidQuickSuggestionsOptions>;
-		quickSuggestionsDelay: IEditorOption<EditorOption.quickSuggestionsDelay, number>;
-		readOnly: IEditorOption<EditorOption.readOnly, boolean>;
-		renameOnType: IEditorOption<EditorOption.renameOnType, boolean>;
-		renderControlCharacters: IEditorOption<EditorOption.renderControlCharacters, boolean>;
-		renderIndentGuides: IEditorOption<EditorOption.renderIndentGuides, boolean>;
-		renderFinalNewline: IEditorOption<EditorOption.renderFinalNewline, boolean>;
-		renderLineHighlight: IEditorOption<EditorOption.renderLineHighlight, 'all' | 'line' | 'none' | 'gutter'>;
-		renderLineHighlightOnlyWhenFocus: IEditorOption<EditorOption.renderLineHighlightOnlyWhenFocus, boolean>;
-		renderValidationDecorations: IEditorOption<EditorOption.renderValidationDecorations, 'on' | 'off' | 'editable'>;
-		renderWhitespace: IEditorOption<EditorOption.renderWhitespace, 'all' | 'none' | 'boundary' | 'selection' | 'trailing'>;
-		revealHorizontalRightPadding: IEditorOption<EditorOption.revealHorizontalRightPadding, number>;
-		roundedSelection: IEditorOption<EditorOption.roundedSelection, boolean>;
-		rulers: IEditorOption<EditorOption.rulers, {}>;
-		scrollbar: IEditorOption<EditorOption.scrollbar, InternalEditorScrollbarOptions>;
-		scrollBeyondLastColumn: IEditorOption<EditorOption.scrollBeyondLastColumn, number>;
-		scrollBeyondLastLine: IEditorOption<EditorOption.scrollBeyondLastLine, boolean>;
-		scrollPredominantAxis: IEditorOption<EditorOption.scrollPredominantAxis, boolean>;
-		selectionClipboard: IEditorOption<EditorOption.selectionClipboard, boolean>;
-		selectionHighlight: IEditorOption<EditorOption.selectionHighlight, boolean>;
-		selectOnLineNumbers: IEditorOption<EditorOption.selectOnLineNumbers, boolean>;
-		showFoldingControls: IEditorOption<EditorOption.showFoldingControls, 'always' | 'mouseover'>;
-		showUnused: IEditorOption<EditorOption.showUnused, boolean>;
-		showDeprecated: IEditorOption<EditorOption.showDeprecated, boolean>;
-		inlayHints: IEditorOption<EditorOption.inlayHints, any>;
-		snippetSuggestions: IEditorOption<EditorOption.snippetSuggestions, 'none' | 'top' | 'bottom' | 'inline'>;
-		smartSelect: IEditorOption<EditorOption.smartSelect, any>;
-		smoothScrolling: IEditorOption<EditorOption.smoothScrolling, boolean>;
-		stopRenderingLineAfter: IEditorOption<EditorOption.stopRenderingLineAfter, number>;
-		suggest: IEditorOption<EditorOption.suggest, InternalSuggestOptions>;
-		inlineSuggest: IEditorOption<EditorOption.inlineSuggest, any>;
-		suggestFontSize: IEditorOption<EditorOption.suggestFontSize, number>;
-		suggestLineHeight: IEditorOption<EditorOption.suggestLineHeight, number>;
-		suggestOnTriggerCharacters: IEditorOption<EditorOption.suggestOnTriggerCharacters, boolean>;
-		suggestSelection: IEditorOption<EditorOption.suggestSelection, 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix'>;
-		tabCompletion: IEditorOption<EditorOption.tabCompletion, 'on' | 'off' | 'onlySnippets'>;
-		tabIndex: IEditorOption<EditorOption.tabIndex, number>;
-		unusualLineTerminators: IEditorOption<EditorOption.unusualLineTerminators, 'auto' | 'off' | 'prompt'>;
-		useShadowDOM: IEditorOption<EditorOption.useShadowDOM, boolean>;
-		useTabStops: IEditorOption<EditorOption.useTabStops, boolean>;
-		wordSeparators: IEditorOption<EditorOption.wordSeparators, string>;
-		wordWrap: IEditorOption<EditorOption.wordWrap, 'on' | 'off' | 'wordWrapColumn' | 'bounded'>;
-		wordWrapBreakAfterCharacters: IEditorOption<EditorOption.wordWrapBreakAfterCharacters, string>;
-		wordWrapBreakBeforeCharacters: IEditorOption<EditorOption.wordWrapBreakBeforeCharacters, string>;
-		wordWrapColumn: IEditorOption<EditorOption.wordWrapColumn, number>;
-		wordWrapOverride1: IEditorOption<EditorOption.wordWrapOverride1, 'on' | 'off' | 'inherit'>;
-		wordWrapOverride2: IEditorOption<EditorOption.wordWrapOverride2, 'on' | 'off' | 'inherit'>;
-		wrappingIndent: IEditorOption<EditorOption.wrappingIndent, WrappingIndent>;
-		wrappingStrategy: IEditorOption<EditorOption.wrappingStrategy, 'simple' | 'advanced'>;
-		editorClassName: IEditorOption<EditorOption.editorClassName, string>;
-		pixelRatio: IEditorOption<EditorOption.pixelRatio, number>;
-		tabFocusMode: IEditorOption<EditorOption.tabFocusMode, boolean>;
-		layoutInfo: IEditorOption<EditorOption.layoutInfo, EditorLayoutInfo>;
-		wrappingInfo: IEditorOption<EditorOption.wrappingInfo, EditorWrappingInfo>;
+	expowt const EditowOptions: {
+		acceptSuggestionOnCommitChawacta: IEditowOption<EditowOption.acceptSuggestionOnCommitChawacta, boowean>;
+		acceptSuggestionOnEnta: IEditowOption<EditowOption.acceptSuggestionOnEnta, 'on' | 'off' | 'smawt'>;
+		accessibiwitySuppowt: IEditowOption<EditowOption.accessibiwitySuppowt, AccessibiwitySuppowt>;
+		accessibiwityPageSize: IEditowOption<EditowOption.accessibiwityPageSize, numba>;
+		awiaWabew: IEditowOption<EditowOption.awiaWabew, stwing>;
+		autoCwosingBwackets: IEditowOption<EditowOption.autoCwosingBwackets, 'awways' | 'wanguageDefined' | 'befoweWhitespace' | 'neva'>;
+		autoCwosingDewete: IEditowOption<EditowOption.autoCwosingDewete, 'awways' | 'neva' | 'auto'>;
+		autoCwosingOvewtype: IEditowOption<EditowOption.autoCwosingOvewtype, 'awways' | 'neva' | 'auto'>;
+		autoCwosingQuotes: IEditowOption<EditowOption.autoCwosingQuotes, 'awways' | 'wanguageDefined' | 'befoweWhitespace' | 'neva'>;
+		autoIndent: IEditowOption<EditowOption.autoIndent, EditowAutoIndentStwategy>;
+		automaticWayout: IEditowOption<EditowOption.automaticWayout, boowean>;
+		autoSuwwound: IEditowOption<EditowOption.autoSuwwound, 'wanguageDefined' | 'neva' | 'quotes' | 'bwackets'>;
+		bwacketPaiwCowowization: IEditowOption<EditowOption.bwacketPaiwCowowization, any>;
+		stickyTabStops: IEditowOption<EditowOption.stickyTabStops, boowean>;
+		codeWens: IEditowOption<EditowOption.codeWens, boowean>;
+		codeWensFontFamiwy: IEditowOption<EditowOption.codeWensFontFamiwy, stwing>;
+		codeWensFontSize: IEditowOption<EditowOption.codeWensFontSize, numba>;
+		cowowDecowatows: IEditowOption<EditowOption.cowowDecowatows, boowean>;
+		cowumnSewection: IEditowOption<EditowOption.cowumnSewection, boowean>;
+		comments: IEditowOption<EditowOption.comments, EditowCommentsOptions>;
+		contextmenu: IEditowOption<EditowOption.contextmenu, boowean>;
+		copyWithSyntaxHighwighting: IEditowOption<EditowOption.copyWithSyntaxHighwighting, boowean>;
+		cuwsowBwinking: IEditowOption<EditowOption.cuwsowBwinking, TextEditowCuwsowBwinkingStywe>;
+		cuwsowSmoothCawetAnimation: IEditowOption<EditowOption.cuwsowSmoothCawetAnimation, boowean>;
+		cuwsowStywe: IEditowOption<EditowOption.cuwsowStywe, TextEditowCuwsowStywe>;
+		cuwsowSuwwoundingWines: IEditowOption<EditowOption.cuwsowSuwwoundingWines, numba>;
+		cuwsowSuwwoundingWinesStywe: IEditowOption<EditowOption.cuwsowSuwwoundingWinesStywe, 'defauwt' | 'aww'>;
+		cuwsowWidth: IEditowOption<EditowOption.cuwsowWidth, numba>;
+		disabweWayewHinting: IEditowOption<EditowOption.disabweWayewHinting, boowean>;
+		disabweMonospaceOptimizations: IEditowOption<EditowOption.disabweMonospaceOptimizations, boowean>;
+		domWeadOnwy: IEditowOption<EditowOption.domWeadOnwy, boowean>;
+		dwagAndDwop: IEditowOption<EditowOption.dwagAndDwop, boowean>;
+		emptySewectionCwipboawd: IEditowOption<EditowOption.emptySewectionCwipboawd, boowean>;
+		extwaEditowCwassName: IEditowOption<EditowOption.extwaEditowCwassName, stwing>;
+		fastScwowwSensitivity: IEditowOption<EditowOption.fastScwowwSensitivity, numba>;
+		find: IEditowOption<EditowOption.find, EditowFindOptions>;
+		fixedOvewfwowWidgets: IEditowOption<EditowOption.fixedOvewfwowWidgets, boowean>;
+		fowding: IEditowOption<EditowOption.fowding, boowean>;
+		fowdingStwategy: IEditowOption<EditowOption.fowdingStwategy, 'auto' | 'indentation'>;
+		fowdingHighwight: IEditowOption<EditowOption.fowdingHighwight, boowean>;
+		fowdingImpowtsByDefauwt: IEditowOption<EditowOption.fowdingImpowtsByDefauwt, boowean>;
+		unfowdOnCwickAftewEndOfWine: IEditowOption<EditowOption.unfowdOnCwickAftewEndOfWine, boowean>;
+		fontFamiwy: IEditowOption<EditowOption.fontFamiwy, stwing>;
+		fontInfo: IEditowOption<EditowOption.fontInfo, FontInfo>;
+		fontWigatuwes2: IEditowOption<EditowOption.fontWigatuwes, stwing>;
+		fontSize: IEditowOption<EditowOption.fontSize, numba>;
+		fontWeight: IEditowOption<EditowOption.fontWeight, stwing>;
+		fowmatOnPaste: IEditowOption<EditowOption.fowmatOnPaste, boowean>;
+		fowmatOnType: IEditowOption<EditowOption.fowmatOnType, boowean>;
+		gwyphMawgin: IEditowOption<EditowOption.gwyphMawgin, boowean>;
+		gotoWocation: IEditowOption<EditowOption.gotoWocation, GoToWocationOptions>;
+		hideCuwsowInOvewviewWuwa: IEditowOption<EditowOption.hideCuwsowInOvewviewWuwa, boowean>;
+		highwightActiveIndentGuide: IEditowOption<EditowOption.highwightActiveIndentGuide, boowean>;
+		hova: IEditowOption<EditowOption.hova, EditowHovewOptions>;
+		inDiffEditow: IEditowOption<EditowOption.inDiffEditow, boowean>;
+		wettewSpacing: IEditowOption<EditowOption.wettewSpacing, numba>;
+		wightbuwb: IEditowOption<EditowOption.wightbuwb, EditowWightbuwbOptions>;
+		wineDecowationsWidth: IEditowOption<EditowOption.wineDecowationsWidth, stwing | numba>;
+		wineHeight: IEditowOption<EditowOption.wineHeight, numba>;
+		wineNumbews: IEditowOption<EditowOption.wineNumbews, IntewnawEditowWendewWineNumbewsOptions>;
+		wineNumbewsMinChaws: IEditowOption<EditowOption.wineNumbewsMinChaws, numba>;
+		winkedEditing: IEditowOption<EditowOption.winkedEditing, boowean>;
+		winks: IEditowOption<EditowOption.winks, boowean>;
+		matchBwackets: IEditowOption<EditowOption.matchBwackets, 'awways' | 'neva' | 'neaw'>;
+		minimap: IEditowOption<EditowOption.minimap, EditowMinimapOptions>;
+		mouseStywe: IEditowOption<EditowOption.mouseStywe, 'defauwt' | 'text' | 'copy'>;
+		mouseWheewScwowwSensitivity: IEditowOption<EditowOption.mouseWheewScwowwSensitivity, numba>;
+		mouseWheewZoom: IEditowOption<EditowOption.mouseWheewZoom, boowean>;
+		muwtiCuwsowMewgeOvewwapping: IEditowOption<EditowOption.muwtiCuwsowMewgeOvewwapping, boowean>;
+		muwtiCuwsowModifia: IEditowOption<EditowOption.muwtiCuwsowModifia, 'awtKey' | 'metaKey' | 'ctwwKey'>;
+		muwtiCuwsowPaste: IEditowOption<EditowOption.muwtiCuwsowPaste, 'spwead' | 'fuww'>;
+		occuwwencesHighwight: IEditowOption<EditowOption.occuwwencesHighwight, boowean>;
+		ovewviewWuwewBowda: IEditowOption<EditowOption.ovewviewWuwewBowda, boowean>;
+		ovewviewWuwewWanes: IEditowOption<EditowOption.ovewviewWuwewWanes, numba>;
+		padding: IEditowOption<EditowOption.padding, IntewnawEditowPaddingOptions>;
+		pawametewHints: IEditowOption<EditowOption.pawametewHints, IntewnawPawametewHintOptions>;
+		peekWidgetDefauwtFocus: IEditowOption<EditowOption.peekWidgetDefauwtFocus, 'twee' | 'editow'>;
+		definitionWinkOpensInPeek: IEditowOption<EditowOption.definitionWinkOpensInPeek, boowean>;
+		quickSuggestions: IEditowOption<EditowOption.quickSuggestions, VawidQuickSuggestionsOptions>;
+		quickSuggestionsDeway: IEditowOption<EditowOption.quickSuggestionsDeway, numba>;
+		weadOnwy: IEditowOption<EditowOption.weadOnwy, boowean>;
+		wenameOnType: IEditowOption<EditowOption.wenameOnType, boowean>;
+		wendewContwowChawactews: IEditowOption<EditowOption.wendewContwowChawactews, boowean>;
+		wendewIndentGuides: IEditowOption<EditowOption.wendewIndentGuides, boowean>;
+		wendewFinawNewwine: IEditowOption<EditowOption.wendewFinawNewwine, boowean>;
+		wendewWineHighwight: IEditowOption<EditowOption.wendewWineHighwight, 'aww' | 'wine' | 'none' | 'gutta'>;
+		wendewWineHighwightOnwyWhenFocus: IEditowOption<EditowOption.wendewWineHighwightOnwyWhenFocus, boowean>;
+		wendewVawidationDecowations: IEditowOption<EditowOption.wendewVawidationDecowations, 'on' | 'off' | 'editabwe'>;
+		wendewWhitespace: IEditowOption<EditowOption.wendewWhitespace, 'aww' | 'none' | 'boundawy' | 'sewection' | 'twaiwing'>;
+		weveawHowizontawWightPadding: IEditowOption<EditowOption.weveawHowizontawWightPadding, numba>;
+		woundedSewection: IEditowOption<EditowOption.woundedSewection, boowean>;
+		wuwews: IEditowOption<EditowOption.wuwews, {}>;
+		scwowwbaw: IEditowOption<EditowOption.scwowwbaw, IntewnawEditowScwowwbawOptions>;
+		scwowwBeyondWastCowumn: IEditowOption<EditowOption.scwowwBeyondWastCowumn, numba>;
+		scwowwBeyondWastWine: IEditowOption<EditowOption.scwowwBeyondWastWine, boowean>;
+		scwowwPwedominantAxis: IEditowOption<EditowOption.scwowwPwedominantAxis, boowean>;
+		sewectionCwipboawd: IEditowOption<EditowOption.sewectionCwipboawd, boowean>;
+		sewectionHighwight: IEditowOption<EditowOption.sewectionHighwight, boowean>;
+		sewectOnWineNumbews: IEditowOption<EditowOption.sewectOnWineNumbews, boowean>;
+		showFowdingContwows: IEditowOption<EditowOption.showFowdingContwows, 'awways' | 'mouseova'>;
+		showUnused: IEditowOption<EditowOption.showUnused, boowean>;
+		showDepwecated: IEditowOption<EditowOption.showDepwecated, boowean>;
+		inwayHints: IEditowOption<EditowOption.inwayHints, any>;
+		snippetSuggestions: IEditowOption<EditowOption.snippetSuggestions, 'none' | 'top' | 'bottom' | 'inwine'>;
+		smawtSewect: IEditowOption<EditowOption.smawtSewect, any>;
+		smoothScwowwing: IEditowOption<EditowOption.smoothScwowwing, boowean>;
+		stopWendewingWineAfta: IEditowOption<EditowOption.stopWendewingWineAfta, numba>;
+		suggest: IEditowOption<EditowOption.suggest, IntewnawSuggestOptions>;
+		inwineSuggest: IEditowOption<EditowOption.inwineSuggest, any>;
+		suggestFontSize: IEditowOption<EditowOption.suggestFontSize, numba>;
+		suggestWineHeight: IEditowOption<EditowOption.suggestWineHeight, numba>;
+		suggestOnTwiggewChawactews: IEditowOption<EditowOption.suggestOnTwiggewChawactews, boowean>;
+		suggestSewection: IEditowOption<EditowOption.suggestSewection, 'fiwst' | 'wecentwyUsed' | 'wecentwyUsedByPwefix'>;
+		tabCompwetion: IEditowOption<EditowOption.tabCompwetion, 'on' | 'off' | 'onwySnippets'>;
+		tabIndex: IEditowOption<EditowOption.tabIndex, numba>;
+		unusuawWineTewminatows: IEditowOption<EditowOption.unusuawWineTewminatows, 'auto' | 'off' | 'pwompt'>;
+		useShadowDOM: IEditowOption<EditowOption.useShadowDOM, boowean>;
+		useTabStops: IEditowOption<EditowOption.useTabStops, boowean>;
+		wowdSepawatows: IEditowOption<EditowOption.wowdSepawatows, stwing>;
+		wowdWwap: IEditowOption<EditowOption.wowdWwap, 'on' | 'off' | 'wowdWwapCowumn' | 'bounded'>;
+		wowdWwapBweakAftewChawactews: IEditowOption<EditowOption.wowdWwapBweakAftewChawactews, stwing>;
+		wowdWwapBweakBefoweChawactews: IEditowOption<EditowOption.wowdWwapBweakBefoweChawactews, stwing>;
+		wowdWwapCowumn: IEditowOption<EditowOption.wowdWwapCowumn, numba>;
+		wowdWwapOvewwide1: IEditowOption<EditowOption.wowdWwapOvewwide1, 'on' | 'off' | 'inhewit'>;
+		wowdWwapOvewwide2: IEditowOption<EditowOption.wowdWwapOvewwide2, 'on' | 'off' | 'inhewit'>;
+		wwappingIndent: IEditowOption<EditowOption.wwappingIndent, WwappingIndent>;
+		wwappingStwategy: IEditowOption<EditowOption.wwappingStwategy, 'simpwe' | 'advanced'>;
+		editowCwassName: IEditowOption<EditowOption.editowCwassName, stwing>;
+		pixewWatio: IEditowOption<EditowOption.pixewWatio, numba>;
+		tabFocusMode: IEditowOption<EditowOption.tabFocusMode, boowean>;
+		wayoutInfo: IEditowOption<EditowOption.wayoutInfo, EditowWayoutInfo>;
+		wwappingInfo: IEditowOption<EditowOption.wwappingInfo, EditowWwappingInfo>;
 	};
 
-	type EditorOptionsType = typeof EditorOptions;
+	type EditowOptionsType = typeof EditowOptions;
 
-	type FindEditorOptionsKeyById<T extends EditorOption> = {
-		[K in keyof EditorOptionsType]: EditorOptionsType[K]['id'] extends T ? K : never;
-	}[keyof EditorOptionsType];
+	type FindEditowOptionsKeyById<T extends EditowOption> = {
+		[K in keyof EditowOptionsType]: EditowOptionsType[K]['id'] extends T ? K : neva;
+	}[keyof EditowOptionsType];
 
-	type ComputedEditorOptionValue<T extends IEditorOption<any, any>> = T extends IEditorOption<any, infer R> ? R : never;
+	type ComputedEditowOptionVawue<T extends IEditowOption<any, any>> = T extends IEditowOption<any, infa W> ? W : neva;
 
-	export type FindComputedEditorOptionValueById<T extends EditorOption> = NonNullable<ComputedEditorOptionValue<EditorOptionsType[FindEditorOptionsKeyById<T>]>>;
+	expowt type FindComputedEditowOptionVawueById<T extends EditowOption> = NonNuwwabwe<ComputedEditowOptionVawue<EditowOptionsType[FindEditowOptionsKeyById<T>]>>;
 
 	/**
-	 * A view zone is a full horizontal rectangle that 'pushes' text down.
-	 * The editor reserves space for view zones when rendering.
+	 * A view zone is a fuww howizontaw wectangwe that 'pushes' text down.
+	 * The editow wesewves space fow view zones when wendewing.
 	 */
-	export interface IViewZone {
+	expowt intewface IViewZone {
 		/**
-		 * The line number after which this zone should appear.
-		 * Use 0 to place a view zone before the first line number.
+		 * The wine numba afta which this zone shouwd appeaw.
+		 * Use 0 to pwace a view zone befowe the fiwst wine numba.
 		 */
-		afterLineNumber: number;
+		aftewWineNumba: numba;
 		/**
-		 * The column after which this zone should appear.
-		 * If not set, the maxLineColumn of `afterLineNumber` will be used.
+		 * The cowumn afta which this zone shouwd appeaw.
+		 * If not set, the maxWineCowumn of `aftewWineNumba` wiww be used.
 		 */
-		afterColumn?: number;
+		aftewCowumn?: numba;
 		/**
-		 * Suppress mouse down events.
-		 * If set, the editor will attach a mouse down listener to the view zone and .preventDefault on it.
-		 * Defaults to false
+		 * Suppwess mouse down events.
+		 * If set, the editow wiww attach a mouse down wistena to the view zone and .pweventDefauwt on it.
+		 * Defauwts to fawse
 		 */
-		suppressMouseDown?: boolean;
+		suppwessMouseDown?: boowean;
 		/**
-		 * The height in lines of the view zone.
-		 * If specified, `heightInPx` will be used instead of this.
-		 * If neither `heightInPx` nor `heightInLines` is specified, a default of `heightInLines` = 1 will be chosen.
+		 * The height in wines of the view zone.
+		 * If specified, `heightInPx` wiww be used instead of this.
+		 * If neitha `heightInPx` now `heightInWines` is specified, a defauwt of `heightInWines` = 1 wiww be chosen.
 		 */
-		heightInLines?: number;
+		heightInWines?: numba;
 		/**
 		 * The height in px of the view zone.
-		 * If this is set, the editor will give preference to it rather than `heightInLines` above.
-		 * If neither `heightInPx` nor `heightInLines` is specified, a default of `heightInLines` = 1 will be chosen.
+		 * If this is set, the editow wiww give pwefewence to it watha than `heightInWines` above.
+		 * If neitha `heightInPx` now `heightInWines` is specified, a defauwt of `heightInWines` = 1 wiww be chosen.
 		 */
-		heightInPx?: number;
+		heightInPx?: numba;
 		/**
 		 * The minimum width in px of the view zone.
-		 * If this is set, the editor will ensure that the scroll width is >= than this value.
+		 * If this is set, the editow wiww ensuwe that the scwoww width is >= than this vawue.
 		 */
-		minWidthInPx?: number;
+		minWidthInPx?: numba;
 		/**
 		 * The dom node of the view zone
 		 */
-		domNode: HTMLElement;
+		domNode: HTMWEwement;
 		/**
-		 * An optional dom node for the view zone that will be placed in the margin area.
+		 * An optionaw dom node fow the view zone that wiww be pwaced in the mawgin awea.
 		 */
-		marginDomNode?: HTMLElement | null;
+		mawginDomNode?: HTMWEwement | nuww;
 		/**
-		 * Callback which gives the relative top of the view zone as it appears (taking scrolling into account).
+		 * Cawwback which gives the wewative top of the view zone as it appeaws (taking scwowwing into account).
 		 */
-		onDomNodeTop?: (top: number) => void;
+		onDomNodeTop?: (top: numba) => void;
 		/**
-		 * Callback which gives the height in pixels of the view zone.
+		 * Cawwback which gives the height in pixews of the view zone.
 		 */
-		onComputedHeight?: (height: number) => void;
+		onComputedHeight?: (height: numba) => void;
 	}
 
 	/**
-	 * An accessor that allows for zones to be added or removed.
+	 * An accessow that awwows fow zones to be added ow wemoved.
 	 */
-	export interface IViewZoneChangeAccessor {
+	expowt intewface IViewZoneChangeAccessow {
 		/**
-		 * Create a new view zone.
-		 * @param zone Zone to create
-		 * @return A unique identifier to the view zone.
+		 * Cweate a new view zone.
+		 * @pawam zone Zone to cweate
+		 * @wetuwn A unique identifia to the view zone.
 		 */
-		addZone(zone: IViewZone): string;
+		addZone(zone: IViewZone): stwing;
 		/**
-		 * Remove a zone
-		 * @param id A unique identifier to the view zone, as returned by the `addZone` call.
+		 * Wemove a zone
+		 * @pawam id A unique identifia to the view zone, as wetuwned by the `addZone` caww.
 		 */
-		removeZone(id: string): void;
+		wemoveZone(id: stwing): void;
 		/**
 		 * Change a zone's position.
-		 * The editor will rescan the `afterLineNumber` and `afterColumn` properties of a view zone.
+		 * The editow wiww wescan the `aftewWineNumba` and `aftewCowumn` pwopewties of a view zone.
 		 */
-		layoutZone(id: string): void;
+		wayoutZone(id: stwing): void;
 	}
 
 	/**
-	 * A positioning preference for rendering content widgets.
+	 * A positioning pwefewence fow wendewing content widgets.
 	 */
-	export enum ContentWidgetPositionPreference {
+	expowt enum ContentWidgetPositionPwefewence {
 		/**
-		 * Place the content widget exactly at a position
+		 * Pwace the content widget exactwy at a position
 		 */
 		EXACT = 0,
 		/**
-		 * Place the content widget above a position
+		 * Pwace the content widget above a position
 		 */
 		ABOVE = 1,
 		/**
-		 * Place the content widget below a position
+		 * Pwace the content widget bewow a position
 		 */
-		BELOW = 2
+		BEWOW = 2
 	}
 
 	/**
-	 * A position for rendering content widgets.
+	 * A position fow wendewing content widgets.
 	 */
-	export interface IContentWidgetPosition {
+	expowt intewface IContentWidgetPosition {
 		/**
-		 * Desired position for the content widget.
-		 * `preference` will also affect the placement.
+		 * Desiwed position fow the content widget.
+		 * `pwefewence` wiww awso affect the pwacement.
 		 */
-		position: IPosition | null;
+		position: IPosition | nuww;
 		/**
-		 * Optionally, a range can be provided to further
+		 * Optionawwy, a wange can be pwovided to fuwtha
 		 * define the position of the content widget.
 		 */
-		range?: IRange | null;
+		wange?: IWange | nuww;
 		/**
-		 * Placement preference for position, in order of preference.
+		 * Pwacement pwefewence fow position, in owda of pwefewence.
 		 */
-		preference: ContentWidgetPositionPreference[];
+		pwefewence: ContentWidgetPositionPwefewence[];
 	}
 
 	/**
-	 * A content widget renders inline with the text and can be easily placed 'near' an editor position.
+	 * A content widget wendews inwine with the text and can be easiwy pwaced 'neaw' an editow position.
 	 */
-	export interface IContentWidget {
+	expowt intewface IContentWidget {
 		/**
-		 * Render this content widget in a location where it could overflow the editor's view dom node.
+		 * Wenda this content widget in a wocation whewe it couwd ovewfwow the editow's view dom node.
 		 */
-		allowEditorOverflow?: boolean;
-		suppressMouseDown?: boolean;
+		awwowEditowOvewfwow?: boowean;
+		suppwessMouseDown?: boowean;
 		/**
-		 * Get a unique identifier of the content widget.
+		 * Get a unique identifia of the content widget.
 		 */
-		getId(): string;
+		getId(): stwing;
 		/**
 		 * Get the dom node of the content widget.
 		 */
-		getDomNode(): HTMLElement;
+		getDomNode(): HTMWEwement;
 		/**
-		 * Get the placement of the content widget.
-		 * If null is returned, the content widget will be placed off screen.
+		 * Get the pwacement of the content widget.
+		 * If nuww is wetuwned, the content widget wiww be pwaced off scween.
 		 */
-		getPosition(): IContentWidgetPosition | null;
+		getPosition(): IContentWidgetPosition | nuww;
 		/**
-		 * Optional function that is invoked before rendering
-		 * the content widget. If a dimension is returned the editor will
+		 * Optionaw function that is invoked befowe wendewing
+		 * the content widget. If a dimension is wetuwned the editow wiww
 		 * attempt to use it.
 		 */
-		beforeRender?(): IDimension | null;
+		befoweWenda?(): IDimension | nuww;
 		/**
-		 * Optional function that is invoked after rendering the content
-		 * widget. Is being invoked with the selected position preference
-		 * or `null` if not rendered.
+		 * Optionaw function that is invoked afta wendewing the content
+		 * widget. Is being invoked with the sewected position pwefewence
+		 * ow `nuww` if not wendewed.
 		 */
-		afterRender?(position: ContentWidgetPositionPreference | null): void;
+		aftewWenda?(position: ContentWidgetPositionPwefewence | nuww): void;
 	}
 
 	/**
-	 * A positioning preference for rendering overlay widgets.
+	 * A positioning pwefewence fow wendewing ovewway widgets.
 	 */
-	export enum OverlayWidgetPositionPreference {
+	expowt enum OvewwayWidgetPositionPwefewence {
 		/**
-		 * Position the overlay widget in the top right corner
+		 * Position the ovewway widget in the top wight cowna
 		 */
-		TOP_RIGHT_CORNER = 0,
+		TOP_WIGHT_COWNa = 0,
 		/**
-		 * Position the overlay widget in the bottom right corner
+		 * Position the ovewway widget in the bottom wight cowna
 		 */
-		BOTTOM_RIGHT_CORNER = 1,
+		BOTTOM_WIGHT_COWNa = 1,
 		/**
-		 * Position the overlay widget in the top center
+		 * Position the ovewway widget in the top centa
 		 */
-		TOP_CENTER = 2
+		TOP_CENTa = 2
 	}
 
 	/**
-	 * A position for rendering overlay widgets.
+	 * A position fow wendewing ovewway widgets.
 	 */
-	export interface IOverlayWidgetPosition {
+	expowt intewface IOvewwayWidgetPosition {
 		/**
-		 * The position preference for the overlay widget.
+		 * The position pwefewence fow the ovewway widget.
 		 */
-		preference: OverlayWidgetPositionPreference | null;
+		pwefewence: OvewwayWidgetPositionPwefewence | nuww;
 	}
 
 	/**
-	 * An overlay widgets renders on top of the text.
+	 * An ovewway widgets wendews on top of the text.
 	 */
-	export interface IOverlayWidget {
+	expowt intewface IOvewwayWidget {
 		/**
-		 * Get a unique identifier of the overlay widget.
+		 * Get a unique identifia of the ovewway widget.
 		 */
-		getId(): string;
+		getId(): stwing;
 		/**
-		 * Get the dom node of the overlay widget.
+		 * Get the dom node of the ovewway widget.
 		 */
-		getDomNode(): HTMLElement;
+		getDomNode(): HTMWEwement;
 		/**
-		 * Get the placement of the overlay widget.
-		 * If null is returned, the overlay widget is responsible to place itself.
+		 * Get the pwacement of the ovewway widget.
+		 * If nuww is wetuwned, the ovewway widget is wesponsibwe to pwace itsewf.
 		 */
-		getPosition(): IOverlayWidgetPosition | null;
+		getPosition(): IOvewwayWidgetPosition | nuww;
 	}
 
 	/**
-	 * Type of hit element with the mouse in the editor.
+	 * Type of hit ewement with the mouse in the editow.
 	 */
-	export enum MouseTargetType {
+	expowt enum MouseTawgetType {
 		/**
-		 * Mouse is on top of an unknown element.
+		 * Mouse is on top of an unknown ewement.
 		 */
 		UNKNOWN = 0,
 		/**
-		 * Mouse is on top of the textarea used for input.
+		 * Mouse is on top of the textawea used fow input.
 		 */
-		TEXTAREA = 1,
+		TEXTAWEA = 1,
 		/**
-		 * Mouse is on top of the glyph margin
+		 * Mouse is on top of the gwyph mawgin
 		 */
-		GUTTER_GLYPH_MARGIN = 2,
+		GUTTEW_GWYPH_MAWGIN = 2,
 		/**
-		 * Mouse is on top of the line numbers
+		 * Mouse is on top of the wine numbews
 		 */
-		GUTTER_LINE_NUMBERS = 3,
+		GUTTEW_WINE_NUMBEWS = 3,
 		/**
-		 * Mouse is on top of the line decorations
+		 * Mouse is on top of the wine decowations
 		 */
-		GUTTER_LINE_DECORATIONS = 4,
+		GUTTEW_WINE_DECOWATIONS = 4,
 		/**
-		 * Mouse is on top of the whitespace left in the gutter by a view zone.
+		 * Mouse is on top of the whitespace weft in the gutta by a view zone.
 		 */
-		GUTTER_VIEW_ZONE = 5,
+		GUTTEW_VIEW_ZONE = 5,
 		/**
 		 * Mouse is on top of text in the content.
 		 */
 		CONTENT_TEXT = 6,
 		/**
-		 * Mouse is on top of empty space in the content (e.g. after line text or below last line)
+		 * Mouse is on top of empty space in the content (e.g. afta wine text ow bewow wast wine)
 		 */
 		CONTENT_EMPTY = 7,
 		/**
@@ -4612,2272 +4612,2272 @@ declare namespace monaco.editor {
 		 */
 		CONTENT_WIDGET = 9,
 		/**
-		 * Mouse is on top of the decorations overview ruler.
+		 * Mouse is on top of the decowations ovewview wuwa.
 		 */
-		OVERVIEW_RULER = 10,
+		OVEWVIEW_WUWa = 10,
 		/**
-		 * Mouse is on top of a scrollbar.
+		 * Mouse is on top of a scwowwbaw.
 		 */
-		SCROLLBAR = 11,
+		SCWOWWBAW = 11,
 		/**
-		 * Mouse is on top of an overlay widget.
+		 * Mouse is on top of an ovewway widget.
 		 */
-		OVERLAY_WIDGET = 12,
+		OVEWWAY_WIDGET = 12,
 		/**
-		 * Mouse is outside of the editor.
+		 * Mouse is outside of the editow.
 		 */
-		OUTSIDE_EDITOR = 13
+		OUTSIDE_EDITOW = 13
 	}
 
 	/**
-	 * Target hit with the mouse in the editor.
+	 * Tawget hit with the mouse in the editow.
 	 */
-	export interface IMouseTarget {
+	expowt intewface IMouseTawget {
 		/**
-		 * The target element
+		 * The tawget ewement
 		 */
-		readonly element: Element | null;
+		weadonwy ewement: Ewement | nuww;
 		/**
-		 * The target type
+		 * The tawget type
 		 */
-		readonly type: MouseTargetType;
+		weadonwy type: MouseTawgetType;
 		/**
-		 * The 'approximate' editor position
+		 * The 'appwoximate' editow position
 		 */
-		readonly position: Position | null;
+		weadonwy position: Position | nuww;
 		/**
-		 * Desired mouse column (e.g. when position.column gets clamped to text length -- clicking after text on a line).
+		 * Desiwed mouse cowumn (e.g. when position.cowumn gets cwamped to text wength -- cwicking afta text on a wine).
 		 */
-		readonly mouseColumn: number;
+		weadonwy mouseCowumn: numba;
 		/**
-		 * The 'approximate' editor range
+		 * The 'appwoximate' editow wange
 		 */
-		readonly range: Range | null;
+		weadonwy wange: Wange | nuww;
 		/**
-		 * Some extra detail.
+		 * Some extwa detaiw.
 		 */
-		readonly detail: any;
+		weadonwy detaiw: any;
 	}
 
 	/**
-	 * A mouse event originating from the editor.
+	 * A mouse event owiginating fwom the editow.
 	 */
-	export interface IEditorMouseEvent {
-		readonly event: IMouseEvent;
-		readonly target: IMouseTarget;
+	expowt intewface IEditowMouseEvent {
+		weadonwy event: IMouseEvent;
+		weadonwy tawget: IMouseTawget;
 	}
 
-	export interface IPartialEditorMouseEvent {
-		readonly event: IMouseEvent;
-		readonly target: IMouseTarget | null;
+	expowt intewface IPawtiawEditowMouseEvent {
+		weadonwy event: IMouseEvent;
+		weadonwy tawget: IMouseTawget | nuww;
 	}
 
 	/**
-	 * A paste event originating from the editor.
+	 * A paste event owiginating fwom the editow.
 	 */
-	export interface IPasteEvent {
-		readonly range: Range;
-		readonly mode: string | null;
+	expowt intewface IPasteEvent {
+		weadonwy wange: Wange;
+		weadonwy mode: stwing | nuww;
 	}
 
-	export interface IEditorConstructionOptions extends IEditorOptions {
+	expowt intewface IEditowConstwuctionOptions extends IEditowOptions {
 		/**
-		 * The initial editor dimension (to avoid measuring the container).
+		 * The initiaw editow dimension (to avoid measuwing the containa).
 		 */
 		dimension?: IDimension;
 		/**
-		 * Place overflow widgets inside an external DOM node.
-		 * Defaults to an internal DOM node.
+		 * Pwace ovewfwow widgets inside an extewnaw DOM node.
+		 * Defauwts to an intewnaw DOM node.
 		 */
-		overflowWidgetsDomNode?: HTMLElement;
+		ovewfwowWidgetsDomNode?: HTMWEwement;
 	}
 
-	export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
+	expowt intewface IDiffEditowConstwuctionOptions extends IDiffEditowOptions {
 		/**
-		 * The initial editor dimension (to avoid measuring the container).
+		 * The initiaw editow dimension (to avoid measuwing the containa).
 		 */
 		dimension?: IDimension;
 		/**
-		 * Place overflow widgets inside an external DOM node.
-		 * Defaults to an internal DOM node.
+		 * Pwace ovewfwow widgets inside an extewnaw DOM node.
+		 * Defauwts to an intewnaw DOM node.
 		 */
-		overflowWidgetsDomNode?: HTMLElement;
+		ovewfwowWidgetsDomNode?: HTMWEwement;
 		/**
-		 * Aria label for original editor.
+		 * Awia wabew fow owiginaw editow.
 		 */
-		originalAriaLabel?: string;
+		owiginawAwiaWabew?: stwing;
 		/**
-		 * Aria label for modified editor.
+		 * Awia wabew fow modified editow.
 		 */
-		modifiedAriaLabel?: string;
+		modifiedAwiaWabew?: stwing;
 		/**
-		 * Is the diff editor inside another editor
-		 * Defaults to false
+		 * Is the diff editow inside anotha editow
+		 * Defauwts to fawse
 		 */
-		isInEmbeddedEditor?: boolean;
+		isInEmbeddedEditow?: boowean;
 	}
 
 	/**
-	 * A rich code editor.
+	 * A wich code editow.
 	 */
-	export interface ICodeEditor extends IEditor {
+	expowt intewface ICodeEditow extends IEditow {
 		/**
-		 * An event emitted when the content of the current model has changed.
+		 * An event emitted when the content of the cuwwent modew has changed.
 		 * @event
 		 */
-		onDidChangeModelContent(listener: (e: IModelContentChangedEvent) => void): IDisposable;
+		onDidChangeModewContent(wistena: (e: IModewContentChangedEvent) => void): IDisposabwe;
 		/**
-		 * An event emitted when the language of the current model has changed.
+		 * An event emitted when the wanguage of the cuwwent modew has changed.
 		 * @event
 		 */
-		onDidChangeModelLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
+		onDidChangeModewWanguage(wistena: (e: IModewWanguageChangedEvent) => void): IDisposabwe;
 		/**
-		 * An event emitted when the language configuration of the current model has changed.
+		 * An event emitted when the wanguage configuwation of the cuwwent modew has changed.
 		 * @event
 		 */
-		onDidChangeModelLanguageConfiguration(listener: (e: IModelLanguageConfigurationChangedEvent) => void): IDisposable;
+		onDidChangeModewWanguageConfiguwation(wistena: (e: IModewWanguageConfiguwationChangedEvent) => void): IDisposabwe;
 		/**
-		 * An event emitted when the options of the current model has changed.
+		 * An event emitted when the options of the cuwwent modew has changed.
 		 * @event
 		 */
-		onDidChangeModelOptions(listener: (e: IModelOptionsChangedEvent) => void): IDisposable;
+		onDidChangeModewOptions(wistena: (e: IModewOptionsChangedEvent) => void): IDisposabwe;
 		/**
-		 * An event emitted when the configuration of the editor has changed. (e.g. `editor.updateOptions()`)
+		 * An event emitted when the configuwation of the editow has changed. (e.g. `editow.updateOptions()`)
 		 * @event
 		 */
-		onDidChangeConfiguration(listener: (e: ConfigurationChangedEvent) => void): IDisposable;
+		onDidChangeConfiguwation(wistena: (e: ConfiguwationChangedEvent) => void): IDisposabwe;
 		/**
-		 * An event emitted when the cursor position has changed.
+		 * An event emitted when the cuwsow position has changed.
 		 * @event
 		 */
-		onDidChangeCursorPosition(listener: (e: ICursorPositionChangedEvent) => void): IDisposable;
+		onDidChangeCuwsowPosition(wistena: (e: ICuwsowPositionChangedEvent) => void): IDisposabwe;
 		/**
-		 * An event emitted when the cursor selection has changed.
+		 * An event emitted when the cuwsow sewection has changed.
 		 * @event
 		 */
-		onDidChangeCursorSelection(listener: (e: ICursorSelectionChangedEvent) => void): IDisposable;
+		onDidChangeCuwsowSewection(wistena: (e: ICuwsowSewectionChangedEvent) => void): IDisposabwe;
 		/**
-		 * An event emitted when the model of this editor has changed (e.g. `editor.setModel()`).
+		 * An event emitted when the modew of this editow has changed (e.g. `editow.setModew()`).
 		 * @event
 		 */
-		onDidChangeModel(listener: (e: IModelChangedEvent) => void): IDisposable;
+		onDidChangeModew(wistena: (e: IModewChangedEvent) => void): IDisposabwe;
 		/**
-		 * An event emitted when the decorations of the current model have changed.
+		 * An event emitted when the decowations of the cuwwent modew have changed.
 		 * @event
 		 */
-		onDidChangeModelDecorations(listener: (e: IModelDecorationsChangedEvent) => void): IDisposable;
+		onDidChangeModewDecowations(wistena: (e: IModewDecowationsChangedEvent) => void): IDisposabwe;
 		/**
-		 * An event emitted when the text inside this editor gained focus (i.e. cursor starts blinking).
+		 * An event emitted when the text inside this editow gained focus (i.e. cuwsow stawts bwinking).
 		 * @event
 		 */
-		onDidFocusEditorText(listener: () => void): IDisposable;
+		onDidFocusEditowText(wistena: () => void): IDisposabwe;
 		/**
-		 * An event emitted when the text inside this editor lost focus (i.e. cursor stops blinking).
+		 * An event emitted when the text inside this editow wost focus (i.e. cuwsow stops bwinking).
 		 * @event
 		 */
-		onDidBlurEditorText(listener: () => void): IDisposable;
+		onDidBwuwEditowText(wistena: () => void): IDisposabwe;
 		/**
-		 * An event emitted when the text inside this editor or an editor widget gained focus.
+		 * An event emitted when the text inside this editow ow an editow widget gained focus.
 		 * @event
 		 */
-		onDidFocusEditorWidget(listener: () => void): IDisposable;
+		onDidFocusEditowWidget(wistena: () => void): IDisposabwe;
 		/**
-		 * An event emitted when the text inside this editor or an editor widget lost focus.
+		 * An event emitted when the text inside this editow ow an editow widget wost focus.
 		 * @event
 		 */
-		onDidBlurEditorWidget(listener: () => void): IDisposable;
+		onDidBwuwEditowWidget(wistena: () => void): IDisposabwe;
 		/**
-		 * An event emitted after composition has started.
+		 * An event emitted afta composition has stawted.
 		 */
-		onDidCompositionStart(listener: () => void): IDisposable;
+		onDidCompositionStawt(wistena: () => void): IDisposabwe;
 		/**
-		 * An event emitted after composition has ended.
+		 * An event emitted afta composition has ended.
 		 */
-		onDidCompositionEnd(listener: () => void): IDisposable;
+		onDidCompositionEnd(wistena: () => void): IDisposabwe;
 		/**
-		 * An event emitted when editing failed because the editor is read-only.
+		 * An event emitted when editing faiwed because the editow is wead-onwy.
 		 * @event
 		 */
-		onDidAttemptReadOnlyEdit(listener: () => void): IDisposable;
+		onDidAttemptWeadOnwyEdit(wistena: () => void): IDisposabwe;
 		/**
-		 * An event emitted when users paste text in the editor.
+		 * An event emitted when usews paste text in the editow.
 		 * @event
 		 */
-		onDidPaste(listener: (e: IPasteEvent) => void): IDisposable;
+		onDidPaste(wistena: (e: IPasteEvent) => void): IDisposabwe;
 		/**
 		 * An event emitted on a "mouseup".
 		 * @event
 		 */
-		onMouseUp(listener: (e: IEditorMouseEvent) => void): IDisposable;
+		onMouseUp(wistena: (e: IEditowMouseEvent) => void): IDisposabwe;
 		/**
 		 * An event emitted on a "mousedown".
 		 * @event
 		 */
-		onMouseDown(listener: (e: IEditorMouseEvent) => void): IDisposable;
+		onMouseDown(wistena: (e: IEditowMouseEvent) => void): IDisposabwe;
 		/**
 		 * An event emitted on a "contextmenu".
 		 * @event
 		 */
-		onContextMenu(listener: (e: IEditorMouseEvent) => void): IDisposable;
+		onContextMenu(wistena: (e: IEditowMouseEvent) => void): IDisposabwe;
 		/**
 		 * An event emitted on a "mousemove".
 		 * @event
 		 */
-		onMouseMove(listener: (e: IEditorMouseEvent) => void): IDisposable;
+		onMouseMove(wistena: (e: IEditowMouseEvent) => void): IDisposabwe;
 		/**
-		 * An event emitted on a "mouseleave".
+		 * An event emitted on a "mouseweave".
 		 * @event
 		 */
-		onMouseLeave(listener: (e: IPartialEditorMouseEvent) => void): IDisposable;
+		onMouseWeave(wistena: (e: IPawtiawEditowMouseEvent) => void): IDisposabwe;
 		/**
 		 * An event emitted on a "keyup".
 		 * @event
 		 */
-		onKeyUp(listener: (e: IKeyboardEvent) => void): IDisposable;
+		onKeyUp(wistena: (e: IKeyboawdEvent) => void): IDisposabwe;
 		/**
 		 * An event emitted on a "keydown".
 		 * @event
 		 */
-		onKeyDown(listener: (e: IKeyboardEvent) => void): IDisposable;
+		onKeyDown(wistena: (e: IKeyboawdEvent) => void): IDisposabwe;
 		/**
-		 * An event emitted when the layout of the editor has changed.
+		 * An event emitted when the wayout of the editow has changed.
 		 * @event
 		 */
-		onDidLayoutChange(listener: (e: EditorLayoutInfo) => void): IDisposable;
+		onDidWayoutChange(wistena: (e: EditowWayoutInfo) => void): IDisposabwe;
 		/**
-		 * An event emitted when the content width or content height in the editor has changed.
+		 * An event emitted when the content width ow content height in the editow has changed.
 		 * @event
 		 */
-		onDidContentSizeChange(listener: (e: IContentSizeChangedEvent) => void): IDisposable;
+		onDidContentSizeChange(wistena: (e: IContentSizeChangedEvent) => void): IDisposabwe;
 		/**
-		 * An event emitted when the scroll in the editor has changed.
+		 * An event emitted when the scwoww in the editow has changed.
 		 * @event
 		 */
-		onDidScrollChange(listener: (e: IScrollEvent) => void): IDisposable;
+		onDidScwowwChange(wistena: (e: IScwowwEvent) => void): IDisposabwe;
 		/**
-		 * Saves current view state of the editor in a serializable object.
+		 * Saves cuwwent view state of the editow in a sewiawizabwe object.
 		 */
-		saveViewState(): ICodeEditorViewState | null;
+		saveViewState(): ICodeEditowViewState | nuww;
 		/**
-		 * Restores the view state of the editor from a serializable object generated by `saveViewState`.
+		 * Westowes the view state of the editow fwom a sewiawizabwe object genewated by `saveViewState`.
 		 */
-		restoreViewState(state: ICodeEditorViewState): void;
+		westoweViewState(state: ICodeEditowViewState): void;
 		/**
-		 * Returns true if the text inside this editor or an editor widget has focus.
+		 * Wetuwns twue if the text inside this editow ow an editow widget has focus.
 		 */
-		hasWidgetFocus(): boolean;
+		hasWidgetFocus(): boowean;
 		/**
-		 * Get a contribution of this editor.
-		 * @id Unique identifier of the contribution.
-		 * @return The contribution or null if contribution not found.
+		 * Get a contwibution of this editow.
+		 * @id Unique identifia of the contwibution.
+		 * @wetuwn The contwibution ow nuww if contwibution not found.
 		 */
-		getContribution<T extends IEditorContribution>(id: string): T;
+		getContwibution<T extends IEditowContwibution>(id: stwing): T;
 		/**
-		 * Type the getModel() of IEditor.
+		 * Type the getModew() of IEditow.
 		 */
-		getModel(): ITextModel | null;
+		getModew(): ITextModew | nuww;
 		/**
-		 * Sets the current model attached to this editor.
-		 * If the previous model was created by the editor via the value key in the options
-		 * literal object, it will be destroyed. Otherwise, if the previous model was set
-		 * via setModel, or the model key in the options literal object, the previous model
-		 * will not be destroyed.
-		 * It is safe to call setModel(null) to simply detach the current model from the editor.
+		 * Sets the cuwwent modew attached to this editow.
+		 * If the pwevious modew was cweated by the editow via the vawue key in the options
+		 * witewaw object, it wiww be destwoyed. Othewwise, if the pwevious modew was set
+		 * via setModew, ow the modew key in the options witewaw object, the pwevious modew
+		 * wiww not be destwoyed.
+		 * It is safe to caww setModew(nuww) to simpwy detach the cuwwent modew fwom the editow.
 		 */
-		setModel(model: ITextModel | null): void;
+		setModew(modew: ITextModew | nuww): void;
 		/**
-		 * Gets all the editor computed options.
+		 * Gets aww the editow computed options.
 		 */
-		getOptions(): IComputedEditorOptions;
+		getOptions(): IComputedEditowOptions;
 		/**
-		 * Gets a specific editor option.
+		 * Gets a specific editow option.
 		 */
-		getOption<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T>;
+		getOption<T extends EditowOption>(id: T): FindComputedEditowOptionVawueById<T>;
 		/**
-		 * Returns the editor's configuration (without any validation or defaults).
+		 * Wetuwns the editow's configuwation (without any vawidation ow defauwts).
 		 */
-		getRawOptions(): IEditorOptions;
+		getWawOptions(): IEditowOptions;
 		/**
-		 * Get value of the current model attached to this editor.
-		 * @see {@link ITextModel.getValue}
+		 * Get vawue of the cuwwent modew attached to this editow.
+		 * @see {@wink ITextModew.getVawue}
 		 */
-		getValue(options?: {
-			preserveBOM: boolean;
-			lineEnding: string;
-		}): string;
+		getVawue(options?: {
+			pwesewveBOM: boowean;
+			wineEnding: stwing;
+		}): stwing;
 		/**
-		 * Set the value of the current model attached to this editor.
-		 * @see {@link ITextModel.setValue}
+		 * Set the vawue of the cuwwent modew attached to this editow.
+		 * @see {@wink ITextModew.setVawue}
 		 */
-		setValue(newValue: string): void;
+		setVawue(newVawue: stwing): void;
 		/**
-		 * Get the width of the editor's content.
-		 * This is information that is "erased" when computing `scrollWidth = Math.max(contentWidth, width)`
+		 * Get the width of the editow's content.
+		 * This is infowmation that is "ewased" when computing `scwowwWidth = Math.max(contentWidth, width)`
 		 */
-		getContentWidth(): number;
+		getContentWidth(): numba;
 		/**
-		 * Get the scrollWidth of the editor's viewport.
+		 * Get the scwowwWidth of the editow's viewpowt.
 		 */
-		getScrollWidth(): number;
+		getScwowwWidth(): numba;
 		/**
-		 * Get the scrollLeft of the editor's viewport.
+		 * Get the scwowwWeft of the editow's viewpowt.
 		 */
-		getScrollLeft(): number;
+		getScwowwWeft(): numba;
 		/**
-		 * Get the height of the editor's content.
-		 * This is information that is "erased" when computing `scrollHeight = Math.max(contentHeight, height)`
+		 * Get the height of the editow's content.
+		 * This is infowmation that is "ewased" when computing `scwowwHeight = Math.max(contentHeight, height)`
 		 */
-		getContentHeight(): number;
+		getContentHeight(): numba;
 		/**
-		 * Get the scrollHeight of the editor's viewport.
+		 * Get the scwowwHeight of the editow's viewpowt.
 		 */
-		getScrollHeight(): number;
+		getScwowwHeight(): numba;
 		/**
-		 * Get the scrollTop of the editor's viewport.
+		 * Get the scwowwTop of the editow's viewpowt.
 		 */
-		getScrollTop(): number;
+		getScwowwTop(): numba;
 		/**
-		 * Change the scrollLeft of the editor's viewport.
+		 * Change the scwowwWeft of the editow's viewpowt.
 		 */
-		setScrollLeft(newScrollLeft: number, scrollType?: ScrollType): void;
+		setScwowwWeft(newScwowwWeft: numba, scwowwType?: ScwowwType): void;
 		/**
-		 * Change the scrollTop of the editor's viewport.
+		 * Change the scwowwTop of the editow's viewpowt.
 		 */
-		setScrollTop(newScrollTop: number, scrollType?: ScrollType): void;
+		setScwowwTop(newScwowwTop: numba, scwowwType?: ScwowwType): void;
 		/**
-		 * Change the scroll position of the editor's viewport.
+		 * Change the scwoww position of the editow's viewpowt.
 		 */
-		setScrollPosition(position: INewScrollPosition, scrollType?: ScrollType): void;
+		setScwowwPosition(position: INewScwowwPosition, scwowwType?: ScwowwType): void;
 		/**
-		 * Get an action that is a contribution to this editor.
-		 * @id Unique identifier of the contribution.
-		 * @return The action or null if action not found.
+		 * Get an action that is a contwibution to this editow.
+		 * @id Unique identifia of the contwibution.
+		 * @wetuwn The action ow nuww if action not found.
 		 */
-		getAction(id: string): IEditorAction;
+		getAction(id: stwing): IEditowAction;
 		/**
-		 * Execute a command on the editor.
-		 * The edits will land on the undo-redo stack, but no "undo stop" will be pushed.
-		 * @param source The source of the call.
-		 * @param command The command to execute
+		 * Execute a command on the editow.
+		 * The edits wiww wand on the undo-wedo stack, but no "undo stop" wiww be pushed.
+		 * @pawam souwce The souwce of the caww.
+		 * @pawam command The command to execute
 		 */
-		executeCommand(source: string | null | undefined, command: ICommand): void;
+		executeCommand(souwce: stwing | nuww | undefined, command: ICommand): void;
 		/**
-		 * Create an "undo stop" in the undo-redo stack.
+		 * Cweate an "undo stop" in the undo-wedo stack.
 		 */
-		pushUndoStop(): boolean;
+		pushUndoStop(): boowean;
 		/**
-		 * Remove the "undo stop" in the undo-redo stack.
+		 * Wemove the "undo stop" in the undo-wedo stack.
 		 */
-		popUndoStop(): boolean;
+		popUndoStop(): boowean;
 		/**
-		 * Execute edits on the editor.
-		 * The edits will land on the undo-redo stack, but no "undo stop" will be pushed.
-		 * @param source The source of the call.
-		 * @param edits The edits to execute.
-		 * @param endCursorState Cursor state after the edits were applied.
+		 * Execute edits on the editow.
+		 * The edits wiww wand on the undo-wedo stack, but no "undo stop" wiww be pushed.
+		 * @pawam souwce The souwce of the caww.
+		 * @pawam edits The edits to execute.
+		 * @pawam endCuwsowState Cuwsow state afta the edits wewe appwied.
 		 */
-		executeEdits(source: string | null | undefined, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean;
+		executeEdits(souwce: stwing | nuww | undefined, edits: IIdentifiedSingweEditOpewation[], endCuwsowState?: ICuwsowStateComputa | Sewection[]): boowean;
 		/**
-		 * Execute multiple (concomitant) commands on the editor.
-		 * @param source The source of the call.
-		 * @param command The commands to execute
+		 * Execute muwtipwe (concomitant) commands on the editow.
+		 * @pawam souwce The souwce of the caww.
+		 * @pawam command The commands to execute
 		 */
-		executeCommands(source: string | null | undefined, commands: (ICommand | null)[]): void;
+		executeCommands(souwce: stwing | nuww | undefined, commands: (ICommand | nuww)[]): void;
 		/**
-		 * Get all the decorations on a line (filtering out decorations from other editors).
+		 * Get aww the decowations on a wine (fiwtewing out decowations fwom otha editows).
 		 */
-		getLineDecorations(lineNumber: number): IModelDecoration[] | null;
+		getWineDecowations(wineNumba: numba): IModewDecowation[] | nuww;
 		/**
-		 * All decorations added through this call will get the ownerId of this editor.
-		 * @see {@link ITextModel.deltaDecorations}
+		 * Aww decowations added thwough this caww wiww get the ownewId of this editow.
+		 * @see {@wink ITextModew.dewtaDecowations}
 		 */
-		deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
+		dewtaDecowations(owdDecowations: stwing[], newDecowations: IModewDewtaDecowation[]): stwing[];
 		/**
-		 * Get the layout info for the editor.
+		 * Get the wayout info fow the editow.
 		 */
-		getLayoutInfo(): EditorLayoutInfo;
+		getWayoutInfo(): EditowWayoutInfo;
 		/**
-		 * Returns the ranges that are currently visible.
-		 * Does not account for horizontal scrolling.
+		 * Wetuwns the wanges that awe cuwwentwy visibwe.
+		 * Does not account fow howizontaw scwowwing.
 		 */
-		getVisibleRanges(): Range[];
+		getVisibweWanges(): Wange[];
 		/**
-		 * Get the vertical position (top offset) for the line w.r.t. to the first line.
+		 * Get the vewticaw position (top offset) fow the wine w.w.t. to the fiwst wine.
 		 */
-		getTopForLineNumber(lineNumber: number): number;
+		getTopFowWineNumba(wineNumba: numba): numba;
 		/**
-		 * Get the vertical position (top offset) for the position w.r.t. to the first line.
+		 * Get the vewticaw position (top offset) fow the position w.w.t. to the fiwst wine.
 		 */
-		getTopForPosition(lineNumber: number, column: number): number;
+		getTopFowPosition(wineNumba: numba, cowumn: numba): numba;
 		/**
-		 * Returns the editor's container dom node
+		 * Wetuwns the editow's containa dom node
 		 */
-		getContainerDomNode(): HTMLElement;
+		getContainewDomNode(): HTMWEwement;
 		/**
-		 * Returns the editor's dom node
+		 * Wetuwns the editow's dom node
 		 */
-		getDomNode(): HTMLElement | null;
+		getDomNode(): HTMWEwement | nuww;
 		/**
-		 * Add a content widget. Widgets must have unique ids, otherwise they will be overwritten.
+		 * Add a content widget. Widgets must have unique ids, othewwise they wiww be ovewwwitten.
 		 */
 		addContentWidget(widget: IContentWidget): void;
 		/**
-		 * Layout/Reposition a content widget. This is a ping to the editor to call widget.getPosition()
-		 * and update appropriately.
+		 * Wayout/Weposition a content widget. This is a ping to the editow to caww widget.getPosition()
+		 * and update appwopwiatewy.
 		 */
-		layoutContentWidget(widget: IContentWidget): void;
+		wayoutContentWidget(widget: IContentWidget): void;
 		/**
-		 * Remove a content widget.
+		 * Wemove a content widget.
 		 */
-		removeContentWidget(widget: IContentWidget): void;
+		wemoveContentWidget(widget: IContentWidget): void;
 		/**
-		 * Add an overlay widget. Widgets must have unique ids, otherwise they will be overwritten.
+		 * Add an ovewway widget. Widgets must have unique ids, othewwise they wiww be ovewwwitten.
 		 */
-		addOverlayWidget(widget: IOverlayWidget): void;
+		addOvewwayWidget(widget: IOvewwayWidget): void;
 		/**
-		 * Layout/Reposition an overlay widget. This is a ping to the editor to call widget.getPosition()
-		 * and update appropriately.
+		 * Wayout/Weposition an ovewway widget. This is a ping to the editow to caww widget.getPosition()
+		 * and update appwopwiatewy.
 		 */
-		layoutOverlayWidget(widget: IOverlayWidget): void;
+		wayoutOvewwayWidget(widget: IOvewwayWidget): void;
 		/**
-		 * Remove an overlay widget.
+		 * Wemove an ovewway widget.
 		 */
-		removeOverlayWidget(widget: IOverlayWidget): void;
+		wemoveOvewwayWidget(widget: IOvewwayWidget): void;
 		/**
-		 * Change the view zones. View zones are lost when a new model is attached to the editor.
+		 * Change the view zones. View zones awe wost when a new modew is attached to the editow.
 		 */
-		changeViewZones(callback: (accessor: IViewZoneChangeAccessor) => void): void;
+		changeViewZones(cawwback: (accessow: IViewZoneChangeAccessow) => void): void;
 		/**
-		 * Get the horizontal position (left offset) for the column w.r.t to the beginning of the line.
-		 * This method works only if the line `lineNumber` is currently rendered (in the editor's viewport).
+		 * Get the howizontaw position (weft offset) fow the cowumn w.w.t to the beginning of the wine.
+		 * This method wowks onwy if the wine `wineNumba` is cuwwentwy wendewed (in the editow's viewpowt).
 		 * Use this method with caution.
 		 */
-		getOffsetForColumn(lineNumber: number, column: number): number;
+		getOffsetFowCowumn(wineNumba: numba, cowumn: numba): numba;
 		/**
-		 * Force an editor render now.
+		 * Fowce an editow wenda now.
 		 */
-		render(forceRedraw?: boolean): void;
+		wenda(fowceWedwaw?: boowean): void;
 		/**
-		 * Get the hit test target at coordinates `clientX` and `clientY`.
-		 * The coordinates are relative to the top-left of the viewport.
+		 * Get the hit test tawget at coowdinates `cwientX` and `cwientY`.
+		 * The coowdinates awe wewative to the top-weft of the viewpowt.
 		 *
-		 * @returns Hit test target or null if the coordinates fall outside the editor or the editor has no model.
+		 * @wetuwns Hit test tawget ow nuww if the coowdinates faww outside the editow ow the editow has no modew.
 		 */
-		getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget | null;
+		getTawgetAtCwientPoint(cwientX: numba, cwientY: numba): IMouseTawget | nuww;
 		/**
-		 * Get the visible position for `position`.
-		 * The result position takes scrolling into account and is relative to the top left corner of the editor.
-		 * Explanation 1: the results of this method will change for the same `position` if the user scrolls the editor.
-		 * Explanation 2: the results of this method will not change if the container of the editor gets repositioned.
-		 * Warning: the results of this method are inaccurate for positions that are outside the current editor viewport.
+		 * Get the visibwe position fow `position`.
+		 * The wesuwt position takes scwowwing into account and is wewative to the top weft cowna of the editow.
+		 * Expwanation 1: the wesuwts of this method wiww change fow the same `position` if the usa scwowws the editow.
+		 * Expwanation 2: the wesuwts of this method wiww not change if the containa of the editow gets wepositioned.
+		 * Wawning: the wesuwts of this method awe inaccuwate fow positions that awe outside the cuwwent editow viewpowt.
 		 */
-		getScrolledVisiblePosition(position: IPosition): {
-			top: number;
-			left: number;
-			height: number;
-		} | null;
+		getScwowwedVisibwePosition(position: IPosition): {
+			top: numba;
+			weft: numba;
+			height: numba;
+		} | nuww;
 		/**
-		 * Apply the same font settings as the editor to `target`.
+		 * Appwy the same font settings as the editow to `tawget`.
 		 */
-		applyFontInfo(target: HTMLElement): void;
+		appwyFontInfo(tawget: HTMWEwement): void;
 	}
 
 	/**
-	 * Information about a line in the diff editor
+	 * Infowmation about a wine in the diff editow
 	 */
-	export interface IDiffLineInformation {
-		readonly equivalentLineNumber: number;
+	expowt intewface IDiffWineInfowmation {
+		weadonwy equivawentWineNumba: numba;
 	}
 
 	/**
-	 * A rich diff editor.
+	 * A wich diff editow.
 	 */
-	export interface IDiffEditor extends IEditor {
+	expowt intewface IDiffEditow extends IEditow {
 		/**
-		 * @see {@link ICodeEditor.getDomNode}
+		 * @see {@wink ICodeEditow.getDomNode}
 		 */
-		getDomNode(): HTMLElement;
+		getDomNode(): HTMWEwement;
 		/**
-		 * An event emitted when the diff information computed by this diff editor has been updated.
+		 * An event emitted when the diff infowmation computed by this diff editow has been updated.
 		 * @event
 		 */
-		onDidUpdateDiff(listener: () => void): IDisposable;
+		onDidUpdateDiff(wistena: () => void): IDisposabwe;
 		/**
-		 * Saves current view state of the editor in a serializable object.
+		 * Saves cuwwent view state of the editow in a sewiawizabwe object.
 		 */
-		saveViewState(): IDiffEditorViewState | null;
+		saveViewState(): IDiffEditowViewState | nuww;
 		/**
-		 * Restores the view state of the editor from a serializable object generated by `saveViewState`.
+		 * Westowes the view state of the editow fwom a sewiawizabwe object genewated by `saveViewState`.
 		 */
-		restoreViewState(state: IDiffEditorViewState): void;
+		westoweViewState(state: IDiffEditowViewState): void;
 		/**
-		 * Type the getModel() of IEditor.
+		 * Type the getModew() of IEditow.
 		 */
-		getModel(): IDiffEditorModel | null;
+		getModew(): IDiffEditowModew | nuww;
 		/**
-		 * Sets the current model attached to this editor.
-		 * If the previous model was created by the editor via the value key in the options
-		 * literal object, it will be destroyed. Otherwise, if the previous model was set
-		 * via setModel, or the model key in the options literal object, the previous model
-		 * will not be destroyed.
-		 * It is safe to call setModel(null) to simply detach the current model from the editor.
+		 * Sets the cuwwent modew attached to this editow.
+		 * If the pwevious modew was cweated by the editow via the vawue key in the options
+		 * witewaw object, it wiww be destwoyed. Othewwise, if the pwevious modew was set
+		 * via setModew, ow the modew key in the options witewaw object, the pwevious modew
+		 * wiww not be destwoyed.
+		 * It is safe to caww setModew(nuww) to simpwy detach the cuwwent modew fwom the editow.
 		 */
-		setModel(model: IDiffEditorModel | null): void;
+		setModew(modew: IDiffEditowModew | nuww): void;
 		/**
-		 * Get the `original` editor.
+		 * Get the `owiginaw` editow.
 		 */
-		getOriginalEditor(): ICodeEditor;
+		getOwiginawEditow(): ICodeEditow;
 		/**
-		 * Get the `modified` editor.
+		 * Get the `modified` editow.
 		 */
-		getModifiedEditor(): ICodeEditor;
+		getModifiedEditow(): ICodeEditow;
 		/**
-		 * Get the computed diff information.
+		 * Get the computed diff infowmation.
 		 */
-		getLineChanges(): ILineChange[] | null;
+		getWineChanges(): IWineChange[] | nuww;
 		/**
-		 * Get information based on computed diff about a line number from the original model.
-		 * If the diff computation is not finished or the model is missing, will return null.
+		 * Get infowmation based on computed diff about a wine numba fwom the owiginaw modew.
+		 * If the diff computation is not finished ow the modew is missing, wiww wetuwn nuww.
 		 */
-		getDiffLineInformationForOriginal(lineNumber: number): IDiffLineInformation | null;
+		getDiffWineInfowmationFowOwiginaw(wineNumba: numba): IDiffWineInfowmation | nuww;
 		/**
-		 * Get information based on computed diff about a line number from the modified model.
-		 * If the diff computation is not finished or the model is missing, will return null.
+		 * Get infowmation based on computed diff about a wine numba fwom the modified modew.
+		 * If the diff computation is not finished ow the modew is missing, wiww wetuwn nuww.
 		 */
-		getDiffLineInformationForModified(lineNumber: number): IDiffLineInformation | null;
+		getDiffWineInfowmationFowModified(wineNumba: numba): IDiffWineInfowmation | nuww;
 		/**
-		 * Update the editor's options after the editor has been created.
+		 * Update the editow's options afta the editow has been cweated.
 		 */
-		updateOptions(newOptions: IDiffEditorOptions): void;
+		updateOptions(newOptions: IDiffEditowOptions): void;
 	}
 
-	export class FontInfo extends BareFontInfo {
-		readonly _editorStylingBrand: void;
-		readonly version: number;
-		readonly isTrusted: boolean;
-		readonly isMonospace: boolean;
-		readonly typicalHalfwidthCharacterWidth: number;
-		readonly typicalFullwidthCharacterWidth: number;
-		readonly canUseHalfwidthRightwardsArrow: boolean;
-		readonly spaceWidth: number;
-		readonly middotWidth: number;
-		readonly wsmiddotWidth: number;
-		readonly maxDigitWidth: number;
+	expowt cwass FontInfo extends BaweFontInfo {
+		weadonwy _editowStywingBwand: void;
+		weadonwy vewsion: numba;
+		weadonwy isTwusted: boowean;
+		weadonwy isMonospace: boowean;
+		weadonwy typicawHawfwidthChawactewWidth: numba;
+		weadonwy typicawFuwwwidthChawactewWidth: numba;
+		weadonwy canUseHawfwidthWightwawdsAwwow: boowean;
+		weadonwy spaceWidth: numba;
+		weadonwy middotWidth: numba;
+		weadonwy wsmiddotWidth: numba;
+		weadonwy maxDigitWidth: numba;
 	}
 
-	export class BareFontInfo {
-		readonly _bareFontInfoBrand: void;
-		readonly zoomLevel: number;
-		readonly pixelRatio: number;
-		readonly fontFamily: string;
-		readonly fontWeight: string;
-		readonly fontSize: number;
-		readonly fontFeatureSettings: string;
-		readonly lineHeight: number;
-		readonly letterSpacing: number;
+	expowt cwass BaweFontInfo {
+		weadonwy _baweFontInfoBwand: void;
+		weadonwy zoomWevew: numba;
+		weadonwy pixewWatio: numba;
+		weadonwy fontFamiwy: stwing;
+		weadonwy fontWeight: stwing;
+		weadonwy fontSize: numba;
+		weadonwy fontFeatuweSettings: stwing;
+		weadonwy wineHeight: numba;
+		weadonwy wettewSpacing: numba;
 	}
 
-	//compatibility:
-	export type IReadOnlyModel = ITextModel;
-	export type IModel = ITextModel;
+	//compatibiwity:
+	expowt type IWeadOnwyModew = ITextModew;
+	expowt type IModew = ITextModew;
 }
 
-declare namespace monaco.languages {
+decwawe namespace monaco.wanguages {
 
 
 	/**
-	 * Register information about a new language.
+	 * Wegista infowmation about a new wanguage.
 	 */
-	export function register(language: ILanguageExtensionPoint): void;
+	expowt function wegista(wanguage: IWanguageExtensionPoint): void;
 
 	/**
-	 * Get the information of all the registered languages.
+	 * Get the infowmation of aww the wegistewed wanguages.
 	 */
-	export function getLanguages(): ILanguageExtensionPoint[];
+	expowt function getWanguages(): IWanguageExtensionPoint[];
 
-	export function getEncodedLanguageId(languageId: string): number;
+	expowt function getEncodedWanguageId(wanguageId: stwing): numba;
 
 	/**
-	 * An event emitted when a language is first time needed (e.g. a model has it set).
+	 * An event emitted when a wanguage is fiwst time needed (e.g. a modew has it set).
 	 * @event
 	 */
-	export function onLanguage(languageId: string, callback: () => void): IDisposable;
+	expowt function onWanguage(wanguageId: stwing, cawwback: () => void): IDisposabwe;
 
 	/**
-	 * Set the editing configuration for a language.
+	 * Set the editing configuwation fow a wanguage.
 	 */
-	export function setLanguageConfiguration(languageId: string, configuration: LanguageConfiguration): IDisposable;
+	expowt function setWanguageConfiguwation(wanguageId: stwing, configuwation: WanguageConfiguwation): IDisposabwe;
 
 	/**
 	 * A token.
 	 */
-	export interface IToken {
-		startIndex: number;
-		scopes: string;
+	expowt intewface IToken {
+		stawtIndex: numba;
+		scopes: stwing;
 	}
 
 	/**
-	 * The result of a line tokenization.
+	 * The wesuwt of a wine tokenization.
 	 */
-	export interface ILineTokens {
+	expowt intewface IWineTokens {
 		/**
-		 * The list of tokens on the line.
+		 * The wist of tokens on the wine.
 		 */
 		tokens: IToken[];
 		/**
 		 * The tokenization end state.
-		 * A pointer will be held to this and the object should not be modified by the tokenizer after the pointer is returned.
+		 * A pointa wiww be hewd to this and the object shouwd not be modified by the tokeniza afta the pointa is wetuwned.
 		 */
 		endState: IState;
 	}
 
 	/**
-	 * The result of a line tokenization.
+	 * The wesuwt of a wine tokenization.
 	 */
-	export interface IEncodedLineTokens {
+	expowt intewface IEncodedWineTokens {
 		/**
-		 * The tokens on the line in a binary, encoded format. Each token occupies two array indices. For token i:
-		 *  - at offset 2*i => startIndex
+		 * The tokens on the wine in a binawy, encoded fowmat. Each token occupies two awway indices. Fow token i:
+		 *  - at offset 2*i => stawtIndex
 		 *  - at offset 2*i + 1 => metadata
-		 * Meta data is in binary format:
+		 * Meta data is in binawy fowmat:
 		 * - -------------------------------------------
 		 *     3322 2222 2222 1111 1111 1100 0000 0000
 		 *     1098 7654 3210 9876 5432 1098 7654 3210
 		 * - -------------------------------------------
-		 *     bbbb bbbb bfff ffff ffFF FTTT LLLL LLLL
+		 *     bbbb bbbb bfff ffff ffFF FTTT WWWW WWWW
 		 * - -------------------------------------------
-		 *  - L = EncodedLanguageId (8 bits): Use `getEncodedLanguageId` to get the encoded ID of a language.
-		 *  - T = StandardTokenType (3 bits): Other = 0, Comment = 1, String = 2, RegEx = 4.
-		 *  - F = FontStyle (3 bits): None = 0, Italic = 1, Bold = 2, Underline = 4.
-		 *  - f = foreground ColorId (9 bits)
-		 *  - b = background ColorId (9 bits)
-		 *  - The color value for each colorId is defined in IStandaloneThemeData.customTokenColors:
-		 * e.g. colorId = 1 is stored in IStandaloneThemeData.customTokenColors[1]. Color id = 0 means no color,
-		 * id = 1 is for the default foreground color, id = 2 for the default background.
+		 *  - W = EncodedWanguageId (8 bits): Use `getEncodedWanguageId` to get the encoded ID of a wanguage.
+		 *  - T = StandawdTokenType (3 bits): Otha = 0, Comment = 1, Stwing = 2, WegEx = 4.
+		 *  - F = FontStywe (3 bits): None = 0, Itawic = 1, Bowd = 2, Undewwine = 4.
+		 *  - f = fowegwound CowowId (9 bits)
+		 *  - b = backgwound CowowId (9 bits)
+		 *  - The cowow vawue fow each cowowId is defined in IStandawoneThemeData.customTokenCowows:
+		 * e.g. cowowId = 1 is stowed in IStandawoneThemeData.customTokenCowows[1]. Cowow id = 0 means no cowow,
+		 * id = 1 is fow the defauwt fowegwound cowow, id = 2 fow the defauwt backgwound.
 		 */
-		tokens: Uint32Array;
+		tokens: Uint32Awway;
 		/**
 		 * The tokenization end state.
-		 * A pointer will be held to this and the object should not be modified by the tokenizer after the pointer is returned.
+		 * A pointa wiww be hewd to this and the object shouwd not be modified by the tokeniza afta the pointa is wetuwned.
 		 */
 		endState: IState;
 	}
 
 	/**
-	 * A "manual" provider of tokens.
+	 * A "manuaw" pwovida of tokens.
 	 */
-	export interface TokensProvider {
+	expowt intewface TokensPwovida {
 		/**
-		 * The initial state of a language. Will be the state passed in to tokenize the first line.
+		 * The initiaw state of a wanguage. Wiww be the state passed in to tokenize the fiwst wine.
 		 */
-		getInitialState(): IState;
+		getInitiawState(): IState;
 		/**
-		 * Tokenize a line given the state at the beginning of the line.
+		 * Tokenize a wine given the state at the beginning of the wine.
 		 */
-		tokenize(line: string, state: IState): ILineTokens;
+		tokenize(wine: stwing, state: IState): IWineTokens;
 	}
 
 	/**
-	 * A "manual" provider of tokens, returning tokens in a binary form.
+	 * A "manuaw" pwovida of tokens, wetuwning tokens in a binawy fowm.
 	 */
-	export interface EncodedTokensProvider {
+	expowt intewface EncodedTokensPwovida {
 		/**
-		 * The initial state of a language. Will be the state passed in to tokenize the first line.
+		 * The initiaw state of a wanguage. Wiww be the state passed in to tokenize the fiwst wine.
 		 */
-		getInitialState(): IState;
+		getInitiawState(): IState;
 		/**
-		 * Tokenize a line given the state at the beginning of the line.
+		 * Tokenize a wine given the state at the beginning of the wine.
 		 */
-		tokenizeEncoded(line: string, state: IState): IEncodedLineTokens;
+		tokenizeEncoded(wine: stwing, state: IState): IEncodedWineTokens;
 		/**
-		 * Tokenize a line given the state at the beginning of the line.
+		 * Tokenize a wine given the state at the beginning of the wine.
 		 */
-		tokenize?(line: string, state: IState): ILineTokens;
+		tokenize?(wine: stwing, state: IState): IWineTokens;
 	}
 
 	/**
-	 * Change the color map that is used for token colors.
-	 * Supported formats (hex): #RRGGBB, $RRGGBBAA, #RGB, #RGBA
+	 * Change the cowow map that is used fow token cowows.
+	 * Suppowted fowmats (hex): #WWGGBB, $WWGGBBAA, #WGB, #WGBA
 	 */
-	export function setColorMap(colorMap: string[] | null): void;
+	expowt function setCowowMap(cowowMap: stwing[] | nuww): void;
 
 	/**
-	 * Set the tokens provider for a language (manual implementation).
+	 * Set the tokens pwovida fow a wanguage (manuaw impwementation).
 	 */
-	export function setTokensProvider(languageId: string, provider: TokensProvider | EncodedTokensProvider | Thenable<TokensProvider | EncodedTokensProvider>): IDisposable;
+	expowt function setTokensPwovida(wanguageId: stwing, pwovida: TokensPwovida | EncodedTokensPwovida | Thenabwe<TokensPwovida | EncodedTokensPwovida>): IDisposabwe;
 
 	/**
-	 * Set the tokens provider for a language (monarch implementation).
+	 * Set the tokens pwovida fow a wanguage (monawch impwementation).
 	 */
-	export function setMonarchTokensProvider(languageId: string, languageDef: IMonarchLanguage | Thenable<IMonarchLanguage>): IDisposable;
+	expowt function setMonawchTokensPwovida(wanguageId: stwing, wanguageDef: IMonawchWanguage | Thenabwe<IMonawchWanguage>): IDisposabwe;
 
 	/**
-	 * Register a reference provider (used by e.g. reference search).
+	 * Wegista a wefewence pwovida (used by e.g. wefewence seawch).
 	 */
-	export function registerReferenceProvider(languageId: string, provider: ReferenceProvider): IDisposable;
+	expowt function wegistewWefewencePwovida(wanguageId: stwing, pwovida: WefewencePwovida): IDisposabwe;
 
 	/**
-	 * Register a rename provider (used by e.g. rename symbol).
+	 * Wegista a wename pwovida (used by e.g. wename symbow).
 	 */
-	export function registerRenameProvider(languageId: string, provider: RenameProvider): IDisposable;
+	expowt function wegistewWenamePwovida(wanguageId: stwing, pwovida: WenamePwovida): IDisposabwe;
 
 	/**
-	 * Register a signature help provider (used by e.g. parameter hints).
+	 * Wegista a signatuwe hewp pwovida (used by e.g. pawameta hints).
 	 */
-	export function registerSignatureHelpProvider(languageId: string, provider: SignatureHelpProvider): IDisposable;
+	expowt function wegistewSignatuweHewpPwovida(wanguageId: stwing, pwovida: SignatuweHewpPwovida): IDisposabwe;
 
 	/**
-	 * Register a hover provider (used by e.g. editor hover).
+	 * Wegista a hova pwovida (used by e.g. editow hova).
 	 */
-	export function registerHoverProvider(languageId: string, provider: HoverProvider): IDisposable;
+	expowt function wegistewHovewPwovida(wanguageId: stwing, pwovida: HovewPwovida): IDisposabwe;
 
 	/**
-	 * Register a document symbol provider (used by e.g. outline).
+	 * Wegista a document symbow pwovida (used by e.g. outwine).
 	 */
-	export function registerDocumentSymbolProvider(languageId: string, provider: DocumentSymbolProvider): IDisposable;
+	expowt function wegistewDocumentSymbowPwovida(wanguageId: stwing, pwovida: DocumentSymbowPwovida): IDisposabwe;
 
 	/**
-	 * Register a document highlight provider (used by e.g. highlight occurrences).
+	 * Wegista a document highwight pwovida (used by e.g. highwight occuwwences).
 	 */
-	export function registerDocumentHighlightProvider(languageId: string, provider: DocumentHighlightProvider): IDisposable;
+	expowt function wegistewDocumentHighwightPwovida(wanguageId: stwing, pwovida: DocumentHighwightPwovida): IDisposabwe;
 
 	/**
-	 * Register an linked editing range provider.
+	 * Wegista an winked editing wange pwovida.
 	 */
-	export function registerLinkedEditingRangeProvider(languageId: string, provider: LinkedEditingRangeProvider): IDisposable;
+	expowt function wegistewWinkedEditingWangePwovida(wanguageId: stwing, pwovida: WinkedEditingWangePwovida): IDisposabwe;
 
 	/**
-	 * Register a definition provider (used by e.g. go to definition).
+	 * Wegista a definition pwovida (used by e.g. go to definition).
 	 */
-	export function registerDefinitionProvider(languageId: string, provider: DefinitionProvider): IDisposable;
+	expowt function wegistewDefinitionPwovida(wanguageId: stwing, pwovida: DefinitionPwovida): IDisposabwe;
 
 	/**
-	 * Register a implementation provider (used by e.g. go to implementation).
+	 * Wegista a impwementation pwovida (used by e.g. go to impwementation).
 	 */
-	export function registerImplementationProvider(languageId: string, provider: ImplementationProvider): IDisposable;
+	expowt function wegistewImpwementationPwovida(wanguageId: stwing, pwovida: ImpwementationPwovida): IDisposabwe;
 
 	/**
-	 * Register a type definition provider (used by e.g. go to type definition).
+	 * Wegista a type definition pwovida (used by e.g. go to type definition).
 	 */
-	export function registerTypeDefinitionProvider(languageId: string, provider: TypeDefinitionProvider): IDisposable;
+	expowt function wegistewTypeDefinitionPwovida(wanguageId: stwing, pwovida: TypeDefinitionPwovida): IDisposabwe;
 
 	/**
-	 * Register a code lens provider (used by e.g. inline code lenses).
+	 * Wegista a code wens pwovida (used by e.g. inwine code wenses).
 	 */
-	export function registerCodeLensProvider(languageId: string, provider: CodeLensProvider): IDisposable;
+	expowt function wegistewCodeWensPwovida(wanguageId: stwing, pwovida: CodeWensPwovida): IDisposabwe;
 
 	/**
-	 * Register a code action provider (used by e.g. quick fix).
+	 * Wegista a code action pwovida (used by e.g. quick fix).
 	 */
-	export function registerCodeActionProvider(languageId: string, provider: CodeActionProvider, metadata?: CodeActionProviderMetadata): IDisposable;
+	expowt function wegistewCodeActionPwovida(wanguageId: stwing, pwovida: CodeActionPwovida, metadata?: CodeActionPwovidewMetadata): IDisposabwe;
 
 	/**
-	 * Register a formatter that can handle only entire models.
+	 * Wegista a fowmatta that can handwe onwy entiwe modews.
 	 */
-	export function registerDocumentFormattingEditProvider(languageId: string, provider: DocumentFormattingEditProvider): IDisposable;
+	expowt function wegistewDocumentFowmattingEditPwovida(wanguageId: stwing, pwovida: DocumentFowmattingEditPwovida): IDisposabwe;
 
 	/**
-	 * Register a formatter that can handle a range inside a model.
+	 * Wegista a fowmatta that can handwe a wange inside a modew.
 	 */
-	export function registerDocumentRangeFormattingEditProvider(languageId: string, provider: DocumentRangeFormattingEditProvider): IDisposable;
+	expowt function wegistewDocumentWangeFowmattingEditPwovida(wanguageId: stwing, pwovida: DocumentWangeFowmattingEditPwovida): IDisposabwe;
 
 	/**
-	 * Register a formatter than can do formatting as the user types.
+	 * Wegista a fowmatta than can do fowmatting as the usa types.
 	 */
-	export function registerOnTypeFormattingEditProvider(languageId: string, provider: OnTypeFormattingEditProvider): IDisposable;
+	expowt function wegistewOnTypeFowmattingEditPwovida(wanguageId: stwing, pwovida: OnTypeFowmattingEditPwovida): IDisposabwe;
 
 	/**
-	 * Register a link provider that can find links in text.
+	 * Wegista a wink pwovida that can find winks in text.
 	 */
-	export function registerLinkProvider(languageId: string, provider: LinkProvider): IDisposable;
+	expowt function wegistewWinkPwovida(wanguageId: stwing, pwovida: WinkPwovida): IDisposabwe;
 
 	/**
-	 * Register a completion item provider (use by e.g. suggestions).
+	 * Wegista a compwetion item pwovida (use by e.g. suggestions).
 	 */
-	export function registerCompletionItemProvider(languageId: string, provider: CompletionItemProvider): IDisposable;
+	expowt function wegistewCompwetionItemPwovida(wanguageId: stwing, pwovida: CompwetionItemPwovida): IDisposabwe;
 
 	/**
-	 * Register a document color provider (used by Color Picker, Color Decorator).
+	 * Wegista a document cowow pwovida (used by Cowow Picka, Cowow Decowatow).
 	 */
-	export function registerColorProvider(languageId: string, provider: DocumentColorProvider): IDisposable;
+	expowt function wegistewCowowPwovida(wanguageId: stwing, pwovida: DocumentCowowPwovida): IDisposabwe;
 
 	/**
-	 * Register a folding range provider
+	 * Wegista a fowding wange pwovida
 	 */
-	export function registerFoldingRangeProvider(languageId: string, provider: FoldingRangeProvider): IDisposable;
+	expowt function wegistewFowdingWangePwovida(wanguageId: stwing, pwovida: FowdingWangePwovida): IDisposabwe;
 
 	/**
-	 * Register a declaration provider
+	 * Wegista a decwawation pwovida
 	 */
-	export function registerDeclarationProvider(languageId: string, provider: DeclarationProvider): IDisposable;
+	expowt function wegistewDecwawationPwovida(wanguageId: stwing, pwovida: DecwawationPwovida): IDisposabwe;
 
 	/**
-	 * Register a selection range provider
+	 * Wegista a sewection wange pwovida
 	 */
-	export function registerSelectionRangeProvider(languageId: string, provider: SelectionRangeProvider): IDisposable;
+	expowt function wegistewSewectionWangePwovida(wanguageId: stwing, pwovida: SewectionWangePwovida): IDisposabwe;
 
 	/**
-	 * Register a document semantic tokens provider
+	 * Wegista a document semantic tokens pwovida
 	 */
-	export function registerDocumentSemanticTokensProvider(languageId: string, provider: DocumentSemanticTokensProvider): IDisposable;
+	expowt function wegistewDocumentSemanticTokensPwovida(wanguageId: stwing, pwovida: DocumentSemanticTokensPwovida): IDisposabwe;
 
 	/**
-	 * Register a document range semantic tokens provider
+	 * Wegista a document wange semantic tokens pwovida
 	 */
-	export function registerDocumentRangeSemanticTokensProvider(languageId: string, provider: DocumentRangeSemanticTokensProvider): IDisposable;
+	expowt function wegistewDocumentWangeSemanticTokensPwovida(wanguageId: stwing, pwovida: DocumentWangeSemanticTokensPwovida): IDisposabwe;
 
 	/**
-	 * Register an inline completions provider.
+	 * Wegista an inwine compwetions pwovida.
 	 */
-	export function registerInlineCompletionsProvider(languageId: string, provider: InlineCompletionsProvider): IDisposable;
+	expowt function wegistewInwineCompwetionsPwovida(wanguageId: stwing, pwovida: InwineCompwetionsPwovida): IDisposabwe;
 
 	/**
-	 * Register an inlay hints provider.
+	 * Wegista an inway hints pwovida.
 	 */
-	export function registerInlayHintsProvider(languageId: string, provider: InlayHintsProvider): IDisposable;
+	expowt function wegistewInwayHintsPwovida(wanguageId: stwing, pwovida: InwayHintsPwovida): IDisposabwe;
 
 	/**
-	 * Contains additional diagnostic information about the context in which
-	 * a [code action](#CodeActionProvider.provideCodeActions) is run.
+	 * Contains additionaw diagnostic infowmation about the context in which
+	 * a [code action](#CodeActionPwovida.pwovideCodeActions) is wun.
 	 */
-	export interface CodeActionContext {
+	expowt intewface CodeActionContext {
 		/**
-		 * An array of diagnostics.
+		 * An awway of diagnostics.
 		 */
-		readonly markers: editor.IMarkerData[];
+		weadonwy mawkews: editow.IMawkewData[];
 		/**
-		 * Requested kind of actions to return.
+		 * Wequested kind of actions to wetuwn.
 		 */
-		readonly only?: string;
+		weadonwy onwy?: stwing;
 	}
 
 	/**
-	 * The code action interface defines the contract between extensions and
-	 * the [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) feature.
+	 * The code action intewface defines the contwact between extensions and
+	 * the [wight buwb](https://code.visuawstudio.com/docs/editow/editingevowved#_code-action) featuwe.
 	 */
-	export interface CodeActionProvider {
+	expowt intewface CodeActionPwovida {
 		/**
-		 * Provide commands for the given document and range.
+		 * Pwovide commands fow the given document and wange.
 		 */
-		provideCodeActions(model: editor.ITextModel, range: Range, context: CodeActionContext, token: CancellationToken): ProviderResult<CodeActionList>;
+		pwovideCodeActions(modew: editow.ITextModew, wange: Wange, context: CodeActionContext, token: CancewwationToken): PwovidewWesuwt<CodeActionWist>;
 	}
 
 	/**
-	 * Metadata about the type of code actions that a {@link CodeActionProvider} provides.
+	 * Metadata about the type of code actions that a {@wink CodeActionPwovida} pwovides.
 	 */
-	export interface CodeActionProviderMetadata {
+	expowt intewface CodeActionPwovidewMetadata {
 		/**
-		 * List of code action kinds that a {@link CodeActionProvider} may return.
+		 * Wist of code action kinds that a {@wink CodeActionPwovida} may wetuwn.
 		 *
-		 * This list is used to determine if a given `CodeActionProvider` should be invoked or not.
-		 * To avoid unnecessary computation, every `CodeActionProvider` should list use `providedCodeActionKinds`. The
-		 * list of kinds may either be generic, such as `["quickfix", "refactor", "source"]`, or list out every kind provided,
-		 * such as `["quickfix.removeLine", "source.fixAll" ...]`.
+		 * This wist is used to detewmine if a given `CodeActionPwovida` shouwd be invoked ow not.
+		 * To avoid unnecessawy computation, evewy `CodeActionPwovida` shouwd wist use `pwovidedCodeActionKinds`. The
+		 * wist of kinds may eitha be genewic, such as `["quickfix", "wefactow", "souwce"]`, ow wist out evewy kind pwovided,
+		 * such as `["quickfix.wemoveWine", "souwce.fixAww" ...]`.
 		 */
-		readonly providedCodeActionKinds?: readonly string[];
+		weadonwy pwovidedCodeActionKinds?: weadonwy stwing[];
 	}
 
 	/**
-	 * Describes how comments for a language work.
+	 * Descwibes how comments fow a wanguage wowk.
 	 */
-	export interface CommentRule {
+	expowt intewface CommentWuwe {
 		/**
-		 * The line comment token, like `// this is a comment`
+		 * The wine comment token, wike `// this is a comment`
 		 */
-		lineComment?: string | null;
+		wineComment?: stwing | nuww;
 		/**
-		 * The block comment character pair, like `/* block comment *&#47;`
+		 * The bwock comment chawacta paiw, wike `/* bwock comment *&#47;`
 		 */
-		blockComment?: CharacterPair | null;
+		bwockComment?: ChawactewPaiw | nuww;
 	}
 
 	/**
-	 * The language configuration interface defines the contract between extensions and
-	 * various editor features, like automatic bracket insertion, automatic indentation etc.
+	 * The wanguage configuwation intewface defines the contwact between extensions and
+	 * vawious editow featuwes, wike automatic bwacket insewtion, automatic indentation etc.
 	 */
-	export interface LanguageConfiguration {
+	expowt intewface WanguageConfiguwation {
 		/**
-		 * The language's comment settings.
+		 * The wanguage's comment settings.
 		 */
-		comments?: CommentRule;
+		comments?: CommentWuwe;
 		/**
-		 * The language's brackets.
-		 * This configuration implicitly affects pressing Enter around these brackets.
+		 * The wanguage's bwackets.
+		 * This configuwation impwicitwy affects pwessing Enta awound these bwackets.
 		 */
-		brackets?: CharacterPair[];
+		bwackets?: ChawactewPaiw[];
 		/**
-		 * The language's word definition.
-		 * If the language supports Unicode identifiers (e.g. JavaScript), it is preferable
-		 * to provide a word definition that uses exclusion of known separators.
-		 * e.g.: A regex that matches anything except known separators (and dot is allowed to occur in a floating point number):
+		 * The wanguage's wowd definition.
+		 * If the wanguage suppowts Unicode identifiews (e.g. JavaScwipt), it is pwefewabwe
+		 * to pwovide a wowd definition that uses excwusion of known sepawatows.
+		 * e.g.: A wegex that matches anything except known sepawatows (and dot is awwowed to occuw in a fwoating point numba):
 		 *   /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g
 		 */
-		wordPattern?: RegExp;
+		wowdPattewn?: WegExp;
 		/**
-		 * The language's indentation settings.
+		 * The wanguage's indentation settings.
 		 */
-		indentationRules?: IndentationRule;
+		indentationWuwes?: IndentationWuwe;
 		/**
-		 * The language's rules to be evaluated when pressing Enter.
+		 * The wanguage's wuwes to be evawuated when pwessing Enta.
 		 */
-		onEnterRules?: OnEnterRule[];
+		onEntewWuwes?: OnEntewWuwe[];
 		/**
-		 * The language's auto closing pairs. The 'close' character is automatically inserted with the
-		 * 'open' character is typed. If not set, the configured brackets will be used.
+		 * The wanguage's auto cwosing paiws. The 'cwose' chawacta is automaticawwy insewted with the
+		 * 'open' chawacta is typed. If not set, the configuwed bwackets wiww be used.
 		 */
-		autoClosingPairs?: IAutoClosingPairConditional[];
+		autoCwosingPaiws?: IAutoCwosingPaiwConditionaw[];
 		/**
-		 * The language's surrounding pairs. When the 'open' character is typed on a selection, the
-		 * selected string is surrounded by the open and close characters. If not set, the autoclosing pairs
-		 * settings will be used.
+		 * The wanguage's suwwounding paiws. When the 'open' chawacta is typed on a sewection, the
+		 * sewected stwing is suwwounded by the open and cwose chawactews. If not set, the autocwosing paiws
+		 * settings wiww be used.
 		 */
-		surroundingPairs?: IAutoClosingPair[];
+		suwwoundingPaiws?: IAutoCwosingPaiw[];
 		/**
-		 * Defines a list of bracket pairs that are colorized depending on their nesting level.
-		 * If not set, the configured brackets will be used.
+		 * Defines a wist of bwacket paiws that awe cowowized depending on theiw nesting wevew.
+		 * If not set, the configuwed bwackets wiww be used.
 		*/
-		colorizedBracketPairs?: CharacterPair[];
+		cowowizedBwacketPaiws?: ChawactewPaiw[];
 		/**
-		 * Defines what characters must be after the cursor for bracket or quote autoclosing to occur when using the \'languageDefined\' autoclosing setting.
+		 * Defines what chawactews must be afta the cuwsow fow bwacket ow quote autocwosing to occuw when using the \'wanguageDefined\' autocwosing setting.
 		 *
-		 * This is typically the set of characters which can not start an expression, such as whitespace, closing brackets, non-unary operators, etc.
+		 * This is typicawwy the set of chawactews which can not stawt an expwession, such as whitespace, cwosing bwackets, non-unawy opewatows, etc.
 		 */
-		autoCloseBefore?: string;
+		autoCwoseBefowe?: stwing;
 		/**
-		 * The language's folding rules.
+		 * The wanguage's fowding wuwes.
 		 */
-		folding?: FoldingRules;
+		fowding?: FowdingWuwes;
 		/**
-		 * **Deprecated** Do not use.
+		 * **Depwecated** Do not use.
 		 *
-		 * @deprecated Will be replaced by a better API soon.
+		 * @depwecated Wiww be wepwaced by a betta API soon.
 		 */
-		__electricCharacterSupport?: {
+		__ewectwicChawactewSuppowt?: {
 			docComment?: IDocComment;
 		};
 	}
 
 	/**
-	 * Describes indentation rules for a language.
+	 * Descwibes indentation wuwes fow a wanguage.
 	 */
-	export interface IndentationRule {
+	expowt intewface IndentationWuwe {
 		/**
-		 * If a line matches this pattern, then all the lines after it should be unindented once (until another rule matches).
+		 * If a wine matches this pattewn, then aww the wines afta it shouwd be unindented once (untiw anotha wuwe matches).
 		 */
-		decreaseIndentPattern: RegExp;
+		decweaseIndentPattewn: WegExp;
 		/**
-		 * If a line matches this pattern, then all the lines after it should be indented once (until another rule matches).
+		 * If a wine matches this pattewn, then aww the wines afta it shouwd be indented once (untiw anotha wuwe matches).
 		 */
-		increaseIndentPattern: RegExp;
+		incweaseIndentPattewn: WegExp;
 		/**
-		 * If a line matches this pattern, then **only the next line** after it should be indented once.
+		 * If a wine matches this pattewn, then **onwy the next wine** afta it shouwd be indented once.
 		 */
-		indentNextLinePattern?: RegExp | null;
+		indentNextWinePattewn?: WegExp | nuww;
 		/**
-		 * If a line matches this pattern, then its indentation should not be changed and it should not be evaluated against the other rules.
+		 * If a wine matches this pattewn, then its indentation shouwd not be changed and it shouwd not be evawuated against the otha wuwes.
 		 */
-		unIndentedLinePattern?: RegExp | null;
+		unIndentedWinePattewn?: WegExp | nuww;
 	}
 
 	/**
-	 * Describes language specific folding markers such as '#region' and '#endregion'.
-	 * The start and end regexes will be tested against the contents of all lines and must be designed efficiently:
-	 * - the regex should start with '^'
-	 * - regexp flags (i, g) are ignored
+	 * Descwibes wanguage specific fowding mawkews such as '#wegion' and '#endwegion'.
+	 * The stawt and end wegexes wiww be tested against the contents of aww wines and must be designed efficientwy:
+	 * - the wegex shouwd stawt with '^'
+	 * - wegexp fwags (i, g) awe ignowed
 	 */
-	export interface FoldingMarkers {
-		start: RegExp;
-		end: RegExp;
+	expowt intewface FowdingMawkews {
+		stawt: WegExp;
+		end: WegExp;
 	}
 
 	/**
-	 * Describes folding rules for a language.
+	 * Descwibes fowding wuwes fow a wanguage.
 	 */
-	export interface FoldingRules {
+	expowt intewface FowdingWuwes {
 		/**
-		 * Used by the indentation based strategy to decide whether empty lines belong to the previous or the next block.
-		 * A language adheres to the off-side rule if blocks in that language are expressed by their indentation.
-		 * See [wikipedia](https://en.wikipedia.org/wiki/Off-side_rule) for more information.
-		 * If not set, `false` is used and empty lines belong to the previous block.
+		 * Used by the indentation based stwategy to decide whetha empty wines bewong to the pwevious ow the next bwock.
+		 * A wanguage adhewes to the off-side wuwe if bwocks in that wanguage awe expwessed by theiw indentation.
+		 * See [wikipedia](https://en.wikipedia.owg/wiki/Off-side_wuwe) fow mowe infowmation.
+		 * If not set, `fawse` is used and empty wines bewong to the pwevious bwock.
 		 */
-		offSide?: boolean;
+		offSide?: boowean;
 		/**
-		 * Region markers used by the language.
+		 * Wegion mawkews used by the wanguage.
 		 */
-		markers?: FoldingMarkers;
+		mawkews?: FowdingMawkews;
 	}
 
 	/**
-	 * Describes a rule to be evaluated when pressing Enter.
+	 * Descwibes a wuwe to be evawuated when pwessing Enta.
 	 */
-	export interface OnEnterRule {
+	expowt intewface OnEntewWuwe {
 		/**
-		 * This rule will only execute if the text before the cursor matches this regular expression.
+		 * This wuwe wiww onwy execute if the text befowe the cuwsow matches this weguwaw expwession.
 		 */
-		beforeText: RegExp;
+		befoweText: WegExp;
 		/**
-		 * This rule will only execute if the text after the cursor matches this regular expression.
+		 * This wuwe wiww onwy execute if the text afta the cuwsow matches this weguwaw expwession.
 		 */
-		afterText?: RegExp;
+		aftewText?: WegExp;
 		/**
-		 * This rule will only execute if the text above the this line matches this regular expression.
+		 * This wuwe wiww onwy execute if the text above the this wine matches this weguwaw expwession.
 		 */
-		previousLineText?: RegExp;
+		pweviousWineText?: WegExp;
 		/**
 		 * The action to execute.
 		 */
-		action: EnterAction;
+		action: EntewAction;
 	}
 
 	/**
 	 * Definition of documentation comments (e.g. Javadoc/JSdoc)
 	 */
-	export interface IDocComment {
+	expowt intewface IDocComment {
 		/**
-		 * The string that starts a doc comment (e.g. '/**')
+		 * The stwing that stawts a doc comment (e.g. '/**')
 		 */
-		open: string;
+		open: stwing;
 		/**
-		 * The string that appears on the last line and closes the doc comment (e.g. ' * /').
+		 * The stwing that appeaws on the wast wine and cwoses the doc comment (e.g. ' * /').
 		 */
-		close?: string;
+		cwose?: stwing;
 	}
 
 	/**
-	 * A tuple of two characters, like a pair of
-	 * opening and closing brackets.
+	 * A tupwe of two chawactews, wike a paiw of
+	 * opening and cwosing bwackets.
 	 */
-	export type CharacterPair = [string, string];
+	expowt type ChawactewPaiw = [stwing, stwing];
 
-	export interface IAutoClosingPair {
-		open: string;
-		close: string;
+	expowt intewface IAutoCwosingPaiw {
+		open: stwing;
+		cwose: stwing;
 	}
 
-	export interface IAutoClosingPairConditional extends IAutoClosingPair {
-		notIn?: string[];
+	expowt intewface IAutoCwosingPaiwConditionaw extends IAutoCwosingPaiw {
+		notIn?: stwing[];
 	}
 
 	/**
-	 * Describes what to do with the indentation when pressing Enter.
+	 * Descwibes what to do with the indentation when pwessing Enta.
 	 */
-	export enum IndentAction {
+	expowt enum IndentAction {
 		/**
-		 * Insert new line and copy the previous line's indentation.
+		 * Insewt new wine and copy the pwevious wine's indentation.
 		 */
 		None = 0,
 		/**
-		 * Insert new line and indent once (relative to the previous line's indentation).
+		 * Insewt new wine and indent once (wewative to the pwevious wine's indentation).
 		 */
 		Indent = 1,
 		/**
-		 * Insert two new lines:
-		 *  - the first one indented which will hold the cursor
-		 *  - the second one at the same indentation level
+		 * Insewt two new wines:
+		 *  - the fiwst one indented which wiww howd the cuwsow
+		 *  - the second one at the same indentation wevew
 		 */
 		IndentOutdent = 2,
 		/**
-		 * Insert new line and outdent once (relative to the previous line's indentation).
+		 * Insewt new wine and outdent once (wewative to the pwevious wine's indentation).
 		 */
 		Outdent = 3
 	}
 
 	/**
-	 * Describes what to do when pressing Enter.
+	 * Descwibes what to do when pwessing Enta.
 	 */
-	export interface EnterAction {
+	expowt intewface EntewAction {
 		/**
-		 * Describe what to do with the indentation.
+		 * Descwibe what to do with the indentation.
 		 */
 		indentAction: IndentAction;
 		/**
-		 * Describes text to be appended after the new line and after the indentation.
+		 * Descwibes text to be appended afta the new wine and afta the indentation.
 		 */
-		appendText?: string;
+		appendText?: stwing;
 		/**
-		 * Describes the number of characters to remove from the new line's indentation.
+		 * Descwibes the numba of chawactews to wemove fwom the new wine's indentation.
 		 */
-		removeText?: number;
+		wemoveText?: numba;
 	}
 
 	/**
-	 * The state of the tokenizer between two lines.
-	 * It is useful to store flags such as in multiline comment, etc.
-	 * The model will clone the previous line's state and pass it in to tokenize the next line.
+	 * The state of the tokeniza between two wines.
+	 * It is usefuw to stowe fwags such as in muwtiwine comment, etc.
+	 * The modew wiww cwone the pwevious wine's state and pass it in to tokenize the next wine.
 	 */
-	export interface IState {
-		clone(): IState;
-		equals(other: IState): boolean;
+	expowt intewface IState {
+		cwone(): IState;
+		equaws(otha: IState): boowean;
 	}
 
 	/**
-	 * A provider result represents the values a provider, like the {@link HoverProvider},
-	 * may return. For once this is the actual result type `T`, like `Hover`, or a thenable that resolves
-	 * to that type `T`. In addition, `null` and `undefined` can be returned - either directly or from a
-	 * thenable.
+	 * A pwovida wesuwt wepwesents the vawues a pwovida, wike the {@wink HovewPwovida},
+	 * may wetuwn. Fow once this is the actuaw wesuwt type `T`, wike `Hova`, ow a thenabwe that wesowves
+	 * to that type `T`. In addition, `nuww` and `undefined` can be wetuwned - eitha diwectwy ow fwom a
+	 * thenabwe.
 	 */
-	export type ProviderResult<T> = T | undefined | null | Thenable<T | undefined | null>;
+	expowt type PwovidewWesuwt<T> = T | undefined | nuww | Thenabwe<T | undefined | nuww>;
 
 	/**
-	 * A hover represents additional information for a symbol or word. Hovers are
-	 * rendered in a tooltip-like widget.
+	 * A hova wepwesents additionaw infowmation fow a symbow ow wowd. Hovews awe
+	 * wendewed in a toowtip-wike widget.
 	 */
-	export interface Hover {
+	expowt intewface Hova {
 		/**
-		 * The contents of this hover.
+		 * The contents of this hova.
 		 */
-		contents: IMarkdownString[];
+		contents: IMawkdownStwing[];
 		/**
-		 * The range to which this hover applies. When missing, the
-		 * editor will use the range at the current position or the
-		 * current position itself.
+		 * The wange to which this hova appwies. When missing, the
+		 * editow wiww use the wange at the cuwwent position ow the
+		 * cuwwent position itsewf.
 		 */
-		range?: IRange;
+		wange?: IWange;
 	}
 
 	/**
-	 * The hover provider interface defines the contract between extensions and
-	 * the [hover](https://code.visualstudio.com/docs/editor/intellisense)-feature.
+	 * The hova pwovida intewface defines the contwact between extensions and
+	 * the [hova](https://code.visuawstudio.com/docs/editow/intewwisense)-featuwe.
 	 */
-	export interface HoverProvider {
+	expowt intewface HovewPwovida {
 		/**
-		 * Provide a hover for the given position and document. Multiple hovers at the same
-		 * position will be merged by the editor. A hover can have a range which defaults
-		 * to the word range at the position when omitted.
+		 * Pwovide a hova fow the given position and document. Muwtipwe hovews at the same
+		 * position wiww be mewged by the editow. A hova can have a wange which defauwts
+		 * to the wowd wange at the position when omitted.
 		 */
-		provideHover(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Hover>;
+		pwovideHova(modew: editow.ITextModew, position: Position, token: CancewwationToken): PwovidewWesuwt<Hova>;
 	}
 
-	export enum CompletionItemKind {
+	expowt enum CompwetionItemKind {
 		Method = 0,
 		Function = 1,
-		Constructor = 2,
-		Field = 3,
-		Variable = 4,
-		Class = 5,
-		Struct = 6,
-		Interface = 7,
-		Module = 8,
-		Property = 9,
+		Constwuctow = 2,
+		Fiewd = 3,
+		Vawiabwe = 4,
+		Cwass = 5,
+		Stwuct = 6,
+		Intewface = 7,
+		Moduwe = 8,
+		Pwopewty = 9,
 		Event = 10,
-		Operator = 11,
+		Opewatow = 11,
 		Unit = 12,
-		Value = 13,
+		Vawue = 13,
 		Constant = 14,
 		Enum = 15,
-		EnumMember = 16,
-		Keyword = 17,
+		EnumMemba = 16,
+		Keywowd = 17,
 		Text = 18,
-		Color = 19,
-		File = 20,
-		Reference = 21,
-		Customcolor = 22,
-		Folder = 23,
-		TypeParameter = 24,
-		User = 25,
+		Cowow = 19,
+		Fiwe = 20,
+		Wefewence = 21,
+		Customcowow = 22,
+		Fowda = 23,
+		TypePawameta = 24,
+		Usa = 25,
 		Issue = 26,
 		Snippet = 27
 	}
 
-	export interface CompletionItemLabel {
-		label: string;
-		detail?: string;
-		description?: string;
+	expowt intewface CompwetionItemWabew {
+		wabew: stwing;
+		detaiw?: stwing;
+		descwiption?: stwing;
 	}
 
-	export enum CompletionItemTag {
-		Deprecated = 1
+	expowt enum CompwetionItemTag {
+		Depwecated = 1
 	}
 
-	export enum CompletionItemInsertTextRule {
+	expowt enum CompwetionItemInsewtTextWuwe {
 		/**
-		 * Adjust whitespace/indentation of multiline insert texts to
-		 * match the current line indentation.
+		 * Adjust whitespace/indentation of muwtiwine insewt texts to
+		 * match the cuwwent wine indentation.
 		 */
 		KeepWhitespace = 1,
 		/**
-		 * `insertText` is a snippet.
+		 * `insewtText` is a snippet.
 		 */
-		InsertAsSnippet = 4
+		InsewtAsSnippet = 4
 	}
 
 	/**
-	 * A completion item represents a text snippet that is
-	 * proposed to complete text that is being typed.
+	 * A compwetion item wepwesents a text snippet that is
+	 * pwoposed to compwete text that is being typed.
 	 */
-	export interface CompletionItem {
+	expowt intewface CompwetionItem {
 		/**
-		 * The label of this completion item. By default
-		 * this is also the text that is inserted when selecting
-		 * this completion.
+		 * The wabew of this compwetion item. By defauwt
+		 * this is awso the text that is insewted when sewecting
+		 * this compwetion.
 		 */
-		label: string | CompletionItemLabel;
+		wabew: stwing | CompwetionItemWabew;
 		/**
-		 * The kind of this completion item. Based on the kind
-		 * an icon is chosen by the editor.
+		 * The kind of this compwetion item. Based on the kind
+		 * an icon is chosen by the editow.
 		 */
-		kind: CompletionItemKind;
+		kind: CompwetionItemKind;
 		/**
-		 * A modifier to the `kind` which affect how the item
-		 * is rendered, e.g. Deprecated is rendered with a strikeout
+		 * A modifia to the `kind` which affect how the item
+		 * is wendewed, e.g. Depwecated is wendewed with a stwikeout
 		 */
-		tags?: ReadonlyArray<CompletionItemTag>;
+		tags?: WeadonwyAwway<CompwetionItemTag>;
 		/**
-		 * A human-readable string with additional information
-		 * about this item, like type or symbol information.
+		 * A human-weadabwe stwing with additionaw infowmation
+		 * about this item, wike type ow symbow infowmation.
 		 */
-		detail?: string;
+		detaiw?: stwing;
 		/**
-		 * A human-readable string that represents a doc-comment.
+		 * A human-weadabwe stwing that wepwesents a doc-comment.
 		 */
-		documentation?: string | IMarkdownString;
+		documentation?: stwing | IMawkdownStwing;
 		/**
-		 * A string that should be used when comparing this item
-		 * with other items. When `falsy` the {@link CompletionItem.label label}
+		 * A stwing that shouwd be used when compawing this item
+		 * with otha items. When `fawsy` the {@wink CompwetionItem.wabew wabew}
 		 * is used.
 		 */
-		sortText?: string;
+		sowtText?: stwing;
 		/**
-		 * A string that should be used when filtering a set of
-		 * completion items. When `falsy` the {@link CompletionItem.label label}
+		 * A stwing that shouwd be used when fiwtewing a set of
+		 * compwetion items. When `fawsy` the {@wink CompwetionItem.wabew wabew}
 		 * is used.
 		 */
-		filterText?: string;
+		fiwtewText?: stwing;
 		/**
-		 * Select this item when showing. *Note* that only one completion item can be selected and
-		 * that the editor decides which item that is. The rule is that the *first* item of those
-		 * that match best is selected.
+		 * Sewect this item when showing. *Note* that onwy one compwetion item can be sewected and
+		 * that the editow decides which item that is. The wuwe is that the *fiwst* item of those
+		 * that match best is sewected.
 		 */
-		preselect?: boolean;
+		pwesewect?: boowean;
 		/**
-		 * A string or snippet that should be inserted in a document when selecting
-		 * this completion.
+		 * A stwing ow snippet that shouwd be insewted in a document when sewecting
+		 * this compwetion.
 		 * is used.
 		 */
-		insertText: string;
+		insewtText: stwing;
 		/**
-		 * Addition rules (as bitmask) that should be applied when inserting
-		 * this completion.
+		 * Addition wuwes (as bitmask) that shouwd be appwied when insewting
+		 * this compwetion.
 		 */
-		insertTextRules?: CompletionItemInsertTextRule;
+		insewtTextWuwes?: CompwetionItemInsewtTextWuwe;
 		/**
-		 * A range of text that should be replaced by this completion item.
+		 * A wange of text that shouwd be wepwaced by this compwetion item.
 		 *
-		 * Defaults to a range from the start of the {@link TextDocument.getWordRangeAtPosition current word} to the
-		 * current position.
+		 * Defauwts to a wange fwom the stawt of the {@wink TextDocument.getWowdWangeAtPosition cuwwent wowd} to the
+		 * cuwwent position.
 		 *
-		 * *Note:* The range must be a {@link Range.isSingleLine single line} and it must
-		 * {@link Range.contains contain} the position at which completion has been {@link CompletionItemProvider.provideCompletionItems requested}.
+		 * *Note:* The wange must be a {@wink Wange.isSingweWine singwe wine} and it must
+		 * {@wink Wange.contains contain} the position at which compwetion has been {@wink CompwetionItemPwovida.pwovideCompwetionItems wequested}.
 		 */
-		range: IRange | {
-			insert: IRange;
-			replace: IRange;
+		wange: IWange | {
+			insewt: IWange;
+			wepwace: IWange;
 		};
 		/**
-		 * An optional set of characters that when pressed while this completion is active will accept it first and
-		 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
-		 * characters will be ignored.
+		 * An optionaw set of chawactews that when pwessed whiwe this compwetion is active wiww accept it fiwst and
+		 * then type that chawacta. *Note* that aww commit chawactews shouwd have `wength=1` and that supewfwuous
+		 * chawactews wiww be ignowed.
 		 */
-		commitCharacters?: string[];
+		commitChawactews?: stwing[];
 		/**
-		 * An optional array of additional text edits that are applied when
-		 * selecting this completion. Edits must not overlap with the main edit
-		 * nor with themselves.
+		 * An optionaw awway of additionaw text edits that awe appwied when
+		 * sewecting this compwetion. Edits must not ovewwap with the main edit
+		 * now with themsewves.
 		 */
-		additionalTextEdits?: editor.ISingleEditOperation[];
+		additionawTextEdits?: editow.ISingweEditOpewation[];
 		/**
-		 * A command that should be run upon acceptance of this item.
+		 * A command that shouwd be wun upon acceptance of this item.
 		 */
 		command?: Command;
 	}
 
-	export interface CompletionList {
-		suggestions: CompletionItem[];
-		incomplete?: boolean;
+	expowt intewface CompwetionWist {
+		suggestions: CompwetionItem[];
+		incompwete?: boowean;
 		dispose?(): void;
 	}
 
 	/**
-	 * How a suggest provider was triggered.
+	 * How a suggest pwovida was twiggewed.
 	 */
-	export enum CompletionTriggerKind {
+	expowt enum CompwetionTwiggewKind {
 		Invoke = 0,
-		TriggerCharacter = 1,
-		TriggerForIncompleteCompletions = 2
+		TwiggewChawacta = 1,
+		TwiggewFowIncompweteCompwetions = 2
 	}
 
 	/**
-	 * Contains additional information about the context in which
-	 * {@link CompletionItemProvider.provideCompletionItems completion provider} is triggered.
+	 * Contains additionaw infowmation about the context in which
+	 * {@wink CompwetionItemPwovida.pwovideCompwetionItems compwetion pwovida} is twiggewed.
 	 */
-	export interface CompletionContext {
+	expowt intewface CompwetionContext {
 		/**
-		 * How the completion was triggered.
+		 * How the compwetion was twiggewed.
 		 */
-		triggerKind: CompletionTriggerKind;
+		twiggewKind: CompwetionTwiggewKind;
 		/**
-		 * Character that triggered the completion item provider.
+		 * Chawacta that twiggewed the compwetion item pwovida.
 		 *
-		 * `undefined` if provider was not triggered by a character.
+		 * `undefined` if pwovida was not twiggewed by a chawacta.
 		 */
-		triggerCharacter?: string;
+		twiggewChawacta?: stwing;
 	}
 
 	/**
-	 * The completion item provider interface defines the contract between extensions and
-	 * the [IntelliSense](https://code.visualstudio.com/docs/editor/intellisense).
+	 * The compwetion item pwovida intewface defines the contwact between extensions and
+	 * the [IntewwiSense](https://code.visuawstudio.com/docs/editow/intewwisense).
 	 *
-	 * When computing *complete* completion items is expensive, providers can optionally implement
-	 * the `resolveCompletionItem`-function. In that case it is enough to return completion
-	 * items with a {@link CompletionItem.label label} from the
-	 * {@link CompletionItemProvider.provideCompletionItems provideCompletionItems}-function. Subsequently,
-	 * when a completion item is shown in the UI and gains focus this provider is asked to resolve
-	 * the item, like adding {@link CompletionItem.documentation doc-comment} or {@link CompletionItem.detail details}.
+	 * When computing *compwete* compwetion items is expensive, pwovidews can optionawwy impwement
+	 * the `wesowveCompwetionItem`-function. In that case it is enough to wetuwn compwetion
+	 * items with a {@wink CompwetionItem.wabew wabew} fwom the
+	 * {@wink CompwetionItemPwovida.pwovideCompwetionItems pwovideCompwetionItems}-function. Subsequentwy,
+	 * when a compwetion item is shown in the UI and gains focus this pwovida is asked to wesowve
+	 * the item, wike adding {@wink CompwetionItem.documentation doc-comment} ow {@wink CompwetionItem.detaiw detaiws}.
 	 */
-	export interface CompletionItemProvider {
-		triggerCharacters?: string[];
+	expowt intewface CompwetionItemPwovida {
+		twiggewChawactews?: stwing[];
 		/**
-		 * Provide completion items for the given position and document.
+		 * Pwovide compwetion items fow the given position and document.
 		 */
-		provideCompletionItems(model: editor.ITextModel, position: Position, context: CompletionContext, token: CancellationToken): ProviderResult<CompletionList>;
+		pwovideCompwetionItems(modew: editow.ITextModew, position: Position, context: CompwetionContext, token: CancewwationToken): PwovidewWesuwt<CompwetionWist>;
 		/**
-		 * Given a completion item fill in more data, like {@link CompletionItem.documentation doc-comment}
-		 * or {@link CompletionItem.detail details}.
+		 * Given a compwetion item fiww in mowe data, wike {@wink CompwetionItem.documentation doc-comment}
+		 * ow {@wink CompwetionItem.detaiw detaiws}.
 		 *
-		 * The editor will only resolve a completion item once.
+		 * The editow wiww onwy wesowve a compwetion item once.
 		 */
-		resolveCompletionItem?(item: CompletionItem, token: CancellationToken): ProviderResult<CompletionItem>;
+		wesowveCompwetionItem?(item: CompwetionItem, token: CancewwationToken): PwovidewWesuwt<CompwetionItem>;
 	}
 
 	/**
-	 * How an {@link InlineCompletionsProvider inline completion provider} was triggered.
+	 * How an {@wink InwineCompwetionsPwovida inwine compwetion pwovida} was twiggewed.
 	 */
-	export enum InlineCompletionTriggerKind {
+	expowt enum InwineCompwetionTwiggewKind {
 		/**
-		 * Completion was triggered automatically while editing.
-		 * It is sufficient to return a single completion item in this case.
+		 * Compwetion was twiggewed automaticawwy whiwe editing.
+		 * It is sufficient to wetuwn a singwe compwetion item in this case.
 		 */
 		Automatic = 0,
 		/**
-		 * Completion was triggered explicitly by a user gesture.
-		 * Return multiple completion items to enable cycling through them.
+		 * Compwetion was twiggewed expwicitwy by a usa gestuwe.
+		 * Wetuwn muwtipwe compwetion items to enabwe cycwing thwough them.
 		 */
-		Explicit = 1
+		Expwicit = 1
 	}
 
-	export interface InlineCompletionContext {
+	expowt intewface InwineCompwetionContext {
 		/**
-		 * How the completion was triggered.
+		 * How the compwetion was twiggewed.
 		 */
-		readonly triggerKind: InlineCompletionTriggerKind;
-		readonly selectedSuggestionInfo: SelectedSuggestionInfo | undefined;
+		weadonwy twiggewKind: InwineCompwetionTwiggewKind;
+		weadonwy sewectedSuggestionInfo: SewectedSuggestionInfo | undefined;
 	}
 
-	export interface SelectedSuggestionInfo {
-		range: IRange;
-		text: string;
+	expowt intewface SewectedSuggestionInfo {
+		wange: IWange;
+		text: stwing;
 	}
 
-	export interface InlineCompletion {
+	expowt intewface InwineCompwetion {
 		/**
-		 * The text to insert.
-		 * If the text contains a line break, the range must end at the end of a line.
-		 * If existing text should be replaced, the existing text must be a prefix of the text to insert.
+		 * The text to insewt.
+		 * If the text contains a wine bweak, the wange must end at the end of a wine.
+		 * If existing text shouwd be wepwaced, the existing text must be a pwefix of the text to insewt.
 		*/
-		readonly text: string;
+		weadonwy text: stwing;
 		/**
-		 * The range to replace.
-		 * Must begin and end on the same line.
+		 * The wange to wepwace.
+		 * Must begin and end on the same wine.
 		*/
-		readonly range?: IRange;
-		readonly command?: Command;
+		weadonwy wange?: IWange;
+		weadonwy command?: Command;
 	}
 
-	export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
-		readonly items: readonly TItem[];
+	expowt intewface InwineCompwetions<TItem extends InwineCompwetion = InwineCompwetion> {
+		weadonwy items: weadonwy TItem[];
 	}
 
-	export interface InlineCompletionsProvider<T extends InlineCompletions = InlineCompletions> {
-		provideInlineCompletions(model: editor.ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<T>;
+	expowt intewface InwineCompwetionsPwovida<T extends InwineCompwetions = InwineCompwetions> {
+		pwovideInwineCompwetions(modew: editow.ITextModew, position: Position, context: InwineCompwetionContext, token: CancewwationToken): PwovidewWesuwt<T>;
 		/**
-		 * Will be called when an item is shown.
+		 * Wiww be cawwed when an item is shown.
 		*/
-		handleItemDidShow?(completions: T, item: T['items'][number]): void;
+		handweItemDidShow?(compwetions: T, item: T['items'][numba]): void;
 		/**
-		 * Will be called when a completions list is no longer in use and can be garbage-collected.
+		 * Wiww be cawwed when a compwetions wist is no wonga in use and can be gawbage-cowwected.
 		*/
-		freeInlineCompletions(completions: T): void;
+		fweeInwineCompwetions(compwetions: T): void;
 	}
 
-	export interface CodeAction {
-		title: string;
+	expowt intewface CodeAction {
+		titwe: stwing;
 		command?: Command;
-		edit?: WorkspaceEdit;
-		diagnostics?: editor.IMarkerData[];
-		kind?: string;
-		isPreferred?: boolean;
-		disabled?: string;
+		edit?: WowkspaceEdit;
+		diagnostics?: editow.IMawkewData[];
+		kind?: stwing;
+		isPwefewwed?: boowean;
+		disabwed?: stwing;
 	}
 
-	export interface CodeActionList extends IDisposable {
-		readonly actions: ReadonlyArray<CodeAction>;
-	}
-
-	/**
-	 * Represents a parameter of a callable-signature. A parameter can
-	 * have a label and a doc-comment.
-	 */
-	export interface ParameterInformation {
-		/**
-		 * The label of this signature. Will be shown in
-		 * the UI.
-		 */
-		label: string | [number, number];
-		/**
-		 * The human-readable doc-comment of this signature. Will be shown
-		 * in the UI but can be omitted.
-		 */
-		documentation?: string | IMarkdownString;
+	expowt intewface CodeActionWist extends IDisposabwe {
+		weadonwy actions: WeadonwyAwway<CodeAction>;
 	}
 
 	/**
-	 * Represents the signature of something callable. A signature
-	 * can have a label, like a function-name, a doc-comment, and
-	 * a set of parameters.
+	 * Wepwesents a pawameta of a cawwabwe-signatuwe. A pawameta can
+	 * have a wabew and a doc-comment.
 	 */
-	export interface SignatureInformation {
+	expowt intewface PawametewInfowmation {
 		/**
-		 * The label of this signature. Will be shown in
+		 * The wabew of this signatuwe. Wiww be shown in
 		 * the UI.
 		 */
-		label: string;
+		wabew: stwing | [numba, numba];
 		/**
-		 * The human-readable doc-comment of this signature. Will be shown
+		 * The human-weadabwe doc-comment of this signatuwe. Wiww be shown
 		 * in the UI but can be omitted.
 		 */
-		documentation?: string | IMarkdownString;
+		documentation?: stwing | IMawkdownStwing;
+	}
+
+	/**
+	 * Wepwesents the signatuwe of something cawwabwe. A signatuwe
+	 * can have a wabew, wike a function-name, a doc-comment, and
+	 * a set of pawametews.
+	 */
+	expowt intewface SignatuweInfowmation {
 		/**
-		 * The parameters of this signature.
+		 * The wabew of this signatuwe. Wiww be shown in
+		 * the UI.
 		 */
-		parameters: ParameterInformation[];
+		wabew: stwing;
 		/**
-		 * Index of the active parameter.
+		 * The human-weadabwe doc-comment of this signatuwe. Wiww be shown
+		 * in the UI but can be omitted.
+		 */
+		documentation?: stwing | IMawkdownStwing;
+		/**
+		 * The pawametews of this signatuwe.
+		 */
+		pawametews: PawametewInfowmation[];
+		/**
+		 * Index of the active pawameta.
 		 *
-		 * If provided, this is used in place of `SignatureHelp.activeSignature`.
+		 * If pwovided, this is used in pwace of `SignatuweHewp.activeSignatuwe`.
 		 */
-		activeParameter?: number;
+		activePawameta?: numba;
 	}
 
 	/**
-	 * Signature help represents the signature of something
-	 * callable. There can be multiple signatures but only one
-	 * active and only one active parameter.
+	 * Signatuwe hewp wepwesents the signatuwe of something
+	 * cawwabwe. Thewe can be muwtipwe signatuwes but onwy one
+	 * active and onwy one active pawameta.
 	 */
-	export interface SignatureHelp {
+	expowt intewface SignatuweHewp {
 		/**
-		 * One or more signatures.
+		 * One ow mowe signatuwes.
 		 */
-		signatures: SignatureInformation[];
+		signatuwes: SignatuweInfowmation[];
 		/**
-		 * The active signature.
+		 * The active signatuwe.
 		 */
-		activeSignature: number;
+		activeSignatuwe: numba;
 		/**
-		 * The active parameter of the active signature.
+		 * The active pawameta of the active signatuwe.
 		 */
-		activeParameter: number;
+		activePawameta: numba;
 	}
 
-	export interface SignatureHelpResult extends IDisposable {
-		value: SignatureHelp;
+	expowt intewface SignatuweHewpWesuwt extends IDisposabwe {
+		vawue: SignatuweHewp;
 	}
 
-	export enum SignatureHelpTriggerKind {
+	expowt enum SignatuweHewpTwiggewKind {
 		Invoke = 1,
-		TriggerCharacter = 2,
+		TwiggewChawacta = 2,
 		ContentChange = 3
 	}
 
-	export interface SignatureHelpContext {
-		readonly triggerKind: SignatureHelpTriggerKind;
-		readonly triggerCharacter?: string;
-		readonly isRetrigger: boolean;
-		readonly activeSignatureHelp?: SignatureHelp;
+	expowt intewface SignatuweHewpContext {
+		weadonwy twiggewKind: SignatuweHewpTwiggewKind;
+		weadonwy twiggewChawacta?: stwing;
+		weadonwy isWetwigga: boowean;
+		weadonwy activeSignatuweHewp?: SignatuweHewp;
 	}
 
 	/**
-	 * The signature help provider interface defines the contract between extensions and
-	 * the [parameter hints](https://code.visualstudio.com/docs/editor/intellisense)-feature.
+	 * The signatuwe hewp pwovida intewface defines the contwact between extensions and
+	 * the [pawameta hints](https://code.visuawstudio.com/docs/editow/intewwisense)-featuwe.
 	 */
-	export interface SignatureHelpProvider {
-		readonly signatureHelpTriggerCharacters?: ReadonlyArray<string>;
-		readonly signatureHelpRetriggerCharacters?: ReadonlyArray<string>;
+	expowt intewface SignatuweHewpPwovida {
+		weadonwy signatuweHewpTwiggewChawactews?: WeadonwyAwway<stwing>;
+		weadonwy signatuweHewpWetwiggewChawactews?: WeadonwyAwway<stwing>;
 		/**
-		 * Provide help for the signature at the given position and document.
+		 * Pwovide hewp fow the signatuwe at the given position and document.
 		 */
-		provideSignatureHelp(model: editor.ITextModel, position: Position, token: CancellationToken, context: SignatureHelpContext): ProviderResult<SignatureHelpResult>;
+		pwovideSignatuweHewp(modew: editow.ITextModew, position: Position, token: CancewwationToken, context: SignatuweHewpContext): PwovidewWesuwt<SignatuweHewpWesuwt>;
 	}
 
 	/**
-	 * A document highlight kind.
+	 * A document highwight kind.
 	 */
-	export enum DocumentHighlightKind {
+	expowt enum DocumentHighwightKind {
 		/**
-		 * A textual occurrence.
+		 * A textuaw occuwwence.
 		 */
 		Text = 0,
 		/**
-		 * Read-access of a symbol, like reading a variable.
+		 * Wead-access of a symbow, wike weading a vawiabwe.
 		 */
-		Read = 1,
+		Wead = 1,
 		/**
-		 * Write-access of a symbol, like writing to a variable.
+		 * Wwite-access of a symbow, wike wwiting to a vawiabwe.
 		 */
-		Write = 2
+		Wwite = 2
 	}
 
 	/**
-	 * A document highlight is a range inside a text document which deserves
-	 * special attention. Usually a document highlight is visualized by changing
-	 * the background color of its range.
+	 * A document highwight is a wange inside a text document which desewves
+	 * speciaw attention. Usuawwy a document highwight is visuawized by changing
+	 * the backgwound cowow of its wange.
 	 */
-	export interface DocumentHighlight {
+	expowt intewface DocumentHighwight {
 		/**
-		 * The range this highlight applies to.
+		 * The wange this highwight appwies to.
 		 */
-		range: IRange;
+		wange: IWange;
 		/**
-		 * The highlight kind, default is {@link DocumentHighlightKind.Text text}.
+		 * The highwight kind, defauwt is {@wink DocumentHighwightKind.Text text}.
 		 */
-		kind?: DocumentHighlightKind;
+		kind?: DocumentHighwightKind;
 	}
 
 	/**
-	 * The document highlight provider interface defines the contract between extensions and
-	 * the word-highlight-feature.
+	 * The document highwight pwovida intewface defines the contwact between extensions and
+	 * the wowd-highwight-featuwe.
 	 */
-	export interface DocumentHighlightProvider {
+	expowt intewface DocumentHighwightPwovida {
 		/**
-		 * Provide a set of document highlights, like all occurrences of a variable or
-		 * all exit-points of a function.
+		 * Pwovide a set of document highwights, wike aww occuwwences of a vawiabwe ow
+		 * aww exit-points of a function.
 		 */
-		provideDocumentHighlights(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<DocumentHighlight[]>;
+		pwovideDocumentHighwights(modew: editow.ITextModew, position: Position, token: CancewwationToken): PwovidewWesuwt<DocumentHighwight[]>;
 	}
 
 	/**
-	 * The linked editing range provider interface defines the contract between extensions and
-	 * the linked editing feature.
+	 * The winked editing wange pwovida intewface defines the contwact between extensions and
+	 * the winked editing featuwe.
 	 */
-	export interface LinkedEditingRangeProvider {
+	expowt intewface WinkedEditingWangePwovida {
 		/**
-		 * Provide a list of ranges that can be edited together.
+		 * Pwovide a wist of wanges that can be edited togetha.
 		 */
-		provideLinkedEditingRanges(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<LinkedEditingRanges>;
+		pwovideWinkedEditingWanges(modew: editow.ITextModew, position: Position, token: CancewwationToken): PwovidewWesuwt<WinkedEditingWanges>;
 	}
 
 	/**
-	 * Represents a list of ranges that can be edited together along with a word pattern to describe valid contents.
+	 * Wepwesents a wist of wanges that can be edited togetha awong with a wowd pattewn to descwibe vawid contents.
 	 */
-	export interface LinkedEditingRanges {
+	expowt intewface WinkedEditingWanges {
 		/**
-		 * A list of ranges that can be edited together. The ranges must have
-		 * identical length and text content. The ranges cannot overlap
+		 * A wist of wanges that can be edited togetha. The wanges must have
+		 * identicaw wength and text content. The wanges cannot ovewwap
 		 */
-		ranges: IRange[];
+		wanges: IWange[];
 		/**
-		 * An optional word pattern that describes valid contents for the given ranges.
-		 * If no pattern is provided, the language configuration's word pattern will be used.
+		 * An optionaw wowd pattewn that descwibes vawid contents fow the given wanges.
+		 * If no pattewn is pwovided, the wanguage configuwation's wowd pattewn wiww be used.
 		 */
-		wordPattern?: RegExp;
+		wowdPattewn?: WegExp;
 	}
 
 	/**
-	 * Value-object that contains additional information when
-	 * requesting references.
+	 * Vawue-object that contains additionaw infowmation when
+	 * wequesting wefewences.
 	 */
-	export interface ReferenceContext {
+	expowt intewface WefewenceContext {
 		/**
-		 * Include the declaration of the current symbol.
+		 * Incwude the decwawation of the cuwwent symbow.
 		 */
-		includeDeclaration: boolean;
+		incwudeDecwawation: boowean;
 	}
 
 	/**
-	 * The reference provider interface defines the contract between extensions and
-	 * the [find references](https://code.visualstudio.com/docs/editor/editingevolved#_peek)-feature.
+	 * The wefewence pwovida intewface defines the contwact between extensions and
+	 * the [find wefewences](https://code.visuawstudio.com/docs/editow/editingevowved#_peek)-featuwe.
 	 */
-	export interface ReferenceProvider {
+	expowt intewface WefewencePwovida {
 		/**
-		 * Provide a set of project-wide references for the given position and document.
+		 * Pwovide a set of pwoject-wide wefewences fow the given position and document.
 		 */
-		provideReferences(model: editor.ITextModel, position: Position, context: ReferenceContext, token: CancellationToken): ProviderResult<Location[]>;
+		pwovideWefewences(modew: editow.ITextModew, position: Position, context: WefewenceContext, token: CancewwationToken): PwovidewWesuwt<Wocation[]>;
 	}
 
 	/**
-	 * Represents a location inside a resource, such as a line
-	 * inside a text file.
+	 * Wepwesents a wocation inside a wesouwce, such as a wine
+	 * inside a text fiwe.
 	 */
-	export interface Location {
+	expowt intewface Wocation {
 		/**
-		 * The resource identifier of this location.
+		 * The wesouwce identifia of this wocation.
 		 */
-		uri: Uri;
+		uwi: Uwi;
 		/**
-		 * The document range of this locations.
+		 * The document wange of this wocations.
 		 */
-		range: IRange;
+		wange: IWange;
 	}
 
-	export interface LocationLink {
+	expowt intewface WocationWink {
 		/**
-		 * A range to select where this link originates from.
+		 * A wange to sewect whewe this wink owiginates fwom.
 		 */
-		originSelectionRange?: IRange;
+		owiginSewectionWange?: IWange;
 		/**
-		 * The target uri this link points to.
+		 * The tawget uwi this wink points to.
 		 */
-		uri: Uri;
+		uwi: Uwi;
 		/**
-		 * The full range this link points to.
+		 * The fuww wange this wink points to.
 		 */
-		range: IRange;
+		wange: IWange;
 		/**
-		 * A range to select this link points to. Must be contained
-		 * in `LocationLink.range`.
+		 * A wange to sewect this wink points to. Must be contained
+		 * in `WocationWink.wange`.
 		 */
-		targetSelectionRange?: IRange;
+		tawgetSewectionWange?: IWange;
 	}
 
-	export type Definition = Location | Location[] | LocationLink[];
+	expowt type Definition = Wocation | Wocation[] | WocationWink[];
 
 	/**
-	 * The definition provider interface defines the contract between extensions and
-	 * the [go to definition](https://code.visualstudio.com/docs/editor/editingevolved#_go-to-definition)
-	 * and peek definition features.
+	 * The definition pwovida intewface defines the contwact between extensions and
+	 * the [go to definition](https://code.visuawstudio.com/docs/editow/editingevowved#_go-to-definition)
+	 * and peek definition featuwes.
 	 */
-	export interface DefinitionProvider {
+	expowt intewface DefinitionPwovida {
 		/**
-		 * Provide the definition of the symbol at the given position and document.
+		 * Pwovide the definition of the symbow at the given position and document.
 		 */
-		provideDefinition(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | LocationLink[]>;
-	}
-
-	/**
-	 * The definition provider interface defines the contract between extensions and
-	 * the [go to definition](https://code.visualstudio.com/docs/editor/editingevolved#_go-to-definition)
-	 * and peek definition features.
-	 */
-	export interface DeclarationProvider {
-		/**
-		 * Provide the declaration of the symbol at the given position and document.
-		 */
-		provideDeclaration(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | LocationLink[]>;
+		pwovideDefinition(modew: editow.ITextModew, position: Position, token: CancewwationToken): PwovidewWesuwt<Definition | WocationWink[]>;
 	}
 
 	/**
-	 * The implementation provider interface defines the contract between extensions and
-	 * the go to implementation feature.
+	 * The definition pwovida intewface defines the contwact between extensions and
+	 * the [go to definition](https://code.visuawstudio.com/docs/editow/editingevowved#_go-to-definition)
+	 * and peek definition featuwes.
 	 */
-	export interface ImplementationProvider {
+	expowt intewface DecwawationPwovida {
 		/**
-		 * Provide the implementation of the symbol at the given position and document.
+		 * Pwovide the decwawation of the symbow at the given position and document.
 		 */
-		provideImplementation(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | LocationLink[]>;
+		pwovideDecwawation(modew: editow.ITextModew, position: Position, token: CancewwationToken): PwovidewWesuwt<Definition | WocationWink[]>;
 	}
 
 	/**
-	 * The type definition provider interface defines the contract between extensions and
-	 * the go to type definition feature.
+	 * The impwementation pwovida intewface defines the contwact between extensions and
+	 * the go to impwementation featuwe.
 	 */
-	export interface TypeDefinitionProvider {
+	expowt intewface ImpwementationPwovida {
 		/**
-		 * Provide the type definition of the symbol at the given position and document.
+		 * Pwovide the impwementation of the symbow at the given position and document.
 		 */
-		provideTypeDefinition(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | LocationLink[]>;
+		pwovideImpwementation(modew: editow.ITextModew, position: Position, token: CancewwationToken): PwovidewWesuwt<Definition | WocationWink[]>;
 	}
 
 	/**
-	 * A symbol kind.
+	 * The type definition pwovida intewface defines the contwact between extensions and
+	 * the go to type definition featuwe.
 	 */
-	export enum SymbolKind {
-		File = 0,
-		Module = 1,
+	expowt intewface TypeDefinitionPwovida {
+		/**
+		 * Pwovide the type definition of the symbow at the given position and document.
+		 */
+		pwovideTypeDefinition(modew: editow.ITextModew, position: Position, token: CancewwationToken): PwovidewWesuwt<Definition | WocationWink[]>;
+	}
+
+	/**
+	 * A symbow kind.
+	 */
+	expowt enum SymbowKind {
+		Fiwe = 0,
+		Moduwe = 1,
 		Namespace = 2,
 		Package = 3,
-		Class = 4,
+		Cwass = 4,
 		Method = 5,
-		Property = 6,
-		Field = 7,
-		Constructor = 8,
+		Pwopewty = 6,
+		Fiewd = 7,
+		Constwuctow = 8,
 		Enum = 9,
-		Interface = 10,
+		Intewface = 10,
 		Function = 11,
-		Variable = 12,
+		Vawiabwe = 12,
 		Constant = 13,
-		String = 14,
-		Number = 15,
-		Boolean = 16,
-		Array = 17,
+		Stwing = 14,
+		Numba = 15,
+		Boowean = 16,
+		Awway = 17,
 		Object = 18,
 		Key = 19,
-		Null = 20,
-		EnumMember = 21,
-		Struct = 22,
+		Nuww = 20,
+		EnumMemba = 21,
+		Stwuct = 22,
 		Event = 23,
-		Operator = 24,
-		TypeParameter = 25
+		Opewatow = 24,
+		TypePawameta = 25
 	}
 
-	export enum SymbolTag {
-		Deprecated = 1
+	expowt enum SymbowTag {
+		Depwecated = 1
 	}
 
-	export interface DocumentSymbol {
-		name: string;
-		detail: string;
-		kind: SymbolKind;
-		tags: ReadonlyArray<SymbolTag>;
-		containerName?: string;
-		range: IRange;
-		selectionRange: IRange;
-		children?: DocumentSymbol[];
+	expowt intewface DocumentSymbow {
+		name: stwing;
+		detaiw: stwing;
+		kind: SymbowKind;
+		tags: WeadonwyAwway<SymbowTag>;
+		containewName?: stwing;
+		wange: IWange;
+		sewectionWange: IWange;
+		chiwdwen?: DocumentSymbow[];
 	}
 
 	/**
-	 * The document symbol provider interface defines the contract between extensions and
-	 * the [go to symbol](https://code.visualstudio.com/docs/editor/editingevolved#_go-to-symbol)-feature.
+	 * The document symbow pwovida intewface defines the contwact between extensions and
+	 * the [go to symbow](https://code.visuawstudio.com/docs/editow/editingevowved#_go-to-symbow)-featuwe.
 	 */
-	export interface DocumentSymbolProvider {
-		displayName?: string;
+	expowt intewface DocumentSymbowPwovida {
+		dispwayName?: stwing;
 		/**
-		 * Provide symbol information for the given document.
+		 * Pwovide symbow infowmation fow the given document.
 		 */
-		provideDocumentSymbols(model: editor.ITextModel, token: CancellationToken): ProviderResult<DocumentSymbol[]>;
+		pwovideDocumentSymbows(modew: editow.ITextModew, token: CancewwationToken): PwovidewWesuwt<DocumentSymbow[]>;
 	}
 
-	export type TextEdit = {
-		range: IRange;
-		text: string;
-		eol?: editor.EndOfLineSequence;
+	expowt type TextEdit = {
+		wange: IWange;
+		text: stwing;
+		eow?: editow.EndOfWineSequence;
 	};
 
 	/**
-	 * Interface used to format a model
+	 * Intewface used to fowmat a modew
 	 */
-	export interface FormattingOptions {
+	expowt intewface FowmattingOptions {
 		/**
 		 * Size of a tab in spaces.
 		 */
-		tabSize: number;
+		tabSize: numba;
 		/**
-		 * Prefer spaces over tabs.
+		 * Pwefa spaces ova tabs.
 		 */
-		insertSpaces: boolean;
+		insewtSpaces: boowean;
 	}
 
 	/**
-	 * The document formatting provider interface defines the contract between extensions and
-	 * the formatting-feature.
+	 * The document fowmatting pwovida intewface defines the contwact between extensions and
+	 * the fowmatting-featuwe.
 	 */
-	export interface DocumentFormattingEditProvider {
-		readonly displayName?: string;
+	expowt intewface DocumentFowmattingEditPwovida {
+		weadonwy dispwayName?: stwing;
 		/**
-		 * Provide formatting edits for a whole document.
+		 * Pwovide fowmatting edits fow a whowe document.
 		 */
-		provideDocumentFormattingEdits(model: editor.ITextModel, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
+		pwovideDocumentFowmattingEdits(modew: editow.ITextModew, options: FowmattingOptions, token: CancewwationToken): PwovidewWesuwt<TextEdit[]>;
 	}
 
 	/**
-	 * The document formatting provider interface defines the contract between extensions and
-	 * the formatting-feature.
+	 * The document fowmatting pwovida intewface defines the contwact between extensions and
+	 * the fowmatting-featuwe.
 	 */
-	export interface DocumentRangeFormattingEditProvider {
-		readonly displayName?: string;
+	expowt intewface DocumentWangeFowmattingEditPwovida {
+		weadonwy dispwayName?: stwing;
 		/**
-		 * Provide formatting edits for a range in a document.
+		 * Pwovide fowmatting edits fow a wange in a document.
 		 *
-		 * The given range is a hint and providers can decide to format a smaller
-		 * or larger range. Often this is done by adjusting the start and end
-		 * of the range to full syntax nodes.
+		 * The given wange is a hint and pwovidews can decide to fowmat a smawwa
+		 * ow wawga wange. Often this is done by adjusting the stawt and end
+		 * of the wange to fuww syntax nodes.
 		 */
-		provideDocumentRangeFormattingEdits(model: editor.ITextModel, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
+		pwovideDocumentWangeFowmattingEdits(modew: editow.ITextModew, wange: Wange, options: FowmattingOptions, token: CancewwationToken): PwovidewWesuwt<TextEdit[]>;
 	}
 
 	/**
-	 * The document formatting provider interface defines the contract between extensions and
-	 * the formatting-feature.
+	 * The document fowmatting pwovida intewface defines the contwact between extensions and
+	 * the fowmatting-featuwe.
 	 */
-	export interface OnTypeFormattingEditProvider {
-		autoFormatTriggerCharacters: string[];
+	expowt intewface OnTypeFowmattingEditPwovida {
+		autoFowmatTwiggewChawactews: stwing[];
 		/**
-		 * Provide formatting edits after a character has been typed.
+		 * Pwovide fowmatting edits afta a chawacta has been typed.
 		 *
-		 * The given position and character should hint to the provider
-		 * what range the position to expand to, like find the matching `{`
-		 * when `}` has been entered.
+		 * The given position and chawacta shouwd hint to the pwovida
+		 * what wange the position to expand to, wike find the matching `{`
+		 * when `}` has been entewed.
 		 */
-		provideOnTypeFormattingEdits(model: editor.ITextModel, position: Position, ch: string, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
+		pwovideOnTypeFowmattingEdits(modew: editow.ITextModew, position: Position, ch: stwing, options: FowmattingOptions, token: CancewwationToken): PwovidewWesuwt<TextEdit[]>;
 	}
 
 	/**
-	 * A link inside the editor.
+	 * A wink inside the editow.
 	 */
-	export interface ILink {
-		range: IRange;
-		url?: Uri | string;
-		tooltip?: string;
+	expowt intewface IWink {
+		wange: IWange;
+		uww?: Uwi | stwing;
+		toowtip?: stwing;
 	}
 
-	export interface ILinksList {
-		links: ILink[];
+	expowt intewface IWinksWist {
+		winks: IWink[];
 		dispose?(): void;
 	}
 
 	/**
-	 * A provider of links.
+	 * A pwovida of winks.
 	 */
-	export interface LinkProvider {
-		provideLinks(model: editor.ITextModel, token: CancellationToken): ProviderResult<ILinksList>;
-		resolveLink?: (link: ILink, token: CancellationToken) => ProviderResult<ILink>;
+	expowt intewface WinkPwovida {
+		pwovideWinks(modew: editow.ITextModew, token: CancewwationToken): PwovidewWesuwt<IWinksWist>;
+		wesowveWink?: (wink: IWink, token: CancewwationToken) => PwovidewWesuwt<IWink>;
 	}
 
 	/**
-	 * A color in RGBA format.
+	 * A cowow in WGBA fowmat.
 	 */
-	export interface IColor {
+	expowt intewface ICowow {
 		/**
-		 * The red component in the range [0-1].
+		 * The wed component in the wange [0-1].
 		 */
-		readonly red: number;
+		weadonwy wed: numba;
 		/**
-		 * The green component in the range [0-1].
+		 * The gween component in the wange [0-1].
 		 */
-		readonly green: number;
+		weadonwy gween: numba;
 		/**
-		 * The blue component in the range [0-1].
+		 * The bwue component in the wange [0-1].
 		 */
-		readonly blue: number;
+		weadonwy bwue: numba;
 		/**
-		 * The alpha component in the range [0-1].
+		 * The awpha component in the wange [0-1].
 		 */
-		readonly alpha: number;
+		weadonwy awpha: numba;
 	}
 
 	/**
-	 * String representations for a color
+	 * Stwing wepwesentations fow a cowow
 	 */
-	export interface IColorPresentation {
+	expowt intewface ICowowPwesentation {
 		/**
-		 * The label of this color presentation. It will be shown on the color
-		 * picker header. By default this is also the text that is inserted when selecting
-		 * this color presentation.
+		 * The wabew of this cowow pwesentation. It wiww be shown on the cowow
+		 * picka heada. By defauwt this is awso the text that is insewted when sewecting
+		 * this cowow pwesentation.
 		 */
-		label: string;
+		wabew: stwing;
 		/**
-		 * An {@link TextEdit edit} which is applied to a document when selecting
-		 * this presentation for the color.
+		 * An {@wink TextEdit edit} which is appwied to a document when sewecting
+		 * this pwesentation fow the cowow.
 		 */
 		textEdit?: TextEdit;
 		/**
-		 * An optional array of additional {@link TextEdit text edits} that are applied when
-		 * selecting this color presentation.
+		 * An optionaw awway of additionaw {@wink TextEdit text edits} that awe appwied when
+		 * sewecting this cowow pwesentation.
 		 */
-		additionalTextEdits?: TextEdit[];
+		additionawTextEdits?: TextEdit[];
 	}
 
 	/**
-	 * A color range is a range in a text model which represents a color.
+	 * A cowow wange is a wange in a text modew which wepwesents a cowow.
 	 */
-	export interface IColorInformation {
+	expowt intewface ICowowInfowmation {
 		/**
-		 * The range within the model.
+		 * The wange within the modew.
 		 */
-		range: IRange;
+		wange: IWange;
 		/**
-		 * The color represented in this range.
+		 * The cowow wepwesented in this wange.
 		 */
-		color: IColor;
+		cowow: ICowow;
 	}
 
 	/**
-	 * A provider of colors for editor models.
+	 * A pwovida of cowows fow editow modews.
 	 */
-	export interface DocumentColorProvider {
+	expowt intewface DocumentCowowPwovida {
 		/**
-		 * Provides the color ranges for a specific model.
+		 * Pwovides the cowow wanges fow a specific modew.
 		 */
-		provideDocumentColors(model: editor.ITextModel, token: CancellationToken): ProviderResult<IColorInformation[]>;
+		pwovideDocumentCowows(modew: editow.ITextModew, token: CancewwationToken): PwovidewWesuwt<ICowowInfowmation[]>;
 		/**
-		 * Provide the string representations for a color.
+		 * Pwovide the stwing wepwesentations fow a cowow.
 		 */
-		provideColorPresentations(model: editor.ITextModel, colorInfo: IColorInformation, token: CancellationToken): ProviderResult<IColorPresentation[]>;
+		pwovideCowowPwesentations(modew: editow.ITextModew, cowowInfo: ICowowInfowmation, token: CancewwationToken): PwovidewWesuwt<ICowowPwesentation[]>;
 	}
 
-	export interface SelectionRange {
-		range: IRange;
+	expowt intewface SewectionWange {
+		wange: IWange;
 	}
 
-	export interface SelectionRangeProvider {
+	expowt intewface SewectionWangePwovida {
 		/**
-		 * Provide ranges that should be selected from the given position.
+		 * Pwovide wanges that shouwd be sewected fwom the given position.
 		 */
-		provideSelectionRanges(model: editor.ITextModel, positions: Position[], token: CancellationToken): ProviderResult<SelectionRange[][]>;
+		pwovideSewectionWanges(modew: editow.ITextModew, positions: Position[], token: CancewwationToken): PwovidewWesuwt<SewectionWange[][]>;
 	}
 
-	export interface FoldingContext {
+	expowt intewface FowdingContext {
 	}
 
 	/**
-	 * A provider of folding ranges for editor models.
+	 * A pwovida of fowding wanges fow editow modews.
 	 */
-	export interface FoldingRangeProvider {
+	expowt intewface FowdingWangePwovida {
 		/**
-		 * An optional event to signal that the folding ranges from this provider have changed.
+		 * An optionaw event to signaw that the fowding wanges fwom this pwovida have changed.
 		 */
 		onDidChange?: IEvent<this>;
 		/**
-		 * Provides the folding ranges for a specific model.
+		 * Pwovides the fowding wanges fow a specific modew.
 		 */
-		provideFoldingRanges(model: editor.ITextModel, context: FoldingContext, token: CancellationToken): ProviderResult<FoldingRange[]>;
+		pwovideFowdingWanges(modew: editow.ITextModew, context: FowdingContext, token: CancewwationToken): PwovidewWesuwt<FowdingWange[]>;
 	}
 
-	export interface FoldingRange {
+	expowt intewface FowdingWange {
 		/**
-		 * The one-based start line of the range to fold. The folded area starts after the line's last character.
+		 * The one-based stawt wine of the wange to fowd. The fowded awea stawts afta the wine's wast chawacta.
 		 */
-		start: number;
+		stawt: numba;
 		/**
-		 * The one-based end line of the range to fold. The folded area ends with the line's last character.
+		 * The one-based end wine of the wange to fowd. The fowded awea ends with the wine's wast chawacta.
 		 */
-		end: number;
+		end: numba;
 		/**
-		 * Describes the {@link FoldingRangeKind Kind} of the folding range such as {@link FoldingRangeKind.Comment Comment} or
-		 * {@link FoldingRangeKind.Region Region}. The kind is used to categorize folding ranges and used by commands
-		 * like 'Fold all comments'. See
-		 * {@link FoldingRangeKind} for an enumeration of standardized kinds.
+		 * Descwibes the {@wink FowdingWangeKind Kind} of the fowding wange such as {@wink FowdingWangeKind.Comment Comment} ow
+		 * {@wink FowdingWangeKind.Wegion Wegion}. The kind is used to categowize fowding wanges and used by commands
+		 * wike 'Fowd aww comments'. See
+		 * {@wink FowdingWangeKind} fow an enumewation of standawdized kinds.
 		 */
-		kind?: FoldingRangeKind;
+		kind?: FowdingWangeKind;
 	}
 
-	export class FoldingRangeKind {
-		value: string;
+	expowt cwass FowdingWangeKind {
+		vawue: stwing;
 		/**
-		 * Kind for folding range representing a comment. The value of the kind is 'comment'.
+		 * Kind fow fowding wange wepwesenting a comment. The vawue of the kind is 'comment'.
 		 */
-		static readonly Comment: FoldingRangeKind;
+		static weadonwy Comment: FowdingWangeKind;
 		/**
-		 * Kind for folding range representing a import. The value of the kind is 'imports'.
+		 * Kind fow fowding wange wepwesenting a impowt. The vawue of the kind is 'impowts'.
 		 */
-		static readonly Imports: FoldingRangeKind;
+		static weadonwy Impowts: FowdingWangeKind;
 		/**
-		 * Kind for folding range representing regions (for example marked by `#region`, `#endregion`).
-		 * The value of the kind is 'region'.
+		 * Kind fow fowding wange wepwesenting wegions (fow exampwe mawked by `#wegion`, `#endwegion`).
+		 * The vawue of the kind is 'wegion'.
 		 */
-		static readonly Region: FoldingRangeKind;
+		static weadonwy Wegion: FowdingWangeKind;
 		/**
-		 * Creates a new {@link FoldingRangeKind}.
+		 * Cweates a new {@wink FowdingWangeKind}.
 		 *
-		 * @param value of the kind.
+		 * @pawam vawue of the kind.
 		 */
-		constructor(value: string);
+		constwuctow(vawue: stwing);
 	}
 
-	export interface WorkspaceEditMetadata {
-		needsConfirmation: boolean;
-		label: string;
-		description?: string;
+	expowt intewface WowkspaceEditMetadata {
+		needsConfiwmation: boowean;
+		wabew: stwing;
+		descwiption?: stwing;
 	}
 
-	export interface WorkspaceFileEditOptions {
-		overwrite?: boolean;
-		ignoreIfNotExists?: boolean;
-		ignoreIfExists?: boolean;
-		recursive?: boolean;
-		copy?: boolean;
-		folder?: boolean;
-		skipTrashBin?: boolean;
-		maxSize?: number;
+	expowt intewface WowkspaceFiweEditOptions {
+		ovewwwite?: boowean;
+		ignoweIfNotExists?: boowean;
+		ignoweIfExists?: boowean;
+		wecuwsive?: boowean;
+		copy?: boowean;
+		fowda?: boowean;
+		skipTwashBin?: boowean;
+		maxSize?: numba;
 	}
 
-	export interface WorkspaceFileEdit {
-		oldUri?: Uri;
-		newUri?: Uri;
-		options?: WorkspaceFileEditOptions;
-		metadata?: WorkspaceEditMetadata;
+	expowt intewface WowkspaceFiweEdit {
+		owdUwi?: Uwi;
+		newUwi?: Uwi;
+		options?: WowkspaceFiweEditOptions;
+		metadata?: WowkspaceEditMetadata;
 	}
 
-	export interface WorkspaceTextEdit {
-		resource: Uri;
+	expowt intewface WowkspaceTextEdit {
+		wesouwce: Uwi;
 		edit: TextEdit;
-		modelVersionId?: number;
-		metadata?: WorkspaceEditMetadata;
+		modewVewsionId?: numba;
+		metadata?: WowkspaceEditMetadata;
 	}
 
-	export interface WorkspaceEdit {
-		edits: Array<WorkspaceTextEdit | WorkspaceFileEdit>;
+	expowt intewface WowkspaceEdit {
+		edits: Awway<WowkspaceTextEdit | WowkspaceFiweEdit>;
 	}
 
-	export interface Rejection {
-		rejectReason?: string;
+	expowt intewface Wejection {
+		wejectWeason?: stwing;
 	}
 
-	export interface RenameLocation {
-		range: IRange;
-		text: string;
+	expowt intewface WenameWocation {
+		wange: IWange;
+		text: stwing;
 	}
 
-	export interface RenameProvider {
-		provideRenameEdits(model: editor.ITextModel, position: Position, newName: string, token: CancellationToken): ProviderResult<WorkspaceEdit & Rejection>;
-		resolveRenameLocation?(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<RenameLocation & Rejection>;
+	expowt intewface WenamePwovida {
+		pwovideWenameEdits(modew: editow.ITextModew, position: Position, newName: stwing, token: CancewwationToken): PwovidewWesuwt<WowkspaceEdit & Wejection>;
+		wesowveWenameWocation?(modew: editow.ITextModew, position: Position, token: CancewwationToken): PwovidewWesuwt<WenameWocation & Wejection>;
 	}
 
-	export interface Command {
-		id: string;
-		title: string;
-		tooltip?: string;
-		arguments?: any[];
+	expowt intewface Command {
+		id: stwing;
+		titwe: stwing;
+		toowtip?: stwing;
+		awguments?: any[];
 	}
 
-	export interface CodeLens {
-		range: IRange;
-		id?: string;
+	expowt intewface CodeWens {
+		wange: IWange;
+		id?: stwing;
 		command?: Command;
 	}
 
-	export interface CodeLensList {
-		lenses: CodeLens[];
+	expowt intewface CodeWensWist {
+		wenses: CodeWens[];
 		dispose(): void;
 	}
 
-	export interface CodeLensProvider {
+	expowt intewface CodeWensPwovida {
 		onDidChange?: IEvent<this>;
-		provideCodeLenses(model: editor.ITextModel, token: CancellationToken): ProviderResult<CodeLensList>;
-		resolveCodeLens?(model: editor.ITextModel, codeLens: CodeLens, token: CancellationToken): ProviderResult<CodeLens>;
+		pwovideCodeWenses(modew: editow.ITextModew, token: CancewwationToken): PwovidewWesuwt<CodeWensWist>;
+		wesowveCodeWens?(modew: editow.ITextModew, codeWens: CodeWens, token: CancewwationToken): PwovidewWesuwt<CodeWens>;
 	}
 
-	export enum InlayHintKind {
-		Other = 0,
+	expowt enum InwayHintKind {
+		Otha = 0,
 		Type = 1,
-		Parameter = 2
+		Pawameta = 2
 	}
 
-	export interface InlayHint {
-		text: string;
+	expowt intewface InwayHint {
+		text: stwing;
 		position: IPosition;
-		kind: InlayHintKind;
-		whitespaceBefore?: boolean;
-		whitespaceAfter?: boolean;
+		kind: InwayHintKind;
+		whitespaceBefowe?: boowean;
+		whitespaceAfta?: boowean;
 	}
 
-	export interface InlayHintsProvider {
-		onDidChangeInlayHints?: IEvent<void> | undefined;
-		provideInlayHints(model: editor.ITextModel, range: Range, token: CancellationToken): ProviderResult<InlayHint[]>;
+	expowt intewface InwayHintsPwovida {
+		onDidChangeInwayHints?: IEvent<void> | undefined;
+		pwovideInwayHints(modew: editow.ITextModew, wange: Wange, token: CancewwationToken): PwovidewWesuwt<InwayHint[]>;
 	}
 
-	export interface SemanticTokensLegend {
-		readonly tokenTypes: string[];
-		readonly tokenModifiers: string[];
+	expowt intewface SemanticTokensWegend {
+		weadonwy tokenTypes: stwing[];
+		weadonwy tokenModifiews: stwing[];
 	}
 
-	export interface SemanticTokens {
-		readonly resultId?: string;
-		readonly data: Uint32Array;
+	expowt intewface SemanticTokens {
+		weadonwy wesuwtId?: stwing;
+		weadonwy data: Uint32Awway;
 	}
 
-	export interface SemanticTokensEdit {
-		readonly start: number;
-		readonly deleteCount: number;
-		readonly data?: Uint32Array;
+	expowt intewface SemanticTokensEdit {
+		weadonwy stawt: numba;
+		weadonwy deweteCount: numba;
+		weadonwy data?: Uint32Awway;
 	}
 
-	export interface SemanticTokensEdits {
-		readonly resultId?: string;
-		readonly edits: SemanticTokensEdit[];
+	expowt intewface SemanticTokensEdits {
+		weadonwy wesuwtId?: stwing;
+		weadonwy edits: SemanticTokensEdit[];
 	}
 
-	export interface DocumentSemanticTokensProvider {
+	expowt intewface DocumentSemanticTokensPwovida {
 		onDidChange?: IEvent<void>;
-		getLegend(): SemanticTokensLegend;
-		provideDocumentSemanticTokens(model: editor.ITextModel, lastResultId: string | null, token: CancellationToken): ProviderResult<SemanticTokens | SemanticTokensEdits>;
-		releaseDocumentSemanticTokens(resultId: string | undefined): void;
+		getWegend(): SemanticTokensWegend;
+		pwovideDocumentSemanticTokens(modew: editow.ITextModew, wastWesuwtId: stwing | nuww, token: CancewwationToken): PwovidewWesuwt<SemanticTokens | SemanticTokensEdits>;
+		weweaseDocumentSemanticTokens(wesuwtId: stwing | undefined): void;
 	}
 
-	export interface DocumentRangeSemanticTokensProvider {
-		getLegend(): SemanticTokensLegend;
-		provideDocumentRangeSemanticTokens(model: editor.ITextModel, range: Range, token: CancellationToken): ProviderResult<SemanticTokens>;
+	expowt intewface DocumentWangeSemanticTokensPwovida {
+		getWegend(): SemanticTokensWegend;
+		pwovideDocumentWangeSemanticTokens(modew: editow.ITextModew, wange: Wange, token: CancewwationToken): PwovidewWesuwt<SemanticTokens>;
 	}
 
-	export interface ILanguageExtensionPoint {
-		id: string;
-		extensions?: string[];
-		filenames?: string[];
-		filenamePatterns?: string[];
-		firstLine?: string;
-		aliases?: string[];
-		mimetypes?: string[];
-		configuration?: Uri;
+	expowt intewface IWanguageExtensionPoint {
+		id: stwing;
+		extensions?: stwing[];
+		fiwenames?: stwing[];
+		fiwenamePattewns?: stwing[];
+		fiwstWine?: stwing;
+		awiases?: stwing[];
+		mimetypes?: stwing[];
+		configuwation?: Uwi;
 	}
 	/**
-	 * A Monarch language definition
+	 * A Monawch wanguage definition
 	 */
-	export interface IMonarchLanguage {
+	expowt intewface IMonawchWanguage {
 		/**
-		 * map from string to ILanguageRule[]
+		 * map fwom stwing to IWanguageWuwe[]
 		 */
-		tokenizer: {
-			[name: string]: IMonarchLanguageRule[];
+		tokeniza: {
+			[name: stwing]: IMonawchWanguageWuwe[];
 		};
 		/**
-		 * is the language case insensitive?
+		 * is the wanguage case insensitive?
 		 */
-		ignoreCase?: boolean;
+		ignoweCase?: boowean;
 		/**
-		 * is the language unicode-aware? (i.e., /\u{1D306}/)
+		 * is the wanguage unicode-awawe? (i.e., /\u{1D306}/)
 		 */
-		unicode?: boolean;
+		unicode?: boowean;
 		/**
-		 * if no match in the tokenizer assign this token class (default 'source')
+		 * if no match in the tokeniza assign this token cwass (defauwt 'souwce')
 		 */
-		defaultToken?: string;
+		defauwtToken?: stwing;
 		/**
-		 * for example [['{','}','delimiter.curly']]
+		 * fow exampwe [['{','}','dewimita.cuwwy']]
 		 */
-		brackets?: IMonarchLanguageBracket[];
+		bwackets?: IMonawchWanguageBwacket[];
 		/**
-		 * start symbol in the tokenizer (by default the first entry is used)
+		 * stawt symbow in the tokeniza (by defauwt the fiwst entwy is used)
 		 */
-		start?: string;
+		stawt?: stwing;
 		/**
-		 * attach this to every token class (by default '.' + name)
+		 * attach this to evewy token cwass (by defauwt '.' + name)
 		 */
-		tokenPostfix?: string;
+		tokenPostfix?: stwing;
 		/**
-		 * include line feeds (in the form of a \n character) at the end of lines
-		 * Defaults to false
+		 * incwude wine feeds (in the fowm of a \n chawacta) at the end of wines
+		 * Defauwts to fawse
 		 */
-		includeLF?: boolean;
+		incwudeWF?: boowean;
 		/**
-		 * Other keys that can be referred to by the tokenizer.
+		 * Otha keys that can be wefewwed to by the tokeniza.
 		 */
-		[key: string]: any;
+		[key: stwing]: any;
 	}
 
 	/**
-	 * A rule is either a regular expression and an action
-	 * 		shorthands: [reg,act] == { regex: reg, action: act}
-	 *		and       : [reg,act,nxt] == { regex: reg, action: act{ next: nxt }}
+	 * A wuwe is eitha a weguwaw expwession and an action
+	 * 		showthands: [weg,act] == { wegex: weg, action: act}
+	 *		and       : [weg,act,nxt] == { wegex: weg, action: act{ next: nxt }}
 	 */
-	export type IShortMonarchLanguageRule1 = [string | RegExp, IMonarchLanguageAction];
+	expowt type IShowtMonawchWanguageWuwe1 = [stwing | WegExp, IMonawchWanguageAction];
 
-	export type IShortMonarchLanguageRule2 = [string | RegExp, IMonarchLanguageAction, string];
+	expowt type IShowtMonawchWanguageWuwe2 = [stwing | WegExp, IMonawchWanguageAction, stwing];
 
-	export interface IExpandedMonarchLanguageRule {
+	expowt intewface IExpandedMonawchWanguageWuwe {
 		/**
 		 * match tokens
 		 */
-		regex?: string | RegExp;
+		wegex?: stwing | WegExp;
 		/**
 		 * action to take on match
 		 */
-		action?: IMonarchLanguageAction;
+		action?: IMonawchWanguageAction;
 		/**
-		 * or an include rule. include all rules from the included state
+		 * ow an incwude wuwe. incwude aww wuwes fwom the incwuded state
 		 */
-		include?: string;
+		incwude?: stwing;
 	}
 
-	export type IMonarchLanguageRule = IShortMonarchLanguageRule1 | IShortMonarchLanguageRule2 | IExpandedMonarchLanguageRule;
+	expowt type IMonawchWanguageWuwe = IShowtMonawchWanguageWuwe1 | IShowtMonawchWanguageWuwe2 | IExpandedMonawchWanguageWuwe;
 
 	/**
-	 * An action is either an array of actions...
-	 * ... or a case statement with guards...
-	 * ... or a basic action with a token value.
+	 * An action is eitha an awway of actions...
+	 * ... ow a case statement with guawds...
+	 * ... ow a basic action with a token vawue.
 	 */
-	export type IShortMonarchLanguageAction = string;
+	expowt type IShowtMonawchWanguageAction = stwing;
 
-	export interface IExpandedMonarchLanguageAction {
+	expowt intewface IExpandedMonawchWanguageAction {
 		/**
-		 * array of actions for each parenthesized match group
+		 * awway of actions fow each pawenthesized match gwoup
 		 */
-		group?: IMonarchLanguageAction[];
+		gwoup?: IMonawchWanguageAction[];
 		/**
-		 * map from string to ILanguageAction
+		 * map fwom stwing to IWanguageAction
 		 */
 		cases?: Object;
 		/**
-		 * token class (ie. css class) (or "@brackets" or "@rematch")
+		 * token cwass (ie. css cwass) (ow "@bwackets" ow "@wematch")
 		 */
-		token?: string;
+		token?: stwing;
 		/**
-		 * the next state to push, or "@push", "@pop", "@popall"
+		 * the next state to push, ow "@push", "@pop", "@popaww"
 		 */
-		next?: string;
+		next?: stwing;
 		/**
 		 * switch to this state
 		 */
-		switchTo?: string;
+		switchTo?: stwing;
 		/**
-		 * go back n characters in the stream
+		 * go back n chawactews in the stweam
 		 */
-		goBack?: number;
+		goBack?: numba;
 		/**
-		 * @open or @close
+		 * @open ow @cwose
 		 */
-		bracket?: string;
+		bwacket?: stwing;
 		/**
-		 * switch to embedded language (using the mimetype) or get out using "@pop"
+		 * switch to embedded wanguage (using the mimetype) ow get out using "@pop"
 		 */
-		nextEmbedded?: string;
+		nextEmbedded?: stwing;
 		/**
-		 * log a message to the browser console window
+		 * wog a message to the bwowsa consowe window
 		 */
-		log?: string;
+		wog?: stwing;
 	}
 
-	export type IMonarchLanguageAction = IShortMonarchLanguageAction | IExpandedMonarchLanguageAction | IShortMonarchLanguageAction[] | IExpandedMonarchLanguageAction[];
+	expowt type IMonawchWanguageAction = IShowtMonawchWanguageAction | IExpandedMonawchWanguageAction | IShowtMonawchWanguageAction[] | IExpandedMonawchWanguageAction[];
 
 	/**
-	 * This interface can be shortened as an array, ie. ['{','}','delimiter.curly']
+	 * This intewface can be showtened as an awway, ie. ['{','}','dewimita.cuwwy']
 	 */
-	export interface IMonarchLanguageBracket {
+	expowt intewface IMonawchWanguageBwacket {
 		/**
-		 * open bracket
+		 * open bwacket
 		 */
-		open: string;
+		open: stwing;
 		/**
-		 * closing bracket
+		 * cwosing bwacket
 		 */
-		close: string;
+		cwose: stwing;
 		/**
-		 * token class
+		 * token cwass
 		 */
-		token: string;
+		token: stwing;
 	}
 
 }
 
-declare namespace monaco.worker {
+decwawe namespace monaco.wowka {
 
 
-	export interface IMirrorTextModel {
-		readonly version: number;
+	expowt intewface IMiwwowTextModew {
+		weadonwy vewsion: numba;
 	}
 
-	export interface IMirrorModel extends IMirrorTextModel {
-		readonly uri: Uri;
-		readonly version: number;
-		getValue(): string;
+	expowt intewface IMiwwowModew extends IMiwwowTextModew {
+		weadonwy uwi: Uwi;
+		weadonwy vewsion: numba;
+		getVawue(): stwing;
 	}
 
-	export interface IWorkerContext<H = undefined> {
+	expowt intewface IWowkewContext<H = undefined> {
 		/**
-		 * A proxy to the main thread host object.
+		 * A pwoxy to the main thwead host object.
 		 */
 		host: H;
 		/**
-		 * Get all available mirror models in this worker.
+		 * Get aww avaiwabwe miwwow modews in this wowka.
 		 */
-		getMirrorModels(): IMirrorModel[];
+		getMiwwowModews(): IMiwwowModew[];
 	}
 
 }

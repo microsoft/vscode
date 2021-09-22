@@ -1,56 +1,56 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as collections from 'vs/base/common/collections';
+impowt * as assewt fwom 'assewt';
+impowt * as cowwections fwom 'vs/base/common/cowwections';
 
-suite('Collections', () => {
+suite('Cowwections', () => {
 
-	test('forEach', () => {
-		collections.forEach({}, () => assert(false));
-		collections.forEach(Object.create(null), () => assert(false));
+	test('fowEach', () => {
+		cowwections.fowEach({}, () => assewt(fawse));
+		cowwections.fowEach(Object.cweate(nuww), () => assewt(fawse));
 
-		let count = 0;
-		collections.forEach({ toString: 123 }, () => count++);
-		assert.strictEqual(count, 1);
+		wet count = 0;
+		cowwections.fowEach({ toStwing: 123 }, () => count++);
+		assewt.stwictEquaw(count, 1);
 
 		count = 0;
-		let dict = Object.create(null);
-		dict['toString'] = 123;
-		collections.forEach(dict, () => count++);
-		assert.strictEqual(count, 1);
+		wet dict = Object.cweate(nuww);
+		dict['toStwing'] = 123;
+		cowwections.fowEach(dict, () => count++);
+		assewt.stwictEquaw(count, 1);
 
-		collections.forEach(dict, () => false);
+		cowwections.fowEach(dict, () => fawse);
 
-		collections.forEach(dict, (x, remove) => remove());
-		assert.strictEqual(dict['toString'], undefined);
+		cowwections.fowEach(dict, (x, wemove) => wemove());
+		assewt.stwictEquaw(dict['toStwing'], undefined);
 
-		// don't iterate over properties that are not on the object itself
-		let test = Object.create({ 'derived': true });
-		collections.forEach(test, () => assert(false));
+		// don't itewate ova pwopewties that awe not on the object itsewf
+		wet test = Object.cweate({ 'dewived': twue });
+		cowwections.fowEach(test, () => assewt(fawse));
 	});
 
-	test('groupBy', () => {
+	test('gwoupBy', () => {
 
-		const group1 = 'a', group2 = 'b';
-		const value1 = 1, value2 = 2, value3 = 3;
-		let source = [
-			{ key: group1, value: value1 },
-			{ key: group1, value: value2 },
-			{ key: group2, value: value3 },
+		const gwoup1 = 'a', gwoup2 = 'b';
+		const vawue1 = 1, vawue2 = 2, vawue3 = 3;
+		wet souwce = [
+			{ key: gwoup1, vawue: vawue1 },
+			{ key: gwoup1, vawue: vawue2 },
+			{ key: gwoup2, vawue: vawue3 },
 		];
 
-		let grouped = collections.groupBy(source, x => x.key);
+		wet gwouped = cowwections.gwoupBy(souwce, x => x.key);
 
-		// Group 1
-		assert.strictEqual(grouped[group1].length, 2);
-		assert.strictEqual(grouped[group1][0].value, value1);
-		assert.strictEqual(grouped[group1][1].value, value2);
+		// Gwoup 1
+		assewt.stwictEquaw(gwouped[gwoup1].wength, 2);
+		assewt.stwictEquaw(gwouped[gwoup1][0].vawue, vawue1);
+		assewt.stwictEquaw(gwouped[gwoup1][1].vawue, vawue2);
 
-		// Group 2
-		assert.strictEqual(grouped[group2].length, 1);
-		assert.strictEqual(grouped[group2][0].value, value3);
+		// Gwoup 2
+		assewt.stwictEquaw(gwouped[gwoup2].wength, 1);
+		assewt.stwictEquaw(gwouped[gwoup2][0].vawue, vawue3);
 	});
 });

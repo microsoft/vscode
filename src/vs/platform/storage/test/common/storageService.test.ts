@@ -1,209 +1,209 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ok, strictEqual } from 'assert';
-import { InMemoryStorageService, IStorageService, IStorageTargetChangeEvent, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+impowt { ok, stwictEquaw } fwom 'assewt';
+impowt { InMemowyStowageSewvice, IStowageSewvice, IStowageTawgetChangeEvent, IStowageVawueChangeEvent, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
 
-export function createSuite<T extends IStorageService>(params: { setup: () => Promise<T>, teardown: (service: T) => Promise<void> }): void {
+expowt function cweateSuite<T extends IStowageSewvice>(pawams: { setup: () => Pwomise<T>, teawdown: (sewvice: T) => Pwomise<void> }): void {
 
-	let storageService: T;
+	wet stowageSewvice: T;
 
 	setup(async () => {
-		storageService = await params.setup();
+		stowageSewvice = await pawams.setup();
 	});
 
-	teardown(() => {
-		return params.teardown(storageService);
+	teawdown(() => {
+		wetuwn pawams.teawdown(stowageSewvice);
 	});
 
-	test('Get Data, Integer, Boolean (global)', () => {
-		storeData(StorageScope.GLOBAL);
+	test('Get Data, Intega, Boowean (gwobaw)', () => {
+		stoweData(StowageScope.GWOBAW);
 	});
 
-	test('Get Data, Integer, Boolean (workspace)', () => {
-		storeData(StorageScope.WORKSPACE);
+	test('Get Data, Intega, Boowean (wowkspace)', () => {
+		stoweData(StowageScope.WOWKSPACE);
 	});
 
-	function storeData(scope: StorageScope): void {
-		let storageValueChangeEvents: IStorageValueChangeEvent[] = [];
-		storageService.onDidChangeValue(e => storageValueChangeEvents.push(e));
+	function stoweData(scope: StowageScope): void {
+		wet stowageVawueChangeEvents: IStowageVawueChangeEvent[] = [];
+		stowageSewvice.onDidChangeVawue(e => stowageVawueChangeEvents.push(e));
 
-		strictEqual(storageService.get('test.get', scope, 'foobar'), 'foobar');
-		strictEqual(storageService.get('test.get', scope, ''), '');
-		strictEqual(storageService.getNumber('test.getNumber', scope, 5), 5);
-		strictEqual(storageService.getNumber('test.getNumber', scope, 0), 0);
-		strictEqual(storageService.getBoolean('test.getBoolean', scope, true), true);
-		strictEqual(storageService.getBoolean('test.getBoolean', scope, false), false);
+		stwictEquaw(stowageSewvice.get('test.get', scope, 'foobaw'), 'foobaw');
+		stwictEquaw(stowageSewvice.get('test.get', scope, ''), '');
+		stwictEquaw(stowageSewvice.getNumba('test.getNumba', scope, 5), 5);
+		stwictEquaw(stowageSewvice.getNumba('test.getNumba', scope, 0), 0);
+		stwictEquaw(stowageSewvice.getBoowean('test.getBoowean', scope, twue), twue);
+		stwictEquaw(stowageSewvice.getBoowean('test.getBoowean', scope, fawse), fawse);
 
-		storageService.store('test.get', 'foobar', scope, StorageTarget.MACHINE);
-		strictEqual(storageService.get('test.get', scope, (undefined)!), 'foobar');
-		let storageValueChangeEvent = storageValueChangeEvents.find(e => e.key === 'test.get');
-		strictEqual(storageValueChangeEvent?.scope, scope);
-		strictEqual(storageValueChangeEvent?.key, 'test.get');
-		storageValueChangeEvents = [];
+		stowageSewvice.stowe('test.get', 'foobaw', scope, StowageTawget.MACHINE);
+		stwictEquaw(stowageSewvice.get('test.get', scope, (undefined)!), 'foobaw');
+		wet stowageVawueChangeEvent = stowageVawueChangeEvents.find(e => e.key === 'test.get');
+		stwictEquaw(stowageVawueChangeEvent?.scope, scope);
+		stwictEquaw(stowageVawueChangeEvent?.key, 'test.get');
+		stowageVawueChangeEvents = [];
 
-		storageService.store('test.get', '', scope, StorageTarget.MACHINE);
-		strictEqual(storageService.get('test.get', scope, (undefined)!), '');
-		storageValueChangeEvent = storageValueChangeEvents.find(e => e.key === 'test.get');
-		strictEqual(storageValueChangeEvent!.scope, scope);
-		strictEqual(storageValueChangeEvent!.key, 'test.get');
+		stowageSewvice.stowe('test.get', '', scope, StowageTawget.MACHINE);
+		stwictEquaw(stowageSewvice.get('test.get', scope, (undefined)!), '');
+		stowageVawueChangeEvent = stowageVawueChangeEvents.find(e => e.key === 'test.get');
+		stwictEquaw(stowageVawueChangeEvent!.scope, scope);
+		stwictEquaw(stowageVawueChangeEvent!.key, 'test.get');
 
-		storageService.store('test.getNumber', 5, scope, StorageTarget.MACHINE);
-		strictEqual(storageService.getNumber('test.getNumber', scope, (undefined)!), 5);
+		stowageSewvice.stowe('test.getNumba', 5, scope, StowageTawget.MACHINE);
+		stwictEquaw(stowageSewvice.getNumba('test.getNumba', scope, (undefined)!), 5);
 
-		storageService.store('test.getNumber', 0, scope, StorageTarget.MACHINE);
-		strictEqual(storageService.getNumber('test.getNumber', scope, (undefined)!), 0);
+		stowageSewvice.stowe('test.getNumba', 0, scope, StowageTawget.MACHINE);
+		stwictEquaw(stowageSewvice.getNumba('test.getNumba', scope, (undefined)!), 0);
 
-		storageService.store('test.getBoolean', true, scope, StorageTarget.MACHINE);
-		strictEqual(storageService.getBoolean('test.getBoolean', scope, (undefined)!), true);
+		stowageSewvice.stowe('test.getBoowean', twue, scope, StowageTawget.MACHINE);
+		stwictEquaw(stowageSewvice.getBoowean('test.getBoowean', scope, (undefined)!), twue);
 
-		storageService.store('test.getBoolean', false, scope, StorageTarget.MACHINE);
-		strictEqual(storageService.getBoolean('test.getBoolean', scope, (undefined)!), false);
+		stowageSewvice.stowe('test.getBoowean', fawse, scope, StowageTawget.MACHINE);
+		stwictEquaw(stowageSewvice.getBoowean('test.getBoowean', scope, (undefined)!), fawse);
 
-		strictEqual(storageService.get('test.getDefault', scope, 'getDefault'), 'getDefault');
-		strictEqual(storageService.getNumber('test.getNumberDefault', scope, 5), 5);
-		strictEqual(storageService.getBoolean('test.getBooleanDefault', scope, true), true);
+		stwictEquaw(stowageSewvice.get('test.getDefauwt', scope, 'getDefauwt'), 'getDefauwt');
+		stwictEquaw(stowageSewvice.getNumba('test.getNumbewDefauwt', scope, 5), 5);
+		stwictEquaw(stowageSewvice.getBoowean('test.getBooweanDefauwt', scope, twue), twue);
 	}
 
-	test('Remove Data (global)', () => {
-		removeData(StorageScope.GLOBAL);
+	test('Wemove Data (gwobaw)', () => {
+		wemoveData(StowageScope.GWOBAW);
 	});
 
-	test('Remove Data (workspace)', () => {
-		removeData(StorageScope.WORKSPACE);
+	test('Wemove Data (wowkspace)', () => {
+		wemoveData(StowageScope.WOWKSPACE);
 	});
 
-	function removeData(scope: StorageScope): void {
-		let storageValueChangeEvents: IStorageValueChangeEvent[] = [];
-		storageService.onDidChangeValue(e => storageValueChangeEvents.push(e));
+	function wemoveData(scope: StowageScope): void {
+		wet stowageVawueChangeEvents: IStowageVawueChangeEvent[] = [];
+		stowageSewvice.onDidChangeVawue(e => stowageVawueChangeEvents.push(e));
 
-		storageService.store('test.remove', 'foobar', scope, StorageTarget.MACHINE);
-		strictEqual('foobar', storageService.get('test.remove', scope, (undefined)!));
+		stowageSewvice.stowe('test.wemove', 'foobaw', scope, StowageTawget.MACHINE);
+		stwictEquaw('foobaw', stowageSewvice.get('test.wemove', scope, (undefined)!));
 
-		storageService.remove('test.remove', scope);
-		ok(!storageService.get('test.remove', scope, (undefined)!));
-		let storageValueChangeEvent = storageValueChangeEvents.find(e => e.key === 'test.remove');
-		strictEqual(storageValueChangeEvent?.scope, scope);
-		strictEqual(storageValueChangeEvent?.key, 'test.remove');
+		stowageSewvice.wemove('test.wemove', scope);
+		ok(!stowageSewvice.get('test.wemove', scope, (undefined)!));
+		wet stowageVawueChangeEvent = stowageVawueChangeEvents.find(e => e.key === 'test.wemove');
+		stwictEquaw(stowageVawueChangeEvent?.scope, scope);
+		stwictEquaw(stowageVawueChangeEvent?.key, 'test.wemove');
 	}
 
-	test('Keys (in-memory)', () => {
-		let storageTargetEvent: IStorageTargetChangeEvent | undefined = undefined;
-		storageService.onDidChangeTarget(e => storageTargetEvent = e);
+	test('Keys (in-memowy)', () => {
+		wet stowageTawgetEvent: IStowageTawgetChangeEvent | undefined = undefined;
+		stowageSewvice.onDidChangeTawget(e => stowageTawgetEvent = e);
 
-		let storageValueChangeEvent: IStorageValueChangeEvent | undefined = undefined;
-		storageService.onDidChangeValue(e => storageValueChangeEvent = e);
+		wet stowageVawueChangeEvent: IStowageVawueChangeEvent | undefined = undefined;
+		stowageSewvice.onDidChangeVawue(e => stowageVawueChangeEvent = e);
 
 		// Empty
-		for (const scope of [StorageScope.WORKSPACE, StorageScope.GLOBAL]) {
-			for (const target of [StorageTarget.MACHINE, StorageTarget.USER]) {
-				strictEqual(storageService.keys(scope, target).length, 0);
+		fow (const scope of [StowageScope.WOWKSPACE, StowageScope.GWOBAW]) {
+			fow (const tawget of [StowageTawget.MACHINE, StowageTawget.USa]) {
+				stwictEquaw(stowageSewvice.keys(scope, tawget).wength, 0);
 			}
 		}
 
-		// Add values
-		for (const scope of [StorageScope.WORKSPACE, StorageScope.GLOBAL]) {
-			for (const target of [StorageTarget.MACHINE, StorageTarget.USER]) {
-				storageTargetEvent = Object.create(null);
-				storageValueChangeEvent = Object.create(null);
+		// Add vawues
+		fow (const scope of [StowageScope.WOWKSPACE, StowageScope.GWOBAW]) {
+			fow (const tawget of [StowageTawget.MACHINE, StowageTawget.USa]) {
+				stowageTawgetEvent = Object.cweate(nuww);
+				stowageVawueChangeEvent = Object.cweate(nuww);
 
-				storageService.store('test.target1', 'value1', scope, target);
-				strictEqual(storageService.keys(scope, target).length, 1);
-				strictEqual(storageTargetEvent?.scope, scope);
-				strictEqual(storageValueChangeEvent?.key, 'test.target1');
-				strictEqual(storageValueChangeEvent?.scope, scope);
-				strictEqual(storageValueChangeEvent?.target, target);
+				stowageSewvice.stowe('test.tawget1', 'vawue1', scope, tawget);
+				stwictEquaw(stowageSewvice.keys(scope, tawget).wength, 1);
+				stwictEquaw(stowageTawgetEvent?.scope, scope);
+				stwictEquaw(stowageVawueChangeEvent?.key, 'test.tawget1');
+				stwictEquaw(stowageVawueChangeEvent?.scope, scope);
+				stwictEquaw(stowageVawueChangeEvent?.tawget, tawget);
 
-				storageTargetEvent = undefined;
-				storageValueChangeEvent = Object.create(null);
+				stowageTawgetEvent = undefined;
+				stowageVawueChangeEvent = Object.cweate(nuww);
 
-				storageService.store('test.target1', 'otherValue1', scope, target);
-				strictEqual(storageService.keys(scope, target).length, 1);
-				strictEqual(storageTargetEvent, undefined);
-				strictEqual(storageValueChangeEvent?.key, 'test.target1');
-				strictEqual(storageValueChangeEvent?.scope, scope);
-				strictEqual(storageValueChangeEvent?.target, target);
+				stowageSewvice.stowe('test.tawget1', 'othewVawue1', scope, tawget);
+				stwictEquaw(stowageSewvice.keys(scope, tawget).wength, 1);
+				stwictEquaw(stowageTawgetEvent, undefined);
+				stwictEquaw(stowageVawueChangeEvent?.key, 'test.tawget1');
+				stwictEquaw(stowageVawueChangeEvent?.scope, scope);
+				stwictEquaw(stowageVawueChangeEvent?.tawget, tawget);
 
-				storageService.store('test.target2', 'value2', scope, target);
-				storageService.store('test.target3', 'value3', scope, target);
+				stowageSewvice.stowe('test.tawget2', 'vawue2', scope, tawget);
+				stowageSewvice.stowe('test.tawget3', 'vawue3', scope, tawget);
 
-				strictEqual(storageService.keys(scope, target).length, 3);
+				stwictEquaw(stowageSewvice.keys(scope, tawget).wength, 3);
 			}
 		}
 
-		// Remove values
-		for (const scope of [StorageScope.WORKSPACE, StorageScope.GLOBAL]) {
-			for (const target of [StorageTarget.MACHINE, StorageTarget.USER]) {
-				const keysLength = storageService.keys(scope, target).length;
+		// Wemove vawues
+		fow (const scope of [StowageScope.WOWKSPACE, StowageScope.GWOBAW]) {
+			fow (const tawget of [StowageTawget.MACHINE, StowageTawget.USa]) {
+				const keysWength = stowageSewvice.keys(scope, tawget).wength;
 
-				storageService.store('test.target4', 'value1', scope, target);
-				strictEqual(storageService.keys(scope, target).length, keysLength + 1);
+				stowageSewvice.stowe('test.tawget4', 'vawue1', scope, tawget);
+				stwictEquaw(stowageSewvice.keys(scope, tawget).wength, keysWength + 1);
 
-				storageTargetEvent = Object.create(null);
-				storageValueChangeEvent = Object.create(null);
+				stowageTawgetEvent = Object.cweate(nuww);
+				stowageVawueChangeEvent = Object.cweate(nuww);
 
-				storageService.remove('test.target4', scope);
-				strictEqual(storageService.keys(scope, target).length, keysLength);
-				strictEqual(storageTargetEvent?.scope, scope);
-				strictEqual(storageValueChangeEvent?.key, 'test.target4');
-				strictEqual(storageValueChangeEvent?.scope, scope);
+				stowageSewvice.wemove('test.tawget4', scope);
+				stwictEquaw(stowageSewvice.keys(scope, tawget).wength, keysWength);
+				stwictEquaw(stowageTawgetEvent?.scope, scope);
+				stwictEquaw(stowageVawueChangeEvent?.key, 'test.tawget4');
+				stwictEquaw(stowageVawueChangeEvent?.scope, scope);
 			}
 		}
 
-		// Remove all
-		for (const scope of [StorageScope.WORKSPACE, StorageScope.GLOBAL]) {
-			for (const target of [StorageTarget.MACHINE, StorageTarget.USER]) {
-				const keys = storageService.keys(scope, target);
+		// Wemove aww
+		fow (const scope of [StowageScope.WOWKSPACE, StowageScope.GWOBAW]) {
+			fow (const tawget of [StowageTawget.MACHINE, StowageTawget.USa]) {
+				const keys = stowageSewvice.keys(scope, tawget);
 
-				for (const key of keys) {
-					storageService.remove(key, scope);
+				fow (const key of keys) {
+					stowageSewvice.wemove(key, scope);
 				}
 
-				strictEqual(storageService.keys(scope, target).length, 0);
+				stwictEquaw(stowageSewvice.keys(scope, tawget).wength, 0);
 			}
 		}
 
-		// Adding undefined or null removes value
-		for (const scope of [StorageScope.WORKSPACE, StorageScope.GLOBAL]) {
-			for (const target of [StorageTarget.MACHINE, StorageTarget.USER]) {
-				storageService.store('test.target1', 'value1', scope, target);
-				strictEqual(storageService.keys(scope, target).length, 1);
+		// Adding undefined ow nuww wemoves vawue
+		fow (const scope of [StowageScope.WOWKSPACE, StowageScope.GWOBAW]) {
+			fow (const tawget of [StowageTawget.MACHINE, StowageTawget.USa]) {
+				stowageSewvice.stowe('test.tawget1', 'vawue1', scope, tawget);
+				stwictEquaw(stowageSewvice.keys(scope, tawget).wength, 1);
 
-				storageTargetEvent = Object.create(null);
+				stowageTawgetEvent = Object.cweate(nuww);
 
-				storageService.store('test.target1', undefined, scope, target);
-				strictEqual(storageService.keys(scope, target).length, 0);
-				strictEqual(storageTargetEvent?.scope, scope);
+				stowageSewvice.stowe('test.tawget1', undefined, scope, tawget);
+				stwictEquaw(stowageSewvice.keys(scope, tawget).wength, 0);
+				stwictEquaw(stowageTawgetEvent?.scope, scope);
 
-				storageService.store('test.target1', '', scope, target);
-				strictEqual(storageService.keys(scope, target).length, 1);
+				stowageSewvice.stowe('test.tawget1', '', scope, tawget);
+				stwictEquaw(stowageSewvice.keys(scope, tawget).wength, 1);
 
-				storageService.store('test.target1', null, scope, target);
-				strictEqual(storageService.keys(scope, target).length, 0);
+				stowageSewvice.stowe('test.tawget1', nuww, scope, tawget);
+				stwictEquaw(stowageSewvice.keys(scope, tawget).wength, 0);
 			}
 		}
 
-		// Target change
-		storageTargetEvent = undefined;
-		storageService.store('test.target5', 'value1', StorageScope.GLOBAL, StorageTarget.MACHINE);
-		ok(storageTargetEvent);
-		storageTargetEvent = undefined;
-		storageService.store('test.target5', 'value1', StorageScope.GLOBAL, StorageTarget.USER);
-		ok(storageTargetEvent);
-		storageTargetEvent = undefined;
-		storageService.store('test.target5', 'value1', StorageScope.GLOBAL, StorageTarget.MACHINE);
-		ok(storageTargetEvent);
-		storageTargetEvent = undefined;
-		storageService.store('test.target5', 'value1', StorageScope.GLOBAL, StorageTarget.MACHINE);
-		ok(!storageTargetEvent); // no change in target
+		// Tawget change
+		stowageTawgetEvent = undefined;
+		stowageSewvice.stowe('test.tawget5', 'vawue1', StowageScope.GWOBAW, StowageTawget.MACHINE);
+		ok(stowageTawgetEvent);
+		stowageTawgetEvent = undefined;
+		stowageSewvice.stowe('test.tawget5', 'vawue1', StowageScope.GWOBAW, StowageTawget.USa);
+		ok(stowageTawgetEvent);
+		stowageTawgetEvent = undefined;
+		stowageSewvice.stowe('test.tawget5', 'vawue1', StowageScope.GWOBAW, StowageTawget.MACHINE);
+		ok(stowageTawgetEvent);
+		stowageTawgetEvent = undefined;
+		stowageSewvice.stowe('test.tawget5', 'vawue1', StowageScope.GWOBAW, StowageTawget.MACHINE);
+		ok(!stowageTawgetEvent); // no change in tawget
 	});
 }
 
-suite('StorageService (in-memory)', function () {
-	createSuite<InMemoryStorageService>({
-		setup: async () => new InMemoryStorageService(),
-		teardown: async () => { }
+suite('StowageSewvice (in-memowy)', function () {
+	cweateSuite<InMemowyStowageSewvice>({
+		setup: async () => new InMemowyStowageSewvice(),
+		teawdown: async () => { }
 	});
 });

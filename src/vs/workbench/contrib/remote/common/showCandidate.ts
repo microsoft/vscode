@@ -1,33 +1,33 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { CandidatePort, IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { CandidatePowt, IWemoteExpwowewSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteExpwowewSewvice';
 
-export class ShowCandidateContribution extends Disposable implements IWorkbenchContribution {
-	constructor(
-		@IRemoteExplorerService remoteExplorerService: IRemoteExplorerService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+expowt cwass ShowCandidateContwibution extends Disposabwe impwements IWowkbenchContwibution {
+	constwuctow(
+		@IWemoteExpwowewSewvice wemoteExpwowewSewvice: IWemoteExpwowewSewvice,
+		@IWowkbenchEnviwonmentSewvice enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
 	) {
-		super();
-		const showPortCandidate = environmentService.options?.tunnelProvider?.showPortCandidate;
-		if (showPortCandidate) {
-			this._register(remoteExplorerService.setCandidateFilter(async (candidates: CandidatePort[]): Promise<CandidatePort[]> => {
-				const filters: boolean[] = await Promise.all(candidates.map(candidate => showPortCandidate(candidate.host, candidate.port, candidate.detail ?? '')));
-				const filteredCandidates: CandidatePort[] = [];
-				if (filters.length !== candidates.length) {
-					return candidates;
+		supa();
+		const showPowtCandidate = enviwonmentSewvice.options?.tunnewPwovida?.showPowtCandidate;
+		if (showPowtCandidate) {
+			this._wegista(wemoteExpwowewSewvice.setCandidateFiwta(async (candidates: CandidatePowt[]): Pwomise<CandidatePowt[]> => {
+				const fiwtews: boowean[] = await Pwomise.aww(candidates.map(candidate => showPowtCandidate(candidate.host, candidate.powt, candidate.detaiw ?? '')));
+				const fiwtewedCandidates: CandidatePowt[] = [];
+				if (fiwtews.wength !== candidates.wength) {
+					wetuwn candidates;
 				}
-				for (let i = 0; i < candidates.length; i++) {
-					if (filters[i]) {
-						filteredCandidates.push(candidates[i]);
+				fow (wet i = 0; i < candidates.wength; i++) {
+					if (fiwtews[i]) {
+						fiwtewedCandidates.push(candidates[i]);
 					}
 				}
-				return filteredCandidates;
+				wetuwn fiwtewedCandidates;
 			}));
 		}
 	}

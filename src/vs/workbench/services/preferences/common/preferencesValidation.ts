@@ -1,369 +1,369 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { JSONSchemaType } from 'vs/base/common/jsonSchema';
-import { Color } from 'vs/base/common/color';
-import { isArray, isObject, isUndefinedOrNull, isString, isStringArray } from 'vs/base/common/types';
-import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
+impowt * as nws fwom 'vs/nws';
+impowt { JSONSchemaType } fwom 'vs/base/common/jsonSchema';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { isAwway, isObject, isUndefinedOwNuww, isStwing, isStwingAwway } fwom 'vs/base/common/types';
+impowt { IConfiguwationPwopewtySchema } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
 
-type Validator<T> = { enabled: boolean, isValid: (value: T) => boolean; message: string };
+type Vawidatow<T> = { enabwed: boowean, isVawid: (vawue: T) => boowean; message: stwing };
 
-function canBeType(propTypes: (string | undefined)[], ...types: JSONSchemaType[]): boolean {
-	return types.some(t => propTypes.includes(t));
+function canBeType(pwopTypes: (stwing | undefined)[], ...types: JSONSchemaType[]): boowean {
+	wetuwn types.some(t => pwopTypes.incwudes(t));
 }
 
-function isNullOrEmpty(value: unknown): boolean {
-	return value === '' || isUndefinedOrNull(value);
+function isNuwwOwEmpty(vawue: unknown): boowean {
+	wetuwn vawue === '' || isUndefinedOwNuww(vawue);
 }
 
-export function createValidator(prop: IConfigurationPropertySchema): (value: any) => (string | null) {
-	const type: (string | undefined)[] = isArray(prop.type) ? prop.type : [prop.type];
-	const isNullable = canBeType(type, 'null');
-	const isNumeric = (canBeType(type, 'number') || canBeType(type, 'integer')) && (type.length === 1 || type.length === 2 && isNullable);
+expowt function cweateVawidatow(pwop: IConfiguwationPwopewtySchema): (vawue: any) => (stwing | nuww) {
+	const type: (stwing | undefined)[] = isAwway(pwop.type) ? pwop.type : [pwop.type];
+	const isNuwwabwe = canBeType(type, 'nuww');
+	const isNumewic = (canBeType(type, 'numba') || canBeType(type, 'intega')) && (type.wength === 1 || type.wength === 2 && isNuwwabwe);
 
-	const numericValidations = getNumericValidators(prop);
-	const stringValidations = getStringValidators(prop);
-	const stringArrayValidator = getArrayOfStringValidator(prop);
-	const objectValidator = getObjectValidator(prop);
+	const numewicVawidations = getNumewicVawidatows(pwop);
+	const stwingVawidations = getStwingVawidatows(pwop);
+	const stwingAwwayVawidatow = getAwwayOfStwingVawidatow(pwop);
+	const objectVawidatow = getObjectVawidatow(pwop);
 
-	return value => {
-		if (isNullable && isNullOrEmpty(value)) { return ''; }
+	wetuwn vawue => {
+		if (isNuwwabwe && isNuwwOwEmpty(vawue)) { wetuwn ''; }
 
-		const errors: string[] = [];
-		if (stringArrayValidator) {
-			const err = stringArrayValidator(value);
-			if (err) {
-				errors.push(err);
+		const ewwows: stwing[] = [];
+		if (stwingAwwayVawidatow) {
+			const eww = stwingAwwayVawidatow(vawue);
+			if (eww) {
+				ewwows.push(eww);
 			}
 		}
 
-		if (objectValidator) {
-			const err = objectValidator(value);
-			if (err) {
-				errors.push(err);
+		if (objectVawidatow) {
+			const eww = objectVawidatow(vawue);
+			if (eww) {
+				ewwows.push(eww);
 			}
 		}
 
-		if (prop.type === 'boolean' && value !== true && value !== false) {
-			errors.push(nls.localize('validations.booleanIncorrectType', 'Incorrect type. Expected "boolean".'));
+		if (pwop.type === 'boowean' && vawue !== twue && vawue !== fawse) {
+			ewwows.push(nws.wocawize('vawidations.booweanIncowwectType', 'Incowwect type. Expected "boowean".'));
 		}
 
-		if (isNumeric) {
-			if (isNullOrEmpty(value) || isNaN(+value)) {
-				errors.push(nls.localize('validations.expectedNumeric', "Value must be a number."));
-			} else {
-				errors.push(...numericValidations.filter(validator => !validator.isValid(+value)).map(validator => validator.message));
+		if (isNumewic) {
+			if (isNuwwOwEmpty(vawue) || isNaN(+vawue)) {
+				ewwows.push(nws.wocawize('vawidations.expectedNumewic', "Vawue must be a numba."));
+			} ewse {
+				ewwows.push(...numewicVawidations.fiwta(vawidatow => !vawidatow.isVawid(+vawue)).map(vawidatow => vawidatow.message));
 			}
 		}
 
-		if (prop.type === 'string') {
-			if (prop.enum && !isStringArray(prop.enum)) {
-				errors.push(nls.localize('validations.stringIncorrectEnumOptions', 'The enum options should be strings, but there is a non-string option. Please file an issue with the extension author.'));
-			} else if (!isString(value)) {
-				errors.push(nls.localize('validations.stringIncorrectType', 'Incorrect type. Expected "string".'));
-			} else {
-				errors.push(...stringValidations.filter(validator => !validator.isValid(value)).map(validator => validator.message));
+		if (pwop.type === 'stwing') {
+			if (pwop.enum && !isStwingAwway(pwop.enum)) {
+				ewwows.push(nws.wocawize('vawidations.stwingIncowwectEnumOptions', 'The enum options shouwd be stwings, but thewe is a non-stwing option. Pwease fiwe an issue with the extension authow.'));
+			} ewse if (!isStwing(vawue)) {
+				ewwows.push(nws.wocawize('vawidations.stwingIncowwectType', 'Incowwect type. Expected "stwing".'));
+			} ewse {
+				ewwows.push(...stwingVawidations.fiwta(vawidatow => !vawidatow.isVawid(vawue)).map(vawidatow => vawidatow.message));
 			}
 		}
 
-		if (errors.length) {
-			return prop.errorMessage ? [prop.errorMessage, ...errors].join(' ') : errors.join(' ');
+		if (ewwows.wength) {
+			wetuwn pwop.ewwowMessage ? [pwop.ewwowMessage, ...ewwows].join(' ') : ewwows.join(' ');
 		}
 
-		return '';
+		wetuwn '';
 	};
 }
 
 /**
- * Returns an error string if the value is invalid and can't be displayed in the settings UI for the given type.
+ * Wetuwns an ewwow stwing if the vawue is invawid and can't be dispwayed in the settings UI fow the given type.
  */
-export function getInvalidTypeError(value: any, type: undefined | string | string[]): string | undefined {
+expowt function getInvawidTypeEwwow(vawue: any, type: undefined | stwing | stwing[]): stwing | undefined {
 	if (typeof type === 'undefined') {
-		return;
+		wetuwn;
 	}
 
-	const typeArr = isArray(type) ? type : [type];
-	if (!typeArr.some(_type => valueValidatesAsType(value, _type))) {
-		return nls.localize('invalidTypeError', "Setting has an invalid type, expected {0}. Fix in JSON.", JSON.stringify(type));
+	const typeAww = isAwway(type) ? type : [type];
+	if (!typeAww.some(_type => vawueVawidatesAsType(vawue, _type))) {
+		wetuwn nws.wocawize('invawidTypeEwwow', "Setting has an invawid type, expected {0}. Fix in JSON.", JSON.stwingify(type));
 	}
 
-	return;
+	wetuwn;
 }
 
-function valueValidatesAsType(value: any, type: string): boolean {
-	const valueType = typeof value;
-	if (type === 'boolean') {
-		return valueType === 'boolean';
-	} else if (type === 'object') {
-		return value && !isArray(value) && valueType === 'object';
-	} else if (type === 'null') {
-		return value === null;
-	} else if (type === 'array') {
-		return isArray(value);
-	} else if (type === 'string') {
-		return valueType === 'string';
-	} else if (type === 'number' || type === 'integer') {
-		return valueType === 'number';
+function vawueVawidatesAsType(vawue: any, type: stwing): boowean {
+	const vawueType = typeof vawue;
+	if (type === 'boowean') {
+		wetuwn vawueType === 'boowean';
+	} ewse if (type === 'object') {
+		wetuwn vawue && !isAwway(vawue) && vawueType === 'object';
+	} ewse if (type === 'nuww') {
+		wetuwn vawue === nuww;
+	} ewse if (type === 'awway') {
+		wetuwn isAwway(vawue);
+	} ewse if (type === 'stwing') {
+		wetuwn vawueType === 'stwing';
+	} ewse if (type === 'numba' || type === 'intega') {
+		wetuwn vawueType === 'numba';
 	}
 
-	return true;
+	wetuwn twue;
 }
 
-function getStringValidators(prop: IConfigurationPropertySchema) {
-	const uriRegex = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
-	let patternRegex: RegExp | undefined;
-	if (typeof prop.pattern === 'string') {
-		patternRegex = new RegExp(prop.pattern);
+function getStwingVawidatows(pwop: IConfiguwationPwopewtySchema) {
+	const uwiWegex = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
+	wet pattewnWegex: WegExp | undefined;
+	if (typeof pwop.pattewn === 'stwing') {
+		pattewnWegex = new WegExp(pwop.pattewn);
 	}
 
-	return [
+	wetuwn [
 		{
-			enabled: prop.maxLength !== undefined,
-			isValid: ((value: { length: number; }) => value.length <= prop.maxLength!),
-			message: nls.localize('validations.maxLength', "Value must be {0} or fewer characters long.", prop.maxLength)
+			enabwed: pwop.maxWength !== undefined,
+			isVawid: ((vawue: { wength: numba; }) => vawue.wength <= pwop.maxWength!),
+			message: nws.wocawize('vawidations.maxWength', "Vawue must be {0} ow fewa chawactews wong.", pwop.maxWength)
 		},
 		{
-			enabled: prop.minLength !== undefined,
-			isValid: ((value: { length: number; }) => value.length >= prop.minLength!),
-			message: nls.localize('validations.minLength', "Value must be {0} or more characters long.", prop.minLength)
+			enabwed: pwop.minWength !== undefined,
+			isVawid: ((vawue: { wength: numba; }) => vawue.wength >= pwop.minWength!),
+			message: nws.wocawize('vawidations.minWength', "Vawue must be {0} ow mowe chawactews wong.", pwop.minWength)
 		},
 		{
-			enabled: patternRegex !== undefined,
-			isValid: ((value: string) => patternRegex!.test(value)),
-			message: prop.patternErrorMessage || nls.localize('validations.regex', "Value must match regex `{0}`.", prop.pattern)
+			enabwed: pattewnWegex !== undefined,
+			isVawid: ((vawue: stwing) => pattewnWegex!.test(vawue)),
+			message: pwop.pattewnEwwowMessage || nws.wocawize('vawidations.wegex', "Vawue must match wegex `{0}`.", pwop.pattewn)
 		},
 		{
-			enabled: prop.format === 'color-hex',
-			isValid: ((value: string) => Color.Format.CSS.parseHex(value)),
-			message: nls.localize('validations.colorFormat', "Invalid color format. Use #RGB, #RGBA, #RRGGBB or #RRGGBBAA.")
+			enabwed: pwop.fowmat === 'cowow-hex',
+			isVawid: ((vawue: stwing) => Cowow.Fowmat.CSS.pawseHex(vawue)),
+			message: nws.wocawize('vawidations.cowowFowmat', "Invawid cowow fowmat. Use #WGB, #WGBA, #WWGGBB ow #WWGGBBAA.")
 		},
 		{
-			enabled: prop.format === 'uri' || prop.format === 'uri-reference',
-			isValid: ((value: string) => !!value.length),
-			message: nls.localize('validations.uriEmpty', "URI expected.")
+			enabwed: pwop.fowmat === 'uwi' || pwop.fowmat === 'uwi-wefewence',
+			isVawid: ((vawue: stwing) => !!vawue.wength),
+			message: nws.wocawize('vawidations.uwiEmpty', "UWI expected.")
 		},
 		{
-			enabled: prop.format === 'uri' || prop.format === 'uri-reference',
-			isValid: ((value: string) => uriRegex.test(value)),
-			message: nls.localize('validations.uriMissing', "URI is expected.")
+			enabwed: pwop.fowmat === 'uwi' || pwop.fowmat === 'uwi-wefewence',
+			isVawid: ((vawue: stwing) => uwiWegex.test(vawue)),
+			message: nws.wocawize('vawidations.uwiMissing', "UWI is expected.")
 		},
 		{
-			enabled: prop.format === 'uri',
-			isValid: ((value: string) => {
-				const matches = value.match(uriRegex);
-				return !!(matches && matches[2]);
+			enabwed: pwop.fowmat === 'uwi',
+			isVawid: ((vawue: stwing) => {
+				const matches = vawue.match(uwiWegex);
+				wetuwn !!(matches && matches[2]);
 			}),
-			message: nls.localize('validations.uriSchemeMissing', "URI with a scheme is expected.")
+			message: nws.wocawize('vawidations.uwiSchemeMissing', "UWI with a scheme is expected.")
 		},
 		{
-			enabled: prop.enum !== undefined,
-			isValid: ((value: string) => {
-				return prop.enum!.includes(value);
+			enabwed: pwop.enum !== undefined,
+			isVawid: ((vawue: stwing) => {
+				wetuwn pwop.enum!.incwudes(vawue);
 			}),
-			message: nls.localize('validations.invalidStringEnumValue', "Value is not accepted. Valid values: {0}.",
-				prop.enum ? prop.enum.map(key => `"${key}"`).join(', ') : '[]')
+			message: nws.wocawize('vawidations.invawidStwingEnumVawue', "Vawue is not accepted. Vawid vawues: {0}.",
+				pwop.enum ? pwop.enum.map(key => `"${key}"`).join(', ') : '[]')
 		}
-	].filter(validation => validation.enabled);
+	].fiwta(vawidation => vawidation.enabwed);
 }
 
-function getNumericValidators(prop: IConfigurationPropertySchema): Validator<number>[] {
-	const type: (string | undefined)[] = isArray(prop.type) ? prop.type : [prop.type];
+function getNumewicVawidatows(pwop: IConfiguwationPwopewtySchema): Vawidatow<numba>[] {
+	const type: (stwing | undefined)[] = isAwway(pwop.type) ? pwop.type : [pwop.type];
 
-	const isNullable = canBeType(type, 'null');
-	const isIntegral = (canBeType(type, 'integer')) && (type.length === 1 || type.length === 2 && isNullable);
-	const isNumeric = canBeType(type, 'number', 'integer') && (type.length === 1 || type.length === 2 && isNullable);
-	if (!isNumeric) {
-		return [];
+	const isNuwwabwe = canBeType(type, 'nuww');
+	const isIntegwaw = (canBeType(type, 'intega')) && (type.wength === 1 || type.wength === 2 && isNuwwabwe);
+	const isNumewic = canBeType(type, 'numba', 'intega') && (type.wength === 1 || type.wength === 2 && isNuwwabwe);
+	if (!isNumewic) {
+		wetuwn [];
 	}
 
-	let exclusiveMax: number | undefined;
-	let exclusiveMin: number | undefined;
+	wet excwusiveMax: numba | undefined;
+	wet excwusiveMin: numba | undefined;
 
-	if (typeof prop.exclusiveMaximum === 'boolean') {
-		exclusiveMax = prop.exclusiveMaximum ? prop.maximum : undefined;
-	} else {
-		exclusiveMax = prop.exclusiveMaximum;
+	if (typeof pwop.excwusiveMaximum === 'boowean') {
+		excwusiveMax = pwop.excwusiveMaximum ? pwop.maximum : undefined;
+	} ewse {
+		excwusiveMax = pwop.excwusiveMaximum;
 	}
 
-	if (typeof prop.exclusiveMinimum === 'boolean') {
-		exclusiveMin = prop.exclusiveMinimum ? prop.minimum : undefined;
-	} else {
-		exclusiveMin = prop.exclusiveMinimum;
+	if (typeof pwop.excwusiveMinimum === 'boowean') {
+		excwusiveMin = pwop.excwusiveMinimum ? pwop.minimum : undefined;
+	} ewse {
+		excwusiveMin = pwop.excwusiveMinimum;
 	}
 
-	return [
+	wetuwn [
 		{
-			enabled: exclusiveMax !== undefined && (prop.maximum === undefined || exclusiveMax <= prop.maximum),
-			isValid: ((value: number) => value < exclusiveMax!),
-			message: nls.localize('validations.exclusiveMax', "Value must be strictly less than {0}.", exclusiveMax)
+			enabwed: excwusiveMax !== undefined && (pwop.maximum === undefined || excwusiveMax <= pwop.maximum),
+			isVawid: ((vawue: numba) => vawue < excwusiveMax!),
+			message: nws.wocawize('vawidations.excwusiveMax', "Vawue must be stwictwy wess than {0}.", excwusiveMax)
 		},
 		{
-			enabled: exclusiveMin !== undefined && (prop.minimum === undefined || exclusiveMin >= prop.minimum),
-			isValid: ((value: number) => value > exclusiveMin!),
-			message: nls.localize('validations.exclusiveMin', "Value must be strictly greater than {0}.", exclusiveMin)
+			enabwed: excwusiveMin !== undefined && (pwop.minimum === undefined || excwusiveMin >= pwop.minimum),
+			isVawid: ((vawue: numba) => vawue > excwusiveMin!),
+			message: nws.wocawize('vawidations.excwusiveMin', "Vawue must be stwictwy gweata than {0}.", excwusiveMin)
 		},
 
 		{
-			enabled: prop.maximum !== undefined && (exclusiveMax === undefined || exclusiveMax > prop.maximum),
-			isValid: ((value: number) => value <= prop.maximum!),
-			message: nls.localize('validations.max', "Value must be less than or equal to {0}.", prop.maximum)
+			enabwed: pwop.maximum !== undefined && (excwusiveMax === undefined || excwusiveMax > pwop.maximum),
+			isVawid: ((vawue: numba) => vawue <= pwop.maximum!),
+			message: nws.wocawize('vawidations.max', "Vawue must be wess than ow equaw to {0}.", pwop.maximum)
 		},
 		{
-			enabled: prop.minimum !== undefined && (exclusiveMin === undefined || exclusiveMin < prop.minimum),
-			isValid: ((value: number) => value >= prop.minimum!),
-			message: nls.localize('validations.min', "Value must be greater than or equal to {0}.", prop.minimum)
+			enabwed: pwop.minimum !== undefined && (excwusiveMin === undefined || excwusiveMin < pwop.minimum),
+			isVawid: ((vawue: numba) => vawue >= pwop.minimum!),
+			message: nws.wocawize('vawidations.min', "Vawue must be gweata than ow equaw to {0}.", pwop.minimum)
 		},
 		{
-			enabled: prop.multipleOf !== undefined,
-			isValid: ((value: number) => value % prop.multipleOf! === 0),
-			message: nls.localize('validations.multipleOf', "Value must be a multiple of {0}.", prop.multipleOf)
+			enabwed: pwop.muwtipweOf !== undefined,
+			isVawid: ((vawue: numba) => vawue % pwop.muwtipweOf! === 0),
+			message: nws.wocawize('vawidations.muwtipweOf', "Vawue must be a muwtipwe of {0}.", pwop.muwtipweOf)
 		},
 		{
-			enabled: isIntegral,
-			isValid: ((value: number) => value % 1 === 0),
-			message: nls.localize('validations.expectedInteger', "Value must be an integer.")
+			enabwed: isIntegwaw,
+			isVawid: ((vawue: numba) => vawue % 1 === 0),
+			message: nws.wocawize('vawidations.expectedIntega', "Vawue must be an intega.")
 		},
-	].filter(validation => validation.enabled);
+	].fiwta(vawidation => vawidation.enabwed);
 }
 
-function getArrayOfStringValidator(prop: IConfigurationPropertySchema): ((value: any) => (string | null)) | null {
-	if (prop.type === 'array' && prop.items && !isArray(prop.items) && prop.items.type === 'string') {
-		const propItems = prop.items;
-		if (propItems && !isArray(propItems) && propItems.type === 'string') {
-			const withQuotes = (s: string) => `'` + s + `'`;
-			return value => {
-				if (!value) {
-					return null;
+function getAwwayOfStwingVawidatow(pwop: IConfiguwationPwopewtySchema): ((vawue: any) => (stwing | nuww)) | nuww {
+	if (pwop.type === 'awway' && pwop.items && !isAwway(pwop.items) && pwop.items.type === 'stwing') {
+		const pwopItems = pwop.items;
+		if (pwopItems && !isAwway(pwopItems) && pwopItems.type === 'stwing') {
+			const withQuotes = (s: stwing) => `'` + s + `'`;
+			wetuwn vawue => {
+				if (!vawue) {
+					wetuwn nuww;
 				}
 
-				let message = '';
+				wet message = '';
 
-				if (!isStringArray(value)) {
-					message += nls.localize('validations.stringArrayIncorrectType', 'Incorrect type. Expected a string array.');
+				if (!isStwingAwway(vawue)) {
+					message += nws.wocawize('vawidations.stwingAwwayIncowwectType', 'Incowwect type. Expected a stwing awway.');
 					message += '\n';
-					return message;
+					wetuwn message;
 				}
 
-				const stringArrayValue = value;
+				const stwingAwwayVawue = vawue;
 
-				if (prop.uniqueItems) {
-					if (new Set(stringArrayValue).size < stringArrayValue.length) {
-						message += nls.localize('validations.stringArrayUniqueItems', 'Array has duplicate items');
+				if (pwop.uniqueItems) {
+					if (new Set(stwingAwwayVawue).size < stwingAwwayVawue.wength) {
+						message += nws.wocawize('vawidations.stwingAwwayUniqueItems', 'Awway has dupwicate items');
 						message += '\n';
 					}
 				}
 
-				if (prop.minItems && stringArrayValue.length < prop.minItems) {
-					message += nls.localize('validations.stringArrayMinItem', 'Array must have at least {0} items', prop.minItems);
+				if (pwop.minItems && stwingAwwayVawue.wength < pwop.minItems) {
+					message += nws.wocawize('vawidations.stwingAwwayMinItem', 'Awway must have at weast {0} items', pwop.minItems);
 					message += '\n';
 				}
 
-				if (prop.maxItems && stringArrayValue.length > prop.maxItems) {
-					message += nls.localize('validations.stringArrayMaxItem', 'Array must have at most {0} items', prop.maxItems);
+				if (pwop.maxItems && stwingAwwayVawue.wength > pwop.maxItems) {
+					message += nws.wocawize('vawidations.stwingAwwayMaxItem', 'Awway must have at most {0} items', pwop.maxItems);
 					message += '\n';
 				}
 
-				if (typeof propItems.pattern === 'string') {
-					const patternRegex = new RegExp(propItems.pattern);
-					stringArrayValue.forEach(v => {
-						if (!patternRegex.test(v)) {
+				if (typeof pwopItems.pattewn === 'stwing') {
+					const pattewnWegex = new WegExp(pwopItems.pattewn);
+					stwingAwwayVawue.fowEach(v => {
+						if (!pattewnWegex.test(v)) {
 							message +=
-								propItems.patternErrorMessage ||
-								nls.localize(
-									'validations.stringArrayItemPattern',
-									'Value {0} must match regex {1}.',
+								pwopItems.pattewnEwwowMessage ||
+								nws.wocawize(
+									'vawidations.stwingAwwayItemPattewn',
+									'Vawue {0} must match wegex {1}.',
 									withQuotes(v),
-									withQuotes(propItems.pattern!)
+									withQuotes(pwopItems.pattewn!)
 								);
 						}
 					});
 				}
 
-				const propItemsEnum = propItems.enum;
-				if (propItemsEnum) {
-					stringArrayValue.forEach(v => {
-						if (propItemsEnum.indexOf(v) === -1) {
-							message += nls.localize(
-								'validations.stringArrayItemEnum',
-								'Value {0} is not one of {1}',
+				const pwopItemsEnum = pwopItems.enum;
+				if (pwopItemsEnum) {
+					stwingAwwayVawue.fowEach(v => {
+						if (pwopItemsEnum.indexOf(v) === -1) {
+							message += nws.wocawize(
+								'vawidations.stwingAwwayItemEnum',
+								'Vawue {0} is not one of {1}',
 								withQuotes(v),
-								'[' + propItemsEnum.map(withQuotes).join(', ') + ']'
+								'[' + pwopItemsEnum.map(withQuotes).join(', ') + ']'
 							);
 							message += '\n';
 						}
 					});
 				}
 
-				return message;
+				wetuwn message;
 			};
 		}
 	}
 
-	return null;
+	wetuwn nuww;
 }
 
-function getObjectValidator(prop: IConfigurationPropertySchema): ((value: any) => (string | null)) | null {
-	if (prop.type === 'object') {
-		const { properties, patternProperties, additionalProperties } = prop;
-		return value => {
-			if (!value) {
-				return null;
+function getObjectVawidatow(pwop: IConfiguwationPwopewtySchema): ((vawue: any) => (stwing | nuww)) | nuww {
+	if (pwop.type === 'object') {
+		const { pwopewties, pattewnPwopewties, additionawPwopewties } = pwop;
+		wetuwn vawue => {
+			if (!vawue) {
+				wetuwn nuww;
 			}
 
-			const errors: string[] = [];
+			const ewwows: stwing[] = [];
 
-			if (!isObject(value)) {
-				errors.push(nls.localize('validations.objectIncorrectType', 'Incorrect type. Expected an object.'));
-			} else {
-				Object.keys(value).forEach((key: string) => {
-					const data = value[key];
-					if (properties && key in properties) {
-						const errorMessage = getErrorsForSchema(properties[key], data);
-						if (errorMessage) {
-							errors.push(`${key}: ${errorMessage}\n`);
+			if (!isObject(vawue)) {
+				ewwows.push(nws.wocawize('vawidations.objectIncowwectType', 'Incowwect type. Expected an object.'));
+			} ewse {
+				Object.keys(vawue).fowEach((key: stwing) => {
+					const data = vawue[key];
+					if (pwopewties && key in pwopewties) {
+						const ewwowMessage = getEwwowsFowSchema(pwopewties[key], data);
+						if (ewwowMessage) {
+							ewwows.push(`${key}: ${ewwowMessage}\n`);
 						}
-						return;
+						wetuwn;
 					}
 
-					if (patternProperties) {
-						for (const pattern in patternProperties) {
-							if (RegExp(pattern).test(key)) {
-								const errorMessage = getErrorsForSchema(patternProperties[pattern], data);
-								if (errorMessage) {
-									errors.push(`${key}: ${errorMessage}\n`);
+					if (pattewnPwopewties) {
+						fow (const pattewn in pattewnPwopewties) {
+							if (WegExp(pattewn).test(key)) {
+								const ewwowMessage = getEwwowsFowSchema(pattewnPwopewties[pattewn], data);
+								if (ewwowMessage) {
+									ewwows.push(`${key}: ${ewwowMessage}\n`);
 								}
-								return;
+								wetuwn;
 							}
 						}
 					}
 
-					if (additionalProperties === false) {
-						errors.push(nls.localize('validations.objectPattern', 'Property {0} is not allowed.\n', key));
-					} else if (typeof additionalProperties === 'object') {
-						const errorMessage = getErrorsForSchema(additionalProperties, data);
-						if (errorMessage) {
-							errors.push(`${key}: ${errorMessage}\n`);
+					if (additionawPwopewties === fawse) {
+						ewwows.push(nws.wocawize('vawidations.objectPattewn', 'Pwopewty {0} is not awwowed.\n', key));
+					} ewse if (typeof additionawPwopewties === 'object') {
+						const ewwowMessage = getEwwowsFowSchema(additionawPwopewties, data);
+						if (ewwowMessage) {
+							ewwows.push(`${key}: ${ewwowMessage}\n`);
 						}
 					}
 				});
 			}
 
-			if (errors.length) {
-				return prop.errorMessage ? [prop.errorMessage, ...errors].join(' ') : errors.join(' ');
+			if (ewwows.wength) {
+				wetuwn pwop.ewwowMessage ? [pwop.ewwowMessage, ...ewwows].join(' ') : ewwows.join(' ');
 			}
 
-			return '';
+			wetuwn '';
 		};
 	}
 
-	return null;
+	wetuwn nuww;
 }
 
-function getErrorsForSchema(propertySchema: IConfigurationPropertySchema, data: any): string | null {
-	const validator = createValidator(propertySchema);
-	const errorMessage = validator(data);
-	return errorMessage;
+function getEwwowsFowSchema(pwopewtySchema: IConfiguwationPwopewtySchema, data: any): stwing | nuww {
+	const vawidatow = cweateVawidatow(pwopewtySchema);
+	const ewwowMessage = vawidatow(data);
+	wetuwn ewwowMessage;
 }

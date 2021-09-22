@@ -1,3 +1,3 @@
-#!/usr/bin/env bash
+#!/usw/bin/env bash
 
-yarn $*
+yawn $*

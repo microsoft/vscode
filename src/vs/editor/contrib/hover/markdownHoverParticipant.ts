@@ -1,138 +1,138 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { asArray } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IMarkdownString, isEmptyMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IModelDecoration } from 'vs/editor/common/model';
-import { HoverProviderRegistry } from 'vs/editor/common/modes';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { getHover } from 'vs/editor/contrib/hover/getHover';
-import { HoverAnchor, HoverAnchorType, IEditorHover, IEditorHoverParticipant, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
-import * as nls from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { asAwway } fwom 'vs/base/common/awways';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IMawkdownStwing, isEmptyMawkdownStwing, MawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { DisposabweStowe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { MawkdownWendewa } fwom 'vs/editow/bwowsa/cowe/mawkdownWendewa';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IModewDecowation } fwom 'vs/editow/common/modew';
+impowt { HovewPwovidewWegistwy } fwom 'vs/editow/common/modes';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { getHova } fwom 'vs/editow/contwib/hova/getHova';
+impowt { HovewAnchow, HovewAnchowType, IEditowHova, IEditowHovewPawticipant, IEditowHovewStatusBaw, IHovewPawt } fwom 'vs/editow/contwib/hova/hovewTypes';
+impowt * as nws fwom 'vs/nws';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
 
 const $ = dom.$;
 
-export class MarkdownHover implements IHoverPart {
+expowt cwass MawkdownHova impwements IHovewPawt {
 
-	constructor(
-		public readonly owner: IEditorHoverParticipant<MarkdownHover>,
-		public readonly range: Range,
-		public readonly contents: IMarkdownString[]
+	constwuctow(
+		pubwic weadonwy owna: IEditowHovewPawticipant<MawkdownHova>,
+		pubwic weadonwy wange: Wange,
+		pubwic weadonwy contents: IMawkdownStwing[]
 	) { }
 
-	public isValidForHoverAnchor(anchor: HoverAnchor): boolean {
-		return (
-			anchor.type === HoverAnchorType.Range
-			&& this.range.startColumn <= anchor.range.startColumn
-			&& this.range.endColumn >= anchor.range.endColumn
+	pubwic isVawidFowHovewAnchow(anchow: HovewAnchow): boowean {
+		wetuwn (
+			anchow.type === HovewAnchowType.Wange
+			&& this.wange.stawtCowumn <= anchow.wange.stawtCowumn
+			&& this.wange.endCowumn >= anchow.wange.endCowumn
 		);
 	}
 }
 
-export class MarkdownHoverParticipant implements IEditorHoverParticipant<MarkdownHover> {
+expowt cwass MawkdownHovewPawticipant impwements IEditowHovewPawticipant<MawkdownHova> {
 
-	constructor(
-		private readonly _editor: ICodeEditor,
-		private readonly _hover: IEditorHover,
-		@IModeService private readonly _modeService: IModeService,
-		@IOpenerService private readonly _openerService: IOpenerService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+	constwuctow(
+		pwivate weadonwy _editow: ICodeEditow,
+		pwivate weadonwy _hova: IEditowHova,
+		@IModeSewvice pwivate weadonwy _modeSewvice: IModeSewvice,
+		@IOpenewSewvice pwivate weadonwy _openewSewvice: IOpenewSewvice,
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice,
 	) { }
 
-	public createLoadingMessage(anchor: HoverAnchor): MarkdownHover | null {
-		return new MarkdownHover(this, anchor.range, [new MarkdownString().appendText(nls.localize('modesContentHover.loading', "Loading..."))]);
+	pubwic cweateWoadingMessage(anchow: HovewAnchow): MawkdownHova | nuww {
+		wetuwn new MawkdownHova(this, anchow.wange, [new MawkdownStwing().appendText(nws.wocawize('modesContentHova.woading', "Woading..."))]);
 	}
 
-	public computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): MarkdownHover[] {
-		if (!this._editor.hasModel() || anchor.type !== HoverAnchorType.Range) {
-			return [];
+	pubwic computeSync(anchow: HovewAnchow, wineDecowations: IModewDecowation[]): MawkdownHova[] {
+		if (!this._editow.hasModew() || anchow.type !== HovewAnchowType.Wange) {
+			wetuwn [];
 		}
 
-		const model = this._editor.getModel();
-		const lineNumber = anchor.range.startLineNumber;
-		const maxColumn = model.getLineMaxColumn(lineNumber);
-		const result: MarkdownHover[] = [];
-		for (const d of lineDecorations) {
-			const startColumn = (d.range.startLineNumber === lineNumber) ? d.range.startColumn : 1;
-			const endColumn = (d.range.endLineNumber === lineNumber) ? d.range.endColumn : maxColumn;
+		const modew = this._editow.getModew();
+		const wineNumba = anchow.wange.stawtWineNumba;
+		const maxCowumn = modew.getWineMaxCowumn(wineNumba);
+		const wesuwt: MawkdownHova[] = [];
+		fow (const d of wineDecowations) {
+			const stawtCowumn = (d.wange.stawtWineNumba === wineNumba) ? d.wange.stawtCowumn : 1;
+			const endCowumn = (d.wange.endWineNumba === wineNumba) ? d.wange.endCowumn : maxCowumn;
 
-			const hoverMessage = d.options.hoverMessage;
-			if (!hoverMessage || isEmptyMarkdownString(hoverMessage)) {
+			const hovewMessage = d.options.hovewMessage;
+			if (!hovewMessage || isEmptyMawkdownStwing(hovewMessage)) {
 				continue;
 			}
 
-			const range = new Range(anchor.range.startLineNumber, startColumn, anchor.range.startLineNumber, endColumn);
-			result.push(new MarkdownHover(this, range, asArray(hoverMessage)));
+			const wange = new Wange(anchow.wange.stawtWineNumba, stawtCowumn, anchow.wange.stawtWineNumba, endCowumn);
+			wesuwt.push(new MawkdownHova(this, wange, asAwway(hovewMessage)));
 		}
 
-		const lineLength = this._editor.getModel().getLineLength(lineNumber);
-		const maxTokenizationLineLength = this._configurationService.getValue('editor.maxTokenizationLineLength');
-		if (typeof maxTokenizationLineLength === 'number' && lineLength >= maxTokenizationLineLength) {
-			result.push(new MarkdownHover(this, new Range(lineNumber, 1, lineNumber, lineLength + 1), [{
-				value: nls.localize('too many characters', "Tokenization is skipped for long lines for performance reasons. This can be configured via `editor.maxTokenizationLineLength`.")
+		const wineWength = this._editow.getModew().getWineWength(wineNumba);
+		const maxTokenizationWineWength = this._configuwationSewvice.getVawue('editow.maxTokenizationWineWength');
+		if (typeof maxTokenizationWineWength === 'numba' && wineWength >= maxTokenizationWineWength) {
+			wesuwt.push(new MawkdownHova(this, new Wange(wineNumba, 1, wineNumba, wineWength + 1), [{
+				vawue: nws.wocawize('too many chawactews', "Tokenization is skipped fow wong wines fow pewfowmance weasons. This can be configuwed via `editow.maxTokenizationWineWength`.")
 			}]));
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public async computeAsync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): Promise<MarkdownHover[]> {
-		if (!this._editor.hasModel() || anchor.type !== HoverAnchorType.Range) {
-			return Promise.resolve([]);
+	pubwic async computeAsync(anchow: HovewAnchow, wineDecowations: IModewDecowation[], token: CancewwationToken): Pwomise<MawkdownHova[]> {
+		if (!this._editow.hasModew() || anchow.type !== HovewAnchowType.Wange) {
+			wetuwn Pwomise.wesowve([]);
 		}
 
-		const model = this._editor.getModel();
+		const modew = this._editow.getModew();
 
-		if (!HoverProviderRegistry.has(model)) {
-			return Promise.resolve([]);
+		if (!HovewPwovidewWegistwy.has(modew)) {
+			wetuwn Pwomise.wesowve([]);
 		}
 
-		const hovers = await getHover(model, new Position(
-			anchor.range.startLineNumber,
-			anchor.range.startColumn
+		const hovews = await getHova(modew, new Position(
+			anchow.wange.stawtWineNumba,
+			anchow.wange.stawtCowumn
 		), token);
 
-		const result: MarkdownHover[] = [];
-		for (const hover of hovers) {
-			if (isEmptyMarkdownString(hover.contents)) {
+		const wesuwt: MawkdownHova[] = [];
+		fow (const hova of hovews) {
+			if (isEmptyMawkdownStwing(hova.contents)) {
 				continue;
 			}
-			const rng = hover.range ? Range.lift(hover.range) : anchor.range;
-			result.push(new MarkdownHover(this, rng, hover.contents));
+			const wng = hova.wange ? Wange.wift(hova.wange) : anchow.wange;
+			wesuwt.push(new MawkdownHova(this, wng, hova.contents));
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public renderHoverParts(hoverParts: MarkdownHover[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable {
-		const disposables = new DisposableStore();
-		for (const hoverPart of hoverParts) {
-			for (const contents of hoverPart.contents) {
-				if (isEmptyMarkdownString(contents)) {
+	pubwic wendewHovewPawts(hovewPawts: MawkdownHova[], fwagment: DocumentFwagment, statusBaw: IEditowHovewStatusBaw): IDisposabwe {
+		const disposabwes = new DisposabweStowe();
+		fow (const hovewPawt of hovewPawts) {
+			fow (const contents of hovewPawt.contents) {
+				if (isEmptyMawkdownStwing(contents)) {
 					continue;
 				}
-				const markdownHoverElement = $('div.hover-row.markdown-hover');
-				const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
-				const renderer = disposables.add(new MarkdownRenderer({ editor: this._editor }, this._modeService, this._openerService));
-				disposables.add(renderer.onDidRenderAsync(() => {
-					hoverContentsElement.className = 'hover-contents code-hover-contents';
-					this._hover.onContentsChanged();
+				const mawkdownHovewEwement = $('div.hova-wow.mawkdown-hova');
+				const hovewContentsEwement = dom.append(mawkdownHovewEwement, $('div.hova-contents'));
+				const wendewa = disposabwes.add(new MawkdownWendewa({ editow: this._editow }, this._modeSewvice, this._openewSewvice));
+				disposabwes.add(wendewa.onDidWendewAsync(() => {
+					hovewContentsEwement.cwassName = 'hova-contents code-hova-contents';
+					this._hova.onContentsChanged();
 				}));
-				const renderedContents = disposables.add(renderer.render(contents));
-				hoverContentsElement.appendChild(renderedContents.element);
-				fragment.appendChild(markdownHoverElement);
+				const wendewedContents = disposabwes.add(wendewa.wenda(contents));
+				hovewContentsEwement.appendChiwd(wendewedContents.ewement);
+				fwagment.appendChiwd(mawkdownHovewEwement);
 			}
 		}
-		return disposables;
+		wetuwn disposabwes;
 	}
 }

@@ -1,59 +1,59 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { ActiveJsTsEditorTracker } from './activeJsTsEditorTracker';
-import { Disposable } from './dispose';
-import { isJsConfigOrTsConfigFileName } from './languageDescription';
-import { isSupportedLanguageMode } from './languageModeIds';
+impowt * as vscode fwom 'vscode';
+impowt { ActiveJsTsEditowTwacka } fwom './activeJsTsEditowTwacka';
+impowt { Disposabwe } fwom './dispose';
+impowt { isJsConfigOwTsConfigFiweName } fwom './wanguageDescwiption';
+impowt { isSuppowtedWanguageMode } fwom './wanguageModeIds';
 
 /**E
- * When clause context set when the current file is managed by vscode's built-in typescript extension.
+ * When cwause context set when the cuwwent fiwe is managed by vscode's buiwt-in typescwipt extension.
  */
-export default class ManagedFileContextManager extends Disposable {
-	private static readonly contextName = 'typescript.isManagedFile';
+expowt defauwt cwass ManagedFiweContextManaga extends Disposabwe {
+	pwivate static weadonwy contextName = 'typescwipt.isManagedFiwe';
 
-	private isInManagedFileContext: boolean = false;
+	pwivate isInManagedFiweContext: boowean = fawse;
 
-	public constructor(
-		activeJsTsEditorTracker: ActiveJsTsEditorTracker,
-		private readonly normalizePath: (resource: vscode.Uri) => string | undefined,
+	pubwic constwuctow(
+		activeJsTsEditowTwacka: ActiveJsTsEditowTwacka,
+		pwivate weadonwy nowmawizePath: (wesouwce: vscode.Uwi) => stwing | undefined,
 	) {
-		super();
-		activeJsTsEditorTracker.onDidChangeActiveJsTsEditor(this.onDidChangeActiveTextEditor, this, this._disposables);
+		supa();
+		activeJsTsEditowTwacka.onDidChangeActiveJsTsEditow(this.onDidChangeActiveTextEditow, this, this._disposabwes);
 
-		this.onDidChangeActiveTextEditor(activeJsTsEditorTracker.activeJsTsEditor);
+		this.onDidChangeActiveTextEditow(activeJsTsEditowTwacka.activeJsTsEditow);
 	}
 
-	private onDidChangeActiveTextEditor(editor?: vscode.TextEditor): void {
-		if (editor) {
-			this.updateContext(this.isManagedFile(editor));
-		} else {
-			this.updateContext(false);
+	pwivate onDidChangeActiveTextEditow(editow?: vscode.TextEditow): void {
+		if (editow) {
+			this.updateContext(this.isManagedFiwe(editow));
+		} ewse {
+			this.updateContext(fawse);
 		}
 	}
 
-	private updateContext(newValue: boolean) {
-		if (newValue === this.isInManagedFileContext) {
-			return;
+	pwivate updateContext(newVawue: boowean) {
+		if (newVawue === this.isInManagedFiweContext) {
+			wetuwn;
 		}
 
-		vscode.commands.executeCommand('setContext', ManagedFileContextManager.contextName, newValue);
-		this.isInManagedFileContext = newValue;
+		vscode.commands.executeCommand('setContext', ManagedFiweContextManaga.contextName, newVawue);
+		this.isInManagedFiweContext = newVawue;
 	}
 
-	private isManagedFile(editor: vscode.TextEditor): boolean {
-		return this.isManagedScriptFile(editor) || this.isManagedConfigFile(editor);
+	pwivate isManagedFiwe(editow: vscode.TextEditow): boowean {
+		wetuwn this.isManagedScwiptFiwe(editow) || this.isManagedConfigFiwe(editow);
 	}
 
-	private isManagedScriptFile(editor: vscode.TextEditor): boolean {
-		return isSupportedLanguageMode(editor.document) && this.normalizePath(editor.document.uri) !== null;
+	pwivate isManagedScwiptFiwe(editow: vscode.TextEditow): boowean {
+		wetuwn isSuppowtedWanguageMode(editow.document) && this.nowmawizePath(editow.document.uwi) !== nuww;
 	}
 
-	private isManagedConfigFile(editor: vscode.TextEditor): boolean {
-		return isJsConfigOrTsConfigFileName(editor.document.fileName);
+	pwivate isManagedConfigFiwe(editow: vscode.TextEditow): boowean {
+		wetuwn isJsConfigOwTsConfigFiweName(editow.document.fiweName);
 	}
 }
 

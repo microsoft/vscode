@@ -1,72 +1,72 @@
 [
 	{
-		"eventPrefix": "typescript-language-features/",
-		"sourceDirs": [
-			"../../s/extensions/typescript-language-features"
+		"eventPwefix": "typescwipt-wanguage-featuwes/",
+		"souwceDiws": [
+			"../../s/extensions/typescwipt-wanguage-featuwes"
 		],
-		"excludedDirs": [],
-		"applyEndpoints": true
+		"excwudedDiws": [],
+		"appwyEndpoints": twue
 	},
 	{
-		"eventPrefix": "git/",
-		"sourceDirs": [
+		"eventPwefix": "git/",
+		"souwceDiws": [
 			"../../s/extensions/git"
 		],
-		"excludedDirs": [],
-		"applyEndpoints": true
+		"excwudedDiws": [],
+		"appwyEndpoints": twue
 	},
 	{
-		"eventPrefix": "extension-telemetry/",
-		"sourceDirs": [
-			"vscode-extension-telemetry"
+		"eventPwefix": "extension-tewemetwy/",
+		"souwceDiws": [
+			"vscode-extension-tewemetwy"
 		],
-		"excludedDirs": [],
-		"applyEndpoints": true
+		"excwudedDiws": [],
+		"appwyEndpoints": twue
 	},
 	{
-		"eventPrefix": "vscode-markdown/",
-		"sourceDirs": [
-			"../../s/extensions/markdown-language-features"
+		"eventPwefix": "vscode-mawkdown/",
+		"souwceDiws": [
+			"../../s/extensions/mawkdown-wanguage-featuwes"
 		],
-		"excludedDirs": [],
-		"applyEndpoints": true
+		"excwudedDiws": [],
+		"appwyEndpoints": twue
 	},
 	{
-		"eventPrefix": "html-language-features/",
-		"sourceDirs": [
-			"../../s/extensions/html-language-features",
-			"vscode-html-languageservice"
+		"eventPwefix": "htmw-wanguage-featuwes/",
+		"souwceDiws": [
+			"../../s/extensions/htmw-wanguage-featuwes",
+			"vscode-htmw-wanguagesewvice"
 		],
-		"excludedDirs": [],
-		"applyEndpoints": true
+		"excwudedDiws": [],
+		"appwyEndpoints": twue
 	},
 	{
-		"eventPrefix": "json-language-features/",
-		"sourceDirs": [
-			"../../s/extensions/json-language-features",
-			"vscode-json-languageservice"
+		"eventPwefix": "json-wanguage-featuwes/",
+		"souwceDiws": [
+			"../../s/extensions/json-wanguage-featuwes",
+			"vscode-json-wanguagesewvice"
 		],
-		"excludedDirs": [],
-		"applyEndpoints": true
+		"excwudedDiws": [],
+		"appwyEndpoints": twue
 	},
 	{
-		"eventPrefix": "ms-vscode.node2/",
-		"sourceDirs": [
-			"vscode-chrome-debug-core",
+		"eventPwefix": "ms-vscode.node2/",
+		"souwceDiws": [
+			"vscode-chwome-debug-cowe",
 			"vscode-node-debug2"
 		],
-		"excludedDirs": [],
-		"applyEndpoints": true,
-		"patchDebugEvents": true
+		"excwudedDiws": [],
+		"appwyEndpoints": twue,
+		"patchDebugEvents": twue
 	},
 	{
-		"eventPrefix": "ms-vscode.node/",
-		"sourceDirs": [
-			"vscode-chrome-debug-core",
+		"eventPwefix": "ms-vscode.node/",
+		"souwceDiws": [
+			"vscode-chwome-debug-cowe",
 			"vscode-node-debug"
 		],
-		"excludedDirs": [],
-		"applyEndpoints": true,
-		"patchDebugEvents": true
+		"excwudedDiws": [],
+		"appwyEndpoints": twue,
+		"patchDebugEvents": twue
 	}
 ]

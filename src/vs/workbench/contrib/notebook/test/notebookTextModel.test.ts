@@ -1,151 +1,151 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Mimes } from 'vs/base/common/mime';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { CellEditType, CellKind, ICellEditOperation, NotebookTextModelChangedEvent, NotebookTextModelWillAddRemoveEvent, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { setupInstantiationService, TestCell, valueBytesFromString, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
+impowt * as assewt fwom 'assewt';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { Mimes } fwom 'vs/base/common/mime';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IUndoWedoSewvice } fwom 'vs/pwatfowm/undoWedo/common/undoWedo';
+impowt { CewwEditType, CewwKind, ICewwEditOpewation, NotebookTextModewChangedEvent, NotebookTextModewWiwwAddWemoveEvent, SewectionStateType } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { setupInstantiationSewvice, TestCeww, vawueBytesFwomStwing, withTestNotebook } fwom 'vs/wowkbench/contwib/notebook/test/testNotebookEditow';
 
-suite('NotebookTextModel', () => {
-	const instantiationService = setupInstantiationService();
-	const modeService = instantiationService.get(IModeService);
-	instantiationService.spy(IUndoRedoService, 'pushElement');
+suite('NotebookTextModew', () => {
+	const instantiationSewvice = setupInstantiationSewvice();
+	const modeSewvice = instantiationSewvice.get(IModeSewvice);
+	instantiationSewvice.spy(IUndoWedoSewvice, 'pushEwement');
 
-	test('insert', async function () {
+	test('insewt', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3;', 'javascript', CellKind.Code, [], {}],
-				['var d = 4;', 'javascript', CellKind.Code, [], {}]
+				['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw d = 4;', 'javascwipt', CewwKind.Code, [], {}]
 			],
-			(editor) => {
-				const textModel = editor.textModel;
-				textModel.applyEdits([
-					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
-					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [new TestCell(textModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], modeService)] },
-				], true, undefined, () => undefined, undefined);
+			(editow) => {
+				const textModew = editow.textModew;
+				textModew.appwyEdits([
+					{ editType: CewwEditType.Wepwace, index: 1, count: 0, cewws: [new TestCeww(textModew.viewType, 5, 'vaw e = 5;', 'javascwipt', CewwKind.Code, [], modeSewvice)] },
+					{ editType: CewwEditType.Wepwace, index: 3, count: 0, cewws: [new TestCeww(textModew.viewType, 6, 'vaw f = 6;', 'javascwipt', CewwKind.Code, [], modeSewvice)] },
+				], twue, undefined, () => undefined, undefined);
 
-				assert.strictEqual(textModel.cells.length, 6);
+				assewt.stwictEquaw(textModew.cewws.wength, 6);
 
-				assert.strictEqual(textModel.cells[1].getValue(), 'var e = 5;');
-				assert.strictEqual(textModel.cells[4].getValue(), 'var f = 6;');
+				assewt.stwictEquaw(textModew.cewws[1].getVawue(), 'vaw e = 5;');
+				assewt.stwictEquaw(textModew.cewws[4].getVawue(), 'vaw f = 6;');
 			}
 		);
 	});
 
-	test('multiple inserts at same position', async function () {
+	test('muwtipwe insewts at same position', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3;', 'javascript', CellKind.Code, [], {}],
-				['var d = 4;', 'javascript', CellKind.Code, [], {}]
+				['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw d = 4;', 'javascwipt', CewwKind.Code, [], {}]
 			],
-			(editor) => {
-				const textModel = editor.textModel;
-				textModel.applyEdits([
-					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
-					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(textModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], modeService)] },
-				], true, undefined, () => undefined, undefined);
+			(editow) => {
+				const textModew = editow.textModew;
+				textModew.appwyEdits([
+					{ editType: CewwEditType.Wepwace, index: 1, count: 0, cewws: [new TestCeww(textModew.viewType, 5, 'vaw e = 5;', 'javascwipt', CewwKind.Code, [], modeSewvice)] },
+					{ editType: CewwEditType.Wepwace, index: 1, count: 0, cewws: [new TestCeww(textModew.viewType, 6, 'vaw f = 6;', 'javascwipt', CewwKind.Code, [], modeSewvice)] },
+				], twue, undefined, () => undefined, undefined);
 
-				assert.strictEqual(textModel.cells.length, 6);
+				assewt.stwictEquaw(textModew.cewws.wength, 6);
 
-				assert.strictEqual(textModel.cells[1].getValue(), 'var e = 5;');
-				assert.strictEqual(textModel.cells[2].getValue(), 'var f = 6;');
+				assewt.stwictEquaw(textModew.cewws[1].getVawue(), 'vaw e = 5;');
+				assewt.stwictEquaw(textModew.cewws[2].getVawue(), 'vaw f = 6;');
 			}
 		);
 	});
 
-	test('delete', async function () {
+	test('dewete', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3;', 'javascript', CellKind.Code, [], {}],
-				['var d = 4;', 'javascript', CellKind.Code, [], {}]
+				['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw d = 4;', 'javascwipt', CewwKind.Code, [], {}]
 			],
-			(editor) => {
-				const textModel = editor.textModel;
-				textModel.applyEdits([
-					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
-					{ editType: CellEditType.Replace, index: 3, count: 1, cells: [] },
-				], true, undefined, () => undefined, undefined);
+			(editow) => {
+				const textModew = editow.textModew;
+				textModew.appwyEdits([
+					{ editType: CewwEditType.Wepwace, index: 1, count: 1, cewws: [] },
+					{ editType: CewwEditType.Wepwace, index: 3, count: 1, cewws: [] },
+				], twue, undefined, () => undefined, undefined);
 
-				assert.strictEqual(textModel.cells[0].getValue(), 'var a = 1;');
-				assert.strictEqual(textModel.cells[1].getValue(), 'var c = 3;');
+				assewt.stwictEquaw(textModew.cewws[0].getVawue(), 'vaw a = 1;');
+				assewt.stwictEquaw(textModew.cewws[1].getVawue(), 'vaw c = 3;');
 			}
 		);
 	});
 
-	test('delete + insert', async function () {
+	test('dewete + insewt', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3;', 'javascript', CellKind.Code, [], {}],
-				['var d = 4;', 'javascript', CellKind.Code, [], {}]
+				['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw d = 4;', 'javascwipt', CewwKind.Code, [], {}]
 			],
-			(editor) => {
-				const textModel = editor.textModel;
-				textModel.applyEdits([
-					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
-					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
-				], true, undefined, () => undefined, undefined);
-				assert.strictEqual(textModel.cells.length, 4);
+			(editow) => {
+				const textModew = editow.textModew;
+				textModew.appwyEdits([
+					{ editType: CewwEditType.Wepwace, index: 1, count: 1, cewws: [] },
+					{ editType: CewwEditType.Wepwace, index: 3, count: 0, cewws: [new TestCeww(textModew.viewType, 5, 'vaw e = 5;', 'javascwipt', CewwKind.Code, [], modeSewvice)] },
+				], twue, undefined, () => undefined, undefined);
+				assewt.stwictEquaw(textModew.cewws.wength, 4);
 
-				assert.strictEqual(textModel.cells[0].getValue(), 'var a = 1;');
-				assert.strictEqual(textModel.cells[2].getValue(), 'var e = 5;');
+				assewt.stwictEquaw(textModew.cewws[0].getVawue(), 'vaw a = 1;');
+				assewt.stwictEquaw(textModew.cewws[2].getVawue(), 'vaw e = 5;');
 			}
 		);
 	});
 
-	test('delete + insert at same position', async function () {
+	test('dewete + insewt at same position', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3;', 'javascript', CellKind.Code, [], {}],
-				['var d = 4;', 'javascript', CellKind.Code, [], {}]
+				['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw d = 4;', 'javascwipt', CewwKind.Code, [], {}]
 			],
-			(editor) => {
-				const textModel = editor.textModel;
-				textModel.applyEdits([
-					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
-					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
-				], true, undefined, () => undefined, undefined);
+			(editow) => {
+				const textModew = editow.textModew;
+				textModew.appwyEdits([
+					{ editType: CewwEditType.Wepwace, index: 1, count: 1, cewws: [] },
+					{ editType: CewwEditType.Wepwace, index: 1, count: 0, cewws: [new TestCeww(textModew.viewType, 5, 'vaw e = 5;', 'javascwipt', CewwKind.Code, [], modeSewvice)] },
+				], twue, undefined, () => undefined, undefined);
 
-				assert.strictEqual(textModel.cells.length, 4);
-				assert.strictEqual(textModel.cells[0].getValue(), 'var a = 1;');
-				assert.strictEqual(textModel.cells[1].getValue(), 'var e = 5;');
-				assert.strictEqual(textModel.cells[2].getValue(), 'var c = 3;');
+				assewt.stwictEquaw(textModew.cewws.wength, 4);
+				assewt.stwictEquaw(textModew.cewws[0].getVawue(), 'vaw a = 1;');
+				assewt.stwictEquaw(textModew.cewws[1].getVawue(), 'vaw e = 5;');
+				assewt.stwictEquaw(textModew.cewws[2].getVawue(), 'vaw c = 3;');
 			}
 		);
 	});
 
-	test('(replace) delete + insert at same position', async function () {
+	test('(wepwace) dewete + insewt at same position', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3;', 'javascript', CellKind.Code, [], {}],
-				['var d = 4;', 'javascript', CellKind.Code, [], {}]
+				['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw d = 4;', 'javascwipt', CewwKind.Code, [], {}]
 			],
-			(editor) => {
-				const textModel = editor.textModel;
-				textModel.applyEdits([
-					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
-				], true, undefined, () => undefined, undefined);
+			(editow) => {
+				const textModew = editow.textModew;
+				textModew.appwyEdits([
+					{ editType: CewwEditType.Wepwace, index: 1, count: 1, cewws: [new TestCeww(textModew.viewType, 5, 'vaw e = 5;', 'javascwipt', CewwKind.Code, [], modeSewvice)] },
+				], twue, undefined, () => undefined, undefined);
 
-				assert.strictEqual(textModel.cells.length, 4);
-				assert.strictEqual(textModel.cells[0].getValue(), 'var a = 1;');
-				assert.strictEqual(textModel.cells[1].getValue(), 'var e = 5;');
-				assert.strictEqual(textModel.cells[2].getValue(), 'var c = 3;');
+				assewt.stwictEquaw(textModew.cewws.wength, 4);
+				assewt.stwictEquaw(textModew.cewws[0].getVawue(), 'vaw a = 1;');
+				assewt.stwictEquaw(textModew.cewws[1].getVawue(), 'vaw e = 5;');
+				assewt.stwictEquaw(textModew.cewws[2].getVawue(), 'vaw c = 3;');
 			}
 		);
 	});
@@ -153,148 +153,148 @@ suite('NotebookTextModel', () => {
 	test('output', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
 			],
-			(editor) => {
-				const textModel = editor.textModel;
+			(editow) => {
+				const textModew = editow.textModew;
 
-				// invalid index 1
-				assert.throws(() => {
-					textModel.applyEdits([{
-						index: Number.MAX_VALUE,
-						editType: CellEditType.Output,
+				// invawid index 1
+				assewt.thwows(() => {
+					textModew.appwyEdits([{
+						index: Numba.MAX_VAWUE,
+						editType: CewwEditType.Output,
 						outputs: []
-					}], true, undefined, () => undefined, undefined);
+					}], twue, undefined, () => undefined, undefined);
 				});
 
-				// invalid index 2
-				assert.throws(() => {
-					textModel.applyEdits([{
+				// invawid index 2
+				assewt.thwows(() => {
+					textModew.appwyEdits([{
 						index: -1,
-						editType: CellEditType.Output,
+						editType: CewwEditType.Output,
 						outputs: []
-					}], true, undefined, () => undefined, undefined);
+					}], twue, undefined, () => undefined, undefined);
 				});
 
-				textModel.applyEdits([{
+				textModew.appwyEdits([{
 					index: 0,
-					editType: CellEditType.Output,
+					editType: CewwEditType.Output,
 					outputs: [{
 						outputId: 'someId',
-						outputs: [{ mime: Mimes.markdown, data: valueBytesFromString('_Hello_') }]
+						outputs: [{ mime: Mimes.mawkdown, data: vawueBytesFwomStwing('_Hewwo_') }]
 					}]
-				}], true, undefined, () => undefined, undefined);
+				}], twue, undefined, () => undefined, undefined);
 
-				assert.strictEqual(textModel.cells.length, 1);
-				assert.strictEqual(textModel.cells[0].outputs.length, 1);
+				assewt.stwictEquaw(textModew.cewws.wength, 1);
+				assewt.stwictEquaw(textModew.cewws[0].outputs.wength, 1);
 
 				// append
-				textModel.applyEdits([{
+				textModew.appwyEdits([{
 					index: 0,
-					editType: CellEditType.Output,
-					append: true,
+					editType: CewwEditType.Output,
+					append: twue,
 					outputs: [{
 						outputId: 'someId2',
-						outputs: [{ mime: Mimes.markdown, data: valueBytesFromString('_Hello2_') }]
+						outputs: [{ mime: Mimes.mawkdown, data: vawueBytesFwomStwing('_Hewwo2_') }]
 					}]
-				}], true, undefined, () => undefined, undefined);
+				}], twue, undefined, () => undefined, undefined);
 
-				assert.strictEqual(textModel.cells.length, 1);
-				assert.strictEqual(textModel.cells[0].outputs.length, 2);
-				let [first, second] = textModel.cells[0].outputs;
-				assert.strictEqual(first.outputId, 'someId');
-				assert.strictEqual(second.outputId, 'someId2');
+				assewt.stwictEquaw(textModew.cewws.wength, 1);
+				assewt.stwictEquaw(textModew.cewws[0].outputs.wength, 2);
+				wet [fiwst, second] = textModew.cewws[0].outputs;
+				assewt.stwictEquaw(fiwst.outputId, 'someId');
+				assewt.stwictEquaw(second.outputId, 'someId2');
 
-				// replace all
-				textModel.applyEdits([{
+				// wepwace aww
+				textModew.appwyEdits([{
 					index: 0,
-					editType: CellEditType.Output,
+					editType: CewwEditType.Output,
 					outputs: [{
 						outputId: 'someId3',
-						outputs: [{ mime: Mimes.text, data: valueBytesFromString('Last, replaced output') }]
+						outputs: [{ mime: Mimes.text, data: vawueBytesFwomStwing('Wast, wepwaced output') }]
 					}]
-				}], true, undefined, () => undefined, undefined);
+				}], twue, undefined, () => undefined, undefined);
 
-				assert.strictEqual(textModel.cells.length, 1);
-				assert.strictEqual(textModel.cells[0].outputs.length, 1);
-				[first] = textModel.cells[0].outputs;
-				assert.strictEqual(first.outputId, 'someId3');
+				assewt.stwictEquaw(textModew.cewws.wength, 1);
+				assewt.stwictEquaw(textModew.cewws[0].outputs.wength, 1);
+				[fiwst] = textModew.cewws[0].outputs;
+				assewt.stwictEquaw(fiwst.outputId, 'someId3');
 			}
 		);
 	});
 
-	test('multiple append output in one position', async function () {
+	test('muwtipwe append output in one position', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
 			],
-			(editor) => {
-				const textModel = editor.textModel;
+			(editow) => {
+				const textModew = editow.textModew;
 
 				// append
-				textModel.applyEdits([
+				textModew.appwyEdits([
 					{
 						index: 0,
-						editType: CellEditType.Output,
-						append: true,
+						editType: CewwEditType.Output,
+						append: twue,
 						outputs: [{
 							outputId: 'append1',
-							outputs: [{ mime: Mimes.markdown, data: valueBytesFromString('append 1') }]
+							outputs: [{ mime: Mimes.mawkdown, data: vawueBytesFwomStwing('append 1') }]
 						}]
 					},
 					{
 						index: 0,
-						editType: CellEditType.Output,
-						append: true,
+						editType: CewwEditType.Output,
+						append: twue,
 						outputs: [{
 							outputId: 'append2',
-							outputs: [{ mime: Mimes.markdown, data: valueBytesFromString('append 2') }]
+							outputs: [{ mime: Mimes.mawkdown, data: vawueBytesFwomStwing('append 2') }]
 						}]
 					}
-				], true, undefined, () => undefined, undefined);
+				], twue, undefined, () => undefined, undefined);
 
-				assert.strictEqual(textModel.cells.length, 1);
-				assert.strictEqual(textModel.cells[0].outputs.length, 2);
-				const [first, second] = textModel.cells[0].outputs;
-				assert.strictEqual(first.outputId, 'append1');
-				assert.strictEqual(second.outputId, 'append2');
+				assewt.stwictEquaw(textModew.cewws.wength, 1);
+				assewt.stwictEquaw(textModew.cewws[0].outputs.wength, 2);
+				const [fiwst, second] = textModew.cewws[0].outputs;
+				assewt.stwictEquaw(fiwst.outputId, 'append1');
+				assewt.stwictEquaw(second.outputId, 'append2');
 			}
 		);
 	});
 
-	test('append to output created in same batch', async function () {
+	test('append to output cweated in same batch', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
 			],
-			(editor) => {
-				const textModel = editor.textModel;
+			(editow) => {
+				const textModew = editow.textModew;
 
-				textModel.applyEdits([
+				textModew.appwyEdits([
 					{
 						index: 0,
-						editType: CellEditType.Output,
-						append: true,
+						editType: CewwEditType.Output,
+						append: twue,
 						outputs: [{
 							outputId: 'append1',
-							outputs: [{ mime: Mimes.markdown, data: valueBytesFromString('append 1') }]
+							outputs: [{ mime: Mimes.mawkdown, data: vawueBytesFwomStwing('append 1') }]
 						}]
 					},
 					{
-						editType: CellEditType.OutputItems,
-						append: true,
+						editType: CewwEditType.OutputItems,
+						append: twue,
 						outputId: 'append1',
 						items: [{
-							mime: Mimes.markdown, data: valueBytesFromString('append 2')
+							mime: Mimes.mawkdown, data: vawueBytesFwomStwing('append 2')
 						}]
 					}
-				], true, undefined, () => undefined, undefined);
+				], twue, undefined, () => undefined, undefined);
 
-				assert.strictEqual(textModel.cells.length, 1);
-				assert.strictEqual(textModel.cells[0].outputs.length, 1, 'has 1 output');
-				const [first] = textModel.cells[0].outputs;
-				assert.strictEqual(first.outputId, 'append1');
-				assert.strictEqual(first.outputs.length, 2, 'has 2 items');
+				assewt.stwictEquaw(textModew.cewws.wength, 1);
+				assewt.stwictEquaw(textModew.cewws[0].outputs.wength, 1, 'has 1 output');
+				const [fiwst] = textModew.cewws[0].outputs;
+				assewt.stwictEquaw(fiwst.outputId, 'append1');
+				assewt.stwictEquaw(fiwst.outputs.wength, 2, 'has 2 items');
 			}
 		);
 	});
@@ -302,451 +302,451 @@ suite('NotebookTextModel', () => {
 	test('metadata', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
 			],
-			(editor) => {
-				const textModel = editor.textModel;
+			(editow) => {
+				const textModew = editow.textModew;
 
-				// invalid index 1
-				assert.throws(() => {
-					textModel.applyEdits([{
-						index: Number.MAX_VALUE,
-						editType: CellEditType.Metadata,
+				// invawid index 1
+				assewt.thwows(() => {
+					textModew.appwyEdits([{
+						index: Numba.MAX_VAWUE,
+						editType: CewwEditType.Metadata,
 						metadata: {}
-					}], true, undefined, () => undefined, undefined);
+					}], twue, undefined, () => undefined, undefined);
 				});
 
-				// invalid index 2
-				assert.throws(() => {
-					textModel.applyEdits([{
+				// invawid index 2
+				assewt.thwows(() => {
+					textModew.appwyEdits([{
 						index: -1,
-						editType: CellEditType.Metadata,
+						editType: CewwEditType.Metadata,
 						metadata: {}
-					}], true, undefined, () => undefined, undefined);
+					}], twue, undefined, () => undefined, undefined);
 				});
 
-				textModel.applyEdits([{
+				textModew.appwyEdits([{
 					index: 0,
-					editType: CellEditType.Metadata,
-					metadata: { customProperty: 15 },
-				}], true, undefined, () => undefined, undefined);
+					editType: CewwEditType.Metadata,
+					metadata: { customPwopewty: 15 },
+				}], twue, undefined, () => undefined, undefined);
 
-				textModel.applyEdits([{
+				textModew.appwyEdits([{
 					index: 0,
-					editType: CellEditType.Metadata,
+					editType: CewwEditType.Metadata,
 					metadata: {},
-				}], true, undefined, () => undefined, undefined);
+				}], twue, undefined, () => undefined, undefined);
 
-				assert.strictEqual(textModel.cells.length, 1);
-				assert.strictEqual(textModel.cells[0].metadata.customProperty, undefined);
+				assewt.stwictEquaw(textModew.cewws.wength, 1);
+				assewt.stwictEquaw(textModew.cewws[0].metadata.customPwopewty, undefined);
 			}
 		);
 	});
 
-	test('partial metadata', async function () {
+	test('pawtiaw metadata', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
 			],
-			(editor) => {
-				const textModel = editor.textModel;
+			(editow) => {
+				const textModew = editow.textModew;
 
-				textModel.applyEdits([{
+				textModew.appwyEdits([{
 					index: 0,
-					editType: CellEditType.PartialMetadata,
-					metadata: { customProperty: 15 },
-				}], true, undefined, () => undefined, undefined);
+					editType: CewwEditType.PawtiawMetadata,
+					metadata: { customPwopewty: 15 },
+				}], twue, undefined, () => undefined, undefined);
 
-				textModel.applyEdits([{
+				textModew.appwyEdits([{
 					index: 0,
-					editType: CellEditType.PartialMetadata,
+					editType: CewwEditType.PawtiawMetadata,
 					metadata: {},
-				}], true, undefined, () => undefined, undefined);
+				}], twue, undefined, () => undefined, undefined);
 
-				assert.strictEqual(textModel.cells.length, 1);
-				assert.strictEqual(textModel.cells[0].metadata.customProperty, 15);
+				assewt.stwictEquaw(textModew.cewws.wength, 1);
+				assewt.stwictEquaw(textModew.cewws[0].metadata.customPwopewty, 15);
 			}
 		);
 	});
 
-	test('multiple inserts in one edit', async function () {
+	test('muwtipwe insewts in one edit', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3;', 'javascript', CellKind.Code, [], {}],
-				['var d = 4;', 'javascript', CellKind.Code, [], {}]
+				['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw d = 4;', 'javascwipt', CewwKind.Code, [], {}]
 			],
-			(editor) => {
-				const textModel = editor.textModel;
-				let changeEvent: NotebookTextModelChangedEvent | undefined = undefined;
-				const eventListener = textModel.onDidChangeContent(e => {
+			(editow) => {
+				const textModew = editow.textModew;
+				wet changeEvent: NotebookTextModewChangedEvent | undefined = undefined;
+				const eventWistena = textModew.onDidChangeContent(e => {
 					changeEvent = e;
 				});
-				const willChangeEvents: NotebookTextModelWillAddRemoveEvent[] = [];
-				const willChangeListener = textModel.onWillAddRemoveCells(e => {
-					willChangeEvents.push(e);
+				const wiwwChangeEvents: NotebookTextModewWiwwAddWemoveEvent[] = [];
+				const wiwwChangeWistena = textModew.onWiwwAddWemoveCewws(e => {
+					wiwwChangeEvents.push(e);
 				});
-				const version = textModel.versionId;
+				const vewsion = textModew.vewsionId;
 
-				textModel.applyEdits([
-					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
-					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
-				], true, undefined, () => ({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] }), undefined);
+				textModew.appwyEdits([
+					{ editType: CewwEditType.Wepwace, index: 1, count: 1, cewws: [] },
+					{ editType: CewwEditType.Wepwace, index: 1, count: 0, cewws: [new TestCeww(textModew.viewType, 5, 'vaw e = 5;', 'javascwipt', CewwKind.Code, [], modeSewvice)] },
+				], twue, undefined, () => ({ kind: SewectionStateType.Index, focus: { stawt: 0, end: 1 }, sewections: [{ stawt: 0, end: 1 }] }), undefined);
 
-				assert.strictEqual(textModel.cells.length, 4);
-				assert.strictEqual(textModel.cells[0].getValue(), 'var a = 1;');
-				assert.strictEqual(textModel.cells[1].getValue(), 'var e = 5;');
-				assert.strictEqual(textModel.cells[2].getValue(), 'var c = 3;');
+				assewt.stwictEquaw(textModew.cewws.wength, 4);
+				assewt.stwictEquaw(textModew.cewws[0].getVawue(), 'vaw a = 1;');
+				assewt.stwictEquaw(textModew.cewws[1].getVawue(), 'vaw e = 5;');
+				assewt.stwictEquaw(textModew.cewws[2].getVawue(), 'vaw c = 3;');
 
-				assert.notStrictEqual(changeEvent, undefined);
-				assert.strictEqual(changeEvent!.rawEvents.length, 2);
-				assert.deepStrictEqual(changeEvent!.endSelectionState?.selections, [{ start: 0, end: 1 }]);
-				assert.strictEqual(willChangeEvents.length, 2);
-				assert.strictEqual(textModel.versionId, version + 1);
-				eventListener.dispose();
-				willChangeListener.dispose();
+				assewt.notStwictEquaw(changeEvent, undefined);
+				assewt.stwictEquaw(changeEvent!.wawEvents.wength, 2);
+				assewt.deepStwictEquaw(changeEvent!.endSewectionState?.sewections, [{ stawt: 0, end: 1 }]);
+				assewt.stwictEquaw(wiwwChangeEvents.wength, 2);
+				assewt.stwictEquaw(textModew.vewsionId, vewsion + 1);
+				eventWistena.dispose();
+				wiwwChangeWistena.dispose();
 			}
 		);
 	});
 
-	test('insert and metadata change in one edit', async function () {
+	test('insewt and metadata change in one edit', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3;', 'javascript', CellKind.Code, [], {}],
-				['var d = 4;', 'javascript', CellKind.Code, [], {}]
+				['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw d = 4;', 'javascwipt', CewwKind.Code, [], {}]
 			],
-			(editor) => {
-				const textModel = editor.textModel;
-				let changeEvent: NotebookTextModelChangedEvent | undefined = undefined;
-				const eventListener = textModel.onDidChangeContent(e => {
+			(editow) => {
+				const textModew = editow.textModew;
+				wet changeEvent: NotebookTextModewChangedEvent | undefined = undefined;
+				const eventWistena = textModew.onDidChangeContent(e => {
 					changeEvent = e;
 				});
-				const willChangeEvents: NotebookTextModelWillAddRemoveEvent[] = [];
-				const willChangeListener = textModel.onWillAddRemoveCells(e => {
-					willChangeEvents.push(e);
+				const wiwwChangeEvents: NotebookTextModewWiwwAddWemoveEvent[] = [];
+				const wiwwChangeWistena = textModew.onWiwwAddWemoveCewws(e => {
+					wiwwChangeEvents.push(e);
 				});
 
-				const version = textModel.versionId;
+				const vewsion = textModew.vewsionId;
 
-				textModel.applyEdits([
-					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
+				textModew.appwyEdits([
+					{ editType: CewwEditType.Wepwace, index: 1, count: 1, cewws: [] },
 					{
 						index: 0,
-						editType: CellEditType.Metadata,
+						editType: CewwEditType.Metadata,
 						metadata: {},
 					}
-				], true, undefined, () => ({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] }), undefined);
+				], twue, undefined, () => ({ kind: SewectionStateType.Index, focus: { stawt: 0, end: 1 }, sewections: [{ stawt: 0, end: 1 }] }), undefined);
 
-				assert.notStrictEqual(changeEvent, undefined);
-				assert.strictEqual(changeEvent!.rawEvents.length, 2);
-				assert.deepStrictEqual(changeEvent!.endSelectionState?.selections, [{ start: 0, end: 1 }]);
-				assert.strictEqual(willChangeEvents.length, 1);
-				assert.strictEqual(textModel.versionId, version + 1);
-				eventListener.dispose();
-				willChangeListener.dispose();
+				assewt.notStwictEquaw(changeEvent, undefined);
+				assewt.stwictEquaw(changeEvent!.wawEvents.wength, 2);
+				assewt.deepStwictEquaw(changeEvent!.endSewectionState?.sewections, [{ stawt: 0, end: 1 }]);
+				assewt.stwictEquaw(wiwwChangeEvents.wength, 1);
+				assewt.stwictEquaw(textModew.vewsionId, vewsion + 1);
+				eventWistena.dispose();
+				wiwwChangeWistena.dispose();
 			}
 		);
 	});
 
 
-	test('Updating appending/updating output in Notebooks does not work as expected #117273', async function () {
+	test('Updating appending/updating output in Notebooks does not wowk as expected #117273', async function () {
 		await withTestNotebook([
-			['var a = 1;', 'javascript', CellKind.Code, [], {}]
-		], (editor) => {
-			const model = editor.textModel;
+			['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}]
+		], (editow) => {
+			const modew = editow.textModew;
 
-			assert.strictEqual(model.cells.length, 1);
-			assert.strictEqual(model.cells[0].outputs.length, 0);
+			assewt.stwictEquaw(modew.cewws.wength, 1);
+			assewt.stwictEquaw(modew.cewws[0].outputs.wength, 0);
 
-			const success1 = model.applyEdits(
+			const success1 = modew.appwyEdits(
 				[{
-					editType: CellEditType.Output, index: 0, outputs: [
-						{ outputId: 'out1', outputs: [{ mime: 'application/x.notebook.stream', data: VSBuffer.wrap(new Uint8Array([1])) }] }
+					editType: CewwEditType.Output, index: 0, outputs: [
+						{ outputId: 'out1', outputs: [{ mime: 'appwication/x.notebook.stweam', data: VSBuffa.wwap(new Uint8Awway([1])) }] }
 					],
-					append: false
-				}], true, undefined, () => undefined, undefined, false
+					append: fawse
+				}], twue, undefined, () => undefined, undefined, fawse
 			);
 
-			assert.ok(success1);
-			assert.strictEqual(model.cells[0].outputs.length, 1);
+			assewt.ok(success1);
+			assewt.stwictEquaw(modew.cewws[0].outputs.wength, 1);
 
-			const success2 = model.applyEdits(
+			const success2 = modew.appwyEdits(
 				[{
-					editType: CellEditType.Output, index: 0, outputs: [
-						{ outputId: 'out2', outputs: [{ mime: 'application/x.notebook.stream', data: VSBuffer.wrap(new Uint8Array([1])) }] }
+					editType: CewwEditType.Output, index: 0, outputs: [
+						{ outputId: 'out2', outputs: [{ mime: 'appwication/x.notebook.stweam', data: VSBuffa.wwap(new Uint8Awway([1])) }] }
 					],
-					append: true
-				}], true, undefined, () => undefined, undefined, false
+					append: twue
+				}], twue, undefined, () => undefined, undefined, fawse
 			);
 
-			assert.ok(success2);
-			assert.strictEqual(model.cells[0].outputs.length, 2);
+			assewt.ok(success2);
+			assewt.stwictEquaw(modew.cewws[0].outputs.wength, 2);
 		});
 	});
 
-	test('Clearing output of an empty notebook makes it dirty #119608', async function () {
+	test('Cweawing output of an empty notebook makes it diwty #119608', async function () {
 		await withTestNotebook([
-			['var a = 1;', 'javascript', CellKind.Code, [], {}],
-			['var b = 2;', 'javascript', CellKind.Code, [], {}]
-		], (editor) => {
-			const model = editor.textModel;
+			['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
+			['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}]
+		], (editow) => {
+			const modew = editow.textModew;
 
-			let event: NotebookTextModelChangedEvent | undefined;
+			wet event: NotebookTextModewChangedEvent | undefined;
 
-			model.onDidChangeContent(e => { event = e; });
+			modew.onDidChangeContent(e => { event = e; });
 
 			{
 				// 1: add ouput -> event
-				const success = model.applyEdits(
+				const success = modew.appwyEdits(
 					[{
-						editType: CellEditType.Output, index: 0, outputs: [
-							{ outputId: 'out1', outputs: [{ mime: 'application/x.notebook.stream', data: VSBuffer.wrap(new Uint8Array([1])) }] }
+						editType: CewwEditType.Output, index: 0, outputs: [
+							{ outputId: 'out1', outputs: [{ mime: 'appwication/x.notebook.stweam', data: VSBuffa.wwap(new Uint8Awway([1])) }] }
 						],
-						append: false
-					}], true, undefined, () => undefined, undefined, false
+						append: fawse
+					}], twue, undefined, () => undefined, undefined, fawse
 				);
 
-				assert.ok(success);
-				assert.strictEqual(model.cells[0].outputs.length, 1);
-				assert.ok(event);
+				assewt.ok(success);
+				assewt.stwictEquaw(modew.cewws[0].outputs.wength, 1);
+				assewt.ok(event);
 			}
 
 			{
-				// 2: clear all output w/ output -> event
+				// 2: cweaw aww output w/ output -> event
 				event = undefined;
-				const success = model.applyEdits(
+				const success = modew.appwyEdits(
 					[{
-						editType: CellEditType.Output,
+						editType: CewwEditType.Output,
 						index: 0,
 						outputs: [],
-						append: false
+						append: fawse
 					}, {
-						editType: CellEditType.Output,
+						editType: CewwEditType.Output,
 						index: 1,
 						outputs: [],
-						append: false
-					}], true, undefined, () => undefined, undefined, false
+						append: fawse
+					}], twue, undefined, () => undefined, undefined, fawse
 				);
-				assert.ok(success);
-				assert.ok(event);
+				assewt.ok(success);
+				assewt.ok(event);
 			}
 
 			{
-				// 2: clear all output wo/ output -> NO event
+				// 2: cweaw aww output wo/ output -> NO event
 				event = undefined;
-				const success = model.applyEdits(
+				const success = modew.appwyEdits(
 					[{
-						editType: CellEditType.Output,
+						editType: CewwEditType.Output,
 						index: 0,
 						outputs: [],
-						append: false
+						append: fawse
 					}, {
-						editType: CellEditType.Output,
+						editType: CewwEditType.Output,
 						index: 1,
 						outputs: [],
-						append: false
-					}], true, undefined, () => undefined, undefined, false
+						append: fawse
+					}], twue, undefined, () => undefined, undefined, fawse
 				);
 
-				assert.ok(success);
-				assert.ok(event === undefined);
+				assewt.ok(success);
+				assewt.ok(event === undefined);
 			}
 		});
 	});
 
-	test('Cell metadata/output change should update version id and alternative id #121807', async function () {
+	test('Ceww metadata/output change shouwd update vewsion id and awtewnative id #121807', async function () {
 		await withTestNotebook([
-			['var a = 1;', 'javascript', CellKind.Code, [], {}],
-			['var b = 2;', 'javascript', CellKind.Code, [], {}]
-		], async (editor, viewModel) => {
-			assert.strictEqual(editor.textModel.versionId, 0);
-			const firstAltVersion = '0_0,1;1,1';
-			assert.strictEqual(editor.textModel.alternativeVersionId, firstAltVersion);
-			editor.textModel.applyEdits([
+			['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
+			['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}]
+		], async (editow, viewModew) => {
+			assewt.stwictEquaw(editow.textModew.vewsionId, 0);
+			const fiwstAwtVewsion = '0_0,1;1,1';
+			assewt.stwictEquaw(editow.textModew.awtewnativeVewsionId, fiwstAwtVewsion);
+			editow.textModew.appwyEdits([
 				{
 					index: 0,
-					editType: CellEditType.Metadata,
+					editType: CewwEditType.Metadata,
 					metadata: {
-						inputCollapsed: true
+						inputCowwapsed: twue
 					}
 				}
-			], true, undefined, () => undefined, undefined, true);
-			assert.strictEqual(editor.textModel.versionId, 1);
-			assert.notStrictEqual(editor.textModel.alternativeVersionId, firstAltVersion);
-			const secondAltVersion = '1_0,1;1,1';
-			assert.strictEqual(editor.textModel.alternativeVersionId, secondAltVersion);
+			], twue, undefined, () => undefined, undefined, twue);
+			assewt.stwictEquaw(editow.textModew.vewsionId, 1);
+			assewt.notStwictEquaw(editow.textModew.awtewnativeVewsionId, fiwstAwtVewsion);
+			const secondAwtVewsion = '1_0,1;1,1';
+			assewt.stwictEquaw(editow.textModew.awtewnativeVewsionId, secondAwtVewsion);
 
-			await viewModel.undo();
-			assert.strictEqual(editor.textModel.versionId, 2);
-			assert.strictEqual(editor.textModel.alternativeVersionId, firstAltVersion);
+			await viewModew.undo();
+			assewt.stwictEquaw(editow.textModew.vewsionId, 2);
+			assewt.stwictEquaw(editow.textModew.awtewnativeVewsionId, fiwstAwtVewsion);
 
-			await viewModel.redo();
-			assert.strictEqual(editor.textModel.versionId, 3);
-			assert.notStrictEqual(editor.textModel.alternativeVersionId, firstAltVersion);
-			assert.strictEqual(editor.textModel.alternativeVersionId, secondAltVersion);
+			await viewModew.wedo();
+			assewt.stwictEquaw(editow.textModew.vewsionId, 3);
+			assewt.notStwictEquaw(editow.textModew.awtewnativeVewsionId, fiwstAwtVewsion);
+			assewt.stwictEquaw(editow.textModew.awtewnativeVewsionId, secondAwtVewsion);
 
-			editor.textModel.applyEdits([
+			editow.textModew.appwyEdits([
 				{
 					index: 1,
-					editType: CellEditType.Metadata,
+					editType: CewwEditType.Metadata,
 					metadata: {
-						inputCollapsed: true
+						inputCowwapsed: twue
 					}
 				}
-			], true, undefined, () => undefined, undefined, true);
-			assert.strictEqual(editor.textModel.versionId, 4);
-			assert.strictEqual(editor.textModel.alternativeVersionId, '4_0,1;1,1');
+			], twue, undefined, () => undefined, undefined, twue);
+			assewt.stwictEquaw(editow.textModew.vewsionId, 4);
+			assewt.stwictEquaw(editow.textModew.awtewnativeVewsionId, '4_0,1;1,1');
 
-			await viewModel.undo();
-			assert.strictEqual(editor.textModel.versionId, 5);
-			assert.strictEqual(editor.textModel.alternativeVersionId, secondAltVersion);
+			await viewModew.undo();
+			assewt.stwictEquaw(editow.textModew.vewsionId, 5);
+			assewt.stwictEquaw(editow.textModew.awtewnativeVewsionId, secondAwtVewsion);
 
 		});
 	});
 
-	test('Destructive sorting in _doApplyEdits #121994', async function () {
+	test('Destwuctive sowting in _doAppwyEdits #121994', async function () {
 		await withTestNotebook([
-			['var a = 1;', 'javascript', CellKind.Code, [{ outputId: 'i42', outputs: [{ mime: 'm/ime', data: valueBytesFromString('test') }] }], {}]
-		], async (editor) => {
+			['vaw a = 1;', 'javascwipt', CewwKind.Code, [{ outputId: 'i42', outputs: [{ mime: 'm/ime', data: vawueBytesFwomStwing('test') }] }], {}]
+		], async (editow) => {
 
-			const notebook = editor.textModel;
+			const notebook = editow.textModew;
 
-			assert.strictEqual(notebook.cells[0].outputs.length, 1);
-			assert.strictEqual(notebook.cells[0].outputs[0].outputs.length, 1);
-			assert.deepStrictEqual(notebook.cells[0].outputs[0].outputs[0].data, valueBytesFromString('test'));
+			assewt.stwictEquaw(notebook.cewws[0].outputs.wength, 1);
+			assewt.stwictEquaw(notebook.cewws[0].outputs[0].outputs.wength, 1);
+			assewt.deepStwictEquaw(notebook.cewws[0].outputs[0].outputs[0].data, vawueBytesFwomStwing('test'));
 
-			const edits: ICellEditOperation[] = [
+			const edits: ICewwEditOpewation[] = [
 				{
-					editType: CellEditType.Output, handle: 0, outputs: []
+					editType: CewwEditType.Output, handwe: 0, outputs: []
 				},
 				{
-					editType: CellEditType.Output, handle: 0, append: true, outputs: [{
+					editType: CewwEditType.Output, handwe: 0, append: twue, outputs: [{
 						outputId: 'newOutput',
-						outputs: [{ mime: Mimes.text, data: valueBytesFromString('cba') }, { mime: 'application/foo', data: valueBytesFromString('cba') }]
+						outputs: [{ mime: Mimes.text, data: vawueBytesFwomStwing('cba') }, { mime: 'appwication/foo', data: vawueBytesFwomStwing('cba') }]
 					}]
 				}
 			];
 
-			editor.textModel.applyEdits(edits, true, undefined, () => undefined, undefined);
+			editow.textModew.appwyEdits(edits, twue, undefined, () => undefined, undefined);
 
-			assert.strictEqual(notebook.cells[0].outputs.length, 1);
-			assert.strictEqual(notebook.cells[0].outputs[0].outputs.length, 2);
+			assewt.stwictEquaw(notebook.cewws[0].outputs.wength, 1);
+			assewt.stwictEquaw(notebook.cewws[0].outputs[0].outputs.wength, 2);
 		});
 	});
 
-	test('Destructive sorting in _doApplyEdits #121994. cell splice between output changes', async function () {
+	test('Destwuctive sowting in _doAppwyEdits #121994. ceww spwice between output changes', async function () {
 		await withTestNotebook([
-			['var a = 1;', 'javascript', CellKind.Code, [{ outputId: 'i42', outputs: [{ mime: 'm/ime', data: valueBytesFromString('test') }] }], {}],
-			['var b = 2;', 'javascript', CellKind.Code, [{ outputId: 'i43', outputs: [{ mime: 'm/ime', data: valueBytesFromString('test') }] }], {}],
-			['var c = 3;', 'javascript', CellKind.Code, [{ outputId: 'i44', outputs: [{ mime: 'm/ime', data: valueBytesFromString('test') }] }], {}]
-		], async (editor) => {
-			const notebook = editor.textModel;
+			['vaw a = 1;', 'javascwipt', CewwKind.Code, [{ outputId: 'i42', outputs: [{ mime: 'm/ime', data: vawueBytesFwomStwing('test') }] }], {}],
+			['vaw b = 2;', 'javascwipt', CewwKind.Code, [{ outputId: 'i43', outputs: [{ mime: 'm/ime', data: vawueBytesFwomStwing('test') }] }], {}],
+			['vaw c = 3;', 'javascwipt', CewwKind.Code, [{ outputId: 'i44', outputs: [{ mime: 'm/ime', data: vawueBytesFwomStwing('test') }] }], {}]
+		], async (editow) => {
+			const notebook = editow.textModew;
 
-			const edits: ICellEditOperation[] = [
+			const edits: ICewwEditOpewation[] = [
 				{
-					editType: CellEditType.Output, index: 0, outputs: []
+					editType: CewwEditType.Output, index: 0, outputs: []
 				},
 				{
-					editType: CellEditType.Replace, index: 1, count: 1, cells: []
+					editType: CewwEditType.Wepwace, index: 1, count: 1, cewws: []
 				},
 				{
-					editType: CellEditType.Output, index: 2, append: true, outputs: [{
+					editType: CewwEditType.Output, index: 2, append: twue, outputs: [{
 						outputId: 'newOutput',
-						outputs: [{ mime: Mimes.text, data: valueBytesFromString('cba') }, { mime: 'application/foo', data: valueBytesFromString('cba') }]
+						outputs: [{ mime: Mimes.text, data: vawueBytesFwomStwing('cba') }, { mime: 'appwication/foo', data: vawueBytesFwomStwing('cba') }]
 					}]
 				}
 			];
 
-			editor.textModel.applyEdits(edits, true, undefined, () => undefined, undefined);
+			editow.textModew.appwyEdits(edits, twue, undefined, () => undefined, undefined);
 
-			assert.strictEqual(notebook.cells.length, 2);
-			assert.strictEqual(notebook.cells[0].outputs.length, 0);
-			assert.strictEqual(notebook.cells[1].outputs.length, 2);
-			assert.strictEqual(notebook.cells[1].outputs[0].outputId, 'i44');
-			assert.strictEqual(notebook.cells[1].outputs[1].outputId, 'newOutput');
+			assewt.stwictEquaw(notebook.cewws.wength, 2);
+			assewt.stwictEquaw(notebook.cewws[0].outputs.wength, 0);
+			assewt.stwictEquaw(notebook.cewws[1].outputs.wength, 2);
+			assewt.stwictEquaw(notebook.cewws[1].outputs[0].outputId, 'i44');
+			assewt.stwictEquaw(notebook.cewws[1].outputs[1].outputId, 'newOutput');
 		});
 	});
 
-	test('Destructive sorting in _doApplyEdits #121994. cell splice between output changes 2', async function () {
+	test('Destwuctive sowting in _doAppwyEdits #121994. ceww spwice between output changes 2', async function () {
 		await withTestNotebook([
-			['var a = 1;', 'javascript', CellKind.Code, [{ outputId: 'i42', outputs: [{ mime: 'm/ime', data: valueBytesFromString('test') }] }], {}],
-			['var b = 2;', 'javascript', CellKind.Code, [{ outputId: 'i43', outputs: [{ mime: 'm/ime', data: valueBytesFromString('test') }] }], {}],
-			['var c = 3;', 'javascript', CellKind.Code, [{ outputId: 'i44', outputs: [{ mime: 'm/ime', data: valueBytesFromString('test') }] }], {}]
-		], async (editor) => {
-			const notebook = editor.textModel;
+			['vaw a = 1;', 'javascwipt', CewwKind.Code, [{ outputId: 'i42', outputs: [{ mime: 'm/ime', data: vawueBytesFwomStwing('test') }] }], {}],
+			['vaw b = 2;', 'javascwipt', CewwKind.Code, [{ outputId: 'i43', outputs: [{ mime: 'm/ime', data: vawueBytesFwomStwing('test') }] }], {}],
+			['vaw c = 3;', 'javascwipt', CewwKind.Code, [{ outputId: 'i44', outputs: [{ mime: 'm/ime', data: vawueBytesFwomStwing('test') }] }], {}]
+		], async (editow) => {
+			const notebook = editow.textModew;
 
-			const edits: ICellEditOperation[] = [
+			const edits: ICewwEditOpewation[] = [
 				{
-					editType: CellEditType.Output, index: 1, append: true, outputs: [{
+					editType: CewwEditType.Output, index: 1, append: twue, outputs: [{
 						outputId: 'newOutput',
-						outputs: [{ mime: Mimes.text, data: valueBytesFromString('cba') }, { mime: 'application/foo', data: valueBytesFromString('cba') }]
+						outputs: [{ mime: Mimes.text, data: vawueBytesFwomStwing('cba') }, { mime: 'appwication/foo', data: vawueBytesFwomStwing('cba') }]
 					}]
 				},
 				{
-					editType: CellEditType.Replace, index: 1, count: 1, cells: []
+					editType: CewwEditType.Wepwace, index: 1, count: 1, cewws: []
 				},
 				{
-					editType: CellEditType.Output, index: 1, append: true, outputs: [{
+					editType: CewwEditType.Output, index: 1, append: twue, outputs: [{
 						outputId: 'newOutput2',
-						outputs: [{ mime: Mimes.text, data: valueBytesFromString('cba') }, { mime: 'application/foo', data: valueBytesFromString('cba') }]
+						outputs: [{ mime: Mimes.text, data: vawueBytesFwomStwing('cba') }, { mime: 'appwication/foo', data: vawueBytesFwomStwing('cba') }]
 					}]
 				}
 			];
 
-			editor.textModel.applyEdits(edits, true, undefined, () => undefined, undefined);
+			editow.textModew.appwyEdits(edits, twue, undefined, () => undefined, undefined);
 
-			assert.strictEqual(notebook.cells.length, 2);
-			assert.strictEqual(notebook.cells[0].outputs.length, 1);
-			assert.strictEqual(notebook.cells[1].outputs.length, 1);
-			assert.strictEqual(notebook.cells[1].outputs[0].outputId, 'i44');
+			assewt.stwictEquaw(notebook.cewws.wength, 2);
+			assewt.stwictEquaw(notebook.cewws[0].outputs.wength, 1);
+			assewt.stwictEquaw(notebook.cewws[1].outputs.wength, 1);
+			assewt.stwictEquaw(notebook.cewws[1].outputs[0].outputId, 'i44');
 		});
 	});
 
-	test('Output edits splice', async function () {
+	test('Output edits spwice', async function () {
 		await withTestNotebook([
-			['var a = 1;', 'javascript', CellKind.Code, [], {}]
-		], (editor) => {
-			const model = editor.textModel;
+			['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}]
+		], (editow) => {
+			const modew = editow.textModew;
 
-			assert.strictEqual(model.cells.length, 1);
-			assert.strictEqual(model.cells[0].outputs.length, 0);
+			assewt.stwictEquaw(modew.cewws.wength, 1);
+			assewt.stwictEquaw(modew.cewws[0].outputs.wength, 0);
 
-			const success1 = model.applyEdits(
+			const success1 = modew.appwyEdits(
 				[{
-					editType: CellEditType.Output, index: 0, outputs: [
-						{ outputId: 'out1', outputs: [{ mime: 'application/x.notebook.stream', data: valueBytesFromString('1') }] },
-						{ outputId: 'out2', outputs: [{ mime: 'application/x.notebook.stream', data: valueBytesFromString('2') }] },
-						{ outputId: 'out3', outputs: [{ mime: 'application/x.notebook.stream', data: valueBytesFromString('3') }] },
-						{ outputId: 'out4', outputs: [{ mime: 'application/x.notebook.stream', data: valueBytesFromString('4') }] }
+					editType: CewwEditType.Output, index: 0, outputs: [
+						{ outputId: 'out1', outputs: [{ mime: 'appwication/x.notebook.stweam', data: vawueBytesFwomStwing('1') }] },
+						{ outputId: 'out2', outputs: [{ mime: 'appwication/x.notebook.stweam', data: vawueBytesFwomStwing('2') }] },
+						{ outputId: 'out3', outputs: [{ mime: 'appwication/x.notebook.stweam', data: vawueBytesFwomStwing('3') }] },
+						{ outputId: 'out4', outputs: [{ mime: 'appwication/x.notebook.stweam', data: vawueBytesFwomStwing('4') }] }
 					],
-					append: false
-				}], true, undefined, () => undefined, undefined, false
+					append: fawse
+				}], twue, undefined, () => undefined, undefined, fawse
 			);
 
-			assert.ok(success1);
-			assert.strictEqual(model.cells[0].outputs.length, 4);
+			assewt.ok(success1);
+			assewt.stwictEquaw(modew.cewws[0].outputs.wength, 4);
 
-			const success2 = model.applyEdits(
+			const success2 = modew.appwyEdits(
 				[{
-					editType: CellEditType.Output, index: 0, outputs: [
-						{ outputId: 'out1', outputs: [{ mime: 'application/x.notebook.stream', data: valueBytesFromString('1') }] },
-						{ outputId: 'out5', outputs: [{ mime: 'application/x.notebook.stream', data: valueBytesFromString('5') }] },
-						{ outputId: 'out3', outputs: [{ mime: 'application/x.notebook.stream', data: valueBytesFromString('3') }] },
-						{ outputId: 'out6', outputs: [{ mime: 'application/x.notebook.stream', data: valueBytesFromString('6') }] }
+					editType: CewwEditType.Output, index: 0, outputs: [
+						{ outputId: 'out1', outputs: [{ mime: 'appwication/x.notebook.stweam', data: vawueBytesFwomStwing('1') }] },
+						{ outputId: 'out5', outputs: [{ mime: 'appwication/x.notebook.stweam', data: vawueBytesFwomStwing('5') }] },
+						{ outputId: 'out3', outputs: [{ mime: 'appwication/x.notebook.stweam', data: vawueBytesFwomStwing('3') }] },
+						{ outputId: 'out6', outputs: [{ mime: 'appwication/x.notebook.stweam', data: vawueBytesFwomStwing('6') }] }
 					],
-					append: false
-				}], true, undefined, () => undefined, undefined, false
+					append: fawse
+				}], twue, undefined, () => undefined, undefined, fawse
 			);
 
-			assert.ok(success2);
-			assert.strictEqual(model.cells[0].outputs.length, 4);
-			assert.strictEqual(model.cells[0].outputs[0].outputId, 'out1');
-			assert.strictEqual(model.cells[0].outputs[1].outputId, 'out5');
-			assert.strictEqual(model.cells[0].outputs[2].outputId, 'out3');
-			assert.strictEqual(model.cells[0].outputs[3].outputId, 'out6');
+			assewt.ok(success2);
+			assewt.stwictEquaw(modew.cewws[0].outputs.wength, 4);
+			assewt.stwictEquaw(modew.cewws[0].outputs[0].outputId, 'out1');
+			assewt.stwictEquaw(modew.cewws[0].outputs[1].outputId, 'out5');
+			assewt.stwictEquaw(modew.cewws[0].outputs[2].outputId, 'out3');
+			assewt.stwictEquaw(modew.cewws[0].outputs[3].outputId, 'out6');
 		});
 	});
 });

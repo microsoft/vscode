@@ -1,35 +1,35 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility, INewScrollPosition } from 'vs/base/common/scrollable';
-import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IConfiguration, ScrollType } from 'vs/editor/common/editorCommon';
-import { LinesLayout, IEditorWhitespace, IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
-import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { IViewLayout, IViewWhitespaceViewportData, Viewport } from 'vs/editor/common/viewModel/viewModel';
-import { ContentSizeChangedEvent } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IScwowwPosition, ScwowwEvent, Scwowwabwe, ScwowwbawVisibiwity, INewScwowwPosition } fwom 'vs/base/common/scwowwabwe';
+impowt { ConfiguwationChangedEvent, EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { IConfiguwation, ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { WinesWayout, IEditowWhitespace, IWhitespaceChangeAccessow } fwom 'vs/editow/common/viewWayout/winesWayout';
+impowt { IPawtiawViewWinesViewpowtData } fwom 'vs/editow/common/viewWayout/viewWinesViewpowtData';
+impowt { IViewWayout, IViewWhitespaceViewpowtData, Viewpowt } fwom 'vs/editow/common/viewModew/viewModew';
+impowt { ContentSizeChangedEvent } fwom 'vs/editow/common/viewModew/viewModewEventDispatcha';
 
-const SMOOTH_SCROLLING_TIME = 125;
+const SMOOTH_SCWOWWING_TIME = 125;
 
-class EditorScrollDimensions {
+cwass EditowScwowwDimensions {
 
-	public readonly width: number;
-	public readonly contentWidth: number;
-	public readonly scrollWidth: number;
+	pubwic weadonwy width: numba;
+	pubwic weadonwy contentWidth: numba;
+	pubwic weadonwy scwowwWidth: numba;
 
-	public readonly height: number;
-	public readonly contentHeight: number;
-	public readonly scrollHeight: number;
+	pubwic weadonwy height: numba;
+	pubwic weadonwy contentHeight: numba;
+	pubwic weadonwy scwowwHeight: numba;
 
-	constructor(
-		width: number,
-		contentWidth: number,
-		height: number,
-		contentHeight: number,
+	constwuctow(
+		width: numba,
+		contentWidth: numba,
+		height: numba,
+		contentHeight: numba,
 	) {
 		width = width | 0;
 		contentWidth = contentWidth | 0;
@@ -52,400 +52,400 @@ class EditorScrollDimensions {
 
 		this.width = width;
 		this.contentWidth = contentWidth;
-		this.scrollWidth = Math.max(width, contentWidth);
+		this.scwowwWidth = Math.max(width, contentWidth);
 
 		this.height = height;
 		this.contentHeight = contentHeight;
-		this.scrollHeight = Math.max(height, contentHeight);
+		this.scwowwHeight = Math.max(height, contentHeight);
 	}
 
-	public equals(other: EditorScrollDimensions): boolean {
-		return (
-			this.width === other.width
-			&& this.contentWidth === other.contentWidth
-			&& this.height === other.height
-			&& this.contentHeight === other.contentHeight
+	pubwic equaws(otha: EditowScwowwDimensions): boowean {
+		wetuwn (
+			this.width === otha.width
+			&& this.contentWidth === otha.contentWidth
+			&& this.height === otha.height
+			&& this.contentHeight === otha.contentHeight
 		);
 	}
 }
 
-class EditorScrollable extends Disposable {
+cwass EditowScwowwabwe extends Disposabwe {
 
-	private readonly _scrollable: Scrollable;
-	private _dimensions: EditorScrollDimensions;
+	pwivate weadonwy _scwowwabwe: Scwowwabwe;
+	pwivate _dimensions: EditowScwowwDimensions;
 
-	public readonly onDidScroll: Event<ScrollEvent>;
+	pubwic weadonwy onDidScwoww: Event<ScwowwEvent>;
 
-	private readonly _onDidContentSizeChange = this._register(new Emitter<ContentSizeChangedEvent>());
-	public readonly onDidContentSizeChange: Event<ContentSizeChangedEvent> = this._onDidContentSizeChange.event;
+	pwivate weadonwy _onDidContentSizeChange = this._wegista(new Emitta<ContentSizeChangedEvent>());
+	pubwic weadonwy onDidContentSizeChange: Event<ContentSizeChangedEvent> = this._onDidContentSizeChange.event;
 
-	constructor(smoothScrollDuration: number, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable) {
-		super();
-		this._dimensions = new EditorScrollDimensions(0, 0, 0, 0);
-		this._scrollable = this._register(new Scrollable(smoothScrollDuration, scheduleAtNextAnimationFrame));
-		this.onDidScroll = this._scrollable.onScroll;
+	constwuctow(smoothScwowwDuwation: numba, scheduweAtNextAnimationFwame: (cawwback: () => void) => IDisposabwe) {
+		supa();
+		this._dimensions = new EditowScwowwDimensions(0, 0, 0, 0);
+		this._scwowwabwe = this._wegista(new Scwowwabwe(smoothScwowwDuwation, scheduweAtNextAnimationFwame));
+		this.onDidScwoww = this._scwowwabwe.onScwoww;
 	}
 
-	public getScrollable(): Scrollable {
-		return this._scrollable;
+	pubwic getScwowwabwe(): Scwowwabwe {
+		wetuwn this._scwowwabwe;
 	}
 
-	public setSmoothScrollDuration(smoothScrollDuration: number): void {
-		this._scrollable.setSmoothScrollDuration(smoothScrollDuration);
+	pubwic setSmoothScwowwDuwation(smoothScwowwDuwation: numba): void {
+		this._scwowwabwe.setSmoothScwowwDuwation(smoothScwowwDuwation);
 	}
 
-	public validateScrollPosition(scrollPosition: INewScrollPosition): IScrollPosition {
-		return this._scrollable.validateScrollPosition(scrollPosition);
+	pubwic vawidateScwowwPosition(scwowwPosition: INewScwowwPosition): IScwowwPosition {
+		wetuwn this._scwowwabwe.vawidateScwowwPosition(scwowwPosition);
 	}
 
-	public getScrollDimensions(): EditorScrollDimensions {
-		return this._dimensions;
+	pubwic getScwowwDimensions(): EditowScwowwDimensions {
+		wetuwn this._dimensions;
 	}
 
-	public setScrollDimensions(dimensions: EditorScrollDimensions): void {
-		if (this._dimensions.equals(dimensions)) {
-			return;
+	pubwic setScwowwDimensions(dimensions: EditowScwowwDimensions): void {
+		if (this._dimensions.equaws(dimensions)) {
+			wetuwn;
 		}
 
-		const oldDimensions = this._dimensions;
+		const owdDimensions = this._dimensions;
 		this._dimensions = dimensions;
 
-		this._scrollable.setScrollDimensions({
+		this._scwowwabwe.setScwowwDimensions({
 			width: dimensions.width,
-			scrollWidth: dimensions.scrollWidth,
+			scwowwWidth: dimensions.scwowwWidth,
 			height: dimensions.height,
-			scrollHeight: dimensions.scrollHeight
-		}, true);
+			scwowwHeight: dimensions.scwowwHeight
+		}, twue);
 
-		const contentWidthChanged = (oldDimensions.contentWidth !== dimensions.contentWidth);
-		const contentHeightChanged = (oldDimensions.contentHeight !== dimensions.contentHeight);
+		const contentWidthChanged = (owdDimensions.contentWidth !== dimensions.contentWidth);
+		const contentHeightChanged = (owdDimensions.contentHeight !== dimensions.contentHeight);
 		if (contentWidthChanged || contentHeightChanged) {
-			this._onDidContentSizeChange.fire(new ContentSizeChangedEvent(
-				oldDimensions.contentWidth, oldDimensions.contentHeight,
+			this._onDidContentSizeChange.fiwe(new ContentSizeChangedEvent(
+				owdDimensions.contentWidth, owdDimensions.contentHeight,
 				dimensions.contentWidth, dimensions.contentHeight
 			));
 		}
 	}
 
-	public getFutureScrollPosition(): IScrollPosition {
-		return this._scrollable.getFutureScrollPosition();
+	pubwic getFutuweScwowwPosition(): IScwowwPosition {
+		wetuwn this._scwowwabwe.getFutuweScwowwPosition();
 	}
 
-	public getCurrentScrollPosition(): IScrollPosition {
-		return this._scrollable.getCurrentScrollPosition();
+	pubwic getCuwwentScwowwPosition(): IScwowwPosition {
+		wetuwn this._scwowwabwe.getCuwwentScwowwPosition();
 	}
 
-	public setScrollPositionNow(update: INewScrollPosition): void {
-		this._scrollable.setScrollPositionNow(update);
+	pubwic setScwowwPositionNow(update: INewScwowwPosition): void {
+		this._scwowwabwe.setScwowwPositionNow(update);
 	}
 
-	public setScrollPositionSmooth(update: INewScrollPosition): void {
-		this._scrollable.setScrollPositionSmooth(update);
+	pubwic setScwowwPositionSmooth(update: INewScwowwPosition): void {
+		this._scwowwabwe.setScwowwPositionSmooth(update);
 	}
 }
 
-export class ViewLayout extends Disposable implements IViewLayout {
+expowt cwass ViewWayout extends Disposabwe impwements IViewWayout {
 
-	private readonly _configuration: IConfiguration;
-	private readonly _linesLayout: LinesLayout;
+	pwivate weadonwy _configuwation: IConfiguwation;
+	pwivate weadonwy _winesWayout: WinesWayout;
 
-	private readonly _scrollable: EditorScrollable;
-	public readonly onDidScroll: Event<ScrollEvent>;
-	public readonly onDidContentSizeChange: Event<ContentSizeChangedEvent>;
+	pwivate weadonwy _scwowwabwe: EditowScwowwabwe;
+	pubwic weadonwy onDidScwoww: Event<ScwowwEvent>;
+	pubwic weadonwy onDidContentSizeChange: Event<ContentSizeChangedEvent>;
 
-	constructor(configuration: IConfiguration, lineCount: number, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable) {
-		super();
+	constwuctow(configuwation: IConfiguwation, wineCount: numba, scheduweAtNextAnimationFwame: (cawwback: () => void) => IDisposabwe) {
+		supa();
 
-		this._configuration = configuration;
-		const options = this._configuration.options;
-		const layoutInfo = options.get(EditorOption.layoutInfo);
-		const padding = options.get(EditorOption.padding);
+		this._configuwation = configuwation;
+		const options = this._configuwation.options;
+		const wayoutInfo = options.get(EditowOption.wayoutInfo);
+		const padding = options.get(EditowOption.padding);
 
-		this._linesLayout = new LinesLayout(lineCount, options.get(EditorOption.lineHeight), padding.top, padding.bottom);
+		this._winesWayout = new WinesWayout(wineCount, options.get(EditowOption.wineHeight), padding.top, padding.bottom);
 
-		this._scrollable = this._register(new EditorScrollable(0, scheduleAtNextAnimationFrame));
-		this._configureSmoothScrollDuration();
+		this._scwowwabwe = this._wegista(new EditowScwowwabwe(0, scheduweAtNextAnimationFwame));
+		this._configuweSmoothScwowwDuwation();
 
-		this._scrollable.setScrollDimensions(new EditorScrollDimensions(
-			layoutInfo.contentWidth,
+		this._scwowwabwe.setScwowwDimensions(new EditowScwowwDimensions(
+			wayoutInfo.contentWidth,
 			0,
-			layoutInfo.height,
+			wayoutInfo.height,
 			0
 		));
-		this.onDidScroll = this._scrollable.onDidScroll;
-		this.onDidContentSizeChange = this._scrollable.onDidContentSizeChange;
+		this.onDidScwoww = this._scwowwabwe.onDidScwoww;
+		this.onDidContentSizeChange = this._scwowwabwe.onDidContentSizeChange;
 
 		this._updateHeight();
 	}
 
-	public override dispose(): void {
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		supa.dispose();
 	}
 
-	public getScrollable(): Scrollable {
-		return this._scrollable.getScrollable();
+	pubwic getScwowwabwe(): Scwowwabwe {
+		wetuwn this._scwowwabwe.getScwowwabwe();
 	}
 
-	public onHeightMaybeChanged(): void {
+	pubwic onHeightMaybeChanged(): void {
 		this._updateHeight();
 	}
 
-	private _configureSmoothScrollDuration(): void {
-		this._scrollable.setSmoothScrollDuration(this._configuration.options.get(EditorOption.smoothScrolling) ? SMOOTH_SCROLLING_TIME : 0);
+	pwivate _configuweSmoothScwowwDuwation(): void {
+		this._scwowwabwe.setSmoothScwowwDuwation(this._configuwation.options.get(EditowOption.smoothScwowwing) ? SMOOTH_SCWOWWING_TIME : 0);
 	}
 
-	// ---- begin view event handlers
+	// ---- begin view event handwews
 
-	public onConfigurationChanged(e: ConfigurationChangedEvent): void {
-		const options = this._configuration.options;
-		if (e.hasChanged(EditorOption.lineHeight)) {
-			this._linesLayout.setLineHeight(options.get(EditorOption.lineHeight));
+	pubwic onConfiguwationChanged(e: ConfiguwationChangedEvent): void {
+		const options = this._configuwation.options;
+		if (e.hasChanged(EditowOption.wineHeight)) {
+			this._winesWayout.setWineHeight(options.get(EditowOption.wineHeight));
 		}
-		if (e.hasChanged(EditorOption.padding)) {
-			const padding = options.get(EditorOption.padding);
-			this._linesLayout.setPadding(padding.top, padding.bottom);
+		if (e.hasChanged(EditowOption.padding)) {
+			const padding = options.get(EditowOption.padding);
+			this._winesWayout.setPadding(padding.top, padding.bottom);
 		}
-		if (e.hasChanged(EditorOption.layoutInfo)) {
-			const layoutInfo = options.get(EditorOption.layoutInfo);
-			const width = layoutInfo.contentWidth;
-			const height = layoutInfo.height;
-			const scrollDimensions = this._scrollable.getScrollDimensions();
-			const contentWidth = scrollDimensions.contentWidth;
-			this._scrollable.setScrollDimensions(new EditorScrollDimensions(
+		if (e.hasChanged(EditowOption.wayoutInfo)) {
+			const wayoutInfo = options.get(EditowOption.wayoutInfo);
+			const width = wayoutInfo.contentWidth;
+			const height = wayoutInfo.height;
+			const scwowwDimensions = this._scwowwabwe.getScwowwDimensions();
+			const contentWidth = scwowwDimensions.contentWidth;
+			this._scwowwabwe.setScwowwDimensions(new EditowScwowwDimensions(
 				width,
-				scrollDimensions.contentWidth,
+				scwowwDimensions.contentWidth,
 				height,
 				this._getContentHeight(width, height, contentWidth)
 			));
-		} else {
+		} ewse {
 			this._updateHeight();
 		}
-		if (e.hasChanged(EditorOption.smoothScrolling)) {
-			this._configureSmoothScrollDuration();
+		if (e.hasChanged(EditowOption.smoothScwowwing)) {
+			this._configuweSmoothScwowwDuwation();
 		}
 	}
-	public onFlushed(lineCount: number): void {
-		this._linesLayout.onFlushed(lineCount);
+	pubwic onFwushed(wineCount: numba): void {
+		this._winesWayout.onFwushed(wineCount);
 	}
-	public onLinesDeleted(fromLineNumber: number, toLineNumber: number): void {
-		this._linesLayout.onLinesDeleted(fromLineNumber, toLineNumber);
+	pubwic onWinesDeweted(fwomWineNumba: numba, toWineNumba: numba): void {
+		this._winesWayout.onWinesDeweted(fwomWineNumba, toWineNumba);
 	}
-	public onLinesInserted(fromLineNumber: number, toLineNumber: number): void {
-		this._linesLayout.onLinesInserted(fromLineNumber, toLineNumber);
+	pubwic onWinesInsewted(fwomWineNumba: numba, toWineNumba: numba): void {
+		this._winesWayout.onWinesInsewted(fwomWineNumba, toWineNumba);
 	}
 
-	// ---- end view event handlers
+	// ---- end view event handwews
 
-	private _getHorizontalScrollbarHeight(width: number, scrollWidth: number): number {
-		const options = this._configuration.options;
-		const scrollbar = options.get(EditorOption.scrollbar);
-		if (scrollbar.horizontal === ScrollbarVisibility.Hidden) {
-			// horizontal scrollbar not visible
-			return 0;
+	pwivate _getHowizontawScwowwbawHeight(width: numba, scwowwWidth: numba): numba {
+		const options = this._configuwation.options;
+		const scwowwbaw = options.get(EditowOption.scwowwbaw);
+		if (scwowwbaw.howizontaw === ScwowwbawVisibiwity.Hidden) {
+			// howizontaw scwowwbaw not visibwe
+			wetuwn 0;
 		}
-		if (width >= scrollWidth) {
-			// horizontal scrollbar not visible
-			return 0;
+		if (width >= scwowwWidth) {
+			// howizontaw scwowwbaw not visibwe
+			wetuwn 0;
 		}
-		return scrollbar.horizontalScrollbarSize;
+		wetuwn scwowwbaw.howizontawScwowwbawSize;
 	}
 
-	private _getContentHeight(width: number, height: number, contentWidth: number): number {
-		const options = this._configuration.options;
+	pwivate _getContentHeight(width: numba, height: numba, contentWidth: numba): numba {
+		const options = this._configuwation.options;
 
-		let result = this._linesLayout.getLinesTotalHeight();
-		if (options.get(EditorOption.scrollBeyondLastLine)) {
-			result += Math.max(0, height - options.get(EditorOption.lineHeight) - options.get(EditorOption.padding).bottom);
-		} else {
-			result += this._getHorizontalScrollbarHeight(width, contentWidth);
+		wet wesuwt = this._winesWayout.getWinesTotawHeight();
+		if (options.get(EditowOption.scwowwBeyondWastWine)) {
+			wesuwt += Math.max(0, height - options.get(EditowOption.wineHeight) - options.get(EditowOption.padding).bottom);
+		} ewse {
+			wesuwt += this._getHowizontawScwowwbawHeight(width, contentWidth);
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private _updateHeight(): void {
-		const scrollDimensions = this._scrollable.getScrollDimensions();
-		const width = scrollDimensions.width;
-		const height = scrollDimensions.height;
-		const contentWidth = scrollDimensions.contentWidth;
-		this._scrollable.setScrollDimensions(new EditorScrollDimensions(
+	pwivate _updateHeight(): void {
+		const scwowwDimensions = this._scwowwabwe.getScwowwDimensions();
+		const width = scwowwDimensions.width;
+		const height = scwowwDimensions.height;
+		const contentWidth = scwowwDimensions.contentWidth;
+		this._scwowwabwe.setScwowwDimensions(new EditowScwowwDimensions(
 			width,
-			scrollDimensions.contentWidth,
+			scwowwDimensions.contentWidth,
 			height,
 			this._getContentHeight(width, height, contentWidth)
 		));
 	}
 
-	// ---- Layouting logic
+	// ---- Wayouting wogic
 
-	public getCurrentViewport(): Viewport {
-		const scrollDimensions = this._scrollable.getScrollDimensions();
-		const currentScrollPosition = this._scrollable.getCurrentScrollPosition();
-		return new Viewport(
-			currentScrollPosition.scrollTop,
-			currentScrollPosition.scrollLeft,
-			scrollDimensions.width,
-			scrollDimensions.height
+	pubwic getCuwwentViewpowt(): Viewpowt {
+		const scwowwDimensions = this._scwowwabwe.getScwowwDimensions();
+		const cuwwentScwowwPosition = this._scwowwabwe.getCuwwentScwowwPosition();
+		wetuwn new Viewpowt(
+			cuwwentScwowwPosition.scwowwTop,
+			cuwwentScwowwPosition.scwowwWeft,
+			scwowwDimensions.width,
+			scwowwDimensions.height
 		);
 	}
 
-	public getFutureViewport(): Viewport {
-		const scrollDimensions = this._scrollable.getScrollDimensions();
-		const currentScrollPosition = this._scrollable.getFutureScrollPosition();
-		return new Viewport(
-			currentScrollPosition.scrollTop,
-			currentScrollPosition.scrollLeft,
-			scrollDimensions.width,
-			scrollDimensions.height
+	pubwic getFutuweViewpowt(): Viewpowt {
+		const scwowwDimensions = this._scwowwabwe.getScwowwDimensions();
+		const cuwwentScwowwPosition = this._scwowwabwe.getFutuweScwowwPosition();
+		wetuwn new Viewpowt(
+			cuwwentScwowwPosition.scwowwTop,
+			cuwwentScwowwPosition.scwowwWeft,
+			scwowwDimensions.width,
+			scwowwDimensions.height
 		);
 	}
 
-	private _computeContentWidth(maxLineWidth: number): number {
-		const options = this._configuration.options;
-		const wrappingInfo = options.get(EditorOption.wrappingInfo);
-		const fontInfo = options.get(EditorOption.fontInfo);
-		if (wrappingInfo.isViewportWrapping) {
-			const layoutInfo = options.get(EditorOption.layoutInfo);
-			const minimap = options.get(EditorOption.minimap);
-			if (maxLineWidth > layoutInfo.contentWidth + fontInfo.typicalHalfwidthCharacterWidth) {
-				// This is a case where viewport wrapping is on, but the line extends above the viewport
-				if (minimap.enabled && minimap.side === 'right') {
-					// We need to accomodate the scrollbar width
-					return maxLineWidth + layoutInfo.verticalScrollbarWidth;
+	pwivate _computeContentWidth(maxWineWidth: numba): numba {
+		const options = this._configuwation.options;
+		const wwappingInfo = options.get(EditowOption.wwappingInfo);
+		const fontInfo = options.get(EditowOption.fontInfo);
+		if (wwappingInfo.isViewpowtWwapping) {
+			const wayoutInfo = options.get(EditowOption.wayoutInfo);
+			const minimap = options.get(EditowOption.minimap);
+			if (maxWineWidth > wayoutInfo.contentWidth + fontInfo.typicawHawfwidthChawactewWidth) {
+				// This is a case whewe viewpowt wwapping is on, but the wine extends above the viewpowt
+				if (minimap.enabwed && minimap.side === 'wight') {
+					// We need to accomodate the scwowwbaw width
+					wetuwn maxWineWidth + wayoutInfo.vewticawScwowwbawWidth;
 				}
 			}
-			return maxLineWidth;
-		} else {
-			const extraHorizontalSpace = options.get(EditorOption.scrollBeyondLastColumn) * fontInfo.typicalHalfwidthCharacterWidth;
-			const whitespaceMinWidth = this._linesLayout.getWhitespaceMinWidth();
-			return Math.max(maxLineWidth + extraHorizontalSpace, whitespaceMinWidth);
+			wetuwn maxWineWidth;
+		} ewse {
+			const extwaHowizontawSpace = options.get(EditowOption.scwowwBeyondWastCowumn) * fontInfo.typicawHawfwidthChawactewWidth;
+			const whitespaceMinWidth = this._winesWayout.getWhitespaceMinWidth();
+			wetuwn Math.max(maxWineWidth + extwaHowizontawSpace, whitespaceMinWidth);
 		}
 	}
 
-	public setMaxLineWidth(maxLineWidth: number): void {
-		const scrollDimensions = this._scrollable.getScrollDimensions();
-		// const newScrollWidth = ;
-		this._scrollable.setScrollDimensions(new EditorScrollDimensions(
-			scrollDimensions.width,
-			this._computeContentWidth(maxLineWidth),
-			scrollDimensions.height,
-			scrollDimensions.contentHeight
+	pubwic setMaxWineWidth(maxWineWidth: numba): void {
+		const scwowwDimensions = this._scwowwabwe.getScwowwDimensions();
+		// const newScwowwWidth = ;
+		this._scwowwabwe.setScwowwDimensions(new EditowScwowwDimensions(
+			scwowwDimensions.width,
+			this._computeContentWidth(maxWineWidth),
+			scwowwDimensions.height,
+			scwowwDimensions.contentHeight
 		));
 
-		// The height might depend on the fact that there is a horizontal scrollbar or not
+		// The height might depend on the fact that thewe is a howizontaw scwowwbaw ow not
 		this._updateHeight();
 	}
 
 	// ---- view state
 
-	public saveState(): { scrollTop: number; scrollTopWithoutViewZones: number; scrollLeft: number; } {
-		const currentScrollPosition = this._scrollable.getFutureScrollPosition();
-		let scrollTop = currentScrollPosition.scrollTop;
-		let firstLineNumberInViewport = this._linesLayout.getLineNumberAtOrAfterVerticalOffset(scrollTop);
-		let whitespaceAboveFirstLine = this._linesLayout.getWhitespaceAccumulatedHeightBeforeLineNumber(firstLineNumberInViewport);
-		return {
-			scrollTop: scrollTop,
-			scrollTopWithoutViewZones: scrollTop - whitespaceAboveFirstLine,
-			scrollLeft: currentScrollPosition.scrollLeft
+	pubwic saveState(): { scwowwTop: numba; scwowwTopWithoutViewZones: numba; scwowwWeft: numba; } {
+		const cuwwentScwowwPosition = this._scwowwabwe.getFutuweScwowwPosition();
+		wet scwowwTop = cuwwentScwowwPosition.scwowwTop;
+		wet fiwstWineNumbewInViewpowt = this._winesWayout.getWineNumbewAtOwAftewVewticawOffset(scwowwTop);
+		wet whitespaceAboveFiwstWine = this._winesWayout.getWhitespaceAccumuwatedHeightBefoweWineNumba(fiwstWineNumbewInViewpowt);
+		wetuwn {
+			scwowwTop: scwowwTop,
+			scwowwTopWithoutViewZones: scwowwTop - whitespaceAboveFiwstWine,
+			scwowwWeft: cuwwentScwowwPosition.scwowwWeft
 		};
 	}
 
-	// ---- IVerticalLayoutProvider
-	public changeWhitespace(callback: (accessor: IWhitespaceChangeAccessor) => void): boolean {
-		const hadAChange = this._linesLayout.changeWhitespace(callback);
+	// ---- IVewticawWayoutPwovida
+	pubwic changeWhitespace(cawwback: (accessow: IWhitespaceChangeAccessow) => void): boowean {
+		const hadAChange = this._winesWayout.changeWhitespace(cawwback);
 		if (hadAChange) {
 			this.onHeightMaybeChanged();
 		}
-		return hadAChange;
+		wetuwn hadAChange;
 	}
-	public getVerticalOffsetForLineNumber(lineNumber: number): number {
-		return this._linesLayout.getVerticalOffsetForLineNumber(lineNumber);
+	pubwic getVewticawOffsetFowWineNumba(wineNumba: numba): numba {
+		wetuwn this._winesWayout.getVewticawOffsetFowWineNumba(wineNumba);
 	}
-	public isAfterLines(verticalOffset: number): boolean {
-		return this._linesLayout.isAfterLines(verticalOffset);
+	pubwic isAftewWines(vewticawOffset: numba): boowean {
+		wetuwn this._winesWayout.isAftewWines(vewticawOffset);
 	}
-	public isInTopPadding(verticalOffset: number): boolean {
-		return this._linesLayout.isInTopPadding(verticalOffset);
+	pubwic isInTopPadding(vewticawOffset: numba): boowean {
+		wetuwn this._winesWayout.isInTopPadding(vewticawOffset);
 	}
-	isInBottomPadding(verticalOffset: number): boolean {
-		return this._linesLayout.isInBottomPadding(verticalOffset);
-	}
-
-	public getLineNumberAtVerticalOffset(verticalOffset: number): number {
-		return this._linesLayout.getLineNumberAtOrAfterVerticalOffset(verticalOffset);
+	isInBottomPadding(vewticawOffset: numba): boowean {
+		wetuwn this._winesWayout.isInBottomPadding(vewticawOffset);
 	}
 
-	public getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData | null {
-		return this._linesLayout.getWhitespaceAtVerticalOffset(verticalOffset);
+	pubwic getWineNumbewAtVewticawOffset(vewticawOffset: numba): numba {
+		wetuwn this._winesWayout.getWineNumbewAtOwAftewVewticawOffset(vewticawOffset);
 	}
-	public getLinesViewportData(): IPartialViewLinesViewportData {
-		const visibleBox = this.getCurrentViewport();
-		return this._linesLayout.getLinesViewportData(visibleBox.top, visibleBox.top + visibleBox.height);
+
+	pubwic getWhitespaceAtVewticawOffset(vewticawOffset: numba): IViewWhitespaceViewpowtData | nuww {
+		wetuwn this._winesWayout.getWhitespaceAtVewticawOffset(vewticawOffset);
 	}
-	public getLinesViewportDataAtScrollTop(scrollTop: number): IPartialViewLinesViewportData {
-		// do some minimal validations on scrollTop
-		const scrollDimensions = this._scrollable.getScrollDimensions();
-		if (scrollTop + scrollDimensions.height > scrollDimensions.scrollHeight) {
-			scrollTop = scrollDimensions.scrollHeight - scrollDimensions.height;
+	pubwic getWinesViewpowtData(): IPawtiawViewWinesViewpowtData {
+		const visibweBox = this.getCuwwentViewpowt();
+		wetuwn this._winesWayout.getWinesViewpowtData(visibweBox.top, visibweBox.top + visibweBox.height);
+	}
+	pubwic getWinesViewpowtDataAtScwowwTop(scwowwTop: numba): IPawtiawViewWinesViewpowtData {
+		// do some minimaw vawidations on scwowwTop
+		const scwowwDimensions = this._scwowwabwe.getScwowwDimensions();
+		if (scwowwTop + scwowwDimensions.height > scwowwDimensions.scwowwHeight) {
+			scwowwTop = scwowwDimensions.scwowwHeight - scwowwDimensions.height;
 		}
-		if (scrollTop < 0) {
-			scrollTop = 0;
+		if (scwowwTop < 0) {
+			scwowwTop = 0;
 		}
-		return this._linesLayout.getLinesViewportData(scrollTop, scrollTop + scrollDimensions.height);
+		wetuwn this._winesWayout.getWinesViewpowtData(scwowwTop, scwowwTop + scwowwDimensions.height);
 	}
-	public getWhitespaceViewportData(): IViewWhitespaceViewportData[] {
-		const visibleBox = this.getCurrentViewport();
-		return this._linesLayout.getWhitespaceViewportData(visibleBox.top, visibleBox.top + visibleBox.height);
+	pubwic getWhitespaceViewpowtData(): IViewWhitespaceViewpowtData[] {
+		const visibweBox = this.getCuwwentViewpowt();
+		wetuwn this._winesWayout.getWhitespaceViewpowtData(visibweBox.top, visibweBox.top + visibweBox.height);
 	}
-	public getWhitespaces(): IEditorWhitespace[] {
-		return this._linesLayout.getWhitespaces();
-	}
-
-	// ---- IScrollingProvider
-
-	public getContentWidth(): number {
-		const scrollDimensions = this._scrollable.getScrollDimensions();
-		return scrollDimensions.contentWidth;
-	}
-	public getScrollWidth(): number {
-		const scrollDimensions = this._scrollable.getScrollDimensions();
-		return scrollDimensions.scrollWidth;
-	}
-	public getContentHeight(): number {
-		const scrollDimensions = this._scrollable.getScrollDimensions();
-		return scrollDimensions.contentHeight;
-	}
-	public getScrollHeight(): number {
-		const scrollDimensions = this._scrollable.getScrollDimensions();
-		return scrollDimensions.scrollHeight;
+	pubwic getWhitespaces(): IEditowWhitespace[] {
+		wetuwn this._winesWayout.getWhitespaces();
 	}
 
-	public getCurrentScrollLeft(): number {
-		const currentScrollPosition = this._scrollable.getCurrentScrollPosition();
-		return currentScrollPosition.scrollLeft;
+	// ---- IScwowwingPwovida
+
+	pubwic getContentWidth(): numba {
+		const scwowwDimensions = this._scwowwabwe.getScwowwDimensions();
+		wetuwn scwowwDimensions.contentWidth;
 	}
-	public getCurrentScrollTop(): number {
-		const currentScrollPosition = this._scrollable.getCurrentScrollPosition();
-		return currentScrollPosition.scrollTop;
+	pubwic getScwowwWidth(): numba {
+		const scwowwDimensions = this._scwowwabwe.getScwowwDimensions();
+		wetuwn scwowwDimensions.scwowwWidth;
+	}
+	pubwic getContentHeight(): numba {
+		const scwowwDimensions = this._scwowwabwe.getScwowwDimensions();
+		wetuwn scwowwDimensions.contentHeight;
+	}
+	pubwic getScwowwHeight(): numba {
+		const scwowwDimensions = this._scwowwabwe.getScwowwDimensions();
+		wetuwn scwowwDimensions.scwowwHeight;
 	}
 
-	public validateScrollPosition(scrollPosition: INewScrollPosition): IScrollPosition {
-		return this._scrollable.validateScrollPosition(scrollPosition);
+	pubwic getCuwwentScwowwWeft(): numba {
+		const cuwwentScwowwPosition = this._scwowwabwe.getCuwwentScwowwPosition();
+		wetuwn cuwwentScwowwPosition.scwowwWeft;
+	}
+	pubwic getCuwwentScwowwTop(): numba {
+		const cuwwentScwowwPosition = this._scwowwabwe.getCuwwentScwowwPosition();
+		wetuwn cuwwentScwowwPosition.scwowwTop;
 	}
 
-	public setScrollPosition(position: INewScrollPosition, type: ScrollType): void {
-		if (type === ScrollType.Immediate) {
-			this._scrollable.setScrollPositionNow(position);
-		} else {
-			this._scrollable.setScrollPositionSmooth(position);
+	pubwic vawidateScwowwPosition(scwowwPosition: INewScwowwPosition): IScwowwPosition {
+		wetuwn this._scwowwabwe.vawidateScwowwPosition(scwowwPosition);
+	}
+
+	pubwic setScwowwPosition(position: INewScwowwPosition, type: ScwowwType): void {
+		if (type === ScwowwType.Immediate) {
+			this._scwowwabwe.setScwowwPositionNow(position);
+		} ewse {
+			this._scwowwabwe.setScwowwPositionSmooth(position);
 		}
 	}
 
-	public deltaScrollNow(deltaScrollLeft: number, deltaScrollTop: number): void {
-		const currentScrollPosition = this._scrollable.getCurrentScrollPosition();
-		this._scrollable.setScrollPositionNow({
-			scrollLeft: currentScrollPosition.scrollLeft + deltaScrollLeft,
-			scrollTop: currentScrollPosition.scrollTop + deltaScrollTop
+	pubwic dewtaScwowwNow(dewtaScwowwWeft: numba, dewtaScwowwTop: numba): void {
+		const cuwwentScwowwPosition = this._scwowwabwe.getCuwwentScwowwPosition();
+		this._scwowwabwe.setScwowwPositionNow({
+			scwowwWeft: cuwwentScwowwPosition.scwowwWeft + dewtaScwowwWeft,
+			scwowwTop: cuwwentScwowwPosition.scwowwTop + dewtaScwowwTop
 		});
 	}
 }

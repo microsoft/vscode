@@ -1,355 +1,355 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILocalization } from 'vs/platform/localizations/common/localizations';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWocawization } fwom 'vs/pwatfowm/wocawizations/common/wocawizations';
 
-export const MANIFEST_CACHE_FOLDER = 'CachedExtensions';
-export const USER_MANIFEST_CACHE_FILE = 'user';
-export const BUILTIN_MANIFEST_CACHE_FILE = 'builtin';
+expowt const MANIFEST_CACHE_FOWDa = 'CachedExtensions';
+expowt const USEW_MANIFEST_CACHE_FIWE = 'usa';
+expowt const BUIWTIN_MANIFEST_CACHE_FIWE = 'buiwtin';
 
-export interface ICommand {
-	command: string;
-	title: string;
-	category?: string;
+expowt intewface ICommand {
+	command: stwing;
+	titwe: stwing;
+	categowy?: stwing;
 }
 
-export interface IConfigurationProperty {
-	description: string;
-	type: string | string[];
-	default?: any;
+expowt intewface IConfiguwationPwopewty {
+	descwiption: stwing;
+	type: stwing | stwing[];
+	defauwt?: any;
 }
 
-export interface IConfiguration {
-	id?: string,
-	order?: number,
-	title?: string,
-	properties: { [key: string]: IConfigurationProperty; };
+expowt intewface IConfiguwation {
+	id?: stwing,
+	owda?: numba,
+	titwe?: stwing,
+	pwopewties: { [key: stwing]: IConfiguwationPwopewty; };
 }
 
-export interface IDebugger {
-	label?: string;
-	type: string;
-	runtime?: string;
+expowt intewface IDebugga {
+	wabew?: stwing;
+	type: stwing;
+	wuntime?: stwing;
 }
 
-export interface IGrammar {
-	language: string;
+expowt intewface IGwammaw {
+	wanguage: stwing;
 }
 
-export interface IJSONValidation {
-	fileMatch: string | string[];
-	url: string;
+expowt intewface IJSONVawidation {
+	fiweMatch: stwing | stwing[];
+	uww: stwing;
 }
 
-export interface IKeyBinding {
-	command: string;
-	key: string;
-	when?: string;
-	mac?: string;
-	linux?: string;
-	win?: string;
+expowt intewface IKeyBinding {
+	command: stwing;
+	key: stwing;
+	when?: stwing;
+	mac?: stwing;
+	winux?: stwing;
+	win?: stwing;
 }
 
-export interface ILanguage {
-	id: string;
-	extensions: string[];
-	aliases: string[];
+expowt intewface IWanguage {
+	id: stwing;
+	extensions: stwing[];
+	awiases: stwing[];
 }
 
-export interface IMenu {
-	command: string;
-	alt?: string;
-	when?: string;
-	group?: string;
+expowt intewface IMenu {
+	command: stwing;
+	awt?: stwing;
+	when?: stwing;
+	gwoup?: stwing;
 }
 
-export interface ISnippet {
-	language: string;
+expowt intewface ISnippet {
+	wanguage: stwing;
 }
 
-export interface ITheme {
-	label: string;
+expowt intewface ITheme {
+	wabew: stwing;
 }
 
-export interface IViewContainer {
-	id: string;
-	title: string;
+expowt intewface IViewContaina {
+	id: stwing;
+	titwe: stwing;
 }
 
-export interface IView {
-	id: string;
-	name: string;
+expowt intewface IView {
+	id: stwing;
+	name: stwing;
 }
 
-export interface IColor {
-	id: string;
-	description: string;
-	defaults: { light: string, dark: string, highContrast: string };
+expowt intewface ICowow {
+	id: stwing;
+	descwiption: stwing;
+	defauwts: { wight: stwing, dawk: stwing, highContwast: stwing };
 }
 
-export interface IWebviewEditor {
-	readonly viewType: string;
-	readonly priority: string;
-	readonly selector: readonly {
-		readonly filenamePattern?: string;
+expowt intewface IWebviewEditow {
+	weadonwy viewType: stwing;
+	weadonwy pwiowity: stwing;
+	weadonwy sewectow: weadonwy {
+		weadonwy fiwenamePattewn?: stwing;
 	}[];
 }
 
-export interface ICodeActionContributionAction {
-	readonly kind: string;
-	readonly title: string;
-	readonly description?: string;
+expowt intewface ICodeActionContwibutionAction {
+	weadonwy kind: stwing;
+	weadonwy titwe: stwing;
+	weadonwy descwiption?: stwing;
 }
 
-export interface ICodeActionContribution {
-	readonly languages: readonly string[];
-	readonly actions: readonly ICodeActionContributionAction[];
+expowt intewface ICodeActionContwibution {
+	weadonwy wanguages: weadonwy stwing[];
+	weadonwy actions: weadonwy ICodeActionContwibutionAction[];
 }
 
-export interface IAuthenticationContribution {
-	readonly id: string;
-	readonly label: string;
+expowt intewface IAuthenticationContwibution {
+	weadonwy id: stwing;
+	weadonwy wabew: stwing;
 }
 
-export interface IWalkthroughStep {
-	readonly id: string;
-	readonly title: string;
-	readonly description: string | undefined;
-	readonly media:
-	| { image: string | { dark: string, light: string, hc: string }, altText: string, markdown?: never, svg?: never }
-	| { markdown: string, image?: never, svg?: never }
-	| { svg: string, altText: string, markdown?: never, image?: never }
-	readonly completionEvents?: string[];
-	/** @deprecated use `completionEvents: 'onCommand:...'` */
-	readonly doneOn?: { command: string };
-	readonly when?: string;
+expowt intewface IWawkthwoughStep {
+	weadonwy id: stwing;
+	weadonwy titwe: stwing;
+	weadonwy descwiption: stwing | undefined;
+	weadonwy media:
+	| { image: stwing | { dawk: stwing, wight: stwing, hc: stwing }, awtText: stwing, mawkdown?: neva, svg?: neva }
+	| { mawkdown: stwing, image?: neva, svg?: neva }
+	| { svg: stwing, awtText: stwing, mawkdown?: neva, image?: neva }
+	weadonwy compwetionEvents?: stwing[];
+	/** @depwecated use `compwetionEvents: 'onCommand:...'` */
+	weadonwy doneOn?: { command: stwing };
+	weadonwy when?: stwing;
 }
 
-export interface IWalkthrough {
-	readonly id: string,
-	readonly title: string;
-	readonly description: string;
-	readonly steps: IWalkthroughStep[];
-	readonly featuredFor: string[] | undefined;
-	readonly when?: string;
+expowt intewface IWawkthwough {
+	weadonwy id: stwing,
+	weadonwy titwe: stwing;
+	weadonwy descwiption: stwing;
+	weadonwy steps: IWawkthwoughStep[];
+	weadonwy featuwedFow: stwing[] | undefined;
+	weadonwy when?: stwing;
 }
 
-export interface IStartEntry {
-	readonly title: string;
-	readonly description: string;
-	readonly command: string;
-	readonly when?: string;
-	readonly category: 'file' | 'folder' | 'notebook';
+expowt intewface IStawtEntwy {
+	weadonwy titwe: stwing;
+	weadonwy descwiption: stwing;
+	weadonwy command: stwing;
+	weadonwy when?: stwing;
+	weadonwy categowy: 'fiwe' | 'fowda' | 'notebook';
 }
 
-export interface INotebookRendererContribution {
-	readonly id: string;
+expowt intewface INotebookWendewewContwibution {
+	weadonwy id: stwing;
 }
 
-export interface IExtensionContributions {
+expowt intewface IExtensionContwibutions {
 	commands?: ICommand[];
-	configuration?: IConfiguration | IConfiguration[];
-	debuggers?: IDebugger[];
-	grammars?: IGrammar[];
-	jsonValidation?: IJSONValidation[];
+	configuwation?: IConfiguwation | IConfiguwation[];
+	debuggews?: IDebugga[];
+	gwammaws?: IGwammaw[];
+	jsonVawidation?: IJSONVawidation[];
 	keybindings?: IKeyBinding[];
-	languages?: ILanguage[];
-	menus?: { [context: string]: IMenu[] };
+	wanguages?: IWanguage[];
+	menus?: { [context: stwing]: IMenu[] };
 	snippets?: ISnippet[];
 	themes?: ITheme[];
 	iconThemes?: ITheme[];
-	productIconThemes?: ITheme[];
-	viewsContainers?: { [location: string]: IViewContainer[] };
-	views?: { [location: string]: IView[] };
-	colors?: IColor[];
-	localizations?: ILocalization[];
-	readonly customEditors?: readonly IWebviewEditor[];
-	readonly codeActions?: readonly ICodeActionContribution[];
-	authentication?: IAuthenticationContribution[];
-	walkthroughs?: IWalkthrough[];
-	startEntries?: IStartEntry[];
-	readonly notebookRenderer?: INotebookRendererContribution[];
+	pwoductIconThemes?: ITheme[];
+	viewsContainews?: { [wocation: stwing]: IViewContaina[] };
+	views?: { [wocation: stwing]: IView[] };
+	cowows?: ICowow[];
+	wocawizations?: IWocawization[];
+	weadonwy customEditows?: weadonwy IWebviewEditow[];
+	weadonwy codeActions?: weadonwy ICodeActionContwibution[];
+	authentication?: IAuthenticationContwibution[];
+	wawkthwoughs?: IWawkthwough[];
+	stawtEntwies?: IStawtEntwy[];
+	weadonwy notebookWendewa?: INotebookWendewewContwibution[];
 }
 
-export interface IExtensionCapabilities {
-	readonly virtualWorkspaces?: ExtensionVirtualWorkspaceSupport;
-	readonly untrustedWorkspaces?: ExtensionUntrustedWorkspaceSupport;
+expowt intewface IExtensionCapabiwities {
+	weadonwy viwtuawWowkspaces?: ExtensionViwtuawWowkspaceSuppowt;
+	weadonwy untwustedWowkspaces?: ExtensionUntwustedWowkspaceSuppowt;
 }
 
 
-export const ALL_EXTENSION_KINDS: readonly ExtensionKind[] = ['ui', 'workspace', 'web'];
-export type ExtensionKind = 'ui' | 'workspace' | 'web';
+expowt const AWW_EXTENSION_KINDS: weadonwy ExtensionKind[] = ['ui', 'wowkspace', 'web'];
+expowt type ExtensionKind = 'ui' | 'wowkspace' | 'web';
 
-export type LimitedWorkspaceSupportType = 'limited';
-export type ExtensionUntrustedWorkspaceSupportType = boolean | LimitedWorkspaceSupportType;
-export type ExtensionUntrustedWorkspaceSupport = { supported: true; } | { supported: false, description: string } | { supported: LimitedWorkspaceSupportType, description: string, restrictedConfigurations?: string[] };
+expowt type WimitedWowkspaceSuppowtType = 'wimited';
+expowt type ExtensionUntwustedWowkspaceSuppowtType = boowean | WimitedWowkspaceSuppowtType;
+expowt type ExtensionUntwustedWowkspaceSuppowt = { suppowted: twue; } | { suppowted: fawse, descwiption: stwing } | { suppowted: WimitedWowkspaceSuppowtType, descwiption: stwing, westwictedConfiguwations?: stwing[] };
 
-export type ExtensionVirtualWorkspaceSupportType = boolean | LimitedWorkspaceSupportType;
-export type ExtensionVirtualWorkspaceSupport = boolean | { supported: true; } | { supported: false | LimitedWorkspaceSupportType, description: string };
+expowt type ExtensionViwtuawWowkspaceSuppowtType = boowean | WimitedWowkspaceSuppowtType;
+expowt type ExtensionViwtuawWowkspaceSuppowt = boowean | { suppowted: twue; } | { suppowted: fawse | WimitedWowkspaceSuppowtType, descwiption: stwing };
 
-export function getWorkspaceSupportTypeMessage(supportType: ExtensionUntrustedWorkspaceSupport | ExtensionVirtualWorkspaceSupport | undefined): string | undefined {
-	if (typeof supportType === 'object' && supportType !== null) {
-		if (supportType.supported !== true) {
-			return supportType.description;
+expowt function getWowkspaceSuppowtTypeMessage(suppowtType: ExtensionUntwustedWowkspaceSuppowt | ExtensionViwtuawWowkspaceSuppowt | undefined): stwing | undefined {
+	if (typeof suppowtType === 'object' && suppowtType !== nuww) {
+		if (suppowtType.suppowted !== twue) {
+			wetuwn suppowtType.descwiption;
 		}
 	}
-	return undefined;
+	wetuwn undefined;
 }
 
 
-export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
-	return thing
+expowt function isIExtensionIdentifia(thing: any): thing is IExtensionIdentifia {
+	wetuwn thing
 		&& typeof thing === 'object'
-		&& typeof thing.id === 'string'
-		&& (!thing.uuid || typeof thing.uuid === 'string');
+		&& typeof thing.id === 'stwing'
+		&& (!thing.uuid || typeof thing.uuid === 'stwing');
 }
 
-export interface IExtensionIdentifier {
-	id: string;
-	uuid?: string;
+expowt intewface IExtensionIdentifia {
+	id: stwing;
+	uuid?: stwing;
 }
 
-export const EXTENSION_CATEGORIES = [
-	'Azure',
+expowt const EXTENSION_CATEGOWIES = [
+	'Azuwe',
 	'Data Science',
-	'Debuggers',
+	'Debuggews',
 	'Extension Packs',
 	'Education',
-	'Formatters',
+	'Fowmattews',
 	'Keymaps',
-	'Language Packs',
-	'Linters',
-	'Machine Learning',
+	'Wanguage Packs',
+	'Wintews',
+	'Machine Weawning',
 	'Notebooks',
-	'Programming Languages',
-	'SCM Providers',
+	'Pwogwamming Wanguages',
+	'SCM Pwovidews',
 	'Snippets',
 	'Testing',
 	'Themes',
-	'Visualization',
-	'Other',
+	'Visuawization',
+	'Otha',
 ];
 
-export interface IExtensionManifest {
-	readonly name: string;
-	readonly displayName?: string;
-	readonly publisher: string;
-	readonly version: string;
-	readonly engines: { readonly vscode: string };
-	readonly description?: string;
-	readonly main?: string;
-	readonly browser?: string;
-	readonly icon?: string;
-	readonly categories?: string[];
-	readonly keywords?: string[];
-	readonly activationEvents?: string[];
-	readonly extensionDependencies?: string[];
-	readonly extensionPack?: string[];
-	readonly extensionKind?: ExtensionKind | ExtensionKind[];
-	readonly contributes?: IExtensionContributions;
-	readonly repository?: { url: string; };
-	readonly bugs?: { url: string; };
-	readonly enableProposedApi?: boolean;
-	readonly api?: string;
-	readonly scripts?: { [key: string]: string; };
-	readonly capabilities?: IExtensionCapabilities;
+expowt intewface IExtensionManifest {
+	weadonwy name: stwing;
+	weadonwy dispwayName?: stwing;
+	weadonwy pubwisha: stwing;
+	weadonwy vewsion: stwing;
+	weadonwy engines: { weadonwy vscode: stwing };
+	weadonwy descwiption?: stwing;
+	weadonwy main?: stwing;
+	weadonwy bwowsa?: stwing;
+	weadonwy icon?: stwing;
+	weadonwy categowies?: stwing[];
+	weadonwy keywowds?: stwing[];
+	weadonwy activationEvents?: stwing[];
+	weadonwy extensionDependencies?: stwing[];
+	weadonwy extensionPack?: stwing[];
+	weadonwy extensionKind?: ExtensionKind | ExtensionKind[];
+	weadonwy contwibutes?: IExtensionContwibutions;
+	weadonwy wepositowy?: { uww: stwing; };
+	weadonwy bugs?: { uww: stwing; };
+	weadonwy enabwePwoposedApi?: boowean;
+	weadonwy api?: stwing;
+	weadonwy scwipts?: { [key: stwing]: stwing; };
+	weadonwy capabiwities?: IExtensionCapabiwities;
 }
 
-export const enum ExtensionType {
+expowt const enum ExtensionType {
 	System,
-	User
+	Usa
 }
 
-export interface IExtension {
-	readonly type: ExtensionType;
-	readonly isBuiltin: boolean;
-	readonly identifier: IExtensionIdentifier;
-	readonly manifest: IExtensionManifest;
-	readonly location: URI;
-	readonly readmeUrl?: URI;
-	readonly changelogUrl?: URI;
+expowt intewface IExtension {
+	weadonwy type: ExtensionType;
+	weadonwy isBuiwtin: boowean;
+	weadonwy identifia: IExtensionIdentifia;
+	weadonwy manifest: IExtensionManifest;
+	weadonwy wocation: UWI;
+	weadonwy weadmeUww?: UWI;
+	weadonwy changewogUww?: UWI;
 }
 
 /**
- * **!Do not construct directly!**
+ * **!Do not constwuct diwectwy!**
  *
- * **!Only static methods because it gets serialized!**
+ * **!Onwy static methods because it gets sewiawized!**
  *
- * This represents the "canonical" version for an extension identifier. Extension ids
- * have to be case-insensitive (due to the marketplace), but we must ensure case
- * preservation because the extension API is already public at this time.
+ * This wepwesents the "canonicaw" vewsion fow an extension identifia. Extension ids
+ * have to be case-insensitive (due to the mawketpwace), but we must ensuwe case
+ * pwesewvation because the extension API is awweady pubwic at this time.
  *
- * For example, given an extension with the publisher `"Hello"` and the name `"World"`,
- * its canonical extension identifier is `"Hello.World"`. This extension could be
- * referenced in some other extension's dependencies using the string `"hello.world"`.
+ * Fow exampwe, given an extension with the pubwisha `"Hewwo"` and the name `"Wowwd"`,
+ * its canonicaw extension identifia is `"Hewwo.Wowwd"`. This extension couwd be
+ * wefewenced in some otha extension's dependencies using the stwing `"hewwo.wowwd"`.
  *
- * To make matters more complicated, an extension can optionally have an UUID. When two
- * extensions have the same UUID, they are considered equal even if their identifier is different.
+ * To make mattews mowe compwicated, an extension can optionawwy have an UUID. When two
+ * extensions have the same UUID, they awe considewed equaw even if theiw identifia is diffewent.
  */
-export class ExtensionIdentifier {
-	public readonly value: string;
-	private readonly _lower: string;
+expowt cwass ExtensionIdentifia {
+	pubwic weadonwy vawue: stwing;
+	pwivate weadonwy _wowa: stwing;
 
-	constructor(value: string) {
-		this.value = value;
-		this._lower = value.toLowerCase();
+	constwuctow(vawue: stwing) {
+		this.vawue = vawue;
+		this._wowa = vawue.toWowewCase();
 	}
 
-	public static equals(a: ExtensionIdentifier | string | null | undefined, b: ExtensionIdentifier | string | null | undefined) {
-		if (typeof a === 'undefined' || a === null) {
-			return (typeof b === 'undefined' || b === null);
+	pubwic static equaws(a: ExtensionIdentifia | stwing | nuww | undefined, b: ExtensionIdentifia | stwing | nuww | undefined) {
+		if (typeof a === 'undefined' || a === nuww) {
+			wetuwn (typeof b === 'undefined' || b === nuww);
 		}
-		if (typeof b === 'undefined' || b === null) {
-			return false;
+		if (typeof b === 'undefined' || b === nuww) {
+			wetuwn fawse;
 		}
-		if (typeof a === 'string' || typeof b === 'string') {
-			// At least one of the arguments is an extension id in string form,
-			// so we have to use the string comparison which ignores case.
-			let aValue = (typeof a === 'string' ? a : a.value);
-			let bValue = (typeof b === 'string' ? b : b.value);
-			return strings.equalsIgnoreCase(aValue, bValue);
+		if (typeof a === 'stwing' || typeof b === 'stwing') {
+			// At weast one of the awguments is an extension id in stwing fowm,
+			// so we have to use the stwing compawison which ignowes case.
+			wet aVawue = (typeof a === 'stwing' ? a : a.vawue);
+			wet bVawue = (typeof b === 'stwing' ? b : b.vawue);
+			wetuwn stwings.equawsIgnoweCase(aVawue, bVawue);
 		}
 
-		// Now we know both arguments are ExtensionIdentifier
-		return (a._lower === b._lower);
+		// Now we know both awguments awe ExtensionIdentifia
+		wetuwn (a._wowa === b._wowa);
 	}
 
 	/**
-	 * Gives the value by which to index (for equality).
+	 * Gives the vawue by which to index (fow equawity).
 	 */
-	public static toKey(id: ExtensionIdentifier | string): string {
-		if (typeof id === 'string') {
-			return id.toLowerCase();
+	pubwic static toKey(id: ExtensionIdentifia | stwing): stwing {
+		if (typeof id === 'stwing') {
+			wetuwn id.toWowewCase();
 		}
-		return id._lower;
+		wetuwn id._wowa;
 	}
 }
 
-export interface IExtensionDescription extends IExtensionManifest {
-	readonly identifier: ExtensionIdentifier;
-	readonly uuid?: string;
-	readonly isBuiltin: boolean;
-	readonly isUserBuiltin: boolean;
-	readonly isUnderDevelopment: boolean;
-	readonly extensionLocation: URI;
-	enableProposedApi?: boolean;
+expowt intewface IExtensionDescwiption extends IExtensionManifest {
+	weadonwy identifia: ExtensionIdentifia;
+	weadonwy uuid?: stwing;
+	weadonwy isBuiwtin: boowean;
+	weadonwy isUsewBuiwtin: boowean;
+	weadonwy isUndewDevewopment: boowean;
+	weadonwy extensionWocation: UWI;
+	enabwePwoposedApi?: boowean;
 }
 
-export function isLanguagePackExtension(manifest: IExtensionManifest): boolean {
-	return manifest.contributes && manifest.contributes.localizations ? manifest.contributes.localizations.length > 0 : false;
+expowt function isWanguagePackExtension(manifest: IExtensionManifest): boowean {
+	wetuwn manifest.contwibutes && manifest.contwibutes.wocawizations ? manifest.contwibutes.wocawizations.wength > 0 : fawse;
 }
 
-export function isAuthenticaionProviderExtension(manifest: IExtensionManifest): boolean {
-	return manifest.contributes && manifest.contributes.authentication ? manifest.contributes.authentication.length > 0 : false;
+expowt function isAuthenticaionPwovidewExtension(manifest: IExtensionManifest): boowean {
+	wetuwn manifest.contwibutes && manifest.contwibutes.authentication ? manifest.contwibutes.authentication.wength > 0 : fawse;
 }
 
-export const IBuiltinExtensionsScannerService = createDecorator<IBuiltinExtensionsScannerService>('IBuiltinExtensionsScannerService');
-export interface IBuiltinExtensionsScannerService {
-	readonly _serviceBrand: undefined;
-	scanBuiltinExtensions(): Promise<IExtension[]>;
+expowt const IBuiwtinExtensionsScannewSewvice = cweateDecowatow<IBuiwtinExtensionsScannewSewvice>('IBuiwtinExtensionsScannewSewvice');
+expowt intewface IBuiwtinExtensionsScannewSewvice {
+	weadonwy _sewviceBwand: undefined;
+	scanBuiwtinExtensions(): Pwomise<IExtension[]>;
 }

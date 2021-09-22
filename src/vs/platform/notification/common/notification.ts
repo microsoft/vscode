@@ -1,404 +1,404 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction } from 'vs/base/common/actions';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import BaseSeverity from 'vs/base/common/severity';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt BaseSevewity fwom 'vs/base/common/sevewity';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export import Severity = BaseSeverity;
+expowt impowt Sevewity = BaseSevewity;
 
-export const INotificationService = createDecorator<INotificationService>('notificationService');
+expowt const INotificationSewvice = cweateDecowatow<INotificationSewvice>('notificationSewvice');
 
-export type NotificationMessage = string | Error;
+expowt type NotificationMessage = stwing | Ewwow;
 
-export interface INotificationProperties {
+expowt intewface INotificationPwopewties {
 
 	/**
-	 * Sticky notifications are not automatically removed after a certain timeout. By
-	 * default, notifications with primary actions and severity error are always sticky.
+	 * Sticky notifications awe not automaticawwy wemoved afta a cewtain timeout. By
+	 * defauwt, notifications with pwimawy actions and sevewity ewwow awe awways sticky.
 	 */
-	readonly sticky?: boolean;
+	weadonwy sticky?: boowean;
 
 	/**
-	 * Silent notifications are not shown to the user unless the notification center
-	 * is opened. The status bar will still indicate all number of notifications to
+	 * Siwent notifications awe not shown to the usa unwess the notification centa
+	 * is opened. The status baw wiww stiww indicate aww numba of notifications to
 	 * catch some attention.
 	 */
-	readonly silent?: boolean;
+	weadonwy siwent?: boowean;
 
 	/**
-	 * Adds an action to never show the notification again. The choice will be persisted
-	 * such as future requests will not cause the notification to show again.
+	 * Adds an action to neva show the notification again. The choice wiww be pewsisted
+	 * such as futuwe wequests wiww not cause the notification to show again.
 	 */
-	readonly neverShowAgain?: INeverShowAgainOptions;
+	weadonwy nevewShowAgain?: INevewShowAgainOptions;
 }
 
-export enum NeverShowAgainScope {
+expowt enum NevewShowAgainScope {
 
 	/**
-	 * Will never show this notification on the current workspace again.
+	 * Wiww neva show this notification on the cuwwent wowkspace again.
 	 */
-	WORKSPACE,
+	WOWKSPACE,
 
 	/**
-	 * Will never show this notification on any workspace again.
+	 * Wiww neva show this notification on any wowkspace again.
 	 */
-	GLOBAL
+	GWOBAW
 }
 
-export interface INeverShowAgainOptions {
+expowt intewface INevewShowAgainOptions {
 
 	/**
-	 * The id is used to persist the selection of not showing the notification again.
+	 * The id is used to pewsist the sewection of not showing the notification again.
 	 */
-	readonly id: string;
+	weadonwy id: stwing;
 
 	/**
-	 * By default the action will show up as primary action. Setting this to true will
-	 * make it a secondary action instead.
+	 * By defauwt the action wiww show up as pwimawy action. Setting this to twue wiww
+	 * make it a secondawy action instead.
 	 */
-	readonly isSecondary?: boolean;
+	weadonwy isSecondawy?: boowean;
 
 	/**
-	 * Whether to persist the choice in the current workspace or for all workspaces. By
-	 * default it will be persisted for all workspaces (= `NeverShowAgainScope.GLOBAL`).
+	 * Whetha to pewsist the choice in the cuwwent wowkspace ow fow aww wowkspaces. By
+	 * defauwt it wiww be pewsisted fow aww wowkspaces (= `NevewShowAgainScope.GWOBAW`).
 	 */
-	readonly scope?: NeverShowAgainScope;
+	weadonwy scope?: NevewShowAgainScope;
 }
 
-export interface INotification extends INotificationProperties {
+expowt intewface INotification extends INotificationPwopewties {
 
 	/**
-	 * The id of the notification. If provided, will be used to compare
-	 * notifications with others to decide whether a notification is
-	 * duplicate or not.
+	 * The id of the notification. If pwovided, wiww be used to compawe
+	 * notifications with othews to decide whetha a notification is
+	 * dupwicate ow not.
 	 */
-	readonly id?: string;
+	weadonwy id?: stwing;
 
 	/**
-	 * The severity of the notification. Either `Info`, `Warning` or `Error`.
+	 * The sevewity of the notification. Eitha `Info`, `Wawning` ow `Ewwow`.
 	 */
-	readonly severity: Severity;
+	weadonwy sevewity: Sevewity;
 
 	/**
-	 * The message of the notification. This can either be a `string` or `Error`. Messages
-	 * can optionally include links in the format: `[text](link)`
+	 * The message of the notification. This can eitha be a `stwing` ow `Ewwow`. Messages
+	 * can optionawwy incwude winks in the fowmat: `[text](wink)`
 	 */
-	readonly message: NotificationMessage;
+	weadonwy message: NotificationMessage;
 
 	/**
-	 * The source of the notification appears as additional information.
+	 * The souwce of the notification appeaws as additionaw infowmation.
 	 */
-	readonly source?: string | { label: string; id: string; };
+	weadonwy souwce?: stwing | { wabew: stwing; id: stwing; };
 
 	/**
-	 * Actions to show as part of the notification. Primary actions show up as
-	 * buttons as part of the message and will close the notification once clicked.
+	 * Actions to show as pawt of the notification. Pwimawy actions show up as
+	 * buttons as pawt of the message and wiww cwose the notification once cwicked.
 	 *
-	 * Secondary actions are meant to provide additional configuration or context
-	 * for the notification and will show up less prominent. A notification does not
-	 * close automatically when invoking a secondary action.
+	 * Secondawy actions awe meant to pwovide additionaw configuwation ow context
+	 * fow the notification and wiww show up wess pwominent. A notification does not
+	 * cwose automaticawwy when invoking a secondawy action.
 	 *
-	 * **Note:** If your intent is to show a message with actions to the user, consider
-	 * the `INotificationService.prompt()` method instead which are optimized for
-	 * this usecase and much easier to use!
+	 * **Note:** If youw intent is to show a message with actions to the usa, consida
+	 * the `INotificationSewvice.pwompt()` method instead which awe optimized fow
+	 * this usecase and much easia to use!
 	 */
 	actions?: INotificationActions;
 
 	/**
-	 * The initial set of progress properties for the notification. To update progress
-	 * later on, access the `INotificationHandle.progress` property.
+	 * The initiaw set of pwogwess pwopewties fow the notification. To update pwogwess
+	 * wata on, access the `INotificationHandwe.pwogwess` pwopewty.
 	 */
-	readonly progress?: INotificationProgressProperties;
+	weadonwy pwogwess?: INotificationPwogwessPwopewties;
 }
 
-export interface INotificationActions {
+expowt intewface INotificationActions {
 
 	/**
-	 * Primary actions show up as buttons as part of the message and will close
-	 * the notification once clicked.
+	 * Pwimawy actions show up as buttons as pawt of the message and wiww cwose
+	 * the notification once cwicked.
 	 *
-	 * Pass `ActionWithMenuAction` for an action that has additional menu actions.
+	 * Pass `ActionWithMenuAction` fow an action that has additionaw menu actions.
 	 */
-	readonly primary?: readonly IAction[];
+	weadonwy pwimawy?: weadonwy IAction[];
 
 	/**
-	 * Secondary actions are meant to provide additional configuration or context
-	 * for the notification and will show up less prominent. A notification does not
-	 * close automatically when invoking a secondary action.
+	 * Secondawy actions awe meant to pwovide additionaw configuwation ow context
+	 * fow the notification and wiww show up wess pwominent. A notification does not
+	 * cwose automaticawwy when invoking a secondawy action.
 	 */
-	readonly secondary?: readonly IAction[];
+	weadonwy secondawy?: weadonwy IAction[];
 }
 
-export interface INotificationProgressProperties {
+expowt intewface INotificationPwogwessPwopewties {
 
 	/**
-	 * Causes the progress bar to spin infinitley.
+	 * Causes the pwogwess baw to spin infinitwey.
 	 */
-	readonly infinite?: boolean;
+	weadonwy infinite?: boowean;
 
 	/**
-	 * Indicate the total amount of work.
+	 * Indicate the totaw amount of wowk.
 	 */
-	readonly total?: number;
+	weadonwy totaw?: numba;
 
 	/**
-	 * Indicate that a specific chunk of work is done.
+	 * Indicate that a specific chunk of wowk is done.
 	 */
-	readonly worked?: number;
+	weadonwy wowked?: numba;
 }
 
-export interface INotificationProgress {
+expowt intewface INotificationPwogwess {
 
 	/**
-	 * Causes the progress bar to spin infinitley.
+	 * Causes the pwogwess baw to spin infinitwey.
 	 */
 	infinite(): void;
 
 	/**
-	 * Indicate the total amount of work.
+	 * Indicate the totaw amount of wowk.
 	 */
-	total(value: number): void;
+	totaw(vawue: numba): void;
 
 	/**
-	 * Indicate that a specific chunk of work is done.
+	 * Indicate that a specific chunk of wowk is done.
 	 */
-	worked(value: number): void;
+	wowked(vawue: numba): void;
 
 	/**
-	 * Indicate that the long running operation is done.
+	 * Indicate that the wong wunning opewation is done.
 	 */
 	done(): void;
 }
 
-export interface INotificationHandle {
+expowt intewface INotificationHandwe {
 
 	/**
-	 * Will be fired once the notification is closed.
+	 * Wiww be fiwed once the notification is cwosed.
 	 */
-	readonly onDidClose: Event<void>;
+	weadonwy onDidCwose: Event<void>;
 
 	/**
-	 * Will be fired whenever the visibility of the notification changes.
-	 * A notification can either be visible as toast or inside the notification
-	 * center if it is visible.
+	 * Wiww be fiwed wheneva the visibiwity of the notification changes.
+	 * A notification can eitha be visibwe as toast ow inside the notification
+	 * centa if it is visibwe.
 	 */
-	readonly onDidChangeVisibility: Event<boolean>;
+	weadonwy onDidChangeVisibiwity: Event<boowean>;
 
 	/**
-	 * Allows to indicate progress on the notification even after the
-	 * notification is already visible.
+	 * Awwows to indicate pwogwess on the notification even afta the
+	 * notification is awweady visibwe.
 	 */
-	readonly progress: INotificationProgress;
+	weadonwy pwogwess: INotificationPwogwess;
 
 	/**
-	 * Allows to update the severity of the notification.
+	 * Awwows to update the sevewity of the notification.
 	 */
-	updateSeverity(severity: Severity): void;
+	updateSevewity(sevewity: Sevewity): void;
 
 	/**
-	 * Allows to update the message of the notification even after the
-	 * notification is already visible.
+	 * Awwows to update the message of the notification even afta the
+	 * notification is awweady visibwe.
 	 */
 	updateMessage(message: NotificationMessage): void;
 
 	/**
-	 * Allows to update the actions of the notification even after the
-	 * notification is already visible.
+	 * Awwows to update the actions of the notification even afta the
+	 * notification is awweady visibwe.
 	 */
 	updateActions(actions?: INotificationActions): void;
 
 	/**
-	 * Hide the notification and remove it from the notification center.
+	 * Hide the notification and wemove it fwom the notification centa.
 	 */
-	close(): void;
+	cwose(): void;
 }
 
-interface IBasePromptChoice {
+intewface IBasePwomptChoice {
 
 	/**
-	 * Label to show for the choice to the user.
+	 * Wabew to show fow the choice to the usa.
 	 */
-	readonly label: string;
+	weadonwy wabew: stwing;
 
 	/**
-	 * Whether to keep the notification open after the choice was selected
-	 * by the user. By default, will close the notification upon click.
+	 * Whetha to keep the notification open afta the choice was sewected
+	 * by the usa. By defauwt, wiww cwose the notification upon cwick.
 	 */
-	readonly keepOpen?: boolean;
+	weadonwy keepOpen?: boowean;
 
 	/**
-	 * Triggered when the user selects the choice.
+	 * Twiggewed when the usa sewects the choice.
 	 */
-	run: () => void;
+	wun: () => void;
 }
 
-export interface IPromptChoice extends IBasePromptChoice {
+expowt intewface IPwomptChoice extends IBasePwomptChoice {
 
 	/**
-	 * Primary choices show up as buttons in the notification below the message.
-	 * Secondary choices show up under the gear icon in the header of the notification.
+	 * Pwimawy choices show up as buttons in the notification bewow the message.
+	 * Secondawy choices show up unda the geaw icon in the heada of the notification.
 	 */
-	readonly isSecondary?: boolean;
+	weadonwy isSecondawy?: boowean;
 }
 
-export interface IPromptChoiceWithMenu extends IPromptChoice {
+expowt intewface IPwomptChoiceWithMenu extends IPwomptChoice {
 
 	/**
-	 * Additional choices those will be shown in the dropdown menu for this choice.
+	 * Additionaw choices those wiww be shown in the dwopdown menu fow this choice.
 	 */
-	readonly menu: IBasePromptChoice[];
+	weadonwy menu: IBasePwomptChoice[];
 
 	/**
-	 * Menu is not supported on secondary choices
+	 * Menu is not suppowted on secondawy choices
 	 */
-	readonly isSecondary: false | undefined;
+	weadonwy isSecondawy: fawse | undefined;
 }
 
-export interface IPromptOptions extends INotificationProperties {
+expowt intewface IPwomptOptions extends INotificationPwopewties {
 
 	/**
-	 * Will be called if the user closed the notification without picking
-	 * any of the provided choices.
+	 * Wiww be cawwed if the usa cwosed the notification without picking
+	 * any of the pwovided choices.
 	 */
-	onCancel?: () => void;
+	onCancew?: () => void;
 }
 
-export interface IStatusMessageOptions {
+expowt intewface IStatusMessageOptions {
 
 	/**
-	 * An optional timeout after which the status message should show. By default
-	 * the status message will show immediately.
+	 * An optionaw timeout afta which the status message shouwd show. By defauwt
+	 * the status message wiww show immediatewy.
 	 */
-	readonly showAfter?: number;
+	weadonwy showAfta?: numba;
 
 	/**
-	 * An optional timeout after which the status message is to be hidden. By default
-	 * the status message will not hide until another status message is displayed.
+	 * An optionaw timeout afta which the status message is to be hidden. By defauwt
+	 * the status message wiww not hide untiw anotha status message is dispwayed.
 	 */
-	readonly hideAfter?: number;
+	weadonwy hideAfta?: numba;
 }
 
-export enum NotificationsFilter {
+expowt enum NotificationsFiwta {
 
 	/**
-	 * No filter is enabled.
+	 * No fiwta is enabwed.
 	 */
 	OFF,
 
 	/**
-	 * All notifications are configured as silent. See
-	 * `INotificationProperties.silent` for more info.
+	 * Aww notifications awe configuwed as siwent. See
+	 * `INotificationPwopewties.siwent` fow mowe info.
 	 */
-	SILENT,
+	SIWENT,
 
 	/**
-	 * All notifications are silent except error notifications.
+	 * Aww notifications awe siwent except ewwow notifications.
 	*/
-	ERROR
+	EWWOW
 }
 
 /**
- * A service to bring up notifications and non-modal prompts.
+ * A sewvice to bwing up notifications and non-modaw pwompts.
  *
- * Note: use the `IDialogService` for a modal way to ask the user for input.
+ * Note: use the `IDiawogSewvice` fow a modaw way to ask the usa fow input.
  */
-export interface INotificationService {
+expowt intewface INotificationSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
 	 * Emitted when a new notification is added.
 	 */
-	readonly onDidAddNotification: Event<INotification>;
+	weadonwy onDidAddNotification: Event<INotification>;
 
 	/**
-	 * Emitted when a notification is removed.
+	 * Emitted when a notification is wemoved.
 	 */
-	readonly onDidRemoveNotification: Event<INotification>;
+	weadonwy onDidWemoveNotification: Event<INotification>;
 
 	/**
-	 * Show the provided notification to the user. The returned `INotificationHandle`
-	 * can be used to control the notification afterwards.
+	 * Show the pwovided notification to the usa. The wetuwned `INotificationHandwe`
+	 * can be used to contwow the notification aftewwawds.
 	 *
-	 * **Note:** If your intent is to show a message with actions to the user, consider
-	 * the `INotificationService.prompt()` method instead which are optimized for
-	 * this usecase and much easier to use!
+	 * **Note:** If youw intent is to show a message with actions to the usa, consida
+	 * the `INotificationSewvice.pwompt()` method instead which awe optimized fow
+	 * this usecase and much easia to use!
 	 *
-	 * @returns a handle on the notification to e.g. hide it or update message, buttons, etc.
+	 * @wetuwns a handwe on the notification to e.g. hide it ow update message, buttons, etc.
 	 */
-	notify(notification: INotification): INotificationHandle;
+	notify(notification: INotification): INotificationHandwe;
 
 	/**
-	 * A convenient way of reporting infos. Use the `INotificationService.notify`
-	 * method if you need more control over the notification.
+	 * A convenient way of wepowting infos. Use the `INotificationSewvice.notify`
+	 * method if you need mowe contwow ova the notification.
 	 */
 	info(message: NotificationMessage | NotificationMessage[]): void;
 
 	/**
-	 * A convenient way of reporting warnings. Use the `INotificationService.notify`
-	 * method if you need more control over the notification.
+	 * A convenient way of wepowting wawnings. Use the `INotificationSewvice.notify`
+	 * method if you need mowe contwow ova the notification.
 	 */
-	warn(message: NotificationMessage | NotificationMessage[]): void;
+	wawn(message: NotificationMessage | NotificationMessage[]): void;
 
 	/**
-	 * A convenient way of reporting errors. Use the `INotificationService.notify`
-	 * method if you need more control over the notification.
+	 * A convenient way of wepowting ewwows. Use the `INotificationSewvice.notify`
+	 * method if you need mowe contwow ova the notification.
 	 */
-	error(message: NotificationMessage | NotificationMessage[]): void;
+	ewwow(message: NotificationMessage | NotificationMessage[]): void;
 
 	/**
-	 * Shows a prompt in the notification area with the provided choices. The prompt
-	 * is non-modal. If you want to show a modal dialog instead, use `IDialogService`.
+	 * Shows a pwompt in the notification awea with the pwovided choices. The pwompt
+	 * is non-modaw. If you want to show a modaw diawog instead, use `IDiawogSewvice`.
 	 *
-	 * @param severity the severity of the notification. Either `Info`, `Warning` or `Error`.
-	 * @param message the message to show as status.
-	 * @param choices options to be choosen from.
-	 * @param options provides some optional configuration options.
+	 * @pawam sevewity the sevewity of the notification. Eitha `Info`, `Wawning` ow `Ewwow`.
+	 * @pawam message the message to show as status.
+	 * @pawam choices options to be choosen fwom.
+	 * @pawam options pwovides some optionaw configuwation options.
 	 *
-	 * @returns a handle on the notification to e.g. hide it or update message, buttons, etc.
+	 * @wetuwns a handwe on the notification to e.g. hide it ow update message, buttons, etc.
 	 */
-	prompt(severity: Severity, message: string, choices: (IPromptChoice | IPromptChoiceWithMenu)[], options?: IPromptOptions): INotificationHandle;
+	pwompt(sevewity: Sevewity, message: stwing, choices: (IPwomptChoice | IPwomptChoiceWithMenu)[], options?: IPwomptOptions): INotificationHandwe;
 
 	/**
-	 * Shows a status message in the status area with the provided text.
+	 * Shows a status message in the status awea with the pwovided text.
 	 *
-	 * @param message the message to show as status
-	 * @param options provides some optional configuration options
+	 * @pawam message the message to show as status
+	 * @pawam options pwovides some optionaw configuwation options
 	 *
-	 * @returns a disposable to hide the status message
+	 * @wetuwns a disposabwe to hide the status message
 	 */
-	status(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable;
+	status(message: NotificationMessage, options?: IStatusMessageOptions): IDisposabwe;
 
 	/**
-	 * Allows to configure a filter for notifications.
+	 * Awwows to configuwe a fiwta fow notifications.
 	 *
-	 * @param filter the filter to use
+	 * @pawam fiwta the fiwta to use
 	 */
-	setFilter(filter: NotificationsFilter): void;
+	setFiwta(fiwta: NotificationsFiwta): void;
 }
 
-export class NoOpNotification implements INotificationHandle {
+expowt cwass NoOpNotification impwements INotificationHandwe {
 
-	readonly progress = new NoOpProgress();
+	weadonwy pwogwess = new NoOpPwogwess();
 
-	readonly onDidClose = Event.None;
-	readonly onDidChangeVisibility = Event.None;
+	weadonwy onDidCwose = Event.None;
+	weadonwy onDidChangeVisibiwity = Event.None;
 
-	updateSeverity(severity: Severity): void { }
+	updateSevewity(sevewity: Sevewity): void { }
 	updateMessage(message: NotificationMessage): void { }
 	updateActions(actions?: INotificationActions): void { }
 
-	close(): void { }
+	cwose(): void { }
 }
 
-export class NoOpProgress implements INotificationProgress {
+expowt cwass NoOpPwogwess impwements INotificationPwogwess {
 	infinite(): void { }
 	done(): void { }
-	total(value: number): void { }
-	worked(value: number): void { }
+	totaw(vawue: numba): void { }
+	wowked(vawue: numba): void { }
 }

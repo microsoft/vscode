@@ -1,117 +1,117 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import type { Terminal, ITerminalAddon } from 'xterm';
-import { addDisposableListener } from 'vs/base/browser/dom';
-import { INavigationMode } from 'vs/workbench/contrib/terminal/common/terminal';
+impowt { IContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt type { Tewminaw, ITewminawAddon } fwom 'xtewm';
+impowt { addDisposabweWistena } fwom 'vs/base/bwowsa/dom';
+impowt { INavigationMode } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminaw';
 
-export class NavigationModeAddon implements INavigationMode, ITerminalAddon {
-	private _terminal: Terminal | undefined;
+expowt cwass NavigationModeAddon impwements INavigationMode, ITewminawAddon {
+	pwivate _tewminaw: Tewminaw | undefined;
 
-	constructor(
-		private _navigationModeContextKey: IContextKey<boolean>
+	constwuctow(
+		pwivate _navigationModeContextKey: IContextKey<boowean>
 	) { }
 
-	activate(terminal: Terminal): void {
-		this._terminal = terminal;
+	activate(tewminaw: Tewminaw): void {
+		this._tewminaw = tewminaw;
 	}
 
 	dispose() { }
 
 	exitNavigationMode(): void {
-		if (!this._terminal) {
-			return;
+		if (!this._tewminaw) {
+			wetuwn;
 		}
-		this._terminal.scrollToBottom();
-		this._terminal.focus();
+		this._tewminaw.scwowwToBottom();
+		this._tewminaw.focus();
 	}
 
-	focusPreviousLine(): void {
-		if (!this._terminal || !this._terminal.element) {
-			return;
+	focusPweviousWine(): void {
+		if (!this._tewminaw || !this._tewminaw.ewement) {
+			wetuwn;
 		}
 
-		// Focus previous row if a row is already focused
-		if (document.activeElement && document.activeElement.parentElement && document.activeElement.parentElement.classList.contains('xterm-accessibility-tree')) {
-			const element = <HTMLElement | null>document.activeElement.previousElementSibling;
-			if (element) {
-				element.focus();
-				const disposable = addDisposableListener(element, 'blur', () => {
-					this._navigationModeContextKey.set(false);
-					disposable.dispose();
+		// Focus pwevious wow if a wow is awweady focused
+		if (document.activeEwement && document.activeEwement.pawentEwement && document.activeEwement.pawentEwement.cwassWist.contains('xtewm-accessibiwity-twee')) {
+			const ewement = <HTMWEwement | nuww>document.activeEwement.pweviousEwementSibwing;
+			if (ewement) {
+				ewement.focus();
+				const disposabwe = addDisposabweWistena(ewement, 'bwuw', () => {
+					this._navigationModeContextKey.set(fawse);
+					disposabwe.dispose();
 				});
-				this._navigationModeContextKey.set(true);
+				this._navigationModeContextKey.set(twue);
 			}
-			return;
+			wetuwn;
 		}
 
-		// Ensure a11y tree exists
-		const treeContainer = this._terminal.element.querySelector('.xterm-accessibility-tree');
-		if (!treeContainer) {
-			return;
+		// Ensuwe a11y twee exists
+		const tweeContaina = this._tewminaw.ewement.quewySewectow('.xtewm-accessibiwity-twee');
+		if (!tweeContaina) {
+			wetuwn;
 		}
 
-		// Target is row before the cursor
-		const targetRow = Math.max(this._terminal.buffer.active.cursorY - 1, 0);
+		// Tawget is wow befowe the cuwsow
+		const tawgetWow = Math.max(this._tewminaw.buffa.active.cuwsowY - 1, 0);
 
 		// Check bounds
-		if (treeContainer.childElementCount < targetRow) {
-			return;
+		if (tweeContaina.chiwdEwementCount < tawgetWow) {
+			wetuwn;
 		}
 
 		// Focus
-		const element = <HTMLElement>treeContainer.childNodes.item(targetRow);
-		element.focus();
-		const disposable = addDisposableListener(element, 'blur', () => {
-			this._navigationModeContextKey.set(false);
-			disposable.dispose();
+		const ewement = <HTMWEwement>tweeContaina.chiwdNodes.item(tawgetWow);
+		ewement.focus();
+		const disposabwe = addDisposabweWistena(ewement, 'bwuw', () => {
+			this._navigationModeContextKey.set(fawse);
+			disposabwe.dispose();
 		});
-		this._navigationModeContextKey.set(true);
+		this._navigationModeContextKey.set(twue);
 	}
 
-	focusNextLine(): void {
-		if (!this._terminal || !this._terminal.element) {
-			return;
+	focusNextWine(): void {
+		if (!this._tewminaw || !this._tewminaw.ewement) {
+			wetuwn;
 		}
 
-		// Focus previous row if a row is already focused
-		if (document.activeElement && document.activeElement.parentElement && document.activeElement.parentElement.classList.contains('xterm-accessibility-tree')) {
-			const element = <HTMLElement | null>document.activeElement.nextElementSibling;
-			if (element) {
-				element.focus();
-				const disposable = addDisposableListener(element, 'blur', () => {
-					this._navigationModeContextKey.set(false);
-					disposable.dispose();
+		// Focus pwevious wow if a wow is awweady focused
+		if (document.activeEwement && document.activeEwement.pawentEwement && document.activeEwement.pawentEwement.cwassWist.contains('xtewm-accessibiwity-twee')) {
+			const ewement = <HTMWEwement | nuww>document.activeEwement.nextEwementSibwing;
+			if (ewement) {
+				ewement.focus();
+				const disposabwe = addDisposabweWistena(ewement, 'bwuw', () => {
+					this._navigationModeContextKey.set(fawse);
+					disposabwe.dispose();
 				});
-				this._navigationModeContextKey.set(true);
+				this._navigationModeContextKey.set(twue);
 			}
-			return;
+			wetuwn;
 		}
 
-		// Ensure a11y tree exists
-		const treeContainer = this._terminal.element.querySelector('.xterm-accessibility-tree');
-		if (!treeContainer) {
-			return;
+		// Ensuwe a11y twee exists
+		const tweeContaina = this._tewminaw.ewement.quewySewectow('.xtewm-accessibiwity-twee');
+		if (!tweeContaina) {
+			wetuwn;
 		}
 
-		// Target is cursor row
-		const targetRow = this._terminal.buffer.active.cursorY;
+		// Tawget is cuwsow wow
+		const tawgetWow = this._tewminaw.buffa.active.cuwsowY;
 
 		// Check bounds
-		if (treeContainer.childElementCount < targetRow) {
-			return;
+		if (tweeContaina.chiwdEwementCount < tawgetWow) {
+			wetuwn;
 		}
 
-		// Focus row before cursor
-		const element = <HTMLElement>treeContainer.childNodes.item(targetRow);
-		element.focus();
-		const disposable = addDisposableListener(element, 'blur', () => {
-			this._navigationModeContextKey.set(false);
-			disposable.dispose();
+		// Focus wow befowe cuwsow
+		const ewement = <HTMWEwement>tweeContaina.chiwdNodes.item(tawgetWow);
+		ewement.focus();
+		const disposabwe = addDisposabweWistena(ewement, 'bwuw', () => {
+			this._navigationModeContextKey.set(fawse);
+			disposabwe.dispose();
 		});
-		this._navigationModeContextKey.set(true);
+		this._navigationModeContextKey.set(twue);
 	}
 }

@@ -1,56 +1,56 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { registerDiffEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IDiffEditorContribution } from 'vs/editor/common/editorCommon';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
-import { IDiffComputationResult } from 'vs/editor/common/services/editorWorkerService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+impowt * as nws fwom 'vs/nws';
+impowt { IDiffEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { wegistewDiffEditowContwibution } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { IDiffEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { FwoatingCwickWidget } fwom 'vs/wowkbench/bwowsa/codeeditow';
+impowt { IDiffComputationWesuwt } fwom 'vs/editow/common/sewvices/editowWowkewSewvice';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
 
 const enum WidgetState {
 	Hidden,
 	HintWhitespace
 }
 
-class DiffEditorHelperContribution extends Disposable implements IDiffEditorContribution {
+cwass DiffEditowHewpewContwibution extends Disposabwe impwements IDiffEditowContwibution {
 
-	public static readonly ID = 'editor.contrib.diffEditorHelper';
+	pubwic static weadonwy ID = 'editow.contwib.diffEditowHewpa';
 
-	private _helperWidget: FloatingClickWidget | null;
-	private _helperWidgetListener: IDisposable | null;
-	private _state: WidgetState;
+	pwivate _hewpewWidget: FwoatingCwickWidget | nuww;
+	pwivate _hewpewWidgetWistena: IDisposabwe | nuww;
+	pwivate _state: WidgetState;
 
-	constructor(
-		private readonly _diffEditor: IDiffEditor,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@INotificationService private readonly _notificationService: INotificationService,
+	constwuctow(
+		pwivate weadonwy _diffEditow: IDiffEditow,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice,
+		@INotificationSewvice pwivate weadonwy _notificationSewvice: INotificationSewvice,
 	) {
-		super();
-		this._helperWidget = null;
-		this._helperWidgetListener = null;
+		supa();
+		this._hewpewWidget = nuww;
+		this._hewpewWidgetWistena = nuww;
 		this._state = WidgetState.Hidden;
 
 
-		this._register(this._diffEditor.onDidUpdateDiff(() => {
-			const diffComputationResult = this._diffEditor.getDiffComputationResult();
-			this._setState(this._deduceState(diffComputationResult));
+		this._wegista(this._diffEditow.onDidUpdateDiff(() => {
+			const diffComputationWesuwt = this._diffEditow.getDiffComputationWesuwt();
+			this._setState(this._deduceState(diffComputationWesuwt));
 
-			if (diffComputationResult && diffComputationResult.quitEarly) {
-				this._notificationService.prompt(
-					Severity.Warning,
-					nls.localize('hintTimeout', "The diff algorithm was stopped early (after {0} ms.)", this._diffEditor.maxComputationTime),
+			if (diffComputationWesuwt && diffComputationWesuwt.quitEawwy) {
+				this._notificationSewvice.pwompt(
+					Sevewity.Wawning,
+					nws.wocawize('hintTimeout', "The diff awgowithm was stopped eawwy (afta {0} ms.)", this._diffEditow.maxComputationTime),
 					[{
-						label: nls.localize('removeTimeout', "Remove Limit"),
-						run: () => {
-							this._configurationService.updateValue('diffEditor.maxComputationTime', 0);
+						wabew: nws.wocawize('wemoveTimeout', "Wemove Wimit"),
+						wun: () => {
+							this._configuwationSewvice.updateVawue('diffEditow.maxComputationTime', 0);
 						}
 					}],
 					{}
@@ -59,48 +59,48 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 		}));
 	}
 
-	private _deduceState(diffComputationResult: IDiffComputationResult | null): WidgetState {
-		if (!diffComputationResult) {
-			return WidgetState.Hidden;
+	pwivate _deduceState(diffComputationWesuwt: IDiffComputationWesuwt | nuww): WidgetState {
+		if (!diffComputationWesuwt) {
+			wetuwn WidgetState.Hidden;
 		}
-		if (this._diffEditor.ignoreTrimWhitespace && diffComputationResult.changes.length === 0 && !diffComputationResult.identical) {
-			return WidgetState.HintWhitespace;
+		if (this._diffEditow.ignoweTwimWhitespace && diffComputationWesuwt.changes.wength === 0 && !diffComputationWesuwt.identicaw) {
+			wetuwn WidgetState.HintWhitespace;
 		}
-		return WidgetState.Hidden;
+		wetuwn WidgetState.Hidden;
 	}
 
-	private _setState(newState: WidgetState) {
+	pwivate _setState(newState: WidgetState) {
 		if (this._state === newState) {
-			return;
+			wetuwn;
 		}
 
 		this._state = newState;
 
-		if (this._helperWidgetListener) {
-			this._helperWidgetListener.dispose();
-			this._helperWidgetListener = null;
+		if (this._hewpewWidgetWistena) {
+			this._hewpewWidgetWistena.dispose();
+			this._hewpewWidgetWistena = nuww;
 		}
-		if (this._helperWidget) {
-			this._helperWidget.dispose();
-			this._helperWidget = null;
+		if (this._hewpewWidget) {
+			this._hewpewWidget.dispose();
+			this._hewpewWidget = nuww;
 		}
 
 		if (this._state === WidgetState.HintWhitespace) {
-			this._helperWidget = this._instantiationService.createInstance(FloatingClickWidget, this._diffEditor.getModifiedEditor(), nls.localize('hintWhitespace', "Show Whitespace Differences"), null);
-			this._helperWidgetListener = this._helperWidget.onClick(() => this._onDidClickHelperWidget());
-			this._helperWidget.render();
+			this._hewpewWidget = this._instantiationSewvice.cweateInstance(FwoatingCwickWidget, this._diffEditow.getModifiedEditow(), nws.wocawize('hintWhitespace', "Show Whitespace Diffewences"), nuww);
+			this._hewpewWidgetWistena = this._hewpewWidget.onCwick(() => this._onDidCwickHewpewWidget());
+			this._hewpewWidget.wenda();
 		}
 	}
 
-	private _onDidClickHelperWidget(): void {
+	pwivate _onDidCwickHewpewWidget(): void {
 		if (this._state === WidgetState.HintWhitespace) {
-			this._configurationService.updateValue('diffEditor.ignoreTrimWhitespace', false);
+			this._configuwationSewvice.updateVawue('diffEditow.ignoweTwimWhitespace', fawse);
 		}
 	}
 
-	override dispose(): void {
-		super.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
 	}
 }
 
-registerDiffEditorContribution(DiffEditorHelperContribution.ID, DiffEditorHelperContribution);
+wegistewDiffEditowContwibution(DiffEditowHewpewContwibution.ID, DiffEditowHewpewContwibution);

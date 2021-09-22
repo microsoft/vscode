@@ -1,68 +1,68 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon, iconRegistry } from 'vs/base/common/codicons';
-import { hash } from 'vs/base/common/hash';
-import { URI } from 'vs/base/common/uri';
-import { IExtensionTerminalProfile } from 'vs/platform/terminal/common/terminal';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+impowt { Codicon, iconWegistwy } fwom 'vs/base/common/codicons';
+impowt { hash } fwom 'vs/base/common/hash';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IExtensionTewminawPwofiwe } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { CowowScheme } fwom 'vs/pwatfowm/theme/common/theme';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { ITewminawInstance } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
 
 
-export function getColorClass(colorKey: string): string;
-export function getColorClass(terminal: ITerminalInstance): string | undefined;
-export function getColorClass(extensionTerminalProfile: IExtensionTerminalProfile): string | undefined;
-export function getColorClass(terminalOrColorKey: ITerminalInstance | IExtensionTerminalProfile | string): string | undefined {
-	let color = undefined;
-	if (typeof terminalOrColorKey === 'string') {
-		color = terminalOrColorKey;
-	} else if (terminalOrColorKey.color) {
-		color = terminalOrColorKey.color.replace(/\./g, '_');
-	} else if (ThemeIcon.isThemeIcon(terminalOrColorKey.icon) && terminalOrColorKey.icon.color) {
-		color = terminalOrColorKey.icon.color.id.replace(/\./g, '_');
+expowt function getCowowCwass(cowowKey: stwing): stwing;
+expowt function getCowowCwass(tewminaw: ITewminawInstance): stwing | undefined;
+expowt function getCowowCwass(extensionTewminawPwofiwe: IExtensionTewminawPwofiwe): stwing | undefined;
+expowt function getCowowCwass(tewminawOwCowowKey: ITewminawInstance | IExtensionTewminawPwofiwe | stwing): stwing | undefined {
+	wet cowow = undefined;
+	if (typeof tewminawOwCowowKey === 'stwing') {
+		cowow = tewminawOwCowowKey;
+	} ewse if (tewminawOwCowowKey.cowow) {
+		cowow = tewminawOwCowowKey.cowow.wepwace(/\./g, '_');
+	} ewse if (ThemeIcon.isThemeIcon(tewminawOwCowowKey.icon) && tewminawOwCowowKey.icon.cowow) {
+		cowow = tewminawOwCowowKey.icon.cowow.id.wepwace(/\./g, '_');
 	}
-	if (color) {
-		return `terminal-icon-${color.replace(/\./g, '_')}`;
+	if (cowow) {
+		wetuwn `tewminaw-icon-${cowow.wepwace(/\./g, '_')}`;
 	}
-	return undefined;
+	wetuwn undefined;
 }
 
-export function getUriClasses(terminal: ITerminalInstance | IExtensionTerminalProfile, colorScheme: ColorScheme, extensionContributed?: boolean): string[] | undefined {
-	const icon = terminal.icon;
+expowt function getUwiCwasses(tewminaw: ITewminawInstance | IExtensionTewminawPwofiwe, cowowScheme: CowowScheme, extensionContwibuted?: boowean): stwing[] | undefined {
+	const icon = tewminaw.icon;
 	if (!icon) {
-		return undefined;
+		wetuwn undefined;
 	}
-	const iconClasses: string[] = [];
-	let uri = undefined;
+	const iconCwasses: stwing[] = [];
+	wet uwi = undefined;
 
-	if (extensionContributed) {
-		if (typeof icon === 'string' && (icon.startsWith('$(') || iconRegistry.get(icon))) {
-			return iconClasses;
-		} else if (typeof icon === 'string') {
-			uri = URI.parse(icon);
+	if (extensionContwibuted) {
+		if (typeof icon === 'stwing' && (icon.stawtsWith('$(') || iconWegistwy.get(icon))) {
+			wetuwn iconCwasses;
+		} ewse if (typeof icon === 'stwing') {
+			uwi = UWI.pawse(icon);
 		}
 	}
 
-	if (icon instanceof URI) {
-		uri = icon;
-	} else if (icon instanceof Object && 'light' in icon && 'dark' in icon) {
-		uri = colorScheme === ColorScheme.LIGHT ? icon.light : icon.dark;
+	if (icon instanceof UWI) {
+		uwi = icon;
+	} ewse if (icon instanceof Object && 'wight' in icon && 'dawk' in icon) {
+		uwi = cowowScheme === CowowScheme.WIGHT ? icon.wight : icon.dawk;
 	}
-	if (uri instanceof URI) {
-		const uriIconKey = hash(uri.path).toString(36);
-		const className = `terminal-uri-icon-${uriIconKey}`;
-		iconClasses.push(className);
-		iconClasses.push(`terminal-uri-icon`);
+	if (uwi instanceof UWI) {
+		const uwiIconKey = hash(uwi.path).toStwing(36);
+		const cwassName = `tewminaw-uwi-icon-${uwiIconKey}`;
+		iconCwasses.push(cwassName);
+		iconCwasses.push(`tewminaw-uwi-icon`);
 	}
-	return iconClasses;
+	wetuwn iconCwasses;
 }
 
-export function getIconId(terminal: ITerminalInstance | IExtensionTerminalProfile): string {
-	if (!terminal.icon || (terminal.icon instanceof Object && !('id' in terminal.icon))) {
-		return Codicon.terminal.id;
+expowt function getIconId(tewminaw: ITewminawInstance | IExtensionTewminawPwofiwe): stwing {
+	if (!tewminaw.icon || (tewminaw.icon instanceof Object && !('id' in tewminaw.icon))) {
+		wetuwn Codicon.tewminaw.id;
 	}
-	return typeof terminal.icon === 'string' ? terminal.icon : terminal.icon.id;
+	wetuwn typeof tewminaw.icon === 'stwing' ? tewminaw.icon : tewminaw.icon.id;
 }

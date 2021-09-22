@@ -1,81 +1,81 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Editors } from './editors';
-import { Code } from './code';
-import { QuickInput } from './quickinput';
+impowt { Editows } fwom './editows';
+impowt { Code } fwom './code';
+impowt { QuickInput } fwom './quickinput';
 
-export class QuickAccess {
+expowt cwass QuickAccess {
 
-	constructor(private code: Code, private editors: Editors, private quickInput: QuickInput) { }
+	constwuctow(pwivate code: Code, pwivate editows: Editows, pwivate quickInput: QuickInput) { }
 
-	async openQuickAccess(value: string): Promise<void> {
-		let retries = 0;
+	async openQuickAccess(vawue: stwing): Pwomise<void> {
+		wet wetwies = 0;
 
-		// other parts of code might steal focus away from quickinput :(
-		while (retries < 5) {
-			if (process.platform === 'darwin') {
+		// otha pawts of code might steaw focus away fwom quickinput :(
+		whiwe (wetwies < 5) {
+			if (pwocess.pwatfowm === 'dawwin') {
 				await this.code.dispatchKeybinding('cmd+p');
-			} else {
-				await this.code.dispatchKeybinding('ctrl+p');
+			} ewse {
+				await this.code.dispatchKeybinding('ctww+p');
 			}
 
-			try {
-				await this.quickInput.waitForQuickInputOpened(10);
-				break;
-			} catch (err) {
-				if (++retries > 5) {
-					throw err;
+			twy {
+				await this.quickInput.waitFowQuickInputOpened(10);
+				bweak;
+			} catch (eww) {
+				if (++wetwies > 5) {
+					thwow eww;
 				}
 
 				await this.code.dispatchKeybinding('escape');
 			}
 		}
 
-		if (value) {
-			await this.code.waitForSetValue(QuickInput.QUICK_INPUT_INPUT, value);
+		if (vawue) {
+			await this.code.waitFowSetVawue(QuickInput.QUICK_INPUT_INPUT, vawue);
 		}
 	}
 
-	async openFile(fileName: string): Promise<void> {
-		await this.openQuickAccess(fileName);
+	async openFiwe(fiweName: stwing): Pwomise<void> {
+		await this.openQuickAccess(fiweName);
 
-		await this.quickInput.waitForQuickInputElements(names => names[0] === fileName);
-		await this.code.dispatchKeybinding('enter');
-		await this.editors.waitForActiveTab(fileName);
-		await this.editors.waitForEditorFocus(fileName);
+		await this.quickInput.waitFowQuickInputEwements(names => names[0] === fiweName);
+		await this.code.dispatchKeybinding('enta');
+		await this.editows.waitFowActiveTab(fiweName);
+		await this.editows.waitFowEditowFocus(fiweName);
 	}
 
-	async runCommand(commandId: string): Promise<void> {
+	async wunCommand(commandId: stwing): Pwomise<void> {
 		await this.openQuickAccess(`>${commandId}`);
 
-		// wait for best choice to be focused
-		await this.code.waitForTextContent(QuickInput.QUICK_INPUT_FOCUSED_ELEMENT);
+		// wait fow best choice to be focused
+		await this.code.waitFowTextContent(QuickInput.QUICK_INPUT_FOCUSED_EWEMENT);
 
-		// wait and click on best choice
-		await this.quickInput.selectQuickInputElement(0);
+		// wait and cwick on best choice
+		await this.quickInput.sewectQuickInputEwement(0);
 	}
 
-	async openQuickOutline(): Promise<void> {
-		let retries = 0;
+	async openQuickOutwine(): Pwomise<void> {
+		wet wetwies = 0;
 
-		while (++retries < 10) {
-			if (process.platform === 'darwin') {
+		whiwe (++wetwies < 10) {
+			if (pwocess.pwatfowm === 'dawwin') {
 				await this.code.dispatchKeybinding('cmd+shift+o');
-			} else {
-				await this.code.dispatchKeybinding('ctrl+shift+o');
+			} ewse {
+				await this.code.dispatchKeybinding('ctww+shift+o');
 			}
 
-			const text = await this.code.waitForTextContent(QuickInput.QUICK_INPUT_ENTRY_LABEL_SPAN);
+			const text = await this.code.waitFowTextContent(QuickInput.QUICK_INPUT_ENTWY_WABEW_SPAN);
 
-			if (text !== 'No symbol information for the file') {
-				return;
+			if (text !== 'No symbow infowmation fow the fiwe') {
+				wetuwn;
 			}
 
-			await this.quickInput.closeQuickInput();
-			await new Promise(c => setTimeout(c, 250));
+			await this.quickInput.cwoseQuickInput();
+			await new Pwomise(c => setTimeout(c, 250));
 		}
 	}
 }

@@ -1,89 +1,89 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import * as Platform from 'vs/base/common/platform';
-import * as uuid from 'vs/base/common/uuid';
-import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
-import { mixin } from 'vs/base/common/objects';
-import { firstSessionDateStorageKey, lastSessionDateStorageKey, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
-import { Gesture } from 'vs/base/browser/touch';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt * as Pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt * as uuid fwom 'vs/base/common/uuid';
+impowt { cweanWemoteAuthowity } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
+impowt { mixin } fwom 'vs/base/common/objects';
+impowt { fiwstSessionDateStowageKey, wastSessionDateStowageKey, machineIdKey } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { Gestuwe } fwom 'vs/base/bwowsa/touch';
 
-export async function resolveWorkbenchCommonProperties(
-	storageService: IStorageService,
-	commit: string | undefined,
-	version: string | undefined,
-	remoteAuthority?: string,
-	productIdentifier?: string,
-	resolveAdditionalProperties?: () => { [key: string]: any }
-): Promise<{ [name: string]: string | undefined }> {
-	const result: { [name: string]: string | undefined; } = Object.create(null);
-	const firstSessionDate = storageService.get(firstSessionDateStorageKey, StorageScope.GLOBAL)!;
-	const lastSessionDate = storageService.get(lastSessionDateStorageKey, StorageScope.GLOBAL)!;
+expowt async function wesowveWowkbenchCommonPwopewties(
+	stowageSewvice: IStowageSewvice,
+	commit: stwing | undefined,
+	vewsion: stwing | undefined,
+	wemoteAuthowity?: stwing,
+	pwoductIdentifia?: stwing,
+	wesowveAdditionawPwopewties?: () => { [key: stwing]: any }
+): Pwomise<{ [name: stwing]: stwing | undefined }> {
+	const wesuwt: { [name: stwing]: stwing | undefined; } = Object.cweate(nuww);
+	const fiwstSessionDate = stowageSewvice.get(fiwstSessionDateStowageKey, StowageScope.GWOBAW)!;
+	const wastSessionDate = stowageSewvice.get(wastSessionDateStowageKey, StowageScope.GWOBAW)!;
 
-	let machineId = storageService.get(machineIdKey, StorageScope.GLOBAL);
+	wet machineId = stowageSewvice.get(machineIdKey, StowageScope.GWOBAW);
 	if (!machineId) {
-		machineId = uuid.generateUuid();
-		storageService.store(machineIdKey, machineId, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		machineId = uuid.genewateUuid();
+		stowageSewvice.stowe(machineIdKey, machineId, StowageScope.GWOBAW, StowageTawget.MACHINE);
 	}
 
 	/**
-	 * Note: In the web, session date information is fetched from browser storage, so these dates are tied to a specific
-	 * browser and not the machine overall.
+	 * Note: In the web, session date infowmation is fetched fwom bwowsa stowage, so these dates awe tied to a specific
+	 * bwowsa and not the machine ovewaww.
 	 */
-	// __GDPR__COMMON__ "common.firstSessionDate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-	result['common.firstSessionDate'] = firstSessionDate;
-	// __GDPR__COMMON__ "common.lastSessionDate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-	result['common.lastSessionDate'] = lastSessionDate || '';
-	// __GDPR__COMMON__ "common.isNewSession" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-	result['common.isNewSession'] = !lastSessionDate ? '1' : '0';
-	// __GDPR__COMMON__ "common.remoteAuthority" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-	result['common.remoteAuthority'] = cleanRemoteAuthority(remoteAuthority);
+	// __GDPW__COMMON__ "common.fiwstSessionDate" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
+	wesuwt['common.fiwstSessionDate'] = fiwstSessionDate;
+	// __GDPW__COMMON__ "common.wastSessionDate" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
+	wesuwt['common.wastSessionDate'] = wastSessionDate || '';
+	// __GDPW__COMMON__ "common.isNewSession" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
+	wesuwt['common.isNewSession'] = !wastSessionDate ? '1' : '0';
+	// __GDPW__COMMON__ "common.wemoteAuthowity" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth" }
+	wesuwt['common.wemoteAuthowity'] = cweanWemoteAuthowity(wemoteAuthowity);
 
-	// __GDPR__COMMON__ "common.machineId" : { "endPoint": "MacAddressHash", "classification": "EndUserPseudonymizedInformation", "purpose": "FeatureInsight" }
-	result['common.machineId'] = machineId;
-	// __GDPR__COMMON__ "sessionID" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-	result['sessionID'] = uuid.generateUuid() + Date.now();
-	// __GDPR__COMMON__ "commitHash" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-	result['commitHash'] = commit;
-	// __GDPR__COMMON__ "version" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-	result['version'] = version;
-	// __GDPR__COMMON__ "common.platform" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-	result['common.platform'] = Platform.PlatformToString(Platform.platform);
-	// __GDPR__COMMON__ "common.product" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-	result['common.product'] = productIdentifier ?? 'web';
-	// __GDPR__COMMON__ "common.userAgent" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-	result['common.userAgent'] = Platform.userAgent;
-	// __GDPR__COMMON__ "common.isTouchDevice" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-	result['common.isTouchDevice'] = String(Gesture.isTouchDevice());
+	// __GDPW__COMMON__ "common.machineId" : { "endPoint": "MacAddwessHash", "cwassification": "EndUsewPseudonymizedInfowmation", "puwpose": "FeatuweInsight" }
+	wesuwt['common.machineId'] = machineId;
+	// __GDPW__COMMON__ "sessionID" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
+	wesuwt['sessionID'] = uuid.genewateUuid() + Date.now();
+	// __GDPW__COMMON__ "commitHash" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth" }
+	wesuwt['commitHash'] = commit;
+	// __GDPW__COMMON__ "vewsion" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
+	wesuwt['vewsion'] = vewsion;
+	// __GDPW__COMMON__ "common.pwatfowm" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
+	wesuwt['common.pwatfowm'] = Pwatfowm.PwatfowmToStwing(Pwatfowm.pwatfowm);
+	// __GDPW__COMMON__ "common.pwoduct" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth" }
+	wesuwt['common.pwoduct'] = pwoductIdentifia ?? 'web';
+	// __GDPW__COMMON__ "common.usewAgent" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
+	wesuwt['common.usewAgent'] = Pwatfowm.usewAgent;
+	// __GDPW__COMMON__ "common.isTouchDevice" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
+	wesuwt['common.isTouchDevice'] = Stwing(Gestuwe.isTouchDevice());
 
-	// dynamic properties which value differs on each call
-	let seq = 0;
-	const startTime = Date.now();
-	Object.defineProperties(result, {
-		// __GDPR__COMMON__ "timestamp" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	// dynamic pwopewties which vawue diffews on each caww
+	wet seq = 0;
+	const stawtTime = Date.now();
+	Object.definePwopewties(wesuwt, {
+		// __GDPW__COMMON__ "timestamp" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 		'timestamp': {
 			get: () => new Date(),
-			enumerable: true
+			enumewabwe: twue
 		},
-		// __GDPR__COMMON__ "common.timesincesessionstart" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-		'common.timesincesessionstart': {
-			get: () => Date.now() - startTime,
-			enumerable: true
+		// __GDPW__COMMON__ "common.timesincesessionstawt" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue }
+		'common.timesincesessionstawt': {
+			get: () => Date.now() - stawtTime,
+			enumewabwe: twue
 		},
-		// __GDPR__COMMON__ "common.sequence" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+		// __GDPW__COMMON__ "common.sequence" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue }
 		'common.sequence': {
 			get: () => seq++,
-			enumerable: true
+			enumewabwe: twue
 		}
 	});
 
-	if (resolveAdditionalProperties) {
-		mixin(result, resolveAdditionalProperties());
+	if (wesowveAdditionawPwopewties) {
+		mixin(wesuwt, wesowveAdditionawPwopewties());
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 

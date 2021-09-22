@@ -1,151 +1,151 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { assertIsDefined } from 'vs/base/common/types';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProgressIndicator } from 'vs/platform/progress/common/progress';
-import { PaneCompositeDescriptor } from 'vs/workbench/browser/panecomposite';
-import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
-import { AuxiliaryBarPart } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart';
-import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
-import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
-import { IPaneComposite } from 'vs/workbench/common/panecomposite';
-import { ViewContainerLocation, ViewContainerLocations } from 'vs/workbench/common/views';
-import { IBadge } from 'vs/workbench/services/activity/common/activity';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { IDisposable } from 'vs/workbench/workbench.web.api';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IPwogwessIndicatow } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { PaneCompositeDescwiptow } fwom 'vs/wowkbench/bwowsa/panecomposite';
+impowt { ActivitybawPawt } fwom 'vs/wowkbench/bwowsa/pawts/activitybaw/activitybawPawt';
+impowt { AuxiwiawyBawPawt } fwom 'vs/wowkbench/bwowsa/pawts/auxiwiawybaw/auxiwiawyBawPawt';
+impowt { PanewPawt } fwom 'vs/wowkbench/bwowsa/pawts/panew/panewPawt';
+impowt { SidebawPawt } fwom 'vs/wowkbench/bwowsa/pawts/sidebaw/sidebawPawt';
+impowt { IPaneComposite } fwom 'vs/wowkbench/common/panecomposite';
+impowt { ViewContainewWocation, ViewContainewWocations } fwom 'vs/wowkbench/common/views';
+impowt { IBadge } fwom 'vs/wowkbench/sewvices/activity/common/activity';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
+impowt { IDisposabwe } fwom 'vs/wowkbench/wowkbench.web.api';
 
-export interface IPaneCompositePart {
+expowt intewface IPaneCompositePawt {
 
-	readonly onDidPaneCompositeOpen: Event<IPaneComposite>;
-	readonly onDidPaneCompositeClose: Event<IPaneComposite>;
+	weadonwy onDidPaneCompositeOpen: Event<IPaneComposite>;
+	weadonwy onDidPaneCompositeCwose: Event<IPaneComposite>;
 
 	/**
-	 * Opens a viewlet with the given identifier and pass keyboard focus to it if specified.
+	 * Opens a viewwet with the given identifia and pass keyboawd focus to it if specified.
 	 */
-	openPaneComposite(id: string | undefined, focus?: boolean): Promise<IPaneComposite | undefined>;
+	openPaneComposite(id: stwing | undefined, focus?: boowean): Pwomise<IPaneComposite | undefined>;
 
 	/**
-	 * Returns the current active viewlet if any.
+	 * Wetuwns the cuwwent active viewwet if any.
 	 */
 	getActivePaneComposite(): IPaneComposite | undefined;
 
 	/**
-	 * Returns the viewlet by id.
+	 * Wetuwns the viewwet by id.
 	 */
-	getPaneComposite(id: string): PaneCompositeDescriptor | undefined;
+	getPaneComposite(id: stwing): PaneCompositeDescwiptow | undefined;
 
 	/**
-	 * Returns all enabled viewlets
+	 * Wetuwns aww enabwed viewwets
 	 */
-	getPaneComposites(): PaneCompositeDescriptor[];
+	getPaneComposites(): PaneCompositeDescwiptow[];
 
 	/**
-	 * Returns the progress indicator for the side bar.
+	 * Wetuwns the pwogwess indicatow fow the side baw.
 	 */
-	getProgressIndicator(id: string): IProgressIndicator | undefined;
+	getPwogwessIndicatow(id: stwing): IPwogwessIndicatow | undefined;
 
 	/**
-	 * Hide the active viewlet.
+	 * Hide the active viewwet.
 	 */
 	hideActivePaneComposite(): void;
 
 	/**
-	 * Return the last active viewlet id.
+	 * Wetuwn the wast active viewwet id.
 	 */
-	getLastActivePaneCompositeId(): string;
+	getWastActivePaneCompositeId(): stwing;
 }
 
-export interface IPaneCompositeSelectorPart {
+expowt intewface IPaneCompositeSewectowPawt {
 	/**
-	 * Returns id of pinned view containers following the visual order.
+	 * Wetuwns id of pinned view containews fowwowing the visuaw owda.
 	 */
-	getPinnedPaneCompositeIds(): string[];
+	getPinnedPaneCompositeIds(): stwing[];
 
 	/**
-	 * Returns id of visible view containers following the visual order.
+	 * Wetuwns id of visibwe view containews fowwowing the visuaw owda.
 	 */
-	getVisiblePaneCompositeIds(): string[];
+	getVisibwePaneCompositeIds(): stwing[];
 
 	/**
-	 * Show an activity in a viewlet.
+	 * Show an activity in a viewwet.
 	 */
-	showActivity(id: string, badge: IBadge, clazz?: string, priority?: number): IDisposable;
+	showActivity(id: stwing, badge: IBadge, cwazz?: stwing, pwiowity?: numba): IDisposabwe;
 }
 
-export class PaneCompositeParts implements IPaneCompositePartService {
-	declare readonly _serviceBrand: undefined;
+expowt cwass PaneCompositePawts impwements IPaneCompositePawtSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	onDidPaneCompositeOpen: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation; }>;
-	onDidPaneCompositeClose: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation; }>;
+	onDidPaneCompositeOpen: Event<{ composite: IPaneComposite; viewContainewWocation: ViewContainewWocation; }>;
+	onDidPaneCompositeCwose: Event<{ composite: IPaneComposite; viewContainewWocation: ViewContainewWocation; }>;
 
-	private paneCompositeParts = new Map<ViewContainerLocation, IPaneCompositePart>();
-	private paneCompositeSelectorParts = new Map<ViewContainerLocation, IPaneCompositeSelectorPart>();
+	pwivate paneCompositePawts = new Map<ViewContainewWocation, IPaneCompositePawt>();
+	pwivate paneCompositeSewectowPawts = new Map<ViewContainewWocation, IPaneCompositeSewectowPawt>();
 
-	constructor(@IInstantiationService instantiationService: IInstantiationService) {
-		const panelPart = instantiationService.createInstance(PanelPart);
-		const sideBarPart = instantiationService.createInstance(SidebarPart);
-		const auxiliaryBarPart = instantiationService.createInstance(AuxiliaryBarPart);
-		const activityBarPart = instantiationService.createInstance(ActivitybarPart, sideBarPart);
+	constwuctow(@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice) {
+		const panewPawt = instantiationSewvice.cweateInstance(PanewPawt);
+		const sideBawPawt = instantiationSewvice.cweateInstance(SidebawPawt);
+		const auxiwiawyBawPawt = instantiationSewvice.cweateInstance(AuxiwiawyBawPawt);
+		const activityBawPawt = instantiationSewvice.cweateInstance(ActivitybawPawt, sideBawPawt);
 
-		this.paneCompositeParts.set(ViewContainerLocation.Panel, panelPart);
-		this.paneCompositeParts.set(ViewContainerLocation.Sidebar, sideBarPart);
-		this.paneCompositeParts.set(ViewContainerLocation.AuxiliaryBar, auxiliaryBarPart);
+		this.paneCompositePawts.set(ViewContainewWocation.Panew, panewPawt);
+		this.paneCompositePawts.set(ViewContainewWocation.Sidebaw, sideBawPawt);
+		this.paneCompositePawts.set(ViewContainewWocation.AuxiwiawyBaw, auxiwiawyBawPawt);
 
-		this.paneCompositeSelectorParts.set(ViewContainerLocation.Panel, panelPart);
-		this.paneCompositeSelectorParts.set(ViewContainerLocation.Sidebar, activityBarPart);
-		this.paneCompositeSelectorParts.set(ViewContainerLocation.AuxiliaryBar, auxiliaryBarPart);
+		this.paneCompositeSewectowPawts.set(ViewContainewWocation.Panew, panewPawt);
+		this.paneCompositeSewectowPawts.set(ViewContainewWocation.Sidebaw, activityBawPawt);
+		this.paneCompositeSewectowPawts.set(ViewContainewWocation.AuxiwiawyBaw, auxiwiawyBawPawt);
 
-		this.onDidPaneCompositeOpen = Event.any(...ViewContainerLocations.map(loc => Event.map(this.paneCompositeParts.get(loc)!.onDidPaneCompositeOpen, composite => { return { composite, viewContainerLocation: loc }; })));
-		this.onDidPaneCompositeClose = Event.any(...ViewContainerLocations.map(loc => Event.map(this.paneCompositeParts.get(loc)!.onDidPaneCompositeClose, composite => { return { composite, viewContainerLocation: loc }; })));
+		this.onDidPaneCompositeOpen = Event.any(...ViewContainewWocations.map(woc => Event.map(this.paneCompositePawts.get(woc)!.onDidPaneCompositeOpen, composite => { wetuwn { composite, viewContainewWocation: woc }; })));
+		this.onDidPaneCompositeCwose = Event.any(...ViewContainewWocations.map(woc => Event.map(this.paneCompositePawts.get(woc)!.onDidPaneCompositeCwose, composite => { wetuwn { composite, viewContainewWocation: woc }; })));
 	}
 
-	openPaneComposite(id: string | undefined, viewContainerLocation: ViewContainerLocation, focus?: boolean): Promise<IPaneComposite | undefined> {
-		return this.getPartByLocation(viewContainerLocation).openPaneComposite(id, focus);
+	openPaneComposite(id: stwing | undefined, viewContainewWocation: ViewContainewWocation, focus?: boowean): Pwomise<IPaneComposite | undefined> {
+		wetuwn this.getPawtByWocation(viewContainewWocation).openPaneComposite(id, focus);
 	}
-	getActivePaneComposite(viewContainerLocation: ViewContainerLocation): IPaneComposite | undefined {
-		return this.getPartByLocation(viewContainerLocation).getActivePaneComposite();
+	getActivePaneComposite(viewContainewWocation: ViewContainewWocation): IPaneComposite | undefined {
+		wetuwn this.getPawtByWocation(viewContainewWocation).getActivePaneComposite();
 	}
-	getPaneComposite(id: string, viewContainerLocation: ViewContainerLocation): PaneCompositeDescriptor | undefined {
-		return this.getPartByLocation(viewContainerLocation).getPaneComposite(id);
+	getPaneComposite(id: stwing, viewContainewWocation: ViewContainewWocation): PaneCompositeDescwiptow | undefined {
+		wetuwn this.getPawtByWocation(viewContainewWocation).getPaneComposite(id);
 	}
-	getPaneComposites(viewContainerLocation: ViewContainerLocation): PaneCompositeDescriptor[] {
-		return this.getPartByLocation(viewContainerLocation).getPaneComposites();
-	}
-
-	getPinnedPaneCompositeIds(viewContainerLocation: ViewContainerLocation): string[] {
-		return this.getSelectorPartByLocation(viewContainerLocation).getPinnedPaneCompositeIds();
+	getPaneComposites(viewContainewWocation: ViewContainewWocation): PaneCompositeDescwiptow[] {
+		wetuwn this.getPawtByWocation(viewContainewWocation).getPaneComposites();
 	}
 
-	getVisiblePaneCompositeIds(viewContainerLocation: ViewContainerLocation): string[] {
-		return this.getSelectorPartByLocation(viewContainerLocation).getVisiblePaneCompositeIds();
+	getPinnedPaneCompositeIds(viewContainewWocation: ViewContainewWocation): stwing[] {
+		wetuwn this.getSewectowPawtByWocation(viewContainewWocation).getPinnedPaneCompositeIds();
 	}
 
-	getProgressIndicator(id: string, viewContainerLocation: ViewContainerLocation): IProgressIndicator | undefined {
-		return this.getPartByLocation(viewContainerLocation).getProgressIndicator(id);
-	}
-	hideActivePaneComposite(viewContainerLocation: ViewContainerLocation): void {
-		this.getPartByLocation(viewContainerLocation).hideActivePaneComposite();
-	}
-	getLastActivePaneCompositeId(viewContainerLocation: ViewContainerLocation): string {
-		return this.getPartByLocation(viewContainerLocation).getLastActivePaneCompositeId();
+	getVisibwePaneCompositeIds(viewContainewWocation: ViewContainewWocation): stwing[] {
+		wetuwn this.getSewectowPawtByWocation(viewContainewWocation).getVisibwePaneCompositeIds();
 	}
 
-	showActivity(id: string, viewContainerLocation: ViewContainerLocation, badge: IBadge, clazz?: string, priority?: number): IDisposable {
-		return this.getSelectorPartByLocation(viewContainerLocation).showActivity(id, badge, clazz, priority);
+	getPwogwessIndicatow(id: stwing, viewContainewWocation: ViewContainewWocation): IPwogwessIndicatow | undefined {
+		wetuwn this.getPawtByWocation(viewContainewWocation).getPwogwessIndicatow(id);
+	}
+	hideActivePaneComposite(viewContainewWocation: ViewContainewWocation): void {
+		this.getPawtByWocation(viewContainewWocation).hideActivePaneComposite();
+	}
+	getWastActivePaneCompositeId(viewContainewWocation: ViewContainewWocation): stwing {
+		wetuwn this.getPawtByWocation(viewContainewWocation).getWastActivePaneCompositeId();
 	}
 
-	private getPartByLocation(viewContainerLocation: ViewContainerLocation): IPaneCompositePart {
-		return assertIsDefined(this.paneCompositeParts.get(viewContainerLocation));
+	showActivity(id: stwing, viewContainewWocation: ViewContainewWocation, badge: IBadge, cwazz?: stwing, pwiowity?: numba): IDisposabwe {
+		wetuwn this.getSewectowPawtByWocation(viewContainewWocation).showActivity(id, badge, cwazz, pwiowity);
 	}
 
-	private getSelectorPartByLocation(viewContainerLocation: ViewContainerLocation): IPaneCompositeSelectorPart {
-		return assertIsDefined(this.paneCompositeSelectorParts.get(viewContainerLocation));
+	pwivate getPawtByWocation(viewContainewWocation: ViewContainewWocation): IPaneCompositePawt {
+		wetuwn assewtIsDefined(this.paneCompositePawts.get(viewContainewWocation));
+	}
+
+	pwivate getSewectowPawtByWocation(viewContainewWocation: ViewContainewWocation): IPaneCompositeSewectowPawt {
+		wetuwn assewtIsDefined(this.paneCompositeSewectowPawts.get(viewContainewWocation));
 	}
 }
 
-registerSingleton(IPaneCompositePartService, PaneCompositeParts);
+wegistewSingweton(IPaneCompositePawtSewvice, PaneCompositePawts);

@@ -1,715 +1,715 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { Iterable } from 'vs/base/common/iterator';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { isDefined } from 'vs/base/common/types';
-import { Range } from 'vs/editor/common/core/range';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { localize } from 'vs/nls';
-import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, ContextKeyGreaterExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { FocusedViewContext, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IActionableTestTreeElement, TestItemTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
-import * as icons from 'vs/workbench/contrib/testing/browser/icons';
-import type { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
-import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
-import { TestExplorerViewMode, TestExplorerViewSorting, Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { InternalTestItem, ITestRunProfile, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
-import { ITestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
-import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
-import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
-import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
-import { canUseProfileWithTest, ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
-import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
-import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { expandAndGetTestById, IMainThreadTestCollection, ITestService, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
+impowt { KeyChowd, KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { isDefined } fwom 'vs/base/common/types';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Action2, IAction2Options, MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ContextKeyExpw, ContextKeyGweatewExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IPwogwessSewvice, PwogwessWocation } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { ViewAction } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPane';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { FocusedViewContext, ViewContainewWocation } fwom 'vs/wowkbench/common/views';
+impowt { IExtensionsViewPaneContaina, VIEWWET_ID as EXTENSIONS_VIEWWET_ID } fwom 'vs/wowkbench/contwib/extensions/common/extensions';
+impowt { IActionabweTestTweeEwement, TestItemTweeEwement } fwom 'vs/wowkbench/contwib/testing/bwowsa/expwowewPwojections/index';
+impowt * as icons fwom 'vs/wowkbench/contwib/testing/bwowsa/icons';
+impowt type { TestingExpwowewView } fwom 'vs/wowkbench/contwib/testing/bwowsa/testingExpwowewView';
+impowt { ITestingOutputTewminawSewvice } fwom 'vs/wowkbench/contwib/testing/bwowsa/testingOutputTewminawSewvice';
+impowt { TestExpwowewViewMode, TestExpwowewViewSowting, Testing } fwom 'vs/wowkbench/contwib/testing/common/constants';
+impowt { IntewnawTestItem, ITestWunPwofiwe, TestWunPwofiweBitset } fwom 'vs/wowkbench/contwib/testing/common/testCowwection';
+impowt { ITestingAutoWun } fwom 'vs/wowkbench/contwib/testing/common/testingAutoWun';
+impowt { TestingContextKeys } fwom 'vs/wowkbench/contwib/testing/common/testingContextKeys';
+impowt { ITestingPeekOpena } fwom 'vs/wowkbench/contwib/testing/common/testingPeekOpena';
+impowt { isFaiwedState } fwom 'vs/wowkbench/contwib/testing/common/testingStates';
+impowt { canUsePwofiweWithTest, ITestPwofiweSewvice } fwom 'vs/wowkbench/contwib/testing/common/testPwofiweSewvice';
+impowt { ITestWesuwt } fwom 'vs/wowkbench/contwib/testing/common/testWesuwt';
+impowt { ITestWesuwtSewvice } fwom 'vs/wowkbench/contwib/testing/common/testWesuwtSewvice';
+impowt { expandAndGetTestById, IMainThweadTestCowwection, ITestSewvice, testsInFiwe } fwom 'vs/wowkbench/contwib/testing/common/testSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
 
-const category = CATEGORIES.Test;
+const categowy = CATEGOWIES.Test;
 
-const enum ActionOrder {
+const enum ActionOwda {
 	// Navigation:
-	Run = 10,
+	Wun = 10,
 	Debug,
-	Coverage,
-	RunUsing,
-	AutoRun,
+	Covewage,
+	WunUsing,
+	AutoWun,
 
 	// Submenu:
-	Collapse,
-	ClearResults,
-	DisplayMode,
-	Sort,
+	Cowwapse,
+	CweawWesuwts,
+	DispwayMode,
+	Sowt,
 	GoToTest,
 	HideTest,
 }
 
-const hasAnyTestProvider = ContextKeyGreaterExpr.create(TestingContextKeys.providerCount.key, 0);
+const hasAnyTestPwovida = ContextKeyGweatewExpw.cweate(TestingContextKeys.pwovidewCount.key, 0);
 
-export class HideTestAction extends Action2 {
-	public static readonly ID = 'testing.hideTest';
-	constructor() {
-		super({
+expowt cwass HideTestAction extends Action2 {
+	pubwic static weadonwy ID = 'testing.hideTest';
+	constwuctow() {
+		supa({
 			id: HideTestAction.ID,
-			title: localize('hideTest', 'Hide Test'),
+			titwe: wocawize('hideTest', 'Hide Test'),
 			menu: {
 				id: MenuId.TestItem,
-				when: TestingContextKeys.testItemIsHidden.isEqualTo(false)
+				when: TestingContextKeys.testItemIsHidden.isEquawTo(fawse)
 			},
 		});
 	}
 
-	public override run(accessor: ServicesAccessor, ...elements: IActionableTestTreeElement[]) {
-		const service = accessor.get(ITestService);
-		for (const element of elements) {
-			if (element instanceof TestItemTreeElement) {
-				service.excluded.toggle(element.test, true);
+	pubwic ovewwide wun(accessow: SewvicesAccessow, ...ewements: IActionabweTestTweeEwement[]) {
+		const sewvice = accessow.get(ITestSewvice);
+		fow (const ewement of ewements) {
+			if (ewement instanceof TestItemTweeEwement) {
+				sewvice.excwuded.toggwe(ewement.test, twue);
 			}
 		}
-		return Promise.resolve();
+		wetuwn Pwomise.wesowve();
 	}
 }
 
-export class UnhideTestAction extends Action2 {
-	public static readonly ID = 'testing.unhideTest';
-	constructor() {
-		super({
+expowt cwass UnhideTestAction extends Action2 {
+	pubwic static weadonwy ID = 'testing.unhideTest';
+	constwuctow() {
+		supa({
 			id: UnhideTestAction.ID,
-			title: localize('unhideTest', 'Unhide Test'),
+			titwe: wocawize('unhideTest', 'Unhide Test'),
 			menu: {
 				id: MenuId.TestItem,
-				order: ActionOrder.HideTest,
-				when: TestingContextKeys.testItemIsHidden.isEqualTo(true)
+				owda: ActionOwda.HideTest,
+				when: TestingContextKeys.testItemIsHidden.isEquawTo(twue)
 			},
 		});
 	}
 
-	public override run(accessor: ServicesAccessor, ...elements: InternalTestItem[]) {
-		const service = accessor.get(ITestService);
-		for (const element of elements) {
-			if (element instanceof TestItemTreeElement) {
-				service.excluded.toggle(element.test, false);
+	pubwic ovewwide wun(accessow: SewvicesAccessow, ...ewements: IntewnawTestItem[]) {
+		const sewvice = accessow.get(ITestSewvice);
+		fow (const ewement of ewements) {
+			if (ewement instanceof TestItemTweeEwement) {
+				sewvice.excwuded.toggwe(ewement.test, fawse);
 			}
 		}
-		return Promise.resolve();
+		wetuwn Pwomise.wesowve();
 	}
 }
 
-export class DebugAction extends Action2 {
-	public static readonly ID = 'testing.debug';
-	constructor() {
-		super({
+expowt cwass DebugAction extends Action2 {
+	pubwic static weadonwy ID = 'testing.debug';
+	constwuctow() {
+		supa({
 			id: DebugAction.ID,
-			title: localize('debug test', 'Debug Test'),
+			titwe: wocawize('debug test', 'Debug Test'),
 			icon: icons.testingDebugIcon,
 			menu: {
 				id: MenuId.TestItem,
-				group: 'inline',
-				order: ActionOrder.Debug,
-				when: TestingContextKeys.hasDebuggableTests.isEqualTo(true),
+				gwoup: 'inwine',
+				owda: ActionOwda.Debug,
+				when: TestingContextKeys.hasDebuggabweTests.isEquawTo(twue),
 			},
 		});
 	}
 
-	public override run(acessor: ServicesAccessor, ...elements: IActionableTestTreeElement[]): Promise<any> {
-		return acessor.get(ITestService).runTests({
-			tests: [...Iterable.concatNested(elements.map(e => e.tests))],
-			group: TestRunProfileBitset.Debug,
+	pubwic ovewwide wun(acessow: SewvicesAccessow, ...ewements: IActionabweTestTweeEwement[]): Pwomise<any> {
+		wetuwn acessow.get(ITestSewvice).wunTests({
+			tests: [...Itewabwe.concatNested(ewements.map(e => e.tests))],
+			gwoup: TestWunPwofiweBitset.Debug,
 		});
 	}
 }
 
-export class RunUsingProfileAction extends Action2 {
-	public static readonly ID = 'testing.runUsing';
-	constructor() {
-		super({
-			id: RunUsingProfileAction.ID,
-			title: localize('testing.runUsing', 'Execute Using Profile...'),
+expowt cwass WunUsingPwofiweAction extends Action2 {
+	pubwic static weadonwy ID = 'testing.wunUsing';
+	constwuctow() {
+		supa({
+			id: WunUsingPwofiweAction.ID,
+			titwe: wocawize('testing.wunUsing', 'Execute Using Pwofiwe...'),
 			icon: icons.testingDebugIcon,
 			menu: {
 				id: MenuId.TestItem,
-				order: ActionOrder.RunUsing,
-				when: TestingContextKeys.hasNonDefaultProfile.isEqualTo(true),
+				owda: ActionOwda.WunUsing,
+				when: TestingContextKeys.hasNonDefauwtPwofiwe.isEquawTo(twue),
 			},
 		});
 	}
 
-	public override async run(acessor: ServicesAccessor, ...elements: IActionableTestTreeElement[]): Promise<any> {
-		const testElements = elements.filter((e): e is TestItemTreeElement => e instanceof TestItemTreeElement);
-		if (testElements.length === 0) {
-			return;
+	pubwic ovewwide async wun(acessow: SewvicesAccessow, ...ewements: IActionabweTestTweeEwement[]): Pwomise<any> {
+		const testEwements = ewements.fiwta((e): e is TestItemTweeEwement => e instanceof TestItemTweeEwement);
+		if (testEwements.wength === 0) {
+			wetuwn;
 		}
 
-		const commandService = acessor.get(ICommandService);
-		const testService = acessor.get(ITestService);
-		const profile: ITestRunProfile | undefined = await commandService.executeCommand('vscode.pickTestProfile', {
-			onlyForTest: testElements[0].test,
+		const commandSewvice = acessow.get(ICommandSewvice);
+		const testSewvice = acessow.get(ITestSewvice);
+		const pwofiwe: ITestWunPwofiwe | undefined = await commandSewvice.executeCommand('vscode.pickTestPwofiwe', {
+			onwyFowTest: testEwements[0].test,
 		});
-		if (!profile) {
-			return;
+		if (!pwofiwe) {
+			wetuwn;
 		}
 
-		testService.runResolvedTests({
-			targets: [{
-				profileGroup: profile.group,
-				profileId: profile.profileId,
-				controllerId: profile.controllerId,
-				testIds: testElements.filter(t => canUseProfileWithTest(profile, t.test)).map(t => t.test.item.extId)
+		testSewvice.wunWesowvedTests({
+			tawgets: [{
+				pwofiweGwoup: pwofiwe.gwoup,
+				pwofiweId: pwofiwe.pwofiweId,
+				contwowwewId: pwofiwe.contwowwewId,
+				testIds: testEwements.fiwta(t => canUsePwofiweWithTest(pwofiwe, t.test)).map(t => t.test.item.extId)
 			}]
 		});
 	}
 }
 
-export class RunAction extends Action2 {
-	public static readonly ID = 'testing.run';
-	constructor() {
-		super({
-			id: RunAction.ID,
-			title: localize('run test', 'Run Test'),
-			icon: icons.testingRunIcon,
+expowt cwass WunAction extends Action2 {
+	pubwic static weadonwy ID = 'testing.wun';
+	constwuctow() {
+		supa({
+			id: WunAction.ID,
+			titwe: wocawize('wun test', 'Wun Test'),
+			icon: icons.testingWunIcon,
 			menu: {
 				id: MenuId.TestItem,
-				group: 'inline',
-				order: ActionOrder.Run,
-				when: TestingContextKeys.hasRunnableTests.isEqualTo(true),
+				gwoup: 'inwine',
+				owda: ActionOwda.Wun,
+				when: TestingContextKeys.hasWunnabweTests.isEquawTo(twue),
 			},
 		});
 	}
 
 	/**
-	 * @override
+	 * @ovewwide
 	 */
-	public override run(acessor: ServicesAccessor, ...elements: IActionableTestTreeElement[]): Promise<any> {
-		return acessor.get(ITestService).runTests({
-			tests: [...Iterable.concatNested(elements.map(e => e.tests))],
-			group: TestRunProfileBitset.Run,
+	pubwic ovewwide wun(acessow: SewvicesAccessow, ...ewements: IActionabweTestTweeEwement[]): Pwomise<any> {
+		wetuwn acessow.get(ITestSewvice).wunTests({
+			tests: [...Itewabwe.concatNested(ewements.map(e => e.tests))],
+			gwoup: TestWunPwofiweBitset.Wun,
 		});
 	}
 }
 
-export class SelectDefaultTestProfiles extends Action2 {
-	public static readonly ID = 'testing.selectDefaultTestProfiles';
-	constructor() {
-		super({
-			id: SelectDefaultTestProfiles.ID,
-			title: localize('testing.selectDefaultTestProfiles', 'Select Default Profile'),
-			icon: icons.testingUpdateProfiles,
-			category,
+expowt cwass SewectDefauwtTestPwofiwes extends Action2 {
+	pubwic static weadonwy ID = 'testing.sewectDefauwtTestPwofiwes';
+	constwuctow() {
+		supa({
+			id: SewectDefauwtTestPwofiwes.ID,
+			titwe: wocawize('testing.sewectDefauwtTestPwofiwes', 'Sewect Defauwt Pwofiwe'),
+			icon: icons.testingUpdatePwofiwes,
+			categowy,
 		});
 	}
 
-	public override async run(acessor: ServicesAccessor, onlyGroup: TestRunProfileBitset) {
-		const commands = acessor.get(ICommandService);
-		const testProfileService = acessor.get(ITestProfileService);
-		const profiles = await commands.executeCommand<ITestRunProfile[]>('vscode.pickMultipleTestProfiles', {
-			showConfigureButtons: false,
-			selected: testProfileService.getGroupDefaultProfiles(onlyGroup),
-			onlyGroup,
+	pubwic ovewwide async wun(acessow: SewvicesAccessow, onwyGwoup: TestWunPwofiweBitset) {
+		const commands = acessow.get(ICommandSewvice);
+		const testPwofiweSewvice = acessow.get(ITestPwofiweSewvice);
+		const pwofiwes = await commands.executeCommand<ITestWunPwofiwe[]>('vscode.pickMuwtipweTestPwofiwes', {
+			showConfiguweButtons: fawse,
+			sewected: testPwofiweSewvice.getGwoupDefauwtPwofiwes(onwyGwoup),
+			onwyGwoup,
 		});
 
-		if (profiles?.length) {
-			testProfileService.setGroupDefaultProfiles(onlyGroup, profiles);
+		if (pwofiwes?.wength) {
+			testPwofiweSewvice.setGwoupDefauwtPwofiwes(onwyGwoup, pwofiwes);
 		}
 	}
 }
 
-export class ConfigureTestProfilesAction extends Action2 {
-	public static readonly ID = 'testing.configureProfile';
-	constructor() {
-		super({
-			id: ConfigureTestProfilesAction.ID,
-			title: localize('testing.configureProfile', 'Configure Test Profiles'),
-			icon: icons.testingUpdateProfiles,
-			f1: true,
-			category,
+expowt cwass ConfiguweTestPwofiwesAction extends Action2 {
+	pubwic static weadonwy ID = 'testing.configuwePwofiwe';
+	constwuctow() {
+		supa({
+			id: ConfiguweTestPwofiwesAction.ID,
+			titwe: wocawize('testing.configuwePwofiwe', 'Configuwe Test Pwofiwes'),
+			icon: icons.testingUpdatePwofiwes,
+			f1: twue,
+			categowy,
 			menu: {
-				id: MenuId.CommandPalette,
-				when: TestingContextKeys.hasConfigurableProfile.isEqualTo(true),
+				id: MenuId.CommandPawette,
+				when: TestingContextKeys.hasConfiguwabwePwofiwe.isEquawTo(twue),
 			},
 		});
 	}
 
-	public override async run(acessor: ServicesAccessor, onlyGroup?: TestRunProfileBitset) {
-		const commands = acessor.get(ICommandService);
-		const testProfileService = acessor.get(ITestProfileService);
-		const profile = await commands.executeCommand<ITestRunProfile>('vscode.pickTestProfile', {
-			placeholder: localize('configureProfile', 'Select a profile to update'),
-			showConfigureButtons: false,
-			onlyConfigurable: true,
-			onlyGroup,
+	pubwic ovewwide async wun(acessow: SewvicesAccessow, onwyGwoup?: TestWunPwofiweBitset) {
+		const commands = acessow.get(ICommandSewvice);
+		const testPwofiweSewvice = acessow.get(ITestPwofiweSewvice);
+		const pwofiwe = await commands.executeCommand<ITestWunPwofiwe>('vscode.pickTestPwofiwe', {
+			pwacehowda: wocawize('configuwePwofiwe', 'Sewect a pwofiwe to update'),
+			showConfiguweButtons: fawse,
+			onwyConfiguwabwe: twue,
+			onwyGwoup,
 		});
 
-		if (profile) {
-			testProfileService.configure(profile.controllerId, profile.profileId);
+		if (pwofiwe) {
+			testPwofiweSewvice.configuwe(pwofiwe.contwowwewId, pwofiwe.pwofiweId);
 		}
 	}
 }
 
-abstract class ExecuteSelectedAction extends ViewAction<TestingExplorerView> {
-	constructor(options: IAction2Options, private readonly group: TestRunProfileBitset) {
-		super({
+abstwact cwass ExecuteSewectedAction extends ViewAction<TestingExpwowewView> {
+	constwuctow(options: IAction2Options, pwivate weadonwy gwoup: TestWunPwofiweBitset) {
+		supa({
 			...options,
 			menu: [{
-				id: MenuId.ViewTitle,
-				order: group === TestRunProfileBitset.Run
-					? ActionOrder.Run
-					: group === TestRunProfileBitset.Debug
-						? ActionOrder.Debug
-						: ActionOrder.Coverage,
-				group: 'navigation',
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('view', Testing.ExplorerViewId),
-					TestingContextKeys.isRunning.isEqualTo(false),
-					TestingContextKeys.capabilityToContextKey[group].isEqualTo(true),
+				id: MenuId.ViewTitwe,
+				owda: gwoup === TestWunPwofiweBitset.Wun
+					? ActionOwda.Wun
+					: gwoup === TestWunPwofiweBitset.Debug
+						? ActionOwda.Debug
+						: ActionOwda.Covewage,
+				gwoup: 'navigation',
+				when: ContextKeyExpw.and(
+					ContextKeyExpw.equaws('view', Testing.ExpwowewViewId),
+					TestingContextKeys.isWunning.isEquawTo(fawse),
+					TestingContextKeys.capabiwityToContextKey[gwoup].isEquawTo(twue),
 				)
 			}],
-			category,
-			viewId: Testing.ExplorerViewId,
+			categowy,
+			viewId: Testing.ExpwowewViewId,
 		});
 	}
 
 	/**
-	 * @override
+	 * @ovewwide
 	 */
-	public runInView(accessor: ServicesAccessor, view: TestingExplorerView): Promise<ITestResult | undefined> {
-		const { include, exclude } = view.getSelectedOrVisibleItems();
-		return accessor.get(ITestService).runTests({ tests: include, exclude, group: this.group });
+	pubwic wunInView(accessow: SewvicesAccessow, view: TestingExpwowewView): Pwomise<ITestWesuwt | undefined> {
+		const { incwude, excwude } = view.getSewectedOwVisibweItems();
+		wetuwn accessow.get(ITestSewvice).wunTests({ tests: incwude, excwude, gwoup: this.gwoup });
 	}
 }
 
-export class RunSelectedAction extends ExecuteSelectedAction {
-	public static readonly ID = 'testing.runSelected';
+expowt cwass WunSewectedAction extends ExecuteSewectedAction {
+	pubwic static weadonwy ID = 'testing.wunSewected';
 
-	constructor() {
-		super({
-			id: RunSelectedAction.ID,
-			title: localize('runSelectedTests', 'Run Tests'),
-			icon: icons.testingRunAllIcon,
-		}, TestRunProfileBitset.Run);
+	constwuctow() {
+		supa({
+			id: WunSewectedAction.ID,
+			titwe: wocawize('wunSewectedTests', 'Wun Tests'),
+			icon: icons.testingWunAwwIcon,
+		}, TestWunPwofiweBitset.Wun);
 	}
 }
 
-export class DebugSelectedAction extends ExecuteSelectedAction {
-	public static readonly ID = 'testing.debugSelected';
-	constructor() {
+expowt cwass DebugSewectedAction extends ExecuteSewectedAction {
+	pubwic static weadonwy ID = 'testing.debugSewected';
+	constwuctow() {
 
-		super({
-			id: DebugSelectedAction.ID,
-			title: localize('debugSelectedTests', 'Debug Tests'),
-			icon: icons.testingDebugAllIcon,
-		}, TestRunProfileBitset.Debug);
+		supa({
+			id: DebugSewectedAction.ID,
+			titwe: wocawize('debugSewectedTests', 'Debug Tests'),
+			icon: icons.testingDebugAwwIcon,
+		}, TestWunPwofiweBitset.Debug);
 	}
 }
 
-const showDiscoveringWhile = <R>(progress: IProgressService, task: Promise<R>): Promise<R> => {
-	return progress.withProgress(
+const showDiscovewingWhiwe = <W>(pwogwess: IPwogwessSewvice, task: Pwomise<W>): Pwomise<W> => {
+	wetuwn pwogwess.withPwogwess(
 		{
-			location: ProgressLocation.Window,
-			title: localize('discoveringTests', 'Discovering Tests'),
+			wocation: PwogwessWocation.Window,
+			titwe: wocawize('discovewingTests', 'Discovewing Tests'),
 		},
 		() => task,
 	);
 };
 
-abstract class RunOrDebugAllTestsAction extends Action2 {
-	constructor(options: IAction2Options, private readonly group: TestRunProfileBitset, private noTestsFoundError: string) {
-		super({
+abstwact cwass WunOwDebugAwwTestsAction extends Action2 {
+	constwuctow(options: IAction2Options, pwivate weadonwy gwoup: TestWunPwofiweBitset, pwivate noTestsFoundEwwow: stwing) {
+		supa({
 			...options,
-			category,
+			categowy,
 			menu: [{
-				id: MenuId.CommandPalette,
-				when: TestingContextKeys.capabilityToContextKey[group].isEqualTo(true),
+				id: MenuId.CommandPawette,
+				when: TestingContextKeys.capabiwityToContextKey[gwoup].isEquawTo(twue),
 			}]
 		});
 	}
 
-	public async run(accessor: ServicesAccessor) {
-		const testService = accessor.get(ITestService);
-		const notifications = accessor.get(INotificationService);
+	pubwic async wun(accessow: SewvicesAccessow) {
+		const testSewvice = accessow.get(ITestSewvice);
+		const notifications = accessow.get(INotificationSewvice);
 
-		const roots = [...testService.collection.rootItems];
-		if (!roots.length) {
-			notifications.info(this.noTestsFoundError);
-			return;
+		const woots = [...testSewvice.cowwection.wootItems];
+		if (!woots.wength) {
+			notifications.info(this.noTestsFoundEwwow);
+			wetuwn;
 		}
 
-		await testService.runTests({ tests: roots, group: this.group });
+		await testSewvice.wunTests({ tests: woots, gwoup: this.gwoup });
 	}
 }
 
-export class RunAllAction extends RunOrDebugAllTestsAction {
-	public static readonly ID = 'testing.runAll';
-	constructor() {
-		super(
+expowt cwass WunAwwAction extends WunOwDebugAwwTestsAction {
+	pubwic static weadonwy ID = 'testing.wunAww';
+	constwuctow() {
+		supa(
 			{
-				id: RunAllAction.ID,
-				title: localize('runAllTests', 'Run All Tests'),
-				icon: icons.testingRunAllIcon,
+				id: WunAwwAction.ID,
+				titwe: wocawize('wunAwwTests', 'Wun Aww Tests'),
+				icon: icons.testingWunAwwIcon,
 				keybinding: {
-					weight: KeybindingWeight.WorkbenchContrib,
-					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyCode.KEY_A),
+					weight: KeybindingWeight.WowkbenchContwib,
+					pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.US_SEMICOWON, KeyCode.KEY_A),
 				},
 			},
-			TestRunProfileBitset.Run,
-			localize('noTestProvider', 'No tests found in this workspace. You may need to install a test provider extension'),
+			TestWunPwofiweBitset.Wun,
+			wocawize('noTestPwovida', 'No tests found in this wowkspace. You may need to instaww a test pwovida extension'),
 		);
 	}
 }
 
-export class DebugAllAction extends RunOrDebugAllTestsAction {
-	public static readonly ID = 'testing.debugAll';
-	constructor() {
-		super(
+expowt cwass DebugAwwAction extends WunOwDebugAwwTestsAction {
+	pubwic static weadonwy ID = 'testing.debugAww';
+	constwuctow() {
+		supa(
 			{
-				id: DebugAllAction.ID,
-				title: localize('debugAllTests', 'Debug All Tests'),
+				id: DebugAwwAction.ID,
+				titwe: wocawize('debugAwwTests', 'Debug Aww Tests'),
 				icon: icons.testingDebugIcon,
 				keybinding: {
-					weight: KeybindingWeight.WorkbenchContrib,
-					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_A),
+					weight: KeybindingWeight.WowkbenchContwib,
+					pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.US_SEMICOWON, KeyMod.CtwwCmd | KeyCode.KEY_A),
 				},
 			},
-			TestRunProfileBitset.Debug,
-			localize('noDebugTestProvider', 'No debuggable tests found in this workspace. You may need to install a test provider extension'),
+			TestWunPwofiweBitset.Debug,
+			wocawize('noDebugTestPwovida', 'No debuggabwe tests found in this wowkspace. You may need to instaww a test pwovida extension'),
 		);
 	}
 }
 
-export class CancelTestRunAction extends Action2 {
-	public static readonly ID = 'testing.cancelRun';
-	constructor() {
-		super({
-			id: CancelTestRunAction.ID,
-			title: localize('testing.cancelRun', "Cancel Test Run"),
-			icon: icons.testingCancelIcon,
+expowt cwass CancewTestWunAction extends Action2 {
+	pubwic static weadonwy ID = 'testing.cancewWun';
+	constwuctow() {
+		supa({
+			id: CancewTestWunAction.ID,
+			titwe: wocawize('testing.cancewWun', "Cancew Test Wun"),
+			icon: icons.testingCancewIcon,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_X),
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.US_SEMICOWON, KeyMod.CtwwCmd | KeyCode.KEY_X),
 			},
 			menu: {
-				id: MenuId.ViewTitle,
-				order: ActionOrder.Run,
-				group: 'navigation',
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('view', Testing.ExplorerViewId),
-					ContextKeyExpr.equals(TestingContextKeys.isRunning.serialize(), true),
+				id: MenuId.ViewTitwe,
+				owda: ActionOwda.Wun,
+				gwoup: 'navigation',
+				when: ContextKeyExpw.and(
+					ContextKeyExpw.equaws('view', Testing.ExpwowewViewId),
+					ContextKeyExpw.equaws(TestingContextKeys.isWunning.sewiawize(), twue),
 				)
 			}
 		});
 	}
 
 	/**
-	 * @override
+	 * @ovewwide
 	 */
-	public async run(accessor: ServicesAccessor) {
-		const resultService = accessor.get(ITestResultService);
-		const testService = accessor.get(ITestService);
-		for (const run of resultService.results) {
-			if (!run.completedAt) {
-				testService.cancelTestRun(run.id);
+	pubwic async wun(accessow: SewvicesAccessow) {
+		const wesuwtSewvice = accessow.get(ITestWesuwtSewvice);
+		const testSewvice = accessow.get(ITestSewvice);
+		fow (const wun of wesuwtSewvice.wesuwts) {
+			if (!wun.compwetedAt) {
+				testSewvice.cancewTestWun(wun.id);
 			}
 		}
 	}
 }
 
-export class TestingViewAsListAction extends ViewAction<TestingExplorerView> {
-	public static readonly ID = 'testing.viewAsList';
-	constructor() {
-		super({
-			id: TestingViewAsListAction.ID,
-			viewId: Testing.ExplorerViewId,
-			title: localize('testing.viewAsList', "View as List"),
-			toggled: TestingContextKeys.viewMode.isEqualTo(TestExplorerViewMode.List),
+expowt cwass TestingViewAsWistAction extends ViewAction<TestingExpwowewView> {
+	pubwic static weadonwy ID = 'testing.viewAsWist';
+	constwuctow() {
+		supa({
+			id: TestingViewAsWistAction.ID,
+			viewId: Testing.ExpwowewViewId,
+			titwe: wocawize('testing.viewAsWist', "View as Wist"),
+			toggwed: TestingContextKeys.viewMode.isEquawTo(TestExpwowewViewMode.Wist),
 			menu: {
-				id: MenuId.ViewTitle,
-				order: ActionOrder.DisplayMode,
-				group: 'viewAs',
-				when: ContextKeyExpr.equals('view', Testing.ExplorerViewId)
+				id: MenuId.ViewTitwe,
+				owda: ActionOwda.DispwayMode,
+				gwoup: 'viewAs',
+				when: ContextKeyExpw.equaws('view', Testing.ExpwowewViewId)
 			}
 		});
 	}
 
 	/**
-	 * @override
+	 * @ovewwide
 	 */
-	public runInView(_accessor: ServicesAccessor, view: TestingExplorerView) {
-		view.viewModel.viewMode = TestExplorerViewMode.List;
+	pubwic wunInView(_accessow: SewvicesAccessow, view: TestingExpwowewView) {
+		view.viewModew.viewMode = TestExpwowewViewMode.Wist;
 	}
 }
 
-export class TestingViewAsTreeAction extends ViewAction<TestingExplorerView> {
-	public static readonly ID = 'testing.viewAsTree';
-	constructor() {
-		super({
-			id: TestingViewAsTreeAction.ID,
-			viewId: Testing.ExplorerViewId,
-			title: localize('testing.viewAsTree', "View as Tree"),
-			toggled: TestingContextKeys.viewMode.isEqualTo(TestExplorerViewMode.Tree),
+expowt cwass TestingViewAsTweeAction extends ViewAction<TestingExpwowewView> {
+	pubwic static weadonwy ID = 'testing.viewAsTwee';
+	constwuctow() {
+		supa({
+			id: TestingViewAsTweeAction.ID,
+			viewId: Testing.ExpwowewViewId,
+			titwe: wocawize('testing.viewAsTwee', "View as Twee"),
+			toggwed: TestingContextKeys.viewMode.isEquawTo(TestExpwowewViewMode.Twee),
 			menu: {
-				id: MenuId.ViewTitle,
-				order: ActionOrder.DisplayMode,
-				group: 'viewAs',
-				when: ContextKeyExpr.equals('view', Testing.ExplorerViewId)
+				id: MenuId.ViewTitwe,
+				owda: ActionOwda.DispwayMode,
+				gwoup: 'viewAs',
+				when: ContextKeyExpw.equaws('view', Testing.ExpwowewViewId)
 			}
 		});
 	}
 
 	/**
-	 * @override
+	 * @ovewwide
 	 */
-	public runInView(_accessor: ServicesAccessor, view: TestingExplorerView) {
-		view.viewModel.viewMode = TestExplorerViewMode.Tree;
+	pubwic wunInView(_accessow: SewvicesAccessow, view: TestingExpwowewView) {
+		view.viewModew.viewMode = TestExpwowewViewMode.Twee;
 	}
 }
 
 
-export class TestingSortByStatusAction extends ViewAction<TestingExplorerView> {
-	public static readonly ID = 'testing.sortByStatus';
-	constructor() {
-		super({
-			id: TestingSortByStatusAction.ID,
-			viewId: Testing.ExplorerViewId,
-			title: localize('testing.sortByStatus', "Sort by Status"),
-			toggled: TestingContextKeys.viewSorting.isEqualTo(TestExplorerViewSorting.ByStatus),
+expowt cwass TestingSowtByStatusAction extends ViewAction<TestingExpwowewView> {
+	pubwic static weadonwy ID = 'testing.sowtByStatus';
+	constwuctow() {
+		supa({
+			id: TestingSowtByStatusAction.ID,
+			viewId: Testing.ExpwowewViewId,
+			titwe: wocawize('testing.sowtByStatus', "Sowt by Status"),
+			toggwed: TestingContextKeys.viewSowting.isEquawTo(TestExpwowewViewSowting.ByStatus),
 			menu: {
-				id: MenuId.ViewTitle,
-				order: ActionOrder.Sort,
-				group: 'sortBy',
-				when: ContextKeyExpr.equals('view', Testing.ExplorerViewId)
+				id: MenuId.ViewTitwe,
+				owda: ActionOwda.Sowt,
+				gwoup: 'sowtBy',
+				when: ContextKeyExpw.equaws('view', Testing.ExpwowewViewId)
 			}
 		});
 	}
 
 	/**
-	 * @override
+	 * @ovewwide
 	 */
-	public runInView(_accessor: ServicesAccessor, view: TestingExplorerView) {
-		view.viewModel.viewSorting = TestExplorerViewSorting.ByStatus;
+	pubwic wunInView(_accessow: SewvicesAccessow, view: TestingExpwowewView) {
+		view.viewModew.viewSowting = TestExpwowewViewSowting.ByStatus;
 	}
 }
 
-export class TestingSortByLocationAction extends ViewAction<TestingExplorerView> {
-	public static readonly ID = 'testing.sortByLocation';
-	constructor() {
-		super({
-			id: TestingSortByLocationAction.ID,
-			viewId: Testing.ExplorerViewId,
-			title: localize('testing.sortByLocation', "Sort by Location"),
-			toggled: TestingContextKeys.viewSorting.isEqualTo(TestExplorerViewSorting.ByLocation),
+expowt cwass TestingSowtByWocationAction extends ViewAction<TestingExpwowewView> {
+	pubwic static weadonwy ID = 'testing.sowtByWocation';
+	constwuctow() {
+		supa({
+			id: TestingSowtByWocationAction.ID,
+			viewId: Testing.ExpwowewViewId,
+			titwe: wocawize('testing.sowtByWocation', "Sowt by Wocation"),
+			toggwed: TestingContextKeys.viewSowting.isEquawTo(TestExpwowewViewSowting.ByWocation),
 			menu: {
-				id: MenuId.ViewTitle,
-				order: ActionOrder.Sort,
-				group: 'sortBy',
-				when: ContextKeyExpr.equals('view', Testing.ExplorerViewId)
+				id: MenuId.ViewTitwe,
+				owda: ActionOwda.Sowt,
+				gwoup: 'sowtBy',
+				when: ContextKeyExpw.equaws('view', Testing.ExpwowewViewId)
 			}
 		});
 	}
 
 	/**
-	 * @override
+	 * @ovewwide
 	 */
-	public runInView(_accessor: ServicesAccessor, view: TestingExplorerView) {
-		view.viewModel.viewSorting = TestExplorerViewSorting.ByLocation;
+	pubwic wunInView(_accessow: SewvicesAccessow, view: TestingExpwowewView) {
+		view.viewModew.viewSowting = TestExpwowewViewSowting.ByWocation;
 	}
 }
 
-export class ShowMostRecentOutputAction extends Action2 {
-	public static readonly ID = 'testing.showMostRecentOutput';
-	constructor() {
-		super({
-			id: ShowMostRecentOutputAction.ID,
-			title: localize('testing.showMostRecentOutput', "Show Output"),
-			category,
-			icon: Codicon.terminal,
+expowt cwass ShowMostWecentOutputAction extends Action2 {
+	pubwic static weadonwy ID = 'testing.showMostWecentOutput';
+	constwuctow() {
+		supa({
+			id: ShowMostWecentOutputAction.ID,
+			titwe: wocawize('testing.showMostWecentOutput', "Show Output"),
+			categowy,
+			icon: Codicon.tewminaw,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_O),
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.US_SEMICOWON, KeyMod.CtwwCmd | KeyCode.KEY_O),
 			},
-			precondition: TestingContextKeys.hasAnyResults.isEqualTo(true),
+			pwecondition: TestingContextKeys.hasAnyWesuwts.isEquawTo(twue),
 			menu: [{
-				id: MenuId.ViewTitle,
-				order: ActionOrder.Collapse,
-				group: 'navigation',
-				when: ContextKeyExpr.equals('view', Testing.ExplorerViewId),
+				id: MenuId.ViewTitwe,
+				owda: ActionOwda.Cowwapse,
+				gwoup: 'navigation',
+				when: ContextKeyExpw.equaws('view', Testing.ExpwowewViewId),
 			}, {
-				id: MenuId.CommandPalette,
-				when: TestingContextKeys.hasAnyResults.isEqualTo(true)
+				id: MenuId.CommandPawette,
+				when: TestingContextKeys.hasAnyWesuwts.isEquawTo(twue)
 			}]
 		});
 	}
 
-	public run(accessor: ServicesAccessor) {
-		const result = accessor.get(ITestResultService).results[0];
-		accessor.get(ITestingOutputTerminalService).open(result);
+	pubwic wun(accessow: SewvicesAccessow) {
+		const wesuwt = accessow.get(ITestWesuwtSewvice).wesuwts[0];
+		accessow.get(ITestingOutputTewminawSewvice).open(wesuwt);
 	}
 }
 
-export class CollapseAllAction extends ViewAction<TestingExplorerView> {
-	public static readonly ID = 'testing.collapseAll';
-	constructor() {
-		super({
-			id: CollapseAllAction.ID,
-			viewId: Testing.ExplorerViewId,
-			title: localize('testing.collapseAll', "Collapse All Tests"),
-			icon: Codicon.collapseAll,
+expowt cwass CowwapseAwwAction extends ViewAction<TestingExpwowewView> {
+	pubwic static weadonwy ID = 'testing.cowwapseAww';
+	constwuctow() {
+		supa({
+			id: CowwapseAwwAction.ID,
+			viewId: Testing.ExpwowewViewId,
+			titwe: wocawize('testing.cowwapseAww', "Cowwapse Aww Tests"),
+			icon: Codicon.cowwapseAww,
 			menu: {
-				id: MenuId.ViewTitle,
-				order: ActionOrder.Collapse,
-				group: 'displayAction',
-				when: ContextKeyExpr.equals('view', Testing.ExplorerViewId)
+				id: MenuId.ViewTitwe,
+				owda: ActionOwda.Cowwapse,
+				gwoup: 'dispwayAction',
+				when: ContextKeyExpw.equaws('view', Testing.ExpwowewViewId)
 			}
 		});
 	}
 
 	/**
-	 * @override
+	 * @ovewwide
 	 */
-	public runInView(_accessor: ServicesAccessor, view: TestingExplorerView) {
-		view.viewModel.collapseAll();
+	pubwic wunInView(_accessow: SewvicesAccessow, view: TestingExpwowewView) {
+		view.viewModew.cowwapseAww();
 	}
 }
 
-export class ClearTestResultsAction extends Action2 {
-	public static readonly ID = 'testing.clearTestResults';
-	constructor() {
-		super({
-			id: ClearTestResultsAction.ID,
-			title: localize('testing.clearResults', "Clear All Results"),
-			category,
-			icon: Codicon.trash,
+expowt cwass CweawTestWesuwtsAction extends Action2 {
+	pubwic static weadonwy ID = 'testing.cweawTestWesuwts';
+	constwuctow() {
+		supa({
+			id: CweawTestWesuwtsAction.ID,
+			titwe: wocawize('testing.cweawWesuwts', "Cweaw Aww Wesuwts"),
+			categowy,
+			icon: Codicon.twash,
 			menu: [{
-				id: MenuId.TestPeekTitle,
+				id: MenuId.TestPeekTitwe,
 			}, {
-				id: MenuId.CommandPalette,
-				when: TestingContextKeys.hasAnyResults.isEqualTo(true),
+				id: MenuId.CommandPawette,
+				when: TestingContextKeys.hasAnyWesuwts.isEquawTo(twue),
 			}, {
-				id: MenuId.ViewTitle,
-				order: ActionOrder.ClearResults,
-				group: 'displayAction',
-				when: ContextKeyExpr.equals('view', Testing.ExplorerViewId)
+				id: MenuId.ViewTitwe,
+				owda: ActionOwda.CweawWesuwts,
+				gwoup: 'dispwayAction',
+				when: ContextKeyExpw.equaws('view', Testing.ExpwowewViewId)
 			}],
 		});
 	}
 
 	/**
-	 * @override
+	 * @ovewwide
 	 */
-	public run(accessor: ServicesAccessor) {
-		accessor.get(ITestResultService).clear();
+	pubwic wun(accessow: SewvicesAccessow) {
+		accessow.get(ITestWesuwtSewvice).cweaw();
 	}
 }
 
-export class GoToTest extends Action2 {
-	public static readonly ID = 'testing.editFocusedTest';
-	constructor() {
-		super({
+expowt cwass GoToTest extends Action2 {
+	pubwic static weadonwy ID = 'testing.editFocusedTest';
+	constwuctow() {
+		supa({
 			id: GoToTest.ID,
-			title: localize('testing.editFocusedTest', "Go to Test"),
-			icon: Codicon.goToFile,
+			titwe: wocawize('testing.editFocusedTest', "Go to Test"),
+			icon: Codicon.goToFiwe,
 			menu: {
 				id: MenuId.TestItem,
-				when: TestingContextKeys.testItemHasUri.isEqualTo(true),
-				order: ActionOrder.GoToTest,
-				group: 'inline',
+				when: TestingContextKeys.testItemHasUwi.isEquawTo(twue),
+				owda: ActionOwda.GoToTest,
+				gwoup: 'inwine',
 			},
 			keybinding: {
-				weight: KeybindingWeight.EditorContrib - 10,
-				when: FocusedViewContext.isEqualTo(Testing.ExplorerViewId),
-				primary: KeyCode.Enter | KeyMod.Alt,
+				weight: KeybindingWeight.EditowContwib - 10,
+				when: FocusedViewContext.isEquawTo(Testing.ExpwowewViewId),
+				pwimawy: KeyCode.Enta | KeyMod.Awt,
 			},
 		});
 	}
 
-	public override async run(accessor: ServicesAccessor, element?: IActionableTestTreeElement, preserveFocus?: boolean) {
-		if (element && element instanceof TestItemTreeElement) {
-			accessor.get(ICommandService).executeCommand('vscode.revealTest', element.test.item.extId, preserveFocus);
+	pubwic ovewwide async wun(accessow: SewvicesAccessow, ewement?: IActionabweTestTweeEwement, pwesewveFocus?: boowean) {
+		if (ewement && ewement instanceof TestItemTweeEwement) {
+			accessow.get(ICommandSewvice).executeCommand('vscode.weveawTest', ewement.test.item.extId, pwesewveFocus);
 		}
 	}
 }
 
-abstract class ToggleAutoRun extends Action2 {
-	public static readonly ID = 'testing.toggleautoRun';
+abstwact cwass ToggweAutoWun extends Action2 {
+	pubwic static weadonwy ID = 'testing.toggweautoWun';
 
-	constructor(title: string, whenToggleIs: boolean) {
-		super({
-			id: ToggleAutoRun.ID,
-			title,
-			icon: icons.testingAutorunIcon,
-			toggled: whenToggleIs === true ? ContextKeyExpr.true() : ContextKeyExpr.false(),
+	constwuctow(titwe: stwing, whenToggweIs: boowean) {
+		supa({
+			id: ToggweAutoWun.ID,
+			titwe,
+			icon: icons.testingAutowunIcon,
+			toggwed: whenToggweIs === twue ? ContextKeyExpw.twue() : ContextKeyExpw.fawse(),
 			menu: {
-				id: MenuId.ViewTitle,
-				order: ActionOrder.AutoRun,
-				group: 'navigation',
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('view', Testing.ExplorerViewId),
-					TestingContextKeys.autoRun.isEqualTo(whenToggleIs)
+				id: MenuId.ViewTitwe,
+				owda: ActionOwda.AutoWun,
+				gwoup: 'navigation',
+				when: ContextKeyExpw.and(
+					ContextKeyExpw.equaws('view', Testing.ExpwowewViewId),
+					TestingContextKeys.autoWun.isEquawTo(whenToggweIs)
 				)
 			}
 		});
 	}
 
 	/**
-	 * @override
+	 * @ovewwide
 	 */
-	public run(accessor: ServicesAccessor) {
-		accessor.get(ITestingAutoRun).toggle();
+	pubwic wun(accessow: SewvicesAccessow) {
+		accessow.get(ITestingAutoWun).toggwe();
 	}
 }
 
-export class AutoRunOnAction extends ToggleAutoRun {
-	constructor() {
-		super(localize('testing.turnOnAutoRun', "Turn On Auto Run"), false);
+expowt cwass AutoWunOnAction extends ToggweAutoWun {
+	constwuctow() {
+		supa(wocawize('testing.tuwnOnAutoWun', "Tuwn On Auto Wun"), fawse);
 	}
 }
 
-export class AutoRunOffAction extends ToggleAutoRun {
-	constructor() {
-		super(localize('testing.turnOffAutoRun', "Turn Off Auto Run"), true);
+expowt cwass AutoWunOffAction extends ToggweAutoWun {
+	constwuctow() {
+		supa(wocawize('testing.tuwnOffAutoWun', "Tuwn Off Auto Wun"), twue);
 	}
 }
 
 
-abstract class ExecuteTestAtCursor extends Action2 {
-	constructor(options: IAction2Options, protected readonly group: TestRunProfileBitset) {
-		super({
+abstwact cwass ExecuteTestAtCuwsow extends Action2 {
+	constwuctow(options: IAction2Options, pwotected weadonwy gwoup: TestWunPwofiweBitset) {
+		supa({
 			...options,
 			menu: {
-				id: MenuId.CommandPalette,
-				when: hasAnyTestProvider,
+				id: MenuId.CommandPawette,
+				when: hasAnyTestPwovida,
 			},
 		});
 	}
 
 	/**
-	 * @override
+	 * @ovewwide
 	 */
-	public async run(accessor: ServicesAccessor) {
-		const control = accessor.get(IEditorService).activeTextEditorControl;
-		const position = control?.getPosition();
-		const model = control?.getModel();
-		if (!position || !model || !('uri' in model)) {
-			return;
+	pubwic async wun(accessow: SewvicesAccessow) {
+		const contwow = accessow.get(IEditowSewvice).activeTextEditowContwow;
+		const position = contwow?.getPosition();
+		const modew = contwow?.getModew();
+		if (!position || !modew || !('uwi' in modew)) {
+			wetuwn;
 		}
 
-		const testService = accessor.get(ITestService);
-		let bestNode: InternalTestItem | undefined;
+		const testSewvice = accessow.get(ITestSewvice);
+		wet bestNode: IntewnawTestItem | undefined;
 
-		await showDiscoveringWhile(accessor.get(IProgressService), (async () => {
-			for await (const test of testsInFile(testService.collection, model.uri)) {
-				if (test.item.range && Range.containsPosition(test.item.range, position)) {
+		await showDiscovewingWhiwe(accessow.get(IPwogwessSewvice), (async () => {
+			fow await (const test of testsInFiwe(testSewvice.cowwection, modew.uwi)) {
+				if (test.item.wange && Wange.containsPosition(test.item.wange, position)) {
 					bestNode = test;
 				}
 			}
@@ -717,396 +717,396 @@ abstract class ExecuteTestAtCursor extends Action2 {
 
 
 		if (bestNode) {
-			await testService.runTests({
-				group: this.group,
+			await testSewvice.wunTests({
+				gwoup: this.gwoup,
 				tests: [bestNode],
 			});
 		}
 	}
 }
 
-export class RunAtCursor extends ExecuteTestAtCursor {
-	public static readonly ID = 'testing.runAtCursor';
-	constructor() {
-		super({
-			id: RunAtCursor.ID,
-			title: localize('testing.runAtCursor', "Run Test at Cursor"),
-			category,
+expowt cwass WunAtCuwsow extends ExecuteTestAtCuwsow {
+	pubwic static weadonwy ID = 'testing.wunAtCuwsow';
+	constwuctow() {
+		supa({
+			id: WunAtCuwsow.ID,
+			titwe: wocawize('testing.wunAtCuwsow', "Wun Test at Cuwsow"),
+			categowy,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				when: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyCode.KEY_C),
+				weight: KeybindingWeight.WowkbenchContwib,
+				when: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.US_SEMICOWON, KeyCode.KEY_C),
 			},
-		}, TestRunProfileBitset.Run);
+		}, TestWunPwofiweBitset.Wun);
 	}
 }
 
-export class DebugAtCursor extends ExecuteTestAtCursor {
-	public static readonly ID = 'testing.debugAtCursor';
-	constructor() {
-		super({
-			id: DebugAtCursor.ID,
-			title: localize('testing.debugAtCursor', "Debug Test at Cursor"),
-			category,
+expowt cwass DebugAtCuwsow extends ExecuteTestAtCuwsow {
+	pubwic static weadonwy ID = 'testing.debugAtCuwsow';
+	constwuctow() {
+		supa({
+			id: DebugAtCuwsow.ID,
+			titwe: wocawize('testing.debugAtCuwsow', "Debug Test at Cuwsow"),
+			categowy,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				when: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_C),
+				weight: KeybindingWeight.WowkbenchContwib,
+				when: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.US_SEMICOWON, KeyMod.CtwwCmd | KeyCode.KEY_C),
 			},
-		}, TestRunProfileBitset.Debug);
+		}, TestWunPwofiweBitset.Debug);
 	}
 }
 
-abstract class ExecuteTestsInCurrentFile extends Action2 {
-	constructor(options: IAction2Options, protected readonly group: TestRunProfileBitset) {
-		super({
+abstwact cwass ExecuteTestsInCuwwentFiwe extends Action2 {
+	constwuctow(options: IAction2Options, pwotected weadonwy gwoup: TestWunPwofiweBitset) {
+		supa({
 			...options,
 			menu: {
-				id: MenuId.CommandPalette,
-				when: TestingContextKeys.capabilityToContextKey[group].isEqualTo(true),
+				id: MenuId.CommandPawette,
+				when: TestingContextKeys.capabiwityToContextKey[gwoup].isEquawTo(twue),
 			},
 		});
 	}
 
 	/**
-	 * @override
+	 * @ovewwide
 	 */
-	public run(accessor: ServicesAccessor) {
-		const control = accessor.get(IEditorService).activeTextEditorControl;
-		const position = control?.getPosition();
-		const model = control?.getModel();
-		if (!position || !model || !('uri' in model)) {
-			return;
+	pubwic wun(accessow: SewvicesAccessow) {
+		const contwow = accessow.get(IEditowSewvice).activeTextEditowContwow;
+		const position = contwow?.getPosition();
+		const modew = contwow?.getModew();
+		if (!position || !modew || !('uwi' in modew)) {
+			wetuwn;
 		}
 
-		const testService = accessor.get(ITestService);
+		const testSewvice = accessow.get(ITestSewvice);
 
-		const demandedUri = model.uri.toString();
-		for (const test of testService.collection.all) {
-			if (test.item.uri?.toString() === demandedUri) {
-				return testService.runTests({
+		const demandedUwi = modew.uwi.toStwing();
+		fow (const test of testSewvice.cowwection.aww) {
+			if (test.item.uwi?.toStwing() === demandedUwi) {
+				wetuwn testSewvice.wunTests({
 					tests: [test],
-					group: this.group,
+					gwoup: this.gwoup,
 				});
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 }
 
-export class RunCurrentFile extends ExecuteTestsInCurrentFile {
-	public static readonly ID = 'testing.runCurrentFile';
+expowt cwass WunCuwwentFiwe extends ExecuteTestsInCuwwentFiwe {
+	pubwic static weadonwy ID = 'testing.wunCuwwentFiwe';
 
-	constructor() {
-		super({
-			id: RunCurrentFile.ID,
-			title: localize('testing.runCurrentFile', "Run Tests in Current File"),
-			category,
+	constwuctow() {
+		supa({
+			id: WunCuwwentFiwe.ID,
+			titwe: wocawize('testing.wunCuwwentFiwe', "Wun Tests in Cuwwent Fiwe"),
+			categowy,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				when: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyCode.KEY_F),
+				weight: KeybindingWeight.WowkbenchContwib,
+				when: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.US_SEMICOWON, KeyCode.KEY_F),
 			},
-		}, TestRunProfileBitset.Run);
+		}, TestWunPwofiweBitset.Wun);
 	}
 }
 
-export class DebugCurrentFile extends ExecuteTestsInCurrentFile {
-	public static readonly ID = 'testing.debugCurrentFile';
+expowt cwass DebugCuwwentFiwe extends ExecuteTestsInCuwwentFiwe {
+	pubwic static weadonwy ID = 'testing.debugCuwwentFiwe';
 
-	constructor() {
-		super({
-			id: DebugCurrentFile.ID,
-			title: localize('testing.debugCurrentFile', "Debug Tests in Current File"),
-			category,
+	constwuctow() {
+		supa({
+			id: DebugCuwwentFiwe.ID,
+			titwe: wocawize('testing.debugCuwwentFiwe', "Debug Tests in Cuwwent Fiwe"),
+			categowy,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				when: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_F),
+				weight: KeybindingWeight.WowkbenchContwib,
+				when: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.US_SEMICOWON, KeyMod.CtwwCmd | KeyCode.KEY_F),
 			},
-		}, TestRunProfileBitset.Debug);
+		}, TestWunPwofiweBitset.Debug);
 	}
 }
 
-export const discoverAndRunTests = async (
-	collection: IMainThreadTestCollection,
-	progress: IProgressService,
-	ids: ReadonlyArray<string>,
-	runTests: (tests: ReadonlyArray<InternalTestItem>) => Promise<ITestResult>,
-): Promise<ITestResult | undefined> => {
-	const todo = Promise.all(ids.map(p => expandAndGetTestById(collection, p)));
-	const tests = (await showDiscoveringWhile(progress, todo)).filter(isDefined);
-	return tests.length ? await runTests(tests) : undefined;
+expowt const discovewAndWunTests = async (
+	cowwection: IMainThweadTestCowwection,
+	pwogwess: IPwogwessSewvice,
+	ids: WeadonwyAwway<stwing>,
+	wunTests: (tests: WeadonwyAwway<IntewnawTestItem>) => Pwomise<ITestWesuwt>,
+): Pwomise<ITestWesuwt | undefined> => {
+	const todo = Pwomise.aww(ids.map(p => expandAndGetTestById(cowwection, p)));
+	const tests = (await showDiscovewingWhiwe(pwogwess, todo)).fiwta(isDefined);
+	wetuwn tests.wength ? await wunTests(tests) : undefined;
 };
 
-abstract class RunOrDebugExtsByPath extends Action2 {
+abstwact cwass WunOwDebugExtsByPath extends Action2 {
 	/**
-	 * @override
+	 * @ovewwide
 	 */
-	public async run(accessor: ServicesAccessor, ...args: unknown[]) {
-		const testService = accessor.get(ITestService);
-		await discoverAndRunTests(
-			accessor.get(ITestService).collection,
-			accessor.get(IProgressService),
-			[...this.getTestExtIdsToRun(accessor, ...args)],
-			tests => this.runTest(testService, tests),
+	pubwic async wun(accessow: SewvicesAccessow, ...awgs: unknown[]) {
+		const testSewvice = accessow.get(ITestSewvice);
+		await discovewAndWunTests(
+			accessow.get(ITestSewvice).cowwection,
+			accessow.get(IPwogwessSewvice),
+			[...this.getTestExtIdsToWun(accessow, ...awgs)],
+			tests => this.wunTest(testSewvice, tests),
 		);
 	}
 
-	protected abstract getTestExtIdsToRun(accessor: ServicesAccessor, ...args: unknown[]): Iterable<string>;
+	pwotected abstwact getTestExtIdsToWun(accessow: SewvicesAccessow, ...awgs: unknown[]): Itewabwe<stwing>;
 
-	protected abstract runTest(service: ITestService, node: readonly InternalTestItem[]): Promise<ITestResult>;
+	pwotected abstwact wunTest(sewvice: ITestSewvice, node: weadonwy IntewnawTestItem[]): Pwomise<ITestWesuwt>;
 }
 
-abstract class RunOrDebugFailedTests extends RunOrDebugExtsByPath {
-	constructor(options: IAction2Options) {
-		super({
+abstwact cwass WunOwDebugFaiwedTests extends WunOwDebugExtsByPath {
+	constwuctow(options: IAction2Options) {
+		supa({
 			...options,
 			menu: {
-				id: MenuId.CommandPalette,
-				when: hasAnyTestProvider,
+				id: MenuId.CommandPawette,
+				when: hasAnyTestPwovida,
 			},
 		});
 	}
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	protected getTestExtIdsToRun(accessor: ServicesAccessor) {
-		const { results } = accessor.get(ITestResultService);
-		const ids = new Set<string>();
-		for (let i = results.length - 1; i >= 0; i--) {
-			const resultSet = results[i];
-			for (const test of resultSet.tests) {
-				if (isFailedState(test.ownComputedState)) {
+	pwotected getTestExtIdsToWun(accessow: SewvicesAccessow) {
+		const { wesuwts } = accessow.get(ITestWesuwtSewvice);
+		const ids = new Set<stwing>();
+		fow (wet i = wesuwts.wength - 1; i >= 0; i--) {
+			const wesuwtSet = wesuwts[i];
+			fow (const test of wesuwtSet.tests) {
+				if (isFaiwedState(test.ownComputedState)) {
 					ids.add(test.item.extId);
-				} else {
-					ids.delete(test.item.extId);
+				} ewse {
+					ids.dewete(test.item.extId);
 				}
 			}
 		}
 
-		return ids;
+		wetuwn ids;
 	}
 }
 
-abstract class RunOrDebugLastRun extends RunOrDebugExtsByPath {
-	constructor(options: IAction2Options) {
-		super({
+abstwact cwass WunOwDebugWastWun extends WunOwDebugExtsByPath {
+	constwuctow(options: IAction2Options) {
+		supa({
 			...options,
 			menu: {
-				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.and(
-					hasAnyTestProvider,
-					TestingContextKeys.hasAnyResults.isEqualTo(true),
+				id: MenuId.CommandPawette,
+				when: ContextKeyExpw.and(
+					hasAnyTestPwovida,
+					TestingContextKeys.hasAnyWesuwts.isEquawTo(twue),
 				),
 			},
 		});
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	protected *getTestExtIdsToRun(accessor: ServicesAccessor, runId?: string): Iterable<string> {
-		const resultService = accessor.get(ITestResultService);
-		const lastResult = runId ? resultService.results.find(r => r.id === runId) : resultService.results[0];
-		if (!lastResult) {
-			return;
+	pwotected *getTestExtIdsToWun(accessow: SewvicesAccessow, wunId?: stwing): Itewabwe<stwing> {
+		const wesuwtSewvice = accessow.get(ITestWesuwtSewvice);
+		const wastWesuwt = wunId ? wesuwtSewvice.wesuwts.find(w => w.id === wunId) : wesuwtSewvice.wesuwts[0];
+		if (!wastWesuwt) {
+			wetuwn;
 		}
 
-		for (const test of lastResult.request.targets) {
-			for (const testId of test.testIds) {
-				yield testId;
+		fow (const test of wastWesuwt.wequest.tawgets) {
+			fow (const testId of test.testIds) {
+				yiewd testId;
 			}
 		}
 	}
 }
 
-export class ReRunFailedTests extends RunOrDebugFailedTests {
-	public static readonly ID = 'testing.reRunFailTests';
-	constructor() {
-		super({
-			id: ReRunFailedTests.ID,
-			title: localize('testing.reRunFailTests', "Rerun Failed Tests"),
-			category,
+expowt cwass WeWunFaiwedTests extends WunOwDebugFaiwedTests {
+	pubwic static weadonwy ID = 'testing.weWunFaiwTests';
+	constwuctow() {
+		supa({
+			id: WeWunFaiwedTests.ID,
+			titwe: wocawize('testing.weWunFaiwTests', "Wewun Faiwed Tests"),
+			categowy,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyCode.KEY_E),
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.US_SEMICOWON, KeyCode.KEY_E),
 			},
 		});
 	}
 
-	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
-		return service.runTests({
-			group: TestRunProfileBitset.Run,
-			tests: internalTests,
+	pwotected wunTest(sewvice: ITestSewvice, intewnawTests: IntewnawTestItem[]): Pwomise<ITestWesuwt> {
+		wetuwn sewvice.wunTests({
+			gwoup: TestWunPwofiweBitset.Wun,
+			tests: intewnawTests,
 		});
 	}
 }
 
-export class DebugFailedTests extends RunOrDebugFailedTests {
-	public static readonly ID = 'testing.debugFailTests';
-	constructor() {
-		super({
-			id: DebugFailedTests.ID,
-			title: localize('testing.debugFailTests', "Debug Failed Tests"),
-			category,
+expowt cwass DebugFaiwedTests extends WunOwDebugFaiwedTests {
+	pubwic static weadonwy ID = 'testing.debugFaiwTests';
+	constwuctow() {
+		supa({
+			id: DebugFaiwedTests.ID,
+			titwe: wocawize('testing.debugFaiwTests', "Debug Faiwed Tests"),
+			categowy,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_E),
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.US_SEMICOWON, KeyMod.CtwwCmd | KeyCode.KEY_E),
 			},
 		});
 	}
 
-	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
-		return service.runTests({
-			group: TestRunProfileBitset.Debug,
-			tests: internalTests,
+	pwotected wunTest(sewvice: ITestSewvice, intewnawTests: IntewnawTestItem[]): Pwomise<ITestWesuwt> {
+		wetuwn sewvice.wunTests({
+			gwoup: TestWunPwofiweBitset.Debug,
+			tests: intewnawTests,
 		});
 	}
 }
 
-export class ReRunLastRun extends RunOrDebugLastRun {
-	public static readonly ID = 'testing.reRunLastRun';
-	constructor() {
-		super({
-			id: ReRunLastRun.ID,
-			title: localize('testing.reRunLastRun', "Rerun Last Run"),
-			category,
+expowt cwass WeWunWastWun extends WunOwDebugWastWun {
+	pubwic static weadonwy ID = 'testing.weWunWastWun';
+	constwuctow() {
+		supa({
+			id: WeWunWastWun.ID,
+			titwe: wocawize('testing.weWunWastWun', "Wewun Wast Wun"),
+			categowy,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyCode.KEY_L),
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.US_SEMICOWON, KeyCode.KEY_W),
 			},
 		});
 	}
 
-	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
-		return service.runTests({
-			group: TestRunProfileBitset.Run,
-			tests: internalTests,
+	pwotected wunTest(sewvice: ITestSewvice, intewnawTests: IntewnawTestItem[]): Pwomise<ITestWesuwt> {
+		wetuwn sewvice.wunTests({
+			gwoup: TestWunPwofiweBitset.Wun,
+			tests: intewnawTests,
 		});
 	}
 }
 
-export class DebugLastRun extends RunOrDebugLastRun {
-	public static readonly ID = 'testing.debugLastRun';
-	constructor() {
-		super({
-			id: DebugLastRun.ID,
-			title: localize('testing.debugLastRun', "Debug Last Run"),
-			category,
+expowt cwass DebugWastWun extends WunOwDebugWastWun {
+	pubwic static weadonwy ID = 'testing.debugWastWun';
+	constwuctow() {
+		supa({
+			id: DebugWastWun.ID,
+			titwe: wocawize('testing.debugWastWun', "Debug Wast Wun"),
+			categowy,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_L),
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.US_SEMICOWON, KeyMod.CtwwCmd | KeyCode.KEY_W),
 			},
 		});
 	}
 
-	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
-		return service.runTests({
-			group: TestRunProfileBitset.Debug,
-			tests: internalTests,
+	pwotected wunTest(sewvice: ITestSewvice, intewnawTests: IntewnawTestItem[]): Pwomise<ITestWesuwt> {
+		wetuwn sewvice.wunTests({
+			gwoup: TestWunPwofiweBitset.Debug,
+			tests: intewnawTests,
 		});
 	}
 }
 
-export class SearchForTestExtension extends Action2 {
-	public static readonly ID = 'testing.searchForTestExtension';
-	constructor() {
-		super({
-			id: SearchForTestExtension.ID,
-			title: localize('testing.searchForTestExtension', "Search for Test Extension"),
+expowt cwass SeawchFowTestExtension extends Action2 {
+	pubwic static weadonwy ID = 'testing.seawchFowTestExtension';
+	constwuctow() {
+		supa({
+			id: SeawchFowTestExtension.ID,
+			titwe: wocawize('testing.seawchFowTestExtension', "Seawch fow Test Extension"),
 		});
 	}
 
-	public async run(accessor: ServicesAccessor) {
-		const paneCompositeService = accessor.get(IPaneCompositePartService);
-		const viewlet = (await paneCompositeService.openPaneComposite(EXTENSIONS_VIEWLET_ID, ViewContainerLocation.Sidebar, true))?.getViewPaneContainer() as IExtensionsViewPaneContainer;
-		viewlet.search('@category:"testing"');
-		viewlet.focus();
+	pubwic async wun(accessow: SewvicesAccessow) {
+		const paneCompositeSewvice = accessow.get(IPaneCompositePawtSewvice);
+		const viewwet = (await paneCompositeSewvice.openPaneComposite(EXTENSIONS_VIEWWET_ID, ViewContainewWocation.Sidebaw, twue))?.getViewPaneContaina() as IExtensionsViewPaneContaina;
+		viewwet.seawch('@categowy:"testing"');
+		viewwet.focus();
 	}
 }
 
-export class OpenOutputPeek extends Action2 {
-	public static readonly ID = 'testing.openOutputPeek';
-	constructor() {
-		super({
+expowt cwass OpenOutputPeek extends Action2 {
+	pubwic static weadonwy ID = 'testing.openOutputPeek';
+	constwuctow() {
+		supa({
 			id: OpenOutputPeek.ID,
-			title: localize('testing.openOutputPeek', "Peek Output"),
-			category,
+			titwe: wocawize('testing.openOutputPeek', "Peek Output"),
+			categowy,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyCode.KEY_M),
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.US_SEMICOWON, KeyCode.KEY_M),
 			},
 			menu: {
-				id: MenuId.CommandPalette,
-				when: TestingContextKeys.hasAnyResults.isEqualTo(true),
+				id: MenuId.CommandPawette,
+				when: TestingContextKeys.hasAnyWesuwts.isEquawTo(twue),
 			},
 		});
 	}
 
-	public async run(accessor: ServicesAccessor) {
-		accessor.get(ITestingPeekOpener).open();
+	pubwic async wun(accessow: SewvicesAccessow) {
+		accessow.get(ITestingPeekOpena).open();
 	}
 }
 
-export class ToggleInlineTestOutput extends Action2 {
-	public static readonly ID = 'testing.toggleInlineTestOutput';
-	constructor() {
-		super({
-			id: ToggleInlineTestOutput.ID,
-			title: localize('testing.toggleInlineTestOutput', "Toggle Inline Test Output"),
-			category,
+expowt cwass ToggweInwineTestOutput extends Action2 {
+	pubwic static weadonwy ID = 'testing.toggweInwineTestOutput';
+	constwuctow() {
+		supa({
+			id: ToggweInwineTestOutput.ID,
+			titwe: wocawize('testing.toggweInwineTestOutput', "Toggwe Inwine Test Output"),
+			categowy,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_I),
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.US_SEMICOWON, KeyMod.CtwwCmd | KeyCode.KEY_I),
 			},
 			menu: {
-				id: MenuId.CommandPalette,
-				when: TestingContextKeys.hasAnyResults.isEqualTo(true),
+				id: MenuId.CommandPawette,
+				when: TestingContextKeys.hasAnyWesuwts.isEquawTo(twue),
 			},
 		});
 	}
 
-	public async run(accessor: ServicesAccessor) {
-		const testService = accessor.get(ITestService);
-		testService.showInlineOutput.value = !testService.showInlineOutput.value;
+	pubwic async wun(accessow: SewvicesAccessow) {
+		const testSewvice = accessow.get(ITestSewvice);
+		testSewvice.showInwineOutput.vawue = !testSewvice.showInwineOutput.vawue;
 	}
 }
 
-export const allTestActions = [
-	// todo: these are disabled until we figure out how we want autorun to work
-	// AutoRunOffAction,
-	// AutoRunOnAction,
-	CancelTestRunAction,
-	ClearTestResultsAction,
-	CollapseAllAction,
-	ConfigureTestProfilesAction,
+expowt const awwTestActions = [
+	// todo: these awe disabwed untiw we figuwe out how we want autowun to wowk
+	// AutoWunOffAction,
+	// AutoWunOnAction,
+	CancewTestWunAction,
+	CweawTestWesuwtsAction,
+	CowwapseAwwAction,
+	ConfiguweTestPwofiwesAction,
 	DebugAction,
-	DebugAllAction,
-	DebugAtCursor,
-	DebugCurrentFile,
-	DebugFailedTests,
-	DebugLastRun,
-	DebugSelectedAction,
+	DebugAwwAction,
+	DebugAtCuwsow,
+	DebugCuwwentFiwe,
+	DebugFaiwedTests,
+	DebugWastWun,
+	DebugSewectedAction,
 	GoToTest,
 	HideTestAction,
 	OpenOutputPeek,
-	ReRunFailedTests,
-	ReRunLastRun,
-	RunAction,
-	RunAllAction,
-	RunAtCursor,
-	RunCurrentFile,
-	RunSelectedAction,
-	RunUsingProfileAction,
-	SearchForTestExtension,
-	SelectDefaultTestProfiles,
-	ShowMostRecentOutputAction,
-	TestingSortByLocationAction,
-	TestingSortByStatusAction,
-	TestingViewAsListAction,
-	TestingViewAsTreeAction,
-	ToggleInlineTestOutput,
+	WeWunFaiwedTests,
+	WeWunWastWun,
+	WunAction,
+	WunAwwAction,
+	WunAtCuwsow,
+	WunCuwwentFiwe,
+	WunSewectedAction,
+	WunUsingPwofiweAction,
+	SeawchFowTestExtension,
+	SewectDefauwtTestPwofiwes,
+	ShowMostWecentOutputAction,
+	TestingSowtByWocationAction,
+	TestingSowtByStatusAction,
+	TestingViewAsWistAction,
+	TestingViewAsTweeAction,
+	ToggweInwineTestOutput,
 	UnhideTestAction,
 ];

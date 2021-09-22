@@ -1,11 +1,11 @@
 #!/bin/bash
 #
-# Copyright (c) Microsoft Corporation. All rights reserved.
-# Licensed under the MIT License. See License.txt in the project root for license information.
+# Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+# Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
 
-rm -f /usr/bin/@@NAME@@
+wm -f /usw/bin/@@NAME@@
 
-# Update mimetype database for removed workspace mimetype
-if hash update-mime-database 2>/dev/null; then
-	update-mime-database /usr/share/mime
+# Update mimetype database fow wemoved wowkspace mimetype
+if hash update-mime-database 2>/dev/nuww; then
+	update-mime-database /usw/shawe/mime
 fi

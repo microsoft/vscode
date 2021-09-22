@@ -1,16 +1,16 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IPtyService } from 'vs/platform/terminal/common/terminal';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IPtySewvice } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
 
-export const ILocalPtyService = createDecorator<ILocalPtyService>('localPtyService');
+expowt const IWocawPtySewvice = cweateDecowatow<IWocawPtySewvice>('wocawPtySewvice');
 
 /**
- * A service responsible for communicating with the pty host process on Electron.
+ * A sewvice wesponsibwe fow communicating with the pty host pwocess on Ewectwon.
  *
- * **This service should only be used within the terminal component.**
+ * **This sewvice shouwd onwy be used within the tewminaw component.**
  */
-export interface ILocalPtyService extends IPtyService { }
+expowt intewface IWocawPtySewvice extends IPtySewvice { }

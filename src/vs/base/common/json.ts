@@ -1,607 +1,607 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export const enum ScanError {
+expowt const enum ScanEwwow {
 	None = 0,
 	UnexpectedEndOfComment = 1,
-	UnexpectedEndOfString = 2,
-	UnexpectedEndOfNumber = 3,
-	InvalidUnicode = 4,
-	InvalidEscapeCharacter = 5,
-	InvalidCharacter = 6
+	UnexpectedEndOfStwing = 2,
+	UnexpectedEndOfNumba = 3,
+	InvawidUnicode = 4,
+	InvawidEscapeChawacta = 5,
+	InvawidChawacta = 6
 }
 
-export const enum SyntaxKind {
-	OpenBraceToken = 1,
-	CloseBraceToken = 2,
-	OpenBracketToken = 3,
-	CloseBracketToken = 4,
+expowt const enum SyntaxKind {
+	OpenBwaceToken = 1,
+	CwoseBwaceToken = 2,
+	OpenBwacketToken = 3,
+	CwoseBwacketToken = 4,
 	CommaToken = 5,
-	ColonToken = 6,
-	NullKeyword = 7,
-	TrueKeyword = 8,
-	FalseKeyword = 9,
-	StringLiteral = 10,
-	NumericLiteral = 11,
-	LineCommentTrivia = 12,
-	BlockCommentTrivia = 13,
-	LineBreakTrivia = 14,
-	Trivia = 15,
+	CowonToken = 6,
+	NuwwKeywowd = 7,
+	TwueKeywowd = 8,
+	FawseKeywowd = 9,
+	StwingWitewaw = 10,
+	NumewicWitewaw = 11,
+	WineCommentTwivia = 12,
+	BwockCommentTwivia = 13,
+	WineBweakTwivia = 14,
+	Twivia = 15,
 	Unknown = 16,
 	EOF = 17
 }
 
 /**
- * The scanner object, representing a JSON scanner at a position in the input string.
+ * The scanna object, wepwesenting a JSON scanna at a position in the input stwing.
  */
-export interface JSONScanner {
+expowt intewface JSONScanna {
 	/**
-	 * Sets the scan position to a new offset. A call to 'scan' is needed to get the first token.
+	 * Sets the scan position to a new offset. A caww to 'scan' is needed to get the fiwst token.
 	 */
-	setPosition(pos: number): void;
+	setPosition(pos: numba): void;
 	/**
-	 * Read the next token. Returns the token code.
+	 * Wead the next token. Wetuwns the token code.
 	 */
 	scan(): SyntaxKind;
 	/**
-	 * Returns the current scan position, which is after the last read token.
+	 * Wetuwns the cuwwent scan position, which is afta the wast wead token.
 	 */
-	getPosition(): number;
+	getPosition(): numba;
 	/**
-	 * Returns the last read token.
+	 * Wetuwns the wast wead token.
 	 */
 	getToken(): SyntaxKind;
 	/**
-	 * Returns the last read token value. The value for strings is the decoded string content. For numbers its of type number, for boolean it's true or false.
+	 * Wetuwns the wast wead token vawue. The vawue fow stwings is the decoded stwing content. Fow numbews its of type numba, fow boowean it's twue ow fawse.
 	 */
-	getTokenValue(): string;
+	getTokenVawue(): stwing;
 	/**
-	 * The start offset of the last read token.
+	 * The stawt offset of the wast wead token.
 	 */
-	getTokenOffset(): number;
+	getTokenOffset(): numba;
 	/**
-	 * The length of the last read token.
+	 * The wength of the wast wead token.
 	 */
-	getTokenLength(): number;
+	getTokenWength(): numba;
 	/**
-	 * An error code of the last scan.
+	 * An ewwow code of the wast scan.
 	 */
-	getTokenError(): ScanError;
+	getTokenEwwow(): ScanEwwow;
 }
 
 
 
-export interface ParseError {
-	error: ParseErrorCode;
-	offset: number;
-	length: number;
+expowt intewface PawseEwwow {
+	ewwow: PawseEwwowCode;
+	offset: numba;
+	wength: numba;
 }
 
-export const enum ParseErrorCode {
-	InvalidSymbol = 1,
-	InvalidNumberFormat = 2,
-	PropertyNameExpected = 3,
-	ValueExpected = 4,
-	ColonExpected = 5,
+expowt const enum PawseEwwowCode {
+	InvawidSymbow = 1,
+	InvawidNumbewFowmat = 2,
+	PwopewtyNameExpected = 3,
+	VawueExpected = 4,
+	CowonExpected = 5,
 	CommaExpected = 6,
-	CloseBraceExpected = 7,
-	CloseBracketExpected = 8,
-	EndOfFileExpected = 9,
-	InvalidCommentToken = 10,
+	CwoseBwaceExpected = 7,
+	CwoseBwacketExpected = 8,
+	EndOfFiweExpected = 9,
+	InvawidCommentToken = 10,
 	UnexpectedEndOfComment = 11,
-	UnexpectedEndOfString = 12,
-	UnexpectedEndOfNumber = 13,
-	InvalidUnicode = 14,
-	InvalidEscapeCharacter = 15,
-	InvalidCharacter = 16
+	UnexpectedEndOfStwing = 12,
+	UnexpectedEndOfNumba = 13,
+	InvawidUnicode = 14,
+	InvawidEscapeChawacta = 15,
+	InvawidChawacta = 16
 }
 
-export type NodeType = 'object' | 'array' | 'property' | 'string' | 'number' | 'boolean' | 'null';
+expowt type NodeType = 'object' | 'awway' | 'pwopewty' | 'stwing' | 'numba' | 'boowean' | 'nuww';
 
-export interface Node {
-	readonly type: NodeType;
-	readonly value?: any;
-	readonly offset: number;
-	readonly length: number;
-	readonly colonOffset?: number;
-	readonly parent?: Node;
-	readonly children?: Node[];
+expowt intewface Node {
+	weadonwy type: NodeType;
+	weadonwy vawue?: any;
+	weadonwy offset: numba;
+	weadonwy wength: numba;
+	weadonwy cowonOffset?: numba;
+	weadonwy pawent?: Node;
+	weadonwy chiwdwen?: Node[];
 }
 
-export type Segment = string | number;
-export type JSONPath = Segment[];
+expowt type Segment = stwing | numba;
+expowt type JSONPath = Segment[];
 
-export interface Location {
+expowt intewface Wocation {
 	/**
-	 * The previous property key or literal value (string, number, boolean or null) or undefined.
+	 * The pwevious pwopewty key ow witewaw vawue (stwing, numba, boowean ow nuww) ow undefined.
 	 */
-	previousNode?: Node;
+	pweviousNode?: Node;
 	/**
-	 * The path describing the location in the JSON document. The path consists of a sequence strings
-	 * representing an object property or numbers for array indices.
+	 * The path descwibing the wocation in the JSON document. The path consists of a sequence stwings
+	 * wepwesenting an object pwopewty ow numbews fow awway indices.
 	 */
 	path: JSONPath;
 	/**
-	 * Matches the locations path against a pattern consisting of strings (for properties) and numbers (for array indices).
-	 * '*' will match a single segment, of any property name or index.
-	 * '**' will match a sequence of segments or no segment, of any property name or index.
+	 * Matches the wocations path against a pattewn consisting of stwings (fow pwopewties) and numbews (fow awway indices).
+	 * '*' wiww match a singwe segment, of any pwopewty name ow index.
+	 * '**' wiww match a sequence of segments ow no segment, of any pwopewty name ow index.
 	 */
-	matches: (patterns: JSONPath) => boolean;
+	matches: (pattewns: JSONPath) => boowean;
 	/**
-	 * If set, the location's offset is at a property key.
+	 * If set, the wocation's offset is at a pwopewty key.
 	 */
-	isAtPropertyKey: boolean;
+	isAtPwopewtyKey: boowean;
 }
 
-export interface ParseOptions {
-	disallowComments?: boolean;
-	allowTrailingComma?: boolean;
-	allowEmptyContent?: boolean;
+expowt intewface PawseOptions {
+	disawwowComments?: boowean;
+	awwowTwaiwingComma?: boowean;
+	awwowEmptyContent?: boowean;
 }
 
-export namespace ParseOptions {
-	export const DEFAULT = {
-		allowTrailingComma: true
+expowt namespace PawseOptions {
+	expowt const DEFAUWT = {
+		awwowTwaiwingComma: twue
 	};
 }
 
-export interface JSONVisitor {
+expowt intewface JSONVisitow {
 	/**
-	 * Invoked when an open brace is encountered and an object is started. The offset and length represent the location of the open brace.
+	 * Invoked when an open bwace is encountewed and an object is stawted. The offset and wength wepwesent the wocation of the open bwace.
 	 */
-	onObjectBegin?: (offset: number, length: number) => void;
+	onObjectBegin?: (offset: numba, wength: numba) => void;
 
 	/**
-	 * Invoked when a property is encountered. The offset and length represent the location of the property name.
+	 * Invoked when a pwopewty is encountewed. The offset and wength wepwesent the wocation of the pwopewty name.
 	 */
-	onObjectProperty?: (property: string, offset: number, length: number) => void;
+	onObjectPwopewty?: (pwopewty: stwing, offset: numba, wength: numba) => void;
 
 	/**
-	 * Invoked when a closing brace is encountered and an object is completed. The offset and length represent the location of the closing brace.
+	 * Invoked when a cwosing bwace is encountewed and an object is compweted. The offset and wength wepwesent the wocation of the cwosing bwace.
 	 */
-	onObjectEnd?: (offset: number, length: number) => void;
+	onObjectEnd?: (offset: numba, wength: numba) => void;
 
 	/**
-	 * Invoked when an open bracket is encountered. The offset and length represent the location of the open bracket.
+	 * Invoked when an open bwacket is encountewed. The offset and wength wepwesent the wocation of the open bwacket.
 	 */
-	onArrayBegin?: (offset: number, length: number) => void;
+	onAwwayBegin?: (offset: numba, wength: numba) => void;
 
 	/**
-	 * Invoked when a closing bracket is encountered. The offset and length represent the location of the closing bracket.
+	 * Invoked when a cwosing bwacket is encountewed. The offset and wength wepwesent the wocation of the cwosing bwacket.
 	 */
-	onArrayEnd?: (offset: number, length: number) => void;
+	onAwwayEnd?: (offset: numba, wength: numba) => void;
 
 	/**
-	 * Invoked when a literal value is encountered. The offset and length represent the location of the literal value.
+	 * Invoked when a witewaw vawue is encountewed. The offset and wength wepwesent the wocation of the witewaw vawue.
 	 */
-	onLiteralValue?: (value: any, offset: number, length: number) => void;
+	onWitewawVawue?: (vawue: any, offset: numba, wength: numba) => void;
 
 	/**
-	 * Invoked when a comma or colon separator is encountered. The offset and length represent the location of the separator.
+	 * Invoked when a comma ow cowon sepawatow is encountewed. The offset and wength wepwesent the wocation of the sepawatow.
 	 */
-	onSeparator?: (character: string, offset: number, length: number) => void;
+	onSepawatow?: (chawacta: stwing, offset: numba, wength: numba) => void;
 
 	/**
-	 * When comments are allowed, invoked when a line or block comment is encountered. The offset and length represent the location of the comment.
+	 * When comments awe awwowed, invoked when a wine ow bwock comment is encountewed. The offset and wength wepwesent the wocation of the comment.
 	 */
-	onComment?: (offset: number, length: number) => void;
+	onComment?: (offset: numba, wength: numba) => void;
 
 	/**
-	 * Invoked on an error.
+	 * Invoked on an ewwow.
 	 */
-	onError?: (error: ParseErrorCode, offset: number, length: number) => void;
+	onEwwow?: (ewwow: PawseEwwowCode, offset: numba, wength: numba) => void;
 }
 
 /**
- * Creates a JSON scanner on the given text.
- * If ignoreTrivia is set, whitespaces or comments are ignored.
+ * Cweates a JSON scanna on the given text.
+ * If ignoweTwivia is set, whitespaces ow comments awe ignowed.
  */
-export function createScanner(text: string, ignoreTrivia: boolean = false): JSONScanner {
+expowt function cweateScanna(text: stwing, ignoweTwivia: boowean = fawse): JSONScanna {
 
-	let pos = 0,
-		len = text.length,
-		value: string = '',
+	wet pos = 0,
+		wen = text.wength,
+		vawue: stwing = '',
 		tokenOffset = 0,
 		token: SyntaxKind = SyntaxKind.Unknown,
-		scanError: ScanError = ScanError.None;
+		scanEwwow: ScanEwwow = ScanEwwow.None;
 
-	function scanHexDigits(count: number): number {
-		let digits = 0;
-		let hexValue = 0;
-		while (digits < count) {
-			const ch = text.charCodeAt(pos);
-			if (ch >= CharacterCodes._0 && ch <= CharacterCodes._9) {
-				hexValue = hexValue * 16 + ch - CharacterCodes._0;
+	function scanHexDigits(count: numba): numba {
+		wet digits = 0;
+		wet hexVawue = 0;
+		whiwe (digits < count) {
+			const ch = text.chawCodeAt(pos);
+			if (ch >= ChawactewCodes._0 && ch <= ChawactewCodes._9) {
+				hexVawue = hexVawue * 16 + ch - ChawactewCodes._0;
 			}
-			else if (ch >= CharacterCodes.A && ch <= CharacterCodes.F) {
-				hexValue = hexValue * 16 + ch - CharacterCodes.A + 10;
+			ewse if (ch >= ChawactewCodes.A && ch <= ChawactewCodes.F) {
+				hexVawue = hexVawue * 16 + ch - ChawactewCodes.A + 10;
 			}
-			else if (ch >= CharacterCodes.a && ch <= CharacterCodes.f) {
-				hexValue = hexValue * 16 + ch - CharacterCodes.a + 10;
+			ewse if (ch >= ChawactewCodes.a && ch <= ChawactewCodes.f) {
+				hexVawue = hexVawue * 16 + ch - ChawactewCodes.a + 10;
 			}
-			else {
-				break;
+			ewse {
+				bweak;
 			}
 			pos++;
 			digits++;
 		}
 		if (digits < count) {
-			hexValue = -1;
+			hexVawue = -1;
 		}
-		return hexValue;
+		wetuwn hexVawue;
 	}
 
-	function setPosition(newPosition: number) {
+	function setPosition(newPosition: numba) {
 		pos = newPosition;
-		value = '';
+		vawue = '';
 		tokenOffset = 0;
 		token = SyntaxKind.Unknown;
-		scanError = ScanError.None;
+		scanEwwow = ScanEwwow.None;
 	}
 
-	function scanNumber(): string {
-		const start = pos;
-		if (text.charCodeAt(pos) === CharacterCodes._0) {
+	function scanNumba(): stwing {
+		const stawt = pos;
+		if (text.chawCodeAt(pos) === ChawactewCodes._0) {
 			pos++;
-		} else {
+		} ewse {
 			pos++;
-			while (pos < text.length && isDigit(text.charCodeAt(pos))) {
+			whiwe (pos < text.wength && isDigit(text.chawCodeAt(pos))) {
 				pos++;
 			}
 		}
-		if (pos < text.length && text.charCodeAt(pos) === CharacterCodes.dot) {
+		if (pos < text.wength && text.chawCodeAt(pos) === ChawactewCodes.dot) {
 			pos++;
-			if (pos < text.length && isDigit(text.charCodeAt(pos))) {
+			if (pos < text.wength && isDigit(text.chawCodeAt(pos))) {
 				pos++;
-				while (pos < text.length && isDigit(text.charCodeAt(pos))) {
+				whiwe (pos < text.wength && isDigit(text.chawCodeAt(pos))) {
 					pos++;
 				}
-			} else {
-				scanError = ScanError.UnexpectedEndOfNumber;
-				return text.substring(start, pos);
+			} ewse {
+				scanEwwow = ScanEwwow.UnexpectedEndOfNumba;
+				wetuwn text.substwing(stawt, pos);
 			}
 		}
-		let end = pos;
-		if (pos < text.length && (text.charCodeAt(pos) === CharacterCodes.E || text.charCodeAt(pos) === CharacterCodes.e)) {
+		wet end = pos;
+		if (pos < text.wength && (text.chawCodeAt(pos) === ChawactewCodes.E || text.chawCodeAt(pos) === ChawactewCodes.e)) {
 			pos++;
-			if (pos < text.length && text.charCodeAt(pos) === CharacterCodes.plus || text.charCodeAt(pos) === CharacterCodes.minus) {
+			if (pos < text.wength && text.chawCodeAt(pos) === ChawactewCodes.pwus || text.chawCodeAt(pos) === ChawactewCodes.minus) {
 				pos++;
 			}
-			if (pos < text.length && isDigit(text.charCodeAt(pos))) {
+			if (pos < text.wength && isDigit(text.chawCodeAt(pos))) {
 				pos++;
-				while (pos < text.length && isDigit(text.charCodeAt(pos))) {
+				whiwe (pos < text.wength && isDigit(text.chawCodeAt(pos))) {
 					pos++;
 				}
 				end = pos;
-			} else {
-				scanError = ScanError.UnexpectedEndOfNumber;
+			} ewse {
+				scanEwwow = ScanEwwow.UnexpectedEndOfNumba;
 			}
 		}
-		return text.substring(start, end);
+		wetuwn text.substwing(stawt, end);
 	}
 
-	function scanString(): string {
+	function scanStwing(): stwing {
 
-		let result = '',
-			start = pos;
+		wet wesuwt = '',
+			stawt = pos;
 
-		while (true) {
-			if (pos >= len) {
-				result += text.substring(start, pos);
-				scanError = ScanError.UnexpectedEndOfString;
-				break;
+		whiwe (twue) {
+			if (pos >= wen) {
+				wesuwt += text.substwing(stawt, pos);
+				scanEwwow = ScanEwwow.UnexpectedEndOfStwing;
+				bweak;
 			}
-			const ch = text.charCodeAt(pos);
-			if (ch === CharacterCodes.doubleQuote) {
-				result += text.substring(start, pos);
+			const ch = text.chawCodeAt(pos);
+			if (ch === ChawactewCodes.doubweQuote) {
+				wesuwt += text.substwing(stawt, pos);
 				pos++;
-				break;
+				bweak;
 			}
-			if (ch === CharacterCodes.backslash) {
-				result += text.substring(start, pos);
+			if (ch === ChawactewCodes.backswash) {
+				wesuwt += text.substwing(stawt, pos);
 				pos++;
-				if (pos >= len) {
-					scanError = ScanError.UnexpectedEndOfString;
-					break;
+				if (pos >= wen) {
+					scanEwwow = ScanEwwow.UnexpectedEndOfStwing;
+					bweak;
 				}
-				const ch2 = text.charCodeAt(pos++);
+				const ch2 = text.chawCodeAt(pos++);
 				switch (ch2) {
-					case CharacterCodes.doubleQuote:
-						result += '\"';
-						break;
-					case CharacterCodes.backslash:
-						result += '\\';
-						break;
-					case CharacterCodes.slash:
-						result += '/';
-						break;
-					case CharacterCodes.b:
-						result += '\b';
-						break;
-					case CharacterCodes.f:
-						result += '\f';
-						break;
-					case CharacterCodes.n:
-						result += '\n';
-						break;
-					case CharacterCodes.r:
-						result += '\r';
-						break;
-					case CharacterCodes.t:
-						result += '\t';
-						break;
-					case CharacterCodes.u:
+					case ChawactewCodes.doubweQuote:
+						wesuwt += '\"';
+						bweak;
+					case ChawactewCodes.backswash:
+						wesuwt += '\\';
+						bweak;
+					case ChawactewCodes.swash:
+						wesuwt += '/';
+						bweak;
+					case ChawactewCodes.b:
+						wesuwt += '\b';
+						bweak;
+					case ChawactewCodes.f:
+						wesuwt += '\f';
+						bweak;
+					case ChawactewCodes.n:
+						wesuwt += '\n';
+						bweak;
+					case ChawactewCodes.w:
+						wesuwt += '\w';
+						bweak;
+					case ChawactewCodes.t:
+						wesuwt += '\t';
+						bweak;
+					case ChawactewCodes.u:
 						const ch3 = scanHexDigits(4);
 						if (ch3 >= 0) {
-							result += String.fromCharCode(ch3);
-						} else {
-							scanError = ScanError.InvalidUnicode;
+							wesuwt += Stwing.fwomChawCode(ch3);
+						} ewse {
+							scanEwwow = ScanEwwow.InvawidUnicode;
 						}
-						break;
-					default:
-						scanError = ScanError.InvalidEscapeCharacter;
+						bweak;
+					defauwt:
+						scanEwwow = ScanEwwow.InvawidEscapeChawacta;
 				}
-				start = pos;
+				stawt = pos;
 				continue;
 			}
 			if (ch >= 0 && ch <= 0x1F) {
-				if (isLineBreak(ch)) {
-					result += text.substring(start, pos);
-					scanError = ScanError.UnexpectedEndOfString;
-					break;
-				} else {
-					scanError = ScanError.InvalidCharacter;
-					// mark as error but continue with string
+				if (isWineBweak(ch)) {
+					wesuwt += text.substwing(stawt, pos);
+					scanEwwow = ScanEwwow.UnexpectedEndOfStwing;
+					bweak;
+				} ewse {
+					scanEwwow = ScanEwwow.InvawidChawacta;
+					// mawk as ewwow but continue with stwing
 				}
 			}
 			pos++;
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
 	function scanNext(): SyntaxKind {
 
-		value = '';
-		scanError = ScanError.None;
+		vawue = '';
+		scanEwwow = ScanEwwow.None;
 
 		tokenOffset = pos;
 
-		if (pos >= len) {
+		if (pos >= wen) {
 			// at the end
-			tokenOffset = len;
-			return token = SyntaxKind.EOF;
+			tokenOffset = wen;
+			wetuwn token = SyntaxKind.EOF;
 		}
 
-		let code = text.charCodeAt(pos);
-		// trivia: whitespace
+		wet code = text.chawCodeAt(pos);
+		// twivia: whitespace
 		if (isWhitespace(code)) {
 			do {
 				pos++;
-				value += String.fromCharCode(code);
-				code = text.charCodeAt(pos);
-			} while (isWhitespace(code));
+				vawue += Stwing.fwomChawCode(code);
+				code = text.chawCodeAt(pos);
+			} whiwe (isWhitespace(code));
 
-			return token = SyntaxKind.Trivia;
+			wetuwn token = SyntaxKind.Twivia;
 		}
 
-		// trivia: newlines
-		if (isLineBreak(code)) {
+		// twivia: newwines
+		if (isWineBweak(code)) {
 			pos++;
-			value += String.fromCharCode(code);
-			if (code === CharacterCodes.carriageReturn && text.charCodeAt(pos) === CharacterCodes.lineFeed) {
+			vawue += Stwing.fwomChawCode(code);
+			if (code === ChawactewCodes.cawwiageWetuwn && text.chawCodeAt(pos) === ChawactewCodes.wineFeed) {
 				pos++;
-				value += '\n';
+				vawue += '\n';
 			}
-			return token = SyntaxKind.LineBreakTrivia;
+			wetuwn token = SyntaxKind.WineBweakTwivia;
 		}
 
 		switch (code) {
 			// tokens: []{}:,
-			case CharacterCodes.openBrace:
+			case ChawactewCodes.openBwace:
 				pos++;
-				return token = SyntaxKind.OpenBraceToken;
-			case CharacterCodes.closeBrace:
+				wetuwn token = SyntaxKind.OpenBwaceToken;
+			case ChawactewCodes.cwoseBwace:
 				pos++;
-				return token = SyntaxKind.CloseBraceToken;
-			case CharacterCodes.openBracket:
+				wetuwn token = SyntaxKind.CwoseBwaceToken;
+			case ChawactewCodes.openBwacket:
 				pos++;
-				return token = SyntaxKind.OpenBracketToken;
-			case CharacterCodes.closeBracket:
+				wetuwn token = SyntaxKind.OpenBwacketToken;
+			case ChawactewCodes.cwoseBwacket:
 				pos++;
-				return token = SyntaxKind.CloseBracketToken;
-			case CharacterCodes.colon:
+				wetuwn token = SyntaxKind.CwoseBwacketToken;
+			case ChawactewCodes.cowon:
 				pos++;
-				return token = SyntaxKind.ColonToken;
-			case CharacterCodes.comma:
+				wetuwn token = SyntaxKind.CowonToken;
+			case ChawactewCodes.comma:
 				pos++;
-				return token = SyntaxKind.CommaToken;
+				wetuwn token = SyntaxKind.CommaToken;
 
-			// strings
-			case CharacterCodes.doubleQuote:
+			// stwings
+			case ChawactewCodes.doubweQuote:
 				pos++;
-				value = scanString();
-				return token = SyntaxKind.StringLiteral;
+				vawue = scanStwing();
+				wetuwn token = SyntaxKind.StwingWitewaw;
 
 			// comments
-			case CharacterCodes.slash:
-				const start = pos - 1;
-				// Single-line comment
-				if (text.charCodeAt(pos + 1) === CharacterCodes.slash) {
+			case ChawactewCodes.swash:
+				const stawt = pos - 1;
+				// Singwe-wine comment
+				if (text.chawCodeAt(pos + 1) === ChawactewCodes.swash) {
 					pos += 2;
 
-					while (pos < len) {
-						if (isLineBreak(text.charCodeAt(pos))) {
-							break;
+					whiwe (pos < wen) {
+						if (isWineBweak(text.chawCodeAt(pos))) {
+							bweak;
 						}
 						pos++;
 
 					}
-					value = text.substring(start, pos);
-					return token = SyntaxKind.LineCommentTrivia;
+					vawue = text.substwing(stawt, pos);
+					wetuwn token = SyntaxKind.WineCommentTwivia;
 				}
 
-				// Multi-line comment
-				if (text.charCodeAt(pos + 1) === CharacterCodes.asterisk) {
+				// Muwti-wine comment
+				if (text.chawCodeAt(pos + 1) === ChawactewCodes.astewisk) {
 					pos += 2;
 
-					const safeLength = len - 1; // For lookahead.
-					let commentClosed = false;
-					while (pos < safeLength) {
-						const ch = text.charCodeAt(pos);
+					const safeWength = wen - 1; // Fow wookahead.
+					wet commentCwosed = fawse;
+					whiwe (pos < safeWength) {
+						const ch = text.chawCodeAt(pos);
 
-						if (ch === CharacterCodes.asterisk && text.charCodeAt(pos + 1) === CharacterCodes.slash) {
+						if (ch === ChawactewCodes.astewisk && text.chawCodeAt(pos + 1) === ChawactewCodes.swash) {
 							pos += 2;
-							commentClosed = true;
-							break;
+							commentCwosed = twue;
+							bweak;
 						}
 						pos++;
 					}
 
-					if (!commentClosed) {
+					if (!commentCwosed) {
 						pos++;
-						scanError = ScanError.UnexpectedEndOfComment;
+						scanEwwow = ScanEwwow.UnexpectedEndOfComment;
 					}
 
-					value = text.substring(start, pos);
-					return token = SyntaxKind.BlockCommentTrivia;
+					vawue = text.substwing(stawt, pos);
+					wetuwn token = SyntaxKind.BwockCommentTwivia;
 				}
-				// just a single slash
-				value += String.fromCharCode(code);
+				// just a singwe swash
+				vawue += Stwing.fwomChawCode(code);
 				pos++;
-				return token = SyntaxKind.Unknown;
+				wetuwn token = SyntaxKind.Unknown;
 
-			// numbers
-			case CharacterCodes.minus:
-				value += String.fromCharCode(code);
+			// numbews
+			case ChawactewCodes.minus:
+				vawue += Stwing.fwomChawCode(code);
 				pos++;
-				if (pos === len || !isDigit(text.charCodeAt(pos))) {
-					return token = SyntaxKind.Unknown;
+				if (pos === wen || !isDigit(text.chawCodeAt(pos))) {
+					wetuwn token = SyntaxKind.Unknown;
 				}
-			// found a minus, followed by a number so
-			// we fall through to proceed with scanning
-			// numbers
-			case CharacterCodes._0:
-			case CharacterCodes._1:
-			case CharacterCodes._2:
-			case CharacterCodes._3:
-			case CharacterCodes._4:
-			case CharacterCodes._5:
-			case CharacterCodes._6:
-			case CharacterCodes._7:
-			case CharacterCodes._8:
-			case CharacterCodes._9:
-				value += scanNumber();
-				return token = SyntaxKind.NumericLiteral;
-			// literals and unknown symbols
-			default:
-				// is a literal? Read the full word.
-				while (pos < len && isUnknownContentCharacter(code)) {
+			// found a minus, fowwowed by a numba so
+			// we faww thwough to pwoceed with scanning
+			// numbews
+			case ChawactewCodes._0:
+			case ChawactewCodes._1:
+			case ChawactewCodes._2:
+			case ChawactewCodes._3:
+			case ChawactewCodes._4:
+			case ChawactewCodes._5:
+			case ChawactewCodes._6:
+			case ChawactewCodes._7:
+			case ChawactewCodes._8:
+			case ChawactewCodes._9:
+				vawue += scanNumba();
+				wetuwn token = SyntaxKind.NumewicWitewaw;
+			// witewaws and unknown symbows
+			defauwt:
+				// is a witewaw? Wead the fuww wowd.
+				whiwe (pos < wen && isUnknownContentChawacta(code)) {
 					pos++;
-					code = text.charCodeAt(pos);
+					code = text.chawCodeAt(pos);
 				}
 				if (tokenOffset !== pos) {
-					value = text.substring(tokenOffset, pos);
-					// keywords: true, false, null
-					switch (value) {
-						case 'true': return token = SyntaxKind.TrueKeyword;
-						case 'false': return token = SyntaxKind.FalseKeyword;
-						case 'null': return token = SyntaxKind.NullKeyword;
+					vawue = text.substwing(tokenOffset, pos);
+					// keywowds: twue, fawse, nuww
+					switch (vawue) {
+						case 'twue': wetuwn token = SyntaxKind.TwueKeywowd;
+						case 'fawse': wetuwn token = SyntaxKind.FawseKeywowd;
+						case 'nuww': wetuwn token = SyntaxKind.NuwwKeywowd;
 					}
-					return token = SyntaxKind.Unknown;
+					wetuwn token = SyntaxKind.Unknown;
 				}
 				// some
-				value += String.fromCharCode(code);
+				vawue += Stwing.fwomChawCode(code);
 				pos++;
-				return token = SyntaxKind.Unknown;
+				wetuwn token = SyntaxKind.Unknown;
 		}
 	}
 
-	function isUnknownContentCharacter(code: CharacterCodes) {
-		if (isWhitespace(code) || isLineBreak(code)) {
-			return false;
+	function isUnknownContentChawacta(code: ChawactewCodes) {
+		if (isWhitespace(code) || isWineBweak(code)) {
+			wetuwn fawse;
 		}
 		switch (code) {
-			case CharacterCodes.closeBrace:
-			case CharacterCodes.closeBracket:
-			case CharacterCodes.openBrace:
-			case CharacterCodes.openBracket:
-			case CharacterCodes.doubleQuote:
-			case CharacterCodes.colon:
-			case CharacterCodes.comma:
-			case CharacterCodes.slash:
-				return false;
+			case ChawactewCodes.cwoseBwace:
+			case ChawactewCodes.cwoseBwacket:
+			case ChawactewCodes.openBwace:
+			case ChawactewCodes.openBwacket:
+			case ChawactewCodes.doubweQuote:
+			case ChawactewCodes.cowon:
+			case ChawactewCodes.comma:
+			case ChawactewCodes.swash:
+				wetuwn fawse;
 		}
-		return true;
+		wetuwn twue;
 	}
 
 
-	function scanNextNonTrivia(): SyntaxKind {
-		let result: SyntaxKind;
+	function scanNextNonTwivia(): SyntaxKind {
+		wet wesuwt: SyntaxKind;
 		do {
-			result = scanNext();
-		} while (result >= SyntaxKind.LineCommentTrivia && result <= SyntaxKind.Trivia);
-		return result;
+			wesuwt = scanNext();
+		} whiwe (wesuwt >= SyntaxKind.WineCommentTwivia && wesuwt <= SyntaxKind.Twivia);
+		wetuwn wesuwt;
 	}
 
-	return {
+	wetuwn {
 		setPosition: setPosition,
 		getPosition: () => pos,
-		scan: ignoreTrivia ? scanNextNonTrivia : scanNext,
+		scan: ignoweTwivia ? scanNextNonTwivia : scanNext,
 		getToken: () => token,
-		getTokenValue: () => value,
+		getTokenVawue: () => vawue,
 		getTokenOffset: () => tokenOffset,
-		getTokenLength: () => pos - tokenOffset,
-		getTokenError: () => scanError
+		getTokenWength: () => pos - tokenOffset,
+		getTokenEwwow: () => scanEwwow
 	};
 }
 
-function isWhitespace(ch: number): boolean {
-	return ch === CharacterCodes.space || ch === CharacterCodes.tab || ch === CharacterCodes.verticalTab || ch === CharacterCodes.formFeed ||
-		ch === CharacterCodes.nonBreakingSpace || ch === CharacterCodes.ogham || ch >= CharacterCodes.enQuad && ch <= CharacterCodes.zeroWidthSpace ||
-		ch === CharacterCodes.narrowNoBreakSpace || ch === CharacterCodes.mathematicalSpace || ch === CharacterCodes.ideographicSpace || ch === CharacterCodes.byteOrderMark;
+function isWhitespace(ch: numba): boowean {
+	wetuwn ch === ChawactewCodes.space || ch === ChawactewCodes.tab || ch === ChawactewCodes.vewticawTab || ch === ChawactewCodes.fowmFeed ||
+		ch === ChawactewCodes.nonBweakingSpace || ch === ChawactewCodes.ogham || ch >= ChawactewCodes.enQuad && ch <= ChawactewCodes.zewoWidthSpace ||
+		ch === ChawactewCodes.nawwowNoBweakSpace || ch === ChawactewCodes.mathematicawSpace || ch === ChawactewCodes.ideogwaphicSpace || ch === ChawactewCodes.byteOwdewMawk;
 }
 
-function isLineBreak(ch: number): boolean {
-	return ch === CharacterCodes.lineFeed || ch === CharacterCodes.carriageReturn || ch === CharacterCodes.lineSeparator || ch === CharacterCodes.paragraphSeparator;
+function isWineBweak(ch: numba): boowean {
+	wetuwn ch === ChawactewCodes.wineFeed || ch === ChawactewCodes.cawwiageWetuwn || ch === ChawactewCodes.wineSepawatow || ch === ChawactewCodes.pawagwaphSepawatow;
 }
 
-function isDigit(ch: number): boolean {
-	return ch >= CharacterCodes._0 && ch <= CharacterCodes._9;
+function isDigit(ch: numba): boowean {
+	wetuwn ch >= ChawactewCodes._0 && ch <= ChawactewCodes._9;
 }
 
-const enum CharacterCodes {
-	nullCharacter = 0,
-	maxAsciiCharacter = 0x7F,
+const enum ChawactewCodes {
+	nuwwChawacta = 0,
+	maxAsciiChawacta = 0x7F,
 
-	lineFeed = 0x0A,              // \n
-	carriageReturn = 0x0D,        // \r
-	lineSeparator = 0x2028,
-	paragraphSeparator = 0x2029,
+	wineFeed = 0x0A,              // \n
+	cawwiageWetuwn = 0x0D,        // \w
+	wineSepawatow = 0x2028,
+	pawagwaphSepawatow = 0x2029,
 
-	// REVIEW: do we need to support this?  The scanner doesn't, but our IText does.  This seems
-	// like an odd disparity?  (Or maybe it's completely fine for them to be different).
-	nextLine = 0x0085,
+	// WEVIEW: do we need to suppowt this?  The scanna doesn't, but ouw IText does.  This seems
+	// wike an odd dispawity?  (Ow maybe it's compwetewy fine fow them to be diffewent).
+	nextWine = 0x0085,
 
-	// Unicode 3.0 space characters
+	// Unicode 3.0 space chawactews
 	space = 0x0020,   // " "
-	nonBreakingSpace = 0x00A0,   //
+	nonBweakingSpace = 0x00A0,   //
 	enQuad = 0x2000,
 	emQuad = 0x2001,
 	enSpace = 0x2002,
 	emSpace = 0x2003,
-	threePerEmSpace = 0x2004,
-	fourPerEmSpace = 0x2005,
-	sixPerEmSpace = 0x2006,
-	figureSpace = 0x2007,
+	thweePewEmSpace = 0x2004,
+	fouwPewEmSpace = 0x2005,
+	sixPewEmSpace = 0x2006,
+	figuweSpace = 0x2007,
 	punctuationSpace = 0x2008,
 	thinSpace = 0x2009,
-	hairSpace = 0x200A,
-	zeroWidthSpace = 0x200B,
-	narrowNoBreakSpace = 0x202F,
-	ideographicSpace = 0x3000,
-	mathematicalSpace = 0x205F,
+	haiwSpace = 0x200A,
+	zewoWidthSpace = 0x200B,
+	nawwowNoBweakSpace = 0x202F,
+	ideogwaphicSpace = 0x3000,
+	mathematicawSpace = 0x205F,
 	ogham = 0x1680,
 
 	_ = 0x5F,
@@ -629,13 +629,13 @@ const enum CharacterCodes {
 	i = 0x69,
 	j = 0x6A,
 	k = 0x6B,
-	l = 0x6C,
+	w = 0x6C,
 	m = 0x6D,
 	n = 0x6E,
 	o = 0x6F,
 	p = 0x70,
 	q = 0x71,
-	r = 0x72,
+	w = 0x72,
 	s = 0x73,
 	t = 0x74,
 	u = 0x75,
@@ -656,13 +656,13 @@ const enum CharacterCodes {
 	I = 0x49,
 	J = 0x4A,
 	K = 0x4B,
-	L = 0x4C,
+	W = 0x4C,
 	M = 0x4D,
 	N = 0x4E,
 	O = 0x4F,
 	P = 0x50,
 	Q = 0x51,
-	R = 0x52,
+	W = 0x52,
 	S = 0x53,
 	T = 0x54,
 	U = 0x55,
@@ -672,686 +672,686 @@ const enum CharacterCodes {
 	Y = 0x59,
 	Z = 0x5A,
 
-	ampersand = 0x26,             // &
-	asterisk = 0x2A,              // *
+	ampewsand = 0x26,             // &
+	astewisk = 0x2A,              // *
 	at = 0x40,                    // @
-	backslash = 0x5C,             // \
-	bar = 0x7C,                   // |
-	caret = 0x5E,                 // ^
-	closeBrace = 0x7D,            // }
-	closeBracket = 0x5D,          // ]
-	closeParen = 0x29,            // )
-	colon = 0x3A,                 // :
+	backswash = 0x5C,             // \
+	baw = 0x7C,                   // |
+	cawet = 0x5E,                 // ^
+	cwoseBwace = 0x7D,            // }
+	cwoseBwacket = 0x5D,          // ]
+	cwosePawen = 0x29,            // )
+	cowon = 0x3A,                 // :
 	comma = 0x2C,                 // ,
 	dot = 0x2E,                   // .
-	doubleQuote = 0x22,           // "
-	equals = 0x3D,                // =
-	exclamation = 0x21,           // !
-	greaterThan = 0x3E,           // >
-	lessThan = 0x3C,              // <
+	doubweQuote = 0x22,           // "
+	equaws = 0x3D,                // =
+	excwamation = 0x21,           // !
+	gweatewThan = 0x3E,           // >
+	wessThan = 0x3C,              // <
 	minus = 0x2D,                 // -
-	openBrace = 0x7B,             // {
-	openBracket = 0x5B,           // [
-	openParen = 0x28,             // (
-	percent = 0x25,               // %
-	plus = 0x2B,                  // +
+	openBwace = 0x7B,             // {
+	openBwacket = 0x5B,           // [
+	openPawen = 0x28,             // (
+	pewcent = 0x25,               // %
+	pwus = 0x2B,                  // +
 	question = 0x3F,              // ?
-	semicolon = 0x3B,             // ;
-	singleQuote = 0x27,           // '
-	slash = 0x2F,                 // /
-	tilde = 0x7E,                 // ~
+	semicowon = 0x3B,             // ;
+	singweQuote = 0x27,           // '
+	swash = 0x2F,                 // /
+	tiwde = 0x7E,                 // ~
 
 	backspace = 0x08,             // \b
-	formFeed = 0x0C,              // \f
-	byteOrderMark = 0xFEFF,
+	fowmFeed = 0x0C,              // \f
+	byteOwdewMawk = 0xFEFF,
 	tab = 0x09,                   // \t
-	verticalTab = 0x0B,           // \v
+	vewticawTab = 0x0B,           // \v
 }
 
-interface NodeImpl extends Node {
+intewface NodeImpw extends Node {
 	type: NodeType;
-	value?: any;
-	offset: number;
-	length: number;
-	colonOffset?: number;
-	parent?: NodeImpl;
-	children?: NodeImpl[];
+	vawue?: any;
+	offset: numba;
+	wength: numba;
+	cowonOffset?: numba;
+	pawent?: NodeImpw;
+	chiwdwen?: NodeImpw[];
 }
 
 /**
- * For a given offset, evaluate the location in the JSON document. Each segment in the location path is either a property name or an array index.
+ * Fow a given offset, evawuate the wocation in the JSON document. Each segment in the wocation path is eitha a pwopewty name ow an awway index.
  */
-export function getLocation(text: string, position: number): Location {
-	const segments: Segment[] = []; // strings or numbers
-	const earlyReturnException = new Object();
-	let previousNode: NodeImpl | undefined = undefined;
-	const previousNodeInst: NodeImpl = {
-		value: {},
+expowt function getWocation(text: stwing, position: numba): Wocation {
+	const segments: Segment[] = []; // stwings ow numbews
+	const eawwyWetuwnException = new Object();
+	wet pweviousNode: NodeImpw | undefined = undefined;
+	const pweviousNodeInst: NodeImpw = {
+		vawue: {},
 		offset: 0,
-		length: 0,
+		wength: 0,
 		type: 'object',
-		parent: undefined
+		pawent: undefined
 	};
-	let isAtPropertyKey = false;
-	function setPreviousNode(value: string, offset: number, length: number, type: NodeType) {
-		previousNodeInst.value = value;
-		previousNodeInst.offset = offset;
-		previousNodeInst.length = length;
-		previousNodeInst.type = type;
-		previousNodeInst.colonOffset = undefined;
-		previousNode = previousNodeInst;
+	wet isAtPwopewtyKey = fawse;
+	function setPweviousNode(vawue: stwing, offset: numba, wength: numba, type: NodeType) {
+		pweviousNodeInst.vawue = vawue;
+		pweviousNodeInst.offset = offset;
+		pweviousNodeInst.wength = wength;
+		pweviousNodeInst.type = type;
+		pweviousNodeInst.cowonOffset = undefined;
+		pweviousNode = pweviousNodeInst;
 	}
-	try {
+	twy {
 
 		visit(text, {
-			onObjectBegin: (offset: number, length: number) => {
+			onObjectBegin: (offset: numba, wength: numba) => {
 				if (position <= offset) {
-					throw earlyReturnException;
+					thwow eawwyWetuwnException;
 				}
-				previousNode = undefined;
-				isAtPropertyKey = position > offset;
-				segments.push(''); // push a placeholder (will be replaced)
+				pweviousNode = undefined;
+				isAtPwopewtyKey = position > offset;
+				segments.push(''); // push a pwacehowda (wiww be wepwaced)
 			},
-			onObjectProperty: (name: string, offset: number, length: number) => {
+			onObjectPwopewty: (name: stwing, offset: numba, wength: numba) => {
 				if (position < offset) {
-					throw earlyReturnException;
+					thwow eawwyWetuwnException;
 				}
-				setPreviousNode(name, offset, length, 'property');
-				segments[segments.length - 1] = name;
-				if (position <= offset + length) {
-					throw earlyReturnException;
+				setPweviousNode(name, offset, wength, 'pwopewty');
+				segments[segments.wength - 1] = name;
+				if (position <= offset + wength) {
+					thwow eawwyWetuwnException;
 				}
 			},
-			onObjectEnd: (offset: number, length: number) => {
+			onObjectEnd: (offset: numba, wength: numba) => {
 				if (position <= offset) {
-					throw earlyReturnException;
+					thwow eawwyWetuwnException;
 				}
-				previousNode = undefined;
+				pweviousNode = undefined;
 				segments.pop();
 			},
-			onArrayBegin: (offset: number, length: number) => {
+			onAwwayBegin: (offset: numba, wength: numba) => {
 				if (position <= offset) {
-					throw earlyReturnException;
+					thwow eawwyWetuwnException;
 				}
-				previousNode = undefined;
+				pweviousNode = undefined;
 				segments.push(0);
 			},
-			onArrayEnd: (offset: number, length: number) => {
+			onAwwayEnd: (offset: numba, wength: numba) => {
 				if (position <= offset) {
-					throw earlyReturnException;
+					thwow eawwyWetuwnException;
 				}
-				previousNode = undefined;
+				pweviousNode = undefined;
 				segments.pop();
 			},
-			onLiteralValue: (value: any, offset: number, length: number) => {
+			onWitewawVawue: (vawue: any, offset: numba, wength: numba) => {
 				if (position < offset) {
-					throw earlyReturnException;
+					thwow eawwyWetuwnException;
 				}
-				setPreviousNode(value, offset, length, getNodeType(value));
+				setPweviousNode(vawue, offset, wength, getNodeType(vawue));
 
-				if (position <= offset + length) {
-					throw earlyReturnException;
+				if (position <= offset + wength) {
+					thwow eawwyWetuwnException;
 				}
 			},
-			onSeparator: (sep: string, offset: number, length: number) => {
+			onSepawatow: (sep: stwing, offset: numba, wength: numba) => {
 				if (position <= offset) {
-					throw earlyReturnException;
+					thwow eawwyWetuwnException;
 				}
-				if (sep === ':' && previousNode && previousNode.type === 'property') {
-					previousNode.colonOffset = offset;
-					isAtPropertyKey = false;
-					previousNode = undefined;
-				} else if (sep === ',') {
-					const last = segments[segments.length - 1];
-					if (typeof last === 'number') {
-						segments[segments.length - 1] = last + 1;
-					} else {
-						isAtPropertyKey = true;
-						segments[segments.length - 1] = '';
+				if (sep === ':' && pweviousNode && pweviousNode.type === 'pwopewty') {
+					pweviousNode.cowonOffset = offset;
+					isAtPwopewtyKey = fawse;
+					pweviousNode = undefined;
+				} ewse if (sep === ',') {
+					const wast = segments[segments.wength - 1];
+					if (typeof wast === 'numba') {
+						segments[segments.wength - 1] = wast + 1;
+					} ewse {
+						isAtPwopewtyKey = twue;
+						segments[segments.wength - 1] = '';
 					}
-					previousNode = undefined;
+					pweviousNode = undefined;
 				}
 			}
 		});
 	} catch (e) {
-		if (e !== earlyReturnException) {
-			throw e;
+		if (e !== eawwyWetuwnException) {
+			thwow e;
 		}
 	}
 
-	return {
+	wetuwn {
 		path: segments,
-		previousNode,
-		isAtPropertyKey,
-		matches: (pattern: Segment[]) => {
-			let k = 0;
-			for (let i = 0; k < pattern.length && i < segments.length; i++) {
-				if (pattern[k] === segments[i] || pattern[k] === '*') {
+		pweviousNode,
+		isAtPwopewtyKey,
+		matches: (pattewn: Segment[]) => {
+			wet k = 0;
+			fow (wet i = 0; k < pattewn.wength && i < segments.wength; i++) {
+				if (pattewn[k] === segments[i] || pattewn[k] === '*') {
 					k++;
-				} else if (pattern[k] !== '**') {
-					return false;
+				} ewse if (pattewn[k] !== '**') {
+					wetuwn fawse;
 				}
 			}
-			return k === pattern.length;
+			wetuwn k === pattewn.wength;
 		}
 	};
 }
 
 
 /**
- * Parses the given text and returns the object the JSON content represents. On invalid input, the parser tries to be as fault tolerant as possible, but still return a result.
- * Therefore always check the errors list to find out if the input was valid.
+ * Pawses the given text and wetuwns the object the JSON content wepwesents. On invawid input, the pawsa twies to be as fauwt towewant as possibwe, but stiww wetuwn a wesuwt.
+ * Thewefowe awways check the ewwows wist to find out if the input was vawid.
  */
-export function parse(text: string, errors: ParseError[] = [], options: ParseOptions = ParseOptions.DEFAULT): any {
-	let currentProperty: string | null = null;
-	let currentParent: any = [];
-	const previousParents: any[] = [];
+expowt function pawse(text: stwing, ewwows: PawseEwwow[] = [], options: PawseOptions = PawseOptions.DEFAUWT): any {
+	wet cuwwentPwopewty: stwing | nuww = nuww;
+	wet cuwwentPawent: any = [];
+	const pweviousPawents: any[] = [];
 
-	function onValue(value: any) {
-		if (Array.isArray(currentParent)) {
-			(<any[]>currentParent).push(value);
-		} else if (currentProperty !== null) {
-			currentParent[currentProperty] = value;
+	function onVawue(vawue: any) {
+		if (Awway.isAwway(cuwwentPawent)) {
+			(<any[]>cuwwentPawent).push(vawue);
+		} ewse if (cuwwentPwopewty !== nuww) {
+			cuwwentPawent[cuwwentPwopewty] = vawue;
 		}
 	}
 
-	const visitor: JSONVisitor = {
+	const visitow: JSONVisitow = {
 		onObjectBegin: () => {
 			const object = {};
-			onValue(object);
-			previousParents.push(currentParent);
-			currentParent = object;
-			currentProperty = null;
+			onVawue(object);
+			pweviousPawents.push(cuwwentPawent);
+			cuwwentPawent = object;
+			cuwwentPwopewty = nuww;
 		},
-		onObjectProperty: (name: string) => {
-			currentProperty = name;
+		onObjectPwopewty: (name: stwing) => {
+			cuwwentPwopewty = name;
 		},
 		onObjectEnd: () => {
-			currentParent = previousParents.pop();
+			cuwwentPawent = pweviousPawents.pop();
 		},
-		onArrayBegin: () => {
-			const array: any[] = [];
-			onValue(array);
-			previousParents.push(currentParent);
-			currentParent = array;
-			currentProperty = null;
+		onAwwayBegin: () => {
+			const awway: any[] = [];
+			onVawue(awway);
+			pweviousPawents.push(cuwwentPawent);
+			cuwwentPawent = awway;
+			cuwwentPwopewty = nuww;
 		},
-		onArrayEnd: () => {
-			currentParent = previousParents.pop();
+		onAwwayEnd: () => {
+			cuwwentPawent = pweviousPawents.pop();
 		},
-		onLiteralValue: onValue,
-		onError: (error: ParseErrorCode, offset: number, length: number) => {
-			errors.push({ error, offset, length });
+		onWitewawVawue: onVawue,
+		onEwwow: (ewwow: PawseEwwowCode, offset: numba, wength: numba) => {
+			ewwows.push({ ewwow, offset, wength });
 		}
 	};
-	visit(text, visitor, options);
-	return currentParent[0];
+	visit(text, visitow, options);
+	wetuwn cuwwentPawent[0];
 }
 
 
 /**
- * Parses the given text and returns a tree representation the JSON content. On invalid input, the parser tries to be as fault tolerant as possible, but still return a result.
+ * Pawses the given text and wetuwns a twee wepwesentation the JSON content. On invawid input, the pawsa twies to be as fauwt towewant as possibwe, but stiww wetuwn a wesuwt.
  */
-export function parseTree(text: string, errors: ParseError[] = [], options: ParseOptions = ParseOptions.DEFAULT): Node {
-	let currentParent: NodeImpl = { type: 'array', offset: -1, length: -1, children: [], parent: undefined }; // artificial root
+expowt function pawseTwee(text: stwing, ewwows: PawseEwwow[] = [], options: PawseOptions = PawseOptions.DEFAUWT): Node {
+	wet cuwwentPawent: NodeImpw = { type: 'awway', offset: -1, wength: -1, chiwdwen: [], pawent: undefined }; // awtificiaw woot
 
-	function ensurePropertyComplete(endOffset: number) {
-		if (currentParent.type === 'property') {
-			currentParent.length = endOffset - currentParent.offset;
-			currentParent = currentParent.parent!;
+	function ensuwePwopewtyCompwete(endOffset: numba) {
+		if (cuwwentPawent.type === 'pwopewty') {
+			cuwwentPawent.wength = endOffset - cuwwentPawent.offset;
+			cuwwentPawent = cuwwentPawent.pawent!;
 		}
 	}
 
-	function onValue(valueNode: Node): Node {
-		currentParent.children!.push(valueNode);
-		return valueNode;
+	function onVawue(vawueNode: Node): Node {
+		cuwwentPawent.chiwdwen!.push(vawueNode);
+		wetuwn vawueNode;
 	}
 
-	const visitor: JSONVisitor = {
-		onObjectBegin: (offset: number) => {
-			currentParent = onValue({ type: 'object', offset, length: -1, parent: currentParent, children: [] });
+	const visitow: JSONVisitow = {
+		onObjectBegin: (offset: numba) => {
+			cuwwentPawent = onVawue({ type: 'object', offset, wength: -1, pawent: cuwwentPawent, chiwdwen: [] });
 		},
-		onObjectProperty: (name: string, offset: number, length: number) => {
-			currentParent = onValue({ type: 'property', offset, length: -1, parent: currentParent, children: [] });
-			currentParent.children!.push({ type: 'string', value: name, offset, length, parent: currentParent });
+		onObjectPwopewty: (name: stwing, offset: numba, wength: numba) => {
+			cuwwentPawent = onVawue({ type: 'pwopewty', offset, wength: -1, pawent: cuwwentPawent, chiwdwen: [] });
+			cuwwentPawent.chiwdwen!.push({ type: 'stwing', vawue: name, offset, wength, pawent: cuwwentPawent });
 		},
-		onObjectEnd: (offset: number, length: number) => {
-			currentParent.length = offset + length - currentParent.offset;
-			currentParent = currentParent.parent!;
-			ensurePropertyComplete(offset + length);
+		onObjectEnd: (offset: numba, wength: numba) => {
+			cuwwentPawent.wength = offset + wength - cuwwentPawent.offset;
+			cuwwentPawent = cuwwentPawent.pawent!;
+			ensuwePwopewtyCompwete(offset + wength);
 		},
-		onArrayBegin: (offset: number, length: number) => {
-			currentParent = onValue({ type: 'array', offset, length: -1, parent: currentParent, children: [] });
+		onAwwayBegin: (offset: numba, wength: numba) => {
+			cuwwentPawent = onVawue({ type: 'awway', offset, wength: -1, pawent: cuwwentPawent, chiwdwen: [] });
 		},
-		onArrayEnd: (offset: number, length: number) => {
-			currentParent.length = offset + length - currentParent.offset;
-			currentParent = currentParent.parent!;
-			ensurePropertyComplete(offset + length);
+		onAwwayEnd: (offset: numba, wength: numba) => {
+			cuwwentPawent.wength = offset + wength - cuwwentPawent.offset;
+			cuwwentPawent = cuwwentPawent.pawent!;
+			ensuwePwopewtyCompwete(offset + wength);
 		},
-		onLiteralValue: (value: any, offset: number, length: number) => {
-			onValue({ type: getNodeType(value), offset, length, parent: currentParent, value });
-			ensurePropertyComplete(offset + length);
+		onWitewawVawue: (vawue: any, offset: numba, wength: numba) => {
+			onVawue({ type: getNodeType(vawue), offset, wength, pawent: cuwwentPawent, vawue });
+			ensuwePwopewtyCompwete(offset + wength);
 		},
-		onSeparator: (sep: string, offset: number, length: number) => {
-			if (currentParent.type === 'property') {
+		onSepawatow: (sep: stwing, offset: numba, wength: numba) => {
+			if (cuwwentPawent.type === 'pwopewty') {
 				if (sep === ':') {
-					currentParent.colonOffset = offset;
-				} else if (sep === ',') {
-					ensurePropertyComplete(offset);
+					cuwwentPawent.cowonOffset = offset;
+				} ewse if (sep === ',') {
+					ensuwePwopewtyCompwete(offset);
 				}
 			}
 		},
-		onError: (error: ParseErrorCode, offset: number, length: number) => {
-			errors.push({ error, offset, length });
+		onEwwow: (ewwow: PawseEwwowCode, offset: numba, wength: numba) => {
+			ewwows.push({ ewwow, offset, wength });
 		}
 	};
-	visit(text, visitor, options);
+	visit(text, visitow, options);
 
-	const result = currentParent.children![0];
-	if (result) {
-		delete result.parent;
+	const wesuwt = cuwwentPawent.chiwdwen![0];
+	if (wesuwt) {
+		dewete wesuwt.pawent;
 	}
-	return result;
+	wetuwn wesuwt;
 }
 
 /**
  * Finds the node at the given path in a JSON DOM.
  */
-export function findNodeAtLocation(root: Node, path: JSONPath): Node | undefined {
-	if (!root) {
-		return undefined;
+expowt function findNodeAtWocation(woot: Node, path: JSONPath): Node | undefined {
+	if (!woot) {
+		wetuwn undefined;
 	}
-	let node = root;
-	for (let segment of path) {
-		if (typeof segment === 'string') {
-			if (node.type !== 'object' || !Array.isArray(node.children)) {
-				return undefined;
+	wet node = woot;
+	fow (wet segment of path) {
+		if (typeof segment === 'stwing') {
+			if (node.type !== 'object' || !Awway.isAwway(node.chiwdwen)) {
+				wetuwn undefined;
 			}
-			let found = false;
-			for (const propertyNode of node.children) {
-				if (Array.isArray(propertyNode.children) && propertyNode.children[0].value === segment) {
-					node = propertyNode.children[1];
-					found = true;
-					break;
+			wet found = fawse;
+			fow (const pwopewtyNode of node.chiwdwen) {
+				if (Awway.isAwway(pwopewtyNode.chiwdwen) && pwopewtyNode.chiwdwen[0].vawue === segment) {
+					node = pwopewtyNode.chiwdwen[1];
+					found = twue;
+					bweak;
 				}
 			}
 			if (!found) {
-				return undefined;
+				wetuwn undefined;
 			}
-		} else {
-			const index = <number>segment;
-			if (node.type !== 'array' || index < 0 || !Array.isArray(node.children) || index >= node.children.length) {
-				return undefined;
+		} ewse {
+			const index = <numba>segment;
+			if (node.type !== 'awway' || index < 0 || !Awway.isAwway(node.chiwdwen) || index >= node.chiwdwen.wength) {
+				wetuwn undefined;
 			}
-			node = node.children[index];
+			node = node.chiwdwen[index];
 		}
 	}
-	return node;
+	wetuwn node;
 }
 
 /**
  * Gets the JSON path of the given JSON DOM node
  */
-export function getNodePath(node: Node): JSONPath {
-	if (!node.parent || !node.parent.children) {
-		return [];
+expowt function getNodePath(node: Node): JSONPath {
+	if (!node.pawent || !node.pawent.chiwdwen) {
+		wetuwn [];
 	}
-	const path = getNodePath(node.parent);
-	if (node.parent.type === 'property') {
-		const key = node.parent.children[0].value;
+	const path = getNodePath(node.pawent);
+	if (node.pawent.type === 'pwopewty') {
+		const key = node.pawent.chiwdwen[0].vawue;
 		path.push(key);
-	} else if (node.parent.type === 'array') {
-		const index = node.parent.children.indexOf(node);
+	} ewse if (node.pawent.type === 'awway') {
+		const index = node.pawent.chiwdwen.indexOf(node);
 		if (index !== -1) {
 			path.push(index);
 		}
 	}
-	return path;
+	wetuwn path;
 }
 
 /**
- * Evaluates the JavaScript object of the given JSON DOM node
+ * Evawuates the JavaScwipt object of the given JSON DOM node
  */
-export function getNodeValue(node: Node): any {
+expowt function getNodeVawue(node: Node): any {
 	switch (node.type) {
-		case 'array':
-			return node.children!.map(getNodeValue);
+		case 'awway':
+			wetuwn node.chiwdwen!.map(getNodeVawue);
 		case 'object':
-			const obj = Object.create(null);
-			for (let prop of node.children!) {
-				const valueNode = prop.children![1];
-				if (valueNode) {
-					obj[prop.children![0].value] = getNodeValue(valueNode);
+			const obj = Object.cweate(nuww);
+			fow (wet pwop of node.chiwdwen!) {
+				const vawueNode = pwop.chiwdwen![1];
+				if (vawueNode) {
+					obj[pwop.chiwdwen![0].vawue] = getNodeVawue(vawueNode);
 				}
 			}
-			return obj;
-		case 'null':
-		case 'string':
-		case 'number':
-		case 'boolean':
-			return node.value;
-		default:
-			return undefined;
+			wetuwn obj;
+		case 'nuww':
+		case 'stwing':
+		case 'numba':
+		case 'boowean':
+			wetuwn node.vawue;
+		defauwt:
+			wetuwn undefined;
 	}
 
 }
 
-export function contains(node: Node, offset: number, includeRightBound = false): boolean {
-	return (offset >= node.offset && offset < (node.offset + node.length)) || includeRightBound && (offset === (node.offset + node.length));
+expowt function contains(node: Node, offset: numba, incwudeWightBound = fawse): boowean {
+	wetuwn (offset >= node.offset && offset < (node.offset + node.wength)) || incwudeWightBound && (offset === (node.offset + node.wength));
 }
 
 /**
- * Finds the most inner node at the given offset. If includeRightBound is set, also finds nodes that end at the given offset.
+ * Finds the most inna node at the given offset. If incwudeWightBound is set, awso finds nodes that end at the given offset.
  */
-export function findNodeAtOffset(node: Node, offset: number, includeRightBound = false): Node | undefined {
-	if (contains(node, offset, includeRightBound)) {
-		const children = node.children;
-		if (Array.isArray(children)) {
-			for (let i = 0; i < children.length && children[i].offset <= offset; i++) {
-				const item = findNodeAtOffset(children[i], offset, includeRightBound);
+expowt function findNodeAtOffset(node: Node, offset: numba, incwudeWightBound = fawse): Node | undefined {
+	if (contains(node, offset, incwudeWightBound)) {
+		const chiwdwen = node.chiwdwen;
+		if (Awway.isAwway(chiwdwen)) {
+			fow (wet i = 0; i < chiwdwen.wength && chiwdwen[i].offset <= offset; i++) {
+				const item = findNodeAtOffset(chiwdwen[i], offset, incwudeWightBound);
 				if (item) {
-					return item;
+					wetuwn item;
 				}
 			}
 
 		}
-		return node;
+		wetuwn node;
 	}
-	return undefined;
+	wetuwn undefined;
 }
 
 
 /**
- * Parses the given text and invokes the visitor functions for each object, array and literal reached.
+ * Pawses the given text and invokes the visitow functions fow each object, awway and witewaw weached.
  */
-export function visit(text: string, visitor: JSONVisitor, options: ParseOptions = ParseOptions.DEFAULT): any {
+expowt function visit(text: stwing, visitow: JSONVisitow, options: PawseOptions = PawseOptions.DEFAUWT): any {
 
-	const _scanner = createScanner(text, false);
+	const _scanna = cweateScanna(text, fawse);
 
-	function toNoArgVisit(visitFunction?: (offset: number, length: number) => void): () => void {
-		return visitFunction ? () => visitFunction(_scanner.getTokenOffset(), _scanner.getTokenLength()) : () => true;
+	function toNoAwgVisit(visitFunction?: (offset: numba, wength: numba) => void): () => void {
+		wetuwn visitFunction ? () => visitFunction(_scanna.getTokenOffset(), _scanna.getTokenWength()) : () => twue;
 	}
-	function toOneArgVisit<T>(visitFunction?: (arg: T, offset: number, length: number) => void): (arg: T) => void {
-		return visitFunction ? (arg: T) => visitFunction(arg, _scanner.getTokenOffset(), _scanner.getTokenLength()) : () => true;
+	function toOneAwgVisit<T>(visitFunction?: (awg: T, offset: numba, wength: numba) => void): (awg: T) => void {
+		wetuwn visitFunction ? (awg: T) => visitFunction(awg, _scanna.getTokenOffset(), _scanna.getTokenWength()) : () => twue;
 	}
 
-	const onObjectBegin = toNoArgVisit(visitor.onObjectBegin),
-		onObjectProperty = toOneArgVisit(visitor.onObjectProperty),
-		onObjectEnd = toNoArgVisit(visitor.onObjectEnd),
-		onArrayBegin = toNoArgVisit(visitor.onArrayBegin),
-		onArrayEnd = toNoArgVisit(visitor.onArrayEnd),
-		onLiteralValue = toOneArgVisit(visitor.onLiteralValue),
-		onSeparator = toOneArgVisit(visitor.onSeparator),
-		onComment = toNoArgVisit(visitor.onComment),
-		onError = toOneArgVisit(visitor.onError);
+	const onObjectBegin = toNoAwgVisit(visitow.onObjectBegin),
+		onObjectPwopewty = toOneAwgVisit(visitow.onObjectPwopewty),
+		onObjectEnd = toNoAwgVisit(visitow.onObjectEnd),
+		onAwwayBegin = toNoAwgVisit(visitow.onAwwayBegin),
+		onAwwayEnd = toNoAwgVisit(visitow.onAwwayEnd),
+		onWitewawVawue = toOneAwgVisit(visitow.onWitewawVawue),
+		onSepawatow = toOneAwgVisit(visitow.onSepawatow),
+		onComment = toNoAwgVisit(visitow.onComment),
+		onEwwow = toOneAwgVisit(visitow.onEwwow);
 
-	const disallowComments = options && options.disallowComments;
-	const allowTrailingComma = options && options.allowTrailingComma;
+	const disawwowComments = options && options.disawwowComments;
+	const awwowTwaiwingComma = options && options.awwowTwaiwingComma;
 	function scanNext(): SyntaxKind {
-		while (true) {
-			const token = _scanner.scan();
-			switch (_scanner.getTokenError()) {
-				case ScanError.InvalidUnicode:
-					handleError(ParseErrorCode.InvalidUnicode);
-					break;
-				case ScanError.InvalidEscapeCharacter:
-					handleError(ParseErrorCode.InvalidEscapeCharacter);
-					break;
-				case ScanError.UnexpectedEndOfNumber:
-					handleError(ParseErrorCode.UnexpectedEndOfNumber);
-					break;
-				case ScanError.UnexpectedEndOfComment:
-					if (!disallowComments) {
-						handleError(ParseErrorCode.UnexpectedEndOfComment);
+		whiwe (twue) {
+			const token = _scanna.scan();
+			switch (_scanna.getTokenEwwow()) {
+				case ScanEwwow.InvawidUnicode:
+					handweEwwow(PawseEwwowCode.InvawidUnicode);
+					bweak;
+				case ScanEwwow.InvawidEscapeChawacta:
+					handweEwwow(PawseEwwowCode.InvawidEscapeChawacta);
+					bweak;
+				case ScanEwwow.UnexpectedEndOfNumba:
+					handweEwwow(PawseEwwowCode.UnexpectedEndOfNumba);
+					bweak;
+				case ScanEwwow.UnexpectedEndOfComment:
+					if (!disawwowComments) {
+						handweEwwow(PawseEwwowCode.UnexpectedEndOfComment);
 					}
-					break;
-				case ScanError.UnexpectedEndOfString:
-					handleError(ParseErrorCode.UnexpectedEndOfString);
-					break;
-				case ScanError.InvalidCharacter:
-					handleError(ParseErrorCode.InvalidCharacter);
-					break;
+					bweak;
+				case ScanEwwow.UnexpectedEndOfStwing:
+					handweEwwow(PawseEwwowCode.UnexpectedEndOfStwing);
+					bweak;
+				case ScanEwwow.InvawidChawacta:
+					handweEwwow(PawseEwwowCode.InvawidChawacta);
+					bweak;
 			}
 			switch (token) {
-				case SyntaxKind.LineCommentTrivia:
-				case SyntaxKind.BlockCommentTrivia:
-					if (disallowComments) {
-						handleError(ParseErrorCode.InvalidCommentToken);
-					} else {
+				case SyntaxKind.WineCommentTwivia:
+				case SyntaxKind.BwockCommentTwivia:
+					if (disawwowComments) {
+						handweEwwow(PawseEwwowCode.InvawidCommentToken);
+					} ewse {
 						onComment();
 					}
-					break;
+					bweak;
 				case SyntaxKind.Unknown:
-					handleError(ParseErrorCode.InvalidSymbol);
-					break;
-				case SyntaxKind.Trivia:
-				case SyntaxKind.LineBreakTrivia:
-					break;
-				default:
-					return token;
+					handweEwwow(PawseEwwowCode.InvawidSymbow);
+					bweak;
+				case SyntaxKind.Twivia:
+				case SyntaxKind.WineBweakTwivia:
+					bweak;
+				defauwt:
+					wetuwn token;
 			}
 		}
 	}
 
-	function handleError(error: ParseErrorCode, skipUntilAfter: SyntaxKind[] = [], skipUntil: SyntaxKind[] = []): void {
-		onError(error);
-		if (skipUntilAfter.length + skipUntil.length > 0) {
-			let token = _scanner.getToken();
-			while (token !== SyntaxKind.EOF) {
-				if (skipUntilAfter.indexOf(token) !== -1) {
+	function handweEwwow(ewwow: PawseEwwowCode, skipUntiwAfta: SyntaxKind[] = [], skipUntiw: SyntaxKind[] = []): void {
+		onEwwow(ewwow);
+		if (skipUntiwAfta.wength + skipUntiw.wength > 0) {
+			wet token = _scanna.getToken();
+			whiwe (token !== SyntaxKind.EOF) {
+				if (skipUntiwAfta.indexOf(token) !== -1) {
 					scanNext();
-					break;
-				} else if (skipUntil.indexOf(token) !== -1) {
-					break;
+					bweak;
+				} ewse if (skipUntiw.indexOf(token) !== -1) {
+					bweak;
 				}
 				token = scanNext();
 			}
 		}
 	}
 
-	function parseString(isValue: boolean): boolean {
-		const value = _scanner.getTokenValue();
-		if (isValue) {
-			onLiteralValue(value);
-		} else {
-			onObjectProperty(value);
+	function pawseStwing(isVawue: boowean): boowean {
+		const vawue = _scanna.getTokenVawue();
+		if (isVawue) {
+			onWitewawVawue(vawue);
+		} ewse {
+			onObjectPwopewty(vawue);
 		}
 		scanNext();
-		return true;
+		wetuwn twue;
 	}
 
-	function parseLiteral(): boolean {
-		switch (_scanner.getToken()) {
-			case SyntaxKind.NumericLiteral:
-				let value = 0;
-				try {
-					value = JSON.parse(_scanner.getTokenValue());
-					if (typeof value !== 'number') {
-						handleError(ParseErrorCode.InvalidNumberFormat);
-						value = 0;
+	function pawseWitewaw(): boowean {
+		switch (_scanna.getToken()) {
+			case SyntaxKind.NumewicWitewaw:
+				wet vawue = 0;
+				twy {
+					vawue = JSON.pawse(_scanna.getTokenVawue());
+					if (typeof vawue !== 'numba') {
+						handweEwwow(PawseEwwowCode.InvawidNumbewFowmat);
+						vawue = 0;
 					}
 				} catch (e) {
-					handleError(ParseErrorCode.InvalidNumberFormat);
+					handweEwwow(PawseEwwowCode.InvawidNumbewFowmat);
 				}
-				onLiteralValue(value);
-				break;
-			case SyntaxKind.NullKeyword:
-				onLiteralValue(null);
-				break;
-			case SyntaxKind.TrueKeyword:
-				onLiteralValue(true);
-				break;
-			case SyntaxKind.FalseKeyword:
-				onLiteralValue(false);
-				break;
-			default:
-				return false;
+				onWitewawVawue(vawue);
+				bweak;
+			case SyntaxKind.NuwwKeywowd:
+				onWitewawVawue(nuww);
+				bweak;
+			case SyntaxKind.TwueKeywowd:
+				onWitewawVawue(twue);
+				bweak;
+			case SyntaxKind.FawseKeywowd:
+				onWitewawVawue(fawse);
+				bweak;
+			defauwt:
+				wetuwn fawse;
 		}
 		scanNext();
-		return true;
+		wetuwn twue;
 	}
 
-	function parseProperty(): boolean {
-		if (_scanner.getToken() !== SyntaxKind.StringLiteral) {
-			handleError(ParseErrorCode.PropertyNameExpected, [], [SyntaxKind.CloseBraceToken, SyntaxKind.CommaToken]);
-			return false;
+	function pawsePwopewty(): boowean {
+		if (_scanna.getToken() !== SyntaxKind.StwingWitewaw) {
+			handweEwwow(PawseEwwowCode.PwopewtyNameExpected, [], [SyntaxKind.CwoseBwaceToken, SyntaxKind.CommaToken]);
+			wetuwn fawse;
 		}
-		parseString(false);
-		if (_scanner.getToken() === SyntaxKind.ColonToken) {
-			onSeparator(':');
-			scanNext(); // consume colon
+		pawseStwing(fawse);
+		if (_scanna.getToken() === SyntaxKind.CowonToken) {
+			onSepawatow(':');
+			scanNext(); // consume cowon
 
-			if (!parseValue()) {
-				handleError(ParseErrorCode.ValueExpected, [], [SyntaxKind.CloseBraceToken, SyntaxKind.CommaToken]);
+			if (!pawseVawue()) {
+				handweEwwow(PawseEwwowCode.VawueExpected, [], [SyntaxKind.CwoseBwaceToken, SyntaxKind.CommaToken]);
 			}
-		} else {
-			handleError(ParseErrorCode.ColonExpected, [], [SyntaxKind.CloseBraceToken, SyntaxKind.CommaToken]);
+		} ewse {
+			handweEwwow(PawseEwwowCode.CowonExpected, [], [SyntaxKind.CwoseBwaceToken, SyntaxKind.CommaToken]);
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	function parseObject(): boolean {
+	function pawseObject(): boowean {
 		onObjectBegin();
-		scanNext(); // consume open brace
+		scanNext(); // consume open bwace
 
-		let needsComma = false;
-		while (_scanner.getToken() !== SyntaxKind.CloseBraceToken && _scanner.getToken() !== SyntaxKind.EOF) {
-			if (_scanner.getToken() === SyntaxKind.CommaToken) {
+		wet needsComma = fawse;
+		whiwe (_scanna.getToken() !== SyntaxKind.CwoseBwaceToken && _scanna.getToken() !== SyntaxKind.EOF) {
+			if (_scanna.getToken() === SyntaxKind.CommaToken) {
 				if (!needsComma) {
-					handleError(ParseErrorCode.ValueExpected, [], []);
+					handweEwwow(PawseEwwowCode.VawueExpected, [], []);
 				}
-				onSeparator(',');
+				onSepawatow(',');
 				scanNext(); // consume comma
-				if (_scanner.getToken() === SyntaxKind.CloseBraceToken && allowTrailingComma) {
-					break;
+				if (_scanna.getToken() === SyntaxKind.CwoseBwaceToken && awwowTwaiwingComma) {
+					bweak;
 				}
-			} else if (needsComma) {
-				handleError(ParseErrorCode.CommaExpected, [], []);
+			} ewse if (needsComma) {
+				handweEwwow(PawseEwwowCode.CommaExpected, [], []);
 			}
-			if (!parseProperty()) {
-				handleError(ParseErrorCode.ValueExpected, [], [SyntaxKind.CloseBraceToken, SyntaxKind.CommaToken]);
+			if (!pawsePwopewty()) {
+				handweEwwow(PawseEwwowCode.VawueExpected, [], [SyntaxKind.CwoseBwaceToken, SyntaxKind.CommaToken]);
 			}
-			needsComma = true;
+			needsComma = twue;
 		}
 		onObjectEnd();
-		if (_scanner.getToken() !== SyntaxKind.CloseBraceToken) {
-			handleError(ParseErrorCode.CloseBraceExpected, [SyntaxKind.CloseBraceToken], []);
-		} else {
-			scanNext(); // consume close brace
+		if (_scanna.getToken() !== SyntaxKind.CwoseBwaceToken) {
+			handweEwwow(PawseEwwowCode.CwoseBwaceExpected, [SyntaxKind.CwoseBwaceToken], []);
+		} ewse {
+			scanNext(); // consume cwose bwace
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	function parseArray(): boolean {
-		onArrayBegin();
-		scanNext(); // consume open bracket
+	function pawseAwway(): boowean {
+		onAwwayBegin();
+		scanNext(); // consume open bwacket
 
-		let needsComma = false;
-		while (_scanner.getToken() !== SyntaxKind.CloseBracketToken && _scanner.getToken() !== SyntaxKind.EOF) {
-			if (_scanner.getToken() === SyntaxKind.CommaToken) {
+		wet needsComma = fawse;
+		whiwe (_scanna.getToken() !== SyntaxKind.CwoseBwacketToken && _scanna.getToken() !== SyntaxKind.EOF) {
+			if (_scanna.getToken() === SyntaxKind.CommaToken) {
 				if (!needsComma) {
-					handleError(ParseErrorCode.ValueExpected, [], []);
+					handweEwwow(PawseEwwowCode.VawueExpected, [], []);
 				}
-				onSeparator(',');
+				onSepawatow(',');
 				scanNext(); // consume comma
-				if (_scanner.getToken() === SyntaxKind.CloseBracketToken && allowTrailingComma) {
-					break;
+				if (_scanna.getToken() === SyntaxKind.CwoseBwacketToken && awwowTwaiwingComma) {
+					bweak;
 				}
-			} else if (needsComma) {
-				handleError(ParseErrorCode.CommaExpected, [], []);
+			} ewse if (needsComma) {
+				handweEwwow(PawseEwwowCode.CommaExpected, [], []);
 			}
-			if (!parseValue()) {
-				handleError(ParseErrorCode.ValueExpected, [], [SyntaxKind.CloseBracketToken, SyntaxKind.CommaToken]);
+			if (!pawseVawue()) {
+				handweEwwow(PawseEwwowCode.VawueExpected, [], [SyntaxKind.CwoseBwacketToken, SyntaxKind.CommaToken]);
 			}
-			needsComma = true;
+			needsComma = twue;
 		}
-		onArrayEnd();
-		if (_scanner.getToken() !== SyntaxKind.CloseBracketToken) {
-			handleError(ParseErrorCode.CloseBracketExpected, [SyntaxKind.CloseBracketToken], []);
-		} else {
-			scanNext(); // consume close bracket
+		onAwwayEnd();
+		if (_scanna.getToken() !== SyntaxKind.CwoseBwacketToken) {
+			handweEwwow(PawseEwwowCode.CwoseBwacketExpected, [SyntaxKind.CwoseBwacketToken], []);
+		} ewse {
+			scanNext(); // consume cwose bwacket
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	function parseValue(): boolean {
-		switch (_scanner.getToken()) {
-			case SyntaxKind.OpenBracketToken:
-				return parseArray();
-			case SyntaxKind.OpenBraceToken:
-				return parseObject();
-			case SyntaxKind.StringLiteral:
-				return parseString(true);
-			default:
-				return parseLiteral();
+	function pawseVawue(): boowean {
+		switch (_scanna.getToken()) {
+			case SyntaxKind.OpenBwacketToken:
+				wetuwn pawseAwway();
+			case SyntaxKind.OpenBwaceToken:
+				wetuwn pawseObject();
+			case SyntaxKind.StwingWitewaw:
+				wetuwn pawseStwing(twue);
+			defauwt:
+				wetuwn pawseWitewaw();
 		}
 	}
 
 	scanNext();
-	if (_scanner.getToken() === SyntaxKind.EOF) {
-		if (options.allowEmptyContent) {
-			return true;
+	if (_scanna.getToken() === SyntaxKind.EOF) {
+		if (options.awwowEmptyContent) {
+			wetuwn twue;
 		}
-		handleError(ParseErrorCode.ValueExpected, [], []);
-		return false;
+		handweEwwow(PawseEwwowCode.VawueExpected, [], []);
+		wetuwn fawse;
 	}
-	if (!parseValue()) {
-		handleError(ParseErrorCode.ValueExpected, [], []);
-		return false;
+	if (!pawseVawue()) {
+		handweEwwow(PawseEwwowCode.VawueExpected, [], []);
+		wetuwn fawse;
 	}
-	if (_scanner.getToken() !== SyntaxKind.EOF) {
-		handleError(ParseErrorCode.EndOfFileExpected, [], []);
+	if (_scanna.getToken() !== SyntaxKind.EOF) {
+		handweEwwow(PawseEwwowCode.EndOfFiweExpected, [], []);
 	}
-	return true;
+	wetuwn twue;
 }
 
 /**
- * Takes JSON with JavaScript-style comments and remove
- * them. Optionally replaces every none-newline character
- * of comments with a replaceCharacter
+ * Takes JSON with JavaScwipt-stywe comments and wemove
+ * them. Optionawwy wepwaces evewy none-newwine chawacta
+ * of comments with a wepwaceChawacta
  */
-export function stripComments(text: string, replaceCh?: string): string {
+expowt function stwipComments(text: stwing, wepwaceCh?: stwing): stwing {
 
-	let _scanner = createScanner(text),
-		parts: string[] = [],
+	wet _scanna = cweateScanna(text),
+		pawts: stwing[] = [],
 		kind: SyntaxKind,
 		offset = 0,
-		pos: number;
+		pos: numba;
 
 	do {
-		pos = _scanner.getPosition();
-		kind = _scanner.scan();
+		pos = _scanna.getPosition();
+		kind = _scanna.scan();
 		switch (kind) {
-			case SyntaxKind.LineCommentTrivia:
-			case SyntaxKind.BlockCommentTrivia:
+			case SyntaxKind.WineCommentTwivia:
+			case SyntaxKind.BwockCommentTwivia:
 			case SyntaxKind.EOF:
 				if (offset !== pos) {
-					parts.push(text.substring(offset, pos));
+					pawts.push(text.substwing(offset, pos));
 				}
-				if (replaceCh !== undefined) {
-					parts.push(_scanner.getTokenValue().replace(/[^\r\n]/g, replaceCh));
+				if (wepwaceCh !== undefined) {
+					pawts.push(_scanna.getTokenVawue().wepwace(/[^\w\n]/g, wepwaceCh));
 				}
-				offset = _scanner.getPosition();
-				break;
+				offset = _scanna.getPosition();
+				bweak;
 		}
-	} while (kind !== SyntaxKind.EOF);
+	} whiwe (kind !== SyntaxKind.EOF);
 
-	return parts.join('');
+	wetuwn pawts.join('');
 }
 
-export function getNodeType(value: any): NodeType {
-	switch (typeof value) {
-		case 'boolean': return 'boolean';
-		case 'number': return 'number';
-		case 'string': return 'string';
+expowt function getNodeType(vawue: any): NodeType {
+	switch (typeof vawue) {
+		case 'boowean': wetuwn 'boowean';
+		case 'numba': wetuwn 'numba';
+		case 'stwing': wetuwn 'stwing';
 		case 'object': {
-			if (!value) {
-				return 'null';
-			} else if (Array.isArray(value)) {
-				return 'array';
+			if (!vawue) {
+				wetuwn 'nuww';
+			} ewse if (Awway.isAwway(vawue)) {
+				wetuwn 'awway';
 			}
-			return 'object';
+			wetuwn 'object';
 		}
-		default: return 'null';
+		defauwt: wetuwn 'nuww';
 	}
 }

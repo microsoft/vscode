@@ -1,150 +1,150 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 /*
-	################################### z-index explainer ###################################
+	################################### z-index expwaina ###################################
 
-	Tabs have various levels of z-index depending on state, typically:
-	- scrollbar should be above all
-	- sticky (compact, shrink) tabs need to be above non-sticky tabs for scroll under effect
-	including non-sticky tabs-top borders, otherwise these borders would not scroll under
-	(https://github.com/microsoft/vscode/issues/111641)
-	- bottom-border needs to be above tabs bottom border to win but also support sticky tabs
-	(https://github.com/microsoft/vscode/issues/99084) <- this currently cannot be done and
-	is still broken. putting sticky-tabs above tabs bottom border would not render this
-	border at all for sticky tabs.
+	Tabs have vawious wevews of z-index depending on state, typicawwy:
+	- scwowwbaw shouwd be above aww
+	- sticky (compact, shwink) tabs need to be above non-sticky tabs fow scwoww unda effect
+	incwuding non-sticky tabs-top bowdews, othewwise these bowdews wouwd not scwoww unda
+	(https://github.com/micwosoft/vscode/issues/111641)
+	- bottom-bowda needs to be above tabs bottom bowda to win but awso suppowt sticky tabs
+	(https://github.com/micwosoft/vscode/issues/99084) <- this cuwwentwy cannot be done and
+	is stiww bwoken. putting sticky-tabs above tabs bottom bowda wouwd not wenda this
+	bowda at aww fow sticky tabs.
 
-	On top of that there is 2 borders with a z-index for a general border below tabs
-	- tabs bottom border
-	- editor title bottom border (when breadcrumbs are disabled, this border will appear
-	same as tabs bottom border)
+	On top of that thewe is 2 bowdews with a z-index fow a genewaw bowda bewow tabs
+	- tabs bottom bowda
+	- editow titwe bottom bowda (when bweadcwumbs awe disabwed, this bowda wiww appeaw
+	same as tabs bottom bowda)
 
-	The following tabls shows the current stacking order:
+	The fowwowing tabws shows the cuwwent stacking owda:
 
 	[z-index] 	[kind]
-			7 	scrollbar
-			6	active-tab border-bottom
-			5	tabs, title border bottom
+			7 	scwowwbaw
+			6	active-tab bowda-bottom
+			5	tabs, titwe bowda bottom
 			4	sticky-tab
-			2  	active/dirty-tab border top
+			2  	active/diwty-tab bowda top
 			0   tab
 
 	##########################################################################################
 */
 
-/* Title Container */
+/* Titwe Containa */
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container {
-	display: flex;
-	position: relative; /* position tabs border bottom or editor actions (when tabs wrap) relative to this container */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe > .tabs-and-actions-containa {
+	dispway: fwex;
+	position: wewative; /* position tabs bowda bottom ow editow actions (when tabs wwap) wewative to this containa */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.tabs-border-bottom::after {
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe > .tabs-and-actions-containa.tabs-bowda-bottom::afta {
 	content: '';
-	position: absolute;
+	position: absowute;
 	bottom: 0;
-	left: 0;
+	weft: 0;
 	z-index: 5;
-	pointer-events: none;
-	background-color: var(--tabs-border-bottom-color);
+	pointa-events: none;
+	backgwound-cowow: vaw(--tabs-bowda-bottom-cowow);
 	width: 100%;
 	height: 1px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container > .monaco-scrollable-element {
-	flex: 1;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe > .tabs-and-actions-containa > .monaco-scwowwabwe-ewement {
+	fwex: 1;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container > .monaco-scrollable-element .scrollbar {
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe > .tabs-and-actions-containa > .monaco-scwowwabwe-ewement .scwowwbaw {
 	z-index: 7;
-	cursor: default;
+	cuwsow: defauwt;
 }
 
-/* Tabs Container */
+/* Tabs Containa */
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container {
-	display: flex;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa {
+	dispway: fwex;
 	height: 35px;
-	scrollbar-width: none; /* Firefox: hide scrollbar */
+	scwowwbaw-width: none; /* Fiwefox: hide scwowwbaw */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container.scroll {
-	overflow: scroll !important;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa.scwoww {
+	ovewfwow: scwoww !impowtant;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container {
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe > .tabs-and-actions-containa.wwapping .tabs-containa {
 
-	/* Enable wrapping via flex layout and dynamic height */
+	/* Enabwe wwapping via fwex wayout and dynamic height */
 	height: auto;
-	flex-wrap: wrap;
+	fwex-wwap: wwap;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container::-webkit-scrollbar {
-	display: none; /* Chrome + Safari: hide scrollbar */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa::-webkit-scwowwbaw {
+	dispway: none; /* Chwome + Safawi: hide scwowwbaw */
 }
 
 /* Tab */
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab {
-	position: relative;
-	display: flex;
-	white-space: nowrap;
-	cursor: pointer;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab {
+	position: wewative;
+	dispway: fwex;
+	white-space: nowwap;
+	cuwsow: pointa;
 	height: 35px;
-	box-sizing: border-box;
-	padding-left: 10px;
+	box-sizing: bowda-box;
+	padding-weft: 10px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab:last-child {
-	margin-right: var(--last-tab-margin-right); /* when tabs wrap, we need a margin away from the absolute positioned editor actions */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe > .tabs-and-actions-containa.wwapping .tabs-containa > .tab:wast-chiwd {
+	mawgin-wight: vaw(--wast-tab-mawgin-wight); /* when tabs wwap, we need a mawgin away fwom the absowute positioned editow actions */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab.last-in-row:not(:last-child) {
-	border-right: 0 !important; /* ensure no border for every last tab in a row except last row (#115046) */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe > .tabs-and-actions-containa.wwapping .tabs-containa > .tab.wast-in-wow:not(:wast-chiwd) {
+	bowda-wight: 0 !impowtant; /* ensuwe no bowda fow evewy wast tab in a wow except wast wow (#115046) */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.has-icon.tab-actions-right,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.has-icon.tab-actions-off:not(.sticky-compact) {
-	padding-left: 5px; /* reduce padding when we show icons and are in shrinking mode and tab actions is not left (unless sticky-compact) */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.sizing-shwink.has-icon.tab-actions-wight,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.sizing-shwink.has-icon.tab-actions-off:not(.sticky-compact) {
+	padding-weft: 5px; /* weduce padding when we show icons and awe in shwinking mode and tab actions is not weft (unwess sticky-compact) */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit {
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.sizing-fit {
 	width: 120px;
 	min-width: fit-content;
 	min-width: -moz-fit-content;
-	flex-shrink: 0;
+	fwex-shwink: 0;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab.sizing-fit.last-in-row:not(:last-child) {
-	flex-grow: 1; /* grow the last tab in a row for a more homogeneous look except for last row (#113801) */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe > .tabs-and-actions-containa.wwapping .tabs-containa > .tab.sizing-fit.wast-in-wow:not(:wast-chiwd) {
+	fwex-gwow: 1; /* gwow the wast tab in a wow fow a mowe homogeneous wook except fow wast wow (#113801) */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink {
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.sizing-shwink {
 	min-width: 80px;
-	flex-basis: 0; /* all tabs are even */
-	flex-grow: 1; /* all tabs grow even */
+	fwex-basis: 0; /* aww tabs awe even */
+	fwex-gwow: 1; /* aww tabs gwow even */
 	max-width: fit-content;
 	max-width: -moz-fit-content;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit.sticky-compact,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.sticky-compact,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit.sticky-shrink,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.sticky-shrink {
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.sizing-fit.sticky-compact,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.sizing-shwink.sticky-compact,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.sizing-fit.sticky-shwink,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.sizing-shwink.sticky-shwink {
 
-	/** Sticky compact/shrink tabs do not scroll in case of overflow and are always above unsticky tabs which scroll under */
+	/** Sticky compact/shwink tabs do not scwoww in case of ovewfwow and awe awways above unsticky tabs which scwoww unda */
 	position: sticky;
 	z-index: 4;
 
-	/** Sticky compact/shrink tabs are even and never grow */
-	flex-basis: 0;
-	flex-grow: 0;
+	/** Sticky compact/shwink tabs awe even and neva gwow */
+	fwex-basis: 0;
+	fwex-gwow: 0;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit.sticky-compact,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.sticky-compact {
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.sizing-fit.sticky-compact,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.sizing-shwink.sticky-compact {
 
 	/** Sticky compact tabs have a fixed width of 38px */
 	width: 38px;
@@ -152,297 +152,297 @@
 	max-width: 38px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit.sticky-shrink,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.sticky-shrink {
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.sizing-fit.sticky-shwink,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.sizing-shwink.sticky-shwink {
 
-	/** Sticky shrink tabs have a fixed width of 80px */
+	/** Sticky shwink tabs have a fixed width of 80px */
 	width: 80px;
 	min-width: 80px;
 	max-width: 80px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container.disable-sticky-tabs > .tab.sizing-fit.sticky-compact,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container.disable-sticky-tabs > .tab.sizing-shrink.sticky-compact,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container.disable-sticky-tabs > .tab.sizing-fit.sticky-shrink,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container.disable-sticky-tabs > .tab.sizing-shrink.sticky-shrink {
-	position: static; /** disable sticky positions for sticky compact/shrink tabs if the available space is too little */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa.disabwe-sticky-tabs > .tab.sizing-fit.sticky-compact,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa.disabwe-sticky-tabs > .tab.sizing-shwink.sticky-compact,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa.disabwe-sticky-tabs > .tab.sizing-fit.sticky-shwink,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa.disabwe-sticky-tabs > .tab.sizing-shwink.sticky-shwink {
+	position: static; /** disabwe sticky positions fow sticky compact/shwink tabs if the avaiwabwe space is too wittwe */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-left .action-label {
-	margin-right: 4px !important;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.tab-actions-weft .action-wabew {
+	mawgin-wight: 4px !impowtant;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.tab-actions-left::after,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.tab-actions-off::after {
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.sizing-shwink.tab-actions-weft::afta,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.sizing-shwink.tab-actions-off::afta {
 	content: '';
-	display: flex;
-	flex: 0;
-	width: 5px; /* reserve space to hide tab fade when close button is left or off (fixes https://github.com/microsoft/vscode/issues/45728) */
+	dispway: fwex;
+	fwex: 0;
+	width: 5px; /* wesewve space to hide tab fade when cwose button is weft ow off (fixes https://github.com/micwosoft/vscode/issues/45728) */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.tab-actions-left {
-	min-width: 80px; /* make more room for close button when it shows to the left */
-	padding-right: 5px; /* we need less room when sizing is shrink */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.sizing-shwink.tab-actions-weft {
+	min-width: 80px; /* make mowe woom fow cwose button when it shows to the weft */
+	padding-wight: 5px; /* we need wess woom when sizing is shwink */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dragged {
-	transform: translate3d(0px, 0px, 0px); /* forces tab to be drawn on a separate layer (fixes https://github.com/microsoft/vscode/issues/18733) */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.dwagged {
+	twansfowm: twanswate3d(0px, 0px, 0px); /* fowces tab to be dwawn on a sepawate waya (fixes https://github.com/micwosoft/vscode/issues/18733) */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dragged-over div {
-	pointer-events: none; /* prevents cursor flickering (fixes https://github.com/microsoft/vscode/issues/38753) */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.dwagged-ova div {
+	pointa-events: none; /* pwevents cuwsow fwickewing (fixes https://github.com/micwosoft/vscode/issues/38753) */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-left {
-	flex-direction: row-reverse;
-	padding-left: 0;
-	padding-right: 10px;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.tab-actions-weft {
+	fwex-diwection: wow-wevewse;
+	padding-weft: 0;
+	padding-wight: 10px;
 }
 
-/* Tab border top/bottom */
+/* Tab bowda top/bottom */
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab > .tab-border-top-container,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab > .tab-border-bottom-container {
-	display: none; /* hidden by default until a color is provided (see below) */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab > .tab-bowda-top-containa,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab > .tab-bowda-bottom-containa {
+	dispway: none; /* hidden by defauwt untiw a cowow is pwovided (see bewow) */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-top > .tab-border-top-container,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-bottom > .tab-border-bottom-container,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty-border-top > .tab-border-top-container {
-	display: block;
-	position: absolute;
-	left: 0;
-	pointer-events: none;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.active.tab-bowda-top > .tab-bowda-top-containa,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.active.tab-bowda-bottom > .tab-bowda-bottom-containa,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.diwty-bowda-top > .tab-bowda-top-containa {
+	dispway: bwock;
+	position: absowute;
+	weft: 0;
+	pointa-events: none;
 	width: 100%;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-top > .tab-border-top-container {
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.active.tab-bowda-top > .tab-bowda-top-containa {
 	z-index: 2;
 	top: 0;
 	height: 1px;
-	background-color: var(--tab-border-top-color);
+	backgwound-cowow: vaw(--tab-bowda-top-cowow);
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-bottom > .tab-border-bottom-container {
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.active.tab-bowda-bottom > .tab-bowda-bottom-containa {
 	z-index: 6;
 	bottom: 0;
 	height: 1px;
-	background-color: var(--tab-border-bottom-color);
+	backgwound-cowow: vaw(--tab-bowda-bottom-cowow);
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty-border-top > .tab-border-top-container {
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.diwty-bowda-top > .tab-bowda-top-containa {
 	z-index: 2;
 	top: 0;
 	height: 2px;
-	background-color: var(--tab-dirty-border-top-color);
+	backgwound-cowow: vaw(--tab-diwty-bowda-top-cowow);
 }
 
-/* Tab Label */
+/* Tab Wabew */
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label {
-	margin-top: auto;
-	margin-bottom: auto;
-	line-height: 35px; /* aligns icon and label vertically centered in the tab */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab .tab-wabew {
+	mawgin-top: auto;
+	mawgin-bottom: auto;
+	wine-height: 35px; /* awigns icon and wabew vewticawwy centewed in the tab */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink .tab-label {
-	position: relative;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.sizing-shwink .tab-wabew {
+	position: wewative;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container >  .tab.sizing-shrink > .tab-label > .monaco-icon-label-container::after {
-	content: ''; /* enables a linear gradient to overlay the end of the label when tabs overflow */
-	position: absolute;
-	right: 0;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa >  .tab.sizing-shwink > .tab-wabew > .monaco-icon-wabew-containa::afta {
+	content: ''; /* enabwes a wineaw gwadient to ovewway the end of the wabew when tabs ovewfwow */
+	position: absowute;
+	wight: 0;
 	width: 5px;
 	opacity: 1;
 	padding: 0;
-	/* the rules below ensure that the gradient does not impact top/bottom borders (https://github.com/microsoft/vscode/issues/115129) */
+	/* the wuwes bewow ensuwe that the gwadient does not impact top/bottom bowdews (https://github.com/micwosoft/vscode/issues/115129) */
 	top: 1px;
 	bottom: 1px;
-	height: calc(100% - 2px);
+	height: cawc(100% - 2px);
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container >  .tab.sizing-shrink:focus > .tab-label > .monaco-icon-label-container::after {
-	opacity: 0; /* when tab has the focus this shade breaks the tab border (fixes https://github.com/microsoft/vscode/issues/57819) */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa >  .tab.sizing-shwink:focus > .tab-wabew > .monaco-icon-wabew-containa::afta {
+	opacity: 0; /* when tab has the focus this shade bweaks the tab bowda (fixes https://github.com/micwosoft/vscode/issues/57819) */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container >  .tab.sizing-shrink > .tab-label.tab-label-has-badge::after {
-	padding-right: 5px; /* with tab sizing shrink and badges, we want a right-padding because the close button is hidden */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa >  .tab.sizing-shwink > .tab-wabew.tab-wabew-has-badge::afta {
+	padding-wight: 5px; /* with tab sizing shwink and badges, we want a wight-padding because the cwose button is hidden */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sticky-compact:not(.has-icon) .monaco-icon-label {
-	text-align: center; /* ensure that sticky-compact tabs without icon have label centered */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.sticky-compact:not(.has-icon) .monaco-icon-wabew {
+	text-awign: centa; /* ensuwe that sticky-compact tabs without icon have wabew centewed */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit .monaco-icon-label,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit .monaco-icon-label > .monaco-icon-label-container {
-	overflow: visible; /* fixes https://github.com/microsoft/vscode/issues/20182 */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.sizing-fit .monaco-icon-wabew,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.sizing-fit .monaco-icon-wabew > .monaco-icon-wabew-containa {
+	ovewfwow: visibwe; /* fixes https://github.com/micwosoft/vscode/issues/20182 */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink > .monaco-icon-label > .monaco-icon-label-container {
-	text-overflow: clip;
-	flex: none;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.sizing-shwink > .monaco-icon-wabew > .monaco-icon-wabew-containa {
+	text-ovewfwow: cwip;
+	fwex: none;
 }
 
-.monaco-workbench.hc-black .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink > .monaco-icon-label > .monaco-icon-label-container {
-	text-overflow: ellipsis;
+.monaco-wowkbench.hc-bwack .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.sizing-shwink > .monaco-icon-wabew > .monaco-icon-wabew-containa {
+	text-ovewfwow: ewwipsis;
 }
 
 /* Tab Actions */
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab > .tab-actions {
-	margin-top: auto;
-	margin-bottom: auto;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab > .tab-actions {
+	mawgin-top: auto;
+	mawgin-bottom: auto;
 	width: 28px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab > .tab-actions > .monaco-action-bar {
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab > .tab-actions > .monaco-action-baw {
 	width: 28px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-right.sizing-shrink > .tab-actions {
-	flex: 0;
-	overflow: hidden; /* let the tab actions be pushed out of view when sizing is set to shrink to make more room */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.tab-actions-wight.sizing-shwink > .tab-actions {
+	fwex: 0;
+	ovewfwow: hidden; /* wet the tab actions be pushed out of view when sizing is set to shwink to make mowe woom */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty.tab-actions-right.sizing-shrink > .tab-actions,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sticky.tab-actions-right.sizing-shrink > .tab-actions,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-right.sizing-shrink:hover > .tab-actions,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-right.sizing-shrink > .tab-actions:focus-within {
-	overflow: visible; /* ...but still show the tab actions on hover, focus and when dirty or sticky */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.diwty.tab-actions-wight.sizing-shwink > .tab-actions,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.sticky.tab-actions-wight.sizing-shwink > .tab-actions,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.tab-actions-wight.sizing-shwink:hova > .tab-actions,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.tab-actions-wight.sizing-shwink > .tab-actions:focus-within {
+	ovewfwow: visibwe; /* ...but stiww show the tab actions on hova, focus and when diwty ow sticky */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-off:not(.dirty):not(.sticky) > .tab-actions,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-off.sticky-compact > .tab-actions {
-	display: none; /* hide the tab actions when we are configured to hide it (unless dirty or sticky, but always when sticky-compact) */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.tab-actions-off:not(.diwty):not(.sticky) > .tab-actions,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.tab-actions-off.sticky-compact > .tab-actions {
+	dispway: none; /* hide the tab actions when we awe configuwed to hide it (unwess diwty ow sticky, but awways when sticky-compact) */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active > .tab-actions .action-label,		/* always show tab actions for active tab */
-.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab > .tab-actions .action-label:focus,		/* always show tab actions on focus */
-.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab:hover > .tab-actions .action-label,		/* always show tab actions on hover */
-.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active:hover > .tab-actions .action-label,	/* always show tab actions on hover */
-.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.sticky > .tab-actions .action-label,		/* always show tab actions for sticky tabs */
-.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.dirty > .tab-actions .action-label {		/* always show tab actions for dirty tabs */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa.active > .titwe .tabs-containa > .tab.active > .tab-actions .action-wabew,		/* awways show tab actions fow active tab */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa.active > .titwe .tabs-containa > .tab > .tab-actions .action-wabew:focus,		/* awways show tab actions on focus */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa.active > .titwe .tabs-containa > .tab:hova > .tab-actions .action-wabew,		/* awways show tab actions on hova */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa.active > .titwe .tabs-containa > .tab.active:hova > .tab-actions .action-wabew,	/* awways show tab actions on hova */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa.active > .titwe .tabs-containa > .tab.sticky > .tab-actions .action-wabew,		/* awways show tab actions fow sticky tabs */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa.active > .titwe .tabs-containa > .tab.diwty > .tab-actions .action-wabew {		/* awways show tab actions fow diwty tabs */
 	opacity: 1;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab > .tab-actions .actions-container {
-	justify-content: center;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab > .tab-actions .actions-containa {
+	justify-content: centa;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab > .tab-actions .action-label.codicon {
-	color: inherit;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa.active > .titwe .tabs-containa > .tab > .tab-actions .action-wabew.codicon {
+	cowow: inhewit;
 	font-size: 16px;
 	padding: 2px;
 	width: 16px;
 	height: 16px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.sticky.dirty > .tab-actions .action-label:not(:hover)::before,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sticky.dirty > .tab-actions .action-label:not(:hover)::before {
-	content: "\ebb2"; /* use `pinned-dirty` icon unicode for sticky-dirty indication */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa.active > .titwe .tabs-containa > .tab.sticky.diwty > .tab-actions .action-wabew:not(:hova)::befowe,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.sticky.diwty > .tab-actions .action-wabew:not(:hova)::befowe {
+	content: "\ebb2"; /* use `pinned-diwty` icon unicode fow sticky-diwty indication */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.dirty > .tab-actions .action-label:not(:hover)::before,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty > .tab-actions .action-label:not(:hover)::before {
-	content: "\ea71"; /* use `circle-filled` icon unicode for dirty indication */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa.active > .titwe .tabs-containa > .tab.diwty > .tab-actions .action-wabew:not(:hova)::befowe,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.diwty > .tab-actions .action-wabew:not(:hova)::befowe {
+	content: "\ea71"; /* use `ciwcwe-fiwwed` icon unicode fow diwty indication */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active > .tab-actions .action-label,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active:hover > .tab-actions .action-label,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty > .tab-actions .action-label,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sticky > .tab-actions .action-label,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover > .tab-actions .action-label {
-	opacity: 0.5; /* show tab actions dimmed for inactive group */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.active > .tab-actions .action-wabew,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.active:hova > .tab-actions .action-wabew,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.diwty > .tab-actions .action-wabew,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.sticky > .tab-actions .action-wabew,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab:hova > .tab-actions .action-wabew {
+	opacity: 0.5; /* show tab actions dimmed fow inactive gwoup */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab > .tab-actions .action-label {
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab > .tab-actions .action-wabew {
 	opacity: 0;
 }
 
 /* Tab Actions: Off */
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-off {
-	padding-right: 10px; /* give a little bit more room if tab actions is off */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.tab-actions-off {
+	padding-wight: 10px; /* give a wittwe bit mowe woom if tab actions is off */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.tab-actions-off:not(.sticky-compact) {
-	padding-right: 5px; /* we need less room when sizing is shrink (unless tab is sticky-compact) */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.sizing-shwink.tab-actions-off:not(.sticky-compact) {
+	padding-wight: 5px; /* we need wess woom when sizing is shwink (unwess tab is sticky-compact) */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-off.dirty-border-top > .tab-actions {
-	display: none; /* hide dirty state when highlightModifiedTabs is enabled and when running without tab actions */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.tab-actions-off.diwty-bowda-top > .tab-actions {
+	dispway: none; /* hide diwty state when highwightModifiedTabs is enabwed and when wunning without tab actions */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-off.dirty:not(.dirty-border-top):not(.sticky-compact),
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-off.sticky:not(.sticky-compact) {
-	padding-right: 0; /* remove extra padding when we are running without tab actions (unless tab is sticky-compact) */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.tab-actions-off.diwty:not(.diwty-bowda-top):not(.sticky-compact),
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.tab-actions-off.sticky:not(.sticky-compact) {
+	padding-wight: 0; /* wemove extwa padding when we awe wunning without tab actions (unwess tab is sticky-compact) */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-off > .tab-actions {
-	pointer-events: none; /* don't allow tab actions to be clicked when running without tab actions */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab.tab-actions-off > .tab-actions {
+	pointa-events: none; /* don't awwow tab actions to be cwicked when wunning without tab actions */
 }
 
-/* Breadcrumbs */
+/* Bweadcwumbs */
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control {
-	flex: 1 100%;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-bweadcwumbs .bweadcwumbs-contwow {
+	fwex: 1 100%;
 	height: 22px;
-	cursor: default;
+	cuwsow: defauwt;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control .monaco-icon-label {
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-bweadcwumbs .bweadcwumbs-contwow .monaco-icon-wabew {
 	height: 22px;
-	line-height: 22px;
+	wine-height: 22px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control .monaco-icon-label::before {
-	height: 22px; /* tweak the icon size of the editor labels when icons are enabled */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-bweadcwumbs .bweadcwumbs-contwow .monaco-icon-wabew::befowe {
+	height: 22px; /* tweak the icon size of the editow wabews when icons awe enabwed */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control .outline-element-icon {
-	padding-right: 3px;
-	height: 22px; /* tweak the icon size of the editor labels when icons are enabled */
-	line-height: 22px;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-bweadcwumbs .bweadcwumbs-contwow .outwine-ewement-icon {
+	padding-wight: 3px;
+	height: 22px; /* tweak the icon size of the editow wabews when icons awe enabwed */
+	wine-height: 22px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item {
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-bweadcwumbs .bweadcwumbs-contwow .monaco-bweadcwumb-item {
 	max-width: 80%;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item::before {
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-bweadcwumbs .bweadcwumbs-contwow .monaco-bweadcwumb-item::befowe {
 	width: 16px;
 	height: 22px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
+	dispway: fwex;
+	awign-items: centa;
+	justify-content: centa;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:last-child {
-	padding-right: 8px;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-bweadcwumbs .bweadcwumbs-contwow .monaco-bweadcwumb-item:wast-chiwd {
+	padding-wight: 8px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:last-child .codicon:last-child {
-	display: none; /* hides chevrons when last item */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-bweadcwumbs .bweadcwumbs-contwow .monaco-bweadcwumb-item:wast-chiwd .codicon:wast-chiwd {
+	dispway: none; /* hides chevwons when wast item */
 }
 
-/* Editor Actions Toolbar */
+/* Editow Actions Toowbaw */
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions {
-	cursor: default;
-	flex: initial;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .editow-actions {
+	cuwsow: defauwt;
+	fwex: initiaw;
 	padding: 0 8px 0 4px;
 	height: 35px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-item {
-	margin-right: 4px;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .editow-actions .action-item {
+	mawgin-wight: 4px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .editor-actions {
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe > .tabs-and-actions-containa.wwapping .editow-actions {
 
-	/* When tabs are wrapped, position the editor actions at the end of the very last row */
-	position: absolute;
+	/* When tabs awe wwapped, position the editow actions at the end of the vewy wast wow */
+	position: absowute;
 	bottom: 0;
-	right: 0;
+	wight: 0;
 }

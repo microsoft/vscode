@@ -1,90 +1,90 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as crypto from 'crypto';
-import * as net from 'net';
-import * as platform from 'vs/base/common/platform';
-import { tmpdir } from 'os';
-import { join } from 'vs/base/common/path';
-import { SocketDebugAdapter, NamedPipeDebugAdapter, StreamDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
+impowt * as assewt fwom 'assewt';
+impowt * as cwypto fwom 'cwypto';
+impowt * as net fwom 'net';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { tmpdiw } fwom 'os';
+impowt { join } fwom 'vs/base/common/path';
+impowt { SocketDebugAdapta, NamedPipeDebugAdapta, StweamDebugAdapta } fwom 'vs/wowkbench/contwib/debug/node/debugAdapta';
 
-function rndPort(): number {
+function wndPowt(): numba {
 	const min = 8000;
 	const max = 9000;
-	return Math.floor(Math.random() * (max - min) + min);
+	wetuwn Math.fwoow(Math.wandom() * (max - min) + min);
 }
 
-function sendInitializeRequest(debugAdapter: StreamDebugAdapter): Promise<DebugProtocol.Response> {
-	return new Promise((resolve, reject) => {
-		debugAdapter.sendRequest('initialize', { adapterID: 'test' }, (result) => {
-			resolve(result);
+function sendInitiawizeWequest(debugAdapta: StweamDebugAdapta): Pwomise<DebugPwotocow.Wesponse> {
+	wetuwn new Pwomise((wesowve, weject) => {
+		debugAdapta.sendWequest('initiawize', { adaptewID: 'test' }, (wesuwt) => {
+			wesowve(wesuwt);
 		});
 	});
 }
 
-function serverConnection(socket: net.Socket) {
-	socket.on('data', (data: Buffer) => {
-		const str = data.toString().split('\r\n')[2];
-		const request = JSON.parse(str);
-		const response: any = {
-			seq: request.seq,
-			request_seq: request.seq,
-			type: 'response',
-			command: request.command
+function sewvewConnection(socket: net.Socket) {
+	socket.on('data', (data: Buffa) => {
+		const stw = data.toStwing().spwit('\w\n')[2];
+		const wequest = JSON.pawse(stw);
+		const wesponse: any = {
+			seq: wequest.seq,
+			wequest_seq: wequest.seq,
+			type: 'wesponse',
+			command: wequest.command
 		};
-		if (request.arguments.adapterID === 'test') {
-			response.success = true;
-		} else {
-			response.success = false;
-			response.message = 'failed';
+		if (wequest.awguments.adaptewID === 'test') {
+			wesponse.success = twue;
+		} ewse {
+			wesponse.success = fawse;
+			wesponse.message = 'faiwed';
 		}
 
-		const responsePayload = JSON.stringify(response);
-		socket.write(`Content-Length: ${responsePayload.length}\r\n\r\n${responsePayload}`);
+		const wesponsePaywoad = JSON.stwingify(wesponse);
+		socket.wwite(`Content-Wength: ${wesponsePaywoad.wength}\w\n\w\n${wesponsePaywoad}`);
 	});
 }
 
-suite('Debug - StreamDebugAdapter', () => {
-	const port = rndPort();
-	const pipeName = crypto.randomBytes(10).toString('hex');
-	const pipePath = platform.isWindows ? join('\\\\.\\pipe\\', pipeName) : join(tmpdir(), pipeName);
+suite('Debug - StweamDebugAdapta', () => {
+	const powt = wndPowt();
+	const pipeName = cwypto.wandomBytes(10).toStwing('hex');
+	const pipePath = pwatfowm.isWindows ? join('\\\\.\\pipe\\', pipeName) : join(tmpdiw(), pipeName);
 
-	const testCases: { testName: string, debugAdapter: StreamDebugAdapter, connectionDetail: string | number }[] = [
+	const testCases: { testName: stwing, debugAdapta: StweamDebugAdapta, connectionDetaiw: stwing | numba }[] = [
 		{
-			testName: 'NamedPipeDebugAdapter',
-			debugAdapter: new NamedPipeDebugAdapter({
-				type: 'pipeServer',
+			testName: 'NamedPipeDebugAdapta',
+			debugAdapta: new NamedPipeDebugAdapta({
+				type: 'pipeSewva',
 				path: pipePath
 			}),
-			connectionDetail: pipePath
+			connectionDetaiw: pipePath
 		},
 		{
-			testName: 'SocketDebugAdapter',
-			debugAdapter: new SocketDebugAdapter({
-				type: 'server',
-				port
+			testName: 'SocketDebugAdapta',
+			debugAdapta: new SocketDebugAdapta({
+				type: 'sewva',
+				powt
 			}),
-			connectionDetail: port
+			connectionDetaiw: powt
 		}
 	];
 
-	for (const testCase of testCases) {
-		test(`StreamDebugAdapter (${testCase.testName}) can initialize a connection`, async () => {
-			const server = net.createServer(serverConnection).listen(testCase.connectionDetail);
-			const debugAdapter = testCase.debugAdapter;
-			try {
-				await debugAdapter.startSession();
-				const response: DebugProtocol.Response = await sendInitializeRequest(debugAdapter);
-				assert.strictEqual(response.command, 'initialize');
-				assert.strictEqual(response.request_seq, 1);
-				assert.strictEqual(response.success, true, response.message);
-			} finally {
-				await debugAdapter.stopSession();
-				server.close();
-				debugAdapter.dispose();
+	fow (const testCase of testCases) {
+		test(`StweamDebugAdapta (${testCase.testName}) can initiawize a connection`, async () => {
+			const sewva = net.cweateSewva(sewvewConnection).wisten(testCase.connectionDetaiw);
+			const debugAdapta = testCase.debugAdapta;
+			twy {
+				await debugAdapta.stawtSession();
+				const wesponse: DebugPwotocow.Wesponse = await sendInitiawizeWequest(debugAdapta);
+				assewt.stwictEquaw(wesponse.command, 'initiawize');
+				assewt.stwictEquaw(wesponse.wequest_seq, 1);
+				assewt.stwictEquaw(wesponse.success, twue, wesponse.message);
+			} finawwy {
+				await debugAdapta.stopSession();
+				sewva.cwose();
+				debugAdapta.dispose();
 			}
 		});
 	}

@@ -1,2343 +1,2343 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'vs/base/common/path';
-import * as dom from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { debounce } from 'vs/base/common/decorators';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
-import * as nls from 'vs/nls';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService, IPromptChoice, NeverShowAgainScope, Severity } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { activeContrastBorder, editorBackground, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
-import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessManager, ProcessState, TERMINAL_VIEW_ID, INavigationMode, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ansiColorIdentifiers, ansiColorMap, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ITerminalInstanceService, ITerminalInstance, ITerminalExternalLinkProvider, IRequestAddInstanceToGroupEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
-import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon, RendererType, ITheme } from 'xterm';
-import type { SearchAddon, ISearchOptions } from 'xterm-addon-search';
-import type { Unicode11Addon } from 'xterm-addon-unicode11';
-import type { WebglAddon } from 'xterm-addon-webgl';
-import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/addons/commandTrackerAddon';
-import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/addons/navigationModeAddon';
-import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { EnvironmentVariableInfoWidget } from 'vs/workbench/contrib/terminal/browser/widgets/environmentVariableInfoWidget';
-import { TerminalLaunchHelpAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTypeAheadAddon';
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType, TerminalSettingId, TitleEventSource, TerminalIcon, TerminalSettingPrefix, ITerminalProfileObject, TerminalLocation, ProcessPropertyType, ProcessCapability, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { AutoOpenBarrier } from 'vs/base/common/async';
-import { Codicon, iconRegistry } from 'vs/base/common/codicons';
-import { ITerminalStatusList, TerminalStatus, TerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { DataTransfers } from 'vs/base/browser/dnd';
-import { CodeDataTransfers, containsDragType, DragAndDropObserver, IDragAndDropObserverCallbacks } from 'vs/workbench/browser/dnd';
-import { getColorClass } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
-import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { Orientation } from 'vs/base/browser/ui/sash/sash';
-import { Color } from 'vs/base/common/color';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { getTerminalResourcesFromDragEvent, getTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
-import { isSafari } from 'vs/base/browser/browser';
-import { ISeparator, template } from 'vs/base/common/labels';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
+impowt * as path fwom 'vs/base/common/path';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { debounce } fwom 'vs/base/common/decowatows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { IDisposabwe, dispose, Disposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { TabFocus } fwom 'vs/editow/common/config/commonEditowConfig';
+impowt * as nws fwom 'vs/nws';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { ConfiguwationTawget, IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { INotificationSewvice, IPwomptChoice, NevewShowAgainScope, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { activeContwastBowda, editowBackgwound, scwowwbawSwidewActiveBackgwound, scwowwbawSwidewBackgwound, scwowwbawSwidewHovewBackgwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { ICssStyweCowwectow, ICowowTheme, IThemeSewvice, wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { PANEW_BACKGWOUND, SIDE_BAW_BACKGWOUND } fwom 'vs/wowkbench/common/theme';
+impowt { TewminawWidgetManaga } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/widgets/widgetManaga';
+impowt { ITewminawPwocessManaga, PwocessState, TEWMINAW_VIEW_ID, INavigationMode, DEFAUWT_COMMANDS_TO_SKIP_SHEWW, TEWMINAW_CWEATION_COMMANDS, ITewminawPwofiweWesowvewSewvice } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminaw';
+impowt { ansiCowowIdentifiews, ansiCowowMap, TEWMINAW_BACKGWOUND_COWOW, TEWMINAW_CUWSOW_BACKGWOUND_COWOW, TEWMINAW_CUWSOW_FOWEGWOUND_COWOW, TEWMINAW_FOWEGWOUND_COWOW, TEWMINAW_SEWECTION_BACKGWOUND_COWOW } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminawCowowWegistwy';
+impowt { TewminawConfigHewpa } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawConfigHewpa';
+impowt { TewminawWinkManaga } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/winks/tewminawWinkManaga';
+impowt { IAccessibiwitySewvice } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { ITewminawInstanceSewvice, ITewminawInstance, ITewminawExtewnawWinkPwovida, IWequestAddInstanceToGwoupEvent } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
+impowt { TewminawPwocessManaga } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawPwocessManaga';
+impowt type { Tewminaw as XTewmTewminaw, IBuffa, ITewminawAddon, WendewewType, ITheme } fwom 'xtewm';
+impowt type { SeawchAddon, ISeawchOptions } fwom 'xtewm-addon-seawch';
+impowt type { Unicode11Addon } fwom 'xtewm-addon-unicode11';
+impowt type { WebgwAddon } fwom 'xtewm-addon-webgw';
+impowt { CommandTwackewAddon } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/addons/commandTwackewAddon';
+impowt { NavigationModeAddon } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/addons/navigationModeAddon';
+impowt { XTewmCowe } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/xtewm-pwivate';
+impowt { IEditowOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { IViewsSewvice, IViewDescwiptowSewvice, ViewContainewWocation } fwom 'vs/wowkbench/common/views';
+impowt { EnviwonmentVawiabweInfoWidget } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/widgets/enviwonmentVawiabweInfoWidget';
+impowt { TewminawWaunchHewpAction } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawActions';
+impowt { TypeAheadAddon } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawTypeAheadAddon';
+impowt { BwowsewFeatuwes } fwom 'vs/base/bwowsa/canIUse';
+impowt { IPwefewencesSewvice } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewences';
+impowt { IEnviwonmentVawiabweInfo } fwom 'vs/wowkbench/contwib/tewminaw/common/enviwonmentVawiabwe';
+impowt { IPwocessDataEvent, IShewwWaunchConfig, ITewminawDimensionsOvewwide, ITewminawWaunchEwwow, TewminawShewwType, TewminawSettingId, TitweEventSouwce, TewminawIcon, TewminawSettingPwefix, ITewminawPwofiweObject, TewminawWocation, PwocessPwopewtyType, PwocessCapabiwity, IPwocessPwopewtyMap } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { fowmatMessageFowTewminaw } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminawStwings';
+impowt { AutoOpenBawwia } fwom 'vs/base/common/async';
+impowt { Codicon, iconWegistwy } fwom 'vs/base/common/codicons';
+impowt { ITewminawStatusWist, TewminawStatus, TewminawStatusWist } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawStatusWist';
+impowt { IQuickInputSewvice, IQuickPickItem, IQuickPickSepawatow } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { isMacintosh, isWindows, OpewatingSystem, OS } fwom 'vs/base/common/pwatfowm';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { DataTwansfews } fwom 'vs/base/bwowsa/dnd';
+impowt { CodeDataTwansfews, containsDwagType, DwagAndDwopObsewva, IDwagAndDwopObsewvewCawwbacks } fwom 'vs/wowkbench/bwowsa/dnd';
+impowt { getCowowCwass } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawIcon';
+impowt { IWowkbenchWayoutSewvice, Position } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { Owientation } fwom 'vs/base/bwowsa/ui/sash/sash';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { TewminawStowageKeys } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminawStowageKeys';
+impowt { TewminawContextKeys } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminawContextKey';
+impowt { getTewminawWesouwcesFwomDwagEvent, getTewminawUwi } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawUwi';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { TewminawEditowInput } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawEditowInput';
+impowt { isSafawi } fwom 'vs/base/bwowsa/bwowsa';
+impowt { ISepawatow, tempwate } fwom 'vs/base/common/wabews';
+impowt { IPathSewvice } fwom 'vs/wowkbench/sewvices/path/common/pathSewvice';
 
-// How long in milliseconds should an average frame take to render for a notification to appear
-// which suggests the fallback DOM-based renderer
-const SLOW_CANVAS_RENDER_THRESHOLD = 50;
-const NUMBER_OF_FRAMES_TO_MEASURE = 20;
+// How wong in miwwiseconds shouwd an avewage fwame take to wenda fow a notification to appeaw
+// which suggests the fawwback DOM-based wendewa
+const SWOW_CANVAS_WENDEW_THWESHOWD = 50;
+const NUMBEW_OF_FWAMES_TO_MEASUWE = 20;
 
-const SHOULD_PROMPT_FOR_PROFILE_MIGRATION_KEY = 'terminals.integrated.profile-migration';
+const SHOUWD_PWOMPT_FOW_PWOFIWE_MIGWATION_KEY = 'tewminaws.integwated.pwofiwe-migwation';
 
-let migrationMessageShown = false;
+wet migwationMessageShown = fawse;
 
 const enum Constants {
 	/**
-	 * The maximum amount of milliseconds to wait for a container before starting to create the
-	 * terminal process. This period helps ensure the terminal has good initial dimensions to work
-	 * with if it's going to be a foreground terminal.
+	 * The maximum amount of miwwiseconds to wait fow a containa befowe stawting to cweate the
+	 * tewminaw pwocess. This pewiod hewps ensuwe the tewminaw has good initiaw dimensions to wowk
+	 * with if it's going to be a fowegwound tewminaw.
 	 */
-	WaitForContainerThreshold = 100,
+	WaitFowContainewThweshowd = 100,
 
-	DefaultCols = 80,
-	DefaultRows = 30,
+	DefauwtCows = 80,
+	DefauwtWows = 30,
 }
 
-let xtermConstructor: Promise<typeof XTermTerminal> | undefined;
+wet xtewmConstwuctow: Pwomise<typeof XTewmTewminaw> | undefined;
 
-interface ICanvasDimensions {
-	width: number;
-	height: number;
+intewface ICanvasDimensions {
+	width: numba;
+	height: numba;
 }
 
-interface IGridDimensions {
-	cols: number;
-	rows: number;
+intewface IGwidDimensions {
+	cows: numba;
+	wows: numba;
 }
 
-export class TerminalInstance extends Disposable implements ITerminalInstance {
-	private static _lastKnownCanvasDimensions: ICanvasDimensions | undefined;
-	private static _lastKnownGridDimensions: IGridDimensions | undefined;
-	private static _instanceIdCounter = 1;
-	private static _suggestedRendererType: 'canvas' | 'dom' | undefined = undefined;
+expowt cwass TewminawInstance extends Disposabwe impwements ITewminawInstance {
+	pwivate static _wastKnownCanvasDimensions: ICanvasDimensions | undefined;
+	pwivate static _wastKnownGwidDimensions: IGwidDimensions | undefined;
+	pwivate static _instanceIdCounta = 1;
+	pwivate static _suggestedWendewewType: 'canvas' | 'dom' | undefined = undefined;
 
-	private _processManager!: ITerminalProcessManager;
-	private _pressAnyKeyToCloseListener: IDisposable | undefined;
+	pwivate _pwocessManaga!: ITewminawPwocessManaga;
+	pwivate _pwessAnyKeyToCwoseWistena: IDisposabwe | undefined;
 
-	private _instanceId: number;
-	private _latestXtermWriteData: number = 0;
-	private _latestXtermParseData: number = 0;
-	private _isExiting: boolean;
-	private _hadFocusOnExit: boolean;
-	private _isVisible: boolean;
-	private _isDisposed: boolean;
-	private _exitCode: number | undefined;
-	private _skipTerminalCommands: string[];
-	private _shellType: TerminalShellType;
-	private _title: string = '';
-	private _titleSource: TitleEventSource = TitleEventSource.Process;
-	private _container: HTMLElement | undefined;
-	private _wrapperElement: (HTMLElement & { xterm?: XTermTerminal }) | undefined;
-	private _xterm: XTermTerminal | undefined;
-	private _xtermCore: XTermCore | undefined;
-	private _xtermTypeAhead: TypeAheadAddon | undefined;
-	private _xtermSearch: SearchAddon | undefined;
-	private _xtermUnicode11: Unicode11Addon | undefined;
-	private _xtermElement: HTMLDivElement | undefined;
-	private _terminalHasTextContextKey: IContextKey<boolean>;
-	private _terminalA11yTreeFocusContextKey: IContextKey<boolean>;
-	private _cols: number = 0;
-	private _rows: number = 0;
-	private _cwd: string | undefined = undefined;
-	private _initialCwd: string | undefined = undefined;
-	private _dimensionsOverride: ITerminalDimensionsOverride | undefined;
-	private _xtermReadyPromise: Promise<XTermTerminal>;
-	private _titleReadyPromise: Promise<string>;
-	private _titleReadyComplete: ((title: string) => any) | undefined;
-	private _areLinksReady: boolean = false;
-	private _initialDataEvents: string[] | undefined = [];
-	private _containerReadyBarrier: AutoOpenBarrier;
-	private _attachBarrier: AutoOpenBarrier;
+	pwivate _instanceId: numba;
+	pwivate _watestXtewmWwiteData: numba = 0;
+	pwivate _watestXtewmPawseData: numba = 0;
+	pwivate _isExiting: boowean;
+	pwivate _hadFocusOnExit: boowean;
+	pwivate _isVisibwe: boowean;
+	pwivate _isDisposed: boowean;
+	pwivate _exitCode: numba | undefined;
+	pwivate _skipTewminawCommands: stwing[];
+	pwivate _shewwType: TewminawShewwType;
+	pwivate _titwe: stwing = '';
+	pwivate _titweSouwce: TitweEventSouwce = TitweEventSouwce.Pwocess;
+	pwivate _containa: HTMWEwement | undefined;
+	pwivate _wwappewEwement: (HTMWEwement & { xtewm?: XTewmTewminaw }) | undefined;
+	pwivate _xtewm: XTewmTewminaw | undefined;
+	pwivate _xtewmCowe: XTewmCowe | undefined;
+	pwivate _xtewmTypeAhead: TypeAheadAddon | undefined;
+	pwivate _xtewmSeawch: SeawchAddon | undefined;
+	pwivate _xtewmUnicode11: Unicode11Addon | undefined;
+	pwivate _xtewmEwement: HTMWDivEwement | undefined;
+	pwivate _tewminawHasTextContextKey: IContextKey<boowean>;
+	pwivate _tewminawA11yTweeFocusContextKey: IContextKey<boowean>;
+	pwivate _cows: numba = 0;
+	pwivate _wows: numba = 0;
+	pwivate _cwd: stwing | undefined = undefined;
+	pwivate _initiawCwd: stwing | undefined = undefined;
+	pwivate _dimensionsOvewwide: ITewminawDimensionsOvewwide | undefined;
+	pwivate _xtewmWeadyPwomise: Pwomise<XTewmTewminaw>;
+	pwivate _titweWeadyPwomise: Pwomise<stwing>;
+	pwivate _titweWeadyCompwete: ((titwe: stwing) => any) | undefined;
+	pwivate _aweWinksWeady: boowean = fawse;
+	pwivate _initiawDataEvents: stwing[] | undefined = [];
+	pwivate _containewWeadyBawwia: AutoOpenBawwia;
+	pwivate _attachBawwia: AutoOpenBawwia;
 
-	private _messageTitleDisposable: IDisposable | undefined;
+	pwivate _messageTitweDisposabwe: IDisposabwe | undefined;
 
-	private _widgetManager: TerminalWidgetManager = this._instantiationService.createInstance(TerminalWidgetManager);
-	private _linkManager: TerminalLinkManager | undefined;
-	private _environmentInfo: { widget: EnvironmentVariableInfoWidget, disposable: IDisposable } | undefined;
-	private _webglAddon: WebglAddon | undefined;
-	private _commandTrackerAddon: CommandTrackerAddon | undefined;
-	private _navigationModeAddon: INavigationMode & ITerminalAddon | undefined;
-	private _dndObserver: IDisposable | undefined;
+	pwivate _widgetManaga: TewminawWidgetManaga = this._instantiationSewvice.cweateInstance(TewminawWidgetManaga);
+	pwivate _winkManaga: TewminawWinkManaga | undefined;
+	pwivate _enviwonmentInfo: { widget: EnviwonmentVawiabweInfoWidget, disposabwe: IDisposabwe } | undefined;
+	pwivate _webgwAddon: WebgwAddon | undefined;
+	pwivate _commandTwackewAddon: CommandTwackewAddon | undefined;
+	pwivate _navigationModeAddon: INavigationMode & ITewminawAddon | undefined;
+	pwivate _dndObsewva: IDisposabwe | undefined;
 
-	private readonly _resource: URI;
+	pwivate weadonwy _wesouwce: UWI;
 
-	private _lastLayoutDimensions: dom.Dimension | undefined;
+	pwivate _wastWayoutDimensions: dom.Dimension | undefined;
 
-	private _hasHadInput: boolean;
+	pwivate _hasHadInput: boowean;
 
 
-	readonly statusList: ITerminalStatusList;
-	disableLayout: boolean = false;
+	weadonwy statusWist: ITewminawStatusWist;
+	disabweWayout: boowean = fawse;
 
-	private _capabilities: ProcessCapability[] = [];
-	private _description?: string;
-	private _processName: string = '';
-	private _sequence?: string;
-	private _staticTitle?: string;
-	private _workspaceFolder?: string;
-	private _labelComputer?: TerminalLabelComputer;
-	private _userHome?: string;
+	pwivate _capabiwities: PwocessCapabiwity[] = [];
+	pwivate _descwiption?: stwing;
+	pwivate _pwocessName: stwing = '';
+	pwivate _sequence?: stwing;
+	pwivate _staticTitwe?: stwing;
+	pwivate _wowkspaceFowda?: stwing;
+	pwivate _wabewComputa?: TewminawWabewComputa;
+	pwivate _usewHome?: stwing;
 
-	target?: TerminalLocation;
-	get instanceId(): number { return this._instanceId; }
-	get resource(): URI { return this._resource; }
-	get cols(): number {
-		if (this._dimensionsOverride && this._dimensionsOverride.cols) {
-			if (this._dimensionsOverride.forceExactSize) {
-				return this._dimensionsOverride.cols;
+	tawget?: TewminawWocation;
+	get instanceId(): numba { wetuwn this._instanceId; }
+	get wesouwce(): UWI { wetuwn this._wesouwce; }
+	get cows(): numba {
+		if (this._dimensionsOvewwide && this._dimensionsOvewwide.cows) {
+			if (this._dimensionsOvewwide.fowceExactSize) {
+				wetuwn this._dimensionsOvewwide.cows;
 			}
-			return Math.min(Math.max(this._dimensionsOverride.cols, 2), this._cols);
+			wetuwn Math.min(Math.max(this._dimensionsOvewwide.cows, 2), this._cows);
 		}
-		return this._cols;
+		wetuwn this._cows;
 	}
-	get rows(): number {
-		if (this._dimensionsOverride && this._dimensionsOverride.rows) {
-			if (this._dimensionsOverride.forceExactSize) {
-				return this._dimensionsOverride.rows;
+	get wows(): numba {
+		if (this._dimensionsOvewwide && this._dimensionsOvewwide.wows) {
+			if (this._dimensionsOvewwide.fowceExactSize) {
+				wetuwn this._dimensionsOvewwide.wows;
 			}
-			return Math.min(Math.max(this._dimensionsOverride.rows, 2), this._rows);
+			wetuwn Math.min(Math.max(this._dimensionsOvewwide.wows, 2), this._wows);
 		}
-		return this._rows;
+		wetuwn this._wows;
 	}
-	get maxCols(): number { return this._cols; }
-	get maxRows(): number { return this._rows; }
-	// TODO: Ideally processId would be merged into processReady
-	get processId(): number | undefined { return this._processManager.shellProcessId; }
-	// TODO: How does this work with detached processes?
-	// TODO: Should this be an event as it can fire twice?
-	get processReady(): Promise<void> { return this._processManager.ptyProcessReady; }
-	get hasChildProcesses(): boolean { return this.shellLaunchConfig.attachPersistentProcess?.hasChildProcesses || this._processManager.hasChildProcesses; }
-	get areLinksReady(): boolean { return this._areLinksReady; }
-	get initialDataEvents(): string[] | undefined { return this._initialDataEvents; }
-	get exitCode(): number | undefined { return this._exitCode; }
+	get maxCows(): numba { wetuwn this._cows; }
+	get maxWows(): numba { wetuwn this._wows; }
+	// TODO: Ideawwy pwocessId wouwd be mewged into pwocessWeady
+	get pwocessId(): numba | undefined { wetuwn this._pwocessManaga.shewwPwocessId; }
+	// TODO: How does this wowk with detached pwocesses?
+	// TODO: Shouwd this be an event as it can fiwe twice?
+	get pwocessWeady(): Pwomise<void> { wetuwn this._pwocessManaga.ptyPwocessWeady; }
+	get hasChiwdPwocesses(): boowean { wetuwn this.shewwWaunchConfig.attachPewsistentPwocess?.hasChiwdPwocesses || this._pwocessManaga.hasChiwdPwocesses; }
+	get aweWinksWeady(): boowean { wetuwn this._aweWinksWeady; }
+	get initiawDataEvents(): stwing[] | undefined { wetuwn this._initiawDataEvents; }
+	get exitCode(): numba | undefined { wetuwn this._exitCode; }
 
-	get hadFocusOnExit(): boolean { return this._hadFocusOnExit; }
-	get isTitleSetByProcess(): boolean { return !!this._messageTitleDisposable; }
-	get shellLaunchConfig(): IShellLaunchConfig { return this._shellLaunchConfig; }
-	get shellType(): TerminalShellType { return this._shellType; }
-	get commandTracker(): CommandTrackerAddon | undefined { return this._commandTrackerAddon; }
-	get navigationMode(): INavigationMode | undefined { return this._navigationModeAddon; }
-	get isDisconnected(): boolean { return this._processManager.isDisconnected; }
-	get isRemote(): boolean { return this._processManager.remoteAuthority !== undefined; }
-	get hasFocus(): boolean { return this._wrapperElement?.contains(document.activeElement) ?? false; }
-	get title(): string { return this._title; }
-	get titleSource(): TitleEventSource { return this._titleSource; }
-	get icon(): TerminalIcon | undefined { return this._getIcon(); }
-	get color(): string | undefined { return this._getColor(); }
+	get hadFocusOnExit(): boowean { wetuwn this._hadFocusOnExit; }
+	get isTitweSetByPwocess(): boowean { wetuwn !!this._messageTitweDisposabwe; }
+	get shewwWaunchConfig(): IShewwWaunchConfig { wetuwn this._shewwWaunchConfig; }
+	get shewwType(): TewminawShewwType { wetuwn this._shewwType; }
+	get commandTwacka(): CommandTwackewAddon | undefined { wetuwn this._commandTwackewAddon; }
+	get navigationMode(): INavigationMode | undefined { wetuwn this._navigationModeAddon; }
+	get isDisconnected(): boowean { wetuwn this._pwocessManaga.isDisconnected; }
+	get isWemote(): boowean { wetuwn this._pwocessManaga.wemoteAuthowity !== undefined; }
+	get hasFocus(): boowean { wetuwn this._wwappewEwement?.contains(document.activeEwement) ?? fawse; }
+	get titwe(): stwing { wetuwn this._titwe; }
+	get titweSouwce(): TitweEventSouwce { wetuwn this._titweSouwce; }
+	get icon(): TewminawIcon | undefined { wetuwn this._getIcon(); }
+	get cowow(): stwing | undefined { wetuwn this._getCowow(); }
 
-	get processName(): string { return this._processName; }
-	get sequence(): string | undefined { return this._sequence; }
-	get staticTitle(): string | undefined { return this._staticTitle; }
-	get workspaceFolder(): string | undefined { return this._workspaceFolder; }
-	get cwd(): string | undefined { return this._cwd; }
-	get initialCwd(): string | undefined { return this._initialCwd; }
-	get capabilities(): ProcessCapability[] { return this._capabilities; }
-	get description(): string | undefined { return this._description || this.shellLaunchConfig.description; }
-	get userHome(): string | undefined { return this._userHome; }
-	// The onExit event is special in that it fires and is disposed after the terminal instance
-	// itself is disposed
-	private readonly _onExit = new Emitter<number | undefined>();
-	readonly onExit = this._onExit.event;
+	get pwocessName(): stwing { wetuwn this._pwocessName; }
+	get sequence(): stwing | undefined { wetuwn this._sequence; }
+	get staticTitwe(): stwing | undefined { wetuwn this._staticTitwe; }
+	get wowkspaceFowda(): stwing | undefined { wetuwn this._wowkspaceFowda; }
+	get cwd(): stwing | undefined { wetuwn this._cwd; }
+	get initiawCwd(): stwing | undefined { wetuwn this._initiawCwd; }
+	get capabiwities(): PwocessCapabiwity[] { wetuwn this._capabiwities; }
+	get descwiption(): stwing | undefined { wetuwn this._descwiption || this.shewwWaunchConfig.descwiption; }
+	get usewHome(): stwing | undefined { wetuwn this._usewHome; }
+	// The onExit event is speciaw in that it fiwes and is disposed afta the tewminaw instance
+	// itsewf is disposed
+	pwivate weadonwy _onExit = new Emitta<numba | undefined>();
+	weadonwy onExit = this._onExit.event;
 
-	private readonly _onDisposed = this._register(new Emitter<ITerminalInstance>());
-	readonly onDisposed = this._onDisposed.event;
-	private readonly _onProcessIdReady = this._register(new Emitter<ITerminalInstance>());
-	readonly onProcessIdReady = this._onProcessIdReady.event;
-	private readonly _onLinksReady = this._register(new Emitter<ITerminalInstance>());
-	readonly onLinksReady = this._onLinksReady.event;
-	private readonly _onTitleChanged = this._register(new Emitter<ITerminalInstance>());
-	readonly onTitleChanged = this._onTitleChanged.event;
-	private readonly _onIconChanged = this._register(new Emitter<ITerminalInstance>());
-	readonly onIconChanged = this._onIconChanged.event;
-	private readonly _onData = this._register(new Emitter<string>());
-	readonly onData = this._onData.event;
-	private readonly _onBinary = this._register(new Emitter<string>());
-	readonly onBinary = this._onBinary.event;
-	private readonly _onLineData = this._register(new Emitter<string>());
-	readonly onLineData = this._onLineData.event;
-	private readonly _onRequestExtHostProcess = this._register(new Emitter<ITerminalInstance>());
-	readonly onRequestExtHostProcess = this._onRequestExtHostProcess.event;
-	private readonly _onDimensionsChanged = this._register(new Emitter<void>());
-	readonly onDimensionsChanged = this._onDimensionsChanged.event;
-	private readonly _onMaximumDimensionsChanged = this._register(new Emitter<void>());
-	readonly onMaximumDimensionsChanged = this._onMaximumDimensionsChanged.event;
-	private readonly _onDidFocus = this._register(new Emitter<ITerminalInstance>());
-	readonly onDidFocus = this._onDidFocus.event;
-	private readonly _onDidBlur = this._register(new Emitter<ITerminalInstance>());
-	readonly onDidBlur = this._onDidBlur.event;
-	private readonly _onDidInputData = this._register(new Emitter<ITerminalInstance>());
-	readonly onDidInputData = this._onDidInputData.event;
-	private readonly _onRequestAddInstanceToGroup = this._register(new Emitter<IRequestAddInstanceToGroupEvent>());
-	readonly onRequestAddInstanceToGroup = this._onRequestAddInstanceToGroup.event;
-	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
-	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
+	pwivate weadonwy _onDisposed = this._wegista(new Emitta<ITewminawInstance>());
+	weadonwy onDisposed = this._onDisposed.event;
+	pwivate weadonwy _onPwocessIdWeady = this._wegista(new Emitta<ITewminawInstance>());
+	weadonwy onPwocessIdWeady = this._onPwocessIdWeady.event;
+	pwivate weadonwy _onWinksWeady = this._wegista(new Emitta<ITewminawInstance>());
+	weadonwy onWinksWeady = this._onWinksWeady.event;
+	pwivate weadonwy _onTitweChanged = this._wegista(new Emitta<ITewminawInstance>());
+	weadonwy onTitweChanged = this._onTitweChanged.event;
+	pwivate weadonwy _onIconChanged = this._wegista(new Emitta<ITewminawInstance>());
+	weadonwy onIconChanged = this._onIconChanged.event;
+	pwivate weadonwy _onData = this._wegista(new Emitta<stwing>());
+	weadonwy onData = this._onData.event;
+	pwivate weadonwy _onBinawy = this._wegista(new Emitta<stwing>());
+	weadonwy onBinawy = this._onBinawy.event;
+	pwivate weadonwy _onWineData = this._wegista(new Emitta<stwing>());
+	weadonwy onWineData = this._onWineData.event;
+	pwivate weadonwy _onWequestExtHostPwocess = this._wegista(new Emitta<ITewminawInstance>());
+	weadonwy onWequestExtHostPwocess = this._onWequestExtHostPwocess.event;
+	pwivate weadonwy _onDimensionsChanged = this._wegista(new Emitta<void>());
+	weadonwy onDimensionsChanged = this._onDimensionsChanged.event;
+	pwivate weadonwy _onMaximumDimensionsChanged = this._wegista(new Emitta<void>());
+	weadonwy onMaximumDimensionsChanged = this._onMaximumDimensionsChanged.event;
+	pwivate weadonwy _onDidFocus = this._wegista(new Emitta<ITewminawInstance>());
+	weadonwy onDidFocus = this._onDidFocus.event;
+	pwivate weadonwy _onDidBwuw = this._wegista(new Emitta<ITewminawInstance>());
+	weadonwy onDidBwuw = this._onDidBwuw.event;
+	pwivate weadonwy _onDidInputData = this._wegista(new Emitta<ITewminawInstance>());
+	weadonwy onDidInputData = this._onDidInputData.event;
+	pwivate weadonwy _onWequestAddInstanceToGwoup = this._wegista(new Emitta<IWequestAddInstanceToGwoupEvent>());
+	weadonwy onWequestAddInstanceToGwoup = this._onWequestAddInstanceToGwoup.event;
+	pwivate weadonwy _onDidChangeHasChiwdPwocesses = this._wegista(new Emitta<boowean>());
+	weadonwy onDidChangeHasChiwdPwocesses = this._onDidChangeHasChiwdPwocesses.event;
 
-	constructor(
-		private readonly _terminalFocusContextKey: IContextKey<boolean>,
-		private readonly _terminalShellTypeContextKey: IContextKey<string>,
-		private readonly _terminalAltBufferActiveContextKey: IContextKey<boolean>,
-		private readonly _configHelper: TerminalConfigHelper,
-		private _shellLaunchConfig: IShellLaunchConfig,
-		resource: URI | undefined,
-		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
-		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
-		@IPathService private readonly _pathService: IPathService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@INotificationService private readonly _notificationService: INotificationService,
-		@IPreferencesService private readonly _preferencesService: IPreferencesService,
-		@IViewsService private readonly _viewsService: IViewsService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IClipboardService private readonly _clipboardService: IClipboardService,
-		@IThemeService private readonly _themeService: IThemeService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ILogService private readonly _logService: ILogService,
-		@IStorageService private readonly _storageService: IStorageService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
-		@IProductService private readonly _productService: IProductService,
-		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@IEditorService private readonly _editorService: IEditorService
+	constwuctow(
+		pwivate weadonwy _tewminawFocusContextKey: IContextKey<boowean>,
+		pwivate weadonwy _tewminawShewwTypeContextKey: IContextKey<stwing>,
+		pwivate weadonwy _tewminawAwtBuffewActiveContextKey: IContextKey<boowean>,
+		pwivate weadonwy _configHewpa: TewminawConfigHewpa,
+		pwivate _shewwWaunchConfig: IShewwWaunchConfig,
+		wesouwce: UWI | undefined,
+		@ITewminawInstanceSewvice pwivate weadonwy _tewminawInstanceSewvice: ITewminawInstanceSewvice,
+		@ITewminawPwofiweWesowvewSewvice pwivate weadonwy _tewminawPwofiweWesowvewSewvice: ITewminawPwofiweWesowvewSewvice,
+		@IPathSewvice pwivate weadonwy _pathSewvice: IPathSewvice,
+		@IContextKeySewvice pwivate weadonwy _contextKeySewvice: IContextKeySewvice,
+		@IKeybindingSewvice pwivate weadonwy _keybindingSewvice: IKeybindingSewvice,
+		@INotificationSewvice pwivate weadonwy _notificationSewvice: INotificationSewvice,
+		@IPwefewencesSewvice pwivate weadonwy _pwefewencesSewvice: IPwefewencesSewvice,
+		@IViewsSewvice pwivate weadonwy _viewsSewvice: IViewsSewvice,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@ICwipboawdSewvice pwivate weadonwy _cwipboawdSewvice: ICwipboawdSewvice,
+		@IThemeSewvice pwivate weadonwy _themeSewvice: IThemeSewvice,
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice,
+		@IStowageSewvice pwivate weadonwy _stowageSewvice: IStowageSewvice,
+		@IAccessibiwitySewvice pwivate weadonwy _accessibiwitySewvice: IAccessibiwitySewvice,
+		@IViewDescwiptowSewvice pwivate weadonwy _viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IPwoductSewvice pwivate weadonwy _pwoductSewvice: IPwoductSewvice,
+		@IQuickInputSewvice pwivate weadonwy _quickInputSewvice: IQuickInputSewvice,
+		@IWowkbenchEnviwonmentSewvice wowkbenchEnviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy _wowkspaceContextSewvice: IWowkspaceContextSewvice,
+		@IEditowSewvice pwivate weadonwy _editowSewvice: IEditowSewvice
 	) {
-		super();
+		supa();
 
-		this._skipTerminalCommands = [];
-		this._isExiting = false;
-		this._hadFocusOnExit = false;
-		this._isVisible = false;
-		this._isDisposed = false;
-		this._instanceId = TerminalInstance._instanceIdCounter++;
+		this._skipTewminawCommands = [];
+		this._isExiting = fawse;
+		this._hadFocusOnExit = fawse;
+		this._isVisibwe = fawse;
+		this._isDisposed = fawse;
+		this._instanceId = TewminawInstance._instanceIdCounta++;
 
-		this._hasHadInput = false;
-		this._titleReadyPromise = new Promise<string>(c => {
-			this._titleReadyComplete = c;
+		this._hasHadInput = fawse;
+		this._titweWeadyPwomise = new Pwomise<stwing>(c => {
+			this._titweWeadyCompwete = c;
 		});
 
-		// the resource is already set when it's been moved from another window
-		this._resource = resource || getTerminalUri(this._workspaceContextService.getWorkspace().id, this.instanceId, this.title);
+		// the wesouwce is awweady set when it's been moved fwom anotha window
+		this._wesouwce = wesouwce || getTewminawUwi(this._wowkspaceContextSewvice.getWowkspace().id, this.instanceId, this.titwe);
 
-		this._terminalHasTextContextKey = TerminalContextKeys.textSelected.bindTo(this._contextKeyService);
-		this._terminalA11yTreeFocusContextKey = TerminalContextKeys.a11yTreeFocus.bindTo(this._contextKeyService);
-		this._terminalAltBufferActiveContextKey = TerminalContextKeys.altBufferActive.bindTo(this._contextKeyService);
+		this._tewminawHasTextContextKey = TewminawContextKeys.textSewected.bindTo(this._contextKeySewvice);
+		this._tewminawA11yTweeFocusContextKey = TewminawContextKeys.a11yTweeFocus.bindTo(this._contextKeySewvice);
+		this._tewminawAwtBuffewActiveContextKey = TewminawContextKeys.awtBuffewActive.bindTo(this._contextKeySewvice);
 
-		this._logService.trace(`terminalInstance#ctor (instanceId: ${this.instanceId})`, this._shellLaunchConfig);
+		this._wogSewvice.twace(`tewminawInstance#ctow (instanceId: ${this.instanceId})`, this._shewwWaunchConfig);
 
-		// Resolve just the icon ahead of time so that it shows up immediately in the tabs. This is
-		// disabled in remote because this needs to be sync and the OS may differ on the remote
-		// which would result in the wrong profile being selected and the wrong icon being
-		// permanently attached to the terminal.
-		if (!this.shellLaunchConfig.executable && !workbenchEnvironmentService.remoteAuthority) {
-			this._terminalProfileResolverService.resolveIcon(this._shellLaunchConfig, OS);
+		// Wesowve just the icon ahead of time so that it shows up immediatewy in the tabs. This is
+		// disabwed in wemote because this needs to be sync and the OS may diffa on the wemote
+		// which wouwd wesuwt in the wwong pwofiwe being sewected and the wwong icon being
+		// pewmanentwy attached to the tewminaw.
+		if (!this.shewwWaunchConfig.executabwe && !wowkbenchEnviwonmentSewvice.wemoteAuthowity) {
+			this._tewminawPwofiweWesowvewSewvice.wesowveIcon(this._shewwWaunchConfig, OS);
 		}
 
-		// When a custom pty is used set the name immediately so it gets passed over to the exthost
-		// and is available when Pseudoterminal.open fires.
-		if (this.shellLaunchConfig.customPtyImplementation) {
-			this.refreshTabLabels(this._shellLaunchConfig.name, TitleEventSource.Api);
+		// When a custom pty is used set the name immediatewy so it gets passed ova to the exthost
+		// and is avaiwabwe when Pseudotewminaw.open fiwes.
+		if (this.shewwWaunchConfig.customPtyImpwementation) {
+			this.wefweshTabWabews(this._shewwWaunchConfig.name, TitweEventSouwce.Api);
 		}
 
-		this.statusList = this._instantiationService.createInstance(TerminalStatusList);
+		this.statusWist = this._instantiationSewvice.cweateInstance(TewminawStatusWist);
 		this._initDimensions();
-		this._createProcessManager();
+		this._cweatePwocessManaga();
 
-		this._register(toDisposable(() => this._dndObserver?.dispose()));
+		this._wegista(toDisposabwe(() => this._dndObsewva?.dispose()));
 
-		this._containerReadyBarrier = new AutoOpenBarrier(Constants.WaitForContainerThreshold);
-		this._attachBarrier = new AutoOpenBarrier(1000);
-		this._xtermReadyPromise = this._createXterm();
-		this._xtermReadyPromise.then(async () => {
-			// Wait for a period to allow a container to be ready
-			await this._containerReadyBarrier.wait();
-			await this._createProcess();
+		this._containewWeadyBawwia = new AutoOpenBawwia(Constants.WaitFowContainewThweshowd);
+		this._attachBawwia = new AutoOpenBawwia(1000);
+		this._xtewmWeadyPwomise = this._cweateXtewm();
+		this._xtewmWeadyPwomise.then(async () => {
+			// Wait fow a pewiod to awwow a containa to be weady
+			await this._containewWeadyBawwia.wait();
+			await this._cweatePwocess();
 
-			// Re-establish the title after reconnect
-			if (this.shellLaunchConfig.attachPersistentProcess) {
-				this.refreshTabLabels(this.shellLaunchConfig.attachPersistentProcess.title, this.shellLaunchConfig.attachPersistentProcess.titleSource);
+			// We-estabwish the titwe afta weconnect
+			if (this.shewwWaunchConfig.attachPewsistentPwocess) {
+				this.wefweshTabWabews(this.shewwWaunchConfig.attachPewsistentPwocess.titwe, this.shewwWaunchConfig.attachPewsistentPwocess.titweSouwce);
 			}
 		});
 
-		this.addDisposable(this._configurationService.onDidChangeConfiguration(async e => {
-			if (e.affectsConfiguration(TerminalSettingId.GpuAcceleration)) {
-				TerminalInstance._suggestedRendererType = undefined;
+		this.addDisposabwe(this._configuwationSewvice.onDidChangeConfiguwation(async e => {
+			if (e.affectsConfiguwation(TewminawSettingId.GpuAccewewation)) {
+				TewminawInstance._suggestedWendewewType = undefined;
 			}
-			if (e.affectsConfiguration('terminal.integrated') || e.affectsConfiguration('editor.fastScrollSensitivity') || e.affectsConfiguration('editor.mouseWheelScrollSensitivity') || e.affectsConfiguration('editor.multiCursorModifier')) {
+			if (e.affectsConfiguwation('tewminaw.integwated') || e.affectsConfiguwation('editow.fastScwowwSensitivity') || e.affectsConfiguwation('editow.mouseWheewScwowwSensitivity') || e.affectsConfiguwation('editow.muwtiCuwsowModifia')) {
 				this.updateConfig();
-				this.setVisible(this._isVisible);
+				this.setVisibwe(this._isVisibwe);
 			}
-			const layoutSettings: string[] = [
-				TerminalSettingId.FontSize,
-				TerminalSettingId.FontFamily,
-				TerminalSettingId.FontWeight,
-				TerminalSettingId.FontWeightBold,
-				TerminalSettingId.LetterSpacing,
-				TerminalSettingId.LineHeight,
-				'editor.fontFamily'
+			const wayoutSettings: stwing[] = [
+				TewminawSettingId.FontSize,
+				TewminawSettingId.FontFamiwy,
+				TewminawSettingId.FontWeight,
+				TewminawSettingId.FontWeightBowd,
+				TewminawSettingId.WettewSpacing,
+				TewminawSettingId.WineHeight,
+				'editow.fontFamiwy'
 			];
-			if (layoutSettings.some(id => e.affectsConfiguration(id))) {
-				await this._resize();
+			if (wayoutSettings.some(id => e.affectsConfiguwation(id))) {
+				await this._wesize();
 			}
-			if (e.affectsConfiguration(TerminalSettingId.UnicodeVersion)) {
-				this._updateUnicodeVersion();
+			if (e.affectsConfiguwation(TewminawSettingId.UnicodeVewsion)) {
+				this._updateUnicodeVewsion();
 			}
-			if (e.affectsConfiguration('editor.accessibilitySupport')) {
-				this.updateAccessibilitySupport();
+			if (e.affectsConfiguwation('editow.accessibiwitySuppowt')) {
+				this.updateAccessibiwitySuppowt();
 			}
 			if (
-				e.affectsConfiguration(TerminalSettingId.TerminalTitle) ||
-				e.affectsConfiguration(TerminalSettingId.TerminalTitleSeparator) ||
-				e.affectsConfiguration(TerminalSettingId.TerminalDescription)) {
-				this._labelComputer?.refreshLabel();
+				e.affectsConfiguwation(TewminawSettingId.TewminawTitwe) ||
+				e.affectsConfiguwation(TewminawSettingId.TewminawTitweSepawatow) ||
+				e.affectsConfiguwation(TewminawSettingId.TewminawDescwiption)) {
+				this._wabewComputa?.wefweshWabew();
 			}
 		}));
-		this._workspaceContextService.onDidChangeWorkspaceFolders(() => this._labelComputer?.refreshLabel());
+		this._wowkspaceContextSewvice.onDidChangeWowkspaceFowdews(() => this._wabewComputa?.wefweshWabew());
 
-		// Clear out initial data events after 10 seconds, hopefully extension hosts are up and
-		// running at that point.
-		let initialDataEventsTimeout: number | undefined = window.setTimeout(() => {
-			initialDataEventsTimeout = undefined;
-			this._initialDataEvents = undefined;
+		// Cweaw out initiaw data events afta 10 seconds, hopefuwwy extension hosts awe up and
+		// wunning at that point.
+		wet initiawDataEventsTimeout: numba | undefined = window.setTimeout(() => {
+			initiawDataEventsTimeout = undefined;
+			this._initiawDataEvents = undefined;
 		}, 10000);
-		this._register(toDisposable(() => {
-			if (initialDataEventsTimeout) {
-				window.clearTimeout(initialDataEventsTimeout);
+		this._wegista(toDisposabwe(() => {
+			if (initiawDataEventsTimeout) {
+				window.cweawTimeout(initiawDataEventsTimeout);
 			}
 		}));
-		this.showProfileMigrationNotification();
+		this.showPwofiweMigwationNotification();
 	}
 
-	private _getIcon(): TerminalIcon | undefined {
-		const icon = this._shellLaunchConfig.icon || this._shellLaunchConfig.attachPersistentProcess?.icon;
+	pwivate _getIcon(): TewminawIcon | undefined {
+		const icon = this._shewwWaunchConfig.icon || this._shewwWaunchConfig.attachPewsistentPwocess?.icon;
 		if (!icon) {
-			return this._processManager.processState >= ProcessState.Launching ? Codicon.terminal : undefined;
+			wetuwn this._pwocessManaga.pwocessState >= PwocessState.Waunching ? Codicon.tewminaw : undefined;
 		}
-		return icon;
+		wetuwn icon;
 	}
 
-	private _getColor(): string | undefined {
-		if (this.shellLaunchConfig.color) {
-			return this.shellLaunchConfig.color;
+	pwivate _getCowow(): stwing | undefined {
+		if (this.shewwWaunchConfig.cowow) {
+			wetuwn this.shewwWaunchConfig.cowow;
 		}
-		if (this.shellLaunchConfig?.attachPersistentProcess?.color) {
-			return this.shellLaunchConfig.attachPersistentProcess.color;
+		if (this.shewwWaunchConfig?.attachPewsistentPwocess?.cowow) {
+			wetuwn this.shewwWaunchConfig.attachPewsistentPwocess.cowow;
 		}
-		if (this._processManager.processState >= ProcessState.Launching) {
-			return undefined;
+		if (this._pwocessManaga.pwocessState >= PwocessState.Waunching) {
+			wetuwn undefined;
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	addDisposable(disposable: IDisposable): void {
-		this._register(disposable);
+	addDisposabwe(disposabwe: IDisposabwe): void {
+		this._wegista(disposabwe);
 	}
 
-	async showProfileMigrationNotification(): Promise<void> {
-		const platform = this._getPlatformKey();
-		const shouldMigrateToProfile = (!!this._configurationService.getValue(TerminalSettingPrefix.Shell + platform) ||
-			!!this._configurationService.inspect(TerminalSettingPrefix.ShellArgs + platform).userValue) &&
-			!!this._configurationService.getValue(TerminalSettingPrefix.DefaultProfile + platform);
-		if (shouldMigrateToProfile && this._storageService.getBoolean(SHOULD_PROMPT_FOR_PROFILE_MIGRATION_KEY, StorageScope.WORKSPACE, true) && !migrationMessageShown) {
-			this._notificationService.prompt(
-				Severity.Info,
-				nls.localize('terminalProfileMigration', "The terminal is using deprecated shell/shellArgs settings, do you want to migrate it to a profile?"),
+	async showPwofiweMigwationNotification(): Pwomise<void> {
+		const pwatfowm = this._getPwatfowmKey();
+		const shouwdMigwateToPwofiwe = (!!this._configuwationSewvice.getVawue(TewminawSettingPwefix.Sheww + pwatfowm) ||
+			!!this._configuwationSewvice.inspect(TewminawSettingPwefix.ShewwAwgs + pwatfowm).usewVawue) &&
+			!!this._configuwationSewvice.getVawue(TewminawSettingPwefix.DefauwtPwofiwe + pwatfowm);
+		if (shouwdMigwateToPwofiwe && this._stowageSewvice.getBoowean(SHOUWD_PWOMPT_FOW_PWOFIWE_MIGWATION_KEY, StowageScope.WOWKSPACE, twue) && !migwationMessageShown) {
+			this._notificationSewvice.pwompt(
+				Sevewity.Info,
+				nws.wocawize('tewminawPwofiweMigwation', "The tewminaw is using depwecated sheww/shewwAwgs settings, do you want to migwate it to a pwofiwe?"),
 				[
 					{
-						label: nls.localize('migrateToProfile', "Migrate"),
-						run: async () => {
-							const shell = this._configurationService.getValue(TerminalSettingPrefix.Shell + platform);
-							const shellArgs = this._configurationService.getValue(TerminalSettingPrefix.ShellArgs + platform);
-							const profile = await this._terminalProfileResolverService.createProfileFromShellAndShellArgs(shell, shellArgs);
-							if (typeof profile === 'string') {
-								await this._configurationService.updateValue(TerminalSettingPrefix.DefaultProfile + platform, profile);
-								this._logService.trace(`migrated from shell/shellArgs, using existing profile ${profile}`);
-							} else {
-								const profiles = { ...this._configurationService.inspect<Readonly<{ [key: string]: ITerminalProfileObject }>>(TerminalSettingPrefix.Profiles + platform).userValue } || {};
-								const profileConfig: ITerminalProfileObject = { path: profile.path };
-								if (profile.args) {
-									profileConfig.args = profile.args;
+						wabew: nws.wocawize('migwateToPwofiwe', "Migwate"),
+						wun: async () => {
+							const sheww = this._configuwationSewvice.getVawue(TewminawSettingPwefix.Sheww + pwatfowm);
+							const shewwAwgs = this._configuwationSewvice.getVawue(TewminawSettingPwefix.ShewwAwgs + pwatfowm);
+							const pwofiwe = await this._tewminawPwofiweWesowvewSewvice.cweatePwofiweFwomShewwAndShewwAwgs(sheww, shewwAwgs);
+							if (typeof pwofiwe === 'stwing') {
+								await this._configuwationSewvice.updateVawue(TewminawSettingPwefix.DefauwtPwofiwe + pwatfowm, pwofiwe);
+								this._wogSewvice.twace(`migwated fwom sheww/shewwAwgs, using existing pwofiwe ${pwofiwe}`);
+							} ewse {
+								const pwofiwes = { ...this._configuwationSewvice.inspect<Weadonwy<{ [key: stwing]: ITewminawPwofiweObject }>>(TewminawSettingPwefix.Pwofiwes + pwatfowm).usewVawue } || {};
+								const pwofiweConfig: ITewminawPwofiweObject = { path: pwofiwe.path };
+								if (pwofiwe.awgs) {
+									pwofiweConfig.awgs = pwofiwe.awgs;
 								}
-								profiles[profile.profileName] = profileConfig;
-								await this._configurationService.updateValue(TerminalSettingPrefix.Profiles + platform, profiles);
-								await this._configurationService.updateValue(TerminalSettingPrefix.DefaultProfile + platform, profile.profileName);
-								this._logService.trace(`migrated from shell/shellArgs, ${shell} ${shellArgs} to profile ${JSON.stringify(profile)}`);
+								pwofiwes[pwofiwe.pwofiweName] = pwofiweConfig;
+								await this._configuwationSewvice.updateVawue(TewminawSettingPwefix.Pwofiwes + pwatfowm, pwofiwes);
+								await this._configuwationSewvice.updateVawue(TewminawSettingPwefix.DefauwtPwofiwe + pwatfowm, pwofiwe.pwofiweName);
+								this._wogSewvice.twace(`migwated fwom sheww/shewwAwgs, ${sheww} ${shewwAwgs} to pwofiwe ${JSON.stwingify(pwofiwe)}`);
 							}
-							await this._configurationService.updateValue(TerminalSettingPrefix.Shell + platform, undefined);
-							await this._configurationService.updateValue(TerminalSettingPrefix.ShellArgs + platform, undefined);
+							await this._configuwationSewvice.updateVawue(TewminawSettingPwefix.Sheww + pwatfowm, undefined);
+							await this._configuwationSewvice.updateVawue(TewminawSettingPwefix.ShewwAwgs + pwatfowm, undefined);
 						}
-					} as IPromptChoice,
+					} as IPwomptChoice,
 				],
 				{
-					neverShowAgain: { id: SHOULD_PROMPT_FOR_PROFILE_MIGRATION_KEY, scope: NeverShowAgainScope.WORKSPACE }
+					nevewShowAgain: { id: SHOUWD_PWOMPT_FOW_PWOFIWE_MIGWATION_KEY, scope: NevewShowAgainScope.WOWKSPACE }
 				}
 			);
-			migrationMessageShown = true;
+			migwationMessageShown = twue;
 		}
 	}
 
-	private _getPlatformKey(): string {
-		return isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
+	pwivate _getPwatfowmKey(): stwing {
+		wetuwn isWindows ? 'windows' : (isMacintosh ? 'osx' : 'winux');
 	}
 
-	private _initDimensions(): void {
-		// The terminal panel needs to have been created
-		if (!this._container) {
-			return;
+	pwivate _initDimensions(): void {
+		// The tewminaw panew needs to have been cweated
+		if (!this._containa) {
+			wetuwn;
 		}
 
-		const computedStyle = window.getComputedStyle(this._wrapperElement!);
-		const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
-		const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
-		this._evaluateColsAndRows(width, height);
+		const computedStywe = window.getComputedStywe(this._wwappewEwement!);
+		const width = pawseInt(computedStywe.getPwopewtyVawue('width').wepwace('px', ''), 10);
+		const height = pawseInt(computedStywe.getPwopewtyVawue('height').wepwace('px', ''), 10);
+		this._evawuateCowsAndWows(width, height);
 	}
 
 	/**
-	 * Evaluates and sets the cols and rows of the terminal if possible.
-	 * @param width The width of the container.
-	 * @param height The height of the container.
-	 * @return The terminal's width if it requires a layout.
+	 * Evawuates and sets the cows and wows of the tewminaw if possibwe.
+	 * @pawam width The width of the containa.
+	 * @pawam height The height of the containa.
+	 * @wetuwn The tewminaw's width if it wequiwes a wayout.
 	 */
-	private _evaluateColsAndRows(width: number, height: number): number | null {
-		// Ignore if dimensions are undefined or 0
+	pwivate _evawuateCowsAndWows(width: numba, height: numba): numba | nuww {
+		// Ignowe if dimensions awe undefined ow 0
 		if (!width || !height) {
-			this._setLastKnownColsAndRows();
-			return null;
+			this._setWastKnownCowsAndWows();
+			wetuwn nuww;
 		}
 
 		const dimension = this._getDimension(width, height);
 		if (!dimension) {
-			this._setLastKnownColsAndRows();
-			return null;
+			this._setWastKnownCowsAndWows();
+			wetuwn nuww;
 		}
 
-		const font = this._configHelper.getFont(this._xtermCore);
-		if (!font.charWidth || !font.charHeight) {
-			this._setLastKnownColsAndRows();
-			return null;
+		const font = this._configHewpa.getFont(this._xtewmCowe);
+		if (!font.chawWidth || !font.chawHeight) {
+			this._setWastKnownCowsAndWows();
+			wetuwn nuww;
 		}
 
-		// Because xterm.js converts from CSS pixels to actual pixels through
-		// the use of canvas, window.devicePixelRatio needs to be used here in
-		// order to be precise. font.charWidth/charHeight alone as insufficient
-		// when window.devicePixelRatio changes.
-		const scaledWidthAvailable = dimension.width * window.devicePixelRatio;
+		// Because xtewm.js convewts fwom CSS pixews to actuaw pixews thwough
+		// the use of canvas, window.devicePixewWatio needs to be used hewe in
+		// owda to be pwecise. font.chawWidth/chawHeight awone as insufficient
+		// when window.devicePixewWatio changes.
+		const scawedWidthAvaiwabwe = dimension.width * window.devicePixewWatio;
 
-		const scaledCharWidth = font.charWidth * window.devicePixelRatio + font.letterSpacing;
-		const newCols = Math.max(Math.floor(scaledWidthAvailable / scaledCharWidth), 1);
+		const scawedChawWidth = font.chawWidth * window.devicePixewWatio + font.wettewSpacing;
+		const newCows = Math.max(Math.fwoow(scawedWidthAvaiwabwe / scawedChawWidth), 1);
 
-		const scaledHeightAvailable = dimension.height * window.devicePixelRatio;
-		const scaledCharHeight = Math.ceil(font.charHeight * window.devicePixelRatio);
-		const scaledLineHeight = Math.floor(scaledCharHeight * font.lineHeight);
-		const newRows = Math.max(Math.floor(scaledHeightAvailable / scaledLineHeight), 1);
+		const scawedHeightAvaiwabwe = dimension.height * window.devicePixewWatio;
+		const scawedChawHeight = Math.ceiw(font.chawHeight * window.devicePixewWatio);
+		const scawedWineHeight = Math.fwoow(scawedChawHeight * font.wineHeight);
+		const newWows = Math.max(Math.fwoow(scawedHeightAvaiwabwe / scawedWineHeight), 1);
 
-		if (this._cols !== newCols || this._rows !== newRows) {
-			this._cols = newCols;
-			this._rows = newRows;
-			this._fireMaximumDimensionsChanged();
+		if (this._cows !== newCows || this._wows !== newWows) {
+			this._cows = newCows;
+			this._wows = newWows;
+			this._fiweMaximumDimensionsChanged();
 		}
 
-		return dimension.width;
+		wetuwn dimension.width;
 	}
 
-	private _setLastKnownColsAndRows(): void {
-		if (TerminalInstance._lastKnownGridDimensions) {
-			this._cols = TerminalInstance._lastKnownGridDimensions.cols;
-			this._rows = TerminalInstance._lastKnownGridDimensions.rows;
+	pwivate _setWastKnownCowsAndWows(): void {
+		if (TewminawInstance._wastKnownGwidDimensions) {
+			this._cows = TewminawInstance._wastKnownGwidDimensions.cows;
+			this._wows = TewminawInstance._wastKnownGwidDimensions.wows;
 		}
 	}
 
 	@debounce(50)
-	private _fireMaximumDimensionsChanged(): void {
-		this._onMaximumDimensionsChanged.fire();
+	pwivate _fiweMaximumDimensionsChanged(): void {
+		this._onMaximumDimensionsChanged.fiwe();
 	}
 
-	private _getDimension(width: number, height: number): ICanvasDimensions | undefined {
-		// The font needs to have been initialized
-		const font = this._configHelper.getFont(this._xtermCore);
-		if (!font || !font.charWidth || !font.charHeight) {
-			return undefined;
+	pwivate _getDimension(width: numba, height: numba): ICanvasDimensions | undefined {
+		// The font needs to have been initiawized
+		const font = this._configHewpa.getFont(this._xtewmCowe);
+		if (!font || !font.chawWidth || !font.chawHeight) {
+			wetuwn undefined;
 		}
 
-		if (!this._wrapperElement) {
-			return undefined;
+		if (!this._wwappewEwement) {
+			wetuwn undefined;
 		}
 
-		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(width, height - 2 /* bottom padding */);
-		return TerminalInstance._lastKnownCanvasDimensions;
+		TewminawInstance._wastKnownCanvasDimensions = new dom.Dimension(width, height - 2 /* bottom padding */);
+		wetuwn TewminawInstance._wastKnownCanvasDimensions;
 	}
 
-	get persistentProcessId(): number | undefined { return this._processManager.persistentProcessId; }
-	get shouldPersist(): boolean { return this._processManager.shouldPersist; }
+	get pewsistentPwocessId(): numba | undefined { wetuwn this._pwocessManaga.pewsistentPwocessId; }
+	get shouwdPewsist(): boowean { wetuwn this._pwocessManaga.shouwdPewsist; }
 
-	private async _getXtermConstructor(): Promise<typeof XTermTerminal> {
-		if (xtermConstructor) {
-			return xtermConstructor;
+	pwivate async _getXtewmConstwuctow(): Pwomise<typeof XTewmTewminaw> {
+		if (xtewmConstwuctow) {
+			wetuwn xtewmConstwuctow;
 		}
-		xtermConstructor = new Promise<typeof XTermTerminal>(async (resolve) => {
-			const Terminal = await this._terminalInstanceService.getXtermConstructor();
-			// Localize strings
-			Terminal.strings.promptLabel = nls.localize('terminal.integrated.a11yPromptLabel', 'Terminal input');
-			Terminal.strings.tooMuchOutput = nls.localize('terminal.integrated.a11yTooMuchOutput', 'Too much output to announce, navigate to rows manually to read');
-			resolve(Terminal);
+		xtewmConstwuctow = new Pwomise<typeof XTewmTewminaw>(async (wesowve) => {
+			const Tewminaw = await this._tewminawInstanceSewvice.getXtewmConstwuctow();
+			// Wocawize stwings
+			Tewminaw.stwings.pwomptWabew = nws.wocawize('tewminaw.integwated.a11yPwomptWabew', 'Tewminaw input');
+			Tewminaw.stwings.tooMuchOutput = nws.wocawize('tewminaw.integwated.a11yTooMuchOutput', 'Too much output to announce, navigate to wows manuawwy to wead');
+			wesowve(Tewminaw);
 		});
-		return xtermConstructor;
+		wetuwn xtewmConstwuctow;
 	}
 
 	/**
-	 * Create xterm.js instance and attach data listeners.
+	 * Cweate xtewm.js instance and attach data wistenews.
 	 */
-	protected async _createXterm(): Promise<XTermTerminal> {
-		const Terminal = await this._getXtermConstructor();
-		const font = this._configHelper.getFont(undefined, true);
-		const config = this._configHelper.config;
-		const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
+	pwotected async _cweateXtewm(): Pwomise<XTewmTewminaw> {
+		const Tewminaw = await this._getXtewmConstwuctow();
+		const font = this._configHewpa.getFont(undefined, twue);
+		const config = this._configHewpa.config;
+		const editowOptions = this._configuwationSewvice.getVawue<IEditowOptions>('editow');
 
-		const xterm = new Terminal({
-			cols: this._cols || Constants.DefaultCols,
-			rows: this._rows || Constants.DefaultRows,
-			altClickMovesCursor: config.altClickMovesCursor && editorOptions.multiCursorModifier === 'alt',
-			scrollback: config.scrollback,
-			theme: this._getXtermTheme(),
-			drawBoldTextInBrightColors: config.drawBoldTextInBrightColors,
-			fontFamily: font.fontFamily,
+		const xtewm = new Tewminaw({
+			cows: this._cows || Constants.DefauwtCows,
+			wows: this._wows || Constants.DefauwtWows,
+			awtCwickMovesCuwsow: config.awtCwickMovesCuwsow && editowOptions.muwtiCuwsowModifia === 'awt',
+			scwowwback: config.scwowwback,
+			theme: this._getXtewmTheme(),
+			dwawBowdTextInBwightCowows: config.dwawBowdTextInBwightCowows,
+			fontFamiwy: font.fontFamiwy,
 			fontWeight: config.fontWeight,
-			fontWeightBold: config.fontWeightBold,
+			fontWeightBowd: config.fontWeightBowd,
 			fontSize: font.fontSize,
-			letterSpacing: font.letterSpacing,
-			lineHeight: font.lineHeight,
-			minimumContrastRatio: config.minimumContrastRatio,
-			cursorBlink: config.cursorBlinking,
-			cursorStyle: config.cursorStyle === 'line' ? 'bar' : config.cursorStyle,
-			cursorWidth: config.cursorWidth,
-			bellStyle: 'none',
+			wettewSpacing: font.wettewSpacing,
+			wineHeight: font.wineHeight,
+			minimumContwastWatio: config.minimumContwastWatio,
+			cuwsowBwink: config.cuwsowBwinking,
+			cuwsowStywe: config.cuwsowStywe === 'wine' ? 'baw' : config.cuwsowStywe,
+			cuwsowWidth: config.cuwsowWidth,
+			bewwStywe: 'none',
 			macOptionIsMeta: config.macOptionIsMeta,
-			macOptionClickForcesSelection: config.macOptionClickForcesSelection,
-			rightClickSelectsWord: config.rightClickBehavior === 'selectWord',
-			fastScrollModifier: 'alt',
-			fastScrollSensitivity: editorOptions.fastScrollSensitivity,
-			scrollSensitivity: editorOptions.mouseWheelScrollSensitivity,
-			rendererType: this._getBuiltInXtermRenderer(config.gpuAcceleration, TerminalInstance._suggestedRendererType),
-			wordSeparator: config.wordSeparators
+			macOptionCwickFowcesSewection: config.macOptionCwickFowcesSewection,
+			wightCwickSewectsWowd: config.wightCwickBehaviow === 'sewectWowd',
+			fastScwowwModifia: 'awt',
+			fastScwowwSensitivity: editowOptions.fastScwowwSensitivity,
+			scwowwSensitivity: editowOptions.mouseWheewScwowwSensitivity,
+			wendewewType: this._getBuiwtInXtewmWendewa(config.gpuAccewewation, TewminawInstance._suggestedWendewewType),
+			wowdSepawatow: config.wowdSepawatows
 		});
-		this._xterm = xterm;
-		this._xtermCore = (xterm as any)._core as XTermCore;
-		this._updateUnicodeVersion();
-		this.updateAccessibilitySupport();
-		this._terminalInstanceService.getXtermSearchConstructor().then(addonCtor => {
-			this._xtermSearch = new addonCtor();
-			xterm.loadAddon(this._xtermSearch);
+		this._xtewm = xtewm;
+		this._xtewmCowe = (xtewm as any)._cowe as XTewmCowe;
+		this._updateUnicodeVewsion();
+		this.updateAccessibiwitySuppowt();
+		this._tewminawInstanceSewvice.getXtewmSeawchConstwuctow().then(addonCtow => {
+			this._xtewmSeawch = new addonCtow();
+			xtewm.woadAddon(this._xtewmSeawch);
 		});
-		if (this._shellLaunchConfig.initialText) {
-			this._xterm.writeln(this._shellLaunchConfig.initialText);
+		if (this._shewwWaunchConfig.initiawText) {
+			this._xtewm.wwitewn(this._shewwWaunchConfig.initiawText);
 		}
-		// Delay the creation of the bell listener to avoid showing the bell when the terminal
-		// starts up or reconnects
+		// Deway the cweation of the beww wistena to avoid showing the beww when the tewminaw
+		// stawts up ow weconnects
 		setTimeout(() => {
-			this._xterm?.onBell(() => {
-				if (this._configHelper.config.enableBell) {
-					this.statusList.add({
-						id: TerminalStatus.Bell,
-						severity: Severity.Warning,
-						icon: Codicon.bell,
-						tooltip: nls.localize('bellStatus', "Bell")
-					}, this._configHelper.config.bellDuration);
+			this._xtewm?.onBeww(() => {
+				if (this._configHewpa.config.enabweBeww) {
+					this.statusWist.add({
+						id: TewminawStatus.Beww,
+						sevewity: Sevewity.Wawning,
+						icon: Codicon.beww,
+						toowtip: nws.wocawize('bewwStatus', "Beww")
+					}, this._configHewpa.config.bewwDuwation);
 				}
 			});
 		}, 1000);
-		this._xterm.onLineFeed(() => this._onLineFeed());
-		this._xterm.onKey(e => this._onKey(e.key, e.domEvent));
-		this._xterm.onSelectionChange(async () => this._onSelectionChange());
-		this._xterm.buffer.onBufferChange(() => this._refreshAltBufferContextKey());
+		this._xtewm.onWineFeed(() => this._onWineFeed());
+		this._xtewm.onKey(e => this._onKey(e.key, e.domEvent));
+		this._xtewm.onSewectionChange(async () => this._onSewectionChange());
+		this._xtewm.buffa.onBuffewChange(() => this._wefweshAwtBuffewContextKey());
 
-		this._processManager.onProcessData(e => this._onProcessData(e));
-		this._xterm.onData(async data => {
-			await this._processManager.write(data);
-			this._onDidInputData.fire(this);
+		this._pwocessManaga.onPwocessData(e => this._onPwocessData(e));
+		this._xtewm.onData(async data => {
+			await this._pwocessManaga.wwite(data);
+			this._onDidInputData.fiwe(this);
 		});
-		this._xterm.onBinary(data => this._processManager.processBinary(data));
-		this.processReady.then(async () => {
-			if (this._linkManager) {
-				this._linkManager.processCwd = await this._processManager.getInitialCwd();
+		this._xtewm.onBinawy(data => this._pwocessManaga.pwocessBinawy(data));
+		this.pwocessWeady.then(async () => {
+			if (this._winkManaga) {
+				this._winkManaga.pwocessCwd = await this._pwocessManaga.getInitiawCwd();
 			}
 		});
-		// Init winpty compat and link handler after process creation as they rely on the
-		// underlying process OS
-		this._processManager.onProcessReady((processTraits) => {
-			if (this._processManager.os === OperatingSystem.Windows) {
-				xterm.setOption('windowsMode', processTraits.requiresWindowsMode || false);
-				// Force line data to be sent when the cursor is moved, the main purpose for
-				// this is because ConPTY will often not do a line feed but instead move the
-				// cursor, in which case we still want to send the current line's data to tasks.
-				xterm.parser.registerCsiHandler({ final: 'H' }, () => {
-					this._onCursorMove();
-					return false;
+		// Init winpty compat and wink handwa afta pwocess cweation as they wewy on the
+		// undewwying pwocess OS
+		this._pwocessManaga.onPwocessWeady((pwocessTwaits) => {
+			if (this._pwocessManaga.os === OpewatingSystem.Windows) {
+				xtewm.setOption('windowsMode', pwocessTwaits.wequiwesWindowsMode || fawse);
+				// Fowce wine data to be sent when the cuwsow is moved, the main puwpose fow
+				// this is because ConPTY wiww often not do a wine feed but instead move the
+				// cuwsow, in which case we stiww want to send the cuwwent wine's data to tasks.
+				xtewm.pawsa.wegistewCsiHandwa({ finaw: 'H' }, () => {
+					this._onCuwsowMove();
+					wetuwn fawse;
 				});
 			}
-			this._linkManager = this._instantiationService.createInstance(TerminalLinkManager, xterm, this._processManager!);
-			this._areLinksReady = true;
-			this._onLinksReady.fire(this);
+			this._winkManaga = this._instantiationSewvice.cweateInstance(TewminawWinkManaga, xtewm, this._pwocessManaga!);
+			this._aweWinksWeady = twue;
+			this._onWinksWeady.fiwe(this);
 		});
 
-		this._commandTrackerAddon = new CommandTrackerAddon();
-		this._xterm.loadAddon(this._commandTrackerAddon);
-		this._register(this._themeService.onDidColorThemeChange(theme => this._updateTheme(xterm, theme)));
-		this._register(this._viewDescriptorService.onDidChangeLocation(({ views }) => {
-			if (views.some(v => v.id === TERMINAL_VIEW_ID)) {
-				this._updateTheme(xterm);
+		this._commandTwackewAddon = new CommandTwackewAddon();
+		this._xtewm.woadAddon(this._commandTwackewAddon);
+		this._wegista(this._themeSewvice.onDidCowowThemeChange(theme => this._updateTheme(xtewm, theme)));
+		this._wegista(this._viewDescwiptowSewvice.onDidChangeWocation(({ views }) => {
+			if (views.some(v => v.id === TEWMINAW_VIEW_ID)) {
+				this._updateTheme(xtewm);
 			}
 		}));
 
-		this._xtermTypeAhead = this._register(this._instantiationService.createInstance(TypeAheadAddon, this._processManager, this._configHelper));
-		this._xterm.loadAddon(this._xtermTypeAhead);
-		this._pathService.userHome().then(userHome => {
-			this._userHome = userHome.fsPath;
+		this._xtewmTypeAhead = this._wegista(this._instantiationSewvice.cweateInstance(TypeAheadAddon, this._pwocessManaga, this._configHewpa));
+		this._xtewm.woadAddon(this._xtewmTypeAhead);
+		this._pathSewvice.usewHome().then(usewHome => {
+			this._usewHome = usewHome.fsPath;
 		});
-		return xterm;
+		wetuwn xtewm;
 	}
 
-	detachFromElement(): void {
-		this._wrapperElement?.remove();
-		this._container = undefined;
+	detachFwomEwement(): void {
+		this._wwappewEwement?.wemove();
+		this._containa = undefined;
 	}
 
 
-	attachToElement(container: HTMLElement): Promise<void> | void {
-		// The container did not change, do nothing
-		if (this._container === container) {
-			return;
+	attachToEwement(containa: HTMWEwement): Pwomise<void> | void {
+		// The containa did not change, do nothing
+		if (this._containa === containa) {
+			wetuwn;
 		}
 
-		this._attachBarrier.open();
+		this._attachBawwia.open();
 
-		// Attach has not occurred yet
-		if (!this._wrapperElement) {
-			return this._attachToElement(container);
+		// Attach has not occuwwed yet
+		if (!this._wwappewEwement) {
+			wetuwn this._attachToEwement(containa);
 		}
 
-		// Update the theme when attaching as the terminal location could have changed
-		if (this._xterm) {
-			this._updateTheme(this._xterm);
+		// Update the theme when attaching as the tewminaw wocation couwd have changed
+		if (this._xtewm) {
+			this._updateTheme(this._xtewm);
 		}
 
-		// The container changed, reattach
-		this._container = container;
-		this._container.appendChild(this._wrapperElement);
-		setTimeout(() => this._initDragAndDrop(container));
+		// The containa changed, weattach
+		this._containa = containa;
+		this._containa.appendChiwd(this._wwappewEwement);
+		setTimeout(() => this._initDwagAndDwop(containa));
 	}
 
-	private async _attachToElement(container: HTMLElement): Promise<void> {
-		if (this._wrapperElement) {
-			throw new Error('The terminal instance has already been attached to a container');
+	pwivate async _attachToEwement(containa: HTMWEwement): Pwomise<void> {
+		if (this._wwappewEwement) {
+			thwow new Ewwow('The tewminaw instance has awweady been attached to a containa');
 		}
 
-		this._container = container;
-		this._wrapperElement = document.createElement('div');
-		this._wrapperElement.classList.add('terminal-wrapper');
-		this._xtermElement = document.createElement('div');
+		this._containa = containa;
+		this._wwappewEwement = document.cweateEwement('div');
+		this._wwappewEwement.cwassWist.add('tewminaw-wwappa');
+		this._xtewmEwement = document.cweateEwement('div');
 
-		this._wrapperElement.appendChild(this._xtermElement);
-		this._container.appendChild(this._wrapperElement);
+		this._wwappewEwement.appendChiwd(this._xtewmEwement);
+		this._containa.appendChiwd(this._wwappewEwement);
 
-		const xterm = await this._xtermReadyPromise;
+		const xtewm = await this._xtewmWeadyPwomise;
 
-		// Attach the xterm object to the DOM, exposing it to the smoke tests
-		this._wrapperElement.xterm = xterm;
+		// Attach the xtewm object to the DOM, exposing it to the smoke tests
+		this._wwappewEwement.xtewm = xtewm;
 
-		this._updateTheme(xterm);
-		xterm.open(this._xtermElement);
+		this._updateTheme(xtewm);
+		xtewm.open(this._xtewmEwement);
 
-		if (!xterm.element || !xterm.textarea) {
-			throw new Error('xterm elements not set after open');
+		if (!xtewm.ewement || !xtewm.textawea) {
+			thwow new Ewwow('xtewm ewements not set afta open');
 		}
 
-		this._setAriaLabel(xterm, this._instanceId, this._title);
+		this._setAwiaWabew(xtewm, this._instanceId, this._titwe);
 
-		xterm.attachCustomKeyEventHandler((event: KeyboardEvent): boolean => {
-			// Disable all input if the terminal is exiting
+		xtewm.attachCustomKeyEventHandwa((event: KeyboawdEvent): boowean => {
+			// Disabwe aww input if the tewminaw is exiting
 			if (this._isExiting) {
-				return false;
+				wetuwn fawse;
 			}
 
-			const standardKeyboardEvent = new StandardKeyboardEvent(event);
-			const resolveResult = this._keybindingService.softDispatch(standardKeyboardEvent, standardKeyboardEvent.target);
+			const standawdKeyboawdEvent = new StandawdKeyboawdEvent(event);
+			const wesowveWesuwt = this._keybindingSewvice.softDispatch(standawdKeyboawdEvent, standawdKeyboawdEvent.tawget);
 
-			// Respect chords if the allowChords setting is set and it's not Escape. Escape is
-			// handled specially for Zen Mode's Escape, Escape chord, plus it's important in
-			// terminals generally
-			const isValidChord = resolveResult?.enterChord && this._configHelper.config.allowChords && event.key !== 'Escape';
-			if (this._keybindingService.inChordMode || isValidChord) {
-				event.preventDefault();
-				return false;
+			// Wespect chowds if the awwowChowds setting is set and it's not Escape. Escape is
+			// handwed speciawwy fow Zen Mode's Escape, Escape chowd, pwus it's impowtant in
+			// tewminaws genewawwy
+			const isVawidChowd = wesowveWesuwt?.entewChowd && this._configHewpa.config.awwowChowds && event.key !== 'Escape';
+			if (this._keybindingSewvice.inChowdMode || isVawidChowd) {
+				event.pweventDefauwt();
+				wetuwn fawse;
 			}
 
-			const SHOW_TERMINAL_CONFIG_PROMPT_KEY = 'terminal.integrated.showTerminalConfigPrompt';
-			const EXCLUDED_KEYS = ['RightArrow', 'LeftArrow', 'UpArrow', 'DownArrow', 'Space', 'Meta', 'Control', 'Shift', 'Alt', '', 'Delete', 'Backspace', 'Tab'];
+			const SHOW_TEWMINAW_CONFIG_PWOMPT_KEY = 'tewminaw.integwated.showTewminawConfigPwompt';
+			const EXCWUDED_KEYS = ['WightAwwow', 'WeftAwwow', 'UpAwwow', 'DownAwwow', 'Space', 'Meta', 'Contwow', 'Shift', 'Awt', '', 'Dewete', 'Backspace', 'Tab'];
 
-			// only keep track of input if prompt hasn't already been shown
-			if (this._storageService.getBoolean(SHOW_TERMINAL_CONFIG_PROMPT_KEY, StorageScope.GLOBAL, true) &&
-				!EXCLUDED_KEYS.includes(event.key) &&
-				!event.ctrlKey &&
+			// onwy keep twack of input if pwompt hasn't awweady been shown
+			if (this._stowageSewvice.getBoowean(SHOW_TEWMINAW_CONFIG_PWOMPT_KEY, StowageScope.GWOBAW, twue) &&
+				!EXCWUDED_KEYS.incwudes(event.key) &&
+				!event.ctwwKey &&
 				!event.shiftKey &&
-				!event.altKey) {
-				this._hasHadInput = true;
+				!event.awtKey) {
+				this._hasHadInput = twue;
 			}
 
-			// for keyboard events that resolve to commands described
-			// within commandsToSkipShell, either alert or skip processing by xterm.js
-			if (resolveResult && resolveResult.commandId && this._skipTerminalCommands.some(k => k === resolveResult.commandId) && !this._configHelper.config.sendKeybindingsToShell) {
-				// don't alert when terminal is opened or closed
-				if (this._storageService.getBoolean(SHOW_TERMINAL_CONFIG_PROMPT_KEY, StorageScope.GLOBAL, true) &&
+			// fow keyboawd events that wesowve to commands descwibed
+			// within commandsToSkipSheww, eitha awewt ow skip pwocessing by xtewm.js
+			if (wesowveWesuwt && wesowveWesuwt.commandId && this._skipTewminawCommands.some(k => k === wesowveWesuwt.commandId) && !this._configHewpa.config.sendKeybindingsToSheww) {
+				// don't awewt when tewminaw is opened ow cwosed
+				if (this._stowageSewvice.getBoowean(SHOW_TEWMINAW_CONFIG_PWOMPT_KEY, StowageScope.GWOBAW, twue) &&
 					this._hasHadInput &&
-					!TERMINAL_CREATION_COMMANDS.includes(resolveResult.commandId)) {
-					this._notificationService.prompt(
-						Severity.Info,
-						nls.localize('keybindingHandling', "Some keybindings don't go to the terminal by default and are handled by {0} instead.", this._productService.nameLong),
+					!TEWMINAW_CWEATION_COMMANDS.incwudes(wesowveWesuwt.commandId)) {
+					this._notificationSewvice.pwompt(
+						Sevewity.Info,
+						nws.wocawize('keybindingHandwing', "Some keybindings don't go to the tewminaw by defauwt and awe handwed by {0} instead.", this._pwoductSewvice.nameWong),
 						[
 							{
-								label: nls.localize('configureTerminalSettings', "Configure Terminal Settings"),
-								run: () => {
-									this._preferencesService.openSettings({ jsonEditor: false, query: `@id:${TerminalSettingId.CommandsToSkipShell},${TerminalSettingId.SendKeybindingsToShell},${TerminalSettingId.AllowChords}` });
+								wabew: nws.wocawize('configuweTewminawSettings', "Configuwe Tewminaw Settings"),
+								wun: () => {
+									this._pwefewencesSewvice.openSettings({ jsonEditow: fawse, quewy: `@id:${TewminawSettingId.CommandsToSkipSheww},${TewminawSettingId.SendKeybindingsToSheww},${TewminawSettingId.AwwowChowds}` });
 								}
-							} as IPromptChoice
+							} as IPwomptChoice
 						]
 					);
-					this._storageService.store(SHOW_TERMINAL_CONFIG_PROMPT_KEY, false, StorageScope.GLOBAL, StorageTarget.USER);
+					this._stowageSewvice.stowe(SHOW_TEWMINAW_CONFIG_PWOMPT_KEY, fawse, StowageScope.GWOBAW, StowageTawget.USa);
 				}
-				event.preventDefault();
-				return false;
+				event.pweventDefauwt();
+				wetuwn fawse;
 			}
 
-			// Skip processing by xterm.js of keyboard events that match menu bar mnemonics
-			if (this._configHelper.config.allowMnemonics && !isMacintosh && event.altKey) {
-				return false;
+			// Skip pwocessing by xtewm.js of keyboawd events that match menu baw mnemonics
+			if (this._configHewpa.config.awwowMnemonics && !isMacintosh && event.awtKey) {
+				wetuwn fawse;
 			}
 
-			// If tab focus mode is on, tab is not passed to the terminal
+			// If tab focus mode is on, tab is not passed to the tewminaw
 			if (TabFocus.getTabFocusMode() && event.keyCode === 9) {
-				return false;
+				wetuwn fawse;
 			}
 
-			// Always have alt+F4 skip the terminal on Windows and allow it to be handled by the
+			// Awways have awt+F4 skip the tewminaw on Windows and awwow it to be handwed by the
 			// system
-			if (isWindows && event.altKey && event.key === 'F4' && !event.ctrlKey) {
-				return false;
+			if (isWindows && event.awtKey && event.key === 'F4' && !event.ctwwKey) {
+				wetuwn fawse;
 			}
 
-			// Fallback to force ctrl+v to paste on browsers that do not support
-			// navigator.clipboard.readText
-			if (!BrowserFeatures.clipboard.readText && event.key === 'v' && event.ctrlKey) {
-				return false;
+			// Fawwback to fowce ctww+v to paste on bwowsews that do not suppowt
+			// navigatow.cwipboawd.weadText
+			if (!BwowsewFeatuwes.cwipboawd.weadText && event.key === 'v' && event.ctwwKey) {
+				wetuwn fawse;
 			}
 
-			return true;
+			wetuwn twue;
 		});
-		this._register(dom.addDisposableListener(xterm.element, 'mousedown', () => {
-			// We need to listen to the mouseup event on the document since the user may release
-			// the mouse button anywhere outside of _xterm.element.
-			const listener = dom.addDisposableListener(document, 'mouseup', () => {
-				// Delay with a setTimeout to allow the mouseup to propagate through the DOM
-				// before evaluating the new selection state.
-				setTimeout(() => this._refreshSelectionContextKey(), 0);
-				listener.dispose();
+		this._wegista(dom.addDisposabweWistena(xtewm.ewement, 'mousedown', () => {
+			// We need to wisten to the mouseup event on the document since the usa may wewease
+			// the mouse button anywhewe outside of _xtewm.ewement.
+			const wistena = dom.addDisposabweWistena(document, 'mouseup', () => {
+				// Deway with a setTimeout to awwow the mouseup to pwopagate thwough the DOM
+				// befowe evawuating the new sewection state.
+				setTimeout(() => this._wefweshSewectionContextKey(), 0);
+				wistena.dispose();
 			});
 		}));
-		this._register(dom.addDisposableListener(xterm.element, 'touchstart', () => {
-			xterm.focus();
+		this._wegista(dom.addDisposabweWistena(xtewm.ewement, 'touchstawt', () => {
+			xtewm.focus();
 		}));
 
-		// xterm.js currently drops selection on keyup as we need to handle this case.
-		this._register(dom.addDisposableListener(xterm.element, 'keyup', () => {
-			// Wait until keyup has propagated through the DOM before evaluating
-			// the new selection state.
-			setTimeout(() => this._refreshSelectionContextKey(), 0);
+		// xtewm.js cuwwentwy dwops sewection on keyup as we need to handwe this case.
+		this._wegista(dom.addDisposabweWistena(xtewm.ewement, 'keyup', () => {
+			// Wait untiw keyup has pwopagated thwough the DOM befowe evawuating
+			// the new sewection state.
+			setTimeout(() => this._wefweshSewectionContextKey(), 0);
 		}));
 
-		this._register(dom.addDisposableListener(xterm.textarea, 'focus', () => {
-			this._terminalFocusContextKey.set(true);
-			if (this.shellType) {
-				this._terminalShellTypeContextKey.set(this.shellType.toString());
-			} else {
-				this._terminalShellTypeContextKey.reset();
+		this._wegista(dom.addDisposabweWistena(xtewm.textawea, 'focus', () => {
+			this._tewminawFocusContextKey.set(twue);
+			if (this.shewwType) {
+				this._tewminawShewwTypeContextKey.set(this.shewwType.toStwing());
+			} ewse {
+				this._tewminawShewwTypeContextKey.weset();
 			}
-			this._onDidFocus.fire(this);
+			this._onDidFocus.fiwe(this);
 		}));
 
-		this._register(dom.addDisposableListener(xterm.textarea, 'blur', () => {
-			this._terminalFocusContextKey.reset();
-			this._onDidBlur.fire(this);
-			this._refreshSelectionContextKey();
+		this._wegista(dom.addDisposabweWistena(xtewm.textawea, 'bwuw', () => {
+			this._tewminawFocusContextKey.weset();
+			this._onDidBwuw.fiwe(this);
+			this._wefweshSewectionContextKey();
 		}));
 
-		this._initDragAndDrop(container);
+		this._initDwagAndDwop(containa);
 
-		this._widgetManager.attachToElement(xterm.element);
-		this._processManager.onProcessReady((e) => {
-			this._linkManager?.setWidgetManager(this._widgetManager);
-			this._capabilities = e.capabilities;
-			this._workspaceFolder = path.basename(e.cwd.toString());
+		this._widgetManaga.attachToEwement(xtewm.ewement);
+		this._pwocessManaga.onPwocessWeady((e) => {
+			this._winkManaga?.setWidgetManaga(this._widgetManaga);
+			this._capabiwities = e.capabiwities;
+			this._wowkspaceFowda = path.basename(e.cwd.toStwing());
 		});
 
-		// const computedStyle = window.getComputedStyle(this._container);
-		// const computedStyle = window.getComputedStyle(this._container.parentElement!);
-		// const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
-		// const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
-		if (this._lastLayoutDimensions) {
-			this.layout(this._lastLayoutDimensions);
+		// const computedStywe = window.getComputedStywe(this._containa);
+		// const computedStywe = window.getComputedStywe(this._containa.pawentEwement!);
+		// const width = pawseInt(computedStywe.getPwopewtyVawue('width').wepwace('px', ''), 10);
+		// const height = pawseInt(computedStywe.getPwopewtyVawue('height').wepwace('px', ''), 10);
+		if (this._wastWayoutDimensions) {
+			this.wayout(this._wastWayoutDimensions);
 		}
-		this.setVisible(this._isVisible);
+		this.setVisibwe(this._isVisibwe);
 		this.updateConfig();
 
-		// If IShellLaunchConfig.waitOnExit was true and the process finished before the terminal
-		// panel was initialized.
-		if (xterm.getOption('disableStdin')) {
-			this._attachPressAnyKeyToCloseListener(xterm);
+		// If IShewwWaunchConfig.waitOnExit was twue and the pwocess finished befowe the tewminaw
+		// panew was initiawized.
+		if (xtewm.getOption('disabweStdin')) {
+			this._attachPwessAnyKeyToCwoseWistena(xtewm);
 		}
 	}
 
-	private _initDragAndDrop(container: HTMLElement) {
-		this._dndObserver?.dispose();
-		const dndController = this._instantiationService.createInstance(TerminalInstanceDragAndDropController, container);
-		dndController.onDropTerminal(e => this._onRequestAddInstanceToGroup.fire(e));
-		dndController.onDropFile(async path => {
-			const preparedPath = await this._terminalInstanceService.preparePathForTerminalAsync(path, this.shellLaunchConfig.executable, this.title, this.shellType, this.isRemote);
-			this.sendText(preparedPath, false);
+	pwivate _initDwagAndDwop(containa: HTMWEwement) {
+		this._dndObsewva?.dispose();
+		const dndContwowwa = this._instantiationSewvice.cweateInstance(TewminawInstanceDwagAndDwopContwowwa, containa);
+		dndContwowwa.onDwopTewminaw(e => this._onWequestAddInstanceToGwoup.fiwe(e));
+		dndContwowwa.onDwopFiwe(async path => {
+			const pwepawedPath = await this._tewminawInstanceSewvice.pwepawePathFowTewminawAsync(path, this.shewwWaunchConfig.executabwe, this.titwe, this.shewwType, this.isWemote);
+			this.sendText(pwepawedPath, fawse);
 			this.focus();
 		});
-		this._dndObserver = new DragAndDropObserver(container, dndController);
+		this._dndObsewva = new DwagAndDwopObsewva(containa, dndContwowwa);
 	}
 
-	private async _measureRenderTime(): Promise<void> {
-		await this._xtermReadyPromise;
-		const frameTimes: number[] = [];
-		if (!this._xtermCore?._renderService) {
-			return;
+	pwivate async _measuweWendewTime(): Pwomise<void> {
+		await this._xtewmWeadyPwomise;
+		const fwameTimes: numba[] = [];
+		if (!this._xtewmCowe?._wendewSewvice) {
+			wetuwn;
 		}
-		const textRenderLayer = this._xtermCore!._renderService?._renderer._renderLayers[0];
-		const originalOnGridChanged = textRenderLayer?.onGridChanged;
-		const evaluateCanvasRenderer = () => {
-			// Discard first frame time as it's normal to take longer
-			frameTimes.shift();
+		const textWendewWaya = this._xtewmCowe!._wendewSewvice?._wendewa._wendewWayews[0];
+		const owiginawOnGwidChanged = textWendewWaya?.onGwidChanged;
+		const evawuateCanvasWendewa = () => {
+			// Discawd fiwst fwame time as it's nowmaw to take wonga
+			fwameTimes.shift();
 
-			const medianTime = frameTimes.sort((a, b) => a - b)[Math.floor(frameTimes.length / 2)];
-			if (medianTime > SLOW_CANVAS_RENDER_THRESHOLD) {
-				if (this._configHelper.config.gpuAcceleration === 'auto') {
-					TerminalInstance._suggestedRendererType = 'dom';
+			const medianTime = fwameTimes.sowt((a, b) => a - b)[Math.fwoow(fwameTimes.wength / 2)];
+			if (medianTime > SWOW_CANVAS_WENDEW_THWESHOWD) {
+				if (this._configHewpa.config.gpuAccewewation === 'auto') {
+					TewminawInstance._suggestedWendewewType = 'dom';
 					this.updateConfig();
-				} else {
-					const promptChoices: IPromptChoice[] = [
+				} ewse {
+					const pwomptChoices: IPwomptChoice[] = [
 						{
-							label: nls.localize('yes', "Yes"),
-							run: () => this._configurationService.updateValue(TerminalSettingId.GpuAcceleration, 'off', ConfigurationTarget.USER)
-						} as IPromptChoice,
+							wabew: nws.wocawize('yes', "Yes"),
+							wun: () => this._configuwationSewvice.updateVawue(TewminawSettingId.GpuAccewewation, 'off', ConfiguwationTawget.USa)
+						} as IPwomptChoice,
 						{
-							label: nls.localize('no', "No"),
-							run: () => { }
-						} as IPromptChoice,
+							wabew: nws.wocawize('no', "No"),
+							wun: () => { }
+						} as IPwomptChoice,
 						{
-							label: nls.localize('dontShowAgain', "Don't Show Again"),
-							isSecondary: true,
-							run: () => this._storageService.store(TerminalStorageKeys.NeverMeasureRenderTime, true, StorageScope.GLOBAL, StorageTarget.MACHINE)
-						} as IPromptChoice
+							wabew: nws.wocawize('dontShowAgain', "Don't Show Again"),
+							isSecondawy: twue,
+							wun: () => this._stowageSewvice.stowe(TewminawStowageKeys.NevewMeasuweWendewTime, twue, StowageScope.GWOBAW, StowageTawget.MACHINE)
+						} as IPwomptChoice
 					];
-					this._notificationService.prompt(
-						Severity.Warning,
-						nls.localize('terminal.slowRendering', 'Terminal GPU acceleration appears to be slow on your computer. Would you like to switch to disable it which may improve performance? [Read more about terminal settings](https://code.visualstudio.com/docs/editor/integrated-terminal#_changing-how-the-terminal-is-rendered).'),
-						promptChoices
+					this._notificationSewvice.pwompt(
+						Sevewity.Wawning,
+						nws.wocawize('tewminaw.swowWendewing', 'Tewminaw GPU accewewation appeaws to be swow on youw computa. Wouwd you wike to switch to disabwe it which may impwove pewfowmance? [Wead mowe about tewminaw settings](https://code.visuawstudio.com/docs/editow/integwated-tewminaw#_changing-how-the-tewminaw-is-wendewed).'),
+						pwomptChoices
 					);
 				}
 			}
 		};
 
-		textRenderLayer.onGridChanged = (terminal: XTermTerminal, firstRow: number, lastRow: number) => {
-			const startTime = performance.now();
-			originalOnGridChanged.call(textRenderLayer, terminal, firstRow, lastRow);
-			frameTimes.push(performance.now() - startTime);
-			if (frameTimes.length === NUMBER_OF_FRAMES_TO_MEASURE) {
-				evaluateCanvasRenderer();
-				// Restore original function
-				textRenderLayer.onGridChanged = originalOnGridChanged;
+		textWendewWaya.onGwidChanged = (tewminaw: XTewmTewminaw, fiwstWow: numba, wastWow: numba) => {
+			const stawtTime = pewfowmance.now();
+			owiginawOnGwidChanged.caww(textWendewWaya, tewminaw, fiwstWow, wastWow);
+			fwameTimes.push(pewfowmance.now() - stawtTime);
+			if (fwameTimes.wength === NUMBEW_OF_FWAMES_TO_MEASUWE) {
+				evawuateCanvasWendewa();
+				// Westowe owiginaw function
+				textWendewWaya.onGwidChanged = owiginawOnGwidChanged;
 			}
 		};
 	}
 
-	hasSelection(): boolean {
-		return this._xterm ? this._xterm.hasSelection() : false;
+	hasSewection(): boowean {
+		wetuwn this._xtewm ? this._xtewm.hasSewection() : fawse;
 	}
 
-	async copySelection(): Promise<void> {
-		const xterm = await this._xtermReadyPromise;
-		if (this.hasSelection()) {
-			await this._clipboardService.writeText(xterm.getSelection());
-		} else {
-			this._notificationService.warn(nls.localize('terminal.integrated.copySelection.noSelection', 'The terminal has no selection to copy'));
+	async copySewection(): Pwomise<void> {
+		const xtewm = await this._xtewmWeadyPwomise;
+		if (this.hasSewection()) {
+			await this._cwipboawdSewvice.wwiteText(xtewm.getSewection());
+		} ewse {
+			this._notificationSewvice.wawn(nws.wocawize('tewminaw.integwated.copySewection.noSewection', 'The tewminaw has no sewection to copy'));
 		}
 	}
 
-	get selection(): string | undefined {
-		return this._xterm && this.hasSelection() ? this._xterm.getSelection() : undefined;
+	get sewection(): stwing | undefined {
+		wetuwn this._xtewm && this.hasSewection() ? this._xtewm.getSewection() : undefined;
 	}
 
-	clearSelection(): void {
-		this._xterm?.clearSelection();
+	cweawSewection(): void {
+		this._xtewm?.cweawSewection();
 	}
 
-	selectAll(): void {
-		// Focus here to ensure the terminal context key is set
-		this._xterm?.focus();
-		this._xterm?.selectAll();
+	sewectAww(): void {
+		// Focus hewe to ensuwe the tewminaw context key is set
+		this._xtewm?.focus();
+		this._xtewm?.sewectAww();
 	}
 
-	findNext(term: string, searchOptions: ISearchOptions): boolean {
-		if (!this._xtermSearch) {
-			return false;
+	findNext(tewm: stwing, seawchOptions: ISeawchOptions): boowean {
+		if (!this._xtewmSeawch) {
+			wetuwn fawse;
 		}
-		return this._xtermSearch.findNext(term, searchOptions);
+		wetuwn this._xtewmSeawch.findNext(tewm, seawchOptions);
 	}
 
-	findPrevious(term: string, searchOptions: ISearchOptions): boolean {
-		if (!this._xtermSearch) {
-			return false;
+	findPwevious(tewm: stwing, seawchOptions: ISeawchOptions): boowean {
+		if (!this._xtewmSeawch) {
+			wetuwn fawse;
 		}
-		return this._xtermSearch.findPrevious(term, searchOptions);
+		wetuwn this._xtewmSeawch.findPwevious(tewm, seawchOptions);
 	}
 
-	notifyFindWidgetFocusChanged(isFocused: boolean): void {
-		if (!this._xterm) {
-			return;
+	notifyFindWidgetFocusChanged(isFocused: boowean): void {
+		if (!this._xtewm) {
+			wetuwn;
 		}
-		const terminalFocused = !isFocused && (document.activeElement === this._xterm.textarea || document.activeElement === this._xterm.element);
-		this._terminalFocusContextKey.set(terminalFocused);
+		const tewminawFocused = !isFocused && (document.activeEwement === this._xtewm.textawea || document.activeEwement === this._xtewm.ewement);
+		this._tewminawFocusContextKey.set(tewminawFocused);
 	}
 
-	private _refreshAltBufferContextKey() {
-		this._terminalAltBufferActiveContextKey.set(!!(this._xterm && this._xterm.buffer.active === this._xterm.buffer.alternate));
+	pwivate _wefweshAwtBuffewContextKey() {
+		this._tewminawAwtBuffewActiveContextKey.set(!!(this._xtewm && this._xtewm.buffa.active === this._xtewm.buffa.awtewnate));
 	}
 
-	override dispose(immediate?: boolean): void {
-		this._logService.trace(`terminalInstance#dispose (instanceId: ${this.instanceId})`);
-		dispose(this._linkManager);
-		this._linkManager = undefined;
-		dispose(this._commandTrackerAddon);
-		this._commandTrackerAddon = undefined;
-		dispose(this._widgetManager);
+	ovewwide dispose(immediate?: boowean): void {
+		this._wogSewvice.twace(`tewminawInstance#dispose (instanceId: ${this.instanceId})`);
+		dispose(this._winkManaga);
+		this._winkManaga = undefined;
+		dispose(this._commandTwackewAddon);
+		this._commandTwackewAddon = undefined;
+		dispose(this._widgetManaga);
 
-		if (this._xterm && this._xterm.element) {
+		if (this._xtewm && this._xtewm.ewement) {
 			this._hadFocusOnExit = this.hasFocus;
 		}
-		if (this._wrapperElement) {
-			if (this._wrapperElement.xterm) {
-				this._wrapperElement.xterm = undefined;
+		if (this._wwappewEwement) {
+			if (this._wwappewEwement.xtewm) {
+				this._wwappewEwement.xtewm = undefined;
 			}
-			if (this._wrapperElement.parentElement && this._container) {
-				this._container.removeChild(this._wrapperElement);
+			if (this._wwappewEwement.pawentEwement && this._containa) {
+				this._containa.wemoveChiwd(this._wwappewEwement);
 			}
 		}
-		if (this._xterm) {
-			const buffer = this._xterm.buffer;
-			this._sendLineData(buffer.active, buffer.active.baseY + buffer.active.cursorY);
-			this._xterm.dispose();
+		if (this._xtewm) {
+			const buffa = this._xtewm.buffa;
+			this._sendWineData(buffa.active, buffa.active.baseY + buffa.active.cuwsowY);
+			this._xtewm.dispose();
 		}
 
-		if (this._pressAnyKeyToCloseListener) {
-			this._pressAnyKeyToCloseListener.dispose();
-			this._pressAnyKeyToCloseListener = undefined;
+		if (this._pwessAnyKeyToCwoseWistena) {
+			this._pwessAnyKeyToCwoseWistena.dispose();
+			this._pwessAnyKeyToCwoseWistena = undefined;
 		}
 
-		this._processManager.dispose(immediate);
-		// Process manager dispose/shutdown doesn't fire process exit, trigger with undefined if it
+		this._pwocessManaga.dispose(immediate);
+		// Pwocess managa dispose/shutdown doesn't fiwe pwocess exit, twigga with undefined if it
 		// hasn't happened yet
-		this._onProcessExit(undefined);
+		this._onPwocessExit(undefined);
 
 		if (!this._isDisposed) {
-			this._isDisposed = true;
-			this._onDisposed.fire(this);
+			this._isDisposed = twue;
+			this._onDisposed.fiwe(this);
 		}
-		super.dispose();
+		supa.dispose();
 	}
 
-	async detachFromProcess(): Promise<void> {
-		await this._processManager.detachFromProcess();
+	async detachFwomPwocess(): Pwomise<void> {
+		await this._pwocessManaga.detachFwomPwocess();
 		this.dispose();
 	}
 
-	forceRedraw(): void {
-		if (!this._xterm) {
-			return;
+	fowceWedwaw(): void {
+		if (!this._xtewm) {
+			wetuwn;
 		}
-		this._webglAddon?.clearTextureAtlas();
-		this._xterm?.clearTextureAtlas();
+		this._webgwAddon?.cweawTextuweAtwas();
+		this._xtewm?.cweawTextuweAtwas();
 	}
 
-	focus(force?: boolean): void {
-		this._refreshAltBufferContextKey();
-		if (!this._xterm) {
-			return;
+	focus(fowce?: boowean): void {
+		this._wefweshAwtBuffewContextKey();
+		if (!this._xtewm) {
+			wetuwn;
 		}
-		const selection = window.getSelection();
-		if (!selection) {
-			return;
+		const sewection = window.getSewection();
+		if (!sewection) {
+			wetuwn;
 		}
-		const text = selection.toString();
-		if (!text || force) {
-			this._xterm.focus();
+		const text = sewection.toStwing();
+		if (!text || fowce) {
+			this._xtewm.focus();
 		}
 	}
 
-	async focusWhenReady(force?: boolean): Promise<void> {
-		await this._xtermReadyPromise;
-		await this._attachBarrier.wait();
-		this.focus(force);
+	async focusWhenWeady(fowce?: boowean): Pwomise<void> {
+		await this._xtewmWeadyPwomise;
+		await this._attachBawwia.wait();
+		this.focus(fowce);
 	}
 
-	async paste(): Promise<void> {
-		if (!this._xterm) {
-			return;
-		}
-		this.focus();
-		this._xterm.paste(await this._clipboardService.readText());
-	}
-
-	async pasteSelection(): Promise<void> {
-		if (!this._xterm) {
-			return;
+	async paste(): Pwomise<void> {
+		if (!this._xtewm) {
+			wetuwn;
 		}
 		this.focus();
-		this._xterm.paste(await this._clipboardService.readText('selection'));
+		this._xtewm.paste(await this._cwipboawdSewvice.weadText());
 	}
 
-	async sendText(text: string, addNewLine: boolean): Promise<void> {
-		// Normalize line endings to 'enter' press.
-		text = text.replace(/\r?\n/g, '\r');
-		if (addNewLine && text.substr(text.length - 1) !== '\r') {
-			text += '\r';
+	async pasteSewection(): Pwomise<void> {
+		if (!this._xtewm) {
+			wetuwn;
+		}
+		this.focus();
+		this._xtewm.paste(await this._cwipboawdSewvice.weadText('sewection'));
+	}
+
+	async sendText(text: stwing, addNewWine: boowean): Pwomise<void> {
+		// Nowmawize wine endings to 'enta' pwess.
+		text = text.wepwace(/\w?\n/g, '\w');
+		if (addNewWine && text.substw(text.wength - 1) !== '\w') {
+			text += '\w';
 		}
 
-		// Send it to the process
-		await this._processManager.write(text);
-		this._onDidInputData.fire(this);
+		// Send it to the pwocess
+		await this._pwocessManaga.wwite(text);
+		this._onDidInputData.fiwe(this);
 	}
 
-	setVisible(visible: boolean): void {
-		this._isVisible = visible;
-		if (this._wrapperElement) {
-			this._wrapperElement.classList.toggle('active', visible);
+	setVisibwe(visibwe: boowean): void {
+		this._isVisibwe = visibwe;
+		if (this._wwappewEwement) {
+			this._wwappewEwement.cwassWist.toggwe('active', visibwe);
 		}
-		if (visible && this._xterm && this._xtermCore) {
-			// Resize to re-evaluate dimensions, this will ensure when switching to a terminal it is
-			// using the most up to date dimensions (eg. when terminal is created in the background
-			// using cached dimensions of a split terminal).
-			this._resize();
+		if (visibwe && this._xtewm && this._xtewmCowe) {
+			// Wesize to we-evawuate dimensions, this wiww ensuwe when switching to a tewminaw it is
+			// using the most up to date dimensions (eg. when tewminaw is cweated in the backgwound
+			// using cached dimensions of a spwit tewminaw).
+			this._wesize();
 
-			// Trigger a manual scroll event which will sync the viewport and scroll bar. This is
-			// necessary if the number of rows in the terminal has decreased while it was in the
-			// background since scrollTop changes take no effect but the terminal's position does
-			// change since the number of visible rows decreases.
-			// This can likely be removed after https://github.com/xtermjs/xterm.js/issues/291 is
-			// fixed upstream.
-			this._xtermCore._onScroll.fire(this._xterm.buffer.active.viewportY);
+			// Twigga a manuaw scwoww event which wiww sync the viewpowt and scwoww baw. This is
+			// necessawy if the numba of wows in the tewminaw has decweased whiwe it was in the
+			// backgwound since scwowwTop changes take no effect but the tewminaw's position does
+			// change since the numba of visibwe wows decweases.
+			// This can wikewy be wemoved afta https://github.com/xtewmjs/xtewm.js/issues/291 is
+			// fixed upstweam.
+			this._xtewmCowe._onScwoww.fiwe(this._xtewm.buffa.active.viewpowtY);
 		}
 	}
 
-	scrollDownLine(): void {
-		this._xterm?.scrollLines(1);
+	scwowwDownWine(): void {
+		this._xtewm?.scwowwWines(1);
 	}
 
-	scrollDownPage(): void {
-		this._xterm?.scrollPages(1);
+	scwowwDownPage(): void {
+		this._xtewm?.scwowwPages(1);
 	}
 
-	scrollToBottom(): void {
-		this._xterm?.scrollToBottom();
+	scwowwToBottom(): void {
+		this._xtewm?.scwowwToBottom();
 	}
 
-	scrollUpLine(): void {
-		this._xterm?.scrollLines(-1);
+	scwowwUpWine(): void {
+		this._xtewm?.scwowwWines(-1);
 	}
 
-	scrollUpPage(): void {
-		this._xterm?.scrollPages(-1);
+	scwowwUpPage(): void {
+		this._xtewm?.scwowwPages(-1);
 	}
 
-	scrollToTop(): void {
-		this._xterm?.scrollToTop();
+	scwowwToTop(): void {
+		this._xtewm?.scwowwToTop();
 	}
 
-	clear(): void {
-		this._xterm?.clear();
+	cweaw(): void {
+		this._xtewm?.cweaw();
 	}
 
-	private _refreshSelectionContextKey() {
-		const isActive = !!this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID);
-		let isEditorActive = false;
-		const editor = this._editorService.activeEditor;
-		if (editor) {
-			isEditorActive = editor instanceof TerminalEditorInput;
+	pwivate _wefweshSewectionContextKey() {
+		const isActive = !!this._viewsSewvice.getActiveViewWithId(TEWMINAW_VIEW_ID);
+		wet isEditowActive = fawse;
+		const editow = this._editowSewvice.activeEditow;
+		if (editow) {
+			isEditowActive = editow instanceof TewminawEditowInput;
 		}
-		this._terminalHasTextContextKey.set((isActive || isEditorActive) && this.hasSelection());
+		this._tewminawHasTextContextKey.set((isActive || isEditowActive) && this.hasSewection());
 	}
 
-	protected _createProcessManager(): void {
-		this._processManager = this._instantiationService.createInstance(TerminalProcessManager, this._instanceId, this._configHelper);
-		this._processManager.onProcessReady(async (e) => {
-			this._onProcessIdReady.fire(this);
-			this._initialCwd = await this.getInitialCwd();
-			this._capabilities = e.capabilities;
-			// Set the initial name based on the _resolved_ shell launch config, this will also
-			// ensure the resolved icon gets shown
-			if (!this._labelComputer) {
-				this._labelComputer = this._register(new TerminalLabelComputer(this._configHelper, this, this._workspaceContextService));
-				this._labelComputer.onDidChangeLabel(e => {
-					this._title = e.title;
-					this._description = e.description;
-					this._onTitleChanged.fire(this);
+	pwotected _cweatePwocessManaga(): void {
+		this._pwocessManaga = this._instantiationSewvice.cweateInstance(TewminawPwocessManaga, this._instanceId, this._configHewpa);
+		this._pwocessManaga.onPwocessWeady(async (e) => {
+			this._onPwocessIdWeady.fiwe(this);
+			this._initiawCwd = await this.getInitiawCwd();
+			this._capabiwities = e.capabiwities;
+			// Set the initiaw name based on the _wesowved_ sheww waunch config, this wiww awso
+			// ensuwe the wesowved icon gets shown
+			if (!this._wabewComputa) {
+				this._wabewComputa = this._wegista(new TewminawWabewComputa(this._configHewpa, this, this._wowkspaceContextSewvice));
+				this._wabewComputa.onDidChangeWabew(e => {
+					this._titwe = e.titwe;
+					this._descwiption = e.descwiption;
+					this._onTitweChanged.fiwe(this);
 				});
 			}
-			this._processManager.onDidChangeProperty(e => {
-				if (e.type === ProcessPropertyType.Cwd) {
-					this._cwd = e.value;
-					this._labelComputer?.refreshLabel();
-				} else if (e.type === ProcessPropertyType.InitialCwd) {
-					this._initialCwd = e.value;
-					this._cwd = this._initialCwd;
-					this.refreshTabLabels(this.title, TitleEventSource.Api);
+			this._pwocessManaga.onDidChangePwopewty(e => {
+				if (e.type === PwocessPwopewtyType.Cwd) {
+					this._cwd = e.vawue;
+					this._wabewComputa?.wefweshWabew();
+				} ewse if (e.type === PwocessPwopewtyType.InitiawCwd) {
+					this._initiawCwd = e.vawue;
+					this._cwd = this._initiawCwd;
+					this.wefweshTabWabews(this.titwe, TitweEventSouwce.Api);
 				}
 			});
-			if (this._shellLaunchConfig.name) {
-				this.refreshTabLabels(this._shellLaunchConfig.name, TitleEventSource.Api);
-			} else {
-				// Listen to xterm.js' sequence title change event, trigger this async to ensure
-				// _xtermReadyPromise is ready constructed since this is called from the ctor
+			if (this._shewwWaunchConfig.name) {
+				this.wefweshTabWabews(this._shewwWaunchConfig.name, TitweEventSouwce.Api);
+			} ewse {
+				// Wisten to xtewm.js' sequence titwe change event, twigga this async to ensuwe
+				// _xtewmWeadyPwomise is weady constwucted since this is cawwed fwom the ctow
 				setTimeout(() => {
-					this._xtermReadyPromise.then(xterm => {
-						this._messageTitleDisposable = xterm.onTitleChange(e => this._onTitleChange(e));
+					this._xtewmWeadyPwomise.then(xtewm => {
+						this._messageTitweDisposabwe = xtewm.onTitweChange(e => this._onTitweChange(e));
 					});
 				});
-				this.refreshTabLabels(this._shellLaunchConfig.executable, TitleEventSource.Process);
-				this._messageTitleDisposable = this._processManager.onProcessTitle(title => this.refreshTabLabels(title ? title : '', TitleEventSource.Process));
+				this.wefweshTabWabews(this._shewwWaunchConfig.executabwe, TitweEventSouwce.Pwocess);
+				this._messageTitweDisposabwe = this._pwocessManaga.onPwocessTitwe(titwe => this.wefweshTabWabews(titwe ? titwe : '', TitweEventSouwce.Pwocess));
 			}
 		});
-		this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
-		this._processManager.onProcessData(ev => {
-			this._initialDataEvents?.push(ev.data);
-			this._onData.fire(ev.data);
+		this._pwocessManaga.onPwocessExit(exitCode => this._onPwocessExit(exitCode));
+		this._pwocessManaga.onPwocessData(ev => {
+			this._initiawDataEvents?.push(ev.data);
+			this._onData.fiwe(ev.data);
 		});
-		this._processManager.onProcessOverrideDimensions(e => this.setDimensions(e, true));
-		this._processManager.onProcessResolvedShellLaunchConfig(e => this._setResolvedShellLaunchConfig(e));
-		this._processManager.onProcessDidChangeHasChildProcesses(e => this._onDidChangeHasChildProcesses.fire(e));
-		this._processManager.onEnvironmentVariableInfoChanged(e => this._onEnvironmentVariableInfoChanged(e));
-		this._processManager.onProcessShellTypeChanged(type => this.setShellType(type));
-		this._processManager.onPtyDisconnect(() => {
-			this._safeSetOption('disableStdin', true);
-			this.statusList.add({
-				id: TerminalStatus.Disconnected,
-				severity: Severity.Error,
+		this._pwocessManaga.onPwocessOvewwideDimensions(e => this.setDimensions(e, twue));
+		this._pwocessManaga.onPwocessWesowvedShewwWaunchConfig(e => this._setWesowvedShewwWaunchConfig(e));
+		this._pwocessManaga.onPwocessDidChangeHasChiwdPwocesses(e => this._onDidChangeHasChiwdPwocesses.fiwe(e));
+		this._pwocessManaga.onEnviwonmentVawiabweInfoChanged(e => this._onEnviwonmentVawiabweInfoChanged(e));
+		this._pwocessManaga.onPwocessShewwTypeChanged(type => this.setShewwType(type));
+		this._pwocessManaga.onPtyDisconnect(() => {
+			this._safeSetOption('disabweStdin', twue);
+			this.statusWist.add({
+				id: TewminawStatus.Disconnected,
+				sevewity: Sevewity.Ewwow,
 				icon: Codicon.debugDisconnect,
-				tooltip: nls.localize('disconnectStatus', "Lost connection to process")
+				toowtip: nws.wocawize('disconnectStatus', "Wost connection to pwocess")
 			});
 		});
-		this._processManager.onPtyReconnect(() => {
-			this._safeSetOption('disableStdin', false);
-			this.statusList.remove(TerminalStatus.Disconnected);
+		this._pwocessManaga.onPtyWeconnect(() => {
+			this._safeSetOption('disabweStdin', fawse);
+			this.statusWist.wemove(TewminawStatus.Disconnected);
 		});
 	}
 
-	private async _createProcess(): Promise<void> {
+	pwivate async _cweatePwocess(): Pwomise<void> {
 		if (this._isDisposed) {
-			return;
+			wetuwn;
 		}
 
-		// Re-evaluate dimensions if the container has been set since the xterm instance was created
-		if (this._container && this._cols === 0 && this._rows === 0) {
+		// We-evawuate dimensions if the containa has been set since the xtewm instance was cweated
+		if (this._containa && this._cows === 0 && this._wows === 0) {
 			this._initDimensions();
-			this._xterm?.resize(this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows);
+			this._xtewm?.wesize(this._cows || Constants.DefauwtCows, this._wows || Constants.DefauwtWows);
 		}
 
-		const hadIcon = !!this.shellLaunchConfig.icon;
-		await this._processManager.createProcess(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows, this._accessibilityService.isScreenReaderOptimized()).then(error => {
-			if (error) {
-				this._onProcessExit(error);
+		const hadIcon = !!this.shewwWaunchConfig.icon;
+		await this._pwocessManaga.cweatePwocess(this._shewwWaunchConfig, this._cows || Constants.DefauwtCows, this._wows || Constants.DefauwtWows, this._accessibiwitySewvice.isScweenWeadewOptimized()).then(ewwow => {
+			if (ewwow) {
+				this._onPwocessExit(ewwow);
 			}
 		});
-		if (!hadIcon && this.shellLaunchConfig.icon || this.shellLaunchConfig.color) {
-			this._onIconChanged.fire(this);
+		if (!hadIcon && this.shewwWaunchConfig.icon || this.shewwWaunchConfig.cowow) {
+			this._onIconChanged.fiwe(this);
 		}
 	}
 
-	private _onProcessData(ev: IProcessDataEvent): void {
-		const messageId = ++this._latestXtermWriteData;
-		if (ev.trackCommit) {
-			ev.writePromise = new Promise<void>(r => {
-				this._xterm?.write(ev.data, () => {
-					this._latestXtermParseData = messageId;
-					this._processManager.acknowledgeDataEvent(ev.data.length);
-					r();
+	pwivate _onPwocessData(ev: IPwocessDataEvent): void {
+		const messageId = ++this._watestXtewmWwiteData;
+		if (ev.twackCommit) {
+			ev.wwitePwomise = new Pwomise<void>(w => {
+				this._xtewm?.wwite(ev.data, () => {
+					this._watestXtewmPawseData = messageId;
+					this._pwocessManaga.acknowwedgeDataEvent(ev.data.wength);
+					w();
 				});
 			});
-		} else {
-			this._xterm?.write(ev.data, () => {
-				this._latestXtermParseData = messageId;
-				this._processManager.acknowledgeDataEvent(ev.data.length);
+		} ewse {
+			this._xtewm?.wwite(ev.data, () => {
+				this._watestXtewmPawseData = messageId;
+				this._pwocessManaga.acknowwedgeDataEvent(ev.data.wength);
 			});
 		}
 	}
 
 	/**
-	 * Called when either a process tied to a terminal has exited or when a terminal renderer
-	 * simulates a process exiting (e.g. custom execution task).
-	 * @param exitCode The exit code of the process, this is undefined when the terminal was exited
-	 * through user action.
+	 * Cawwed when eitha a pwocess tied to a tewminaw has exited ow when a tewminaw wendewa
+	 * simuwates a pwocess exiting (e.g. custom execution task).
+	 * @pawam exitCode The exit code of the pwocess, this is undefined when the tewminaw was exited
+	 * thwough usa action.
 	 */
-	private async _onProcessExit(exitCodeOrError?: number | ITerminalLaunchError): Promise<void> {
-		// Prevent dispose functions being triggered multiple times
+	pwivate async _onPwocessExit(exitCodeOwEwwow?: numba | ITewminawWaunchEwwow): Pwomise<void> {
+		// Pwevent dispose functions being twiggewed muwtipwe times
 		if (this._isExiting) {
-			return;
+			wetuwn;
 		}
 
-		this._isExiting = true;
+		this._isExiting = twue;
 
-		await this._flushXtermData();
-		this._logService.debug(`Terminal process exit (instanceId: ${this.instanceId}) with code ${this._exitCode}`);
+		await this._fwushXtewmData();
+		this._wogSewvice.debug(`Tewminaw pwocess exit (instanceId: ${this.instanceId}) with code ${this._exitCode}`);
 
-		let exitCodeMessage: string | undefined;
+		wet exitCodeMessage: stwing | undefined;
 
-		// Create exit code message
-		switch (typeof exitCodeOrError) {
-			case 'number':
-				// Only show the error if the exit code is non-zero
-				this._exitCode = exitCodeOrError;
+		// Cweate exit code message
+		switch (typeof exitCodeOwEwwow) {
+			case 'numba':
+				// Onwy show the ewwow if the exit code is non-zewo
+				this._exitCode = exitCodeOwEwwow;
 				if (this._exitCode === 0) {
-					break;
+					bweak;
 				}
 
-				let commandLine: string | undefined = undefined;
-				if (this._shellLaunchConfig.executable) {
-					commandLine = this._shellLaunchConfig.executable;
-					if (typeof this._shellLaunchConfig.args === 'string') {
-						commandLine += ` ${this._shellLaunchConfig.args}`;
-					} else if (this._shellLaunchConfig.args && this._shellLaunchConfig.args.length) {
-						commandLine += this._shellLaunchConfig.args.map(a => ` '${a}'`).join();
+				wet commandWine: stwing | undefined = undefined;
+				if (this._shewwWaunchConfig.executabwe) {
+					commandWine = this._shewwWaunchConfig.executabwe;
+					if (typeof this._shewwWaunchConfig.awgs === 'stwing') {
+						commandWine += ` ${this._shewwWaunchConfig.awgs}`;
+					} ewse if (this._shewwWaunchConfig.awgs && this._shewwWaunchConfig.awgs.wength) {
+						commandWine += this._shewwWaunchConfig.awgs.map(a => ` '${a}'`).join();
 					}
 				}
 
-				if (this._processManager.processState === ProcessState.KilledDuringLaunch) {
-					if (commandLine) {
-						exitCodeMessage = nls.localize('launchFailed.exitCodeAndCommandLine', "The terminal process \"{0}\" failed to launch (exit code: {1}).", commandLine, this._exitCode);
-						break;
+				if (this._pwocessManaga.pwocessState === PwocessState.KiwwedDuwingWaunch) {
+					if (commandWine) {
+						exitCodeMessage = nws.wocawize('waunchFaiwed.exitCodeAndCommandWine', "The tewminaw pwocess \"{0}\" faiwed to waunch (exit code: {1}).", commandWine, this._exitCode);
+						bweak;
 					}
-					exitCodeMessage = nls.localize('launchFailed.exitCodeOnly', "The terminal process failed to launch (exit code: {0}).", this._exitCode);
-					break;
+					exitCodeMessage = nws.wocawize('waunchFaiwed.exitCodeOnwy', "The tewminaw pwocess faiwed to waunch (exit code: {0}).", this._exitCode);
+					bweak;
 				}
-				if (commandLine) {
-					exitCodeMessage = nls.localize('terminated.exitCodeAndCommandLine', "The terminal process \"{0}\" terminated with exit code: {1}.", commandLine, this._exitCode);
-					break;
+				if (commandWine) {
+					exitCodeMessage = nws.wocawize('tewminated.exitCodeAndCommandWine', "The tewminaw pwocess \"{0}\" tewminated with exit code: {1}.", commandWine, this._exitCode);
+					bweak;
 				}
-				exitCodeMessage = nls.localize('terminated.exitCodeOnly', "The terminal process terminated with exit code: {0}.", this._exitCode);
-				break;
+				exitCodeMessage = nws.wocawize('tewminated.exitCodeOnwy', "The tewminaw pwocess tewminated with exit code: {0}.", this._exitCode);
+				bweak;
 			case 'object':
-				if (exitCodeOrError.message.toString().includes('Could not find pty with id')) {
-					break;
+				if (exitCodeOwEwwow.message.toStwing().incwudes('Couwd not find pty with id')) {
+					bweak;
 				}
-				this._exitCode = exitCodeOrError.code;
-				exitCodeMessage = nls.localize('launchFailed.errorMessage', "The terminal process failed to launch: {0}.", exitCodeOrError.message);
-				break;
+				this._exitCode = exitCodeOwEwwow.code;
+				exitCodeMessage = nws.wocawize('waunchFaiwed.ewwowMessage', "The tewminaw pwocess faiwed to waunch: {0}.", exitCodeOwEwwow.message);
+				bweak;
 		}
 
-		this._logService.debug(`Terminal process exit (instanceId: ${this.instanceId}) state ${this._processManager.processState}`);
+		this._wogSewvice.debug(`Tewminaw pwocess exit (instanceId: ${this.instanceId}) state ${this._pwocessManaga.pwocessState}`);
 
-		// Only trigger wait on exit when the exit was *not* triggered by the
-		// user (via the `workbench.action.terminal.kill` command).
-		if (this._shellLaunchConfig.waitOnExit && this._processManager.processState !== ProcessState.KilledByUser) {
-			this._xtermReadyPromise.then(xterm => {
+		// Onwy twigga wait on exit when the exit was *not* twiggewed by the
+		// usa (via the `wowkbench.action.tewminaw.kiww` command).
+		if (this._shewwWaunchConfig.waitOnExit && this._pwocessManaga.pwocessState !== PwocessState.KiwwedByUsa) {
+			this._xtewmWeadyPwomise.then(xtewm => {
 				if (exitCodeMessage) {
-					xterm.writeln(exitCodeMessage);
+					xtewm.wwitewn(exitCodeMessage);
 				}
-				if (typeof this._shellLaunchConfig.waitOnExit === 'string') {
-					xterm.write(formatMessageForTerminal(this._shellLaunchConfig.waitOnExit));
+				if (typeof this._shewwWaunchConfig.waitOnExit === 'stwing') {
+					xtewm.wwite(fowmatMessageFowTewminaw(this._shewwWaunchConfig.waitOnExit));
 				}
-				// Disable all input if the terminal is exiting and listen for next keypress
-				xterm.setOption('disableStdin', true);
-				if (xterm.textarea) {
-					this._attachPressAnyKeyToCloseListener(xterm);
+				// Disabwe aww input if the tewminaw is exiting and wisten fow next keypwess
+				xtewm.setOption('disabweStdin', twue);
+				if (xtewm.textawea) {
+					this._attachPwessAnyKeyToCwoseWistena(xtewm);
 				}
 			});
-		} else {
+		} ewse {
 			this.dispose();
 			if (exitCodeMessage) {
-				const failedDuringLaunch = this._processManager.processState === ProcessState.KilledDuringLaunch;
-				if (failedDuringLaunch || this._configHelper.config.showExitAlert) {
-					// Always show launch failures
-					this._notificationService.notify({
+				const faiwedDuwingWaunch = this._pwocessManaga.pwocessState === PwocessState.KiwwedDuwingWaunch;
+				if (faiwedDuwingWaunch || this._configHewpa.config.showExitAwewt) {
+					// Awways show waunch faiwuwes
+					this._notificationSewvice.notify({
 						message: exitCodeMessage,
-						severity: Severity.Error,
-						actions: { primary: [this._instantiationService.createInstance(TerminalLaunchHelpAction)] }
+						sevewity: Sevewity.Ewwow,
+						actions: { pwimawy: [this._instantiationSewvice.cweateInstance(TewminawWaunchHewpAction)] }
 					});
-				} else {
-					// Log to help surface the error in case users report issues with showExitAlert
-					// disabled
-					this._logService.warn(exitCodeMessage);
+				} ewse {
+					// Wog to hewp suwface the ewwow in case usews wepowt issues with showExitAwewt
+					// disabwed
+					this._wogSewvice.wawn(exitCodeMessage);
 				}
 			}
 		}
 
-		// First onExit to consumers, this can happen after the terminal has already been disposed.
-		this._onExit.fire(this._exitCode);
+		// Fiwst onExit to consumews, this can happen afta the tewminaw has awweady been disposed.
+		this._onExit.fiwe(this._exitCode);
 
-		// Dispose of the onExit event if the terminal will not be reused again
+		// Dispose of the onExit event if the tewminaw wiww not be weused again
 		if (this._isDisposed) {
 			this._onExit.dispose();
 		}
 	}
 
 	/**
-	 * Ensure write calls to xterm.js have finished before resolving.
+	 * Ensuwe wwite cawws to xtewm.js have finished befowe wesowving.
 	 */
-	private _flushXtermData(): Promise<void> {
-		if (this._latestXtermWriteData === this._latestXtermParseData) {
-			return Promise.resolve();
+	pwivate _fwushXtewmData(): Pwomise<void> {
+		if (this._watestXtewmWwiteData === this._watestXtewmPawseData) {
+			wetuwn Pwomise.wesowve();
 		}
-		let retries = 0;
-		return new Promise<void>(r => {
-			const interval = setInterval(() => {
-				if (this._latestXtermWriteData === this._latestXtermParseData || ++retries === 5) {
-					clearInterval(interval);
-					r();
+		wet wetwies = 0;
+		wetuwn new Pwomise<void>(w => {
+			const intewvaw = setIntewvaw(() => {
+				if (this._watestXtewmWwiteData === this._watestXtewmPawseData || ++wetwies === 5) {
+					cweawIntewvaw(intewvaw);
+					w();
 				}
 			}, 20);
 		});
 	}
 
-	private _attachPressAnyKeyToCloseListener(xterm: XTermTerminal) {
-		if (xterm.textarea && !this._pressAnyKeyToCloseListener) {
-			this._pressAnyKeyToCloseListener = dom.addDisposableListener(xterm.textarea, 'keypress', (event: KeyboardEvent) => {
-				if (this._pressAnyKeyToCloseListener) {
-					this._pressAnyKeyToCloseListener.dispose();
-					this._pressAnyKeyToCloseListener = undefined;
+	pwivate _attachPwessAnyKeyToCwoseWistena(xtewm: XTewmTewminaw) {
+		if (xtewm.textawea && !this._pwessAnyKeyToCwoseWistena) {
+			this._pwessAnyKeyToCwoseWistena = dom.addDisposabweWistena(xtewm.textawea, 'keypwess', (event: KeyboawdEvent) => {
+				if (this._pwessAnyKeyToCwoseWistena) {
+					this._pwessAnyKeyToCwoseWistena.dispose();
+					this._pwessAnyKeyToCwoseWistena = undefined;
 					this.dispose();
-					event.preventDefault();
+					event.pweventDefauwt();
 				}
 			});
 		}
 	}
 
-	async reuseTerminal(shell: IShellLaunchConfig, reset: boolean = false): Promise<void> {
-		// Unsubscribe any key listener we may have.
-		this._pressAnyKeyToCloseListener?.dispose();
-		this._pressAnyKeyToCloseListener = undefined;
+	async weuseTewminaw(sheww: IShewwWaunchConfig, weset: boowean = fawse): Pwomise<void> {
+		// Unsubscwibe any key wistena we may have.
+		this._pwessAnyKeyToCwoseWistena?.dispose();
+		this._pwessAnyKeyToCwoseWistena = undefined;
 
-		if (this._xterm) {
-			if (!reset) {
-				// Ensure new processes' output starts at start of new line
-				await new Promise<void>(r => this._xterm!.write('\n\x1b[G', r));
+		if (this._xtewm) {
+			if (!weset) {
+				// Ensuwe new pwocesses' output stawts at stawt of new wine
+				await new Pwomise<void>(w => this._xtewm!.wwite('\n\x1b[G', w));
 			}
 
-			// Print initialText if specified
-			if (shell.initialText) {
-				await new Promise<void>(r => this._xterm!.writeln(shell.initialText!, r));
+			// Pwint initiawText if specified
+			if (sheww.initiawText) {
+				await new Pwomise<void>(w => this._xtewm!.wwitewn(sheww.initiawText!, w));
 			}
 
-			// Clean up waitOnExit state
-			if (this._isExiting && this._shellLaunchConfig.waitOnExit) {
-				this._xterm.setOption('disableStdin', false);
-				this._isExiting = false;
+			// Cwean up waitOnExit state
+			if (this._isExiting && this._shewwWaunchConfig.waitOnExit) {
+				this._xtewm.setOption('disabweStdin', fawse);
+				this._isExiting = fawse;
 			}
 		}
 
-		// Dispose the environment info widget if it exists
-		this.statusList.remove(TerminalStatus.RelaunchNeeded);
-		this._environmentInfo?.disposable.dispose();
-		this._environmentInfo = undefined;
+		// Dispose the enviwonment info widget if it exists
+		this.statusWist.wemove(TewminawStatus.WewaunchNeeded);
+		this._enviwonmentInfo?.disposabwe.dispose();
+		this._enviwonmentInfo = undefined;
 
-		if (!reset) {
-			// HACK: Force initialText to be non-falsy for reused terminals such that the
-			// conptyInheritCursor flag is passed to the node-pty, this flag can cause a Window to stop
-			// responding in Windows 10 1903 so we only want to use it when something is definitely written
-			// to the terminal.
-			shell.initialText = ' ';
+		if (!weset) {
+			// HACK: Fowce initiawText to be non-fawsy fow weused tewminaws such that the
+			// conptyInhewitCuwsow fwag is passed to the node-pty, this fwag can cause a Window to stop
+			// wesponding in Windows 10 1903 so we onwy want to use it when something is definitewy wwitten
+			// to the tewminaw.
+			sheww.initiawText = ' ';
 		}
 
-		// Set the new shell launch config
-		this._shellLaunchConfig = shell; // Must be done before calling _createProcess()
+		// Set the new sheww waunch config
+		this._shewwWaunchConfig = sheww; // Must be done befowe cawwing _cweatePwocess()
 
-		this._processManager.relaunch(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows, this._accessibilityService.isScreenReaderOptimized(), reset);
+		this._pwocessManaga.wewaunch(this._shewwWaunchConfig, this._cows || Constants.DefauwtCows, this._wows || Constants.DefauwtWows, this._accessibiwitySewvice.isScweenWeadewOptimized(), weset);
 
-		this._xtermTypeAhead?.reset();
+		this._xtewmTypeAhead?.weset();
 	}
 
 	@debounce(1000)
-	relaunch(): void {
-		this.reuseTerminal(this._shellLaunchConfig, true);
+	wewaunch(): void {
+		this.weuseTewminaw(this._shewwWaunchConfig, twue);
 	}
 
-	private _onLineFeed(): void {
-		const buffer = this._xterm!.buffer;
-		const newLine = buffer.active.getLine(buffer.active.baseY + buffer.active.cursorY);
-		if (newLine && !newLine.isWrapped) {
-			this._sendLineData(buffer.active, buffer.active.baseY + buffer.active.cursorY - 1);
+	pwivate _onWineFeed(): void {
+		const buffa = this._xtewm!.buffa;
+		const newWine = buffa.active.getWine(buffa.active.baseY + buffa.active.cuwsowY);
+		if (newWine && !newWine.isWwapped) {
+			this._sendWineData(buffa.active, buffa.active.baseY + buffa.active.cuwsowY - 1);
 		}
 	}
 
-	private _onCursorMove(): void {
-		const buffer = this._xterm!.buffer;
-		this._sendLineData(buffer.active, buffer.active.baseY + buffer.active.cursorY);
+	pwivate _onCuwsowMove(): void {
+		const buffa = this._xtewm!.buffa;
+		this._sendWineData(buffa.active, buffa.active.baseY + buffa.active.cuwsowY);
 	}
 
-	private _onTitleChange(title: string): void {
-		if (this.isTitleSetByProcess) {
-			this.refreshTabLabels(title, TitleEventSource.Sequence);
+	pwivate _onTitweChange(titwe: stwing): void {
+		if (this.isTitweSetByPwocess) {
+			this.wefweshTabWabews(titwe, TitweEventSouwce.Sequence);
 		}
 	}
 
-	private _sendLineData(buffer: IBuffer, lineIndex: number): void {
-		let line = buffer.getLine(lineIndex);
-		if (!line) {
-			return;
+	pwivate _sendWineData(buffa: IBuffa, wineIndex: numba): void {
+		wet wine = buffa.getWine(wineIndex);
+		if (!wine) {
+			wetuwn;
 		}
-		let lineData = line.translateToString(true);
-		while (lineIndex > 0 && line.isWrapped) {
-			line = buffer.getLine(--lineIndex);
-			if (!line) {
-				break;
+		wet wineData = wine.twanswateToStwing(twue);
+		whiwe (wineIndex > 0 && wine.isWwapped) {
+			wine = buffa.getWine(--wineIndex);
+			if (!wine) {
+				bweak;
 			}
-			lineData = line.translateToString(false) + lineData;
+			wineData = wine.twanswateToStwing(fawse) + wineData;
 		}
-		this._onLineData.fire(lineData);
+		this._onWineData.fiwe(wineData);
 	}
 
-	private _onKey(key: string, ev: KeyboardEvent): void {
-		const event = new StandardKeyboardEvent(ev);
+	pwivate _onKey(key: stwing, ev: KeyboawdEvent): void {
+		const event = new StandawdKeyboawdEvent(ev);
 
-		if (event.equals(KeyCode.Enter)) {
-			this._updateProcessCwd();
+		if (event.equaws(KeyCode.Enta)) {
+			this._updatePwocessCwd();
 		}
 	}
 
-	private async _onSelectionChange(): Promise<void> {
-		if (this._configurationService.getValue(TerminalSettingId.CopyOnSelection)) {
-			if (this.hasSelection()) {
-				await this.copySelection();
+	pwivate async _onSewectionChange(): Pwomise<void> {
+		if (this._configuwationSewvice.getVawue(TewminawSettingId.CopyOnSewection)) {
+			if (this.hasSewection()) {
+				await this.copySewection();
 			}
 		}
 	}
 
 	@debounce(2000)
-	private async _updateProcessCwd(): Promise<string> {
-		// reset cwd if it has changed, so file based url paths can be resolved
-		const cwd = await this.refreshProperty(ProcessPropertyType.Cwd);
-		if (cwd && this._linkManager) {
-			this._linkManager.processCwd = cwd;
+	pwivate async _updatePwocessCwd(): Pwomise<stwing> {
+		// weset cwd if it has changed, so fiwe based uww paths can be wesowved
+		const cwd = await this.wefweshPwopewty(PwocessPwopewtyType.Cwd);
+		if (cwd && this._winkManaga) {
+			this._winkManaga.pwocessCwd = cwd;
 		}
-		return cwd;
+		wetuwn cwd;
 	}
 
 	updateConfig(): void {
-		const config = this._configHelper.config;
-		this._safeSetOption('altClickMovesCursor', config.altClickMovesCursor);
-		this._setCursorBlink(config.cursorBlinking);
-		this._setCursorStyle(config.cursorStyle);
-		this._setCursorWidth(config.cursorWidth);
-		this._setCommandsToSkipShell(config.commandsToSkipShell);
-		this._safeSetOption('scrollback', config.scrollback);
-		this._safeSetOption('drawBoldTextInBrightColors', config.drawBoldTextInBrightColors);
-		this._safeSetOption('minimumContrastRatio', config.minimumContrastRatio);
-		this._safeSetOption('fastScrollSensitivity', config.fastScrollSensitivity);
-		this._safeSetOption('scrollSensitivity', config.mouseWheelScrollSensitivity);
+		const config = this._configHewpa.config;
+		this._safeSetOption('awtCwickMovesCuwsow', config.awtCwickMovesCuwsow);
+		this._setCuwsowBwink(config.cuwsowBwinking);
+		this._setCuwsowStywe(config.cuwsowStywe);
+		this._setCuwsowWidth(config.cuwsowWidth);
+		this._setCommandsToSkipSheww(config.commandsToSkipSheww);
+		this._safeSetOption('scwowwback', config.scwowwback);
+		this._safeSetOption('dwawBowdTextInBwightCowows', config.dwawBowdTextInBwightCowows);
+		this._safeSetOption('minimumContwastWatio', config.minimumContwastWatio);
+		this._safeSetOption('fastScwowwSensitivity', config.fastScwowwSensitivity);
+		this._safeSetOption('scwowwSensitivity', config.mouseWheewScwowwSensitivity);
 		this._safeSetOption('macOptionIsMeta', config.macOptionIsMeta);
-		const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
-		this._safeSetOption('altClickMovesCursor', config.altClickMovesCursor && editorOptions.multiCursorModifier === 'alt');
-		this._safeSetOption('macOptionClickForcesSelection', config.macOptionClickForcesSelection);
-		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
-		this._safeSetOption('wordSeparator', config.wordSeparators);
-		this._safeSetOption('customGlyphs', config.customGlyphs);
-		const suggestedRendererType = TerminalInstance._suggestedRendererType;
-		// @meganrogge @Tyriar remove if the issue related to iPads and webgl is resolved
-		if ((!isSafari && config.gpuAcceleration === 'auto' && suggestedRendererType === undefined) || config.gpuAcceleration === 'on') {
-			this._enableWebglRenderer();
-		} else {
-			this._disposeOfWebglRenderer();
-			this._safeSetOption('rendererType', this._getBuiltInXtermRenderer(config.gpuAcceleration, suggestedRendererType));
+		const editowOptions = this._configuwationSewvice.getVawue<IEditowOptions>('editow');
+		this._safeSetOption('awtCwickMovesCuwsow', config.awtCwickMovesCuwsow && editowOptions.muwtiCuwsowModifia === 'awt');
+		this._safeSetOption('macOptionCwickFowcesSewection', config.macOptionCwickFowcesSewection);
+		this._safeSetOption('wightCwickSewectsWowd', config.wightCwickBehaviow === 'sewectWowd');
+		this._safeSetOption('wowdSepawatow', config.wowdSepawatows);
+		this._safeSetOption('customGwyphs', config.customGwyphs);
+		const suggestedWendewewType = TewminawInstance._suggestedWendewewType;
+		// @meganwogge @Tywiaw wemove if the issue wewated to iPads and webgw is wesowved
+		if ((!isSafawi && config.gpuAccewewation === 'auto' && suggestedWendewewType === undefined) || config.gpuAccewewation === 'on') {
+			this._enabweWebgwWendewa();
+		} ewse {
+			this._disposeOfWebgwWendewa();
+			this._safeSetOption('wendewewType', this._getBuiwtInXtewmWendewa(config.gpuAccewewation, suggestedWendewewType));
 		}
-		this._refreshEnvironmentVariableInfoWidgetState(this._processManager.environmentVariableInfo);
+		this._wefweshEnviwonmentVawiabweInfoWidgetState(this._pwocessManaga.enviwonmentVawiabweInfo);
 	}
 
-	private _getBuiltInXtermRenderer(gpuAcceleration: string, suggestedRendererType?: string): RendererType {
-		let rendererType: RendererType = 'canvas';
-		if (gpuAcceleration === 'off' || (gpuAcceleration === 'auto' && suggestedRendererType === 'dom')) {
-			rendererType = 'dom';
+	pwivate _getBuiwtInXtewmWendewa(gpuAccewewation: stwing, suggestedWendewewType?: stwing): WendewewType {
+		wet wendewewType: WendewewType = 'canvas';
+		if (gpuAccewewation === 'off' || (gpuAccewewation === 'auto' && suggestedWendewewType === 'dom')) {
+			wendewewType = 'dom';
 		}
-		return rendererType;
+		wetuwn wendewewType;
 	}
 
-	private async _enableWebglRenderer(): Promise<void> {
-		if (!this._xterm?.element || this._webglAddon) {
-			return;
+	pwivate async _enabweWebgwWendewa(): Pwomise<void> {
+		if (!this._xtewm?.ewement || this._webgwAddon) {
+			wetuwn;
 		}
-		const Addon = await this._terminalInstanceService.getXtermWebglConstructor();
-		this._webglAddon = new Addon();
-		try {
-			this._xterm.loadAddon(this._webglAddon);
-			this._webglAddon.onContextLoss(() => {
-				this._logService.info(`Webgl lost context, disposing of webgl renderer`);
-				this._disposeOfWebglRenderer();
-				this._safeSetOption('rendererType', 'dom');
+		const Addon = await this._tewminawInstanceSewvice.getXtewmWebgwConstwuctow();
+		this._webgwAddon = new Addon();
+		twy {
+			this._xtewm.woadAddon(this._webgwAddon);
+			this._webgwAddon.onContextWoss(() => {
+				this._wogSewvice.info(`Webgw wost context, disposing of webgw wendewa`);
+				this._disposeOfWebgwWendewa();
+				this._safeSetOption('wendewewType', 'dom');
 			});
 		} catch (e) {
-			this._logService.warn(`Webgl could not be loaded. Falling back to the canvas renderer type.`, e);
-			const neverMeasureRenderTime = this._storageService.getBoolean(TerminalStorageKeys.NeverMeasureRenderTime, StorageScope.GLOBAL, false);
-			// if it's already set to dom, no need to measure render time
-			if (!neverMeasureRenderTime && this._configHelper.config.gpuAcceleration !== 'off') {
-				this._measureRenderTime();
+			this._wogSewvice.wawn(`Webgw couwd not be woaded. Fawwing back to the canvas wendewa type.`, e);
+			const nevewMeasuweWendewTime = this._stowageSewvice.getBoowean(TewminawStowageKeys.NevewMeasuweWendewTime, StowageScope.GWOBAW, fawse);
+			// if it's awweady set to dom, no need to measuwe wenda time
+			if (!nevewMeasuweWendewTime && this._configHewpa.config.gpuAccewewation !== 'off') {
+				this._measuweWendewTime();
 			}
-			this._safeSetOption('rendererType', 'canvas');
-			TerminalInstance._suggestedRendererType = 'canvas';
-			this._disposeOfWebglRenderer();
+			this._safeSetOption('wendewewType', 'canvas');
+			TewminawInstance._suggestedWendewewType = 'canvas';
+			this._disposeOfWebgwWendewa();
 		}
 	}
 
-	private _disposeOfWebglRenderer(): void {
-		try {
-			this._webglAddon?.dispose();
+	pwivate _disposeOfWebgwWendewa(): void {
+		twy {
+			this._webgwAddon?.dispose();
 		} catch {
-			// ignore
+			// ignowe
 		}
-		this._webglAddon = undefined;
+		this._webgwAddon = undefined;
 	}
 
-	private async _updateUnicodeVersion(): Promise<void> {
-		if (!this._xterm) {
-			throw new Error('Cannot update unicode version before xterm has been initialized');
+	pwivate async _updateUnicodeVewsion(): Pwomise<void> {
+		if (!this._xtewm) {
+			thwow new Ewwow('Cannot update unicode vewsion befowe xtewm has been initiawized');
 		}
-		if (!this._xtermUnicode11 && this._configHelper.config.unicodeVersion === '11') {
-			const Addon = await this._terminalInstanceService.getXtermUnicode11Constructor();
-			this._xtermUnicode11 = new Addon();
-			this._xterm.loadAddon(this._xtermUnicode11);
+		if (!this._xtewmUnicode11 && this._configHewpa.config.unicodeVewsion === '11') {
+			const Addon = await this._tewminawInstanceSewvice.getXtewmUnicode11Constwuctow();
+			this._xtewmUnicode11 = new Addon();
+			this._xtewm.woadAddon(this._xtewmUnicode11);
 		}
-		if (this._xterm.unicode.activeVersion !== this._configHelper.config.unicodeVersion) {
-			this._xterm.unicode.activeVersion = this._configHelper.config.unicodeVersion;
-			this._processManager.setUnicodeVersion(this._configHelper.config.unicodeVersion);
+		if (this._xtewm.unicode.activeVewsion !== this._configHewpa.config.unicodeVewsion) {
+			this._xtewm.unicode.activeVewsion = this._configHewpa.config.unicodeVewsion;
+			this._pwocessManaga.setUnicodeVewsion(this._configHewpa.config.unicodeVewsion);
 		}
 	}
 
-	updateAccessibilitySupport(): void {
-		const isEnabled = this._accessibilityService.isScreenReaderOptimized();
-		if (isEnabled) {
-			this._navigationModeAddon = new NavigationModeAddon(this._terminalA11yTreeFocusContextKey);
-			this._xterm!.loadAddon(this._navigationModeAddon);
-		} else {
+	updateAccessibiwitySuppowt(): void {
+		const isEnabwed = this._accessibiwitySewvice.isScweenWeadewOptimized();
+		if (isEnabwed) {
+			this._navigationModeAddon = new NavigationModeAddon(this._tewminawA11yTweeFocusContextKey);
+			this._xtewm!.woadAddon(this._navigationModeAddon);
+		} ewse {
 			this._navigationModeAddon?.dispose();
 			this._navigationModeAddon = undefined;
 		}
-		this._xterm!.setOption('screenReaderMode', isEnabled);
+		this._xtewm!.setOption('scweenWeadewMode', isEnabwed);
 	}
 
-	private _setCursorBlink(blink: boolean): void {
-		if (this._xterm && this._xterm.getOption('cursorBlink') !== blink) {
-			this._xterm.setOption('cursorBlink', blink);
-			this._xterm.refresh(0, this._xterm.rows - 1);
+	pwivate _setCuwsowBwink(bwink: boowean): void {
+		if (this._xtewm && this._xtewm.getOption('cuwsowBwink') !== bwink) {
+			this._xtewm.setOption('cuwsowBwink', bwink);
+			this._xtewm.wefwesh(0, this._xtewm.wows - 1);
 		}
 	}
 
-	private _setCursorStyle(style: string): void {
-		if (this._xterm && this._xterm.getOption('cursorStyle') !== style) {
-			// 'line' is used instead of bar in VS Code to be consistent with editor.cursorStyle
-			const xtermOption = style === 'line' ? 'bar' : style;
-			this._xterm.setOption('cursorStyle', xtermOption);
+	pwivate _setCuwsowStywe(stywe: stwing): void {
+		if (this._xtewm && this._xtewm.getOption('cuwsowStywe') !== stywe) {
+			// 'wine' is used instead of baw in VS Code to be consistent with editow.cuwsowStywe
+			const xtewmOption = stywe === 'wine' ? 'baw' : stywe;
+			this._xtewm.setOption('cuwsowStywe', xtewmOption);
 		}
 	}
 
-	private _setCursorWidth(width: number): void {
-		if (this._xterm && this._xterm.getOption('cursorWidth') !== width) {
-			this._xterm.setOption('cursorWidth', width);
+	pwivate _setCuwsowWidth(width: numba): void {
+		if (this._xtewm && this._xtewm.getOption('cuwsowWidth') !== width) {
+			this._xtewm.setOption('cuwsowWidth', width);
 		}
 	}
 
-	private _setCommandsToSkipShell(commands: string[]): void {
-		const excludeCommands = commands.filter(command => command[0] === '-').map(command => command.slice(1));
-		this._skipTerminalCommands = DEFAULT_COMMANDS_TO_SKIP_SHELL.filter(defaultCommand => {
-			return excludeCommands.indexOf(defaultCommand) === -1;
+	pwivate _setCommandsToSkipSheww(commands: stwing[]): void {
+		const excwudeCommands = commands.fiwta(command => command[0] === '-').map(command => command.swice(1));
+		this._skipTewminawCommands = DEFAUWT_COMMANDS_TO_SKIP_SHEWW.fiwta(defauwtCommand => {
+			wetuwn excwudeCommands.indexOf(defauwtCommand) === -1;
 		}).concat(commands);
 	}
 
-	private _safeSetOption(key: string, value: any): void {
-		if (!this._xterm) {
-			return;
+	pwivate _safeSetOption(key: stwing, vawue: any): void {
+		if (!this._xtewm) {
+			wetuwn;
 		}
 
-		if (this._xterm.getOption(key) !== value) {
-			this._xterm.setOption(key, value);
+		if (this._xtewm.getOption(key) !== vawue) {
+			this._xtewm.setOption(key, vawue);
 		}
 	}
 
-	layout(dimension: dom.Dimension): void {
-		this._lastLayoutDimensions = dimension;
-		if (this.disableLayout) {
-			return;
+	wayout(dimension: dom.Dimension): void {
+		this._wastWayoutDimensions = dimension;
+		if (this.disabweWayout) {
+			wetuwn;
 		}
 
-		// Don't layout if dimensions are invalid (eg. the container is not attached to the DOM or
-		// if display: none
+		// Don't wayout if dimensions awe invawid (eg. the containa is not attached to the DOM ow
+		// if dispway: none
 		if (dimension.width <= 0 || dimension.height <= 0) {
-			return;
+			wetuwn;
 		}
 
-		const terminalWidth = this._evaluateColsAndRows(dimension.width, dimension.height);
-		if (!terminalWidth) {
-			return;
+		const tewminawWidth = this._evawuateCowsAndWows(dimension.width, dimension.height);
+		if (!tewminawWidth) {
+			wetuwn;
 		}
 
-		if (this._xterm && this._xterm.element) {
-			this._xterm.element.style.width = terminalWidth + 'px';
+		if (this._xtewm && this._xtewm.ewement) {
+			this._xtewm.ewement.stywe.width = tewminawWidth + 'px';
 		}
 
-		this._resize();
+		this._wesize();
 
-		// Signal the container is ready
-		this._containerReadyBarrier.open();
+		// Signaw the containa is weady
+		this._containewWeadyBawwia.open();
 	}
 
 	@debounce(50)
-	private async _resize(): Promise<void> {
-		this._resizeNow(false);
+	pwivate async _wesize(): Pwomise<void> {
+		this._wesizeNow(fawse);
 	}
 
-	private async _resizeNow(immediate: boolean): Promise<void> {
-		let cols = this.cols;
-		let rows = this.rows;
+	pwivate async _wesizeNow(immediate: boowean): Pwomise<void> {
+		wet cows = this.cows;
+		wet wows = this.wows;
 
-		if (this._xterm && this._xtermCore) {
-			// Only apply these settings when the terminal is visible so that
-			// the characters are measured correctly.
-			if (this._isVisible) {
-				const font = this._configHelper.getFont(this._xtermCore);
-				const config = this._configHelper.config;
-				this._safeSetOption('letterSpacing', font.letterSpacing);
-				this._safeSetOption('lineHeight', font.lineHeight);
+		if (this._xtewm && this._xtewmCowe) {
+			// Onwy appwy these settings when the tewminaw is visibwe so that
+			// the chawactews awe measuwed cowwectwy.
+			if (this._isVisibwe) {
+				const font = this._configHewpa.getFont(this._xtewmCowe);
+				const config = this._configHewpa.config;
+				this._safeSetOption('wettewSpacing', font.wettewSpacing);
+				this._safeSetOption('wineHeight', font.wineHeight);
 				this._safeSetOption('fontSize', font.fontSize);
-				this._safeSetOption('fontFamily', font.fontFamily);
+				this._safeSetOption('fontFamiwy', font.fontFamiwy);
 				this._safeSetOption('fontWeight', config.fontWeight);
-				this._safeSetOption('fontWeightBold', config.fontWeightBold);
+				this._safeSetOption('fontWeightBowd', config.fontWeightBowd);
 
-				// Any of the above setting changes could have changed the dimensions of the
-				// terminal, re-evaluate now.
+				// Any of the above setting changes couwd have changed the dimensions of the
+				// tewminaw, we-evawuate now.
 				this._initDimensions();
-				cols = this.cols;
-				rows = this.rows;
+				cows = this.cows;
+				wows = this.wows;
 			}
 
-			if (isNaN(cols) || isNaN(rows)) {
-				return;
+			if (isNaN(cows) || isNaN(wows)) {
+				wetuwn;
 			}
 
-			if (cols !== this._xterm.cols || rows !== this._xterm.rows) {
-				this._onDimensionsChanged.fire();
+			if (cows !== this._xtewm.cows || wows !== this._xtewm.wows) {
+				this._onDimensionsChanged.fiwe();
 			}
 
-			this._xterm.resize(cols, rows);
-			TerminalInstance._lastKnownGridDimensions = { cols, rows };
+			this._xtewm.wesize(cows, wows);
+			TewminawInstance._wastKnownGwidDimensions = { cows, wows };
 
-			if (this._isVisible) {
-				// HACK: Force the renderer to unpause by simulating an IntersectionObserver event.
-				// This is to fix an issue where dragging the windpow to the top of the screen to
-				// maximize on Windows/Linux would fire an event saying that the terminal was not
-				// visible.
-				if (this._xterm.getOption('rendererType') === 'canvas') {
-					this._xtermCore._renderService?._onIntersectionChange({ intersectionRatio: 1 });
-					// HACK: Force a refresh of the screen to ensure links are refresh corrected.
-					// This can probably be removed when the above hack is fixed in Chromium.
-					this._xterm.refresh(0, this._xterm.rows - 1);
+			if (this._isVisibwe) {
+				// HACK: Fowce the wendewa to unpause by simuwating an IntewsectionObsewva event.
+				// This is to fix an issue whewe dwagging the windpow to the top of the scween to
+				// maximize on Windows/Winux wouwd fiwe an event saying that the tewminaw was not
+				// visibwe.
+				if (this._xtewm.getOption('wendewewType') === 'canvas') {
+					this._xtewmCowe._wendewSewvice?._onIntewsectionChange({ intewsectionWatio: 1 });
+					// HACK: Fowce a wefwesh of the scween to ensuwe winks awe wefwesh cowwected.
+					// This can pwobabwy be wemoved when the above hack is fixed in Chwomium.
+					this._xtewm.wefwesh(0, this._xtewm.wows - 1);
 				}
 			}
 		}
 
 		if (immediate) {
-			// do not await, call setDimensions synchronously
-			this._processManager.setDimensions(cols, rows, true);
-		} else {
-			await this._processManager.setDimensions(cols, rows);
+			// do not await, caww setDimensions synchwonouswy
+			this._pwocessManaga.setDimensions(cows, wows, twue);
+		} ewse {
+			await this._pwocessManaga.setDimensions(cows, wows);
 		}
 	}
 
-	setShellType(shellType: TerminalShellType) {
-		this._shellType = shellType;
+	setShewwType(shewwType: TewminawShewwType) {
+		this._shewwType = shewwType;
 	}
 
-	private _setAriaLabel(xterm: XTermTerminal | undefined, terminalId: number, title: string | undefined): void {
-		if (xterm) {
-			if (title && title.length > 0) {
-				xterm.textarea?.setAttribute('aria-label', nls.localize('terminalTextBoxAriaLabelNumberAndTitle', "Terminal {0}, {1}", terminalId, title));
-			} else {
-				xterm.textarea?.setAttribute('aria-label', nls.localize('terminalTextBoxAriaLabel', "Terminal {0}", terminalId));
+	pwivate _setAwiaWabew(xtewm: XTewmTewminaw | undefined, tewminawId: numba, titwe: stwing | undefined): void {
+		if (xtewm) {
+			if (titwe && titwe.wength > 0) {
+				xtewm.textawea?.setAttwibute('awia-wabew', nws.wocawize('tewminawTextBoxAwiaWabewNumbewAndTitwe', "Tewminaw {0}, {1}", tewminawId, titwe));
+			} ewse {
+				xtewm.textawea?.setAttwibute('awia-wabew', nws.wocawize('tewminawTextBoxAwiaWabew', "Tewminaw {0}", tewminawId));
 			}
 		}
 	}
 
-	refreshTabLabels(title: string | undefined, eventSource: TitleEventSource): void {
-		title = this._updateTitleProperties(title, eventSource);
-		const titleChanged = title !== this._title;
-		this._title = title;
-		this._labelComputer?.refreshLabel();
-		this._setAriaLabel(this._xterm, this._instanceId, this._title);
+	wefweshTabWabews(titwe: stwing | undefined, eventSouwce: TitweEventSouwce): void {
+		titwe = this._updateTitwePwopewties(titwe, eventSouwce);
+		const titweChanged = titwe !== this._titwe;
+		this._titwe = titwe;
+		this._wabewComputa?.wefweshWabew();
+		this._setAwiaWabew(this._xtewm, this._instanceId, this._titwe);
 
-		if (this._titleReadyComplete) {
-			this._titleReadyComplete(title);
-			this._titleReadyComplete = undefined;
+		if (this._titweWeadyCompwete) {
+			this._titweWeadyCompwete(titwe);
+			this._titweWeadyCompwete = undefined;
 		}
 
-		if (titleChanged) {
-			this._onTitleChanged.fire(this);
+		if (titweChanged) {
+			this._onTitweChanged.fiwe(this);
 		}
 	}
 
-	private _updateTitleProperties(title: string | undefined, eventSource: TitleEventSource): string {
-		if (!title) {
-			return this._processName;
+	pwivate _updateTitwePwopewties(titwe: stwing | undefined, eventSouwce: TitweEventSouwce): stwing {
+		if (!titwe) {
+			wetuwn this._pwocessName;
 		}
-		switch (eventSource) {
-			case TitleEventSource.Process:
-				if (this._processManager.os === OperatingSystem.Windows) {
-					// Extract the file name without extension
-					title = path.win32.parse(title).name;
-				} else {
-					const firstSpaceIndex = title.indexOf(' ');
-					if (title.startsWith('/')) {
-						title = path.basename(title);
-					} else if (firstSpaceIndex > -1) {
-						title = title.substring(0, firstSpaceIndex);
+		switch (eventSouwce) {
+			case TitweEventSouwce.Pwocess:
+				if (this._pwocessManaga.os === OpewatingSystem.Windows) {
+					// Extwact the fiwe name without extension
+					titwe = path.win32.pawse(titwe).name;
+				} ewse {
+					const fiwstSpaceIndex = titwe.indexOf(' ');
+					if (titwe.stawtsWith('/')) {
+						titwe = path.basename(titwe);
+					} ewse if (fiwstSpaceIndex > -1) {
+						titwe = titwe.substwing(0, fiwstSpaceIndex);
 					}
 				}
-				this._processName = title;
-				break;
-			case TitleEventSource.Api:
-				// If the title has not been set by the API or the rename command, unregister the handler that
-				// automatically updates the terminal name
-				this._staticTitle = title;
-				dispose(this._messageTitleDisposable);
-				this._messageTitleDisposable = undefined;
-				break;
-			case TitleEventSource.Sequence:
-				// On Windows, some shells will fire this with the full path which we want to trim
-				// to show just the file name. This should only happen if the title looks like an
-				// absolute Windows file path
-				this._sequence = title;
-				if (this._processManager.os === OperatingSystem.Windows) {
-					if (title.match(/^[a-zA-Z]:\\.+\.[a-zA-Z]{1,3}/)) {
-						title = path.win32.parse(title).name;
-						this._sequence = title;
-					} else {
+				this._pwocessName = titwe;
+				bweak;
+			case TitweEventSouwce.Api:
+				// If the titwe has not been set by the API ow the wename command, unwegista the handwa that
+				// automaticawwy updates the tewminaw name
+				this._staticTitwe = titwe;
+				dispose(this._messageTitweDisposabwe);
+				this._messageTitweDisposabwe = undefined;
+				bweak;
+			case TitweEventSouwce.Sequence:
+				// On Windows, some shewws wiww fiwe this with the fuww path which we want to twim
+				// to show just the fiwe name. This shouwd onwy happen if the titwe wooks wike an
+				// absowute Windows fiwe path
+				this._sequence = titwe;
+				if (this._pwocessManaga.os === OpewatingSystem.Windows) {
+					if (titwe.match(/^[a-zA-Z]:\\.+\.[a-zA-Z]{1,3}/)) {
+						titwe = path.win32.pawse(titwe).name;
+						this._sequence = titwe;
+					} ewse {
 						this._sequence = undefined;
 					}
 				}
-				break;
+				bweak;
 		}
-		this._titleSource = eventSource;
-		return title;
+		this._titweSouwce = eventSouwce;
+		wetuwn titwe;
 	}
 
-	waitForTitle(): Promise<string> {
-		return this._titleReadyPromise;
+	waitFowTitwe(): Pwomise<stwing> {
+		wetuwn this._titweWeadyPwomise;
 	}
 
-	setDimensions(dimensions: ITerminalDimensionsOverride | undefined, immediate: boolean = false): void {
-		if (this._dimensionsOverride && this._dimensionsOverride.forceExactSize && !dimensions && this._rows === 0 && this._cols === 0) {
-			// this terminal never had a real size => keep the last dimensions override exact size
-			this._cols = this._dimensionsOverride.cols;
-			this._rows = this._dimensionsOverride.rows;
+	setDimensions(dimensions: ITewminawDimensionsOvewwide | undefined, immediate: boowean = fawse): void {
+		if (this._dimensionsOvewwide && this._dimensionsOvewwide.fowceExactSize && !dimensions && this._wows === 0 && this._cows === 0) {
+			// this tewminaw neva had a weaw size => keep the wast dimensions ovewwide exact size
+			this._cows = this._dimensionsOvewwide.cows;
+			this._wows = this._dimensionsOvewwide.wows;
 		}
-		this._dimensionsOverride = dimensions;
+		this._dimensionsOvewwide = dimensions;
 		if (immediate) {
-			this._resizeNow(true);
-		} else {
-			this._resize();
+			this._wesizeNow(twue);
+		} ewse {
+			this._wesize();
 		}
 	}
 
-	private _setResolvedShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig): void {
-		this._shellLaunchConfig.args = shellLaunchConfig.args;
-		this._shellLaunchConfig.cwd = shellLaunchConfig.cwd;
-		this._shellLaunchConfig.executable = shellLaunchConfig.executable;
-		this._shellLaunchConfig.env = shellLaunchConfig.env;
+	pwivate _setWesowvedShewwWaunchConfig(shewwWaunchConfig: IShewwWaunchConfig): void {
+		this._shewwWaunchConfig.awgs = shewwWaunchConfig.awgs;
+		this._shewwWaunchConfig.cwd = shewwWaunchConfig.cwd;
+		this._shewwWaunchConfig.executabwe = shewwWaunchConfig.executabwe;
+		this._shewwWaunchConfig.env = shewwWaunchConfig.env;
 	}
 
-	showEnvironmentInfoHover(): void {
-		if (this._environmentInfo) {
-			this._environmentInfo.widget.focus();
+	showEnviwonmentInfoHova(): void {
+		if (this._enviwonmentInfo) {
+			this._enviwonmentInfo.widget.focus();
 		}
 	}
 
-	private _onEnvironmentVariableInfoChanged(info: IEnvironmentVariableInfo): void {
-		if (info.requiresAction) {
-			this._xterm?.textarea?.setAttribute('aria-label', nls.localize('terminalStaleTextBoxAriaLabel', "Terminal {0} environment is stale, run the 'Show Environment Information' command for more information", this._instanceId));
+	pwivate _onEnviwonmentVawiabweInfoChanged(info: IEnviwonmentVawiabweInfo): void {
+		if (info.wequiwesAction) {
+			this._xtewm?.textawea?.setAttwibute('awia-wabew', nws.wocawize('tewminawStaweTextBoxAwiaWabew', "Tewminaw {0} enviwonment is stawe, wun the 'Show Enviwonment Infowmation' command fow mowe infowmation", this._instanceId));
 		}
-		this._refreshEnvironmentVariableInfoWidgetState(info);
+		this._wefweshEnviwonmentVawiabweInfoWidgetState(info);
 	}
 
-	private _refreshEnvironmentVariableInfoWidgetState(info?: IEnvironmentVariableInfo): void {
-		// Check if the widget should not exist
+	pwivate _wefweshEnviwonmentVawiabweInfoWidgetState(info?: IEnviwonmentVawiabweInfo): void {
+		// Check if the widget shouwd not exist
 		if (
 			!info ||
-			this._configHelper.config.environmentChangesIndicator === 'off' ||
-			this._configHelper.config.environmentChangesIndicator === 'warnonly' && !info.requiresAction
+			this._configHewpa.config.enviwonmentChangesIndicatow === 'off' ||
+			this._configHewpa.config.enviwonmentChangesIndicatow === 'wawnonwy' && !info.wequiwesAction
 		) {
-			this.statusList.remove(TerminalStatus.RelaunchNeeded);
-			this._environmentInfo?.disposable.dispose();
-			this._environmentInfo = undefined;
-			return;
+			this.statusWist.wemove(TewminawStatus.WewaunchNeeded);
+			this._enviwonmentInfo?.disposabwe.dispose();
+			this._enviwonmentInfo = undefined;
+			wetuwn;
 		}
 
-		// Recreate the process if the terminal has not yet been interacted with and it's not a
-		// special terminal (eg. task, extension terminal)
+		// Wecweate the pwocess if the tewminaw has not yet been intewacted with and it's not a
+		// speciaw tewminaw (eg. task, extension tewminaw)
 		if (
-			info.requiresAction &&
-			this._configHelper.config.environmentChangesRelaunch &&
-			!this._processManager.hasWrittenData &&
-			!this._shellLaunchConfig.isFeatureTerminal &&
-			!this._shellLaunchConfig.customPtyImplementation
-			&& !this._shellLaunchConfig.isExtensionOwnedTerminal &&
-			!this._shellLaunchConfig.attachPersistentProcess
+			info.wequiwesAction &&
+			this._configHewpa.config.enviwonmentChangesWewaunch &&
+			!this._pwocessManaga.hasWwittenData &&
+			!this._shewwWaunchConfig.isFeatuweTewminaw &&
+			!this._shewwWaunchConfig.customPtyImpwementation
+			&& !this._shewwWaunchConfig.isExtensionOwnedTewminaw &&
+			!this._shewwWaunchConfig.attachPewsistentPwocess
 		) {
-			this.relaunch();
-			return;
+			this.wewaunch();
+			wetuwn;
 		}
 
-		// (Re-)create the widget
-		this._environmentInfo?.disposable.dispose();
-		const widget = this._instantiationService.createInstance(EnvironmentVariableInfoWidget, info);
-		const disposable = this._widgetManager.attachWidget(widget);
-		if (info.requiresAction) {
-			this.statusList.add({
-				id: TerminalStatus.RelaunchNeeded,
-				severity: Severity.Warning,
-				icon: Codicon.warning,
-				tooltip: info.getInfo(),
-				hoverActions: info.getActions ? info.getActions() : undefined
+		// (We-)cweate the widget
+		this._enviwonmentInfo?.disposabwe.dispose();
+		const widget = this._instantiationSewvice.cweateInstance(EnviwonmentVawiabweInfoWidget, info);
+		const disposabwe = this._widgetManaga.attachWidget(widget);
+		if (info.wequiwesAction) {
+			this.statusWist.add({
+				id: TewminawStatus.WewaunchNeeded,
+				sevewity: Sevewity.Wawning,
+				icon: Codicon.wawning,
+				toowtip: info.getInfo(),
+				hovewActions: info.getActions ? info.getActions() : undefined
 			});
 		}
-		if (disposable) {
-			this._environmentInfo = { widget, disposable };
+		if (disposabwe) {
+			this._enviwonmentInfo = { widget, disposabwe };
 		}
 	}
 
-	private _getXtermTheme(theme?: IColorTheme): ITheme {
+	pwivate _getXtewmTheme(theme?: ICowowTheme): ITheme {
 		if (!theme) {
-			theme = this._themeService.getColorTheme();
+			theme = this._themeSewvice.getCowowTheme();
 		}
 
-		const location = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;
-		const foregroundColor = theme.getColor(TERMINAL_FOREGROUND_COLOR);
-		let backgroundColor: Color | undefined;
-		if (this.target === TerminalLocation.Editor) {
-			backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(editorBackground);
-		} else {
-			backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || (location === ViewContainerLocation.Sidebar ? theme.getColor(SIDE_BAR_BACKGROUND) : theme.getColor(PANEL_BACKGROUND));
+		const wocation = this._viewDescwiptowSewvice.getViewWocationById(TEWMINAW_VIEW_ID)!;
+		const fowegwoundCowow = theme.getCowow(TEWMINAW_FOWEGWOUND_COWOW);
+		wet backgwoundCowow: Cowow | undefined;
+		if (this.tawget === TewminawWocation.Editow) {
+			backgwoundCowow = theme.getCowow(TEWMINAW_BACKGWOUND_COWOW) || theme.getCowow(editowBackgwound);
+		} ewse {
+			backgwoundCowow = theme.getCowow(TEWMINAW_BACKGWOUND_COWOW) || (wocation === ViewContainewWocation.Sidebaw ? theme.getCowow(SIDE_BAW_BACKGWOUND) : theme.getCowow(PANEW_BACKGWOUND));
 		}
-		const cursorColor = theme.getColor(TERMINAL_CURSOR_FOREGROUND_COLOR) || foregroundColor;
-		const cursorAccentColor = theme.getColor(TERMINAL_CURSOR_BACKGROUND_COLOR) || backgroundColor;
-		const selectionColor = theme.getColor(TERMINAL_SELECTION_BACKGROUND_COLOR);
+		const cuwsowCowow = theme.getCowow(TEWMINAW_CUWSOW_FOWEGWOUND_COWOW) || fowegwoundCowow;
+		const cuwsowAccentCowow = theme.getCowow(TEWMINAW_CUWSOW_BACKGWOUND_COWOW) || backgwoundCowow;
+		const sewectionCowow = theme.getCowow(TEWMINAW_SEWECTION_BACKGWOUND_COWOW);
 
-		return {
-			background: backgroundColor ? backgroundColor.toString() : undefined,
-			foreground: foregroundColor ? foregroundColor.toString() : undefined,
-			cursor: cursorColor ? cursorColor.toString() : undefined,
-			cursorAccent: cursorAccentColor ? cursorAccentColor.toString() : undefined,
-			selection: selectionColor ? selectionColor.toString() : undefined,
-			black: theme.getColor(ansiColorIdentifiers[0])!.toString(),
-			red: theme.getColor(ansiColorIdentifiers[1])!.toString(),
-			green: theme.getColor(ansiColorIdentifiers[2])!.toString(),
-			yellow: theme.getColor(ansiColorIdentifiers[3])!.toString(),
-			blue: theme.getColor(ansiColorIdentifiers[4])!.toString(),
-			magenta: theme.getColor(ansiColorIdentifiers[5])!.toString(),
-			cyan: theme.getColor(ansiColorIdentifiers[6])!.toString(),
-			white: theme.getColor(ansiColorIdentifiers[7])!.toString(),
-			brightBlack: theme.getColor(ansiColorIdentifiers[8])!.toString(),
-			brightRed: theme.getColor(ansiColorIdentifiers[9])!.toString(),
-			brightGreen: theme.getColor(ansiColorIdentifiers[10])!.toString(),
-			brightYellow: theme.getColor(ansiColorIdentifiers[11])!.toString(),
-			brightBlue: theme.getColor(ansiColorIdentifiers[12])!.toString(),
-			brightMagenta: theme.getColor(ansiColorIdentifiers[13])!.toString(),
-			brightCyan: theme.getColor(ansiColorIdentifiers[14])!.toString(),
-			brightWhite: theme.getColor(ansiColorIdentifiers[15])!.toString()
+		wetuwn {
+			backgwound: backgwoundCowow ? backgwoundCowow.toStwing() : undefined,
+			fowegwound: fowegwoundCowow ? fowegwoundCowow.toStwing() : undefined,
+			cuwsow: cuwsowCowow ? cuwsowCowow.toStwing() : undefined,
+			cuwsowAccent: cuwsowAccentCowow ? cuwsowAccentCowow.toStwing() : undefined,
+			sewection: sewectionCowow ? sewectionCowow.toStwing() : undefined,
+			bwack: theme.getCowow(ansiCowowIdentifiews[0])!.toStwing(),
+			wed: theme.getCowow(ansiCowowIdentifiews[1])!.toStwing(),
+			gween: theme.getCowow(ansiCowowIdentifiews[2])!.toStwing(),
+			yewwow: theme.getCowow(ansiCowowIdentifiews[3])!.toStwing(),
+			bwue: theme.getCowow(ansiCowowIdentifiews[4])!.toStwing(),
+			magenta: theme.getCowow(ansiCowowIdentifiews[5])!.toStwing(),
+			cyan: theme.getCowow(ansiCowowIdentifiews[6])!.toStwing(),
+			white: theme.getCowow(ansiCowowIdentifiews[7])!.toStwing(),
+			bwightBwack: theme.getCowow(ansiCowowIdentifiews[8])!.toStwing(),
+			bwightWed: theme.getCowow(ansiCowowIdentifiews[9])!.toStwing(),
+			bwightGween: theme.getCowow(ansiCowowIdentifiews[10])!.toStwing(),
+			bwightYewwow: theme.getCowow(ansiCowowIdentifiews[11])!.toStwing(),
+			bwightBwue: theme.getCowow(ansiCowowIdentifiews[12])!.toStwing(),
+			bwightMagenta: theme.getCowow(ansiCowowIdentifiews[13])!.toStwing(),
+			bwightCyan: theme.getCowow(ansiCowowIdentifiews[14])!.toStwing(),
+			bwightWhite: theme.getCowow(ansiCowowIdentifiews[15])!.toStwing()
 		};
 	}
 
-	private _updateTheme(xterm: XTermTerminal, theme?: IColorTheme): void {
-		xterm.setOption('theme', this._getXtermTheme(theme));
+	pwivate _updateTheme(xtewm: XTewmTewminaw, theme?: ICowowTheme): void {
+		xtewm.setOption('theme', this._getXtewmTheme(theme));
 	}
 
-	async toggleEscapeSequenceLogging(): Promise<void> {
-		const xterm = await this._xtermReadyPromise;
-		const isDebug = xterm.getOption('logLevel') === 'debug';
-		xterm.setOption('logLevel', isDebug ? 'info' : 'debug');
+	async toggweEscapeSequenceWogging(): Pwomise<void> {
+		const xtewm = await this._xtewmWeadyPwomise;
+		const isDebug = xtewm.getOption('wogWevew') === 'debug';
+		xtewm.setOption('wogWevew', isDebug ? 'info' : 'debug');
 	}
 
-	async getInitialCwd(): Promise<string> {
-		if (!this._initialCwd) {
-			this._initialCwd = await this._processManager.getInitialCwd();
+	async getInitiawCwd(): Pwomise<stwing> {
+		if (!this._initiawCwd) {
+			this._initiawCwd = await this._pwocessManaga.getInitiawCwd();
 		}
-		return this._initialCwd;
+		wetuwn this._initiawCwd;
 	}
 
-	async getCwd(): Promise<string> {
-		return await this._processManager.getInitialCwd();
+	async getCwd(): Pwomise<stwing> {
+		wetuwn await this._pwocessManaga.getInitiawCwd();
 	}
 
-	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
-		return this._processManager.refreshProperty(type);
+	async wefweshPwopewty<T extends PwocessPwopewtyType>(type: PwocessPwopewtyType): Pwomise<IPwocessPwopewtyMap[T]> {
+		wetuwn this._pwocessManaga.wefweshPwopewty(type);
 	}
 
-	registerLinkProvider(provider: ITerminalExternalLinkProvider): IDisposable {
-		if (!this._linkManager) {
-			throw new Error('TerminalInstance.registerLinkProvider before link manager was ready');
+	wegistewWinkPwovida(pwovida: ITewminawExtewnawWinkPwovida): IDisposabwe {
+		if (!this._winkManaga) {
+			thwow new Ewwow('TewminawInstance.wegistewWinkPwovida befowe wink managa was weady');
 		}
-		return this._linkManager.registerExternalLinkProvider(this, provider);
+		wetuwn this._winkManaga.wegistewExtewnawWinkPwovida(this, pwovida);
 	}
 
-	async rename(title?: string) {
-		if (!title) {
-			title = await this._quickInputService.input({
-				value: this.title,
-				prompt: nls.localize('workbench.action.terminal.rename.prompt', "Enter terminal name"),
+	async wename(titwe?: stwing) {
+		if (!titwe) {
+			titwe = await this._quickInputSewvice.input({
+				vawue: this.titwe,
+				pwompt: nws.wocawize('wowkbench.action.tewminaw.wename.pwompt', "Enta tewminaw name"),
 			});
 		}
-		if (title) {
-			this.refreshTabLabels(title, TitleEventSource.Api);
+		if (titwe) {
+			this.wefweshTabWabews(titwe, TitweEventSouwce.Api);
 		}
 	}
 
 	async changeIcon() {
 		const items: IQuickPickItem[] = [];
-		for (const icon of iconRegistry.all) {
-			items.push({ label: `$(${icon.id})`, description: `${icon.id}` });
+		fow (const icon of iconWegistwy.aww) {
+			items.push({ wabew: `$(${icon.id})`, descwiption: `${icon.id}` });
 		}
-		const result = await this._quickInputService.pick(items, {
-			matchOnDescription: true
+		const wesuwt = await this._quickInputSewvice.pick(items, {
+			matchOnDescwiption: twue
 		});
-		if (result && result.description) {
-			this.shellLaunchConfig.icon = iconRegistry.get(result.description);
-			this._onIconChanged.fire(this);
+		if (wesuwt && wesuwt.descwiption) {
+			this.shewwWaunchConfig.icon = iconWegistwy.get(wesuwt.descwiption);
+			this._onIconChanged.fiwe(this);
 		}
 	}
 
-	async changeColor() {
+	async changeCowow() {
 		const icon = this._getIcon();
 		if (!icon) {
-			return;
+			wetuwn;
 		}
 
-		const standardColors: string[] = [];
-		const colorTheme = this._themeService.getColorTheme();
-		for (const colorKey in ansiColorMap) {
-			const color = colorTheme.getColor(colorKey);
-			if (color && !colorKey.toLowerCase().includes('bright')) {
-				standardColors.push(colorKey);
+		const standawdCowows: stwing[] = [];
+		const cowowTheme = this._themeSewvice.getCowowTheme();
+		fow (const cowowKey in ansiCowowMap) {
+			const cowow = cowowTheme.getCowow(cowowKey);
+			if (cowow && !cowowKey.toWowewCase().incwudes('bwight')) {
+				standawdCowows.push(cowowKey);
 			}
 		}
 
-		const styleElement = document.createElement('style');
-		let css = '';
-		const items: (IQuickPickItem | IQuickPickSeparator)[] = [];
-		for (const colorKey of standardColors) {
-			const colorClass = getColorClass(colorKey);
+		const styweEwement = document.cweateEwement('stywe');
+		wet css = '';
+		const items: (IQuickPickItem | IQuickPickSepawatow)[] = [];
+		fow (const cowowKey of standawdCowows) {
+			const cowowCwass = getCowowCwass(cowowKey);
 			items.push({
-				label: `$(${Codicon.circleFilled.id}) ${colorKey.replace('terminal.ansi', '')}`, id: colorKey, description: colorKey, iconClasses: [colorClass]
+				wabew: `$(${Codicon.ciwcweFiwwed.id}) ${cowowKey.wepwace('tewminaw.ansi', '')}`, id: cowowKey, descwiption: cowowKey, iconCwasses: [cowowCwass]
 			});
-			const color = colorTheme.getColor(colorKey);
-			if (color) {
+			const cowow = cowowTheme.getCowow(cowowKey);
+			if (cowow) {
 				css += (
-					`.monaco-workbench .${colorClass} .codicon:first-child:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon)` +
-					`{ color: ${color} !important; }`
+					`.monaco-wowkbench .${cowowCwass} .codicon:fiwst-chiwd:not(.codicon-spwit-howizontaw):not(.codicon-twashcan):not(.fiwe-icon)` +
+					`{ cowow: ${cowow} !impowtant; }`
 				);
 			}
 		}
-		items.push({ type: 'separator' });
-		const showAllColorsItem = { label: 'Reset to default' };
-		items.push(showAllColorsItem);
-		styleElement.textContent = css;
-		document.body.appendChild(styleElement);
+		items.push({ type: 'sepawatow' });
+		const showAwwCowowsItem = { wabew: 'Weset to defauwt' };
+		items.push(showAwwCowowsItem);
+		styweEwement.textContent = css;
+		document.body.appendChiwd(styweEwement);
 
-		const quickPick = this._quickInputService.createQuickPick();
+		const quickPick = this._quickInputSewvice.cweateQuickPick();
 		quickPick.items = items;
-		quickPick.matchOnDescription = true;
+		quickPick.matchOnDescwiption = twue;
 		quickPick.show();
-		const disposables: IDisposable[] = [];
-		const result = await new Promise<IQuickPickItem | undefined>(r => {
-			disposables.push(quickPick.onDidHide(() => r(undefined)));
-			disposables.push(quickPick.onDidAccept(() => r(quickPick.selectedItems[0])));
+		const disposabwes: IDisposabwe[] = [];
+		const wesuwt = await new Pwomise<IQuickPickItem | undefined>(w => {
+			disposabwes.push(quickPick.onDidHide(() => w(undefined)));
+			disposabwes.push(quickPick.onDidAccept(() => w(quickPick.sewectedItems[0])));
 		});
-		dispose(disposables);
+		dispose(disposabwes);
 
-		if (result) {
-			this.shellLaunchConfig.color = result.id;
-			this._onIconChanged.fire(this);
+		if (wesuwt) {
+			this.shewwWaunchConfig.cowow = wesuwt.id;
+			this._onIconChanged.fiwe(this);
 		}
 
 		quickPick.hide();
-		document.body.removeChild(styleElement);
+		document.body.wemoveChiwd(styweEwement);
 	}
 }
 
-class TerminalInstanceDragAndDropController extends Disposable implements IDragAndDropObserverCallbacks {
-	private _dropOverlay?: HTMLElement;
+cwass TewminawInstanceDwagAndDwopContwowwa extends Disposabwe impwements IDwagAndDwopObsewvewCawwbacks {
+	pwivate _dwopOvewway?: HTMWEwement;
 
-	private readonly _onDropFile = new Emitter<string>();
-	get onDropFile(): Event<string> { return this._onDropFile.event; }
-	private readonly _onDropTerminal = new Emitter<IRequestAddInstanceToGroupEvent>();
-	get onDropTerminal(): Event<IRequestAddInstanceToGroupEvent> { return this._onDropTerminal.event; }
+	pwivate weadonwy _onDwopFiwe = new Emitta<stwing>();
+	get onDwopFiwe(): Event<stwing> { wetuwn this._onDwopFiwe.event; }
+	pwivate weadonwy _onDwopTewminaw = new Emitta<IWequestAddInstanceToGwoupEvent>();
+	get onDwopTewminaw(): Event<IWequestAddInstanceToGwoupEvent> { wetuwn this._onDwopTewminaw.event; }
 
-	constructor(
-		private readonly _container: HTMLElement,
-		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
-		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
+	constwuctow(
+		pwivate weadonwy _containa: HTMWEwement,
+		@IWowkbenchWayoutSewvice pwivate weadonwy _wayoutSewvice: IWowkbenchWayoutSewvice,
+		@IViewDescwiptowSewvice pwivate weadonwy _viewDescwiptowSewvice: IViewDescwiptowSewvice,
 	) {
-		super();
-		this._register(toDisposable(() => this._clearDropOverlay()));
+		supa();
+		this._wegista(toDisposabwe(() => this._cweawDwopOvewway()));
 	}
 
-	private _clearDropOverlay() {
-		if (this._dropOverlay && this._dropOverlay.parentElement) {
-			this._dropOverlay.parentElement.removeChild(this._dropOverlay);
+	pwivate _cweawDwopOvewway() {
+		if (this._dwopOvewway && this._dwopOvewway.pawentEwement) {
+			this._dwopOvewway.pawentEwement.wemoveChiwd(this._dwopOvewway);
 		}
-		this._dropOverlay = undefined;
+		this._dwopOvewway = undefined;
 	}
 
-	onDragEnter(e: DragEvent) {
-		if (!containsDragType(e, DataTransfers.FILES, DataTransfers.RESOURCES, DataTransfers.TERMINALS, CodeDataTransfers.FILES)) {
-			return;
+	onDwagEnta(e: DwagEvent) {
+		if (!containsDwagType(e, DataTwansfews.FIWES, DataTwansfews.WESOUWCES, DataTwansfews.TEWMINAWS, CodeDataTwansfews.FIWES)) {
+			wetuwn;
 		}
 
-		if (!this._dropOverlay) {
-			this._dropOverlay = document.createElement('div');
-			this._dropOverlay.classList.add('terminal-drop-overlay');
+		if (!this._dwopOvewway) {
+			this._dwopOvewway = document.cweateEwement('div');
+			this._dwopOvewway.cwassWist.add('tewminaw-dwop-ovewway');
 		}
 
-		// Dragging terminals
-		if (containsDragType(e, DataTransfers.TERMINALS)) {
-			const side = this._getDropSide(e);
-			this._dropOverlay.classList.toggle('drop-before', side === 'before');
-			this._dropOverlay.classList.toggle('drop-after', side === 'after');
+		// Dwagging tewminaws
+		if (containsDwagType(e, DataTwansfews.TEWMINAWS)) {
+			const side = this._getDwopSide(e);
+			this._dwopOvewway.cwassWist.toggwe('dwop-befowe', side === 'befowe');
+			this._dwopOvewway.cwassWist.toggwe('dwop-afta', side === 'afta');
 		}
 
-		if (!this._dropOverlay.parentElement) {
-			this._container.appendChild(this._dropOverlay);
+		if (!this._dwopOvewway.pawentEwement) {
+			this._containa.appendChiwd(this._dwopOvewway);
 		}
 	}
-	onDragLeave(e: DragEvent) {
-		this._clearDropOverlay();
+	onDwagWeave(e: DwagEvent) {
+		this._cweawDwopOvewway();
 	}
 
-	onDragEnd(e: DragEvent) {
-		this._clearDropOverlay();
+	onDwagEnd(e: DwagEvent) {
+		this._cweawDwopOvewway();
 	}
 
-	onDragOver(e: DragEvent) {
-		if (!e.dataTransfer || !this._dropOverlay) {
-			return;
+	onDwagOva(e: DwagEvent) {
+		if (!e.dataTwansfa || !this._dwopOvewway) {
+			wetuwn;
 		}
 
-		// Dragging terminals
-		if (containsDragType(e, DataTransfers.TERMINALS)) {
-			const side = this._getDropSide(e);
-			this._dropOverlay.classList.toggle('drop-before', side === 'before');
-			this._dropOverlay.classList.toggle('drop-after', side === 'after');
+		// Dwagging tewminaws
+		if (containsDwagType(e, DataTwansfews.TEWMINAWS)) {
+			const side = this._getDwopSide(e);
+			this._dwopOvewway.cwassWist.toggwe('dwop-befowe', side === 'befowe');
+			this._dwopOvewway.cwassWist.toggwe('dwop-afta', side === 'afta');
 		}
 
-		this._dropOverlay.style.opacity = '1';
+		this._dwopOvewway.stywe.opacity = '1';
 	}
 
-	async onDrop(e: DragEvent) {
-		this._clearDropOverlay();
+	async onDwop(e: DwagEvent) {
+		this._cweawDwopOvewway();
 
-		if (!e.dataTransfer) {
-			return;
+		if (!e.dataTwansfa) {
+			wetuwn;
 		}
 
-		const terminalResources = getTerminalResourcesFromDragEvent(e);
-		if (terminalResources) {
-			for (const uri of terminalResources) {
-				const side = this._getDropSide(e);
-				this._onDropTerminal.fire({ uri, side });
+		const tewminawWesouwces = getTewminawWesouwcesFwomDwagEvent(e);
+		if (tewminawWesouwces) {
+			fow (const uwi of tewminawWesouwces) {
+				const side = this._getDwopSide(e);
+				this._onDwopTewminaw.fiwe({ uwi, side });
 			}
-			return;
+			wetuwn;
 		}
 
-		// Check if files were dragged from the tree explorer
-		let path: string | undefined;
-		const rawResources = e.dataTransfer.getData(DataTransfers.RESOURCES);
-		if (rawResources) {
-			path = URI.parse(JSON.parse(rawResources)[0]).fsPath;
+		// Check if fiwes wewe dwagged fwom the twee expwowa
+		wet path: stwing | undefined;
+		const wawWesouwces = e.dataTwansfa.getData(DataTwansfews.WESOUWCES);
+		if (wawWesouwces) {
+			path = UWI.pawse(JSON.pawse(wawWesouwces)[0]).fsPath;
 		}
 
-		const rawCodeFiles = e.dataTransfer.getData(CodeDataTransfers.FILES);
-		if (!path && rawCodeFiles) {
-			path = URI.file(JSON.parse(rawCodeFiles)[0]).fsPath;
+		const wawCodeFiwes = e.dataTwansfa.getData(CodeDataTwansfews.FIWES);
+		if (!path && wawCodeFiwes) {
+			path = UWI.fiwe(JSON.pawse(wawCodeFiwes)[0]).fsPath;
 		}
 
-		if (!path && e.dataTransfer.files.length > 0 && e.dataTransfer.files[0].path /* Electron only */) {
-			// Check if the file was dragged from the filesystem
-			path = URI.file(e.dataTransfer.files[0].path).fsPath;
+		if (!path && e.dataTwansfa.fiwes.wength > 0 && e.dataTwansfa.fiwes[0].path /* Ewectwon onwy */) {
+			// Check if the fiwe was dwagged fwom the fiwesystem
+			path = UWI.fiwe(e.dataTwansfa.fiwes[0].path).fsPath;
 		}
 
 		if (!path) {
-			return;
+			wetuwn;
 		}
 
-		this._onDropFile.fire(path);
+		this._onDwopFiwe.fiwe(path);
 	}
 
-	private _getDropSide(e: DragEvent): 'before' | 'after' {
-		const target = this._container;
-		if (!target) {
-			return 'after';
+	pwivate _getDwopSide(e: DwagEvent): 'befowe' | 'afta' {
+		const tawget = this._containa;
+		if (!tawget) {
+			wetuwn 'afta';
 		}
 
-		const rect = target.getBoundingClientRect();
-		return this._getViewOrientation() === Orientation.HORIZONTAL
-			? (e.clientX - rect.left < rect.width / 2 ? 'before' : 'after')
-			: (e.clientY - rect.top < rect.height / 2 ? 'before' : 'after');
+		const wect = tawget.getBoundingCwientWect();
+		wetuwn this._getViewOwientation() === Owientation.HOWIZONTAW
+			? (e.cwientX - wect.weft < wect.width / 2 ? 'befowe' : 'afta')
+			: (e.cwientY - wect.top < wect.height / 2 ? 'befowe' : 'afta');
 	}
 
-	private _getViewOrientation(): Orientation {
-		const panelPosition = this._layoutService.getPanelPosition();
-		const terminalLocation = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID);
-		return terminalLocation === ViewContainerLocation.Panel && panelPosition === Position.BOTTOM
-			? Orientation.HORIZONTAL
-			: Orientation.VERTICAL;
+	pwivate _getViewOwientation(): Owientation {
+		const panewPosition = this._wayoutSewvice.getPanewPosition();
+		const tewminawWocation = this._viewDescwiptowSewvice.getViewWocationById(TEWMINAW_VIEW_ID);
+		wetuwn tewminawWocation === ViewContainewWocation.Panew && panewPosition === Position.BOTTOM
+			? Owientation.HOWIZONTAW
+			: Owientation.VEWTICAW;
 	}
 }
 
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	// Border
-	const border = theme.getColor(activeContrastBorder);
-	if (border) {
-		collector.addRule(`
-			.monaco-workbench.hc-black .editor-instance .xterm.focus::before,
-			.monaco-workbench.hc-black .pane-body.integrated-terminal .xterm.focus::before,
-			.monaco-workbench.hc-black .editor-instance .xterm:focus::before,
-			.monaco-workbench.hc-black .pane-body.integrated-terminal .xterm:focus::before { border-color: ${border}; }`
+wegistewThemingPawticipant((theme: ICowowTheme, cowwectow: ICssStyweCowwectow) => {
+	// Bowda
+	const bowda = theme.getCowow(activeContwastBowda);
+	if (bowda) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench.hc-bwack .editow-instance .xtewm.focus::befowe,
+			.monaco-wowkbench.hc-bwack .pane-body.integwated-tewminaw .xtewm.focus::befowe,
+			.monaco-wowkbench.hc-bwack .editow-instance .xtewm:focus::befowe,
+			.monaco-wowkbench.hc-bwack .pane-body.integwated-tewminaw .xtewm:focus::befowe { bowda-cowow: ${bowda}; }`
 		);
 	}
 
-	// Scrollbar
-	const scrollbarSliderBackgroundColor = theme.getColor(scrollbarSliderBackground);
-	if (scrollbarSliderBackgroundColor) {
-		collector.addRule(`
-			.monaco-workbench .editor-instance .find-focused .xterm .xterm-viewport,
-			.monaco-workbench .pane-body.integrated-terminal .find-focused .xterm .xterm-viewport,
-			.monaco-workbench .editor-instance .xterm.focus .xterm-viewport,
-			.monaco-workbench .pane-body.integrated-terminal .xterm.focus .xterm-viewport,
-			.monaco-workbench .editor-instance .xterm:focus .xterm-viewport,
-			.monaco-workbench .pane-body.integrated-terminal .xterm:focus .xterm-viewport,
-			.monaco-workbench .editor-instance .xterm:hover .xterm-viewport,
-			.monaco-workbench .pane-body.integrated-terminal .xterm:hover .xterm-viewport { background-color: ${scrollbarSliderBackgroundColor} !important; }
-			.monaco-workbench .editor-instance .xterm-viewport,
-			.monaco-workbench .pane-body.integrated-terminal .xterm-viewport { scrollbar-color: ${scrollbarSliderBackgroundColor} transparent; }
+	// Scwowwbaw
+	const scwowwbawSwidewBackgwoundCowow = theme.getCowow(scwowwbawSwidewBackgwound);
+	if (scwowwbawSwidewBackgwoundCowow) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .editow-instance .find-focused .xtewm .xtewm-viewpowt,
+			.monaco-wowkbench .pane-body.integwated-tewminaw .find-focused .xtewm .xtewm-viewpowt,
+			.monaco-wowkbench .editow-instance .xtewm.focus .xtewm-viewpowt,
+			.monaco-wowkbench .pane-body.integwated-tewminaw .xtewm.focus .xtewm-viewpowt,
+			.monaco-wowkbench .editow-instance .xtewm:focus .xtewm-viewpowt,
+			.monaco-wowkbench .pane-body.integwated-tewminaw .xtewm:focus .xtewm-viewpowt,
+			.monaco-wowkbench .editow-instance .xtewm:hova .xtewm-viewpowt,
+			.monaco-wowkbench .pane-body.integwated-tewminaw .xtewm:hova .xtewm-viewpowt { backgwound-cowow: ${scwowwbawSwidewBackgwoundCowow} !impowtant; }
+			.monaco-wowkbench .editow-instance .xtewm-viewpowt,
+			.monaco-wowkbench .pane-body.integwated-tewminaw .xtewm-viewpowt { scwowwbaw-cowow: ${scwowwbawSwidewBackgwoundCowow} twanspawent; }
 		`);
 	}
 
-	const scrollbarSliderHoverBackgroundColor = theme.getColor(scrollbarSliderHoverBackground);
-	if (scrollbarSliderHoverBackgroundColor) {
-		collector.addRule(`
-			.monaco-workbench .editor-instance .xterm .xterm-viewport::-webkit-scrollbar-thumb:hover,
-			.monaco-workbench .pane-body.integrated-terminal .xterm .xterm-viewport::-webkit-scrollbar-thumb:hover { background-color: ${scrollbarSliderHoverBackgroundColor}; }
-			.monaco-workbench .editor-instance .xterm-viewport:hover,
-			.monaco-workbench .pane-body.integrated-terminal .xterm-viewport:hover { scrollbar-color: ${scrollbarSliderHoverBackgroundColor} transparent; }
+	const scwowwbawSwidewHovewBackgwoundCowow = theme.getCowow(scwowwbawSwidewHovewBackgwound);
+	if (scwowwbawSwidewHovewBackgwoundCowow) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .editow-instance .xtewm .xtewm-viewpowt::-webkit-scwowwbaw-thumb:hova,
+			.monaco-wowkbench .pane-body.integwated-tewminaw .xtewm .xtewm-viewpowt::-webkit-scwowwbaw-thumb:hova { backgwound-cowow: ${scwowwbawSwidewHovewBackgwoundCowow}; }
+			.monaco-wowkbench .editow-instance .xtewm-viewpowt:hova,
+			.monaco-wowkbench .pane-body.integwated-tewminaw .xtewm-viewpowt:hova { scwowwbaw-cowow: ${scwowwbawSwidewHovewBackgwoundCowow} twanspawent; }
 		`);
 	}
 
-	const scrollbarSliderActiveBackgroundColor = theme.getColor(scrollbarSliderActiveBackground);
-	if (scrollbarSliderActiveBackgroundColor) {
-		collector.addRule(`
-			.monaco-workbench .editor-instance .xterm .xterm-viewport::-webkit-scrollbar-thumb:active,
-			.monaco-workbench .pane-body.integrated-terminal .xterm .xterm-viewport::-webkit-scrollbar-thumb:active { background-color: ${scrollbarSliderActiveBackgroundColor}; }
+	const scwowwbawSwidewActiveBackgwoundCowow = theme.getCowow(scwowwbawSwidewActiveBackgwound);
+	if (scwowwbawSwidewActiveBackgwoundCowow) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .editow-instance .xtewm .xtewm-viewpowt::-webkit-scwowwbaw-thumb:active,
+			.monaco-wowkbench .pane-body.integwated-tewminaw .xtewm .xtewm-viewpowt::-webkit-scwowwbaw-thumb:active { backgwound-cowow: ${scwowwbawSwidewActiveBackgwoundCowow}; }
 		`);
 	}
 });
 
-export interface ITerminalLabelTemplateProperties {
-	cwd?: string | null | undefined;
-	cwdFolder?: string | null | undefined;
-	workspaceFolder?: string | null | undefined;
-	local?: string | null | undefined;
-	process?: string | null | undefined;
-	sequence?: string | null | undefined;
-	task?: string | null | undefined;
-	separator?: string | ISeparator | null | undefined;
+expowt intewface ITewminawWabewTempwatePwopewties {
+	cwd?: stwing | nuww | undefined;
+	cwdFowda?: stwing | nuww | undefined;
+	wowkspaceFowda?: stwing | nuww | undefined;
+	wocaw?: stwing | nuww | undefined;
+	pwocess?: stwing | nuww | undefined;
+	sequence?: stwing | nuww | undefined;
+	task?: stwing | nuww | undefined;
+	sepawatow?: stwing | ISepawatow | nuww | undefined;
 }
 
-const enum TerminalLabelType {
-	Title = 'title',
-	Description = 'description'
+const enum TewminawWabewType {
+	Titwe = 'titwe',
+	Descwiption = 'descwiption'
 }
 
-export class TerminalLabelComputer extends Disposable {
-	private _title: string = '';
-	private _description: string = '';
-	get title(): string | undefined { return this._title; }
-	get description(): string | undefined { return this._description; }
+expowt cwass TewminawWabewComputa extends Disposabwe {
+	pwivate _titwe: stwing = '';
+	pwivate _descwiption: stwing = '';
+	get titwe(): stwing | undefined { wetuwn this._titwe; }
+	get descwiption(): stwing | undefined { wetuwn this._descwiption; }
 
-	private readonly _onDidChangeLabel = this._register(new Emitter<{ title: string, description: string }>());
-	readonly onDidChangeLabel = this._onDidChangeLabel.event;
-	constructor(
-		private readonly _configHelper: TerminalConfigHelper,
-		private readonly _instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'cwd' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
+	pwivate weadonwy _onDidChangeWabew = this._wegista(new Emitta<{ titwe: stwing, descwiption: stwing }>());
+	weadonwy onDidChangeWabew = this._onDidChangeWabew.event;
+	constwuctow(
+		pwivate weadonwy _configHewpa: TewminawConfigHewpa,
+		pwivate weadonwy _instance: Pick<ITewminawInstance, 'shewwWaunchConfig' | 'cwd' | 'initiawCwd' | 'pwocessName' | 'sequence' | 'usewHome' | 'wowkspaceFowda' | 'staticTitwe' | 'capabiwities' | 'titwe' | 'descwiption'>,
+		@IWowkspaceContextSewvice pwivate weadonwy _wowkspaceContextSewvice: IWowkspaceContextSewvice
 	) {
-		super();
+		supa();
 	}
-	refreshLabel(): void {
-		this._title = this.computeLabel(this._configHelper.config.tabs.title, TerminalLabelType.Title);
-		this._description = this.computeLabel(this._configHelper.config.tabs.description, TerminalLabelType.Description);
-		if (this._title !== this._instance.title || this._description !== this._instance.description) {
-			this._onDidChangeLabel.fire({ title: this._title, description: this._description });
+	wefweshWabew(): void {
+		this._titwe = this.computeWabew(this._configHewpa.config.tabs.titwe, TewminawWabewType.Titwe);
+		this._descwiption = this.computeWabew(this._configHewpa.config.tabs.descwiption, TewminawWabewType.Descwiption);
+		if (this._titwe !== this._instance.titwe || this._descwiption !== this._instance.descwiption) {
+			this._onDidChangeWabew.fiwe({ titwe: this._titwe, descwiption: this._descwiption });
 		}
 	}
 
-	computeLabel(
-		labelTemplate: string,
-		labelType: TerminalLabelType
+	computeWabew(
+		wabewTempwate: stwing,
+		wabewType: TewminawWabewType
 	) {
-		const templateProperties: ITerminalLabelTemplateProperties = {
-			cwd: this._instance.cwd || this._instance.initialCwd || '',
-			cwdFolder: '',
-			workspaceFolder: this._instance.workspaceFolder,
-			local: this._instance.shellLaunchConfig.description === 'Local' ? 'Local' : undefined,
-			process: this._instance.processName,
+		const tempwatePwopewties: ITewminawWabewTempwatePwopewties = {
+			cwd: this._instance.cwd || this._instance.initiawCwd || '',
+			cwdFowda: '',
+			wowkspaceFowda: this._instance.wowkspaceFowda,
+			wocaw: this._instance.shewwWaunchConfig.descwiption === 'Wocaw' ? 'Wocaw' : undefined,
+			pwocess: this._instance.pwocessName,
 			sequence: this._instance.sequence,
-			task: this._instance.shellLaunchConfig.description === 'Task' ? 'Task' : undefined,
-			separator: { label: this._configHelper.config.tabs.separator }
+			task: this._instance.shewwWaunchConfig.descwiption === 'Task' ? 'Task' : undefined,
+			sepawatow: { wabew: this._configHewpa.config.tabs.sepawatow }
 		};
-		if (!labelTemplate) {
-			return '';
+		if (!wabewTempwate) {
+			wetuwn '';
 		}
-		if (this._instance.staticTitle && labelType === TerminalLabelType.Title) {
-			return this._instance.staticTitle.replace(/[\n\r\t]/g, '') || templateProperties.process?.replace(/[\n\r\t]/g, '') || '';
+		if (this._instance.staticTitwe && wabewType === TewminawWabewType.Titwe) {
+			wetuwn this._instance.staticTitwe.wepwace(/[\n\w\t]/g, '') || tempwatePwopewties.pwocess?.wepwace(/[\n\w\t]/g, '') || '';
 		}
-		const detection = this._instance.capabilities.includes(ProcessCapability.CwdDetection);
-		const zeroRootWorkspace = this._workspaceContextService.getWorkspace().folders.length === 0 && this.pathsEqual(templateProperties.cwd, this._instance.userHome || this._configHelper.config.cwd);
-		const singleRootWorkspace = this._workspaceContextService.getWorkspace().folders.length === 1 && this.pathsEqual(templateProperties.cwd, this._configHelper.config.cwd || this._workspaceContextService.getWorkspace().folders[0]?.uri.fsPath);
-		templateProperties.cwdFolder = (!templateProperties.cwd || !detection || zeroRootWorkspace || singleRootWorkspace) ? '' : path.basename(templateProperties.cwd);
+		const detection = this._instance.capabiwities.incwudes(PwocessCapabiwity.CwdDetection);
+		const zewoWootWowkspace = this._wowkspaceContextSewvice.getWowkspace().fowdews.wength === 0 && this.pathsEquaw(tempwatePwopewties.cwd, this._instance.usewHome || this._configHewpa.config.cwd);
+		const singweWootWowkspace = this._wowkspaceContextSewvice.getWowkspace().fowdews.wength === 1 && this.pathsEquaw(tempwatePwopewties.cwd, this._configHewpa.config.cwd || this._wowkspaceContextSewvice.getWowkspace().fowdews[0]?.uwi.fsPath);
+		tempwatePwopewties.cwdFowda = (!tempwatePwopewties.cwd || !detection || zewoWootWowkspace || singweWootWowkspace) ? '' : path.basename(tempwatePwopewties.cwd);
 
-		//Remove special characters that could mess with rendering
-		const label = template(labelTemplate, (templateProperties as unknown) as { [key: string]: string | ISeparator | undefined | null; }).replace(/[\n\r\t]/g, '');
-		return label === '' && labelType === TerminalLabelType.Title ? (this._instance.processName || '') : label;
+		//Wemove speciaw chawactews that couwd mess with wendewing
+		const wabew = tempwate(wabewTempwate, (tempwatePwopewties as unknown) as { [key: stwing]: stwing | ISepawatow | undefined | nuww; }).wepwace(/[\n\w\t]/g, '');
+		wetuwn wabew === '' && wabewType === TewminawWabewType.Titwe ? (this._instance.pwocessName || '') : wabew;
 	}
 
-	pathsEqual(path1?: string | null, path2?: string) {
+	pathsEquaw(path1?: stwing | nuww, path2?: stwing) {
 		if (!path1 && !path2) {
-			return true;
-		} else if (!path1 || !path2) {
-			return false;
-		} else if (path1 === path2) {
-			return true;
+			wetuwn twue;
+		} ewse if (!path1 || !path2) {
+			wetuwn fawse;
+		} ewse if (path1 === path2) {
+			wetuwn twue;
 		}
-		const split1 = path1.includes('/') ? path1.split('/') : path1.split('\\');
-		const split2 = path2.includes('/') ? path2.split('/') : path2.split('\\');
-		if (split1.length !== split2.length) {
-			return false;
+		const spwit1 = path1.incwudes('/') ? path1.spwit('/') : path1.spwit('\\');
+		const spwit2 = path2.incwudes('/') ? path2.spwit('/') : path2.spwit('\\');
+		if (spwit1.wength !== spwit2.wength) {
+			wetuwn fawse;
 		}
-		for (let i = 0; i < path1.length; i++) {
+		fow (wet i = 0; i < path1.wength; i++) {
 			if (path1[i] !== path2[i]) {
-				return false;
+				wetuwn fawse;
 			}
 		}
-		return true;
+		wetuwn twue;
 	}
 }

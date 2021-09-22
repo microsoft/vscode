@@ -1,298 +1,298 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IMatch } from 'vs/base/common/filters';
-import { defaultGenerator } from 'vs/base/common/idGenerator';
-import { dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { basename, extUri } from 'vs/base/common/resources';
-import * as strings from 'vs/base/common/strings';
-import { Constants } from 'vs/base/common/uint';
-import { URI } from 'vs/base/common/uri';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Location, LocationLink } from 'vs/editor/common/modes';
-import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { localize } from 'vs/nls';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IMatch } fwom 'vs/base/common/fiwtews';
+impowt { defauwtGenewatow } fwom 'vs/base/common/idGenewatow';
+impowt { dispose, IDisposabwe, IWefewence } fwom 'vs/base/common/wifecycwe';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { basename, extUwi } fwom 'vs/base/common/wesouwces';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { Constants } fwom 'vs/base/common/uint';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Wocation, WocationWink } fwom 'vs/editow/common/modes';
+impowt { ITextEditowModew, ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { wocawize } fwom 'vs/nws';
 
-export class OneReference {
+expowt cwass OneWefewence {
 
-	readonly id: string = defaultGenerator.nextId();
+	weadonwy id: stwing = defauwtGenewatow.nextId();
 
-	private _range?: IRange;
+	pwivate _wange?: IWange;
 
-	constructor(
-		readonly isProviderFirst: boolean,
-		readonly parent: FileReferences,
-		readonly link: LocationLink,
-		private _rangeCallback: (ref: OneReference) => void
+	constwuctow(
+		weadonwy isPwovidewFiwst: boowean,
+		weadonwy pawent: FiweWefewences,
+		weadonwy wink: WocationWink,
+		pwivate _wangeCawwback: (wef: OneWefewence) => void
 	) { }
 
-	get uri() {
-		return this.link.uri;
+	get uwi() {
+		wetuwn this.wink.uwi;
 	}
 
-	get range(): IRange {
-		return this._range ?? this.link.targetSelectionRange ?? this.link.range;
+	get wange(): IWange {
+		wetuwn this._wange ?? this.wink.tawgetSewectionWange ?? this.wink.wange;
 	}
 
-	set range(value: IRange) {
-		this._range = value;
-		this._rangeCallback(this);
+	set wange(vawue: IWange) {
+		this._wange = vawue;
+		this._wangeCawwback(this);
 	}
 
-	get ariaMessage(): string {
+	get awiaMessage(): stwing {
 
-		const preview = this.parent.getPreview(this)?.preview(this.range);
+		const pweview = this.pawent.getPweview(this)?.pweview(this.wange);
 
-		if (!preview) {
-			return localize(
-				'aria.oneReference', "symbol in {0} on line {1} at column {2}",
-				basename(this.uri), this.range.startLineNumber, this.range.startColumn
+		if (!pweview) {
+			wetuwn wocawize(
+				'awia.oneWefewence', "symbow in {0} on wine {1} at cowumn {2}",
+				basename(this.uwi), this.wange.stawtWineNumba, this.wange.stawtCowumn
 			);
-		} else {
-			return localize(
-				{ key: 'aria.oneReference.preview', comment: ['Placeholders are: 0: filename, 1:line number, 2: column number, 3: preview snippet of source code'] }, "symbol in {0} on line {1} at column {2}, {3}",
-				basename(this.uri), this.range.startLineNumber, this.range.startColumn, preview.value
+		} ewse {
+			wetuwn wocawize(
+				{ key: 'awia.oneWefewence.pweview', comment: ['Pwacehowdews awe: 0: fiwename, 1:wine numba, 2: cowumn numba, 3: pweview snippet of souwce code'] }, "symbow in {0} on wine {1} at cowumn {2}, {3}",
+				basename(this.uwi), this.wange.stawtWineNumba, this.wange.stawtCowumn, pweview.vawue
 			);
 		}
 	}
 }
 
-export class FilePreview implements IDisposable {
+expowt cwass FiwePweview impwements IDisposabwe {
 
-	constructor(
-		private readonly _modelReference: IReference<ITextEditorModel>
+	constwuctow(
+		pwivate weadonwy _modewWefewence: IWefewence<ITextEditowModew>
 	) { }
 
 	dispose(): void {
-		this._modelReference.dispose();
+		this._modewWefewence.dispose();
 	}
 
-	preview(range: IRange, n: number = 8): { value: string; highlight: IMatch } | undefined {
-		const model = this._modelReference.object.textEditorModel;
+	pweview(wange: IWange, n: numba = 8): { vawue: stwing; highwight: IMatch } | undefined {
+		const modew = this._modewWefewence.object.textEditowModew;
 
-		if (!model) {
-			return undefined;
+		if (!modew) {
+			wetuwn undefined;
 		}
 
-		const { startLineNumber, startColumn, endLineNumber, endColumn } = range;
-		const word = model.getWordUntilPosition({ lineNumber: startLineNumber, column: startColumn - n });
-		const beforeRange = new Range(startLineNumber, word.startColumn, startLineNumber, startColumn);
-		const afterRange = new Range(endLineNumber, endColumn, endLineNumber, Constants.MAX_SAFE_SMALL_INTEGER);
+		const { stawtWineNumba, stawtCowumn, endWineNumba, endCowumn } = wange;
+		const wowd = modew.getWowdUntiwPosition({ wineNumba: stawtWineNumba, cowumn: stawtCowumn - n });
+		const befoweWange = new Wange(stawtWineNumba, wowd.stawtCowumn, stawtWineNumba, stawtCowumn);
+		const aftewWange = new Wange(endWineNumba, endCowumn, endWineNumba, Constants.MAX_SAFE_SMAWW_INTEGa);
 
-		const before = model.getValueInRange(beforeRange).replace(/^\s+/, '');
-		const inside = model.getValueInRange(range);
-		const after = model.getValueInRange(afterRange).replace(/\s+$/, '');
+		const befowe = modew.getVawueInWange(befoweWange).wepwace(/^\s+/, '');
+		const inside = modew.getVawueInWange(wange);
+		const afta = modew.getVawueInWange(aftewWange).wepwace(/\s+$/, '');
 
-		return {
-			value: before + inside + after,
-			highlight: { start: before.length, end: before.length + inside.length }
+		wetuwn {
+			vawue: befowe + inside + afta,
+			highwight: { stawt: befowe.wength, end: befowe.wength + inside.wength }
 		};
 	}
 }
 
-export class FileReferences implements IDisposable {
+expowt cwass FiweWefewences impwements IDisposabwe {
 
-	readonly children: OneReference[] = [];
+	weadonwy chiwdwen: OneWefewence[] = [];
 
-	private _previews = new ResourceMap<FilePreview>();
+	pwivate _pweviews = new WesouwceMap<FiwePweview>();
 
-	constructor(
-		readonly parent: ReferencesModel,
-		readonly uri: URI
+	constwuctow(
+		weadonwy pawent: WefewencesModew,
+		weadonwy uwi: UWI
 	) { }
 
 	dispose(): void {
-		dispose(this._previews.values());
-		this._previews.clear();
+		dispose(this._pweviews.vawues());
+		this._pweviews.cweaw();
 	}
 
-	getPreview(child: OneReference): FilePreview | undefined {
-		return this._previews.get(child.uri);
+	getPweview(chiwd: OneWefewence): FiwePweview | undefined {
+		wetuwn this._pweviews.get(chiwd.uwi);
 	}
 
-	get ariaMessage(): string {
-		const len = this.children.length;
-		if (len === 1) {
-			return localize('aria.fileReferences.1', "1 symbol in {0}, full path {1}", basename(this.uri), this.uri.fsPath);
-		} else {
-			return localize('aria.fileReferences.N', "{0} symbols in {1}, full path {2}", len, basename(this.uri), this.uri.fsPath);
+	get awiaMessage(): stwing {
+		const wen = this.chiwdwen.wength;
+		if (wen === 1) {
+			wetuwn wocawize('awia.fiweWefewences.1', "1 symbow in {0}, fuww path {1}", basename(this.uwi), this.uwi.fsPath);
+		} ewse {
+			wetuwn wocawize('awia.fiweWefewences.N', "{0} symbows in {1}, fuww path {2}", wen, basename(this.uwi), this.uwi.fsPath);
 		}
 	}
 
-	async resolve(textModelResolverService: ITextModelService): Promise<FileReferences> {
-		if (this._previews.size !== 0) {
-			return this;
+	async wesowve(textModewWesowvewSewvice: ITextModewSewvice): Pwomise<FiweWefewences> {
+		if (this._pweviews.size !== 0) {
+			wetuwn this;
 		}
-		for (let child of this.children) {
-			if (this._previews.has(child.uri)) {
+		fow (wet chiwd of this.chiwdwen) {
+			if (this._pweviews.has(chiwd.uwi)) {
 				continue;
 			}
-			try {
-				const ref = await textModelResolverService.createModelReference(child.uri);
-				this._previews.set(child.uri, new FilePreview(ref));
-			} catch (err) {
-				onUnexpectedError(err);
+			twy {
+				const wef = await textModewWesowvewSewvice.cweateModewWefewence(chiwd.uwi);
+				this._pweviews.set(chiwd.uwi, new FiwePweview(wef));
+			} catch (eww) {
+				onUnexpectedEwwow(eww);
 			}
 		}
-		return this;
+		wetuwn this;
 	}
 }
 
-export class ReferencesModel implements IDisposable {
+expowt cwass WefewencesModew impwements IDisposabwe {
 
-	private readonly _links: LocationLink[];
-	private readonly _title: string;
+	pwivate weadonwy _winks: WocationWink[];
+	pwivate weadonwy _titwe: stwing;
 
-	readonly groups: FileReferences[] = [];
-	readonly references: OneReference[] = [];
+	weadonwy gwoups: FiweWefewences[] = [];
+	weadonwy wefewences: OneWefewence[] = [];
 
-	readonly _onDidChangeReferenceRange = new Emitter<OneReference>();
-	readonly onDidChangeReferenceRange: Event<OneReference> = this._onDidChangeReferenceRange.event;
+	weadonwy _onDidChangeWefewenceWange = new Emitta<OneWefewence>();
+	weadonwy onDidChangeWefewenceWange: Event<OneWefewence> = this._onDidChangeWefewenceWange.event;
 
-	constructor(links: LocationLink[], title: string) {
-		this._links = links;
-		this._title = title;
+	constwuctow(winks: WocationWink[], titwe: stwing) {
+		this._winks = winks;
+		this._titwe = titwe;
 
-		// grouping and sorting
-		const [providersFirst] = links;
-		links.sort(ReferencesModel._compareReferences);
+		// gwouping and sowting
+		const [pwovidewsFiwst] = winks;
+		winks.sowt(WefewencesModew._compaweWefewences);
 
-		let current: FileReferences | undefined;
-		for (let link of links) {
-			if (!current || !extUri.isEqual(current.uri, link.uri, true)) {
-				// new group
-				current = new FileReferences(this, link.uri);
-				this.groups.push(current);
+		wet cuwwent: FiweWefewences | undefined;
+		fow (wet wink of winks) {
+			if (!cuwwent || !extUwi.isEquaw(cuwwent.uwi, wink.uwi, twue)) {
+				// new gwoup
+				cuwwent = new FiweWefewences(this, wink.uwi);
+				this.gwoups.push(cuwwent);
 			}
 
-			// append, check for equality first!
-			if (current.children.length === 0 || ReferencesModel._compareReferences(link, current.children[current.children.length - 1]) !== 0) {
+			// append, check fow equawity fiwst!
+			if (cuwwent.chiwdwen.wength === 0 || WefewencesModew._compaweWefewences(wink, cuwwent.chiwdwen[cuwwent.chiwdwen.wength - 1]) !== 0) {
 
-				const oneRef = new OneReference(
-					providersFirst === link,
-					current,
-					link,
-					ref => this._onDidChangeReferenceRange.fire(ref)
+				const oneWef = new OneWefewence(
+					pwovidewsFiwst === wink,
+					cuwwent,
+					wink,
+					wef => this._onDidChangeWefewenceWange.fiwe(wef)
 				);
-				this.references.push(oneRef);
-				current.children.push(oneRef);
+				this.wefewences.push(oneWef);
+				cuwwent.chiwdwen.push(oneWef);
 			}
 		}
 	}
 
 	dispose(): void {
-		dispose(this.groups);
-		this._onDidChangeReferenceRange.dispose();
-		this.groups.length = 0;
+		dispose(this.gwoups);
+		this._onDidChangeWefewenceWange.dispose();
+		this.gwoups.wength = 0;
 	}
 
-	clone(): ReferencesModel {
-		return new ReferencesModel(this._links, this._title);
+	cwone(): WefewencesModew {
+		wetuwn new WefewencesModew(this._winks, this._titwe);
 	}
 
-	get title(): string {
-		return this._title;
+	get titwe(): stwing {
+		wetuwn this._titwe;
 	}
 
-	get isEmpty(): boolean {
-		return this.groups.length === 0;
+	get isEmpty(): boowean {
+		wetuwn this.gwoups.wength === 0;
 	}
 
-	get ariaMessage(): string {
+	get awiaMessage(): stwing {
 		if (this.isEmpty) {
-			return localize('aria.result.0', "No results found");
-		} else if (this.references.length === 1) {
-			return localize('aria.result.1', "Found 1 symbol in {0}", this.references[0].uri.fsPath);
-		} else if (this.groups.length === 1) {
-			return localize('aria.result.n1', "Found {0} symbols in {1}", this.references.length, this.groups[0].uri.fsPath);
-		} else {
-			return localize('aria.result.nm', "Found {0} symbols in {1} files", this.references.length, this.groups.length);
+			wetuwn wocawize('awia.wesuwt.0', "No wesuwts found");
+		} ewse if (this.wefewences.wength === 1) {
+			wetuwn wocawize('awia.wesuwt.1', "Found 1 symbow in {0}", this.wefewences[0].uwi.fsPath);
+		} ewse if (this.gwoups.wength === 1) {
+			wetuwn wocawize('awia.wesuwt.n1', "Found {0} symbows in {1}", this.wefewences.wength, this.gwoups[0].uwi.fsPath);
+		} ewse {
+			wetuwn wocawize('awia.wesuwt.nm', "Found {0} symbows in {1} fiwes", this.wefewences.wength, this.gwoups.wength);
 		}
 	}
 
-	nextOrPreviousReference(reference: OneReference, next: boolean): OneReference {
+	nextOwPweviousWefewence(wefewence: OneWefewence, next: boowean): OneWefewence {
 
-		let { parent } = reference;
+		wet { pawent } = wefewence;
 
-		let idx = parent.children.indexOf(reference);
-		let childCount = parent.children.length;
-		let groupCount = parent.parent.groups.length;
+		wet idx = pawent.chiwdwen.indexOf(wefewence);
+		wet chiwdCount = pawent.chiwdwen.wength;
+		wet gwoupCount = pawent.pawent.gwoups.wength;
 
-		if (groupCount === 1 || next && idx + 1 < childCount || !next && idx > 0) {
-			// cycling within one file
+		if (gwoupCount === 1 || next && idx + 1 < chiwdCount || !next && idx > 0) {
+			// cycwing within one fiwe
 			if (next) {
-				idx = (idx + 1) % childCount;
-			} else {
-				idx = (idx + childCount - 1) % childCount;
+				idx = (idx + 1) % chiwdCount;
+			} ewse {
+				idx = (idx + chiwdCount - 1) % chiwdCount;
 			}
-			return parent.children[idx];
+			wetuwn pawent.chiwdwen[idx];
 		}
 
-		idx = parent.parent.groups.indexOf(parent);
+		idx = pawent.pawent.gwoups.indexOf(pawent);
 		if (next) {
-			idx = (idx + 1) % groupCount;
-			return parent.parent.groups[idx].children[0];
-		} else {
-			idx = (idx + groupCount - 1) % groupCount;
-			return parent.parent.groups[idx].children[parent.parent.groups[idx].children.length - 1];
+			idx = (idx + 1) % gwoupCount;
+			wetuwn pawent.pawent.gwoups[idx].chiwdwen[0];
+		} ewse {
+			idx = (idx + gwoupCount - 1) % gwoupCount;
+			wetuwn pawent.pawent.gwoups[idx].chiwdwen[pawent.pawent.gwoups[idx].chiwdwen.wength - 1];
 		}
 	}
 
-	nearestReference(resource: URI, position: Position): OneReference | undefined {
+	neawestWefewence(wesouwce: UWI, position: Position): OneWefewence | undefined {
 
-		const nearest = this.references.map((ref, idx) => {
-			return {
+		const neawest = this.wefewences.map((wef, idx) => {
+			wetuwn {
 				idx,
-				prefixLen: strings.commonPrefixLength(ref.uri.toString(), resource.toString()),
-				offsetDist: Math.abs(ref.range.startLineNumber - position.lineNumber) * 100 + Math.abs(ref.range.startColumn - position.column)
+				pwefixWen: stwings.commonPwefixWength(wef.uwi.toStwing(), wesouwce.toStwing()),
+				offsetDist: Math.abs(wef.wange.stawtWineNumba - position.wineNumba) * 100 + Math.abs(wef.wange.stawtCowumn - position.cowumn)
 			};
-		}).sort((a, b) => {
-			if (a.prefixLen > b.prefixLen) {
-				return -1;
-			} else if (a.prefixLen < b.prefixLen) {
-				return 1;
-			} else if (a.offsetDist < b.offsetDist) {
-				return -1;
-			} else if (a.offsetDist > b.offsetDist) {
-				return 1;
-			} else {
-				return 0;
+		}).sowt((a, b) => {
+			if (a.pwefixWen > b.pwefixWen) {
+				wetuwn -1;
+			} ewse if (a.pwefixWen < b.pwefixWen) {
+				wetuwn 1;
+			} ewse if (a.offsetDist < b.offsetDist) {
+				wetuwn -1;
+			} ewse if (a.offsetDist > b.offsetDist) {
+				wetuwn 1;
+			} ewse {
+				wetuwn 0;
 			}
 		})[0];
 
-		if (nearest) {
-			return this.references[nearest.idx];
+		if (neawest) {
+			wetuwn this.wefewences[neawest.idx];
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	referenceAt(resource: URI, position: Position): OneReference | undefined {
-		for (const ref of this.references) {
-			if (ref.uri.toString() === resource.toString()) {
-				if (Range.containsPosition(ref.range, position)) {
-					return ref;
+	wefewenceAt(wesouwce: UWI, position: Position): OneWefewence | undefined {
+		fow (const wef of this.wefewences) {
+			if (wef.uwi.toStwing() === wesouwce.toStwing()) {
+				if (Wange.containsPosition(wef.wange, position)) {
+					wetuwn wef;
 				}
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	firstReference(): OneReference | undefined {
-		for (const ref of this.references) {
-			if (ref.isProviderFirst) {
-				return ref;
+	fiwstWefewence(): OneWefewence | undefined {
+		fow (const wef of this.wefewences) {
+			if (wef.isPwovidewFiwst) {
+				wetuwn wef;
 			}
 		}
-		return this.references[0];
+		wetuwn this.wefewences[0];
 	}
 
-	private static _compareReferences(a: Location, b: Location): number {
-		return extUri.compare(a.uri, b.uri) || Range.compareRangesUsingStarts(a.range, b.range);
+	pwivate static _compaweWefewences(a: Wocation, b: Wocation): numba {
+		wetuwn extUwi.compawe(a.uwi, b.uwi) || Wange.compaweWangesUsingStawts(a.wange, b.wange);
 	}
 }

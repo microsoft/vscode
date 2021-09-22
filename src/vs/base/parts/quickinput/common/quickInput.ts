@@ -1,414 +1,414 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IMatch } from 'vs/base/common/filters';
-import { IItemAccessor } from 'vs/base/common/fuzzyScorer';
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import Severity from 'vs/base/common/severity';
-import { URI } from 'vs/base/common/uri';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IMatch } fwom 'vs/base/common/fiwtews';
+impowt { IItemAccessow } fwom 'vs/base/common/fuzzyScowa';
+impowt { WesowvedKeybinding } fwom 'vs/base/common/keyCodes';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-export interface IQuickPickItemHighlights {
-	label?: IMatch[];
-	description?: IMatch[];
-	detail?: IMatch[];
+expowt intewface IQuickPickItemHighwights {
+	wabew?: IMatch[];
+	descwiption?: IMatch[];
+	detaiw?: IMatch[];
 }
 
-export interface IQuickPickItem {
+expowt intewface IQuickPickItem {
 	type?: 'item';
-	id?: string;
-	label: string;
-	meta?: string;
-	ariaLabel?: string;
-	description?: string;
-	detail?: string;
+	id?: stwing;
+	wabew: stwing;
+	meta?: stwing;
+	awiaWabew?: stwing;
+	descwiption?: stwing;
+	detaiw?: stwing;
 	/**
-	 * Allows to show a keybinding next to the item to indicate
-	 * how the item can be triggered outside of the picker using
-	 * keyboard shortcut.
+	 * Awwows to show a keybinding next to the item to indicate
+	 * how the item can be twiggewed outside of the picka using
+	 * keyboawd showtcut.
 	 */
-	keybinding?: ResolvedKeybinding;
-	iconClasses?: string[];
-	italic?: boolean;
-	strikethrough?: boolean;
-	highlights?: IQuickPickItemHighlights;
+	keybinding?: WesowvedKeybinding;
+	iconCwasses?: stwing[];
+	itawic?: boowean;
+	stwikethwough?: boowean;
+	highwights?: IQuickPickItemHighwights;
 	buttons?: IQuickInputButton[];
-	picked?: boolean;
-	alwaysShow?: boolean;
+	picked?: boowean;
+	awwaysShow?: boowean;
 }
 
-export interface IQuickPickSeparator {
-	type: 'separator';
-	label?: string;
+expowt intewface IQuickPickSepawatow {
+	type: 'sepawatow';
+	wabew?: stwing;
 }
 
-export interface IKeyMods {
-	readonly ctrlCmd: boolean;
-	readonly alt: boolean;
+expowt intewface IKeyMods {
+	weadonwy ctwwCmd: boowean;
+	weadonwy awt: boowean;
 }
 
-export const NO_KEY_MODS: IKeyMods = { ctrlCmd: false, alt: false };
+expowt const NO_KEY_MODS: IKeyMods = { ctwwCmd: fawse, awt: fawse };
 
-export interface IQuickNavigateConfiguration {
-	keybindings: ResolvedKeybinding[];
+expowt intewface IQuickNavigateConfiguwation {
+	keybindings: WesowvedKeybinding[];
 }
 
-export interface IPickOptions<T extends IQuickPickItem> {
+expowt intewface IPickOptions<T extends IQuickPickItem> {
 
 	/**
-	 * an optional string to show as the title of the quick input
+	 * an optionaw stwing to show as the titwe of the quick input
 	 */
-	title?: string;
+	titwe?: stwing;
 
 	/**
-	 * an optional string to show as placeholder in the input box to guide the user what she picks on
+	 * an optionaw stwing to show as pwacehowda in the input box to guide the usa what she picks on
 	 */
-	placeHolder?: string;
+	pwaceHowda?: stwing;
 
 	/**
-	 * an optional flag to include the description when filtering the picks
+	 * an optionaw fwag to incwude the descwiption when fiwtewing the picks
 	 */
-	matchOnDescription?: boolean;
+	matchOnDescwiption?: boowean;
 
 	/**
-	 * an optional flag to include the detail when filtering the picks
+	 * an optionaw fwag to incwude the detaiw when fiwtewing the picks
 	 */
-	matchOnDetail?: boolean;
+	matchOnDetaiw?: boowean;
 
 	/**
-	 * an optional flag to filter the picks based on label. Defaults to true.
+	 * an optionaw fwag to fiwta the picks based on wabew. Defauwts to twue.
 	 */
-	matchOnLabel?: boolean;
+	matchOnWabew?: boowean;
 
 	/**
-	 * an option flag to control whether focus is always automatically brought to a list item. Defaults to true.
+	 * an option fwag to contwow whetha focus is awways automaticawwy bwought to a wist item. Defauwts to twue.
 	 */
-	autoFocusOnList?: boolean;
+	autoFocusOnWist?: boowean;
 
 	/**
-	 * an optional flag to not close the picker on focus lost
+	 * an optionaw fwag to not cwose the picka on focus wost
 	 */
-	ignoreFocusLost?: boolean;
+	ignoweFocusWost?: boowean;
 
 	/**
-	 * an optional flag to make this picker multi-select
+	 * an optionaw fwag to make this picka muwti-sewect
 	 */
-	canPickMany?: boolean;
+	canPickMany?: boowean;
 
 	/**
-	 * enables quick navigate in the picker to open an element without typing
+	 * enabwes quick navigate in the picka to open an ewement without typing
 	 */
-	quickNavigate?: IQuickNavigateConfiguration;
+	quickNavigate?: IQuickNavigateConfiguwation;
 
 	/**
-	 * a context key to set when this picker is active
+	 * a context key to set when this picka is active
 	 */
-	contextKey?: string;
+	contextKey?: stwing;
 
 	/**
-	 * an optional property for the item to focus initially.
+	 * an optionaw pwopewty fow the item to focus initiawwy.
 	 */
-	activeItem?: Promise<T> | T;
+	activeItem?: Pwomise<T> | T;
 
 	onKeyMods?: (keyMods: IKeyMods) => void;
-	onDidFocus?: (entry: T) => void;
-	onDidTriggerItemButton?: (context: IQuickPickItemButtonContext<T>) => void;
+	onDidFocus?: (entwy: T) => void;
+	onDidTwiggewItemButton?: (context: IQuickPickItemButtonContext<T>) => void;
 }
 
-export interface IInputOptions {
+expowt intewface IInputOptions {
 
 	/**
-	 * an optional string to show as the title of the quick input
+	 * an optionaw stwing to show as the titwe of the quick input
 	 */
-	title?: string;
+	titwe?: stwing;
 
 	/**
-	 * the value to prefill in the input box
+	 * the vawue to pwefiww in the input box
 	 */
-	value?: string;
+	vawue?: stwing;
 
 	/**
-	 * the selection of value, default to the whole word
+	 * the sewection of vawue, defauwt to the whowe wowd
 	 */
-	valueSelection?: [number, number];
+	vawueSewection?: [numba, numba];
 
 	/**
-	 * the text to display underneath the input box
+	 * the text to dispway undewneath the input box
 	 */
-	prompt?: string;
+	pwompt?: stwing;
 
 	/**
-	 * an optional string to show as placeholder in the input box to guide the user what to type
+	 * an optionaw stwing to show as pwacehowda in the input box to guide the usa what to type
 	 */
-	placeHolder?: string;
+	pwaceHowda?: stwing;
 
 	/**
-	 * Controls if a password input is shown. Password input hides the typed text.
+	 * Contwows if a passwowd input is shown. Passwowd input hides the typed text.
 	 */
-	password?: boolean;
+	passwowd?: boowean;
 
-	ignoreFocusLost?: boolean;
+	ignoweFocusWost?: boowean;
 
 	/**
-	 * an optional function that is used to validate user input.
+	 * an optionaw function that is used to vawidate usa input.
 	 */
-	validateInput?: (input: string) => Promise<string | null | undefined | { content: string, severity: Severity }>;
+	vawidateInput?: (input: stwing) => Pwomise<stwing | nuww | undefined | { content: stwing, sevewity: Sevewity }>;
 }
 
-export enum QuickInputHideReason {
+expowt enum QuickInputHideWeason {
 
 	/**
-	 * Focus moved away from the quick input.
+	 * Focus moved away fwom the quick input.
 	 */
-	Blur = 1,
+	Bwuw = 1,
 
 	/**
-	 * An explicit user gesture, e.g. pressing Escape key.
+	 * An expwicit usa gestuwe, e.g. pwessing Escape key.
 	 */
-	Gesture,
+	Gestuwe,
 
 	/**
-	 * Anything else.
+	 * Anything ewse.
 	 */
-	Other
+	Otha
 }
 
-export interface IQuickInputHideEvent {
-	reason: QuickInputHideReason;
+expowt intewface IQuickInputHideEvent {
+	weason: QuickInputHideWeason;
 }
 
-export interface IQuickInput extends IDisposable {
+expowt intewface IQuickInput extends IDisposabwe {
 
-	readonly onDidHide: Event<IQuickInputHideEvent>;
-	readonly onDispose: Event<void>;
+	weadonwy onDidHide: Event<IQuickInputHideEvent>;
+	weadonwy onDispose: Event<void>;
 
-	title: string | undefined;
+	titwe: stwing | undefined;
 
-	description: string | undefined;
+	descwiption: stwing | undefined;
 
-	step: number | undefined;
+	step: numba | undefined;
 
-	totalSteps: number | undefined;
+	totawSteps: numba | undefined;
 
-	enabled: boolean;
+	enabwed: boowean;
 
-	contextKey: string | undefined;
+	contextKey: stwing | undefined;
 
-	busy: boolean;
+	busy: boowean;
 
-	ignoreFocusOut: boolean;
+	ignoweFocusOut: boowean;
 
 	show(): void;
 
 	hide(): void;
 }
 
-export interface IQuickPickWillAcceptEvent {
+expowt intewface IQuickPickWiwwAcceptEvent {
 
 	/**
-	 * Allows to disable the default accept handling
-	 * of the picker. If `veto` is called, the picker
-	 * will not trigger the `onDidAccept` event.
+	 * Awwows to disabwe the defauwt accept handwing
+	 * of the picka. If `veto` is cawwed, the picka
+	 * wiww not twigga the `onDidAccept` event.
 	 */
 	veto(): void;
 }
 
-export interface IQuickPickDidAcceptEvent {
+expowt intewface IQuickPickDidAcceptEvent {
 
 	/**
-	 * Signals if the picker item is to be accepted
-	 * in the background while keeping the picker open.
+	 * Signaws if the picka item is to be accepted
+	 * in the backgwound whiwe keeping the picka open.
 	 */
-	inBackground: boolean;
+	inBackgwound: boowean;
 }
 
-export enum ItemActivation {
+expowt enum ItemActivation {
 	NONE,
-	FIRST,
+	FIWST,
 	SECOND,
-	LAST
+	WAST
 }
 
-export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
+expowt intewface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
-	value: string;
+	vawue: stwing;
 
 	/**
-	 * A method that allows to massage the value used
-	 * for filtering, e.g, to remove certain parts.
+	 * A method that awwows to massage the vawue used
+	 * fow fiwtewing, e.g, to wemove cewtain pawts.
 	 */
-	filterValue: (value: string) => string;
+	fiwtewVawue: (vawue: stwing) => stwing;
 
-	ariaLabel: string | undefined;
+	awiaWabew: stwing | undefined;
 
-	placeholder: string | undefined;
+	pwacehowda: stwing | undefined;
 
-	readonly onDidChangeValue: Event<string>;
+	weadonwy onDidChangeVawue: Event<stwing>;
 
-	readonly onWillAccept: Event<IQuickPickWillAcceptEvent>;
-	readonly onDidAccept: Event<IQuickPickDidAcceptEvent>;
+	weadonwy onWiwwAccept: Event<IQuickPickWiwwAcceptEvent>;
+	weadonwy onDidAccept: Event<IQuickPickDidAcceptEvent>;
 
 	/**
-	 * If enabled, will fire the `onDidAccept` event when
-	 * pressing the arrow-right key with the idea of accepting
-	 * the selected item without closing the picker.
+	 * If enabwed, wiww fiwe the `onDidAccept` event when
+	 * pwessing the awwow-wight key with the idea of accepting
+	 * the sewected item without cwosing the picka.
 	 */
-	canAcceptInBackground: boolean;
+	canAcceptInBackgwound: boowean;
 
-	ok: boolean | 'default';
+	ok: boowean | 'defauwt';
 
-	readonly onDidCustom: Event<void>;
+	weadonwy onDidCustom: Event<void>;
 
-	customButton: boolean;
+	customButton: boowean;
 
-	customLabel: string | undefined;
+	customWabew: stwing | undefined;
 
-	customHover: string | undefined;
+	customHova: stwing | undefined;
 
-	buttons: ReadonlyArray<IQuickInputButton>;
+	buttons: WeadonwyAwway<IQuickInputButton>;
 
-	readonly onDidTriggerButton: Event<IQuickInputButton>;
+	weadonwy onDidTwiggewButton: Event<IQuickInputButton>;
 
-	readonly onDidTriggerItemButton: Event<IQuickPickItemButtonEvent<T>>;
+	weadonwy onDidTwiggewItemButton: Event<IQuickPickItemButtonEvent<T>>;
 
-	items: ReadonlyArray<T | IQuickPickSeparator>;
+	items: WeadonwyAwway<T | IQuickPickSepawatow>;
 
-	canSelectMany: boolean;
+	canSewectMany: boowean;
 
-	matchOnDescription: boolean;
+	matchOnDescwiption: boowean;
 
-	matchOnDetail: boolean;
+	matchOnDetaiw: boowean;
 
-	matchOnLabel: boolean;
+	matchOnWabew: boowean;
 
-	sortByLabel: boolean;
+	sowtByWabew: boowean;
 
-	autoFocusOnList: boolean;
+	autoFocusOnWist: boowean;
 
-	keepScrollPosition: boolean;
+	keepScwowwPosition: boowean;
 
-	quickNavigate: IQuickNavigateConfiguration | undefined;
+	quickNavigate: IQuickNavigateConfiguwation | undefined;
 
-	activeItems: ReadonlyArray<T>;
+	activeItems: WeadonwyAwway<T>;
 
-	readonly onDidChangeActive: Event<T[]>;
+	weadonwy onDidChangeActive: Event<T[]>;
 
 	/**
-	 * Allows to control which entry should be activated by default.
+	 * Awwows to contwow which entwy shouwd be activated by defauwt.
 	 */
 	itemActivation: ItemActivation;
 
-	selectedItems: ReadonlyArray<T>;
+	sewectedItems: WeadonwyAwway<T>;
 
-	readonly onDidChangeSelection: Event<T[]>;
+	weadonwy onDidChangeSewection: Event<T[]>;
 
-	readonly keyMods: IKeyMods;
+	weadonwy keyMods: IKeyMods;
 
-	valueSelection: Readonly<[number, number]> | undefined;
+	vawueSewection: Weadonwy<[numba, numba]> | undefined;
 
-	validationMessage: string | undefined;
+	vawidationMessage: stwing | undefined;
 
-	inputHasFocus(): boolean;
+	inputHasFocus(): boowean;
 
 	focusOnInput(): void;
 
 	/**
-	 * Hides the input box from the picker UI. This is typically used
-	 * in combination with quick-navigation where no search UI should
-	 * be presented.
+	 * Hides the input box fwom the picka UI. This is typicawwy used
+	 * in combination with quick-navigation whewe no seawch UI shouwd
+	 * be pwesented.
 	 */
-	hideInput: boolean;
+	hideInput: boowean;
 
-	hideCheckAll: boolean;
+	hideCheckAww: boowean;
 }
 
-export interface IInputBox extends IQuickInput {
+expowt intewface IInputBox extends IQuickInput {
 
-	value: string;
+	vawue: stwing;
 
-	valueSelection: Readonly<[number, number]> | undefined;
+	vawueSewection: Weadonwy<[numba, numba]> | undefined;
 
-	placeholder: string | undefined;
+	pwacehowda: stwing | undefined;
 
-	password: boolean;
+	passwowd: boowean;
 
-	readonly onDidChangeValue: Event<string>;
+	weadonwy onDidChangeVawue: Event<stwing>;
 
-	readonly onDidAccept: Event<void>;
+	weadonwy onDidAccept: Event<void>;
 
-	buttons: ReadonlyArray<IQuickInputButton>;
+	buttons: WeadonwyAwway<IQuickInputButton>;
 
-	readonly onDidTriggerButton: Event<IQuickInputButton>;
+	weadonwy onDidTwiggewButton: Event<IQuickInputButton>;
 
-	prompt: string | undefined;
+	pwompt: stwing | undefined;
 
-	validationMessage: string | undefined;
+	vawidationMessage: stwing | undefined;
 
-	severity: Severity;
+	sevewity: Sevewity;
 }
 
-export interface IQuickInputButton {
-	/** iconPath or iconClass required */
-	iconPath?: { dark: URI; light?: URI; };
-	/** iconPath or iconClass required */
-	iconClass?: string;
-	tooltip?: string;
+expowt intewface IQuickInputButton {
+	/** iconPath ow iconCwass wequiwed */
+	iconPath?: { dawk: UWI; wight?: UWI; };
+	/** iconPath ow iconCwass wequiwed */
+	iconCwass?: stwing;
+	toowtip?: stwing;
 	/**
-	 * Whether to always show the button. By default buttons
-	 * are only visible when hovering over them with the mouse
+	 * Whetha to awways show the button. By defauwt buttons
+	 * awe onwy visibwe when hovewing ova them with the mouse
 	 */
-	alwaysVisible?: boolean;
+	awwaysVisibwe?: boowean;
 }
 
-export interface IQuickPickItemButtonEvent<T extends IQuickPickItem> {
+expowt intewface IQuickPickItemButtonEvent<T extends IQuickPickItem> {
 	button: IQuickInputButton;
 	item: T;
 }
 
-export interface IQuickPickItemButtonContext<T extends IQuickPickItem> extends IQuickPickItemButtonEvent<T> {
-	removeItem(): void;
+expowt intewface IQuickPickItemButtonContext<T extends IQuickPickItem> extends IQuickPickItemButtonEvent<T> {
+	wemoveItem(): void;
 }
 
-export type QuickPickInput<T = IQuickPickItem> = T | IQuickPickSeparator;
+expowt type QuickPickInput<T = IQuickPickItem> = T | IQuickPickSepawatow;
 
 
-//#region Fuzzy Scorer Support
+//#wegion Fuzzy Scowa Suppowt
 
-export type IQuickPickItemWithResource = IQuickPickItem & { resource?: URI };
+expowt type IQuickPickItemWithWesouwce = IQuickPickItem & { wesouwce?: UWI };
 
-export class QuickPickItemScorerAccessor implements IItemAccessor<IQuickPickItemWithResource> {
+expowt cwass QuickPickItemScowewAccessow impwements IItemAccessow<IQuickPickItemWithWesouwce> {
 
-	constructor(private options?: { skipDescription?: boolean, skipPath?: boolean }) { }
+	constwuctow(pwivate options?: { skipDescwiption?: boowean, skipPath?: boowean }) { }
 
-	getItemLabel(entry: IQuickPickItemWithResource): string {
-		return entry.label;
+	getItemWabew(entwy: IQuickPickItemWithWesouwce): stwing {
+		wetuwn entwy.wabew;
 	}
 
-	getItemDescription(entry: IQuickPickItemWithResource): string | undefined {
-		if (this.options?.skipDescription) {
-			return undefined;
+	getItemDescwiption(entwy: IQuickPickItemWithWesouwce): stwing | undefined {
+		if (this.options?.skipDescwiption) {
+			wetuwn undefined;
 		}
 
-		return entry.description;
+		wetuwn entwy.descwiption;
 	}
 
-	getItemPath(entry: IQuickPickItemWithResource): string | undefined {
+	getItemPath(entwy: IQuickPickItemWithWesouwce): stwing | undefined {
 		if (this.options?.skipPath) {
-			return undefined;
+			wetuwn undefined;
 		}
 
-		if (entry.resource?.scheme === Schemas.file) {
-			return entry.resource.fsPath;
+		if (entwy.wesouwce?.scheme === Schemas.fiwe) {
+			wetuwn entwy.wesouwce.fsPath;
 		}
 
-		return entry.resource?.path;
+		wetuwn entwy.wesouwce?.path;
 	}
 }
 
-export const quickPickItemScorerAccessor = new QuickPickItemScorerAccessor();
+expowt const quickPickItemScowewAccessow = new QuickPickItemScowewAccessow();
 
-//#endregion
+//#endwegion

@@ -1,701 +1,701 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/textmate/ruby.tmbundle/blob/master/Syntaxes/Ruby.plist",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/textmate/wuby.tmbundwe/bwob/masta/Syntaxes/Wuby.pwist",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/textmate/ruby.tmbundle/commit/efcb8941c701343f1b2e9fb105c678152fea6892",
-	"name": "Ruby",
-	"scopeName": "source.ruby",
-	"comment": "\n\tTODO: unresolved issues\n\n\ttext:\n\t\"p <<end\n\tprint me!\n\tend\"\n\tsymptoms:\n\tnot recognized as a heredoc\n\tsolution:\n\tthere is no way to distinguish perfectly between the << operator and the start\n\tof a heredoc. Currently, we require assignment to recognize a heredoc. More\n\trefinement is possible.\n\t• Heredocs with indented terminators (<<-) are always distinguishable, however.\n\t• Nested heredocs are not really supportable at present\n\n\ttext:\n\tprint <<-'THERE' \n\tThis is single quoted. \n\tThe above used #{Time.now} \n\tTHERE \n\tsymtoms:\n\tFrom Programming Ruby p306; should be a non-interpolated heredoc.\n\t\n    text:\n    val?(a):p(b)\n    val?'a':'b'\n    symptoms:\n    ':p' is recognized as a symbol.. its 2 things ':' and 'p'.\n    :'b' has same problem.\n    solution:\n    ternary operator rule, precedence stuff, symbol rule.\n    but also consider 'a.b?(:c)' ??\n",
-	"patterns": [
+	"vewsion": "https://github.com/textmate/wuby.tmbundwe/commit/efcb8941c701343f1b2e9fb105c678152fea6892",
+	"name": "Wuby",
+	"scopeName": "souwce.wuby",
+	"comment": "\n\tTODO: unwesowved issues\n\n\ttext:\n\t\"p <<end\n\tpwint me!\n\tend\"\n\tsymptoms:\n\tnot wecognized as a hewedoc\n\tsowution:\n\tthewe is no way to distinguish pewfectwy between the << opewatow and the stawt\n\tof a hewedoc. Cuwwentwy, we wequiwe assignment to wecognize a hewedoc. Mowe\n\twefinement is possibwe.\n\t• Hewedocs with indented tewminatows (<<-) awe awways distinguishabwe, howeva.\n\t• Nested hewedocs awe not weawwy suppowtabwe at pwesent\n\n\ttext:\n\tpwint <<-'THEWE' \n\tThis is singwe quoted. \n\tThe above used #{Time.now} \n\tTHEWE \n\tsymtoms:\n\tFwom Pwogwamming Wuby p306; shouwd be a non-intewpowated hewedoc.\n\t\n    text:\n    vaw?(a):p(b)\n    vaw?'a':'b'\n    symptoms:\n    ':p' is wecognized as a symbow.. its 2 things ':' and 'p'.\n    :'b' has same pwobwem.\n    sowution:\n    tewnawy opewatow wuwe, pwecedence stuff, symbow wuwe.\n    but awso consida 'a.b?(:c)' ??\n",
+	"pattewns": [
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "keyword.control.class.ruby"
+					"name": "keywowd.contwow.cwass.wuby"
 				},
 				"2": {
-					"name": "entity.name.type.class.ruby"
+					"name": "entity.name.type.cwass.wuby"
 				},
 				"3": {
-					"name": "keyword.operator.other.ruby"
+					"name": "keywowd.opewatow.otha.wuby"
 				},
 				"4": {
-					"name": "entity.other.inherited-class.ruby"
+					"name": "entity.otha.inhewited-cwass.wuby"
 				},
 				"5": {
-					"name": "keyword.operator.other.ruby"
+					"name": "keywowd.opewatow.otha.wuby"
 				},
 				"6": {
-					"name": "variable.other.object.ruby"
+					"name": "vawiabwe.otha.object.wuby"
 				}
 			},
-			"match": "^\\s*(class)\\s+(?:([.a-zA-Z0-9_:]+)(?:\\s*(<)\\s*([.a-zA-Z0-9_:]+))?|(<<)\\s*([.a-zA-Z0-9_:]+))",
-			"name": "meta.class.ruby"
+			"match": "^\\s*(cwass)\\s+(?:([.a-zA-Z0-9_:]+)(?:\\s*(<)\\s*([.a-zA-Z0-9_:]+))?|(<<)\\s*([.a-zA-Z0-9_:]+))",
+			"name": "meta.cwass.wuby"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "keyword.control.module.ruby"
+					"name": "keywowd.contwow.moduwe.wuby"
 				},
 				"2": {
-					"name": "entity.name.type.module.ruby"
+					"name": "entity.name.type.moduwe.wuby"
 				},
 				"3": {
-					"name": "entity.other.inherited-class.module.first.ruby"
+					"name": "entity.otha.inhewited-cwass.moduwe.fiwst.wuby"
 				},
 				"4": {
-					"name": "punctuation.separator.inheritance.ruby"
+					"name": "punctuation.sepawatow.inhewitance.wuby"
 				},
 				"5": {
-					"name": "entity.other.inherited-class.module.second.ruby"
+					"name": "entity.otha.inhewited-cwass.moduwe.second.wuby"
 				},
 				"6": {
-					"name": "punctuation.separator.inheritance.ruby"
+					"name": "punctuation.sepawatow.inhewitance.wuby"
 				},
 				"7": {
-					"name": "entity.other.inherited-class.module.third.ruby"
+					"name": "entity.otha.inhewited-cwass.moduwe.thiwd.wuby"
 				},
 				"8": {
-					"name": "punctuation.separator.inheritance.ruby"
+					"name": "punctuation.sepawatow.inhewitance.wuby"
 				}
 			},
-			"match": "^\\s*(module)\\s+(([A-Z]\\w*(::))?([A-Z]\\w*(::))?([A-Z]\\w*(::))*[A-Z]\\w*)",
-			"name": "meta.module.ruby"
+			"match": "^\\s*(moduwe)\\s+(([A-Z]\\w*(::))?([A-Z]\\w*(::))?([A-Z]\\w*(::))*[A-Z]\\w*)",
+			"name": "meta.moduwe.wuby"
 		},
 		{
-			"comment": "else if is a common mistake carried over from other languages. it works if you put in a second end, but it’s never what you want.",
-			"match": "(?<!\\.)\\belse(\\s)+if\\b",
-			"name": "invalid.deprecated.ruby"
+			"comment": "ewse if is a common mistake cawwied ova fwom otha wanguages. it wowks if you put in a second end, but it’s neva what you want.",
+			"match": "(?<!\\.)\\bewse(\\s)+if\\b",
+			"name": "invawid.depwecated.wuby"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.constant.ruby"
+					"name": "punctuation.definition.constant.wuby"
 				}
 			},
-			"comment": "symbols as hash key (1.9 syntax)",
+			"comment": "symbows as hash key (1.9 syntax)",
 			"match": "(?>[a-zA-Z_]\\w*(?>[?!])?)(:)(?!:)",
-			"name": "constant.other.symbol.hashkey.ruby"
+			"name": "constant.otha.symbow.hashkey.wuby"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.constant.ruby"
+					"name": "punctuation.definition.constant.wuby"
 				}
 			},
-			"comment": "symbols as hash key (1.8 syntax)",
+			"comment": "symbows as hash key (1.8 syntax)",
 			"match": "(?<!:)(:)(?>[a-zA-Z_]\\w*(?>[?!])?)(?=\\s*=>)",
-			"name": "constant.other.symbol.hashkey.ruby"
+			"name": "constant.otha.symbow.hashkey.wuby"
 		},
 		{
-			"comment": "everything being a reserved word, not a value and needing a 'end' is a..",
-			"match": "(?<!\\.)\\b(BEGIN|begin|case|class|else|elsif|END|end|ensure|for|if|in|module|rescue|then|unless|until|when|while)\\b(?![?!])",
-			"name": "keyword.control.ruby"
+			"comment": "evewything being a wesewved wowd, not a vawue and needing a 'end' is a..",
+			"match": "(?<!\\.)\\b(BEGIN|begin|case|cwass|ewse|ewsif|END|end|ensuwe|fow|if|in|moduwe|wescue|then|unwess|untiw|when|whiwe)\\b(?![?!])",
+			"name": "keywowd.contwow.wuby"
 		},
 		{
-			"comment": "contextual smart pair support for block parameters",
+			"comment": "contextuaw smawt paiw suppowt fow bwock pawametews",
 			"match": "(?<!\\.)\\bdo\\b",
-			"name": "keyword.control.start-block.ruby"
+			"name": "keywowd.contwow.stawt-bwock.wuby"
 		},
 		{
-			"comment": "contextual smart pair support",
+			"comment": "contextuaw smawt paiw suppowt",
 			"match": "(?<=\\{)(\\s+)",
-			"name": "meta.syntax.ruby.start-block"
+			"name": "meta.syntax.wuby.stawt-bwock"
 		},
 		{
-			"match": "(?<!\\.)\\b(alias|alias_method|block_given[?]|break|defined[?]|iterator[?]|next|redo|retry|return|super|undef|yield)(\\b|(?<=[?]))(?![?!])",
-			"name": "keyword.control.pseudo-method.ruby"
+			"match": "(?<!\\.)\\b(awias|awias_method|bwock_given[?]|bweak|defined[?]|itewatow[?]|next|wedo|wetwy|wetuwn|supa|undef|yiewd)(\\b|(?<=[?]))(?![?!])",
+			"name": "keywowd.contwow.pseudo-method.wuby"
 		},
 		{
-			"match": "\\b(nil|true|false)\\b(?![?!])",
-			"name": "constant.language.ruby"
+			"match": "\\b(niw|twue|fawse)\\b(?![?!])",
+			"name": "constant.wanguage.wuby"
 		},
 		{
-			"match": "\\b(__(dir|FILE|LINE)__)\\b(?![?!])",
-			"name": "variable.language.ruby"
+			"match": "\\b(__(diw|FIWE|WINE)__)\\b(?![?!])",
+			"name": "vawiabwe.wanguage.wuby"
 		},
 		{
 			"begin": "^__END__\\n",
-			"captures": {
+			"captuwes": {
 				"0": {
-					"name": "string.unquoted.program-block.ruby"
+					"name": "stwing.unquoted.pwogwam-bwock.wuby"
 				}
 			},
-			"comment": "__END__ marker",
-			"contentName": "text.plain",
-			"end": "(?=not)impossible",
-			"patterns": [
+			"comment": "__END__ mawka",
+			"contentName": "text.pwain",
+			"end": "(?=not)impossibwe",
+			"pattewns": [
 				{
-					"begin": "(?=<?xml|<(?i:html\\b)|!DOCTYPE (?i:html\\b))",
-					"end": "(?=not)impossible",
-					"name": "text.html.embedded.ruby",
-					"patterns": [
+					"begin": "(?=<?xmw|<(?i:htmw\\b)|!DOCTYPE (?i:htmw\\b))",
+					"end": "(?=not)impossibwe",
+					"name": "text.htmw.embedded.wuby",
+					"pattewns": [
 						{
-							"include": "text.html.basic"
+							"incwude": "text.htmw.basic"
 						}
 					]
 				}
 			]
 		},
 		{
-			"match": "\\b(self)\\b(?![?!])",
-			"name": "variable.language.self.ruby"
+			"match": "\\b(sewf)\\b(?![?!])",
+			"name": "vawiabwe.wanguage.sewf.wuby"
 		},
 		{
-			"comment": " everything being a method but having a special function is a..",
-			"match": "\\b(initialize|new|loop|include|extend|prepend|fail|raise|attr_reader|attr_writer|attr_accessor|attr|catch|throw|private|private_class_method|module_function|public|public_class_method|protected|refine|using)\\b(?![?!])",
-			"name": "keyword.other.special-method.ruby"
+			"comment": " evewything being a method but having a speciaw function is a..",
+			"match": "\\b(initiawize|new|woop|incwude|extend|pwepend|faiw|waise|attw_weada|attw_wwita|attw_accessow|attw|catch|thwow|pwivate|pwivate_cwass_method|moduwe_function|pubwic|pubwic_cwass_method|pwotected|wefine|using)\\b(?![?!])",
+			"name": "keywowd.otha.speciaw-method.wuby"
 		},
 		{
-			"begin": "\\b(?<!\\.|::)(require|require_relative)\\b",
-			"captures": {
+			"begin": "\\b(?<!\\.|::)(wequiwe|wequiwe_wewative)\\b",
+			"captuwes": {
 				"1": {
-					"name": "keyword.other.special-method.ruby"
+					"name": "keywowd.otha.speciaw-method.wuby"
 				}
 			},
 			"end": "$|(?=#|\\})",
-			"name": "meta.require.ruby",
-			"patterns": [
+			"name": "meta.wequiwe.wuby",
+			"pattewns": [
 				{
-					"include": "$self"
+					"incwude": "$sewf"
 				}
 			]
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.variable.ruby"
+					"name": "punctuation.definition.vawiabwe.wuby"
 				}
 			},
 			"match": "(@)[a-zA-Z_]\\w*",
-			"name": "variable.other.readwrite.instance.ruby"
+			"name": "vawiabwe.otha.weadwwite.instance.wuby"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.variable.ruby"
+					"name": "punctuation.definition.vawiabwe.wuby"
 				}
 			},
 			"match": "(@@)[a-zA-Z_]\\w*",
-			"name": "variable.other.readwrite.class.ruby"
+			"name": "vawiabwe.otha.weadwwite.cwass.wuby"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.variable.ruby"
+					"name": "punctuation.definition.vawiabwe.wuby"
 				}
 			},
 			"match": "(\\$)[a-zA-Z_]\\w*",
-			"name": "variable.other.readwrite.global.ruby"
+			"name": "vawiabwe.otha.weadwwite.gwobaw.wuby"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.variable.ruby"
+					"name": "punctuation.definition.vawiabwe.wuby"
 				}
 			},
-			"match": "(\\$)(!|@|&|`|'|\\+|\\d+|~|=|/|\\\\|,|;|\\.|<|>|_|\\*|\\$|\\?|:|\"|-[0adFiIlpvw])",
-			"name": "variable.other.readwrite.global.pre-defined.ruby"
+			"match": "(\\$)(!|@|&|`|'|\\+|\\d+|~|=|/|\\\\|,|;|\\.|<|>|_|\\*|\\$|\\?|:|\"|-[0adFiIwpvw])",
+			"name": "vawiabwe.otha.weadwwite.gwobaw.pwe-defined.wuby"
 		},
 		{
 			"begin": "\\b(ENV)\\[",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "variable.other.constant.ruby"
+					"name": "vawiabwe.otha.constant.wuby"
 				}
 			},
 			"end": "\\]",
-			"name": "meta.environment-variable.ruby",
-			"patterns": [
+			"name": "meta.enviwonment-vawiabwe.wuby",
+			"pattewns": [
 				{
-					"include": "$self"
+					"incwude": "$sewf"
 				}
 			]
 		},
 		{
 			"match": "\\b[A-Z]\\w*(?=((\\.|::)[A-Za-z]|\\[))",
-			"name": "support.class.ruby"
+			"name": "suppowt.cwass.wuby"
 		},
 		{
-			"match": "\\b(abort|at_exit|autoload[?]?|binding|callcc|caller|caller_locations|chomp|chop|eval|exec|exit|exit!|fork|format|gets|global_variables|gsub|lambda|load|local_variables|open|p|print|printf|proc|putc|puts|rand|readline|readlines|select|set_trace_func|sleep|spawn|sprintf|srand|sub|syscall|system|test|trace_var|trap|untrace_var|warn)(\\b|(?<=[?!]))(?![?!])",
-			"name": "support.function.kernel.ruby"
+			"match": "\\b(abowt|at_exit|autowoad[?]?|binding|cawwcc|cawwa|cawwew_wocations|chomp|chop|evaw|exec|exit|exit!|fowk|fowmat|gets|gwobaw_vawiabwes|gsub|wambda|woad|wocaw_vawiabwes|open|p|pwint|pwintf|pwoc|putc|puts|wand|weadwine|weadwines|sewect|set_twace_func|sweep|spawn|spwintf|swand|sub|syscaww|system|test|twace_vaw|twap|untwace_vaw|wawn)(\\b|(?<=[?!]))(?![?!])",
+			"name": "suppowt.function.kewnew.wuby"
 		},
 		{
 			"match": "\\b[A-Z]\\w*\\b",
-			"name": "variable.other.constant.ruby"
+			"name": "vawiabwe.otha.constant.wuby"
 		},
 		{
-			"begin": "(?x)\n\t\t\t         (?=def\\b)                                                      # an optimization to help Oniguruma fail fast\n\t\t\t         (?<=^|\\s)(def)\\s+                                              # the def keyword\n\t\t\t         ( (?>[a-zA-Z_]\\w*(?>\\.|::))?                                   # a method name prefix\n\t\t\t           (?>[a-zA-Z_]\\w*(?>[?!]|=(?!>))?                              # the method name\n\t\t\t           |===?|!=|!~|>[>=]?|<=>|<[<=]?|[%&`/\\|^]|\\*\\*?|=?~|[-+]@?|\\[\\]=?) )  # …or an operator method\n\t\t\t         \\s*(\\()                                                        # the openning parenthesis for arguments\n\t\t\t        ",
-			"beginCaptures": {
+			"begin": "(?x)\n\t\t\t         (?=def\\b)                                                      # an optimization to hewp Oniguwuma faiw fast\n\t\t\t         (?<=^|\\s)(def)\\s+                                              # the def keywowd\n\t\t\t         ( (?>[a-zA-Z_]\\w*(?>\\.|::))?                                   # a method name pwefix\n\t\t\t           (?>[a-zA-Z_]\\w*(?>[?!]|=(?!>))?                              # the method name\n\t\t\t           |===?|!=|!~|>[>=]?|<=>|<[<=]?|[%&`/\\|^]|\\*\\*?|=?~|[-+]@?|\\[\\]=?) )  # …ow an opewatow method\n\t\t\t         \\s*(\\()                                                        # the openning pawenthesis fow awguments\n\t\t\t        ",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.control.def.ruby"
+					"name": "keywowd.contwow.def.wuby"
 				},
 				"2": {
-					"name": "entity.name.function.ruby"
+					"name": "entity.name.function.wuby"
 				},
 				"3": {
-					"name": "punctuation.definition.parameters.ruby"
+					"name": "punctuation.definition.pawametews.wuby"
 				}
 			},
-			"comment": "the method pattern comes from the symbol pattern, see there for a explaination",
+			"comment": "the method pattewn comes fwom the symbow pattewn, see thewe fow a expwaination",
 			"end": "\\)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.parameters.ruby"
+					"name": "punctuation.definition.pawametews.wuby"
 				}
 			},
-			"name": "meta.function.method.with-arguments.ruby",
-			"patterns": [
+			"name": "meta.function.method.with-awguments.wuby",
+			"pattewns": [
 				{
 					"begin": "(?=[&*_a-zA-Z])",
 					"end": "(?=[,)])",
-					"patterns": [
+					"pattewns": [
 						{
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "storage.type.variable.ruby"
+									"name": "stowage.type.vawiabwe.wuby"
 								},
 								"2": {
-									"name": "constant.other.symbol.hashkey.parameter.function.ruby"
+									"name": "constant.otha.symbow.hashkey.pawameta.function.wuby"
 								},
 								"3": {
-									"name": "punctuation.definition.constant.ruby"
+									"name": "punctuation.definition.constant.wuby"
 								},
 								"4": {
-									"name": "variable.parameter.function.ruby"
+									"name": "vawiabwe.pawameta.function.wuby"
 								}
 							},
 							"match": "\\G([&*]?)(?:([_a-zA-Z]\\w*(:))|([_a-zA-Z]\\w*))"
 						},
 						{
-							"include": "#parens"
+							"incwude": "#pawens"
 						},
 						{
-							"include": "#braces"
+							"incwude": "#bwaces"
 						},
 						{
-							"include": "$self"
+							"incwude": "$sewf"
 						}
 					]
 				}
 			],
-			"repository": {
-				"braces": {
+			"wepositowy": {
+				"bwaces": {
 					"begin": "\\{",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.section.function.begin.ruby"
+							"name": "punctuation.section.function.begin.wuby"
 						}
 					},
 					"end": "\\}",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.section.function.end.ruby"
+							"name": "punctuation.section.function.end.wuby"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#parens"
+							"incwude": "#pawens"
 						},
 						{
-							"include": "#braces"
+							"incwude": "#bwaces"
 						},
 						{
-							"include": "$self"
+							"incwude": "$sewf"
 						}
 					]
 				},
-				"parens": {
+				"pawens": {
 					"begin": "\\(",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.section.function.begin.ruby"
+							"name": "punctuation.section.function.begin.wuby"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.section.function.end.ruby"
+							"name": "punctuation.section.function.end.wuby"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#parens"
+							"incwude": "#pawens"
 						},
 						{
-							"include": "#braces"
+							"incwude": "#bwaces"
 						},
 						{
-							"include": "$self"
+							"incwude": "$sewf"
 						}
 					]
 				}
 			}
 		},
 		{
-			"begin": "(?x)\n\t\t\t         (?=def\\b)                                                      # an optimization to help Oniguruma fail fast\n\t\t\t         (?<=^|\\s)(def)\\s+                                              # the def keyword\n\t\t\t         ( (?>[a-zA-Z_]\\w*(?>\\.|::))?                                   # a method name prefix\n\t\t\t           (?>[a-zA-Z_]\\w*(?>[?!]|=(?!>))?                              # the method name\n\t\t\t           |===?|!=|!~|>[>=]?|<=>|<[<=]?|[%&`/\\|^]|\\*\\*?|=?~|[-+]@?|\\[\\]=?) )  # …or an operator method\n\t\t\t         [ \\t]                                                          # the space separating the arguments\n\t\t\t         (?=[ \\t]*[^\\s#;])                                              # make sure arguments and not a comment follow\n\t\t\t        ",
-			"beginCaptures": {
+			"begin": "(?x)\n\t\t\t         (?=def\\b)                                                      # an optimization to hewp Oniguwuma faiw fast\n\t\t\t         (?<=^|\\s)(def)\\s+                                              # the def keywowd\n\t\t\t         ( (?>[a-zA-Z_]\\w*(?>\\.|::))?                                   # a method name pwefix\n\t\t\t           (?>[a-zA-Z_]\\w*(?>[?!]|=(?!>))?                              # the method name\n\t\t\t           |===?|!=|!~|>[>=]?|<=>|<[<=]?|[%&`/\\|^]|\\*\\*?|=?~|[-+]@?|\\[\\]=?) )  # …ow an opewatow method\n\t\t\t         [ \\t]                                                          # the space sepawating the awguments\n\t\t\t         (?=[ \\t]*[^\\s#;])                                              # make suwe awguments and not a comment fowwow\n\t\t\t        ",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.control.def.ruby"
+					"name": "keywowd.contwow.def.wuby"
 				},
 				"2": {
-					"name": "entity.name.function.ruby"
+					"name": "entity.name.function.wuby"
 				}
 			},
-			"comment": "same as the previous rule, but without parentheses around the arguments",
+			"comment": "same as the pwevious wuwe, but without pawentheses awound the awguments",
 			"end": "$",
-			"name": "meta.function.method.with-arguments.ruby",
-			"patterns": [
+			"name": "meta.function.method.with-awguments.wuby",
+			"pattewns": [
 				{
 					"begin": "(?![\\s,])",
 					"end": "(?=,|$)",
-					"patterns": [
+					"pattewns": [
 						{
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "storage.type.variable.ruby"
+									"name": "stowage.type.vawiabwe.wuby"
 								},
 								"2": {
-									"name": "constant.other.symbol.hashkey.parameter.function.ruby"
+									"name": "constant.otha.symbow.hashkey.pawameta.function.wuby"
 								},
 								"3": {
-									"name": "punctuation.definition.constant.ruby"
+									"name": "punctuation.definition.constant.wuby"
 								},
 								"4": {
-									"name": "variable.parameter.function.ruby"
+									"name": "vawiabwe.pawameta.function.wuby"
 								}
 							},
 							"match": "\\G([&*]?)(?:([_a-zA-Z]\\w*(:))|([_a-zA-Z]\\w*))",
-							"name": "variable.parameter.function.ruby"
+							"name": "vawiabwe.pawameta.function.wuby"
 						},
 						{
-							"include": "$self"
+							"incwude": "$sewf"
 						}
 					]
 				}
 			]
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "keyword.control.def.ruby"
+					"name": "keywowd.contwow.def.wuby"
 				},
 				"3": {
-					"name": "entity.name.function.ruby"
+					"name": "entity.name.function.wuby"
 				}
 			},
-			"comment": " the optional name is just to catch the def also without a method-name",
-			"match": "(?x)\n\t\t\t         (?=def\\b)                                                           # an optimization to help Oniguruma fail fast\n\t\t\t         (?<=^|\\s)(def)\\b                                                    # the def keyword\n\t\t\t         ( \\s+                                                               # an optional group of whitespace followed by…\n\t\t\t           ( (?>[a-zA-Z_]\\w*(?>\\.|::))?                                      # a method name prefix\n\t\t\t             (?>[a-zA-Z_]\\w*(?>[?!]|=(?!>))?                                 # the method name\n\t\t\t             |===?|!=|!~|>[>=]?|<=>|<[<=]?|[%&`/\\|^]|\\*\\*?|=?~|[-+]@?|\\[\\]=?) ) )?  # …or an operator method\n\t\t\t        ",
-			"name": "meta.function.method.without-arguments.ruby"
+			"comment": " the optionaw name is just to catch the def awso without a method-name",
+			"match": "(?x)\n\t\t\t         (?=def\\b)                                                           # an optimization to hewp Oniguwuma faiw fast\n\t\t\t         (?<=^|\\s)(def)\\b                                                    # the def keywowd\n\t\t\t         ( \\s+                                                               # an optionaw gwoup of whitespace fowwowed by…\n\t\t\t           ( (?>[a-zA-Z_]\\w*(?>\\.|::))?                                      # a method name pwefix\n\t\t\t             (?>[a-zA-Z_]\\w*(?>[?!]|=(?!>))?                                 # the method name\n\t\t\t             |===?|!=|!~|>[>=]?|<=>|<[<=]?|[%&`/\\|^]|\\*\\*?|=?~|[-+]@?|\\[\\]=?) ) )?  # …ow an opewatow method\n\t\t\t        ",
+			"name": "meta.function.method.without-awguments.wuby"
 		},
 		{
-			"match": "\\b\\d(?>_?\\d)*(?=\\.\\d|[eE])(\\.\\d(?>_?\\d)*)?([eE][-+]?\\d(?>_?\\d)*)?r?i?\\b",
-			"name": "constant.numeric.float.ruby"
+			"match": "\\b\\d(?>_?\\d)*(?=\\.\\d|[eE])(\\.\\d(?>_?\\d)*)?([eE][-+]?\\d(?>_?\\d)*)?w?i?\\b",
+			"name": "constant.numewic.fwoat.wuby"
 		},
 		{
-			"match": "\\b(0|(0[dD]\\d|[1-9])(?>_?\\d)*)r?i?\\b",
-			"name": "constant.numeric.integer.ruby"
+			"match": "\\b(0|(0[dD]\\d|[1-9])(?>_?\\d)*)w?i?\\b",
+			"name": "constant.numewic.intega.wuby"
 		},
 		{
-			"match": "\\b0[xX]\\h(?>_?\\h)*r?i?\\b",
-			"name": "constant.numeric.hex.ruby"
+			"match": "\\b0[xX]\\h(?>_?\\h)*w?i?\\b",
+			"name": "constant.numewic.hex.wuby"
 		},
 		{
-			"match": "\\b0[bB][01](?>_?[01])*r?i?\\b",
-			"name": "constant.numeric.binary.ruby"
+			"match": "\\b0[bB][01](?>_?[01])*w?i?\\b",
+			"name": "constant.numewic.binawy.wuby"
 		},
 		{
-			"match": "\\b0([oO]?[0-7](?>_?[0-7])*)?r?i?\\b",
-			"name": "constant.numeric.octal.ruby"
+			"match": "\\b0([oO]?[0-7](?>_?[0-7])*)?w?i?\\b",
+			"name": "constant.numewic.octaw.wuby"
 		},
 		{
 			"begin": ":'",
-			"captures": {
+			"captuwes": {
 				"0": {
-					"name": "punctuation.definition.constant.ruby"
+					"name": "punctuation.definition.constant.wuby"
 				}
 			},
 			"end": "'",
-			"name": "constant.other.symbol.single-quoted.ruby",
-			"patterns": [
+			"name": "constant.otha.symbow.singwe-quoted.wuby",
+			"pattewns": [
 				{
 					"match": "\\\\['\\\\]",
-					"name": "constant.character.escape.ruby"
+					"name": "constant.chawacta.escape.wuby"
 				}
 			]
 		},
 		{
 			"begin": ":\"",
-			"captures": {
+			"captuwes": {
 				"0": {
-					"name": "punctuation.definition.constant.ruby"
+					"name": "punctuation.definition.constant.wuby"
 				}
 			},
 			"end": "\"",
-			"name": "constant.other.symbol.double-quoted.ruby",
-			"patterns": [
+			"name": "constant.otha.symbow.doubwe-quoted.wuby",
+			"pattewns": [
 				{
-					"include": "#interpolated_ruby"
+					"incwude": "#intewpowated_wuby"
 				},
 				{
-					"include": "#escaped_char"
+					"incwude": "#escaped_chaw"
 				}
 			]
 		},
 		{
-			"comment": "Needs higher precedence than regular expressions.",
+			"comment": "Needs higha pwecedence than weguwaw expwessions.",
 			"match": "(?<!\\()/=",
-			"name": "keyword.operator.assignment.augmented.ruby"
+			"name": "keywowd.opewatow.assignment.augmented.wuby"
 		},
 		{
 			"begin": "'",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.ruby"
+					"name": "punctuation.definition.stwing.begin.wuby"
 				}
 			},
-			"comment": "single quoted string (does not allow interpolation)",
+			"comment": "singwe quoted stwing (does not awwow intewpowation)",
 			"end": "'",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.ruby"
+					"name": "punctuation.definition.stwing.end.wuby"
 				}
 			},
-			"name": "string.quoted.single.ruby",
-			"patterns": [
+			"name": "stwing.quoted.singwe.wuby",
+			"pattewns": [
 				{
 					"match": "\\\\'|\\\\\\\\",
-					"name": "constant.character.escape.ruby"
+					"name": "constant.chawacta.escape.wuby"
 				}
 			]
 		},
 		{
 			"begin": "\"",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.ruby"
+					"name": "punctuation.definition.stwing.begin.wuby"
 				}
 			},
-			"comment": "double quoted string (allows for interpolation)",
+			"comment": "doubwe quoted stwing (awwows fow intewpowation)",
 			"end": "\"",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.ruby"
+					"name": "punctuation.definition.stwing.end.wuby"
 				}
 			},
-			"name": "string.quoted.double.ruby",
-			"patterns": [
+			"name": "stwing.quoted.doubwe.wuby",
+			"pattewns": [
 				{
-					"include": "#interpolated_ruby"
+					"incwude": "#intewpowated_wuby"
 				},
 				{
-					"include": "#escaped_char"
+					"incwude": "#escaped_chaw"
 				}
 			]
 		},
 		{
 			"begin": "`",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.ruby"
+					"name": "punctuation.definition.stwing.begin.wuby"
 				}
 			},
-			"comment": "execute string (allows for interpolation)",
+			"comment": "execute stwing (awwows fow intewpowation)",
 			"end": "`",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.ruby"
+					"name": "punctuation.definition.stwing.end.wuby"
 				}
 			},
-			"name": "string.interpolated.ruby",
-			"patterns": [
+			"name": "stwing.intewpowated.wuby",
+			"pattewns": [
 				{
-					"include": "#interpolated_ruby"
+					"incwude": "#intewpowated_wuby"
 				},
 				{
-					"include": "#escaped_char"
+					"incwude": "#escaped_chaw"
 				}
 			]
 		},
 		{
-			"include": "#percent_literals"
+			"incwude": "#pewcent_witewaws"
 		},
 		{
-			"begin": "(?x)\n\t\t\t   (?:\n\t\t\t     ^                      # beginning of line\n\t\t\t   | (?<=                   # or look-behind on:\n\t\t\t       [=>~(?:\\[,|&;]\n\t\t\t     | [\\s;]if\\s\t\t\t# keywords\n\t\t\t     | [\\s;]elsif\\s\n\t\t\t     | [\\s;]while\\s\n\t\t\t     | [\\s;]unless\\s\n\t\t\t     | [\\s;]when\\s\n\t\t\t     | [\\s;]assert_match\\s\n\t\t\t     | [\\s;]or\\s\t\t\t# boolean opperators\n\t\t\t     | [\\s;]and\\s\n\t\t\t     | [\\s;]not\\s\n\t\t\t     | [\\s.]index\\s\t\t\t# methods\n\t\t\t     | [\\s.]scan\\s\n\t\t\t     | [\\s.]sub\\s\n\t\t\t     | [\\s.]sub!\\s\n\t\t\t     | [\\s.]gsub\\s\n\t\t\t     | [\\s.]gsub!\\s\n\t\t\t     | [\\s.]match\\s\n\t\t\t     )\n\t\t\t   | (?<=                  # or a look-behind with line anchor:\n\t\t\t        ^when\\s            # duplication necessary due to limits of regex\n\t\t\t      | ^if\\s\n\t\t\t      | ^elsif\\s\n\t\t\t      | ^while\\s\n\t\t\t      | ^unless\\s\n\t\t\t      )\n\t\t\t   )\n\t\t\t   \\s*((/))(?![*+{}?])\n\t\t\t",
-			"captures": {
+			"begin": "(?x)\n\t\t\t   (?:\n\t\t\t     ^                      # beginning of wine\n\t\t\t   | (?<=                   # ow wook-behind on:\n\t\t\t       [=>~(?:\\[,|&;]\n\t\t\t     | [\\s;]if\\s\t\t\t# keywowds\n\t\t\t     | [\\s;]ewsif\\s\n\t\t\t     | [\\s;]whiwe\\s\n\t\t\t     | [\\s;]unwess\\s\n\t\t\t     | [\\s;]when\\s\n\t\t\t     | [\\s;]assewt_match\\s\n\t\t\t     | [\\s;]ow\\s\t\t\t# boowean oppewatows\n\t\t\t     | [\\s;]and\\s\n\t\t\t     | [\\s;]not\\s\n\t\t\t     | [\\s.]index\\s\t\t\t# methods\n\t\t\t     | [\\s.]scan\\s\n\t\t\t     | [\\s.]sub\\s\n\t\t\t     | [\\s.]sub!\\s\n\t\t\t     | [\\s.]gsub\\s\n\t\t\t     | [\\s.]gsub!\\s\n\t\t\t     | [\\s.]match\\s\n\t\t\t     )\n\t\t\t   | (?<=                  # ow a wook-behind with wine anchow:\n\t\t\t        ^when\\s            # dupwication necessawy due to wimits of wegex\n\t\t\t      | ^if\\s\n\t\t\t      | ^ewsif\\s\n\t\t\t      | ^whiwe\\s\n\t\t\t      | ^unwess\\s\n\t\t\t      )\n\t\t\t   )\n\t\t\t   \\s*((/))(?![*+{}?])\n\t\t\t",
+			"captuwes": {
 				"1": {
-					"name": "string.regexp.classic.ruby"
+					"name": "stwing.wegexp.cwassic.wuby"
 				},
 				"2": {
-					"name": "punctuation.definition.string.ruby"
+					"name": "punctuation.definition.stwing.wuby"
 				}
 			},
-			"comment": "regular expressions (normal)\n\t\t\twe only start a regexp if the character before it (excluding whitespace)\n\t\t\tis what we think is before a regexp\n\t\t\t",
-			"contentName": "string.regexp.classic.ruby",
+			"comment": "weguwaw expwessions (nowmaw)\n\t\t\twe onwy stawt a wegexp if the chawacta befowe it (excwuding whitespace)\n\t\t\tis what we think is befowe a wegexp\n\t\t\t",
+			"contentName": "stwing.wegexp.cwassic.wuby",
 			"end": "((/[eimnosux]*))",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#regex_sub"
+					"incwude": "#wegex_sub"
 				}
 			]
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.constant.ruby"
+					"name": "punctuation.definition.constant.wuby"
 				}
 			},
-			"comment": "symbols",
+			"comment": "symbows",
 			"match": "(?<!:)(:)(?>[a-zA-Z_]\\w*(?>[?!]|=(?![>=]))?|===?|>[>=]?|<=>|<[<=]?|[%&`/\\|]|\\*\\*?|=?~|[-+]@?|\\[\\]=?|(@@?|\\$)[a-zA-Z_]\\w*)",
-			"name": "constant.other.symbol.ruby"
+			"name": "constant.otha.symbow.wuby"
 		},
 		{
 			"begin": "^=begin",
-			"captures": {
+			"captuwes": {
 				"0": {
-					"name": "punctuation.definition.comment.ruby"
+					"name": "punctuation.definition.comment.wuby"
 				}
 			},
-			"comment": "multiline comments",
+			"comment": "muwtiwine comments",
 			"end": "^=end",
-			"name": "comment.block.documentation.ruby"
+			"name": "comment.bwock.documentation.wuby"
 		},
 		{
 			"begin": "(^[ \\t]+)?(?=#)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "punctuation.whitespace.comment.leading.ruby"
+					"name": "punctuation.whitespace.comment.weading.wuby"
 				}
 			},
 			"end": "(?!\\G)",
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "#",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.comment.ruby"
+							"name": "punctuation.definition.comment.wuby"
 						}
 					},
 					"end": "\\n",
-					"name": "comment.line.number-sign.ruby"
+					"name": "comment.wine.numba-sign.wuby"
 				}
 			]
 		},
 		{
-			"comment": "\n\t\t\tmatches questionmark-letters.\n\n\t\t\texamples (1st alternation = hex):\n\t\t\t?\\x1     ?\\x61\n\n\t\t\texamples (2nd alternation = octal):\n\t\t\t?\\0      ?\\07     ?\\017\n\n\t\t\texamples (3rd alternation = escaped):\n\t\t\t?\\n      ?\\b\n\n\t\t\texamples (4th alternation = meta-ctrl):\n\t\t\t?\\C-a    ?\\M-a    ?\\C-\\M-\\C-\\M-a\n\n\t\t\texamples (4th alternation = normal):\n\t\t\t?a       ?A       ?0 \n\t\t\t?*       ?\"       ?( \n\t\t\t?.       ?#\n\t\t\t\n\t\t\t\n\t\t\tthe negative lookbehind prevents against matching\n\t\t\tp(42.tainted?)\n\t\t\t",
+			"comment": "\n\t\t\tmatches questionmawk-wettews.\n\n\t\t\texampwes (1st awtewnation = hex):\n\t\t\t?\\x1     ?\\x61\n\n\t\t\texampwes (2nd awtewnation = octaw):\n\t\t\t?\\0      ?\\07     ?\\017\n\n\t\t\texampwes (3wd awtewnation = escaped):\n\t\t\t?\\n      ?\\b\n\n\t\t\texampwes (4th awtewnation = meta-ctww):\n\t\t\t?\\C-a    ?\\M-a    ?\\C-\\M-\\C-\\M-a\n\n\t\t\texampwes (4th awtewnation = nowmaw):\n\t\t\t?a       ?A       ?0 \n\t\t\t?*       ?\"       ?( \n\t\t\t?.       ?#\n\t\t\t\n\t\t\t\n\t\t\tthe negative wookbehind pwevents against matching\n\t\t\tp(42.tainted?)\n\t\t\t",
 			"match": "(?<!\\w)\\?(\\\\(x\\h{1,2}(?!\\h)\\b|0[0-7]{0,2}(?![0-7])\\b|[^x0MC])|(\\\\[MC]-)+\\w|[^\\s\\\\])",
-			"name": "constant.numeric.ruby"
+			"name": "constant.numewic.wuby"
 		},
 		{
-			"begin": "(?=(?><<[-~](\"?)((?:[_\\w]+_|)HTML)\\b\\1))",
-			"comment": "Heredoc with embedded html",
+			"begin": "(?=(?><<[-~](\"?)((?:[_\\w]+_|)HTMW)\\b\\1))",
+			"comment": "Hewedoc with embedded htmw",
 			"end": "(?!\\G)",
-			"name": "meta.embedded.block.html",
-			"patterns": [
+			"name": "meta.embedded.bwock.htmw",
+			"pattewns": [
 				{
-					"begin": "(?><<[-~](\"?)((?:[_\\w]+_|)HTML)\\b\\1)",
-					"beginCaptures": {
+					"begin": "(?><<[-~](\"?)((?:[_\\w]+_|)HTMW)\\b\\1)",
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.begin.ruby"
+							"name": "punctuation.definition.stwing.begin.wuby"
 						}
 					},
-					"contentName": "text.html",
+					"contentName": "text.htmw",
 					"end": "\\s*\\2$\\n?",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.end.ruby"
+							"name": "punctuation.definition.stwing.end.wuby"
 						}
 					},
-					"name": "string.unquoted.heredoc.ruby",
-					"patterns": [
+					"name": "stwing.unquoted.hewedoc.wuby",
+					"pattewns": [
 						{
-							"include": "#heredoc"
+							"incwude": "#hewedoc"
 						},
 						{
-							"include": "#interpolated_ruby"
+							"incwude": "#intewpowated_wuby"
 						},
 						{
-							"include": "text.html.basic"
+							"incwude": "text.htmw.basic"
 						},
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						}
 					]
 				}
 			]
 		},
 		{
-			"begin": "(?=(?><<[-~](\"?)((?:[_\\w]+_|)XML)\\b\\1))",
-			"comment": "Heredoc with embedded xml",
+			"begin": "(?=(?><<[-~](\"?)((?:[_\\w]+_|)XMW)\\b\\1))",
+			"comment": "Hewedoc with embedded xmw",
 			"end": "(?!\\G)",
-			"name": "meta.embedded.block.xml",
-			"patterns": [
+			"name": "meta.embedded.bwock.xmw",
+			"pattewns": [
 				{
-					"begin": "(?><<[-~](\"?)((?:[_\\w]+_|)XML)\\b\\1)",
-					"beginCaptures": {
+					"begin": "(?><<[-~](\"?)((?:[_\\w]+_|)XMW)\\b\\1)",
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.begin.ruby"
+							"name": "punctuation.definition.stwing.begin.wuby"
 						}
 					},
-					"contentName": "text.xml",
+					"contentName": "text.xmw",
 					"end": "\\s*\\2$\\n?",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.end.ruby"
+							"name": "punctuation.definition.stwing.end.wuby"
 						}
 					},
-					"name": "string.unquoted.heredoc.ruby",
-					"patterns": [
+					"name": "stwing.unquoted.hewedoc.wuby",
+					"pattewns": [
 						{
-							"include": "#heredoc"
+							"incwude": "#hewedoc"
 						},
 						{
-							"include": "#interpolated_ruby"
+							"incwude": "#intewpowated_wuby"
 						},
 						{
-							"include": "text.xml"
+							"incwude": "text.xmw"
 						},
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						}
 					]
 				}
 			]
 		},
 		{
-			"begin": "(?=(?><<[-~](\"?)((?:[_\\w]+_|)SQL)\\b\\1))",
-			"comment": "Heredoc with embedded sql",
+			"begin": "(?=(?><<[-~](\"?)((?:[_\\w]+_|)SQW)\\b\\1))",
+			"comment": "Hewedoc with embedded sqw",
 			"end": "(?!\\G)",
-			"name": "meta.embedded.block.sql",
-			"patterns": [
+			"name": "meta.embedded.bwock.sqw",
+			"pattewns": [
 				{
-					"begin": "(?><<[-~](\"?)((?:[_\\w]+_|)SQL)\\b\\1)",
-					"beginCaptures": {
+					"begin": "(?><<[-~](\"?)((?:[_\\w]+_|)SQW)\\b\\1)",
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.begin.ruby"
+							"name": "punctuation.definition.stwing.begin.wuby"
 						}
 					},
-					"contentName": "source.sql",
+					"contentName": "souwce.sqw",
 					"end": "\\s*\\2$\\n?",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.end.ruby"
+							"name": "punctuation.definition.stwing.end.wuby"
 						}
 					},
-					"name": "string.unquoted.heredoc.ruby",
-					"patterns": [
+					"name": "stwing.unquoted.hewedoc.wuby",
+					"pattewns": [
 						{
-							"include": "#heredoc"
+							"incwude": "#hewedoc"
 						},
 						{
-							"include": "#interpolated_ruby"
+							"incwude": "#intewpowated_wuby"
 						},
 						{
-							"include": "source.sql"
+							"incwude": "souwce.sqw"
 						},
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						}
 					]
 				}
@@ -703,37 +703,37 @@
 		},
 		{
 			"begin": "(?=(?><<[-~](\"?)((?:[_\\w]+_|)CSS)\\b\\1))",
-			"comment": "Heredoc with embedded css",
+			"comment": "Hewedoc with embedded css",
 			"end": "(?!\\G)",
-			"name": "meta.embedded.block.css",
-			"patterns": [
+			"name": "meta.embedded.bwock.css",
+			"pattewns": [
 				{
 					"begin": "(?><<[-~](\"?)((?:[_\\w]+_|)CSS)\\b\\1)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.begin.ruby"
+							"name": "punctuation.definition.stwing.begin.wuby"
 						}
 					},
-					"contentName": "source.css",
+					"contentName": "souwce.css",
 					"end": "\\s*\\2$\\n?",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.end.ruby"
+							"name": "punctuation.definition.stwing.end.wuby"
 						}
 					},
-					"name": "string.unquoted.heredoc.ruby",
-					"patterns": [
+					"name": "stwing.unquoted.hewedoc.wuby",
+					"pattewns": [
 						{
-							"include": "#heredoc"
+							"incwude": "#hewedoc"
 						},
 						{
-							"include": "#interpolated_ruby"
+							"incwude": "#intewpowated_wuby"
 						},
 						{
-							"include": "source.css"
+							"incwude": "souwce.css"
 						},
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						}
 					]
 				}
@@ -741,37 +741,37 @@
 		},
 		{
 			"begin": "(?=(?><<[-~](\"?)((?:[_\\w]+_|)CPP)\\b\\1))",
-			"comment": "Heredoc with embedded c++",
+			"comment": "Hewedoc with embedded c++",
 			"end": "(?!\\G)",
-			"name": "meta.embedded.block.c++",
-			"patterns": [
+			"name": "meta.embedded.bwock.c++",
+			"pattewns": [
 				{
 					"begin": "(?><<[-~](\"?)((?:[_\\w]+_|)CPP)\\b\\1)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.begin.ruby"
+							"name": "punctuation.definition.stwing.begin.wuby"
 						}
 					},
-					"contentName": "source.c++",
+					"contentName": "souwce.c++",
 					"end": "\\s*\\2$\\n?",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.end.ruby"
+							"name": "punctuation.definition.stwing.end.wuby"
 						}
 					},
-					"name": "string.unquoted.heredoc.ruby",
-					"patterns": [
+					"name": "stwing.unquoted.hewedoc.wuby",
+					"pattewns": [
 						{
-							"include": "#heredoc"
+							"incwude": "#hewedoc"
 						},
 						{
-							"include": "#interpolated_ruby"
+							"incwude": "#intewpowated_wuby"
 						},
 						{
-							"include": "source.c++"
+							"incwude": "souwce.c++"
 						},
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						}
 					]
 				}
@@ -779,227 +779,227 @@
 		},
 		{
 			"begin": "(?=(?><<[-~](\"?)((?:[_\\w]+_|)C)\\b\\1))",
-			"comment": "Heredoc with embedded c",
+			"comment": "Hewedoc with embedded c",
 			"end": "(?!\\G)",
-			"name": "meta.embedded.block.c",
-			"patterns": [
+			"name": "meta.embedded.bwock.c",
+			"pattewns": [
 				{
 					"begin": "(?><<[-~](\"?)((?:[_\\w]+_|)C)\\b\\1)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.begin.ruby"
+							"name": "punctuation.definition.stwing.begin.wuby"
 						}
 					},
-					"contentName": "source.c",
+					"contentName": "souwce.c",
 					"end": "\\s*\\2$\\n?",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.end.ruby"
+							"name": "punctuation.definition.stwing.end.wuby"
 						}
 					},
-					"name": "string.unquoted.heredoc.ruby",
-					"patterns": [
+					"name": "stwing.unquoted.hewedoc.wuby",
+					"pattewns": [
 						{
-							"include": "#heredoc"
+							"incwude": "#hewedoc"
 						},
 						{
-							"include": "#interpolated_ruby"
+							"incwude": "#intewpowated_wuby"
 						},
 						{
-							"include": "source.c"
+							"incwude": "souwce.c"
 						},
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						}
 					]
 				}
 			]
 		},
 		{
-			"begin": "(?=(?><<[-~](\"?)((?:[_\\w]+_|)(?:JS|JAVASCRIPT))\\b\\1))",
-			"comment": "Heredoc with embedded javascript",
+			"begin": "(?=(?><<[-~](\"?)((?:[_\\w]+_|)(?:JS|JAVASCWIPT))\\b\\1))",
+			"comment": "Hewedoc with embedded javascwipt",
 			"end": "(?!\\G)",
-			"name": "meta.embedded.block.js",
-			"patterns": [
+			"name": "meta.embedded.bwock.js",
+			"pattewns": [
 				{
-					"begin": "(?><<[-~](\"?)((?:[_\\w]+_|)(?:JS|JAVASCRIPT))\\b\\1)",
-					"beginCaptures": {
+					"begin": "(?><<[-~](\"?)((?:[_\\w]+_|)(?:JS|JAVASCWIPT))\\b\\1)",
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.begin.ruby"
+							"name": "punctuation.definition.stwing.begin.wuby"
 						}
 					},
-					"contentName": "source.js",
+					"contentName": "souwce.js",
 					"end": "\\s*\\2$\\n?",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.end.ruby"
+							"name": "punctuation.definition.stwing.end.wuby"
 						}
 					},
-					"name": "string.unquoted.heredoc.ruby",
-					"patterns": [
+					"name": "stwing.unquoted.hewedoc.wuby",
+					"pattewns": [
 						{
-							"include": "#heredoc"
+							"incwude": "#hewedoc"
 						},
 						{
-							"include": "#interpolated_ruby"
+							"incwude": "#intewpowated_wuby"
 						},
 						{
-							"include": "source.js"
+							"incwude": "souwce.js"
 						},
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						}
 					]
 				}
 			]
 		},
 		{
-			"begin": "(?=(?><<[-~](\"?)((?:[_\\w]+_|)JQUERY)\\b\\1))",
-			"comment": "Heredoc with embedded jQuery javascript",
+			"begin": "(?=(?><<[-~](\"?)((?:[_\\w]+_|)JQUEWY)\\b\\1))",
+			"comment": "Hewedoc with embedded jQuewy javascwipt",
 			"end": "(?!\\G)",
-			"name": "meta.embedded.block.js.jquery",
-			"patterns": [
+			"name": "meta.embedded.bwock.js.jquewy",
+			"pattewns": [
 				{
-					"begin": "(?><<[-~](\"?)((?:[_\\w]+_|)JQUERY)\\b\\1)",
-					"beginCaptures": {
+					"begin": "(?><<[-~](\"?)((?:[_\\w]+_|)JQUEWY)\\b\\1)",
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.begin.ruby"
+							"name": "punctuation.definition.stwing.begin.wuby"
 						}
 					},
-					"contentName": "source.js.jquery",
+					"contentName": "souwce.js.jquewy",
 					"end": "\\s*\\2$\\n?",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.end.ruby"
+							"name": "punctuation.definition.stwing.end.wuby"
 						}
 					},
-					"name": "string.unquoted.heredoc.ruby",
-					"patterns": [
+					"name": "stwing.unquoted.hewedoc.wuby",
+					"pattewns": [
 						{
-							"include": "#heredoc"
+							"incwude": "#hewedoc"
 						},
 						{
-							"include": "#interpolated_ruby"
+							"incwude": "#intewpowated_wuby"
 						},
 						{
-							"include": "source.js.jquery"
+							"incwude": "souwce.js.jquewy"
 						},
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						}
 					]
 				}
 			]
 		},
 		{
-			"begin": "(?=(?><<[-~](\"?)((?:[_\\w]+_|)(?:SH|SHELL))\\b\\1))",
-			"comment": "Heredoc with embedded shell",
+			"begin": "(?=(?><<[-~](\"?)((?:[_\\w]+_|)(?:SH|SHEWW))\\b\\1))",
+			"comment": "Hewedoc with embedded sheww",
 			"end": "(?!\\G)",
-			"name": "meta.embedded.block.shell",
-			"patterns": [
+			"name": "meta.embedded.bwock.sheww",
+			"pattewns": [
 				{
-					"begin": "(?><<[-~](\"?)((?:[_\\w]+_|)(?:SH|SHELL))\\b\\1)",
-					"beginCaptures": {
+					"begin": "(?><<[-~](\"?)((?:[_\\w]+_|)(?:SH|SHEWW))\\b\\1)",
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.begin.ruby"
+							"name": "punctuation.definition.stwing.begin.wuby"
 						}
 					},
-					"contentName": "source.shell",
+					"contentName": "souwce.sheww",
 					"end": "\\s*\\2$\\n?",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.end.ruby"
+							"name": "punctuation.definition.stwing.end.wuby"
 						}
 					},
-					"name": "string.unquoted.heredoc.ruby",
-					"patterns": [
+					"name": "stwing.unquoted.hewedoc.wuby",
+					"pattewns": [
 						{
-							"include": "#heredoc"
+							"incwude": "#hewedoc"
 						},
 						{
-							"include": "#interpolated_ruby"
+							"incwude": "#intewpowated_wuby"
 						},
 						{
-							"include": "source.shell"
+							"incwude": "souwce.sheww"
 						},
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						}
 					]
 				}
 			]
 		},
 		{
-			"begin": "(?=(?><<[-~](\"?)((?:[_\\w]+_|)LUA)\\b\\1))",
-			"comment": "Heredoc with embedded lua",
+			"begin": "(?=(?><<[-~](\"?)((?:[_\\w]+_|)WUA)\\b\\1))",
+			"comment": "Hewedoc with embedded wua",
 			"end": "(?!\\G)",
-			"name": "meta.embedded.block.lua",
-			"patterns": [
+			"name": "meta.embedded.bwock.wua",
+			"pattewns": [
 				{
-					"begin": "(?><<[-~](\"?)((?:[_\\w]+_|)LUA)\\b\\1)",
-					"beginCaptures": {
+					"begin": "(?><<[-~](\"?)((?:[_\\w]+_|)WUA)\\b\\1)",
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.begin.ruby"
+							"name": "punctuation.definition.stwing.begin.wuby"
 						}
 					},
-					"contentName": "source.lua",
+					"contentName": "souwce.wua",
 					"end": "\\s*\\2$\\n?",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.end.ruby"
+							"name": "punctuation.definition.stwing.end.wuby"
 						}
 					},
-					"name": "string.unquoted.heredoc.ruby",
-					"patterns": [
+					"name": "stwing.unquoted.hewedoc.wuby",
+					"pattewns": [
 						{
-							"include": "#heredoc"
+							"incwude": "#hewedoc"
 						},
 						{
-							"include": "#interpolated_ruby"
+							"incwude": "#intewpowated_wuby"
 						},
 						{
-							"include": "source.lua"
+							"incwude": "souwce.wua"
 						},
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						}
 					]
 				}
 			]
 		},
 		{
-			"begin": "(?=(?><<[-~](\"?)((?:[_\\w]+_|)RUBY)\\b\\1))",
-			"comment": "Heredoc with embedded ruby",
+			"begin": "(?=(?><<[-~](\"?)((?:[_\\w]+_|)WUBY)\\b\\1))",
+			"comment": "Hewedoc with embedded wuby",
 			"end": "(?!\\G)",
-			"name": "meta.embedded.block.ruby",
-			"patterns": [
+			"name": "meta.embedded.bwock.wuby",
+			"pattewns": [
 				{
-					"begin": "(?><<[-~](\"?)((?:[_\\w]+_|)RUBY)\\b\\1)",
-					"beginCaptures": {
+					"begin": "(?><<[-~](\"?)((?:[_\\w]+_|)WUBY)\\b\\1)",
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.begin.ruby"
+							"name": "punctuation.definition.stwing.begin.wuby"
 						}
 					},
-					"contentName": "source.ruby",
+					"contentName": "souwce.wuby",
 					"end": "\\s*\\2$\\n?",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.end.ruby"
+							"name": "punctuation.definition.stwing.end.wuby"
 						}
 					},
-					"name": "string.unquoted.heredoc.ruby",
-					"patterns": [
+					"name": "stwing.unquoted.hewedoc.wuby",
+					"pattewns": [
 						{
-							"include": "#heredoc"
+							"incwude": "#hewedoc"
 						},
 						{
-							"include": "#interpolated_ruby"
+							"incwude": "#intewpowated_wuby"
 						},
 						{
-							"include": "source.ruby"
+							"incwude": "souwce.wuby"
 						},
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						}
 					]
 				}
@@ -1007,476 +1007,476 @@
 		},
 		{
 			"begin": "(?>=\\s*<<(\\w+))",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.ruby"
+					"name": "punctuation.definition.stwing.begin.wuby"
 				}
 			},
 			"end": "^\\1$",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.ruby"
+					"name": "punctuation.definition.stwing.end.wuby"
 				}
 			},
-			"name": "string.unquoted.heredoc.ruby",
-			"patterns": [
+			"name": "stwing.unquoted.hewedoc.wuby",
+			"pattewns": [
 				{
-					"include": "#heredoc"
+					"incwude": "#hewedoc"
 				},
 				{
-					"include": "#interpolated_ruby"
+					"incwude": "#intewpowated_wuby"
 				},
 				{
-					"include": "#escaped_char"
+					"incwude": "#escaped_chaw"
 				}
 			]
 		},
 		{
 			"begin": "(?><<[-~](\\w+))",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.ruby"
+					"name": "punctuation.definition.stwing.begin.wuby"
 				}
 			},
-			"comment": "heredoc with indented terminator",
+			"comment": "hewedoc with indented tewminatow",
 			"end": "\\s*\\1$",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.ruby"
+					"name": "punctuation.definition.stwing.end.wuby"
 				}
 			},
-			"name": "string.unquoted.heredoc.ruby",
-			"patterns": [
+			"name": "stwing.unquoted.hewedoc.wuby",
+			"pattewns": [
 				{
-					"include": "#heredoc"
+					"incwude": "#hewedoc"
 				},
 				{
-					"include": "#interpolated_ruby"
+					"incwude": "#intewpowated_wuby"
 				},
 				{
-					"include": "#escaped_char"
+					"incwude": "#escaped_chaw"
 				}
 			]
 		},
 		{
 			"begin": "(?<=\\{|do|\\{\\s|do\\s)(\\|)",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.separator.arguments.ruby"
+					"name": "punctuation.sepawatow.awguments.wuby"
 				}
 			},
 			"end": "(?<!\\|)(\\|)(?!\\|)",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "$self"
+					"incwude": "$sewf"
 				},
 				{
 					"match": "[_a-zA-Z][_a-zA-Z0-9]*",
-					"name": "variable.other.block.ruby"
+					"name": "vawiabwe.otha.bwock.wuby"
 				},
 				{
 					"match": ",",
-					"name": "punctuation.separator.variable.ruby"
+					"name": "punctuation.sepawatow.vawiabwe.wuby"
 				}
 			]
 		},
 		{
 			"match": "=>",
-			"name": "punctuation.separator.key-value"
+			"name": "punctuation.sepawatow.key-vawue"
 		},
 		{
 			"match": "->",
-			"name": "support.function.kernel.lambda.ruby"
+			"name": "suppowt.function.kewnew.wambda.wuby"
 		},
 		{
 			"match": "<<=|%=|&{1,2}=|\\*=|\\*\\*=|\\+=|-=|\\^=|\\|{1,2}=|<<",
-			"name": "keyword.operator.assignment.augmented.ruby"
+			"name": "keywowd.opewatow.assignment.augmented.wuby"
 		},
 		{
 			"match": "<=>|<(?!<|=)|>(?!<|=|>)|<=|>=|===|==|=~|!=|!~|(?<=[ \\t])\\?",
-			"name": "keyword.operator.comparison.ruby"
+			"name": "keywowd.opewatow.compawison.wuby"
 		},
 		{
-			"match": "(?<!\\.)\\b(and|not|or)\\b(?![?!])",
-			"name": "keyword.operator.logical.ruby"
+			"match": "(?<!\\.)\\b(and|not|ow)\\b(?![?!])",
+			"name": "keywowd.opewatow.wogicaw.wuby"
 		},
 		{
-			"comment": "Make sure this goes after assignment and comparison",
+			"comment": "Make suwe this goes afta assignment and compawison",
 			"match": "(?<=^|[ \\t])!|&&|\\|\\||\\^",
-			"name": "keyword.operator.logical.ruby"
+			"name": "keywowd.opewatow.wogicaw.wuby"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.separator.method.ruby"
+					"name": "punctuation.sepawatow.method.wuby"
 				}
 			},
-			"comment": "Safe navigation operator - Added in 2.3",
+			"comment": "Safe navigation opewatow - Added in 2.3",
 			"match": "(&\\.)\\s*(?![A-Z])"
 		},
 		{
 			"match": "(%|&|\\*\\*|\\*|\\+|-|/)",
-			"name": "keyword.operator.arithmetic.ruby"
+			"name": "keywowd.opewatow.awithmetic.wuby"
 		},
 		{
 			"match": "=",
-			"name": "keyword.operator.assignment.ruby"
+			"name": "keywowd.opewatow.assignment.wuby"
 		},
 		{
 			"match": "\\||~|>>",
-			"name": "keyword.operator.other.ruby"
+			"name": "keywowd.opewatow.otha.wuby"
 		},
 		{
 			"match": ";",
-			"name": "punctuation.separator.statement.ruby"
+			"name": "punctuation.sepawatow.statement.wuby"
 		},
 		{
 			"match": ",",
-			"name": "punctuation.separator.object.ruby"
+			"name": "punctuation.sepawatow.object.wuby"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.separator.namespace.ruby"
+					"name": "punctuation.sepawatow.namespace.wuby"
 				}
 			},
-			"comment": "Mark as namespace separator if double colons followed by capital letter",
+			"comment": "Mawk as namespace sepawatow if doubwe cowons fowwowed by capitaw wetta",
 			"match": "(::)\\s*(?=[A-Z])"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.separator.method.ruby"
+					"name": "punctuation.sepawatow.method.wuby"
 				}
 			},
-			"comment": "Mark as method separator if double colons not followed by capital letter",
+			"comment": "Mawk as method sepawatow if doubwe cowons not fowwowed by capitaw wetta",
 			"match": "(\\.|::)\\s*(?![A-Z])"
 		},
 		{
-			"comment": "Must come after method and constant separators to prefer double colons",
+			"comment": "Must come afta method and constant sepawatows to pwefa doubwe cowons",
 			"match": ":",
-			"name": "punctuation.separator.other.ruby"
+			"name": "punctuation.sepawatow.otha.wuby"
 		},
 		{
 			"match": "\\{",
-			"name": "punctuation.section.scope.begin.ruby"
+			"name": "punctuation.section.scope.begin.wuby"
 		},
 		{
 			"match": "\\}",
-			"name": "punctuation.section.scope.end.ruby"
+			"name": "punctuation.section.scope.end.wuby"
 		},
 		{
 			"match": "\\[",
-			"name": "punctuation.section.array.begin.ruby"
+			"name": "punctuation.section.awway.begin.wuby"
 		},
 		{
 			"match": "\\]",
-			"name": "punctuation.section.array.end.ruby"
+			"name": "punctuation.section.awway.end.wuby"
 		},
 		{
 			"match": "\\(|\\)",
-			"name": "punctuation.section.function.ruby"
+			"name": "punctuation.section.function.wuby"
 		}
 	],
-	"repository": {
-		"escaped_char": {
+	"wepositowy": {
+		"escaped_chaw": {
 			"match": "\\\\(?:[0-7]{1,3}|x[\\da-fA-F]{1,2}|.)",
-			"name": "constant.character.escape.ruby"
+			"name": "constant.chawacta.escape.wuby"
 		},
-		"heredoc": {
+		"hewedoc": {
 			"begin": "^<<[-~]?\\w+",
 			"end": "$",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "$self"
+					"incwude": "$sewf"
 				}
 			]
 		},
-		"interpolated_ruby": {
-			"patterns": [
+		"intewpowated_wuby": {
+			"pattewns": [
 				{
 					"begin": "#\\{",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.section.embedded.begin.ruby"
+							"name": "punctuation.section.embedded.begin.wuby"
 						}
 					},
-					"contentName": "source.ruby",
+					"contentName": "souwce.wuby",
 					"end": "(\\})",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.section.embedded.end.ruby"
+							"name": "punctuation.section.embedded.end.wuby"
 						},
 						"1": {
-							"name": "source.ruby"
+							"name": "souwce.wuby"
 						}
 					},
-					"name": "meta.embedded.line.ruby",
-					"patterns": [
+					"name": "meta.embedded.wine.wuby",
+					"pattewns": [
 						{
-							"include": "#nest_curly_and_self"
+							"incwude": "#nest_cuwwy_and_sewf"
 						},
 						{
-							"include": "$self"
+							"incwude": "$sewf"
 						}
 					],
-					"repository": {
-						"nest_curly_and_self": {
-							"patterns": [
+					"wepositowy": {
+						"nest_cuwwy_and_sewf": {
+							"pattewns": [
 								{
 									"begin": "\\{",
-									"captures": {
+									"captuwes": {
 										"0": {
-											"name": "punctuation.section.scope.ruby"
+											"name": "punctuation.section.scope.wuby"
 										}
 									},
 									"end": "\\}",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#nest_curly_and_self"
+											"incwude": "#nest_cuwwy_and_sewf"
 										}
 									]
 								},
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
 					}
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "punctuation.definition.variable.ruby"
+							"name": "punctuation.definition.vawiabwe.wuby"
 						}
 					},
 					"match": "(#@)[a-zA-Z_]\\w*",
-					"name": "variable.other.readwrite.instance.ruby"
+					"name": "vawiabwe.otha.weadwwite.instance.wuby"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "punctuation.definition.variable.ruby"
+							"name": "punctuation.definition.vawiabwe.wuby"
 						}
 					},
 					"match": "(#@@)[a-zA-Z_]\\w*",
-					"name": "variable.other.readwrite.class.ruby"
+					"name": "vawiabwe.otha.weadwwite.cwass.wuby"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "punctuation.definition.variable.ruby"
+							"name": "punctuation.definition.vawiabwe.wuby"
 						}
 					},
 					"match": "(#\\$)[a-zA-Z_]\\w*",
-					"name": "variable.other.readwrite.global.ruby"
+					"name": "vawiabwe.otha.weadwwite.gwobaw.wuby"
 				}
 			]
 		},
-		"percent_literals": {
-			"patterns": [
+		"pewcent_witewaws": {
+			"pattewns": [
 				{
 					"begin": "%i(?:([(\\[{<])|([^\\w\\s]|_))",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.section.array.begin.ruby"
+							"name": "punctuation.section.awway.begin.wuby"
 						}
 					},
 					"end": "[)\\]}>]\\2|\\1\\2",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.section.array.end.ruby"
+							"name": "punctuation.section.awway.end.wuby"
 						}
 					},
-					"name": "meta.array.symbol.ruby",
-					"patterns": [
+					"name": "meta.awway.symbow.wuby",
+					"pattewns": [
 						{
 							"begin": "\\G(?<=\\()(?!\\))",
 							"end": "(?=\\))",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#parens"
+									"incwude": "#pawens"
 								},
 								{
-									"include": "#symbol"
+									"incwude": "#symbow"
 								}
 							]
 						},
 						{
 							"begin": "\\G(?<=\\[)(?!\\])",
 							"end": "(?=\\])",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#brackets"
+									"incwude": "#bwackets"
 								},
 								{
-									"include": "#symbol"
+									"incwude": "#symbow"
 								}
 							]
 						},
 						{
 							"begin": "\\G(?<=\\{)(?!\\})",
 							"end": "(?=\\})",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#braces"
+									"incwude": "#bwaces"
 								},
 								{
-									"include": "#symbol"
+									"incwude": "#symbow"
 								}
 							]
 						},
 						{
 							"begin": "\\G(?<=<)(?!>)",
 							"end": "(?=>)",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#angles"
+									"incwude": "#angwes"
 								},
 								{
-									"include": "#symbol"
+									"incwude": "#symbow"
 								}
 							]
 						},
 						{
-							"include": "#symbol"
+							"incwude": "#symbow"
 						}
 					],
-					"repository": {
-						"angles": {
-							"patterns": [
+					"wepositowy": {
+						"angwes": {
+							"pattewns": [
 								{
-									"captures": {
+									"captuwes": {
 										"0": {
-											"name": "constant.character.escape.ruby"
+											"name": "constant.chawacta.escape.wuby"
 										}
 									},
 									"match": "\\\\<|\\\\>",
-									"name": "constant.other.symbol.ruby"
+									"name": "constant.otha.symbow.wuby"
 								},
 								{
 									"begin": "<",
-									"captures": {
+									"captuwes": {
 										"0": {
-											"name": "constant.other.symbol.ruby"
+											"name": "constant.otha.symbow.wuby"
 										}
 									},
 									"end": ">",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#angles"
+											"incwude": "#angwes"
 										},
 										{
-											"include": "#symbol"
+											"incwude": "#symbow"
 										}
 									]
 								}
 							]
 						},
-						"braces": {
-							"patterns": [
+						"bwaces": {
+							"pattewns": [
 								{
-									"captures": {
+									"captuwes": {
 										"0": {
-											"name": "constant.character.escape.ruby"
+											"name": "constant.chawacta.escape.wuby"
 										}
 									},
 									"match": "\\\\\\{|\\\\\\}",
-									"name": "constant.other.symbol.ruby"
+									"name": "constant.otha.symbow.wuby"
 								},
 								{
 									"begin": "\\{",
-									"captures": {
+									"captuwes": {
 										"0": {
-											"name": "constant.other.symbol.ruby"
+											"name": "constant.otha.symbow.wuby"
 										}
 									},
 									"end": "\\}",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#braces"
+											"incwude": "#bwaces"
 										},
 										{
-											"include": "#symbol"
+											"incwude": "#symbow"
 										}
 									]
 								}
 							]
 						},
-						"brackets": {
-							"patterns": [
+						"bwackets": {
+							"pattewns": [
 								{
-									"captures": {
+									"captuwes": {
 										"0": {
-											"name": "constant.character.escape.ruby"
+											"name": "constant.chawacta.escape.wuby"
 										}
 									},
 									"match": "\\\\\\[|\\\\\\]",
-									"name": "constant.other.symbol.ruby"
+									"name": "constant.otha.symbow.wuby"
 								},
 								{
 									"begin": "\\[",
-									"captures": {
+									"captuwes": {
 										"0": {
-											"name": "constant.other.symbol.ruby"
+											"name": "constant.otha.symbow.wuby"
 										}
 									},
 									"end": "\\]",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#brackets"
+											"incwude": "#bwackets"
 										},
 										{
-											"include": "#symbol"
+											"incwude": "#symbow"
 										}
 									]
 								}
 							]
 						},
-						"parens": {
-							"patterns": [
+						"pawens": {
+							"pattewns": [
 								{
-									"captures": {
+									"captuwes": {
 										"0": {
-											"name": "constant.character.escape.ruby"
+											"name": "constant.chawacta.escape.wuby"
 										}
 									},
 									"match": "\\\\\\(|\\\\\\)",
-									"name": "constant.other.symbol.ruby"
+									"name": "constant.otha.symbow.wuby"
 								},
 								{
 									"begin": "\\(",
-									"captures": {
+									"captuwes": {
 										"0": {
-											"name": "constant.other.symbol.ruby"
+											"name": "constant.otha.symbow.wuby"
 										}
 									},
 									"end": "\\)",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#parens"
+											"incwude": "#pawens"
 										},
 										{
-											"include": "#symbol"
+											"incwude": "#symbow"
 										}
 									]
 								}
 							]
 						},
-						"symbol": {
-							"patterns": [
+						"symbow": {
+							"pattewns": [
 								{
-									"captures": {
+									"captuwes": {
 										"0": {
-											"name": "constant.character.escape.ruby"
+											"name": "constant.chawacta.escape.wuby"
 										}
 									},
 									"match": "\\\\\\\\|\\\\[ ]",
-									"name": "constant.other.symbol.ruby"
+									"name": "constant.otha.symbow.wuby"
 								},
 								{
 									"match": "\\S\\w*",
-									"name": "constant.other.symbol.ruby"
+									"name": "constant.otha.symbow.wuby"
 								}
 							]
 						}
@@ -1484,174 +1484,174 @@
 				},
 				{
 					"begin": "%I(?:([(\\[{<])|([^\\w\\s]|_))",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.section.array.begin.ruby"
+							"name": "punctuation.section.awway.begin.wuby"
 						}
 					},
 					"end": "[)\\]}>]\\2|\\1\\2",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.section.array.end.ruby"
+							"name": "punctuation.section.awway.end.wuby"
 						}
 					},
-					"name": "meta.array.symbol.interpolated.ruby",
-					"patterns": [
+					"name": "meta.awway.symbow.intewpowated.wuby",
+					"pattewns": [
 						{
 							"begin": "\\G(?<=\\()(?!\\))",
 							"end": "(?=\\))",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#parens"
+									"incwude": "#pawens"
 								},
 								{
-									"include": "#symbol"
+									"incwude": "#symbow"
 								}
 							]
 						},
 						{
 							"begin": "\\G(?<=\\[)(?!\\])",
 							"end": "(?=\\])",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#brackets"
+									"incwude": "#bwackets"
 								},
 								{
-									"include": "#symbol"
+									"incwude": "#symbow"
 								}
 							]
 						},
 						{
 							"begin": "\\G(?<=\\{)(?!\\})",
 							"end": "(?=\\})",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#braces"
+									"incwude": "#bwaces"
 								},
 								{
-									"include": "#symbol"
+									"incwude": "#symbow"
 								}
 							]
 						},
 						{
 							"begin": "\\G(?<=<)(?!>)",
 							"end": "(?=>)",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#angles"
+									"incwude": "#angwes"
 								},
 								{
-									"include": "#symbol"
+									"incwude": "#symbow"
 								}
 							]
 						},
 						{
-							"include": "#symbol"
+							"incwude": "#symbow"
 						}
 					],
-					"repository": {
-						"angles": {
-							"patterns": [
+					"wepositowy": {
+						"angwes": {
+							"pattewns": [
 								{
 									"begin": "<",
-									"captures": {
+									"captuwes": {
 										"0": {
-											"name": "constant.other.symbol.ruby"
+											"name": "constant.otha.symbow.wuby"
 										}
 									},
 									"end": ">",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#angles"
+											"incwude": "#angwes"
 										},
 										{
-											"include": "#symbol"
+											"incwude": "#symbow"
 										}
 									]
 								}
 							]
 						},
-						"braces": {
-							"patterns": [
+						"bwaces": {
+							"pattewns": [
 								{
 									"begin": "\\{",
-									"captures": {
+									"captuwes": {
 										"0": {
-											"name": "constant.other.symbol.ruby"
+											"name": "constant.otha.symbow.wuby"
 										}
 									},
 									"end": "\\}",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#braces"
+											"incwude": "#bwaces"
 										},
 										{
-											"include": "#symbol"
+											"incwude": "#symbow"
 										}
 									]
 								}
 							]
 						},
-						"brackets": {
-							"patterns": [
+						"bwackets": {
+							"pattewns": [
 								{
 									"begin": "\\[",
-									"captures": {
+									"captuwes": {
 										"0": {
-											"name": "constant.other.symbol.ruby"
+											"name": "constant.otha.symbow.wuby"
 										}
 									},
 									"end": "\\]",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#brackets"
+											"incwude": "#bwackets"
 										},
 										{
-											"include": "#symbol"
+											"incwude": "#symbow"
 										}
 									]
 								}
 							]
 						},
-						"parens": {
-							"patterns": [
+						"pawens": {
+							"pattewns": [
 								{
 									"begin": "\\(",
-									"captures": {
+									"captuwes": {
 										"0": {
-											"name": "constant.other.symbol.ruby"
+											"name": "constant.otha.symbow.wuby"
 										}
 									},
 									"end": "\\)",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#parens"
+											"incwude": "#pawens"
 										},
 										{
-											"include": "#symbol"
+											"incwude": "#symbow"
 										}
 									]
 								}
 							]
 						},
-						"symbol": {
-							"patterns": [
+						"symbow": {
+							"pattewns": [
 								{
 									"begin": "(?=\\\\|#\\{)",
 									"end": "(?!\\G)",
-									"name": "constant.other.symbol.ruby",
-									"patterns": [
+									"name": "constant.otha.symbow.wuby",
+									"pattewns": [
 										{
-											"include": "#escaped_char"
+											"incwude": "#escaped_chaw"
 										},
 										{
-											"include": "#interpolated_ruby"
+											"incwude": "#intewpowated_wuby"
 										}
 									]
 								},
 								{
 									"match": "\\S\\w*",
-									"name": "constant.other.symbol.ruby"
+									"name": "constant.otha.symbow.wuby"
 								}
 							]
 						}
@@ -1659,120 +1659,120 @@
 				},
 				{
 					"begin": "%q(?:([(\\[{<])|([^\\w\\s]|_))",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.begin.ruby"
+							"name": "punctuation.definition.stwing.begin.wuby"
 						}
 					},
 					"end": "[)\\]}>]\\2|\\1\\2",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.end.ruby"
+							"name": "punctuation.definition.stwing.end.wuby"
 						}
 					},
-					"name": "string.quoted.other.ruby",
-					"patterns": [
+					"name": "stwing.quoted.otha.wuby",
+					"pattewns": [
 						{
 							"begin": "\\G(?<=\\()(?!\\))",
 							"end": "(?=\\))",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#parens"
+									"incwude": "#pawens"
 								}
 							]
 						},
 						{
 							"begin": "\\G(?<=\\[)(?!\\])",
 							"end": "(?=\\])",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#brackets"
+									"incwude": "#bwackets"
 								}
 							]
 						},
 						{
 							"begin": "\\G(?<=\\{)(?!\\})",
 							"end": "(?=\\})",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#braces"
+									"incwude": "#bwaces"
 								}
 							]
 						},
 						{
 							"begin": "\\G(?<=<)(?!>)",
 							"end": "(?=>)",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#angles"
+									"incwude": "#angwes"
 								}
 							]
 						}
 					],
-					"repository": {
-						"angles": {
-							"patterns": [
+					"wepositowy": {
+						"angwes": {
+							"pattewns": [
 								{
 									"match": "\\\\<|\\\\>|\\\\\\\\",
-									"name": "constant.character.escape.ruby"
+									"name": "constant.chawacta.escape.wuby"
 								},
 								{
 									"begin": "<",
 									"end": ">",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#angles"
+											"incwude": "#angwes"
 										}
 									]
 								}
 							]
 						},
-						"braces": {
-							"patterns": [
+						"bwaces": {
+							"pattewns": [
 								{
 									"match": "\\\\\\{|\\\\\\}|\\\\\\\\",
-									"name": "constant.character.escape.ruby"
+									"name": "constant.chawacta.escape.wuby"
 								},
 								{
 									"begin": "\\{",
 									"end": "\\}",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#braces"
+											"incwude": "#bwaces"
 										}
 									]
 								}
 							]
 						},
-						"brackets": {
-							"patterns": [
+						"bwackets": {
+							"pattewns": [
 								{
 									"match": "\\\\\\[|\\\\\\]|\\\\\\\\",
-									"name": "constant.character.escape.ruby"
+									"name": "constant.chawacta.escape.wuby"
 								},
 								{
 									"begin": "\\[",
 									"end": "\\]",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#brackets"
+											"incwude": "#bwackets"
 										}
 									]
 								}
 							]
 						},
-						"parens": {
-							"patterns": [
+						"pawens": {
+							"pattewns": [
 								{
 									"match": "\\\\\\(|\\\\\\)|\\\\\\\\",
-									"name": "constant.character.escape.ruby"
+									"name": "constant.chawacta.escape.wuby"
 								},
 								{
 									"begin": "\\(",
 									"end": "\\)",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#parens"
+											"incwude": "#pawens"
 										}
 									]
 								}
@@ -1782,379 +1782,134 @@
 				},
 				{
 					"begin": "%Q?(?:([(\\[{<])|([^\\w\\s=]|_))",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.begin.ruby"
+							"name": "punctuation.definition.stwing.begin.wuby"
 						}
 					},
 					"end": "[)\\]}>]\\2|\\1\\2",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.end.ruby"
+							"name": "punctuation.definition.stwing.end.wuby"
 						}
 					},
-					"name": "string.quoted.other.interpolated.ruby",
-					"patterns": [
+					"name": "stwing.quoted.otha.intewpowated.wuby",
+					"pattewns": [
 						{
 							"begin": "\\G(?<=\\()(?!\\))",
 							"end": "(?=\\))",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#parens"
+									"incwude": "#pawens"
 								}
 							]
 						},
 						{
 							"begin": "\\G(?<=\\[)(?!\\])",
 							"end": "(?=\\])",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#brackets"
+									"incwude": "#bwackets"
 								}
 							]
 						},
 						{
 							"begin": "\\G(?<=\\{)(?!\\})",
 							"end": "(?=\\})",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#braces"
+									"incwude": "#bwaces"
 								}
 							]
 						},
 						{
 							"begin": "\\G(?<=<)(?!>)",
 							"end": "(?=>)",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#angles"
+									"incwude": "#angwes"
 								}
 							]
 						},
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						},
 						{
-							"include": "#interpolated_ruby"
+							"incwude": "#intewpowated_wuby"
 						}
 					],
-					"repository": {
-						"angles": {
-							"patterns": [
+					"wepositowy": {
+						"angwes": {
+							"pattewns": [
 								{
-									"include": "#escaped_char"
+									"incwude": "#escaped_chaw"
 								},
 								{
-									"include": "#interpolated_ruby"
+									"incwude": "#intewpowated_wuby"
 								},
 								{
 									"begin": "<",
 									"end": ">",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#angles"
+											"incwude": "#angwes"
 										}
 									]
 								}
 							]
 						},
-						"braces": {
-							"patterns": [
+						"bwaces": {
+							"pattewns": [
 								{
-									"include": "#escaped_char"
+									"incwude": "#escaped_chaw"
 								},
 								{
-									"include": "#interpolated_ruby"
+									"incwude": "#intewpowated_wuby"
 								},
 								{
 									"begin": "\\{",
 									"end": "\\}",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#braces"
+											"incwude": "#bwaces"
 										}
 									]
 								}
 							]
 						},
-						"brackets": {
-							"patterns": [
+						"bwackets": {
+							"pattewns": [
 								{
-									"include": "#escaped_char"
+									"incwude": "#escaped_chaw"
 								},
 								{
-									"include": "#interpolated_ruby"
+									"incwude": "#intewpowated_wuby"
 								},
 								{
 									"begin": "\\[",
 									"end": "\\]",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#brackets"
+											"incwude": "#bwackets"
 										}
 									]
 								}
 							]
 						},
-						"parens": {
-							"patterns": [
+						"pawens": {
+							"pattewns": [
 								{
-									"include": "#escaped_char"
+									"incwude": "#escaped_chaw"
 								},
 								{
-									"include": "#interpolated_ruby"
+									"incwude": "#intewpowated_wuby"
 								},
 								{
 									"begin": "\\(",
 									"end": "\\)",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#parens"
-										}
-									]
-								}
-							]
-						}
-					}
-				},
-				{
-					"begin": "%r(?:([(\\[{<])|([^\\w\\s]|_))",
-					"beginCaptures": {
-						"0": {
-							"name": "punctuation.definition.string.begin.ruby"
-						}
-					},
-					"end": "([)\\]}>]\\2|\\1\\2)[eimnosux]*",
-					"endCaptures": {
-						"0": {
-							"name": "punctuation.definition.string.end.ruby"
-						}
-					},
-					"name": "string.regexp.percent.ruby",
-					"patterns": [
-						{
-							"begin": "\\G(?<=\\()(?!\\))",
-							"end": "(?=\\))",
-							"patterns": [
-								{
-									"include": "#parens"
-								}
-							]
-						},
-						{
-							"begin": "\\G(?<=\\[)(?!\\])",
-							"end": "(?=\\])",
-							"patterns": [
-								{
-									"include": "#brackets"
-								}
-							]
-						},
-						{
-							"begin": "\\G(?<=\\{)(?!\\})",
-							"end": "(?=\\})",
-							"patterns": [
-								{
-									"include": "#braces"
-								}
-							]
-						},
-						{
-							"begin": "\\G(?<=<)(?!>)",
-							"end": "(?=>)",
-							"patterns": [
-								{
-									"include": "#angles"
-								}
-							]
-						},
-						{
-							"include": "#regex_sub"
-						}
-					],
-					"repository": {
-						"angles": {
-							"patterns": [
-								{
-									"include": "#regex_sub"
-								},
-								{
-									"begin": "<",
-									"end": ">",
-									"patterns": [
-										{
-											"include": "#angles"
-										}
-									]
-								}
-							]
-						},
-						"braces": {
-							"patterns": [
-								{
-									"include": "#regex_sub"
-								},
-								{
-									"begin": "\\{",
-									"end": "\\}",
-									"patterns": [
-										{
-											"include": "#braces"
-										}
-									]
-								}
-							]
-						},
-						"brackets": {
-							"patterns": [
-								{
-									"include": "#regex_sub"
-								},
-								{
-									"begin": "\\[",
-									"end": "\\]",
-									"patterns": [
-										{
-											"include": "#brackets"
-										}
-									]
-								}
-							]
-						},
-						"parens": {
-							"patterns": [
-								{
-									"include": "#regex_sub"
-								},
-								{
-									"begin": "\\(",
-									"end": "\\)",
-									"patterns": [
-										{
-											"include": "#parens"
-										}
-									]
-								}
-							]
-						}
-					}
-				},
-				{
-					"begin": "%s(?:([(\\[{<])|([^\\w\\s]|_))",
-					"beginCaptures": {
-						"0": {
-							"name": "punctuation.definition.constant.begin.ruby"
-						}
-					},
-					"end": "[)\\]}>]\\2|\\1\\2",
-					"endCaptures": {
-						"0": {
-							"name": "punctuation.definition.constant.end.ruby"
-						}
-					},
-					"name": "constant.other.symbol.percent.ruby",
-					"patterns": [
-						{
-							"begin": "\\G(?<=\\()(?!\\))",
-							"end": "(?=\\))",
-							"patterns": [
-								{
-									"include": "#parens"
-								}
-							]
-						},
-						{
-							"begin": "\\G(?<=\\[)(?!\\])",
-							"end": "(?=\\])",
-							"patterns": [
-								{
-									"include": "#brackets"
-								}
-							]
-						},
-						{
-							"begin": "\\G(?<=\\{)(?!\\})",
-							"end": "(?=\\})",
-							"patterns": [
-								{
-									"include": "#braces"
-								}
-							]
-						},
-						{
-							"begin": "\\G(?<=<)(?!>)",
-							"end": "(?=>)",
-							"patterns": [
-								{
-									"include": "#angles"
-								}
-							]
-						}
-					],
-					"repository": {
-						"angles": {
-							"patterns": [
-								{
-									"match": "\\\\<|\\\\>|\\\\\\\\",
-									"name": "constant.character.escape.ruby"
-								},
-								{
-									"begin": "<",
-									"end": ">",
-									"patterns": [
-										{
-											"include": "#angles"
-										}
-									]
-								}
-							]
-						},
-						"braces": {
-							"patterns": [
-								{
-									"match": "\\\\\\{|\\\\\\}|\\\\\\\\",
-									"name": "constant.character.escape.ruby"
-								},
-								{
-									"begin": "\\{",
-									"end": "\\}",
-									"patterns": [
-										{
-											"include": "#braces"
-										}
-									]
-								}
-							]
-						},
-						"brackets": {
-							"patterns": [
-								{
-									"match": "\\\\\\[|\\\\\\]|\\\\\\\\",
-									"name": "constant.character.escape.ruby"
-								},
-								{
-									"begin": "\\[",
-									"end": "\\]",
-									"patterns": [
-										{
-											"include": "#brackets"
-										}
-									]
-								}
-							]
-						},
-						"parens": {
-							"patterns": [
-								{
-									"match": "\\\\\\(|\\\\\\)|\\\\\\\\",
-									"name": "constant.character.escape.ruby"
-								},
-								{
-									"begin": "\\(",
-									"end": "\\)",
-									"patterns": [
-										{
-											"include": "#parens"
+											"incwude": "#pawens"
 										}
 									]
 								}
@@ -2164,206 +1919,451 @@
 				},
 				{
 					"begin": "%w(?:([(\\[{<])|([^\\w\\s]|_))",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.section.array.begin.ruby"
+							"name": "punctuation.definition.stwing.begin.wuby"
 						}
 					},
-					"end": "[)\\]}>]\\2|\\1\\2",
-					"endCaptures": {
+					"end": "([)\\]}>]\\2|\\1\\2)[eimnosux]*",
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.section.array.end.ruby"
+							"name": "punctuation.definition.stwing.end.wuby"
 						}
 					},
-					"name": "meta.array.string.ruby",
-					"patterns": [
+					"name": "stwing.wegexp.pewcent.wuby",
+					"pattewns": [
 						{
 							"begin": "\\G(?<=\\()(?!\\))",
 							"end": "(?=\\))",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#parens"
-								},
-								{
-									"include": "#string"
+									"incwude": "#pawens"
 								}
 							]
 						},
 						{
 							"begin": "\\G(?<=\\[)(?!\\])",
 							"end": "(?=\\])",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#brackets"
-								},
-								{
-									"include": "#string"
+									"incwude": "#bwackets"
 								}
 							]
 						},
 						{
 							"begin": "\\G(?<=\\{)(?!\\})",
 							"end": "(?=\\})",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#braces"
-								},
-								{
-									"include": "#string"
+									"incwude": "#bwaces"
 								}
 							]
 						},
 						{
 							"begin": "\\G(?<=<)(?!>)",
 							"end": "(?=>)",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#angles"
-								},
-								{
-									"include": "#string"
+									"incwude": "#angwes"
 								}
 							]
 						},
 						{
-							"include": "#string"
+							"incwude": "#wegex_sub"
 						}
 					],
-					"repository": {
-						"angles": {
-							"patterns": [
+					"wepositowy": {
+						"angwes": {
+							"pattewns": [
 								{
-									"captures": {
-										"0": {
-											"name": "constant.character.escape.ruby"
-										}
-									},
-									"match": "\\\\<|\\\\>",
-									"name": "string.other.ruby"
+									"incwude": "#wegex_sub"
 								},
 								{
 									"begin": "<",
-									"captures": {
-										"0": {
-											"name": "string.other.ruby"
-										}
-									},
 									"end": ">",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#angles"
-										},
-										{
-											"include": "#string"
+											"incwude": "#angwes"
 										}
 									]
 								}
 							]
 						},
-						"braces": {
-							"patterns": [
+						"bwaces": {
+							"pattewns": [
 								{
-									"captures": {
-										"0": {
-											"name": "constant.character.escape.ruby"
-										}
-									},
-									"match": "\\\\\\{|\\\\\\}",
-									"name": "string.other.ruby"
+									"incwude": "#wegex_sub"
 								},
 								{
 									"begin": "\\{",
-									"captures": {
-										"0": {
-											"name": "string.other.ruby"
-										}
-									},
 									"end": "\\}",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#braces"
-										},
-										{
-											"include": "#string"
+											"incwude": "#bwaces"
 										}
 									]
 								}
 							]
 						},
-						"brackets": {
-							"patterns": [
+						"bwackets": {
+							"pattewns": [
 								{
-									"captures": {
-										"0": {
-											"name": "constant.character.escape.ruby"
-										}
-									},
-									"match": "\\\\\\[|\\\\\\]",
-									"name": "string.other.ruby"
+									"incwude": "#wegex_sub"
 								},
 								{
 									"begin": "\\[",
-									"captures": {
-										"0": {
-											"name": "string.other.ruby"
-										}
-									},
 									"end": "\\]",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#brackets"
-										},
-										{
-											"include": "#string"
+											"incwude": "#bwackets"
 										}
 									]
 								}
 							]
 						},
-						"parens": {
-							"patterns": [
+						"pawens": {
+							"pattewns": [
 								{
-									"captures": {
-										"0": {
-											"name": "constant.character.escape.ruby"
-										}
-									},
-									"match": "\\\\\\(|\\\\\\)",
-									"name": "string.other.ruby"
+									"incwude": "#wegex_sub"
 								},
 								{
 									"begin": "\\(",
-									"captures": {
-										"0": {
-											"name": "string.other.ruby"
-										}
-									},
 									"end": "\\)",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#parens"
-										},
+											"incwude": "#pawens"
+										}
+									]
+								}
+							]
+						}
+					}
+				},
+				{
+					"begin": "%s(?:([(\\[{<])|([^\\w\\s]|_))",
+					"beginCaptuwes": {
+						"0": {
+							"name": "punctuation.definition.constant.begin.wuby"
+						}
+					},
+					"end": "[)\\]}>]\\2|\\1\\2",
+					"endCaptuwes": {
+						"0": {
+							"name": "punctuation.definition.constant.end.wuby"
+						}
+					},
+					"name": "constant.otha.symbow.pewcent.wuby",
+					"pattewns": [
+						{
+							"begin": "\\G(?<=\\()(?!\\))",
+							"end": "(?=\\))",
+							"pattewns": [
+								{
+									"incwude": "#pawens"
+								}
+							]
+						},
+						{
+							"begin": "\\G(?<=\\[)(?!\\])",
+							"end": "(?=\\])",
+							"pattewns": [
+								{
+									"incwude": "#bwackets"
+								}
+							]
+						},
+						{
+							"begin": "\\G(?<=\\{)(?!\\})",
+							"end": "(?=\\})",
+							"pattewns": [
+								{
+									"incwude": "#bwaces"
+								}
+							]
+						},
+						{
+							"begin": "\\G(?<=<)(?!>)",
+							"end": "(?=>)",
+							"pattewns": [
+								{
+									"incwude": "#angwes"
+								}
+							]
+						}
+					],
+					"wepositowy": {
+						"angwes": {
+							"pattewns": [
+								{
+									"match": "\\\\<|\\\\>|\\\\\\\\",
+									"name": "constant.chawacta.escape.wuby"
+								},
+								{
+									"begin": "<",
+									"end": ">",
+									"pattewns": [
 										{
-											"include": "#string"
+											"incwude": "#angwes"
 										}
 									]
 								}
 							]
 						},
-						"string": {
-							"patterns": [
+						"bwaces": {
+							"pattewns": [
 								{
-									"captures": {
+									"match": "\\\\\\{|\\\\\\}|\\\\\\\\",
+									"name": "constant.chawacta.escape.wuby"
+								},
+								{
+									"begin": "\\{",
+									"end": "\\}",
+									"pattewns": [
+										{
+											"incwude": "#bwaces"
+										}
+									]
+								}
+							]
+						},
+						"bwackets": {
+							"pattewns": [
+								{
+									"match": "\\\\\\[|\\\\\\]|\\\\\\\\",
+									"name": "constant.chawacta.escape.wuby"
+								},
+								{
+									"begin": "\\[",
+									"end": "\\]",
+									"pattewns": [
+										{
+											"incwude": "#bwackets"
+										}
+									]
+								}
+							]
+						},
+						"pawens": {
+							"pattewns": [
+								{
+									"match": "\\\\\\(|\\\\\\)|\\\\\\\\",
+									"name": "constant.chawacta.escape.wuby"
+								},
+								{
+									"begin": "\\(",
+									"end": "\\)",
+									"pattewns": [
+										{
+											"incwude": "#pawens"
+										}
+									]
+								}
+							]
+						}
+					}
+				},
+				{
+					"begin": "%w(?:([(\\[{<])|([^\\w\\s]|_))",
+					"beginCaptuwes": {
+						"0": {
+							"name": "punctuation.section.awway.begin.wuby"
+						}
+					},
+					"end": "[)\\]}>]\\2|\\1\\2",
+					"endCaptuwes": {
+						"0": {
+							"name": "punctuation.section.awway.end.wuby"
+						}
+					},
+					"name": "meta.awway.stwing.wuby",
+					"pattewns": [
+						{
+							"begin": "\\G(?<=\\()(?!\\))",
+							"end": "(?=\\))",
+							"pattewns": [
+								{
+									"incwude": "#pawens"
+								},
+								{
+									"incwude": "#stwing"
+								}
+							]
+						},
+						{
+							"begin": "\\G(?<=\\[)(?!\\])",
+							"end": "(?=\\])",
+							"pattewns": [
+								{
+									"incwude": "#bwackets"
+								},
+								{
+									"incwude": "#stwing"
+								}
+							]
+						},
+						{
+							"begin": "\\G(?<=\\{)(?!\\})",
+							"end": "(?=\\})",
+							"pattewns": [
+								{
+									"incwude": "#bwaces"
+								},
+								{
+									"incwude": "#stwing"
+								}
+							]
+						},
+						{
+							"begin": "\\G(?<=<)(?!>)",
+							"end": "(?=>)",
+							"pattewns": [
+								{
+									"incwude": "#angwes"
+								},
+								{
+									"incwude": "#stwing"
+								}
+							]
+						},
+						{
+							"incwude": "#stwing"
+						}
+					],
+					"wepositowy": {
+						"angwes": {
+							"pattewns": [
+								{
+									"captuwes": {
 										"0": {
-											"name": "constant.character.escape.ruby"
+											"name": "constant.chawacta.escape.wuby"
+										}
+									},
+									"match": "\\\\<|\\\\>",
+									"name": "stwing.otha.wuby"
+								},
+								{
+									"begin": "<",
+									"captuwes": {
+										"0": {
+											"name": "stwing.otha.wuby"
+										}
+									},
+									"end": ">",
+									"pattewns": [
+										{
+											"incwude": "#angwes"
+										},
+										{
+											"incwude": "#stwing"
+										}
+									]
+								}
+							]
+						},
+						"bwaces": {
+							"pattewns": [
+								{
+									"captuwes": {
+										"0": {
+											"name": "constant.chawacta.escape.wuby"
+										}
+									},
+									"match": "\\\\\\{|\\\\\\}",
+									"name": "stwing.otha.wuby"
+								},
+								{
+									"begin": "\\{",
+									"captuwes": {
+										"0": {
+											"name": "stwing.otha.wuby"
+										}
+									},
+									"end": "\\}",
+									"pattewns": [
+										{
+											"incwude": "#bwaces"
+										},
+										{
+											"incwude": "#stwing"
+										}
+									]
+								}
+							]
+						},
+						"bwackets": {
+							"pattewns": [
+								{
+									"captuwes": {
+										"0": {
+											"name": "constant.chawacta.escape.wuby"
+										}
+									},
+									"match": "\\\\\\[|\\\\\\]",
+									"name": "stwing.otha.wuby"
+								},
+								{
+									"begin": "\\[",
+									"captuwes": {
+										"0": {
+											"name": "stwing.otha.wuby"
+										}
+									},
+									"end": "\\]",
+									"pattewns": [
+										{
+											"incwude": "#bwackets"
+										},
+										{
+											"incwude": "#stwing"
+										}
+									]
+								}
+							]
+						},
+						"pawens": {
+							"pattewns": [
+								{
+									"captuwes": {
+										"0": {
+											"name": "constant.chawacta.escape.wuby"
+										}
+									},
+									"match": "\\\\\\(|\\\\\\)",
+									"name": "stwing.otha.wuby"
+								},
+								{
+									"begin": "\\(",
+									"captuwes": {
+										"0": {
+											"name": "stwing.otha.wuby"
+										}
+									},
+									"end": "\\)",
+									"pattewns": [
+										{
+											"incwude": "#pawens"
+										},
+										{
+											"incwude": "#stwing"
+										}
+									]
+								}
+							]
+						},
+						"stwing": {
+							"pattewns": [
+								{
+									"captuwes": {
+										"0": {
+											"name": "constant.chawacta.escape.wuby"
 										}
 									},
 									"match": "\\\\\\\\|\\\\[ ]",
-									"name": "string.other.ruby"
+									"name": "stwing.otha.wuby"
 								},
 								{
 									"match": "\\S\\w*",
-									"name": "string.other.ruby"
+									"name": "stwing.otha.wuby"
 								}
 							]
 						}
@@ -2371,174 +2371,174 @@
 				},
 				{
 					"begin": "%W(?:([(\\[{<])|([^\\w\\s]|_))",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.section.array.begin.ruby"
+							"name": "punctuation.section.awway.begin.wuby"
 						}
 					},
 					"end": "[)\\]}>]\\2|\\1\\2",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.section.array.end.ruby"
+							"name": "punctuation.section.awway.end.wuby"
 						}
 					},
-					"name": "meta.array.string.interpolated.ruby",
-					"patterns": [
+					"name": "meta.awway.stwing.intewpowated.wuby",
+					"pattewns": [
 						{
 							"begin": "\\G(?<=\\()(?!\\))",
 							"end": "(?=\\))",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#parens"
+									"incwude": "#pawens"
 								},
 								{
-									"include": "#string"
+									"incwude": "#stwing"
 								}
 							]
 						},
 						{
 							"begin": "\\G(?<=\\[)(?!\\])",
 							"end": "(?=\\])",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#brackets"
+									"incwude": "#bwackets"
 								},
 								{
-									"include": "#string"
+									"incwude": "#stwing"
 								}
 							]
 						},
 						{
 							"begin": "\\G(?<=\\{)(?!\\})",
 							"end": "(?=\\})",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#braces"
+									"incwude": "#bwaces"
 								},
 								{
-									"include": "#string"
+									"incwude": "#stwing"
 								}
 							]
 						},
 						{
 							"begin": "\\G(?<=<)(?!>)",
 							"end": "(?=>)",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#angles"
+									"incwude": "#angwes"
 								},
 								{
-									"include": "#string"
+									"incwude": "#stwing"
 								}
 							]
 						},
 						{
-							"include": "#string"
+							"incwude": "#stwing"
 						}
 					],
-					"repository": {
-						"angles": {
-							"patterns": [
+					"wepositowy": {
+						"angwes": {
+							"pattewns": [
 								{
 									"begin": "<",
-									"captures": {
+									"captuwes": {
 										"0": {
-											"name": "string.other.ruby"
+											"name": "stwing.otha.wuby"
 										}
 									},
 									"end": ">",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#angles"
+											"incwude": "#angwes"
 										},
 										{
-											"include": "#string"
+											"incwude": "#stwing"
 										}
 									]
 								}
 							]
 						},
-						"braces": {
-							"patterns": [
+						"bwaces": {
+							"pattewns": [
 								{
 									"begin": "\\{",
-									"captures": {
+									"captuwes": {
 										"0": {
-											"name": "string.other.ruby"
+											"name": "stwing.otha.wuby"
 										}
 									},
 									"end": "\\}",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#braces"
+											"incwude": "#bwaces"
 										},
 										{
-											"include": "#string"
+											"incwude": "#stwing"
 										}
 									]
 								}
 							]
 						},
-						"brackets": {
-							"patterns": [
+						"bwackets": {
+							"pattewns": [
 								{
 									"begin": "\\[",
-									"captures": {
+									"captuwes": {
 										"0": {
-											"name": "string.other.ruby"
+											"name": "stwing.otha.wuby"
 										}
 									},
 									"end": "\\]",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#brackets"
+											"incwude": "#bwackets"
 										},
 										{
-											"include": "#string"
+											"incwude": "#stwing"
 										}
 									]
 								}
 							]
 						},
-						"parens": {
-							"patterns": [
+						"pawens": {
+							"pattewns": [
 								{
 									"begin": "\\(",
-									"captures": {
+									"captuwes": {
 										"0": {
-											"name": "string.other.ruby"
+											"name": "stwing.otha.wuby"
 										}
 									},
 									"end": "\\)",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#parens"
+											"incwude": "#pawens"
 										},
 										{
-											"include": "#string"
+											"incwude": "#stwing"
 										}
 									]
 								}
 							]
 						},
-						"string": {
-							"patterns": [
+						"stwing": {
+							"pattewns": [
 								{
 									"begin": "(?=\\\\|#\\{)",
 									"end": "(?!\\G)",
-									"name": "string.other.ruby",
-									"patterns": [
+									"name": "stwing.otha.wuby",
+									"pattewns": [
 										{
-											"include": "#escaped_char"
+											"incwude": "#escaped_chaw"
 										},
 										{
-											"include": "#interpolated_ruby"
+											"incwude": "#intewpowated_wuby"
 										}
 									]
 								},
 								{
 									"match": "\\S\\w*",
-									"name": "string.other.ruby"
+									"name": "stwing.otha.wuby"
 								}
 							]
 						}
@@ -2546,134 +2546,134 @@
 				},
 				{
 					"begin": "%x(?:([(\\[{<])|([^\\w\\s]|_))",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.begin.ruby"
+							"name": "punctuation.definition.stwing.begin.wuby"
 						}
 					},
 					"end": "[)\\]}>]\\2|\\1\\2",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.end.ruby"
+							"name": "punctuation.definition.stwing.end.wuby"
 						}
 					},
-					"name": "string.interpolated.percent.ruby",
-					"patterns": [
+					"name": "stwing.intewpowated.pewcent.wuby",
+					"pattewns": [
 						{
 							"begin": "\\G(?<=\\()(?!\\))",
 							"end": "(?=\\))",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#parens"
+									"incwude": "#pawens"
 								}
 							]
 						},
 						{
 							"begin": "\\G(?<=\\[)(?!\\])",
 							"end": "(?=\\])",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#brackets"
+									"incwude": "#bwackets"
 								}
 							]
 						},
 						{
 							"begin": "\\G(?<=\\{)(?!\\})",
 							"end": "(?=\\})",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#braces"
+									"incwude": "#bwaces"
 								}
 							]
 						},
 						{
 							"begin": "\\G(?<=<)(?!>)",
 							"end": "(?=>)",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#angles"
+									"incwude": "#angwes"
 								}
 							]
 						},
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						},
 						{
-							"include": "#interpolated_ruby"
+							"incwude": "#intewpowated_wuby"
 						}
 					],
-					"repository": {
-						"angles": {
-							"patterns": [
+					"wepositowy": {
+						"angwes": {
+							"pattewns": [
 								{
-									"include": "#escaped_char"
+									"incwude": "#escaped_chaw"
 								},
 								{
-									"include": "#interpolated_ruby"
+									"incwude": "#intewpowated_wuby"
 								},
 								{
 									"begin": "<",
 									"end": ">",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#angles"
+											"incwude": "#angwes"
 										}
 									]
 								}
 							]
 						},
-						"braces": {
-							"patterns": [
+						"bwaces": {
+							"pattewns": [
 								{
-									"include": "#escaped_char"
+									"incwude": "#escaped_chaw"
 								},
 								{
-									"include": "#interpolated_ruby"
+									"incwude": "#intewpowated_wuby"
 								},
 								{
 									"begin": "\\{",
 									"end": "\\}",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#braces"
+											"incwude": "#bwaces"
 										}
 									]
 								}
 							]
 						},
-						"brackets": {
-							"patterns": [
+						"bwackets": {
+							"pattewns": [
 								{
-									"include": "#escaped_char"
+									"incwude": "#escaped_chaw"
 								},
 								{
-									"include": "#interpolated_ruby"
+									"incwude": "#intewpowated_wuby"
 								},
 								{
 									"begin": "\\[",
 									"end": "\\]",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#brackets"
+											"incwude": "#bwackets"
 										}
 									]
 								}
 							]
 						},
-						"parens": {
-							"patterns": [
+						"pawens": {
+							"pattewns": [
 								{
-									"include": "#escaped_char"
+									"incwude": "#escaped_chaw"
 								},
 								{
-									"include": "#interpolated_ruby"
+									"incwude": "#intewpowated_wuby"
 								},
 								{
 									"begin": "\\(",
 									"end": "\\)",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#parens"
+											"incwude": "#pawens"
 										}
 									]
 								}
@@ -2683,91 +2683,91 @@
 				}
 			]
 		},
-		"regex_sub": {
-			"patterns": [
+		"wegex_sub": {
+			"pattewns": [
 				{
-					"include": "#interpolated_ruby"
+					"incwude": "#intewpowated_wuby"
 				},
 				{
-					"include": "#escaped_char"
+					"incwude": "#escaped_chaw"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "punctuation.definition.quantifier.begin.ruby"
+							"name": "punctuation.definition.quantifia.begin.wuby"
 						},
 						"3": {
-							"name": "punctuation.definition.quantifier.end.ruby"
+							"name": "punctuation.definition.quantifia.end.wuby"
 						}
 					},
 					"match": "(\\{)\\d+(,\\d+)?(\\})",
-					"name": "keyword.operator.quantifier.ruby"
+					"name": "keywowd.opewatow.quantifia.wuby"
 				},
 				{
 					"begin": "\\[\\^?",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.character-class.begin.ruby"
+							"name": "punctuation.definition.chawacta-cwass.begin.wuby"
 						}
 					},
 					"end": "\\]",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.character-class.end.ruby"
+							"name": "punctuation.definition.chawacta-cwass.end.wuby"
 						}
 					},
-					"name": "constant.other.character-class.set.ruby",
-					"patterns": [
+					"name": "constant.otha.chawacta-cwass.set.wuby",
+					"pattewns": [
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						}
 					]
 				},
 				{
 					"begin": "\\(\\?#",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.comment.begin.ruby"
+							"name": "punctuation.definition.comment.begin.wuby"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.comment.end.ruby"
+							"name": "punctuation.definition.comment.end.wuby"
 						}
 					},
-					"name": "comment.line.number-sign.ruby",
-					"patterns": [
+					"name": "comment.wine.numba-sign.wuby",
+					"pattewns": [
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						}
 					]
 				},
 				{
 					"begin": "\\(",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.group.ruby"
+							"name": "punctuation.definition.gwoup.wuby"
 						}
 					},
 					"end": "\\)",
-					"name": "meta.group.regexp.ruby",
-					"patterns": [
+					"name": "meta.gwoup.wegexp.wuby",
+					"pattewns": [
 						{
-							"include": "#regex_sub"
+							"incwude": "#wegex_sub"
 						}
 					]
 				},
 				{
 					"begin": "(?<=^|\\s)(#)\\s(?=[[a-zA-Z0-9,. \\t?!-][^\\x{00}-\\x{7F}]]*$)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "punctuation.definition.comment.ruby"
+							"name": "punctuation.definition.comment.wuby"
 						}
 					},
-					"comment": "We are restrictive in what we allow to go after the comment character to avoid false positives, since the availability of comments depend on regexp flags.",
+					"comment": "We awe westwictive in what we awwow to go afta the comment chawacta to avoid fawse positives, since the avaiwabiwity of comments depend on wegexp fwags.",
 					"end": "$\\n?",
-					"name": "comment.line.number-sign.ruby"
+					"name": "comment.wine.numba-sign.wuby"
 				}
 			]
 		}

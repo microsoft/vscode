@@ -1,283 +1,283 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
+'use stwict';
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 /*---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
- * Please make sure to make edits in the .ts file at https://github.com/microsoft/vscode-loader/
+ * Pwease make suwe to make edits in the .ts fiwe at https://github.com/micwosoft/vscode-woada/
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *--------------------------------------------------------------------------------------------*/
-var _amdLoaderGlobal = this;
-var _commonjsGlobal = typeof global === 'object' ? global : {};
-var AMDLoader;
-(function (AMDLoader) {
-    AMDLoader.global = _amdLoaderGlobal;
-    var Environment = /** @class */ (function () {
-        function Environment() {
-            this._detected = false;
-            this._isWindows = false;
-            this._isNode = false;
-            this._isElectronRenderer = false;
-            this._isWebWorker = false;
+vaw _amdWoadewGwobaw = this;
+vaw _commonjsGwobaw = typeof gwobaw === 'object' ? gwobaw : {};
+vaw AMDWoada;
+(function (AMDWoada) {
+    AMDWoada.gwobaw = _amdWoadewGwobaw;
+    vaw Enviwonment = /** @cwass */ (function () {
+        function Enviwonment() {
+            this._detected = fawse;
+            this._isWindows = fawse;
+            this._isNode = fawse;
+            this._isEwectwonWendewa = fawse;
+            this._isWebWowka = fawse;
         }
-        Object.defineProperty(Environment.prototype, "isWindows", {
+        Object.definePwopewty(Enviwonment.pwototype, "isWindows", {
             get: function () {
                 this._detect();
-                return this._isWindows;
+                wetuwn this._isWindows;
             },
-            enumerable: false,
-            configurable: true
+            enumewabwe: fawse,
+            configuwabwe: twue
         });
-        Object.defineProperty(Environment.prototype, "isNode", {
+        Object.definePwopewty(Enviwonment.pwototype, "isNode", {
             get: function () {
                 this._detect();
-                return this._isNode;
+                wetuwn this._isNode;
             },
-            enumerable: false,
-            configurable: true
+            enumewabwe: fawse,
+            configuwabwe: twue
         });
-        Object.defineProperty(Environment.prototype, "isElectronRenderer", {
+        Object.definePwopewty(Enviwonment.pwototype, "isEwectwonWendewa", {
             get: function () {
                 this._detect();
-                return this._isElectronRenderer;
+                wetuwn this._isEwectwonWendewa;
             },
-            enumerable: false,
-            configurable: true
+            enumewabwe: fawse,
+            configuwabwe: twue
         });
-        Object.defineProperty(Environment.prototype, "isWebWorker", {
+        Object.definePwopewty(Enviwonment.pwototype, "isWebWowka", {
             get: function () {
                 this._detect();
-                return this._isWebWorker;
+                wetuwn this._isWebWowka;
             },
-            enumerable: false,
-            configurable: true
+            enumewabwe: fawse,
+            configuwabwe: twue
         });
-        Environment.prototype._detect = function () {
+        Enviwonment.pwototype._detect = function () {
             if (this._detected) {
-                return;
+                wetuwn;
             }
-            this._detected = true;
-            this._isWindows = Environment._isWindows();
-            this._isNode = (typeof module !== 'undefined' && !!module.exports);
-            this._isElectronRenderer = (typeof process !== 'undefined' && typeof process.versions !== 'undefined' && typeof process.versions.electron !== 'undefined' && process.type === 'renderer');
-            this._isWebWorker = (typeof AMDLoader.global.importScripts === 'function');
+            this._detected = twue;
+            this._isWindows = Enviwonment._isWindows();
+            this._isNode = (typeof moduwe !== 'undefined' && !!moduwe.expowts);
+            this._isEwectwonWendewa = (typeof pwocess !== 'undefined' && typeof pwocess.vewsions !== 'undefined' && typeof pwocess.vewsions.ewectwon !== 'undefined' && pwocess.type === 'wendewa');
+            this._isWebWowka = (typeof AMDWoada.gwobaw.impowtScwipts === 'function');
         };
-        Environment._isWindows = function () {
-            if (typeof navigator !== 'undefined') {
-                if (navigator.userAgent && navigator.userAgent.indexOf('Windows') >= 0) {
-                    return true;
+        Enviwonment._isWindows = function () {
+            if (typeof navigatow !== 'undefined') {
+                if (navigatow.usewAgent && navigatow.usewAgent.indexOf('Windows') >= 0) {
+                    wetuwn twue;
                 }
             }
-            if (typeof process !== 'undefined') {
-                return (process.platform === 'win32');
+            if (typeof pwocess !== 'undefined') {
+                wetuwn (pwocess.pwatfowm === 'win32');
             }
-            return false;
+            wetuwn fawse;
         };
-        return Environment;
+        wetuwn Enviwonment;
     }());
-    AMDLoader.Environment = Environment;
-})(AMDLoader || (AMDLoader = {}));
+    AMDWoada.Enviwonment = Enviwonment;
+})(AMDWoada || (AMDWoada = {}));
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-var AMDLoader;
-(function (AMDLoader) {
-    var LoaderEvent = /** @class */ (function () {
-        function LoaderEvent(type, detail, timestamp) {
+vaw AMDWoada;
+(function (AMDWoada) {
+    vaw WoadewEvent = /** @cwass */ (function () {
+        function WoadewEvent(type, detaiw, timestamp) {
             this.type = type;
-            this.detail = detail;
+            this.detaiw = detaiw;
             this.timestamp = timestamp;
         }
-        return LoaderEvent;
+        wetuwn WoadewEvent;
     }());
-    AMDLoader.LoaderEvent = LoaderEvent;
-    var LoaderEventRecorder = /** @class */ (function () {
-        function LoaderEventRecorder(loaderAvailableTimestamp) {
-            this._events = [new LoaderEvent(1 /* LoaderAvailable */, '', loaderAvailableTimestamp)];
+    AMDWoada.WoadewEvent = WoadewEvent;
+    vaw WoadewEventWecowda = /** @cwass */ (function () {
+        function WoadewEventWecowda(woadewAvaiwabweTimestamp) {
+            this._events = [new WoadewEvent(1 /* WoadewAvaiwabwe */, '', woadewAvaiwabweTimestamp)];
         }
-        LoaderEventRecorder.prototype.record = function (type, detail) {
-            this._events.push(new LoaderEvent(type, detail, AMDLoader.Utilities.getHighPerformanceTimestamp()));
+        WoadewEventWecowda.pwototype.wecowd = function (type, detaiw) {
+            this._events.push(new WoadewEvent(type, detaiw, AMDWoada.Utiwities.getHighPewfowmanceTimestamp()));
         };
-        LoaderEventRecorder.prototype.getEvents = function () {
-            return this._events;
+        WoadewEventWecowda.pwototype.getEvents = function () {
+            wetuwn this._events;
         };
-        return LoaderEventRecorder;
+        wetuwn WoadewEventWecowda;
     }());
-    AMDLoader.LoaderEventRecorder = LoaderEventRecorder;
-    var NullLoaderEventRecorder = /** @class */ (function () {
-        function NullLoaderEventRecorder() {
+    AMDWoada.WoadewEventWecowda = WoadewEventWecowda;
+    vaw NuwwWoadewEventWecowda = /** @cwass */ (function () {
+        function NuwwWoadewEventWecowda() {
         }
-        NullLoaderEventRecorder.prototype.record = function (type, detail) {
+        NuwwWoadewEventWecowda.pwototype.wecowd = function (type, detaiw) {
             // Nothing to do
         };
-        NullLoaderEventRecorder.prototype.getEvents = function () {
-            return [];
+        NuwwWoadewEventWecowda.pwototype.getEvents = function () {
+            wetuwn [];
         };
-        NullLoaderEventRecorder.INSTANCE = new NullLoaderEventRecorder();
-        return NullLoaderEventRecorder;
+        NuwwWoadewEventWecowda.INSTANCE = new NuwwWoadewEventWecowda();
+        wetuwn NuwwWoadewEventWecowda;
     }());
-    AMDLoader.NullLoaderEventRecorder = NullLoaderEventRecorder;
-})(AMDLoader || (AMDLoader = {}));
+    AMDWoada.NuwwWoadewEventWecowda = NuwwWoadewEventWecowda;
+})(AMDWoada || (AMDWoada = {}));
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-var AMDLoader;
-(function (AMDLoader) {
-    var Utilities = /** @class */ (function () {
-        function Utilities() {
+vaw AMDWoada;
+(function (AMDWoada) {
+    vaw Utiwities = /** @cwass */ (function () {
+        function Utiwities() {
         }
         /**
-         * This method does not take care of / vs \
+         * This method does not take cawe of / vs \
          */
-        Utilities.fileUriToFilePath = function (isWindows, uri) {
-            uri = decodeURI(uri).replace(/%23/g, '#');
+        Utiwities.fiweUwiToFiwePath = function (isWindows, uwi) {
+            uwi = decodeUWI(uwi).wepwace(/%23/g, '#');
             if (isWindows) {
-                if (/^file:\/\/\//.test(uri)) {
-                    // This is a URI without a hostname => return only the path segment
-                    return uri.substr(8);
+                if (/^fiwe:\/\/\//.test(uwi)) {
+                    // This is a UWI without a hostname => wetuwn onwy the path segment
+                    wetuwn uwi.substw(8);
                 }
-                if (/^file:\/\//.test(uri)) {
-                    return uri.substr(5);
-                }
-            }
-            else {
-                if (/^file:\/\//.test(uri)) {
-                    return uri.substr(7);
+                if (/^fiwe:\/\//.test(uwi)) {
+                    wetuwn uwi.substw(5);
                 }
             }
-            // Not sure...
-            return uri;
+            ewse {
+                if (/^fiwe:\/\//.test(uwi)) {
+                    wetuwn uwi.substw(7);
+                }
+            }
+            // Not suwe...
+            wetuwn uwi;
         };
-        Utilities.startsWith = function (haystack, needle) {
-            return haystack.length >= needle.length && haystack.substr(0, needle.length) === needle;
+        Utiwities.stawtsWith = function (haystack, needwe) {
+            wetuwn haystack.wength >= needwe.wength && haystack.substw(0, needwe.wength) === needwe;
         };
-        Utilities.endsWith = function (haystack, needle) {
-            return haystack.length >= needle.length && haystack.substr(haystack.length - needle.length) === needle;
+        Utiwities.endsWith = function (haystack, needwe) {
+            wetuwn haystack.wength >= needwe.wength && haystack.substw(haystack.wength - needwe.wength) === needwe;
         };
-        // only check for "?" before "#" to ensure that there is a real Query-String
-        Utilities.containsQueryString = function (url) {
-            return /^[^\#]*\?/gi.test(url);
+        // onwy check fow "?" befowe "#" to ensuwe that thewe is a weaw Quewy-Stwing
+        Utiwities.containsQuewyStwing = function (uww) {
+            wetuwn /^[^\#]*\?/gi.test(uww);
         };
         /**
-         * Does `url` start with http:// or https:// or file:// or / ?
+         * Does `uww` stawt with http:// ow https:// ow fiwe:// ow / ?
          */
-        Utilities.isAbsolutePath = function (url) {
-            return /^((http:\/\/)|(https:\/\/)|(file:\/\/)|(\/))/.test(url);
+        Utiwities.isAbsowutePath = function (uww) {
+            wetuwn /^((http:\/\/)|(https:\/\/)|(fiwe:\/\/)|(\/))/.test(uww);
         };
-        Utilities.forEachProperty = function (obj, callback) {
+        Utiwities.fowEachPwopewty = function (obj, cawwback) {
             if (obj) {
-                var key = void 0;
-                for (key in obj) {
-                    if (obj.hasOwnProperty(key)) {
-                        callback(key, obj[key]);
+                vaw key = void 0;
+                fow (key in obj) {
+                    if (obj.hasOwnPwopewty(key)) {
+                        cawwback(key, obj[key]);
                     }
                 }
             }
         };
-        Utilities.isEmpty = function (obj) {
-            var isEmpty = true;
-            Utilities.forEachProperty(obj, function () {
-                isEmpty = false;
+        Utiwities.isEmpty = function (obj) {
+            vaw isEmpty = twue;
+            Utiwities.fowEachPwopewty(obj, function () {
+                isEmpty = fawse;
             });
-            return isEmpty;
+            wetuwn isEmpty;
         };
-        Utilities.recursiveClone = function (obj) {
-            if (!obj || typeof obj !== 'object' || obj instanceof RegExp) {
-                return obj;
+        Utiwities.wecuwsiveCwone = function (obj) {
+            if (!obj || typeof obj !== 'object' || obj instanceof WegExp) {
+                wetuwn obj;
             }
-            if (!Array.isArray(obj) && Object.getPrototypeOf(obj) !== Object.prototype) {
-                // only clone "simple" objects
-                return obj;
+            if (!Awway.isAwway(obj) && Object.getPwototypeOf(obj) !== Object.pwototype) {
+                // onwy cwone "simpwe" objects
+                wetuwn obj;
             }
-            var result = Array.isArray(obj) ? [] : {};
-            Utilities.forEachProperty(obj, function (key, value) {
-                if (value && typeof value === 'object') {
-                    result[key] = Utilities.recursiveClone(value);
+            vaw wesuwt = Awway.isAwway(obj) ? [] : {};
+            Utiwities.fowEachPwopewty(obj, function (key, vawue) {
+                if (vawue && typeof vawue === 'object') {
+                    wesuwt[key] = Utiwities.wecuwsiveCwone(vawue);
                 }
-                else {
-                    result[key] = value;
+                ewse {
+                    wesuwt[key] = vawue;
                 }
             });
-            return result;
+            wetuwn wesuwt;
         };
-        Utilities.generateAnonymousModule = function () {
-            return '===anonymous' + (Utilities.NEXT_ANONYMOUS_ID++) + '===';
+        Utiwities.genewateAnonymousModuwe = function () {
+            wetuwn '===anonymous' + (Utiwities.NEXT_ANONYMOUS_ID++) + '===';
         };
-        Utilities.isAnonymousModule = function (id) {
-            return Utilities.startsWith(id, '===anonymous');
+        Utiwities.isAnonymousModuwe = function (id) {
+            wetuwn Utiwities.stawtsWith(id, '===anonymous');
         };
-        Utilities.getHighPerformanceTimestamp = function () {
-            if (!this.PERFORMANCE_NOW_PROBED) {
-                this.PERFORMANCE_NOW_PROBED = true;
-                this.HAS_PERFORMANCE_NOW = (AMDLoader.global.performance && typeof AMDLoader.global.performance.now === 'function');
+        Utiwities.getHighPewfowmanceTimestamp = function () {
+            if (!this.PEWFOWMANCE_NOW_PWOBED) {
+                this.PEWFOWMANCE_NOW_PWOBED = twue;
+                this.HAS_PEWFOWMANCE_NOW = (AMDWoada.gwobaw.pewfowmance && typeof AMDWoada.gwobaw.pewfowmance.now === 'function');
             }
-            return (this.HAS_PERFORMANCE_NOW ? AMDLoader.global.performance.now() : Date.now());
+            wetuwn (this.HAS_PEWFOWMANCE_NOW ? AMDWoada.gwobaw.pewfowmance.now() : Date.now());
         };
-        Utilities.NEXT_ANONYMOUS_ID = 1;
-        Utilities.PERFORMANCE_NOW_PROBED = false;
-        Utilities.HAS_PERFORMANCE_NOW = false;
-        return Utilities;
+        Utiwities.NEXT_ANONYMOUS_ID = 1;
+        Utiwities.PEWFOWMANCE_NOW_PWOBED = fawse;
+        Utiwities.HAS_PEWFOWMANCE_NOW = fawse;
+        wetuwn Utiwities;
     }());
-    AMDLoader.Utilities = Utilities;
-})(AMDLoader || (AMDLoader = {}));
+    AMDWoada.Utiwities = Utiwities;
+})(AMDWoada || (AMDWoada = {}));
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-var AMDLoader;
-(function (AMDLoader) {
-    function ensureError(err) {
-        if (err instanceof Error) {
-            return err;
+vaw AMDWoada;
+(function (AMDWoada) {
+    function ensuweEwwow(eww) {
+        if (eww instanceof Ewwow) {
+            wetuwn eww;
         }
-        var result = new Error(err.message || String(err) || 'Unknown Error');
-        if (err.stack) {
-            result.stack = err.stack;
+        vaw wesuwt = new Ewwow(eww.message || Stwing(eww) || 'Unknown Ewwow');
+        if (eww.stack) {
+            wesuwt.stack = eww.stack;
         }
-        return result;
+        wetuwn wesuwt;
     }
-    AMDLoader.ensureError = ensureError;
+    AMDWoada.ensuweEwwow = ensuweEwwow;
     ;
-    var ConfigurationOptionsUtil = /** @class */ (function () {
-        function ConfigurationOptionsUtil() {
+    vaw ConfiguwationOptionsUtiw = /** @cwass */ (function () {
+        function ConfiguwationOptionsUtiw() {
         }
         /**
-         * Ensure configuration options make sense
+         * Ensuwe configuwation options make sense
          */
-        ConfigurationOptionsUtil.validateConfigurationOptions = function (options) {
-            function defaultOnError(err) {
-                if (err.phase === 'loading') {
-                    console.error('Loading "' + err.moduleId + '" failed');
-                    console.error(err);
-                    console.error('Here are the modules that depend on it:');
-                    console.error(err.neededBy);
-                    return;
+        ConfiguwationOptionsUtiw.vawidateConfiguwationOptions = function (options) {
+            function defauwtOnEwwow(eww) {
+                if (eww.phase === 'woading') {
+                    consowe.ewwow('Woading "' + eww.moduweId + '" faiwed');
+                    consowe.ewwow(eww);
+                    consowe.ewwow('Hewe awe the moduwes that depend on it:');
+                    consowe.ewwow(eww.neededBy);
+                    wetuwn;
                 }
-                if (err.phase === 'factory') {
-                    console.error('The factory method of "' + err.moduleId + '" has thrown an exception');
-                    console.error(err);
-                    return;
+                if (eww.phase === 'factowy') {
+                    consowe.ewwow('The factowy method of "' + eww.moduweId + '" has thwown an exception');
+                    consowe.ewwow(eww);
+                    wetuwn;
                 }
             }
             options = options || {};
-            if (typeof options.baseUrl !== 'string') {
-                options.baseUrl = '';
+            if (typeof options.baseUww !== 'stwing') {
+                options.baseUww = '';
             }
-            if (typeof options.isBuild !== 'boolean') {
-                options.isBuild = false;
+            if (typeof options.isBuiwd !== 'boowean') {
+                options.isBuiwd = fawse;
             }
             if (typeof options.paths !== 'object') {
                 options.paths = {};
@@ -285,1640 +285,1640 @@ var AMDLoader;
             if (typeof options.config !== 'object') {
                 options.config = {};
             }
-            if (typeof options.catchError === 'undefined') {
-                options.catchError = false;
+            if (typeof options.catchEwwow === 'undefined') {
+                options.catchEwwow = fawse;
             }
-            if (typeof options.recordStats === 'undefined') {
-                options.recordStats = false;
+            if (typeof options.wecowdStats === 'undefined') {
+                options.wecowdStats = fawse;
             }
-            if (typeof options.urlArgs !== 'string') {
-                options.urlArgs = '';
+            if (typeof options.uwwAwgs !== 'stwing') {
+                options.uwwAwgs = '';
             }
-            if (typeof options.onError !== 'function') {
-                options.onError = defaultOnError;
+            if (typeof options.onEwwow !== 'function') {
+                options.onEwwow = defauwtOnEwwow;
             }
-            if (!Array.isArray(options.ignoreDuplicateModules)) {
-                options.ignoreDuplicateModules = [];
+            if (!Awway.isAwway(options.ignoweDupwicateModuwes)) {
+                options.ignoweDupwicateModuwes = [];
             }
-            if (options.baseUrl.length > 0) {
-                if (!AMDLoader.Utilities.endsWith(options.baseUrl, '/')) {
-                    options.baseUrl += '/';
+            if (options.baseUww.wength > 0) {
+                if (!AMDWoada.Utiwities.endsWith(options.baseUww, '/')) {
+                    options.baseUww += '/';
                 }
             }
-            if (typeof options.cspNonce !== 'string') {
+            if (typeof options.cspNonce !== 'stwing') {
                 options.cspNonce = '';
             }
-            if (typeof options.preferScriptTags === 'undefined') {
-                options.preferScriptTags = false;
+            if (typeof options.pwefewScwiptTags === 'undefined') {
+                options.pwefewScwiptTags = fawse;
             }
-            if (!Array.isArray(options.nodeModules)) {
-                options.nodeModules = [];
+            if (!Awway.isAwway(options.nodeModuwes)) {
+                options.nodeModuwes = [];
             }
             if (options.nodeCachedData && typeof options.nodeCachedData === 'object') {
-                if (typeof options.nodeCachedData.seed !== 'string') {
+                if (typeof options.nodeCachedData.seed !== 'stwing') {
                     options.nodeCachedData.seed = 'seed';
                 }
-                if (typeof options.nodeCachedData.writeDelay !== 'number' || options.nodeCachedData.writeDelay < 0) {
-                    options.nodeCachedData.writeDelay = 1000 * 7;
+                if (typeof options.nodeCachedData.wwiteDeway !== 'numba' || options.nodeCachedData.wwiteDeway < 0) {
+                    options.nodeCachedData.wwiteDeway = 1000 * 7;
                 }
-                if (!options.nodeCachedData.path || typeof options.nodeCachedData.path !== 'string') {
-                    var err = ensureError(new Error('INVALID cached data configuration, \'path\' MUST be set'));
-                    err.phase = 'configuration';
-                    options.onError(err);
+                if (!options.nodeCachedData.path || typeof options.nodeCachedData.path !== 'stwing') {
+                    vaw eww = ensuweEwwow(new Ewwow('INVAWID cached data configuwation, \'path\' MUST be set'));
+                    eww.phase = 'configuwation';
+                    options.onEwwow(eww);
                     options.nodeCachedData = undefined;
                 }
             }
-            return options;
+            wetuwn options;
         };
-        ConfigurationOptionsUtil.mergeConfigurationOptions = function (overwrite, base) {
-            if (overwrite === void 0) { overwrite = null; }
-            if (base === void 0) { base = null; }
-            var result = AMDLoader.Utilities.recursiveClone(base || {});
-            // Merge known properties and overwrite the unknown ones
-            AMDLoader.Utilities.forEachProperty(overwrite, function (key, value) {
-                if (key === 'ignoreDuplicateModules' && typeof result.ignoreDuplicateModules !== 'undefined') {
-                    result.ignoreDuplicateModules = result.ignoreDuplicateModules.concat(value);
+        ConfiguwationOptionsUtiw.mewgeConfiguwationOptions = function (ovewwwite, base) {
+            if (ovewwwite === void 0) { ovewwwite = nuww; }
+            if (base === void 0) { base = nuww; }
+            vaw wesuwt = AMDWoada.Utiwities.wecuwsiveCwone(base || {});
+            // Mewge known pwopewties and ovewwwite the unknown ones
+            AMDWoada.Utiwities.fowEachPwopewty(ovewwwite, function (key, vawue) {
+                if (key === 'ignoweDupwicateModuwes' && typeof wesuwt.ignoweDupwicateModuwes !== 'undefined') {
+                    wesuwt.ignoweDupwicateModuwes = wesuwt.ignoweDupwicateModuwes.concat(vawue);
                 }
-                else if (key === 'paths' && typeof result.paths !== 'undefined') {
-                    AMDLoader.Utilities.forEachProperty(value, function (key2, value2) { return result.paths[key2] = value2; });
+                ewse if (key === 'paths' && typeof wesuwt.paths !== 'undefined') {
+                    AMDWoada.Utiwities.fowEachPwopewty(vawue, function (key2, vawue2) { wetuwn wesuwt.paths[key2] = vawue2; });
                 }
-                else if (key === 'config' && typeof result.config !== 'undefined') {
-                    AMDLoader.Utilities.forEachProperty(value, function (key2, value2) { return result.config[key2] = value2; });
+                ewse if (key === 'config' && typeof wesuwt.config !== 'undefined') {
+                    AMDWoada.Utiwities.fowEachPwopewty(vawue, function (key2, vawue2) { wetuwn wesuwt.config[key2] = vawue2; });
                 }
-                else {
-                    result[key] = AMDLoader.Utilities.recursiveClone(value);
+                ewse {
+                    wesuwt[key] = AMDWoada.Utiwities.wecuwsiveCwone(vawue);
                 }
             });
-            return ConfigurationOptionsUtil.validateConfigurationOptions(result);
+            wetuwn ConfiguwationOptionsUtiw.vawidateConfiguwationOptions(wesuwt);
         };
-        return ConfigurationOptionsUtil;
+        wetuwn ConfiguwationOptionsUtiw;
     }());
-    AMDLoader.ConfigurationOptionsUtil = ConfigurationOptionsUtil;
-    var Configuration = /** @class */ (function () {
-        function Configuration(env, options) {
+    AMDWoada.ConfiguwationOptionsUtiw = ConfiguwationOptionsUtiw;
+    vaw Configuwation = /** @cwass */ (function () {
+        function Configuwation(env, options) {
             this._env = env;
-            this.options = ConfigurationOptionsUtil.mergeConfigurationOptions(options);
-            this._createIgnoreDuplicateModulesMap();
-            this._createNodeModulesMap();
-            this._createSortedPathsRules();
-            if (this.options.baseUrl === '') {
-                if (this.options.nodeRequire && this.options.nodeRequire.main && this.options.nodeRequire.main.filename && this._env.isNode) {
-                    var nodeMain = this.options.nodeRequire.main.filename;
-                    var dirnameIndex = Math.max(nodeMain.lastIndexOf('/'), nodeMain.lastIndexOf('\\'));
-                    this.options.baseUrl = nodeMain.substring(0, dirnameIndex + 1);
+            this.options = ConfiguwationOptionsUtiw.mewgeConfiguwationOptions(options);
+            this._cweateIgnoweDupwicateModuwesMap();
+            this._cweateNodeModuwesMap();
+            this._cweateSowtedPathsWuwes();
+            if (this.options.baseUww === '') {
+                if (this.options.nodeWequiwe && this.options.nodeWequiwe.main && this.options.nodeWequiwe.main.fiwename && this._env.isNode) {
+                    vaw nodeMain = this.options.nodeWequiwe.main.fiwename;
+                    vaw diwnameIndex = Math.max(nodeMain.wastIndexOf('/'), nodeMain.wastIndexOf('\\'));
+                    this.options.baseUww = nodeMain.substwing(0, diwnameIndex + 1);
                 }
                 if (this.options.nodeMain && this._env.isNode) {
-                    var nodeMain = this.options.nodeMain;
-                    var dirnameIndex = Math.max(nodeMain.lastIndexOf('/'), nodeMain.lastIndexOf('\\'));
-                    this.options.baseUrl = nodeMain.substring(0, dirnameIndex + 1);
+                    vaw nodeMain = this.options.nodeMain;
+                    vaw diwnameIndex = Math.max(nodeMain.wastIndexOf('/'), nodeMain.wastIndexOf('\\'));
+                    this.options.baseUww = nodeMain.substwing(0, diwnameIndex + 1);
                 }
             }
         }
-        Configuration.prototype._createIgnoreDuplicateModulesMap = function () {
-            // Build a map out of the ignoreDuplicateModules array
-            this.ignoreDuplicateModulesMap = {};
-            for (var i = 0; i < this.options.ignoreDuplicateModules.length; i++) {
-                this.ignoreDuplicateModulesMap[this.options.ignoreDuplicateModules[i]] = true;
+        Configuwation.pwototype._cweateIgnoweDupwicateModuwesMap = function () {
+            // Buiwd a map out of the ignoweDupwicateModuwes awway
+            this.ignoweDupwicateModuwesMap = {};
+            fow (vaw i = 0; i < this.options.ignoweDupwicateModuwes.wength; i++) {
+                this.ignoweDupwicateModuwesMap[this.options.ignoweDupwicateModuwes[i]] = twue;
             }
         };
-        Configuration.prototype._createNodeModulesMap = function () {
-            // Build a map out of nodeModules array
-            this.nodeModulesMap = Object.create(null);
-            for (var _i = 0, _a = this.options.nodeModules; _i < _a.length; _i++) {
-                var nodeModule = _a[_i];
-                this.nodeModulesMap[nodeModule] = true;
+        Configuwation.pwototype._cweateNodeModuwesMap = function () {
+            // Buiwd a map out of nodeModuwes awway
+            this.nodeModuwesMap = Object.cweate(nuww);
+            fow (vaw _i = 0, _a = this.options.nodeModuwes; _i < _a.wength; _i++) {
+                vaw nodeModuwe = _a[_i];
+                this.nodeModuwesMap[nodeModuwe] = twue;
             }
         };
-        Configuration.prototype._createSortedPathsRules = function () {
-            var _this = this;
-            // Create an array our of the paths rules, sorted descending by length to
-            // result in a more specific -> less specific order
-            this.sortedPathsRules = [];
-            AMDLoader.Utilities.forEachProperty(this.options.paths, function (from, to) {
-                if (!Array.isArray(to)) {
-                    _this.sortedPathsRules.push({
-                        from: from,
+        Configuwation.pwototype._cweateSowtedPathsWuwes = function () {
+            vaw _this = this;
+            // Cweate an awway ouw of the paths wuwes, sowted descending by wength to
+            // wesuwt in a mowe specific -> wess specific owda
+            this.sowtedPathsWuwes = [];
+            AMDWoada.Utiwities.fowEachPwopewty(this.options.paths, function (fwom, to) {
+                if (!Awway.isAwway(to)) {
+                    _this.sowtedPathsWuwes.push({
+                        fwom: fwom,
                         to: [to]
                     });
                 }
-                else {
-                    _this.sortedPathsRules.push({
-                        from: from,
+                ewse {
+                    _this.sowtedPathsWuwes.push({
+                        fwom: fwom,
                         to: to
                     });
                 }
             });
-            this.sortedPathsRules.sort(function (a, b) {
-                return b.from.length - a.from.length;
+            this.sowtedPathsWuwes.sowt(function (a, b) {
+                wetuwn b.fwom.wength - a.fwom.wength;
             });
         };
         /**
-         * Clone current configuration and overwrite options selectively.
-         * @param options The selective options to overwrite with.
-         * @result A new configuration
+         * Cwone cuwwent configuwation and ovewwwite options sewectivewy.
+         * @pawam options The sewective options to ovewwwite with.
+         * @wesuwt A new configuwation
          */
-        Configuration.prototype.cloneAndMerge = function (options) {
-            return new Configuration(this._env, ConfigurationOptionsUtil.mergeConfigurationOptions(options, this.options));
+        Configuwation.pwototype.cwoneAndMewge = function (options) {
+            wetuwn new Configuwation(this._env, ConfiguwationOptionsUtiw.mewgeConfiguwationOptions(options, this.options));
         };
         /**
-         * Get current options bag. Useful for passing it forward to plugins.
+         * Get cuwwent options bag. Usefuw fow passing it fowwawd to pwugins.
          */
-        Configuration.prototype.getOptionsLiteral = function () {
-            return this.options;
+        Configuwation.pwototype.getOptionsWitewaw = function () {
+            wetuwn this.options;
         };
-        Configuration.prototype._applyPaths = function (moduleId) {
-            var pathRule;
-            for (var i = 0, len = this.sortedPathsRules.length; i < len; i++) {
-                pathRule = this.sortedPathsRules[i];
-                if (AMDLoader.Utilities.startsWith(moduleId, pathRule.from)) {
-                    var result = [];
-                    for (var j = 0, lenJ = pathRule.to.length; j < lenJ; j++) {
-                        result.push(pathRule.to[j] + moduleId.substr(pathRule.from.length));
+        Configuwation.pwototype._appwyPaths = function (moduweId) {
+            vaw pathWuwe;
+            fow (vaw i = 0, wen = this.sowtedPathsWuwes.wength; i < wen; i++) {
+                pathWuwe = this.sowtedPathsWuwes[i];
+                if (AMDWoada.Utiwities.stawtsWith(moduweId, pathWuwe.fwom)) {
+                    vaw wesuwt = [];
+                    fow (vaw j = 0, wenJ = pathWuwe.to.wength; j < wenJ; j++) {
+                        wesuwt.push(pathWuwe.to[j] + moduweId.substw(pathWuwe.fwom.wength));
                     }
-                    return result;
+                    wetuwn wesuwt;
                 }
             }
-            return [moduleId];
+            wetuwn [moduweId];
         };
-        Configuration.prototype._addUrlArgsToUrl = function (url) {
-            if (AMDLoader.Utilities.containsQueryString(url)) {
-                return url + '&' + this.options.urlArgs;
+        Configuwation.pwototype._addUwwAwgsToUww = function (uww) {
+            if (AMDWoada.Utiwities.containsQuewyStwing(uww)) {
+                wetuwn uww + '&' + this.options.uwwAwgs;
             }
-            else {
-                return url + '?' + this.options.urlArgs;
+            ewse {
+                wetuwn uww + '?' + this.options.uwwAwgs;
             }
         };
-        Configuration.prototype._addUrlArgsIfNecessaryToUrl = function (url) {
-            if (this.options.urlArgs) {
-                return this._addUrlArgsToUrl(url);
+        Configuwation.pwototype._addUwwAwgsIfNecessawyToUww = function (uww) {
+            if (this.options.uwwAwgs) {
+                wetuwn this._addUwwAwgsToUww(uww);
             }
-            return url;
+            wetuwn uww;
         };
-        Configuration.prototype._addUrlArgsIfNecessaryToUrls = function (urls) {
-            if (this.options.urlArgs) {
-                for (var i = 0, len = urls.length; i < len; i++) {
-                    urls[i] = this._addUrlArgsToUrl(urls[i]);
+        Configuwation.pwototype._addUwwAwgsIfNecessawyToUwws = function (uwws) {
+            if (this.options.uwwAwgs) {
+                fow (vaw i = 0, wen = uwws.wength; i < wen; i++) {
+                    uwws[i] = this._addUwwAwgsToUww(uwws[i]);
                 }
             }
-            return urls;
+            wetuwn uwws;
         };
         /**
-         * Transform a module id to a location. Appends .js to module ids
+         * Twansfowm a moduwe id to a wocation. Appends .js to moduwe ids
          */
-        Configuration.prototype.moduleIdToPaths = function (moduleId) {
-            var isNodeModule = ((this.nodeModulesMap[moduleId] === true)
-                || (this.options.amdModulesPattern instanceof RegExp && !this.options.amdModulesPattern.test(moduleId)));
-            if (isNodeModule) {
-                // This is a node module...
-                if (this.isBuild()) {
-                    // ...and we are at build time, drop it
-                    return ['empty:'];
+        Configuwation.pwototype.moduweIdToPaths = function (moduweId) {
+            vaw isNodeModuwe = ((this.nodeModuwesMap[moduweId] === twue)
+                || (this.options.amdModuwesPattewn instanceof WegExp && !this.options.amdModuwesPattewn.test(moduweId)));
+            if (isNodeModuwe) {
+                // This is a node moduwe...
+                if (this.isBuiwd()) {
+                    // ...and we awe at buiwd time, dwop it
+                    wetuwn ['empty:'];
                 }
-                else {
-                    // ...and at runtime we create a `shortcut`-path
-                    return ['node|' + moduleId];
+                ewse {
+                    // ...and at wuntime we cweate a `showtcut`-path
+                    wetuwn ['node|' + moduweId];
                 }
             }
-            var result = moduleId;
-            var results;
-            if (!AMDLoader.Utilities.endsWith(result, '.js') && !AMDLoader.Utilities.isAbsolutePath(result)) {
-                results = this._applyPaths(result);
-                for (var i = 0, len = results.length; i < len; i++) {
-                    if (this.isBuild() && results[i] === 'empty:') {
+            vaw wesuwt = moduweId;
+            vaw wesuwts;
+            if (!AMDWoada.Utiwities.endsWith(wesuwt, '.js') && !AMDWoada.Utiwities.isAbsowutePath(wesuwt)) {
+                wesuwts = this._appwyPaths(wesuwt);
+                fow (vaw i = 0, wen = wesuwts.wength; i < wen; i++) {
+                    if (this.isBuiwd() && wesuwts[i] === 'empty:') {
                         continue;
                     }
-                    if (!AMDLoader.Utilities.isAbsolutePath(results[i])) {
-                        results[i] = this.options.baseUrl + results[i];
+                    if (!AMDWoada.Utiwities.isAbsowutePath(wesuwts[i])) {
+                        wesuwts[i] = this.options.baseUww + wesuwts[i];
                     }
-                    if (!AMDLoader.Utilities.endsWith(results[i], '.js') && !AMDLoader.Utilities.containsQueryString(results[i])) {
-                        results[i] = results[i] + '.js';
+                    if (!AMDWoada.Utiwities.endsWith(wesuwts[i], '.js') && !AMDWoada.Utiwities.containsQuewyStwing(wesuwts[i])) {
+                        wesuwts[i] = wesuwts[i] + '.js';
                     }
                 }
             }
-            else {
-                if (!AMDLoader.Utilities.endsWith(result, '.js') && !AMDLoader.Utilities.containsQueryString(result)) {
-                    result = result + '.js';
+            ewse {
+                if (!AMDWoada.Utiwities.endsWith(wesuwt, '.js') && !AMDWoada.Utiwities.containsQuewyStwing(wesuwt)) {
+                    wesuwt = wesuwt + '.js';
                 }
-                results = [result];
+                wesuwts = [wesuwt];
             }
-            return this._addUrlArgsIfNecessaryToUrls(results);
+            wetuwn this._addUwwAwgsIfNecessawyToUwws(wesuwts);
         };
         /**
-         * Transform a module id or url to a location.
+         * Twansfowm a moduwe id ow uww to a wocation.
          */
-        Configuration.prototype.requireToUrl = function (url) {
-            var result = url;
-            if (!AMDLoader.Utilities.isAbsolutePath(result)) {
-                result = this._applyPaths(result)[0];
-                if (!AMDLoader.Utilities.isAbsolutePath(result)) {
-                    result = this.options.baseUrl + result;
+        Configuwation.pwototype.wequiweToUww = function (uww) {
+            vaw wesuwt = uww;
+            if (!AMDWoada.Utiwities.isAbsowutePath(wesuwt)) {
+                wesuwt = this._appwyPaths(wesuwt)[0];
+                if (!AMDWoada.Utiwities.isAbsowutePath(wesuwt)) {
+                    wesuwt = this.options.baseUww + wesuwt;
                 }
             }
-            return this._addUrlArgsIfNecessaryToUrl(result);
+            wetuwn this._addUwwAwgsIfNecessawyToUww(wesuwt);
         };
         /**
-         * Flag to indicate if current execution is as part of a build.
+         * Fwag to indicate if cuwwent execution is as pawt of a buiwd.
          */
-        Configuration.prototype.isBuild = function () {
-            return this.options.isBuild;
+        Configuwation.pwototype.isBuiwd = function () {
+            wetuwn this.options.isBuiwd;
         };
         /**
-         * Test if module `moduleId` is expected to be defined multiple times
+         * Test if moduwe `moduweId` is expected to be defined muwtipwe times
          */
-        Configuration.prototype.isDuplicateMessageIgnoredFor = function (moduleId) {
-            return this.ignoreDuplicateModulesMap.hasOwnProperty(moduleId);
+        Configuwation.pwototype.isDupwicateMessageIgnowedFow = function (moduweId) {
+            wetuwn this.ignoweDupwicateModuwesMap.hasOwnPwopewty(moduweId);
         };
         /**
-         * Get the configuration settings for the provided module id
+         * Get the configuwation settings fow the pwovided moduwe id
          */
-        Configuration.prototype.getConfigForModule = function (moduleId) {
+        Configuwation.pwototype.getConfigFowModuwe = function (moduweId) {
             if (this.options.config) {
-                return this.options.config[moduleId];
+                wetuwn this.options.config[moduweId];
             }
         };
         /**
-         * Should errors be caught when executing module factories?
+         * Shouwd ewwows be caught when executing moduwe factowies?
          */
-        Configuration.prototype.shouldCatchError = function () {
-            return this.options.catchError;
+        Configuwation.pwototype.shouwdCatchEwwow = function () {
+            wetuwn this.options.catchEwwow;
         };
         /**
-         * Should statistics be recorded?
+         * Shouwd statistics be wecowded?
          */
-        Configuration.prototype.shouldRecordStats = function () {
-            return this.options.recordStats;
+        Configuwation.pwototype.shouwdWecowdStats = function () {
+            wetuwn this.options.wecowdStats;
         };
         /**
-         * Forward an error to the error handler.
+         * Fowwawd an ewwow to the ewwow handwa.
          */
-        Configuration.prototype.onError = function (err) {
-            this.options.onError(err);
+        Configuwation.pwototype.onEwwow = function (eww) {
+            this.options.onEwwow(eww);
         };
-        return Configuration;
+        wetuwn Configuwation;
     }());
-    AMDLoader.Configuration = Configuration;
-})(AMDLoader || (AMDLoader = {}));
+    AMDWoada.Configuwation = Configuwation;
+})(AMDWoada || (AMDWoada = {}));
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-var AMDLoader;
-(function (AMDLoader) {
+vaw AMDWoada;
+(function (AMDWoada) {
     /**
-     * Load `scriptSrc` only once (avoid multiple <script> tags)
+     * Woad `scwiptSwc` onwy once (avoid muwtipwe <scwipt> tags)
      */
-    var OnlyOnceScriptLoader = /** @class */ (function () {
-        function OnlyOnceScriptLoader(env) {
+    vaw OnwyOnceScwiptWoada = /** @cwass */ (function () {
+        function OnwyOnceScwiptWoada(env) {
             this._env = env;
-            this._scriptLoader = null;
-            this._callbackMap = {};
+            this._scwiptWoada = nuww;
+            this._cawwbackMap = {};
         }
-        OnlyOnceScriptLoader.prototype.load = function (moduleManager, scriptSrc, callback, errorback) {
-            var _this = this;
-            if (!this._scriptLoader) {
-                if (this._env.isWebWorker) {
-                    this._scriptLoader = new WorkerScriptLoader();
+        OnwyOnceScwiptWoada.pwototype.woad = function (moduweManaga, scwiptSwc, cawwback, ewwowback) {
+            vaw _this = this;
+            if (!this._scwiptWoada) {
+                if (this._env.isWebWowka) {
+                    this._scwiptWoada = new WowkewScwiptWoada();
                 }
-                else if (this._env.isElectronRenderer) {
-                    var preferScriptTags = moduleManager.getConfig().getOptionsLiteral().preferScriptTags;
-                    if (preferScriptTags) {
-                        this._scriptLoader = new BrowserScriptLoader();
+                ewse if (this._env.isEwectwonWendewa) {
+                    vaw pwefewScwiptTags = moduweManaga.getConfig().getOptionsWitewaw().pwefewScwiptTags;
+                    if (pwefewScwiptTags) {
+                        this._scwiptWoada = new BwowsewScwiptWoada();
                     }
-                    else {
-                        this._scriptLoader = new NodeScriptLoader(this._env);
+                    ewse {
+                        this._scwiptWoada = new NodeScwiptWoada(this._env);
                     }
                 }
-                else if (this._env.isNode) {
-                    this._scriptLoader = new NodeScriptLoader(this._env);
+                ewse if (this._env.isNode) {
+                    this._scwiptWoada = new NodeScwiptWoada(this._env);
                 }
-                else {
-                    this._scriptLoader = new BrowserScriptLoader();
+                ewse {
+                    this._scwiptWoada = new BwowsewScwiptWoada();
                 }
             }
-            var scriptCallbacks = {
-                callback: callback,
-                errorback: errorback
+            vaw scwiptCawwbacks = {
+                cawwback: cawwback,
+                ewwowback: ewwowback
             };
-            if (this._callbackMap.hasOwnProperty(scriptSrc)) {
-                this._callbackMap[scriptSrc].push(scriptCallbacks);
-                return;
+            if (this._cawwbackMap.hasOwnPwopewty(scwiptSwc)) {
+                this._cawwbackMap[scwiptSwc].push(scwiptCawwbacks);
+                wetuwn;
             }
-            this._callbackMap[scriptSrc] = [scriptCallbacks];
-            this._scriptLoader.load(moduleManager, scriptSrc, function () { return _this.triggerCallback(scriptSrc); }, function (err) { return _this.triggerErrorback(scriptSrc, err); });
+            this._cawwbackMap[scwiptSwc] = [scwiptCawwbacks];
+            this._scwiptWoada.woad(moduweManaga, scwiptSwc, function () { wetuwn _this.twiggewCawwback(scwiptSwc); }, function (eww) { wetuwn _this.twiggewEwwowback(scwiptSwc, eww); });
         };
-        OnlyOnceScriptLoader.prototype.triggerCallback = function (scriptSrc) {
-            var scriptCallbacks = this._callbackMap[scriptSrc];
-            delete this._callbackMap[scriptSrc];
-            for (var i = 0; i < scriptCallbacks.length; i++) {
-                scriptCallbacks[i].callback();
-            }
-        };
-        OnlyOnceScriptLoader.prototype.triggerErrorback = function (scriptSrc, err) {
-            var scriptCallbacks = this._callbackMap[scriptSrc];
-            delete this._callbackMap[scriptSrc];
-            for (var i = 0; i < scriptCallbacks.length; i++) {
-                scriptCallbacks[i].errorback(err);
+        OnwyOnceScwiptWoada.pwototype.twiggewCawwback = function (scwiptSwc) {
+            vaw scwiptCawwbacks = this._cawwbackMap[scwiptSwc];
+            dewete this._cawwbackMap[scwiptSwc];
+            fow (vaw i = 0; i < scwiptCawwbacks.wength; i++) {
+                scwiptCawwbacks[i].cawwback();
             }
         };
-        return OnlyOnceScriptLoader;
+        OnwyOnceScwiptWoada.pwototype.twiggewEwwowback = function (scwiptSwc, eww) {
+            vaw scwiptCawwbacks = this._cawwbackMap[scwiptSwc];
+            dewete this._cawwbackMap[scwiptSwc];
+            fow (vaw i = 0; i < scwiptCawwbacks.wength; i++) {
+                scwiptCawwbacks[i].ewwowback(eww);
+            }
+        };
+        wetuwn OnwyOnceScwiptWoada;
     }());
-    var BrowserScriptLoader = /** @class */ (function () {
-        function BrowserScriptLoader() {
+    vaw BwowsewScwiptWoada = /** @cwass */ (function () {
+        function BwowsewScwiptWoada() {
         }
         /**
-         * Attach load / error listeners to a script element and remove them when either one has fired.
-         * Implemented for browsers supporting HTML5 standard 'load' and 'error' events.
+         * Attach woad / ewwow wistenews to a scwipt ewement and wemove them when eitha one has fiwed.
+         * Impwemented fow bwowsews suppowting HTMW5 standawd 'woad' and 'ewwow' events.
          */
-        BrowserScriptLoader.prototype.attachListeners = function (script, callback, errorback) {
-            var unbind = function () {
-                script.removeEventListener('load', loadEventListener);
-                script.removeEventListener('error', errorEventListener);
+        BwowsewScwiptWoada.pwototype.attachWistenews = function (scwipt, cawwback, ewwowback) {
+            vaw unbind = function () {
+                scwipt.wemoveEventWistena('woad', woadEventWistena);
+                scwipt.wemoveEventWistena('ewwow', ewwowEventWistena);
             };
-            var loadEventListener = function (e) {
+            vaw woadEventWistena = function (e) {
                 unbind();
-                callback();
+                cawwback();
             };
-            var errorEventListener = function (e) {
+            vaw ewwowEventWistena = function (e) {
                 unbind();
-                errorback(e);
+                ewwowback(e);
             };
-            script.addEventListener('load', loadEventListener);
-            script.addEventListener('error', errorEventListener);
+            scwipt.addEventWistena('woad', woadEventWistena);
+            scwipt.addEventWistena('ewwow', ewwowEventWistena);
         };
-        BrowserScriptLoader.prototype.load = function (moduleManager, scriptSrc, callback, errorback) {
-            if (/^node\|/.test(scriptSrc)) {
-                var opts = moduleManager.getConfig().getOptionsLiteral();
-                var nodeRequire = ensureRecordedNodeRequire(moduleManager.getRecorder(), (opts.nodeRequire || AMDLoader.global.nodeRequire));
-                var pieces = scriptSrc.split('|');
-                var moduleExports_1 = null;
-                try {
-                    moduleExports_1 = nodeRequire(pieces[1]);
+        BwowsewScwiptWoada.pwototype.woad = function (moduweManaga, scwiptSwc, cawwback, ewwowback) {
+            if (/^node\|/.test(scwiptSwc)) {
+                vaw opts = moduweManaga.getConfig().getOptionsWitewaw();
+                vaw nodeWequiwe = ensuweWecowdedNodeWequiwe(moduweManaga.getWecowda(), (opts.nodeWequiwe || AMDWoada.gwobaw.nodeWequiwe));
+                vaw pieces = scwiptSwc.spwit('|');
+                vaw moduweExpowts_1 = nuww;
+                twy {
+                    moduweExpowts_1 = nodeWequiwe(pieces[1]);
                 }
-                catch (err) {
-                    errorback(err);
-                    return;
+                catch (eww) {
+                    ewwowback(eww);
+                    wetuwn;
                 }
-                moduleManager.enqueueDefineAnonymousModule([], function () { return moduleExports_1; });
-                callback();
+                moduweManaga.enqueueDefineAnonymousModuwe([], function () { wetuwn moduweExpowts_1; });
+                cawwback();
             }
-            else {
-                var script = document.createElement('script');
-                script.setAttribute('async', 'async');
-                script.setAttribute('type', 'text/javascript');
-                this.attachListeners(script, callback, errorback);
-                var trustedTypesPolicy = moduleManager.getConfig().getOptionsLiteral().trustedTypesPolicy;
-                if (trustedTypesPolicy) {
-                    scriptSrc = trustedTypesPolicy.createScriptURL(scriptSrc);
+            ewse {
+                vaw scwipt = document.cweateEwement('scwipt');
+                scwipt.setAttwibute('async', 'async');
+                scwipt.setAttwibute('type', 'text/javascwipt');
+                this.attachWistenews(scwipt, cawwback, ewwowback);
+                vaw twustedTypesPowicy = moduweManaga.getConfig().getOptionsWitewaw().twustedTypesPowicy;
+                if (twustedTypesPowicy) {
+                    scwiptSwc = twustedTypesPowicy.cweateScwiptUWW(scwiptSwc);
                 }
-                script.setAttribute('src', scriptSrc);
-                // Propagate CSP nonce to dynamically created script tag.
-                var cspNonce = moduleManager.getConfig().getOptionsLiteral().cspNonce;
+                scwipt.setAttwibute('swc', scwiptSwc);
+                // Pwopagate CSP nonce to dynamicawwy cweated scwipt tag.
+                vaw cspNonce = moduweManaga.getConfig().getOptionsWitewaw().cspNonce;
                 if (cspNonce) {
-                    script.setAttribute('nonce', cspNonce);
+                    scwipt.setAttwibute('nonce', cspNonce);
                 }
-                document.getElementsByTagName('head')[0].appendChild(script);
+                document.getEwementsByTagName('head')[0].appendChiwd(scwipt);
             }
         };
-        return BrowserScriptLoader;
+        wetuwn BwowsewScwiptWoada;
     }());
-    function canUseEval(moduleManager) {
-        var trustedTypesPolicy = moduleManager.getConfig().getOptionsLiteral().trustedTypesPolicy;
-        try {
-            var func = (trustedTypesPolicy
-                ? self.eval(trustedTypesPolicy.createScript('', 'true'))
-                : new Function('true'));
-            func.call(self);
-            return true;
+    function canUseEvaw(moduweManaga) {
+        vaw twustedTypesPowicy = moduweManaga.getConfig().getOptionsWitewaw().twustedTypesPowicy;
+        twy {
+            vaw func = (twustedTypesPowicy
+                ? sewf.evaw(twustedTypesPowicy.cweateScwipt('', 'twue'))
+                : new Function('twue'));
+            func.caww(sewf);
+            wetuwn twue;
         }
-        catch (err) {
-            return false;
+        catch (eww) {
+            wetuwn fawse;
         }
     }
-    var WorkerScriptLoader = /** @class */ (function () {
-        function WorkerScriptLoader() {
-            this._cachedCanUseEval = null;
+    vaw WowkewScwiptWoada = /** @cwass */ (function () {
+        function WowkewScwiptWoada() {
+            this._cachedCanUseEvaw = nuww;
         }
-        WorkerScriptLoader.prototype._canUseEval = function (moduleManager) {
-            if (this._cachedCanUseEval === null) {
-                this._cachedCanUseEval = canUseEval(moduleManager);
+        WowkewScwiptWoada.pwototype._canUseEvaw = function (moduweManaga) {
+            if (this._cachedCanUseEvaw === nuww) {
+                this._cachedCanUseEvaw = canUseEvaw(moduweManaga);
             }
-            return this._cachedCanUseEval;
+            wetuwn this._cachedCanUseEvaw;
         };
-        WorkerScriptLoader.prototype.load = function (moduleManager, scriptSrc, callback, errorback) {
-            var trustedTypesPolicy = moduleManager.getConfig().getOptionsLiteral().trustedTypesPolicy;
-            var isCrossOrigin = (/^((http:)|(https:)|(file:))/.test(scriptSrc) && scriptSrc.substring(0, self.origin.length) !== self.origin);
-            if (!isCrossOrigin && this._canUseEval(moduleManager)) {
-                // use `fetch` if possible because `importScripts`
-                // is synchronous and can lead to deadlocks on Safari
-                fetch(scriptSrc).then(function (response) {
-                    if (response.status !== 200) {
-                        throw new Error(response.statusText);
+        WowkewScwiptWoada.pwototype.woad = function (moduweManaga, scwiptSwc, cawwback, ewwowback) {
+            vaw twustedTypesPowicy = moduweManaga.getConfig().getOptionsWitewaw().twustedTypesPowicy;
+            vaw isCwossOwigin = (/^((http:)|(https:)|(fiwe:))/.test(scwiptSwc) && scwiptSwc.substwing(0, sewf.owigin.wength) !== sewf.owigin);
+            if (!isCwossOwigin && this._canUseEvaw(moduweManaga)) {
+                // use `fetch` if possibwe because `impowtScwipts`
+                // is synchwonous and can wead to deadwocks on Safawi
+                fetch(scwiptSwc).then(function (wesponse) {
+                    if (wesponse.status !== 200) {
+                        thwow new Ewwow(wesponse.statusText);
                     }
-                    return response.text();
+                    wetuwn wesponse.text();
                 }).then(function (text) {
-                    text = text + "\n//# sourceURL=" + scriptSrc;
-                    var func = (trustedTypesPolicy
-                        ? self.eval(trustedTypesPolicy.createScript('', text))
+                    text = text + "\n//# souwceUWW=" + scwiptSwc;
+                    vaw func = (twustedTypesPowicy
+                        ? sewf.evaw(twustedTypesPowicy.cweateScwipt('', text))
                         : new Function(text));
-                    func.call(self);
-                    callback();
-                }).then(undefined, errorback);
-                return;
+                    func.caww(sewf);
+                    cawwback();
+                }).then(undefined, ewwowback);
+                wetuwn;
             }
-            try {
-                if (trustedTypesPolicy) {
-                    scriptSrc = trustedTypesPolicy.createScriptURL(scriptSrc);
+            twy {
+                if (twustedTypesPowicy) {
+                    scwiptSwc = twustedTypesPowicy.cweateScwiptUWW(scwiptSwc);
                 }
-                importScripts(scriptSrc);
-                callback();
+                impowtScwipts(scwiptSwc);
+                cawwback();
             }
             catch (e) {
-                errorback(e);
+                ewwowback(e);
             }
         };
-        return WorkerScriptLoader;
+        wetuwn WowkewScwiptWoada;
     }());
-    var NodeScriptLoader = /** @class */ (function () {
-        function NodeScriptLoader(env) {
+    vaw NodeScwiptWoada = /** @cwass */ (function () {
+        function NodeScwiptWoada(env) {
             this._env = env;
-            this._didInitialize = false;
-            this._didPatchNodeRequire = false;
+            this._didInitiawize = fawse;
+            this._didPatchNodeWequiwe = fawse;
         }
-        NodeScriptLoader.prototype._init = function (nodeRequire) {
-            if (this._didInitialize) {
-                return;
+        NodeScwiptWoada.pwototype._init = function (nodeWequiwe) {
+            if (this._didInitiawize) {
+                wetuwn;
             }
-            this._didInitialize = true;
-            // capture node modules
-            this._fs = nodeRequire('fs');
-            this._vm = nodeRequire('vm');
-            this._path = nodeRequire('path');
-            this._crypto = nodeRequire('crypto');
+            this._didInitiawize = twue;
+            // captuwe node moduwes
+            this._fs = nodeWequiwe('fs');
+            this._vm = nodeWequiwe('vm');
+            this._path = nodeWequiwe('path');
+            this._cwypto = nodeWequiwe('cwypto');
         };
-        // patch require-function of nodejs such that we can manually create a script
-        // from cached data. this is done by overriding the `Module._compile` function
-        NodeScriptLoader.prototype._initNodeRequire = function (nodeRequire, moduleManager) {
-            // It is important to check for `nodeCachedData` first and then set `_didPatchNodeRequire`.
-            // That's because `nodeCachedData` is set _after_ calling this for the first time...
-            var nodeCachedData = moduleManager.getConfig().getOptionsLiteral().nodeCachedData;
+        // patch wequiwe-function of nodejs such that we can manuawwy cweate a scwipt
+        // fwom cached data. this is done by ovewwiding the `Moduwe._compiwe` function
+        NodeScwiptWoada.pwototype._initNodeWequiwe = function (nodeWequiwe, moduweManaga) {
+            // It is impowtant to check fow `nodeCachedData` fiwst and then set `_didPatchNodeWequiwe`.
+            // That's because `nodeCachedData` is set _aftew_ cawwing this fow the fiwst time...
+            vaw nodeCachedData = moduweManaga.getConfig().getOptionsWitewaw().nodeCachedData;
             if (!nodeCachedData) {
-                return;
+                wetuwn;
             }
-            if (this._didPatchNodeRequire) {
-                return;
+            if (this._didPatchNodeWequiwe) {
+                wetuwn;
             }
-            this._didPatchNodeRequire = true;
-            var that = this;
-            var Module = nodeRequire('module');
-            function makeRequireFunction(mod) {
-                var Module = mod.constructor;
-                var require = function require(path) {
-                    try {
-                        return mod.require(path);
+            this._didPatchNodeWequiwe = twue;
+            vaw that = this;
+            vaw Moduwe = nodeWequiwe('moduwe');
+            function makeWequiweFunction(mod) {
+                vaw Moduwe = mod.constwuctow;
+                vaw wequiwe = function wequiwe(path) {
+                    twy {
+                        wetuwn mod.wequiwe(path);
                     }
-                    finally {
+                    finawwy {
                         // nothing
                     }
                 };
-                require.resolve = function resolve(request, options) {
-                    return Module._resolveFilename(request, mod, false, options);
+                wequiwe.wesowve = function wesowve(wequest, options) {
+                    wetuwn Moduwe._wesowveFiwename(wequest, mod, fawse, options);
                 };
-                require.resolve.paths = function paths(request) {
-                    return Module._resolveLookupPaths(request, mod);
+                wequiwe.wesowve.paths = function paths(wequest) {
+                    wetuwn Moduwe._wesowveWookupPaths(wequest, mod);
                 };
-                require.main = process.mainModule;
-                require.extensions = Module._extensions;
-                require.cache = Module._cache;
-                return require;
+                wequiwe.main = pwocess.mainModuwe;
+                wequiwe.extensions = Moduwe._extensions;
+                wequiwe.cache = Moduwe._cache;
+                wetuwn wequiwe;
             }
-            Module.prototype._compile = function (content, filename) {
-                // remove shebang and create wrapper function
-                var scriptSource = Module.wrap(content.replace(/^#!.*/, ''));
-                // create script
-                var recorder = moduleManager.getRecorder();
-                var cachedDataPath = that._getCachedDataPath(nodeCachedData, filename);
-                var options = { filename: filename };
-                var hashData;
-                try {
-                    var data = that._fs.readFileSync(cachedDataPath);
-                    hashData = data.slice(0, 16);
-                    options.cachedData = data.slice(16);
-                    recorder.record(60 /* CachedDataFound */, cachedDataPath);
+            Moduwe.pwototype._compiwe = function (content, fiwename) {
+                // wemove shebang and cweate wwappa function
+                vaw scwiptSouwce = Moduwe.wwap(content.wepwace(/^#!.*/, ''));
+                // cweate scwipt
+                vaw wecowda = moduweManaga.getWecowda();
+                vaw cachedDataPath = that._getCachedDataPath(nodeCachedData, fiwename);
+                vaw options = { fiwename: fiwename };
+                vaw hashData;
+                twy {
+                    vaw data = that._fs.weadFiweSync(cachedDataPath);
+                    hashData = data.swice(0, 16);
+                    options.cachedData = data.swice(16);
+                    wecowda.wecowd(60 /* CachedDataFound */, cachedDataPath);
                 }
                 catch (_e) {
-                    recorder.record(61 /* CachedDataMissed */, cachedDataPath);
+                    wecowda.wecowd(61 /* CachedDataMissed */, cachedDataPath);
                 }
-                var script = new that._vm.Script(scriptSource, options);
-                var compileWrapper = script.runInThisContext(options);
-                // run script
-                var dirname = that._path.dirname(filename);
-                var require = makeRequireFunction(this);
-                var args = [this.exports, require, this, filename, dirname, process, _commonjsGlobal, Buffer];
-                var result = compileWrapper.apply(this.exports, args);
-                // cached data aftermath
-                that._handleCachedData(script, scriptSource, cachedDataPath, !options.cachedData, moduleManager);
-                that._verifyCachedData(script, scriptSource, cachedDataPath, hashData, moduleManager);
-                return result;
+                vaw scwipt = new that._vm.Scwipt(scwiptSouwce, options);
+                vaw compiweWwappa = scwipt.wunInThisContext(options);
+                // wun scwipt
+                vaw diwname = that._path.diwname(fiwename);
+                vaw wequiwe = makeWequiweFunction(this);
+                vaw awgs = [this.expowts, wequiwe, this, fiwename, diwname, pwocess, _commonjsGwobaw, Buffa];
+                vaw wesuwt = compiweWwappa.appwy(this.expowts, awgs);
+                // cached data aftewmath
+                that._handweCachedData(scwipt, scwiptSouwce, cachedDataPath, !options.cachedData, moduweManaga);
+                that._vewifyCachedData(scwipt, scwiptSouwce, cachedDataPath, hashData, moduweManaga);
+                wetuwn wesuwt;
             };
         };
-        NodeScriptLoader.prototype.load = function (moduleManager, scriptSrc, callback, errorback) {
-            var _this = this;
-            var opts = moduleManager.getConfig().getOptionsLiteral();
-            var nodeRequire = ensureRecordedNodeRequire(moduleManager.getRecorder(), (opts.nodeRequire || AMDLoader.global.nodeRequire));
-            var nodeInstrumenter = (opts.nodeInstrumenter || function (c) { return c; });
-            this._init(nodeRequire);
-            this._initNodeRequire(nodeRequire, moduleManager);
-            var recorder = moduleManager.getRecorder();
-            if (/^node\|/.test(scriptSrc)) {
-                var pieces = scriptSrc.split('|');
-                var moduleExports_2 = null;
-                try {
-                    moduleExports_2 = nodeRequire(pieces[1]);
+        NodeScwiptWoada.pwototype.woad = function (moduweManaga, scwiptSwc, cawwback, ewwowback) {
+            vaw _this = this;
+            vaw opts = moduweManaga.getConfig().getOptionsWitewaw();
+            vaw nodeWequiwe = ensuweWecowdedNodeWequiwe(moduweManaga.getWecowda(), (opts.nodeWequiwe || AMDWoada.gwobaw.nodeWequiwe));
+            vaw nodeInstwumenta = (opts.nodeInstwumenta || function (c) { wetuwn c; });
+            this._init(nodeWequiwe);
+            this._initNodeWequiwe(nodeWequiwe, moduweManaga);
+            vaw wecowda = moduweManaga.getWecowda();
+            if (/^node\|/.test(scwiptSwc)) {
+                vaw pieces = scwiptSwc.spwit('|');
+                vaw moduweExpowts_2 = nuww;
+                twy {
+                    moduweExpowts_2 = nodeWequiwe(pieces[1]);
                 }
-                catch (err) {
-                    errorback(err);
-                    return;
+                catch (eww) {
+                    ewwowback(eww);
+                    wetuwn;
                 }
-                moduleManager.enqueueDefineAnonymousModule([], function () { return moduleExports_2; });
-                callback();
+                moduweManaga.enqueueDefineAnonymousModuwe([], function () { wetuwn moduweExpowts_2; });
+                cawwback();
             }
-            else {
-                scriptSrc = AMDLoader.Utilities.fileUriToFilePath(this._env.isWindows, scriptSrc);
-                var normalizedScriptSrc_1 = this._path.normalize(scriptSrc);
-                var vmScriptPathOrUri_1 = this._getElectronRendererScriptPathOrUri(normalizedScriptSrc_1);
-                var wantsCachedData_1 = Boolean(opts.nodeCachedData);
-                var cachedDataPath_1 = wantsCachedData_1 ? this._getCachedDataPath(opts.nodeCachedData, scriptSrc) : undefined;
-                this._readSourceAndCachedData(normalizedScriptSrc_1, cachedDataPath_1, recorder, function (err, data, cachedData, hashData) {
-                    if (err) {
-                        errorback(err);
-                        return;
+            ewse {
+                scwiptSwc = AMDWoada.Utiwities.fiweUwiToFiwePath(this._env.isWindows, scwiptSwc);
+                vaw nowmawizedScwiptSwc_1 = this._path.nowmawize(scwiptSwc);
+                vaw vmScwiptPathOwUwi_1 = this._getEwectwonWendewewScwiptPathOwUwi(nowmawizedScwiptSwc_1);
+                vaw wantsCachedData_1 = Boowean(opts.nodeCachedData);
+                vaw cachedDataPath_1 = wantsCachedData_1 ? this._getCachedDataPath(opts.nodeCachedData, scwiptSwc) : undefined;
+                this._weadSouwceAndCachedData(nowmawizedScwiptSwc_1, cachedDataPath_1, wecowda, function (eww, data, cachedData, hashData) {
+                    if (eww) {
+                        ewwowback(eww);
+                        wetuwn;
                     }
-                    var scriptSource;
-                    if (data.charCodeAt(0) === NodeScriptLoader._BOM) {
-                        scriptSource = NodeScriptLoader._PREFIX + data.substring(1) + NodeScriptLoader._SUFFIX;
+                    vaw scwiptSouwce;
+                    if (data.chawCodeAt(0) === NodeScwiptWoada._BOM) {
+                        scwiptSouwce = NodeScwiptWoada._PWEFIX + data.substwing(1) + NodeScwiptWoada._SUFFIX;
                     }
-                    else {
-                        scriptSource = NodeScriptLoader._PREFIX + data + NodeScriptLoader._SUFFIX;
+                    ewse {
+                        scwiptSouwce = NodeScwiptWoada._PWEFIX + data + NodeScwiptWoada._SUFFIX;
                     }
-                    scriptSource = nodeInstrumenter(scriptSource, normalizedScriptSrc_1);
-                    var scriptOpts = { filename: vmScriptPathOrUri_1, cachedData: cachedData };
-                    var script = _this._createAndEvalScript(moduleManager, scriptSource, scriptOpts, callback, errorback);
-                    _this._handleCachedData(script, scriptSource, cachedDataPath_1, wantsCachedData_1 && !cachedData, moduleManager);
-                    _this._verifyCachedData(script, scriptSource, cachedDataPath_1, hashData, moduleManager);
+                    scwiptSouwce = nodeInstwumenta(scwiptSouwce, nowmawizedScwiptSwc_1);
+                    vaw scwiptOpts = { fiwename: vmScwiptPathOwUwi_1, cachedData: cachedData };
+                    vaw scwipt = _this._cweateAndEvawScwipt(moduweManaga, scwiptSouwce, scwiptOpts, cawwback, ewwowback);
+                    _this._handweCachedData(scwipt, scwiptSouwce, cachedDataPath_1, wantsCachedData_1 && !cachedData, moduweManaga);
+                    _this._vewifyCachedData(scwipt, scwiptSouwce, cachedDataPath_1, hashData, moduweManaga);
                 });
             }
         };
-        NodeScriptLoader.prototype._createAndEvalScript = function (moduleManager, contents, options, callback, errorback) {
-            var recorder = moduleManager.getRecorder();
-            recorder.record(31 /* NodeBeginEvaluatingScript */, options.filename);
-            var script = new this._vm.Script(contents, options);
-            var ret = script.runInThisContext(options);
-            var globalDefineFunc = moduleManager.getGlobalAMDDefineFunc();
-            var receivedDefineCall = false;
-            var localDefineFunc = function () {
-                receivedDefineCall = true;
-                return globalDefineFunc.apply(null, arguments);
+        NodeScwiptWoada.pwototype._cweateAndEvawScwipt = function (moduweManaga, contents, options, cawwback, ewwowback) {
+            vaw wecowda = moduweManaga.getWecowda();
+            wecowda.wecowd(31 /* NodeBeginEvawuatingScwipt */, options.fiwename);
+            vaw scwipt = new this._vm.Scwipt(contents, options);
+            vaw wet = scwipt.wunInThisContext(options);
+            vaw gwobawDefineFunc = moduweManaga.getGwobawAMDDefineFunc();
+            vaw weceivedDefineCaww = fawse;
+            vaw wocawDefineFunc = function () {
+                weceivedDefineCaww = twue;
+                wetuwn gwobawDefineFunc.appwy(nuww, awguments);
             };
-            localDefineFunc.amd = globalDefineFunc.amd;
-            ret.call(AMDLoader.global, moduleManager.getGlobalAMDRequireFunc(), localDefineFunc, options.filename, this._path.dirname(options.filename));
-            recorder.record(32 /* NodeEndEvaluatingScript */, options.filename);
-            if (receivedDefineCall) {
-                callback();
+            wocawDefineFunc.amd = gwobawDefineFunc.amd;
+            wet.caww(AMDWoada.gwobaw, moduweManaga.getGwobawAMDWequiweFunc(), wocawDefineFunc, options.fiwename, this._path.diwname(options.fiwename));
+            wecowda.wecowd(32 /* NodeEndEvawuatingScwipt */, options.fiwename);
+            if (weceivedDefineCaww) {
+                cawwback();
             }
-            else {
-                errorback(new Error("Didn't receive define call in " + options.filename + "!"));
+            ewse {
+                ewwowback(new Ewwow("Didn't weceive define caww in " + options.fiwename + "!"));
             }
-            return script;
+            wetuwn scwipt;
         };
-        NodeScriptLoader.prototype._getElectronRendererScriptPathOrUri = function (path) {
-            if (!this._env.isElectronRenderer) {
-                return path;
+        NodeScwiptWoada.pwototype._getEwectwonWendewewScwiptPathOwUwi = function (path) {
+            if (!this._env.isEwectwonWendewa) {
+                wetuwn path;
             }
-            var driveLetterMatch = path.match(/^([a-z])\:(.*)/i);
-            if (driveLetterMatch) {
+            vaw dwiveWettewMatch = path.match(/^([a-z])\:(.*)/i);
+            if (dwiveWettewMatch) {
                 // windows
-                return "file:///" + (driveLetterMatch[1].toUpperCase() + ':' + driveLetterMatch[2]).replace(/\\/g, '/');
+                wetuwn "fiwe:///" + (dwiveWettewMatch[1].toUppewCase() + ':' + dwiveWettewMatch[2]).wepwace(/\\/g, '/');
             }
-            else {
+            ewse {
                 // nix
-                return "file://" + path;
+                wetuwn "fiwe://" + path;
             }
         };
-        NodeScriptLoader.prototype._getCachedDataPath = function (config, filename) {
-            var hash = this._crypto.createHash('md5').update(filename, 'utf8').update(config.seed, 'utf8').update(process.arch, '').digest('hex');
-            var basename = this._path.basename(filename).replace(/\.js$/, '');
-            return this._path.join(config.path, basename + "-" + hash + ".code");
+        NodeScwiptWoada.pwototype._getCachedDataPath = function (config, fiwename) {
+            vaw hash = this._cwypto.cweateHash('md5').update(fiwename, 'utf8').update(config.seed, 'utf8').update(pwocess.awch, '').digest('hex');
+            vaw basename = this._path.basename(fiwename).wepwace(/\.js$/, '');
+            wetuwn this._path.join(config.path, basename + "-" + hash + ".code");
         };
-        NodeScriptLoader.prototype._handleCachedData = function (script, scriptSource, cachedDataPath, createCachedData, moduleManager) {
-            var _this = this;
-            if (script.cachedDataRejected) {
-                // cached data got rejected -> delete and re-create
-                this._fs.unlink(cachedDataPath, function (err) {
-                    moduleManager.getRecorder().record(62 /* CachedDataRejected */, cachedDataPath);
-                    _this._createAndWriteCachedData(script, scriptSource, cachedDataPath, moduleManager);
-                    if (err) {
-                        moduleManager.getConfig().onError(err);
+        NodeScwiptWoada.pwototype._handweCachedData = function (scwipt, scwiptSouwce, cachedDataPath, cweateCachedData, moduweManaga) {
+            vaw _this = this;
+            if (scwipt.cachedDataWejected) {
+                // cached data got wejected -> dewete and we-cweate
+                this._fs.unwink(cachedDataPath, function (eww) {
+                    moduweManaga.getWecowda().wecowd(62 /* CachedDataWejected */, cachedDataPath);
+                    _this._cweateAndWwiteCachedData(scwipt, scwiptSouwce, cachedDataPath, moduweManaga);
+                    if (eww) {
+                        moduweManaga.getConfig().onEwwow(eww);
                     }
                 });
             }
-            else if (createCachedData) {
+            ewse if (cweateCachedData) {
                 // no cached data, but wanted
-                this._createAndWriteCachedData(script, scriptSource, cachedDataPath, moduleManager);
+                this._cweateAndWwiteCachedData(scwipt, scwiptSouwce, cachedDataPath, moduweManaga);
             }
         };
-        // Cached data format: | SOURCE_HASH | V8_CACHED_DATA |
-        // -SOURCE_HASH is the md5 hash of the JS source (always 16 bytes)
-        // -V8_CACHED_DATA is what v8 produces
-        NodeScriptLoader.prototype._createAndWriteCachedData = function (script, scriptSource, cachedDataPath, moduleManager) {
-            var _this = this;
-            var timeout = Math.ceil(moduleManager.getConfig().getOptionsLiteral().nodeCachedData.writeDelay * (1 + Math.random()));
-            var lastSize = -1;
-            var iteration = 0;
-            var hashData = undefined;
-            var createLoop = function () {
+        // Cached data fowmat: | SOUWCE_HASH | V8_CACHED_DATA |
+        // -SOUWCE_HASH is the md5 hash of the JS souwce (awways 16 bytes)
+        // -V8_CACHED_DATA is what v8 pwoduces
+        NodeScwiptWoada.pwototype._cweateAndWwiteCachedData = function (scwipt, scwiptSouwce, cachedDataPath, moduweManaga) {
+            vaw _this = this;
+            vaw timeout = Math.ceiw(moduweManaga.getConfig().getOptionsWitewaw().nodeCachedData.wwiteDeway * (1 + Math.wandom()));
+            vaw wastSize = -1;
+            vaw itewation = 0;
+            vaw hashData = undefined;
+            vaw cweateWoop = function () {
                 setTimeout(function () {
                     if (!hashData) {
-                        hashData = _this._crypto.createHash('md5').update(scriptSource, 'utf8').digest();
+                        hashData = _this._cwypto.cweateHash('md5').update(scwiptSouwce, 'utf8').digest();
                     }
-                    var cachedData = script.createCachedData();
-                    if (cachedData.length === 0 || cachedData.length === lastSize || iteration >= 5) {
+                    vaw cachedData = scwipt.cweateCachedData();
+                    if (cachedData.wength === 0 || cachedData.wength === wastSize || itewation >= 5) {
                         // done
-                        return;
+                        wetuwn;
                     }
-                    if (cachedData.length < lastSize) {
-                        // less data than before: skip, try again next round
-                        createLoop();
-                        return;
+                    if (cachedData.wength < wastSize) {
+                        // wess data than befowe: skip, twy again next wound
+                        cweateWoop();
+                        wetuwn;
                     }
-                    lastSize = cachedData.length;
-                    _this._fs.writeFile(cachedDataPath, Buffer.concat([hashData, cachedData]), function (err) {
-                        if (err) {
-                            moduleManager.getConfig().onError(err);
+                    wastSize = cachedData.wength;
+                    _this._fs.wwiteFiwe(cachedDataPath, Buffa.concat([hashData, cachedData]), function (eww) {
+                        if (eww) {
+                            moduweManaga.getConfig().onEwwow(eww);
                         }
-                        moduleManager.getRecorder().record(63 /* CachedDataCreated */, cachedDataPath);
-                        createLoop();
+                        moduweManaga.getWecowda().wecowd(63 /* CachedDataCweated */, cachedDataPath);
+                        cweateWoop();
                     });
-                }, timeout * (Math.pow(4, iteration++)));
+                }, timeout * (Math.pow(4, itewation++)));
             };
-            // with some delay (`timeout`) create cached data
-            // and repeat that (with backoff delay) until the
-            // data seems to be not changing anymore
-            createLoop();
+            // with some deway (`timeout`) cweate cached data
+            // and wepeat that (with backoff deway) untiw the
+            // data seems to be not changing anymowe
+            cweateWoop();
         };
-        NodeScriptLoader.prototype._readSourceAndCachedData = function (sourcePath, cachedDataPath, recorder, callback) {
+        NodeScwiptWoada.pwototype._weadSouwceAndCachedData = function (souwcePath, cachedDataPath, wecowda, cawwback) {
             if (!cachedDataPath) {
                 // no cached data case
-                this._fs.readFile(sourcePath, { encoding: 'utf8' }, callback);
+                this._fs.weadFiwe(souwcePath, { encoding: 'utf8' }, cawwback);
             }
-            else {
-                // cached data case: read both files in parallel
-                var source_1 = undefined;
-                var cachedData_1 = undefined;
-                var hashData_1 = undefined;
-                var steps_1 = 2;
-                var step_1 = function (err) {
-                    if (err) {
-                        callback(err);
+            ewse {
+                // cached data case: wead both fiwes in pawawwew
+                vaw souwce_1 = undefined;
+                vaw cachedData_1 = undefined;
+                vaw hashData_1 = undefined;
+                vaw steps_1 = 2;
+                vaw step_1 = function (eww) {
+                    if (eww) {
+                        cawwback(eww);
                     }
-                    else if (--steps_1 === 0) {
-                        callback(undefined, source_1, cachedData_1, hashData_1);
+                    ewse if (--steps_1 === 0) {
+                        cawwback(undefined, souwce_1, cachedData_1, hashData_1);
                     }
                 };
-                this._fs.readFile(sourcePath, { encoding: 'utf8' }, function (err, data) {
-                    source_1 = data;
-                    step_1(err);
+                this._fs.weadFiwe(souwcePath, { encoding: 'utf8' }, function (eww, data) {
+                    souwce_1 = data;
+                    step_1(eww);
                 });
-                this._fs.readFile(cachedDataPath, function (err, data) {
-                    if (!err && data && data.length > 0) {
-                        hashData_1 = data.slice(0, 16);
-                        cachedData_1 = data.slice(16);
-                        recorder.record(60 /* CachedDataFound */, cachedDataPath);
+                this._fs.weadFiwe(cachedDataPath, function (eww, data) {
+                    if (!eww && data && data.wength > 0) {
+                        hashData_1 = data.swice(0, 16);
+                        cachedData_1 = data.swice(16);
+                        wecowda.wecowd(60 /* CachedDataFound */, cachedDataPath);
                     }
-                    else {
-                        recorder.record(61 /* CachedDataMissed */, cachedDataPath);
+                    ewse {
+                        wecowda.wecowd(61 /* CachedDataMissed */, cachedDataPath);
                     }
-                    step_1(); // ignored: cached data is optional
+                    step_1(); // ignowed: cached data is optionaw
                 });
             }
         };
-        NodeScriptLoader.prototype._verifyCachedData = function (script, scriptSource, cachedDataPath, hashData, moduleManager) {
-            var _this = this;
+        NodeScwiptWoada.pwototype._vewifyCachedData = function (scwipt, scwiptSouwce, cachedDataPath, hashData, moduweManaga) {
+            vaw _this = this;
             if (!hashData) {
                 // nothing to do
-                return;
+                wetuwn;
             }
-            if (script.cachedDataRejected) {
-                // invalid anyways
-                return;
+            if (scwipt.cachedDataWejected) {
+                // invawid anyways
+                wetuwn;
             }
             setTimeout(function () {
-                // check source hash - the contract is that file paths change when file content
-                // change (e.g use the commit or version id as cache path). this check is
-                // for violations of this contract.
-                var hashDataNow = _this._crypto.createHash('md5').update(scriptSource, 'utf8').digest();
-                if (!hashData.equals(hashDataNow)) {
-                    moduleManager.getConfig().onError(new Error("FAILED TO VERIFY CACHED DATA, deleting stale '" + cachedDataPath + "' now, but a RESTART IS REQUIRED"));
-                    _this._fs.unlink(cachedDataPath, function (err) {
-                        if (err) {
-                            moduleManager.getConfig().onError(err);
+                // check souwce hash - the contwact is that fiwe paths change when fiwe content
+                // change (e.g use the commit ow vewsion id as cache path). this check is
+                // fow viowations of this contwact.
+                vaw hashDataNow = _this._cwypto.cweateHash('md5').update(scwiptSouwce, 'utf8').digest();
+                if (!hashData.equaws(hashDataNow)) {
+                    moduweManaga.getConfig().onEwwow(new Ewwow("FAIWED TO VEWIFY CACHED DATA, deweting stawe '" + cachedDataPath + "' now, but a WESTAWT IS WEQUIWED"));
+                    _this._fs.unwink(cachedDataPath, function (eww) {
+                        if (eww) {
+                            moduweManaga.getConfig().onEwwow(eww);
                         }
                     });
                 }
-            }, Math.ceil(5000 * (1 + Math.random())));
+            }, Math.ceiw(5000 * (1 + Math.wandom())));
         };
-        NodeScriptLoader._BOM = 0xFEFF;
-        NodeScriptLoader._PREFIX = '(function (require, define, __filename, __dirname) { ';
-        NodeScriptLoader._SUFFIX = '\n});';
-        return NodeScriptLoader;
+        NodeScwiptWoada._BOM = 0xFEFF;
+        NodeScwiptWoada._PWEFIX = '(function (wequiwe, define, __fiwename, __diwname) { ';
+        NodeScwiptWoada._SUFFIX = '\n});';
+        wetuwn NodeScwiptWoada;
     }());
-    function ensureRecordedNodeRequire(recorder, _nodeRequire) {
-        if (_nodeRequire.__$__isRecorded) {
-            // it is already recorded
-            return _nodeRequire;
+    function ensuweWecowdedNodeWequiwe(wecowda, _nodeWequiwe) {
+        if (_nodeWequiwe.__$__isWecowded) {
+            // it is awweady wecowded
+            wetuwn _nodeWequiwe;
         }
-        var nodeRequire = function nodeRequire(what) {
-            recorder.record(33 /* NodeBeginNativeRequire */, what);
-            try {
-                return _nodeRequire(what);
+        vaw nodeWequiwe = function nodeWequiwe(what) {
+            wecowda.wecowd(33 /* NodeBeginNativeWequiwe */, what);
+            twy {
+                wetuwn _nodeWequiwe(what);
             }
-            finally {
-                recorder.record(34 /* NodeEndNativeRequire */, what);
+            finawwy {
+                wecowda.wecowd(34 /* NodeEndNativeWequiwe */, what);
             }
         };
-        nodeRequire.__$__isRecorded = true;
-        return nodeRequire;
+        nodeWequiwe.__$__isWecowded = twue;
+        wetuwn nodeWequiwe;
     }
-    AMDLoader.ensureRecordedNodeRequire = ensureRecordedNodeRequire;
-    function createScriptLoader(env) {
-        return new OnlyOnceScriptLoader(env);
+    AMDWoada.ensuweWecowdedNodeWequiwe = ensuweWecowdedNodeWequiwe;
+    function cweateScwiptWoada(env) {
+        wetuwn new OnwyOnceScwiptWoada(env);
     }
-    AMDLoader.createScriptLoader = createScriptLoader;
-})(AMDLoader || (AMDLoader = {}));
+    AMDWoada.cweateScwiptWoada = cweateScwiptWoada;
+})(AMDWoada || (AMDWoada = {}));
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-var AMDLoader;
-(function (AMDLoader) {
+vaw AMDWoada;
+(function (AMDWoada) {
     // ------------------------------------------------------------------------
-    // ModuleIdResolver
-    var ModuleIdResolver = /** @class */ (function () {
-        function ModuleIdResolver(fromModuleId) {
-            var lastSlash = fromModuleId.lastIndexOf('/');
-            if (lastSlash !== -1) {
-                this.fromModulePath = fromModuleId.substr(0, lastSlash + 1);
+    // ModuweIdWesowva
+    vaw ModuweIdWesowva = /** @cwass */ (function () {
+        function ModuweIdWesowva(fwomModuweId) {
+            vaw wastSwash = fwomModuweId.wastIndexOf('/');
+            if (wastSwash !== -1) {
+                this.fwomModuwePath = fwomModuweId.substw(0, wastSwash + 1);
             }
-            else {
-                this.fromModulePath = '';
+            ewse {
+                this.fwomModuwePath = '';
             }
         }
         /**
-         * Normalize 'a/../name' to 'name', etc.
+         * Nowmawize 'a/../name' to 'name', etc.
          */
-        ModuleIdResolver._normalizeModuleId = function (moduleId) {
-            var r = moduleId, pattern;
-            // replace /./ => /
-            pattern = /\/\.\//;
-            while (pattern.test(r)) {
-                r = r.replace(pattern, '/');
+        ModuweIdWesowva._nowmawizeModuweId = function (moduweId) {
+            vaw w = moduweId, pattewn;
+            // wepwace /./ => /
+            pattewn = /\/\.\//;
+            whiwe (pattewn.test(w)) {
+                w = w.wepwace(pattewn, '/');
             }
-            // replace ^./ => nothing
-            r = r.replace(/^\.\//g, '');
-            // replace /aa/../ => / (BUT IGNORE /../../)
-            pattern = /\/(([^\/])|([^\/][^\/\.])|([^\/\.][^\/])|([^\/][^\/][^\/]+))\/\.\.\//;
-            while (pattern.test(r)) {
-                r = r.replace(pattern, '/');
+            // wepwace ^./ => nothing
+            w = w.wepwace(/^\.\//g, '');
+            // wepwace /aa/../ => / (BUT IGNOWE /../../)
+            pattewn = /\/(([^\/])|([^\/][^\/\.])|([^\/\.][^\/])|([^\/][^\/][^\/]+))\/\.\.\//;
+            whiwe (pattewn.test(w)) {
+                w = w.wepwace(pattewn, '/');
             }
-            // replace ^aa/../ => nothing (BUT IGNORE ../../)
-            r = r.replace(/^(([^\/])|([^\/][^\/\.])|([^\/\.][^\/])|([^\/][^\/][^\/]+))\/\.\.\//, '');
-            return r;
+            // wepwace ^aa/../ => nothing (BUT IGNOWE ../../)
+            w = w.wepwace(/^(([^\/])|([^\/][^\/\.])|([^\/\.][^\/])|([^\/][^\/][^\/]+))\/\.\.\//, '');
+            wetuwn w;
         };
         /**
-         * Resolve relative module ids
+         * Wesowve wewative moduwe ids
          */
-        ModuleIdResolver.prototype.resolveModule = function (moduleId) {
-            var result = moduleId;
-            if (!AMDLoader.Utilities.isAbsolutePath(result)) {
-                if (AMDLoader.Utilities.startsWith(result, './') || AMDLoader.Utilities.startsWith(result, '../')) {
-                    result = ModuleIdResolver._normalizeModuleId(this.fromModulePath + result);
+        ModuweIdWesowva.pwototype.wesowveModuwe = function (moduweId) {
+            vaw wesuwt = moduweId;
+            if (!AMDWoada.Utiwities.isAbsowutePath(wesuwt)) {
+                if (AMDWoada.Utiwities.stawtsWith(wesuwt, './') || AMDWoada.Utiwities.stawtsWith(wesuwt, '../')) {
+                    wesuwt = ModuweIdWesowva._nowmawizeModuweId(this.fwomModuwePath + wesuwt);
                 }
             }
-            return result;
+            wetuwn wesuwt;
         };
-        ModuleIdResolver.ROOT = new ModuleIdResolver('');
-        return ModuleIdResolver;
+        ModuweIdWesowva.WOOT = new ModuweIdWesowva('');
+        wetuwn ModuweIdWesowva;
     }());
-    AMDLoader.ModuleIdResolver = ModuleIdResolver;
+    AMDWoada.ModuweIdWesowva = ModuweIdWesowva;
     // ------------------------------------------------------------------------
-    // Module
-    var Module = /** @class */ (function () {
-        function Module(id, strId, dependencies, callback, errorback, moduleIdResolver) {
+    // Moduwe
+    vaw Moduwe = /** @cwass */ (function () {
+        function Moduwe(id, stwId, dependencies, cawwback, ewwowback, moduweIdWesowva) {
             this.id = id;
-            this.strId = strId;
+            this.stwId = stwId;
             this.dependencies = dependencies;
-            this._callback = callback;
-            this._errorback = errorback;
-            this.moduleIdResolver = moduleIdResolver;
-            this.exports = {};
-            this.error = null;
-            this.exportsPassedIn = false;
-            this.unresolvedDependenciesCount = this.dependencies.length;
-            this._isComplete = false;
+            this._cawwback = cawwback;
+            this._ewwowback = ewwowback;
+            this.moduweIdWesowva = moduweIdWesowva;
+            this.expowts = {};
+            this.ewwow = nuww;
+            this.expowtsPassedIn = fawse;
+            this.unwesowvedDependenciesCount = this.dependencies.wength;
+            this._isCompwete = fawse;
         }
-        Module._safeInvokeFunction = function (callback, args) {
-            try {
-                return {
-                    returnedValue: callback.apply(AMDLoader.global, args),
-                    producedError: null
+        Moduwe._safeInvokeFunction = function (cawwback, awgs) {
+            twy {
+                wetuwn {
+                    wetuwnedVawue: cawwback.appwy(AMDWoada.gwobaw, awgs),
+                    pwoducedEwwow: nuww
                 };
             }
             catch (e) {
-                return {
-                    returnedValue: null,
-                    producedError: e
+                wetuwn {
+                    wetuwnedVawue: nuww,
+                    pwoducedEwwow: e
                 };
             }
         };
-        Module._invokeFactory = function (config, strModuleId, callback, dependenciesValues) {
-            if (config.isBuild() && !AMDLoader.Utilities.isAnonymousModule(strModuleId)) {
-                return {
-                    returnedValue: null,
-                    producedError: null
+        Moduwe._invokeFactowy = function (config, stwModuweId, cawwback, dependenciesVawues) {
+            if (config.isBuiwd() && !AMDWoada.Utiwities.isAnonymousModuwe(stwModuweId)) {
+                wetuwn {
+                    wetuwnedVawue: nuww,
+                    pwoducedEwwow: nuww
                 };
             }
-            if (config.shouldCatchError()) {
-                return this._safeInvokeFunction(callback, dependenciesValues);
+            if (config.shouwdCatchEwwow()) {
+                wetuwn this._safeInvokeFunction(cawwback, dependenciesVawues);
             }
-            return {
-                returnedValue: callback.apply(AMDLoader.global, dependenciesValues),
-                producedError: null
+            wetuwn {
+                wetuwnedVawue: cawwback.appwy(AMDWoada.gwobaw, dependenciesVawues),
+                pwoducedEwwow: nuww
             };
         };
-        Module.prototype.complete = function (recorder, config, dependenciesValues) {
-            this._isComplete = true;
-            var producedError = null;
-            if (this._callback) {
-                if (typeof this._callback === 'function') {
-                    recorder.record(21 /* BeginInvokeFactory */, this.strId);
-                    var r = Module._invokeFactory(config, this.strId, this._callback, dependenciesValues);
-                    producedError = r.producedError;
-                    recorder.record(22 /* EndInvokeFactory */, this.strId);
-                    if (!producedError && typeof r.returnedValue !== 'undefined' && (!this.exportsPassedIn || AMDLoader.Utilities.isEmpty(this.exports))) {
-                        this.exports = r.returnedValue;
+        Moduwe.pwototype.compwete = function (wecowda, config, dependenciesVawues) {
+            this._isCompwete = twue;
+            vaw pwoducedEwwow = nuww;
+            if (this._cawwback) {
+                if (typeof this._cawwback === 'function') {
+                    wecowda.wecowd(21 /* BeginInvokeFactowy */, this.stwId);
+                    vaw w = Moduwe._invokeFactowy(config, this.stwId, this._cawwback, dependenciesVawues);
+                    pwoducedEwwow = w.pwoducedEwwow;
+                    wecowda.wecowd(22 /* EndInvokeFactowy */, this.stwId);
+                    if (!pwoducedEwwow && typeof w.wetuwnedVawue !== 'undefined' && (!this.expowtsPassedIn || AMDWoada.Utiwities.isEmpty(this.expowts))) {
+                        this.expowts = w.wetuwnedVawue;
                     }
                 }
-                else {
-                    this.exports = this._callback;
+                ewse {
+                    this.expowts = this._cawwback;
                 }
             }
-            if (producedError) {
-                var err = AMDLoader.ensureError(producedError);
-                err.phase = 'factory';
-                err.moduleId = this.strId;
-                this.error = err;
-                config.onError(err);
+            if (pwoducedEwwow) {
+                vaw eww = AMDWoada.ensuweEwwow(pwoducedEwwow);
+                eww.phase = 'factowy';
+                eww.moduweId = this.stwId;
+                this.ewwow = eww;
+                config.onEwwow(eww);
             }
-            this.dependencies = null;
-            this._callback = null;
-            this._errorback = null;
-            this.moduleIdResolver = null;
+            this.dependencies = nuww;
+            this._cawwback = nuww;
+            this._ewwowback = nuww;
+            this.moduweIdWesowva = nuww;
         };
         /**
-         * One of the direct dependencies or a transitive dependency has failed to load.
+         * One of the diwect dependencies ow a twansitive dependency has faiwed to woad.
          */
-        Module.prototype.onDependencyError = function (err) {
-            this._isComplete = true;
-            this.error = err;
-            if (this._errorback) {
-                this._errorback(err);
-                return true;
+        Moduwe.pwototype.onDependencyEwwow = function (eww) {
+            this._isCompwete = twue;
+            this.ewwow = eww;
+            if (this._ewwowback) {
+                this._ewwowback(eww);
+                wetuwn twue;
             }
-            return false;
+            wetuwn fawse;
         };
         /**
-         * Is the current module complete?
+         * Is the cuwwent moduwe compwete?
          */
-        Module.prototype.isComplete = function () {
-            return this._isComplete;
+        Moduwe.pwototype.isCompwete = function () {
+            wetuwn this._isCompwete;
         };
-        return Module;
+        wetuwn Moduwe;
     }());
-    AMDLoader.Module = Module;
-    var ModuleIdProvider = /** @class */ (function () {
-        function ModuleIdProvider() {
+    AMDWoada.Moduwe = Moduwe;
+    vaw ModuweIdPwovida = /** @cwass */ (function () {
+        function ModuweIdPwovida() {
             this._nextId = 0;
-            this._strModuleIdToIntModuleId = new Map();
-            this._intModuleIdToStrModuleId = [];
-            // Ensure values 0, 1, 2 are assigned accordingly with ModuleId
-            this.getModuleId('exports');
-            this.getModuleId('module');
-            this.getModuleId('require');
+            this._stwModuweIdToIntModuweId = new Map();
+            this._intModuweIdToStwModuweId = [];
+            // Ensuwe vawues 0, 1, 2 awe assigned accowdingwy with ModuweId
+            this.getModuweId('expowts');
+            this.getModuweId('moduwe');
+            this.getModuweId('wequiwe');
         }
-        ModuleIdProvider.prototype.getMaxModuleId = function () {
-            return this._nextId;
+        ModuweIdPwovida.pwototype.getMaxModuweId = function () {
+            wetuwn this._nextId;
         };
-        ModuleIdProvider.prototype.getModuleId = function (strModuleId) {
-            var id = this._strModuleIdToIntModuleId.get(strModuleId);
+        ModuweIdPwovida.pwototype.getModuweId = function (stwModuweId) {
+            vaw id = this._stwModuweIdToIntModuweId.get(stwModuweId);
             if (typeof id === 'undefined') {
                 id = this._nextId++;
-                this._strModuleIdToIntModuleId.set(strModuleId, id);
-                this._intModuleIdToStrModuleId[id] = strModuleId;
+                this._stwModuweIdToIntModuweId.set(stwModuweId, id);
+                this._intModuweIdToStwModuweId[id] = stwModuweId;
             }
-            return id;
+            wetuwn id;
         };
-        ModuleIdProvider.prototype.getStrModuleId = function (moduleId) {
-            return this._intModuleIdToStrModuleId[moduleId];
+        ModuweIdPwovida.pwototype.getStwModuweId = function (moduweId) {
+            wetuwn this._intModuweIdToStwModuweId[moduweId];
         };
-        return ModuleIdProvider;
+        wetuwn ModuweIdPwovida;
     }());
-    var RegularDependency = /** @class */ (function () {
-        function RegularDependency(id) {
+    vaw WeguwawDependency = /** @cwass */ (function () {
+        function WeguwawDependency(id) {
             this.id = id;
         }
-        RegularDependency.EXPORTS = new RegularDependency(0 /* EXPORTS */);
-        RegularDependency.MODULE = new RegularDependency(1 /* MODULE */);
-        RegularDependency.REQUIRE = new RegularDependency(2 /* REQUIRE */);
-        return RegularDependency;
+        WeguwawDependency.EXPOWTS = new WeguwawDependency(0 /* EXPOWTS */);
+        WeguwawDependency.MODUWE = new WeguwawDependency(1 /* MODUWE */);
+        WeguwawDependency.WEQUIWE = new WeguwawDependency(2 /* WEQUIWE */);
+        wetuwn WeguwawDependency;
     }());
-    AMDLoader.RegularDependency = RegularDependency;
-    var PluginDependency = /** @class */ (function () {
-        function PluginDependency(id, pluginId, pluginParam) {
+    AMDWoada.WeguwawDependency = WeguwawDependency;
+    vaw PwuginDependency = /** @cwass */ (function () {
+        function PwuginDependency(id, pwuginId, pwuginPawam) {
             this.id = id;
-            this.pluginId = pluginId;
-            this.pluginParam = pluginParam;
+            this.pwuginId = pwuginId;
+            this.pwuginPawam = pwuginPawam;
         }
-        return PluginDependency;
+        wetuwn PwuginDependency;
     }());
-    AMDLoader.PluginDependency = PluginDependency;
-    var ModuleManager = /** @class */ (function () {
-        function ModuleManager(env, scriptLoader, defineFunc, requireFunc, loaderAvailableTimestamp) {
-            if (loaderAvailableTimestamp === void 0) { loaderAvailableTimestamp = 0; }
+    AMDWoada.PwuginDependency = PwuginDependency;
+    vaw ModuweManaga = /** @cwass */ (function () {
+        function ModuweManaga(env, scwiptWoada, defineFunc, wequiweFunc, woadewAvaiwabweTimestamp) {
+            if (woadewAvaiwabweTimestamp === void 0) { woadewAvaiwabweTimestamp = 0; }
             this._env = env;
-            this._scriptLoader = scriptLoader;
-            this._loaderAvailableTimestamp = loaderAvailableTimestamp;
+            this._scwiptWoada = scwiptWoada;
+            this._woadewAvaiwabweTimestamp = woadewAvaiwabweTimestamp;
             this._defineFunc = defineFunc;
-            this._requireFunc = requireFunc;
-            this._moduleIdProvider = new ModuleIdProvider();
-            this._config = new AMDLoader.Configuration(this._env);
-            this._hasDependencyCycle = false;
-            this._modules2 = [];
-            this._knownModules2 = [];
-            this._inverseDependencies2 = [];
-            this._inversePluginDependencies2 = new Map();
-            this._currentAnonymousDefineCall = null;
-            this._recorder = null;
-            this._buildInfoPath = [];
-            this._buildInfoDefineStack = [];
-            this._buildInfoDependencies = [];
+            this._wequiweFunc = wequiweFunc;
+            this._moduweIdPwovida = new ModuweIdPwovida();
+            this._config = new AMDWoada.Configuwation(this._env);
+            this._hasDependencyCycwe = fawse;
+            this._moduwes2 = [];
+            this._knownModuwes2 = [];
+            this._invewseDependencies2 = [];
+            this._invewsePwuginDependencies2 = new Map();
+            this._cuwwentAnonymousDefineCaww = nuww;
+            this._wecowda = nuww;
+            this._buiwdInfoPath = [];
+            this._buiwdInfoDefineStack = [];
+            this._buiwdInfoDependencies = [];
         }
-        ModuleManager.prototype.reset = function () {
-            return new ModuleManager(this._env, this._scriptLoader, this._defineFunc, this._requireFunc, this._loaderAvailableTimestamp);
+        ModuweManaga.pwototype.weset = function () {
+            wetuwn new ModuweManaga(this._env, this._scwiptWoada, this._defineFunc, this._wequiweFunc, this._woadewAvaiwabweTimestamp);
         };
-        ModuleManager.prototype.getGlobalAMDDefineFunc = function () {
-            return this._defineFunc;
+        ModuweManaga.pwototype.getGwobawAMDDefineFunc = function () {
+            wetuwn this._defineFunc;
         };
-        ModuleManager.prototype.getGlobalAMDRequireFunc = function () {
-            return this._requireFunc;
+        ModuweManaga.pwototype.getGwobawAMDWequiweFunc = function () {
+            wetuwn this._wequiweFunc;
         };
-        ModuleManager._findRelevantLocationInStack = function (needle, stack) {
-            var normalize = function (str) { return str.replace(/\\/g, '/'); };
-            var normalizedPath = normalize(needle);
-            var stackPieces = stack.split(/\n/);
-            for (var i = 0; i < stackPieces.length; i++) {
-                var m = stackPieces[i].match(/(.*):(\d+):(\d+)\)?$/);
+        ModuweManaga._findWewevantWocationInStack = function (needwe, stack) {
+            vaw nowmawize = function (stw) { wetuwn stw.wepwace(/\\/g, '/'); };
+            vaw nowmawizedPath = nowmawize(needwe);
+            vaw stackPieces = stack.spwit(/\n/);
+            fow (vaw i = 0; i < stackPieces.wength; i++) {
+                vaw m = stackPieces[i].match(/(.*):(\d+):(\d+)\)?$/);
                 if (m) {
-                    var stackPath = m[1];
-                    var stackLine = m[2];
-                    var stackColumn = m[3];
-                    var trimPathOffset = Math.max(stackPath.lastIndexOf(' ') + 1, stackPath.lastIndexOf('(') + 1);
-                    stackPath = stackPath.substr(trimPathOffset);
-                    stackPath = normalize(stackPath);
-                    if (stackPath === normalizedPath) {
-                        var r = {
-                            line: parseInt(stackLine, 10),
-                            col: parseInt(stackColumn, 10)
+                    vaw stackPath = m[1];
+                    vaw stackWine = m[2];
+                    vaw stackCowumn = m[3];
+                    vaw twimPathOffset = Math.max(stackPath.wastIndexOf(' ') + 1, stackPath.wastIndexOf('(') + 1);
+                    stackPath = stackPath.substw(twimPathOffset);
+                    stackPath = nowmawize(stackPath);
+                    if (stackPath === nowmawizedPath) {
+                        vaw w = {
+                            wine: pawseInt(stackWine, 10),
+                            cow: pawseInt(stackCowumn, 10)
                         };
-                        if (r.line === 1) {
-                            r.col -= '(function (require, define, __filename, __dirname) { '.length;
+                        if (w.wine === 1) {
+                            w.cow -= '(function (wequiwe, define, __fiwename, __diwname) { '.wength;
                         }
-                        return r;
+                        wetuwn w;
                     }
                 }
             }
-            throw new Error('Could not correlate define call site for needle ' + needle);
+            thwow new Ewwow('Couwd not cowwewate define caww site fow needwe ' + needwe);
         };
-        ModuleManager.prototype.getBuildInfo = function () {
-            if (!this._config.isBuild()) {
-                return null;
+        ModuweManaga.pwototype.getBuiwdInfo = function () {
+            if (!this._config.isBuiwd()) {
+                wetuwn nuww;
             }
-            var result = [], resultLen = 0;
-            for (var i = 0, len = this._modules2.length; i < len; i++) {
-                var m = this._modules2[i];
+            vaw wesuwt = [], wesuwtWen = 0;
+            fow (vaw i = 0, wen = this._moduwes2.wength; i < wen; i++) {
+                vaw m = this._moduwes2[i];
                 if (!m) {
                     continue;
                 }
-                var location_1 = this._buildInfoPath[m.id] || null;
-                var defineStack = this._buildInfoDefineStack[m.id] || null;
-                var dependencies = this._buildInfoDependencies[m.id];
-                result[resultLen++] = {
-                    id: m.strId,
-                    path: location_1,
-                    defineLocation: (location_1 && defineStack ? ModuleManager._findRelevantLocationInStack(location_1, defineStack) : null),
+                vaw wocation_1 = this._buiwdInfoPath[m.id] || nuww;
+                vaw defineStack = this._buiwdInfoDefineStack[m.id] || nuww;
+                vaw dependencies = this._buiwdInfoDependencies[m.id];
+                wesuwt[wesuwtWen++] = {
+                    id: m.stwId,
+                    path: wocation_1,
+                    defineWocation: (wocation_1 && defineStack ? ModuweManaga._findWewevantWocationInStack(wocation_1, defineStack) : nuww),
                     dependencies: dependencies,
-                    shim: null,
-                    exports: m.exports
+                    shim: nuww,
+                    expowts: m.expowts
                 };
             }
-            return result;
+            wetuwn wesuwt;
         };
-        ModuleManager.prototype.getRecorder = function () {
-            if (!this._recorder) {
-                if (this._config.shouldRecordStats()) {
-                    this._recorder = new AMDLoader.LoaderEventRecorder(this._loaderAvailableTimestamp);
+        ModuweManaga.pwototype.getWecowda = function () {
+            if (!this._wecowda) {
+                if (this._config.shouwdWecowdStats()) {
+                    this._wecowda = new AMDWoada.WoadewEventWecowda(this._woadewAvaiwabweTimestamp);
                 }
-                else {
-                    this._recorder = AMDLoader.NullLoaderEventRecorder.INSTANCE;
+                ewse {
+                    this._wecowda = AMDWoada.NuwwWoadewEventWecowda.INSTANCE;
                 }
             }
-            return this._recorder;
+            wetuwn this._wecowda;
         };
-        ModuleManager.prototype.getLoaderEvents = function () {
-            return this.getRecorder().getEvents();
+        ModuweManaga.pwototype.getWoadewEvents = function () {
+            wetuwn this.getWecowda().getEvents();
         };
         /**
-         * Defines an anonymous module (without an id). Its name will be resolved as we receive a callback from the scriptLoader.
-         * @param dependencies @see defineModule
-         * @param callback @see defineModule
+         * Defines an anonymous moduwe (without an id). Its name wiww be wesowved as we weceive a cawwback fwom the scwiptWoada.
+         * @pawam dependencies @see defineModuwe
+         * @pawam cawwback @see defineModuwe
          */
-        ModuleManager.prototype.enqueueDefineAnonymousModule = function (dependencies, callback) {
-            if (this._currentAnonymousDefineCall !== null) {
-                throw new Error('Can only have one anonymous define call per script file');
+        ModuweManaga.pwototype.enqueueDefineAnonymousModuwe = function (dependencies, cawwback) {
+            if (this._cuwwentAnonymousDefineCaww !== nuww) {
+                thwow new Ewwow('Can onwy have one anonymous define caww pew scwipt fiwe');
             }
-            var stack = null;
-            if (this._config.isBuild()) {
-                stack = new Error('StackLocation').stack || null;
+            vaw stack = nuww;
+            if (this._config.isBuiwd()) {
+                stack = new Ewwow('StackWocation').stack || nuww;
             }
-            this._currentAnonymousDefineCall = {
+            this._cuwwentAnonymousDefineCaww = {
                 stack: stack,
                 dependencies: dependencies,
-                callback: callback
+                cawwback: cawwback
             };
         };
         /**
-         * Creates a module and stores it in _modules. The manager will immediately begin resolving its dependencies.
-         * @param strModuleId An unique and absolute id of the module. This must not collide with another module's id
-         * @param dependencies An array with the dependencies of the module. Special keys are: "require", "exports" and "module"
-         * @param callback if callback is a function, it will be called with the resolved dependencies. if callback is an object, it will be considered as the exports of the module.
+         * Cweates a moduwe and stowes it in _moduwes. The managa wiww immediatewy begin wesowving its dependencies.
+         * @pawam stwModuweId An unique and absowute id of the moduwe. This must not cowwide with anotha moduwe's id
+         * @pawam dependencies An awway with the dependencies of the moduwe. Speciaw keys awe: "wequiwe", "expowts" and "moduwe"
+         * @pawam cawwback if cawwback is a function, it wiww be cawwed with the wesowved dependencies. if cawwback is an object, it wiww be considewed as the expowts of the moduwe.
          */
-        ModuleManager.prototype.defineModule = function (strModuleId, dependencies, callback, errorback, stack, moduleIdResolver) {
-            var _this = this;
-            if (moduleIdResolver === void 0) { moduleIdResolver = new ModuleIdResolver(strModuleId); }
-            var moduleId = this._moduleIdProvider.getModuleId(strModuleId);
-            if (this._modules2[moduleId]) {
-                if (!this._config.isDuplicateMessageIgnoredFor(strModuleId)) {
-                    console.warn('Duplicate definition of module \'' + strModuleId + '\'');
+        ModuweManaga.pwototype.defineModuwe = function (stwModuweId, dependencies, cawwback, ewwowback, stack, moduweIdWesowva) {
+            vaw _this = this;
+            if (moduweIdWesowva === void 0) { moduweIdWesowva = new ModuweIdWesowva(stwModuweId); }
+            vaw moduweId = this._moduweIdPwovida.getModuweId(stwModuweId);
+            if (this._moduwes2[moduweId]) {
+                if (!this._config.isDupwicateMessageIgnowedFow(stwModuweId)) {
+                    consowe.wawn('Dupwicate definition of moduwe \'' + stwModuweId + '\'');
                 }
-                // Super important! Completely ignore duplicate module definition
-                return;
+                // Supa impowtant! Compwetewy ignowe dupwicate moduwe definition
+                wetuwn;
             }
-            var m = new Module(moduleId, strModuleId, this._normalizeDependencies(dependencies, moduleIdResolver), callback, errorback, moduleIdResolver);
-            this._modules2[moduleId] = m;
-            if (this._config.isBuild()) {
-                this._buildInfoDefineStack[moduleId] = stack;
-                this._buildInfoDependencies[moduleId] = (m.dependencies || []).map(function (dep) { return _this._moduleIdProvider.getStrModuleId(dep.id); });
+            vaw m = new Moduwe(moduweId, stwModuweId, this._nowmawizeDependencies(dependencies, moduweIdWesowva), cawwback, ewwowback, moduweIdWesowva);
+            this._moduwes2[moduweId] = m;
+            if (this._config.isBuiwd()) {
+                this._buiwdInfoDefineStack[moduweId] = stack;
+                this._buiwdInfoDependencies[moduweId] = (m.dependencies || []).map(function (dep) { wetuwn _this._moduweIdPwovida.getStwModuweId(dep.id); });
             }
-            // Resolving of dependencies is immediate (not in a timeout). If there's a need to support a packer that concatenates in an
-            // unordered manner, in order to finish processing the file, execute the following method in a timeout
-            this._resolve(m);
+            // Wesowving of dependencies is immediate (not in a timeout). If thewe's a need to suppowt a packa that concatenates in an
+            // unowdewed manna, in owda to finish pwocessing the fiwe, execute the fowwowing method in a timeout
+            this._wesowve(m);
         };
-        ModuleManager.prototype._normalizeDependency = function (dependency, moduleIdResolver) {
-            if (dependency === 'exports') {
-                return RegularDependency.EXPORTS;
+        ModuweManaga.pwototype._nowmawizeDependency = function (dependency, moduweIdWesowva) {
+            if (dependency === 'expowts') {
+                wetuwn WeguwawDependency.EXPOWTS;
             }
-            if (dependency === 'module') {
-                return RegularDependency.MODULE;
+            if (dependency === 'moduwe') {
+                wetuwn WeguwawDependency.MODUWE;
             }
-            if (dependency === 'require') {
-                return RegularDependency.REQUIRE;
+            if (dependency === 'wequiwe') {
+                wetuwn WeguwawDependency.WEQUIWE;
             }
-            // Normalize dependency and then request it from the manager
-            var bangIndex = dependency.indexOf('!');
+            // Nowmawize dependency and then wequest it fwom the managa
+            vaw bangIndex = dependency.indexOf('!');
             if (bangIndex >= 0) {
-                var strPluginId = moduleIdResolver.resolveModule(dependency.substr(0, bangIndex));
-                var pluginParam = moduleIdResolver.resolveModule(dependency.substr(bangIndex + 1));
-                var dependencyId = this._moduleIdProvider.getModuleId(strPluginId + '!' + pluginParam);
-                var pluginId = this._moduleIdProvider.getModuleId(strPluginId);
-                return new PluginDependency(dependencyId, pluginId, pluginParam);
+                vaw stwPwuginId = moduweIdWesowva.wesowveModuwe(dependency.substw(0, bangIndex));
+                vaw pwuginPawam = moduweIdWesowva.wesowveModuwe(dependency.substw(bangIndex + 1));
+                vaw dependencyId = this._moduweIdPwovida.getModuweId(stwPwuginId + '!' + pwuginPawam);
+                vaw pwuginId = this._moduweIdPwovida.getModuweId(stwPwuginId);
+                wetuwn new PwuginDependency(dependencyId, pwuginId, pwuginPawam);
             }
-            return new RegularDependency(this._moduleIdProvider.getModuleId(moduleIdResolver.resolveModule(dependency)));
+            wetuwn new WeguwawDependency(this._moduweIdPwovida.getModuweId(moduweIdWesowva.wesowveModuwe(dependency)));
         };
-        ModuleManager.prototype._normalizeDependencies = function (dependencies, moduleIdResolver) {
-            var result = [], resultLen = 0;
-            for (var i = 0, len = dependencies.length; i < len; i++) {
-                result[resultLen++] = this._normalizeDependency(dependencies[i], moduleIdResolver);
+        ModuweManaga.pwototype._nowmawizeDependencies = function (dependencies, moduweIdWesowva) {
+            vaw wesuwt = [], wesuwtWen = 0;
+            fow (vaw i = 0, wen = dependencies.wength; i < wen; i++) {
+                wesuwt[wesuwtWen++] = this._nowmawizeDependency(dependencies[i], moduweIdWesowva);
             }
-            return result;
+            wetuwn wesuwt;
         };
-        ModuleManager.prototype._relativeRequire = function (moduleIdResolver, dependencies, callback, errorback) {
-            if (typeof dependencies === 'string') {
-                return this.synchronousRequire(dependencies, moduleIdResolver);
+        ModuweManaga.pwototype._wewativeWequiwe = function (moduweIdWesowva, dependencies, cawwback, ewwowback) {
+            if (typeof dependencies === 'stwing') {
+                wetuwn this.synchwonousWequiwe(dependencies, moduweIdWesowva);
             }
-            this.defineModule(AMDLoader.Utilities.generateAnonymousModule(), dependencies, callback, errorback, null, moduleIdResolver);
+            this.defineModuwe(AMDWoada.Utiwities.genewateAnonymousModuwe(), dependencies, cawwback, ewwowback, nuww, moduweIdWesowva);
         };
         /**
-         * Require synchronously a module by its absolute id. If the module is not loaded, an exception will be thrown.
-         * @param id The unique and absolute id of the required module
-         * @return The exports of module 'id'
+         * Wequiwe synchwonouswy a moduwe by its absowute id. If the moduwe is not woaded, an exception wiww be thwown.
+         * @pawam id The unique and absowute id of the wequiwed moduwe
+         * @wetuwn The expowts of moduwe 'id'
          */
-        ModuleManager.prototype.synchronousRequire = function (_strModuleId, moduleIdResolver) {
-            if (moduleIdResolver === void 0) { moduleIdResolver = new ModuleIdResolver(_strModuleId); }
-            var dependency = this._normalizeDependency(_strModuleId, moduleIdResolver);
-            var m = this._modules2[dependency.id];
+        ModuweManaga.pwototype.synchwonousWequiwe = function (_stwModuweId, moduweIdWesowva) {
+            if (moduweIdWesowva === void 0) { moduweIdWesowva = new ModuweIdWesowva(_stwModuweId); }
+            vaw dependency = this._nowmawizeDependency(_stwModuweId, moduweIdWesowva);
+            vaw m = this._moduwes2[dependency.id];
             if (!m) {
-                throw new Error('Check dependency list! Synchronous require cannot resolve module \'' + _strModuleId + '\'. This is the first mention of this module!');
+                thwow new Ewwow('Check dependency wist! Synchwonous wequiwe cannot wesowve moduwe \'' + _stwModuweId + '\'. This is the fiwst mention of this moduwe!');
             }
-            if (!m.isComplete()) {
-                throw new Error('Check dependency list! Synchronous require cannot resolve module \'' + _strModuleId + '\'. This module has not been resolved completely yet.');
+            if (!m.isCompwete()) {
+                thwow new Ewwow('Check dependency wist! Synchwonous wequiwe cannot wesowve moduwe \'' + _stwModuweId + '\'. This moduwe has not been wesowved compwetewy yet.');
             }
-            if (m.error) {
-                throw m.error;
+            if (m.ewwow) {
+                thwow m.ewwow;
             }
-            return m.exports;
+            wetuwn m.expowts;
         };
-        ModuleManager.prototype.configure = function (params, shouldOverwrite) {
-            var oldShouldRecordStats = this._config.shouldRecordStats();
-            if (shouldOverwrite) {
-                this._config = new AMDLoader.Configuration(this._env, params);
+        ModuweManaga.pwototype.configuwe = function (pawams, shouwdOvewwwite) {
+            vaw owdShouwdWecowdStats = this._config.shouwdWecowdStats();
+            if (shouwdOvewwwite) {
+                this._config = new AMDWoada.Configuwation(this._env, pawams);
             }
-            else {
-                this._config = this._config.cloneAndMerge(params);
+            ewse {
+                this._config = this._config.cwoneAndMewge(pawams);
             }
-            if (this._config.shouldRecordStats() && !oldShouldRecordStats) {
-                this._recorder = null;
-            }
-        };
-        ModuleManager.prototype.getConfig = function () {
-            return this._config;
-        };
-        /**
-         * Callback from the scriptLoader when a module has been loaded.
-         * This means its code is available and has been executed.
-         */
-        ModuleManager.prototype._onLoad = function (moduleId) {
-            if (this._currentAnonymousDefineCall !== null) {
-                var defineCall = this._currentAnonymousDefineCall;
-                this._currentAnonymousDefineCall = null;
-                // Hit an anonymous define call
-                this.defineModule(this._moduleIdProvider.getStrModuleId(moduleId), defineCall.dependencies, defineCall.callback, null, defineCall.stack);
+            if (this._config.shouwdWecowdStats() && !owdShouwdWecowdStats) {
+                this._wecowda = nuww;
             }
         };
-        ModuleManager.prototype._createLoadError = function (moduleId, _err) {
-            var _this = this;
-            var strModuleId = this._moduleIdProvider.getStrModuleId(moduleId);
-            var neededBy = (this._inverseDependencies2[moduleId] || []).map(function (intModuleId) { return _this._moduleIdProvider.getStrModuleId(intModuleId); });
-            var err = AMDLoader.ensureError(_err);
-            err.phase = 'loading';
-            err.moduleId = strModuleId;
-            err.neededBy = neededBy;
-            return err;
+        ModuweManaga.pwototype.getConfig = function () {
+            wetuwn this._config;
         };
         /**
-         * Callback from the scriptLoader when a module hasn't been loaded.
-         * This means that the script was not found (e.g. 404) or there was an error in the script.
+         * Cawwback fwom the scwiptWoada when a moduwe has been woaded.
+         * This means its code is avaiwabwe and has been executed.
          */
-        ModuleManager.prototype._onLoadError = function (moduleId, err) {
-            var error = this._createLoadError(moduleId, err);
-            if (!this._modules2[moduleId]) {
-                this._modules2[moduleId] = new Module(moduleId, this._moduleIdProvider.getStrModuleId(moduleId), [], function () { }, function () { }, null);
+        ModuweManaga.pwototype._onWoad = function (moduweId) {
+            if (this._cuwwentAnonymousDefineCaww !== nuww) {
+                vaw defineCaww = this._cuwwentAnonymousDefineCaww;
+                this._cuwwentAnonymousDefineCaww = nuww;
+                // Hit an anonymous define caww
+                this.defineModuwe(this._moduweIdPwovida.getStwModuweId(moduweId), defineCaww.dependencies, defineCaww.cawwback, nuww, defineCaww.stack);
             }
-            // Find any 'local' error handlers, walk the entire chain of inverse dependencies if necessary.
-            var seenModuleId = [];
-            for (var i = 0, len = this._moduleIdProvider.getMaxModuleId(); i < len; i++) {
-                seenModuleId[i] = false;
+        };
+        ModuweManaga.pwototype._cweateWoadEwwow = function (moduweId, _eww) {
+            vaw _this = this;
+            vaw stwModuweId = this._moduweIdPwovida.getStwModuweId(moduweId);
+            vaw neededBy = (this._invewseDependencies2[moduweId] || []).map(function (intModuweId) { wetuwn _this._moduweIdPwovida.getStwModuweId(intModuweId); });
+            vaw eww = AMDWoada.ensuweEwwow(_eww);
+            eww.phase = 'woading';
+            eww.moduweId = stwModuweId;
+            eww.neededBy = neededBy;
+            wetuwn eww;
+        };
+        /**
+         * Cawwback fwom the scwiptWoada when a moduwe hasn't been woaded.
+         * This means that the scwipt was not found (e.g. 404) ow thewe was an ewwow in the scwipt.
+         */
+        ModuweManaga.pwototype._onWoadEwwow = function (moduweId, eww) {
+            vaw ewwow = this._cweateWoadEwwow(moduweId, eww);
+            if (!this._moduwes2[moduweId]) {
+                this._moduwes2[moduweId] = new Moduwe(moduweId, this._moduweIdPwovida.getStwModuweId(moduweId), [], function () { }, function () { }, nuww);
             }
-            var someoneNotified = false;
-            var queue = [];
-            queue.push(moduleId);
-            seenModuleId[moduleId] = true;
-            while (queue.length > 0) {
-                var queueElement = queue.shift();
-                var m = this._modules2[queueElement];
+            // Find any 'wocaw' ewwow handwews, wawk the entiwe chain of invewse dependencies if necessawy.
+            vaw seenModuweId = [];
+            fow (vaw i = 0, wen = this._moduweIdPwovida.getMaxModuweId(); i < wen; i++) {
+                seenModuweId[i] = fawse;
+            }
+            vaw someoneNotified = fawse;
+            vaw queue = [];
+            queue.push(moduweId);
+            seenModuweId[moduweId] = twue;
+            whiwe (queue.wength > 0) {
+                vaw queueEwement = queue.shift();
+                vaw m = this._moduwes2[queueEwement];
                 if (m) {
-                    someoneNotified = m.onDependencyError(error) || someoneNotified;
+                    someoneNotified = m.onDependencyEwwow(ewwow) || someoneNotified;
                 }
-                var inverseDeps = this._inverseDependencies2[queueElement];
-                if (inverseDeps) {
-                    for (var i = 0, len = inverseDeps.length; i < len; i++) {
-                        var inverseDep = inverseDeps[i];
-                        if (!seenModuleId[inverseDep]) {
-                            queue.push(inverseDep);
-                            seenModuleId[inverseDep] = true;
+                vaw invewseDeps = this._invewseDependencies2[queueEwement];
+                if (invewseDeps) {
+                    fow (vaw i = 0, wen = invewseDeps.wength; i < wen; i++) {
+                        vaw invewseDep = invewseDeps[i];
+                        if (!seenModuweId[invewseDep]) {
+                            queue.push(invewseDep);
+                            seenModuweId[invewseDep] = twue;
                         }
                     }
                 }
             }
             if (!someoneNotified) {
-                this._config.onError(error);
+                this._config.onEwwow(ewwow);
             }
         };
         /**
-         * Walks (recursively) the dependencies of 'from' in search of 'to'.
-         * Returns true if there is such a path or false otherwise.
-         * @param from Module id to start at
-         * @param to Module id to look for
+         * Wawks (wecuwsivewy) the dependencies of 'fwom' in seawch of 'to'.
+         * Wetuwns twue if thewe is such a path ow fawse othewwise.
+         * @pawam fwom Moduwe id to stawt at
+         * @pawam to Moduwe id to wook fow
          */
-        ModuleManager.prototype._hasDependencyPath = function (fromId, toId) {
-            var from = this._modules2[fromId];
-            if (!from) {
-                return false;
+        ModuweManaga.pwototype._hasDependencyPath = function (fwomId, toId) {
+            vaw fwom = this._moduwes2[fwomId];
+            if (!fwom) {
+                wetuwn fawse;
             }
-            var inQueue = [];
-            for (var i = 0, len = this._moduleIdProvider.getMaxModuleId(); i < len; i++) {
-                inQueue[i] = false;
+            vaw inQueue = [];
+            fow (vaw i = 0, wen = this._moduweIdPwovida.getMaxModuweId(); i < wen; i++) {
+                inQueue[i] = fawse;
             }
-            var queue = [];
-            // Insert 'from' in queue
-            queue.push(from);
-            inQueue[fromId] = true;
-            while (queue.length > 0) {
-                // Pop first inserted element of queue
-                var element = queue.shift();
-                var dependencies = element.dependencies;
+            vaw queue = [];
+            // Insewt 'fwom' in queue
+            queue.push(fwom);
+            inQueue[fwomId] = twue;
+            whiwe (queue.wength > 0) {
+                // Pop fiwst insewted ewement of queue
+                vaw ewement = queue.shift();
+                vaw dependencies = ewement.dependencies;
                 if (dependencies) {
-                    // Walk the element's dependencies
-                    for (var i = 0, len = dependencies.length; i < len; i++) {
-                        var dependency = dependencies[i];
+                    // Wawk the ewement's dependencies
+                    fow (vaw i = 0, wen = dependencies.wength; i < wen; i++) {
+                        vaw dependency = dependencies[i];
                         if (dependency.id === toId) {
-                            // There is a path to 'to'
-                            return true;
+                            // Thewe is a path to 'to'
+                            wetuwn twue;
                         }
-                        var dependencyModule = this._modules2[dependency.id];
-                        if (dependencyModule && !inQueue[dependency.id]) {
-                            // Insert 'dependency' in queue
-                            inQueue[dependency.id] = true;
-                            queue.push(dependencyModule);
+                        vaw dependencyModuwe = this._moduwes2[dependency.id];
+                        if (dependencyModuwe && !inQueue[dependency.id]) {
+                            // Insewt 'dependency' in queue
+                            inQueue[dependency.id] = twue;
+                            queue.push(dependencyModuwe);
                         }
                     }
                 }
             }
-            // There is no path to 'to'
-            return false;
+            // Thewe is no path to 'to'
+            wetuwn fawse;
         };
         /**
-         * Walks (recursively) the dependencies of 'from' in search of 'to'.
-         * Returns cycle as array.
-         * @param from Module id to start at
-         * @param to Module id to look for
+         * Wawks (wecuwsivewy) the dependencies of 'fwom' in seawch of 'to'.
+         * Wetuwns cycwe as awway.
+         * @pawam fwom Moduwe id to stawt at
+         * @pawam to Moduwe id to wook fow
          */
-        ModuleManager.prototype._findCyclePath = function (fromId, toId, depth) {
-            if (fromId === toId || depth === 50) {
-                return [fromId];
+        ModuweManaga.pwototype._findCycwePath = function (fwomId, toId, depth) {
+            if (fwomId === toId || depth === 50) {
+                wetuwn [fwomId];
             }
-            var from = this._modules2[fromId];
-            if (!from) {
-                return null;
+            vaw fwom = this._moduwes2[fwomId];
+            if (!fwom) {
+                wetuwn nuww;
             }
-            // Walk the element's dependencies
-            var dependencies = from.dependencies;
+            // Wawk the ewement's dependencies
+            vaw dependencies = fwom.dependencies;
             if (dependencies) {
-                for (var i = 0, len = dependencies.length; i < len; i++) {
-                    var path = this._findCyclePath(dependencies[i].id, toId, depth + 1);
-                    if (path !== null) {
-                        path.push(fromId);
-                        return path;
+                fow (vaw i = 0, wen = dependencies.wength; i < wen; i++) {
+                    vaw path = this._findCycwePath(dependencies[i].id, toId, depth + 1);
+                    if (path !== nuww) {
+                        path.push(fwomId);
+                        wetuwn path;
                     }
                 }
             }
-            return null;
+            wetuwn nuww;
         };
         /**
-         * Create the local 'require' that is passed into modules
+         * Cweate the wocaw 'wequiwe' that is passed into moduwes
          */
-        ModuleManager.prototype._createRequire = function (moduleIdResolver) {
-            var _this = this;
-            var result = (function (dependencies, callback, errorback) {
-                return _this._relativeRequire(moduleIdResolver, dependencies, callback, errorback);
+        ModuweManaga.pwototype._cweateWequiwe = function (moduweIdWesowva) {
+            vaw _this = this;
+            vaw wesuwt = (function (dependencies, cawwback, ewwowback) {
+                wetuwn _this._wewativeWequiwe(moduweIdWesowva, dependencies, cawwback, ewwowback);
             });
-            result.toUrl = function (id) {
-                return _this._config.requireToUrl(moduleIdResolver.resolveModule(id));
+            wesuwt.toUww = function (id) {
+                wetuwn _this._config.wequiweToUww(moduweIdWesowva.wesowveModuwe(id));
             };
-            result.getStats = function () {
-                return _this.getLoaderEvents();
+            wesuwt.getStats = function () {
+                wetuwn _this.getWoadewEvents();
             };
-            result.hasDependencyCycle = function () {
-                return _this._hasDependencyCycle;
+            wesuwt.hasDependencyCycwe = function () {
+                wetuwn _this._hasDependencyCycwe;
             };
-            result.config = function (params, shouldOverwrite) {
-                if (shouldOverwrite === void 0) { shouldOverwrite = false; }
-                _this.configure(params, shouldOverwrite);
+            wesuwt.config = function (pawams, shouwdOvewwwite) {
+                if (shouwdOvewwwite === void 0) { shouwdOvewwwite = fawse; }
+                _this.configuwe(pawams, shouwdOvewwwite);
             };
-            result.__$__nodeRequire = AMDLoader.global.nodeRequire;
-            return result;
+            wesuwt.__$__nodeWequiwe = AMDWoada.gwobaw.nodeWequiwe;
+            wetuwn wesuwt;
         };
-        ModuleManager.prototype._loadModule = function (moduleId) {
-            var _this = this;
-            if (this._modules2[moduleId] || this._knownModules2[moduleId]) {
-                // known module
-                return;
+        ModuweManaga.pwototype._woadModuwe = function (moduweId) {
+            vaw _this = this;
+            if (this._moduwes2[moduweId] || this._knownModuwes2[moduweId]) {
+                // known moduwe
+                wetuwn;
             }
-            this._knownModules2[moduleId] = true;
-            var strModuleId = this._moduleIdProvider.getStrModuleId(moduleId);
-            var paths = this._config.moduleIdToPaths(strModuleId);
-            var scopedPackageRegex = /^@[^\/]+\/[^\/]+$/; // matches @scope/package-name
-            if (this._env.isNode && (strModuleId.indexOf('/') === -1 || scopedPackageRegex.test(strModuleId))) {
-                paths.push('node|' + strModuleId);
+            this._knownModuwes2[moduweId] = twue;
+            vaw stwModuweId = this._moduweIdPwovida.getStwModuweId(moduweId);
+            vaw paths = this._config.moduweIdToPaths(stwModuweId);
+            vaw scopedPackageWegex = /^@[^\/]+\/[^\/]+$/; // matches @scope/package-name
+            if (this._env.isNode && (stwModuweId.indexOf('/') === -1 || scopedPackageWegex.test(stwModuweId))) {
+                paths.push('node|' + stwModuweId);
             }
-            var lastPathIndex = -1;
-            var loadNextPath = function (err) {
-                lastPathIndex++;
-                if (lastPathIndex >= paths.length) {
-                    // No more paths to try
-                    _this._onLoadError(moduleId, err);
+            vaw wastPathIndex = -1;
+            vaw woadNextPath = function (eww) {
+                wastPathIndex++;
+                if (wastPathIndex >= paths.wength) {
+                    // No mowe paths to twy
+                    _this._onWoadEwwow(moduweId, eww);
                 }
-                else {
-                    var currentPath_1 = paths[lastPathIndex];
-                    var recorder_1 = _this.getRecorder();
-                    if (_this._config.isBuild() && currentPath_1 === 'empty:') {
-                        _this._buildInfoPath[moduleId] = currentPath_1;
-                        _this.defineModule(_this._moduleIdProvider.getStrModuleId(moduleId), [], null, null, null);
-                        _this._onLoad(moduleId);
-                        return;
+                ewse {
+                    vaw cuwwentPath_1 = paths[wastPathIndex];
+                    vaw wecowdew_1 = _this.getWecowda();
+                    if (_this._config.isBuiwd() && cuwwentPath_1 === 'empty:') {
+                        _this._buiwdInfoPath[moduweId] = cuwwentPath_1;
+                        _this.defineModuwe(_this._moduweIdPwovida.getStwModuweId(moduweId), [], nuww, nuww, nuww);
+                        _this._onWoad(moduweId);
+                        wetuwn;
                     }
-                    recorder_1.record(10 /* BeginLoadingScript */, currentPath_1);
-                    _this._scriptLoader.load(_this, currentPath_1, function () {
-                        if (_this._config.isBuild()) {
-                            _this._buildInfoPath[moduleId] = currentPath_1;
+                    wecowdew_1.wecowd(10 /* BeginWoadingScwipt */, cuwwentPath_1);
+                    _this._scwiptWoada.woad(_this, cuwwentPath_1, function () {
+                        if (_this._config.isBuiwd()) {
+                            _this._buiwdInfoPath[moduweId] = cuwwentPath_1;
                         }
-                        recorder_1.record(11 /* EndLoadingScriptOK */, currentPath_1);
-                        _this._onLoad(moduleId);
-                    }, function (err) {
-                        recorder_1.record(12 /* EndLoadingScriptError */, currentPath_1);
-                        loadNextPath(err);
+                        wecowdew_1.wecowd(11 /* EndWoadingScwiptOK */, cuwwentPath_1);
+                        _this._onWoad(moduweId);
+                    }, function (eww) {
+                        wecowdew_1.wecowd(12 /* EndWoadingScwiptEwwow */, cuwwentPath_1);
+                        woadNextPath(eww);
                     });
                 }
             };
-            loadNextPath(null);
+            woadNextPath(nuww);
         };
         /**
-         * Resolve a plugin dependency with the plugin loaded & complete
-         * @param module The module that has this dependency
-         * @param pluginDependency The semi-normalized dependency that appears in the module. e.g. 'vs/css!./mycssfile'. Only the plugin part (before !) is normalized
-         * @param plugin The plugin (what the plugin exports)
+         * Wesowve a pwugin dependency with the pwugin woaded & compwete
+         * @pawam moduwe The moduwe that has this dependency
+         * @pawam pwuginDependency The semi-nowmawized dependency that appeaws in the moduwe. e.g. 'vs/css!./mycssfiwe'. Onwy the pwugin pawt (befowe !) is nowmawized
+         * @pawam pwugin The pwugin (what the pwugin expowts)
          */
-        ModuleManager.prototype._loadPluginDependency = function (plugin, pluginDependency) {
-            var _this = this;
-            if (this._modules2[pluginDependency.id] || this._knownModules2[pluginDependency.id]) {
-                // known module
-                return;
+        ModuweManaga.pwototype._woadPwuginDependency = function (pwugin, pwuginDependency) {
+            vaw _this = this;
+            if (this._moduwes2[pwuginDependency.id] || this._knownModuwes2[pwuginDependency.id]) {
+                // known moduwe
+                wetuwn;
             }
-            this._knownModules2[pluginDependency.id] = true;
-            // Delegate the loading of the resource to the plugin
-            var load = (function (value) {
-                _this.defineModule(_this._moduleIdProvider.getStrModuleId(pluginDependency.id), [], value, null, null);
+            this._knownModuwes2[pwuginDependency.id] = twue;
+            // Dewegate the woading of the wesouwce to the pwugin
+            vaw woad = (function (vawue) {
+                _this.defineModuwe(_this._moduweIdPwovida.getStwModuweId(pwuginDependency.id), [], vawue, nuww, nuww);
             });
-            load.error = function (err) {
-                _this._config.onError(_this._createLoadError(pluginDependency.id, err));
+            woad.ewwow = function (eww) {
+                _this._config.onEwwow(_this._cweateWoadEwwow(pwuginDependency.id, eww));
             };
-            plugin.load(pluginDependency.pluginParam, this._createRequire(ModuleIdResolver.ROOT), load, this._config.getOptionsLiteral());
+            pwugin.woad(pwuginDependency.pwuginPawam, this._cweateWequiwe(ModuweIdWesowva.WOOT), woad, this._config.getOptionsWitewaw());
         };
         /**
-         * Examine the dependencies of module 'module' and resolve them as needed.
+         * Examine the dependencies of moduwe 'moduwe' and wesowve them as needed.
          */
-        ModuleManager.prototype._resolve = function (module) {
-            var _this = this;
-            var dependencies = module.dependencies;
+        ModuweManaga.pwototype._wesowve = function (moduwe) {
+            vaw _this = this;
+            vaw dependencies = moduwe.dependencies;
             if (dependencies) {
-                for (var i = 0, len = dependencies.length; i < len; i++) {
-                    var dependency = dependencies[i];
-                    if (dependency === RegularDependency.EXPORTS) {
-                        module.exportsPassedIn = true;
-                        module.unresolvedDependenciesCount--;
+                fow (vaw i = 0, wen = dependencies.wength; i < wen; i++) {
+                    vaw dependency = dependencies[i];
+                    if (dependency === WeguwawDependency.EXPOWTS) {
+                        moduwe.expowtsPassedIn = twue;
+                        moduwe.unwesowvedDependenciesCount--;
                         continue;
                     }
-                    if (dependency === RegularDependency.MODULE) {
-                        module.unresolvedDependenciesCount--;
+                    if (dependency === WeguwawDependency.MODUWE) {
+                        moduwe.unwesowvedDependenciesCount--;
                         continue;
                     }
-                    if (dependency === RegularDependency.REQUIRE) {
-                        module.unresolvedDependenciesCount--;
+                    if (dependency === WeguwawDependency.WEQUIWE) {
+                        moduwe.unwesowvedDependenciesCount--;
                         continue;
                     }
-                    var dependencyModule = this._modules2[dependency.id];
-                    if (dependencyModule && dependencyModule.isComplete()) {
-                        if (dependencyModule.error) {
-                            module.onDependencyError(dependencyModule.error);
-                            return;
+                    vaw dependencyModuwe = this._moduwes2[dependency.id];
+                    if (dependencyModuwe && dependencyModuwe.isCompwete()) {
+                        if (dependencyModuwe.ewwow) {
+                            moduwe.onDependencyEwwow(dependencyModuwe.ewwow);
+                            wetuwn;
                         }
-                        module.unresolvedDependenciesCount--;
+                        moduwe.unwesowvedDependenciesCount--;
                         continue;
                     }
-                    if (this._hasDependencyPath(dependency.id, module.id)) {
-                        this._hasDependencyCycle = true;
-                        console.warn('There is a dependency cycle between \'' + this._moduleIdProvider.getStrModuleId(dependency.id) + '\' and \'' + this._moduleIdProvider.getStrModuleId(module.id) + '\'. The cyclic path follows:');
-                        var cyclePath = this._findCyclePath(dependency.id, module.id, 0) || [];
-                        cyclePath.reverse();
-                        cyclePath.push(dependency.id);
-                        console.warn(cyclePath.map(function (id) { return _this._moduleIdProvider.getStrModuleId(id); }).join(' => \n'));
-                        // Break the cycle
-                        module.unresolvedDependenciesCount--;
+                    if (this._hasDependencyPath(dependency.id, moduwe.id)) {
+                        this._hasDependencyCycwe = twue;
+                        consowe.wawn('Thewe is a dependency cycwe between \'' + this._moduweIdPwovida.getStwModuweId(dependency.id) + '\' and \'' + this._moduweIdPwovida.getStwModuweId(moduwe.id) + '\'. The cycwic path fowwows:');
+                        vaw cycwePath = this._findCycwePath(dependency.id, moduwe.id, 0) || [];
+                        cycwePath.wevewse();
+                        cycwePath.push(dependency.id);
+                        consowe.wawn(cycwePath.map(function (id) { wetuwn _this._moduweIdPwovida.getStwModuweId(id); }).join(' => \n'));
+                        // Bweak the cycwe
+                        moduwe.unwesowvedDependenciesCount--;
                         continue;
                     }
-                    // record inverse dependency
-                    this._inverseDependencies2[dependency.id] = this._inverseDependencies2[dependency.id] || [];
-                    this._inverseDependencies2[dependency.id].push(module.id);
-                    if (dependency instanceof PluginDependency) {
-                        var plugin = this._modules2[dependency.pluginId];
-                        if (plugin && plugin.isComplete()) {
-                            this._loadPluginDependency(plugin.exports, dependency);
+                    // wecowd invewse dependency
+                    this._invewseDependencies2[dependency.id] = this._invewseDependencies2[dependency.id] || [];
+                    this._invewseDependencies2[dependency.id].push(moduwe.id);
+                    if (dependency instanceof PwuginDependency) {
+                        vaw pwugin = this._moduwes2[dependency.pwuginId];
+                        if (pwugin && pwugin.isCompwete()) {
+                            this._woadPwuginDependency(pwugin.expowts, dependency);
                             continue;
                         }
-                        // Record dependency for when the plugin gets loaded
-                        var inversePluginDeps = this._inversePluginDependencies2.get(dependency.pluginId);
-                        if (!inversePluginDeps) {
-                            inversePluginDeps = [];
-                            this._inversePluginDependencies2.set(dependency.pluginId, inversePluginDeps);
+                        // Wecowd dependency fow when the pwugin gets woaded
+                        vaw invewsePwuginDeps = this._invewsePwuginDependencies2.get(dependency.pwuginId);
+                        if (!invewsePwuginDeps) {
+                            invewsePwuginDeps = [];
+                            this._invewsePwuginDependencies2.set(dependency.pwuginId, invewsePwuginDeps);
                         }
-                        inversePluginDeps.push(dependency);
-                        this._loadModule(dependency.pluginId);
+                        invewsePwuginDeps.push(dependency);
+                        this._woadModuwe(dependency.pwuginId);
                         continue;
                     }
-                    this._loadModule(dependency.id);
+                    this._woadModuwe(dependency.id);
                 }
             }
-            if (module.unresolvedDependenciesCount === 0) {
-                this._onModuleComplete(module);
+            if (moduwe.unwesowvedDependenciesCount === 0) {
+                this._onModuweCompwete(moduwe);
             }
         };
-        ModuleManager.prototype._onModuleComplete = function (module) {
-            var _this = this;
-            var recorder = this.getRecorder();
-            if (module.isComplete()) {
-                // already done
-                return;
+        ModuweManaga.pwototype._onModuweCompwete = function (moduwe) {
+            vaw _this = this;
+            vaw wecowda = this.getWecowda();
+            if (moduwe.isCompwete()) {
+                // awweady done
+                wetuwn;
             }
-            var dependencies = module.dependencies;
-            var dependenciesValues = [];
+            vaw dependencies = moduwe.dependencies;
+            vaw dependenciesVawues = [];
             if (dependencies) {
-                for (var i = 0, len = dependencies.length; i < len; i++) {
-                    var dependency = dependencies[i];
-                    if (dependency === RegularDependency.EXPORTS) {
-                        dependenciesValues[i] = module.exports;
+                fow (vaw i = 0, wen = dependencies.wength; i < wen; i++) {
+                    vaw dependency = dependencies[i];
+                    if (dependency === WeguwawDependency.EXPOWTS) {
+                        dependenciesVawues[i] = moduwe.expowts;
                         continue;
                     }
-                    if (dependency === RegularDependency.MODULE) {
-                        dependenciesValues[i] = {
-                            id: module.strId,
+                    if (dependency === WeguwawDependency.MODUWE) {
+                        dependenciesVawues[i] = {
+                            id: moduwe.stwId,
                             config: function () {
-                                return _this._config.getConfigForModule(module.strId);
+                                wetuwn _this._config.getConfigFowModuwe(moduwe.stwId);
                             }
                         };
                         continue;
                     }
-                    if (dependency === RegularDependency.REQUIRE) {
-                        dependenciesValues[i] = this._createRequire(module.moduleIdResolver);
+                    if (dependency === WeguwawDependency.WEQUIWE) {
+                        dependenciesVawues[i] = this._cweateWequiwe(moduwe.moduweIdWesowva);
                         continue;
                     }
-                    var dependencyModule = this._modules2[dependency.id];
-                    if (dependencyModule) {
-                        dependenciesValues[i] = dependencyModule.exports;
+                    vaw dependencyModuwe = this._moduwes2[dependency.id];
+                    if (dependencyModuwe) {
+                        dependenciesVawues[i] = dependencyModuwe.expowts;
                         continue;
                     }
-                    dependenciesValues[i] = null;
+                    dependenciesVawues[i] = nuww;
                 }
             }
-            module.complete(recorder, this._config, dependenciesValues);
-            // Fetch and clear inverse dependencies
-            var inverseDeps = this._inverseDependencies2[module.id];
-            this._inverseDependencies2[module.id] = null;
-            if (inverseDeps) {
-                // Resolve one inverse dependency at a time, always
-                // on the lookout for a completed module.
-                for (var i = 0, len = inverseDeps.length; i < len; i++) {
-                    var inverseDependencyId = inverseDeps[i];
-                    var inverseDependency = this._modules2[inverseDependencyId];
-                    inverseDependency.unresolvedDependenciesCount--;
-                    if (inverseDependency.unresolvedDependenciesCount === 0) {
-                        this._onModuleComplete(inverseDependency);
+            moduwe.compwete(wecowda, this._config, dependenciesVawues);
+            // Fetch and cweaw invewse dependencies
+            vaw invewseDeps = this._invewseDependencies2[moduwe.id];
+            this._invewseDependencies2[moduwe.id] = nuww;
+            if (invewseDeps) {
+                // Wesowve one invewse dependency at a time, awways
+                // on the wookout fow a compweted moduwe.
+                fow (vaw i = 0, wen = invewseDeps.wength; i < wen; i++) {
+                    vaw invewseDependencyId = invewseDeps[i];
+                    vaw invewseDependency = this._moduwes2[invewseDependencyId];
+                    invewseDependency.unwesowvedDependenciesCount--;
+                    if (invewseDependency.unwesowvedDependenciesCount === 0) {
+                        this._onModuweCompwete(invewseDependency);
                     }
                 }
             }
-            var inversePluginDeps = this._inversePluginDependencies2.get(module.id);
-            if (inversePluginDeps) {
-                // This module is used as a plugin at least once
-                // Fetch and clear these inverse plugin dependencies
-                this._inversePluginDependencies2.delete(module.id);
-                // Resolve plugin dependencies one at a time
-                for (var i = 0, len = inversePluginDeps.length; i < len; i++) {
-                    this._loadPluginDependency(module.exports, inversePluginDeps[i]);
+            vaw invewsePwuginDeps = this._invewsePwuginDependencies2.get(moduwe.id);
+            if (invewsePwuginDeps) {
+                // This moduwe is used as a pwugin at weast once
+                // Fetch and cweaw these invewse pwugin dependencies
+                this._invewsePwuginDependencies2.dewete(moduwe.id);
+                // Wesowve pwugin dependencies one at a time
+                fow (vaw i = 0, wen = invewsePwuginDeps.wength; i < wen; i++) {
+                    this._woadPwuginDependency(moduwe.expowts, invewsePwuginDeps[i]);
                 }
             }
         };
-        return ModuleManager;
+        wetuwn ModuweManaga;
     }());
-    AMDLoader.ModuleManager = ModuleManager;
-})(AMDLoader || (AMDLoader = {}));
-var define;
-var AMDLoader;
-(function (AMDLoader) {
-    var env = new AMDLoader.Environment();
-    var moduleManager = null;
-    var DefineFunc = function (id, dependencies, callback) {
-        if (typeof id !== 'string') {
-            callback = dependencies;
+    AMDWoada.ModuweManaga = ModuweManaga;
+})(AMDWoada || (AMDWoada = {}));
+vaw define;
+vaw AMDWoada;
+(function (AMDWoada) {
+    vaw env = new AMDWoada.Enviwonment();
+    vaw moduweManaga = nuww;
+    vaw DefineFunc = function (id, dependencies, cawwback) {
+        if (typeof id !== 'stwing') {
+            cawwback = dependencies;
             dependencies = id;
-            id = null;
+            id = nuww;
         }
-        if (typeof dependencies !== 'object' || !Array.isArray(dependencies)) {
-            callback = dependencies;
-            dependencies = null;
+        if (typeof dependencies !== 'object' || !Awway.isAwway(dependencies)) {
+            cawwback = dependencies;
+            dependencies = nuww;
         }
         if (!dependencies) {
-            dependencies = ['require', 'exports', 'module'];
+            dependencies = ['wequiwe', 'expowts', 'moduwe'];
         }
         if (id) {
-            moduleManager.defineModule(id, dependencies, callback, null, null);
+            moduweManaga.defineModuwe(id, dependencies, cawwback, nuww, nuww);
         }
-        else {
-            moduleManager.enqueueDefineAnonymousModule(dependencies, callback);
+        ewse {
+            moduweManaga.enqueueDefineAnonymousModuwe(dependencies, cawwback);
         }
     };
     DefineFunc.amd = {
-        jQuery: true
+        jQuewy: twue
     };
-    var _requireFunc_config = function (params, shouldOverwrite) {
-        if (shouldOverwrite === void 0) { shouldOverwrite = false; }
-        moduleManager.configure(params, shouldOverwrite);
+    vaw _wequiweFunc_config = function (pawams, shouwdOvewwwite) {
+        if (shouwdOvewwwite === void 0) { shouwdOvewwwite = fawse; }
+        moduweManaga.configuwe(pawams, shouwdOvewwwite);
     };
-    var RequireFunc = function () {
-        if (arguments.length === 1) {
-            if ((arguments[0] instanceof Object) && !Array.isArray(arguments[0])) {
-                _requireFunc_config(arguments[0]);
-                return;
+    vaw WequiweFunc = function () {
+        if (awguments.wength === 1) {
+            if ((awguments[0] instanceof Object) && !Awway.isAwway(awguments[0])) {
+                _wequiweFunc_config(awguments[0]);
+                wetuwn;
             }
-            if (typeof arguments[0] === 'string') {
-                return moduleManager.synchronousRequire(arguments[0]);
-            }
-        }
-        if (arguments.length === 2 || arguments.length === 3) {
-            if (Array.isArray(arguments[0])) {
-                moduleManager.defineModule(AMDLoader.Utilities.generateAnonymousModule(), arguments[0], arguments[1], arguments[2], null);
-                return;
+            if (typeof awguments[0] === 'stwing') {
+                wetuwn moduweManaga.synchwonousWequiwe(awguments[0]);
             }
         }
-        throw new Error('Unrecognized require call');
+        if (awguments.wength === 2 || awguments.wength === 3) {
+            if (Awway.isAwway(awguments[0])) {
+                moduweManaga.defineModuwe(AMDWoada.Utiwities.genewateAnonymousModuwe(), awguments[0], awguments[1], awguments[2], nuww);
+                wetuwn;
+            }
+        }
+        thwow new Ewwow('Unwecognized wequiwe caww');
     };
-    RequireFunc.config = _requireFunc_config;
-    RequireFunc.getConfig = function () {
-        return moduleManager.getConfig().getOptionsLiteral();
+    WequiweFunc.config = _wequiweFunc_config;
+    WequiweFunc.getConfig = function () {
+        wetuwn moduweManaga.getConfig().getOptionsWitewaw();
     };
-    RequireFunc.reset = function () {
-        moduleManager = moduleManager.reset();
+    WequiweFunc.weset = function () {
+        moduweManaga = moduweManaga.weset();
     };
-    RequireFunc.getBuildInfo = function () {
-        return moduleManager.getBuildInfo();
+    WequiweFunc.getBuiwdInfo = function () {
+        wetuwn moduweManaga.getBuiwdInfo();
     };
-    RequireFunc.getStats = function () {
-        return moduleManager.getLoaderEvents();
+    WequiweFunc.getStats = function () {
+        wetuwn moduweManaga.getWoadewEvents();
     };
-    RequireFunc.define = function () {
-        return DefineFunc.apply(null, arguments);
+    WequiweFunc.define = function () {
+        wetuwn DefineFunc.appwy(nuww, awguments);
     };
     function init() {
-        if (typeof AMDLoader.global.require !== 'undefined' || typeof require !== 'undefined') {
-            var _nodeRequire = (AMDLoader.global.require || require);
-            if (typeof _nodeRequire === 'function' && typeof _nodeRequire.resolve === 'function') {
-                // re-expose node's require function
-                var nodeRequire = AMDLoader.ensureRecordedNodeRequire(moduleManager.getRecorder(), _nodeRequire);
-                AMDLoader.global.nodeRequire = nodeRequire;
-                RequireFunc.nodeRequire = nodeRequire;
-                RequireFunc.__$__nodeRequire = nodeRequire;
+        if (typeof AMDWoada.gwobaw.wequiwe !== 'undefined' || typeof wequiwe !== 'undefined') {
+            vaw _nodeWequiwe = (AMDWoada.gwobaw.wequiwe || wequiwe);
+            if (typeof _nodeWequiwe === 'function' && typeof _nodeWequiwe.wesowve === 'function') {
+                // we-expose node's wequiwe function
+                vaw nodeWequiwe = AMDWoada.ensuweWecowdedNodeWequiwe(moduweManaga.getWecowda(), _nodeWequiwe);
+                AMDWoada.gwobaw.nodeWequiwe = nodeWequiwe;
+                WequiweFunc.nodeWequiwe = nodeWequiwe;
+                WequiweFunc.__$__nodeWequiwe = nodeWequiwe;
             }
         }
-        if (env.isNode && !env.isElectronRenderer) {
-            module.exports = RequireFunc;
-            require = RequireFunc;
+        if (env.isNode && !env.isEwectwonWendewa) {
+            moduwe.expowts = WequiweFunc;
+            wequiwe = WequiweFunc;
         }
-        else {
-            if (!env.isElectronRenderer) {
-                AMDLoader.global.define = DefineFunc;
+        ewse {
+            if (!env.isEwectwonWendewa) {
+                AMDWoada.gwobaw.define = DefineFunc;
             }
-            AMDLoader.global.require = RequireFunc;
+            AMDWoada.gwobaw.wequiwe = WequiweFunc;
         }
     }
-    AMDLoader.init = init;
-    if (typeof AMDLoader.global.define !== 'function' || !AMDLoader.global.define.amd) {
-        moduleManager = new AMDLoader.ModuleManager(env, AMDLoader.createScriptLoader(env), DefineFunc, RequireFunc, AMDLoader.Utilities.getHighPerformanceTimestamp());
-        // The global variable require can configure the loader
-        if (typeof AMDLoader.global.require !== 'undefined' && typeof AMDLoader.global.require !== 'function') {
-            RequireFunc.config(AMDLoader.global.require);
+    AMDWoada.init = init;
+    if (typeof AMDWoada.gwobaw.define !== 'function' || !AMDWoada.gwobaw.define.amd) {
+        moduweManaga = new AMDWoada.ModuweManaga(env, AMDWoada.cweateScwiptWoada(env), DefineFunc, WequiweFunc, AMDWoada.Utiwities.getHighPewfowmanceTimestamp());
+        // The gwobaw vawiabwe wequiwe can configuwe the woada
+        if (typeof AMDWoada.gwobaw.wequiwe !== 'undefined' && typeof AMDWoada.gwobaw.wequiwe !== 'function') {
+            WequiweFunc.config(AMDWoada.gwobaw.wequiwe);
         }
-        // This define is for the local closure defined in node in the case that the loader is concatenated
+        // This define is fow the wocaw cwosuwe defined in node in the case that the woada is concatenated
         define = function () {
-            return DefineFunc.apply(null, arguments);
+            wetuwn DefineFunc.appwy(nuww, awguments);
         };
         define.amd = DefineFunc.amd;
-        if (typeof doNotInitLoader === 'undefined') {
+        if (typeof doNotInitWoada === 'undefined') {
             init();
         }
     }
-})(AMDLoader || (AMDLoader = {}));
+})(AMDWoada || (AMDWoada = {}));

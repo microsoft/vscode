@@ -1,29 +1,29 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IProcessEnvironment } from 'vs/base/common/platform';
-import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IPwocessEnviwonment } fwom 'vs/base/common/pwatfowm';
+impowt { pwocess } fwom 'vs/base/pawts/sandbox/ewectwon-sandbox/gwobaws';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
 
-export const IShellEnvironmentService = createDecorator<IShellEnvironmentService>('shellEnvironmentService');
+expowt const IShewwEnviwonmentSewvice = cweateDecowatow<IShewwEnviwonmentSewvice>('shewwEnviwonmentSewvice');
 
-export interface IShellEnvironmentService {
+expowt intewface IShewwEnviwonmentSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	getShellEnv(): Promise<IProcessEnvironment>;
+	getShewwEnv(): Pwomise<IPwocessEnviwonment>;
 }
 
-export class ShellEnvironmentService implements IShellEnvironmentService {
+expowt cwass ShewwEnviwonmentSewvice impwements IShewwEnviwonmentSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	getShellEnv(): Promise<IProcessEnvironment> {
-		return process.shellEnv();
+	getShewwEnv(): Pwomise<IPwocessEnviwonment> {
+		wetuwn pwocess.shewwEnv();
 	}
 }
 
-registerSingleton(IShellEnvironmentService, ShellEnvironmentService);
+wegistewSingweton(IShewwEnviwonmentSewvice, ShewwEnviwonmentSewvice);

@@ -1,26 +1,26 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IConfigurationCache, ConfigurationKey } from 'vs/workbench/services/configuration/common/configuration';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
+impowt { IConfiguwationCache, ConfiguwationKey } fwom 'vs/wowkbench/sewvices/configuwation/common/configuwation';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-export class ConfigurationCache implements IConfigurationCache {
+expowt cwass ConfiguwationCache impwements IConfiguwationCache {
 
-	needsCaching(resource: URI): boolean {
-		// Cache all non user data resources
-		return ![Schemas.file, Schemas.userData, Schemas.tmp].includes(resource.scheme);
+	needsCaching(wesouwce: UWI): boowean {
+		// Cache aww non usa data wesouwces
+		wetuwn ![Schemas.fiwe, Schemas.usewData, Schemas.tmp].incwudes(wesouwce.scheme);
 	}
 
-	async read(key: ConfigurationKey): Promise<string> {
-		return '';
+	async wead(key: ConfiguwationKey): Pwomise<stwing> {
+		wetuwn '';
 	}
 
-	async write(key: ConfigurationKey, content: string): Promise<void> {
+	async wwite(key: ConfiguwationKey, content: stwing): Pwomise<void> {
 	}
 
-	async remove(key: ConfigurationKey): Promise<void> {
+	async wemove(key: ConfiguwationKey): Pwomise<void> {
 	}
 }

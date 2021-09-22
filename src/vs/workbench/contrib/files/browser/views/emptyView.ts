@@ -1,93 +1,93 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { ResourcesDropHandler, DragAndDropObserver } from 'vs/workbench/browser/dnd';
-import { listDropBackground } from 'vs/platform/theme/common/colorRegistry';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { isWeb } from 'vs/base/common/platform';
+impowt * as nws fwom 'vs/nws';
+impowt { IViewwetViewOptions } fwom 'vs/wowkbench/bwowsa/pawts/views/viewsViewwet';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IWowkspaceContextSewvice, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ViewPane } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPane';
+impowt { WesouwcesDwopHandwa, DwagAndDwopObsewva } fwom 'vs/wowkbench/bwowsa/dnd';
+impowt { wistDwopBackgwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IViewDescwiptowSewvice } fwom 'vs/wowkbench/common/views';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { isWeb } fwom 'vs/base/common/pwatfowm';
 
-export class EmptyView extends ViewPane {
+expowt cwass EmptyView extends ViewPane {
 
-	static readonly ID: string = 'workbench.explorer.emptyView';
-	static readonly NAME = nls.localize('noWorkspace', "No Folder Opened");
+	static weadonwy ID: stwing = 'wowkbench.expwowa.emptyView';
+	static weadonwy NAME = nws.wocawize('noWowkspace', "No Fowda Opened");
 
-	constructor(
-		options: IViewletViewOptions,
-		@IThemeService themeService: IThemeService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@ILabelService private labelService: ILabelService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IOpenerService openerService: IOpenerService,
-		@ITelemetryService telemetryService: ITelemetryService,
+	constwuctow(
+		options: IViewwetViewOptions,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IViewDescwiptowSewvice viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IWabewSewvice pwivate wabewSewvice: IWabewSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IOpenewSewvice openewSewvice: IOpenewSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		supa(options, keybindingSewvice, contextMenuSewvice, configuwationSewvice, contextKeySewvice, viewDescwiptowSewvice, instantiationSewvice, openewSewvice, themeSewvice, tewemetwySewvice);
 
-		this._register(this.contextService.onDidChangeWorkbenchState(() => this.refreshTitle()));
-		this._register(this.labelService.onDidChangeFormatters(() => this.refreshTitle()));
+		this._wegista(this.contextSewvice.onDidChangeWowkbenchState(() => this.wefweshTitwe()));
+		this._wegista(this.wabewSewvice.onDidChangeFowmattews(() => this.wefweshTitwe()));
 	}
 
-	override shouldShowWelcome(): boolean {
-		return true;
+	ovewwide shouwdShowWewcome(): boowean {
+		wetuwn twue;
 	}
 
-	protected override renderBody(container: HTMLElement): void {
-		super.renderBody(container);
+	pwotected ovewwide wendewBody(containa: HTMWEwement): void {
+		supa.wendewBody(containa);
 
 		if (!isWeb) {
-			// Only observe in desktop environments because accessing
-			// locally dragged files and folders is only possible there
-			this._register(new DragAndDropObserver(container, {
-				onDrop: e => {
-					container.style.backgroundColor = '';
-					const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: true });
-					dropHandler.handleDrop(e, () => undefined, () => undefined);
+			// Onwy obsewve in desktop enviwonments because accessing
+			// wocawwy dwagged fiwes and fowdews is onwy possibwe thewe
+			this._wegista(new DwagAndDwopObsewva(containa, {
+				onDwop: e => {
+					containa.stywe.backgwoundCowow = '';
+					const dwopHandwa = this.instantiationSewvice.cweateInstance(WesouwcesDwopHandwa, { awwowWowkspaceOpen: twue });
+					dwopHandwa.handweDwop(e, () => undefined, () => undefined);
 				},
-				onDragEnter: () => {
-					const color = this.themeService.getColorTheme().getColor(listDropBackground);
-					container.style.backgroundColor = color ? color.toString() : '';
+				onDwagEnta: () => {
+					const cowow = this.themeSewvice.getCowowTheme().getCowow(wistDwopBackgwound);
+					containa.stywe.backgwoundCowow = cowow ? cowow.toStwing() : '';
 				},
-				onDragEnd: () => {
-					container.style.backgroundColor = '';
+				onDwagEnd: () => {
+					containa.stywe.backgwoundCowow = '';
 				},
-				onDragLeave: () => {
-					container.style.backgroundColor = '';
+				onDwagWeave: () => {
+					containa.stywe.backgwoundCowow = '';
 				},
-				onDragOver: e => {
-					if (e.dataTransfer) {
-						e.dataTransfer.dropEffect = 'copy';
+				onDwagOva: e => {
+					if (e.dataTwansfa) {
+						e.dataTwansfa.dwopEffect = 'copy';
 					}
 				}
 			}));
 		}
 
-		this.refreshTitle();
+		this.wefweshTitwe();
 	}
 
-	private refreshTitle(): void {
-		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-			this.updateTitle(EmptyView.NAME);
-		} else {
-			this.updateTitle(this.title);
+	pwivate wefweshTitwe(): void {
+		if (this.contextSewvice.getWowkbenchState() === WowkbenchState.WOWKSPACE) {
+			this.updateTitwe(EmptyView.NAME);
+		} ewse {
+			this.updateTitwe(this.titwe);
 		}
 	}
 }

@@ -1,77 +1,77 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as glob from 'vs/base/common/glob';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { isDocumentExcludePattern, TransientCellMetadata, TransientDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+impowt * as gwob fwom 'vs/base/common/gwob';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { isDocumentExcwudePattewn, TwansientCewwMetadata, TwansientDocumentMetadata } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { INotebookKewnewSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookKewnewSewvice';
+impowt { INotebookSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookSewvice';
 
-CommandsRegistry.registerCommand('_resolveNotebookContentProvider', (accessor, args): {
-	viewType: string;
-	displayName: string;
-	options: { transientOutputs: boolean; transientCellMetadata: TransientCellMetadata; transientDocumentMetadata: TransientDocumentMetadata; };
-	filenamePattern: (string | glob.IRelativePattern | { include: string | glob.IRelativePattern, exclude: string | glob.IRelativePattern; })[];
+CommandsWegistwy.wegistewCommand('_wesowveNotebookContentPwovida', (accessow, awgs): {
+	viewType: stwing;
+	dispwayName: stwing;
+	options: { twansientOutputs: boowean; twansientCewwMetadata: TwansientCewwMetadata; twansientDocumentMetadata: TwansientDocumentMetadata; };
+	fiwenamePattewn: (stwing | gwob.IWewativePattewn | { incwude: stwing | gwob.IWewativePattewn, excwude: stwing | gwob.IWewativePattewn; })[];
 }[] => {
-	const notebookService = accessor.get<INotebookService>(INotebookService);
-	const contentProviders = notebookService.getContributedNotebookTypes();
-	return contentProviders.map(provider => {
-		const filenamePatterns = provider.selectors.map(selector => {
-			if (typeof selector === 'string') {
-				return selector;
+	const notebookSewvice = accessow.get<INotebookSewvice>(INotebookSewvice);
+	const contentPwovidews = notebookSewvice.getContwibutedNotebookTypes();
+	wetuwn contentPwovidews.map(pwovida => {
+		const fiwenamePattewns = pwovida.sewectows.map(sewectow => {
+			if (typeof sewectow === 'stwing') {
+				wetuwn sewectow;
 			}
 
-			if (glob.isRelativePattern(selector)) {
-				return selector;
+			if (gwob.isWewativePattewn(sewectow)) {
+				wetuwn sewectow;
 			}
 
-			if (isDocumentExcludePattern(selector)) {
-				return {
-					include: selector.include,
-					exclude: selector.exclude
+			if (isDocumentExcwudePattewn(sewectow)) {
+				wetuwn {
+					incwude: sewectow.incwude,
+					excwude: sewectow.excwude
 				};
 			}
 
-			return null;
-		}).filter(pattern => pattern !== null) as (string | glob.IRelativePattern | { include: string | glob.IRelativePattern, exclude: string | glob.IRelativePattern; })[];
+			wetuwn nuww;
+		}).fiwta(pattewn => pattewn !== nuww) as (stwing | gwob.IWewativePattewn | { incwude: stwing | gwob.IWewativePattewn, excwude: stwing | gwob.IWewativePattewn; })[];
 
-		return {
-			viewType: provider.id,
-			displayName: provider.displayName,
-			filenamePattern: filenamePatterns,
+		wetuwn {
+			viewType: pwovida.id,
+			dispwayName: pwovida.dispwayName,
+			fiwenamePattewn: fiwenamePattewns,
 			options: {
-				transientCellMetadata: provider.options.transientCellMetadata,
-				transientDocumentMetadata: provider.options.transientDocumentMetadata,
-				transientOutputs: provider.options.transientOutputs
+				twansientCewwMetadata: pwovida.options.twansientCewwMetadata,
+				twansientDocumentMetadata: pwovida.options.twansientDocumentMetadata,
+				twansientOutputs: pwovida.options.twansientOutputs
 			}
 		};
 	});
 });
 
-CommandsRegistry.registerCommand('_resolveNotebookKernels', async (accessor, args: {
-	viewType: string;
-	uri: UriComponents;
-}): Promise<{
-	id?: string;
-	label: string;
-	description?: string;
-	detail?: string;
-	isPreferred?: boolean;
-	preloads?: URI[];
+CommandsWegistwy.wegistewCommand('_wesowveNotebookKewnews', async (accessow, awgs: {
+	viewType: stwing;
+	uwi: UwiComponents;
+}): Pwomise<{
+	id?: stwing;
+	wabew: stwing;
+	descwiption?: stwing;
+	detaiw?: stwing;
+	isPwefewwed?: boowean;
+	pwewoads?: UWI[];
 }[]> => {
-	const notebookKernelService = accessor.get(INotebookKernelService);
-	const uri = URI.revive(args.uri as UriComponents);
-	const kernels = notebookKernelService.getMatchingKernel({ uri, viewType: args.viewType });
+	const notebookKewnewSewvice = accessow.get(INotebookKewnewSewvice);
+	const uwi = UWI.wevive(awgs.uwi as UwiComponents);
+	const kewnews = notebookKewnewSewvice.getMatchingKewnew({ uwi, viewType: awgs.viewType });
 
-	return kernels.all.map(provider => ({
-		id: provider.id,
-		label: provider.label,
-		description: provider.description,
-		detail: provider.detail,
-		isPreferred: false, // todo@jrieken,@rebornix
-		preloads: provider.preloadUris,
+	wetuwn kewnews.aww.map(pwovida => ({
+		id: pwovida.id,
+		wabew: pwovida.wabew,
+		descwiption: pwovida.descwiption,
+		detaiw: pwovida.detaiw,
+		isPwefewwed: fawse, // todo@jwieken,@webownix
+		pwewoads: pwovida.pwewoadUwis,
 	}));
 });

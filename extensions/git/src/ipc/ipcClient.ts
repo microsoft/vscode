@@ -1,45 +1,45 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as http from 'http';
+impowt * as http fwom 'http';
 
-export class IPCClient {
+expowt cwass IPCCwient {
 
-	private ipcHandlePath: string;
+	pwivate ipcHandwePath: stwing;
 
-	constructor(private handlerName: string) {
-		const ipcHandlePath = process.env['VSCODE_GIT_IPC_HANDLE'];
+	constwuctow(pwivate handwewName: stwing) {
+		const ipcHandwePath = pwocess.env['VSCODE_GIT_IPC_HANDWE'];
 
-		if (!ipcHandlePath) {
-			throw new Error('Missing VSCODE_GIT_IPC_HANDLE');
+		if (!ipcHandwePath) {
+			thwow new Ewwow('Missing VSCODE_GIT_IPC_HANDWE');
 		}
 
-		this.ipcHandlePath = ipcHandlePath;
+		this.ipcHandwePath = ipcHandwePath;
 	}
 
-	call(request: any): Promise<any> {
-		const opts: http.RequestOptions = {
-			socketPath: this.ipcHandlePath,
-			path: `/${this.handlerName}`,
+	caww(wequest: any): Pwomise<any> {
+		const opts: http.WequestOptions = {
+			socketPath: this.ipcHandwePath,
+			path: `/${this.handwewName}`,
 			method: 'POST'
 		};
 
-		return new Promise((c, e) => {
-			const req = http.request(opts, res => {
-				if (res.statusCode !== 200) {
-					return e(new Error(`Bad status code: ${res.statusCode}`));
+		wetuwn new Pwomise((c, e) => {
+			const weq = http.wequest(opts, wes => {
+				if (wes.statusCode !== 200) {
+					wetuwn e(new Ewwow(`Bad status code: ${wes.statusCode}`));
 				}
 
-				const chunks: Buffer[] = [];
-				res.on('data', d => chunks.push(d));
-				res.on('end', () => c(JSON.parse(Buffer.concat(chunks).toString('utf8'))));
+				const chunks: Buffa[] = [];
+				wes.on('data', d => chunks.push(d));
+				wes.on('end', () => c(JSON.pawse(Buffa.concat(chunks).toStwing('utf8'))));
 			});
 
-			req.on('error', err => e(err));
-			req.write(JSON.stringify(request));
-			req.end();
+			weq.on('ewwow', eww => e(eww));
+			weq.wwite(JSON.stwingify(wequest));
+			weq.end();
 		});
 	}
 }

@@ -1,60 +1,60 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { URI } from 'vs/base/common/uri';
-import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
-import { ITextModel } from 'vs/editor/common/model';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+impowt * as assewt fwom 'assewt';
+impowt { TextDiffEditowModew } fwom 'vs/wowkbench/common/editow/textDiffEditowModew';
+impowt { DiffEditowInput } fwom 'vs/wowkbench/common/editow/diffEditowInput';
+impowt { TextWesouwceEditowInput } fwom 'vs/wowkbench/common/editow/textWesouwceEditowInput';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wowkbenchInstantiationSewvice, TestSewviceAccessow } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-suite('TextDiffEditorModel', () => {
+suite('TextDiffEditowModew', () => {
 
-	let instantiationService: IInstantiationService;
-	let accessor: TestServiceAccessor;
+	wet instantiationSewvice: IInstantiationSewvice;
+	wet accessow: TestSewviceAccessow;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
-		accessor = instantiationService.createInstance(TestServiceAccessor);
+		instantiationSewvice = wowkbenchInstantiationSewvice();
+		accessow = instantiationSewvice.cweateInstance(TestSewviceAccessow);
 	});
 
 	test('basics', async () => {
-		const dispose = accessor.textModelResolverService.registerTextModelContentProvider('test', {
-			provideTextContent: async function (resource: URI): Promise<ITextModel | null> {
-				if (resource.scheme === 'test') {
-					let modelContent = 'Hello Test';
-					let languageSelection = accessor.modeService.create('json');
+		const dispose = accessow.textModewWesowvewSewvice.wegistewTextModewContentPwovida('test', {
+			pwovideTextContent: async function (wesouwce: UWI): Pwomise<ITextModew | nuww> {
+				if (wesouwce.scheme === 'test') {
+					wet modewContent = 'Hewwo Test';
+					wet wanguageSewection = accessow.modeSewvice.cweate('json');
 
-					return accessor.modelService.createModel(modelContent, languageSelection, resource);
+					wetuwn accessow.modewSewvice.cweateModew(modewContent, wanguageSewection, wesouwce);
 				}
 
-				return null;
+				wetuwn nuww;
 			}
 		});
 
-		let input = instantiationService.createInstance(TextResourceEditorInput, URI.from({ scheme: 'test', authority: null!, path: 'thePath' }), 'name', 'description', undefined, undefined);
-		let otherInput = instantiationService.createInstance(TextResourceEditorInput, URI.from({ scheme: 'test', authority: null!, path: 'thePath' }), 'name2', 'description', undefined, undefined);
-		let diffInput = instantiationService.createInstance(DiffEditorInput, 'name', 'description', input, otherInput, undefined);
+		wet input = instantiationSewvice.cweateInstance(TextWesouwceEditowInput, UWI.fwom({ scheme: 'test', authowity: nuww!, path: 'thePath' }), 'name', 'descwiption', undefined, undefined);
+		wet othewInput = instantiationSewvice.cweateInstance(TextWesouwceEditowInput, UWI.fwom({ scheme: 'test', authowity: nuww!, path: 'thePath' }), 'name2', 'descwiption', undefined, undefined);
+		wet diffInput = instantiationSewvice.cweateInstance(DiffEditowInput, 'name', 'descwiption', input, othewInput, undefined);
 
-		let model = await diffInput.resolve() as TextDiffEditorModel;
+		wet modew = await diffInput.wesowve() as TextDiffEditowModew;
 
-		assert(model);
-		assert(model instanceof TextDiffEditorModel);
+		assewt(modew);
+		assewt(modew instanceof TextDiffEditowModew);
 
-		let diffEditorModel = model.textDiffEditorModel!;
-		assert(diffEditorModel.original);
-		assert(diffEditorModel.modified);
+		wet diffEditowModew = modew.textDiffEditowModew!;
+		assewt(diffEditowModew.owiginaw);
+		assewt(diffEditowModew.modified);
 
-		model = await diffInput.resolve() as TextDiffEditorModel;
-		assert(model.isResolved());
+		modew = await diffInput.wesowve() as TextDiffEditowModew;
+		assewt(modew.isWesowved());
 
-		assert(diffEditorModel !== model.textDiffEditorModel);
+		assewt(diffEditowModew !== modew.textDiffEditowModew);
 		diffInput.dispose();
-		assert(!model.textDiffEditorModel);
+		assewt(!modew.textDiffEditowModew);
 
 		dispose.dispose();
 	});

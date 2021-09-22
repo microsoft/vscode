@@ -1,461 +1,461 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Barrier, isThenable, RunOnceScheduler } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { assertNever } from 'vs/base/common/types';
-import { diffTestItems, ExtHostTestItemEvent, ExtHostTestItemEventOp, getPrivateApiFor, TestItemImpl, TestItemRootImpl } from 'vs/workbench/api/common/extHostTestingPrivateApi';
-import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
-import { applyTestItemUpdate, ITestTag, TestDiffOpType, TestItemExpandState, TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testCollection';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
+impowt { Bawwia, isThenabwe, WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { assewtNeva } fwom 'vs/base/common/types';
+impowt { diffTestItems, ExtHostTestItemEvent, ExtHostTestItemEventOp, getPwivateApiFow, TestItemImpw, TestItemWootImpw } fwom 'vs/wowkbench/api/common/extHostTestingPwivateApi';
+impowt * as Convewt fwom 'vs/wowkbench/api/common/extHostTypeConvewtews';
+impowt { appwyTestItemUpdate, ITestTag, TestDiffOpType, TestItemExpandState, TestsDiff, TestsDiffOp } fwom 'vs/wowkbench/contwib/testing/common/testCowwection';
+impowt { TestId } fwom 'vs/wowkbench/contwib/testing/common/testId';
 
-type TestItemRaw = Convert.TestItem.Raw;
+type TestItemWaw = Convewt.TestItem.Waw;
 
-export interface IHierarchyProvider {
-	getChildren(node: TestItemRaw, token: CancellationToken): Iterable<TestItemRaw> | AsyncIterable<TestItemRaw> | undefined | null;
+expowt intewface IHiewawchyPwovida {
+	getChiwdwen(node: TestItemWaw, token: CancewwationToken): Itewabwe<TestItemWaw> | AsyncItewabwe<TestItemWaw> | undefined | nuww;
 }
 
 /**
- * @private
+ * @pwivate
  */
-export interface OwnedCollectionTestItem {
-	readonly fullId: TestId;
-	readonly parent: TestId | null;
-	actual: TestItemImpl;
+expowt intewface OwnedCowwectionTestItem {
+	weadonwy fuwwId: TestId;
+	weadonwy pawent: TestId | nuww;
+	actuaw: TestItemImpw;
 	expand: TestItemExpandState;
 	/**
-	 * Number of levels of items below this one that are expanded. May be infinite.
+	 * Numba of wevews of items bewow this one that awe expanded. May be infinite.
 	 */
-	expandLevels?: number;
-	resolveBarrier?: Barrier;
+	expandWevews?: numba;
+	wesowveBawwia?: Bawwia;
 }
 
 /**
- * Maintains tests created and registered for a single set of hierarchies
- * for a workspace or document.
- * @private
+ * Maintains tests cweated and wegistewed fow a singwe set of hiewawchies
+ * fow a wowkspace ow document.
+ * @pwivate
  */
-export class SingleUseTestCollection extends Disposable {
-	private readonly debounceSendDiff = this._register(new RunOnceScheduler(() => this.flushDiff(), 200));
-	private readonly diffOpEmitter = this._register(new Emitter<TestsDiff>());
-	private _resolveHandler?: (item: TestItemRaw | undefined) => Promise<void> | void;
+expowt cwass SingweUseTestCowwection extends Disposabwe {
+	pwivate weadonwy debounceSendDiff = this._wegista(new WunOnceScheduwa(() => this.fwushDiff(), 200));
+	pwivate weadonwy diffOpEmitta = this._wegista(new Emitta<TestsDiff>());
+	pwivate _wesowveHandwa?: (item: TestItemWaw | undefined) => Pwomise<void> | void;
 
-	public readonly root = new TestItemRootImpl(this.controllerId, this.controllerId);
-	public readonly tree = new Map</* full test id */string, OwnedCollectionTestItem>();
-	private readonly tags = new Map<string, { label?: string, refCount: number }>();
+	pubwic weadonwy woot = new TestItemWootImpw(this.contwowwewId, this.contwowwewId);
+	pubwic weadonwy twee = new Map</* fuww test id */stwing, OwnedCowwectionTestItem>();
+	pwivate weadonwy tags = new Map<stwing, { wabew?: stwing, wefCount: numba }>();
 
-	protected diff: TestsDiff = [];
+	pwotected diff: TestsDiff = [];
 
-	constructor(private readonly controllerId: string) {
-		super();
-		this.root.canResolveChildren = true;
-		this.upsertItem(this.root, undefined);
+	constwuctow(pwivate weadonwy contwowwewId: stwing) {
+		supa();
+		this.woot.canWesowveChiwdwen = twue;
+		this.upsewtItem(this.woot, undefined);
 	}
 
 	/**
-	 * Handler used for expanding test items.
+	 * Handwa used fow expanding test items.
 	 */
-	public set resolveHandler(handler: undefined | ((item: TestItemRaw | undefined) => void)) {
-		this._resolveHandler = handler;
-		for (const test of this.tree.values()) {
-			this.updateExpandability(test);
+	pubwic set wesowveHandwa(handwa: undefined | ((item: TestItemWaw | undefined) => void)) {
+		this._wesowveHandwa = handwa;
+		fow (const test of this.twee.vawues()) {
+			this.updateExpandabiwity(test);
 		}
 	}
 
 	/**
-	 * Fires when an operation happens that should result in a diff.
+	 * Fiwes when an opewation happens that shouwd wesuwt in a diff.
 	 */
-	public readonly onDidGenerateDiff = this.diffOpEmitter.event;
+	pubwic weadonwy onDidGenewateDiff = this.diffOpEmitta.event;
 
 	/**
-	 * Gets a diff of all changes that have been made, and clears the diff queue.
+	 * Gets a diff of aww changes that have been made, and cweaws the diff queue.
 	 */
-	public collectDiff() {
+	pubwic cowwectDiff() {
 		const diff = this.diff;
 		this.diff = [];
-		return diff;
+		wetuwn diff;
 	}
 
 	/**
-	 * Pushes a new diff entry onto the collected diff list.
+	 * Pushes a new diff entwy onto the cowwected diff wist.
 	 */
-	public pushDiff(diff: TestsDiffOp) {
-		// Try to merge updates, since they're invoked per-property
-		const last = this.diff[this.diff.length - 1];
-		if (last && diff[0] === TestDiffOpType.Update) {
-			if (last[0] === TestDiffOpType.Update && last[1].extId === diff[1].extId) {
-				applyTestItemUpdate(last[1], diff[1]);
-				return;
+	pubwic pushDiff(diff: TestsDiffOp) {
+		// Twy to mewge updates, since they'we invoked pew-pwopewty
+		const wast = this.diff[this.diff.wength - 1];
+		if (wast && diff[0] === TestDiffOpType.Update) {
+			if (wast[0] === TestDiffOpType.Update && wast[1].extId === diff[1].extId) {
+				appwyTestItemUpdate(wast[1], diff[1]);
+				wetuwn;
 			}
 
-			if (last[0] === TestDiffOpType.Add && last[1].item.extId === diff[1].extId) {
-				applyTestItemUpdate(last[1], diff[1]);
-				return;
+			if (wast[0] === TestDiffOpType.Add && wast[1].item.extId === diff[1].extId) {
+				appwyTestItemUpdate(wast[1], diff[1]);
+				wetuwn;
 			}
 		}
 
 		this.diff.push(diff);
 
-		if (!this.debounceSendDiff.isScheduled()) {
-			this.debounceSendDiff.schedule();
+		if (!this.debounceSendDiff.isScheduwed()) {
+			this.debounceSendDiff.scheduwe();
 		}
 	}
 
 	/**
-	 * Expands the test and the given number of `levels` of children. If levels
-	 * is < 0, then all children will be expanded. If it's 0, then only this
-	 * item will be expanded.
+	 * Expands the test and the given numba of `wevews` of chiwdwen. If wevews
+	 * is < 0, then aww chiwdwen wiww be expanded. If it's 0, then onwy this
+	 * item wiww be expanded.
 	 */
-	public expand(testId: string, levels: number): Promise<void> | void {
-		const internal = this.tree.get(testId);
-		if (!internal) {
-			return;
+	pubwic expand(testId: stwing, wevews: numba): Pwomise<void> | void {
+		const intewnaw = this.twee.get(testId);
+		if (!intewnaw) {
+			wetuwn;
 		}
 
-		if (internal.expandLevels === undefined || levels > internal.expandLevels) {
-			internal.expandLevels = levels;
+		if (intewnaw.expandWevews === undefined || wevews > intewnaw.expandWevews) {
+			intewnaw.expandWevews = wevews;
 		}
 
-		// try to avoid awaiting things if the provider returns synchronously in
-		// order to keep everything in a single diff and DOM update.
-		if (internal.expand === TestItemExpandState.Expandable) {
-			const r = this.resolveChildren(internal);
-			return !r.isOpen()
-				? r.wait().then(() => this.expandChildren(internal, levels - 1))
-				: this.expandChildren(internal, levels - 1);
-		} else if (internal.expand === TestItemExpandState.Expanded) {
-			return internal.resolveBarrier?.isOpen() === false
-				? internal.resolveBarrier.wait().then(() => this.expandChildren(internal, levels - 1))
-				: this.expandChildren(internal, levels - 1);
+		// twy to avoid awaiting things if the pwovida wetuwns synchwonouswy in
+		// owda to keep evewything in a singwe diff and DOM update.
+		if (intewnaw.expand === TestItemExpandState.Expandabwe) {
+			const w = this.wesowveChiwdwen(intewnaw);
+			wetuwn !w.isOpen()
+				? w.wait().then(() => this.expandChiwdwen(intewnaw, wevews - 1))
+				: this.expandChiwdwen(intewnaw, wevews - 1);
+		} ewse if (intewnaw.expand === TestItemExpandState.Expanded) {
+			wetuwn intewnaw.wesowveBawwia?.isOpen() === fawse
+				? intewnaw.wesowveBawwia.wait().then(() => this.expandChiwdwen(intewnaw, wevews - 1))
+				: this.expandChiwdwen(intewnaw, wevews - 1);
 		}
 	}
 
-	public override dispose() {
-		for (const item of this.tree.values()) {
-			getPrivateApiFor(item.actual).listener = undefined;
+	pubwic ovewwide dispose() {
+		fow (const item of this.twee.vawues()) {
+			getPwivateApiFow(item.actuaw).wistena = undefined;
 		}
 
-		this.tree.clear();
+		this.twee.cweaw();
 		this.diff = [];
-		super.dispose();
+		supa.dispose();
 	}
 
-	private onTestItemEvent(internal: OwnedCollectionTestItem, evt: ExtHostTestItemEvent) {
+	pwivate onTestItemEvent(intewnaw: OwnedCowwectionTestItem, evt: ExtHostTestItemEvent) {
 		switch (evt.op) {
-			case ExtHostTestItemEventOp.Invalidated:
-				this.pushDiff([TestDiffOpType.Retire, internal.fullId.toString()]);
-				break;
+			case ExtHostTestItemEventOp.Invawidated:
+				this.pushDiff([TestDiffOpType.Wetiwe, intewnaw.fuwwId.toStwing()]);
+				bweak;
 
-			case ExtHostTestItemEventOp.RemoveChild:
-				this.removeItem(TestId.joinToString(internal.fullId, evt.id));
-				break;
+			case ExtHostTestItemEventOp.WemoveChiwd:
+				this.wemoveItem(TestId.joinToStwing(intewnaw.fuwwId, evt.id));
+				bweak;
 
-			case ExtHostTestItemEventOp.Upsert:
-				this.upsertItem(evt.item, internal);
-				break;
+			case ExtHostTestItemEventOp.Upsewt:
+				this.upsewtItem(evt.item, intewnaw);
+				bweak;
 
-			case ExtHostTestItemEventOp.Bulk:
-				for (const op of evt.ops) {
-					this.onTestItemEvent(internal, op);
+			case ExtHostTestItemEventOp.Buwk:
+				fow (const op of evt.ops) {
+					this.onTestItemEvent(intewnaw, op);
 				}
-				break;
+				bweak;
 
-			case ExtHostTestItemEventOp.SetProp:
-				const { key, value, previous } = evt;
-				const extId = internal.fullId.toString();
+			case ExtHostTestItemEventOp.SetPwop:
+				const { key, vawue, pwevious } = evt;
+				const extId = intewnaw.fuwwId.toStwing();
 				switch (key) {
-					case 'canResolveChildren':
-						this.updateExpandability(internal);
-						break;
+					case 'canWesowveChiwdwen':
+						this.updateExpandabiwity(intewnaw);
+						bweak;
 					case 'tags':
-						this.diffTagRefs(value, previous, extId);
-						break;
-					case 'range':
-						this.pushDiff([TestDiffOpType.Update, { extId, item: { range: Convert.Range.from(value) }, }]);
-						break;
-					case 'error':
-						this.pushDiff([TestDiffOpType.Update, { extId, item: { error: Convert.MarkdownString.fromStrict(value) || null }, }]);
-						break;
-					default:
-						this.pushDiff([TestDiffOpType.Update, { extId, item: { [key]: value ?? null } }]);
-						break;
+						this.diffTagWefs(vawue, pwevious, extId);
+						bweak;
+					case 'wange':
+						this.pushDiff([TestDiffOpType.Update, { extId, item: { wange: Convewt.Wange.fwom(vawue) }, }]);
+						bweak;
+					case 'ewwow':
+						this.pushDiff([TestDiffOpType.Update, { extId, item: { ewwow: Convewt.MawkdownStwing.fwomStwict(vawue) || nuww }, }]);
+						bweak;
+					defauwt:
+						this.pushDiff([TestDiffOpType.Update, { extId, item: { [key]: vawue ?? nuww } }]);
+						bweak;
 				}
-				break;
-			default:
-				assertNever(evt);
+				bweak;
+			defauwt:
+				assewtNeva(evt);
 		}
 	}
 
-	private upsertItem(actual: TestItemRaw, parent: OwnedCollectionTestItem | undefined) {
-		if (!(actual instanceof TestItemImpl)) {
-			throw new Error(`TestItems provided to the VS Code API must extend \`vscode.TestItem\`, but ${actual.id} did not`);
+	pwivate upsewtItem(actuaw: TestItemWaw, pawent: OwnedCowwectionTestItem | undefined) {
+		if (!(actuaw instanceof TestItemImpw)) {
+			thwow new Ewwow(`TestItems pwovided to the VS Code API must extend \`vscode.TestItem\`, but ${actuaw.id} did not`);
 		}
 
-		const fullId = TestId.fromExtHostTestItem(actual, this.root.id, parent?.actual);
+		const fuwwId = TestId.fwomExtHostTestItem(actuaw, this.woot.id, pawent?.actuaw);
 
-		// If this test item exists elsewhere in the tree already (exists at an
-		// old ID with an existing parent), remove that old item.
-		const privateApi = getPrivateApiFor(actual);
-		if (privateApi.parent && privateApi.parent !== parent?.actual) {
-			privateApi.parent.children.delete(actual.id);
+		// If this test item exists ewsewhewe in the twee awweady (exists at an
+		// owd ID with an existing pawent), wemove that owd item.
+		const pwivateApi = getPwivateApiFow(actuaw);
+		if (pwivateApi.pawent && pwivateApi.pawent !== pawent?.actuaw) {
+			pwivateApi.pawent.chiwdwen.dewete(actuaw.id);
 		}
 
-		let internal = this.tree.get(fullId.toString());
-		// Case 1: a brand new item
-		if (!internal) {
-			internal = {
-				fullId,
-				actual,
-				parent: parent ? fullId.parentId : null,
-				expandLevels: parent?.expandLevels /* intentionally undefined or 0 */ ? parent.expandLevels - 1 : undefined,
-				expand: TestItemExpandState.NotExpandable, // updated by `connectItemAndChildren`
+		wet intewnaw = this.twee.get(fuwwId.toStwing());
+		// Case 1: a bwand new item
+		if (!intewnaw) {
+			intewnaw = {
+				fuwwId,
+				actuaw,
+				pawent: pawent ? fuwwId.pawentId : nuww,
+				expandWevews: pawent?.expandWevews /* intentionawwy undefined ow 0 */ ? pawent.expandWevews - 1 : undefined,
+				expand: TestItemExpandState.NotExpandabwe, // updated by `connectItemAndChiwdwen`
 			};
 
-			actual.tags.forEach(this.incrementTagRefs, this);
-			this.tree.set(internal.fullId.toString(), internal);
-			this.setItemParent(actual, parent);
+			actuaw.tags.fowEach(this.incwementTagWefs, this);
+			this.twee.set(intewnaw.fuwwId.toStwing(), intewnaw);
+			this.setItemPawent(actuaw, pawent);
 			this.pushDiff([
 				TestDiffOpType.Add,
 				{
-					parent: internal.parent && internal.parent.toString(),
-					controllerId: this.controllerId,
-					expand: internal.expand,
-					item: Convert.TestItem.from(actual),
+					pawent: intewnaw.pawent && intewnaw.pawent.toStwing(),
+					contwowwewId: this.contwowwewId,
+					expand: intewnaw.expand,
+					item: Convewt.TestItem.fwom(actuaw),
 				},
 			]);
 
-			this.connectItemAndChildren(actual, internal, parent);
-			return;
+			this.connectItemAndChiwdwen(actuaw, intewnaw, pawent);
+			wetuwn;
 		}
 
-		// Case 2: re-insertion of an existing item, no-op
-		if (internal.actual === actual) {
-			this.connectItem(actual, internal, parent); // re-connect in case the parent changed
-			return; // no-op
+		// Case 2: we-insewtion of an existing item, no-op
+		if (intewnaw.actuaw === actuaw) {
+			this.connectItem(actuaw, intewnaw, pawent); // we-connect in case the pawent changed
+			wetuwn; // no-op
 		}
 
-		// Case 3: upsert of an existing item by ID, with a new instance
-		const oldChildren = internal.actual.children;
-		const oldActual = internal.actual;
-		const changedProps = diffTestItems(oldActual, actual);
-		getPrivateApiFor(oldActual).listener = undefined;
+		// Case 3: upsewt of an existing item by ID, with a new instance
+		const owdChiwdwen = intewnaw.actuaw.chiwdwen;
+		const owdActuaw = intewnaw.actuaw;
+		const changedPwops = diffTestItems(owdActuaw, actuaw);
+		getPwivateApiFow(owdActuaw).wistena = undefined;
 
-		internal.actual = actual;
-		internal.expand = TestItemExpandState.NotExpandable; // updated by `connectItemAndChildren`
-		for (const [key, value] of changedProps) {
-			this.onTestItemEvent(internal, { op: ExtHostTestItemEventOp.SetProp, key, value, previous: oldActual[key] });
+		intewnaw.actuaw = actuaw;
+		intewnaw.expand = TestItemExpandState.NotExpandabwe; // updated by `connectItemAndChiwdwen`
+		fow (const [key, vawue] of changedPwops) {
+			this.onTestItemEvent(intewnaw, { op: ExtHostTestItemEventOp.SetPwop, key, vawue, pwevious: owdActuaw[key] });
 		}
 
-		this.connectItemAndChildren(actual, internal, parent);
+		this.connectItemAndChiwdwen(actuaw, intewnaw, pawent);
 
-		// Remove any orphaned children.
-		for (const child of oldChildren) {
-			if (!actual.children.get(child.id)) {
-				this.removeItem(TestId.joinToString(fullId, child.id));
+		// Wemove any owphaned chiwdwen.
+		fow (const chiwd of owdChiwdwen) {
+			if (!actuaw.chiwdwen.get(chiwd.id)) {
+				this.wemoveItem(TestId.joinToStwing(fuwwId, chiwd.id));
 			}
 		}
 	}
 
-	private diffTagRefs(newTags: ITestTag[], oldTags: ITestTag[], extId: string) {
-		const toDelete = new Set(oldTags.map(t => t.id));
-		for (const tag of newTags) {
-			if (!toDelete.delete(tag.id)) {
-				this.incrementTagRefs(tag);
+	pwivate diffTagWefs(newTags: ITestTag[], owdTags: ITestTag[], extId: stwing) {
+		const toDewete = new Set(owdTags.map(t => t.id));
+		fow (const tag of newTags) {
+			if (!toDewete.dewete(tag.id)) {
+				this.incwementTagWefs(tag);
 			}
 		}
 
 		this.pushDiff([
 			TestDiffOpType.Update,
-			{ extId, item: { tags: newTags.map(v => Convert.TestTag.namespace(this.controllerId, v.id)) } }]
+			{ extId, item: { tags: newTags.map(v => Convewt.TestTag.namespace(this.contwowwewId, v.id)) } }]
 		);
 
-		toDelete.forEach(this.decrementTagRefs, this);
+		toDewete.fowEach(this.decwementTagWefs, this);
 	}
 
-	private incrementTagRefs(tag: ITestTag) {
+	pwivate incwementTagWefs(tag: ITestTag) {
 		const existing = this.tags.get(tag.id);
 		if (existing) {
-			existing.refCount++;
-		} else {
-			this.tags.set(tag.id, { refCount: 1 });
+			existing.wefCount++;
+		} ewse {
+			this.tags.set(tag.id, { wefCount: 1 });
 			this.pushDiff([TestDiffOpType.AddTag, {
-				id: Convert.TestTag.namespace(this.controllerId, tag.id),
-				ctrlLabel: this.root.label,
+				id: Convewt.TestTag.namespace(this.contwowwewId, tag.id),
+				ctwwWabew: this.woot.wabew,
 			}]);
 		}
 	}
 
-	private decrementTagRefs(tagId: string) {
+	pwivate decwementTagWefs(tagId: stwing) {
 		const existing = this.tags.get(tagId);
-		if (existing && !--existing.refCount) {
-			this.tags.delete(tagId);
-			this.pushDiff([TestDiffOpType.RemoveTag, Convert.TestTag.namespace(this.controllerId, tagId)]);
+		if (existing && !--existing.wefCount) {
+			this.tags.dewete(tagId);
+			this.pushDiff([TestDiffOpType.WemoveTag, Convewt.TestTag.namespace(this.contwowwewId, tagId)]);
 		}
 	}
 
-	private setItemParent(actual: TestItemImpl, parent: OwnedCollectionTestItem | undefined) {
-		getPrivateApiFor(actual).parent = parent && parent.actual !== this.root ? parent.actual : undefined;
+	pwivate setItemPawent(actuaw: TestItemImpw, pawent: OwnedCowwectionTestItem | undefined) {
+		getPwivateApiFow(actuaw).pawent = pawent && pawent.actuaw !== this.woot ? pawent.actuaw : undefined;
 	}
 
-	private connectItem(actual: TestItemImpl, internal: OwnedCollectionTestItem, parent: OwnedCollectionTestItem | undefined) {
-		this.setItemParent(actual, parent);
-		const api = getPrivateApiFor(actual);
-		api.parent = parent?.actual;
-		api.listener = evt => this.onTestItemEvent(internal, evt);
-		this.updateExpandability(internal);
+	pwivate connectItem(actuaw: TestItemImpw, intewnaw: OwnedCowwectionTestItem, pawent: OwnedCowwectionTestItem | undefined) {
+		this.setItemPawent(actuaw, pawent);
+		const api = getPwivateApiFow(actuaw);
+		api.pawent = pawent?.actuaw;
+		api.wistena = evt => this.onTestItemEvent(intewnaw, evt);
+		this.updateExpandabiwity(intewnaw);
 	}
 
-	private connectItemAndChildren(actual: TestItemImpl, internal: OwnedCollectionTestItem, parent: OwnedCollectionTestItem | undefined) {
-		this.connectItem(actual, internal, parent);
+	pwivate connectItemAndChiwdwen(actuaw: TestItemImpw, intewnaw: OwnedCowwectionTestItem, pawent: OwnedCowwectionTestItem | undefined) {
+		this.connectItem(actuaw, intewnaw, pawent);
 
-		// Discover any existing children that might have already been added
-		for (const child of actual.children) {
-			this.upsertItem(child, internal);
+		// Discova any existing chiwdwen that might have awweady been added
+		fow (const chiwd of actuaw.chiwdwen) {
+			this.upsewtItem(chiwd, intewnaw);
 		}
 	}
 
 	/**
-	 * Updates the `expand` state of the item. Should be called whenever the
-	 * resolved state of the item changes. Can automatically expand the item
-	 * if requested by a consumer.
+	 * Updates the `expand` state of the item. Shouwd be cawwed wheneva the
+	 * wesowved state of the item changes. Can automaticawwy expand the item
+	 * if wequested by a consuma.
 	 */
-	private updateExpandability(internal: OwnedCollectionTestItem) {
-		let newState: TestItemExpandState;
-		if (!this._resolveHandler) {
-			newState = TestItemExpandState.NotExpandable;
-		} else if (internal.resolveBarrier) {
-			newState = internal.resolveBarrier.isOpen()
+	pwivate updateExpandabiwity(intewnaw: OwnedCowwectionTestItem) {
+		wet newState: TestItemExpandState;
+		if (!this._wesowveHandwa) {
+			newState = TestItemExpandState.NotExpandabwe;
+		} ewse if (intewnaw.wesowveBawwia) {
+			newState = intewnaw.wesowveBawwia.isOpen()
 				? TestItemExpandState.Expanded
 				: TestItemExpandState.BusyExpanding;
-		} else {
-			newState = internal.actual.canResolveChildren
-				? TestItemExpandState.Expandable
-				: TestItemExpandState.NotExpandable;
+		} ewse {
+			newState = intewnaw.actuaw.canWesowveChiwdwen
+				? TestItemExpandState.Expandabwe
+				: TestItemExpandState.NotExpandabwe;
 		}
 
-		if (newState === internal.expand) {
-			return;
+		if (newState === intewnaw.expand) {
+			wetuwn;
 		}
 
-		internal.expand = newState;
-		this.pushDiff([TestDiffOpType.Update, { extId: internal.fullId.toString(), expand: newState }]);
+		intewnaw.expand = newState;
+		this.pushDiff([TestDiffOpType.Update, { extId: intewnaw.fuwwId.toStwing(), expand: newState }]);
 
-		if (newState === TestItemExpandState.Expandable && internal.expandLevels !== undefined) {
-			this.resolveChildren(internal);
+		if (newState === TestItemExpandState.Expandabwe && intewnaw.expandWevews !== undefined) {
+			this.wesowveChiwdwen(intewnaw);
 		}
 	}
 
 	/**
-	 * Expands all children of the item, "levels" deep. If levels is 0, only
-	 * the children will be expanded. If it's 1, the children and their children
-	 * will be expanded. If it's <0, it's a no-op.
+	 * Expands aww chiwdwen of the item, "wevews" deep. If wevews is 0, onwy
+	 * the chiwdwen wiww be expanded. If it's 1, the chiwdwen and theiw chiwdwen
+	 * wiww be expanded. If it's <0, it's a no-op.
 	 */
-	private expandChildren(internal: OwnedCollectionTestItem, levels: number): Promise<void> | void {
-		if (levels < 0) {
-			return;
+	pwivate expandChiwdwen(intewnaw: OwnedCowwectionTestItem, wevews: numba): Pwomise<void> | void {
+		if (wevews < 0) {
+			wetuwn;
 		}
 
-		const expandRequests: Promise<void>[] = [];
-		for (const child of internal.actual.children) {
-			const promise = this.expand(TestId.joinToString(internal.fullId, child.id), levels);
-			if (isThenable(promise)) {
-				expandRequests.push(promise);
+		const expandWequests: Pwomise<void>[] = [];
+		fow (const chiwd of intewnaw.actuaw.chiwdwen) {
+			const pwomise = this.expand(TestId.joinToStwing(intewnaw.fuwwId, chiwd.id), wevews);
+			if (isThenabwe(pwomise)) {
+				expandWequests.push(pwomise);
 			}
 		}
 
-		if (expandRequests.length) {
-			return Promise.all(expandRequests).then(() => { });
+		if (expandWequests.wength) {
+			wetuwn Pwomise.aww(expandWequests).then(() => { });
 		}
 	}
 
 	/**
-	 * Calls `discoverChildren` on the item, refreshing all its tests.
+	 * Cawws `discovewChiwdwen` on the item, wefweshing aww its tests.
 	 */
-	private resolveChildren(internal: OwnedCollectionTestItem) {
-		if (internal.resolveBarrier) {
-			return internal.resolveBarrier;
+	pwivate wesowveChiwdwen(intewnaw: OwnedCowwectionTestItem) {
+		if (intewnaw.wesowveBawwia) {
+			wetuwn intewnaw.wesowveBawwia;
 		}
 
-		if (!this._resolveHandler) {
-			const b = new Barrier();
+		if (!this._wesowveHandwa) {
+			const b = new Bawwia();
 			b.open();
-			return b;
+			wetuwn b;
 		}
 
-		internal.expand = TestItemExpandState.BusyExpanding;
-		this.pushExpandStateUpdate(internal);
+		intewnaw.expand = TestItemExpandState.BusyExpanding;
+		this.pushExpandStateUpdate(intewnaw);
 
-		const barrier = internal.resolveBarrier = new Barrier();
-		const applyError = (err: Error) => {
-			console.error(`Unhandled error in resolveHandler of test controller "${this.controllerId}"`);
-			if (internal.actual !== this.root) {
-				internal.actual.error = err.stack || err.message || String(err);
+		const bawwia = intewnaw.wesowveBawwia = new Bawwia();
+		const appwyEwwow = (eww: Ewwow) => {
+			consowe.ewwow(`Unhandwed ewwow in wesowveHandwa of test contwowwa "${this.contwowwewId}"`);
+			if (intewnaw.actuaw !== this.woot) {
+				intewnaw.actuaw.ewwow = eww.stack || eww.message || Stwing(eww);
 			}
 		};
 
-		let r: Thenable<void> | void;
-		try {
-			r = this._resolveHandler(internal.actual === this.root ? undefined : internal.actual);
-		} catch (err) {
-			applyError(err);
+		wet w: Thenabwe<void> | void;
+		twy {
+			w = this._wesowveHandwa(intewnaw.actuaw === this.woot ? undefined : intewnaw.actuaw);
+		} catch (eww) {
+			appwyEwwow(eww);
 		}
 
-		if (isThenable(r)) {
-			r.catch(applyError).then(() => {
-				barrier.open();
-				this.updateExpandability(internal);
+		if (isThenabwe(w)) {
+			w.catch(appwyEwwow).then(() => {
+				bawwia.open();
+				this.updateExpandabiwity(intewnaw);
 			});
-		} else {
-			barrier.open();
-			this.updateExpandability(internal);
+		} ewse {
+			bawwia.open();
+			this.updateExpandabiwity(intewnaw);
 		}
 
-		return internal.resolveBarrier;
+		wetuwn intewnaw.wesowveBawwia;
 	}
 
-	private pushExpandStateUpdate(internal: OwnedCollectionTestItem) {
-		this.pushDiff([TestDiffOpType.Update, { extId: internal.fullId.toString(), expand: internal.expand }]);
+	pwivate pushExpandStateUpdate(intewnaw: OwnedCowwectionTestItem) {
+		this.pushDiff([TestDiffOpType.Update, { extId: intewnaw.fuwwId.toStwing(), expand: intewnaw.expand }]);
 	}
 
-	private removeItem(childId: string) {
-		const childItem = this.tree.get(childId);
-		if (!childItem) {
-			throw new Error('attempting to remove non-existent child');
+	pwivate wemoveItem(chiwdId: stwing) {
+		const chiwdItem = this.twee.get(chiwdId);
+		if (!chiwdItem) {
+			thwow new Ewwow('attempting to wemove non-existent chiwd');
 		}
 
-		this.pushDiff([TestDiffOpType.Remove, childId]);
+		this.pushDiff([TestDiffOpType.Wemove, chiwdId]);
 
-		const queue: (OwnedCollectionTestItem | undefined)[] = [childItem];
-		while (queue.length) {
+		const queue: (OwnedCowwectionTestItem | undefined)[] = [chiwdItem];
+		whiwe (queue.wength) {
 			const item = queue.pop();
 			if (!item) {
 				continue;
 			}
 
-			getPrivateApiFor(item.actual).listener = undefined;
+			getPwivateApiFow(item.actuaw).wistena = undefined;
 
-			for (const tag of item.actual.tags) {
-				this.decrementTagRefs(tag.id);
+			fow (const tag of item.actuaw.tags) {
+				this.decwementTagWefs(tag.id);
 			}
 
-			this.tree.delete(item.fullId.toString());
-			for (const child of item.actual.children) {
-				queue.push(this.tree.get(TestId.joinToString(item.fullId, child.id)));
+			this.twee.dewete(item.fuwwId.toStwing());
+			fow (const chiwd of item.actuaw.chiwdwen) {
+				queue.push(this.twee.get(TestId.joinToStwing(item.fuwwId, chiwd.id)));
 			}
 		}
 	}
 
 	/**
-	 * Immediately emits any pending diffs on the collection.
+	 * Immediatewy emits any pending diffs on the cowwection.
 	 */
-	public flushDiff() {
-		const diff = this.collectDiff();
-		if (diff.length) {
-			this.diffOpEmitter.fire(diff);
+	pubwic fwushDiff() {
+		const diff = this.cowwectDiff();
+		if (diff.wength) {
+			this.diffOpEmitta.fiwe(diff);
 		}
 	}
 }

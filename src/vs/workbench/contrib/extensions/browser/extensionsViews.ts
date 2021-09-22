@@ -1,1267 +1,1267 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import { isPromiseCanceledError, getErrorMessage, createErrorWithActions } from 'vs/base/common/errors';
-import { PagedModel, IPagedModel, IPager, DelayedPagedModel } from 'vs/base/common/paging';
-import { SortBy, SortOrder, IQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionManagementServer, IExtensionManagementServerService, EnablementState, IWorkbenchExtensionManagementService, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { areSameExtensions, getExtensionDependencies } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { append, $ } from 'vs/base/browser/dom';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Delegate, Renderer, IExtensionsViewState, EXTENSION_LIST_ELEMENT_HEIGHT } from 'vs/workbench/contrib/extensions/browser/extensionsList';
-import { ExtensionState, IExtension, IExtensionsWorkbenchService, IWorkspaceRecommendedExtensionsView } from 'vs/workbench/contrib/extensions/common/extensions';
-import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
-import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
-import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { ManageExtensionAction, getContextMenuActions, ExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
-import { WorkbenchPagedList } from 'vs/platform/list/browser/listService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { coalesce, distinct, flatten } from 'vs/base/common/arrays';
-import { IExperimentService, IExperiment, ExperimentActionType } from 'vs/workbench/contrib/experiments/common/experimentService';
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IAction, Action, Separator, ActionRunner } from 'vs/base/common/actions';
-import { ExtensionIdentifier, ExtensionUntrustedWorkspaceSupportType, ExtensionVirtualWorkspaceSupportType, IExtensionDescription, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Disposabwe, DisposabweStowe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { isPwomiseCancewedEwwow, getEwwowMessage, cweateEwwowWithActions } fwom 'vs/base/common/ewwows';
+impowt { PagedModew, IPagedModew, IPaga, DewayedPagedModew } fwom 'vs/base/common/paging';
+impowt { SowtBy, SowtOwda, IQuewyOptions } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { IExtensionManagementSewva, IExtensionManagementSewvewSewvice, EnabwementState, IWowkbenchExtensionManagementSewvice, IWowkbenchExtensionEnabwementSewvice } fwom 'vs/wowkbench/sewvices/extensionManagement/common/extensionManagement';
+impowt { IExtensionWecommendationsSewvice } fwom 'vs/wowkbench/sewvices/extensionWecommendations/common/extensionWecommendations';
+impowt { aweSameExtensions, getExtensionDependencies } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementUtiw';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { append, $ } fwom 'vs/base/bwowsa/dom';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Dewegate, Wendewa, IExtensionsViewState, EXTENSION_WIST_EWEMENT_HEIGHT } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionsWist';
+impowt { ExtensionState, IExtension, IExtensionsWowkbenchSewvice, IWowkspaceWecommendedExtensionsView } fwom 'vs/wowkbench/contwib/extensions/common/extensions';
+impowt { Quewy } fwom 'vs/wowkbench/contwib/extensions/common/extensionQuewy';
+impowt { IExtensionSewvice, toExtension } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { attachBadgeStywa } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { IViewwetViewOptions } fwom 'vs/wowkbench/bwowsa/pawts/views/viewsViewwet';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { CountBadge } fwom 'vs/base/bwowsa/ui/countBadge/countBadge';
+impowt { ManageExtensionAction, getContextMenuActions, ExtensionAction } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionsActions';
+impowt { WowkbenchPagedWist } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { ViewPane, IViewPaneOptions } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPane';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { coawesce, distinct, fwatten } fwom 'vs/base/common/awways';
+impowt { IExpewimentSewvice, IExpewiment, ExpewimentActionType } fwom 'vs/wowkbench/contwib/expewiments/common/expewimentSewvice';
+impowt { awewt } fwom 'vs/base/bwowsa/ui/awia/awia';
+impowt { IWistContextMenuEvent } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IAction, Action, Sepawatow, ActionWunna } fwom 'vs/base/common/actions';
+impowt { ExtensionIdentifia, ExtensionUntwustedWowkspaceSuppowtType, ExtensionViwtuawWowkspaceSuppowtType, IExtensionDescwiption, isWanguagePackExtension } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { CancewabwePwomise, cweateCancewabwePwomise } fwom 'vs/base/common/async';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { SevewityIcon } fwom 'vs/pwatfowm/sevewityIcon/common/sevewityIcon';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { SIDE_BAW_BACKGWOUND } fwom 'vs/wowkbench/common/theme';
+impowt { IViewDescwiptowSewvice } fwom 'vs/wowkbench/common/views';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IPwefewencesSewvice } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewences';
+impowt { IWistAccessibiwityPwovida } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IExtensionManifestPwopewtiesSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensionManifestPwopewtiesSewvice';
+impowt { isViwtuawWowkspace } fwom 'vs/pwatfowm/wemote/common/wemoteHosts';
+impowt { IWowkspaceTwustManagementSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { IWowkbenchWayoutSewvice, Position } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { HovewPosition } fwom 'vs/base/bwowsa/ui/hova/hovewWidget';
 
-// Extensions that are automatically classified as Programming Language extensions, but should be Feature extensions
-const FORCE_FEATURE_EXTENSIONS = ['vscode.git', 'vscode.search-result'];
+// Extensions that awe automaticawwy cwassified as Pwogwamming Wanguage extensions, but shouwd be Featuwe extensions
+const FOWCE_FEATUWE_EXTENSIONS = ['vscode.git', 'vscode.seawch-wesuwt'];
 
-type WorkspaceRecommendationsClassification = {
-	count: { classification: 'SystemMetaData', purpose: 'FeatureInsight', 'isMeasurement': true };
+type WowkspaceWecommendationsCwassification = {
+	count: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', 'isMeasuwement': twue };
 };
 
-class ExtensionsViewState extends Disposable implements IExtensionsViewState {
+cwass ExtensionsViewState extends Disposabwe impwements IExtensionsViewState {
 
-	private readonly _onFocus: Emitter<IExtension> = this._register(new Emitter<IExtension>());
-	readonly onFocus: Event<IExtension> = this._onFocus.event;
+	pwivate weadonwy _onFocus: Emitta<IExtension> = this._wegista(new Emitta<IExtension>());
+	weadonwy onFocus: Event<IExtension> = this._onFocus.event;
 
-	private readonly _onBlur: Emitter<IExtension> = this._register(new Emitter<IExtension>());
-	readonly onBlur: Event<IExtension> = this._onBlur.event;
+	pwivate weadonwy _onBwuw: Emitta<IExtension> = this._wegista(new Emitta<IExtension>());
+	weadonwy onBwuw: Event<IExtension> = this._onBwuw.event;
 
-	private currentlyFocusedItems: IExtension[] = [];
+	pwivate cuwwentwyFocusedItems: IExtension[] = [];
 
 	onFocusChange(extensions: IExtension[]): void {
-		this.currentlyFocusedItems.forEach(extension => this._onBlur.fire(extension));
-		this.currentlyFocusedItems = extensions;
-		this.currentlyFocusedItems.forEach(extension => this._onFocus.fire(extension));
+		this.cuwwentwyFocusedItems.fowEach(extension => this._onBwuw.fiwe(extension));
+		this.cuwwentwyFocusedItems = extensions;
+		this.cuwwentwyFocusedItems.fowEach(extension => this._onFocus.fiwe(extension));
 	}
 }
 
-export interface ExtensionsListViewOptions {
-	server?: IExtensionManagementServer;
-	fixedHeight?: boolean;
-	onDidChangeTitle?: Event<string>;
+expowt intewface ExtensionsWistViewOptions {
+	sewva?: IExtensionManagementSewva;
+	fixedHeight?: boowean;
+	onDidChangeTitwe?: Event<stwing>;
 }
 
-class ExtensionListViewWarning extends Error { }
+cwass ExtensionWistViewWawning extends Ewwow { }
 
-interface IQueryResult {
-	readonly model: IPagedModel<IExtension>;
-	readonly onDidChangeModel?: Event<IPagedModel<IExtension>>;
-	readonly disposables: DisposableStore;
+intewface IQuewyWesuwt {
+	weadonwy modew: IPagedModew<IExtension>;
+	weadonwy onDidChangeModew?: Event<IPagedModew<IExtension>>;
+	weadonwy disposabwes: DisposabweStowe;
 }
 
-export class ExtensionsListView extends ViewPane {
+expowt cwass ExtensionsWistView extends ViewPane {
 
-	private bodyTemplate: {
-		messageContainer: HTMLElement;
-		messageSeverityIcon: HTMLElement;
-		messageBox: HTMLElement;
-		extensionsList: HTMLElement;
+	pwivate bodyTempwate: {
+		messageContaina: HTMWEwement;
+		messageSevewityIcon: HTMWEwement;
+		messageBox: HTMWEwement;
+		extensionsWist: HTMWEwement;
 	} | undefined;
-	private badge: CountBadge | undefined;
-	private list: WorkbenchPagedList<IExtension> | null = null;
-	private queryRequest: { query: string, request: CancelablePromise<IPagedModel<IExtension>> } | null = null;
-	private queryResult: IQueryResult | undefined;
+	pwivate badge: CountBadge | undefined;
+	pwivate wist: WowkbenchPagedWist<IExtension> | nuww = nuww;
+	pwivate quewyWequest: { quewy: stwing, wequest: CancewabwePwomise<IPagedModew<IExtension>> } | nuww = nuww;
+	pwivate quewyWesuwt: IQuewyWesuwt | undefined;
 
-	private readonly contextMenuActionRunner = this._register(new ActionRunner());
+	pwivate weadonwy contextMenuActionWunna = this._wegista(new ActionWunna());
 
-	constructor(
-		protected readonly options: ExtensionsListViewOptions,
-		viewletViewOptions: IViewletViewOptions,
-		@INotificationService protected notificationService: INotificationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@IExtensionsWorkbenchService protected extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionRecommendationsService protected extensionRecommendationsService: IExtensionRecommendationsService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
-		@IExperimentService private readonly experimentService: IExperimentService,
-		@IExtensionManagementServerService protected readonly extensionManagementServerService: IExtensionManagementServerService,
-		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
-		@IWorkbenchExtensionManagementService protected readonly extensionManagementService: IWorkbenchExtensionManagementService,
-		@IWorkspaceContextService protected readonly workspaceService: IWorkspaceContextService,
-		@IProductService protected readonly productService: IProductService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IOpenerService openerService: IOpenerService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+	constwuctow(
+		pwotected weadonwy options: ExtensionsWistViewOptions,
+		viewwetViewOptions: IViewwetViewOptions,
+		@INotificationSewvice pwotected notificationSewvice: INotificationSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IExtensionSewvice pwivate weadonwy extensionSewvice: IExtensionSewvice,
+		@IExtensionsWowkbenchSewvice pwotected extensionsWowkbenchSewvice: IExtensionsWowkbenchSewvice,
+		@IExtensionWecommendationsSewvice pwotected extensionWecommendationsSewvice: IExtensionWecommendationsSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IWowkspaceContextSewvice pwotected contextSewvice: IWowkspaceContextSewvice,
+		@IExpewimentSewvice pwivate weadonwy expewimentSewvice: IExpewimentSewvice,
+		@IExtensionManagementSewvewSewvice pwotected weadonwy extensionManagementSewvewSewvice: IExtensionManagementSewvewSewvice,
+		@IExtensionManifestPwopewtiesSewvice pwivate weadonwy extensionManifestPwopewtiesSewvice: IExtensionManifestPwopewtiesSewvice,
+		@IWowkbenchExtensionManagementSewvice pwotected weadonwy extensionManagementSewvice: IWowkbenchExtensionManagementSewvice,
+		@IWowkspaceContextSewvice pwotected weadonwy wowkspaceSewvice: IWowkspaceContextSewvice,
+		@IPwoductSewvice pwotected weadonwy pwoductSewvice: IPwoductSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IViewDescwiptowSewvice viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IOpenewSewvice openewSewvice: IOpenewSewvice,
+		@IPwefewencesSewvice pwivate weadonwy pwefewencesSewvice: IPwefewencesSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IWowkspaceTwustManagementSewvice pwivate weadonwy wowkspaceTwustManagementSewvice: IWowkspaceTwustManagementSewvice,
+		@IWowkbenchExtensionEnabwementSewvice pwivate weadonwy extensionEnabwementSewvice: IWowkbenchExtensionEnabwementSewvice,
+		@IWowkbenchWayoutSewvice pwivate weadonwy wayoutSewvice: IWowkbenchWayoutSewvice
 	) {
-		super({
-			...(viewletViewOptions as IViewPaneOptions),
-			showActionsAlways: true,
-			maximumBodySize: options.fixedHeight ? storageService.getNumber(viewletViewOptions.id, StorageScope.GLOBAL, 0) : undefined
-		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
-		if (this.options.onDidChangeTitle) {
-			this._register(this.options.onDidChangeTitle(title => this.updateTitle(title)));
+		supa({
+			...(viewwetViewOptions as IViewPaneOptions),
+			showActionsAwways: twue,
+			maximumBodySize: options.fixedHeight ? stowageSewvice.getNumba(viewwetViewOptions.id, StowageScope.GWOBAW, 0) : undefined
+		}, keybindingSewvice, contextMenuSewvice, configuwationSewvice, contextKeySewvice, viewDescwiptowSewvice, instantiationSewvice, openewSewvice, themeSewvice, tewemetwySewvice);
+		if (this.options.onDidChangeTitwe) {
+			this._wegista(this.options.onDidChangeTitwe(titwe => this.updateTitwe(titwe)));
 		}
 
-		this._register(this.contextMenuActionRunner.onDidRun(({ error }) => error && this.notificationService.error(error)));
-		this.registerActions();
+		this._wegista(this.contextMenuActionWunna.onDidWun(({ ewwow }) => ewwow && this.notificationSewvice.ewwow(ewwow)));
+		this.wegistewActions();
 	}
 
-	protected registerActions(): void { }
+	pwotected wegistewActions(): void { }
 
-	protected override renderHeader(container: HTMLElement): void {
-		container.classList.add('extension-view-header');
-		super.renderHeader(container);
+	pwotected ovewwide wendewHeada(containa: HTMWEwement): void {
+		containa.cwassWist.add('extension-view-heada');
+		supa.wendewHeada(containa);
 
-		this.badge = new CountBadge(append(container, $('.count-badge-wrapper')));
-		this._register(attachBadgeStyler(this.badge, this.themeService));
+		this.badge = new CountBadge(append(containa, $('.count-badge-wwappa')));
+		this._wegista(attachBadgeStywa(this.badge, this.themeSewvice));
 	}
 
-	override renderBody(container: HTMLElement): void {
-		super.renderBody(container);
+	ovewwide wendewBody(containa: HTMWEwement): void {
+		supa.wendewBody(containa);
 
-		const extensionsList = append(container, $('.extensions-list'));
-		const messageContainer = append(container, $('.message-container'));
-		const messageSeverityIcon = append(messageContainer, $(''));
-		const messageBox = append(messageContainer, $('.message'));
-		const delegate = new Delegate();
+		const extensionsWist = append(containa, $('.extensions-wist'));
+		const messageContaina = append(containa, $('.message-containa'));
+		const messageSevewityIcon = append(messageContaina, $(''));
+		const messageBox = append(messageContaina, $('.message'));
+		const dewegate = new Dewegate();
 		const extensionsViewState = new ExtensionsViewState();
-		const renderer = this.instantiationService.createInstance(Renderer, extensionsViewState, { hoverOptions: { position: () => { return this.layoutService.getSideBarPosition() === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT; } } });
-		this.list = this.instantiationService.createInstance(WorkbenchPagedList, 'Extensions', extensionsList, delegate, [renderer], {
-			multipleSelectionSupport: false,
-			setRowLineHeight: false,
-			horizontalScrolling: false,
-			accessibilityProvider: <IListAccessibilityProvider<IExtension | null>>{
-				getAriaLabel(extension: IExtension | null): string {
-					return extension ? localize('extension.arialabel', "{0}, {1}, {2}, {3}", extension.displayName, extension.version, extension.publisherDisplayName, extension.description) : '';
+		const wendewa = this.instantiationSewvice.cweateInstance(Wendewa, extensionsViewState, { hovewOptions: { position: () => { wetuwn this.wayoutSewvice.getSideBawPosition() === Position.WEFT ? HovewPosition.WIGHT : HovewPosition.WEFT; } } });
+		this.wist = this.instantiationSewvice.cweateInstance(WowkbenchPagedWist, 'Extensions', extensionsWist, dewegate, [wendewa], {
+			muwtipweSewectionSuppowt: fawse,
+			setWowWineHeight: fawse,
+			howizontawScwowwing: fawse,
+			accessibiwityPwovida: <IWistAccessibiwityPwovida<IExtension | nuww>>{
+				getAwiaWabew(extension: IExtension | nuww): stwing {
+					wetuwn extension ? wocawize('extension.awiawabew', "{0}, {1}, {2}, {3}", extension.dispwayName, extension.vewsion, extension.pubwishewDispwayName, extension.descwiption) : '';
 				},
-				getWidgetAriaLabel(): string {
-					return localize('extensions', "Extensions");
+				getWidgetAwiaWabew(): stwing {
+					wetuwn wocawize('extensions', "Extensions");
 				}
 			},
-			overrideStyles: {
-				listBackground: SIDE_BAR_BACKGROUND
+			ovewwideStywes: {
+				wistBackgwound: SIDE_BAW_BACKGWOUND
 			},
-			openOnSingleClick: true
-		}) as WorkbenchPagedList<IExtension>;
-		this._register(this.list.onContextMenu(e => this.onContextMenu(e), this));
-		this._register(this.list.onDidChangeFocus(e => extensionsViewState.onFocusChange(coalesce(e.elements)), this));
-		this._register(this.list);
-		this._register(extensionsViewState);
+			openOnSingweCwick: twue
+		}) as WowkbenchPagedWist<IExtension>;
+		this._wegista(this.wist.onContextMenu(e => this.onContextMenu(e), this));
+		this._wegista(this.wist.onDidChangeFocus(e => extensionsViewState.onFocusChange(coawesce(e.ewements)), this));
+		this._wegista(this.wist);
+		this._wegista(extensionsViewState);
 
-		this._register(Event.debounce(Event.filter(this.list.onDidOpen, e => e.element !== null), (_, event) => event, 75, true)(options => {
-			this.openExtension(options.element!, { sideByside: options.sideBySide, ...options.editorOptions });
+		this._wegista(Event.debounce(Event.fiwta(this.wist.onDidOpen, e => e.ewement !== nuww), (_, event) => event, 75, twue)(options => {
+			this.openExtension(options.ewement!, { sideByside: options.sideBySide, ...options.editowOptions });
 		}));
 
-		this.bodyTemplate = {
-			extensionsList,
+		this.bodyTempwate = {
+			extensionsWist,
 			messageBox,
-			messageContainer,
-			messageSeverityIcon
+			messageContaina,
+			messageSevewityIcon
 		};
 	}
 
-	protected override layoutBody(height: number, width: number): void {
-		super.layoutBody(height, width);
-		if (this.bodyTemplate) {
-			this.bodyTemplate.extensionsList.style.height = height + 'px';
+	pwotected ovewwide wayoutBody(height: numba, width: numba): void {
+		supa.wayoutBody(height, width);
+		if (this.bodyTempwate) {
+			this.bodyTempwate.extensionsWist.stywe.height = height + 'px';
 		}
-		if (this.list) {
-			this.list.layout(height, width);
+		if (this.wist) {
+			this.wist.wayout(height, width);
 		}
 	}
 
-	async show(query: string, refresh?: boolean): Promise<IPagedModel<IExtension>> {
-		if (this.queryRequest) {
-			if (!refresh && this.queryRequest.query === query) {
-				return this.queryRequest.request;
+	async show(quewy: stwing, wefwesh?: boowean): Pwomise<IPagedModew<IExtension>> {
+		if (this.quewyWequest) {
+			if (!wefwesh && this.quewyWequest.quewy === quewy) {
+				wetuwn this.quewyWequest.wequest;
 			}
-			this.queryRequest.request.cancel();
-			this.queryRequest = null;
+			this.quewyWequest.wequest.cancew();
+			this.quewyWequest = nuww;
 		}
 
-		if (this.queryResult) {
-			this.queryResult.disposables.dispose();
-			this.queryResult = undefined;
+		if (this.quewyWesuwt) {
+			this.quewyWesuwt.disposabwes.dispose();
+			this.quewyWesuwt = undefined;
 		}
 
-		const parsedQuery = Query.parse(query);
+		const pawsedQuewy = Quewy.pawse(quewy);
 
-		let options: IQueryOptions = {
-			sortOrder: SortOrder.Default
+		wet options: IQuewyOptions = {
+			sowtOwda: SowtOwda.Defauwt
 		};
 
-		switch (parsedQuery.sortBy) {
-			case 'installs': options.sortBy = SortBy.InstallCount; break;
-			case 'rating': options.sortBy = SortBy.WeightedRating; break;
-			case 'name': options.sortBy = SortBy.Title; break;
-			case 'publishedDate': options.sortBy = SortBy.PublishedDate; break;
+		switch (pawsedQuewy.sowtBy) {
+			case 'instawws': options.sowtBy = SowtBy.InstawwCount; bweak;
+			case 'wating': options.sowtBy = SowtBy.WeightedWating; bweak;
+			case 'name': options.sowtBy = SowtBy.Titwe; bweak;
+			case 'pubwishedDate': options.sowtBy = SowtBy.PubwishedDate; bweak;
 		}
 
-		const request = createCancelablePromise(async token => {
-			try {
-				this.queryResult = await this.query(parsedQuery, options, token);
-				const model = this.queryResult.model;
-				this.setModel(model);
-				if (this.queryResult.onDidChangeModel) {
-					this.queryResult.disposables.add(this.queryResult.onDidChangeModel(model => this.updateModel(model)));
+		const wequest = cweateCancewabwePwomise(async token => {
+			twy {
+				this.quewyWesuwt = await this.quewy(pawsedQuewy, options, token);
+				const modew = this.quewyWesuwt.modew;
+				this.setModew(modew);
+				if (this.quewyWesuwt.onDidChangeModew) {
+					this.quewyWesuwt.disposabwes.add(this.quewyWesuwt.onDidChangeModew(modew => this.updateModew(modew)));
 				}
-				return model;
+				wetuwn modew;
 			} catch (e) {
-				const model = new PagedModel([]);
-				if (!isPromiseCanceledError(e)) {
-					this.setModel(model, e);
+				const modew = new PagedModew([]);
+				if (!isPwomiseCancewedEwwow(e)) {
+					this.setModew(modew, e);
 				}
-				return this.list ? this.list.model : model;
+				wetuwn this.wist ? this.wist.modew : modew;
 			}
 		});
 
-		request.finally(() => this.queryRequest = null);
-		this.queryRequest = { query, request };
-		return request;
+		wequest.finawwy(() => this.quewyWequest = nuww);
+		this.quewyWequest = { quewy, wequest };
+		wetuwn wequest;
 	}
 
-	count(): number {
-		return this.list ? this.list.length : 0;
+	count(): numba {
+		wetuwn this.wist ? this.wist.wength : 0;
 	}
 
-	protected showEmptyModel(): Promise<IPagedModel<IExtension>> {
-		const emptyModel = new PagedModel([]);
-		this.setModel(emptyModel);
-		return Promise.resolve(emptyModel);
+	pwotected showEmptyModew(): Pwomise<IPagedModew<IExtension>> {
+		const emptyModew = new PagedModew([]);
+		this.setModew(emptyModew);
+		wetuwn Pwomise.wesowve(emptyModew);
 	}
 
-	private async onContextMenu(e: IListContextMenuEvent<IExtension>): Promise<void> {
-		if (e.element) {
-			const runningExtensions = await this.extensionService.getExtensions();
-			const manageExtensionAction = this.instantiationService.createInstance(ManageExtensionAction);
-			manageExtensionAction.extension = e.element;
-			let groups: IAction[][] = [];
-			if (manageExtensionAction.enabled) {
-				groups = await manageExtensionAction.getActionGroups(runningExtensions);
+	pwivate async onContextMenu(e: IWistContextMenuEvent<IExtension>): Pwomise<void> {
+		if (e.ewement) {
+			const wunningExtensions = await this.extensionSewvice.getExtensions();
+			const manageExtensionAction = this.instantiationSewvice.cweateInstance(ManageExtensionAction);
+			manageExtensionAction.extension = e.ewement;
+			wet gwoups: IAction[][] = [];
+			if (manageExtensionAction.enabwed) {
+				gwoups = await manageExtensionAction.getActionGwoups(wunningExtensions);
 
-			} else if (e.element) {
-				groups = getContextMenuActions(e.element, false, this.instantiationService);
-				groups.forEach(group => group.forEach(extensionAction => {
+			} ewse if (e.ewement) {
+				gwoups = getContextMenuActions(e.ewement, fawse, this.instantiationSewvice);
+				gwoups.fowEach(gwoup => gwoup.fowEach(extensionAction => {
 					if (extensionAction instanceof ExtensionAction) {
-						extensionAction.extension = e.element!;
+						extensionAction.extension = e.ewement!;
 					}
 				}));
 			}
-			let actions: IAction[] = [];
-			for (const menuActions of groups) {
-				actions = [...actions, ...menuActions, new Separator()];
+			wet actions: IAction[] = [];
+			fow (const menuActions of gwoups) {
+				actions = [...actions, ...menuActions, new Sepawatow()];
 			}
 			actions.pop();
-			this.contextMenuService.showContextMenu({
-				getAnchor: () => e.anchor,
+			this.contextMenuSewvice.showContextMenu({
+				getAnchow: () => e.anchow,
 				getActions: () => actions,
-				actionRunner: this.contextMenuActionRunner,
+				actionWunna: this.contextMenuActionWunna,
 			});
 		}
 	}
 
-	private async query(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IQueryResult> {
-		const idRegex = /@id:(([a-z0-9A-Z][a-z0-9\-A-Z]*)\.([a-z0-9A-Z][a-z0-9\-A-Z]*))/g;
-		const ids: string[] = [];
-		let idMatch;
-		while ((idMatch = idRegex.exec(query.value)) !== null) {
+	pwivate async quewy(quewy: Quewy, options: IQuewyOptions, token: CancewwationToken): Pwomise<IQuewyWesuwt> {
+		const idWegex = /@id:(([a-z0-9A-Z][a-z0-9\-A-Z]*)\.([a-z0-9A-Z][a-z0-9\-A-Z]*))/g;
+		const ids: stwing[] = [];
+		wet idMatch;
+		whiwe ((idMatch = idWegex.exec(quewy.vawue)) !== nuww) {
 			const name = idMatch[1];
 			ids.push(name);
 		}
-		if (ids.length) {
-			const model = await this.queryByIds(ids, options, token);
-			return { model, disposables: new DisposableStore() };
+		if (ids.wength) {
+			const modew = await this.quewyByIds(ids, options, token);
+			wetuwn { modew, disposabwes: new DisposabweStowe() };
 		}
 
-		if (ExtensionsListView.isLocalExtensionsQuery(query.value)) {
-			return this.queryLocal(query, options);
+		if (ExtensionsWistView.isWocawExtensionsQuewy(quewy.vawue)) {
+			wetuwn this.quewyWocaw(quewy, options);
 		}
 
-		try {
-			const model = await this.queryGallery(query, options, token);
-			return { model, disposables: new DisposableStore() };
+		twy {
+			const modew = await this.quewyGawwewy(quewy, options, token);
+			wetuwn { modew, disposabwes: new DisposabweStowe() };
 		} catch (e) {
-			console.warn('Error querying extensions gallery', getErrorMessage(e));
-			return Promise.reject(new ExtensionListViewWarning(localize('galleryError', "We cannot connect to the Extensions Marketplace at this time, please try again later.")));
+			consowe.wawn('Ewwow quewying extensions gawwewy', getEwwowMessage(e));
+			wetuwn Pwomise.weject(new ExtensionWistViewWawning(wocawize('gawwewyEwwow', "We cannot connect to the Extensions Mawketpwace at this time, pwease twy again wata.")));
 		}
 	}
 
-	private async queryByIds(ids: string[], options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
-		const idsSet: Set<string> = ids.reduce((result, id) => { result.add(id.toLowerCase()); return result; }, new Set<string>());
-		const result = (await this.extensionsWorkbenchService.queryLocal(this.options.server))
-			.filter(e => idsSet.has(e.identifier.id.toLowerCase()));
+	pwivate async quewyByIds(ids: stwing[], options: IQuewyOptions, token: CancewwationToken): Pwomise<IPagedModew<IExtension>> {
+		const idsSet: Set<stwing> = ids.weduce((wesuwt, id) => { wesuwt.add(id.toWowewCase()); wetuwn wesuwt; }, new Set<stwing>());
+		const wesuwt = (await this.extensionsWowkbenchSewvice.quewyWocaw(this.options.sewva))
+			.fiwta(e => idsSet.has(e.identifia.id.toWowewCase()));
 
-		if (result.length) {
-			return this.getPagedModel(this.sortExtensions(result, options));
+		if (wesuwt.wength) {
+			wetuwn this.getPagedModew(this.sowtExtensions(wesuwt, options));
 		}
 
-		return this.extensionsWorkbenchService.queryGallery({ names: ids, source: 'queryById' }, token)
-			.then(pager => this.getPagedModel(pager));
+		wetuwn this.extensionsWowkbenchSewvice.quewyGawwewy({ names: ids, souwce: 'quewyById' }, token)
+			.then(paga => this.getPagedModew(paga));
 	}
 
-	private async queryLocal(query: Query, options: IQueryOptions): Promise<IQueryResult> {
-		const local = await this.extensionsWorkbenchService.queryLocal(this.options.server);
-		const runningExtensions = await this.extensionService.getExtensions();
-		let { extensions, canIncludeInstalledExtensions } = this.filterLocal(local, runningExtensions, query, options);
-		const disposables = new DisposableStore();
-		const onDidChangeModel = disposables.add(new Emitter<IPagedModel<IExtension>>());
+	pwivate async quewyWocaw(quewy: Quewy, options: IQuewyOptions): Pwomise<IQuewyWesuwt> {
+		const wocaw = await this.extensionsWowkbenchSewvice.quewyWocaw(this.options.sewva);
+		const wunningExtensions = await this.extensionSewvice.getExtensions();
+		wet { extensions, canIncwudeInstawwedExtensions } = this.fiwtewWocaw(wocaw, wunningExtensions, quewy, options);
+		const disposabwes = new DisposabweStowe();
+		const onDidChangeModew = disposabwes.add(new Emitta<IPagedModew<IExtension>>());
 
-		if (canIncludeInstalledExtensions) {
-			let isDisposed: boolean = false;
-			disposables.add(toDisposable(() => isDisposed = true));
-			disposables.add(Event.debounce(Event.any(
-				Event.filter(this.extensionsWorkbenchService.onChange, e => e?.state === ExtensionState.Installed),
-				this.extensionService.onDidChangeExtensions
+		if (canIncwudeInstawwedExtensions) {
+			wet isDisposed: boowean = fawse;
+			disposabwes.add(toDisposabwe(() => isDisposed = twue));
+			disposabwes.add(Event.debounce(Event.any(
+				Event.fiwta(this.extensionsWowkbenchSewvice.onChange, e => e?.state === ExtensionState.Instawwed),
+				this.extensionSewvice.onDidChangeExtensions
 			), () => undefined)(async () => {
-				const local = this.options.server ? this.extensionsWorkbenchService.installed.filter(e => e.server === this.options.server) : this.extensionsWorkbenchService.local;
-				const runningExtensions = await this.extensionService.getExtensions();
-				const { extensions: newExtensions } = this.filterLocal(local, runningExtensions, query, options);
+				const wocaw = this.options.sewva ? this.extensionsWowkbenchSewvice.instawwed.fiwta(e => e.sewva === this.options.sewva) : this.extensionsWowkbenchSewvice.wocaw;
+				const wunningExtensions = await this.extensionSewvice.getExtensions();
+				const { extensions: newExtensions } = this.fiwtewWocaw(wocaw, wunningExtensions, quewy, options);
 				if (!isDisposed) {
-					const mergedExtensions = this.mergeAddedExtensions(extensions, newExtensions);
-					if (mergedExtensions) {
-						extensions = mergedExtensions;
-						onDidChangeModel.fire(new PagedModel(extensions));
+					const mewgedExtensions = this.mewgeAddedExtensions(extensions, newExtensions);
+					if (mewgedExtensions) {
+						extensions = mewgedExtensions;
+						onDidChangeModew.fiwe(new PagedModew(extensions));
 					}
 				}
 			}));
 		}
 
-		return {
-			model: new PagedModel(extensions),
-			onDidChangeModel: onDidChangeModel.event,
-			disposables
+		wetuwn {
+			modew: new PagedModew(extensions),
+			onDidChangeModew: onDidChangeModew.event,
+			disposabwes
 		};
 	}
 
-	private filterLocal(local: IExtension[], runningExtensions: IExtensionDescription[], query: Query, options: IQueryOptions): { extensions: IExtension[], canIncludeInstalledExtensions: boolean } {
-		let value = query.value;
-		let extensions: IExtension[] = [];
-		let canIncludeInstalledExtensions = true;
+	pwivate fiwtewWocaw(wocaw: IExtension[], wunningExtensions: IExtensionDescwiption[], quewy: Quewy, options: IQuewyOptions): { extensions: IExtension[], canIncwudeInstawwedExtensions: boowean } {
+		wet vawue = quewy.vawue;
+		wet extensions: IExtension[] = [];
+		wet canIncwudeInstawwedExtensions = twue;
 
-		if (/@builtin/i.test(value)) {
-			extensions = this.filterBuiltinExtensions(local, query, options);
-			canIncludeInstalledExtensions = false;
+		if (/@buiwtin/i.test(vawue)) {
+			extensions = this.fiwtewBuiwtinExtensions(wocaw, quewy, options);
+			canIncwudeInstawwedExtensions = fawse;
 		}
 
-		else if (/@installed/i.test(value)) {
-			extensions = this.filterInstalledExtensions(local, runningExtensions, query, options);
+		ewse if (/@instawwed/i.test(vawue)) {
+			extensions = this.fiwtewInstawwedExtensions(wocaw, wunningExtensions, quewy, options);
 		}
 
-		else if (/@outdated/i.test(value)) {
-			extensions = this.filterOutdatedExtensions(local, query, options);
+		ewse if (/@outdated/i.test(vawue)) {
+			extensions = this.fiwtewOutdatedExtensions(wocaw, quewy, options);
 		}
 
-		else if (/@disabled/i.test(value)) {
-			extensions = this.filterDisabledExtensions(local, runningExtensions, query, options);
+		ewse if (/@disabwed/i.test(vawue)) {
+			extensions = this.fiwtewDisabwedExtensions(wocaw, wunningExtensions, quewy, options);
 		}
 
-		else if (/@enabled/i.test(value)) {
-			extensions = this.filterEnabledExtensions(local, runningExtensions, query, options);
+		ewse if (/@enabwed/i.test(vawue)) {
+			extensions = this.fiwtewEnabwedExtensions(wocaw, wunningExtensions, quewy, options);
 		}
 
-		else if (/@workspaceUnsupported/i.test(value)) {
-			extensions = this.filterWorkspaceUnsupportedExtensions(local, query, options);
+		ewse if (/@wowkspaceUnsuppowted/i.test(vawue)) {
+			extensions = this.fiwtewWowkspaceUnsuppowtedExtensions(wocaw, quewy, options);
 		}
 
-		return { extensions, canIncludeInstalledExtensions };
+		wetuwn { extensions, canIncwudeInstawwedExtensions };
 	}
 
-	private filterBuiltinExtensions(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
-		let value = query.value;
-		const showThemesOnly = /@builtin:themes/i.test(value);
-		if (showThemesOnly) {
-			value = value.replace(/@builtin:themes/g, '');
+	pwivate fiwtewBuiwtinExtensions(wocaw: IExtension[], quewy: Quewy, options: IQuewyOptions): IExtension[] {
+		wet vawue = quewy.vawue;
+		const showThemesOnwy = /@buiwtin:themes/i.test(vawue);
+		if (showThemesOnwy) {
+			vawue = vawue.wepwace(/@buiwtin:themes/g, '');
 		}
-		const showBasicsOnly = /@builtin:basics/i.test(value);
-		if (showBasicsOnly) {
-			value = value.replace(/@builtin:basics/g, '');
+		const showBasicsOnwy = /@buiwtin:basics/i.test(vawue);
+		if (showBasicsOnwy) {
+			vawue = vawue.wepwace(/@buiwtin:basics/g, '');
 		}
-		const showFeaturesOnly = /@builtin:features/i.test(value);
-		if (showFeaturesOnly) {
-			value = value.replace(/@builtin:features/g, '');
+		const showFeatuwesOnwy = /@buiwtin:featuwes/i.test(vawue);
+		if (showFeatuwesOnwy) {
+			vawue = vawue.wepwace(/@buiwtin:featuwes/g, '');
 		}
 
-		value = value.replace(/@builtin/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
+		vawue = vawue.wepwace(/@buiwtin/g, '').wepwace(/@sowt:(\w+)(-\w*)?/g, '').twim().toWowewCase();
 
-		let result = local
-			.filter(e => e.isBuiltin && (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1));
+		wet wesuwt = wocaw
+			.fiwta(e => e.isBuiwtin && (e.name.toWowewCase().indexOf(vawue) > -1 || e.dispwayName.toWowewCase().indexOf(vawue) > -1));
 
-		const isThemeExtension = (e: IExtension): boolean => {
-			return (Array.isArray(e.local?.manifest?.contributes?.themes) && e.local!.manifest!.contributes!.themes.length > 0)
-				|| (Array.isArray(e.local?.manifest?.contributes?.iconThemes) && e.local!.manifest!.contributes!.iconThemes.length > 0);
+		const isThemeExtension = (e: IExtension): boowean => {
+			wetuwn (Awway.isAwway(e.wocaw?.manifest?.contwibutes?.themes) && e.wocaw!.manifest!.contwibutes!.themes.wength > 0)
+				|| (Awway.isAwway(e.wocaw?.manifest?.contwibutes?.iconThemes) && e.wocaw!.manifest!.contwibutes!.iconThemes.wength > 0);
 		};
-		if (showThemesOnly) {
-			const themesExtensions = result.filter(isThemeExtension);
-			return this.sortExtensions(themesExtensions, options);
+		if (showThemesOnwy) {
+			const themesExtensions = wesuwt.fiwta(isThemeExtension);
+			wetuwn this.sowtExtensions(themesExtensions, options);
 		}
 
-		const isLangaugeBasicExtension = (e: IExtension): boolean => {
-			return FORCE_FEATURE_EXTENSIONS.indexOf(e.identifier.id) === -1
-				&& (Array.isArray(e.local?.manifest?.contributes?.grammars) && e.local!.manifest!.contributes!.grammars.length > 0);
+		const isWangaugeBasicExtension = (e: IExtension): boowean => {
+			wetuwn FOWCE_FEATUWE_EXTENSIONS.indexOf(e.identifia.id) === -1
+				&& (Awway.isAwway(e.wocaw?.manifest?.contwibutes?.gwammaws) && e.wocaw!.manifest!.contwibutes!.gwammaws.wength > 0);
 		};
-		if (showBasicsOnly) {
-			const basics = result.filter(isLangaugeBasicExtension);
-			return this.sortExtensions(basics, options);
+		if (showBasicsOnwy) {
+			const basics = wesuwt.fiwta(isWangaugeBasicExtension);
+			wetuwn this.sowtExtensions(basics, options);
 		}
-		if (showFeaturesOnly) {
-			const others = result.filter(e => {
-				return e.local
-					&& e.local.manifest
+		if (showFeatuwesOnwy) {
+			const othews = wesuwt.fiwta(e => {
+				wetuwn e.wocaw
+					&& e.wocaw.manifest
 					&& !isThemeExtension(e)
-					&& !isLangaugeBasicExtension(e);
+					&& !isWangaugeBasicExtension(e);
 			});
-			return this.sortExtensions(others, options);
+			wetuwn this.sowtExtensions(othews, options);
 		}
 
-		return this.sortExtensions(result, options);
+		wetuwn this.sowtExtensions(wesuwt, options);
 	}
 
-	private parseCategories(value: string): { value: string, categories: string[] } {
-		const categories: string[] = [];
-		value = value.replace(/\bcategory:("([^"]*)"|([^"]\S*))(\s+|\b|$)/g, (_, quotedCategory, category) => {
-			const entry = (category || quotedCategory || '').toLowerCase();
-			if (categories.indexOf(entry) === -1) {
-				categories.push(entry);
+	pwivate pawseCategowies(vawue: stwing): { vawue: stwing, categowies: stwing[] } {
+		const categowies: stwing[] = [];
+		vawue = vawue.wepwace(/\bcategowy:("([^"]*)"|([^"]\S*))(\s+|\b|$)/g, (_, quotedCategowy, categowy) => {
+			const entwy = (categowy || quotedCategowy || '').toWowewCase();
+			if (categowies.indexOf(entwy) === -1) {
+				categowies.push(entwy);
 			}
-			return '';
+			wetuwn '';
 		});
-		return { value, categories };
+		wetuwn { vawue, categowies };
 	}
 
-	private filterInstalledExtensions(local: IExtension[], runningExtensions: IExtensionDescription[], query: Query, options: IQueryOptions): IExtension[] {
-		let { value, categories } = this.parseCategories(query.value);
+	pwivate fiwtewInstawwedExtensions(wocaw: IExtension[], wunningExtensions: IExtensionDescwiption[], quewy: Quewy, options: IQuewyOptions): IExtension[] {
+		wet { vawue, categowies } = this.pawseCategowies(quewy.vawue);
 
-		value = value.replace(/@installed/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
+		vawue = vawue.wepwace(/@instawwed/g, '').wepwace(/@sowt:(\w+)(-\w*)?/g, '').twim().toWowewCase();
 
-		let result = local
-			.filter(e => !e.isBuiltin
-				&& (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
-				&& (!categories.length || categories.some(category => (e.local && e.local.manifest.categories || []).some(c => c.toLowerCase() === category))));
+		wet wesuwt = wocaw
+			.fiwta(e => !e.isBuiwtin
+				&& (e.name.toWowewCase().indexOf(vawue) > -1 || e.dispwayName.toWowewCase().indexOf(vawue) > -1)
+				&& (!categowies.wength || categowies.some(categowy => (e.wocaw && e.wocaw.manifest.categowies || []).some(c => c.toWowewCase() === categowy))));
 
-		if (options.sortBy !== undefined) {
-			result = this.sortExtensions(result, options);
-		} else {
-			const runningExtensionsById = runningExtensions.reduce((result, e) => { result.set(ExtensionIdentifier.toKey(e.identifier.value), e); return result; }, new Map<string, IExtensionDescription>());
-			result = result.sort((e1, e2) => {
-				const running1 = runningExtensionsById.get(ExtensionIdentifier.toKey(e1.identifier.id));
-				const isE1Running = running1 && this.extensionManagementServerService.getExtensionManagementServer(toExtension(running1)) === e1.server;
-				const running2 = runningExtensionsById.get(ExtensionIdentifier.toKey(e2.identifier.id));
-				const isE2Running = running2 && this.extensionManagementServerService.getExtensionManagementServer(toExtension(running2)) === e2.server;
-				if ((isE1Running && isE2Running)) {
-					return e1.displayName.localeCompare(e2.displayName);
+		if (options.sowtBy !== undefined) {
+			wesuwt = this.sowtExtensions(wesuwt, options);
+		} ewse {
+			const wunningExtensionsById = wunningExtensions.weduce((wesuwt, e) => { wesuwt.set(ExtensionIdentifia.toKey(e.identifia.vawue), e); wetuwn wesuwt; }, new Map<stwing, IExtensionDescwiption>());
+			wesuwt = wesuwt.sowt((e1, e2) => {
+				const wunning1 = wunningExtensionsById.get(ExtensionIdentifia.toKey(e1.identifia.id));
+				const isE1Wunning = wunning1 && this.extensionManagementSewvewSewvice.getExtensionManagementSewva(toExtension(wunning1)) === e1.sewva;
+				const wunning2 = wunningExtensionsById.get(ExtensionIdentifia.toKey(e2.identifia.id));
+				const isE2Wunning = wunning2 && this.extensionManagementSewvewSewvice.getExtensionManagementSewva(toExtension(wunning2)) === e2.sewva;
+				if ((isE1Wunning && isE2Wunning)) {
+					wetuwn e1.dispwayName.wocaweCompawe(e2.dispwayName);
 				}
-				const isE1LanguagePackExtension = e1.local && isLanguagePackExtension(e1.local.manifest);
-				const isE2LanguagePackExtension = e2.local && isLanguagePackExtension(e2.local.manifest);
-				if (!isE1Running && !isE2Running) {
-					if (isE1LanguagePackExtension) {
-						return -1;
+				const isE1WanguagePackExtension = e1.wocaw && isWanguagePackExtension(e1.wocaw.manifest);
+				const isE2WanguagePackExtension = e2.wocaw && isWanguagePackExtension(e2.wocaw.manifest);
+				if (!isE1Wunning && !isE2Wunning) {
+					if (isE1WanguagePackExtension) {
+						wetuwn -1;
 					}
-					if (isE2LanguagePackExtension) {
-						return 1;
+					if (isE2WanguagePackExtension) {
+						wetuwn 1;
 					}
-					return e1.displayName.localeCompare(e2.displayName);
+					wetuwn e1.dispwayName.wocaweCompawe(e2.dispwayName);
 				}
-				if ((isE1Running && isE2LanguagePackExtension) || (isE2Running && isE1LanguagePackExtension)) {
-					return e1.displayName.localeCompare(e2.displayName);
+				if ((isE1Wunning && isE2WanguagePackExtension) || (isE2Wunning && isE1WanguagePackExtension)) {
+					wetuwn e1.dispwayName.wocaweCompawe(e2.dispwayName);
 				}
-				return isE1Running ? -1 : 1;
+				wetuwn isE1Wunning ? -1 : 1;
 			});
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private filterOutdatedExtensions(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
-		let { value, categories } = this.parseCategories(query.value);
+	pwivate fiwtewOutdatedExtensions(wocaw: IExtension[], quewy: Quewy, options: IQuewyOptions): IExtension[] {
+		wet { vawue, categowies } = this.pawseCategowies(quewy.vawue);
 
-		value = value.replace(/@outdated/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
+		vawue = vawue.wepwace(/@outdated/g, '').wepwace(/@sowt:(\w+)(-\w*)?/g, '').twim().toWowewCase();
 
-		const result = local
-			.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
-			.filter(extension => extension.outdated
-				&& (extension.name.toLowerCase().indexOf(value) > -1 || extension.displayName.toLowerCase().indexOf(value) > -1)
-				&& (!categories.length || categories.some(category => !!extension.local && extension.local.manifest.categories!.some(c => c.toLowerCase() === category))));
+		const wesuwt = wocaw
+			.sowt((e1, e2) => e1.dispwayName.wocaweCompawe(e2.dispwayName))
+			.fiwta(extension => extension.outdated
+				&& (extension.name.toWowewCase().indexOf(vawue) > -1 || extension.dispwayName.toWowewCase().indexOf(vawue) > -1)
+				&& (!categowies.wength || categowies.some(categowy => !!extension.wocaw && extension.wocaw.manifest.categowies!.some(c => c.toWowewCase() === categowy))));
 
-		return this.sortExtensions(result, options);
+		wetuwn this.sowtExtensions(wesuwt, options);
 	}
 
-	private filterDisabledExtensions(local: IExtension[], runningExtensions: IExtensionDescription[], query: Query, options: IQueryOptions): IExtension[] {
-		let { value, categories } = this.parseCategories(query.value);
+	pwivate fiwtewDisabwedExtensions(wocaw: IExtension[], wunningExtensions: IExtensionDescwiption[], quewy: Quewy, options: IQuewyOptions): IExtension[] {
+		wet { vawue, categowies } = this.pawseCategowies(quewy.vawue);
 
-		value = value.replace(/@disabled/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
+		vawue = vawue.wepwace(/@disabwed/g, '').wepwace(/@sowt:(\w+)(-\w*)?/g, '').twim().toWowewCase();
 
-		const result = local
-			.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
-			.filter(e => runningExtensions.every(r => !areSameExtensions({ id: r.identifier.value, uuid: r.uuid }, e.identifier))
-				&& (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
-				&& (!categories.length || categories.some(category => (e.local && e.local.manifest.categories || []).some(c => c.toLowerCase() === category))));
+		const wesuwt = wocaw
+			.sowt((e1, e2) => e1.dispwayName.wocaweCompawe(e2.dispwayName))
+			.fiwta(e => wunningExtensions.evewy(w => !aweSameExtensions({ id: w.identifia.vawue, uuid: w.uuid }, e.identifia))
+				&& (e.name.toWowewCase().indexOf(vawue) > -1 || e.dispwayName.toWowewCase().indexOf(vawue) > -1)
+				&& (!categowies.wength || categowies.some(categowy => (e.wocaw && e.wocaw.manifest.categowies || []).some(c => c.toWowewCase() === categowy))));
 
-		return this.sortExtensions(result, options);
+		wetuwn this.sowtExtensions(wesuwt, options);
 	}
 
-	private filterEnabledExtensions(local: IExtension[], runningExtensions: IExtensionDescription[], query: Query, options: IQueryOptions): IExtension[] {
-		let { value, categories } = this.parseCategories(query.value);
+	pwivate fiwtewEnabwedExtensions(wocaw: IExtension[], wunningExtensions: IExtensionDescwiption[], quewy: Quewy, options: IQuewyOptions): IExtension[] {
+		wet { vawue, categowies } = this.pawseCategowies(quewy.vawue);
 
-		value = value ? value.replace(/@enabled/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase() : '';
+		vawue = vawue ? vawue.wepwace(/@enabwed/g, '').wepwace(/@sowt:(\w+)(-\w*)?/g, '').twim().toWowewCase() : '';
 
-		local = local.filter(e => !e.isBuiltin);
-		const result = local
-			.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
-			.filter(e => runningExtensions.some(r => areSameExtensions({ id: r.identifier.value, uuid: r.uuid }, e.identifier))
-				&& (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
-				&& (!categories.length || categories.some(category => (e.local && e.local.manifest.categories || []).some(c => c.toLowerCase() === category))));
+		wocaw = wocaw.fiwta(e => !e.isBuiwtin);
+		const wesuwt = wocaw
+			.sowt((e1, e2) => e1.dispwayName.wocaweCompawe(e2.dispwayName))
+			.fiwta(e => wunningExtensions.some(w => aweSameExtensions({ id: w.identifia.vawue, uuid: w.uuid }, e.identifia))
+				&& (e.name.toWowewCase().indexOf(vawue) > -1 || e.dispwayName.toWowewCase().indexOf(vawue) > -1)
+				&& (!categowies.wength || categowies.some(categowy => (e.wocaw && e.wocaw.manifest.categowies || []).some(c => c.toWowewCase() === categowy))));
 
-		return this.sortExtensions(result, options);
+		wetuwn this.sowtExtensions(wesuwt, options);
 	}
 
-	private filterWorkspaceUnsupportedExtensions(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
-		// shows local extensions which are restricted or disabled in the current workspace because of the extension's capability
+	pwivate fiwtewWowkspaceUnsuppowtedExtensions(wocaw: IExtension[], quewy: Quewy, options: IQuewyOptions): IExtension[] {
+		// shows wocaw extensions which awe westwicted ow disabwed in the cuwwent wowkspace because of the extension's capabiwity
 
-		let queryString = query.value; // @sortby is already filtered out
+		wet quewyStwing = quewy.vawue; // @sowtby is awweady fiwtewed out
 
-		const match = queryString.match(/^\s*@workspaceUnsupported(?::(untrusted|virtual)(Partial)?)?(?:\s+([^\s]*))?/i);
+		const match = quewyStwing.match(/^\s*@wowkspaceUnsuppowted(?::(untwusted|viwtuaw)(Pawtiaw)?)?(?:\s+([^\s]*))?/i);
 		if (!match) {
-			return [];
+			wetuwn [];
 		}
-		const type = match[1]?.toLowerCase();
-		const partial = !!match[2];
-		const nameFilter = match[3]?.toLowerCase();
+		const type = match[1]?.toWowewCase();
+		const pawtiaw = !!match[2];
+		const nameFiwta = match[3]?.toWowewCase();
 
-		if (nameFilter) {
-			local = local.filter(extension => extension.name.toLowerCase().indexOf(nameFilter) > -1 || extension.displayName.toLowerCase().indexOf(nameFilter) > -1);
+		if (nameFiwta) {
+			wocaw = wocaw.fiwta(extension => extension.name.toWowewCase().indexOf(nameFiwta) > -1 || extension.dispwayName.toWowewCase().indexOf(nameFiwta) > -1);
 		}
 
-		const hasVirtualSupportType = (extension: IExtension, supportType: ExtensionVirtualWorkspaceSupportType) => {
-			return extension.local && this.extensionManifestPropertiesService.getExtensionVirtualWorkspaceSupportType(extension.local.manifest) === supportType;
+		const hasViwtuawSuppowtType = (extension: IExtension, suppowtType: ExtensionViwtuawWowkspaceSuppowtType) => {
+			wetuwn extension.wocaw && this.extensionManifestPwopewtiesSewvice.getExtensionViwtuawWowkspaceSuppowtType(extension.wocaw.manifest) === suppowtType;
 		};
 
-		const hasRestrictedSupportType = (extension: IExtension, supportType: ExtensionUntrustedWorkspaceSupportType) => {
-			if (!extension.local) {
-				return false;
+		const hasWestwictedSuppowtType = (extension: IExtension, suppowtType: ExtensionUntwustedWowkspaceSuppowtType) => {
+			if (!extension.wocaw) {
+				wetuwn fawse;
 			}
 
-			const enablementState = this.extensionEnablementService.getEnablementState(extension.local);
-			if (enablementState !== EnablementState.EnabledGlobally && enablementState !== EnablementState.EnabledWorkspace &&
-				enablementState !== EnablementState.DisabledByTrustRequirement && enablementState !== EnablementState.DisabledByExtensionDependency) {
-				return false;
+			const enabwementState = this.extensionEnabwementSewvice.getEnabwementState(extension.wocaw);
+			if (enabwementState !== EnabwementState.EnabwedGwobawwy && enabwementState !== EnabwementState.EnabwedWowkspace &&
+				enabwementState !== EnabwementState.DisabwedByTwustWequiwement && enabwementState !== EnabwementState.DisabwedByExtensionDependency) {
+				wetuwn fawse;
 			}
 
-			if (this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(extension.local.manifest) === supportType) {
-				return true;
+			if (this.extensionManifestPwopewtiesSewvice.getExtensionUntwustedWowkspaceSuppowtType(extension.wocaw.manifest) === suppowtType) {
+				wetuwn twue;
 			}
 
-			if (supportType === false) {
-				const dependencies = getExtensionDependencies(local.map(ext => ext.local!), extension.local);
-				return dependencies.some(ext => this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(ext.manifest) === supportType);
+			if (suppowtType === fawse) {
+				const dependencies = getExtensionDependencies(wocaw.map(ext => ext.wocaw!), extension.wocaw);
+				wetuwn dependencies.some(ext => this.extensionManifestPwopewtiesSewvice.getExtensionUntwustedWowkspaceSuppowtType(ext.manifest) === suppowtType);
 			}
 
-			return false;
+			wetuwn fawse;
 		};
 
-		const inVirtualWorkspace = isVirtualWorkspace(this.workspaceService.getWorkspace());
-		const inRestrictedWorkspace = !this.workspaceTrustManagementService.isWorkspaceTrusted();
+		const inViwtuawWowkspace = isViwtuawWowkspace(this.wowkspaceSewvice.getWowkspace());
+		const inWestwictedWowkspace = !this.wowkspaceTwustManagementSewvice.isWowkspaceTwusted();
 
-		if (type === 'virtual') {
-			// show limited and disabled extensions unless disabled because of a untrusted workspace
-			local = local.filter(extension => inVirtualWorkspace && hasVirtualSupportType(extension, partial ? 'limited' : false) && !(inRestrictedWorkspace && hasRestrictedSupportType(extension, false)));
-		} else if (type === 'untrusted') {
-			// show limited and disabled extensions unless disabled because of a virtual workspace
-			local = local.filter(extension => hasRestrictedSupportType(extension, partial ? 'limited' : false) && !(inVirtualWorkspace && hasVirtualSupportType(extension, false)));
-		} else {
-			// show extensions that are restricted or disabled in the current workspace
-			local = local.filter(extension => inVirtualWorkspace && !hasVirtualSupportType(extension, true) || inRestrictedWorkspace && !hasRestrictedSupportType(extension, true));
+		if (type === 'viwtuaw') {
+			// show wimited and disabwed extensions unwess disabwed because of a untwusted wowkspace
+			wocaw = wocaw.fiwta(extension => inViwtuawWowkspace && hasViwtuawSuppowtType(extension, pawtiaw ? 'wimited' : fawse) && !(inWestwictedWowkspace && hasWestwictedSuppowtType(extension, fawse)));
+		} ewse if (type === 'untwusted') {
+			// show wimited and disabwed extensions unwess disabwed because of a viwtuaw wowkspace
+			wocaw = wocaw.fiwta(extension => hasWestwictedSuppowtType(extension, pawtiaw ? 'wimited' : fawse) && !(inViwtuawWowkspace && hasViwtuawSuppowtType(extension, fawse)));
+		} ewse {
+			// show extensions that awe westwicted ow disabwed in the cuwwent wowkspace
+			wocaw = wocaw.fiwta(extension => inViwtuawWowkspace && !hasViwtuawSuppowtType(extension, twue) || inWestwictedWowkspace && !hasWestwictedSuppowtType(extension, twue));
 		}
-		return this.sortExtensions(local, options);
+		wetuwn this.sowtExtensions(wocaw, options);
 	}
 
 
-	private mergeAddedExtensions(extensions: IExtension[], newExtensions: IExtension[]): IExtension[] | undefined {
-		const oldExtensions = [...extensions];
-		const findPreviousExtensionIndex = (from: number): number => {
-			let index = -1;
-			const previousExtensionInNew = newExtensions[from];
-			if (previousExtensionInNew) {
-				index = oldExtensions.findIndex(e => areSameExtensions(e.identifier, previousExtensionInNew.identifier));
+	pwivate mewgeAddedExtensions(extensions: IExtension[], newExtensions: IExtension[]): IExtension[] | undefined {
+		const owdExtensions = [...extensions];
+		const findPweviousExtensionIndex = (fwom: numba): numba => {
+			wet index = -1;
+			const pweviousExtensionInNew = newExtensions[fwom];
+			if (pweviousExtensionInNew) {
+				index = owdExtensions.findIndex(e => aweSameExtensions(e.identifia, pweviousExtensionInNew.identifia));
 				if (index === -1) {
-					return findPreviousExtensionIndex(from - 1);
+					wetuwn findPweviousExtensionIndex(fwom - 1);
 				}
 			}
-			return index;
+			wetuwn index;
 		};
 
-		let hasChanged: boolean = false;
-		for (let index = 0; index < newExtensions.length; index++) {
+		wet hasChanged: boowean = fawse;
+		fow (wet index = 0; index < newExtensions.wength; index++) {
 			const extension = newExtensions[index];
-			if (extensions.every(r => !areSameExtensions(r.identifier, extension.identifier))) {
-				hasChanged = true;
-				extensions.splice(findPreviousExtensionIndex(index - 1) + 1, 0, extension);
+			if (extensions.evewy(w => !aweSameExtensions(w.identifia, extension.identifia))) {
+				hasChanged = twue;
+				extensions.spwice(findPweviousExtensionIndex(index - 1) + 1, 0, extension);
 			}
 		}
 
-		return hasChanged ? extensions : undefined;
+		wetuwn hasChanged ? extensions : undefined;
 	}
 
-	private async queryGallery(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
-		const hasUserDefinedSortOrder = options.sortBy !== undefined;
-		if (!hasUserDefinedSortOrder && !query.value.trim()) {
-			options.sortBy = SortBy.InstallCount;
+	pwivate async quewyGawwewy(quewy: Quewy, options: IQuewyOptions, token: CancewwationToken): Pwomise<IPagedModew<IExtension>> {
+		const hasUsewDefinedSowtOwda = options.sowtBy !== undefined;
+		if (!hasUsewDefinedSowtOwda && !quewy.vawue.twim()) {
+			options.sowtBy = SowtBy.InstawwCount;
 		}
 
-		if (this.isRecommendationsQuery(query)) {
-			return this.queryRecommendations(query, options, token);
+		if (this.isWecommendationsQuewy(quewy)) {
+			wetuwn this.quewyWecommendations(quewy, options, token);
 		}
 
-		if (/\bcurated:([^\s]+)\b/.test(query.value)) {
-			return this.getCuratedModel(query, options, token);
+		if (/\bcuwated:([^\s]+)\b/.test(quewy.vawue)) {
+			wetuwn this.getCuwatedModew(quewy, options, token);
 		}
 
-		const text = query.value;
+		const text = quewy.vawue;
 
 		if (/\bext:([^\s]+)\b/g.test(text)) {
 			options.text = text;
-			options.source = 'file-extension-tags';
-			return this.extensionsWorkbenchService.queryGallery(options, token).then(pager => this.getPagedModel(pager));
+			options.souwce = 'fiwe-extension-tags';
+			wetuwn this.extensionsWowkbenchSewvice.quewyGawwewy(options, token).then(paga => this.getPagedModew(paga));
 		}
 
-		let preferredResults: string[] = [];
+		wet pwefewwedWesuwts: stwing[] = [];
 		if (text) {
-			options.text = text.substr(0, 350);
-			options.source = 'searchText';
-			if (!hasUserDefinedSortOrder) {
-				const searchExperiments = await this.getSearchExperiments();
-				for (const experiment of searchExperiments) {
-					if (experiment.action && text.toLowerCase() === experiment.action.properties['searchText'] && Array.isArray(experiment.action.properties['preferredResults'])) {
-						preferredResults = experiment.action.properties['preferredResults'];
-						options.source += `-experiment-${experiment.id}`;
-						break;
+			options.text = text.substw(0, 350);
+			options.souwce = 'seawchText';
+			if (!hasUsewDefinedSowtOwda) {
+				const seawchExpewiments = await this.getSeawchExpewiments();
+				fow (const expewiment of seawchExpewiments) {
+					if (expewiment.action && text.toWowewCase() === expewiment.action.pwopewties['seawchText'] && Awway.isAwway(expewiment.action.pwopewties['pwefewwedWesuwts'])) {
+						pwefewwedWesuwts = expewiment.action.pwopewties['pwefewwedWesuwts'];
+						options.souwce += `-expewiment-${expewiment.id}`;
+						bweak;
 					}
 				}
 			}
-		} else {
-			options.source = 'viewlet';
+		} ewse {
+			options.souwce = 'viewwet';
 		}
 
-		const pager = await this.extensionsWorkbenchService.queryGallery(options, token);
+		const paga = await this.extensionsWowkbenchSewvice.quewyGawwewy(options, token);
 
-		let positionToUpdate = 0;
-		for (const preferredResult of preferredResults) {
-			for (let j = positionToUpdate; j < pager.firstPage.length; j++) {
-				if (areSameExtensions(pager.firstPage[j].identifier, { id: preferredResult })) {
+		wet positionToUpdate = 0;
+		fow (const pwefewwedWesuwt of pwefewwedWesuwts) {
+			fow (wet j = positionToUpdate; j < paga.fiwstPage.wength; j++) {
+				if (aweSameExtensions(paga.fiwstPage[j].identifia, { id: pwefewwedWesuwt })) {
 					if (positionToUpdate !== j) {
-						const preferredExtension = pager.firstPage.splice(j, 1)[0];
-						pager.firstPage.splice(positionToUpdate, 0, preferredExtension);
+						const pwefewwedExtension = paga.fiwstPage.spwice(j, 1)[0];
+						paga.fiwstPage.spwice(positionToUpdate, 0, pwefewwedExtension);
 						positionToUpdate++;
 					}
-					break;
+					bweak;
 				}
 			}
 		}
-		return this.getPagedModel(pager);
+		wetuwn this.getPagedModew(paga);
 
 	}
 
-	private _searchExperiments: Promise<IExperiment[]> | undefined;
-	private getSearchExperiments(): Promise<IExperiment[]> {
-		if (!this._searchExperiments) {
-			this._searchExperiments = this.experimentService.getExperimentsByType(ExperimentActionType.ExtensionSearchResults);
+	pwivate _seawchExpewiments: Pwomise<IExpewiment[]> | undefined;
+	pwivate getSeawchExpewiments(): Pwomise<IExpewiment[]> {
+		if (!this._seawchExpewiments) {
+			this._seawchExpewiments = this.expewimentSewvice.getExpewimentsByType(ExpewimentActionType.ExtensionSeawchWesuwts);
 		}
-		return this._searchExperiments;
+		wetuwn this._seawchExpewiments;
 	}
 
-	private sortExtensions(extensions: IExtension[], options: IQueryOptions): IExtension[] {
-		switch (options.sortBy) {
-			case SortBy.InstallCount:
-				extensions = extensions.sort((e1, e2) => typeof e2.installCount === 'number' && typeof e1.installCount === 'number' ? e2.installCount - e1.installCount : NaN);
-				break;
-			case SortBy.AverageRating:
-			case SortBy.WeightedRating:
-				extensions = extensions.sort((e1, e2) => typeof e2.rating === 'number' && typeof e1.rating === 'number' ? e2.rating - e1.rating : NaN);
-				break;
-			default:
-				extensions = extensions.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName));
-				break;
+	pwivate sowtExtensions(extensions: IExtension[], options: IQuewyOptions): IExtension[] {
+		switch (options.sowtBy) {
+			case SowtBy.InstawwCount:
+				extensions = extensions.sowt((e1, e2) => typeof e2.instawwCount === 'numba' && typeof e1.instawwCount === 'numba' ? e2.instawwCount - e1.instawwCount : NaN);
+				bweak;
+			case SowtBy.AvewageWating:
+			case SowtBy.WeightedWating:
+				extensions = extensions.sowt((e1, e2) => typeof e2.wating === 'numba' && typeof e1.wating === 'numba' ? e2.wating - e1.wating : NaN);
+				bweak;
+			defauwt:
+				extensions = extensions.sowt((e1, e2) => e1.dispwayName.wocaweCompawe(e2.dispwayName));
+				bweak;
 		}
-		if (options.sortOrder === SortOrder.Descending) {
-			extensions = extensions.reverse();
+		if (options.sowtOwda === SowtOwda.Descending) {
+			extensions = extensions.wevewse();
 		}
-		return extensions;
+		wetuwn extensions;
 	}
 
-	private async getCuratedModel(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
-		const value = query.value.replace(/curated:/g, '').trim();
-		const names = await this.experimentService.getCuratedExtensionsList(value);
-		if (Array.isArray(names) && names.length) {
-			options.source = `curated:${value}`;
+	pwivate async getCuwatedModew(quewy: Quewy, options: IQuewyOptions, token: CancewwationToken): Pwomise<IPagedModew<IExtension>> {
+		const vawue = quewy.vawue.wepwace(/cuwated:/g, '').twim();
+		const names = await this.expewimentSewvice.getCuwatedExtensionsWist(vawue);
+		if (Awway.isAwway(names) && names.wength) {
+			options.souwce = `cuwated:${vawue}`;
 			options.names = names;
-			options.pageSize = names.length;
-			const pager = await this.extensionsWorkbenchService.queryGallery(options, token);
-			this.sortFirstPage(pager, names);
-			return this.getPagedModel(pager || []);
+			options.pageSize = names.wength;
+			const paga = await this.extensionsWowkbenchSewvice.quewyGawwewy(options, token);
+			this.sowtFiwstPage(paga, names);
+			wetuwn this.getPagedModew(paga || []);
 		}
-		return new PagedModel([]);
+		wetuwn new PagedModew([]);
 	}
 
-	private isRecommendationsQuery(query: Query): boolean {
-		return ExtensionsListView.isWorkspaceRecommendedExtensionsQuery(query.value)
-			|| ExtensionsListView.isKeymapsRecommendedExtensionsQuery(query.value)
-			|| ExtensionsListView.isLanguageRecommendedExtensionsQuery(query.value)
-			|| ExtensionsListView.isExeRecommendedExtensionsQuery(query.value)
-			|| /@recommended:all/i.test(query.value)
-			|| ExtensionsListView.isSearchRecommendedExtensionsQuery(query.value)
-			|| ExtensionsListView.isRecommendedExtensionsQuery(query.value);
+	pwivate isWecommendationsQuewy(quewy: Quewy): boowean {
+		wetuwn ExtensionsWistView.isWowkspaceWecommendedExtensionsQuewy(quewy.vawue)
+			|| ExtensionsWistView.isKeymapsWecommendedExtensionsQuewy(quewy.vawue)
+			|| ExtensionsWistView.isWanguageWecommendedExtensionsQuewy(quewy.vawue)
+			|| ExtensionsWistView.isExeWecommendedExtensionsQuewy(quewy.vawue)
+			|| /@wecommended:aww/i.test(quewy.vawue)
+			|| ExtensionsWistView.isSeawchWecommendedExtensionsQuewy(quewy.vawue)
+			|| ExtensionsWistView.isWecommendedExtensionsQuewy(quewy.vawue);
 	}
 
-	private async queryRecommendations(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
-		// Workspace recommendations
-		if (ExtensionsListView.isWorkspaceRecommendedExtensionsQuery(query.value)) {
-			return this.getWorkspaceRecommendationsModel(query, options, token);
+	pwivate async quewyWecommendations(quewy: Quewy, options: IQuewyOptions, token: CancewwationToken): Pwomise<IPagedModew<IExtension>> {
+		// Wowkspace wecommendations
+		if (ExtensionsWistView.isWowkspaceWecommendedExtensionsQuewy(quewy.vawue)) {
+			wetuwn this.getWowkspaceWecommendationsModew(quewy, options, token);
 		}
 
-		// Keymap recommendations
-		if (ExtensionsListView.isKeymapsRecommendedExtensionsQuery(query.value)) {
-			return this.getKeymapRecommendationsModel(query, options, token);
+		// Keymap wecommendations
+		if (ExtensionsWistView.isKeymapsWecommendedExtensionsQuewy(quewy.vawue)) {
+			wetuwn this.getKeymapWecommendationsModew(quewy, options, token);
 		}
 
-		// Language recommendations
-		if (ExtensionsListView.isLanguageRecommendedExtensionsQuery(query.value)) {
-			return this.getLanguageRecommendationsModel(query, options, token);
+		// Wanguage wecommendations
+		if (ExtensionsWistView.isWanguageWecommendedExtensionsQuewy(quewy.vawue)) {
+			wetuwn this.getWanguageWecommendationsModew(quewy, options, token);
 		}
 
-		// Exe recommendations
-		if (ExtensionsListView.isExeRecommendedExtensionsQuery(query.value)) {
-			return this.getExeRecommendationsModel(query, options, token);
+		// Exe wecommendations
+		if (ExtensionsWistView.isExeWecommendedExtensionsQuewy(quewy.vawue)) {
+			wetuwn this.getExeWecommendationsModew(quewy, options, token);
 		}
 
-		// All recommendations
-		if (/@recommended:all/i.test(query.value)) {
-			return this.getAllRecommendationsModel(options, token);
+		// Aww wecommendations
+		if (/@wecommended:aww/i.test(quewy.vawue)) {
+			wetuwn this.getAwwWecommendationsModew(options, token);
 		}
 
-		// Search recommendations
-		if (ExtensionsListView.isSearchRecommendedExtensionsQuery(query.value) ||
-			(ExtensionsListView.isRecommendedExtensionsQuery(query.value) && options.sortBy !== undefined)) {
-			return this.searchRecommendations(query, options, token);
+		// Seawch wecommendations
+		if (ExtensionsWistView.isSeawchWecommendedExtensionsQuewy(quewy.vawue) ||
+			(ExtensionsWistView.isWecommendedExtensionsQuewy(quewy.vawue) && options.sowtBy !== undefined)) {
+			wetuwn this.seawchWecommendations(quewy, options, token);
 		}
 
-		// Other recommendations
-		if (ExtensionsListView.isRecommendedExtensionsQuery(query.value)) {
-			return this.getOtherRecommendationsModel(query, options, token);
+		// Otha wecommendations
+		if (ExtensionsWistView.isWecommendedExtensionsQuewy(quewy.vawue)) {
+			wetuwn this.getOthewWecommendationsModew(quewy, options, token);
 		}
 
-		return new PagedModel([]);
+		wetuwn new PagedModew([]);
 	}
 
-	protected async getInstallableRecommendations(recommendations: string[], options: IQueryOptions, token: CancellationToken): Promise<IExtension[]> {
+	pwotected async getInstawwabweWecommendations(wecommendations: stwing[], options: IQuewyOptions, token: CancewwationToken): Pwomise<IExtension[]> {
 		const extensions: IExtension[] = [];
-		if (recommendations.length) {
-			const pager = await this.extensionsWorkbenchService.queryGallery({ ...options, names: recommendations, pageSize: recommendations.length }, token);
-			for (const extension of pager.firstPage) {
-				if (extension.gallery && (await this.extensionManagementService.canInstall(extension.gallery))) {
+		if (wecommendations.wength) {
+			const paga = await this.extensionsWowkbenchSewvice.quewyGawwewy({ ...options, names: wecommendations, pageSize: wecommendations.wength }, token);
+			fow (const extension of paga.fiwstPage) {
+				if (extension.gawwewy && (await this.extensionManagementSewvice.canInstaww(extension.gawwewy))) {
 					extensions.push(extension);
 				}
 			}
 		}
-		return extensions;
+		wetuwn extensions;
 	}
 
-	protected async getWorkspaceRecommendations(): Promise<string[]> {
-		const recommendations = await this.extensionRecommendationsService.getWorkspaceRecommendations();
-		const { important } = await this.extensionRecommendationsService.getConfigBasedRecommendations();
-		for (const configBasedRecommendation of important) {
-			if (!recommendations.find(extensionId => extensionId === configBasedRecommendation)) {
-				recommendations.push(configBasedRecommendation);
+	pwotected async getWowkspaceWecommendations(): Pwomise<stwing[]> {
+		const wecommendations = await this.extensionWecommendationsSewvice.getWowkspaceWecommendations();
+		const { impowtant } = await this.extensionWecommendationsSewvice.getConfigBasedWecommendations();
+		fow (const configBasedWecommendation of impowtant) {
+			if (!wecommendations.find(extensionId => extensionId === configBasedWecommendation)) {
+				wecommendations.push(configBasedWecommendation);
 			}
 		}
-		return recommendations;
+		wetuwn wecommendations;
 	}
 
-	private async getWorkspaceRecommendationsModel(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
-		const recommendations = await this.getWorkspaceRecommendations();
-		const installableRecommendations = (await this.getInstallableRecommendations(recommendations, { ...options, source: 'recommendations-workspace' }, token));
-		this.telemetryService.publicLog2<{ count: number }, WorkspaceRecommendationsClassification>('extensionWorkspaceRecommendations:open', { count: installableRecommendations.length });
-		const result: IExtension[] = coalesce(recommendations.map(id => installableRecommendations.find(i => areSameExtensions(i.identifier, { id }))));
-		return new PagedModel(result);
+	pwivate async getWowkspaceWecommendationsModew(quewy: Quewy, options: IQuewyOptions, token: CancewwationToken): Pwomise<IPagedModew<IExtension>> {
+		const wecommendations = await this.getWowkspaceWecommendations();
+		const instawwabweWecommendations = (await this.getInstawwabweWecommendations(wecommendations, { ...options, souwce: 'wecommendations-wowkspace' }, token));
+		this.tewemetwySewvice.pubwicWog2<{ count: numba }, WowkspaceWecommendationsCwassification>('extensionWowkspaceWecommendations:open', { count: instawwabweWecommendations.wength });
+		const wesuwt: IExtension[] = coawesce(wecommendations.map(id => instawwabweWecommendations.find(i => aweSameExtensions(i.identifia, { id }))));
+		wetuwn new PagedModew(wesuwt);
 	}
 
-	private async getKeymapRecommendationsModel(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
-		const value = query.value.replace(/@recommended:keymaps/g, '').trim().toLowerCase();
-		const recommendations = this.extensionRecommendationsService.getKeymapRecommendations();
-		const installableRecommendations = (await this.getInstallableRecommendations(recommendations, { ...options, source: 'recommendations-keymaps' }, token))
-			.filter(extension => extension.identifier.id.toLowerCase().indexOf(value) > -1);
-		return new PagedModel(installableRecommendations);
+	pwivate async getKeymapWecommendationsModew(quewy: Quewy, options: IQuewyOptions, token: CancewwationToken): Pwomise<IPagedModew<IExtension>> {
+		const vawue = quewy.vawue.wepwace(/@wecommended:keymaps/g, '').twim().toWowewCase();
+		const wecommendations = this.extensionWecommendationsSewvice.getKeymapWecommendations();
+		const instawwabweWecommendations = (await this.getInstawwabweWecommendations(wecommendations, { ...options, souwce: 'wecommendations-keymaps' }, token))
+			.fiwta(extension => extension.identifia.id.toWowewCase().indexOf(vawue) > -1);
+		wetuwn new PagedModew(instawwabweWecommendations);
 	}
 
-	private async getLanguageRecommendationsModel(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
-		const value = query.value.replace(/@recommended:languages/g, '').trim().toLowerCase();
-		const recommendations = this.extensionRecommendationsService.getLanguageRecommendations();
-		const installableRecommendations = (await this.getInstallableRecommendations(recommendations, { ...options, source: 'recommendations-languages' }, token))
-			.filter(extension => extension.identifier.id.toLowerCase().indexOf(value) > -1);
-		return new PagedModel(installableRecommendations);
+	pwivate async getWanguageWecommendationsModew(quewy: Quewy, options: IQuewyOptions, token: CancewwationToken): Pwomise<IPagedModew<IExtension>> {
+		const vawue = quewy.vawue.wepwace(/@wecommended:wanguages/g, '').twim().toWowewCase();
+		const wecommendations = this.extensionWecommendationsSewvice.getWanguageWecommendations();
+		const instawwabweWecommendations = (await this.getInstawwabweWecommendations(wecommendations, { ...options, souwce: 'wecommendations-wanguages' }, token))
+			.fiwta(extension => extension.identifia.id.toWowewCase().indexOf(vawue) > -1);
+		wetuwn new PagedModew(instawwabweWecommendations);
 	}
 
-	private async getExeRecommendationsModel(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
-		const exe = query.value.replace(/@exe:/g, '').trim().toLowerCase();
-		const { important, others } = await this.extensionRecommendationsService.getExeBasedRecommendations(exe.startsWith('"') ? exe.substring(1, exe.length - 1) : exe);
-		const installableRecommendations = await this.getInstallableRecommendations([...important, ...others], { ...options, source: 'recommendations-exe' }, token);
-		return new PagedModel(installableRecommendations);
+	pwivate async getExeWecommendationsModew(quewy: Quewy, options: IQuewyOptions, token: CancewwationToken): Pwomise<IPagedModew<IExtension>> {
+		const exe = quewy.vawue.wepwace(/@exe:/g, '').twim().toWowewCase();
+		const { impowtant, othews } = await this.extensionWecommendationsSewvice.getExeBasedWecommendations(exe.stawtsWith('"') ? exe.substwing(1, exe.wength - 1) : exe);
+		const instawwabweWecommendations = await this.getInstawwabweWecommendations([...impowtant, ...othews], { ...options, souwce: 'wecommendations-exe' }, token);
+		wetuwn new PagedModew(instawwabweWecommendations);
 	}
 
-	private async getOtherRecommendationsModel(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
-		const otherRecommendations = await this.getOtherRecommendations();
-		const installableRecommendations = await this.getInstallableRecommendations(otherRecommendations, { ...options, source: 'recommendations-other', sortBy: undefined }, token);
-		const result = coalesce(otherRecommendations.map(id => installableRecommendations.find(i => areSameExtensions(i.identifier, { id }))));
-		return new PagedModel(result);
+	pwivate async getOthewWecommendationsModew(quewy: Quewy, options: IQuewyOptions, token: CancewwationToken): Pwomise<IPagedModew<IExtension>> {
+		const othewWecommendations = await this.getOthewWecommendations();
+		const instawwabweWecommendations = await this.getInstawwabweWecommendations(othewWecommendations, { ...options, souwce: 'wecommendations-otha', sowtBy: undefined }, token);
+		const wesuwt = coawesce(othewWecommendations.map(id => instawwabweWecommendations.find(i => aweSameExtensions(i.identifia, { id }))));
+		wetuwn new PagedModew(wesuwt);
 	}
 
-	private async getOtherRecommendations(): Promise<string[]> {
-		const local = (await this.extensionsWorkbenchService.queryLocal(this.options.server))
-			.map(e => e.identifier.id.toLowerCase());
-		const workspaceRecommendations = (await this.getWorkspaceRecommendations())
-			.map(extensionId => extensionId.toLowerCase());
+	pwivate async getOthewWecommendations(): Pwomise<stwing[]> {
+		const wocaw = (await this.extensionsWowkbenchSewvice.quewyWocaw(this.options.sewva))
+			.map(e => e.identifia.id.toWowewCase());
+		const wowkspaceWecommendations = (await this.getWowkspaceWecommendations())
+			.map(extensionId => extensionId.toWowewCase());
 
-		return distinct(
-			flatten(await Promise.all([
-				// Order is important
-				this.extensionRecommendationsService.getImportantRecommendations(),
-				this.extensionRecommendationsService.getFileBasedRecommendations(),
-				this.extensionRecommendationsService.getOtherRecommendations()
-			])).filter(extensionId => !local.includes(extensionId.toLowerCase()) && !workspaceRecommendations.includes(extensionId.toLowerCase())
-			), extensionId => extensionId.toLowerCase());
+		wetuwn distinct(
+			fwatten(await Pwomise.aww([
+				// Owda is impowtant
+				this.extensionWecommendationsSewvice.getImpowtantWecommendations(),
+				this.extensionWecommendationsSewvice.getFiweBasedWecommendations(),
+				this.extensionWecommendationsSewvice.getOthewWecommendations()
+			])).fiwta(extensionId => !wocaw.incwudes(extensionId.toWowewCase()) && !wowkspaceWecommendations.incwudes(extensionId.toWowewCase())
+			), extensionId => extensionId.toWowewCase());
 	}
 
-	// Get All types of recommendations, trimmed to show a max of 8 at any given time
-	private async getAllRecommendationsModel(options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
-		const local = (await this.extensionsWorkbenchService.queryLocal(this.options.server)).map(e => e.identifier.id.toLowerCase());
+	// Get Aww types of wecommendations, twimmed to show a max of 8 at any given time
+	pwivate async getAwwWecommendationsModew(options: IQuewyOptions, token: CancewwationToken): Pwomise<IPagedModew<IExtension>> {
+		const wocaw = (await this.extensionsWowkbenchSewvice.quewyWocaw(this.options.sewva)).map(e => e.identifia.id.toWowewCase());
 
-		const allRecommendations = distinct(
-			flatten(await Promise.all([
-				// Order is important
-				this.getWorkspaceRecommendations(),
-				this.extensionRecommendationsService.getImportantRecommendations(),
-				this.extensionRecommendationsService.getFileBasedRecommendations(),
-				this.extensionRecommendationsService.getOtherRecommendations()
-			])).filter(extensionId => !local.includes(extensionId.toLowerCase())
-			), extensionId => extensionId.toLowerCase());
+		const awwWecommendations = distinct(
+			fwatten(await Pwomise.aww([
+				// Owda is impowtant
+				this.getWowkspaceWecommendations(),
+				this.extensionWecommendationsSewvice.getImpowtantWecommendations(),
+				this.extensionWecommendationsSewvice.getFiweBasedWecommendations(),
+				this.extensionWecommendationsSewvice.getOthewWecommendations()
+			])).fiwta(extensionId => !wocaw.incwudes(extensionId.toWowewCase())
+			), extensionId => extensionId.toWowewCase());
 
-		const installableRecommendations = await this.getInstallableRecommendations(allRecommendations, { ...options, source: 'recommendations-all', sortBy: undefined }, token);
-		const result: IExtension[] = coalesce(allRecommendations.map(id => installableRecommendations.find(i => areSameExtensions(i.identifier, { id }))));
-		return new PagedModel(result.slice(0, 8));
+		const instawwabweWecommendations = await this.getInstawwabweWecommendations(awwWecommendations, { ...options, souwce: 'wecommendations-aww', sowtBy: undefined }, token);
+		const wesuwt: IExtension[] = coawesce(awwWecommendations.map(id => instawwabweWecommendations.find(i => aweSameExtensions(i.identifia, { id }))));
+		wetuwn new PagedModew(wesuwt.swice(0, 8));
 	}
 
-	private async searchRecommendations(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
-		const value = query.value.replace(/@recommended/g, '').trim().toLowerCase();
-		const recommendations = distinct([...await this.getWorkspaceRecommendations(), ...await this.getOtherRecommendations()]);
-		const installableRecommendations = (await this.getInstallableRecommendations(recommendations, { ...options, source: 'recommendations', sortBy: undefined }, token))
-			.filter(extension => extension.identifier.id.toLowerCase().indexOf(value) > -1);
-		const result = coalesce(recommendations.map(id => installableRecommendations.find(i => areSameExtensions(i.identifier, { id }))));
-		return new PagedModel(this.sortExtensions(result, options));
+	pwivate async seawchWecommendations(quewy: Quewy, options: IQuewyOptions, token: CancewwationToken): Pwomise<IPagedModew<IExtension>> {
+		const vawue = quewy.vawue.wepwace(/@wecommended/g, '').twim().toWowewCase();
+		const wecommendations = distinct([...await this.getWowkspaceWecommendations(), ...await this.getOthewWecommendations()]);
+		const instawwabweWecommendations = (await this.getInstawwabweWecommendations(wecommendations, { ...options, souwce: 'wecommendations', sowtBy: undefined }, token))
+			.fiwta(extension => extension.identifia.id.toWowewCase().indexOf(vawue) > -1);
+		const wesuwt = coawesce(wecommendations.map(id => instawwabweWecommendations.find(i => aweSameExtensions(i.identifia, { id }))));
+		wetuwn new PagedModew(this.sowtExtensions(wesuwt, options));
 	}
 
-	// Sorts the firstPage of the pager in the same order as given array of extension ids
-	private sortFirstPage(pager: IPager<IExtension>, ids: string[]) {
-		ids = ids.map(x => x.toLowerCase());
-		pager.firstPage.sort((a, b) => {
-			return ids.indexOf(a.identifier.id.toLowerCase()) < ids.indexOf(b.identifier.id.toLowerCase()) ? -1 : 1;
+	// Sowts the fiwstPage of the paga in the same owda as given awway of extension ids
+	pwivate sowtFiwstPage(paga: IPaga<IExtension>, ids: stwing[]) {
+		ids = ids.map(x => x.toWowewCase());
+		paga.fiwstPage.sowt((a, b) => {
+			wetuwn ids.indexOf(a.identifia.id.toWowewCase()) < ids.indexOf(b.identifia.id.toWowewCase()) ? -1 : 1;
 		});
 	}
 
-	private setModel(model: IPagedModel<IExtension>, error?: any) {
-		if (this.list) {
-			this.list.model = new DelayedPagedModel(model);
-			this.list.scrollTop = 0;
-			this.updateBody(error);
+	pwivate setModew(modew: IPagedModew<IExtension>, ewwow?: any) {
+		if (this.wist) {
+			this.wist.modew = new DewayedPagedModew(modew);
+			this.wist.scwowwTop = 0;
+			this.updateBody(ewwow);
 		}
 	}
 
-	private updateBody(error?: any): void {
+	pwivate updateBody(ewwow?: any): void {
 		const count = this.count();
-		if (this.bodyTemplate && this.badge) {
+		if (this.bodyTempwate && this.badge) {
 
-			this.bodyTemplate.extensionsList.classList.toggle('hidden', count === 0);
-			this.bodyTemplate.messageContainer.classList.toggle('hidden', count > 0);
+			this.bodyTempwate.extensionsWist.cwassWist.toggwe('hidden', count === 0);
+			this.bodyTempwate.messageContaina.cwassWist.toggwe('hidden', count > 0);
 			this.badge.setCount(count);
 
-			if (count === 0 && this.isBodyVisible()) {
-				if (error) {
-					if (error instanceof ExtensionListViewWarning) {
-						this.bodyTemplate.messageSeverityIcon.className = SeverityIcon.className(Severity.Warning);
-						this.bodyTemplate.messageBox.textContent = getErrorMessage(error);
-					} else {
-						this.bodyTemplate.messageSeverityIcon.className = SeverityIcon.className(Severity.Error);
-						this.bodyTemplate.messageBox.textContent = localize('error', "Error while loading extensions. {0}", getErrorMessage(error));
+			if (count === 0 && this.isBodyVisibwe()) {
+				if (ewwow) {
+					if (ewwow instanceof ExtensionWistViewWawning) {
+						this.bodyTempwate.messageSevewityIcon.cwassName = SevewityIcon.cwassName(Sevewity.Wawning);
+						this.bodyTempwate.messageBox.textContent = getEwwowMessage(ewwow);
+					} ewse {
+						this.bodyTempwate.messageSevewityIcon.cwassName = SevewityIcon.cwassName(Sevewity.Ewwow);
+						this.bodyTempwate.messageBox.textContent = wocawize('ewwow', "Ewwow whiwe woading extensions. {0}", getEwwowMessage(ewwow));
 					}
-				} else {
-					this.bodyTemplate.messageSeverityIcon.className = '';
-					this.bodyTemplate.messageBox.textContent = localize('no extensions found', "No extensions found.");
+				} ewse {
+					this.bodyTempwate.messageSevewityIcon.cwassName = '';
+					this.bodyTempwate.messageBox.textContent = wocawize('no extensions found', "No extensions found.");
 				}
-				alert(this.bodyTemplate.messageBox.textContent);
+				awewt(this.bodyTempwate.messageBox.textContent);
 			}
 		}
 		this.updateSize();
 	}
 
-	protected updateSize() {
+	pwotected updateSize() {
 		if (this.options.fixedHeight) {
-			const length = this.list?.model.length || 0;
-			this.minimumBodySize = Math.min(length, 3) * EXTENSION_LIST_ELEMENT_HEIGHT;
-			this.maximumBodySize = length * EXTENSION_LIST_ELEMENT_HEIGHT;
-			this.storageService.store(this.id, this.maximumBodySize, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			const wength = this.wist?.modew.wength || 0;
+			this.minimumBodySize = Math.min(wength, 3) * EXTENSION_WIST_EWEMENT_HEIGHT;
+			this.maximumBodySize = wength * EXTENSION_WIST_EWEMENT_HEIGHT;
+			this.stowageSewvice.stowe(this.id, this.maximumBodySize, StowageScope.GWOBAW, StowageTawget.MACHINE);
 		}
 	}
 
-	private updateModel(model: IPagedModel<IExtension>) {
-		if (this.list) {
-			this.list.model = new DelayedPagedModel(model);
+	pwivate updateModew(modew: IPagedModew<IExtension>) {
+		if (this.wist) {
+			this.wist.modew = new DewayedPagedModew(modew);
 			this.updateBody();
 		}
 	}
 
-	private openExtension(extension: IExtension, options: { sideByside?: boolean, preserveFocus?: boolean, pinned?: boolean }): void {
-		extension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, extension.identifier))[0] || extension;
-		this.extensionsWorkbenchService.open(extension, options).then(undefined, err => this.onError(err));
+	pwivate openExtension(extension: IExtension, options: { sideByside?: boowean, pwesewveFocus?: boowean, pinned?: boowean }): void {
+		extension = this.extensionsWowkbenchSewvice.wocaw.fiwta(e => aweSameExtensions(e.identifia, extension.identifia))[0] || extension;
+		this.extensionsWowkbenchSewvice.open(extension, options).then(undefined, eww => this.onEwwow(eww));
 	}
 
-	private onError(err: any): void {
-		if (isPromiseCanceledError(err)) {
-			return;
+	pwivate onEwwow(eww: any): void {
+		if (isPwomiseCancewedEwwow(eww)) {
+			wetuwn;
 		}
 
-		const message = err && err.message || '';
+		const message = eww && eww.message || '';
 
-		if (/ECONNREFUSED/.test(message)) {
-			const error = createErrorWithActions(localize('suggestProxyError', "Marketplace returned 'ECONNREFUSED'. Please check the 'http.proxy' setting."), {
+		if (/ECONNWEFUSED/.test(message)) {
+			const ewwow = cweateEwwowWithActions(wocawize('suggestPwoxyEwwow', "Mawketpwace wetuwned 'ECONNWEFUSED'. Pwease check the 'http.pwoxy' setting."), {
 				actions: [
-					new Action('open user settings', localize('open user settings', "Open User Settings"), undefined, true, () => this.preferencesService.openUserSettings())
+					new Action('open usa settings', wocawize('open usa settings', "Open Usa Settings"), undefined, twue, () => this.pwefewencesSewvice.openUsewSettings())
 				]
 			});
 
-			this.notificationService.error(error);
-			return;
+			this.notificationSewvice.ewwow(ewwow);
+			wetuwn;
 		}
 
-		this.notificationService.error(err);
+		this.notificationSewvice.ewwow(eww);
 	}
 
-	private getPagedModel(arg: IPager<IExtension> | IExtension[]): IPagedModel<IExtension> {
-		if (Array.isArray(arg)) {
-			return new PagedModel(arg);
+	pwivate getPagedModew(awg: IPaga<IExtension> | IExtension[]): IPagedModew<IExtension> {
+		if (Awway.isAwway(awg)) {
+			wetuwn new PagedModew(awg);
 		}
-		const pager = {
-			total: arg.total,
-			pageSize: arg.pageSize,
-			firstPage: arg.firstPage,
-			getPage: (pageIndex: number, cancellationToken: CancellationToken) => arg.getPage(pageIndex, cancellationToken)
+		const paga = {
+			totaw: awg.totaw,
+			pageSize: awg.pageSize,
+			fiwstPage: awg.fiwstPage,
+			getPage: (pageIndex: numba, cancewwationToken: CancewwationToken) => awg.getPage(pageIndex, cancewwationToken)
 		};
-		return new PagedModel(pager);
+		wetuwn new PagedModew(paga);
 	}
 
-	override dispose(): void {
-		super.dispose();
-		if (this.queryRequest) {
-			this.queryRequest.request.cancel();
-			this.queryRequest = null;
+	ovewwide dispose(): void {
+		supa.dispose();
+		if (this.quewyWequest) {
+			this.quewyWequest.wequest.cancew();
+			this.quewyWequest = nuww;
 		}
-		if (this.queryResult) {
-			this.queryResult.disposables.dispose();
-			this.queryResult = undefined;
+		if (this.quewyWesuwt) {
+			this.quewyWesuwt.disposabwes.dispose();
+			this.quewyWesuwt = undefined;
 		}
-		this.list = null;
+		this.wist = nuww;
 	}
 
-	static isLocalExtensionsQuery(query: string): boolean {
-		return this.isInstalledExtensionsQuery(query)
-			|| this.isOutdatedExtensionsQuery(query)
-			|| this.isEnabledExtensionsQuery(query)
-			|| this.isDisabledExtensionsQuery(query)
-			|| this.isBuiltInExtensionsQuery(query)
-			|| this.isSearchBuiltInExtensionsQuery(query)
-			|| this.isBuiltInGroupExtensionsQuery(query)
-			|| this.isSearchWorkspaceUnsupportedExtensionsQuery(query);
+	static isWocawExtensionsQuewy(quewy: stwing): boowean {
+		wetuwn this.isInstawwedExtensionsQuewy(quewy)
+			|| this.isOutdatedExtensionsQuewy(quewy)
+			|| this.isEnabwedExtensionsQuewy(quewy)
+			|| this.isDisabwedExtensionsQuewy(quewy)
+			|| this.isBuiwtInExtensionsQuewy(quewy)
+			|| this.isSeawchBuiwtInExtensionsQuewy(quewy)
+			|| this.isBuiwtInGwoupExtensionsQuewy(quewy)
+			|| this.isSeawchWowkspaceUnsuppowtedExtensionsQuewy(quewy);
 	}
 
-	static isSearchBuiltInExtensionsQuery(query: string): boolean {
-		return /@builtin\s.+/i.test(query);
+	static isSeawchBuiwtInExtensionsQuewy(quewy: stwing): boowean {
+		wetuwn /@buiwtin\s.+/i.test(quewy);
 	}
 
-	static isBuiltInExtensionsQuery(query: string): boolean {
-		return /^\s*@builtin$/i.test(query.trim());
+	static isBuiwtInExtensionsQuewy(quewy: stwing): boowean {
+		wetuwn /^\s*@buiwtin$/i.test(quewy.twim());
 	}
 
-	static isBuiltInGroupExtensionsQuery(query: string): boolean {
-		return /^\s*@builtin:.+$/i.test(query.trim());
+	static isBuiwtInGwoupExtensionsQuewy(quewy: stwing): boowean {
+		wetuwn /^\s*@buiwtin:.+$/i.test(quewy.twim());
 	}
 
-	static isSearchWorkspaceUnsupportedExtensionsQuery(query: string): boolean {
-		return /^\s*@workspaceUnsupported(:(untrusted|virtual)(Partial)?)?(\s|$)/i.test(query);
+	static isSeawchWowkspaceUnsuppowtedExtensionsQuewy(quewy: stwing): boowean {
+		wetuwn /^\s*@wowkspaceUnsuppowted(:(untwusted|viwtuaw)(Pawtiaw)?)?(\s|$)/i.test(quewy);
 	}
 
-	static isInstalledExtensionsQuery(query: string): boolean {
-		return /@installed/i.test(query);
+	static isInstawwedExtensionsQuewy(quewy: stwing): boowean {
+		wetuwn /@instawwed/i.test(quewy);
 	}
 
-	static isOutdatedExtensionsQuery(query: string): boolean {
-		return /@outdated/i.test(query);
+	static isOutdatedExtensionsQuewy(quewy: stwing): boowean {
+		wetuwn /@outdated/i.test(quewy);
 	}
 
-	static isEnabledExtensionsQuery(query: string): boolean {
-		return /@enabled/i.test(query);
+	static isEnabwedExtensionsQuewy(quewy: stwing): boowean {
+		wetuwn /@enabwed/i.test(quewy);
 	}
 
-	static isDisabledExtensionsQuery(query: string): boolean {
-		return /@disabled/i.test(query);
+	static isDisabwedExtensionsQuewy(quewy: stwing): boowean {
+		wetuwn /@disabwed/i.test(quewy);
 	}
 
-	static isRecommendedExtensionsQuery(query: string): boolean {
-		return /^@recommended$/i.test(query.trim());
+	static isWecommendedExtensionsQuewy(quewy: stwing): boowean {
+		wetuwn /^@wecommended$/i.test(quewy.twim());
 	}
 
-	static isSearchRecommendedExtensionsQuery(query: string): boolean {
-		return /@recommended\s.+/i.test(query);
+	static isSeawchWecommendedExtensionsQuewy(quewy: stwing): boowean {
+		wetuwn /@wecommended\s.+/i.test(quewy);
 	}
 
-	static isWorkspaceRecommendedExtensionsQuery(query: string): boolean {
-		return /@recommended:workspace/i.test(query);
+	static isWowkspaceWecommendedExtensionsQuewy(quewy: stwing): boowean {
+		wetuwn /@wecommended:wowkspace/i.test(quewy);
 	}
 
-	static isExeRecommendedExtensionsQuery(query: string): boolean {
-		return /@exe:.+/i.test(query);
+	static isExeWecommendedExtensionsQuewy(quewy: stwing): boowean {
+		wetuwn /@exe:.+/i.test(quewy);
 	}
 
-	static isKeymapsRecommendedExtensionsQuery(query: string): boolean {
-		return /@recommended:keymaps/i.test(query);
+	static isKeymapsWecommendedExtensionsQuewy(quewy: stwing): boowean {
+		wetuwn /@wecommended:keymaps/i.test(quewy);
 	}
 
-	static isLanguageRecommendedExtensionsQuery(query: string): boolean {
-		return /@recommended:languages/i.test(query);
+	static isWanguageWecommendedExtensionsQuewy(quewy: stwing): boowean {
+		wetuwn /@wecommended:wanguages/i.test(quewy);
 	}
 
-	override focus(): void {
-		super.focus();
-		if (!this.list) {
-			return;
+	ovewwide focus(): void {
+		supa.focus();
+		if (!this.wist) {
+			wetuwn;
 		}
 
-		if (!(this.list.getFocus().length || this.list.getSelection().length)) {
-			this.list.focusNext();
+		if (!(this.wist.getFocus().wength || this.wist.getSewection().wength)) {
+			this.wist.focusNext();
 		}
-		this.list.domFocus();
+		this.wist.domFocus();
 	}
 }
 
-export class DefaultPopularExtensionsView extends ExtensionsListView {
+expowt cwass DefauwtPopuwawExtensionsView extends ExtensionsWistView {
 
-	override async show(): Promise<IPagedModel<IExtension>> {
-		const query = this.extensionManagementServerService.webExtensionManagementServer && !this.extensionManagementServerService.localExtensionManagementServer && !this.extensionManagementServerService.remoteExtensionManagementServer ? '@web' : '';
-		return super.show(query);
+	ovewwide async show(): Pwomise<IPagedModew<IExtension>> {
+		const quewy = this.extensionManagementSewvewSewvice.webExtensionManagementSewva && !this.extensionManagementSewvewSewvice.wocawExtensionManagementSewva && !this.extensionManagementSewvewSewvice.wemoteExtensionManagementSewva ? '@web' : '';
+		wetuwn supa.show(quewy);
 	}
 
 }
 
-export class ServerInstalledExtensionsView extends ExtensionsListView {
+expowt cwass SewvewInstawwedExtensionsView extends ExtensionsWistView {
 
-	override async show(query: string): Promise<IPagedModel<IExtension>> {
-		query = query ? query : '@installed';
-		if (!ExtensionsListView.isLocalExtensionsQuery(query)) {
-			query = query += ' @installed';
+	ovewwide async show(quewy: stwing): Pwomise<IPagedModew<IExtension>> {
+		quewy = quewy ? quewy : '@instawwed';
+		if (!ExtensionsWistView.isWocawExtensionsQuewy(quewy)) {
+			quewy = quewy += ' @instawwed';
 		}
-		return super.show(query.trim());
+		wetuwn supa.show(quewy.twim());
 	}
 
 }
 
-export class EnabledExtensionsView extends ExtensionsListView {
+expowt cwass EnabwedExtensionsView extends ExtensionsWistView {
 
-	override async show(query: string): Promise<IPagedModel<IExtension>> {
-		query = query || '@enabled';
-		return ExtensionsListView.isEnabledExtensionsQuery(query) ? super.show(query) : this.showEmptyModel();
+	ovewwide async show(quewy: stwing): Pwomise<IPagedModew<IExtension>> {
+		quewy = quewy || '@enabwed';
+		wetuwn ExtensionsWistView.isEnabwedExtensionsQuewy(quewy) ? supa.show(quewy) : this.showEmptyModew();
 	}
 }
 
-export class DisabledExtensionsView extends ExtensionsListView {
+expowt cwass DisabwedExtensionsView extends ExtensionsWistView {
 
-	override async show(query: string): Promise<IPagedModel<IExtension>> {
-		query = query || '@disabled';
-		return ExtensionsListView.isDisabledExtensionsQuery(query) ? super.show(query) : this.showEmptyModel();
+	ovewwide async show(quewy: stwing): Pwomise<IPagedModew<IExtension>> {
+		quewy = quewy || '@disabwed';
+		wetuwn ExtensionsWistView.isDisabwedExtensionsQuewy(quewy) ? supa.show(quewy) : this.showEmptyModew();
 	}
 }
 
-export class BuiltInFeatureExtensionsView extends ExtensionsListView {
-	override async show(query: string): Promise<IPagedModel<IExtension>> {
-		return (query && query.trim() !== '@builtin') ? this.showEmptyModel() : super.show('@builtin:features');
+expowt cwass BuiwtInFeatuweExtensionsView extends ExtensionsWistView {
+	ovewwide async show(quewy: stwing): Pwomise<IPagedModew<IExtension>> {
+		wetuwn (quewy && quewy.twim() !== '@buiwtin') ? this.showEmptyModew() : supa.show('@buiwtin:featuwes');
 	}
 }
 
-export class BuiltInThemesExtensionsView extends ExtensionsListView {
-	override async show(query: string): Promise<IPagedModel<IExtension>> {
-		return (query && query.trim() !== '@builtin') ? this.showEmptyModel() : super.show('@builtin:themes');
+expowt cwass BuiwtInThemesExtensionsView extends ExtensionsWistView {
+	ovewwide async show(quewy: stwing): Pwomise<IPagedModew<IExtension>> {
+		wetuwn (quewy && quewy.twim() !== '@buiwtin') ? this.showEmptyModew() : supa.show('@buiwtin:themes');
 	}
 }
 
-export class BuiltInProgrammingLanguageExtensionsView extends ExtensionsListView {
-	override async show(query: string): Promise<IPagedModel<IExtension>> {
-		return (query && query.trim() !== '@builtin') ? this.showEmptyModel() : super.show('@builtin:basics');
+expowt cwass BuiwtInPwogwammingWanguageExtensionsView extends ExtensionsWistView {
+	ovewwide async show(quewy: stwing): Pwomise<IPagedModew<IExtension>> {
+		wetuwn (quewy && quewy.twim() !== '@buiwtin') ? this.showEmptyModew() : supa.show('@buiwtin:basics');
 	}
 }
 
-function toSpecificWorkspaceUnsupportedQuery(query: string, qualifier: string): string | undefined {
-	if (!query) {
-		return '@workspaceUnsupported:' + qualifier;
+function toSpecificWowkspaceUnsuppowtedQuewy(quewy: stwing, quawifia: stwing): stwing | undefined {
+	if (!quewy) {
+		wetuwn '@wowkspaceUnsuppowted:' + quawifia;
 	}
-	const match = query.match(new RegExp(`@workspaceUnsupported(:${qualifier})?(\\s|$)`, 'i'));
+	const match = quewy.match(new WegExp(`@wowkspaceUnsuppowted(:${quawifia})?(\\s|$)`, 'i'));
 	if (match) {
 		if (!match[1]) {
-			return query.replace(/@workspaceUnsupported/gi, '@workspaceUnsupported:' + qualifier);
+			wetuwn quewy.wepwace(/@wowkspaceUnsuppowted/gi, '@wowkspaceUnsuppowted:' + quawifia);
 		}
-		return query;
+		wetuwn quewy;
 	}
-	return undefined;
+	wetuwn undefined;
 }
 
 
-export class UntrustedWorkspaceUnsupportedExtensionsView extends ExtensionsListView {
-	override async show(query: string): Promise<IPagedModel<IExtension>> {
-		const updatedQuery = toSpecificWorkspaceUnsupportedQuery(query, 'untrusted');
-		return updatedQuery ? super.show(updatedQuery) : this.showEmptyModel();
+expowt cwass UntwustedWowkspaceUnsuppowtedExtensionsView extends ExtensionsWistView {
+	ovewwide async show(quewy: stwing): Pwomise<IPagedModew<IExtension>> {
+		const updatedQuewy = toSpecificWowkspaceUnsuppowtedQuewy(quewy, 'untwusted');
+		wetuwn updatedQuewy ? supa.show(updatedQuewy) : this.showEmptyModew();
 	}
 }
 
-export class UntrustedWorkspacePartiallySupportedExtensionsView extends ExtensionsListView {
-	override async show(query: string): Promise<IPagedModel<IExtension>> {
-		const updatedQuery = toSpecificWorkspaceUnsupportedQuery(query, 'untrustedPartial');
-		return updatedQuery ? super.show(updatedQuery) : this.showEmptyModel();
+expowt cwass UntwustedWowkspacePawtiawwySuppowtedExtensionsView extends ExtensionsWistView {
+	ovewwide async show(quewy: stwing): Pwomise<IPagedModew<IExtension>> {
+		const updatedQuewy = toSpecificWowkspaceUnsuppowtedQuewy(quewy, 'untwustedPawtiaw');
+		wetuwn updatedQuewy ? supa.show(updatedQuewy) : this.showEmptyModew();
 	}
 }
 
-export class VirtualWorkspaceUnsupportedExtensionsView extends ExtensionsListView {
-	override async show(query: string): Promise<IPagedModel<IExtension>> {
-		const updatedQuery = toSpecificWorkspaceUnsupportedQuery(query, 'virtual');
-		return updatedQuery ? super.show(updatedQuery) : this.showEmptyModel();
+expowt cwass ViwtuawWowkspaceUnsuppowtedExtensionsView extends ExtensionsWistView {
+	ovewwide async show(quewy: stwing): Pwomise<IPagedModew<IExtension>> {
+		const updatedQuewy = toSpecificWowkspaceUnsuppowtedQuewy(quewy, 'viwtuaw');
+		wetuwn updatedQuewy ? supa.show(updatedQuewy) : this.showEmptyModew();
 	}
 }
 
-export class VirtualWorkspacePartiallySupportedExtensionsView extends ExtensionsListView {
-	override async show(query: string): Promise<IPagedModel<IExtension>> {
-		const updatedQuery = toSpecificWorkspaceUnsupportedQuery(query, 'virtualPartial');
-		return updatedQuery ? super.show(updatedQuery) : this.showEmptyModel();
+expowt cwass ViwtuawWowkspacePawtiawwySuppowtedExtensionsView extends ExtensionsWistView {
+	ovewwide async show(quewy: stwing): Pwomise<IPagedModew<IExtension>> {
+		const updatedQuewy = toSpecificWowkspaceUnsuppowtedQuewy(quewy, 'viwtuawPawtiaw');
+		wetuwn updatedQuewy ? supa.show(updatedQuewy) : this.showEmptyModew();
 	}
 }
 
-export class DefaultRecommendedExtensionsView extends ExtensionsListView {
-	private readonly recommendedExtensionsQuery = '@recommended:all';
+expowt cwass DefauwtWecommendedExtensionsView extends ExtensionsWistView {
+	pwivate weadonwy wecommendedExtensionsQuewy = '@wecommended:aww';
 
-	override renderBody(container: HTMLElement): void {
-		super.renderBody(container);
+	ovewwide wendewBody(containa: HTMWEwement): void {
+		supa.wendewBody(containa);
 
-		this._register(this.extensionRecommendationsService.onDidChangeRecommendations(() => {
+		this._wegista(this.extensionWecommendationsSewvice.onDidChangeWecommendations(() => {
 			this.show('');
 		}));
 	}
 
-	override async show(query: string): Promise<IPagedModel<IExtension>> {
-		if (query && query.trim() !== this.recommendedExtensionsQuery) {
-			return this.showEmptyModel();
+	ovewwide async show(quewy: stwing): Pwomise<IPagedModew<IExtension>> {
+		if (quewy && quewy.twim() !== this.wecommendedExtensionsQuewy) {
+			wetuwn this.showEmptyModew();
 		}
-		const model = await super.show(this.recommendedExtensionsQuery);
-		if (!this.extensionsWorkbenchService.local.some(e => !e.isBuiltin)) {
-			// This is part of popular extensions view. Collapse if no installed extensions.
-			this.setExpanded(model.length > 0);
+		const modew = await supa.show(this.wecommendedExtensionsQuewy);
+		if (!this.extensionsWowkbenchSewvice.wocaw.some(e => !e.isBuiwtin)) {
+			// This is pawt of popuwaw extensions view. Cowwapse if no instawwed extensions.
+			this.setExpanded(modew.wength > 0);
 		}
-		return model;
+		wetuwn modew;
 	}
 
 }
 
-export class RecommendedExtensionsView extends ExtensionsListView {
-	private readonly recommendedExtensionsQuery = '@recommended';
+expowt cwass WecommendedExtensionsView extends ExtensionsWistView {
+	pwivate weadonwy wecommendedExtensionsQuewy = '@wecommended';
 
-	override renderBody(container: HTMLElement): void {
-		super.renderBody(container);
+	ovewwide wendewBody(containa: HTMWEwement): void {
+		supa.wendewBody(containa);
 
-		this._register(this.extensionRecommendationsService.onDidChangeRecommendations(() => {
+		this._wegista(this.extensionWecommendationsSewvice.onDidChangeWecommendations(() => {
 			this.show('');
 		}));
 	}
 
-	override async show(query: string): Promise<IPagedModel<IExtension>> {
-		return (query && query.trim() !== this.recommendedExtensionsQuery) ? this.showEmptyModel() : super.show(this.recommendedExtensionsQuery);
+	ovewwide async show(quewy: stwing): Pwomise<IPagedModew<IExtension>> {
+		wetuwn (quewy && quewy.twim() !== this.wecommendedExtensionsQuewy) ? this.showEmptyModew() : supa.show(this.wecommendedExtensionsQuewy);
 	}
 }
 
-export class WorkspaceRecommendedExtensionsView extends ExtensionsListView implements IWorkspaceRecommendedExtensionsView {
-	private readonly recommendedExtensionsQuery = '@recommended:workspace';
+expowt cwass WowkspaceWecommendedExtensionsView extends ExtensionsWistView impwements IWowkspaceWecommendedExtensionsView {
+	pwivate weadonwy wecommendedExtensionsQuewy = '@wecommended:wowkspace';
 
-	override renderBody(container: HTMLElement): void {
-		super.renderBody(container);
+	ovewwide wendewBody(containa: HTMWEwement): void {
+		supa.wendewBody(containa);
 
-		this._register(this.extensionRecommendationsService.onDidChangeRecommendations(() => this.show(this.recommendedExtensionsQuery)));
-		this._register(this.contextService.onDidChangeWorkbenchState(() => this.show(this.recommendedExtensionsQuery)));
+		this._wegista(this.extensionWecommendationsSewvice.onDidChangeWecommendations(() => this.show(this.wecommendedExtensionsQuewy)));
+		this._wegista(this.contextSewvice.onDidChangeWowkbenchState(() => this.show(this.wecommendedExtensionsQuewy)));
 	}
 
-	override async show(query: string): Promise<IPagedModel<IExtension>> {
-		let shouldShowEmptyView = query && query.trim() !== '@recommended' && query.trim() !== '@recommended:workspace';
-		let model = await (shouldShowEmptyView ? this.showEmptyModel() : super.show(this.recommendedExtensionsQuery));
-		this.setExpanded(model.length > 0);
-		return model;
+	ovewwide async show(quewy: stwing): Pwomise<IPagedModew<IExtension>> {
+		wet shouwdShowEmptyView = quewy && quewy.twim() !== '@wecommended' && quewy.twim() !== '@wecommended:wowkspace';
+		wet modew = await (shouwdShowEmptyView ? this.showEmptyModew() : supa.show(this.wecommendedExtensionsQuewy));
+		this.setExpanded(modew.wength > 0);
+		wetuwn modew;
 	}
 
-	private async getInstallableWorkspaceRecommendations() {
-		const installed = (await this.extensionsWorkbenchService.queryLocal())
-			.filter(l => l.enablementState !== EnablementState.DisabledByExtensionKind); // Filter extensions disabled by kind
-		const recommendations = (await this.getWorkspaceRecommendations())
-			.filter(extensionId => installed.every(local => !areSameExtensions({ id: extensionId }, local.identifier)));
-		return this.getInstallableRecommendations(recommendations, { source: 'install-all-workspace-recommendations' }, CancellationToken.None);
+	pwivate async getInstawwabweWowkspaceWecommendations() {
+		const instawwed = (await this.extensionsWowkbenchSewvice.quewyWocaw())
+			.fiwta(w => w.enabwementState !== EnabwementState.DisabwedByExtensionKind); // Fiwta extensions disabwed by kind
+		const wecommendations = (await this.getWowkspaceWecommendations())
+			.fiwta(extensionId => instawwed.evewy(wocaw => !aweSameExtensions({ id: extensionId }, wocaw.identifia)));
+		wetuwn this.getInstawwabweWecommendations(wecommendations, { souwce: 'instaww-aww-wowkspace-wecommendations' }, CancewwationToken.None);
 	}
 
-	async installWorkspaceRecommendations(): Promise<void> {
-		const installableRecommendations = await this.getInstallableWorkspaceRecommendations();
-		if (installableRecommendations.length) {
-			await this.extensionManagementService.installExtensions(installableRecommendations.map(i => i.gallery!));
-		} else {
-			this.notificationService.notify({
-				severity: Severity.Info,
-				message: localize('no local extensions', "There are no extensions to install.")
+	async instawwWowkspaceWecommendations(): Pwomise<void> {
+		const instawwabweWecommendations = await this.getInstawwabweWowkspaceWecommendations();
+		if (instawwabweWecommendations.wength) {
+			await this.extensionManagementSewvice.instawwExtensions(instawwabweWecommendations.map(i => i.gawwewy!));
+		} ewse {
+			this.notificationSewvice.notify({
+				sevewity: Sevewity.Info,
+				message: wocawize('no wocaw extensions', "Thewe awe no extensions to instaww.")
 			});
 		}
 	}

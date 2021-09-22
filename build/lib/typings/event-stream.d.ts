@@ -1,27 +1,27 @@
-declare module "event-stream" {
-	import { Stream } from 'stream';
-	import { ThroughStream as _ThroughStream } from 'through';
-	import * as File from 'vinyl';
+decwawe moduwe "event-stweam" {
+	impowt { Stweam } fwom 'stweam';
+	impowt { ThwoughStweam as _ThwoughStweam } fwom 'thwough';
+	impowt * as Fiwe fwom 'vinyw';
 
-	export interface ThroughStream extends _ThroughStream {
-		queue(data: File | null): any;
-		push(data: File | null): any;
-		paused: boolean;
+	expowt intewface ThwoughStweam extends _ThwoughStweam {
+		queue(data: Fiwe | nuww): any;
+		push(data: Fiwe | nuww): any;
+		paused: boowean;
 	}
 
-	function merge(streams: Stream[]): ThroughStream;
-	function merge(...streams: Stream[]): ThroughStream;
-	function concat(...stream: Stream[]): ThroughStream;
-	function duplex(istream: Stream, ostream: Stream): ThroughStream;
+	function mewge(stweams: Stweam[]): ThwoughStweam;
+	function mewge(...stweams: Stweam[]): ThwoughStweam;
+	function concat(...stweam: Stweam[]): ThwoughStweam;
+	function dupwex(istweam: Stweam, ostweam: Stweam): ThwoughStweam;
 
-	function through(write?: (this: ThroughStream, data: any) => void, end?: (this: ThroughStream) => void,
-		opts?: { autoDestroy: boolean; }): ThroughStream;
+	function thwough(wwite?: (this: ThwoughStweam, data: any) => void, end?: (this: ThwoughStweam) => void,
+		opts?: { autoDestwoy: boowean; }): ThwoughStweam;
 
-	function readArray<T>(array: T[]): ThroughStream;
-	function writeArray<T>(cb: (err: Error, array: T[]) => void): ThroughStream;
+	function weadAwway<T>(awway: T[]): ThwoughStweam;
+	function wwiteAwway<T>(cb: (eww: Ewwow, awway: T[]) => void): ThwoughStweam;
 
-	function mapSync<I, O>(cb: (data: I) => O): ThroughStream;
-	function map<I, O>(cb: (data: I, cb: (err?: Error, data?: O) => void) => O): ThroughStream;
+	function mapSync<I, O>(cb: (data: I) => O): ThwoughStweam;
+	function map<I, O>(cb: (data: I, cb: (eww?: Ewwow, data?: O) => void) => O): ThwoughStweam;
 
-	function readable(asyncFunction: (this: ThroughStream, ...args: any[]) => any): any;
+	function weadabwe(asyncFunction: (this: ThwoughStweam, ...awgs: any[]) => any): any;
 }

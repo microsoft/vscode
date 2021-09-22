@@ -1,307 +1,307 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/panel';
-import * as nls from 'vs/nls';
-import * as dom from 'vs/base/browser/dom';
-import { basename } from 'vs/base/common/resources';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { CommentNode, CommentsModel, ResourceWithCommentThreads, ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common/commentModel';
-import { CommentController } from 'vs/workbench/contrib/comments/browser/commentsEditorContribution';
-import { IWorkspaceCommentThreadsEvent, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { textLinkForeground, textLinkActiveForeground, focusBorder, textPreformatForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ResourceLabels } from 'vs/workbench/browser/labels';
-import { CommentsList, COMMENTS_VIEW_ID, COMMENTS_VIEW_TITLE } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
-import { ViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
-import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
+impowt 'vs/css!./media/panew';
+impowt * as nws fwom 'vs/nws';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { basename } fwom 'vs/base/common/wesouwces';
+impowt { isCodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { CommentNode, CommentsModew, WesouwceWithCommentThweads, ICommentThweadChangedEvent } fwom 'vs/wowkbench/contwib/comments/common/commentModew';
+impowt { CommentContwowwa } fwom 'vs/wowkbench/contwib/comments/bwowsa/commentsEditowContwibution';
+impowt { IWowkspaceCommentThweadsEvent, ICommentSewvice } fwom 'vs/wowkbench/contwib/comments/bwowsa/commentSewvice';
+impowt { IEditowSewvice, ACTIVE_GWOUP, SIDE_GWOUP } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { textWinkFowegwound, textWinkActiveFowegwound, focusBowda, textPwefowmatFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { WesouwceWabews } fwom 'vs/wowkbench/bwowsa/wabews';
+impowt { CommentsWist, COMMENTS_VIEW_ID, COMMENTS_VIEW_TITWE } fwom 'vs/wowkbench/contwib/comments/bwowsa/commentsTweeViewa';
+impowt { ViewPane, IViewPaneOptions, ViewAction } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPane';
+impowt { IViewDescwiptowSewvice, IViewsSewvice } fwom 'vs/wowkbench/common/views';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ContextKeyExpw, IContextKey, IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { MenuId, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { Codicon } fwom 'vs/base/common/codicons';
 
-const CONTEXT_KEY_HAS_COMMENTS = new RawContextKey<boolean>('commentsView.hasComments', false);
+const CONTEXT_KEY_HAS_COMMENTS = new WawContextKey<boowean>('commentsView.hasComments', fawse);
 
-export class CommentsPanel extends ViewPane {
-	private treeLabels!: ResourceLabels;
-	private tree!: CommentsList;
-	private treeContainer!: HTMLElement;
-	private messageBoxContainer!: HTMLElement;
-	private commentsModel!: CommentsModel;
-	private readonly hasCommentsContextKey: IContextKey<boolean>;
+expowt cwass CommentsPanew extends ViewPane {
+	pwivate tweeWabews!: WesouwceWabews;
+	pwivate twee!: CommentsWist;
+	pwivate tweeContaina!: HTMWEwement;
+	pwivate messageBoxContaina!: HTMWEwement;
+	pwivate commentsModew!: CommentsModew;
+	pwivate weadonwy hasCommentsContextKey: IContextKey<boowean>;
 
-	readonly onDidChangeVisibility = this.onDidChangeBodyVisibility;
+	weadonwy onDidChangeVisibiwity = this.onDidChangeBodyVisibiwity;
 
-	constructor(
+	constwuctow(
 		options: IViewPaneOptions,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IOpenerService openerService: IOpenerService,
-		@IThemeService themeService: IThemeService,
-		@ICommentService private readonly commentService: ICommentService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IViewDescwiptowSewvice viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IOpenewSewvice openewSewvice: IOpenewSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@ICommentSewvice pwivate weadonwy commentSewvice: ICommentSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
-		this.hasCommentsContextKey = CONTEXT_KEY_HAS_COMMENTS.bindTo(contextKeyService);
+		supa(options, keybindingSewvice, contextMenuSewvice, configuwationSewvice, contextKeySewvice, viewDescwiptowSewvice, instantiationSewvice, openewSewvice, themeSewvice, tewemetwySewvice);
+		this.hasCommentsContextKey = CONTEXT_KEY_HAS_COMMENTS.bindTo(contextKeySewvice);
 	}
 
-	public override renderBody(container: HTMLElement): void {
-		super.renderBody(container);
+	pubwic ovewwide wendewBody(containa: HTMWEwement): void {
+		supa.wendewBody(containa);
 
-		container.classList.add('comments-panel');
+		containa.cwassWist.add('comments-panew');
 
-		let domContainer = dom.append(container, dom.$('.comments-panel-container'));
-		this.treeContainer = dom.append(domContainer, dom.$('.tree-container'));
-		this.commentsModel = new CommentsModel();
+		wet domContaina = dom.append(containa, dom.$('.comments-panew-containa'));
+		this.tweeContaina = dom.append(domContaina, dom.$('.twee-containa'));
+		this.commentsModew = new CommentsModew();
 
-		this.createTree();
-		this.createMessageBox(domContainer);
+		this.cweateTwee();
+		this.cweateMessageBox(domContaina);
 
-		this._register(this.commentService.onDidSetAllCommentThreads(this.onAllCommentsChanged, this));
-		this._register(this.commentService.onDidUpdateCommentThreads(this.onCommentsUpdated, this));
+		this._wegista(this.commentSewvice.onDidSetAwwCommentThweads(this.onAwwCommentsChanged, this));
+		this._wegista(this.commentSewvice.onDidUpdateCommentThweads(this.onCommentsUpdated, this));
 
-		const styleElement = dom.createStyleSheet(container);
-		this.applyStyles(styleElement);
-		this._register(this.themeService.onDidColorThemeChange(_ => this.applyStyles(styleElement)));
+		const styweEwement = dom.cweateStyweSheet(containa);
+		this.appwyStywes(styweEwement);
+		this._wegista(this.themeSewvice.onDidCowowThemeChange(_ => this.appwyStywes(styweEwement)));
 
-		this._register(this.onDidChangeBodyVisibility(visible => {
-			if (visible) {
-				this.refresh();
+		this._wegista(this.onDidChangeBodyVisibiwity(visibwe => {
+			if (visibwe) {
+				this.wefwesh();
 			}
 		}));
 
-		this.renderComments();
+		this.wendewComments();
 	}
 
-	public override focus(): void {
-		if (this.tree && this.tree.getHTMLElement() === document.activeElement) {
-			return;
+	pubwic ovewwide focus(): void {
+		if (this.twee && this.twee.getHTMWEwement() === document.activeEwement) {
+			wetuwn;
 		}
 
-		if (!this.commentsModel.hasCommentThreads() && this.messageBoxContainer) {
-			this.messageBoxContainer.focus();
-		} else if (this.tree) {
-			this.tree.domFocus();
-		}
-	}
-
-	private applyStyles(styleElement: HTMLStyleElement) {
-		const content: string[] = [];
-
-		const theme = this.themeService.getColorTheme();
-		const linkColor = theme.getColor(textLinkForeground);
-		if (linkColor) {
-			content.push(`.comments-panel .comments-panel-container a { color: ${linkColor}; }`);
-		}
-
-		const linkActiveColor = theme.getColor(textLinkActiveForeground);
-		if (linkActiveColor) {
-			content.push(`.comments-panel .comments-panel-container a:hover, a:active { color: ${linkActiveColor}; }`);
-		}
-
-		const focusColor = theme.getColor(focusBorder);
-		if (focusColor) {
-			content.push(`.comments-panel .commenst-panel-container a:focus { outline-color: ${focusColor}; }`);
-		}
-
-		const codeTextForegroundColor = theme.getColor(textPreformatForeground);
-		if (codeTextForegroundColor) {
-			content.push(`.comments-panel .comments-panel-container .text code { color: ${codeTextForegroundColor}; }`);
-		}
-
-		styleElement.textContent = content.join('\n');
-	}
-
-	private async renderComments(): Promise<void> {
-		this.treeContainer.classList.toggle('hidden', !this.commentsModel.hasCommentThreads());
-		this.renderMessage();
-		await this.tree.setInput(this.commentsModel);
-	}
-
-	public collapseAll() {
-		if (this.tree) {
-			this.tree.collapseAll();
-			this.tree.setSelection([]);
-			this.tree.setFocus([]);
-			this.tree.domFocus();
-			this.tree.focusFirst();
+		if (!this.commentsModew.hasCommentThweads() && this.messageBoxContaina) {
+			this.messageBoxContaina.focus();
+		} ewse if (this.twee) {
+			this.twee.domFocus();
 		}
 	}
 
-	public override layoutBody(height: number, width: number): void {
-		super.layoutBody(height, width);
-		this.tree.layout(height, width);
+	pwivate appwyStywes(styweEwement: HTMWStyweEwement) {
+		const content: stwing[] = [];
+
+		const theme = this.themeSewvice.getCowowTheme();
+		const winkCowow = theme.getCowow(textWinkFowegwound);
+		if (winkCowow) {
+			content.push(`.comments-panew .comments-panew-containa a { cowow: ${winkCowow}; }`);
+		}
+
+		const winkActiveCowow = theme.getCowow(textWinkActiveFowegwound);
+		if (winkActiveCowow) {
+			content.push(`.comments-panew .comments-panew-containa a:hova, a:active { cowow: ${winkActiveCowow}; }`);
+		}
+
+		const focusCowow = theme.getCowow(focusBowda);
+		if (focusCowow) {
+			content.push(`.comments-panew .commenst-panew-containa a:focus { outwine-cowow: ${focusCowow}; }`);
+		}
+
+		const codeTextFowegwoundCowow = theme.getCowow(textPwefowmatFowegwound);
+		if (codeTextFowegwoundCowow) {
+			content.push(`.comments-panew .comments-panew-containa .text code { cowow: ${codeTextFowegwoundCowow}; }`);
+		}
+
+		styweEwement.textContent = content.join('\n');
 	}
 
-	public getTitle(): string {
-		return COMMENTS_VIEW_TITLE;
+	pwivate async wendewComments(): Pwomise<void> {
+		this.tweeContaina.cwassWist.toggwe('hidden', !this.commentsModew.hasCommentThweads());
+		this.wendewMessage();
+		await this.twee.setInput(this.commentsModew);
 	}
 
-	private createMessageBox(parent: HTMLElement): void {
-		this.messageBoxContainer = dom.append(parent, dom.$('.message-box-container'));
-		this.messageBoxContainer.setAttribute('tabIndex', '0');
+	pubwic cowwapseAww() {
+		if (this.twee) {
+			this.twee.cowwapseAww();
+			this.twee.setSewection([]);
+			this.twee.setFocus([]);
+			this.twee.domFocus();
+			this.twee.focusFiwst();
+		}
 	}
 
-	private renderMessage(): void {
-		this.messageBoxContainer.textContent = this.commentsModel.getMessage();
-		this.messageBoxContainer.classList.toggle('hidden', this.commentsModel.hasCommentThreads());
+	pubwic ovewwide wayoutBody(height: numba, width: numba): void {
+		supa.wayoutBody(height, width);
+		this.twee.wayout(height, width);
 	}
 
-	private createTree(): void {
-		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
-		this.tree = this._register(this.instantiationService.createInstance(CommentsList, this.treeLabels, this.treeContainer, {
-			overrideStyles: { listBackground: this.getBackgroundColor() },
-			selectionNavigation: true,
-			accessibilityProvider: {
-				getAriaLabel(element: any): string {
-					if (element instanceof CommentsModel) {
-						return nls.localize('rootCommentsLabel', "Comments for current workspace");
+	pubwic getTitwe(): stwing {
+		wetuwn COMMENTS_VIEW_TITWE;
+	}
+
+	pwivate cweateMessageBox(pawent: HTMWEwement): void {
+		this.messageBoxContaina = dom.append(pawent, dom.$('.message-box-containa'));
+		this.messageBoxContaina.setAttwibute('tabIndex', '0');
+	}
+
+	pwivate wendewMessage(): void {
+		this.messageBoxContaina.textContent = this.commentsModew.getMessage();
+		this.messageBoxContaina.cwassWist.toggwe('hidden', this.commentsModew.hasCommentThweads());
+	}
+
+	pwivate cweateTwee(): void {
+		this.tweeWabews = this._wegista(this.instantiationSewvice.cweateInstance(WesouwceWabews, this));
+		this.twee = this._wegista(this.instantiationSewvice.cweateInstance(CommentsWist, this.tweeWabews, this.tweeContaina, {
+			ovewwideStywes: { wistBackgwound: this.getBackgwoundCowow() },
+			sewectionNavigation: twue,
+			accessibiwityPwovida: {
+				getAwiaWabew(ewement: any): stwing {
+					if (ewement instanceof CommentsModew) {
+						wetuwn nws.wocawize('wootCommentsWabew', "Comments fow cuwwent wowkspace");
 					}
-					if (element instanceof ResourceWithCommentThreads) {
-						return nls.localize('resourceWithCommentThreadsLabel', "Comments in {0}, full path {1}", basename(element.resource), element.resource.fsPath);
+					if (ewement instanceof WesouwceWithCommentThweads) {
+						wetuwn nws.wocawize('wesouwceWithCommentThweadsWabew', "Comments in {0}, fuww path {1}", basename(ewement.wesouwce), ewement.wesouwce.fsPath);
 					}
-					if (element instanceof CommentNode) {
-						return nls.localize('resourceWithCommentLabel',
-							"Comment from ${0} at line {1} column {2} in {3}, source: {4}",
-							element.comment.userName,
-							element.range.startLineNumber,
-							element.range.startColumn,
-							basename(element.resource),
-							element.comment.body.value
+					if (ewement instanceof CommentNode) {
+						wetuwn nws.wocawize('wesouwceWithCommentWabew',
+							"Comment fwom ${0} at wine {1} cowumn {2} in {3}, souwce: {4}",
+							ewement.comment.usewName,
+							ewement.wange.stawtWineNumba,
+							ewement.wange.stawtCowumn,
+							basename(ewement.wesouwce),
+							ewement.comment.body.vawue
 						);
 					}
-					return '';
+					wetuwn '';
 				},
-				getWidgetAriaLabel(): string {
-					return COMMENTS_VIEW_TITLE;
+				getWidgetAwiaWabew(): stwing {
+					wetuwn COMMENTS_VIEW_TITWE;
 				}
 			}
 		}));
 
-		this._register(this.tree.onDidOpen(e => {
-			this.openFile(e.element, e.editorOptions.pinned, e.editorOptions.preserveFocus, e.sideBySide);
+		this._wegista(this.twee.onDidOpen(e => {
+			this.openFiwe(e.ewement, e.editowOptions.pinned, e.editowOptions.pwesewveFocus, e.sideBySide);
 		}));
 	}
 
-	private openFile(element: any, pinned?: boolean, preserveFocus?: boolean, sideBySide?: boolean): boolean {
-		if (!element) {
-			return false;
+	pwivate openFiwe(ewement: any, pinned?: boowean, pwesewveFocus?: boowean, sideBySide?: boowean): boowean {
+		if (!ewement) {
+			wetuwn fawse;
 		}
 
-		if (!(element instanceof ResourceWithCommentThreads || element instanceof CommentNode)) {
-			return false;
+		if (!(ewement instanceof WesouwceWithCommentThweads || ewement instanceof CommentNode)) {
+			wetuwn fawse;
 		}
 
-		const range = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].range : element.range;
+		const wange = ewement instanceof WesouwceWithCommentThweads ? ewement.commentThweads[0].wange : ewement.wange;
 
-		const activeEditor = this.editorService.activeEditor;
-		let currentActiveResource = activeEditor ? activeEditor.resource : undefined;
-		if (this.uriIdentityService.extUri.isEqual(element.resource, currentActiveResource)) {
-			const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
-			const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment.uniqueIdInThread : element.comment.uniqueIdInThread;
-			const control = this.editorService.activeTextEditorControl;
-			if (threadToReveal && isCodeEditor(control)) {
-				const controller = CommentController.get(control);
-				controller.revealCommentThread(threadToReveal, commentToReveal, false);
+		const activeEditow = this.editowSewvice.activeEditow;
+		wet cuwwentActiveWesouwce = activeEditow ? activeEditow.wesouwce : undefined;
+		if (this.uwiIdentitySewvice.extUwi.isEquaw(ewement.wesouwce, cuwwentActiveWesouwce)) {
+			const thweadToWeveaw = ewement instanceof WesouwceWithCommentThweads ? ewement.commentThweads[0].thweadId : ewement.thweadId;
+			const commentToWeveaw = ewement instanceof WesouwceWithCommentThweads ? ewement.commentThweads[0].comment.uniqueIdInThwead : ewement.comment.uniqueIdInThwead;
+			const contwow = this.editowSewvice.activeTextEditowContwow;
+			if (thweadToWeveaw && isCodeEditow(contwow)) {
+				const contwowwa = CommentContwowwa.get(contwow);
+				contwowwa.weveawCommentThwead(thweadToWeveaw, commentToWeveaw, fawse);
 			}
 
-			return true;
+			wetuwn twue;
 		}
 
-		const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
-		const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment : element.comment;
+		const thweadToWeveaw = ewement instanceof WesouwceWithCommentThweads ? ewement.commentThweads[0].thweadId : ewement.thweadId;
+		const commentToWeveaw = ewement instanceof WesouwceWithCommentThweads ? ewement.commentThweads[0].comment : ewement.comment;
 
-		this.editorService.openEditor({
-			resource: element.resource,
+		this.editowSewvice.openEditow({
+			wesouwce: ewement.wesouwce,
 			options: {
 				pinned: pinned,
-				preserveFocus: preserveFocus,
-				selection: range
+				pwesewveFocus: pwesewveFocus,
+				sewection: wange
 			}
-		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => {
-			if (editor) {
-				const control = editor.getControl();
-				if (threadToReveal && isCodeEditor(control)) {
-					const controller = CommentController.get(control);
-					controller.revealCommentThread(threadToReveal, commentToReveal.uniqueIdInThread, true);
+		}, sideBySide ? SIDE_GWOUP : ACTIVE_GWOUP).then(editow => {
+			if (editow) {
+				const contwow = editow.getContwow();
+				if (thweadToWeveaw && isCodeEditow(contwow)) {
+					const contwowwa = CommentContwowwa.get(contwow);
+					contwowwa.weveawCommentThwead(thweadToWeveaw, commentToWeveaw.uniqueIdInThwead, twue);
 				}
 			}
 		});
 
-		return true;
+		wetuwn twue;
 	}
 
-	private async refresh(): Promise<void> {
-		if (this.isVisible()) {
-			this.hasCommentsContextKey.set(this.commentsModel.hasCommentThreads());
+	pwivate async wefwesh(): Pwomise<void> {
+		if (this.isVisibwe()) {
+			this.hasCommentsContextKey.set(this.commentsModew.hasCommentThweads());
 
-			this.treeContainer.classList.toggle('hidden', !this.commentsModel.hasCommentThreads());
-			this.renderMessage();
-			await this.tree.updateChildren();
+			this.tweeContaina.cwassWist.toggwe('hidden', !this.commentsModew.hasCommentThweads());
+			this.wendewMessage();
+			await this.twee.updateChiwdwen();
 
-			if (this.tree.getSelection().length === 0 && this.commentsModel.hasCommentThreads()) {
-				const firstComment = this.commentsModel.resourceCommentThreads[0].commentThreads[0];
-				if (firstComment) {
-					this.tree.setFocus([firstComment]);
-					this.tree.setSelection([firstComment]);
+			if (this.twee.getSewection().wength === 0 && this.commentsModew.hasCommentThweads()) {
+				const fiwstComment = this.commentsModew.wesouwceCommentThweads[0].commentThweads[0];
+				if (fiwstComment) {
+					this.twee.setFocus([fiwstComment]);
+					this.twee.setSewection([fiwstComment]);
 				}
 			}
 		}
 	}
 
-	private onAllCommentsChanged(e: IWorkspaceCommentThreadsEvent): void {
-		this.commentsModel.setCommentThreads(e.ownerId, e.commentThreads);
-		this.refresh();
+	pwivate onAwwCommentsChanged(e: IWowkspaceCommentThweadsEvent): void {
+		this.commentsModew.setCommentThweads(e.ownewId, e.commentThweads);
+		this.wefwesh();
 	}
 
-	private onCommentsUpdated(e: ICommentThreadChangedEvent): void {
-		const didUpdate = this.commentsModel.updateCommentThreads(e);
+	pwivate onCommentsUpdated(e: ICommentThweadChangedEvent): void {
+		const didUpdate = this.commentsModew.updateCommentThweads(e);
 		if (didUpdate) {
-			this.refresh();
+			this.wefwesh();
 		}
 	}
 }
 
-CommandsRegistry.registerCommand({
-	id: 'workbench.action.focusCommentsPanel',
-	handler: async (accessor) => {
-		const viewsService = accessor.get(IViewsService);
-		viewsService.openView(COMMENTS_VIEW_ID, true);
+CommandsWegistwy.wegistewCommand({
+	id: 'wowkbench.action.focusCommentsPanew',
+	handwa: async (accessow) => {
+		const viewsSewvice = accessow.get(IViewsSewvice);
+		viewsSewvice.openView(COMMENTS_VIEW_ID, twue);
 	}
 });
 
-registerAction2(class Collapse extends ViewAction<CommentsPanel> {
-	constructor() {
-		super({
+wegistewAction2(cwass Cowwapse extends ViewAction<CommentsPanew> {
+	constwuctow() {
+		supa({
 			viewId: COMMENTS_VIEW_ID,
-			id: 'comments.collapse',
-			title: nls.localize('collapseAll', "Collapse All"),
-			f1: false,
-			icon: Codicon.collapseAll,
+			id: 'comments.cowwapse',
+			titwe: nws.wocawize('cowwapseAww', "Cowwapse Aww"),
+			f1: fawse,
+			icon: Codicon.cowwapseAww,
 			menu: {
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', COMMENTS_VIEW_ID), CONTEXT_KEY_HAS_COMMENTS)
+				id: MenuId.ViewTitwe,
+				gwoup: 'navigation',
+				when: ContextKeyExpw.and(ContextKeyExpw.equaws('view', COMMENTS_VIEW_ID), CONTEXT_KEY_HAS_COMMENTS)
 			}
 		});
 	}
-	runInView(_accessor: ServicesAccessor, view: CommentsPanel) {
-		view.collapseAll();
+	wunInView(_accessow: SewvicesAccessow, view: CommentsPanew) {
+		view.cowwapseAww();
 	}
 });

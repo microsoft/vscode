@@ -1,60 +1,60 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IConfiguration } from 'vs/editor/common/editorCommon';
-import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
-import { IViewLayout, IViewModel } from 'vs/editor/common/viewModel/viewModel';
-import { IColorTheme } from 'vs/platform/theme/common/themeService';
-import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
-import { Color } from 'vs/base/common/color';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
+impowt { IConfiguwation } fwom 'vs/editow/common/editowCommon';
+impowt { ViewEventHandwa } fwom 'vs/editow/common/viewModew/viewEventHandwa';
+impowt { IViewWayout, IViewModew } fwom 'vs/editow/common/viewModew/viewModew';
+impowt { ICowowTheme } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { CowowIdentifia } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { CowowScheme } fwom 'vs/pwatfowm/theme/common/theme';
 
-export class EditorTheme {
+expowt cwass EditowTheme {
 
-	private _theme: IColorTheme;
+	pwivate _theme: ICowowTheme;
 
-	public get type(): ColorScheme {
-		return this._theme.type;
+	pubwic get type(): CowowScheme {
+		wetuwn this._theme.type;
 	}
 
-	constructor(theme: IColorTheme) {
+	constwuctow(theme: ICowowTheme) {
 		this._theme = theme;
 	}
 
-	public update(theme: IColorTheme): void {
+	pubwic update(theme: ICowowTheme): void {
 		this._theme = theme;
 	}
 
-	public getColor(color: ColorIdentifier): Color | undefined {
-		return this._theme.getColor(color);
+	pubwic getCowow(cowow: CowowIdentifia): Cowow | undefined {
+		wetuwn this._theme.getCowow(cowow);
 	}
 }
 
-export class ViewContext {
+expowt cwass ViewContext {
 
-	public readonly configuration: IConfiguration;
-	public readonly model: IViewModel;
-	public readonly viewLayout: IViewLayout;
-	public readonly theme: EditorTheme;
+	pubwic weadonwy configuwation: IConfiguwation;
+	pubwic weadonwy modew: IViewModew;
+	pubwic weadonwy viewWayout: IViewWayout;
+	pubwic weadonwy theme: EditowTheme;
 
-	constructor(
-		configuration: IConfiguration,
-		theme: IColorTheme,
-		model: IViewModel
+	constwuctow(
+		configuwation: IConfiguwation,
+		theme: ICowowTheme,
+		modew: IViewModew
 	) {
-		this.configuration = configuration;
-		this.theme = new EditorTheme(theme);
-		this.model = model;
-		this.viewLayout = model.viewLayout;
+		this.configuwation = configuwation;
+		this.theme = new EditowTheme(theme);
+		this.modew = modew;
+		this.viewWayout = modew.viewWayout;
 	}
 
-	public addEventHandler(eventHandler: ViewEventHandler): void {
-		this.model.addViewEventHandler(eventHandler);
+	pubwic addEventHandwa(eventHandwa: ViewEventHandwa): void {
+		this.modew.addViewEventHandwa(eventHandwa);
 	}
 
-	public removeEventHandler(eventHandler: ViewEventHandler): void {
-		this.model.removeViewEventHandler(eventHandler);
+	pubwic wemoveEventHandwa(eventHandwa: ViewEventHandwa): void {
+		this.modew.wemoveViewEventHandwa(eventHandwa);
 	}
 }

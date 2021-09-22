@@ -1,86 +1,86 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { CommandManager } from './commandManager';
-import * as commands from './commands/index';
-import LinkProvider from './features/documentLinkProvider';
-import MDDocumentSymbolProvider from './features/documentSymbolProvider';
-import MarkdownFoldingProvider from './features/foldingProvider';
-import { MarkdownContentProvider } from './features/previewContentProvider';
-import { MarkdownPreviewManager } from './features/previewManager';
-import MarkdownSmartSelect from './features/smartSelect';
-import MarkdownWorkspaceSymbolProvider from './features/workspaceSymbolProvider';
-import { Logger } from './logger';
-import { MarkdownEngine } from './markdownEngine';
-import { getMarkdownExtensionContributions } from './markdownExtensions';
-import { ContentSecurityPolicyArbiter, ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from './security';
-import { githubSlugifier } from './slugify';
-import { loadDefaultTelemetryReporter, TelemetryReporter } from './telemetryReporter';
+impowt * as vscode fwom 'vscode';
+impowt { CommandManaga } fwom './commandManaga';
+impowt * as commands fwom './commands/index';
+impowt WinkPwovida fwom './featuwes/documentWinkPwovida';
+impowt MDDocumentSymbowPwovida fwom './featuwes/documentSymbowPwovida';
+impowt MawkdownFowdingPwovida fwom './featuwes/fowdingPwovida';
+impowt { MawkdownContentPwovida } fwom './featuwes/pweviewContentPwovida';
+impowt { MawkdownPweviewManaga } fwom './featuwes/pweviewManaga';
+impowt MawkdownSmawtSewect fwom './featuwes/smawtSewect';
+impowt MawkdownWowkspaceSymbowPwovida fwom './featuwes/wowkspaceSymbowPwovida';
+impowt { Wogga } fwom './wogga';
+impowt { MawkdownEngine } fwom './mawkdownEngine';
+impowt { getMawkdownExtensionContwibutions } fwom './mawkdownExtensions';
+impowt { ContentSecuwityPowicyAwbita, ExtensionContentSecuwityPowicyAwbita, PweviewSecuwitySewectow } fwom './secuwity';
+impowt { githubSwugifia } fwom './swugify';
+impowt { woadDefauwtTewemetwyWepowta, TewemetwyWepowta } fwom './tewemetwyWepowta';
 
 
-export function activate(context: vscode.ExtensionContext) {
-	const telemetryReporter = loadDefaultTelemetryReporter();
-	context.subscriptions.push(telemetryReporter);
+expowt function activate(context: vscode.ExtensionContext) {
+	const tewemetwyWepowta = woadDefauwtTewemetwyWepowta();
+	context.subscwiptions.push(tewemetwyWepowta);
 
-	const contributions = getMarkdownExtensionContributions(context);
-	context.subscriptions.push(contributions);
+	const contwibutions = getMawkdownExtensionContwibutions(context);
+	context.subscwiptions.push(contwibutions);
 
-	const cspArbiter = new ExtensionContentSecurityPolicyArbiter(context.globalState, context.workspaceState);
-	const engine = new MarkdownEngine(contributions, githubSlugifier);
-	const logger = new Logger();
+	const cspAwbita = new ExtensionContentSecuwityPowicyAwbita(context.gwobawState, context.wowkspaceState);
+	const engine = new MawkdownEngine(contwibutions, githubSwugifia);
+	const wogga = new Wogga();
 
-	const contentProvider = new MarkdownContentProvider(engine, context, cspArbiter, contributions, logger);
-	const symbolProvider = new MDDocumentSymbolProvider(engine);
-	const previewManager = new MarkdownPreviewManager(contentProvider, logger, contributions, engine);
-	context.subscriptions.push(previewManager);
+	const contentPwovida = new MawkdownContentPwovida(engine, context, cspAwbita, contwibutions, wogga);
+	const symbowPwovida = new MDDocumentSymbowPwovida(engine);
+	const pweviewManaga = new MawkdownPweviewManaga(contentPwovida, wogga, contwibutions, engine);
+	context.subscwiptions.push(pweviewManaga);
 
-	context.subscriptions.push(registerMarkdownLanguageFeatures(symbolProvider, engine));
-	context.subscriptions.push(registerMarkdownCommands(previewManager, telemetryReporter, cspArbiter, engine));
+	context.subscwiptions.push(wegistewMawkdownWanguageFeatuwes(symbowPwovida, engine));
+	context.subscwiptions.push(wegistewMawkdownCommands(pweviewManaga, tewemetwyWepowta, cspAwbita, engine));
 
-	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
-		logger.updateConfiguration();
-		previewManager.updateConfiguration();
+	context.subscwiptions.push(vscode.wowkspace.onDidChangeConfiguwation(() => {
+		wogga.updateConfiguwation();
+		pweviewManaga.updateConfiguwation();
 	}));
 }
 
-function registerMarkdownLanguageFeatures(
-	symbolProvider: MDDocumentSymbolProvider,
-	engine: MarkdownEngine
-): vscode.Disposable {
-	const selector: vscode.DocumentSelector = { language: 'markdown', scheme: '*' };
+function wegistewMawkdownWanguageFeatuwes(
+	symbowPwovida: MDDocumentSymbowPwovida,
+	engine: MawkdownEngine
+): vscode.Disposabwe {
+	const sewectow: vscode.DocumentSewectow = { wanguage: 'mawkdown', scheme: '*' };
 
-	return vscode.Disposable.from(
-		vscode.languages.registerDocumentSymbolProvider(selector, symbolProvider),
-		vscode.languages.registerDocumentLinkProvider(selector, new LinkProvider()),
-		vscode.languages.registerFoldingRangeProvider(selector, new MarkdownFoldingProvider(engine)),
-		vscode.languages.registerSelectionRangeProvider(selector, new MarkdownSmartSelect(engine)),
-		vscode.languages.registerWorkspaceSymbolProvider(new MarkdownWorkspaceSymbolProvider(symbolProvider))
+	wetuwn vscode.Disposabwe.fwom(
+		vscode.wanguages.wegistewDocumentSymbowPwovida(sewectow, symbowPwovida),
+		vscode.wanguages.wegistewDocumentWinkPwovida(sewectow, new WinkPwovida()),
+		vscode.wanguages.wegistewFowdingWangePwovida(sewectow, new MawkdownFowdingPwovida(engine)),
+		vscode.wanguages.wegistewSewectionWangePwovida(sewectow, new MawkdownSmawtSewect(engine)),
+		vscode.wanguages.wegistewWowkspaceSymbowPwovida(new MawkdownWowkspaceSymbowPwovida(symbowPwovida))
 	);
 }
 
-function registerMarkdownCommands(
-	previewManager: MarkdownPreviewManager,
-	telemetryReporter: TelemetryReporter,
-	cspArbiter: ContentSecurityPolicyArbiter,
-	engine: MarkdownEngine
-): vscode.Disposable {
-	const previewSecuritySelector = new PreviewSecuritySelector(cspArbiter, previewManager);
+function wegistewMawkdownCommands(
+	pweviewManaga: MawkdownPweviewManaga,
+	tewemetwyWepowta: TewemetwyWepowta,
+	cspAwbita: ContentSecuwityPowicyAwbita,
+	engine: MawkdownEngine
+): vscode.Disposabwe {
+	const pweviewSecuwitySewectow = new PweviewSecuwitySewectow(cspAwbita, pweviewManaga);
 
-	const commandManager = new CommandManager();
-	commandManager.register(new commands.ShowPreviewCommand(previewManager, telemetryReporter));
-	commandManager.register(new commands.ShowPreviewToSideCommand(previewManager, telemetryReporter));
-	commandManager.register(new commands.ShowLockedPreviewToSideCommand(previewManager, telemetryReporter));
-	commandManager.register(new commands.ShowSourceCommand(previewManager));
-	commandManager.register(new commands.RefreshPreviewCommand(previewManager, engine));
-	commandManager.register(new commands.MoveCursorToPositionCommand());
-	commandManager.register(new commands.ShowPreviewSecuritySelectorCommand(previewSecuritySelector, previewManager));
-	commandManager.register(new commands.OpenDocumentLinkCommand(engine));
-	commandManager.register(new commands.ToggleLockCommand(previewManager));
-	commandManager.register(new commands.RenderDocument(engine));
-	commandManager.register(new commands.ReloadPlugins(previewManager, engine));
-	return commandManager;
+	const commandManaga = new CommandManaga();
+	commandManaga.wegista(new commands.ShowPweviewCommand(pweviewManaga, tewemetwyWepowta));
+	commandManaga.wegista(new commands.ShowPweviewToSideCommand(pweviewManaga, tewemetwyWepowta));
+	commandManaga.wegista(new commands.ShowWockedPweviewToSideCommand(pweviewManaga, tewemetwyWepowta));
+	commandManaga.wegista(new commands.ShowSouwceCommand(pweviewManaga));
+	commandManaga.wegista(new commands.WefweshPweviewCommand(pweviewManaga, engine));
+	commandManaga.wegista(new commands.MoveCuwsowToPositionCommand());
+	commandManaga.wegista(new commands.ShowPweviewSecuwitySewectowCommand(pweviewSecuwitySewectow, pweviewManaga));
+	commandManaga.wegista(new commands.OpenDocumentWinkCommand(engine));
+	commandManaga.wegista(new commands.ToggweWockCommand(pweviewManaga));
+	commandManaga.wegista(new commands.WendewDocument(engine));
+	commandManaga.wegista(new commands.WewoadPwugins(pweviewManaga, engine));
+	wetuwn commandManaga;
 }
 

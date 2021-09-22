@@ -1,682 +1,682 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Button, IButtonOptions } from 'vs/base/browser/ui/button/button';
-import { FindInput, IFindInputOptions } from 'vs/base/browser/ui/findinput/findInput';
-import { ReplaceInput } from 'vs/base/browser/ui/findinput/replaceInput';
-import { IMessage, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { Action } from 'vs/base/common/actions';
-import { Delayer } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from 'vs/editor/contrib/find/findModel';
-import * as nls from 'vs/nls';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
-import { attachFindReplaceInputBoxStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ContextScopedFindInput, ContextScopedReplaceInput } from 'vs/platform/browser/contextScopedHistoryWidget';
-import { appendKeyBindingLabel, isSearchViewFocused, getSearchView } from 'vs/workbench/contrib/search/browser/searchActions';
-import * as Constants from 'vs/workbench/contrib/search/common/constants';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { isMacintosh } from 'vs/base/common/platform';
-import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
-import { IViewsService } from 'vs/workbench/common/views';
-import { searchReplaceAllIcon, searchHideReplaceIcon, searchShowContextIcon, searchShowReplaceIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
-import { ToggleSearchEditorContextLinesCommandId } from 'vs/workbench/contrib/searchEditor/browser/constants';
-import { showHistoryKeybindingHint } from 'vs/platform/browser/historyWidgetKeybindingHint';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { IKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { ActionBaw } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { Button, IButtonOptions } fwom 'vs/base/bwowsa/ui/button/button';
+impowt { FindInput, IFindInputOptions } fwom 'vs/base/bwowsa/ui/findinput/findInput';
+impowt { WepwaceInput } fwom 'vs/base/bwowsa/ui/findinput/wepwaceInput';
+impowt { IMessage, InputBox } fwom 'vs/base/bwowsa/ui/inputbox/inputBox';
+impowt { Widget } fwom 'vs/base/bwowsa/ui/widget';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { Dewaya } fwom 'vs/base/common/async';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { CONTEXT_FIND_WIDGET_NOT_VISIBWE } fwom 'vs/editow/contwib/find/findModew';
+impowt * as nws fwom 'vs/nws';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ContextKeyExpw, IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { KeybindingsWegistwy, KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { ISeawchConfiguwationPwopewties } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { attachFindWepwaceInputBoxStywa, attachInputBoxStywa } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { IThemeSewvice, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { ContextScopedFindInput, ContextScopedWepwaceInput } fwom 'vs/pwatfowm/bwowsa/contextScopedHistowyWidget';
+impowt { appendKeyBindingWabew, isSeawchViewFocused, getSeawchView } fwom 'vs/wowkbench/contwib/seawch/bwowsa/seawchActions';
+impowt * as Constants fwom 'vs/wowkbench/contwib/seawch/common/constants';
+impowt { IAccessibiwitySewvice } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { Checkbox } fwom 'vs/base/bwowsa/ui/checkbox/checkbox';
+impowt { IViewsSewvice } fwom 'vs/wowkbench/common/views';
+impowt { seawchWepwaceAwwIcon, seawchHideWepwaceIcon, seawchShowContextIcon, seawchShowWepwaceIcon } fwom 'vs/wowkbench/contwib/seawch/bwowsa/seawchIcons';
+impowt { ToggweSeawchEditowContextWinesCommandId } fwom 'vs/wowkbench/contwib/seawchEditow/bwowsa/constants';
+impowt { showHistowyKeybindingHint } fwom 'vs/pwatfowm/bwowsa/histowyWidgetKeybindingHint';
 
-/** Specified in searchview.css */
-export const SingleLineInputHeight = 24;
+/** Specified in seawchview.css */
+expowt const SingweWineInputHeight = 24;
 
-export interface ISearchWidgetOptions {
-	value?: string;
-	replaceValue?: string;
-	isRegex?: boolean;
-	isCaseSensitive?: boolean;
-	isWholeWords?: boolean;
-	searchHistory?: string[];
-	replaceHistory?: string[];
-	preserveCase?: boolean;
-	_hideReplaceToggle?: boolean; // TODO: Search Editor's replace experience
-	showContextToggle?: boolean;
+expowt intewface ISeawchWidgetOptions {
+	vawue?: stwing;
+	wepwaceVawue?: stwing;
+	isWegex?: boowean;
+	isCaseSensitive?: boowean;
+	isWhoweWowds?: boowean;
+	seawchHistowy?: stwing[];
+	wepwaceHistowy?: stwing[];
+	pwesewveCase?: boowean;
+	_hideWepwaceToggwe?: boowean; // TODO: Seawch Editow's wepwace expewience
+	showContextToggwe?: boowean;
 }
 
-class ReplaceAllAction extends Action {
+cwass WepwaceAwwAction extends Action {
 
-	static readonly ID: string = 'search.action.replaceAll';
+	static weadonwy ID: stwing = 'seawch.action.wepwaceAww';
 
-	constructor(private _searchWidget: SearchWidget) {
-		super(ReplaceAllAction.ID, '', ThemeIcon.asClassName(searchReplaceAllIcon), false);
+	constwuctow(pwivate _seawchWidget: SeawchWidget) {
+		supa(WepwaceAwwAction.ID, '', ThemeIcon.asCwassName(seawchWepwaceAwwIcon), fawse);
 	}
 
-	set searchWidget(searchWidget: SearchWidget) {
-		this._searchWidget = searchWidget;
+	set seawchWidget(seawchWidget: SeawchWidget) {
+		this._seawchWidget = seawchWidget;
 	}
 
-	override run(): Promise<any> {
-		if (this._searchWidget) {
-			return this._searchWidget.triggerReplaceAll();
+	ovewwide wun(): Pwomise<any> {
+		if (this._seawchWidget) {
+			wetuwn this._seawchWidget.twiggewWepwaceAww();
 		}
-		return Promise.resolve(null);
+		wetuwn Pwomise.wesowve(nuww);
 	}
 }
 
-const ctrlKeyMod = (isMacintosh ? KeyMod.WinCtrl : KeyMod.CtrlCmd);
+const ctwwKeyMod = (isMacintosh ? KeyMod.WinCtww : KeyMod.CtwwCmd);
 
-function stopPropagationForMultiLineUpwards(event: IKeyboardEvent, value: string, textarea: HTMLTextAreaElement | null) {
-	const isMultiline = !!value.match(/\n/);
-	if (textarea && (isMultiline || textarea.clientHeight > SingleLineInputHeight) && textarea.selectionStart > 0) {
-		event.stopPropagation();
-		return;
+function stopPwopagationFowMuwtiWineUpwawds(event: IKeyboawdEvent, vawue: stwing, textawea: HTMWTextAweaEwement | nuww) {
+	const isMuwtiwine = !!vawue.match(/\n/);
+	if (textawea && (isMuwtiwine || textawea.cwientHeight > SingweWineInputHeight) && textawea.sewectionStawt > 0) {
+		event.stopPwopagation();
+		wetuwn;
 	}
 }
 
-function stopPropagationForMultiLineDownwards(event: IKeyboardEvent, value: string, textarea: HTMLTextAreaElement | null) {
-	const isMultiline = !!value.match(/\n/);
-	if (textarea && (isMultiline || textarea.clientHeight > SingleLineInputHeight) && textarea.selectionEnd < textarea.value.length) {
-		event.stopPropagation();
-		return;
+function stopPwopagationFowMuwtiWineDownwawds(event: IKeyboawdEvent, vawue: stwing, textawea: HTMWTextAweaEwement | nuww) {
+	const isMuwtiwine = !!vawue.match(/\n/);
+	if (textawea && (isMuwtiwine || textawea.cwientHeight > SingweWineInputHeight) && textawea.sewectionEnd < textawea.vawue.wength) {
+		event.stopPwopagation();
+		wetuwn;
 	}
 }
 
-export class SearchWidget extends Widget {
-	private static readonly INPUT_MAX_HEIGHT = 134;
+expowt cwass SeawchWidget extends Widget {
+	pwivate static weadonwy INPUT_MAX_HEIGHT = 134;
 
-	private static readonly REPLACE_ALL_DISABLED_LABEL = nls.localize('search.action.replaceAll.disabled.label', "Replace All (Submit Search to Enable)");
-	private static readonly REPLACE_ALL_ENABLED_LABEL = (keyBindingService2: IKeybindingService): string => {
-		const kb = keyBindingService2.lookupKeybinding(ReplaceAllAction.ID);
-		return appendKeyBindingLabel(nls.localize('search.action.replaceAll.enabled.label', "Replace All"), kb, keyBindingService2);
+	pwivate static weadonwy WEPWACE_AWW_DISABWED_WABEW = nws.wocawize('seawch.action.wepwaceAww.disabwed.wabew', "Wepwace Aww (Submit Seawch to Enabwe)");
+	pwivate static weadonwy WEPWACE_AWW_ENABWED_WABEW = (keyBindingSewvice2: IKeybindingSewvice): stwing => {
+		const kb = keyBindingSewvice2.wookupKeybinding(WepwaceAwwAction.ID);
+		wetuwn appendKeyBindingWabew(nws.wocawize('seawch.action.wepwaceAww.enabwed.wabew', "Wepwace Aww"), kb, keyBindingSewvice2);
 	};
 
-	domNode!: HTMLElement;
+	domNode!: HTMWEwement;
 
-	searchInput!: FindInput;
-	searchInputFocusTracker!: dom.IFocusTracker;
-	private searchInputBoxFocused: IContextKey<boolean>;
+	seawchInput!: FindInput;
+	seawchInputFocusTwacka!: dom.IFocusTwacka;
+	pwivate seawchInputBoxFocused: IContextKey<boowean>;
 
-	private replaceContainer!: HTMLElement;
-	replaceInput!: ReplaceInput;
-	replaceInputFocusTracker!: dom.IFocusTracker;
-	private replaceInputBoxFocused: IContextKey<boolean>;
-	private toggleReplaceButton!: Button;
-	private replaceAllAction!: ReplaceAllAction;
-	private replaceActive: IContextKey<boolean>;
-	private replaceActionBar!: ActionBar;
-	private _replaceHistoryDelayer: Delayer<void>;
-	private ignoreGlobalFindBufferOnNextFocus = false;
-	private previousGlobalFindBufferValue: string | null = null;
+	pwivate wepwaceContaina!: HTMWEwement;
+	wepwaceInput!: WepwaceInput;
+	wepwaceInputFocusTwacka!: dom.IFocusTwacka;
+	pwivate wepwaceInputBoxFocused: IContextKey<boowean>;
+	pwivate toggweWepwaceButton!: Button;
+	pwivate wepwaceAwwAction!: WepwaceAwwAction;
+	pwivate wepwaceActive: IContextKey<boowean>;
+	pwivate wepwaceActionBaw!: ActionBaw;
+	pwivate _wepwaceHistowyDewaya: Dewaya<void>;
+	pwivate ignoweGwobawFindBuffewOnNextFocus = fawse;
+	pwivate pweviousGwobawFindBuffewVawue: stwing | nuww = nuww;
 
-	private _onSearchSubmit = this._register(new Emitter<{ triggeredOnType: boolean, delay: number }>());
-	readonly onSearchSubmit: Event<{ triggeredOnType: boolean, delay: number }> = this._onSearchSubmit.event;
+	pwivate _onSeawchSubmit = this._wegista(new Emitta<{ twiggewedOnType: boowean, deway: numba }>());
+	weadonwy onSeawchSubmit: Event<{ twiggewedOnType: boowean, deway: numba }> = this._onSeawchSubmit.event;
 
-	private _onSearchCancel = this._register(new Emitter<{ focus: boolean }>());
-	readonly onSearchCancel: Event<{ focus: boolean }> = this._onSearchCancel.event;
+	pwivate _onSeawchCancew = this._wegista(new Emitta<{ focus: boowean }>());
+	weadonwy onSeawchCancew: Event<{ focus: boowean }> = this._onSeawchCancew.event;
 
-	private _onReplaceToggled = this._register(new Emitter<void>());
-	readonly onReplaceToggled: Event<void> = this._onReplaceToggled.event;
+	pwivate _onWepwaceToggwed = this._wegista(new Emitta<void>());
+	weadonwy onWepwaceToggwed: Event<void> = this._onWepwaceToggwed.event;
 
-	private _onReplaceStateChange = this._register(new Emitter<boolean>());
-	readonly onReplaceStateChange: Event<boolean> = this._onReplaceStateChange.event;
+	pwivate _onWepwaceStateChange = this._wegista(new Emitta<boowean>());
+	weadonwy onWepwaceStateChange: Event<boowean> = this._onWepwaceStateChange.event;
 
-	private _onPreserveCaseChange = this._register(new Emitter<boolean>());
-	readonly onPreserveCaseChange: Event<boolean> = this._onPreserveCaseChange.event;
+	pwivate _onPwesewveCaseChange = this._wegista(new Emitta<boowean>());
+	weadonwy onPwesewveCaseChange: Event<boowean> = this._onPwesewveCaseChange.event;
 
-	private _onReplaceValueChanged = this._register(new Emitter<void>());
-	readonly onReplaceValueChanged: Event<void> = this._onReplaceValueChanged.event;
+	pwivate _onWepwaceVawueChanged = this._wegista(new Emitta<void>());
+	weadonwy onWepwaceVawueChanged: Event<void> = this._onWepwaceVawueChanged.event;
 
-	private _onReplaceAll = this._register(new Emitter<void>());
-	readonly onReplaceAll: Event<void> = this._onReplaceAll.event;
+	pwivate _onWepwaceAww = this._wegista(new Emitta<void>());
+	weadonwy onWepwaceAww: Event<void> = this._onWepwaceAww.event;
 
-	private _onBlur = this._register(new Emitter<void>());
-	readonly onBlur: Event<void> = this._onBlur.event;
+	pwivate _onBwuw = this._wegista(new Emitta<void>());
+	weadonwy onBwuw: Event<void> = this._onBwuw.event;
 
-	private _onDidHeightChange = this._register(new Emitter<void>());
-	readonly onDidHeightChange: Event<void> = this._onDidHeightChange.event;
+	pwivate _onDidHeightChange = this._wegista(new Emitta<void>());
+	weadonwy onDidHeightChange: Event<void> = this._onDidHeightChange.event;
 
-	private readonly _onDidToggleContext = new Emitter<void>();
-	readonly onDidToggleContext: Event<void> = this._onDidToggleContext.event;
+	pwivate weadonwy _onDidToggweContext = new Emitta<void>();
+	weadonwy onDidToggweContext: Event<void> = this._onDidToggweContext.event;
 
-	private showContextCheckbox!: Checkbox;
-	public contextLinesInput!: InputBox;
+	pwivate showContextCheckbox!: Checkbox;
+	pubwic contextWinesInput!: InputBox;
 
-	constructor(
-		container: HTMLElement,
-		options: ISearchWidgetOptions,
-		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IThemeService private readonly themeService: IThemeService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IClipboardService private readonly clipboardServce: IClipboardService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
+	constwuctow(
+		containa: HTMWEwement,
+		options: ISeawchWidgetOptions,
+		@IContextViewSewvice pwivate weadonwy contextViewSewvice: IContextViewSewvice,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice,
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice,
+		@IKeybindingSewvice pwivate weadonwy keybindingSewvice: IKeybindingSewvice,
+		@ICwipboawdSewvice pwivate weadonwy cwipboawdSewvce: ICwipboawdSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IAccessibiwitySewvice pwivate weadonwy accessibiwitySewvice: IAccessibiwitySewvice
 	) {
-		super();
-		this.replaceActive = Constants.ReplaceActiveKey.bindTo(this.contextKeyService);
-		this.searchInputBoxFocused = Constants.SearchInputBoxFocusedKey.bindTo(this.contextKeyService);
-		this.replaceInputBoxFocused = Constants.ReplaceInputBoxFocusedKey.bindTo(this.contextKeyService);
+		supa();
+		this.wepwaceActive = Constants.WepwaceActiveKey.bindTo(this.contextKeySewvice);
+		this.seawchInputBoxFocused = Constants.SeawchInputBoxFocusedKey.bindTo(this.contextKeySewvice);
+		this.wepwaceInputBoxFocused = Constants.WepwaceInputBoxFocusedKey.bindTo(this.contextKeySewvice);
 
-		this._replaceHistoryDelayer = new Delayer<void>(500);
+		this._wepwaceHistowyDewaya = new Dewaya<void>(500);
 
-		this.render(container, options);
+		this.wenda(containa, options);
 
-		this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('editor.accessibilitySupport')) {
-				this.updateAccessibilitySupport();
+		this.configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation('editow.accessibiwitySuppowt')) {
+				this.updateAccessibiwitySuppowt();
 			}
 		});
-		this.accessibilityService.onDidChangeScreenReaderOptimized(() => this.updateAccessibilitySupport());
-		this.updateAccessibilitySupport();
+		this.accessibiwitySewvice.onDidChangeScweenWeadewOptimized(() => this.updateAccessibiwitySuppowt());
+		this.updateAccessibiwitySuppowt();
 	}
 
-	focus(select: boolean = true, focusReplace: boolean = false, suppressGlobalSearchBuffer = false): void {
-		this.ignoreGlobalFindBufferOnNextFocus = suppressGlobalSearchBuffer;
+	focus(sewect: boowean = twue, focusWepwace: boowean = fawse, suppwessGwobawSeawchBuffa = fawse): void {
+		this.ignoweGwobawFindBuffewOnNextFocus = suppwessGwobawSeawchBuffa;
 
-		if (focusReplace && this.isReplaceShown()) {
-			this.replaceInput.focus();
-			if (select) {
-				this.replaceInput.select();
+		if (focusWepwace && this.isWepwaceShown()) {
+			this.wepwaceInput.focus();
+			if (sewect) {
+				this.wepwaceInput.sewect();
 			}
-		} else {
-			this.searchInput.focus();
-			if (select) {
-				this.searchInput.select();
+		} ewse {
+			this.seawchInput.focus();
+			if (sewect) {
+				this.seawchInput.sewect();
 			}
 		}
 	}
 
-	setWidth(width: number) {
-		this.searchInput.inputBox.layout();
-		this.replaceInput.width = width - 28;
-		this.replaceInput.inputBox.layout();
+	setWidth(width: numba) {
+		this.seawchInput.inputBox.wayout();
+		this.wepwaceInput.width = width - 28;
+		this.wepwaceInput.inputBox.wayout();
 	}
 
-	clear() {
-		this.searchInput.clear();
-		this.replaceInput.setValue('');
-		this.setReplaceAllActionState(false);
+	cweaw() {
+		this.seawchInput.cweaw();
+		this.wepwaceInput.setVawue('');
+		this.setWepwaceAwwActionState(fawse);
 	}
 
-	isReplaceShown(): boolean {
-		return !this.replaceContainer.classList.contains('disabled');
+	isWepwaceShown(): boowean {
+		wetuwn !this.wepwaceContaina.cwassWist.contains('disabwed');
 	}
 
-	isReplaceActive(): boolean {
-		return !!this.replaceActive.get();
+	isWepwaceActive(): boowean {
+		wetuwn !!this.wepwaceActive.get();
 	}
 
-	getReplaceValue(): string {
-		return this.replaceInput.getValue();
+	getWepwaceVawue(): stwing {
+		wetuwn this.wepwaceInput.getVawue();
 	}
 
-	toggleReplace(show?: boolean): void {
-		if (show === undefined || show !== this.isReplaceShown()) {
-			this.onToggleReplaceButton();
+	toggweWepwace(show?: boowean): void {
+		if (show === undefined || show !== this.isWepwaceShown()) {
+			this.onToggweWepwaceButton();
 		}
 	}
 
-	getSearchHistory(): string[] {
-		return this.searchInput.inputBox.getHistory();
+	getSeawchHistowy(): stwing[] {
+		wetuwn this.seawchInput.inputBox.getHistowy();
 	}
 
-	getReplaceHistory(): string[] {
-		return this.replaceInput.inputBox.getHistory();
+	getWepwaceHistowy(): stwing[] {
+		wetuwn this.wepwaceInput.inputBox.getHistowy();
 	}
 
-	clearHistory(): void {
-		this.searchInput.inputBox.clearHistory();
-		this.replaceInput.inputBox.clearHistory();
+	cweawHistowy(): void {
+		this.seawchInput.inputBox.cweawHistowy();
+		this.wepwaceInput.inputBox.cweawHistowy();
 	}
 
-	showNextSearchTerm() {
-		this.searchInput.inputBox.showNextValue();
+	showNextSeawchTewm() {
+		this.seawchInput.inputBox.showNextVawue();
 	}
 
-	showPreviousSearchTerm() {
-		this.searchInput.inputBox.showPreviousValue();
+	showPweviousSeawchTewm() {
+		this.seawchInput.inputBox.showPweviousVawue();
 	}
 
-	showNextReplaceTerm() {
-		this.replaceInput.inputBox.showNextValue();
+	showNextWepwaceTewm() {
+		this.wepwaceInput.inputBox.showNextVawue();
 	}
 
-	showPreviousReplaceTerm() {
-		this.replaceInput.inputBox.showPreviousValue();
+	showPweviousWepwaceTewm() {
+		this.wepwaceInput.inputBox.showPweviousVawue();
 	}
 
-	searchInputHasFocus(): boolean {
-		return !!this.searchInputBoxFocused.get();
+	seawchInputHasFocus(): boowean {
+		wetuwn !!this.seawchInputBoxFocused.get();
 	}
 
-	replaceInputHasFocus(): boolean {
-		return this.replaceInput.inputBox.hasFocus();
+	wepwaceInputHasFocus(): boowean {
+		wetuwn this.wepwaceInput.inputBox.hasFocus();
 	}
 
-	focusReplaceAllAction(): void {
-		this.replaceActionBar.focus(true);
+	focusWepwaceAwwAction(): void {
+		this.wepwaceActionBaw.focus(twue);
 	}
 
-	focusRegexAction(): void {
-		this.searchInput.focusOnRegex();
+	focusWegexAction(): void {
+		this.seawchInput.focusOnWegex();
 	}
 
-	private render(container: HTMLElement, options: ISearchWidgetOptions): void {
-		this.domNode = dom.append(container, dom.$('.search-widget'));
-		this.domNode.style.position = 'relative';
+	pwivate wenda(containa: HTMWEwement, options: ISeawchWidgetOptions): void {
+		this.domNode = dom.append(containa, dom.$('.seawch-widget'));
+		this.domNode.stywe.position = 'wewative';
 
-		if (!options._hideReplaceToggle) {
-			this.renderToggleReplaceButton(this.domNode);
+		if (!options._hideWepwaceToggwe) {
+			this.wendewToggweWepwaceButton(this.domNode);
 		}
 
-		this.renderSearchInput(this.domNode, options);
-		this.renderReplaceInput(this.domNode, options);
+		this.wendewSeawchInput(this.domNode, options);
+		this.wendewWepwaceInput(this.domNode, options);
 	}
 
-	private updateAccessibilitySupport(): void {
-		this.searchInput.setFocusInputOnOptionClick(!this.accessibilityService.isScreenReaderOptimized());
+	pwivate updateAccessibiwitySuppowt(): void {
+		this.seawchInput.setFocusInputOnOptionCwick(!this.accessibiwitySewvice.isScweenWeadewOptimized());
 	}
 
-	private renderToggleReplaceButton(parent: HTMLElement): void {
+	pwivate wendewToggweWepwaceButton(pawent: HTMWEwement): void {
 		const opts: IButtonOptions = {
-			buttonBackground: undefined,
-			buttonBorder: undefined,
-			buttonForeground: undefined,
-			buttonHoverBackground: undefined
+			buttonBackgwound: undefined,
+			buttonBowda: undefined,
+			buttonFowegwound: undefined,
+			buttonHovewBackgwound: undefined
 		};
-		this.toggleReplaceButton = this._register(new Button(parent, opts));
-		this.toggleReplaceButton.element.setAttribute('aria-expanded', 'false');
-		this.toggleReplaceButton.element.classList.add('toggle-replace-button');
-		this.toggleReplaceButton.icon = searchHideReplaceIcon;
-		// TODO@joao need to dispose this listener eventually
-		this.toggleReplaceButton.onDidClick(() => this.onToggleReplaceButton());
-		this.toggleReplaceButton.element.title = nls.localize('search.replace.toggle.button.title', "Toggle Replace");
+		this.toggweWepwaceButton = this._wegista(new Button(pawent, opts));
+		this.toggweWepwaceButton.ewement.setAttwibute('awia-expanded', 'fawse');
+		this.toggweWepwaceButton.ewement.cwassWist.add('toggwe-wepwace-button');
+		this.toggweWepwaceButton.icon = seawchHideWepwaceIcon;
+		// TODO@joao need to dispose this wistena eventuawwy
+		this.toggweWepwaceButton.onDidCwick(() => this.onToggweWepwaceButton());
+		this.toggweWepwaceButton.ewement.titwe = nws.wocawize('seawch.wepwace.toggwe.button.titwe', "Toggwe Wepwace");
 	}
 
-	private renderSearchInput(parent: HTMLElement, options: ISearchWidgetOptions): void {
+	pwivate wendewSeawchInput(pawent: HTMWEwement, options: ISeawchWidgetOptions): void {
 		const inputOptions: IFindInputOptions = {
-			label: nls.localize('label.Search', 'Search: Type Search Term and press Enter to search'),
-			validation: (value: string) => this.validateSearchInput(value),
-			placeholder: nls.localize('search.placeHolder', "Search"),
-			appendCaseSensitiveLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.ToggleCaseSensitiveCommandId), this.keybindingService),
-			appendWholeWordsLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.ToggleWholeWordCommandId), this.keybindingService),
-			appendRegexLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.ToggleRegexCommandId), this.keybindingService),
-			history: options.searchHistory,
-			showHistoryHint: () => showHistoryKeybindingHint(this.keybindingService),
-			flexibleHeight: true,
-			flexibleMaxHeight: SearchWidget.INPUT_MAX_HEIGHT
+			wabew: nws.wocawize('wabew.Seawch', 'Seawch: Type Seawch Tewm and pwess Enta to seawch'),
+			vawidation: (vawue: stwing) => this.vawidateSeawchInput(vawue),
+			pwacehowda: nws.wocawize('seawch.pwaceHowda', "Seawch"),
+			appendCaseSensitiveWabew: appendKeyBindingWabew('', this.keybindingSewvice.wookupKeybinding(Constants.ToggweCaseSensitiveCommandId), this.keybindingSewvice),
+			appendWhoweWowdsWabew: appendKeyBindingWabew('', this.keybindingSewvice.wookupKeybinding(Constants.ToggweWhoweWowdCommandId), this.keybindingSewvice),
+			appendWegexWabew: appendKeyBindingWabew('', this.keybindingSewvice.wookupKeybinding(Constants.ToggweWegexCommandId), this.keybindingSewvice),
+			histowy: options.seawchHistowy,
+			showHistowyHint: () => showHistowyKeybindingHint(this.keybindingSewvice),
+			fwexibweHeight: twue,
+			fwexibweMaxHeight: SeawchWidget.INPUT_MAX_HEIGHT
 		};
 
-		const searchInputContainer = dom.append(parent, dom.$('.search-container.input-box'));
-		this.searchInput = this._register(new ContextScopedFindInput(searchInputContainer, this.contextViewService, inputOptions, this.contextKeyService, true));
-		this._register(attachFindReplaceInputBoxStyler(this.searchInput, this.themeService));
-		this.searchInput.onKeyDown((keyboardEvent: IKeyboardEvent) => this.onSearchInputKeyDown(keyboardEvent));
-		this.searchInput.setValue(options.value || '');
-		this.searchInput.setRegex(!!options.isRegex);
-		this.searchInput.setCaseSensitive(!!options.isCaseSensitive);
-		this.searchInput.setWholeWords(!!options.isWholeWords);
-		this._register(this.searchInput.onCaseSensitiveKeyDown((keyboardEvent: IKeyboardEvent) => this.onCaseSensitiveKeyDown(keyboardEvent)));
-		this._register(this.searchInput.onRegexKeyDown((keyboardEvent: IKeyboardEvent) => this.onRegexKeyDown(keyboardEvent)));
-		this._register(this.searchInput.inputBox.onDidChange(() => this.onSearchInputChanged()));
-		this._register(this.searchInput.inputBox.onDidHeightChange(() => this._onDidHeightChange.fire()));
+		const seawchInputContaina = dom.append(pawent, dom.$('.seawch-containa.input-box'));
+		this.seawchInput = this._wegista(new ContextScopedFindInput(seawchInputContaina, this.contextViewSewvice, inputOptions, this.contextKeySewvice, twue));
+		this._wegista(attachFindWepwaceInputBoxStywa(this.seawchInput, this.themeSewvice));
+		this.seawchInput.onKeyDown((keyboawdEvent: IKeyboawdEvent) => this.onSeawchInputKeyDown(keyboawdEvent));
+		this.seawchInput.setVawue(options.vawue || '');
+		this.seawchInput.setWegex(!!options.isWegex);
+		this.seawchInput.setCaseSensitive(!!options.isCaseSensitive);
+		this.seawchInput.setWhoweWowds(!!options.isWhoweWowds);
+		this._wegista(this.seawchInput.onCaseSensitiveKeyDown((keyboawdEvent: IKeyboawdEvent) => this.onCaseSensitiveKeyDown(keyboawdEvent)));
+		this._wegista(this.seawchInput.onWegexKeyDown((keyboawdEvent: IKeyboawdEvent) => this.onWegexKeyDown(keyboawdEvent)));
+		this._wegista(this.seawchInput.inputBox.onDidChange(() => this.onSeawchInputChanged()));
+		this._wegista(this.seawchInput.inputBox.onDidHeightChange(() => this._onDidHeightChange.fiwe()));
 
-		this._register(this.onReplaceValueChanged(() => {
-			this._replaceHistoryDelayer.trigger(() => this.replaceInput.inputBox.addToHistory());
+		this._wegista(this.onWepwaceVawueChanged(() => {
+			this._wepwaceHistowyDewaya.twigga(() => this.wepwaceInput.inputBox.addToHistowy());
 		}));
 
-		this.searchInputFocusTracker = this._register(dom.trackFocus(this.searchInput.inputBox.inputElement));
-		this._register(this.searchInputFocusTracker.onDidFocus(async () => {
-			this.searchInputBoxFocused.set(true);
+		this.seawchInputFocusTwacka = this._wegista(dom.twackFocus(this.seawchInput.inputBox.inputEwement));
+		this._wegista(this.seawchInputFocusTwacka.onDidFocus(async () => {
+			this.seawchInputBoxFocused.set(twue);
 
-			const useGlobalFindBuffer = this.searchConfiguration.globalFindClipboard;
-			if (!this.ignoreGlobalFindBufferOnNextFocus && useGlobalFindBuffer) {
-				const globalBufferText = await this.clipboardServce.readFindText();
-				if (globalBufferText && this.previousGlobalFindBufferValue !== globalBufferText) {
-					this.searchInput.inputBox.addToHistory();
-					this.searchInput.setValue(globalBufferText);
-					this.searchInput.select();
+			const useGwobawFindBuffa = this.seawchConfiguwation.gwobawFindCwipboawd;
+			if (!this.ignoweGwobawFindBuffewOnNextFocus && useGwobawFindBuffa) {
+				const gwobawBuffewText = await this.cwipboawdSewvce.weadFindText();
+				if (gwobawBuffewText && this.pweviousGwobawFindBuffewVawue !== gwobawBuffewText) {
+					this.seawchInput.inputBox.addToHistowy();
+					this.seawchInput.setVawue(gwobawBuffewText);
+					this.seawchInput.sewect();
 				}
 
-				this.previousGlobalFindBufferValue = globalBufferText;
+				this.pweviousGwobawFindBuffewVawue = gwobawBuffewText;
 			}
 
-			this.ignoreGlobalFindBufferOnNextFocus = false;
+			this.ignoweGwobawFindBuffewOnNextFocus = fawse;
 		}));
-		this._register(this.searchInputFocusTracker.onDidBlur(() => this.searchInputBoxFocused.set(false)));
+		this._wegista(this.seawchInputFocusTwacka.onDidBwuw(() => this.seawchInputBoxFocused.set(fawse)));
 
 
 		this.showContextCheckbox = new Checkbox({
-			isChecked: false,
-			title: appendKeyBindingLabel(nls.localize('showContext', "Toggle Context Lines"), this.keybindingService.lookupKeybinding(ToggleSearchEditorContextLinesCommandId), this.keybindingService),
-			icon: searchShowContextIcon
+			isChecked: fawse,
+			titwe: appendKeyBindingWabew(nws.wocawize('showContext', "Toggwe Context Wines"), this.keybindingSewvice.wookupKeybinding(ToggweSeawchEditowContextWinesCommandId), this.keybindingSewvice),
+			icon: seawchShowContextIcon
 		});
-		this._register(this.showContextCheckbox.onChange(() => this.onContextLinesChanged()));
+		this._wegista(this.showContextCheckbox.onChange(() => this.onContextWinesChanged()));
 
-		if (options.showContextToggle) {
-			this.contextLinesInput = new InputBox(searchInputContainer, this.contextViewService, { type: 'number' });
-			this.contextLinesInput.element.classList.add('context-lines-input');
-			this.contextLinesInput.value = '' + (this.configurationService.getValue<ISearchConfigurationProperties>('search').searchEditor.defaultNumberOfContextLines ?? 1);
-			this._register(this.contextLinesInput.onDidChange(() => this.onContextLinesChanged()));
-			this._register(attachInputBoxStyler(this.contextLinesInput, this.themeService));
-			dom.append(searchInputContainer, this.showContextCheckbox.domNode);
+		if (options.showContextToggwe) {
+			this.contextWinesInput = new InputBox(seawchInputContaina, this.contextViewSewvice, { type: 'numba' });
+			this.contextWinesInput.ewement.cwassWist.add('context-wines-input');
+			this.contextWinesInput.vawue = '' + (this.configuwationSewvice.getVawue<ISeawchConfiguwationPwopewties>('seawch').seawchEditow.defauwtNumbewOfContextWines ?? 1);
+			this._wegista(this.contextWinesInput.onDidChange(() => this.onContextWinesChanged()));
+			this._wegista(attachInputBoxStywa(this.contextWinesInput, this.themeSewvice));
+			dom.append(seawchInputContaina, this.showContextCheckbox.domNode);
 		}
 	}
 
-	private onContextLinesChanged() {
-		this._onDidToggleContext.fire();
+	pwivate onContextWinesChanged() {
+		this._onDidToggweContext.fiwe();
 
-		if (this.contextLinesInput.value.includes('-')) {
-			this.contextLinesInput.value = '0';
+		if (this.contextWinesInput.vawue.incwudes('-')) {
+			this.contextWinesInput.vawue = '0';
 		}
 
-		this._onDidToggleContext.fire();
+		this._onDidToggweContext.fiwe();
 	}
 
-	public setContextLines(lines: number) {
-		if (!this.contextLinesInput) { return; }
-		if (lines === 0) {
-			this.showContextCheckbox.checked = false;
-		} else {
-			this.showContextCheckbox.checked = true;
-			this.contextLinesInput.value = '' + lines;
+	pubwic setContextWines(wines: numba) {
+		if (!this.contextWinesInput) { wetuwn; }
+		if (wines === 0) {
+			this.showContextCheckbox.checked = fawse;
+		} ewse {
+			this.showContextCheckbox.checked = twue;
+			this.contextWinesInput.vawue = '' + wines;
 		}
 	}
 
-	private renderReplaceInput(parent: HTMLElement, options: ISearchWidgetOptions): void {
-		this.replaceContainer = dom.append(parent, dom.$('.replace-container.disabled'));
-		const replaceBox = dom.append(this.replaceContainer, dom.$('.replace-input'));
+	pwivate wendewWepwaceInput(pawent: HTMWEwement, options: ISeawchWidgetOptions): void {
+		this.wepwaceContaina = dom.append(pawent, dom.$('.wepwace-containa.disabwed'));
+		const wepwaceBox = dom.append(this.wepwaceContaina, dom.$('.wepwace-input'));
 
-		this.replaceInput = this._register(new ContextScopedReplaceInput(replaceBox, this.contextViewService, {
-			label: nls.localize('label.Replace', 'Replace: Type replace term and press Enter to preview'),
-			placeholder: nls.localize('search.replace.placeHolder', "Replace"),
-			appendPreserveCaseLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.TogglePreserveCaseId), this.keybindingService),
-			history: options.replaceHistory,
-			showHistoryHint: () => showHistoryKeybindingHint(this.keybindingService),
-			flexibleHeight: true,
-			flexibleMaxHeight: SearchWidget.INPUT_MAX_HEIGHT
-		}, this.contextKeyService, true));
+		this.wepwaceInput = this._wegista(new ContextScopedWepwaceInput(wepwaceBox, this.contextViewSewvice, {
+			wabew: nws.wocawize('wabew.Wepwace', 'Wepwace: Type wepwace tewm and pwess Enta to pweview'),
+			pwacehowda: nws.wocawize('seawch.wepwace.pwaceHowda', "Wepwace"),
+			appendPwesewveCaseWabew: appendKeyBindingWabew('', this.keybindingSewvice.wookupKeybinding(Constants.ToggwePwesewveCaseId), this.keybindingSewvice),
+			histowy: options.wepwaceHistowy,
+			showHistowyHint: () => showHistowyKeybindingHint(this.keybindingSewvice),
+			fwexibweHeight: twue,
+			fwexibweMaxHeight: SeawchWidget.INPUT_MAX_HEIGHT
+		}, this.contextKeySewvice, twue));
 
-		this._register(this.replaceInput.onDidOptionChange(viaKeyboard => {
-			if (!viaKeyboard) {
-				this._onPreserveCaseChange.fire(this.replaceInput.getPreserveCase());
+		this._wegista(this.wepwaceInput.onDidOptionChange(viaKeyboawd => {
+			if (!viaKeyboawd) {
+				this._onPwesewveCaseChange.fiwe(this.wepwaceInput.getPwesewveCase());
 			}
 		}));
 
-		this._register(attachFindReplaceInputBoxStyler(this.replaceInput, this.themeService));
-		this.replaceInput.onKeyDown((keyboardEvent) => this.onReplaceInputKeyDown(keyboardEvent));
-		this.replaceInput.setValue(options.replaceValue || '');
-		this._register(this.replaceInput.inputBox.onDidChange(() => this._onReplaceValueChanged.fire()));
-		this._register(this.replaceInput.inputBox.onDidHeightChange(() => this._onDidHeightChange.fire()));
+		this._wegista(attachFindWepwaceInputBoxStywa(this.wepwaceInput, this.themeSewvice));
+		this.wepwaceInput.onKeyDown((keyboawdEvent) => this.onWepwaceInputKeyDown(keyboawdEvent));
+		this.wepwaceInput.setVawue(options.wepwaceVawue || '');
+		this._wegista(this.wepwaceInput.inputBox.onDidChange(() => this._onWepwaceVawueChanged.fiwe()));
+		this._wegista(this.wepwaceInput.inputBox.onDidHeightChange(() => this._onDidHeightChange.fiwe()));
 
-		this.replaceAllAction = new ReplaceAllAction(this);
-		this.replaceAllAction.label = SearchWidget.REPLACE_ALL_DISABLED_LABEL;
-		this.replaceActionBar = this._register(new ActionBar(this.replaceContainer));
-		this.replaceActionBar.push([this.replaceAllAction], { icon: true, label: false });
-		this.onkeydown(this.replaceActionBar.domNode, (keyboardEvent) => this.onReplaceActionbarKeyDown(keyboardEvent));
+		this.wepwaceAwwAction = new WepwaceAwwAction(this);
+		this.wepwaceAwwAction.wabew = SeawchWidget.WEPWACE_AWW_DISABWED_WABEW;
+		this.wepwaceActionBaw = this._wegista(new ActionBaw(this.wepwaceContaina));
+		this.wepwaceActionBaw.push([this.wepwaceAwwAction], { icon: twue, wabew: fawse });
+		this.onkeydown(this.wepwaceActionBaw.domNode, (keyboawdEvent) => this.onWepwaceActionbawKeyDown(keyboawdEvent));
 
-		this.replaceInputFocusTracker = this._register(dom.trackFocus(this.replaceInput.inputBox.inputElement));
-		this._register(this.replaceInputFocusTracker.onDidFocus(() => this.replaceInputBoxFocused.set(true)));
-		this._register(this.replaceInputFocusTracker.onDidBlur(() => this.replaceInputBoxFocused.set(false)));
-		this._register(this.replaceInput.onPreserveCaseKeyDown((keyboardEvent: IKeyboardEvent) => this.onPreserveCaseKeyDown(keyboardEvent)));
+		this.wepwaceInputFocusTwacka = this._wegista(dom.twackFocus(this.wepwaceInput.inputBox.inputEwement));
+		this._wegista(this.wepwaceInputFocusTwacka.onDidFocus(() => this.wepwaceInputBoxFocused.set(twue)));
+		this._wegista(this.wepwaceInputFocusTwacka.onDidBwuw(() => this.wepwaceInputBoxFocused.set(fawse)));
+		this._wegista(this.wepwaceInput.onPwesewveCaseKeyDown((keyboawdEvent: IKeyboawdEvent) => this.onPwesewveCaseKeyDown(keyboawdEvent)));
 	}
 
-	triggerReplaceAll(): Promise<any> {
-		this._onReplaceAll.fire();
-		return Promise.resolve(null);
+	twiggewWepwaceAww(): Pwomise<any> {
+		this._onWepwaceAww.fiwe();
+		wetuwn Pwomise.wesowve(nuww);
 	}
 
-	private onToggleReplaceButton(): void {
-		this.replaceContainer.classList.toggle('disabled');
-		if (this.isReplaceShown()) {
-			this.toggleReplaceButton.element.classList.remove(...ThemeIcon.asClassNameArray(searchHideReplaceIcon));
-			this.toggleReplaceButton.element.classList.add(...ThemeIcon.asClassNameArray(searchShowReplaceIcon));
-		} else {
-			this.toggleReplaceButton.element.classList.remove(...ThemeIcon.asClassNameArray(searchShowReplaceIcon));
-			this.toggleReplaceButton.element.classList.add(...ThemeIcon.asClassNameArray(searchHideReplaceIcon));
+	pwivate onToggweWepwaceButton(): void {
+		this.wepwaceContaina.cwassWist.toggwe('disabwed');
+		if (this.isWepwaceShown()) {
+			this.toggweWepwaceButton.ewement.cwassWist.wemove(...ThemeIcon.asCwassNameAwway(seawchHideWepwaceIcon));
+			this.toggweWepwaceButton.ewement.cwassWist.add(...ThemeIcon.asCwassNameAwway(seawchShowWepwaceIcon));
+		} ewse {
+			this.toggweWepwaceButton.ewement.cwassWist.wemove(...ThemeIcon.asCwassNameAwway(seawchShowWepwaceIcon));
+			this.toggweWepwaceButton.ewement.cwassWist.add(...ThemeIcon.asCwassNameAwway(seawchHideWepwaceIcon));
 		}
-		this.toggleReplaceButton.element.setAttribute('aria-expanded', this.isReplaceShown() ? 'true' : 'false');
-		this.updateReplaceActiveState();
-		this._onReplaceToggled.fire();
+		this.toggweWepwaceButton.ewement.setAttwibute('awia-expanded', this.isWepwaceShown() ? 'twue' : 'fawse');
+		this.updateWepwaceActiveState();
+		this._onWepwaceToggwed.fiwe();
 	}
 
-	setValue(value: string) {
-		this.searchInput.setValue(value);
+	setVawue(vawue: stwing) {
+		this.seawchInput.setVawue(vawue);
 	}
 
-	setReplaceAllActionState(enabled: boolean): void {
-		if (this.replaceAllAction.enabled !== enabled) {
-			this.replaceAllAction.enabled = enabled;
-			this.replaceAllAction.label = enabled ? SearchWidget.REPLACE_ALL_ENABLED_LABEL(this.keybindingService) : SearchWidget.REPLACE_ALL_DISABLED_LABEL;
-			this.updateReplaceActiveState();
-		}
-	}
-
-	private updateReplaceActiveState(): void {
-		const currentState = this.isReplaceActive();
-		const newState = this.isReplaceShown() && this.replaceAllAction.enabled;
-		if (currentState !== newState) {
-			this.replaceActive.set(newState);
-			this._onReplaceStateChange.fire(newState);
-			this.replaceInput.inputBox.layout();
+	setWepwaceAwwActionState(enabwed: boowean): void {
+		if (this.wepwaceAwwAction.enabwed !== enabwed) {
+			this.wepwaceAwwAction.enabwed = enabwed;
+			this.wepwaceAwwAction.wabew = enabwed ? SeawchWidget.WEPWACE_AWW_ENABWED_WABEW(this.keybindingSewvice) : SeawchWidget.WEPWACE_AWW_DISABWED_WABEW;
+			this.updateWepwaceActiveState();
 		}
 	}
 
-	private validateSearchInput(value: string): IMessage | null {
-		if (value.length === 0) {
-			return null;
+	pwivate updateWepwaceActiveState(): void {
+		const cuwwentState = this.isWepwaceActive();
+		const newState = this.isWepwaceShown() && this.wepwaceAwwAction.enabwed;
+		if (cuwwentState !== newState) {
+			this.wepwaceActive.set(newState);
+			this._onWepwaceStateChange.fiwe(newState);
+			this.wepwaceInput.inputBox.wayout();
 		}
-		if (!this.searchInput.getRegex()) {
-			return null;
+	}
+
+	pwivate vawidateSeawchInput(vawue: stwing): IMessage | nuww {
+		if (vawue.wength === 0) {
+			wetuwn nuww;
 		}
-		try {
-			new RegExp(value, 'u');
+		if (!this.seawchInput.getWegex()) {
+			wetuwn nuww;
+		}
+		twy {
+			new WegExp(vawue, 'u');
 		} catch (e) {
-			return { content: e.message };
+			wetuwn { content: e.message };
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	private onSearchInputChanged(): void {
-		this.searchInput.clearMessage();
-		this.setReplaceAllActionState(false);
+	pwivate onSeawchInputChanged(): void {
+		this.seawchInput.cweawMessage();
+		this.setWepwaceAwwActionState(fawse);
 
-		if (this.searchConfiguration.searchOnType) {
-			if (this.searchInput.getRegex()) {
-				try {
-					const regex = new RegExp(this.searchInput.getValue(), 'ug');
-					const matchienessHeuristic = `
+		if (this.seawchConfiguwation.seawchOnType) {
+			if (this.seawchInput.getWegex()) {
+				twy {
+					const wegex = new WegExp(this.seawchInput.getVawue(), 'ug');
+					const matchienessHeuwistic = `
 								~!@#$%^&*()_+
 								\`1234567890-=
-								qwertyuiop[]\\
-								QWERTYUIOP{}|
-								asdfghjkl;'
-								ASDFGHJKL:"
+								qwewtyuiop[]\\
+								QWEWTYUIOP{}|
+								asdfghjkw;'
+								ASDFGHJKW:"
 								zxcvbnm,./
-								ZXCVBNM<>? `.match(regex)?.length ?? 0;
+								ZXCVBNM<>? `.match(wegex)?.wength ?? 0;
 
-					const delayMultiplier =
-						matchienessHeuristic < 50 ? 1 :
-							matchienessHeuristic < 100 ? 5 : // expressions like `.` or `\w`
-								10; // only things matching empty string
+					const dewayMuwtipwia =
+						matchienessHeuwistic < 50 ? 1 :
+							matchienessHeuwistic < 100 ? 5 : // expwessions wike `.` ow `\w`
+								10; // onwy things matching empty stwing
 
-					this.submitSearch(true, this.searchConfiguration.searchOnTypeDebouncePeriod * delayMultiplier);
+					this.submitSeawch(twue, this.seawchConfiguwation.seawchOnTypeDebouncePewiod * dewayMuwtipwia);
 				} catch {
 					// pass
 				}
-			} else {
-				this.submitSearch(true, this.searchConfiguration.searchOnTypeDebouncePeriod);
+			} ewse {
+				this.submitSeawch(twue, this.seawchConfiguwation.seawchOnTypeDebouncePewiod);
 			}
 		}
 	}
 
-	private onSearchInputKeyDown(keyboardEvent: IKeyboardEvent) {
-		if (keyboardEvent.equals(ctrlKeyMod | KeyCode.Enter)) {
-			this.searchInput.inputBox.insertAtCursor('\n');
-			keyboardEvent.preventDefault();
+	pwivate onSeawchInputKeyDown(keyboawdEvent: IKeyboawdEvent) {
+		if (keyboawdEvent.equaws(ctwwKeyMod | KeyCode.Enta)) {
+			this.seawchInput.inputBox.insewtAtCuwsow('\n');
+			keyboawdEvent.pweventDefauwt();
 		}
 
-		if (keyboardEvent.equals(KeyCode.Enter)) {
-			this.searchInput.onSearchSubmit();
-			this.submitSearch();
-			keyboardEvent.preventDefault();
+		if (keyboawdEvent.equaws(KeyCode.Enta)) {
+			this.seawchInput.onSeawchSubmit();
+			this.submitSeawch();
+			keyboawdEvent.pweventDefauwt();
 		}
 
-		else if (keyboardEvent.equals(KeyCode.Escape)) {
-			this._onSearchCancel.fire({ focus: true });
-			keyboardEvent.preventDefault();
+		ewse if (keyboawdEvent.equaws(KeyCode.Escape)) {
+			this._onSeawchCancew.fiwe({ focus: twue });
+			keyboawdEvent.pweventDefauwt();
 		}
 
-		else if (keyboardEvent.equals(KeyCode.Tab)) {
-			if (this.isReplaceShown()) {
-				this.replaceInput.focus();
-			} else {
-				this.searchInput.focusOnCaseSensitive();
+		ewse if (keyboawdEvent.equaws(KeyCode.Tab)) {
+			if (this.isWepwaceShown()) {
+				this.wepwaceInput.focus();
+			} ewse {
+				this.seawchInput.focusOnCaseSensitive();
 			}
-			keyboardEvent.preventDefault();
+			keyboawdEvent.pweventDefauwt();
 		}
 
-		else if (keyboardEvent.equals(KeyCode.UpArrow)) {
-			stopPropagationForMultiLineUpwards(keyboardEvent, this.searchInput.getValue(), this.searchInput.domNode.querySelector('textarea'));
+		ewse if (keyboawdEvent.equaws(KeyCode.UpAwwow)) {
+			stopPwopagationFowMuwtiWineUpwawds(keyboawdEvent, this.seawchInput.getVawue(), this.seawchInput.domNode.quewySewectow('textawea'));
 		}
 
-		else if (keyboardEvent.equals(KeyCode.DownArrow)) {
-			stopPropagationForMultiLineDownwards(keyboardEvent, this.searchInput.getValue(), this.searchInput.domNode.querySelector('textarea'));
+		ewse if (keyboawdEvent.equaws(KeyCode.DownAwwow)) {
+			stopPwopagationFowMuwtiWineDownwawds(keyboawdEvent, this.seawchInput.getVawue(), this.seawchInput.domNode.quewySewectow('textawea'));
 		}
 	}
 
-	private onCaseSensitiveKeyDown(keyboardEvent: IKeyboardEvent) {
-		if (keyboardEvent.equals(KeyMod.Shift | KeyCode.Tab)) {
-			if (this.isReplaceShown()) {
-				this.replaceInput.focus();
-				keyboardEvent.preventDefault();
-			}
-		}
-	}
-
-	private onRegexKeyDown(keyboardEvent: IKeyboardEvent) {
-		if (keyboardEvent.equals(KeyCode.Tab)) {
-			if (this.isReplaceShown()) {
-				this.replaceInput.focusOnPreserve();
-				keyboardEvent.preventDefault();
+	pwivate onCaseSensitiveKeyDown(keyboawdEvent: IKeyboawdEvent) {
+		if (keyboawdEvent.equaws(KeyMod.Shift | KeyCode.Tab)) {
+			if (this.isWepwaceShown()) {
+				this.wepwaceInput.focus();
+				keyboawdEvent.pweventDefauwt();
 			}
 		}
 	}
 
-	private onPreserveCaseKeyDown(keyboardEvent: IKeyboardEvent) {
-		if (keyboardEvent.equals(KeyCode.Tab)) {
-			if (this.isReplaceActive()) {
-				this.focusReplaceAllAction();
-			} else {
-				this._onBlur.fire();
+	pwivate onWegexKeyDown(keyboawdEvent: IKeyboawdEvent) {
+		if (keyboawdEvent.equaws(KeyCode.Tab)) {
+			if (this.isWepwaceShown()) {
+				this.wepwaceInput.focusOnPwesewve();
+				keyboawdEvent.pweventDefauwt();
 			}
-			keyboardEvent.preventDefault();
-		}
-		else if (keyboardEvent.equals(KeyMod.Shift | KeyCode.Tab)) {
-			this.focusRegexAction();
-			keyboardEvent.preventDefault();
 		}
 	}
 
-	private onReplaceInputKeyDown(keyboardEvent: IKeyboardEvent) {
-		if (keyboardEvent.equals(ctrlKeyMod | KeyCode.Enter)) {
-			this.replaceInput.inputBox.insertAtCursor('\n');
-			keyboardEvent.preventDefault();
+	pwivate onPwesewveCaseKeyDown(keyboawdEvent: IKeyboawdEvent) {
+		if (keyboawdEvent.equaws(KeyCode.Tab)) {
+			if (this.isWepwaceActive()) {
+				this.focusWepwaceAwwAction();
+			} ewse {
+				this._onBwuw.fiwe();
+			}
+			keyboawdEvent.pweventDefauwt();
 		}
-
-		if (keyboardEvent.equals(KeyCode.Enter)) {
-			this.submitSearch();
-			keyboardEvent.preventDefault();
-		}
-
-		else if (keyboardEvent.equals(KeyCode.Tab)) {
-			this.searchInput.focusOnCaseSensitive();
-			keyboardEvent.preventDefault();
-		}
-
-		else if (keyboardEvent.equals(KeyMod.Shift | KeyCode.Tab)) {
-			this.searchInput.focus();
-			keyboardEvent.preventDefault();
-		}
-
-		else if (keyboardEvent.equals(KeyCode.UpArrow)) {
-			stopPropagationForMultiLineUpwards(keyboardEvent, this.replaceInput.getValue(), this.replaceInput.domNode.querySelector('textarea'));
-		}
-
-		else if (keyboardEvent.equals(KeyCode.DownArrow)) {
-			stopPropagationForMultiLineDownwards(keyboardEvent, this.replaceInput.getValue(), this.replaceInput.domNode.querySelector('textarea'));
+		ewse if (keyboawdEvent.equaws(KeyMod.Shift | KeyCode.Tab)) {
+			this.focusWegexAction();
+			keyboawdEvent.pweventDefauwt();
 		}
 	}
 
-	private onReplaceActionbarKeyDown(keyboardEvent: IKeyboardEvent) {
-		if (keyboardEvent.equals(KeyMod.Shift | KeyCode.Tab)) {
-			this.focusRegexAction();
-			keyboardEvent.preventDefault();
+	pwivate onWepwaceInputKeyDown(keyboawdEvent: IKeyboawdEvent) {
+		if (keyboawdEvent.equaws(ctwwKeyMod | KeyCode.Enta)) {
+			this.wepwaceInput.inputBox.insewtAtCuwsow('\n');
+			keyboawdEvent.pweventDefauwt();
+		}
+
+		if (keyboawdEvent.equaws(KeyCode.Enta)) {
+			this.submitSeawch();
+			keyboawdEvent.pweventDefauwt();
+		}
+
+		ewse if (keyboawdEvent.equaws(KeyCode.Tab)) {
+			this.seawchInput.focusOnCaseSensitive();
+			keyboawdEvent.pweventDefauwt();
+		}
+
+		ewse if (keyboawdEvent.equaws(KeyMod.Shift | KeyCode.Tab)) {
+			this.seawchInput.focus();
+			keyboawdEvent.pweventDefauwt();
+		}
+
+		ewse if (keyboawdEvent.equaws(KeyCode.UpAwwow)) {
+			stopPwopagationFowMuwtiWineUpwawds(keyboawdEvent, this.wepwaceInput.getVawue(), this.wepwaceInput.domNode.quewySewectow('textawea'));
+		}
+
+		ewse if (keyboawdEvent.equaws(KeyCode.DownAwwow)) {
+			stopPwopagationFowMuwtiWineDownwawds(keyboawdEvent, this.wepwaceInput.getVawue(), this.wepwaceInput.domNode.quewySewectow('textawea'));
 		}
 	}
 
-	private async submitSearch(triggeredOnType = false, delay: number = 0): Promise<void> {
-		this.searchInput.validate();
-		if (!this.searchInput.inputBox.isInputValid()) {
-			return;
+	pwivate onWepwaceActionbawKeyDown(keyboawdEvent: IKeyboawdEvent) {
+		if (keyboawdEvent.equaws(KeyMod.Shift | KeyCode.Tab)) {
+			this.focusWegexAction();
+			keyboawdEvent.pweventDefauwt();
 		}
-
-		const value = this.searchInput.getValue();
-		const useGlobalFindBuffer = this.searchConfiguration.globalFindClipboard;
-		if (value && useGlobalFindBuffer) {
-			await this.clipboardServce.writeFindText(value);
-		}
-		this._onSearchSubmit.fire({ triggeredOnType, delay });
 	}
 
-	getContextLines() {
-		return this.showContextCheckbox.checked ? +this.contextLinesInput.value : 0;
+	pwivate async submitSeawch(twiggewedOnType = fawse, deway: numba = 0): Pwomise<void> {
+		this.seawchInput.vawidate();
+		if (!this.seawchInput.inputBox.isInputVawid()) {
+			wetuwn;
+		}
+
+		const vawue = this.seawchInput.getVawue();
+		const useGwobawFindBuffa = this.seawchConfiguwation.gwobawFindCwipboawd;
+		if (vawue && useGwobawFindBuffa) {
+			await this.cwipboawdSewvce.wwiteFindText(vawue);
+		}
+		this._onSeawchSubmit.fiwe({ twiggewedOnType, deway });
 	}
 
-	modifyContextLines(increase: boolean) {
-		const current = +this.contextLinesInput.value;
-		const modified = current + (increase ? 1 : -1);
+	getContextWines() {
+		wetuwn this.showContextCheckbox.checked ? +this.contextWinesInput.vawue : 0;
+	}
+
+	modifyContextWines(incwease: boowean) {
+		const cuwwent = +this.contextWinesInput.vawue;
+		const modified = cuwwent + (incwease ? 1 : -1);
 		this.showContextCheckbox.checked = modified !== 0;
-		this.contextLinesInput.value = '' + modified;
+		this.contextWinesInput.vawue = '' + modified;
 	}
 
-	toggleContextLines() {
+	toggweContextWines() {
 		this.showContextCheckbox.checked = !this.showContextCheckbox.checked;
-		this.onContextLinesChanged();
+		this.onContextWinesChanged();
 	}
 
-	override dispose(): void {
-		this.setReplaceAllActionState(false);
-		super.dispose();
+	ovewwide dispose(): void {
+		this.setWepwaceAwwActionState(fawse);
+		supa.dispose();
 	}
 
-	private get searchConfiguration(): ISearchConfigurationProperties {
-		return this.configurationService.getValue<ISearchConfigurationProperties>('search');
+	pwivate get seawchConfiguwation(): ISeawchConfiguwationPwopewties {
+		wetuwn this.configuwationSewvice.getVawue<ISeawchConfiguwationPwopewties>('seawch');
 	}
 }
 
-export function registerContributions() {
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: ReplaceAllAction.ID,
-		weight: KeybindingWeight.WorkbenchContrib,
-		when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, CONTEXT_FIND_WIDGET_NOT_VISIBLE),
-		primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.Enter,
-		handler: accessor => {
-			const viewsService = accessor.get(IViewsService);
-			if (isSearchViewFocused(viewsService)) {
-				const searchView = getSearchView(viewsService);
-				if (searchView) {
-					new ReplaceAllAction(searchView.searchAndReplaceWidget).run();
+expowt function wegistewContwibutions() {
+	KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+		id: WepwaceAwwAction.ID,
+		weight: KeybindingWeight.WowkbenchContwib,
+		when: ContextKeyExpw.and(Constants.SeawchViewVisibweKey, Constants.WepwaceActiveKey, CONTEXT_FIND_WIDGET_NOT_VISIBWE),
+		pwimawy: KeyMod.Awt | KeyMod.CtwwCmd | KeyCode.Enta,
+		handwa: accessow => {
+			const viewsSewvice = accessow.get(IViewsSewvice);
+			if (isSeawchViewFocused(viewsSewvice)) {
+				const seawchView = getSeawchView(viewsSewvice);
+				if (seawchView) {
+					new WepwaceAwwAction(seawchView.seawchAndWepwaceWidget).wun();
 				}
 			}
 		}

@@ -1,620 +1,620 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/editordroptarget';
-import { LocalSelectionTransfer, DraggedEditorIdentifier, ResourcesDropHandler, DraggedEditorGroupIdentifier, DragAndDropObserver, containsDragType, CodeDataTransfers, extractFilesDropData } from 'vs/workbench/browser/dnd';
-import { addDisposableListener, EventType, EventHelper, isAncestor } from 'vs/base/browser/dom';
-import { IEditorGroupsAccessor, IEditorGroupView, fillActiveEditorViewState } from 'vs/workbench/browser/parts/editor/editor';
-import { EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
-import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IEditorIdentifier, EditorInputCapabilities } from 'vs/workbench/common/editor';
-import { isMacintosh, isWeb } from 'vs/base/common/platform';
-import { GroupDirection, IEditorGroupsService, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { toDisposable } from 'vs/base/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { DataTransfers } from 'vs/base/browser/dnd';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
+impowt 'vs/css!./media/editowdwoptawget';
+impowt { WocawSewectionTwansfa, DwaggedEditowIdentifia, WesouwcesDwopHandwa, DwaggedEditowGwoupIdentifia, DwagAndDwopObsewva, containsDwagType, CodeDataTwansfews, extwactFiwesDwopData } fwom 'vs/wowkbench/bwowsa/dnd';
+impowt { addDisposabweWistena, EventType, EventHewpa, isAncestow } fwom 'vs/base/bwowsa/dom';
+impowt { IEditowGwoupsAccessow, IEditowGwoupView, fiwwActiveEditowViewState } fwom 'vs/wowkbench/bwowsa/pawts/editow/editow';
+impowt { EDITOW_DWAG_AND_DWOP_BACKGWOUND } fwom 'vs/wowkbench/common/theme';
+impowt { IThemeSewvice, Themabwe } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { activeContwastBowda } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { IEditowIdentifia, EditowInputCapabiwities } fwom 'vs/wowkbench/common/editow';
+impowt { isMacintosh, isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { GwoupDiwection, IEditowGwoupsSewvice, MewgeGwoupMode } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { DataTwansfews } fwom 'vs/base/bwowsa/dnd';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { assewtIsDefined, assewtAwwDefined } fwom 'vs/base/common/types';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-interface IDropOperation {
-	splitDirection?: GroupDirection;
+intewface IDwopOpewation {
+	spwitDiwection?: GwoupDiwection;
 }
 
-class DropOverlay extends Themable {
+cwass DwopOvewway extends Themabwe {
 
-	private static readonly OVERLAY_ID = 'monaco-workbench-editor-drop-overlay';
+	pwivate static weadonwy OVEWWAY_ID = 'monaco-wowkbench-editow-dwop-ovewway';
 
-	private container: HTMLElement | undefined;
-	private overlay: HTMLElement | undefined;
+	pwivate containa: HTMWEwement | undefined;
+	pwivate ovewway: HTMWEwement | undefined;
 
-	private currentDropOperation: IDropOperation | undefined;
-	private _disposed: boolean | undefined;
+	pwivate cuwwentDwopOpewation: IDwopOpewation | undefined;
+	pwivate _disposed: boowean | undefined;
 
-	private cleanupOverlayScheduler: RunOnceScheduler;
+	pwivate cweanupOvewwayScheduwa: WunOnceScheduwa;
 
-	private readonly editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
-	private readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
+	pwivate weadonwy editowTwansfa = WocawSewectionTwansfa.getInstance<DwaggedEditowIdentifia>();
+	pwivate weadonwy gwoupTwansfa = WocawSewectionTwansfa.getInstance<DwaggedEditowGwoupIdentifia>();
 
-	constructor(
-		private accessor: IEditorGroupsAccessor,
-		private groupView: IEditorGroupView,
-		@IThemeService themeService: IThemeService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
+	constwuctow(
+		pwivate accessow: IEditowGwoupsAccessow,
+		pwivate gwoupView: IEditowGwoupView,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IInstantiationSewvice pwivate instantiationSewvice: IInstantiationSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IEditowGwoupsSewvice pwivate weadonwy editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(themeService);
+		supa(themeSewvice);
 
-		this.cleanupOverlayScheduler = this._register(new RunOnceScheduler(() => this.dispose(), 300));
+		this.cweanupOvewwayScheduwa = this._wegista(new WunOnceScheduwa(() => this.dispose(), 300));
 
-		this.create();
+		this.cweate();
 	}
 
-	get disposed(): boolean {
-		return !!this._disposed;
+	get disposed(): boowean {
+		wetuwn !!this._disposed;
 	}
 
-	private create(): void {
-		const overlayOffsetHeight = this.getOverlayOffsetHeight();
+	pwivate cweate(): void {
+		const ovewwayOffsetHeight = this.getOvewwayOffsetHeight();
 
-		// Container
-		const container = this.container = document.createElement('div');
-		container.id = DropOverlay.OVERLAY_ID;
-		container.style.top = `${overlayOffsetHeight}px`;
+		// Containa
+		const containa = this.containa = document.cweateEwement('div');
+		containa.id = DwopOvewway.OVEWWAY_ID;
+		containa.stywe.top = `${ovewwayOffsetHeight}px`;
 
-		// Parent
-		this.groupView.element.appendChild(container);
-		this.groupView.element.classList.add('dragged-over');
-		this._register(toDisposable(() => {
-			this.groupView.element.removeChild(container);
-			this.groupView.element.classList.remove('dragged-over');
+		// Pawent
+		this.gwoupView.ewement.appendChiwd(containa);
+		this.gwoupView.ewement.cwassWist.add('dwagged-ova');
+		this._wegista(toDisposabwe(() => {
+			this.gwoupView.ewement.wemoveChiwd(containa);
+			this.gwoupView.ewement.cwassWist.wemove('dwagged-ova');
 		}));
 
-		// Overlay
-		this.overlay = document.createElement('div');
-		this.overlay.classList.add('editor-group-overlay-indicator');
-		container.appendChild(this.overlay);
+		// Ovewway
+		this.ovewway = document.cweateEwement('div');
+		this.ovewway.cwassWist.add('editow-gwoup-ovewway-indicatow');
+		containa.appendChiwd(this.ovewway);
 
-		// Overlay Event Handling
-		this.registerListeners(container);
+		// Ovewway Event Handwing
+		this.wegistewWistenews(containa);
 
-		// Styles
-		this.updateStyles();
+		// Stywes
+		this.updateStywes();
 	}
 
-	protected override updateStyles(): void {
-		const overlay = assertIsDefined(this.overlay);
+	pwotected ovewwide updateStywes(): void {
+		const ovewway = assewtIsDefined(this.ovewway);
 
-		// Overlay drop background
-		overlay.style.backgroundColor = this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND) || '';
+		// Ovewway dwop backgwound
+		ovewway.stywe.backgwoundCowow = this.getCowow(EDITOW_DWAG_AND_DWOP_BACKGWOUND) || '';
 
-		// Overlay contrast border (if any)
-		const activeContrastBorderColor = this.getColor(activeContrastBorder);
-		overlay.style.outlineColor = activeContrastBorderColor || '';
-		overlay.style.outlineOffset = activeContrastBorderColor ? '-2px' : '';
-		overlay.style.outlineStyle = activeContrastBorderColor ? 'dashed' : '';
-		overlay.style.outlineWidth = activeContrastBorderColor ? '2px' : '';
+		// Ovewway contwast bowda (if any)
+		const activeContwastBowdewCowow = this.getCowow(activeContwastBowda);
+		ovewway.stywe.outwineCowow = activeContwastBowdewCowow || '';
+		ovewway.stywe.outwineOffset = activeContwastBowdewCowow ? '-2px' : '';
+		ovewway.stywe.outwineStywe = activeContwastBowdewCowow ? 'dashed' : '';
+		ovewway.stywe.outwineWidth = activeContwastBowdewCowow ? '2px' : '';
 	}
 
-	private registerListeners(container: HTMLElement): void {
-		this._register(new DragAndDropObserver(container, {
-			onDragEnter: e => undefined,
-			onDragOver: e => {
-				const isDraggingGroup = this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype);
-				const isDraggingEditor = this.editorTransfer.hasData(DraggedEditorIdentifier.prototype);
+	pwivate wegistewWistenews(containa: HTMWEwement): void {
+		this._wegista(new DwagAndDwopObsewva(containa, {
+			onDwagEnta: e => undefined,
+			onDwagOva: e => {
+				const isDwaggingGwoup = this.gwoupTwansfa.hasData(DwaggedEditowGwoupIdentifia.pwototype);
+				const isDwaggingEditow = this.editowTwansfa.hasData(DwaggedEditowIdentifia.pwototype);
 
-				// Update the dropEffect to "copy" if there is no local data to be dragged because
-				// in that case we can only copy the data into and not move it from its source
-				if (!isDraggingEditor && !isDraggingGroup && e.dataTransfer) {
-					e.dataTransfer.dropEffect = 'copy';
+				// Update the dwopEffect to "copy" if thewe is no wocaw data to be dwagged because
+				// in that case we can onwy copy the data into and not move it fwom its souwce
+				if (!isDwaggingEditow && !isDwaggingGwoup && e.dataTwansfa) {
+					e.dataTwansfa.dwopEffect = 'copy';
 				}
 
-				// Find out if operation is valid
-				let isCopy = true;
-				if (isDraggingGroup) {
-					isCopy = this.isCopyOperation(e);
-				} else if (isDraggingEditor) {
-					const data = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
-					if (Array.isArray(data)) {
-						isCopy = this.isCopyOperation(e, data[0].identifier);
+				// Find out if opewation is vawid
+				wet isCopy = twue;
+				if (isDwaggingGwoup) {
+					isCopy = this.isCopyOpewation(e);
+				} ewse if (isDwaggingEditow) {
+					const data = this.editowTwansfa.getData(DwaggedEditowIdentifia.pwototype);
+					if (Awway.isAwway(data)) {
+						isCopy = this.isCopyOpewation(e, data[0].identifia);
 					}
 				}
 
 				if (!isCopy) {
-					const sourceGroupView = this.findSourceGroupView();
-					if (sourceGroupView === this.groupView) {
-						if (isDraggingGroup || (isDraggingEditor && sourceGroupView.count < 2)) {
-							this.hideOverlay();
-							return; // do not allow to drop group/editor on itself if this results in an empty group
+					const souwceGwoupView = this.findSouwceGwoupView();
+					if (souwceGwoupView === this.gwoupView) {
+						if (isDwaggingGwoup || (isDwaggingEditow && souwceGwoupView.count < 2)) {
+							this.hideOvewway();
+							wetuwn; // do not awwow to dwop gwoup/editow on itsewf if this wesuwts in an empty gwoup
 						}
 					}
 				}
 
-				// Position overlay and conditionally enable or disable
-				// editor group splitting support based on setting and
-				// keymodifiers used.
-				let splitOnDragAndDrop = !!this.editorGroupService.partOptions.splitOnDragAndDrop;
-				if (this.isToggleSplitOperation(e)) {
-					splitOnDragAndDrop = !splitOnDragAndDrop;
+				// Position ovewway and conditionawwy enabwe ow disabwe
+				// editow gwoup spwitting suppowt based on setting and
+				// keymodifiews used.
+				wet spwitOnDwagAndDwop = !!this.editowGwoupSewvice.pawtOptions.spwitOnDwagAndDwop;
+				if (this.isToggweSpwitOpewation(e)) {
+					spwitOnDwagAndDwop = !spwitOnDwagAndDwop;
 				}
-				this.positionOverlay(e.offsetX, e.offsetY, isDraggingGroup, splitOnDragAndDrop);
+				this.positionOvewway(e.offsetX, e.offsetY, isDwaggingGwoup, spwitOnDwagAndDwop);
 
-				// Make sure to stop any running cleanup scheduler to remove the overlay
-				if (this.cleanupOverlayScheduler.isScheduled()) {
-					this.cleanupOverlayScheduler.cancel();
+				// Make suwe to stop any wunning cweanup scheduwa to wemove the ovewway
+				if (this.cweanupOvewwayScheduwa.isScheduwed()) {
+					this.cweanupOvewwayScheduwa.cancew();
 				}
 			},
 
-			onDragLeave: e => this.dispose(),
-			onDragEnd: e => this.dispose(),
+			onDwagWeave: e => this.dispose(),
+			onDwagEnd: e => this.dispose(),
 
-			onDrop: e => {
-				EventHelper.stop(e, true);
+			onDwop: e => {
+				EventHewpa.stop(e, twue);
 
-				// Dispose overlay
+				// Dispose ovewway
 				this.dispose();
 
-				// Handle drop if we have a valid operation
-				if (this.currentDropOperation) {
-					this.handleDrop(e, this.currentDropOperation.splitDirection);
+				// Handwe dwop if we have a vawid opewation
+				if (this.cuwwentDwopOpewation) {
+					this.handweDwop(e, this.cuwwentDwopOpewation.spwitDiwection);
 				}
 			}
 		}));
 
-		this._register(addDisposableListener(container, EventType.MOUSE_OVER, () => {
-			// Under some circumstances we have seen reports where the drop overlay is not being
-			// cleaned up and as such the editor area remains under the overlay so that you cannot
-			// type into the editor anymore. This seems related to using VMs and DND via host and
-			// guest OS, though some users also saw it without VMs.
-			// To protect against this issue we always destroy the overlay as soon as we detect a
-			// mouse event over it. The delay is used to guarantee we are not interfering with the
-			// actual DROP event that can also trigger a mouse over event.
-			if (!this.cleanupOverlayScheduler.isScheduled()) {
-				this.cleanupOverlayScheduler.schedule();
+		this._wegista(addDisposabweWistena(containa, EventType.MOUSE_OVa, () => {
+			// Unda some ciwcumstances we have seen wepowts whewe the dwop ovewway is not being
+			// cweaned up and as such the editow awea wemains unda the ovewway so that you cannot
+			// type into the editow anymowe. This seems wewated to using VMs and DND via host and
+			// guest OS, though some usews awso saw it without VMs.
+			// To pwotect against this issue we awways destwoy the ovewway as soon as we detect a
+			// mouse event ova it. The deway is used to guawantee we awe not intewfewing with the
+			// actuaw DWOP event that can awso twigga a mouse ova event.
+			if (!this.cweanupOvewwayScheduwa.isScheduwed()) {
+				this.cweanupOvewwayScheduwa.scheduwe();
 			}
 		}));
 	}
 
-	private findSourceGroupView(): IEditorGroupView | undefined {
+	pwivate findSouwceGwoupView(): IEditowGwoupView | undefined {
 
-		// Check for group transfer
-		if (this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)) {
-			const data = this.groupTransfer.getData(DraggedEditorGroupIdentifier.prototype);
-			if (Array.isArray(data)) {
-				return this.accessor.getGroup(data[0].identifier);
+		// Check fow gwoup twansfa
+		if (this.gwoupTwansfa.hasData(DwaggedEditowGwoupIdentifia.pwototype)) {
+			const data = this.gwoupTwansfa.getData(DwaggedEditowGwoupIdentifia.pwototype);
+			if (Awway.isAwway(data)) {
+				wetuwn this.accessow.getGwoup(data[0].identifia);
 			}
 		}
 
-		// Check for editor transfer
-		else if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
-			const data = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
-			if (Array.isArray(data)) {
-				return this.accessor.getGroup(data[0].identifier.groupId);
+		// Check fow editow twansfa
+		ewse if (this.editowTwansfa.hasData(DwaggedEditowIdentifia.pwototype)) {
+			const data = this.editowTwansfa.getData(DwaggedEditowIdentifia.pwototype);
+			if (Awway.isAwway(data)) {
+				wetuwn this.accessow.getGwoup(data[0].identifia.gwoupId);
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private handleDrop(event: DragEvent, splitDirection?: GroupDirection): void {
+	pwivate handweDwop(event: DwagEvent, spwitDiwection?: GwoupDiwection): void {
 
-		// Determine target group
-		const ensureTargetGroup = () => {
-			let targetGroup: IEditorGroupView;
-			if (typeof splitDirection === 'number') {
-				targetGroup = this.accessor.addGroup(this.groupView, splitDirection);
-			} else {
-				targetGroup = this.groupView;
+		// Detewmine tawget gwoup
+		const ensuweTawgetGwoup = () => {
+			wet tawgetGwoup: IEditowGwoupView;
+			if (typeof spwitDiwection === 'numba') {
+				tawgetGwoup = this.accessow.addGwoup(this.gwoupView, spwitDiwection);
+			} ewse {
+				tawgetGwoup = this.gwoupView;
 			}
 
-			return targetGroup;
+			wetuwn tawgetGwoup;
 		};
 
-		// Check for group transfer
-		if (this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)) {
-			const data = this.groupTransfer.getData(DraggedEditorGroupIdentifier.prototype);
-			if (Array.isArray(data)) {
-				const draggedEditorGroup = data[0].identifier;
+		// Check fow gwoup twansfa
+		if (this.gwoupTwansfa.hasData(DwaggedEditowGwoupIdentifia.pwototype)) {
+			const data = this.gwoupTwansfa.getData(DwaggedEditowGwoupIdentifia.pwototype);
+			if (Awway.isAwway(data)) {
+				const dwaggedEditowGwoup = data[0].identifia;
 
-				// Return if the drop is a no-op
-				const sourceGroup = this.accessor.getGroup(draggedEditorGroup);
-				if (sourceGroup) {
-					if (typeof splitDirection !== 'number' && sourceGroup === this.groupView) {
-						return;
+				// Wetuwn if the dwop is a no-op
+				const souwceGwoup = this.accessow.getGwoup(dwaggedEditowGwoup);
+				if (souwceGwoup) {
+					if (typeof spwitDiwection !== 'numba' && souwceGwoup === this.gwoupView) {
+						wetuwn;
 					}
 
-					// Split to new group
-					let targetGroup: IEditorGroupView | undefined;
-					if (typeof splitDirection === 'number') {
-						if (this.isCopyOperation(event)) {
-							targetGroup = this.accessor.copyGroup(sourceGroup, this.groupView, splitDirection);
-						} else {
-							targetGroup = this.accessor.moveGroup(sourceGroup, this.groupView, splitDirection);
+					// Spwit to new gwoup
+					wet tawgetGwoup: IEditowGwoupView | undefined;
+					if (typeof spwitDiwection === 'numba') {
+						if (this.isCopyOpewation(event)) {
+							tawgetGwoup = this.accessow.copyGwoup(souwceGwoup, this.gwoupView, spwitDiwection);
+						} ewse {
+							tawgetGwoup = this.accessow.moveGwoup(souwceGwoup, this.gwoupView, spwitDiwection);
 						}
 					}
 
-					// Merge into existing group
-					else {
-						if (this.isCopyOperation(event)) {
-							targetGroup = this.accessor.mergeGroup(sourceGroup, this.groupView, { mode: MergeGroupMode.COPY_EDITORS });
-						} else {
-							targetGroup = this.accessor.mergeGroup(sourceGroup, this.groupView);
+					// Mewge into existing gwoup
+					ewse {
+						if (this.isCopyOpewation(event)) {
+							tawgetGwoup = this.accessow.mewgeGwoup(souwceGwoup, this.gwoupView, { mode: MewgeGwoupMode.COPY_EDITOWS });
+						} ewse {
+							tawgetGwoup = this.accessow.mewgeGwoup(souwceGwoup, this.gwoupView);
 						}
 					}
 
-					if (targetGroup) {
-						this.accessor.activateGroup(targetGroup);
+					if (tawgetGwoup) {
+						this.accessow.activateGwoup(tawgetGwoup);
 					}
 				}
 
-				this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);
+				this.gwoupTwansfa.cweawData(DwaggedEditowGwoupIdentifia.pwototype);
 			}
 		}
 
-		// Check for editor transfer
-		else if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
-			const data = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
-			if (Array.isArray(data)) {
-				const draggedEditor = data[0].identifier;
-				const targetGroup = ensureTargetGroup();
+		// Check fow editow twansfa
+		ewse if (this.editowTwansfa.hasData(DwaggedEditowIdentifia.pwototype)) {
+			const data = this.editowTwansfa.getData(DwaggedEditowIdentifia.pwototype);
+			if (Awway.isAwway(data)) {
+				const dwaggedEditow = data[0].identifia;
+				const tawgetGwoup = ensuweTawgetGwoup();
 
-				// Return if the drop is a no-op
-				const sourceGroup = this.accessor.getGroup(draggedEditor.groupId);
-				if (sourceGroup) {
-					if (sourceGroup === targetGroup) {
-						return;
+				// Wetuwn if the dwop is a no-op
+				const souwceGwoup = this.accessow.getGwoup(dwaggedEditow.gwoupId);
+				if (souwceGwoup) {
+					if (souwceGwoup === tawgetGwoup) {
+						wetuwn;
 					}
 
-					// Open in target group
-					const options = fillActiveEditorViewState(sourceGroup, draggedEditor.editor, {
-						pinned: true,										// always pin dropped editor
-						sticky: sourceGroup.isSticky(draggedEditor.editor),	// preserve sticky state
+					// Open in tawget gwoup
+					const options = fiwwActiveEditowViewState(souwceGwoup, dwaggedEditow.editow, {
+						pinned: twue,										// awways pin dwopped editow
+						sticky: souwceGwoup.isSticky(dwaggedEditow.editow),	// pwesewve sticky state
 					});
 
-					const copyEditor = this.isCopyOperation(event, draggedEditor);
-					if (!copyEditor) {
-						sourceGroup.moveEditor(draggedEditor.editor, targetGroup, options);
-					} else {
-						sourceGroup.copyEditor(draggedEditor.editor, targetGroup, options);
+					const copyEditow = this.isCopyOpewation(event, dwaggedEditow);
+					if (!copyEditow) {
+						souwceGwoup.moveEditow(dwaggedEditow.editow, tawgetGwoup, options);
+					} ewse {
+						souwceGwoup.copyEditow(dwaggedEditow.editow, tawgetGwoup, options);
 					}
 
-					// Ensure target has focus
-					targetGroup.focus();
+					// Ensuwe tawget has focus
+					tawgetGwoup.focus();
 				}
 
-				this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
+				this.editowTwansfa.cweawData(DwaggedEditowIdentifia.pwototype);
 			}
 		}
 
-		// Web: check for file transfer
-		else if (isWeb && containsDragType(event, DataTransfers.FILES)) {
-			let targetGroup: IEditorGroupView | undefined = undefined;
+		// Web: check fow fiwe twansfa
+		ewse if (isWeb && containsDwagType(event, DataTwansfews.FIWES)) {
+			wet tawgetGwoup: IEditowGwoupView | undefined = undefined;
 
-			const files = event.dataTransfer?.files;
-			if (files) {
-				this.instantiationService.invokeFunction(accessor => extractFilesDropData(accessor, files, ({ name, data }) => {
-					if (!targetGroup) {
-						targetGroup = ensureTargetGroup();
+			const fiwes = event.dataTwansfa?.fiwes;
+			if (fiwes) {
+				this.instantiationSewvice.invokeFunction(accessow => extwactFiwesDwopData(accessow, fiwes, ({ name, data }) => {
+					if (!tawgetGwoup) {
+						tawgetGwoup = ensuweTawgetGwoup();
 					}
 
-					this.editorService.openEditor({ resource: URI.from({ scheme: Schemas.untitled, path: name }), contents: data.toString() }, targetGroup.id);
+					this.editowSewvice.openEditow({ wesouwce: UWI.fwom({ scheme: Schemas.untitwed, path: name }), contents: data.toStwing() }, tawgetGwoup.id);
 				}));
 			}
 		}
 
-		// Check for URI transfer
-		else {
-			const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: true /* open workspace instead of file if dropped */ });
-			dropHandler.handleDrop(event, () => ensureTargetGroup(), targetGroup => targetGroup?.focus());
+		// Check fow UWI twansfa
+		ewse {
+			const dwopHandwa = this.instantiationSewvice.cweateInstance(WesouwcesDwopHandwa, { awwowWowkspaceOpen: twue /* open wowkspace instead of fiwe if dwopped */ });
+			dwopHandwa.handweDwop(event, () => ensuweTawgetGwoup(), tawgetGwoup => tawgetGwoup?.focus());
 		}
 	}
 
-	private isCopyOperation(e: DragEvent, draggedEditor?: IEditorIdentifier): boolean {
-		if (draggedEditor?.editor.hasCapability(EditorInputCapabilities.Singleton)) {
-			return false;
+	pwivate isCopyOpewation(e: DwagEvent, dwaggedEditow?: IEditowIdentifia): boowean {
+		if (dwaggedEditow?.editow.hasCapabiwity(EditowInputCapabiwities.Singweton)) {
+			wetuwn fawse;
 		}
 
-		return (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
+		wetuwn (e.ctwwKey && !isMacintosh) || (e.awtKey && isMacintosh);
 	}
 
-	private isToggleSplitOperation(e: DragEvent): boolean {
-		return (e.altKey && !isMacintosh) || (e.shiftKey && isMacintosh);
+	pwivate isToggweSpwitOpewation(e: DwagEvent): boowean {
+		wetuwn (e.awtKey && !isMacintosh) || (e.shiftKey && isMacintosh);
 	}
 
-	private positionOverlay(mousePosX: number, mousePosY: number, isDraggingGroup: boolean, enableSplitting: boolean): void {
-		const preferSplitVertically = this.accessor.partOptions.openSideBySideDirection === 'right';
+	pwivate positionOvewway(mousePosX: numba, mousePosY: numba, isDwaggingGwoup: boowean, enabweSpwitting: boowean): void {
+		const pwefewSpwitVewticawwy = this.accessow.pawtOptions.openSideBySideDiwection === 'wight';
 
-		const editorControlWidth = this.groupView.element.clientWidth;
-		const editorControlHeight = this.groupView.element.clientHeight - this.getOverlayOffsetHeight();
+		const editowContwowWidth = this.gwoupView.ewement.cwientWidth;
+		const editowContwowHeight = this.gwoupView.ewement.cwientHeight - this.getOvewwayOffsetHeight();
 
-		let edgeWidthThresholdFactor: number;
-		let edgeHeightThresholdFactor: number;
-		if (enableSplitting) {
-			if (isDraggingGroup) {
-				edgeWidthThresholdFactor = preferSplitVertically ? 0.3 : 0.1; // give larger threshold when dragging group depending on preferred split direction
-			} else {
-				edgeWidthThresholdFactor = 0.1; // 10% threshold to split if dragging editors
+		wet edgeWidthThweshowdFactow: numba;
+		wet edgeHeightThweshowdFactow: numba;
+		if (enabweSpwitting) {
+			if (isDwaggingGwoup) {
+				edgeWidthThweshowdFactow = pwefewSpwitVewticawwy ? 0.3 : 0.1; // give wawga thweshowd when dwagging gwoup depending on pwefewwed spwit diwection
+			} ewse {
+				edgeWidthThweshowdFactow = 0.1; // 10% thweshowd to spwit if dwagging editows
 			}
 
-			if (isDraggingGroup) {
-				edgeHeightThresholdFactor = preferSplitVertically ? 0.1 : 0.3; // give larger threshold when dragging group depending on preferred split direction
-			} else {
-				edgeHeightThresholdFactor = 0.1; // 10% threshold to split if dragging editors
+			if (isDwaggingGwoup) {
+				edgeHeightThweshowdFactow = pwefewSpwitVewticawwy ? 0.1 : 0.3; // give wawga thweshowd when dwagging gwoup depending on pwefewwed spwit diwection
+			} ewse {
+				edgeHeightThweshowdFactow = 0.1; // 10% thweshowd to spwit if dwagging editows
 			}
-		} else {
-			edgeWidthThresholdFactor = 0;
-			edgeHeightThresholdFactor = 0;
+		} ewse {
+			edgeWidthThweshowdFactow = 0;
+			edgeHeightThweshowdFactow = 0;
 		}
 
-		const edgeWidthThreshold = editorControlWidth * edgeWidthThresholdFactor;
-		const edgeHeightThreshold = editorControlHeight * edgeHeightThresholdFactor;
+		const edgeWidthThweshowd = editowContwowWidth * edgeWidthThweshowdFactow;
+		const edgeHeightThweshowd = editowContwowHeight * edgeHeightThweshowdFactow;
 
-		const splitWidthThreshold = editorControlWidth / 3;		// offer to split left/right at 33%
-		const splitHeightThreshold = editorControlHeight / 3;	// offer to split up/down at 33%
+		const spwitWidthThweshowd = editowContwowWidth / 3;		// offa to spwit weft/wight at 33%
+		const spwitHeightThweshowd = editowContwowHeight / 3;	// offa to spwit up/down at 33%
 
-		// Enable to debug the drop threshold square
-		// let child = this.overlay.children.item(0) as HTMLElement || this.overlay.appendChild(document.createElement('div'));
-		// child.style.backgroundColor = 'red';
-		// child.style.position = 'absolute';
-		// child.style.width = (groupViewWidth - (2 * edgeWidthThreshold)) + 'px';
-		// child.style.height = (groupViewHeight - (2 * edgeHeightThreshold)) + 'px';
-		// child.style.left = edgeWidthThreshold + 'px';
-		// child.style.top = edgeHeightThreshold + 'px';
+		// Enabwe to debug the dwop thweshowd squawe
+		// wet chiwd = this.ovewway.chiwdwen.item(0) as HTMWEwement || this.ovewway.appendChiwd(document.cweateEwement('div'));
+		// chiwd.stywe.backgwoundCowow = 'wed';
+		// chiwd.stywe.position = 'absowute';
+		// chiwd.stywe.width = (gwoupViewWidth - (2 * edgeWidthThweshowd)) + 'px';
+		// chiwd.stywe.height = (gwoupViewHeight - (2 * edgeHeightThweshowd)) + 'px';
+		// chiwd.stywe.weft = edgeWidthThweshowd + 'px';
+		// chiwd.stywe.top = edgeHeightThweshowd + 'px';
 
-		// No split if mouse is above certain threshold in the center of the view
-		let splitDirection: GroupDirection | undefined;
+		// No spwit if mouse is above cewtain thweshowd in the centa of the view
+		wet spwitDiwection: GwoupDiwection | undefined;
 		if (
-			mousePosX > edgeWidthThreshold && mousePosX < editorControlWidth - edgeWidthThreshold &&
-			mousePosY > edgeHeightThreshold && mousePosY < editorControlHeight - edgeHeightThreshold
+			mousePosX > edgeWidthThweshowd && mousePosX < editowContwowWidth - edgeWidthThweshowd &&
+			mousePosY > edgeHeightThweshowd && mousePosY < editowContwowHeight - edgeHeightThweshowd
 		) {
-			splitDirection = undefined;
+			spwitDiwection = undefined;
 		}
 
-		// Offer to split otherwise
-		else {
+		// Offa to spwit othewwise
+		ewse {
 
-			// User prefers to split vertically: offer a larger hitzone
-			// for this direction like so:
+			// Usa pwefews to spwit vewticawwy: offa a wawga hitzone
+			// fow this diwection wike so:
 			// ----------------------------------------------
-			// |		|		SPLIT UP		|			|
-			// | SPLIT 	|-----------------------|	SPLIT	|
-			// |		|		  MERGE			|			|
-			// | LEFT	|-----------------------|	RIGHT	|
-			// |		|		SPLIT DOWN		|			|
+			// |		|		SPWIT UP		|			|
+			// | SPWIT 	|-----------------------|	SPWIT	|
+			// |		|		  MEWGE			|			|
+			// | WEFT	|-----------------------|	WIGHT	|
+			// |		|		SPWIT DOWN		|			|
 			// ----------------------------------------------
-			if (preferSplitVertically) {
-				if (mousePosX < splitWidthThreshold) {
-					splitDirection = GroupDirection.LEFT;
-				} else if (mousePosX > splitWidthThreshold * 2) {
-					splitDirection = GroupDirection.RIGHT;
-				} else if (mousePosY < editorControlHeight / 2) {
-					splitDirection = GroupDirection.UP;
-				} else {
-					splitDirection = GroupDirection.DOWN;
+			if (pwefewSpwitVewticawwy) {
+				if (mousePosX < spwitWidthThweshowd) {
+					spwitDiwection = GwoupDiwection.WEFT;
+				} ewse if (mousePosX > spwitWidthThweshowd * 2) {
+					spwitDiwection = GwoupDiwection.WIGHT;
+				} ewse if (mousePosY < editowContwowHeight / 2) {
+					spwitDiwection = GwoupDiwection.UP;
+				} ewse {
+					spwitDiwection = GwoupDiwection.DOWN;
 				}
 			}
 
-			// User prefers to split horizontally: offer a larger hitzone
-			// for this direction like so:
+			// Usa pwefews to spwit howizontawwy: offa a wawga hitzone
+			// fow this diwection wike so:
 			// ----------------------------------------------
-			// |				SPLIT UP					|
+			// |				SPWIT UP					|
 			// |--------------------------------------------|
-			// |  SPLIT LEFT  |	   MERGE	|  SPLIT RIGHT  |
+			// |  SPWIT WEFT  |	   MEWGE	|  SPWIT WIGHT  |
 			// |--------------------------------------------|
-			// |				SPLIT DOWN					|
+			// |				SPWIT DOWN					|
 			// ----------------------------------------------
-			else {
-				if (mousePosY < splitHeightThreshold) {
-					splitDirection = GroupDirection.UP;
-				} else if (mousePosY > splitHeightThreshold * 2) {
-					splitDirection = GroupDirection.DOWN;
-				} else if (mousePosX < editorControlWidth / 2) {
-					splitDirection = GroupDirection.LEFT;
-				} else {
-					splitDirection = GroupDirection.RIGHT;
+			ewse {
+				if (mousePosY < spwitHeightThweshowd) {
+					spwitDiwection = GwoupDiwection.UP;
+				} ewse if (mousePosY > spwitHeightThweshowd * 2) {
+					spwitDiwection = GwoupDiwection.DOWN;
+				} ewse if (mousePosX < editowContwowWidth / 2) {
+					spwitDiwection = GwoupDiwection.WEFT;
+				} ewse {
+					spwitDiwection = GwoupDiwection.WIGHT;
 				}
 			}
 		}
 
-		// Draw overlay based on split direction
-		switch (splitDirection) {
-			case GroupDirection.UP:
-				this.doPositionOverlay({ top: '0', left: '0', width: '100%', height: '50%' });
-				break;
-			case GroupDirection.DOWN:
-				this.doPositionOverlay({ top: '50%', left: '0', width: '100%', height: '50%' });
-				break;
-			case GroupDirection.LEFT:
-				this.doPositionOverlay({ top: '0', left: '0', width: '50%', height: '100%' });
-				break;
-			case GroupDirection.RIGHT:
-				this.doPositionOverlay({ top: '0', left: '50%', width: '50%', height: '100%' });
-				break;
-			default:
-				this.doPositionOverlay({ top: '0', left: '0', width: '100%', height: '100%' });
+		// Dwaw ovewway based on spwit diwection
+		switch (spwitDiwection) {
+			case GwoupDiwection.UP:
+				this.doPositionOvewway({ top: '0', weft: '0', width: '100%', height: '50%' });
+				bweak;
+			case GwoupDiwection.DOWN:
+				this.doPositionOvewway({ top: '50%', weft: '0', width: '100%', height: '50%' });
+				bweak;
+			case GwoupDiwection.WEFT:
+				this.doPositionOvewway({ top: '0', weft: '0', width: '50%', height: '100%' });
+				bweak;
+			case GwoupDiwection.WIGHT:
+				this.doPositionOvewway({ top: '0', weft: '50%', width: '50%', height: '100%' });
+				bweak;
+			defauwt:
+				this.doPositionOvewway({ top: '0', weft: '0', width: '100%', height: '100%' });
 		}
 
-		// Make sure the overlay is visible now
-		const overlay = assertIsDefined(this.overlay);
-		overlay.style.opacity = '1';
+		// Make suwe the ovewway is visibwe now
+		const ovewway = assewtIsDefined(this.ovewway);
+		ovewway.stywe.opacity = '1';
 
-		// Enable transition after a timeout to prevent initial animation
-		setTimeout(() => overlay.classList.add('overlay-move-transition'), 0);
+		// Enabwe twansition afta a timeout to pwevent initiaw animation
+		setTimeout(() => ovewway.cwassWist.add('ovewway-move-twansition'), 0);
 
-		// Remember as current split direction
-		this.currentDropOperation = { splitDirection };
+		// Wememba as cuwwent spwit diwection
+		this.cuwwentDwopOpewation = { spwitDiwection };
 	}
 
-	private doPositionOverlay(options: { top: string, left: string, width: string, height: string }): void {
-		const [container, overlay] = assertAllDefined(this.container, this.overlay);
+	pwivate doPositionOvewway(options: { top: stwing, weft: stwing, width: stwing, height: stwing }): void {
+		const [containa, ovewway] = assewtAwwDefined(this.containa, this.ovewway);
 
-		// Container
-		const offsetHeight = this.getOverlayOffsetHeight();
+		// Containa
+		const offsetHeight = this.getOvewwayOffsetHeight();
 		if (offsetHeight) {
-			container.style.height = `calc(100% - ${offsetHeight}px)`;
-		} else {
-			container.style.height = '100%';
+			containa.stywe.height = `cawc(100% - ${offsetHeight}px)`;
+		} ewse {
+			containa.stywe.height = '100%';
 		}
 
-		// Overlay
-		overlay.style.top = options.top;
-		overlay.style.left = options.left;
-		overlay.style.width = options.width;
-		overlay.style.height = options.height;
+		// Ovewway
+		ovewway.stywe.top = options.top;
+		ovewway.stywe.weft = options.weft;
+		ovewway.stywe.width = options.width;
+		ovewway.stywe.height = options.height;
 	}
 
-	private getOverlayOffsetHeight(): number {
+	pwivate getOvewwayOffsetHeight(): numba {
 
-		// With tabs and opened editors: use the area below tabs as drop target
-		if (!this.groupView.isEmpty && this.accessor.partOptions.showTabs) {
-			return this.groupView.titleHeight.offset;
+		// With tabs and opened editows: use the awea bewow tabs as dwop tawget
+		if (!this.gwoupView.isEmpty && this.accessow.pawtOptions.showTabs) {
+			wetuwn this.gwoupView.titweHeight.offset;
 		}
 
-		// Without tabs or empty group: use entire editor area as drop target
-		return 0;
+		// Without tabs ow empty gwoup: use entiwe editow awea as dwop tawget
+		wetuwn 0;
 	}
 
-	private hideOverlay(): void {
-		const overlay = assertIsDefined(this.overlay);
+	pwivate hideOvewway(): void {
+		const ovewway = assewtIsDefined(this.ovewway);
 
-		// Reset overlay
-		this.doPositionOverlay({ top: '0', left: '0', width: '100%', height: '100%' });
-		overlay.style.opacity = '0';
-		overlay.classList.remove('overlay-move-transition');
+		// Weset ovewway
+		this.doPositionOvewway({ top: '0', weft: '0', width: '100%', height: '100%' });
+		ovewway.stywe.opacity = '0';
+		ovewway.cwassWist.wemove('ovewway-move-twansition');
 
-		// Reset current operation
-		this.currentDropOperation = undefined;
+		// Weset cuwwent opewation
+		this.cuwwentDwopOpewation = undefined;
 	}
 
-	contains(element: HTMLElement): boolean {
-		return element === this.container || element === this.overlay;
+	contains(ewement: HTMWEwement): boowean {
+		wetuwn ewement === this.containa || ewement === this.ovewway;
 	}
 
-	override dispose(): void {
-		super.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
 
-		this._disposed = true;
+		this._disposed = twue;
 	}
 }
 
-export interface IEditorDropTargetDelegate {
+expowt intewface IEditowDwopTawgetDewegate {
 
 	/**
-	 * A helper to figure out if the drop target contains the provided group.
+	 * A hewpa to figuwe out if the dwop tawget contains the pwovided gwoup.
 	 */
-	containsGroup?(groupView: IEditorGroupView): boolean;
+	containsGwoup?(gwoupView: IEditowGwoupView): boowean;
 }
 
-export class EditorDropTarget extends Themable {
+expowt cwass EditowDwopTawget extends Themabwe {
 
-	private _overlay?: DropOverlay;
+	pwivate _ovewway?: DwopOvewway;
 
-	private counter = 0;
+	pwivate counta = 0;
 
-	private readonly editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
-	private readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
+	pwivate weadonwy editowTwansfa = WocawSewectionTwansfa.getInstance<DwaggedEditowIdentifia>();
+	pwivate weadonwy gwoupTwansfa = WocawSewectionTwansfa.getInstance<DwaggedEditowGwoupIdentifia>();
 
-	constructor(
-		private accessor: IEditorGroupsAccessor,
-		private container: HTMLElement,
-		private readonly delegate: IEditorDropTargetDelegate,
-		@IThemeService themeService: IThemeService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+	constwuctow(
+		pwivate accessow: IEditowGwoupsAccessow,
+		pwivate containa: HTMWEwement,
+		pwivate weadonwy dewegate: IEditowDwopTawgetDewegate,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice
 	) {
-		super(themeService);
+		supa(themeSewvice);
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private get overlay(): DropOverlay | undefined {
-		if (this._overlay && !this._overlay.disposed) {
-			return this._overlay;
+	pwivate get ovewway(): DwopOvewway | undefined {
+		if (this._ovewway && !this._ovewway.disposed) {
+			wetuwn this._ovewway;
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private registerListeners(): void {
-		this._register(addDisposableListener(this.container, EventType.DRAG_ENTER, e => this.onDragEnter(e)));
-		this._register(addDisposableListener(this.container, EventType.DRAG_LEAVE, () => this.onDragLeave()));
-		[this.container, window].forEach(node => this._register(addDisposableListener(node as HTMLElement, EventType.DRAG_END, () => this.onDragEnd())));
+	pwivate wegistewWistenews(): void {
+		this._wegista(addDisposabweWistena(this.containa, EventType.DWAG_ENTa, e => this.onDwagEnta(e)));
+		this._wegista(addDisposabweWistena(this.containa, EventType.DWAG_WEAVE, () => this.onDwagWeave()));
+		[this.containa, window].fowEach(node => this._wegista(addDisposabweWistena(node as HTMWEwement, EventType.DWAG_END, () => this.onDwagEnd())));
 	}
 
-	private onDragEnter(event: DragEvent): void {
-		this.counter++;
+	pwivate onDwagEnta(event: DwagEvent): void {
+		this.counta++;
 
-		// Validate transfer
+		// Vawidate twansfa
 		if (
-			!this.editorTransfer.hasData(DraggedEditorIdentifier.prototype) &&
-			!this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype) &&
-			event.dataTransfer && !containsDragType(event, DataTransfers.FILES, CodeDataTransfers.FILES, DataTransfers.RESOURCES, DataTransfers.TERMINALS, CodeDataTransfers.EDITORS) // see https://github.com/microsoft/vscode/issues/25789
+			!this.editowTwansfa.hasData(DwaggedEditowIdentifia.pwototype) &&
+			!this.gwoupTwansfa.hasData(DwaggedEditowGwoupIdentifia.pwototype) &&
+			event.dataTwansfa && !containsDwagType(event, DataTwansfews.FIWES, CodeDataTwansfews.FIWES, DataTwansfews.WESOUWCES, DataTwansfews.TEWMINAWS, CodeDataTwansfews.EDITOWS) // see https://github.com/micwosoft/vscode/issues/25789
 		) {
-			event.dataTransfer.dropEffect = 'none';
-			return; // unsupported transfer
+			event.dataTwansfa.dwopEffect = 'none';
+			wetuwn; // unsuppowted twansfa
 		}
 
-		// Signal DND start
-		this.updateContainer(true);
+		// Signaw DND stawt
+		this.updateContaina(twue);
 
-		const target = event.target as HTMLElement;
-		if (target) {
+		const tawget = event.tawget as HTMWEwement;
+		if (tawget) {
 
-			// Somehow we managed to move the mouse quickly out of the current overlay, so destroy it
-			if (this.overlay && !this.overlay.contains(target)) {
-				this.disposeOverlay();
+			// Somehow we managed to move the mouse quickwy out of the cuwwent ovewway, so destwoy it
+			if (this.ovewway && !this.ovewway.contains(tawget)) {
+				this.disposeOvewway();
 			}
 
-			// Create overlay over target
-			if (!this.overlay) {
-				const targetGroupView = this.findTargetGroupView(target);
-				if (targetGroupView) {
-					this._overlay = this.instantiationService.createInstance(DropOverlay, this.accessor, targetGroupView);
+			// Cweate ovewway ova tawget
+			if (!this.ovewway) {
+				const tawgetGwoupView = this.findTawgetGwoupView(tawget);
+				if (tawgetGwoupView) {
+					this._ovewway = this.instantiationSewvice.cweateInstance(DwopOvewway, this.accessow, tawgetGwoupView);
 				}
 			}
 		}
 	}
 
-	private onDragLeave(): void {
-		this.counter--;
+	pwivate onDwagWeave(): void {
+		this.counta--;
 
-		if (this.counter === 0) {
-			this.updateContainer(false);
+		if (this.counta === 0) {
+			this.updateContaina(fawse);
 		}
 	}
 
-	private onDragEnd(): void {
-		this.counter = 0;
+	pwivate onDwagEnd(): void {
+		this.counta = 0;
 
-		this.updateContainer(false);
-		this.disposeOverlay();
+		this.updateContaina(fawse);
+		this.disposeOvewway();
 	}
 
-	private findTargetGroupView(child: HTMLElement): IEditorGroupView | undefined {
-		const groups = this.accessor.groups;
+	pwivate findTawgetGwoupView(chiwd: HTMWEwement): IEditowGwoupView | undefined {
+		const gwoups = this.accessow.gwoups;
 
-		return groups.find(groupView => isAncestor(child, groupView.element) || this.delegate.containsGroup?.(groupView));
+		wetuwn gwoups.find(gwoupView => isAncestow(chiwd, gwoupView.ewement) || this.dewegate.containsGwoup?.(gwoupView));
 	}
 
-	private updateContainer(isDraggedOver: boolean): void {
-		this.container.classList.toggle('dragged-over', isDraggedOver);
+	pwivate updateContaina(isDwaggedOva: boowean): void {
+		this.containa.cwassWist.toggwe('dwagged-ova', isDwaggedOva);
 	}
 
-	override dispose(): void {
-		super.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
 
-		this.disposeOverlay();
+		this.disposeOvewway();
 	}
 
-	private disposeOverlay(): void {
-		if (this.overlay) {
-			this.overlay.dispose();
-			this._overlay = undefined;
+	pwivate disposeOvewway(): void {
+		if (this.ovewway) {
+			this.ovewway.dispose();
+			this._ovewway = undefined;
 		}
 	}
 }

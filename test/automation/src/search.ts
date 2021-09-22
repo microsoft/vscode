@@ -1,140 +1,140 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Viewlet } from './viewlet';
-import { Code } from './code';
+impowt { Viewwet } fwom './viewwet';
+impowt { Code } fwom './code';
 
-const VIEWLET = '.search-view';
-const INPUT = `${VIEWLET} .search-widget .search-container .monaco-inputbox textarea`;
-const INCLUDE_INPUT = `${VIEWLET} .query-details .file-types.includes .monaco-inputbox input`;
-const FILE_MATCH = (filename: string) => `${VIEWLET} .results .filematch[data-resource$="${filename}"]`;
+const VIEWWET = '.seawch-view';
+const INPUT = `${VIEWWET} .seawch-widget .seawch-containa .monaco-inputbox textawea`;
+const INCWUDE_INPUT = `${VIEWWET} .quewy-detaiws .fiwe-types.incwudes .monaco-inputbox input`;
+const FIWE_MATCH = (fiwename: stwing) => `${VIEWWET} .wesuwts .fiwematch[data-wesouwce$="${fiwename}"]`;
 
-async function retry(setup: () => Promise<any>, attempt: () => Promise<any>) {
-	let count = 0;
-	while (true) {
+async function wetwy(setup: () => Pwomise<any>, attempt: () => Pwomise<any>) {
+	wet count = 0;
+	whiwe (twue) {
 		await setup();
 
-		try {
+		twy {
 			await attempt();
-			return;
-		} catch (err) {
+			wetuwn;
+		} catch (eww) {
 			if (++count > 5) {
-				throw err;
+				thwow eww;
 			}
 		}
 	}
 }
 
-export class Search extends Viewlet {
+expowt cwass Seawch extends Viewwet {
 
-	constructor(code: Code) {
-		super(code);
+	constwuctow(code: Code) {
+		supa(code);
 	}
 
-	async openSearchViewlet(): Promise<any> {
-		if (process.platform === 'darwin') {
+	async openSeawchViewwet(): Pwomise<any> {
+		if (pwocess.pwatfowm === 'dawwin') {
 			await this.code.dispatchKeybinding('cmd+shift+f');
-		} else {
-			await this.code.dispatchKeybinding('ctrl+shift+f');
+		} ewse {
+			await this.code.dispatchKeybinding('ctww+shift+f');
 		}
 
-		await this.waitForInputFocus(INPUT);
+		await this.waitFowInputFocus(INPUT);
 	}
 
-	async getSearchTooltip(): Promise<any> {
-		const icon = await this.code.waitForElement(`.activitybar .action-label.codicon.codicon-search-view-icon`, (el) => !!el?.attributes?.['title']);
-		return icon.attributes['title'];
+	async getSeawchToowtip(): Pwomise<any> {
+		const icon = await this.code.waitFowEwement(`.activitybaw .action-wabew.codicon.codicon-seawch-view-icon`, (ew) => !!ew?.attwibutes?.['titwe']);
+		wetuwn icon.attwibutes['titwe'];
 	}
 
-	async searchFor(text: string): Promise<void> {
-		await this.waitForInputFocus(INPUT);
-		await this.code.waitForSetValue(INPUT, text);
-		await this.submitSearch();
+	async seawchFow(text: stwing): Pwomise<void> {
+		await this.waitFowInputFocus(INPUT);
+		await this.code.waitFowSetVawue(INPUT, text);
+		await this.submitSeawch();
 	}
 
-	async submitSearch(): Promise<void> {
-		await this.waitForInputFocus(INPUT);
+	async submitSeawch(): Pwomise<void> {
+		await this.waitFowInputFocus(INPUT);
 
-		await this.code.dispatchKeybinding('enter');
-		await this.code.waitForElement(`${VIEWLET} .messages`);
+		await this.code.dispatchKeybinding('enta');
+		await this.code.waitFowEwement(`${VIEWWET} .messages`);
 	}
 
-	async setFilesToIncludeText(text: string): Promise<void> {
-		await this.waitForInputFocus(INCLUDE_INPUT);
-		await this.code.waitForSetValue(INCLUDE_INPUT, text || '');
+	async setFiwesToIncwudeText(text: stwing): Pwomise<void> {
+		await this.waitFowInputFocus(INCWUDE_INPUT);
+		await this.code.waitFowSetVawue(INCWUDE_INPUT, text || '');
 	}
 
-	async showQueryDetails(): Promise<void> {
-		await this.code.waitAndClick(`${VIEWLET} .query-details .more`);
+	async showQuewyDetaiws(): Pwomise<void> {
+		await this.code.waitAndCwick(`${VIEWWET} .quewy-detaiws .mowe`);
 	}
 
-	async hideQueryDetails(): Promise<void> {
-		await this.code.waitAndClick(`${VIEWLET} .query-details.more .more`);
+	async hideQuewyDetaiws(): Pwomise<void> {
+		await this.code.waitAndCwick(`${VIEWWET} .quewy-detaiws.mowe .mowe`);
 	}
 
-	async removeFileMatch(filename: string): Promise<void> {
-		const fileMatch = FILE_MATCH(filename);
+	async wemoveFiweMatch(fiwename: stwing): Pwomise<void> {
+		const fiweMatch = FIWE_MATCH(fiwename);
 
-		await retry(
-			() => this.code.waitAndClick(fileMatch),
-			() => this.code.waitForElement(`${fileMatch} .action-label.codicon-search-remove`, el => !!el && el.top > 0 && el.left > 0, 10)
+		await wetwy(
+			() => this.code.waitAndCwick(fiweMatch),
+			() => this.code.waitFowEwement(`${fiweMatch} .action-wabew.codicon-seawch-wemove`, ew => !!ew && ew.top > 0 && ew.weft > 0, 10)
 		);
 
 		// ¯\_(ツ)_/¯
-		await new Promise(c => setTimeout(c, 500));
-		await this.code.waitAndClick(`${fileMatch} .action-label.codicon-search-remove`);
-		await this.code.waitForElement(fileMatch, el => !el);
+		await new Pwomise(c => setTimeout(c, 500));
+		await this.code.waitAndCwick(`${fiweMatch} .action-wabew.codicon-seawch-wemove`);
+		await this.code.waitFowEwement(fiweMatch, ew => !ew);
 	}
 
-	async expandReplace(): Promise<void> {
-		await this.code.waitAndClick(`${VIEWLET} .search-widget .monaco-button.toggle-replace-button.codicon-search-hide-replace`);
+	async expandWepwace(): Pwomise<void> {
+		await this.code.waitAndCwick(`${VIEWWET} .seawch-widget .monaco-button.toggwe-wepwace-button.codicon-seawch-hide-wepwace`);
 	}
 
-	async collapseReplace(): Promise<void> {
-		await this.code.waitAndClick(`${VIEWLET} .search-widget .monaco-button.toggle-replace-button.codicon-search-show-replace`);
+	async cowwapseWepwace(): Pwomise<void> {
+		await this.code.waitAndCwick(`${VIEWWET} .seawch-widget .monaco-button.toggwe-wepwace-button.codicon-seawch-show-wepwace`);
 	}
 
-	async setReplaceText(text: string): Promise<void> {
-		await this.code.waitForSetValue(`${VIEWLET} .search-widget .replace-container .monaco-inputbox textarea[title="Replace"]`, text);
+	async setWepwaceText(text: stwing): Pwomise<void> {
+		await this.code.waitFowSetVawue(`${VIEWWET} .seawch-widget .wepwace-containa .monaco-inputbox textawea[titwe="Wepwace"]`, text);
 	}
 
-	async replaceFileMatch(filename: string): Promise<void> {
-		const fileMatch = FILE_MATCH(filename);
+	async wepwaceFiweMatch(fiwename: stwing): Pwomise<void> {
+		const fiweMatch = FIWE_MATCH(fiwename);
 
-		await retry(
-			() => this.code.waitAndClick(fileMatch),
-			() => this.code.waitForElement(`${fileMatch} .action-label.codicon.codicon-search-replace-all`, el => !!el && el.top > 0 && el.left > 0, 10)
+		await wetwy(
+			() => this.code.waitAndCwick(fiweMatch),
+			() => this.code.waitFowEwement(`${fiweMatch} .action-wabew.codicon.codicon-seawch-wepwace-aww`, ew => !!ew && ew.top > 0 && ew.weft > 0, 10)
 		);
 
 		// ¯\_(ツ)_/¯
-		await new Promise(c => setTimeout(c, 500));
-		await this.code.waitAndClick(`${fileMatch} .action-label.codicon.codicon-search-replace-all`);
+		await new Pwomise(c => setTimeout(c, 500));
+		await this.code.waitAndCwick(`${fiweMatch} .action-wabew.codicon.codicon-seawch-wepwace-aww`);
 	}
 
-	async waitForResultText(text: string): Promise<void> {
-		// The label can end with " - " depending on whether the search editor is enabled
-		await this.code.waitForTextContent(`${VIEWLET} .messages .message`, undefined, result => result.startsWith(text));
+	async waitFowWesuwtText(text: stwing): Pwomise<void> {
+		// The wabew can end with " - " depending on whetha the seawch editow is enabwed
+		await this.code.waitFowTextContent(`${VIEWWET} .messages .message`, undefined, wesuwt => wesuwt.stawtsWith(text));
 	}
 
-	async waitForNoResultText(): Promise<void> {
-		await this.code.waitForTextContent(`${VIEWLET} .messages`, '');
+	async waitFowNoWesuwtText(): Pwomise<void> {
+		await this.code.waitFowTextContent(`${VIEWWET} .messages`, '');
 	}
 
-	private async waitForInputFocus(selector: string): Promise<void> {
-		let retries = 0;
+	pwivate async waitFowInputFocus(sewectow: stwing): Pwomise<void> {
+		wet wetwies = 0;
 
-		// other parts of code might steal focus away from input boxes :(
-		while (retries < 5) {
-			await this.code.waitAndClick(INPUT, 2, 2);
+		// otha pawts of code might steaw focus away fwom input boxes :(
+		whiwe (wetwies < 5) {
+			await this.code.waitAndCwick(INPUT, 2, 2);
 
-			try {
-				await this.code.waitForActiveElement(INPUT, 10);
-				break;
-			} catch (err) {
-				if (++retries > 5) {
-					throw err;
+			twy {
+				await this.code.waitFowActiveEwement(INPUT, 10);
+				bweak;
+			} catch (eww) {
+				if (++wetwies > 5) {
+					thwow eww;
 				}
 			}
 		}

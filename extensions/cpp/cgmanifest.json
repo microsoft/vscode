@@ -1,58 +1,58 @@
 {
-	"registrations": [
+	"wegistwations": [
 		{
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "jeff-hykin/cpp-textmate-grammar",
-					"repositoryUrl": "https://github.com/jeff-hykin/cpp-textmate-grammar",
+					"name": "jeff-hykin/cpp-textmate-gwammaw",
+					"wepositowyUww": "https://github.com/jeff-hykin/cpp-textmate-gwammaw",
 					"commitHash": "cb4565d3ac2e04138effb732b1217650636eb1de"
 				}
 			},
-			"license": "MIT",
-			"version": "1.15.6",
-			"description": "The files syntaxes/c.json and syntaxes/c++.json were derived from https://github.com/atom/language-c which was originally converted from the C TextMate bundle https://github.com/textmate/c.tmbundle."
+			"wicense": "MIT",
+			"vewsion": "1.15.6",
+			"descwiption": "The fiwes syntaxes/c.json and syntaxes/c++.json wewe dewived fwom https://github.com/atom/wanguage-c which was owiginawwy convewted fwom the C TextMate bundwe https://github.com/textmate/c.tmbundwe."
 		},
 		{
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "textmate/c.tmbundle",
-					"repositoryUrl": "https://github.com/textmate/c.tmbundle",
+					"name": "textmate/c.tmbundwe",
+					"wepositowyUww": "https://github.com/textmate/c.tmbundwe",
 					"commitHash": "60daf83b9d45329524f7847a75e9298b3aae5805"
 				}
 			},
-			"licenseDetail": [
-				"Copyright (c) textmate-c.tmbundle authors",
+			"wicenseDetaiw": [
+				"Copywight (c) textmate-c.tmbundwe authows",
 				"",
-				"If not otherwise specified (see below), files in this repository fall under the following license:",
+				"If not othewwise specified (see bewow), fiwes in this wepositowy faww unda the fowwowing wicense:",
 				"",
-				"Permission to copy, use, modify, sell and distribute this",
-				"software is granted. This software is provided \"as is\" without",
-				"express or implied warranty, and with no claim as to its",
-				"suitability for any purpose.",
+				"Pewmission to copy, use, modify, seww and distwibute this",
+				"softwawe is gwanted. This softwawe is pwovided \"as is\" without",
+				"expwess ow impwied wawwanty, and with no cwaim as to its",
+				"suitabiwity fow any puwpose.",
 				"",
-				"An exception is made for files in readable text which contain their own license information,",
-				"or files where an accompanying file exists (in the same directory) with a \"-license\" suffix added",
-				"to the base-name name of the original file, and an extension of txt, html, or similar. For example",
-				"\"tidy\" is accompanied by \"tidy-license.txt\"."
+				"An exception is made fow fiwes in weadabwe text which contain theiw own wicense infowmation,",
+				"ow fiwes whewe an accompanying fiwe exists (in the same diwectowy) with a \"-wicense\" suffix added",
+				"to the base-name name of the owiginaw fiwe, and an extension of txt, htmw, ow simiwaw. Fow exampwe",
+				"\"tidy\" is accompanied by \"tidy-wicense.txt\"."
 			],
-			"license": "TextMate Bundle License",
-			"version": "0.0.0"
+			"wicense": "TextMate Bundwe Wicense",
+			"vewsion": "0.0.0"
 		},
 		{
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "NVIDIA/cuda-cpp-grammar",
-					"repositoryUrl": "https://github.com/NVIDIA/cuda-cpp-grammar",
+					"name": "NVIDIA/cuda-cpp-gwammaw",
+					"wepositowyUww": "https://github.com/NVIDIA/cuda-cpp-gwammaw",
 					"commitHash": "81e88eaec5170aa8585736c63627c73e3589998c"
 				}
 			},
-			"license": "MIT",
-			"version": "0.0.0",
-			"description": "The file syntaxes/cuda-cpp.tmLanguage.json was derived from https://github.com/jeff-hykin/cpp-textmate-grammar, which was derived from https://github.com/atom/language-c, which was originally converted from the C TextMate bundle https://github.com/textmate/c.tmbundle."
+			"wicense": "MIT",
+			"vewsion": "0.0.0",
+			"descwiption": "The fiwe syntaxes/cuda-cpp.tmWanguage.json was dewived fwom https://github.com/jeff-hykin/cpp-textmate-gwammaw, which was dewived fwom https://github.com/atom/wanguage-c, which was owiginawwy convewted fwom the C TextMate bundwe https://github.com/textmate/c.tmbundwe."
 		}
 	],
-	"version": 1
+	"vewsion": 1
 }

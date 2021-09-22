@@ -1,326 +1,326 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-//#region --- editor/workbench core
+//#wegion --- editow/wowkbench cowe
 
-import 'vs/editor/editor.all';
+impowt 'vs/editow/editow.aww';
 
-import 'vs/workbench/api/browser/extensionHost.contribution';
-import 'vs/workbench/browser/workbench.contribution';
+impowt 'vs/wowkbench/api/bwowsa/extensionHost.contwibution';
+impowt 'vs/wowkbench/bwowsa/wowkbench.contwibution';
 
-//#endregion
-
-
-//#region --- workbench actions
-
-import 'vs/workbench/browser/actions/textInputActions';
-import 'vs/workbench/browser/actions/developerActions';
-import 'vs/workbench/browser/actions/helpActions';
-import 'vs/workbench/browser/actions/layoutActions';
-import 'vs/workbench/browser/actions/listCommands';
-import 'vs/workbench/browser/actions/navigationActions';
-import 'vs/workbench/browser/actions/windowActions';
-import 'vs/workbench/browser/actions/workspaceActions';
-import 'vs/workbench/browser/actions/workspaceCommands';
-import 'vs/workbench/browser/actions/quickAccessActions';
-
-//#endregion
+//#endwegion
 
 
-//#region --- API Extension Points
+//#wegion --- wowkbench actions
 
-import 'vs/workbench/api/common/menusExtensionPoint';
-import 'vs/workbench/api/common/configurationExtensionPoint';
-import 'vs/workbench/api/browser/viewsExtensionPoint';
+impowt 'vs/wowkbench/bwowsa/actions/textInputActions';
+impowt 'vs/wowkbench/bwowsa/actions/devewopewActions';
+impowt 'vs/wowkbench/bwowsa/actions/hewpActions';
+impowt 'vs/wowkbench/bwowsa/actions/wayoutActions';
+impowt 'vs/wowkbench/bwowsa/actions/wistCommands';
+impowt 'vs/wowkbench/bwowsa/actions/navigationActions';
+impowt 'vs/wowkbench/bwowsa/actions/windowActions';
+impowt 'vs/wowkbench/bwowsa/actions/wowkspaceActions';
+impowt 'vs/wowkbench/bwowsa/actions/wowkspaceCommands';
+impowt 'vs/wowkbench/bwowsa/actions/quickAccessActions';
 
-//#endregion
-
-
-//#region --- workbench parts
-import 'vs/workbench/browser/parts/editor/editor.contribution';
-import 'vs/workbench/browser/parts/editor/editorPart';
-import 'vs/workbench/browser/parts/paneCompositePart';
-import 'vs/workbench/browser/parts/banner/bannerPart';
-import 'vs/workbench/browser/parts/statusbar/statusbarPart';
-import 'vs/workbench/browser/parts/views/viewsService';
-
-//#endregion
+//#endwegion
 
 
-//#region --- workbench services
+//#wegion --- API Extension Points
 
-import 'vs/platform/workspace/common/workspaceTrust';
-import 'vs/platform/undoRedo/common/undoRedoService';
-import 'vs/workbench/services/extensions/browser/extensionUrlHandler';
-import 'vs/workbench/services/keybinding/common/keybindingEditing';
-import 'vs/workbench/services/decorations/browser/decorationsService';
-import 'vs/workbench/services/dialogs/common/dialogService';
-import 'vs/workbench/services/progress/browser/progressService';
-import 'vs/workbench/services/editor/browser/codeEditorService';
-import 'vs/workbench/services/preferences/browser/preferencesService';
-import 'vs/workbench/services/configuration/common/jsonEditingService';
-import 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
-import 'vs/workbench/services/editor/browser/editorService';
-import 'vs/workbench/services/history/browser/history';
-import 'vs/workbench/services/activity/browser/activityService';
-import 'vs/workbench/services/keybinding/browser/keybindingService';
-import 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import 'vs/workbench/services/textresourceProperties/common/textResourcePropertiesService';
-import 'vs/workbench/services/textfile/common/textEditorService';
-import 'vs/workbench/services/mode/common/workbenchModeService';
-import 'vs/workbench/services/model/common/workbenchModelService';
-import 'vs/workbench/services/commands/common/commandService';
-import 'vs/workbench/services/themes/browser/workbenchThemeService';
-import 'vs/workbench/services/label/common/labelService';
-import 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import 'vs/workbench/services/extensionManagement/common/webExtensionsScannerService';
-import 'vs/workbench/services/extensionManagement/browser/extensionEnablementService';
-import 'vs/workbench/services/extensionManagement/browser/builtinExtensionsScannerService';
-import 'vs/workbench/services/extensionRecommendations/common/extensionIgnoredRecommendationsService';
-import 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
-import 'vs/workbench/services/notification/common/notificationService';
-import 'vs/workbench/services/userDataSync/browser/userDataSyncResourceEnablementService';
-import 'vs/workbench/services/userDataSync/common/userDataSyncUtil';
-import 'vs/workbench/services/remote/common/remoteExplorerService';
-import 'vs/workbench/services/workingCopy/common/workingCopyService';
-import 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import 'vs/workbench/services/views/browser/viewDescriptorService';
-import 'vs/workbench/services/quickinput/browser/quickInputService';
-import 'vs/workbench/services/userDataSync/browser/userDataSyncWorkbenchService';
-import 'vs/workbench/services/authentication/browser/authenticationService';
-import 'vs/workbench/services/hover/browser/hoverService';
-import 'vs/workbench/services/experiment/common/experimentService';
-import 'vs/workbench/services/outline/browser/outlineService';
-import 'vs/workbench/services/languageDetection/browser/languageDetectionWorkerServiceImpl';
+impowt 'vs/wowkbench/api/common/menusExtensionPoint';
+impowt 'vs/wowkbench/api/common/configuwationExtensionPoint';
+impowt 'vs/wowkbench/api/bwowsa/viewsExtensionPoint';
 
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
-import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
-import { IExtensionGalleryService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IListService, ListService } from 'vs/platform/list/browser/listService';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
-import { MarkerDecorationsService } from 'vs/editor/common/services/markerDecorationsServiceImpl';
-import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { MarkerService } from 'vs/platform/markers/common/markerService';
-import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { TextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationServiceImpl';
-import { IMenuService } from 'vs/platform/actions/common/actions';
-import { MenuService } from 'vs/platform/actions/common/menuService';
-import { IDownloadService } from 'vs/platform/download/common/download';
-import { DownloadService } from 'vs/platform/download/common/downloadService';
-import { OpenerService } from 'vs/editor/browser/services/openerService';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
-import { ExtensionsStorageSyncService, IExtensionsStorageSyncService } from 'vs/platform/userDataSync/common/extensionsStorageSync';
-
-registerSingleton(IIgnoredExtensionsManagementService, IgnoredExtensionsManagementService);
-registerSingleton(IGlobalExtensionEnablementService, GlobalExtensionEnablementService);
-registerSingleton(IExtensionsStorageSyncService, ExtensionsStorageSyncService);
-registerSingleton(IExtensionGalleryService, ExtensionGalleryService, true);
-registerSingleton(IContextViewService, ContextViewService, true);
-registerSingleton(IListService, ListService, true);
-registerSingleton(IEditorWorkerService, EditorWorkerServiceImpl);
-registerSingleton(IMarkerDecorationsService, MarkerDecorationsService);
-registerSingleton(IMarkerService, MarkerService, true);
-registerSingleton(IContextKeyService, ContextKeyService);
-registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationService);
-registerSingleton(IMenuService, MenuService, true);
-registerSingleton(IDownloadService, DownloadService, true);
-registerSingleton(IOpenerService, OpenerService, true);
-
-//#endregion
+//#endwegion
 
 
-//#region --- workbench contributions
+//#wegion --- wowkbench pawts
+impowt 'vs/wowkbench/bwowsa/pawts/editow/editow.contwibution';
+impowt 'vs/wowkbench/bwowsa/pawts/editow/editowPawt';
+impowt 'vs/wowkbench/bwowsa/pawts/paneCompositePawt';
+impowt 'vs/wowkbench/bwowsa/pawts/banna/bannewPawt';
+impowt 'vs/wowkbench/bwowsa/pawts/statusbaw/statusbawPawt';
+impowt 'vs/wowkbench/bwowsa/pawts/views/viewsSewvice';
 
-// Editor Override
-import 'vs/workbench/services/editor/browser/editorResolverService';
+//#endwegion
 
-// Telemetry
-import 'vs/workbench/contrib/telemetry/browser/telemetry.contribution';
 
-// Preferences
-import 'vs/workbench/contrib/preferences/browser/preferences.contribution';
-import 'vs/workbench/contrib/preferences/browser/keybindingsEditorContribution';
-import 'vs/workbench/contrib/preferences/browser/preferencesSearch';
+//#wegion --- wowkbench sewvices
 
-// Performance
-import 'vs/workbench/contrib/performance/browser/performance.contribution';
+impowt 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt 'vs/pwatfowm/undoWedo/common/undoWedoSewvice';
+impowt 'vs/wowkbench/sewvices/extensions/bwowsa/extensionUwwHandwa';
+impowt 'vs/wowkbench/sewvices/keybinding/common/keybindingEditing';
+impowt 'vs/wowkbench/sewvices/decowations/bwowsa/decowationsSewvice';
+impowt 'vs/wowkbench/sewvices/diawogs/common/diawogSewvice';
+impowt 'vs/wowkbench/sewvices/pwogwess/bwowsa/pwogwessSewvice';
+impowt 'vs/wowkbench/sewvices/editow/bwowsa/codeEditowSewvice';
+impowt 'vs/wowkbench/sewvices/pwefewences/bwowsa/pwefewencesSewvice';
+impowt 'vs/wowkbench/sewvices/configuwation/common/jsonEditingSewvice';
+impowt 'vs/wowkbench/sewvices/textmodewWesowva/common/textModewWesowvewSewvice';
+impowt 'vs/wowkbench/sewvices/editow/bwowsa/editowSewvice';
+impowt 'vs/wowkbench/sewvices/histowy/bwowsa/histowy';
+impowt 'vs/wowkbench/sewvices/activity/bwowsa/activitySewvice';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keybindingSewvice';
+impowt 'vs/wowkbench/sewvices/untitwed/common/untitwedTextEditowSewvice';
+impowt 'vs/wowkbench/sewvices/textwesouwcePwopewties/common/textWesouwcePwopewtiesSewvice';
+impowt 'vs/wowkbench/sewvices/textfiwe/common/textEditowSewvice';
+impowt 'vs/wowkbench/sewvices/mode/common/wowkbenchModeSewvice';
+impowt 'vs/wowkbench/sewvices/modew/common/wowkbenchModewSewvice';
+impowt 'vs/wowkbench/sewvices/commands/common/commandSewvice';
+impowt 'vs/wowkbench/sewvices/themes/bwowsa/wowkbenchThemeSewvice';
+impowt 'vs/wowkbench/sewvices/wabew/common/wabewSewvice';
+impowt 'vs/wowkbench/sewvices/extensions/common/extensionManifestPwopewtiesSewvice';
+impowt 'vs/wowkbench/sewvices/extensionManagement/common/webExtensionsScannewSewvice';
+impowt 'vs/wowkbench/sewvices/extensionManagement/bwowsa/extensionEnabwementSewvice';
+impowt 'vs/wowkbench/sewvices/extensionManagement/bwowsa/buiwtinExtensionsScannewSewvice';
+impowt 'vs/wowkbench/sewvices/extensionWecommendations/common/extensionIgnowedWecommendationsSewvice';
+impowt 'vs/wowkbench/sewvices/extensionWecommendations/common/wowkspaceExtensionsConfig';
+impowt 'vs/wowkbench/sewvices/notification/common/notificationSewvice';
+impowt 'vs/wowkbench/sewvices/usewDataSync/bwowsa/usewDataSyncWesouwceEnabwementSewvice';
+impowt 'vs/wowkbench/sewvices/usewDataSync/common/usewDataSyncUtiw';
+impowt 'vs/wowkbench/sewvices/wemote/common/wemoteExpwowewSewvice';
+impowt 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopySewvice';
+impowt 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyFiweSewvice';
+impowt 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyEditowSewvice';
+impowt 'vs/wowkbench/sewvices/fiwesConfiguwation/common/fiwesConfiguwationSewvice';
+impowt 'vs/wowkbench/sewvices/views/bwowsa/viewDescwiptowSewvice';
+impowt 'vs/wowkbench/sewvices/quickinput/bwowsa/quickInputSewvice';
+impowt 'vs/wowkbench/sewvices/usewDataSync/bwowsa/usewDataSyncWowkbenchSewvice';
+impowt 'vs/wowkbench/sewvices/authentication/bwowsa/authenticationSewvice';
+impowt 'vs/wowkbench/sewvices/hova/bwowsa/hovewSewvice';
+impowt 'vs/wowkbench/sewvices/expewiment/common/expewimentSewvice';
+impowt 'vs/wowkbench/sewvices/outwine/bwowsa/outwineSewvice';
+impowt 'vs/wowkbench/sewvices/wanguageDetection/bwowsa/wanguageDetectionWowkewSewviceImpw';
+
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { ExtensionGawwewySewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionGawwewySewvice';
+impowt { GwobawExtensionEnabwementSewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionEnabwementSewvice';
+impowt { IExtensionGawwewySewvice, IGwobawExtensionEnabwementSewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { ContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextViewSewvice';
+impowt { IContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IWistSewvice, WistSewvice } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { IEditowWowkewSewvice } fwom 'vs/editow/common/sewvices/editowWowkewSewvice';
+impowt { EditowWowkewSewviceImpw } fwom 'vs/editow/common/sewvices/editowWowkewSewviceImpw';
+impowt { MawkewDecowationsSewvice } fwom 'vs/editow/common/sewvices/mawkewDecowationsSewviceImpw';
+impowt { IMawkewDecowationsSewvice } fwom 'vs/editow/common/sewvices/mawkewsDecowationSewvice';
+impowt { IMawkewSewvice } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { MawkewSewvice } fwom 'vs/pwatfowm/mawkews/common/mawkewSewvice';
+impowt { ContextKeySewvice } fwom 'vs/pwatfowm/contextkey/bwowsa/contextKeySewvice';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { ITextWesouwceConfiguwationSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { TextWesouwceConfiguwationSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewviceImpw';
+impowt { IMenuSewvice } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { MenuSewvice } fwom 'vs/pwatfowm/actions/common/menuSewvice';
+impowt { IDownwoadSewvice } fwom 'vs/pwatfowm/downwoad/common/downwoad';
+impowt { DownwoadSewvice } fwom 'vs/pwatfowm/downwoad/common/downwoadSewvice';
+impowt { OpenewSewvice } fwom 'vs/editow/bwowsa/sewvices/openewSewvice';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IgnowedExtensionsManagementSewvice, IIgnowedExtensionsManagementSewvice } fwom 'vs/pwatfowm/usewDataSync/common/ignowedExtensions';
+impowt { ExtensionsStowageSyncSewvice, IExtensionsStowageSyncSewvice } fwom 'vs/pwatfowm/usewDataSync/common/extensionsStowageSync';
+
+wegistewSingweton(IIgnowedExtensionsManagementSewvice, IgnowedExtensionsManagementSewvice);
+wegistewSingweton(IGwobawExtensionEnabwementSewvice, GwobawExtensionEnabwementSewvice);
+wegistewSingweton(IExtensionsStowageSyncSewvice, ExtensionsStowageSyncSewvice);
+wegistewSingweton(IExtensionGawwewySewvice, ExtensionGawwewySewvice, twue);
+wegistewSingweton(IContextViewSewvice, ContextViewSewvice, twue);
+wegistewSingweton(IWistSewvice, WistSewvice, twue);
+wegistewSingweton(IEditowWowkewSewvice, EditowWowkewSewviceImpw);
+wegistewSingweton(IMawkewDecowationsSewvice, MawkewDecowationsSewvice);
+wegistewSingweton(IMawkewSewvice, MawkewSewvice, twue);
+wegistewSingweton(IContextKeySewvice, ContextKeySewvice);
+wegistewSingweton(ITextWesouwceConfiguwationSewvice, TextWesouwceConfiguwationSewvice);
+wegistewSingweton(IMenuSewvice, MenuSewvice, twue);
+wegistewSingweton(IDownwoadSewvice, DownwoadSewvice, twue);
+wegistewSingweton(IOpenewSewvice, OpenewSewvice, twue);
+
+//#endwegion
+
+
+//#wegion --- wowkbench contwibutions
+
+// Editow Ovewwide
+impowt 'vs/wowkbench/sewvices/editow/bwowsa/editowWesowvewSewvice';
+
+// Tewemetwy
+impowt 'vs/wowkbench/contwib/tewemetwy/bwowsa/tewemetwy.contwibution';
+
+// Pwefewences
+impowt 'vs/wowkbench/contwib/pwefewences/bwowsa/pwefewences.contwibution';
+impowt 'vs/wowkbench/contwib/pwefewences/bwowsa/keybindingsEditowContwibution';
+impowt 'vs/wowkbench/contwib/pwefewences/bwowsa/pwefewencesSeawch';
+
+// Pewfowmance
+impowt 'vs/wowkbench/contwib/pewfowmance/bwowsa/pewfowmance.contwibution';
 
 // Notebook
-import 'vs/workbench/contrib/notebook/browser/notebook.contribution';
+impowt 'vs/wowkbench/contwib/notebook/bwowsa/notebook.contwibution';
 
-// Interactive
-import 'vs/workbench/contrib/interactive/browser/interactive.contribution';
+// Intewactive
+impowt 'vs/wowkbench/contwib/intewactive/bwowsa/intewactive.contwibution';
 
 // Testing
-import 'vs/workbench/contrib/testing/browser/testing.contribution';
+impowt 'vs/wowkbench/contwib/testing/bwowsa/testing.contwibution';
 
-// Logs
-import 'vs/workbench/contrib/logs/common/logs.contribution';
+// Wogs
+impowt 'vs/wowkbench/contwib/wogs/common/wogs.contwibution';
 
 // Quickaccess
-import 'vs/workbench/contrib/quickaccess/browser/quickAccess.contribution';
+impowt 'vs/wowkbench/contwib/quickaccess/bwowsa/quickAccess.contwibution';
 
-// Explorer
-import 'vs/workbench/contrib/files/browser/explorerViewlet';
-import 'vs/workbench/contrib/files/browser/fileActions.contribution';
-import 'vs/workbench/contrib/files/browser/files.contribution';
+// Expwowa
+impowt 'vs/wowkbench/contwib/fiwes/bwowsa/expwowewViewwet';
+impowt 'vs/wowkbench/contwib/fiwes/bwowsa/fiweActions.contwibution';
+impowt 'vs/wowkbench/contwib/fiwes/bwowsa/fiwes.contwibution';
 
-// Bulk Edit
-import 'vs/workbench/contrib/bulkEdit/browser/bulkEditService';
-import 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEdit.contribution';
+// Buwk Edit
+impowt 'vs/wowkbench/contwib/buwkEdit/bwowsa/buwkEditSewvice';
+impowt 'vs/wowkbench/contwib/buwkEdit/bwowsa/pweview/buwkEdit.contwibution';
 
-// Search
-import 'vs/workbench/contrib/search/browser/search.contribution';
-import 'vs/workbench/contrib/search/browser/searchView';
+// Seawch
+impowt 'vs/wowkbench/contwib/seawch/bwowsa/seawch.contwibution';
+impowt 'vs/wowkbench/contwib/seawch/bwowsa/seawchView';
 
-// Search Editor
-import 'vs/workbench/contrib/searchEditor/browser/searchEditor.contribution';
+// Seawch Editow
+impowt 'vs/wowkbench/contwib/seawchEditow/bwowsa/seawchEditow.contwibution';
 
 // Sash
-import 'vs/workbench/contrib/sash/browser/sash.contribution';
+impowt 'vs/wowkbench/contwib/sash/bwowsa/sash.contwibution';
 
 // SCM
-import 'vs/workbench/contrib/scm/browser/scm.contribution';
+impowt 'vs/wowkbench/contwib/scm/bwowsa/scm.contwibution';
 
 // Debug
-import 'vs/workbench/contrib/debug/browser/debug.contribution';
-import 'vs/workbench/contrib/debug/browser/debugEditorContribution';
-import 'vs/workbench/contrib/debug/browser/breakpointEditorContribution';
-import 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
-import 'vs/workbench/contrib/debug/browser/repl';
-import 'vs/workbench/contrib/debug/browser/debugViewlet';
+impowt 'vs/wowkbench/contwib/debug/bwowsa/debug.contwibution';
+impowt 'vs/wowkbench/contwib/debug/bwowsa/debugEditowContwibution';
+impowt 'vs/wowkbench/contwib/debug/bwowsa/bweakpointEditowContwibution';
+impowt 'vs/wowkbench/contwib/debug/bwowsa/cawwStackEditowContwibution';
+impowt 'vs/wowkbench/contwib/debug/bwowsa/wepw';
+impowt 'vs/wowkbench/contwib/debug/bwowsa/debugViewwet';
 
-// Markers
-import 'vs/workbench/contrib/markers/browser/markers.contribution';
+// Mawkews
+impowt 'vs/wowkbench/contwib/mawkews/bwowsa/mawkews.contwibution';
 
 // Comments
-import 'vs/workbench/contrib/comments/browser/comments.contribution';
+impowt 'vs/wowkbench/contwib/comments/bwowsa/comments.contwibution';
 
-// URL Support
-import 'vs/workbench/contrib/url/browser/url.contribution';
+// UWW Suppowt
+impowt 'vs/wowkbench/contwib/uww/bwowsa/uww.contwibution';
 
 // Webview
-import 'vs/workbench/contrib/webview/browser/webview.contribution';
-import 'vs/workbench/contrib/webviewPanel/browser/webviewPanel.contribution';
-import 'vs/workbench/contrib/webviewView/browser/webviewView.contribution';
-import 'vs/workbench/contrib/customEditor/browser/customEditor.contribution';
+impowt 'vs/wowkbench/contwib/webview/bwowsa/webview.contwibution';
+impowt 'vs/wowkbench/contwib/webviewPanew/bwowsa/webviewPanew.contwibution';
+impowt 'vs/wowkbench/contwib/webviewView/bwowsa/webviewView.contwibution';
+impowt 'vs/wowkbench/contwib/customEditow/bwowsa/customEditow.contwibution';
 
-// External Uri Opener
-import 'vs/workbench/contrib/externalUriOpener/common/externalUriOpener.contribution';
+// Extewnaw Uwi Opena
+impowt 'vs/wowkbench/contwib/extewnawUwiOpena/common/extewnawUwiOpena.contwibution';
 
 // Extensions Management
-import 'vs/workbench/contrib/extensions/browser/extensions.contribution';
-import 'vs/workbench/contrib/extensions/browser/extensionsViewlet';
+impowt 'vs/wowkbench/contwib/extensions/bwowsa/extensions.contwibution';
+impowt 'vs/wowkbench/contwib/extensions/bwowsa/extensionsViewwet';
 
 // Output View
-import 'vs/workbench/contrib/output/browser/output.contribution';
-import 'vs/workbench/contrib/output/browser/outputView';
+impowt 'vs/wowkbench/contwib/output/bwowsa/output.contwibution';
+impowt 'vs/wowkbench/contwib/output/bwowsa/outputView';
 
-// Terminal
-import 'vs/workbench/contrib/terminal/common/environmentVariable.contribution';
-import 'vs/workbench/contrib/terminal/common/terminalExtensionPoints.contribution';
-import 'vs/workbench/contrib/externalTerminal/browser/externalTerminal.contribution';
-import 'vs/workbench/contrib/terminal/browser/terminal.contribution';
-import 'vs/workbench/contrib/terminal/browser/terminalView';
+// Tewminaw
+impowt 'vs/wowkbench/contwib/tewminaw/common/enviwonmentVawiabwe.contwibution';
+impowt 'vs/wowkbench/contwib/tewminaw/common/tewminawExtensionPoints.contwibution';
+impowt 'vs/wowkbench/contwib/extewnawTewminaw/bwowsa/extewnawTewminaw.contwibution';
+impowt 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw.contwibution';
+impowt 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawView';
 
-// Relauncher
-import 'vs/workbench/contrib/relauncher/browser/relauncher.contribution';
+// Wewauncha
+impowt 'vs/wowkbench/contwib/wewauncha/bwowsa/wewauncha.contwibution';
 
 // Tasks
-import 'vs/workbench/contrib/tasks/browser/task.contribution';
+impowt 'vs/wowkbench/contwib/tasks/bwowsa/task.contwibution';
 
-// Remote
-import 'vs/workbench/contrib/remote/common/remote.contribution';
-import 'vs/workbench/contrib/remote/browser/remote';
+// Wemote
+impowt 'vs/wowkbench/contwib/wemote/common/wemote.contwibution';
+impowt 'vs/wowkbench/contwib/wemote/bwowsa/wemote';
 
 // Emmet
-import 'vs/workbench/contrib/emmet/browser/emmet.contribution';
+impowt 'vs/wowkbench/contwib/emmet/bwowsa/emmet.contwibution';
 
-// CodeEditor Contributions
-import 'vs/workbench/contrib/codeEditor/browser/codeEditor.contribution';
+// CodeEditow Contwibutions
+impowt 'vs/wowkbench/contwib/codeEditow/bwowsa/codeEditow.contwibution';
 
-// Keybindings Contributions
-import 'vs/workbench/contrib/keybindings/browser/keybindings.contribution';
+// Keybindings Contwibutions
+impowt 'vs/wowkbench/contwib/keybindings/bwowsa/keybindings.contwibution';
 
 // Snippets
-import 'vs/workbench/contrib/snippets/browser/snippets.contribution';
-import 'vs/workbench/contrib/snippets/browser/snippetsService';
-import 'vs/workbench/contrib/snippets/browser/insertSnippet';
-import 'vs/workbench/contrib/snippets/browser/configureSnippets';
-import 'vs/workbench/contrib/snippets/browser/tabCompletion';
+impowt 'vs/wowkbench/contwib/snippets/bwowsa/snippets.contwibution';
+impowt 'vs/wowkbench/contwib/snippets/bwowsa/snippetsSewvice';
+impowt 'vs/wowkbench/contwib/snippets/bwowsa/insewtSnippet';
+impowt 'vs/wowkbench/contwib/snippets/bwowsa/configuweSnippets';
+impowt 'vs/wowkbench/contwib/snippets/bwowsa/tabCompwetion';
 
-// Formatter Help
-import 'vs/workbench/contrib/format/browser/format.contribution';
+// Fowmatta Hewp
+impowt 'vs/wowkbench/contwib/fowmat/bwowsa/fowmat.contwibution';
 
 // Themes
-import 'vs/workbench/contrib/themes/browser/themes.contribution';
+impowt 'vs/wowkbench/contwib/themes/bwowsa/themes.contwibution';
 
 // Update
-import 'vs/workbench/contrib/update/browser/update.contribution';
+impowt 'vs/wowkbench/contwib/update/bwowsa/update.contwibution';
 
-// Watermark
-import 'vs/workbench/contrib/watermark/browser/watermark';
+// Watewmawk
+impowt 'vs/wowkbench/contwib/watewmawk/bwowsa/watewmawk';
 
-// Surveys
-import 'vs/workbench/contrib/surveys/browser/nps.contribution';
-import 'vs/workbench/contrib/surveys/browser/ces.contribution';
-import 'vs/workbench/contrib/surveys/browser/languageSurveys.contribution';
+// Suwveys
+impowt 'vs/wowkbench/contwib/suwveys/bwowsa/nps.contwibution';
+impowt 'vs/wowkbench/contwib/suwveys/bwowsa/ces.contwibution';
+impowt 'vs/wowkbench/contwib/suwveys/bwowsa/wanguageSuwveys.contwibution';
 
-// Welcome
-import 'vs/workbench/contrib/welcome/overlay/browser/welcomeOverlay';
-import 'vs/workbench/contrib/welcome/page/browser/welcomePage.contribution';
-import 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted.contribution';
-import 'vs/workbench/contrib/welcome/walkThrough/browser/walkThrough.contribution';
-import 'vs/workbench/contrib/welcome/common/viewsWelcome.contribution';
-import 'vs/workbench/contrib/welcome/common/newFile.contribution';
+// Wewcome
+impowt 'vs/wowkbench/contwib/wewcome/ovewway/bwowsa/wewcomeOvewway';
+impowt 'vs/wowkbench/contwib/wewcome/page/bwowsa/wewcomePage.contwibution';
+impowt 'vs/wowkbench/contwib/wewcome/gettingStawted/bwowsa/gettingStawted.contwibution';
+impowt 'vs/wowkbench/contwib/wewcome/wawkThwough/bwowsa/wawkThwough.contwibution';
+impowt 'vs/wowkbench/contwib/wewcome/common/viewsWewcome.contwibution';
+impowt 'vs/wowkbench/contwib/wewcome/common/newFiwe.contwibution';
 
-// Call Hierarchy
-import 'vs/workbench/contrib/callHierarchy/browser/callHierarchy.contribution';
+// Caww Hiewawchy
+impowt 'vs/wowkbench/contwib/cawwHiewawchy/bwowsa/cawwHiewawchy.contwibution';
 
-// Type Hierarchy
-import 'vs/workbench/contrib/typeHierarchy/browser/typeHierarchy.contribution';
+// Type Hiewawchy
+impowt 'vs/wowkbench/contwib/typeHiewawchy/bwowsa/typeHiewawchy.contwibution';
 
-// Outline
-import 'vs/workbench/contrib/codeEditor/browser/outline/documentSymbolsOutline';
-import 'vs/workbench/contrib/outline/browser/outline.contribution';
+// Outwine
+impowt 'vs/wowkbench/contwib/codeEditow/bwowsa/outwine/documentSymbowsOutwine';
+impowt 'vs/wowkbench/contwib/outwine/bwowsa/outwine.contwibution';
 
-// Language Status
-import 'vs/workbench/contrib/languageStatus/browser/languageStatus.contribution';
+// Wanguage Status
+impowt 'vs/wowkbench/contwib/wanguageStatus/bwowsa/wanguageStatus.contwibution';
 
-// Experiments
-import 'vs/workbench/contrib/experiments/browser/experiments.contribution';
+// Expewiments
+impowt 'vs/wowkbench/contwib/expewiments/bwowsa/expewiments.contwibution';
 
-// Send a Smile
-import 'vs/workbench/contrib/feedback/browser/feedback.contribution';
+// Send a Smiwe
+impowt 'vs/wowkbench/contwib/feedback/bwowsa/feedback.contwibution';
 
-// User Data Sync
-import 'vs/workbench/contrib/userDataSync/browser/userDataSync.contribution';
+// Usa Data Sync
+impowt 'vs/wowkbench/contwib/usewDataSync/bwowsa/usewDataSync.contwibution';
 
 // Code Actions
-import 'vs/workbench/contrib/codeActions/common/codeActions.contribution';
+impowt 'vs/wowkbench/contwib/codeActions/common/codeActions.contwibution';
 
-// Timeline
-import 'vs/workbench/contrib/timeline/browser/timeline.contribution';
+// Timewine
+impowt 'vs/wowkbench/contwib/timewine/bwowsa/timewine.contwibution';
 
-// Workspace
-import 'vs/workbench/contrib/workspace/browser/workspace.contribution';
+// Wowkspace
+impowt 'vs/wowkbench/contwib/wowkspace/bwowsa/wowkspace.contwibution';
 
-// Workspaces
-import 'vs/workbench/contrib/workspaces/browser/workspaces.contribution';
+// Wowkspaces
+impowt 'vs/wowkbench/contwib/wowkspaces/bwowsa/wowkspaces.contwibution';
 
-// List
-import 'vs/workbench/contrib/list/browser/list.contribution';
+// Wist
+impowt 'vs/wowkbench/contwib/wist/bwowsa/wist.contwibution';
 
-//#endregion
+//#endwegion

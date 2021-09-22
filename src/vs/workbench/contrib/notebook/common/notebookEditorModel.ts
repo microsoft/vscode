@@ -1,182 +1,182 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { Emitter, Event } from 'vs/base/common/event';
-import { ICellDto2, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookData, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { INotebookContentProvider, INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { URI } from 'vs/base/common/uri';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities, NO_TYPE_ID, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { Schemas } from 'vs/base/common/network';
-import { IFileStatWithMetadata, IFileService, FileChangeType, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ILogService } from 'vs/platform/log/common/log';
-import { TaskSequentializer } from 'vs/base/common/async';
-import { bufferToReadable, bufferToStream, streamToBuffer, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { assertType } from 'vs/base/common/types';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { StoredFileWorkingCopyState, IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { canceled } from 'vs/base/common/errors';
-import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { filter } from 'vs/base/common/objects';
-import { IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
-import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelContentChangedEvent, IUntitledFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
+impowt * as nws fwom 'vs/nws';
+impowt { IWevewtOptions, ISaveOptions } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { EditowModew } fwom 'vs/wowkbench/common/editow/editowModew';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { ICewwDto2, INotebookEditowModew, INotebookWoadOptions, IWesowvedNotebookEditowModew, NotebookCewwsChangeType, NotebookData, NotebookDocumentBackupData } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { NotebookTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookTextModew';
+impowt { INotebookContentPwovida, INotebookSewiawiza, INotebookSewvice, SimpweNotebookPwovidewInfo } fwom 'vs/wowkbench/contwib/notebook/common/notebookSewvice';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWowkingCopySewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopySewvice';
+impowt { IWowkingCopy, IWowkingCopyBackup, WowkingCopyCapabiwities, NO_TYPE_ID, IWowkingCopyIdentifia } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopy';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IWesowvedWowkingCopyBackup, IWowkingCopyBackupSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyBackup';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IFiweStatWithMetadata, IFiweSewvice, FiweChangeType, FiweSystemPwovidewCapabiwities } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { TaskSequentiawiza } fwom 'vs/base/common/async';
+impowt { buffewToWeadabwe, buffewToStweam, stweamToBuffa, VSBuffa, VSBuffewWeadabweStweam } fwom 'vs/base/common/buffa';
+impowt { assewtType } fwom 'vs/base/common/types';
+impowt { IUntitwedTextEditowSewvice } fwom 'vs/wowkbench/sewvices/untitwed/common/untitwedTextEditowSewvice';
+impowt { StowedFiweWowkingCopyState, IStowedFiweWowkingCopy, IStowedFiweWowkingCopyModew, IStowedFiweWowkingCopyModewContentChangedEvent, IStowedFiweWowkingCopyModewFactowy } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/stowedFiweWowkingCopy';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { cancewed } fwom 'vs/base/common/ewwows';
+impowt { NotebookEditowInput } fwom 'vs/wowkbench/contwib/notebook/common/notebookEditowInput';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { fiwta } fwom 'vs/base/common/objects';
+impowt { IFiweWowkingCopyManaga } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/fiweWowkingCopyManaga';
+impowt { IUntitwedFiweWowkingCopy, IUntitwedFiweWowkingCopyModew, IUntitwedFiweWowkingCopyModewContentChangedEvent, IUntitwedFiweWowkingCopyModewFactowy } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/untitwedFiweWowkingCopy';
 
-//#region --- complex content provider
+//#wegion --- compwex content pwovida
 
-export class ComplexNotebookEditorModel extends EditorModel implements INotebookEditorModel {
+expowt cwass CompwexNotebookEditowModew extends EditowModew impwements INotebookEditowModew {
 
-	private readonly _onDidSave = this._register(new Emitter<void>());
-	private readonly _onDidChangeDirty = this._register(new Emitter<void>());
-	private readonly _onDidChangeContent = this._register(new Emitter<void>());
+	pwivate weadonwy _onDidSave = this._wegista(new Emitta<void>());
+	pwivate weadonwy _onDidChangeDiwty = this._wegista(new Emitta<void>());
+	pwivate weadonwy _onDidChangeContent = this._wegista(new Emitta<void>());
 
-	readonly onDidSave = this._onDidSave.event;
-	readonly onDidChangeDirty = this._onDidChangeDirty.event;
-	readonly onDidChangeOrphaned = Event.None;
-	readonly onDidChangeReadonly = Event.None;
+	weadonwy onDidSave = this._onDidSave.event;
+	weadonwy onDidChangeDiwty = this._onDidChangeDiwty.event;
+	weadonwy onDidChangeOwphaned = Event.None;
+	weadonwy onDidChangeWeadonwy = Event.None;
 
-	private _lastResolvedFileStat?: IFileStatWithMetadata;
+	pwivate _wastWesowvedFiweStat?: IFiweStatWithMetadata;
 
-	private readonly _name: string;
-	private readonly _workingCopyIdentifier: IWorkingCopyIdentifier;
-	private readonly _saveSequentializer = new TaskSequentializer();
+	pwivate weadonwy _name: stwing;
+	pwivate weadonwy _wowkingCopyIdentifia: IWowkingCopyIdentifia;
+	pwivate weadonwy _saveSequentiawiza = new TaskSequentiawiza();
 
-	private _dirty: boolean = false;
+	pwivate _diwty: boowean = fawse;
 
-	constructor(
-		readonly resource: URI,
-		readonly viewType: string,
-		private readonly _contentProvider: INotebookContentProvider,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@INotebookService private readonly _notebookService: INotebookService,
-		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
-		@IWorkingCopyBackupService private readonly _workingCopyBackupService: IWorkingCopyBackupService,
-		@IFileService private readonly _fileService: IFileService,
-		@INotificationService private readonly _notificationService: INotificationService,
-		@ILogService private readonly _logService: ILogService,
-		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService,
-		@ILabelService labelService: ILabelService,
+	constwuctow(
+		weadonwy wesouwce: UWI,
+		weadonwy viewType: stwing,
+		pwivate weadonwy _contentPwovida: INotebookContentPwovida,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@INotebookSewvice pwivate weadonwy _notebookSewvice: INotebookSewvice,
+		@IWowkingCopySewvice pwivate weadonwy _wowkingCopySewvice: IWowkingCopySewvice,
+		@IWowkingCopyBackupSewvice pwivate weadonwy _wowkingCopyBackupSewvice: IWowkingCopyBackupSewvice,
+		@IFiweSewvice pwivate weadonwy _fiweSewvice: IFiweSewvice,
+		@INotificationSewvice pwivate weadonwy _notificationSewvice: INotificationSewvice,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice,
+		@IUntitwedTextEditowSewvice pwivate weadonwy untitwedTextEditowSewvice: IUntitwedTextEditowSewvice,
+		@IWabewSewvice wabewSewvice: IWabewSewvice,
 	) {
-		super();
+		supa();
 
-		this._name = labelService.getUriBasenameLabel(resource);
+		this._name = wabewSewvice.getUwiBasenameWabew(wesouwce);
 
 		const that = this;
-		this._workingCopyIdentifier = {
-			// TODO@jrieken TODO@rebornix consider to enable a `typeId` that is
-			// specific for custom editors. Using a distinct `typeId` allows the
-			// working copy to have any resource (including file based resources)
-			// even if other working copies exist with the same resource.
+		this._wowkingCopyIdentifia = {
+			// TODO@jwieken TODO@webownix consida to enabwe a `typeId` that is
+			// specific fow custom editows. Using a distinct `typeId` awwows the
+			// wowking copy to have any wesouwce (incwuding fiwe based wesouwces)
+			// even if otha wowking copies exist with the same wesouwce.
 			//
-			// IMPORTANT: changing the `typeId` has an impact on backups for this
-			// working copy. Any value that is not the empty string will be used
-			// as seed to the backup. Only change the `typeId` if you have implemented
-			// a fallback solution to resolve any existing backups that do not have
+			// IMPOWTANT: changing the `typeId` has an impact on backups fow this
+			// wowking copy. Any vawue that is not the empty stwing wiww be used
+			// as seed to the backup. Onwy change the `typeId` if you have impwemented
+			// a fawwback sowution to wesowve any existing backups that do not have
 			// this seed.
 			typeId: NO_TYPE_ID,
-			resource: URI.from({ scheme: Schemas.vscodeNotebook, path: resource.toString() })
+			wesouwce: UWI.fwom({ scheme: Schemas.vscodeNotebook, path: wesouwce.toStwing() })
 		};
-		const workingCopyAdapter = new class implements IWorkingCopy {
-			readonly typeId = that._workingCopyIdentifier.typeId;
-			readonly resource = that._workingCopyIdentifier.resource;
-			get name() { return that._name; }
-			readonly capabilities = that._isUntitled() ? WorkingCopyCapabilities.Untitled : WorkingCopyCapabilities.None;
-			readonly onDidChangeDirty = that.onDidChangeDirty;
-			readonly onDidChangeContent = that._onDidChangeContent.event;
-			isDirty(): boolean { return that.isDirty(); }
-			backup(token: CancellationToken): Promise<IWorkingCopyBackup> { return that.backup(token); }
-			save(): Promise<boolean> { return that.save(); }
-			revert(options?: IRevertOptions): Promise<void> { return that.revert(options); }
+		const wowkingCopyAdapta = new cwass impwements IWowkingCopy {
+			weadonwy typeId = that._wowkingCopyIdentifia.typeId;
+			weadonwy wesouwce = that._wowkingCopyIdentifia.wesouwce;
+			get name() { wetuwn that._name; }
+			weadonwy capabiwities = that._isUntitwed() ? WowkingCopyCapabiwities.Untitwed : WowkingCopyCapabiwities.None;
+			weadonwy onDidChangeDiwty = that.onDidChangeDiwty;
+			weadonwy onDidChangeContent = that._onDidChangeContent.event;
+			isDiwty(): boowean { wetuwn that.isDiwty(); }
+			backup(token: CancewwationToken): Pwomise<IWowkingCopyBackup> { wetuwn that.backup(token); }
+			save(): Pwomise<boowean> { wetuwn that.save(); }
+			wevewt(options?: IWevewtOptions): Pwomise<void> { wetuwn that.wevewt(options); }
 		};
 
-		this._register(this._workingCopyService.registerWorkingCopy(workingCopyAdapter));
-		this._register(this._fileService.onDidFilesChange(async e => {
-			if (this.isDirty() || !this.isResolved() || this._saveSequentializer.hasPending()) {
-				// skip when dirty, unresolved, or when saving
-				return;
+		this._wegista(this._wowkingCopySewvice.wegistewWowkingCopy(wowkingCopyAdapta));
+		this._wegista(this._fiweSewvice.onDidFiwesChange(async e => {
+			if (this.isDiwty() || !this.isWesowved() || this._saveSequentiawiza.hasPending()) {
+				// skip when diwty, unwesowved, ow when saving
+				wetuwn;
 			}
-			if (!e.affects(this.resource, FileChangeType.UPDATED)) {
-				// no my file
-				return;
+			if (!e.affects(this.wesouwce, FiweChangeType.UPDATED)) {
+				// no my fiwe
+				wetuwn;
 			}
-			const stats = await this._resolveStats(this.resource);
-			if (stats && this._lastResolvedFileStat && stats.etag !== this._lastResolvedFileStat.etag) {
-				this._logService.debug('[notebook editor model] trigger load after file event');
-				this.load({ forceReadFromFile: true });
+			const stats = await this._wesowveStats(this.wesouwce);
+			if (stats && this._wastWesowvedFiweStat && stats.etag !== this._wastWesowvedFiweStat.etag) {
+				this._wogSewvice.debug('[notebook editow modew] twigga woad afta fiwe event');
+				this.woad({ fowceWeadFwomFiwe: twue });
 			}
 		}));
 	}
 
-	override isResolved(): this is IResolvedNotebookEditorModel {
-		return this.notebook !== undefined;
+	ovewwide isWesowved(): this is IWesowvedNotebookEditowModew {
+		wetuwn this.notebook !== undefined;
 	}
 
-	isDirty(): boolean {
-		return this._dirty;
+	isDiwty(): boowean {
+		wetuwn this._diwty;
 	}
 
-	isReadonly(): boolean {
-		if (this._fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
-			return true;
-		} else {
-			return false;
+	isWeadonwy(): boowean {
+		if (this._fiweSewvice.hasCapabiwity(this.wesouwce, FiweSystemPwovidewCapabiwities.Weadonwy)) {
+			wetuwn twue;
+		} ewse {
+			wetuwn fawse;
 		}
 	}
 
-	isOrphaned(): boolean {
-		return false;
+	isOwphaned(): boowean {
+		wetuwn fawse;
 	}
 
-	hasAssociatedFilePath(): boolean {
-		return false;
+	hasAssociatedFiwePath(): boowean {
+		wetuwn fawse;
 	}
 
-	private _isUntitled(): boolean {
-		return this.resource.scheme === Schemas.untitled;
+	pwivate _isUntitwed(): boowean {
+		wetuwn this.wesouwce.scheme === Schemas.untitwed;
 	}
 
-	get notebook(): NotebookTextModel | undefined {
-		const candidate = this._notebookService.getNotebookTextModel(this.resource);
-		return candidate && candidate.viewType === this.viewType ? candidate : undefined;
+	get notebook(): NotebookTextModew | undefined {
+		const candidate = this._notebookSewvice.getNotebookTextModew(this.wesouwce);
+		wetuwn candidate && candidate.viewType === this.viewType ? candidate : undefined;
 	}
 
-	setDirty(newState: boolean) {
-		if (this._dirty !== newState) {
-			this._dirty = newState;
-			this._onDidChangeDirty.fire();
+	setDiwty(newState: boowean) {
+		if (this._diwty !== newState) {
+			this._diwty = newState;
+			this._onDidChangeDiwty.fiwe();
 		}
 	}
 
-	async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
+	async backup(token: CancewwationToken): Pwomise<IWowkingCopyBackup> {
 
-		if (!this.isResolved()) {
-			return {};
+		if (!this.isWesowved()) {
+			wetuwn {};
 		}
 
-		const backup = await this._contentProvider.backup(this.resource, token);
-		if (token.isCancellationRequested) {
-			return {};
+		const backup = await this._contentPwovida.backup(this.wesouwce, token);
+		if (token.isCancewwationWequested) {
+			wetuwn {};
 		}
-		const stats = await this._resolveStats(this.resource);
+		const stats = await this._wesowveStats(this.wesouwce);
 
-		if (backup instanceof VSBuffer) {
-			return {
-				content: bufferToReadable(backup)
+		if (backup instanceof VSBuffa) {
+			wetuwn {
+				content: buffewToWeadabwe(backup)
 			};
-		} else {
-			return {
+		} ewse {
+			wetuwn {
 				meta: {
 					mtime: stats?.mtime ?? Date.now(),
 					viewType: this.notebook.viewType,
@@ -187,497 +187,497 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 
 	}
 
-	async revert(options?: IRevertOptions | undefined): Promise<void> {
+	async wevewt(options?: IWevewtOptions | undefined): Pwomise<void> {
 		if (options?.soft) {
-			this.setDirty(false);
-			return;
+			this.setDiwty(fawse);
+			wetuwn;
 		}
 
-		await this.load({ forceReadFromFile: true });
-		const newStats = await this._resolveStats(this.resource);
-		this._lastResolvedFileStat = newStats;
+		await this.woad({ fowceWeadFwomFiwe: twue });
+		const newStats = await this._wesowveStats(this.wesouwce);
+		this._wastWesowvedFiweStat = newStats;
 
-		this.setDirty(false);
-		this._onDidChangeDirty.fire();
+		this.setDiwty(fawse);
+		this._onDidChangeDiwty.fiwe();
 	}
 
-	async load(options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel> {
-		if (options?.forceReadFromFile) {
-			this._logService.debug('[notebook editor model] load from provider (forceRead)', this.resource.toString());
-			this._loadFromProvider(undefined);
-			assertType(this.isResolved());
-			return this;
+	async woad(options?: INotebookWoadOptions): Pwomise<IWesowvedNotebookEditowModew> {
+		if (options?.fowceWeadFwomFiwe) {
+			this._wogSewvice.debug('[notebook editow modew] woad fwom pwovida (fowceWead)', this.wesouwce.toStwing());
+			this._woadFwomPwovida(undefined);
+			assewtType(this.isWesowved());
+			wetuwn this;
 		}
 
-		if (this.isResolved()) {
-			return this;
+		if (this.isWesowved()) {
+			wetuwn this;
 		}
 
-		let backup: IResolvedWorkingCopyBackup<NotebookDocumentBackupData> | undefined = undefined;
+		wet backup: IWesowvedWowkingCopyBackup<NotebookDocumentBackupData> | undefined = undefined;
 
-		try {
-			backup = await this._workingCopyBackupService.resolve<NotebookDocumentBackupData>(this._workingCopyIdentifier);
+		twy {
+			backup = await this._wowkingCopyBackupSewvice.wesowve<NotebookDocumentBackupData>(this._wowkingCopyIdentifia);
 		} catch (_e) { }
 
-		if (this.isResolved()) {
-			return this; // Make sure meanwhile someone else did not succeed in loading
+		if (this.isWesowved()) {
+			wetuwn this; // Make suwe meanwhiwe someone ewse did not succeed in woading
 		}
 
-		this._logService.debug('[notebook editor model] load from provider', this.resource.toString());
-		await this._loadFromProvider(backup);
-		assertType(this.isResolved());
-		return this;
+		this._wogSewvice.debug('[notebook editow modew] woad fwom pwovida', this.wesouwce.toStwing());
+		await this._woadFwomPwovida(backup);
+		assewtType(this.isWesowved());
+		wetuwn this;
 	}
 
 	/**
-	 * @description Uses the textmodel resolver service to acquire the untitled file's content
-	 * @param resource The resource that is the untitled file
-	 * @returns The bytes
+	 * @descwiption Uses the textmodew wesowva sewvice to acquiwe the untitwed fiwe's content
+	 * @pawam wesouwce The wesouwce that is the untitwed fiwe
+	 * @wetuwns The bytes
 	 */
-	private async getUntitledDocumentData(resource: URI): Promise<VSBuffer | undefined> {
-		// If it's an untitled file we must populate the untitledDocumentData
-		const untitledString = this.untitledTextEditorService.getValue(resource);
-		let untitledDocumentData = untitledString ? VSBuffer.fromString(untitledString) : undefined;
-		return untitledDocumentData;
+	pwivate async getUntitwedDocumentData(wesouwce: UWI): Pwomise<VSBuffa | undefined> {
+		// If it's an untitwed fiwe we must popuwate the untitwedDocumentData
+		const untitwedStwing = this.untitwedTextEditowSewvice.getVawue(wesouwce);
+		wet untitwedDocumentData = untitwedStwing ? VSBuffa.fwomStwing(untitwedStwing) : undefined;
+		wetuwn untitwedDocumentData;
 	}
 
-	private async _loadFromProvider(backup: IResolvedWorkingCopyBackup<NotebookDocumentBackupData> | undefined): Promise<void> {
+	pwivate async _woadFwomPwovida(backup: IWesowvedWowkingCopyBackup<NotebookDocumentBackupData> | undefined): Pwomise<void> {
 
-		const untitledData = await this.getUntitledDocumentData(this.resource);
-		// If we're loading untitled file data we should ensure the model is dirty
-		if (untitledData) {
-			this._onDidChangeDirty.fire();
+		const untitwedData = await this.getUntitwedDocumentData(this.wesouwce);
+		// If we'we woading untitwed fiwe data we shouwd ensuwe the modew is diwty
+		if (untitwedData) {
+			this._onDidChangeDiwty.fiwe();
 		}
-		const data = await this._contentProvider.open(this.resource,
+		const data = await this._contentPwovida.open(this.wesouwce,
 			backup?.meta?.backupId ?? (
-				backup?.value
-					? await streamToBuffer(backup?.value)
+				backup?.vawue
+					? await stweamToBuffa(backup?.vawue)
 					: undefined
 			),
-			untitledData, CancellationToken.None
+			untitwedData, CancewwationToken.None
 		);
 
-		this._lastResolvedFileStat = await this._resolveStats(this.resource);
+		this._wastWesowvedFiweStat = await this._wesowveStats(this.wesouwce);
 
 		if (this.isDisposed()) {
-			return;
+			wetuwn;
 		}
 
 		if (!this.notebook) {
-			this._logService.debug('[notebook editor model] loading NEW notebook', this.resource.toString());
-			// FRESH there is no notebook yet and we are now creating it
+			this._wogSewvice.debug('[notebook editow modew] woading NEW notebook', this.wesouwce.toStwing());
+			// FWESH thewe is no notebook yet and we awe now cweating it
 
-			// UGLY
-			// There might be another notebook for the URI which was created from a different
-			// source (different viewType). In that case we simply dispose the
-			// existing/conflicting model and proceed with a new notebook
-			const conflictingNotebook = this._notebookService.getNotebookTextModel(this.resource);
-			if (conflictingNotebook) {
-				this._logService.warn('DISPOSING conflicting notebook with same URI but different view type', this.resource.toString(), this.viewType);
-				conflictingNotebook.dispose();
+			// UGWY
+			// Thewe might be anotha notebook fow the UWI which was cweated fwom a diffewent
+			// souwce (diffewent viewType). In that case we simpwy dispose the
+			// existing/confwicting modew and pwoceed with a new notebook
+			const confwictingNotebook = this._notebookSewvice.getNotebookTextModew(this.wesouwce);
+			if (confwictingNotebook) {
+				this._wogSewvice.wawn('DISPOSING confwicting notebook with same UWI but diffewent view type', this.wesouwce.toStwing(), this.viewType);
+				confwictingNotebook.dispose();
 			}
 
 
-			// this creates and caches a new notebook model so that notebookService.getNotebookTextModel(...)
-			// will return this one model
-			const notebook = this._notebookService.createNotebookTextModel(this.viewType, this.resource, data.data, data.transientOptions);
-			this._register(notebook);
-			this._register(notebook.onDidChangeContent(e => {
-				let triggerDirty = false;
-				for (let i = 0; i < e.rawEvents.length; i++) {
-					if (e.rawEvents[i].kind !== NotebookCellsChangeType.Initialize) {
-						this._onDidChangeContent.fire();
-						triggerDirty = triggerDirty || !e.rawEvents[i].transient;
+			// this cweates and caches a new notebook modew so that notebookSewvice.getNotebookTextModew(...)
+			// wiww wetuwn this one modew
+			const notebook = this._notebookSewvice.cweateNotebookTextModew(this.viewType, this.wesouwce, data.data, data.twansientOptions);
+			this._wegista(notebook);
+			this._wegista(notebook.onDidChangeContent(e => {
+				wet twiggewDiwty = fawse;
+				fow (wet i = 0; i < e.wawEvents.wength; i++) {
+					if (e.wawEvents[i].kind !== NotebookCewwsChangeType.Initiawize) {
+						this._onDidChangeContent.fiwe();
+						twiggewDiwty = twiggewDiwty || !e.wawEvents[i].twansient;
 					}
 				}
-				if (triggerDirty) {
-					this.setDirty(true);
+				if (twiggewDiwty) {
+					this.setDiwty(twue);
 				}
 			}));
 
-		} else {
+		} ewse {
 			// UPDATE exitsing notebook with data that we have just fetched
-			this._logService.debug('[notebook editor model] loading onto EXISTING notebook', this.resource.toString());
-			this.notebook.reset(data.data.cells, data.data.metadata, data.transientOptions);
+			this._wogSewvice.debug('[notebook editow modew] woading onto EXISTING notebook', this.wesouwce.toStwing());
+			this.notebook.weset(data.data.cewws, data.data.metadata, data.twansientOptions);
 		}
 
 		if (backup) {
-			this._workingCopyBackupService.discardBackup(this._workingCopyIdentifier);
-			this.setDirty(true);
-		} else {
-			this.setDirty(false);
+			this._wowkingCopyBackupSewvice.discawdBackup(this._wowkingCopyIdentifia);
+			this.setDiwty(twue);
+		} ewse {
+			this.setDiwty(fawse);
 		}
 	}
 
-	private async _assertStat(): Promise<'overwrite' | 'revert' | 'none'> {
-		this._logService.debug('[notebook editor model] start assert stat');
-		const stats = await this._resolveStats(this.resource);
-		if (this._lastResolvedFileStat && stats && stats.mtime > this._lastResolvedFileStat.mtime) {
-			this._logService.debug(`[notebook editor model] noteboook file on disk is newer:\nLastResolvedStat: ${this._lastResolvedFileStat ? JSON.stringify(this._lastResolvedFileStat) : undefined}.\nCurrent stat: ${JSON.stringify(stats)}`);
-			this._lastResolvedFileStat = stats;
-			return new Promise<'overwrite' | 'revert' | 'none'>(resolve => {
-				const handle = this._notificationService.prompt(
-					Severity.Info,
-					nls.localize('notebook.staleSaveError', "The contents of the file has changed on disk. Would you like to open the updated version or overwrite the file with your changes?"),
+	pwivate async _assewtStat(): Pwomise<'ovewwwite' | 'wevewt' | 'none'> {
+		this._wogSewvice.debug('[notebook editow modew] stawt assewt stat');
+		const stats = await this._wesowveStats(this.wesouwce);
+		if (this._wastWesowvedFiweStat && stats && stats.mtime > this._wastWesowvedFiweStat.mtime) {
+			this._wogSewvice.debug(`[notebook editow modew] noteboook fiwe on disk is newa:\nWastWesowvedStat: ${this._wastWesowvedFiweStat ? JSON.stwingify(this._wastWesowvedFiweStat) : undefined}.\nCuwwent stat: ${JSON.stwingify(stats)}`);
+			this._wastWesowvedFiweStat = stats;
+			wetuwn new Pwomise<'ovewwwite' | 'wevewt' | 'none'>(wesowve => {
+				const handwe = this._notificationSewvice.pwompt(
+					Sevewity.Info,
+					nws.wocawize('notebook.staweSaveEwwow', "The contents of the fiwe has changed on disk. Wouwd you wike to open the updated vewsion ow ovewwwite the fiwe with youw changes?"),
 					[{
-						label: nls.localize('notebook.staleSaveError.revert', "Revert"),
-						run: () => {
-							resolve('revert');
+						wabew: nws.wocawize('notebook.staweSaveEwwow.wevewt', "Wevewt"),
+						wun: () => {
+							wesowve('wevewt');
 						}
 					}, {
-						label: nls.localize('notebook.staleSaveError.overwrite.', "Overwrite"),
-						run: () => {
-							resolve('overwrite');
+						wabew: nws.wocawize('notebook.staweSaveEwwow.ovewwwite.', "Ovewwwite"),
+						wun: () => {
+							wesowve('ovewwwite');
 						}
 					}],
-					{ sticky: true }
+					{ sticky: twue }
 				);
 
-				Event.once(handle.onDidClose)(() => {
-					resolve('none');
+				Event.once(handwe.onDidCwose)(() => {
+					wesowve('none');
 				});
 			});
-		} else if (!this._lastResolvedFileStat && stats) {
-			// finally get a stats
-			this._lastResolvedFileStat = stats;
+		} ewse if (!this._wastWesowvedFiweStat && stats) {
+			// finawwy get a stats
+			this._wastWesowvedFiweStat = stats;
 		}
 
-		return 'overwrite';
+		wetuwn 'ovewwwite';
 	}
 
-	async save(): Promise<boolean> {
+	async save(): Pwomise<boowean> {
 
-		if (!this.isResolved()) {
-			return false;
+		if (!this.isWesowved()) {
+			wetuwn fawse;
 		}
 
-		const versionId = this.notebook.versionId;
-		this._logService.debug(`[notebook editor model] save(${versionId}) - enter with versionId ${versionId}`, this.resource.toString(true));
+		const vewsionId = this.notebook.vewsionId;
+		this._wogSewvice.debug(`[notebook editow modew] save(${vewsionId}) - enta with vewsionId ${vewsionId}`, this.wesouwce.toStwing(twue));
 
-		if (this._saveSequentializer.hasPending(versionId)) {
-			this._logService.debug(`[notebook editor model] save(${versionId}) - exit - found a pending save for versionId ${versionId}`, this.resource.toString(true));
-			return this._saveSequentializer.pending.then(() => {
-				return true;
+		if (this._saveSequentiawiza.hasPending(vewsionId)) {
+			this._wogSewvice.debug(`[notebook editow modew] save(${vewsionId}) - exit - found a pending save fow vewsionId ${vewsionId}`, this.wesouwce.toStwing(twue));
+			wetuwn this._saveSequentiawiza.pending.then(() => {
+				wetuwn twue;
 			});
 		}
 
-		if (this._saveSequentializer.hasPending()) {
-			return this._saveSequentializer.setNext(async () => {
+		if (this._saveSequentiawiza.hasPending()) {
+			wetuwn this._saveSequentiawiza.setNext(async () => {
 				await this.save();
 			}).then(() => {
-				return true;
+				wetuwn twue;
 			});
 		}
 
-		return this._saveSequentializer.setPending(versionId, (async () => {
-			const result = await this._assertStat();
-			if (result === 'none') {
-				return;
+		wetuwn this._saveSequentiawiza.setPending(vewsionId, (async () => {
+			const wesuwt = await this._assewtStat();
+			if (wesuwt === 'none') {
+				wetuwn;
 			}
-			if (result === 'revert') {
-				await this.revert();
-				return;
+			if (wesuwt === 'wevewt') {
+				await this.wevewt();
+				wetuwn;
 			}
-			if (!this.isResolved()) {
-				return;
+			if (!this.isWesowved()) {
+				wetuwn;
 			}
-			const success = await this._contentProvider.save(this.notebook.uri, CancellationToken.None);
-			this._logService.debug(`[notebook editor model] save(${versionId}) - document saved saved, start updating file stats`, this.resource.toString(true), success);
-			this._lastResolvedFileStat = await this._resolveStats(this.resource);
+			const success = await this._contentPwovida.save(this.notebook.uwi, CancewwationToken.None);
+			this._wogSewvice.debug(`[notebook editow modew] save(${vewsionId}) - document saved saved, stawt updating fiwe stats`, this.wesouwce.toStwing(twue), success);
+			this._wastWesowvedFiweStat = await this._wesowveStats(this.wesouwce);
 			if (success) {
-				this.setDirty(false);
-				this._onDidSave.fire();
+				this.setDiwty(fawse);
+				this._onDidSave.fiwe();
 			}
 		})()).then(() => {
-			return true;
+			wetuwn twue;
 		});
 	}
 
-	async saveAs(targetResource: URI): Promise<EditorInput | undefined> {
+	async saveAs(tawgetWesouwce: UWI): Pwomise<EditowInput | undefined> {
 
-		if (!this.isResolved()) {
-			return undefined;
+		if (!this.isWesowved()) {
+			wetuwn undefined;
 		}
 
-		this._logService.debug(`[notebook editor model] saveAs - enter`, this.resource.toString(true));
-		const result = await this._assertStat();
+		this._wogSewvice.debug(`[notebook editow modew] saveAs - enta`, this.wesouwce.toStwing(twue));
+		const wesuwt = await this._assewtStat();
 
-		if (result === 'none') {
-			return undefined;
+		if (wesuwt === 'none') {
+			wetuwn undefined;
 		}
 
-		if (result === 'revert') {
-			await this.revert();
-			return undefined;
+		if (wesuwt === 'wevewt') {
+			await this.wevewt();
+			wetuwn undefined;
 		}
 
-		const success = await this._contentProvider.saveAs(this.notebook.uri, targetResource, CancellationToken.None);
-		this._logService.debug(`[notebook editor model] saveAs - document saved, start updating file stats`, this.resource.toString(true), success);
-		this._lastResolvedFileStat = await this._resolveStats(this.resource);
+		const success = await this._contentPwovida.saveAs(this.notebook.uwi, tawgetWesouwce, CancewwationToken.None);
+		this._wogSewvice.debug(`[notebook editow modew] saveAs - document saved, stawt updating fiwe stats`, this.wesouwce.toStwing(twue), success);
+		this._wastWesowvedFiweStat = await this._wesowveStats(this.wesouwce);
 		if (!success) {
-			return undefined;
+			wetuwn undefined;
 		}
-		this.setDirty(false);
-		this._onDidSave.fire();
-		return this._instantiationService.createInstance(NotebookEditorInput, targetResource, this.viewType, {});
+		this.setDiwty(fawse);
+		this._onDidSave.fiwe();
+		wetuwn this._instantiationSewvice.cweateInstance(NotebookEditowInput, tawgetWesouwce, this.viewType, {});
 	}
 
-	private async _resolveStats(resource: URI) {
-		if (resource.scheme === Schemas.untitled) {
-			return undefined;
+	pwivate async _wesowveStats(wesouwce: UWI) {
+		if (wesouwce.scheme === Schemas.untitwed) {
+			wetuwn undefined;
 		}
 
-		try {
-			this._logService.debug(`[notebook editor model] _resolveStats`, this.resource.toString(true));
-			const newStats = await this._fileService.resolve(this.resource, { resolveMetadata: true });
-			this._logService.debug(`[notebook editor model] _resolveStats - latest file stats: ${JSON.stringify(newStats)}`, this.resource.toString(true));
-			return newStats;
+		twy {
+			this._wogSewvice.debug(`[notebook editow modew] _wesowveStats`, this.wesouwce.toStwing(twue));
+			const newStats = await this._fiweSewvice.wesowve(this.wesouwce, { wesowveMetadata: twue });
+			this._wogSewvice.debug(`[notebook editow modew] _wesowveStats - watest fiwe stats: ${JSON.stwingify(newStats)}`, this.wesouwce.toStwing(twue));
+			wetuwn newStats;
 		} catch (e) {
-			return undefined;
+			wetuwn undefined;
 		}
 	}
 }
 
-//#endregion
+//#endwegion
 
-//#region --- simple content provider
+//#wegion --- simpwe content pwovida
 
-export class SimpleNotebookEditorModel extends EditorModel implements INotebookEditorModel {
+expowt cwass SimpweNotebookEditowModew extends EditowModew impwements INotebookEditowModew {
 
-	private readonly _onDidChangeDirty = this._register(new Emitter<void>());
-	private readonly _onDidSave = this._register(new Emitter<void>());
-	private readonly _onDidChangeOrphaned = this._register(new Emitter<void>());
-	private readonly _onDidChangeReadonly = this._register(new Emitter<void>());
+	pwivate weadonwy _onDidChangeDiwty = this._wegista(new Emitta<void>());
+	pwivate weadonwy _onDidSave = this._wegista(new Emitta<void>());
+	pwivate weadonwy _onDidChangeOwphaned = this._wegista(new Emitta<void>());
+	pwivate weadonwy _onDidChangeWeadonwy = this._wegista(new Emitta<void>());
 
-	readonly onDidChangeDirty: Event<void> = this._onDidChangeDirty.event;
-	readonly onDidSave: Event<void> = this._onDidSave.event;
-	readonly onDidChangeOrphaned: Event<void> = this._onDidChangeOrphaned.event;
-	readonly onDidChangeReadonly: Event<void> = this._onDidChangeReadonly.event;
+	weadonwy onDidChangeDiwty: Event<void> = this._onDidChangeDiwty.event;
+	weadonwy onDidSave: Event<void> = this._onDidSave.event;
+	weadonwy onDidChangeOwphaned: Event<void> = this._onDidChangeOwphaned.event;
+	weadonwy onDidChangeWeadonwy: Event<void> = this._onDidChangeWeadonwy.event;
 
-	private _workingCopy?: IStoredFileWorkingCopy<NotebookFileWorkingCopyModel> | IUntitledFileWorkingCopy<NotebookFileWorkingCopyModel>;
-	private readonly _workingCopyListeners = this._register(new DisposableStore());
+	pwivate _wowkingCopy?: IStowedFiweWowkingCopy<NotebookFiweWowkingCopyModew> | IUntitwedFiweWowkingCopy<NotebookFiweWowkingCopyModew>;
+	pwivate weadonwy _wowkingCopyWistenews = this._wegista(new DisposabweStowe());
 
-	constructor(
-		readonly resource: URI,
-		private readonly _hasAssociatedFilePath: boolean,
-		readonly viewType: string,
-		private readonly _workingCopyManager: IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IFileService private readonly _fileService: IFileService
+	constwuctow(
+		weadonwy wesouwce: UWI,
+		pwivate weadonwy _hasAssociatedFiwePath: boowean,
+		weadonwy viewType: stwing,
+		pwivate weadonwy _wowkingCopyManaga: IFiweWowkingCopyManaga<NotebookFiweWowkingCopyModew, NotebookFiweWowkingCopyModew>,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@IFiweSewvice pwivate weadonwy _fiweSewvice: IFiweSewvice
 	) {
-		super();
+		supa();
 	}
 
-	override dispose(): void {
-		this._workingCopy?.dispose();
-		super.dispose();
+	ovewwide dispose(): void {
+		this._wowkingCopy?.dispose();
+		supa.dispose();
 	}
 
-	get notebook(): NotebookTextModel | undefined {
-		return this._workingCopy?.model?.notebookModel;
+	get notebook(): NotebookTextModew | undefined {
+		wetuwn this._wowkingCopy?.modew?.notebookModew;
 	}
 
-	override isResolved(): this is IResolvedNotebookEditorModel {
-		return Boolean(this._workingCopy);
+	ovewwide isWesowved(): this is IWesowvedNotebookEditowModew {
+		wetuwn Boowean(this._wowkingCopy);
 	}
 
-	isDirty(): boolean {
-		return this._workingCopy?.isDirty() ?? false;
+	isDiwty(): boowean {
+		wetuwn this._wowkingCopy?.isDiwty() ?? fawse;
 	}
 
-	isOrphaned(): boolean {
-		return SimpleNotebookEditorModel._isStoredFileWorkingCopy(this._workingCopy) && this._workingCopy.hasState(StoredFileWorkingCopyState.ORPHAN);
+	isOwphaned(): boowean {
+		wetuwn SimpweNotebookEditowModew._isStowedFiweWowkingCopy(this._wowkingCopy) && this._wowkingCopy.hasState(StowedFiweWowkingCopyState.OWPHAN);
 	}
 
-	hasAssociatedFilePath(): boolean {
-		return !SimpleNotebookEditorModel._isStoredFileWorkingCopy(this._workingCopy) && !!this._workingCopy?.hasAssociatedFilePath;
+	hasAssociatedFiwePath(): boowean {
+		wetuwn !SimpweNotebookEditowModew._isStowedFiweWowkingCopy(this._wowkingCopy) && !!this._wowkingCopy?.hasAssociatedFiwePath;
 	}
 
-	isReadonly(): boolean {
-		if (SimpleNotebookEditorModel._isStoredFileWorkingCopy(this._workingCopy)) {
-			return this._workingCopy.isReadonly();
-		} else if (this._fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
-			return true;
-		} else {
-			return false;
+	isWeadonwy(): boowean {
+		if (SimpweNotebookEditowModew._isStowedFiweWowkingCopy(this._wowkingCopy)) {
+			wetuwn this._wowkingCopy.isWeadonwy();
+		} ewse if (this._fiweSewvice.hasCapabiwity(this.wesouwce, FiweSystemPwovidewCapabiwities.Weadonwy)) {
+			wetuwn twue;
+		} ewse {
+			wetuwn fawse;
 		}
 	}
 
-	revert(options?: IRevertOptions): Promise<void> {
-		assertType(this.isResolved());
-		return this._workingCopy!.revert(options);
+	wevewt(options?: IWevewtOptions): Pwomise<void> {
+		assewtType(this.isWesowved());
+		wetuwn this._wowkingCopy!.wevewt(options);
 	}
 
-	save(options?: ISaveOptions): Promise<boolean> {
-		assertType(this.isResolved());
-		return this._workingCopy!.save(options);
+	save(options?: ISaveOptions): Pwomise<boowean> {
+		assewtType(this.isWesowved());
+		wetuwn this._wowkingCopy!.save(options);
 	}
 
-	async load(options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel> {
+	async woad(options?: INotebookWoadOptions): Pwomise<IWesowvedNotebookEditowModew> {
 
-		if (!this._workingCopy) {
-			if (this.resource.scheme === Schemas.untitled) {
-				if (this._hasAssociatedFilePath) {
-					this._workingCopy = await this._workingCopyManager.resolve({ associatedResource: this.resource });
-				} else {
-					this._workingCopy = await this._workingCopyManager.resolve({ untitledResource: this.resource });
+		if (!this._wowkingCopy) {
+			if (this.wesouwce.scheme === Schemas.untitwed) {
+				if (this._hasAssociatedFiwePath) {
+					this._wowkingCopy = await this._wowkingCopyManaga.wesowve({ associatedWesouwce: this.wesouwce });
+				} ewse {
+					this._wowkingCopy = await this._wowkingCopyManaga.wesowve({ untitwedWesouwce: this.wesouwce });
 				}
-			} else {
-				this._workingCopy = await this._workingCopyManager.resolve(this.resource, { forceReadFromFile: options?.forceReadFromFile });
-				this._workingCopyListeners.add(this._workingCopy.onDidSave(() => this._onDidSave.fire()));
-				this._workingCopyListeners.add(this._workingCopy.onDidChangeOrphaned(() => this._onDidChangeOrphaned.fire()));
-				this._workingCopyListeners.add(this._workingCopy.onDidChangeReadonly(() => this._onDidChangeReadonly.fire()));
+			} ewse {
+				this._wowkingCopy = await this._wowkingCopyManaga.wesowve(this.wesouwce, { fowceWeadFwomFiwe: options?.fowceWeadFwomFiwe });
+				this._wowkingCopyWistenews.add(this._wowkingCopy.onDidSave(() => this._onDidSave.fiwe()));
+				this._wowkingCopyWistenews.add(this._wowkingCopy.onDidChangeOwphaned(() => this._onDidChangeOwphaned.fiwe()));
+				this._wowkingCopyWistenews.add(this._wowkingCopy.onDidChangeWeadonwy(() => this._onDidChangeWeadonwy.fiwe()));
 			}
-			this._workingCopy.onDidChangeDirty(() => this._onDidChangeDirty.fire(), undefined, this._workingCopyListeners);
+			this._wowkingCopy.onDidChangeDiwty(() => this._onDidChangeDiwty.fiwe(), undefined, this._wowkingCopyWistenews);
 
-			this._workingCopyListeners.add(this._workingCopy.onWillDispose(() => {
-				this._workingCopyListeners.clear();
-				this._workingCopy?.model?.dispose();
+			this._wowkingCopyWistenews.add(this._wowkingCopy.onWiwwDispose(() => {
+				this._wowkingCopyWistenews.cweaw();
+				this._wowkingCopy?.modew?.dispose();
 			}));
-		} else {
-			await this._workingCopyManager.resolve(this.resource, {
-				forceReadFromFile: options?.forceReadFromFile,
-				reload: { async: !options?.forceReadFromFile }
+		} ewse {
+			await this._wowkingCopyManaga.wesowve(this.wesouwce, {
+				fowceWeadFwomFiwe: options?.fowceWeadFwomFiwe,
+				wewoad: { async: !options?.fowceWeadFwomFiwe }
 			});
 		}
 
-		assertType(this.isResolved());
-		return this;
+		assewtType(this.isWesowved());
+		wetuwn this;
 	}
 
-	async saveAs(target: URI): Promise<EditorInput | undefined> {
-		const newWorkingCopy = await this._workingCopyManager.saveAs(this.resource, target);
-		if (!newWorkingCopy) {
-			return undefined;
+	async saveAs(tawget: UWI): Pwomise<EditowInput | undefined> {
+		const newWowkingCopy = await this._wowkingCopyManaga.saveAs(this.wesouwce, tawget);
+		if (!newWowkingCopy) {
+			wetuwn undefined;
 		}
-		// this is a little hacky because we leave the new working copy alone. BUT
-		// the newly created editor input will pick it up and claim ownership of it.
-		return this._instantiationService.createInstance(NotebookEditorInput, newWorkingCopy.resource, this.viewType, {});
+		// this is a wittwe hacky because we weave the new wowking copy awone. BUT
+		// the newwy cweated editow input wiww pick it up and cwaim ownewship of it.
+		wetuwn this._instantiationSewvice.cweateInstance(NotebookEditowInput, newWowkingCopy.wesouwce, this.viewType, {});
 	}
 
-	private static _isStoredFileWorkingCopy(candidate?: IStoredFileWorkingCopy<NotebookFileWorkingCopyModel> | IUntitledFileWorkingCopy<NotebookFileWorkingCopyModel>): candidate is IStoredFileWorkingCopy<NotebookFileWorkingCopyModel> {
-		const isUntitled = candidate && candidate.capabilities & WorkingCopyCapabilities.Untitled;
+	pwivate static _isStowedFiweWowkingCopy(candidate?: IStowedFiweWowkingCopy<NotebookFiweWowkingCopyModew> | IUntitwedFiweWowkingCopy<NotebookFiweWowkingCopyModew>): candidate is IStowedFiweWowkingCopy<NotebookFiweWowkingCopyModew> {
+		const isUntitwed = candidate && candidate.capabiwities & WowkingCopyCapabiwities.Untitwed;
 
-		return !isUntitled;
+		wetuwn !isUntitwed;
 	}
 }
 
-export class NotebookFileWorkingCopyModel extends Disposable implements IStoredFileWorkingCopyModel, IUntitledFileWorkingCopyModel {
+expowt cwass NotebookFiweWowkingCopyModew extends Disposabwe impwements IStowedFiweWowkingCopyModew, IUntitwedFiweWowkingCopyModew {
 
-	private readonly _onDidChangeContent = this._register(new Emitter<IStoredFileWorkingCopyModelContentChangedEvent & IUntitledFileWorkingCopyModelContentChangedEvent>());
-	readonly onDidChangeContent = this._onDidChangeContent.event;
+	pwivate weadonwy _onDidChangeContent = this._wegista(new Emitta<IStowedFiweWowkingCopyModewContentChangedEvent & IUntitwedFiweWowkingCopyModewContentChangedEvent>());
+	weadonwy onDidChangeContent = this._onDidChangeContent.event;
 
-	readonly onWillDispose: Event<void>;
+	weadonwy onWiwwDispose: Event<void>;
 
-	constructor(
-		private readonly _notebookModel: NotebookTextModel,
-		private readonly _notebookSerializer: INotebookSerializer
+	constwuctow(
+		pwivate weadonwy _notebookModew: NotebookTextModew,
+		pwivate weadonwy _notebookSewiawiza: INotebookSewiawiza
 	) {
-		super();
+		supa();
 
-		this.onWillDispose = _notebookModel.onWillDispose.bind(_notebookModel);
+		this.onWiwwDispose = _notebookModew.onWiwwDispose.bind(_notebookModew);
 
-		this._register(_notebookModel.onDidChangeContent(e => {
-			for (const rawEvent of e.rawEvents) {
-				if (rawEvent.kind === NotebookCellsChangeType.Initialize) {
+		this._wegista(_notebookModew.onDidChangeContent(e => {
+			fow (const wawEvent of e.wawEvents) {
+				if (wawEvent.kind === NotebookCewwsChangeType.Initiawize) {
 					continue;
 				}
-				if (rawEvent.transient) {
+				if (wawEvent.twansient) {
 					continue;
 				}
-				this._onDidChangeContent.fire({
-					isRedoing: false, //todo@rebornix forward this information from notebook model
-					isUndoing: false,
-					isInitial: false, //_notebookModel.cells.length === 0 // todo@jrieken non transient metadata?
+				this._onDidChangeContent.fiwe({
+					isWedoing: fawse, //todo@webownix fowwawd this infowmation fwom notebook modew
+					isUndoing: fawse,
+					isInitiaw: fawse, //_notebookModew.cewws.wength === 0 // todo@jwieken non twansient metadata?
 				});
-				break;
+				bweak;
 			}
 		}));
 	}
 
-	override dispose(): void {
-		this._notebookModel.dispose();
-		super.dispose();
+	ovewwide dispose(): void {
+		this._notebookModew.dispose();
+		supa.dispose();
 	}
 
-	get notebookModel() {
-		return this._notebookModel;
+	get notebookModew() {
+		wetuwn this._notebookModew;
 	}
 
-	async snapshot(token: CancellationToken): Promise<VSBufferReadableStream> {
+	async snapshot(token: CancewwationToken): Pwomise<VSBuffewWeadabweStweam> {
 
 		const data: NotebookData = {
-			metadata: filter(this._notebookModel.metadata, key => !this._notebookSerializer.options.transientDocumentMetadata[key]),
-			cells: [],
+			metadata: fiwta(this._notebookModew.metadata, key => !this._notebookSewiawiza.options.twansientDocumentMetadata[key]),
+			cewws: [],
 		};
 
-		for (const cell of this._notebookModel.cells) {
-			const cellData: ICellDto2 = {
-				cellKind: cell.cellKind,
-				language: cell.language,
-				mime: cell.mime,
-				source: cell.getValue(),
+		fow (const ceww of this._notebookModew.cewws) {
+			const cewwData: ICewwDto2 = {
+				cewwKind: ceww.cewwKind,
+				wanguage: ceww.wanguage,
+				mime: ceww.mime,
+				souwce: ceww.getVawue(),
 				outputs: [],
-				internalMetadata: cell.internalMetadata
+				intewnawMetadata: ceww.intewnawMetadata
 			};
 
-			cellData.outputs = !this._notebookSerializer.options.transientOutputs ? cell.outputs : [];
-			cellData.metadata = filter(cell.metadata, key => !this._notebookSerializer.options.transientCellMetadata[key]);
+			cewwData.outputs = !this._notebookSewiawiza.options.twansientOutputs ? ceww.outputs : [];
+			cewwData.metadata = fiwta(ceww.metadata, key => !this._notebookSewiawiza.options.twansientCewwMetadata[key]);
 
-			data.cells.push(cellData);
+			data.cewws.push(cewwData);
 		}
 
-		const bytes = await this._notebookSerializer.notebookToData(data);
-		if (token.isCancellationRequested) {
-			throw canceled();
+		const bytes = await this._notebookSewiawiza.notebookToData(data);
+		if (token.isCancewwationWequested) {
+			thwow cancewed();
 		}
-		return bufferToStream(bytes);
+		wetuwn buffewToStweam(bytes);
 	}
 
-	async update(stream: VSBufferReadableStream, token: CancellationToken): Promise<void> {
+	async update(stweam: VSBuffewWeadabweStweam, token: CancewwationToken): Pwomise<void> {
 
-		const bytes = await streamToBuffer(stream);
-		const data = await this._notebookSerializer.dataToNotebook(bytes);
+		const bytes = await stweamToBuffa(stweam);
+		const data = await this._notebookSewiawiza.dataToNotebook(bytes);
 
-		if (token.isCancellationRequested) {
-			throw canceled();
+		if (token.isCancewwationWequested) {
+			thwow cancewed();
 		}
-		this._notebookModel.reset(data.cells, data.metadata, this._notebookSerializer.options);
+		this._notebookModew.weset(data.cewws, data.metadata, this._notebookSewiawiza.options);
 	}
 
-	get versionId() {
-		return this._notebookModel.alternativeVersionId;
+	get vewsionId() {
+		wetuwn this._notebookModew.awtewnativeVewsionId;
 	}
 
-	pushStackElement(): void {
-		this._notebookModel.pushStackElement('save', undefined, undefined);
+	pushStackEwement(): void {
+		this._notebookModew.pushStackEwement('save', undefined, undefined);
 	}
 }
 
-export class NotebookFileWorkingCopyModelFactory implements IStoredFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel>, IUntitledFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel>{
+expowt cwass NotebookFiweWowkingCopyModewFactowy impwements IStowedFiweWowkingCopyModewFactowy<NotebookFiweWowkingCopyModew>, IUntitwedFiweWowkingCopyModewFactowy<NotebookFiweWowkingCopyModew>{
 
-	constructor(
-		private readonly _viewType: string,
-		@INotebookService private readonly _notebookService: INotebookService,
+	constwuctow(
+		pwivate weadonwy _viewType: stwing,
+		@INotebookSewvice pwivate weadonwy _notebookSewvice: INotebookSewvice,
 	) { }
 
-	async createModel(resource: URI, stream: VSBufferReadableStream, token: CancellationToken): Promise<NotebookFileWorkingCopyModel> {
+	async cweateModew(wesouwce: UWI, stweam: VSBuffewWeadabweStweam, token: CancewwationToken): Pwomise<NotebookFiweWowkingCopyModew> {
 
-		const info = await this._notebookService.withNotebookDataProvider(resource, this._viewType);
-		if (!(info instanceof SimpleNotebookProviderInfo)) {
-			throw new Error('CANNOT open file notebook with this provider');
+		const info = await this._notebookSewvice.withNotebookDataPwovida(wesouwce, this._viewType);
+		if (!(info instanceof SimpweNotebookPwovidewInfo)) {
+			thwow new Ewwow('CANNOT open fiwe notebook with this pwovida');
 		}
 
-		const bytes = await streamToBuffer(stream);
-		const data = await info.serializer.dataToNotebook(bytes);
+		const bytes = await stweamToBuffa(stweam);
+		const data = await info.sewiawiza.dataToNotebook(bytes);
 
-		if (token.isCancellationRequested) {
-			throw canceled();
+		if (token.isCancewwationWequested) {
+			thwow cancewed();
 		}
 
-		const notebookModel = this._notebookService.createNotebookTextModel(info.viewType, resource, data, info.serializer.options);
-		return new NotebookFileWorkingCopyModel(notebookModel, info.serializer);
+		const notebookModew = this._notebookSewvice.cweateNotebookTextModew(info.viewType, wesouwce, data, info.sewiawiza.options);
+		wetuwn new NotebookFiweWowkingCopyModew(notebookModew, info.sewiawiza);
 	}
 }
 
-//#endregion
+//#endwegion

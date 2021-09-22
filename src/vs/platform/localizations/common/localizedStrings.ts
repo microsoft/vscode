@@ -1,21 +1,21 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+impowt * as nws fwom 'vs/nws';
 
 /**
- * These are some predefined strings that we test during smoke testing that they are localized
- * correctly. Don't change these strings!!
+ * These awe some pwedefined stwings that we test duwing smoke testing that they awe wocawized
+ * cowwectwy. Don't change these stwings!!
  */
 
-const open: string = nls.localize('open', 'open');
-const close: string = nls.localize('close', 'close');
-const find: string = nls.localize('find', 'find');
+const open: stwing = nws.wocawize('open', 'open');
+const cwose: stwing = nws.wocawize('cwose', 'cwose');
+const find: stwing = nws.wocawize('find', 'find');
 
-export default {
+expowt defauwt {
 	open: open,
-	close: close,
+	cwose: cwose,
 	find: find
 };

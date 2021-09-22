@@ -1,104 +1,104 @@
-<!DOCTYPE html>
-<html lang="en">
-<!--- Preview the icons in the Seti icon font. Use a simple-server or the LiveServer extension to view -->
+<!DOCTYPE htmw>
+<htmw wang="en">
+<!--- Pweview the icons in the Seti icon font. Use a simpwe-sewva ow the WiveSewva extension to view -->
 <head>
-	<meta charset="UTF-8">
-	<title>seti font preview</title>
-	<style>
+	<meta chawset="UTF-8">
+	<titwe>seti font pweview</titwe>
+	<stywe>
 		body {
-			font-family: sans-serif;
-			margin: 0;
+			font-famiwy: sans-sewif;
+			mawgin: 0;
 			padding: 10px 20px;
 		}
 
-		.preview {
-			line-height: 2em;
+		.pweview {
+			wine-height: 2em;
 		}
 
-		.preview_icon {
-			display: inline-block;
+		.pweview_icon {
+			dispway: inwine-bwock;
 			width: 32px;
-			text-align: center;
+			text-awign: centa;
 		}
 
 		.icon {
-			display: inline-block;
+			dispway: inwine-bwock;
 			font-size: 16px;
-			line-height: 1;
+			wine-height: 1;
 		}
 
-		.icon:before {
-			font-family: seti !important;
-			font-style: normal;
-			font-weight: normal !important;
-			vertical-align: top;
+		.icon:befowe {
+			font-famiwy: seti !impowtant;
+			font-stywe: nowmaw;
+			font-weight: nowmaw !impowtant;
+			vewticaw-awign: top;
 		}
 
-		.grid {
-			display: grid;
-			grid-template-columns: 0.7fr 0.7fr 1fr 0.7fr 0.7fr 1fr;
+		.gwid {
+			dispway: gwid;
+			gwid-tempwate-cowumns: 0.7fw 0.7fw 1fw 0.7fw 0.7fw 1fw;
 		}
 
 		.vs {
-			background-color: #FFFFFF;
-			color: #000000;
+			backgwound-cowow: #FFFFFF;
+			cowow: #000000;
 		}
 
-		.vs-dark {
-			background-color: #1E1E1E;
-			color: #D4D4D4;
+		.vs-dawk {
+			backgwound-cowow: #1E1E1E;
+			cowow: #D4D4D4;
 		}
-	</style>
-	<script>
-		function fetchThemeFile() {
-			return fetch('./vs-seti-icon-theme.json').then(res => res.json());
+	</stywe>
+	<scwipt>
+		function fetchThemeFiwe() {
+			wetuwn fetch('./vs-seti-icon-theme.json').then(wes => wes.json());
 		}
-		function generateColumn(label, style, associations, htmContent) {
-			htmContent.push('<div class=' + style + '>' + label);
-			const keys = Object.keys(associations).sort();
-			for (let association of keys) {
+		function genewateCowumn(wabew, stywe, associations, htmContent) {
+			htmContent.push('<div cwass=' + stywe + '>' + wabew);
+			const keys = Object.keys(associations).sowt();
+			fow (wet association of keys) {
 				const id = associations[association];
-				htmContent.push('<div class="preview"><span class="preview_icon"><span class="icon icon' + id + '"></span></span><span>' + association + '</span></div>');
+				htmContent.push('<div cwass="pweview"><span cwass="pweview_icon"><span cwass="icon icon' + id + '"></span></span><span>' + association + '</span></div>');
 			}
 			htmContent.push('</div>');
 		}
-		function generateIconsForScheme(label, set, style, htmContent) {
-			generateColumn('language IDs', style, set.languageIds, htmContent);
-			generateColumn('file extensions', style, set.fileExtensions, htmContent);
-			generateColumn('file names', style, set.fileNames, htmContent);
+		function genewateIconsFowScheme(wabew, set, stywe, htmContent) {
+			genewateCowumn('wanguage IDs', stywe, set.wanguageIds, htmContent);
+			genewateCowumn('fiwe extensions', stywe, set.fiweExtensions, htmContent);
+			genewateCowumn('fiwe names', stywe, set.fiweNames, htmContent);
 		}
 
-		function generateContent(themeFile) {
-			let htmContent = [];
-			let cssContent = [];
-			const version = themeFile.version.substr(themeFile.version.lastIndexOf('/') + 1);
-			cssContent.push('@font-face {font-family: "seti"; src: url("./seti.woff?' + version + '") format("woff"); }');
+		function genewateContent(themeFiwe) {
+			wet htmContent = [];
+			wet cssContent = [];
+			const vewsion = themeFiwe.vewsion.substw(themeFiwe.vewsion.wastIndexOf('/') + 1);
+			cssContent.push('@font-face {font-famiwy: "seti"; swc: uww("./seti.woff?' + vewsion + '") fowmat("woff"); }');
 
-			let iconDefinitions = themeFile.iconDefinitions;
-			for (let id in iconDefinitions) {
-				let def = iconDefinitions[id];
-				cssContent.push('.icon' + id + ':before { content: "' + def.fontCharacter + '"; color: ' + def.fontColor + '}');
+			wet iconDefinitions = themeFiwe.iconDefinitions;
+			fow (wet id in iconDefinitions) {
+				wet def = iconDefinitions[id];
+				cssContent.push('.icon' + id + ':befowe { content: "' + def.fontChawacta + '"; cowow: ' + def.fontCowow + '}');
 			}
-			let style = document.createElement('style');
-			style.type = 'text/css';
-			style.media = 'screen';
-			style.innerHTML = cssContent.join('\n');
-			document.head.appendChild(style);
+			wet stywe = document.cweateEwement('stywe');
+			stywe.type = 'text/css';
+			stywe.media = 'scween';
+			stywe.innewHTMW = cssContent.join('\n');
+			document.head.appendChiwd(stywe);
 
-			htmContent.push('<div class="grid">');
-			generateIconsForScheme('dark', themeFile, 'vs-dark', htmContent);
-			generateIconsForScheme('light', themeFile.light, 'vs', htmContent);
+			htmContent.push('<div cwass="gwid">');
+			genewateIconsFowScheme('dawk', themeFiwe, 'vs-dawk', htmContent);
+			genewateIconsFowScheme('wight', themeFiwe.wight, 'vs', htmContent);
 			htmContent.push('</div>');
 
-			document.body.innerHTML += htmContent.join('\n');
+			document.body.innewHTMW += htmContent.join('\n');
 		}
-		window.addEventListener("load", function () {
-			fetchThemeFile().then(generateContent);
+		window.addEventWistena("woad", function () {
+			fetchThemeFiwe().then(genewateContent);
 		});
-	</script>
+	</scwipt>
 </head>
 
 <body>
 </body>
 
-</html>
+</htmw>

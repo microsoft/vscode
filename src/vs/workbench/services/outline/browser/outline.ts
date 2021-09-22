@@ -1,95 +1,95 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IDataSource, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { FuzzyScore } from 'vs/base/common/filters';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchDataTreeOptions } from 'vs/platform/list/browser/listService';
-import { IEditorPane } from 'vs/workbench/common/editor';
+impowt { IWistViwtuawDewegate } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { IDataSouwce, ITweeWendewa } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { FuzzyScowe } fwom 'vs/base/common/fiwtews';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWowkbenchDataTweeOptions } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { IEditowPane } fwom 'vs/wowkbench/common/editow';
 
-export const IOutlineService = createDecorator<IOutlineService>('IOutlineService');
+expowt const IOutwineSewvice = cweateDecowatow<IOutwineSewvice>('IOutwineSewvice');
 
-export const enum OutlineTarget {
-	OutlinePane = 1,
-	Breadcrumbs = 2,
+expowt const enum OutwineTawget {
+	OutwinePane = 1,
+	Bweadcwumbs = 2,
 	QuickPick = 4
 }
 
-export interface IOutlineService {
-	_serviceBrand: undefined;
+expowt intewface IOutwineSewvice {
+	_sewviceBwand: undefined;
 	onDidChange: Event<void>;
-	canCreateOutline(editor: IEditorPane): boolean;
-	createOutline(editor: IEditorPane, target: OutlineTarget, token: CancellationToken): Promise<IOutline<any> | undefined>;
-	registerOutlineCreator(creator: IOutlineCreator<any, any>): IDisposable;
+	canCweateOutwine(editow: IEditowPane): boowean;
+	cweateOutwine(editow: IEditowPane, tawget: OutwineTawget, token: CancewwationToken): Pwomise<IOutwine<any> | undefined>;
+	wegistewOutwineCweatow(cweatow: IOutwineCweatow<any, any>): IDisposabwe;
 }
 
-export interface IOutlineCreator<P extends IEditorPane, E> {
-	matches(candidate: IEditorPane): candidate is P;
-	createOutline(editor: P, target: OutlineTarget, token: CancellationToken): Promise<IOutline<E> | undefined>;
+expowt intewface IOutwineCweatow<P extends IEditowPane, E> {
+	matches(candidate: IEditowPane): candidate is P;
+	cweateOutwine(editow: P, tawget: OutwineTawget, token: CancewwationToken): Pwomise<IOutwine<E> | undefined>;
 }
 
-export interface IBreadcrumbsDataSource<E> {
-	getBreadcrumbElements(): readonly E[];
+expowt intewface IBweadcwumbsDataSouwce<E> {
+	getBweadcwumbEwements(): weadonwy E[];
 }
 
-export interface IOutlineComparator<E> {
-	compareByPosition(a: E, b: E): number;
-	compareByType(a: E, b: E): number;
-	compareByName(a: E, b: E): number;
+expowt intewface IOutwineCompawatow<E> {
+	compaweByPosition(a: E, b: E): numba;
+	compaweByType(a: E, b: E): numba;
+	compaweByName(a: E, b: E): numba;
 }
 
-export interface IQuickPickOutlineElement<E> {
-	readonly element: E;
-	readonly label: string;
-	readonly iconClasses?: string[];
-	readonly ariaLabel?: string;
-	readonly description?: string;
+expowt intewface IQuickPickOutwineEwement<E> {
+	weadonwy ewement: E;
+	weadonwy wabew: stwing;
+	weadonwy iconCwasses?: stwing[];
+	weadonwy awiaWabew?: stwing;
+	weadonwy descwiption?: stwing;
 }
 
-export interface IQuickPickDataSource<E> {
-	getQuickPickElements(): IQuickPickOutlineElement<E>[];
+expowt intewface IQuickPickDataSouwce<E> {
+	getQuickPickEwements(): IQuickPickOutwineEwement<E>[];
 }
 
-export interface IOutlineListConfig<E> {
-	readonly breadcrumbsDataSource: IBreadcrumbsDataSource<E>;
-	readonly treeDataSource: IDataSource<IOutline<E>, E>;
-	readonly delegate: IListVirtualDelegate<E>;
-	readonly renderers: ITreeRenderer<E, FuzzyScore, any>[];
-	readonly comparator: IOutlineComparator<E>;
-	readonly options: IWorkbenchDataTreeOptions<E, FuzzyScore>;
-	readonly quickPickDataSource: IQuickPickDataSource<E>;
+expowt intewface IOutwineWistConfig<E> {
+	weadonwy bweadcwumbsDataSouwce: IBweadcwumbsDataSouwce<E>;
+	weadonwy tweeDataSouwce: IDataSouwce<IOutwine<E>, E>;
+	weadonwy dewegate: IWistViwtuawDewegate<E>;
+	weadonwy wendewews: ITweeWendewa<E, FuzzyScowe, any>[];
+	weadonwy compawatow: IOutwineCompawatow<E>;
+	weadonwy options: IWowkbenchDataTweeOptions<E, FuzzyScowe>;
+	weadonwy quickPickDataSouwce: IQuickPickDataSouwce<E>;
 }
 
-export interface OutlineChangeEvent {
-	affectOnlyActiveElement?: true
+expowt intewface OutwineChangeEvent {
+	affectOnwyActiveEwement?: twue
 }
 
-export interface IOutline<E> {
+expowt intewface IOutwine<E> {
 
-	readonly config: IOutlineListConfig<E>;
-	readonly outlineKind: string;
+	weadonwy config: IOutwineWistConfig<E>;
+	weadonwy outwineKind: stwing;
 
-	readonly isEmpty: boolean;
-	readonly activeElement: E | undefined;
-	readonly onDidChange: Event<OutlineChangeEvent>;
+	weadonwy isEmpty: boowean;
+	weadonwy activeEwement: E | undefined;
+	weadonwy onDidChange: Event<OutwineChangeEvent>;
 
-	reveal(entry: E, options: IEditorOptions, sideBySide: boolean): Promise<void> | void;
-	preview(entry: E): IDisposable;
-	captureViewState(): IDisposable;
+	weveaw(entwy: E, options: IEditowOptions, sideBySide: boowean): Pwomise<void> | void;
+	pweview(entwy: E): IDisposabwe;
+	captuweViewState(): IDisposabwe;
 	dispose(): void;
 }
 
 
-export const enum OutlineConfigKeys {
-	'icons' = 'outline.icons',
-	'problemsEnabled' = 'outline.problems.enabled',
-	'problemsColors' = 'outline.problems.colors',
-	'problemsBadges' = 'outline.problems.badges'
+expowt const enum OutwineConfigKeys {
+	'icons' = 'outwine.icons',
+	'pwobwemsEnabwed' = 'outwine.pwobwems.enabwed',
+	'pwobwemsCowows' = 'outwine.pwobwems.cowows',
+	'pwobwemsBadges' = 'outwine.pwobwems.badges'
 }

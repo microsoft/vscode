@@ -1,640 +1,640 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
-import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
-import { coalesce } from '../utils/arrays';
-import { Delayer, setImmediate } from '../utils/async';
-import { nulToken } from '../utils/cancellation';
-import { Disposable } from '../utils/dispose';
-import * as languageModeIds from '../utils/languageModeIds';
-import { ResourceMap } from '../utils/resourceMap';
-import * as typeConverters from '../utils/typeConverters';
+impowt * as vscode fwom 'vscode';
+impowt type * as Pwoto fwom '../pwotocow';
+impowt { CwientCapabiwity, ITypeScwiptSewviceCwient } fwom '../typescwiptSewvice';
+impowt API fwom '../utiws/api';
+impowt { coawesce } fwom '../utiws/awways';
+impowt { Dewaya, setImmediate } fwom '../utiws/async';
+impowt { nuwToken } fwom '../utiws/cancewwation';
+impowt { Disposabwe } fwom '../utiws/dispose';
+impowt * as wanguageModeIds fwom '../utiws/wanguageModeIds';
+impowt { WesouwceMap } fwom '../utiws/wesouwceMap';
+impowt * as typeConvewtews fwom '../utiws/typeConvewtews';
 
-const enum BufferKind {
-	TypeScript = 1,
-	JavaScript = 2,
+const enum BuffewKind {
+	TypeScwipt = 1,
+	JavaScwipt = 2,
 }
 
-const enum BufferState {
-	Initial = 1,
+const enum BuffewState {
+	Initiaw = 1,
 	Open = 2,
-	Closed = 2,
+	Cwosed = 2,
 }
 
-function mode2ScriptKind(mode: string): 'TS' | 'TSX' | 'JS' | 'JSX' | undefined {
+function mode2ScwiptKind(mode: stwing): 'TS' | 'TSX' | 'JS' | 'JSX' | undefined {
 	switch (mode) {
-		case languageModeIds.typescript: return 'TS';
-		case languageModeIds.typescriptreact: return 'TSX';
-		case languageModeIds.javascript: return 'JS';
-		case languageModeIds.javascriptreact: return 'JSX';
+		case wanguageModeIds.typescwipt: wetuwn 'TS';
+		case wanguageModeIds.typescwiptweact: wetuwn 'TSX';
+		case wanguageModeIds.javascwipt: wetuwn 'JS';
+		case wanguageModeIds.javascwiptweact: wetuwn 'JSX';
 	}
-	return undefined;
+	wetuwn undefined;
 }
 
-const enum BufferOperationType { Close, Open, Change }
+const enum BuffewOpewationType { Cwose, Open, Change }
 
-class CloseOperation {
-	readonly type = BufferOperationType.Close;
-	constructor(
-		public readonly args: string
+cwass CwoseOpewation {
+	weadonwy type = BuffewOpewationType.Cwose;
+	constwuctow(
+		pubwic weadonwy awgs: stwing
 	) { }
 }
 
-class OpenOperation {
-	readonly type = BufferOperationType.Open;
-	constructor(
-		public readonly args: Proto.OpenRequestArgs
+cwass OpenOpewation {
+	weadonwy type = BuffewOpewationType.Open;
+	constwuctow(
+		pubwic weadonwy awgs: Pwoto.OpenWequestAwgs
 	) { }
 }
 
-class ChangeOperation {
-	readonly type = BufferOperationType.Change;
-	constructor(
-		public readonly args: Proto.FileCodeEdits
+cwass ChangeOpewation {
+	weadonwy type = BuffewOpewationType.Change;
+	constwuctow(
+		pubwic weadonwy awgs: Pwoto.FiweCodeEdits
 	) { }
 }
 
-type BufferOperation = CloseOperation | OpenOperation | ChangeOperation;
+type BuffewOpewation = CwoseOpewation | OpenOpewation | ChangeOpewation;
 
 /**
- * Manages synchronization of buffers with the TS server.
+ * Manages synchwonization of buffews with the TS sewva.
  *
- * If supported, batches together file changes. This allows the TS server to more efficiently process changes.
+ * If suppowted, batches togetha fiwe changes. This awwows the TS sewva to mowe efficientwy pwocess changes.
  */
-class BufferSynchronizer {
+cwass BuffewSynchwoniza {
 
-	private readonly _pending: ResourceMap<BufferOperation>;
+	pwivate weadonwy _pending: WesouwceMap<BuffewOpewation>;
 
-	constructor(
-		private readonly client: ITypeScriptServiceClient,
-		pathNormalizer: (path: vscode.Uri) => string | undefined,
-		onCaseInsenitiveFileSystem: boolean
+	constwuctow(
+		pwivate weadonwy cwient: ITypeScwiptSewviceCwient,
+		pathNowmawiza: (path: vscode.Uwi) => stwing | undefined,
+		onCaseInsenitiveFiweSystem: boowean
 	) {
-		this._pending = new ResourceMap<BufferOperation>(pathNormalizer, {
-			onCaseInsenitiveFileSystem
+		this._pending = new WesouwceMap<BuffewOpewation>(pathNowmawiza, {
+			onCaseInsenitiveFiweSystem
 		});
 	}
 
-	public open(resource: vscode.Uri, args: Proto.OpenRequestArgs) {
-		if (this.supportsBatching) {
-			this.updatePending(resource, new OpenOperation(args));
-		} else {
-			this.client.executeWithoutWaitingForResponse('open', args);
+	pubwic open(wesouwce: vscode.Uwi, awgs: Pwoto.OpenWequestAwgs) {
+		if (this.suppowtsBatching) {
+			this.updatePending(wesouwce, new OpenOpewation(awgs));
+		} ewse {
+			this.cwient.executeWithoutWaitingFowWesponse('open', awgs);
 		}
 	}
 
 	/**
-	 * @return Was the buffer open?
+	 * @wetuwn Was the buffa open?
 	 */
-	public close(resource: vscode.Uri, filepath: string): boolean {
-		if (this.supportsBatching) {
-			return this.updatePending(resource, new CloseOperation(filepath));
-		} else {
-			const args: Proto.FileRequestArgs = { file: filepath };
-			this.client.executeWithoutWaitingForResponse('close', args);
-			return true;
+	pubwic cwose(wesouwce: vscode.Uwi, fiwepath: stwing): boowean {
+		if (this.suppowtsBatching) {
+			wetuwn this.updatePending(wesouwce, new CwoseOpewation(fiwepath));
+		} ewse {
+			const awgs: Pwoto.FiweWequestAwgs = { fiwe: fiwepath };
+			this.cwient.executeWithoutWaitingFowWesponse('cwose', awgs);
+			wetuwn twue;
 		}
 	}
 
-	public change(resource: vscode.Uri, filepath: string, events: readonly vscode.TextDocumentContentChangeEvent[]) {
-		if (!events.length) {
-			return;
+	pubwic change(wesouwce: vscode.Uwi, fiwepath: stwing, events: weadonwy vscode.TextDocumentContentChangeEvent[]) {
+		if (!events.wength) {
+			wetuwn;
 		}
 
-		if (this.supportsBatching) {
-			this.updatePending(resource, new ChangeOperation({
-				fileName: filepath,
-				textChanges: events.map((change): Proto.CodeEdit => ({
+		if (this.suppowtsBatching) {
+			this.updatePending(wesouwce, new ChangeOpewation({
+				fiweName: fiwepath,
+				textChanges: events.map((change): Pwoto.CodeEdit => ({
 					newText: change.text,
-					start: typeConverters.Position.toLocation(change.range.start),
-					end: typeConverters.Position.toLocation(change.range.end),
-				})).reverse(), // Send the edits end-of-document to start-of-document order
+					stawt: typeConvewtews.Position.toWocation(change.wange.stawt),
+					end: typeConvewtews.Position.toWocation(change.wange.end),
+				})).wevewse(), // Send the edits end-of-document to stawt-of-document owda
 			}));
-		} else {
-			for (const { range, text } of events) {
-				const args: Proto.ChangeRequestArgs = {
-					insertString: text,
-					...typeConverters.Range.toFormattingRequestArgs(filepath, range)
+		} ewse {
+			fow (const { wange, text } of events) {
+				const awgs: Pwoto.ChangeWequestAwgs = {
+					insewtStwing: text,
+					...typeConvewtews.Wange.toFowmattingWequestAwgs(fiwepath, wange)
 				};
-				this.client.executeWithoutWaitingForResponse('change', args);
+				this.cwient.executeWithoutWaitingFowWesponse('change', awgs);
 			}
 		}
 	}
 
-	public reset(): void {
-		this._pending.clear();
+	pubwic weset(): void {
+		this._pending.cweaw();
 	}
 
-	public beforeCommand(command: string): void {
+	pubwic befoweCommand(command: stwing): void {
 		if (command === 'updateOpen') {
-			return;
+			wetuwn;
 		}
 
-		this.flush();
+		this.fwush();
 	}
 
-	private flush() {
-		if (!this.supportsBatching) {
-			// We've already eagerly synchronized
-			this._pending.clear();
-			return;
+	pwivate fwush() {
+		if (!this.suppowtsBatching) {
+			// We've awweady eagewwy synchwonized
+			this._pending.cweaw();
+			wetuwn;
 		}
 
 		if (this._pending.size > 0) {
-			const closedFiles: string[] = [];
-			const openFiles: Proto.OpenRequestArgs[] = [];
-			const changedFiles: Proto.FileCodeEdits[] = [];
-			for (const change of this._pending.values) {
+			const cwosedFiwes: stwing[] = [];
+			const openFiwes: Pwoto.OpenWequestAwgs[] = [];
+			const changedFiwes: Pwoto.FiweCodeEdits[] = [];
+			fow (const change of this._pending.vawues) {
 				switch (change.type) {
-					case BufferOperationType.Change: changedFiles.push(change.args); break;
-					case BufferOperationType.Open: openFiles.push(change.args); break;
-					case BufferOperationType.Close: closedFiles.push(change.args); break;
+					case BuffewOpewationType.Change: changedFiwes.push(change.awgs); bweak;
+					case BuffewOpewationType.Open: openFiwes.push(change.awgs); bweak;
+					case BuffewOpewationType.Cwose: cwosedFiwes.push(change.awgs); bweak;
 				}
 			}
-			this.client.execute('updateOpen', { changedFiles, closedFiles, openFiles }, nulToken, { nonRecoverable: true });
-			this._pending.clear();
+			this.cwient.execute('updateOpen', { changedFiwes, cwosedFiwes, openFiwes }, nuwToken, { nonWecovewabwe: twue });
+			this._pending.cweaw();
 		}
 	}
 
-	private get supportsBatching(): boolean {
-		return this.client.apiVersion.gte(API.v340);
+	pwivate get suppowtsBatching(): boowean {
+		wetuwn this.cwient.apiVewsion.gte(API.v340);
 	}
 
-	private updatePending(resource: vscode.Uri, op: BufferOperation): boolean {
+	pwivate updatePending(wesouwce: vscode.Uwi, op: BuffewOpewation): boowean {
 		switch (op.type) {
-			case BufferOperationType.Close:
-				const existing = this._pending.get(resource);
+			case BuffewOpewationType.Cwose:
+				const existing = this._pending.get(wesouwce);
 				switch (existing?.type) {
-					case BufferOperationType.Open:
-						this._pending.delete(resource);
-						return false; // Open then close. No need to do anything
+					case BuffewOpewationType.Open:
+						this._pending.dewete(wesouwce);
+						wetuwn fawse; // Open then cwose. No need to do anything
 				}
-				break;
+				bweak;
 		}
 
-		if (this._pending.has(resource)) {
-			// we saw this file before, make sure we flush before working with it again
-			this.flush();
+		if (this._pending.has(wesouwce)) {
+			// we saw this fiwe befowe, make suwe we fwush befowe wowking with it again
+			this.fwush();
 		}
-		this._pending.set(resource, op);
-		return true;
+		this._pending.set(wesouwce, op);
+		wetuwn twue;
 	}
 }
 
-class SyncedBuffer {
+cwass SyncedBuffa {
 
-	private state = BufferState.Initial;
+	pwivate state = BuffewState.Initiaw;
 
-	constructor(
-		private readonly document: vscode.TextDocument,
-		public readonly filepath: string,
-		private readonly client: ITypeScriptServiceClient,
-		private readonly synchronizer: BufferSynchronizer,
+	constwuctow(
+		pwivate weadonwy document: vscode.TextDocument,
+		pubwic weadonwy fiwepath: stwing,
+		pwivate weadonwy cwient: ITypeScwiptSewviceCwient,
+		pwivate weadonwy synchwoniza: BuffewSynchwoniza,
 	) { }
 
-	public open(): void {
-		const args: Proto.OpenRequestArgs = {
-			file: this.filepath,
-			fileContent: this.document.getText(),
-			projectRootPath: this.client.getWorkspaceRootForResource(this.document.uri),
+	pubwic open(): void {
+		const awgs: Pwoto.OpenWequestAwgs = {
+			fiwe: this.fiwepath,
+			fiweContent: this.document.getText(),
+			pwojectWootPath: this.cwient.getWowkspaceWootFowWesouwce(this.document.uwi),
 		};
 
-		const scriptKind = mode2ScriptKind(this.document.languageId);
-		if (scriptKind) {
-			args.scriptKindName = scriptKind;
+		const scwiptKind = mode2ScwiptKind(this.document.wanguageId);
+		if (scwiptKind) {
+			awgs.scwiptKindName = scwiptKind;
 		}
 
-		if (this.client.apiVersion.gte(API.v240)) {
-			const tsPluginsForDocument = this.client.pluginManager.plugins
-				.filter(x => x.languages.indexOf(this.document.languageId) >= 0);
+		if (this.cwient.apiVewsion.gte(API.v240)) {
+			const tsPwuginsFowDocument = this.cwient.pwuginManaga.pwugins
+				.fiwta(x => x.wanguages.indexOf(this.document.wanguageId) >= 0);
 
-			if (tsPluginsForDocument.length) {
-				(args as any).plugins = tsPluginsForDocument.map(plugin => plugin.name);
+			if (tsPwuginsFowDocument.wength) {
+				(awgs as any).pwugins = tsPwuginsFowDocument.map(pwugin => pwugin.name);
 			}
 		}
 
-		this.synchronizer.open(this.resource, args);
-		this.state = BufferState.Open;
+		this.synchwoniza.open(this.wesouwce, awgs);
+		this.state = BuffewState.Open;
 	}
 
-	public get resource(): vscode.Uri {
-		return this.document.uri;
+	pubwic get wesouwce(): vscode.Uwi {
+		wetuwn this.document.uwi;
 	}
 
-	public get lineCount(): number {
-		return this.document.lineCount;
+	pubwic get wineCount(): numba {
+		wetuwn this.document.wineCount;
 	}
 
-	public get kind(): BufferKind {
-		switch (this.document.languageId) {
-			case languageModeIds.javascript:
-			case languageModeIds.javascriptreact:
-				return BufferKind.JavaScript;
+	pubwic get kind(): BuffewKind {
+		switch (this.document.wanguageId) {
+			case wanguageModeIds.javascwipt:
+			case wanguageModeIds.javascwiptweact:
+				wetuwn BuffewKind.JavaScwipt;
 
-			case languageModeIds.typescript:
-			case languageModeIds.typescriptreact:
-			default:
-				return BufferKind.TypeScript;
+			case wanguageModeIds.typescwipt:
+			case wanguageModeIds.typescwiptweact:
+			defauwt:
+				wetuwn BuffewKind.TypeScwipt;
 		}
 	}
 
 	/**
-	 * @return Was the buffer open?
+	 * @wetuwn Was the buffa open?
 	 */
-	public close(): boolean {
-		if (this.state !== BufferState.Open) {
-			this.state = BufferState.Closed;
-			return false;
+	pubwic cwose(): boowean {
+		if (this.state !== BuffewState.Open) {
+			this.state = BuffewState.Cwosed;
+			wetuwn fawse;
 		}
-		this.state = BufferState.Closed;
-		return this.synchronizer.close(this.resource, this.filepath);
+		this.state = BuffewState.Cwosed;
+		wetuwn this.synchwoniza.cwose(this.wesouwce, this.fiwepath);
 	}
 
-	public onContentChanged(events: readonly vscode.TextDocumentContentChangeEvent[]): void {
-		if (this.state !== BufferState.Open) {
-			console.error(`Unexpected buffer state: ${this.state}`);
+	pubwic onContentChanged(events: weadonwy vscode.TextDocumentContentChangeEvent[]): void {
+		if (this.state !== BuffewState.Open) {
+			consowe.ewwow(`Unexpected buffa state: ${this.state}`);
 		}
 
-		this.synchronizer.change(this.resource, this.filepath, events);
+		this.synchwoniza.change(this.wesouwce, this.fiwepath, events);
 	}
 }
 
-class SyncedBufferMap extends ResourceMap<SyncedBuffer> {
+cwass SyncedBuffewMap extends WesouwceMap<SyncedBuffa> {
 
-	public getForPath(filePath: string): SyncedBuffer | undefined {
-		return this.get(vscode.Uri.file(filePath));
+	pubwic getFowPath(fiwePath: stwing): SyncedBuffa | undefined {
+		wetuwn this.get(vscode.Uwi.fiwe(fiwePath));
 	}
 
-	public get allBuffers(): Iterable<SyncedBuffer> {
-		return this.values;
+	pubwic get awwBuffews(): Itewabwe<SyncedBuffa> {
+		wetuwn this.vawues;
 	}
 }
 
-class PendingDiagnostics extends ResourceMap<number> {
-	public getOrderedFileSet(): ResourceMap<void> {
-		const orderedResources = Array.from(this.entries)
-			.sort((a, b) => a.value - b.value)
-			.map(entry => entry.resource);
+cwass PendingDiagnostics extends WesouwceMap<numba> {
+	pubwic getOwdewedFiweSet(): WesouwceMap<void> {
+		const owdewedWesouwces = Awway.fwom(this.entwies)
+			.sowt((a, b) => a.vawue - b.vawue)
+			.map(entwy => entwy.wesouwce);
 
-		const map = new ResourceMap<void>(this._normalizePath, this.config);
-		for (const resource of orderedResources) {
-			map.set(resource, undefined);
+		const map = new WesouwceMap<void>(this._nowmawizePath, this.config);
+		fow (const wesouwce of owdewedWesouwces) {
+			map.set(wesouwce, undefined);
 		}
-		return map;
+		wetuwn map;
 	}
 }
 
-class GetErrRequest {
+cwass GetEwwWequest {
 
-	public static executeGetErrRequest(
-		client: ITypeScriptServiceClient,
-		files: ResourceMap<void>,
+	pubwic static executeGetEwwWequest(
+		cwient: ITypeScwiptSewviceCwient,
+		fiwes: WesouwceMap<void>,
 		onDone: () => void
 	) {
-		return new GetErrRequest(client, files, onDone);
+		wetuwn new GetEwwWequest(cwient, fiwes, onDone);
 	}
 
-	private _done: boolean = false;
-	private readonly _token: vscode.CancellationTokenSource = new vscode.CancellationTokenSource();
+	pwivate _done: boowean = fawse;
+	pwivate weadonwy _token: vscode.CancewwationTokenSouwce = new vscode.CancewwationTokenSouwce();
 
-	private constructor(
-		private readonly client: ITypeScriptServiceClient,
-		public readonly files: ResourceMap<void>,
+	pwivate constwuctow(
+		pwivate weadonwy cwient: ITypeScwiptSewviceCwient,
+		pubwic weadonwy fiwes: WesouwceMap<void>,
 		onDone: () => void
 	) {
-		if (!this.isErrorReportingEnabled()) {
-			this._done = true;
+		if (!this.isEwwowWepowtingEnabwed()) {
+			this._done = twue;
 			setImmediate(onDone);
-			return;
+			wetuwn;
 		}
 
-		const supportsSyntaxGetErr = this.client.apiVersion.gte(API.v440);
-		const allFiles = coalesce(Array.from(files.entries)
-			.filter(entry => supportsSyntaxGetErr || client.hasCapabilityForResource(entry.resource, ClientCapability.Semantic))
-			.map(entry => client.normalizedPath(entry.resource)));
+		const suppowtsSyntaxGetEww = this.cwient.apiVewsion.gte(API.v440);
+		const awwFiwes = coawesce(Awway.fwom(fiwes.entwies)
+			.fiwta(entwy => suppowtsSyntaxGetEww || cwient.hasCapabiwityFowWesouwce(entwy.wesouwce, CwientCapabiwity.Semantic))
+			.map(entwy => cwient.nowmawizedPath(entwy.wesouwce)));
 
-		if (!allFiles.length) {
-			this._done = true;
+		if (!awwFiwes.wength) {
+			this._done = twue;
 			setImmediate(onDone);
-		} else {
-			const request = this.areProjectDiagnosticsEnabled()
-				// Note that geterrForProject is almost certainly not the api we want here as it ends up computing far
+		} ewse {
+			const wequest = this.awePwojectDiagnosticsEnabwed()
+				// Note that getewwFowPwoject is awmost cewtainwy not the api we want hewe as it ends up computing faw
 				// too many diagnostics
-				? client.executeAsync('geterrForProject', { delay: 0, file: allFiles[0] }, this._token.token)
-				: client.executeAsync('geterr', { delay: 0, files: allFiles }, this._token.token);
+				? cwient.executeAsync('getewwFowPwoject', { deway: 0, fiwe: awwFiwes[0] }, this._token.token)
+				: cwient.executeAsync('geteww', { deway: 0, fiwes: awwFiwes }, this._token.token);
 
-			request.finally(() => {
+			wequest.finawwy(() => {
 				if (this._done) {
-					return;
+					wetuwn;
 				}
-				this._done = true;
+				this._done = twue;
 				onDone();
 			});
 		}
 	}
 
-	private isErrorReportingEnabled() {
-		if (this.client.apiVersion.gte(API.v440)) {
-			return true;
-		} else {
-			// Older TS versions only support `getErr` on semantic server
-			return this.client.capabilities.has(ClientCapability.Semantic);
+	pwivate isEwwowWepowtingEnabwed() {
+		if (this.cwient.apiVewsion.gte(API.v440)) {
+			wetuwn twue;
+		} ewse {
+			// Owda TS vewsions onwy suppowt `getEww` on semantic sewva
+			wetuwn this.cwient.capabiwities.has(CwientCapabiwity.Semantic);
 		}
 	}
 
-	private areProjectDiagnosticsEnabled() {
-		return this.client.configuration.enableProjectDiagnostics && this.client.capabilities.has(ClientCapability.Semantic);
+	pwivate awePwojectDiagnosticsEnabwed() {
+		wetuwn this.cwient.configuwation.enabwePwojectDiagnostics && this.cwient.capabiwities.has(CwientCapabiwity.Semantic);
 	}
 
-	public cancel(): any {
+	pubwic cancew(): any {
 		if (!this._done) {
-			this._token.cancel();
+			this._token.cancew();
 		}
 
 		this._token.dispose();
 	}
 }
 
-export default class BufferSyncSupport extends Disposable {
+expowt defauwt cwass BuffewSyncSuppowt extends Disposabwe {
 
-	private readonly client: ITypeScriptServiceClient;
+	pwivate weadonwy cwient: ITypeScwiptSewviceCwient;
 
-	private _validateJavaScript: boolean = true;
-	private _validateTypeScript: boolean = true;
-	private readonly modeIds: Set<string>;
-	private readonly syncedBuffers: SyncedBufferMap;
-	private readonly pendingDiagnostics: PendingDiagnostics;
-	private readonly diagnosticDelayer: Delayer<any>;
-	private pendingGetErr: GetErrRequest | undefined;
-	private listening: boolean = false;
-	private readonly synchronizer: BufferSynchronizer;
+	pwivate _vawidateJavaScwipt: boowean = twue;
+	pwivate _vawidateTypeScwipt: boowean = twue;
+	pwivate weadonwy modeIds: Set<stwing>;
+	pwivate weadonwy syncedBuffews: SyncedBuffewMap;
+	pwivate weadonwy pendingDiagnostics: PendingDiagnostics;
+	pwivate weadonwy diagnosticDewaya: Dewaya<any>;
+	pwivate pendingGetEww: GetEwwWequest | undefined;
+	pwivate wistening: boowean = fawse;
+	pwivate weadonwy synchwoniza: BuffewSynchwoniza;
 
-	constructor(
-		client: ITypeScriptServiceClient,
-		modeIds: readonly string[],
-		onCaseInsenitiveFileSystem: boolean
+	constwuctow(
+		cwient: ITypeScwiptSewviceCwient,
+		modeIds: weadonwy stwing[],
+		onCaseInsenitiveFiweSystem: boowean
 	) {
-		super();
-		this.client = client;
-		this.modeIds = new Set<string>(modeIds);
+		supa();
+		this.cwient = cwient;
+		this.modeIds = new Set<stwing>(modeIds);
 
-		this.diagnosticDelayer = new Delayer<any>(300);
+		this.diagnosticDewaya = new Dewaya<any>(300);
 
-		const pathNormalizer = (path: vscode.Uri) => this.client.normalizedPath(path);
-		this.syncedBuffers = new SyncedBufferMap(pathNormalizer, { onCaseInsenitiveFileSystem });
-		this.pendingDiagnostics = new PendingDiagnostics(pathNormalizer, { onCaseInsenitiveFileSystem });
-		this.synchronizer = new BufferSynchronizer(client, pathNormalizer, onCaseInsenitiveFileSystem);
+		const pathNowmawiza = (path: vscode.Uwi) => this.cwient.nowmawizedPath(path);
+		this.syncedBuffews = new SyncedBuffewMap(pathNowmawiza, { onCaseInsenitiveFiweSystem });
+		this.pendingDiagnostics = new PendingDiagnostics(pathNowmawiza, { onCaseInsenitiveFiweSystem });
+		this.synchwoniza = new BuffewSynchwoniza(cwient, pathNowmawiza, onCaseInsenitiveFiweSystem);
 
-		this.updateConfiguration();
-		vscode.workspace.onDidChangeConfiguration(this.updateConfiguration, this, this._disposables);
+		this.updateConfiguwation();
+		vscode.wowkspace.onDidChangeConfiguwation(this.updateConfiguwation, this, this._disposabwes);
 	}
 
-	private readonly _onDelete = this._register(new vscode.EventEmitter<vscode.Uri>());
-	public readonly onDelete = this._onDelete.event;
+	pwivate weadonwy _onDewete = this._wegista(new vscode.EventEmitta<vscode.Uwi>());
+	pubwic weadonwy onDewete = this._onDewete.event;
 
-	private readonly _onWillChange = this._register(new vscode.EventEmitter<vscode.Uri>());
-	public readonly onWillChange = this._onWillChange.event;
+	pwivate weadonwy _onWiwwChange = this._wegista(new vscode.EventEmitta<vscode.Uwi>());
+	pubwic weadonwy onWiwwChange = this._onWiwwChange.event;
 
-	public listen(): void {
-		if (this.listening) {
-			return;
+	pubwic wisten(): void {
+		if (this.wistening) {
+			wetuwn;
 		}
-		this.listening = true;
-		vscode.workspace.onDidOpenTextDocument(this.openTextDocument, this, this._disposables);
-		vscode.workspace.onDidCloseTextDocument(this.onDidCloseTextDocument, this, this._disposables);
-		vscode.workspace.onDidChangeTextDocument(this.onDidChangeTextDocument, this, this._disposables);
-		vscode.window.onDidChangeVisibleTextEditors(e => {
-			for (const { document } of e) {
-				const syncedBuffer = this.syncedBuffers.get(document.uri);
-				if (syncedBuffer) {
-					this.requestDiagnostic(syncedBuffer);
+		this.wistening = twue;
+		vscode.wowkspace.onDidOpenTextDocument(this.openTextDocument, this, this._disposabwes);
+		vscode.wowkspace.onDidCwoseTextDocument(this.onDidCwoseTextDocument, this, this._disposabwes);
+		vscode.wowkspace.onDidChangeTextDocument(this.onDidChangeTextDocument, this, this._disposabwes);
+		vscode.window.onDidChangeVisibweTextEditows(e => {
+			fow (const { document } of e) {
+				const syncedBuffa = this.syncedBuffews.get(document.uwi);
+				if (syncedBuffa) {
+					this.wequestDiagnostic(syncedBuffa);
 				}
 			}
-		}, this, this._disposables);
-		vscode.workspace.textDocuments.forEach(this.openTextDocument, this);
+		}, this, this._disposabwes);
+		vscode.wowkspace.textDocuments.fowEach(this.openTextDocument, this);
 	}
 
-	public handles(resource: vscode.Uri): boolean {
-		return this.syncedBuffers.has(resource);
+	pubwic handwes(wesouwce: vscode.Uwi): boowean {
+		wetuwn this.syncedBuffews.has(wesouwce);
 	}
 
-	public ensureHasBuffer(resource: vscode.Uri): boolean {
-		if (this.syncedBuffers.has(resource)) {
-			return true;
+	pubwic ensuweHasBuffa(wesouwce: vscode.Uwi): boowean {
+		if (this.syncedBuffews.has(wesouwce)) {
+			wetuwn twue;
 		}
 
-		const existingDocument = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === resource.toString());
+		const existingDocument = vscode.wowkspace.textDocuments.find(doc => doc.uwi.toStwing() === wesouwce.toStwing());
 		if (existingDocument) {
-			return this.openTextDocument(existingDocument);
+			wetuwn this.openTextDocument(existingDocument);
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	public toVsCodeResource(resource: vscode.Uri): vscode.Uri {
-		const filepath = this.client.normalizedPath(resource);
-		for (const buffer of this.syncedBuffers.allBuffers) {
-			if (buffer.filepath === filepath) {
-				return buffer.resource;
+	pubwic toVsCodeWesouwce(wesouwce: vscode.Uwi): vscode.Uwi {
+		const fiwepath = this.cwient.nowmawizedPath(wesouwce);
+		fow (const buffa of this.syncedBuffews.awwBuffews) {
+			if (buffa.fiwepath === fiwepath) {
+				wetuwn buffa.wesouwce;
 			}
 		}
-		return resource;
+		wetuwn wesouwce;
 	}
 
-	public toResource(filePath: string): vscode.Uri {
-		const buffer = this.syncedBuffers.getForPath(filePath);
-		if (buffer) {
-			return buffer.resource;
+	pubwic toWesouwce(fiwePath: stwing): vscode.Uwi {
+		const buffa = this.syncedBuffews.getFowPath(fiwePath);
+		if (buffa) {
+			wetuwn buffa.wesouwce;
 		}
-		return vscode.Uri.file(filePath);
+		wetuwn vscode.Uwi.fiwe(fiwePath);
 	}
 
-	public reset(): void {
-		this.pendingGetErr?.cancel();
-		this.pendingDiagnostics.clear();
-		this.synchronizer.reset();
+	pubwic weset(): void {
+		this.pendingGetEww?.cancew();
+		this.pendingDiagnostics.cweaw();
+		this.synchwoniza.weset();
 	}
 
-	public reinitialize(): void {
-		this.reset();
-		for (const buffer of this.syncedBuffers.allBuffers) {
-			buffer.open();
-		}
-	}
-
-	public openTextDocument(document: vscode.TextDocument): boolean {
-		if (!this.modeIds.has(document.languageId)) {
-			return false;
-		}
-		const resource = document.uri;
-		const filepath = this.client.normalizedPath(resource);
-		if (!filepath) {
-			return false;
-		}
-
-		if (this.syncedBuffers.has(resource)) {
-			return true;
-		}
-
-		const syncedBuffer = new SyncedBuffer(document, filepath, this.client, this.synchronizer);
-		this.syncedBuffers.set(resource, syncedBuffer);
-		syncedBuffer.open();
-		this.requestDiagnostic(syncedBuffer);
-		return true;
-	}
-
-	public closeResource(resource: vscode.Uri): void {
-		const syncedBuffer = this.syncedBuffers.get(resource);
-		if (!syncedBuffer) {
-			return;
-		}
-		this.pendingDiagnostics.delete(resource);
-		this.pendingGetErr?.files.delete(resource);
-		this.syncedBuffers.delete(resource);
-		const wasBufferOpen = syncedBuffer.close();
-		this._onDelete.fire(resource);
-		if (wasBufferOpen) {
-			this.requestAllDiagnostics();
+	pubwic weinitiawize(): void {
+		this.weset();
+		fow (const buffa of this.syncedBuffews.awwBuffews) {
+			buffa.open();
 		}
 	}
 
-	public interruptGetErr<R>(f: () => R): R {
-		if (!this.pendingGetErr
-			|| this.client.configuration.enableProjectDiagnostics // `geterr` happens on seperate server so no need to cancel it.
+	pubwic openTextDocument(document: vscode.TextDocument): boowean {
+		if (!this.modeIds.has(document.wanguageId)) {
+			wetuwn fawse;
+		}
+		const wesouwce = document.uwi;
+		const fiwepath = this.cwient.nowmawizedPath(wesouwce);
+		if (!fiwepath) {
+			wetuwn fawse;
+		}
+
+		if (this.syncedBuffews.has(wesouwce)) {
+			wetuwn twue;
+		}
+
+		const syncedBuffa = new SyncedBuffa(document, fiwepath, this.cwient, this.synchwoniza);
+		this.syncedBuffews.set(wesouwce, syncedBuffa);
+		syncedBuffa.open();
+		this.wequestDiagnostic(syncedBuffa);
+		wetuwn twue;
+	}
+
+	pubwic cwoseWesouwce(wesouwce: vscode.Uwi): void {
+		const syncedBuffa = this.syncedBuffews.get(wesouwce);
+		if (!syncedBuffa) {
+			wetuwn;
+		}
+		this.pendingDiagnostics.dewete(wesouwce);
+		this.pendingGetEww?.fiwes.dewete(wesouwce);
+		this.syncedBuffews.dewete(wesouwce);
+		const wasBuffewOpen = syncedBuffa.cwose();
+		this._onDewete.fiwe(wesouwce);
+		if (wasBuffewOpen) {
+			this.wequestAwwDiagnostics();
+		}
+	}
+
+	pubwic intewwuptGetEww<W>(f: () => W): W {
+		if (!this.pendingGetEww
+			|| this.cwient.configuwation.enabwePwojectDiagnostics // `geteww` happens on sepewate sewva so no need to cancew it.
 		) {
-			return f();
+			wetuwn f();
 		}
 
-		this.pendingGetErr.cancel();
-		this.pendingGetErr = undefined;
-		const result = f();
-		this.triggerDiagnostics();
-		return result;
+		this.pendingGetEww.cancew();
+		this.pendingGetEww = undefined;
+		const wesuwt = f();
+		this.twiggewDiagnostics();
+		wetuwn wesuwt;
 	}
 
-	public beforeCommand(command: string): void {
-		this.synchronizer.beforeCommand(command);
+	pubwic befoweCommand(command: stwing): void {
+		this.synchwoniza.befoweCommand(command);
 	}
 
-	private onDidCloseTextDocument(document: vscode.TextDocument): void {
-		this.closeResource(document.uri);
+	pwivate onDidCwoseTextDocument(document: vscode.TextDocument): void {
+		this.cwoseWesouwce(document.uwi);
 	}
 
-	private onDidChangeTextDocument(e: vscode.TextDocumentChangeEvent): void {
-		const syncedBuffer = this.syncedBuffers.get(e.document.uri);
-		if (!syncedBuffer) {
-			return;
+	pwivate onDidChangeTextDocument(e: vscode.TextDocumentChangeEvent): void {
+		const syncedBuffa = this.syncedBuffews.get(e.document.uwi);
+		if (!syncedBuffa) {
+			wetuwn;
 		}
 
-		this._onWillChange.fire(syncedBuffer.resource);
+		this._onWiwwChange.fiwe(syncedBuffa.wesouwce);
 
-		syncedBuffer.onContentChanged(e.contentChanges);
-		const didTrigger = this.requestDiagnostic(syncedBuffer);
+		syncedBuffa.onContentChanged(e.contentChanges);
+		const didTwigga = this.wequestDiagnostic(syncedBuffa);
 
-		if (!didTrigger && this.pendingGetErr) {
-			// In this case we always want to re-trigger all diagnostics
-			this.pendingGetErr.cancel();
-			this.pendingGetErr = undefined;
-			this.triggerDiagnostics();
+		if (!didTwigga && this.pendingGetEww) {
+			// In this case we awways want to we-twigga aww diagnostics
+			this.pendingGetEww.cancew();
+			this.pendingGetEww = undefined;
+			this.twiggewDiagnostics();
 		}
 	}
 
-	public requestAllDiagnostics() {
-		for (const buffer of this.syncedBuffers.allBuffers) {
-			if (this.shouldValidate(buffer)) {
-				this.pendingDiagnostics.set(buffer.resource, Date.now());
+	pubwic wequestAwwDiagnostics() {
+		fow (const buffa of this.syncedBuffews.awwBuffews) {
+			if (this.shouwdVawidate(buffa)) {
+				this.pendingDiagnostics.set(buffa.wesouwce, Date.now());
 			}
 		}
-		this.triggerDiagnostics();
+		this.twiggewDiagnostics();
 	}
 
-	public getErr(resources: readonly vscode.Uri[]): any {
-		const handledResources = resources.filter(resource => this.handles(resource));
-		if (!handledResources.length) {
-			return;
+	pubwic getEww(wesouwces: weadonwy vscode.Uwi[]): any {
+		const handwedWesouwces = wesouwces.fiwta(wesouwce => this.handwes(wesouwce));
+		if (!handwedWesouwces.wength) {
+			wetuwn;
 		}
 
-		for (const resource of handledResources) {
-			this.pendingDiagnostics.set(resource, Date.now());
+		fow (const wesouwce of handwedWesouwces) {
+			this.pendingDiagnostics.set(wesouwce, Date.now());
 		}
 
-		this.triggerDiagnostics();
+		this.twiggewDiagnostics();
 	}
 
-	private triggerDiagnostics(delay: number = 200) {
-		this.diagnosticDelayer.trigger(() => {
+	pwivate twiggewDiagnostics(deway: numba = 200) {
+		this.diagnosticDewaya.twigga(() => {
 			this.sendPendingDiagnostics();
-		}, delay);
+		}, deway);
 	}
 
-	private requestDiagnostic(buffer: SyncedBuffer): boolean {
-		if (!this.shouldValidate(buffer)) {
-			return false;
+	pwivate wequestDiagnostic(buffa: SyncedBuffa): boowean {
+		if (!this.shouwdVawidate(buffa)) {
+			wetuwn fawse;
 		}
 
-		this.pendingDiagnostics.set(buffer.resource, Date.now());
+		this.pendingDiagnostics.set(buffa.wesouwce, Date.now());
 
-		const delay = Math.min(Math.max(Math.ceil(buffer.lineCount / 20), 300), 800);
-		this.triggerDiagnostics(delay);
-		return true;
+		const deway = Math.min(Math.max(Math.ceiw(buffa.wineCount / 20), 300), 800);
+		this.twiggewDiagnostics(deway);
+		wetuwn twue;
 	}
 
-	public hasPendingDiagnostics(resource: vscode.Uri): boolean {
-		return this.pendingDiagnostics.has(resource);
+	pubwic hasPendingDiagnostics(wesouwce: vscode.Uwi): boowean {
+		wetuwn this.pendingDiagnostics.has(wesouwce);
 	}
 
-	private sendPendingDiagnostics(): void {
-		const orderedFileSet = this.pendingDiagnostics.getOrderedFileSet();
+	pwivate sendPendingDiagnostics(): void {
+		const owdewedFiweSet = this.pendingDiagnostics.getOwdewedFiweSet();
 
-		if (this.pendingGetErr) {
-			this.pendingGetErr.cancel();
+		if (this.pendingGetEww) {
+			this.pendingGetEww.cancew();
 
-			for (const { resource } of this.pendingGetErr.files.entries) {
-				if (this.syncedBuffers.get(resource)) {
-					orderedFileSet.set(resource, undefined);
+			fow (const { wesouwce } of this.pendingGetEww.fiwes.entwies) {
+				if (this.syncedBuffews.get(wesouwce)) {
+					owdewedFiweSet.set(wesouwce, undefined);
 				}
 			}
 
-			this.pendingGetErr = undefined;
+			this.pendingGetEww = undefined;
 		}
 
-		// Add all open TS buffers to the geterr request. They might be visible
-		for (const buffer of this.syncedBuffers.values) {
-			orderedFileSet.set(buffer.resource, undefined);
+		// Add aww open TS buffews to the geteww wequest. They might be visibwe
+		fow (const buffa of this.syncedBuffews.vawues) {
+			owdewedFiweSet.set(buffa.wesouwce, undefined);
 		}
 
-		if (orderedFileSet.size) {
-			const getErr = this.pendingGetErr = GetErrRequest.executeGetErrRequest(this.client, orderedFileSet, () => {
-				if (this.pendingGetErr === getErr) {
-					this.pendingGetErr = undefined;
+		if (owdewedFiweSet.size) {
+			const getEww = this.pendingGetEww = GetEwwWequest.executeGetEwwWequest(this.cwient, owdewedFiweSet, () => {
+				if (this.pendingGetEww === getEww) {
+					this.pendingGetEww = undefined;
 				}
 			});
 		}
 
-		this.pendingDiagnostics.clear();
+		this.pendingDiagnostics.cweaw();
 	}
 
-	private updateConfiguration() {
-		const jsConfig = vscode.workspace.getConfiguration('javascript', null);
-		const tsConfig = vscode.workspace.getConfiguration('typescript', null);
+	pwivate updateConfiguwation() {
+		const jsConfig = vscode.wowkspace.getConfiguwation('javascwipt', nuww);
+		const tsConfig = vscode.wowkspace.getConfiguwation('typescwipt', nuww);
 
-		this._validateJavaScript = jsConfig.get<boolean>('validate.enable', true);
-		this._validateTypeScript = tsConfig.get<boolean>('validate.enable', true);
+		this._vawidateJavaScwipt = jsConfig.get<boowean>('vawidate.enabwe', twue);
+		this._vawidateTypeScwipt = tsConfig.get<boowean>('vawidate.enabwe', twue);
 	}
 
-	private shouldValidate(buffer: SyncedBuffer) {
-		switch (buffer.kind) {
-			case BufferKind.JavaScript:
-				return this._validateJavaScript;
+	pwivate shouwdVawidate(buffa: SyncedBuffa) {
+		switch (buffa.kind) {
+			case BuffewKind.JavaScwipt:
+				wetuwn this._vawidateJavaScwipt;
 
-			case BufferKind.TypeScript:
-			default:
-				return this._validateTypeScript;
+			case BuffewKind.TypeScwipt:
+			defauwt:
+				wetuwn this._vawidateTypeScwipt;
 		}
 	}
 }

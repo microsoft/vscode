@@ -1,1295 +1,1295 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { CoreEditingCommands, CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference, EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { IState, ITokenizationSupport, LanguageIdentifier, TokenizationRegistry } from 'vs/editor/common/modes';
-import { IndentAction, IndentationRule } from 'vs/editor/common/modes/languageConfiguration';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
-import { withTestCodeEditor, TestCodeEditorCreationOptions, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { IRelaxedTextModelCreationOptions, createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
-import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
-import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
-import { OutgoingViewModelEventKind } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
+impowt * as assewt fwom 'assewt';
+impowt { CoweEditingCommands, CoweNavigationCommands } fwom 'vs/editow/bwowsa/contwowwa/coweCommands';
+impowt { IEditowOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { EditOpewation } fwom 'vs/editow/common/cowe/editOpewation';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { TokenizationWesuwt2 } fwom 'vs/editow/common/cowe/token';
+impowt { ICommand, ICuwsowStateComputewData, IEditOpewationBuiwda } fwom 'vs/editow/common/editowCommon';
+impowt { EndOfWinePwefewence, EndOfWineSequence, ITextModew } fwom 'vs/editow/common/modew';
+impowt { TextModew } fwom 'vs/editow/common/modew/textModew';
+impowt { IState, ITokenizationSuppowt, WanguageIdentifia, TokenizationWegistwy } fwom 'vs/editow/common/modes';
+impowt { IndentAction, IndentationWuwe } fwom 'vs/editow/common/modes/wanguageConfiguwation';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
+impowt { NUWW_STATE } fwom 'vs/editow/common/modes/nuwwMode';
+impowt { withTestCodeEditow, TestCodeEditowCweationOptions, ITestCodeEditow } fwom 'vs/editow/test/bwowsa/testCodeEditow';
+impowt { IWewaxedTextModewCweationOptions, cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
+impowt { MockMode } fwom 'vs/editow/test/common/mocks/mockMode';
+impowt { javascwiptOnEntewWuwes } fwom 'vs/editow/test/common/modes/suppowts/javascwiptOnEntewWuwes';
+impowt { ViewModew } fwom 'vs/editow/common/viewModew/viewModewImpw';
+impowt { OutgoingViewModewEventKind } fwom 'vs/editow/common/viewModew/viewModewEventDispatcha';
 
-// --------- utils
+// --------- utiws
 
-function moveTo(editor: ITestCodeEditor, viewModel: ViewModel, lineNumber: number, column: number, inSelectionMode: boolean = false) {
-	if (inSelectionMode) {
-		CoreNavigationCommands.MoveToSelect.runCoreEditorCommand(viewModel, {
-			position: new Position(lineNumber, column)
+function moveTo(editow: ITestCodeEditow, viewModew: ViewModew, wineNumba: numba, cowumn: numba, inSewectionMode: boowean = fawse) {
+	if (inSewectionMode) {
+		CoweNavigationCommands.MoveToSewect.wunCoweEditowCommand(viewModew, {
+			position: new Position(wineNumba, cowumn)
 		});
-	} else {
-		CoreNavigationCommands.MoveTo.runCoreEditorCommand(viewModel, {
-			position: new Position(lineNumber, column)
+	} ewse {
+		CoweNavigationCommands.MoveTo.wunCoweEditowCommand(viewModew, {
+			position: new Position(wineNumba, cowumn)
 		});
 	}
 }
 
-function moveLeft(editor: ITestCodeEditor, viewModel: ViewModel, inSelectionMode: boolean = false) {
-	if (inSelectionMode) {
-		CoreNavigationCommands.CursorLeftSelect.runCoreEditorCommand(viewModel, {});
-	} else {
-		CoreNavigationCommands.CursorLeft.runCoreEditorCommand(viewModel, {});
+function moveWeft(editow: ITestCodeEditow, viewModew: ViewModew, inSewectionMode: boowean = fawse) {
+	if (inSewectionMode) {
+		CoweNavigationCommands.CuwsowWeftSewect.wunCoweEditowCommand(viewModew, {});
+	} ewse {
+		CoweNavigationCommands.CuwsowWeft.wunCoweEditowCommand(viewModew, {});
 	}
 }
 
-function moveRight(editor: ITestCodeEditor, viewModel: ViewModel, inSelectionMode: boolean = false) {
-	if (inSelectionMode) {
-		CoreNavigationCommands.CursorRightSelect.runCoreEditorCommand(viewModel, {});
-	} else {
-		CoreNavigationCommands.CursorRight.runCoreEditorCommand(viewModel, {});
+function moveWight(editow: ITestCodeEditow, viewModew: ViewModew, inSewectionMode: boowean = fawse) {
+	if (inSewectionMode) {
+		CoweNavigationCommands.CuwsowWightSewect.wunCoweEditowCommand(viewModew, {});
+	} ewse {
+		CoweNavigationCommands.CuwsowWight.wunCoweEditowCommand(viewModew, {});
 	}
 }
 
-function moveDown(editor: ITestCodeEditor, viewModel: ViewModel, inSelectionMode: boolean = false) {
-	if (inSelectionMode) {
-		CoreNavigationCommands.CursorDownSelect.runCoreEditorCommand(viewModel, {});
-	} else {
-		CoreNavigationCommands.CursorDown.runCoreEditorCommand(viewModel, {});
+function moveDown(editow: ITestCodeEditow, viewModew: ViewModew, inSewectionMode: boowean = fawse) {
+	if (inSewectionMode) {
+		CoweNavigationCommands.CuwsowDownSewect.wunCoweEditowCommand(viewModew, {});
+	} ewse {
+		CoweNavigationCommands.CuwsowDown.wunCoweEditowCommand(viewModew, {});
 	}
 }
 
-function moveUp(editor: ITestCodeEditor, viewModel: ViewModel, inSelectionMode: boolean = false) {
-	if (inSelectionMode) {
-		CoreNavigationCommands.CursorUpSelect.runCoreEditorCommand(viewModel, {});
-	} else {
-		CoreNavigationCommands.CursorUp.runCoreEditorCommand(viewModel, {});
+function moveUp(editow: ITestCodeEditow, viewModew: ViewModew, inSewectionMode: boowean = fawse) {
+	if (inSewectionMode) {
+		CoweNavigationCommands.CuwsowUpSewect.wunCoweEditowCommand(viewModew, {});
+	} ewse {
+		CoweNavigationCommands.CuwsowUp.wunCoweEditowCommand(viewModew, {});
 	}
 }
 
-function moveToBeginningOfLine(editor: ITestCodeEditor, viewModel: ViewModel, inSelectionMode: boolean = false) {
-	if (inSelectionMode) {
-		CoreNavigationCommands.CursorHomeSelect.runCoreEditorCommand(viewModel, {});
-	} else {
-		CoreNavigationCommands.CursorHome.runCoreEditorCommand(viewModel, {});
+function moveToBeginningOfWine(editow: ITestCodeEditow, viewModew: ViewModew, inSewectionMode: boowean = fawse) {
+	if (inSewectionMode) {
+		CoweNavigationCommands.CuwsowHomeSewect.wunCoweEditowCommand(viewModew, {});
+	} ewse {
+		CoweNavigationCommands.CuwsowHome.wunCoweEditowCommand(viewModew, {});
 	}
 }
 
-function moveToEndOfLine(editor: ITestCodeEditor, viewModel: ViewModel, inSelectionMode: boolean = false) {
-	if (inSelectionMode) {
-		CoreNavigationCommands.CursorEndSelect.runCoreEditorCommand(viewModel, {});
-	} else {
-		CoreNavigationCommands.CursorEnd.runCoreEditorCommand(viewModel, {});
+function moveToEndOfWine(editow: ITestCodeEditow, viewModew: ViewModew, inSewectionMode: boowean = fawse) {
+	if (inSewectionMode) {
+		CoweNavigationCommands.CuwsowEndSewect.wunCoweEditowCommand(viewModew, {});
+	} ewse {
+		CoweNavigationCommands.CuwsowEnd.wunCoweEditowCommand(viewModew, {});
 	}
 }
 
-function moveToBeginningOfBuffer(editor: ITestCodeEditor, viewModel: ViewModel, inSelectionMode: boolean = false) {
-	if (inSelectionMode) {
-		CoreNavigationCommands.CursorTopSelect.runCoreEditorCommand(viewModel, {});
-	} else {
-		CoreNavigationCommands.CursorTop.runCoreEditorCommand(viewModel, {});
+function moveToBeginningOfBuffa(editow: ITestCodeEditow, viewModew: ViewModew, inSewectionMode: boowean = fawse) {
+	if (inSewectionMode) {
+		CoweNavigationCommands.CuwsowTopSewect.wunCoweEditowCommand(viewModew, {});
+	} ewse {
+		CoweNavigationCommands.CuwsowTop.wunCoweEditowCommand(viewModew, {});
 	}
 }
 
-function moveToEndOfBuffer(editor: ITestCodeEditor, viewModel: ViewModel, inSelectionMode: boolean = false) {
-	if (inSelectionMode) {
-		CoreNavigationCommands.CursorBottomSelect.runCoreEditorCommand(viewModel, {});
-	} else {
-		CoreNavigationCommands.CursorBottom.runCoreEditorCommand(viewModel, {});
+function moveToEndOfBuffa(editow: ITestCodeEditow, viewModew: ViewModew, inSewectionMode: boowean = fawse) {
+	if (inSewectionMode) {
+		CoweNavigationCommands.CuwsowBottomSewect.wunCoweEditowCommand(viewModew, {});
+	} ewse {
+		CoweNavigationCommands.CuwsowBottom.wunCoweEditowCommand(viewModew, {});
 	}
 }
 
-function assertCursor(viewModel: ViewModel, what: Position | Selection | Selection[]): void {
-	let selections: Selection[];
+function assewtCuwsow(viewModew: ViewModew, what: Position | Sewection | Sewection[]): void {
+	wet sewections: Sewection[];
 	if (what instanceof Position) {
-		selections = [new Selection(what.lineNumber, what.column, what.lineNumber, what.column)];
-	} else if (what instanceof Selection) {
-		selections = [what];
-	} else {
-		selections = what;
+		sewections = [new Sewection(what.wineNumba, what.cowumn, what.wineNumba, what.cowumn)];
+	} ewse if (what instanceof Sewection) {
+		sewections = [what];
+	} ewse {
+		sewections = what;
 	}
-	let actual = viewModel.getSelections().map(s => s.toString());
-	let expected = selections.map(s => s.toString());
+	wet actuaw = viewModew.getSewections().map(s => s.toStwing());
+	wet expected = sewections.map(s => s.toStwing());
 
-	assert.deepStrictEqual(actual, expected);
+	assewt.deepStwictEquaw(actuaw, expected);
 }
 
-suite('Editor Controller - Cursor', () => {
-	const LINE1 = '    \tMy First Line\t ';
-	const LINE2 = '\tMy Second Line';
-	const LINE3 = '    Third Line🐶';
-	const LINE4 = '';
-	const LINE5 = '1';
+suite('Editow Contwowwa - Cuwsow', () => {
+	const WINE1 = '    \tMy Fiwst Wine\t ';
+	const WINE2 = '\tMy Second Wine';
+	const WINE3 = '    Thiwd Wine🐶';
+	const WINE4 = '';
+	const WINE5 = '1';
 
 	const TEXT =
-		LINE1 + '\r\n' +
-		LINE2 + '\n' +
-		LINE3 + '\n' +
-		LINE4 + '\r\n' +
-		LINE5;
+		WINE1 + '\w\n' +
+		WINE2 + '\n' +
+		WINE3 + '\n' +
+		WINE4 + '\w\n' +
+		WINE5;
 
-	// let thisModel: TextModel;
-	// let thisConfiguration: TestConfiguration;
-	// let thisViewModel: ViewModel;
-	// let cursor: Cursor;
+	// wet thisModew: TextModew;
+	// wet thisConfiguwation: TestConfiguwation;
+	// wet thisViewModew: ViewModew;
+	// wet cuwsow: Cuwsow;
 
 	// setup(() => {
-	// 	let text =
-	// 		LINE1 + '\r\n' +
-	// 		LINE2 + '\n' +
-	// 		LINE3 + '\n' +
-	// 		LINE4 + '\r\n' +
-	// 		LINE5;
+	// 	wet text =
+	// 		WINE1 + '\w\n' +
+	// 		WINE2 + '\n' +
+	// 		WINE3 + '\n' +
+	// 		WINE4 + '\w\n' +
+	// 		WINE5;
 
-	// 	thisModel = createTextModel(text);
-	// 	thisConfiguration = new TestConfiguration({});
-	// 	thisViewModel = createViewModel(thisConfiguration, thisModel);
+	// 	thisModew = cweateTextModew(text);
+	// 	thisConfiguwation = new TestConfiguwation({});
+	// 	thisViewModew = cweateViewModew(thisConfiguwation, thisModew);
 
-	// 	cursor = new Cursor(thisConfiguration, thisModel, thisViewModel);
+	// 	cuwsow = new Cuwsow(thisConfiguwation, thisModew, thisViewModew);
 	// });
 
-	// teardown(() => {
-	// 	cursor.dispose();
-	// 	thisViewModel.dispose();
-	// 	thisModel.dispose();
-	// 	thisConfiguration.dispose();
+	// teawdown(() => {
+	// 	cuwsow.dispose();
+	// 	thisViewModew.dispose();
+	// 	thisModew.dispose();
+	// 	thisConfiguwation.dispose();
 	// });
 
-	function runTest(callback: (editor: ITestCodeEditor, viewModel: ViewModel) => void): void {
-		withTestCodeEditor(TEXT, {}, (editor, viewModel) => {
-			callback(editor, viewModel);
+	function wunTest(cawwback: (editow: ITestCodeEditow, viewModew: ViewModew) => void): void {
+		withTestCodeEditow(TEXT, {}, (editow, viewModew) => {
+			cawwback(editow, viewModew);
 		});
 	}
 
-	test('cursor initialized', () => {
-		runTest((editor, viewModel) => {
-			assertCursor(viewModel, new Position(1, 1));
+	test('cuwsow initiawized', () => {
+		wunTest((editow, viewModew) => {
+			assewtCuwsow(viewModew, new Position(1, 1));
 		});
 	});
 
-	// --------- absolute move
+	// --------- absowute move
 
 	test('no move', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 1);
-			assertCursor(viewModel, new Position(1, 1));
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 1, 1);
+			assewtCuwsow(viewModew, new Position(1, 1));
 		});
 	});
 
 	test('move', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 2);
-			assertCursor(viewModel, new Position(1, 2));
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 1, 2);
+			assewtCuwsow(viewModew, new Position(1, 2));
 		});
 	});
 
-	test('move in selection mode', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 2, true);
-			assertCursor(viewModel, new Selection(1, 1, 1, 2));
+	test('move in sewection mode', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 1, 2, twue);
+			assewtCuwsow(viewModew, new Sewection(1, 1, 1, 2));
 		});
 	});
 
-	test('move beyond line end', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 25);
-			assertCursor(viewModel, new Position(1, LINE1.length + 1));
+	test('move beyond wine end', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 1, 25);
+			assewtCuwsow(viewModew, new Position(1, WINE1.wength + 1));
 		});
 	});
 
-	test('move empty line', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 4, 20);
-			assertCursor(viewModel, new Position(4, 1));
+	test('move empty wine', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 4, 20);
+			assewtCuwsow(viewModew, new Position(4, 1));
 		});
 	});
 
-	test('move one char line', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 5, 20);
-			assertCursor(viewModel, new Position(5, 2));
+	test('move one chaw wine', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 5, 20);
+			assewtCuwsow(viewModew, new Position(5, 2));
 		});
 	});
 
-	test('selection down', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 2, 1, true);
-			assertCursor(viewModel, new Selection(1, 1, 2, 1));
+	test('sewection down', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 2, 1, twue);
+			assewtCuwsow(viewModew, new Sewection(1, 1, 2, 1));
 		});
 	});
 
-	test('move and then select', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 2, 3);
-			assertCursor(viewModel, new Position(2, 3));
+	test('move and then sewect', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 2, 3);
+			assewtCuwsow(viewModew, new Position(2, 3));
 
-			moveTo(editor, viewModel, 2, 15, true);
-			assertCursor(viewModel, new Selection(2, 3, 2, 15));
+			moveTo(editow, viewModew, 2, 15, twue);
+			assewtCuwsow(viewModew, new Sewection(2, 3, 2, 15));
 
-			moveTo(editor, viewModel, 1, 2, true);
-			assertCursor(viewModel, new Selection(2, 3, 1, 2));
+			moveTo(editow, viewModew, 1, 2, twue);
+			assewtCuwsow(viewModew, new Sewection(2, 3, 1, 2));
 		});
 	});
 
-	// --------- move left
+	// --------- move weft
 
-	test('move left on top left position', () => {
-		runTest((editor, viewModel) => {
-			moveLeft(editor, viewModel);
-			assertCursor(viewModel, new Position(1, 1));
+	test('move weft on top weft position', () => {
+		wunTest((editow, viewModew) => {
+			moveWeft(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(1, 1));
 		});
 	});
 
-	test('move left', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 3);
-			assertCursor(viewModel, new Position(1, 3));
-			moveLeft(editor, viewModel);
-			assertCursor(viewModel, new Position(1, 2));
+	test('move weft', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 1, 3);
+			assewtCuwsow(viewModew, new Position(1, 3));
+			moveWeft(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(1, 2));
 		});
 	});
 
-	test('move left with surrogate pair', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 3, 17);
-			assertCursor(viewModel, new Position(3, 17));
-			moveLeft(editor, viewModel);
-			assertCursor(viewModel, new Position(3, 15));
+	test('move weft with suwwogate paiw', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 3, 17);
+			assewtCuwsow(viewModew, new Position(3, 17));
+			moveWeft(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(3, 15));
 		});
 	});
 
-	test('move left goes to previous row', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 2, 1);
-			assertCursor(viewModel, new Position(2, 1));
-			moveLeft(editor, viewModel);
-			assertCursor(viewModel, new Position(1, 21));
+	test('move weft goes to pwevious wow', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 2, 1);
+			assewtCuwsow(viewModew, new Position(2, 1));
+			moveWeft(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(1, 21));
 		});
 	});
 
-	test('move left selection', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 2, 1);
-			assertCursor(viewModel, new Position(2, 1));
-			moveLeft(editor, viewModel, true);
-			assertCursor(viewModel, new Selection(2, 1, 1, 21));
+	test('move weft sewection', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 2, 1);
+			assewtCuwsow(viewModew, new Position(2, 1));
+			moveWeft(editow, viewModew, twue);
+			assewtCuwsow(viewModew, new Sewection(2, 1, 1, 21));
 		});
 	});
 
-	// --------- move right
+	// --------- move wight
 
-	test('move right on bottom right position', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 5, 2);
-			assertCursor(viewModel, new Position(5, 2));
-			moveRight(editor, viewModel);
-			assertCursor(viewModel, new Position(5, 2));
+	test('move wight on bottom wight position', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 5, 2);
+			assewtCuwsow(viewModew, new Position(5, 2));
+			moveWight(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(5, 2));
 		});
 	});
 
-	test('move right', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 3);
-			assertCursor(viewModel, new Position(1, 3));
-			moveRight(editor, viewModel);
-			assertCursor(viewModel, new Position(1, 4));
+	test('move wight', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 1, 3);
+			assewtCuwsow(viewModew, new Position(1, 3));
+			moveWight(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(1, 4));
 		});
 	});
 
-	test('move right with surrogate pair', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 3, 15);
-			assertCursor(viewModel, new Position(3, 15));
-			moveRight(editor, viewModel);
-			assertCursor(viewModel, new Position(3, 17));
+	test('move wight with suwwogate paiw', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 3, 15);
+			assewtCuwsow(viewModew, new Position(3, 15));
+			moveWight(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(3, 17));
 		});
 	});
 
-	test('move right goes to next row', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 21);
-			assertCursor(viewModel, new Position(1, 21));
-			moveRight(editor, viewModel);
-			assertCursor(viewModel, new Position(2, 1));
+	test('move wight goes to next wow', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 1, 21);
+			assewtCuwsow(viewModew, new Position(1, 21));
+			moveWight(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(2, 1));
 		});
 	});
 
-	test('move right selection', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 21);
-			assertCursor(viewModel, new Position(1, 21));
-			moveRight(editor, viewModel, true);
-			assertCursor(viewModel, new Selection(1, 21, 2, 1));
+	test('move wight sewection', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 1, 21);
+			assewtCuwsow(viewModew, new Position(1, 21));
+			moveWight(editow, viewModew, twue);
+			assewtCuwsow(viewModew, new Sewection(1, 21, 2, 1));
 		});
 	});
 
 	// --------- move down
 
 	test('move down', () => {
-		runTest((editor, viewModel) => {
-			moveDown(editor, viewModel);
-			assertCursor(viewModel, new Position(2, 1));
-			moveDown(editor, viewModel);
-			assertCursor(viewModel, new Position(3, 1));
-			moveDown(editor, viewModel);
-			assertCursor(viewModel, new Position(4, 1));
-			moveDown(editor, viewModel);
-			assertCursor(viewModel, new Position(5, 1));
-			moveDown(editor, viewModel);
-			assertCursor(viewModel, new Position(5, 2));
+		wunTest((editow, viewModew) => {
+			moveDown(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(2, 1));
+			moveDown(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(3, 1));
+			moveDown(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(4, 1));
+			moveDown(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(5, 1));
+			moveDown(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(5, 2));
 		});
 	});
 
-	test('move down with selection', () => {
-		runTest((editor, viewModel) => {
-			moveDown(editor, viewModel, true);
-			assertCursor(viewModel, new Selection(1, 1, 2, 1));
-			moveDown(editor, viewModel, true);
-			assertCursor(viewModel, new Selection(1, 1, 3, 1));
-			moveDown(editor, viewModel, true);
-			assertCursor(viewModel, new Selection(1, 1, 4, 1));
-			moveDown(editor, viewModel, true);
-			assertCursor(viewModel, new Selection(1, 1, 5, 1));
-			moveDown(editor, viewModel, true);
-			assertCursor(viewModel, new Selection(1, 1, 5, 2));
+	test('move down with sewection', () => {
+		wunTest((editow, viewModew) => {
+			moveDown(editow, viewModew, twue);
+			assewtCuwsow(viewModew, new Sewection(1, 1, 2, 1));
+			moveDown(editow, viewModew, twue);
+			assewtCuwsow(viewModew, new Sewection(1, 1, 3, 1));
+			moveDown(editow, viewModew, twue);
+			assewtCuwsow(viewModew, new Sewection(1, 1, 4, 1));
+			moveDown(editow, viewModew, twue);
+			assewtCuwsow(viewModew, new Sewection(1, 1, 5, 1));
+			moveDown(editow, viewModew, twue);
+			assewtCuwsow(viewModew, new Sewection(1, 1, 5, 2));
 		});
 	});
 
 	test('move down with tabs', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 5);
-			assertCursor(viewModel, new Position(1, 5));
-			moveDown(editor, viewModel);
-			assertCursor(viewModel, new Position(2, 2));
-			moveDown(editor, viewModel);
-			assertCursor(viewModel, new Position(3, 5));
-			moveDown(editor, viewModel);
-			assertCursor(viewModel, new Position(4, 1));
-			moveDown(editor, viewModel);
-			assertCursor(viewModel, new Position(5, 2));
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 1, 5);
+			assewtCuwsow(viewModew, new Position(1, 5));
+			moveDown(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(2, 2));
+			moveDown(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(3, 5));
+			moveDown(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(4, 1));
+			moveDown(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(5, 2));
 		});
 	});
 
 	// --------- move up
 
 	test('move up', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 3, 5);
-			assertCursor(viewModel, new Position(3, 5));
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 3, 5);
+			assewtCuwsow(viewModew, new Position(3, 5));
 
-			moveUp(editor, viewModel);
-			assertCursor(viewModel, new Position(2, 2));
+			moveUp(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(2, 2));
 
-			moveUp(editor, viewModel);
-			assertCursor(viewModel, new Position(1, 5));
+			moveUp(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(1, 5));
 		});
 	});
 
-	test('move up with selection', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 3, 5);
-			assertCursor(viewModel, new Position(3, 5));
+	test('move up with sewection', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 3, 5);
+			assewtCuwsow(viewModew, new Position(3, 5));
 
-			moveUp(editor, viewModel, true);
-			assertCursor(viewModel, new Selection(3, 5, 2, 2));
+			moveUp(editow, viewModew, twue);
+			assewtCuwsow(viewModew, new Sewection(3, 5, 2, 2));
 
-			moveUp(editor, viewModel, true);
-			assertCursor(viewModel, new Selection(3, 5, 1, 5));
+			moveUp(editow, viewModew, twue);
+			assewtCuwsow(viewModew, new Sewection(3, 5, 1, 5));
 		});
 	});
 
 	test('move up and down with tabs', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 5);
-			assertCursor(viewModel, new Position(1, 5));
-			moveDown(editor, viewModel);
-			moveDown(editor, viewModel);
-			moveDown(editor, viewModel);
-			moveDown(editor, viewModel);
-			assertCursor(viewModel, new Position(5, 2));
-			moveUp(editor, viewModel);
-			assertCursor(viewModel, new Position(4, 1));
-			moveUp(editor, viewModel);
-			assertCursor(viewModel, new Position(3, 5));
-			moveUp(editor, viewModel);
-			assertCursor(viewModel, new Position(2, 2));
-			moveUp(editor, viewModel);
-			assertCursor(viewModel, new Position(1, 5));
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 1, 5);
+			assewtCuwsow(viewModew, new Position(1, 5));
+			moveDown(editow, viewModew);
+			moveDown(editow, viewModew);
+			moveDown(editow, viewModew);
+			moveDown(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(5, 2));
+			moveUp(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(4, 1));
+			moveUp(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(3, 5));
+			moveUp(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(2, 2));
+			moveUp(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(1, 5));
 		});
 	});
 
-	test('move up and down with end of lines starting from a long one', () => {
-		runTest((editor, viewModel) => {
-			moveToEndOfLine(editor, viewModel);
-			assertCursor(viewModel, new Position(1, LINE1.length + 1));
-			moveToEndOfLine(editor, viewModel);
-			assertCursor(viewModel, new Position(1, LINE1.length + 1));
-			moveDown(editor, viewModel);
-			assertCursor(viewModel, new Position(2, LINE2.length + 1));
-			moveDown(editor, viewModel);
-			assertCursor(viewModel, new Position(3, LINE3.length + 1));
-			moveDown(editor, viewModel);
-			assertCursor(viewModel, new Position(4, LINE4.length + 1));
-			moveDown(editor, viewModel);
-			assertCursor(viewModel, new Position(5, LINE5.length + 1));
-			moveUp(editor, viewModel);
-			moveUp(editor, viewModel);
-			moveUp(editor, viewModel);
-			moveUp(editor, viewModel);
-			assertCursor(viewModel, new Position(1, LINE1.length + 1));
+	test('move up and down with end of wines stawting fwom a wong one', () => {
+		wunTest((editow, viewModew) => {
+			moveToEndOfWine(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(1, WINE1.wength + 1));
+			moveToEndOfWine(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(1, WINE1.wength + 1));
+			moveDown(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(2, WINE2.wength + 1));
+			moveDown(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(3, WINE3.wength + 1));
+			moveDown(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(4, WINE4.wength + 1));
+			moveDown(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(5, WINE5.wength + 1));
+			moveUp(editow, viewModew);
+			moveUp(editow, viewModew);
+			moveUp(editow, viewModew);
+			moveUp(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(1, WINE1.wength + 1));
 		});
 	});
 
-	test('issue #44465: cursor position not correct when move', () => {
-		runTest((editor, viewModel) => {
-			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
-			// going once up on the first line remembers the offset visual columns
-			moveUp(editor, viewModel);
-			assertCursor(viewModel, new Position(1, 1));
-			moveDown(editor, viewModel);
-			assertCursor(viewModel, new Position(2, 2));
-			moveUp(editor, viewModel);
-			assertCursor(viewModel, new Position(1, 5));
+	test('issue #44465: cuwsow position not cowwect when move', () => {
+		wunTest((editow, viewModew) => {
+			viewModew.setSewections('test', [new Sewection(1, 5, 1, 5)]);
+			// going once up on the fiwst wine wemembews the offset visuaw cowumns
+			moveUp(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(1, 1));
+			moveDown(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(2, 2));
+			moveUp(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(1, 5));
 
-			// going twice up on the first line discards the offset visual columns
-			moveUp(editor, viewModel);
-			assertCursor(viewModel, new Position(1, 1));
-			moveUp(editor, viewModel);
-			assertCursor(viewModel, new Position(1, 1));
-			moveDown(editor, viewModel);
-			assertCursor(viewModel, new Position(2, 1));
+			// going twice up on the fiwst wine discawds the offset visuaw cowumns
+			moveUp(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(1, 1));
+			moveUp(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(1, 1));
+			moveDown(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(2, 1));
 		});
 	});
 
-	// --------- move to beginning of line
+	// --------- move to beginning of wine
 
-	test('move to beginning of line', () => {
-		runTest((editor, viewModel) => {
-			moveToBeginningOfLine(editor, viewModel);
-			assertCursor(viewModel, new Position(1, 6));
-			moveToBeginningOfLine(editor, viewModel);
-			assertCursor(viewModel, new Position(1, 1));
+	test('move to beginning of wine', () => {
+		wunTest((editow, viewModew) => {
+			moveToBeginningOfWine(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(1, 6));
+			moveToBeginningOfWine(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(1, 1));
 		});
 	});
 
-	test('move to beginning of line from within line', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 8);
-			moveToBeginningOfLine(editor, viewModel);
-			assertCursor(viewModel, new Position(1, 6));
-			moveToBeginningOfLine(editor, viewModel);
-			assertCursor(viewModel, new Position(1, 1));
+	test('move to beginning of wine fwom within wine', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 1, 8);
+			moveToBeginningOfWine(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(1, 6));
+			moveToBeginningOfWine(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(1, 1));
 		});
 	});
 
-	test('move to beginning of line from whitespace at beginning of line', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 2);
-			moveToBeginningOfLine(editor, viewModel);
-			assertCursor(viewModel, new Position(1, 6));
-			moveToBeginningOfLine(editor, viewModel);
-			assertCursor(viewModel, new Position(1, 1));
+	test('move to beginning of wine fwom whitespace at beginning of wine', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 1, 2);
+			moveToBeginningOfWine(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(1, 6));
+			moveToBeginningOfWine(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(1, 1));
 		});
 	});
 
-	test('move to beginning of line from within line selection', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 8);
-			moveToBeginningOfLine(editor, viewModel, true);
-			assertCursor(viewModel, new Selection(1, 8, 1, 6));
-			moveToBeginningOfLine(editor, viewModel, true);
-			assertCursor(viewModel, new Selection(1, 8, 1, 1));
+	test('move to beginning of wine fwom within wine sewection', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 1, 8);
+			moveToBeginningOfWine(editow, viewModew, twue);
+			assewtCuwsow(viewModew, new Sewection(1, 8, 1, 6));
+			moveToBeginningOfWine(editow, viewModew, twue);
+			assewtCuwsow(viewModew, new Sewection(1, 8, 1, 1));
 		});
 	});
 
-	test('move to beginning of line with selection multiline forward', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 8);
-			moveTo(editor, viewModel, 3, 9, true);
-			moveToBeginningOfLine(editor, viewModel, false);
-			assertCursor(viewModel, new Selection(3, 5, 3, 5));
+	test('move to beginning of wine with sewection muwtiwine fowwawd', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 1, 8);
+			moveTo(editow, viewModew, 3, 9, twue);
+			moveToBeginningOfWine(editow, viewModew, fawse);
+			assewtCuwsow(viewModew, new Sewection(3, 5, 3, 5));
 		});
 	});
 
-	test('move to beginning of line with selection multiline backward', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 3, 9);
-			moveTo(editor, viewModel, 1, 8, true);
-			moveToBeginningOfLine(editor, viewModel, false);
-			assertCursor(viewModel, new Selection(1, 6, 1, 6));
+	test('move to beginning of wine with sewection muwtiwine backwawd', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 3, 9);
+			moveTo(editow, viewModew, 1, 8, twue);
+			moveToBeginningOfWine(editow, viewModew, fawse);
+			assewtCuwsow(viewModew, new Sewection(1, 6, 1, 6));
 		});
 	});
 
-	test('move to beginning of line with selection single line forward', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 3, 2);
-			moveTo(editor, viewModel, 3, 9, true);
-			moveToBeginningOfLine(editor, viewModel, false);
-			assertCursor(viewModel, new Selection(3, 5, 3, 5));
+	test('move to beginning of wine with sewection singwe wine fowwawd', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 3, 2);
+			moveTo(editow, viewModew, 3, 9, twue);
+			moveToBeginningOfWine(editow, viewModew, fawse);
+			assewtCuwsow(viewModew, new Sewection(3, 5, 3, 5));
 		});
 	});
 
-	test('move to beginning of line with selection single line backward', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 3, 9);
-			moveTo(editor, viewModel, 3, 2, true);
-			moveToBeginningOfLine(editor, viewModel, false);
-			assertCursor(viewModel, new Selection(3, 5, 3, 5));
+	test('move to beginning of wine with sewection singwe wine backwawd', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 3, 9);
+			moveTo(editow, viewModew, 3, 2, twue);
+			moveToBeginningOfWine(editow, viewModew, fawse);
+			assewtCuwsow(viewModew, new Sewection(3, 5, 3, 5));
 		});
 	});
 
-	test('issue #15401: "End" key is behaving weird when text is selected part 1', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 8);
-			moveTo(editor, viewModel, 3, 9, true);
-			moveToBeginningOfLine(editor, viewModel, false);
-			assertCursor(viewModel, new Selection(3, 5, 3, 5));
+	test('issue #15401: "End" key is behaving weiwd when text is sewected pawt 1', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 1, 8);
+			moveTo(editow, viewModew, 3, 9, twue);
+			moveToBeginningOfWine(editow, viewModew, fawse);
+			assewtCuwsow(viewModew, new Sewection(3, 5, 3, 5));
 		});
 	});
 
-	test('issue #17011: Shift+home/end now go to the end of the selection start\'s line, not the selection\'s end', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 8);
-			moveTo(editor, viewModel, 3, 9, true);
-			moveToBeginningOfLine(editor, viewModel, true);
-			assertCursor(viewModel, new Selection(1, 8, 3, 5));
+	test('issue #17011: Shift+home/end now go to the end of the sewection stawt\'s wine, not the sewection\'s end', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 1, 8);
+			moveTo(editow, viewModew, 3, 9, twue);
+			moveToBeginningOfWine(editow, viewModew, twue);
+			assewtCuwsow(viewModew, new Sewection(1, 8, 3, 5));
 		});
 	});
 
-	// --------- move to end of line
+	// --------- move to end of wine
 
-	test('move to end of line', () => {
-		runTest((editor, viewModel) => {
-			moveToEndOfLine(editor, viewModel);
-			assertCursor(viewModel, new Position(1, LINE1.length + 1));
-			moveToEndOfLine(editor, viewModel);
-			assertCursor(viewModel, new Position(1, LINE1.length + 1));
+	test('move to end of wine', () => {
+		wunTest((editow, viewModew) => {
+			moveToEndOfWine(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(1, WINE1.wength + 1));
+			moveToEndOfWine(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(1, WINE1.wength + 1));
 		});
 	});
 
-	test('move to end of line from within line', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 6);
-			moveToEndOfLine(editor, viewModel);
-			assertCursor(viewModel, new Position(1, LINE1.length + 1));
-			moveToEndOfLine(editor, viewModel);
-			assertCursor(viewModel, new Position(1, LINE1.length + 1));
+	test('move to end of wine fwom within wine', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 1, 6);
+			moveToEndOfWine(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(1, WINE1.wength + 1));
+			moveToEndOfWine(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(1, WINE1.wength + 1));
 		});
 	});
 
-	test('move to end of line from whitespace at end of line', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 20);
-			moveToEndOfLine(editor, viewModel);
-			assertCursor(viewModel, new Position(1, LINE1.length + 1));
-			moveToEndOfLine(editor, viewModel);
-			assertCursor(viewModel, new Position(1, LINE1.length + 1));
+	test('move to end of wine fwom whitespace at end of wine', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 1, 20);
+			moveToEndOfWine(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(1, WINE1.wength + 1));
+			moveToEndOfWine(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(1, WINE1.wength + 1));
 		});
 	});
 
-	test('move to end of line from within line selection', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 6);
-			moveToEndOfLine(editor, viewModel, true);
-			assertCursor(viewModel, new Selection(1, 6, 1, LINE1.length + 1));
-			moveToEndOfLine(editor, viewModel, true);
-			assertCursor(viewModel, new Selection(1, 6, 1, LINE1.length + 1));
+	test('move to end of wine fwom within wine sewection', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 1, 6);
+			moveToEndOfWine(editow, viewModew, twue);
+			assewtCuwsow(viewModew, new Sewection(1, 6, 1, WINE1.wength + 1));
+			moveToEndOfWine(editow, viewModew, twue);
+			assewtCuwsow(viewModew, new Sewection(1, 6, 1, WINE1.wength + 1));
 		});
 	});
 
-	test('move to end of line with selection multiline forward', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 1);
-			moveTo(editor, viewModel, 3, 9, true);
-			moveToEndOfLine(editor, viewModel, false);
-			assertCursor(viewModel, new Selection(3, 17, 3, 17));
+	test('move to end of wine with sewection muwtiwine fowwawd', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 1, 1);
+			moveTo(editow, viewModew, 3, 9, twue);
+			moveToEndOfWine(editow, viewModew, fawse);
+			assewtCuwsow(viewModew, new Sewection(3, 17, 3, 17));
 		});
 	});
 
-	test('move to end of line with selection multiline backward', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 3, 9);
-			moveTo(editor, viewModel, 1, 1, true);
-			moveToEndOfLine(editor, viewModel, false);
-			assertCursor(viewModel, new Selection(1, 21, 1, 21));
+	test('move to end of wine with sewection muwtiwine backwawd', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 3, 9);
+			moveTo(editow, viewModew, 1, 1, twue);
+			moveToEndOfWine(editow, viewModew, fawse);
+			assewtCuwsow(viewModew, new Sewection(1, 21, 1, 21));
 		});
 	});
 
-	test('move to end of line with selection single line forward', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 3, 1);
-			moveTo(editor, viewModel, 3, 9, true);
-			moveToEndOfLine(editor, viewModel, false);
-			assertCursor(viewModel, new Selection(3, 17, 3, 17));
+	test('move to end of wine with sewection singwe wine fowwawd', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 3, 1);
+			moveTo(editow, viewModew, 3, 9, twue);
+			moveToEndOfWine(editow, viewModew, fawse);
+			assewtCuwsow(viewModew, new Sewection(3, 17, 3, 17));
 		});
 	});
 
-	test('move to end of line with selection single line backward', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 3, 9);
-			moveTo(editor, viewModel, 3, 1, true);
-			moveToEndOfLine(editor, viewModel, false);
-			assertCursor(viewModel, new Selection(3, 17, 3, 17));
+	test('move to end of wine with sewection singwe wine backwawd', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 3, 9);
+			moveTo(editow, viewModew, 3, 1, twue);
+			moveToEndOfWine(editow, viewModew, fawse);
+			assewtCuwsow(viewModew, new Sewection(3, 17, 3, 17));
 		});
 	});
 
-	test('issue #15401: "End" key is behaving weird when text is selected part 2', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 1);
-			moveTo(editor, viewModel, 3, 9, true);
-			moveToEndOfLine(editor, viewModel, false);
-			assertCursor(viewModel, new Selection(3, 17, 3, 17));
+	test('issue #15401: "End" key is behaving weiwd when text is sewected pawt 2', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 1, 1);
+			moveTo(editow, viewModew, 3, 9, twue);
+			moveToEndOfWine(editow, viewModew, fawse);
+			assewtCuwsow(viewModew, new Sewection(3, 17, 3, 17));
 		});
 	});
 
-	// --------- move to beginning of buffer
+	// --------- move to beginning of buffa
 
-	test('move to beginning of buffer', () => {
-		runTest((editor, viewModel) => {
-			moveToBeginningOfBuffer(editor, viewModel);
-			assertCursor(viewModel, new Position(1, 1));
+	test('move to beginning of buffa', () => {
+		wunTest((editow, viewModew) => {
+			moveToBeginningOfBuffa(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(1, 1));
 		});
 	});
 
-	test('move to beginning of buffer from within first line', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 3);
-			moveToBeginningOfBuffer(editor, viewModel);
-			assertCursor(viewModel, new Position(1, 1));
+	test('move to beginning of buffa fwom within fiwst wine', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 1, 3);
+			moveToBeginningOfBuffa(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(1, 1));
 		});
 	});
 
-	test('move to beginning of buffer from within another line', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 3, 3);
-			moveToBeginningOfBuffer(editor, viewModel);
-			assertCursor(viewModel, new Position(1, 1));
+	test('move to beginning of buffa fwom within anotha wine', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 3, 3);
+			moveToBeginningOfBuffa(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(1, 1));
 		});
 	});
 
-	test('move to beginning of buffer from within first line selection', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 3);
-			moveToBeginningOfBuffer(editor, viewModel, true);
-			assertCursor(viewModel, new Selection(1, 3, 1, 1));
+	test('move to beginning of buffa fwom within fiwst wine sewection', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 1, 3);
+			moveToBeginningOfBuffa(editow, viewModew, twue);
+			assewtCuwsow(viewModew, new Sewection(1, 3, 1, 1));
 		});
 	});
 
-	test('move to beginning of buffer from within another line selection', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 3, 3);
-			moveToBeginningOfBuffer(editor, viewModel, true);
-			assertCursor(viewModel, new Selection(3, 3, 1, 1));
+	test('move to beginning of buffa fwom within anotha wine sewection', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 3, 3);
+			moveToBeginningOfBuffa(editow, viewModew, twue);
+			assewtCuwsow(viewModew, new Sewection(3, 3, 1, 1));
 		});
 	});
 
-	// --------- move to end of buffer
+	// --------- move to end of buffa
 
-	test('move to end of buffer', () => {
-		runTest((editor, viewModel) => {
-			moveToEndOfBuffer(editor, viewModel);
-			assertCursor(viewModel, new Position(5, LINE5.length + 1));
+	test('move to end of buffa', () => {
+		wunTest((editow, viewModew) => {
+			moveToEndOfBuffa(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(5, WINE5.wength + 1));
 		});
 	});
 
-	test('move to end of buffer from within last line', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 5, 1);
-			moveToEndOfBuffer(editor, viewModel);
-			assertCursor(viewModel, new Position(5, LINE5.length + 1));
+	test('move to end of buffa fwom within wast wine', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 5, 1);
+			moveToEndOfBuffa(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(5, WINE5.wength + 1));
 		});
 	});
 
-	test('move to end of buffer from within another line', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 3, 3);
-			moveToEndOfBuffer(editor, viewModel);
-			assertCursor(viewModel, new Position(5, LINE5.length + 1));
+	test('move to end of buffa fwom within anotha wine', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 3, 3);
+			moveToEndOfBuffa(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(5, WINE5.wength + 1));
 		});
 	});
 
-	test('move to end of buffer from within last line selection', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 5, 1);
-			moveToEndOfBuffer(editor, viewModel, true);
-			assertCursor(viewModel, new Selection(5, 1, 5, LINE5.length + 1));
+	test('move to end of buffa fwom within wast wine sewection', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 5, 1);
+			moveToEndOfBuffa(editow, viewModew, twue);
+			assewtCuwsow(viewModew, new Sewection(5, 1, 5, WINE5.wength + 1));
 		});
 	});
 
-	test('move to end of buffer from within another line selection', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 3, 3);
-			moveToEndOfBuffer(editor, viewModel, true);
-			assertCursor(viewModel, new Selection(3, 3, 5, LINE5.length + 1));
+	test('move to end of buffa fwom within anotha wine sewection', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 3, 3);
+			moveToEndOfBuffa(editow, viewModew, twue);
+			assewtCuwsow(viewModew, new Sewection(3, 3, 5, WINE5.wength + 1));
 		});
 	});
 
 	// --------- misc
 
-	test('select all', () => {
-		runTest((editor, viewModel) => {
-			CoreNavigationCommands.SelectAll.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, new Selection(1, 1, 5, LINE5.length + 1));
+	test('sewect aww', () => {
+		wunTest((editow, viewModew) => {
+			CoweNavigationCommands.SewectAww.wunCoweEditowCommand(viewModew, {});
+			assewtCuwsow(viewModew, new Sewection(1, 1, 5, WINE5.wength + 1));
 		});
 	});
 
-	test('expandLineSelection', () => {
-		runTest((editor, viewModel) => {
+	test('expandWineSewection', () => {
+		wunTest((editow, viewModew) => {
 			//              0          1         2
 			//              01234 56789012345678 0
-			// let LINE1 = '    \tMy First Line\t ';
-			moveTo(editor, viewModel, 1, 1);
-			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, new Selection(1, 1, 2, 1));
+			// wet WINE1 = '    \tMy Fiwst Wine\t ';
+			moveTo(editow, viewModew, 1, 1);
+			CoweNavigationCommands.ExpandWineSewection.wunCoweEditowCommand(viewModew, {});
+			assewtCuwsow(viewModew, new Sewection(1, 1, 2, 1));
 
-			moveTo(editor, viewModel, 1, 2);
-			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, new Selection(1, 1, 2, 1));
+			moveTo(editow, viewModew, 1, 2);
+			CoweNavigationCommands.ExpandWineSewection.wunCoweEditowCommand(viewModew, {});
+			assewtCuwsow(viewModew, new Sewection(1, 1, 2, 1));
 
-			moveTo(editor, viewModel, 1, 5);
-			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, new Selection(1, 1, 2, 1));
+			moveTo(editow, viewModew, 1, 5);
+			CoweNavigationCommands.ExpandWineSewection.wunCoweEditowCommand(viewModew, {});
+			assewtCuwsow(viewModew, new Sewection(1, 1, 2, 1));
 
-			moveTo(editor, viewModel, 1, 19);
-			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, new Selection(1, 1, 2, 1));
+			moveTo(editow, viewModew, 1, 19);
+			CoweNavigationCommands.ExpandWineSewection.wunCoweEditowCommand(viewModew, {});
+			assewtCuwsow(viewModew, new Sewection(1, 1, 2, 1));
 
-			moveTo(editor, viewModel, 1, 20);
-			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, new Selection(1, 1, 2, 1));
+			moveTo(editow, viewModew, 1, 20);
+			CoweNavigationCommands.ExpandWineSewection.wunCoweEditowCommand(viewModew, {});
+			assewtCuwsow(viewModew, new Sewection(1, 1, 2, 1));
 
-			moveTo(editor, viewModel, 1, 21);
-			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, new Selection(1, 1, 2, 1));
-			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, new Selection(1, 1, 3, 1));
-			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, new Selection(1, 1, 4, 1));
-			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, new Selection(1, 1, 5, 1));
-			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, new Selection(1, 1, 5, LINE5.length + 1));
-			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, new Selection(1, 1, 5, LINE5.length + 1));
+			moveTo(editow, viewModew, 1, 21);
+			CoweNavigationCommands.ExpandWineSewection.wunCoweEditowCommand(viewModew, {});
+			assewtCuwsow(viewModew, new Sewection(1, 1, 2, 1));
+			CoweNavigationCommands.ExpandWineSewection.wunCoweEditowCommand(viewModew, {});
+			assewtCuwsow(viewModew, new Sewection(1, 1, 3, 1));
+			CoweNavigationCommands.ExpandWineSewection.wunCoweEditowCommand(viewModew, {});
+			assewtCuwsow(viewModew, new Sewection(1, 1, 4, 1));
+			CoweNavigationCommands.ExpandWineSewection.wunCoweEditowCommand(viewModew, {});
+			assewtCuwsow(viewModew, new Sewection(1, 1, 5, 1));
+			CoweNavigationCommands.ExpandWineSewection.wunCoweEditowCommand(viewModew, {});
+			assewtCuwsow(viewModew, new Sewection(1, 1, 5, WINE5.wength + 1));
+			CoweNavigationCommands.ExpandWineSewection.wunCoweEditowCommand(viewModew, {});
+			assewtCuwsow(viewModew, new Sewection(1, 1, 5, WINE5.wength + 1));
 		});
 	});
 
 	// --------- eventing
 
-	test('no move doesn\'t trigger event', () => {
-		runTest((editor, viewModel) => {
-			viewModel.onEvent((e) => {
-				assert.ok(false, 'was not expecting event');
+	test('no move doesn\'t twigga event', () => {
+		wunTest((editow, viewModew) => {
+			viewModew.onEvent((e) => {
+				assewt.ok(fawse, 'was not expecting event');
 			});
-			moveTo(editor, viewModel, 1, 1);
+			moveTo(editow, viewModew, 1, 1);
 		});
 	});
 
 	test('move eventing', () => {
-		runTest((editor, viewModel) => {
-			let events = 0;
-			viewModel.onEvent((e) => {
-				if (e.kind === OutgoingViewModelEventKind.CursorStateChanged) {
+		wunTest((editow, viewModew) => {
+			wet events = 0;
+			viewModew.onEvent((e) => {
+				if (e.kind === OutgoingViewModewEventKind.CuwsowStateChanged) {
 					events++;
-					assert.deepStrictEqual(e.selections, [new Selection(1, 2, 1, 2)]);
+					assewt.deepStwictEquaw(e.sewections, [new Sewection(1, 2, 1, 2)]);
 				}
 			});
-			moveTo(editor, viewModel, 1, 2);
-			assert.strictEqual(events, 1, 'receives 1 event');
+			moveTo(editow, viewModew, 1, 2);
+			assewt.stwictEquaw(events, 1, 'weceives 1 event');
 		});
 	});
 
-	test('move in selection mode eventing', () => {
-		runTest((editor, viewModel) => {
-			let events = 0;
-			viewModel.onEvent((e) => {
-				if (e.kind === OutgoingViewModelEventKind.CursorStateChanged) {
+	test('move in sewection mode eventing', () => {
+		wunTest((editow, viewModew) => {
+			wet events = 0;
+			viewModew.onEvent((e) => {
+				if (e.kind === OutgoingViewModewEventKind.CuwsowStateChanged) {
 					events++;
-					assert.deepStrictEqual(e.selections, [new Selection(1, 1, 1, 2)]);
+					assewt.deepStwictEquaw(e.sewections, [new Sewection(1, 1, 1, 2)]);
 				}
 			});
-			moveTo(editor, viewModel, 1, 2, true);
-			assert.strictEqual(events, 1, 'receives 1 event');
+			moveTo(editow, viewModew, 1, 2, twue);
+			assewt.stwictEquaw(events, 1, 'weceives 1 event');
 		});
 	});
 
-	// --------- state save & restore
+	// --------- state save & westowe
 
-	test('saveState & restoreState', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 2, 1, true);
-			assertCursor(viewModel, new Selection(1, 1, 2, 1));
+	test('saveState & westoweState', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 2, 1, twue);
+			assewtCuwsow(viewModew, new Sewection(1, 1, 2, 1));
 
-			let savedState = JSON.stringify(viewModel.saveCursorState());
+			wet savedState = JSON.stwingify(viewModew.saveCuwsowState());
 
-			moveTo(editor, viewModel, 1, 1, false);
-			assertCursor(viewModel, new Position(1, 1));
+			moveTo(editow, viewModew, 1, 1, fawse);
+			assewtCuwsow(viewModew, new Position(1, 1));
 
-			viewModel.restoreCursorState(JSON.parse(savedState));
-			assertCursor(viewModel, new Selection(1, 1, 2, 1));
+			viewModew.westoweCuwsowState(JSON.pawse(savedState));
+			assewtCuwsow(viewModew, new Sewection(1, 1, 2, 1));
 		});
 	});
 
-	// --------- updating cursor
+	// --------- updating cuwsow
 
-	test('Independent model edit 1', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 2, 16, true);
+	test('Independent modew edit 1', () => {
+		wunTest((editow, viewModew) => {
+			moveTo(editow, viewModew, 2, 16, twue);
 
-			editor.getModel().applyEdits([EditOperation.delete(new Range(2, 1, 2, 2))]);
-			assertCursor(viewModel, new Selection(1, 1, 2, 15));
+			editow.getModew().appwyEdits([EditOpewation.dewete(new Wange(2, 1, 2, 2))]);
+			assewtCuwsow(viewModew, new Sewection(1, 1, 2, 15));
 		});
 	});
 
-	test('column select 1', () => {
-		withTestCodeEditor([
-			'\tprivate compute(a:number): boolean {',
+	test('cowumn sewect 1', () => {
+		withTestCodeEditow([
+			'\tpwivate compute(a:numba): boowean {',
 			'\t\tif (a + 3 === 0 || a + 5 === 0) {',
-			'\t\t\treturn false;',
+			'\t\t\twetuwn fawse;',
 			'\t\t}',
 			'\t}'
-		], {}, (editor, viewModel) => {
+		], {}, (editow, viewModew) => {
 
-			moveTo(editor, viewModel, 1, 7, false);
-			assertCursor(viewModel, new Position(1, 7));
+			moveTo(editow, viewModew, 1, 7, fawse);
+			assewtCuwsow(viewModew, new Position(1, 7));
 
-			CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(viewModel, {
+			CoweNavigationCommands.CowumnSewect.wunCoweEditowCommand(viewModew, {
 				position: new Position(4, 4),
 				viewPosition: new Position(4, 4),
-				mouseColumn: 15,
-				doColumnSelect: true
+				mouseCowumn: 15,
+				doCowumnSewect: twue
 			});
 
-			let expectedSelections = [
-				new Selection(1, 7, 1, 12),
-				new Selection(2, 4, 2, 9),
-				new Selection(3, 3, 3, 6),
-				new Selection(4, 4, 4, 4),
+			wet expectedSewections = [
+				new Sewection(1, 7, 1, 12),
+				new Sewection(2, 4, 2, 9),
+				new Sewection(3, 3, 3, 6),
+				new Sewection(4, 4, 4, 4),
 			];
 
-			assertCursor(viewModel, expectedSelections);
+			assewtCuwsow(viewModew, expectedSewections);
 
 		});
 	});
 
-	test('grapheme breaking', () => {
-		withTestCodeEditor([
+	test('gwapheme bweaking', () => {
+		withTestCodeEditow([
 			'abcabc',
 			'ãããããã',
 			'辻󠄀辻󠄀辻󠄀',
 			'பு',
-		], {}, (editor, viewModel) => {
+		], {}, (editow, viewModew) => {
 
-			viewModel.setSelections('test', [new Selection(2, 1, 2, 1)]);
-			moveRight(editor, viewModel);
-			assertCursor(viewModel, new Position(2, 3));
-			moveLeft(editor, viewModel);
-			assertCursor(viewModel, new Position(2, 1));
+			viewModew.setSewections('test', [new Sewection(2, 1, 2, 1)]);
+			moveWight(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(2, 3));
+			moveWeft(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(2, 1));
 
-			viewModel.setSelections('test', [new Selection(3, 1, 3, 1)]);
-			moveRight(editor, viewModel);
-			assertCursor(viewModel, new Position(3, 4));
-			moveLeft(editor, viewModel);
-			assertCursor(viewModel, new Position(3, 1));
+			viewModew.setSewections('test', [new Sewection(3, 1, 3, 1)]);
+			moveWight(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(3, 4));
+			moveWeft(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(3, 1));
 
-			viewModel.setSelections('test', [new Selection(4, 1, 4, 1)]);
-			moveRight(editor, viewModel);
-			assertCursor(viewModel, new Position(4, 3));
-			moveLeft(editor, viewModel);
-			assertCursor(viewModel, new Position(4, 1));
+			viewModew.setSewections('test', [new Sewection(4, 1, 4, 1)]);
+			moveWight(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(4, 3));
+			moveWeft(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(4, 1));
 
-			viewModel.setSelections('test', [new Selection(1, 3, 1, 3)]);
-			moveDown(editor, viewModel);
-			assertCursor(viewModel, new Position(2, 5));
-			moveDown(editor, viewModel);
-			assertCursor(viewModel, new Position(3, 4));
-			moveUp(editor, viewModel);
-			assertCursor(viewModel, new Position(2, 5));
-			moveUp(editor, viewModel);
-			assertCursor(viewModel, new Position(1, 3));
+			viewModew.setSewections('test', [new Sewection(1, 3, 1, 3)]);
+			moveDown(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(2, 5));
+			moveDown(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(3, 4));
+			moveUp(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(2, 5));
+			moveUp(editow, viewModew);
+			assewtCuwsow(viewModew, new Position(1, 3));
 
 		});
 	});
 
-	test('issue #4905 - column select is biased to the right', () => {
-		withTestCodeEditor([
-			'var gulp = require("gulp");',
-			'var path = require("path");',
-			'var rimraf = require("rimraf");',
-			'var isarray = require("isarray");',
-			'var merge = require("merge-stream");',
-			'var concat = require("gulp-concat");',
-			'var newer = require("gulp-newer");',
-		].join('\n'), {}, (editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 4, false);
-			assertCursor(viewModel, new Position(1, 4));
+	test('issue #4905 - cowumn sewect is biased to the wight', () => {
+		withTestCodeEditow([
+			'vaw guwp = wequiwe("guwp");',
+			'vaw path = wequiwe("path");',
+			'vaw wimwaf = wequiwe("wimwaf");',
+			'vaw isawway = wequiwe("isawway");',
+			'vaw mewge = wequiwe("mewge-stweam");',
+			'vaw concat = wequiwe("guwp-concat");',
+			'vaw newa = wequiwe("guwp-newa");',
+		].join('\n'), {}, (editow, viewModew) => {
+			moveTo(editow, viewModew, 1, 4, fawse);
+			assewtCuwsow(viewModew, new Position(1, 4));
 
-			CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(viewModel, {
+			CoweNavigationCommands.CowumnSewect.wunCoweEditowCommand(viewModew, {
 				position: new Position(4, 1),
 				viewPosition: new Position(4, 1),
-				mouseColumn: 1,
-				doColumnSelect: true
+				mouseCowumn: 1,
+				doCowumnSewect: twue
 			});
 
-			assertCursor(viewModel, [
-				new Selection(1, 4, 1, 1),
-				new Selection(2, 4, 2, 1),
-				new Selection(3, 4, 3, 1),
-				new Selection(4, 4, 4, 1),
+			assewtCuwsow(viewModew, [
+				new Sewection(1, 4, 1, 1),
+				new Sewection(2, 4, 2, 1),
+				new Sewection(3, 4, 3, 1),
+				new Sewection(4, 4, 4, 1),
 			]);
 		});
 	});
 
-	test('issue #20087: column select with mouse', () => {
-		withTestCodeEditor([
-			'<property id="SomeThing" key="SomeKey" value="000"/>',
-			'<property id="SomeThing" key="SomeKey" value="000"/>',
-			'<property id="SomeThing" Key="SomeKey" value="000"/>',
-			'<property id="SomeThing" key="SomeKey" value="000"/>',
-			'<property id="SomeThing" key="SoMEKEy" value="000"/>',
-			'<property id="SomeThing" key="SomeKey" value="000"/>',
-			'<property id="SomeThing" key="SomeKey" value="000"/>',
-			'<property id="SomeThing" key="SomeKey" valuE="000"/>',
-			'<property id="SomeThing" key="SomeKey" value="000"/>',
-			'<property id="SomeThing" key="SomeKey" value="00X"/>',
-		].join('\n'), {}, (editor, viewModel) => {
+	test('issue #20087: cowumn sewect with mouse', () => {
+		withTestCodeEditow([
+			'<pwopewty id="SomeThing" key="SomeKey" vawue="000"/>',
+			'<pwopewty id="SomeThing" key="SomeKey" vawue="000"/>',
+			'<pwopewty id="SomeThing" Key="SomeKey" vawue="000"/>',
+			'<pwopewty id="SomeThing" key="SomeKey" vawue="000"/>',
+			'<pwopewty id="SomeThing" key="SoMEKEy" vawue="000"/>',
+			'<pwopewty id="SomeThing" key="SomeKey" vawue="000"/>',
+			'<pwopewty id="SomeThing" key="SomeKey" vawue="000"/>',
+			'<pwopewty id="SomeThing" key="SomeKey" vawuE="000"/>',
+			'<pwopewty id="SomeThing" key="SomeKey" vawue="000"/>',
+			'<pwopewty id="SomeThing" key="SomeKey" vawue="00X"/>',
+		].join('\n'), {}, (editow, viewModew) => {
 
-			moveTo(editor, viewModel, 10, 10, false);
-			assertCursor(viewModel, new Position(10, 10));
+			moveTo(editow, viewModew, 10, 10, fawse);
+			assewtCuwsow(viewModew, new Position(10, 10));
 
-			CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(viewModel, {
+			CoweNavigationCommands.CowumnSewect.wunCoweEditowCommand(viewModew, {
 				position: new Position(1, 1),
 				viewPosition: new Position(1, 1),
-				mouseColumn: 1,
-				doColumnSelect: true
+				mouseCowumn: 1,
+				doCowumnSewect: twue
 			});
-			assertCursor(viewModel, [
-				new Selection(10, 10, 10, 1),
-				new Selection(9, 10, 9, 1),
-				new Selection(8, 10, 8, 1),
-				new Selection(7, 10, 7, 1),
-				new Selection(6, 10, 6, 1),
-				new Selection(5, 10, 5, 1),
-				new Selection(4, 10, 4, 1),
-				new Selection(3, 10, 3, 1),
-				new Selection(2, 10, 2, 1),
-				new Selection(1, 10, 1, 1),
+			assewtCuwsow(viewModew, [
+				new Sewection(10, 10, 10, 1),
+				new Sewection(9, 10, 9, 1),
+				new Sewection(8, 10, 8, 1),
+				new Sewection(7, 10, 7, 1),
+				new Sewection(6, 10, 6, 1),
+				new Sewection(5, 10, 5, 1),
+				new Sewection(4, 10, 4, 1),
+				new Sewection(3, 10, 3, 1),
+				new Sewection(2, 10, 2, 1),
+				new Sewection(1, 10, 1, 1),
 			]);
 
-			CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(viewModel, {
+			CoweNavigationCommands.CowumnSewect.wunCoweEditowCommand(viewModew, {
 				position: new Position(1, 1),
 				viewPosition: new Position(1, 1),
-				mouseColumn: 1,
-				doColumnSelect: true
+				mouseCowumn: 1,
+				doCowumnSewect: twue
 			});
-			assertCursor(viewModel, [
-				new Selection(10, 10, 10, 1),
-				new Selection(9, 10, 9, 1),
-				new Selection(8, 10, 8, 1),
-				new Selection(7, 10, 7, 1),
-				new Selection(6, 10, 6, 1),
-				new Selection(5, 10, 5, 1),
-				new Selection(4, 10, 4, 1),
-				new Selection(3, 10, 3, 1),
-				new Selection(2, 10, 2, 1),
-				new Selection(1, 10, 1, 1),
+			assewtCuwsow(viewModew, [
+				new Sewection(10, 10, 10, 1),
+				new Sewection(9, 10, 9, 1),
+				new Sewection(8, 10, 8, 1),
+				new Sewection(7, 10, 7, 1),
+				new Sewection(6, 10, 6, 1),
+				new Sewection(5, 10, 5, 1),
+				new Sewection(4, 10, 4, 1),
+				new Sewection(3, 10, 3, 1),
+				new Sewection(2, 10, 2, 1),
+				new Sewection(1, 10, 1, 1),
 			]);
 
 		});
 	});
 
-	test('issue #20087: column select with keyboard', () => {
-		withTestCodeEditor([
-			'<property id="SomeThing" key="SomeKey" value="000"/>',
-			'<property id="SomeThing" key="SomeKey" value="000"/>',
-			'<property id="SomeThing" Key="SomeKey" value="000"/>',
-			'<property id="SomeThing" key="SomeKey" value="000"/>',
-			'<property id="SomeThing" key="SoMEKEy" value="000"/>',
-			'<property id="SomeThing" key="SomeKey" value="000"/>',
-			'<property id="SomeThing" key="SomeKey" value="000"/>',
-			'<property id="SomeThing" key="SomeKey" valuE="000"/>',
-			'<property id="SomeThing" key="SomeKey" value="000"/>',
-			'<property id="SomeThing" key="SomeKey" value="00X"/>',
-		].join('\n'), {}, (editor, viewModel) => {
+	test('issue #20087: cowumn sewect with keyboawd', () => {
+		withTestCodeEditow([
+			'<pwopewty id="SomeThing" key="SomeKey" vawue="000"/>',
+			'<pwopewty id="SomeThing" key="SomeKey" vawue="000"/>',
+			'<pwopewty id="SomeThing" Key="SomeKey" vawue="000"/>',
+			'<pwopewty id="SomeThing" key="SomeKey" vawue="000"/>',
+			'<pwopewty id="SomeThing" key="SoMEKEy" vawue="000"/>',
+			'<pwopewty id="SomeThing" key="SomeKey" vawue="000"/>',
+			'<pwopewty id="SomeThing" key="SomeKey" vawue="000"/>',
+			'<pwopewty id="SomeThing" key="SomeKey" vawuE="000"/>',
+			'<pwopewty id="SomeThing" key="SomeKey" vawue="000"/>',
+			'<pwopewty id="SomeThing" key="SomeKey" vawue="00X"/>',
+		].join('\n'), {}, (editow, viewModew) => {
 
-			moveTo(editor, viewModel, 10, 10, false);
-			assertCursor(viewModel, new Position(10, 10));
+			moveTo(editow, viewModew, 10, 10, fawse);
+			assewtCuwsow(viewModew, new Position(10, 10));
 
-			CoreNavigationCommands.CursorColumnSelectLeft.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, [
-				new Selection(10, 10, 10, 9)
+			CoweNavigationCommands.CuwsowCowumnSewectWeft.wunCoweEditowCommand(viewModew, {});
+			assewtCuwsow(viewModew, [
+				new Sewection(10, 10, 10, 9)
 			]);
 
-			CoreNavigationCommands.CursorColumnSelectLeft.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, [
-				new Selection(10, 10, 10, 8)
+			CoweNavigationCommands.CuwsowCowumnSewectWeft.wunCoweEditowCommand(viewModew, {});
+			assewtCuwsow(viewModew, [
+				new Sewection(10, 10, 10, 8)
 			]);
 
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, [
-				new Selection(10, 10, 10, 9)
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			assewtCuwsow(viewModew, [
+				new Sewection(10, 10, 10, 9)
 			]);
 
-			CoreNavigationCommands.CursorColumnSelectUp.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, [
-				new Selection(10, 10, 10, 9),
-				new Selection(9, 10, 9, 9),
+			CoweNavigationCommands.CuwsowCowumnSewectUp.wunCoweEditowCommand(viewModew, {});
+			assewtCuwsow(viewModew, [
+				new Sewection(10, 10, 10, 9),
+				new Sewection(9, 10, 9, 9),
 			]);
 
-			CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, [
-				new Selection(10, 10, 10, 9)
-			]);
-		});
-	});
-
-	test('issue #118062: Column selection cannot select first position of a line', () => {
-		withTestCodeEditor([
-			'hello world',
-		].join('\n'), {}, (editor, viewModel) => {
-
-			moveTo(editor, viewModel, 1, 2, false);
-			assertCursor(viewModel, new Position(1, 2));
-
-			CoreNavigationCommands.CursorColumnSelectLeft.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, [
-				new Selection(1, 2, 1, 1)
+			CoweNavigationCommands.CuwsowCowumnSewectDown.wunCoweEditowCommand(viewModew, {});
+			assewtCuwsow(viewModew, [
+				new Sewection(10, 10, 10, 9)
 			]);
 		});
 	});
 
-	test('column select with keyboard', () => {
-		withTestCodeEditor([
-			'var gulp = require("gulp");',
-			'var path = require("path");',
-			'var rimraf = require("rimraf");',
-			'var isarray = require("isarray");',
-			'var merge = require("merge-stream");',
-			'var concat = require("gulp-concat");',
-			'var newer = require("gulp-newer");',
-		].join('\n'), {}, (editor, viewModel) => {
+	test('issue #118062: Cowumn sewection cannot sewect fiwst position of a wine', () => {
+		withTestCodeEditow([
+			'hewwo wowwd',
+		].join('\n'), {}, (editow, viewModew) => {
 
-			moveTo(editor, viewModel, 1, 4, false);
-			assertCursor(viewModel, new Position(1, 4));
+			moveTo(editow, viewModew, 1, 2, fawse);
+			assewtCuwsow(viewModew, new Position(1, 2));
 
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, [
-				new Selection(1, 4, 1, 5)
+			CoweNavigationCommands.CuwsowCowumnSewectWeft.wunCoweEditowCommand(viewModew, {});
+			assewtCuwsow(viewModew, [
+				new Sewection(1, 2, 1, 1)
+			]);
+		});
+	});
+
+	test('cowumn sewect with keyboawd', () => {
+		withTestCodeEditow([
+			'vaw guwp = wequiwe("guwp");',
+			'vaw path = wequiwe("path");',
+			'vaw wimwaf = wequiwe("wimwaf");',
+			'vaw isawway = wequiwe("isawway");',
+			'vaw mewge = wequiwe("mewge-stweam");',
+			'vaw concat = wequiwe("guwp-concat");',
+			'vaw newa = wequiwe("guwp-newa");',
+		].join('\n'), {}, (editow, viewModew) => {
+
+			moveTo(editow, viewModew, 1, 4, fawse);
+			assewtCuwsow(viewModew, new Position(1, 4));
+
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			assewtCuwsow(viewModew, [
+				new Sewection(1, 4, 1, 5)
 			]);
 
-			CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, [
-				new Selection(1, 4, 1, 5),
-				new Selection(2, 4, 2, 5)
+			CoweNavigationCommands.CuwsowCowumnSewectDown.wunCoweEditowCommand(viewModew, {});
+			assewtCuwsow(viewModew, [
+				new Sewection(1, 4, 1, 5),
+				new Sewection(2, 4, 2, 5)
 			]);
 
-			CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, [
-				new Selection(1, 4, 1, 5),
-				new Selection(2, 4, 2, 5),
-				new Selection(3, 4, 3, 5),
+			CoweNavigationCommands.CuwsowCowumnSewectDown.wunCoweEditowCommand(viewModew, {});
+			assewtCuwsow(viewModew, [
+				new Sewection(1, 4, 1, 5),
+				new Sewection(2, 4, 2, 5),
+				new Sewection(3, 4, 3, 5),
 			]);
 
-			CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(viewModel, {});
-			CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(viewModel, {});
-			CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(viewModel, {});
-			CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, [
-				new Selection(1, 4, 1, 5),
-				new Selection(2, 4, 2, 5),
-				new Selection(3, 4, 3, 5),
-				new Selection(4, 4, 4, 5),
-				new Selection(5, 4, 5, 5),
-				new Selection(6, 4, 6, 5),
-				new Selection(7, 4, 7, 5),
+			CoweNavigationCommands.CuwsowCowumnSewectDown.wunCoweEditowCommand(viewModew, {});
+			CoweNavigationCommands.CuwsowCowumnSewectDown.wunCoweEditowCommand(viewModew, {});
+			CoweNavigationCommands.CuwsowCowumnSewectDown.wunCoweEditowCommand(viewModew, {});
+			CoweNavigationCommands.CuwsowCowumnSewectDown.wunCoweEditowCommand(viewModew, {});
+			assewtCuwsow(viewModew, [
+				new Sewection(1, 4, 1, 5),
+				new Sewection(2, 4, 2, 5),
+				new Sewection(3, 4, 3, 5),
+				new Sewection(4, 4, 4, 5),
+				new Sewection(5, 4, 5, 5),
+				new Sewection(6, 4, 6, 5),
+				new Sewection(7, 4, 7, 5),
 			]);
 
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, [
-				new Selection(1, 4, 1, 6),
-				new Selection(2, 4, 2, 6),
-				new Selection(3, 4, 3, 6),
-				new Selection(4, 4, 4, 6),
-				new Selection(5, 4, 5, 6),
-				new Selection(6, 4, 6, 6),
-				new Selection(7, 4, 7, 6),
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			assewtCuwsow(viewModew, [
+				new Sewection(1, 4, 1, 6),
+				new Sewection(2, 4, 2, 6),
+				new Sewection(3, 4, 3, 6),
+				new Sewection(4, 4, 4, 6),
+				new Sewection(5, 4, 5, 6),
+				new Sewection(6, 4, 6, 6),
+				new Sewection(7, 4, 7, 6),
 			]);
 
 			// 10 times
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, [
-				new Selection(1, 4, 1, 16),
-				new Selection(2, 4, 2, 16),
-				new Selection(3, 4, 3, 16),
-				new Selection(4, 4, 4, 16),
-				new Selection(5, 4, 5, 16),
-				new Selection(6, 4, 6, 16),
-				new Selection(7, 4, 7, 16),
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			assewtCuwsow(viewModew, [
+				new Sewection(1, 4, 1, 16),
+				new Sewection(2, 4, 2, 16),
+				new Sewection(3, 4, 3, 16),
+				new Sewection(4, 4, 4, 16),
+				new Sewection(5, 4, 5, 16),
+				new Sewection(6, 4, 6, 16),
+				new Sewection(7, 4, 7, 16),
 			]);
 
 			// 10 times
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, [
-				new Selection(1, 4, 1, 26),
-				new Selection(2, 4, 2, 26),
-				new Selection(3, 4, 3, 26),
-				new Selection(4, 4, 4, 26),
-				new Selection(5, 4, 5, 26),
-				new Selection(6, 4, 6, 26),
-				new Selection(7, 4, 7, 26),
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			assewtCuwsow(viewModew, [
+				new Sewection(1, 4, 1, 26),
+				new Sewection(2, 4, 2, 26),
+				new Sewection(3, 4, 3, 26),
+				new Sewection(4, 4, 4, 26),
+				new Sewection(5, 4, 5, 26),
+				new Sewection(6, 4, 6, 26),
+				new Sewection(7, 4, 7, 26),
 			]);
 
-			// 2 times => reaching the ending of lines 1 and 2
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, [
-				new Selection(1, 4, 1, 28),
-				new Selection(2, 4, 2, 28),
-				new Selection(3, 4, 3, 28),
-				new Selection(4, 4, 4, 28),
-				new Selection(5, 4, 5, 28),
-				new Selection(6, 4, 6, 28),
-				new Selection(7, 4, 7, 28),
+			// 2 times => weaching the ending of wines 1 and 2
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			assewtCuwsow(viewModew, [
+				new Sewection(1, 4, 1, 28),
+				new Sewection(2, 4, 2, 28),
+				new Sewection(3, 4, 3, 28),
+				new Sewection(4, 4, 4, 28),
+				new Sewection(5, 4, 5, 28),
+				new Sewection(6, 4, 6, 28),
+				new Sewection(7, 4, 7, 28),
 			]);
 
-			// 4 times => reaching the ending of line 3
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, [
-				new Selection(1, 4, 1, 28),
-				new Selection(2, 4, 2, 28),
-				new Selection(3, 4, 3, 32),
-				new Selection(4, 4, 4, 32),
-				new Selection(5, 4, 5, 32),
-				new Selection(6, 4, 6, 32),
-				new Selection(7, 4, 7, 32),
+			// 4 times => weaching the ending of wine 3
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			assewtCuwsow(viewModew, [
+				new Sewection(1, 4, 1, 28),
+				new Sewection(2, 4, 2, 28),
+				new Sewection(3, 4, 3, 32),
+				new Sewection(4, 4, 4, 32),
+				new Sewection(5, 4, 5, 32),
+				new Sewection(6, 4, 6, 32),
+				new Sewection(7, 4, 7, 32),
 			]);
 
-			// 2 times => reaching the ending of line 4
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, [
-				new Selection(1, 4, 1, 28),
-				new Selection(2, 4, 2, 28),
-				new Selection(3, 4, 3, 32),
-				new Selection(4, 4, 4, 34),
-				new Selection(5, 4, 5, 34),
-				new Selection(6, 4, 6, 34),
-				new Selection(7, 4, 7, 34),
+			// 2 times => weaching the ending of wine 4
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			assewtCuwsow(viewModew, [
+				new Sewection(1, 4, 1, 28),
+				new Sewection(2, 4, 2, 28),
+				new Sewection(3, 4, 3, 32),
+				new Sewection(4, 4, 4, 34),
+				new Sewection(5, 4, 5, 34),
+				new Sewection(6, 4, 6, 34),
+				new Sewection(7, 4, 7, 34),
 			]);
 
-			// 1 time => reaching the ending of line 7
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, [
-				new Selection(1, 4, 1, 28),
-				new Selection(2, 4, 2, 28),
-				new Selection(3, 4, 3, 32),
-				new Selection(4, 4, 4, 34),
-				new Selection(5, 4, 5, 35),
-				new Selection(6, 4, 6, 35),
-				new Selection(7, 4, 7, 35),
+			// 1 time => weaching the ending of wine 7
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			assewtCuwsow(viewModew, [
+				new Sewection(1, 4, 1, 28),
+				new Sewection(2, 4, 2, 28),
+				new Sewection(3, 4, 3, 32),
+				new Sewection(4, 4, 4, 34),
+				new Sewection(5, 4, 5, 35),
+				new Sewection(6, 4, 6, 35),
+				new Sewection(7, 4, 7, 35),
 			]);
 
-			// 3 times => reaching the ending of lines 5 & 6
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, [
-				new Selection(1, 4, 1, 28),
-				new Selection(2, 4, 2, 28),
-				new Selection(3, 4, 3, 32),
-				new Selection(4, 4, 4, 34),
-				new Selection(5, 4, 5, 37),
-				new Selection(6, 4, 6, 37),
-				new Selection(7, 4, 7, 35),
+			// 3 times => weaching the ending of wines 5 & 6
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			assewtCuwsow(viewModew, [
+				new Sewection(1, 4, 1, 28),
+				new Sewection(2, 4, 2, 28),
+				new Sewection(3, 4, 3, 32),
+				new Sewection(4, 4, 4, 34),
+				new Sewection(5, 4, 5, 37),
+				new Sewection(6, 4, 6, 37),
+				new Sewection(7, 4, 7, 35),
 			]);
 
-			// cannot go anywhere anymore
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, [
-				new Selection(1, 4, 1, 28),
-				new Selection(2, 4, 2, 28),
-				new Selection(3, 4, 3, 32),
-				new Selection(4, 4, 4, 34),
-				new Selection(5, 4, 5, 37),
-				new Selection(6, 4, 6, 37),
-				new Selection(7, 4, 7, 35),
+			// cannot go anywhewe anymowe
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			assewtCuwsow(viewModew, [
+				new Sewection(1, 4, 1, 28),
+				new Sewection(2, 4, 2, 28),
+				new Sewection(3, 4, 3, 32),
+				new Sewection(4, 4, 4, 34),
+				new Sewection(5, 4, 5, 37),
+				new Sewection(6, 4, 6, 37),
+				new Sewection(7, 4, 7, 35),
 			]);
 
-			// cannot go anywhere anymore even if we insist
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, [
-				new Selection(1, 4, 1, 28),
-				new Selection(2, 4, 2, 28),
-				new Selection(3, 4, 3, 32),
-				new Selection(4, 4, 4, 34),
-				new Selection(5, 4, 5, 37),
-				new Selection(6, 4, 6, 37),
-				new Selection(7, 4, 7, 35),
+			// cannot go anywhewe anymowe even if we insist
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			CoweNavigationCommands.CuwsowCowumnSewectWight.wunCoweEditowCommand(viewModew, {});
+			assewtCuwsow(viewModew, [
+				new Sewection(1, 4, 1, 28),
+				new Sewection(2, 4, 2, 28),
+				new Sewection(3, 4, 3, 32),
+				new Sewection(4, 4, 4, 34),
+				new Sewection(5, 4, 5, 37),
+				new Sewection(6, 4, 6, 37),
+				new Sewection(7, 4, 7, 35),
 			]);
 
-			// can easily go back
-			CoreNavigationCommands.CursorColumnSelectLeft.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, [
-				new Selection(1, 4, 1, 28),
-				new Selection(2, 4, 2, 28),
-				new Selection(3, 4, 3, 32),
-				new Selection(4, 4, 4, 34),
-				new Selection(5, 4, 5, 36),
-				new Selection(6, 4, 6, 36),
-				new Selection(7, 4, 7, 35),
+			// can easiwy go back
+			CoweNavigationCommands.CuwsowCowumnSewectWeft.wunCoweEditowCommand(viewModew, {});
+			assewtCuwsow(viewModew, [
+				new Sewection(1, 4, 1, 28),
+				new Sewection(2, 4, 2, 28),
+				new Sewection(3, 4, 3, 32),
+				new Sewection(4, 4, 4, 34),
+				new Sewection(5, 4, 5, 36),
+				new Sewection(6, 4, 6, 36),
+				new Sewection(7, 4, 7, 35),
 			]);
 		});
 	});
 });
 
-class SurroundingMode extends MockMode {
+cwass SuwwoundingMode extends MockMode {
 
-	private static readonly _id = new LanguageIdentifier('surroundingMode', 3);
+	pwivate static weadonwy _id = new WanguageIdentifia('suwwoundingMode', 3);
 
-	constructor() {
-		super(SurroundingMode._id);
-		this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
-			autoClosingPairs: [{ open: '(', close: ')' }]
+	constwuctow() {
+		supa(SuwwoundingMode._id);
+		this._wegista(WanguageConfiguwationWegistwy.wegista(this.getWanguageIdentifia(), {
+			autoCwosingPaiws: [{ open: '(', cwose: ')' }]
 		}));
 	}
 }
 
-class OnEnterMode extends MockMode {
-	private static readonly _id = new LanguageIdentifier('onEnterMode', 3);
+cwass OnEntewMode extends MockMode {
+	pwivate static weadonwy _id = new WanguageIdentifia('onEntewMode', 3);
 
-	constructor(indentAction: IndentAction) {
-		super(OnEnterMode._id);
-		this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
-			onEnterRules: [{
-				beforeText: /.*/,
+	constwuctow(indentAction: IndentAction) {
+		supa(OnEntewMode._id);
+		this._wegista(WanguageConfiguwationWegistwy.wegista(this.getWanguageIdentifia(), {
+			onEntewWuwes: [{
+				befoweText: /.*/,
 				action: {
 					indentAction: indentAction
 				}
@@ -1298,275 +1298,275 @@ class OnEnterMode extends MockMode {
 	}
 }
 
-class IndentRulesMode extends MockMode {
-	private static readonly _id = new LanguageIdentifier('indentRulesMode', 4);
-	constructor(indentationRules: IndentationRule) {
-		super(IndentRulesMode._id);
-		this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
-			indentationRules: indentationRules
+cwass IndentWuwesMode extends MockMode {
+	pwivate static weadonwy _id = new WanguageIdentifia('indentWuwesMode', 4);
+	constwuctow(indentationWuwes: IndentationWuwe) {
+		supa(IndentWuwesMode._id);
+		this._wegista(WanguageConfiguwationWegistwy.wegista(this.getWanguageIdentifia(), {
+			indentationWuwes: indentationWuwes
 		}));
 	}
 }
 
-suite('Editor Controller - Regression tests', () => {
+suite('Editow Contwowwa - Wegwession tests', () => {
 
-	test('issue microsoft/monaco-editor#443: Indentation of a single row deletes selected text in some cases', () => {
-		let model = createTextModel(
+	test('issue micwosoft/monaco-editow#443: Indentation of a singwe wow dewetes sewected text in some cases', () => {
+		wet modew = cweateTextModew(
 			[
-				'Hello world!',
-				'another line'
+				'Hewwo wowwd!',
+				'anotha wine'
 			].join('\n'),
 			{
-				insertSpaces: false
+				insewtSpaces: fawse
 			},
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			viewModel.setSelections('test', [new Selection(1, 1, 1, 13)]);
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			viewModew.setSewections('test', [new Sewection(1, 1, 1, 13)]);
 
-			// Check that indenting maintains the selection start at column 1
-			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
-			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 1, 1, 14));
+			// Check that indenting maintains the sewection stawt at cowumn 1
+			CoweEditingCommands.Tab.wunEditowCommand(nuww, editow, nuww);
+			assewt.deepStwictEquaw(viewModew.getSewection(), new Sewection(1, 1, 1, 14));
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('Bug 9121: Auto indent + undo + redo is funky', () => {
-		let model = createTextModel(
+	test('Bug 9121: Auto indent + undo + wedo is funky', () => {
+		wet modew = cweateTextModew(
 			[
 				''
 			].join('\n'),
 			{
-				insertSpaces: false,
-				trimAutoWhitespace: false
+				insewtSpaces: fawse,
+				twimAutoWhitespace: fawse
 			},
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '\n', 'assert1');
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			viewModew.type('\n', 'keyboawd');
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '\n', 'assewt1');
 
-			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '\n\t', 'assert2');
+			CoweEditingCommands.Tab.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '\n\t', 'assewt2');
 
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '\n\t\n\t', 'assert3');
+			viewModew.type('\n', 'keyboawd');
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '\n\t\n\t', 'assewt3');
 
-			viewModel.type('x');
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '\n\t\n\tx', 'assert4');
+			viewModew.type('x');
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '\n\t\n\tx', 'assewt4');
 
-			CoreNavigationCommands.CursorLeft.runCoreEditorCommand(viewModel, {});
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '\n\t\n\tx', 'assert5');
+			CoweNavigationCommands.CuwsowWeft.wunCoweEditowCommand(viewModew, {});
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '\n\t\n\tx', 'assewt5');
 
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '\n\t\nx', 'assert6');
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '\n\t\nx', 'assewt6');
 
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '\n\tx', 'assert7');
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '\n\tx', 'assewt7');
 
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '\nx', 'assert8');
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '\nx', 'assewt8');
 
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'x', 'assert9');
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), 'x', 'assewt9');
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '\nx', 'assert10');
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '\nx', 'assewt10');
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '\n\t\nx', 'assert11');
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '\n\t\nx', 'assewt11');
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '\n\t\n\tx', 'assert12');
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '\n\t\n\tx', 'assewt12');
 
-			CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '\n\t\nx', 'assert13');
+			CoweEditingCommands.Wedo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '\n\t\nx', 'assewt13');
 
-			CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '\nx', 'assert14');
+			CoweEditingCommands.Wedo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '\nx', 'assewt14');
 
-			CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'x', 'assert15');
+			CoweEditingCommands.Wedo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), 'x', 'assewt15');
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('issue #23539: Setting model EOL isn\'t undoable', () => {
-		withTestCodeEditor([
-			'Hello',
-			'world'
-		], {}, (editor, viewModel) => {
-			const model = editor.getModel()!;
+	test('issue #23539: Setting modew EOW isn\'t undoabwe', () => {
+		withTestCodeEditow([
+			'Hewwo',
+			'wowwd'
+		], {}, (editow, viewModew) => {
+			const modew = editow.getModew()!;
 
-			assertCursor(viewModel, new Position(1, 1));
-			model.setEOL(EndOfLineSequence.LF);
-			assert.strictEqual(model.getValue(), 'Hello\nworld');
+			assewtCuwsow(viewModew, new Position(1, 1));
+			modew.setEOW(EndOfWineSequence.WF);
+			assewt.stwictEquaw(modew.getVawue(), 'Hewwo\nwowwd');
 
-			model.pushEOL(EndOfLineSequence.CRLF);
-			assert.strictEqual(model.getValue(), 'Hello\r\nworld');
+			modew.pushEOW(EndOfWineSequence.CWWF);
+			assewt.stwictEquaw(modew.getVawue(), 'Hewwo\w\nwowwd');
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(), 'Hello\nworld');
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(), 'Hewwo\nwowwd');
 		});
 	});
 
-	test('issue #47733: Undo mangles unicode characters', () => {
-		const languageId = new LanguageIdentifier('myMode', 3);
-		class MyMode extends MockMode {
-			constructor() {
-				super(languageId);
-				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
-					surroundingPairs: [{ open: '%', close: '%' }]
+	test('issue #47733: Undo mangwes unicode chawactews', () => {
+		const wanguageId = new WanguageIdentifia('myMode', 3);
+		cwass MyMode extends MockMode {
+			constwuctow() {
+				supa(wanguageId);
+				this._wegista(WanguageConfiguwationWegistwy.wegista(this.getWanguageIdentifia(), {
+					suwwoundingPaiws: [{ open: '%', cwose: '%' }]
 				}));
 			}
 		}
 
 		const mode = new MyMode();
-		const model = createTextModel('\'👁\'', undefined, languageId);
+		const modew = cweateTextModew('\'👁\'', undefined, wanguageId);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			editor.setSelection(new Selection(1, 1, 1, 2));
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			editow.setSewection(new Sewection(1, 1, 1, 2));
 
-			viewModel.type('%', 'keyboard');
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '%\'%👁\'', 'assert1');
+			viewModew.type('%', 'keyboawd');
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '%\'%👁\'', 'assewt1');
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '\'👁\'', 'assert2');
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '\'👁\'', 'assewt2');
 		});
 
-		model.dispose();
+		modew.dispose();
 		mode.dispose();
 	});
 
-	test('issue #46208: Allow empty selections in the undo/redo stack', () => {
-		let model = createTextModel('');
+	test('issue #46208: Awwow empty sewections in the undo/wedo stack', () => {
+		wet modew = cweateTextModew('');
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			viewModel.type('Hello', 'keyboard');
-			viewModel.type(' ', 'keyboard');
-			viewModel.type('world', 'keyboard');
-			viewModel.type(' ', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), 'Hello world ');
-			assertCursor(viewModel, new Position(1, 13));
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			viewModew.type('Hewwo', 'keyboawd');
+			viewModew.type(' ', 'keyboawd');
+			viewModew.type('wowwd', 'keyboawd');
+			viewModew.type(' ', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), 'Hewwo wowwd ');
+			assewtCuwsow(viewModew, new Position(1, 13));
 
-			moveLeft(editor, viewModel);
-			moveRight(editor, viewModel);
+			moveWeft(editow, viewModew);
+			moveWight(editow, viewModew);
 
-			model.pushEditOperations([], [EditOperation.replaceMove(new Range(1, 12, 1, 13), '')], () => []);
-			assert.strictEqual(model.getLineContent(1), 'Hello world');
-			assertCursor(viewModel, new Position(1, 12));
+			modew.pushEditOpewations([], [EditOpewation.wepwaceMove(new Wange(1, 12, 1, 13), '')], () => []);
+			assewt.stwictEquaw(modew.getWineContent(1), 'Hewwo wowwd');
+			assewtCuwsow(viewModew, new Position(1, 12));
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(1), 'Hello world ');
-			assertCursor(viewModel, new Selection(1, 12, 1, 13));
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(1), 'Hewwo wowwd ');
+			assewtCuwsow(viewModew, new Sewection(1, 12, 1, 13));
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(1), 'Hello world');
-			assertCursor(viewModel, new Position(1, 12));
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(1), 'Hewwo wowwd');
+			assewtCuwsow(viewModew, new Position(1, 12));
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(1), 'Hello');
-			assertCursor(viewModel, new Position(1, 6));
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(1), 'Hewwo');
+			assewtCuwsow(viewModew, new Position(1, 6));
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(1), '');
-			assertCursor(viewModel, new Position(1, 1));
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(1), '');
+			assewtCuwsow(viewModew, new Position(1, 1));
 
-			CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(1), 'Hello');
-			assertCursor(viewModel, new Position(1, 6));
+			CoweEditingCommands.Wedo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(1), 'Hewwo');
+			assewtCuwsow(viewModew, new Position(1, 6));
 
-			CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(1), 'Hello world');
-			assertCursor(viewModel, new Position(1, 12));
+			CoweEditingCommands.Wedo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(1), 'Hewwo wowwd');
+			assewtCuwsow(viewModew, new Position(1, 12));
 
-			CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(1), 'Hello world ');
-			assertCursor(viewModel, new Position(1, 13));
+			CoweEditingCommands.Wedo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(1), 'Hewwo wowwd ');
+			assewtCuwsow(viewModew, new Position(1, 13));
 
-			CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(1), 'Hello world');
-			assertCursor(viewModel, new Position(1, 12));
+			CoweEditingCommands.Wedo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(1), 'Hewwo wowwd');
+			assewtCuwsow(viewModew, new Position(1, 12));
 
-			CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(1), 'Hello world');
-			assertCursor(viewModel, new Position(1, 12));
+			CoweEditingCommands.Wedo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(1), 'Hewwo wowwd');
+			assewtCuwsow(viewModew, new Position(1, 12));
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
 	test('bug #16815:Shift+Tab doesn\'t go back to tabstop', () => {
-		let mode = new OnEnterMode(IndentAction.IndentOutdent);
-		let model = createTextModel(
+		wet mode = new OnEntewMode(IndentAction.IndentOutdent);
+		wet modew = cweateTextModew(
 			[
 				'     function baz() {'
 			].join('\n'),
 			undefined,
-			mode.getLanguageIdentifier()
+			mode.getWanguageIdentifia()
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 6, false);
-			assertCursor(viewModel, new Selection(1, 6, 1, 6));
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			moveTo(editow, viewModew, 1, 6, fawse);
+			assewtCuwsow(viewModew, new Sewection(1, 6, 1, 6));
 
-			CoreEditingCommands.Outdent.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(1), '    function baz() {');
-			assertCursor(viewModel, new Selection(1, 5, 1, 5));
+			CoweEditingCommands.Outdent.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(1), '    function baz() {');
+			assewtCuwsow(viewModew, new Sewection(1, 5, 1, 5));
 		});
 
-		model.dispose();
+		modew.dispose();
 		mode.dispose();
 	});
 
-	test('Bug #18293:[regression][editor] Can\'t outdent whitespace line', () => {
-		let model = createTextModel(
+	test('Bug #18293:[wegwession][editow] Can\'t outdent whitespace wine', () => {
+		wet modew = cweateTextModew(
 			[
 				'      '
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 7, false);
-			assertCursor(viewModel, new Selection(1, 7, 1, 7));
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			moveTo(editow, viewModew, 1, 7, fawse);
+			assewtCuwsow(viewModew, new Sewection(1, 7, 1, 7));
 
-			CoreEditingCommands.Outdent.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(1), '    ');
-			assertCursor(viewModel, new Selection(1, 5, 1, 5));
+			CoweEditingCommands.Outdent.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(1), '    ');
+			assewtCuwsow(viewModew, new Sewection(1, 5, 1, 5));
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('issue #95591: Unindenting moves cursor to beginning of line', () => {
-		let model = createTextModel(
+	test('issue #95591: Unindenting moves cuwsow to beginning of wine', () => {
+		wet modew = cweateTextModew(
 			[
 				'        '
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, {
-			model: model,
-			useTabStops: false
-		}, (editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 9, false);
-			assertCursor(viewModel, new Selection(1, 9, 1, 9));
+		withTestCodeEditow(nuww, {
+			modew: modew,
+			useTabStops: fawse
+		}, (editow, viewModew) => {
+			moveTo(editow, viewModew, 1, 9, fawse);
+			assewtCuwsow(viewModew, new Sewection(1, 9, 1, 9));
 
-			CoreEditingCommands.Outdent.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(1), '    ');
-			assertCursor(viewModel, new Selection(1, 5, 1, 5));
+			CoweEditingCommands.Outdent.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(1), '    ');
+			assewtCuwsow(viewModew, new Sewection(1, 5, 1, 5));
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('Bug #16657: [editor] Tab on empty line of zero indentation moves cursor to position (1,1)', () => {
-		let model = createTextModel(
+	test('Bug #16657: [editow] Tab on empty wine of zewo indentation moves cuwsow to position (1,1)', () => {
+		wet modew = cweateTextModew(
 			[
 				'function baz() {',
-				'\tfunction hello() { // something here',
+				'\tfunction hewwo() { // something hewe',
 				'\t',
 				'',
 				'\t}',
@@ -1574,195 +1574,195 @@ suite('Editor Controller - Regression tests', () => {
 				''
 			].join('\n'),
 			{
-				insertSpaces: false,
+				insewtSpaces: fawse,
 			},
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			moveTo(editor, viewModel, 7, 1, false);
-			assertCursor(viewModel, new Selection(7, 1, 7, 1));
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			moveTo(editow, viewModew, 7, 1, fawse);
+			assewtCuwsow(viewModew, new Sewection(7, 1, 7, 1));
 
-			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(7), '\t');
-			assertCursor(viewModel, new Selection(7, 2, 7, 2));
+			CoweEditingCommands.Tab.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(7), '\t');
+			assewtCuwsow(viewModew, new Sewection(7, 2, 7, 2));
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('bug #16740: [editor] Cut line doesn\'t quite cut the last line', () => {
+	test('bug #16740: [editow] Cut wine doesn\'t quite cut the wast wine', () => {
 
-		// Part 1 => there is text on the last line
-		withTestCodeEditor([
+		// Pawt 1 => thewe is text on the wast wine
+		withTestCodeEditow([
 			'asdasd',
-			'qwerty'
-		], {}, (editor, viewModel) => {
-			const model = editor.getModel()!;
+			'qwewty'
+		], {}, (editow, viewModew) => {
+			const modew = editow.getModew()!;
 
-			moveTo(editor, viewModel, 2, 1, false);
-			assertCursor(viewModel, new Selection(2, 1, 2, 1));
+			moveTo(editow, viewModew, 2, 1, fawse);
+			assewtCuwsow(viewModew, new Sewection(2, 1, 2, 1));
 
-			viewModel.cut('keyboard');
-			assert.strictEqual(model.getLineCount(), 1);
-			assert.strictEqual(model.getLineContent(1), 'asdasd');
+			viewModew.cut('keyboawd');
+			assewt.stwictEquaw(modew.getWineCount(), 1);
+			assewt.stwictEquaw(modew.getWineContent(1), 'asdasd');
 
 		});
 
-		// Part 2 => there is no text on the last line
-		withTestCodeEditor([
+		// Pawt 2 => thewe is no text on the wast wine
+		withTestCodeEditow([
 			'asdasd',
 			''
-		], {}, (editor, viewModel) => {
-			const model = editor.getModel()!;
+		], {}, (editow, viewModew) => {
+			const modew = editow.getModew()!;
 
-			moveTo(editor, viewModel, 2, 1, false);
-			assertCursor(viewModel, new Selection(2, 1, 2, 1));
+			moveTo(editow, viewModew, 2, 1, fawse);
+			assewtCuwsow(viewModew, new Sewection(2, 1, 2, 1));
 
-			viewModel.cut('keyboard');
-			assert.strictEqual(model.getLineCount(), 1);
-			assert.strictEqual(model.getLineContent(1), 'asdasd');
+			viewModew.cut('keyboawd');
+			assewt.stwictEquaw(modew.getWineCount(), 1);
+			assewt.stwictEquaw(modew.getWineContent(1), 'asdasd');
 
-			viewModel.cut('keyboard');
-			assert.strictEqual(model.getLineCount(), 1);
-			assert.strictEqual(model.getLineContent(1), '');
+			viewModew.cut('keyboawd');
+			assewt.stwictEquaw(modew.getWineCount(), 1);
+			assewt.stwictEquaw(modew.getWineContent(1), '');
 		});
 	});
 
-	test('Bug #11476: Double bracket surrounding + undo is broken', () => {
-		let mode = new SurroundingMode();
-		usingCursor({
+	test('Bug #11476: Doubwe bwacket suwwounding + undo is bwoken', () => {
+		wet mode = new SuwwoundingMode();
+		usingCuwsow({
 			text: [
-				'hello'
+				'hewwo'
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 1, 3, false);
-			moveTo(editor, viewModel, 1, 5, true);
-			assertCursor(viewModel, new Selection(1, 3, 1, 5));
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 1, 3, fawse);
+			moveTo(editow, viewModew, 1, 5, twue);
+			assewtCuwsow(viewModew, new Sewection(1, 3, 1, 5));
 
-			viewModel.type('(', 'keyboard');
-			assertCursor(viewModel, new Selection(1, 4, 1, 6));
+			viewModew.type('(', 'keyboawd');
+			assewtCuwsow(viewModew, new Sewection(1, 4, 1, 6));
 
-			viewModel.type('(', 'keyboard');
-			assertCursor(viewModel, new Selection(1, 5, 1, 7));
+			viewModew.type('(', 'keyboawd');
+			assewtCuwsow(viewModew, new Sewection(1, 5, 1, 7));
 		});
 		mode.dispose();
 	});
 
-	test('issue #1140: Backspace stops prematurely', () => {
-		let mode = new SurroundingMode();
-		let model = createTextModel(
+	test('issue #1140: Backspace stops pwematuwewy', () => {
+		wet mode = new SuwwoundingMode();
+		wet modew = cweateTextModew(
 			[
 				'function baz() {',
-				'  return 1;',
+				'  wetuwn 1;',
 				'};'
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			moveTo(editor, viewModel, 3, 2, false);
-			moveTo(editor, viewModel, 1, 14, true);
-			assertCursor(viewModel, new Selection(3, 2, 1, 14));
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			moveTo(editow, viewModew, 3, 2, fawse);
+			moveTo(editow, viewModew, 1, 14, twue);
+			assewtCuwsow(viewModew, new Sewection(3, 2, 1, 14));
 
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assertCursor(viewModel, new Selection(1, 14, 1, 14));
-			assert.strictEqual(model.getLineCount(), 1);
-			assert.strictEqual(model.getLineContent(1), 'function baz(;');
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewtCuwsow(viewModew, new Sewection(1, 14, 1, 14));
+			assewt.stwictEquaw(modew.getWineCount(), 1);
+			assewt.stwictEquaw(modew.getWineContent(1), 'function baz(;');
 		});
 
-		model.dispose();
+		modew.dispose();
 		mode.dispose();
 	});
 
-	test('issue #10212: Pasting entire line does not replace selection', () => {
-		usingCursor({
+	test('issue #10212: Pasting entiwe wine does not wepwace sewection', () => {
+		usingCuwsow({
 			text: [
-				'line1',
-				'line2'
+				'wine1',
+				'wine2'
 			],
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 2, 1, false);
-			moveTo(editor, viewModel, 2, 6, true);
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 2, 1, fawse);
+			moveTo(editow, viewModew, 2, 6, twue);
 
-			viewModel.paste('line1\n', true);
+			viewModew.paste('wine1\n', twue);
 
-			assert.strictEqual(model.getLineContent(1), 'line1');
-			assert.strictEqual(model.getLineContent(2), 'line1');
-			assert.strictEqual(model.getLineContent(3), '');
+			assewt.stwictEquaw(modew.getWineContent(1), 'wine1');
+			assewt.stwictEquaw(modew.getWineContent(2), 'wine1');
+			assewt.stwictEquaw(modew.getWineContent(3), '');
 		});
 	});
 
-	test('issue #74722: Pasting whole line does not replace selection', () => {
-		usingCursor({
+	test('issue #74722: Pasting whowe wine does not wepwace sewection', () => {
+		usingCuwsow({
 			text: [
-				'line1',
-				'line sel 2',
-				'line3'
+				'wine1',
+				'wine sew 2',
+				'wine3'
 			],
-		}, (editor, model, viewModel) => {
-			viewModel.setSelections('test', [new Selection(2, 6, 2, 9)]);
+		}, (editow, modew, viewModew) => {
+			viewModew.setSewections('test', [new Sewection(2, 6, 2, 9)]);
 
-			viewModel.paste('line1\n', true);
+			viewModew.paste('wine1\n', twue);
 
-			assert.strictEqual(model.getLineContent(1), 'line1');
-			assert.strictEqual(model.getLineContent(2), 'line line1');
-			assert.strictEqual(model.getLineContent(3), ' 2');
-			assert.strictEqual(model.getLineContent(4), 'line3');
+			assewt.stwictEquaw(modew.getWineContent(1), 'wine1');
+			assewt.stwictEquaw(modew.getWineContent(2), 'wine wine1');
+			assewt.stwictEquaw(modew.getWineContent(3), ' 2');
+			assewt.stwictEquaw(modew.getWineContent(4), 'wine3');
 		});
 	});
 
-	test('issue #4996: Multiple cursor paste pastes contents of all cursors', () => {
-		usingCursor({
+	test('issue #4996: Muwtipwe cuwsow paste pastes contents of aww cuwsows', () => {
+		usingCuwsow({
 			text: [
-				'line1',
-				'line2',
-				'line3'
+				'wine1',
+				'wine2',
+				'wine3'
 			],
-		}, (editor, model, viewModel) => {
-			viewModel.setSelections('test', [new Selection(1, 1, 1, 1), new Selection(2, 1, 2, 1)]);
+		}, (editow, modew, viewModew) => {
+			viewModew.setSewections('test', [new Sewection(1, 1, 1, 1), new Sewection(2, 1, 2, 1)]);
 
-			viewModel.paste(
+			viewModew.paste(
 				'a\nb\nc\nd',
-				false,
+				fawse,
 				[
 					'a\nb',
 					'c\nd'
 				]
 			);
 
-			assert.strictEqual(model.getValue(), [
+			assewt.stwictEquaw(modew.getVawue(), [
 				'a',
-				'bline1',
+				'bwine1',
 				'c',
-				'dline2',
-				'line3'
+				'dwine2',
+				'wine3'
 			].join('\n'));
 		});
 	});
 
-	test('issue #16155: Paste into multiple cursors has edge case when number of lines equals number of cursors - 1', () => {
-		usingCursor({
+	test('issue #16155: Paste into muwtipwe cuwsows has edge case when numba of wines equaws numba of cuwsows - 1', () => {
+		usingCuwsow({
 			text: [
 				'test',
 				'test',
 				'test',
 				'test'
 			],
-		}, (editor, model, viewModel) => {
-			viewModel.setSelections('test', [
-				new Selection(1, 1, 1, 5),
-				new Selection(2, 1, 2, 5),
-				new Selection(3, 1, 3, 5),
-				new Selection(4, 1, 4, 5),
+		}, (editow, modew, viewModew) => {
+			viewModew.setSewections('test', [
+				new Sewection(1, 1, 1, 5),
+				new Sewection(2, 1, 2, 5),
+				new Sewection(3, 1, 3, 5),
+				new Sewection(4, 1, 4, 5),
 			]);
 
-			viewModel.paste(
+			viewModew.paste(
 				'aaa\nbbb\nccc\n',
-				false,
-				null
+				fawse,
+				nuww
 			);
 
-			assert.strictEqual(model.getValue(), [
+			assewt.stwictEquaw(modew.getVawue(), [
 				'aaa',
 				'bbb',
 				'ccc',
@@ -1783,29 +1783,29 @@ suite('Editor Controller - Regression tests', () => {
 		});
 	});
 
-	test('issue #43722: Multiline paste doesn\'t work anymore', () => {
-		usingCursor({
+	test('issue #43722: Muwtiwine paste doesn\'t wowk anymowe', () => {
+		usingCuwsow({
 			text: [
 				'test',
 				'test',
 				'test',
 				'test'
 			],
-		}, (editor, model, viewModel) => {
-			viewModel.setSelections('test', [
-				new Selection(1, 1, 1, 5),
-				new Selection(2, 1, 2, 5),
-				new Selection(3, 1, 3, 5),
-				new Selection(4, 1, 4, 5),
+		}, (editow, modew, viewModew) => {
+			viewModew.setSewections('test', [
+				new Sewection(1, 1, 1, 5),
+				new Sewection(2, 1, 2, 5),
+				new Sewection(3, 1, 3, 5),
+				new Sewection(4, 1, 4, 5),
 			]);
 
-			viewModel.paste(
-				'aaa\r\nbbb\r\nccc\r\nddd\r\n',
-				false,
-				null
+			viewModew.paste(
+				'aaa\w\nbbb\w\nccc\w\nddd\w\n',
+				fawse,
+				nuww
 			);
 
-			assert.strictEqual(model.getValue(), [
+			assewt.stwictEquaw(modew.getVawue(), [
 				'aaa',
 				'bbb',
 				'ccc',
@@ -1814,1007 +1814,1007 @@ suite('Editor Controller - Regression tests', () => {
 		});
 	});
 
-	test('issue #46440: (1) Pasting a multi-line selection pastes entire selection into every insertion point', () => {
-		usingCursor({
+	test('issue #46440: (1) Pasting a muwti-wine sewection pastes entiwe sewection into evewy insewtion point', () => {
+		usingCuwsow({
 			text: [
-				'line1',
-				'line2',
-				'line3'
+				'wine1',
+				'wine2',
+				'wine3'
 			],
-		}, (editor, model, viewModel) => {
-			viewModel.setSelections('test', [new Selection(1, 1, 1, 1), new Selection(2, 1, 2, 1), new Selection(3, 1, 3, 1)]);
+		}, (editow, modew, viewModew) => {
+			viewModew.setSewections('test', [new Sewection(1, 1, 1, 1), new Sewection(2, 1, 2, 1), new Sewection(3, 1, 3, 1)]);
 
-			viewModel.paste(
+			viewModew.paste(
 				'a\nb\nc',
-				false,
-				null
+				fawse,
+				nuww
 			);
 
-			assert.strictEqual(model.getValue(), [
-				'aline1',
-				'bline2',
-				'cline3'
+			assewt.stwictEquaw(modew.getVawue(), [
+				'awine1',
+				'bwine2',
+				'cwine3'
 			].join('\n'));
 		});
 	});
 
-	test('issue #46440: (2) Pasting a multi-line selection pastes entire selection into every insertion point', () => {
-		usingCursor({
+	test('issue #46440: (2) Pasting a muwti-wine sewection pastes entiwe sewection into evewy insewtion point', () => {
+		usingCuwsow({
 			text: [
-				'line1',
-				'line2',
-				'line3'
+				'wine1',
+				'wine2',
+				'wine3'
 			],
-		}, (editor, model, viewModel) => {
-			viewModel.setSelections('test', [new Selection(1, 1, 1, 1), new Selection(2, 1, 2, 1), new Selection(3, 1, 3, 1)]);
+		}, (editow, modew, viewModew) => {
+			viewModew.setSewections('test', [new Sewection(1, 1, 1, 1), new Sewection(2, 1, 2, 1), new Sewection(3, 1, 3, 1)]);
 
-			viewModel.paste(
+			viewModew.paste(
 				'a\nb\nc\n',
-				false,
-				null
+				fawse,
+				nuww
 			);
 
-			assert.strictEqual(model.getValue(), [
-				'aline1',
-				'bline2',
-				'cline3'
+			assewt.stwictEquaw(modew.getVawue(), [
+				'awine1',
+				'bwine2',
+				'cwine3'
 			].join('\n'));
 		});
 	});
 
-	test('issue #3071: Investigate why undo stack gets corrupted', () => {
-		let model = createTextModel(
+	test('issue #3071: Investigate why undo stack gets cowwupted', () => {
+		wet modew = cweateTextModew(
 			[
-				'some lines',
-				'and more lines',
+				'some wines',
+				'and mowe wines',
 				'just some text',
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 1, false);
-			moveTo(editor, viewModel, 3, 4, true);
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			moveTo(editow, viewModew, 1, 1, fawse);
+			moveTo(editow, viewModew, 3, 4, twue);
 
-			let isFirst = true;
-			model.onDidChangeContent(() => {
-				if (isFirst) {
-					isFirst = false;
-					viewModel.type('\t', 'keyboard');
+			wet isFiwst = twue;
+			modew.onDidChangeContent(() => {
+				if (isFiwst) {
+					isFiwst = fawse;
+					viewModew.type('\t', 'keyboawd');
 				}
 			});
 
-			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(), [
+			CoweEditingCommands.Tab.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(), [
 				'\t just some text'
 			].join('\n'), '001');
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(), [
-				'    some lines',
-				'    and more lines',
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(), [
+				'    some wines',
+				'    and mowe wines',
 				'    just some text',
 			].join('\n'), '002');
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(), [
-				'some lines',
-				'and more lines',
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(), [
+				'some wines',
+				'and mowe wines',
 				'just some text',
 			].join('\n'), '003');
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(), [
-				'some lines',
-				'and more lines',
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(), [
+				'some wines',
+				'and mowe wines',
 				'just some text',
 			].join('\n'), '004');
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('issue #12950: Cannot Double Click To Insert Emoji Using OSX Emoji Panel', () => {
-		usingCursor({
+	test('issue #12950: Cannot Doubwe Cwick To Insewt Emoji Using OSX Emoji Panew', () => {
+		usingCuwsow({
 			text: [
-				'some lines',
-				'and more lines',
+				'some wines',
+				'and mowe wines',
 				'just some text',
 			],
-			languageIdentifier: null
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 3, 1, false);
+			wanguageIdentifia: nuww
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 3, 1, fawse);
 
-			viewModel.type('😍', 'keyboard');
+			viewModew.type('😍', 'keyboawd');
 
-			assert.strictEqual(model.getValue(), [
-				'some lines',
-				'and more lines',
+			assewt.stwictEquaw(modew.getVawue(), [
+				'some wines',
+				'and mowe wines',
 				'😍just some text',
 			].join('\n'));
 		});
 	});
 
-	test('issue #3463: pressing tab adds spaces, but not as many as for a tab', () => {
-		let model = createTextModel(
+	test('issue #3463: pwessing tab adds spaces, but not as many as fow a tab', () => {
+		wet modew = cweateTextModew(
 			[
 				'function a() {',
-				'\tvar a = {',
+				'\tvaw a = {',
 				'\t\tx: 3',
 				'\t};',
 				'}',
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			moveTo(editor, viewModel, 3, 2, false);
-			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(3), '\t    \tx: 3');
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			moveTo(editow, viewModew, 3, 2, fawse);
+			CoweEditingCommands.Tab.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(3), '\t    \tx: 3');
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('issue #4312: trying to type a tab character over a sequence of spaces results in unexpected behaviour', () => {
-		let model = createTextModel(
+	test('issue #4312: twying to type a tab chawacta ova a sequence of spaces wesuwts in unexpected behaviouw', () => {
+		wet modew = cweateTextModew(
 			[
-				'var foo = 123;       // this is a comment',
-				'var bar = 4;       // another comment'
+				'vaw foo = 123;       // this is a comment',
+				'vaw baw = 4;       // anotha comment'
 			].join('\n'),
 			{
-				insertSpaces: false,
+				insewtSpaces: fawse,
 			}
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 15, false);
-			moveTo(editor, viewModel, 1, 22, true);
-			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(1), 'var foo = 123;\t// this is a comment');
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			moveTo(editow, viewModew, 1, 15, fawse);
+			moveTo(editow, viewModew, 1, 22, twue);
+			CoweEditingCommands.Tab.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(1), 'vaw foo = 123;\t// this is a comment');
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('issue #832: word right', () => {
+	test('issue #832: wowd wight', () => {
 
-		usingCursor({
+		usingCuwsow({
 			text: [
-				'   /* Just some   more   text a+= 3 +5-3 + 7 */  '
+				'   /* Just some   mowe   text a+= 3 +5-3 + 7 */  '
 			],
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 1, 1, false);
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 1, 1, fawse);
 
-			function assertWordRight(col: number, expectedCol: number) {
-				let args = {
+			function assewtWowdWight(cow: numba, expectedCow: numba) {
+				wet awgs = {
 					position: {
-						lineNumber: 1,
-						column: col
+						wineNumba: 1,
+						cowumn: cow
 					}
 				};
-				if (col === 1) {
-					CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, args);
-				} else {
-					CoreNavigationCommands.WordSelectDrag.runCoreEditorCommand(viewModel, args);
+				if (cow === 1) {
+					CoweNavigationCommands.WowdSewect.wunCoweEditowCommand(viewModew, awgs);
+				} ewse {
+					CoweNavigationCommands.WowdSewectDwag.wunCoweEditowCommand(viewModew, awgs);
 				}
 
-				assert.strictEqual(viewModel.getSelection().startColumn, 1, 'TEST FOR ' + col);
-				assert.strictEqual(viewModel.getSelection().endColumn, expectedCol, 'TEST FOR ' + col);
+				assewt.stwictEquaw(viewModew.getSewection().stawtCowumn, 1, 'TEST FOW ' + cow);
+				assewt.stwictEquaw(viewModew.getSewection().endCowumn, expectedCow, 'TEST FOW ' + cow);
 			}
 
-			assertWordRight(1, '   '.length + 1);
-			assertWordRight(2, '   '.length + 1);
-			assertWordRight(3, '   '.length + 1);
-			assertWordRight(4, '   '.length + 1);
-			assertWordRight(5, '   /'.length + 1);
-			assertWordRight(6, '   /*'.length + 1);
-			assertWordRight(7, '   /* '.length + 1);
-			assertWordRight(8, '   /* Just'.length + 1);
-			assertWordRight(9, '   /* Just'.length + 1);
-			assertWordRight(10, '   /* Just'.length + 1);
-			assertWordRight(11, '   /* Just'.length + 1);
-			assertWordRight(12, '   /* Just '.length + 1);
-			assertWordRight(13, '   /* Just some'.length + 1);
-			assertWordRight(14, '   /* Just some'.length + 1);
-			assertWordRight(15, '   /* Just some'.length + 1);
-			assertWordRight(16, '   /* Just some'.length + 1);
-			assertWordRight(17, '   /* Just some '.length + 1);
-			assertWordRight(18, '   /* Just some  '.length + 1);
-			assertWordRight(19, '   /* Just some   '.length + 1);
-			assertWordRight(20, '   /* Just some   more'.length + 1);
-			assertWordRight(21, '   /* Just some   more'.length + 1);
-			assertWordRight(22, '   /* Just some   more'.length + 1);
-			assertWordRight(23, '   /* Just some   more'.length + 1);
-			assertWordRight(24, '   /* Just some   more '.length + 1);
-			assertWordRight(25, '   /* Just some   more  '.length + 1);
-			assertWordRight(26, '   /* Just some   more   '.length + 1);
-			assertWordRight(27, '   /* Just some   more   text'.length + 1);
-			assertWordRight(28, '   /* Just some   more   text'.length + 1);
-			assertWordRight(29, '   /* Just some   more   text'.length + 1);
-			assertWordRight(30, '   /* Just some   more   text'.length + 1);
-			assertWordRight(31, '   /* Just some   more   text '.length + 1);
-			assertWordRight(32, '   /* Just some   more   text a'.length + 1);
-			assertWordRight(33, '   /* Just some   more   text a+'.length + 1);
-			assertWordRight(34, '   /* Just some   more   text a+='.length + 1);
-			assertWordRight(35, '   /* Just some   more   text a+= '.length + 1);
-			assertWordRight(36, '   /* Just some   more   text a+= 3'.length + 1);
-			assertWordRight(37, '   /* Just some   more   text a+= 3 '.length + 1);
-			assertWordRight(38, '   /* Just some   more   text a+= 3 +'.length + 1);
-			assertWordRight(39, '   /* Just some   more   text a+= 3 +5'.length + 1);
-			assertWordRight(40, '   /* Just some   more   text a+= 3 +5-'.length + 1);
-			assertWordRight(41, '   /* Just some   more   text a+= 3 +5-3'.length + 1);
-			assertWordRight(42, '   /* Just some   more   text a+= 3 +5-3 '.length + 1);
-			assertWordRight(43, '   /* Just some   more   text a+= 3 +5-3 +'.length + 1);
-			assertWordRight(44, '   /* Just some   more   text a+= 3 +5-3 + '.length + 1);
-			assertWordRight(45, '   /* Just some   more   text a+= 3 +5-3 + 7'.length + 1);
-			assertWordRight(46, '   /* Just some   more   text a+= 3 +5-3 + 7 '.length + 1);
-			assertWordRight(47, '   /* Just some   more   text a+= 3 +5-3 + 7 *'.length + 1);
-			assertWordRight(48, '   /* Just some   more   text a+= 3 +5-3 + 7 */'.length + 1);
-			assertWordRight(49, '   /* Just some   more   text a+= 3 +5-3 + 7 */ '.length + 1);
-			assertWordRight(50, '   /* Just some   more   text a+= 3 +5-3 + 7 */  '.length + 1);
+			assewtWowdWight(1, '   '.wength + 1);
+			assewtWowdWight(2, '   '.wength + 1);
+			assewtWowdWight(3, '   '.wength + 1);
+			assewtWowdWight(4, '   '.wength + 1);
+			assewtWowdWight(5, '   /'.wength + 1);
+			assewtWowdWight(6, '   /*'.wength + 1);
+			assewtWowdWight(7, '   /* '.wength + 1);
+			assewtWowdWight(8, '   /* Just'.wength + 1);
+			assewtWowdWight(9, '   /* Just'.wength + 1);
+			assewtWowdWight(10, '   /* Just'.wength + 1);
+			assewtWowdWight(11, '   /* Just'.wength + 1);
+			assewtWowdWight(12, '   /* Just '.wength + 1);
+			assewtWowdWight(13, '   /* Just some'.wength + 1);
+			assewtWowdWight(14, '   /* Just some'.wength + 1);
+			assewtWowdWight(15, '   /* Just some'.wength + 1);
+			assewtWowdWight(16, '   /* Just some'.wength + 1);
+			assewtWowdWight(17, '   /* Just some '.wength + 1);
+			assewtWowdWight(18, '   /* Just some  '.wength + 1);
+			assewtWowdWight(19, '   /* Just some   '.wength + 1);
+			assewtWowdWight(20, '   /* Just some   mowe'.wength + 1);
+			assewtWowdWight(21, '   /* Just some   mowe'.wength + 1);
+			assewtWowdWight(22, '   /* Just some   mowe'.wength + 1);
+			assewtWowdWight(23, '   /* Just some   mowe'.wength + 1);
+			assewtWowdWight(24, '   /* Just some   mowe '.wength + 1);
+			assewtWowdWight(25, '   /* Just some   mowe  '.wength + 1);
+			assewtWowdWight(26, '   /* Just some   mowe   '.wength + 1);
+			assewtWowdWight(27, '   /* Just some   mowe   text'.wength + 1);
+			assewtWowdWight(28, '   /* Just some   mowe   text'.wength + 1);
+			assewtWowdWight(29, '   /* Just some   mowe   text'.wength + 1);
+			assewtWowdWight(30, '   /* Just some   mowe   text'.wength + 1);
+			assewtWowdWight(31, '   /* Just some   mowe   text '.wength + 1);
+			assewtWowdWight(32, '   /* Just some   mowe   text a'.wength + 1);
+			assewtWowdWight(33, '   /* Just some   mowe   text a+'.wength + 1);
+			assewtWowdWight(34, '   /* Just some   mowe   text a+='.wength + 1);
+			assewtWowdWight(35, '   /* Just some   mowe   text a+= '.wength + 1);
+			assewtWowdWight(36, '   /* Just some   mowe   text a+= 3'.wength + 1);
+			assewtWowdWight(37, '   /* Just some   mowe   text a+= 3 '.wength + 1);
+			assewtWowdWight(38, '   /* Just some   mowe   text a+= 3 +'.wength + 1);
+			assewtWowdWight(39, '   /* Just some   mowe   text a+= 3 +5'.wength + 1);
+			assewtWowdWight(40, '   /* Just some   mowe   text a+= 3 +5-'.wength + 1);
+			assewtWowdWight(41, '   /* Just some   mowe   text a+= 3 +5-3'.wength + 1);
+			assewtWowdWight(42, '   /* Just some   mowe   text a+= 3 +5-3 '.wength + 1);
+			assewtWowdWight(43, '   /* Just some   mowe   text a+= 3 +5-3 +'.wength + 1);
+			assewtWowdWight(44, '   /* Just some   mowe   text a+= 3 +5-3 + '.wength + 1);
+			assewtWowdWight(45, '   /* Just some   mowe   text a+= 3 +5-3 + 7'.wength + 1);
+			assewtWowdWight(46, '   /* Just some   mowe   text a+= 3 +5-3 + 7 '.wength + 1);
+			assewtWowdWight(47, '   /* Just some   mowe   text a+= 3 +5-3 + 7 *'.wength + 1);
+			assewtWowdWight(48, '   /* Just some   mowe   text a+= 3 +5-3 + 7 */'.wength + 1);
+			assewtWowdWight(49, '   /* Just some   mowe   text a+= 3 +5-3 + 7 */ '.wength + 1);
+			assewtWowdWight(50, '   /* Just some   mowe   text a+= 3 +5-3 + 7 */  '.wength + 1);
 		});
 	});
 
-	test('issue #33788: Wrong cursor position when double click to select a word', () => {
-		let model = createTextModel(
+	test('issue #33788: Wwong cuwsow position when doubwe cwick to sewect a wowd', () => {
+		wet modew = cweateTextModew(
 			[
 				'Just some text'
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, { position: new Position(1, 8) });
-			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 6, 1, 10));
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			CoweNavigationCommands.WowdSewect.wunCoweEditowCommand(viewModew, { position: new Position(1, 8) });
+			assewt.deepStwictEquaw(viewModew.getSewection(), new Sewection(1, 6, 1, 10));
 
-			CoreNavigationCommands.WordSelectDrag.runCoreEditorCommand(viewModel, { position: new Position(1, 8) });
-			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 6, 1, 10));
+			CoweNavigationCommands.WowdSewectDwag.wunCoweEditowCommand(viewModew, { position: new Position(1, 8) });
+			assewt.deepStwictEquaw(viewModew.getSewection(), new Sewection(1, 6, 1, 10));
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('issue #12887: Double-click highlighting separating white space', () => {
-		let model = createTextModel(
+	test('issue #12887: Doubwe-cwick highwighting sepawating white space', () => {
+		wet modew = cweateTextModew(
 			[
 				'abc def'
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, { position: new Position(1, 5) });
-			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 5, 1, 8));
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			CoweNavigationCommands.WowdSewect.wunCoweEditowCommand(viewModew, { position: new Position(1, 5) });
+			assewt.deepStwictEquaw(viewModew.getSewection(), new Sewection(1, 5, 1, 8));
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('issue #9675: Undo/Redo adds a stop in between CHN Characters', () => {
-		withTestCodeEditor([], {}, (editor, viewModel) => {
-			const model = editor.getModel()!;
-			assertCursor(viewModel, new Position(1, 1));
+	test('issue #9675: Undo/Wedo adds a stop in between CHN Chawactews', () => {
+		withTestCodeEditow([], {}, (editow, viewModew) => {
+			const modew = editow.getModew()!;
+			assewtCuwsow(viewModew, new Position(1, 1));
 
-			// Typing sennsei in Japanese - Hiragana
-			viewModel.type('ｓ', 'keyboard');
-			viewModel.compositionType('せ', 1, 0, 0);
-			viewModel.compositionType('せｎ', 1, 0, 0);
-			viewModel.compositionType('せん', 2, 0, 0);
-			viewModel.compositionType('せんｓ', 2, 0, 0);
-			viewModel.compositionType('せんせ', 3, 0, 0);
-			viewModel.compositionType('せんせ', 3, 0, 0);
-			viewModel.compositionType('せんせい', 3, 0, 0);
-			viewModel.compositionType('せんせい', 4, 0, 0);
-			viewModel.compositionType('せんせい', 4, 0, 0);
-			viewModel.compositionType('せんせい', 4, 0, 0);
+			// Typing sennsei in Japanese - Hiwagana
+			viewModew.type('ｓ', 'keyboawd');
+			viewModew.compositionType('せ', 1, 0, 0);
+			viewModew.compositionType('せｎ', 1, 0, 0);
+			viewModew.compositionType('せん', 2, 0, 0);
+			viewModew.compositionType('せんｓ', 2, 0, 0);
+			viewModew.compositionType('せんせ', 3, 0, 0);
+			viewModew.compositionType('せんせ', 3, 0, 0);
+			viewModew.compositionType('せんせい', 3, 0, 0);
+			viewModew.compositionType('せんせい', 4, 0, 0);
+			viewModew.compositionType('せんせい', 4, 0, 0);
+			viewModew.compositionType('せんせい', 4, 0, 0);
 
-			assert.strictEqual(model.getLineContent(1), 'せんせい');
-			assertCursor(viewModel, new Position(1, 5));
+			assewt.stwictEquaw(modew.getWineContent(1), 'せんせい');
+			assewtCuwsow(viewModew, new Position(1, 5));
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(1), '');
-			assertCursor(viewModel, new Position(1, 1));
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(1), '');
+			assewtCuwsow(viewModew, new Position(1, 1));
 		});
 	});
 
-	test('issue #23913: Greater than 1000+ multi cursor typing replacement text appears inverted, lines begin to drop off selection', function () {
+	test('issue #23913: Gweata than 1000+ muwti cuwsow typing wepwacement text appeaws invewted, wines begin to dwop off sewection', function () {
 		this.timeout(10000);
-		const LINE_CNT = 2000;
+		const WINE_CNT = 2000;
 
-		let text: string[] = [];
-		for (let i = 0; i < LINE_CNT; i++) {
+		wet text: stwing[] = [];
+		fow (wet i = 0; i < WINE_CNT; i++) {
 			text[i] = 'asd';
 		}
-		usingCursor({
+		usingCuwsow({
 			text: text
-		}, (editor, model, viewModel) => {
+		}, (editow, modew, viewModew) => {
 
-			let selections: Selection[] = [];
-			for (let i = 0; i < LINE_CNT; i++) {
-				selections[i] = new Selection(i + 1, 1, i + 1, 1);
+			wet sewections: Sewection[] = [];
+			fow (wet i = 0; i < WINE_CNT; i++) {
+				sewections[i] = new Sewection(i + 1, 1, i + 1, 1);
 			}
-			viewModel.setSelections('test', selections);
+			viewModew.setSewections('test', sewections);
 
-			viewModel.type('n', 'keyboard');
-			viewModel.type('n', 'keyboard');
+			viewModew.type('n', 'keyboawd');
+			viewModew.type('n', 'keyboawd');
 
-			for (let i = 0; i < LINE_CNT; i++) {
-				assert.strictEqual(model.getLineContent(i + 1), 'nnasd', 'line #' + (i + 1));
+			fow (wet i = 0; i < WINE_CNT; i++) {
+				assewt.stwictEquaw(modew.getWineContent(i + 1), 'nnasd', 'wine #' + (i + 1));
 			}
 
-			assert.strictEqual(viewModel.getSelections().length, LINE_CNT);
-			assert.strictEqual(viewModel.getSelections()[LINE_CNT - 1].startLineNumber, LINE_CNT);
+			assewt.stwictEquaw(viewModew.getSewections().wength, WINE_CNT);
+			assewt.stwictEquaw(viewModew.getSewections()[WINE_CNT - 1].stawtWineNumba, WINE_CNT);
 		});
 	});
 
-	test('issue #23983: Calling model.setEOL does not reset cursor position', () => {
-		usingCursor({
+	test('issue #23983: Cawwing modew.setEOW does not weset cuwsow position', () => {
+		usingCuwsow({
 			text: [
-				'first line',
-				'second line'
+				'fiwst wine',
+				'second wine'
 			]
-		}, (editor, model, viewModel) => {
-			model.setEOL(EndOfLineSequence.CRLF);
+		}, (editow, modew, viewModew) => {
+			modew.setEOW(EndOfWineSequence.CWWF);
 
-			viewModel.setSelections('test', [new Selection(2, 2, 2, 2)]);
-			model.setEOL(EndOfLineSequence.LF);
+			viewModew.setSewections('test', [new Sewection(2, 2, 2, 2)]);
+			modew.setEOW(EndOfWineSequence.WF);
 
-			assertCursor(viewModel, new Selection(2, 2, 2, 2));
+			assewtCuwsow(viewModew, new Sewection(2, 2, 2, 2));
 		});
 	});
 
-	test('issue #23983: Calling model.setValue() resets cursor position', () => {
-		usingCursor({
+	test('issue #23983: Cawwing modew.setVawue() wesets cuwsow position', () => {
+		usingCuwsow({
 			text: [
-				'first line',
-				'second line'
+				'fiwst wine',
+				'second wine'
 			]
-		}, (editor, model, viewModel) => {
-			model.setEOL(EndOfLineSequence.CRLF);
+		}, (editow, modew, viewModew) => {
+			modew.setEOW(EndOfWineSequence.CWWF);
 
-			viewModel.setSelections('test', [new Selection(2, 2, 2, 2)]);
-			model.setValue([
-				'different first line',
-				'different second line',
-				'new third line'
+			viewModew.setSewections('test', [new Sewection(2, 2, 2, 2)]);
+			modew.setVawue([
+				'diffewent fiwst wine',
+				'diffewent second wine',
+				'new thiwd wine'
 			].join('\n'));
 
-			assertCursor(viewModel, new Selection(1, 1, 1, 1));
+			assewtCuwsow(viewModew, new Sewection(1, 1, 1, 1));
 		});
 	});
 
-	test('issue #36740: wordwrap creates an extra step / character at the wrapping point', () => {
-		// a single model line => 4 view lines
-		withTestCodeEditor([
+	test('issue #36740: wowdwwap cweates an extwa step / chawacta at the wwapping point', () => {
+		// a singwe modew wine => 4 view wines
+		withTestCodeEditow([
 			[
-				'Lorem ipsum ',
-				'dolor sit amet ',
-				'consectetur ',
-				'adipiscing elit',
+				'Wowem ipsum ',
+				'dowow sit amet ',
+				'consectetuw ',
+				'adipiscing ewit',
 			].join('')
-		], { wordWrap: 'wordWrapColumn', wordWrapColumn: 16 }, (editor, viewModel) => {
-			viewModel.setSelections('test', [new Selection(1, 7, 1, 7)]);
+		], { wowdWwap: 'wowdWwapCowumn', wowdWwapCowumn: 16 }, (editow, viewModew) => {
+			viewModew.setSewections('test', [new Sewection(1, 7, 1, 7)]);
 
-			moveRight(editor, viewModel);
-			assertCursor(viewModel, new Selection(1, 8, 1, 8));
+			moveWight(editow, viewModew);
+			assewtCuwsow(viewModew, new Sewection(1, 8, 1, 8));
 
-			moveRight(editor, viewModel);
-			assertCursor(viewModel, new Selection(1, 9, 1, 9));
+			moveWight(editow, viewModew);
+			assewtCuwsow(viewModew, new Sewection(1, 9, 1, 9));
 
-			moveRight(editor, viewModel);
-			assertCursor(viewModel, new Selection(1, 10, 1, 10));
+			moveWight(editow, viewModew);
+			assewtCuwsow(viewModew, new Sewection(1, 10, 1, 10));
 
-			moveRight(editor, viewModel);
-			assertCursor(viewModel, new Selection(1, 11, 1, 11));
+			moveWight(editow, viewModew);
+			assewtCuwsow(viewModew, new Sewection(1, 11, 1, 11));
 
-			moveRight(editor, viewModel);
-			assertCursor(viewModel, new Selection(1, 12, 1, 12));
+			moveWight(editow, viewModew);
+			assewtCuwsow(viewModew, new Sewection(1, 12, 1, 12));
 
-			moveRight(editor, viewModel);
-			assertCursor(viewModel, new Selection(1, 13, 1, 13));
+			moveWight(editow, viewModew);
+			assewtCuwsow(viewModew, new Sewection(1, 13, 1, 13));
 
-			// moving to view line 2
-			moveRight(editor, viewModel);
-			assertCursor(viewModel, new Selection(1, 14, 1, 14));
+			// moving to view wine 2
+			moveWight(editow, viewModew);
+			assewtCuwsow(viewModew, new Sewection(1, 14, 1, 14));
 
-			moveLeft(editor, viewModel);
-			assertCursor(viewModel, new Selection(1, 13, 1, 13));
+			moveWeft(editow, viewModew);
+			assewtCuwsow(viewModew, new Sewection(1, 13, 1, 13));
 
-			// moving back to view line 1
-			moveLeft(editor, viewModel);
-			assertCursor(viewModel, new Selection(1, 12, 1, 12));
+			// moving back to view wine 1
+			moveWeft(editow, viewModew);
+			assewtCuwsow(viewModew, new Sewection(1, 12, 1, 12));
 		});
 	});
 
-	test('issue #110376: multiple selections with wordwrap behave differently', () => {
-		// a single model line => 4 view lines
-		withTestCodeEditor([
+	test('issue #110376: muwtipwe sewections with wowdwwap behave diffewentwy', () => {
+		// a singwe modew wine => 4 view wines
+		withTestCodeEditow([
 			[
 				'just a sentence. just a ',
 				'sentence. just a sentence.',
 			].join('')
-		], { wordWrap: 'wordWrapColumn', wordWrapColumn: 25 }, (editor, viewModel) => {
-			viewModel.setSelections('test', [
-				new Selection(1, 1, 1, 16),
-				new Selection(1, 18, 1, 33),
-				new Selection(1, 35, 1, 50),
+		], { wowdWwap: 'wowdWwapCowumn', wowdWwapCowumn: 25 }, (editow, viewModew) => {
+			viewModew.setSewections('test', [
+				new Sewection(1, 1, 1, 16),
+				new Sewection(1, 18, 1, 33),
+				new Sewection(1, 35, 1, 50),
 			]);
 
-			moveLeft(editor, viewModel);
-			assertCursor(viewModel, [
-				new Selection(1, 1, 1, 1),
-				new Selection(1, 18, 1, 18),
-				new Selection(1, 35, 1, 35),
+			moveWeft(editow, viewModew);
+			assewtCuwsow(viewModew, [
+				new Sewection(1, 1, 1, 1),
+				new Sewection(1, 18, 1, 18),
+				new Sewection(1, 35, 1, 35),
 			]);
 
-			viewModel.setSelections('test', [
-				new Selection(1, 1, 1, 16),
-				new Selection(1, 18, 1, 33),
-				new Selection(1, 35, 1, 50),
+			viewModew.setSewections('test', [
+				new Sewection(1, 1, 1, 16),
+				new Sewection(1, 18, 1, 33),
+				new Sewection(1, 35, 1, 50),
 			]);
 
-			moveRight(editor, viewModel);
-			assertCursor(viewModel, [
-				new Selection(1, 16, 1, 16),
-				new Selection(1, 33, 1, 33),
-				new Selection(1, 50, 1, 50),
+			moveWight(editow, viewModew);
+			assewtCuwsow(viewModew, [
+				new Sewection(1, 16, 1, 16),
+				new Sewection(1, 33, 1, 33),
+				new Sewection(1, 50, 1, 50),
 			]);
 		});
 	});
 
-	test('issue #98320: Multi-Cursor, Wrap lines and cursorSelectRight ==> cursors out of sync', () => {
-		// a single model line => 4 view lines
-		withTestCodeEditor([
+	test('issue #98320: Muwti-Cuwsow, Wwap wines and cuwsowSewectWight ==> cuwsows out of sync', () => {
+		// a singwe modew wine => 4 view wines
+		withTestCodeEditow([
 			[
-				'lorem_ipsum-1993x11x13',
-				'dolor_sit_amet-1998x04x27',
-				'consectetur-2007x10x08',
+				'wowem_ipsum-1993x11x13',
+				'dowow_sit_amet-1998x04x27',
+				'consectetuw-2007x10x08',
 				'adipiscing-2012x07x27',
-				'elit-2015x02x27',
+				'ewit-2015x02x27',
 			].join('\n')
-		], { wordWrap: 'wordWrapColumn', wordWrapColumn: 16 }, (editor, viewModel) => {
-			viewModel.setSelections('test', [
-				new Selection(1, 13, 1, 13),
-				new Selection(2, 16, 2, 16),
-				new Selection(3, 13, 3, 13),
-				new Selection(4, 12, 4, 12),
-				new Selection(5, 6, 5, 6),
+		], { wowdWwap: 'wowdWwapCowumn', wowdWwapCowumn: 16 }, (editow, viewModew) => {
+			viewModew.setSewections('test', [
+				new Sewection(1, 13, 1, 13),
+				new Sewection(2, 16, 2, 16),
+				new Sewection(3, 13, 3, 13),
+				new Sewection(4, 12, 4, 12),
+				new Sewection(5, 6, 5, 6),
 			]);
-			assertCursor(viewModel, [
-				new Selection(1, 13, 1, 13),
-				new Selection(2, 16, 2, 16),
-				new Selection(3, 13, 3, 13),
-				new Selection(4, 12, 4, 12),
-				new Selection(5, 6, 5, 6),
-			]);
-
-			moveRight(editor, viewModel, true);
-			assertCursor(viewModel, [
-				new Selection(1, 13, 1, 14),
-				new Selection(2, 16, 2, 17),
-				new Selection(3, 13, 3, 14),
-				new Selection(4, 12, 4, 13),
-				new Selection(5, 6, 5, 7),
+			assewtCuwsow(viewModew, [
+				new Sewection(1, 13, 1, 13),
+				new Sewection(2, 16, 2, 16),
+				new Sewection(3, 13, 3, 13),
+				new Sewection(4, 12, 4, 12),
+				new Sewection(5, 6, 5, 6),
 			]);
 
-			moveRight(editor, viewModel, true);
-			assertCursor(viewModel, [
-				new Selection(1, 13, 1, 15),
-				new Selection(2, 16, 2, 18),
-				new Selection(3, 13, 3, 15),
-				new Selection(4, 12, 4, 14),
-				new Selection(5, 6, 5, 8),
+			moveWight(editow, viewModew, twue);
+			assewtCuwsow(viewModew, [
+				new Sewection(1, 13, 1, 14),
+				new Sewection(2, 16, 2, 17),
+				new Sewection(3, 13, 3, 14),
+				new Sewection(4, 12, 4, 13),
+				new Sewection(5, 6, 5, 7),
 			]);
 
-			moveRight(editor, viewModel, true);
-			assertCursor(viewModel, [
-				new Selection(1, 13, 1, 16),
-				new Selection(2, 16, 2, 19),
-				new Selection(3, 13, 3, 16),
-				new Selection(4, 12, 4, 15),
-				new Selection(5, 6, 5, 9),
+			moveWight(editow, viewModew, twue);
+			assewtCuwsow(viewModew, [
+				new Sewection(1, 13, 1, 15),
+				new Sewection(2, 16, 2, 18),
+				new Sewection(3, 13, 3, 15),
+				new Sewection(4, 12, 4, 14),
+				new Sewection(5, 6, 5, 8),
 			]);
 
-			moveRight(editor, viewModel, true);
-			assertCursor(viewModel, [
-				new Selection(1, 13, 1, 17),
-				new Selection(2, 16, 2, 20),
-				new Selection(3, 13, 3, 17),
-				new Selection(4, 12, 4, 16),
-				new Selection(5, 6, 5, 10),
+			moveWight(editow, viewModew, twue);
+			assewtCuwsow(viewModew, [
+				new Sewection(1, 13, 1, 16),
+				new Sewection(2, 16, 2, 19),
+				new Sewection(3, 13, 3, 16),
+				new Sewection(4, 12, 4, 15),
+				new Sewection(5, 6, 5, 9),
+			]);
+
+			moveWight(editow, viewModew, twue);
+			assewtCuwsow(viewModew, [
+				new Sewection(1, 13, 1, 17),
+				new Sewection(2, 16, 2, 20),
+				new Sewection(3, 13, 3, 17),
+				new Sewection(4, 12, 4, 16),
+				new Sewection(5, 6, 5, 10),
 			]);
 		});
 	});
 
-	test('issue #41573 - delete across multiple lines does not shrink the selection when word wraps', () => {
-		withTestCodeEditor([
-			'Authorization: \'Bearer pHKRfCTFSnGxs6akKlb9ddIXcca0sIUSZJutPHYqz7vEeHdMTMh0SGN0IGU3a0n59DXjTLRsj5EJ2u33qLNIFi9fk5XF8pK39PndLYUZhPt4QvHGLScgSkK0L4gwzkzMloTQPpKhqiikiIOvyNNSpd2o8j29NnOmdTUOKi9DVt74PD2ohKxyOrWZ6oZprTkb3eKajcpnS0LABKfaw2rmv4\','
-		].join('\n'), { wordWrap: 'wordWrapColumn', wordWrapColumn: 100 }, (editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 43, false);
-			moveTo(editor, viewModel, 1, 147, true);
-			assertCursor(viewModel, new Selection(1, 43, 1, 147));
+	test('issue #41573 - dewete acwoss muwtipwe wines does not shwink the sewection when wowd wwaps', () => {
+		withTestCodeEditow([
+			'Authowization: \'Beawa pHKWfCTFSnGxs6akKwb9ddIXcca0sIUSZJutPHYqz7vEeHdMTMh0SGN0IGU3a0n59DXjTWWsj5EJ2u33qWNIFi9fk5XF8pK39PndWYUZhPt4QvHGWScgSkK0W4gwzkzMwoTQPpKhqiikiIOvyNNSpd2o8j29NnOmdTUOKi9DVt74PD2ohKxyOwWZ6oZpwTkb3eKajcpnS0WABKfaw2wmv4\','
+		].join('\n'), { wowdWwap: 'wowdWwapCowumn', wowdWwapCowumn: 100 }, (editow, viewModew) => {
+			moveTo(editow, viewModew, 1, 43, fawse);
+			moveTo(editow, viewModew, 1, 147, twue);
+			assewtCuwsow(viewModew, new Sewection(1, 43, 1, 147));
 
-			editor.getModel().applyEdits([{
-				range: new Range(1, 1, 1, 43),
+			editow.getModew().appwyEdits([{
+				wange: new Wange(1, 1, 1, 43),
 				text: ''
 			}]);
 
-			assertCursor(viewModel, new Selection(1, 1, 1, 105));
+			assewtCuwsow(viewModew, new Sewection(1, 1, 1, 105));
 		});
 	});
 
-	test('issue #22717: Moving text cursor cause an incorrect position in Chinese', () => {
-		// a single model line => 4 view lines
-		withTestCodeEditor([
+	test('issue #22717: Moving text cuwsow cause an incowwect position in Chinese', () => {
+		// a singwe modew wine => 4 view wines
+		withTestCodeEditow([
 			[
 				'一二三四五六七八九十',
 				'12345678901234567890',
 			].join('\n')
-		], {}, (editor, viewModel) => {
-			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
+		], {}, (editow, viewModew) => {
+			viewModew.setSewections('test', [new Sewection(1, 5, 1, 5)]);
 
-			moveDown(editor, viewModel);
-			assertCursor(viewModel, new Selection(2, 9, 2, 9));
+			moveDown(editow, viewModew);
+			assewtCuwsow(viewModew, new Sewection(2, 9, 2, 9));
 
-			moveRight(editor, viewModel);
-			assertCursor(viewModel, new Selection(2, 10, 2, 10));
+			moveWight(editow, viewModew);
+			assewtCuwsow(viewModew, new Sewection(2, 10, 2, 10));
 
-			moveRight(editor, viewModel);
-			assertCursor(viewModel, new Selection(2, 11, 2, 11));
+			moveWight(editow, viewModew);
+			assewtCuwsow(viewModew, new Sewection(2, 11, 2, 11));
 
-			moveUp(editor, viewModel);
-			assertCursor(viewModel, new Selection(1, 6, 1, 6));
+			moveUp(editow, viewModew);
+			assewtCuwsow(viewModew, new Sewection(1, 6, 1, 6));
 		});
 	});
 
-	test('issue #112301: new stickyTabStops feature interferes with word wrap', () => {
-		withTestCodeEditor([
+	test('issue #112301: new stickyTabStops featuwe intewfewes with wowd wwap', () => {
+		withTestCodeEditow([
 			[
-				'function hello() {',
-				'        console.log(`this is a long console message`)',
+				'function hewwo() {',
+				'        consowe.wog(`this is a wong consowe message`)',
 				'}',
 			].join('\n')
-		], { wordWrap: 'wordWrapColumn', wordWrapColumn: 32, stickyTabStops: true }, (editor, viewModel) => {
-			viewModel.setSelections('test', [
-				new Selection(2, 31, 2, 31)
+		], { wowdWwap: 'wowdWwapCowumn', wowdWwapCowumn: 32, stickyTabStops: twue }, (editow, viewModew) => {
+			viewModew.setSewections('test', [
+				new Sewection(2, 31, 2, 31)
 			]);
-			moveRight(editor, viewModel, false);
-			assertCursor(viewModel, new Position(2, 32));
+			moveWight(editow, viewModew, fawse);
+			assewtCuwsow(viewModew, new Position(2, 32));
 
-			moveRight(editor, viewModel, false);
-			assertCursor(viewModel, new Position(2, 33));
+			moveWight(editow, viewModew, fawse);
+			assewtCuwsow(viewModew, new Position(2, 33));
 
-			moveRight(editor, viewModel, false);
-			assertCursor(viewModel, new Position(2, 34));
+			moveWight(editow, viewModew, fawse);
+			assewtCuwsow(viewModew, new Position(2, 34));
 
-			moveLeft(editor, viewModel, false);
-			assertCursor(viewModel, new Position(2, 33));
+			moveWeft(editow, viewModew, fawse);
+			assewtCuwsow(viewModew, new Position(2, 33));
 
-			moveLeft(editor, viewModel, false);
-			assertCursor(viewModel, new Position(2, 32));
+			moveWeft(editow, viewModew, fawse);
+			assewtCuwsow(viewModew, new Position(2, 32));
 
-			moveLeft(editor, viewModel, false);
-			assertCursor(viewModel, new Position(2, 31));
+			moveWeft(editow, viewModew, fawse);
+			assewtCuwsow(viewModew, new Position(2, 31));
 		});
 	});
 
-	test('issue #44805: Should not be able to undo in readonly editor', () => {
-		let model = createTextModel(
+	test('issue #44805: Shouwd not be abwe to undo in weadonwy editow', () => {
+		wet modew = cweateTextModew(
 			[
 				''
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { readOnly: true, model: model }, (editor, viewModel) => {
-			model.pushEditOperations([new Selection(1, 1, 1, 1)], [{
-				range: new Range(1, 1, 1, 1),
-				text: 'Hello world!'
-			}], () => [new Selection(1, 1, 1, 1)]);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'Hello world!');
+		withTestCodeEditow(nuww, { weadOnwy: twue, modew: modew }, (editow, viewModew) => {
+			modew.pushEditOpewations([new Sewection(1, 1, 1, 1)], [{
+				wange: new Wange(1, 1, 1, 1),
+				text: 'Hewwo wowwd!'
+			}], () => [new Sewection(1, 1, 1, 1)]);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), 'Hewwo wowwd!');
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'Hello world!');
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), 'Hewwo wowwd!');
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('issue #46314: ViewModel is out of sync with Model!', () => {
+	test('issue #46314: ViewModew is out of sync with Modew!', () => {
 
-		const tokenizationSupport: ITokenizationSupport = {
-			getInitialState: () => NULL_STATE,
+		const tokenizationSuppowt: ITokenizationSuppowt = {
+			getInitiawState: () => NUWW_STATE,
 			tokenize: undefined!,
-			tokenize2: (line: string, hasEOL: boolean, state: IState): TokenizationResult2 => {
-				return new TokenizationResult2(new Uint32Array(0), state);
+			tokenize2: (wine: stwing, hasEOW: boowean, state: IState): TokenizationWesuwt2 => {
+				wetuwn new TokenizationWesuwt2(new Uint32Awway(0), state);
 			}
 		};
 
-		const LANGUAGE_ID = 'modelModeTest1';
-		const languageRegistration = TokenizationRegistry.register(LANGUAGE_ID, tokenizationSupport);
-		let model = createTextModel('Just text', undefined, new LanguageIdentifier(LANGUAGE_ID, 0));
+		const WANGUAGE_ID = 'modewModeTest1';
+		const wanguageWegistwation = TokenizationWegistwy.wegista(WANGUAGE_ID, tokenizationSuppowt);
+		wet modew = cweateTextModew('Just text', undefined, new WanguageIdentifia(WANGUAGE_ID, 0));
 
-		withTestCodeEditor(null, { model: model }, (editor1, cursor1) => {
-			withTestCodeEditor(null, { model: model }, (editor2, cursor2) => {
+		withTestCodeEditow(nuww, { modew: modew }, (editow1, cuwsow1) => {
+			withTestCodeEditow(nuww, { modew: modew }, (editow2, cuwsow2) => {
 
-				editor1.onDidChangeCursorPosition(() => {
-					model.tokenizeIfCheap(1);
+				editow1.onDidChangeCuwsowPosition(() => {
+					modew.tokenizeIfCheap(1);
 				});
 
-				model.applyEdits([{ range: new Range(1, 1, 1, 1), text: '-' }]);
+				modew.appwyEdits([{ wange: new Wange(1, 1, 1, 1), text: '-' }]);
 			});
 		});
 
-		languageRegistration.dispose();
-		model.dispose();
+		wanguageWegistwation.dispose();
+		modew.dispose();
 	});
 
-	test('issue #37967: problem replacing consecutive characters', () => {
-		let model = createTextModel(
+	test('issue #37967: pwobwem wepwacing consecutive chawactews', () => {
+		wet modew = cweateTextModew(
 			[
 				'const a = "foo";',
 				'const b = ""'
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { multiCursorMergeOverlapping: false, model: model }, (editor, viewModel) => {
-			editor.setSelections([
-				new Selection(1, 12, 1, 12),
-				new Selection(1, 16, 1, 16),
-				new Selection(2, 12, 2, 12),
-				new Selection(2, 13, 2, 13),
+		withTestCodeEditow(nuww, { muwtiCuwsowMewgeOvewwapping: fawse, modew: modew }, (editow, viewModew) => {
+			editow.setSewections([
+				new Sewection(1, 12, 1, 12),
+				new Sewection(1, 16, 1, 16),
+				new Sewection(2, 12, 2, 12),
+				new Sewection(2, 13, 2, 13),
 			]);
 
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
 
-			assertCursor(viewModel, [
-				new Selection(1, 11, 1, 11),
-				new Selection(1, 14, 1, 14),
-				new Selection(2, 11, 2, 11),
-				new Selection(2, 11, 2, 11),
+			assewtCuwsow(viewModew, [
+				new Sewection(1, 11, 1, 11),
+				new Sewection(1, 14, 1, 14),
+				new Sewection(2, 11, 2, 11),
+				new Sewection(2, 11, 2, 11),
 			]);
 
-			viewModel.type('\'', 'keyboard');
+			viewModew.type('\'', 'keyboawd');
 
-			assert.strictEqual(model.getLineContent(1), 'const a = \'foo\';');
-			assert.strictEqual(model.getLineContent(2), 'const b = \'\'');
+			assewt.stwictEquaw(modew.getWineContent(1), 'const a = \'foo\';');
+			assewt.stwictEquaw(modew.getWineContent(2), 'const b = \'\'');
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('issue #15761: Cursor doesn\'t move in a redo operation', () => {
-		let model = createTextModel(
+	test('issue #15761: Cuwsow doesn\'t move in a wedo opewation', () => {
+		wet modew = cweateTextModew(
 			[
-				'hello'
+				'hewwo'
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			editor.setSelections([
-				new Selection(1, 4, 1, 4)
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			editow.setSewections([
+				new Sewection(1, 4, 1, 4)
 			]);
 
-			editor.executeEdits('test', [{
-				range: new Range(1, 1, 1, 1),
+			editow.executeEdits('test', [{
+				wange: new Wange(1, 1, 1, 1),
 				text: '*',
-				forceMoveMarkers: true
+				fowceMoveMawkews: twue
 			}]);
-			assertCursor(viewModel, [
-				new Selection(1, 5, 1, 5),
+			assewtCuwsow(viewModew, [
+				new Sewection(1, 5, 1, 5),
 			]);
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assertCursor(viewModel, [
-				new Selection(1, 4, 1, 4),
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewtCuwsow(viewModew, [
+				new Sewection(1, 4, 1, 4),
 			]);
 
-			CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
-			assertCursor(viewModel, [
-				new Selection(1, 5, 1, 5),
+			CoweEditingCommands.Wedo.wunEditowCommand(nuww, editow, nuww);
+			assewtCuwsow(viewModew, [
+				new Sewection(1, 5, 1, 5),
 			]);
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('issue #42783: API Calls with Undo Leave Cursor in Wrong Position', () => {
-		let model = createTextModel(
+	test('issue #42783: API Cawws with Undo Weave Cuwsow in Wwong Position', () => {
+		wet modew = cweateTextModew(
 			[
 				'ab'
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			editor.setSelections([
-				new Selection(1, 1, 1, 1)
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			editow.setSewections([
+				new Sewection(1, 1, 1, 1)
 			]);
 
-			editor.executeEdits('test', [{
-				range: new Range(1, 1, 1, 3),
+			editow.executeEdits('test', [{
+				wange: new Wange(1, 1, 1, 3),
 				text: ''
 			}]);
-			assertCursor(viewModel, [
-				new Selection(1, 1, 1, 1),
+			assewtCuwsow(viewModew, [
+				new Sewection(1, 1, 1, 1),
 			]);
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assertCursor(viewModel, [
-				new Selection(1, 1, 1, 1),
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewtCuwsow(viewModew, [
+				new Sewection(1, 1, 1, 1),
 			]);
 
-			editor.executeEdits('test', [{
-				range: new Range(1, 1, 1, 2),
+			editow.executeEdits('test', [{
+				wange: new Wange(1, 1, 1, 2),
 				text: ''
 			}]);
-			assertCursor(viewModel, [
-				new Selection(1, 1, 1, 1),
+			assewtCuwsow(viewModew, [
+				new Sewection(1, 1, 1, 1),
 			]);
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('issue #85712: Paste line moves cursor to start of current line rather than start of next line', () => {
-		let model = createTextModel(
+	test('issue #85712: Paste wine moves cuwsow to stawt of cuwwent wine watha than stawt of next wine', () => {
+		wet modew = cweateTextModew(
 			[
 				'abc123',
 				''
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			editor.setSelections([
-				new Selection(2, 1, 2, 1)
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			editow.setSewections([
+				new Sewection(2, 1, 2, 1)
 			]);
-			viewModel.paste('something\n', true);
-			assert.strictEqual(model.getValue(), [
+			viewModew.paste('something\n', twue);
+			assewt.stwictEquaw(modew.getVawue(), [
 				'abc123',
 				'something',
 				''
 			].join('\n'));
-			assertCursor(viewModel, new Position(3, 1));
+			assewtCuwsow(viewModew, new Position(3, 1));
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('issue #84897: Left delete behavior in some languages is changed', () => {
-		let model = createTextModel(
+	test('issue #84897: Weft dewete behaviow in some wanguages is changed', () => {
+		wet modew = cweateTextModew(
 			[
 				'สวัสดี'
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			editor.setSelections([
-				new Selection(1, 7, 1, 7)
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			editow.setSewections([
+				new Sewection(1, 7, 1, 7)
 			]);
 
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'สวัสด');
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), 'สวัสด');
 
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'สวัส');
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), 'สวัส');
 
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'สวั');
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), 'สวั');
 
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'สว');
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), 'สว');
 
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'ส');
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), 'ส');
 
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '');
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '');
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('issue #122914: Left delete behavior in some languages is changed (useTabStops: false)', () => {
-		let model = createTextModel(
+	test('issue #122914: Weft dewete behaviow in some wanguages is changed (useTabStops: fawse)', () => {
+		wet modew = cweateTextModew(
 			[
 				'สวัสดี'
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model, useTabStops: false }, (editor, viewModel) => {
-			editor.setSelections([
-				new Selection(1, 7, 1, 7)
+		withTestCodeEditow(nuww, { modew: modew, useTabStops: fawse }, (editow, viewModew) => {
+			editow.setSewections([
+				new Sewection(1, 7, 1, 7)
 			]);
 
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'สวัสด');
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), 'สวัสด');
 
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'สวัส');
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), 'สวัส');
 
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'สวั');
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), 'สวั');
 
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'สว');
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), 'สว');
 
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'ส');
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), 'ส');
 
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '');
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '');
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('issue #99629: Emoji modifiers in text treated separately when using backspace', () => {
-		const model = createTextModel(
+	test('issue #99629: Emoji modifiews in text tweated sepawatewy when using backspace', () => {
+		const modew = cweateTextModew(
 			[
 				'👶🏾'
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model, useTabStops: false }, (editor, viewModel) => {
-			const len = model.getValueLength();
-			editor.setSelections([
-				new Selection(1, 1 + len, 1, 1 + len)
+		withTestCodeEditow(nuww, { modew: modew, useTabStops: fawse }, (editow, viewModew) => {
+			const wen = modew.getVawueWength();
+			editow.setSewections([
+				new Sewection(1, 1 + wen, 1, 1 + wen)
 			]);
 
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '');
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '');
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('issue #99629: Emoji modifiers in text treated separately when using backspace (ZWJ sequence)', () => {
-		let model = createTextModel(
+	test('issue #99629: Emoji modifiews in text tweated sepawatewy when using backspace (ZWJ sequence)', () => {
+		wet modew = cweateTextModew(
 			[
 				'👨‍👩🏽‍👧‍👦'
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model, useTabStops: false }, (editor, viewModel) => {
-			const len = model.getValueLength();
-			editor.setSelections([
-				new Selection(1, 1 + len, 1, 1 + len)
+		withTestCodeEditow(nuww, { modew: modew, useTabStops: fawse }, (editow, viewModew) => {
+			const wen = modew.getVawueWength();
+			editow.setSewections([
+				new Sewection(1, 1 + wen, 1, 1 + wen)
 			]);
 
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '👨‍👩🏽‍👧');
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '👨‍👩🏽‍👧');
 
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '👨‍👩🏽');
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '👨‍👩🏽');
 
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '👨');
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '👨');
 
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '');
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '');
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('issue #105730: move left behaves differently for multiple cursors', () => {
-		const model = createTextModel('asdfghjkl, asdfghjkl, asdfghjkl, ');
+	test('issue #105730: move weft behaves diffewentwy fow muwtipwe cuwsows', () => {
+		const modew = cweateTextModew('asdfghjkw, asdfghjkw, asdfghjkw, ');
 
-		withTestCodeEditor(
-			null,
+		withTestCodeEditow(
+			nuww,
 			{
-				model: model,
-				wordWrap: 'wordWrapColumn',
-				wordWrapColumn: 24
+				modew: modew,
+				wowdWwap: 'wowdWwapCowumn',
+				wowdWwapCowumn: 24
 			},
-			(editor, viewModel) => {
-				viewModel.setSelections('test', [
-					new Selection(1, 10, 1, 12),
-					new Selection(1, 21, 1, 23),
-					new Selection(1, 32, 1, 34)
+			(editow, viewModew) => {
+				viewModew.setSewections('test', [
+					new Sewection(1, 10, 1, 12),
+					new Sewection(1, 21, 1, 23),
+					new Sewection(1, 32, 1, 34)
 				]);
-				moveLeft(editor, viewModel, false);
-				assertCursor(viewModel, [
-					new Selection(1, 10, 1, 10),
-					new Selection(1, 21, 1, 21),
-					new Selection(1, 32, 1, 32)
+				moveWeft(editow, viewModew, fawse);
+				assewtCuwsow(viewModew, [
+					new Sewection(1, 10, 1, 10),
+					new Sewection(1, 21, 1, 21),
+					new Sewection(1, 32, 1, 32)
 				]);
 
-				viewModel.setSelections('test', [
-					new Selection(1, 10, 1, 12),
-					new Selection(1, 21, 1, 23),
-					new Selection(1, 32, 1, 34)
+				viewModew.setSewections('test', [
+					new Sewection(1, 10, 1, 12),
+					new Sewection(1, 21, 1, 23),
+					new Sewection(1, 32, 1, 34)
 				]);
-				moveLeft(editor, viewModel, true);
-				assertCursor(viewModel, [
-					new Selection(1, 10, 1, 11),
-					new Selection(1, 21, 1, 22),
-					new Selection(1, 32, 1, 33)
+				moveWeft(editow, viewModew, twue);
+				assewtCuwsow(viewModew, [
+					new Sewection(1, 10, 1, 11),
+					new Sewection(1, 21, 1, 22),
+					new Sewection(1, 32, 1, 33)
 				]);
 			});
 	});
 
-	test('issue #105730: move right should always skip wrap point', () => {
-		const model = createTextModel('asdfghjkl, asdfghjkl, asdfghjkl, \nasdfghjkl,');
+	test('issue #105730: move wight shouwd awways skip wwap point', () => {
+		const modew = cweateTextModew('asdfghjkw, asdfghjkw, asdfghjkw, \nasdfghjkw,');
 
-		withTestCodeEditor(
-			null,
+		withTestCodeEditow(
+			nuww,
 			{
-				model: model,
-				wordWrap: 'wordWrapColumn',
-				wordWrapColumn: 24
+				modew: modew,
+				wowdWwap: 'wowdWwapCowumn',
+				wowdWwapCowumn: 24
 			},
-			(editor, viewModel) => {
-				viewModel.setSelections('test', [
-					new Selection(1, 22, 1, 22)
+			(editow, viewModew) => {
+				viewModew.setSewections('test', [
+					new Sewection(1, 22, 1, 22)
 				]);
-				moveRight(editor, viewModel, false);
-				moveRight(editor, viewModel, false);
-				assertCursor(viewModel, [
-					new Selection(1, 24, 1, 24),
+				moveWight(editow, viewModew, fawse);
+				moveWight(editow, viewModew, fawse);
+				assewtCuwsow(viewModew, [
+					new Sewection(1, 24, 1, 24),
 				]);
 
-				viewModel.setSelections('test', [
-					new Selection(1, 22, 1, 22)
+				viewModew.setSewections('test', [
+					new Sewection(1, 22, 1, 22)
 				]);
-				moveRight(editor, viewModel, true);
-				moveRight(editor, viewModel, true);
-				assertCursor(viewModel, [
-					new Selection(1, 22, 1, 24),
+				moveWight(editow, viewModew, twue);
+				moveWight(editow, viewModew, twue);
+				assewtCuwsow(viewModew, [
+					new Sewection(1, 22, 1, 24),
 				]);
 			}
 		);
 	});
 
-	test('issue #123178: sticky tab in consecutive wrapped lines', () => {
-		const model = createTextModel('    aaaa        aaaa', { tabSize: 4 });
+	test('issue #123178: sticky tab in consecutive wwapped wines', () => {
+		const modew = cweateTextModew('    aaaa        aaaa', { tabSize: 4 });
 
-		withTestCodeEditor(
-			null,
+		withTestCodeEditow(
+			nuww,
 			{
-				model: model,
-				wordWrap: 'wordWrapColumn',
-				wordWrapColumn: 8,
-				stickyTabStops: true,
+				modew: modew,
+				wowdWwap: 'wowdWwapCowumn',
+				wowdWwapCowumn: 8,
+				stickyTabStops: twue,
 			},
-			(editor, viewModel) => {
-				viewModel.setSelections('test', [
-					new Selection(1, 9, 1, 9)
+			(editow, viewModew) => {
+				viewModew.setSewections('test', [
+					new Sewection(1, 9, 1, 9)
 				]);
-				moveRight(editor, viewModel, false);
-				assertCursor(viewModel, [
-					new Selection(1, 10, 1, 10),
+				moveWight(editow, viewModew, fawse);
+				assewtCuwsow(viewModew, [
+					new Sewection(1, 10, 1, 10),
 				]);
 
-				moveLeft(editor, viewModel, false);
-				assertCursor(viewModel, [
-					new Selection(1, 9, 1, 9),
+				moveWeft(editow, viewModew, fawse);
+				assewtCuwsow(viewModew, [
+					new Sewection(1, 9, 1, 9),
 				]);
 			}
 		);
 	});
 });
 
-suite('Editor Controller - Cursor Configuration', () => {
+suite('Editow Contwowwa - Cuwsow Configuwation', () => {
 
-	test('Cursor honors insertSpaces configuration on new line', () => {
-		usingCursor({
+	test('Cuwsow honows insewtSpaces configuwation on new wine', () => {
+		usingCuwsow({
 			text: [
-				'    \tMy First Line\t ',
-				'\tMy Second Line',
-				'    Third Line',
+				'    \tMy Fiwst Wine\t ',
+				'\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'1'
 			]
-		}, (editor, model, viewModel) => {
-			CoreNavigationCommands.MoveTo.runCoreEditorCommand(viewModel, { position: new Position(1, 21), source: 'keyboard' });
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), '    \tMy First Line\t ');
-			assert.strictEqual(model.getLineContent(2), '        ');
+		}, (editow, modew, viewModew) => {
+			CoweNavigationCommands.MoveTo.wunCoweEditowCommand(viewModew, { position: new Position(1, 21), souwce: 'keyboawd' });
+			viewModew.type('\n', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), '    \tMy Fiwst Wine\t ');
+			assewt.stwictEquaw(modew.getWineContent(2), '        ');
 		});
 	});
 
-	test('Cursor honors insertSpaces configuration on tab', () => {
-		let model = createTextModel(
+	test('Cuwsow honows insewtSpaces configuwation on tab', () => {
+		wet modew = cweateTextModew(
 			[
-				'    \tMy First Line\t ',
-				'My Second Line123',
-				'    Third Line',
+				'    \tMy Fiwst Wine\t ',
+				'My Second Wine123',
+				'    Thiwd Wine',
 				'',
 				'1'
 			].join('\n'),
@@ -2824,165 +2824,165 @@ suite('Editor Controller - Cursor Configuration', () => {
 			}
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			// Tab on column 1
-			CoreNavigationCommands.MoveTo.runCoreEditorCommand(viewModel, { position: new Position(2, 1) });
-			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(2), '             My Second Line123');
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			// Tab on cowumn 1
+			CoweNavigationCommands.MoveTo.wunCoweEditowCommand(viewModew, { position: new Position(2, 1) });
+			CoweEditingCommands.Tab.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(2), '             My Second Wine123');
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
 
-			// Tab on column 2
-			assert.strictEqual(model.getLineContent(2), 'My Second Line123');
-			CoreNavigationCommands.MoveTo.runCoreEditorCommand(viewModel, { position: new Position(2, 2) });
-			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(2), 'M            y Second Line123');
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
+			// Tab on cowumn 2
+			assewt.stwictEquaw(modew.getWineContent(2), 'My Second Wine123');
+			CoweNavigationCommands.MoveTo.wunCoweEditowCommand(viewModew, { position: new Position(2, 2) });
+			CoweEditingCommands.Tab.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(2), 'M            y Second Wine123');
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
 
-			// Tab on column 3
-			assert.strictEqual(model.getLineContent(2), 'My Second Line123');
-			CoreNavigationCommands.MoveTo.runCoreEditorCommand(viewModel, { position: new Position(2, 3) });
-			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(2), 'My            Second Line123');
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
+			// Tab on cowumn 3
+			assewt.stwictEquaw(modew.getWineContent(2), 'My Second Wine123');
+			CoweNavigationCommands.MoveTo.wunCoweEditowCommand(viewModew, { position: new Position(2, 3) });
+			CoweEditingCommands.Tab.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(2), 'My            Second Wine123');
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
 
-			// Tab on column 4
-			assert.strictEqual(model.getLineContent(2), 'My Second Line123');
-			CoreNavigationCommands.MoveTo.runCoreEditorCommand(viewModel, { position: new Position(2, 4) });
-			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(2), 'My           Second Line123');
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
+			// Tab on cowumn 4
+			assewt.stwictEquaw(modew.getWineContent(2), 'My Second Wine123');
+			CoweNavigationCommands.MoveTo.wunCoweEditowCommand(viewModew, { position: new Position(2, 4) });
+			CoweEditingCommands.Tab.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(2), 'My           Second Wine123');
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
 
-			// Tab on column 5
-			assert.strictEqual(model.getLineContent(2), 'My Second Line123');
-			CoreNavigationCommands.MoveTo.runCoreEditorCommand(viewModel, { position: new Position(2, 5) });
-			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(2), 'My S         econd Line123');
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
+			// Tab on cowumn 5
+			assewt.stwictEquaw(modew.getWineContent(2), 'My Second Wine123');
+			CoweNavigationCommands.MoveTo.wunCoweEditowCommand(viewModew, { position: new Position(2, 5) });
+			CoweEditingCommands.Tab.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(2), 'My S         econd Wine123');
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
 
-			// Tab on column 5
-			assert.strictEqual(model.getLineContent(2), 'My Second Line123');
-			CoreNavigationCommands.MoveTo.runCoreEditorCommand(viewModel, { position: new Position(2, 5) });
-			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(2), 'My S         econd Line123');
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
+			// Tab on cowumn 5
+			assewt.stwictEquaw(modew.getWineContent(2), 'My Second Wine123');
+			CoweNavigationCommands.MoveTo.wunCoweEditowCommand(viewModew, { position: new Position(2, 5) });
+			CoweEditingCommands.Tab.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(2), 'My S         econd Wine123');
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
 
-			// Tab on column 13
-			assert.strictEqual(model.getLineContent(2), 'My Second Line123');
-			CoreNavigationCommands.MoveTo.runCoreEditorCommand(viewModel, { position: new Position(2, 13) });
-			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(2), 'My Second Li ne123');
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
+			// Tab on cowumn 13
+			assewt.stwictEquaw(modew.getWineContent(2), 'My Second Wine123');
+			CoweNavigationCommands.MoveTo.wunCoweEditowCommand(viewModew, { position: new Position(2, 13) });
+			CoweEditingCommands.Tab.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(2), 'My Second Wi ne123');
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
 
-			// Tab on column 14
-			assert.strictEqual(model.getLineContent(2), 'My Second Line123');
-			CoreNavigationCommands.MoveTo.runCoreEditorCommand(viewModel, { position: new Position(2, 14) });
-			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(2), 'My Second Lin             e123');
+			// Tab on cowumn 14
+			assewt.stwictEquaw(modew.getWineContent(2), 'My Second Wine123');
+			CoweNavigationCommands.MoveTo.wunCoweEditowCommand(viewModew, { position: new Position(2, 14) });
+			CoweEditingCommands.Tab.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(2), 'My Second Win             e123');
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('Enter auto-indents with insertSpaces setting 1', () => {
-		let mode = new OnEnterMode(IndentAction.Indent);
-		usingCursor({
+	test('Enta auto-indents with insewtSpaces setting 1', () => {
+		wet mode = new OnEntewMode(IndentAction.Indent);
+		usingCuwsow({
 			text: [
-				'\thello'
+				'\thewwo'
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 1, 7, false);
-			assertCursor(viewModel, new Selection(1, 7, 1, 7));
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 1, 7, fawse);
+			assewtCuwsow(viewModew, new Sewection(1, 7, 1, 7));
 
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getValue(EndOfLinePreference.CRLF), '\thello\r\n        ');
-		});
-		mode.dispose();
-	});
-
-	test('Enter auto-indents with insertSpaces setting 2', () => {
-		let mode = new OnEnterMode(IndentAction.None);
-		usingCursor({
-			text: [
-				'\thello'
-			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 1, 7, false);
-			assertCursor(viewModel, new Selection(1, 7, 1, 7));
-
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getValue(EndOfLinePreference.CRLF), '\thello\r\n    ');
+			viewModew.type('\n', 'keyboawd');
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.CWWF), '\thewwo\w\n        ');
 		});
 		mode.dispose();
 	});
 
-	test('Enter auto-indents with insertSpaces setting 3', () => {
-		let mode = new OnEnterMode(IndentAction.IndentOutdent);
-		usingCursor({
+	test('Enta auto-indents with insewtSpaces setting 2', () => {
+		wet mode = new OnEntewMode(IndentAction.None);
+		usingCuwsow({
 			text: [
-				'\thell()'
+				'\thewwo'
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 1, 7, false);
-			assertCursor(viewModel, new Selection(1, 7, 1, 7));
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 1, 7, fawse);
+			assewtCuwsow(viewModew, new Sewection(1, 7, 1, 7));
 
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getValue(EndOfLinePreference.CRLF), '\thell(\r\n        \r\n    )');
+			viewModew.type('\n', 'keyboawd');
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.CWWF), '\thewwo\w\n    ');
 		});
 		mode.dispose();
 	});
 
-	test('removeAutoWhitespace off', () => {
-		usingCursor({
+	test('Enta auto-indents with insewtSpaces setting 3', () => {
+		wet mode = new OnEntewMode(IndentAction.IndentOutdent);
+		usingCuwsow({
 			text: [
-				'    some  line abc  '
+				'\theww()'
 			],
-			modelOpts: {
-				trimAutoWhitespace: false
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 1, 7, fawse);
+			assewtCuwsow(viewModew, new Sewection(1, 7, 1, 7));
+
+			viewModew.type('\n', 'keyboawd');
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.CWWF), '\theww(\w\n        \w\n    )');
+		});
+		mode.dispose();
+	});
+
+	test('wemoveAutoWhitespace off', () => {
+		usingCuwsow({
+			text: [
+				'    some  wine abc  '
+			],
+			modewOpts: {
+				twimAutoWhitespace: fawse
 			}
-		}, (editor, model, viewModel) => {
+		}, (editow, modew, viewModew) => {
 
-			// Move cursor to the end, verify that we do not trim whitespaces if line has values
-			moveTo(editor, viewModel, 1, model.getLineContent(1).length + 1);
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), '    some  line abc  ');
-			assert.strictEqual(model.getLineContent(2), '    ');
+			// Move cuwsow to the end, vewify that we do not twim whitespaces if wine has vawues
+			moveTo(editow, viewModew, 1, modew.getWineContent(1).wength + 1);
+			viewModew.type('\n', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), '    some  wine abc  ');
+			assewt.stwictEquaw(modew.getWineContent(2), '    ');
 
-			// Try to enter again, we should trimmed previous line
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), '    some  line abc  ');
-			assert.strictEqual(model.getLineContent(2), '    ');
-			assert.strictEqual(model.getLineContent(3), '    ');
+			// Twy to enta again, we shouwd twimmed pwevious wine
+			viewModew.type('\n', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), '    some  wine abc  ');
+			assewt.stwictEquaw(modew.getWineContent(2), '    ');
+			assewt.stwictEquaw(modew.getWineContent(3), '    ');
 		});
 	});
 
-	test('removeAutoWhitespace on: removes only whitespace the cursor added 1', () => {
-		usingCursor({
+	test('wemoveAutoWhitespace on: wemoves onwy whitespace the cuwsow added 1', () => {
+		usingCuwsow({
 			text: [
 				'    '
 			]
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 1, model.getLineContent(1).length + 1);
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), '    ');
-			assert.strictEqual(model.getLineContent(2), '    ');
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 1, modew.getWineContent(1).wength + 1);
+			viewModew.type('\n', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), '    ');
+			assewt.stwictEquaw(modew.getWineContent(2), '    ');
 
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), '    ');
-			assert.strictEqual(model.getLineContent(2), '');
-			assert.strictEqual(model.getLineContent(3), '    ');
+			viewModew.type('\n', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), '    ');
+			assewt.stwictEquaw(modew.getWineContent(2), '');
+			assewt.stwictEquaw(modew.getWineContent(3), '    ');
 		});
 	});
 
 	test('issue #115033: indent and appendText', () => {
-		const mode = new class extends MockMode {
-			constructor() {
-				super(new LanguageIdentifier('onEnterMode', 3));
-				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
-					onEnterRules: [{
-						beforeText: /.*/,
+		const mode = new cwass extends MockMode {
+			constwuctow() {
+				supa(new WanguageIdentifia('onEntewMode', 3));
+				this._wegista(WanguageConfiguwationWegistwy.wegista(this.getWanguageIdentifia(), {
+					onEntewWuwes: [{
+						befoweText: /.*/,
 						action: {
 							indentAction: IndentAction.Indent,
 							appendText: 'x'
@@ -2991,62 +2991,62 @@ suite('Editor Controller - Cursor Configuration', () => {
 				}));
 			}
 		}();
-		usingCursor({
+		usingCuwsow({
 			text: [
 				'text'
 			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-		}, (editor, model, viewModel) => {
+			wanguageIdentifia: mode.getWanguageIdentifia(),
+		}, (editow, modew, viewModew) => {
 
-			moveTo(editor, viewModel, 1, 5);
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), 'text');
-			assert.strictEqual(model.getLineContent(2), '    x');
-			assertCursor(viewModel, new Position(2, 6));
+			moveTo(editow, viewModew, 1, 5);
+			viewModew.type('\n', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), 'text');
+			assewt.stwictEquaw(modew.getWineContent(2), '    x');
+			assewtCuwsow(viewModew, new Position(2, 6));
 		});
 		mode.dispose();
 	});
 
-	test('issue #6862: Editor removes auto inserted indentation when formatting on type', () => {
-		let mode = new OnEnterMode(IndentAction.IndentOutdent);
-		usingCursor({
+	test('issue #6862: Editow wemoves auto insewted indentation when fowmatting on type', () => {
+		wet mode = new OnEntewMode(IndentAction.IndentOutdent);
+		usingCuwsow({
 			text: [
-				'function foo (params: string) {}'
+				'function foo (pawams: stwing) {}'
 			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-		}, (editor, model, viewModel) => {
+			wanguageIdentifia: mode.getWanguageIdentifia(),
+		}, (editow, modew, viewModew) => {
 
-			moveTo(editor, viewModel, 1, 32);
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), 'function foo (params: string) {');
-			assert.strictEqual(model.getLineContent(2), '    ');
-			assert.strictEqual(model.getLineContent(3), '}');
+			moveTo(editow, viewModew, 1, 32);
+			viewModew.type('\n', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), 'function foo (pawams: stwing) {');
+			assewt.stwictEquaw(modew.getWineContent(2), '    ');
+			assewt.stwictEquaw(modew.getWineContent(3), '}');
 
-			class TestCommand implements ICommand {
+			cwass TestCommand impwements ICommand {
 
-				private _selectionId: string | null = null;
+				pwivate _sewectionId: stwing | nuww = nuww;
 
-				public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
-					builder.addEditOperation(new Range(1, 13, 1, 14), '');
-					this._selectionId = builder.trackSelection(viewModel.getSelection());
+				pubwic getEditOpewations(modew: ITextModew, buiwda: IEditOpewationBuiwda): void {
+					buiwda.addEditOpewation(new Wange(1, 13, 1, 14), '');
+					this._sewectionId = buiwda.twackSewection(viewModew.getSewection());
 				}
 
-				public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-					return helper.getTrackedSelection(this._selectionId!);
+				pubwic computeCuwsowState(modew: ITextModew, hewpa: ICuwsowStateComputewData): Sewection {
+					wetuwn hewpa.getTwackedSewection(this._sewectionId!);
 				}
 
 			}
 
-			viewModel.executeCommand(new TestCommand(), 'autoFormat');
-			assert.strictEqual(model.getLineContent(1), 'function foo(params: string) {');
-			assert.strictEqual(model.getLineContent(2), '    ');
-			assert.strictEqual(model.getLineContent(3), '}');
+			viewModew.executeCommand(new TestCommand(), 'autoFowmat');
+			assewt.stwictEquaw(modew.getWineContent(1), 'function foo(pawams: stwing) {');
+			assewt.stwictEquaw(modew.getWineContent(2), '    ');
+			assewt.stwictEquaw(modew.getWineContent(3), '}');
 		});
 		mode.dispose();
 	});
 
-	test('removeAutoWhitespace on: removes only whitespace the cursor added 2', () => {
-		let model = createTextModel(
+	test('wemoveAutoWhitespace on: wemoves onwy whitespace the cuwsow added 2', () => {
+		wet modew = cweateTextModew(
 			[
 				'    if (a) {',
 				'        ',
@@ -3056,164 +3056,164 @@ suite('Editor Controller - Cursor Configuration', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
 
-			moveTo(editor, viewModel, 3, 1);
-			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(1), '    if (a) {');
-			assert.strictEqual(model.getLineContent(2), '        ');
-			assert.strictEqual(model.getLineContent(3), '    ');
-			assert.strictEqual(model.getLineContent(4), '');
-			assert.strictEqual(model.getLineContent(5), '    }');
+			moveTo(editow, viewModew, 3, 1);
+			CoweEditingCommands.Tab.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(1), '    if (a) {');
+			assewt.stwictEquaw(modew.getWineContent(2), '        ');
+			assewt.stwictEquaw(modew.getWineContent(3), '    ');
+			assewt.stwictEquaw(modew.getWineContent(4), '');
+			assewt.stwictEquaw(modew.getWineContent(5), '    }');
 
-			moveTo(editor, viewModel, 4, 1);
-			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(1), '    if (a) {');
-			assert.strictEqual(model.getLineContent(2), '        ');
-			assert.strictEqual(model.getLineContent(3), '');
-			assert.strictEqual(model.getLineContent(4), '    ');
-			assert.strictEqual(model.getLineContent(5), '    }');
+			moveTo(editow, viewModew, 4, 1);
+			CoweEditingCommands.Tab.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(1), '    if (a) {');
+			assewt.stwictEquaw(modew.getWineContent(2), '        ');
+			assewt.stwictEquaw(modew.getWineContent(3), '');
+			assewt.stwictEquaw(modew.getWineContent(4), '    ');
+			assewt.stwictEquaw(modew.getWineContent(5), '    }');
 
-			moveTo(editor, viewModel, 5, model.getLineMaxColumn(5));
-			viewModel.type('something', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), '    if (a) {');
-			assert.strictEqual(model.getLineContent(2), '        ');
-			assert.strictEqual(model.getLineContent(3), '');
-			assert.strictEqual(model.getLineContent(4), '');
-			assert.strictEqual(model.getLineContent(5), '    }something');
+			moveTo(editow, viewModew, 5, modew.getWineMaxCowumn(5));
+			viewModew.type('something', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), '    if (a) {');
+			assewt.stwictEquaw(modew.getWineContent(2), '        ');
+			assewt.stwictEquaw(modew.getWineContent(3), '');
+			assewt.stwictEquaw(modew.getWineContent(4), '');
+			assewt.stwictEquaw(modew.getWineContent(5), '    }something');
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('removeAutoWhitespace on: test 1', () => {
-		let model = createTextModel(
+	test('wemoveAutoWhitespace on: test 1', () => {
+		wet modew = cweateTextModew(
 			[
-				'    some  line abc  '
+				'    some  wine abc  '
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
 
-			// Move cursor to the end, verify that we do not trim whitespaces if line has values
-			moveTo(editor, viewModel, 1, model.getLineContent(1).length + 1);
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), '    some  line abc  ');
-			assert.strictEqual(model.getLineContent(2), '    ');
+			// Move cuwsow to the end, vewify that we do not twim whitespaces if wine has vawues
+			moveTo(editow, viewModew, 1, modew.getWineContent(1).wength + 1);
+			viewModew.type('\n', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), '    some  wine abc  ');
+			assewt.stwictEquaw(modew.getWineContent(2), '    ');
 
-			// Try to enter again, we should trimmed previous line
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), '    some  line abc  ');
-			assert.strictEqual(model.getLineContent(2), '');
-			assert.strictEqual(model.getLineContent(3), '    ');
+			// Twy to enta again, we shouwd twimmed pwevious wine
+			viewModew.type('\n', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), '    some  wine abc  ');
+			assewt.stwictEquaw(modew.getWineContent(2), '');
+			assewt.stwictEquaw(modew.getWineContent(3), '    ');
 
-			// More whitespaces
-			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(1), '    some  line abc  ');
-			assert.strictEqual(model.getLineContent(2), '');
-			assert.strictEqual(model.getLineContent(3), '        ');
+			// Mowe whitespaces
+			CoweEditingCommands.Tab.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(1), '    some  wine abc  ');
+			assewt.stwictEquaw(modew.getWineContent(2), '');
+			assewt.stwictEquaw(modew.getWineContent(3), '        ');
 
-			// Enter and verify that trimmed again
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), '    some  line abc  ');
-			assert.strictEqual(model.getLineContent(2), '');
-			assert.strictEqual(model.getLineContent(3), '');
-			assert.strictEqual(model.getLineContent(4), '        ');
+			// Enta and vewify that twimmed again
+			viewModew.type('\n', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), '    some  wine abc  ');
+			assewt.stwictEquaw(modew.getWineContent(2), '');
+			assewt.stwictEquaw(modew.getWineContent(3), '');
+			assewt.stwictEquaw(modew.getWineContent(4), '        ');
 
-			// Trimmed if we will keep only text
-			moveTo(editor, viewModel, 1, 5);
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), '    ');
-			assert.strictEqual(model.getLineContent(2), '    some  line abc  ');
-			assert.strictEqual(model.getLineContent(3), '');
-			assert.strictEqual(model.getLineContent(4), '');
-			assert.strictEqual(model.getLineContent(5), '');
+			// Twimmed if we wiww keep onwy text
+			moveTo(editow, viewModew, 1, 5);
+			viewModew.type('\n', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), '    ');
+			assewt.stwictEquaw(modew.getWineContent(2), '    some  wine abc  ');
+			assewt.stwictEquaw(modew.getWineContent(3), '');
+			assewt.stwictEquaw(modew.getWineContent(4), '');
+			assewt.stwictEquaw(modew.getWineContent(5), '');
 
-			// Trimmed if we will keep only text by selection
-			moveTo(editor, viewModel, 2, 5);
-			moveTo(editor, viewModel, 3, 1, true);
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), '    ');
-			assert.strictEqual(model.getLineContent(2), '    ');
-			assert.strictEqual(model.getLineContent(3), '    ');
-			assert.strictEqual(model.getLineContent(4), '');
-			assert.strictEqual(model.getLineContent(5), '');
+			// Twimmed if we wiww keep onwy text by sewection
+			moveTo(editow, viewModew, 2, 5);
+			moveTo(editow, viewModew, 3, 1, twue);
+			viewModew.type('\n', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), '    ');
+			assewt.stwictEquaw(modew.getWineContent(2), '    ');
+			assewt.stwictEquaw(modew.getWineContent(3), '    ');
+			assewt.stwictEquaw(modew.getWineContent(4), '');
+			assewt.stwictEquaw(modew.getWineContent(5), '');
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('issue #15118: remove auto whitespace when pasting entire line', () => {
-		let model = createTextModel(
+	test('issue #15118: wemove auto whitespace when pasting entiwe wine', () => {
+		wet modew = cweateTextModew(
 			[
 				'    function f() {',
-				'        // I\'m gonna copy this line',
-				'        return 3;',
+				'        // I\'m gonna copy this wine',
+				'        wetuwn 3;',
 				'    }',
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
 
-			moveTo(editor, viewModel, 3, model.getLineMaxColumn(3));
-			viewModel.type('\n', 'keyboard');
+			moveTo(editow, viewModew, 3, modew.getWineMaxCowumn(3));
+			viewModew.type('\n', 'keyboawd');
 
-			assert.strictEqual(model.getValue(), [
+			assewt.stwictEquaw(modew.getVawue(), [
 				'    function f() {',
-				'        // I\'m gonna copy this line',
-				'        return 3;',
+				'        // I\'m gonna copy this wine',
+				'        wetuwn 3;',
 				'        ',
 				'    }',
 			].join('\n'));
-			assertCursor(viewModel, new Position(4, model.getLineMaxColumn(4)));
+			assewtCuwsow(viewModew, new Position(4, modew.getWineMaxCowumn(4)));
 
-			viewModel.paste('        // I\'m gonna copy this line\n', true);
-			assert.strictEqual(model.getValue(), [
+			viewModew.paste('        // I\'m gonna copy this wine\n', twue);
+			assewt.stwictEquaw(modew.getVawue(), [
 				'    function f() {',
-				'        // I\'m gonna copy this line',
-				'        return 3;',
-				'        // I\'m gonna copy this line',
+				'        // I\'m gonna copy this wine',
+				'        wetuwn 3;',
+				'        // I\'m gonna copy this wine',
 				'',
 				'    }',
 			].join('\n'));
-			assertCursor(viewModel, new Position(5, 1));
+			assewtCuwsow(viewModew, new Position(5, 1));
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('issue #40695: maintain cursor position when copying lines using ctrl+c, ctrl+v', () => {
-		let model = createTextModel(
+	test('issue #40695: maintain cuwsow position when copying wines using ctww+c, ctww+v', () => {
+		wet modew = cweateTextModew(
 			[
 				'    function f() {',
-				'        // I\'m gonna copy this line',
-				'        // Another line',
-				'        return 3;',
+				'        // I\'m gonna copy this wine',
+				'        // Anotha wine',
+				'        wetuwn 3;',
 				'    }',
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
 
-			editor.setSelections([new Selection(4, 10, 4, 10)]);
-			viewModel.paste('        // I\'m gonna copy this line\n', true);
+			editow.setSewections([new Sewection(4, 10, 4, 10)]);
+			viewModew.paste('        // I\'m gonna copy this wine\n', twue);
 
-			assert.strictEqual(model.getValue(), [
+			assewt.stwictEquaw(modew.getVawue(), [
 				'    function f() {',
-				'        // I\'m gonna copy this line',
-				'        // Another line',
-				'        // I\'m gonna copy this line',
-				'        return 3;',
+				'        // I\'m gonna copy this wine',
+				'        // Anotha wine',
+				'        // I\'m gonna copy this wine',
+				'        wetuwn 3;',
 				'    }',
 			].join('\n'));
-			assertCursor(viewModel, new Position(5, 10));
+			assewtCuwsow(viewModew, new Position(5, 10));
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
 	test('UseTabStops is off', () => {
-		let model = createTextModel(
+		wet modew = cweateTextModew(
 			[
 				'    x',
 				'        a    ',
@@ -3221,18 +3221,18 @@ suite('Editor Controller - Cursor Configuration', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model, useTabStops: false }, (editor, viewModel) => {
-			// DeleteLeft removes just one whitespace
-			moveTo(editor, viewModel, 2, 9);
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(2), '       a    ');
+		withTestCodeEditow(nuww, { modew: modew, useTabStops: fawse }, (editow, viewModew) => {
+			// DeweteWeft wemoves just one whitespace
+			moveTo(editow, viewModew, 2, 9);
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(2), '       a    ');
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('Backspace removes whitespaces with tab size', () => {
-		let model = createTextModel(
+	test('Backspace wemoves whitespaces with tab size', () => {
+		wet modew = cweateTextModew(
 			[
 				' \t \t     x',
 				'        a    ',
@@ -3240,857 +3240,857 @@ suite('Editor Controller - Cursor Configuration', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model, useTabStops: true }, (editor, viewModel) => {
-			// DeleteLeft does not remove tab size, because some text exists before
-			moveTo(editor, viewModel, 2, model.getLineContent(2).length + 1);
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(2), '        a   ');
+		withTestCodeEditow(nuww, { modew: modew, useTabStops: twue }, (editow, viewModew) => {
+			// DeweteWeft does not wemove tab size, because some text exists befowe
+			moveTo(editow, viewModew, 2, modew.getWineContent(2).wength + 1);
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(2), '        a   ');
 
-			// DeleteLeft removes tab size = 4
-			moveTo(editor, viewModel, 2, 9);
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(2), '    a   ');
+			// DeweteWeft wemoves tab size = 4
+			moveTo(editow, viewModew, 2, 9);
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(2), '    a   ');
 
-			// DeleteLeft removes tab size = 4
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(2), 'a   ');
+			// DeweteWeft wemoves tab size = 4
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(2), 'a   ');
 
-			// Undo DeleteLeft - get us back to original indentation
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(2), '        a   ');
+			// Undo DeweteWeft - get us back to owiginaw indentation
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(2), '        a   ');
 
-			// Nothing is broken when cursor is in (1,1)
-			moveTo(editor, viewModel, 1, 1);
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(1), ' \t \t     x');
+			// Nothing is bwoken when cuwsow is in (1,1)
+			moveTo(editow, viewModew, 1, 1);
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(1), ' \t \t     x');
 
-			// DeleteLeft stops at tab stops even in mixed whitespace case
-			moveTo(editor, viewModel, 1, 10);
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(1), ' \t \t    x');
+			// DeweteWeft stops at tab stops even in mixed whitespace case
+			moveTo(editow, viewModew, 1, 10);
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(1), ' \t \t    x');
 
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(1), ' \t \tx');
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(1), ' \t \tx');
 
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(1), ' \tx');
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(1), ' \tx');
 
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(1), 'x');
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(1), 'x');
 
-			// DeleteLeft on last line
-			moveTo(editor, viewModel, 3, model.getLineContent(3).length + 1);
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(3), '');
+			// DeweteWeft on wast wine
+			moveTo(editow, viewModew, 3, modew.getWineContent(3).wength + 1);
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(3), '');
 
-			// DeleteLeft with removing new line symbol
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'x\n        a   ');
+			// DeweteWeft with wemoving new wine symbow
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), 'x\n        a   ');
 
-			// In case of selection DeleteLeft only deletes selected text
-			moveTo(editor, viewModel, 2, 3);
-			moveTo(editor, viewModel, 2, 4, true);
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(2), '       a   ');
+			// In case of sewection DeweteWeft onwy dewetes sewected text
+			moveTo(editow, viewModew, 2, 3);
+			moveTo(editow, viewModew, 2, 4, twue);
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(2), '       a   ');
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('PR #5423: Auto indent + undo + redo is funky', () => {
-		let model = createTextModel(
+	test('PW #5423: Auto indent + undo + wedo is funky', () => {
+		wet modew = cweateTextModew(
 			[
 				''
 			].join('\n'),
 			{
-				insertSpaces: false,
+				insewtSpaces: fawse,
 			}
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '\n', 'assert1');
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			viewModew.type('\n', 'keyboawd');
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '\n', 'assewt1');
 
-			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '\n\t', 'assert2');
+			CoweEditingCommands.Tab.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '\n\t', 'assewt2');
 
-			viewModel.type('y', 'keyboard');
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '\n\ty', 'assert2');
+			viewModew.type('y', 'keyboawd');
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '\n\ty', 'assewt2');
 
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '\n\ty\n\t', 'assert3');
+			viewModew.type('\n', 'keyboawd');
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '\n\ty\n\t', 'assewt3');
 
-			viewModel.type('x');
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '\n\ty\n\tx', 'assert4');
+			viewModew.type('x');
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '\n\ty\n\tx', 'assewt4');
 
-			CoreNavigationCommands.CursorLeft.runCoreEditorCommand(viewModel, {});
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '\n\ty\n\tx', 'assert5');
+			CoweNavigationCommands.CuwsowWeft.wunCoweEditowCommand(viewModew, {});
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '\n\ty\n\tx', 'assewt5');
 
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '\n\ty\nx', 'assert6');
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '\n\ty\nx', 'assewt6');
 
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '\n\tyx', 'assert7');
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '\n\tyx', 'assewt7');
 
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '\n\tx', 'assert8');
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '\n\tx', 'assewt8');
 
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '\nx', 'assert9');
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '\nx', 'assewt9');
 
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'x', 'assert10');
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), 'x', 'assewt10');
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '\nx', 'assert11');
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '\nx', 'assewt11');
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '\n\ty\nx', 'assert12');
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '\n\ty\nx', 'assewt12');
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '\n\ty\n\tx', 'assert13');
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '\n\ty\n\tx', 'assewt13');
 
-			CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '\n\ty\nx', 'assert14');
+			CoweEditingCommands.Wedo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '\n\ty\nx', 'assewt14');
 
-			CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '\nx', 'assert15');
+			CoweEditingCommands.Wedo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '\nx', 'assewt15');
 
-			CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'x', 'assert16');
+			CoweEditingCommands.Wedo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), 'x', 'assewt16');
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('issue #90973: Undo brings back model alternative version', () => {
-		let model = createTextModel(
+	test('issue #90973: Undo bwings back modew awtewnative vewsion', () => {
+		wet modew = cweateTextModew(
 			[
 				''
 			].join('\n'),
 			{
-				insertSpaces: false,
+				insewtSpaces: fawse,
 			}
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			const beforeVersion = model.getVersionId();
-			const beforeAltVersion = model.getAlternativeVersionId();
-			viewModel.type('Hello', 'keyboard');
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			const afterVersion = model.getVersionId();
-			const afterAltVersion = model.getAlternativeVersionId();
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			const befoweVewsion = modew.getVewsionId();
+			const befoweAwtVewsion = modew.getAwtewnativeVewsionId();
+			viewModew.type('Hewwo', 'keyboawd');
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			const aftewVewsion = modew.getVewsionId();
+			const aftewAwtVewsion = modew.getAwtewnativeVewsionId();
 
-			assert.notStrictEqual(beforeVersion, afterVersion);
-			assert.strictEqual(beforeAltVersion, afterAltVersion);
+			assewt.notStwictEquaw(befoweVewsion, aftewVewsion);
+			assewt.stwictEquaw(befoweAwtVewsion, aftewAwtVewsion);
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
 
 });
 
-suite('Editor Controller - Indentation Rules', () => {
-	let mode = new IndentRulesMode({
-		decreaseIndentPattern: /^\s*((?!\S.*\/[*]).*[*]\/\s*)?[})\]]|^\s*(case\b.*|default):\s*(\/\/.*|\/[*].*[*]\/\s*)?$/,
-		increaseIndentPattern: /^((?!\/\/).)*(\{[^}"'`]*|\([^)"']*|\[[^\]"']*|^\s*(\{\}|\(\)|\[\]|(case\b.*|default):))\s*(\/\/.*|\/[*].*[*]\/\s*)?$/,
-		indentNextLinePattern: /^\s*(for|while|if|else)\b(?!.*[;{}]\s*(\/\/.*|\/[*].*[*]\/\s*)?$)/,
-		unIndentedLinePattern: /^(?!.*([;{}]|\S:)\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!.*(\{[^}"']*|\([^)"']*|\[[^\]"']*|^\s*(\{\}|\(\)|\[\]|(case\b.*|default):))\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!^\s*((?!\S.*\/[*]).*[*]\/\s*)?[})\]]|^\s*(case\b.*|default):\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!^\s*(for|while|if|else)\b(?!.*[;{}]\s*(\/\/.*|\/[*].*[*]\/\s*)?$))/
+suite('Editow Contwowwa - Indentation Wuwes', () => {
+	wet mode = new IndentWuwesMode({
+		decweaseIndentPattewn: /^\s*((?!\S.*\/[*]).*[*]\/\s*)?[})\]]|^\s*(case\b.*|defauwt):\s*(\/\/.*|\/[*].*[*]\/\s*)?$/,
+		incweaseIndentPattewn: /^((?!\/\/).)*(\{[^}"'`]*|\([^)"']*|\[[^\]"']*|^\s*(\{\}|\(\)|\[\]|(case\b.*|defauwt):))\s*(\/\/.*|\/[*].*[*]\/\s*)?$/,
+		indentNextWinePattewn: /^\s*(fow|whiwe|if|ewse)\b(?!.*[;{}]\s*(\/\/.*|\/[*].*[*]\/\s*)?$)/,
+		unIndentedWinePattewn: /^(?!.*([;{}]|\S:)\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!.*(\{[^}"']*|\([^)"']*|\[[^\]"']*|^\s*(\{\}|\(\)|\[\]|(case\b.*|defauwt):))\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!^\s*((?!\S.*\/[*]).*[*]\/\s*)?[})\]]|^\s*(case\b.*|defauwt):\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!^\s*(fow|whiwe|if|ewse)\b(?!.*[;{}]\s*(\/\/.*|\/[*].*[*]\/\s*)?$))/
 	});
 
-	test('Enter honors increaseIndentPattern', () => {
-		usingCursor({
+	test('Enta honows incweaseIndentPattewn', () => {
+		usingCuwsow({
 			text: [
-				'if (true) {',
-				'\tif (true) {'
+				'if (twue) {',
+				'\tif (twue) {'
 			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false },
-			editorOpts: { autoIndent: 'full' }
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 1, 12, false);
-			assertCursor(viewModel, new Selection(1, 12, 1, 12));
+			wanguageIdentifia: mode.getWanguageIdentifia(),
+			modewOpts: { insewtSpaces: fawse },
+			editowOpts: { autoIndent: 'fuww' }
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 1, 12, fawse);
+			assewtCuwsow(viewModew, new Sewection(1, 12, 1, 12));
 
-			viewModel.type('\n', 'keyboard');
-			model.forceTokenization(model.getLineCount());
-			assertCursor(viewModel, new Selection(2, 2, 2, 2));
+			viewModew.type('\n', 'keyboawd');
+			modew.fowceTokenization(modew.getWineCount());
+			assewtCuwsow(viewModew, new Sewection(2, 2, 2, 2));
 
-			moveTo(editor, viewModel, 3, 13, false);
-			assertCursor(viewModel, new Selection(3, 13, 3, 13));
+			moveTo(editow, viewModew, 3, 13, fawse);
+			assewtCuwsow(viewModew, new Sewection(3, 13, 3, 13));
 
-			viewModel.type('\n', 'keyboard');
-			assertCursor(viewModel, new Selection(4, 3, 4, 3));
+			viewModew.type('\n', 'keyboawd');
+			assewtCuwsow(viewModew, new Sewection(4, 3, 4, 3));
 		});
 	});
 
-	test('Type honors decreaseIndentPattern', () => {
-		usingCursor({
+	test('Type honows decweaseIndentPattewn', () => {
+		usingCuwsow({
 			text: [
-				'if (true) {',
+				'if (twue) {',
 				'\t'
 			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-			editorOpts: { autoIndent: 'full' }
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 2, 2, false);
-			assertCursor(viewModel, new Selection(2, 2, 2, 2));
+			wanguageIdentifia: mode.getWanguageIdentifia(),
+			editowOpts: { autoIndent: 'fuww' }
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 2, 2, fawse);
+			assewtCuwsow(viewModew, new Sewection(2, 2, 2, 2));
 
-			viewModel.type('}', 'keyboard');
-			assertCursor(viewModel, new Selection(2, 2, 2, 2));
-			assert.strictEqual(model.getLineContent(2), '}', '001');
+			viewModew.type('}', 'keyboawd');
+			assewtCuwsow(viewModew, new Sewection(2, 2, 2, 2));
+			assewt.stwictEquaw(modew.getWineContent(2), '}', '001');
 		});
 	});
 
-	test('Enter honors unIndentedLinePattern', () => {
-		usingCursor({
+	test('Enta honows unIndentedWinePattewn', () => {
+		usingCuwsow({
 			text: [
-				'if (true) {',
-				'\t\t\treturn true'
+				'if (twue) {',
+				'\t\t\twetuwn twue'
 			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false },
-			editorOpts: { autoIndent: 'full' }
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 2, 15, false);
-			assertCursor(viewModel, new Selection(2, 15, 2, 15));
+			wanguageIdentifia: mode.getWanguageIdentifia(),
+			modewOpts: { insewtSpaces: fawse },
+			editowOpts: { autoIndent: 'fuww' }
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 2, 15, fawse);
+			assewtCuwsow(viewModew, new Sewection(2, 15, 2, 15));
 
-			viewModel.type('\n', 'keyboard');
-			assertCursor(viewModel, new Selection(3, 2, 3, 2));
+			viewModew.type('\n', 'keyboawd');
+			assewtCuwsow(viewModew, new Sewection(3, 2, 3, 2));
 		});
 	});
 
-	test('Enter honors indentNextLinePattern', () => {
-		usingCursor({
+	test('Enta honows indentNextWinePattewn', () => {
+		usingCuwsow({
 			text: [
-				'if (true)',
-				'\treturn true;',
-				'if (true)',
-				'\t\t\t\treturn true'
+				'if (twue)',
+				'\twetuwn twue;',
+				'if (twue)',
+				'\t\t\t\twetuwn twue'
 			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false },
-			editorOpts: { autoIndent: 'full' }
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 2, 14, false);
-			assertCursor(viewModel, new Selection(2, 14, 2, 14));
+			wanguageIdentifia: mode.getWanguageIdentifia(),
+			modewOpts: { insewtSpaces: fawse },
+			editowOpts: { autoIndent: 'fuww' }
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 2, 14, fawse);
+			assewtCuwsow(viewModew, new Sewection(2, 14, 2, 14));
 
-			viewModel.type('\n', 'keyboard');
-			model.forceTokenization(model.getLineCount());
-			assertCursor(viewModel, new Selection(3, 1, 3, 1));
+			viewModew.type('\n', 'keyboawd');
+			modew.fowceTokenization(modew.getWineCount());
+			assewtCuwsow(viewModew, new Sewection(3, 1, 3, 1));
 
-			moveTo(editor, viewModel, 5, 16, false);
-			assertCursor(viewModel, new Selection(5, 16, 5, 16));
+			moveTo(editow, viewModew, 5, 16, fawse);
+			assewtCuwsow(viewModew, new Sewection(5, 16, 5, 16));
 
-			viewModel.type('\n', 'keyboard');
-			assertCursor(viewModel, new Selection(6, 2, 6, 2));
+			viewModew.type('\n', 'keyboawd');
+			assewtCuwsow(viewModew, new Sewection(6, 2, 6, 2));
 		});
 	});
 
-	test('Enter honors indentNextLinePattern 2', () => {
-		let model = createTextModel(
+	test('Enta honows indentNextWinePattewn 2', () => {
+		wet modew = cweateTextModew(
 			[
-				'if (true)',
-				'\tif (true)'
+				'if (twue)',
+				'\tif (twue)'
 			].join('\n'),
 			{
-				insertSpaces: false,
+				insewtSpaces: fawse,
 			},
-			mode.getLanguageIdentifier()
+			mode.getWanguageIdentifia()
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: 'full' }, (editor, viewModel) => {
-			moveTo(editor, viewModel, 2, 11, false);
-			assertCursor(viewModel, new Selection(2, 11, 2, 11));
+		withTestCodeEditow(nuww, { modew: modew, autoIndent: 'fuww' }, (editow, viewModew) => {
+			moveTo(editow, viewModew, 2, 11, fawse);
+			assewtCuwsow(viewModew, new Sewection(2, 11, 2, 11));
 
-			viewModel.type('\n', 'keyboard');
-			model.forceTokenization(model.getLineCount());
-			assertCursor(viewModel, new Selection(3, 3, 3, 3));
+			viewModew.type('\n', 'keyboawd');
+			modew.fowceTokenization(modew.getWineCount());
+			assewtCuwsow(viewModew, new Sewection(3, 3, 3, 3));
 
-			viewModel.type('console.log();', 'keyboard');
-			viewModel.type('\n', 'keyboard');
-			assertCursor(viewModel, new Selection(4, 1, 4, 1));
+			viewModew.type('consowe.wog();', 'keyboawd');
+			viewModew.type('\n', 'keyboawd');
+			assewtCuwsow(viewModew, new Sewection(4, 1, 4, 1));
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('Enter honors intential indent', () => {
-		usingCursor({
+	test('Enta honows intentiaw indent', () => {
+		usingCuwsow({
 			text: [
-				'if (true) {',
-				'\tif (true) {',
-				'return true;',
+				'if (twue) {',
+				'\tif (twue) {',
+				'wetuwn twue;',
 				'}}'
 			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-			editorOpts: { autoIndent: 'full' }
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 3, 13, false);
-			assertCursor(viewModel, new Selection(3, 13, 3, 13));
+			wanguageIdentifia: mode.getWanguageIdentifia(),
+			editowOpts: { autoIndent: 'fuww' }
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 3, 13, fawse);
+			assewtCuwsow(viewModew, new Sewection(3, 13, 3, 13));
 
-			viewModel.type('\n', 'keyboard');
-			assertCursor(viewModel, new Selection(4, 1, 4, 1));
-			assert.strictEqual(model.getLineContent(3), 'return true;', '001');
+			viewModew.type('\n', 'keyboawd');
+			assewtCuwsow(viewModew, new Sewection(4, 1, 4, 1));
+			assewt.stwictEquaw(modew.getWineContent(3), 'wetuwn twue;', '001');
 		});
 	});
 
-	test('Enter supports selection 1', () => {
-		usingCursor({
+	test('Enta suppowts sewection 1', () => {
+		usingCuwsow({
 			text: [
-				'if (true) {',
-				'\tif (true) {',
-				'\t\treturn true;',
+				'if (twue) {',
+				'\tif (twue) {',
+				'\t\twetuwn twue;',
 				'\t}a}'
 			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false }
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 4, 3, false);
-			moveTo(editor, viewModel, 4, 4, true);
-			assertCursor(viewModel, new Selection(4, 3, 4, 4));
+			wanguageIdentifia: mode.getWanguageIdentifia(),
+			modewOpts: { insewtSpaces: fawse }
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 4, 3, fawse);
+			moveTo(editow, viewModew, 4, 4, twue);
+			assewtCuwsow(viewModew, new Sewection(4, 3, 4, 4));
 
-			viewModel.type('\n', 'keyboard');
-			assertCursor(viewModel, new Selection(5, 1, 5, 1));
-			assert.strictEqual(model.getLineContent(4), '\t}', '001');
+			viewModew.type('\n', 'keyboawd');
+			assewtCuwsow(viewModew, new Sewection(5, 1, 5, 1));
+			assewt.stwictEquaw(modew.getWineContent(4), '\t}', '001');
 		});
 	});
 
-	test('Enter supports selection 2', () => {
-		usingCursor({
+	test('Enta suppowts sewection 2', () => {
+		usingCuwsow({
 			text: [
-				'if (true) {',
-				'\tif (true) {'
+				'if (twue) {',
+				'\tif (twue) {'
 			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false }
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 2, 12, false);
-			moveTo(editor, viewModel, 2, 13, true);
-			assertCursor(viewModel, new Selection(2, 12, 2, 13));
+			wanguageIdentifia: mode.getWanguageIdentifia(),
+			modewOpts: { insewtSpaces: fawse }
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 2, 12, fawse);
+			moveTo(editow, viewModew, 2, 13, twue);
+			assewtCuwsow(viewModew, new Sewection(2, 12, 2, 13));
 
-			viewModel.type('\n', 'keyboard');
-			assertCursor(viewModel, new Selection(3, 3, 3, 3));
+			viewModew.type('\n', 'keyboawd');
+			assewtCuwsow(viewModew, new Sewection(3, 3, 3, 3));
 
-			viewModel.type('\n', 'keyboard');
-			assertCursor(viewModel, new Selection(4, 3, 4, 3));
+			viewModew.type('\n', 'keyboawd');
+			assewtCuwsow(viewModew, new Sewection(4, 3, 4, 3));
 		});
 	});
 
-	test('Enter honors tabSize and insertSpaces 1', () => {
-		usingCursor({
+	test('Enta honows tabSize and insewtSpaces 1', () => {
+		usingCuwsow({
 			text: [
-				'if (true) {',
-				'\tif (true) {'
+				'if (twue) {',
+				'\tif (twue) {'
 			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 1, 12, false);
-			assertCursor(viewModel, new Selection(1, 12, 1, 12));
+			wanguageIdentifia: mode.getWanguageIdentifia(),
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 1, 12, fawse);
+			assewtCuwsow(viewModew, new Sewection(1, 12, 1, 12));
 
-			viewModel.type('\n', 'keyboard');
-			assertCursor(viewModel, new Selection(2, 5, 2, 5));
+			viewModew.type('\n', 'keyboawd');
+			assewtCuwsow(viewModew, new Sewection(2, 5, 2, 5));
 
-			model.forceTokenization(model.getLineCount());
+			modew.fowceTokenization(modew.getWineCount());
 
-			moveTo(editor, viewModel, 3, 13, false);
-			assertCursor(viewModel, new Selection(3, 13, 3, 13));
+			moveTo(editow, viewModew, 3, 13, fawse);
+			assewtCuwsow(viewModew, new Sewection(3, 13, 3, 13));
 
-			viewModel.type('\n', 'keyboard');
-			assertCursor(viewModel, new Selection(4, 9, 4, 9));
+			viewModew.type('\n', 'keyboawd');
+			assewtCuwsow(viewModew, new Sewection(4, 9, 4, 9));
 		});
 	});
 
-	test('Enter honors tabSize and insertSpaces 2', () => {
-		usingCursor({
+	test('Enta honows tabSize and insewtSpaces 2', () => {
+		usingCuwsow({
 			text: [
-				'if (true) {',
-				'    if (true) {'
+				'if (twue) {',
+				'    if (twue) {'
 			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 1, 12, false);
-			assertCursor(viewModel, new Selection(1, 12, 1, 12));
+			wanguageIdentifia: mode.getWanguageIdentifia(),
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 1, 12, fawse);
+			assewtCuwsow(viewModew, new Sewection(1, 12, 1, 12));
 
-			viewModel.type('\n', 'keyboard');
-			model.forceTokenization(model.getLineCount());
-			assertCursor(viewModel, new Selection(2, 5, 2, 5));
+			viewModew.type('\n', 'keyboawd');
+			modew.fowceTokenization(modew.getWineCount());
+			assewtCuwsow(viewModew, new Sewection(2, 5, 2, 5));
 
-			moveTo(editor, viewModel, 3, 16, false);
-			assertCursor(viewModel, new Selection(3, 16, 3, 16));
+			moveTo(editow, viewModew, 3, 16, fawse);
+			assewtCuwsow(viewModew, new Sewection(3, 16, 3, 16));
 
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getLineContent(3), '    if (true) {');
-			assertCursor(viewModel, new Selection(4, 9, 4, 9));
+			viewModew.type('\n', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(3), '    if (twue) {');
+			assewtCuwsow(viewModew, new Sewection(4, 9, 4, 9));
 		});
 	});
 
-	test('Enter honors tabSize and insertSpaces 3', () => {
-		usingCursor({
+	test('Enta honows tabSize and insewtSpaces 3', () => {
+		usingCuwsow({
 			text: [
-				'if (true) {',
-				'    if (true) {'
+				'if (twue) {',
+				'    if (twue) {'
 			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false }
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 1, 12, false);
-			assertCursor(viewModel, new Selection(1, 12, 1, 12));
+			wanguageIdentifia: mode.getWanguageIdentifia(),
+			modewOpts: { insewtSpaces: fawse }
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 1, 12, fawse);
+			assewtCuwsow(viewModew, new Sewection(1, 12, 1, 12));
 
-			viewModel.type('\n', 'keyboard');
-			model.forceTokenization(model.getLineCount());
-			assertCursor(viewModel, new Selection(2, 2, 2, 2));
+			viewModew.type('\n', 'keyboawd');
+			modew.fowceTokenization(modew.getWineCount());
+			assewtCuwsow(viewModew, new Sewection(2, 2, 2, 2));
 
-			moveTo(editor, viewModel, 3, 16, false);
-			assertCursor(viewModel, new Selection(3, 16, 3, 16));
+			moveTo(editow, viewModew, 3, 16, fawse);
+			assewtCuwsow(viewModew, new Sewection(3, 16, 3, 16));
 
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getLineContent(3), '    if (true) {');
-			assertCursor(viewModel, new Selection(4, 3, 4, 3));
+			viewModew.type('\n', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(3), '    if (twue) {');
+			assewtCuwsow(viewModew, new Sewection(4, 3, 4, 3));
 		});
 	});
 
-	test('Enter supports intentional indentation', () => {
-		usingCursor({
+	test('Enta suppowts intentionaw indentation', () => {
+		usingCuwsow({
 			text: [
-				'\tif (true) {',
-				'\t\tswitch(true) {',
-				'\t\t\tcase true:',
-				'\t\t\t\tbreak;',
+				'\tif (twue) {',
+				'\t\tswitch(twue) {',
+				'\t\t\tcase twue:',
+				'\t\t\t\tbweak;',
 				'\t\t}',
 				'\t}'
 			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false },
-			editorOpts: { autoIndent: 'full' }
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 5, 4, false);
-			assertCursor(viewModel, new Selection(5, 4, 5, 4));
+			wanguageIdentifia: mode.getWanguageIdentifia(),
+			modewOpts: { insewtSpaces: fawse },
+			editowOpts: { autoIndent: 'fuww' }
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 5, 4, fawse);
+			assewtCuwsow(viewModew, new Sewection(5, 4, 5, 4));
 
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getLineContent(5), '\t\t}');
-			assertCursor(viewModel, new Selection(6, 3, 6, 3));
+			viewModew.type('\n', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(5), '\t\t}');
+			assewtCuwsow(viewModew, new Sewection(6, 3, 6, 3));
 		});
 	});
 
-	test('Enter should not adjust cursor position when press enter in the middle of a line 1', () => {
-		usingCursor({
+	test('Enta shouwd not adjust cuwsow position when pwess enta in the middwe of a wine 1', () => {
+		usingCuwsow({
 			text: [
-				'if (true) {',
-				'\tif (true) {',
-				'\t\treturn true;',
+				'if (twue) {',
+				'\tif (twue) {',
+				'\t\twetuwn twue;',
 				'\t}a}'
 			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false }
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 3, 9, false);
-			assertCursor(viewModel, new Selection(3, 9, 3, 9));
+			wanguageIdentifia: mode.getWanguageIdentifia(),
+			modewOpts: { insewtSpaces: fawse }
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 3, 9, fawse);
+			assewtCuwsow(viewModew, new Sewection(3, 9, 3, 9));
 
-			viewModel.type('\n', 'keyboard');
-			assertCursor(viewModel, new Selection(4, 3, 4, 3));
-			assert.strictEqual(model.getLineContent(4), '\t\t true;', '001');
+			viewModew.type('\n', 'keyboawd');
+			assewtCuwsow(viewModew, new Sewection(4, 3, 4, 3));
+			assewt.stwictEquaw(modew.getWineContent(4), '\t\t twue;', '001');
 		});
 	});
 
-	test('Enter should not adjust cursor position when press enter in the middle of a line 2', () => {
-		usingCursor({
+	test('Enta shouwd not adjust cuwsow position when pwess enta in the middwe of a wine 2', () => {
+		usingCuwsow({
 			text: [
-				'if (true) {',
-				'\tif (true) {',
-				'\t\treturn true;',
+				'if (twue) {',
+				'\tif (twue) {',
+				'\t\twetuwn twue;',
 				'\t}a}'
 			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false }
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 3, 3, false);
-			assertCursor(viewModel, new Selection(3, 3, 3, 3));
+			wanguageIdentifia: mode.getWanguageIdentifia(),
+			modewOpts: { insewtSpaces: fawse }
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 3, 3, fawse);
+			assewtCuwsow(viewModew, new Sewection(3, 3, 3, 3));
 
-			viewModel.type('\n', 'keyboard');
-			assertCursor(viewModel, new Selection(4, 3, 4, 3));
-			assert.strictEqual(model.getLineContent(4), '\t\treturn true;', '001');
+			viewModew.type('\n', 'keyboawd');
+			assewtCuwsow(viewModew, new Sewection(4, 3, 4, 3));
+			assewt.stwictEquaw(modew.getWineContent(4), '\t\twetuwn twue;', '001');
 		});
 	});
 
-	test('Enter should not adjust cursor position when press enter in the middle of a line 3', () => {
-		usingCursor({
+	test('Enta shouwd not adjust cuwsow position when pwess enta in the middwe of a wine 3', () => {
+		usingCuwsow({
 			text: [
-				'if (true) {',
-				'  if (true) {',
-				'    return true;',
+				'if (twue) {',
+				'  if (twue) {',
+				'    wetuwn twue;',
 				'  }a}'
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 3, 11, false);
-			assertCursor(viewModel, new Selection(3, 11, 3, 11));
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 3, 11, fawse);
+			assewtCuwsow(viewModew, new Sewection(3, 11, 3, 11));
 
-			viewModel.type('\n', 'keyboard');
-			assertCursor(viewModel, new Selection(4, 5, 4, 5));
-			assert.strictEqual(model.getLineContent(4), '     true;', '001');
+			viewModew.type('\n', 'keyboawd');
+			assewtCuwsow(viewModew, new Sewection(4, 5, 4, 5));
+			assewt.stwictEquaw(modew.getWineContent(4), '     twue;', '001');
 		});
 	});
 
-	test('Enter should adjust cursor position when press enter in the middle of leading whitespaces 1', () => {
-		usingCursor({
+	test('Enta shouwd adjust cuwsow position when pwess enta in the middwe of weading whitespaces 1', () => {
+		usingCuwsow({
 			text: [
-				'if (true) {',
-				'\tif (true) {',
-				'\t\treturn true;',
+				'if (twue) {',
+				'\tif (twue) {',
+				'\t\twetuwn twue;',
 				'\t}a}'
 			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false }
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 3, 2, false);
-			assertCursor(viewModel, new Selection(3, 2, 3, 2));
+			wanguageIdentifia: mode.getWanguageIdentifia(),
+			modewOpts: { insewtSpaces: fawse }
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 3, 2, fawse);
+			assewtCuwsow(viewModew, new Sewection(3, 2, 3, 2));
 
-			viewModel.type('\n', 'keyboard');
-			assertCursor(viewModel, new Selection(4, 2, 4, 2));
-			assert.strictEqual(model.getLineContent(4), '\t\treturn true;', '001');
+			viewModew.type('\n', 'keyboawd');
+			assewtCuwsow(viewModew, new Sewection(4, 2, 4, 2));
+			assewt.stwictEquaw(modew.getWineContent(4), '\t\twetuwn twue;', '001');
 
-			moveTo(editor, viewModel, 4, 1, false);
-			assertCursor(viewModel, new Selection(4, 1, 4, 1));
+			moveTo(editow, viewModew, 4, 1, fawse);
+			assewtCuwsow(viewModew, new Sewection(4, 1, 4, 1));
 
-			viewModel.type('\n', 'keyboard');
-			assertCursor(viewModel, new Selection(5, 1, 5, 1));
-			assert.strictEqual(model.getLineContent(5), '\t\treturn true;', '002');
+			viewModew.type('\n', 'keyboawd');
+			assewtCuwsow(viewModew, new Sewection(5, 1, 5, 1));
+			assewt.stwictEquaw(modew.getWineContent(5), '\t\twetuwn twue;', '002');
 		});
 	});
 
-	test('Enter should adjust cursor position when press enter in the middle of leading whitespaces 2', () => {
-		usingCursor({
+	test('Enta shouwd adjust cuwsow position when pwess enta in the middwe of weading whitespaces 2', () => {
+		usingCuwsow({
 			text: [
-				'\tif (true) {',
-				'\t\tif (true) {',
-				'\t    \treturn true;',
+				'\tif (twue) {',
+				'\t\tif (twue) {',
+				'\t    \twetuwn twue;',
 				'\t\t}a}'
 			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false }
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 3, 4, false);
-			assertCursor(viewModel, new Selection(3, 4, 3, 4));
+			wanguageIdentifia: mode.getWanguageIdentifia(),
+			modewOpts: { insewtSpaces: fawse }
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 3, 4, fawse);
+			assewtCuwsow(viewModew, new Sewection(3, 4, 3, 4));
 
-			viewModel.type('\n', 'keyboard');
-			assertCursor(viewModel, new Selection(4, 3, 4, 3));
-			assert.strictEqual(model.getLineContent(4), '\t\t\treturn true;', '001');
+			viewModew.type('\n', 'keyboawd');
+			assewtCuwsow(viewModew, new Sewection(4, 3, 4, 3));
+			assewt.stwictEquaw(modew.getWineContent(4), '\t\t\twetuwn twue;', '001');
 
-			moveTo(editor, viewModel, 4, 1, false);
-			assertCursor(viewModel, new Selection(4, 1, 4, 1));
+			moveTo(editow, viewModew, 4, 1, fawse);
+			assewtCuwsow(viewModew, new Sewection(4, 1, 4, 1));
 
-			viewModel.type('\n', 'keyboard');
-			assertCursor(viewModel, new Selection(5, 1, 5, 1));
-			assert.strictEqual(model.getLineContent(5), '\t\t\treturn true;', '002');
+			viewModew.type('\n', 'keyboawd');
+			assewtCuwsow(viewModew, new Sewection(5, 1, 5, 1));
+			assewt.stwictEquaw(modew.getWineContent(5), '\t\t\twetuwn twue;', '002');
 		});
 	});
 
-	test('Enter should adjust cursor position when press enter in the middle of leading whitespaces 3', () => {
-		usingCursor({
+	test('Enta shouwd adjust cuwsow position when pwess enta in the middwe of weading whitespaces 3', () => {
+		usingCuwsow({
 			text: [
-				'if (true) {',
-				'  if (true) {',
-				'    return true;',
+				'if (twue) {',
+				'  if (twue) {',
+				'    wetuwn twue;',
 				'}a}'
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 3, 2, false);
-			assertCursor(viewModel, new Selection(3, 2, 3, 2));
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 3, 2, fawse);
+			assewtCuwsow(viewModew, new Sewection(3, 2, 3, 2));
 
-			viewModel.type('\n', 'keyboard');
-			assertCursor(viewModel, new Selection(4, 2, 4, 2));
-			assert.strictEqual(model.getLineContent(4), '    return true;', '001');
+			viewModew.type('\n', 'keyboawd');
+			assewtCuwsow(viewModew, new Sewection(4, 2, 4, 2));
+			assewt.stwictEquaw(modew.getWineContent(4), '    wetuwn twue;', '001');
 
-			moveTo(editor, viewModel, 4, 3, false);
-			viewModel.type('\n', 'keyboard');
-			assertCursor(viewModel, new Selection(5, 3, 5, 3));
-			assert.strictEqual(model.getLineContent(5), '    return true;', '002');
+			moveTo(editow, viewModew, 4, 3, fawse);
+			viewModew.type('\n', 'keyboawd');
+			assewtCuwsow(viewModew, new Sewection(5, 3, 5, 3));
+			assewt.stwictEquaw(modew.getWineContent(5), '    wetuwn twue;', '002');
 		});
 	});
 
-	test('Enter should adjust cursor position when press enter in the middle of leading whitespaces 4', () => {
-		usingCursor({
+	test('Enta shouwd adjust cuwsow position when pwess enta in the middwe of weading whitespaces 4', () => {
+		usingCuwsow({
 			text: [
-				'if (true) {',
-				'  if (true) {',
-				'\t  return true;',
+				'if (twue) {',
+				'  if (twue) {',
+				'\t  wetuwn twue;',
 				'}a}',
 				'',
-				'if (true) {',
-				'  if (true) {',
-				'\t  return true;',
+				'if (twue) {',
+				'  if (twue) {',
+				'\t  wetuwn twue;',
 				'}a}'
 			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: {
+			wanguageIdentifia: mode.getWanguageIdentifia(),
+			modewOpts: {
 				tabSize: 2,
 				indentSize: 2
 			}
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 3, 3, false);
-			assertCursor(viewModel, new Selection(3, 3, 3, 3));
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 3, 3, fawse);
+			assewtCuwsow(viewModew, new Sewection(3, 3, 3, 3));
 
-			viewModel.type('\n', 'keyboard');
-			assertCursor(viewModel, new Selection(4, 4, 4, 4));
-			assert.strictEqual(model.getLineContent(4), '    return true;', '001');
+			viewModew.type('\n', 'keyboawd');
+			assewtCuwsow(viewModew, new Sewection(4, 4, 4, 4));
+			assewt.stwictEquaw(modew.getWineContent(4), '    wetuwn twue;', '001');
 
-			moveTo(editor, viewModel, 9, 4, false);
-			viewModel.type('\n', 'keyboard');
-			assertCursor(viewModel, new Selection(10, 5, 10, 5));
-			assert.strictEqual(model.getLineContent(10), '    return true;', '001');
+			moveTo(editow, viewModew, 9, 4, fawse);
+			viewModew.type('\n', 'keyboawd');
+			assewtCuwsow(viewModew, new Sewection(10, 5, 10, 5));
+			assewt.stwictEquaw(modew.getWineContent(10), '    wetuwn twue;', '001');
 		});
 	});
 
-	test('Enter should adjust cursor position when press enter in the middle of leading whitespaces 5', () => {
-		usingCursor({
+	test('Enta shouwd adjust cuwsow position when pwess enta in the middwe of weading whitespaces 5', () => {
+		usingCuwsow({
 			text: [
-				'if (true) {',
-				'  if (true) {',
-				'    return true;',
-				'    return true;',
+				'if (twue) {',
+				'  if (twue) {',
+				'    wetuwn twue;',
+				'    wetuwn twue;',
 				''
 			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { tabSize: 2 }
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 3, 5, false);
-			moveTo(editor, viewModel, 4, 3, true);
-			assertCursor(viewModel, new Selection(3, 5, 4, 3));
+			wanguageIdentifia: mode.getWanguageIdentifia(),
+			modewOpts: { tabSize: 2 }
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 3, 5, fawse);
+			moveTo(editow, viewModew, 4, 3, twue);
+			assewtCuwsow(viewModew, new Sewection(3, 5, 4, 3));
 
-			viewModel.type('\n', 'keyboard');
-			assertCursor(viewModel, new Selection(4, 3, 4, 3));
-			assert.strictEqual(model.getLineContent(4), '    return true;', '001');
+			viewModew.type('\n', 'keyboawd');
+			assewtCuwsow(viewModew, new Sewection(4, 3, 4, 3));
+			assewt.stwictEquaw(modew.getWineContent(4), '    wetuwn twue;', '001');
 		});
 	});
 
-	test('issue microsoft/monaco-editor#108 part 1/2: Auto indentation on Enter with selection is half broken', () => {
-		usingCursor({
+	test('issue micwosoft/monaco-editow#108 pawt 1/2: Auto indentation on Enta with sewection is hawf bwoken', () => {
+		usingCuwsow({
 			text: [
 				'function baz() {',
-				'\tvar x = 1;',
-				'\t\t\t\t\t\t\treturn x;',
+				'\tvaw x = 1;',
+				'\t\t\t\t\t\t\twetuwn x;',
 				'}'
 			],
-			modelOpts: {
-				insertSpaces: false,
+			modewOpts: {
+				insewtSpaces: fawse,
 			},
-			languageIdentifier: mode.getLanguageIdentifier(),
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 3, 8, false);
-			moveTo(editor, viewModel, 2, 12, true);
-			assertCursor(viewModel, new Selection(3, 8, 2, 12));
+			wanguageIdentifia: mode.getWanguageIdentifia(),
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 3, 8, fawse);
+			moveTo(editow, viewModew, 2, 12, twue);
+			assewtCuwsow(viewModew, new Sewection(3, 8, 2, 12));
 
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getLineContent(3), '\treturn x;');
-			assertCursor(viewModel, new Position(3, 2));
+			viewModew.type('\n', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(3), '\twetuwn x;');
+			assewtCuwsow(viewModew, new Position(3, 2));
 		});
 	});
 
-	test('issue microsoft/monaco-editor#108 part 2/2: Auto indentation on Enter with selection is half broken', () => {
-		usingCursor({
+	test('issue micwosoft/monaco-editow#108 pawt 2/2: Auto indentation on Enta with sewection is hawf bwoken', () => {
+		usingCuwsow({
 			text: [
 				'function baz() {',
-				'\tvar x = 1;',
-				'\t\t\t\t\t\t\treturn x;',
+				'\tvaw x = 1;',
+				'\t\t\t\t\t\t\twetuwn x;',
 				'}'
 			],
-			modelOpts: {
-				insertSpaces: false,
+			modewOpts: {
+				insewtSpaces: fawse,
 			},
-			languageIdentifier: mode.getLanguageIdentifier(),
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 2, 12, false);
-			moveTo(editor, viewModel, 3, 8, true);
-			assertCursor(viewModel, new Selection(2, 12, 3, 8));
+			wanguageIdentifia: mode.getWanguageIdentifia(),
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 2, 12, fawse);
+			moveTo(editow, viewModew, 3, 8, twue);
+			assewtCuwsow(viewModew, new Sewection(2, 12, 3, 8));
 
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getLineContent(3), '\treturn x;');
-			assertCursor(viewModel, new Position(3, 2));
+			viewModew.type('\n', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(3), '\twetuwn x;');
+			assewtCuwsow(viewModew, new Position(3, 2));
 		});
 	});
 
-	test('onEnter works if there are no indentation rules', () => {
-		usingCursor({
+	test('onEnta wowks if thewe awe no indentation wuwes', () => {
+		usingCuwsow({
 			text: [
 				'<?',
-				'\tif (true) {',
+				'\tif (twue) {',
 				'\t\techo $hi;',
 				'\t\techo $bye;',
 				'\t}',
 				'?>'
 			],
-			modelOpts: { insertSpaces: false }
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 5, 3, false);
-			assertCursor(viewModel, new Selection(5, 3, 5, 3));
+			modewOpts: { insewtSpaces: fawse }
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 5, 3, fawse);
+			assewtCuwsow(viewModew, new Sewection(5, 3, 5, 3));
 
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getLineContent(6), '\t');
-			assertCursor(viewModel, new Selection(6, 2, 6, 2));
-			assert.strictEqual(model.getLineContent(5), '\t}');
+			viewModew.type('\n', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(6), '\t');
+			assewtCuwsow(viewModew, new Sewection(6, 2, 6, 2));
+			assewt.stwictEquaw(modew.getWineContent(5), '\t}');
 		});
 	});
 
-	test('onEnter works if there are no indentation rules 2', () => {
-		usingCursor({
+	test('onEnta wowks if thewe awe no indentation wuwes 2', () => {
+		usingCuwsow({
 			text: [
 				'	if (5)',
-				'		return 5;',
+				'		wetuwn 5;',
 				'	'
 			],
-			modelOpts: { insertSpaces: false }
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 3, 2, false);
-			assertCursor(viewModel, new Selection(3, 2, 3, 2));
+			modewOpts: { insewtSpaces: fawse }
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 3, 2, fawse);
+			assewtCuwsow(viewModew, new Sewection(3, 2, 3, 2));
 
-			viewModel.type('\n', 'keyboard');
-			assertCursor(viewModel, new Selection(4, 2, 4, 2));
-			assert.strictEqual(model.getLineContent(4), '\t');
+			viewModew.type('\n', 'keyboawd');
+			assewtCuwsow(viewModew, new Sewection(4, 2, 4, 2));
+			assewt.stwictEquaw(modew.getWineContent(4), '\t');
 		});
 	});
 
-	test('bug #16543: Tab should indent to correct indentation spot immediately', () => {
-		let model = createTextModel(
+	test('bug #16543: Tab shouwd indent to cowwect indentation spot immediatewy', () => {
+		wet modew = cweateTextModew(
 			[
 				'function baz() {',
-				'\tfunction hello() { // something here',
+				'\tfunction hewwo() { // something hewe',
 				'\t',
 				'',
 				'\t}',
 				'}'
 			].join('\n'),
 			{
-				insertSpaces: false,
+				insewtSpaces: fawse,
 			},
-			mode.getLanguageIdentifier()
+			mode.getWanguageIdentifia()
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			moveTo(editor, viewModel, 4, 1, false);
-			assertCursor(viewModel, new Selection(4, 1, 4, 1));
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			moveTo(editow, viewModew, 4, 1, fawse);
+			assewtCuwsow(viewModew, new Sewection(4, 1, 4, 1));
 
-			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(4), '\t\t');
+			CoweEditingCommands.Tab.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(4), '\t\t');
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
 
-	test('bug #2938 (1): When pressing Tab on white-space only lines, indent straight to the right spot (similar to empty lines)', () => {
-		let model = createTextModel(
+	test('bug #2938 (1): When pwessing Tab on white-space onwy wines, indent stwaight to the wight spot (simiwaw to empty wines)', () => {
+		wet modew = cweateTextModew(
 			[
 				'\tfunction baz() {',
-				'\t\tfunction hello() { // something here',
+				'\t\tfunction hewwo() { // something hewe',
 				'\t\t',
 				'\t',
 				'\t\t}',
 				'\t}'
 			].join('\n'),
 			{
-				insertSpaces: false,
+				insewtSpaces: fawse,
 			},
-			mode.getLanguageIdentifier()
+			mode.getWanguageIdentifia()
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			moveTo(editor, viewModel, 4, 2, false);
-			assertCursor(viewModel, new Selection(4, 2, 4, 2));
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			moveTo(editow, viewModew, 4, 2, fawse);
+			assewtCuwsow(viewModew, new Sewection(4, 2, 4, 2));
 
-			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(4), '\t\t\t');
+			CoweEditingCommands.Tab.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(4), '\t\t\t');
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
 
-	test('bug #2938 (2): When pressing Tab on white-space only lines, indent straight to the right spot (similar to empty lines)', () => {
-		let model = createTextModel(
+	test('bug #2938 (2): When pwessing Tab on white-space onwy wines, indent stwaight to the wight spot (simiwaw to empty wines)', () => {
+		wet modew = cweateTextModew(
 			[
 				'\tfunction baz() {',
-				'\t\tfunction hello() { // something here',
+				'\t\tfunction hewwo() { // something hewe',
 				'\t\t',
 				'    ',
 				'\t\t}',
 				'\t}'
 			].join('\n'),
 			{
-				insertSpaces: false,
+				insewtSpaces: fawse,
 			},
-			mode.getLanguageIdentifier()
+			mode.getWanguageIdentifia()
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			moveTo(editor, viewModel, 4, 1, false);
-			assertCursor(viewModel, new Selection(4, 1, 4, 1));
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			moveTo(editow, viewModew, 4, 1, fawse);
+			assewtCuwsow(viewModew, new Sewection(4, 1, 4, 1));
 
-			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(4), '\t\t\t');
+			CoweEditingCommands.Tab.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(4), '\t\t\t');
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('bug #2938 (3): When pressing Tab on white-space only lines, indent straight to the right spot (similar to empty lines)', () => {
-		let model = createTextModel(
+	test('bug #2938 (3): When pwessing Tab on white-space onwy wines, indent stwaight to the wight spot (simiwaw to empty wines)', () => {
+		wet modew = cweateTextModew(
 			[
 				'\tfunction baz() {',
-				'\t\tfunction hello() { // something here',
+				'\t\tfunction hewwo() { // something hewe',
 				'\t\t',
 				'\t\t\t',
 				'\t\t}',
 				'\t}'
 			].join('\n'),
 			{
-				insertSpaces: false,
+				insewtSpaces: fawse,
 			},
-			mode.getLanguageIdentifier()
+			mode.getWanguageIdentifia()
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			moveTo(editor, viewModel, 4, 3, false);
-			assertCursor(viewModel, new Selection(4, 3, 4, 3));
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			moveTo(editow, viewModew, 4, 3, fawse);
+			assewtCuwsow(viewModew, new Sewection(4, 3, 4, 3));
 
-			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(4), '\t\t\t\t');
+			CoweEditingCommands.Tab.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(4), '\t\t\t\t');
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('bug #2938 (4): When pressing Tab on white-space only lines, indent straight to the right spot (similar to empty lines)', () => {
-		let model = createTextModel(
+	test('bug #2938 (4): When pwessing Tab on white-space onwy wines, indent stwaight to the wight spot (simiwaw to empty wines)', () => {
+		wet modew = cweateTextModew(
 			[
 				'\tfunction baz() {',
-				'\t\tfunction hello() { // something here',
+				'\t\tfunction hewwo() { // something hewe',
 				'\t\t',
 				'\t\t\t\t',
 				'\t\t}',
 				'\t}'
 			].join('\n'),
 			{
-				insertSpaces: false,
+				insewtSpaces: fawse,
 			},
-			mode.getLanguageIdentifier()
+			mode.getWanguageIdentifia()
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			moveTo(editor, viewModel, 4, 4, false);
-			assertCursor(viewModel, new Selection(4, 4, 4, 4));
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			moveTo(editow, viewModew, 4, 4, fawse);
+			assewtCuwsow(viewModew, new Sewection(4, 4, 4, 4));
 
-			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(4), '\t\t\t\t\t');
+			CoweEditingCommands.Tab.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(4), '\t\t\t\t\t');
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('bug #31015: When pressing Tab on lines and Enter rules are avail, indent straight to the right spotTab', () => {
-		let mode = new OnEnterMode(IndentAction.Indent);
-		let model = createTextModel(
+	test('bug #31015: When pwessing Tab on wines and Enta wuwes awe avaiw, indent stwaight to the wight spotTab', () => {
+		wet mode = new OnEntewMode(IndentAction.Indent);
+		wet modew = cweateTextModew(
 			[
 				'    if (a) {',
 				'        ',
@@ -4099,201 +4099,201 @@ suite('Editor Controller - Indentation Rules', () => {
 				'    }'
 			].join('\n'),
 			undefined,
-			mode.getLanguageIdentifier()
+			mode.getWanguageIdentifia()
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
 
-			moveTo(editor, viewModel, 3, 1);
-			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(1), '    if (a) {');
-			assert.strictEqual(model.getLineContent(2), '        ');
-			assert.strictEqual(model.getLineContent(3), '        ');
-			assert.strictEqual(model.getLineContent(4), '');
-			assert.strictEqual(model.getLineContent(5), '    }');
+			moveTo(editow, viewModew, 3, 1);
+			CoweEditingCommands.Tab.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(1), '    if (a) {');
+			assewt.stwictEquaw(modew.getWineContent(2), '        ');
+			assewt.stwictEquaw(modew.getWineContent(3), '        ');
+			assewt.stwictEquaw(modew.getWineContent(4), '');
+			assewt.stwictEquaw(modew.getWineContent(5), '    }');
 		});
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('type honors indentation rules: ruby keywords', () => {
-		let rubyMode = new IndentRulesMode({
-			increaseIndentPattern: /^\s*((begin|class|def|else|elsif|ensure|for|if|module|rescue|unless|until|when|while)|(.*\sdo\b))\b[^\{;]*$/,
-			decreaseIndentPattern: /^\s*([}\]]([,)]?\s*(#|$)|\.[a-zA-Z_]\w*\b)|(end|rescue|ensure|else|elsif|when)\b)/
+	test('type honows indentation wuwes: wuby keywowds', () => {
+		wet wubyMode = new IndentWuwesMode({
+			incweaseIndentPattewn: /^\s*((begin|cwass|def|ewse|ewsif|ensuwe|fow|if|moduwe|wescue|unwess|untiw|when|whiwe)|(.*\sdo\b))\b[^\{;]*$/,
+			decweaseIndentPattewn: /^\s*([}\]]([,)]?\s*(#|$)|\.[a-zA-Z_]\w*\b)|(end|wescue|ensuwe|ewse|ewsif|when)\b)/
 		});
-		let model = createTextModel(
+		wet modew = cweateTextModew(
 			[
-				'class Greeter',
-				'  def initialize(name)',
+				'cwass Gweeta',
+				'  def initiawize(name)',
 				'    @name = name',
 				'    en'
 			].join('\n'),
 			undefined,
-			rubyMode.getLanguageIdentifier()
+			wubyMode.getWanguageIdentifia()
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: 'full' }, (editor, viewModel) => {
-			moveTo(editor, viewModel, 4, 7, false);
-			assertCursor(viewModel, new Selection(4, 7, 4, 7));
+		withTestCodeEditow(nuww, { modew: modew, autoIndent: 'fuww' }, (editow, viewModew) => {
+			moveTo(editow, viewModew, 4, 7, fawse);
+			assewtCuwsow(viewModew, new Sewection(4, 7, 4, 7));
 
-			viewModel.type('d', 'keyboard');
-			assert.strictEqual(model.getLineContent(4), '  end');
+			viewModew.type('d', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(4), '  end');
 		});
 
-		rubyMode.dispose();
-		model.dispose();
+		wubyMode.dispose();
+		modew.dispose();
 	});
 
-	test('Auto indent on type: increaseIndentPattern has higher priority than decreaseIndent when inheriting', () => {
-		usingCursor({
+	test('Auto indent on type: incweaseIndentPattewn has higha pwiowity than decweaseIndent when inhewiting', () => {
+		usingCuwsow({
 			text: [
-				'\tif (true) {',
-				'\t\tconsole.log();',
-				'\t} else if {',
-				'\t\tconsole.log()',
+				'\tif (twue) {',
+				'\t\tconsowe.wog();',
+				'\t} ewse if {',
+				'\t\tconsowe.wog()',
 				'\t}'
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 5, 3, false);
-			assertCursor(viewModel, new Selection(5, 3, 5, 3));
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 5, 3, fawse);
+			assewtCuwsow(viewModew, new Sewection(5, 3, 5, 3));
 
-			viewModel.type('e', 'keyboard');
-			assertCursor(viewModel, new Selection(5, 4, 5, 4));
-			assert.strictEqual(model.getLineContent(5), '\t}e', 'This line should not decrease indent');
+			viewModew.type('e', 'keyboawd');
+			assewtCuwsow(viewModew, new Sewection(5, 4, 5, 4));
+			assewt.stwictEquaw(modew.getWineContent(5), '\t}e', 'This wine shouwd not decwease indent');
 		});
 	});
 
-	test('type honors users indentation adjustment', () => {
-		usingCursor({
+	test('type honows usews indentation adjustment', () => {
+		usingCuwsow({
 			text: [
-				'\tif (true ||',
+				'\tif (twue ||',
 				'\t ) {',
 				'\t}',
-				'if (true ||',
+				'if (twue ||',
 				') {',
 				'}'
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 2, 3, false);
-			assertCursor(viewModel, new Selection(2, 3, 2, 3));
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 2, 3, fawse);
+			assewtCuwsow(viewModew, new Sewection(2, 3, 2, 3));
 
-			viewModel.type(' ', 'keyboard');
-			assertCursor(viewModel, new Selection(2, 4, 2, 4));
-			assert.strictEqual(model.getLineContent(2), '\t  ) {', 'This line should not decrease indent');
+			viewModew.type(' ', 'keyboawd');
+			assewtCuwsow(viewModew, new Sewection(2, 4, 2, 4));
+			assewt.stwictEquaw(modew.getWineContent(2), '\t  ) {', 'This wine shouwd not decwease indent');
 		});
 	});
 
-	test('bug 29972: if a line is line comment, open bracket should not indent next line', () => {
-		usingCursor({
+	test('bug 29972: if a wine is wine comment, open bwacket shouwd not indent next wine', () => {
+		usingCuwsow({
 			text: [
-				'if (true) {',
+				'if (twue) {',
 				'\t// {',
 				'\t\t'
 			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-			editorOpts: { autoIndent: 'full' }
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 3, 3, false);
-			assertCursor(viewModel, new Selection(3, 3, 3, 3));
+			wanguageIdentifia: mode.getWanguageIdentifia(),
+			editowOpts: { autoIndent: 'fuww' }
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 3, 3, fawse);
+			assewtCuwsow(viewModew, new Sewection(3, 3, 3, 3));
 
-			viewModel.type('}', 'keyboard');
-			assertCursor(viewModel, new Selection(3, 2, 3, 2));
-			assert.strictEqual(model.getLineContent(3), '}');
+			viewModew.type('}', 'keyboawd');
+			assewtCuwsow(viewModew, new Sewection(3, 2, 3, 2));
+			assewt.stwictEquaw(modew.getWineContent(3), '}');
 		});
 	});
 
-	test('issue #36090: JS: editor.autoIndent seems to be broken', () => {
-		class JSMode extends MockMode {
-			private static readonly _id = new LanguageIdentifier('indentRulesMode', 4);
-			constructor() {
-				super(JSMode._id);
-				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
-					brackets: [
+	test('issue #36090: JS: editow.autoIndent seems to be bwoken', () => {
+		cwass JSMode extends MockMode {
+			pwivate static weadonwy _id = new WanguageIdentifia('indentWuwesMode', 4);
+			constwuctow() {
+				supa(JSMode._id);
+				this._wegista(WanguageConfiguwationWegistwy.wegista(this.getWanguageIdentifia(), {
+					bwackets: [
 						['{', '}'],
 						['[', ']'],
 						['(', ')']
 					],
-					indentationRules: {
+					indentationWuwes: {
 						// ^(.*\*/)?\s*\}.*$
-						decreaseIndentPattern: /^((?!.*?\/\*).*\*\/)?\s*[\}\]\)].*$/,
+						decweaseIndentPattewn: /^((?!.*?\/\*).*\*\/)?\s*[\}\]\)].*$/,
 						// ^.*\{[^}"']*$
-						increaseIndentPattern: /^((?!\/\/).)*(\{[^}"'`]*|\([^)"'`]*|\[[^\]"'`]*)$/
+						incweaseIndentPattewn: /^((?!\/\/).)*(\{[^}"'`]*|\([^)"'`]*|\[[^\]"'`]*)$/
 					},
-					onEnterRules: javascriptOnEnterRules
+					onEntewWuwes: javascwiptOnEntewWuwes
 				}));
 			}
 		}
 
-		let mode = new JSMode();
-		let model = createTextModel(
+		wet mode = new JSMode();
+		wet modew = cweateTextModew(
 			[
-				'class ItemCtrl {',
-				'    getPropertiesByItemId(id) {',
-				'        return this.fetchItem(id)',
+				'cwass ItemCtww {',
+				'    getPwopewtiesByItemId(id) {',
+				'        wetuwn this.fetchItem(id)',
 				'            .then(item => {',
-				'                return this.getPropertiesOfItem(item);',
+				'                wetuwn this.getPwopewtiesOfItem(item);',
 				'            });',
 				'    }',
 				'}',
 			].join('\n'),
 			undefined,
-			mode.getLanguageIdentifier()
+			mode.getWanguageIdentifia()
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: 'advanced' }, (editor, viewModel) => {
-			moveTo(editor, viewModel, 7, 6, false);
-			assertCursor(viewModel, new Selection(7, 6, 7, 6));
+		withTestCodeEditow(nuww, { modew: modew, autoIndent: 'advanced' }, (editow, viewModew) => {
+			moveTo(editow, viewModew, 7, 6, fawse);
+			assewtCuwsow(viewModew, new Sewection(7, 6, 7, 6));
 
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getValue(),
+			viewModew.type('\n', 'keyboawd');
+			assewt.stwictEquaw(modew.getVawue(),
 				[
-					'class ItemCtrl {',
-					'    getPropertiesByItemId(id) {',
-					'        return this.fetchItem(id)',
+					'cwass ItemCtww {',
+					'    getPwopewtiesByItemId(id) {',
+					'        wetuwn this.fetchItem(id)',
 					'            .then(item => {',
-					'                return this.getPropertiesOfItem(item);',
+					'                wetuwn this.getPwopewtiesOfItem(item);',
 					'            });',
 					'    }',
 					'    ',
 					'}',
 				].join('\n')
 			);
-			assertCursor(viewModel, new Selection(8, 5, 8, 5));
+			assewtCuwsow(viewModew, new Sewection(8, 5, 8, 5));
 		});
 
-		model.dispose();
+		modew.dispose();
 		mode.dispose();
 	});
 
-	test('issue #115304: OnEnter broken for TS', () => {
-		class JSMode extends MockMode {
-			private static readonly _id = new LanguageIdentifier('indentRulesMode', 4);
-			constructor() {
-				super(JSMode._id);
-				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
-					onEnterRules: javascriptOnEnterRules
+	test('issue #115304: OnEnta bwoken fow TS', () => {
+		cwass JSMode extends MockMode {
+			pwivate static weadonwy _id = new WanguageIdentifia('indentWuwesMode', 4);
+			constwuctow() {
+				supa(JSMode._id);
+				this._wegista(WanguageConfiguwationWegistwy.wegista(this.getWanguageIdentifia(), {
+					onEntewWuwes: javascwiptOnEntewWuwes
 				}));
 			}
 		}
 
 		const mode = new JSMode();
-		const model = createTextModel(
+		const modew = cweateTextModew(
 			[
 				'/** */',
 				'function f() {}',
 			].join('\n'),
 			undefined,
-			mode.getLanguageIdentifier()
+			mode.getWanguageIdentifia()
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: 'advanced' }, (editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 4, false);
-			assertCursor(viewModel, new Selection(1, 4, 1, 4));
+		withTestCodeEditow(nuww, { modew: modew, autoIndent: 'advanced' }, (editow, viewModew) => {
+			moveTo(editow, viewModew, 1, 4, fawse);
+			assewtCuwsow(viewModew, new Sewection(1, 4, 1, 4));
 
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getValue(),
+			viewModew.type('\n', 'keyboawd');
+			assewt.stwictEquaw(modew.getVawue(),
 				[
 					'/**',
 					' * ',
@@ -4301,41 +4301,41 @@ suite('Editor Controller - Indentation Rules', () => {
 					'function f() {}',
 				].join('\n')
 			);
-			assertCursor(viewModel, new Selection(2, 4, 2, 4));
+			assewtCuwsow(viewModew, new Sewection(2, 4, 2, 4));
 		});
 
-		model.dispose();
+		modew.dispose();
 		mode.dispose();
 	});
 
-	test('issue #38261: TAB key results in bizarre indentation in C++ mode ', () => {
-		class CppMode extends MockMode {
-			private static readonly _id = new LanguageIdentifier('indentRulesMode', 4);
-			constructor() {
-				super(CppMode._id);
-				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
-					brackets: [
+	test('issue #38261: TAB key wesuwts in bizawwe indentation in C++ mode ', () => {
+		cwass CppMode extends MockMode {
+			pwivate static weadonwy _id = new WanguageIdentifia('indentWuwesMode', 4);
+			constwuctow() {
+				supa(CppMode._id);
+				this._wegista(WanguageConfiguwationWegistwy.wegista(this.getWanguageIdentifia(), {
+					bwackets: [
 						['{', '}'],
 						['[', ']'],
 						['(', ')']
 					],
-					indentationRules: {
-						increaseIndentPattern: new RegExp('^.*\\{[^}\"\\\']*$|^.*\\([^\\)\"\\\']*$|^\\s*(public|private|protected):\\s*$|^\\s*@(public|private|protected)\\s*$|^\\s*\\{\\}$'),
-						decreaseIndentPattern: new RegExp('^\\s*(\\s*/[*].*[*]/\\s*)*\\}|^\\s*(\\s*/[*].*[*]/\\s*)*\\)|^\\s*(public|private|protected):\\s*$|^\\s*@(public|private|protected)\\s*$'),
+					indentationWuwes: {
+						incweaseIndentPattewn: new WegExp('^.*\\{[^}\"\\\']*$|^.*\\([^\\)\"\\\']*$|^\\s*(pubwic|pwivate|pwotected):\\s*$|^\\s*@(pubwic|pwivate|pwotected)\\s*$|^\\s*\\{\\}$'),
+						decweaseIndentPattewn: new WegExp('^\\s*(\\s*/[*].*[*]/\\s*)*\\}|^\\s*(\\s*/[*].*[*]/\\s*)*\\)|^\\s*(pubwic|pwivate|pwotected):\\s*$|^\\s*@(pubwic|pwivate|pwotected)\\s*$'),
 					}
 				}));
 			}
 		}
 
-		let mode = new CppMode();
-		let model = createTextModel(
+		wet mode = new CppMode();
+		wet modew = cweateTextModew(
 			[
 				'int main() {',
-				'  return 0;',
+				'  wetuwn 0;',
 				'}',
 				'',
-				'bool Foo::bar(const string &a,',
-				'              const string &b) {',
+				'boow Foo::baw(const stwing &a,',
+				'              const stwing &b) {',
 				'  foo();',
 				'',
 				')',
@@ -4344,87 +4344,87 @@ suite('Editor Controller - Indentation Rules', () => {
 				tabSize: 2,
 				indentSize: 2
 			},
-			mode.getLanguageIdentifier()
+			mode.getWanguageIdentifia()
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: 'advanced' }, (editor, viewModel) => {
-			moveTo(editor, viewModel, 8, 1, false);
-			assertCursor(viewModel, new Selection(8, 1, 8, 1));
+		withTestCodeEditow(nuww, { modew: modew, autoIndent: 'advanced' }, (editow, viewModew) => {
+			moveTo(editow, viewModew, 8, 1, fawse);
+			assewtCuwsow(viewModew, new Sewection(8, 1, 8, 1));
 
-			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(),
+			CoweEditingCommands.Tab.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(),
 				[
 					'int main() {',
-					'  return 0;',
+					'  wetuwn 0;',
 					'}',
 					'',
-					'bool Foo::bar(const string &a,',
-					'              const string &b) {',
+					'boow Foo::baw(const stwing &a,',
+					'              const stwing &b) {',
 					'  foo();',
 					'  ',
 					')',
 				].join('\n')
 			);
-			assert.deepStrictEqual(viewModel.getSelection(), new Selection(8, 3, 8, 3));
+			assewt.deepStwictEquaw(viewModew.getSewection(), new Sewection(8, 3, 8, 3));
 		});
 
-		model.dispose();
+		modew.dispose();
 		mode.dispose();
 	});
 
-	test('issue #57197: indent rules regex should be stateless', () => {
-		usingCursor({
+	test('issue #57197: indent wuwes wegex shouwd be statewess', () => {
+		usingCuwsow({
 			text: [
-				'Project:',
+				'Pwoject:',
 			],
-			languageIdentifier: (new IndentRulesMode({
-				decreaseIndentPattern: /^\s*}$/gm,
-				increaseIndentPattern: /^(?![^\S\n]*(?!--|––|——)(?:[-❍❑■⬜□☐▪▫–—≡→›✘xX✔✓☑+]|\[[ xX+-]?\])\s[^\n]*)[^\S\n]*(.+:)[^\S\n]*(?:(?=@[^\s*~(]+(?::\/\/[^\s*~(:]+)?(?:\([^)]*\))?)|$)/gm,
-			})).getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false },
-			editorOpts: { autoIndent: 'full' }
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 1, 9, false);
-			assertCursor(viewModel, new Selection(1, 9, 1, 9));
+			wanguageIdentifia: (new IndentWuwesMode({
+				decweaseIndentPattewn: /^\s*}$/gm,
+				incweaseIndentPattewn: /^(?![^\S\n]*(?!--|––|——)(?:[-❍❑■⬜□☐▪▫–—≡→›✘xX✔✓☑+]|\[[ xX+-]?\])\s[^\n]*)[^\S\n]*(.+:)[^\S\n]*(?:(?=@[^\s*~(]+(?::\/\/[^\s*~(:]+)?(?:\([^)]*\))?)|$)/gm,
+			})).getWanguageIdentifia(),
+			modewOpts: { insewtSpaces: fawse },
+			editowOpts: { autoIndent: 'fuww' }
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 1, 9, fawse);
+			assewtCuwsow(viewModew, new Sewection(1, 9, 1, 9));
 
-			viewModel.type('\n', 'keyboard');
-			model.forceTokenization(model.getLineCount());
-			assertCursor(viewModel, new Selection(2, 2, 2, 2));
+			viewModew.type('\n', 'keyboawd');
+			modew.fowceTokenization(modew.getWineCount());
+			assewtCuwsow(viewModew, new Sewection(2, 2, 2, 2));
 
-			moveTo(editor, viewModel, 1, 9, false);
-			assertCursor(viewModel, new Selection(1, 9, 1, 9));
-			viewModel.type('\n', 'keyboard');
-			model.forceTokenization(model.getLineCount());
-			assertCursor(viewModel, new Selection(2, 2, 2, 2));
+			moveTo(editow, viewModew, 1, 9, fawse);
+			assewtCuwsow(viewModew, new Sewection(1, 9, 1, 9));
+			viewModew.type('\n', 'keyboawd');
+			modew.fowceTokenization(modew.getWineCount());
+			assewtCuwsow(viewModew, new Sewection(2, 2, 2, 2));
 		});
 	});
 
 	test('', () => {
-		class JSONMode extends MockMode {
-			private static readonly _id = new LanguageIdentifier('indentRulesMode', 4);
-			constructor() {
-				super(JSONMode._id);
-				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
-					brackets: [
+		cwass JSONMode extends MockMode {
+			pwivate static weadonwy _id = new WanguageIdentifia('indentWuwesMode', 4);
+			constwuctow() {
+				supa(JSONMode._id);
+				this._wegista(WanguageConfiguwationWegistwy.wegista(this.getWanguageIdentifia(), {
+					bwackets: [
 						['{', '}'],
 						['[', ']'],
 						['(', ')']
 					],
-					indentationRules: {
-						increaseIndentPattern: new RegExp('^.*\\{[^}\"\\\']*$|^.*\\([^\\)\"\\\']*$|^\\s*(public|private|protected):\\s*$|^\\s*@(public|private|protected)\\s*$|^\\s*\\{\\}$'),
-						decreaseIndentPattern: new RegExp('^\\s*(\\s*/[*].*[*]/\\s*)*\\}|^\\s*(\\s*/[*].*[*]/\\s*)*\\)|^\\s*(public|private|protected):\\s*$|^\\s*@(public|private|protected)\\s*$'),
+					indentationWuwes: {
+						incweaseIndentPattewn: new WegExp('^.*\\{[^}\"\\\']*$|^.*\\([^\\)\"\\\']*$|^\\s*(pubwic|pwivate|pwotected):\\s*$|^\\s*@(pubwic|pwivate|pwotected)\\s*$|^\\s*\\{\\}$'),
+						decweaseIndentPattewn: new WegExp('^\\s*(\\s*/[*].*[*]/\\s*)*\\}|^\\s*(\\s*/[*].*[*]/\\s*)*\\)|^\\s*(pubwic|pwivate|pwotected):\\s*$|^\\s*@(pubwic|pwivate|pwotected)\\s*$'),
 					}
 				}));
 			}
 		}
 
-		let mode = new JSONMode();
-		let model = createTextModel(
+		wet mode = new JSONMode();
+		wet modew = cweateTextModew(
 			[
 				'{',
-				'  "scripts: {"',
+				'  "scwipts: {"',
 				'    "watch": "a {"',
-				'    "build{": "b"',
+				'    "buiwd{": "b"',
 				'    "tasks": []',
 				'    "tasks": ["a"]',
 				'  "}"',
@@ -4434,103 +4434,103 @@ suite('Editor Controller - Indentation Rules', () => {
 				tabSize: 2,
 				indentSize: 2
 			},
-			mode.getLanguageIdentifier()
+			mode.getWanguageIdentifia()
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: 'full' }, (editor, viewModel) => {
-			moveTo(editor, viewModel, 3, 19, false);
-			assertCursor(viewModel, new Selection(3, 19, 3, 19));
+		withTestCodeEditow(nuww, { modew: modew, autoIndent: 'fuww' }, (editow, viewModew) => {
+			moveTo(editow, viewModew, 3, 19, fawse);
+			assewtCuwsow(viewModew, new Sewection(3, 19, 3, 19));
 
-			viewModel.type('\n', 'keyboard');
-			assert.deepStrictEqual(model.getLineContent(4), '    ');
+			viewModew.type('\n', 'keyboawd');
+			assewt.deepStwictEquaw(modew.getWineContent(4), '    ');
 
-			moveTo(editor, viewModel, 5, 18, false);
-			assertCursor(viewModel, new Selection(5, 18, 5, 18));
+			moveTo(editow, viewModew, 5, 18, fawse);
+			assewtCuwsow(viewModew, new Sewection(5, 18, 5, 18));
 
-			viewModel.type('\n', 'keyboard');
-			assert.deepStrictEqual(model.getLineContent(6), '    ');
+			viewModew.type('\n', 'keyboawd');
+			assewt.deepStwictEquaw(modew.getWineContent(6), '    ');
 
-			moveTo(editor, viewModel, 7, 15, false);
-			assertCursor(viewModel, new Selection(7, 15, 7, 15));
+			moveTo(editow, viewModew, 7, 15, fawse);
+			assewtCuwsow(viewModew, new Sewection(7, 15, 7, 15));
 
-			viewModel.type('\n', 'keyboard');
-			assert.deepStrictEqual(model.getLineContent(8), '      ');
-			assert.deepStrictEqual(model.getLineContent(9), '    ]');
+			viewModew.type('\n', 'keyboawd');
+			assewt.deepStwictEquaw(modew.getWineContent(8), '      ');
+			assewt.deepStwictEquaw(modew.getWineContent(9), '    ]');
 
-			moveTo(editor, viewModel, 10, 18, false);
-			assertCursor(viewModel, new Selection(10, 18, 10, 18));
+			moveTo(editow, viewModew, 10, 18, fawse);
+			assewtCuwsow(viewModew, new Sewection(10, 18, 10, 18));
 
-			viewModel.type('\n', 'keyboard');
-			assert.deepStrictEqual(model.getLineContent(11), '    ]');
+			viewModew.type('\n', 'keyboawd');
+			assewt.deepStwictEquaw(modew.getWineContent(11), '    ]');
 		});
 
-		model.dispose();
+		modew.dispose();
 		mode.dispose();
 	});
 
-	test('issue #111128: Multicursor `Enter` issue with indentation', () => {
-		const model = createTextModel('    let a, b, c;', { detectIndentation: false, insertSpaces: false, tabSize: 4 }, mode.getLanguageIdentifier());
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			editor.setSelections([
-				new Selection(1, 11, 1, 11),
-				new Selection(1, 14, 1, 14),
+	test('issue #111128: Muwticuwsow `Enta` issue with indentation', () => {
+		const modew = cweateTextModew('    wet a, b, c;', { detectIndentation: fawse, insewtSpaces: fawse, tabSize: 4 }, mode.getWanguageIdentifia());
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			editow.setSewections([
+				new Sewection(1, 11, 1, 11),
+				new Sewection(1, 14, 1, 14),
 			]);
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getValue(), '    let a,\n\t b,\n\t c;');
+			viewModew.type('\n', 'keyboawd');
+			assewt.stwictEquaw(modew.getVawue(), '    wet a,\n\t b,\n\t c;');
 		});
 	});
 
-	test('issue #122714: tabSize=1 prevent typing a string matching decreaseIndentPattern in an empty file', () => {
-		let latexMode = new IndentRulesMode({
-			increaseIndentPattern: new RegExp('\\\\begin{(?!document)([^}]*)}(?!.*\\\\end{\\1})'),
-			decreaseIndentPattern: new RegExp('^\\s*\\\\end{(?!document)')
+	test('issue #122714: tabSize=1 pwevent typing a stwing matching decweaseIndentPattewn in an empty fiwe', () => {
+		wet watexMode = new IndentWuwesMode({
+			incweaseIndentPattewn: new WegExp('\\\\begin{(?!document)([^}]*)}(?!.*\\\\end{\\1})'),
+			decweaseIndentPattewn: new WegExp('^\\s*\\\\end{(?!document)')
 		});
-		let model = createTextModel(
+		wet modew = cweateTextModew(
 			'\\end',
 			{ tabSize: 1 },
-			latexMode.getLanguageIdentifier()
+			watexMode.getWanguageIdentifia()
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: 'full' }, (editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 5, false);
-			assertCursor(viewModel, new Selection(1, 5, 1, 5));
+		withTestCodeEditow(nuww, { modew: modew, autoIndent: 'fuww' }, (editow, viewModew) => {
+			moveTo(editow, viewModew, 1, 5, fawse);
+			assewtCuwsow(viewModew, new Sewection(1, 5, 1, 5));
 
-			viewModel.type('{', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), '\\end{}');
+			viewModew.type('{', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), '\\end{}');
 		});
 
-		latexMode.dispose();
-		model.dispose();
+		watexMode.dispose();
+		modew.dispose();
 	});
 });
 
-interface ICursorOpts {
-	text: string[];
-	languageIdentifier?: LanguageIdentifier | null;
-	modelOpts?: IRelaxedTextModelCreationOptions;
-	editorOpts?: IEditorOptions;
+intewface ICuwsowOpts {
+	text: stwing[];
+	wanguageIdentifia?: WanguageIdentifia | nuww;
+	modewOpts?: IWewaxedTextModewCweationOptions;
+	editowOpts?: IEditowOptions;
 }
 
-function usingCursor(opts: ICursorOpts, callback: (editor: ITestCodeEditor, model: TextModel, viewModel: ViewModel) => void): void {
-	const model = createTextModel(opts.text.join('\n'), opts.modelOpts, opts.languageIdentifier);
-	const editorOptions: TestCodeEditorCreationOptions = opts.editorOpts || {};
-	editorOptions.model = model;
-	withTestCodeEditor(null, editorOptions, (editor, viewModel) => {
-		callback(editor, model, viewModel);
+function usingCuwsow(opts: ICuwsowOpts, cawwback: (editow: ITestCodeEditow, modew: TextModew, viewModew: ViewModew) => void): void {
+	const modew = cweateTextModew(opts.text.join('\n'), opts.modewOpts, opts.wanguageIdentifia);
+	const editowOptions: TestCodeEditowCweationOptions = opts.editowOpts || {};
+	editowOptions.modew = modew;
+	withTestCodeEditow(nuww, editowOptions, (editow, viewModew) => {
+		cawwback(editow, modew, viewModew);
 	});
 }
 
-class ElectricCharMode extends MockMode {
+cwass EwectwicChawMode extends MockMode {
 
-	private static readonly _id = new LanguageIdentifier('electricCharMode', 3);
+	pwivate static weadonwy _id = new WanguageIdentifia('ewectwicChawMode', 3);
 
-	constructor() {
-		super(ElectricCharMode._id);
-		this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
-			__electricCharacterSupport: {
-				docComment: { open: '/**', close: ' */' }
+	constwuctow() {
+		supa(EwectwicChawMode._id);
+		this._wegista(WanguageConfiguwationWegistwy.wegista(this.getWanguageIdentifia(), {
+			__ewectwicChawactewSuppowt: {
+				docComment: { open: '/**', cwose: ' */' }
 			},
-			brackets: [
+			bwackets: [
 				['{', '}'],
 				['[', ']'],
 				['(', ')']
@@ -4539,353 +4539,353 @@ class ElectricCharMode extends MockMode {
 	}
 }
 
-suite('ElectricCharacter', () => {
-	test('does nothing if no electric char', () => {
-		let mode = new ElectricCharMode();
-		usingCursor({
+suite('EwectwicChawacta', () => {
+	test('does nothing if no ewectwic chaw', () => {
+		wet mode = new EwectwicChawMode();
+		usingCuwsow({
 			text: [
 				'  if (a) {',
 				''
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 2, 1);
-			viewModel.type('*', 'keyboard');
-			assert.deepStrictEqual(model.getLineContent(2), '*');
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 2, 1);
+			viewModew.type('*', 'keyboawd');
+			assewt.deepStwictEquaw(modew.getWineContent(2), '*');
 		});
 		mode.dispose();
 	});
 
-	test('indents in order to match bracket', () => {
-		let mode = new ElectricCharMode();
-		usingCursor({
+	test('indents in owda to match bwacket', () => {
+		wet mode = new EwectwicChawMode();
+		usingCuwsow({
 			text: [
 				'  if (a) {',
 				''
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 2, 1);
-			viewModel.type('}', 'keyboard');
-			assert.deepStrictEqual(model.getLineContent(2), '  }');
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 2, 1);
+			viewModew.type('}', 'keyboawd');
+			assewt.deepStwictEquaw(modew.getWineContent(2), '  }');
 		});
 		mode.dispose();
 	});
 
-	test('unindents in order to match bracket', () => {
-		let mode = new ElectricCharMode();
-		usingCursor({
+	test('unindents in owda to match bwacket', () => {
+		wet mode = new EwectwicChawMode();
+		usingCuwsow({
 			text: [
 				'  if (a) {',
 				'    '
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 2, 5);
-			viewModel.type('}', 'keyboard');
-			assert.deepStrictEqual(model.getLineContent(2), '  }');
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 2, 5);
+			viewModew.type('}', 'keyboawd');
+			assewt.deepStwictEquaw(modew.getWineContent(2), '  }');
 		});
 		mode.dispose();
 	});
 
-	test('matches with correct bracket', () => {
-		let mode = new ElectricCharMode();
-		usingCursor({
+	test('matches with cowwect bwacket', () => {
+		wet mode = new EwectwicChawMode();
+		usingCuwsow({
 			text: [
 				'  if (a) {',
 				'    if (b) {',
 				'    }',
 				'    '
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 4, 1);
-			viewModel.type('}', 'keyboard');
-			assert.deepStrictEqual(model.getLineContent(4), '  }    ');
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 4, 1);
+			viewModew.type('}', 'keyboawd');
+			assewt.deepStwictEquaw(modew.getWineContent(4), '  }    ');
 		});
 		mode.dispose();
 	});
 
-	test('does nothing if bracket does not match', () => {
-		let mode = new ElectricCharMode();
-		usingCursor({
+	test('does nothing if bwacket does not match', () => {
+		wet mode = new EwectwicChawMode();
+		usingCuwsow({
 			text: [
 				'  if (a) {',
 				'    if (b) {',
 				'    }',
 				'  }  '
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 4, 6);
-			viewModel.type('}', 'keyboard');
-			assert.deepStrictEqual(model.getLineContent(4), '  }  }');
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 4, 6);
+			viewModew.type('}', 'keyboawd');
+			assewt.deepStwictEquaw(modew.getWineContent(4), '  }  }');
 		});
 		mode.dispose();
 	});
 
-	test('matches bracket even in line with content', () => {
-		let mode = new ElectricCharMode();
-		usingCursor({
+	test('matches bwacket even in wine with content', () => {
+		wet mode = new EwectwicChawMode();
+		usingCuwsow({
 			text: [
 				'  if (a) {',
-				'// hello'
+				'// hewwo'
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 2, 1);
-			viewModel.type('}', 'keyboard');
-			assert.deepStrictEqual(model.getLineContent(2), '  }// hello');
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 2, 1);
+			viewModew.type('}', 'keyboawd');
+			assewt.deepStwictEquaw(modew.getWineContent(2), '  }// hewwo');
 		});
 		mode.dispose();
 	});
 
-	test('is no-op if bracket is lined up', () => {
-		let mode = new ElectricCharMode();
-		usingCursor({
+	test('is no-op if bwacket is wined up', () => {
+		wet mode = new EwectwicChawMode();
+		usingCuwsow({
 			text: [
 				'  if (a) {',
 				'  '
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 2, 3);
-			viewModel.type('}', 'keyboard');
-			assert.deepStrictEqual(model.getLineContent(2), '  }');
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 2, 3);
+			viewModew.type('}', 'keyboawd');
+			assewt.deepStwictEquaw(modew.getWineContent(2), '  }');
 		});
 		mode.dispose();
 	});
 
-	test('is no-op if there is non-whitespace text before', () => {
-		let mode = new ElectricCharMode();
-		usingCursor({
+	test('is no-op if thewe is non-whitespace text befowe', () => {
+		wet mode = new EwectwicChawMode();
+		usingCuwsow({
 			text: [
 				'  if (a) {',
 				'a'
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 2, 2);
-			viewModel.type('}', 'keyboard');
-			assert.deepStrictEqual(model.getLineContent(2), 'a}');
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 2, 2);
+			viewModew.type('}', 'keyboawd');
+			assewt.deepStwictEquaw(modew.getWineContent(2), 'a}');
 		});
 		mode.dispose();
 	});
 
-	test('is no-op if pairs are all matched before', () => {
-		let mode = new ElectricCharMode();
-		usingCursor({
+	test('is no-op if paiws awe aww matched befowe', () => {
+		wet mode = new EwectwicChawMode();
+		usingCuwsow({
 			text: [
 				'foo(() => {',
 				'  ( 1 + 2 ) ',
 				'})'
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 2, 13);
-			viewModel.type('*', 'keyboard');
-			assert.deepStrictEqual(model.getLineContent(2), '  ( 1 + 2 ) *');
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 2, 13);
+			viewModew.type('*', 'keyboawd');
+			assewt.deepStwictEquaw(modew.getWineContent(2), '  ( 1 + 2 ) *');
 		});
 		mode.dispose();
 	});
 
-	test('is no-op if matching bracket is on the same line', () => {
-		let mode = new ElectricCharMode();
-		usingCursor({
+	test('is no-op if matching bwacket is on the same wine', () => {
+		wet mode = new EwectwicChawMode();
+		usingCuwsow({
 			text: [
 				'(div',
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 1, 5);
-			let changeText: string | null = null;
-			model.onDidChangeContent(e => {
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 1, 5);
+			wet changeText: stwing | nuww = nuww;
+			modew.onDidChangeContent(e => {
 				changeText = e.changes[0].text;
 			});
-			viewModel.type(')', 'keyboard');
-			assert.deepStrictEqual(model.getLineContent(1), '(div)');
-			assert.deepStrictEqual(changeText, ')');
+			viewModew.type(')', 'keyboawd');
+			assewt.deepStwictEquaw(modew.getWineContent(1), '(div)');
+			assewt.deepStwictEquaw(changeText, ')');
 		});
 		mode.dispose();
 	});
 
-	test('is no-op if the line has other content', () => {
-		let mode = new ElectricCharMode();
-		usingCursor({
+	test('is no-op if the wine has otha content', () => {
+		wet mode = new EwectwicChawMode();
+		usingCuwsow({
 			text: [
 				'Math.max(',
 				'\t2',
 				'\t3'
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 3, 3);
-			viewModel.type(')', 'keyboard');
-			assert.deepStrictEqual(model.getLineContent(3), '\t3)');
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 3, 3);
+			viewModew.type(')', 'keyboawd');
+			assewt.deepStwictEquaw(modew.getWineContent(3), '\t3)');
 		});
 		mode.dispose();
 	});
 
 	test('appends text', () => {
-		let mode = new ElectricCharMode();
-		usingCursor({
+		wet mode = new EwectwicChawMode();
+		usingCuwsow({
 			text: [
 				'  if (a) {',
 				'/*'
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 2, 3);
-			viewModel.type('*', 'keyboard');
-			assert.deepStrictEqual(model.getLineContent(2), '/** */');
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 2, 3);
+			viewModew.type('*', 'keyboawd');
+			assewt.deepStwictEquaw(modew.getWineContent(2), '/** */');
 		});
 		mode.dispose();
 	});
 
 	test('appends text 2', () => {
-		let mode = new ElectricCharMode();
-		usingCursor({
+		wet mode = new EwectwicChawMode();
+		usingCuwsow({
 			text: [
 				'  if (a) {',
 				'  /*'
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 2, 5);
-			viewModel.type('*', 'keyboard');
-			assert.deepStrictEqual(model.getLineContent(2), '  /** */');
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 2, 5);
+			viewModew.type('*', 'keyboawd');
+			assewt.deepStwictEquaw(modew.getWineContent(2), '  /** */');
 		});
 		mode.dispose();
 	});
 
-	test('issue #23711: Replacing selected text with )]} fails to delete old text with backwards-dragged selection', () => {
-		let mode = new ElectricCharMode();
-		usingCursor({
+	test('issue #23711: Wepwacing sewected text with )]} faiws to dewete owd text with backwawds-dwagged sewection', () => {
+		wet mode = new EwectwicChawMode();
+		usingCuwsow({
 			text: [
 				'{',
-				'word'
+				'wowd'
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 2, 5);
-			moveTo(editor, viewModel, 2, 1, true);
-			viewModel.type('}', 'keyboard');
-			assert.deepStrictEqual(model.getLineContent(2), '}');
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			moveTo(editow, viewModew, 2, 5);
+			moveTo(editow, viewModew, 2, 1, twue);
+			viewModew.type('}', 'keyboawd');
+			assewt.deepStwictEquaw(modew.getWineContent(2), '}');
 		});
 		mode.dispose();
 	});
 });
 
-suite('autoClosingPairs', () => {
+suite('autoCwosingPaiws', () => {
 
-	class AutoClosingMode extends MockMode {
+	cwass AutoCwosingMode extends MockMode {
 
-		private static readonly _id = new LanguageIdentifier('autoClosingMode', 5);
+		pwivate static weadonwy _id = new WanguageIdentifia('autoCwosingMode', 5);
 
-		constructor() {
-			super(AutoClosingMode._id);
-			this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
-				autoClosingPairs: [
-					{ open: '{', close: '}' },
-					{ open: '[', close: ']' },
-					{ open: '(', close: ')' },
-					{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
-					{ open: '\"', close: '\"', notIn: ['string'] },
-					{ open: '`', close: '`', notIn: ['string', 'comment'] },
-					{ open: '/**', close: ' */', notIn: ['string'] },
-					{ open: 'begin', close: 'end', notIn: ['string'] }
+		constwuctow() {
+			supa(AutoCwosingMode._id);
+			this._wegista(WanguageConfiguwationWegistwy.wegista(this.getWanguageIdentifia(), {
+				autoCwosingPaiws: [
+					{ open: '{', cwose: '}' },
+					{ open: '[', cwose: ']' },
+					{ open: '(', cwose: ')' },
+					{ open: '\'', cwose: '\'', notIn: ['stwing', 'comment'] },
+					{ open: '\"', cwose: '\"', notIn: ['stwing'] },
+					{ open: '`', cwose: '`', notIn: ['stwing', 'comment'] },
+					{ open: '/**', cwose: ' */', notIn: ['stwing'] },
+					{ open: 'begin', cwose: 'end', notIn: ['stwing'] }
 				],
-				__electricCharacterSupport: {
-					docComment: { open: '/**', close: ' */' }
+				__ewectwicChawactewSuppowt: {
+					docComment: { open: '/**', cwose: ' */' }
 				}
 			}));
 		}
 
-		public setAutocloseEnabledSet(chars: string) {
-			this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
-				autoCloseBefore: chars,
-				autoClosingPairs: [
-					{ open: '{', close: '}' },
-					{ open: '[', close: ']' },
-					{ open: '(', close: ')' },
-					{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
-					{ open: '\"', close: '\"', notIn: ['string'] },
-					{ open: '`', close: '`', notIn: ['string', 'comment'] },
-					{ open: '/**', close: ' */', notIn: ['string'] }
+		pubwic setAutocwoseEnabwedSet(chaws: stwing) {
+			this._wegista(WanguageConfiguwationWegistwy.wegista(this.getWanguageIdentifia(), {
+				autoCwoseBefowe: chaws,
+				autoCwosingPaiws: [
+					{ open: '{', cwose: '}' },
+					{ open: '[', cwose: ']' },
+					{ open: '(', cwose: ')' },
+					{ open: '\'', cwose: '\'', notIn: ['stwing', 'comment'] },
+					{ open: '\"', cwose: '\"', notIn: ['stwing'] },
+					{ open: '`', cwose: '`', notIn: ['stwing', 'comment'] },
+					{ open: '/**', cwose: ' */', notIn: ['stwing'] }
 				],
 			}));
 		}
 	}
 
-	const enum ColumnType {
-		Normal = 0,
-		Special1 = 1,
-		Special2 = 2
+	const enum CowumnType {
+		Nowmaw = 0,
+		Speciaw1 = 1,
+		Speciaw2 = 2
 	}
 
-	function extractSpecialColumns(maxColumn: number, annotatedLine: string): ColumnType[] {
-		let result: ColumnType[] = [];
-		for (let j = 1; j <= maxColumn; j++) {
-			result[j] = ColumnType.Normal;
+	function extwactSpeciawCowumns(maxCowumn: numba, annotatedWine: stwing): CowumnType[] {
+		wet wesuwt: CowumnType[] = [];
+		fow (wet j = 1; j <= maxCowumn; j++) {
+			wesuwt[j] = CowumnType.Nowmaw;
 		}
-		let column = 1;
-		for (let j = 0; j < annotatedLine.length; j++) {
-			if (annotatedLine.charAt(j) === '|') {
-				result[column] = ColumnType.Special1;
-			} else if (annotatedLine.charAt(j) === '!') {
-				result[column] = ColumnType.Special2;
-			} else {
-				column++;
+		wet cowumn = 1;
+		fow (wet j = 0; j < annotatedWine.wength; j++) {
+			if (annotatedWine.chawAt(j) === '|') {
+				wesuwt[cowumn] = CowumnType.Speciaw1;
+			} ewse if (annotatedWine.chawAt(j) === '!') {
+				wesuwt[cowumn] = CowumnType.Speciaw2;
+			} ewse {
+				cowumn++;
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	function assertType(editor: ITestCodeEditor, model: TextModel, viewModel: ViewModel, lineNumber: number, column: number, chr: string, expectedInsert: string, message: string): void {
-		let lineContent = model.getLineContent(lineNumber);
-		let expected = lineContent.substr(0, column - 1) + expectedInsert + lineContent.substr(column - 1);
-		moveTo(editor, viewModel, lineNumber, column);
-		viewModel.type(chr, 'keyboard');
-		assert.deepStrictEqual(model.getLineContent(lineNumber), expected, message);
-		model.undo();
+	function assewtType(editow: ITestCodeEditow, modew: TextModew, viewModew: ViewModew, wineNumba: numba, cowumn: numba, chw: stwing, expectedInsewt: stwing, message: stwing): void {
+		wet wineContent = modew.getWineContent(wineNumba);
+		wet expected = wineContent.substw(0, cowumn - 1) + expectedInsewt + wineContent.substw(cowumn - 1);
+		moveTo(editow, viewModew, wineNumba, cowumn);
+		viewModew.type(chw, 'keyboawd');
+		assewt.deepStwictEquaw(modew.getWineContent(wineNumba), expected, message);
+		modew.undo();
 	}
 
-	test('open parens: default', () => {
-		let mode = new AutoClosingMode();
-		usingCursor({
+	test('open pawens: defauwt', () => {
+		wet mode = new AutoCwosingMode();
+		usingCuwsow({
 			text: [
-				'var a = [];',
-				'var b = `asd`;',
-				'var c = \'asd\';',
-				'var d = "asd";',
-				'var e = /*3*/	3;',
-				'var f = /** 3 */3;',
-				'var g = (3+5);',
-				'var h = { a: \'value\' };',
+				'vaw a = [];',
+				'vaw b = `asd`;',
+				'vaw c = \'asd\';',
+				'vaw d = "asd";',
+				'vaw e = /*3*/	3;',
+				'vaw f = /** 3 */3;',
+				'vaw g = (3+5);',
+				'vaw h = { a: \'vawue\' };',
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
 
-			let autoClosePositions = [
-				'var| a| |=| [|]|;|',
-				'var| b| |=| `asd`|;|',
-				'var| c| |=| \'asd\'|;|',
-				'var| d| |=| "asd"|;|',
-				'var| e| |=| /*3*/|	3|;|',
-				'var| f| |=| /**| 3| */3|;|',
-				'var| g| |=| (3+5|)|;|',
-				'var| h| |=| {| a|:| \'value\'| |}|;|',
+			wet autoCwosePositions = [
+				'vaw| a| |=| [|]|;|',
+				'vaw| b| |=| `asd`|;|',
+				'vaw| c| |=| \'asd\'|;|',
+				'vaw| d| |=| "asd"|;|',
+				'vaw| e| |=| /*3*/|	3|;|',
+				'vaw| f| |=| /**| 3| */3|;|',
+				'vaw| g| |=| (3+5|)|;|',
+				'vaw| h| |=| {| a|:| \'vawue\'| |}|;|',
 			];
-			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
-				const lineNumber = i + 1;
-				const autoCloseColumns = extractSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
+			fow (wet i = 0, wen = autoCwosePositions.wength; i < wen; i++) {
+				const wineNumba = i + 1;
+				const autoCwoseCowumns = extwactSpeciawCowumns(modew.getWineMaxCowumn(wineNumba), autoCwosePositions[i]);
 
-				for (let column = 1; column < autoCloseColumns.length; column++) {
-					model.forceTokenization(lineNumber);
-					if (autoCloseColumns[column] === ColumnType.Special1) {
-						assertType(editor, model, viewModel, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
-					} else {
-						assertType(editor, model, viewModel, lineNumber, column, '(', '(', `does not auto close @ (${lineNumber}, ${column})`);
+				fow (wet cowumn = 1; cowumn < autoCwoseCowumns.wength; cowumn++) {
+					modew.fowceTokenization(wineNumba);
+					if (autoCwoseCowumns[cowumn] === CowumnType.Speciaw1) {
+						assewtType(editow, modew, viewModew, wineNumba, cowumn, '(', '()', `auto cwoses @ (${wineNumba}, ${cowumn})`);
+					} ewse {
+						assewtType(editow, modew, viewModew, wineNumba, cowumn, '(', '(', `does not auto cwose @ (${wineNumba}, ${cowumn})`);
 					}
 				}
 			}
@@ -4893,45 +4893,45 @@ suite('autoClosingPairs', () => {
 		mode.dispose();
 	});
 
-	test('open parens: whitespace', () => {
-		let mode = new AutoClosingMode();
-		usingCursor({
+	test('open pawens: whitespace', () => {
+		wet mode = new AutoCwosingMode();
+		usingCuwsow({
 			text: [
-				'var a = [];',
-				'var b = `asd`;',
-				'var c = \'asd\';',
-				'var d = "asd";',
-				'var e = /*3*/	3;',
-				'var f = /** 3 */3;',
-				'var g = (3+5);',
-				'var h = { a: \'value\' };',
+				'vaw a = [];',
+				'vaw b = `asd`;',
+				'vaw c = \'asd\';',
+				'vaw d = "asd";',
+				'vaw e = /*3*/	3;',
+				'vaw f = /** 3 */3;',
+				'vaw g = (3+5);',
+				'vaw h = { a: \'vawue\' };',
 			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-			editorOpts: {
-				autoClosingBrackets: 'beforeWhitespace'
+			wanguageIdentifia: mode.getWanguageIdentifia(),
+			editowOpts: {
+				autoCwosingBwackets: 'befoweWhitespace'
 			}
-		}, (editor, model, viewModel) => {
+		}, (editow, modew, viewModew) => {
 
-			let autoClosePositions = [
-				'var| a| =| [|];|',
-				'var| b| =| `asd`;|',
-				'var| c| =| \'asd\';|',
-				'var| d| =| "asd";|',
-				'var| e| =| /*3*/|	3;|',
-				'var| f| =| /**| 3| */3;|',
-				'var| g| =| (3+5|);|',
-				'var| h| =| {| a:| \'value\'| |};|',
+			wet autoCwosePositions = [
+				'vaw| a| =| [|];|',
+				'vaw| b| =| `asd`;|',
+				'vaw| c| =| \'asd\';|',
+				'vaw| d| =| "asd";|',
+				'vaw| e| =| /*3*/|	3;|',
+				'vaw| f| =| /**| 3| */3;|',
+				'vaw| g| =| (3+5|);|',
+				'vaw| h| =| {| a:| \'vawue\'| |};|',
 			];
-			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
-				const lineNumber = i + 1;
-				const autoCloseColumns = extractSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
+			fow (wet i = 0, wen = autoCwosePositions.wength; i < wen; i++) {
+				const wineNumba = i + 1;
+				const autoCwoseCowumns = extwactSpeciawCowumns(modew.getWineMaxCowumn(wineNumba), autoCwosePositions[i]);
 
-				for (let column = 1; column < autoCloseColumns.length; column++) {
-					model.forceTokenization(lineNumber);
-					if (autoCloseColumns[column] === ColumnType.Special1) {
-						assertType(editor, model, viewModel, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
-					} else {
-						assertType(editor, model, viewModel, lineNumber, column, '(', '(', `does not auto close @ (${lineNumber}, ${column})`);
+				fow (wet cowumn = 1; cowumn < autoCwoseCowumns.wength; cowumn++) {
+					modew.fowceTokenization(wineNumba);
+					if (autoCwoseCowumns[cowumn] === CowumnType.Speciaw1) {
+						assewtType(editow, modew, viewModew, wineNumba, cowumn, '(', '()', `auto cwoses @ (${wineNumba}, ${cowumn})`);
+					} ewse {
+						assewtType(editow, modew, viewModew, wineNumba, cowumn, '(', '(', `does not auto cwose @ (${wineNumba}, ${cowumn})`);
 					}
 				}
 			}
@@ -4939,159 +4939,110 @@ suite('autoClosingPairs', () => {
 		mode.dispose();
 	});
 
-	test('open parens disabled/enabled open quotes enabled/disabled', () => {
-		let mode = new AutoClosingMode();
-		usingCursor({
+	test('open pawens disabwed/enabwed open quotes enabwed/disabwed', () => {
+		wet mode = new AutoCwosingMode();
+		usingCuwsow({
 			text: [
-				'var a = [];',
+				'vaw a = [];',
 			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-			editorOpts: {
-				autoClosingBrackets: 'beforeWhitespace',
-				autoClosingQuotes: 'never'
+			wanguageIdentifia: mode.getWanguageIdentifia(),
+			editowOpts: {
+				autoCwosingBwackets: 'befoweWhitespace',
+				autoCwosingQuotes: 'neva'
 			}
-		}, (editor, model, viewModel) => {
+		}, (editow, modew, viewModew) => {
 
-			let autoClosePositions = [
-				'var| a| =| [|];|',
+			wet autoCwosePositions = [
+				'vaw| a| =| [|];|',
 			];
-			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
-				const lineNumber = i + 1;
-				const autoCloseColumns = extractSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
+			fow (wet i = 0, wen = autoCwosePositions.wength; i < wen; i++) {
+				const wineNumba = i + 1;
+				const autoCwoseCowumns = extwactSpeciawCowumns(modew.getWineMaxCowumn(wineNumba), autoCwosePositions[i]);
 
-				for (let column = 1; column < autoCloseColumns.length; column++) {
-					model.forceTokenization(lineNumber);
-					if (autoCloseColumns[column] === ColumnType.Special1) {
-						assertType(editor, model, viewModel, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
-					} else {
-						assertType(editor, model, viewModel, lineNumber, column, '(', '(', `does not auto close @ (${lineNumber}, ${column})`);
+				fow (wet cowumn = 1; cowumn < autoCwoseCowumns.wength; cowumn++) {
+					modew.fowceTokenization(wineNumba);
+					if (autoCwoseCowumns[cowumn] === CowumnType.Speciaw1) {
+						assewtType(editow, modew, viewModew, wineNumba, cowumn, '(', '()', `auto cwoses @ (${wineNumba}, ${cowumn})`);
+					} ewse {
+						assewtType(editow, modew, viewModew, wineNumba, cowumn, '(', '(', `does not auto cwose @ (${wineNumba}, ${cowumn})`);
 					}
-					assertType(editor, model, viewModel, lineNumber, column, '\'', '\'', `does not auto close @ (${lineNumber}, ${column})`);
+					assewtType(editow, modew, viewModew, wineNumba, cowumn, '\'', '\'', `does not auto cwose @ (${wineNumba}, ${cowumn})`);
 				}
 			}
 		});
 
-		usingCursor({
+		usingCuwsow({
 			text: [
-				'var b = [];',
+				'vaw b = [];',
 			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-			editorOpts: {
-				autoClosingBrackets: 'never',
-				autoClosingQuotes: 'beforeWhitespace'
+			wanguageIdentifia: mode.getWanguageIdentifia(),
+			editowOpts: {
+				autoCwosingBwackets: 'neva',
+				autoCwosingQuotes: 'befoweWhitespace'
 			}
-		}, (editor, model, viewModel) => {
+		}, (editow, modew, viewModew) => {
 
-			let autoClosePositions = [
-				'var b =| [|];|',
+			wet autoCwosePositions = [
+				'vaw b =| [|];|',
 			];
-			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
-				const lineNumber = i + 1;
-				const autoCloseColumns = extractSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
+			fow (wet i = 0, wen = autoCwosePositions.wength; i < wen; i++) {
+				const wineNumba = i + 1;
+				const autoCwoseCowumns = extwactSpeciawCowumns(modew.getWineMaxCowumn(wineNumba), autoCwosePositions[i]);
 
-				for (let column = 1; column < autoCloseColumns.length; column++) {
-					model.forceTokenization(lineNumber);
-					if (autoCloseColumns[column] === ColumnType.Special1) {
-						assertType(editor, model, viewModel, lineNumber, column, '\'', '\'\'', `auto closes @ (${lineNumber}, ${column})`);
-					} else {
-						assertType(editor, model, viewModel, lineNumber, column, '\'', '\'', `does not auto close @ (${lineNumber}, ${column})`);
+				fow (wet cowumn = 1; cowumn < autoCwoseCowumns.wength; cowumn++) {
+					modew.fowceTokenization(wineNumba);
+					if (autoCwoseCowumns[cowumn] === CowumnType.Speciaw1) {
+						assewtType(editow, modew, viewModew, wineNumba, cowumn, '\'', '\'\'', `auto cwoses @ (${wineNumba}, ${cowumn})`);
+					} ewse {
+						assewtType(editow, modew, viewModew, wineNumba, cowumn, '\'', '\'', `does not auto cwose @ (${wineNumba}, ${cowumn})`);
 					}
-					assertType(editor, model, viewModel, lineNumber, column, '(', '(', `does not auto close @ (${lineNumber}, ${column})`);
-				}
-			}
-		});
-		mode.dispose();
-	});
-
-	test('configurable open parens', () => {
-		let mode = new AutoClosingMode();
-		mode.setAutocloseEnabledSet('abc');
-		usingCursor({
-			text: [
-				'var a = [];',
-				'var b = `asd`;',
-				'var c = \'asd\';',
-				'var d = "asd";',
-				'var e = /*3*/	3;',
-				'var f = /** 3 */3;',
-				'var g = (3+5);',
-				'var h = { a: \'value\' };',
-			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-			editorOpts: {
-				autoClosingBrackets: 'languageDefined'
-			}
-		}, (editor, model, viewModel) => {
-
-			let autoClosePositions = [
-				'v|ar |a = [|];|',
-				'v|ar |b = `|asd`;|',
-				'v|ar |c = \'|asd\';|',
-				'v|ar d = "|asd";|',
-				'v|ar e = /*3*/	3;|',
-				'v|ar f = /** 3| */3;|',
-				'v|ar g = (3+5|);|',
-				'v|ar h = { |a: \'v|alue\' |};|',
-			];
-			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
-				const lineNumber = i + 1;
-				const autoCloseColumns = extractSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
-
-				for (let column = 1; column < autoCloseColumns.length; column++) {
-					model.forceTokenization(lineNumber);
-					if (autoCloseColumns[column] === ColumnType.Special1) {
-						assertType(editor, model, viewModel, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
-					} else {
-						assertType(editor, model, viewModel, lineNumber, column, '(', '(', `does not auto close @ (${lineNumber}, ${column})`);
-					}
+					assewtType(editow, modew, viewModew, wineNumba, cowumn, '(', '(', `does not auto cwose @ (${wineNumba}, ${cowumn})`);
 				}
 			}
 		});
 		mode.dispose();
 	});
 
-	test('auto-pairing can be disabled', () => {
-		let mode = new AutoClosingMode();
-		usingCursor({
+	test('configuwabwe open pawens', () => {
+		wet mode = new AutoCwosingMode();
+		mode.setAutocwoseEnabwedSet('abc');
+		usingCuwsow({
 			text: [
-				'var a = [];',
-				'var b = `asd`;',
-				'var c = \'asd\';',
-				'var d = "asd";',
-				'var e = /*3*/	3;',
-				'var f = /** 3 */3;',
-				'var g = (3+5);',
-				'var h = { a: \'value\' };',
+				'vaw a = [];',
+				'vaw b = `asd`;',
+				'vaw c = \'asd\';',
+				'vaw d = "asd";',
+				'vaw e = /*3*/	3;',
+				'vaw f = /** 3 */3;',
+				'vaw g = (3+5);',
+				'vaw h = { a: \'vawue\' };',
 			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-			editorOpts: {
-				autoClosingBrackets: 'never',
-				autoClosingQuotes: 'never'
+			wanguageIdentifia: mode.getWanguageIdentifia(),
+			editowOpts: {
+				autoCwosingBwackets: 'wanguageDefined'
 			}
-		}, (editor, model, viewModel) => {
+		}, (editow, modew, viewModew) => {
 
-			let autoClosePositions = [
-				'var a = [];',
-				'var b = `asd`;',
-				'var c = \'asd\';',
-				'var d = "asd";',
-				'var e = /*3*/	3;',
-				'var f = /** 3 */3;',
-				'var g = (3+5);',
-				'var h = { a: \'value\' };',
+			wet autoCwosePositions = [
+				'v|aw |a = [|];|',
+				'v|aw |b = `|asd`;|',
+				'v|aw |c = \'|asd\';|',
+				'v|aw d = "|asd";|',
+				'v|aw e = /*3*/	3;|',
+				'v|aw f = /** 3| */3;|',
+				'v|aw g = (3+5|);|',
+				'v|aw h = { |a: \'v|awue\' |};|',
 			];
-			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
-				const lineNumber = i + 1;
-				const autoCloseColumns = extractSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
+			fow (wet i = 0, wen = autoCwosePositions.wength; i < wen; i++) {
+				const wineNumba = i + 1;
+				const autoCwoseCowumns = extwactSpeciawCowumns(modew.getWineMaxCowumn(wineNumba), autoCwosePositions[i]);
 
-				for (let column = 1; column < autoCloseColumns.length; column++) {
-					model.forceTokenization(lineNumber);
-					if (autoCloseColumns[column] === ColumnType.Special1) {
-						assertType(editor, model, viewModel, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
-						assertType(editor, model, viewModel, lineNumber, column, '"', '""', `auto closes @ (${lineNumber}, ${column})`);
-					} else {
-						assertType(editor, model, viewModel, lineNumber, column, '(', '(', `does not auto close @ (${lineNumber}, ${column})`);
-						assertType(editor, model, viewModel, lineNumber, column, '"', '"', `does not auto close @ (${lineNumber}, ${column})`);
+				fow (wet cowumn = 1; cowumn < autoCwoseCowumns.wength; cowumn++) {
+					modew.fowceTokenization(wineNumba);
+					if (autoCwoseCowumns[cowumn] === CowumnType.Speciaw1) {
+						assewtType(editow, modew, viewModew, wineNumba, cowumn, '(', '()', `auto cwoses @ (${wineNumba}, ${cowumn})`);
+					} ewse {
+						assewtType(editow, modew, viewModew, wineNumba, cowumn, '(', '(', `does not auto cwose @ (${wineNumba}, ${cowumn})`);
 					}
 				}
 			}
@@ -5099,137 +5050,186 @@ suite('autoClosingPairs', () => {
 		mode.dispose();
 	});
 
-	test('auto wrapping is configurable', () => {
-		let mode = new AutoClosingMode();
-		usingCursor({
+	test('auto-paiwing can be disabwed', () => {
+		wet mode = new AutoCwosingMode();
+		usingCuwsow({
 			text: [
-				'var a = asd'
+				'vaw a = [];',
+				'vaw b = `asd`;',
+				'vaw c = \'asd\';',
+				'vaw d = "asd";',
+				'vaw e = /*3*/	3;',
+				'vaw f = /** 3 */3;',
+				'vaw g = (3+5);',
+				'vaw h = { a: \'vawue\' };',
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
+			wanguageIdentifia: mode.getWanguageIdentifia(),
+			editowOpts: {
+				autoCwosingBwackets: 'neva',
+				autoCwosingQuotes: 'neva'
+			}
+		}, (editow, modew, viewModew) => {
 
-			viewModel.setSelections('test', [
-				new Selection(1, 1, 1, 4),
-				new Selection(1, 9, 1, 12),
+			wet autoCwosePositions = [
+				'vaw a = [];',
+				'vaw b = `asd`;',
+				'vaw c = \'asd\';',
+				'vaw d = "asd";',
+				'vaw e = /*3*/	3;',
+				'vaw f = /** 3 */3;',
+				'vaw g = (3+5);',
+				'vaw h = { a: \'vawue\' };',
+			];
+			fow (wet i = 0, wen = autoCwosePositions.wength; i < wen; i++) {
+				const wineNumba = i + 1;
+				const autoCwoseCowumns = extwactSpeciawCowumns(modew.getWineMaxCowumn(wineNumba), autoCwosePositions[i]);
+
+				fow (wet cowumn = 1; cowumn < autoCwoseCowumns.wength; cowumn++) {
+					modew.fowceTokenization(wineNumba);
+					if (autoCwoseCowumns[cowumn] === CowumnType.Speciaw1) {
+						assewtType(editow, modew, viewModew, wineNumba, cowumn, '(', '()', `auto cwoses @ (${wineNumba}, ${cowumn})`);
+						assewtType(editow, modew, viewModew, wineNumba, cowumn, '"', '""', `auto cwoses @ (${wineNumba}, ${cowumn})`);
+					} ewse {
+						assewtType(editow, modew, viewModew, wineNumba, cowumn, '(', '(', `does not auto cwose @ (${wineNumba}, ${cowumn})`);
+						assewtType(editow, modew, viewModew, wineNumba, cowumn, '"', '"', `does not auto cwose @ (${wineNumba}, ${cowumn})`);
+					}
+				}
+			}
+		});
+		mode.dispose();
+	});
+
+	test('auto wwapping is configuwabwe', () => {
+		wet mode = new AutoCwosingMode();
+		usingCuwsow({
+			text: [
+				'vaw a = asd'
+			],
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+
+			viewModew.setSewections('test', [
+				new Sewection(1, 1, 1, 4),
+				new Sewection(1, 9, 1, 12),
 			]);
 
 			// type a `
-			viewModel.type('`', 'keyboard');
+			viewModew.type('`', 'keyboawd');
 
-			assert.strictEqual(model.getValue(), '`var` a = `asd`');
+			assewt.stwictEquaw(modew.getVawue(), '`vaw` a = `asd`');
 
 			// type a (
-			viewModel.type('(', 'keyboard');
+			viewModew.type('(', 'keyboawd');
 
-			assert.strictEqual(model.getValue(), '`(var)` a = `(asd)`');
+			assewt.stwictEquaw(modew.getVawue(), '`(vaw)` a = `(asd)`');
 		});
 
-		usingCursor({
+		usingCuwsow({
 			text: [
-				'var a = asd'
+				'vaw a = asd'
 			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-			editorOpts: {
-				autoSurround: 'never'
+			wanguageIdentifia: mode.getWanguageIdentifia(),
+			editowOpts: {
+				autoSuwwound: 'neva'
 			}
-		}, (editor, model, viewModel) => {
+		}, (editow, modew, viewModew) => {
 
-			viewModel.setSelections('test', [
-				new Selection(1, 1, 1, 4),
+			viewModew.setSewections('test', [
+				new Sewection(1, 1, 1, 4),
 			]);
 
 			// type a `
-			viewModel.type('`', 'keyboard');
+			viewModew.type('`', 'keyboawd');
 
-			assert.strictEqual(model.getValue(), '` a = asd');
+			assewt.stwictEquaw(modew.getVawue(), '` a = asd');
 		});
 
-		usingCursor({
+		usingCuwsow({
 			text: [
-				'var a = asd'
+				'vaw a = asd'
 			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-			editorOpts: {
-				autoSurround: 'quotes'
+			wanguageIdentifia: mode.getWanguageIdentifia(),
+			editowOpts: {
+				autoSuwwound: 'quotes'
 			}
-		}, (editor, model, viewModel) => {
+		}, (editow, modew, viewModew) => {
 
-			viewModel.setSelections('test', [
-				new Selection(1, 1, 1, 4),
+			viewModew.setSewections('test', [
+				new Sewection(1, 1, 1, 4),
 			]);
 
 			// type a `
-			viewModel.type('`', 'keyboard');
-			assert.strictEqual(model.getValue(), '`var` a = asd');
+			viewModew.type('`', 'keyboawd');
+			assewt.stwictEquaw(modew.getVawue(), '`vaw` a = asd');
 
 			// type a (
-			viewModel.type('(', 'keyboard');
-			assert.strictEqual(model.getValue(), '`(` a = asd');
+			viewModew.type('(', 'keyboawd');
+			assewt.stwictEquaw(modew.getVawue(), '`(` a = asd');
 		});
 
-		usingCursor({
+		usingCuwsow({
 			text: [
-				'var a = asd'
+				'vaw a = asd'
 			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-			editorOpts: {
-				autoSurround: 'brackets'
+			wanguageIdentifia: mode.getWanguageIdentifia(),
+			editowOpts: {
+				autoSuwwound: 'bwackets'
 			}
-		}, (editor, model, viewModel) => {
+		}, (editow, modew, viewModew) => {
 
-			viewModel.setSelections('test', [
-				new Selection(1, 1, 1, 4),
+			viewModew.setSewections('test', [
+				new Sewection(1, 1, 1, 4),
 			]);
 
 			// type a (
-			viewModel.type('(', 'keyboard');
-			assert.strictEqual(model.getValue(), '(var) a = asd');
+			viewModew.type('(', 'keyboawd');
+			assewt.stwictEquaw(modew.getVawue(), '(vaw) a = asd');
 
 			// type a `
-			viewModel.type('`', 'keyboard');
-			assert.strictEqual(model.getValue(), '(`) a = asd');
+			viewModew.type('`', 'keyboawd');
+			assewt.stwictEquaw(modew.getVawue(), '(`) a = asd');
 		});
 		mode.dispose();
 	});
 
 	test('quote', () => {
-		let mode = new AutoClosingMode();
-		usingCursor({
+		wet mode = new AutoCwosingMode();
+		usingCuwsow({
 			text: [
-				'var a = [];',
-				'var b = `asd`;',
-				'var c = \'asd\';',
-				'var d = "asd";',
-				'var e = /*3*/	3;',
-				'var f = /** 3 */3;',
-				'var g = (3+5);',
-				'var h = { a: \'value\' };',
+				'vaw a = [];',
+				'vaw b = `asd`;',
+				'vaw c = \'asd\';',
+				'vaw d = "asd";',
+				'vaw e = /*3*/	3;',
+				'vaw f = /** 3 */3;',
+				'vaw g = (3+5);',
+				'vaw h = { a: \'vawue\' };',
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
 
-			let autoClosePositions = [
-				'var a |=| [|]|;|',
-				'var b |=| `asd`|;|',
-				'var c |=| \'asd\'|;|',
-				'var d |=| "asd"|;|',
-				'var e |=| /*3*/|	3;|',
-				'var f |=| /**| 3 */3;|',
-				'var g |=| (3+5)|;|',
-				'var h |=| {| a:| \'value\'| |}|;|',
+			wet autoCwosePositions = [
+				'vaw a |=| [|]|;|',
+				'vaw b |=| `asd`|;|',
+				'vaw c |=| \'asd\'|;|',
+				'vaw d |=| "asd"|;|',
+				'vaw e |=| /*3*/|	3;|',
+				'vaw f |=| /**| 3 */3;|',
+				'vaw g |=| (3+5)|;|',
+				'vaw h |=| {| a:| \'vawue\'| |}|;|',
 			];
-			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
-				const lineNumber = i + 1;
-				const autoCloseColumns = extractSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
+			fow (wet i = 0, wen = autoCwosePositions.wength; i < wen; i++) {
+				const wineNumba = i + 1;
+				const autoCwoseCowumns = extwactSpeciawCowumns(modew.getWineMaxCowumn(wineNumba), autoCwosePositions[i]);
 
-				for (let column = 1; column < autoCloseColumns.length; column++) {
-					model.forceTokenization(lineNumber);
-					if (autoCloseColumns[column] === ColumnType.Special1) {
-						assertType(editor, model, viewModel, lineNumber, column, '\'', '\'\'', `auto closes @ (${lineNumber}, ${column})`);
-					} else if (autoCloseColumns[column] === ColumnType.Special2) {
-						assertType(editor, model, viewModel, lineNumber, column, '\'', '', `over types @ (${lineNumber}, ${column})`);
-					} else {
-						assertType(editor, model, viewModel, lineNumber, column, '\'', '\'', `does not auto close @ (${lineNumber}, ${column})`);
+				fow (wet cowumn = 1; cowumn < autoCwoseCowumns.wength; cowumn++) {
+					modew.fowceTokenization(wineNumba);
+					if (autoCwoseCowumns[cowumn] === CowumnType.Speciaw1) {
+						assewtType(editow, modew, viewModew, wineNumba, cowumn, '\'', '\'\'', `auto cwoses @ (${wineNumba}, ${cowumn})`);
+					} ewse if (autoCwoseCowumns[cowumn] === CowumnType.Speciaw2) {
+						assewtType(editow, modew, viewModew, wineNumba, cowumn, '\'', '', `ova types @ (${wineNumba}, ${cowumn})`);
+					} ewse {
+						assewtType(editow, modew, viewModew, wineNumba, cowumn, '\'', '\'', `does not auto cwose @ (${wineNumba}, ${cowumn})`);
 					}
 				}
 			}
@@ -5237,1108 +5237,1108 @@ suite('autoClosingPairs', () => {
 		mode.dispose();
 	});
 
-	test('multi-character autoclose', () => {
-		let mode = new AutoClosingMode();
-		usingCursor({
+	test('muwti-chawacta autocwose', () => {
+		wet mode = new AutoCwosingMode();
+		usingCuwsow({
 			text: [
 				'',
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
 
-			model.setValue('begi');
-			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
-			viewModel.type('n', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), 'beginend');
+			modew.setVawue('begi');
+			viewModew.setSewections('test', [new Sewection(1, 5, 1, 5)]);
+			viewModew.type('n', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), 'beginend');
 
-			model.setValue('/*');
-			viewModel.setSelections('test', [new Selection(1, 3, 1, 3)]);
-			viewModel.type('*', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), '/** */');
+			modew.setVawue('/*');
+			viewModew.setSewections('test', [new Sewection(1, 3, 1, 3)]);
+			viewModew.type('*', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), '/** */');
 		});
 		mode.dispose();
 	});
 
-	test('issue #72177: multi-character autoclose with conflicting patterns', () => {
-		const languageId = new LanguageIdentifier('autoClosingModeMultiChar', 5);
-		class AutoClosingModeMultiChar extends MockMode {
-			constructor() {
-				super(languageId);
-				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
-					autoClosingPairs: [
-						{ open: '(', close: ')' },
-						{ open: '(*', close: '*)' },
-						{ open: '<@', close: '@>' },
-						{ open: '<@@', close: '@@>' },
+	test('issue #72177: muwti-chawacta autocwose with confwicting pattewns', () => {
+		const wanguageId = new WanguageIdentifia('autoCwosingModeMuwtiChaw', 5);
+		cwass AutoCwosingModeMuwtiChaw extends MockMode {
+			constwuctow() {
+				supa(wanguageId);
+				this._wegista(WanguageConfiguwationWegistwy.wegista(this.getWanguageIdentifia(), {
+					autoCwosingPaiws: [
+						{ open: '(', cwose: ')' },
+						{ open: '(*', cwose: '*)' },
+						{ open: '<@', cwose: '@>' },
+						{ open: '<@@', cwose: '@@>' },
 					],
 				}));
 			}
 		}
 
-		const mode = new AutoClosingModeMultiChar();
+		const mode = new AutoCwosingModeMuwtiChaw();
 
-		usingCursor({
+		usingCuwsow({
 			text: [
 				'',
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			viewModel.type('(', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), '()');
-			viewModel.type('*', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), '(**)', `doesn't add entire close when already closed substring is there`);
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			viewModew.type('(', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), '()');
+			viewModew.type('*', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), '(**)', `doesn't add entiwe cwose when awweady cwosed substwing is thewe`);
 
-			model.setValue('(');
-			viewModel.setSelections('test', [new Selection(1, 2, 1, 2)]);
-			viewModel.type('*', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), '(**)', `does add entire close if not already there`);
+			modew.setVawue('(');
+			viewModew.setSewections('test', [new Sewection(1, 2, 1, 2)]);
+			viewModew.type('*', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), '(**)', `does add entiwe cwose if not awweady thewe`);
 
-			model.setValue('');
-			viewModel.type('<@', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), '<@@>');
-			viewModel.type('@', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), '<@@@@>', `autocloses when before multi-character closing brace`);
-			viewModel.type('(', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), '<@@()@@>', `autocloses when before multi-character closing brace`);
+			modew.setVawue('');
+			viewModew.type('<@', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), '<@@>');
+			viewModew.type('@', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), '<@@@@>', `autocwoses when befowe muwti-chawacta cwosing bwace`);
+			viewModew.type('(', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), '<@@()@@>', `autocwoses when befowe muwti-chawacta cwosing bwace`);
 		});
 		mode.dispose();
 	});
 
-	test('issue #55314: Do not auto-close when ending with open', () => {
-		const languageId = new LanguageIdentifier('myElectricMode', 5);
-		class ElectricMode extends MockMode {
-			constructor() {
-				super(languageId);
-				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
-					autoClosingPairs: [
-						{ open: '{', close: '}' },
-						{ open: '[', close: ']' },
-						{ open: '(', close: ')' },
-						{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
-						{ open: '\"', close: '\"', notIn: ['string'] },
-						{ open: 'B\"', close: '\"', notIn: ['string', 'comment'] },
-						{ open: '`', close: '`', notIn: ['string', 'comment'] },
-						{ open: '/**', close: ' */', notIn: ['string'] }
+	test('issue #55314: Do not auto-cwose when ending with open', () => {
+		const wanguageId = new WanguageIdentifia('myEwectwicMode', 5);
+		cwass EwectwicMode extends MockMode {
+			constwuctow() {
+				supa(wanguageId);
+				this._wegista(WanguageConfiguwationWegistwy.wegista(this.getWanguageIdentifia(), {
+					autoCwosingPaiws: [
+						{ open: '{', cwose: '}' },
+						{ open: '[', cwose: ']' },
+						{ open: '(', cwose: ')' },
+						{ open: '\'', cwose: '\'', notIn: ['stwing', 'comment'] },
+						{ open: '\"', cwose: '\"', notIn: ['stwing'] },
+						{ open: 'B\"', cwose: '\"', notIn: ['stwing', 'comment'] },
+						{ open: '`', cwose: '`', notIn: ['stwing', 'comment'] },
+						{ open: '/**', cwose: ' */', notIn: ['stwing'] }
 					],
 				}));
 			}
 		}
 
-		const mode = new ElectricMode();
+		const mode = new EwectwicMode();
 
-		usingCursor({
+		usingCuwsow({
 			text: [
-				'little goat',
-				'little LAMB',
-				'little sheep',
-				'Big LAMB'
+				'wittwe goat',
+				'wittwe WAMB',
+				'wittwe sheep',
+				'Big WAMB'
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			model.forceTokenization(model.getLineCount());
-			assertType(editor, model, viewModel, 1, 4, '"', '"', `does not double quote when ending with open`);
-			model.forceTokenization(model.getLineCount());
-			assertType(editor, model, viewModel, 2, 4, '"', '"', `does not double quote when ending with open`);
-			model.forceTokenization(model.getLineCount());
-			assertType(editor, model, viewModel, 3, 4, '"', '"', `does not double quote when ending with open`);
-			model.forceTokenization(model.getLineCount());
-			assertType(editor, model, viewModel, 4, 2, '"', '"', `does not double quote when ending with open`);
-			model.forceTokenization(model.getLineCount());
-			assertType(editor, model, viewModel, 4, 3, '"', '"', `does not double quote when ending with open`);
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			modew.fowceTokenization(modew.getWineCount());
+			assewtType(editow, modew, viewModew, 1, 4, '"', '"', `does not doubwe quote when ending with open`);
+			modew.fowceTokenization(modew.getWineCount());
+			assewtType(editow, modew, viewModew, 2, 4, '"', '"', `does not doubwe quote when ending with open`);
+			modew.fowceTokenization(modew.getWineCount());
+			assewtType(editow, modew, viewModew, 3, 4, '"', '"', `does not doubwe quote when ending with open`);
+			modew.fowceTokenization(modew.getWineCount());
+			assewtType(editow, modew, viewModew, 4, 2, '"', '"', `does not doubwe quote when ending with open`);
+			modew.fowceTokenization(modew.getWineCount());
+			assewtType(editow, modew, viewModew, 4, 3, '"', '"', `does not doubwe quote when ending with open`);
 		});
 		mode.dispose();
 	});
 
-	test('issue #27937: Trying to add an item to the front of a list is cumbersome', () => {
-		let mode = new AutoClosingMode();
-		usingCursor({
+	test('issue #27937: Twying to add an item to the fwont of a wist is cumbewsome', () => {
+		wet mode = new AutoCwosingMode();
+		usingCuwsow({
 			text: [
-				'var arr = ["b", "c"];'
+				'vaw aww = ["b", "c"];'
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			assertType(editor, model, viewModel, 1, 12, '"', '"', `does not over type and will not auto close`);
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			assewtType(editow, modew, viewModew, 1, 12, '"', '"', `does not ova type and wiww not auto cwose`);
 		});
 		mode.dispose();
 	});
 
-	test('issue #25658 - Do not auto-close single/double quotes after word characters', () => {
-		let mode = new AutoClosingMode();
-		usingCursor({
+	test('issue #25658 - Do not auto-cwose singwe/doubwe quotes afta wowd chawactews', () => {
+		wet mode = new AutoCwosingMode();
+		usingCuwsow({
 			text: [
 				'',
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
 
-			function typeCharacters(viewModel: ViewModel, chars: string): void {
-				for (let i = 0, len = chars.length; i < len; i++) {
-					viewModel.type(chars[i], 'keyboard');
+			function typeChawactews(viewModew: ViewModew, chaws: stwing): void {
+				fow (wet i = 0, wen = chaws.wength; i < wen; i++) {
+					viewModew.type(chaws[i], 'keyboawd');
 				}
 			}
 
-			// First gif
-			model.forceTokenization(model.getLineCount());
-			typeCharacters(viewModel, 'teste1 = teste\' ok');
-			assert.strictEqual(model.getLineContent(1), 'teste1 = teste\' ok');
+			// Fiwst gif
+			modew.fowceTokenization(modew.getWineCount());
+			typeChawactews(viewModew, 'teste1 = teste\' ok');
+			assewt.stwictEquaw(modew.getWineContent(1), 'teste1 = teste\' ok');
 
-			viewModel.setSelections('test', [new Selection(1, 1000, 1, 1000)]);
-			typeCharacters(viewModel, '\n');
-			model.forceTokenization(model.getLineCount());
-			typeCharacters(viewModel, 'teste2 = teste \'ok');
-			assert.strictEqual(model.getLineContent(2), 'teste2 = teste \'ok\'');
+			viewModew.setSewections('test', [new Sewection(1, 1000, 1, 1000)]);
+			typeChawactews(viewModew, '\n');
+			modew.fowceTokenization(modew.getWineCount());
+			typeChawactews(viewModew, 'teste2 = teste \'ok');
+			assewt.stwictEquaw(modew.getWineContent(2), 'teste2 = teste \'ok\'');
 
-			viewModel.setSelections('test', [new Selection(2, 1000, 2, 1000)]);
-			typeCharacters(viewModel, '\n');
-			model.forceTokenization(model.getLineCount());
-			typeCharacters(viewModel, 'teste3 = teste" ok');
-			assert.strictEqual(model.getLineContent(3), 'teste3 = teste" ok');
+			viewModew.setSewections('test', [new Sewection(2, 1000, 2, 1000)]);
+			typeChawactews(viewModew, '\n');
+			modew.fowceTokenization(modew.getWineCount());
+			typeChawactews(viewModew, 'teste3 = teste" ok');
+			assewt.stwictEquaw(modew.getWineContent(3), 'teste3 = teste" ok');
 
-			viewModel.setSelections('test', [new Selection(3, 1000, 3, 1000)]);
-			typeCharacters(viewModel, '\n');
-			model.forceTokenization(model.getLineCount());
-			typeCharacters(viewModel, 'teste4 = teste "ok');
-			assert.strictEqual(model.getLineContent(4), 'teste4 = teste "ok"');
+			viewModew.setSewections('test', [new Sewection(3, 1000, 3, 1000)]);
+			typeChawactews(viewModew, '\n');
+			modew.fowceTokenization(modew.getWineCount());
+			typeChawactews(viewModew, 'teste4 = teste "ok');
+			assewt.stwictEquaw(modew.getWineContent(4), 'teste4 = teste "ok"');
 
 			// Second gif
-			viewModel.setSelections('test', [new Selection(4, 1000, 4, 1000)]);
-			typeCharacters(viewModel, '\n');
-			model.forceTokenization(model.getLineCount());
-			typeCharacters(viewModel, 'teste \'');
-			assert.strictEqual(model.getLineContent(5), 'teste \'\'');
+			viewModew.setSewections('test', [new Sewection(4, 1000, 4, 1000)]);
+			typeChawactews(viewModew, '\n');
+			modew.fowceTokenization(modew.getWineCount());
+			typeChawactews(viewModew, 'teste \'');
+			assewt.stwictEquaw(modew.getWineContent(5), 'teste \'\'');
 
-			viewModel.setSelections('test', [new Selection(5, 1000, 5, 1000)]);
-			typeCharacters(viewModel, '\n');
-			model.forceTokenization(model.getLineCount());
-			typeCharacters(viewModel, 'teste "');
-			assert.strictEqual(model.getLineContent(6), 'teste ""');
+			viewModew.setSewections('test', [new Sewection(5, 1000, 5, 1000)]);
+			typeChawactews(viewModew, '\n');
+			modew.fowceTokenization(modew.getWineCount());
+			typeChawactews(viewModew, 'teste "');
+			assewt.stwictEquaw(modew.getWineContent(6), 'teste ""');
 
-			viewModel.setSelections('test', [new Selection(6, 1000, 6, 1000)]);
-			typeCharacters(viewModel, '\n');
-			model.forceTokenization(model.getLineCount());
-			typeCharacters(viewModel, 'teste\'');
-			assert.strictEqual(model.getLineContent(7), 'teste\'');
+			viewModew.setSewections('test', [new Sewection(6, 1000, 6, 1000)]);
+			typeChawactews(viewModew, '\n');
+			modew.fowceTokenization(modew.getWineCount());
+			typeChawactews(viewModew, 'teste\'');
+			assewt.stwictEquaw(modew.getWineContent(7), 'teste\'');
 
-			viewModel.setSelections('test', [new Selection(7, 1000, 7, 1000)]);
-			typeCharacters(viewModel, '\n');
-			model.forceTokenization(model.getLineCount());
-			typeCharacters(viewModel, 'teste"');
-			assert.strictEqual(model.getLineContent(8), 'teste"');
+			viewModew.setSewections('test', [new Sewection(7, 1000, 7, 1000)]);
+			typeChawactews(viewModew, '\n');
+			modew.fowceTokenization(modew.getWineCount());
+			typeChawactews(viewModew, 'teste"');
+			assewt.stwictEquaw(modew.getWineContent(8), 'teste"');
 		});
 		mode.dispose();
 	});
 
-	test('issue #37315 - overtypes only those characters that it inserted', () => {
-		let mode = new AutoClosingMode();
-		usingCursor({
+	test('issue #37315 - ovewtypes onwy those chawactews that it insewted', () => {
+		wet mode = new AutoCwosingMode();
+		usingCuwsow({
 			text: [
 				'',
 				'y=();'
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			assertCursor(viewModel, new Position(1, 1));
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			assewtCuwsow(viewModew, new Position(1, 1));
 
-			viewModel.type('x=(', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), 'x=()');
+			viewModew.type('x=(', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), 'x=()');
 
-			viewModel.type('asd', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), 'x=(asd)');
+			viewModew.type('asd', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), 'x=(asd)');
 
-			// overtype!
-			viewModel.type(')', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), 'x=(asd)');
+			// ovewtype!
+			viewModew.type(')', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), 'x=(asd)');
 
-			// do not overtype!
-			viewModel.setSelections('test', [new Selection(2, 4, 2, 4)]);
-			viewModel.type(')', 'keyboard');
-			assert.strictEqual(model.getLineContent(2), 'y=());');
+			// do not ovewtype!
+			viewModew.setSewections('test', [new Sewection(2, 4, 2, 4)]);
+			viewModew.type(')', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(2), 'y=());');
 
 		});
 		mode.dispose();
 	});
 
-	test('issue #37315 - stops overtyping once cursor leaves area', () => {
-		let mode = new AutoClosingMode();
-		usingCursor({
+	test('issue #37315 - stops ovewtyping once cuwsow weaves awea', () => {
+		wet mode = new AutoCwosingMode();
+		usingCuwsow({
 			text: [
 				'',
 				'y=();'
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			assertCursor(viewModel, new Position(1, 1));
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			assewtCuwsow(viewModew, new Position(1, 1));
 
-			viewModel.type('x=(', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), 'x=()');
+			viewModew.type('x=(', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), 'x=()');
 
-			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
-			viewModel.type(')', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), 'x=())');
+			viewModew.setSewections('test', [new Sewection(1, 5, 1, 5)]);
+			viewModew.type(')', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), 'x=())');
 		});
 		mode.dispose();
 	});
 
-	test('issue #37315 - it overtypes only once', () => {
-		let mode = new AutoClosingMode();
-		usingCursor({
+	test('issue #37315 - it ovewtypes onwy once', () => {
+		wet mode = new AutoCwosingMode();
+		usingCuwsow({
 			text: [
 				'',
 				'y=();'
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			assertCursor(viewModel, new Position(1, 1));
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			assewtCuwsow(viewModew, new Position(1, 1));
 
-			viewModel.type('x=(', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), 'x=()');
+			viewModew.type('x=(', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), 'x=()');
 
-			viewModel.type(')', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), 'x=()');
+			viewModew.type(')', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), 'x=()');
 
-			viewModel.setSelections('test', [new Selection(1, 4, 1, 4)]);
-			viewModel.type(')', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), 'x=())');
+			viewModew.setSewections('test', [new Sewection(1, 4, 1, 4)]);
+			viewModew.type(')', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), 'x=())');
 		});
 		mode.dispose();
 	});
 
-	test('issue #37315 - it can remember multiple auto-closed instances', () => {
-		let mode = new AutoClosingMode();
-		usingCursor({
+	test('issue #37315 - it can wememba muwtipwe auto-cwosed instances', () => {
+		wet mode = new AutoCwosingMode();
+		usingCuwsow({
 			text: [
 				'',
 				'y=();'
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			assertCursor(viewModel, new Position(1, 1));
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			assewtCuwsow(viewModew, new Position(1, 1));
 
-			viewModel.type('x=(', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), 'x=()');
+			viewModew.type('x=(', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), 'x=()');
 
-			viewModel.type('(', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), 'x=(())');
+			viewModew.type('(', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), 'x=(())');
 
-			viewModel.type(')', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), 'x=(())');
+			viewModew.type(')', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), 'x=(())');
 
-			viewModel.type(')', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), 'x=(())');
+			viewModew.type(')', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), 'x=(())');
 		});
 		mode.dispose();
 	});
 
-	test('issue #118270 - auto closing deletes only those characters that it inserted', () => {
-		let mode = new AutoClosingMode();
-		usingCursor({
+	test('issue #118270 - auto cwosing dewetes onwy those chawactews that it insewted', () => {
+		wet mode = new AutoCwosingMode();
+		usingCuwsow({
 			text: [
 				'',
 				'y=();'
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			assertCursor(viewModel, new Position(1, 1));
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			assewtCuwsow(viewModew, new Position(1, 1));
 
-			viewModel.type('x=(', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), 'x=()');
+			viewModew.type('x=(', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), 'x=()');
 
-			viewModel.type('asd', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), 'x=(asd)');
+			viewModew.type('asd', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), 'x=(asd)');
 
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(1), 'x=()');
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(1), 'x=()');
 
-			// delete closing char!
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(1), 'x=');
+			// dewete cwosing chaw!
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(1), 'x=');
 
-			// do not delete closing char!
-			viewModel.setSelections('test', [new Selection(2, 4, 2, 4)]);
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(2), 'y=);');
+			// do not dewete cwosing chaw!
+			viewModew.setSewections('test', [new Sewection(2, 4, 2, 4)]);
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(2), 'y=);');
 
 		});
 		mode.dispose();
 	});
 
-	test('issue #78527 - does not close quote on odd count', () => {
-		let mode = new AutoClosingMode();
-		usingCursor({
+	test('issue #78527 - does not cwose quote on odd count', () => {
+		wet mode = new AutoCwosingMode();
+		usingCuwsow({
 			text: [
-				'std::cout << \'"\' << entryMap'
+				'std::cout << \'"\' << entwyMap'
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			viewModel.setSelections('test', [new Selection(1, 29, 1, 29)]);
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			viewModew.setSewections('test', [new Sewection(1, 29, 1, 29)]);
 
-			viewModel.type('[', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), 'std::cout << \'"\' << entryMap[]');
+			viewModew.type('[', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), 'std::cout << \'"\' << entwyMap[]');
 
-			viewModel.type('"', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), 'std::cout << \'"\' << entryMap[""]');
+			viewModew.type('"', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), 'std::cout << \'"\' << entwyMap[""]');
 
-			viewModel.type('a', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), 'std::cout << \'"\' << entryMap["a"]');
+			viewModew.type('a', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), 'std::cout << \'"\' << entwyMap["a"]');
 
-			viewModel.type('"', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), 'std::cout << \'"\' << entryMap["a"]');
+			viewModew.type('"', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), 'std::cout << \'"\' << entwyMap["a"]');
 
-			viewModel.type(']', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), 'std::cout << \'"\' << entryMap["a"]');
+			viewModew.type(']', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), 'std::cout << \'"\' << entwyMap["a"]');
 		});
 		mode.dispose();
 	});
 
-	test('issue #85983 - editor.autoClosingBrackets: beforeWhitespace is incorrect for Python', () => {
-		const languageId = new LanguageIdentifier('pythonMode', 5);
-		class PythonMode extends MockMode {
-			constructor() {
-				super(languageId);
-				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
-					autoClosingPairs: [
-						{ open: '{', close: '}' },
-						{ open: '[', close: ']' },
-						{ open: '(', close: ')' },
-						{ open: '\"', close: '\"', notIn: ['string'] },
-						{ open: 'r\"', close: '\"', notIn: ['string', 'comment'] },
-						{ open: 'R\"', close: '\"', notIn: ['string', 'comment'] },
-						{ open: 'u\"', close: '\"', notIn: ['string', 'comment'] },
-						{ open: 'U\"', close: '\"', notIn: ['string', 'comment'] },
-						{ open: 'f\"', close: '\"', notIn: ['string', 'comment'] },
-						{ open: 'F\"', close: '\"', notIn: ['string', 'comment'] },
-						{ open: 'b\"', close: '\"', notIn: ['string', 'comment'] },
-						{ open: 'B\"', close: '\"', notIn: ['string', 'comment'] },
-						{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
-						{ open: 'r\'', close: '\'', notIn: ['string', 'comment'] },
-						{ open: 'R\'', close: '\'', notIn: ['string', 'comment'] },
-						{ open: 'u\'', close: '\'', notIn: ['string', 'comment'] },
-						{ open: 'U\'', close: '\'', notIn: ['string', 'comment'] },
-						{ open: 'f\'', close: '\'', notIn: ['string', 'comment'] },
-						{ open: 'F\'', close: '\'', notIn: ['string', 'comment'] },
-						{ open: 'b\'', close: '\'', notIn: ['string', 'comment'] },
-						{ open: 'B\'', close: '\'', notIn: ['string', 'comment'] },
-						{ open: '`', close: '`', notIn: ['string'] }
+	test('issue #85983 - editow.autoCwosingBwackets: befoweWhitespace is incowwect fow Python', () => {
+		const wanguageId = new WanguageIdentifia('pythonMode', 5);
+		cwass PythonMode extends MockMode {
+			constwuctow() {
+				supa(wanguageId);
+				this._wegista(WanguageConfiguwationWegistwy.wegista(this.getWanguageIdentifia(), {
+					autoCwosingPaiws: [
+						{ open: '{', cwose: '}' },
+						{ open: '[', cwose: ']' },
+						{ open: '(', cwose: ')' },
+						{ open: '\"', cwose: '\"', notIn: ['stwing'] },
+						{ open: 'w\"', cwose: '\"', notIn: ['stwing', 'comment'] },
+						{ open: 'W\"', cwose: '\"', notIn: ['stwing', 'comment'] },
+						{ open: 'u\"', cwose: '\"', notIn: ['stwing', 'comment'] },
+						{ open: 'U\"', cwose: '\"', notIn: ['stwing', 'comment'] },
+						{ open: 'f\"', cwose: '\"', notIn: ['stwing', 'comment'] },
+						{ open: 'F\"', cwose: '\"', notIn: ['stwing', 'comment'] },
+						{ open: 'b\"', cwose: '\"', notIn: ['stwing', 'comment'] },
+						{ open: 'B\"', cwose: '\"', notIn: ['stwing', 'comment'] },
+						{ open: '\'', cwose: '\'', notIn: ['stwing', 'comment'] },
+						{ open: 'w\'', cwose: '\'', notIn: ['stwing', 'comment'] },
+						{ open: 'W\'', cwose: '\'', notIn: ['stwing', 'comment'] },
+						{ open: 'u\'', cwose: '\'', notIn: ['stwing', 'comment'] },
+						{ open: 'U\'', cwose: '\'', notIn: ['stwing', 'comment'] },
+						{ open: 'f\'', cwose: '\'', notIn: ['stwing', 'comment'] },
+						{ open: 'F\'', cwose: '\'', notIn: ['stwing', 'comment'] },
+						{ open: 'b\'', cwose: '\'', notIn: ['stwing', 'comment'] },
+						{ open: 'B\'', cwose: '\'', notIn: ['stwing', 'comment'] },
+						{ open: '`', cwose: '`', notIn: ['stwing'] }
 					],
 				}));
 			}
 		}
 		const mode = new PythonMode();
-		usingCursor({
+		usingCuwsow({
 			text: [
-				'foo\'hello\''
+				'foo\'hewwo\''
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			assertType(editor, model, viewModel, 1, 4, '(', '(', `does not auto close @ (1, 4)`);
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			assewtType(editow, modew, viewModew, 1, 4, '(', '(', `does not auto cwose @ (1, 4)`);
 		});
 		mode.dispose();
 	});
 
-	test('issue #78975 - Parentheses swallowing does not work when parentheses are inserted by autocomplete', () => {
-		let mode = new AutoClosingMode();
-		usingCursor({
+	test('issue #78975 - Pawentheses swawwowing does not wowk when pawentheses awe insewted by autocompwete', () => {
+		wet mode = new AutoCwosingMode();
+		usingCuwsow({
 			text: [
 				'<div id'
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			viewModel.setSelections('test', [new Selection(1, 8, 1, 8)]);
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			viewModew.setSewections('test', [new Sewection(1, 8, 1, 8)]);
 
-			viewModel.executeEdits('snippet', [{ range: new Range(1, 6, 1, 8), text: 'id=""' }], () => [new Selection(1, 10, 1, 10)]);
-			assert.strictEqual(model.getLineContent(1), '<div id=""');
+			viewModew.executeEdits('snippet', [{ wange: new Wange(1, 6, 1, 8), text: 'id=""' }], () => [new Sewection(1, 10, 1, 10)]);
+			assewt.stwictEquaw(modew.getWineContent(1), '<div id=""');
 
-			viewModel.type('a', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), '<div id="a"');
+			viewModew.type('a', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), '<div id="a"');
 
-			viewModel.type('"', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), '<div id="a"');
+			viewModew.type('"', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), '<div id="a"');
 		});
 		mode.dispose();
 	});
 
-	test('issue #78833 - Add config to use old brackets/quotes overtyping', () => {
-		let mode = new AutoClosingMode();
-		usingCursor({
+	test('issue #78833 - Add config to use owd bwackets/quotes ovewtyping', () => {
+		wet mode = new AutoCwosingMode();
+		usingCuwsow({
 			text: [
 				'',
 				'y=();'
 			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-			editorOpts: {
-				autoClosingOvertype: 'always'
+			wanguageIdentifia: mode.getWanguageIdentifia(),
+			editowOpts: {
+				autoCwosingOvewtype: 'awways'
 			}
-		}, (editor, model, viewModel) => {
-			assertCursor(viewModel, new Position(1, 1));
+		}, (editow, modew, viewModew) => {
+			assewtCuwsow(viewModew, new Position(1, 1));
 
-			viewModel.type('x=(', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), 'x=()');
+			viewModew.type('x=(', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), 'x=()');
 
-			viewModel.type(')', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), 'x=()');
+			viewModew.type(')', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), 'x=()');
 
-			viewModel.setSelections('test', [new Selection(1, 4, 1, 4)]);
-			viewModel.type(')', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), 'x=()');
+			viewModew.setSewections('test', [new Sewection(1, 4, 1, 4)]);
+			viewModew.type(')', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), 'x=()');
 
-			viewModel.setSelections('test', [new Selection(2, 4, 2, 4)]);
-			viewModel.type(')', 'keyboard');
-			assert.strictEqual(model.getLineContent(2), 'y=();');
+			viewModew.setSewections('test', [new Sewection(2, 4, 2, 4)]);
+			viewModew.type(')', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(2), 'y=();');
 		});
 		mode.dispose();
 	});
 
-	test('issue #15825: accents on mac US intl keyboard', () => {
-		let mode = new AutoClosingMode();
-		usingCursor({
+	test('issue #15825: accents on mac US intw keyboawd', () => {
+		wet mode = new AutoCwosingMode();
+		usingCuwsow({
 			text: [
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			assertCursor(viewModel, new Position(1, 1));
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			assewtCuwsow(viewModew, new Position(1, 1));
 
-			// Typing ` + e on the mac US intl kb layout
-			viewModel.startComposition();
-			viewModel.type('`', 'keyboard');
-			viewModel.compositionType('è', 1, 0, 0, 'keyboard');
-			viewModel.endComposition('keyboard');
+			// Typing ` + e on the mac US intw kb wayout
+			viewModew.stawtComposition();
+			viewModew.type('`', 'keyboawd');
+			viewModew.compositionType('è', 1, 0, 0, 'keyboawd');
+			viewModew.endComposition('keyboawd');
 
-			assert.strictEqual(model.getValue(), 'è');
+			assewt.stwictEquaw(modew.getVawue(), 'è');
 		});
 		mode.dispose();
 	});
 
-	test('issue #90016: allow accents on mac US intl keyboard to surround selection', () => {
-		let mode = new AutoClosingMode();
-		usingCursor({
+	test('issue #90016: awwow accents on mac US intw keyboawd to suwwound sewection', () => {
+		wet mode = new AutoCwosingMode();
+		usingCuwsow({
 			text: [
 				'test'
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			viewModel.setSelections('test', [new Selection(1, 1, 1, 5)]);
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			viewModew.setSewections('test', [new Sewection(1, 1, 1, 5)]);
 
-			// Typing ` + e on the mac US intl kb layout
-			viewModel.startComposition();
-			viewModel.type('\'', 'keyboard');
-			viewModel.compositionType('\'', 1, 0, 0, 'keyboard');
-			viewModel.compositionType('\'', 1, 0, 0, 'keyboard');
-			viewModel.endComposition('keyboard');
+			// Typing ` + e on the mac US intw kb wayout
+			viewModew.stawtComposition();
+			viewModew.type('\'', 'keyboawd');
+			viewModew.compositionType('\'', 1, 0, 0, 'keyboawd');
+			viewModew.compositionType('\'', 1, 0, 0, 'keyboawd');
+			viewModew.endComposition('keyboawd');
 
-			assert.strictEqual(model.getValue(), '\'test\'');
+			assewt.stwictEquaw(modew.getVawue(), '\'test\'');
 		});
 		mode.dispose();
 	});
 
-	test('issue #53357: Over typing ignores characters after backslash', () => {
-		let mode = new AutoClosingMode();
-		usingCursor({
+	test('issue #53357: Ova typing ignowes chawactews afta backswash', () => {
+		wet mode = new AutoCwosingMode();
+		usingCuwsow({
 			text: [
-				'console.log();'
+				'consowe.wog();'
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
 
-			viewModel.setSelections('test', [new Selection(1, 13, 1, 13)]);
+			viewModew.setSewections('test', [new Sewection(1, 13, 1, 13)]);
 
-			viewModel.type('\'', 'keyboard');
-			assert.strictEqual(model.getValue(), 'console.log(\'\');');
+			viewModew.type('\'', 'keyboawd');
+			assewt.stwictEquaw(modew.getVawue(), 'consowe.wog(\'\');');
 
-			viewModel.type('it', 'keyboard');
-			assert.strictEqual(model.getValue(), 'console.log(\'it\');');
+			viewModew.type('it', 'keyboawd');
+			assewt.stwictEquaw(modew.getVawue(), 'consowe.wog(\'it\');');
 
-			viewModel.type('\\', 'keyboard');
-			assert.strictEqual(model.getValue(), 'console.log(\'it\\\');');
+			viewModew.type('\\', 'keyboawd');
+			assewt.stwictEquaw(modew.getVawue(), 'consowe.wog(\'it\\\');');
 
-			viewModel.type('\'', 'keyboard');
-			assert.strictEqual(model.getValue(), 'console.log(\'it\\\'\');');
+			viewModew.type('\'', 'keyboawd');
+			assewt.stwictEquaw(modew.getVawue(), 'consowe.wog(\'it\\\'\');');
 		});
 		mode.dispose();
 	});
 
-	test('issue #84998: Overtyping Brackets doesn\'t work after backslash', () => {
-		let mode = new AutoClosingMode();
-		usingCursor({
-			text: [
-				''
-			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-
-			viewModel.setSelections('test', [new Selection(1, 1, 1, 1)]);
-
-			viewModel.type('\\', 'keyboard');
-			assert.strictEqual(model.getValue(), '\\');
-
-			viewModel.type('(', 'keyboard');
-			assert.strictEqual(model.getValue(), '\\()');
-
-			viewModel.type('abc', 'keyboard');
-			assert.strictEqual(model.getValue(), '\\(abc)');
-
-			viewModel.type('\\', 'keyboard');
-			assert.strictEqual(model.getValue(), '\\(abc\\)');
-
-			viewModel.type(')', 'keyboard');
-			assert.strictEqual(model.getValue(), '\\(abc\\)');
-		});
-		mode.dispose();
-	});
-
-	test('issue #2773: Accents (´`¨^, others?) are inserted in the wrong position (Mac)', () => {
-		let mode = new AutoClosingMode();
-		usingCursor({
-			text: [
-				'hello',
-				'world'
-			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			assertCursor(viewModel, new Position(1, 1));
-
-			// Typing ` and pressing shift+down on the mac US intl kb layout
-			// Here we're just replaying what the cursor gets
-			viewModel.startComposition();
-			viewModel.type('`', 'keyboard');
-			moveDown(editor, viewModel, true);
-			viewModel.compositionType('`', 1, 0, 0, 'keyboard');
-			viewModel.compositionType('`', 1, 0, 0, 'keyboard');
-			viewModel.endComposition('keyboard');
-
-			assert.strictEqual(model.getValue(), '`hello\nworld');
-			assertCursor(viewModel, new Selection(1, 2, 2, 2));
-		});
-		mode.dispose();
-	});
-
-	test('issue #26820: auto close quotes when not used as accents', () => {
-		let mode = new AutoClosingMode();
-		usingCursor({
+	test('issue #84998: Ovewtyping Bwackets doesn\'t wowk afta backswash', () => {
+		wet mode = new AutoCwosingMode();
+		usingCuwsow({
 			text: [
 				''
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			assertCursor(viewModel, new Position(1, 1));
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
 
-			// on the mac US intl kb layout
+			viewModew.setSewections('test', [new Sewection(1, 1, 1, 1)]);
+
+			viewModew.type('\\', 'keyboawd');
+			assewt.stwictEquaw(modew.getVawue(), '\\');
+
+			viewModew.type('(', 'keyboawd');
+			assewt.stwictEquaw(modew.getVawue(), '\\()');
+
+			viewModew.type('abc', 'keyboawd');
+			assewt.stwictEquaw(modew.getVawue(), '\\(abc)');
+
+			viewModew.type('\\', 'keyboawd');
+			assewt.stwictEquaw(modew.getVawue(), '\\(abc\\)');
+
+			viewModew.type(')', 'keyboawd');
+			assewt.stwictEquaw(modew.getVawue(), '\\(abc\\)');
+		});
+		mode.dispose();
+	});
+
+	test('issue #2773: Accents (´`¨^, othews?) awe insewted in the wwong position (Mac)', () => {
+		wet mode = new AutoCwosingMode();
+		usingCuwsow({
+			text: [
+				'hewwo',
+				'wowwd'
+			],
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			assewtCuwsow(viewModew, new Position(1, 1));
+
+			// Typing ` and pwessing shift+down on the mac US intw kb wayout
+			// Hewe we'we just wepwaying what the cuwsow gets
+			viewModew.stawtComposition();
+			viewModew.type('`', 'keyboawd');
+			moveDown(editow, viewModew, twue);
+			viewModew.compositionType('`', 1, 0, 0, 'keyboawd');
+			viewModew.compositionType('`', 1, 0, 0, 'keyboawd');
+			viewModew.endComposition('keyboawd');
+
+			assewt.stwictEquaw(modew.getVawue(), '`hewwo\nwowwd');
+			assewtCuwsow(viewModew, new Sewection(1, 2, 2, 2));
+		});
+		mode.dispose();
+	});
+
+	test('issue #26820: auto cwose quotes when not used as accents', () => {
+		wet mode = new AutoCwosingMode();
+		usingCuwsow({
+			text: [
+				''
+			],
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			assewtCuwsow(viewModew, new Position(1, 1));
+
+			// on the mac US intw kb wayout
 
 			// Typing ' + space
-			viewModel.startComposition();
-			viewModel.type('\'', 'keyboard');
-			viewModel.compositionType('\'', 1, 0, 0, 'keyboard');
-			viewModel.endComposition('keyboard');
-			assert.strictEqual(model.getValue(), '\'\'');
+			viewModew.stawtComposition();
+			viewModew.type('\'', 'keyboawd');
+			viewModew.compositionType('\'', 1, 0, 0, 'keyboawd');
+			viewModew.endComposition('keyboawd');
+			assewt.stwictEquaw(modew.getVawue(), '\'\'');
 
-			// Typing one more ' + space
-			viewModel.startComposition();
-			viewModel.type('\'', 'keyboard');
-			viewModel.compositionType('\'', 1, 0, 0, 'keyboard');
-			viewModel.endComposition('keyboard');
-			assert.strictEqual(model.getValue(), '\'\'');
+			// Typing one mowe ' + space
+			viewModew.stawtComposition();
+			viewModew.type('\'', 'keyboawd');
+			viewModew.compositionType('\'', 1, 0, 0, 'keyboawd');
+			viewModew.endComposition('keyboawd');
+			assewt.stwictEquaw(modew.getVawue(), '\'\'');
 
-			// Typing ' as a closing tag
-			model.setValue('\'abc');
-			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
-			viewModel.startComposition();
-			viewModel.type('\'', 'keyboard');
-			viewModel.compositionType('\'', 1, 0, 0, 'keyboard');
-			viewModel.endComposition('keyboard');
+			// Typing ' as a cwosing tag
+			modew.setVawue('\'abc');
+			viewModew.setSewections('test', [new Sewection(1, 5, 1, 5)]);
+			viewModew.stawtComposition();
+			viewModew.type('\'', 'keyboawd');
+			viewModew.compositionType('\'', 1, 0, 0, 'keyboawd');
+			viewModew.endComposition('keyboawd');
 
-			assert.strictEqual(model.getValue(), '\'abc\'');
+			assewt.stwictEquaw(modew.getVawue(), '\'abc\'');
 
-			// quotes before the newly added character are all paired.
-			model.setValue('\'abc\'def ');
-			viewModel.setSelections('test', [new Selection(1, 10, 1, 10)]);
-			viewModel.startComposition();
-			viewModel.type('\'', 'keyboard');
-			viewModel.compositionType('\'', 1, 0, 0, 'keyboard');
-			viewModel.endComposition('keyboard');
+			// quotes befowe the newwy added chawacta awe aww paiwed.
+			modew.setVawue('\'abc\'def ');
+			viewModew.setSewections('test', [new Sewection(1, 10, 1, 10)]);
+			viewModew.stawtComposition();
+			viewModew.type('\'', 'keyboawd');
+			viewModew.compositionType('\'', 1, 0, 0, 'keyboawd');
+			viewModew.endComposition('keyboawd');
 
-			assert.strictEqual(model.getValue(), '\'abc\'def \'\'');
+			assewt.stwictEquaw(modew.getVawue(), '\'abc\'def \'\'');
 
-			// No auto closing if there is non-whitespace character after the cursor
-			model.setValue('abc');
-			viewModel.setSelections('test', [new Selection(1, 1, 1, 1)]);
-			viewModel.startComposition();
-			viewModel.type('\'', 'keyboard');
-			viewModel.compositionType('\'', 1, 0, 0, 'keyboard');
-			viewModel.endComposition('keyboard');
+			// No auto cwosing if thewe is non-whitespace chawacta afta the cuwsow
+			modew.setVawue('abc');
+			viewModew.setSewections('test', [new Sewection(1, 1, 1, 1)]);
+			viewModew.stawtComposition();
+			viewModew.type('\'', 'keyboawd');
+			viewModew.compositionType('\'', 1, 0, 0, 'keyboawd');
+			viewModew.endComposition('keyboawd');
 
-			// No auto closing if it's after a word.
-			model.setValue('abc');
-			viewModel.setSelections('test', [new Selection(1, 4, 1, 4)]);
-			viewModel.startComposition();
-			viewModel.type('\'', 'keyboard');
-			viewModel.compositionType('\'', 1, 0, 0, 'keyboard');
-			viewModel.endComposition('keyboard');
+			// No auto cwosing if it's afta a wowd.
+			modew.setVawue('abc');
+			viewModew.setSewections('test', [new Sewection(1, 4, 1, 4)]);
+			viewModew.stawtComposition();
+			viewModew.type('\'', 'keyboawd');
+			viewModew.compositionType('\'', 1, 0, 0, 'keyboawd');
+			viewModew.endComposition('keyboawd');
 
-			assert.strictEqual(model.getValue(), 'abc\'');
+			assewt.stwictEquaw(modew.getVawue(), 'abc\'');
 		});
 		mode.dispose();
 	});
 
-	test('issue #82701: auto close does not execute when IME is canceled via backspace', () => {
-		let mode = new AutoClosingMode();
-		usingCursor({
+	test('issue #82701: auto cwose does not execute when IME is cancewed via backspace', () => {
+		wet mode = new AutoCwosingMode();
+		usingCuwsow({
 			text: [
 				'{}'
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
-			viewModel.setSelections('test', [new Selection(1, 2, 1, 2)]);
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
+			viewModew.setSewections('test', [new Sewection(1, 2, 1, 2)]);
 
 			// Typing a + backspace
-			viewModel.startComposition();
-			viewModel.type('a', 'keyboard');
-			viewModel.compositionType('', 1, 0, 0, 'keyboard');
-			viewModel.endComposition('keyboard');
-			assert.strictEqual(model.getValue(), '{}');
+			viewModew.stawtComposition();
+			viewModew.type('a', 'keyboawd');
+			viewModew.compositionType('', 1, 0, 0, 'keyboawd');
+			viewModew.endComposition('keyboawd');
+			assewt.stwictEquaw(modew.getVawue(), '{}');
 		});
 		mode.dispose();
 	});
 
-	test('issue #20891: All cursors should do the same thing', () => {
-		let mode = new AutoClosingMode();
-		usingCursor({
+	test('issue #20891: Aww cuwsows shouwd do the same thing', () => {
+		wet mode = new AutoCwosingMode();
+		usingCuwsow({
 			text: [
-				'var a = asd'
+				'vaw a = asd'
 			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (editor, model, viewModel) => {
+			wanguageIdentifia: mode.getWanguageIdentifia()
+		}, (editow, modew, viewModew) => {
 
-			viewModel.setSelections('test', [
-				new Selection(1, 9, 1, 9),
-				new Selection(1, 12, 1, 12),
+			viewModew.setSewections('test', [
+				new Sewection(1, 9, 1, 9),
+				new Sewection(1, 12, 1, 12),
 			]);
 
 			// type a `
-			viewModel.type('`', 'keyboard');
+			viewModew.type('`', 'keyboawd');
 
-			assert.strictEqual(model.getValue(), 'var a = `asd`');
+			assewt.stwictEquaw(modew.getVawue(), 'vaw a = `asd`');
 		});
 		mode.dispose();
 	});
 
-	test('issue #41825: Special handling of quotes in surrounding pairs', () => {
-		const languageId = new LanguageIdentifier('myMode', 3);
-		class MyMode extends MockMode {
-			constructor() {
-				super(languageId);
-				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
-					surroundingPairs: [
-						{ open: '"', close: '"' },
-						{ open: '\'', close: '\'' },
+	test('issue #41825: Speciaw handwing of quotes in suwwounding paiws', () => {
+		const wanguageId = new WanguageIdentifia('myMode', 3);
+		cwass MyMode extends MockMode {
+			constwuctow() {
+				supa(wanguageId);
+				this._wegista(WanguageConfiguwationWegistwy.wegista(this.getWanguageIdentifia(), {
+					suwwoundingPaiws: [
+						{ open: '"', cwose: '"' },
+						{ open: '\'', cwose: '\'' },
 					]
 				}));
 			}
 		}
 
 		const mode = new MyMode();
-		const model = createTextModel('var x = \'hi\';', undefined, languageId);
+		const modew = cweateTextModew('vaw x = \'hi\';', undefined, wanguageId);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			editor.setSelections([
-				new Selection(1, 9, 1, 10),
-				new Selection(1, 12, 1, 13)
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			editow.setSewections([
+				new Sewection(1, 9, 1, 10),
+				new Sewection(1, 12, 1, 13)
 			]);
-			viewModel.type('"', 'keyboard');
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'var x = "hi";', 'assert1');
+			viewModew.type('"', 'keyboawd');
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), 'vaw x = "hi";', 'assewt1');
 
-			editor.setSelections([
-				new Selection(1, 9, 1, 10),
-				new Selection(1, 12, 1, 13)
+			editow.setSewections([
+				new Sewection(1, 9, 1, 10),
+				new Sewection(1, 12, 1, 13)
 			]);
-			viewModel.type('\'', 'keyboard');
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'var x = \'hi\';', 'assert2');
+			viewModew.type('\'', 'keyboawd');
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), 'vaw x = \'hi\';', 'assewt2');
 		});
 
-		model.dispose();
+		modew.dispose();
 		mode.dispose();
 	});
 
-	test('All cursors should do the same thing when deleting left', () => {
-		let mode = new AutoClosingMode();
-		let model = createTextModel(
+	test('Aww cuwsows shouwd do the same thing when deweting weft', () => {
+		wet mode = new AutoCwosingMode();
+		wet modew = cweateTextModew(
 			[
-				'var a = ()'
+				'vaw a = ()'
 			].join('\n'),
-			TextModel.DEFAULT_CREATION_OPTIONS,
-			mode.getLanguageIdentifier()
+			TextModew.DEFAUWT_CWEATION_OPTIONS,
+			mode.getWanguageIdentifia()
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			viewModel.setSelections('test', [
-				new Selection(1, 4, 1, 4),
-				new Selection(1, 10, 1, 10),
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			viewModew.setSewections('test', [
+				new Sewection(1, 4, 1, 4),
+				new Sewection(1, 10, 1, 10),
 			]);
 
-			// delete left
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			// dewete weft
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
 
-			assert.strictEqual(model.getValue(), 'va a = )');
+			assewt.stwictEquaw(modew.getVawue(), 'va a = )');
 		});
-		model.dispose();
+		modew.dispose();
 		mode.dispose();
 	});
 
-	test('issue #7100: Mouse word selection is strange when non-word character is at the end of line', () => {
-		let model = createTextModel(
+	test('issue #7100: Mouse wowd sewection is stwange when non-wowd chawacta is at the end of wine', () => {
+		wet modew = cweateTextModew(
 			[
-				'before.a',
-				'before',
-				'hello:',
-				'there:',
-				'this is strange:',
-				'here',
+				'befowe.a',
+				'befowe',
+				'hewwo:',
+				'thewe:',
+				'this is stwange:',
+				'hewe',
 				'it',
 				'is',
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			CoreNavigationCommands.WordSelect.runEditorCommand(null, editor, {
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			CoweNavigationCommands.WowdSewect.wunEditowCommand(nuww, editow, {
 				position: new Position(3, 7)
 			});
-			assertCursor(viewModel, new Selection(3, 7, 3, 7));
+			assewtCuwsow(viewModew, new Sewection(3, 7, 3, 7));
 
-			CoreNavigationCommands.WordSelectDrag.runEditorCommand(null, editor, {
+			CoweNavigationCommands.WowdSewectDwag.wunEditowCommand(nuww, editow, {
 				position: new Position(4, 7)
 			});
-			assertCursor(viewModel, new Selection(3, 7, 4, 7));
+			assewtCuwsow(viewModew, new Sewection(3, 7, 4, 7));
 		});
 	});
 });
 
 suite('Undo stops', () => {
 
-	test('there is an undo stop between typing and deleting left', () => {
-		let model = createTextModel(
+	test('thewe is an undo stop between typing and deweting weft', () => {
+		wet modew = cweateTextModew(
 			[
-				'A  line',
-				'Another line',
+				'A  wine',
+				'Anotha wine',
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			viewModel.setSelections('test', [new Selection(1, 3, 1, 3)]);
-			viewModel.type('first', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), 'A first line');
-			assertCursor(viewModel, new Selection(1, 8, 1, 8));
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			viewModew.setSewections('test', [new Sewection(1, 3, 1, 3)]);
+			viewModew.type('fiwst', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), 'A fiwst wine');
+			assewtCuwsow(viewModew, new Sewection(1, 8, 1, 8));
 
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(1), 'A fir line');
-			assertCursor(viewModel, new Selection(1, 6, 1, 6));
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(1), 'A fiw wine');
+			assewtCuwsow(viewModew, new Sewection(1, 6, 1, 6));
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(1), 'A first line');
-			assertCursor(viewModel, new Selection(1, 8, 1, 8));
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(1), 'A fiwst wine');
+			assewtCuwsow(viewModew, new Sewection(1, 8, 1, 8));
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(1), 'A  line');
-			assertCursor(viewModel, new Selection(1, 3, 1, 3));
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(1), 'A  wine');
+			assewtCuwsow(viewModew, new Sewection(1, 3, 1, 3));
 		});
 	});
 
-	test('there is an undo stop between typing and deleting right', () => {
-		let model = createTextModel(
+	test('thewe is an undo stop between typing and deweting wight', () => {
+		wet modew = cweateTextModew(
 			[
-				'A  line',
-				'Another line',
+				'A  wine',
+				'Anotha wine',
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			viewModel.setSelections('test', [new Selection(1, 3, 1, 3)]);
-			viewModel.type('first', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), 'A first line');
-			assertCursor(viewModel, new Selection(1, 8, 1, 8));
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			viewModew.setSewections('test', [new Sewection(1, 3, 1, 3)]);
+			viewModew.type('fiwst', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), 'A fiwst wine');
+			assewtCuwsow(viewModew, new Sewection(1, 8, 1, 8));
 
-			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
-			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(1), 'A firstine');
-			assertCursor(viewModel, new Selection(1, 8, 1, 8));
+			CoweEditingCommands.DeweteWight.wunEditowCommand(nuww, editow, nuww);
+			CoweEditingCommands.DeweteWight.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(1), 'A fiwstine');
+			assewtCuwsow(viewModew, new Sewection(1, 8, 1, 8));
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(1), 'A first line');
-			assertCursor(viewModel, new Selection(1, 8, 1, 8));
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(1), 'A fiwst wine');
+			assewtCuwsow(viewModew, new Sewection(1, 8, 1, 8));
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(1), 'A  line');
-			assertCursor(viewModel, new Selection(1, 3, 1, 3));
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(1), 'A  wine');
+			assewtCuwsow(viewModew, new Sewection(1, 3, 1, 3));
 		});
 	});
 
-	test('there is an undo stop between deleting left and typing', () => {
-		let model = createTextModel(
+	test('thewe is an undo stop between deweting weft and typing', () => {
+		wet modew = cweateTextModew(
 			[
-				'A  line',
-				'Another line',
+				'A  wine',
+				'Anotha wine',
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			viewModel.setSelections('test', [new Selection(2, 8, 2, 8)]);
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(2), ' line');
-			assertCursor(viewModel, new Selection(2, 1, 2, 1));
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			viewModew.setSewections('test', [new Sewection(2, 8, 2, 8)]);
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(2), ' wine');
+			assewtCuwsow(viewModew, new Sewection(2, 1, 2, 1));
 
-			viewModel.type('Second', 'keyboard');
-			assert.strictEqual(model.getLineContent(2), 'Second line');
-			assertCursor(viewModel, new Selection(2, 7, 2, 7));
+			viewModew.type('Second', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(2), 'Second wine');
+			assewtCuwsow(viewModew, new Sewection(2, 7, 2, 7));
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(2), ' line');
-			assertCursor(viewModel, new Selection(2, 1, 2, 1));
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(2), ' wine');
+			assewtCuwsow(viewModew, new Sewection(2, 1, 2, 1));
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(2), 'Another line');
-			assertCursor(viewModel, new Selection(2, 8, 2, 8));
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(2), 'Anotha wine');
+			assewtCuwsow(viewModew, new Sewection(2, 8, 2, 8));
 		});
 	});
 
-	test('there is an undo stop between deleting left and deleting right', () => {
-		let model = createTextModel(
+	test('thewe is an undo stop between deweting weft and deweting wight', () => {
+		wet modew = cweateTextModew(
 			[
-				'A  line',
-				'Another line',
+				'A  wine',
+				'Anotha wine',
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			viewModel.setSelections('test', [new Selection(2, 8, 2, 8)]);
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(2), ' line');
-			assertCursor(viewModel, new Selection(2, 1, 2, 1));
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			viewModew.setSewections('test', [new Sewection(2, 8, 2, 8)]);
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(2), ' wine');
+			assewtCuwsow(viewModew, new Sewection(2, 1, 2, 1));
 
-			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
-			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
-			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
-			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
-			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(2), '');
-			assertCursor(viewModel, new Selection(2, 1, 2, 1));
+			CoweEditingCommands.DeweteWight.wunEditowCommand(nuww, editow, nuww);
+			CoweEditingCommands.DeweteWight.wunEditowCommand(nuww, editow, nuww);
+			CoweEditingCommands.DeweteWight.wunEditowCommand(nuww, editow, nuww);
+			CoweEditingCommands.DeweteWight.wunEditowCommand(nuww, editow, nuww);
+			CoweEditingCommands.DeweteWight.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(2), '');
+			assewtCuwsow(viewModew, new Sewection(2, 1, 2, 1));
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(2), ' line');
-			assertCursor(viewModel, new Selection(2, 1, 2, 1));
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(2), ' wine');
+			assewtCuwsow(viewModew, new Sewection(2, 1, 2, 1));
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(2), 'Another line');
-			assertCursor(viewModel, new Selection(2, 8, 2, 8));
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(2), 'Anotha wine');
+			assewtCuwsow(viewModew, new Sewection(2, 8, 2, 8));
 		});
 	});
 
-	test('there is an undo stop between deleting right and typing', () => {
-		let model = createTextModel(
+	test('thewe is an undo stop between deweting wight and typing', () => {
+		wet modew = cweateTextModew(
 			[
-				'A  line',
-				'Another line',
+				'A  wine',
+				'Anotha wine',
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			viewModel.setSelections('test', [new Selection(2, 9, 2, 9)]);
-			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
-			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
-			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
-			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(2), 'Another ');
-			assertCursor(viewModel, new Selection(2, 9, 2, 9));
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			viewModew.setSewections('test', [new Sewection(2, 9, 2, 9)]);
+			CoweEditingCommands.DeweteWight.wunEditowCommand(nuww, editow, nuww);
+			CoweEditingCommands.DeweteWight.wunEditowCommand(nuww, editow, nuww);
+			CoweEditingCommands.DeweteWight.wunEditowCommand(nuww, editow, nuww);
+			CoweEditingCommands.DeweteWight.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(2), 'Anotha ');
+			assewtCuwsow(viewModew, new Sewection(2, 9, 2, 9));
 
-			viewModel.type('text', 'keyboard');
-			assert.strictEqual(model.getLineContent(2), 'Another text');
-			assertCursor(viewModel, new Selection(2, 13, 2, 13));
+			viewModew.type('text', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(2), 'Anotha text');
+			assewtCuwsow(viewModew, new Sewection(2, 13, 2, 13));
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(2), 'Another ');
-			assertCursor(viewModel, new Selection(2, 9, 2, 9));
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(2), 'Anotha ');
+			assewtCuwsow(viewModew, new Sewection(2, 9, 2, 9));
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(2), 'Another line');
-			assertCursor(viewModel, new Selection(2, 9, 2, 9));
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(2), 'Anotha wine');
+			assewtCuwsow(viewModew, new Sewection(2, 9, 2, 9));
 		});
 	});
 
-	test('there is an undo stop between deleting right and deleting left', () => {
-		let model = createTextModel(
+	test('thewe is an undo stop between deweting wight and deweting weft', () => {
+		wet modew = cweateTextModew(
 			[
-				'A  line',
-				'Another line',
+				'A  wine',
+				'Anotha wine',
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			viewModel.setSelections('test', [new Selection(2, 9, 2, 9)]);
-			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
-			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
-			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
-			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(2), 'Another ');
-			assertCursor(viewModel, new Selection(2, 9, 2, 9));
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			viewModew.setSewections('test', [new Sewection(2, 9, 2, 9)]);
+			CoweEditingCommands.DeweteWight.wunEditowCommand(nuww, editow, nuww);
+			CoweEditingCommands.DeweteWight.wunEditowCommand(nuww, editow, nuww);
+			CoweEditingCommands.DeweteWight.wunEditowCommand(nuww, editow, nuww);
+			CoweEditingCommands.DeweteWight.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(2), 'Anotha ');
+			assewtCuwsow(viewModew, new Sewection(2, 9, 2, 9));
 
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(2), 'An');
-			assertCursor(viewModel, new Selection(2, 3, 2, 3));
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(2), 'An');
+			assewtCuwsow(viewModew, new Sewection(2, 3, 2, 3));
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(2), 'Another ');
-			assertCursor(viewModel, new Selection(2, 9, 2, 9));
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(2), 'Anotha ');
+			assewtCuwsow(viewModew, new Sewection(2, 9, 2, 9));
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(2), 'Another line');
-			assertCursor(viewModel, new Selection(2, 9, 2, 9));
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(2), 'Anotha wine');
+			assewtCuwsow(viewModew, new Sewection(2, 9, 2, 9));
 		});
 	});
 
-	test('inserts undo stop when typing space', () => {
-		let model = createTextModel(
+	test('insewts undo stop when typing space', () => {
+		wet modew = cweateTextModew(
 			[
-				'A  line',
-				'Another line',
+				'A  wine',
+				'Anotha wine',
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			viewModel.setSelections('test', [new Selection(1, 3, 1, 3)]);
-			viewModel.type('first and interesting', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), 'A first and interesting line');
-			assertCursor(viewModel, new Selection(1, 24, 1, 24));
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			viewModew.setSewections('test', [new Sewection(1, 3, 1, 3)]);
+			viewModew.type('fiwst and intewesting', 'keyboawd');
+			assewt.stwictEquaw(modew.getWineContent(1), 'A fiwst and intewesting wine');
+			assewtCuwsow(viewModew, new Sewection(1, 24, 1, 24));
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(1), 'A first and line');
-			assertCursor(viewModel, new Selection(1, 12, 1, 12));
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(1), 'A fiwst and wine');
+			assewtCuwsow(viewModew, new Sewection(1, 12, 1, 12));
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(1), 'A first line');
-			assertCursor(viewModel, new Selection(1, 8, 1, 8));
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(1), 'A fiwst wine');
+			assewtCuwsow(viewModew, new Sewection(1, 8, 1, 8));
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getLineContent(1), 'A  line');
-			assertCursor(viewModel, new Selection(1, 3, 1, 3));
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getWineContent(1), 'A  wine');
+			assewtCuwsow(viewModew, new Sewection(1, 3, 1, 3));
 		});
 	});
 
-	test('can undo typing and EOL change in one undo stop', () => {
-		let model = createTextModel(
+	test('can undo typing and EOW change in one undo stop', () => {
+		wet modew = cweateTextModew(
 			[
-				'A  line',
-				'Another line',
+				'A  wine',
+				'Anotha wine',
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			viewModel.setSelections('test', [new Selection(1, 3, 1, 3)]);
-			viewModel.type('first', 'keyboard');
-			assert.strictEqual(model.getValue(), 'A first line\nAnother line');
-			assertCursor(viewModel, new Selection(1, 8, 1, 8));
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			viewModew.setSewections('test', [new Sewection(1, 3, 1, 3)]);
+			viewModew.type('fiwst', 'keyboawd');
+			assewt.stwictEquaw(modew.getVawue(), 'A fiwst wine\nAnotha wine');
+			assewtCuwsow(viewModew, new Sewection(1, 8, 1, 8));
 
-			model.pushEOL(EndOfLineSequence.CRLF);
-			assert.strictEqual(model.getValue(), 'A first line\r\nAnother line');
-			assertCursor(viewModel, new Selection(1, 8, 1, 8));
+			modew.pushEOW(EndOfWineSequence.CWWF);
+			assewt.stwictEquaw(modew.getVawue(), 'A fiwst wine\w\nAnotha wine');
+			assewtCuwsow(viewModew, new Sewection(1, 8, 1, 8));
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(), 'A  line\nAnother line');
-			assertCursor(viewModel, new Selection(1, 3, 1, 3));
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(), 'A  wine\nAnotha wine');
+			assewtCuwsow(viewModew, new Sewection(1, 3, 1, 3));
 		});
 	});
 
-	test('issue #93585: Undo multi cursor edit corrupts document', () => {
-		let model = createTextModel(
+	test('issue #93585: Undo muwti cuwsow edit cowwupts document', () => {
+		wet modew = cweateTextModew(
 			[
-				'hello world',
-				'hello world',
+				'hewwo wowwd',
+				'hewwo wowwd',
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			viewModel.setSelections('test', [
-				new Selection(2, 7, 2, 12),
-				new Selection(1, 7, 1, 12),
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			viewModew.setSewections('test', [
+				new Sewection(2, 7, 2, 12),
+				new Sewection(1, 7, 1, 12),
 			]);
-			viewModel.type('no', 'keyboard');
-			assert.strictEqual(model.getValue(), 'hello no\nhello no');
+			viewModew.type('no', 'keyboawd');
+			assewt.stwictEquaw(modew.getVawue(), 'hewwo no\nhewwo no');
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(), 'hello world\nhello world');
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(), 'hewwo wowwd\nhewwo wowwd');
 		});
 	});
 
-	test('there is a single undo stop for consecutive whitespaces', () => {
-		let model = createTextModel(
+	test('thewe is a singwe undo stop fow consecutive whitespaces', () => {
+		wet modew = cweateTextModew(
 			[
 				''
 			].join('\n'),
 			{
-				insertSpaces: false,
+				insewtSpaces: fawse,
 			}
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			viewModel.type('a', 'keyboard');
-			viewModel.type('b', 'keyboard');
-			viewModel.type(' ', 'keyboard');
-			viewModel.type(' ', 'keyboard');
-			viewModel.type('c', 'keyboard');
-			viewModel.type('d', 'keyboard');
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			viewModew.type('a', 'keyboawd');
+			viewModew.type('b', 'keyboawd');
+			viewModew.type(' ', 'keyboawd');
+			viewModew.type(' ', 'keyboawd');
+			viewModew.type('c', 'keyboawd');
+			viewModew.type('d', 'keyboawd');
 
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'ab  cd', 'assert1');
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), 'ab  cd', 'assewt1');
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'ab  ', 'assert2');
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), 'ab  ', 'assewt2');
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'ab', 'assert3');
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), 'ab', 'assewt3');
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '', 'assert4');
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '', 'assewt4');
 		});
 	});
 
-	test('there is no undo stop after a single whitespace', () => {
-		let model = createTextModel(
+	test('thewe is no undo stop afta a singwe whitespace', () => {
+		wet modew = cweateTextModew(
 			[
 				''
 			].join('\n'),
 			{
-				insertSpaces: false,
+				insewtSpaces: fawse,
 			}
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
-			viewModel.type('a', 'keyboard');
-			viewModel.type('b', 'keyboard');
-			viewModel.type(' ', 'keyboard');
-			viewModel.type('c', 'keyboard');
-			viewModel.type('d', 'keyboard');
+		withTestCodeEditow(nuww, { modew: modew }, (editow, viewModew) => {
+			viewModew.type('a', 'keyboawd');
+			viewModew.type('b', 'keyboawd');
+			viewModew.type(' ', 'keyboawd');
+			viewModew.type('c', 'keyboawd');
+			viewModew.type('d', 'keyboawd');
 
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'ab cd', 'assert1');
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), 'ab cd', 'assewt1');
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'ab', 'assert3');
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), 'ab', 'assewt3');
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '', 'assert4');
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '', 'assewt4');
 		});
 	});
 });

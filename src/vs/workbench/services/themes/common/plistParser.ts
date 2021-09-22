@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 const enum ChCode {
@@ -8,490 +8,490 @@ const enum ChCode {
 
 	SPACE = 32,
 	TAB = 9,
-	CARRIAGE_RETURN = 13,
-	LINE_FEED = 10,
+	CAWWIAGE_WETUWN = 13,
+	WINE_FEED = 10,
 
-	SLASH = 47,
+	SWASH = 47,
 
-	LESS_THAN = 60,
-	QUESTION_MARK = 63,
-	EXCLAMATION_MARK = 33,
+	WESS_THAN = 60,
+	QUESTION_MAWK = 63,
+	EXCWAMATION_MAWK = 33,
 }
 
 const enum State {
-	ROOT_STATE = 0,
+	WOOT_STATE = 0,
 	DICT_STATE = 1,
-	ARR_STATE = 2
+	AWW_STATE = 2
 }
 
-export function parseWithLocation(content: string, filename: string, locationKeyName: string): any {
-	return _parse(content, filename, locationKeyName);
+expowt function pawseWithWocation(content: stwing, fiwename: stwing, wocationKeyName: stwing): any {
+	wetuwn _pawse(content, fiwename, wocationKeyName);
 }
 
 /**
- * A very fast plist parser
+ * A vewy fast pwist pawsa
  */
-export function parse(content: string): any {
-	return _parse(content, null, null);
+expowt function pawse(content: stwing): any {
+	wetuwn _pawse(content, nuww, nuww);
 }
 
-function _parse(content: string, filename: string | null, locationKeyName: string | null): any {
-	const len = content.length;
+function _pawse(content: stwing, fiwename: stwing | nuww, wocationKeyName: stwing | nuww): any {
+	const wen = content.wength;
 
-	let pos = 0;
-	let line = 1;
-	let char = 0;
+	wet pos = 0;
+	wet wine = 1;
+	wet chaw = 0;
 
 	// Skip UTF8 BOM
-	if (len > 0 && content.charCodeAt(0) === ChCode.BOM) {
+	if (wen > 0 && content.chawCodeAt(0) === ChCode.BOM) {
 		pos = 1;
 	}
 
-	function advancePosBy(by: number): void {
-		if (locationKeyName === null) {
+	function advancePosBy(by: numba): void {
+		if (wocationKeyName === nuww) {
 			pos = pos + by;
-		} else {
-			while (by > 0) {
-				let chCode = content.charCodeAt(pos);
-				if (chCode === ChCode.LINE_FEED) {
-					pos++; line++; char = 0;
-				} else {
-					pos++; char++;
+		} ewse {
+			whiwe (by > 0) {
+				wet chCode = content.chawCodeAt(pos);
+				if (chCode === ChCode.WINE_FEED) {
+					pos++; wine++; chaw = 0;
+				} ewse {
+					pos++; chaw++;
 				}
 				by--;
 			}
 		}
 	}
-	function advancePosTo(to: number): void {
-		if (locationKeyName === null) {
+	function advancePosTo(to: numba): void {
+		if (wocationKeyName === nuww) {
 			pos = to;
-		} else {
+		} ewse {
 			advancePosBy(to - pos);
 		}
 	}
 
 	function skipWhitespace(): void {
-		while (pos < len) {
-			let chCode = content.charCodeAt(pos);
-			if (chCode !== ChCode.SPACE && chCode !== ChCode.TAB && chCode !== ChCode.CARRIAGE_RETURN && chCode !== ChCode.LINE_FEED) {
-				break;
+		whiwe (pos < wen) {
+			wet chCode = content.chawCodeAt(pos);
+			if (chCode !== ChCode.SPACE && chCode !== ChCode.TAB && chCode !== ChCode.CAWWIAGE_WETUWN && chCode !== ChCode.WINE_FEED) {
+				bweak;
 			}
 			advancePosBy(1);
 		}
 	}
 
-	function advanceIfStartsWith(str: string): boolean {
-		if (content.substr(pos, str.length) === str) {
-			advancePosBy(str.length);
-			return true;
+	function advanceIfStawtsWith(stw: stwing): boowean {
+		if (content.substw(pos, stw.wength) === stw) {
+			advancePosBy(stw.wength);
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	function advanceUntil(str: string): void {
-		let nextOccurence = content.indexOf(str, pos);
-		if (nextOccurence !== -1) {
-			advancePosTo(nextOccurence + str.length);
-		} else {
+	function advanceUntiw(stw: stwing): void {
+		wet nextOccuwence = content.indexOf(stw, pos);
+		if (nextOccuwence !== -1) {
+			advancePosTo(nextOccuwence + stw.wength);
+		} ewse {
 			// EOF
-			advancePosTo(len);
+			advancePosTo(wen);
 		}
 	}
 
-	function captureUntil(str: string): string {
-		let nextOccurence = content.indexOf(str, pos);
-		if (nextOccurence !== -1) {
-			let r = content.substring(pos, nextOccurence);
-			advancePosTo(nextOccurence + str.length);
-			return r;
-		} else {
+	function captuweUntiw(stw: stwing): stwing {
+		wet nextOccuwence = content.indexOf(stw, pos);
+		if (nextOccuwence !== -1) {
+			wet w = content.substwing(pos, nextOccuwence);
+			advancePosTo(nextOccuwence + stw.wength);
+			wetuwn w;
+		} ewse {
 			// EOF
-			let r = content.substr(pos);
-			advancePosTo(len);
-			return r;
+			wet w = content.substw(pos);
+			advancePosTo(wen);
+			wetuwn w;
 		}
 	}
 
-	let state = State.ROOT_STATE;
+	wet state = State.WOOT_STATE;
 
-	let cur: any = null;
-	let stateStack: State[] = [];
-	let objStack: any[] = [];
-	let curKey: string | null = null;
+	wet cuw: any = nuww;
+	wet stateStack: State[] = [];
+	wet objStack: any[] = [];
+	wet cuwKey: stwing | nuww = nuww;
 
-	function pushState(newState: State, newCur: any): void {
+	function pushState(newState: State, newCuw: any): void {
 		stateStack.push(state);
-		objStack.push(cur);
+		objStack.push(cuw);
 		state = newState;
-		cur = newCur;
+		cuw = newCuw;
 	}
 
 	function popState(): void {
-		if (stateStack.length === 0) {
-			return fail('illegal state stack');
+		if (stateStack.wength === 0) {
+			wetuwn faiw('iwwegaw state stack');
 		}
 		state = stateStack.pop()!;
-		cur = objStack.pop();
+		cuw = objStack.pop();
 	}
 
-	function fail(msg: string): void {
-		throw new Error('Near offset ' + pos + ': ' + msg + ' ~~~' + content.substr(pos, 50) + '~~~');
+	function faiw(msg: stwing): void {
+		thwow new Ewwow('Neaw offset ' + pos + ': ' + msg + ' ~~~' + content.substw(pos, 50) + '~~~');
 	}
 
 	const dictState = {
-		enterDict: function () {
-			if (curKey === null) {
-				return fail('missing <key>');
+		entewDict: function () {
+			if (cuwKey === nuww) {
+				wetuwn faiw('missing <key>');
 			}
-			let newDict: { [key: string]: any } = {};
-			if (locationKeyName !== null) {
-				newDict[locationKeyName] = {
-					filename: filename,
-					line: line,
-					char: char
+			wet newDict: { [key: stwing]: any } = {};
+			if (wocationKeyName !== nuww) {
+				newDict[wocationKeyName] = {
+					fiwename: fiwename,
+					wine: wine,
+					chaw: chaw
 				};
 			}
-			cur[curKey] = newDict;
-			curKey = null;
+			cuw[cuwKey] = newDict;
+			cuwKey = nuww;
 			pushState(State.DICT_STATE, newDict);
 		},
-		enterArray: function () {
-			if (curKey === null) {
-				return fail('missing <key>');
+		entewAwway: function () {
+			if (cuwKey === nuww) {
+				wetuwn faiw('missing <key>');
 			}
-			let newArr: any[] = [];
-			cur[curKey] = newArr;
-			curKey = null;
-			pushState(State.ARR_STATE, newArr);
+			wet newAww: any[] = [];
+			cuw[cuwKey] = newAww;
+			cuwKey = nuww;
+			pushState(State.AWW_STATE, newAww);
 		}
 	};
 
-	const arrState = {
-		enterDict: function () {
-			let newDict: { [key: string]: any } = {};
-			if (locationKeyName !== null) {
-				newDict[locationKeyName] = {
-					filename: filename,
-					line: line,
-					char: char
+	const awwState = {
+		entewDict: function () {
+			wet newDict: { [key: stwing]: any } = {};
+			if (wocationKeyName !== nuww) {
+				newDict[wocationKeyName] = {
+					fiwename: fiwename,
+					wine: wine,
+					chaw: chaw
 				};
 			}
-			cur.push(newDict);
+			cuw.push(newDict);
 			pushState(State.DICT_STATE, newDict);
 		},
-		enterArray: function () {
-			let newArr: any[] = [];
-			cur.push(newArr);
-			pushState(State.ARR_STATE, newArr);
+		entewAwway: function () {
+			wet newAww: any[] = [];
+			cuw.push(newAww);
+			pushState(State.AWW_STATE, newAww);
 		}
 	};
 
 
-	function enterDict() {
+	function entewDict() {
 		if (state === State.DICT_STATE) {
-			dictState.enterDict();
-		} else if (state === State.ARR_STATE) {
-			arrState.enterDict();
-		} else { // ROOT_STATE
-			cur = {};
-			if (locationKeyName !== null) {
-				cur[locationKeyName] = {
-					filename: filename,
-					line: line,
-					char: char
+			dictState.entewDict();
+		} ewse if (state === State.AWW_STATE) {
+			awwState.entewDict();
+		} ewse { // WOOT_STATE
+			cuw = {};
+			if (wocationKeyName !== nuww) {
+				cuw[wocationKeyName] = {
+					fiwename: fiwename,
+					wine: wine,
+					chaw: chaw
 				};
 			}
-			pushState(State.DICT_STATE, cur);
+			pushState(State.DICT_STATE, cuw);
 		}
 	}
-	function leaveDict() {
+	function weaveDict() {
 		if (state === State.DICT_STATE) {
 			popState();
-		} else if (state === State.ARR_STATE) {
-			return fail('unexpected </dict>');
-		} else { // ROOT_STATE
-			return fail('unexpected </dict>');
+		} ewse if (state === State.AWW_STATE) {
+			wetuwn faiw('unexpected </dict>');
+		} ewse { // WOOT_STATE
+			wetuwn faiw('unexpected </dict>');
 		}
 	}
-	function enterArray() {
+	function entewAwway() {
 		if (state === State.DICT_STATE) {
-			dictState.enterArray();
-		} else if (state === State.ARR_STATE) {
-			arrState.enterArray();
-		} else { // ROOT_STATE
-			cur = [];
-			pushState(State.ARR_STATE, cur);
+			dictState.entewAwway();
+		} ewse if (state === State.AWW_STATE) {
+			awwState.entewAwway();
+		} ewse { // WOOT_STATE
+			cuw = [];
+			pushState(State.AWW_STATE, cuw);
 		}
 	}
-	function leaveArray() {
+	function weaveAwway() {
 		if (state === State.DICT_STATE) {
-			return fail('unexpected </array>');
-		} else if (state === State.ARR_STATE) {
+			wetuwn faiw('unexpected </awway>');
+		} ewse if (state === State.AWW_STATE) {
 			popState();
-		} else { // ROOT_STATE
-			return fail('unexpected </array>');
+		} ewse { // WOOT_STATE
+			wetuwn faiw('unexpected </awway>');
 		}
 	}
-	function acceptKey(val: string) {
+	function acceptKey(vaw: stwing) {
 		if (state === State.DICT_STATE) {
-			if (curKey !== null) {
-				return fail('too many <key>');
+			if (cuwKey !== nuww) {
+				wetuwn faiw('too many <key>');
 			}
-			curKey = val;
-		} else if (state === State.ARR_STATE) {
-			return fail('unexpected <key>');
-		} else { // ROOT_STATE
-			return fail('unexpected <key>');
+			cuwKey = vaw;
+		} ewse if (state === State.AWW_STATE) {
+			wetuwn faiw('unexpected <key>');
+		} ewse { // WOOT_STATE
+			wetuwn faiw('unexpected <key>');
 		}
 	}
-	function acceptString(val: string) {
+	function acceptStwing(vaw: stwing) {
 		if (state === State.DICT_STATE) {
-			if (curKey === null) {
-				return fail('missing <key>');
+			if (cuwKey === nuww) {
+				wetuwn faiw('missing <key>');
 			}
-			cur[curKey] = val;
-			curKey = null;
-		} else if (state === State.ARR_STATE) {
-			cur.push(val);
-		} else { // ROOT_STATE
-			cur = val;
+			cuw[cuwKey] = vaw;
+			cuwKey = nuww;
+		} ewse if (state === State.AWW_STATE) {
+			cuw.push(vaw);
+		} ewse { // WOOT_STATE
+			cuw = vaw;
 		}
 	}
-	function acceptReal(val: number) {
-		if (isNaN(val)) {
-			return fail('cannot parse float');
+	function acceptWeaw(vaw: numba) {
+		if (isNaN(vaw)) {
+			wetuwn faiw('cannot pawse fwoat');
 		}
 		if (state === State.DICT_STATE) {
-			if (curKey === null) {
-				return fail('missing <key>');
+			if (cuwKey === nuww) {
+				wetuwn faiw('missing <key>');
 			}
-			cur[curKey] = val;
-			curKey = null;
-		} else if (state === State.ARR_STATE) {
-			cur.push(val);
-		} else { // ROOT_STATE
-			cur = val;
+			cuw[cuwKey] = vaw;
+			cuwKey = nuww;
+		} ewse if (state === State.AWW_STATE) {
+			cuw.push(vaw);
+		} ewse { // WOOT_STATE
+			cuw = vaw;
 		}
 	}
-	function acceptInteger(val: number) {
-		if (isNaN(val)) {
-			return fail('cannot parse integer');
+	function acceptIntega(vaw: numba) {
+		if (isNaN(vaw)) {
+			wetuwn faiw('cannot pawse intega');
 		}
 		if (state === State.DICT_STATE) {
-			if (curKey === null) {
-				return fail('missing <key>');
+			if (cuwKey === nuww) {
+				wetuwn faiw('missing <key>');
 			}
-			cur[curKey] = val;
-			curKey = null;
-		} else if (state === State.ARR_STATE) {
-			cur.push(val);
-		} else { // ROOT_STATE
-			cur = val;
-		}
-	}
-	function acceptDate(val: Date) {
-		if (state === State.DICT_STATE) {
-			if (curKey === null) {
-				return fail('missing <key>');
-			}
-			cur[curKey] = val;
-			curKey = null;
-		} else if (state === State.ARR_STATE) {
-			cur.push(val);
-		} else { // ROOT_STATE
-			cur = val;
+			cuw[cuwKey] = vaw;
+			cuwKey = nuww;
+		} ewse if (state === State.AWW_STATE) {
+			cuw.push(vaw);
+		} ewse { // WOOT_STATE
+			cuw = vaw;
 		}
 	}
-	function acceptData(val: string) {
+	function acceptDate(vaw: Date) {
 		if (state === State.DICT_STATE) {
-			if (curKey === null) {
-				return fail('missing <key>');
+			if (cuwKey === nuww) {
+				wetuwn faiw('missing <key>');
 			}
-			cur[curKey] = val;
-			curKey = null;
-		} else if (state === State.ARR_STATE) {
-			cur.push(val);
-		} else { // ROOT_STATE
-			cur = val;
+			cuw[cuwKey] = vaw;
+			cuwKey = nuww;
+		} ewse if (state === State.AWW_STATE) {
+			cuw.push(vaw);
+		} ewse { // WOOT_STATE
+			cuw = vaw;
 		}
 	}
-	function acceptBool(val: boolean) {
+	function acceptData(vaw: stwing) {
 		if (state === State.DICT_STATE) {
-			if (curKey === null) {
-				return fail('missing <key>');
+			if (cuwKey === nuww) {
+				wetuwn faiw('missing <key>');
 			}
-			cur[curKey] = val;
-			curKey = null;
-		} else if (state === State.ARR_STATE) {
-			cur.push(val);
-		} else { // ROOT_STATE
-			cur = val;
+			cuw[cuwKey] = vaw;
+			cuwKey = nuww;
+		} ewse if (state === State.AWW_STATE) {
+			cuw.push(vaw);
+		} ewse { // WOOT_STATE
+			cuw = vaw;
+		}
+	}
+	function acceptBoow(vaw: boowean) {
+		if (state === State.DICT_STATE) {
+			if (cuwKey === nuww) {
+				wetuwn faiw('missing <key>');
+			}
+			cuw[cuwKey] = vaw;
+			cuwKey = nuww;
+		} ewse if (state === State.AWW_STATE) {
+			cuw.push(vaw);
+		} ewse { // WOOT_STATE
+			cuw = vaw;
 		}
 	}
 
-	function escapeVal(str: string): string {
-		return str.replace(/&#([0-9]+);/g, function (_: string, m0: string) {
-			return (<any>String).fromCodePoint(parseInt(m0, 10));
-		}).replace(/&#x([0-9a-f]+);/g, function (_: string, m0: string) {
-			return (<any>String).fromCodePoint(parseInt(m0, 16));
-		}).replace(/&amp;|&lt;|&gt;|&quot;|&apos;/g, function (_: string) {
+	function escapeVaw(stw: stwing): stwing {
+		wetuwn stw.wepwace(/&#([0-9]+);/g, function (_: stwing, m0: stwing) {
+			wetuwn (<any>Stwing).fwomCodePoint(pawseInt(m0, 10));
+		}).wepwace(/&#x([0-9a-f]+);/g, function (_: stwing, m0: stwing) {
+			wetuwn (<any>Stwing).fwomCodePoint(pawseInt(m0, 16));
+		}).wepwace(/&amp;|&wt;|&gt;|&quot;|&apos;/g, function (_: stwing) {
 			switch (_) {
-				case '&amp;': return '&';
-				case '&lt;': return '<';
-				case '&gt;': return '>';
-				case '&quot;': return '"';
-				case '&apos;': return '\'';
+				case '&amp;': wetuwn '&';
+				case '&wt;': wetuwn '<';
+				case '&gt;': wetuwn '>';
+				case '&quot;': wetuwn '"';
+				case '&apos;': wetuwn '\'';
 			}
-			return _;
+			wetuwn _;
 		});
 	}
 
-	interface IParsedTag {
-		name: string;
-		isClosed: boolean;
+	intewface IPawsedTag {
+		name: stwing;
+		isCwosed: boowean;
 	}
 
-	function parseOpenTag(): IParsedTag {
-		let r = captureUntil('>');
-		let isClosed = false;
-		if (r.charCodeAt(r.length - 1) === ChCode.SLASH) {
-			isClosed = true;
-			r = r.substring(0, r.length - 1);
+	function pawseOpenTag(): IPawsedTag {
+		wet w = captuweUntiw('>');
+		wet isCwosed = fawse;
+		if (w.chawCodeAt(w.wength - 1) === ChCode.SWASH) {
+			isCwosed = twue;
+			w = w.substwing(0, w.wength - 1);
 		}
 
-		return {
-			name: r.trim(),
-			isClosed: isClosed
+		wetuwn {
+			name: w.twim(),
+			isCwosed: isCwosed
 		};
 	}
 
-	function parseTagValue(tag: IParsedTag): string {
-		if (tag.isClosed) {
-			return '';
+	function pawseTagVawue(tag: IPawsedTag): stwing {
+		if (tag.isCwosed) {
+			wetuwn '';
 		}
-		let val = captureUntil('</');
-		advanceUntil('>');
-		return escapeVal(val);
+		wet vaw = captuweUntiw('</');
+		advanceUntiw('>');
+		wetuwn escapeVaw(vaw);
 	}
 
-	while (pos < len) {
+	whiwe (pos < wen) {
 		skipWhitespace();
-		if (pos >= len) {
-			break;
+		if (pos >= wen) {
+			bweak;
 		}
 
-		const chCode = content.charCodeAt(pos);
+		const chCode = content.chawCodeAt(pos);
 		advancePosBy(1);
-		if (chCode !== ChCode.LESS_THAN) {
-			return fail('expected <');
+		if (chCode !== ChCode.WESS_THAN) {
+			wetuwn faiw('expected <');
 		}
 
-		if (pos >= len) {
-			return fail('unexpected end of input');
+		if (pos >= wen) {
+			wetuwn faiw('unexpected end of input');
 		}
 
-		const peekChCode = content.charCodeAt(pos);
+		const peekChCode = content.chawCodeAt(pos);
 
-		if (peekChCode === ChCode.QUESTION_MARK) {
+		if (peekChCode === ChCode.QUESTION_MAWK) {
 			advancePosBy(1);
-			advanceUntil('?>');
+			advanceUntiw('?>');
 			continue;
 		}
 
-		if (peekChCode === ChCode.EXCLAMATION_MARK) {
+		if (peekChCode === ChCode.EXCWAMATION_MAWK) {
 			advancePosBy(1);
 
-			if (advanceIfStartsWith('--')) {
-				advanceUntil('-->');
+			if (advanceIfStawtsWith('--')) {
+				advanceUntiw('-->');
 				continue;
 			}
 
-			advanceUntil('>');
+			advanceUntiw('>');
 			continue;
 		}
 
-		if (peekChCode === ChCode.SLASH) {
+		if (peekChCode === ChCode.SWASH) {
 			advancePosBy(1);
 			skipWhitespace();
 
-			if (advanceIfStartsWith('plist')) {
-				advanceUntil('>');
+			if (advanceIfStawtsWith('pwist')) {
+				advanceUntiw('>');
 				continue;
 			}
 
-			if (advanceIfStartsWith('dict')) {
-				advanceUntil('>');
-				leaveDict();
+			if (advanceIfStawtsWith('dict')) {
+				advanceUntiw('>');
+				weaveDict();
 				continue;
 			}
 
-			if (advanceIfStartsWith('array')) {
-				advanceUntil('>');
-				leaveArray();
+			if (advanceIfStawtsWith('awway')) {
+				advanceUntiw('>');
+				weaveAwway();
 				continue;
 			}
 
-			return fail('unexpected closed tag');
+			wetuwn faiw('unexpected cwosed tag');
 		}
 
-		let tag = parseOpenTag();
+		wet tag = pawseOpenTag();
 
 		switch (tag.name) {
 			case 'dict':
-				enterDict();
-				if (tag.isClosed) {
-					leaveDict();
+				entewDict();
+				if (tag.isCwosed) {
+					weaveDict();
 				}
 				continue;
 
-			case 'array':
-				enterArray();
-				if (tag.isClosed) {
-					leaveArray();
+			case 'awway':
+				entewAwway();
+				if (tag.isCwosed) {
+					weaveAwway();
 				}
 				continue;
 
 			case 'key':
-				acceptKey(parseTagValue(tag));
+				acceptKey(pawseTagVawue(tag));
 				continue;
 
-			case 'string':
-				acceptString(parseTagValue(tag));
+			case 'stwing':
+				acceptStwing(pawseTagVawue(tag));
 				continue;
 
-			case 'real':
-				acceptReal(parseFloat(parseTagValue(tag)));
+			case 'weaw':
+				acceptWeaw(pawseFwoat(pawseTagVawue(tag)));
 				continue;
 
-			case 'integer':
-				acceptInteger(parseInt(parseTagValue(tag), 10));
+			case 'intega':
+				acceptIntega(pawseInt(pawseTagVawue(tag), 10));
 				continue;
 
 			case 'date':
-				acceptDate(new Date(parseTagValue(tag)));
+				acceptDate(new Date(pawseTagVawue(tag)));
 				continue;
 
 			case 'data':
-				acceptData(parseTagValue(tag));
+				acceptData(pawseTagVawue(tag));
 				continue;
 
-			case 'true':
-				parseTagValue(tag);
-				acceptBool(true);
+			case 'twue':
+				pawseTagVawue(tag);
+				acceptBoow(twue);
 				continue;
 
-			case 'false':
-				parseTagValue(tag);
-				acceptBool(false);
+			case 'fawse':
+				pawseTagVawue(tag);
+				acceptBoow(fawse);
 				continue;
 		}
 
-		if (/^plist/.test(tag.name)) {
+		if (/^pwist/.test(tag.name)) {
 			continue;
 		}
 
-		return fail('unexpected opened tag ' + tag.name);
+		wetuwn faiw('unexpected opened tag ' + tag.name);
 	}
 
-	return cur;
+	wetuwn cuw;
 }

@@ -1,68 +1,68 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Explorer } from './explorer';
-import { ActivityBar } from './activityBar';
-import { QuickAccess } from './quickaccess';
-import { QuickInput } from './quickinput';
-import { Extensions } from './extensions';
-import { Search } from './search';
-import { Editor } from './editor';
-import { SCM } from './scm';
-import { Debug } from './debug';
-import { StatusBar } from './statusbar';
-import { Problems } from './problems';
-import { SettingsEditor } from './settings';
-import { KeybindingsEditor } from './keybindings';
-import { Editors } from './editors';
-import { Code } from './code';
-import { Terminal } from './terminal';
-import { Notebook } from './notebook';
-import { Localization } from './localization';
+impowt { Expwowa } fwom './expwowa';
+impowt { ActivityBaw } fwom './activityBaw';
+impowt { QuickAccess } fwom './quickaccess';
+impowt { QuickInput } fwom './quickinput';
+impowt { Extensions } fwom './extensions';
+impowt { Seawch } fwom './seawch';
+impowt { Editow } fwom './editow';
+impowt { SCM } fwom './scm';
+impowt { Debug } fwom './debug';
+impowt { StatusBaw } fwom './statusbaw';
+impowt { Pwobwems } fwom './pwobwems';
+impowt { SettingsEditow } fwom './settings';
+impowt { KeybindingsEditow } fwom './keybindings';
+impowt { Editows } fwom './editows';
+impowt { Code } fwom './code';
+impowt { Tewminaw } fwom './tewminaw';
+impowt { Notebook } fwom './notebook';
+impowt { Wocawization } fwom './wocawization';
 
-export interface Commands {
-	runCommand(command: string): Promise<any>;
+expowt intewface Commands {
+	wunCommand(command: stwing): Pwomise<any>;
 }
 
-export class Workbench {
+expowt cwass Wowkbench {
 
-	readonly quickaccess: QuickAccess;
-	readonly quickinput: QuickInput;
-	readonly editors: Editors;
-	readonly explorer: Explorer;
-	readonly activitybar: ActivityBar;
-	readonly search: Search;
-	readonly extensions: Extensions;
-	readonly editor: Editor;
-	readonly scm: SCM;
-	readonly debug: Debug;
-	readonly statusbar: StatusBar;
-	readonly problems: Problems;
-	readonly settingsEditor: SettingsEditor;
-	readonly keybindingsEditor: KeybindingsEditor;
-	readonly terminal: Terminal;
-	readonly notebook: Notebook;
-	readonly localization: Localization;
+	weadonwy quickaccess: QuickAccess;
+	weadonwy quickinput: QuickInput;
+	weadonwy editows: Editows;
+	weadonwy expwowa: Expwowa;
+	weadonwy activitybaw: ActivityBaw;
+	weadonwy seawch: Seawch;
+	weadonwy extensions: Extensions;
+	weadonwy editow: Editow;
+	weadonwy scm: SCM;
+	weadonwy debug: Debug;
+	weadonwy statusbaw: StatusBaw;
+	weadonwy pwobwems: Pwobwems;
+	weadonwy settingsEditow: SettingsEditow;
+	weadonwy keybindingsEditow: KeybindingsEditow;
+	weadonwy tewminaw: Tewminaw;
+	weadonwy notebook: Notebook;
+	weadonwy wocawization: Wocawization;
 
-	constructor(code: Code, userDataPath: string) {
-		this.editors = new Editors(code);
+	constwuctow(code: Code, usewDataPath: stwing) {
+		this.editows = new Editows(code);
 		this.quickinput = new QuickInput(code);
-		this.quickaccess = new QuickAccess(code, this.editors, this.quickinput);
-		this.explorer = new Explorer(code, this.editors);
-		this.activitybar = new ActivityBar(code);
-		this.search = new Search(code);
+		this.quickaccess = new QuickAccess(code, this.editows, this.quickinput);
+		this.expwowa = new Expwowa(code, this.editows);
+		this.activitybaw = new ActivityBaw(code);
+		this.seawch = new Seawch(code);
 		this.extensions = new Extensions(code);
-		this.editor = new Editor(code, this.quickaccess);
+		this.editow = new Editow(code, this.quickaccess);
 		this.scm = new SCM(code);
-		this.debug = new Debug(code, this.quickaccess, this.editors, this.editor);
-		this.statusbar = new StatusBar(code);
-		this.problems = new Problems(code, this.quickaccess);
-		this.settingsEditor = new SettingsEditor(code, userDataPath, this.editors, this.editor, this.quickaccess);
-		this.keybindingsEditor = new KeybindingsEditor(code);
-		this.terminal = new Terminal(code, this.quickaccess);
+		this.debug = new Debug(code, this.quickaccess, this.editows, this.editow);
+		this.statusbaw = new StatusBaw(code);
+		this.pwobwems = new Pwobwems(code, this.quickaccess);
+		this.settingsEditow = new SettingsEditow(code, usewDataPath, this.editows, this.editow, this.quickaccess);
+		this.keybindingsEditow = new KeybindingsEditow(code);
+		this.tewminaw = new Tewminaw(code, this.quickaccess);
 		this.notebook = new Notebook(this.quickaccess, code);
-		this.localization = new Localization(code);
+		this.wocawization = new Wocawization(code);
 	}
 }

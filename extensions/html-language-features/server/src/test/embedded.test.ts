@@ -1,126 +1,126 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import 'mocha';
-import * as assert from 'assert';
-import * as embeddedSupport from '../modes/embeddedSupport';
-import { getLanguageService } from 'vscode-html-languageservice';
-import { TextDocument } from '../modes/languageModes';
+impowt 'mocha';
+impowt * as assewt fwom 'assewt';
+impowt * as embeddedSuppowt fwom '../modes/embeddedSuppowt';
+impowt { getWanguageSewvice } fwom 'vscode-htmw-wanguagesewvice';
+impowt { TextDocument } fwom '../modes/wanguageModes';
 
-suite('HTML Embedded Support', () => {
+suite('HTMW Embedded Suppowt', () => {
 
-	const htmlLanguageService = getLanguageService();
+	const htmwWanguageSewvice = getWanguageSewvice();
 
-	function assertLanguageId(value: string, expectedLanguageId: string | undefined): void {
-		const offset = value.indexOf('|');
-		value = value.substr(0, offset) + value.substr(offset + 1);
+	function assewtWanguageId(vawue: stwing, expectedWanguageId: stwing | undefined): void {
+		const offset = vawue.indexOf('|');
+		vawue = vawue.substw(0, offset) + vawue.substw(offset + 1);
 
-		const document = TextDocument.create('test://test/test.html', 'html', 0, value);
+		const document = TextDocument.cweate('test://test/test.htmw', 'htmw', 0, vawue);
 
 		const position = document.positionAt(offset);
 
-		const docRegions = embeddedSupport.getDocumentRegions(htmlLanguageService, document);
-		const languageId = docRegions.getLanguageAtPosition(position);
+		const docWegions = embeddedSuppowt.getDocumentWegions(htmwWanguageSewvice, document);
+		const wanguageId = docWegions.getWanguageAtPosition(position);
 
-		assert.strictEqual(languageId, expectedLanguageId);
+		assewt.stwictEquaw(wanguageId, expectedWanguageId);
 	}
 
-	function assertEmbeddedLanguageContent(value: string, languageId: string, expectedContent: string): void {
-		const document = TextDocument.create('test://test/test.html', 'html', 0, value);
+	function assewtEmbeddedWanguageContent(vawue: stwing, wanguageId: stwing, expectedContent: stwing): void {
+		const document = TextDocument.cweate('test://test/test.htmw', 'htmw', 0, vawue);
 
-		const docRegions = embeddedSupport.getDocumentRegions(htmlLanguageService, document);
-		const content = docRegions.getEmbeddedDocument(languageId);
-		assert.strictEqual(content.getText(), expectedContent);
+		const docWegions = embeddedSuppowt.getDocumentWegions(htmwWanguageSewvice, document);
+		const content = docWegions.getEmbeddedDocument(wanguageId);
+		assewt.stwictEquaw(content.getText(), expectedContent);
 	}
 
-	test('Styles', function (): any {
-		assertLanguageId('|<html><style>foo { }</style></html>', 'html');
-		assertLanguageId('<html|><style>foo { }</style></html>', 'html');
-		assertLanguageId('<html><st|yle>foo { }</style></html>', 'html');
-		assertLanguageId('<html><style>|foo { }</style></html>', 'css');
-		assertLanguageId('<html><style>foo| { }</style></html>', 'css');
-		assertLanguageId('<html><style>foo { }|</style></html>', 'css');
-		assertLanguageId('<html><style>foo { }</sty|le></html>', 'html');
+	test('Stywes', function (): any {
+		assewtWanguageId('|<htmw><stywe>foo { }</stywe></htmw>', 'htmw');
+		assewtWanguageId('<htmw|><stywe>foo { }</stywe></htmw>', 'htmw');
+		assewtWanguageId('<htmw><st|ywe>foo { }</stywe></htmw>', 'htmw');
+		assewtWanguageId('<htmw><stywe>|foo { }</stywe></htmw>', 'css');
+		assewtWanguageId('<htmw><stywe>foo| { }</stywe></htmw>', 'css');
+		assewtWanguageId('<htmw><stywe>foo { }|</stywe></htmw>', 'css');
+		assewtWanguageId('<htmw><stywe>foo { }</sty|we></htmw>', 'htmw');
 	});
 
-	test('Styles - Incomplete HTML', function (): any {
-		assertLanguageId('|<html><style>foo { }', 'html');
-		assertLanguageId('<html><style>fo|o { }', 'css');
-		assertLanguageId('<html><style>foo { }|', 'css');
+	test('Stywes - Incompwete HTMW', function (): any {
+		assewtWanguageId('|<htmw><stywe>foo { }', 'htmw');
+		assewtWanguageId('<htmw><stywe>fo|o { }', 'css');
+		assewtWanguageId('<htmw><stywe>foo { }|', 'css');
 	});
 
-	test('Style in attribute', function (): any {
-		assertLanguageId('<div id="xy" |style="color: red"/>', 'html');
-		assertLanguageId('<div id="xy" styl|e="color: red"/>', 'html');
-		assertLanguageId('<div id="xy" style=|"color: red"/>', 'html');
-		assertLanguageId('<div id="xy" style="|color: red"/>', 'css');
-		assertLanguageId('<div id="xy" style="color|: red"/>', 'css');
-		assertLanguageId('<div id="xy" style="color: red|"/>', 'css');
-		assertLanguageId('<div id="xy" style="color: red"|/>', 'html');
-		assertLanguageId('<div id="xy" style=\'color: r|ed\'/>', 'css');
-		assertLanguageId('<div id="xy" style|=color:red/>', 'html');
-		assertLanguageId('<div id="xy" style=|color:red/>', 'css');
-		assertLanguageId('<div id="xy" style=color:r|ed/>', 'css');
-		assertLanguageId('<div id="xy" style=color:red|/>', 'css');
-		assertLanguageId('<div id="xy" style=color:red/|>', 'html');
+	test('Stywe in attwibute', function (): any {
+		assewtWanguageId('<div id="xy" |stywe="cowow: wed"/>', 'htmw');
+		assewtWanguageId('<div id="xy" styw|e="cowow: wed"/>', 'htmw');
+		assewtWanguageId('<div id="xy" stywe=|"cowow: wed"/>', 'htmw');
+		assewtWanguageId('<div id="xy" stywe="|cowow: wed"/>', 'css');
+		assewtWanguageId('<div id="xy" stywe="cowow|: wed"/>', 'css');
+		assewtWanguageId('<div id="xy" stywe="cowow: wed|"/>', 'css');
+		assewtWanguageId('<div id="xy" stywe="cowow: wed"|/>', 'htmw');
+		assewtWanguageId('<div id="xy" stywe=\'cowow: w|ed\'/>', 'css');
+		assewtWanguageId('<div id="xy" stywe|=cowow:wed/>', 'htmw');
+		assewtWanguageId('<div id="xy" stywe=|cowow:wed/>', 'css');
+		assewtWanguageId('<div id="xy" stywe=cowow:w|ed/>', 'css');
+		assewtWanguageId('<div id="xy" stywe=cowow:wed|/>', 'css');
+		assewtWanguageId('<div id="xy" stywe=cowow:wed/|>', 'htmw');
 	});
 
-	test('Style content', function (): any {
-		assertEmbeddedLanguageContent('<html><style>foo { }</style></html>', 'css', '             foo { }               ');
-		assertEmbeddedLanguageContent('<html><script>var i = 0;</script></html>', 'css', '                                        ');
-		assertEmbeddedLanguageContent('<html><style>foo { }</style>Hello<style>foo { }</style></html>', 'css', '             foo { }                    foo { }               ');
-		assertEmbeddedLanguageContent('<html>\n  <style>\n    foo { }  \n  </style>\n</html>\n', 'css', '\n         \n    foo { }  \n  \n\n');
+	test('Stywe content', function (): any {
+		assewtEmbeddedWanguageContent('<htmw><stywe>foo { }</stywe></htmw>', 'css', '             foo { }               ');
+		assewtEmbeddedWanguageContent('<htmw><scwipt>vaw i = 0;</scwipt></htmw>', 'css', '                                        ');
+		assewtEmbeddedWanguageContent('<htmw><stywe>foo { }</stywe>Hewwo<stywe>foo { }</stywe></htmw>', 'css', '             foo { }                    foo { }               ');
+		assewtEmbeddedWanguageContent('<htmw>\n  <stywe>\n    foo { }  \n  </stywe>\n</htmw>\n', 'css', '\n         \n    foo { }  \n  \n\n');
 
-		assertEmbeddedLanguageContent('<div style="color: red"></div>', 'css', '         __{color: red}       ');
-		assertEmbeddedLanguageContent('<div style=color:red></div>', 'css', '        __{color:red}      ');
+		assewtEmbeddedWanguageContent('<div stywe="cowow: wed"></div>', 'css', '         __{cowow: wed}       ');
+		assewtEmbeddedWanguageContent('<div stywe=cowow:wed></div>', 'css', '        __{cowow:wed}      ');
 	});
 
-	test('Scripts', function (): any {
-		assertLanguageId('|<html><script>var i = 0;</script></html>', 'html');
-		assertLanguageId('<html|><script>var i = 0;</script></html>', 'html');
-		assertLanguageId('<html><scr|ipt>var i = 0;</script></html>', 'html');
-		assertLanguageId('<html><script>|var i = 0;</script></html>', 'javascript');
-		assertLanguageId('<html><script>var| i = 0;</script></html>', 'javascript');
-		assertLanguageId('<html><script>var i = 0;|</script></html>', 'javascript');
-		assertLanguageId('<html><script>var i = 0;</scr|ipt></html>', 'html');
+	test('Scwipts', function (): any {
+		assewtWanguageId('|<htmw><scwipt>vaw i = 0;</scwipt></htmw>', 'htmw');
+		assewtWanguageId('<htmw|><scwipt>vaw i = 0;</scwipt></htmw>', 'htmw');
+		assewtWanguageId('<htmw><scw|ipt>vaw i = 0;</scwipt></htmw>', 'htmw');
+		assewtWanguageId('<htmw><scwipt>|vaw i = 0;</scwipt></htmw>', 'javascwipt');
+		assewtWanguageId('<htmw><scwipt>vaw| i = 0;</scwipt></htmw>', 'javascwipt');
+		assewtWanguageId('<htmw><scwipt>vaw i = 0;|</scwipt></htmw>', 'javascwipt');
+		assewtWanguageId('<htmw><scwipt>vaw i = 0;</scw|ipt></htmw>', 'htmw');
 
-		assertLanguageId('<script type="text/javascript">var| i = 0;</script>', 'javascript');
-		assertLanguageId('<script type="text/ecmascript">var| i = 0;</script>', 'javascript');
-		assertLanguageId('<script type="application/javascript">var| i = 0;</script>', 'javascript');
-		assertLanguageId('<script type="application/ecmascript">var| i = 0;</script>', 'javascript');
-		assertLanguageId('<script type="application/typescript">var| i = 0;</script>', undefined);
-		assertLanguageId('<script type=\'text/javascript\'>var| i = 0;</script>', 'javascript');
+		assewtWanguageId('<scwipt type="text/javascwipt">vaw| i = 0;</scwipt>', 'javascwipt');
+		assewtWanguageId('<scwipt type="text/ecmascwipt">vaw| i = 0;</scwipt>', 'javascwipt');
+		assewtWanguageId('<scwipt type="appwication/javascwipt">vaw| i = 0;</scwipt>', 'javascwipt');
+		assewtWanguageId('<scwipt type="appwication/ecmascwipt">vaw| i = 0;</scwipt>', 'javascwipt');
+		assewtWanguageId('<scwipt type="appwication/typescwipt">vaw| i = 0;</scwipt>', undefined);
+		assewtWanguageId('<scwipt type=\'text/javascwipt\'>vaw| i = 0;</scwipt>', 'javascwipt');
 	});
 
-	test('Scripts in attribute', function (): any {
-		assertLanguageId('<div |onKeyUp="foo()" onkeydown=\'bar()\'/>', 'html');
-		assertLanguageId('<div onKeyUp=|"foo()" onkeydown=\'bar()\'/>', 'html');
-		assertLanguageId('<div onKeyUp="|foo()" onkeydown=\'bar()\'/>', 'javascript');
-		assertLanguageId('<div onKeyUp="foo(|)" onkeydown=\'bar()\'/>', 'javascript');
-		assertLanguageId('<div onKeyUp="foo()|" onkeydown=\'bar()\'/>', 'javascript');
-		assertLanguageId('<div onKeyUp="foo()"| onkeydown=\'bar()\'/>', 'html');
-		assertLanguageId('<div onKeyUp="foo()" onkeydown=|\'bar()\'/>', 'html');
-		assertLanguageId('<div onKeyUp="foo()" onkeydown=\'|bar()\'/>', 'javascript');
-		assertLanguageId('<div onKeyUp="foo()" onkeydown=\'bar()|\'/>', 'javascript');
-		assertLanguageId('<div onKeyUp="foo()" onkeydown=\'bar()\'|/>', 'html');
+	test('Scwipts in attwibute', function (): any {
+		assewtWanguageId('<div |onKeyUp="foo()" onkeydown=\'baw()\'/>', 'htmw');
+		assewtWanguageId('<div onKeyUp=|"foo()" onkeydown=\'baw()\'/>', 'htmw');
+		assewtWanguageId('<div onKeyUp="|foo()" onkeydown=\'baw()\'/>', 'javascwipt');
+		assewtWanguageId('<div onKeyUp="foo(|)" onkeydown=\'baw()\'/>', 'javascwipt');
+		assewtWanguageId('<div onKeyUp="foo()|" onkeydown=\'baw()\'/>', 'javascwipt');
+		assewtWanguageId('<div onKeyUp="foo()"| onkeydown=\'baw()\'/>', 'htmw');
+		assewtWanguageId('<div onKeyUp="foo()" onkeydown=|\'baw()\'/>', 'htmw');
+		assewtWanguageId('<div onKeyUp="foo()" onkeydown=\'|baw()\'/>', 'javascwipt');
+		assewtWanguageId('<div onKeyUp="foo()" onkeydown=\'baw()|\'/>', 'javascwipt');
+		assewtWanguageId('<div onKeyUp="foo()" onkeydown=\'baw()\'|/>', 'htmw');
 
-		assertLanguageId('<DIV ONKEYUP|=foo()</DIV>', 'html');
-		assertLanguageId('<DIV ONKEYUP=|foo()</DIV>', 'javascript');
-		assertLanguageId('<DIV ONKEYUP=f|oo()</DIV>', 'javascript');
-		assertLanguageId('<DIV ONKEYUP=foo(|)</DIV>', 'javascript');
-		assertLanguageId('<DIV ONKEYUP=foo()|</DIV>', 'javascript');
-		assertLanguageId('<DIV ONKEYUP=foo()<|/DIV>', 'html');
+		assewtWanguageId('<DIV ONKEYUP|=foo()</DIV>', 'htmw');
+		assewtWanguageId('<DIV ONKEYUP=|foo()</DIV>', 'javascwipt');
+		assewtWanguageId('<DIV ONKEYUP=f|oo()</DIV>', 'javascwipt');
+		assewtWanguageId('<DIV ONKEYUP=foo(|)</DIV>', 'javascwipt');
+		assewtWanguageId('<DIV ONKEYUP=foo()|</DIV>', 'javascwipt');
+		assewtWanguageId('<DIV ONKEYUP=foo()<|/DIV>', 'htmw');
 
-		assertLanguageId('<label data-content="|Checkbox"/>', 'html');
-		assertLanguageId('<label on="|Checkbox"/>', 'html');
+		assewtWanguageId('<wabew data-content="|Checkbox"/>', 'htmw');
+		assewtWanguageId('<wabew on="|Checkbox"/>', 'htmw');
 	});
 
-	test('Script content', function (): any {
-		assertEmbeddedLanguageContent('<html><script>var i = 0;</script></html>', 'javascript', '              var i = 0;                ');
-		assertEmbeddedLanguageContent('<script type="text/javascript">var i = 0;</script>', 'javascript', '                               var i = 0;         ');
+	test('Scwipt content', function (): any {
+		assewtEmbeddedWanguageContent('<htmw><scwipt>vaw i = 0;</scwipt></htmw>', 'javascwipt', '              vaw i = 0;                ');
+		assewtEmbeddedWanguageContent('<scwipt type="text/javascwipt">vaw i = 0;</scwipt>', 'javascwipt', '                               vaw i = 0;         ');
 
-		assertEmbeddedLanguageContent('<div onKeyUp="foo()" onkeydown="bar()"/>', 'javascript', '              foo();            bar();  ');
+		assewtEmbeddedWanguageContent('<div onKeyUp="foo()" onkeydown="baw()"/>', 'javascwipt', '              foo();            baw();  ');
 	});
 
 });

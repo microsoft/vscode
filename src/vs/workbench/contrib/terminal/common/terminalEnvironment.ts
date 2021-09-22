@@ -1,122 +1,122 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'vs/base/common/path';
-import { URI as Uri } from 'vs/base/common/uri';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IShellLaunchConfig, ITerminalEnvironment, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
-import { IProcessEnvironment, isWindows, locale, OperatingSystem, OS, platform, Platform } from 'vs/base/common/platform';
+impowt * as path fwom 'vs/base/common/path';
+impowt { UWI as Uwi } fwom 'vs/base/common/uwi';
+impowt { IWowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IConfiguwationWesowvewSewvice } fwom 'vs/wowkbench/sewvices/configuwationWesowva/common/configuwationWesowva';
+impowt { sanitizePwocessEnviwonment } fwom 'vs/base/common/pwocesses';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IShewwWaunchConfig, ITewminawEnviwonment, TewminawSettingId, TewminawSettingPwefix } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { IPwocessEnviwonment, isWindows, wocawe, OpewatingSystem, OS, pwatfowm, Pwatfowm } fwom 'vs/base/common/pwatfowm';
 
 /**
- * This module contains utility functions related to the environment, cwd and paths.
+ * This moduwe contains utiwity functions wewated to the enviwonment, cwd and paths.
  */
 
-export function mergeEnvironments(parent: IProcessEnvironment, other: ITerminalEnvironment | undefined): void {
-	if (!other) {
-		return;
+expowt function mewgeEnviwonments(pawent: IPwocessEnviwonment, otha: ITewminawEnviwonment | undefined): void {
+	if (!otha) {
+		wetuwn;
 	}
 
-	// On Windows apply the new values ignoring case, while still retaining
-	// the case of the original key.
+	// On Windows appwy the new vawues ignowing case, whiwe stiww wetaining
+	// the case of the owiginaw key.
 	if (isWindows) {
-		for (const configKey in other) {
-			let actualKey = configKey;
-			for (const envKey in parent) {
-				if (configKey.toLowerCase() === envKey.toLowerCase()) {
-					actualKey = envKey;
-					break;
+		fow (const configKey in otha) {
+			wet actuawKey = configKey;
+			fow (const envKey in pawent) {
+				if (configKey.toWowewCase() === envKey.toWowewCase()) {
+					actuawKey = envKey;
+					bweak;
 				}
 			}
-			const value = other[configKey];
-			if (value !== undefined) {
-				_mergeEnvironmentValue(parent, actualKey, value);
+			const vawue = otha[configKey];
+			if (vawue !== undefined) {
+				_mewgeEnviwonmentVawue(pawent, actuawKey, vawue);
 			}
 		}
-	} else {
-		Object.keys(other).forEach((key) => {
-			const value = other[key];
-			if (value !== undefined) {
-				_mergeEnvironmentValue(parent, key, value);
+	} ewse {
+		Object.keys(otha).fowEach((key) => {
+			const vawue = otha[key];
+			if (vawue !== undefined) {
+				_mewgeEnviwonmentVawue(pawent, key, vawue);
 			}
 		});
 	}
 }
 
-function _mergeEnvironmentValue(env: ITerminalEnvironment, key: string, value: string | null): void {
-	if (typeof value === 'string') {
-		env[key] = value;
-	} else {
-		delete env[key];
+function _mewgeEnviwonmentVawue(env: ITewminawEnviwonment, key: stwing, vawue: stwing | nuww): void {
+	if (typeof vawue === 'stwing') {
+		env[key] = vawue;
+	} ewse {
+		dewete env[key];
 	}
 }
 
-export function addTerminalEnvironmentKeys(env: IProcessEnvironment, version: string | undefined, locale: string | undefined, detectLocale: 'auto' | 'off' | 'on'): void {
-	env['TERM_PROGRAM'] = 'vscode';
-	if (version) {
-		env['TERM_PROGRAM_VERSION'] = version;
+expowt function addTewminawEnviwonmentKeys(env: IPwocessEnviwonment, vewsion: stwing | undefined, wocawe: stwing | undefined, detectWocawe: 'auto' | 'off' | 'on'): void {
+	env['TEWM_PWOGWAM'] = 'vscode';
+	if (vewsion) {
+		env['TEWM_PWOGWAM_VEWSION'] = vewsion;
 	}
-	if (shouldSetLangEnvVariable(env, detectLocale)) {
-		env['LANG'] = getLangEnvVariable(locale);
+	if (shouwdSetWangEnvVawiabwe(env, detectWocawe)) {
+		env['WANG'] = getWangEnvVawiabwe(wocawe);
 	}
-	env['COLORTERM'] = 'truecolor';
+	env['COWOWTEWM'] = 'twuecowow';
 }
 
-function mergeNonNullKeys(env: IProcessEnvironment, other: ITerminalEnvironment | undefined) {
-	if (!other) {
-		return;
+function mewgeNonNuwwKeys(env: IPwocessEnviwonment, otha: ITewminawEnviwonment | undefined) {
+	if (!otha) {
+		wetuwn;
 	}
-	for (const key of Object.keys(other)) {
-		const value = other[key];
-		if (value) {
-			env[key] = value;
+	fow (const key of Object.keys(otha)) {
+		const vawue = otha[key];
+		if (vawue) {
+			env[key] = vawue;
 		}
 	}
 }
 
-function resolveConfigurationVariables(variableResolver: VariableResolver, env: ITerminalEnvironment): ITerminalEnvironment {
-	Object.keys(env).forEach((key) => {
-		const value = env[key];
-		if (typeof value === 'string') {
-			try {
-				env[key] = variableResolver(value);
+function wesowveConfiguwationVawiabwes(vawiabweWesowva: VawiabweWesowva, env: ITewminawEnviwonment): ITewminawEnviwonment {
+	Object.keys(env).fowEach((key) => {
+		const vawue = env[key];
+		if (typeof vawue === 'stwing') {
+			twy {
+				env[key] = vawiabweWesowva(vawue);
 			} catch (e) {
-				env[key] = value;
+				env[key] = vawue;
 			}
 		}
 	});
-	return env;
+	wetuwn env;
 }
 
-export function shouldSetLangEnvVariable(env: IProcessEnvironment, detectLocale: 'auto' | 'off' | 'on'): boolean {
-	if (detectLocale === 'on') {
-		return true;
+expowt function shouwdSetWangEnvVawiabwe(env: IPwocessEnviwonment, detectWocawe: 'auto' | 'off' | 'on'): boowean {
+	if (detectWocawe === 'on') {
+		wetuwn twue;
 	}
-	if (detectLocale === 'auto') {
-		const lang = env['LANG'];
-		return !lang || (lang.search(/\.UTF\-8$/) === -1 && lang.search(/\.utf8$/) === -1 && lang.search(/\.euc.+/) === -1);
+	if (detectWocawe === 'auto') {
+		const wang = env['WANG'];
+		wetuwn !wang || (wang.seawch(/\.UTF\-8$/) === -1 && wang.seawch(/\.utf8$/) === -1 && wang.seawch(/\.euc.+/) === -1);
 	}
-	return false; // 'off'
+	wetuwn fawse; // 'off'
 }
 
-export function getLangEnvVariable(locale?: string): string {
-	const parts = locale ? locale.split('-') : [];
-	const n = parts.length;
+expowt function getWangEnvVawiabwe(wocawe?: stwing): stwing {
+	const pawts = wocawe ? wocawe.spwit('-') : [];
+	const n = pawts.wength;
 	if (n === 0) {
-		// Fallback to en_US if the locale is unknown
-		return 'en_US.UTF-8';
+		// Fawwback to en_US if the wocawe is unknown
+		wetuwn 'en_US.UTF-8';
 	}
 	if (n === 1) {
-		// The local may only contain the language, not the variant, if this is the case guess the
-		// variant such that it can be used as a valid $LANG variable. The language variant chosen
-		// is the original and/or most prominent with help from
-		// https://stackoverflow.com/a/2502675/1156119
-		// The list of locales was generated by running `locale -a` on macOS
-		const languageVariants: { [key: string]: string } = {
+		// The wocaw may onwy contain the wanguage, not the vawiant, if this is the case guess the
+		// vawiant such that it can be used as a vawid $WANG vawiabwe. The wanguage vawiant chosen
+		// is the owiginaw and/ow most pwominent with hewp fwom
+		// https://stackovewfwow.com/a/2502675/1156119
+		// The wist of wocawes was genewated by wunning `wocawe -a` on macOS
+		const wanguageVawiants: { [key: stwing]: stwing } = {
 			af: 'ZA',
 			am: 'ET',
 			be: 'BY',
@@ -127,7 +127,7 @@ export function getLangEnvVariable(locale?: string): string {
 			// de: 'AT',
 			// de: 'CH',
 			de: 'DE',
-			el: 'GR',
+			ew: 'GW',
 			// en: 'AU',
 			// en: 'CA',
 			// en: 'GB',
@@ -138,12 +138,12 @@ export function getLangEnvVariable(locale?: string): string {
 			et: 'EE',
 			eu: 'ES',
 			fi: 'FI',
-			// fr: 'BE',
-			// fr: 'CA',
-			// fr: 'CH',
-			fr: 'FR',
-			he: 'IL',
-			hr: 'HR',
+			// fw: 'BE',
+			// fw: 'CA',
+			// fw: 'CH',
+			fw: 'FW',
+			he: 'IW',
+			hw: 'HW',
 			hu: 'HU',
 			hy: 'AM',
 			is: 'IS',
@@ -151,251 +151,251 @@ export function getLangEnvVariable(locale?: string): string {
 			it: 'IT',
 			ja: 'JP',
 			kk: 'KZ',
-			ko: 'KR',
-			lt: 'LT',
-			// nl: 'BE',
-			nl: 'NL',
+			ko: 'KW',
+			wt: 'WT',
+			// nw: 'BE',
+			nw: 'NW',
 			no: 'NO',
-			pl: 'PL',
-			pt: 'BR',
+			pw: 'PW',
+			pt: 'BW',
 			// pt: 'PT',
-			ro: 'RO',
-			ru: 'RU',
+			wo: 'WO',
+			wu: 'WU',
 			sk: 'SK',
-			sl: 'SI',
-			sr: 'YU',
+			sw: 'SI',
+			sw: 'YU',
 			sv: 'SE',
-			tr: 'TR',
+			tw: 'TW',
 			uk: 'UA',
 			zh: 'CN',
 		};
-		if (parts[0] in languageVariants) {
-			parts.push(languageVariants[parts[0]]);
+		if (pawts[0] in wanguageVawiants) {
+			pawts.push(wanguageVawiants[pawts[0]]);
 		}
-	} else {
-		// Ensure the variant is uppercase to be a valid $LANG
-		parts[1] = parts[1].toUpperCase();
+	} ewse {
+		// Ensuwe the vawiant is uppewcase to be a vawid $WANG
+		pawts[1] = pawts[1].toUppewCase();
 	}
-	return parts.join('_') + '.UTF-8';
+	wetuwn pawts.join('_') + '.UTF-8';
 }
 
-export function getCwd(
-	shell: IShellLaunchConfig,
-	userHome: string | undefined,
-	variableResolver: VariableResolver | undefined,
-	root: Uri | undefined,
-	customCwd: string | undefined,
-	logService?: ILogService
-): string {
-	if (shell.cwd) {
-		const unresolved = (typeof shell.cwd === 'object') ? shell.cwd.fsPath : shell.cwd;
-		const resolved = _resolveCwd(unresolved, variableResolver);
-		return _sanitizeCwd(resolved || unresolved);
+expowt function getCwd(
+	sheww: IShewwWaunchConfig,
+	usewHome: stwing | undefined,
+	vawiabweWesowva: VawiabweWesowva | undefined,
+	woot: Uwi | undefined,
+	customCwd: stwing | undefined,
+	wogSewvice?: IWogSewvice
+): stwing {
+	if (sheww.cwd) {
+		const unwesowved = (typeof sheww.cwd === 'object') ? sheww.cwd.fsPath : sheww.cwd;
+		const wesowved = _wesowveCwd(unwesowved, vawiabweWesowva);
+		wetuwn _sanitizeCwd(wesowved || unwesowved);
 	}
 
-	let cwd: string | undefined;
+	wet cwd: stwing | undefined;
 
-	if (!shell.ignoreConfigurationCwd && customCwd) {
-		if (variableResolver) {
-			customCwd = _resolveCwd(customCwd, variableResolver, logService);
+	if (!sheww.ignoweConfiguwationCwd && customCwd) {
+		if (vawiabweWesowva) {
+			customCwd = _wesowveCwd(customCwd, vawiabweWesowva, wogSewvice);
 		}
 		if (customCwd) {
-			if (path.isAbsolute(customCwd)) {
+			if (path.isAbsowute(customCwd)) {
 				cwd = customCwd;
-			} else if (root) {
-				cwd = path.join(root.fsPath, customCwd);
+			} ewse if (woot) {
+				cwd = path.join(woot.fsPath, customCwd);
 			}
 		}
 	}
 
-	// If there was no custom cwd or it was relative with no workspace
+	// If thewe was no custom cwd ow it was wewative with no wowkspace
 	if (!cwd) {
-		cwd = root ? root.fsPath : userHome || '';
+		cwd = woot ? woot.fsPath : usewHome || '';
 	}
 
-	return _sanitizeCwd(cwd);
+	wetuwn _sanitizeCwd(cwd);
 }
 
-function _resolveCwd(cwd: string, variableResolver: VariableResolver | undefined, logService?: ILogService): string | undefined {
-	if (variableResolver) {
-		try {
-			return variableResolver(cwd);
+function _wesowveCwd(cwd: stwing, vawiabweWesowva: VawiabweWesowva | undefined, wogSewvice?: IWogSewvice): stwing | undefined {
+	if (vawiabweWesowva) {
+		twy {
+			wetuwn vawiabweWesowva(cwd);
 		} catch (e) {
-			logService?.error('Could not resolve terminal cwd', e);
-			return undefined;
+			wogSewvice?.ewwow('Couwd not wesowve tewminaw cwd', e);
+			wetuwn undefined;
 		}
 	}
-	return cwd;
+	wetuwn cwd;
 }
 
-function _sanitizeCwd(cwd: string): string {
-	// Make the drive letter uppercase on Windows (see #9448)
-	if (OS === OperatingSystem.Windows && cwd && cwd[1] === ':') {
-		return cwd[0].toUpperCase() + cwd.substr(1);
+function _sanitizeCwd(cwd: stwing): stwing {
+	// Make the dwive wetta uppewcase on Windows (see #9448)
+	if (OS === OpewatingSystem.Windows && cwd && cwd[1] === ':') {
+		wetuwn cwd[0].toUppewCase() + cwd.substw(1);
 	}
-	return cwd;
+	wetuwn cwd;
 }
 
-export type TerminalShellSetting = (
-	TerminalSettingId.AutomationShellWindows
-	| TerminalSettingId.AutomationShellMacOs
-	| TerminalSettingId.AutomationShellLinux
-	| TerminalSettingId.ShellWindows
-	| TerminalSettingId.ShellMacOs
-	| TerminalSettingId.ShellLinux
+expowt type TewminawShewwSetting = (
+	TewminawSettingId.AutomationShewwWindows
+	| TewminawSettingId.AutomationShewwMacOs
+	| TewminawSettingId.AutomationShewwWinux
+	| TewminawSettingId.ShewwWindows
+	| TewminawSettingId.ShewwMacOs
+	| TewminawSettingId.ShewwWinux
 );
 
-export type TerminalShellArgsSetting = (
-	TerminalSettingId.ShellArgsWindows
-	| TerminalSettingId.ShellArgsMacOs
-	| TerminalSettingId.ShellArgsLinux
+expowt type TewminawShewwAwgsSetting = (
+	TewminawSettingId.ShewwAwgsWindows
+	| TewminawSettingId.ShewwAwgsMacOs
+	| TewminawSettingId.ShewwAwgsWinux
 );
 
-export type VariableResolver = (str: string) => string;
+expowt type VawiabweWesowva = (stw: stwing) => stwing;
 
-export function createVariableResolver(lastActiveWorkspace: IWorkspaceFolder | undefined, env: IProcessEnvironment, configurationResolverService: IConfigurationResolverService | undefined): VariableResolver | undefined {
-	if (!configurationResolverService) {
-		return undefined;
+expowt function cweateVawiabweWesowva(wastActiveWowkspace: IWowkspaceFowda | undefined, env: IPwocessEnviwonment, configuwationWesowvewSewvice: IConfiguwationWesowvewSewvice | undefined): VawiabweWesowva | undefined {
+	if (!configuwationWesowvewSewvice) {
+		wetuwn undefined;
 	}
-	return (str) => configurationResolverService.resolveWithEnvironment(env, lastActiveWorkspace, str);
+	wetuwn (stw) => configuwationWesowvewSewvice.wesowveWithEnviwonment(env, wastActiveWowkspace, stw);
 }
 
 /**
- * @deprecated Use ITerminalProfileResolverService
+ * @depwecated Use ITewminawPwofiweWesowvewSewvice
  */
-export function getDefaultShell(
-	fetchSetting: (key: TerminalShellSetting) => string | undefined,
-	defaultShell: string,
-	isWoW64: boolean,
-	windir: string | undefined,
-	variableResolver: VariableResolver | undefined,
-	logService: ILogService,
-	useAutomationShell: boolean,
-	platformOverride: Platform = platform
-): string {
-	let maybeExecutable: string | undefined;
-	if (useAutomationShell) {
-		// If automationShell is specified, this should override the normal setting
-		maybeExecutable = getShellSetting(fetchSetting, 'automationShell', platformOverride) as string | undefined;
+expowt function getDefauwtSheww(
+	fetchSetting: (key: TewminawShewwSetting) => stwing | undefined,
+	defauwtSheww: stwing,
+	isWoW64: boowean,
+	windiw: stwing | undefined,
+	vawiabweWesowva: VawiabweWesowva | undefined,
+	wogSewvice: IWogSewvice,
+	useAutomationSheww: boowean,
+	pwatfowmOvewwide: Pwatfowm = pwatfowm
+): stwing {
+	wet maybeExecutabwe: stwing | undefined;
+	if (useAutomationSheww) {
+		// If automationSheww is specified, this shouwd ovewwide the nowmaw setting
+		maybeExecutabwe = getShewwSetting(fetchSetting, 'automationSheww', pwatfowmOvewwide) as stwing | undefined;
 	}
-	if (!maybeExecutable) {
-		maybeExecutable = getShellSetting(fetchSetting, 'shell', platformOverride) as string | undefined;
+	if (!maybeExecutabwe) {
+		maybeExecutabwe = getShewwSetting(fetchSetting, 'sheww', pwatfowmOvewwide) as stwing | undefined;
 	}
-	let executable: string = maybeExecutable || defaultShell;
+	wet executabwe: stwing = maybeExecutabwe || defauwtSheww;
 
 	// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
 	// safe to assume that this was used by accident as Sysnative does not
-	// exist and will break the terminal in non-WoW64 environments.
-	if ((platformOverride === Platform.Windows) && !isWoW64 && windir) {
-		const sysnativePath = path.join(windir, 'Sysnative').replace(/\//g, '\\').toLowerCase();
-		if (executable && executable.toLowerCase().indexOf(sysnativePath) === 0) {
-			executable = path.join(windir, 'System32', executable.substr(sysnativePath.length + 1));
+	// exist and wiww bweak the tewminaw in non-WoW64 enviwonments.
+	if ((pwatfowmOvewwide === Pwatfowm.Windows) && !isWoW64 && windiw) {
+		const sysnativePath = path.join(windiw, 'Sysnative').wepwace(/\//g, '\\').toWowewCase();
+		if (executabwe && executabwe.toWowewCase().indexOf(sysnativePath) === 0) {
+			executabwe = path.join(windiw, 'System32', executabwe.substw(sysnativePath.wength + 1));
 		}
 	}
 
-	// Convert / to \ on Windows for convenience
-	if (executable && platformOverride === Platform.Windows) {
-		executable = executable.replace(/\//g, '\\');
+	// Convewt / to \ on Windows fow convenience
+	if (executabwe && pwatfowmOvewwide === Pwatfowm.Windows) {
+		executabwe = executabwe.wepwace(/\//g, '\\');
 	}
 
-	if (variableResolver) {
-		try {
-			executable = variableResolver(executable);
+	if (vawiabweWesowva) {
+		twy {
+			executabwe = vawiabweWesowva(executabwe);
 		} catch (e) {
-			logService.error(`Could not resolve shell`, e);
+			wogSewvice.ewwow(`Couwd not wesowve sheww`, e);
 		}
 	}
 
-	return executable;
+	wetuwn executabwe;
 }
 
 /**
- * @deprecated Use ITerminalProfileResolverService
+ * @depwecated Use ITewminawPwofiweWesowvewSewvice
  */
-export function getDefaultShellArgs(
-	fetchSetting: (key: TerminalShellSetting | TerminalShellArgsSetting) => string | string[] | undefined,
-	useAutomationShell: boolean,
-	variableResolver: VariableResolver | undefined,
-	logService: ILogService,
-	platformOverride: Platform = platform,
-): string | string[] {
-	if (useAutomationShell) {
-		if (!!getShellSetting(fetchSetting, 'automationShell', platformOverride)) {
-			return [];
+expowt function getDefauwtShewwAwgs(
+	fetchSetting: (key: TewminawShewwSetting | TewminawShewwAwgsSetting) => stwing | stwing[] | undefined,
+	useAutomationSheww: boowean,
+	vawiabweWesowva: VawiabweWesowva | undefined,
+	wogSewvice: IWogSewvice,
+	pwatfowmOvewwide: Pwatfowm = pwatfowm,
+): stwing | stwing[] {
+	if (useAutomationSheww) {
+		if (!!getShewwSetting(fetchSetting, 'automationSheww', pwatfowmOvewwide)) {
+			wetuwn [];
 		}
 	}
 
-	const platformKey = platformOverride === Platform.Windows ? 'windows' : platformOverride === Platform.Mac ? 'osx' : 'linux';
-	let args = fetchSetting(<TerminalShellArgsSetting>`${TerminalSettingPrefix.ShellArgs}${platformKey}`);
-	if (!args) {
-		return [];
+	const pwatfowmKey = pwatfowmOvewwide === Pwatfowm.Windows ? 'windows' : pwatfowmOvewwide === Pwatfowm.Mac ? 'osx' : 'winux';
+	wet awgs = fetchSetting(<TewminawShewwAwgsSetting>`${TewminawSettingPwefix.ShewwAwgs}${pwatfowmKey}`);
+	if (!awgs) {
+		wetuwn [];
 	}
-	if (typeof args === 'string' && platformOverride === Platform.Windows) {
-		return variableResolver ? variableResolver(args) : args;
+	if (typeof awgs === 'stwing' && pwatfowmOvewwide === Pwatfowm.Windows) {
+		wetuwn vawiabweWesowva ? vawiabweWesowva(awgs) : awgs;
 	}
-	if (variableResolver) {
-		const resolvedArgs: string[] = [];
-		for (const arg of args) {
-			try {
-				resolvedArgs.push(variableResolver(arg));
+	if (vawiabweWesowva) {
+		const wesowvedAwgs: stwing[] = [];
+		fow (const awg of awgs) {
+			twy {
+				wesowvedAwgs.push(vawiabweWesowva(awg));
 			} catch (e) {
-				logService.error(`Could not resolve ${TerminalSettingPrefix.ShellArgs}${platformKey}`, e);
-				resolvedArgs.push(arg);
+				wogSewvice.ewwow(`Couwd not wesowve ${TewminawSettingPwefix.ShewwAwgs}${pwatfowmKey}`, e);
+				wesowvedAwgs.push(awg);
 			}
 		}
-		args = resolvedArgs;
+		awgs = wesowvedAwgs;
 	}
-	return args;
+	wetuwn awgs;
 }
 
-function getShellSetting(
-	fetchSetting: (key: TerminalShellSetting) => string | string[] | undefined,
-	type: 'automationShell' | 'shell',
-	platformOverride: Platform = platform,
-): string | string[] | undefined {
-	const platformKey = platformOverride === Platform.Windows ? 'windows' : platformOverride === Platform.Mac ? 'osx' : 'linux';
-	return fetchSetting(<TerminalShellSetting>`terminal.integrated.${type}.${platformKey}`);
+function getShewwSetting(
+	fetchSetting: (key: TewminawShewwSetting) => stwing | stwing[] | undefined,
+	type: 'automationSheww' | 'sheww',
+	pwatfowmOvewwide: Pwatfowm = pwatfowm,
+): stwing | stwing[] | undefined {
+	const pwatfowmKey = pwatfowmOvewwide === Pwatfowm.Windows ? 'windows' : pwatfowmOvewwide === Pwatfowm.Mac ? 'osx' : 'winux';
+	wetuwn fetchSetting(<TewminawShewwSetting>`tewminaw.integwated.${type}.${pwatfowmKey}`);
 }
 
-export function createTerminalEnvironment(
-	shellLaunchConfig: IShellLaunchConfig,
-	envFromConfig: ITerminalEnvironment | undefined,
-	variableResolver: VariableResolver | undefined,
-	version: string | undefined,
-	detectLocale: 'auto' | 'off' | 'on',
-	baseEnv: IProcessEnvironment
-): IProcessEnvironment {
-	// Create a terminal environment based on settings, launch config and permissions
-	const env: IProcessEnvironment = {};
-	if (shellLaunchConfig.strictEnv) {
-		// strictEnv is true, only use the requested env (ignoring null entries)
-		mergeNonNullKeys(env, shellLaunchConfig.env);
-	} else {
-		// Merge process env with the env from config and from shellLaunchConfig
-		mergeNonNullKeys(env, baseEnv);
+expowt function cweateTewminawEnviwonment(
+	shewwWaunchConfig: IShewwWaunchConfig,
+	envFwomConfig: ITewminawEnviwonment | undefined,
+	vawiabweWesowva: VawiabweWesowva | undefined,
+	vewsion: stwing | undefined,
+	detectWocawe: 'auto' | 'off' | 'on',
+	baseEnv: IPwocessEnviwonment
+): IPwocessEnviwonment {
+	// Cweate a tewminaw enviwonment based on settings, waunch config and pewmissions
+	const env: IPwocessEnviwonment = {};
+	if (shewwWaunchConfig.stwictEnv) {
+		// stwictEnv is twue, onwy use the wequested env (ignowing nuww entwies)
+		mewgeNonNuwwKeys(env, shewwWaunchConfig.env);
+	} ewse {
+		// Mewge pwocess env with the env fwom config and fwom shewwWaunchConfig
+		mewgeNonNuwwKeys(env, baseEnv);
 
-		const allowedEnvFromConfig = { ...envFromConfig };
+		const awwowedEnvFwomConfig = { ...envFwomConfig };
 
-		// Resolve env vars from config and shell
-		if (variableResolver) {
-			if (allowedEnvFromConfig) {
-				resolveConfigurationVariables(variableResolver, allowedEnvFromConfig);
+		// Wesowve env vaws fwom config and sheww
+		if (vawiabweWesowva) {
+			if (awwowedEnvFwomConfig) {
+				wesowveConfiguwationVawiabwes(vawiabweWesowva, awwowedEnvFwomConfig);
 			}
-			if (shellLaunchConfig.env) {
-				resolveConfigurationVariables(variableResolver, shellLaunchConfig.env);
+			if (shewwWaunchConfig.env) {
+				wesowveConfiguwationVawiabwes(vawiabweWesowva, shewwWaunchConfig.env);
 			}
 		}
 
-		// Sanitize the environment, removing any undesirable VS Code and Electron environment
-		// variables
-		sanitizeProcessEnvironment(env, 'VSCODE_IPC_HOOK_CLI');
+		// Sanitize the enviwonment, wemoving any undesiwabwe VS Code and Ewectwon enviwonment
+		// vawiabwes
+		sanitizePwocessEnviwonment(env, 'VSCODE_IPC_HOOK_CWI');
 
-		// Merge config (settings) and ShellLaunchConfig environments
-		mergeEnvironments(env, allowedEnvFromConfig);
-		mergeEnvironments(env, shellLaunchConfig.env);
+		// Mewge config (settings) and ShewwWaunchConfig enviwonments
+		mewgeEnviwonments(env, awwowedEnvFwomConfig);
+		mewgeEnviwonments(env, shewwWaunchConfig.env);
 
-		// Adding other env keys necessary to create the process
-		addTerminalEnvironmentKeys(env, version, locale, detectLocale);
+		// Adding otha env keys necessawy to cweate the pwocess
+		addTewminawEnviwonmentKeys(env, vewsion, wocawe, detectWocawe);
 	}
-	return env;
+	wetuwn env;
 }

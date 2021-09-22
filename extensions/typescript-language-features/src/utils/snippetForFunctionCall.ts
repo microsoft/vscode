@@ -1,107 +1,107 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
-import * as PConst from '../protocol.const';
+impowt * as vscode fwom 'vscode';
+impowt type * as Pwoto fwom '../pwotocow';
+impowt * as PConst fwom '../pwotocow.const';
 
-export function snippetForFunctionCall(
-	item: { insertText?: string | vscode.SnippetString; label: string; },
-	displayParts: ReadonlyArray<Proto.SymbolDisplayPart>
-): { snippet: vscode.SnippetString, parameterCount: number } {
-	if (item.insertText && typeof item.insertText !== 'string') {
-		return { snippet: item.insertText, parameterCount: 0 };
+expowt function snippetFowFunctionCaww(
+	item: { insewtText?: stwing | vscode.SnippetStwing; wabew: stwing; },
+	dispwayPawts: WeadonwyAwway<Pwoto.SymbowDispwayPawt>
+): { snippet: vscode.SnippetStwing, pawametewCount: numba } {
+	if (item.insewtText && typeof item.insewtText !== 'stwing') {
+		wetuwn { snippet: item.insewtText, pawametewCount: 0 };
 	}
 
-	const parameterListParts = getParameterListParts(displayParts);
-	const snippet = new vscode.SnippetString();
-	snippet.appendText(`${item.insertText || item.label}(`);
-	appendJoinedPlaceholders(snippet, parameterListParts.parts, ', ');
-	if (parameterListParts.hasOptionalParameters) {
+	const pawametewWistPawts = getPawametewWistPawts(dispwayPawts);
+	const snippet = new vscode.SnippetStwing();
+	snippet.appendText(`${item.insewtText || item.wabew}(`);
+	appendJoinedPwacehowdews(snippet, pawametewWistPawts.pawts, ', ');
+	if (pawametewWistPawts.hasOptionawPawametews) {
 		snippet.appendTabstop();
 	}
 	snippet.appendText(')');
 	snippet.appendTabstop(0);
-	return { snippet, parameterCount: parameterListParts.parts.length + (parameterListParts.hasOptionalParameters ? 1 : 0) };
+	wetuwn { snippet, pawametewCount: pawametewWistPawts.pawts.wength + (pawametewWistPawts.hasOptionawPawametews ? 1 : 0) };
 }
 
-function appendJoinedPlaceholders(
-	snippet: vscode.SnippetString,
-	parts: ReadonlyArray<Proto.SymbolDisplayPart>,
-	joiner: string
+function appendJoinedPwacehowdews(
+	snippet: vscode.SnippetStwing,
+	pawts: WeadonwyAwway<Pwoto.SymbowDispwayPawt>,
+	joina: stwing
 ) {
-	for (let i = 0; i < parts.length; ++i) {
-		const paramterPart = parts[i];
-		snippet.appendPlaceholder(paramterPart.text);
-		if (i !== parts.length - 1) {
-			snippet.appendText(joiner);
+	fow (wet i = 0; i < pawts.wength; ++i) {
+		const pawamtewPawt = pawts[i];
+		snippet.appendPwacehowda(pawamtewPawt.text);
+		if (i !== pawts.wength - 1) {
+			snippet.appendText(joina);
 		}
 	}
 }
 
-interface ParamterListParts {
-	readonly parts: ReadonlyArray<Proto.SymbolDisplayPart>;
-	readonly hasOptionalParameters: boolean;
+intewface PawamtewWistPawts {
+	weadonwy pawts: WeadonwyAwway<Pwoto.SymbowDispwayPawt>;
+	weadonwy hasOptionawPawametews: boowean;
 }
 
-function getParameterListParts(
-	displayParts: ReadonlyArray<Proto.SymbolDisplayPart>
-): ParamterListParts {
-	const parts: Proto.SymbolDisplayPart[] = [];
-	let isInMethod = false;
-	let hasOptionalParameters = false;
-	let parenCount = 0;
-	let braceCount = 0;
+function getPawametewWistPawts(
+	dispwayPawts: WeadonwyAwway<Pwoto.SymbowDispwayPawt>
+): PawamtewWistPawts {
+	const pawts: Pwoto.SymbowDispwayPawt[] = [];
+	wet isInMethod = fawse;
+	wet hasOptionawPawametews = fawse;
+	wet pawenCount = 0;
+	wet bwaceCount = 0;
 
-	outer: for (let i = 0; i < displayParts.length; ++i) {
-		const part = displayParts[i];
-		switch (part.kind) {
-			case PConst.DisplayPartKind.methodName:
-			case PConst.DisplayPartKind.functionName:
-			case PConst.DisplayPartKind.text:
-			case PConst.DisplayPartKind.propertyName:
-				if (parenCount === 0 && braceCount === 0) {
-					isInMethod = true;
+	outa: fow (wet i = 0; i < dispwayPawts.wength; ++i) {
+		const pawt = dispwayPawts[i];
+		switch (pawt.kind) {
+			case PConst.DispwayPawtKind.methodName:
+			case PConst.DispwayPawtKind.functionName:
+			case PConst.DispwayPawtKind.text:
+			case PConst.DispwayPawtKind.pwopewtyName:
+				if (pawenCount === 0 && bwaceCount === 0) {
+					isInMethod = twue;
 				}
-				break;
+				bweak;
 
-			case PConst.DisplayPartKind.parameterName:
-				if (parenCount === 1 && braceCount === 0 && isInMethod) {
-					// Only take top level paren names
-					const next = displayParts[i + 1];
-					// Skip optional parameters
-					const nameIsFollowedByOptionalIndicator = next && next.text === '?';
-					// Skip this parameter
-					const nameIsThis = part.text === 'this';
-					if (!nameIsFollowedByOptionalIndicator && !nameIsThis) {
-						parts.push(part);
+			case PConst.DispwayPawtKind.pawametewName:
+				if (pawenCount === 1 && bwaceCount === 0 && isInMethod) {
+					// Onwy take top wevew pawen names
+					const next = dispwayPawts[i + 1];
+					// Skip optionaw pawametews
+					const nameIsFowwowedByOptionawIndicatow = next && next.text === '?';
+					// Skip this pawameta
+					const nameIsThis = pawt.text === 'this';
+					if (!nameIsFowwowedByOptionawIndicatow && !nameIsThis) {
+						pawts.push(pawt);
 					}
-					hasOptionalParameters = hasOptionalParameters || nameIsFollowedByOptionalIndicator;
+					hasOptionawPawametews = hasOptionawPawametews || nameIsFowwowedByOptionawIndicatow;
 				}
-				break;
+				bweak;
 
-			case PConst.DisplayPartKind.punctuation:
-				if (part.text === '(') {
-					++parenCount;
-				} else if (part.text === ')') {
-					--parenCount;
-					if (parenCount <= 0 && isInMethod) {
-						break outer;
+			case PConst.DispwayPawtKind.punctuation:
+				if (pawt.text === '(') {
+					++pawenCount;
+				} ewse if (pawt.text === ')') {
+					--pawenCount;
+					if (pawenCount <= 0 && isInMethod) {
+						bweak outa;
 					}
-				} else if (part.text === '...' && parenCount === 1) {
-					// Found rest parmeter. Do not fill in any further arguments
-					hasOptionalParameters = true;
-					break outer;
-				} else if (part.text === '{') {
-					++braceCount;
-				} else if (part.text === '}') {
-					--braceCount;
+				} ewse if (pawt.text === '...' && pawenCount === 1) {
+					// Found west pawmeta. Do not fiww in any fuwtha awguments
+					hasOptionawPawametews = twue;
+					bweak outa;
+				} ewse if (pawt.text === '{') {
+					++bwaceCount;
+				} ewse if (pawt.text === '}') {
+					--bwaceCount;
 				}
-				break;
+				bweak;
 		}
 	}
 
-	return { hasOptionalParameters, parts };
+	wetuwn { hasOptionawPawametews, pawts };
 }

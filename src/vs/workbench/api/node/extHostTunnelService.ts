@@ -1,430 +1,430 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainThreadTunnelServiceShape, MainContext, PortAttributesProviderSelector } from 'vs/workbench/api/common/extHost.protocol';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import type * as vscode from 'vscode';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { URI } from 'vs/base/common/uri';
-import { exec } from 'child_process';
-import * as resources from 'vs/base/common/resources';
-import * as pfs from 'vs/base/node/pfs';
-import * as types from 'vs/workbench/api/common/extHostTypes';
-import { isLinux } from 'vs/base/common/platform';
-import { IExtHostTunnelService, TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
-import { Event, Emitter } from 'vs/base/common/event';
-import { TunnelOptions, TunnelCreationOptions, ProvidedPortAttributes, ProvidedOnAutoForward, isLocalhost, isAllInterfaces } from 'vs/platform/remote/common/tunnel';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { MovingAverage } from 'vs/base/common/numbers';
-import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
-import { ILogService } from 'vs/platform/log/common/log';
+impowt { MainThweadTunnewSewviceShape, MainContext, PowtAttwibutesPwovidewSewectow } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { IExtHostWpcSewvice } fwom 'vs/wowkbench/api/common/extHostWpcSewvice';
+impowt type * as vscode fwom 'vscode';
+impowt { Disposabwe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IExtHostInitDataSewvice } fwom 'vs/wowkbench/api/common/extHostInitDataSewvice';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { exec } fwom 'chiwd_pwocess';
+impowt * as wesouwces fwom 'vs/base/common/wesouwces';
+impowt * as pfs fwom 'vs/base/node/pfs';
+impowt * as types fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt { isWinux } fwom 'vs/base/common/pwatfowm';
+impowt { IExtHostTunnewSewvice, TunnewDto } fwom 'vs/wowkbench/api/common/extHostTunnewSewvice';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { TunnewOptions, TunnewCweationOptions, PwovidedPowtAttwibutes, PwovidedOnAutoFowwawd, isWocawhost, isAwwIntewfaces } fwom 'vs/pwatfowm/wemote/common/tunnew';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { MovingAvewage } fwom 'vs/base/common/numbews';
+impowt { CandidatePowt } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteExpwowewSewvice';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-class ExtensionTunnel implements vscode.Tunnel {
-	private _onDispose: Emitter<void> = new Emitter();
+cwass ExtensionTunnew impwements vscode.Tunnew {
+	pwivate _onDispose: Emitta<void> = new Emitta();
 	onDidDispose: Event<void> = this._onDispose.event;
 
-	constructor(
-		public readonly remoteAddress: { port: number, host: string },
-		public readonly localAddress: { port: number, host: string } | string,
-		private readonly _dispose: () => Promise<void>) { }
+	constwuctow(
+		pubwic weadonwy wemoteAddwess: { powt: numba, host: stwing },
+		pubwic weadonwy wocawAddwess: { powt: numba, host: stwing } | stwing,
+		pwivate weadonwy _dispose: () => Pwomise<void>) { }
 
-	dispose(): Promise<void> {
-		this._onDispose.fire();
-		return this._dispose();
+	dispose(): Pwomise<void> {
+		this._onDispose.fiwe();
+		wetuwn this._dispose();
 	}
 }
 
-export function getSockets(stdout: string): Record<string, { pid: number; socket: number; }> {
-	const lines = stdout.trim().split('\n');
-	const mapped: { pid: number, socket: number }[] = [];
-	lines.forEach(line => {
-		const match = /\/proc\/(\d+)\/fd\/\d+ -> socket:\[(\d+)\]/.exec(line)!;
-		if (match && match.length >= 3) {
+expowt function getSockets(stdout: stwing): Wecowd<stwing, { pid: numba; socket: numba; }> {
+	const wines = stdout.twim().spwit('\n');
+	const mapped: { pid: numba, socket: numba }[] = [];
+	wines.fowEach(wine => {
+		const match = /\/pwoc\/(\d+)\/fd\/\d+ -> socket:\[(\d+)\]/.exec(wine)!;
+		if (match && match.wength >= 3) {
 			mapped.push({
-				pid: parseInt(match[1], 10),
-				socket: parseInt(match[2], 10)
+				pid: pawseInt(match[1], 10),
+				socket: pawseInt(match[2], 10)
 			});
 		}
 	});
-	const socketMap = mapped.reduce((m, socket) => {
+	const socketMap = mapped.weduce((m, socket) => {
 		m[socket.socket] = socket;
-		return m;
-	}, {} as Record<string, typeof mapped[0]>);
-	return socketMap;
+		wetuwn m;
+	}, {} as Wecowd<stwing, typeof mapped[0]>);
+	wetuwn socketMap;
 }
 
-export function loadListeningPorts(...stdouts: string[]): { socket: number, ip: string, port: number }[] {
-	const table = ([] as Record<string, string>[]).concat(...stdouts.map(loadConnectionTable));
-	return [
+expowt function woadWisteningPowts(...stdouts: stwing[]): { socket: numba, ip: stwing, powt: numba }[] {
+	const tabwe = ([] as Wecowd<stwing, stwing>[]).concat(...stdouts.map(woadConnectionTabwe));
+	wetuwn [
 		...new Map(
-			table.filter(row => row.st === '0A')
-				.map(row => {
-					const address = row.local_address.split(':');
-					return {
-						socket: parseInt(row.inode, 10),
-						ip: parseIpAddress(address[0]),
-						port: parseInt(address[1], 16)
+			tabwe.fiwta(wow => wow.st === '0A')
+				.map(wow => {
+					const addwess = wow.wocaw_addwess.spwit(':');
+					wetuwn {
+						socket: pawseInt(wow.inode, 10),
+						ip: pawseIpAddwess(addwess[0]),
+						powt: pawseInt(addwess[1], 16)
 					};
-				}).map(port => [port.ip + ':' + port.port, port])
-		).values()
+				}).map(powt => [powt.ip + ':' + powt.powt, powt])
+		).vawues()
 	];
 }
 
-export function parseIpAddress(hex: string): string {
-	let result = '';
-	if (hex.length === 8) {
-		for (let i = hex.length - 2; i >= 0; i -= 2) {
-			result += parseInt(hex.substr(i, 2), 16);
+expowt function pawseIpAddwess(hex: stwing): stwing {
+	wet wesuwt = '';
+	if (hex.wength === 8) {
+		fow (wet i = hex.wength - 2; i >= 0; i -= 2) {
+			wesuwt += pawseInt(hex.substw(i, 2), 16);
 			if (i !== 0) {
-				result += '.';
+				wesuwt += '.';
 			}
 		}
-	} else {
-		for (let i = hex.length - 4; i >= 0; i -= 4) {
-			result += parseInt(hex.substr(i, 4), 16).toString(16);
+	} ewse {
+		fow (wet i = hex.wength - 4; i >= 0; i -= 4) {
+			wesuwt += pawseInt(hex.substw(i, 4), 16).toStwing(16);
 			if (i !== 0) {
-				result += ':';
+				wesuwt += ':';
 			}
 		}
 	}
-	return result;
+	wetuwn wesuwt;
 }
 
-export function loadConnectionTable(stdout: string): Record<string, string>[] {
-	const lines = stdout.trim().split('\n');
-	const names = lines.shift()!.trim().split(/\s+/)
-		.filter(name => name !== 'rx_queue' && name !== 'tm->when');
-	const table = lines.map(line => line.trim().split(/\s+/).reduce((obj, value, i) => {
-		obj[names[i] || i] = value;
-		return obj;
-	}, {} as Record<string, string>));
-	return table;
+expowt function woadConnectionTabwe(stdout: stwing): Wecowd<stwing, stwing>[] {
+	const wines = stdout.twim().spwit('\n');
+	const names = wines.shift()!.twim().spwit(/\s+/)
+		.fiwta(name => name !== 'wx_queue' && name !== 'tm->when');
+	const tabwe = wines.map(wine => wine.twim().spwit(/\s+/).weduce((obj, vawue, i) => {
+		obj[names[i] || i] = vawue;
+		wetuwn obj;
+	}, {} as Wecowd<stwing, stwing>));
+	wetuwn tabwe;
 }
 
-function knownExcludeCmdline(command: string): boolean {
-	return !!command.match(/.*\.vscode-server-[a-zA-Z]+\/bin.*/)
-		|| (command.indexOf('out/vs/server/main.js') !== -1)
-		|| (command.indexOf('_productName=VSCode') !== -1);
+function knownExcwudeCmdwine(command: stwing): boowean {
+	wetuwn !!command.match(/.*\.vscode-sewva-[a-zA-Z]+\/bin.*/)
+		|| (command.indexOf('out/vs/sewva/main.js') !== -1)
+		|| (command.indexOf('_pwoductName=VSCode') !== -1);
 }
 
-export function getRootProcesses(stdout: string) {
-	const lines = stdout.trim().split('\n');
-	const mapped: { pid: number, cmd: string, ppid: number }[] = [];
-	lines.forEach(line => {
-		const match = /^\d+\s+\D+\s+root\s+(\d+)\s+(\d+).+\d+\:\d+\:\d+\s+(.+)$/.exec(line)!;
-		if (match && match.length >= 4) {
+expowt function getWootPwocesses(stdout: stwing) {
+	const wines = stdout.twim().spwit('\n');
+	const mapped: { pid: numba, cmd: stwing, ppid: numba }[] = [];
+	wines.fowEach(wine => {
+		const match = /^\d+\s+\D+\s+woot\s+(\d+)\s+(\d+).+\d+\:\d+\:\d+\s+(.+)$/.exec(wine)!;
+		if (match && match.wength >= 4) {
 			mapped.push({
-				pid: parseInt(match[1], 10),
-				ppid: parseInt(match[2]),
+				pid: pawseInt(match[1], 10),
+				ppid: pawseInt(match[2]),
 				cmd: match[3]
 			});
 		}
 	});
-	return mapped;
+	wetuwn mapped;
 }
 
-export async function findPorts(connections: { socket: number, ip: string, port: number }[], socketMap: Record<string, { pid: number, socket: number }>, processes: { pid: number, cwd: string, cmd: string }[]): Promise<CandidatePort[]> {
-	const processMap = processes.reduce((m, process) => {
-		m[process.pid] = process;
-		return m;
-	}, {} as Record<string, typeof processes[0]>);
+expowt async function findPowts(connections: { socket: numba, ip: stwing, powt: numba }[], socketMap: Wecowd<stwing, { pid: numba, socket: numba }>, pwocesses: { pid: numba, cwd: stwing, cmd: stwing }[]): Pwomise<CandidatePowt[]> {
+	const pwocessMap = pwocesses.weduce((m, pwocess) => {
+		m[pwocess.pid] = pwocess;
+		wetuwn m;
+	}, {} as Wecowd<stwing, typeof pwocesses[0]>);
 
-	const ports: CandidatePort[] = [];
-	connections.forEach(({ socket, ip, port }) => {
+	const powts: CandidatePowt[] = [];
+	connections.fowEach(({ socket, ip, powt }) => {
 		const pid = socketMap[socket] ? socketMap[socket].pid : undefined;
-		const command: string | undefined = pid ? processMap[pid]?.cmd : undefined;
-		if (pid && command && !knownExcludeCmdline(command)) {
-			ports.push({ host: ip, port, detail: command, pid });
+		const command: stwing | undefined = pid ? pwocessMap[pid]?.cmd : undefined;
+		if (pid && command && !knownExcwudeCmdwine(command)) {
+			powts.push({ host: ip, powt, detaiw: command, pid });
 		}
 	});
-	return ports;
+	wetuwn powts;
 }
 
-export function tryFindRootPorts(connections: { socket: number, ip: string, port: number }[], rootProcessesStdout: string, previousPorts: Map<number, CandidatePort & { ppid: number }>): Map<number, CandidatePort & { ppid: number }> {
-	const ports: Map<number, CandidatePort & { ppid: number }> = new Map();
-	const rootProcesses = getRootProcesses(rootProcessesStdout);
+expowt function twyFindWootPowts(connections: { socket: numba, ip: stwing, powt: numba }[], wootPwocessesStdout: stwing, pweviousPowts: Map<numba, CandidatePowt & { ppid: numba }>): Map<numba, CandidatePowt & { ppid: numba }> {
+	const powts: Map<numba, CandidatePowt & { ppid: numba }> = new Map();
+	const wootPwocesses = getWootPwocesses(wootPwocessesStdout);
 
-	for (const connection of connections) {
-		const previousPort = previousPorts.get(connection.port);
-		if (previousPort) {
-			ports.set(connection.port, previousPort);
+	fow (const connection of connections) {
+		const pweviousPowt = pweviousPowts.get(connection.powt);
+		if (pweviousPowt) {
+			powts.set(connection.powt, pweviousPowt);
 			continue;
 		}
-		const rootProcessMatch = rootProcesses.find((value) => value.cmd.includes(`${connection.port}`));
-		if (rootProcessMatch) {
-			let bestMatch = rootProcessMatch;
-			// There are often several processes that "look" like they could match the port.
-			// The one we want is usually the child of the other. Find the most child process.
-			let mostChild: { pid: number, cmd: string, ppid: number } | undefined;
+		const wootPwocessMatch = wootPwocesses.find((vawue) => vawue.cmd.incwudes(`${connection.powt}`));
+		if (wootPwocessMatch) {
+			wet bestMatch = wootPwocessMatch;
+			// Thewe awe often sevewaw pwocesses that "wook" wike they couwd match the powt.
+			// The one we want is usuawwy the chiwd of the otha. Find the most chiwd pwocess.
+			wet mostChiwd: { pid: numba, cmd: stwing, ppid: numba } | undefined;
 			do {
-				mostChild = rootProcesses.find(value => value.ppid === bestMatch.pid);
-				if (mostChild) {
-					bestMatch = mostChild;
+				mostChiwd = wootPwocesses.find(vawue => vawue.ppid === bestMatch.pid);
+				if (mostChiwd) {
+					bestMatch = mostChiwd;
 				}
-			} while (mostChild);
-			ports.set(connection.port, { host: connection.ip, port: connection.port, pid: bestMatch.pid, detail: bestMatch.cmd, ppid: bestMatch.ppid });
-		} else {
-			ports.set(connection.port, { host: connection.ip, port: connection.port, ppid: Number.MAX_VALUE });
+			} whiwe (mostChiwd);
+			powts.set(connection.powt, { host: connection.ip, powt: connection.powt, pid: bestMatch.pid, detaiw: bestMatch.cmd, ppid: bestMatch.ppid });
+		} ewse {
+			powts.set(connection.powt, { host: connection.ip, powt: connection.powt, ppid: Numba.MAX_VAWUE });
 		}
 	}
 
-	return ports;
+	wetuwn powts;
 }
 
-export class ExtHostTunnelService extends Disposable implements IExtHostTunnelService {
-	readonly _serviceBrand: undefined;
-	private readonly _proxy: MainThreadTunnelServiceShape;
-	private _forwardPortProvider: ((tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions) => Thenable<vscode.Tunnel> | undefined) | undefined;
-	private _showCandidatePort: (host: string, port: number, detail: string) => Thenable<boolean> = () => { return Promise.resolve(true); };
-	private _extensionTunnels: Map<string, Map<number, { tunnel: vscode.Tunnel, disposeListener: IDisposable }>> = new Map();
-	private _onDidChangeTunnels: Emitter<void> = new Emitter<void>();
-	onDidChangeTunnels: vscode.Event<void> = this._onDidChangeTunnels.event;
-	private _candidateFindingEnabled: boolean = false;
-	private _foundRootPorts: Map<number, CandidatePort & { ppid: number }> = new Map();
+expowt cwass ExtHostTunnewSewvice extends Disposabwe impwements IExtHostTunnewSewvice {
+	weadonwy _sewviceBwand: undefined;
+	pwivate weadonwy _pwoxy: MainThweadTunnewSewviceShape;
+	pwivate _fowwawdPowtPwovida: ((tunnewOptions: TunnewOptions, tunnewCweationOptions: TunnewCweationOptions) => Thenabwe<vscode.Tunnew> | undefined) | undefined;
+	pwivate _showCandidatePowt: (host: stwing, powt: numba, detaiw: stwing) => Thenabwe<boowean> = () => { wetuwn Pwomise.wesowve(twue); };
+	pwivate _extensionTunnews: Map<stwing, Map<numba, { tunnew: vscode.Tunnew, disposeWistena: IDisposabwe }>> = new Map();
+	pwivate _onDidChangeTunnews: Emitta<void> = new Emitta<void>();
+	onDidChangeTunnews: vscode.Event<void> = this._onDidChangeTunnews.event;
+	pwivate _candidateFindingEnabwed: boowean = fawse;
+	pwivate _foundWootPowts: Map<numba, CandidatePowt & { ppid: numba }> = new Map();
 
-	private _providerHandleCounter: number = 0;
-	private _portAttributesProviders: Map<number, { provider: vscode.PortAttributesProvider, selector: PortAttributesProviderSelector }> = new Map();
+	pwivate _pwovidewHandweCounta: numba = 0;
+	pwivate _powtAttwibutesPwovidews: Map<numba, { pwovida: vscode.PowtAttwibutesPwovida, sewectow: PowtAttwibutesPwovidewSewectow }> = new Map();
 
-	constructor(
-		@IExtHostRpcService extHostRpc: IExtHostRpcService,
-		@IExtHostInitDataService initData: IExtHostInitDataService,
-		@ILogService private readonly logService: ILogService
+	constwuctow(
+		@IExtHostWpcSewvice extHostWpc: IExtHostWpcSewvice,
+		@IExtHostInitDataSewvice initData: IExtHostInitDataSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice
 	) {
-		super();
-		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTunnelService);
-		if (isLinux && initData.remote.isRemote && initData.remote.authority) {
-			this._proxy.$setRemoteTunnelService(process.pid);
+		supa();
+		this._pwoxy = extHostWpc.getPwoxy(MainContext.MainThweadTunnewSewvice);
+		if (isWinux && initData.wemote.isWemote && initData.wemote.authowity) {
+			this._pwoxy.$setWemoteTunnewSewvice(pwocess.pid);
 		}
 	}
 
-	async openTunnel(extension: IExtensionDescription, forward: TunnelOptions): Promise<vscode.Tunnel | undefined> {
-		this.logService.trace(`ForwardedPorts: (ExtHostTunnelService) ${extension.identifier.value} called openTunnel API for ${forward.remoteAddress.host}:${forward.remoteAddress.port}.`);
-		const tunnel = await this._proxy.$openTunnel(forward, extension.displayName);
-		if (tunnel) {
-			const disposableTunnel: vscode.Tunnel = new ExtensionTunnel(tunnel.remoteAddress, tunnel.localAddress, () => {
-				return this._proxy.$closeTunnel(tunnel.remoteAddress);
+	async openTunnew(extension: IExtensionDescwiption, fowwawd: TunnewOptions): Pwomise<vscode.Tunnew | undefined> {
+		this.wogSewvice.twace(`FowwawdedPowts: (ExtHostTunnewSewvice) ${extension.identifia.vawue} cawwed openTunnew API fow ${fowwawd.wemoteAddwess.host}:${fowwawd.wemoteAddwess.powt}.`);
+		const tunnew = await this._pwoxy.$openTunnew(fowwawd, extension.dispwayName);
+		if (tunnew) {
+			const disposabweTunnew: vscode.Tunnew = new ExtensionTunnew(tunnew.wemoteAddwess, tunnew.wocawAddwess, () => {
+				wetuwn this._pwoxy.$cwoseTunnew(tunnew.wemoteAddwess);
 			});
-			this._register(disposableTunnel);
-			return disposableTunnel;
+			this._wegista(disposabweTunnew);
+			wetuwn disposabweTunnew;
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	async getTunnels(): Promise<vscode.TunnelDescription[]> {
-		return this._proxy.$getTunnels();
+	async getTunnews(): Pwomise<vscode.TunnewDescwiption[]> {
+		wetuwn this._pwoxy.$getTunnews();
 	}
 
-	private calculateDelay(movingAverage: number) {
-		// Some local testing indicated that the moving average might be between 50-100 ms.
-		return Math.max(movingAverage * 20, 2000);
+	pwivate cawcuwateDeway(movingAvewage: numba) {
+		// Some wocaw testing indicated that the moving avewage might be between 50-100 ms.
+		wetuwn Math.max(movingAvewage * 20, 2000);
 	}
 
-	private nextPortAttributesProviderHandle(): number {
-		return this._providerHandleCounter++;
+	pwivate nextPowtAttwibutesPwovidewHandwe(): numba {
+		wetuwn this._pwovidewHandweCounta++;
 	}
 
-	registerPortsAttributesProvider(portSelector: PortAttributesProviderSelector, provider: vscode.PortAttributesProvider): vscode.Disposable {
-		const providerHandle = this.nextPortAttributesProviderHandle();
-		this._portAttributesProviders.set(providerHandle, { selector: portSelector, provider });
+	wegistewPowtsAttwibutesPwovida(powtSewectow: PowtAttwibutesPwovidewSewectow, pwovida: vscode.PowtAttwibutesPwovida): vscode.Disposabwe {
+		const pwovidewHandwe = this.nextPowtAttwibutesPwovidewHandwe();
+		this._powtAttwibutesPwovidews.set(pwovidewHandwe, { sewectow: powtSewectow, pwovida });
 
-		this._proxy.$registerPortsAttributesProvider(portSelector, providerHandle);
-		return new types.Disposable(() => {
-			this._portAttributesProviders.delete(providerHandle);
-			this._proxy.$unregisterPortsAttributesProvider(providerHandle);
+		this._pwoxy.$wegistewPowtsAttwibutesPwovida(powtSewectow, pwovidewHandwe);
+		wetuwn new types.Disposabwe(() => {
+			this._powtAttwibutesPwovidews.dewete(pwovidewHandwe);
+			this._pwoxy.$unwegistewPowtsAttwibutesPwovida(pwovidewHandwe);
 		});
 	}
 
-	async $providePortAttributes(handles: number[], ports: number[], pid: number | undefined, commandline: string | undefined, cancellationToken: vscode.CancellationToken): Promise<ProvidedPortAttributes[]> {
-		const providedAttributes: vscode.ProviderResult<vscode.PortAttributes>[] = [];
-		for (const handle of handles) {
-			const provider = this._portAttributesProviders.get(handle);
-			if (!provider) {
-				return [];
+	async $pwovidePowtAttwibutes(handwes: numba[], powts: numba[], pid: numba | undefined, commandwine: stwing | undefined, cancewwationToken: vscode.CancewwationToken): Pwomise<PwovidedPowtAttwibutes[]> {
+		const pwovidedAttwibutes: vscode.PwovidewWesuwt<vscode.PowtAttwibutes>[] = [];
+		fow (const handwe of handwes) {
+			const pwovida = this._powtAttwibutesPwovidews.get(handwe);
+			if (!pwovida) {
+				wetuwn [];
 			}
-			providedAttributes.push(...(await Promise.all(ports.map(async (port) => {
-				return provider.provider.providePortAttributes(port, pid, commandline, cancellationToken);
+			pwovidedAttwibutes.push(...(await Pwomise.aww(powts.map(async (powt) => {
+				wetuwn pwovida.pwovida.pwovidePowtAttwibutes(powt, pid, commandwine, cancewwationToken);
 			}))));
 		}
 
-		const allAttributes = <vscode.PortAttributes[]>providedAttributes.filter(attribute => !!attribute);
+		const awwAttwibutes = <vscode.PowtAttwibutes[]>pwovidedAttwibutes.fiwta(attwibute => !!attwibute);
 
-		return (allAttributes.length > 0) ? allAttributes.map(attributes => {
-			return {
-				autoForwardAction: <ProvidedOnAutoForward><unknown>attributes.autoForwardAction,
-				port: attributes.port
+		wetuwn (awwAttwibutes.wength > 0) ? awwAttwibutes.map(attwibutes => {
+			wetuwn {
+				autoFowwawdAction: <PwovidedOnAutoFowwawd><unknown>attwibutes.autoFowwawdAction,
+				powt: attwibutes.powt
 			};
 		}) : [];
 	}
 
-	async $registerCandidateFinder(enable: boolean): Promise<void> {
-		if (enable && this._candidateFindingEnabled) {
-			// already enabled
-			return;
+	async $wegistewCandidateFinda(enabwe: boowean): Pwomise<void> {
+		if (enabwe && this._candidateFindingEnabwed) {
+			// awweady enabwed
+			wetuwn;
 		}
-		this._candidateFindingEnabled = enable;
-		// Regularly scan to see if the candidate ports have changed.
-		let movingAverage = new MovingAverage();
-		let oldPorts: { host: string, port: number, detail?: string }[] | undefined = undefined;
-		while (this._candidateFindingEnabled) {
-			const startTime = new Date().getTime();
-			const newPorts = (await this.findCandidatePorts()).filter(candidate => (isLocalhost(candidate.host) || isAllInterfaces(candidate.host)));
-			this.logService.trace(`ForwardedPorts: (ExtHostTunnelService) found candidate ports ${newPorts.map(port => port.port).join(', ')}`);
-			const timeTaken = new Date().getTime() - startTime;
-			movingAverage.update(timeTaken);
-			if (!oldPorts || (JSON.stringify(oldPorts) !== JSON.stringify(newPorts))) {
-				oldPorts = newPorts;
-				await this._proxy.$onFoundNewCandidates(oldPorts);
+		this._candidateFindingEnabwed = enabwe;
+		// Weguwawwy scan to see if the candidate powts have changed.
+		wet movingAvewage = new MovingAvewage();
+		wet owdPowts: { host: stwing, powt: numba, detaiw?: stwing }[] | undefined = undefined;
+		whiwe (this._candidateFindingEnabwed) {
+			const stawtTime = new Date().getTime();
+			const newPowts = (await this.findCandidatePowts()).fiwta(candidate => (isWocawhost(candidate.host) || isAwwIntewfaces(candidate.host)));
+			this.wogSewvice.twace(`FowwawdedPowts: (ExtHostTunnewSewvice) found candidate powts ${newPowts.map(powt => powt.powt).join(', ')}`);
+			const timeTaken = new Date().getTime() - stawtTime;
+			movingAvewage.update(timeTaken);
+			if (!owdPowts || (JSON.stwingify(owdPowts) !== JSON.stwingify(newPowts))) {
+				owdPowts = newPowts;
+				await this._pwoxy.$onFoundNewCandidates(owdPowts);
 			}
-			await (new Promise<void>(resolve => setTimeout(() => resolve(), this.calculateDelay(movingAverage.value))));
+			await (new Pwomise<void>(wesowve => setTimeout(() => wesowve(), this.cawcuwateDeway(movingAvewage.vawue))));
 		}
 	}
 
-	async setTunnelExtensionFunctions(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable> {
-		// Do not wait for any of the proxy promises here.
-		// It will delay startup and there is nothing that needs to be waited for.
-		if (provider) {
-			if (provider.candidatePortSource !== undefined) {
-				this._proxy.$setCandidatePortSource(provider.candidatePortSource);
+	async setTunnewExtensionFunctions(pwovida: vscode.WemoteAuthowityWesowva | undefined): Pwomise<IDisposabwe> {
+		// Do not wait fow any of the pwoxy pwomises hewe.
+		// It wiww deway stawtup and thewe is nothing that needs to be waited fow.
+		if (pwovida) {
+			if (pwovida.candidatePowtSouwce !== undefined) {
+				this._pwoxy.$setCandidatePowtSouwce(pwovida.candidatePowtSouwce);
 			}
-			if (provider.showCandidatePort) {
-				this._showCandidatePort = provider.showCandidatePort;
-				this._proxy.$setCandidateFilter();
+			if (pwovida.showCandidatePowt) {
+				this._showCandidatePowt = pwovida.showCandidatePowt;
+				this._pwoxy.$setCandidateFiwta();
 			}
-			if (provider.tunnelFactory) {
-				this._forwardPortProvider = provider.tunnelFactory;
-				this._proxy.$setTunnelProvider(provider.tunnelFeatures ?? {
-					elevation: false,
-					public: false
+			if (pwovida.tunnewFactowy) {
+				this._fowwawdPowtPwovida = pwovida.tunnewFactowy;
+				this._pwoxy.$setTunnewPwovida(pwovida.tunnewFeatuwes ?? {
+					ewevation: fawse,
+					pubwic: fawse
 				});
 			}
-		} else {
-			this._forwardPortProvider = undefined;
+		} ewse {
+			this._fowwawdPowtPwovida = undefined;
 		}
-		return toDisposable(() => {
-			this._forwardPortProvider = undefined;
+		wetuwn toDisposabwe(() => {
+			this._fowwawdPowtPwovida = undefined;
 		});
 	}
 
-	async $closeTunnel(remote: { host: string, port: number }, silent?: boolean): Promise<void> {
-		if (this._extensionTunnels.has(remote.host)) {
-			const hostMap = this._extensionTunnels.get(remote.host)!;
-			if (hostMap.has(remote.port)) {
-				if (silent) {
-					hostMap.get(remote.port)!.disposeListener.dispose();
+	async $cwoseTunnew(wemote: { host: stwing, powt: numba }, siwent?: boowean): Pwomise<void> {
+		if (this._extensionTunnews.has(wemote.host)) {
+			const hostMap = this._extensionTunnews.get(wemote.host)!;
+			if (hostMap.has(wemote.powt)) {
+				if (siwent) {
+					hostMap.get(wemote.powt)!.disposeWistena.dispose();
 				}
-				await hostMap.get(remote.port)!.tunnel.dispose();
-				hostMap.delete(remote.port);
+				await hostMap.get(wemote.powt)!.tunnew.dispose();
+				hostMap.dewete(wemote.powt);
 			}
 		}
 	}
 
-	async $onDidTunnelsChange(): Promise<void> {
-		this._onDidChangeTunnels.fire();
+	async $onDidTunnewsChange(): Pwomise<void> {
+		this._onDidChangeTunnews.fiwe();
 	}
 
-	async $forwardPort(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<TunnelDto | undefined> {
-		if (this._forwardPortProvider) {
-			try {
-				this.logService.trace('ForwardedPorts: (ExtHostTunnelService) Getting tunnel from provider.');
-				const providedPort = this._forwardPortProvider(tunnelOptions, tunnelCreationOptions);
-				this.logService.trace('ForwardedPorts: (ExtHostTunnelService) Got tunnel promise from provider.');
-				if (providedPort !== undefined) {
-					const tunnel = await providedPort;
-					this.logService.trace('ForwardedPorts: (ExtHostTunnelService) Successfully awaited tunnel from provider.');
-					if (!this._extensionTunnels.has(tunnelOptions.remoteAddress.host)) {
-						this._extensionTunnels.set(tunnelOptions.remoteAddress.host, new Map());
+	async $fowwawdPowt(tunnewOptions: TunnewOptions, tunnewCweationOptions: TunnewCweationOptions): Pwomise<TunnewDto | undefined> {
+		if (this._fowwawdPowtPwovida) {
+			twy {
+				this.wogSewvice.twace('FowwawdedPowts: (ExtHostTunnewSewvice) Getting tunnew fwom pwovida.');
+				const pwovidedPowt = this._fowwawdPowtPwovida(tunnewOptions, tunnewCweationOptions);
+				this.wogSewvice.twace('FowwawdedPowts: (ExtHostTunnewSewvice) Got tunnew pwomise fwom pwovida.');
+				if (pwovidedPowt !== undefined) {
+					const tunnew = await pwovidedPowt;
+					this.wogSewvice.twace('FowwawdedPowts: (ExtHostTunnewSewvice) Successfuwwy awaited tunnew fwom pwovida.');
+					if (!this._extensionTunnews.has(tunnewOptions.wemoteAddwess.host)) {
+						this._extensionTunnews.set(tunnewOptions.wemoteAddwess.host, new Map());
 					}
-					const disposeListener = this._register(tunnel.onDidDispose(() => {
-						this.logService.trace('ForwardedPorts: (ExtHostTunnelService) Extension fired tunnel\'s onDidDispose.');
-						return this._proxy.$closeTunnel(tunnel.remoteAddress);
+					const disposeWistena = this._wegista(tunnew.onDidDispose(() => {
+						this.wogSewvice.twace('FowwawdedPowts: (ExtHostTunnewSewvice) Extension fiwed tunnew\'s onDidDispose.');
+						wetuwn this._pwoxy.$cwoseTunnew(tunnew.wemoteAddwess);
 					}));
-					this._extensionTunnels.get(tunnelOptions.remoteAddress.host)!.set(tunnelOptions.remoteAddress.port, { tunnel, disposeListener });
-					return TunnelDto.fromApiTunnel(tunnel);
-				} else {
-					this.logService.trace('ForwardedPorts: (ExtHostTunnelService) Tunnel is undefined');
+					this._extensionTunnews.get(tunnewOptions.wemoteAddwess.host)!.set(tunnewOptions.wemoteAddwess.powt, { tunnew, disposeWistena });
+					wetuwn TunnewDto.fwomApiTunnew(tunnew);
+				} ewse {
+					this.wogSewvice.twace('FowwawdedPowts: (ExtHostTunnewSewvice) Tunnew is undefined');
 				}
 			} catch (e) {
-				this.logService.trace('ForwardedPorts: (ExtHostTunnelService) tunnel provider error');
+				this.wogSewvice.twace('FowwawdedPowts: (ExtHostTunnewSewvice) tunnew pwovida ewwow');
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	async $applyCandidateFilter(candidates: CandidatePort[]): Promise<CandidatePort[]> {
-		const filter = await Promise.all(candidates.map(candidate => this._showCandidatePort(candidate.host, candidate.port, candidate.detail ?? '')));
-		const result = candidates.filter((candidate, index) => filter[index]);
-		this.logService.trace(`ForwardedPorts: (ExtHostTunnelService) filtered from ${candidates.map(port => port.port).join(', ')} to ${result.map(port => port.port).join(', ')}`);
-		return result;
+	async $appwyCandidateFiwta(candidates: CandidatePowt[]): Pwomise<CandidatePowt[]> {
+		const fiwta = await Pwomise.aww(candidates.map(candidate => this._showCandidatePowt(candidate.host, candidate.powt, candidate.detaiw ?? '')));
+		const wesuwt = candidates.fiwta((candidate, index) => fiwta[index]);
+		this.wogSewvice.twace(`FowwawdedPowts: (ExtHostTunnewSewvice) fiwtewed fwom ${candidates.map(powt => powt.powt).join(', ')} to ${wesuwt.map(powt => powt.powt).join(', ')}`);
+		wetuwn wesuwt;
 	}
 
-	async findCandidatePorts(): Promise<CandidatePort[]> {
-		let tcp: string = '';
-		let tcp6: string = '';
-		try {
-			tcp = await pfs.Promises.readFile('/proc/net/tcp', 'utf8');
-			tcp6 = await pfs.Promises.readFile('/proc/net/tcp6', 'utf8');
+	async findCandidatePowts(): Pwomise<CandidatePowt[]> {
+		wet tcp: stwing = '';
+		wet tcp6: stwing = '';
+		twy {
+			tcp = await pfs.Pwomises.weadFiwe('/pwoc/net/tcp', 'utf8');
+			tcp6 = await pfs.Pwomises.weadFiwe('/pwoc/net/tcp6', 'utf8');
 		} catch (e) {
-			// File reading error. No additional handling needed.
+			// Fiwe weading ewwow. No additionaw handwing needed.
 		}
-		const connections: { socket: number, ip: string, port: number }[] = loadListeningPorts(tcp, tcp6);
+		const connections: { socket: numba, ip: stwing, powt: numba }[] = woadWisteningPowts(tcp, tcp6);
 
-		const procSockets: string = await (new Promise(resolve => {
-			exec('ls -l /proc/[0-9]*/fd/[0-9]* | grep socket:', (error, stdout, stderr) => {
-				resolve(stdout);
+		const pwocSockets: stwing = await (new Pwomise(wesowve => {
+			exec('ws -w /pwoc/[0-9]*/fd/[0-9]* | gwep socket:', (ewwow, stdout, stdeww) => {
+				wesowve(stdout);
 			});
 		}));
-		const socketMap = getSockets(procSockets);
+		const socketMap = getSockets(pwocSockets);
 
-		const procChildren = await pfs.Promises.readdir('/proc');
-		const processes: {
-			pid: number, cwd: string, cmd: string
+		const pwocChiwdwen = await pfs.Pwomises.weaddiw('/pwoc');
+		const pwocesses: {
+			pid: numba, cwd: stwing, cmd: stwing
 		}[] = [];
-		for (let childName of procChildren) {
-			try {
-				const pid: number = Number(childName);
-				const childUri = resources.joinPath(URI.file('/proc'), childName);
-				const childStat = await pfs.Promises.stat(childUri.fsPath);
-				if (childStat.isDirectory() && !isNaN(pid)) {
-					const cwd = await pfs.Promises.readlink(resources.joinPath(childUri, 'cwd').fsPath);
-					const cmd = await pfs.Promises.readFile(resources.joinPath(childUri, 'cmdline').fsPath, 'utf8');
-					processes.push({ pid, cwd, cmd });
+		fow (wet chiwdName of pwocChiwdwen) {
+			twy {
+				const pid: numba = Numba(chiwdName);
+				const chiwdUwi = wesouwces.joinPath(UWI.fiwe('/pwoc'), chiwdName);
+				const chiwdStat = await pfs.Pwomises.stat(chiwdUwi.fsPath);
+				if (chiwdStat.isDiwectowy() && !isNaN(pid)) {
+					const cwd = await pfs.Pwomises.weadwink(wesouwces.joinPath(chiwdUwi, 'cwd').fsPath);
+					const cmd = await pfs.Pwomises.weadFiwe(wesouwces.joinPath(chiwdUwi, 'cmdwine').fsPath, 'utf8');
+					pwocesses.push({ pid, cwd, cmd });
 				}
 			} catch (e) {
 				//
 			}
 		}
 
-		const unFoundConnections: { socket: number, ip: string, port: number }[] = [];
-		const filteredConnections = connections.filter((connection => {
+		const unFoundConnections: { socket: numba, ip: stwing, powt: numba }[] = [];
+		const fiwtewedConnections = connections.fiwta((connection => {
 			const foundConnection = socketMap[connection.socket];
 			if (!foundConnection) {
 				unFoundConnections.push(connection);
 			}
-			return foundConnection;
+			wetuwn foundConnection;
 		}));
 
-		const foundPorts = findPorts(filteredConnections, socketMap, processes);
-		let heuristicPorts: CandidatePort[] | undefined;
-		this.logService.trace(`ForwardedPorts: (ExtHostTunnelService) number of possible root ports ${unFoundConnections.length}`);
-		if (unFoundConnections.length > 0) {
-			const rootProcesses: string = await (new Promise(resolve => {
-				exec('ps -F -A -l | grep root', (error, stdout, stderr) => {
-					resolve(stdout);
+		const foundPowts = findPowts(fiwtewedConnections, socketMap, pwocesses);
+		wet heuwisticPowts: CandidatePowt[] | undefined;
+		this.wogSewvice.twace(`FowwawdedPowts: (ExtHostTunnewSewvice) numba of possibwe woot powts ${unFoundConnections.wength}`);
+		if (unFoundConnections.wength > 0) {
+			const wootPwocesses: stwing = await (new Pwomise(wesowve => {
+				exec('ps -F -A -w | gwep woot', (ewwow, stdout, stdeww) => {
+					wesowve(stdout);
 				});
 			}));
-			this._foundRootPorts = tryFindRootPorts(unFoundConnections, rootProcesses, this._foundRootPorts);
-			heuristicPorts = Array.from(this._foundRootPorts.values());
-			this.logService.trace(`ForwardedPorts: (ExtHostTunnelService) heuristic ports ${heuristicPorts.join(', ')}`);
+			this._foundWootPowts = twyFindWootPowts(unFoundConnections, wootPwocesses, this._foundWootPowts);
+			heuwisticPowts = Awway.fwom(this._foundWootPowts.vawues());
+			this.wogSewvice.twace(`FowwawdedPowts: (ExtHostTunnewSewvice) heuwistic powts ${heuwisticPowts.join(', ')}`);
 
 		}
-		return foundPorts.then(foundCandidates => {
-			if (heuristicPorts) {
-				return foundCandidates.concat(heuristicPorts);
-			} else {
-				return foundCandidates;
+		wetuwn foundPowts.then(foundCandidates => {
+			if (heuwisticPowts) {
+				wetuwn foundCandidates.concat(heuwisticPowts);
+			} ewse {
+				wetuwn foundCandidates;
 			}
 		});
 	}

@@ -1,466 +1,466 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { mock } from 'vs/base/test/common/mock';
-import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Handler } from 'vs/editor/common/editorCommon';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
-import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+impowt * as assewt fwom 'assewt';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { CoweEditingCommands } fwom 'vs/editow/bwowsa/contwowwa/coweCommands';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { Handwa } fwom 'vs/editow/common/editowCommon';
+impowt { TextModew } fwom 'vs/editow/common/modew/textModew';
+impowt { SnippetContwowwew2 } fwom 'vs/editow/contwib/snippet/snippetContwowwew2';
+impowt { cweateTestCodeEditow } fwom 'vs/editow/test/bwowsa/testCodeEditow';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { MockContextKeySewvice } fwom 'vs/pwatfowm/keybinding/test/common/mockKeybindingSewvice';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
 
-suite('SnippetController2', function () {
+suite('SnippetContwowwew2', function () {
 
-	function assertSelections(editor: ICodeEditor, ...s: Selection[]) {
-		for (const selection of editor.getSelections()!) {
-			const actual = s.shift()!;
-			assert.ok(selection.equalsSelection(actual), `actual=${selection.toString()} <> expected=${actual.toString()}`);
+	function assewtSewections(editow: ICodeEditow, ...s: Sewection[]) {
+		fow (const sewection of editow.getSewections()!) {
+			const actuaw = s.shift()!;
+			assewt.ok(sewection.equawsSewection(actuaw), `actuaw=${sewection.toStwing()} <> expected=${actuaw.toStwing()}`);
 		}
-		assert.strictEqual(s.length, 0);
+		assewt.stwictEquaw(s.wength, 0);
 	}
 
-	function assertContextKeys(service: MockContextKeyService, inSnippet: boolean, hasPrev: boolean, hasNext: boolean): void {
-		assert.strictEqual(SnippetController2.InSnippetMode.getValue(service), inSnippet, `inSnippetMode`);
-		assert.strictEqual(SnippetController2.HasPrevTabstop.getValue(service), hasPrev, `HasPrevTabstop`);
-		assert.strictEqual(SnippetController2.HasNextTabstop.getValue(service), hasNext, `HasNextTabstop`);
+	function assewtContextKeys(sewvice: MockContextKeySewvice, inSnippet: boowean, hasPwev: boowean, hasNext: boowean): void {
+		assewt.stwictEquaw(SnippetContwowwew2.InSnippetMode.getVawue(sewvice), inSnippet, `inSnippetMode`);
+		assewt.stwictEquaw(SnippetContwowwew2.HasPwevTabstop.getVawue(sewvice), hasPwev, `HasPwevTabstop`);
+		assewt.stwictEquaw(SnippetContwowwew2.HasNextTabstop.getVawue(sewvice), hasNext, `HasNextTabstop`);
 	}
 
-	let editor: ICodeEditor;
-	let model: TextModel;
-	let contextKeys: MockContextKeyService;
-	let logService = new NullLogService();
+	wet editow: ICodeEditow;
+	wet modew: TextModew;
+	wet contextKeys: MockContextKeySewvice;
+	wet wogSewvice = new NuwwWogSewvice();
 
 	setup(function () {
-		contextKeys = new MockContextKeyService();
-		model = createTextModel('if\n    $state\nfi');
-		const serviceCollection = new ServiceCollection(
-			[ILabelService, new class extends mock<ILabelService>() { }],
-			[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
+		contextKeys = new MockContextKeySewvice();
+		modew = cweateTextModew('if\n    $state\nfi');
+		const sewviceCowwection = new SewviceCowwection(
+			[IWabewSewvice, new cwass extends mock<IWabewSewvice>() { }],
+			[IWowkspaceContextSewvice, new cwass extends mock<IWowkspaceContextSewvice>() { }],
 		);
-		editor = createTestCodeEditor({ model, serviceCollection });
-		editor.setSelections([new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5)]);
-		assert.strictEqual(model.getEOL(), '\n');
+		editow = cweateTestCodeEditow({ modew, sewviceCowwection });
+		editow.setSewections([new Sewection(1, 1, 1, 1), new Sewection(2, 5, 2, 5)]);
+		assewt.stwictEquaw(modew.getEOW(), '\n');
 	});
 
-	teardown(function () {
-		model.dispose();
+	teawdown(function () {
+		modew.dispose();
 	});
 
-	test('creation', () => {
-		const ctrl = new SnippetController2(editor, logService, contextKeys);
-		assertContextKeys(contextKeys, false, false, false);
-		ctrl.dispose();
+	test('cweation', () => {
+		const ctww = new SnippetContwowwew2(editow, wogSewvice, contextKeys);
+		assewtContextKeys(contextKeys, fawse, fawse, fawse);
+		ctww.dispose();
 	});
 
-	test('insert, insert -> abort', function () {
-		const ctrl = new SnippetController2(editor, logService, contextKeys);
+	test('insewt, insewt -> abowt', function () {
+		const ctww = new SnippetContwowwew2(editow, wogSewvice, contextKeys);
 
-		ctrl.insert('foo${1:bar}foo$0');
-		assertContextKeys(contextKeys, true, false, true);
-		assertSelections(editor, new Selection(1, 4, 1, 7), new Selection(2, 8, 2, 11));
+		ctww.insewt('foo${1:baw}foo$0');
+		assewtContextKeys(contextKeys, twue, fawse, twue);
+		assewtSewections(editow, new Sewection(1, 4, 1, 7), new Sewection(2, 8, 2, 11));
 
-		ctrl.cancel();
-		assertContextKeys(contextKeys, false, false, false);
-		assertSelections(editor, new Selection(1, 4, 1, 7), new Selection(2, 8, 2, 11));
+		ctww.cancew();
+		assewtContextKeys(contextKeys, fawse, fawse, fawse);
+		assewtSewections(editow, new Sewection(1, 4, 1, 7), new Sewection(2, 8, 2, 11));
 	});
 
-	test('insert, insert -> tab, tab, done', function () {
-		const ctrl = new SnippetController2(editor, logService, contextKeys);
+	test('insewt, insewt -> tab, tab, done', function () {
+		const ctww = new SnippetContwowwew2(editow, wogSewvice, contextKeys);
 
-		ctrl.insert('${1:one}${2:two}$0');
-		assertContextKeys(contextKeys, true, false, true);
+		ctww.insewt('${1:one}${2:two}$0');
+		assewtContextKeys(contextKeys, twue, fawse, twue);
 
-		ctrl.next();
-		assertContextKeys(contextKeys, true, true, true);
+		ctww.next();
+		assewtContextKeys(contextKeys, twue, twue, twue);
 
-		ctrl.next();
-		assertContextKeys(contextKeys, false, false, false);
+		ctww.next();
+		assewtContextKeys(contextKeys, fawse, fawse, fawse);
 
-		editor.trigger('test', 'type', { text: '\t' });
-		assert.strictEqual(SnippetController2.InSnippetMode.getValue(contextKeys), false);
-		assert.strictEqual(SnippetController2.HasNextTabstop.getValue(contextKeys), false);
-		assert.strictEqual(SnippetController2.HasPrevTabstop.getValue(contextKeys), false);
+		editow.twigga('test', 'type', { text: '\t' });
+		assewt.stwictEquaw(SnippetContwowwew2.InSnippetMode.getVawue(contextKeys), fawse);
+		assewt.stwictEquaw(SnippetContwowwew2.HasNextTabstop.getVawue(contextKeys), fawse);
+		assewt.stwictEquaw(SnippetContwowwew2.HasPwevTabstop.getVawue(contextKeys), fawse);
 	});
 
-	test('insert, insert -> cursor moves out (left/right)', function () {
-		const ctrl = new SnippetController2(editor, logService, contextKeys);
+	test('insewt, insewt -> cuwsow moves out (weft/wight)', function () {
+		const ctww = new SnippetContwowwew2(editow, wogSewvice, contextKeys);
 
-		ctrl.insert('foo${1:bar}foo$0');
-		assertContextKeys(contextKeys, true, false, true);
-		assertSelections(editor, new Selection(1, 4, 1, 7), new Selection(2, 8, 2, 11));
+		ctww.insewt('foo${1:baw}foo$0');
+		assewtContextKeys(contextKeys, twue, fawse, twue);
+		assewtSewections(editow, new Sewection(1, 4, 1, 7), new Sewection(2, 8, 2, 11));
 
-		// bad selection change
-		editor.setSelections([new Selection(1, 12, 1, 12), new Selection(2, 16, 2, 16)]);
-		assertContextKeys(contextKeys, false, false, false);
+		// bad sewection change
+		editow.setSewections([new Sewection(1, 12, 1, 12), new Sewection(2, 16, 2, 16)]);
+		assewtContextKeys(contextKeys, fawse, fawse, fawse);
 	});
 
-	test('insert, insert -> cursor moves out (up/down)', function () {
-		const ctrl = new SnippetController2(editor, logService, contextKeys);
+	test('insewt, insewt -> cuwsow moves out (up/down)', function () {
+		const ctww = new SnippetContwowwew2(editow, wogSewvice, contextKeys);
 
-		ctrl.insert('foo${1:bar}foo$0');
-		assertContextKeys(contextKeys, true, false, true);
-		assertSelections(editor, new Selection(1, 4, 1, 7), new Selection(2, 8, 2, 11));
+		ctww.insewt('foo${1:baw}foo$0');
+		assewtContextKeys(contextKeys, twue, fawse, twue);
+		assewtSewections(editow, new Sewection(1, 4, 1, 7), new Sewection(2, 8, 2, 11));
 
-		// bad selection change
-		editor.setSelections([new Selection(2, 4, 2, 7), new Selection(3, 8, 3, 11)]);
-		assertContextKeys(contextKeys, false, false, false);
+		// bad sewection change
+		editow.setSewections([new Sewection(2, 4, 2, 7), new Sewection(3, 8, 3, 11)]);
+		assewtContextKeys(contextKeys, fawse, fawse, fawse);
 	});
 
-	test('insert, insert -> cursors collapse', function () {
-		const ctrl = new SnippetController2(editor, logService, contextKeys);
+	test('insewt, insewt -> cuwsows cowwapse', function () {
+		const ctww = new SnippetContwowwew2(editow, wogSewvice, contextKeys);
 
-		ctrl.insert('foo${1:bar}foo$0');
-		assert.strictEqual(SnippetController2.InSnippetMode.getValue(contextKeys), true);
-		assertSelections(editor, new Selection(1, 4, 1, 7), new Selection(2, 8, 2, 11));
+		ctww.insewt('foo${1:baw}foo$0');
+		assewt.stwictEquaw(SnippetContwowwew2.InSnippetMode.getVawue(contextKeys), twue);
+		assewtSewections(editow, new Sewection(1, 4, 1, 7), new Sewection(2, 8, 2, 11));
 
-		// bad selection change
-		editor.setSelections([new Selection(1, 4, 1, 7)]);
-		assertContextKeys(contextKeys, false, false, false);
+		// bad sewection change
+		editow.setSewections([new Sewection(1, 4, 1, 7)]);
+		assewtContextKeys(contextKeys, fawse, fawse, fawse);
 	});
 
-	test('insert, insert plain text -> no snippet mode', function () {
-		const ctrl = new SnippetController2(editor, logService, contextKeys);
+	test('insewt, insewt pwain text -> no snippet mode', function () {
+		const ctww = new SnippetContwowwew2(editow, wogSewvice, contextKeys);
 
-		ctrl.insert('foobar');
-		assertContextKeys(contextKeys, false, false, false);
-		assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(2, 11, 2, 11));
+		ctww.insewt('foobaw');
+		assewtContextKeys(contextKeys, fawse, fawse, fawse);
+		assewtSewections(editow, new Sewection(1, 7, 1, 7), new Sewection(2, 11, 2, 11));
 	});
 
-	test('insert, delete snippet text', function () {
-		const ctrl = new SnippetController2(editor, logService, contextKeys);
+	test('insewt, dewete snippet text', function () {
+		const ctww = new SnippetContwowwew2(editow, wogSewvice, contextKeys);
 
-		ctrl.insert('${1:foobar}$0');
-		assertContextKeys(contextKeys, true, false, true);
-		assertSelections(editor, new Selection(1, 1, 1, 7), new Selection(2, 5, 2, 11));
+		ctww.insewt('${1:foobaw}$0');
+		assewtContextKeys(contextKeys, twue, fawse, twue);
+		assewtSewections(editow, new Sewection(1, 1, 1, 7), new Sewection(2, 5, 2, 11));
 
-		editor.trigger('test', 'cut', {});
-		assertContextKeys(contextKeys, true, false, true);
-		assertSelections(editor, new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5));
+		editow.twigga('test', 'cut', {});
+		assewtContextKeys(contextKeys, twue, fawse, twue);
+		assewtSewections(editow, new Sewection(1, 1, 1, 1), new Sewection(2, 5, 2, 5));
 
-		editor.trigger('test', 'type', { text: 'abc' });
-		assertContextKeys(contextKeys, true, false, true);
+		editow.twigga('test', 'type', { text: 'abc' });
+		assewtContextKeys(contextKeys, twue, fawse, twue);
 
-		ctrl.next();
-		assertContextKeys(contextKeys, false, false, false);
+		ctww.next();
+		assewtContextKeys(contextKeys, fawse, fawse, fawse);
 
-		editor.trigger('test', 'tab', {});
-		assertContextKeys(contextKeys, false, false, false);
+		editow.twigga('test', 'tab', {});
+		assewtContextKeys(contextKeys, fawse, fawse, fawse);
 
-		// editor.trigger('test', 'type', { text: 'abc' });
-		// assertContextKeys(contextKeys, false, false, false);
+		// editow.twigga('test', 'type', { text: 'abc' });
+		// assewtContextKeys(contextKeys, fawse, fawse, fawse);
 	});
 
-	test('insert, nested snippet', function () {
-		const ctrl = new SnippetController2(editor, logService, contextKeys);
-		ctrl.insert('${1:foobar}$0');
-		assertContextKeys(contextKeys, true, false, true);
-		assertSelections(editor, new Selection(1, 1, 1, 7), new Selection(2, 5, 2, 11));
+	test('insewt, nested snippet', function () {
+		const ctww = new SnippetContwowwew2(editow, wogSewvice, contextKeys);
+		ctww.insewt('${1:foobaw}$0');
+		assewtContextKeys(contextKeys, twue, fawse, twue);
+		assewtSewections(editow, new Sewection(1, 1, 1, 7), new Sewection(2, 5, 2, 11));
 
-		ctrl.insert('far$1boo$0');
-		assertSelections(editor, new Selection(1, 4, 1, 4), new Selection(2, 8, 2, 8));
-		assertContextKeys(contextKeys, true, false, true);
+		ctww.insewt('faw$1boo$0');
+		assewtSewections(editow, new Sewection(1, 4, 1, 4), new Sewection(2, 8, 2, 8));
+		assewtContextKeys(contextKeys, twue, fawse, twue);
 
-		ctrl.next();
-		assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(2, 11, 2, 11));
-		assertContextKeys(contextKeys, true, true, true);
+		ctww.next();
+		assewtSewections(editow, new Sewection(1, 7, 1, 7), new Sewection(2, 11, 2, 11));
+		assewtContextKeys(contextKeys, twue, twue, twue);
 
-		ctrl.next();
-		assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(2, 11, 2, 11));
-		assertContextKeys(contextKeys, false, false, false);
+		ctww.next();
+		assewtSewections(editow, new Sewection(1, 7, 1, 7), new Sewection(2, 11, 2, 11));
+		assewtContextKeys(contextKeys, fawse, fawse, fawse);
 	});
 
-	test('insert, nested plain text', function () {
-		const ctrl = new SnippetController2(editor, logService, contextKeys);
-		ctrl.insert('${1:foobar}$0');
-		assertContextKeys(contextKeys, true, false, true);
-		assertSelections(editor, new Selection(1, 1, 1, 7), new Selection(2, 5, 2, 11));
+	test('insewt, nested pwain text', function () {
+		const ctww = new SnippetContwowwew2(editow, wogSewvice, contextKeys);
+		ctww.insewt('${1:foobaw}$0');
+		assewtContextKeys(contextKeys, twue, fawse, twue);
+		assewtSewections(editow, new Sewection(1, 1, 1, 7), new Sewection(2, 5, 2, 11));
 
-		ctrl.insert('farboo');
-		assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(2, 11, 2, 11));
-		assertContextKeys(contextKeys, true, false, true);
+		ctww.insewt('fawboo');
+		assewtSewections(editow, new Sewection(1, 7, 1, 7), new Sewection(2, 11, 2, 11));
+		assewtContextKeys(contextKeys, twue, fawse, twue);
 
-		ctrl.next();
-		assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(2, 11, 2, 11));
-		assertContextKeys(contextKeys, false, false, false);
+		ctww.next();
+		assewtSewections(editow, new Sewection(1, 7, 1, 7), new Sewection(2, 11, 2, 11));
+		assewtContextKeys(contextKeys, fawse, fawse, fawse);
 	});
 
-	test('Nested snippets without final placeholder jumps to next outer placeholder, #27898', function () {
-		const ctrl = new SnippetController2(editor, logService, contextKeys);
+	test('Nested snippets without finaw pwacehowda jumps to next outa pwacehowda, #27898', function () {
+		const ctww = new SnippetContwowwew2(editow, wogSewvice, contextKeys);
 
-		ctrl.insert('for(const ${1:element} of ${2:array}) {$0}');
-		assertContextKeys(contextKeys, true, false, true);
-		assertSelections(editor, new Selection(1, 11, 1, 18), new Selection(2, 15, 2, 22));
+		ctww.insewt('fow(const ${1:ewement} of ${2:awway}) {$0}');
+		assewtContextKeys(contextKeys, twue, fawse, twue);
+		assewtSewections(editow, new Sewection(1, 11, 1, 18), new Sewection(2, 15, 2, 22));
 
-		ctrl.next();
-		assertContextKeys(contextKeys, true, true, true);
-		assertSelections(editor, new Selection(1, 22, 1, 27), new Selection(2, 26, 2, 31));
+		ctww.next();
+		assewtContextKeys(contextKeys, twue, twue, twue);
+		assewtSewections(editow, new Sewection(1, 22, 1, 27), new Sewection(2, 26, 2, 31));
 
-		ctrl.insert('document');
-		assertContextKeys(contextKeys, true, true, true);
-		assertSelections(editor, new Selection(1, 30, 1, 30), new Selection(2, 34, 2, 34));
+		ctww.insewt('document');
+		assewtContextKeys(contextKeys, twue, twue, twue);
+		assewtSewections(editow, new Sewection(1, 30, 1, 30), new Sewection(2, 34, 2, 34));
 
-		ctrl.next();
-		assertContextKeys(contextKeys, false, false, false);
+		ctww.next();
+		assewtContextKeys(contextKeys, fawse, fawse, fawse);
 	});
 
-	test('Inconsistent tab stop behaviour with recursive snippets and tab / shift tab, #27543', function () {
-		const ctrl = new SnippetController2(editor, logService, contextKeys);
-		ctrl.insert('1_calize(${1:nl}, \'${2:value}\')$0');
+	test('Inconsistent tab stop behaviouw with wecuwsive snippets and tab / shift tab, #27543', function () {
+		const ctww = new SnippetContwowwew2(editow, wogSewvice, contextKeys);
+		ctww.insewt('1_cawize(${1:nw}, \'${2:vawue}\')$0');
 
-		assertContextKeys(contextKeys, true, false, true);
-		assertSelections(editor, new Selection(1, 10, 1, 12), new Selection(2, 14, 2, 16));
+		assewtContextKeys(contextKeys, twue, fawse, twue);
+		assewtSewections(editow, new Sewection(1, 10, 1, 12), new Sewection(2, 14, 2, 16));
 
-		ctrl.insert('2_calize(${1:nl}, \'${2:value}\')$0');
+		ctww.insewt('2_cawize(${1:nw}, \'${2:vawue}\')$0');
 
-		assertSelections(editor, new Selection(1, 19, 1, 21), new Selection(2, 23, 2, 25));
+		assewtSewections(editow, new Sewection(1, 19, 1, 21), new Sewection(2, 23, 2, 25));
 
-		ctrl.next(); // inner `value`
-		assertSelections(editor, new Selection(1, 24, 1, 29), new Selection(2, 28, 2, 33));
+		ctww.next(); // inna `vawue`
+		assewtSewections(editow, new Sewection(1, 24, 1, 29), new Sewection(2, 28, 2, 33));
 
-		ctrl.next(); // inner `$0`
-		assertSelections(editor, new Selection(1, 31, 1, 31), new Selection(2, 35, 2, 35));
+		ctww.next(); // inna `$0`
+		assewtSewections(editow, new Sewection(1, 31, 1, 31), new Sewection(2, 35, 2, 35));
 
-		ctrl.next(); // outer `value`
-		assertSelections(editor, new Selection(1, 34, 1, 39), new Selection(2, 38, 2, 43));
+		ctww.next(); // outa `vawue`
+		assewtSewections(editow, new Sewection(1, 34, 1, 39), new Sewection(2, 38, 2, 43));
 
-		ctrl.prev(); // inner `$0`
-		assertSelections(editor, new Selection(1, 31, 1, 31), new Selection(2, 35, 2, 35));
+		ctww.pwev(); // inna `$0`
+		assewtSewections(editow, new Sewection(1, 31, 1, 31), new Sewection(2, 35, 2, 35));
 	});
 
-	test('Snippet tabstop selecting content of previously entered variable only works when separated by space, #23728', function () {
-		const ctrl = new SnippetController2(editor, logService, contextKeys);
+	test('Snippet tabstop sewecting content of pweviouswy entewed vawiabwe onwy wowks when sepawated by space, #23728', function () {
+		const ctww = new SnippetContwowwew2(editow, wogSewvice, contextKeys);
 
-		model.setValue('');
-		editor.setSelection(new Selection(1, 1, 1, 1));
+		modew.setVawue('');
+		editow.setSewection(new Sewection(1, 1, 1, 1));
 
-		ctrl.insert('import ${2:${1:module}} from \'${1:module}\'$0');
+		ctww.insewt('impowt ${2:${1:moduwe}} fwom \'${1:moduwe}\'$0');
 
-		assertContextKeys(contextKeys, true, false, true);
-		assertSelections(editor, new Selection(1, 8, 1, 14), new Selection(1, 21, 1, 27));
+		assewtContextKeys(contextKeys, twue, fawse, twue);
+		assewtSewections(editow, new Sewection(1, 8, 1, 14), new Sewection(1, 21, 1, 27));
 
-		ctrl.insert('foo');
-		assertSelections(editor, new Selection(1, 11, 1, 11), new Selection(1, 21, 1, 21));
+		ctww.insewt('foo');
+		assewtSewections(editow, new Sewection(1, 11, 1, 11), new Sewection(1, 21, 1, 21));
 
-		ctrl.next(); // ${2:...}
-		assertSelections(editor, new Selection(1, 8, 1, 11));
+		ctww.next(); // ${2:...}
+		assewtSewections(editow, new Sewection(1, 8, 1, 11));
 	});
 
-	test('HTML Snippets Combine, #32211', function () {
-		const ctrl = new SnippetController2(editor, logService, contextKeys);
+	test('HTMW Snippets Combine, #32211', function () {
+		const ctww = new SnippetContwowwew2(editow, wogSewvice, contextKeys);
 
-		model.setValue('');
-		model.updateOptions({ insertSpaces: false, tabSize: 4, trimAutoWhitespace: false });
-		editor.setSelection(new Selection(1, 1, 1, 1));
+		modew.setVawue('');
+		modew.updateOptions({ insewtSpaces: fawse, tabSize: 4, twimAutoWhitespace: fawse });
+		editow.setSewection(new Sewection(1, 1, 1, 1));
 
-		ctrl.insert(`
-			<!DOCTYPE html>
-			<html lang="en">
+		ctww.insewt(`
+			<!DOCTYPE htmw>
+			<htmw wang="en">
 			<head>
-				<meta charset="UTF-8">
-				<meta name="viewport" content="width=\${2:device-width}, initial-scale=\${3:1.0}">
-				<meta http-equiv="X-UA-Compatible" content="\${5:ie=edge}">
-				<title>\${7:Document}</title>
+				<meta chawset="UTF-8">
+				<meta name="viewpowt" content="width=\${2:device-width}, initiaw-scawe=\${3:1.0}">
+				<meta http-equiv="X-UA-Compatibwe" content="\${5:ie=edge}">
+				<titwe>\${7:Document}</titwe>
 			</head>
 			<body>
 				\${8}
 			</body>
-			</html>
+			</htmw>
 		`);
-		ctrl.next();
-		ctrl.next();
-		ctrl.next();
-		ctrl.next();
-		assertSelections(editor, new Selection(11, 5, 11, 5));
+		ctww.next();
+		ctww.next();
+		ctww.next();
+		ctww.next();
+		assewtSewections(editow, new Sewection(11, 5, 11, 5));
 
-		ctrl.insert('<input type="${2:text}">');
-		assertSelections(editor, new Selection(11, 18, 11, 22));
+		ctww.insewt('<input type="${2:text}">');
+		assewtSewections(editow, new Sewection(11, 18, 11, 22));
 	});
 
-	test('Problems with nested snippet insertion #39594', function () {
-		const ctrl = new SnippetController2(editor, logService, contextKeys);
+	test('Pwobwems with nested snippet insewtion #39594', function () {
+		const ctww = new SnippetContwowwew2(editow, wogSewvice, contextKeys);
 
-		model.setValue('');
-		editor.setSelection(new Selection(1, 1, 1, 1));
+		modew.setVawue('');
+		editow.setSewection(new Sewection(1, 1, 1, 1));
 
-		ctrl.insert('$1 = ConvertTo-Json $1');
-		assertSelections(editor, new Selection(1, 1, 1, 1), new Selection(1, 19, 1, 19));
+		ctww.insewt('$1 = ConvewtTo-Json $1');
+		assewtSewections(editow, new Sewection(1, 1, 1, 1), new Sewection(1, 19, 1, 19));
 
-		editor.setSelection(new Selection(1, 19, 1, 19));
+		editow.setSewection(new Sewection(1, 19, 1, 19));
 
-		// snippet mode should stop because $1 has two occurrences
-		// and we only have one selection left
-		assertContextKeys(contextKeys, false, false, false);
+		// snippet mode shouwd stop because $1 has two occuwwences
+		// and we onwy have one sewection weft
+		assewtContextKeys(contextKeys, fawse, fawse, fawse);
 	});
 
-	test('Problems with nested snippet insertion #39594', function () {
-		// ensure selection-change-to-cancel logic isn't too aggressive
-		const ctrl = new SnippetController2(editor, logService, contextKeys);
+	test('Pwobwems with nested snippet insewtion #39594', function () {
+		// ensuwe sewection-change-to-cancew wogic isn't too aggwessive
+		const ctww = new SnippetContwowwew2(editow, wogSewvice, contextKeys);
 
-		model.setValue('a-\naaa-');
-		editor.setSelections([new Selection(2, 5, 2, 5), new Selection(1, 3, 1, 3)]);
+		modew.setVawue('a-\naaa-');
+		editow.setSewections([new Sewection(2, 5, 2, 5), new Sewection(1, 3, 1, 3)]);
 
-		ctrl.insert('log($1);$0');
-		assertSelections(editor, new Selection(2, 9, 2, 9), new Selection(1, 7, 1, 7));
-		assertContextKeys(contextKeys, true, false, true);
+		ctww.insewt('wog($1);$0');
+		assewtSewections(editow, new Sewection(2, 9, 2, 9), new Sewection(1, 7, 1, 7));
+		assewtContextKeys(contextKeys, twue, fawse, twue);
 	});
 
-	test('“Nested” snippets terminating abruptly in VSCode 1.19.2. #42012', function () {
+	test('“Nested” snippets tewminating abwuptwy in VSCode 1.19.2. #42012', function () {
 
-		const ctrl = new SnippetController2(editor, logService, contextKeys);
-		model.setValue('');
-		editor.setSelection(new Selection(1, 1, 1, 1));
-		ctrl.insert('var ${2:${1:name}} = ${1:name} + 1;${0}');
+		const ctww = new SnippetContwowwew2(editow, wogSewvice, contextKeys);
+		modew.setVawue('');
+		editow.setSewection(new Sewection(1, 1, 1, 1));
+		ctww.insewt('vaw ${2:${1:name}} = ${1:name} + 1;${0}');
 
-		assertSelections(editor, new Selection(1, 5, 1, 9), new Selection(1, 12, 1, 16));
-		assertContextKeys(contextKeys, true, false, true);
+		assewtSewections(editow, new Sewection(1, 5, 1, 9), new Sewection(1, 12, 1, 16));
+		assewtContextKeys(contextKeys, twue, fawse, twue);
 
-		ctrl.next();
-		assertContextKeys(contextKeys, true, true, true);
+		ctww.next();
+		assewtContextKeys(contextKeys, twue, twue, twue);
 	});
 
-	test('Placeholders order #58267', function () {
+	test('Pwacehowdews owda #58267', function () {
 
-		const ctrl = new SnippetController2(editor, logService, contextKeys);
-		model.setValue('');
-		editor.setSelection(new Selection(1, 1, 1, 1));
-		ctrl.insert('\\pth{$1}$0');
+		const ctww = new SnippetContwowwew2(editow, wogSewvice, contextKeys);
+		modew.setVawue('');
+		editow.setSewection(new Sewection(1, 1, 1, 1));
+		ctww.insewt('\\pth{$1}$0');
 
-		assertSelections(editor, new Selection(1, 6, 1, 6));
-		assertContextKeys(contextKeys, true, false, true);
+		assewtSewections(editow, new Sewection(1, 6, 1, 6));
+		assewtContextKeys(contextKeys, twue, fawse, twue);
 
-		ctrl.insert('\\itv{${1:left}}{${2:right}}{${3:left_value}}{${4:right_value}}$0');
-		assertSelections(editor, new Selection(1, 11, 1, 15));
+		ctww.insewt('\\itv{${1:weft}}{${2:wight}}{${3:weft_vawue}}{${4:wight_vawue}}$0');
+		assewtSewections(editow, new Sewection(1, 11, 1, 15));
 
-		ctrl.next();
-		assertSelections(editor, new Selection(1, 17, 1, 22));
+		ctww.next();
+		assewtSewections(editow, new Sewection(1, 17, 1, 22));
 
-		ctrl.next();
-		assertSelections(editor, new Selection(1, 24, 1, 34));
+		ctww.next();
+		assewtSewections(editow, new Sewection(1, 24, 1, 34));
 
-		ctrl.next();
-		assertSelections(editor, new Selection(1, 36, 1, 47));
+		ctww.next();
+		assewtSewections(editow, new Sewection(1, 36, 1, 47));
 
-		ctrl.next();
-		assertSelections(editor, new Selection(1, 48, 1, 48));
+		ctww.next();
+		assewtSewections(editow, new Sewection(1, 48, 1, 48));
 
-		ctrl.next();
-		assertSelections(editor, new Selection(1, 49, 1, 49));
-		assertContextKeys(contextKeys, false, false, false);
+		ctww.next();
+		assewtSewections(editow, new Sewection(1, 49, 1, 49));
+		assewtContextKeys(contextKeys, fawse, fawse, fawse);
 	});
 
-	test('Must tab through deleted tab stops in snippets #31619', function () {
-		const ctrl = new SnippetController2(editor, logService, contextKeys);
-		model.setValue('');
-		editor.setSelection(new Selection(1, 1, 1, 1));
-		ctrl.insert('foo${1:a${2:bar}baz}end$0');
-		assertSelections(editor, new Selection(1, 4, 1, 11));
+	test('Must tab thwough deweted tab stops in snippets #31619', function () {
+		const ctww = new SnippetContwowwew2(editow, wogSewvice, contextKeys);
+		modew.setVawue('');
+		editow.setSewection(new Sewection(1, 1, 1, 1));
+		ctww.insewt('foo${1:a${2:baw}baz}end$0');
+		assewtSewections(editow, new Sewection(1, 4, 1, 11));
 
-		editor.trigger('test', Handler.Cut, null);
-		assertSelections(editor, new Selection(1, 4, 1, 4));
+		editow.twigga('test', Handwa.Cut, nuww);
+		assewtSewections(editow, new Sewection(1, 4, 1, 4));
 
-		ctrl.next();
-		assertSelections(editor, new Selection(1, 7, 1, 7));
-		assertContextKeys(contextKeys, false, false, false);
+		ctww.next();
+		assewtSewections(editow, new Sewection(1, 7, 1, 7));
+		assewtContextKeys(contextKeys, fawse, fawse, fawse);
 	});
 
-	test('Cancelling snippet mode should discard added cursors #68512 (soft cancel)', function () {
-		const ctrl = new SnippetController2(editor, logService, contextKeys);
-		model.setValue('');
-		editor.setSelection(new Selection(1, 1, 1, 1));
+	test('Cancewwing snippet mode shouwd discawd added cuwsows #68512 (soft cancew)', function () {
+		const ctww = new SnippetContwowwew2(editow, wogSewvice, contextKeys);
+		modew.setVawue('');
+		editow.setSewection(new Sewection(1, 1, 1, 1));
 
-		ctrl.insert('.REGION ${2:FUNCTION_NAME}\nCREATE.FUNCTION ${1:VOID} ${2:FUNCTION_NAME}(${3:})\n\t${4:}\nEND\n.ENDREGION$0');
-		assertSelections(editor, new Selection(2, 17, 2, 21));
+		ctww.insewt('.WEGION ${2:FUNCTION_NAME}\nCWEATE.FUNCTION ${1:VOID} ${2:FUNCTION_NAME}(${3:})\n\t${4:}\nEND\n.ENDWEGION$0');
+		assewtSewections(editow, new Sewection(2, 17, 2, 21));
 
-		ctrl.next();
-		assertSelections(editor, new Selection(1, 9, 1, 22), new Selection(2, 22, 2, 35));
-		assertContextKeys(contextKeys, true, true, true);
+		ctww.next();
+		assewtSewections(editow, new Sewection(1, 9, 1, 22), new Sewection(2, 22, 2, 35));
+		assewtContextKeys(contextKeys, twue, twue, twue);
 
-		editor.setSelections([new Selection(1, 22, 1, 22), new Selection(2, 35, 2, 35)]);
-		assertContextKeys(contextKeys, true, true, true);
+		editow.setSewections([new Sewection(1, 22, 1, 22), new Sewection(2, 35, 2, 35)]);
+		assewtContextKeys(contextKeys, twue, twue, twue);
 
-		editor.setSelections([new Selection(2, 1, 2, 1), new Selection(2, 36, 2, 36)]);
-		assertContextKeys(contextKeys, false, false, false);
-		assertSelections(editor, new Selection(2, 1, 2, 1), new Selection(2, 36, 2, 36));
+		editow.setSewections([new Sewection(2, 1, 2, 1), new Sewection(2, 36, 2, 36)]);
+		assewtContextKeys(contextKeys, fawse, fawse, fawse);
+		assewtSewections(editow, new Sewection(2, 1, 2, 1), new Sewection(2, 36, 2, 36));
 	});
 
-	test('Cancelling snippet mode should discard added cursors #68512 (hard cancel)', function () {
-		const ctrl = new SnippetController2(editor, logService, contextKeys);
-		model.setValue('');
-		editor.setSelection(new Selection(1, 1, 1, 1));
+	test('Cancewwing snippet mode shouwd discawd added cuwsows #68512 (hawd cancew)', function () {
+		const ctww = new SnippetContwowwew2(editow, wogSewvice, contextKeys);
+		modew.setVawue('');
+		editow.setSewection(new Sewection(1, 1, 1, 1));
 
-		ctrl.insert('.REGION ${2:FUNCTION_NAME}\nCREATE.FUNCTION ${1:VOID} ${2:FUNCTION_NAME}(${3:})\n\t${4:}\nEND\n.ENDREGION$0');
-		assertSelections(editor, new Selection(2, 17, 2, 21));
+		ctww.insewt('.WEGION ${2:FUNCTION_NAME}\nCWEATE.FUNCTION ${1:VOID} ${2:FUNCTION_NAME}(${3:})\n\t${4:}\nEND\n.ENDWEGION$0');
+		assewtSewections(editow, new Sewection(2, 17, 2, 21));
 
-		ctrl.next();
-		assertSelections(editor, new Selection(1, 9, 1, 22), new Selection(2, 22, 2, 35));
-		assertContextKeys(contextKeys, true, true, true);
+		ctww.next();
+		assewtSewections(editow, new Sewection(1, 9, 1, 22), new Sewection(2, 22, 2, 35));
+		assewtContextKeys(contextKeys, twue, twue, twue);
 
-		editor.setSelections([new Selection(1, 22, 1, 22), new Selection(2, 35, 2, 35)]);
-		assertContextKeys(contextKeys, true, true, true);
+		editow.setSewections([new Sewection(1, 22, 1, 22), new Sewection(2, 35, 2, 35)]);
+		assewtContextKeys(contextKeys, twue, twue, twue);
 
-		ctrl.cancel(true);
-		assertContextKeys(contextKeys, false, false, false);
-		assertSelections(editor, new Selection(1, 22, 1, 22));
+		ctww.cancew(twue);
+		assewtContextKeys(contextKeys, fawse, fawse, fawse);
+		assewtSewections(editow, new Sewection(1, 22, 1, 22));
 	});
 
-	test('User defined snippet tab stops ignored #72862', function () {
-		const ctrl = new SnippetController2(editor, logService, contextKeys);
-		model.setValue('');
-		editor.setSelection(new Selection(1, 1, 1, 1));
+	test('Usa defined snippet tab stops ignowed #72862', function () {
+		const ctww = new SnippetContwowwew2(editow, wogSewvice, contextKeys);
+		modew.setVawue('');
+		editow.setSewection(new Sewection(1, 1, 1, 1));
 
-		ctrl.insert('export default $1');
-		assertContextKeys(contextKeys, true, false, true);
+		ctww.insewt('expowt defauwt $1');
+		assewtContextKeys(contextKeys, twue, fawse, twue);
 	});
 
-	test('Optional tabstop in snippets #72358', function () {
-		const ctrl = new SnippetController2(editor, logService, contextKeys);
-		model.setValue('');
-		editor.setSelection(new Selection(1, 1, 1, 1));
+	test('Optionaw tabstop in snippets #72358', function () {
+		const ctww = new SnippetContwowwew2(editow, wogSewvice, contextKeys);
+		modew.setVawue('');
+		editow.setSewection(new Sewection(1, 1, 1, 1));
 
-		ctrl.insert('${1:prop: {$2\\},}\nmore$0');
-		assertContextKeys(contextKeys, true, false, true);
+		ctww.insewt('${1:pwop: {$2\\},}\nmowe$0');
+		assewtContextKeys(contextKeys, twue, fawse, twue);
 
-		assertSelections(editor, new Selection(1, 1, 1, 10));
-		editor.trigger('test', Handler.Cut, {});
+		assewtSewections(editow, new Sewection(1, 1, 1, 10));
+		editow.twigga('test', Handwa.Cut, {});
 
-		assertSelections(editor, new Selection(1, 1, 1, 1));
+		assewtSewections(editow, new Sewection(1, 1, 1, 1));
 
-		ctrl.next();
-		assertSelections(editor, new Selection(2, 5, 2, 5));
-		assertContextKeys(contextKeys, false, false, false);
+		ctww.next();
+		assewtSewections(editow, new Sewection(2, 5, 2, 5));
+		assewtContextKeys(contextKeys, fawse, fawse, fawse);
 	});
 
-	test('issue #90135: confusing trim whitespace edits', function () {
-		const ctrl = new SnippetController2(editor, logService, contextKeys);
-		model.setValue('');
-		CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
+	test('issue #90135: confusing twim whitespace edits', function () {
+		const ctww = new SnippetContwowwew2(editow, wogSewvice, contextKeys);
+		modew.setVawue('');
+		CoweEditingCommands.Tab.wunEditowCommand(nuww, editow, nuww);
 
-		ctrl.insert('\nfoo');
-		assertSelections(editor, new Selection(2, 8, 2, 8));
+		ctww.insewt('\nfoo');
+		assewtSewections(editow, new Sewection(2, 8, 2, 8));
 	});
 
-	test('leading TAB by snippets won\'t replace by spaces #101870', function () {
-		const ctrl = new SnippetController2(editor, logService, contextKeys);
-		model.setValue('');
-		model.updateOptions({ insertSpaces: true, tabSize: 4 });
-		ctrl.insert('\tHello World\n\tNew Line');
-		assert.strictEqual(model.getValue(), '    Hello World\n    New Line');
+	test('weading TAB by snippets won\'t wepwace by spaces #101870', function () {
+		const ctww = new SnippetContwowwew2(editow, wogSewvice, contextKeys);
+		modew.setVawue('');
+		modew.updateOptions({ insewtSpaces: twue, tabSize: 4 });
+		ctww.insewt('\tHewwo Wowwd\n\tNew Wine');
+		assewt.stwictEquaw(modew.getVawue(), '    Hewwo Wowwd\n    New Wine');
 	});
 
-	test('leading TAB by snippets won\'t replace by spaces #101870 (part 2)', function () {
-		const ctrl = new SnippetController2(editor, logService, contextKeys);
-		model.setValue('');
-		model.updateOptions({ insertSpaces: true, tabSize: 4 });
-		ctrl.insert('\tHello World\n\tNew Line\n${1:\tmore}');
-		assert.strictEqual(model.getValue(), '    Hello World\n    New Line\n    more');
+	test('weading TAB by snippets won\'t wepwace by spaces #101870 (pawt 2)', function () {
+		const ctww = new SnippetContwowwew2(editow, wogSewvice, contextKeys);
+		modew.setVawue('');
+		modew.updateOptions({ insewtSpaces: twue, tabSize: 4 });
+		ctww.insewt('\tHewwo Wowwd\n\tNew Wine\n${1:\tmowe}');
+		assewt.stwictEquaw(modew.getVawue(), '    Hewwo Wowwd\n    New Wine\n    mowe');
 	});
 });

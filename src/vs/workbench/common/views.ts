@@ -1,855 +1,855 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Command } from 'vs/editor/common/modes';
-import { UriComponents, URI } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
-import { RawContextKey, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { localize } from 'vs/nls';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { getOrSet } from 'vs/base/common/map';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { flatten } from 'vs/base/common/arrays';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { SetMap } from 'vs/base/common/collections';
-import { IProgressIndicator } from 'vs/platform/progress/common/progress';
-import Severity from 'vs/base/common/severity';
-import { IPaneComposite } from 'vs/workbench/common/panecomposite';
-import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { mixin } from 'vs/base/common/objects';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { CancellationToken } from 'vs/base/common/cancellation';
+impowt { Command } fwom 'vs/editow/common/modes';
+impowt { UwiComponents, UWI } fwom 'vs/base/common/uwi';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { WawContextKey, ContextKeyExpwession } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { wocawize } fwom 'vs/nws';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IDisposabwe, Disposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { getOwSet } fwom 'vs/base/common/map';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IKeybindings } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { fwatten } fwom 'vs/base/common/awways';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { SetMap } fwom 'vs/base/common/cowwections';
+impowt { IPwogwessIndicatow } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { IPaneComposite } fwom 'vs/wowkbench/common/panecomposite';
+impowt { IAccessibiwityInfowmation } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { IMawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { mixin } fwom 'vs/base/common/objects';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { wegistewIcon } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
 
-export const defaultViewIcon = registerIcon('default-view-icon', Codicon.window, localize('defaultViewIcon', 'Default view icon.'));
+expowt const defauwtViewIcon = wegistewIcon('defauwt-view-icon', Codicon.window, wocawize('defauwtViewIcon', 'Defauwt view icon.'));
 
-export namespace Extensions {
-	export const ViewContainersRegistry = 'workbench.registry.view.containers';
-	export const ViewsRegistry = 'workbench.registry.view';
+expowt namespace Extensions {
+	expowt const ViewContainewsWegistwy = 'wowkbench.wegistwy.view.containews';
+	expowt const ViewsWegistwy = 'wowkbench.wegistwy.view';
 }
 
-export const enum ViewContainerLocation {
-	Sidebar,
-	Panel,
-	AuxiliaryBar
+expowt const enum ViewContainewWocation {
+	Sidebaw,
+	Panew,
+	AuxiwiawyBaw
 }
 
-export const ViewContainerLocations = [ViewContainerLocation.Sidebar, ViewContainerLocation.Panel, ViewContainerLocation.AuxiliaryBar];
+expowt const ViewContainewWocations = [ViewContainewWocation.Sidebaw, ViewContainewWocation.Panew, ViewContainewWocation.AuxiwiawyBaw];
 
-export function ViewContainerLocationToString(viewContainerLocation: ViewContainerLocation) {
-	switch (viewContainerLocation) {
-		case ViewContainerLocation.Sidebar: return 'sidebar';
-		case ViewContainerLocation.Panel: return 'panel';
-		case ViewContainerLocation.AuxiliaryBar: return 'auxiliarybar';
+expowt function ViewContainewWocationToStwing(viewContainewWocation: ViewContainewWocation) {
+	switch (viewContainewWocation) {
+		case ViewContainewWocation.Sidebaw: wetuwn 'sidebaw';
+		case ViewContainewWocation.Panew: wetuwn 'panew';
+		case ViewContainewWocation.AuxiwiawyBaw: wetuwn 'auxiwiawybaw';
 	}
 }
 
-type OpenCommandActionDescriptor = {
-	readonly id: string;
-	readonly title?: string;
-	readonly mnemonicTitle?: string;
-	readonly order?: number;
-	readonly keybindings?: IKeybindings & { when?: ContextKeyExpression };
+type OpenCommandActionDescwiptow = {
+	weadonwy id: stwing;
+	weadonwy titwe?: stwing;
+	weadonwy mnemonicTitwe?: stwing;
+	weadonwy owda?: numba;
+	weadonwy keybindings?: IKeybindings & { when?: ContextKeyExpwession };
 };
 
 /**
- * View Container Contexts
+ * View Containa Contexts
  */
-export function getEnabledViewContainerContextKey(viewContainerId: string): string { return `viewContainer.${viewContainerId}.enabled`; }
+expowt function getEnabwedViewContainewContextKey(viewContainewId: stwing): stwing { wetuwn `viewContaina.${viewContainewId}.enabwed`; }
 
-export interface IViewContainerDescriptor {
+expowt intewface IViewContainewDescwiptow {
 
 	/**
-	 * The id of the view container
+	 * The id of the view containa
 	 */
-	readonly id: string;
+	weadonwy id: stwing;
 
 	/**
-	 * The title of the view container
+	 * The titwe of the view containa
 	 */
-	readonly title: string;
+	weadonwy titwe: stwing;
 
 	/**
-	 * Icon representation of the View container
+	 * Icon wepwesentation of the View containa
 	 */
-	readonly icon?: ThemeIcon | URI;
+	weadonwy icon?: ThemeIcon | UWI;
 
 	/**
-	 * Order of the view container.
+	 * Owda of the view containa.
 	 */
-	readonly order?: number;
+	weadonwy owda?: numba;
 
 	/**
-	 * IViewPaneContainer Ctor to instantiate
+	 * IViewPaneContaina Ctow to instantiate
 	 */
-	readonly ctorDescriptor: SyncDescriptor<IViewPaneContainer>;
+	weadonwy ctowDescwiptow: SyncDescwiptow<IViewPaneContaina>;
 
 	/**
-	 * Descriptor for open view container command
-	 * If not provided, view container info (id, title) is used.
+	 * Descwiptow fow open view containa command
+	 * If not pwovided, view containa info (id, titwe) is used.
 	 *
-	 * Note: To prevent registering open command, use `donotRegisterOpenCommand` flag while registering the view container
+	 * Note: To pwevent wegistewing open command, use `donotWegistewOpenCommand` fwag whiwe wegistewing the view containa
 	 */
-	readonly openCommandActionDescriptor?: OpenCommandActionDescriptor;
+	weadonwy openCommandActionDescwiptow?: OpenCommandActionDescwiptow;
 
 	/**
-	 * Storage id to use to store the view container state.
-	 * If not provided, it will be derived.
+	 * Stowage id to use to stowe the view containa state.
+	 * If not pwovided, it wiww be dewived.
 	 */
-	readonly storageId?: string;
+	weadonwy stowageId?: stwing;
 
 	/**
-	 * If enabled, view container is not shown if it has no active views.
+	 * If enabwed, view containa is not shown if it has no active views.
 	 */
-	readonly hideIfEmpty?: boolean;
+	weadonwy hideIfEmpty?: boowean;
 
 	/**
-	 * Id of the extension that contributed the view container
+	 * Id of the extension that contwibuted the view containa
 	 */
-	readonly extensionId?: ExtensionIdentifier;
+	weadonwy extensionId?: ExtensionIdentifia;
 
-	readonly alwaysUseContainerInfo?: boolean;
+	weadonwy awwaysUseContainewInfo?: boowean;
 
-	readonly viewOrderDelegate?: ViewOrderDelegate;
+	weadonwy viewOwdewDewegate?: ViewOwdewDewegate;
 
-	readonly rejectAddedViews?: boolean;
+	weadonwy wejectAddedViews?: boowean;
 
-	requestedIndex?: number;
+	wequestedIndex?: numba;
 }
 
-export interface IViewContainersRegistry {
+expowt intewface IViewContainewsWegistwy {
 	/**
-	 * An event that is triggered when a view container is registered.
+	 * An event that is twiggewed when a view containa is wegistewed.
 	 */
-	readonly onDidRegister: Event<{ viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation }>;
+	weadonwy onDidWegista: Event<{ viewContaina: ViewContaina, viewContainewWocation: ViewContainewWocation }>;
 
 	/**
-	 * An event that is triggered when a view container is deregistered.
+	 * An event that is twiggewed when a view containa is dewegistewed.
 	 */
-	readonly onDidDeregister: Event<{ viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation }>;
+	weadonwy onDidDewegista: Event<{ viewContaina: ViewContaina, viewContainewWocation: ViewContainewWocation }>;
 
 	/**
-	 * All registered view containers
+	 * Aww wegistewed view containews
 	 */
-	readonly all: ViewContainer[];
+	weadonwy aww: ViewContaina[];
 
 	/**
-	 * Registers a view container to given location.
-	 * No op if a view container is already registered.
+	 * Wegistews a view containa to given wocation.
+	 * No op if a view containa is awweady wegistewed.
 	 *
-	 * @param viewContainerDescriptor descriptor of view container
-	 * @param location location of the view container
+	 * @pawam viewContainewDescwiptow descwiptow of view containa
+	 * @pawam wocation wocation of the view containa
 	 *
-	 * @returns the registered ViewContainer.
+	 * @wetuwns the wegistewed ViewContaina.
 	 */
-	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, location: ViewContainerLocation, options?: { isDefault?: boolean, donotRegisterOpenCommand?: boolean }): ViewContainer;
+	wegistewViewContaina(viewContainewDescwiptow: IViewContainewDescwiptow, wocation: ViewContainewWocation, options?: { isDefauwt?: boowean, donotWegistewOpenCommand?: boowean }): ViewContaina;
 
 	/**
-	 * Deregisters the given view container
-	 * No op if the view container is not registered
+	 * Dewegistews the given view containa
+	 * No op if the view containa is not wegistewed
 	 */
-	deregisterViewContainer(viewContainer: ViewContainer): void;
+	dewegistewViewContaina(viewContaina: ViewContaina): void;
 
 	/**
-	 * Returns the view container with given id.
+	 * Wetuwns the view containa with given id.
 	 *
-	 * @returns the view container with given id.
+	 * @wetuwns the view containa with given id.
 	 */
-	get(id: string): ViewContainer | undefined;
+	get(id: stwing): ViewContaina | undefined;
 
 	/**
-	 * Returns all view containers in the given location
+	 * Wetuwns aww view containews in the given wocation
 	 */
-	getViewContainers(location: ViewContainerLocation): ViewContainer[];
+	getViewContainews(wocation: ViewContainewWocation): ViewContaina[];
 
 	/**
-	 * Returns the view container location
+	 * Wetuwns the view containa wocation
 	 */
-	getViewContainerLocation(container: ViewContainer): ViewContainerLocation;
+	getViewContainewWocation(containa: ViewContaina): ViewContainewWocation;
 
 	/**
-	 * Return the default view container from the given location
+	 * Wetuwn the defauwt view containa fwom the given wocation
 	 */
-	getDefaultViewContainer(location: ViewContainerLocation): ViewContainer | undefined;
+	getDefauwtViewContaina(wocation: ViewContainewWocation): ViewContaina | undefined;
 }
 
-interface ViewOrderDelegate {
-	getOrder(group?: string): number | undefined;
+intewface ViewOwdewDewegate {
+	getOwda(gwoup?: stwing): numba | undefined;
 }
 
-export interface ViewContainer extends IViewContainerDescriptor { }
+expowt intewface ViewContaina extends IViewContainewDescwiptow { }
 
-interface RelaxedViewContainer extends ViewContainer {
+intewface WewaxedViewContaina extends ViewContaina {
 
-	openCommandActionDescriptor?: OpenCommandActionDescriptor;
+	openCommandActionDescwiptow?: OpenCommandActionDescwiptow;
 }
 
-class ViewContainersRegistryImpl extends Disposable implements IViewContainersRegistry {
+cwass ViewContainewsWegistwyImpw extends Disposabwe impwements IViewContainewsWegistwy {
 
-	private readonly _onDidRegister = this._register(new Emitter<{ viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation }>());
-	readonly onDidRegister: Event<{ viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation }> = this._onDidRegister.event;
+	pwivate weadonwy _onDidWegista = this._wegista(new Emitta<{ viewContaina: ViewContaina, viewContainewWocation: ViewContainewWocation }>());
+	weadonwy onDidWegista: Event<{ viewContaina: ViewContaina, viewContainewWocation: ViewContainewWocation }> = this._onDidWegista.event;
 
-	private readonly _onDidDeregister = this._register(new Emitter<{ viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation }>());
-	readonly onDidDeregister: Event<{ viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation }> = this._onDidDeregister.event;
+	pwivate weadonwy _onDidDewegista = this._wegista(new Emitta<{ viewContaina: ViewContaina, viewContainewWocation: ViewContainewWocation }>());
+	weadonwy onDidDewegista: Event<{ viewContaina: ViewContaina, viewContainewWocation: ViewContainewWocation }> = this._onDidDewegista.event;
 
-	private readonly viewContainers: Map<ViewContainerLocation, ViewContainer[]> = new Map<ViewContainerLocation, ViewContainer[]>();
-	private readonly defaultViewContainers: ViewContainer[] = [];
+	pwivate weadonwy viewContainews: Map<ViewContainewWocation, ViewContaina[]> = new Map<ViewContainewWocation, ViewContaina[]>();
+	pwivate weadonwy defauwtViewContainews: ViewContaina[] = [];
 
-	get all(): ViewContainer[] {
-		return flatten([...this.viewContainers.values()]);
+	get aww(): ViewContaina[] {
+		wetuwn fwatten([...this.viewContainews.vawues()]);
 	}
 
-	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, viewContainerLocation: ViewContainerLocation, options?: { isDefault?: boolean, donotRegisterOpenCommand?: boolean }): ViewContainer {
-		const existing = this.get(viewContainerDescriptor.id);
+	wegistewViewContaina(viewContainewDescwiptow: IViewContainewDescwiptow, viewContainewWocation: ViewContainewWocation, options?: { isDefauwt?: boowean, donotWegistewOpenCommand?: boowean }): ViewContaina {
+		const existing = this.get(viewContainewDescwiptow.id);
 		if (existing) {
-			return existing;
+			wetuwn existing;
 		}
 
-		const viewContainer: RelaxedViewContainer = viewContainerDescriptor;
-		viewContainer.openCommandActionDescriptor = options?.donotRegisterOpenCommand ? undefined : (viewContainer.openCommandActionDescriptor ?? { id: viewContainer.id });
-		const viewContainers = getOrSet(this.viewContainers, viewContainerLocation, []);
-		viewContainers.push(viewContainer);
-		if (options?.isDefault) {
-			this.defaultViewContainers.push(viewContainer);
+		const viewContaina: WewaxedViewContaina = viewContainewDescwiptow;
+		viewContaina.openCommandActionDescwiptow = options?.donotWegistewOpenCommand ? undefined : (viewContaina.openCommandActionDescwiptow ?? { id: viewContaina.id });
+		const viewContainews = getOwSet(this.viewContainews, viewContainewWocation, []);
+		viewContainews.push(viewContaina);
+		if (options?.isDefauwt) {
+			this.defauwtViewContainews.push(viewContaina);
 		}
-		this._onDidRegister.fire({ viewContainer, viewContainerLocation });
-		return viewContainer;
+		this._onDidWegista.fiwe({ viewContaina, viewContainewWocation });
+		wetuwn viewContaina;
 	}
 
-	deregisterViewContainer(viewContainer: ViewContainer): void {
-		for (const viewContainerLocation of this.viewContainers.keys()) {
-			const viewContainers = this.viewContainers.get(viewContainerLocation)!;
-			const index = viewContainers?.indexOf(viewContainer);
+	dewegistewViewContaina(viewContaina: ViewContaina): void {
+		fow (const viewContainewWocation of this.viewContainews.keys()) {
+			const viewContainews = this.viewContainews.get(viewContainewWocation)!;
+			const index = viewContainews?.indexOf(viewContaina);
 			if (index !== -1) {
-				viewContainers?.splice(index, 1);
-				if (viewContainers.length === 0) {
-					this.viewContainers.delete(viewContainerLocation);
+				viewContainews?.spwice(index, 1);
+				if (viewContainews.wength === 0) {
+					this.viewContainews.dewete(viewContainewWocation);
 				}
-				this._onDidDeregister.fire({ viewContainer, viewContainerLocation });
-				return;
+				this._onDidDewegista.fiwe({ viewContaina, viewContainewWocation });
+				wetuwn;
 			}
 		}
 	}
 
-	get(id: string): ViewContainer | undefined {
-		return this.all.filter(viewContainer => viewContainer.id === id)[0];
+	get(id: stwing): ViewContaina | undefined {
+		wetuwn this.aww.fiwta(viewContaina => viewContaina.id === id)[0];
 	}
 
-	getViewContainers(location: ViewContainerLocation): ViewContainer[] {
-		return [...(this.viewContainers.get(location) || [])];
+	getViewContainews(wocation: ViewContainewWocation): ViewContaina[] {
+		wetuwn [...(this.viewContainews.get(wocation) || [])];
 	}
 
-	getViewContainerLocation(container: ViewContainer): ViewContainerLocation {
-		return [...this.viewContainers.keys()].filter(location => this.getViewContainers(location).filter(viewContainer => viewContainer?.id === container.id).length > 0)[0];
+	getViewContainewWocation(containa: ViewContaina): ViewContainewWocation {
+		wetuwn [...this.viewContainews.keys()].fiwta(wocation => this.getViewContainews(wocation).fiwta(viewContaina => viewContaina?.id === containa.id).wength > 0)[0];
 	}
 
-	getDefaultViewContainer(location: ViewContainerLocation): ViewContainer | undefined {
-		return this.defaultViewContainers.find(viewContainer => this.getViewContainerLocation(viewContainer) === location);
+	getDefauwtViewContaina(wocation: ViewContainewWocation): ViewContaina | undefined {
+		wetuwn this.defauwtViewContainews.find(viewContaina => this.getViewContainewWocation(viewContaina) === wocation);
 	}
 }
 
-Registry.add(Extensions.ViewContainersRegistry, new ViewContainersRegistryImpl());
+Wegistwy.add(Extensions.ViewContainewsWegistwy, new ViewContainewsWegistwyImpw());
 
-export interface IViewDescriptor {
+expowt intewface IViewDescwiptow {
 
-	readonly type?: string;
+	weadonwy type?: stwing;
 
-	readonly id: string;
+	weadonwy id: stwing;
 
-	readonly name: string;
+	weadonwy name: stwing;
 
-	readonly ctorDescriptor: SyncDescriptor<IView>;
+	weadonwy ctowDescwiptow: SyncDescwiptow<IView>;
 
-	readonly when?: ContextKeyExpression;
+	weadonwy when?: ContextKeyExpwession;
 
-	readonly order?: number;
+	weadonwy owda?: numba;
 
-	readonly weight?: number;
+	weadonwy weight?: numba;
 
-	readonly collapsed?: boolean;
+	weadonwy cowwapsed?: boowean;
 
-	readonly canToggleVisibility?: boolean;
+	weadonwy canToggweVisibiwity?: boowean;
 
-	readonly canMoveView?: boolean;
+	weadonwy canMoveView?: boowean;
 
-	readonly containerIcon?: ThemeIcon | URI;
+	weadonwy containewIcon?: ThemeIcon | UWI;
 
-	readonly containerTitle?: string;
+	weadonwy containewTitwe?: stwing;
 
-	// Applies only to newly created views
-	readonly hideByDefault?: boolean;
+	// Appwies onwy to newwy cweated views
+	weadonwy hideByDefauwt?: boowean;
 
-	readonly workspace?: boolean;
+	weadonwy wowkspace?: boowean;
 
-	readonly focusCommand?: { id: string, keybindings?: IKeybindings };
+	weadonwy focusCommand?: { id: stwing, keybindings?: IKeybindings };
 
-	// For contributed remote explorer views
-	readonly group?: string;
+	// Fow contwibuted wemote expwowa views
+	weadonwy gwoup?: stwing;
 
-	readonly remoteAuthority?: string | string[];
+	weadonwy wemoteAuthowity?: stwing | stwing[];
 
-	readonly openCommandActionDescriptor?: OpenCommandActionDescriptor
+	weadonwy openCommandActionDescwiptow?: OpenCommandActionDescwiptow
 }
 
-export interface IViewDescriptorRef {
-	viewDescriptor: IViewDescriptor;
-	index: number;
+expowt intewface IViewDescwiptowWef {
+	viewDescwiptow: IViewDescwiptow;
+	index: numba;
 }
 
-export interface IAddedViewDescriptorRef extends IViewDescriptorRef {
-	collapsed: boolean;
-	size?: number;
+expowt intewface IAddedViewDescwiptowWef extends IViewDescwiptowWef {
+	cowwapsed: boowean;
+	size?: numba;
 }
 
-export interface IAddedViewDescriptorState {
-	viewDescriptor: IViewDescriptor,
-	collapsed?: boolean;
-	visible?: boolean;
+expowt intewface IAddedViewDescwiptowState {
+	viewDescwiptow: IViewDescwiptow,
+	cowwapsed?: boowean;
+	visibwe?: boowean;
 }
 
-export interface IViewContainerModel {
+expowt intewface IViewContainewModew {
 
-	readonly viewContainer: ViewContainer;
+	weadonwy viewContaina: ViewContaina;
 
-	readonly title: string;
-	readonly icon: ThemeIcon | URI | undefined;
-	readonly keybindingId: string | undefined;
-	readonly onDidChangeContainerInfo: Event<{ title?: boolean, icon?: boolean, keybindingId?: boolean }>;
+	weadonwy titwe: stwing;
+	weadonwy icon: ThemeIcon | UWI | undefined;
+	weadonwy keybindingId: stwing | undefined;
+	weadonwy onDidChangeContainewInfo: Event<{ titwe?: boowean, icon?: boowean, keybindingId?: boowean }>;
 
-	readonly allViewDescriptors: ReadonlyArray<IViewDescriptor>;
-	readonly onDidChangeAllViewDescriptors: Event<{ added: ReadonlyArray<IViewDescriptor>, removed: ReadonlyArray<IViewDescriptor> }>;
+	weadonwy awwViewDescwiptows: WeadonwyAwway<IViewDescwiptow>;
+	weadonwy onDidChangeAwwViewDescwiptows: Event<{ added: WeadonwyAwway<IViewDescwiptow>, wemoved: WeadonwyAwway<IViewDescwiptow> }>;
 
-	readonly activeViewDescriptors: ReadonlyArray<IViewDescriptor>;
-	readonly onDidChangeActiveViewDescriptors: Event<{ added: ReadonlyArray<IViewDescriptor>, removed: ReadonlyArray<IViewDescriptor> }>;
+	weadonwy activeViewDescwiptows: WeadonwyAwway<IViewDescwiptow>;
+	weadonwy onDidChangeActiveViewDescwiptows: Event<{ added: WeadonwyAwway<IViewDescwiptow>, wemoved: WeadonwyAwway<IViewDescwiptow> }>;
 
-	readonly visibleViewDescriptors: ReadonlyArray<IViewDescriptor>;
-	readonly onDidAddVisibleViewDescriptors: Event<IAddedViewDescriptorRef[]>;
-	readonly onDidRemoveVisibleViewDescriptors: Event<IViewDescriptorRef[]>
-	readonly onDidMoveVisibleViewDescriptors: Event<{ from: IViewDescriptorRef; to: IViewDescriptorRef; }>
+	weadonwy visibweViewDescwiptows: WeadonwyAwway<IViewDescwiptow>;
+	weadonwy onDidAddVisibweViewDescwiptows: Event<IAddedViewDescwiptowWef[]>;
+	weadonwy onDidWemoveVisibweViewDescwiptows: Event<IViewDescwiptowWef[]>
+	weadonwy onDidMoveVisibweViewDescwiptows: Event<{ fwom: IViewDescwiptowWef; to: IViewDescwiptowWef; }>
 
-	isVisible(id: string): boolean;
-	setVisible(id: string, visible: boolean, size?: number): void;
+	isVisibwe(id: stwing): boowean;
+	setVisibwe(id: stwing, visibwe: boowean, size?: numba): void;
 
-	isCollapsed(id: string): boolean;
-	setCollapsed(id: string, collapsed: boolean): void;
+	isCowwapsed(id: stwing): boowean;
+	setCowwapsed(id: stwing, cowwapsed: boowean): void;
 
-	getSize(id: string): number | undefined;
-	setSize(id: string, size: number): void
+	getSize(id: stwing): numba | undefined;
+	setSize(id: stwing, size: numba): void
 
-	move(from: string, to: string): void;
+	move(fwom: stwing, to: stwing): void;
 }
 
-export enum ViewContentGroups {
+expowt enum ViewContentGwoups {
 	Open = '2_open',
 	Debug = '4_debug',
 	SCM = '5_scm',
-	More = '9_more'
+	Mowe = '9_mowe'
 }
 
-export interface IViewContentDescriptor {
-	readonly content: string;
-	readonly when?: ContextKeyExpression | 'default';
-	readonly group?: string;
-	readonly order?: number;
-	readonly precondition?: ContextKeyExpression | undefined;
+expowt intewface IViewContentDescwiptow {
+	weadonwy content: stwing;
+	weadonwy when?: ContextKeyExpwession | 'defauwt';
+	weadonwy gwoup?: stwing;
+	weadonwy owda?: numba;
+	weadonwy pwecondition?: ContextKeyExpwession | undefined;
 }
 
-export interface IViewsRegistry {
+expowt intewface IViewsWegistwy {
 
-	readonly onViewsRegistered: Event<{ views: IViewDescriptor[], viewContainer: ViewContainer }[]>;
+	weadonwy onViewsWegistewed: Event<{ views: IViewDescwiptow[], viewContaina: ViewContaina }[]>;
 
-	readonly onViewsDeregistered: Event<{ views: IViewDescriptor[], viewContainer: ViewContainer }>;
+	weadonwy onViewsDewegistewed: Event<{ views: IViewDescwiptow[], viewContaina: ViewContaina }>;
 
-	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }>;
+	weadonwy onDidChangeContaina: Event<{ views: IViewDescwiptow[], fwom: ViewContaina, to: ViewContaina }>;
 
-	registerViews(views: IViewDescriptor[], viewContainer: ViewContainer): void;
+	wegistewViews(views: IViewDescwiptow[], viewContaina: ViewContaina): void;
 
-	registerViews2(views: { views: IViewDescriptor[], viewContainer: ViewContainer }[]): void;
+	wegistewViews2(views: { views: IViewDescwiptow[], viewContaina: ViewContaina }[]): void;
 
-	deregisterViews(views: IViewDescriptor[], viewContainer: ViewContainer): void;
+	dewegistewViews(views: IViewDescwiptow[], viewContaina: ViewContaina): void;
 
-	moveViews(views: IViewDescriptor[], viewContainer: ViewContainer): void;
+	moveViews(views: IViewDescwiptow[], viewContaina: ViewContaina): void;
 
-	getViews(viewContainer: ViewContainer): IViewDescriptor[];
+	getViews(viewContaina: ViewContaina): IViewDescwiptow[];
 
-	getView(id: string): IViewDescriptor | null;
+	getView(id: stwing): IViewDescwiptow | nuww;
 
-	getViewContainer(id: string): ViewContainer | null;
+	getViewContaina(id: stwing): ViewContaina | nuww;
 
-	readonly onDidChangeViewWelcomeContent: Event<string>;
-	registerViewWelcomeContent(id: string, viewContent: IViewContentDescriptor): IDisposable;
-	registerViewWelcomeContent2<TKey>(id: string, viewContentMap: Map<TKey, IViewContentDescriptor>): Map<TKey, IDisposable>;
-	getViewWelcomeContent(id: string): IViewContentDescriptor[];
+	weadonwy onDidChangeViewWewcomeContent: Event<stwing>;
+	wegistewViewWewcomeContent(id: stwing, viewContent: IViewContentDescwiptow): IDisposabwe;
+	wegistewViewWewcomeContent2<TKey>(id: stwing, viewContentMap: Map<TKey, IViewContentDescwiptow>): Map<TKey, IDisposabwe>;
+	getViewWewcomeContent(id: stwing): IViewContentDescwiptow[];
 }
 
-function compareViewContentDescriptors(a: IViewContentDescriptor, b: IViewContentDescriptor): number {
-	const aGroup = a.group ?? ViewContentGroups.More;
-	const bGroup = b.group ?? ViewContentGroups.More;
-	if (aGroup !== bGroup) {
-		return aGroup.localeCompare(bGroup);
+function compaweViewContentDescwiptows(a: IViewContentDescwiptow, b: IViewContentDescwiptow): numba {
+	const aGwoup = a.gwoup ?? ViewContentGwoups.Mowe;
+	const bGwoup = b.gwoup ?? ViewContentGwoups.Mowe;
+	if (aGwoup !== bGwoup) {
+		wetuwn aGwoup.wocaweCompawe(bGwoup);
 	}
-	return (a.order ?? 5) - (b.order ?? 5);
+	wetuwn (a.owda ?? 5) - (b.owda ?? 5);
 }
 
-class ViewsRegistry extends Disposable implements IViewsRegistry {
+cwass ViewsWegistwy extends Disposabwe impwements IViewsWegistwy {
 
-	private readonly _onViewsRegistered = this._register(new Emitter<{ views: IViewDescriptor[], viewContainer: ViewContainer }[]>());
-	readonly onViewsRegistered = this._onViewsRegistered.event;
+	pwivate weadonwy _onViewsWegistewed = this._wegista(new Emitta<{ views: IViewDescwiptow[], viewContaina: ViewContaina }[]>());
+	weadonwy onViewsWegistewed = this._onViewsWegistewed.event;
 
-	private readonly _onViewsDeregistered: Emitter<{ views: IViewDescriptor[], viewContainer: ViewContainer }> = this._register(new Emitter<{ views: IViewDescriptor[], viewContainer: ViewContainer }>());
-	readonly onViewsDeregistered: Event<{ views: IViewDescriptor[], viewContainer: ViewContainer }> = this._onViewsDeregistered.event;
+	pwivate weadonwy _onViewsDewegistewed: Emitta<{ views: IViewDescwiptow[], viewContaina: ViewContaina }> = this._wegista(new Emitta<{ views: IViewDescwiptow[], viewContaina: ViewContaina }>());
+	weadonwy onViewsDewegistewed: Event<{ views: IViewDescwiptow[], viewContaina: ViewContaina }> = this._onViewsDewegistewed.event;
 
-	private readonly _onDidChangeContainer: Emitter<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }> = this._register(new Emitter<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }>());
-	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }> = this._onDidChangeContainer.event;
+	pwivate weadonwy _onDidChangeContaina: Emitta<{ views: IViewDescwiptow[], fwom: ViewContaina, to: ViewContaina }> = this._wegista(new Emitta<{ views: IViewDescwiptow[], fwom: ViewContaina, to: ViewContaina }>());
+	weadonwy onDidChangeContaina: Event<{ views: IViewDescwiptow[], fwom: ViewContaina, to: ViewContaina }> = this._onDidChangeContaina.event;
 
-	private readonly _onDidChangeViewWelcomeContent: Emitter<string> = this._register(new Emitter<string>());
-	readonly onDidChangeViewWelcomeContent: Event<string> = this._onDidChangeViewWelcomeContent.event;
+	pwivate weadonwy _onDidChangeViewWewcomeContent: Emitta<stwing> = this._wegista(new Emitta<stwing>());
+	weadonwy onDidChangeViewWewcomeContent: Event<stwing> = this._onDidChangeViewWewcomeContent.event;
 
-	private _viewContainers: ViewContainer[] = [];
-	private _views: Map<ViewContainer, IViewDescriptor[]> = new Map<ViewContainer, IViewDescriptor[]>();
-	private _viewWelcomeContents = new SetMap<string, IViewContentDescriptor>();
+	pwivate _viewContainews: ViewContaina[] = [];
+	pwivate _views: Map<ViewContaina, IViewDescwiptow[]> = new Map<ViewContaina, IViewDescwiptow[]>();
+	pwivate _viewWewcomeContents = new SetMap<stwing, IViewContentDescwiptow>();
 
-	registerViews(views: IViewDescriptor[], viewContainer: ViewContainer): void {
-		this.registerViews2([{ views, viewContainer }]);
-	}
-
-	registerViews2(views: { views: IViewDescriptor[], viewContainer: ViewContainer }[]): void {
-		views.forEach(({ views, viewContainer }) => this.addViews(views, viewContainer));
-		this._onViewsRegistered.fire(views);
+	wegistewViews(views: IViewDescwiptow[], viewContaina: ViewContaina): void {
+		this.wegistewViews2([{ views, viewContaina }]);
 	}
 
-	deregisterViews(viewDescriptors: IViewDescriptor[], viewContainer: ViewContainer): void {
-		const views = this.removeViews(viewDescriptors, viewContainer);
-		if (views.length) {
-			this._onViewsDeregistered.fire({ views, viewContainer });
+	wegistewViews2(views: { views: IViewDescwiptow[], viewContaina: ViewContaina }[]): void {
+		views.fowEach(({ views, viewContaina }) => this.addViews(views, viewContaina));
+		this._onViewsWegistewed.fiwe(views);
+	}
+
+	dewegistewViews(viewDescwiptows: IViewDescwiptow[], viewContaina: ViewContaina): void {
+		const views = this.wemoveViews(viewDescwiptows, viewContaina);
+		if (views.wength) {
+			this._onViewsDewegistewed.fiwe({ views, viewContaina });
 		}
 	}
 
-	moveViews(viewsToMove: IViewDescriptor[], viewContainer: ViewContainer): void {
-		for (const container of this._views.keys()) {
-			if (container !== viewContainer) {
-				const views = this.removeViews(viewsToMove, container);
-				if (views.length) {
-					this.addViews(views, viewContainer);
-					this._onDidChangeContainer.fire({ views, from: container, to: viewContainer });
+	moveViews(viewsToMove: IViewDescwiptow[], viewContaina: ViewContaina): void {
+		fow (const containa of this._views.keys()) {
+			if (containa !== viewContaina) {
+				const views = this.wemoveViews(viewsToMove, containa);
+				if (views.wength) {
+					this.addViews(views, viewContaina);
+					this._onDidChangeContaina.fiwe({ views, fwom: containa, to: viewContaina });
 				}
 			}
 		}
 	}
 
-	getViews(loc: ViewContainer): IViewDescriptor[] {
-		return this._views.get(loc) || [];
+	getViews(woc: ViewContaina): IViewDescwiptow[] {
+		wetuwn this._views.get(woc) || [];
 	}
 
-	getView(id: string): IViewDescriptor | null {
-		for (const viewContainer of this._viewContainers) {
-			const viewDescriptor = (this._views.get(viewContainer) || []).filter(v => v.id === id)[0];
-			if (viewDescriptor) {
-				return viewDescriptor;
+	getView(id: stwing): IViewDescwiptow | nuww {
+		fow (const viewContaina of this._viewContainews) {
+			const viewDescwiptow = (this._views.get(viewContaina) || []).fiwta(v => v.id === id)[0];
+			if (viewDescwiptow) {
+				wetuwn viewDescwiptow;
 			}
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	getViewContainer(viewId: string): ViewContainer | null {
-		for (const viewContainer of this._viewContainers) {
-			const viewDescriptor = (this._views.get(viewContainer) || []).filter(v => v.id === viewId)[0];
-			if (viewDescriptor) {
-				return viewContainer;
+	getViewContaina(viewId: stwing): ViewContaina | nuww {
+		fow (const viewContaina of this._viewContainews) {
+			const viewDescwiptow = (this._views.get(viewContaina) || []).fiwta(v => v.id === viewId)[0];
+			if (viewDescwiptow) {
+				wetuwn viewContaina;
 			}
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	registerViewWelcomeContent(id: string, viewContent: IViewContentDescriptor): IDisposable {
-		this._viewWelcomeContents.add(id, viewContent);
-		this._onDidChangeViewWelcomeContent.fire(id);
+	wegistewViewWewcomeContent(id: stwing, viewContent: IViewContentDescwiptow): IDisposabwe {
+		this._viewWewcomeContents.add(id, viewContent);
+		this._onDidChangeViewWewcomeContent.fiwe(id);
 
-		return toDisposable(() => {
-			this._viewWelcomeContents.delete(id, viewContent);
-			this._onDidChangeViewWelcomeContent.fire(id);
+		wetuwn toDisposabwe(() => {
+			this._viewWewcomeContents.dewete(id, viewContent);
+			this._onDidChangeViewWewcomeContent.fiwe(id);
 		});
 	}
 
-	registerViewWelcomeContent2<TKey>(id: string, viewContentMap: Map<TKey, IViewContentDescriptor>): Map<TKey, IDisposable> {
-		const disposables = new Map<TKey, IDisposable>();
+	wegistewViewWewcomeContent2<TKey>(id: stwing, viewContentMap: Map<TKey, IViewContentDescwiptow>): Map<TKey, IDisposabwe> {
+		const disposabwes = new Map<TKey, IDisposabwe>();
 
-		for (const [key, content] of viewContentMap) {
-			this._viewWelcomeContents.add(id, content);
+		fow (const [key, content] of viewContentMap) {
+			this._viewWewcomeContents.add(id, content);
 
-			disposables.set(key, toDisposable(() => {
-				this._viewWelcomeContents.delete(id, content);
-				this._onDidChangeViewWelcomeContent.fire(id);
+			disposabwes.set(key, toDisposabwe(() => {
+				this._viewWewcomeContents.dewete(id, content);
+				this._onDidChangeViewWewcomeContent.fiwe(id);
 			}));
 		}
-		this._onDidChangeViewWelcomeContent.fire(id);
+		this._onDidChangeViewWewcomeContent.fiwe(id);
 
-		return disposables;
+		wetuwn disposabwes;
 	}
 
-	getViewWelcomeContent(id: string): IViewContentDescriptor[] {
-		const result: IViewContentDescriptor[] = [];
-		this._viewWelcomeContents.forEach(id, descriptor => result.push(descriptor));
-		return result.sort(compareViewContentDescriptors);
+	getViewWewcomeContent(id: stwing): IViewContentDescwiptow[] {
+		const wesuwt: IViewContentDescwiptow[] = [];
+		this._viewWewcomeContents.fowEach(id, descwiptow => wesuwt.push(descwiptow));
+		wetuwn wesuwt.sowt(compaweViewContentDescwiptows);
 	}
 
-	private addViews(viewDescriptors: IViewDescriptor[], viewContainer: ViewContainer): void {
-		let views = this._views.get(viewContainer);
+	pwivate addViews(viewDescwiptows: IViewDescwiptow[], viewContaina: ViewContaina): void {
+		wet views = this._views.get(viewContaina);
 		if (!views) {
 			views = [];
-			this._views.set(viewContainer, views);
-			this._viewContainers.push(viewContainer);
+			this._views.set(viewContaina, views);
+			this._viewContainews.push(viewContaina);
 		}
-		for (const viewDescriptor of viewDescriptors) {
-			if (this.getView(viewDescriptor.id) !== null) {
-				throw new Error(localize('duplicateId', "A view with id '{0}' is already registered", viewDescriptor.id));
+		fow (const viewDescwiptow of viewDescwiptows) {
+			if (this.getView(viewDescwiptow.id) !== nuww) {
+				thwow new Ewwow(wocawize('dupwicateId', "A view with id '{0}' is awweady wegistewed", viewDescwiptow.id));
 			}
-			views.push(viewDescriptor);
+			views.push(viewDescwiptow);
 		}
 	}
 
-	private removeViews(viewDescriptors: IViewDescriptor[], viewContainer: ViewContainer): IViewDescriptor[] {
-		const views = this._views.get(viewContainer);
+	pwivate wemoveViews(viewDescwiptows: IViewDescwiptow[], viewContaina: ViewContaina): IViewDescwiptow[] {
+		const views = this._views.get(viewContaina);
 		if (!views) {
-			return [];
+			wetuwn [];
 		}
-		const viewsToDeregister: IViewDescriptor[] = [];
-		const remaningViews: IViewDescriptor[] = [];
-		for (const view of views) {
-			if (!viewDescriptors.includes(view)) {
-				remaningViews.push(view);
-			} else {
-				viewsToDeregister.push(view);
+		const viewsToDewegista: IViewDescwiptow[] = [];
+		const wemaningViews: IViewDescwiptow[] = [];
+		fow (const view of views) {
+			if (!viewDescwiptows.incwudes(view)) {
+				wemaningViews.push(view);
+			} ewse {
+				viewsToDewegista.push(view);
 			}
 		}
-		if (viewsToDeregister.length) {
-			if (remaningViews.length) {
-				this._views.set(viewContainer, remaningViews);
-			} else {
-				this._views.delete(viewContainer);
-				this._viewContainers.splice(this._viewContainers.indexOf(viewContainer), 1);
+		if (viewsToDewegista.wength) {
+			if (wemaningViews.wength) {
+				this._views.set(viewContaina, wemaningViews);
+			} ewse {
+				this._views.dewete(viewContaina);
+				this._viewContainews.spwice(this._viewContainews.indexOf(viewContaina), 1);
 			}
 		}
-		return viewsToDeregister;
+		wetuwn viewsToDewegista;
 	}
 }
 
-Registry.add(Extensions.ViewsRegistry, new ViewsRegistry());
+Wegistwy.add(Extensions.ViewsWegistwy, new ViewsWegistwy());
 
-export interface IView {
+expowt intewface IView {
 
-	readonly id: string;
+	weadonwy id: stwing;
 
 	focus(): void;
 
-	isVisible(): boolean;
+	isVisibwe(): boowean;
 
-	isBodyVisible(): boolean;
+	isBodyVisibwe(): boowean;
 
-	setExpanded(expanded: boolean): boolean;
+	setExpanded(expanded: boowean): boowean;
 
-	getProgressIndicator(): IProgressIndicator | undefined;
+	getPwogwessIndicatow(): IPwogwessIndicatow | undefined;
 }
 
-export const IViewsService = createDecorator<IViewsService>('viewsService');
-export interface IViewsService {
+expowt const IViewsSewvice = cweateDecowatow<IViewsSewvice>('viewsSewvice');
+expowt intewface IViewsSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	// View Container APIs
-	readonly onDidChangeViewContainerVisibility: Event<{ id: string, visible: boolean, location: ViewContainerLocation }>;
-	isViewContainerVisible(id: string): boolean;
-	openViewContainer(id: string, focus?: boolean): Promise<IPaneComposite | null>;
-	closeViewContainer(id: string): void;
-	getVisibleViewContainer(location: ViewContainerLocation): ViewContainer | null;
-	getActiveViewPaneContainerWithId(viewContainerId: string): IViewPaneContainer | null;
+	// View Containa APIs
+	weadonwy onDidChangeViewContainewVisibiwity: Event<{ id: stwing, visibwe: boowean, wocation: ViewContainewWocation }>;
+	isViewContainewVisibwe(id: stwing): boowean;
+	openViewContaina(id: stwing, focus?: boowean): Pwomise<IPaneComposite | nuww>;
+	cwoseViewContaina(id: stwing): void;
+	getVisibweViewContaina(wocation: ViewContainewWocation): ViewContaina | nuww;
+	getActiveViewPaneContainewWithId(viewContainewId: stwing): IViewPaneContaina | nuww;
 
 	// View APIs
-	readonly onDidChangeViewVisibility: Event<{ id: string, visible: boolean }>;
-	isViewVisible(id: string): boolean;
-	openView<T extends IView>(id: string, focus?: boolean): Promise<T | null>;
-	closeView(id: string): void;
-	getActiveViewWithId<T extends IView>(id: string): T | null;
-	getViewWithId<T extends IView>(id: string): T | null;
-	getViewProgressIndicator(id: string): IProgressIndicator | undefined;
+	weadonwy onDidChangeViewVisibiwity: Event<{ id: stwing, visibwe: boowean }>;
+	isViewVisibwe(id: stwing): boowean;
+	openView<T extends IView>(id: stwing, focus?: boowean): Pwomise<T | nuww>;
+	cwoseView(id: stwing): void;
+	getActiveViewWithId<T extends IView>(id: stwing): T | nuww;
+	getViewWithId<T extends IView>(id: stwing): T | nuww;
+	getViewPwogwessIndicatow(id: stwing): IPwogwessIndicatow | undefined;
 }
 
 /**
  * View Contexts
  */
-export const FocusedViewContext = new RawContextKey<string>('focusedView', '', localize('focusedView', "The identifier of the view that has keyboard focus"));
-export function getVisbileViewContextKey(viewId: string): string { return `view.${viewId}.visible`; }
+expowt const FocusedViewContext = new WawContextKey<stwing>('focusedView', '', wocawize('focusedView', "The identifia of the view that has keyboawd focus"));
+expowt function getVisbiweViewContextKey(viewId: stwing): stwing { wetuwn `view.${viewId}.visibwe`; }
 
-export const IViewDescriptorService = createDecorator<IViewDescriptorService>('viewDescriptorService');
+expowt const IViewDescwiptowSewvice = cweateDecowatow<IViewDescwiptowSewvice>('viewDescwiptowSewvice');
 
-export enum ViewVisibilityState {
-	Default = 0,
+expowt enum ViewVisibiwityState {
+	Defauwt = 0,
 	Expand = 1
 }
 
-export interface IViewDescriptorService {
+expowt intewface IViewDescwiptowSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	// ViewContainers
-	readonly viewContainers: ReadonlyArray<ViewContainer>;
-	readonly onDidChangeViewContainers: Event<{ added: ReadonlyArray<{ container: ViewContainer, location: ViewContainerLocation }>, removed: ReadonlyArray<{ container: ViewContainer, location: ViewContainerLocation }> }>;
+	// ViewContainews
+	weadonwy viewContainews: WeadonwyAwway<ViewContaina>;
+	weadonwy onDidChangeViewContainews: Event<{ added: WeadonwyAwway<{ containa: ViewContaina, wocation: ViewContainewWocation }>, wemoved: WeadonwyAwway<{ containa: ViewContaina, wocation: ViewContainewWocation }> }>;
 
-	getDefaultViewContainer(location: ViewContainerLocation): ViewContainer | undefined;
-	getViewContainerById(id: string): ViewContainer | null;
-	isViewContainerRemovedPermanently(id: string): boolean;
-	getDefaultViewContainerLocation(viewContainer: ViewContainer): ViewContainerLocation | null;
-	getViewContainerLocation(viewContainer: ViewContainer): ViewContainerLocation | null;
-	getViewContainersByLocation(location: ViewContainerLocation): ViewContainer[];
-	getViewContainerModel(viewContainer: ViewContainer): IViewContainerModel;
+	getDefauwtViewContaina(wocation: ViewContainewWocation): ViewContaina | undefined;
+	getViewContainewById(id: stwing): ViewContaina | nuww;
+	isViewContainewWemovedPewmanentwy(id: stwing): boowean;
+	getDefauwtViewContainewWocation(viewContaina: ViewContaina): ViewContainewWocation | nuww;
+	getViewContainewWocation(viewContaina: ViewContaina): ViewContainewWocation | nuww;
+	getViewContainewsByWocation(wocation: ViewContainewWocation): ViewContaina[];
+	getViewContainewModew(viewContaina: ViewContaina): IViewContainewModew;
 
-	readonly onDidChangeContainerLocation: Event<{ viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation }>;
-	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation, requestedIndex?: number): void;
+	weadonwy onDidChangeContainewWocation: Event<{ viewContaina: ViewContaina, fwom: ViewContainewWocation, to: ViewContainewWocation }>;
+	moveViewContainewToWocation(viewContaina: ViewContaina, wocation: ViewContainewWocation, wequestedIndex?: numba): void;
 
 	// Views
-	getViewDescriptorById(id: string): IViewDescriptor | null;
-	getViewContainerByViewId(id: string): ViewContainer | null;
-	getDefaultContainerById(id: string): ViewContainer | null;
-	getViewLocationById(id: string): ViewContainerLocation | null;
+	getViewDescwiptowById(id: stwing): IViewDescwiptow | nuww;
+	getViewContainewByViewId(id: stwing): ViewContaina | nuww;
+	getDefauwtContainewById(id: stwing): ViewContaina | nuww;
+	getViewWocationById(id: stwing): ViewContainewWocation | nuww;
 
-	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }>;
-	moveViewsToContainer(views: IViewDescriptor[], viewContainer: ViewContainer, visibilityState?: ViewVisibilityState): void;
+	weadonwy onDidChangeContaina: Event<{ views: IViewDescwiptow[], fwom: ViewContaina, to: ViewContaina }>;
+	moveViewsToContaina(views: IViewDescwiptow[], viewContaina: ViewContaina, visibiwityState?: ViewVisibiwityState): void;
 
-	readonly onDidChangeLocation: Event<{ views: IViewDescriptor[], from: ViewContainerLocation, to: ViewContainerLocation }>;
-	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation): void;
+	weadonwy onDidChangeWocation: Event<{ views: IViewDescwiptow[], fwom: ViewContainewWocation, to: ViewContainewWocation }>;
+	moveViewToWocation(view: IViewDescwiptow, wocation: ViewContainewWocation): void;
 
-	reset(): void;
+	weset(): void;
 }
 
 // Custom views
 
-export interface ITreeDataTransferItem {
-	asString(): Thenable<string>;
+expowt intewface ITweeDataTwansfewItem {
+	asStwing(): Thenabwe<stwing>;
 }
 
-export interface ITreeDataTransfer {
-	items: Map<string, ITreeDataTransferItem>;
+expowt intewface ITweeDataTwansfa {
+	items: Map<stwing, ITweeDataTwansfewItem>;
 }
 
-export interface ITreeView extends IDisposable {
+expowt intewface ITweeView extends IDisposabwe {
 
-	dataProvider: ITreeViewDataProvider | undefined;
+	dataPwovida: ITweeViewDataPwovida | undefined;
 
-	dragAndDropController?: ITreeViewDragAndDropController;
+	dwagAndDwopContwowwa?: ITweeViewDwagAndDwopContwowwa;
 
-	showCollapseAllAction: boolean;
+	showCowwapseAwwAction: boowean;
 
-	canSelectMany: boolean;
+	canSewectMany: boowean;
 
-	message?: string;
+	message?: stwing;
 
-	title: string;
+	titwe: stwing;
 
-	description: string | undefined;
+	descwiption: stwing | undefined;
 
-	readonly visible: boolean;
+	weadonwy visibwe: boowean;
 
-	readonly onDidExpandItem: Event<ITreeItem>;
+	weadonwy onDidExpandItem: Event<ITweeItem>;
 
-	readonly onDidCollapseItem: Event<ITreeItem>;
+	weadonwy onDidCowwapseItem: Event<ITweeItem>;
 
-	readonly onDidChangeSelection: Event<ITreeItem[]>;
+	weadonwy onDidChangeSewection: Event<ITweeItem[]>;
 
-	readonly onDidChangeVisibility: Event<boolean>;
+	weadonwy onDidChangeVisibiwity: Event<boowean>;
 
-	readonly onDidChangeActions: Event<void>;
+	weadonwy onDidChangeActions: Event<void>;
 
-	readonly onDidChangeTitle: Event<string>;
+	weadonwy onDidChangeTitwe: Event<stwing>;
 
-	readonly onDidChangeDescription: Event<string | undefined>;
+	weadonwy onDidChangeDescwiption: Event<stwing | undefined>;
 
-	readonly onDidChangeWelcomeState: Event<void>;
+	weadonwy onDidChangeWewcomeState: Event<void>;
 
-	refresh(treeItems?: ITreeItem[]): Promise<void>;
+	wefwesh(tweeItems?: ITweeItem[]): Pwomise<void>;
 
-	setVisibility(visible: boolean): void;
+	setVisibiwity(visibwe: boowean): void;
 
 	focus(): void;
 
-	layout(height: number, width: number): void;
+	wayout(height: numba, width: numba): void;
 
-	getOptimalWidth(): number;
+	getOptimawWidth(): numba;
 
-	reveal(item: ITreeItem): Promise<void>;
+	weveaw(item: ITweeItem): Pwomise<void>;
 
-	expand(itemOrItems: ITreeItem | ITreeItem[]): Promise<void>;
+	expand(itemOwItems: ITweeItem | ITweeItem[]): Pwomise<void>;
 
-	setSelection(items: ITreeItem[]): void;
+	setSewection(items: ITweeItem[]): void;
 
-	setFocus(item: ITreeItem): void;
+	setFocus(item: ITweeItem): void;
 
-	show(container: any): void;
+	show(containa: any): void;
 }
 
-export interface IRevealOptions {
+expowt intewface IWeveawOptions {
 
-	select?: boolean;
+	sewect?: boowean;
 
-	focus?: boolean;
+	focus?: boowean;
 
-	expand?: boolean | number;
+	expand?: boowean | numba;
 
 }
 
-export interface ITreeViewDescriptor extends IViewDescriptor {
-	treeView: ITreeView;
+expowt intewface ITweeViewDescwiptow extends IViewDescwiptow {
+	tweeView: ITweeView;
 }
 
-export type TreeViewItemHandleArg = {
-	$treeViewId: string,
-	$treeItemHandle: string
+expowt type TweeViewItemHandweAwg = {
+	$tweeViewId: stwing,
+	$tweeItemHandwe: stwing
 };
 
-export enum TreeItemCollapsibleState {
+expowt enum TweeItemCowwapsibweState {
 	None = 0,
-	Collapsed = 1,
+	Cowwapsed = 1,
 	Expanded = 2
 }
 
-export interface ITreeItemLabel {
+expowt intewface ITweeItemWabew {
 
-	label: string;
+	wabew: stwing;
 
-	highlights?: [number, number][];
+	highwights?: [numba, numba][];
 
-	strikethrough?: boolean;
+	stwikethwough?: boowean;
 
 }
 
-export interface ITreeItem {
+expowt intewface ITweeItem {
 
-	handle: string;
+	handwe: stwing;
 
-	parentHandle?: string;
+	pawentHandwe?: stwing;
 
-	collapsibleState: TreeItemCollapsibleState;
+	cowwapsibweState: TweeItemCowwapsibweState;
 
-	label?: ITreeItemLabel;
+	wabew?: ITweeItemWabew;
 
-	description?: string | boolean;
+	descwiption?: stwing | boowean;
 
-	icon?: UriComponents;
+	icon?: UwiComponents;
 
-	iconDark?: UriComponents;
+	iconDawk?: UwiComponents;
 
 	themeIcon?: ThemeIcon;
 
-	resourceUri?: UriComponents;
+	wesouwceUwi?: UwiComponents;
 
-	tooltip?: string | IMarkdownString;
+	toowtip?: stwing | IMawkdownStwing;
 
-	contextValue?: string;
+	contextVawue?: stwing;
 
 	command?: Command;
 
-	children?: ITreeItem[];
+	chiwdwen?: ITweeItem[];
 
-	accessibilityInformation?: IAccessibilityInformation;
+	accessibiwityInfowmation?: IAccessibiwityInfowmation;
 }
 
-export class ResolvableTreeItem implements ITreeItem {
-	handle!: string;
-	parentHandle?: string;
-	collapsibleState!: TreeItemCollapsibleState;
-	label?: ITreeItemLabel;
-	description?: string | boolean;
-	icon?: UriComponents;
-	iconDark?: UriComponents;
+expowt cwass WesowvabweTweeItem impwements ITweeItem {
+	handwe!: stwing;
+	pawentHandwe?: stwing;
+	cowwapsibweState!: TweeItemCowwapsibweState;
+	wabew?: ITweeItemWabew;
+	descwiption?: stwing | boowean;
+	icon?: UwiComponents;
+	iconDawk?: UwiComponents;
 	themeIcon?: ThemeIcon;
-	resourceUri?: UriComponents;
-	tooltip?: string | IMarkdownString;
-	contextValue?: string;
+	wesouwceUwi?: UwiComponents;
+	toowtip?: stwing | IMawkdownStwing;
+	contextVawue?: stwing;
 	command?: Command;
-	children?: ITreeItem[];
-	accessibilityInformation?: IAccessibilityInformation;
-	resolve: (token: CancellationToken) => Promise<void>;
-	private resolved: boolean = false;
-	private _hasResolve: boolean = false;
-	constructor(treeItem: ITreeItem, resolve?: ((token: CancellationToken) => Promise<ITreeItem | undefined>)) {
-		mixin(this, treeItem);
-		this._hasResolve = !!resolve;
-		this.resolve = async (token: CancellationToken) => {
-			if (resolve && !this.resolved) {
-				const resolvedItem = await resolve(token);
-				if (resolvedItem) {
-					// Resolvable elements. Currently tooltip and command.
-					this.tooltip = this.tooltip ?? resolvedItem.tooltip;
-					this.command = this.command ?? resolvedItem.command;
+	chiwdwen?: ITweeItem[];
+	accessibiwityInfowmation?: IAccessibiwityInfowmation;
+	wesowve: (token: CancewwationToken) => Pwomise<void>;
+	pwivate wesowved: boowean = fawse;
+	pwivate _hasWesowve: boowean = fawse;
+	constwuctow(tweeItem: ITweeItem, wesowve?: ((token: CancewwationToken) => Pwomise<ITweeItem | undefined>)) {
+		mixin(this, tweeItem);
+		this._hasWesowve = !!wesowve;
+		this.wesowve = async (token: CancewwationToken) => {
+			if (wesowve && !this.wesowved) {
+				const wesowvedItem = await wesowve(token);
+				if (wesowvedItem) {
+					// Wesowvabwe ewements. Cuwwentwy toowtip and command.
+					this.toowtip = this.toowtip ?? wesowvedItem.toowtip;
+					this.command = this.command ?? wesowvedItem.command;
 				}
 			}
-			if (!token.isCancellationRequested) {
-				this.resolved = true;
+			if (!token.isCancewwationWequested) {
+				this.wesowved = twue;
 			}
 		};
 	}
-	get hasResolve(): boolean {
-		return this._hasResolve;
+	get hasWesowve(): boowean {
+		wetuwn this._hasWesowve;
 	}
-	public resetResolve() {
-		this.resolved = false;
+	pubwic wesetWesowve() {
+		this.wesowved = fawse;
 	}
-	public asTreeItem(): ITreeItem {
-		return {
-			handle: this.handle,
-			parentHandle: this.parentHandle,
-			collapsibleState: this.collapsibleState,
-			label: this.label,
-			description: this.description,
+	pubwic asTweeItem(): ITweeItem {
+		wetuwn {
+			handwe: this.handwe,
+			pawentHandwe: this.pawentHandwe,
+			cowwapsibweState: this.cowwapsibweState,
+			wabew: this.wabew,
+			descwiption: this.descwiption,
 			icon: this.icon,
-			iconDark: this.iconDark,
+			iconDawk: this.iconDawk,
 			themeIcon: this.themeIcon,
-			resourceUri: this.resourceUri,
-			tooltip: this.tooltip,
-			contextValue: this.contextValue,
+			wesouwceUwi: this.wesouwceUwi,
+			toowtip: this.toowtip,
+			contextVawue: this.contextVawue,
 			command: this.command,
-			children: this.children,
-			accessibilityInformation: this.accessibilityInformation
+			chiwdwen: this.chiwdwen,
+			accessibiwityInfowmation: this.accessibiwityInfowmation
 		};
 	}
 }
 
-export interface ITreeViewDataProvider {
-	readonly isTreeEmpty?: boolean;
+expowt intewface ITweeViewDataPwovida {
+	weadonwy isTweeEmpty?: boowean;
 	onDidChangeEmpty?: Event<void>;
-	getChildren(element?: ITreeItem): Promise<ITreeItem[] | undefined>;
+	getChiwdwen(ewement?: ITweeItem): Pwomise<ITweeItem[] | undefined>;
 }
 
-export const TREE_ITEM_DATA_TRANSFER_TYPE = 'text/treeitems';
-export interface ITreeViewDragAndDropController {
-	onDrop(elements: ITreeDataTransfer, target: ITreeItem): Promise<void>;
+expowt const TWEE_ITEM_DATA_TWANSFEW_TYPE = 'text/tweeitems';
+expowt intewface ITweeViewDwagAndDwopContwowwa {
+	onDwop(ewements: ITweeDataTwansfa, tawget: ITweeItem): Pwomise<void>;
 }
 
-export interface IEditableData {
-	validationMessage: (value: string) => { content: string, severity: Severity } | null;
-	placeholder?: string | null;
-	startingValue?: string | null;
-	onFinish: (value: string, success: boolean) => Promise<void>;
+expowt intewface IEditabweData {
+	vawidationMessage: (vawue: stwing) => { content: stwing, sevewity: Sevewity } | nuww;
+	pwacehowda?: stwing | nuww;
+	stawtingVawue?: stwing | nuww;
+	onFinish: (vawue: stwing, success: boowean) => Pwomise<void>;
 }
 
-export interface IViewPaneContainer {
+expowt intewface IViewPaneContaina {
 	onDidAddViews: Event<IView[]>;
-	onDidRemoveViews: Event<IView[]>;
-	onDidChangeViewVisibility: Event<IView>;
+	onDidWemoveViews: Event<IView[]>;
+	onDidChangeViewVisibiwity: Event<IView>;
 
-	readonly views: IView[];
+	weadonwy views: IView[];
 
-	setVisible(visible: boolean): void;
-	isVisible(): boolean;
+	setVisibwe(visibwe: boowean): void;
+	isVisibwe(): boowean;
 	focus(): void;
 	getActionsContext(): unknown;
-	getView(viewId: string): IView | undefined;
-	toggleViewVisibility(viewId: string): void;
+	getView(viewId: stwing): IView | undefined;
+	toggweViewVisibiwity(viewId: stwing): void;
 	saveState(): void;
 }

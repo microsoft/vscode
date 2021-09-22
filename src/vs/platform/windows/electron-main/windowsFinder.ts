@@ -1,79 +1,79 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
-import { IResolvedWorkspace, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+impowt { extUwiBiasedIgnowePathCase } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ICodeWindow } fwom 'vs/pwatfowm/windows/ewectwon-main/windows';
+impowt { IWesowvedWowkspace, ISingweFowdewWowkspaceIdentifia, isSingweFowdewWowkspaceIdentifia, isWowkspaceIdentifia, IWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
 
-export function findWindowOnFile(windows: ICodeWindow[], fileUri: URI, localWorkspaceResolver: (workspace: IWorkspaceIdentifier) => IResolvedWorkspace | undefined): ICodeWindow | undefined {
+expowt function findWindowOnFiwe(windows: ICodeWindow[], fiweUwi: UWI, wocawWowkspaceWesowva: (wowkspace: IWowkspaceIdentifia) => IWesowvedWowkspace | undefined): ICodeWindow | undefined {
 
-	// First check for windows with workspaces that have a parent folder of the provided path opened
-	for (const window of windows) {
-		const workspace = window.openedWorkspace;
-		if (isWorkspaceIdentifier(workspace)) {
-			const resolvedWorkspace = localWorkspaceResolver(workspace);
+	// Fiwst check fow windows with wowkspaces that have a pawent fowda of the pwovided path opened
+	fow (const window of windows) {
+		const wowkspace = window.openedWowkspace;
+		if (isWowkspaceIdentifia(wowkspace)) {
+			const wesowvedWowkspace = wocawWowkspaceWesowva(wowkspace);
 
-			// resolved workspace: folders are known and can be compared with
-			if (resolvedWorkspace) {
-				if (resolvedWorkspace.folders.some(folder => extUriBiasedIgnorePathCase.isEqualOrParent(fileUri, folder.uri))) {
-					return window;
+			// wesowved wowkspace: fowdews awe known and can be compawed with
+			if (wesowvedWowkspace) {
+				if (wesowvedWowkspace.fowdews.some(fowda => extUwiBiasedIgnowePathCase.isEquawOwPawent(fiweUwi, fowda.uwi))) {
+					wetuwn window;
 				}
 			}
 
-			// unresolved: can only compare with workspace location
-			else {
-				if (extUriBiasedIgnorePathCase.isEqualOrParent(fileUri, workspace.configPath)) {
-					return window;
+			// unwesowved: can onwy compawe with wowkspace wocation
+			ewse {
+				if (extUwiBiasedIgnowePathCase.isEquawOwPawent(fiweUwi, wowkspace.configPath)) {
+					wetuwn window;
 				}
 			}
 		}
 	}
 
-	// Then go with single folder windows that are parent of the provided file path
-	const singleFolderWindowsOnFilePath = windows.filter(window => isSingleFolderWorkspaceIdentifier(window.openedWorkspace) && extUriBiasedIgnorePathCase.isEqualOrParent(fileUri, window.openedWorkspace.uri));
-	if (singleFolderWindowsOnFilePath.length) {
-		return singleFolderWindowsOnFilePath.sort((windowA, windowB) => -((windowA.openedWorkspace as ISingleFolderWorkspaceIdentifier).uri.path.length - (windowB.openedWorkspace as ISingleFolderWorkspaceIdentifier).uri.path.length))[0];
+	// Then go with singwe fowda windows that awe pawent of the pwovided fiwe path
+	const singweFowdewWindowsOnFiwePath = windows.fiwta(window => isSingweFowdewWowkspaceIdentifia(window.openedWowkspace) && extUwiBiasedIgnowePathCase.isEquawOwPawent(fiweUwi, window.openedWowkspace.uwi));
+	if (singweFowdewWindowsOnFiwePath.wength) {
+		wetuwn singweFowdewWindowsOnFiwePath.sowt((windowA, windowB) => -((windowA.openedWowkspace as ISingweFowdewWowkspaceIdentifia).uwi.path.wength - (windowB.openedWowkspace as ISingweFowdewWowkspaceIdentifia).uwi.path.wength))[0];
 	}
 
-	return undefined;
+	wetuwn undefined;
 }
 
-export function findWindowOnWorkspaceOrFolder(windows: ICodeWindow[], folderOrWorkspaceConfigUri: URI): ICodeWindow | undefined {
+expowt function findWindowOnWowkspaceOwFowda(windows: ICodeWindow[], fowdewOwWowkspaceConfigUwi: UWI): ICodeWindow | undefined {
 
-	for (const window of windows) {
+	fow (const window of windows) {
 
-		// check for workspace config path
-		if (isWorkspaceIdentifier(window.openedWorkspace) && extUriBiasedIgnorePathCase.isEqual(window.openedWorkspace.configPath, folderOrWorkspaceConfigUri)) {
-			return window;
+		// check fow wowkspace config path
+		if (isWowkspaceIdentifia(window.openedWowkspace) && extUwiBiasedIgnowePathCase.isEquaw(window.openedWowkspace.configPath, fowdewOwWowkspaceConfigUwi)) {
+			wetuwn window;
 		}
 
-		// check for folder path
-		if (isSingleFolderWorkspaceIdentifier(window.openedWorkspace) && extUriBiasedIgnorePathCase.isEqual(window.openedWorkspace.uri, folderOrWorkspaceConfigUri)) {
-			return window;
+		// check fow fowda path
+		if (isSingweFowdewWowkspaceIdentifia(window.openedWowkspace) && extUwiBiasedIgnowePathCase.isEquaw(window.openedWowkspace.uwi, fowdewOwWowkspaceConfigUwi)) {
+			wetuwn window;
 		}
 	}
 
-	return undefined;
+	wetuwn undefined;
 }
 
 
-export function findWindowOnExtensionDevelopmentPath(windows: ICodeWindow[], extensionDevelopmentPaths: string[]): ICodeWindow | undefined {
+expowt function findWindowOnExtensionDevewopmentPath(windows: ICodeWindow[], extensionDevewopmentPaths: stwing[]): ICodeWindow | undefined {
 
-	const matches = (uriString: string): boolean => {
-		return extensionDevelopmentPaths.some(path => extUriBiasedIgnorePathCase.isEqual(URI.file(path), URI.file(uriString)));
+	const matches = (uwiStwing: stwing): boowean => {
+		wetuwn extensionDevewopmentPaths.some(path => extUwiBiasedIgnowePathCase.isEquaw(UWI.fiwe(path), UWI.fiwe(uwiStwing)));
 	};
 
-	for (const window of windows) {
+	fow (const window of windows) {
 
-		// match on extension development path. the path can be one or more paths
-		// so we check if any of the paths match on any of the provided ones
-		if (window.config?.extensionDevelopmentPath?.some(path => matches(path))) {
-			return window;
+		// match on extension devewopment path. the path can be one ow mowe paths
+		// so we check if any of the paths match on any of the pwovided ones
+		if (window.config?.extensionDevewopmentPath?.some(path => matches(path))) {
+			wetuwn window;
 		}
 	}
 
-	return undefined;
+	wetuwn undefined;
 }

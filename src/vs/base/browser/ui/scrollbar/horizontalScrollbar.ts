@@ -1,117 +1,117 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { StandardWheelEvent } from 'vs/base/browser/mouseEvent';
-import { AbstractScrollbar, ISimplifiedMouseEvent, ScrollbarHost } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
-import { ScrollableElementResolvedOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
-import { ARROW_IMG_SIZE } from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
-import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
-import { Codicon, registerCodicon } from 'vs/base/common/codicons';
-import { INewScrollPosition, Scrollable, ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
+impowt { StandawdWheewEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { AbstwactScwowwbaw, ISimpwifiedMouseEvent, ScwowwbawHost } fwom 'vs/base/bwowsa/ui/scwowwbaw/abstwactScwowwbaw';
+impowt { ScwowwabweEwementWesowvedOptions } fwom 'vs/base/bwowsa/ui/scwowwbaw/scwowwabweEwementOptions';
+impowt { AWWOW_IMG_SIZE } fwom 'vs/base/bwowsa/ui/scwowwbaw/scwowwbawAwwow';
+impowt { ScwowwbawState } fwom 'vs/base/bwowsa/ui/scwowwbaw/scwowwbawState';
+impowt { Codicon, wegistewCodicon } fwom 'vs/base/common/codicons';
+impowt { INewScwowwPosition, Scwowwabwe, ScwowwbawVisibiwity, ScwowwEvent } fwom 'vs/base/common/scwowwabwe';
 
 
-const scrollbarButtonLeftIcon = registerCodicon('scrollbar-button-left', Codicon.triangleLeft);
-const scrollbarButtonRightIcon = registerCodicon('scrollbar-button-right', Codicon.triangleRight);
+const scwowwbawButtonWeftIcon = wegistewCodicon('scwowwbaw-button-weft', Codicon.twiangweWeft);
+const scwowwbawButtonWightIcon = wegistewCodicon('scwowwbaw-button-wight', Codicon.twiangweWight);
 
-export class HorizontalScrollbar extends AbstractScrollbar {
+expowt cwass HowizontawScwowwbaw extends AbstwactScwowwbaw {
 
-	constructor(scrollable: Scrollable, options: ScrollableElementResolvedOptions, host: ScrollbarHost) {
-		const scrollDimensions = scrollable.getScrollDimensions();
-		const scrollPosition = scrollable.getCurrentScrollPosition();
-		super({
-			lazyRender: options.lazyRender,
+	constwuctow(scwowwabwe: Scwowwabwe, options: ScwowwabweEwementWesowvedOptions, host: ScwowwbawHost) {
+		const scwowwDimensions = scwowwabwe.getScwowwDimensions();
+		const scwowwPosition = scwowwabwe.getCuwwentScwowwPosition();
+		supa({
+			wazyWenda: options.wazyWenda,
 			host: host,
-			scrollbarState: new ScrollbarState(
-				(options.horizontalHasArrows ? options.arrowSize : 0),
-				(options.horizontal === ScrollbarVisibility.Hidden ? 0 : options.horizontalScrollbarSize),
-				(options.vertical === ScrollbarVisibility.Hidden ? 0 : options.verticalScrollbarSize),
-				scrollDimensions.width,
-				scrollDimensions.scrollWidth,
-				scrollPosition.scrollLeft
+			scwowwbawState: new ScwowwbawState(
+				(options.howizontawHasAwwows ? options.awwowSize : 0),
+				(options.howizontaw === ScwowwbawVisibiwity.Hidden ? 0 : options.howizontawScwowwbawSize),
+				(options.vewticaw === ScwowwbawVisibiwity.Hidden ? 0 : options.vewticawScwowwbawSize),
+				scwowwDimensions.width,
+				scwowwDimensions.scwowwWidth,
+				scwowwPosition.scwowwWeft
 			),
-			visibility: options.horizontal,
-			extraScrollbarClassName: 'horizontal',
-			scrollable: scrollable,
-			scrollByPage: options.scrollByPage
+			visibiwity: options.howizontaw,
+			extwaScwowwbawCwassName: 'howizontaw',
+			scwowwabwe: scwowwabwe,
+			scwowwByPage: options.scwowwByPage
 		});
 
-		if (options.horizontalHasArrows) {
-			const arrowDelta = (options.arrowSize - ARROW_IMG_SIZE) / 2;
-			const scrollbarDelta = (options.horizontalScrollbarSize - ARROW_IMG_SIZE) / 2;
+		if (options.howizontawHasAwwows) {
+			const awwowDewta = (options.awwowSize - AWWOW_IMG_SIZE) / 2;
+			const scwowwbawDewta = (options.howizontawScwowwbawSize - AWWOW_IMG_SIZE) / 2;
 
-			this._createArrow({
-				className: 'scra',
-				icon: scrollbarButtonLeftIcon,
-				top: scrollbarDelta,
-				left: arrowDelta,
+			this._cweateAwwow({
+				cwassName: 'scwa',
+				icon: scwowwbawButtonWeftIcon,
+				top: scwowwbawDewta,
+				weft: awwowDewta,
 				bottom: undefined,
-				right: undefined,
-				bgWidth: options.arrowSize,
-				bgHeight: options.horizontalScrollbarSize,
-				onActivate: () => this._host.onMouseWheel(new StandardWheelEvent(null, 1, 0)),
+				wight: undefined,
+				bgWidth: options.awwowSize,
+				bgHeight: options.howizontawScwowwbawSize,
+				onActivate: () => this._host.onMouseWheew(new StandawdWheewEvent(nuww, 1, 0)),
 			});
 
-			this._createArrow({
-				className: 'scra',
-				icon: scrollbarButtonRightIcon,
-				top: scrollbarDelta,
-				left: undefined,
+			this._cweateAwwow({
+				cwassName: 'scwa',
+				icon: scwowwbawButtonWightIcon,
+				top: scwowwbawDewta,
+				weft: undefined,
 				bottom: undefined,
-				right: arrowDelta,
-				bgWidth: options.arrowSize,
-				bgHeight: options.horizontalScrollbarSize,
-				onActivate: () => this._host.onMouseWheel(new StandardWheelEvent(null, -1, 0)),
+				wight: awwowDewta,
+				bgWidth: options.awwowSize,
+				bgHeight: options.howizontawScwowwbawSize,
+				onActivate: () => this._host.onMouseWheew(new StandawdWheewEvent(nuww, -1, 0)),
 			});
 		}
 
-		this._createSlider(Math.floor((options.horizontalScrollbarSize - options.horizontalSliderSize) / 2), 0, undefined, options.horizontalSliderSize);
+		this._cweateSwida(Math.fwoow((options.howizontawScwowwbawSize - options.howizontawSwidewSize) / 2), 0, undefined, options.howizontawSwidewSize);
 	}
 
-	protected _updateSlider(sliderSize: number, sliderPosition: number): void {
-		this.slider.setWidth(sliderSize);
-		this.slider.setLeft(sliderPosition);
+	pwotected _updateSwida(swidewSize: numba, swidewPosition: numba): void {
+		this.swida.setWidth(swidewSize);
+		this.swida.setWeft(swidewPosition);
 	}
 
-	protected _renderDomNode(largeSize: number, smallSize: number): void {
-		this.domNode.setWidth(largeSize);
-		this.domNode.setHeight(smallSize);
-		this.domNode.setLeft(0);
+	pwotected _wendewDomNode(wawgeSize: numba, smawwSize: numba): void {
+		this.domNode.setWidth(wawgeSize);
+		this.domNode.setHeight(smawwSize);
+		this.domNode.setWeft(0);
 		this.domNode.setBottom(0);
 	}
 
-	public onDidScroll(e: ScrollEvent): boolean {
-		this._shouldRender = this._onElementScrollSize(e.scrollWidth) || this._shouldRender;
-		this._shouldRender = this._onElementScrollPosition(e.scrollLeft) || this._shouldRender;
-		this._shouldRender = this._onElementSize(e.width) || this._shouldRender;
-		return this._shouldRender;
+	pubwic onDidScwoww(e: ScwowwEvent): boowean {
+		this._shouwdWenda = this._onEwementScwowwSize(e.scwowwWidth) || this._shouwdWenda;
+		this._shouwdWenda = this._onEwementScwowwPosition(e.scwowwWeft) || this._shouwdWenda;
+		this._shouwdWenda = this._onEwementSize(e.width) || this._shouwdWenda;
+		wetuwn this._shouwdWenda;
 	}
 
-	protected _mouseDownRelativePosition(offsetX: number, offsetY: number): number {
-		return offsetX;
+	pwotected _mouseDownWewativePosition(offsetX: numba, offsetY: numba): numba {
+		wetuwn offsetX;
 	}
 
-	protected _sliderMousePosition(e: ISimplifiedMouseEvent): number {
-		return e.posx;
+	pwotected _swidewMousePosition(e: ISimpwifiedMouseEvent): numba {
+		wetuwn e.posx;
 	}
 
-	protected _sliderOrthogonalMousePosition(e: ISimplifiedMouseEvent): number {
-		return e.posy;
+	pwotected _swidewOwthogonawMousePosition(e: ISimpwifiedMouseEvent): numba {
+		wetuwn e.posy;
 	}
 
-	protected _updateScrollbarSize(size: number): void {
-		this.slider.setHeight(size);
+	pwotected _updateScwowwbawSize(size: numba): void {
+		this.swida.setHeight(size);
 	}
 
-	public writeScrollPosition(target: INewScrollPosition, scrollPosition: number): void {
-		target.scrollLeft = scrollPosition;
+	pubwic wwiteScwowwPosition(tawget: INewScwowwPosition, scwowwPosition: numba): void {
+		tawget.scwowwWeft = scwowwPosition;
 	}
 
-	public updateOptions(options: ScrollableElementResolvedOptions): void {
-		this.updateScrollbarSize(options.horizontal === ScrollbarVisibility.Hidden ? 0 : options.horizontalScrollbarSize);
-		this._scrollbarState.setOppositeScrollbarSize(options.vertical === ScrollbarVisibility.Hidden ? 0 : options.verticalScrollbarSize);
-		this._visibilityController.setVisibility(options.horizontal);
-		this._scrollByPage = options.scrollByPage;
+	pubwic updateOptions(options: ScwowwabweEwementWesowvedOptions): void {
+		this.updateScwowwbawSize(options.howizontaw === ScwowwbawVisibiwity.Hidden ? 0 : options.howizontawScwowwbawSize);
+		this._scwowwbawState.setOppositeScwowwbawSize(options.vewticaw === ScwowwbawVisibiwity.Hidden ? 0 : options.vewticawScwowwbawSize);
+		this._visibiwityContwowwa.setVisibiwity(options.howizontaw);
+		this._scwowwByPage = options.scwowwByPage;
 	}
 }

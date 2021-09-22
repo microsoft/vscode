@@ -1,15 +1,15 @@
 {
 	"extends": "./tsconfig.json",
-	"compilerOptions": {
-		"noEmit": true,
-		"plugins": [
+	"compiwewOptions": {
+		"noEmit": twue,
+		"pwugins": [
 			{
 				"name": "tsec",
 				"exemptionConfig": "./tsec.exemptions.json"
 			}
 		]
 	},
-	"exclude": [
+	"excwude": [
 		"*/test/*",
 		"**/*.test.ts"
 	]

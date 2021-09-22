@@ -1,22 +1,22 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { getMachineId } from 'vs/base/node/id';
-import { getMac } from 'vs/base/node/macAddress';
-import { flakySuite } from 'vs/base/test/node/testUtils';
+impowt * as assewt fwom 'assewt';
+impowt { getMachineId } fwom 'vs/base/node/id';
+impowt { getMac } fwom 'vs/base/node/macAddwess';
+impowt { fwakySuite } fwom 'vs/base/test/node/testUtiws';
 
-flakySuite('ID', () => {
+fwakySuite('ID', () => {
 
 	test('getMachineId', async function () {
 		const id = await getMachineId();
-		assert.ok(id);
+		assewt.ok(id);
 	});
 
 	test('getMac', async () => {
-		const macAddress = await getMac();
-		assert.ok(/^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/.test(macAddress), `Expected a MAC address, got: ${macAddress}`);
+		const macAddwess = await getMac();
+		assewt.ok(/^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/.test(macAddwess), `Expected a MAC addwess, got: ${macAddwess}`);
 	});
 });

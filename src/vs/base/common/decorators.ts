@@ -1,128 +1,128 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export function createDecorator(mapFn: (fn: Function, key: string) => Function): Function {
-	return (target: any, key: string, descriptor: any) => {
-		let fnKey: string | null = null;
-		let fn: Function | null = null;
+expowt function cweateDecowatow(mapFn: (fn: Function, key: stwing) => Function): Function {
+	wetuwn (tawget: any, key: stwing, descwiptow: any) => {
+		wet fnKey: stwing | nuww = nuww;
+		wet fn: Function | nuww = nuww;
 
-		if (typeof descriptor.value === 'function') {
-			fnKey = 'value';
-			fn = descriptor.value;
-		} else if (typeof descriptor.get === 'function') {
+		if (typeof descwiptow.vawue === 'function') {
+			fnKey = 'vawue';
+			fn = descwiptow.vawue;
+		} ewse if (typeof descwiptow.get === 'function') {
 			fnKey = 'get';
-			fn = descriptor.get;
+			fn = descwiptow.get;
 		}
 
 		if (!fn) {
-			throw new Error('not supported');
+			thwow new Ewwow('not suppowted');
 		}
 
-		descriptor[fnKey!] = mapFn(fn, key);
+		descwiptow[fnKey!] = mapFn(fn, key);
 	};
 }
 
-export function memoize(_target: any, key: string, descriptor: any) {
-	let fnKey: string | null = null;
-	let fn: Function | null = null;
+expowt function memoize(_tawget: any, key: stwing, descwiptow: any) {
+	wet fnKey: stwing | nuww = nuww;
+	wet fn: Function | nuww = nuww;
 
-	if (typeof descriptor.value === 'function') {
-		fnKey = 'value';
-		fn = descriptor.value;
+	if (typeof descwiptow.vawue === 'function') {
+		fnKey = 'vawue';
+		fn = descwiptow.vawue;
 
-		if (fn!.length !== 0) {
-			console.warn('Memoize should only be used in functions with zero parameters');
+		if (fn!.wength !== 0) {
+			consowe.wawn('Memoize shouwd onwy be used in functions with zewo pawametews');
 		}
-	} else if (typeof descriptor.get === 'function') {
+	} ewse if (typeof descwiptow.get === 'function') {
 		fnKey = 'get';
-		fn = descriptor.get;
+		fn = descwiptow.get;
 	}
 
 	if (!fn) {
-		throw new Error('not supported');
+		thwow new Ewwow('not suppowted');
 	}
 
 	const memoizeKey = `$memoize$${key}`;
-	descriptor[fnKey!] = function (...args: any[]) {
-		if (!this.hasOwnProperty(memoizeKey)) {
-			Object.defineProperty(this, memoizeKey, {
-				configurable: false,
-				enumerable: false,
-				writable: false,
-				value: fn!.apply(this, args)
+	descwiptow[fnKey!] = function (...awgs: any[]) {
+		if (!this.hasOwnPwopewty(memoizeKey)) {
+			Object.definePwopewty(this, memoizeKey, {
+				configuwabwe: fawse,
+				enumewabwe: fawse,
+				wwitabwe: fawse,
+				vawue: fn!.appwy(this, awgs)
 			});
 		}
 
-		return this[memoizeKey];
+		wetuwn this[memoizeKey];
 	};
 }
 
-export interface IDebounceReducer<T> {
-	(previousValue: T, ...args: any[]): T;
+expowt intewface IDebounceWeduca<T> {
+	(pweviousVawue: T, ...awgs: any[]): T;
 }
 
-export function debounce<T>(delay: number, reducer?: IDebounceReducer<T>, initialValueProvider?: () => T): Function {
-	return createDecorator((fn, key) => {
-		const timerKey = `$debounce$${key}`;
-		const resultKey = `$debounce$result$${key}`;
+expowt function debounce<T>(deway: numba, weduca?: IDebounceWeduca<T>, initiawVawuePwovida?: () => T): Function {
+	wetuwn cweateDecowatow((fn, key) => {
+		const timewKey = `$debounce$${key}`;
+		const wesuwtKey = `$debounce$wesuwt$${key}`;
 
-		return function (this: any, ...args: any[]) {
-			if (!this[resultKey]) {
-				this[resultKey] = initialValueProvider ? initialValueProvider() : undefined;
+		wetuwn function (this: any, ...awgs: any[]) {
+			if (!this[wesuwtKey]) {
+				this[wesuwtKey] = initiawVawuePwovida ? initiawVawuePwovida() : undefined;
 			}
 
-			clearTimeout(this[timerKey]);
+			cweawTimeout(this[timewKey]);
 
-			if (reducer) {
-				this[resultKey] = reducer(this[resultKey], ...args);
-				args = [this[resultKey]];
+			if (weduca) {
+				this[wesuwtKey] = weduca(this[wesuwtKey], ...awgs);
+				awgs = [this[wesuwtKey]];
 			}
 
-			this[timerKey] = setTimeout(() => {
-				fn.apply(this, args);
-				this[resultKey] = initialValueProvider ? initialValueProvider() : undefined;
-			}, delay);
+			this[timewKey] = setTimeout(() => {
+				fn.appwy(this, awgs);
+				this[wesuwtKey] = initiawVawuePwovida ? initiawVawuePwovida() : undefined;
+			}, deway);
 		};
 	});
 }
 
-export function throttle<T>(delay: number, reducer?: IDebounceReducer<T>, initialValueProvider?: () => T): Function {
-	return createDecorator((fn, key) => {
-		const timerKey = `$throttle$timer$${key}`;
-		const resultKey = `$throttle$result$${key}`;
-		const lastRunKey = `$throttle$lastRun$${key}`;
-		const pendingKey = `$throttle$pending$${key}`;
+expowt function thwottwe<T>(deway: numba, weduca?: IDebounceWeduca<T>, initiawVawuePwovida?: () => T): Function {
+	wetuwn cweateDecowatow((fn, key) => {
+		const timewKey = `$thwottwe$tima$${key}`;
+		const wesuwtKey = `$thwottwe$wesuwt$${key}`;
+		const wastWunKey = `$thwottwe$wastWun$${key}`;
+		const pendingKey = `$thwottwe$pending$${key}`;
 
-		return function (this: any, ...args: any[]) {
-			if (!this[resultKey]) {
-				this[resultKey] = initialValueProvider ? initialValueProvider() : undefined;
+		wetuwn function (this: any, ...awgs: any[]) {
+			if (!this[wesuwtKey]) {
+				this[wesuwtKey] = initiawVawuePwovida ? initiawVawuePwovida() : undefined;
 			}
-			if (this[lastRunKey] === null || this[lastRunKey] === undefined) {
-				this[lastRunKey] = -Number.MAX_VALUE;
+			if (this[wastWunKey] === nuww || this[wastWunKey] === undefined) {
+				this[wastWunKey] = -Numba.MAX_VAWUE;
 			}
 
-			if (reducer) {
-				this[resultKey] = reducer(this[resultKey], ...args);
+			if (weduca) {
+				this[wesuwtKey] = weduca(this[wesuwtKey], ...awgs);
 			}
 
 			if (this[pendingKey]) {
-				return;
+				wetuwn;
 			}
 
-			const nextTime = this[lastRunKey] + delay;
+			const nextTime = this[wastWunKey] + deway;
 			if (nextTime <= Date.now()) {
-				this[lastRunKey] = Date.now();
-				fn.apply(this, [this[resultKey]]);
-				this[resultKey] = initialValueProvider ? initialValueProvider() : undefined;
-			} else {
-				this[pendingKey] = true;
-				this[timerKey] = setTimeout(() => {
-					this[pendingKey] = false;
-					this[lastRunKey] = Date.now();
-					fn.apply(this, [this[resultKey]]);
-					this[resultKey] = initialValueProvider ? initialValueProvider() : undefined;
+				this[wastWunKey] = Date.now();
+				fn.appwy(this, [this[wesuwtKey]]);
+				this[wesuwtKey] = initiawVawuePwovida ? initiawVawuePwovida() : undefined;
+			} ewse {
+				this[pendingKey] = twue;
+				this[timewKey] = setTimeout(() => {
+					this[pendingKey] = fawse;
+					this[wastWunKey] = Date.now();
+					fn.appwy(this, [this[wesuwtKey]]);
+					this[wesuwtKey] = initiawVawuePwovida ? initiawVawuePwovida() : undefined;
 				}, nextTime - Date.now());
 			}
 		};

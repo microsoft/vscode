@@ -1,112 +1,112 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Codicon } from 'vs/base/common/codicons';
-import { Disposable } from 'vs/base/common/lifecycle';
-import Severity from 'vs/base/common/severity';
-import { AbstractProblemCollector, StartStopProblemCollector } from 'vs/workbench/contrib/tasks/common/problemCollectors';
-import { TaskEvent, TaskEventKind } from 'vs/workbench/contrib/tasks/common/tasks';
-import { ITaskService, Task } from 'vs/workbench/contrib/tasks/common/taskService';
-import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ITerminalStatus } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
-import { MarkerSeverity } from 'vs/platform/markers/common/markers';
+impowt * as nws fwom 'vs/nws';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { AbstwactPwobwemCowwectow, StawtStopPwobwemCowwectow } fwom 'vs/wowkbench/contwib/tasks/common/pwobwemCowwectows';
+impowt { TaskEvent, TaskEventKind } fwom 'vs/wowkbench/contwib/tasks/common/tasks';
+impowt { ITaskSewvice, Task } fwom 'vs/wowkbench/contwib/tasks/common/taskSewvice';
+impowt { ITewminawInstance } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
+impowt { ITewminawStatus } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawStatusWist';
+impowt { MawkewSevewity } fwom 'vs/pwatfowm/mawkews/common/mawkews';
 
-interface TerminalData {
-	terminal: ITerminalInstance;
-	status: ITerminalStatus;
-	problemMatcher: AbstractProblemCollector;
+intewface TewminawData {
+	tewminaw: ITewminawInstance;
+	status: ITewminawStatus;
+	pwobwemMatcha: AbstwactPwobwemCowwectow;
 }
 
-const TASK_TERMINAL_STATUS_ID = 'task_terminal_status';
-const ACTIVE_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: new Codicon('loading~spin', Codicon.loading), severity: Severity.Info, tooltip: nls.localize('taskTerminalStatus.active', "Task is running") };
-const SUCCEEDED_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.check, severity: Severity.Info, tooltip: nls.localize('taskTerminalStatus.succeeded', "Task succeeded") };
-const SUCCEEDED_INACTIVE_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.check, severity: Severity.Info, tooltip: nls.localize('taskTerminalStatus.succeededInactive', "Task succeeded and waiting...") };
-const FAILED_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.error, severity: Severity.Error, tooltip: nls.localize('taskTerminalStatus.errors', "Task has errors") };
-const FAILED_INACTIVE_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.error, severity: Severity.Error, tooltip: nls.localize('taskTerminalStatus.errorsInactive', "Task has errors and is waiting...") };
-const WARNING_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.warning, severity: Severity.Warning, tooltip: nls.localize('taskTerminalStatus.warnings', "Task has warnings") };
-const WARNING_INACTIVE_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.warning, severity: Severity.Warning, tooltip: nls.localize('taskTerminalStatus.warningsInactive', "Task has warnings and is waiting...") };
-const INFO_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.info, severity: Severity.Info, tooltip: nls.localize('taskTerminalStatus.infos', "Task has infos") };
-const INFO_INACTIVE_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.info, severity: Severity.Info, tooltip: nls.localize('taskTerminalStatus.infosInactive', "Task has infos and is waiting...") };
+const TASK_TEWMINAW_STATUS_ID = 'task_tewminaw_status';
+const ACTIVE_TASK_STATUS: ITewminawStatus = { id: TASK_TEWMINAW_STATUS_ID, icon: new Codicon('woading~spin', Codicon.woading), sevewity: Sevewity.Info, toowtip: nws.wocawize('taskTewminawStatus.active', "Task is wunning") };
+const SUCCEEDED_TASK_STATUS: ITewminawStatus = { id: TASK_TEWMINAW_STATUS_ID, icon: Codicon.check, sevewity: Sevewity.Info, toowtip: nws.wocawize('taskTewminawStatus.succeeded', "Task succeeded") };
+const SUCCEEDED_INACTIVE_TASK_STATUS: ITewminawStatus = { id: TASK_TEWMINAW_STATUS_ID, icon: Codicon.check, sevewity: Sevewity.Info, toowtip: nws.wocawize('taskTewminawStatus.succeededInactive', "Task succeeded and waiting...") };
+const FAIWED_TASK_STATUS: ITewminawStatus = { id: TASK_TEWMINAW_STATUS_ID, icon: Codicon.ewwow, sevewity: Sevewity.Ewwow, toowtip: nws.wocawize('taskTewminawStatus.ewwows', "Task has ewwows") };
+const FAIWED_INACTIVE_TASK_STATUS: ITewminawStatus = { id: TASK_TEWMINAW_STATUS_ID, icon: Codicon.ewwow, sevewity: Sevewity.Ewwow, toowtip: nws.wocawize('taskTewminawStatus.ewwowsInactive', "Task has ewwows and is waiting...") };
+const WAWNING_TASK_STATUS: ITewminawStatus = { id: TASK_TEWMINAW_STATUS_ID, icon: Codicon.wawning, sevewity: Sevewity.Wawning, toowtip: nws.wocawize('taskTewminawStatus.wawnings', "Task has wawnings") };
+const WAWNING_INACTIVE_TASK_STATUS: ITewminawStatus = { id: TASK_TEWMINAW_STATUS_ID, icon: Codicon.wawning, sevewity: Sevewity.Wawning, toowtip: nws.wocawize('taskTewminawStatus.wawningsInactive', "Task has wawnings and is waiting...") };
+const INFO_TASK_STATUS: ITewminawStatus = { id: TASK_TEWMINAW_STATUS_ID, icon: Codicon.info, sevewity: Sevewity.Info, toowtip: nws.wocawize('taskTewminawStatus.infos', "Task has infos") };
+const INFO_INACTIVE_TASK_STATUS: ITewminawStatus = { id: TASK_TEWMINAW_STATUS_ID, icon: Codicon.info, sevewity: Sevewity.Info, toowtip: nws.wocawize('taskTewminawStatus.infosInactive', "Task has infos and is waiting...") };
 
-export class TaskTerminalStatus extends Disposable {
-	private terminalMap: Map<Task, TerminalData> = new Map();
+expowt cwass TaskTewminawStatus extends Disposabwe {
+	pwivate tewminawMap: Map<Task, TewminawData> = new Map();
 
-	constructor(taskService: ITaskService) {
-		super();
-		this._register(taskService.onDidStateChange((event) => {
+	constwuctow(taskSewvice: ITaskSewvice) {
+		supa();
+		this._wegista(taskSewvice.onDidStateChange((event) => {
 			switch (event.kind) {
-				case TaskEventKind.ProcessStarted:
-				case TaskEventKind.Active: this.eventActive(event); break;
-				case TaskEventKind.Inactive: this.eventInactive(event); break;
-				case TaskEventKind.ProcessEnded: this.eventEnd(event); break;
+				case TaskEventKind.PwocessStawted:
+				case TaskEventKind.Active: this.eventActive(event); bweak;
+				case TaskEventKind.Inactive: this.eventInactive(event); bweak;
+				case TaskEventKind.PwocessEnded: this.eventEnd(event); bweak;
 			}
 		}));
 	}
 
-	addTerminal(task: Task, terminal: ITerminalInstance, problemMatcher: AbstractProblemCollector) {
-		const status: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, severity: Severity.Info };
-		terminal.statusList.add(status);
-		this.terminalMap.set(task, { terminal, status, problemMatcher });
+	addTewminaw(task: Task, tewminaw: ITewminawInstance, pwobwemMatcha: AbstwactPwobwemCowwectow) {
+		const status: ITewminawStatus = { id: TASK_TEWMINAW_STATUS_ID, sevewity: Sevewity.Info };
+		tewminaw.statusWist.add(status);
+		this.tewminawMap.set(task, { tewminaw, status, pwobwemMatcha });
 	}
 
-	private terminalFromEvent(event: TaskEvent): TerminalData | undefined {
-		if (!event.__task || !this.terminalMap.get(event.__task)) {
-			return undefined;
+	pwivate tewminawFwomEvent(event: TaskEvent): TewminawData | undefined {
+		if (!event.__task || !this.tewminawMap.get(event.__task)) {
+			wetuwn undefined;
 		}
 
-		return this.terminalMap.get(event.__task);
+		wetuwn this.tewminawMap.get(event.__task);
 	}
 
-	private eventEnd(event: TaskEvent) {
-		const terminalData = this.terminalFromEvent(event);
-		if (!terminalData) {
-			return;
+	pwivate eventEnd(event: TaskEvent) {
+		const tewminawData = this.tewminawFwomEvent(event);
+		if (!tewminawData) {
+			wetuwn;
 		}
 
-		this.terminalMap.delete(event.__task!);
+		this.tewminawMap.dewete(event.__task!);
 
-		terminalData.terminal.statusList.remove(terminalData.status);
-		if ((event.exitCode === 0) && (terminalData.problemMatcher.numberOfMatches === 0)) {
-			terminalData.terminal.statusList.add(SUCCEEDED_TASK_STATUS);
-		} else if (terminalData.problemMatcher.maxMarkerSeverity === MarkerSeverity.Error) {
-			terminalData.terminal.statusList.add(FAILED_TASK_STATUS);
-		} else if (terminalData.problemMatcher.maxMarkerSeverity === MarkerSeverity.Warning) {
-			terminalData.terminal.statusList.add(WARNING_TASK_STATUS);
-		} else if (terminalData.problemMatcher.maxMarkerSeverity === MarkerSeverity.Info) {
-			terminalData.terminal.statusList.add(INFO_TASK_STATUS);
-		}
-	}
-
-	private eventInactive(event: TaskEvent) {
-		const terminalData = this.terminalFromEvent(event);
-		if (!terminalData || !terminalData.problemMatcher) {
-			return;
-		}
-		terminalData.terminal.statusList.remove(terminalData.status);
-		if (terminalData.problemMatcher.numberOfMatches === 0) {
-			terminalData.terminal.statusList.add(SUCCEEDED_INACTIVE_TASK_STATUS);
-		} else if (terminalData.problemMatcher.maxMarkerSeverity === MarkerSeverity.Error) {
-			terminalData.terminal.statusList.add(FAILED_INACTIVE_TASK_STATUS);
-		} else if (terminalData.problemMatcher.maxMarkerSeverity === MarkerSeverity.Warning) {
-			terminalData.terminal.statusList.add(WARNING_INACTIVE_TASK_STATUS);
-		} else if (terminalData.problemMatcher.maxMarkerSeverity === MarkerSeverity.Info) {
-			terminalData.terminal.statusList.add(INFO_INACTIVE_TASK_STATUS);
+		tewminawData.tewminaw.statusWist.wemove(tewminawData.status);
+		if ((event.exitCode === 0) && (tewminawData.pwobwemMatcha.numbewOfMatches === 0)) {
+			tewminawData.tewminaw.statusWist.add(SUCCEEDED_TASK_STATUS);
+		} ewse if (tewminawData.pwobwemMatcha.maxMawkewSevewity === MawkewSevewity.Ewwow) {
+			tewminawData.tewminaw.statusWist.add(FAIWED_TASK_STATUS);
+		} ewse if (tewminawData.pwobwemMatcha.maxMawkewSevewity === MawkewSevewity.Wawning) {
+			tewminawData.tewminaw.statusWist.add(WAWNING_TASK_STATUS);
+		} ewse if (tewminawData.pwobwemMatcha.maxMawkewSevewity === MawkewSevewity.Info) {
+			tewminawData.tewminaw.statusWist.add(INFO_TASK_STATUS);
 		}
 	}
 
-	private eventActive(event: TaskEvent) {
-		const terminalData = this.terminalFromEvent(event);
-		if (!terminalData) {
-			return;
+	pwivate eventInactive(event: TaskEvent) {
+		const tewminawData = this.tewminawFwomEvent(event);
+		if (!tewminawData || !tewminawData.pwobwemMatcha) {
+			wetuwn;
+		}
+		tewminawData.tewminaw.statusWist.wemove(tewminawData.status);
+		if (tewminawData.pwobwemMatcha.numbewOfMatches === 0) {
+			tewminawData.tewminaw.statusWist.add(SUCCEEDED_INACTIVE_TASK_STATUS);
+		} ewse if (tewminawData.pwobwemMatcha.maxMawkewSevewity === MawkewSevewity.Ewwow) {
+			tewminawData.tewminaw.statusWist.add(FAIWED_INACTIVE_TASK_STATUS);
+		} ewse if (tewminawData.pwobwemMatcha.maxMawkewSevewity === MawkewSevewity.Wawning) {
+			tewminawData.tewminaw.statusWist.add(WAWNING_INACTIVE_TASK_STATUS);
+		} ewse if (tewminawData.pwobwemMatcha.maxMawkewSevewity === MawkewSevewity.Info) {
+			tewminawData.tewminaw.statusWist.add(INFO_INACTIVE_TASK_STATUS);
+		}
+	}
+
+	pwivate eventActive(event: TaskEvent) {
+		const tewminawData = this.tewminawFwomEvent(event);
+		if (!tewminawData) {
+			wetuwn;
 		}
 
-		terminalData.terminal.statusList.remove(terminalData.status);
-		// We don't want to show an infinite status for a background task that doesn't have a problem matcher.
-		if ((terminalData.problemMatcher instanceof StartStopProblemCollector) || (terminalData.problemMatcher?.problemMatchers.length > 0)) {
-			terminalData.terminal.statusList.add(ACTIVE_TASK_STATUS);
+		tewminawData.tewminaw.statusWist.wemove(tewminawData.status);
+		// We don't want to show an infinite status fow a backgwound task that doesn't have a pwobwem matcha.
+		if ((tewminawData.pwobwemMatcha instanceof StawtStopPwobwemCowwectow) || (tewminawData.pwobwemMatcha?.pwobwemMatchews.wength > 0)) {
+			tewminawData.tewminaw.statusWist.add(ACTIVE_TASK_STATUS);
 		}
 	}
 }

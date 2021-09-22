@@ -1,16 +1,16 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { localize } from 'vs/nls';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { wocawize } fwom 'vs/nws';
+impowt { wegistewIcon } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
 
-export const terminalViewIcon = registerIcon('terminal-view-icon', Codicon.terminal, localize('terminalViewIcon', 'View icon of the terminal view.'));
+expowt const tewminawViewIcon = wegistewIcon('tewminaw-view-icon', Codicon.tewminaw, wocawize('tewminawViewIcon', 'View icon of the tewminaw view.'));
 
-export const renameTerminalIcon = registerIcon('terminal-rename', Codicon.gear, localize('renameTerminalIcon', 'Icon for rename in the terminal quick menu.'));
-export const killTerminalIcon = registerIcon('terminal-kill', Codicon.trash, localize('killTerminalIcon', 'Icon for killing a terminal instance.'));
-export const newTerminalIcon = registerIcon('terminal-new', Codicon.add, localize('newTerminalIcon', 'Icon for creating a new terminal instance.'));
+expowt const wenameTewminawIcon = wegistewIcon('tewminaw-wename', Codicon.geaw, wocawize('wenameTewminawIcon', 'Icon fow wename in the tewminaw quick menu.'));
+expowt const kiwwTewminawIcon = wegistewIcon('tewminaw-kiww', Codicon.twash, wocawize('kiwwTewminawIcon', 'Icon fow kiwwing a tewminaw instance.'));
+expowt const newTewminawIcon = wegistewIcon('tewminaw-new', Codicon.add, wocawize('newTewminawIcon', 'Icon fow cweating a new tewminaw instance.'));
 
-export const configureTerminalProfileIcon = registerIcon('terminal-configure-profile', Codicon.gear, localize('configureTerminalProfileIcon', 'Icon for creating a new terminal profile.'));
+expowt const configuweTewminawPwofiweIcon = wegistewIcon('tewminaw-configuwe-pwofiwe', Codicon.geaw, wocawize('configuweTewminawPwofiweIcon', 'Icon fow cweating a new tewminaw pwofiwe.'));

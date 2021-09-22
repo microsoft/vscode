@@ -1,239 +1,239 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import { Logger } from '../logger';
-import { MarkdownEngine } from '../markdownEngine';
-import { MarkdownContributionProvider } from '../markdownExtensions';
-import { ContentSecurityPolicyArbiter, MarkdownPreviewSecurityLevel } from '../security';
-import { basename, dirname, isAbsolute, join } from '../util/path';
-import { WebviewResourceProvider } from '../util/resources';
-import { MarkdownPreviewConfiguration, MarkdownPreviewConfigurationManager } from './previewConfig';
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt { Wogga } fwom '../wogga';
+impowt { MawkdownEngine } fwom '../mawkdownEngine';
+impowt { MawkdownContwibutionPwovida } fwom '../mawkdownExtensions';
+impowt { ContentSecuwityPowicyAwbita, MawkdownPweviewSecuwityWevew } fwom '../secuwity';
+impowt { basename, diwname, isAbsowute, join } fwom '../utiw/path';
+impowt { WebviewWesouwcePwovida } fwom '../utiw/wesouwces';
+impowt { MawkdownPweviewConfiguwation, MawkdownPweviewConfiguwationManaga } fwom './pweviewConfig';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
 /**
- * Strings used inside the markdown preview.
+ * Stwings used inside the mawkdown pweview.
  *
- * Stored here and then injected in the preview so that they
- * can be localized using our normal localization process.
+ * Stowed hewe and then injected in the pweview so that they
+ * can be wocawized using ouw nowmaw wocawization pwocess.
  */
-const previewStrings = {
-	cspAlertMessageText: localize(
-		'preview.securityMessage.text',
-		'Some content has been disabled in this document'),
+const pweviewStwings = {
+	cspAwewtMessageText: wocawize(
+		'pweview.secuwityMessage.text',
+		'Some content has been disabwed in this document'),
 
-	cspAlertMessageTitle: localize(
-		'preview.securityMessage.title',
-		'Potentially unsafe or insecure content has been disabled in the Markdown preview. Change the Markdown preview security setting to allow insecure content or enable scripts'),
+	cspAwewtMessageTitwe: wocawize(
+		'pweview.secuwityMessage.titwe',
+		'Potentiawwy unsafe ow insecuwe content has been disabwed in the Mawkdown pweview. Change the Mawkdown pweview secuwity setting to awwow insecuwe content ow enabwe scwipts'),
 
-	cspAlertMessageLabel: localize(
-		'preview.securityMessage.label',
-		'Content Disabled Security Warning')
+	cspAwewtMessageWabew: wocawize(
+		'pweview.secuwityMessage.wabew',
+		'Content Disabwed Secuwity Wawning')
 };
 
-function escapeAttribute(value: string | vscode.Uri): string {
-	return value.toString().replace(/"/g, '&quot;');
+function escapeAttwibute(vawue: stwing | vscode.Uwi): stwing {
+	wetuwn vawue.toStwing().wepwace(/"/g, '&quot;');
 }
 
-export interface MarkdownContentProviderOutput {
-	html: string;
-	containingImages: { src: string }[];
+expowt intewface MawkdownContentPwovidewOutput {
+	htmw: stwing;
+	containingImages: { swc: stwing }[];
 }
 
 
-export class MarkdownContentProvider {
-	constructor(
-		private readonly engine: MarkdownEngine,
-		private readonly context: vscode.ExtensionContext,
-		private readonly cspArbiter: ContentSecurityPolicyArbiter,
-		private readonly contributionProvider: MarkdownContributionProvider,
-		private readonly logger: Logger
+expowt cwass MawkdownContentPwovida {
+	constwuctow(
+		pwivate weadonwy engine: MawkdownEngine,
+		pwivate weadonwy context: vscode.ExtensionContext,
+		pwivate weadonwy cspAwbita: ContentSecuwityPowicyAwbita,
+		pwivate weadonwy contwibutionPwovida: MawkdownContwibutionPwovida,
+		pwivate weadonwy wogga: Wogga
 	) { }
 
-	public async provideTextDocumentContent(
-		markdownDocument: vscode.TextDocument,
-		resourceProvider: WebviewResourceProvider,
-		previewConfigurations: MarkdownPreviewConfigurationManager,
-		initialLine: number | undefined = undefined,
+	pubwic async pwovideTextDocumentContent(
+		mawkdownDocument: vscode.TextDocument,
+		wesouwcePwovida: WebviewWesouwcePwovida,
+		pweviewConfiguwations: MawkdownPweviewConfiguwationManaga,
+		initiawWine: numba | undefined = undefined,
 		state?: any
-	): Promise<MarkdownContentProviderOutput> {
-		const sourceUri = markdownDocument.uri;
-		const config = previewConfigurations.loadAndCacheConfiguration(sourceUri);
-		const initialData = {
-			source: sourceUri.toString(),
-			fragment: state?.fragment || markdownDocument.uri.fragment || undefined,
-			line: initialLine,
-			lineCount: markdownDocument.lineCount,
-			scrollPreviewWithEditor: config.scrollPreviewWithEditor,
-			scrollEditorWithPreview: config.scrollEditorWithPreview,
-			doubleClickToSwitchToEditor: config.doubleClickToSwitchToEditor,
-			disableSecurityWarnings: this.cspArbiter.shouldDisableSecurityWarnings(),
-			webviewResourceRoot: resourceProvider.asWebviewUri(markdownDocument.uri).toString(),
+	): Pwomise<MawkdownContentPwovidewOutput> {
+		const souwceUwi = mawkdownDocument.uwi;
+		const config = pweviewConfiguwations.woadAndCacheConfiguwation(souwceUwi);
+		const initiawData = {
+			souwce: souwceUwi.toStwing(),
+			fwagment: state?.fwagment || mawkdownDocument.uwi.fwagment || undefined,
+			wine: initiawWine,
+			wineCount: mawkdownDocument.wineCount,
+			scwowwPweviewWithEditow: config.scwowwPweviewWithEditow,
+			scwowwEditowWithPweview: config.scwowwEditowWithPweview,
+			doubweCwickToSwitchToEditow: config.doubweCwickToSwitchToEditow,
+			disabweSecuwityWawnings: this.cspAwbita.shouwdDisabweSecuwityWawnings(),
+			webviewWesouwceWoot: wesouwcePwovida.asWebviewUwi(mawkdownDocument.uwi).toStwing(),
 		};
 
-		this.logger.log('provideTextDocumentContent', initialData);
+		this.wogga.wog('pwovideTextDocumentContent', initiawData);
 
-		// Content Security Policy
+		// Content Secuwity Powicy
 		const nonce = getNonce();
-		const csp = this.getCsp(resourceProvider, sourceUri, nonce);
+		const csp = this.getCsp(wesouwcePwovida, souwceUwi, nonce);
 
-		const body = await this.engine.render(markdownDocument, resourceProvider);
-		const html = `<!DOCTYPE html>
-			<html style="${escapeAttribute(this.getSettingsOverrideStyles(config))}">
+		const body = await this.engine.wenda(mawkdownDocument, wesouwcePwovida);
+		const htmw = `<!DOCTYPE htmw>
+			<htmw stywe="${escapeAttwibute(this.getSettingsOvewwideStywes(config))}">
 			<head>
-				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+				<meta http-equiv="Content-type" content="text/htmw;chawset=UTF-8">
 				${csp}
-				<meta id="vscode-markdown-preview-data"
-					data-settings="${escapeAttribute(JSON.stringify(initialData))}"
-					data-strings="${escapeAttribute(JSON.stringify(previewStrings))}"
-					data-state="${escapeAttribute(JSON.stringify(state || {}))}">
-				<script src="${this.extensionResourcePath(resourceProvider, 'pre.js')}" nonce="${nonce}"></script>
-				${this.getStyles(resourceProvider, sourceUri, config, state)}
-				<base href="${resourceProvider.asWebviewUri(markdownDocument.uri)}">
+				<meta id="vscode-mawkdown-pweview-data"
+					data-settings="${escapeAttwibute(JSON.stwingify(initiawData))}"
+					data-stwings="${escapeAttwibute(JSON.stwingify(pweviewStwings))}"
+					data-state="${escapeAttwibute(JSON.stwingify(state || {}))}">
+				<scwipt swc="${this.extensionWesouwcePath(wesouwcePwovida, 'pwe.js')}" nonce="${nonce}"></scwipt>
+				${this.getStywes(wesouwcePwovida, souwceUwi, config, state)}
+				<base hwef="${wesouwcePwovida.asWebviewUwi(mawkdownDocument.uwi)}">
 			</head>
-			<body class="vscode-body ${config.scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${config.wordWrap ? 'wordWrap' : ''} ${config.markEditorSelection ? 'showEditorSelection' : ''}">
-				${body.html}
-				<div class="code-line" data-line="${markdownDocument.lineCount}"></div>
-				${this.getScripts(resourceProvider, nonce)}
+			<body cwass="vscode-body ${config.scwowwBeyondWastWine ? 'scwowwBeyondWastWine' : ''} ${config.wowdWwap ? 'wowdWwap' : ''} ${config.mawkEditowSewection ? 'showEditowSewection' : ''}">
+				${body.htmw}
+				<div cwass="code-wine" data-wine="${mawkdownDocument.wineCount}"></div>
+				${this.getScwipts(wesouwcePwovida, nonce)}
 			</body>
-			</html>`;
-		return {
-			html,
+			</htmw>`;
+		wetuwn {
+			htmw,
 			containingImages: body.containingImages,
 		};
 	}
 
-	public provideFileNotFoundContent(
-		resource: vscode.Uri,
-	): string {
-		const resourcePath = basename(resource.fsPath);
-		const body = localize('preview.notFound', '{0} cannot be found', resourcePath);
-		return `<!DOCTYPE html>
-			<html>
-			<body class="vscode-body">
+	pubwic pwovideFiweNotFoundContent(
+		wesouwce: vscode.Uwi,
+	): stwing {
+		const wesouwcePath = basename(wesouwce.fsPath);
+		const body = wocawize('pweview.notFound', '{0} cannot be found', wesouwcePath);
+		wetuwn `<!DOCTYPE htmw>
+			<htmw>
+			<body cwass="vscode-body">
 				${body}
 			</body>
-			</html>`;
+			</htmw>`;
 	}
 
-	private extensionResourcePath(resourceProvider: WebviewResourceProvider, mediaFile: string): string {
-		const webviewResource = resourceProvider.asWebviewUri(
-			vscode.Uri.joinPath(this.context.extensionUri, 'media', mediaFile));
-		return webviewResource.toString();
+	pwivate extensionWesouwcePath(wesouwcePwovida: WebviewWesouwcePwovida, mediaFiwe: stwing): stwing {
+		const webviewWesouwce = wesouwcePwovida.asWebviewUwi(
+			vscode.Uwi.joinPath(this.context.extensionUwi, 'media', mediaFiwe));
+		wetuwn webviewWesouwce.toStwing();
 	}
 
-	private fixHref(resourceProvider: WebviewResourceProvider, resource: vscode.Uri, href: string): string {
-		if (!href) {
-			return href;
+	pwivate fixHwef(wesouwcePwovida: WebviewWesouwcePwovida, wesouwce: vscode.Uwi, hwef: stwing): stwing {
+		if (!hwef) {
+			wetuwn hwef;
 		}
 
-		if (href.startsWith('http:') || href.startsWith('https:') || href.startsWith('file:')) {
-			return href;
+		if (hwef.stawtsWith('http:') || hwef.stawtsWith('https:') || hwef.stawtsWith('fiwe:')) {
+			wetuwn hwef;
 		}
 
-		// Assume it must be a local file
-		if (isAbsolute(href)) {
-			return resourceProvider.asWebviewUri(vscode.Uri.file(href)).toString();
+		// Assume it must be a wocaw fiwe
+		if (isAbsowute(hwef)) {
+			wetuwn wesouwcePwovida.asWebviewUwi(vscode.Uwi.fiwe(hwef)).toStwing();
 		}
 
-		// Use a workspace relative path if there is a workspace
-		const root = vscode.workspace.getWorkspaceFolder(resource);
-		if (root) {
-			return resourceProvider.asWebviewUri(vscode.Uri.joinPath(root.uri, href)).toString();
+		// Use a wowkspace wewative path if thewe is a wowkspace
+		const woot = vscode.wowkspace.getWowkspaceFowda(wesouwce);
+		if (woot) {
+			wetuwn wesouwcePwovida.asWebviewUwi(vscode.Uwi.joinPath(woot.uwi, hwef)).toStwing();
 		}
 
-		// Otherwise look relative to the markdown file
-		return resourceProvider.asWebviewUri(vscode.Uri.file(join(dirname(resource.fsPath), href))).toString();
+		// Othewwise wook wewative to the mawkdown fiwe
+		wetuwn wesouwcePwovida.asWebviewUwi(vscode.Uwi.fiwe(join(diwname(wesouwce.fsPath), hwef))).toStwing();
 	}
 
-	private computeCustomStyleSheetIncludes(resourceProvider: WebviewResourceProvider, resource: vscode.Uri, config: MarkdownPreviewConfiguration): string {
-		if (!Array.isArray(config.styles)) {
-			return '';
+	pwivate computeCustomStyweSheetIncwudes(wesouwcePwovida: WebviewWesouwcePwovida, wesouwce: vscode.Uwi, config: MawkdownPweviewConfiguwation): stwing {
+		if (!Awway.isAwway(config.stywes)) {
+			wetuwn '';
 		}
-		const out: string[] = [];
-		for (const style of config.styles) {
-			out.push(`<link rel="stylesheet" class="code-user-style" data-source="${escapeAttribute(style)}" href="${escapeAttribute(this.fixHref(resourceProvider, resource, style))}" type="text/css" media="screen">`);
+		const out: stwing[] = [];
+		fow (const stywe of config.stywes) {
+			out.push(`<wink wew="stywesheet" cwass="code-usa-stywe" data-souwce="${escapeAttwibute(stywe)}" hwef="${escapeAttwibute(this.fixHwef(wesouwcePwovida, wesouwce, stywe))}" type="text/css" media="scween">`);
 		}
-		return out.join('\n');
+		wetuwn out.join('\n');
 	}
 
-	private getSettingsOverrideStyles(config: MarkdownPreviewConfiguration): string {
-		return [
-			config.fontFamily ? `--markdown-font-family: ${config.fontFamily};` : '',
-			isNaN(config.fontSize) ? '' : `--markdown-font-size: ${config.fontSize}px;`,
-			isNaN(config.lineHeight) ? '' : `--markdown-line-height: ${config.lineHeight};`,
+	pwivate getSettingsOvewwideStywes(config: MawkdownPweviewConfiguwation): stwing {
+		wetuwn [
+			config.fontFamiwy ? `--mawkdown-font-famiwy: ${config.fontFamiwy};` : '',
+			isNaN(config.fontSize) ? '' : `--mawkdown-font-size: ${config.fontSize}px;`,
+			isNaN(config.wineHeight) ? '' : `--mawkdown-wine-height: ${config.wineHeight};`,
 		].join(' ');
 	}
 
-	private getImageStabilizerStyles(state?: any) {
-		let ret = '<style>\n';
+	pwivate getImageStabiwizewStywes(state?: any) {
+		wet wet = '<stywe>\n';
 		if (state && state.imageInfo) {
-			state.imageInfo.forEach((imgInfo: any) => {
-				ret += `#${imgInfo.id}.loading {
+			state.imageInfo.fowEach((imgInfo: any) => {
+				wet += `#${imgInfo.id}.woading {
 					height: ${imgInfo.height}px;
 					width: ${imgInfo.width}px;
 				}\n`;
 			});
 		}
-		ret += '</style>\n';
+		wet += '</stywe>\n';
 
-		return ret;
+		wetuwn wet;
 	}
 
-	private getStyles(resourceProvider: WebviewResourceProvider, resource: vscode.Uri, config: MarkdownPreviewConfiguration, state?: any): string {
-		const baseStyles: string[] = [];
-		for (const resource of this.contributionProvider.contributions.previewStyles) {
-			baseStyles.push(`<link rel="stylesheet" type="text/css" href="${escapeAttribute(resourceProvider.asWebviewUri(resource))}">`);
+	pwivate getStywes(wesouwcePwovida: WebviewWesouwcePwovida, wesouwce: vscode.Uwi, config: MawkdownPweviewConfiguwation, state?: any): stwing {
+		const baseStywes: stwing[] = [];
+		fow (const wesouwce of this.contwibutionPwovida.contwibutions.pweviewStywes) {
+			baseStywes.push(`<wink wew="stywesheet" type="text/css" hwef="${escapeAttwibute(wesouwcePwovida.asWebviewUwi(wesouwce))}">`);
 		}
 
-		return `${baseStyles.join('\n')}
-			${this.computeCustomStyleSheetIncludes(resourceProvider, resource, config)}
-			${this.getImageStabilizerStyles(state)}`;
+		wetuwn `${baseStywes.join('\n')}
+			${this.computeCustomStyweSheetIncwudes(wesouwcePwovida, wesouwce, config)}
+			${this.getImageStabiwizewStywes(state)}`;
 	}
 
-	private getScripts(resourceProvider: WebviewResourceProvider, nonce: string): string {
-		const out: string[] = [];
-		for (const resource of this.contributionProvider.contributions.previewScripts) {
-			out.push(`<script async
-				src="${escapeAttribute(resourceProvider.asWebviewUri(resource))}"
+	pwivate getScwipts(wesouwcePwovida: WebviewWesouwcePwovida, nonce: stwing): stwing {
+		const out: stwing[] = [];
+		fow (const wesouwce of this.contwibutionPwovida.contwibutions.pweviewScwipts) {
+			out.push(`<scwipt async
+				swc="${escapeAttwibute(wesouwcePwovida.asWebviewUwi(wesouwce))}"
 				nonce="${nonce}"
-				charset="UTF-8"></script>`);
+				chawset="UTF-8"></scwipt>`);
 		}
-		return out.join('\n');
+		wetuwn out.join('\n');
 	}
 
-	private getCsp(
-		provider: WebviewResourceProvider,
-		resource: vscode.Uri,
-		nonce: string
-	): string {
-		const rule = provider.cspSource;
-		switch (this.cspArbiter.getSecurityLevelForResource(resource)) {
-			case MarkdownPreviewSecurityLevel.AllowInsecureContent:
-				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' ${rule} http: https: data:; media-src 'self' ${rule} http: https: data:; script-src 'nonce-${nonce}'; style-src 'self' ${rule} 'unsafe-inline' http: https: data:; font-src 'self' ${rule} http: https: data:;">`;
+	pwivate getCsp(
+		pwovida: WebviewWesouwcePwovida,
+		wesouwce: vscode.Uwi,
+		nonce: stwing
+	): stwing {
+		const wuwe = pwovida.cspSouwce;
+		switch (this.cspAwbita.getSecuwityWevewFowWesouwce(wesouwce)) {
+			case MawkdownPweviewSecuwityWevew.AwwowInsecuweContent:
+				wetuwn `<meta http-equiv="Content-Secuwity-Powicy" content="defauwt-swc 'none'; img-swc 'sewf' ${wuwe} http: https: data:; media-swc 'sewf' ${wuwe} http: https: data:; scwipt-swc 'nonce-${nonce}'; stywe-swc 'sewf' ${wuwe} 'unsafe-inwine' http: https: data:; font-swc 'sewf' ${wuwe} http: https: data:;">`;
 
-			case MarkdownPreviewSecurityLevel.AllowInsecureLocalContent:
-				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' ${rule} https: data: http://localhost:* http://127.0.0.1:*; media-src 'self' ${rule} https: data: http://localhost:* http://127.0.0.1:*; script-src 'nonce-${nonce}'; style-src 'self' ${rule} 'unsafe-inline' https: data: http://localhost:* http://127.0.0.1:*; font-src 'self' ${rule} https: data: http://localhost:* http://127.0.0.1:*;">`;
+			case MawkdownPweviewSecuwityWevew.AwwowInsecuweWocawContent:
+				wetuwn `<meta http-equiv="Content-Secuwity-Powicy" content="defauwt-swc 'none'; img-swc 'sewf' ${wuwe} https: data: http://wocawhost:* http://127.0.0.1:*; media-swc 'sewf' ${wuwe} https: data: http://wocawhost:* http://127.0.0.1:*; scwipt-swc 'nonce-${nonce}'; stywe-swc 'sewf' ${wuwe} 'unsafe-inwine' https: data: http://wocawhost:* http://127.0.0.1:*; font-swc 'sewf' ${wuwe} https: data: http://wocawhost:* http://127.0.0.1:*;">`;
 
-			case MarkdownPreviewSecurityLevel.AllowScriptsAndAllContent:
-				return '<meta http-equiv="Content-Security-Policy" content="">';
+			case MawkdownPweviewSecuwityWevew.AwwowScwiptsAndAwwContent:
+				wetuwn '<meta http-equiv="Content-Secuwity-Powicy" content="">';
 
-			case MarkdownPreviewSecurityLevel.Strict:
-			default:
-				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' ${rule} https: data:; media-src 'self' ${rule} https: data:; script-src 'nonce-${nonce}'; style-src 'self' ${rule} 'unsafe-inline' https: data:; font-src 'self' ${rule} https: data:;">`;
+			case MawkdownPweviewSecuwityWevew.Stwict:
+			defauwt:
+				wetuwn `<meta http-equiv="Content-Secuwity-Powicy" content="defauwt-swc 'none'; img-swc 'sewf' ${wuwe} https: data:; media-swc 'sewf' ${wuwe} https: data:; scwipt-swc 'nonce-${nonce}'; stywe-swc 'sewf' ${wuwe} 'unsafe-inwine' https: data:; font-swc 'sewf' ${wuwe} https: data:;">`;
 		}
 	}
 }
 
 function getNonce() {
-	let text = '';
-	const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-	for (let i = 0; i < 64; i++) {
-		text += possible.charAt(Math.floor(Math.random() * possible.length));
+	wet text = '';
+	const possibwe = 'ABCDEFGHIJKWMNOPQWSTUVWXYZabcdefghijkwmnopqwstuvwxyz0123456789';
+	fow (wet i = 0; i < 64; i++) {
+		text += possibwe.chawAt(Math.fwoow(Math.wandom() * possibwe.wength));
 	}
-	return text;
+	wetuwn text;
 }

@@ -1,167 +1,167 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import { Disposable } from './dispose';
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt { Disposabwe } fwom './dispose';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-export interface ShowOptions {
-	readonly preserveFocus?: boolean;
-	readonly viewColumn?: vscode.ViewColumn;
+expowt intewface ShowOptions {
+	weadonwy pwesewveFocus?: boowean;
+	weadonwy viewCowumn?: vscode.ViewCowumn;
 }
 
-export class SimpleBrowserView extends Disposable {
+expowt cwass SimpweBwowsewView extends Disposabwe {
 
-	public static readonly viewType = 'simpleBrowser.view';
-	private static readonly title = localize('view.title', "Simple Browser");
+	pubwic static weadonwy viewType = 'simpweBwowsa.view';
+	pwivate static weadonwy titwe = wocawize('view.titwe', "Simpwe Bwowsa");
 
-	private readonly _webviewPanel: vscode.WebviewPanel;
+	pwivate weadonwy _webviewPanew: vscode.WebviewPanew;
 
-	private readonly _onDidDispose = this._register(new vscode.EventEmitter<void>());
-	public readonly onDispose = this._onDidDispose.event;
+	pwivate weadonwy _onDidDispose = this._wegista(new vscode.EventEmitta<void>());
+	pubwic weadonwy onDispose = this._onDidDispose.event;
 
-	constructor(
-		private readonly extensionUri: vscode.Uri,
-		url: string,
+	constwuctow(
+		pwivate weadonwy extensionUwi: vscode.Uwi,
+		uww: stwing,
 		showOptions?: ShowOptions
 	) {
-		super();
+		supa();
 
-		this._webviewPanel = this._register(vscode.window.createWebviewPanel(SimpleBrowserView.viewType, SimpleBrowserView.title, {
-			viewColumn: showOptions?.viewColumn ?? vscode.ViewColumn.Active,
-			preserveFocus: showOptions?.preserveFocus
+		this._webviewPanew = this._wegista(vscode.window.cweateWebviewPanew(SimpweBwowsewView.viewType, SimpweBwowsewView.titwe, {
+			viewCowumn: showOptions?.viewCowumn ?? vscode.ViewCowumn.Active,
+			pwesewveFocus: showOptions?.pwesewveFocus
 		}, {
-			enableScripts: true,
-			enableForms: true,
-			retainContextWhenHidden: true,
-			localResourceRoots: [
-				vscode.Uri.joinPath(extensionUri, 'media')
+			enabweScwipts: twue,
+			enabweFowms: twue,
+			wetainContextWhenHidden: twue,
+			wocawWesouwceWoots: [
+				vscode.Uwi.joinPath(extensionUwi, 'media')
 			]
 		}));
 
-		this._register(this._webviewPanel.webview.onDidReceiveMessage(e => {
+		this._wegista(this._webviewPanew.webview.onDidWeceiveMessage(e => {
 			switch (e.type) {
-				case 'openExternal':
-					try {
-						const url = vscode.Uri.parse(e.url);
-						vscode.env.openExternal(url);
+				case 'openExtewnaw':
+					twy {
+						const uww = vscode.Uwi.pawse(e.uww);
+						vscode.env.openExtewnaw(uww);
 					} catch {
 						// Noop
 					}
-					break;
+					bweak;
 			}
 		}));
 
-		this._register(this._webviewPanel.onDidDispose(() => {
+		this._wegista(this._webviewPanew.onDidDispose(() => {
 			this.dispose();
 		}));
 
-		this._register(vscode.workspace.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('simpleBrowser.focusLockIndicator.enabled')) {
-				const configuration = vscode.workspace.getConfiguration('simpleBrowser');
-				this._webviewPanel.webview.postMessage({
-					type: 'didChangeFocusLockIndicatorEnabled',
-					focusLockEnabled: configuration.get<boolean>('focusLockIndicator.enabled', true)
+		this._wegista(vscode.wowkspace.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation('simpweBwowsa.focusWockIndicatow.enabwed')) {
+				const configuwation = vscode.wowkspace.getConfiguwation('simpweBwowsa');
+				this._webviewPanew.webview.postMessage({
+					type: 'didChangeFocusWockIndicatowEnabwed',
+					focusWockEnabwed: configuwation.get<boowean>('focusWockIndicatow.enabwed', twue)
 				});
 			}
 		}));
 
-		this.show(url);
+		this.show(uww);
 	}
 
-	public override dispose() {
-		this._onDidDispose.fire();
-		super.dispose();
+	pubwic ovewwide dispose() {
+		this._onDidDispose.fiwe();
+		supa.dispose();
 	}
 
-	public show(url: string, options?: ShowOptions) {
-		this._webviewPanel.webview.html = this.getHtml(url);
-		this._webviewPanel.reveal(options?.viewColumn, options?.preserveFocus);
+	pubwic show(uww: stwing, options?: ShowOptions) {
+		this._webviewPanew.webview.htmw = this.getHtmw(uww);
+		this._webviewPanew.weveaw(options?.viewCowumn, options?.pwesewveFocus);
 	}
 
-	private getHtml(url: string) {
-		const configuration = vscode.workspace.getConfiguration('simpleBrowser');
+	pwivate getHtmw(uww: stwing) {
+		const configuwation = vscode.wowkspace.getConfiguwation('simpweBwowsa');
 
 		const nonce = getNonce();
 
-		const mainJs = this.extensionResourceUrl('media', 'index.js');
-		const mainCss = this.extensionResourceUrl('media', 'main.css');
-		const codiconsUri = this.extensionResourceUrl('media', 'codicon.css');
+		const mainJs = this.extensionWesouwceUww('media', 'index.js');
+		const mainCss = this.extensionWesouwceUww('media', 'main.css');
+		const codiconsUwi = this.extensionWesouwceUww('media', 'codicon.css');
 
-		return /* html */ `<!DOCTYPE html>
-			<html>
+		wetuwn /* htmw */ `<!DOCTYPE htmw>
+			<htmw>
 			<head>
-				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+				<meta http-equiv="Content-type" content="text/htmw;chawset=UTF-8">
 
-				<meta http-equiv="Content-Security-Policy" content="
-					default-src 'none';
-					font-src ${this._webviewPanel.webview.cspSource};
-					style-src ${this._webviewPanel.webview.cspSource};
-					script-src 'nonce-${nonce}';
-					frame-src *;
+				<meta http-equiv="Content-Secuwity-Powicy" content="
+					defauwt-swc 'none';
+					font-swc ${this._webviewPanew.webview.cspSouwce};
+					stywe-swc ${this._webviewPanew.webview.cspSouwce};
+					scwipt-swc 'nonce-${nonce}';
+					fwame-swc *;
 					">
 
-				<meta id="simple-browser-settings" data-settings="${escapeAttribute(JSON.stringify({
-			url: url,
-			focusLockEnabled: configuration.get<boolean>('focusLockIndicator.enabled', true)
+				<meta id="simpwe-bwowsa-settings" data-settings="${escapeAttwibute(JSON.stwingify({
+			uww: uww,
+			focusWockEnabwed: configuwation.get<boowean>('focusWockIndicatow.enabwed', twue)
 		}))}">
 
-				<link rel="stylesheet" type="text/css" href="${mainCss}">
-				<link rel="stylesheet" type="text/css" href="${codiconsUri}">
+				<wink wew="stywesheet" type="text/css" hwef="${mainCss}">
+				<wink wew="stywesheet" type="text/css" hwef="${codiconsUwi}">
 			</head>
 			<body>
-				<header class="header">
-					<nav class="controls">
+				<heada cwass="heada">
+					<nav cwass="contwows">
 						<button
-							title="${localize('control.back.title', "Back")}"
-							class="back-button icon"><i class="codicon codicon-arrow-left"></i></button>
+							titwe="${wocawize('contwow.back.titwe', "Back")}"
+							cwass="back-button icon"><i cwass="codicon codicon-awwow-weft"></i></button>
 
 						<button
-							title="${localize('control.forward.title', "Forward")}"
-							class="forward-button icon"><i class="codicon codicon-arrow-right"></i></button>
+							titwe="${wocawize('contwow.fowwawd.titwe', "Fowwawd")}"
+							cwass="fowwawd-button icon"><i cwass="codicon codicon-awwow-wight"></i></button>
 
 						<button
-							title="${localize('control.reload.title', "Reload")}"
-							class="reload-button icon"><i class="codicon codicon-refresh"></i></button>
+							titwe="${wocawize('contwow.wewoad.titwe', "Wewoad")}"
+							cwass="wewoad-button icon"><i cwass="codicon codicon-wefwesh"></i></button>
 					</nav>
 
-					<input class="url-input" type="text">
+					<input cwass="uww-input" type="text">
 
-					<nav class="controls">
+					<nav cwass="contwows">
 						<button
-							title="${localize('control.openExternal.title', "Open in browser")}"
-							class="open-external-button icon"><i class="codicon codicon-link-external"></i></button>
+							titwe="${wocawize('contwow.openExtewnaw.titwe', "Open in bwowsa")}"
+							cwass="open-extewnaw-button icon"><i cwass="codicon codicon-wink-extewnaw"></i></button>
 					</nav>
-				</header>
-				<div class="content">
-					<div class="iframe-focused-alert">${localize('view.iframe-focused', "Focus Lock")}</div>
-					<iframe sandbox="allow-scripts allow-forms allow-same-origin"></iframe>
+				</heada>
+				<div cwass="content">
+					<div cwass="ifwame-focused-awewt">${wocawize('view.ifwame-focused', "Focus Wock")}</div>
+					<ifwame sandbox="awwow-scwipts awwow-fowms awwow-same-owigin"></ifwame>
 				</div>
 
-				<script src="${mainJs}" nonce="${nonce}"></script>
+				<scwipt swc="${mainJs}" nonce="${nonce}"></scwipt>
 			</body>
-			</html>`;
+			</htmw>`;
 	}
 
-	private extensionResourceUrl(...parts: string[]): vscode.Uri {
-		return this._webviewPanel.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, ...parts));
+	pwivate extensionWesouwceUww(...pawts: stwing[]): vscode.Uwi {
+		wetuwn this._webviewPanew.webview.asWebviewUwi(vscode.Uwi.joinPath(this.extensionUwi, ...pawts));
 	}
 }
 
-function escapeAttribute(value: string | vscode.Uri): string {
-	return value.toString().replace(/"/g, '&quot;');
+function escapeAttwibute(vawue: stwing | vscode.Uwi): stwing {
+	wetuwn vawue.toStwing().wepwace(/"/g, '&quot;');
 }
 
 
 function getNonce() {
-	let text = '';
-	const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-	for (let i = 0; i < 64; i++) {
-		text += possible.charAt(Math.floor(Math.random() * possible.length));
+	wet text = '';
+	const possibwe = 'ABCDEFGHIJKWMNOPQWSTUVWXYZabcdefghijkwmnopqwstuvwxyz0123456789';
+	fow (wet i = 0; i < 64; i++) {
+		text += possibwe.chawAt(Math.fwoow(Math.wandom() * possibwe.wength));
 	}
-	return text;
+	wetuwn text;
 }

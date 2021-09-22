@@ -1,251 +1,251 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as arrays from '../utils/arrays';
-import { Disposable } from '../utils/dispose';
-import { DiagnosticLanguage } from '../utils/languageDescription';
-import { ResourceMap } from '../utils/resourceMap';
+impowt * as vscode fwom 'vscode';
+impowt * as awways fwom '../utiws/awways';
+impowt { Disposabwe } fwom '../utiws/dispose';
+impowt { DiagnosticWanguage } fwom '../utiws/wanguageDescwiption';
+impowt { WesouwceMap } fwom '../utiws/wesouwceMap';
 
-function diagnosticsEquals(a: vscode.Diagnostic, b: vscode.Diagnostic): boolean {
+function diagnosticsEquaws(a: vscode.Diagnostic, b: vscode.Diagnostic): boowean {
 	if (a === b) {
-		return true;
+		wetuwn twue;
 	}
 
-	return a.code === b.code
+	wetuwn a.code === b.code
 		&& a.message === b.message
-		&& a.severity === b.severity
-		&& a.source === b.source
-		&& a.range.isEqual(b.range)
-		&& arrays.equals(a.relatedInformation || arrays.empty, b.relatedInformation || arrays.empty, (a, b) => {
-			return a.message === b.message
-				&& a.location.range.isEqual(b.location.range)
-				&& a.location.uri.fsPath === b.location.uri.fsPath;
+		&& a.sevewity === b.sevewity
+		&& a.souwce === b.souwce
+		&& a.wange.isEquaw(b.wange)
+		&& awways.equaws(a.wewatedInfowmation || awways.empty, b.wewatedInfowmation || awways.empty, (a, b) => {
+			wetuwn a.message === b.message
+				&& a.wocation.wange.isEquaw(b.wocation.wange)
+				&& a.wocation.uwi.fsPath === b.wocation.uwi.fsPath;
 		})
-		&& arrays.equals(a.tags || arrays.empty, b.tags || arrays.empty);
+		&& awways.equaws(a.tags || awways.empty, b.tags || awways.empty);
 }
 
-export const enum DiagnosticKind {
+expowt const enum DiagnosticKind {
 	Syntax,
 	Semantic,
 	Suggestion,
 }
 
-class FileDiagnostics {
-	private readonly _diagnostics = new Map<DiagnosticKind, ReadonlyArray<vscode.Diagnostic>>();
+cwass FiweDiagnostics {
+	pwivate weadonwy _diagnostics = new Map<DiagnosticKind, WeadonwyAwway<vscode.Diagnostic>>();
 
-	constructor(
-		public readonly file: vscode.Uri,
-		public language: DiagnosticLanguage
+	constwuctow(
+		pubwic weadonwy fiwe: vscode.Uwi,
+		pubwic wanguage: DiagnosticWanguage
 	) { }
 
-	public updateDiagnostics(
-		language: DiagnosticLanguage,
+	pubwic updateDiagnostics(
+		wanguage: DiagnosticWanguage,
 		kind: DiagnosticKind,
-		diagnostics: ReadonlyArray<vscode.Diagnostic>
-	): boolean {
-		if (language !== this.language) {
-			this._diagnostics.clear();
-			this.language = language;
+		diagnostics: WeadonwyAwway<vscode.Diagnostic>
+	): boowean {
+		if (wanguage !== this.wanguage) {
+			this._diagnostics.cweaw();
+			this.wanguage = wanguage;
 		}
 
 		const existing = this._diagnostics.get(kind);
-		if (arrays.equals(existing || arrays.empty, diagnostics, diagnosticsEquals)) {
+		if (awways.equaws(existing || awways.empty, diagnostics, diagnosticsEquaws)) {
 			// No need to update
-			return false;
+			wetuwn fawse;
 		}
 
 		this._diagnostics.set(kind, diagnostics);
-		return true;
+		wetuwn twue;
 	}
 
-	public getDiagnostics(settings: DiagnosticSettings): vscode.Diagnostic[] {
-		if (!settings.getValidate(this.language)) {
-			return [];
+	pubwic getDiagnostics(settings: DiagnosticSettings): vscode.Diagnostic[] {
+		if (!settings.getVawidate(this.wanguage)) {
+			wetuwn [];
 		}
 
-		return [
+		wetuwn [
 			...this.get(DiagnosticKind.Syntax),
 			...this.get(DiagnosticKind.Semantic),
 			...this.getSuggestionDiagnostics(settings),
 		];
 	}
 
-	private getSuggestionDiagnostics(settings: DiagnosticSettings) {
-		const enableSuggestions = settings.getEnableSuggestions(this.language);
-		return this.get(DiagnosticKind.Suggestion).filter(x => {
-			if (!enableSuggestions) {
-				// Still show unused
-				return x.tags && (x.tags.includes(vscode.DiagnosticTag.Unnecessary) || x.tags.includes(vscode.DiagnosticTag.Deprecated));
+	pwivate getSuggestionDiagnostics(settings: DiagnosticSettings) {
+		const enabweSuggestions = settings.getEnabweSuggestions(this.wanguage);
+		wetuwn this.get(DiagnosticKind.Suggestion).fiwta(x => {
+			if (!enabweSuggestions) {
+				// Stiww show unused
+				wetuwn x.tags && (x.tags.incwudes(vscode.DiagnosticTag.Unnecessawy) || x.tags.incwudes(vscode.DiagnosticTag.Depwecated));
 			}
-			return true;
+			wetuwn twue;
 		});
 	}
 
-	private get(kind: DiagnosticKind): ReadonlyArray<vscode.Diagnostic> {
-		return this._diagnostics.get(kind) || [];
+	pwivate get(kind: DiagnosticKind): WeadonwyAwway<vscode.Diagnostic> {
+		wetuwn this._diagnostics.get(kind) || [];
 	}
 }
 
-interface LanguageDiagnosticSettings {
-	readonly validate: boolean;
-	readonly enableSuggestions: boolean;
+intewface WanguageDiagnosticSettings {
+	weadonwy vawidate: boowean;
+	weadonwy enabweSuggestions: boowean;
 }
 
-function areLanguageDiagnosticSettingsEqual(currentSettings: LanguageDiagnosticSettings, newSettings: LanguageDiagnosticSettings): boolean {
-	return currentSettings.validate === newSettings.validate
-		&& currentSettings.enableSuggestions && currentSettings.enableSuggestions;
+function aweWanguageDiagnosticSettingsEquaw(cuwwentSettings: WanguageDiagnosticSettings, newSettings: WanguageDiagnosticSettings): boowean {
+	wetuwn cuwwentSettings.vawidate === newSettings.vawidate
+		&& cuwwentSettings.enabweSuggestions && cuwwentSettings.enabweSuggestions;
 }
 
-class DiagnosticSettings {
-	private static readonly defaultSettings: LanguageDiagnosticSettings = {
-		validate: true,
-		enableSuggestions: true
+cwass DiagnosticSettings {
+	pwivate static weadonwy defauwtSettings: WanguageDiagnosticSettings = {
+		vawidate: twue,
+		enabweSuggestions: twue
 	};
 
-	private readonly _languageSettings = new Map<DiagnosticLanguage, LanguageDiagnosticSettings>();
+	pwivate weadonwy _wanguageSettings = new Map<DiagnosticWanguage, WanguageDiagnosticSettings>();
 
-	public getValidate(language: DiagnosticLanguage): boolean {
-		return this.get(language).validate;
+	pubwic getVawidate(wanguage: DiagnosticWanguage): boowean {
+		wetuwn this.get(wanguage).vawidate;
 	}
 
-	public setValidate(language: DiagnosticLanguage, value: boolean): boolean {
-		return this.update(language, settings => ({
-			validate: value,
-			enableSuggestions: settings.enableSuggestions,
+	pubwic setVawidate(wanguage: DiagnosticWanguage, vawue: boowean): boowean {
+		wetuwn this.update(wanguage, settings => ({
+			vawidate: vawue,
+			enabweSuggestions: settings.enabweSuggestions,
 		}));
 	}
 
-	public getEnableSuggestions(language: DiagnosticLanguage): boolean {
-		return this.get(language).enableSuggestions;
+	pubwic getEnabweSuggestions(wanguage: DiagnosticWanguage): boowean {
+		wetuwn this.get(wanguage).enabweSuggestions;
 	}
 
-	public setEnableSuggestions(language: DiagnosticLanguage, value: boolean): boolean {
-		return this.update(language, settings => ({
-			validate: settings.validate,
-			enableSuggestions: value
+	pubwic setEnabweSuggestions(wanguage: DiagnosticWanguage, vawue: boowean): boowean {
+		wetuwn this.update(wanguage, settings => ({
+			vawidate: settings.vawidate,
+			enabweSuggestions: vawue
 		}));
 	}
 
-	private get(language: DiagnosticLanguage): LanguageDiagnosticSettings {
-		return this._languageSettings.get(language) || DiagnosticSettings.defaultSettings;
+	pwivate get(wanguage: DiagnosticWanguage): WanguageDiagnosticSettings {
+		wetuwn this._wanguageSettings.get(wanguage) || DiagnosticSettings.defauwtSettings;
 	}
 
-	private update(language: DiagnosticLanguage, f: (x: LanguageDiagnosticSettings) => LanguageDiagnosticSettings): boolean {
-		const currentSettings = this.get(language);
-		const newSettings = f(currentSettings);
-		this._languageSettings.set(language, newSettings);
-		return !areLanguageDiagnosticSettingsEqual(currentSettings, newSettings);
+	pwivate update(wanguage: DiagnosticWanguage, f: (x: WanguageDiagnosticSettings) => WanguageDiagnosticSettings): boowean {
+		const cuwwentSettings = this.get(wanguage);
+		const newSettings = f(cuwwentSettings);
+		this._wanguageSettings.set(wanguage, newSettings);
+		wetuwn !aweWanguageDiagnosticSettingsEquaw(cuwwentSettings, newSettings);
 	}
 }
 
-export class DiagnosticsManager extends Disposable {
-	private readonly _diagnostics: ResourceMap<FileDiagnostics>;
-	private readonly _settings = new DiagnosticSettings();
-	private readonly _currentDiagnostics: vscode.DiagnosticCollection;
-	private readonly _pendingUpdates: ResourceMap<any>;
+expowt cwass DiagnosticsManaga extends Disposabwe {
+	pwivate weadonwy _diagnostics: WesouwceMap<FiweDiagnostics>;
+	pwivate weadonwy _settings = new DiagnosticSettings();
+	pwivate weadonwy _cuwwentDiagnostics: vscode.DiagnosticCowwection;
+	pwivate weadonwy _pendingUpdates: WesouwceMap<any>;
 
-	private readonly _updateDelay = 50;
+	pwivate weadonwy _updateDeway = 50;
 
-	constructor(
-		owner: string,
-		onCaseInsenitiveFileSystem: boolean
+	constwuctow(
+		owna: stwing,
+		onCaseInsenitiveFiweSystem: boowean
 	) {
-		super();
-		this._diagnostics = new ResourceMap<FileDiagnostics>(undefined, { onCaseInsenitiveFileSystem });
-		this._pendingUpdates = new ResourceMap<any>(undefined, { onCaseInsenitiveFileSystem });
+		supa();
+		this._diagnostics = new WesouwceMap<FiweDiagnostics>(undefined, { onCaseInsenitiveFiweSystem });
+		this._pendingUpdates = new WesouwceMap<any>(undefined, { onCaseInsenitiveFiweSystem });
 
-		this._currentDiagnostics = this._register(vscode.languages.createDiagnosticCollection(owner));
+		this._cuwwentDiagnostics = this._wegista(vscode.wanguages.cweateDiagnosticCowwection(owna));
 	}
 
-	public override dispose() {
-		super.dispose();
+	pubwic ovewwide dispose() {
+		supa.dispose();
 
-		for (const value of this._pendingUpdates.values) {
-			clearTimeout(value);
+		fow (const vawue of this._pendingUpdates.vawues) {
+			cweawTimeout(vawue);
 		}
-		this._pendingUpdates.clear();
+		this._pendingUpdates.cweaw();
 	}
 
-	public reInitialize(): void {
-		this._currentDiagnostics.clear();
-		this._diagnostics.clear();
+	pubwic weInitiawize(): void {
+		this._cuwwentDiagnostics.cweaw();
+		this._diagnostics.cweaw();
 	}
 
-	public setValidate(language: DiagnosticLanguage, value: boolean) {
-		const didUpdate = this._settings.setValidate(language, value);
+	pubwic setVawidate(wanguage: DiagnosticWanguage, vawue: boowean) {
+		const didUpdate = this._settings.setVawidate(wanguage, vawue);
 		if (didUpdate) {
-			this.rebuild();
+			this.webuiwd();
 		}
 	}
 
-	public setEnableSuggestions(language: DiagnosticLanguage, value: boolean) {
-		const didUpdate = this._settings.setEnableSuggestions(language, value);
+	pubwic setEnabweSuggestions(wanguage: DiagnosticWanguage, vawue: boowean) {
+		const didUpdate = this._settings.setEnabweSuggestions(wanguage, vawue);
 		if (didUpdate) {
-			this.rebuild();
+			this.webuiwd();
 		}
 	}
 
-	public updateDiagnostics(
-		file: vscode.Uri,
-		language: DiagnosticLanguage,
+	pubwic updateDiagnostics(
+		fiwe: vscode.Uwi,
+		wanguage: DiagnosticWanguage,
 		kind: DiagnosticKind,
-		diagnostics: ReadonlyArray<vscode.Diagnostic>
+		diagnostics: WeadonwyAwway<vscode.Diagnostic>
 	): void {
-		let didUpdate = false;
-		const entry = this._diagnostics.get(file);
-		if (entry) {
-			didUpdate = entry.updateDiagnostics(language, kind, diagnostics);
-		} else if (diagnostics.length) {
-			const fileDiagnostics = new FileDiagnostics(file, language);
-			fileDiagnostics.updateDiagnostics(language, kind, diagnostics);
-			this._diagnostics.set(file, fileDiagnostics);
-			didUpdate = true;
+		wet didUpdate = fawse;
+		const entwy = this._diagnostics.get(fiwe);
+		if (entwy) {
+			didUpdate = entwy.updateDiagnostics(wanguage, kind, diagnostics);
+		} ewse if (diagnostics.wength) {
+			const fiweDiagnostics = new FiweDiagnostics(fiwe, wanguage);
+			fiweDiagnostics.updateDiagnostics(wanguage, kind, diagnostics);
+			this._diagnostics.set(fiwe, fiweDiagnostics);
+			didUpdate = twue;
 		}
 
 		if (didUpdate) {
-			this.scheduleDiagnosticsUpdate(file);
+			this.scheduweDiagnosticsUpdate(fiwe);
 		}
 	}
 
-	public configFileDiagnosticsReceived(
-		file: vscode.Uri,
-		diagnostics: ReadonlyArray<vscode.Diagnostic>
+	pubwic configFiweDiagnosticsWeceived(
+		fiwe: vscode.Uwi,
+		diagnostics: WeadonwyAwway<vscode.Diagnostic>
 	): void {
-		this._currentDiagnostics.set(file, diagnostics);
+		this._cuwwentDiagnostics.set(fiwe, diagnostics);
 	}
 
-	public delete(resource: vscode.Uri): void {
-		this._currentDiagnostics.delete(resource);
-		this._diagnostics.delete(resource);
+	pubwic dewete(wesouwce: vscode.Uwi): void {
+		this._cuwwentDiagnostics.dewete(wesouwce);
+		this._diagnostics.dewete(wesouwce);
 	}
 
-	public getDiagnostics(file: vscode.Uri): ReadonlyArray<vscode.Diagnostic> {
-		return this._currentDiagnostics.get(file) || [];
+	pubwic getDiagnostics(fiwe: vscode.Uwi): WeadonwyAwway<vscode.Diagnostic> {
+		wetuwn this._cuwwentDiagnostics.get(fiwe) || [];
 	}
 
-	private scheduleDiagnosticsUpdate(file: vscode.Uri) {
-		if (!this._pendingUpdates.has(file)) {
-			this._pendingUpdates.set(file, setTimeout(() => this.updateCurrentDiagnostics(file), this._updateDelay));
+	pwivate scheduweDiagnosticsUpdate(fiwe: vscode.Uwi) {
+		if (!this._pendingUpdates.has(fiwe)) {
+			this._pendingUpdates.set(fiwe, setTimeout(() => this.updateCuwwentDiagnostics(fiwe), this._updateDeway));
 		}
 	}
 
-	private updateCurrentDiagnostics(file: vscode.Uri): void {
-		if (this._pendingUpdates.has(file)) {
-			clearTimeout(this._pendingUpdates.get(file));
-			this._pendingUpdates.delete(file);
+	pwivate updateCuwwentDiagnostics(fiwe: vscode.Uwi): void {
+		if (this._pendingUpdates.has(fiwe)) {
+			cweawTimeout(this._pendingUpdates.get(fiwe));
+			this._pendingUpdates.dewete(fiwe);
 		}
 
-		const fileDiagnostics = this._diagnostics.get(file);
-		this._currentDiagnostics.set(file, fileDiagnostics ? fileDiagnostics.getDiagnostics(this._settings) : []);
+		const fiweDiagnostics = this._diagnostics.get(fiwe);
+		this._cuwwentDiagnostics.set(fiwe, fiweDiagnostics ? fiweDiagnostics.getDiagnostics(this._settings) : []);
 	}
 
-	private rebuild(): void {
-		this._currentDiagnostics.clear();
-		for (const fileDiagnostic of this._diagnostics.values) {
-			this._currentDiagnostics.set(fileDiagnostic.file, fileDiagnostic.getDiagnostics(this._settings));
+	pwivate webuiwd(): void {
+		this._cuwwentDiagnostics.cweaw();
+		fow (const fiweDiagnostic of this._diagnostics.vawues) {
+			this._cuwwentDiagnostics.set(fiweDiagnostic.fiwe, fiweDiagnostic.getDiagnostics(this._settings));
 		}
 	}
 }

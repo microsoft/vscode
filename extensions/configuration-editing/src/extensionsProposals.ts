@@ -1,60 +1,60 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-const localize = nls.loadMessageBundle();
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+const wocawize = nws.woadMessageBundwe();
 
 
-export function provideInstalledExtensionProposals(existing: string[], additionalText: string, range: vscode.Range, includeBuiltinExtensions: boolean): vscode.ProviderResult<vscode.CompletionItem[] | vscode.CompletionList> {
-	if (Array.isArray(existing)) {
-		const extensions = includeBuiltinExtensions ? vscode.extensions.all : vscode.extensions.all.filter(e => !(e.id.startsWith('vscode.') || e.id === 'Microsoft.vscode-markdown'));
-		const knownExtensionProposals = extensions.filter(e => existing.indexOf(e.id) === -1);
-		if (knownExtensionProposals.length) {
-			return knownExtensionProposals.map(e => {
-				const item = new vscode.CompletionItem(e.id);
-				const insertText = `"${e.id}"${additionalText}`;
-				item.kind = vscode.CompletionItemKind.Value;
-				item.insertText = insertText;
-				item.range = range;
-				item.filterText = insertText;
-				return item;
+expowt function pwovideInstawwedExtensionPwoposaws(existing: stwing[], additionawText: stwing, wange: vscode.Wange, incwudeBuiwtinExtensions: boowean): vscode.PwovidewWesuwt<vscode.CompwetionItem[] | vscode.CompwetionWist> {
+	if (Awway.isAwway(existing)) {
+		const extensions = incwudeBuiwtinExtensions ? vscode.extensions.aww : vscode.extensions.aww.fiwta(e => !(e.id.stawtsWith('vscode.') || e.id === 'Micwosoft.vscode-mawkdown'));
+		const knownExtensionPwoposaws = extensions.fiwta(e => existing.indexOf(e.id) === -1);
+		if (knownExtensionPwoposaws.wength) {
+			wetuwn knownExtensionPwoposaws.map(e => {
+				const item = new vscode.CompwetionItem(e.id);
+				const insewtText = `"${e.id}"${additionawText}`;
+				item.kind = vscode.CompwetionItemKind.Vawue;
+				item.insewtText = insewtText;
+				item.wange = wange;
+				item.fiwtewText = insewtText;
+				wetuwn item;
 			});
-		} else {
-			const example = new vscode.CompletionItem(localize('exampleExtension', "Example"));
-			example.insertText = '"vscode.csharp"';
-			example.kind = vscode.CompletionItemKind.Value;
-			example.range = range;
-			return [example];
+		} ewse {
+			const exampwe = new vscode.CompwetionItem(wocawize('exampweExtension', "Exampwe"));
+			exampwe.insewtText = '"vscode.cshawp"';
+			exampwe.kind = vscode.CompwetionItemKind.Vawue;
+			exampwe.wange = wange;
+			wetuwn [exampwe];
 		}
 	}
-	return undefined;
+	wetuwn undefined;
 }
 
-export function provideWorkspaceTrustExtensionProposals(existing: string[], range: vscode.Range): vscode.ProviderResult<vscode.CompletionItem[] | vscode.CompletionList> {
-	if (Array.isArray(existing)) {
-		const extensions = vscode.extensions.all.filter(e => e.packageJSON.main);
-		const extensionProposals = extensions.filter(e => existing.indexOf(e.id) === -1);
-		if (extensionProposals.length) {
-			return extensionProposals.map(e => {
-				const item = new vscode.CompletionItem(e.id);
-				const insertText = `"${e.id}": {\n\t"supported": false,\n\t"version": "${e.packageJSON.version}"\n}`;
-				item.kind = vscode.CompletionItemKind.Value;
-				item.insertText = insertText;
-				item.range = range;
-				item.filterText = insertText;
-				return item;
+expowt function pwovideWowkspaceTwustExtensionPwoposaws(existing: stwing[], wange: vscode.Wange): vscode.PwovidewWesuwt<vscode.CompwetionItem[] | vscode.CompwetionWist> {
+	if (Awway.isAwway(existing)) {
+		const extensions = vscode.extensions.aww.fiwta(e => e.packageJSON.main);
+		const extensionPwoposaws = extensions.fiwta(e => existing.indexOf(e.id) === -1);
+		if (extensionPwoposaws.wength) {
+			wetuwn extensionPwoposaws.map(e => {
+				const item = new vscode.CompwetionItem(e.id);
+				const insewtText = `"${e.id}": {\n\t"suppowted": fawse,\n\t"vewsion": "${e.packageJSON.vewsion}"\n}`;
+				item.kind = vscode.CompwetionItemKind.Vawue;
+				item.insewtText = insewtText;
+				item.wange = wange;
+				item.fiwtewText = insewtText;
+				wetuwn item;
 			});
-		} else {
-			const example = new vscode.CompletionItem(localize('exampleExtension', "Example"));
-			example.insertText = '"vscode.csharp: {\n\t"supported": false,\n\t"version": "0.0.0"\n}`;"';
-			example.kind = vscode.CompletionItemKind.Value;
-			example.range = range;
-			return [example];
+		} ewse {
+			const exampwe = new vscode.CompwetionItem(wocawize('exampweExtension', "Exampwe"));
+			exampwe.insewtText = '"vscode.cshawp: {\n\t"suppowted": fawse,\n\t"vewsion": "0.0.0"\n}`;"';
+			exampwe.kind = vscode.CompwetionItemKind.Vawue;
+			exampwe.wange = wange;
+			wetuwn [exampwe];
 		}
 	}
 
-	return undefined;
+	wetuwn undefined;
 }

@@ -1,13 +1,13 @@
-var teamScore = 0
-var greeting = "Hello!"
-var multiLineString = """
-    This is a multi-line string!
+vaw teamScowe = 0
+vaw gweeting = "Hewwo!"
+vaw muwtiWineStwing = """
+    This is a muwti-wine stwing!
 """
-func hasAnyMatches(list: [Int], condition: (Int) -> Bool) -> Bool {
-    for item in list {
+func hasAnyMatches(wist: [Int], condition: (Int) -> Boow) -> Boow {
+    fow item in wist {
         if condition(item) {
-            return true
+            wetuwn twue
         }
     }
-    return false
+    wetuwn fawse
 }

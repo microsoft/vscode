@@ -1,72 +1,72 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMarkerService, IMarkerData } from 'vs/platform/markers/common/markers';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { MainThreadDiagnosticsShape, MainContext, IExtHostContext, ExtHostDiagnosticsShape, ExtHostContext } from '../common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+impowt { IMawkewSewvice, IMawkewData } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { MainThweadDiagnosticsShape, MainContext, IExtHostContext, ExtHostDiagnosticsShape, ExtHostContext } fwom '../common/extHost.pwotocow';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
 
-@extHostNamedCustomer(MainContext.MainThreadDiagnostics)
-export class MainThreadDiagnostics implements MainThreadDiagnosticsShape {
+@extHostNamedCustoma(MainContext.MainThweadDiagnostics)
+expowt cwass MainThweadDiagnostics impwements MainThweadDiagnosticsShape {
 
-	private readonly _activeOwners = new Set<string>();
+	pwivate weadonwy _activeOwnews = new Set<stwing>();
 
-	private readonly _proxy: ExtHostDiagnosticsShape;
-	private readonly _markerListener: IDisposable;
+	pwivate weadonwy _pwoxy: ExtHostDiagnosticsShape;
+	pwivate weadonwy _mawkewWistena: IDisposabwe;
 
-	constructor(
+	constwuctow(
 		extHostContext: IExtHostContext,
-		@IMarkerService private readonly _markerService: IMarkerService,
-		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService,
+		@IMawkewSewvice pwivate weadonwy _mawkewSewvice: IMawkewSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy _uwiIdentSewvice: IUwiIdentitySewvice,
 	) {
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDiagnostics);
+		this._pwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostDiagnostics);
 
-		this._markerListener = this._markerService.onMarkerChanged(this._forwardMarkers, this);
+		this._mawkewWistena = this._mawkewSewvice.onMawkewChanged(this._fowwawdMawkews, this);
 	}
 
 	dispose(): void {
-		this._markerListener.dispose();
-		this._activeOwners.forEach(owner => this._markerService.changeAll(owner, []));
-		this._activeOwners.clear();
+		this._mawkewWistena.dispose();
+		this._activeOwnews.fowEach(owna => this._mawkewSewvice.changeAww(owna, []));
+		this._activeOwnews.cweaw();
 	}
 
-	private _forwardMarkers(resources: readonly URI[]): void {
-		const data: [UriComponents, IMarkerData[]][] = [];
-		for (const resource of resources) {
+	pwivate _fowwawdMawkews(wesouwces: weadonwy UWI[]): void {
+		const data: [UwiComponents, IMawkewData[]][] = [];
+		fow (const wesouwce of wesouwces) {
 			data.push([
-				resource,
-				this._markerService.read({ resource }).filter(marker => !this._activeOwners.has(marker.owner))
+				wesouwce,
+				this._mawkewSewvice.wead({ wesouwce }).fiwta(mawka => !this._activeOwnews.has(mawka.owna))
 			]);
 		}
-		this._proxy.$acceptMarkersChange(data);
+		this._pwoxy.$acceptMawkewsChange(data);
 	}
 
-	$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void {
-		for (let entry of entries) {
-			let [uri, markers] = entry;
-			if (markers) {
-				for (const marker of markers) {
-					if (marker.relatedInformation) {
-						for (const relatedInformation of marker.relatedInformation) {
-							relatedInformation.resource = URI.revive(relatedInformation.resource);
+	$changeMany(owna: stwing, entwies: [UwiComponents, IMawkewData[]][]): void {
+		fow (wet entwy of entwies) {
+			wet [uwi, mawkews] = entwy;
+			if (mawkews) {
+				fow (const mawka of mawkews) {
+					if (mawka.wewatedInfowmation) {
+						fow (const wewatedInfowmation of mawka.wewatedInfowmation) {
+							wewatedInfowmation.wesouwce = UWI.wevive(wewatedInfowmation.wesouwce);
 						}
 					}
-					if (marker.code && typeof marker.code !== 'string') {
-						marker.code.target = URI.revive(marker.code.target);
+					if (mawka.code && typeof mawka.code !== 'stwing') {
+						mawka.code.tawget = UWI.wevive(mawka.code.tawget);
 					}
 				}
 			}
-			this._markerService.changeOne(owner, this._uriIdentService.asCanonicalUri(URI.revive(uri)), markers);
+			this._mawkewSewvice.changeOne(owna, this._uwiIdentSewvice.asCanonicawUwi(UWI.wevive(uwi)), mawkews);
 		}
-		this._activeOwners.add(owner);
+		this._activeOwnews.add(owna);
 	}
 
-	$clear(owner: string): void {
-		this._markerService.changeAll(owner, []);
-		this._activeOwners.delete(owner);
+	$cweaw(owna: stwing): void {
+		this._mawkewSewvice.changeAww(owna, []);
+		this._activeOwnews.dewete(owna);
 	}
 }

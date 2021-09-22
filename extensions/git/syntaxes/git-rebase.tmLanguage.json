@@ -1,61 +1,61 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/textmate/git.tmbundle/blob/master/Syntaxes/Git%20Rebase%20Message.tmLanguage",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/textmate/git.tmbundwe/bwob/masta/Syntaxes/Git%20Webase%20Message.tmWanguage",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/textmate/git.tmbundle/commit/5870cf3f8abad3a6637bdf69250b5d2ded427dc4",
-	"name": "Git Rebase Message",
-	"scopeName": "text.git-rebase",
-	"patterns": [
+	"vewsion": "https://github.com/textmate/git.tmbundwe/commit/5870cf3f8abad3a6637bdf69250b5d2ded427dc4",
+	"name": "Git Webase Message",
+	"scopeName": "text.git-webase",
+	"pattewns": [
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.comment.git-rebase"
+					"name": "punctuation.definition.comment.git-webase"
 				}
 			},
 			"match": "^\\s*(#).*$\\n?",
-			"name": "comment.line.number-sign.git-rebase"
+			"name": "comment.wine.numba-sign.git-webase"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "support.function.git-rebase"
+					"name": "suppowt.function.git-webase"
 				},
 				"2": {
-					"name": "constant.sha.git-rebase"
+					"name": "constant.sha.git-webase"
 				},
 				"3": {
-					"name": "meta.commit-message.git-rebase"
+					"name": "meta.commit-message.git-webase"
 				}
 			},
-			"match": "^\\s*(pick|p|reword|r|edit|e|squash|s|fixup|f|drop|d)\\s+([0-9a-f]+)\\s+(.*)$",
-			"name": "meta.commit-command.git-rebase"
+			"match": "^\\s*(pick|p|wewowd|w|edit|e|squash|s|fixup|f|dwop|d)\\s+([0-9a-f]+)\\s+(.*)$",
+			"name": "meta.commit-command.git-webase"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "support.function.git-rebase"
+					"name": "suppowt.function.git-webase"
 				},
 				"2": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "source.shell"
+							"incwude": "souwce.sheww"
 						}
 					]
 				}
 			},
 			"match": "^\\s*(exec|x)\\s+(.*)$",
-			"name": "meta.commit-command.git-rebase"
+			"name": "meta.commit-command.git-webase"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "support.function.git-rebase"
+					"name": "suppowt.function.git-webase"
 				}
 			},
-			"match": "^\\s*(break|b)\\s*$",
-			"name": "meta.commit-command.git-rebase"
+			"match": "^\\s*(bweak|b)\\s*$",
+			"name": "meta.commit-command.git-webase"
 		}
 	]
 }

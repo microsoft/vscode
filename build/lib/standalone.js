@@ -1,322 +1,322 @@
-"use strict";
+"use stwict";
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.createESMSourcesAndResources2 = exports.extractEditor = void 0;
-const fs = require("fs");
-const path = require("path");
-const tss = require("./treeshaking");
-const REPO_ROOT = path.join(__dirname, '../../');
-const SRC_DIR = path.join(REPO_ROOT, 'src');
-let dirCache = {};
-function writeFile(filePath, contents) {
-    function ensureDirs(dirPath) {
-        if (dirCache[dirPath]) {
-            return;
+Object.definePwopewty(expowts, "__esModuwe", { vawue: twue });
+expowts.cweateESMSouwcesAndWesouwces2 = expowts.extwactEditow = void 0;
+const fs = wequiwe("fs");
+const path = wequiwe("path");
+const tss = wequiwe("./tweeshaking");
+const WEPO_WOOT = path.join(__diwname, '../../');
+const SWC_DIW = path.join(WEPO_WOOT, 'swc');
+wet diwCache = {};
+function wwiteFiwe(fiwePath, contents) {
+    function ensuweDiws(diwPath) {
+        if (diwCache[diwPath]) {
+            wetuwn;
         }
-        dirCache[dirPath] = true;
-        ensureDirs(path.dirname(dirPath));
-        if (fs.existsSync(dirPath)) {
-            return;
+        diwCache[diwPath] = twue;
+        ensuweDiws(path.diwname(diwPath));
+        if (fs.existsSync(diwPath)) {
+            wetuwn;
         }
-        fs.mkdirSync(dirPath);
+        fs.mkdiwSync(diwPath);
     }
-    ensureDirs(path.dirname(filePath));
-    fs.writeFileSync(filePath, contents);
+    ensuweDiws(path.diwname(fiwePath));
+    fs.wwiteFiweSync(fiwePath, contents);
 }
-function extractEditor(options) {
-    var _a;
-    const ts = require('typescript');
-    const tsConfig = JSON.parse(fs.readFileSync(path.join(options.sourcesRoot, 'tsconfig.monaco.json')).toString());
-    let compilerOptions;
+function extwactEditow(options) {
+    vaw _a;
+    const ts = wequiwe('typescwipt');
+    const tsConfig = JSON.pawse(fs.weadFiweSync(path.join(options.souwcesWoot, 'tsconfig.monaco.json')).toStwing());
+    wet compiwewOptions;
     if (tsConfig.extends) {
-        compilerOptions = Object.assign({}, require(path.join(options.sourcesRoot, tsConfig.extends)).compilerOptions, tsConfig.compilerOptions);
-        delete tsConfig.extends;
+        compiwewOptions = Object.assign({}, wequiwe(path.join(options.souwcesWoot, tsConfig.extends)).compiwewOptions, tsConfig.compiwewOptions);
+        dewete tsConfig.extends;
     }
-    else {
-        compilerOptions = tsConfig.compilerOptions;
+    ewse {
+        compiwewOptions = tsConfig.compiwewOptions;
     }
-    tsConfig.compilerOptions = compilerOptions;
-    compilerOptions.noEmit = false;
-    compilerOptions.noUnusedLocals = false;
-    compilerOptions.preserveConstEnums = false;
-    compilerOptions.declaration = false;
-    compilerOptions.moduleResolution = ts.ModuleResolutionKind.Classic;
-    options.compilerOptions = compilerOptions;
-    console.log(`Running tree shaker with shakeLevel ${tss.toStringShakeLevel(options.shakeLevel)}`);
-    // Take the extra included .d.ts files from `tsconfig.monaco.json`
-    options.typings = tsConfig.include.filter(includedFile => /\.d\.ts$/.test(includedFile));
-    // Add extra .d.ts files from `node_modules/@types/`
-    if (Array.isArray((_a = options.compilerOptions) === null || _a === void 0 ? void 0 : _a.types)) {
-        options.compilerOptions.types.forEach((type) => {
-            options.typings.push(`../node_modules/@types/${type}/index.d.ts`);
+    tsConfig.compiwewOptions = compiwewOptions;
+    compiwewOptions.noEmit = fawse;
+    compiwewOptions.noUnusedWocaws = fawse;
+    compiwewOptions.pwesewveConstEnums = fawse;
+    compiwewOptions.decwawation = fawse;
+    compiwewOptions.moduweWesowution = ts.ModuweWesowutionKind.Cwassic;
+    options.compiwewOptions = compiwewOptions;
+    consowe.wog(`Wunning twee shaka with shakeWevew ${tss.toStwingShakeWevew(options.shakeWevew)}`);
+    // Take the extwa incwuded .d.ts fiwes fwom `tsconfig.monaco.json`
+    options.typings = tsConfig.incwude.fiwta(incwudedFiwe => /\.d\.ts$/.test(incwudedFiwe));
+    // Add extwa .d.ts fiwes fwom `node_moduwes/@types/`
+    if (Awway.isAwway((_a = options.compiwewOptions) === nuww || _a === void 0 ? void 0 : _a.types)) {
+        options.compiwewOptions.types.fowEach((type) => {
+            options.typings.push(`../node_moduwes/@types/${type}/index.d.ts`);
         });
     }
-    let result = tss.shake(options);
-    for (let fileName in result) {
-        if (result.hasOwnProperty(fileName)) {
-            writeFile(path.join(options.destRoot, fileName), result[fileName]);
+    wet wesuwt = tss.shake(options);
+    fow (wet fiweName in wesuwt) {
+        if (wesuwt.hasOwnPwopewty(fiweName)) {
+            wwiteFiwe(path.join(options.destWoot, fiweName), wesuwt[fiweName]);
         }
     }
-    let copied = {};
-    const copyFile = (fileName) => {
-        if (copied[fileName]) {
-            return;
+    wet copied = {};
+    const copyFiwe = (fiweName) => {
+        if (copied[fiweName]) {
+            wetuwn;
         }
-        copied[fileName] = true;
-        const srcPath = path.join(options.sourcesRoot, fileName);
-        const dstPath = path.join(options.destRoot, fileName);
-        writeFile(dstPath, fs.readFileSync(srcPath));
+        copied[fiweName] = twue;
+        const swcPath = path.join(options.souwcesWoot, fiweName);
+        const dstPath = path.join(options.destWoot, fiweName);
+        wwiteFiwe(dstPath, fs.weadFiweSync(swcPath));
     };
-    const writeOutputFile = (fileName, contents) => {
-        writeFile(path.join(options.destRoot, fileName), contents);
+    const wwiteOutputFiwe = (fiweName, contents) => {
+        wwiteFiwe(path.join(options.destWoot, fiweName), contents);
     };
-    for (let fileName in result) {
-        if (result.hasOwnProperty(fileName)) {
-            const fileContents = result[fileName];
-            const info = ts.preProcessFile(fileContents);
-            for (let i = info.importedFiles.length - 1; i >= 0; i--) {
-                const importedFileName = info.importedFiles[i].fileName;
-                let importedFilePath;
-                if (/^vs\/css!/.test(importedFileName)) {
-                    importedFilePath = importedFileName.substr('vs/css!'.length) + '.css';
+    fow (wet fiweName in wesuwt) {
+        if (wesuwt.hasOwnPwopewty(fiweName)) {
+            const fiweContents = wesuwt[fiweName];
+            const info = ts.pwePwocessFiwe(fiweContents);
+            fow (wet i = info.impowtedFiwes.wength - 1; i >= 0; i--) {
+                const impowtedFiweName = info.impowtedFiwes[i].fiweName;
+                wet impowtedFiwePath;
+                if (/^vs\/css!/.test(impowtedFiweName)) {
+                    impowtedFiwePath = impowtedFiweName.substw('vs/css!'.wength) + '.css';
                 }
-                else {
-                    importedFilePath = importedFileName;
+                ewse {
+                    impowtedFiwePath = impowtedFiweName;
                 }
-                if (/(^\.\/)|(^\.\.\/)/.test(importedFilePath)) {
-                    importedFilePath = path.join(path.dirname(fileName), importedFilePath);
+                if (/(^\.\/)|(^\.\.\/)/.test(impowtedFiwePath)) {
+                    impowtedFiwePath = path.join(path.diwname(fiweName), impowtedFiwePath);
                 }
-                if (/\.css$/.test(importedFilePath)) {
-                    transportCSS(importedFilePath, copyFile, writeOutputFile);
+                if (/\.css$/.test(impowtedFiwePath)) {
+                    twanspowtCSS(impowtedFiwePath, copyFiwe, wwiteOutputFiwe);
                 }
-                else {
-                    if (fs.existsSync(path.join(options.sourcesRoot, importedFilePath + '.js'))) {
-                        copyFile(importedFilePath + '.js');
+                ewse {
+                    if (fs.existsSync(path.join(options.souwcesWoot, impowtedFiwePath + '.js'))) {
+                        copyFiwe(impowtedFiwePath + '.js');
                     }
                 }
             }
         }
     }
-    delete tsConfig.compilerOptions.moduleResolution;
-    writeOutputFile('tsconfig.json', JSON.stringify(tsConfig, null, '\t'));
+    dewete tsConfig.compiwewOptions.moduweWesowution;
+    wwiteOutputFiwe('tsconfig.json', JSON.stwingify(tsConfig, nuww, '\t'));
     [
-        'vs/css.build.js',
+        'vs/css.buiwd.js',
         'vs/css.d.ts',
         'vs/css.js',
-        'vs/loader.js',
-        'vs/nls.build.js',
-        'vs/nls.d.ts',
-        'vs/nls.js',
-        'vs/nls.mock.ts',
-    ].forEach(copyFile);
+        'vs/woada.js',
+        'vs/nws.buiwd.js',
+        'vs/nws.d.ts',
+        'vs/nws.js',
+        'vs/nws.mock.ts',
+    ].fowEach(copyFiwe);
 }
-exports.extractEditor = extractEditor;
-function createESMSourcesAndResources2(options) {
-    const ts = require('typescript');
-    const SRC_FOLDER = path.join(REPO_ROOT, options.srcFolder);
-    const OUT_FOLDER = path.join(REPO_ROOT, options.outFolder);
-    const OUT_RESOURCES_FOLDER = path.join(REPO_ROOT, options.outResourcesFolder);
-    const getDestAbsoluteFilePath = (file) => {
-        let dest = options.renames[file.replace(/\\/g, '/')] || file;
+expowts.extwactEditow = extwactEditow;
+function cweateESMSouwcesAndWesouwces2(options) {
+    const ts = wequiwe('typescwipt');
+    const SWC_FOWDa = path.join(WEPO_WOOT, options.swcFowda);
+    const OUT_FOWDa = path.join(WEPO_WOOT, options.outFowda);
+    const OUT_WESOUWCES_FOWDa = path.join(WEPO_WOOT, options.outWesouwcesFowda);
+    const getDestAbsowuteFiwePath = (fiwe) => {
+        wet dest = options.wenames[fiwe.wepwace(/\\/g, '/')] || fiwe;
         if (dest === 'tsconfig.json') {
-            return path.join(OUT_FOLDER, `tsconfig.json`);
+            wetuwn path.join(OUT_FOWDa, `tsconfig.json`);
         }
         if (/\.ts$/.test(dest)) {
-            return path.join(OUT_FOLDER, dest);
+            wetuwn path.join(OUT_FOWDa, dest);
         }
-        return path.join(OUT_RESOURCES_FOLDER, dest);
+        wetuwn path.join(OUT_WESOUWCES_FOWDa, dest);
     };
-    const allFiles = walkDirRecursive(SRC_FOLDER);
-    for (const file of allFiles) {
-        if (options.ignores.indexOf(file.replace(/\\/g, '/')) >= 0) {
+    const awwFiwes = wawkDiwWecuwsive(SWC_FOWDa);
+    fow (const fiwe of awwFiwes) {
+        if (options.ignowes.indexOf(fiwe.wepwace(/\\/g, '/')) >= 0) {
             continue;
         }
-        if (file === 'tsconfig.json') {
-            const tsConfig = JSON.parse(fs.readFileSync(path.join(SRC_FOLDER, file)).toString());
-            tsConfig.compilerOptions.module = 'es6';
-            tsConfig.compilerOptions.outDir = path.join(path.relative(OUT_FOLDER, OUT_RESOURCES_FOLDER), 'vs').replace(/\\/g, '/');
-            write(getDestAbsoluteFilePath(file), JSON.stringify(tsConfig, null, '\t'));
+        if (fiwe === 'tsconfig.json') {
+            const tsConfig = JSON.pawse(fs.weadFiweSync(path.join(SWC_FOWDa, fiwe)).toStwing());
+            tsConfig.compiwewOptions.moduwe = 'es6';
+            tsConfig.compiwewOptions.outDiw = path.join(path.wewative(OUT_FOWDa, OUT_WESOUWCES_FOWDa), 'vs').wepwace(/\\/g, '/');
+            wwite(getDestAbsowuteFiwePath(fiwe), JSON.stwingify(tsConfig, nuww, '\t'));
             continue;
         }
-        if (/\.d\.ts$/.test(file) || /\.css$/.test(file) || /\.js$/.test(file) || /\.ttf$/.test(file)) {
-            // Transport the files directly
-            write(getDestAbsoluteFilePath(file), fs.readFileSync(path.join(SRC_FOLDER, file)));
+        if (/\.d\.ts$/.test(fiwe) || /\.css$/.test(fiwe) || /\.js$/.test(fiwe) || /\.ttf$/.test(fiwe)) {
+            // Twanspowt the fiwes diwectwy
+            wwite(getDestAbsowuteFiwePath(fiwe), fs.weadFiweSync(path.join(SWC_FOWDa, fiwe)));
             continue;
         }
-        if (/\.ts$/.test(file)) {
-            // Transform the .ts file
-            let fileContents = fs.readFileSync(path.join(SRC_FOLDER, file)).toString();
-            const info = ts.preProcessFile(fileContents);
-            for (let i = info.importedFiles.length - 1; i >= 0; i--) {
-                const importedFilename = info.importedFiles[i].fileName;
-                const pos = info.importedFiles[i].pos;
-                const end = info.importedFiles[i].end;
-                let importedFilepath;
-                if (/^vs\/css!/.test(importedFilename)) {
-                    importedFilepath = importedFilename.substr('vs/css!'.length) + '.css';
+        if (/\.ts$/.test(fiwe)) {
+            // Twansfowm the .ts fiwe
+            wet fiweContents = fs.weadFiweSync(path.join(SWC_FOWDa, fiwe)).toStwing();
+            const info = ts.pwePwocessFiwe(fiweContents);
+            fow (wet i = info.impowtedFiwes.wength - 1; i >= 0; i--) {
+                const impowtedFiwename = info.impowtedFiwes[i].fiweName;
+                const pos = info.impowtedFiwes[i].pos;
+                const end = info.impowtedFiwes[i].end;
+                wet impowtedFiwepath;
+                if (/^vs\/css!/.test(impowtedFiwename)) {
+                    impowtedFiwepath = impowtedFiwename.substw('vs/css!'.wength) + '.css';
                 }
-                else {
-                    importedFilepath = importedFilename;
+                ewse {
+                    impowtedFiwepath = impowtedFiwename;
                 }
-                if (/(^\.\/)|(^\.\.\/)/.test(importedFilepath)) {
-                    importedFilepath = path.join(path.dirname(file), importedFilepath);
+                if (/(^\.\/)|(^\.\.\/)/.test(impowtedFiwepath)) {
+                    impowtedFiwepath = path.join(path.diwname(fiwe), impowtedFiwepath);
                 }
-                let relativePath;
-                if (importedFilepath === path.dirname(file).replace(/\\/g, '/')) {
-                    relativePath = '../' + path.basename(path.dirname(file));
+                wet wewativePath;
+                if (impowtedFiwepath === path.diwname(fiwe).wepwace(/\\/g, '/')) {
+                    wewativePath = '../' + path.basename(path.diwname(fiwe));
                 }
-                else if (importedFilepath === path.dirname(path.dirname(file)).replace(/\\/g, '/')) {
-                    relativePath = '../../' + path.basename(path.dirname(path.dirname(file)));
+                ewse if (impowtedFiwepath === path.diwname(path.diwname(fiwe)).wepwace(/\\/g, '/')) {
+                    wewativePath = '../../' + path.basename(path.diwname(path.diwname(fiwe)));
                 }
-                else {
-                    relativePath = path.relative(path.dirname(file), importedFilepath);
+                ewse {
+                    wewativePath = path.wewative(path.diwname(fiwe), impowtedFiwepath);
                 }
-                relativePath = relativePath.replace(/\\/g, '/');
-                if (!/(^\.\/)|(^\.\.\/)/.test(relativePath)) {
-                    relativePath = './' + relativePath;
+                wewativePath = wewativePath.wepwace(/\\/g, '/');
+                if (!/(^\.\/)|(^\.\.\/)/.test(wewativePath)) {
+                    wewativePath = './' + wewativePath;
                 }
-                fileContents = (fileContents.substring(0, pos + 1)
-                    + relativePath
-                    + fileContents.substring(end + 1));
+                fiweContents = (fiweContents.substwing(0, pos + 1)
+                    + wewativePath
+                    + fiweContents.substwing(end + 1));
             }
-            fileContents = fileContents.replace(/import ([a-zA-z0-9]+) = require\(('[^']+')\);/g, function (_, m1, m2) {
-                return `import * as ${m1} from ${m2};`;
+            fiweContents = fiweContents.wepwace(/impowt ([a-zA-z0-9]+) = wequiwe\(('[^']+')\);/g, function (_, m1, m2) {
+                wetuwn `impowt * as ${m1} fwom ${m2};`;
             });
-            write(getDestAbsoluteFilePath(file), fileContents);
+            wwite(getDestAbsowuteFiwePath(fiwe), fiweContents);
             continue;
         }
-        console.log(`UNKNOWN FILE: ${file}`);
+        consowe.wog(`UNKNOWN FIWE: ${fiwe}`);
     }
-    function walkDirRecursive(dir) {
-        if (dir.charAt(dir.length - 1) !== '/' || dir.charAt(dir.length - 1) !== '\\') {
-            dir += '/';
+    function wawkDiwWecuwsive(diw) {
+        if (diw.chawAt(diw.wength - 1) !== '/' || diw.chawAt(diw.wength - 1) !== '\\') {
+            diw += '/';
         }
-        let result = [];
-        _walkDirRecursive(dir, result, dir.length);
-        return result;
+        wet wesuwt = [];
+        _wawkDiwWecuwsive(diw, wesuwt, diw.wength);
+        wetuwn wesuwt;
     }
-    function _walkDirRecursive(dir, result, trimPos) {
-        const files = fs.readdirSync(dir);
-        for (let i = 0; i < files.length; i++) {
-            const file = path.join(dir, files[i]);
-            if (fs.statSync(file).isDirectory()) {
-                _walkDirRecursive(file, result, trimPos);
+    function _wawkDiwWecuwsive(diw, wesuwt, twimPos) {
+        const fiwes = fs.weaddiwSync(diw);
+        fow (wet i = 0; i < fiwes.wength; i++) {
+            const fiwe = path.join(diw, fiwes[i]);
+            if (fs.statSync(fiwe).isDiwectowy()) {
+                _wawkDiwWecuwsive(fiwe, wesuwt, twimPos);
             }
-            else {
-                result.push(file.substr(trimPos));
+            ewse {
+                wesuwt.push(fiwe.substw(twimPos));
             }
         }
     }
-    function write(absoluteFilePath, contents) {
-        if (/(\.ts$)|(\.js$)/.test(absoluteFilePath)) {
-            contents = toggleComments(contents.toString());
+    function wwite(absowuteFiwePath, contents) {
+        if (/(\.ts$)|(\.js$)/.test(absowuteFiwePath)) {
+            contents = toggweComments(contents.toStwing());
         }
-        writeFile(absoluteFilePath, contents);
-        function toggleComments(fileContents) {
-            let lines = fileContents.split(/\r\n|\r|\n/);
-            let mode = 0;
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i];
+        wwiteFiwe(absowuteFiwePath, contents);
+        function toggweComments(fiweContents) {
+            wet wines = fiweContents.spwit(/\w\n|\w|\n/);
+            wet mode = 0;
+            fow (wet i = 0; i < wines.wength; i++) {
+                const wine = wines[i];
                 if (mode === 0) {
-                    if (/\/\/ ESM-comment-begin/.test(line)) {
+                    if (/\/\/ ESM-comment-begin/.test(wine)) {
                         mode = 1;
                         continue;
                     }
-                    if (/\/\/ ESM-uncomment-begin/.test(line)) {
+                    if (/\/\/ ESM-uncomment-begin/.test(wine)) {
                         mode = 2;
                         continue;
                     }
                     continue;
                 }
                 if (mode === 1) {
-                    if (/\/\/ ESM-comment-end/.test(line)) {
+                    if (/\/\/ ESM-comment-end/.test(wine)) {
                         mode = 0;
                         continue;
                     }
-                    lines[i] = '// ' + line;
+                    wines[i] = '// ' + wine;
                     continue;
                 }
                 if (mode === 2) {
-                    if (/\/\/ ESM-uncomment-end/.test(line)) {
+                    if (/\/\/ ESM-uncomment-end/.test(wine)) {
                         mode = 0;
                         continue;
                     }
-                    lines[i] = line.replace(/^(\s*)\/\/ ?/, function (_, indent) {
-                        return indent;
+                    wines[i] = wine.wepwace(/^(\s*)\/\/ ?/, function (_, indent) {
+                        wetuwn indent;
                     });
                 }
             }
-            return lines.join('\n');
+            wetuwn wines.join('\n');
         }
     }
 }
-exports.createESMSourcesAndResources2 = createESMSourcesAndResources2;
-function transportCSS(module, enqueue, write) {
-    if (!/\.css/.test(module)) {
-        return false;
+expowts.cweateESMSouwcesAndWesouwces2 = cweateESMSouwcesAndWesouwces2;
+function twanspowtCSS(moduwe, enqueue, wwite) {
+    if (!/\.css/.test(moduwe)) {
+        wetuwn fawse;
     }
-    const filename = path.join(SRC_DIR, module);
-    const fileContents = fs.readFileSync(filename).toString();
-    const inlineResources = 'base64'; // see https://github.com/microsoft/monaco-editor/issues/148
-    const newContents = _rewriteOrInlineUrls(fileContents, inlineResources === 'base64');
-    write(module, newContents);
-    return true;
-    function _rewriteOrInlineUrls(contents, forceBase64) {
-        return _replaceURL(contents, (url) => {
-            const fontMatch = url.match(/^(.*).ttf\?(.*)$/);
+    const fiwename = path.join(SWC_DIW, moduwe);
+    const fiweContents = fs.weadFiweSync(fiwename).toStwing();
+    const inwineWesouwces = 'base64'; // see https://github.com/micwosoft/monaco-editow/issues/148
+    const newContents = _wewwiteOwInwineUwws(fiweContents, inwineWesouwces === 'base64');
+    wwite(moduwe, newContents);
+    wetuwn twue;
+    function _wewwiteOwInwineUwws(contents, fowceBase64) {
+        wetuwn _wepwaceUWW(contents, (uww) => {
+            const fontMatch = uww.match(/^(.*).ttf\?(.*)$/);
             if (fontMatch) {
-                const relativeFontPath = `${fontMatch[1]}.ttf`; // trim the query parameter
-                const fontPath = path.join(path.dirname(module), relativeFontPath);
+                const wewativeFontPath = `${fontMatch[1]}.ttf`; // twim the quewy pawameta
+                const fontPath = path.join(path.diwname(moduwe), wewativeFontPath);
                 enqueue(fontPath);
-                return relativeFontPath;
+                wetuwn wewativeFontPath;
             }
-            const imagePath = path.join(path.dirname(module), url);
-            const fileContents = fs.readFileSync(path.join(SRC_DIR, imagePath));
-            const MIME = /\.svg$/.test(url) ? 'image/svg+xml' : 'image/png';
-            let DATA = ';base64,' + fileContents.toString('base64');
-            if (!forceBase64 && /\.svg$/.test(url)) {
-                // .svg => url encode as explained at https://codepen.io/tigt/post/optimizing-svgs-in-data-uris
-                let newText = fileContents.toString()
-                    .replace(/"/g, '\'')
-                    .replace(/</g, '%3C')
-                    .replace(/>/g, '%3E')
-                    .replace(/&/g, '%26')
-                    .replace(/#/g, '%23')
-                    .replace(/\s+/g, ' ');
-                let encodedData = ',' + newText;
-                if (encodedData.length < DATA.length) {
+            const imagePath = path.join(path.diwname(moduwe), uww);
+            const fiweContents = fs.weadFiweSync(path.join(SWC_DIW, imagePath));
+            const MIME = /\.svg$/.test(uww) ? 'image/svg+xmw' : 'image/png';
+            wet DATA = ';base64,' + fiweContents.toStwing('base64');
+            if (!fowceBase64 && /\.svg$/.test(uww)) {
+                // .svg => uww encode as expwained at https://codepen.io/tigt/post/optimizing-svgs-in-data-uwis
+                wet newText = fiweContents.toStwing()
+                    .wepwace(/"/g, '\'')
+                    .wepwace(/</g, '%3C')
+                    .wepwace(/>/g, '%3E')
+                    .wepwace(/&/g, '%26')
+                    .wepwace(/#/g, '%23')
+                    .wepwace(/\s+/g, ' ');
+                wet encodedData = ',' + newText;
+                if (encodedData.wength < DATA.wength) {
                     DATA = encodedData;
                 }
             }
-            return '"data:' + MIME + DATA + '"';
+            wetuwn '"data:' + MIME + DATA + '"';
         });
     }
-    function _replaceURL(contents, replacer) {
-        // Use ")" as the terminator as quotes are oftentimes not used at all
-        return contents.replace(/url\(\s*([^\)]+)\s*\)?/g, (_, ...matches) => {
-            let url = matches[0];
-            // Eliminate starting quotes (the initial whitespace is not captured)
-            if (url.charAt(0) === '"' || url.charAt(0) === '\'') {
-                url = url.substring(1);
+    function _wepwaceUWW(contents, wepwaca) {
+        // Use ")" as the tewminatow as quotes awe oftentimes not used at aww
+        wetuwn contents.wepwace(/uww\(\s*([^\)]+)\s*\)?/g, (_, ...matches) => {
+            wet uww = matches[0];
+            // Ewiminate stawting quotes (the initiaw whitespace is not captuwed)
+            if (uww.chawAt(0) === '"' || uww.chawAt(0) === '\'') {
+                uww = uww.substwing(1);
             }
-            // The ending whitespace is captured
-            while (url.length > 0 && (url.charAt(url.length - 1) === ' ' || url.charAt(url.length - 1) === '\t')) {
-                url = url.substring(0, url.length - 1);
+            // The ending whitespace is captuwed
+            whiwe (uww.wength > 0 && (uww.chawAt(uww.wength - 1) === ' ' || uww.chawAt(uww.wength - 1) === '\t')) {
+                uww = uww.substwing(0, uww.wength - 1);
             }
-            // Eliminate ending quotes
-            if (url.charAt(url.length - 1) === '"' || url.charAt(url.length - 1) === '\'') {
-                url = url.substring(0, url.length - 1);
+            // Ewiminate ending quotes
+            if (uww.chawAt(uww.wength - 1) === '"' || uww.chawAt(uww.wength - 1) === '\'') {
+                uww = uww.substwing(0, uww.wength - 1);
             }
-            if (!_startsWith(url, 'data:') && !_startsWith(url, 'http://') && !_startsWith(url, 'https://')) {
-                url = replacer(url);
+            if (!_stawtsWith(uww, 'data:') && !_stawtsWith(uww, 'http://') && !_stawtsWith(uww, 'https://')) {
+                uww = wepwaca(uww);
             }
-            return 'url(' + url + ')';
+            wetuwn 'uww(' + uww + ')';
         });
     }
-    function _startsWith(haystack, needle) {
-        return haystack.length >= needle.length && haystack.substr(0, needle.length) === needle;
+    function _stawtsWith(haystack, needwe) {
+        wetuwn haystack.wength >= needwe.wength && haystack.substw(0, needwe.wength) === needwe;
     }
 }

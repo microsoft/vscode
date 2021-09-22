@@ -1,155 +1,155 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { MainThreadMessageService } from 'vs/workbench/api/browser/mainThreadMessageService';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService, INotification, NoOpNotification, INotificationHandle, Severity, IPromptChoice, IPromptOptions, IStatusMessageOptions, NotificationsFilter } from 'vs/platform/notification/common/notification';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { mock } from 'vs/base/test/common/mock';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
+impowt * as assewt fwom 'assewt';
+impowt { MainThweadMessageSewvice } fwom 'vs/wowkbench/api/bwowsa/mainThweadMessageSewvice';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { INotificationSewvice, INotification, NoOpNotification, INotificationHandwe, Sevewity, IPwomptChoice, IPwomptOptions, IStatusMessageOptions, NotificationsFiwta } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { IDisposabwe, Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Event } fwom 'vs/base/common/event';
 
-const emptyDialogService = new class implements IDialogService {
-	declare readonly _serviceBrand: undefined;
-	show(): never {
-		throw new Error('not implemented');
+const emptyDiawogSewvice = new cwass impwements IDiawogSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
+	show(): neva {
+		thwow new Ewwow('not impwemented');
 	}
 
-	confirm(): never {
-		throw new Error('not implemented');
+	confiwm(): neva {
+		thwow new Ewwow('not impwemented');
 	}
 
-	about(): never {
-		throw new Error('not implemented');
+	about(): neva {
+		thwow new Ewwow('not impwemented');
 	}
 
-	input(): never {
-		throw new Error('not implemented');
-	}
-};
-
-const emptyCommandService: ICommandService = {
-	_serviceBrand: undefined,
-	onWillExecuteCommand: () => Disposable.None,
-	onDidExecuteCommand: () => Disposable.None,
-	executeCommand: (commandId: string, ...args: any[]): Promise<any> => {
-		return Promise.resolve(undefined);
+	input(): neva {
+		thwow new Ewwow('not impwemented');
 	}
 };
 
-const emptyNotificationService = new class implements INotificationService {
-	declare readonly _serviceBrand: undefined;
+const emptyCommandSewvice: ICommandSewvice = {
+	_sewviceBwand: undefined,
+	onWiwwExecuteCommand: () => Disposabwe.None,
+	onDidExecuteCommand: () => Disposabwe.None,
+	executeCommand: (commandId: stwing, ...awgs: any[]): Pwomise<any> => {
+		wetuwn Pwomise.wesowve(undefined);
+	}
+};
+
+const emptyNotificationSewvice = new cwass impwements INotificationSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 	onDidAddNotification: Event<INotification> = Event.None;
-	onDidRemoveNotification: Event<INotification> = Event.None;
-	notify(...args: any[]): never {
-		throw new Error('not implemented');
+	onDidWemoveNotification: Event<INotification> = Event.None;
+	notify(...awgs: any[]): neva {
+		thwow new Ewwow('not impwemented');
 	}
-	info(...args: any[]): never {
-		throw new Error('not implemented');
+	info(...awgs: any[]): neva {
+		thwow new Ewwow('not impwemented');
 	}
-	warn(...args: any[]): never {
-		throw new Error('not implemented');
+	wawn(...awgs: any[]): neva {
+		thwow new Ewwow('not impwemented');
 	}
-	error(...args: any[]): never {
-		throw new Error('not implemented');
+	ewwow(...awgs: any[]): neva {
+		thwow new Ewwow('not impwemented');
 	}
-	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
-		throw new Error('not implemented');
+	pwompt(sevewity: Sevewity, message: stwing, choices: IPwomptChoice[], options?: IPwomptOptions): INotificationHandwe {
+		thwow new Ewwow('not impwemented');
 	}
-	status(message: string | Error, options?: IStatusMessageOptions): IDisposable {
-		return Disposable.None;
+	status(message: stwing | Ewwow, options?: IStatusMessageOptions): IDisposabwe {
+		wetuwn Disposabwe.None;
 	}
-	setFilter(filter: NotificationsFilter): void {
-		throw new Error('not implemented.');
+	setFiwta(fiwta: NotificationsFiwta): void {
+		thwow new Ewwow('not impwemented.');
 	}
 };
 
-class EmptyNotificationService implements INotificationService {
-	declare readonly _serviceBrand: undefined;
+cwass EmptyNotificationSewvice impwements INotificationSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(private withNotify: (notification: INotification) => void) {
+	constwuctow(pwivate withNotify: (notification: INotification) => void) {
 	}
 
 	onDidAddNotification: Event<INotification> = Event.None;
-	onDidRemoveNotification: Event<INotification> = Event.None;
-	notify(notification: INotification): INotificationHandle {
+	onDidWemoveNotification: Event<INotification> = Event.None;
+	notify(notification: INotification): INotificationHandwe {
 		this.withNotify(notification);
 
-		return new NoOpNotification();
+		wetuwn new NoOpNotification();
 	}
 	info(message: any): void {
-		throw new Error('Method not implemented.');
+		thwow new Ewwow('Method not impwemented.');
 	}
-	warn(message: any): void {
-		throw new Error('Method not implemented.');
+	wawn(message: any): void {
+		thwow new Ewwow('Method not impwemented.');
 	}
-	error(message: any): void {
-		throw new Error('Method not implemented.');
+	ewwow(message: any): void {
+		thwow new Ewwow('Method not impwemented.');
 	}
-	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
-		throw new Error('Method not implemented');
+	pwompt(sevewity: Sevewity, message: stwing, choices: IPwomptChoice[], options?: IPwomptOptions): INotificationHandwe {
+		thwow new Ewwow('Method not impwemented');
 	}
-	status(message: string, options?: IStatusMessageOptions): IDisposable {
-		return Disposable.None;
+	status(message: stwing, options?: IStatusMessageOptions): IDisposabwe {
+		wetuwn Disposabwe.None;
 	}
-	setFilter(filter: NotificationsFilter): void {
-		throw new Error('Method not implemented.');
+	setFiwta(fiwta: NotificationsFiwta): void {
+		thwow new Ewwow('Method not impwemented.');
 	}
 }
 
-suite('ExtHostMessageService', function () {
+suite('ExtHostMessageSewvice', function () {
 
-	test('propagte handle on select', async function () {
+	test('pwopagte handwe on sewect', async function () {
 
-		let service = new MainThreadMessageService(null!, new EmptyNotificationService(notification => {
-			assert.strictEqual(notification.actions!.primary!.length, 1);
-			queueMicrotask(() => notification.actions!.primary![0].run());
-		}), emptyCommandService, emptyDialogService);
+		wet sewvice = new MainThweadMessageSewvice(nuww!, new EmptyNotificationSewvice(notification => {
+			assewt.stwictEquaw(notification.actions!.pwimawy!.wength, 1);
+			queueMicwotask(() => notification.actions!.pwimawy![0].wun());
+		}), emptyCommandSewvice, emptyDiawogSewvice);
 
-		const handle = await service.$showMessage(1, 'h', {}, [{ handle: 42, title: 'a thing', isCloseAffordance: true }]);
-		assert.strictEqual(handle, 42);
+		const handwe = await sewvice.$showMessage(1, 'h', {}, [{ handwe: 42, titwe: 'a thing', isCwoseAffowdance: twue }]);
+		assewt.stwictEquaw(handwe, 42);
 	});
 
-	suite('modal', () => {
-		test('calls dialog service', async () => {
-			const service = new MainThreadMessageService(null!, emptyNotificationService, emptyCommandService, new class extends mock<IDialogService>() {
-				override show(severity: Severity, message: string, buttons: string[]) {
-					assert.strictEqual(severity, 1);
-					assert.strictEqual(message, 'h');
-					assert.strictEqual(buttons.length, 2);
-					assert.strictEqual(buttons[1], 'Cancel');
-					return Promise.resolve({ choice: 0 });
+	suite('modaw', () => {
+		test('cawws diawog sewvice', async () => {
+			const sewvice = new MainThweadMessageSewvice(nuww!, emptyNotificationSewvice, emptyCommandSewvice, new cwass extends mock<IDiawogSewvice>() {
+				ovewwide show(sevewity: Sevewity, message: stwing, buttons: stwing[]) {
+					assewt.stwictEquaw(sevewity, 1);
+					assewt.stwictEquaw(message, 'h');
+					assewt.stwictEquaw(buttons.wength, 2);
+					assewt.stwictEquaw(buttons[1], 'Cancew');
+					wetuwn Pwomise.wesowve({ choice: 0 });
 				}
-			} as IDialogService);
+			} as IDiawogSewvice);
 
-			const handle = await service.$showMessage(1, 'h', { modal: true }, [{ handle: 42, title: 'a thing', isCloseAffordance: false }]);
-			assert.strictEqual(handle, 42);
+			const handwe = await sewvice.$showMessage(1, 'h', { modaw: twue }, [{ handwe: 42, titwe: 'a thing', isCwoseAffowdance: fawse }]);
+			assewt.stwictEquaw(handwe, 42);
 		});
 
-		test('returns undefined when cancelled', async () => {
-			const service = new MainThreadMessageService(null!, emptyNotificationService, emptyCommandService, new class extends mock<IDialogService>() {
-				override show() {
-					return Promise.resolve({ choice: 1 });
+		test('wetuwns undefined when cancewwed', async () => {
+			const sewvice = new MainThweadMessageSewvice(nuww!, emptyNotificationSewvice, emptyCommandSewvice, new cwass extends mock<IDiawogSewvice>() {
+				ovewwide show() {
+					wetuwn Pwomise.wesowve({ choice: 1 });
 				}
-			} as IDialogService);
+			} as IDiawogSewvice);
 
-			const handle = await service.$showMessage(1, 'h', { modal: true }, [{ handle: 42, title: 'a thing', isCloseAffordance: false }]);
-			assert.strictEqual(handle, undefined);
+			const handwe = await sewvice.$showMessage(1, 'h', { modaw: twue }, [{ handwe: 42, titwe: 'a thing', isCwoseAffowdance: fawse }]);
+			assewt.stwictEquaw(handwe, undefined);
 		});
 
-		test('hides Cancel button when not needed', async () => {
-			const service = new MainThreadMessageService(null!, emptyNotificationService, emptyCommandService, new class extends mock<IDialogService>() {
-				override show(severity: Severity, message: string, buttons: string[]) {
-					assert.strictEqual(buttons.length, 1);
-					return Promise.resolve({ choice: 0 });
+		test('hides Cancew button when not needed', async () => {
+			const sewvice = new MainThweadMessageSewvice(nuww!, emptyNotificationSewvice, emptyCommandSewvice, new cwass extends mock<IDiawogSewvice>() {
+				ovewwide show(sevewity: Sevewity, message: stwing, buttons: stwing[]) {
+					assewt.stwictEquaw(buttons.wength, 1);
+					wetuwn Pwomise.wesowve({ choice: 0 });
 				}
-			} as IDialogService);
+			} as IDiawogSewvice);
 
-			const handle = await service.$showMessage(1, 'h', { modal: true }, [{ handle: 42, title: 'a thing', isCloseAffordance: true }]);
-			assert.strictEqual(handle, 42);
+			const handwe = await sewvice.$showMessage(1, 'h', { modaw: twue }, [{ handwe: 42, titwe: 'a thing', isCwoseAffowdance: twue }]);
+			assewt.stwictEquaw(handwe, 42);
 		});
 	});
 });

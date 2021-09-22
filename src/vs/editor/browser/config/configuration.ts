@@ -1,399 +1,399 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
-import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import { CharWidthRequest, CharWidthRequestType, readCharWidths } from 'vs/editor/browser/config/charWidthReader';
-import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
-import { CommonEditorConfiguration, IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { EditorOption, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
-import { BareFontInfo, FontInfo, SERIALIZED_FONT_INFO_VERSION } from 'vs/editor/common/config/fontInfo';
-import { IDimension } from 'vs/editor/common/editorCommon';
-import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { IEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
+impowt * as bwowsa fwom 'vs/base/bwowsa/bwowsa';
+impowt { FastDomNode } fwom 'vs/base/bwowsa/fastDomNode';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { ChawWidthWequest, ChawWidthWequestType, weadChawWidths } fwom 'vs/editow/bwowsa/config/chawWidthWeada';
+impowt { EwementSizeObsewva } fwom 'vs/editow/bwowsa/config/ewementSizeObsewva';
+impowt { CommonEditowConfiguwation, IEnvConfiguwation } fwom 'vs/editow/common/config/commonEditowConfig';
+impowt { EditowOption, EditowFontWigatuwes } fwom 'vs/editow/common/config/editowOptions';
+impowt { BaweFontInfo, FontInfo, SEWIAWIZED_FONT_INFO_VEWSION } fwom 'vs/editow/common/config/fontInfo';
+impowt { IDimension } fwom 'vs/editow/common/editowCommon';
+impowt { IAccessibiwitySewvice, AccessibiwitySuppowt } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { IEditowConstwuctionOptions } fwom 'vs/editow/bwowsa/editowBwowsa';
 
-class CSSBasedConfigurationCache {
+cwass CSSBasedConfiguwationCache {
 
-	private readonly _keys: { [key: string]: BareFontInfo; };
-	private readonly _values: { [key: string]: FontInfo; };
+	pwivate weadonwy _keys: { [key: stwing]: BaweFontInfo; };
+	pwivate weadonwy _vawues: { [key: stwing]: FontInfo; };
 
-	constructor() {
-		this._keys = Object.create(null);
-		this._values = Object.create(null);
+	constwuctow() {
+		this._keys = Object.cweate(nuww);
+		this._vawues = Object.cweate(nuww);
 	}
 
-	public has(item: BareFontInfo): boolean {
+	pubwic has(item: BaweFontInfo): boowean {
 		const itemId = item.getId();
-		return !!this._values[itemId];
+		wetuwn !!this._vawues[itemId];
 	}
 
-	public get(item: BareFontInfo): FontInfo {
+	pubwic get(item: BaweFontInfo): FontInfo {
 		const itemId = item.getId();
-		return this._values[itemId];
+		wetuwn this._vawues[itemId];
 	}
 
-	public put(item: BareFontInfo, value: FontInfo): void {
+	pubwic put(item: BaweFontInfo, vawue: FontInfo): void {
 		const itemId = item.getId();
 		this._keys[itemId] = item;
-		this._values[itemId] = value;
+		this._vawues[itemId] = vawue;
 	}
 
-	public remove(item: BareFontInfo): void {
+	pubwic wemove(item: BaweFontInfo): void {
 		const itemId = item.getId();
-		delete this._keys[itemId];
-		delete this._values[itemId];
+		dewete this._keys[itemId];
+		dewete this._vawues[itemId];
 	}
 
-	public getValues(): FontInfo[] {
-		return Object.keys(this._keys).map(id => this._values[id]);
+	pubwic getVawues(): FontInfo[] {
+		wetuwn Object.keys(this._keys).map(id => this._vawues[id]);
 	}
 }
 
-export function clearAllFontInfos(): void {
-	CSSBasedConfiguration.INSTANCE.clearCache();
+expowt function cweawAwwFontInfos(): void {
+	CSSBasedConfiguwation.INSTANCE.cweawCache();
 }
 
-export function readFontInfo(bareFontInfo: BareFontInfo): FontInfo {
-	return CSSBasedConfiguration.INSTANCE.readConfiguration(bareFontInfo);
+expowt function weadFontInfo(baweFontInfo: BaweFontInfo): FontInfo {
+	wetuwn CSSBasedConfiguwation.INSTANCE.weadConfiguwation(baweFontInfo);
 }
 
-export function restoreFontInfo(fontInfo: ISerializedFontInfo[]): void {
-	CSSBasedConfiguration.INSTANCE.restoreFontInfo(fontInfo);
+expowt function westoweFontInfo(fontInfo: ISewiawizedFontInfo[]): void {
+	CSSBasedConfiguwation.INSTANCE.westoweFontInfo(fontInfo);
 }
 
-export function serializeFontInfo(): ISerializedFontInfo[] | null {
-	const fontInfo = CSSBasedConfiguration.INSTANCE.saveFontInfo();
-	if (fontInfo.length > 0) {
-		return fontInfo;
+expowt function sewiawizeFontInfo(): ISewiawizedFontInfo[] | nuww {
+	const fontInfo = CSSBasedConfiguwation.INSTANCE.saveFontInfo();
+	if (fontInfo.wength > 0) {
+		wetuwn fontInfo;
 	}
 
-	return null;
+	wetuwn nuww;
 }
 
-export interface ISerializedFontInfo {
-	readonly version: number;
-	readonly zoomLevel: number;
-	readonly pixelRatio: number;
-	readonly fontFamily: string;
-	readonly fontWeight: string;
-	readonly fontSize: number;
-	readonly fontFeatureSettings: string;
-	readonly lineHeight: number;
-	readonly letterSpacing: number;
-	readonly isMonospace: boolean;
-	readonly typicalHalfwidthCharacterWidth: number;
-	readonly typicalFullwidthCharacterWidth: number;
-	readonly canUseHalfwidthRightwardsArrow: boolean;
-	readonly spaceWidth: number;
-	readonly middotWidth: number;
-	readonly wsmiddotWidth: number;
-	readonly maxDigitWidth: number;
+expowt intewface ISewiawizedFontInfo {
+	weadonwy vewsion: numba;
+	weadonwy zoomWevew: numba;
+	weadonwy pixewWatio: numba;
+	weadonwy fontFamiwy: stwing;
+	weadonwy fontWeight: stwing;
+	weadonwy fontSize: numba;
+	weadonwy fontFeatuweSettings: stwing;
+	weadonwy wineHeight: numba;
+	weadonwy wettewSpacing: numba;
+	weadonwy isMonospace: boowean;
+	weadonwy typicawHawfwidthChawactewWidth: numba;
+	weadonwy typicawFuwwwidthChawactewWidth: numba;
+	weadonwy canUseHawfwidthWightwawdsAwwow: boowean;
+	weadonwy spaceWidth: numba;
+	weadonwy middotWidth: numba;
+	weadonwy wsmiddotWidth: numba;
+	weadonwy maxDigitWidth: numba;
 }
 
-class CSSBasedConfiguration extends Disposable {
+cwass CSSBasedConfiguwation extends Disposabwe {
 
-	public static readonly INSTANCE = new CSSBasedConfiguration();
+	pubwic static weadonwy INSTANCE = new CSSBasedConfiguwation();
 
-	private _cache: CSSBasedConfigurationCache;
-	private _evictUntrustedReadingsTimeout: any;
+	pwivate _cache: CSSBasedConfiguwationCache;
+	pwivate _evictUntwustedWeadingsTimeout: any;
 
-	private _onDidChange = this._register(new Emitter<void>());
-	public readonly onDidChange: Event<void> = this._onDidChange.event;
+	pwivate _onDidChange = this._wegista(new Emitta<void>());
+	pubwic weadonwy onDidChange: Event<void> = this._onDidChange.event;
 
-	constructor() {
-		super();
+	constwuctow() {
+		supa();
 
-		this._cache = new CSSBasedConfigurationCache();
-		this._evictUntrustedReadingsTimeout = -1;
+		this._cache = new CSSBasedConfiguwationCache();
+		this._evictUntwustedWeadingsTimeout = -1;
 	}
 
-	public override dispose(): void {
-		if (this._evictUntrustedReadingsTimeout !== -1) {
-			clearTimeout(this._evictUntrustedReadingsTimeout);
-			this._evictUntrustedReadingsTimeout = -1;
+	pubwic ovewwide dispose(): void {
+		if (this._evictUntwustedWeadingsTimeout !== -1) {
+			cweawTimeout(this._evictUntwustedWeadingsTimeout);
+			this._evictUntwustedWeadingsTimeout = -1;
 		}
-		super.dispose();
+		supa.dispose();
 	}
 
-	public clearCache(): void {
-		this._cache = new CSSBasedConfigurationCache();
-		this._onDidChange.fire();
+	pubwic cweawCache(): void {
+		this._cache = new CSSBasedConfiguwationCache();
+		this._onDidChange.fiwe();
 	}
 
-	private _writeToCache(item: BareFontInfo, value: FontInfo): void {
-		this._cache.put(item, value);
+	pwivate _wwiteToCache(item: BaweFontInfo, vawue: FontInfo): void {
+		this._cache.put(item, vawue);
 
-		if (!value.isTrusted && this._evictUntrustedReadingsTimeout === -1) {
-			// Try reading again after some time
-			this._evictUntrustedReadingsTimeout = setTimeout(() => {
-				this._evictUntrustedReadingsTimeout = -1;
-				this._evictUntrustedReadings();
+		if (!vawue.isTwusted && this._evictUntwustedWeadingsTimeout === -1) {
+			// Twy weading again afta some time
+			this._evictUntwustedWeadingsTimeout = setTimeout(() => {
+				this._evictUntwustedWeadingsTimeout = -1;
+				this._evictUntwustedWeadings();
 			}, 5000);
 		}
 	}
 
-	private _evictUntrustedReadings(): void {
-		const values = this._cache.getValues();
-		let somethingRemoved = false;
-		for (const item of values) {
-			if (!item.isTrusted) {
-				somethingRemoved = true;
-				this._cache.remove(item);
+	pwivate _evictUntwustedWeadings(): void {
+		const vawues = this._cache.getVawues();
+		wet somethingWemoved = fawse;
+		fow (const item of vawues) {
+			if (!item.isTwusted) {
+				somethingWemoved = twue;
+				this._cache.wemove(item);
 			}
 		}
-		if (somethingRemoved) {
-			this._onDidChange.fire();
+		if (somethingWemoved) {
+			this._onDidChange.fiwe();
 		}
 	}
 
-	public saveFontInfo(): ISerializedFontInfo[] {
-		// Only save trusted font info (that has been measured in this running instance)
-		return this._cache.getValues().filter(item => item.isTrusted);
+	pubwic saveFontInfo(): ISewiawizedFontInfo[] {
+		// Onwy save twusted font info (that has been measuwed in this wunning instance)
+		wetuwn this._cache.getVawues().fiwta(item => item.isTwusted);
 	}
 
-	public restoreFontInfo(savedFontInfos: ISerializedFontInfo[]): void {
-		// Take all the saved font info and insert them in the cache without the trusted flag.
-		// The reason for this is that a font might have been installed on the OS in the meantime.
-		for (const savedFontInfo of savedFontInfos) {
-			if (savedFontInfo.version !== SERIALIZED_FONT_INFO_VERSION) {
-				// cannot use older version
+	pubwic westoweFontInfo(savedFontInfos: ISewiawizedFontInfo[]): void {
+		// Take aww the saved font info and insewt them in the cache without the twusted fwag.
+		// The weason fow this is that a font might have been instawwed on the OS in the meantime.
+		fow (const savedFontInfo of savedFontInfos) {
+			if (savedFontInfo.vewsion !== SEWIAWIZED_FONT_INFO_VEWSION) {
+				// cannot use owda vewsion
 				continue;
 			}
-			const fontInfo = new FontInfo(savedFontInfo, false);
-			this._writeToCache(fontInfo, fontInfo);
+			const fontInfo = new FontInfo(savedFontInfo, fawse);
+			this._wwiteToCache(fontInfo, fontInfo);
 		}
 	}
 
-	public readConfiguration(bareFontInfo: BareFontInfo): FontInfo {
-		if (!this._cache.has(bareFontInfo)) {
-			let readConfig = CSSBasedConfiguration._actualReadConfiguration(bareFontInfo);
+	pubwic weadConfiguwation(baweFontInfo: BaweFontInfo): FontInfo {
+		if (!this._cache.has(baweFontInfo)) {
+			wet weadConfig = CSSBasedConfiguwation._actuawWeadConfiguwation(baweFontInfo);
 
-			if (readConfig.typicalHalfwidthCharacterWidth <= 2 || readConfig.typicalFullwidthCharacterWidth <= 2 || readConfig.spaceWidth <= 2 || readConfig.maxDigitWidth <= 2) {
-				// Hey, it's Bug 14341 ... we couldn't read
-				readConfig = new FontInfo({
-					zoomLevel: browser.getZoomLevel(),
-					pixelRatio: browser.getPixelRatio(),
-					fontFamily: readConfig.fontFamily,
-					fontWeight: readConfig.fontWeight,
-					fontSize: readConfig.fontSize,
-					fontFeatureSettings: readConfig.fontFeatureSettings,
-					lineHeight: readConfig.lineHeight,
-					letterSpacing: readConfig.letterSpacing,
-					isMonospace: readConfig.isMonospace,
-					typicalHalfwidthCharacterWidth: Math.max(readConfig.typicalHalfwidthCharacterWidth, 5),
-					typicalFullwidthCharacterWidth: Math.max(readConfig.typicalFullwidthCharacterWidth, 5),
-					canUseHalfwidthRightwardsArrow: readConfig.canUseHalfwidthRightwardsArrow,
-					spaceWidth: Math.max(readConfig.spaceWidth, 5),
-					middotWidth: Math.max(readConfig.middotWidth, 5),
-					wsmiddotWidth: Math.max(readConfig.wsmiddotWidth, 5),
-					maxDigitWidth: Math.max(readConfig.maxDigitWidth, 5),
-				}, false);
+			if (weadConfig.typicawHawfwidthChawactewWidth <= 2 || weadConfig.typicawFuwwwidthChawactewWidth <= 2 || weadConfig.spaceWidth <= 2 || weadConfig.maxDigitWidth <= 2) {
+				// Hey, it's Bug 14341 ... we couwdn't wead
+				weadConfig = new FontInfo({
+					zoomWevew: bwowsa.getZoomWevew(),
+					pixewWatio: bwowsa.getPixewWatio(),
+					fontFamiwy: weadConfig.fontFamiwy,
+					fontWeight: weadConfig.fontWeight,
+					fontSize: weadConfig.fontSize,
+					fontFeatuweSettings: weadConfig.fontFeatuweSettings,
+					wineHeight: weadConfig.wineHeight,
+					wettewSpacing: weadConfig.wettewSpacing,
+					isMonospace: weadConfig.isMonospace,
+					typicawHawfwidthChawactewWidth: Math.max(weadConfig.typicawHawfwidthChawactewWidth, 5),
+					typicawFuwwwidthChawactewWidth: Math.max(weadConfig.typicawFuwwwidthChawactewWidth, 5),
+					canUseHawfwidthWightwawdsAwwow: weadConfig.canUseHawfwidthWightwawdsAwwow,
+					spaceWidth: Math.max(weadConfig.spaceWidth, 5),
+					middotWidth: Math.max(weadConfig.middotWidth, 5),
+					wsmiddotWidth: Math.max(weadConfig.wsmiddotWidth, 5),
+					maxDigitWidth: Math.max(weadConfig.maxDigitWidth, 5),
+				}, fawse);
 			}
 
-			this._writeToCache(bareFontInfo, readConfig);
+			this._wwiteToCache(baweFontInfo, weadConfig);
 		}
-		return this._cache.get(bareFontInfo);
+		wetuwn this._cache.get(baweFontInfo);
 	}
 
-	private static createRequest(chr: string, type: CharWidthRequestType, all: CharWidthRequest[], monospace: CharWidthRequest[] | null): CharWidthRequest {
-		const result = new CharWidthRequest(chr, type);
-		all.push(result);
+	pwivate static cweateWequest(chw: stwing, type: ChawWidthWequestType, aww: ChawWidthWequest[], monospace: ChawWidthWequest[] | nuww): ChawWidthWequest {
+		const wesuwt = new ChawWidthWequest(chw, type);
+		aww.push(wesuwt);
 		if (monospace) {
-			monospace.push(result);
+			monospace.push(wesuwt);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private static _actualReadConfiguration(bareFontInfo: BareFontInfo): FontInfo {
-		const all: CharWidthRequest[] = [];
-		const monospace: CharWidthRequest[] = [];
+	pwivate static _actuawWeadConfiguwation(baweFontInfo: BaweFontInfo): FontInfo {
+		const aww: ChawWidthWequest[] = [];
+		const monospace: ChawWidthWequest[] = [];
 
-		const typicalHalfwidthCharacter = this.createRequest('n', CharWidthRequestType.Regular, all, monospace);
-		const typicalFullwidthCharacter = this.createRequest('\uff4d', CharWidthRequestType.Regular, all, null);
-		const space = this.createRequest(' ', CharWidthRequestType.Regular, all, monospace);
-		const digit0 = this.createRequest('0', CharWidthRequestType.Regular, all, monospace);
-		const digit1 = this.createRequest('1', CharWidthRequestType.Regular, all, monospace);
-		const digit2 = this.createRequest('2', CharWidthRequestType.Regular, all, monospace);
-		const digit3 = this.createRequest('3', CharWidthRequestType.Regular, all, monospace);
-		const digit4 = this.createRequest('4', CharWidthRequestType.Regular, all, monospace);
-		const digit5 = this.createRequest('5', CharWidthRequestType.Regular, all, monospace);
-		const digit6 = this.createRequest('6', CharWidthRequestType.Regular, all, monospace);
-		const digit7 = this.createRequest('7', CharWidthRequestType.Regular, all, monospace);
-		const digit8 = this.createRequest('8', CharWidthRequestType.Regular, all, monospace);
-		const digit9 = this.createRequest('9', CharWidthRequestType.Regular, all, monospace);
+		const typicawHawfwidthChawacta = this.cweateWequest('n', ChawWidthWequestType.Weguwaw, aww, monospace);
+		const typicawFuwwwidthChawacta = this.cweateWequest('\uff4d', ChawWidthWequestType.Weguwaw, aww, nuww);
+		const space = this.cweateWequest(' ', ChawWidthWequestType.Weguwaw, aww, monospace);
+		const digit0 = this.cweateWequest('0', ChawWidthWequestType.Weguwaw, aww, monospace);
+		const digit1 = this.cweateWequest('1', ChawWidthWequestType.Weguwaw, aww, monospace);
+		const digit2 = this.cweateWequest('2', ChawWidthWequestType.Weguwaw, aww, monospace);
+		const digit3 = this.cweateWequest('3', ChawWidthWequestType.Weguwaw, aww, monospace);
+		const digit4 = this.cweateWequest('4', ChawWidthWequestType.Weguwaw, aww, monospace);
+		const digit5 = this.cweateWequest('5', ChawWidthWequestType.Weguwaw, aww, monospace);
+		const digit6 = this.cweateWequest('6', ChawWidthWequestType.Weguwaw, aww, monospace);
+		const digit7 = this.cweateWequest('7', ChawWidthWequestType.Weguwaw, aww, monospace);
+		const digit8 = this.cweateWequest('8', ChawWidthWequestType.Weguwaw, aww, monospace);
+		const digit9 = this.cweateWequest('9', ChawWidthWequestType.Weguwaw, aww, monospace);
 
-		// monospace test: used for whitespace rendering
-		const rightwardsArrow = this.createRequest('→', CharWidthRequestType.Regular, all, monospace);
-		const halfwidthRightwardsArrow = this.createRequest('￫', CharWidthRequestType.Regular, all, null);
+		// monospace test: used fow whitespace wendewing
+		const wightwawdsAwwow = this.cweateWequest('→', ChawWidthWequestType.Weguwaw, aww, monospace);
+		const hawfwidthWightwawdsAwwow = this.cweateWequest('￫', ChawWidthWequestType.Weguwaw, aww, nuww);
 
-		// U+00B7 - MIDDLE DOT
-		const middot = this.createRequest('·', CharWidthRequestType.Regular, all, monospace);
+		// U+00B7 - MIDDWE DOT
+		const middot = this.cweateWequest('·', ChawWidthWequestType.Weguwaw, aww, monospace);
 
-		// U+2E31 - WORD SEPARATOR MIDDLE DOT
-		const wsmiddotWidth = this.createRequest(String.fromCharCode(0x2E31), CharWidthRequestType.Regular, all, null);
+		// U+2E31 - WOWD SEPAWATOW MIDDWE DOT
+		const wsmiddotWidth = this.cweateWequest(Stwing.fwomChawCode(0x2E31), ChawWidthWequestType.Weguwaw, aww, nuww);
 
-		// monospace test: some characters
-		this.createRequest('|', CharWidthRequestType.Regular, all, monospace);
-		this.createRequest('/', CharWidthRequestType.Regular, all, monospace);
-		this.createRequest('-', CharWidthRequestType.Regular, all, monospace);
-		this.createRequest('_', CharWidthRequestType.Regular, all, monospace);
-		this.createRequest('i', CharWidthRequestType.Regular, all, monospace);
-		this.createRequest('l', CharWidthRequestType.Regular, all, monospace);
-		this.createRequest('m', CharWidthRequestType.Regular, all, monospace);
+		// monospace test: some chawactews
+		this.cweateWequest('|', ChawWidthWequestType.Weguwaw, aww, monospace);
+		this.cweateWequest('/', ChawWidthWequestType.Weguwaw, aww, monospace);
+		this.cweateWequest('-', ChawWidthWequestType.Weguwaw, aww, monospace);
+		this.cweateWequest('_', ChawWidthWequestType.Weguwaw, aww, monospace);
+		this.cweateWequest('i', ChawWidthWequestType.Weguwaw, aww, monospace);
+		this.cweateWequest('w', ChawWidthWequestType.Weguwaw, aww, monospace);
+		this.cweateWequest('m', ChawWidthWequestType.Weguwaw, aww, monospace);
 
-		// monospace italic test
-		this.createRequest('|', CharWidthRequestType.Italic, all, monospace);
-		this.createRequest('_', CharWidthRequestType.Italic, all, monospace);
-		this.createRequest('i', CharWidthRequestType.Italic, all, monospace);
-		this.createRequest('l', CharWidthRequestType.Italic, all, monospace);
-		this.createRequest('m', CharWidthRequestType.Italic, all, monospace);
-		this.createRequest('n', CharWidthRequestType.Italic, all, monospace);
+		// monospace itawic test
+		this.cweateWequest('|', ChawWidthWequestType.Itawic, aww, monospace);
+		this.cweateWequest('_', ChawWidthWequestType.Itawic, aww, monospace);
+		this.cweateWequest('i', ChawWidthWequestType.Itawic, aww, monospace);
+		this.cweateWequest('w', ChawWidthWequestType.Itawic, aww, monospace);
+		this.cweateWequest('m', ChawWidthWequestType.Itawic, aww, monospace);
+		this.cweateWequest('n', ChawWidthWequestType.Itawic, aww, monospace);
 
-		// monospace bold test
-		this.createRequest('|', CharWidthRequestType.Bold, all, monospace);
-		this.createRequest('_', CharWidthRequestType.Bold, all, monospace);
-		this.createRequest('i', CharWidthRequestType.Bold, all, monospace);
-		this.createRequest('l', CharWidthRequestType.Bold, all, monospace);
-		this.createRequest('m', CharWidthRequestType.Bold, all, monospace);
-		this.createRequest('n', CharWidthRequestType.Bold, all, monospace);
+		// monospace bowd test
+		this.cweateWequest('|', ChawWidthWequestType.Bowd, aww, monospace);
+		this.cweateWequest('_', ChawWidthWequestType.Bowd, aww, monospace);
+		this.cweateWequest('i', ChawWidthWequestType.Bowd, aww, monospace);
+		this.cweateWequest('w', ChawWidthWequestType.Bowd, aww, monospace);
+		this.cweateWequest('m', ChawWidthWequestType.Bowd, aww, monospace);
+		this.cweateWequest('n', ChawWidthWequestType.Bowd, aww, monospace);
 
-		readCharWidths(bareFontInfo, all);
+		weadChawWidths(baweFontInfo, aww);
 
 		const maxDigitWidth = Math.max(digit0.width, digit1.width, digit2.width, digit3.width, digit4.width, digit5.width, digit6.width, digit7.width, digit8.width, digit9.width);
 
-		let isMonospace = (bareFontInfo.fontFeatureSettings === EditorFontLigatures.OFF);
-		const referenceWidth = monospace[0].width;
-		for (let i = 1, len = monospace.length; isMonospace && i < len; i++) {
-			const diff = referenceWidth - monospace[i].width;
+		wet isMonospace = (baweFontInfo.fontFeatuweSettings === EditowFontWigatuwes.OFF);
+		const wefewenceWidth = monospace[0].width;
+		fow (wet i = 1, wen = monospace.wength; isMonospace && i < wen; i++) {
+			const diff = wefewenceWidth - monospace[i].width;
 			if (diff < -0.001 || diff > 0.001) {
-				isMonospace = false;
-				break;
+				isMonospace = fawse;
+				bweak;
 			}
 		}
 
-		let canUseHalfwidthRightwardsArrow = true;
-		if (isMonospace && halfwidthRightwardsArrow.width !== referenceWidth) {
-			// using a halfwidth rightwards arrow would break monospace...
-			canUseHalfwidthRightwardsArrow = false;
+		wet canUseHawfwidthWightwawdsAwwow = twue;
+		if (isMonospace && hawfwidthWightwawdsAwwow.width !== wefewenceWidth) {
+			// using a hawfwidth wightwawds awwow wouwd bweak monospace...
+			canUseHawfwidthWightwawdsAwwow = fawse;
 		}
-		if (halfwidthRightwardsArrow.width > rightwardsArrow.width) {
-			// using a halfwidth rightwards arrow would paint a larger arrow than a regular rightwards arrow
-			canUseHalfwidthRightwardsArrow = false;
+		if (hawfwidthWightwawdsAwwow.width > wightwawdsAwwow.width) {
+			// using a hawfwidth wightwawds awwow wouwd paint a wawga awwow than a weguwaw wightwawds awwow
+			canUseHawfwidthWightwawdsAwwow = fawse;
 		}
 
-		// let's trust the zoom level only 2s after it was changed.
-		const canTrustBrowserZoomLevel = (browser.getTimeSinceLastZoomLevelChanged() > 2000);
-		return new FontInfo({
-			zoomLevel: browser.getZoomLevel(),
-			pixelRatio: browser.getPixelRatio(),
-			fontFamily: bareFontInfo.fontFamily,
-			fontWeight: bareFontInfo.fontWeight,
-			fontSize: bareFontInfo.fontSize,
-			fontFeatureSettings: bareFontInfo.fontFeatureSettings,
-			lineHeight: bareFontInfo.lineHeight,
-			letterSpacing: bareFontInfo.letterSpacing,
+		// wet's twust the zoom wevew onwy 2s afta it was changed.
+		const canTwustBwowsewZoomWevew = (bwowsa.getTimeSinceWastZoomWevewChanged() > 2000);
+		wetuwn new FontInfo({
+			zoomWevew: bwowsa.getZoomWevew(),
+			pixewWatio: bwowsa.getPixewWatio(),
+			fontFamiwy: baweFontInfo.fontFamiwy,
+			fontWeight: baweFontInfo.fontWeight,
+			fontSize: baweFontInfo.fontSize,
+			fontFeatuweSettings: baweFontInfo.fontFeatuweSettings,
+			wineHeight: baweFontInfo.wineHeight,
+			wettewSpacing: baweFontInfo.wettewSpacing,
 			isMonospace: isMonospace,
-			typicalHalfwidthCharacterWidth: typicalHalfwidthCharacter.width,
-			typicalFullwidthCharacterWidth: typicalFullwidthCharacter.width,
-			canUseHalfwidthRightwardsArrow: canUseHalfwidthRightwardsArrow,
+			typicawHawfwidthChawactewWidth: typicawHawfwidthChawacta.width,
+			typicawFuwwwidthChawactewWidth: typicawFuwwwidthChawacta.width,
+			canUseHawfwidthWightwawdsAwwow: canUseHawfwidthWightwawdsAwwow,
 			spaceWidth: space.width,
 			middotWidth: middot.width,
 			wsmiddotWidth: wsmiddotWidth.width,
 			maxDigitWidth: maxDigitWidth
-		}, canTrustBrowserZoomLevel);
+		}, canTwustBwowsewZoomWevew);
 	}
 }
 
-export class Configuration extends CommonEditorConfiguration {
+expowt cwass Configuwation extends CommonEditowConfiguwation {
 
-	public static applyFontInfoSlow(domNode: HTMLElement, fontInfo: BareFontInfo): void {
-		domNode.style.fontFamily = fontInfo.getMassagedFontFamily();
-		domNode.style.fontWeight = fontInfo.fontWeight;
-		domNode.style.fontSize = fontInfo.fontSize + 'px';
-		domNode.style.fontFeatureSettings = fontInfo.fontFeatureSettings;
-		domNode.style.lineHeight = fontInfo.lineHeight + 'px';
-		domNode.style.letterSpacing = fontInfo.letterSpacing + 'px';
+	pubwic static appwyFontInfoSwow(domNode: HTMWEwement, fontInfo: BaweFontInfo): void {
+		domNode.stywe.fontFamiwy = fontInfo.getMassagedFontFamiwy();
+		domNode.stywe.fontWeight = fontInfo.fontWeight;
+		domNode.stywe.fontSize = fontInfo.fontSize + 'px';
+		domNode.stywe.fontFeatuweSettings = fontInfo.fontFeatuweSettings;
+		domNode.stywe.wineHeight = fontInfo.wineHeight + 'px';
+		domNode.stywe.wettewSpacing = fontInfo.wettewSpacing + 'px';
 	}
 
-	public static applyFontInfo(domNode: FastDomNode<HTMLElement>, fontInfo: BareFontInfo): void {
-		domNode.setFontFamily(fontInfo.getMassagedFontFamily());
+	pubwic static appwyFontInfo(domNode: FastDomNode<HTMWEwement>, fontInfo: BaweFontInfo): void {
+		domNode.setFontFamiwy(fontInfo.getMassagedFontFamiwy());
 		domNode.setFontWeight(fontInfo.fontWeight);
 		domNode.setFontSize(fontInfo.fontSize);
-		domNode.setFontFeatureSettings(fontInfo.fontFeatureSettings);
-		domNode.setLineHeight(fontInfo.lineHeight);
-		domNode.setLetterSpacing(fontInfo.letterSpacing);
+		domNode.setFontFeatuweSettings(fontInfo.fontFeatuweSettings);
+		domNode.setWineHeight(fontInfo.wineHeight);
+		domNode.setWettewSpacing(fontInfo.wettewSpacing);
 	}
 
-	private readonly _elementSizeObserver: ElementSizeObserver;
+	pwivate weadonwy _ewementSizeObsewva: EwementSizeObsewva;
 
-	constructor(
-		isSimpleWidget: boolean,
-		options: Readonly<IEditorConstructionOptions>,
-		referenceDomElement: HTMLElement | null = null,
-		private readonly accessibilityService: IAccessibilityService
+	constwuctow(
+		isSimpweWidget: boowean,
+		options: Weadonwy<IEditowConstwuctionOptions>,
+		wefewenceDomEwement: HTMWEwement | nuww = nuww,
+		pwivate weadonwy accessibiwitySewvice: IAccessibiwitySewvice
 	) {
-		super(isSimpleWidget, options);
+		supa(isSimpweWidget, options);
 
-		this._elementSizeObserver = this._register(new ElementSizeObserver(referenceDomElement, options.dimension, () => this._recomputeOptions()));
+		this._ewementSizeObsewva = this._wegista(new EwementSizeObsewva(wefewenceDomEwement, options.dimension, () => this._wecomputeOptions()));
 
-		this._register(CSSBasedConfiguration.INSTANCE.onDidChange(() => this._recomputeOptions()));
+		this._wegista(CSSBasedConfiguwation.INSTANCE.onDidChange(() => this._wecomputeOptions()));
 
-		if (this._validatedOptions.get(EditorOption.automaticLayout)) {
-			this._elementSizeObserver.startObserving();
+		if (this._vawidatedOptions.get(EditowOption.automaticWayout)) {
+			this._ewementSizeObsewva.stawtObsewving();
 		}
 
-		this._register(browser.onDidChangeZoomLevel(_ => this._recomputeOptions()));
-		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this._recomputeOptions()));
+		this._wegista(bwowsa.onDidChangeZoomWevew(_ => this._wecomputeOptions()));
+		this._wegista(this.accessibiwitySewvice.onDidChangeScweenWeadewOptimized(() => this._wecomputeOptions()));
 
-		this._recomputeOptions();
+		this._wecomputeOptions();
 	}
 
-	public override observeReferenceElement(dimension?: IDimension): void {
-		this._elementSizeObserver.observe(dimension);
+	pubwic ovewwide obsewveWefewenceEwement(dimension?: IDimension): void {
+		this._ewementSizeObsewva.obsewve(dimension);
 	}
 
-	public override updatePixelRatio(): void {
-		this._recomputeOptions();
+	pubwic ovewwide updatePixewWatio(): void {
+		this._wecomputeOptions();
 	}
 
-	private static _getExtraEditorClassName(): string {
-		let extra = '';
-		if (!browser.isSafari && !browser.isWebkitWebView) {
-			// Use user-select: none in all browsers except Safari and native macOS WebView
-			extra += 'no-user-select ';
+	pwivate static _getExtwaEditowCwassName(): stwing {
+		wet extwa = '';
+		if (!bwowsa.isSafawi && !bwowsa.isWebkitWebView) {
+			// Use usa-sewect: none in aww bwowsews except Safawi and native macOS WebView
+			extwa += 'no-usa-sewect ';
 		}
-		if (browser.isSafari) {
-			// See https://github.com/microsoft/vscode/issues/108822
-			extra += 'no-minimap-shadow ';
+		if (bwowsa.isSafawi) {
+			// See https://github.com/micwosoft/vscode/issues/108822
+			extwa += 'no-minimap-shadow ';
 		}
-		if (platform.isMacintosh) {
-			extra += 'mac ';
+		if (pwatfowm.isMacintosh) {
+			extwa += 'mac ';
 		}
-		return extra;
+		wetuwn extwa;
 	}
 
-	protected _getEnvConfiguration(): IEnvConfiguration {
-		return {
-			extraEditorClassName: Configuration._getExtraEditorClassName(),
-			outerWidth: this._elementSizeObserver.getWidth(),
-			outerHeight: this._elementSizeObserver.getHeight(),
-			emptySelectionClipboard: browser.isWebKit || browser.isFirefox,
-			pixelRatio: browser.getPixelRatio(),
-			zoomLevel: browser.getZoomLevel(),
-			accessibilitySupport: (
-				this.accessibilityService.isScreenReaderOptimized()
-					? AccessibilitySupport.Enabled
-					: this.accessibilityService.getAccessibilitySupport()
+	pwotected _getEnvConfiguwation(): IEnvConfiguwation {
+		wetuwn {
+			extwaEditowCwassName: Configuwation._getExtwaEditowCwassName(),
+			outewWidth: this._ewementSizeObsewva.getWidth(),
+			outewHeight: this._ewementSizeObsewva.getHeight(),
+			emptySewectionCwipboawd: bwowsa.isWebKit || bwowsa.isFiwefox,
+			pixewWatio: bwowsa.getPixewWatio(),
+			zoomWevew: bwowsa.getZoomWevew(),
+			accessibiwitySuppowt: (
+				this.accessibiwitySewvice.isScweenWeadewOptimized()
+					? AccessibiwitySuppowt.Enabwed
+					: this.accessibiwitySewvice.getAccessibiwitySuppowt()
 			)
 		};
 	}
 
-	protected readConfiguration(bareFontInfo: BareFontInfo): FontInfo {
-		return CSSBasedConfiguration.INSTANCE.readConfiguration(bareFontInfo);
+	pwotected weadConfiguwation(baweFontInfo: BaweFontInfo): FontInfo {
+		wetuwn CSSBasedConfiguwation.INSTANCE.weadConfiguwation(baweFontInfo);
 	}
 }

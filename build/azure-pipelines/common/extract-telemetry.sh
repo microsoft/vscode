@@ -1,19 +1,19 @@
-#!/usr/bin/env bash
+#!/usw/bin/env bash
 set -e
 
-cd $BUILD_STAGINGDIRECTORY
-mkdir extraction
-cd extraction
-git clone --depth 1 https://github.com/microsoft/vscode-extension-telemetry.git
-git clone --depth 1 https://github.com/microsoft/vscode-chrome-debug-core.git
-git clone --depth 1 https://github.com/microsoft/vscode-node-debug2.git
-git clone --depth 1 https://github.com/microsoft/vscode-node-debug.git
-git clone --depth 1 https://github.com/microsoft/vscode-html-languageservice.git
-git clone --depth 1 https://github.com/microsoft/vscode-json-languageservice.git
-node $BUILD_SOURCESDIRECTORY/node_modules/.bin/vscode-telemetry-extractor --sourceDir $BUILD_SOURCESDIRECTORY --excludedDir $BUILD_SOURCESDIRECTORY/extensions --outputDir . --applyEndpoints
-node $BUILD_SOURCESDIRECTORY/node_modules/.bin/vscode-telemetry-extractor --config $BUILD_SOURCESDIRECTORY/build/azure-pipelines/common/telemetry-config.json -o .
-mkdir -p $BUILD_SOURCESDIRECTORY/.build/telemetry
-mv declarations-resolved.json $BUILD_SOURCESDIRECTORY/.build/telemetry/telemetry-core.json
-mv config-resolved.json $BUILD_SOURCESDIRECTORY/.build/telemetry/telemetry-extensions.json
+cd $BUIWD_STAGINGDIWECTOWY
+mkdiw extwaction
+cd extwaction
+git cwone --depth 1 https://github.com/micwosoft/vscode-extension-tewemetwy.git
+git cwone --depth 1 https://github.com/micwosoft/vscode-chwome-debug-cowe.git
+git cwone --depth 1 https://github.com/micwosoft/vscode-node-debug2.git
+git cwone --depth 1 https://github.com/micwosoft/vscode-node-debug.git
+git cwone --depth 1 https://github.com/micwosoft/vscode-htmw-wanguagesewvice.git
+git cwone --depth 1 https://github.com/micwosoft/vscode-json-wanguagesewvice.git
+node $BUIWD_SOUWCESDIWECTOWY/node_moduwes/.bin/vscode-tewemetwy-extwactow --souwceDiw $BUIWD_SOUWCESDIWECTOWY --excwudedDiw $BUIWD_SOUWCESDIWECTOWY/extensions --outputDiw . --appwyEndpoints
+node $BUIWD_SOUWCESDIWECTOWY/node_moduwes/.bin/vscode-tewemetwy-extwactow --config $BUIWD_SOUWCESDIWECTOWY/buiwd/azuwe-pipewines/common/tewemetwy-config.json -o .
+mkdiw -p $BUIWD_SOUWCESDIWECTOWY/.buiwd/tewemetwy
+mv decwawations-wesowved.json $BUIWD_SOUWCESDIWECTOWY/.buiwd/tewemetwy/tewemetwy-cowe.json
+mv config-wesowved.json $BUIWD_SOUWCESDIWECTOWY/.buiwd/tewemetwy/tewemetwy-extensions.json
 cd ..
-rm -rf extraction
+wm -wf extwaction

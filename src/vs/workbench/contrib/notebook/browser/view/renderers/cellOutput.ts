@@ -1,856 +1,856 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { Action, IAction } from 'vs/base/common/actions';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { MarshalledId } from 'vs/base/common/marshalling';
-import { Schemas } from 'vs/base/common/network';
-import * as nls from 'vs/nls';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSION_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { ICellOutputViewModel, ICellViewModel, IInsetRenderOutput, INotebookEditorDelegate, IRenderOutput, JUPYTER_EXTENSION_ID, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { mimetypeIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { CodeCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
-import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { BUILTIN_RENDERER_ID, CellUri, IOrderedMimeType, NotebookCellOutputsSplice, RENDERER_NOT_AVAILABLE } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { wendewMawkdown } fwom 'vs/base/bwowsa/mawkdownWendewa';
+impowt { ToowBaw } fwom 'vs/base/bwowsa/ui/toowbaw/toowbaw';
+impowt { Action, IAction } fwom 'vs/base/common/actions';
+impowt { IMawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { Disposabwe, DisposabweStowe, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { MawshawwedId } fwom 'vs/base/common/mawshawwing';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt * as nws fwom 'vs/nws';
+impowt { cweateAndFiwwInActionBawActions } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { IMenuSewvice, MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IQuickInputSewvice, IQuickPickItem } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { ViewContainewWocation } fwom 'vs/wowkbench/common/views';
+impowt { IExtensionsViewPaneContaina, VIEWWET_ID as EXTENSION_VIEWWET_ID } fwom 'vs/wowkbench/contwib/extensions/common/extensions';
+impowt { INotebookCewwActionContext } fwom 'vs/wowkbench/contwib/notebook/bwowsa/contwowwa/coweActions';
+impowt { ICewwOutputViewModew, ICewwViewModew, IInsetWendewOutput, INotebookEditowDewegate, IWendewOutput, JUPYTEW_EXTENSION_ID, WendewOutputType } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { mimetypeIcon } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookIcons';
+impowt { CodeCewwWendewTempwate } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/notebookWendewingCommon';
+impowt { getWesizesObsewva } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/wendewews/cewwWidgets';
+impowt { CodeCewwViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/codeCewwViewModew';
+impowt { NotebookTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookTextModew';
+impowt { BUIWTIN_WENDEWEW_ID, CewwUwi, IOwdewedMimeType, NotebookCewwOutputsSpwice, WENDEWEW_NOT_AVAIWABWE } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { INotebookKewnew } fwom 'vs/wowkbench/contwib/notebook/common/notebookKewnewSewvice';
+impowt { INotebookSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookSewvice';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
 
-interface IMimeTypeRenderer extends IQuickPickItem {
-	index: number;
+intewface IMimeTypeWendewa extends IQuickPickItem {
+	index: numba;
 }
 
-interface IRenderResult {
-	initRenderIsSynchronous: boolean;
+intewface IWendewWesuwt {
+	initWendewIsSynchwonous: boowean;
 }
 
-// DOM structure
+// DOM stwuctuwe
 //
 //  #output
 //  |
-//  |  #output-inner-container
-//  |                        |  #cell-output-toolbar
-//  |                        |  #output-element
-//  |                        |  #output-element
-//  |                        |  #output-element
-//  |  #output-inner-container
-//  |                        |  #cell-output-toolbar
-//  |                        |  #output-element
-//  |  #output-inner-container
-//  |                        |  #cell-output-toolbar
-//  |                        |  #output-element
-export class CellOutputElement extends Disposable {
-	private readonly _renderDisposableStore = this._register(new DisposableStore());
-	private readonly _actionsDisposable = this._register(new MutableDisposable());
+//  |  #output-inna-containa
+//  |                        |  #ceww-output-toowbaw
+//  |                        |  #output-ewement
+//  |                        |  #output-ewement
+//  |                        |  #output-ewement
+//  |  #output-inna-containa
+//  |                        |  #ceww-output-toowbaw
+//  |                        |  #output-ewement
+//  |  #output-inna-containa
+//  |                        |  #ceww-output-toowbaw
+//  |                        |  #output-ewement
+expowt cwass CewwOutputEwement extends Disposabwe {
+	pwivate weadonwy _wendewDisposabweStowe = this._wegista(new DisposabweStowe());
+	pwivate weadonwy _actionsDisposabwe = this._wegista(new MutabweDisposabwe());
 
-	innerContainer!: HTMLElement;
-	renderedOutputContainer!: HTMLElement;
-	renderResult?: IRenderOutput;
+	innewContaina!: HTMWEwement;
+	wendewedOutputContaina!: HTMWEwement;
+	wendewWesuwt?: IWendewOutput;
 
-	public useDedicatedDOM: boolean = true;
+	pubwic useDedicatedDOM: boowean = twue;
 
 	get domOffsetHeight() {
 		if (this.useDedicatedDOM) {
-			return this.innerContainer.offsetHeight;
-		} else {
-			return 0;
+			wetuwn this.innewContaina.offsetHeight;
+		} ewse {
+			wetuwn 0;
 		}
 	}
 
-	private readonly contextKeyService: IContextKeyService;
+	pwivate weadonwy contextKeySewvice: IContextKeySewvice;
 
-	constructor(
-		private notebookEditor: INotebookEditorDelegate,
-		private viewCell: CodeCellViewModel,
-		private outputContainer: HTMLElement,
-		readonly output: ICellOutputViewModel,
-		@INotebookService private readonly notebookService: INotebookService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IContextKeyService parentContextKeyService: IContextKeyService,
-		@IMenuService private readonly menuService: IMenuService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
+	constwuctow(
+		pwivate notebookEditow: INotebookEditowDewegate,
+		pwivate viewCeww: CodeCewwViewModew,
+		pwivate outputContaina: HTMWEwement,
+		weadonwy output: ICewwOutputViewModew,
+		@INotebookSewvice pwivate weadonwy notebookSewvice: INotebookSewvice,
+		@IQuickInputSewvice pwivate weadonwy quickInputSewvice: IQuickInputSewvice,
+		@IContextMenuSewvice pwivate weadonwy contextMenuSewvice: IContextMenuSewvice,
+		@IKeybindingSewvice pwivate weadonwy keybindingSewvice: IKeybindingSewvice,
+		@IContextKeySewvice pawentContextKeySewvice: IContextKeySewvice,
+		@IMenuSewvice pwivate weadonwy menuSewvice: IMenuSewvice,
+		@IPaneCompositePawtSewvice pwivate weadonwy paneCompositeSewvice: IPaneCompositePawtSewvice,
 	) {
-		super();
+		supa();
 
-		this.contextKeyService = parentContextKeyService;
+		this.contextKeySewvice = pawentContextKeySewvice;
 
-		this._register(this.output.model.onDidChangeData(() => {
+		this._wegista(this.output.modew.onDidChangeData(() => {
 			this.updateOutputData();
 		}));
 	}
 
 	detach() {
-		if (this.renderedOutputContainer) {
-			this.renderedOutputContainer.parentElement?.removeChild(this.renderedOutputContainer);
+		if (this.wendewedOutputContaina) {
+			this.wendewedOutputContaina.pawentEwement?.wemoveChiwd(this.wendewedOutputContaina);
 		}
 
-		let count = 0;
-		if (this.innerContainer) {
-			for (let i = 0; i < this.innerContainer.childNodes.length; i++) {
-				if ((this.innerContainer.childNodes[i] as HTMLElement).className === 'rendered-output') {
+		wet count = 0;
+		if (this.innewContaina) {
+			fow (wet i = 0; i < this.innewContaina.chiwdNodes.wength; i++) {
+				if ((this.innewContaina.chiwdNodes[i] as HTMWEwement).cwassName === 'wendewed-output') {
 					count++;
 				}
 
 				if (count > 1) {
-					break;
+					bweak;
 				}
 			}
 
 			if (count === 0) {
-				this.innerContainer.parentElement?.removeChild(this.innerContainer);
+				this.innewContaina.pawentEwement?.wemoveChiwd(this.innewContaina);
 			}
 		}
 
-		this.notebookEditor.removeInset(this.output);
+		this.notebookEditow.wemoveInset(this.output);
 
-		if (this.renderResult && this.renderResult.type === RenderOutputType.Mainframe) {
-			this.renderResult.disposable?.dispose();
+		if (this.wendewWesuwt && this.wendewWesuwt.type === WendewOutputType.Mainfwame) {
+			this.wendewWesuwt.disposabwe?.dispose();
 		}
 	}
 
-	updateDOMTop(top: number) {
+	updateDOMTop(top: numba) {
 		if (this.useDedicatedDOM) {
-			if (this.innerContainer) {
-				this.innerContainer.style.top = `${top}px`;
+			if (this.innewContaina) {
+				this.innewContaina.stywe.top = `${top}px`;
 			}
 		}
 	}
 
 	updateOutputData() {
-		// update the content inside the domNode, do not need to worry about streaming
-		if (!this.innerContainer) {
-			return;
+		// update the content inside the domNode, do not need to wowwy about stweaming
+		if (!this.innewContaina) {
+			wetuwn;
 		}
 
-		// user chooses another mimetype
-		const nextElement = this.innerContainer.nextElementSibling;
-		this._renderDisposableStore.clear();
-		const element = this.innerContainer;
-		if (element) {
-			element.parentElement?.removeChild(element);
-			this.notebookEditor.removeInset(this.output);
+		// usa chooses anotha mimetype
+		const nextEwement = this.innewContaina.nextEwementSibwing;
+		this._wendewDisposabweStowe.cweaw();
+		const ewement = this.innewContaina;
+		if (ewement) {
+			ewement.pawentEwement?.wemoveChiwd(ewement);
+			this.notebookEditow.wemoveInset(this.output);
 		}
 
 		// this.output.pickedMimeType = pick;
-		this.render(nextElement as HTMLElement);
-		this._relayoutCell();
+		this.wenda(nextEwement as HTMWEwement);
+		this._wewayoutCeww();
 	}
 
-	// insert after previousSibling
-	private _generateInnerOutputContainer(previousSibling: HTMLElement | undefined, pickedMimeTypeRenderer: IOrderedMimeType) {
-		if (this.output.supportAppend()) {
-			// current output support append
-			if (previousSibling) {
-				if (this._divSupportAppend(previousSibling as HTMLElement | null, pickedMimeTypeRenderer.mimeType)) {
-					this.useDedicatedDOM = false;
-					this.innerContainer = previousSibling as HTMLElement;
-				} else {
-					this.useDedicatedDOM = true;
-					this.innerContainer = DOM.$('.output-inner-container');
-					if (previousSibling.nextElementSibling) {
-						this.outputContainer.insertBefore(this.innerContainer, previousSibling.nextElementSibling);
-					} else {
-						this.outputContainer.appendChild(this.innerContainer);
+	// insewt afta pweviousSibwing
+	pwivate _genewateInnewOutputContaina(pweviousSibwing: HTMWEwement | undefined, pickedMimeTypeWendewa: IOwdewedMimeType) {
+		if (this.output.suppowtAppend()) {
+			// cuwwent output suppowt append
+			if (pweviousSibwing) {
+				if (this._divSuppowtAppend(pweviousSibwing as HTMWEwement | nuww, pickedMimeTypeWendewa.mimeType)) {
+					this.useDedicatedDOM = fawse;
+					this.innewContaina = pweviousSibwing as HTMWEwement;
+				} ewse {
+					this.useDedicatedDOM = twue;
+					this.innewContaina = DOM.$('.output-inna-containa');
+					if (pweviousSibwing.nextEwementSibwing) {
+						this.outputContaina.insewtBefowe(this.innewContaina, pweviousSibwing.nextEwementSibwing);
+					} ewse {
+						this.outputContaina.appendChiwd(this.innewContaina);
 					}
 				}
-			} else {
-				// no previousSibling, append it to the very last
-				if (this._divSupportAppend(this.outputContainer.lastChild as HTMLElement | null, pickedMimeTypeRenderer.mimeType)) {
-					// last element allows append
-					this.useDedicatedDOM = false;
-					this.innerContainer = this.outputContainer.lastChild as HTMLElement;
-				} else {
-					this.useDedicatedDOM = true;
-					this.innerContainer = DOM.$('.output-inner-container');
-					this.outputContainer.appendChild(this.innerContainer);
+			} ewse {
+				// no pweviousSibwing, append it to the vewy wast
+				if (this._divSuppowtAppend(this.outputContaina.wastChiwd as HTMWEwement | nuww, pickedMimeTypeWendewa.mimeType)) {
+					// wast ewement awwows append
+					this.useDedicatedDOM = fawse;
+					this.innewContaina = this.outputContaina.wastChiwd as HTMWEwement;
+				} ewse {
+					this.useDedicatedDOM = twue;
+					this.innewContaina = DOM.$('.output-inna-containa');
+					this.outputContaina.appendChiwd(this.innewContaina);
 				}
 			}
-		} else {
-			this.useDedicatedDOM = true;
-			this.innerContainer = DOM.$('.output-inner-container');
+		} ewse {
+			this.useDedicatedDOM = twue;
+			this.innewContaina = DOM.$('.output-inna-containa');
 
-			if (previousSibling && previousSibling.nextElementSibling) {
-				this.outputContainer.insertBefore(this.innerContainer, previousSibling.nextElementSibling);
-			} else if (this.useDedicatedDOM) {
-				this.outputContainer.appendChild(this.innerContainer);
+			if (pweviousSibwing && pweviousSibwing.nextEwementSibwing) {
+				this.outputContaina.insewtBefowe(this.innewContaina, pweviousSibwing.nextEwementSibwing);
+			} ewse if (this.useDedicatedDOM) {
+				this.outputContaina.appendChiwd(this.innewContaina);
 			}
 		}
 
-		this.innerContainer.setAttribute('output-mime-type', pickedMimeTypeRenderer.mimeType);
+		this.innewContaina.setAttwibute('output-mime-type', pickedMimeTypeWendewa.mimeType);
 	}
 
-	render(previousSibling?: HTMLElement): IRenderResult | undefined {
-		const index = this.viewCell.outputsViewModels.indexOf(this.output);
+	wenda(pweviousSibwing?: HTMWEwement): IWendewWesuwt | undefined {
+		const index = this.viewCeww.outputsViewModews.indexOf(this.output);
 
-		if (this.viewCell.metadata.outputCollapsed || !this.notebookEditor.hasModel()) {
-			return undefined;
+		if (this.viewCeww.metadata.outputCowwapsed || !this.notebookEditow.hasModew()) {
+			wetuwn undefined;
 		}
 
-		const notebookUri = CellUri.parse(this.viewCell.uri)?.notebook;
-		if (!notebookUri) {
-			return undefined;
+		const notebookUwi = CewwUwi.pawse(this.viewCeww.uwi)?.notebook;
+		if (!notebookUwi) {
+			wetuwn undefined;
 		}
 
-		const notebookTextModel = this.notebookEditor.textModel;
+		const notebookTextModew = this.notebookEditow.textModew;
 
-		const [mimeTypes, pick] = this.output.resolveMimeTypes(notebookTextModel, this.notebookEditor.activeKernel?.preloadProvides);
+		const [mimeTypes, pick] = this.output.wesowveMimeTypes(notebookTextModew, this.notebookEditow.activeKewnew?.pwewoadPwovides);
 
-		if (!mimeTypes.find(mimeType => mimeType.isTrusted) || mimeTypes.length === 0) {
-			this.viewCell.updateOutputHeight(index, 0, 'CellOutputElement#noMimeType');
-			return undefined;
+		if (!mimeTypes.find(mimeType => mimeType.isTwusted) || mimeTypes.wength === 0) {
+			this.viewCeww.updateOutputHeight(index, 0, 'CewwOutputEwement#noMimeType');
+			wetuwn undefined;
 		}
 
-		const pickedMimeTypeRenderer = mimeTypes[pick];
+		const pickedMimeTypeWendewa = mimeTypes[pick];
 
-		// generate an innerOutputContainer only when needed, for text streaming, it will reuse the previous element's container
-		this._generateInnerOutputContainer(previousSibling, pickedMimeTypeRenderer);
-		this._attachToolbar(this.innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
+		// genewate an innewOutputContaina onwy when needed, fow text stweaming, it wiww weuse the pwevious ewement's containa
+		this._genewateInnewOutputContaina(pweviousSibwing, pickedMimeTypeWendewa);
+		this._attachToowbaw(this.innewContaina, notebookTextModew, this.notebookEditow.activeKewnew, index, mimeTypes);
 
-		this.renderedOutputContainer = DOM.append(this.innerContainer, DOM.$('.rendered-output'));
+		this.wendewedOutputContaina = DOM.append(this.innewContaina, DOM.$('.wendewed-output'));
 
-		if (pickedMimeTypeRenderer.rendererId !== BUILTIN_RENDERER_ID) {
-			const renderer = this.notebookService.getRendererInfo(pickedMimeTypeRenderer.rendererId);
-			this.renderResult = renderer
-				? { type: RenderOutputType.Extension, renderer, source: this.output, mimeType: pickedMimeTypeRenderer.mimeType }
-				: this.notebookEditor.getOutputRenderer().render(this.output, this.renderedOutputContainer, pickedMimeTypeRenderer.mimeType, notebookUri);
-		} else {
-			this.renderResult = this.notebookEditor.getOutputRenderer().render(this.output, this.renderedOutputContainer, pickedMimeTypeRenderer.mimeType, notebookUri);
+		if (pickedMimeTypeWendewa.wendewewId !== BUIWTIN_WENDEWEW_ID) {
+			const wendewa = this.notebookSewvice.getWendewewInfo(pickedMimeTypeWendewa.wendewewId);
+			this.wendewWesuwt = wendewa
+				? { type: WendewOutputType.Extension, wendewa, souwce: this.output, mimeType: pickedMimeTypeWendewa.mimeType }
+				: this.notebookEditow.getOutputWendewa().wenda(this.output, this.wendewedOutputContaina, pickedMimeTypeWendewa.mimeType, notebookUwi);
+		} ewse {
+			this.wendewWesuwt = this.notebookEditow.getOutputWendewa().wenda(this.output, this.wendewedOutputContaina, pickedMimeTypeWendewa.mimeType, notebookUwi);
 		}
 
-		this.output.pickedMimeType = pickedMimeTypeRenderer;
+		this.output.pickedMimeType = pickedMimeTypeWendewa;
 
-		if (!this.renderResult) {
-			this.viewCell.updateOutputHeight(index, 0, 'CellOutputElement#renderResultUndefined');
-			return undefined;
+		if (!this.wendewWesuwt) {
+			this.viewCeww.updateOutputHeight(index, 0, 'CewwOutputEwement#wendewWesuwtUndefined');
+			wetuwn undefined;
 		}
 
-		if (this.renderResult.type !== RenderOutputType.Mainframe) {
-			this.notebookEditor.createOutput(this.viewCell, this.renderResult, this.viewCell.getOutputOffset(index));
-			this.innerContainer.classList.add('background');
-		} else {
-			this.innerContainer.classList.add('foreground', 'output-element');
-			this.innerContainer.style.position = 'absolute';
+		if (this.wendewWesuwt.type !== WendewOutputType.Mainfwame) {
+			this.notebookEditow.cweateOutput(this.viewCeww, this.wendewWesuwt, this.viewCeww.getOutputOffset(index));
+			this.innewContaina.cwassWist.add('backgwound');
+		} ewse {
+			this.innewContaina.cwassWist.add('fowegwound', 'output-ewement');
+			this.innewContaina.stywe.position = 'absowute';
 		}
 
-		if (this.renderResult.type === RenderOutputType.Html || this.renderResult.type === RenderOutputType.Extension) {
-			// the output is rendered in the webview, which has resize listener internally
+		if (this.wendewWesuwt.type === WendewOutputType.Htmw || this.wendewWesuwt.type === WendewOutputType.Extension) {
+			// the output is wendewed in the webview, which has wesize wistena intewnawwy
 			// no-op
-			return { initRenderIsSynchronous: false };
+			wetuwn { initWendewIsSynchwonous: fawse };
 		}
 
 		if (!this.useDedicatedDOM) {
-			// we only support text streaming, which is sync.
-			return { initRenderIsSynchronous: true };
+			// we onwy suppowt text stweaming, which is sync.
+			wetuwn { initWendewIsSynchwonous: twue };
 		}
 
-		// let's use resize listener for them
-		const offsetHeight = this.renderResult?.initHeight !== undefined ? this.renderResult?.initHeight : Math.ceil(this.innerContainer.offsetHeight);
+		// wet's use wesize wistena fow them
+		const offsetHeight = this.wendewWesuwt?.initHeight !== undefined ? this.wendewWesuwt?.initHeight : Math.ceiw(this.innewContaina.offsetHeight);
 		const dimension = {
-			width: this.viewCell.layoutInfo.editorWidth,
+			width: this.viewCeww.wayoutInfo.editowWidth,
 			height: offsetHeight
 		};
-		this._bindResizeListener(dimension);
-		this.viewCell.updateOutputHeight(index, offsetHeight, 'CellOutputElement#renderResultInitHeight');
-		const top = this.viewCell.getOutputOffsetInContainer(index);
-		this.innerContainer.style.top = `${top}px`;
-		return { initRenderIsSynchronous: true };
+		this._bindWesizeWistena(dimension);
+		this.viewCeww.updateOutputHeight(index, offsetHeight, 'CewwOutputEwement#wendewWesuwtInitHeight');
+		const top = this.viewCeww.getOutputOffsetInContaina(index);
+		this.innewContaina.stywe.top = `${top}px`;
+		wetuwn { initWendewIsSynchwonous: twue };
 	}
 
-	private _bindResizeListener(dimension: DOM.IDimension) {
-		const elementSizeObserver = getResizesObserver(this.innerContainer, dimension, () => {
-			if (this.outputContainer && document.body.contains(this.outputContainer)) {
-				const height = this.innerContainer.offsetHeight;
+	pwivate _bindWesizeWistena(dimension: DOM.IDimension) {
+		const ewementSizeObsewva = getWesizesObsewva(this.innewContaina, dimension, () => {
+			if (this.outputContaina && document.body.contains(this.outputContaina)) {
+				const height = this.innewContaina.offsetHeight;
 
 				if (dimension.height === height) {
-					return;
+					wetuwn;
 				}
 
-				const currIndex = this.viewCell.outputsViewModels.indexOf(this.output);
-				if (currIndex < 0) {
-					return;
+				const cuwwIndex = this.viewCeww.outputsViewModews.indexOf(this.output);
+				if (cuwwIndex < 0) {
+					wetuwn;
 				}
 
 				dimension = {
-					width: this.viewCell.layoutInfo.editorWidth,
+					width: this.viewCeww.wayoutInfo.editowWidth,
 					height: height
 				};
 
-				this._validateFinalOutputHeight(true);
-				this.viewCell.updateOutputHeight(currIndex, height, 'CellOutputElement#outputResize');
-				this._relayoutCell();
+				this._vawidateFinawOutputHeight(twue);
+				this.viewCeww.updateOutputHeight(cuwwIndex, height, 'CewwOutputEwement#outputWesize');
+				this._wewayoutCeww();
 			}
 		});
 
-		elementSizeObserver.startObserving();
-		this._renderDisposableStore.add(elementSizeObserver);
+		ewementSizeObsewva.stawtObsewving();
+		this._wendewDisposabweStowe.add(ewementSizeObsewva);
 	}
 
-	private _divSupportAppend(element: HTMLElement | null, mimeType: string) {
-		if (element) {
-			return element.getAttribute('output-mime-type') === mimeType;
+	pwivate _divSuppowtAppend(ewement: HTMWEwement | nuww, mimeType: stwing) {
+		if (ewement) {
+			wetuwn ewement.getAttwibute('output-mime-type') === mimeType;
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	private async _attachToolbar(outputItemDiv: HTMLElement, notebookTextModel: NotebookTextModel, kernel: INotebookKernel | undefined, index: number, mimeTypes: readonly IOrderedMimeType[]) {
-		const hasMultipleMimeTypes = mimeTypes.filter(mimeType => mimeType.isTrusted).length <= 1;
-		if (index > 0 && hasMultipleMimeTypes) {
-			return;
+	pwivate async _attachToowbaw(outputItemDiv: HTMWEwement, notebookTextModew: NotebookTextModew, kewnew: INotebookKewnew | undefined, index: numba, mimeTypes: weadonwy IOwdewedMimeType[]) {
+		const hasMuwtipweMimeTypes = mimeTypes.fiwta(mimeType => mimeType.isTwusted).wength <= 1;
+		if (index > 0 && hasMuwtipweMimeTypes) {
+			wetuwn;
 		}
 
-		if (!this.notebookEditor.hasModel()) {
-			return;
+		if (!this.notebookEditow.hasModew()) {
+			wetuwn;
 		}
 
-		const useConsolidatedButton = this.notebookEditor.notebookOptions.getLayoutConfiguration().consolidatedOutputButton;
+		const useConsowidatedButton = this.notebookEditow.notebookOptions.getWayoutConfiguwation().consowidatedOutputButton;
 
-		outputItemDiv.style.position = 'relative';
-		const mimeTypePicker = DOM.$('.cell-output-toolbar');
+		outputItemDiv.stywe.position = 'wewative';
+		const mimeTypePicka = DOM.$('.ceww-output-toowbaw');
 
-		outputItemDiv.appendChild(mimeTypePicker);
+		outputItemDiv.appendChiwd(mimeTypePicka);
 
-		const toolbar = this._renderDisposableStore.add(new ToolBar(mimeTypePicker, this.contextMenuService, {
-			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
-			renderDropdownAsChildElement: false
+		const toowbaw = this._wendewDisposabweStowe.add(new ToowBaw(mimeTypePicka, this.contextMenuSewvice, {
+			getKeyBinding: action => this.keybindingSewvice.wookupKeybinding(action.id),
+			wendewDwopdownAsChiwdEwement: fawse
 		}));
-		toolbar.context = <INotebookCellActionContext>{
-			ui: true,
-			cell: this.output.cellViewModel as ICellViewModel,
-			notebookEditor: this.notebookEditor,
-			$mid: MarshalledId.NotebookCellActionContext
+		toowbaw.context = <INotebookCewwActionContext>{
+			ui: twue,
+			ceww: this.output.cewwViewModew as ICewwViewModew,
+			notebookEditow: this.notebookEditow,
+			$mid: MawshawwedId.NotebookCewwActionContext
 		};
 
-		// TODO: This could probably be a real registered action, but it has to talk to this output element
-		const pickAction = new Action('notebook.output.pickMimetype', nls.localize('pickMimeType', "Choose Output Mimetype"), ThemeIcon.asClassName(mimetypeIcon), undefined,
-			async _context => this._pickActiveMimeTypeRenderer(notebookTextModel, kernel, this.output));
-		if (index === 0 && useConsolidatedButton) {
-			const menu = this._renderDisposableStore.add(this.menuService.createMenu(MenuId.NotebookOutputToolbar, this.contextKeyService));
-			const updateMenuToolbar = () => {
-				const primary: IAction[] = [];
-				const secondary: IAction[] = [];
-				const result = { primary, secondary };
+		// TODO: This couwd pwobabwy be a weaw wegistewed action, but it has to tawk to this output ewement
+		const pickAction = new Action('notebook.output.pickMimetype', nws.wocawize('pickMimeType', "Choose Output Mimetype"), ThemeIcon.asCwassName(mimetypeIcon), undefined,
+			async _context => this._pickActiveMimeTypeWendewa(notebookTextModew, kewnew, this.output));
+		if (index === 0 && useConsowidatedButton) {
+			const menu = this._wendewDisposabweStowe.add(this.menuSewvice.cweateMenu(MenuId.NotebookOutputToowbaw, this.contextKeySewvice));
+			const updateMenuToowbaw = () => {
+				const pwimawy: IAction[] = [];
+				const secondawy: IAction[] = [];
+				const wesuwt = { pwimawy, secondawy };
 
-				this._actionsDisposable.value = createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result, () => false);
-				toolbar.setActions([], [pickAction, ...secondary]);
+				this._actionsDisposabwe.vawue = cweateAndFiwwInActionBawActions(menu, { shouwdFowwawdAwgs: twue }, wesuwt, () => fawse);
+				toowbaw.setActions([], [pickAction, ...secondawy]);
 			};
-			updateMenuToolbar();
-			this._renderDisposableStore.add(menu.onDidChange(updateMenuToolbar));
-		} else {
-			toolbar.setActions([pickAction]);
+			updateMenuToowbaw();
+			this._wendewDisposabweStowe.add(menu.onDidChange(updateMenuToowbaw));
+		} ewse {
+			toowbaw.setActions([pickAction]);
 		}
 	}
 
-	private async _pickActiveMimeTypeRenderer(notebookTextModel: NotebookTextModel, kernel: INotebookKernel | undefined, viewModel: ICellOutputViewModel) {
-		const [mimeTypes, currIndex] = viewModel.resolveMimeTypes(notebookTextModel, kernel?.preloadProvides);
+	pwivate async _pickActiveMimeTypeWendewa(notebookTextModew: NotebookTextModew, kewnew: INotebookKewnew | undefined, viewModew: ICewwOutputViewModew) {
+		const [mimeTypes, cuwwIndex] = viewModew.wesowveMimeTypes(notebookTextModew, kewnew?.pwewoadPwovides);
 
-		const items: IMimeTypeRenderer[] = [];
-		const unsupportedItems: IMimeTypeRenderer[] = [];
-		mimeTypes.forEach((mimeType, index) => {
-			if (mimeType.isTrusted) {
-				const arr = mimeType.rendererId === RENDERER_NOT_AVAILABLE ?
-					unsupportedItems :
+		const items: IMimeTypeWendewa[] = [];
+		const unsuppowtedItems: IMimeTypeWendewa[] = [];
+		mimeTypes.fowEach((mimeType, index) => {
+			if (mimeType.isTwusted) {
+				const aww = mimeType.wendewewId === WENDEWEW_NOT_AVAIWABWE ?
+					unsuppowtedItems :
 					items;
-				arr.push({
-					label: mimeType.mimeType,
+				aww.push({
+					wabew: mimeType.mimeType,
 					id: mimeType.mimeType,
 					index: index,
-					picked: index === currIndex,
-					detail: this._generateRendererInfo(mimeType.rendererId),
-					description: index === currIndex ? nls.localize('curruentActiveMimeType', "Currently Active") : undefined
+					picked: index === cuwwIndex,
+					detaiw: this._genewateWendewewInfo(mimeType.wendewewId),
+					descwiption: index === cuwwIndex ? nws.wocawize('cuwwuentActiveMimeType', "Cuwwentwy Active") : undefined
 				});
 			}
 		});
 
-		if (unsupportedItems.some(m => JUPYTER_RENDERER_MIMETYPES.includes(m.id!))) {
-			unsupportedItems.push({
-				label: nls.localize('installJupyterPrompt', "Install additional renderers from the marketplace"),
-				id: 'installRenderers',
-				index: mimeTypes.length
+		if (unsuppowtedItems.some(m => JUPYTEW_WENDEWEW_MIMETYPES.incwudes(m.id!))) {
+			unsuppowtedItems.push({
+				wabew: nws.wocawize('instawwJupytewPwompt', "Instaww additionaw wendewews fwom the mawketpwace"),
+				id: 'instawwWendewews',
+				index: mimeTypes.wength
 			});
 		}
 
-		const picker = this.quickInputService.createQuickPick();
-		picker.items = [
+		const picka = this.quickInputSewvice.cweateQuickPick();
+		picka.items = [
 			...items,
-			{ type: 'separator' },
-			...unsupportedItems
+			{ type: 'sepawatow' },
+			...unsuppowtedItems
 		];
-		picker.activeItems = items.filter(item => !!item.picked);
-		picker.placeholder = items.length !== mimeTypes.length
-			? nls.localize('promptChooseMimeTypeInSecure.placeHolder', "Select mimetype to render for current output")
-			: nls.localize('promptChooseMimeType.placeHolder', "Select mimetype to render for current output");
+		picka.activeItems = items.fiwta(item => !!item.picked);
+		picka.pwacehowda = items.wength !== mimeTypes.wength
+			? nws.wocawize('pwomptChooseMimeTypeInSecuwe.pwaceHowda', "Sewect mimetype to wenda fow cuwwent output")
+			: nws.wocawize('pwomptChooseMimeType.pwaceHowda', "Sewect mimetype to wenda fow cuwwent output");
 
-		const pick = await new Promise<IMimeTypeRenderer | undefined>(resolve => {
-			picker.onDidAccept(() => {
-				resolve(picker.selectedItems.length === 1 ? (picker.selectedItems[0] as IMimeTypeRenderer) : undefined);
-				picker.dispose();
+		const pick = await new Pwomise<IMimeTypeWendewa | undefined>(wesowve => {
+			picka.onDidAccept(() => {
+				wesowve(picka.sewectedItems.wength === 1 ? (picka.sewectedItems[0] as IMimeTypeWendewa) : undefined);
+				picka.dispose();
 			});
-			picker.show();
+			picka.show();
 		});
 
-		if (pick === undefined || pick.index === currIndex) {
-			return;
+		if (pick === undefined || pick.index === cuwwIndex) {
+			wetuwn;
 		}
 
-		if (pick.id === 'installRenderers') {
-			this._showJupyterExtension();
-			return;
+		if (pick.id === 'instawwWendewews') {
+			this._showJupytewExtension();
+			wetuwn;
 		}
 
-		// user chooses another mimetype
-		const nextElement = this.innerContainer.nextElementSibling;
-		this._renderDisposableStore.clear();
-		const element = this.innerContainer;
-		if (element) {
-			element.parentElement?.removeChild(element);
-			this.notebookEditor.removeInset(viewModel);
+		// usa chooses anotha mimetype
+		const nextEwement = this.innewContaina.nextEwementSibwing;
+		this._wendewDisposabweStowe.cweaw();
+		const ewement = this.innewContaina;
+		if (ewement) {
+			ewement.pawentEwement?.wemoveChiwd(ewement);
+			this.notebookEditow.wemoveInset(viewModew);
 		}
 
-		viewModel.pickedMimeType = mimeTypes[pick.index];
-		this.viewCell.updateOutputMinHeight(this.viewCell.layoutInfo.outputTotalHeight);
+		viewModew.pickedMimeType = mimeTypes[pick.index];
+		this.viewCeww.updateOutputMinHeight(this.viewCeww.wayoutInfo.outputTotawHeight);
 
-		const { mimeType, rendererId } = mimeTypes[pick.index];
-		this.notebookService.updateMimePreferredRenderer(mimeType, rendererId);
-		this.render(nextElement as HTMLElement);
-		this._validateFinalOutputHeight(false);
-		this._relayoutCell();
+		const { mimeType, wendewewId } = mimeTypes[pick.index];
+		this.notebookSewvice.updateMimePwefewwedWendewa(mimeType, wendewewId);
+		this.wenda(nextEwement as HTMWEwement);
+		this._vawidateFinawOutputHeight(fawse);
+		this._wewayoutCeww();
 	}
 
-	private async _showJupyterExtension() {
-		const viewlet = await this.paneCompositeService.openPaneComposite(EXTENSION_VIEWLET_ID, ViewContainerLocation.Sidebar, true);
-		const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
-		view?.search(`@id:${JUPYTER_EXTENSION_ID}`);
+	pwivate async _showJupytewExtension() {
+		const viewwet = await this.paneCompositeSewvice.openPaneComposite(EXTENSION_VIEWWET_ID, ViewContainewWocation.Sidebaw, twue);
+		const view = viewwet?.getViewPaneContaina() as IExtensionsViewPaneContaina | undefined;
+		view?.seawch(`@id:${JUPYTEW_EXTENSION_ID}`);
 	}
 
-	private _generateRendererInfo(renderId: string | undefined): string {
-		if (renderId === undefined || renderId === BUILTIN_RENDERER_ID) {
-			return nls.localize('builtinRenderInfo', "built-in");
+	pwivate _genewateWendewewInfo(wendewId: stwing | undefined): stwing {
+		if (wendewId === undefined || wendewId === BUIWTIN_WENDEWEW_ID) {
+			wetuwn nws.wocawize('buiwtinWendewInfo', "buiwt-in");
 		}
 
-		const renderInfo = this.notebookService.getRendererInfo(renderId);
+		const wendewInfo = this.notebookSewvice.getWendewewInfo(wendewId);
 
-		if (renderInfo) {
-			const displayName = renderInfo.displayName !== '' ? renderInfo.displayName : renderInfo.id;
-			return `${displayName} (${renderInfo.extensionId.value})`;
+		if (wendewInfo) {
+			const dispwayName = wendewInfo.dispwayName !== '' ? wendewInfo.dispwayName : wendewInfo.id;
+			wetuwn `${dispwayName} (${wendewInfo.extensionId.vawue})`;
 		}
 
-		return nls.localize('unavailableRenderInfo', "renderer not available");
+		wetuwn nws.wocawize('unavaiwabweWendewInfo', "wendewa not avaiwabwe");
 	}
 
-	private _outputHeightTimer: any = null;
+	pwivate _outputHeightTima: any = nuww;
 
-	private _validateFinalOutputHeight(synchronous: boolean) {
-		if (this._outputHeightTimer !== null) {
-			clearTimeout(this._outputHeightTimer);
+	pwivate _vawidateFinawOutputHeight(synchwonous: boowean) {
+		if (this._outputHeightTima !== nuww) {
+			cweawTimeout(this._outputHeightTima);
 		}
 
-		if (synchronous) {
-			this.viewCell.updateOutputMinHeight(0);
-			this.viewCell.layoutChange({ outputHeight: true }, 'CellOutputElement#_validateFinalOutputHeight_sync');
-		} else {
-			this._outputHeightTimer = setTimeout(() => {
-				this.viewCell.updateOutputMinHeight(0);
-				this.viewCell.layoutChange({ outputHeight: true }, 'CellOutputElement#_validateFinalOutputHeight_async_1000');
+		if (synchwonous) {
+			this.viewCeww.updateOutputMinHeight(0);
+			this.viewCeww.wayoutChange({ outputHeight: twue }, 'CewwOutputEwement#_vawidateFinawOutputHeight_sync');
+		} ewse {
+			this._outputHeightTima = setTimeout(() => {
+				this.viewCeww.updateOutputMinHeight(0);
+				this.viewCeww.wayoutChange({ outputHeight: twue }, 'CewwOutputEwement#_vawidateFinawOutputHeight_async_1000');
 			}, 1000);
 		}
 	}
 
-	private _relayoutCell() {
-		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
+	pwivate _wewayoutCeww() {
+		this.notebookEditow.wayoutNotebookCeww(this.viewCeww, this.viewCeww.wayoutInfo.totawHeight);
 	}
 
-	override dispose() {
-		this.viewCell.updateOutputMinHeight(0);
+	ovewwide dispose() {
+		this.viewCeww.updateOutputMinHeight(0);
 
-		if (this._outputHeightTimer) {
-			clearTimeout(this._outputHeightTimer);
+		if (this._outputHeightTima) {
+			cweawTimeout(this._outputHeightTima);
 		}
 
-		if (this.renderResult && this.renderResult.type === RenderOutputType.Mainframe) {
-			this.renderResult.disposable?.dispose();
+		if (this.wendewWesuwt && this.wendewWesuwt.type === WendewOutputType.Mainfwame) {
+			this.wendewWesuwt.disposabwe?.dispose();
 		}
 
-		super.dispose();
+		supa.dispose();
 	}
 }
 
-class OutputEntryViewHandler {
-	constructor(
-		readonly model: ICellOutputViewModel,
-		readonly element: CellOutputElement
+cwass OutputEntwyViewHandwa {
+	constwuctow(
+		weadonwy modew: ICewwOutputViewModew,
+		weadonwy ewement: CewwOutputEwement
 	) {
 
 	}
 }
 
-export class CellOutputContainer extends Disposable {
-	private _outputEntries: OutputEntryViewHandler[] = [];
+expowt cwass CewwOutputContaina extends Disposabwe {
+	pwivate _outputEntwies: OutputEntwyViewHandwa[] = [];
 
-	get renderedOutputEntries() {
-		return this._outputEntries;
+	get wendewedOutputEntwies() {
+		wetuwn this._outputEntwies;
 	}
 
-	constructor(
-		private notebookEditor: INotebookEditorDelegate,
-		private viewCell: CodeCellViewModel,
-		private readonly templateData: CodeCellRenderTemplate,
-		private options: { limit: number; },
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	constwuctow(
+		pwivate notebookEditow: INotebookEditowDewegate,
+		pwivate viewCeww: CodeCewwViewModew,
+		pwivate weadonwy tempwateData: CodeCewwWendewTempwate,
+		pwivate options: { wimit: numba; },
+		@IOpenewSewvice pwivate weadonwy openewSewvice: IOpenewSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
 	) {
-		super();
+		supa();
 
-		this._register(viewCell.onDidChangeOutputs(splice => {
-			this._updateOutputs(splice);
+		this._wegista(viewCeww.onDidChangeOutputs(spwice => {
+			this._updateOutputs(spwice);
 		}));
 
-		this._register(viewCell.onDidChangeLayout(() => {
-			this._outputEntries.forEach(entry => {
-				const index = viewCell.outputsViewModels.indexOf(entry.model);
+		this._wegista(viewCeww.onDidChangeWayout(() => {
+			this._outputEntwies.fowEach(entwy => {
+				const index = viewCeww.outputsViewModews.indexOf(entwy.modew);
 				if (index >= 0) {
-					const top = this.viewCell.getOutputOffsetInContainer(index);
-					entry.element.updateDOMTop(top);
+					const top = this.viewCeww.getOutputOffsetInContaina(index);
+					entwy.ewement.updateDOMTop(top);
 				}
 			});
 		}));
 	}
 
-	render(editorHeight: number) {
-		if (this.viewCell.outputsViewModels.length > 0) {
-			if (this.viewCell.layoutInfo.totalHeight !== 0 && this.viewCell.layoutInfo.editorHeight > editorHeight) {
-				this.viewCell.updateOutputMinHeight(this.viewCell.layoutInfo.outputTotalHeight);
-				this._relayoutCell();
+	wenda(editowHeight: numba) {
+		if (this.viewCeww.outputsViewModews.wength > 0) {
+			if (this.viewCeww.wayoutInfo.totawHeight !== 0 && this.viewCeww.wayoutInfo.editowHeight > editowHeight) {
+				this.viewCeww.updateOutputMinHeight(this.viewCeww.wayoutInfo.outputTotawHeight);
+				this._wewayoutCeww();
 			}
 
-			DOM.show(this.templateData.outputContainer);
-			for (let index = 0; index < Math.min(this.options.limit, this.viewCell.outputsViewModels.length); index++) {
-				const currOutput = this.viewCell.outputsViewModels[index];
-				const entry = this.instantiationService.createInstance(CellOutputElement, this.notebookEditor, this.viewCell, this.templateData.outputContainer, currOutput);
-				this._outputEntries.push(new OutputEntryViewHandler(currOutput, entry));
-				entry.render();
+			DOM.show(this.tempwateData.outputContaina);
+			fow (wet index = 0; index < Math.min(this.options.wimit, this.viewCeww.outputsViewModews.wength); index++) {
+				const cuwwOutput = this.viewCeww.outputsViewModews[index];
+				const entwy = this.instantiationSewvice.cweateInstance(CewwOutputEwement, this.notebookEditow, this.viewCeww, this.tempwateData.outputContaina, cuwwOutput);
+				this._outputEntwies.push(new OutputEntwyViewHandwa(cuwwOutput, entwy));
+				entwy.wenda();
 			}
 
-			this.viewCell.editorHeight = editorHeight;
-			if (this.viewCell.outputsViewModels.length > this.options.limit) {
-				DOM.show(this.templateData.outputShowMoreContainer);
-				this.viewCell.updateOutputShowMoreContainerHeight(46);
+			this.viewCeww.editowHeight = editowHeight;
+			if (this.viewCeww.outputsViewModews.wength > this.options.wimit) {
+				DOM.show(this.tempwateData.outputShowMoweContaina);
+				this.viewCeww.updateOutputShowMoweContainewHeight(46);
 			}
 
-			this._relayoutCell();
-			this._validateFinalOutputHeight(false);
-		} else {
+			this._wewayoutCeww();
+			this._vawidateFinawOutputHeight(fawse);
+		} ewse {
 			// noop
-			this.viewCell.editorHeight = editorHeight;
-			this._relayoutCell();
-			DOM.hide(this.templateData.outputContainer);
+			this.viewCeww.editowHeight = editowHeight;
+			this._wewayoutCeww();
+			DOM.hide(this.tempwateData.outputContaina);
 		}
 
-		this.templateData.outputShowMoreContainer.innerText = '';
-		if (this.viewCell.outputsViewModels.length > this.options.limit) {
-			this.templateData.outputShowMoreContainer.appendChild(this._generateShowMoreElement(this.templateData.disposables));
-		} else {
-			DOM.hide(this.templateData.outputShowMoreContainer);
-			this.viewCell.updateOutputShowMoreContainerHeight(0);
+		this.tempwateData.outputShowMoweContaina.innewText = '';
+		if (this.viewCeww.outputsViewModews.wength > this.options.wimit) {
+			this.tempwateData.outputShowMoweContaina.appendChiwd(this._genewateShowMoweEwement(this.tempwateData.disposabwes));
+		} ewse {
+			DOM.hide(this.tempwateData.outputShowMoweContaina);
+			this.viewCeww.updateOutputShowMoweContainewHeight(0);
 		}
 	}
 
 	viewUpdateShowOutputs(): void {
-		for (let index = 0; index < this._outputEntries.length; index++) {
-			const viewHandler = this._outputEntries[index];
-			const outputEntry = viewHandler.element;
-			if (outputEntry.renderResult) {
-				if (outputEntry.renderResult.type !== RenderOutputType.Mainframe) {
-					this.notebookEditor.createOutput(this.viewCell, outputEntry.renderResult as IInsetRenderOutput, this.viewCell.getOutputOffset(index));
-				} else {
-					this.viewCell.updateOutputHeight(index, outputEntry.domOffsetHeight, 'CellOutputContainer#viewUpdateShowOutputs');
+		fow (wet index = 0; index < this._outputEntwies.wength; index++) {
+			const viewHandwa = this._outputEntwies[index];
+			const outputEntwy = viewHandwa.ewement;
+			if (outputEntwy.wendewWesuwt) {
+				if (outputEntwy.wendewWesuwt.type !== WendewOutputType.Mainfwame) {
+					this.notebookEditow.cweateOutput(this.viewCeww, outputEntwy.wendewWesuwt as IInsetWendewOutput, this.viewCeww.getOutputOffset(index));
+				} ewse {
+					this.viewCeww.updateOutputHeight(index, outputEntwy.domOffsetHeight, 'CewwOutputContaina#viewUpdateShowOutputs');
 				}
-			} else {
-				outputEntry.render();
+			} ewse {
+				outputEntwy.wenda();
 			}
 		}
 
-		this._relayoutCell();
+		this._wewayoutCeww();
 	}
 
 	viewUpdateHideOuputs(): void {
-		for (let index = 0; index < this._outputEntries.length; index++) {
-			this.notebookEditor.hideInset(this._outputEntries[index].model);
+		fow (wet index = 0; index < this._outputEntwies.wength; index++) {
+			this.notebookEditow.hideInset(this._outputEntwies[index].modew);
 		}
 	}
 
-	private _outputHeightTimer: any = null;
+	pwivate _outputHeightTima: any = nuww;
 
-	private _validateFinalOutputHeight(synchronous: boolean) {
-		if (this._outputHeightTimer !== null) {
-			clearTimeout(this._outputHeightTimer);
+	pwivate _vawidateFinawOutputHeight(synchwonous: boowean) {
+		if (this._outputHeightTima !== nuww) {
+			cweawTimeout(this._outputHeightTima);
 		}
 
-		if (synchronous) {
-			this.viewCell.updateOutputMinHeight(0);
-			this.viewCell.layoutChange({ outputHeight: true }, 'CellOutputContainer#_validateFinalOutputHeight_sync');
-		} else {
-			this._outputHeightTimer = setTimeout(() => {
-				this.viewCell.updateOutputMinHeight(0);
-				this.viewCell.layoutChange({ outputHeight: true }, 'CellOutputContainer#_validateFinalOutputHeight_async_1000');
+		if (synchwonous) {
+			this.viewCeww.updateOutputMinHeight(0);
+			this.viewCeww.wayoutChange({ outputHeight: twue }, 'CewwOutputContaina#_vawidateFinawOutputHeight_sync');
+		} ewse {
+			this._outputHeightTima = setTimeout(() => {
+				this.viewCeww.updateOutputMinHeight(0);
+				this.viewCeww.wayoutChange({ outputHeight: twue }, 'CewwOutputContaina#_vawidateFinawOutputHeight_async_1000');
 			}, 1000);
 		}
 	}
 
-	private _updateOutputs(splice: NotebookCellOutputsSplice) {
-		const previousOutputHeight = this.viewCell.layoutInfo.outputTotalHeight;
+	pwivate _updateOutputs(spwice: NotebookCewwOutputsSpwice) {
+		const pweviousOutputHeight = this.viewCeww.wayoutInfo.outputTotawHeight;
 
-		// for cell output update, we make sure the cell does not shrink before the new outputs are rendered.
-		this.viewCell.updateOutputMinHeight(previousOutputHeight);
+		// fow ceww output update, we make suwe the ceww does not shwink befowe the new outputs awe wendewed.
+		this.viewCeww.updateOutputMinHeight(pweviousOutputHeight);
 
-		if (this.viewCell.outputsViewModels.length) {
-			DOM.show(this.templateData.outputContainer);
-		} else {
-			DOM.hide(this.templateData.outputContainer);
+		if (this.viewCeww.outputsViewModews.wength) {
+			DOM.show(this.tempwateData.outputContaina);
+		} ewse {
+			DOM.hide(this.tempwateData.outputContaina);
 		}
 
-		this.viewCell.spliceOutputHeights(splice.start, splice.deleteCount, splice.newOutputs.map(_ => 0));
-		this._renderNow(splice);
+		this.viewCeww.spwiceOutputHeights(spwice.stawt, spwice.deweteCount, spwice.newOutputs.map(_ => 0));
+		this._wendewNow(spwice);
 	}
 
-	private _renderNow(splice: NotebookCellOutputsSplice) {
-		if (splice.start >= this.options.limit) {
-			// splice items out of limit
-			return;
+	pwivate _wendewNow(spwice: NotebookCewwOutputsSpwice) {
+		if (spwice.stawt >= this.options.wimit) {
+			// spwice items out of wimit
+			wetuwn;
 		}
 
-		const firstGroupEntries = this._outputEntries.slice(0, splice.start);
-		const deletedEntries = this._outputEntries.slice(splice.start, splice.start + splice.deleteCount);
-		const secondGroupEntries = this._outputEntries.slice(splice.start + splice.deleteCount);
-		let newlyInserted = this.viewCell.outputsViewModels.slice(splice.start, splice.start + splice.newOutputs.length);
+		const fiwstGwoupEntwies = this._outputEntwies.swice(0, spwice.stawt);
+		const dewetedEntwies = this._outputEntwies.swice(spwice.stawt, spwice.stawt + spwice.deweteCount);
+		const secondGwoupEntwies = this._outputEntwies.swice(spwice.stawt + spwice.deweteCount);
+		wet newwyInsewted = this.viewCeww.outputsViewModews.swice(spwice.stawt, spwice.stawt + spwice.newOutputs.wength);
 
-		let outputHasDynamicHeight = false;
+		wet outputHasDynamicHeight = fawse;
 
-		// [...firstGroup, ...deletedEntries, ...secondGroupEntries]  [...restInModel]
-		// [...firstGroup, ...newlyInserted, ...secondGroupEntries, restInModel]
-		if (firstGroupEntries.length + newlyInserted.length + secondGroupEntries.length > this.options.limit) {
-			// exceeds limit again
-			if (firstGroupEntries.length + newlyInserted.length > this.options.limit) {
-				[...deletedEntries, ...secondGroupEntries].forEach(entry => {
-					entry.element.detach();
-					entry.element.dispose();
+		// [...fiwstGwoup, ...dewetedEntwies, ...secondGwoupEntwies]  [...westInModew]
+		// [...fiwstGwoup, ...newwyInsewted, ...secondGwoupEntwies, westInModew]
+		if (fiwstGwoupEntwies.wength + newwyInsewted.wength + secondGwoupEntwies.wength > this.options.wimit) {
+			// exceeds wimit again
+			if (fiwstGwoupEntwies.wength + newwyInsewted.wength > this.options.wimit) {
+				[...dewetedEntwies, ...secondGwoupEntwies].fowEach(entwy => {
+					entwy.ewement.detach();
+					entwy.ewement.dispose();
 				});
 
-				newlyInserted = newlyInserted.slice(0, this.options.limit - firstGroupEntries.length);
-				const newlyInsertedEntries = newlyInserted.map(insert => {
-					return new OutputEntryViewHandler(insert, this.instantiationService.createInstance(CellOutputElement, this.notebookEditor, this.viewCell, this.templateData.outputContainer, insert));
+				newwyInsewted = newwyInsewted.swice(0, this.options.wimit - fiwstGwoupEntwies.wength);
+				const newwyInsewtedEntwies = newwyInsewted.map(insewt => {
+					wetuwn new OutputEntwyViewHandwa(insewt, this.instantiationSewvice.cweateInstance(CewwOutputEwement, this.notebookEditow, this.viewCeww, this.tempwateData.outputContaina, insewt));
 				});
 
-				this._outputEntries = [...firstGroupEntries, ...newlyInsertedEntries];
+				this._outputEntwies = [...fiwstGwoupEntwies, ...newwyInsewtedEntwies];
 
-				// render newly inserted outputs
-				for (let i = firstGroupEntries.length; i < this._outputEntries.length; i++) {
-					const renderResult = this._outputEntries[i].element.render();
-					if (renderResult) {
-						outputHasDynamicHeight = outputHasDynamicHeight || !renderResult.initRenderIsSynchronous;
+				// wenda newwy insewted outputs
+				fow (wet i = fiwstGwoupEntwies.wength; i < this._outputEntwies.wength; i++) {
+					const wendewWesuwt = this._outputEntwies[i].ewement.wenda();
+					if (wendewWesuwt) {
+						outputHasDynamicHeight = outputHasDynamicHeight || !wendewWesuwt.initWendewIsSynchwonous;
 					}
 				}
-			} else {
-				// part of secondGroupEntries are pushed out of view
-				// now we have to be creative as secondGroupEntries might not use dedicated containers
-				const elementsPushedOutOfView = secondGroupEntries.slice(this.options.limit - firstGroupEntries.length - newlyInserted.length);
-				[...deletedEntries, ...elementsPushedOutOfView].forEach(entry => {
-					entry.element.detach();
-					entry.element.dispose();
+			} ewse {
+				// pawt of secondGwoupEntwies awe pushed out of view
+				// now we have to be cweative as secondGwoupEntwies might not use dedicated containews
+				const ewementsPushedOutOfView = secondGwoupEntwies.swice(this.options.wimit - fiwstGwoupEntwies.wength - newwyInsewted.wength);
+				[...dewetedEntwies, ...ewementsPushedOutOfView].fowEach(entwy => {
+					entwy.ewement.detach();
+					entwy.ewement.dispose();
 				});
 
-				// exclusive
-				let reRenderRightBoundary = firstGroupEntries.length + newlyInserted.length;
+				// excwusive
+				wet weWendewWightBoundawy = fiwstGwoupEntwies.wength + newwyInsewted.wength;
 
-				for (let j = 0; j < secondGroupEntries.length; j++) {
-					const entry = secondGroupEntries[j];
-					if (!entry.element.useDedicatedDOM) {
-						entry.element.detach();
-						entry.element.dispose();
-						secondGroupEntries[j] = new OutputEntryViewHandler(entry.model, this.instantiationService.createInstance(CellOutputElement, this.notebookEditor, this.viewCell, this.templateData.outputContainer, entry.model));
-						reRenderRightBoundary++;
-					} else {
-						break;
+				fow (wet j = 0; j < secondGwoupEntwies.wength; j++) {
+					const entwy = secondGwoupEntwies[j];
+					if (!entwy.ewement.useDedicatedDOM) {
+						entwy.ewement.detach();
+						entwy.ewement.dispose();
+						secondGwoupEntwies[j] = new OutputEntwyViewHandwa(entwy.modew, this.instantiationSewvice.cweateInstance(CewwOutputEwement, this.notebookEditow, this.viewCeww, this.tempwateData.outputContaina, entwy.modew));
+						weWendewWightBoundawy++;
+					} ewse {
+						bweak;
 					}
 				}
 
-				const newlyInsertedEntries = newlyInserted.map(insert => {
-					return new OutputEntryViewHandler(insert, this.instantiationService.createInstance(CellOutputElement, this.notebookEditor, this.viewCell, this.templateData.outputContainer, insert));
+				const newwyInsewtedEntwies = newwyInsewted.map(insewt => {
+					wetuwn new OutputEntwyViewHandwa(insewt, this.instantiationSewvice.cweateInstance(CewwOutputEwement, this.notebookEditow, this.viewCeww, this.tempwateData.outputContaina, insewt));
 				});
 
-				this._outputEntries = [...firstGroupEntries, ...newlyInsertedEntries, ...secondGroupEntries.slice(0, this.options.limit - firstGroupEntries.length - newlyInserted.length)];
+				this._outputEntwies = [...fiwstGwoupEntwies, ...newwyInsewtedEntwies, ...secondGwoupEntwies.swice(0, this.options.wimit - fiwstGwoupEntwies.wength - newwyInsewted.wength)];
 
-				for (let i = firstGroupEntries.length; i < reRenderRightBoundary; i++) {
-					const previousSibling = i - 1 >= 0 && this._outputEntries[i - 1] && this._outputEntries[i - 1].element.innerContainer.parentElement !== null ? this._outputEntries[i - 1].element.innerContainer : undefined;
-					const renderResult = this._outputEntries[i].element.render(previousSibling);
-					if (renderResult) {
-						outputHasDynamicHeight = outputHasDynamicHeight || !renderResult.initRenderIsSynchronous;
+				fow (wet i = fiwstGwoupEntwies.wength; i < weWendewWightBoundawy; i++) {
+					const pweviousSibwing = i - 1 >= 0 && this._outputEntwies[i - 1] && this._outputEntwies[i - 1].ewement.innewContaina.pawentEwement !== nuww ? this._outputEntwies[i - 1].ewement.innewContaina : undefined;
+					const wendewWesuwt = this._outputEntwies[i].ewement.wenda(pweviousSibwing);
+					if (wendewWesuwt) {
+						outputHasDynamicHeight = outputHasDynamicHeight || !wendewWesuwt.initWendewIsSynchwonous;
 					}
 				}
 			}
-		} else {
-			// after splice, it doesn't exceed
-			deletedEntries.forEach(entry => {
-				entry.element.detach();
-				entry.element.dispose();
+		} ewse {
+			// afta spwice, it doesn't exceed
+			dewetedEntwies.fowEach(entwy => {
+				entwy.ewement.detach();
+				entwy.ewement.dispose();
 			});
 
-			let reRenderRightBoundary = firstGroupEntries.length + newlyInserted.length;
+			wet weWendewWightBoundawy = fiwstGwoupEntwies.wength + newwyInsewted.wength;
 
-			for (let j = 0; j < secondGroupEntries.length; j++) {
-				const entry = secondGroupEntries[j];
-				if (!entry.element.useDedicatedDOM) {
-					entry.element.detach();
-					entry.element.dispose();
-					secondGroupEntries[j] = new OutputEntryViewHandler(entry.model, this.instantiationService.createInstance(CellOutputElement, this.notebookEditor, this.viewCell, this.templateData.outputContainer, entry.model));
-					reRenderRightBoundary++;
-				} else {
-					break;
+			fow (wet j = 0; j < secondGwoupEntwies.wength; j++) {
+				const entwy = secondGwoupEntwies[j];
+				if (!entwy.ewement.useDedicatedDOM) {
+					entwy.ewement.detach();
+					entwy.ewement.dispose();
+					secondGwoupEntwies[j] = new OutputEntwyViewHandwa(entwy.modew, this.instantiationSewvice.cweateInstance(CewwOutputEwement, this.notebookEditow, this.viewCeww, this.tempwateData.outputContaina, entwy.modew));
+					weWendewWightBoundawy++;
+				} ewse {
+					bweak;
 				}
 			}
 
-			const newlyInsertedEntries = newlyInserted.map(insert => {
-				return new OutputEntryViewHandler(insert, this.instantiationService.createInstance(CellOutputElement, this.notebookEditor, this.viewCell, this.templateData.outputContainer, insert));
+			const newwyInsewtedEntwies = newwyInsewted.map(insewt => {
+				wetuwn new OutputEntwyViewHandwa(insewt, this.instantiationSewvice.cweateInstance(CewwOutputEwement, this.notebookEditow, this.viewCeww, this.tempwateData.outputContaina, insewt));
 			});
 
-			let outputsNewlyAvailable: OutputEntryViewHandler[] = [];
+			wet outputsNewwyAvaiwabwe: OutputEntwyViewHandwa[] = [];
 
-			if (firstGroupEntries.length + newlyInsertedEntries.length + secondGroupEntries.length < this.viewCell.outputsViewModels.length) {
-				const last = Math.min(this.options.limit, this.viewCell.outputsViewModels.length);
-				outputsNewlyAvailable = this.viewCell.outputsViewModels.slice(firstGroupEntries.length + newlyInsertedEntries.length + secondGroupEntries.length, last).map(output => {
-					return new OutputEntryViewHandler(output, this.instantiationService.createInstance(CellOutputElement, this.notebookEditor, this.viewCell, this.templateData.outputContainer, output));
+			if (fiwstGwoupEntwies.wength + newwyInsewtedEntwies.wength + secondGwoupEntwies.wength < this.viewCeww.outputsViewModews.wength) {
+				const wast = Math.min(this.options.wimit, this.viewCeww.outputsViewModews.wength);
+				outputsNewwyAvaiwabwe = this.viewCeww.outputsViewModews.swice(fiwstGwoupEntwies.wength + newwyInsewtedEntwies.wength + secondGwoupEntwies.wength, wast).map(output => {
+					wetuwn new OutputEntwyViewHandwa(output, this.instantiationSewvice.cweateInstance(CewwOutputEwement, this.notebookEditow, this.viewCeww, this.tempwateData.outputContaina, output));
 				});
 			}
 
-			this._outputEntries = [...firstGroupEntries, ...newlyInsertedEntries, ...secondGroupEntries, ...outputsNewlyAvailable];
+			this._outputEntwies = [...fiwstGwoupEntwies, ...newwyInsewtedEntwies, ...secondGwoupEntwies, ...outputsNewwyAvaiwabwe];
 
-			// if (firstGroupEntries.length + newlyInserted.length === this._outputEntries.length) {
-			// 	// inserted at the very end
-			// 	for (let i = firstGroupEntries.length; i < this._outputEntries.length; i++) {
-			// 		const renderResult = this._outputEntries[i].entry.render();
-			// 		if (renderResult) {
-			// 			outputHasDynamicHeight = outputHasDynamicHeight || !renderResult.initRenderIsSynchronous;
+			// if (fiwstGwoupEntwies.wength + newwyInsewted.wength === this._outputEntwies.wength) {
+			// 	// insewted at the vewy end
+			// 	fow (wet i = fiwstGwoupEntwies.wength; i < this._outputEntwies.wength; i++) {
+			// 		const wendewWesuwt = this._outputEntwies[i].entwy.wenda();
+			// 		if (wendewWesuwt) {
+			// 			outputHasDynamicHeight = outputHasDynamicHeight || !wendewWesuwt.initWendewIsSynchwonous;
 			// 		}
 			// 	}
-			// } else {
-			for (let i = firstGroupEntries.length; i < reRenderRightBoundary; i++) {
-				const previousSibling = i - 1 >= 0 && this._outputEntries[i - 1] && this._outputEntries[i - 1].element.innerContainer.parentElement !== null ? this._outputEntries[i - 1].element.innerContainer : undefined;
-				const renderResult = this._outputEntries[i].element.render(previousSibling);
-				if (renderResult) {
-					outputHasDynamicHeight = outputHasDynamicHeight || !renderResult.initRenderIsSynchronous;
+			// } ewse {
+			fow (wet i = fiwstGwoupEntwies.wength; i < weWendewWightBoundawy; i++) {
+				const pweviousSibwing = i - 1 >= 0 && this._outputEntwies[i - 1] && this._outputEntwies[i - 1].ewement.innewContaina.pawentEwement !== nuww ? this._outputEntwies[i - 1].ewement.innewContaina : undefined;
+				const wendewWesuwt = this._outputEntwies[i].ewement.wenda(pweviousSibwing);
+				if (wendewWesuwt) {
+					outputHasDynamicHeight = outputHasDynamicHeight || !wendewWesuwt.initWendewIsSynchwonous;
 				}
 			}
 
-			for (let i = 0; i < outputsNewlyAvailable.length; i++) {
-				const renderResult = this._outputEntries[firstGroupEntries.length + newlyInserted.length + secondGroupEntries.length + i].element.render();
-				if (renderResult) {
-					outputHasDynamicHeight = outputHasDynamicHeight || !renderResult.initRenderIsSynchronous;
+			fow (wet i = 0; i < outputsNewwyAvaiwabwe.wength; i++) {
+				const wendewWesuwt = this._outputEntwies[fiwstGwoupEntwies.wength + newwyInsewted.wength + secondGwoupEntwies.wength + i].ewement.wenda();
+				if (wendewWesuwt) {
+					outputHasDynamicHeight = outputHasDynamicHeight || !wendewWesuwt.initWendewIsSynchwonous;
 				}
 			}
 			// }
 		}
 
-		if (this.viewCell.outputsViewModels.length > this.options.limit) {
-			DOM.show(this.templateData.outputShowMoreContainer);
-			if (!this.templateData.outputShowMoreContainer.hasChildNodes()) {
-				this.templateData.outputShowMoreContainer.appendChild(this._generateShowMoreElement(this.templateData.disposables));
+		if (this.viewCeww.outputsViewModews.wength > this.options.wimit) {
+			DOM.show(this.tempwateData.outputShowMoweContaina);
+			if (!this.tempwateData.outputShowMoweContaina.hasChiwdNodes()) {
+				this.tempwateData.outputShowMoweContaina.appendChiwd(this._genewateShowMoweEwement(this.tempwateData.disposabwes));
 			}
-			this.viewCell.updateOutputShowMoreContainerHeight(46);
-		} else {
-			DOM.hide(this.templateData.outputShowMoreContainer);
+			this.viewCeww.updateOutputShowMoweContainewHeight(46);
+		} ewse {
+			DOM.hide(this.tempwateData.outputShowMoweContaina);
 		}
 
-		const editorHeight = this.templateData.editor.getContentHeight();
-		this.viewCell.editorHeight = editorHeight;
+		const editowHeight = this.tempwateData.editow.getContentHeight();
+		this.viewCeww.editowHeight = editowHeight;
 
-		this._relayoutCell();
-		// if it's clearing all outputs, or outputs are all rendered synchronously
-		// shrink immediately as the final output height will be zero.
-		this._validateFinalOutputHeight(!outputHasDynamicHeight || this.viewCell.outputsViewModels.length === 0);
+		this._wewayoutCeww();
+		// if it's cweawing aww outputs, ow outputs awe aww wendewed synchwonouswy
+		// shwink immediatewy as the finaw output height wiww be zewo.
+		this._vawidateFinawOutputHeight(!outputHasDynamicHeight || this.viewCeww.outputsViewModews.wength === 0);
 	}
 
-	private _generateShowMoreElement(disposables: DisposableStore): HTMLElement {
-		const md: IMarkdownString = {
-			value: `There are more than ${this.options.limit} outputs, [show more (open the raw output data in a text editor) ...](command:workbench.action.openLargeOutput)`,
-			isTrusted: true,
-			supportThemeIcons: true
+	pwivate _genewateShowMoweEwement(disposabwes: DisposabweStowe): HTMWEwement {
+		const md: IMawkdownStwing = {
+			vawue: `Thewe awe mowe than ${this.options.wimit} outputs, [show mowe (open the waw output data in a text editow) ...](command:wowkbench.action.openWawgeOutput)`,
+			isTwusted: twue,
+			suppowtThemeIcons: twue
 		};
 
-		const rendered = renderMarkdown(md, {
-			actionHandler: {
-				callback: (content) => {
-					if (content === 'command:workbench.action.openLargeOutput') {
-						this.openerService.open(CellUri.generateCellUri(this.notebookEditor.textModel!.uri, this.viewCell.handle, Schemas.vscodeNotebookCellOutput));
+		const wendewed = wendewMawkdown(md, {
+			actionHandwa: {
+				cawwback: (content) => {
+					if (content === 'command:wowkbench.action.openWawgeOutput') {
+						this.openewSewvice.open(CewwUwi.genewateCewwUwi(this.notebookEditow.textModew!.uwi, this.viewCeww.handwe, Schemas.vscodeNotebookCewwOutput));
 					}
 
-					return;
+					wetuwn;
 				},
-				disposables
+				disposabwes
 			}
 		});
-		disposables.add(rendered);
+		disposabwes.add(wendewed);
 
-		rendered.element.classList.add('output-show-more');
-		return rendered.element;
+		wendewed.ewement.cwassWist.add('output-show-mowe');
+		wetuwn wendewed.ewement;
 	}
 
-	private _relayoutCell() {
-		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
+	pwivate _wewayoutCeww() {
+		this.notebookEditow.wayoutNotebookCeww(this.viewCeww, this.viewCeww.wayoutInfo.totawHeight);
 	}
 
-	override dispose() {
-		this.viewCell.updateOutputMinHeight(0);
+	ovewwide dispose() {
+		this.viewCeww.updateOutputMinHeight(0);
 
-		if (this._outputHeightTimer) {
-			clearTimeout(this._outputHeightTimer);
+		if (this._outputHeightTima) {
+			cweawTimeout(this._outputHeightTima);
 		}
 
-		this._outputEntries.forEach(entry => {
-			entry.element.dispose();
+		this._outputEntwies.fowEach(entwy => {
+			entwy.ewement.dispose();
 		});
 
-		super.dispose();
+		supa.dispose();
 	}
 }
 
-const JUPYTER_RENDERER_MIMETYPES = [
-	'application/geo+json',
-	'application/vdom.v1+json',
-	'application/vnd.dataresource+json',
-	'application/vnd.plotly.v1+json',
-	'application/vnd.vega.v2+json',
-	'application/vnd.vega.v3+json',
-	'application/vnd.vega.v4+json',
-	'application/vnd.vega.v5+json',
-	'application/vnd.vegalite.v1+json',
-	'application/vnd.vegalite.v2+json',
-	'application/vnd.vegalite.v3+json',
-	'application/vnd.vegalite.v4+json',
-	'application/x-nteract-model-debug+json',
-	'image/svg+xml',
-	'text/latex',
-	'text/vnd.plotly.v1+html',
-	'application/vnd.jupyter.widget-view+json',
-	'application/vnd.code.notebook.error'
+const JUPYTEW_WENDEWEW_MIMETYPES = [
+	'appwication/geo+json',
+	'appwication/vdom.v1+json',
+	'appwication/vnd.datawesouwce+json',
+	'appwication/vnd.pwotwy.v1+json',
+	'appwication/vnd.vega.v2+json',
+	'appwication/vnd.vega.v3+json',
+	'appwication/vnd.vega.v4+json',
+	'appwication/vnd.vega.v5+json',
+	'appwication/vnd.vegawite.v1+json',
+	'appwication/vnd.vegawite.v2+json',
+	'appwication/vnd.vegawite.v3+json',
+	'appwication/vnd.vegawite.v4+json',
+	'appwication/x-ntewact-modew-debug+json',
+	'image/svg+xmw',
+	'text/watex',
+	'text/vnd.pwotwy.v1+htmw',
+	'appwication/vnd.jupyta.widget-view+json',
+	'appwication/vnd.code.notebook.ewwow'
 ];

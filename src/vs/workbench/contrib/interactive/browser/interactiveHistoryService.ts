@@ -1,74 +1,74 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { HistoryNavigator2 } from 'vs/base/common/history';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { HistowyNavigatow2 } fwom 'vs/base/common/histowy';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const IInteractiveHistoryService = createDecorator<IInteractiveHistoryService>('IInteractiveHistoryService');
+expowt const IIntewactiveHistowySewvice = cweateDecowatow<IIntewactiveHistowySewvice>('IIntewactiveHistowySewvice');
 
-export interface IInteractiveHistoryService {
-	readonly _serviceBrand: undefined;
+expowt intewface IIntewactiveHistowySewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	addToHistory(uri: URI, value: string): void;
-	getPreviousValue(uri: URI): string | null;
-	getNextValue(uri: URI): string | null;
-	replaceLast(uri: URI, value: string): void;
-	clearHistory(uri: URI): void;
+	addToHistowy(uwi: UWI, vawue: stwing): void;
+	getPweviousVawue(uwi: UWI): stwing | nuww;
+	getNextVawue(uwi: UWI): stwing | nuww;
+	wepwaceWast(uwi: UWI, vawue: stwing): void;
+	cweawHistowy(uwi: UWI): void;
 }
 
-export class InteractiveHistoryService extends Disposable implements IInteractiveHistoryService {
-	declare readonly _serviceBrand: undefined;
-	#history: ResourceMap<HistoryNavigator2<string>>;
+expowt cwass IntewactiveHistowySewvice extends Disposabwe impwements IIntewactiveHistowySewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
+	#histowy: WesouwceMap<HistowyNavigatow2<stwing>>;
 
-	constructor() {
-		super();
+	constwuctow() {
+		supa();
 
-		this.#history = new ResourceMap<HistoryNavigator2<string>>();
+		this.#histowy = new WesouwceMap<HistowyNavigatow2<stwing>>();
 	}
 
-	addToHistory(uri: URI, value: string): void {
-		if (!this.#history.has(uri)) {
-			this.#history.set(uri, new HistoryNavigator2<string>([value], 50));
-			return;
+	addToHistowy(uwi: UWI, vawue: stwing): void {
+		if (!this.#histowy.has(uwi)) {
+			this.#histowy.set(uwi, new HistowyNavigatow2<stwing>([vawue], 50));
+			wetuwn;
 		}
 
-		const history = this.#history.get(uri)!;
+		const histowy = this.#histowy.get(uwi)!;
 
-		history.resetCursor();
-		if (history?.current() !== value) {
-			history?.add(value);
+		histowy.wesetCuwsow();
+		if (histowy?.cuwwent() !== vawue) {
+			histowy?.add(vawue);
 		}
 	}
-	getPreviousValue(uri: URI): string | null {
-		const history = this.#history.get(uri);
-		return history?.previous() ?? null;
+	getPweviousVawue(uwi: UWI): stwing | nuww {
+		const histowy = this.#histowy.get(uwi);
+		wetuwn histowy?.pwevious() ?? nuww;
 	}
 
-	getNextValue(uri: URI): string | null {
-		const history = this.#history.get(uri);
+	getNextVawue(uwi: UWI): stwing | nuww {
+		const histowy = this.#histowy.get(uwi);
 
-		return history?.next() ?? null;
+		wetuwn histowy?.next() ?? nuww;
 	}
 
-	replaceLast(uri: URI, value: string) {
-		if (!this.#history.has(uri)) {
-			this.#history.set(uri, new HistoryNavigator2<string>([value], 50));
-			return;
-		} else {
-			const history = this.#history.get(uri);
-			if (history?.current() !== value) {
-				history?.replaceLast(value);
+	wepwaceWast(uwi: UWI, vawue: stwing) {
+		if (!this.#histowy.has(uwi)) {
+			this.#histowy.set(uwi, new HistowyNavigatow2<stwing>([vawue], 50));
+			wetuwn;
+		} ewse {
+			const histowy = this.#histowy.get(uwi);
+			if (histowy?.cuwwent() !== vawue) {
+				histowy?.wepwaceWast(vawue);
 			}
 		}
 
 	}
 
-	clearHistory(uri: URI) {
-		this.#history.delete(uri);
+	cweawHistowy(uwi: UWI) {
+		this.#histowy.dewete(uwi);
 	}
 }

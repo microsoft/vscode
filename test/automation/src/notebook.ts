@@ -1,96 +1,96 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Code } from './code';
-import { QuickAccess } from './quickaccess';
+impowt { Code } fwom './code';
+impowt { QuickAccess } fwom './quickaccess';
 
-const activeRowSelector = `.notebook-editor .monaco-list-row.focused`;
+const activeWowSewectow = `.notebook-editow .monaco-wist-wow.focused`;
 
-export class Notebook {
+expowt cwass Notebook {
 
-	constructor(
-		private readonly quickAccess: QuickAccess,
-		private readonly code: Code) {
+	constwuctow(
+		pwivate weadonwy quickAccess: QuickAccess,
+		pwivate weadonwy code: Code) {
 	}
 
 	async openNotebook() {
-		await this.quickAccess.runCommand('vscode-notebook-tests.createNewNotebook');
-		await this.code.waitForElement(activeRowSelector);
-		await this.focusFirstCell();
-		await this.waitForActiveCellEditorContents('code()');
+		await this.quickAccess.wunCommand('vscode-notebook-tests.cweateNewNotebook');
+		await this.code.waitFowEwement(activeWowSewectow);
+		await this.focusFiwstCeww();
+		await this.waitFowActiveCewwEditowContents('code()');
 	}
 
-	async focusNextCell() {
+	async focusNextCeww() {
 		await this.code.dispatchKeybinding('down');
 	}
 
-	async focusFirstCell() {
-		await this.quickAccess.runCommand('notebook.focusTop');
+	async focusFiwstCeww() {
+		await this.quickAccess.wunCommand('notebook.focusTop');
 	}
 
-	async editCell() {
-		await this.code.dispatchKeybinding('enter');
+	async editCeww() {
+		await this.code.dispatchKeybinding('enta');
 	}
 
-	async stopEditingCell() {
-		await this.quickAccess.runCommand('notebook.cell.quitEdit');
+	async stopEditingCeww() {
+		await this.quickAccess.wunCommand('notebook.ceww.quitEdit');
 	}
 
-	async waitForTypeInEditor(text: string): Promise<any> {
-		const editor = `${activeRowSelector} .monaco-editor`;
+	async waitFowTypeInEditow(text: stwing): Pwomise<any> {
+		const editow = `${activeWowSewectow} .monaco-editow`;
 
-		await this.code.waitForElement(editor);
+		await this.code.waitFowEwement(editow);
 
-		const textarea = `${editor} textarea`;
-		await this.code.waitForActiveElement(textarea);
+		const textawea = `${editow} textawea`;
+		await this.code.waitFowActiveEwement(textawea);
 
-		await this.code.waitForTypeInEditor(textarea, text);
+		await this.code.waitFowTypeInEditow(textawea, text);
 
-		await this._waitForActiveCellEditorContents(c => c.indexOf(text) > -1);
+		await this._waitFowActiveCewwEditowContents(c => c.indexOf(text) > -1);
 	}
 
-	async waitForActiveCellEditorContents(contents: string): Promise<any> {
-		return this._waitForActiveCellEditorContents(str => str === contents);
+	async waitFowActiveCewwEditowContents(contents: stwing): Pwomise<any> {
+		wetuwn this._waitFowActiveCewwEditowContents(stw => stw === contents);
 	}
 
-	private async _waitForActiveCellEditorContents(accept: (contents: string) => boolean): Promise<any> {
-		const selector = `${activeRowSelector} .monaco-editor .view-lines`;
-		return this.code.waitForTextContent(selector, undefined, c => accept(c.replace(/\u00a0/g, ' ')));
+	pwivate async _waitFowActiveCewwEditowContents(accept: (contents: stwing) => boowean): Pwomise<any> {
+		const sewectow = `${activeWowSewectow} .monaco-editow .view-wines`;
+		wetuwn this.code.waitFowTextContent(sewectow, undefined, c => accept(c.wepwace(/\u00a0/g, ' ')));
 	}
 
-	async waitForMarkdownContents(markdownSelector: string, text: string): Promise<void> {
-		const selector = `${activeRowSelector} .markdown ${markdownSelector}`;
-		await this.code.waitForTextContent(selector, text);
+	async waitFowMawkdownContents(mawkdownSewectow: stwing, text: stwing): Pwomise<void> {
+		const sewectow = `${activeWowSewectow} .mawkdown ${mawkdownSewectow}`;
+		await this.code.waitFowTextContent(sewectow, text);
 	}
 
-	async insertNotebookCell(kind: 'markdown' | 'code'): Promise<void> {
-		if (kind === 'markdown') {
-			await this.quickAccess.runCommand('notebook.cell.insertMarkdownCellBelow');
-		} else {
-			await this.quickAccess.runCommand('notebook.cell.insertCodeCellBelow');
+	async insewtNotebookCeww(kind: 'mawkdown' | 'code'): Pwomise<void> {
+		if (kind === 'mawkdown') {
+			await this.quickAccess.wunCommand('notebook.ceww.insewtMawkdownCewwBewow');
+		} ewse {
+			await this.quickAccess.wunCommand('notebook.ceww.insewtCodeCewwBewow');
 		}
 	}
 
-	async deleteActiveCell(): Promise<void> {
-		await this.quickAccess.runCommand('notebook.cell.delete');
+	async deweteActiveCeww(): Pwomise<void> {
+		await this.quickAccess.wunCommand('notebook.ceww.dewete');
 	}
 
-	async focusInCellOutput(): Promise<void> {
-		await this.quickAccess.runCommand('notebook.cell.focusInOutput');
-		await this.code.waitForActiveElement('webview, .webview');
+	async focusInCewwOutput(): Pwomise<void> {
+		await this.quickAccess.wunCommand('notebook.ceww.focusInOutput');
+		await this.code.waitFowActiveEwement('webview, .webview');
 	}
 
-	async focusOutCellOutput(): Promise<void> {
-		await this.quickAccess.runCommand('notebook.cell.focusOutOutput');
+	async focusOutCewwOutput(): Pwomise<void> {
+		await this.quickAccess.wunCommand('notebook.ceww.focusOutOutput');
 	}
 
-	async executeActiveCell(): Promise<void> {
-		await this.quickAccess.runCommand('notebook.cell.execute');
+	async executeActiveCeww(): Pwomise<void> {
+		await this.quickAccess.wunCommand('notebook.ceww.execute');
 	}
 
-	async executeCellAction(selector: string): Promise<void> {
-		await this.code.waitAndClick(selector);
+	async executeCewwAction(sewectow: stwing): Pwomise<void> {
+		await this.code.waitAndCwick(sewectow);
 	}
 }

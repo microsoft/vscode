@@ -1,2123 +1,2123 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Action } from 'vs/base/common/actions';
-import { firstOrDefault } from 'vs/base/common/arrays';
-import { IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, EditorInputCapabilities, IEditorFactoryRegistry, EditorExtensions, DEFAULT_EDITOR_ASSOCIATION, GroupIdentifier } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { IEditorGroupsService, IEditorGroup, GroupsArrangement, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
-import { ItemActivation, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { AllEditorsByMostRecentlyUsedQuickAccess, ActiveGroupEditorsByMostRecentlyUsedQuickAccess, AllEditorsByAppearanceQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
-import { Codicon } from 'vs/base/common/codicons';
-import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { fiwstOwDefauwt } fwom 'vs/base/common/awways';
+impowt { IEditowIdentifia, IEditowCommandsContext, CwoseDiwection, SaveWeason, EditowsOwda, EditowInputCapabiwities, IEditowFactowyWegistwy, EditowExtensions, DEFAUWT_EDITOW_ASSOCIATION, GwoupIdentifia } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { SideBySideEditowInput } fwom 'vs/wowkbench/common/editow/sideBySideEditowInput';
+impowt { IWowkbenchWayoutSewvice, Pawts } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { IHistowySewvice } fwom 'vs/wowkbench/sewvices/histowy/common/histowy';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { CWOSE_EDITOW_COMMAND_ID, MOVE_ACTIVE_EDITOW_COMMAND_ID, ActiveEditowMoveCopyAwguments, SPWIT_EDITOW_WEFT, SPWIT_EDITOW_WIGHT, SPWIT_EDITOW_UP, SPWIT_EDITOW_DOWN, spwitEditow, WAYOUT_EDITOW_GWOUPS_COMMAND_ID, UNPIN_EDITOW_COMMAND_ID, COPY_ACTIVE_EDITOW_COMMAND_ID } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowCommands';
+impowt { IEditowGwoupsSewvice, IEditowGwoup, GwoupsAwwangement, GwoupWocation, GwoupDiwection, pwefewwedSideBySideGwoupDiwection, IFindGwoupScope, GwoupOwientation, EditowGwoupWayout, GwoupsOwda } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { IWowkspacesSewvice } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { IFiweDiawogSewvice, ConfiwmWesuwt } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { ItemActivation, IQuickInputSewvice } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { AwwEditowsByMostWecentwyUsedQuickAccess, ActiveGwoupEditowsByMostWecentwyUsedQuickAccess, AwwEditowsByAppeawanceQuickAccess } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowQuickAccess';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { IFiwesConfiguwationSewvice, AutoSaveMode } fwom 'vs/wowkbench/sewvices/fiwesConfiguwation/common/fiwesConfiguwationSewvice';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IEditowWesowvewSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowWesowvewSewvice';
 
-export class ExecuteCommandAction extends Action {
+expowt cwass ExecuteCommandAction extends Action {
 
-	constructor(
-		id: string,
-		label: string,
-		private commandId: string,
-		private commandService: ICommandService,
-		private commandArgs?: unknown
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		pwivate commandId: stwing,
+		pwivate commandSewvice: ICommandSewvice,
+		pwivate commandAwgs?: unknown
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override run(): Promise<void> {
-		return this.commandService.executeCommand(this.commandId, this.commandArgs);
+	ovewwide wun(): Pwomise<void> {
+		wetuwn this.commandSewvice.executeCommand(this.commandId, this.commandAwgs);
 	}
 }
 
-abstract class AbstractSplitEditorAction extends Action {
-	private readonly toDispose = this._register(new DisposableStore());
-	private direction: GroupDirection;
+abstwact cwass AbstwactSpwitEditowAction extends Action {
+	pwivate weadonwy toDispose = this._wegista(new DisposabweStowe());
+	pwivate diwection: GwoupDiwection;
 
-	constructor(
-		id: string,
-		label: string,
-		protected editorGroupService: IEditorGroupsService,
-		protected configurationService: IConfigurationService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		pwotected editowGwoupSewvice: IEditowGwoupsSewvice,
+		pwotected configuwationSewvice: IConfiguwationSewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 
-		this.direction = this.getDirection();
+		this.diwection = this.getDiwection();
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	protected getDirection(): GroupDirection {
-		return preferredSideBySideGroupDirection(this.configurationService);
+	pwotected getDiwection(): GwoupDiwection {
+		wetuwn pwefewwedSideBySideGwoupDiwection(this.configuwationSewvice);
 	}
 
-	private registerListeners(): void {
-		this.toDispose.add(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('workbench.editor.openSideBySideDirection')) {
-				this.direction = preferredSideBySideGroupDirection(this.configurationService);
+	pwivate wegistewWistenews(): void {
+		this.toDispose.add(this.configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation('wowkbench.editow.openSideBySideDiwection')) {
+				this.diwection = pwefewwedSideBySideGwoupDiwection(this.configuwationSewvice);
 			}
 		}));
 	}
 
-	override async run(context?: IEditorIdentifier): Promise<void> {
-		splitEditor(this.editorGroupService, this.direction, context);
+	ovewwide async wun(context?: IEditowIdentifia): Pwomise<void> {
+		spwitEditow(this.editowGwoupSewvice, this.diwection, context);
 	}
 }
 
-export class SplitEditorAction extends AbstractSplitEditorAction {
+expowt cwass SpwitEditowAction extends AbstwactSpwitEditowAction {
 
-	static readonly ID = 'workbench.action.splitEditor';
-	static readonly LABEL = localize('splitEditor', "Split Editor");
+	static weadonwy ID = 'wowkbench.action.spwitEditow';
+	static weadonwy WABEW = wocawize('spwitEditow', "Spwit Editow");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IConfigurationService configurationService: IConfigurationService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice
 	) {
-		super(id, label, editorGroupService, configurationService);
+		supa(id, wabew, editowGwoupSewvice, configuwationSewvice);
 	}
 }
 
-export class SplitEditorOrthogonalAction extends AbstractSplitEditorAction {
+expowt cwass SpwitEditowOwthogonawAction extends AbstwactSpwitEditowAction {
 
-	static readonly ID = 'workbench.action.splitEditorOrthogonal';
-	static readonly LABEL = localize('splitEditorOrthogonal', "Split Editor Orthogonal");
+	static weadonwy ID = 'wowkbench.action.spwitEditowOwthogonaw';
+	static weadonwy WABEW = wocawize('spwitEditowOwthogonaw', "Spwit Editow Owthogonaw");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IConfigurationService configurationService: IConfigurationService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice
 	) {
-		super(id, label, editorGroupService, configurationService);
+		supa(id, wabew, editowGwoupSewvice, configuwationSewvice);
 	}
 
-	protected override getDirection(): GroupDirection {
-		const direction = preferredSideBySideGroupDirection(this.configurationService);
+	pwotected ovewwide getDiwection(): GwoupDiwection {
+		const diwection = pwefewwedSideBySideGwoupDiwection(this.configuwationSewvice);
 
-		return direction === GroupDirection.RIGHT ? GroupDirection.DOWN : GroupDirection.RIGHT;
+		wetuwn diwection === GwoupDiwection.WIGHT ? GwoupDiwection.DOWN : GwoupDiwection.WIGHT;
 	}
 }
 
-export class SplitEditorLeftAction extends ExecuteCommandAction {
+expowt cwass SpwitEditowWeftAction extends ExecuteCommandAction {
 
-	static readonly ID = SPLIT_EDITOR_LEFT;
-	static readonly LABEL = localize('splitEditorGroupLeft', "Split Editor Left");
+	static weadonwy ID = SPWIT_EDITOW_WEFT;
+	static weadonwy WABEW = wocawize('spwitEditowGwoupWeft', "Spwit Editow Weft");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice commandSewvice: ICommandSewvice
 	) {
-		super(id, label, SPLIT_EDITOR_LEFT, commandService);
+		supa(id, wabew, SPWIT_EDITOW_WEFT, commandSewvice);
 	}
 }
 
-export class SplitEditorRightAction extends ExecuteCommandAction {
+expowt cwass SpwitEditowWightAction extends ExecuteCommandAction {
 
-	static readonly ID = SPLIT_EDITOR_RIGHT;
-	static readonly LABEL = localize('splitEditorGroupRight', "Split Editor Right");
+	static weadonwy ID = SPWIT_EDITOW_WIGHT;
+	static weadonwy WABEW = wocawize('spwitEditowGwoupWight', "Spwit Editow Wight");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice commandSewvice: ICommandSewvice
 	) {
-		super(id, label, SPLIT_EDITOR_RIGHT, commandService);
+		supa(id, wabew, SPWIT_EDITOW_WIGHT, commandSewvice);
 	}
 }
 
-export class SplitEditorUpAction extends ExecuteCommandAction {
+expowt cwass SpwitEditowUpAction extends ExecuteCommandAction {
 
-	static readonly ID = SPLIT_EDITOR_UP;
-	static readonly LABEL = localize('splitEditorGroupUp', "Split Editor Up");
+	static weadonwy ID = SPWIT_EDITOW_UP;
+	static weadonwy WABEW = wocawize('spwitEditowGwoupUp', "Spwit Editow Up");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice commandSewvice: ICommandSewvice
 	) {
-		super(id, label, SPLIT_EDITOR_UP, commandService);
+		supa(id, wabew, SPWIT_EDITOW_UP, commandSewvice);
 	}
 }
 
-export class SplitEditorDownAction extends ExecuteCommandAction {
+expowt cwass SpwitEditowDownAction extends ExecuteCommandAction {
 
-	static readonly ID = SPLIT_EDITOR_DOWN;
-	static readonly LABEL = localize('splitEditorGroupDown', "Split Editor Down");
+	static weadonwy ID = SPWIT_EDITOW_DOWN;
+	static weadonwy WABEW = wocawize('spwitEditowGwoupDown', "Spwit Editow Down");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice commandSewvice: ICommandSewvice
 	) {
-		super(id, label, SPLIT_EDITOR_DOWN, commandService);
+		supa(id, wabew, SPWIT_EDITOW_DOWN, commandSewvice);
 	}
 }
 
-export class JoinTwoGroupsAction extends Action {
+expowt cwass JoinTwoGwoupsAction extends Action {
 
-	static readonly ID = 'workbench.action.joinTwoGroups';
-	static readonly LABEL = localize('joinTwoGroups', "Join Editor Group with Next Group");
+	static weadonwy ID = 'wowkbench.action.joinTwoGwoups';
+	static weadonwy WABEW = wocawize('joinTwoGwoups', "Join Editow Gwoup with Next Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice pwivate weadonwy editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(context?: IEditorIdentifier): Promise<void> {
-		let sourceGroup: IEditorGroup | undefined;
-		if (context && typeof context.groupId === 'number') {
-			sourceGroup = this.editorGroupService.getGroup(context.groupId);
-		} else {
-			sourceGroup = this.editorGroupService.activeGroup;
+	ovewwide async wun(context?: IEditowIdentifia): Pwomise<void> {
+		wet souwceGwoup: IEditowGwoup | undefined;
+		if (context && typeof context.gwoupId === 'numba') {
+			souwceGwoup = this.editowGwoupSewvice.getGwoup(context.gwoupId);
+		} ewse {
+			souwceGwoup = this.editowGwoupSewvice.activeGwoup;
 		}
 
-		if (sourceGroup) {
-			const targetGroupDirections = [GroupDirection.RIGHT, GroupDirection.DOWN, GroupDirection.LEFT, GroupDirection.UP];
-			for (const targetGroupDirection of targetGroupDirections) {
-				const targetGroup = this.editorGroupService.findGroup({ direction: targetGroupDirection }, sourceGroup);
-				if (targetGroup && sourceGroup !== targetGroup) {
-					this.editorGroupService.mergeGroup(sourceGroup, targetGroup);
+		if (souwceGwoup) {
+			const tawgetGwoupDiwections = [GwoupDiwection.WIGHT, GwoupDiwection.DOWN, GwoupDiwection.WEFT, GwoupDiwection.UP];
+			fow (const tawgetGwoupDiwection of tawgetGwoupDiwections) {
+				const tawgetGwoup = this.editowGwoupSewvice.findGwoup({ diwection: tawgetGwoupDiwection }, souwceGwoup);
+				if (tawgetGwoup && souwceGwoup !== tawgetGwoup) {
+					this.editowGwoupSewvice.mewgeGwoup(souwceGwoup, tawgetGwoup);
 
-					break;
+					bweak;
 				}
 			}
 		}
 	}
 }
 
-export class JoinAllGroupsAction extends Action {
+expowt cwass JoinAwwGwoupsAction extends Action {
 
-	static readonly ID = 'workbench.action.joinAllGroups';
-	static readonly LABEL = localize('joinAllGroups', "Join All Editor Groups");
+	static weadonwy ID = 'wowkbench.action.joinAwwGwoups';
+	static weadonwy WABEW = wocawize('joinAwwGwoups', "Join Aww Editow Gwoups");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice pwivate weadonwy editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<void> {
-		this.editorGroupService.mergeAllGroups();
+	ovewwide async wun(): Pwomise<void> {
+		this.editowGwoupSewvice.mewgeAwwGwoups();
 	}
 }
 
-export class NavigateBetweenGroupsAction extends Action {
+expowt cwass NavigateBetweenGwoupsAction extends Action {
 
-	static readonly ID = 'workbench.action.navigateEditorGroups';
-	static readonly LABEL = localize('navigateEditorGroups', "Navigate Between Editor Groups");
+	static weadonwy ID = 'wowkbench.action.navigateEditowGwoups';
+	static weadonwy WABEW = wocawize('navigateEditowGwoups', "Navigate Between Editow Gwoups");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice pwivate weadonwy editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<void> {
-		const nextGroup = this.editorGroupService.findGroup({ location: GroupLocation.NEXT }, this.editorGroupService.activeGroup, true);
-		nextGroup?.focus();
+	ovewwide async wun(): Pwomise<void> {
+		const nextGwoup = this.editowGwoupSewvice.findGwoup({ wocation: GwoupWocation.NEXT }, this.editowGwoupSewvice.activeGwoup, twue);
+		nextGwoup?.focus();
 	}
 }
 
-export class FocusActiveGroupAction extends Action {
+expowt cwass FocusActiveGwoupAction extends Action {
 
-	static readonly ID = 'workbench.action.focusActiveEditorGroup';
-	static readonly LABEL = localize('focusActiveEditorGroup', "Focus Active Editor Group");
+	static weadonwy ID = 'wowkbench.action.focusActiveEditowGwoup';
+	static weadonwy WABEW = wocawize('focusActiveEditowGwoup', "Focus Active Editow Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice pwivate weadonwy editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<void> {
-		this.editorGroupService.activeGroup.focus();
+	ovewwide async wun(): Pwomise<void> {
+		this.editowGwoupSewvice.activeGwoup.focus();
 	}
 }
 
-abstract class AbstractFocusGroupAction extends Action {
+abstwact cwass AbstwactFocusGwoupAction extends Action {
 
-	constructor(
-		id: string,
-		label: string,
-		private scope: IFindGroupScope,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		pwivate scope: IFindGwoupScope,
+		@IEditowGwoupsSewvice pwivate weadonwy editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<void> {
-		const group = this.editorGroupService.findGroup(this.scope, this.editorGroupService.activeGroup, true);
-		if (group) {
-			group.focus();
+	ovewwide async wun(): Pwomise<void> {
+		const gwoup = this.editowGwoupSewvice.findGwoup(this.scope, this.editowGwoupSewvice.activeGwoup, twue);
+		if (gwoup) {
+			gwoup.focus();
 		}
 	}
 }
 
-export class FocusFirstGroupAction extends AbstractFocusGroupAction {
+expowt cwass FocusFiwstGwoupAction extends AbstwactFocusGwoupAction {
 
-	static readonly ID = 'workbench.action.focusFirstEditorGroup';
-	static readonly LABEL = localize('focusFirstEditorGroup', "Focus First Editor Group");
+	static weadonwy ID = 'wowkbench.action.focusFiwstEditowGwoup';
+	static weadonwy WABEW = wocawize('focusFiwstEditowGwoup', "Focus Fiwst Editow Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, label, { location: GroupLocation.FIRST }, editorGroupService);
+		supa(id, wabew, { wocation: GwoupWocation.FIWST }, editowGwoupSewvice);
 	}
 }
 
-export class FocusLastGroupAction extends AbstractFocusGroupAction {
+expowt cwass FocusWastGwoupAction extends AbstwactFocusGwoupAction {
 
-	static readonly ID = 'workbench.action.focusLastEditorGroup';
-	static readonly LABEL = localize('focusLastEditorGroup', "Focus Last Editor Group");
+	static weadonwy ID = 'wowkbench.action.focusWastEditowGwoup';
+	static weadonwy WABEW = wocawize('focusWastEditowGwoup', "Focus Wast Editow Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, label, { location: GroupLocation.LAST }, editorGroupService);
+		supa(id, wabew, { wocation: GwoupWocation.WAST }, editowGwoupSewvice);
 	}
 }
 
-export class FocusNextGroup extends AbstractFocusGroupAction {
+expowt cwass FocusNextGwoup extends AbstwactFocusGwoupAction {
 
-	static readonly ID = 'workbench.action.focusNextGroup';
-	static readonly LABEL = localize('focusNextGroup', "Focus Next Editor Group");
+	static weadonwy ID = 'wowkbench.action.focusNextGwoup';
+	static weadonwy WABEW = wocawize('focusNextGwoup', "Focus Next Editow Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, label, { location: GroupLocation.NEXT }, editorGroupService);
+		supa(id, wabew, { wocation: GwoupWocation.NEXT }, editowGwoupSewvice);
 	}
 }
 
-export class FocusPreviousGroup extends AbstractFocusGroupAction {
+expowt cwass FocusPweviousGwoup extends AbstwactFocusGwoupAction {
 
-	static readonly ID = 'workbench.action.focusPreviousGroup';
-	static readonly LABEL = localize('focusPreviousGroup', "Focus Previous Editor Group");
+	static weadonwy ID = 'wowkbench.action.focusPweviousGwoup';
+	static weadonwy WABEW = wocawize('focusPweviousGwoup', "Focus Pwevious Editow Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, label, { location: GroupLocation.PREVIOUS }, editorGroupService);
+		supa(id, wabew, { wocation: GwoupWocation.PWEVIOUS }, editowGwoupSewvice);
 	}
 }
 
-export class FocusLeftGroup extends AbstractFocusGroupAction {
+expowt cwass FocusWeftGwoup extends AbstwactFocusGwoupAction {
 
-	static readonly ID = 'workbench.action.focusLeftGroup';
-	static readonly LABEL = localize('focusLeftGroup', "Focus Left Editor Group");
+	static weadonwy ID = 'wowkbench.action.focusWeftGwoup';
+	static weadonwy WABEW = wocawize('focusWeftGwoup', "Focus Weft Editow Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, label, { direction: GroupDirection.LEFT }, editorGroupService);
+		supa(id, wabew, { diwection: GwoupDiwection.WEFT }, editowGwoupSewvice);
 	}
 }
 
-export class FocusRightGroup extends AbstractFocusGroupAction {
+expowt cwass FocusWightGwoup extends AbstwactFocusGwoupAction {
 
-	static readonly ID = 'workbench.action.focusRightGroup';
-	static readonly LABEL = localize('focusRightGroup', "Focus Right Editor Group");
+	static weadonwy ID = 'wowkbench.action.focusWightGwoup';
+	static weadonwy WABEW = wocawize('focusWightGwoup', "Focus Wight Editow Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, label, { direction: GroupDirection.RIGHT }, editorGroupService);
+		supa(id, wabew, { diwection: GwoupDiwection.WIGHT }, editowGwoupSewvice);
 	}
 }
 
-export class FocusAboveGroup extends AbstractFocusGroupAction {
+expowt cwass FocusAboveGwoup extends AbstwactFocusGwoupAction {
 
-	static readonly ID = 'workbench.action.focusAboveGroup';
-	static readonly LABEL = localize('focusAboveGroup', "Focus Above Editor Group");
+	static weadonwy ID = 'wowkbench.action.focusAboveGwoup';
+	static weadonwy WABEW = wocawize('focusAboveGwoup', "Focus Above Editow Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, label, { direction: GroupDirection.UP }, editorGroupService);
+		supa(id, wabew, { diwection: GwoupDiwection.UP }, editowGwoupSewvice);
 	}
 }
 
-export class FocusBelowGroup extends AbstractFocusGroupAction {
+expowt cwass FocusBewowGwoup extends AbstwactFocusGwoupAction {
 
-	static readonly ID = 'workbench.action.focusBelowGroup';
-	static readonly LABEL = localize('focusBelowGroup', "Focus Below Editor Group");
+	static weadonwy ID = 'wowkbench.action.focusBewowGwoup';
+	static weadonwy WABEW = wocawize('focusBewowGwoup', "Focus Bewow Editow Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, label, { direction: GroupDirection.DOWN }, editorGroupService);
+		supa(id, wabew, { diwection: GwoupDiwection.DOWN }, editowGwoupSewvice);
 	}
 }
 
-export class CloseEditorAction extends Action {
+expowt cwass CwoseEditowAction extends Action {
 
-	static readonly ID = 'workbench.action.closeActiveEditor';
-	static readonly LABEL = localize('closeEditor', "Close Editor");
+	static weadonwy ID = 'wowkbench.action.cwoseActiveEditow';
+	static weadonwy WABEW = wocawize('cwoseEditow', "Cwose Editow");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService private readonly commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice
 	) {
-		super(id, label, Codicon.close.classNames);
+		supa(id, wabew, Codicon.cwose.cwassNames);
 	}
 
-	override run(context?: IEditorCommandsContext): Promise<void> {
-		return this.commandService.executeCommand(CLOSE_EDITOR_COMMAND_ID, undefined, context);
+	ovewwide wun(context?: IEditowCommandsContext): Pwomise<void> {
+		wetuwn this.commandSewvice.executeCommand(CWOSE_EDITOW_COMMAND_ID, undefined, context);
 	}
 }
 
-export class UnpinEditorAction extends Action {
+expowt cwass UnpinEditowAction extends Action {
 
-	static readonly ID = 'workbench.action.unpinActiveEditor';
-	static readonly LABEL = localize('unpinEditor', "Unpin Editor");
+	static weadonwy ID = 'wowkbench.action.unpinActiveEditow';
+	static weadonwy WABEW = wocawize('unpinEditow', "Unpin Editow");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService private readonly commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice
 	) {
-		super(id, label, Codicon.pinned.classNames);
+		supa(id, wabew, Codicon.pinned.cwassNames);
 	}
 
-	override run(context?: IEditorCommandsContext): Promise<void> {
-		return this.commandService.executeCommand(UNPIN_EDITOR_COMMAND_ID, undefined, context);
+	ovewwide wun(context?: IEditowCommandsContext): Pwomise<void> {
+		wetuwn this.commandSewvice.executeCommand(UNPIN_EDITOW_COMMAND_ID, undefined, context);
 	}
 }
 
-export class CloseOneEditorAction extends Action {
+expowt cwass CwoseOneEditowAction extends Action {
 
-	static readonly ID = 'workbench.action.closeActiveEditor';
-	static readonly LABEL = localize('closeOneEditor', "Close");
+	static weadonwy ID = 'wowkbench.action.cwoseActiveEditow';
+	static weadonwy WABEW = wocawize('cwoseOneEditow', "Cwose");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice pwivate weadonwy editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, label, Codicon.close.classNames);
+		supa(id, wabew, Codicon.cwose.cwassNames);
 	}
 
-	override async run(context?: IEditorCommandsContext): Promise<void> {
-		let group: IEditorGroup | undefined;
-		let editorIndex: number | undefined;
+	ovewwide async wun(context?: IEditowCommandsContext): Pwomise<void> {
+		wet gwoup: IEditowGwoup | undefined;
+		wet editowIndex: numba | undefined;
 		if (context) {
-			group = this.editorGroupService.getGroup(context.groupId);
+			gwoup = this.editowGwoupSewvice.getGwoup(context.gwoupId);
 
-			if (group) {
-				editorIndex = context.editorIndex; // only allow editor at index if group is valid
+			if (gwoup) {
+				editowIndex = context.editowIndex; // onwy awwow editow at index if gwoup is vawid
 			}
 		}
 
-		if (!group) {
-			group = this.editorGroupService.activeGroup;
+		if (!gwoup) {
+			gwoup = this.editowGwoupSewvice.activeGwoup;
 		}
 
-		// Close specific editor in group
-		if (typeof editorIndex === 'number') {
-			const editorAtIndex = group.getEditorByIndex(editorIndex);
-			if (editorAtIndex) {
-				return group.closeEditor(editorAtIndex);
+		// Cwose specific editow in gwoup
+		if (typeof editowIndex === 'numba') {
+			const editowAtIndex = gwoup.getEditowByIndex(editowIndex);
+			if (editowAtIndex) {
+				wetuwn gwoup.cwoseEditow(editowAtIndex);
 			}
 		}
 
-		// Otherwise close active editor in group
-		if (group.activeEditor) {
-			return group.closeEditor(group.activeEditor);
+		// Othewwise cwose active editow in gwoup
+		if (gwoup.activeEditow) {
+			wetuwn gwoup.cwoseEditow(gwoup.activeEditow);
 		}
 	}
 }
 
-export class RevertAndCloseEditorAction extends Action {
+expowt cwass WevewtAndCwoseEditowAction extends Action {
 
-	static readonly ID = 'workbench.action.revertAndCloseActiveEditor';
-	static readonly LABEL = localize('revertAndCloseActiveEditor', "Revert and Close Editor");
+	static weadonwy ID = 'wowkbench.action.wevewtAndCwoseActiveEditow';
+	static weadonwy WABEW = wocawize('wevewtAndCwoseActiveEditow', "Wevewt and Cwose Editow");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorService private readonly editorService: IEditorService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<void> {
-		const activeEditorPane = this.editorService.activeEditorPane;
-		if (activeEditorPane) {
-			const editor = activeEditorPane.input;
-			const group = activeEditorPane.group;
+	ovewwide async wun(): Pwomise<void> {
+		const activeEditowPane = this.editowSewvice.activeEditowPane;
+		if (activeEditowPane) {
+			const editow = activeEditowPane.input;
+			const gwoup = activeEditowPane.gwoup;
 
-			// first try a normal revert where the contents of the editor are restored
-			try {
-				await this.editorService.revert({ editor, groupId: group.id });
-			} catch (error) {
-				// if that fails, since we are about to close the editor, we accept that
-				// the editor cannot be reverted and instead do a soft revert that just
-				// enables us to close the editor. With this, a user can always close a
-				// dirty editor even when reverting fails.
-				await this.editorService.revert({ editor, groupId: group.id }, { soft: true });
+			// fiwst twy a nowmaw wevewt whewe the contents of the editow awe westowed
+			twy {
+				await this.editowSewvice.wevewt({ editow, gwoupId: gwoup.id });
+			} catch (ewwow) {
+				// if that faiws, since we awe about to cwose the editow, we accept that
+				// the editow cannot be wevewted and instead do a soft wevewt that just
+				// enabwes us to cwose the editow. With this, a usa can awways cwose a
+				// diwty editow even when wevewting faiws.
+				await this.editowSewvice.wevewt({ editow, gwoupId: gwoup.id }, { soft: twue });
 			}
 
-			return group.closeEditor(editor);
+			wetuwn gwoup.cwoseEditow(editow);
 		}
 	}
 }
 
-export class CloseLeftEditorsInGroupAction extends Action {
+expowt cwass CwoseWeftEditowsInGwoupAction extends Action {
 
-	static readonly ID = 'workbench.action.closeEditorsToTheLeft';
-	static readonly LABEL = localize('closeEditorsToTheLeft', "Close Editors to the Left in Group");
+	static weadonwy ID = 'wowkbench.action.cwoseEditowsToTheWeft';
+	static weadonwy WABEW = wocawize('cwoseEditowsToTheWeft', "Cwose Editows to the Weft in Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice pwivate weadonwy editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(context?: IEditorIdentifier): Promise<void> {
-		const { group, editor } = this.getTarget(context);
-		if (group && editor) {
-			return group.closeEditors({ direction: CloseDirection.LEFT, except: editor, excludeSticky: true });
+	ovewwide async wun(context?: IEditowIdentifia): Pwomise<void> {
+		const { gwoup, editow } = this.getTawget(context);
+		if (gwoup && editow) {
+			wetuwn gwoup.cwoseEditows({ diwection: CwoseDiwection.WEFT, except: editow, excwudeSticky: twue });
 		}
 	}
 
-	private getTarget(context?: IEditorIdentifier): { editor: EditorInput | null, group: IEditorGroup | undefined } {
+	pwivate getTawget(context?: IEditowIdentifia): { editow: EditowInput | nuww, gwoup: IEditowGwoup | undefined } {
 		if (context) {
-			return { editor: context.editor, group: this.editorGroupService.getGroup(context.groupId) };
+			wetuwn { editow: context.editow, gwoup: this.editowGwoupSewvice.getGwoup(context.gwoupId) };
 		}
 
-		// Fallback to active group
-		return { group: this.editorGroupService.activeGroup, editor: this.editorGroupService.activeGroup.activeEditor };
+		// Fawwback to active gwoup
+		wetuwn { gwoup: this.editowGwoupSewvice.activeGwoup, editow: this.editowGwoupSewvice.activeGwoup.activeEditow };
 	}
 }
 
-abstract class AbstractCloseAllAction extends Action {
+abstwact cwass AbstwactCwoseAwwAction extends Action {
 
-	constructor(
-		id: string,
-		label: string,
-		clazz: string | undefined,
-		private fileDialogService: IFileDialogService,
-		protected editorGroupService: IEditorGroupsService,
-		private editorService: IEditorService,
-		private filesConfigurationService: IFilesConfigurationService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		cwazz: stwing | undefined,
+		pwivate fiweDiawogSewvice: IFiweDiawogSewvice,
+		pwotected editowGwoupSewvice: IEditowGwoupsSewvice,
+		pwivate editowSewvice: IEditowSewvice,
+		pwivate fiwesConfiguwationSewvice: IFiwesConfiguwationSewvice
 	) {
-		super(id, label, clazz);
+		supa(id, wabew, cwazz);
 	}
 
-	protected get groupsToClose(): IEditorGroup[] {
-		const groupsToClose: IEditorGroup[] = [];
+	pwotected get gwoupsToCwose(): IEditowGwoup[] {
+		const gwoupsToCwose: IEditowGwoup[] = [];
 
-		// Close editors in reverse order of their grid appearance so that the editor
-		// group that is the first (top-left) remains. This helps to keep view state
-		// for editors around that have been opened in this visually first group.
-		const groups = this.editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE);
-		for (let i = groups.length - 1; i >= 0; i--) {
-			groupsToClose.push(groups[i]);
+		// Cwose editows in wevewse owda of theiw gwid appeawance so that the editow
+		// gwoup that is the fiwst (top-weft) wemains. This hewps to keep view state
+		// fow editows awound that have been opened in this visuawwy fiwst gwoup.
+		const gwoups = this.editowGwoupSewvice.getGwoups(GwoupsOwda.GWID_APPEAWANCE);
+		fow (wet i = gwoups.wength - 1; i >= 0; i--) {
+			gwoupsToCwose.push(gwoups[i]);
 		}
 
-		return groupsToClose;
+		wetuwn gwoupsToCwose;
 	}
 
-	override async run(): Promise<void> {
+	ovewwide async wun(): Pwomise<void> {
 
-		// Depending on the editor and auto save configuration,
-		// split dirty editors into buckets
+		// Depending on the editow and auto save configuwation,
+		// spwit diwty editows into buckets
 
-		const dirtyEditorsWithDefaultConfirm = new Set<IEditorIdentifier>();
-		const dirtyAutoSaveableEditors = new Set<IEditorIdentifier>();
-		const dirtyEditorsWithCustomConfirm = new Map<string /* typeId */, Set<IEditorIdentifier>>();
+		const diwtyEditowsWithDefauwtConfiwm = new Set<IEditowIdentifia>();
+		const diwtyAutoSaveabweEditows = new Set<IEditowIdentifia>();
+		const diwtyEditowsWithCustomConfiwm = new Map<stwing /* typeId */, Set<IEditowIdentifia>>();
 
-		for (const { editor, groupId } of this.editorService.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: this.excludeSticky })) {
-			if (!editor.isDirty() || editor.isSaving()) {
-				continue; // only interested in dirty editors that are not in the process of saving
+		fow (const { editow, gwoupId } of this.editowSewvice.getEditows(EditowsOwda.SEQUENTIAW, { excwudeSticky: this.excwudeSticky })) {
+			if (!editow.isDiwty() || editow.isSaving()) {
+				continue; // onwy intewested in diwty editows that awe not in the pwocess of saving
 			}
 
-			// Editor has custom confirm implementation
-			if (typeof editor.confirm === 'function') {
-				let customEditorsToConfirm = dirtyEditorsWithCustomConfirm.get(editor.typeId);
-				if (!customEditorsToConfirm) {
-					customEditorsToConfirm = new Set();
-					dirtyEditorsWithCustomConfirm.set(editor.typeId, customEditorsToConfirm);
+			// Editow has custom confiwm impwementation
+			if (typeof editow.confiwm === 'function') {
+				wet customEditowsToConfiwm = diwtyEditowsWithCustomConfiwm.get(editow.typeId);
+				if (!customEditowsToConfiwm) {
+					customEditowsToConfiwm = new Set();
+					diwtyEditowsWithCustomConfiwm.set(editow.typeId, customEditowsToConfiwm);
 				}
 
-				customEditorsToConfirm.add({ editor, groupId });
+				customEditowsToConfiwm.add({ editow, gwoupId });
 			}
 
-			// Editor will be saved on focus change when a
-			// dialog appears, so just track that separate
-			else if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.ON_FOCUS_CHANGE && !editor.hasCapability(EditorInputCapabilities.Untitled)) {
-				dirtyAutoSaveableEditors.add({ editor, groupId });
+			// Editow wiww be saved on focus change when a
+			// diawog appeaws, so just twack that sepawate
+			ewse if (this.fiwesConfiguwationSewvice.getAutoSaveMode() === AutoSaveMode.ON_FOCUS_CHANGE && !editow.hasCapabiwity(EditowInputCapabiwities.Untitwed)) {
+				diwtyAutoSaveabweEditows.add({ editow, gwoupId });
 			}
 
-			// Editor will show in generic file based dialog
-			else {
-				dirtyEditorsWithDefaultConfirm.add({ editor, groupId });
+			// Editow wiww show in genewic fiwe based diawog
+			ewse {
+				diwtyEditowsWithDefauwtConfiwm.add({ editow, gwoupId });
 			}
 		}
 
-		// 1.) Show default file based dialog
-		if (dirtyEditorsWithDefaultConfirm.size > 0) {
-			const editors = Array.from(dirtyEditorsWithDefaultConfirm.values());
+		// 1.) Show defauwt fiwe based diawog
+		if (diwtyEditowsWithDefauwtConfiwm.size > 0) {
+			const editows = Awway.fwom(diwtyEditowsWithDefauwtConfiwm.vawues());
 
-			await this.revealDirtyEditors(editors); // help user make a decision by revealing editors
+			await this.weveawDiwtyEditows(editows); // hewp usa make a decision by weveawing editows
 
-			const confirmation = await this.fileDialogService.showSaveConfirm(editors.map(({ editor }) => {
-				if (editor instanceof SideBySideEditorInput) {
-					return editor.primary.getName(); // prefer shorter names by using primary's name in this case
+			const confiwmation = await this.fiweDiawogSewvice.showSaveConfiwm(editows.map(({ editow }) => {
+				if (editow instanceof SideBySideEditowInput) {
+					wetuwn editow.pwimawy.getName(); // pwefa showta names by using pwimawy's name in this case
 				}
 
-				return editor.getName();
+				wetuwn editow.getName();
 			}));
 
-			switch (confirmation) {
-				case ConfirmResult.CANCEL:
-					return;
-				case ConfirmResult.DONT_SAVE:
-					await this.editorService.revert(editors, { soft: true });
-					break;
-				case ConfirmResult.SAVE:
-					await this.editorService.save(editors, { reason: SaveReason.EXPLICIT });
-					break;
+			switch (confiwmation) {
+				case ConfiwmWesuwt.CANCEW:
+					wetuwn;
+				case ConfiwmWesuwt.DONT_SAVE:
+					await this.editowSewvice.wevewt(editows, { soft: twue });
+					bweak;
+				case ConfiwmWesuwt.SAVE:
+					await this.editowSewvice.save(editows, { weason: SaveWeason.EXPWICIT });
+					bweak;
 			}
 		}
 
-		// 2.) Show custom confirm based dialog
-		for (const [, editorIdentifiers] of dirtyEditorsWithCustomConfirm) {
-			const editors = Array.from(editorIdentifiers.values());
+		// 2.) Show custom confiwm based diawog
+		fow (const [, editowIdentifiews] of diwtyEditowsWithCustomConfiwm) {
+			const editows = Awway.fwom(editowIdentifiews.vawues());
 
-			await this.revealDirtyEditors(editors); // help user make a decision by revealing editors
+			await this.weveawDiwtyEditows(editows); // hewp usa make a decision by weveawing editows
 
-			const confirmation = await firstOrDefault(editors)?.editor.confirm?.(editors);
-			if (typeof confirmation === 'number') {
-				switch (confirmation) {
-					case ConfirmResult.CANCEL:
-						return;
-					case ConfirmResult.DONT_SAVE:
-						await this.editorService.revert(editors, { soft: true });
-						break;
-					case ConfirmResult.SAVE:
-						await this.editorService.save(editors, { reason: SaveReason.EXPLICIT });
-						break;
+			const confiwmation = await fiwstOwDefauwt(editows)?.editow.confiwm?.(editows);
+			if (typeof confiwmation === 'numba') {
+				switch (confiwmation) {
+					case ConfiwmWesuwt.CANCEW:
+						wetuwn;
+					case ConfiwmWesuwt.DONT_SAVE:
+						await this.editowSewvice.wevewt(editows, { soft: twue });
+						bweak;
+					case ConfiwmWesuwt.SAVE:
+						await this.editowSewvice.save(editows, { weason: SaveWeason.EXPWICIT });
+						bweak;
 				}
 			}
 		}
 
-		// 3.) Save autosaveable editors
-		if (dirtyAutoSaveableEditors.size > 0) {
-			const editors = Array.from(dirtyAutoSaveableEditors.values());
+		// 3.) Save autosaveabwe editows
+		if (diwtyAutoSaveabweEditows.size > 0) {
+			const editows = Awway.fwom(diwtyAutoSaveabweEditows.vawues());
 
-			await this.editorService.save(editors, { reason: SaveReason.FOCUS_CHANGE });
+			await this.editowSewvice.save(editows, { weason: SaveWeason.FOCUS_CHANGE });
 		}
 
-		// 4.) Finally close all editors: even if an editor failed to
-		// save or revert and still reports dirty, the editor part makes
-		// sure to bring up another confirm dialog for those editors
-		// specifically.
-		return this.doCloseAll();
+		// 4.) Finawwy cwose aww editows: even if an editow faiwed to
+		// save ow wevewt and stiww wepowts diwty, the editow pawt makes
+		// suwe to bwing up anotha confiwm diawog fow those editows
+		// specificawwy.
+		wetuwn this.doCwoseAww();
 	}
 
-	private async revealDirtyEditors(editors: ReadonlyArray<IEditorIdentifier>): Promise<void> {
-		try {
-			const handledGroups = new Set<GroupIdentifier>();
-			for (const { editor, groupId } of editors) {
-				if (handledGroups.has(groupId)) {
+	pwivate async weveawDiwtyEditows(editows: WeadonwyAwway<IEditowIdentifia>): Pwomise<void> {
+		twy {
+			const handwedGwoups = new Set<GwoupIdentifia>();
+			fow (const { editow, gwoupId } of editows) {
+				if (handwedGwoups.has(gwoupId)) {
 					continue;
 				}
 
-				handledGroups.add(groupId);
+				handwedGwoups.add(gwoupId);
 
-				const group = this.editorGroupService.getGroup(groupId);
-				await group?.openEditor(editor);
+				const gwoup = this.editowGwoupSewvice.getGwoup(gwoupId);
+				await gwoup?.openEditow(editow);
 			}
-		} catch (error) {
-			// ignore any error as the revealing is just convinience
+		} catch (ewwow) {
+			// ignowe any ewwow as the weveawing is just convinience
 		}
 	}
 
-	protected abstract get excludeSticky(): boolean;
+	pwotected abstwact get excwudeSticky(): boowean;
 
-	protected async doCloseAll(): Promise<void> {
-		await Promise.all(this.groupsToClose.map(group => group.closeAllEditors({ excludeSticky: this.excludeSticky })));
+	pwotected async doCwoseAww(): Pwomise<void> {
+		await Pwomise.aww(this.gwoupsToCwose.map(gwoup => gwoup.cwoseAwwEditows({ excwudeSticky: this.excwudeSticky })));
 	}
 }
 
-export class CloseAllEditorsAction extends AbstractCloseAllAction {
+expowt cwass CwoseAwwEditowsAction extends AbstwactCwoseAwwAction {
 
-	static readonly ID = 'workbench.action.closeAllEditors';
-	static readonly LABEL = localize('closeAllEditors', "Close All Editors");
+	static weadonwy ID = 'wowkbench.action.cwoseAwwEditows';
+	static weadonwy WABEW = wocawize('cwoseAwwEditows', "Cwose Aww Editows");
 
-	constructor(
-		id: string,
-		label: string,
-		@IFileDialogService fileDialogService: IFileDialogService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IFiweDiawogSewvice fiweDiawogSewvice: IFiweDiawogSewvice,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice,
+		@IFiwesConfiguwationSewvice fiwesConfiguwationSewvice: IFiwesConfiguwationSewvice
 	) {
-		super(id, label, Codicon.closeAll.classNames, fileDialogService, editorGroupService, editorService, filesConfigurationService);
+		supa(id, wabew, Codicon.cwoseAww.cwassNames, fiweDiawogSewvice, editowGwoupSewvice, editowSewvice, fiwesConfiguwationSewvice);
 	}
 
-	protected get excludeSticky(): boolean {
-		return true; // exclude sticky from this mass-closing operation
+	pwotected get excwudeSticky(): boowean {
+		wetuwn twue; // excwude sticky fwom this mass-cwosing opewation
 	}
 }
 
-export class CloseAllEditorGroupsAction extends AbstractCloseAllAction {
+expowt cwass CwoseAwwEditowGwoupsAction extends AbstwactCwoseAwwAction {
 
-	static readonly ID = 'workbench.action.closeAllGroups';
-	static readonly LABEL = localize('closeAllGroups', "Close All Editor Groups");
+	static weadonwy ID = 'wowkbench.action.cwoseAwwGwoups';
+	static weadonwy WABEW = wocawize('cwoseAwwGwoups', "Cwose Aww Editow Gwoups");
 
-	constructor(
-		id: string,
-		label: string,
-		@IFileDialogService fileDialogService: IFileDialogService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IFiweDiawogSewvice fiweDiawogSewvice: IFiweDiawogSewvice,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice,
+		@IFiwesConfiguwationSewvice fiwesConfiguwationSewvice: IFiwesConfiguwationSewvice
 	) {
-		super(id, label, undefined, fileDialogService, editorGroupService, editorService, filesConfigurationService);
+		supa(id, wabew, undefined, fiweDiawogSewvice, editowGwoupSewvice, editowSewvice, fiwesConfiguwationSewvice);
 	}
 
-	protected get excludeSticky(): boolean {
-		return false; // the intent to close groups means, even sticky are included
+	pwotected get excwudeSticky(): boowean {
+		wetuwn fawse; // the intent to cwose gwoups means, even sticky awe incwuded
 	}
 
-	protected override async doCloseAll(): Promise<void> {
-		await super.doCloseAll();
+	pwotected ovewwide async doCwoseAww(): Pwomise<void> {
+		await supa.doCwoseAww();
 
-		for (const groupToClose of this.groupsToClose) {
-			this.editorGroupService.removeGroup(groupToClose);
+		fow (const gwoupToCwose of this.gwoupsToCwose) {
+			this.editowGwoupSewvice.wemoveGwoup(gwoupToCwose);
 		}
 	}
 }
 
-export class CloseEditorsInOtherGroupsAction extends Action {
+expowt cwass CwoseEditowsInOthewGwoupsAction extends Action {
 
-	static readonly ID = 'workbench.action.closeEditorsInOtherGroups';
-	static readonly LABEL = localize('closeEditorsInOtherGroups', "Close Editors in Other Groups");
+	static weadonwy ID = 'wowkbench.action.cwoseEditowsInOthewGwoups';
+	static weadonwy WABEW = wocawize('cwoseEditowsInOthewGwoups', "Cwose Editows in Otha Gwoups");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice pwivate weadonwy editowGwoupSewvice: IEditowGwoupsSewvice,
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(context?: IEditorIdentifier): Promise<void> {
-		const groupToSkip = context ? this.editorGroupService.getGroup(context.groupId) : this.editorGroupService.activeGroup;
-		await Promise.all(this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(async group => {
-			if (groupToSkip && group.id === groupToSkip.id) {
-				return;
+	ovewwide async wun(context?: IEditowIdentifia): Pwomise<void> {
+		const gwoupToSkip = context ? this.editowGwoupSewvice.getGwoup(context.gwoupId) : this.editowGwoupSewvice.activeGwoup;
+		await Pwomise.aww(this.editowGwoupSewvice.getGwoups(GwoupsOwda.MOST_WECENTWY_ACTIVE).map(async gwoup => {
+			if (gwoupToSkip && gwoup.id === gwoupToSkip.id) {
+				wetuwn;
 			}
 
-			return group.closeAllEditors({ excludeSticky: true });
+			wetuwn gwoup.cwoseAwwEditows({ excwudeSticky: twue });
 		}));
 	}
 }
 
-export class CloseEditorInAllGroupsAction extends Action {
+expowt cwass CwoseEditowInAwwGwoupsAction extends Action {
 
-	static readonly ID = 'workbench.action.closeEditorInAllGroups';
-	static readonly LABEL = localize('closeEditorInAllGroups', "Close Editor in All Groups");
+	static weadonwy ID = 'wowkbench.action.cwoseEditowInAwwGwoups';
+	static weadonwy WABEW = wocawize('cwoseEditowInAwwGwoups', "Cwose Editow in Aww Gwoups");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IEditorService private readonly editorService: IEditorService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice pwivate weadonwy editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<void> {
-		const activeEditor = this.editorService.activeEditor;
-		if (activeEditor) {
-			await Promise.all(this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(group => group.closeEditor(activeEditor)));
+	ovewwide async wun(): Pwomise<void> {
+		const activeEditow = this.editowSewvice.activeEditow;
+		if (activeEditow) {
+			await Pwomise.aww(this.editowGwoupSewvice.getGwoups(GwoupsOwda.MOST_WECENTWY_ACTIVE).map(gwoup => gwoup.cwoseEditow(activeEditow)));
 		}
 	}
 }
 
-abstract class AbstractMoveCopyGroupAction extends Action {
+abstwact cwass AbstwactMoveCopyGwoupAction extends Action {
 
-	constructor(
-		id: string,
-		label: string,
-		private direction: GroupDirection,
-		private isMove: boolean,
-		private editorGroupService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		pwivate diwection: GwoupDiwection,
+		pwivate isMove: boowean,
+		pwivate editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(context?: IEditorIdentifier): Promise<void> {
-		let sourceGroup: IEditorGroup | undefined;
-		if (context && typeof context.groupId === 'number') {
-			sourceGroup = this.editorGroupService.getGroup(context.groupId);
-		} else {
-			sourceGroup = this.editorGroupService.activeGroup;
+	ovewwide async wun(context?: IEditowIdentifia): Pwomise<void> {
+		wet souwceGwoup: IEditowGwoup | undefined;
+		if (context && typeof context.gwoupId === 'numba') {
+			souwceGwoup = this.editowGwoupSewvice.getGwoup(context.gwoupId);
+		} ewse {
+			souwceGwoup = this.editowGwoupSewvice.activeGwoup;
 		}
 
-		if (sourceGroup) {
-			let resultGroup: IEditorGroup | undefined = undefined;
+		if (souwceGwoup) {
+			wet wesuwtGwoup: IEditowGwoup | undefined = undefined;
 			if (this.isMove) {
-				const targetGroup = this.findTargetGroup(sourceGroup);
-				if (targetGroup) {
-					resultGroup = this.editorGroupService.moveGroup(sourceGroup, targetGroup, this.direction);
+				const tawgetGwoup = this.findTawgetGwoup(souwceGwoup);
+				if (tawgetGwoup) {
+					wesuwtGwoup = this.editowGwoupSewvice.moveGwoup(souwceGwoup, tawgetGwoup, this.diwection);
 				}
-			} else {
-				resultGroup = this.editorGroupService.copyGroup(sourceGroup, sourceGroup, this.direction);
+			} ewse {
+				wesuwtGwoup = this.editowGwoupSewvice.copyGwoup(souwceGwoup, souwceGwoup, this.diwection);
 			}
 
-			if (resultGroup) {
-				this.editorGroupService.activateGroup(resultGroup);
+			if (wesuwtGwoup) {
+				this.editowGwoupSewvice.activateGwoup(wesuwtGwoup);
 			}
 		}
 	}
 
-	private findTargetGroup(sourceGroup: IEditorGroup): IEditorGroup | undefined {
-		const targetNeighbours: GroupDirection[] = [this.direction];
+	pwivate findTawgetGwoup(souwceGwoup: IEditowGwoup): IEditowGwoup | undefined {
+		const tawgetNeighbouws: GwoupDiwection[] = [this.diwection];
 
-		// Allow the target group to be in alternative locations to support more
-		// scenarios of moving the group to the taret location.
-		// Helps for https://github.com/microsoft/vscode/issues/50741
-		switch (this.direction) {
-			case GroupDirection.LEFT:
-			case GroupDirection.RIGHT:
-				targetNeighbours.push(GroupDirection.UP, GroupDirection.DOWN);
-				break;
-			case GroupDirection.UP:
-			case GroupDirection.DOWN:
-				targetNeighbours.push(GroupDirection.LEFT, GroupDirection.RIGHT);
-				break;
+		// Awwow the tawget gwoup to be in awtewnative wocations to suppowt mowe
+		// scenawios of moving the gwoup to the tawet wocation.
+		// Hewps fow https://github.com/micwosoft/vscode/issues/50741
+		switch (this.diwection) {
+			case GwoupDiwection.WEFT:
+			case GwoupDiwection.WIGHT:
+				tawgetNeighbouws.push(GwoupDiwection.UP, GwoupDiwection.DOWN);
+				bweak;
+			case GwoupDiwection.UP:
+			case GwoupDiwection.DOWN:
+				tawgetNeighbouws.push(GwoupDiwection.WEFT, GwoupDiwection.WIGHT);
+				bweak;
 		}
 
-		for (const targetNeighbour of targetNeighbours) {
-			const targetNeighbourGroup = this.editorGroupService.findGroup({ direction: targetNeighbour }, sourceGroup);
-			if (targetNeighbourGroup) {
-				return targetNeighbourGroup;
+		fow (const tawgetNeighbouw of tawgetNeighbouws) {
+			const tawgetNeighbouwGwoup = this.editowGwoupSewvice.findGwoup({ diwection: tawgetNeighbouw }, souwceGwoup);
+			if (tawgetNeighbouwGwoup) {
+				wetuwn tawgetNeighbouwGwoup;
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 }
 
-abstract class AbstractMoveGroupAction extends AbstractMoveCopyGroupAction {
+abstwact cwass AbstwactMoveGwoupAction extends AbstwactMoveCopyGwoupAction {
 
-	constructor(
-		id: string,
-		label: string,
-		direction: GroupDirection,
-		editorGroupService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		diwection: GwoupDiwection,
+		editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, label, direction, true, editorGroupService);
+		supa(id, wabew, diwection, twue, editowGwoupSewvice);
 	}
 }
 
-export class MoveGroupLeftAction extends AbstractMoveGroupAction {
+expowt cwass MoveGwoupWeftAction extends AbstwactMoveGwoupAction {
 
-	static readonly ID = 'workbench.action.moveActiveEditorGroupLeft';
-	static readonly LABEL = localize('moveActiveGroupLeft', "Move Editor Group Left");
+	static weadonwy ID = 'wowkbench.action.moveActiveEditowGwoupWeft';
+	static weadonwy WABEW = wocawize('moveActiveGwoupWeft', "Move Editow Gwoup Weft");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, label, GroupDirection.LEFT, editorGroupService);
+		supa(id, wabew, GwoupDiwection.WEFT, editowGwoupSewvice);
 	}
 }
 
-export class MoveGroupRightAction extends AbstractMoveGroupAction {
+expowt cwass MoveGwoupWightAction extends AbstwactMoveGwoupAction {
 
-	static readonly ID = 'workbench.action.moveActiveEditorGroupRight';
-	static readonly LABEL = localize('moveActiveGroupRight', "Move Editor Group Right");
+	static weadonwy ID = 'wowkbench.action.moveActiveEditowGwoupWight';
+	static weadonwy WABEW = wocawize('moveActiveGwoupWight', "Move Editow Gwoup Wight");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, label, GroupDirection.RIGHT, editorGroupService);
+		supa(id, wabew, GwoupDiwection.WIGHT, editowGwoupSewvice);
 	}
 }
 
-export class MoveGroupUpAction extends AbstractMoveGroupAction {
+expowt cwass MoveGwoupUpAction extends AbstwactMoveGwoupAction {
 
-	static readonly ID = 'workbench.action.moveActiveEditorGroupUp';
-	static readonly LABEL = localize('moveActiveGroupUp', "Move Editor Group Up");
+	static weadonwy ID = 'wowkbench.action.moveActiveEditowGwoupUp';
+	static weadonwy WABEW = wocawize('moveActiveGwoupUp', "Move Editow Gwoup Up");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, label, GroupDirection.UP, editorGroupService);
+		supa(id, wabew, GwoupDiwection.UP, editowGwoupSewvice);
 	}
 }
 
-export class MoveGroupDownAction extends AbstractMoveGroupAction {
+expowt cwass MoveGwoupDownAction extends AbstwactMoveGwoupAction {
 
-	static readonly ID = 'workbench.action.moveActiveEditorGroupDown';
-	static readonly LABEL = localize('moveActiveGroupDown', "Move Editor Group Down");
+	static weadonwy ID = 'wowkbench.action.moveActiveEditowGwoupDown';
+	static weadonwy WABEW = wocawize('moveActiveGwoupDown', "Move Editow Gwoup Down");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, label, GroupDirection.DOWN, editorGroupService);
+		supa(id, wabew, GwoupDiwection.DOWN, editowGwoupSewvice);
 	}
 }
 
-abstract class AbstractDuplicateGroupAction extends AbstractMoveCopyGroupAction {
+abstwact cwass AbstwactDupwicateGwoupAction extends AbstwactMoveCopyGwoupAction {
 
-	constructor(
-		id: string,
-		label: string,
-		direction: GroupDirection,
-		editorGroupService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		diwection: GwoupDiwection,
+		editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, label, direction, false, editorGroupService);
+		supa(id, wabew, diwection, fawse, editowGwoupSewvice);
 	}
 }
 
-export class DuplicateGroupLeftAction extends AbstractDuplicateGroupAction {
+expowt cwass DupwicateGwoupWeftAction extends AbstwactDupwicateGwoupAction {
 
-	static readonly ID = 'workbench.action.duplicateActiveEditorGroupLeft';
-	static readonly LABEL = localize('duplicateActiveGroupLeft', "Duplicate Editor Group Left");
+	static weadonwy ID = 'wowkbench.action.dupwicateActiveEditowGwoupWeft';
+	static weadonwy WABEW = wocawize('dupwicateActiveGwoupWeft', "Dupwicate Editow Gwoup Weft");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, label, GroupDirection.LEFT, editorGroupService);
+		supa(id, wabew, GwoupDiwection.WEFT, editowGwoupSewvice);
 	}
 }
 
-export class DuplicateGroupRightAction extends AbstractDuplicateGroupAction {
+expowt cwass DupwicateGwoupWightAction extends AbstwactDupwicateGwoupAction {
 
-	static readonly ID = 'workbench.action.duplicateActiveEditorGroupRight';
-	static readonly LABEL = localize('duplicateActiveGroupRight', "Duplicate Editor Group Right");
+	static weadonwy ID = 'wowkbench.action.dupwicateActiveEditowGwoupWight';
+	static weadonwy WABEW = wocawize('dupwicateActiveGwoupWight', "Dupwicate Editow Gwoup Wight");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, label, GroupDirection.RIGHT, editorGroupService);
+		supa(id, wabew, GwoupDiwection.WIGHT, editowGwoupSewvice);
 	}
 }
 
-export class DuplicateGroupUpAction extends AbstractDuplicateGroupAction {
+expowt cwass DupwicateGwoupUpAction extends AbstwactDupwicateGwoupAction {
 
-	static readonly ID = 'workbench.action.duplicateActiveEditorGroupUp';
-	static readonly LABEL = localize('duplicateActiveGroupUp', "Duplicate Editor Group Up");
+	static weadonwy ID = 'wowkbench.action.dupwicateActiveEditowGwoupUp';
+	static weadonwy WABEW = wocawize('dupwicateActiveGwoupUp', "Dupwicate Editow Gwoup Up");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, label, GroupDirection.UP, editorGroupService);
+		supa(id, wabew, GwoupDiwection.UP, editowGwoupSewvice);
 	}
 }
 
-export class DuplicateGroupDownAction extends AbstractDuplicateGroupAction {
+expowt cwass DupwicateGwoupDownAction extends AbstwactDupwicateGwoupAction {
 
-	static readonly ID = 'workbench.action.duplicateActiveEditorGroupDown';
-	static readonly LABEL = localize('duplicateActiveGroupDown', "Duplicate Editor Group Down");
+	static weadonwy ID = 'wowkbench.action.dupwicateActiveEditowGwoupDown';
+	static weadonwy WABEW = wocawize('dupwicateActiveGwoupDown', "Dupwicate Editow Gwoup Down");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, label, GroupDirection.DOWN, editorGroupService);
+		supa(id, wabew, GwoupDiwection.DOWN, editowGwoupSewvice);
 	}
 }
 
-export class MinimizeOtherGroupsAction extends Action {
+expowt cwass MinimizeOthewGwoupsAction extends Action {
 
-	static readonly ID = 'workbench.action.minimizeOtherEditors';
-	static readonly LABEL = localize('minimizeOtherEditorGroups', "Maximize Editor Group");
+	static weadonwy ID = 'wowkbench.action.minimizeOthewEditows';
+	static weadonwy WABEW = wocawize('minimizeOthewEditowGwoups', "Maximize Editow Gwoup");
 
-	constructor(id: string, label: string, @IEditorGroupsService private readonly editorGroupService: IEditorGroupsService) {
-		super(id, label);
+	constwuctow(id: stwing, wabew: stwing, @IEditowGwoupsSewvice pwivate weadonwy editowGwoupSewvice: IEditowGwoupsSewvice) {
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<void> {
-		this.editorGroupService.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
-	}
-}
-
-export class ResetGroupSizesAction extends Action {
-
-	static readonly ID = 'workbench.action.evenEditorWidths';
-	static readonly LABEL = localize('evenEditorGroups', "Reset Editor Group Sizes");
-
-	constructor(id: string, label: string, @IEditorGroupsService private readonly editorGroupService: IEditorGroupsService) {
-		super(id, label);
-	}
-
-	override async run(): Promise<void> {
-		this.editorGroupService.arrangeGroups(GroupsArrangement.EVEN);
+	ovewwide async wun(): Pwomise<void> {
+		this.editowGwoupSewvice.awwangeGwoups(GwoupsAwwangement.MINIMIZE_OTHEWS);
 	}
 }
 
-export class ToggleGroupSizesAction extends Action {
+expowt cwass WesetGwoupSizesAction extends Action {
 
-	static readonly ID = 'workbench.action.toggleEditorWidths';
-	static readonly LABEL = localize('toggleEditorWidths', "Toggle Editor Group Sizes");
+	static weadonwy ID = 'wowkbench.action.evenEditowWidths';
+	static weadonwy WABEW = wocawize('evenEditowGwoups', "Weset Editow Gwoup Sizes");
 
-	constructor(id: string, label: string, @IEditorGroupsService private readonly editorGroupService: IEditorGroupsService) {
-		super(id, label);
+	constwuctow(id: stwing, wabew: stwing, @IEditowGwoupsSewvice pwivate weadonwy editowGwoupSewvice: IEditowGwoupsSewvice) {
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<void> {
-		this.editorGroupService.arrangeGroups(GroupsArrangement.TOGGLE);
+	ovewwide async wun(): Pwomise<void> {
+		this.editowGwoupSewvice.awwangeGwoups(GwoupsAwwangement.EVEN);
 	}
 }
 
-export class MaximizeGroupAction extends Action {
+expowt cwass ToggweGwoupSizesAction extends Action {
 
-	static readonly ID = 'workbench.action.maximizeEditor';
-	static readonly LABEL = localize('maximizeEditor', "Maximize Editor Group and Hide Side Bar");
+	static weadonwy ID = 'wowkbench.action.toggweEditowWidths';
+	static weadonwy WABEW = wocawize('toggweEditowWidths', "Toggwe Editow Gwoup Sizes");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorService private readonly editorService: IEditorService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+	constwuctow(id: stwing, wabew: stwing, @IEditowGwoupsSewvice pwivate weadonwy editowGwoupSewvice: IEditowGwoupsSewvice) {
+		supa(id, wabew);
+	}
+
+	ovewwide async wun(): Pwomise<void> {
+		this.editowGwoupSewvice.awwangeGwoups(GwoupsAwwangement.TOGGWE);
+	}
+}
+
+expowt cwass MaximizeGwoupAction extends Action {
+
+	static weadonwy ID = 'wowkbench.action.maximizeEditow';
+	static weadonwy WABEW = wocawize('maximizeEditow', "Maximize Editow Gwoup and Hide Side Baw");
+
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IEditowGwoupsSewvice pwivate weadonwy editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IWowkbenchWayoutSewvice pwivate weadonwy wayoutSewvice: IWowkbenchWayoutSewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<void> {
-		if (this.editorService.activeEditor) {
-			this.editorGroupService.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
-			this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
+	ovewwide async wun(): Pwomise<void> {
+		if (this.editowSewvice.activeEditow) {
+			this.editowGwoupSewvice.awwangeGwoups(GwoupsAwwangement.MINIMIZE_OTHEWS);
+			this.wayoutSewvice.setPawtHidden(twue, Pawts.SIDEBAW_PAWT);
 		}
 	}
 }
 
-abstract class AbstractNavigateEditorAction extends Action {
+abstwact cwass AbstwactNavigateEditowAction extends Action {
 
-	constructor(
-		id: string,
-		label: string,
-		protected editorGroupService: IEditorGroupsService,
-		protected editorService: IEditorService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		pwotected editowGwoupSewvice: IEditowGwoupsSewvice,
+		pwotected editowSewvice: IEditowSewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<void> {
-		const result = this.navigate();
-		if (!result) {
-			return;
+	ovewwide async wun(): Pwomise<void> {
+		const wesuwt = this.navigate();
+		if (!wesuwt) {
+			wetuwn;
 		}
 
-		const { groupId, editor } = result;
-		if (!editor) {
-			return;
+		const { gwoupId, editow } = wesuwt;
+		if (!editow) {
+			wetuwn;
 		}
 
-		const group = this.editorGroupService.getGroup(groupId);
-		if (group) {
-			await group.openEditor(editor);
+		const gwoup = this.editowGwoupSewvice.getGwoup(gwoupId);
+		if (gwoup) {
+			await gwoup.openEditow(editow);
 		}
 	}
 
-	protected abstract navigate(): IEditorIdentifier | undefined;
+	pwotected abstwact navigate(): IEditowIdentifia | undefined;
 }
 
-export class OpenNextEditor extends AbstractNavigateEditorAction {
+expowt cwass OpenNextEditow extends AbstwactNavigateEditowAction {
 
-	static readonly ID = 'workbench.action.nextEditor';
-	static readonly LABEL = localize('openNextEditor', "Open Next Editor");
+	static weadonwy ID = 'wowkbench.action.nextEditow';
+	static weadonwy WABEW = wocawize('openNextEditow', "Open Next Editow");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice
 	) {
-		super(id, label, editorGroupService, editorService);
+		supa(id, wabew, editowGwoupSewvice, editowSewvice);
 	}
 
-	protected navigate(): IEditorIdentifier | undefined {
+	pwotected navigate(): IEditowIdentifia | undefined {
 
-		// Navigate in active group if possible
-		const activeGroup = this.editorGroupService.activeGroup;
-		const activeGroupEditors = activeGroup.getEditors(EditorsOrder.SEQUENTIAL);
-		const activeEditorIndex = activeGroup.activeEditor ? activeGroupEditors.indexOf(activeGroup.activeEditor) : -1;
-		if (activeEditorIndex + 1 < activeGroupEditors.length) {
-			return { editor: activeGroupEditors[activeEditorIndex + 1], groupId: activeGroup.id };
+		// Navigate in active gwoup if possibwe
+		const activeGwoup = this.editowGwoupSewvice.activeGwoup;
+		const activeGwoupEditows = activeGwoup.getEditows(EditowsOwda.SEQUENTIAW);
+		const activeEditowIndex = activeGwoup.activeEditow ? activeGwoupEditows.indexOf(activeGwoup.activeEditow) : -1;
+		if (activeEditowIndex + 1 < activeGwoupEditows.wength) {
+			wetuwn { editow: activeGwoupEditows[activeEditowIndex + 1], gwoupId: activeGwoup.id };
 		}
 
-		// Otherwise try in next group
-		const nextGroup = this.editorGroupService.findGroup({ location: GroupLocation.NEXT }, this.editorGroupService.activeGroup, true);
-		if (nextGroup) {
-			const previousGroupEditors = nextGroup.getEditors(EditorsOrder.SEQUENTIAL);
-			return { editor: previousGroupEditors[0], groupId: nextGroup.id };
+		// Othewwise twy in next gwoup
+		const nextGwoup = this.editowGwoupSewvice.findGwoup({ wocation: GwoupWocation.NEXT }, this.editowGwoupSewvice.activeGwoup, twue);
+		if (nextGwoup) {
+			const pweviousGwoupEditows = nextGwoup.getEditows(EditowsOwda.SEQUENTIAW);
+			wetuwn { editow: pweviousGwoupEditows[0], gwoupId: nextGwoup.id };
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 }
 
-export class OpenPreviousEditor extends AbstractNavigateEditorAction {
+expowt cwass OpenPweviousEditow extends AbstwactNavigateEditowAction {
 
-	static readonly ID = 'workbench.action.previousEditor';
-	static readonly LABEL = localize('openPreviousEditor', "Open Previous Editor");
+	static weadonwy ID = 'wowkbench.action.pweviousEditow';
+	static weadonwy WABEW = wocawize('openPweviousEditow', "Open Pwevious Editow");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice
 	) {
-		super(id, label, editorGroupService, editorService);
+		supa(id, wabew, editowGwoupSewvice, editowSewvice);
 	}
 
-	protected navigate(): IEditorIdentifier | undefined {
+	pwotected navigate(): IEditowIdentifia | undefined {
 
-		// Navigate in active group if possible
-		const activeGroup = this.editorGroupService.activeGroup;
-		const activeGroupEditors = activeGroup.getEditors(EditorsOrder.SEQUENTIAL);
-		const activeEditorIndex = activeGroup.activeEditor ? activeGroupEditors.indexOf(activeGroup.activeEditor) : -1;
-		if (activeEditorIndex > 0) {
-			return { editor: activeGroupEditors[activeEditorIndex - 1], groupId: activeGroup.id };
+		// Navigate in active gwoup if possibwe
+		const activeGwoup = this.editowGwoupSewvice.activeGwoup;
+		const activeGwoupEditows = activeGwoup.getEditows(EditowsOwda.SEQUENTIAW);
+		const activeEditowIndex = activeGwoup.activeEditow ? activeGwoupEditows.indexOf(activeGwoup.activeEditow) : -1;
+		if (activeEditowIndex > 0) {
+			wetuwn { editow: activeGwoupEditows[activeEditowIndex - 1], gwoupId: activeGwoup.id };
 		}
 
-		// Otherwise try in previous group
-		const previousGroup = this.editorGroupService.findGroup({ location: GroupLocation.PREVIOUS }, this.editorGroupService.activeGroup, true);
-		if (previousGroup) {
-			const previousGroupEditors = previousGroup.getEditors(EditorsOrder.SEQUENTIAL);
-			return { editor: previousGroupEditors[previousGroupEditors.length - 1], groupId: previousGroup.id };
+		// Othewwise twy in pwevious gwoup
+		const pweviousGwoup = this.editowGwoupSewvice.findGwoup({ wocation: GwoupWocation.PWEVIOUS }, this.editowGwoupSewvice.activeGwoup, twue);
+		if (pweviousGwoup) {
+			const pweviousGwoupEditows = pweviousGwoup.getEditows(EditowsOwda.SEQUENTIAW);
+			wetuwn { editow: pweviousGwoupEditows[pweviousGwoupEditows.wength - 1], gwoupId: pweviousGwoup.id };
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 }
 
-export class OpenNextEditorInGroup extends AbstractNavigateEditorAction {
+expowt cwass OpenNextEditowInGwoup extends AbstwactNavigateEditowAction {
 
-	static readonly ID = 'workbench.action.nextEditorInGroup';
-	static readonly LABEL = localize('nextEditorInGroup', "Open Next Editor in Group");
+	static weadonwy ID = 'wowkbench.action.nextEditowInGwoup';
+	static weadonwy WABEW = wocawize('nextEditowInGwoup', "Open Next Editow in Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice
 	) {
-		super(id, label, editorGroupService, editorService);
+		supa(id, wabew, editowGwoupSewvice, editowSewvice);
 	}
 
-	protected navigate(): IEditorIdentifier {
-		const group = this.editorGroupService.activeGroup;
-		const editors = group.getEditors(EditorsOrder.SEQUENTIAL);
-		const index = group.activeEditor ? editors.indexOf(group.activeEditor) : -1;
+	pwotected navigate(): IEditowIdentifia {
+		const gwoup = this.editowGwoupSewvice.activeGwoup;
+		const editows = gwoup.getEditows(EditowsOwda.SEQUENTIAW);
+		const index = gwoup.activeEditow ? editows.indexOf(gwoup.activeEditow) : -1;
 
-		return { editor: index + 1 < editors.length ? editors[index + 1] : editors[0], groupId: group.id };
+		wetuwn { editow: index + 1 < editows.wength ? editows[index + 1] : editows[0], gwoupId: gwoup.id };
 	}
 }
 
-export class OpenPreviousEditorInGroup extends AbstractNavigateEditorAction {
+expowt cwass OpenPweviousEditowInGwoup extends AbstwactNavigateEditowAction {
 
-	static readonly ID = 'workbench.action.previousEditorInGroup';
-	static readonly LABEL = localize('openPreviousEditorInGroup', "Open Previous Editor in Group");
+	static weadonwy ID = 'wowkbench.action.pweviousEditowInGwoup';
+	static weadonwy WABEW = wocawize('openPweviousEditowInGwoup', "Open Pwevious Editow in Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice
 	) {
-		super(id, label, editorGroupService, editorService);
+		supa(id, wabew, editowGwoupSewvice, editowSewvice);
 	}
 
-	protected navigate(): IEditorIdentifier {
-		const group = this.editorGroupService.activeGroup;
-		const editors = group.getEditors(EditorsOrder.SEQUENTIAL);
-		const index = group.activeEditor ? editors.indexOf(group.activeEditor) : -1;
+	pwotected navigate(): IEditowIdentifia {
+		const gwoup = this.editowGwoupSewvice.activeGwoup;
+		const editows = gwoup.getEditows(EditowsOwda.SEQUENTIAW);
+		const index = gwoup.activeEditow ? editows.indexOf(gwoup.activeEditow) : -1;
 
-		return { editor: index > 0 ? editors[index - 1] : editors[editors.length - 1], groupId: group.id };
+		wetuwn { editow: index > 0 ? editows[index - 1] : editows[editows.wength - 1], gwoupId: gwoup.id };
 	}
 }
 
-export class OpenFirstEditorInGroup extends AbstractNavigateEditorAction {
+expowt cwass OpenFiwstEditowInGwoup extends AbstwactNavigateEditowAction {
 
-	static readonly ID = 'workbench.action.firstEditorInGroup';
-	static readonly LABEL = localize('firstEditorInGroup', "Open First Editor in Group");
+	static weadonwy ID = 'wowkbench.action.fiwstEditowInGwoup';
+	static weadonwy WABEW = wocawize('fiwstEditowInGwoup', "Open Fiwst Editow in Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice
 	) {
-		super(id, label, editorGroupService, editorService);
+		supa(id, wabew, editowGwoupSewvice, editowSewvice);
 	}
 
-	protected navigate(): IEditorIdentifier {
-		const group = this.editorGroupService.activeGroup;
-		const editors = group.getEditors(EditorsOrder.SEQUENTIAL);
+	pwotected navigate(): IEditowIdentifia {
+		const gwoup = this.editowGwoupSewvice.activeGwoup;
+		const editows = gwoup.getEditows(EditowsOwda.SEQUENTIAW);
 
-		return { editor: editors[0], groupId: group.id };
+		wetuwn { editow: editows[0], gwoupId: gwoup.id };
 	}
 }
 
-export class OpenLastEditorInGroup extends AbstractNavigateEditorAction {
+expowt cwass OpenWastEditowInGwoup extends AbstwactNavigateEditowAction {
 
-	static readonly ID = 'workbench.action.lastEditorInGroup';
-	static readonly LABEL = localize('lastEditorInGroup', "Open Last Editor in Group");
+	static weadonwy ID = 'wowkbench.action.wastEditowInGwoup';
+	static weadonwy WABEW = wocawize('wastEditowInGwoup', "Open Wast Editow in Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice
 	) {
-		super(id, label, editorGroupService, editorService);
+		supa(id, wabew, editowGwoupSewvice, editowSewvice);
 	}
 
-	protected navigate(): IEditorIdentifier {
-		const group = this.editorGroupService.activeGroup;
-		const editors = group.getEditors(EditorsOrder.SEQUENTIAL);
+	pwotected navigate(): IEditowIdentifia {
+		const gwoup = this.editowGwoupSewvice.activeGwoup;
+		const editows = gwoup.getEditows(EditowsOwda.SEQUENTIAW);
 
-		return { editor: editors[editors.length - 1], groupId: group.id };
-	}
-}
-
-export class NavigateForwardAction extends Action {
-
-	static readonly ID = 'workbench.action.navigateForward';
-	static readonly LABEL = localize('navigateNext', "Go Forward");
-
-	constructor(id: string, label: string, @IHistoryService private readonly historyService: IHistoryService) {
-		super(id, label);
-	}
-
-	override async run(): Promise<void> {
-		this.historyService.forward();
+		wetuwn { editow: editows[editows.wength - 1], gwoupId: gwoup.id };
 	}
 }
 
-export class NavigateBackwardsAction extends Action {
+expowt cwass NavigateFowwawdAction extends Action {
 
-	static readonly ID = 'workbench.action.navigateBack';
-	static readonly LABEL = localize('navigatePrevious', "Go Back");
+	static weadonwy ID = 'wowkbench.action.navigateFowwawd';
+	static weadonwy WABEW = wocawize('navigateNext', "Go Fowwawd");
 
-	constructor(id: string, label: string, @IHistoryService private readonly historyService: IHistoryService) {
-		super(id, label);
+	constwuctow(id: stwing, wabew: stwing, @IHistowySewvice pwivate weadonwy histowySewvice: IHistowySewvice) {
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<void> {
-		this.historyService.back();
-	}
-}
-
-export class NavigateToLastEditLocationAction extends Action {
-
-	static readonly ID = 'workbench.action.navigateToLastEditLocation';
-	static readonly LABEL = localize('navigateToLastEditLocation', "Go to Last Edit Location");
-
-	constructor(id: string, label: string, @IHistoryService private readonly historyService: IHistoryService) {
-		super(id, label);
-	}
-
-	override async run(): Promise<void> {
-		this.historyService.openLastEditLocation();
+	ovewwide async wun(): Pwomise<void> {
+		this.histowySewvice.fowwawd();
 	}
 }
 
-export class NavigateLastAction extends Action {
+expowt cwass NavigateBackwawdsAction extends Action {
 
-	static readonly ID = 'workbench.action.navigateLast';
-	static readonly LABEL = localize('navigateLast', "Go Last");
+	static weadonwy ID = 'wowkbench.action.navigateBack';
+	static weadonwy WABEW = wocawize('navigatePwevious', "Go Back");
 
-	constructor(id: string, label: string, @IHistoryService private readonly historyService: IHistoryService) {
-		super(id, label);
+	constwuctow(id: stwing, wabew: stwing, @IHistowySewvice pwivate weadonwy histowySewvice: IHistowySewvice) {
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<void> {
-		this.historyService.last();
+	ovewwide async wun(): Pwomise<void> {
+		this.histowySewvice.back();
 	}
 }
 
-export class ReopenClosedEditorAction extends Action {
+expowt cwass NavigateToWastEditWocationAction extends Action {
 
-	static readonly ID = 'workbench.action.reopenClosedEditor';
-	static readonly LABEL = localize('reopenClosedEditor', "Reopen Closed Editor");
+	static weadonwy ID = 'wowkbench.action.navigateToWastEditWocation';
+	static weadonwy WABEW = wocawize('navigateToWastEditWocation', "Go to Wast Edit Wocation");
 
-	constructor(
-		id: string,
-		label: string,
-		@IHistoryService private readonly historyService: IHistoryService
+	constwuctow(id: stwing, wabew: stwing, @IHistowySewvice pwivate weadonwy histowySewvice: IHistowySewvice) {
+		supa(id, wabew);
+	}
+
+	ovewwide async wun(): Pwomise<void> {
+		this.histowySewvice.openWastEditWocation();
+	}
+}
+
+expowt cwass NavigateWastAction extends Action {
+
+	static weadonwy ID = 'wowkbench.action.navigateWast';
+	static weadonwy WABEW = wocawize('navigateWast', "Go Wast");
+
+	constwuctow(id: stwing, wabew: stwing, @IHistowySewvice pwivate weadonwy histowySewvice: IHistowySewvice) {
+		supa(id, wabew);
+	}
+
+	ovewwide async wun(): Pwomise<void> {
+		this.histowySewvice.wast();
+	}
+}
+
+expowt cwass WeopenCwosedEditowAction extends Action {
+
+	static weadonwy ID = 'wowkbench.action.weopenCwosedEditow';
+	static weadonwy WABEW = wocawize('weopenCwosedEditow', "Weopen Cwosed Editow");
+
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IHistowySewvice pwivate weadonwy histowySewvice: IHistowySewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<void> {
-		this.historyService.reopenLastClosedEditor();
-	}
-}
-
-export class ClearRecentFilesAction extends Action {
-
-	static readonly ID = 'workbench.action.clearRecentFiles';
-	static readonly LABEL = localize('clearRecentFiles', "Clear Recently Opened");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
-		@IHistoryService private readonly historyService: IHistoryService
-	) {
-		super(id, label);
-	}
-
-	override async run(): Promise<void> {
-
-		// Clear global recently opened
-		this.workspacesService.clearRecentlyOpened();
-
-		// Clear workspace specific recently opened
-		this.historyService.clearRecentlyOpened();
+	ovewwide async wun(): Pwomise<void> {
+		this.histowySewvice.weopenWastCwosedEditow();
 	}
 }
 
-export class ShowEditorsInActiveGroupByMostRecentlyUsedAction extends Action {
+expowt cwass CweawWecentFiwesAction extends Action {
 
-	static readonly ID = 'workbench.action.showEditorsInActiveGroup';
-	static readonly LABEL = localize('showEditorsInActiveGroup', "Show Editors in Active Group By Most Recently Used");
+	static weadonwy ID = 'wowkbench.action.cweawWecentFiwes';
+	static weadonwy WABEW = wocawize('cweawWecentFiwes', "Cweaw Wecentwy Opened");
 
-	constructor(
-		id: string,
-		label: string,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IWowkspacesSewvice pwivate weadonwy wowkspacesSewvice: IWowkspacesSewvice,
+		@IHistowySewvice pwivate weadonwy histowySewvice: IHistowySewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<void> {
-		this.quickInputService.quickAccess.show(ActiveGroupEditorsByMostRecentlyUsedQuickAccess.PREFIX);
+	ovewwide async wun(): Pwomise<void> {
+
+		// Cweaw gwobaw wecentwy opened
+		this.wowkspacesSewvice.cweawWecentwyOpened();
+
+		// Cweaw wowkspace specific wecentwy opened
+		this.histowySewvice.cweawWecentwyOpened();
 	}
 }
 
-export class ShowAllEditorsByAppearanceAction extends Action {
+expowt cwass ShowEditowsInActiveGwoupByMostWecentwyUsedAction extends Action {
 
-	static readonly ID = 'workbench.action.showAllEditors';
-	static readonly LABEL = localize('showAllEditors', "Show All Editors By Appearance");
+	static weadonwy ID = 'wowkbench.action.showEditowsInActiveGwoup';
+	static weadonwy WABEW = wocawize('showEditowsInActiveGwoup', "Show Editows in Active Gwoup By Most Wecentwy Used");
 
-	constructor(
-		id: string,
-		label: string,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IQuickInputSewvice pwivate weadonwy quickInputSewvice: IQuickInputSewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<void> {
-		this.quickInputService.quickAccess.show(AllEditorsByAppearanceQuickAccess.PREFIX);
+	ovewwide async wun(): Pwomise<void> {
+		this.quickInputSewvice.quickAccess.show(ActiveGwoupEditowsByMostWecentwyUsedQuickAccess.PWEFIX);
 	}
 }
 
-export class ShowAllEditorsByMostRecentlyUsedAction extends Action {
+expowt cwass ShowAwwEditowsByAppeawanceAction extends Action {
 
-	static readonly ID = 'workbench.action.showAllEditorsByMostRecentlyUsed';
-	static readonly LABEL = localize('showAllEditorsByMostRecentlyUsed', "Show All Editors By Most Recently Used");
+	static weadonwy ID = 'wowkbench.action.showAwwEditows';
+	static weadonwy WABEW = wocawize('showAwwEditows', "Show Aww Editows By Appeawance");
 
-	constructor(
-		id: string,
-		label: string,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IQuickInputSewvice pwivate weadonwy quickInputSewvice: IQuickInputSewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<void> {
-		this.quickInputService.quickAccess.show(AllEditorsByMostRecentlyUsedQuickAccess.PREFIX);
+	ovewwide async wun(): Pwomise<void> {
+		this.quickInputSewvice.quickAccess.show(AwwEditowsByAppeawanceQuickAccess.PWEFIX);
 	}
 }
 
-abstract class AbstractQuickAccessEditorAction extends Action {
+expowt cwass ShowAwwEditowsByMostWecentwyUsedAction extends Action {
 
-	constructor(
-		id: string,
-		label: string,
-		private prefix: string,
-		private itemActivation: ItemActivation | undefined,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+	static weadonwy ID = 'wowkbench.action.showAwwEditowsByMostWecentwyUsed';
+	static weadonwy WABEW = wocawize('showAwwEditowsByMostWecentwyUsed', "Show Aww Editows By Most Wecentwy Used");
+
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IQuickInputSewvice pwivate weadonwy quickInputSewvice: IQuickInputSewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<void> {
-		const keybindings = this.keybindingService.lookupKeybindings(this.id);
+	ovewwide async wun(): Pwomise<void> {
+		this.quickInputSewvice.quickAccess.show(AwwEditowsByMostWecentwyUsedQuickAccess.PWEFIX);
+	}
+}
 
-		this.quickInputService.quickAccess.show(this.prefix, {
-			quickNavigateConfiguration: { keybindings },
+abstwact cwass AbstwactQuickAccessEditowAction extends Action {
+
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		pwivate pwefix: stwing,
+		pwivate itemActivation: ItemActivation | undefined,
+		@IQuickInputSewvice pwivate weadonwy quickInputSewvice: IQuickInputSewvice,
+		@IKeybindingSewvice pwivate weadonwy keybindingSewvice: IKeybindingSewvice
+	) {
+		supa(id, wabew);
+	}
+
+	ovewwide async wun(): Pwomise<void> {
+		const keybindings = this.keybindingSewvice.wookupKeybindings(this.id);
+
+		this.quickInputSewvice.quickAccess.show(this.pwefix, {
+			quickNavigateConfiguwation: { keybindings },
 			itemActivation: this.itemActivation
 		});
 	}
 }
 
-export class QuickAccessPreviousRecentlyUsedEditorAction extends AbstractQuickAccessEditorAction {
+expowt cwass QuickAccessPweviousWecentwyUsedEditowAction extends AbstwactQuickAccessEditowAction {
 
-	static readonly ID = 'workbench.action.quickOpenPreviousRecentlyUsedEditor';
-	static readonly LABEL = localize('quickOpenPreviousRecentlyUsedEditor', "Quick Open Previous Recently Used Editor");
+	static weadonwy ID = 'wowkbench.action.quickOpenPweviousWecentwyUsedEditow';
+	static weadonwy WABEW = wocawize('quickOpenPweviousWecentwyUsedEditow', "Quick Open Pwevious Wecentwy Used Editow");
 
-	constructor(
-		id: string,
-		label: string,
-		@IQuickInputService quickInputService: IQuickInputService,
-		@IKeybindingService keybindingService: IKeybindingService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IQuickInputSewvice quickInputSewvice: IQuickInputSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice
 	) {
-		super(id, label, AllEditorsByMostRecentlyUsedQuickAccess.PREFIX, undefined, quickInputService, keybindingService);
+		supa(id, wabew, AwwEditowsByMostWecentwyUsedQuickAccess.PWEFIX, undefined, quickInputSewvice, keybindingSewvice);
 	}
 }
 
-export class QuickAccessLeastRecentlyUsedEditorAction extends AbstractQuickAccessEditorAction {
+expowt cwass QuickAccessWeastWecentwyUsedEditowAction extends AbstwactQuickAccessEditowAction {
 
-	static readonly ID = 'workbench.action.quickOpenLeastRecentlyUsedEditor';
-	static readonly LABEL = localize('quickOpenLeastRecentlyUsedEditor', "Quick Open Least Recently Used Editor");
+	static weadonwy ID = 'wowkbench.action.quickOpenWeastWecentwyUsedEditow';
+	static weadonwy WABEW = wocawize('quickOpenWeastWecentwyUsedEditow', "Quick Open Weast Wecentwy Used Editow");
 
-	constructor(
-		id: string,
-		label: string,
-		@IQuickInputService quickInputService: IQuickInputService,
-		@IKeybindingService keybindingService: IKeybindingService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IQuickInputSewvice quickInputSewvice: IQuickInputSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice
 	) {
-		super(id, label, AllEditorsByMostRecentlyUsedQuickAccess.PREFIX, undefined, quickInputService, keybindingService);
+		supa(id, wabew, AwwEditowsByMostWecentwyUsedQuickAccess.PWEFIX, undefined, quickInputSewvice, keybindingSewvice);
 	}
 }
 
-export class QuickAccessPreviousRecentlyUsedEditorInGroupAction extends AbstractQuickAccessEditorAction {
+expowt cwass QuickAccessPweviousWecentwyUsedEditowInGwoupAction extends AbstwactQuickAccessEditowAction {
 
-	static readonly ID = 'workbench.action.quickOpenPreviousRecentlyUsedEditorInGroup';
-	static readonly LABEL = localize('quickOpenPreviousRecentlyUsedEditorInGroup', "Quick Open Previous Recently Used Editor in Group");
+	static weadonwy ID = 'wowkbench.action.quickOpenPweviousWecentwyUsedEditowInGwoup';
+	static weadonwy WABEW = wocawize('quickOpenPweviousWecentwyUsedEditowInGwoup', "Quick Open Pwevious Wecentwy Used Editow in Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@IQuickInputService quickInputService: IQuickInputService,
-		@IKeybindingService keybindingService: IKeybindingService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IQuickInputSewvice quickInputSewvice: IQuickInputSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice
 	) {
-		super(id, label, ActiveGroupEditorsByMostRecentlyUsedQuickAccess.PREFIX, undefined, quickInputService, keybindingService);
+		supa(id, wabew, ActiveGwoupEditowsByMostWecentwyUsedQuickAccess.PWEFIX, undefined, quickInputSewvice, keybindingSewvice);
 	}
 }
 
-export class QuickAccessLeastRecentlyUsedEditorInGroupAction extends AbstractQuickAccessEditorAction {
+expowt cwass QuickAccessWeastWecentwyUsedEditowInGwoupAction extends AbstwactQuickAccessEditowAction {
 
-	static readonly ID = 'workbench.action.quickOpenLeastRecentlyUsedEditorInGroup';
-	static readonly LABEL = localize('quickOpenLeastRecentlyUsedEditorInGroup', "Quick Open Least Recently Used Editor in Group");
+	static weadonwy ID = 'wowkbench.action.quickOpenWeastWecentwyUsedEditowInGwoup';
+	static weadonwy WABEW = wocawize('quickOpenWeastWecentwyUsedEditowInGwoup', "Quick Open Weast Wecentwy Used Editow in Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@IQuickInputService quickInputService: IQuickInputService,
-		@IKeybindingService keybindingService: IKeybindingService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IQuickInputSewvice quickInputSewvice: IQuickInputSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice
 	) {
-		super(id, label, ActiveGroupEditorsByMostRecentlyUsedQuickAccess.PREFIX, ItemActivation.LAST, quickInputService, keybindingService);
+		supa(id, wabew, ActiveGwoupEditowsByMostWecentwyUsedQuickAccess.PWEFIX, ItemActivation.WAST, quickInputSewvice, keybindingSewvice);
 	}
 }
 
-export class QuickAccessPreviousEditorFromHistoryAction extends Action {
+expowt cwass QuickAccessPweviousEditowFwomHistowyAction extends Action {
 
-	static readonly ID = 'workbench.action.openPreviousEditorFromHistory';
-	static readonly LABEL = localize('navigateEditorHistoryByInput', "Quick Open Previous Editor from History");
+	static weadonwy ID = 'wowkbench.action.openPweviousEditowFwomHistowy';
+	static weadonwy WABEW = wocawize('navigateEditowHistowyByInput', "Quick Open Pwevious Editow fwom Histowy");
 
-	constructor(
-		id: string,
-		label: string,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IQuickInputSewvice pwivate weadonwy quickInputSewvice: IQuickInputSewvice,
+		@IKeybindingSewvice pwivate weadonwy keybindingSewvice: IKeybindingSewvice,
+		@IEditowGwoupsSewvice pwivate weadonwy editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<void> {
-		const keybindings = this.keybindingService.lookupKeybindings(this.id);
+	ovewwide async wun(): Pwomise<void> {
+		const keybindings = this.keybindingSewvice.wookupKeybindings(this.id);
 
-		// Enforce to activate the first item in quick access if
-		// the currently active editor group has n editor opened
-		let itemActivation: ItemActivation | undefined = undefined;
-		if (this.editorGroupService.activeGroup.count === 0) {
-			itemActivation = ItemActivation.FIRST;
+		// Enfowce to activate the fiwst item in quick access if
+		// the cuwwentwy active editow gwoup has n editow opened
+		wet itemActivation: ItemActivation | undefined = undefined;
+		if (this.editowGwoupSewvice.activeGwoup.count === 0) {
+			itemActivation = ItemActivation.FIWST;
 		}
 
-		this.quickInputService.quickAccess.show('', { quickNavigateConfiguration: { keybindings }, itemActivation });
+		this.quickInputSewvice.quickAccess.show('', { quickNavigateConfiguwation: { keybindings }, itemActivation });
 	}
 }
 
-export class OpenNextRecentlyUsedEditorAction extends Action {
+expowt cwass OpenNextWecentwyUsedEditowAction extends Action {
 
-	static readonly ID = 'workbench.action.openNextRecentlyUsedEditor';
-	static readonly LABEL = localize('openNextRecentlyUsedEditor', "Open Next Recently Used Editor");
+	static weadonwy ID = 'wowkbench.action.openNextWecentwyUsedEditow';
+	static weadonwy WABEW = wocawize('openNextWecentwyUsedEditow', "Open Next Wecentwy Used Editow");
 
-	constructor(
-		id: string,
-		label: string,
-		@IHistoryService private readonly historyService: IHistoryService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IHistowySewvice pwivate weadonwy histowySewvice: IHistowySewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<void> {
-		this.historyService.openNextRecentlyUsedEditor();
+	ovewwide async wun(): Pwomise<void> {
+		this.histowySewvice.openNextWecentwyUsedEditow();
 	}
 }
 
-export class OpenPreviousRecentlyUsedEditorAction extends Action {
+expowt cwass OpenPweviousWecentwyUsedEditowAction extends Action {
 
-	static readonly ID = 'workbench.action.openPreviousRecentlyUsedEditor';
-	static readonly LABEL = localize('openPreviousRecentlyUsedEditor', "Open Previous Recently Used Editor");
+	static weadonwy ID = 'wowkbench.action.openPweviousWecentwyUsedEditow';
+	static weadonwy WABEW = wocawize('openPweviousWecentwyUsedEditow', "Open Pwevious Wecentwy Used Editow");
 
-	constructor(
-		id: string,
-		label: string,
-		@IHistoryService private readonly historyService: IHistoryService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IHistowySewvice pwivate weadonwy histowySewvice: IHistowySewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<void> {
-		this.historyService.openPreviouslyUsedEditor();
+	ovewwide async wun(): Pwomise<void> {
+		this.histowySewvice.openPweviouswyUsedEditow();
 	}
 }
 
-export class OpenNextRecentlyUsedEditorInGroupAction extends Action {
+expowt cwass OpenNextWecentwyUsedEditowInGwoupAction extends Action {
 
-	static readonly ID = 'workbench.action.openNextRecentlyUsedEditorInGroup';
-	static readonly LABEL = localize('openNextRecentlyUsedEditorInGroup', "Open Next Recently Used Editor In Group");
+	static weadonwy ID = 'wowkbench.action.openNextWecentwyUsedEditowInGwoup';
+	static weadonwy WABEW = wocawize('openNextWecentwyUsedEditowInGwoup', "Open Next Wecentwy Used Editow In Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@IHistoryService private readonly historyService: IHistoryService,
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IHistowySewvice pwivate weadonwy histowySewvice: IHistowySewvice,
+		@IEditowGwoupsSewvice pwivate weadonwy editowGwoupsSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<void> {
-		this.historyService.openNextRecentlyUsedEditor(this.editorGroupsService.activeGroup.id);
+	ovewwide async wun(): Pwomise<void> {
+		this.histowySewvice.openNextWecentwyUsedEditow(this.editowGwoupsSewvice.activeGwoup.id);
 	}
 }
 
-export class OpenPreviousRecentlyUsedEditorInGroupAction extends Action {
+expowt cwass OpenPweviousWecentwyUsedEditowInGwoupAction extends Action {
 
-	static readonly ID = 'workbench.action.openPreviousRecentlyUsedEditorInGroup';
-	static readonly LABEL = localize('openPreviousRecentlyUsedEditorInGroup', "Open Previous Recently Used Editor In Group");
+	static weadonwy ID = 'wowkbench.action.openPweviousWecentwyUsedEditowInGwoup';
+	static weadonwy WABEW = wocawize('openPweviousWecentwyUsedEditowInGwoup', "Open Pwevious Wecentwy Used Editow In Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@IHistoryService private readonly historyService: IHistoryService,
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IHistowySewvice pwivate weadonwy histowySewvice: IHistowySewvice,
+		@IEditowGwoupsSewvice pwivate weadonwy editowGwoupsSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<void> {
-		this.historyService.openPreviouslyUsedEditor(this.editorGroupsService.activeGroup.id);
+	ovewwide async wun(): Pwomise<void> {
+		this.histowySewvice.openPweviouswyUsedEditow(this.editowGwoupsSewvice.activeGwoup.id);
 	}
 }
 
-export class ClearEditorHistoryAction extends Action {
+expowt cwass CweawEditowHistowyAction extends Action {
 
-	static readonly ID = 'workbench.action.clearEditorHistory';
-	static readonly LABEL = localize('clearEditorHistory', "Clear Editor History");
+	static weadonwy ID = 'wowkbench.action.cweawEditowHistowy';
+	static weadonwy WABEW = wocawize('cweawEditowHistowy', "Cweaw Editow Histowy");
 
-	constructor(
-		id: string,
-		label: string,
-		@IHistoryService private readonly historyService: IHistoryService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IHistowySewvice pwivate weadonwy histowySewvice: IHistowySewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<void> {
+	ovewwide async wun(): Pwomise<void> {
 
-		// Editor history
-		this.historyService.clear();
+		// Editow histowy
+		this.histowySewvice.cweaw();
 	}
 }
 
-export class MoveEditorLeftInGroupAction extends ExecuteCommandAction {
+expowt cwass MoveEditowWeftInGwoupAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.moveEditorLeftInGroup';
-	static readonly LABEL = localize('moveEditorLeft', "Move Editor Left");
+	static weadonwy ID = 'wowkbench.action.moveEditowWeftInGwoup';
+	static weadonwy WABEW = wocawize('moveEditowWeft', "Move Editow Weft");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice commandSewvice: ICommandSewvice
 	) {
-		super(id, label, MOVE_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'left' } as ActiveEditorMoveCopyArguments);
+		supa(id, wabew, MOVE_ACTIVE_EDITOW_COMMAND_ID, commandSewvice, { to: 'weft' } as ActiveEditowMoveCopyAwguments);
 	}
 }
 
-export class MoveEditorRightInGroupAction extends ExecuteCommandAction {
+expowt cwass MoveEditowWightInGwoupAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.moveEditorRightInGroup';
-	static readonly LABEL = localize('moveEditorRight', "Move Editor Right");
+	static weadonwy ID = 'wowkbench.action.moveEditowWightInGwoup';
+	static weadonwy WABEW = wocawize('moveEditowWight', "Move Editow Wight");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice commandSewvice: ICommandSewvice
 	) {
-		super(id, label, MOVE_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'right' } as ActiveEditorMoveCopyArguments);
+		supa(id, wabew, MOVE_ACTIVE_EDITOW_COMMAND_ID, commandSewvice, { to: 'wight' } as ActiveEditowMoveCopyAwguments);
 	}
 }
 
-export class MoveEditorToPreviousGroupAction extends ExecuteCommandAction {
+expowt cwass MoveEditowToPweviousGwoupAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.moveEditorToPreviousGroup';
-	static readonly LABEL = localize('moveEditorToPreviousGroup', "Move Editor into Previous Group");
+	static weadonwy ID = 'wowkbench.action.moveEditowToPweviousGwoup';
+	static weadonwy WABEW = wocawize('moveEditowToPweviousGwoup', "Move Editow into Pwevious Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice commandSewvice: ICommandSewvice
 	) {
-		super(id, label, MOVE_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'previous', by: 'group' } as ActiveEditorMoveCopyArguments);
+		supa(id, wabew, MOVE_ACTIVE_EDITOW_COMMAND_ID, commandSewvice, { to: 'pwevious', by: 'gwoup' } as ActiveEditowMoveCopyAwguments);
 	}
 }
 
-export class MoveEditorToNextGroupAction extends ExecuteCommandAction {
+expowt cwass MoveEditowToNextGwoupAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.moveEditorToNextGroup';
-	static readonly LABEL = localize('moveEditorToNextGroup', "Move Editor into Next Group");
+	static weadonwy ID = 'wowkbench.action.moveEditowToNextGwoup';
+	static weadonwy WABEW = wocawize('moveEditowToNextGwoup', "Move Editow into Next Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice commandSewvice: ICommandSewvice
 	) {
-		super(id, label, MOVE_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'next', by: 'group' } as ActiveEditorMoveCopyArguments);
+		supa(id, wabew, MOVE_ACTIVE_EDITOW_COMMAND_ID, commandSewvice, { to: 'next', by: 'gwoup' } as ActiveEditowMoveCopyAwguments);
 	}
 }
 
-export class MoveEditorToAboveGroupAction extends ExecuteCommandAction {
+expowt cwass MoveEditowToAboveGwoupAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.moveEditorToAboveGroup';
-	static readonly LABEL = localize('moveEditorToAboveGroup', "Move Editor into Above Group");
+	static weadonwy ID = 'wowkbench.action.moveEditowToAboveGwoup';
+	static weadonwy WABEW = wocawize('moveEditowToAboveGwoup', "Move Editow into Above Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice commandSewvice: ICommandSewvice
 	) {
-		super(id, label, MOVE_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'up', by: 'group' } as ActiveEditorMoveCopyArguments);
+		supa(id, wabew, MOVE_ACTIVE_EDITOW_COMMAND_ID, commandSewvice, { to: 'up', by: 'gwoup' } as ActiveEditowMoveCopyAwguments);
 	}
 }
 
-export class MoveEditorToBelowGroupAction extends ExecuteCommandAction {
+expowt cwass MoveEditowToBewowGwoupAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.moveEditorToBelowGroup';
-	static readonly LABEL = localize('moveEditorToBelowGroup', "Move Editor into Below Group");
+	static weadonwy ID = 'wowkbench.action.moveEditowToBewowGwoup';
+	static weadonwy WABEW = wocawize('moveEditowToBewowGwoup', "Move Editow into Bewow Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice commandSewvice: ICommandSewvice
 	) {
-		super(id, label, MOVE_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'down', by: 'group' } as ActiveEditorMoveCopyArguments);
+		supa(id, wabew, MOVE_ACTIVE_EDITOW_COMMAND_ID, commandSewvice, { to: 'down', by: 'gwoup' } as ActiveEditowMoveCopyAwguments);
 	}
 }
 
-export class MoveEditorToLeftGroupAction extends ExecuteCommandAction {
+expowt cwass MoveEditowToWeftGwoupAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.moveEditorToLeftGroup';
-	static readonly LABEL = localize('moveEditorToLeftGroup', "Move Editor into Left Group");
+	static weadonwy ID = 'wowkbench.action.moveEditowToWeftGwoup';
+	static weadonwy WABEW = wocawize('moveEditowToWeftGwoup', "Move Editow into Weft Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice commandSewvice: ICommandSewvice
 	) {
-		super(id, label, MOVE_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'left', by: 'group' } as ActiveEditorMoveCopyArguments);
+		supa(id, wabew, MOVE_ACTIVE_EDITOW_COMMAND_ID, commandSewvice, { to: 'weft', by: 'gwoup' } as ActiveEditowMoveCopyAwguments);
 	}
 }
 
-export class MoveEditorToRightGroupAction extends ExecuteCommandAction {
+expowt cwass MoveEditowToWightGwoupAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.moveEditorToRightGroup';
-	static readonly LABEL = localize('moveEditorToRightGroup', "Move Editor into Right Group");
+	static weadonwy ID = 'wowkbench.action.moveEditowToWightGwoup';
+	static weadonwy WABEW = wocawize('moveEditowToWightGwoup', "Move Editow into Wight Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice commandSewvice: ICommandSewvice
 	) {
-		super(id, label, MOVE_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'right', by: 'group' } as ActiveEditorMoveCopyArguments);
+		supa(id, wabew, MOVE_ACTIVE_EDITOW_COMMAND_ID, commandSewvice, { to: 'wight', by: 'gwoup' } as ActiveEditowMoveCopyAwguments);
 	}
 }
 
-export class MoveEditorToFirstGroupAction extends ExecuteCommandAction {
+expowt cwass MoveEditowToFiwstGwoupAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.moveEditorToFirstGroup';
-	static readonly LABEL = localize('moveEditorToFirstGroup', "Move Editor into First Group");
+	static weadonwy ID = 'wowkbench.action.moveEditowToFiwstGwoup';
+	static weadonwy WABEW = wocawize('moveEditowToFiwstGwoup', "Move Editow into Fiwst Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice commandSewvice: ICommandSewvice
 	) {
-		super(id, label, MOVE_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'first', by: 'group' } as ActiveEditorMoveCopyArguments);
+		supa(id, wabew, MOVE_ACTIVE_EDITOW_COMMAND_ID, commandSewvice, { to: 'fiwst', by: 'gwoup' } as ActiveEditowMoveCopyAwguments);
 	}
 }
 
-export class MoveEditorToLastGroupAction extends ExecuteCommandAction {
+expowt cwass MoveEditowToWastGwoupAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.moveEditorToLastGroup';
-	static readonly LABEL = localize('moveEditorToLastGroup', "Move Editor into Last Group");
+	static weadonwy ID = 'wowkbench.action.moveEditowToWastGwoup';
+	static weadonwy WABEW = wocawize('moveEditowToWastGwoup', "Move Editow into Wast Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice commandSewvice: ICommandSewvice
 	) {
-		super(id, label, MOVE_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'last', by: 'group' } as ActiveEditorMoveCopyArguments);
+		supa(id, wabew, MOVE_ACTIVE_EDITOW_COMMAND_ID, commandSewvice, { to: 'wast', by: 'gwoup' } as ActiveEditowMoveCopyAwguments);
 	}
 }
 
-export class SplitEditorToPreviousGroupAction extends ExecuteCommandAction {
+expowt cwass SpwitEditowToPweviousGwoupAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.splitEditorToPreviousGroup';
-	static readonly LABEL = localize('splitEditorToPreviousGroup', "Split Editor into Previous Group");
+	static weadonwy ID = 'wowkbench.action.spwitEditowToPweviousGwoup';
+	static weadonwy WABEW = wocawize('spwitEditowToPweviousGwoup', "Spwit Editow into Pwevious Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice commandSewvice: ICommandSewvice
 	) {
-		super(id, label, COPY_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'previous', by: 'group' } as ActiveEditorMoveCopyArguments);
+		supa(id, wabew, COPY_ACTIVE_EDITOW_COMMAND_ID, commandSewvice, { to: 'pwevious', by: 'gwoup' } as ActiveEditowMoveCopyAwguments);
 	}
 }
 
-export class SplitEditorToNextGroupAction extends ExecuteCommandAction {
+expowt cwass SpwitEditowToNextGwoupAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.splitEditorToNextGroup';
-	static readonly LABEL = localize('splitEditorToNextGroup', "Split Editor into Next Group");
+	static weadonwy ID = 'wowkbench.action.spwitEditowToNextGwoup';
+	static weadonwy WABEW = wocawize('spwitEditowToNextGwoup', "Spwit Editow into Next Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice commandSewvice: ICommandSewvice
 	) {
-		super(id, label, COPY_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'next', by: 'group' } as ActiveEditorMoveCopyArguments);
+		supa(id, wabew, COPY_ACTIVE_EDITOW_COMMAND_ID, commandSewvice, { to: 'next', by: 'gwoup' } as ActiveEditowMoveCopyAwguments);
 	}
 }
 
-export class SplitEditorToAboveGroupAction extends ExecuteCommandAction {
+expowt cwass SpwitEditowToAboveGwoupAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.splitEditorToAboveGroup';
-	static readonly LABEL = localize('splitEditorToAboveGroup', "Split Editor into Above Group");
+	static weadonwy ID = 'wowkbench.action.spwitEditowToAboveGwoup';
+	static weadonwy WABEW = wocawize('spwitEditowToAboveGwoup', "Spwit Editow into Above Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice commandSewvice: ICommandSewvice
 	) {
-		super(id, label, COPY_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'up', by: 'group' } as ActiveEditorMoveCopyArguments);
+		supa(id, wabew, COPY_ACTIVE_EDITOW_COMMAND_ID, commandSewvice, { to: 'up', by: 'gwoup' } as ActiveEditowMoveCopyAwguments);
 	}
 }
 
-export class SplitEditorToBelowGroupAction extends ExecuteCommandAction {
+expowt cwass SpwitEditowToBewowGwoupAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.splitEditorToBelowGroup';
-	static readonly LABEL = localize('splitEditorToBelowGroup', "Split Editor into Below Group");
+	static weadonwy ID = 'wowkbench.action.spwitEditowToBewowGwoup';
+	static weadonwy WABEW = wocawize('spwitEditowToBewowGwoup', "Spwit Editow into Bewow Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice commandSewvice: ICommandSewvice
 	) {
-		super(id, label, COPY_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'down', by: 'group' } as ActiveEditorMoveCopyArguments);
+		supa(id, wabew, COPY_ACTIVE_EDITOW_COMMAND_ID, commandSewvice, { to: 'down', by: 'gwoup' } as ActiveEditowMoveCopyAwguments);
 	}
 }
 
-export class SplitEditorToLeftGroupAction extends ExecuteCommandAction {
+expowt cwass SpwitEditowToWeftGwoupAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.splitEditorToLeftGroup';
-	static readonly LABEL = localize('splitEditorToLeftGroup', "Split Editor into Left Group");
+	static weadonwy ID = 'wowkbench.action.spwitEditowToWeftGwoup';
+	static weadonwy WABEW = wocawize('spwitEditowToWeftGwoup', "Spwit Editow into Weft Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice commandSewvice: ICommandSewvice
 	) {
-		super(id, label, COPY_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'left', by: 'group' } as ActiveEditorMoveCopyArguments);
+		supa(id, wabew, COPY_ACTIVE_EDITOW_COMMAND_ID, commandSewvice, { to: 'weft', by: 'gwoup' } as ActiveEditowMoveCopyAwguments);
 	}
 }
 
-export class SplitEditorToRightGroupAction extends ExecuteCommandAction {
+expowt cwass SpwitEditowToWightGwoupAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.splitEditorToRightGroup';
-	static readonly LABEL = localize('splitEditorToRightGroup', "Split Editor into Right Group");
+	static weadonwy ID = 'wowkbench.action.spwitEditowToWightGwoup';
+	static weadonwy WABEW = wocawize('spwitEditowToWightGwoup', "Spwit Editow into Wight Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice commandSewvice: ICommandSewvice
 	) {
-		super(id, label, COPY_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'right', by: 'group' } as ActiveEditorMoveCopyArguments);
+		supa(id, wabew, COPY_ACTIVE_EDITOW_COMMAND_ID, commandSewvice, { to: 'wight', by: 'gwoup' } as ActiveEditowMoveCopyAwguments);
 	}
 }
 
-export class SplitEditorToFirstGroupAction extends ExecuteCommandAction {
+expowt cwass SpwitEditowToFiwstGwoupAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.splitEditorToFirstGroup';
-	static readonly LABEL = localize('splitEditorToFirstGroup', "Split Editor into First Group");
+	static weadonwy ID = 'wowkbench.action.spwitEditowToFiwstGwoup';
+	static weadonwy WABEW = wocawize('spwitEditowToFiwstGwoup', "Spwit Editow into Fiwst Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice commandSewvice: ICommandSewvice
 	) {
-		super(id, label, COPY_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'first', by: 'group' } as ActiveEditorMoveCopyArguments);
+		supa(id, wabew, COPY_ACTIVE_EDITOW_COMMAND_ID, commandSewvice, { to: 'fiwst', by: 'gwoup' } as ActiveEditowMoveCopyAwguments);
 	}
 }
 
-export class SplitEditorToLastGroupAction extends ExecuteCommandAction {
+expowt cwass SpwitEditowToWastGwoupAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.splitEditorToLastGroup';
-	static readonly LABEL = localize('splitEditorToLastGroup', "Split Editor into Last Group");
+	static weadonwy ID = 'wowkbench.action.spwitEditowToWastGwoup';
+	static weadonwy WABEW = wocawize('spwitEditowToWastGwoup', "Spwit Editow into Wast Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice commandSewvice: ICommandSewvice
 	) {
-		super(id, label, COPY_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'last', by: 'group' } as ActiveEditorMoveCopyArguments);
+		supa(id, wabew, COPY_ACTIVE_EDITOW_COMMAND_ID, commandSewvice, { to: 'wast', by: 'gwoup' } as ActiveEditowMoveCopyAwguments);
 	}
 }
 
-export class EditorLayoutSingleAction extends ExecuteCommandAction {
+expowt cwass EditowWayoutSingweAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.editorLayoutSingle';
-	static readonly LABEL = localize('editorLayoutSingle', "Single Column Editor Layout");
+	static weadonwy ID = 'wowkbench.action.editowWayoutSingwe';
+	static weadonwy WABEW = wocawize('editowWayoutSingwe', "Singwe Cowumn Editow Wayout");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice commandSewvice: ICommandSewvice
 	) {
-		super(id, label, LAYOUT_EDITOR_GROUPS_COMMAND_ID, commandService, { groups: [{}] } as EditorGroupLayout);
+		supa(id, wabew, WAYOUT_EDITOW_GWOUPS_COMMAND_ID, commandSewvice, { gwoups: [{}] } as EditowGwoupWayout);
 	}
 }
 
-export class EditorLayoutTwoColumnsAction extends ExecuteCommandAction {
+expowt cwass EditowWayoutTwoCowumnsAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.editorLayoutTwoColumns';
-	static readonly LABEL = localize('editorLayoutTwoColumns', "Two Columns Editor Layout");
+	static weadonwy ID = 'wowkbench.action.editowWayoutTwoCowumns';
+	static weadonwy WABEW = wocawize('editowWayoutTwoCowumns', "Two Cowumns Editow Wayout");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice commandSewvice: ICommandSewvice
 	) {
-		super(id, label, LAYOUT_EDITOR_GROUPS_COMMAND_ID, commandService, { groups: [{}, {}], orientation: GroupOrientation.HORIZONTAL } as EditorGroupLayout);
+		supa(id, wabew, WAYOUT_EDITOW_GWOUPS_COMMAND_ID, commandSewvice, { gwoups: [{}, {}], owientation: GwoupOwientation.HOWIZONTAW } as EditowGwoupWayout);
 	}
 }
 
-export class EditorLayoutThreeColumnsAction extends ExecuteCommandAction {
+expowt cwass EditowWayoutThweeCowumnsAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.editorLayoutThreeColumns';
-	static readonly LABEL = localize('editorLayoutThreeColumns', "Three Columns Editor Layout");
+	static weadonwy ID = 'wowkbench.action.editowWayoutThweeCowumns';
+	static weadonwy WABEW = wocawize('editowWayoutThweeCowumns', "Thwee Cowumns Editow Wayout");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice commandSewvice: ICommandSewvice
 	) {
-		super(id, label, LAYOUT_EDITOR_GROUPS_COMMAND_ID, commandService, { groups: [{}, {}, {}], orientation: GroupOrientation.HORIZONTAL } as EditorGroupLayout);
+		supa(id, wabew, WAYOUT_EDITOW_GWOUPS_COMMAND_ID, commandSewvice, { gwoups: [{}, {}, {}], owientation: GwoupOwientation.HOWIZONTAW } as EditowGwoupWayout);
 	}
 }
 
-export class EditorLayoutTwoRowsAction extends ExecuteCommandAction {
+expowt cwass EditowWayoutTwoWowsAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.editorLayoutTwoRows';
-	static readonly LABEL = localize('editorLayoutTwoRows', "Two Rows Editor Layout");
+	static weadonwy ID = 'wowkbench.action.editowWayoutTwoWows';
+	static weadonwy WABEW = wocawize('editowWayoutTwoWows', "Two Wows Editow Wayout");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice commandSewvice: ICommandSewvice
 	) {
-		super(id, label, LAYOUT_EDITOR_GROUPS_COMMAND_ID, commandService, { groups: [{}, {}], orientation: GroupOrientation.VERTICAL } as EditorGroupLayout);
+		supa(id, wabew, WAYOUT_EDITOW_GWOUPS_COMMAND_ID, commandSewvice, { gwoups: [{}, {}], owientation: GwoupOwientation.VEWTICAW } as EditowGwoupWayout);
 	}
 }
 
-export class EditorLayoutThreeRowsAction extends ExecuteCommandAction {
+expowt cwass EditowWayoutThweeWowsAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.editorLayoutThreeRows';
-	static readonly LABEL = localize('editorLayoutThreeRows', "Three Rows Editor Layout");
+	static weadonwy ID = 'wowkbench.action.editowWayoutThweeWows';
+	static weadonwy WABEW = wocawize('editowWayoutThweeWows', "Thwee Wows Editow Wayout");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice commandSewvice: ICommandSewvice
 	) {
-		super(id, label, LAYOUT_EDITOR_GROUPS_COMMAND_ID, commandService, { groups: [{}, {}, {}], orientation: GroupOrientation.VERTICAL } as EditorGroupLayout);
+		supa(id, wabew, WAYOUT_EDITOW_GWOUPS_COMMAND_ID, commandSewvice, { gwoups: [{}, {}, {}], owientation: GwoupOwientation.VEWTICAW } as EditowGwoupWayout);
 	}
 }
 
-export class EditorLayoutTwoByTwoGridAction extends ExecuteCommandAction {
+expowt cwass EditowWayoutTwoByTwoGwidAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.editorLayoutTwoByTwoGrid';
-	static readonly LABEL = localize('editorLayoutTwoByTwoGrid', "Grid Editor Layout (2x2)");
+	static weadonwy ID = 'wowkbench.action.editowWayoutTwoByTwoGwid';
+	static weadonwy WABEW = wocawize('editowWayoutTwoByTwoGwid', "Gwid Editow Wayout (2x2)");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice commandSewvice: ICommandSewvice
 	) {
-		super(id, label, LAYOUT_EDITOR_GROUPS_COMMAND_ID, commandService, { groups: [{ groups: [{}, {}] }, { groups: [{}, {}] }] } as EditorGroupLayout);
+		supa(id, wabew, WAYOUT_EDITOW_GWOUPS_COMMAND_ID, commandSewvice, { gwoups: [{ gwoups: [{}, {}] }, { gwoups: [{}, {}] }] } as EditowGwoupWayout);
 	}
 }
 
-export class EditorLayoutTwoColumnsBottomAction extends ExecuteCommandAction {
+expowt cwass EditowWayoutTwoCowumnsBottomAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.editorLayoutTwoColumnsBottom';
-	static readonly LABEL = localize('editorLayoutTwoColumnsBottom', "Two Columns Bottom Editor Layout");
+	static weadonwy ID = 'wowkbench.action.editowWayoutTwoCowumnsBottom';
+	static weadonwy WABEW = wocawize('editowWayoutTwoCowumnsBottom', "Two Cowumns Bottom Editow Wayout");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice commandSewvice: ICommandSewvice
 	) {
-		super(id, label, LAYOUT_EDITOR_GROUPS_COMMAND_ID, commandService, { groups: [{}, { groups: [{}, {}] }], orientation: GroupOrientation.VERTICAL } as EditorGroupLayout);
+		supa(id, wabew, WAYOUT_EDITOW_GWOUPS_COMMAND_ID, commandSewvice, { gwoups: [{}, { gwoups: [{}, {}] }], owientation: GwoupOwientation.VEWTICAW } as EditowGwoupWayout);
 	}
 }
 
-export class EditorLayoutTwoRowsRightAction extends ExecuteCommandAction {
+expowt cwass EditowWayoutTwoWowsWightAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.editorLayoutTwoRowsRight';
-	static readonly LABEL = localize('editorLayoutTwoRowsRight', "Two Rows Right Editor Layout");
+	static weadonwy ID = 'wowkbench.action.editowWayoutTwoWowsWight';
+	static weadonwy WABEW = wocawize('editowWayoutTwoWowsWight', "Two Wows Wight Editow Wayout");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice commandSewvice: ICommandSewvice
 	) {
-		super(id, label, LAYOUT_EDITOR_GROUPS_COMMAND_ID, commandService, { groups: [{}, { groups: [{}, {}] }], orientation: GroupOrientation.HORIZONTAL } as EditorGroupLayout);
+		supa(id, wabew, WAYOUT_EDITOW_GWOUPS_COMMAND_ID, commandSewvice, { gwoups: [{}, { gwoups: [{}, {}] }], owientation: GwoupOwientation.HOWIZONTAW } as EditowGwoupWayout);
 	}
 }
 
-abstract class AbstractCreateEditorGroupAction extends Action {
+abstwact cwass AbstwactCweateEditowGwoupAction extends Action {
 
-	constructor(
-		id: string,
-		label: string,
-		private direction: GroupDirection,
-		private editorGroupService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		pwivate diwection: GwoupDiwection,
+		pwivate editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<void> {
-		this.editorGroupService.addGroup(this.editorGroupService.activeGroup, this.direction, { activate: true });
+	ovewwide async wun(): Pwomise<void> {
+		this.editowGwoupSewvice.addGwoup(this.editowGwoupSewvice.activeGwoup, this.diwection, { activate: twue });
 	}
 }
 
-export class NewEditorGroupLeftAction extends AbstractCreateEditorGroupAction {
+expowt cwass NewEditowGwoupWeftAction extends AbstwactCweateEditowGwoupAction {
 
-	static readonly ID = 'workbench.action.newGroupLeft';
-	static readonly LABEL = localize('newEditorLeft', "New Editor Group to the Left");
+	static weadonwy ID = 'wowkbench.action.newGwoupWeft';
+	static weadonwy WABEW = wocawize('newEditowWeft', "New Editow Gwoup to the Weft");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, label, GroupDirection.LEFT, editorGroupService);
+		supa(id, wabew, GwoupDiwection.WEFT, editowGwoupSewvice);
 	}
 }
 
-export class NewEditorGroupRightAction extends AbstractCreateEditorGroupAction {
+expowt cwass NewEditowGwoupWightAction extends AbstwactCweateEditowGwoupAction {
 
-	static readonly ID = 'workbench.action.newGroupRight';
-	static readonly LABEL = localize('newEditorRight', "New Editor Group to the Right");
+	static weadonwy ID = 'wowkbench.action.newGwoupWight';
+	static weadonwy WABEW = wocawize('newEditowWight', "New Editow Gwoup to the Wight");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, label, GroupDirection.RIGHT, editorGroupService);
+		supa(id, wabew, GwoupDiwection.WIGHT, editowGwoupSewvice);
 	}
 }
 
-export class NewEditorGroupAboveAction extends AbstractCreateEditorGroupAction {
+expowt cwass NewEditowGwoupAboveAction extends AbstwactCweateEditowGwoupAction {
 
-	static readonly ID = 'workbench.action.newGroupAbove';
-	static readonly LABEL = localize('newEditorAbove', "New Editor Group Above");
+	static weadonwy ID = 'wowkbench.action.newGwoupAbove';
+	static weadonwy WABEW = wocawize('newEditowAbove', "New Editow Gwoup Above");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, label, GroupDirection.UP, editorGroupService);
+		supa(id, wabew, GwoupDiwection.UP, editowGwoupSewvice);
 	}
 }
 
-export class NewEditorGroupBelowAction extends AbstractCreateEditorGroupAction {
+expowt cwass NewEditowGwoupBewowAction extends AbstwactCweateEditowGwoupAction {
 
-	static readonly ID = 'workbench.action.newGroupBelow';
-	static readonly LABEL = localize('newEditorBelow', "New Editor Group Below");
+	static weadonwy ID = 'wowkbench.action.newGwoupBewow';
+	static weadonwy WABEW = wocawize('newEditowBewow', "New Editow Gwoup Bewow");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, label, GroupDirection.DOWN, editorGroupService);
+		supa(id, wabew, GwoupDiwection.DOWN, editowGwoupSewvice);
 	}
 }
 
-export class ToggleEditorTypeAction extends Action {
+expowt cwass ToggweEditowTypeAction extends Action {
 
-	static readonly ID = 'workbench.action.toggleEditorType';
-	static readonly LABEL = localize('workbench.action.toggleEditorType', "Toggle Editor Type");
+	static weadonwy ID = 'wowkbench.action.toggweEditowType';
+	static weadonwy WABEW = wocawize('wowkbench.action.toggweEditowType', "Toggwe Editow Type");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorService private readonly editorService: IEditorService,
-		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IEditowWesowvewSewvice pwivate weadonwy editowWesowvewSewvice: IEditowWesowvewSewvice,
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<void> {
-		const activeEditorPane = this.editorService.activeEditorPane;
-		if (!activeEditorPane) {
-			return;
+	ovewwide async wun(): Pwomise<void> {
+		const activeEditowPane = this.editowSewvice.activeEditowPane;
+		if (!activeEditowPane) {
+			wetuwn;
 		}
 
-		const activeEditorResource = activeEditorPane.input.resource;
-		if (!activeEditorResource) {
-			return;
+		const activeEditowWesouwce = activeEditowPane.input.wesouwce;
+		if (!activeEditowWesouwce) {
+			wetuwn;
 		}
 
-		const options = activeEditorPane.options;
-		const group = activeEditorPane.group;
+		const options = activeEditowPane.options;
+		const gwoup = activeEditowPane.gwoup;
 
-		const editorIds = this.editorResolverService.getEditors(activeEditorResource).map(editor => editor.id).filter(id => id !== activeEditorPane.input.editorId);
+		const editowIds = this.editowWesowvewSewvice.getEditows(activeEditowWesouwce).map(editow => editow.id).fiwta(id => id !== activeEditowPane.input.editowId);
 
-		if (editorIds.length === 0) {
-			return;
+		if (editowIds.wength === 0) {
+			wetuwn;
 		}
 
-		// Replace the current editor with the next avaiable editor type
-		await this.editorService.replaceEditors([
+		// Wepwace the cuwwent editow with the next avaiabwe editow type
+		await this.editowSewvice.wepwaceEditows([
 			{
-				editor: activeEditorPane.input,
-				replacement: activeEditorPane.input,
-				options: { ...options, override: editorIds[0] },
+				editow: activeEditowPane.input,
+				wepwacement: activeEditowPane.input,
+				options: { ...options, ovewwide: editowIds[0] },
 			}
-		], group);
+		], gwoup);
 	}
 }
 
-export class ReOpenInTextEditorAction extends Action {
+expowt cwass WeOpenInTextEditowAction extends Action {
 
-	static readonly ID = 'workbench.action.reopenTextEditor';
-	static readonly LABEL = localize('workbench.action.reopenTextEditor', "Reopen Editor With Text Editor");
+	static weadonwy ID = 'wowkbench.action.weopenTextEditow';
+	static weadonwy WABEW = wocawize('wowkbench.action.weopenTextEditow', "Weopen Editow With Text Editow");
 
-	private readonly fileEditorFactory = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).getFileEditorFactory();
+	pwivate weadonwy fiweEditowFactowy = Wegistwy.as<IEditowFactowyWegistwy>(EditowExtensions.EditowFactowy).getFiweEditowFactowy();
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorService private readonly editorService: IEditorService,
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<void> {
-		const activeEditorPane = this.editorService.activeEditorPane;
-		if (!activeEditorPane) {
-			return;
+	ovewwide async wun(): Pwomise<void> {
+		const activeEditowPane = this.editowSewvice.activeEditowPane;
+		if (!activeEditowPane) {
+			wetuwn;
 		}
 
-		const activeEditorResource = activeEditorPane.input.resource;
-		if (!activeEditorResource) {
-			return;
+		const activeEditowWesouwce = activeEditowPane.input.wesouwce;
+		if (!activeEditowWesouwce) {
+			wetuwn;
 		}
 
-		const options = activeEditorPane.options;
-		const group = activeEditorPane.group;
+		const options = activeEditowPane.options;
+		const gwoup = activeEditowPane.gwoup;
 
-		if (this.fileEditorFactory.isFileEditor(this.editorService.activeEditor)) {
-			return;
+		if (this.fiweEditowFactowy.isFiweEditow(this.editowSewvice.activeEditow)) {
+			wetuwn;
 		}
 
-		// Replace the current editor with the text editor
-		await group.replaceEditors([
+		// Wepwace the cuwwent editow with the text editow
+		await gwoup.wepwaceEditows([
 			{
-				editor: activeEditorPane.input,
-				replacement: activeEditorPane.input,
-				options: { ...options, override: DEFAULT_EDITOR_ASSOCIATION.id },
+				editow: activeEditowPane.input,
+				wepwacement: activeEditowPane.input,
+				options: { ...options, ovewwide: DEFAUWT_EDITOW_ASSOCIATION.id },
 			}
 		]);
 	}

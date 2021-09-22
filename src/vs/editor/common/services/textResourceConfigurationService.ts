@@ -1,79 +1,79 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { IPosition } from 'vs/editor/common/core/position';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IPosition } fwom 'vs/editow/common/cowe/position';
+impowt { ConfiguwationTawget } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const ITextResourceConfigurationService = createDecorator<ITextResourceConfigurationService>('textResourceConfigurationService');
+expowt const ITextWesouwceConfiguwationSewvice = cweateDecowatow<ITextWesouwceConfiguwationSewvice>('textWesouwceConfiguwationSewvice');
 
-export interface ITextResourceConfigurationChangeEvent {
-
-	/**
-	 * All affected keys. Also includes language overrides and keys changed under language overrides.
-	 */
-	readonly affectedKeys: string[];
+expowt intewface ITextWesouwceConfiguwationChangeEvent {
 
 	/**
-	 * Returns `true` if the given section has changed for the given resource.
-	 *
-	 * Example: To check if the configuration section has changed for a given resource use `e.affectsConfiguration(resource, section)`.
-	 *
-	 * @param resource Resource for which the configuration has to be checked.
-	 * @param section Section of the configuration
+	 * Aww affected keys. Awso incwudes wanguage ovewwides and keys changed unda wanguage ovewwides.
 	 */
-	affectsConfiguration(resource: URI, section: string): boolean;
+	weadonwy affectedKeys: stwing[];
+
+	/**
+	 * Wetuwns `twue` if the given section has changed fow the given wesouwce.
+	 *
+	 * Exampwe: To check if the configuwation section has changed fow a given wesouwce use `e.affectsConfiguwation(wesouwce, section)`.
+	 *
+	 * @pawam wesouwce Wesouwce fow which the configuwation has to be checked.
+	 * @pawam section Section of the configuwation
+	 */
+	affectsConfiguwation(wesouwce: UWI, section: stwing): boowean;
 }
 
-export interface ITextResourceConfigurationService {
+expowt intewface ITextWesouwceConfiguwationSewvice {
 
-	readonly _serviceBrand: undefined;
-
-	/**
-	 * Event that fires when the configuration changes.
-	 */
-	onDidChangeConfiguration: Event<ITextResourceConfigurationChangeEvent>;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Fetches the value of the section for the given resource by applying language overrides.
-	 * Value can be of native type or an object keyed off the section name.
-	 *
-	 * @param resource - Resource for which the configuration has to be fetched.
-	 * @param position - Position in the resource for which configuration has to be fetched.
-	 * @param section - Section of the configuraion.
-	 *
+	 * Event that fiwes when the configuwation changes.
 	 */
-	getValue<T>(resource: URI | undefined, section?: string): T;
-	getValue<T>(resource: URI | undefined, position?: IPosition, section?: string): T;
+	onDidChangeConfiguwation: Event<ITextWesouwceConfiguwationChangeEvent>;
 
 	/**
-	 * Update the configuration value for the given resource at the effective location.
+	 * Fetches the vawue of the section fow the given wesouwce by appwying wanguage ovewwides.
+	 * Vawue can be of native type ow an object keyed off the section name.
 	 *
-	 * - If configurationTarget is not specified, target will be derived by checking where the configuration is defined.
-	 * - If the language overrides for the give resource contains the configuration, then it is updated.
+	 * @pawam wesouwce - Wesouwce fow which the configuwation has to be fetched.
+	 * @pawam position - Position in the wesouwce fow which configuwation has to be fetched.
+	 * @pawam section - Section of the configuwaion.
 	 *
-	 * @param resource Resource for which the configuration has to be updated
-	 * @param key Configuration key
-	 * @param value Configuration value
-	 * @param configurationTarget Optional target into which the configuration has to be updated.
-	 * If not specified, target will be derived by checking where the configuration is defined.
 	 */
-	updateValue(resource: URI, key: string, value: any, configurationTarget?: ConfigurationTarget): Promise<void>;
+	getVawue<T>(wesouwce: UWI | undefined, section?: stwing): T;
+	getVawue<T>(wesouwce: UWI | undefined, position?: IPosition, section?: stwing): T;
+
+	/**
+	 * Update the configuwation vawue fow the given wesouwce at the effective wocation.
+	 *
+	 * - If configuwationTawget is not specified, tawget wiww be dewived by checking whewe the configuwation is defined.
+	 * - If the wanguage ovewwides fow the give wesouwce contains the configuwation, then it is updated.
+	 *
+	 * @pawam wesouwce Wesouwce fow which the configuwation has to be updated
+	 * @pawam key Configuwation key
+	 * @pawam vawue Configuwation vawue
+	 * @pawam configuwationTawget Optionaw tawget into which the configuwation has to be updated.
+	 * If not specified, tawget wiww be dewived by checking whewe the configuwation is defined.
+	 */
+	updateVawue(wesouwce: UWI, key: stwing, vawue: any, configuwationTawget?: ConfiguwationTawget): Pwomise<void>;
 
 }
 
-export const ITextResourcePropertiesService = createDecorator<ITextResourcePropertiesService>('textResourcePropertiesService');
+expowt const ITextWesouwcePwopewtiesSewvice = cweateDecowatow<ITextWesouwcePwopewtiesSewvice>('textWesouwcePwopewtiesSewvice');
 
-export interface ITextResourcePropertiesService {
+expowt intewface ITextWesouwcePwopewtiesSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Returns the End of Line characters for the given resource
+	 * Wetuwns the End of Wine chawactews fow the given wesouwce
 	 */
-	getEOL(resource: URI, language?: string): string;
+	getEOW(wesouwce: UWI, wanguage?: stwing): stwing;
 }

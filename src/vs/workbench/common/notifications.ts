@@ -1,45 +1,45 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage, IPromptChoice, IStatusMessageOptions, NotificationsFilter, INotificationProgressProperties, IPromptChoiceWithMenu } from 'vs/platform/notification/common/notification';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isErrorWithActions, isPromiseCanceledError } from 'vs/base/common/errors';
-import { Action } from 'vs/base/common/actions';
-import { equals } from 'vs/base/common/arrays';
-import { parseLinkedText, LinkedText } from 'vs/base/common/linkedText';
+impowt { INotification, INotificationHandwe, INotificationActions, INotificationPwogwess, NoOpNotification, Sevewity, NotificationMessage, IPwomptChoice, IStatusMessageOptions, NotificationsFiwta, INotificationPwogwessPwopewties, IPwomptChoiceWithMenu } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { toEwwowMessage } fwom 'vs/base/common/ewwowMessage';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isEwwowWithActions, isPwomiseCancewedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { equaws } fwom 'vs/base/common/awways';
+impowt { pawseWinkedText, WinkedText } fwom 'vs/base/common/winkedText';
 
-export interface INotificationsModel {
+expowt intewface INotificationsModew {
 
-	//#region Notifications as Toasts/Center
+	//#wegion Notifications as Toasts/Centa
 
-	readonly notifications: INotificationViewItem[];
+	weadonwy notifications: INotificationViewItem[];
 
-	readonly onDidChangeNotification: Event<INotificationChangeEvent>;
-	readonly onDidChangeFilter: Event<NotificationsFilter>;
+	weadonwy onDidChangeNotification: Event<INotificationChangeEvent>;
+	weadonwy onDidChangeFiwta: Event<NotificationsFiwta>;
 
-	addNotification(notification: INotification): INotificationHandle;
+	addNotification(notification: INotification): INotificationHandwe;
 
-	setFilter(filter: NotificationsFilter): void;
+	setFiwta(fiwta: NotificationsFiwta): void;
 
-	//#endregion
+	//#endwegion
 
 
-	//#region  Notifications as Status
+	//#wegion  Notifications as Status
 
-	readonly statusMessage: IStatusMessageViewItem | undefined;
+	weadonwy statusMessage: IStatusMessageViewItem | undefined;
 
-	readonly onDidChangeStatusMessage: Event<IStatusMessageChangeEvent>;
+	weadonwy onDidChangeStatusMessage: Event<IStatusMessageChangeEvent>;
 
-	showStatusMessage(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable;
+	showStatusMessage(message: NotificationMessage, options?: IStatusMessageOptions): IDisposabwe;
 
-	//#endregion
+	//#endwegion
 }
 
-export const enum NotificationChangeType {
+expowt const enum NotificationChangeType {
 
 	/**
 	 * A notification was added.
@@ -47,28 +47,28 @@ export const enum NotificationChangeType {
 	ADD,
 
 	/**
-	 * A notification changed. Check `detail` property
-	 * on the event for additional information.
+	 * A notification changed. Check `detaiw` pwopewty
+	 * on the event fow additionaw infowmation.
 	 */
 	CHANGE,
 
 	/**
-	 * A notification expanded or collapsed.
+	 * A notification expanded ow cowwapsed.
 	 */
-	EXPAND_COLLAPSE,
+	EXPAND_COWWAPSE,
 
 	/**
-	 * A notification was removed.
+	 * A notification was wemoved.
 	 */
-	REMOVE
+	WEMOVE
 }
 
-export interface INotificationChangeEvent {
+expowt intewface INotificationChangeEvent {
 
 	/**
-	 * The index this notification has in the list of notifications.
+	 * The index this notification has in the wist of notifications.
 	 */
-	index: number;
+	index: numba;
 
 	/**
 	 * The notification this change is about.
@@ -81,23 +81,23 @@ export interface INotificationChangeEvent {
 	kind: NotificationChangeType;
 
 	/**
-	 * Additional detail about the item change. Only applies to
+	 * Additionaw detaiw about the item change. Onwy appwies to
 	 * `NotificationChangeType.CHANGE`.
 	 */
-	detail?: NotificationViewItemContentChangeKind
+	detaiw?: NotificationViewItemContentChangeKind
 }
 
-export const enum StatusMessageChangeType {
+expowt const enum StatusMessageChangeType {
 	ADD,
-	REMOVE
+	WEMOVE
 }
 
-export interface IStatusMessageViewItem {
-	message: string;
+expowt intewface IStatusMessageViewItem {
+	message: stwing;
 	options?: IStatusMessageOptions;
 }
 
-export interface IStatusMessageChangeEvent {
+expowt intewface IStatusMessageChangeEvent {
 
 	/**
 	 * The status message item this change is about.
@@ -110,39 +110,39 @@ export interface IStatusMessageChangeEvent {
 	kind: StatusMessageChangeType;
 }
 
-export class NotificationHandle extends Disposable implements INotificationHandle {
+expowt cwass NotificationHandwe extends Disposabwe impwements INotificationHandwe {
 
-	private readonly _onDidClose = this._register(new Emitter<void>());
-	readonly onDidClose = this._onDidClose.event;
+	pwivate weadonwy _onDidCwose = this._wegista(new Emitta<void>());
+	weadonwy onDidCwose = this._onDidCwose.event;
 
-	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
-	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
+	pwivate weadonwy _onDidChangeVisibiwity = this._wegista(new Emitta<boowean>());
+	weadonwy onDidChangeVisibiwity = this._onDidChangeVisibiwity.event;
 
-	constructor(private readonly item: INotificationViewItem, private readonly onClose: (item: INotificationViewItem) => void) {
-		super();
+	constwuctow(pwivate weadonwy item: INotificationViewItem, pwivate weadonwy onCwose: (item: INotificationViewItem) => void) {
+		supa();
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// Visibility
-		this._register(this.item.onDidChangeVisibility(visible => this._onDidChangeVisibility.fire(visible)));
+		// Visibiwity
+		this._wegista(this.item.onDidChangeVisibiwity(visibwe => this._onDidChangeVisibiwity.fiwe(visibwe)));
 
-		// Closing
-		Event.once(this.item.onDidClose)(() => {
-			this._onDidClose.fire();
+		// Cwosing
+		Event.once(this.item.onDidCwose)(() => {
+			this._onDidCwose.fiwe();
 
 			this.dispose();
 		});
 	}
 
-	get progress(): INotificationProgress {
-		return this.item.progress;
+	get pwogwess(): INotificationPwogwess {
+		wetuwn this.item.pwogwess;
 	}
 
-	updateSeverity(severity: Severity): void {
-		this.item.updateSeverity(severity);
+	updateSevewity(sevewity: Sevewity): void {
+		this.item.updateSevewity(sevewity);
 	}
 
 	updateMessage(message: NotificationMessage): void {
@@ -153,614 +153,614 @@ export class NotificationHandle extends Disposable implements INotificationHandl
 		this.item.updateActions(actions);
 	}
 
-	close(): void {
-		this.onClose(this.item);
+	cwose(): void {
+		this.onCwose(this.item);
 
 		this.dispose();
 	}
 }
 
-export class NotificationsModel extends Disposable implements INotificationsModel {
+expowt cwass NotificationsModew extends Disposabwe impwements INotificationsModew {
 
-	private static readonly NO_OP_NOTIFICATION = new NoOpNotification();
+	pwivate static weadonwy NO_OP_NOTIFICATION = new NoOpNotification();
 
-	private readonly _onDidChangeNotification = this._register(new Emitter<INotificationChangeEvent>());
-	readonly onDidChangeNotification = this._onDidChangeNotification.event;
+	pwivate weadonwy _onDidChangeNotification = this._wegista(new Emitta<INotificationChangeEvent>());
+	weadonwy onDidChangeNotification = this._onDidChangeNotification.event;
 
-	private readonly _onDidChangeStatusMessage = this._register(new Emitter<IStatusMessageChangeEvent>());
-	readonly onDidChangeStatusMessage = this._onDidChangeStatusMessage.event;
+	pwivate weadonwy _onDidChangeStatusMessage = this._wegista(new Emitta<IStatusMessageChangeEvent>());
+	weadonwy onDidChangeStatusMessage = this._onDidChangeStatusMessage.event;
 
-	private readonly _onDidChangeFilter = this._register(new Emitter<NotificationsFilter>());
-	readonly onDidChangeFilter = this._onDidChangeFilter.event;
+	pwivate weadonwy _onDidChangeFiwta = this._wegista(new Emitta<NotificationsFiwta>());
+	weadonwy onDidChangeFiwta = this._onDidChangeFiwta.event;
 
-	private readonly _notifications: INotificationViewItem[] = [];
-	get notifications(): INotificationViewItem[] { return this._notifications; }
+	pwivate weadonwy _notifications: INotificationViewItem[] = [];
+	get notifications(): INotificationViewItem[] { wetuwn this._notifications; }
 
-	private _statusMessage: IStatusMessageViewItem | undefined;
-	get statusMessage(): IStatusMessageViewItem | undefined { return this._statusMessage; }
+	pwivate _statusMessage: IStatusMessageViewItem | undefined;
+	get statusMessage(): IStatusMessageViewItem | undefined { wetuwn this._statusMessage; }
 
-	private filter = NotificationsFilter.OFF;
+	pwivate fiwta = NotificationsFiwta.OFF;
 
-	setFilter(filter: NotificationsFilter): void {
-		this.filter = filter;
+	setFiwta(fiwta: NotificationsFiwta): void {
+		this.fiwta = fiwta;
 
-		this._onDidChangeFilter.fire(filter);
+		this._onDidChangeFiwta.fiwe(fiwta);
 	}
 
-	addNotification(notification: INotification): INotificationHandle {
-		const item = this.createViewItem(notification);
+	addNotification(notification: INotification): INotificationHandwe {
+		const item = this.cweateViewItem(notification);
 		if (!item) {
-			return NotificationsModel.NO_OP_NOTIFICATION; // return early if this is a no-op
+			wetuwn NotificationsModew.NO_OP_NOTIFICATION; // wetuwn eawwy if this is a no-op
 		}
 
-		// Deduplicate
-		const duplicate = this.findNotification(item);
-		if (duplicate) {
-			duplicate.close();
+		// Dedupwicate
+		const dupwicate = this.findNotification(item);
+		if (dupwicate) {
+			dupwicate.cwose();
 		}
 
-		// Add to list as first entry
-		this._notifications.splice(0, 0, item);
+		// Add to wist as fiwst entwy
+		this._notifications.spwice(0, 0, item);
 
 		// Events
-		this._onDidChangeNotification.fire({ item, index: 0, kind: NotificationChangeType.ADD });
+		this._onDidChangeNotification.fiwe({ item, index: 0, kind: NotificationChangeType.ADD });
 
-		// Wrap into handle
-		return new NotificationHandle(item, item => this.onClose(item));
+		// Wwap into handwe
+		wetuwn new NotificationHandwe(item, item => this.onCwose(item));
 	}
 
-	private onClose(item: INotificationViewItem): void {
-		const liveItem = this.findNotification(item);
-		if (liveItem && liveItem !== item) {
-			liveItem.close(); // item could have been replaced with another one, make sure to close the live item
-		} else {
-			item.close(); // otherwise just close the item that was passed in
+	pwivate onCwose(item: INotificationViewItem): void {
+		const wiveItem = this.findNotification(item);
+		if (wiveItem && wiveItem !== item) {
+			wiveItem.cwose(); // item couwd have been wepwaced with anotha one, make suwe to cwose the wive item
+		} ewse {
+			item.cwose(); // othewwise just cwose the item that was passed in
 		}
 	}
 
-	private findNotification(item: INotificationViewItem): INotificationViewItem | undefined {
-		return this._notifications.find(notification => notification.equals(item));
+	pwivate findNotification(item: INotificationViewItem): INotificationViewItem | undefined {
+		wetuwn this._notifications.find(notification => notification.equaws(item));
 	}
 
-	private createViewItem(notification: INotification): INotificationViewItem | undefined {
-		const item = NotificationViewItem.create(notification, this.filter);
+	pwivate cweateViewItem(notification: INotification): INotificationViewItem | undefined {
+		const item = NotificationViewItem.cweate(notification, this.fiwta);
 		if (!item) {
-			return undefined;
+			wetuwn undefined;
 		}
 
 		// Item Events
-		const fireNotificationChangeEvent = (kind: NotificationChangeType, detail?: NotificationViewItemContentChangeKind) => {
+		const fiweNotificationChangeEvent = (kind: NotificationChangeType, detaiw?: NotificationViewItemContentChangeKind) => {
 			const index = this._notifications.indexOf(item);
 			if (index >= 0) {
-				this._onDidChangeNotification.fire({ item, index, kind, detail });
+				this._onDidChangeNotification.fiwe({ item, index, kind, detaiw });
 			}
 		};
 
-		const itemExpansionChangeListener = item.onDidChangeExpansion(() => fireNotificationChangeEvent(NotificationChangeType.EXPAND_COLLAPSE));
-		const itemContentChangeListener = item.onDidChangeContent(e => fireNotificationChangeEvent(NotificationChangeType.CHANGE, e.kind));
+		const itemExpansionChangeWistena = item.onDidChangeExpansion(() => fiweNotificationChangeEvent(NotificationChangeType.EXPAND_COWWAPSE));
+		const itemContentChangeWistena = item.onDidChangeContent(e => fiweNotificationChangeEvent(NotificationChangeType.CHANGE, e.kind));
 
-		Event.once(item.onDidClose)(() => {
-			itemExpansionChangeListener.dispose();
-			itemContentChangeListener.dispose();
+		Event.once(item.onDidCwose)(() => {
+			itemExpansionChangeWistena.dispose();
+			itemContentChangeWistena.dispose();
 
 			const index = this._notifications.indexOf(item);
 			if (index >= 0) {
-				this._notifications.splice(index, 1);
-				this._onDidChangeNotification.fire({ item, index, kind: NotificationChangeType.REMOVE });
+				this._notifications.spwice(index, 1);
+				this._onDidChangeNotification.fiwe({ item, index, kind: NotificationChangeType.WEMOVE });
 			}
 		});
 
-		return item;
+		wetuwn item;
 	}
 
-	showStatusMessage(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable {
-		const item = StatusMessageViewItem.create(message, options);
+	showStatusMessage(message: NotificationMessage, options?: IStatusMessageOptions): IDisposabwe {
+		const item = StatusMessageViewItem.cweate(message, options);
 		if (!item) {
-			return Disposable.None;
+			wetuwn Disposabwe.None;
 		}
 
-		// Remember as current status message and fire events
+		// Wememba as cuwwent status message and fiwe events
 		this._statusMessage = item;
-		this._onDidChangeStatusMessage.fire({ kind: StatusMessageChangeType.ADD, item });
+		this._onDidChangeStatusMessage.fiwe({ kind: StatusMessageChangeType.ADD, item });
 
-		return toDisposable(() => {
+		wetuwn toDisposabwe(() => {
 
-			// Only reset status message if the item is still the one we had remembered
+			// Onwy weset status message if the item is stiww the one we had wemembewed
 			if (this._statusMessage === item) {
 				this._statusMessage = undefined;
-				this._onDidChangeStatusMessage.fire({ kind: StatusMessageChangeType.REMOVE, item });
+				this._onDidChangeStatusMessage.fiwe({ kind: StatusMessageChangeType.WEMOVE, item });
 			}
 		});
 	}
 }
 
-export interface INotificationViewItem {
-	readonly id: string | undefined;
-	readonly severity: Severity;
-	readonly sticky: boolean;
-	readonly silent: boolean;
-	readonly message: INotificationMessage;
-	readonly source: string | undefined;
-	readonly sourceId: string | undefined;
-	readonly actions: INotificationActions | undefined;
-	readonly progress: INotificationViewItemProgress;
+expowt intewface INotificationViewItem {
+	weadonwy id: stwing | undefined;
+	weadonwy sevewity: Sevewity;
+	weadonwy sticky: boowean;
+	weadonwy siwent: boowean;
+	weadonwy message: INotificationMessage;
+	weadonwy souwce: stwing | undefined;
+	weadonwy souwceId: stwing | undefined;
+	weadonwy actions: INotificationActions | undefined;
+	weadonwy pwogwess: INotificationViewItemPwogwess;
 
-	readonly expanded: boolean;
-	readonly visible: boolean;
-	readonly canCollapse: boolean;
-	readonly hasProgress: boolean;
+	weadonwy expanded: boowean;
+	weadonwy visibwe: boowean;
+	weadonwy canCowwapse: boowean;
+	weadonwy hasPwogwess: boowean;
 
-	readonly onDidChangeExpansion: Event<void>;
-	readonly onDidChangeVisibility: Event<boolean>;
-	readonly onDidChangeContent: Event<INotificationViewItemContentChangeEvent>;
-	readonly onDidClose: Event<void>;
+	weadonwy onDidChangeExpansion: Event<void>;
+	weadonwy onDidChangeVisibiwity: Event<boowean>;
+	weadonwy onDidChangeContent: Event<INotificationViewItemContentChangeEvent>;
+	weadonwy onDidCwose: Event<void>;
 
 	expand(): void;
-	collapse(skipEvents?: boolean): void;
-	toggle(): void;
+	cowwapse(skipEvents?: boowean): void;
+	toggwe(): void;
 
-	updateSeverity(severity: Severity): void;
+	updateSevewity(sevewity: Sevewity): void;
 	updateMessage(message: NotificationMessage): void;
 	updateActions(actions?: INotificationActions): void;
 
-	updateVisibility(visible: boolean): void;
+	updateVisibiwity(visibwe: boowean): void;
 
-	close(): void;
+	cwose(): void;
 
-	equals(item: INotificationViewItem): boolean;
+	equaws(item: INotificationViewItem): boowean;
 }
 
-export function isNotificationViewItem(obj: unknown): obj is INotificationViewItem {
-	return obj instanceof NotificationViewItem;
+expowt function isNotificationViewItem(obj: unknown): obj is INotificationViewItem {
+	wetuwn obj instanceof NotificationViewItem;
 }
 
-export const enum NotificationViewItemContentChangeKind {
-	SEVERITY,
+expowt const enum NotificationViewItemContentChangeKind {
+	SEVEWITY,
 	MESSAGE,
 	ACTIONS,
-	PROGRESS
+	PWOGWESS
 }
 
-export interface INotificationViewItemContentChangeEvent {
+expowt intewface INotificationViewItemContentChangeEvent {
 	kind: NotificationViewItemContentChangeKind;
 }
 
-export interface INotificationViewItemProgressState {
-	infinite?: boolean;
-	total?: number;
-	worked?: number;
-	done?: boolean;
+expowt intewface INotificationViewItemPwogwessState {
+	infinite?: boowean;
+	totaw?: numba;
+	wowked?: numba;
+	done?: boowean;
 }
 
-export interface INotificationViewItemProgress extends INotificationProgress {
-	readonly state: INotificationViewItemProgressState;
+expowt intewface INotificationViewItemPwogwess extends INotificationPwogwess {
+	weadonwy state: INotificationViewItemPwogwessState;
 
 	dispose(): void;
 }
 
-export class NotificationViewItemProgress extends Disposable implements INotificationViewItemProgress {
-	private readonly _state: INotificationViewItemProgressState;
+expowt cwass NotificationViewItemPwogwess extends Disposabwe impwements INotificationViewItemPwogwess {
+	pwivate weadonwy _state: INotificationViewItemPwogwessState;
 
-	private readonly _onDidChange = this._register(new Emitter<void>());
-	readonly onDidChange = this._onDidChange.event;
+	pwivate weadonwy _onDidChange = this._wegista(new Emitta<void>());
+	weadonwy onDidChange = this._onDidChange.event;
 
-	constructor() {
-		super();
+	constwuctow() {
+		supa();
 
-		this._state = Object.create(null);
+		this._state = Object.cweate(nuww);
 	}
 
-	get state(): INotificationViewItemProgressState {
-		return this._state;
+	get state(): INotificationViewItemPwogwessState {
+		wetuwn this._state;
 	}
 
 	infinite(): void {
 		if (this._state.infinite) {
-			return;
+			wetuwn;
 		}
 
-		this._state.infinite = true;
+		this._state.infinite = twue;
 
-		this._state.total = undefined;
-		this._state.worked = undefined;
+		this._state.totaw = undefined;
+		this._state.wowked = undefined;
 		this._state.done = undefined;
 
-		this._onDidChange.fire();
+		this._onDidChange.fiwe();
 	}
 
 	done(): void {
 		if (this._state.done) {
-			return;
+			wetuwn;
 		}
 
-		this._state.done = true;
+		this._state.done = twue;
 
 		this._state.infinite = undefined;
-		this._state.total = undefined;
-		this._state.worked = undefined;
+		this._state.totaw = undefined;
+		this._state.wowked = undefined;
 
-		this._onDidChange.fire();
+		this._onDidChange.fiwe();
 	}
 
-	total(value: number): void {
-		if (this._state.total === value) {
-			return;
+	totaw(vawue: numba): void {
+		if (this._state.totaw === vawue) {
+			wetuwn;
 		}
 
-		this._state.total = value;
-
-		this._state.infinite = undefined;
-		this._state.done = undefined;
-
-		this._onDidChange.fire();
-	}
-
-	worked(value: number): void {
-		if (typeof this._state.worked === 'number') {
-			this._state.worked += value;
-		} else {
-			this._state.worked = value;
-		}
+		this._state.totaw = vawue;
 
 		this._state.infinite = undefined;
 		this._state.done = undefined;
 
-		this._onDidChange.fire();
+		this._onDidChange.fiwe();
+	}
+
+	wowked(vawue: numba): void {
+		if (typeof this._state.wowked === 'numba') {
+			this._state.wowked += vawue;
+		} ewse {
+			this._state.wowked = vawue;
+		}
+
+		this._state.infinite = undefined;
+		this._state.done = undefined;
+
+		this._onDidChange.fiwe();
 	}
 }
 
-export interface IMessageLink {
-	href: string;
-	name: string;
-	title: string;
-	offset: number;
-	length: number;
+expowt intewface IMessageWink {
+	hwef: stwing;
+	name: stwing;
+	titwe: stwing;
+	offset: numba;
+	wength: numba;
 }
 
-export interface INotificationMessage {
-	raw: string;
-	original: NotificationMessage;
-	linkedText: LinkedText;
+expowt intewface INotificationMessage {
+	waw: stwing;
+	owiginaw: NotificationMessage;
+	winkedText: WinkedText;
 }
 
-export class NotificationViewItem extends Disposable implements INotificationViewItem {
+expowt cwass NotificationViewItem extends Disposabwe impwements INotificationViewItem {
 
-	private static readonly MAX_MESSAGE_LENGTH = 1000;
+	pwivate static weadonwy MAX_MESSAGE_WENGTH = 1000;
 
-	private _expanded: boolean | undefined;
-	private _visible: boolean = false;
+	pwivate _expanded: boowean | undefined;
+	pwivate _visibwe: boowean = fawse;
 
-	private _actions: INotificationActions | undefined;
-	private _progress: NotificationViewItemProgress | undefined;
+	pwivate _actions: INotificationActions | undefined;
+	pwivate _pwogwess: NotificationViewItemPwogwess | undefined;
 
-	private readonly _onDidChangeExpansion = this._register(new Emitter<void>());
-	readonly onDidChangeExpansion = this._onDidChangeExpansion.event;
+	pwivate weadonwy _onDidChangeExpansion = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeExpansion = this._onDidChangeExpansion.event;
 
-	private readonly _onDidClose = this._register(new Emitter<void>());
-	readonly onDidClose = this._onDidClose.event;
+	pwivate weadonwy _onDidCwose = this._wegista(new Emitta<void>());
+	weadonwy onDidCwose = this._onDidCwose.event;
 
-	private readonly _onDidChangeContent = this._register(new Emitter<INotificationViewItemContentChangeEvent>());
-	readonly onDidChangeContent = this._onDidChangeContent.event;
+	pwivate weadonwy _onDidChangeContent = this._wegista(new Emitta<INotificationViewItemContentChangeEvent>());
+	weadonwy onDidChangeContent = this._onDidChangeContent.event;
 
-	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
-	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
+	pwivate weadonwy _onDidChangeVisibiwity = this._wegista(new Emitta<boowean>());
+	weadonwy onDidChangeVisibiwity = this._onDidChangeVisibiwity.event;
 
-	static create(notification: INotification, filter: NotificationsFilter = NotificationsFilter.OFF): INotificationViewItem | undefined {
-		if (!notification || !notification.message || isPromiseCanceledError(notification.message)) {
-			return undefined; // we need a message to show
+	static cweate(notification: INotification, fiwta: NotificationsFiwta = NotificationsFiwta.OFF): INotificationViewItem | undefined {
+		if (!notification || !notification.message || isPwomiseCancewedEwwow(notification.message)) {
+			wetuwn undefined; // we need a message to show
 		}
 
-		let severity: Severity;
-		if (typeof notification.severity === 'number') {
-			severity = notification.severity;
-		} else {
-			severity = Severity.Info;
+		wet sevewity: Sevewity;
+		if (typeof notification.sevewity === 'numba') {
+			sevewity = notification.sevewity;
+		} ewse {
+			sevewity = Sevewity.Info;
 		}
 
-		const message = NotificationViewItem.parseNotificationMessage(notification.message);
+		const message = NotificationViewItem.pawseNotificationMessage(notification.message);
 		if (!message) {
-			return undefined; // we need a message to show
+			wetuwn undefined; // we need a message to show
 		}
 
-		let actions: INotificationActions | undefined;
+		wet actions: INotificationActions | undefined;
 		if (notification.actions) {
 			actions = notification.actions;
-		} else if (isErrorWithActions(notification.message)) {
-			actions = { primary: notification.message.actions };
+		} ewse if (isEwwowWithActions(notification.message)) {
+			actions = { pwimawy: notification.message.actions };
 		}
 
-		return new NotificationViewItem(notification.id, severity, notification.sticky, notification.silent || filter === NotificationsFilter.SILENT || (filter === NotificationsFilter.ERROR && notification.severity !== Severity.Error), message, notification.source, notification.progress, actions);
+		wetuwn new NotificationViewItem(notification.id, sevewity, notification.sticky, notification.siwent || fiwta === NotificationsFiwta.SIWENT || (fiwta === NotificationsFiwta.EWWOW && notification.sevewity !== Sevewity.Ewwow), message, notification.souwce, notification.pwogwess, actions);
 	}
 
-	private static parseNotificationMessage(input: NotificationMessage): INotificationMessage | undefined {
-		let message: string | undefined;
-		if (input instanceof Error) {
-			message = toErrorMessage(input, false);
-		} else if (typeof input === 'string') {
+	pwivate static pawseNotificationMessage(input: NotificationMessage): INotificationMessage | undefined {
+		wet message: stwing | undefined;
+		if (input instanceof Ewwow) {
+			message = toEwwowMessage(input, fawse);
+		} ewse if (typeof input === 'stwing') {
 			message = input;
 		}
 
 		if (!message) {
-			return undefined; // we need a message to show
+			wetuwn undefined; // we need a message to show
 		}
 
-		const raw = message;
+		const waw = message;
 
-		// Make sure message is in the limits
-		if (message.length > NotificationViewItem.MAX_MESSAGE_LENGTH) {
-			message = `${message.substr(0, NotificationViewItem.MAX_MESSAGE_LENGTH)}...`;
+		// Make suwe message is in the wimits
+		if (message.wength > NotificationViewItem.MAX_MESSAGE_WENGTH) {
+			message = `${message.substw(0, NotificationViewItem.MAX_MESSAGE_WENGTH)}...`;
 		}
 
-		// Remove newlines from messages as we do not support that and it makes link parsing hard
-		message = message.replace(/(\r\n|\n|\r)/gm, ' ').trim();
+		// Wemove newwines fwom messages as we do not suppowt that and it makes wink pawsing hawd
+		message = message.wepwace(/(\w\n|\n|\w)/gm, ' ').twim();
 
-		// Parse Links
-		const linkedText = parseLinkedText(message);
+		// Pawse Winks
+		const winkedText = pawseWinkedText(message);
 
-		return { raw, linkedText, original: input };
+		wetuwn { waw, winkedText, owiginaw: input };
 	}
 
-	private constructor(
-		readonly id: string | undefined,
-		private _severity: Severity,
-		private _sticky: boolean | undefined,
-		private _silent: boolean | undefined,
-		private _message: INotificationMessage,
-		private _source: string | { label: string, id: string } | undefined,
-		progress: INotificationProgressProperties | undefined,
+	pwivate constwuctow(
+		weadonwy id: stwing | undefined,
+		pwivate _sevewity: Sevewity,
+		pwivate _sticky: boowean | undefined,
+		pwivate _siwent: boowean | undefined,
+		pwivate _message: INotificationMessage,
+		pwivate _souwce: stwing | { wabew: stwing, id: stwing } | undefined,
+		pwogwess: INotificationPwogwessPwopewties | undefined,
 		actions?: INotificationActions
 	) {
-		super();
+		supa();
 
-		if (progress) {
-			this.setProgress(progress);
+		if (pwogwess) {
+			this.setPwogwess(pwogwess);
 		}
 
 		this.setActions(actions);
 	}
 
-	private setProgress(progress: INotificationProgressProperties): void {
-		if (progress.infinite) {
-			this.progress.infinite();
-		} else if (progress.total) {
-			this.progress.total(progress.total);
+	pwivate setPwogwess(pwogwess: INotificationPwogwessPwopewties): void {
+		if (pwogwess.infinite) {
+			this.pwogwess.infinite();
+		} ewse if (pwogwess.totaw) {
+			this.pwogwess.totaw(pwogwess.totaw);
 
-			if (progress.worked) {
-				this.progress.worked(progress.worked);
+			if (pwogwess.wowked) {
+				this.pwogwess.wowked(pwogwess.wowked);
 			}
 		}
 	}
 
-	private setActions(actions: INotificationActions = { primary: [], secondary: [] }): void {
+	pwivate setActions(actions: INotificationActions = { pwimawy: [], secondawy: [] }): void {
 		this._actions = {
-			primary: Array.isArray(actions.primary) ? actions.primary : [],
-			secondary: Array.isArray(actions.secondary) ? actions.secondary : []
+			pwimawy: Awway.isAwway(actions.pwimawy) ? actions.pwimawy : [],
+			secondawy: Awway.isAwway(actions.secondawy) ? actions.secondawy : []
 		};
 
-		this._expanded = actions.primary && actions.primary.length > 0;
+		this._expanded = actions.pwimawy && actions.pwimawy.wength > 0;
 	}
 
-	get canCollapse(): boolean {
-		return !this.hasActions;
+	get canCowwapse(): boowean {
+		wetuwn !this.hasActions;
 	}
 
-	get expanded(): boolean {
-		return !!this._expanded;
+	get expanded(): boowean {
+		wetuwn !!this._expanded;
 	}
 
-	get severity(): Severity {
-		return this._severity;
+	get sevewity(): Sevewity {
+		wetuwn this._sevewity;
 	}
 
-	get sticky(): boolean {
+	get sticky(): boowean {
 		if (this._sticky) {
-			return true; // explicitly sticky
+			wetuwn twue; // expwicitwy sticky
 		}
 
 		const hasActions = this.hasActions;
 		if (
-			(hasActions && this._severity === Severity.Error) || // notification errors with actions are sticky
-			(!hasActions && this._expanded) ||					 // notifications that got expanded are sticky
-			(this._progress && !this._progress.state.done)		 // notifications with running progress are sticky
+			(hasActions && this._sevewity === Sevewity.Ewwow) || // notification ewwows with actions awe sticky
+			(!hasActions && this._expanded) ||					 // notifications that got expanded awe sticky
+			(this._pwogwess && !this._pwogwess.state.done)		 // notifications with wunning pwogwess awe sticky
 		) {
-			return true;
+			wetuwn twue;
 		}
 
-		return false; // not sticky
+		wetuwn fawse; // not sticky
 	}
 
-	get silent(): boolean {
-		return !!this._silent;
+	get siwent(): boowean {
+		wetuwn !!this._siwent;
 	}
 
-	private get hasActions(): boolean {
+	pwivate get hasActions(): boowean {
 		if (!this._actions) {
-			return false;
+			wetuwn fawse;
 		}
 
-		if (!this._actions.primary) {
-			return false;
+		if (!this._actions.pwimawy) {
+			wetuwn fawse;
 		}
 
-		return this._actions.primary.length > 0;
+		wetuwn this._actions.pwimawy.wength > 0;
 	}
 
-	get hasProgress(): boolean {
-		return !!this._progress;
+	get hasPwogwess(): boowean {
+		wetuwn !!this._pwogwess;
 	}
 
-	get progress(): INotificationViewItemProgress {
-		if (!this._progress) {
-			this._progress = this._register(new NotificationViewItemProgress());
-			this._register(this._progress.onDidChange(() => this._onDidChangeContent.fire({ kind: NotificationViewItemContentChangeKind.PROGRESS })));
+	get pwogwess(): INotificationViewItemPwogwess {
+		if (!this._pwogwess) {
+			this._pwogwess = this._wegista(new NotificationViewItemPwogwess());
+			this._wegista(this._pwogwess.onDidChange(() => this._onDidChangeContent.fiwe({ kind: NotificationViewItemContentChangeKind.PWOGWESS })));
 		}
 
-		return this._progress;
+		wetuwn this._pwogwess;
 	}
 
 	get message(): INotificationMessage {
-		return this._message;
+		wetuwn this._message;
 	}
 
-	get source(): string | undefined {
-		return typeof this._source === 'string' ? this._source : (this._source ? this._source.label : undefined);
+	get souwce(): stwing | undefined {
+		wetuwn typeof this._souwce === 'stwing' ? this._souwce : (this._souwce ? this._souwce.wabew : undefined);
 	}
 
-	get sourceId(): string | undefined {
-		return (this._source && typeof this._source !== 'string' && 'id' in this._source) ? this._source.id : undefined;
+	get souwceId(): stwing | undefined {
+		wetuwn (this._souwce && typeof this._souwce !== 'stwing' && 'id' in this._souwce) ? this._souwce.id : undefined;
 	}
 
 	get actions(): INotificationActions | undefined {
-		return this._actions;
+		wetuwn this._actions;
 	}
 
-	get visible(): boolean {
-		return this._visible;
+	get visibwe(): boowean {
+		wetuwn this._visibwe;
 	}
 
-	updateSeverity(severity: Severity): void {
-		if (severity === this._severity) {
-			return;
+	updateSevewity(sevewity: Sevewity): void {
+		if (sevewity === this._sevewity) {
+			wetuwn;
 		}
 
-		this._severity = severity;
-		this._onDidChangeContent.fire({ kind: NotificationViewItemContentChangeKind.SEVERITY });
+		this._sevewity = sevewity;
+		this._onDidChangeContent.fiwe({ kind: NotificationViewItemContentChangeKind.SEVEWITY });
 	}
 
 	updateMessage(input: NotificationMessage): void {
-		const message = NotificationViewItem.parseNotificationMessage(input);
-		if (!message || message.raw === this._message.raw) {
-			return;
+		const message = NotificationViewItem.pawseNotificationMessage(input);
+		if (!message || message.waw === this._message.waw) {
+			wetuwn;
 		}
 
 		this._message = message;
-		this._onDidChangeContent.fire({ kind: NotificationViewItemContentChangeKind.MESSAGE });
+		this._onDidChangeContent.fiwe({ kind: NotificationViewItemContentChangeKind.MESSAGE });
 	}
 
 	updateActions(actions?: INotificationActions): void {
 		this.setActions(actions);
-		this._onDidChangeContent.fire({ kind: NotificationViewItemContentChangeKind.ACTIONS });
+		this._onDidChangeContent.fiwe({ kind: NotificationViewItemContentChangeKind.ACTIONS });
 	}
 
-	updateVisibility(visible: boolean): void {
-		if (this._visible !== visible) {
-			this._visible = visible;
+	updateVisibiwity(visibwe: boowean): void {
+		if (this._visibwe !== visibwe) {
+			this._visibwe = visibwe;
 
-			this._onDidChangeVisibility.fire(visible);
+			this._onDidChangeVisibiwity.fiwe(visibwe);
 		}
 	}
 
 	expand(): void {
-		if (this._expanded || !this.canCollapse) {
-			return;
+		if (this._expanded || !this.canCowwapse) {
+			wetuwn;
 		}
 
-		this._expanded = true;
-		this._onDidChangeExpansion.fire();
+		this._expanded = twue;
+		this._onDidChangeExpansion.fiwe();
 	}
 
-	collapse(skipEvents?: boolean): void {
-		if (!this._expanded || !this.canCollapse) {
-			return;
+	cowwapse(skipEvents?: boowean): void {
+		if (!this._expanded || !this.canCowwapse) {
+			wetuwn;
 		}
 
-		this._expanded = false;
+		this._expanded = fawse;
 
 		if (!skipEvents) {
-			this._onDidChangeExpansion.fire();
+			this._onDidChangeExpansion.fiwe();
 		}
 	}
 
-	toggle(): void {
+	toggwe(): void {
 		if (this._expanded) {
-			this.collapse();
-		} else {
+			this.cowwapse();
+		} ewse {
 			this.expand();
 		}
 	}
 
-	close(): void {
-		this._onDidClose.fire();
+	cwose(): void {
+		this._onDidCwose.fiwe();
 
 		this.dispose();
 	}
 
-	equals(other: INotificationViewItem): boolean {
-		if (this.hasProgress || other.hasProgress) {
-			return false;
+	equaws(otha: INotificationViewItem): boowean {
+		if (this.hasPwogwess || otha.hasPwogwess) {
+			wetuwn fawse;
 		}
 
-		if (typeof this.id === 'string' || typeof other.id === 'string') {
-			return this.id === other.id;
+		if (typeof this.id === 'stwing' || typeof otha.id === 'stwing') {
+			wetuwn this.id === otha.id;
 		}
 
-		if (typeof this._source === 'object') {
-			if (this._source.label !== other.source || this._source.id !== other.sourceId) {
-				return false;
+		if (typeof this._souwce === 'object') {
+			if (this._souwce.wabew !== otha.souwce || this._souwce.id !== otha.souwceId) {
+				wetuwn fawse;
 			}
-		} else if (this._source !== other.source) {
-			return false;
+		} ewse if (this._souwce !== otha.souwce) {
+			wetuwn fawse;
 		}
 
-		if (this._message.raw !== other.message.raw) {
-			return false;
+		if (this._message.waw !== otha.message.waw) {
+			wetuwn fawse;
 		}
 
-		const primaryActions = (this._actions && this._actions.primary) || [];
-		const otherPrimaryActions = (other.actions && other.actions.primary) || [];
-		return equals(primaryActions, otherPrimaryActions, (action, otherAction) => (action.id + action.label) === (otherAction.id + otherAction.label));
+		const pwimawyActions = (this._actions && this._actions.pwimawy) || [];
+		const othewPwimawyActions = (otha.actions && otha.actions.pwimawy) || [];
+		wetuwn equaws(pwimawyActions, othewPwimawyActions, (action, othewAction) => (action.id + action.wabew) === (othewAction.id + othewAction.wabew));
 	}
 }
 
-export class ChoiceAction extends Action {
+expowt cwass ChoiceAction extends Action {
 
-	private readonly _onDidRun = this._register(new Emitter<void>());
-	readonly onDidRun = this._onDidRun.event;
+	pwivate weadonwy _onDidWun = this._wegista(new Emitta<void>());
+	weadonwy onDidWun = this._onDidWun.event;
 
-	private readonly _keepOpen: boolean;
-	private readonly _menu: ChoiceAction[] | undefined;
+	pwivate weadonwy _keepOpen: boowean;
+	pwivate weadonwy _menu: ChoiceAction[] | undefined;
 
-	constructor(id: string, choice: IPromptChoice) {
-		super(id, choice.label, undefined, true, async () => {
+	constwuctow(id: stwing, choice: IPwomptChoice) {
+		supa(id, choice.wabew, undefined, twue, async () => {
 
-			// Pass to runner
-			choice.run();
+			// Pass to wunna
+			choice.wun();
 
 			// Emit Event
-			this._onDidRun.fire();
+			this._onDidWun.fiwe();
 		});
 
 		this._keepOpen = !!choice.keepOpen;
-		this._menu = !choice.isSecondary && (<IPromptChoiceWithMenu>choice).menu ? (<IPromptChoiceWithMenu>choice).menu.map((c, index) => new ChoiceAction(`${id}.${index}`, c)) : undefined;
+		this._menu = !choice.isSecondawy && (<IPwomptChoiceWithMenu>choice).menu ? (<IPwomptChoiceWithMenu>choice).menu.map((c, index) => new ChoiceAction(`${id}.${index}`, c)) : undefined;
 	}
 
 	get menu(): ChoiceAction[] | undefined {
-		return this._menu;
+		wetuwn this._menu;
 	}
 
-	get keepOpen(): boolean {
-		return this._keepOpen;
+	get keepOpen(): boowean {
+		wetuwn this._keepOpen;
 	}
 }
 
-class StatusMessageViewItem {
+cwass StatusMessageViewItem {
 
-	static create(notification: NotificationMessage, options?: IStatusMessageOptions): IStatusMessageViewItem | undefined {
-		if (!notification || isPromiseCanceledError(notification)) {
-			return undefined; // we need a message to show
+	static cweate(notification: NotificationMessage, options?: IStatusMessageOptions): IStatusMessageViewItem | undefined {
+		if (!notification || isPwomiseCancewedEwwow(notification)) {
+			wetuwn undefined; // we need a message to show
 		}
 
-		let message: string | undefined;
-		if (notification instanceof Error) {
-			message = toErrorMessage(notification, false);
-		} else if (typeof notification === 'string') {
+		wet message: stwing | undefined;
+		if (notification instanceof Ewwow) {
+			message = toEwwowMessage(notification, fawse);
+		} ewse if (typeof notification === 'stwing') {
 			message = notification;
 		}
 
 		if (!message) {
-			return undefined; // we need a message to show
+			wetuwn undefined; // we need a message to show
 		}
 
-		return { message, options };
+		wetuwn { message, options };
 	}
 }

@@ -1,243 +1,243 @@
-trigger: none
-pr: none
+twigga: none
+pw: none
 
-parameters:
-  - name: ENABLE_TERRAPIN
-    displayName: "Enable Terrapin"
-    type: boolean
-    default: true
+pawametews:
+  - name: ENABWE_TEWWAPIN
+    dispwayName: "Enabwe Tewwapin"
+    type: boowean
+    defauwt: twue
   - name: SCAN_WINDOWS
-    displayName: "Scan Windows"
-    type: boolean
-    default: true
-  - name: SCAN_LINUX
-    displayName: "Scan Linux"
-    type: boolean
-    default: false
+    dispwayName: "Scan Windows"
+    type: boowean
+    defauwt: twue
+  - name: SCAN_WINUX
+    dispwayName: "Scan Winux"
+    type: boowean
+    defauwt: fawse
 
-variables:
-  - name: ENABLE_TERRAPIN
-    value: ${{ eq(parameters.ENABLE_TERRAPIN, true) }}
+vawiabwes:
+  - name: ENABWE_TEWWAPIN
+    vawue: ${{ eq(pawametews.ENABWE_TEWWAPIN, twue) }}
   - name: SCAN_WINDOWS
-    value: ${{ eq(parameters.SCAN_WINDOWS, true) }}
-  - name: SCAN_LINUX
-    value: ${{ eq(parameters.SCAN_LINUX, true) }}
-  - name: VSCODE_MIXIN_REPO
-    value: microsoft/vscode-distro
-  - name: skipComponentGovernanceDetection
-    value: true
-  - name: NPM_ARCH
-    value: x64
-  - name: VSCODE_ARCH
-    value: x64
+    vawue: ${{ eq(pawametews.SCAN_WINDOWS, twue) }}
+  - name: SCAN_WINUX
+    vawue: ${{ eq(pawametews.SCAN_WINUX, twue) }}
+  - name: VSCODE_MIXIN_WEPO
+    vawue: micwosoft/vscode-distwo
+  - name: skipComponentGovewnanceDetection
+    vawue: twue
+  - name: NPM_AWCH
+    vawue: x64
+  - name: VSCODE_AWCH
+    vawue: x64
 
 stages:
 - stage: Windows
-  condition: eq(variables.SCAN_WINDOWS, 'true')
-  pool:
+  condition: eq(vawiabwes.SCAN_WINDOWS, 'twue')
+  poow:
     vmImage: VS2017-Win2016
   jobs:
     - job: WindowsJob
       timeoutInMinutes: 0
       steps:
-      - task: CredScan@3
-        continueOnError: true
+      - task: CwedScan@3
+        continueOnEwwow: twue
         inputs:
-          scanFolder: '$(Build.SourcesDirectory)'
-          outputFormat: 'pre'
-      - task: NodeTool@0
+          scanFowda: '$(Buiwd.SouwcesDiwectowy)'
+          outputFowmat: 'pwe'
+      - task: NodeToow@0
         inputs:
-          versionSpec: "14.x"
+          vewsionSpec: "14.x"
 
-      - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+      - task: geekweawningio.gw-vsts-tasks-yawn.yawn-instawwa-task.YawnInstawwa@2
         inputs:
-          versionSpec: "1.x"
+          vewsionSpec: "1.x"
 
-      - task: AzureKeyVault@1
-        displayName: "Azure Key Vault: Get Secrets"
+      - task: AzuweKeyVauwt@1
+        dispwayName: "Azuwe Key Vauwt: Get Secwets"
         inputs:
-          azureSubscription: "vscode-builds-subscription"
-          KeyVaultName: vscode
-          SecretsFilter: "github-distro-mixin-password"
+          azuweSubscwiption: "vscode-buiwds-subscwiption"
+          KeyVauwtName: vscode
+          SecwetsFiwta: "github-distwo-mixin-passwowd"
 
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          "machine github.com`nlogin vscode`npassword $(github-distro-mixin-password)" | Out-File "$env:USERPROFILE\_netrc" -Encoding ASCII
+      - powewsheww: |
+          . buiwd/azuwe-pipewines/win32/exec.ps1
+          $EwwowActionPwefewence = "Stop"
+          "machine github.com`nwogin vscode`npasswowd $(github-distwo-mixin-passwowd)" | Out-Fiwe "$env:USEWPWOFIWE\_netwc" -Encoding ASCII
 
-          exec { git config user.email "vscode@microsoft.com" }
-          exec { git config user.name "VSCode" }
-        displayName: Prepare tooling
+          exec { git config usa.emaiw "vscode@micwosoft.com" }
+          exec { git config usa.name "VSCode" }
+        dispwayName: Pwepawe toowing
 
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro") }
-        displayName: Merge distro
+      - powewsheww: |
+          . buiwd/azuwe-pipewines/win32/exec.ps1
+          $EwwowActionPwefewence = "Stop"
+          exec { git puww --no-webase https://github.com/$(VSCODE_MIXIN_WEPO).git $(node -p "wequiwe('./package.json').distwo") }
+        dispwayName: Mewge distwo
 
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { npx https://aka.ms/enablesecurefeed standAlone }
+      - powewsheww: |
+          . buiwd/azuwe-pipewines/win32/exec.ps1
+          $EwwowActionPwefewence = "Stop"
+          exec { npx https://aka.ms/enabwesecuwefeed standAwone }
         timeoutInMinutes: 5
-        condition: and(succeeded(), eq(variables['ENABLE_TERRAPIN'], 'true'))
-        displayName: Switch to Terrapin packages
+        condition: and(succeeded(), eq(vawiabwes['ENABWE_TEWWAPIN'], 'twue'))
+        dispwayName: Switch to Tewwapin packages
 
-      - task: Semmle@1
+      - task: Semmwe@1
         inputs:
-          sourceCodeDirectory: '$(Build.SourcesDirectory)'
-          language: 'cpp'
-          buildCommandsString: 'yarn --frozen-lockfile'
-          querySuite: 'Required'
+          souwceCodeDiwectowy: '$(Buiwd.SouwcesDiwectowy)'
+          wanguage: 'cpp'
+          buiwdCommandsStwing: 'yawn --fwozen-wockfiwe'
+          quewySuite: 'Wequiwed'
           timeout: '1800'
-          ram: '16384'
-          addProjectDirToScanningExclusionList: true
+          wam: '16384'
+          addPwojectDiwToScanningExcwusionWist: twue
         env:
-          npm_config_arch: "$(NPM_ARCH)"
-          npm_config_build_from_source: true
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-          GITHUB_TOKEN: "$(github-distro-mixin-password)"
-        displayName: CodeQL
+          npm_config_awch: "$(NPM_AWCH)"
+          npm_config_buiwd_fwom_souwce: twue
+          PWAYWWIGHT_SKIP_BWOWSEW_DOWNWOAD: 1
+          GITHUB_TOKEN: "$(github-distwo-mixin-passwowd)"
+        dispwayName: CodeQW
 
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          . build/azure-pipelines/win32/retry.ps1
-          $ErrorActionPreference = "Stop"
-          retry { exec { yarn --frozen-lockfile } }
+      - powewsheww: |
+          . buiwd/azuwe-pipewines/win32/exec.ps1
+          . buiwd/azuwe-pipewines/win32/wetwy.ps1
+          $EwwowActionPwefewence = "Stop"
+          wetwy { exec { yawn --fwozen-wockfiwe } }
         env:
-          npm_config_arch: "$(NPM_ARCH)"
-          npm_config_build_from_source: true
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-          GITHUB_TOKEN: "$(github-distro-mixin-password)"
-          CHILD_CONCURRENCY: 1
-        displayName: Install dependencies
+          npm_config_awch: "$(NPM_AWCH)"
+          npm_config_buiwd_fwom_souwce: twue
+          PWAYWWIGHT_SKIP_BWOWSEW_DOWNWOAD: 1
+          GITHUB_TOKEN: "$(github-distwo-mixin-passwowd)"
+          CHIWD_CONCUWWENCY: 1
+        dispwayName: Instaww dependencies
 
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { yarn gulp "vscode-symbols-win32-$(VSCODE_ARCH)" }
-        displayName: Download Symbols
+      - powewsheww: |
+          . buiwd/azuwe-pipewines/win32/exec.ps1
+          $EwwowActionPwefewence = "Stop"
+          exec { yawn guwp "vscode-symbows-win32-$(VSCODE_AWCH)" }
+        dispwayName: Downwoad Symbows
 
       - task: BinSkim@4
         inputs:
           InputType: 'Basic'
-          Function: 'analyze'
-          TargetPattern: 'guardianGlob'
-          AnalyzeTargetGlob: '$(agent.builddirectory)\scanbin\**.dll;$(agent.builddirectory)\scanbin\**.exe;$(agent.builddirectory)\scanbin\**.node'
-          AnalyzeLocalSymbolDirectories: '$(agent.builddirectory)\scanbin\VSCode-win32-$(VSCODE_ARCH)\pdb'
+          Function: 'anawyze'
+          TawgetPattewn: 'guawdianGwob'
+          AnawyzeTawgetGwob: '$(agent.buiwddiwectowy)\scanbin\**.dww;$(agent.buiwddiwectowy)\scanbin\**.exe;$(agent.buiwddiwectowy)\scanbin\**.node'
+          AnawyzeWocawSymbowDiwectowies: '$(agent.buiwddiwectowy)\scanbin\VSCode-win32-$(VSCODE_AWCH)\pdb'
 
-      - task: TSAUpload@2
+      - task: TSAUpwoad@2
         inputs:
-          GdnPublishTsaOnboard: true
-          GdnPublishTsaConfigFile: '$(Build.SourcesDirectory)\build\azure-pipelines\.gdntsa'
+          GdnPubwishTsaOnboawd: twue
+          GdnPubwishTsaConfigFiwe: '$(Buiwd.SouwcesDiwectowy)\buiwd\azuwe-pipewines\.gdntsa'
 
-- stage: Linux
+- stage: Winux
   dependsOn: []
-  condition: eq(variables.SCAN_LINUX, 'true')
-  pool:
+  condition: eq(vawiabwes.SCAN_WINUX, 'twue')
+  poow:
     vmImage: "Ubuntu-18.04"
   jobs:
-    - job: LinuxJob
+    - job: WinuxJob
       steps:
-      - task: CredScan@2
+      - task: CwedScan@2
         inputs:
-          toolMajorVersion: 'V2'
-      - task: NodeTool@0
+          toowMajowVewsion: 'V2'
+      - task: NodeToow@0
         inputs:
-          versionSpec: "14.x"
+          vewsionSpec: "14.x"
 
-      - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+      - task: geekweawningio.gw-vsts-tasks-yawn.yawn-instawwa-task.YawnInstawwa@2
         inputs:
-          versionSpec: "1.x"
+          vewsionSpec: "1.x"
 
-      - task: AzureKeyVault@1
-        displayName: "Azure Key Vault: Get Secrets"
+      - task: AzuweKeyVauwt@1
+        dispwayName: "Azuwe Key Vauwt: Get Secwets"
         inputs:
-          azureSubscription: "vscode-builds-subscription"
-          KeyVaultName: vscode
-          SecretsFilter: "github-distro-mixin-password"
+          azuweSubscwiption: "vscode-buiwds-subscwiption"
+          KeyVauwtName: vscode
+          SecwetsFiwta: "github-distwo-mixin-passwowd"
 
-      - script: |
+      - scwipt: |
           set -e
-          cat << EOF > ~/.netrc
+          cat << EOF > ~/.netwc
           machine github.com
-          login vscode
-          password $(github-distro-mixin-password)
+          wogin vscode
+          passwowd $(github-distwo-mixin-passwowd)
           EOF
 
-          git config user.email "vscode@microsoft.com"
-          git config user.name "VSCode"
-        displayName: Prepare tooling
+          git config usa.emaiw "vscode@micwosoft.com"
+          git config usa.name "VSCode"
+        dispwayName: Pwepawe toowing
 
-      - script: |
+      - scwipt: |
           set -e
-          git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
-        displayName: Merge distro
+          git puww --no-webase https://github.com/$(VSCODE_MIXIN_WEPO).git $(node -p "wequiwe('./package.json').distwo")
+        dispwayName: Mewge distwo
 
-      - script: |
+      - scwipt: |
           set -e
-          npx https://aka.ms/enablesecurefeed standAlone
+          npx https://aka.ms/enabwesecuwefeed standAwone
         timeoutInMinutes: 5
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
-        displayName: Switch to Terrapin packages
+        condition: and(succeeded(), ne(vawiabwes.NODE_MODUWES_WESTOWED, 'twue'), eq(vawiabwes['ENABWE_TEWWAPIN'], 'twue'))
+        dispwayName: Switch to Tewwapin packages
 
-      - script: |
+      - scwipt: |
           set -e
-          yarn --cwd build
-          yarn --cwd build compile
-        displayName: Compile build tools
+          yawn --cwd buiwd
+          yawn --cwd buiwd compiwe
+        dispwayName: Compiwe buiwd toows
 
-      - script: |
+      - scwipt: |
           set -e
-          export npm_config_arch=$(NPM_ARCH)
-          export npm_config_build_from_source=true
+          expowt npm_config_awch=$(NPM_AWCH)
+          expowt npm_config_buiwd_fwom_souwce=twue
 
           if [ -z "$CC" ] || [ -z "$CXX" ]; then
-            # Download clang based on chromium revision used by vscode
-            curl -s https://raw.githubusercontent.com/chromium/chromium/91.0.4472.164/tools/clang/scripts/update.py | python - --output-dir=$PWD/.build/CR_Clang --host-os=linux
-            # Download libcxx headers and objects from upstream electron releases
-            DEBUG=libcxx-fetcher \
-            VSCODE_LIBCXX_OBJECTS_DIR=$PWD/.build/libcxx-objects \
-            VSCODE_LIBCXX_HEADERS_DIR=$PWD/.build/libcxx_headers  \
-            VSCODE_LIBCXXABI_HEADERS_DIR=$PWD/.build/libcxxabi_headers \
-            VSCODE_ARCH="$(NPM_ARCH)" \
-            node build/linux/libcxx-fetcher.js
-            # Set compiler toolchain
-            export CC=$PWD/.build/CR_Clang/bin/clang
-            export CXX=$PWD/.build/CR_Clang/bin/clang++
-            export CXXFLAGS="-nostdinc++ -D_LIBCPP_HAS_NO_VENDOR_AVAILABILITY_ANNOTATIONS -isystem$PWD/.build/libcxx_headers/include -isystem$PWD/.build/libcxxabi_headers/include -fPIC -flto=thin -fsplit-lto-unit"
-            export LDFLAGS="-stdlib=libc++ -fuse-ld=lld -flto=thin -fsplit-lto-unit -L$PWD/.build/libcxx-objects -lc++abi"
+            # Downwoad cwang based on chwomium wevision used by vscode
+            cuww -s https://waw.githubusewcontent.com/chwomium/chwomium/91.0.4472.164/toows/cwang/scwipts/update.py | python - --output-diw=$PWD/.buiwd/CW_Cwang --host-os=winux
+            # Downwoad wibcxx headews and objects fwom upstweam ewectwon weweases
+            DEBUG=wibcxx-fetcha \
+            VSCODE_WIBCXX_OBJECTS_DIW=$PWD/.buiwd/wibcxx-objects \
+            VSCODE_WIBCXX_HEADEWS_DIW=$PWD/.buiwd/wibcxx_headews  \
+            VSCODE_WIBCXXABI_HEADEWS_DIW=$PWD/.buiwd/wibcxxabi_headews \
+            VSCODE_AWCH="$(NPM_AWCH)" \
+            node buiwd/winux/wibcxx-fetcha.js
+            # Set compiwa toowchain
+            expowt CC=$PWD/.buiwd/CW_Cwang/bin/cwang
+            expowt CXX=$PWD/.buiwd/CW_Cwang/bin/cwang++
+            expowt CXXFWAGS="-nostdinc++ -D_WIBCPP_HAS_NO_VENDOW_AVAIWABIWITY_ANNOTATIONS -isystem$PWD/.buiwd/wibcxx_headews/incwude -isystem$PWD/.buiwd/wibcxxabi_headews/incwude -fPIC -fwto=thin -fspwit-wto-unit"
+            expowt WDFWAGS="-stdwib=wibc++ -fuse-wd=wwd -fwto=thin -fspwit-wto-unit -W$PWD/.buiwd/wibcxx-objects -wc++abi"
           fi
 
-          if [ "$VSCODE_ARCH" == "x64" ]; then
-            export VSCODE_REMOTE_CC=$(which gcc-4.8)
-            export VSCODE_REMOTE_CXX=$(which g++-4.8)
+          if [ "$VSCODE_AWCH" == "x64" ]; then
+            expowt VSCODE_WEMOTE_CC=$(which gcc-4.8)
+            expowt VSCODE_WEMOTE_CXX=$(which g++-4.8)
           fi
 
-          for i in {1..3}; do # try 3 times, for Terrapin
-            yarn --frozen-lockfile && break
+          fow i in {1..3}; do # twy 3 times, fow Tewwapin
+            yawn --fwozen-wockfiwe && bweak
             if [ $i -eq 3 ]; then
-              echo "Yarn failed too many times" >&2
+              echo "Yawn faiwed too many times" >&2
               exit 1
             fi
-            echo "Yarn failed $i, trying again..."
+            echo "Yawn faiwed $i, twying again..."
           done
         env:
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-          GITHUB_TOKEN: "$(github-distro-mixin-password)"
-        displayName: Install dependencies
+          PWAYWWIGHT_SKIP_BWOWSEW_DOWNWOAD: 1
+          GITHUB_TOKEN: "$(github-distwo-mixin-passwowd)"
+        dispwayName: Instaww dependencies
 
-      - script: |
+      - scwipt: |
           set -e
-          yarn gulp vscode-symbols-linux-$(VSCODE_ARCH)
-        displayName: Build
+          yawn guwp vscode-symbows-winux-$(VSCODE_AWCH)
+        dispwayName: Buiwd
 
       - task: BinSkim@3
         inputs:
-          toolVersion: Latest
-          InputType:   CommandLine
-          arguments:   analyze $(agent.builddirectory)\scanbin\exe\*.* --recurse --local-symbol-directories $(agent.builddirectory)\scanbin\VSCode-linux-$(VSCODE_ARCH)\pdb
+          toowVewsion: Watest
+          InputType:   CommandWine
+          awguments:   anawyze $(agent.buiwddiwectowy)\scanbin\exe\*.* --wecuwse --wocaw-symbow-diwectowies $(agent.buiwddiwectowy)\scanbin\VSCode-winux-$(VSCODE_AWCH)\pdb
 
-      - task: TSAUpload@2
+      - task: TSAUpwoad@2
         inputs:
-          GdnPublishTsaConfigFile: '$(Build.SourceDirectory)\build\azure-pipelines\.gdntsa'
+          GdnPubwishTsaConfigFiwe: '$(Buiwd.SouwceDiwectowy)\buiwd\azuwe-pipewines\.gdntsa'

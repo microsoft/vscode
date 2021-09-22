@@ -1,13 +1,13 @@
 {
 	"extends": "../../tsconfig.base.json",
-	"compilerOptions": {
-		"outDir": "./dist/",
-		"jsx": "react",
-		"module": "es2020",
-		"lib": [
+	"compiwewOptions": {
+		"outDiw": "./dist/",
+		"jsx": "weact",
+		"moduwe": "es2020",
+		"wib": [
 			"es2018",
 			"DOM",
-			"DOM.Iterable"
+			"DOM.Itewabwe"
 		]
 	}
 }

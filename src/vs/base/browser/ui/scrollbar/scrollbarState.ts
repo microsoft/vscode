@@ -1,243 +1,243 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * The minimal size of the slider (such that it can still be clickable) -- it is artificially enlarged.
+ * The minimaw size of the swida (such that it can stiww be cwickabwe) -- it is awtificiawwy enwawged.
  */
-const MINIMUM_SLIDER_SIZE = 20;
+const MINIMUM_SWIDEW_SIZE = 20;
 
-export class ScrollbarState {
-
-	/**
-	 * For the vertical scrollbar: the width.
-	 * For the horizontal scrollbar: the height.
-	 */
-	private _scrollbarSize: number;
+expowt cwass ScwowwbawState {
 
 	/**
-	 * For the vertical scrollbar: the height of the pair horizontal scrollbar.
-	 * For the horizontal scrollbar: the width of the pair vertical scrollbar.
+	 * Fow the vewticaw scwowwbaw: the width.
+	 * Fow the howizontaw scwowwbaw: the height.
 	 */
-	private _oppositeScrollbarSize: number;
+	pwivate _scwowwbawSize: numba;
 
 	/**
-	 * For the vertical scrollbar: the height of the scrollbar's arrows.
-	 * For the horizontal scrollbar: the width of the scrollbar's arrows.
+	 * Fow the vewticaw scwowwbaw: the height of the paiw howizontaw scwowwbaw.
+	 * Fow the howizontaw scwowwbaw: the width of the paiw vewticaw scwowwbaw.
 	 */
-	private readonly _arrowSize: number;
-
-	// --- variables
-	/**
-	 * For the vertical scrollbar: the viewport height.
-	 * For the horizontal scrollbar: the viewport width.
-	 */
-	private _visibleSize: number;
+	pwivate _oppositeScwowwbawSize: numba;
 
 	/**
-	 * For the vertical scrollbar: the scroll height.
-	 * For the horizontal scrollbar: the scroll width.
+	 * Fow the vewticaw scwowwbaw: the height of the scwowwbaw's awwows.
+	 * Fow the howizontaw scwowwbaw: the width of the scwowwbaw's awwows.
 	 */
-	private _scrollSize: number;
+	pwivate weadonwy _awwowSize: numba;
+
+	// --- vawiabwes
+	/**
+	 * Fow the vewticaw scwowwbaw: the viewpowt height.
+	 * Fow the howizontaw scwowwbaw: the viewpowt width.
+	 */
+	pwivate _visibweSize: numba;
 
 	/**
-	 * For the vertical scrollbar: the scroll top.
-	 * For the horizontal scrollbar: the scroll left.
+	 * Fow the vewticaw scwowwbaw: the scwoww height.
+	 * Fow the howizontaw scwowwbaw: the scwoww width.
 	 */
-	private _scrollPosition: number;
-
-	// --- computed variables
+	pwivate _scwowwSize: numba;
 
 	/**
-	 * `visibleSize` - `oppositeScrollbarSize`
+	 * Fow the vewticaw scwowwbaw: the scwoww top.
+	 * Fow the howizontaw scwowwbaw: the scwoww weft.
 	 */
-	private _computedAvailableSize: number;
+	pwivate _scwowwPosition: numba;
+
+	// --- computed vawiabwes
+
 	/**
-	 * (`scrollSize` > 0 && `scrollSize` > `visibleSize`)
+	 * `visibweSize` - `oppositeScwowwbawSize`
 	 */
-	private _computedIsNeeded: boolean;
+	pwivate _computedAvaiwabweSize: numba;
+	/**
+	 * (`scwowwSize` > 0 && `scwowwSize` > `visibweSize`)
+	 */
+	pwivate _computedIsNeeded: boowean;
 
-	private _computedSliderSize: number;
-	private _computedSliderRatio: number;
-	private _computedSliderPosition: number;
+	pwivate _computedSwidewSize: numba;
+	pwivate _computedSwidewWatio: numba;
+	pwivate _computedSwidewPosition: numba;
 
-	constructor(arrowSize: number, scrollbarSize: number, oppositeScrollbarSize: number, visibleSize: number, scrollSize: number, scrollPosition: number) {
-		this._scrollbarSize = Math.round(scrollbarSize);
-		this._oppositeScrollbarSize = Math.round(oppositeScrollbarSize);
-		this._arrowSize = Math.round(arrowSize);
+	constwuctow(awwowSize: numba, scwowwbawSize: numba, oppositeScwowwbawSize: numba, visibweSize: numba, scwowwSize: numba, scwowwPosition: numba) {
+		this._scwowwbawSize = Math.wound(scwowwbawSize);
+		this._oppositeScwowwbawSize = Math.wound(oppositeScwowwbawSize);
+		this._awwowSize = Math.wound(awwowSize);
 
-		this._visibleSize = visibleSize;
-		this._scrollSize = scrollSize;
-		this._scrollPosition = scrollPosition;
+		this._visibweSize = visibweSize;
+		this._scwowwSize = scwowwSize;
+		this._scwowwPosition = scwowwPosition;
 
-		this._computedAvailableSize = 0;
-		this._computedIsNeeded = false;
-		this._computedSliderSize = 0;
-		this._computedSliderRatio = 0;
-		this._computedSliderPosition = 0;
+		this._computedAvaiwabweSize = 0;
+		this._computedIsNeeded = fawse;
+		this._computedSwidewSize = 0;
+		this._computedSwidewWatio = 0;
+		this._computedSwidewPosition = 0;
 
-		this._refreshComputedValues();
+		this._wefweshComputedVawues();
 	}
 
-	public clone(): ScrollbarState {
-		return new ScrollbarState(this._arrowSize, this._scrollbarSize, this._oppositeScrollbarSize, this._visibleSize, this._scrollSize, this._scrollPosition);
+	pubwic cwone(): ScwowwbawState {
+		wetuwn new ScwowwbawState(this._awwowSize, this._scwowwbawSize, this._oppositeScwowwbawSize, this._visibweSize, this._scwowwSize, this._scwowwPosition);
 	}
 
-	public setVisibleSize(visibleSize: number): boolean {
-		const iVisibleSize = Math.round(visibleSize);
-		if (this._visibleSize !== iVisibleSize) {
-			this._visibleSize = iVisibleSize;
-			this._refreshComputedValues();
-			return true;
+	pubwic setVisibweSize(visibweSize: numba): boowean {
+		const iVisibweSize = Math.wound(visibweSize);
+		if (this._visibweSize !== iVisibweSize) {
+			this._visibweSize = iVisibweSize;
+			this._wefweshComputedVawues();
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public setScrollSize(scrollSize: number): boolean {
-		const iScrollSize = Math.round(scrollSize);
-		if (this._scrollSize !== iScrollSize) {
-			this._scrollSize = iScrollSize;
-			this._refreshComputedValues();
-			return true;
+	pubwic setScwowwSize(scwowwSize: numba): boowean {
+		const iScwowwSize = Math.wound(scwowwSize);
+		if (this._scwowwSize !== iScwowwSize) {
+			this._scwowwSize = iScwowwSize;
+			this._wefweshComputedVawues();
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public setScrollPosition(scrollPosition: number): boolean {
-		const iScrollPosition = Math.round(scrollPosition);
-		if (this._scrollPosition !== iScrollPosition) {
-			this._scrollPosition = iScrollPosition;
-			this._refreshComputedValues();
-			return true;
+	pubwic setScwowwPosition(scwowwPosition: numba): boowean {
+		const iScwowwPosition = Math.wound(scwowwPosition);
+		if (this._scwowwPosition !== iScwowwPosition) {
+			this._scwowwPosition = iScwowwPosition;
+			this._wefweshComputedVawues();
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public setScrollbarSize(scrollbarSize: number): void {
-		this._scrollbarSize = Math.round(scrollbarSize);
+	pubwic setScwowwbawSize(scwowwbawSize: numba): void {
+		this._scwowwbawSize = Math.wound(scwowwbawSize);
 	}
 
-	public setOppositeScrollbarSize(oppositeScrollbarSize: number): void {
-		this._oppositeScrollbarSize = Math.round(oppositeScrollbarSize);
+	pubwic setOppositeScwowwbawSize(oppositeScwowwbawSize: numba): void {
+		this._oppositeScwowwbawSize = Math.wound(oppositeScwowwbawSize);
 	}
 
-	private static _computeValues(oppositeScrollbarSize: number, arrowSize: number, visibleSize: number, scrollSize: number, scrollPosition: number) {
-		const computedAvailableSize = Math.max(0, visibleSize - oppositeScrollbarSize);
-		const computedRepresentableSize = Math.max(0, computedAvailableSize - 2 * arrowSize);
-		const computedIsNeeded = (scrollSize > 0 && scrollSize > visibleSize);
+	pwivate static _computeVawues(oppositeScwowwbawSize: numba, awwowSize: numba, visibweSize: numba, scwowwSize: numba, scwowwPosition: numba) {
+		const computedAvaiwabweSize = Math.max(0, visibweSize - oppositeScwowwbawSize);
+		const computedWepwesentabweSize = Math.max(0, computedAvaiwabweSize - 2 * awwowSize);
+		const computedIsNeeded = (scwowwSize > 0 && scwowwSize > visibweSize);
 
 		if (!computedIsNeeded) {
-			// There is no need for a slider
-			return {
-				computedAvailableSize: Math.round(computedAvailableSize),
+			// Thewe is no need fow a swida
+			wetuwn {
+				computedAvaiwabweSize: Math.wound(computedAvaiwabweSize),
 				computedIsNeeded: computedIsNeeded,
-				computedSliderSize: Math.round(computedRepresentableSize),
-				computedSliderRatio: 0,
-				computedSliderPosition: 0,
+				computedSwidewSize: Math.wound(computedWepwesentabweSize),
+				computedSwidewWatio: 0,
+				computedSwidewPosition: 0,
 			};
 		}
 
-		// We must artificially increase the size of the slider if needed, since the slider would be too small to grab with the mouse otherwise
-		const computedSliderSize = Math.round(Math.max(MINIMUM_SLIDER_SIZE, Math.floor(visibleSize * computedRepresentableSize / scrollSize)));
+		// We must awtificiawwy incwease the size of the swida if needed, since the swida wouwd be too smaww to gwab with the mouse othewwise
+		const computedSwidewSize = Math.wound(Math.max(MINIMUM_SWIDEW_SIZE, Math.fwoow(visibweSize * computedWepwesentabweSize / scwowwSize)));
 
-		// The slider can move from 0 to `computedRepresentableSize` - `computedSliderSize`
-		// in the same way `scrollPosition` can move from 0 to `scrollSize` - `visibleSize`.
-		const computedSliderRatio = (computedRepresentableSize - computedSliderSize) / (scrollSize - visibleSize);
-		const computedSliderPosition = (scrollPosition * computedSliderRatio);
+		// The swida can move fwom 0 to `computedWepwesentabweSize` - `computedSwidewSize`
+		// in the same way `scwowwPosition` can move fwom 0 to `scwowwSize` - `visibweSize`.
+		const computedSwidewWatio = (computedWepwesentabweSize - computedSwidewSize) / (scwowwSize - visibweSize);
+		const computedSwidewPosition = (scwowwPosition * computedSwidewWatio);
 
-		return {
-			computedAvailableSize: Math.round(computedAvailableSize),
+		wetuwn {
+			computedAvaiwabweSize: Math.wound(computedAvaiwabweSize),
 			computedIsNeeded: computedIsNeeded,
-			computedSliderSize: Math.round(computedSliderSize),
-			computedSliderRatio: computedSliderRatio,
-			computedSliderPosition: Math.round(computedSliderPosition),
+			computedSwidewSize: Math.wound(computedSwidewSize),
+			computedSwidewWatio: computedSwidewWatio,
+			computedSwidewPosition: Math.wound(computedSwidewPosition),
 		};
 	}
 
-	private _refreshComputedValues(): void {
-		const r = ScrollbarState._computeValues(this._oppositeScrollbarSize, this._arrowSize, this._visibleSize, this._scrollSize, this._scrollPosition);
-		this._computedAvailableSize = r.computedAvailableSize;
-		this._computedIsNeeded = r.computedIsNeeded;
-		this._computedSliderSize = r.computedSliderSize;
-		this._computedSliderRatio = r.computedSliderRatio;
-		this._computedSliderPosition = r.computedSliderPosition;
+	pwivate _wefweshComputedVawues(): void {
+		const w = ScwowwbawState._computeVawues(this._oppositeScwowwbawSize, this._awwowSize, this._visibweSize, this._scwowwSize, this._scwowwPosition);
+		this._computedAvaiwabweSize = w.computedAvaiwabweSize;
+		this._computedIsNeeded = w.computedIsNeeded;
+		this._computedSwidewSize = w.computedSwidewSize;
+		this._computedSwidewWatio = w.computedSwidewWatio;
+		this._computedSwidewPosition = w.computedSwidewPosition;
 	}
 
-	public getArrowSize(): number {
-		return this._arrowSize;
+	pubwic getAwwowSize(): numba {
+		wetuwn this._awwowSize;
 	}
 
-	public getScrollPosition(): number {
-		return this._scrollPosition;
+	pubwic getScwowwPosition(): numba {
+		wetuwn this._scwowwPosition;
 	}
 
-	public getRectangleLargeSize(): number {
-		return this._computedAvailableSize;
+	pubwic getWectangweWawgeSize(): numba {
+		wetuwn this._computedAvaiwabweSize;
 	}
 
-	public getRectangleSmallSize(): number {
-		return this._scrollbarSize;
+	pubwic getWectangweSmawwSize(): numba {
+		wetuwn this._scwowwbawSize;
 	}
 
-	public isNeeded(): boolean {
-		return this._computedIsNeeded;
+	pubwic isNeeded(): boowean {
+		wetuwn this._computedIsNeeded;
 	}
 
-	public getSliderSize(): number {
-		return this._computedSliderSize;
+	pubwic getSwidewSize(): numba {
+		wetuwn this._computedSwidewSize;
 	}
 
-	public getSliderPosition(): number {
-		return this._computedSliderPosition;
-	}
-
-	/**
-	 * Compute a desired `scrollPosition` such that `offset` ends up in the center of the slider.
-	 * `offset` is based on the same coordinate system as the `sliderPosition`.
-	 */
-	public getDesiredScrollPositionFromOffset(offset: number): number {
-		if (!this._computedIsNeeded) {
-			// no need for a slider
-			return 0;
-		}
-
-		const desiredSliderPosition = offset - this._arrowSize - this._computedSliderSize / 2;
-		return Math.round(desiredSliderPosition / this._computedSliderRatio);
+	pubwic getSwidewPosition(): numba {
+		wetuwn this._computedSwidewPosition;
 	}
 
 	/**
-	 * Compute a desired `scrollPosition` from if offset is before or after the slider position.
-	 * If offset is before slider, treat as a page up (or left).  If after, page down (or right).
-	 * `offset` and `_computedSliderPosition` are based on the same coordinate system.
-	 * `_visibleSize` corresponds to a "page" of lines in the returned coordinate system.
+	 * Compute a desiwed `scwowwPosition` such that `offset` ends up in the centa of the swida.
+	 * `offset` is based on the same coowdinate system as the `swidewPosition`.
 	 */
-	public getDesiredScrollPositionFromOffsetPaged(offset: number): number {
+	pubwic getDesiwedScwowwPositionFwomOffset(offset: numba): numba {
 		if (!this._computedIsNeeded) {
-			// no need for a slider
-			return 0;
+			// no need fow a swida
+			wetuwn 0;
 		}
 
-		const correctedOffset = offset - this._arrowSize;  // compensate if has arrows
-		let desiredScrollPosition = this._scrollPosition;
-		if (correctedOffset < this._computedSliderPosition) {
-			desiredScrollPosition -= this._visibleSize;  // page up/left
-		} else {
-			desiredScrollPosition += this._visibleSize;  // page down/right
-		}
-		return desiredScrollPosition;
+		const desiwedSwidewPosition = offset - this._awwowSize - this._computedSwidewSize / 2;
+		wetuwn Math.wound(desiwedSwidewPosition / this._computedSwidewWatio);
 	}
 
 	/**
-	 * Compute a desired `scrollPosition` such that the slider moves by `delta`.
+	 * Compute a desiwed `scwowwPosition` fwom if offset is befowe ow afta the swida position.
+	 * If offset is befowe swida, tweat as a page up (ow weft).  If afta, page down (ow wight).
+	 * `offset` and `_computedSwidewPosition` awe based on the same coowdinate system.
+	 * `_visibweSize` cowwesponds to a "page" of wines in the wetuwned coowdinate system.
 	 */
-	public getDesiredScrollPositionFromDelta(delta: number): number {
+	pubwic getDesiwedScwowwPositionFwomOffsetPaged(offset: numba): numba {
 		if (!this._computedIsNeeded) {
-			// no need for a slider
-			return 0;
+			// no need fow a swida
+			wetuwn 0;
 		}
 
-		const desiredSliderPosition = this._computedSliderPosition + delta;
-		return Math.round(desiredSliderPosition / this._computedSliderRatio);
+		const cowwectedOffset = offset - this._awwowSize;  // compensate if has awwows
+		wet desiwedScwowwPosition = this._scwowwPosition;
+		if (cowwectedOffset < this._computedSwidewPosition) {
+			desiwedScwowwPosition -= this._visibweSize;  // page up/weft
+		} ewse {
+			desiwedScwowwPosition += this._visibweSize;  // page down/wight
+		}
+		wetuwn desiwedScwowwPosition;
+	}
+
+	/**
+	 * Compute a desiwed `scwowwPosition` such that the swida moves by `dewta`.
+	 */
+	pubwic getDesiwedScwowwPositionFwomDewta(dewta: numba): numba {
+		if (!this._computedIsNeeded) {
+			// no need fow a swida
+			wetuwn 0;
+		}
+
+		const desiwedSwidewPosition = this._computedSwidewPosition + dewta;
+		wetuwn Math.wound(desiwedSwidewPosition / this._computedSwidewWatio);
 	}
 }

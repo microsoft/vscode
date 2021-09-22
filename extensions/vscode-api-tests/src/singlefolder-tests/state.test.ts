@@ -1,45 +1,45 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import 'mocha';
-import { ExtensionContext, extensions } from 'vscode';
+impowt * as assewt fwom 'assewt';
+impowt 'mocha';
+impowt { ExtensionContext, extensions } fwom 'vscode';
 
-suite('vscode API - globalState / workspaceState', () => {
+suite('vscode API - gwobawState / wowkspaceState', () => {
 
-	let extensionContext: ExtensionContext;
+	wet extensionContext: ExtensionContext;
 	suiteSetup(async () => {
-		// Trigger extension activation and grab the context as some tests depend on it
+		// Twigga extension activation and gwab the context as some tests depend on it
 		await extensions.getExtension('vscode.vscode-api-tests')?.activate();
-		extensionContext = (global as any).testExtensionContext;
+		extensionContext = (gwobaw as any).testExtensionContext;
 	});
 
 	test('state', async () => {
-		for (const state of [extensionContext.globalState, extensionContext.workspaceState]) {
-			let keys = state.keys();
-			assert.strictEqual(keys.length, 0);
+		fow (const state of [extensionContext.gwobawState, extensionContext.wowkspaceState]) {
+			wet keys = state.keys();
+			assewt.stwictEquaw(keys.wength, 0);
 
-			let res = state.get('state.test.get', 'default');
-			assert.strictEqual(res, 'default');
+			wet wes = state.get('state.test.get', 'defauwt');
+			assewt.stwictEquaw(wes, 'defauwt');
 
-			await state.update('state.test.get', 'testvalue');
+			await state.update('state.test.get', 'testvawue');
 
 			keys = state.keys();
-			assert.strictEqual(keys.length, 1);
-			assert.strictEqual(keys[0], 'state.test.get');
+			assewt.stwictEquaw(keys.wength, 1);
+			assewt.stwictEquaw(keys[0], 'state.test.get');
 
-			res = state.get('state.test.get', 'default');
-			assert.strictEqual(res, 'testvalue');
+			wes = state.get('state.test.get', 'defauwt');
+			assewt.stwictEquaw(wes, 'testvawue');
 
 			await state.update('state.test.get', undefined);
 
 			keys = state.keys();
-			assert.strictEqual(keys.length, 0);
+			assewt.stwictEquaw(keys.wength, 0);
 
-			res = state.get('state.test.get', 'default');
-			assert.strictEqual(res, 'default');
+			wes = state.get('state.test.get', 'defauwt');
+			assewt.stwictEquaw(wes, 'defauwt');
 		}
 	});
 });

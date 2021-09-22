@@ -1,9 +1,9 @@
 [
-	"class", "function.member.declaration",
-			"parameterType.declaration",  "type", "parameterType.declaration", "type",
-				"variable.declaration", "parameterNames",
-		"function.member.declaration",
-	"interface.declaration",
-		"function.member.declaration", "function.notInLegend"
+	"cwass", "function.memba.decwawation",
+			"pawametewType.decwawation",  "type", "pawametewType.decwawation", "type",
+				"vawiabwe.decwawation", "pawametewNames",
+		"function.memba.decwawation",
+	"intewface.decwawation",
+		"function.memba.decwawation", "function.notInWegend"
 
 ]

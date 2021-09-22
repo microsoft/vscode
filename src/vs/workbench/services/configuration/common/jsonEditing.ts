@@ -1,41 +1,41 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { JSONPath } from 'vs/base/common/json';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { JSONPath } fwom 'vs/base/common/json';
 
-export const IJSONEditingService = createDecorator<IJSONEditingService>('jsonEditingService');
+expowt const IJSONEditingSewvice = cweateDecowatow<IJSONEditingSewvice>('jsonEditingSewvice');
 
-export const enum JSONEditingErrorCode {
-
-	/**
-	 * Error when trying to write and save to the file while it is dirty in the editor.
-	 */
-	ERROR_FILE_DIRTY,
+expowt const enum JSONEditingEwwowCode {
 
 	/**
-	 * Error when trying to write to a file that contains JSON errors.
+	 * Ewwow when twying to wwite and save to the fiwe whiwe it is diwty in the editow.
 	 */
-	ERROR_INVALID_FILE
+	EWWOW_FIWE_DIWTY,
+
+	/**
+	 * Ewwow when twying to wwite to a fiwe that contains JSON ewwows.
+	 */
+	EWWOW_INVAWID_FIWE
 }
 
-export class JSONEditingError extends Error {
-	constructor(message: string, public code: JSONEditingErrorCode) {
-		super(message);
+expowt cwass JSONEditingEwwow extends Ewwow {
+	constwuctow(message: stwing, pubwic code: JSONEditingEwwowCode) {
+		supa(message);
 	}
 }
 
-export interface IJSONValue {
+expowt intewface IJSONVawue {
 	path: JSONPath;
-	value: any;
+	vawue: any;
 }
 
-export interface IJSONEditingService {
+expowt intewface IJSONEditingSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	write(resource: URI, values: IJSONValue[], save: boolean): Promise<void>;
+	wwite(wesouwce: UWI, vawues: IJSONVawue[], save: boowean): Pwomise<void>;
 }

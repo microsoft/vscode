@@ -1,546 +1,546 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IRange } from 'vs/editor/common/core/range';
-import * as modes from 'vs/editor/common/modes';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { ICommentInfo, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
-import { CommentProviderFeatures, ExtHostCommentsShape, ExtHostContext, IExtHostContext, MainContext, MainThreadCommentsShape, CommentThreadChanges } from '../common/extHost.protocol';
-import { COMMENTS_VIEW_ID, COMMENTS_VIEW_TITLE } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
-import { ViewContainer, IViewContainersRegistry, Extensions as ViewExtensions, ViewContainerLocation, IViewsRegistry, IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { localize } from 'vs/nls';
-import { MarshalledId } from 'vs/base/common/marshalling';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, DisposabweStowe, dispose, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { IWange } fwom 'vs/editow/common/cowe/wange';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { ICommentInfo, ICommentSewvice } fwom 'vs/wowkbench/contwib/comments/bwowsa/commentSewvice';
+impowt { CommentsPanew } fwom 'vs/wowkbench/contwib/comments/bwowsa/commentsView';
+impowt { CommentPwovidewFeatuwes, ExtHostCommentsShape, ExtHostContext, IExtHostContext, MainContext, MainThweadCommentsShape, CommentThweadChanges } fwom '../common/extHost.pwotocow';
+impowt { COMMENTS_VIEW_ID, COMMENTS_VIEW_TITWE } fwom 'vs/wowkbench/contwib/comments/bwowsa/commentsTweeViewa';
+impowt { ViewContaina, IViewContainewsWegistwy, Extensions as ViewExtensions, ViewContainewWocation, IViewsWegistwy, IViewsSewvice, IViewDescwiptowSewvice } fwom 'vs/wowkbench/common/views';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { ViewPaneContaina } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPaneContaina';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { wegistewIcon } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
+impowt { wocawize } fwom 'vs/nws';
+impowt { MawshawwedId } fwom 'vs/base/common/mawshawwing';
 
 
-export class MainThreadCommentThread implements modes.CommentThread {
-	private _input?: modes.CommentInput;
+expowt cwass MainThweadCommentThwead impwements modes.CommentThwead {
+	pwivate _input?: modes.CommentInput;
 	get input(): modes.CommentInput | undefined {
-		return this._input;
+		wetuwn this._input;
 	}
 
-	set input(value: modes.CommentInput | undefined) {
-		this._input = value;
-		this._onDidChangeInput.fire(value);
+	set input(vawue: modes.CommentInput | undefined) {
+		this._input = vawue;
+		this._onDidChangeInput.fiwe(vawue);
 	}
 
-	private readonly _onDidChangeInput = new Emitter<modes.CommentInput | undefined>();
-	get onDidChangeInput(): Event<modes.CommentInput | undefined> { return this._onDidChangeInput.event; }
+	pwivate weadonwy _onDidChangeInput = new Emitta<modes.CommentInput | undefined>();
+	get onDidChangeInput(): Event<modes.CommentInput | undefined> { wetuwn this._onDidChangeInput.event; }
 
-	private _label: string | undefined;
+	pwivate _wabew: stwing | undefined;
 
-	get label(): string | undefined {
-		return this._label;
+	get wabew(): stwing | undefined {
+		wetuwn this._wabew;
 	}
 
-	set label(label: string | undefined) {
-		this._label = label;
-		this._onDidChangeLabel.fire(this._label);
+	set wabew(wabew: stwing | undefined) {
+		this._wabew = wabew;
+		this._onDidChangeWabew.fiwe(this._wabew);
 	}
 
-	private _contextValue: string | undefined;
+	pwivate _contextVawue: stwing | undefined;
 
-	get contextValue(): string | undefined {
-		return this._contextValue;
+	get contextVawue(): stwing | undefined {
+		wetuwn this._contextVawue;
 	}
 
-	set contextValue(context: string | undefined) {
-		this._contextValue = context;
+	set contextVawue(context: stwing | undefined) {
+		this._contextVawue = context;
 	}
 
-	private readonly _onDidChangeLabel = new Emitter<string | undefined>();
-	readonly onDidChangeLabel: Event<string | undefined> = this._onDidChangeLabel.event;
+	pwivate weadonwy _onDidChangeWabew = new Emitta<stwing | undefined>();
+	weadonwy onDidChangeWabew: Event<stwing | undefined> = this._onDidChangeWabew.event;
 
-	private _comments: modes.Comment[] | undefined;
+	pwivate _comments: modes.Comment[] | undefined;
 
-	public get comments(): modes.Comment[] | undefined {
-		return this._comments;
+	pubwic get comments(): modes.Comment[] | undefined {
+		wetuwn this._comments;
 	}
 
-	public set comments(newComments: modes.Comment[] | undefined) {
+	pubwic set comments(newComments: modes.Comment[] | undefined) {
 		this._comments = newComments;
-		this._onDidChangeComments.fire(this._comments);
+		this._onDidChangeComments.fiwe(this._comments);
 	}
 
-	private readonly _onDidChangeComments = new Emitter<modes.Comment[] | undefined>();
-	get onDidChangeComments(): Event<modes.Comment[] | undefined> { return this._onDidChangeComments.event; }
+	pwivate weadonwy _onDidChangeComments = new Emitta<modes.Comment[] | undefined>();
+	get onDidChangeComments(): Event<modes.Comment[] | undefined> { wetuwn this._onDidChangeComments.event; }
 
-	set range(range: IRange) {
-		this._range = range;
-		this._onDidChangeRange.fire(this._range);
+	set wange(wange: IWange) {
+		this._wange = wange;
+		this._onDidChangeWange.fiwe(this._wange);
 	}
 
-	get range(): IRange {
-		return this._range;
+	get wange(): IWange {
+		wetuwn this._wange;
 	}
 
-	private readonly _onDidChangeCanReply = new Emitter<boolean>();
-	get onDidChangeCanReply(): Event<boolean> { return this._onDidChangeCanReply.event; }
-	set canReply(state: boolean) {
-		this._canReply = state;
-		this._onDidChangeCanReply.fire(this._canReply);
+	pwivate weadonwy _onDidChangeCanWepwy = new Emitta<boowean>();
+	get onDidChangeCanWepwy(): Event<boowean> { wetuwn this._onDidChangeCanWepwy.event; }
+	set canWepwy(state: boowean) {
+		this._canWepwy = state;
+		this._onDidChangeCanWepwy.fiwe(this._canWepwy);
 	}
 
-	get canReply() {
-		return this._canReply;
+	get canWepwy() {
+		wetuwn this._canWepwy;
 	}
 
-	private readonly _onDidChangeRange = new Emitter<IRange>();
-	public onDidChangeRange = this._onDidChangeRange.event;
+	pwivate weadonwy _onDidChangeWange = new Emitta<IWange>();
+	pubwic onDidChangeWange = this._onDidChangeWange.event;
 
-	private _collapsibleState: modes.CommentThreadCollapsibleState | undefined;
-	get collapsibleState() {
-		return this._collapsibleState;
+	pwivate _cowwapsibweState: modes.CommentThweadCowwapsibweState | undefined;
+	get cowwapsibweState() {
+		wetuwn this._cowwapsibweState;
 	}
 
-	set collapsibleState(newState: modes.CommentThreadCollapsibleState | undefined) {
-		this._collapsibleState = newState;
-		this._onDidChangeCollasibleState.fire(this._collapsibleState);
+	set cowwapsibweState(newState: modes.CommentThweadCowwapsibweState | undefined) {
+		this._cowwapsibweState = newState;
+		this._onDidChangeCowwasibweState.fiwe(this._cowwapsibweState);
 	}
 
-	private readonly _onDidChangeCollasibleState = new Emitter<modes.CommentThreadCollapsibleState | undefined>();
-	public onDidChangeCollasibleState = this._onDidChangeCollasibleState.event;
+	pwivate weadonwy _onDidChangeCowwasibweState = new Emitta<modes.CommentThweadCowwapsibweState | undefined>();
+	pubwic onDidChangeCowwasibweState = this._onDidChangeCowwasibweState.event;
 
-	private _isDisposed: boolean;
+	pwivate _isDisposed: boowean;
 
-	get isDisposed(): boolean {
-		return this._isDisposed;
+	get isDisposed(): boowean {
+		wetuwn this._isDisposed;
 	}
 
-	constructor(
-		public commentThreadHandle: number,
-		public controllerHandle: number,
-		public extensionId: string,
-		public threadId: string,
-		public resource: string,
-		private _range: IRange,
-		private _canReply: boolean
+	constwuctow(
+		pubwic commentThweadHandwe: numba,
+		pubwic contwowwewHandwe: numba,
+		pubwic extensionId: stwing,
+		pubwic thweadId: stwing,
+		pubwic wesouwce: stwing,
+		pwivate _wange: IWange,
+		pwivate _canWepwy: boowean
 	) {
-		this._isDisposed = false;
+		this._isDisposed = fawse;
 	}
 
-	batchUpdate(changes: CommentThreadChanges) {
-		const modified = (value: keyof CommentThreadChanges): boolean =>
-			Object.prototype.hasOwnProperty.call(changes, value);
+	batchUpdate(changes: CommentThweadChanges) {
+		const modified = (vawue: keyof CommentThweadChanges): boowean =>
+			Object.pwototype.hasOwnPwopewty.caww(changes, vawue);
 
-		if (modified('range')) { this._range = changes.range!; }
-		if (modified('label')) { this._label = changes.label; }
-		if (modified('contextValue')) { this._contextValue = changes.contextValue; }
+		if (modified('wange')) { this._wange = changes.wange!; }
+		if (modified('wabew')) { this._wabew = changes.wabew; }
+		if (modified('contextVawue')) { this._contextVawue = changes.contextVawue; }
 		if (modified('comments')) { this._comments = changes.comments; }
-		if (modified('collapseState')) { this._collapsibleState = changes.collapseState; }
-		if (modified('canReply')) { this.canReply = changes.canReply!; }
+		if (modified('cowwapseState')) { this._cowwapsibweState = changes.cowwapseState; }
+		if (modified('canWepwy')) { this.canWepwy = changes.canWepwy!; }
 	}
 
 	dispose() {
-		this._isDisposed = true;
-		this._onDidChangeCollasibleState.dispose();
+		this._isDisposed = twue;
+		this._onDidChangeCowwasibweState.dispose();
 		this._onDidChangeComments.dispose();
 		this._onDidChangeInput.dispose();
-		this._onDidChangeLabel.dispose();
-		this._onDidChangeRange.dispose();
+		this._onDidChangeWabew.dispose();
+		this._onDidChangeWange.dispose();
 	}
 
 	toJSON(): any {
-		return {
-			$mid: MarshalledId.CommentThread,
-			commentControlHandle: this.controllerHandle,
-			commentThreadHandle: this.commentThreadHandle,
+		wetuwn {
+			$mid: MawshawwedId.CommentThwead,
+			commentContwowHandwe: this.contwowwewHandwe,
+			commentThweadHandwe: this.commentThweadHandwe,
 		};
 	}
 }
 
-export class MainThreadCommentController {
-	get handle(): number {
-		return this._handle;
+expowt cwass MainThweadCommentContwowwa {
+	get handwe(): numba {
+		wetuwn this._handwe;
 	}
 
-	get id(): string {
-		return this._id;
+	get id(): stwing {
+		wetuwn this._id;
 	}
 
-	get contextValue(): string {
-		return this._id;
+	get contextVawue(): stwing {
+		wetuwn this._id;
 	}
 
-	get proxy(): ExtHostCommentsShape {
-		return this._proxy;
+	get pwoxy(): ExtHostCommentsShape {
+		wetuwn this._pwoxy;
 	}
 
-	get label(): string {
-		return this._label;
+	get wabew(): stwing {
+		wetuwn this._wabew;
 	}
 
-	private _reactions: modes.CommentReaction[] | undefined;
+	pwivate _weactions: modes.CommentWeaction[] | undefined;
 
-	get reactions() {
-		return this._reactions;
+	get weactions() {
+		wetuwn this._weactions;
 	}
 
-	set reactions(reactions: modes.CommentReaction[] | undefined) {
-		this._reactions = reactions;
+	set weactions(weactions: modes.CommentWeaction[] | undefined) {
+		this._weactions = weactions;
 	}
 
 	get options() {
-		return this._features.options;
+		wetuwn this._featuwes.options;
 	}
 
-	private readonly _threads: Map<number, MainThreadCommentThread> = new Map<number, MainThreadCommentThread>();
-	public activeCommentThread?: MainThreadCommentThread;
+	pwivate weadonwy _thweads: Map<numba, MainThweadCommentThwead> = new Map<numba, MainThweadCommentThwead>();
+	pubwic activeCommentThwead?: MainThweadCommentThwead;
 
-	get features(): CommentProviderFeatures {
-		return this._features;
+	get featuwes(): CommentPwovidewFeatuwes {
+		wetuwn this._featuwes;
 	}
 
-	constructor(
-		private readonly _proxy: ExtHostCommentsShape,
-		private readonly _commentService: ICommentService,
-		private readonly _handle: number,
-		private readonly _uniqueId: string,
-		private readonly _id: string,
-		private readonly _label: string,
-		private _features: CommentProviderFeatures
+	constwuctow(
+		pwivate weadonwy _pwoxy: ExtHostCommentsShape,
+		pwivate weadonwy _commentSewvice: ICommentSewvice,
+		pwivate weadonwy _handwe: numba,
+		pwivate weadonwy _uniqueId: stwing,
+		pwivate weadonwy _id: stwing,
+		pwivate weadonwy _wabew: stwing,
+		pwivate _featuwes: CommentPwovidewFeatuwes
 	) { }
 
-	updateFeatures(features: CommentProviderFeatures) {
-		this._features = features;
+	updateFeatuwes(featuwes: CommentPwovidewFeatuwes) {
+		this._featuwes = featuwes;
 	}
 
-	createCommentThread(extensionId: string,
-		commentThreadHandle: number,
-		threadId: string,
-		resource: UriComponents,
-		range: IRange,
-	): modes.CommentThread {
-		let thread = new MainThreadCommentThread(
-			commentThreadHandle,
-			this.handle,
+	cweateCommentThwead(extensionId: stwing,
+		commentThweadHandwe: numba,
+		thweadId: stwing,
+		wesouwce: UwiComponents,
+		wange: IWange,
+	): modes.CommentThwead {
+		wet thwead = new MainThweadCommentThwead(
+			commentThweadHandwe,
+			this.handwe,
 			extensionId,
-			threadId,
-			URI.revive(resource).toString(),
-			range,
-			true
+			thweadId,
+			UWI.wevive(wesouwce).toStwing(),
+			wange,
+			twue
 		);
 
-		this._threads.set(commentThreadHandle, thread);
+		this._thweads.set(commentThweadHandwe, thwead);
 
-		this._commentService.updateComments(this._uniqueId, {
-			added: [thread],
-			removed: [],
+		this._commentSewvice.updateComments(this._uniqueId, {
+			added: [thwead],
+			wemoved: [],
 			changed: []
 		});
 
-		return thread;
+		wetuwn thwead;
 	}
 
-	updateCommentThread(commentThreadHandle: number,
-		threadId: string,
-		resource: UriComponents,
-		changes: CommentThreadChanges): void {
-		let thread = this.getKnownThread(commentThreadHandle);
-		thread.batchUpdate(changes);
+	updateCommentThwead(commentThweadHandwe: numba,
+		thweadId: stwing,
+		wesouwce: UwiComponents,
+		changes: CommentThweadChanges): void {
+		wet thwead = this.getKnownThwead(commentThweadHandwe);
+		thwead.batchUpdate(changes);
 
-		this._commentService.updateComments(this._uniqueId, {
+		this._commentSewvice.updateComments(this._uniqueId, {
 			added: [],
-			removed: [],
-			changed: [thread]
+			wemoved: [],
+			changed: [thwead]
 		});
 	}
 
-	deleteCommentThread(commentThreadHandle: number) {
-		let thread = this.getKnownThread(commentThreadHandle);
-		this._threads.delete(commentThreadHandle);
+	deweteCommentThwead(commentThweadHandwe: numba) {
+		wet thwead = this.getKnownThwead(commentThweadHandwe);
+		this._thweads.dewete(commentThweadHandwe);
 
-		this._commentService.updateComments(this._uniqueId, {
+		this._commentSewvice.updateComments(this._uniqueId, {
 			added: [],
-			removed: [thread],
+			wemoved: [thwead],
 			changed: []
 		});
 
-		thread.dispose();
+		thwead.dispose();
 	}
 
-	deleteCommentThreadMain(commentThreadId: string) {
-		this._threads.forEach(thread => {
-			if (thread.threadId === commentThreadId) {
-				this._proxy.$deleteCommentThread(this._handle, thread.commentThreadHandle);
+	deweteCommentThweadMain(commentThweadId: stwing) {
+		this._thweads.fowEach(thwead => {
+			if (thwead.thweadId === commentThweadId) {
+				this._pwoxy.$deweteCommentThwead(this._handwe, thwead.commentThweadHandwe);
 			}
 		});
 	}
 
-	updateInput(input: string) {
-		let thread = this.activeCommentThread;
+	updateInput(input: stwing) {
+		wet thwead = this.activeCommentThwead;
 
-		if (thread && thread.input) {
-			let commentInput = thread.input;
-			commentInput.value = input;
-			thread.input = commentInput;
+		if (thwead && thwead.input) {
+			wet commentInput = thwead.input;
+			commentInput.vawue = input;
+			thwead.input = commentInput;
 		}
 	}
 
-	private getKnownThread(commentThreadHandle: number): MainThreadCommentThread {
-		const thread = this._threads.get(commentThreadHandle);
-		if (!thread) {
-			throw new Error('unknown thread');
+	pwivate getKnownThwead(commentThweadHandwe: numba): MainThweadCommentThwead {
+		const thwead = this._thweads.get(commentThweadHandwe);
+		if (!thwead) {
+			thwow new Ewwow('unknown thwead');
 		}
-		return thread;
+		wetuwn thwead;
 	}
 
-	async getDocumentComments(resource: URI, token: CancellationToken) {
-		let ret: modes.CommentThread[] = [];
-		for (let thread of [...this._threads.keys()]) {
-			const commentThread = this._threads.get(thread)!;
-			if (commentThread.resource === resource.toString()) {
-				ret.push(commentThread);
+	async getDocumentComments(wesouwce: UWI, token: CancewwationToken) {
+		wet wet: modes.CommentThwead[] = [];
+		fow (wet thwead of [...this._thweads.keys()]) {
+			const commentThwead = this._thweads.get(thwead)!;
+			if (commentThwead.wesouwce === wesouwce.toStwing()) {
+				wet.push(commentThwead);
 			}
 		}
 
-		let commentingRanges = await this._proxy.$provideCommentingRanges(this.handle, resource, token);
+		wet commentingWanges = await this._pwoxy.$pwovideCommentingWanges(this.handwe, wesouwce, token);
 
-		return <ICommentInfo>{
-			owner: this._uniqueId,
-			label: this.label,
-			threads: ret,
-			commentingRanges: {
-				resource: resource,
-				ranges: commentingRanges || []
+		wetuwn <ICommentInfo>{
+			owna: this._uniqueId,
+			wabew: this.wabew,
+			thweads: wet,
+			commentingWanges: {
+				wesouwce: wesouwce,
+				wanges: commentingWanges || []
 			}
 		};
 	}
 
-	async getCommentingRanges(resource: URI, token: CancellationToken): Promise<IRange[]> {
-		let commentingRanges = await this._proxy.$provideCommentingRanges(this.handle, resource, token);
-		return commentingRanges || [];
+	async getCommentingWanges(wesouwce: UWI, token: CancewwationToken): Pwomise<IWange[]> {
+		wet commentingWanges = await this._pwoxy.$pwovideCommentingWanges(this.handwe, wesouwce, token);
+		wetuwn commentingWanges || [];
 	}
 
-	async toggleReaction(uri: URI, thread: modes.CommentThread, comment: modes.Comment, reaction: modes.CommentReaction, token: CancellationToken): Promise<void> {
-		return this._proxy.$toggleReaction(this._handle, thread.commentThreadHandle, uri, comment, reaction);
+	async toggweWeaction(uwi: UWI, thwead: modes.CommentThwead, comment: modes.Comment, weaction: modes.CommentWeaction, token: CancewwationToken): Pwomise<void> {
+		wetuwn this._pwoxy.$toggweWeaction(this._handwe, thwead.commentThweadHandwe, uwi, comment, weaction);
 	}
 
-	getAllComments(): MainThreadCommentThread[] {
-		let ret: MainThreadCommentThread[] = [];
-		for (let thread of [...this._threads.keys()]) {
-			ret.push(this._threads.get(thread)!);
+	getAwwComments(): MainThweadCommentThwead[] {
+		wet wet: MainThweadCommentThwead[] = [];
+		fow (wet thwead of [...this._thweads.keys()]) {
+			wet.push(this._thweads.get(thwead)!);
 		}
 
-		return ret;
+		wetuwn wet;
 	}
 
-	createCommentThreadTemplate(resource: UriComponents, range: IRange): void {
-		this._proxy.$createCommentThreadTemplate(this.handle, resource, range);
+	cweateCommentThweadTempwate(wesouwce: UwiComponents, wange: IWange): void {
+		this._pwoxy.$cweateCommentThweadTempwate(this.handwe, wesouwce, wange);
 	}
 
-	async updateCommentThreadTemplate(threadHandle: number, range: IRange) {
-		await this._proxy.$updateCommentThreadTemplate(this.handle, threadHandle, range);
+	async updateCommentThweadTempwate(thweadHandwe: numba, wange: IWange) {
+		await this._pwoxy.$updateCommentThweadTempwate(this.handwe, thweadHandwe, wange);
 	}
 
 	toJSON(): any {
-		return {
-			$mid: MarshalledId.CommentController,
-			handle: this.handle
+		wetuwn {
+			$mid: MawshawwedId.CommentContwowwa,
+			handwe: this.handwe
 		};
 	}
 }
 
 
-const commentsViewIcon = registerIcon('comments-view-icon', Codicon.commentDiscussion, localize('commentsViewIcon', 'View icon of the comments view.'));
+const commentsViewIcon = wegistewIcon('comments-view-icon', Codicon.commentDiscussion, wocawize('commentsViewIcon', 'View icon of the comments view.'));
 
-@extHostNamedCustomer(MainContext.MainThreadComments)
-export class MainThreadComments extends Disposable implements MainThreadCommentsShape {
-	private readonly _proxy: ExtHostCommentsShape;
-	private _documentProviders = new Map<number, IDisposable>();
-	private _workspaceProviders = new Map<number, IDisposable>();
-	private _handlers = new Map<number, string>();
-	private _commentControllers = new Map<number, MainThreadCommentController>();
+@extHostNamedCustoma(MainContext.MainThweadComments)
+expowt cwass MainThweadComments extends Disposabwe impwements MainThweadCommentsShape {
+	pwivate weadonwy _pwoxy: ExtHostCommentsShape;
+	pwivate _documentPwovidews = new Map<numba, IDisposabwe>();
+	pwivate _wowkspacePwovidews = new Map<numba, IDisposabwe>();
+	pwivate _handwews = new Map<numba, stwing>();
+	pwivate _commentContwowwews = new Map<numba, MainThweadCommentContwowwa>();
 
-	private _activeCommentThread?: MainThreadCommentThread;
-	private readonly _activeCommentThreadDisposables = this._register(new DisposableStore());
+	pwivate _activeCommentThwead?: MainThweadCommentThwead;
+	pwivate weadonwy _activeCommentThweadDisposabwes = this._wegista(new DisposabweStowe());
 
-	private _openViewListener: IDisposable | null = null;
+	pwivate _openViewWistena: IDisposabwe | nuww = nuww;
 
 
-	constructor(
+	constwuctow(
 		extHostContext: IExtHostContext,
-		@ICommentService private readonly _commentService: ICommentService,
-		@IViewsService private readonly _viewsService: IViewsService,
-		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService
+		@ICommentSewvice pwivate weadonwy _commentSewvice: ICommentSewvice,
+		@IViewsSewvice pwivate weadonwy _viewsSewvice: IViewsSewvice,
+		@IViewDescwiptowSewvice pwivate weadonwy _viewDescwiptowSewvice: IViewDescwiptowSewvice
 	) {
-		super();
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostComments);
+		supa();
+		this._pwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostComments);
 
-		this._register(this._commentService.onDidChangeActiveCommentThread(async thread => {
-			let handle = (thread as MainThreadCommentThread).controllerHandle;
-			let controller = this._commentControllers.get(handle);
+		this._wegista(this._commentSewvice.onDidChangeActiveCommentThwead(async thwead => {
+			wet handwe = (thwead as MainThweadCommentThwead).contwowwewHandwe;
+			wet contwowwa = this._commentContwowwews.get(handwe);
 
-			if (!controller) {
-				return;
+			if (!contwowwa) {
+				wetuwn;
 			}
 
-			this._activeCommentThreadDisposables.clear();
-			this._activeCommentThread = thread as MainThreadCommentThread;
-			controller.activeCommentThread = this._activeCommentThread;
+			this._activeCommentThweadDisposabwes.cweaw();
+			this._activeCommentThwead = thwead as MainThweadCommentThwead;
+			contwowwa.activeCommentThwead = this._activeCommentThwead;
 		}));
 	}
 
-	$registerCommentController(handle: number, id: string, label: string): void {
-		const providerId = generateUuid();
-		this._handlers.set(handle, providerId);
+	$wegistewCommentContwowwa(handwe: numba, id: stwing, wabew: stwing): void {
+		const pwovidewId = genewateUuid();
+		this._handwews.set(handwe, pwovidewId);
 
-		const provider = new MainThreadCommentController(this._proxy, this._commentService, handle, providerId, id, label, {});
-		this._commentService.registerCommentController(providerId, provider);
-		this._commentControllers.set(handle, provider);
+		const pwovida = new MainThweadCommentContwowwa(this._pwoxy, this._commentSewvice, handwe, pwovidewId, id, wabew, {});
+		this._commentSewvice.wegistewCommentContwowwa(pwovidewId, pwovida);
+		this._commentContwowwews.set(handwe, pwovida);
 
-		const commentsPanelAlreadyConstructed = !!this._viewDescriptorService.getViewDescriptorById(COMMENTS_VIEW_ID);
-		if (!commentsPanelAlreadyConstructed) {
-			this.registerView(commentsPanelAlreadyConstructed);
-			this.registerViewOpenedListener(commentsPanelAlreadyConstructed);
+		const commentsPanewAwweadyConstwucted = !!this._viewDescwiptowSewvice.getViewDescwiptowById(COMMENTS_VIEW_ID);
+		if (!commentsPanewAwweadyConstwucted) {
+			this.wegistewView(commentsPanewAwweadyConstwucted);
+			this.wegistewViewOpenedWistena(commentsPanewAwweadyConstwucted);
 		}
-		this._commentService.setWorkspaceComments(String(handle), []);
+		this._commentSewvice.setWowkspaceComments(Stwing(handwe), []);
 	}
 
-	$unregisterCommentController(handle: number): void {
-		const providerId = this._handlers.get(handle);
-		if (typeof providerId !== 'string') {
-			throw new Error('unknown handler');
+	$unwegistewCommentContwowwa(handwe: numba): void {
+		const pwovidewId = this._handwews.get(handwe);
+		if (typeof pwovidewId !== 'stwing') {
+			thwow new Ewwow('unknown handwa');
 		}
-		this._commentService.unregisterCommentController(providerId);
-		this._handlers.delete(handle);
-		this._commentControllers.delete(handle);
+		this._commentSewvice.unwegistewCommentContwowwa(pwovidewId);
+		this._handwews.dewete(handwe);
+		this._commentContwowwews.dewete(handwe);
 	}
 
-	$updateCommentControllerFeatures(handle: number, features: CommentProviderFeatures): void {
-		let provider = this._commentControllers.get(handle);
+	$updateCommentContwowwewFeatuwes(handwe: numba, featuwes: CommentPwovidewFeatuwes): void {
+		wet pwovida = this._commentContwowwews.get(handwe);
 
-		if (!provider) {
-			return undefined;
+		if (!pwovida) {
+			wetuwn undefined;
 		}
 
-		provider.updateFeatures(features);
+		pwovida.updateFeatuwes(featuwes);
 	}
 
-	$createCommentThread(handle: number,
-		commentThreadHandle: number,
-		threadId: string,
-		resource: UriComponents,
-		range: IRange,
-		extensionId: ExtensionIdentifier
-	): modes.CommentThread | undefined {
-		let provider = this._commentControllers.get(handle);
+	$cweateCommentThwead(handwe: numba,
+		commentThweadHandwe: numba,
+		thweadId: stwing,
+		wesouwce: UwiComponents,
+		wange: IWange,
+		extensionId: ExtensionIdentifia
+	): modes.CommentThwead | undefined {
+		wet pwovida = this._commentContwowwews.get(handwe);
 
-		if (!provider) {
-			return undefined;
+		if (!pwovida) {
+			wetuwn undefined;
 		}
 
-		return provider.createCommentThread(extensionId.value, commentThreadHandle, threadId, resource, range);
+		wetuwn pwovida.cweateCommentThwead(extensionId.vawue, commentThweadHandwe, thweadId, wesouwce, wange);
 	}
 
-	$updateCommentThread(handle: number,
-		commentThreadHandle: number,
-		threadId: string,
-		resource: UriComponents,
-		changes: CommentThreadChanges): void {
-		let provider = this._commentControllers.get(handle);
+	$updateCommentThwead(handwe: numba,
+		commentThweadHandwe: numba,
+		thweadId: stwing,
+		wesouwce: UwiComponents,
+		changes: CommentThweadChanges): void {
+		wet pwovida = this._commentContwowwews.get(handwe);
 
-		if (!provider) {
-			return undefined;
+		if (!pwovida) {
+			wetuwn undefined;
 		}
 
-		return provider.updateCommentThread(commentThreadHandle, threadId, resource, changes);
+		wetuwn pwovida.updateCommentThwead(commentThweadHandwe, thweadId, wesouwce, changes);
 	}
 
-	$deleteCommentThread(handle: number, commentThreadHandle: number) {
-		let provider = this._commentControllers.get(handle);
+	$deweteCommentThwead(handwe: numba, commentThweadHandwe: numba) {
+		wet pwovida = this._commentContwowwews.get(handwe);
 
-		if (!provider) {
-			return;
+		if (!pwovida) {
+			wetuwn;
 		}
 
-		return provider.deleteCommentThread(commentThreadHandle);
+		wetuwn pwovida.deweteCommentThwead(commentThweadHandwe);
 	}
 
-	private registerView(commentsViewAlreadyRegistered: boolean) {
-		if (!commentsViewAlreadyRegistered) {
-			const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
+	pwivate wegistewView(commentsViewAwweadyWegistewed: boowean) {
+		if (!commentsViewAwweadyWegistewed) {
+			const VIEW_CONTAINa: ViewContaina = Wegistwy.as<IViewContainewsWegistwy>(ViewExtensions.ViewContainewsWegistwy).wegistewViewContaina({
 				id: COMMENTS_VIEW_ID,
-				title: COMMENTS_VIEW_TITLE,
-				ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [COMMENTS_VIEW_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
-				storageId: COMMENTS_VIEW_TITLE,
-				hideIfEmpty: true,
+				titwe: COMMENTS_VIEW_TITWE,
+				ctowDescwiptow: new SyncDescwiptow(ViewPaneContaina, [COMMENTS_VIEW_ID, { mewgeViewWithContainewWhenSingweView: twue, donotShowContainewTitweWhenMewgedWithContaina: twue }]),
+				stowageId: COMMENTS_VIEW_TITWE,
+				hideIfEmpty: twue,
 				icon: commentsViewIcon,
-				order: 10,
-			}, ViewContainerLocation.Panel);
+				owda: 10,
+			}, ViewContainewWocation.Panew);
 
-			Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([{
+			Wegistwy.as<IViewsWegistwy>(ViewExtensions.ViewsWegistwy).wegistewViews([{
 				id: COMMENTS_VIEW_ID,
-				name: COMMENTS_VIEW_TITLE,
-				canToggleVisibility: false,
-				ctorDescriptor: new SyncDescriptor(CommentsPanel),
-				canMoveView: true,
-				containerIcon: commentsViewIcon,
+				name: COMMENTS_VIEW_TITWE,
+				canToggweVisibiwity: fawse,
+				ctowDescwiptow: new SyncDescwiptow(CommentsPanew),
+				canMoveView: twue,
+				containewIcon: commentsViewIcon,
 				focusCommand: {
-					id: 'workbench.action.focusCommentsPanel'
+					id: 'wowkbench.action.focusCommentsPanew'
 				}
-			}], VIEW_CONTAINER);
+			}], VIEW_CONTAINa);
 		}
 	}
 
 	/**
-	 * If the comments view has never been opened, the constructor for it has not yet run so it has
-	 * no listeners for comment threads being set or updated. Listen for the view opening for the
-	 * first time and send it comments then.
+	 * If the comments view has neva been opened, the constwuctow fow it has not yet wun so it has
+	 * no wistenews fow comment thweads being set ow updated. Wisten fow the view opening fow the
+	 * fiwst time and send it comments then.
 	 */
-	private registerViewOpenedListener(commentsPanelAlreadyConstructed: boolean) {
-		if (!commentsPanelAlreadyConstructed && !this._openViewListener) {
-			this._openViewListener = this._viewsService.onDidChangeViewVisibility(e => {
-				if (e.id === COMMENTS_VIEW_ID && e.visible) {
-					[...this._commentControllers.keys()].forEach(handle => {
-						let threads = this._commentControllers.get(handle)!.getAllComments();
+	pwivate wegistewViewOpenedWistena(commentsPanewAwweadyConstwucted: boowean) {
+		if (!commentsPanewAwweadyConstwucted && !this._openViewWistena) {
+			this._openViewWistena = this._viewsSewvice.onDidChangeViewVisibiwity(e => {
+				if (e.id === COMMENTS_VIEW_ID && e.visibwe) {
+					[...this._commentContwowwews.keys()].fowEach(handwe => {
+						wet thweads = this._commentContwowwews.get(handwe)!.getAwwComments();
 
-						if (threads.length) {
-							const providerId = this.getHandler(handle);
-							this._commentService.setWorkspaceComments(providerId, threads);
+						if (thweads.wength) {
+							const pwovidewId = this.getHandwa(handwe);
+							this._commentSewvice.setWowkspaceComments(pwovidewId, thweads);
 						}
 					});
 
-					if (this._openViewListener) {
-						this._openViewListener.dispose();
-						this._openViewListener = null;
+					if (this._openViewWistena) {
+						this._openViewWistena.dispose();
+						this._openViewWistena = nuww;
 					}
 				}
 			});
 		}
 	}
 
-	private getHandler(handle: number) {
-		if (!this._handlers.has(handle)) {
-			throw new Error('Unknown handler');
+	pwivate getHandwa(handwe: numba) {
+		if (!this._handwews.has(handwe)) {
+			thwow new Ewwow('Unknown handwa');
 		}
-		return this._handlers.get(handle)!;
+		wetuwn this._handwews.get(handwe)!;
 	}
 
-	$onDidCommentThreadsChange(handle: number, event: modes.CommentThreadChangedEvent) {
-		// notify comment service
-		const providerId = this.getHandler(handle);
-		this._commentService.updateComments(providerId, event);
+	$onDidCommentThweadsChange(handwe: numba, event: modes.CommentThweadChangedEvent) {
+		// notify comment sewvice
+		const pwovidewId = this.getHandwa(handwe);
+		this._commentSewvice.updateComments(pwovidewId, event);
 	}
 
-	override dispose(): void {
-		super.dispose();
-		this._workspaceProviders.forEach(value => dispose(value));
-		this._workspaceProviders.clear();
-		this._documentProviders.forEach(value => dispose(value));
-		this._documentProviders.clear();
+	ovewwide dispose(): void {
+		supa.dispose();
+		this._wowkspacePwovidews.fowEach(vawue => dispose(vawue));
+		this._wowkspacePwovidews.cweaw();
+		this._documentPwovidews.fowEach(vawue => dispose(vawue));
+		this._documentPwovidews.cweaw();
 	}
 }

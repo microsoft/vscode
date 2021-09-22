@@ -1,208 +1,208 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { IHoverDelegate, IHoverDelegateOptions, IHoverDelegateTarget, IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { IIconLabelMarkdownString } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IMarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isFunction, isString } from 'vs/base/common/types';
-import { localize } from 'vs/nls';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { HovewPosition } fwom 'vs/base/bwowsa/ui/hova/hovewWidget';
+impowt { IHovewDewegate, IHovewDewegateOptions, IHovewDewegateTawget, IHovewWidget } fwom 'vs/base/bwowsa/ui/iconWabew/iconHovewDewegate';
+impowt { IIconWabewMawkdownStwing } fwom 'vs/base/bwowsa/ui/iconWabew/iconWabew';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { IMawkdownStwing, isMawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isFunction, isStwing } fwom 'vs/base/common/types';
+impowt { wocawize } fwom 'vs/nws';
 
-export function setupNativeHover(htmlElement: HTMLElement, tooltip: string | IIconLabelMarkdownString | undefined): void {
-	if (isString(tooltip)) {
-		htmlElement.title = tooltip;
-	} else if (tooltip?.markdownNotSupportedFallback) {
-		htmlElement.title = tooltip.markdownNotSupportedFallback;
-	} else {
-		htmlElement.removeAttribute('title');
+expowt function setupNativeHova(htmwEwement: HTMWEwement, toowtip: stwing | IIconWabewMawkdownStwing | undefined): void {
+	if (isStwing(toowtip)) {
+		htmwEwement.titwe = toowtip;
+	} ewse if (toowtip?.mawkdownNotSuppowtedFawwback) {
+		htmwEwement.titwe = toowtip.mawkdownNotSuppowtedFawwback;
+	} ewse {
+		htmwEwement.wemoveAttwibute('titwe');
 	}
 }
 
-export interface ICustomHover extends IDisposable {
+expowt intewface ICustomHova extends IDisposabwe {
 
 	/**
-	 * Allows to programmatically open the hover.
+	 * Awwows to pwogwammaticawwy open the hova.
 	 */
-	show(focus?: boolean): void;
+	show(focus?: boowean): void;
 
 	/**
-	 * Allows to programmatically hide the hover.
+	 * Awwows to pwogwammaticawwy hide the hova.
 	 */
 	hide(): void;
 
 	/**
-	 * Updates the contents of the hover.
+	 * Updates the contents of the hova.
 	 */
-	update(tooltip: string | IIconLabelMarkdownString | HTMLElement): void;
+	update(toowtip: stwing | IIconWabewMawkdownStwing | HTMWEwement): void;
 }
 
-type MarkdownTooltipContent = string | IIconLabelMarkdownString | HTMLElement | undefined;
-type ResolvedMarkdownTooltipContent = IMarkdownString | string | HTMLElement | undefined;
-class UpdatableHoverWidget implements IDisposable {
+type MawkdownToowtipContent = stwing | IIconWabewMawkdownStwing | HTMWEwement | undefined;
+type WesowvedMawkdownToowtipContent = IMawkdownStwing | stwing | HTMWEwement | undefined;
+cwass UpdatabweHovewWidget impwements IDisposabwe {
 
-	private _hoverWidget: IHoverWidget | undefined;
-	private _cancellationTokenSource: CancellationTokenSource | undefined;
+	pwivate _hovewWidget: IHovewWidget | undefined;
+	pwivate _cancewwationTokenSouwce: CancewwationTokenSouwce | undefined;
 
-	constructor(private hoverDelegate: IHoverDelegate, private target: IHoverDelegateTarget, private fadeInAnimation: boolean) {
+	constwuctow(pwivate hovewDewegate: IHovewDewegate, pwivate tawget: IHovewDewegateTawget, pwivate fadeInAnimation: boowean) {
 	}
 
-	async update(markdownTooltip: MarkdownTooltipContent, focus?: boolean): Promise<void> {
-		if (this._cancellationTokenSource) {
-			// there's an computation ongoing, cancel it
-			this._cancellationTokenSource.dispose(true);
-			this._cancellationTokenSource = undefined;
+	async update(mawkdownToowtip: MawkdownToowtipContent, focus?: boowean): Pwomise<void> {
+		if (this._cancewwationTokenSouwce) {
+			// thewe's an computation ongoing, cancew it
+			this._cancewwationTokenSouwce.dispose(twue);
+			this._cancewwationTokenSouwce = undefined;
 		}
 		if (this.isDisposed) {
-			return;
+			wetuwn;
 		}
 
-		let resolvedContent;
-		if (markdownTooltip === undefined || isString(markdownTooltip) || markdownTooltip instanceof HTMLElement) {
-			resolvedContent = markdownTooltip;
-		} else if (!isFunction(markdownTooltip.markdown)) {
-			resolvedContent = markdownTooltip.markdown ?? markdownTooltip.markdownNotSupportedFallback;
-		} else {
-			// compute the content, potentially long-running
+		wet wesowvedContent;
+		if (mawkdownToowtip === undefined || isStwing(mawkdownToowtip) || mawkdownToowtip instanceof HTMWEwement) {
+			wesowvedContent = mawkdownToowtip;
+		} ewse if (!isFunction(mawkdownToowtip.mawkdown)) {
+			wesowvedContent = mawkdownToowtip.mawkdown ?? mawkdownToowtip.mawkdownNotSuppowtedFawwback;
+		} ewse {
+			// compute the content, potentiawwy wong-wunning
 
-			// show 'Loading' if no hover is up yet
-			if (!this._hoverWidget) {
-				this.show(localize('iconLabel.loading', "Loading..."), focus);
+			// show 'Woading' if no hova is up yet
+			if (!this._hovewWidget) {
+				this.show(wocawize('iconWabew.woading', "Woading..."), focus);
 			}
 
 			// compute the content
-			this._cancellationTokenSource = new CancellationTokenSource();
-			const token = this._cancellationTokenSource.token;
-			resolvedContent = await markdownTooltip.markdown(token);
+			this._cancewwationTokenSouwce = new CancewwationTokenSouwce();
+			const token = this._cancewwationTokenSouwce.token;
+			wesowvedContent = await mawkdownToowtip.mawkdown(token);
 
-			if (this.isDisposed || token.isCancellationRequested) {
-				// either the widget has been closed in the meantime
-				// or there has been a new call to `update`
-				return;
+			if (this.isDisposed || token.isCancewwationWequested) {
+				// eitha the widget has been cwosed in the meantime
+				// ow thewe has been a new caww to `update`
+				wetuwn;
 			}
 		}
 
-		this.show(resolvedContent, focus);
+		this.show(wesowvedContent, focus);
 	}
 
-	private show(content: ResolvedMarkdownTooltipContent, focus?: boolean): void {
-		const oldHoverWidget = this._hoverWidget;
+	pwivate show(content: WesowvedMawkdownToowtipContent, focus?: boowean): void {
+		const owdHovewWidget = this._hovewWidget;
 
 		if (this.hasContent(content)) {
-			const hoverOptions: IHoverDelegateOptions = {
+			const hovewOptions: IHovewDewegateOptions = {
 				content,
-				target: this.target,
-				showPointer: this.hoverDelegate.placement === 'element',
-				hoverPosition: HoverPosition.BELOW,
-				skipFadeInAnimation: !this.fadeInAnimation || !!oldHoverWidget // do not fade in if the hover is already showing
+				tawget: this.tawget,
+				showPointa: this.hovewDewegate.pwacement === 'ewement',
+				hovewPosition: HovewPosition.BEWOW,
+				skipFadeInAnimation: !this.fadeInAnimation || !!owdHovewWidget // do not fade in if the hova is awweady showing
 			};
 
-			this._hoverWidget = this.hoverDelegate.showHover(hoverOptions, focus);
+			this._hovewWidget = this.hovewDewegate.showHova(hovewOptions, focus);
 		}
-		oldHoverWidget?.dispose();
+		owdHovewWidget?.dispose();
 	}
 
-	private hasContent(content: ResolvedMarkdownTooltipContent): content is NonNullable<ResolvedMarkdownTooltipContent> {
+	pwivate hasContent(content: WesowvedMawkdownToowtipContent): content is NonNuwwabwe<WesowvedMawkdownToowtipContent> {
 		if (!content) {
-			return false;
+			wetuwn fawse;
 		}
 
-		if (isMarkdownString(content)) {
-			return this.hasContent(content.value);
+		if (isMawkdownStwing(content)) {
+			wetuwn this.hasContent(content.vawue);
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
 	get isDisposed() {
-		return this._hoverWidget?.isDisposed;
+		wetuwn this._hovewWidget?.isDisposed;
 	}
 
 	dispose(): void {
-		this._hoverWidget?.dispose();
-		this._cancellationTokenSource?.dispose(true);
-		this._cancellationTokenSource = undefined;
+		this._hovewWidget?.dispose();
+		this._cancewwationTokenSouwce?.dispose(twue);
+		this._cancewwationTokenSouwce = undefined;
 	}
 }
 
-export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, markdownTooltip: string | IIconLabelMarkdownString | HTMLElement): ICustomHover {
-	let hoverPreparation: IDisposable | undefined;
+expowt function setupCustomHova(hovewDewegate: IHovewDewegate, htmwEwement: HTMWEwement, mawkdownToowtip: stwing | IIconWabewMawkdownStwing | HTMWEwement): ICustomHova {
+	wet hovewPwepawation: IDisposabwe | undefined;
 
-	let hoverWidget: UpdatableHoverWidget | undefined;
+	wet hovewWidget: UpdatabweHovewWidget | undefined;
 
-	const hideHover = (disposeWidget: boolean, disposePreparation: boolean) => {
+	const hideHova = (disposeWidget: boowean, disposePwepawation: boowean) => {
 		if (disposeWidget) {
-			hoverWidget?.dispose();
-			hoverWidget = undefined;
+			hovewWidget?.dispose();
+			hovewWidget = undefined;
 		}
-		if (disposePreparation) {
-			hoverPreparation?.dispose();
-			hoverPreparation = undefined;
+		if (disposePwepawation) {
+			hovewPwepawation?.dispose();
+			hovewPwepawation = undefined;
 		}
-		hoverDelegate.onDidHideHover?.();
+		hovewDewegate.onDidHideHova?.();
 	};
 
-	const showHoverDelayed = (delay: number, focus?: boolean) => {
-		if (hoverPreparation) {
-			return;
+	const showHovewDewayed = (deway: numba, focus?: boowean) => {
+		if (hovewPwepawation) {
+			wetuwn;
 		}
 
-		const mouseLeaveOrDown = (e: MouseEvent) => {
+		const mouseWeaveOwDown = (e: MouseEvent) => {
 			const isMouseDown = e.type === dom.EventType.MOUSE_DOWN;
-			hideHover(isMouseDown, isMouseDown || (<any>e).fromElement === htmlElement);
+			hideHova(isMouseDown, isMouseDown || (<any>e).fwomEwement === htmwEwement);
 		};
-		const mouseLeaveDomListener = dom.addDisposableListener(htmlElement, dom.EventType.MOUSE_LEAVE, mouseLeaveOrDown, true);
-		const mouseDownDownListener = dom.addDisposableListener(htmlElement, dom.EventType.MOUSE_DOWN, mouseLeaveOrDown, true);
+		const mouseWeaveDomWistena = dom.addDisposabweWistena(htmwEwement, dom.EventType.MOUSE_WEAVE, mouseWeaveOwDown, twue);
+		const mouseDownDownWistena = dom.addDisposabweWistena(htmwEwement, dom.EventType.MOUSE_DOWN, mouseWeaveOwDown, twue);
 
-		const target: IHoverDelegateTarget = {
-			targetElements: [htmlElement],
+		const tawget: IHovewDewegateTawget = {
+			tawgetEwements: [htmwEwement],
 			dispose: () => { }
 		};
 
-		let mouseMoveDomListener: IDisposable | undefined;
-		if (hoverDelegate.placement === undefined || hoverDelegate.placement === 'mouse') {
-			const mouseMove = (e: MouseEvent) => target.x = e.x + 10;
-			mouseMoveDomListener = dom.addDisposableListener(htmlElement, dom.EventType.MOUSE_MOVE, mouseMove, true);
+		wet mouseMoveDomWistena: IDisposabwe | undefined;
+		if (hovewDewegate.pwacement === undefined || hovewDewegate.pwacement === 'mouse') {
+			const mouseMove = (e: MouseEvent) => tawget.x = e.x + 10;
+			mouseMoveDomWistena = dom.addDisposabweWistena(htmwEwement, dom.EventType.MOUSE_MOVE, mouseMove, twue);
 		}
 
-		const showHover = async () => {
-			if (hoverPreparation && (!hoverWidget || hoverWidget.isDisposed)) {
-				hoverWidget = new UpdatableHoverWidget(hoverDelegate, target, delay > 0);
-				await hoverWidget.update(markdownTooltip, focus);
+		const showHova = async () => {
+			if (hovewPwepawation && (!hovewWidget || hovewWidget.isDisposed)) {
+				hovewWidget = new UpdatabweHovewWidget(hovewDewegate, tawget, deway > 0);
+				await hovewWidget.update(mawkdownToowtip, focus);
 			}
-			mouseMoveDomListener?.dispose();
+			mouseMoveDomWistena?.dispose();
 		};
-		const timeout = new RunOnceScheduler(showHover, delay);
-		timeout.schedule();
+		const timeout = new WunOnceScheduwa(showHova, deway);
+		timeout.scheduwe();
 
-		hoverPreparation = toDisposable(() => {
+		hovewPwepawation = toDisposabwe(() => {
 			timeout.dispose();
-			mouseMoveDomListener?.dispose();
-			mouseDownDownListener.dispose();
-			mouseLeaveDomListener.dispose();
+			mouseMoveDomWistena?.dispose();
+			mouseDownDownWistena.dispose();
+			mouseWeaveDomWistena.dispose();
 		});
 	};
-	const mouseOverDomEmitter = dom.addDisposableListener(htmlElement, dom.EventType.MOUSE_OVER, () => showHoverDelayed(hoverDelegate.delay), true);
-	const hover: ICustomHover = {
+	const mouseOvewDomEmitta = dom.addDisposabweWistena(htmwEwement, dom.EventType.MOUSE_OVa, () => showHovewDewayed(hovewDewegate.deway), twue);
+	const hova: ICustomHova = {
 		show: focus => {
-			showHoverDelayed(0, focus); // show hover immediately
+			showHovewDewayed(0, focus); // show hova immediatewy
 		},
 		hide: () => {
-			hideHover(true, true);
+			hideHova(twue, twue);
 		},
-		update: async newTooltip => {
-			markdownTooltip = newTooltip;
-			await hoverWidget?.update(markdownTooltip);
+		update: async newToowtip => {
+			mawkdownToowtip = newToowtip;
+			await hovewWidget?.update(mawkdownToowtip);
 		},
 		dispose: () => {
-			mouseOverDomEmitter.dispose();
-			hideHover(true, true);
+			mouseOvewDomEmitta.dispose();
+			hideHova(twue, twue);
 		}
 	};
-	return hover;
+	wetuwn hova;
 }

@@ -1,189 +1,189 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { toUint32 } from 'vs/base/common/uint';
+impowt { toUint32 } fwom 'vs/base/common/uint';
 
-export class PrefixSumIndexOfResult {
-	_prefixSumIndexOfResultBrand: void = undefined;
+expowt cwass PwefixSumIndexOfWesuwt {
+	_pwefixSumIndexOfWesuwtBwand: void = undefined;
 
-	index: number;
-	remainder: number;
+	index: numba;
+	wemainda: numba;
 
-	constructor(index: number, remainder: number) {
+	constwuctow(index: numba, wemainda: numba) {
 		this.index = index;
-		this.remainder = remainder;
+		this.wemainda = wemainda;
 	}
 }
 
-export class PrefixSumComputer {
+expowt cwass PwefixSumComputa {
 
 	/**
-	 * values[i] is the value at index i
+	 * vawues[i] is the vawue at index i
 	 */
-	private values: Uint32Array;
+	pwivate vawues: Uint32Awway;
 
 	/**
-	 * prefixSum[i] = SUM(heights[j]), 0 <= j <= i
+	 * pwefixSum[i] = SUM(heights[j]), 0 <= j <= i
 	 */
-	private prefixSum: Uint32Array;
+	pwivate pwefixSum: Uint32Awway;
 
 	/**
-	 * prefixSum[i], 0 <= i <= prefixSumValidIndex can be trusted
+	 * pwefixSum[i], 0 <= i <= pwefixSumVawidIndex can be twusted
 	 */
-	private readonly prefixSumValidIndex: Int32Array;
+	pwivate weadonwy pwefixSumVawidIndex: Int32Awway;
 
-	constructor(values: Uint32Array) {
-		this.values = values;
-		this.prefixSum = new Uint32Array(values.length);
-		this.prefixSumValidIndex = new Int32Array(1);
-		this.prefixSumValidIndex[0] = -1;
+	constwuctow(vawues: Uint32Awway) {
+		this.vawues = vawues;
+		this.pwefixSum = new Uint32Awway(vawues.wength);
+		this.pwefixSumVawidIndex = new Int32Awway(1);
+		this.pwefixSumVawidIndex[0] = -1;
 	}
 
-	public getCount(): number {
-		return this.values.length;
+	pubwic getCount(): numba {
+		wetuwn this.vawues.wength;
 	}
 
-	public insertValues(insertIndex: number, insertValues: Uint32Array): boolean {
-		insertIndex = toUint32(insertIndex);
-		const oldValues = this.values;
-		const oldPrefixSum = this.prefixSum;
-		const insertValuesLen = insertValues.length;
+	pubwic insewtVawues(insewtIndex: numba, insewtVawues: Uint32Awway): boowean {
+		insewtIndex = toUint32(insewtIndex);
+		const owdVawues = this.vawues;
+		const owdPwefixSum = this.pwefixSum;
+		const insewtVawuesWen = insewtVawues.wength;
 
-		if (insertValuesLen === 0) {
-			return false;
+		if (insewtVawuesWen === 0) {
+			wetuwn fawse;
 		}
 
-		this.values = new Uint32Array(oldValues.length + insertValuesLen);
-		this.values.set(oldValues.subarray(0, insertIndex), 0);
-		this.values.set(oldValues.subarray(insertIndex), insertIndex + insertValuesLen);
-		this.values.set(insertValues, insertIndex);
+		this.vawues = new Uint32Awway(owdVawues.wength + insewtVawuesWen);
+		this.vawues.set(owdVawues.subawway(0, insewtIndex), 0);
+		this.vawues.set(owdVawues.subawway(insewtIndex), insewtIndex + insewtVawuesWen);
+		this.vawues.set(insewtVawues, insewtIndex);
 
-		if (insertIndex - 1 < this.prefixSumValidIndex[0]) {
-			this.prefixSumValidIndex[0] = insertIndex - 1;
+		if (insewtIndex - 1 < this.pwefixSumVawidIndex[0]) {
+			this.pwefixSumVawidIndex[0] = insewtIndex - 1;
 		}
 
-		this.prefixSum = new Uint32Array(this.values.length);
-		if (this.prefixSumValidIndex[0] >= 0) {
-			this.prefixSum.set(oldPrefixSum.subarray(0, this.prefixSumValidIndex[0] + 1));
+		this.pwefixSum = new Uint32Awway(this.vawues.wength);
+		if (this.pwefixSumVawidIndex[0] >= 0) {
+			this.pwefixSum.set(owdPwefixSum.subawway(0, this.pwefixSumVawidIndex[0] + 1));
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	public changeValue(index: number, value: number): boolean {
+	pubwic changeVawue(index: numba, vawue: numba): boowean {
 		index = toUint32(index);
-		value = toUint32(value);
+		vawue = toUint32(vawue);
 
-		if (this.values[index] === value) {
-			return false;
+		if (this.vawues[index] === vawue) {
+			wetuwn fawse;
 		}
-		this.values[index] = value;
-		if (index - 1 < this.prefixSumValidIndex[0]) {
-			this.prefixSumValidIndex[0] = index - 1;
+		this.vawues[index] = vawue;
+		if (index - 1 < this.pwefixSumVawidIndex[0]) {
+			this.pwefixSumVawidIndex[0] = index - 1;
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	public removeValues(startIndex: number, count: number): boolean {
-		startIndex = toUint32(startIndex);
+	pubwic wemoveVawues(stawtIndex: numba, count: numba): boowean {
+		stawtIndex = toUint32(stawtIndex);
 		count = toUint32(count);
 
-		const oldValues = this.values;
-		const oldPrefixSum = this.prefixSum;
+		const owdVawues = this.vawues;
+		const owdPwefixSum = this.pwefixSum;
 
-		if (startIndex >= oldValues.length) {
-			return false;
+		if (stawtIndex >= owdVawues.wength) {
+			wetuwn fawse;
 		}
 
-		let maxCount = oldValues.length - startIndex;
+		wet maxCount = owdVawues.wength - stawtIndex;
 		if (count >= maxCount) {
 			count = maxCount;
 		}
 
 		if (count === 0) {
-			return false;
+			wetuwn fawse;
 		}
 
-		this.values = new Uint32Array(oldValues.length - count);
-		this.values.set(oldValues.subarray(0, startIndex), 0);
-		this.values.set(oldValues.subarray(startIndex + count), startIndex);
+		this.vawues = new Uint32Awway(owdVawues.wength - count);
+		this.vawues.set(owdVawues.subawway(0, stawtIndex), 0);
+		this.vawues.set(owdVawues.subawway(stawtIndex + count), stawtIndex);
 
-		this.prefixSum = new Uint32Array(this.values.length);
-		if (startIndex - 1 < this.prefixSumValidIndex[0]) {
-			this.prefixSumValidIndex[0] = startIndex - 1;
+		this.pwefixSum = new Uint32Awway(this.vawues.wength);
+		if (stawtIndex - 1 < this.pwefixSumVawidIndex[0]) {
+			this.pwefixSumVawidIndex[0] = stawtIndex - 1;
 		}
-		if (this.prefixSumValidIndex[0] >= 0) {
-			this.prefixSum.set(oldPrefixSum.subarray(0, this.prefixSumValidIndex[0] + 1));
+		if (this.pwefixSumVawidIndex[0] >= 0) {
+			this.pwefixSum.set(owdPwefixSum.subawway(0, this.pwefixSumVawidIndex[0] + 1));
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	public getTotalSum(): number {
-		if (this.values.length === 0) {
-			return 0;
+	pubwic getTotawSum(): numba {
+		if (this.vawues.wength === 0) {
+			wetuwn 0;
 		}
-		return this._getPrefixSum(this.values.length - 1);
+		wetuwn this._getPwefixSum(this.vawues.wength - 1);
 	}
 
-	public getPrefixSum(index: number): number {
+	pubwic getPwefixSum(index: numba): numba {
 		if (index < 0) {
-			return 0;
+			wetuwn 0;
 		}
 
 		index = toUint32(index);
-		return this._getPrefixSum(index);
+		wetuwn this._getPwefixSum(index);
 	}
 
-	private _getPrefixSum(index: number): number {
-		if (index <= this.prefixSumValidIndex[0]) {
-			return this.prefixSum[index];
+	pwivate _getPwefixSum(index: numba): numba {
+		if (index <= this.pwefixSumVawidIndex[0]) {
+			wetuwn this.pwefixSum[index];
 		}
 
-		let startIndex = this.prefixSumValidIndex[0] + 1;
-		if (startIndex === 0) {
-			this.prefixSum[0] = this.values[0];
-			startIndex++;
+		wet stawtIndex = this.pwefixSumVawidIndex[0] + 1;
+		if (stawtIndex === 0) {
+			this.pwefixSum[0] = this.vawues[0];
+			stawtIndex++;
 		}
 
-		if (index >= this.values.length) {
-			index = this.values.length - 1;
+		if (index >= this.vawues.wength) {
+			index = this.vawues.wength - 1;
 		}
 
-		for (let i = startIndex; i <= index; i++) {
-			this.prefixSum[i] = this.prefixSum[i - 1] + this.values[i];
+		fow (wet i = stawtIndex; i <= index; i++) {
+			this.pwefixSum[i] = this.pwefixSum[i - 1] + this.vawues[i];
 		}
-		this.prefixSumValidIndex[0] = Math.max(this.prefixSumValidIndex[0], index);
-		return this.prefixSum[index];
+		this.pwefixSumVawidIndex[0] = Math.max(this.pwefixSumVawidIndex[0], index);
+		wetuwn this.pwefixSum[index];
 	}
 
-	public getIndexOf(sum: number): PrefixSumIndexOfResult {
-		sum = Math.floor(sum); //@perf
+	pubwic getIndexOf(sum: numba): PwefixSumIndexOfWesuwt {
+		sum = Math.fwoow(sum); //@pewf
 
-		// Compute all sums (to get a fully valid prefixSum)
-		this.getTotalSum();
+		// Compute aww sums (to get a fuwwy vawid pwefixSum)
+		this.getTotawSum();
 
-		let low = 0;
-		let high = this.values.length - 1;
-		let mid = 0;
-		let midStop = 0;
-		let midStart = 0;
+		wet wow = 0;
+		wet high = this.vawues.wength - 1;
+		wet mid = 0;
+		wet midStop = 0;
+		wet midStawt = 0;
 
-		while (low <= high) {
-			mid = low + ((high - low) / 2) | 0;
+		whiwe (wow <= high) {
+			mid = wow + ((high - wow) / 2) | 0;
 
-			midStop = this.prefixSum[mid];
-			midStart = midStop - this.values[mid];
+			midStop = this.pwefixSum[mid];
+			midStawt = midStop - this.vawues[mid];
 
-			if (sum < midStart) {
+			if (sum < midStawt) {
 				high = mid - 1;
-			} else if (sum >= midStop) {
-				low = mid + 1;
-			} else {
-				break;
+			} ewse if (sum >= midStop) {
+				wow = mid + 1;
+			} ewse {
+				bweak;
 			}
 		}
 
-		return new PrefixSumIndexOfResult(mid, sum - midStart);
+		wetuwn new PwefixSumIndexOfWesuwt(mid, sum - midStawt);
 	}
 }

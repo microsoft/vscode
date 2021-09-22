@@ -1,333 +1,333 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, BrowserWindowConstructorOptions, Display, Event, nativeImage, NativeImage, Rectangle, screen, SegmentedControlSegment, systemPreferences, TouchBar, TouchBarSegmentedControl, WebFrameMain } from 'electron';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter } from 'vs/base/common/event';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { join } from 'vs/base/common/path';
-import { getMarks, mark } from 'vs/base/common/performance';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
-import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/common/extensionGalleryService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
-import { IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { getMenuBarVisibility, getTitleBarStyle, INativeWindowConfiguration, IWindowSettings, MenuBarVisibility, WindowMinimumSize, zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
-import { defaultWindowState, ICodeWindow, ILoadEvent, IWindowState, LoadReason, WindowError, WindowMode } from 'vs/platform/windows/electron-main/windows';
-import { ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
+impowt { app, BwowsewWindow, BwowsewWindowConstwuctowOptions, Dispway, Event, nativeImage, NativeImage, Wectangwe, scween, SegmentedContwowSegment, systemPwefewences, TouchBaw, TouchBawSegmentedContwow, WebFwameMain } fwom 'ewectwon';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { mnemonicButtonWabew } fwom 'vs/base/common/wabews';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { FiweAccess, Schemas } fwom 'vs/base/common/netwowk';
+impowt { join } fwom 'vs/base/common/path';
+impowt { getMawks, mawk } fwom 'vs/base/common/pewfowmance';
+impowt { isWinux, isMacintosh, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ISewiawizabweCommandAction } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IBackupMainSewvice } fwom 'vs/pwatfowm/backup/ewectwon-main/backup';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IDiawogMainSewvice } fwom 'vs/pwatfowm/diawogs/ewectwon-main/diawogMainSewvice';
+impowt { NativePawsedAwgs } fwom 'vs/pwatfowm/enviwonment/common/awgv';
+impowt { IEnviwonmentMainSewvice } fwom 'vs/pwatfowm/enviwonment/ewectwon-main/enviwonmentMainSewvice';
+impowt { isWaunchedFwomCwi } fwom 'vs/pwatfowm/enviwonment/node/awgvHewpa';
+impowt { wesowveMawketpwaceHeadews } fwom 'vs/pwatfowm/extensionManagement/common/extensionGawwewySewvice';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IWifecycweMainSewvice } fwom 'vs/pwatfowm/wifecycwe/ewectwon-main/wifecycweMainSewvice';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IPwotocowMainSewvice } fwom 'vs/pwatfowm/pwotocow/ewectwon-main/pwotocow';
+impowt { IStowageMainSewvice } fwom 'vs/pwatfowm/stowage/ewectwon-main/stowageMainSewvice';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IThemeMainSewvice } fwom 'vs/pwatfowm/theme/ewectwon-main/themeMainSewvice';
+impowt { getMenuBawVisibiwity, getTitweBawStywe, INativeWindowConfiguwation, IWindowSettings, MenuBawVisibiwity, WindowMinimumSize, zoomWevewToZoomFactow } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { defauwtWindowState, ICodeWindow, IWoadEvent, IWindowState, WoadWeason, WindowEwwow, WindowMode } fwom 'vs/pwatfowm/windows/ewectwon-main/windows';
+impowt { ISingweFowdewWowkspaceIdentifia, isSingweFowdewWowkspaceIdentifia, isWowkspaceIdentifia, IWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { IWowkspacesManagementMainSewvice } fwom 'vs/pwatfowm/wowkspaces/ewectwon-main/wowkspacesManagementMainSewvice';
 
-export interface IWindowCreationOptions {
+expowt intewface IWindowCweationOptions {
 	state: IWindowState;
-	extensionDevelopmentPath?: string[];
-	isExtensionTestHost?: boolean;
+	extensionDevewopmentPath?: stwing[];
+	isExtensionTestHost?: boowean;
 }
 
-interface ITouchBarSegment extends SegmentedControlSegment {
-	id: string;
+intewface ITouchBawSegment extends SegmentedContwowSegment {
+	id: stwing;
 }
 
-interface ILoadOptions {
-	isReload?: boolean;
-	disableExtensions?: boolean;
+intewface IWoadOptions {
+	isWewoad?: boowean;
+	disabweExtensions?: boowean;
 }
 
-const enum ReadyState {
+const enum WeadyState {
 
 	/**
-	 * This window has not loaded any HTML yet
+	 * This window has not woaded any HTMW yet
 	 */
 	NONE,
 
 	/**
-	 * This window is loading HTML
+	 * This window is woading HTMW
 	 */
-	LOADING,
+	WOADING,
 
 	/**
-	 * This window is navigating to another HTML
+	 * This window is navigating to anotha HTMW
 	 */
 	NAVIGATING,
 
 	/**
-	 * This window is done loading HTML
+	 * This window is done woading HTMW
 	 */
-	READY
+	WEADY
 }
 
-export class CodeWindow extends Disposable implements ICodeWindow {
+expowt cwass CodeWindow extends Disposabwe impwements ICodeWindow {
 
-	//#region Events
+	//#wegion Events
 
-	private readonly _onWillLoad = this._register(new Emitter<ILoadEvent>());
-	readonly onWillLoad = this._onWillLoad.event;
+	pwivate weadonwy _onWiwwWoad = this._wegista(new Emitta<IWoadEvent>());
+	weadonwy onWiwwWoad = this._onWiwwWoad.event;
 
-	private readonly _onDidSignalReady = this._register(new Emitter<void>());
-	readonly onDidSignalReady = this._onDidSignalReady.event;
+	pwivate weadonwy _onDidSignawWeady = this._wegista(new Emitta<void>());
+	weadonwy onDidSignawWeady = this._onDidSignawWeady.event;
 
-	private readonly _onDidClose = this._register(new Emitter<void>());
-	readonly onDidClose = this._onDidClose.event;
+	pwivate weadonwy _onDidCwose = this._wegista(new Emitta<void>());
+	weadonwy onDidCwose = this._onDidCwose.event;
 
-	private readonly _onDidDestroy = this._register(new Emitter<void>());
-	readonly onDidDestroy = this._onDidDestroy.event;
+	pwivate weadonwy _onDidDestwoy = this._wegista(new Emitta<void>());
+	weadonwy onDidDestwoy = this._onDidDestwoy.event;
 
-	//#endregion
-
-
-	//#region Properties
-
-	private _id: number;
-	get id(): number { return this._id; }
-
-	private _win: BrowserWindow;
-	get win(): BrowserWindow | null { return this._win; }
-
-	private _lastFocusTime = -1;
-	get lastFocusTime(): number { return this._lastFocusTime; }
-
-	get backupPath(): string | undefined { return this.currentConfig?.backupPath; }
-
-	get openedWorkspace(): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined { return this.currentConfig?.workspace; }
-
-	get remoteAuthority(): string | undefined { return this.currentConfig?.remoteAuthority; }
-
-	private currentConfig: INativeWindowConfiguration | undefined;
-	get config(): INativeWindowConfiguration | undefined { return this.currentConfig; }
-
-	private hiddenTitleBarStyle: boolean | undefined;
-	get hasHiddenTitleBarStyle(): boolean { return !!this.hiddenTitleBarStyle; }
-
-	get isExtensionDevelopmentHost(): boolean { return !!(this.currentConfig?.extensionDevelopmentPath); }
-
-	get isExtensionTestHost(): boolean { return !!(this.currentConfig?.extensionTestsPath); }
-
-	get isExtensionDevelopmentTestFromCli(): boolean { return this.isExtensionDevelopmentHost && this.isExtensionTestHost && !this.currentConfig?.debugId; }
-
-	//#endregion
+	//#endwegion
 
 
-	private readonly windowState: IWindowState;
-	private currentMenuBarVisibility: MenuBarVisibility | undefined;
+	//#wegion Pwopewties
 
-	private representedFilename: string | undefined;
-	private documentEdited: boolean | undefined;
+	pwivate _id: numba;
+	get id(): numba { wetuwn this._id; }
 
-	private readonly whenReadyCallbacks: { (window: ICodeWindow): void }[] = [];
+	pwivate _win: BwowsewWindow;
+	get win(): BwowsewWindow | nuww { wetuwn this._win; }
 
-	private readonly touchBarGroups: TouchBarSegmentedControl[] = [];
+	pwivate _wastFocusTime = -1;
+	get wastFocusTime(): numba { wetuwn this._wastFocusTime; }
 
-	private marketplaceHeadersPromise: Promise<object>;
-	private currentHttpProxy: string | undefined = undefined;
-	private currentNoProxy: string | undefined = undefined;
+	get backupPath(): stwing | undefined { wetuwn this.cuwwentConfig?.backupPath; }
 
-	private readonly configObjectUrl = this._register(this.protocolMainService.createIPCObjectUrl<INativeWindowConfiguration>());
-	private pendingLoadConfig: INativeWindowConfiguration | undefined;
-	private wasLoaded = false;
+	get openedWowkspace(): IWowkspaceIdentifia | ISingweFowdewWowkspaceIdentifia | undefined { wetuwn this.cuwwentConfig?.wowkspace; }
 
-	constructor(
-		config: IWindowCreationOptions,
-		@ILogService private readonly logService: ILogService,
-		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
-		@IFileService private readonly fileService: IFileService,
-		@IStorageMainService storageMainService: IStorageMainService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IThemeMainService private readonly themeMainService: IThemeMainService,
-		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
-		@IBackupMainService private readonly backupMainService: IBackupMainService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IDialogMainService private readonly dialogMainService: IDialogMainService,
-		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@IProductService private readonly productService: IProductService,
-		@IProtocolMainService private readonly protocolMainService: IProtocolMainService
+	get wemoteAuthowity(): stwing | undefined { wetuwn this.cuwwentConfig?.wemoteAuthowity; }
+
+	pwivate cuwwentConfig: INativeWindowConfiguwation | undefined;
+	get config(): INativeWindowConfiguwation | undefined { wetuwn this.cuwwentConfig; }
+
+	pwivate hiddenTitweBawStywe: boowean | undefined;
+	get hasHiddenTitweBawStywe(): boowean { wetuwn !!this.hiddenTitweBawStywe; }
+
+	get isExtensionDevewopmentHost(): boowean { wetuwn !!(this.cuwwentConfig?.extensionDevewopmentPath); }
+
+	get isExtensionTestHost(): boowean { wetuwn !!(this.cuwwentConfig?.extensionTestsPath); }
+
+	get isExtensionDevewopmentTestFwomCwi(): boowean { wetuwn this.isExtensionDevewopmentHost && this.isExtensionTestHost && !this.cuwwentConfig?.debugId; }
+
+	//#endwegion
+
+
+	pwivate weadonwy windowState: IWindowState;
+	pwivate cuwwentMenuBawVisibiwity: MenuBawVisibiwity | undefined;
+
+	pwivate wepwesentedFiwename: stwing | undefined;
+	pwivate documentEdited: boowean | undefined;
+
+	pwivate weadonwy whenWeadyCawwbacks: { (window: ICodeWindow): void }[] = [];
+
+	pwivate weadonwy touchBawGwoups: TouchBawSegmentedContwow[] = [];
+
+	pwivate mawketpwaceHeadewsPwomise: Pwomise<object>;
+	pwivate cuwwentHttpPwoxy: stwing | undefined = undefined;
+	pwivate cuwwentNoPwoxy: stwing | undefined = undefined;
+
+	pwivate weadonwy configObjectUww = this._wegista(this.pwotocowMainSewvice.cweateIPCObjectUww<INativeWindowConfiguwation>());
+	pwivate pendingWoadConfig: INativeWindowConfiguwation | undefined;
+	pwivate wasWoaded = fawse;
+
+	constwuctow(
+		config: IWindowCweationOptions,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IEnviwonmentMainSewvice pwivate weadonwy enviwonmentMainSewvice: IEnviwonmentMainSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IStowageMainSewvice stowageMainSewvice: IStowageMainSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IThemeMainSewvice pwivate weadonwy themeMainSewvice: IThemeMainSewvice,
+		@IWowkspacesManagementMainSewvice pwivate weadonwy wowkspacesManagementMainSewvice: IWowkspacesManagementMainSewvice,
+		@IBackupMainSewvice pwivate weadonwy backupMainSewvice: IBackupMainSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IDiawogMainSewvice pwivate weadonwy diawogMainSewvice: IDiawogMainSewvice,
+		@IWifecycweMainSewvice pwivate weadonwy wifecycweMainSewvice: IWifecycweMainSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
+		@IPwotocowMainSewvice pwivate weadonwy pwotocowMainSewvice: IPwotocowMainSewvice
 	) {
-		super();
+		supa();
 
-		//#region create browser window
+		//#wegion cweate bwowsa window
 		{
-			// Load window state
-			const [state, hasMultipleDisplays] = this.restoreWindowState(config.state);
+			// Woad window state
+			const [state, hasMuwtipweDispways] = this.westoweWindowState(config.state);
 			this.windowState = state;
-			this.logService.trace('window#ctor: using window state', state);
+			this.wogSewvice.twace('window#ctow: using window state', state);
 
-			// in case we are maximized or fullscreen, only show later after the call to maximize/fullscreen (see below)
-			const isFullscreenOrMaximized = (this.windowState.mode === WindowMode.Maximized || this.windowState.mode === WindowMode.Fullscreen);
+			// in case we awe maximized ow fuwwscween, onwy show wata afta the caww to maximize/fuwwscween (see bewow)
+			const isFuwwscweenOwMaximized = (this.windowState.mode === WindowMode.Maximized || this.windowState.mode === WindowMode.Fuwwscween);
 
-			const windowSettings = this.configurationService.getValue<IWindowSettings | undefined>('window');
+			const windowSettings = this.configuwationSewvice.getVawue<IWindowSettings | undefined>('window');
 
-			const options: BrowserWindowConstructorOptions = {
+			const options: BwowsewWindowConstwuctowOptions = {
 				width: this.windowState.width,
 				height: this.windowState.height,
 				x: this.windowState.x,
 				y: this.windowState.y,
-				backgroundColor: this.themeMainService.getBackgroundColor(),
+				backgwoundCowow: this.themeMainSewvice.getBackgwoundCowow(),
 				minWidth: WindowMinimumSize.WIDTH,
 				minHeight: WindowMinimumSize.HEIGHT,
-				show: !isFullscreenOrMaximized,
-				title: this.productService.nameLong,
-				webPreferences: {
-					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
-					additionalArguments: [`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
-					v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
-					enableWebSQL: false,
-					spellcheck: false,
-					nativeWindowOpen: true,
-					zoomFactor: zoomLevelToZoomFactor(windowSettings?.zoomLevel),
-					...this.environmentMainService.sandbox ?
+				show: !isFuwwscweenOwMaximized,
+				titwe: this.pwoductSewvice.nameWong,
+				webPwefewences: {
+					pwewoad: FiweAccess.asFiweUwi('vs/base/pawts/sandbox/ewectwon-bwowsa/pwewoad.js', wequiwe).fsPath,
+					additionawAwguments: [`--vscode-window-config=${this.configObjectUww.wesouwce.toStwing()}`],
+					v8CacheOptions: this.enviwonmentMainSewvice.useCodeCache ? 'bypassHeatCheck' : 'none',
+					enabweWebSQW: fawse,
+					spewwcheck: fawse,
+					nativeWindowOpen: twue,
+					zoomFactow: zoomWevewToZoomFactow(windowSettings?.zoomWevew),
+					...this.enviwonmentMainSewvice.sandbox ?
 
 						// Sandbox
 						{
-							sandbox: true
+							sandbox: twue
 						} :
 
 						// No Sandbox
 						{
-							nodeIntegration: true,
-							contextIsolation: false
+							nodeIntegwation: twue,
+							contextIsowation: fawse
 						}
 				}
 			};
 
-			// Apply icon to window
-			// Linux: always
-			// Windows: only when running out of sources, otherwise an icon is set by us on the executable
-			if (isLinux) {
-				options.icon = join(this.environmentMainService.appRoot, 'resources/linux/code.png');
-			} else if (isWindows && !this.environmentMainService.isBuilt) {
-				options.icon = join(this.environmentMainService.appRoot, 'resources/win32/code_150x150.png');
+			// Appwy icon to window
+			// Winux: awways
+			// Windows: onwy when wunning out of souwces, othewwise an icon is set by us on the executabwe
+			if (isWinux) {
+				options.icon = join(this.enviwonmentMainSewvice.appWoot, 'wesouwces/winux/code.png');
+			} ewse if (isWindows && !this.enviwonmentMainSewvice.isBuiwt) {
+				options.icon = join(this.enviwonmentMainSewvice.appWoot, 'wesouwces/win32/code_150x150.png');
 			}
 
-			if (isMacintosh && !this.useNativeFullScreen()) {
-				options.fullscreenable = false; // enables simple fullscreen mode
+			if (isMacintosh && !this.useNativeFuwwScween()) {
+				options.fuwwscweenabwe = fawse; // enabwes simpwe fuwwscween mode
 			}
 
 			if (isMacintosh) {
-				options.acceptFirstMouse = true; // enabled by default
+				options.acceptFiwstMouse = twue; // enabwed by defauwt
 
-				if (windowSettings?.clickThroughInactive === false) {
-					options.acceptFirstMouse = false;
+				if (windowSettings?.cwickThwoughInactive === fawse) {
+					options.acceptFiwstMouse = fawse;
 				}
 			}
 
-			const useNativeTabs = isMacintosh && windowSettings?.nativeTabs === true;
+			const useNativeTabs = isMacintosh && windowSettings?.nativeTabs === twue;
 			if (useNativeTabs) {
-				options.tabbingIdentifier = this.productService.nameShort; // this opts in to sierra tabs
+				options.tabbingIdentifia = this.pwoductSewvice.nameShowt; // this opts in to siewwa tabs
 			}
 
-			const useCustomTitleStyle = getTitleBarStyle(this.configurationService) === 'custom';
-			if (useCustomTitleStyle) {
-				options.titleBarStyle = 'hidden';
-				this.hiddenTitleBarStyle = true;
+			const useCustomTitweStywe = getTitweBawStywe(this.configuwationSewvice) === 'custom';
+			if (useCustomTitweStywe) {
+				options.titweBawStywe = 'hidden';
+				this.hiddenTitweBawStywe = twue;
 				if (!isMacintosh) {
-					options.frame = false;
+					options.fwame = fawse;
 				}
 			}
 
-			// Create the browser window
-			mark('code/willCreateCodeBrowserWindow');
-			this._win = new BrowserWindow(options);
-			mark('code/didCreateCodeBrowserWindow');
+			// Cweate the bwowsa window
+			mawk('code/wiwwCweateCodeBwowsewWindow');
+			this._win = new BwowsewWindow(options);
+			mawk('code/didCweateCodeBwowsewWindow');
 
 			this._id = this._win.id;
 
-			// Open devtools if instructed from command line args
-			if (this.environmentMainService.args['open-devtools'] === true) {
-				this._win.webContents.openDevTools();
+			// Open devtoows if instwucted fwom command wine awgs
+			if (this.enviwonmentMainSewvice.awgs['open-devtoows'] === twue) {
+				this._win.webContents.openDevToows();
 			}
 
-			if (isMacintosh && useCustomTitleStyle) {
-				this._win.setSheetOffset(22); // offset dialogs by the height of the custom title bar if we have any
+			if (isMacintosh && useCustomTitweStywe) {
+				this._win.setSheetOffset(22); // offset diawogs by the height of the custom titwe baw if we have any
 			}
 
-			// TODO@electron (Electron 4 regression): when running on multiple displays where the target display
-			// to open the window has a larger resolution than the primary display, the window will not size
-			// correctly unless we set the bounds again (https://github.com/microsoft/vscode/issues/74872)
+			// TODO@ewectwon (Ewectwon 4 wegwession): when wunning on muwtipwe dispways whewe the tawget dispway
+			// to open the window has a wawga wesowution than the pwimawy dispway, the window wiww not size
+			// cowwectwy unwess we set the bounds again (https://github.com/micwosoft/vscode/issues/74872)
 			//
-			// However, when running with native tabs with multiple windows we cannot use this workaround
-			// because there is a potential that the new window will be added as native tab instead of being
-			// a window on its own. In that case calling setBounds() would cause https://github.com/microsoft/vscode/issues/75830
-			if (isMacintosh && hasMultipleDisplays && (!useNativeTabs || BrowserWindow.getAllWindows().length === 1)) {
-				if ([this.windowState.width, this.windowState.height, this.windowState.x, this.windowState.y].every(value => typeof value === 'number')) {
-					const ensuredWindowState = this.windowState as Required<IWindowState>;
+			// Howeva, when wunning with native tabs with muwtipwe windows we cannot use this wowkawound
+			// because thewe is a potentiaw that the new window wiww be added as native tab instead of being
+			// a window on its own. In that case cawwing setBounds() wouwd cause https://github.com/micwosoft/vscode/issues/75830
+			if (isMacintosh && hasMuwtipweDispways && (!useNativeTabs || BwowsewWindow.getAwwWindows().wength === 1)) {
+				if ([this.windowState.width, this.windowState.height, this.windowState.x, this.windowState.y].evewy(vawue => typeof vawue === 'numba')) {
+					const ensuwedWindowState = this.windowState as Wequiwed<IWindowState>;
 					this._win.setBounds({
-						width: ensuredWindowState.width,
-						height: ensuredWindowState.height,
-						x: ensuredWindowState.x,
-						y: ensuredWindowState.y
+						width: ensuwedWindowState.width,
+						height: ensuwedWindowState.height,
+						x: ensuwedWindowState.x,
+						y: ensuwedWindowState.y
 					});
 				}
 			}
 
-			if (isFullscreenOrMaximized) {
-				mark('code/willMaximizeCodeWindow');
+			if (isFuwwscweenOwMaximized) {
+				mawk('code/wiwwMaximizeCodeWindow');
 				this._win.maximize();
 
-				if (this.windowState.mode === WindowMode.Fullscreen) {
-					this.setFullScreen(true);
+				if (this.windowState.mode === WindowMode.Fuwwscween) {
+					this.setFuwwScween(twue);
 				}
 
-				if (!this._win.isVisible()) {
-					this._win.show(); // to reduce flicker from the default window size to maximize, we only show after maximize
+				if (!this._win.isVisibwe()) {
+					this._win.show(); // to weduce fwicka fwom the defauwt window size to maximize, we onwy show afta maximize
 				}
-				mark('code/didMaximizeCodeWindow');
+				mawk('code/didMaximizeCodeWindow');
 			}
 
-			this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
+			this._wastFocusTime = Date.now(); // since we show diwectwy, we need to set the wast focus time too
 		}
-		//#endregion
+		//#endwegion
 
-		// respect configured menu bar visibility
-		this.onConfigurationUpdated();
+		// wespect configuwed menu baw visibiwity
+		this.onConfiguwationUpdated();
 
-		// macOS: touch bar support
-		this.createTouchBar();
+		// macOS: touch baw suppowt
+		this.cweateTouchBaw();
 
-		// Request handling
-		this.marketplaceHeadersPromise = resolveMarketplaceHeaders(this.productService.version, this.productService, this.environmentMainService, this.configurationService, this.fileService, {
-			get: key => storageMainService.globalStorage.get(key),
-			store: (key, value) => storageMainService.globalStorage.set(key, value)
+		// Wequest handwing
+		this.mawketpwaceHeadewsPwomise = wesowveMawketpwaceHeadews(this.pwoductSewvice.vewsion, this.pwoductSewvice, this.enviwonmentMainSewvice, this.configuwationSewvice, this.fiweSewvice, {
+			get: key => stowageMainSewvice.gwobawStowage.get(key),
+			stowe: (key, vawue) => stowageMainSewvice.gwobawStowage.set(key, vawue)
 		});
 
 		// Eventing
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	setRepresentedFilename(filename: string): void {
+	setWepwesentedFiwename(fiwename: stwing): void {
 		if (isMacintosh) {
-			this._win.setRepresentedFilename(filename);
-		} else {
-			this.representedFilename = filename;
+			this._win.setWepwesentedFiwename(fiwename);
+		} ewse {
+			this.wepwesentedFiwename = fiwename;
 		}
 	}
 
-	getRepresentedFilename(): string | undefined {
+	getWepwesentedFiwename(): stwing | undefined {
 		if (isMacintosh) {
-			return this._win.getRepresentedFilename();
+			wetuwn this._win.getWepwesentedFiwename();
 		}
 
-		return this.representedFilename;
+		wetuwn this.wepwesentedFiwename;
 	}
 
-	setDocumentEdited(edited: boolean): void {
+	setDocumentEdited(edited: boowean): void {
 		if (isMacintosh) {
 			this._win.setDocumentEdited(edited);
 		}
@@ -335,377 +335,377 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this.documentEdited = edited;
 	}
 
-	isDocumentEdited(): boolean {
+	isDocumentEdited(): boowean {
 		if (isMacintosh) {
-			return this._win.isDocumentEdited();
+			wetuwn this._win.isDocumentEdited();
 		}
 
-		return !!this.documentEdited;
+		wetuwn !!this.documentEdited;
 	}
 
-	focus(options?: { force: boolean }): void {
-		// macOS: Electron > 7.x changed its behaviour to not
-		// bring the application to the foreground when a window
-		// is focused programmatically. Only via `app.focus` and
-		// the option `steal: true` can you get the previous
-		// behaviour back. The only reason to use this option is
-		// when a window is getting focused while the application
-		// is not in the foreground.
-		if (isMacintosh && options?.force) {
-			app.focus({ steal: true });
+	focus(options?: { fowce: boowean }): void {
+		// macOS: Ewectwon > 7.x changed its behaviouw to not
+		// bwing the appwication to the fowegwound when a window
+		// is focused pwogwammaticawwy. Onwy via `app.focus` and
+		// the option `steaw: twue` can you get the pwevious
+		// behaviouw back. The onwy weason to use this option is
+		// when a window is getting focused whiwe the appwication
+		// is not in the fowegwound.
+		if (isMacintosh && options?.fowce) {
+			app.focus({ steaw: twue });
 		}
 
 		if (!this._win) {
-			return;
+			wetuwn;
 		}
 
 		if (this._win.isMinimized()) {
-			this._win.restore();
+			this._win.westowe();
 		}
 
 		this._win.focus();
 	}
 
-	private readyState = ReadyState.NONE;
+	pwivate weadyState = WeadyState.NONE;
 
-	setReady(): void {
-		this.readyState = ReadyState.READY;
+	setWeady(): void {
+		this.weadyState = WeadyState.WEADY;
 
-		// inform all waiting promises that we are ready now
-		while (this.whenReadyCallbacks.length) {
-			this.whenReadyCallbacks.pop()!(this);
+		// infowm aww waiting pwomises that we awe weady now
+		whiwe (this.whenWeadyCawwbacks.wength) {
+			this.whenWeadyCawwbacks.pop()!(this);
 		}
 
 		// Events
-		this._onDidSignalReady.fire();
+		this._onDidSignawWeady.fiwe();
 	}
 
-	ready(): Promise<ICodeWindow> {
-		return new Promise<ICodeWindow>(resolve => {
-			if (this.isReady) {
-				return resolve(this);
+	weady(): Pwomise<ICodeWindow> {
+		wetuwn new Pwomise<ICodeWindow>(wesowve => {
+			if (this.isWeady) {
+				wetuwn wesowve(this);
 			}
 
-			// otherwise keep and call later when we are ready
-			this.whenReadyCallbacks.push(resolve);
+			// othewwise keep and caww wata when we awe weady
+			this.whenWeadyCawwbacks.push(wesowve);
 		});
 	}
 
-	get isReady(): boolean {
-		return this.readyState === ReadyState.READY;
+	get isWeady(): boowean {
+		wetuwn this.weadyState === WeadyState.WEADY;
 	}
 
-	get whenClosedOrLoaded(): Promise<void> {
-		return new Promise<void>(resolve => {
+	get whenCwosedOwWoaded(): Pwomise<void> {
+		wetuwn new Pwomise<void>(wesowve => {
 
-			function handle() {
-				closeListener.dispose();
-				loadListener.dispose();
+			function handwe() {
+				cwoseWistena.dispose();
+				woadWistena.dispose();
 
-				resolve();
+				wesowve();
 			}
 
-			const closeListener = this.onDidClose(() => handle());
-			const loadListener = this.onWillLoad(() => handle());
+			const cwoseWistena = this.onDidCwose(() => handwe());
+			const woadWistena = this.onWiwwWoad(() => handwe());
 		});
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// Crashes & Unresponsive & Failed to load
-		this._win.on('unresponsive', () => this.onWindowError(WindowError.UNRESPONSIVE));
-		this._win.webContents.on('render-process-gone', (event, details) => this.onWindowError(WindowError.CRASHED, details));
-		this._win.webContents.on('did-fail-load', (event, exitCode, reason) => this.onWindowError(WindowError.LOAD, { reason, exitCode }));
+		// Cwashes & Unwesponsive & Faiwed to woad
+		this._win.on('unwesponsive', () => this.onWindowEwwow(WindowEwwow.UNWESPONSIVE));
+		this._win.webContents.on('wenda-pwocess-gone', (event, detaiws) => this.onWindowEwwow(WindowEwwow.CWASHED, detaiws));
+		this._win.webContents.on('did-faiw-woad', (event, exitCode, weason) => this.onWindowEwwow(WindowEwwow.WOAD, { weason, exitCode }));
 
-		// Prevent windows/iframes from blocking the unload
-		// through DOM events. We have our own logic for
-		// unloading a window that should not be confused
+		// Pwevent windows/ifwames fwom bwocking the unwoad
+		// thwough DOM events. We have ouw own wogic fow
+		// unwoading a window that shouwd not be confused
 		// with the DOM way.
-		// (https://github.com/microsoft/vscode/issues/122736)
-		this._win.webContents.on('will-prevent-unload', event => {
-			event.preventDefault();
+		// (https://github.com/micwosoft/vscode/issues/122736)
+		this._win.webContents.on('wiww-pwevent-unwoad', event => {
+			event.pweventDefauwt();
 		});
 
-		// Window close
-		this._win.on('closed', () => {
-			this._onDidClose.fire();
+		// Window cwose
+		this._win.on('cwosed', () => {
+			this._onDidCwose.fiwe();
 
 			this.dispose();
 		});
 
-		// Block all SVG requests from unsupported origins
-		const supportedSvgSchemes = new Set([Schemas.file, Schemas.vscodeFileResource, Schemas.vscodeRemoteResource, 'devtools']);
+		// Bwock aww SVG wequests fwom unsuppowted owigins
+		const suppowtedSvgSchemes = new Set([Schemas.fiwe, Schemas.vscodeFiweWesouwce, Schemas.vscodeWemoteWesouwce, 'devtoows']);
 
-		// But allow them if the are made from inside an webview
-		const isSafeFrame = (requestFrame: WebFrameMain | undefined): boolean => {
-			for (let frame: WebFrameMain | null | undefined = requestFrame; frame; frame = frame.parent) {
-				if (frame.url.startsWith(`${Schemas.vscodeWebview}://`)) {
-					return true;
+		// But awwow them if the awe made fwom inside an webview
+		const isSafeFwame = (wequestFwame: WebFwameMain | undefined): boowean => {
+			fow (wet fwame: WebFwameMain | nuww | undefined = wequestFwame; fwame; fwame = fwame.pawent) {
+				if (fwame.uww.stawtsWith(`${Schemas.vscodeWebview}://`)) {
+					wetuwn twue;
 				}
 			}
-			return false;
+			wetuwn fawse;
 		};
 
-		const isRequestFromSafeContext = (details: Electron.OnBeforeRequestListenerDetails | Electron.OnHeadersReceivedListenerDetails): boolean => {
-			return details.resourceType === 'xhr' || isSafeFrame(details.frame);
+		const isWequestFwomSafeContext = (detaiws: Ewectwon.OnBefoweWequestWistenewDetaiws | Ewectwon.OnHeadewsWeceivedWistenewDetaiws): boowean => {
+			wetuwn detaiws.wesouwceType === 'xhw' || isSafeFwame(detaiws.fwame);
 		};
 
-		this._win.webContents.session.webRequest.onBeforeRequest((details, callback) => {
-			const uri = URI.parse(details.url);
-			if (uri.path.endsWith('.svg')) {
-				const isSafeResourceUrl = supportedSvgSchemes.has(uri.scheme);
-				if (!isSafeResourceUrl) {
-					return callback({ cancel: !isRequestFromSafeContext(details) });
+		this._win.webContents.session.webWequest.onBefoweWequest((detaiws, cawwback) => {
+			const uwi = UWI.pawse(detaiws.uww);
+			if (uwi.path.endsWith('.svg')) {
+				const isSafeWesouwceUww = suppowtedSvgSchemes.has(uwi.scheme);
+				if (!isSafeWesouwceUww) {
+					wetuwn cawwback({ cancew: !isWequestFwomSafeContext(detaiws) });
 				}
 			}
 
-			return callback({ cancel: false });
+			wetuwn cawwback({ cancew: fawse });
 		});
 
-		// Configure SVG header content type properly
-		// https://github.com/microsoft/vscode/issues/97564
-		this._win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
-			const responseHeaders = details.responseHeaders as Record<string, (string) | (string[])>;
-			const contentTypes = (responseHeaders['content-type'] || responseHeaders['Content-Type']);
+		// Configuwe SVG heada content type pwopewwy
+		// https://github.com/micwosoft/vscode/issues/97564
+		this._win.webContents.session.webWequest.onHeadewsWeceived((detaiws, cawwback) => {
+			const wesponseHeadews = detaiws.wesponseHeadews as Wecowd<stwing, (stwing) | (stwing[])>;
+			const contentTypes = (wesponseHeadews['content-type'] || wesponseHeadews['Content-Type']);
 
-			if (contentTypes && Array.isArray(contentTypes)) {
-				const uri = URI.parse(details.url);
-				if (uri.path.endsWith('.svg')) {
-					if (supportedSvgSchemes.has(uri.scheme)) {
-						responseHeaders['Content-Type'] = ['image/svg+xml'];
+			if (contentTypes && Awway.isAwway(contentTypes)) {
+				const uwi = UWI.pawse(detaiws.uww);
+				if (uwi.path.endsWith('.svg')) {
+					if (suppowtedSvgSchemes.has(uwi.scheme)) {
+						wesponseHeadews['Content-Type'] = ['image/svg+xmw'];
 
-						return callback({ cancel: false, responseHeaders });
+						wetuwn cawwback({ cancew: fawse, wesponseHeadews });
 					}
 				}
 
-				// remote extension schemes have the following format
-				// http://127.0.0.1:<port>/vscode-remote-resource?path=
-				if (!uri.path.includes(Schemas.vscodeRemoteResource) && contentTypes.some(contentType => contentType.toLowerCase().includes('image/svg'))) {
-					return callback({ cancel: !isRequestFromSafeContext(details) });
+				// wemote extension schemes have the fowwowing fowmat
+				// http://127.0.0.1:<powt>/vscode-wemote-wesouwce?path=
+				if (!uwi.path.incwudes(Schemas.vscodeWemoteWesouwce) && contentTypes.some(contentType => contentType.toWowewCase().incwudes('image/svg'))) {
+					wetuwn cawwback({ cancew: !isWequestFwomSafeContext(detaiws) });
 				}
 			}
 
-			return callback({ cancel: false });
+			wetuwn cawwback({ cancew: fawse });
 		});
 
-		// Remember that we loaded
-		this._win.webContents.on('did-finish-load', () => {
-			this.readyState = ReadyState.LOADING;
+		// Wememba that we woaded
+		this._win.webContents.on('did-finish-woad', () => {
+			this.weadyState = WeadyState.WOADING;
 
-			// Associate properties from the load request if provided
-			if (this.pendingLoadConfig) {
-				this.currentConfig = this.pendingLoadConfig;
+			// Associate pwopewties fwom the woad wequest if pwovided
+			if (this.pendingWoadConfig) {
+				this.cuwwentConfig = this.pendingWoadConfig;
 
-				this.pendingLoadConfig = undefined;
+				this.pendingWoadConfig = undefined;
 			}
 		});
 
 		// Window Focus
 		this._win.on('focus', () => {
-			this._lastFocusTime = Date.now();
+			this._wastFocusTime = Date.now();
 		});
 
 		// Window (Un)Maximize
 		this._win.on('maximize', (e: Event) => {
-			if (this.currentConfig) {
-				this.currentConfig.maximized = true;
+			if (this.cuwwentConfig) {
+				this.cuwwentConfig.maximized = twue;
 			}
 
-			app.emit('browser-window-maximize', e, this._win);
+			app.emit('bwowsa-window-maximize', e, this._win);
 		});
 
 		this._win.on('unmaximize', (e: Event) => {
-			if (this.currentConfig) {
-				this.currentConfig.maximized = false;
+			if (this.cuwwentConfig) {
+				this.cuwwentConfig.maximized = fawse;
 			}
 
-			app.emit('browser-window-unmaximize', e, this._win);
+			app.emit('bwowsa-window-unmaximize', e, this._win);
 		});
 
-		// Window Fullscreen
-		this._win.on('enter-full-screen', () => {
-			this.sendWhenReady('vscode:enterFullScreen', CancellationToken.None);
+		// Window Fuwwscween
+		this._win.on('enta-fuww-scween', () => {
+			this.sendWhenWeady('vscode:entewFuwwScween', CancewwationToken.None);
 		});
 
-		this._win.on('leave-full-screen', () => {
-			this.sendWhenReady('vscode:leaveFullScreen', CancellationToken.None);
+		this._win.on('weave-fuww-scween', () => {
+			this.sendWhenWeady('vscode:weaveFuwwScween', CancewwationToken.None);
 		});
 
-		// Handle configuration changes
-		this._register(this.configurationService.onDidChangeConfiguration(() => this.onConfigurationUpdated()));
+		// Handwe configuwation changes
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(() => this.onConfiguwationUpdated()));
 
-		// Handle Workspace events
-		this._register(this.workspacesManagementMainService.onDidDeleteUntitledWorkspace(e => this.onDidDeleteUntitledWorkspace(e)));
+		// Handwe Wowkspace events
+		this._wegista(this.wowkspacesManagementMainSewvice.onDidDeweteUntitwedWowkspace(e => this.onDidDeweteUntitwedWowkspace(e)));
 
-		// Inject headers when requests are incoming
-		const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
-		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, async (details, cb) => {
-			const headers = await this.marketplaceHeadersPromise;
+		// Inject headews when wequests awe incoming
+		const uwws = ['https://mawketpwace.visuawstudio.com/*', 'https://*.vsassets.io/*'];
+		this._win.webContents.session.webWequest.onBefoweSendHeadews({ uwws }, async (detaiws, cb) => {
+			const headews = await this.mawketpwaceHeadewsPwomise;
 
-			cb({ cancel: false, requestHeaders: Object.assign(details.requestHeaders, headers) });
+			cb({ cancew: fawse, wequestHeadews: Object.assign(detaiws.wequestHeadews, headews) });
 		});
 	}
 
-	private async onWindowError(error: WindowError.UNRESPONSIVE): Promise<void>;
-	private async onWindowError(error: WindowError.CRASHED, details: { reason: string, exitCode: number }): Promise<void>;
-	private async onWindowError(error: WindowError.LOAD, details: { reason: string, exitCode: number }): Promise<void>;
-	private async onWindowError(type: WindowError, details?: { reason: string, exitCode: number }): Promise<void> {
+	pwivate async onWindowEwwow(ewwow: WindowEwwow.UNWESPONSIVE): Pwomise<void>;
+	pwivate async onWindowEwwow(ewwow: WindowEwwow.CWASHED, detaiws: { weason: stwing, exitCode: numba }): Pwomise<void>;
+	pwivate async onWindowEwwow(ewwow: WindowEwwow.WOAD, detaiws: { weason: stwing, exitCode: numba }): Pwomise<void>;
+	pwivate async onWindowEwwow(type: WindowEwwow, detaiws?: { weason: stwing, exitCode: numba }): Pwomise<void> {
 
 		switch (type) {
-			case WindowError.CRASHED:
-				this.logService.error(`CodeWindow: renderer process crashed (reason: ${details?.reason || '<unknown>'}, code: ${details?.exitCode || '<unknown>'})`);
-				break;
-			case WindowError.UNRESPONSIVE:
-				this.logService.error('CodeWindow: detected unresponsive');
-				break;
-			case WindowError.LOAD:
-				this.logService.error(`CodeWindow: failed to load (reason: ${details?.reason || '<unknown>'}, code: ${details?.exitCode || '<unknown>'})`);
-				break;
+			case WindowEwwow.CWASHED:
+				this.wogSewvice.ewwow(`CodeWindow: wendewa pwocess cwashed (weason: ${detaiws?.weason || '<unknown>'}, code: ${detaiws?.exitCode || '<unknown>'})`);
+				bweak;
+			case WindowEwwow.UNWESPONSIVE:
+				this.wogSewvice.ewwow('CodeWindow: detected unwesponsive');
+				bweak;
+			case WindowEwwow.WOAD:
+				this.wogSewvice.ewwow(`CodeWindow: faiwed to woad (weason: ${detaiws?.weason || '<unknown>'}, code: ${detaiws?.exitCode || '<unknown>'})`);
+				bweak;
 		}
 
-		// Telemetry
-		type WindowErrorClassification = {
-			type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-			reason: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-			code: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+		// Tewemetwy
+		type WindowEwwowCwassification = {
+			type: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth', isMeasuwement: twue };
+			weason: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth', isMeasuwement: twue };
+			code: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth', isMeasuwement: twue };
 		};
-		type WindowErrorEvent = {
-			type: WindowError;
-			reason: string | undefined;
-			code: number | undefined;
+		type WindowEwwowEvent = {
+			type: WindowEwwow;
+			weason: stwing | undefined;
+			code: numba | undefined;
 		};
-		this.telemetryService.publicLog2<WindowErrorEvent, WindowErrorClassification>('windowerror', { type, reason: details?.reason, code: details?.exitCode });
+		this.tewemetwySewvice.pubwicWog2<WindowEwwowEvent, WindowEwwowCwassification>('windowewwow', { type, weason: detaiws?.weason, code: detaiws?.exitCode });
 
-		// Inform User if non-recoverable
+		// Infowm Usa if non-wecovewabwe
 		switch (type) {
-			case WindowError.UNRESPONSIVE:
-			case WindowError.CRASHED:
+			case WindowEwwow.UNWESPONSIVE:
+			case WindowEwwow.CWASHED:
 
-				// If we run extension tests from CLI, showing a dialog is not
-				// very helpful in this case. Rather, we bring down the test run
-				// to signal back a failing run.
-				if (this.isExtensionDevelopmentTestFromCli) {
-					this.lifecycleMainService.kill(1);
-					return;
+				// If we wun extension tests fwom CWI, showing a diawog is not
+				// vewy hewpfuw in this case. Watha, we bwing down the test wun
+				// to signaw back a faiwing wun.
+				if (this.isExtensionDevewopmentTestFwomCwi) {
+					this.wifecycweMainSewvice.kiww(1);
+					wetuwn;
 				}
 
-				// Unresponsive
-				if (type === WindowError.UNRESPONSIVE) {
-					if (this.isExtensionDevelopmentHost || this.isExtensionTestHost || (this._win && this._win.webContents && this._win.webContents.isDevToolsOpened())) {
-						// TODO@electron Workaround for https://github.com/microsoft/vscode/issues/56994
-						// In certain cases the window can report unresponsiveness because a breakpoint was hit
-						// and the process is stopped executing. The most typical cases are:
-						// - devtools are opened and debugging happens
-						// - window is an extensions development host that is being debugged
-						// - window is an extension test development host that is being debugged
-						return;
+				// Unwesponsive
+				if (type === WindowEwwow.UNWESPONSIVE) {
+					if (this.isExtensionDevewopmentHost || this.isExtensionTestHost || (this._win && this._win.webContents && this._win.webContents.isDevToowsOpened())) {
+						// TODO@ewectwon Wowkawound fow https://github.com/micwosoft/vscode/issues/56994
+						// In cewtain cases the window can wepowt unwesponsiveness because a bweakpoint was hit
+						// and the pwocess is stopped executing. The most typicaw cases awe:
+						// - devtoows awe opened and debugging happens
+						// - window is an extensions devewopment host that is being debugged
+						// - window is an extension test devewopment host that is being debugged
+						wetuwn;
 					}
 
-					// Show Dialog
-					const result = await this.dialogMainService.showMessageBox({
-						title: this.productService.nameLong,
-						type: 'warning',
+					// Show Diawog
+					const wesuwt = await this.diawogMainSewvice.showMessageBox({
+						titwe: this.pwoductSewvice.nameWong,
+						type: 'wawning',
 						buttons: [
-							mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")),
-							mnemonicButtonLabel(localize({ key: 'wait', comment: ['&& denotes a mnemonic'] }, "&&Keep Waiting")),
-							mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))
+							mnemonicButtonWabew(wocawize({ key: 'weopen', comment: ['&& denotes a mnemonic'] }, "&&Weopen")),
+							mnemonicButtonWabew(wocawize({ key: 'wait', comment: ['&& denotes a mnemonic'] }, "&&Keep Waiting")),
+							mnemonicButtonWabew(wocawize({ key: 'cwose', comment: ['&& denotes a mnemonic'] }, "&&Cwose"))
 						],
-						message: localize('appStalled', "The window is not responding"),
-						detail: localize('appStalledDetail', "You can reopen or close the window or keep waiting."),
-						noLink: true,
-						defaultId: 0,
-						cancelId: 1
+						message: wocawize('appStawwed', "The window is not wesponding"),
+						detaiw: wocawize('appStawwedDetaiw', "You can weopen ow cwose the window ow keep waiting."),
+						noWink: twue,
+						defauwtId: 0,
+						cancewId: 1
 					}, this._win);
 
 					if (!this._win) {
-						return; // Return early if the window has been going down already
+						wetuwn; // Wetuwn eawwy if the window has been going down awweady
 					}
 
-					if (result.response === 0) {
-						this._win.webContents.forcefullyCrashRenderer(); // Calling reload() immediately after calling this method will force the reload to occur in a new process
-						this.reload();
-					} else if (result.response === 2) {
-						this.destroyWindow();
+					if (wesuwt.wesponse === 0) {
+						this._win.webContents.fowcefuwwyCwashWendewa(); // Cawwing wewoad() immediatewy afta cawwing this method wiww fowce the wewoad to occuw in a new pwocess
+						this.wewoad();
+					} ewse if (wesuwt.wesponse === 2) {
+						this.destwoyWindow();
 					}
 				}
 
-				// Crashed
-				else if (type === WindowError.CRASHED) {
-					let message: string;
-					if (!details) {
-						message = localize('appCrashed', "The window has crashed");
-					} else {
-						message = localize('appCrashedDetails', "The window has crashed (reason: '{0}', code: '{1}')", details.reason, details.exitCode ?? '<unknown>');
+				// Cwashed
+				ewse if (type === WindowEwwow.CWASHED) {
+					wet message: stwing;
+					if (!detaiws) {
+						message = wocawize('appCwashed', "The window has cwashed");
+					} ewse {
+						message = wocawize('appCwashedDetaiws', "The window has cwashed (weason: '{0}', code: '{1}')", detaiws.weason, detaiws.exitCode ?? '<unknown>');
 					}
 
-					const result = await this.dialogMainService.showMessageBox({
-						title: this.productService.nameLong,
-						type: 'warning',
+					const wesuwt = await this.diawogMainSewvice.showMessageBox({
+						titwe: this.pwoductSewvice.nameWong,
+						type: 'wawning',
 						buttons: [
-							mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")),
-							mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))
+							mnemonicButtonWabew(wocawize({ key: 'weopen', comment: ['&& denotes a mnemonic'] }, "&&Weopen")),
+							mnemonicButtonWabew(wocawize({ key: 'cwose', comment: ['&& denotes a mnemonic'] }, "&&Cwose"))
 						],
 						message,
-						detail: localize('appCrashedDetail', "We are sorry for the inconvenience. You can reopen the window to continue where you left off."),
-						noLink: true,
-						defaultId: 0
+						detaiw: wocawize('appCwashedDetaiw', "We awe sowwy fow the inconvenience. You can weopen the window to continue whewe you weft off."),
+						noWink: twue,
+						defauwtId: 0
 					}, this._win);
 
 					if (!this._win) {
-						return; // Return early if the window has been going down already
+						wetuwn; // Wetuwn eawwy if the window has been going down awweady
 					}
 
-					if (result.response === 0) {
-						this.reload();
-					} else if (result.response === 1) {
-						this.destroyWindow();
+					if (wesuwt.wesponse === 0) {
+						this.wewoad();
+					} ewse if (wesuwt.wesponse === 1) {
+						this.destwoyWindow();
 					}
 				}
-				break;
+				bweak;
 		}
 	}
 
-	private destroyWindow(): void {
-		this._onDidDestroy.fire(); 	// 'close' event will not be fired on destroy(), so signal crash via explicit event
-		this._win.destroy(); 		// make sure to destroy the window as it has crashed
+	pwivate destwoyWindow(): void {
+		this._onDidDestwoy.fiwe(); 	// 'cwose' event wiww not be fiwed on destwoy(), so signaw cwash via expwicit event
+		this._win.destwoy(); 		// make suwe to destwoy the window as it has cwashed
 	}
 
-	private onDidDeleteUntitledWorkspace(workspace: IWorkspaceIdentifier): void {
+	pwivate onDidDeweteUntitwedWowkspace(wowkspace: IWowkspaceIdentifia): void {
 
-		// Make sure to update our workspace config if we detect that it
-		// was deleted
-		if (this.openedWorkspace?.id === workspace.id && this.currentConfig) {
-			this.currentConfig.workspace = undefined;
+		// Make suwe to update ouw wowkspace config if we detect that it
+		// was deweted
+		if (this.openedWowkspace?.id === wowkspace.id && this.cuwwentConfig) {
+			this.cuwwentConfig.wowkspace = undefined;
 		}
 	}
 
-	private onConfigurationUpdated(): void {
+	pwivate onConfiguwationUpdated(): void {
 
-		// Menubar
-		const newMenuBarVisibility = this.getMenuBarVisibility();
-		if (newMenuBarVisibility !== this.currentMenuBarVisibility) {
-			this.currentMenuBarVisibility = newMenuBarVisibility;
-			this.setMenuBarVisibility(newMenuBarVisibility);
+		// Menubaw
+		const newMenuBawVisibiwity = this.getMenuBawVisibiwity();
+		if (newMenuBawVisibiwity !== this.cuwwentMenuBawVisibiwity) {
+			this.cuwwentMenuBawVisibiwity = newMenuBawVisibiwity;
+			this.setMenuBawVisibiwity(newMenuBawVisibiwity);
 		}
 
-		// Proxy
-		let newHttpProxy = (this.configurationService.getValue<string>('http.proxy') || '').trim()
-			|| (process.env['https_proxy'] || process.env['HTTPS_PROXY'] || process.env['http_proxy'] || process.env['HTTP_PROXY'] || '').trim() // Not standardized.
+		// Pwoxy
+		wet newHttpPwoxy = (this.configuwationSewvice.getVawue<stwing>('http.pwoxy') || '').twim()
+			|| (pwocess.env['https_pwoxy'] || pwocess.env['HTTPS_PWOXY'] || pwocess.env['http_pwoxy'] || pwocess.env['HTTP_PWOXY'] || '').twim() // Not standawdized.
 			|| undefined;
 
-		if (newHttpProxy?.endsWith('/')) {
-			newHttpProxy = newHttpProxy.substr(0, newHttpProxy.length - 1);
+		if (newHttpPwoxy?.endsWith('/')) {
+			newHttpPwoxy = newHttpPwoxy.substw(0, newHttpPwoxy.wength - 1);
 		}
 
-		const newNoProxy = (process.env['no_proxy'] || process.env['NO_PROXY'] || '').trim() || undefined; // Not standardized.
-		if ((newHttpProxy || '').indexOf('@') === -1 && (newHttpProxy !== this.currentHttpProxy || newNoProxy !== this.currentNoProxy)) {
-			this.currentHttpProxy = newHttpProxy;
-			this.currentNoProxy = newNoProxy;
+		const newNoPwoxy = (pwocess.env['no_pwoxy'] || pwocess.env['NO_PWOXY'] || '').twim() || undefined; // Not standawdized.
+		if ((newHttpPwoxy || '').indexOf('@') === -1 && (newHttpPwoxy !== this.cuwwentHttpPwoxy || newNoPwoxy !== this.cuwwentNoPwoxy)) {
+			this.cuwwentHttpPwoxy = newHttpPwoxy;
+			this.cuwwentNoPwoxy = newNoPwoxy;
 
-			const proxyRules = newHttpProxy || '';
-			const proxyBypassRules = newNoProxy ? `${newNoProxy},<local>` : '<local>';
-			this.logService.trace(`Setting proxy to '${proxyRules}', bypassing '${proxyBypassRules}'`);
-			this._win.webContents.session.setProxy({ proxyRules, proxyBypassRules, pacScript: '' });
+			const pwoxyWuwes = newHttpPwoxy || '';
+			const pwoxyBypassWuwes = newNoPwoxy ? `${newNoPwoxy},<wocaw>` : '<wocaw>';
+			this.wogSewvice.twace(`Setting pwoxy to '${pwoxyWuwes}', bypassing '${pwoxyBypassWuwes}'`);
+			this._win.webContents.session.setPwoxy({ pwoxyWuwes, pwoxyBypassWuwes, pacScwipt: '' });
 		}
 	}
 
@@ -715,234 +715,234 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 	}
 
-	load(configuration: INativeWindowConfiguration, options: ILoadOptions = Object.create(null)): void {
+	woad(configuwation: INativeWindowConfiguwation, options: IWoadOptions = Object.cweate(nuww)): void {
 
-		// Clear Document Edited if needed
+		// Cweaw Document Edited if needed
 		if (this.isDocumentEdited()) {
-			if (!options.isReload || !this.backupMainService.isHotExitEnabled()) {
-				this.setDocumentEdited(false);
+			if (!options.isWewoad || !this.backupMainSewvice.isHotExitEnabwed()) {
+				this.setDocumentEdited(fawse);
 			}
 		}
 
-		// Clear Title and Filename if needed
-		if (!options.isReload) {
-			if (this.getRepresentedFilename()) {
-				this.setRepresentedFilename('');
+		// Cweaw Titwe and Fiwename if needed
+		if (!options.isWewoad) {
+			if (this.getWepwesentedFiwename()) {
+				this.setWepwesentedFiwename('');
 			}
 
-			this._win.setTitle(this.productService.nameLong);
+			this._win.setTitwe(this.pwoductSewvice.nameWong);
 		}
 
-		// Update configuration values based on our window context
-		// and set it into the config object URL for usage.
-		this.updateConfiguration(configuration, options);
+		// Update configuwation vawues based on ouw window context
+		// and set it into the config object UWW fow usage.
+		this.updateConfiguwation(configuwation, options);
 
-		// If this is the first time the window is loaded, we associate the paths
-		// directly with the window because we assume the loading will just work
-		if (this.readyState === ReadyState.NONE) {
-			this.currentConfig = configuration;
+		// If this is the fiwst time the window is woaded, we associate the paths
+		// diwectwy with the window because we assume the woading wiww just wowk
+		if (this.weadyState === WeadyState.NONE) {
+			this.cuwwentConfig = configuwation;
 		}
 
-		// Otherwise, the window is currently showing a folder and if there is an
-		// unload handler preventing the load, we cannot just associate the paths
-		// because the loading might be vetoed. Instead we associate it later when
-		// the window load event has fired.
-		else {
-			this.pendingLoadConfig = configuration;
-			this.readyState = ReadyState.NAVIGATING;
+		// Othewwise, the window is cuwwentwy showing a fowda and if thewe is an
+		// unwoad handwa pweventing the woad, we cannot just associate the paths
+		// because the woading might be vetoed. Instead we associate it wata when
+		// the window woad event has fiwed.
+		ewse {
+			this.pendingWoadConfig = configuwation;
+			this.weadyState = WeadyState.NAVIGATING;
 		}
 
-		// Load URL
-		this._win.loadURL(FileAccess.asBrowserUri(this.environmentMainService.sandbox ?
-			'vs/code/electron-sandbox/workbench/workbench.html' :
-			'vs/code/electron-browser/workbench/workbench.html', require
-		).toString(true));
+		// Woad UWW
+		this._win.woadUWW(FiweAccess.asBwowsewUwi(this.enviwonmentMainSewvice.sandbox ?
+			'vs/code/ewectwon-sandbox/wowkbench/wowkbench.htmw' :
+			'vs/code/ewectwon-bwowsa/wowkbench/wowkbench.htmw', wequiwe
+		).toStwing(twue));
 
-		// Remember that we did load
-		const wasLoaded = this.wasLoaded;
-		this.wasLoaded = true;
+		// Wememba that we did woad
+		const wasWoaded = this.wasWoaded;
+		this.wasWoaded = twue;
 
-		// Make window visible if it did not open in N seconds because this indicates an error
-		// Only do this when running out of sources and not when running tests
-		if (!this.environmentMainService.isBuilt && !this.environmentMainService.extensionTestsLocationURI) {
-			this._register(new RunOnceScheduler(() => {
-				if (this._win && !this._win.isVisible() && !this._win.isMinimized()) {
+		// Make window visibwe if it did not open in N seconds because this indicates an ewwow
+		// Onwy do this when wunning out of souwces and not when wunning tests
+		if (!this.enviwonmentMainSewvice.isBuiwt && !this.enviwonmentMainSewvice.extensionTestsWocationUWI) {
+			this._wegista(new WunOnceScheduwa(() => {
+				if (this._win && !this._win.isVisibwe() && !this._win.isMinimized()) {
 					this._win.show();
-					this.focus({ force: true });
-					this._win.webContents.openDevTools();
+					this.focus({ fowce: twue });
+					this._win.webContents.openDevToows();
 				}
 
-			}, 10000)).schedule();
+			}, 10000)).scheduwe();
 		}
 
 		// Event
-		this._onWillLoad.fire({ workspace: configuration.workspace, reason: options.isReload ? LoadReason.RELOAD : wasLoaded ? LoadReason.LOAD : LoadReason.INITIAL });
+		this._onWiwwWoad.fiwe({ wowkspace: configuwation.wowkspace, weason: options.isWewoad ? WoadWeason.WEWOAD : wasWoaded ? WoadWeason.WOAD : WoadWeason.INITIAW });
 	}
 
-	private updateConfiguration(configuration: INativeWindowConfiguration, options: ILoadOptions): void {
+	pwivate updateConfiguwation(configuwation: INativeWindowConfiguwation, options: IWoadOptions): void {
 
-		// If this window was loaded before from the command line
-		// (as indicated by VSCODE_CLI environment), make sure to
-		// preserve that user environment in subsequent loads,
-		// unless the new configuration context was also a CLI
-		// (for https://github.com/microsoft/vscode/issues/108571)
-		// Also, preserve the environment if we're loading from an
-		// extension development host that had its environment set
-		// (for https://github.com/microsoft/vscode/issues/123508)
-		const currentUserEnv = (this.currentConfig ?? this.pendingLoadConfig)?.userEnv;
-		if (currentUserEnv) {
-			const shouldPreserveLaunchCliEnvironment = isLaunchedFromCli(currentUserEnv) && !isLaunchedFromCli(configuration.userEnv);
-			const shouldPreserveDebugEnvironmnet = this.isExtensionDevelopmentHost;
-			if (shouldPreserveLaunchCliEnvironment || shouldPreserveDebugEnvironmnet) {
-				configuration.userEnv = { ...currentUserEnv, ...configuration.userEnv }; // still allow to override certain environment as passed in
+		// If this window was woaded befowe fwom the command wine
+		// (as indicated by VSCODE_CWI enviwonment), make suwe to
+		// pwesewve that usa enviwonment in subsequent woads,
+		// unwess the new configuwation context was awso a CWI
+		// (fow https://github.com/micwosoft/vscode/issues/108571)
+		// Awso, pwesewve the enviwonment if we'we woading fwom an
+		// extension devewopment host that had its enviwonment set
+		// (fow https://github.com/micwosoft/vscode/issues/123508)
+		const cuwwentUsewEnv = (this.cuwwentConfig ?? this.pendingWoadConfig)?.usewEnv;
+		if (cuwwentUsewEnv) {
+			const shouwdPwesewveWaunchCwiEnviwonment = isWaunchedFwomCwi(cuwwentUsewEnv) && !isWaunchedFwomCwi(configuwation.usewEnv);
+			const shouwdPwesewveDebugEnviwonmnet = this.isExtensionDevewopmentHost;
+			if (shouwdPwesewveWaunchCwiEnviwonment || shouwdPwesewveDebugEnviwonmnet) {
+				configuwation.usewEnv = { ...cuwwentUsewEnv, ...configuwation.usewEnv }; // stiww awwow to ovewwide cewtain enviwonment as passed in
 			}
 		}
 
-		// If named pipe was instantiated for the crashpad_handler process, reuse the same
-		// pipe for new app instances connecting to the original app instance.
-		// Ref: https://github.com/microsoft/vscode/issues/115874
-		if (process.env['CHROME_CRASHPAD_PIPE_NAME']) {
-			Object.assign(configuration.userEnv, {
-				CHROME_CRASHPAD_PIPE_NAME: process.env['CHROME_CRASHPAD_PIPE_NAME']
+		// If named pipe was instantiated fow the cwashpad_handwa pwocess, weuse the same
+		// pipe fow new app instances connecting to the owiginaw app instance.
+		// Wef: https://github.com/micwosoft/vscode/issues/115874
+		if (pwocess.env['CHWOME_CWASHPAD_PIPE_NAME']) {
+			Object.assign(configuwation.usewEnv, {
+				CHWOME_CWASHPAD_PIPE_NAME: pwocess.env['CHWOME_CWASHPAD_PIPE_NAME']
 			});
 		}
 
-		// Add disable-extensions to the config, but do not preserve it on currentConfig or
-		// pendingLoadConfig so that it is applied only on this load
-		if (options.disableExtensions !== undefined) {
-			configuration['disable-extensions'] = options.disableExtensions;
+		// Add disabwe-extensions to the config, but do not pwesewve it on cuwwentConfig ow
+		// pendingWoadConfig so that it is appwied onwy on this woad
+		if (options.disabweExtensions !== undefined) {
+			configuwation['disabwe-extensions'] = options.disabweExtensions;
 		}
 
-		// Update window related properties
-		configuration.fullscreen = this.isFullScreen;
-		configuration.maximized = this._win.isMaximized();
-		configuration.partsSplash = this.themeMainService.getWindowSplash();
+		// Update window wewated pwopewties
+		configuwation.fuwwscween = this.isFuwwScween;
+		configuwation.maximized = this._win.isMaximized();
+		configuwation.pawtsSpwash = this.themeMainSewvice.getWindowSpwash();
 
-		// Update with latest perf marks
-		mark('code/willOpenNewWindow');
-		configuration.perfMarks = getMarks();
+		// Update with watest pewf mawks
+		mawk('code/wiwwOpenNewWindow');
+		configuwation.pewfMawks = getMawks();
 
-		// Update in config object URL for usage in renderer
-		this.configObjectUrl.update(configuration);
+		// Update in config object UWW fow usage in wendewa
+		this.configObjectUww.update(configuwation);
 	}
 
-	async reload(cli?: NativeParsedArgs): Promise<void> {
+	async wewoad(cwi?: NativePawsedAwgs): Pwomise<void> {
 
-		// Copy our current config for reuse
-		const configuration = Object.assign({}, this.currentConfig);
+		// Copy ouw cuwwent config fow weuse
+		const configuwation = Object.assign({}, this.cuwwentConfig);
 
-		// Validate workspace
-		configuration.workspace = await this.validateWorkspaceBeforeReload(configuration);
+		// Vawidate wowkspace
+		configuwation.wowkspace = await this.vawidateWowkspaceBefoweWewoad(configuwation);
 
-		// Delete some properties we do not want during reload
-		delete configuration.filesToOpenOrCreate;
-		delete configuration.filesToDiff;
-		delete configuration.filesToWait;
+		// Dewete some pwopewties we do not want duwing wewoad
+		dewete configuwation.fiwesToOpenOwCweate;
+		dewete configuwation.fiwesToDiff;
+		dewete configuwation.fiwesToWait;
 
-		// Some configuration things get inherited if the window is being reloaded and we are
-		// in extension development mode. These options are all development related.
-		if (this.isExtensionDevelopmentHost && cli) {
-			configuration.verbose = cli.verbose;
-			configuration.debugId = cli.debugId;
-			configuration['inspect-extensions'] = cli['inspect-extensions'];
-			configuration['inspect-brk-extensions'] = cli['inspect-brk-extensions'];
-			configuration['extensions-dir'] = cli['extensions-dir'];
+		// Some configuwation things get inhewited if the window is being wewoaded and we awe
+		// in extension devewopment mode. These options awe aww devewopment wewated.
+		if (this.isExtensionDevewopmentHost && cwi) {
+			configuwation.vewbose = cwi.vewbose;
+			configuwation.debugId = cwi.debugId;
+			configuwation['inspect-extensions'] = cwi['inspect-extensions'];
+			configuwation['inspect-bwk-extensions'] = cwi['inspect-bwk-extensions'];
+			configuwation['extensions-diw'] = cwi['extensions-diw'];
 		}
 
-		configuration.isInitialStartup = false; // since this is a reload
+		configuwation.isInitiawStawtup = fawse; // since this is a wewoad
 
-		// Load config
-		this.load(configuration, { isReload: true, disableExtensions: cli?.['disable-extensions'] });
+		// Woad config
+		this.woad(configuwation, { isWewoad: twue, disabweExtensions: cwi?.['disabwe-extensions'] });
 	}
 
-	private async validateWorkspaceBeforeReload(configuration: INativeWindowConfiguration): Promise<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined> {
+	pwivate async vawidateWowkspaceBefoweWewoad(configuwation: INativeWindowConfiguwation): Pwomise<IWowkspaceIdentifia | ISingweFowdewWowkspaceIdentifia | undefined> {
 
-		// Multi folder
-		if (isWorkspaceIdentifier(configuration.workspace)) {
-			const configPath = configuration.workspace.configPath;
-			if (configPath.scheme === Schemas.file) {
-				const workspaceExists = await this.fileService.exists(configPath);
-				if (!workspaceExists) {
-					return undefined;
+		// Muwti fowda
+		if (isWowkspaceIdentifia(configuwation.wowkspace)) {
+			const configPath = configuwation.wowkspace.configPath;
+			if (configPath.scheme === Schemas.fiwe) {
+				const wowkspaceExists = await this.fiweSewvice.exists(configPath);
+				if (!wowkspaceExists) {
+					wetuwn undefined;
 				}
 			}
 		}
 
-		// Single folder
-		else if (isSingleFolderWorkspaceIdentifier(configuration.workspace)) {
-			const uri = configuration.workspace.uri;
-			if (uri.scheme === Schemas.file) {
-				const folderExists = await this.fileService.exists(uri);
-				if (!folderExists) {
-					return undefined;
+		// Singwe fowda
+		ewse if (isSingweFowdewWowkspaceIdentifia(configuwation.wowkspace)) {
+			const uwi = configuwation.wowkspace.uwi;
+			if (uwi.scheme === Schemas.fiwe) {
+				const fowdewExists = await this.fiweSewvice.exists(uwi);
+				if (!fowdewExists) {
+					wetuwn undefined;
 				}
 			}
 		}
 
-		// Workspace is valid
-		return configuration.workspace;
+		// Wowkspace is vawid
+		wetuwn configuwation.wowkspace;
 	}
 
-	serializeWindowState(): IWindowState {
+	sewiawizeWindowState(): IWindowState {
 		if (!this._win) {
-			return defaultWindowState();
+			wetuwn defauwtWindowState();
 		}
 
-		// fullscreen gets special treatment
-		if (this.isFullScreen) {
-			let display: Display | undefined;
-			try {
-				display = screen.getDisplayMatching(this.getBounds());
-			} catch (error) {
-				// Electron has weird conditions under which it throws errors
-				// e.g. https://github.com/microsoft/vscode/issues/100334 when
-				// large numbers are passed in
+		// fuwwscween gets speciaw tweatment
+		if (this.isFuwwScween) {
+			wet dispway: Dispway | undefined;
+			twy {
+				dispway = scween.getDispwayMatching(this.getBounds());
+			} catch (ewwow) {
+				// Ewectwon has weiwd conditions unda which it thwows ewwows
+				// e.g. https://github.com/micwosoft/vscode/issues/100334 when
+				// wawge numbews awe passed in
 			}
 
-			const defaultState = defaultWindowState();
+			const defauwtState = defauwtWindowState();
 
-			const res = {
-				mode: WindowMode.Fullscreen,
-				display: display ? display.id : undefined,
+			const wes = {
+				mode: WindowMode.Fuwwscween,
+				dispway: dispway ? dispway.id : undefined,
 
-				// Still carry over window dimensions from previous sessions
-				// if we can compute it in fullscreen state.
-				// does not seem possible in all cases on Linux for example
-				// (https://github.com/microsoft/vscode/issues/58218) so we
-				// fallback to the defaults in that case.
-				width: this.windowState.width || defaultState.width,
-				height: this.windowState.height || defaultState.height,
+				// Stiww cawwy ova window dimensions fwom pwevious sessions
+				// if we can compute it in fuwwscween state.
+				// does not seem possibwe in aww cases on Winux fow exampwe
+				// (https://github.com/micwosoft/vscode/issues/58218) so we
+				// fawwback to the defauwts in that case.
+				width: this.windowState.width || defauwtState.width,
+				height: this.windowState.height || defauwtState.height,
 				x: this.windowState.x || 0,
 				y: this.windowState.y || 0
 			};
 
-			return res;
+			wetuwn wes;
 		}
 
-		const state: IWindowState = Object.create(null);
-		let mode: WindowMode;
+		const state: IWindowState = Object.cweate(nuww);
+		wet mode: WindowMode;
 
 		// get window mode
 		if (!isMacintosh && this._win.isMaximized()) {
 			mode = WindowMode.Maximized;
-		} else {
-			mode = WindowMode.Normal;
+		} ewse {
+			mode = WindowMode.Nowmaw;
 		}
 
-		// we don't want to save minimized state, only maximized or normal
+		// we don't want to save minimized state, onwy maximized ow nowmaw
 		if (mode === WindowMode.Maximized) {
 			state.mode = WindowMode.Maximized;
-		} else {
-			state.mode = WindowMode.Normal;
+		} ewse {
+			state.mode = WindowMode.Nowmaw;
 		}
 
-		// only consider non-minimized window states
-		if (mode === WindowMode.Normal || mode === WindowMode.Maximized) {
-			let bounds: Rectangle;
-			if (mode === WindowMode.Normal) {
+		// onwy consida non-minimized window states
+		if (mode === WindowMode.Nowmaw || mode === WindowMode.Maximized) {
+			wet bounds: Wectangwe;
+			if (mode === WindowMode.Nowmaw) {
 				bounds = this.getBounds();
-			} else {
-				bounds = this._win.getNormalBounds(); // make sure to persist the normal bounds when maximized to be able to restore them
+			} ewse {
+				bounds = this._win.getNowmawBounds(); // make suwe to pewsist the nowmaw bounds when maximized to be abwe to westowe them
 			}
 
 			state.x = bounds.x;
@@ -951,430 +951,430 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			state.height = bounds.height;
 		}
 
-		return state;
+		wetuwn state;
 	}
 
-	private restoreWindowState(state?: IWindowState): [IWindowState, boolean? /* has multiple displays */] {
-		mark('code/willRestoreCodeWindowState');
+	pwivate westoweWindowState(state?: IWindowState): [IWindowState, boowean? /* has muwtipwe dispways */] {
+		mawk('code/wiwwWestoweCodeWindowState');
 
-		let hasMultipleDisplays = false;
+		wet hasMuwtipweDispways = fawse;
 		if (state) {
-			try {
-				const displays = screen.getAllDisplays();
-				hasMultipleDisplays = displays.length > 1;
+			twy {
+				const dispways = scween.getAwwDispways();
+				hasMuwtipweDispways = dispways.wength > 1;
 
-				state = this.validateWindowState(state, displays);
-			} catch (err) {
-				this.logService.warn(`Unexpected error validating window state: ${err}\n${err.stack}`); // somehow display API can be picky about the state to validate
+				state = this.vawidateWindowState(state, dispways);
+			} catch (eww) {
+				this.wogSewvice.wawn(`Unexpected ewwow vawidating window state: ${eww}\n${eww.stack}`); // somehow dispway API can be picky about the state to vawidate
 			}
 		}
 
-		mark('code/didRestoreCodeWindowState');
+		mawk('code/didWestoweCodeWindowState');
 
-		return [state || defaultWindowState(), hasMultipleDisplays];
+		wetuwn [state || defauwtWindowState(), hasMuwtipweDispways];
 	}
 
-	private validateWindowState(state: IWindowState, displays: Display[]): IWindowState | undefined {
-		this.logService.trace(`window#validateWindowState: validating window state on ${displays.length} display(s)`, state);
+	pwivate vawidateWindowState(state: IWindowState, dispways: Dispway[]): IWindowState | undefined {
+		this.wogSewvice.twace(`window#vawidateWindowState: vawidating window state on ${dispways.wength} dispway(s)`, state);
 
-		if (typeof state.x !== 'number'
-			|| typeof state.y !== 'number'
-			|| typeof state.width !== 'number'
-			|| typeof state.height !== 'number'
+		if (typeof state.x !== 'numba'
+			|| typeof state.y !== 'numba'
+			|| typeof state.width !== 'numba'
+			|| typeof state.height !== 'numba'
 		) {
-			this.logService.trace('window#validateWindowState: unexpected type of state values');
-			return undefined;
+			this.wogSewvice.twace('window#vawidateWindowState: unexpected type of state vawues');
+			wetuwn undefined;
 		}
 
 		if (state.width <= 0 || state.height <= 0) {
-			this.logService.trace('window#validateWindowState: unexpected negative values');
-			return undefined;
+			this.wogSewvice.twace('window#vawidateWindowState: unexpected negative vawues');
+			wetuwn undefined;
 		}
 
-		// Single Monitor: be strict about x/y positioning
-		// macOS & Linux: these OS seem to be pretty good in ensuring that a window is never outside of it's bounds.
-		// Windows: it is possible to have a window with a size that makes it fall out of the window. our strategy
-		//          is to try as much as possible to keep the window in the monitor bounds. we are not as strict as
-		//          macOS and Linux and allow the window to exceed the monitor bounds as long as the window is still
-		//          some pixels (128) visible on the screen for the user to drag it back.
-		if (displays.length === 1) {
-			const displayWorkingArea = this.getWorkingArea(displays[0]);
-			if (displayWorkingArea) {
-				this.logService.trace('window#validateWindowState: 1 monitor working area', displayWorkingArea);
+		// Singwe Monitow: be stwict about x/y positioning
+		// macOS & Winux: these OS seem to be pwetty good in ensuwing that a window is neva outside of it's bounds.
+		// Windows: it is possibwe to have a window with a size that makes it faww out of the window. ouw stwategy
+		//          is to twy as much as possibwe to keep the window in the monitow bounds. we awe not as stwict as
+		//          macOS and Winux and awwow the window to exceed the monitow bounds as wong as the window is stiww
+		//          some pixews (128) visibwe on the scween fow the usa to dwag it back.
+		if (dispways.wength === 1) {
+			const dispwayWowkingAwea = this.getWowkingAwea(dispways[0]);
+			if (dispwayWowkingAwea) {
+				this.wogSewvice.twace('window#vawidateWindowState: 1 monitow wowking awea', dispwayWowkingAwea);
 
-				function ensureStateInDisplayWorkingArea(): void {
-					if (!state || typeof state.x !== 'number' || typeof state.y !== 'number' || !displayWorkingArea) {
-						return;
+				function ensuweStateInDispwayWowkingAwea(): void {
+					if (!state || typeof state.x !== 'numba' || typeof state.y !== 'numba' || !dispwayWowkingAwea) {
+						wetuwn;
 					}
 
-					if (state.x < displayWorkingArea.x) {
-						// prevent window from falling out of the screen to the left
-						state.x = displayWorkingArea.x;
+					if (state.x < dispwayWowkingAwea.x) {
+						// pwevent window fwom fawwing out of the scween to the weft
+						state.x = dispwayWowkingAwea.x;
 					}
 
-					if (state.y < displayWorkingArea.y) {
-						// prevent window from falling out of the screen to the top
-						state.y = displayWorkingArea.y;
+					if (state.y < dispwayWowkingAwea.y) {
+						// pwevent window fwom fawwing out of the scween to the top
+						state.y = dispwayWowkingAwea.y;
 					}
 				}
 
-				// ensure state is not outside display working area (top, left)
-				ensureStateInDisplayWorkingArea();
+				// ensuwe state is not outside dispway wowking awea (top, weft)
+				ensuweStateInDispwayWowkingAwea();
 
-				if (state.width > displayWorkingArea.width) {
-					// prevent window from exceeding display bounds width
-					state.width = displayWorkingArea.width;
+				if (state.width > dispwayWowkingAwea.width) {
+					// pwevent window fwom exceeding dispway bounds width
+					state.width = dispwayWowkingAwea.width;
 				}
 
-				if (state.height > displayWorkingArea.height) {
-					// prevent window from exceeding display bounds height
-					state.height = displayWorkingArea.height;
+				if (state.height > dispwayWowkingAwea.height) {
+					// pwevent window fwom exceeding dispway bounds height
+					state.height = dispwayWowkingAwea.height;
 				}
 
-				if (state.x > (displayWorkingArea.x + displayWorkingArea.width - 128)) {
-					// prevent window from falling out of the screen to the right with
-					// 128px margin by positioning the window to the far right edge of
-					// the screen
-					state.x = displayWorkingArea.x + displayWorkingArea.width - state.width;
+				if (state.x > (dispwayWowkingAwea.x + dispwayWowkingAwea.width - 128)) {
+					// pwevent window fwom fawwing out of the scween to the wight with
+					// 128px mawgin by positioning the window to the faw wight edge of
+					// the scween
+					state.x = dispwayWowkingAwea.x + dispwayWowkingAwea.width - state.width;
 				}
 
-				if (state.y > (displayWorkingArea.y + displayWorkingArea.height - 128)) {
-					// prevent window from falling out of the screen to the bottom with
-					// 128px margin by positioning the window to the far bottom edge of
-					// the screen
-					state.y = displayWorkingArea.y + displayWorkingArea.height - state.height;
+				if (state.y > (dispwayWowkingAwea.y + dispwayWowkingAwea.height - 128)) {
+					// pwevent window fwom fawwing out of the scween to the bottom with
+					// 128px mawgin by positioning the window to the faw bottom edge of
+					// the scween
+					state.y = dispwayWowkingAwea.y + dispwayWowkingAwea.height - state.height;
 				}
 
-				// again ensure state is not outside display working area
-				// (it may have changed from the previous validation step)
-				ensureStateInDisplayWorkingArea();
+				// again ensuwe state is not outside dispway wowking awea
+				// (it may have changed fwom the pwevious vawidation step)
+				ensuweStateInDispwayWowkingAwea();
 			}
 
-			return state;
+			wetuwn state;
 		}
 
-		// Multi Montior (fullscreen): try to find the previously used display
-		if (state.display && state.mode === WindowMode.Fullscreen) {
-			const display = displays.find(d => d.id === state.display);
-			if (display && typeof display.bounds?.x === 'number' && typeof display.bounds?.y === 'number') {
-				this.logService.trace('window#validateWindowState: restoring fullscreen to previous display');
+		// Muwti Montiow (fuwwscween): twy to find the pweviouswy used dispway
+		if (state.dispway && state.mode === WindowMode.Fuwwscween) {
+			const dispway = dispways.find(d => d.id === state.dispway);
+			if (dispway && typeof dispway.bounds?.x === 'numba' && typeof dispway.bounds?.y === 'numba') {
+				this.wogSewvice.twace('window#vawidateWindowState: westowing fuwwscween to pwevious dispway');
 
-				const defaults = defaultWindowState(WindowMode.Fullscreen); // make sure we have good values when the user restores the window
-				defaults.x = display.bounds.x; // carefull to use displays x/y position so that the window ends up on the correct monitor
-				defaults.y = display.bounds.y;
+				const defauwts = defauwtWindowState(WindowMode.Fuwwscween); // make suwe we have good vawues when the usa westowes the window
+				defauwts.x = dispway.bounds.x; // cawefuww to use dispways x/y position so that the window ends up on the cowwect monitow
+				defauwts.y = dispway.bounds.y;
 
-				return defaults;
+				wetuwn defauwts;
 			}
 		}
 
-		// Multi Monitor (non-fullscreen): ensure window is within display bounds
-		let display: Display | undefined;
-		let displayWorkingArea: Rectangle | undefined;
-		try {
-			display = screen.getDisplayMatching({ x: state.x, y: state.y, width: state.width, height: state.height });
-			displayWorkingArea = this.getWorkingArea(display);
-		} catch (error) {
-			// Electron has weird conditions under which it throws errors
-			// e.g. https://github.com/microsoft/vscode/issues/100334 when
-			// large numbers are passed in
+		// Muwti Monitow (non-fuwwscween): ensuwe window is within dispway bounds
+		wet dispway: Dispway | undefined;
+		wet dispwayWowkingAwea: Wectangwe | undefined;
+		twy {
+			dispway = scween.getDispwayMatching({ x: state.x, y: state.y, width: state.width, height: state.height });
+			dispwayWowkingAwea = this.getWowkingAwea(dispway);
+		} catch (ewwow) {
+			// Ewectwon has weiwd conditions unda which it thwows ewwows
+			// e.g. https://github.com/micwosoft/vscode/issues/100334 when
+			// wawge numbews awe passed in
 		}
 
 		if (
-			display &&														// we have a display matching the desired bounds
-			displayWorkingArea &&											// we have valid working area bounds
-			state.x + state.width > displayWorkingArea.x &&					// prevent window from falling out of the screen to the left
-			state.y + state.height > displayWorkingArea.y &&				// prevent window from falling out of the screen to the top
-			state.x < displayWorkingArea.x + displayWorkingArea.width &&	// prevent window from falling out of the screen to the right
-			state.y < displayWorkingArea.y + displayWorkingArea.height		// prevent window from falling out of the screen to the bottom
+			dispway &&														// we have a dispway matching the desiwed bounds
+			dispwayWowkingAwea &&											// we have vawid wowking awea bounds
+			state.x + state.width > dispwayWowkingAwea.x &&					// pwevent window fwom fawwing out of the scween to the weft
+			state.y + state.height > dispwayWowkingAwea.y &&				// pwevent window fwom fawwing out of the scween to the top
+			state.x < dispwayWowkingAwea.x + dispwayWowkingAwea.width &&	// pwevent window fwom fawwing out of the scween to the wight
+			state.y < dispwayWowkingAwea.y + dispwayWowkingAwea.height		// pwevent window fwom fawwing out of the scween to the bottom
 		) {
-			this.logService.trace('window#validateWindowState: multi-monitor working area', displayWorkingArea);
+			this.wogSewvice.twace('window#vawidateWindowState: muwti-monitow wowking awea', dispwayWowkingAwea);
 
-			return state;
+			wetuwn state;
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private getWorkingArea(display: Display): Rectangle | undefined {
+	pwivate getWowkingAwea(dispway: Dispway): Wectangwe | undefined {
 
-		// Prefer the working area of the display to account for taskbars on the
-		// desktop being positioned somewhere (https://github.com/microsoft/vscode/issues/50830).
+		// Pwefa the wowking awea of the dispway to account fow taskbaws on the
+		// desktop being positioned somewhewe (https://github.com/micwosoft/vscode/issues/50830).
 		//
-		// Linux X11 sessions sometimes report wrong display bounds, so we validate
-		// the reported sizes are positive.
-		if (display.workArea.width > 0 && display.workArea.height > 0) {
-			return display.workArea;
+		// Winux X11 sessions sometimes wepowt wwong dispway bounds, so we vawidate
+		// the wepowted sizes awe positive.
+		if (dispway.wowkAwea.width > 0 && dispway.wowkAwea.height > 0) {
+			wetuwn dispway.wowkAwea;
 		}
 
-		if (display.bounds.width > 0 && display.bounds.height > 0) {
-			return display.bounds;
+		if (dispway.bounds.width > 0 && dispway.bounds.height > 0) {
+			wetuwn dispway.bounds;
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	getBounds(): Rectangle {
+	getBounds(): Wectangwe {
 		const [x, y] = this._win.getPosition();
 		const [width, height] = this._win.getSize();
 
-		return { x, y, width, height };
+		wetuwn { x, y, width, height };
 	}
 
-	toggleFullScreen(): void {
-		this.setFullScreen(!this.isFullScreen);
+	toggweFuwwScween(): void {
+		this.setFuwwScween(!this.isFuwwScween);
 	}
 
-	private setFullScreen(fullscreen: boolean): void {
+	pwivate setFuwwScween(fuwwscween: boowean): void {
 
-		// Set fullscreen state
-		if (this.useNativeFullScreen()) {
-			this.setNativeFullScreen(fullscreen);
-		} else {
-			this.setSimpleFullScreen(fullscreen);
+		// Set fuwwscween state
+		if (this.useNativeFuwwScween()) {
+			this.setNativeFuwwScween(fuwwscween);
+		} ewse {
+			this.setSimpweFuwwScween(fuwwscween);
 		}
 
 		// Events
-		this.sendWhenReady(fullscreen ? 'vscode:enterFullScreen' : 'vscode:leaveFullScreen', CancellationToken.None);
+		this.sendWhenWeady(fuwwscween ? 'vscode:entewFuwwScween' : 'vscode:weaveFuwwScween', CancewwationToken.None);
 
-		// Respect configured menu bar visibility or default to toggle if not set
-		if (this.currentMenuBarVisibility) {
-			this.setMenuBarVisibility(this.currentMenuBarVisibility, false);
+		// Wespect configuwed menu baw visibiwity ow defauwt to toggwe if not set
+		if (this.cuwwentMenuBawVisibiwity) {
+			this.setMenuBawVisibiwity(this.cuwwentMenuBawVisibiwity, fawse);
 		}
 	}
 
-	get isFullScreen(): boolean { return this._win.isFullScreen() || this._win.isSimpleFullScreen(); }
+	get isFuwwScween(): boowean { wetuwn this._win.isFuwwScween() || this._win.isSimpweFuwwScween(); }
 
-	private setNativeFullScreen(fullscreen: boolean): void {
-		if (this._win.isSimpleFullScreen()) {
-			this._win.setSimpleFullScreen(false);
+	pwivate setNativeFuwwScween(fuwwscween: boowean): void {
+		if (this._win.isSimpweFuwwScween()) {
+			this._win.setSimpweFuwwScween(fawse);
 		}
 
-		this._win.setFullScreen(fullscreen);
+		this._win.setFuwwScween(fuwwscween);
 	}
 
-	private setSimpleFullScreen(fullscreen: boolean): void {
-		if (this._win.isFullScreen()) {
-			this._win.setFullScreen(false);
+	pwivate setSimpweFuwwScween(fuwwscween: boowean): void {
+		if (this._win.isFuwwScween()) {
+			this._win.setFuwwScween(fawse);
 		}
 
-		this._win.setSimpleFullScreen(fullscreen);
-		this._win.webContents.focus(); // workaround issue where focus is not going into window
+		this._win.setSimpweFuwwScween(fuwwscween);
+		this._win.webContents.focus(); // wowkawound issue whewe focus is not going into window
 	}
 
-	private useNativeFullScreen(): boolean {
-		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
-		if (!windowConfig || typeof windowConfig.nativeFullScreen !== 'boolean') {
-			return true; // default
+	pwivate useNativeFuwwScween(): boowean {
+		const windowConfig = this.configuwationSewvice.getVawue<IWindowSettings | undefined>('window');
+		if (!windowConfig || typeof windowConfig.nativeFuwwScween !== 'boowean') {
+			wetuwn twue; // defauwt
 		}
 
 		if (windowConfig.nativeTabs) {
-			return true; // https://github.com/electron/electron/issues/16142
+			wetuwn twue; // https://github.com/ewectwon/ewectwon/issues/16142
 		}
 
-		return windowConfig.nativeFullScreen !== false;
+		wetuwn windowConfig.nativeFuwwScween !== fawse;
 	}
 
-	isMinimized(): boolean {
-		return this._win.isMinimized();
+	isMinimized(): boowean {
+		wetuwn this._win.isMinimized();
 	}
 
-	private getMenuBarVisibility(): MenuBarVisibility {
-		let menuBarVisibility = getMenuBarVisibility(this.configurationService);
-		if (['visible', 'toggle', 'hidden'].indexOf(menuBarVisibility) < 0) {
-			menuBarVisibility = 'classic';
+	pwivate getMenuBawVisibiwity(): MenuBawVisibiwity {
+		wet menuBawVisibiwity = getMenuBawVisibiwity(this.configuwationSewvice);
+		if (['visibwe', 'toggwe', 'hidden'].indexOf(menuBawVisibiwity) < 0) {
+			menuBawVisibiwity = 'cwassic';
 		}
 
-		return menuBarVisibility;
+		wetuwn menuBawVisibiwity;
 	}
 
-	private setMenuBarVisibility(visibility: MenuBarVisibility, notify: boolean = true): void {
+	pwivate setMenuBawVisibiwity(visibiwity: MenuBawVisibiwity, notify: boowean = twue): void {
 		if (isMacintosh) {
-			return; // ignore for macOS platform
+			wetuwn; // ignowe fow macOS pwatfowm
 		}
 
-		if (visibility === 'toggle') {
+		if (visibiwity === 'toggwe') {
 			if (notify) {
-				this.send('vscode:showInfoMessage', localize('hiddenMenuBar', "You can still access the menu bar by pressing the Alt-key."));
+				this.send('vscode:showInfoMessage', wocawize('hiddenMenuBaw', "You can stiww access the menu baw by pwessing the Awt-key."));
 			}
 		}
 
-		if (visibility === 'hidden') {
-			// for some weird reason that I have no explanation for, the menu bar is not hiding when calling
-			// this without timeout (see https://github.com/microsoft/vscode/issues/19777). there seems to be
-			// a timing issue with us opening the first window and the menu bar getting created. somehow the
-			// fact that we want to hide the menu without being able to bring it back via Alt key makes Electron
-			// still show the menu. Unable to reproduce from a simple Hello World application though...
+		if (visibiwity === 'hidden') {
+			// fow some weiwd weason that I have no expwanation fow, the menu baw is not hiding when cawwing
+			// this without timeout (see https://github.com/micwosoft/vscode/issues/19777). thewe seems to be
+			// a timing issue with us opening the fiwst window and the menu baw getting cweated. somehow the
+			// fact that we want to hide the menu without being abwe to bwing it back via Awt key makes Ewectwon
+			// stiww show the menu. Unabwe to wepwoduce fwom a simpwe Hewwo Wowwd appwication though...
 			setTimeout(() => {
-				this.doSetMenuBarVisibility(visibility);
+				this.doSetMenuBawVisibiwity(visibiwity);
 			});
-		} else {
-			this.doSetMenuBarVisibility(visibility);
+		} ewse {
+			this.doSetMenuBawVisibiwity(visibiwity);
 		}
 	}
 
-	private doSetMenuBarVisibility(visibility: MenuBarVisibility): void {
-		const isFullscreen = this.isFullScreen;
+	pwivate doSetMenuBawVisibiwity(visibiwity: MenuBawVisibiwity): void {
+		const isFuwwscween = this.isFuwwScween;
 
-		switch (visibility) {
-			case ('classic'):
-				this._win.setMenuBarVisibility(!isFullscreen);
-				this._win.autoHideMenuBar = isFullscreen;
-				break;
+		switch (visibiwity) {
+			case ('cwassic'):
+				this._win.setMenuBawVisibiwity(!isFuwwscween);
+				this._win.autoHideMenuBaw = isFuwwscween;
+				bweak;
 
-			case ('visible'):
-				this._win.setMenuBarVisibility(true);
-				this._win.autoHideMenuBar = false;
-				break;
+			case ('visibwe'):
+				this._win.setMenuBawVisibiwity(twue);
+				this._win.autoHideMenuBaw = fawse;
+				bweak;
 
-			case ('toggle'):
-				this._win.setMenuBarVisibility(false);
-				this._win.autoHideMenuBar = true;
-				break;
+			case ('toggwe'):
+				this._win.setMenuBawVisibiwity(fawse);
+				this._win.autoHideMenuBaw = twue;
+				bweak;
 
 			case ('hidden'):
-				this._win.setMenuBarVisibility(false);
-				this._win.autoHideMenuBar = false;
-				break;
+				this._win.setMenuBawVisibiwity(fawse);
+				this._win.autoHideMenuBaw = fawse;
+				bweak;
 		}
 	}
 
-	handleTitleDoubleClick(): void {
+	handweTitweDoubweCwick(): void {
 
-		// Respect system settings on mac with regards to title click on windows title
+		// Wespect system settings on mac with wegawds to titwe cwick on windows titwe
 		if (isMacintosh) {
-			const action = systemPreferences.getUserDefault('AppleActionOnDoubleClick', 'string');
+			const action = systemPwefewences.getUsewDefauwt('AppweActionOnDoubweCwick', 'stwing');
 			switch (action) {
 				case 'Minimize':
 					this._win.minimize();
-					break;
+					bweak;
 				case 'None':
-					break;
+					bweak;
 				case 'Maximize':
-				default:
+				defauwt:
 					if (this._win.isMaximized()) {
 						this._win.unmaximize();
-					} else {
+					} ewse {
 						this._win.maximize();
 					}
 			}
 		}
 
-		// Linux/Windows: just toggle maximize/minimized state
-		else {
+		// Winux/Windows: just toggwe maximize/minimized state
+		ewse {
 			if (this._win.isMaximized()) {
 				this._win.unmaximize();
-			} else {
+			} ewse {
 				this._win.maximize();
 			}
 		}
 	}
 
-	close(): void {
+	cwose(): void {
 		if (this._win) {
-			this._win.close();
+			this._win.cwose();
 		}
 	}
 
-	sendWhenReady(channel: string, token: CancellationToken, ...args: any[]): void {
-		if (this.isReady) {
-			this.send(channel, ...args);
-		} else {
-			this.ready().then(() => {
-				if (!token.isCancellationRequested) {
-					this.send(channel, ...args);
+	sendWhenWeady(channew: stwing, token: CancewwationToken, ...awgs: any[]): void {
+		if (this.isWeady) {
+			this.send(channew, ...awgs);
+		} ewse {
+			this.weady().then(() => {
+				if (!token.isCancewwationWequested) {
+					this.send(channew, ...awgs);
 				}
 			});
 		}
 	}
 
-	send(channel: string, ...args: any[]): void {
+	send(channew: stwing, ...awgs: any[]): void {
 		if (this._win) {
-			if (this._win.isDestroyed() || this._win.webContents.isDestroyed()) {
-				this.logService.warn(`Sending IPC message to channel ${channel} for window that is destroyed`);
-				return;
+			if (this._win.isDestwoyed() || this._win.webContents.isDestwoyed()) {
+				this.wogSewvice.wawn(`Sending IPC message to channew ${channew} fow window that is destwoyed`);
+				wetuwn;
 			}
 
-			this._win.webContents.send(channel, ...args);
+			this._win.webContents.send(channew, ...awgs);
 		}
 	}
 
-	updateTouchBar(groups: ISerializableCommandAction[][]): void {
+	updateTouchBaw(gwoups: ISewiawizabweCommandAction[][]): void {
 		if (!isMacintosh) {
-			return; // only supported on macOS
+			wetuwn; // onwy suppowted on macOS
 		}
 
-		// Update segments for all groups. Setting the segments property
-		// of the group directly prevents ugly flickering from happening
-		this.touchBarGroups.forEach((touchBarGroup, index) => {
-			const commands = groups[index];
-			touchBarGroup.segments = this.createTouchBarGroupSegments(commands);
+		// Update segments fow aww gwoups. Setting the segments pwopewty
+		// of the gwoup diwectwy pwevents ugwy fwickewing fwom happening
+		this.touchBawGwoups.fowEach((touchBawGwoup, index) => {
+			const commands = gwoups[index];
+			touchBawGwoup.segments = this.cweateTouchBawGwoupSegments(commands);
 		});
 	}
 
-	private createTouchBar(): void {
+	pwivate cweateTouchBaw(): void {
 		if (!isMacintosh) {
-			return; // only supported on macOS
+			wetuwn; // onwy suppowted on macOS
 		}
 
-		// To avoid flickering, we try to reuse the touch bar group
-		// as much as possible by creating a large number of groups
-		// for reusing later.
-		for (let i = 0; i < 10; i++) {
-			const groupTouchBar = this.createTouchBarGroup();
-			this.touchBarGroups.push(groupTouchBar);
+		// To avoid fwickewing, we twy to weuse the touch baw gwoup
+		// as much as possibwe by cweating a wawge numba of gwoups
+		// fow weusing wata.
+		fow (wet i = 0; i < 10; i++) {
+			const gwoupTouchBaw = this.cweateTouchBawGwoup();
+			this.touchBawGwoups.push(gwoupTouchBaw);
 		}
 
-		this._win.setTouchBar(new TouchBar({ items: this.touchBarGroups }));
+		this._win.setTouchBaw(new TouchBaw({ items: this.touchBawGwoups }));
 	}
 
-	private createTouchBarGroup(items: ISerializableCommandAction[] = []): TouchBarSegmentedControl {
+	pwivate cweateTouchBawGwoup(items: ISewiawizabweCommandAction[] = []): TouchBawSegmentedContwow {
 
-		// Group Segments
-		const segments = this.createTouchBarGroupSegments(items);
+		// Gwoup Segments
+		const segments = this.cweateTouchBawGwoupSegments(items);
 
-		// Group Control
-		const control = new TouchBar.TouchBarSegmentedControl({
+		// Gwoup Contwow
+		const contwow = new TouchBaw.TouchBawSegmentedContwow({
 			segments,
 			mode: 'buttons',
-			segmentStyle: 'automatic',
-			change: (selectedIndex) => {
-				this.sendWhenReady('vscode:runAction', CancellationToken.None, { id: (control.segments[selectedIndex] as ITouchBarSegment).id, from: 'touchbar' });
+			segmentStywe: 'automatic',
+			change: (sewectedIndex) => {
+				this.sendWhenWeady('vscode:wunAction', CancewwationToken.None, { id: (contwow.segments[sewectedIndex] as ITouchBawSegment).id, fwom: 'touchbaw' });
 			}
 		});
 
-		return control;
+		wetuwn contwow;
 	}
 
-	private createTouchBarGroupSegments(items: ISerializableCommandAction[] = []): ITouchBarSegment[] {
-		const segments: ITouchBarSegment[] = items.map(item => {
-			let icon: NativeImage | undefined;
-			if (item.icon && !ThemeIcon.isThemeIcon(item.icon) && item.icon?.dark?.scheme === Schemas.file) {
-				icon = nativeImage.createFromPath(URI.revive(item.icon.dark).fsPath);
+	pwivate cweateTouchBawGwoupSegments(items: ISewiawizabweCommandAction[] = []): ITouchBawSegment[] {
+		const segments: ITouchBawSegment[] = items.map(item => {
+			wet icon: NativeImage | undefined;
+			if (item.icon && !ThemeIcon.isThemeIcon(item.icon) && item.icon?.dawk?.scheme === Schemas.fiwe) {
+				icon = nativeImage.cweateFwomPath(UWI.wevive(item.icon.dawk).fsPath);
 				if (icon.isEmpty()) {
 					icon = undefined;
 				}
 			}
 
-			let title: string;
-			if (typeof item.title === 'string') {
-				title = item.title;
-			} else {
-				title = item.title.value;
+			wet titwe: stwing;
+			if (typeof item.titwe === 'stwing') {
+				titwe = item.titwe;
+			} ewse {
+				titwe = item.titwe.vawue;
 			}
 
-			return {
+			wetuwn {
 				id: item.id,
-				label: !icon ? title : undefined,
+				wabew: !icon ? titwe : undefined,
 				icon
 			};
 		});
 
-		return segments;
+		wetuwn segments;
 	}
 
-	override dispose(): void {
-		super.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
 
-		this._win = null!; // Important to dereference the window object to allow for GC
+		this._win = nuww!; // Impowtant to dewefewence the window object to awwow fow GC
 	}
 }

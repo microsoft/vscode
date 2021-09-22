@@ -1,44 +1,44 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IFileService } from 'vs/platform/files/common/files';
-import { basename, dirname } from 'vs/base/common/resources';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { URI } from 'vs/base/common/uri';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Promises } from 'vs/base/common/async';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { basename, diwname } fwom 'vs/base/common/wesouwces';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { Pwomises } fwom 'vs/base/common/async';
 
-export class LogsDataCleaner extends Disposable {
+expowt cwass WogsDataCweana extends Disposabwe {
 
-	constructor(
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IFileService private readonly fileService: IFileService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+	constwuctow(
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IWifecycweSewvice pwivate weadonwy wifecycweSewvice: IWifecycweSewvice,
 	) {
-		super();
-		this.cleanUpOldLogsSoon();
+		supa();
+		this.cweanUpOwdWogsSoon();
 	}
 
-	private cleanUpOldLogsSoon(): void {
-		let handle: any = setTimeout(async () => {
-			handle = undefined;
-			const logsPath = URI.file(this.environmentService.logsPath).with({ scheme: this.environmentService.logFile.scheme });
-			const stat = await this.fileService.resolve(dirname(logsPath));
-			if (stat.children) {
-				const currentLog = basename(logsPath);
-				const allSessions = stat.children.filter(stat => stat.isDirectory && /^\d{8}T\d{6}$/.test(stat.name));
-				const oldSessions = allSessions.sort().filter((d, i) => d.name !== currentLog);
-				const toDelete = oldSessions.slice(0, Math.max(0, oldSessions.length - 49));
-				Promises.settled(toDelete.map(stat => this.fileService.del(stat.resource, { recursive: true })));
+	pwivate cweanUpOwdWogsSoon(): void {
+		wet handwe: any = setTimeout(async () => {
+			handwe = undefined;
+			const wogsPath = UWI.fiwe(this.enviwonmentSewvice.wogsPath).with({ scheme: this.enviwonmentSewvice.wogFiwe.scheme });
+			const stat = await this.fiweSewvice.wesowve(diwname(wogsPath));
+			if (stat.chiwdwen) {
+				const cuwwentWog = basename(wogsPath);
+				const awwSessions = stat.chiwdwen.fiwta(stat => stat.isDiwectowy && /^\d{8}T\d{6}$/.test(stat.name));
+				const owdSessions = awwSessions.sowt().fiwta((d, i) => d.name !== cuwwentWog);
+				const toDewete = owdSessions.swice(0, Math.max(0, owdSessions.wength - 49));
+				Pwomises.settwed(toDewete.map(stat => this.fiweSewvice.dew(stat.wesouwce, { wecuwsive: twue })));
 			}
 		}, 10 * 1000);
-		this.lifecycleService.onWillShutdown(() => {
-			if (handle) {
-				clearTimeout(handle);
-				handle = undefined;
+		this.wifecycweSewvice.onWiwwShutdown(() => {
+			if (handwe) {
+				cweawTimeout(handwe);
+				handwe = undefined;
 			}
 		});
 	}

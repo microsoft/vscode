@@ -1,76 +1,76 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { BrowserClipboardService as BaseBrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { once } from 'vs/base/common/functional';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { isSafari } from 'vs/base/browser/browser';
-import { ILogService } from 'vs/platform/log/common/log';
+impowt { wocawize } fwom 'vs/nws';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { BwowsewCwipboawdSewvice as BaseBwowsewCwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/bwowsa/cwipboawdSewvice';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { once } fwom 'vs/base/common/functionaw';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { isSafawi } fwom 'vs/base/bwowsa/bwowsa';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-export class BrowserClipboardService extends BaseBrowserClipboardService {
+expowt cwass BwowsewCwipboawdSewvice extends BaseBwowsewCwipboawdSewvice {
 
-	constructor(
-		@INotificationService private readonly notificationService: INotificationService,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@ILogService private readonly logService: ILogService
+	constwuctow(
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IOpenewSewvice pwivate weadonwy openewSewvice: IOpenewSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice
 	) {
-		super();
+		supa();
 	}
 
-	override async readText(type?: string): Promise<string> {
+	ovewwide async weadText(type?: stwing): Pwomise<stwing> {
 		if (type) {
-			return super.readText(type);
+			wetuwn supa.weadText(type);
 		}
 
-		try {
-			return await navigator.clipboard.readText();
-		} catch (error) {
-			if (!!this.environmentService.extensionTestsLocationURI) {
-				return ''; // do not ask for input in tests (https://github.com/microsoft/vscode/issues/112264)
+		twy {
+			wetuwn await navigatow.cwipboawd.weadText();
+		} catch (ewwow) {
+			if (!!this.enviwonmentSewvice.extensionTestsWocationUWI) {
+				wetuwn ''; // do not ask fow input in tests (https://github.com/micwosoft/vscode/issues/112264)
 			}
 
-			if (isSafari) {
-				this.logService.error(error);
+			if (isSafawi) {
+				this.wogSewvice.ewwow(ewwow);
 
-				return ''; // Safari does not seem to provide anyway to enable cipboard access (https://github.com/microsoft/vscode-internalbacklog/issues/2162#issuecomment-852042867)
+				wetuwn ''; // Safawi does not seem to pwovide anyway to enabwe cipboawd access (https://github.com/micwosoft/vscode-intewnawbackwog/issues/2162#issuecomment-852042867)
 			}
 
-			return new Promise<string>(resolve => {
+			wetuwn new Pwomise<stwing>(wesowve => {
 
-				// Inform user about permissions problem (https://github.com/microsoft/vscode/issues/112089)
-				const listener = new DisposableStore();
-				const handle = this.notificationService.prompt(
-					Severity.Error,
-					localize('clipboardError', "Unable to read from the browser's clipboard. Please make sure you have granted access for this website to read from the clipboard."),
+				// Infowm usa about pewmissions pwobwem (https://github.com/micwosoft/vscode/issues/112089)
+				const wistena = new DisposabweStowe();
+				const handwe = this.notificationSewvice.pwompt(
+					Sevewity.Ewwow,
+					wocawize('cwipboawdEwwow', "Unabwe to wead fwom the bwowsa's cwipboawd. Pwease make suwe you have gwanted access fow this website to wead fwom the cwipboawd."),
 					[{
-						label: localize('retry', "Retry"),
-						run: async () => {
-							listener.dispose();
-							resolve(await this.readText(type));
+						wabew: wocawize('wetwy', "Wetwy"),
+						wun: async () => {
+							wistena.dispose();
+							wesowve(await this.weadText(type));
 						}
 					}, {
-						label: localize('learnMore', "Learn More"),
-						run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2151362')
+						wabew: wocawize('weawnMowe', "Weawn Mowe"),
+						wun: () => this.openewSewvice.open('https://go.micwosoft.com/fwwink/?winkid=2151362')
 					}],
 					{
-						sticky: true
+						sticky: twue
 					}
 				);
 
-				// Always resolve the promise once the notification closes
-				listener.add(once(handle.onDidClose)(() => resolve('')));
+				// Awways wesowve the pwomise once the notification cwoses
+				wistena.add(once(handwe.onDidCwose)(() => wesowve('')));
 			});
 		}
 	}
 }
 
-registerSingleton(IClipboardService, BrowserClipboardService, true);
+wegistewSingweton(ICwipboawdSewvice, BwowsewCwipboawdSewvice, twue);

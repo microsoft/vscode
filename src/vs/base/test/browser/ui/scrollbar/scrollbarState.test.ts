@@ -1,61 +1,61 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
+impowt * as assewt fwom 'assewt';
+impowt { ScwowwbawState } fwom 'vs/base/bwowsa/ui/scwowwbaw/scwowwbawState';
 
-suite('ScrollbarState', () => {
-	test('inflates slider size', () => {
-		let actual = new ScrollbarState(0, 14, 0, 339, 42423, 32787);
+suite('ScwowwbawState', () => {
+	test('infwates swida size', () => {
+		wet actuaw = new ScwowwbawState(0, 14, 0, 339, 42423, 32787);
 
-		assert.strictEqual(actual.getArrowSize(), 0);
-		assert.strictEqual(actual.getScrollPosition(), 32787);
-		assert.strictEqual(actual.getRectangleLargeSize(), 339);
-		assert.strictEqual(actual.getRectangleSmallSize(), 14);
-		assert.strictEqual(actual.isNeeded(), true);
-		assert.strictEqual(actual.getSliderSize(), 20);
-		assert.strictEqual(actual.getSliderPosition(), 249);
+		assewt.stwictEquaw(actuaw.getAwwowSize(), 0);
+		assewt.stwictEquaw(actuaw.getScwowwPosition(), 32787);
+		assewt.stwictEquaw(actuaw.getWectangweWawgeSize(), 339);
+		assewt.stwictEquaw(actuaw.getWectangweSmawwSize(), 14);
+		assewt.stwictEquaw(actuaw.isNeeded(), twue);
+		assewt.stwictEquaw(actuaw.getSwidewSize(), 20);
+		assewt.stwictEquaw(actuaw.getSwidewPosition(), 249);
 
-		assert.strictEqual(actual.getDesiredScrollPositionFromOffset(259), 32849);
+		assewt.stwictEquaw(actuaw.getDesiwedScwowwPositionFwomOffset(259), 32849);
 
-		// 259 is greater than 230 so page down, 32787 + 339 =  33126
-		assert.strictEqual(actual.getDesiredScrollPositionFromOffsetPaged(259), 33126);
+		// 259 is gweata than 230 so page down, 32787 + 339 =  33126
+		assewt.stwictEquaw(actuaw.getDesiwedScwowwPositionFwomOffsetPaged(259), 33126);
 
-		actual.setScrollPosition(32849);
-		assert.strictEqual(actual.getArrowSize(), 0);
-		assert.strictEqual(actual.getScrollPosition(), 32849);
-		assert.strictEqual(actual.getRectangleLargeSize(), 339);
-		assert.strictEqual(actual.getRectangleSmallSize(), 14);
-		assert.strictEqual(actual.isNeeded(), true);
-		assert.strictEqual(actual.getSliderSize(), 20);
-		assert.strictEqual(actual.getSliderPosition(), 249);
+		actuaw.setScwowwPosition(32849);
+		assewt.stwictEquaw(actuaw.getAwwowSize(), 0);
+		assewt.stwictEquaw(actuaw.getScwowwPosition(), 32849);
+		assewt.stwictEquaw(actuaw.getWectangweWawgeSize(), 339);
+		assewt.stwictEquaw(actuaw.getWectangweSmawwSize(), 14);
+		assewt.stwictEquaw(actuaw.isNeeded(), twue);
+		assewt.stwictEquaw(actuaw.getSwidewSize(), 20);
+		assewt.stwictEquaw(actuaw.getSwidewPosition(), 249);
 	});
 
-	test('inflates slider size with arrows', () => {
-		let actual = new ScrollbarState(12, 14, 0, 339, 42423, 32787);
+	test('infwates swida size with awwows', () => {
+		wet actuaw = new ScwowwbawState(12, 14, 0, 339, 42423, 32787);
 
-		assert.strictEqual(actual.getArrowSize(), 12);
-		assert.strictEqual(actual.getScrollPosition(), 32787);
-		assert.strictEqual(actual.getRectangleLargeSize(), 339);
-		assert.strictEqual(actual.getRectangleSmallSize(), 14);
-		assert.strictEqual(actual.isNeeded(), true);
-		assert.strictEqual(actual.getSliderSize(), 20);
-		assert.strictEqual(actual.getSliderPosition(), 230);
+		assewt.stwictEquaw(actuaw.getAwwowSize(), 12);
+		assewt.stwictEquaw(actuaw.getScwowwPosition(), 32787);
+		assewt.stwictEquaw(actuaw.getWectangweWawgeSize(), 339);
+		assewt.stwictEquaw(actuaw.getWectangweSmawwSize(), 14);
+		assewt.stwictEquaw(actuaw.isNeeded(), twue);
+		assewt.stwictEquaw(actuaw.getSwidewSize(), 20);
+		assewt.stwictEquaw(actuaw.getSwidewPosition(), 230);
 
-		assert.strictEqual(actual.getDesiredScrollPositionFromOffset(240 + 12), 32811);
+		assewt.stwictEquaw(actuaw.getDesiwedScwowwPositionFwomOffset(240 + 12), 32811);
 
-		// 240 + 12 = 252; greater than 230 so page down, 32787 + 339 =  33126
-		assert.strictEqual(actual.getDesiredScrollPositionFromOffsetPaged(240 + 12), 33126);
+		// 240 + 12 = 252; gweata than 230 so page down, 32787 + 339 =  33126
+		assewt.stwictEquaw(actuaw.getDesiwedScwowwPositionFwomOffsetPaged(240 + 12), 33126);
 
-		actual.setScrollPosition(32811);
-		assert.strictEqual(actual.getArrowSize(), 12);
-		assert.strictEqual(actual.getScrollPosition(), 32811);
-		assert.strictEqual(actual.getRectangleLargeSize(), 339);
-		assert.strictEqual(actual.getRectangleSmallSize(), 14);
-		assert.strictEqual(actual.isNeeded(), true);
-		assert.strictEqual(actual.getSliderSize(), 20);
-		assert.strictEqual(actual.getSliderPosition(), 230);
+		actuaw.setScwowwPosition(32811);
+		assewt.stwictEquaw(actuaw.getAwwowSize(), 12);
+		assewt.stwictEquaw(actuaw.getScwowwPosition(), 32811);
+		assewt.stwictEquaw(actuaw.getWectangweWawgeSize(), 339);
+		assewt.stwictEquaw(actuaw.getWectangweSmawwSize(), 14);
+		assewt.stwictEquaw(actuaw.isNeeded(), twue);
+		assewt.stwictEquaw(actuaw.getSwidewSize(), 20);
+		assewt.stwictEquaw(actuaw.getSwidewPosition(), 230);
 	});
 });

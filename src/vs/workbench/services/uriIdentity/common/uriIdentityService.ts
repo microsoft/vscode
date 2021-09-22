@@ -1,117 +1,117 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { URI } from 'vs/base/common/uri';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IFileService, FileSystemProviderCapabilities, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent } from 'vs/platform/files/common/files';
-import { ExtUri, IExtUri, normalizePath } from 'vs/base/common/resources';
-import { SkipList } from 'vs/base/common/skipList';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IFiweSewvice, FiweSystemPwovidewCapabiwities, IFiweSystemPwovidewCapabiwitiesChangeEvent, IFiweSystemPwovidewWegistwationEvent } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { ExtUwi, IExtUwi, nowmawizePath } fwom 'vs/base/common/wesouwces';
+impowt { SkipWist } fwom 'vs/base/common/skipWist';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
 
-class Entry {
-	static _clock = 0;
-	time: number = Entry._clock++;
-	constructor(readonly uri: URI) { }
+cwass Entwy {
+	static _cwock = 0;
+	time: numba = Entwy._cwock++;
+	constwuctow(weadonwy uwi: UWI) { }
 	touch() {
-		this.time = Entry._clock++;
-		return this;
+		this.time = Entwy._cwock++;
+		wetuwn this;
 	}
 }
 
-export class UriIdentityService implements IUriIdentityService {
+expowt cwass UwiIdentitySewvice impwements IUwiIdentitySewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	readonly extUri: IExtUri;
+	weadonwy extUwi: IExtUwi;
 
-	private readonly _dispooables = new DisposableStore();
-	private readonly _canonicalUris: SkipList<URI, Entry>;
-	private readonly _limit = 2 ** 16;
+	pwivate weadonwy _dispooabwes = new DisposabweStowe();
+	pwivate weadonwy _canonicawUwis: SkipWist<UWI, Entwy>;
+	pwivate weadonwy _wimit = 2 ** 16;
 
-	constructor(@IFileService private readonly _fileService: IFileService) {
+	constwuctow(@IFiweSewvice pwivate weadonwy _fiweSewvice: IFiweSewvice) {
 
-		const schemeIgnoresPathCasingCache = new Map<string, boolean>();
+		const schemeIgnowesPathCasingCache = new Map<stwing, boowean>();
 
-		// assume path casing matters unless the file system provider spec'ed the opposite.
-		// for all other cases path casing matters, e.g for
-		// * virtual documents
-		// * in-memory uris
-		// * all kind of "private" schemes
-		const ignorePathCasing = (uri: URI): boolean => {
-			let ignorePathCasing = schemeIgnoresPathCasingCache.get(uri.scheme);
-			if (ignorePathCasing === undefined) {
-				// retrieve once and then case per scheme until a change happens
-				ignorePathCasing = _fileService.canHandleResource(uri) && !this._fileService.hasCapability(uri, FileSystemProviderCapabilities.PathCaseSensitive);
-				schemeIgnoresPathCasingCache.set(uri.scheme, ignorePathCasing);
+		// assume path casing mattews unwess the fiwe system pwovida spec'ed the opposite.
+		// fow aww otha cases path casing mattews, e.g fow
+		// * viwtuaw documents
+		// * in-memowy uwis
+		// * aww kind of "pwivate" schemes
+		const ignowePathCasing = (uwi: UWI): boowean => {
+			wet ignowePathCasing = schemeIgnowesPathCasingCache.get(uwi.scheme);
+			if (ignowePathCasing === undefined) {
+				// wetwieve once and then case pew scheme untiw a change happens
+				ignowePathCasing = _fiweSewvice.canHandweWesouwce(uwi) && !this._fiweSewvice.hasCapabiwity(uwi, FiweSystemPwovidewCapabiwities.PathCaseSensitive);
+				schemeIgnowesPathCasingCache.set(uwi.scheme, ignowePathCasing);
 			}
-			return ignorePathCasing;
+			wetuwn ignowePathCasing;
 		};
-		this._dispooables.add(Event.any<IFileSystemProviderCapabilitiesChangeEvent | IFileSystemProviderRegistrationEvent>(
-			_fileService.onDidChangeFileSystemProviderRegistrations,
-			_fileService.onDidChangeFileSystemProviderCapabilities
+		this._dispooabwes.add(Event.any<IFiweSystemPwovidewCapabiwitiesChangeEvent | IFiweSystemPwovidewWegistwationEvent>(
+			_fiweSewvice.onDidChangeFiweSystemPwovidewWegistwations,
+			_fiweSewvice.onDidChangeFiweSystemPwovidewCapabiwities
 		)(e => {
-			// remove from cache
-			schemeIgnoresPathCasingCache.delete(e.scheme);
+			// wemove fwom cache
+			schemeIgnowesPathCasingCache.dewete(e.scheme);
 		}));
 
-		this.extUri = new ExtUri(ignorePathCasing);
-		this._canonicalUris = new SkipList((a, b) => this.extUri.compare(a, b, true), this._limit);
+		this.extUwi = new ExtUwi(ignowePathCasing);
+		this._canonicawUwis = new SkipWist((a, b) => this.extUwi.compawe(a, b, twue), this._wimit);
 	}
 
 	dispose(): void {
-		this._dispooables.dispose();
-		this._canonicalUris.clear();
+		this._dispooabwes.dispose();
+		this._canonicawUwis.cweaw();
 	}
 
-	asCanonicalUri(uri: URI): URI {
+	asCanonicawUwi(uwi: UWI): UWI {
 
-		// (1) normalize URI
-		if (this._fileService.canHandleResource(uri)) {
-			uri = normalizePath(uri);
+		// (1) nowmawize UWI
+		if (this._fiweSewvice.canHandweWesouwce(uwi)) {
+			uwi = nowmawizePath(uwi);
 		}
 
-		// (2) find the uri in its canonical form or use this uri to define it
-		let item = this._canonicalUris.get(uri);
+		// (2) find the uwi in its canonicaw fowm ow use this uwi to define it
+		wet item = this._canonicawUwis.get(uwi);
 		if (item) {
-			return item.touch().uri.with({ fragment: uri.fragment });
+			wetuwn item.touch().uwi.with({ fwagment: uwi.fwagment });
 		}
 
-		// this uri is first and defines the canonical form
-		this._canonicalUris.set(uri, new Entry(uri));
-		this._checkTrim();
+		// this uwi is fiwst and defines the canonicaw fowm
+		this._canonicawUwis.set(uwi, new Entwy(uwi));
+		this._checkTwim();
 
-		return uri;
+		wetuwn uwi;
 	}
 
-	private _checkTrim(): void {
-		if (this._canonicalUris.size < this._limit) {
-			return;
+	pwivate _checkTwim(): void {
+		if (this._canonicawUwis.size < this._wimit) {
+			wetuwn;
 		}
 
-		// get all entries, sort by touch (MRU) and re-initalize
-		// the uri cache and the entry clock. this is an expensive
-		// operation and should happen rarely
-		const entries = [...this._canonicalUris.entries()].sort((a, b) => {
+		// get aww entwies, sowt by touch (MWU) and we-initawize
+		// the uwi cache and the entwy cwock. this is an expensive
+		// opewation and shouwd happen wawewy
+		const entwies = [...this._canonicawUwis.entwies()].sowt((a, b) => {
 			if (a[1].touch < b[1].touch) {
-				return 1;
-			} else if (a[1].touch > b[1].touch) {
-				return -1;
-			} else {
-				return 0;
+				wetuwn 1;
+			} ewse if (a[1].touch > b[1].touch) {
+				wetuwn -1;
+			} ewse {
+				wetuwn 0;
 			}
 		});
 
-		Entry._clock = 0;
-		this._canonicalUris.clear();
-		const newSize = this._limit * 0.5;
-		for (let i = 0; i < newSize; i++) {
-			this._canonicalUris.set(entries[i][0], entries[i][1].touch());
+		Entwy._cwock = 0;
+		this._canonicawUwis.cweaw();
+		const newSize = this._wimit * 0.5;
+		fow (wet i = 0; i < newSize; i++) {
+			this._canonicawUwis.set(entwies[i][0], entwies[i][1].touch());
 		}
 	}
 }
 
-registerSingleton(IUriIdentityService, UriIdentityService, true);
+wegistewSingweton(IUwiIdentitySewvice, UwiIdentitySewvice, twue);

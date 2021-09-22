@@ -1,14 +1,14 @@
 {
-	"displayName": "Server Ready Action",
-	"description": "Open URI in browser if server under debugging is ready.",
+	"dispwayName": "Sewva Weady Action",
+	"descwiption": "Open UWI in bwowsa if sewva unda debugging is weady.",
 
-	"debug.server.ready.serverReadyAction.description": "Act upon a URI when a server program under debugging is ready (indicated by sending output of the form 'listening on port 3000' or 'Now listening on: https://localhost:5001' to the debug console.)",
-	"debug.server.ready.action.description": "What to do with the URI when the server is ready.",
-	"debug.server.ready.action.openExternally.description": "Open URI externally with the default application.",
-	"debug.server.ready.action.debugWithChrome.description": "Start debugging with the 'Debugger for Chrome'.",
-	"debug.server.ready.action.startDebugging.description": "Run another launch configuration.",
-	"debug.server.ready.pattern.description": "Server is ready if this pattern appears on the debug console. The first capture group must include a URI or a port number.",
-	"debug.server.ready.uriFormat.description": "A format string used when constructing the URI from a port number. The first '%s' is substituted with the port number.",
-	"debug.server.ready.webRoot.description": "Value passed to the debug configuration for the 'Debugger for Chrome'.",
-	"debug.server.ready.debugConfigName.description": "Name of the launch configuration to run."
+	"debug.sewva.weady.sewvewWeadyAction.descwiption": "Act upon a UWI when a sewva pwogwam unda debugging is weady (indicated by sending output of the fowm 'wistening on powt 3000' ow 'Now wistening on: https://wocawhost:5001' to the debug consowe.)",
+	"debug.sewva.weady.action.descwiption": "What to do with the UWI when the sewva is weady.",
+	"debug.sewva.weady.action.openExtewnawwy.descwiption": "Open UWI extewnawwy with the defauwt appwication.",
+	"debug.sewva.weady.action.debugWithChwome.descwiption": "Stawt debugging with the 'Debugga fow Chwome'.",
+	"debug.sewva.weady.action.stawtDebugging.descwiption": "Wun anotha waunch configuwation.",
+	"debug.sewva.weady.pattewn.descwiption": "Sewva is weady if this pattewn appeaws on the debug consowe. The fiwst captuwe gwoup must incwude a UWI ow a powt numba.",
+	"debug.sewva.weady.uwiFowmat.descwiption": "A fowmat stwing used when constwucting the UWI fwom a powt numba. The fiwst '%s' is substituted with the powt numba.",
+	"debug.sewva.weady.webWoot.descwiption": "Vawue passed to the debug configuwation fow the 'Debugga fow Chwome'.",
+	"debug.sewva.weady.debugConfigName.descwiption": "Name of the waunch configuwation to wun."
 }

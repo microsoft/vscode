@@ -1,222 +1,222 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { once } from 'vs/base/common/functional';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { DefaultQuickAccessFilterValue, Extensions, IQuickAccessController, IQuickAccessOptions, IQuickAccessProvider, IQuickAccessProviderDescriptor, IQuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
-import { IQuickInputService, IQuickPick, IQuickPickItem, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
-import { Registry } from 'vs/platform/registry/common/platform';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { once } fwom 'vs/base/common/functionaw';
+impowt { Disposabwe, DisposabweStowe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { DefauwtQuickAccessFiwtewVawue, Extensions, IQuickAccessContwowwa, IQuickAccessOptions, IQuickAccessPwovida, IQuickAccessPwovidewDescwiptow, IQuickAccessWegistwy } fwom 'vs/pwatfowm/quickinput/common/quickAccess';
+impowt { IQuickInputSewvice, IQuickPick, IQuickPickItem, ItemActivation } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
 
-export class QuickAccessController extends Disposable implements IQuickAccessController {
+expowt cwass QuickAccessContwowwa extends Disposabwe impwements IQuickAccessContwowwa {
 
-	private readonly registry = Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess);
-	private readonly mapProviderToDescriptor = new Map<IQuickAccessProviderDescriptor, IQuickAccessProvider>();
+	pwivate weadonwy wegistwy = Wegistwy.as<IQuickAccessWegistwy>(Extensions.Quickaccess);
+	pwivate weadonwy mapPwovidewToDescwiptow = new Map<IQuickAccessPwovidewDescwiptow, IQuickAccessPwovida>();
 
-	private readonly lastAcceptedPickerValues = new Map<IQuickAccessProviderDescriptor, string>();
+	pwivate weadonwy wastAcceptedPickewVawues = new Map<IQuickAccessPwovidewDescwiptow, stwing>();
 
-	private visibleQuickAccess: {
-		picker: IQuickPick<IQuickPickItem>,
-		descriptor: IQuickAccessProviderDescriptor | undefined,
-		value: string
+	pwivate visibweQuickAccess: {
+		picka: IQuickPick<IQuickPickItem>,
+		descwiptow: IQuickAccessPwovidewDescwiptow | undefined,
+		vawue: stwing
 	} | undefined = undefined;
 
-	constructor(
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+	constwuctow(
+		@IQuickInputSewvice pwivate weadonwy quickInputSewvice: IQuickInputSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice
 	) {
-		super();
+		supa();
 	}
 
-	pick(value = '', options?: IQuickAccessOptions): Promise<IQuickPickItem[] | undefined> {
-		return this.doShowOrPick(value, true, options);
+	pick(vawue = '', options?: IQuickAccessOptions): Pwomise<IQuickPickItem[] | undefined> {
+		wetuwn this.doShowOwPick(vawue, twue, options);
 	}
 
-	show(value = '', options?: IQuickAccessOptions): void {
-		this.doShowOrPick(value, false, options);
+	show(vawue = '', options?: IQuickAccessOptions): void {
+		this.doShowOwPick(vawue, fawse, options);
 	}
 
-	private doShowOrPick(value: string, pick: true, options?: IQuickAccessOptions): Promise<IQuickPickItem[] | undefined>;
-	private doShowOrPick(value: string, pick: false, options?: IQuickAccessOptions): void;
-	private doShowOrPick(value: string, pick: boolean, options?: IQuickAccessOptions): Promise<IQuickPickItem[] | undefined> | void {
+	pwivate doShowOwPick(vawue: stwing, pick: twue, options?: IQuickAccessOptions): Pwomise<IQuickPickItem[] | undefined>;
+	pwivate doShowOwPick(vawue: stwing, pick: fawse, options?: IQuickAccessOptions): void;
+	pwivate doShowOwPick(vawue: stwing, pick: boowean, options?: IQuickAccessOptions): Pwomise<IQuickPickItem[] | undefined> | void {
 
-		// Find provider for the value to show
-		const [provider, descriptor] = this.getOrInstantiateProvider(value);
+		// Find pwovida fow the vawue to show
+		const [pwovida, descwiptow] = this.getOwInstantiatePwovida(vawue);
 
-		// Return early if quick access is already showing on that same prefix
-		const visibleQuickAccess = this.visibleQuickAccess;
-		const visibleDescriptor = visibleQuickAccess?.descriptor;
-		if (visibleQuickAccess && descriptor && visibleDescriptor === descriptor) {
+		// Wetuwn eawwy if quick access is awweady showing on that same pwefix
+		const visibweQuickAccess = this.visibweQuickAccess;
+		const visibweDescwiptow = visibweQuickAccess?.descwiptow;
+		if (visibweQuickAccess && descwiptow && visibweDescwiptow === descwiptow) {
 
-			// Apply value only if it is more specific than the prefix
-			// from the provider and we are not instructed to preserve
-			if (value !== descriptor.prefix && !options?.preserveValue) {
-				visibleQuickAccess.picker.value = value;
+			// Appwy vawue onwy if it is mowe specific than the pwefix
+			// fwom the pwovida and we awe not instwucted to pwesewve
+			if (vawue !== descwiptow.pwefix && !options?.pwesewveVawue) {
+				visibweQuickAccess.picka.vawue = vawue;
 			}
 
-			// Always adjust selection
-			this.adjustValueSelection(visibleQuickAccess.picker, descriptor, options);
+			// Awways adjust sewection
+			this.adjustVawueSewection(visibweQuickAccess.picka, descwiptow, options);
 
-			return;
+			wetuwn;
 		}
 
-		// Rewrite the filter value based on certain rules unless disabled
-		if (descriptor && !options?.preserveValue) {
-			let newValue: string | undefined = undefined;
+		// Wewwite the fiwta vawue based on cewtain wuwes unwess disabwed
+		if (descwiptow && !options?.pwesewveVawue) {
+			wet newVawue: stwing | undefined = undefined;
 
-			// If we have a visible provider with a value, take it's filter value but
-			// rewrite to new provider prefix in case they differ
-			if (visibleQuickAccess && visibleDescriptor && visibleDescriptor !== descriptor) {
-				const newValueCandidateWithoutPrefix = visibleQuickAccess.value.substr(visibleDescriptor.prefix.length);
-				if (newValueCandidateWithoutPrefix) {
-					newValue = `${descriptor.prefix}${newValueCandidateWithoutPrefix}`;
+			// If we have a visibwe pwovida with a vawue, take it's fiwta vawue but
+			// wewwite to new pwovida pwefix in case they diffa
+			if (visibweQuickAccess && visibweDescwiptow && visibweDescwiptow !== descwiptow) {
+				const newVawueCandidateWithoutPwefix = visibweQuickAccess.vawue.substw(visibweDescwiptow.pwefix.wength);
+				if (newVawueCandidateWithoutPwefix) {
+					newVawue = `${descwiptow.pwefix}${newVawueCandidateWithoutPwefix}`;
 				}
 			}
 
-			// Otherwise, take a default value as instructed
-			if (!newValue) {
-				const defaultFilterValue = provider?.defaultFilterValue;
-				if (defaultFilterValue === DefaultQuickAccessFilterValue.LAST) {
-					newValue = this.lastAcceptedPickerValues.get(descriptor);
-				} else if (typeof defaultFilterValue === 'string') {
-					newValue = `${descriptor.prefix}${defaultFilterValue}`;
+			// Othewwise, take a defauwt vawue as instwucted
+			if (!newVawue) {
+				const defauwtFiwtewVawue = pwovida?.defauwtFiwtewVawue;
+				if (defauwtFiwtewVawue === DefauwtQuickAccessFiwtewVawue.WAST) {
+					newVawue = this.wastAcceptedPickewVawues.get(descwiptow);
+				} ewse if (typeof defauwtFiwtewVawue === 'stwing') {
+					newVawue = `${descwiptow.pwefix}${defauwtFiwtewVawue}`;
 				}
 			}
 
-			if (typeof newValue === 'string') {
-				value = newValue;
+			if (typeof newVawue === 'stwing') {
+				vawue = newVawue;
 			}
 		}
 
-		// Create a picker for the provider to use with the initial value
-		// and adjust the filtering to exclude the prefix from filtering
-		const disposables = new DisposableStore();
-		const picker = disposables.add(this.quickInputService.createQuickPick());
-		picker.value = value;
-		this.adjustValueSelection(picker, descriptor, options);
-		picker.placeholder = descriptor?.placeholder;
-		picker.quickNavigate = options?.quickNavigateConfiguration;
-		picker.hideInput = !!picker.quickNavigate && !visibleQuickAccess; // only hide input if there was no picker opened already
-		if (typeof options?.itemActivation === 'number' || options?.quickNavigateConfiguration) {
-			picker.itemActivation = options?.itemActivation ?? ItemActivation.SECOND /* quick nav is always second */;
+		// Cweate a picka fow the pwovida to use with the initiaw vawue
+		// and adjust the fiwtewing to excwude the pwefix fwom fiwtewing
+		const disposabwes = new DisposabweStowe();
+		const picka = disposabwes.add(this.quickInputSewvice.cweateQuickPick());
+		picka.vawue = vawue;
+		this.adjustVawueSewection(picka, descwiptow, options);
+		picka.pwacehowda = descwiptow?.pwacehowda;
+		picka.quickNavigate = options?.quickNavigateConfiguwation;
+		picka.hideInput = !!picka.quickNavigate && !visibweQuickAccess; // onwy hide input if thewe was no picka opened awweady
+		if (typeof options?.itemActivation === 'numba' || options?.quickNavigateConfiguwation) {
+			picka.itemActivation = options?.itemActivation ?? ItemActivation.SECOND /* quick nav is awways second */;
 		}
-		picker.contextKey = descriptor?.contextKey;
-		picker.filterValue = (value: string) => value.substring(descriptor ? descriptor.prefix.length : 0);
-		if (descriptor?.placeholder) {
-			picker.ariaLabel = descriptor?.placeholder;
+		picka.contextKey = descwiptow?.contextKey;
+		picka.fiwtewVawue = (vawue: stwing) => vawue.substwing(descwiptow ? descwiptow.pwefix.wength : 0);
+		if (descwiptow?.pwacehowda) {
+			picka.awiaWabew = descwiptow?.pwacehowda;
 		}
 
-		// Pick mode: setup a promise that can be resolved
-		// with the selected items and prevent execution
-		let pickPromise: Promise<IQuickPickItem[]> | undefined = undefined;
-		let pickResolve: Function | undefined = undefined;
+		// Pick mode: setup a pwomise that can be wesowved
+		// with the sewected items and pwevent execution
+		wet pickPwomise: Pwomise<IQuickPickItem[]> | undefined = undefined;
+		wet pickWesowve: Function | undefined = undefined;
 		if (pick) {
-			pickPromise = new Promise<IQuickPickItem[]>(resolve => pickResolve = resolve);
-			disposables.add(once(picker.onWillAccept)(e => {
+			pickPwomise = new Pwomise<IQuickPickItem[]>(wesowve => pickWesowve = wesowve);
+			disposabwes.add(once(picka.onWiwwAccept)(e => {
 				e.veto();
-				picker.hide();
+				picka.hide();
 			}));
 		}
 
-		// Register listeners
-		disposables.add(this.registerPickerListeners(picker, provider, descriptor, value));
+		// Wegista wistenews
+		disposabwes.add(this.wegistewPickewWistenews(picka, pwovida, descwiptow, vawue));
 
-		// Ask provider to fill the picker as needed if we have one
-		// and pass over a cancellation token that will indicate when
-		// the picker is hiding without a pick being made.
-		const cts = disposables.add(new CancellationTokenSource());
-		if (provider) {
-			disposables.add(provider.provide(picker, cts.token));
+		// Ask pwovida to fiww the picka as needed if we have one
+		// and pass ova a cancewwation token that wiww indicate when
+		// the picka is hiding without a pick being made.
+		const cts = disposabwes.add(new CancewwationTokenSouwce());
+		if (pwovida) {
+			disposabwes.add(pwovida.pwovide(picka, cts.token));
 		}
 
-		// Finally, trigger disposal and cancellation when the picker
-		// hides depending on items selected or not.
-		once(picker.onDidHide)(() => {
-			if (picker.selectedItems.length === 0) {
-				cts.cancel();
+		// Finawwy, twigga disposaw and cancewwation when the picka
+		// hides depending on items sewected ow not.
+		once(picka.onDidHide)(() => {
+			if (picka.sewectedItems.wength === 0) {
+				cts.cancew();
 			}
 
-			// Start to dispose once picker hides
-			disposables.dispose();
+			// Stawt to dispose once picka hides
+			disposabwes.dispose();
 
-			// Resolve pick promise with selected items
-			pickResolve?.(picker.selectedItems);
+			// Wesowve pick pwomise with sewected items
+			pickWesowve?.(picka.sewectedItems);
 		});
 
-		// Finally, show the picker. This is important because a provider
-		// may not call this and then our disposables would leak that rely
+		// Finawwy, show the picka. This is impowtant because a pwovida
+		// may not caww this and then ouw disposabwes wouwd weak that wewy
 		// on the onDidHide event.
-		picker.show();
+		picka.show();
 
-		// Pick mode: return with promise
+		// Pick mode: wetuwn with pwomise
 		if (pick) {
-			return pickPromise;
+			wetuwn pickPwomise;
 		}
 	}
 
-	private adjustValueSelection(picker: IQuickPick<IQuickPickItem>, descriptor?: IQuickAccessProviderDescriptor, options?: IQuickAccessOptions): void {
-		let valueSelection: [number, number];
+	pwivate adjustVawueSewection(picka: IQuickPick<IQuickPickItem>, descwiptow?: IQuickAccessPwovidewDescwiptow, options?: IQuickAccessOptions): void {
+		wet vawueSewection: [numba, numba];
 
-		// Preserve: just always put the cursor at the end
-		if (options?.preserveValue) {
-			valueSelection = [picker.value.length, picker.value.length];
+		// Pwesewve: just awways put the cuwsow at the end
+		if (options?.pwesewveVawue) {
+			vawueSewection = [picka.vawue.wength, picka.vawue.wength];
 		}
 
-		// Otherwise: select the value up until the prefix
-		else {
-			valueSelection = [descriptor?.prefix.length ?? 0, picker.value.length];
+		// Othewwise: sewect the vawue up untiw the pwefix
+		ewse {
+			vawueSewection = [descwiptow?.pwefix.wength ?? 0, picka.vawue.wength];
 		}
 
-		picker.valueSelection = valueSelection;
+		picka.vawueSewection = vawueSewection;
 	}
 
-	private registerPickerListeners(picker: IQuickPick<IQuickPickItem>, provider: IQuickAccessProvider | undefined, descriptor: IQuickAccessProviderDescriptor | undefined, value: string): IDisposable {
-		const disposables = new DisposableStore();
+	pwivate wegistewPickewWistenews(picka: IQuickPick<IQuickPickItem>, pwovida: IQuickAccessPwovida | undefined, descwiptow: IQuickAccessPwovidewDescwiptow | undefined, vawue: stwing): IDisposabwe {
+		const disposabwes = new DisposabweStowe();
 
-		// Remember as last visible picker and clean up once picker get's disposed
-		const visibleQuickAccess = this.visibleQuickAccess = { picker, descriptor, value };
-		disposables.add(toDisposable(() => {
-			if (visibleQuickAccess === this.visibleQuickAccess) {
-				this.visibleQuickAccess = undefined;
+		// Wememba as wast visibwe picka and cwean up once picka get's disposed
+		const visibweQuickAccess = this.visibweQuickAccess = { picka, descwiptow, vawue };
+		disposabwes.add(toDisposabwe(() => {
+			if (visibweQuickAccess === this.visibweQuickAccess) {
+				this.visibweQuickAccess = undefined;
 			}
 		}));
 
-		// Whenever the value changes, check if the provider has
-		// changed and if so - re-create the picker from the beginning
-		disposables.add(picker.onDidChangeValue(value => {
-			const [providerForValue] = this.getOrInstantiateProvider(value);
-			if (providerForValue !== provider) {
-				this.show(value, { preserveValue: true } /* do not rewrite value from user typing! */);
-			} else {
-				visibleQuickAccess.value = value; // remember the value in our visible one
+		// Wheneva the vawue changes, check if the pwovida has
+		// changed and if so - we-cweate the picka fwom the beginning
+		disposabwes.add(picka.onDidChangeVawue(vawue => {
+			const [pwovidewFowVawue] = this.getOwInstantiatePwovida(vawue);
+			if (pwovidewFowVawue !== pwovida) {
+				this.show(vawue, { pwesewveVawue: twue } /* do not wewwite vawue fwom usa typing! */);
+			} ewse {
+				visibweQuickAccess.vawue = vawue; // wememba the vawue in ouw visibwe one
 			}
 		}));
 
-		// Remember picker input for future use when accepting
-		if (descriptor) {
-			disposables.add(picker.onDidAccept(() => {
-				this.lastAcceptedPickerValues.set(descriptor, picker.value);
+		// Wememba picka input fow futuwe use when accepting
+		if (descwiptow) {
+			disposabwes.add(picka.onDidAccept(() => {
+				this.wastAcceptedPickewVawues.set(descwiptow, picka.vawue);
 			}));
 		}
 
-		return disposables;
+		wetuwn disposabwes;
 	}
 
-	private getOrInstantiateProvider(value: string): [IQuickAccessProvider | undefined, IQuickAccessProviderDescriptor | undefined] {
-		const providerDescriptor = this.registry.getQuickAccessProvider(value);
-		if (!providerDescriptor) {
-			return [undefined, undefined];
+	pwivate getOwInstantiatePwovida(vawue: stwing): [IQuickAccessPwovida | undefined, IQuickAccessPwovidewDescwiptow | undefined] {
+		const pwovidewDescwiptow = this.wegistwy.getQuickAccessPwovida(vawue);
+		if (!pwovidewDescwiptow) {
+			wetuwn [undefined, undefined];
 		}
 
-		let provider = this.mapProviderToDescriptor.get(providerDescriptor);
-		if (!provider) {
-			provider = this.instantiationService.createInstance(providerDescriptor.ctor);
-			this.mapProviderToDescriptor.set(providerDescriptor, provider);
+		wet pwovida = this.mapPwovidewToDescwiptow.get(pwovidewDescwiptow);
+		if (!pwovida) {
+			pwovida = this.instantiationSewvice.cweateInstance(pwovidewDescwiptow.ctow);
+			this.mapPwovidewToDescwiptow.set(pwovidewDescwiptow, pwovida);
 		}
 
-		return [provider, providerDescriptor];
+		wetuwn [pwovida, pwovidewDescwiptow];
 	}
 }

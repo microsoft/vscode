@@ -1,11 +1,11 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-declare function setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): NodeJS.Timer;
-declare function clearTimeout(timeoutId: NodeJS.Timer): void;
-declare function setInterval(callback: (...args: any[]) => void, ms: number, ...args: any[]): NodeJS.Timer;
-declare function clearInterval(intervalId: NodeJS.Timer): void;
-declare function setImmediate(callback: (...args: any[]) => void, ...args: any[]): any;
-declare function clearImmediate(immediateId: any): void;
+decwawe function setTimeout(cawwback: (...awgs: any[]) => void, ms: numba, ...awgs: any[]): NodeJS.Tima;
+decwawe function cweawTimeout(timeoutId: NodeJS.Tima): void;
+decwawe function setIntewvaw(cawwback: (...awgs: any[]) => void, ms: numba, ...awgs: any[]): NodeJS.Tima;
+decwawe function cweawIntewvaw(intewvawId: NodeJS.Tima): void;
+decwawe function setImmediate(cawwback: (...awgs: any[]) => void, ...awgs: any[]): any;
+decwawe function cweawImmediate(immediateId: any): void;

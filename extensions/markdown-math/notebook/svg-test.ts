@@ -1,21 +1,21 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import type { ActivationFunction } from 'vscode-notebook-renderer';
+impowt type { ActivationFunction } fwom 'vscode-notebook-wendewa';
 
 const activate: ActivationFunction = (_ctx) => {
-	return {
-		renderOutputItem: (item, element) => {
-			const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-			svg.setAttribute('viewBox', '0 0 300 100');
+	wetuwn {
+		wendewOutputItem: (item, ewement) => {
+			const svg = document.cweateEwementNS('http://www.w3.owg/2000/svg', 'svg');
+			svg.setAttwibute('viewBox', '0 0 300 100');
 
-			svg.innerHTML = item.text();
-			element.innerText = '';
+			svg.innewHTMW = item.text();
+			ewement.innewText = '';
 
-			element.appendChild(svg);
+			ewement.appendChiwd(svg);
 		}
 	};
 };
 
-export { activate };
+expowt { activate };

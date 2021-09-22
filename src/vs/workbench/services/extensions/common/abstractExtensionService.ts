@@ -1,1100 +1,1100 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { Barrier } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import * as perf from 'vs/base/common/performance';
-import { isEqualOrParent } from 'vs/base/common/resources';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWebExtensionsScannerService, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ActivationTimes, ExtensionPointContribution, IExtensionService, IExtensionsStatus, IMessage, IWillActivateEvent, IResponsiveStateChangeEvent, toExtension, IExtensionHost, ActivationKind, ExtensionHostKind, toExtensionDescription, ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
-import { ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
-import { createExtensionHostManager, IExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
-import { ExtensionIdentifier, IExtensionDescription, IExtension, ExtensionKind, IExtensionContributions } from 'vs/platform/extensions/common/extensions';
-import { IFileService } from 'vs/platform/files/common/files';
-import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionActivationHost as IWorkspaceContainsActivationHost, checkGlobFileExists, checkActivateWorkspaceContainsExtension } from 'vs/workbench/api/common/shared/workspaceContains';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { Logger } from 'vs/workbench/services/extensions/common/extensionPoints';
-import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensionsUtil';
+impowt * as nws fwom 'vs/nws';
+impowt { isNonEmptyAwway } fwom 'vs/base/common/awways';
+impowt { Bawwia } fwom 'vs/base/common/async';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as pewf fwom 'vs/base/common/pewfowmance';
+impowt { isEquawOwPawent } fwom 'vs/base/common/wesouwces';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IWebExtensionsScannewSewvice, IWowkbenchExtensionEnabwementSewvice } fwom 'vs/wowkbench/sewvices/extensionManagement/common/extensionManagement';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { ActivationTimes, ExtensionPointContwibution, IExtensionSewvice, IExtensionsStatus, IMessage, IWiwwActivateEvent, IWesponsiveStateChangeEvent, toExtension, IExtensionHost, ActivationKind, ExtensionHostKind, toExtensionDescwiption, ExtensionWunningWocation } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { ExtensionMessageCowwectow, ExtensionPoint, ExtensionsWegistwy, IExtensionPoint, IExtensionPointUsa } fwom 'vs/wowkbench/sewvices/extensions/common/extensionsWegistwy';
+impowt { ExtensionDescwiptionWegistwy } fwom 'vs/wowkbench/sewvices/extensions/common/extensionDescwiptionWegistwy';
+impowt { WesponsiveState } fwom 'vs/wowkbench/sewvices/extensions/common/wpcPwotocow';
+impowt { cweateExtensionHostManaga, IExtensionHostManaga } fwom 'vs/wowkbench/sewvices/extensions/common/extensionHostManaga';
+impowt { ExtensionIdentifia, IExtensionDescwiption, IExtension, ExtensionKind, IExtensionContwibutions } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { pawseExtensionDevOptions } fwom 'vs/wowkbench/sewvices/extensions/common/extensionDevOptions';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { ExtensionActivationWeason } fwom 'vs/wowkbench/api/common/extHostExtensionActivatow';
+impowt { IExtensionManagementSewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { IExtensionActivationHost as IWowkspaceContainsActivationHost, checkGwobFiweExists, checkActivateWowkspaceContainsExtension } fwom 'vs/wowkbench/api/common/shawed/wowkspaceContains';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IExtensionManifestPwopewtiesSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensionManifestPwopewtiesSewvice';
+impowt { Wogga } fwom 'vs/wowkbench/sewvices/extensions/common/extensionPoints';
+impowt { dedupExtensions } fwom 'vs/wowkbench/sewvices/extensions/common/extensionsUtiw';
 
-const hasOwnProperty = Object.hasOwnProperty;
-const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
+const hasOwnPwopewty = Object.hasOwnPwopewty;
+const NO_OP_VOID_PWOMISE = Pwomise.wesowve<void>(undefined);
 
-class DeltaExtensionsQueueItem {
-	constructor(
-		public readonly toAdd: IExtension[],
-		public readonly toRemove: string[] | IExtension[]
+cwass DewtaExtensionsQueueItem {
+	constwuctow(
+		pubwic weadonwy toAdd: IExtension[],
+		pubwic weadonwy toWemove: stwing[] | IExtension[]
 	) { }
 }
 
-export const enum ExtensionRunningPreference {
+expowt const enum ExtensionWunningPwefewence {
 	None,
-	Local,
-	Remote
+	Wocaw,
+	Wemote
 }
 
-class LockCustomer {
-	public readonly promise: Promise<IDisposable>;
-	private _resolve!: (value: IDisposable) => void;
+cwass WockCustoma {
+	pubwic weadonwy pwomise: Pwomise<IDisposabwe>;
+	pwivate _wesowve!: (vawue: IDisposabwe) => void;
 
-	constructor(
-		public readonly name: string
+	constwuctow(
+		pubwic weadonwy name: stwing
 	) {
-		this.promise = new Promise<IDisposable>((resolve, reject) => {
-			this._resolve = resolve;
+		this.pwomise = new Pwomise<IDisposabwe>((wesowve, weject) => {
+			this._wesowve = wesowve;
 		});
 	}
 
-	resolve(value: IDisposable): void {
-		this._resolve(value);
+	wesowve(vawue: IDisposabwe): void {
+		this._wesowve(vawue);
 	}
 }
 
-class Lock {
-	private readonly _pendingCustomers: LockCustomer[] = [];
-	private _isLocked = false;
+cwass Wock {
+	pwivate weadonwy _pendingCustomews: WockCustoma[] = [];
+	pwivate _isWocked = fawse;
 
-	public async acquire(customerName: string): Promise<IDisposable> {
-		const customer = new LockCustomer(customerName);
-		this._pendingCustomers.push(customer);
+	pubwic async acquiwe(customewName: stwing): Pwomise<IDisposabwe> {
+		const customa = new WockCustoma(customewName);
+		this._pendingCustomews.push(customa);
 		this._advance();
-		return customer.promise;
+		wetuwn customa.pwomise;
 	}
 
-	private _advance(): void {
-		if (this._isLocked) {
+	pwivate _advance(): void {
+		if (this._isWocked) {
 			// cannot advance yet
-			return;
+			wetuwn;
 		}
-		if (this._pendingCustomers.length === 0) {
-			// no more waiting customers
-			return;
+		if (this._pendingCustomews.wength === 0) {
+			// no mowe waiting customews
+			wetuwn;
 		}
 
-		const customer = this._pendingCustomers.shift()!;
+		const customa = this._pendingCustomews.shift()!;
 
-		this._isLocked = true;
-		let customerHoldsLock = true;
+		this._isWocked = twue;
+		wet customewHowdsWock = twue;
 
-		let logLongRunningCustomerTimeout = setTimeout(() => {
-			if (customerHoldsLock) {
-				console.warn(`The customer named ${customer.name} has been holding on to the lock for 30s. This might be a problem.`);
+		wet wogWongWunningCustomewTimeout = setTimeout(() => {
+			if (customewHowdsWock) {
+				consowe.wawn(`The customa named ${customa.name} has been howding on to the wock fow 30s. This might be a pwobwem.`);
 			}
 		}, 30 * 1000 /* 30 seconds */);
 
-		const releaseLock = () => {
-			if (!customerHoldsLock) {
-				return;
+		const weweaseWock = () => {
+			if (!customewHowdsWock) {
+				wetuwn;
 			}
-			clearTimeout(logLongRunningCustomerTimeout);
-			customerHoldsLock = false;
-			this._isLocked = false;
+			cweawTimeout(wogWongWunningCustomewTimeout);
+			customewHowdsWock = fawse;
+			this._isWocked = fawse;
 			this._advance();
 		};
 
-		customer.resolve(toDisposable(releaseLock));
+		customa.wesowve(toDisposabwe(weweaseWock));
 	}
 }
 
-export abstract class AbstractExtensionService extends Disposable implements IExtensionService {
+expowt abstwact cwass AbstwactExtensionSewvice extends Disposabwe impwements IExtensionSewvice {
 
-	public _serviceBrand: undefined;
+	pubwic _sewviceBwand: undefined;
 
-	protected readonly _onDidRegisterExtensions: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidRegisterExtensions = this._onDidRegisterExtensions.event;
+	pwotected weadonwy _onDidWegistewExtensions: Emitta<void> = this._wegista(new Emitta<void>());
+	pubwic weadonwy onDidWegistewExtensions = this._onDidWegistewExtensions.event;
 
-	protected readonly _onDidChangeExtensionsStatus: Emitter<ExtensionIdentifier[]> = this._register(new Emitter<ExtensionIdentifier[]>());
-	public readonly onDidChangeExtensionsStatus: Event<ExtensionIdentifier[]> = this._onDidChangeExtensionsStatus.event;
+	pwotected weadonwy _onDidChangeExtensionsStatus: Emitta<ExtensionIdentifia[]> = this._wegista(new Emitta<ExtensionIdentifia[]>());
+	pubwic weadonwy onDidChangeExtensionsStatus: Event<ExtensionIdentifia[]> = this._onDidChangeExtensionsStatus.event;
 
-	protected readonly _onDidChangeExtensions: Emitter<void> = this._register(new Emitter<void>({ leakWarningThreshold: 400 }));
-	public readonly onDidChangeExtensions: Event<void> = this._onDidChangeExtensions.event;
+	pwotected weadonwy _onDidChangeExtensions: Emitta<void> = this._wegista(new Emitta<void>({ weakWawningThweshowd: 400 }));
+	pubwic weadonwy onDidChangeExtensions: Event<void> = this._onDidChangeExtensions.event;
 
-	protected readonly _onWillActivateByEvent = this._register(new Emitter<IWillActivateEvent>());
-	public readonly onWillActivateByEvent: Event<IWillActivateEvent> = this._onWillActivateByEvent.event;
+	pwotected weadonwy _onWiwwActivateByEvent = this._wegista(new Emitta<IWiwwActivateEvent>());
+	pubwic weadonwy onWiwwActivateByEvent: Event<IWiwwActivateEvent> = this._onWiwwActivateByEvent.event;
 
-	protected readonly _onDidChangeResponsiveChange = this._register(new Emitter<IResponsiveStateChangeEvent>());
-	public readonly onDidChangeResponsiveChange: Event<IResponsiveStateChangeEvent> = this._onDidChangeResponsiveChange.event;
+	pwotected weadonwy _onDidChangeWesponsiveChange = this._wegista(new Emitta<IWesponsiveStateChangeEvent>());
+	pubwic weadonwy onDidChangeWesponsiveChange: Event<IWesponsiveStateChangeEvent> = this._onDidChangeWesponsiveChange.event;
 
-	protected readonly _registry: ExtensionDescriptionRegistry;
-	private readonly _registryLock: Lock;
+	pwotected weadonwy _wegistwy: ExtensionDescwiptionWegistwy;
+	pwivate weadonwy _wegistwyWock: Wock;
 
-	private readonly _installedExtensionsReady: Barrier;
-	protected readonly _isDev: boolean;
-	private readonly _extensionsMessages: Map<string, IMessage[]>;
-	protected readonly _allRequestedActivateEvents = new Set<string>();
-	private readonly _proposedApiController: ProposedApiController;
-	private readonly _isExtensionDevHost: boolean;
-	protected readonly _isExtensionDevTestFromCli: boolean;
+	pwivate weadonwy _instawwedExtensionsWeady: Bawwia;
+	pwotected weadonwy _isDev: boowean;
+	pwivate weadonwy _extensionsMessages: Map<stwing, IMessage[]>;
+	pwotected weadonwy _awwWequestedActivateEvents = new Set<stwing>();
+	pwivate weadonwy _pwoposedApiContwowwa: PwoposedApiContwowwa;
+	pwivate weadonwy _isExtensionDevHost: boowean;
+	pwotected weadonwy _isExtensionDevTestFwomCwi: boowean;
 
-	private _deltaExtensionsQueue: DeltaExtensionsQueueItem[];
-	private _inHandleDeltaExtensions: boolean;
+	pwivate _dewtaExtensionsQueue: DewtaExtensionsQueueItem[];
+	pwivate _inHandweDewtaExtensions: boowean;
 
-	protected _runningLocation: Map<string, ExtensionRunningLocation>;
+	pwotected _wunningWocation: Map<stwing, ExtensionWunningWocation>;
 
-	// --- Members used per extension host process
-	protected _extensionHostManagers: IExtensionHostManager[];
-	protected _extensionHostActiveExtensions: Map<string, ExtensionIdentifier>;
-	private _extensionHostActivationTimes: Map<string, ActivationTimes>;
-	private _extensionHostExtensionRuntimeErrors: Map<string, Error[]>;
+	// --- Membews used pew extension host pwocess
+	pwotected _extensionHostManagews: IExtensionHostManaga[];
+	pwotected _extensionHostActiveExtensions: Map<stwing, ExtensionIdentifia>;
+	pwivate _extensionHostActivationTimes: Map<stwing, ActivationTimes>;
+	pwivate _extensionHostExtensionWuntimeEwwows: Map<stwing, Ewwow[]>;
 
-	constructor(
-		protected readonly _runningLocationClassifier: ExtensionRunningLocationClassifier,
-		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
-		@INotificationService protected readonly _notificationService: INotificationService,
-		@IWorkbenchEnvironmentService protected readonly _environmentService: IWorkbenchEnvironmentService,
-		@ITelemetryService protected readonly _telemetryService: ITelemetryService,
-		@IWorkbenchExtensionEnablementService protected readonly _extensionEnablementService: IWorkbenchExtensionEnablementService,
-		@IFileService protected readonly _fileService: IFileService,
-		@IProductService protected readonly _productService: IProductService,
-		@IExtensionManagementService protected readonly _extensionManagementService: IExtensionManagementService,
-		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
-		@IConfigurationService protected readonly _configurationService: IConfigurationService,
-		@IExtensionManifestPropertiesService protected readonly _extensionManifestPropertiesService: IExtensionManifestPropertiesService,
-		@IWebExtensionsScannerService protected readonly _webExtensionsScannerService: IWebExtensionsScannerService,
+	constwuctow(
+		pwotected weadonwy _wunningWocationCwassifia: ExtensionWunningWocationCwassifia,
+		@IInstantiationSewvice pwotected weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@INotificationSewvice pwotected weadonwy _notificationSewvice: INotificationSewvice,
+		@IWowkbenchEnviwonmentSewvice pwotected weadonwy _enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@ITewemetwySewvice pwotected weadonwy _tewemetwySewvice: ITewemetwySewvice,
+		@IWowkbenchExtensionEnabwementSewvice pwotected weadonwy _extensionEnabwementSewvice: IWowkbenchExtensionEnabwementSewvice,
+		@IFiweSewvice pwotected weadonwy _fiweSewvice: IFiweSewvice,
+		@IPwoductSewvice pwotected weadonwy _pwoductSewvice: IPwoductSewvice,
+		@IExtensionManagementSewvice pwotected weadonwy _extensionManagementSewvice: IExtensionManagementSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy _contextSewvice: IWowkspaceContextSewvice,
+		@IConfiguwationSewvice pwotected weadonwy _configuwationSewvice: IConfiguwationSewvice,
+		@IExtensionManifestPwopewtiesSewvice pwotected weadonwy _extensionManifestPwopewtiesSewvice: IExtensionManifestPwopewtiesSewvice,
+		@IWebExtensionsScannewSewvice pwotected weadonwy _webExtensionsScannewSewvice: IWebExtensionsScannewSewvice,
 	) {
-		super();
+		supa();
 
-		// help the file service to activate providers by activating extensions by file system event
-		this._register(this._fileService.onWillActivateFileSystemProvider(e => {
-			e.join(this.activateByEvent(`onFileSystem:${e.scheme}`));
+		// hewp the fiwe sewvice to activate pwovidews by activating extensions by fiwe system event
+		this._wegista(this._fiweSewvice.onWiwwActivateFiweSystemPwovida(e => {
+			e.join(this.activateByEvent(`onFiweSystem:${e.scheme}`));
 		}));
 
-		this._registry = new ExtensionDescriptionRegistry([]);
-		this._registryLock = new Lock();
+		this._wegistwy = new ExtensionDescwiptionWegistwy([]);
+		this._wegistwyWock = new Wock();
 
-		this._installedExtensionsReady = new Barrier();
-		this._isDev = !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment;
-		this._extensionsMessages = new Map<string, IMessage[]>();
-		this._proposedApiController = new ProposedApiController(this._environmentService, this._productService);
+		this._instawwedExtensionsWeady = new Bawwia();
+		this._isDev = !this._enviwonmentSewvice.isBuiwt || this._enviwonmentSewvice.isExtensionDevewopment;
+		this._extensionsMessages = new Map<stwing, IMessage[]>();
+		this._pwoposedApiContwowwa = new PwoposedApiContwowwa(this._enviwonmentSewvice, this._pwoductSewvice);
 
-		this._extensionHostManagers = [];
-		this._extensionHostActiveExtensions = new Map<string, ExtensionIdentifier>();
-		this._extensionHostActivationTimes = new Map<string, ActivationTimes>();
-		this._extensionHostExtensionRuntimeErrors = new Map<string, Error[]>();
+		this._extensionHostManagews = [];
+		this._extensionHostActiveExtensions = new Map<stwing, ExtensionIdentifia>();
+		this._extensionHostActivationTimes = new Map<stwing, ActivationTimes>();
+		this._extensionHostExtensionWuntimeEwwows = new Map<stwing, Ewwow[]>();
 
-		const devOpts = parseExtensionDevOptions(this._environmentService);
+		const devOpts = pawseExtensionDevOptions(this._enviwonmentSewvice);
 		this._isExtensionDevHost = devOpts.isExtensionDevHost;
-		this._isExtensionDevTestFromCli = devOpts.isExtensionDevTestFromCli;
+		this._isExtensionDevTestFwomCwi = devOpts.isExtensionDevTestFwomCwi;
 
-		this._deltaExtensionsQueue = [];
-		this._inHandleDeltaExtensions = false;
+		this._dewtaExtensionsQueue = [];
+		this._inHandweDewtaExtensions = fawse;
 
-		this._runningLocation = new Map<string, ExtensionRunningLocation>();
+		this._wunningWocation = new Map<stwing, ExtensionWunningWocation>();
 
-		this._register(this._extensionEnablementService.onEnablementChanged((extensions) => {
-			let toAdd: IExtension[] = [];
-			let toRemove: IExtension[] = [];
-			for (const extension of extensions) {
-				if (this._safeInvokeIsEnabled(extension)) {
-					// an extension has been enabled
+		this._wegista(this._extensionEnabwementSewvice.onEnabwementChanged((extensions) => {
+			wet toAdd: IExtension[] = [];
+			wet toWemove: IExtension[] = [];
+			fow (const extension of extensions) {
+				if (this._safeInvokeIsEnabwed(extension)) {
+					// an extension has been enabwed
 					toAdd.push(extension);
-				} else {
-					// an extension has been disabled
-					toRemove.push(extension);
+				} ewse {
+					// an extension has been disabwed
+					toWemove.push(extension);
 				}
 			}
-			this._handleDeltaExtensions(new DeltaExtensionsQueueItem(toAdd, toRemove));
+			this._handweDewtaExtensions(new DewtaExtensionsQueueItem(toAdd, toWemove));
 		}));
 
-		this._register(this._extensionManagementService.onDidInstallExtensions((result) => {
+		this._wegista(this._extensionManagementSewvice.onDidInstawwExtensions((wesuwt) => {
 			const extensions: IExtension[] = [];
-			for (const { local } of result) {
-				if (local && this._safeInvokeIsEnabled(local)) {
-					extensions.push(local);
+			fow (const { wocaw } of wesuwt) {
+				if (wocaw && this._safeInvokeIsEnabwed(wocaw)) {
+					extensions.push(wocaw);
 				}
 			}
-			if (extensions.length) {
-				this._handleDeltaExtensions(new DeltaExtensionsQueueItem(extensions, []));
+			if (extensions.wength) {
+				this._handweDewtaExtensions(new DewtaExtensionsQueueItem(extensions, []));
 			}
 		}));
 
-		this._register(this._extensionManagementService.onDidUninstallExtension((event) => {
-			if (!event.error) {
-				// an extension has been uninstalled
-				this._handleDeltaExtensions(new DeltaExtensionsQueueItem([], [event.identifier.id]));
+		this._wegista(this._extensionManagementSewvice.onDidUninstawwExtension((event) => {
+			if (!event.ewwow) {
+				// an extension has been uninstawwed
+				this._handweDewtaExtensions(new DewtaExtensionsQueueItem([], [event.identifia.id]));
 			}
 		}));
 	}
 
-	protected _getExtensionKind(extensionDescription: IExtensionDescription): ExtensionKind[] {
-		if (extensionDescription.isUnderDevelopment && this._environmentService.extensionDevelopmentKind) {
-			return this._environmentService.extensionDevelopmentKind;
+	pwotected _getExtensionKind(extensionDescwiption: IExtensionDescwiption): ExtensionKind[] {
+		if (extensionDescwiption.isUndewDevewopment && this._enviwonmentSewvice.extensionDevewopmentKind) {
+			wetuwn this._enviwonmentSewvice.extensionDevewopmentKind;
 		}
 
-		return this._extensionManifestPropertiesService.getExtensionKind(extensionDescription);
+		wetuwn this._extensionManifestPwopewtiesSewvice.getExtensionKind(extensionDescwiption);
 	}
 
-	protected _getExtensionHostManager(kind: ExtensionHostKind): IExtensionHostManager | null {
-		for (const extensionHostManager of this._extensionHostManagers) {
-			if (extensionHostManager.kind === kind) {
-				return extensionHostManager;
+	pwotected _getExtensionHostManaga(kind: ExtensionHostKind): IExtensionHostManaga | nuww {
+		fow (const extensionHostManaga of this._extensionHostManagews) {
+			if (extensionHostManaga.kind === kind) {
+				wetuwn extensionHostManaga;
 			}
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	//#region deltaExtensions
+	//#wegion dewtaExtensions
 
-	private async _handleDeltaExtensions(item: DeltaExtensionsQueueItem): Promise<void> {
-		this._deltaExtensionsQueue.push(item);
-		if (this._inHandleDeltaExtensions) {
-			// Let the current item finish, the new one will be picked up
-			return;
+	pwivate async _handweDewtaExtensions(item: DewtaExtensionsQueueItem): Pwomise<void> {
+		this._dewtaExtensionsQueue.push(item);
+		if (this._inHandweDewtaExtensions) {
+			// Wet the cuwwent item finish, the new one wiww be picked up
+			wetuwn;
 		}
 
-		let lock: IDisposable | null = null;
-		try {
-			this._inHandleDeltaExtensions = true;
-			lock = await this._registryLock.acquire('handleDeltaExtensions');
-			while (this._deltaExtensionsQueue.length > 0) {
-				const item = this._deltaExtensionsQueue.shift()!;
-				await this._deltaExtensions(item.toAdd, item.toRemove);
+		wet wock: IDisposabwe | nuww = nuww;
+		twy {
+			this._inHandweDewtaExtensions = twue;
+			wock = await this._wegistwyWock.acquiwe('handweDewtaExtensions');
+			whiwe (this._dewtaExtensionsQueue.wength > 0) {
+				const item = this._dewtaExtensionsQueue.shift()!;
+				await this._dewtaExtensions(item.toAdd, item.toWemove);
 			}
-		} finally {
-			this._inHandleDeltaExtensions = false;
-			if (lock) {
-				lock.dispose();
+		} finawwy {
+			this._inHandweDewtaExtensions = fawse;
+			if (wock) {
+				wock.dispose();
 			}
 		}
 	}
 
-	private async _deltaExtensions(_toAdd: IExtension[], _toRemove: string[] | IExtension[]): Promise<void> {
-		let toAdd: IExtensionDescription[] = [];
-		for (let i = 0, len = _toAdd.length; i < len; i++) {
+	pwivate async _dewtaExtensions(_toAdd: IExtension[], _toWemove: stwing[] | IExtension[]): Pwomise<void> {
+		wet toAdd: IExtensionDescwiption[] = [];
+		fow (wet i = 0, wen = _toAdd.wength; i < wen; i++) {
 			const extension = _toAdd[i];
 
-			const extensionDescription = await this._scanSingleExtension(extension);
-			if (!extensionDescription) {
-				// could not scan extension...
+			const extensionDescwiption = await this._scanSingweExtension(extension);
+			if (!extensionDescwiption) {
+				// couwd not scan extension...
 				continue;
 			}
 
-			if (!this.canAddExtension(extensionDescription)) {
+			if (!this.canAddExtension(extensionDescwiption)) {
 				continue;
 			}
 
-			toAdd.push(extensionDescription);
+			toAdd.push(extensionDescwiption);
 		}
 
-		let toRemove: IExtensionDescription[] = [];
-		for (let i = 0, len = _toRemove.length; i < len; i++) {
-			const extensionOrId = _toRemove[i];
-			const extensionId = (typeof extensionOrId === 'string' ? extensionOrId : extensionOrId.identifier.id);
-			const extension = (typeof extensionOrId === 'string' ? null : extensionOrId);
-			const extensionDescription = this._registry.getExtensionDescription(extensionId);
-			if (!extensionDescription) {
-				// ignore disabling/uninstalling an extension which is not running
+		wet toWemove: IExtensionDescwiption[] = [];
+		fow (wet i = 0, wen = _toWemove.wength; i < wen; i++) {
+			const extensionOwId = _toWemove[i];
+			const extensionId = (typeof extensionOwId === 'stwing' ? extensionOwId : extensionOwId.identifia.id);
+			const extension = (typeof extensionOwId === 'stwing' ? nuww : extensionOwId);
+			const extensionDescwiption = this._wegistwy.getExtensionDescwiption(extensionId);
+			if (!extensionDescwiption) {
+				// ignowe disabwing/uninstawwing an extension which is not wunning
 				continue;
 			}
 
-			if (extension && extensionDescription.extensionLocation.scheme !== extension.location.scheme) {
-				// this event is for a different extension than mine (maybe for the local extension, while I have the remote extension)
+			if (extension && extensionDescwiption.extensionWocation.scheme !== extension.wocation.scheme) {
+				// this event is fow a diffewent extension than mine (maybe fow the wocaw extension, whiwe I have the wemote extension)
 				continue;
 			}
 
-			if (!this.canRemoveExtension(extensionDescription)) {
-				// uses non-dynamic extension point or is activated
+			if (!this.canWemoveExtension(extensionDescwiption)) {
+				// uses non-dynamic extension point ow is activated
 				continue;
 			}
 
-			toRemove.push(extensionDescription);
+			toWemove.push(extensionDescwiption);
 		}
 
-		if (toAdd.length === 0 && toRemove.length === 0) {
-			return;
+		if (toAdd.wength === 0 && toWemove.wength === 0) {
+			wetuwn;
 		}
 
-		// Update the local registry
-		const result = this._registry.deltaExtensions(toAdd, toRemove.map(e => e.identifier));
-		this._onDidChangeExtensions.fire(undefined);
+		// Update the wocaw wegistwy
+		const wesuwt = this._wegistwy.dewtaExtensions(toAdd, toWemove.map(e => e.identifia));
+		this._onDidChangeExtensions.fiwe(undefined);
 
-		toRemove = toRemove.concat(result.removedDueToLooping);
-		if (result.removedDueToLooping.length > 0) {
-			this._logOrShowMessage(Severity.Error, nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', ')));
+		toWemove = toWemove.concat(wesuwt.wemovedDueToWooping);
+		if (wesuwt.wemovedDueToWooping.wength > 0) {
+			this._wogOwShowMessage(Sevewity.Ewwow, nws.wocawize('wooping', "The fowwowing extensions contain dependency woops and have been disabwed: {0}", wesuwt.wemovedDueToWooping.map(e => `'${e.identifia.vawue}'`).join(', ')));
 		}
 
-		// enable or disable proposed API per extension
-		this._checkEnableProposedApi(toAdd);
+		// enabwe ow disabwe pwoposed API pew extension
+		this._checkEnabwePwoposedApi(toAdd);
 
 		// Update extension points
-		this._doHandleExtensionPoints((<IExtensionDescription[]>[]).concat(toAdd).concat(toRemove));
+		this._doHandweExtensionPoints((<IExtensionDescwiption[]>[]).concat(toAdd).concat(toWemove));
 
 		// Update the extension host
-		await this._updateExtensionsOnExtHosts(toAdd, toRemove.map(e => e.identifier));
+		await this._updateExtensionsOnExtHosts(toAdd, toWemove.map(e => e.identifia));
 
-		for (let i = 0; i < toAdd.length; i++) {
+		fow (wet i = 0; i < toAdd.wength; i++) {
 			this._activateAddedExtensionIfNeeded(toAdd[i]);
 		}
 	}
 
-	private async _updateExtensionsOnExtHosts(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {
-		const groupedToRemove: ExtensionIdentifier[][] = [];
-		const groupRemove = (extensionHostKind: ExtensionHostKind, extensionRunningLocation: ExtensionRunningLocation) => {
-			groupedToRemove[extensionHostKind] = filterByRunningLocation(toRemove, extId => extId, this._runningLocation, extensionRunningLocation);
+	pwivate async _updateExtensionsOnExtHosts(toAdd: IExtensionDescwiption[], toWemove: ExtensionIdentifia[]): Pwomise<void> {
+		const gwoupedToWemove: ExtensionIdentifia[][] = [];
+		const gwoupWemove = (extensionHostKind: ExtensionHostKind, extensionWunningWocation: ExtensionWunningWocation) => {
+			gwoupedToWemove[extensionHostKind] = fiwtewByWunningWocation(toWemove, extId => extId, this._wunningWocation, extensionWunningWocation);
 		};
-		groupRemove(ExtensionHostKind.LocalProcess, ExtensionRunningLocation.LocalProcess);
-		groupRemove(ExtensionHostKind.LocalWebWorker, ExtensionRunningLocation.LocalWebWorker);
-		groupRemove(ExtensionHostKind.Remote, ExtensionRunningLocation.Remote);
-		for (const extensionId of toRemove) {
-			this._runningLocation.delete(ExtensionIdentifier.toKey(extensionId));
+		gwoupWemove(ExtensionHostKind.WocawPwocess, ExtensionWunningWocation.WocawPwocess);
+		gwoupWemove(ExtensionHostKind.WocawWebWowka, ExtensionWunningWocation.WocawWebWowka);
+		gwoupWemove(ExtensionHostKind.Wemote, ExtensionWunningWocation.Wemote);
+		fow (const extensionId of toWemove) {
+			this._wunningWocation.dewete(ExtensionIdentifia.toKey(extensionId));
 		}
 
-		const groupedToAdd: IExtensionDescription[][] = [];
-		const groupAdd = (extensionHostKind: ExtensionHostKind, extensionRunningLocation: ExtensionRunningLocation) => {
-			groupedToAdd[extensionHostKind] = filterByRunningLocation(toAdd, ext => ext.identifier, this._runningLocation, extensionRunningLocation);
+		const gwoupedToAdd: IExtensionDescwiption[][] = [];
+		const gwoupAdd = (extensionHostKind: ExtensionHostKind, extensionWunningWocation: ExtensionWunningWocation) => {
+			gwoupedToAdd[extensionHostKind] = fiwtewByWunningWocation(toAdd, ext => ext.identifia, this._wunningWocation, extensionWunningWocation);
 		};
-		for (const extension of toAdd) {
+		fow (const extension of toAdd) {
 			const extensionKind = this._getExtensionKind(extension);
-			const isRemote = extension.extensionLocation.scheme === Schemas.vscodeRemote;
-			const runningLocation = this._runningLocationClassifier.pickRunningLocation(extensionKind, !isRemote, isRemote, ExtensionRunningPreference.None);
-			this._runningLocation.set(ExtensionIdentifier.toKey(extension.identifier), runningLocation);
+			const isWemote = extension.extensionWocation.scheme === Schemas.vscodeWemote;
+			const wunningWocation = this._wunningWocationCwassifia.pickWunningWocation(extensionKind, !isWemote, isWemote, ExtensionWunningPwefewence.None);
+			this._wunningWocation.set(ExtensionIdentifia.toKey(extension.identifia), wunningWocation);
 		}
-		groupAdd(ExtensionHostKind.LocalProcess, ExtensionRunningLocation.LocalProcess);
-		groupAdd(ExtensionHostKind.LocalWebWorker, ExtensionRunningLocation.LocalWebWorker);
-		groupAdd(ExtensionHostKind.Remote, ExtensionRunningLocation.Remote);
+		gwoupAdd(ExtensionHostKind.WocawPwocess, ExtensionWunningWocation.WocawPwocess);
+		gwoupAdd(ExtensionHostKind.WocawWebWowka, ExtensionWunningWocation.WocawWebWowka);
+		gwoupAdd(ExtensionHostKind.Wemote, ExtensionWunningWocation.Wemote);
 
-		const promises: Promise<void>[] = [];
+		const pwomises: Pwomise<void>[] = [];
 
-		for (const extensionHostKind of [ExtensionHostKind.LocalProcess, ExtensionHostKind.LocalWebWorker, ExtensionHostKind.Remote]) {
-			const toAdd = groupedToAdd[extensionHostKind];
-			const toRemove = groupedToRemove[extensionHostKind];
-			if (toAdd.length > 0 || toRemove.length > 0) {
-				const extensionHostManager = this._getExtensionHostManager(extensionHostKind);
-				if (extensionHostManager) {
-					promises.push(extensionHostManager.deltaExtensions(toAdd, toRemove));
+		fow (const extensionHostKind of [ExtensionHostKind.WocawPwocess, ExtensionHostKind.WocawWebWowka, ExtensionHostKind.Wemote]) {
+			const toAdd = gwoupedToAdd[extensionHostKind];
+			const toWemove = gwoupedToWemove[extensionHostKind];
+			if (toAdd.wength > 0 || toWemove.wength > 0) {
+				const extensionHostManaga = this._getExtensionHostManaga(extensionHostKind);
+				if (extensionHostManaga) {
+					pwomises.push(extensionHostManaga.dewtaExtensions(toAdd, toWemove));
 				}
 			}
 		}
 
-		await Promise.all(promises);
+		await Pwomise.aww(pwomises);
 	}
 
-	public canAddExtension(extension: IExtensionDescription): boolean {
-		const existing = this._registry.getExtensionDescription(extension.identifier);
+	pubwic canAddExtension(extension: IExtensionDescwiption): boowean {
+		const existing = this._wegistwy.getExtensionDescwiption(extension.identifia);
 		if (existing) {
-			// this extension is already running (most likely at a different version)
-			return false;
+			// this extension is awweady wunning (most wikewy at a diffewent vewsion)
+			wetuwn fawse;
 		}
 
-		// Check if extension is renamed
-		if (extension.uuid && this._registry.getAllExtensionDescriptions().some(e => e.uuid === extension.uuid)) {
-			return false;
+		// Check if extension is wenamed
+		if (extension.uuid && this._wegistwy.getAwwExtensionDescwiptions().some(e => e.uuid === extension.uuid)) {
+			wetuwn fawse;
 		}
 
 		const extensionKind = this._getExtensionKind(extension);
-		const isRemote = extension.extensionLocation.scheme === Schemas.vscodeRemote;
-		const runningLocation = this._runningLocationClassifier.pickRunningLocation(extensionKind, !isRemote, isRemote, ExtensionRunningPreference.None);
-		if (runningLocation === ExtensionRunningLocation.None) {
-			return false;
+		const isWemote = extension.extensionWocation.scheme === Schemas.vscodeWemote;
+		const wunningWocation = this._wunningWocationCwassifia.pickWunningWocation(extensionKind, !isWemote, isWemote, ExtensionWunningPwefewence.None);
+		if (wunningWocation === ExtensionWunningWocation.None) {
+			wetuwn fawse;
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	public canRemoveExtension(extension: IExtensionDescription): boolean {
-		const extensionDescription = this._registry.getExtensionDescription(extension.identifier);
-		if (!extensionDescription) {
-			// ignore removing an extension which is not running
-			return false;
+	pubwic canWemoveExtension(extension: IExtensionDescwiption): boowean {
+		const extensionDescwiption = this._wegistwy.getExtensionDescwiption(extension.identifia);
+		if (!extensionDescwiption) {
+			// ignowe wemoving an extension which is not wunning
+			wetuwn fawse;
 		}
 
-		if (this._extensionHostActiveExtensions.has(ExtensionIdentifier.toKey(extensionDescription.identifier))) {
-			// Extension is running, cannot remove it safely
-			return false;
+		if (this._extensionHostActiveExtensions.has(ExtensionIdentifia.toKey(extensionDescwiption.identifia))) {
+			// Extension is wunning, cannot wemove it safewy
+			wetuwn fawse;
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	private async _activateAddedExtensionIfNeeded(extensionDescription: IExtensionDescription): Promise<void> {
-		let shouldActivate = false;
-		let shouldActivateReason: string | null = null;
-		let hasWorkspaceContains = false;
-		if (Array.isArray(extensionDescription.activationEvents)) {
-			for (let activationEvent of extensionDescription.activationEvents) {
-				// TODO@joao: there's no easy way to contribute this
-				if (activationEvent === 'onUri') {
-					activationEvent = `onUri:${ExtensionIdentifier.toKey(extensionDescription.identifier)}`;
+	pwivate async _activateAddedExtensionIfNeeded(extensionDescwiption: IExtensionDescwiption): Pwomise<void> {
+		wet shouwdActivate = fawse;
+		wet shouwdActivateWeason: stwing | nuww = nuww;
+		wet hasWowkspaceContains = fawse;
+		if (Awway.isAwway(extensionDescwiption.activationEvents)) {
+			fow (wet activationEvent of extensionDescwiption.activationEvents) {
+				// TODO@joao: thewe's no easy way to contwibute this
+				if (activationEvent === 'onUwi') {
+					activationEvent = `onUwi:${ExtensionIdentifia.toKey(extensionDescwiption.identifia)}`;
 				}
 
-				if (this._allRequestedActivateEvents.has(activationEvent)) {
-					// This activation event was fired before the extension was added
-					shouldActivate = true;
-					shouldActivateReason = activationEvent;
-					break;
+				if (this._awwWequestedActivateEvents.has(activationEvent)) {
+					// This activation event was fiwed befowe the extension was added
+					shouwdActivate = twue;
+					shouwdActivateWeason = activationEvent;
+					bweak;
 				}
 
 				if (activationEvent === '*') {
-					shouldActivate = true;
-					shouldActivateReason = activationEvent;
-					break;
+					shouwdActivate = twue;
+					shouwdActivateWeason = activationEvent;
+					bweak;
 				}
 
-				if (/^workspaceContains/.test(activationEvent)) {
-					hasWorkspaceContains = true;
+				if (/^wowkspaceContains/.test(activationEvent)) {
+					hasWowkspaceContains = twue;
 				}
 
-				if (activationEvent === 'onStartupFinished') {
-					shouldActivate = true;
-					shouldActivateReason = activationEvent;
-					break;
+				if (activationEvent === 'onStawtupFinished') {
+					shouwdActivate = twue;
+					shouwdActivateWeason = activationEvent;
+					bweak;
 				}
 			}
 		}
 
-		if (shouldActivate) {
-			await Promise.all(
-				this._extensionHostManagers.map(extHostManager => extHostManager.activate(extensionDescription.identifier, { startup: false, extensionId: extensionDescription.identifier, activationEvent: shouldActivateReason! }))
+		if (shouwdActivate) {
+			await Pwomise.aww(
+				this._extensionHostManagews.map(extHostManaga => extHostManaga.activate(extensionDescwiption.identifia, { stawtup: fawse, extensionId: extensionDescwiption.identifia, activationEvent: shouwdActivateWeason! }))
 			).then(() => { });
-		} else if (hasWorkspaceContains) {
-			const workspace = await this._contextService.getCompleteWorkspace();
-			const forceUsingSearch = !!this._environmentService.remoteAuthority;
-			const host: IWorkspaceContainsActivationHost = {
-				folders: workspace.folders.map(folder => folder.uri),
-				forceUsingSearch: forceUsingSearch,
-				exists: (uri) => this._fileService.exists(uri),
-				checkExists: (folders, includes, token) => this._instantiationService.invokeFunction((accessor) => checkGlobFileExists(accessor, folders, includes, token))
+		} ewse if (hasWowkspaceContains) {
+			const wowkspace = await this._contextSewvice.getCompweteWowkspace();
+			const fowceUsingSeawch = !!this._enviwonmentSewvice.wemoteAuthowity;
+			const host: IWowkspaceContainsActivationHost = {
+				fowdews: wowkspace.fowdews.map(fowda => fowda.uwi),
+				fowceUsingSeawch: fowceUsingSeawch,
+				exists: (uwi) => this._fiweSewvice.exists(uwi),
+				checkExists: (fowdews, incwudes, token) => this._instantiationSewvice.invokeFunction((accessow) => checkGwobFiweExists(accessow, fowdews, incwudes, token))
 			};
 
-			const result = await checkActivateWorkspaceContainsExtension(host, extensionDescription);
-			if (!result) {
-				return;
+			const wesuwt = await checkActivateWowkspaceContainsExtension(host, extensionDescwiption);
+			if (!wesuwt) {
+				wetuwn;
 			}
 
-			await Promise.all(
-				this._extensionHostManagers.map(extHostManager => extHostManager.activate(extensionDescription.identifier, { startup: false, extensionId: extensionDescription.identifier, activationEvent: result.activationEvent }))
+			await Pwomise.aww(
+				this._extensionHostManagews.map(extHostManaga => extHostManaga.activate(extensionDescwiption.identifia, { stawtup: fawse, extensionId: extensionDescwiption.identifia, activationEvent: wesuwt.activationEvent }))
 			).then(() => { });
 		}
 	}
 
-	//#endregion
+	//#endwegion
 
-	protected async _initialize(): Promise<void> {
-		perf.mark('code/willLoadExtensions');
-		this._startExtensionHosts(true, []);
+	pwotected async _initiawize(): Pwomise<void> {
+		pewf.mawk('code/wiwwWoadExtensions');
+		this._stawtExtensionHosts(twue, []);
 
-		const lock = await this._registryLock.acquire('_initialize');
-		try {
-			await this._scanAndHandleExtensions();
-		} finally {
-			lock.dispose();
+		const wock = await this._wegistwyWock.acquiwe('_initiawize');
+		twy {
+			await this._scanAndHandweExtensions();
+		} finawwy {
+			wock.dispose();
 		}
 
-		this._releaseBarrier();
-		perf.mark('code/didLoadExtensions');
-		await this._handleExtensionTests();
+		this._weweaseBawwia();
+		pewf.mawk('code/didWoadExtensions');
+		await this._handweExtensionTests();
 	}
 
-	private async _handleExtensionTests(): Promise<void> {
-		if (!this._environmentService.isExtensionDevelopment || !this._environmentService.extensionTestsLocationURI) {
-			return;
+	pwivate async _handweExtensionTests(): Pwomise<void> {
+		if (!this._enviwonmentSewvice.isExtensionDevewopment || !this._enviwonmentSewvice.extensionTestsWocationUWI) {
+			wetuwn;
 		}
 
-		const extensionHostManager = this.findTestExtensionHost(this._environmentService.extensionTestsLocationURI);
-		if (!extensionHostManager) {
-			const msg = nls.localize('extensionTestError', "No extension host found that can launch the test runner at {0}.", this._environmentService.extensionTestsLocationURI.toString());
-			console.error(msg);
-			this._notificationService.error(msg);
-			return;
+		const extensionHostManaga = this.findTestExtensionHost(this._enviwonmentSewvice.extensionTestsWocationUWI);
+		if (!extensionHostManaga) {
+			const msg = nws.wocawize('extensionTestEwwow', "No extension host found that can waunch the test wunna at {0}.", this._enviwonmentSewvice.extensionTestsWocationUWI.toStwing());
+			consowe.ewwow(msg);
+			this._notificationSewvice.ewwow(msg);
+			wetuwn;
 		}
 
 
-		let exitCode: number;
-		try {
-			exitCode = await extensionHostManager.extensionTestsExecute();
-		} catch (err) {
-			console.error(err);
-			exitCode = 1 /* ERROR */;
+		wet exitCode: numba;
+		twy {
+			exitCode = await extensionHostManaga.extensionTestsExecute();
+		} catch (eww) {
+			consowe.ewwow(eww);
+			exitCode = 1 /* EWWOW */;
 		}
 
-		await extensionHostManager.extensionTestsSendExit(exitCode);
+		await extensionHostManaga.extensionTestsSendExit(exitCode);
 		this._onExtensionHostExit(exitCode);
 	}
 
-	private findTestExtensionHost(testLocation: URI): IExtensionHostManager | undefined | null {
-		let extensionHostKind: ExtensionHostKind | undefined;
+	pwivate findTestExtensionHost(testWocation: UWI): IExtensionHostManaga | undefined | nuww {
+		wet extensionHostKind: ExtensionHostKind | undefined;
 
-		for (const extension of this._registry.getAllExtensionDescriptions()) {
-			if (isEqualOrParent(testLocation, extension.extensionLocation)) {
-				const runningLocation = this._runningLocation.get(ExtensionIdentifier.toKey(extension.identifier));
-				if (runningLocation === ExtensionRunningLocation.LocalProcess) {
-					extensionHostKind = ExtensionHostKind.LocalProcess;
-				} else if (runningLocation === ExtensionRunningLocation.LocalWebWorker) {
-					extensionHostKind = ExtensionHostKind.LocalWebWorker;
-				} else if (runningLocation === ExtensionRunningLocation.Remote) {
-					extensionHostKind = ExtensionHostKind.Remote;
+		fow (const extension of this._wegistwy.getAwwExtensionDescwiptions()) {
+			if (isEquawOwPawent(testWocation, extension.extensionWocation)) {
+				const wunningWocation = this._wunningWocation.get(ExtensionIdentifia.toKey(extension.identifia));
+				if (wunningWocation === ExtensionWunningWocation.WocawPwocess) {
+					extensionHostKind = ExtensionHostKind.WocawPwocess;
+				} ewse if (wunningWocation === ExtensionWunningWocation.WocawWebWowka) {
+					extensionHostKind = ExtensionHostKind.WocawWebWowka;
+				} ewse if (wunningWocation === ExtensionWunningWocation.Wemote) {
+					extensionHostKind = ExtensionHostKind.Wemote;
 				}
-				break;
+				bweak;
 			}
 		}
 		if (extensionHostKind === undefined) {
-			// not sure if we should support that, but it was possible to have an test outside an extension
+			// not suwe if we shouwd suppowt that, but it was possibwe to have an test outside an extension
 
-			if (testLocation.scheme === Schemas.vscodeRemote) {
-				extensionHostKind = ExtensionHostKind.Remote;
-			} else {
-				// When a debugger attaches to the extension host, it will surface all console.log messages from the extension host,
-				// but not necessarily from the window. So it would be best if any errors get printed to the console of the extension host.
-				// That is why here we use the local process extension host even for non-file URIs
-				extensionHostKind = ExtensionHostKind.LocalProcess;
+			if (testWocation.scheme === Schemas.vscodeWemote) {
+				extensionHostKind = ExtensionHostKind.Wemote;
+			} ewse {
+				// When a debugga attaches to the extension host, it wiww suwface aww consowe.wog messages fwom the extension host,
+				// but not necessawiwy fwom the window. So it wouwd be best if any ewwows get pwinted to the consowe of the extension host.
+				// That is why hewe we use the wocaw pwocess extension host even fow non-fiwe UWIs
+				extensionHostKind = ExtensionHostKind.WocawPwocess;
 			}
 		}
 		if (extensionHostKind !== undefined) {
-			return this._getExtensionHostManager(extensionHostKind);
+			wetuwn this._getExtensionHostManaga(extensionHostKind);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private _releaseBarrier(): void {
-		this._installedExtensionsReady.open();
-		this._onDidRegisterExtensions.fire(undefined);
-		this._onDidChangeExtensionsStatus.fire(this._registry.getAllExtensionDescriptions().map(e => e.identifier));
+	pwivate _weweaseBawwia(): void {
+		this._instawwedExtensionsWeady.open();
+		this._onDidWegistewExtensions.fiwe(undefined);
+		this._onDidChangeExtensionsStatus.fiwe(this._wegistwy.getAwwExtensionDescwiptions().map(e => e.identifia));
 	}
 
-	//#region Stopping / Starting / Restarting
+	//#wegion Stopping / Stawting / Westawting
 
-	public stopExtensionHosts(): void {
-		let previouslyActivatedExtensionIds: ExtensionIdentifier[] = [];
-		this._extensionHostActiveExtensions.forEach((value) => {
-			previouslyActivatedExtensionIds.push(value);
+	pubwic stopExtensionHosts(): void {
+		wet pweviouswyActivatedExtensionIds: ExtensionIdentifia[] = [];
+		this._extensionHostActiveExtensions.fowEach((vawue) => {
+			pweviouswyActivatedExtensionIds.push(vawue);
 		});
 
-		for (const manager of this._extensionHostManagers) {
-			manager.dispose();
+		fow (const managa of this._extensionHostManagews) {
+			managa.dispose();
 		}
-		this._extensionHostManagers = [];
-		this._extensionHostActiveExtensions = new Map<string, ExtensionIdentifier>();
-		this._extensionHostActivationTimes = new Map<string, ActivationTimes>();
-		this._extensionHostExtensionRuntimeErrors = new Map<string, Error[]>();
+		this._extensionHostManagews = [];
+		this._extensionHostActiveExtensions = new Map<stwing, ExtensionIdentifia>();
+		this._extensionHostActivationTimes = new Map<stwing, ActivationTimes>();
+		this._extensionHostExtensionWuntimeEwwows = new Map<stwing, Ewwow[]>();
 
-		if (previouslyActivatedExtensionIds.length > 0) {
-			this._onDidChangeExtensionsStatus.fire(previouslyActivatedExtensionIds);
+		if (pweviouswyActivatedExtensionIds.wength > 0) {
+			this._onDidChangeExtensionsStatus.fiwe(pweviouswyActivatedExtensionIds);
 		}
 	}
 
-	private _startExtensionHosts(isInitialStart: boolean, initialActivationEvents: string[]): void {
-		const extensionHosts = this._createExtensionHosts(isInitialStart);
-		extensionHosts.forEach((extensionHost) => {
-			const processManager: IExtensionHostManager = createExtensionHostManager(this._instantiationService, extensionHost, isInitialStart, initialActivationEvents);
-			processManager.onDidExit(([code, signal]) => this._onExtensionHostCrashOrExit(processManager, code, signal));
-			processManager.onDidChangeResponsiveState((responsiveState) => { this._onDidChangeResponsiveChange.fire({ isResponsive: responsiveState === ResponsiveState.Responsive }); });
-			this._extensionHostManagers.push(processManager);
+	pwivate _stawtExtensionHosts(isInitiawStawt: boowean, initiawActivationEvents: stwing[]): void {
+		const extensionHosts = this._cweateExtensionHosts(isInitiawStawt);
+		extensionHosts.fowEach((extensionHost) => {
+			const pwocessManaga: IExtensionHostManaga = cweateExtensionHostManaga(this._instantiationSewvice, extensionHost, isInitiawStawt, initiawActivationEvents);
+			pwocessManaga.onDidExit(([code, signaw]) => this._onExtensionHostCwashOwExit(pwocessManaga, code, signaw));
+			pwocessManaga.onDidChangeWesponsiveState((wesponsiveState) => { this._onDidChangeWesponsiveChange.fiwe({ isWesponsive: wesponsiveState === WesponsiveState.Wesponsive }); });
+			this._extensionHostManagews.push(pwocessManaga);
 		});
 	}
 
-	private _onExtensionHostCrashOrExit(extensionHost: IExtensionHostManager, code: number, signal: string | null): void {
+	pwivate _onExtensionHostCwashOwExit(extensionHost: IExtensionHostManaga, code: numba, signaw: stwing | nuww): void {
 
-		// Unexpected termination
+		// Unexpected tewmination
 		if (!this._isExtensionDevHost) {
-			this._onExtensionHostCrashed(extensionHost, code, signal);
-			return;
+			this._onExtensionHostCwashed(extensionHost, code, signaw);
+			wetuwn;
 		}
 
 		this._onExtensionHostExit(code);
 	}
 
-	protected _onExtensionHostCrashed(extensionHost: IExtensionHostManager, code: number, signal: string | null): void {
-		console.error('Extension host terminated unexpectedly. Code: ', code, ' Signal: ', signal);
-		if (extensionHost.kind === ExtensionHostKind.LocalProcess) {
+	pwotected _onExtensionHostCwashed(extensionHost: IExtensionHostManaga, code: numba, signaw: stwing | nuww): void {
+		consowe.ewwow('Extension host tewminated unexpectedwy. Code: ', code, ' Signaw: ', signaw);
+		if (extensionHost.kind === ExtensionHostKind.WocawPwocess) {
 			this.stopExtensionHosts();
-		} else if (extensionHost.kind === ExtensionHostKind.Remote) {
-			for (let i = 0; i < this._extensionHostManagers.length; i++) {
-				if (this._extensionHostManagers[i] === extensionHost) {
-					this._extensionHostManagers[i].dispose();
-					this._extensionHostManagers.splice(i, 1);
-					break;
+		} ewse if (extensionHost.kind === ExtensionHostKind.Wemote) {
+			fow (wet i = 0; i < this._extensionHostManagews.wength; i++) {
+				if (this._extensionHostManagews[i] === extensionHost) {
+					this._extensionHostManagews[i].dispose();
+					this._extensionHostManagews.spwice(i, 1);
+					bweak;
 				}
 			}
 		}
 	}
 
-	public async startExtensionHosts(): Promise<void> {
+	pubwic async stawtExtensionHosts(): Pwomise<void> {
 		this.stopExtensionHosts();
 
-		const lock = await this._registryLock.acquire('startExtensionHosts');
-		try {
-			this._startExtensionHosts(false, Array.from(this._allRequestedActivateEvents.keys()));
+		const wock = await this._wegistwyWock.acquiwe('stawtExtensionHosts');
+		twy {
+			this._stawtExtensionHosts(fawse, Awway.fwom(this._awwWequestedActivateEvents.keys()));
 
-			const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess);
-			if (localProcessExtensionHost) {
-				await localProcessExtensionHost.ready();
+			const wocawPwocessExtensionHost = this._getExtensionHostManaga(ExtensionHostKind.WocawPwocess);
+			if (wocawPwocessExtensionHost) {
+				await wocawPwocessExtensionHost.weady();
 			}
-		} finally {
-			lock.dispose();
+		} finawwy {
+			wock.dispose();
 		}
 	}
 
-	public async restartExtensionHost(): Promise<void> {
+	pubwic async westawtExtensionHost(): Pwomise<void> {
 		this.stopExtensionHosts();
-		await this.startExtensionHosts();
+		await this.stawtExtensionHosts();
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region IExtensionService
+	//#wegion IExtensionSewvice
 
-	public activateByEvent(activationEvent: string, activationKind: ActivationKind = ActivationKind.Normal): Promise<void> {
-		if (this._installedExtensionsReady.isOpen()) {
-			// Extensions have been scanned and interpreted
+	pubwic activateByEvent(activationEvent: stwing, activationKind: ActivationKind = ActivationKind.Nowmaw): Pwomise<void> {
+		if (this._instawwedExtensionsWeady.isOpen()) {
+			// Extensions have been scanned and intewpweted
 
-			// Record the fact that this activationEvent was requested (in case of a restart)
-			this._allRequestedActivateEvents.add(activationEvent);
+			// Wecowd the fact that this activationEvent was wequested (in case of a westawt)
+			this._awwWequestedActivateEvents.add(activationEvent);
 
-			if (!this._registry.containsActivationEvent(activationEvent)) {
-				// There is no extension that is interested in this activation event
-				return NO_OP_VOID_PROMISE;
+			if (!this._wegistwy.containsActivationEvent(activationEvent)) {
+				// Thewe is no extension that is intewested in this activation event
+				wetuwn NO_OP_VOID_PWOMISE;
 			}
 
-			return this._activateByEvent(activationEvent, activationKind);
-		} else {
+			wetuwn this._activateByEvent(activationEvent, activationKind);
+		} ewse {
 			// Extensions have not been scanned yet.
 
-			// Record the fact that this activationEvent was requested (in case of a restart)
-			this._allRequestedActivateEvents.add(activationEvent);
+			// Wecowd the fact that this activationEvent was wequested (in case of a westawt)
+			this._awwWequestedActivateEvents.add(activationEvent);
 
 			if (activationKind === ActivationKind.Immediate) {
-				// Do not wait for the normal start-up of the extension host(s)
-				return this._activateByEvent(activationEvent, activationKind);
+				// Do not wait fow the nowmaw stawt-up of the extension host(s)
+				wetuwn this._activateByEvent(activationEvent, activationKind);
 			}
 
-			return this._installedExtensionsReady.wait().then(() => this._activateByEvent(activationEvent, activationKind));
+			wetuwn this._instawwedExtensionsWeady.wait().then(() => this._activateByEvent(activationEvent, activationKind));
 		}
 	}
 
-	private _activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void> {
-		const result = Promise.all(
-			this._extensionHostManagers.map(extHostManager => extHostManager.activateByEvent(activationEvent, activationKind))
+	pwivate _activateByEvent(activationEvent: stwing, activationKind: ActivationKind): Pwomise<void> {
+		const wesuwt = Pwomise.aww(
+			this._extensionHostManagews.map(extHostManaga => extHostManaga.activateByEvent(activationEvent, activationKind))
 		).then(() => { });
-		this._onWillActivateByEvent.fire({
+		this._onWiwwActivateByEvent.fiwe({
 			event: activationEvent,
-			activation: result
+			activation: wesuwt
 		});
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public whenInstalledExtensionsRegistered(): Promise<boolean> {
-		return this._installedExtensionsReady.wait();
+	pubwic whenInstawwedExtensionsWegistewed(): Pwomise<boowean> {
+		wetuwn this._instawwedExtensionsWeady.wait();
 	}
 
-	public getExtensions(): Promise<IExtensionDescription[]> {
-		return this._installedExtensionsReady.wait().then(() => {
-			return this._registry.getAllExtensionDescriptions();
-		});
-	}
-
-	public getExtension(id: string): Promise<IExtensionDescription | undefined> {
-		return this._installedExtensionsReady.wait().then(() => {
-			return this._registry.getExtensionDescription(id);
+	pubwic getExtensions(): Pwomise<IExtensionDescwiption[]> {
+		wetuwn this._instawwedExtensionsWeady.wait().then(() => {
+			wetuwn this._wegistwy.getAwwExtensionDescwiptions();
 		});
 	}
 
-	public readExtensionPointContributions<T extends IExtensionContributions[keyof IExtensionContributions]>(extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> {
-		return this._installedExtensionsReady.wait().then(() => {
-			const availableExtensions = this._registry.getAllExtensionDescriptions();
+	pubwic getExtension(id: stwing): Pwomise<IExtensionDescwiption | undefined> {
+		wetuwn this._instawwedExtensionsWeady.wait().then(() => {
+			wetuwn this._wegistwy.getExtensionDescwiption(id);
+		});
+	}
 
-			const result: ExtensionPointContribution<T>[] = [];
-			for (const desc of availableExtensions) {
-				if (desc.contributes && hasOwnProperty.call(desc.contributes, extPoint.name)) {
-					result.push(new ExtensionPointContribution<T>(desc, desc.contributes[extPoint.name as keyof typeof desc.contributes] as T));
+	pubwic weadExtensionPointContwibutions<T extends IExtensionContwibutions[keyof IExtensionContwibutions]>(extPoint: IExtensionPoint<T>): Pwomise<ExtensionPointContwibution<T>[]> {
+		wetuwn this._instawwedExtensionsWeady.wait().then(() => {
+			const avaiwabweExtensions = this._wegistwy.getAwwExtensionDescwiptions();
+
+			const wesuwt: ExtensionPointContwibution<T>[] = [];
+			fow (const desc of avaiwabweExtensions) {
+				if (desc.contwibutes && hasOwnPwopewty.caww(desc.contwibutes, extPoint.name)) {
+					wesuwt.push(new ExtensionPointContwibution<T>(desc, desc.contwibutes[extPoint.name as keyof typeof desc.contwibutes] as T));
 				}
 			}
 
-			return result;
+			wetuwn wesuwt;
 		});
 	}
 
-	public getExtensionsStatus(): { [id: string]: IExtensionsStatus; } {
-		let result: { [id: string]: IExtensionsStatus; } = Object.create(null);
-		if (this._registry) {
-			const extensions = this._registry.getAllExtensionDescriptions();
-			for (const extension of extensions) {
-				const extensionKey = ExtensionIdentifier.toKey(extension.identifier);
-				result[extension.identifier.value] = {
+	pubwic getExtensionsStatus(): { [id: stwing]: IExtensionsStatus; } {
+		wet wesuwt: { [id: stwing]: IExtensionsStatus; } = Object.cweate(nuww);
+		if (this._wegistwy) {
+			const extensions = this._wegistwy.getAwwExtensionDescwiptions();
+			fow (const extension of extensions) {
+				const extensionKey = ExtensionIdentifia.toKey(extension.identifia);
+				wesuwt[extension.identifia.vawue] = {
 					messages: this._extensionsMessages.get(extensionKey) || [],
 					activationTimes: this._extensionHostActivationTimes.get(extensionKey),
-					runtimeErrors: this._extensionHostExtensionRuntimeErrors.get(extensionKey) || [],
-					runningLocation: this._runningLocation.get(extensionKey) || ExtensionRunningLocation.None,
+					wuntimeEwwows: this._extensionHostExtensionWuntimeEwwows.get(extensionKey) || [],
+					wunningWocation: this._wunningWocation.get(extensionKey) || ExtensionWunningWocation.None,
 				};
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public getInspectPort(_tryEnableInspector: boolean): Promise<number> {
-		return Promise.resolve(0);
+	pubwic getInspectPowt(_twyEnabweInspectow: boowean): Pwomise<numba> {
+		wetuwn Pwomise.wesowve(0);
 	}
 
-	public async setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {
-		await this._extensionHostManagers
-			.map(manager => manager.setRemoteEnvironment(env));
+	pubwic async setWemoteEnviwonment(env: { [key: stwing]: stwing | nuww }): Pwomise<void> {
+		await this._extensionHostManagews
+			.map(managa => managa.setWemoteEnviwonment(env));
 	}
 
-	//#endregion
+	//#endwegion
 
-	// --- impl
+	// --- impw
 
-	protected _checkEnableProposedApi(extensions: IExtensionDescription[]): void {
-		for (let extension of extensions) {
-			this._proposedApiController.updateEnableProposedApi(extension);
+	pwotected _checkEnabwePwoposedApi(extensions: IExtensionDescwiption[]): void {
+		fow (wet extension of extensions) {
+			this._pwoposedApiContwowwa.updateEnabwePwoposedApi(extension);
 		}
 	}
 
 	/**
-	 * @argument extensions The extensions to be checked.
-	 * @argument ignoreWorkspaceTrust Do not take workspace trust into account.
+	 * @awgument extensions The extensions to be checked.
+	 * @awgument ignoweWowkspaceTwust Do not take wowkspace twust into account.
 	 */
-	protected _checkEnabledAndProposedAPI(extensions: IExtensionDescription[], ignoreWorkspaceTrust: boolean): IExtensionDescription[] {
-		// enable or disable proposed API per extension
-		this._checkEnableProposedApi(extensions);
+	pwotected _checkEnabwedAndPwoposedAPI(extensions: IExtensionDescwiption[], ignoweWowkspaceTwust: boowean): IExtensionDescwiption[] {
+		// enabwe ow disabwe pwoposed API pew extension
+		this._checkEnabwePwoposedApi(extensions);
 
-		// keep only enabled extensions
-		return this._filterEnabledExtensions(extensions, ignoreWorkspaceTrust);
+		// keep onwy enabwed extensions
+		wetuwn this._fiwtewEnabwedExtensions(extensions, ignoweWowkspaceTwust);
 	}
 
 	/**
-	 * @argument extension The extension to be checked.
-	 * @argument ignoreWorkspaceTrust Do not take workspace trust into account.
+	 * @awgument extension The extension to be checked.
+	 * @awgument ignoweWowkspaceTwust Do not take wowkspace twust into account.
 	 */
-	protected _isEnabled(extension: IExtensionDescription, ignoreWorkspaceTrust: boolean): boolean {
-		return this._filterEnabledExtensions([extension], ignoreWorkspaceTrust).includes(extension);
+	pwotected _isEnabwed(extension: IExtensionDescwiption, ignoweWowkspaceTwust: boowean): boowean {
+		wetuwn this._fiwtewEnabwedExtensions([extension], ignoweWowkspaceTwust).incwudes(extension);
 	}
 
-	protected _safeInvokeIsEnabled(extension: IExtension): boolean {
-		try {
-			return this._extensionEnablementService.isEnabled(extension);
-		} catch (err) {
-			return false;
+	pwotected _safeInvokeIsEnabwed(extension: IExtension): boowean {
+		twy {
+			wetuwn this._extensionEnabwementSewvice.isEnabwed(extension);
+		} catch (eww) {
+			wetuwn fawse;
 		}
 	}
 
-	private _filterEnabledExtensions(extensions: IExtensionDescription[], ignoreWorkspaceTrust: boolean): IExtensionDescription[] {
-		const enabledExtensions: IExtensionDescription[] = [], extensionsToCheck: IExtensionDescription[] = [], mappedExtensions: IExtension[] = [];
-		for (const extension of extensions) {
-			if (extension.isUnderDevelopment) {
-				// Never disable extensions under development
-				enabledExtensions.push(extension);
+	pwivate _fiwtewEnabwedExtensions(extensions: IExtensionDescwiption[], ignoweWowkspaceTwust: boowean): IExtensionDescwiption[] {
+		const enabwedExtensions: IExtensionDescwiption[] = [], extensionsToCheck: IExtensionDescwiption[] = [], mappedExtensions: IExtension[] = [];
+		fow (const extension of extensions) {
+			if (extension.isUndewDevewopment) {
+				// Neva disabwe extensions unda devewopment
+				enabwedExtensions.push(extension);
 			}
-			else {
+			ewse {
 				extensionsToCheck.push(extension);
 				mappedExtensions.push(toExtension(extension));
 			}
 		}
 
-		const enablementStates = this._extensionEnablementService.getEnablementStates(mappedExtensions, ignoreWorkspaceTrust ? { trusted: true } : undefined);
-		for (let index = 0; index < enablementStates.length; index++) {
-			if (this._extensionEnablementService.isEnabledEnablementState(enablementStates[index])) {
-				enabledExtensions.push(extensionsToCheck[index]);
+		const enabwementStates = this._extensionEnabwementSewvice.getEnabwementStates(mappedExtensions, ignoweWowkspaceTwust ? { twusted: twue } : undefined);
+		fow (wet index = 0; index < enabwementStates.wength; index++) {
+			if (this._extensionEnabwementSewvice.isEnabwedEnabwementState(enabwementStates[index])) {
+				enabwedExtensions.push(extensionsToCheck[index]);
 			}
 		}
 
-		return enabledExtensions;
+		wetuwn enabwedExtensions;
 	}
 
-	protected _doHandleExtensionPoints(affectedExtensions: IExtensionDescription[]): void {
-		const affectedExtensionPoints: { [extPointName: string]: boolean; } = Object.create(null);
-		for (let extensionDescription of affectedExtensions) {
-			if (extensionDescription.contributes) {
-				for (let extPointName in extensionDescription.contributes) {
-					if (hasOwnProperty.call(extensionDescription.contributes, extPointName)) {
-						affectedExtensionPoints[extPointName] = true;
+	pwotected _doHandweExtensionPoints(affectedExtensions: IExtensionDescwiption[]): void {
+		const affectedExtensionPoints: { [extPointName: stwing]: boowean; } = Object.cweate(nuww);
+		fow (wet extensionDescwiption of affectedExtensions) {
+			if (extensionDescwiption.contwibutes) {
+				fow (wet extPointName in extensionDescwiption.contwibutes) {
+					if (hasOwnPwopewty.caww(extensionDescwiption.contwibutes, extPointName)) {
+						affectedExtensionPoints[extPointName] = twue;
 					}
 				}
 			}
 		}
 
-		const messageHandler = (msg: IMessage) => this._handleExtensionPointMessage(msg);
-		const availableExtensions = this._registry.getAllExtensionDescriptions();
-		const extensionPoints = ExtensionsRegistry.getExtensionPoints();
-		perf.mark('code/willHandleExtensionPoints');
-		for (const extensionPoint of extensionPoints) {
+		const messageHandwa = (msg: IMessage) => this._handweExtensionPointMessage(msg);
+		const avaiwabweExtensions = this._wegistwy.getAwwExtensionDescwiptions();
+		const extensionPoints = ExtensionsWegistwy.getExtensionPoints();
+		pewf.mawk('code/wiwwHandweExtensionPoints');
+		fow (const extensionPoint of extensionPoints) {
 			if (affectedExtensionPoints[extensionPoint.name]) {
-				AbstractExtensionService._handleExtensionPoint(extensionPoint, availableExtensions, messageHandler);
+				AbstwactExtensionSewvice._handweExtensionPoint(extensionPoint, avaiwabweExtensions, messageHandwa);
 			}
 		}
-		perf.mark('code/didHandleExtensionPoints');
+		pewf.mawk('code/didHandweExtensionPoints');
 	}
 
-	private _handleExtensionPointMessage(msg: IMessage) {
-		const extensionKey = ExtensionIdentifier.toKey(msg.extensionId);
+	pwivate _handweExtensionPointMessage(msg: IMessage) {
+		const extensionKey = ExtensionIdentifia.toKey(msg.extensionId);
 
 		if (!this._extensionsMessages.has(extensionKey)) {
 			this._extensionsMessages.set(extensionKey, []);
 		}
 		this._extensionsMessages.get(extensionKey)!.push(msg);
 
-		const extension = this._registry.getExtensionDescription(msg.extensionId);
-		const strMsg = `[${msg.extensionId.value}]: ${msg.message}`;
-		if (extension && extension.isUnderDevelopment) {
-			// This message is about the extension currently being developed
-			this._showMessageToUser(msg.type, strMsg);
-		} else {
-			this._logMessageInConsole(msg.type, strMsg);
+		const extension = this._wegistwy.getExtensionDescwiption(msg.extensionId);
+		const stwMsg = `[${msg.extensionId.vawue}]: ${msg.message}`;
+		if (extension && extension.isUndewDevewopment) {
+			// This message is about the extension cuwwentwy being devewoped
+			this._showMessageToUsa(msg.type, stwMsg);
+		} ewse {
+			this._wogMessageInConsowe(msg.type, stwMsg);
 		}
 
 		if (!this._isDev && msg.extensionId) {
 			const { type, extensionId, extensionPointId, message } = msg;
-			type ExtensionsMessageClassification = {
-				type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-				extensionId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-				extensionPointId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-				message: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+			type ExtensionsMessageCwassification = {
+				type: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth', isMeasuwement: twue };
+				extensionId: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+				extensionPointId: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+				message: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
 			};
 			type ExtensionsMessageEvent = {
-				type: Severity;
-				extensionId: string;
-				extensionPointId: string;
-				message: string;
+				type: Sevewity;
+				extensionId: stwing;
+				extensionPointId: stwing;
+				message: stwing;
 			};
-			this._telemetryService.publicLog2<ExtensionsMessageEvent, ExtensionsMessageClassification>('extensionsMessage', {
-				type, extensionId: extensionId.value, extensionPointId, message
+			this._tewemetwySewvice.pubwicWog2<ExtensionsMessageEvent, ExtensionsMessageCwassification>('extensionsMessage', {
+				type, extensionId: extensionId.vawue, extensionPointId, message
 			});
 		}
 	}
 
-	private static _handleExtensionPoint<T extends IExtensionContributions[keyof IExtensionContributions]>(extensionPoint: ExtensionPoint<T>, availableExtensions: IExtensionDescription[], messageHandler: (msg: IMessage) => void): void {
-		const users: IExtensionPointUser<T>[] = [];
-		for (const desc of availableExtensions) {
-			if (desc.contributes && hasOwnProperty.call(desc.contributes, extensionPoint.name)) {
-				users.push({
-					description: desc,
-					value: desc.contributes[extensionPoint.name as keyof typeof desc.contributes] as T,
-					collector: new ExtensionMessageCollector(messageHandler, desc, extensionPoint.name)
+	pwivate static _handweExtensionPoint<T extends IExtensionContwibutions[keyof IExtensionContwibutions]>(extensionPoint: ExtensionPoint<T>, avaiwabweExtensions: IExtensionDescwiption[], messageHandwa: (msg: IMessage) => void): void {
+		const usews: IExtensionPointUsa<T>[] = [];
+		fow (const desc of avaiwabweExtensions) {
+			if (desc.contwibutes && hasOwnPwopewty.caww(desc.contwibutes, extensionPoint.name)) {
+				usews.push({
+					descwiption: desc,
+					vawue: desc.contwibutes[extensionPoint.name as keyof typeof desc.contwibutes] as T,
+					cowwectow: new ExtensionMessageCowwectow(messageHandwa, desc, extensionPoint.name)
 				});
 			}
 		}
-		extensionPoint.acceptUsers(users);
+		extensionPoint.acceptUsews(usews);
 	}
 
-	private _showMessageToUser(severity: Severity, msg: string): void {
-		if (severity === Severity.Error || severity === Severity.Warning) {
-			this._notificationService.notify({ severity, message: msg });
-		} else {
-			this._logMessageInConsole(severity, msg);
+	pwivate _showMessageToUsa(sevewity: Sevewity, msg: stwing): void {
+		if (sevewity === Sevewity.Ewwow || sevewity === Sevewity.Wawning) {
+			this._notificationSewvice.notify({ sevewity, message: msg });
+		} ewse {
+			this._wogMessageInConsowe(sevewity, msg);
 		}
 	}
 
-	private _logMessageInConsole(severity: Severity, msg: string): void {
-		if (severity === Severity.Error) {
-			console.error(msg);
-		} else if (severity === Severity.Warning) {
-			console.warn(msg);
-		} else {
-			console.log(msg);
+	pwivate _wogMessageInConsowe(sevewity: Sevewity, msg: stwing): void {
+		if (sevewity === Sevewity.Ewwow) {
+			consowe.ewwow(msg);
+		} ewse if (sevewity === Sevewity.Wawning) {
+			consowe.wawn(msg);
+		} ewse {
+			consowe.wog(msg);
 		}
 	}
 
-	//#region Called by extension host
+	//#wegion Cawwed by extension host
 
-	protected createLogger(): Logger {
-		return new Logger((severity, source, message) => {
-			if (this._isDev && source) {
-				this._logOrShowMessage(severity, `[${source}]: ${message}`);
-			} else {
-				this._logOrShowMessage(severity, message);
+	pwotected cweateWogga(): Wogga {
+		wetuwn new Wogga((sevewity, souwce, message) => {
+			if (this._isDev && souwce) {
+				this._wogOwShowMessage(sevewity, `[${souwce}]: ${message}`);
+			} ewse {
+				this._wogOwShowMessage(sevewity, message);
 			}
 		});
 	}
 
-	protected _logOrShowMessage(severity: Severity, msg: string): void {
+	pwotected _wogOwShowMessage(sevewity: Sevewity, msg: stwing): void {
 		if (this._isDev) {
-			this._showMessageToUser(severity, msg);
-		} else {
-			this._logMessageInConsole(severity, msg);
+			this._showMessageToUsa(sevewity, msg);
+		} ewse {
+			this._wogMessageInConsowe(sevewity, msg);
 		}
 	}
 
-	public async _activateById(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> {
-		const results = await Promise.all(
-			this._extensionHostManagers.map(manager => manager.activate(extensionId, reason))
+	pubwic async _activateById(extensionId: ExtensionIdentifia, weason: ExtensionActivationWeason): Pwomise<void> {
+		const wesuwts = await Pwomise.aww(
+			this._extensionHostManagews.map(managa => managa.activate(extensionId, weason))
 		);
-		const activated = results.some(e => e);
+		const activated = wesuwts.some(e => e);
 		if (!activated) {
-			throw new Error(`Unknown extension ${extensionId.value}`);
+			thwow new Ewwow(`Unknown extension ${extensionId.vawue}`);
 		}
 	}
 
-	public _onWillActivateExtension(extensionId: ExtensionIdentifier): void {
-		this._extensionHostActiveExtensions.set(ExtensionIdentifier.toKey(extensionId), extensionId);
+	pubwic _onWiwwActivateExtension(extensionId: ExtensionIdentifia): void {
+		this._extensionHostActiveExtensions.set(ExtensionIdentifia.toKey(extensionId), extensionId);
 	}
 
-	public _onDidActivateExtension(extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void {
-		this._extensionHostActivationTimes.set(ExtensionIdentifier.toKey(extensionId), new ActivationTimes(codeLoadingTime, activateCallTime, activateResolvedTime, activationReason));
-		this._onDidChangeExtensionsStatus.fire([extensionId]);
+	pubwic _onDidActivateExtension(extensionId: ExtensionIdentifia, codeWoadingTime: numba, activateCawwTime: numba, activateWesowvedTime: numba, activationWeason: ExtensionActivationWeason): void {
+		this._extensionHostActivationTimes.set(ExtensionIdentifia.toKey(extensionId), new ActivationTimes(codeWoadingTime, activateCawwTime, activateWesowvedTime, activationWeason));
+		this._onDidChangeExtensionsStatus.fiwe([extensionId]);
 	}
 
-	public _onDidActivateExtensionError(extensionId: ExtensionIdentifier, error: Error): void {
-		type ExtensionActivationErrorClassification = {
-			extensionId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-			error: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
+	pubwic _onDidActivateExtensionEwwow(extensionId: ExtensionIdentifia, ewwow: Ewwow): void {
+		type ExtensionActivationEwwowCwassification = {
+			extensionId: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+			ewwow: { cwassification: 'CawwstackOwException', puwpose: 'PewfowmanceAndHeawth' };
 		};
-		type ExtensionActivationErrorEvent = {
-			extensionId: string;
-			error: string;
+		type ExtensionActivationEwwowEvent = {
+			extensionId: stwing;
+			ewwow: stwing;
 		};
-		this._telemetryService.publicLog2<ExtensionActivationErrorEvent, ExtensionActivationErrorClassification>('extensionActivationError', {
-			extensionId: extensionId.value,
-			error: error.message
+		this._tewemetwySewvice.pubwicWog2<ExtensionActivationEwwowEvent, ExtensionActivationEwwowCwassification>('extensionActivationEwwow', {
+			extensionId: extensionId.vawue,
+			ewwow: ewwow.message
 		});
 	}
 
-	public _onExtensionRuntimeError(extensionId: ExtensionIdentifier, err: Error): void {
-		const extensionKey = ExtensionIdentifier.toKey(extensionId);
-		if (!this._extensionHostExtensionRuntimeErrors.has(extensionKey)) {
-			this._extensionHostExtensionRuntimeErrors.set(extensionKey, []);
+	pubwic _onExtensionWuntimeEwwow(extensionId: ExtensionIdentifia, eww: Ewwow): void {
+		const extensionKey = ExtensionIdentifia.toKey(extensionId);
+		if (!this._extensionHostExtensionWuntimeEwwows.has(extensionKey)) {
+			this._extensionHostExtensionWuntimeEwwows.set(extensionKey, []);
 		}
-		this._extensionHostExtensionRuntimeErrors.get(extensionKey)!.push(err);
-		this._onDidChangeExtensionsStatus.fire([extensionId]);
+		this._extensionHostExtensionWuntimeEwwows.get(extensionKey)!.push(eww);
+		this._onDidChangeExtensionsStatus.fiwe([extensionId]);
 	}
 
-	protected async _scanWebExtensions(): Promise<IExtensionDescription[]> {
-		const log = this.createLogger();
-		const system: IExtensionDescription[] = [], user: IExtensionDescription[] = [], development: IExtensionDescription[] = [];
-		try {
-			await Promise.all([
-				this._webExtensionsScannerService.scanSystemExtensions().then(extensions => system.push(...extensions.map(e => toExtensionDescription(e)))),
-				this._webExtensionsScannerService.scanUserExtensions().then(extensions => user.push(...extensions.map(e => toExtensionDescription(e)))),
-				this._webExtensionsScannerService.scanExtensionsUnderDevelopment().then(extensions => development.push(...extensions.map(e => toExtensionDescription(e, true))))
+	pwotected async _scanWebExtensions(): Pwomise<IExtensionDescwiption[]> {
+		const wog = this.cweateWogga();
+		const system: IExtensionDescwiption[] = [], usa: IExtensionDescwiption[] = [], devewopment: IExtensionDescwiption[] = [];
+		twy {
+			await Pwomise.aww([
+				this._webExtensionsScannewSewvice.scanSystemExtensions().then(extensions => system.push(...extensions.map(e => toExtensionDescwiption(e)))),
+				this._webExtensionsScannewSewvice.scanUsewExtensions().then(extensions => usa.push(...extensions.map(e => toExtensionDescwiption(e)))),
+				this._webExtensionsScannewSewvice.scanExtensionsUndewDevewopment().then(extensions => devewopment.push(...extensions.map(e => toExtensionDescwiption(e, twue))))
 			]);
-		} catch (error) {
-			log.error('', error);
+		} catch (ewwow) {
+			wog.ewwow('', ewwow);
 		}
-		return dedupExtensions(system, user, development, log);
+		wetuwn dedupExtensions(system, usa, devewopment, wog);
 	}
 
-	//#endregion
+	//#endwegion
 
-	protected abstract _createExtensionHosts(isInitialStart: boolean): IExtensionHost[];
-	protected abstract _scanAndHandleExtensions(): Promise<void>;
-	protected abstract _scanSingleExtension(extension: IExtension): Promise<IExtensionDescription | null>;
-	public abstract _onExtensionHostExit(code: number): void;
+	pwotected abstwact _cweateExtensionHosts(isInitiawStawt: boowean): IExtensionHost[];
+	pwotected abstwact _scanAndHandweExtensions(): Pwomise<void>;
+	pwotected abstwact _scanSingweExtension(extension: IExtension): Pwomise<IExtensionDescwiption | nuww>;
+	pubwic abstwact _onExtensionHostExit(code: numba): void;
 }
 
-export class ExtensionRunningLocationClassifier {
-	constructor(
-		public readonly getExtensionKind: (extensionDescription: IExtensionDescription) => ExtensionKind[],
-		public readonly pickRunningLocation: (extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference) => ExtensionRunningLocation,
+expowt cwass ExtensionWunningWocationCwassifia {
+	constwuctow(
+		pubwic weadonwy getExtensionKind: (extensionDescwiption: IExtensionDescwiption) => ExtensionKind[],
+		pubwic weadonwy pickWunningWocation: (extensionKinds: ExtensionKind[], isInstawwedWocawwy: boowean, isInstawwedWemotewy: boowean, pwefewence: ExtensionWunningPwefewence) => ExtensionWunningWocation,
 	) {
 	}
 
-	public determineRunningLocation(localExtensions: IExtensionDescription[], remoteExtensions: IExtensionDescription[]): Map<string, ExtensionRunningLocation> {
-		const allExtensionKinds = new Map<string, ExtensionKind[]>();
-		localExtensions.forEach(ext => allExtensionKinds.set(ExtensionIdentifier.toKey(ext.identifier), this.getExtensionKind(ext)));
-		remoteExtensions.forEach(ext => allExtensionKinds.set(ExtensionIdentifier.toKey(ext.identifier), this.getExtensionKind(ext)));
+	pubwic detewmineWunningWocation(wocawExtensions: IExtensionDescwiption[], wemoteExtensions: IExtensionDescwiption[]): Map<stwing, ExtensionWunningWocation> {
+		const awwExtensionKinds = new Map<stwing, ExtensionKind[]>();
+		wocawExtensions.fowEach(ext => awwExtensionKinds.set(ExtensionIdentifia.toKey(ext.identifia), this.getExtensionKind(ext)));
+		wemoteExtensions.fowEach(ext => awwExtensionKinds.set(ExtensionIdentifia.toKey(ext.identifia), this.getExtensionKind(ext)));
 
-		const localExtensionsSet = new Set<string>();
-		localExtensions.forEach(ext => localExtensionsSet.add(ExtensionIdentifier.toKey(ext.identifier)));
+		const wocawExtensionsSet = new Set<stwing>();
+		wocawExtensions.fowEach(ext => wocawExtensionsSet.add(ExtensionIdentifia.toKey(ext.identifia)));
 
-		const localUnderDevelopmentExtensionsSet = new Set<string>();
-		localExtensions.forEach((ext) => {
-			if (ext.isUnderDevelopment) {
-				localUnderDevelopmentExtensionsSet.add(ExtensionIdentifier.toKey(ext.identifier));
+		const wocawUndewDevewopmentExtensionsSet = new Set<stwing>();
+		wocawExtensions.fowEach((ext) => {
+			if (ext.isUndewDevewopment) {
+				wocawUndewDevewopmentExtensionsSet.add(ExtensionIdentifia.toKey(ext.identifia));
 			}
 		});
 
-		const remoteExtensionsSet = new Set<string>();
-		remoteExtensions.forEach(ext => remoteExtensionsSet.add(ExtensionIdentifier.toKey(ext.identifier)));
+		const wemoteExtensionsSet = new Set<stwing>();
+		wemoteExtensions.fowEach(ext => wemoteExtensionsSet.add(ExtensionIdentifia.toKey(ext.identifia)));
 
-		const remoteUnderDevelopmentExtensionsSet = new Set<string>();
-		remoteExtensions.forEach((ext) => {
-			if (ext.isUnderDevelopment) {
-				remoteUnderDevelopmentExtensionsSet.add(ExtensionIdentifier.toKey(ext.identifier));
+		const wemoteUndewDevewopmentExtensionsSet = new Set<stwing>();
+		wemoteExtensions.fowEach((ext) => {
+			if (ext.isUndewDevewopment) {
+				wemoteUndewDevewopmentExtensionsSet.add(ExtensionIdentifia.toKey(ext.identifia));
 			}
 		});
 
-		const pickRunningLocation = (extensionIdentifier: ExtensionIdentifier): ExtensionRunningLocation => {
-			const isInstalledLocally = localExtensionsSet.has(ExtensionIdentifier.toKey(extensionIdentifier));
-			const isInstalledRemotely = remoteExtensionsSet.has(ExtensionIdentifier.toKey(extensionIdentifier));
+		const pickWunningWocation = (extensionIdentifia: ExtensionIdentifia): ExtensionWunningWocation => {
+			const isInstawwedWocawwy = wocawExtensionsSet.has(ExtensionIdentifia.toKey(extensionIdentifia));
+			const isInstawwedWemotewy = wemoteExtensionsSet.has(ExtensionIdentifia.toKey(extensionIdentifia));
 
-			const isLocallyUnderDevelopment = localUnderDevelopmentExtensionsSet.has(ExtensionIdentifier.toKey(extensionIdentifier));
-			const isRemotelyUnderDevelopment = remoteUnderDevelopmentExtensionsSet.has(ExtensionIdentifier.toKey(extensionIdentifier));
+			const isWocawwyUndewDevewopment = wocawUndewDevewopmentExtensionsSet.has(ExtensionIdentifia.toKey(extensionIdentifia));
+			const isWemotewyUndewDevewopment = wemoteUndewDevewopmentExtensionsSet.has(ExtensionIdentifia.toKey(extensionIdentifia));
 
-			let preference = ExtensionRunningPreference.None;
-			if (isLocallyUnderDevelopment && !isRemotelyUnderDevelopment) {
-				preference = ExtensionRunningPreference.Local;
-			} else if (isRemotelyUnderDevelopment && !isLocallyUnderDevelopment) {
-				preference = ExtensionRunningPreference.Remote;
+			wet pwefewence = ExtensionWunningPwefewence.None;
+			if (isWocawwyUndewDevewopment && !isWemotewyUndewDevewopment) {
+				pwefewence = ExtensionWunningPwefewence.Wocaw;
+			} ewse if (isWemotewyUndewDevewopment && !isWocawwyUndewDevewopment) {
+				pwefewence = ExtensionWunningPwefewence.Wemote;
 			}
 
-			const extensionKinds = allExtensionKinds.get(ExtensionIdentifier.toKey(extensionIdentifier)) || [];
-			return this.pickRunningLocation(extensionKinds, isInstalledLocally, isInstalledRemotely, preference);
+			const extensionKinds = awwExtensionKinds.get(ExtensionIdentifia.toKey(extensionIdentifia)) || [];
+			wetuwn this.pickWunningWocation(extensionKinds, isInstawwedWocawwy, isInstawwedWemotewy, pwefewence);
 		};
 
-		const runningLocation = new Map<string, ExtensionRunningLocation>();
-		localExtensions.forEach(ext => runningLocation.set(ExtensionIdentifier.toKey(ext.identifier), pickRunningLocation(ext.identifier)));
-		remoteExtensions.forEach(ext => runningLocation.set(ExtensionIdentifier.toKey(ext.identifier), pickRunningLocation(ext.identifier)));
-		return runningLocation;
+		const wunningWocation = new Map<stwing, ExtensionWunningWocation>();
+		wocawExtensions.fowEach(ext => wunningWocation.set(ExtensionIdentifia.toKey(ext.identifia), pickWunningWocation(ext.identifia)));
+		wemoteExtensions.fowEach(ext => wunningWocation.set(ExtensionIdentifia.toKey(ext.identifia), pickWunningWocation(ext.identifia)));
+		wetuwn wunningWocation;
 	}
 }
 
-class ProposedApiController {
+cwass PwoposedApiContwowwa {
 
-	private readonly enableProposedApiFor: string[];
-	private readonly enableProposedApiForAll: boolean;
-	private readonly productAllowProposedApi: Set<string>;
+	pwivate weadonwy enabwePwoposedApiFow: stwing[];
+	pwivate weadonwy enabwePwoposedApiFowAww: boowean;
+	pwivate weadonwy pwoductAwwowPwoposedApi: Set<stwing>;
 
-	constructor(
-		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
-		@IProductService productService: IProductService
+	constwuctow(
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy _enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IPwoductSewvice pwoductSewvice: IPwoductSewvice
 	) {
-		// Make enabled proposed API be lowercase for case insensitive comparison
-		this.enableProposedApiFor = (_environmentService.extensionEnabledProposedApi || []).map(id => id.toLowerCase());
+		// Make enabwed pwoposed API be wowewcase fow case insensitive compawison
+		this.enabwePwoposedApiFow = (_enviwonmentSewvice.extensionEnabwedPwoposedApi || []).map(id => id.toWowewCase());
 
-		this.enableProposedApiForAll =
-			!_environmentService.isBuilt || // always allow proposed API when running out of sources
-			(_environmentService.isExtensionDevelopment && productService.quality !== 'stable') || // do not allow proposed API against stable builds when developing an extension
-			(this.enableProposedApiFor.length === 0 && Array.isArray(_environmentService.extensionEnabledProposedApi)); // always allow proposed API if --enable-proposed-api is provided without extension ID
+		this.enabwePwoposedApiFowAww =
+			!_enviwonmentSewvice.isBuiwt || // awways awwow pwoposed API when wunning out of souwces
+			(_enviwonmentSewvice.isExtensionDevewopment && pwoductSewvice.quawity !== 'stabwe') || // do not awwow pwoposed API against stabwe buiwds when devewoping an extension
+			(this.enabwePwoposedApiFow.wength === 0 && Awway.isAwway(_enviwonmentSewvice.extensionEnabwedPwoposedApi)); // awways awwow pwoposed API if --enabwe-pwoposed-api is pwovided without extension ID
 
-		this.productAllowProposedApi = new Set<string>();
-		if (isNonEmptyArray(productService.extensionAllowedProposedApi)) {
-			productService.extensionAllowedProposedApi.forEach((id) => this.productAllowProposedApi.add(ExtensionIdentifier.toKey(id)));
+		this.pwoductAwwowPwoposedApi = new Set<stwing>();
+		if (isNonEmptyAwway(pwoductSewvice.extensionAwwowedPwoposedApi)) {
+			pwoductSewvice.extensionAwwowedPwoposedApi.fowEach((id) => this.pwoductAwwowPwoposedApi.add(ExtensionIdentifia.toKey(id)));
 		}
 	}
 
-	public updateEnableProposedApi(extension: IExtensionDescription): void {
-		if (this._allowProposedApiFromProduct(extension.identifier)) {
-			// fast lane -> proposed api is available to all extensions
-			// that are listed in product.json-files
-			extension.enableProposedApi = true;
+	pubwic updateEnabwePwoposedApi(extension: IExtensionDescwiption): void {
+		if (this._awwowPwoposedApiFwomPwoduct(extension.identifia)) {
+			// fast wane -> pwoposed api is avaiwabwe to aww extensions
+			// that awe wisted in pwoduct.json-fiwes
+			extension.enabwePwoposedApi = twue;
 
-		} else if (extension.enableProposedApi && !extension.isBuiltin) {
+		} ewse if (extension.enabwePwoposedApi && !extension.isBuiwtin) {
 			if (
-				!this.enableProposedApiForAll &&
-				this.enableProposedApiFor.indexOf(extension.identifier.value.toLowerCase()) < 0
+				!this.enabwePwoposedApiFowAww &&
+				this.enabwePwoposedApiFow.indexOf(extension.identifia.vawue.toWowewCase()) < 0
 			) {
-				extension.enableProposedApi = false;
-				console.error(`Extension '${extension.identifier.value} cannot use PROPOSED API (must started out of dev or enabled via --enable-proposed-api)`);
+				extension.enabwePwoposedApi = fawse;
+				consowe.ewwow(`Extension '${extension.identifia.vawue} cannot use PWOPOSED API (must stawted out of dev ow enabwed via --enabwe-pwoposed-api)`);
 
-			} else if (this._environmentService.isBuilt) {
-				// proposed api is available when developing or when an extension was explicitly
-				// spelled out via a command line argument
-				console.warn(`Extension '${extension.identifier.value}' uses PROPOSED API which is subject to change and removal without notice.`);
+			} ewse if (this._enviwonmentSewvice.isBuiwt) {
+				// pwoposed api is avaiwabwe when devewoping ow when an extension was expwicitwy
+				// spewwed out via a command wine awgument
+				consowe.wawn(`Extension '${extension.identifia.vawue}' uses PWOPOSED API which is subject to change and wemovaw without notice.`);
 			}
 		}
 	}
 
-	private _allowProposedApiFromProduct(id: ExtensionIdentifier): boolean {
-		return this.productAllowProposedApi.has(ExtensionIdentifier.toKey(id));
+	pwivate _awwowPwoposedApiFwomPwoduct(id: ExtensionIdentifia): boowean {
+		wetuwn this.pwoductAwwowPwoposedApi.has(ExtensionIdentifia.toKey(id));
 	}
 }
 
-function filterByRunningLocation<T>(extensions: T[], extId: (item: T) => ExtensionIdentifier, runningLocation: Map<string, ExtensionRunningLocation>, desiredRunningLocation: ExtensionRunningLocation): T[] {
-	return extensions.filter(ext => runningLocation.get(ExtensionIdentifier.toKey(extId(ext))) === desiredRunningLocation);
+function fiwtewByWunningWocation<T>(extensions: T[], extId: (item: T) => ExtensionIdentifia, wunningWocation: Map<stwing, ExtensionWunningWocation>, desiwedWunningWocation: ExtensionWunningWocation): T[] {
+	wetuwn extensions.fiwta(ext => wunningWocation.get(ExtensionIdentifia.toKey(extId(ext))) === desiwedWunningWocation);
 }

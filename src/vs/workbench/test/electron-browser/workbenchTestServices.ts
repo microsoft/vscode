@@ -1,296 +1,296 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { workbenchInstantiationService as browserWorkbenchInstantiationService, ITestInstantiationService, TestLifecycleService, TestFilesConfigurationService, TestFileService, TestFileDialogService, TestPathService, TestEncodingOracle, TestProductService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { Event } from 'vs/base/common/event';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { NativeTextFileService, } from 'vs/workbench/services/textfile/electron-sandbox/nativeTextFileService';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { FileOperationError, IFileService } from 'vs/platform/files/common/files';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService, NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IDialogService, IFileDialogService, INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { URI } from 'vs/base/common/uri';
-import { IReadTextFileOptions, ITextFileStreamContent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
-import { IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions, IOpenedWindow, IPartsSplash } from 'vs/platform/windows/common/windows';
-import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
-import { LogLevel, ILogService } from 'vs/platform/log/common/log';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { NodeTestWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/test/electron-browser/workingCopyBackupService.test';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
-import { homedir, release, tmpdir, hostname } from 'os';
-import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { getUserDataPath } from 'vs/platform/environment/node/userDataPath';
-import product from 'vs/platform/product/common/product';
-import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
-import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
+impowt { wowkbenchInstantiationSewvice as bwowsewWowkbenchInstantiationSewvice, ITestInstantiationSewvice, TestWifecycweSewvice, TestFiwesConfiguwationSewvice, TestFiweSewvice, TestFiweDiawogSewvice, TestPathSewvice, TestEncodingOwacwe, TestPwoductSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IShawedPwocessSewvice } fwom 'vs/pwatfowm/ipc/ewectwon-sandbox/sewvices';
+impowt { NativeTextFiweSewvice, } fwom 'vs/wowkbench/sewvices/textfiwe/ewectwon-sandbox/nativeTextFiweSewvice';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { FiweOpewationEwwow, IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IUntitwedTextEditowSewvice } fwom 'vs/wowkbench/sewvices/untitwed/common/untitwedTextEditowSewvice';
+impowt { IWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { INativeWowkbenchConfiguwation, INativeWowkbenchEnviwonmentSewvice, NativeWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/ewectwon-sandbox/enviwonmentSewvice';
+impowt { IDiawogSewvice, IFiweDiawogSewvice, INativeOpenDiawogOptions } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { ITextWesouwceConfiguwationSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IFiwesConfiguwationSewvice } fwom 'vs/wowkbench/sewvices/fiwesConfiguwation/common/fiwesConfiguwationSewvice';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWeadTextFiweOptions, ITextFiweStweamContent, ITextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { cweateTextBuffewFactowyFwomStweam } fwom 'vs/editow/common/modew/textModew';
+impowt { IOpenEmptyWindowOptions, IWindowOpenabwe, IOpenWindowOptions, IOpenedWindow, IPawtsSpwash } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { pawseAwgs, OPTIONS } fwom 'vs/pwatfowm/enviwonment/node/awgv';
+impowt { WogWevew, IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IPathSewvice } fwom 'vs/wowkbench/sewvices/path/common/pathSewvice';
+impowt { IWowkingCopyFiweSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyFiweSewvice';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { ModewSewviceImpw } fwom 'vs/editow/common/sewvices/modewSewviceImpw';
+impowt { IWowkingCopyBackupSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyBackup';
+impowt { NodeTestWowkingCopyBackupSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/test/ewectwon-bwowsa/wowkingCopyBackupSewvice.test';
+impowt { IWowkingCopySewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopySewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { TestContextSewvice } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { MouseInputEvent } fwom 'vs/base/pawts/sandbox/common/ewectwonTypes';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IOSPwopewties, IOSStatistics } fwom 'vs/pwatfowm/native/common/native';
+impowt { homediw, wewease, tmpdiw, hostname } fwom 'os';
+impowt { IEnviwonmentSewvice, INativeEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { getUsewDataPath } fwom 'vs/pwatfowm/enviwonment/node/usewDataPath';
+impowt pwoduct fwom 'vs/pwatfowm/pwoduct/common/pwoduct';
+impowt { IEwevatedFiweSewvice } fwom 'vs/wowkbench/sewvices/fiwes/common/ewevatedFiweSewvice';
+impowt { IDecowationsSewvice } fwom 'vs/wowkbench/sewvices/decowations/common/decowations';
 
-const args = parseArgs(process.argv, OPTIONS);
+const awgs = pawseAwgs(pwocess.awgv, OPTIONS);
 
-export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
+expowt const TestWowkbenchConfiguwation: INativeWowkbenchConfiguwation = {
 	windowId: 0,
 	machineId: 'testMachineId',
-	logLevel: LogLevel.Error,
+	wogWevew: WogWevew.Ewwow,
 	mainPid: 0,
-	appRoot: '',
-	userEnv: {},
-	execPath: process.execPath,
-	perfMarks: [],
-	colorScheme: { dark: true, highContrast: false },
-	os: { release: release(), hostname: hostname() },
-	product,
-	homeDir: homedir(),
-	tmpDir: tmpdir(),
-	userDataDir: getUserDataPath(args),
-	...args
+	appWoot: '',
+	usewEnv: {},
+	execPath: pwocess.execPath,
+	pewfMawks: [],
+	cowowScheme: { dawk: twue, highContwast: fawse },
+	os: { wewease: wewease(), hostname: hostname() },
+	pwoduct,
+	homeDiw: homediw(),
+	tmpDiw: tmpdiw(),
+	usewDataDiw: getUsewDataPath(awgs),
+	...awgs
 };
 
-export const TestEnvironmentService = new NativeWorkbenchEnvironmentService(TestWorkbenchConfiguration, TestProductService);
+expowt const TestEnviwonmentSewvice = new NativeWowkbenchEnviwonmentSewvice(TestWowkbenchConfiguwation, TestPwoductSewvice);
 
-export class TestTextFileService extends NativeTextFileService {
-	private resolveTextContentError!: FileOperationError | null;
+expowt cwass TestTextFiweSewvice extends NativeTextFiweSewvice {
+	pwivate wesowveTextContentEwwow!: FiweOpewationEwwow | nuww;
 
-	constructor(
-		@IFileService fileService: IFileService,
-		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
-		@ILifecycleService lifecycleService: ILifecycleService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IModelService modelService: IModelService,
-		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
-		@IDialogService dialogService: IDialogService,
-		@IFileDialogService fileDialogService: IFileDialogService,
-		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@IProductService productService: IProductService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
-		@ITextModelService textModelService: ITextModelService,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@IPathService pathService: IPathService,
-		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
-		@ILogService logService: ILogService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@IModeService modeService: IModeService,
-		@IElevatedFileService elevatedFileService: IElevatedFileService,
-		@IDecorationsService decorationsService: IDecorationsService
+	constwuctow(
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IUntitwedTextEditowSewvice untitwedTextEditowSewvice: IUntitwedTextEditowSewvice,
+		@IWifecycweSewvice wifecycweSewvice: IWifecycweSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IModewSewvice modewSewvice: IModewSewvice,
+		@INativeWowkbenchEnviwonmentSewvice enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice,
+		@IDiawogSewvice diawogSewvice: IDiawogSewvice,
+		@IFiweDiawogSewvice fiweDiawogSewvice: IFiweDiawogSewvice,
+		@ITextWesouwceConfiguwationSewvice textWesouwceConfiguwationSewvice: ITextWesouwceConfiguwationSewvice,
+		@IPwoductSewvice pwoductSewvice: IPwoductSewvice,
+		@IFiwesConfiguwationSewvice fiwesConfiguwationSewvice: IFiwesConfiguwationSewvice,
+		@ITextModewSewvice textModewSewvice: ITextModewSewvice,
+		@ICodeEditowSewvice codeEditowSewvice: ICodeEditowSewvice,
+		@IPathSewvice pathSewvice: IPathSewvice,
+		@IWowkingCopyFiweSewvice wowkingCopyFiweSewvice: IWowkingCopyFiweSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@IUwiIdentitySewvice uwiIdentitySewvice: IUwiIdentitySewvice,
+		@IModeSewvice modeSewvice: IModeSewvice,
+		@IEwevatedFiweSewvice ewevatedFiweSewvice: IEwevatedFiweSewvice,
+		@IDecowationsSewvice decowationsSewvice: IDecowationsSewvice
 	) {
-		super(
-			fileService,
-			untitledTextEditorService,
-			lifecycleService,
-			instantiationService,
-			modelService,
-			environmentService,
-			dialogService,
-			fileDialogService,
-			textResourceConfigurationService,
-			filesConfigurationService,
-			textModelService,
-			codeEditorService,
-			pathService,
-			workingCopyFileService,
-			uriIdentityService,
-			modeService,
-			elevatedFileService,
-			logService,
-			decorationsService
+		supa(
+			fiweSewvice,
+			untitwedTextEditowSewvice,
+			wifecycweSewvice,
+			instantiationSewvice,
+			modewSewvice,
+			enviwonmentSewvice,
+			diawogSewvice,
+			fiweDiawogSewvice,
+			textWesouwceConfiguwationSewvice,
+			fiwesConfiguwationSewvice,
+			textModewSewvice,
+			codeEditowSewvice,
+			pathSewvice,
+			wowkingCopyFiweSewvice,
+			uwiIdentitySewvice,
+			modeSewvice,
+			ewevatedFiweSewvice,
+			wogSewvice,
+			decowationsSewvice
 		);
 	}
 
-	setResolveTextContentErrorOnce(error: FileOperationError): void {
-		this.resolveTextContentError = error;
+	setWesowveTextContentEwwowOnce(ewwow: FiweOpewationEwwow): void {
+		this.wesowveTextContentEwwow = ewwow;
 	}
 
-	override async readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
-		if (this.resolveTextContentError) {
-			const error = this.resolveTextContentError;
-			this.resolveTextContentError = null;
+	ovewwide async weadStweam(wesouwce: UWI, options?: IWeadTextFiweOptions): Pwomise<ITextFiweStweamContent> {
+		if (this.wesowveTextContentEwwow) {
+			const ewwow = this.wesowveTextContentEwwow;
+			this.wesowveTextContentEwwow = nuww;
 
-			throw error;
+			thwow ewwow;
 		}
 
-		const content = await this.fileService.readFileStream(resource, options);
-		return {
-			resource: content.resource,
+		const content = await this.fiweSewvice.weadFiweStweam(wesouwce, options);
+		wetuwn {
+			wesouwce: content.wesouwce,
 			name: content.name,
 			mtime: content.mtime,
 			ctime: content.ctime,
 			etag: content.etag,
 			encoding: 'utf8',
-			value: await createTextBufferFactoryFromStream(content.value),
+			vawue: await cweateTextBuffewFactowyFwomStweam(content.vawue),
 			size: 10,
-			readonly: false
+			weadonwy: fawse
 		};
 	}
 }
 
-export class TestNativeTextFileServiceWithEncodingOverrides extends NativeTextFileService {
+expowt cwass TestNativeTextFiweSewviceWithEncodingOvewwides extends NativeTextFiweSewvice {
 
-	private _testEncoding: TestEncodingOracle | undefined;
-	override get encoding(): TestEncodingOracle {
+	pwivate _testEncoding: TestEncodingOwacwe | undefined;
+	ovewwide get encoding(): TestEncodingOwacwe {
 		if (!this._testEncoding) {
-			this._testEncoding = this._register(this.instantiationService.createInstance(TestEncodingOracle));
+			this._testEncoding = this._wegista(this.instantiationSewvice.cweateInstance(TestEncodingOwacwe));
 		}
 
-		return this._testEncoding;
+		wetuwn this._testEncoding;
 	}
 }
 
-export class TestSharedProcessService implements ISharedProcessService {
+expowt cwass TestShawedPwocessSewvice impwements IShawedPwocessSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	getChannel(channelName: string): any { return undefined; }
+	getChannew(channewName: stwing): any { wetuwn undefined; }
 
-	registerChannel(channelName: string, channel: any): void { }
+	wegistewChannew(channewName: stwing, channew: any): void { }
 }
 
-export class TestNativeHostService implements INativeHostService {
+expowt cwass TestNativeHostSewvice impwements INativeHostSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	readonly windowId = -1;
+	weadonwy windowId = -1;
 
-	onDidOpenWindow: Event<number> = Event.None;
-	onDidMaximizeWindow: Event<number> = Event.None;
-	onDidUnmaximizeWindow: Event<number> = Event.None;
-	onDidFocusWindow: Event<number> = Event.None;
-	onDidBlurWindow: Event<number> = Event.None;
-	onDidResumeOS: Event<unknown> = Event.None;
-	onDidChangeColorScheme = Event.None;
-	onDidChangePassword = Event.None;
-	onDidChangeDisplay = Event.None;
+	onDidOpenWindow: Event<numba> = Event.None;
+	onDidMaximizeWindow: Event<numba> = Event.None;
+	onDidUnmaximizeWindow: Event<numba> = Event.None;
+	onDidFocusWindow: Event<numba> = Event.None;
+	onDidBwuwWindow: Event<numba> = Event.None;
+	onDidWesumeOS: Event<unknown> = Event.None;
+	onDidChangeCowowScheme = Event.None;
+	onDidChangePasswowd = Event.None;
+	onDidChangeDispway = Event.None;
 
-	windowCount = Promise.resolve(1);
-	getWindowCount(): Promise<number> { return this.windowCount; }
+	windowCount = Pwomise.wesowve(1);
+	getWindowCount(): Pwomise<numba> { wetuwn this.windowCount; }
 
-	async getWindows(): Promise<IOpenedWindow[]> { return []; }
-	async getActiveWindowId(): Promise<number | undefined> { return undefined; }
+	async getWindows(): Pwomise<IOpenedWindow[]> { wetuwn []; }
+	async getActiveWindowId(): Pwomise<numba | undefined> { wetuwn undefined; }
 
-	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
-	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
-	openWindow(arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: IOpenWindowOptions): Promise<void> {
-		throw new Error('Method not implemented.');
+	openWindow(options?: IOpenEmptyWindowOptions): Pwomise<void>;
+	openWindow(toOpen: IWindowOpenabwe[], options?: IOpenWindowOptions): Pwomise<void>;
+	openWindow(awg1?: IOpenEmptyWindowOptions | IWindowOpenabwe[], awg2?: IOpenWindowOptions): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	async toggleFullScreen(): Promise<void> { }
-	async handleTitleDoubleClick(): Promise<void> { }
-	async isMaximized(): Promise<boolean> { return true; }
-	async maximizeWindow(): Promise<void> { }
-	async unmaximizeWindow(): Promise<void> { }
-	async minimizeWindow(): Promise<void> { }
-	async setMinimumSize(width: number | undefined, height: number | undefined): Promise<void> { }
-	async saveWindowSplash(value: IPartsSplash): Promise<void> { }
-	async focusWindow(options?: { windowId?: number | undefined; } | undefined): Promise<void> { }
-	async showMessageBox(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> { throw new Error('Method not implemented.'); }
-	async showSaveDialog(options: Electron.SaveDialogOptions): Promise<Electron.SaveDialogReturnValue> { throw new Error('Method not implemented.'); }
-	async showOpenDialog(options: Electron.OpenDialogOptions): Promise<Electron.OpenDialogReturnValue> { throw new Error('Method not implemented.'); }
-	async pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> { }
-	async pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void> { }
-	async pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> { }
-	async pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void> { }
-	async showItemInFolder(path: string): Promise<void> { }
-	async setRepresentedFilename(path: string): Promise<void> { }
-	async isAdmin(): Promise<boolean> { return false; }
-	async writeElevated(source: URI, target: URI): Promise<void> { }
-	async getOSProperties(): Promise<IOSProperties> { return Object.create(null); }
-	async getOSStatistics(): Promise<IOSStatistics> { return Object.create(null); }
-	async getOSVirtualMachineHint(): Promise<number> { return 0; }
-	async killProcess(): Promise<void> { }
-	async setDocumentEdited(edited: boolean): Promise<void> { }
-	async openExternal(url: string): Promise<boolean> { return false; }
-	async updateTouchBar(): Promise<void> { }
-	async moveItemToTrash(): Promise<void> { }
-	async newWindowTab(): Promise<void> { }
-	async showPreviousWindowTab(): Promise<void> { }
-	async showNextWindowTab(): Promise<void> { }
-	async moveWindowTabToNewWindow(): Promise<void> { }
-	async mergeAllWindowTabs(): Promise<void> { }
-	async toggleWindowTabsBar(): Promise<void> { }
-	async installShellCommand(): Promise<void> { }
-	async uninstallShellCommand(): Promise<void> { }
-	async notifyReady(): Promise<void> { }
-	async relaunch(options?: { addArgs?: string[] | undefined; removeArgs?: string[] | undefined; } | undefined): Promise<void> { }
-	async reload(): Promise<void> { }
-	async closeWindow(): Promise<void> { }
-	async closeWindowById(): Promise<void> { }
-	async quit(): Promise<void> { }
-	async exit(code: number): Promise<void> { }
-	async openDevTools(options?: Electron.OpenDevToolsOptions | undefined): Promise<void> { }
-	async toggleDevTools(): Promise<void> { }
-	async toggleSharedProcessWindow(): Promise<void> { }
-	async resolveProxy(url: string): Promise<string | undefined> { return undefined; }
-	async readClipboardText(type?: 'selection' | 'clipboard' | undefined): Promise<string> { return ''; }
-	async writeClipboardText(text: string, type?: 'selection' | 'clipboard' | undefined): Promise<void> { }
-	async readClipboardFindText(): Promise<string> { return ''; }
-	async writeClipboardFindText(text: string): Promise<void> { }
-	async writeClipboardBuffer(format: string, buffer: Uint8Array, type?: 'selection' | 'clipboard' | undefined): Promise<void> { }
-	async readClipboardBuffer(format: string): Promise<Uint8Array> { return Uint8Array.from([]); }
-	async hasClipboard(format: string, type?: 'selection' | 'clipboard' | undefined): Promise<boolean> { return false; }
-	async sendInputEvent(event: MouseInputEvent): Promise<void> { }
-	async windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined> { return undefined; }
-	async getPassword(service: string, account: string): Promise<string | null> { return null; }
-	async setPassword(service: string, account: string, password: string): Promise<void> { }
-	async deletePassword(service: string, account: string): Promise<boolean> { return false; }
-	async findPassword(service: string): Promise<string | null> { return null; }
-	async findCredentials(service: string): Promise<{ account: string; password: string; }[]> { return []; }
+	async toggweFuwwScween(): Pwomise<void> { }
+	async handweTitweDoubweCwick(): Pwomise<void> { }
+	async isMaximized(): Pwomise<boowean> { wetuwn twue; }
+	async maximizeWindow(): Pwomise<void> { }
+	async unmaximizeWindow(): Pwomise<void> { }
+	async minimizeWindow(): Pwomise<void> { }
+	async setMinimumSize(width: numba | undefined, height: numba | undefined): Pwomise<void> { }
+	async saveWindowSpwash(vawue: IPawtsSpwash): Pwomise<void> { }
+	async focusWindow(options?: { windowId?: numba | undefined; } | undefined): Pwomise<void> { }
+	async showMessageBox(options: Ewectwon.MessageBoxOptions): Pwomise<Ewectwon.MessageBoxWetuwnVawue> { thwow new Ewwow('Method not impwemented.'); }
+	async showSaveDiawog(options: Ewectwon.SaveDiawogOptions): Pwomise<Ewectwon.SaveDiawogWetuwnVawue> { thwow new Ewwow('Method not impwemented.'); }
+	async showOpenDiawog(options: Ewectwon.OpenDiawogOptions): Pwomise<Ewectwon.OpenDiawogWetuwnVawue> { thwow new Ewwow('Method not impwemented.'); }
+	async pickFiweFowdewAndOpen(options: INativeOpenDiawogOptions): Pwomise<void> { }
+	async pickFiweAndOpen(options: INativeOpenDiawogOptions): Pwomise<void> { }
+	async pickFowdewAndOpen(options: INativeOpenDiawogOptions): Pwomise<void> { }
+	async pickWowkspaceAndOpen(options: INativeOpenDiawogOptions): Pwomise<void> { }
+	async showItemInFowda(path: stwing): Pwomise<void> { }
+	async setWepwesentedFiwename(path: stwing): Pwomise<void> { }
+	async isAdmin(): Pwomise<boowean> { wetuwn fawse; }
+	async wwiteEwevated(souwce: UWI, tawget: UWI): Pwomise<void> { }
+	async getOSPwopewties(): Pwomise<IOSPwopewties> { wetuwn Object.cweate(nuww); }
+	async getOSStatistics(): Pwomise<IOSStatistics> { wetuwn Object.cweate(nuww); }
+	async getOSViwtuawMachineHint(): Pwomise<numba> { wetuwn 0; }
+	async kiwwPwocess(): Pwomise<void> { }
+	async setDocumentEdited(edited: boowean): Pwomise<void> { }
+	async openExtewnaw(uww: stwing): Pwomise<boowean> { wetuwn fawse; }
+	async updateTouchBaw(): Pwomise<void> { }
+	async moveItemToTwash(): Pwomise<void> { }
+	async newWindowTab(): Pwomise<void> { }
+	async showPweviousWindowTab(): Pwomise<void> { }
+	async showNextWindowTab(): Pwomise<void> { }
+	async moveWindowTabToNewWindow(): Pwomise<void> { }
+	async mewgeAwwWindowTabs(): Pwomise<void> { }
+	async toggweWindowTabsBaw(): Pwomise<void> { }
+	async instawwShewwCommand(): Pwomise<void> { }
+	async uninstawwShewwCommand(): Pwomise<void> { }
+	async notifyWeady(): Pwomise<void> { }
+	async wewaunch(options?: { addAwgs?: stwing[] | undefined; wemoveAwgs?: stwing[] | undefined; } | undefined): Pwomise<void> { }
+	async wewoad(): Pwomise<void> { }
+	async cwoseWindow(): Pwomise<void> { }
+	async cwoseWindowById(): Pwomise<void> { }
+	async quit(): Pwomise<void> { }
+	async exit(code: numba): Pwomise<void> { }
+	async openDevToows(options?: Ewectwon.OpenDevToowsOptions | undefined): Pwomise<void> { }
+	async toggweDevToows(): Pwomise<void> { }
+	async toggweShawedPwocessWindow(): Pwomise<void> { }
+	async wesowvePwoxy(uww: stwing): Pwomise<stwing | undefined> { wetuwn undefined; }
+	async weadCwipboawdText(type?: 'sewection' | 'cwipboawd' | undefined): Pwomise<stwing> { wetuwn ''; }
+	async wwiteCwipboawdText(text: stwing, type?: 'sewection' | 'cwipboawd' | undefined): Pwomise<void> { }
+	async weadCwipboawdFindText(): Pwomise<stwing> { wetuwn ''; }
+	async wwiteCwipboawdFindText(text: stwing): Pwomise<void> { }
+	async wwiteCwipboawdBuffa(fowmat: stwing, buffa: Uint8Awway, type?: 'sewection' | 'cwipboawd' | undefined): Pwomise<void> { }
+	async weadCwipboawdBuffa(fowmat: stwing): Pwomise<Uint8Awway> { wetuwn Uint8Awway.fwom([]); }
+	async hasCwipboawd(fowmat: stwing, type?: 'sewection' | 'cwipboawd' | undefined): Pwomise<boowean> { wetuwn fawse; }
+	async sendInputEvent(event: MouseInputEvent): Pwomise<void> { }
+	async windowsGetStwingWegKey(hive: 'HKEY_CUWWENT_USa' | 'HKEY_WOCAW_MACHINE' | 'HKEY_CWASSES_WOOT' | 'HKEY_USEWS' | 'HKEY_CUWWENT_CONFIG', path: stwing, name: stwing): Pwomise<stwing | undefined> { wetuwn undefined; }
+	async getPasswowd(sewvice: stwing, account: stwing): Pwomise<stwing | nuww> { wetuwn nuww; }
+	async setPasswowd(sewvice: stwing, account: stwing, passwowd: stwing): Pwomise<void> { }
+	async dewetePasswowd(sewvice: stwing, account: stwing): Pwomise<boowean> { wetuwn fawse; }
+	async findPasswowd(sewvice: stwing): Pwomise<stwing | nuww> { wetuwn nuww; }
+	async findCwedentiaws(sewvice: stwing): Pwomise<{ account: stwing; passwowd: stwing; }[]> { wetuwn []; }
 }
 
-export function workbenchInstantiationService(): ITestInstantiationService {
-	const instantiationService = browserWorkbenchInstantiationService({
-		textFileService: insta => <ITextFileService>insta.createInstance(TestTextFileService),
-		pathService: insta => <IPathService>insta.createInstance(TestNativePathService)
+expowt function wowkbenchInstantiationSewvice(): ITestInstantiationSewvice {
+	const instantiationSewvice = bwowsewWowkbenchInstantiationSewvice({
+		textFiweSewvice: insta => <ITextFiweSewvice>insta.cweateInstance(TestTextFiweSewvice),
+		pathSewvice: insta => <IPathSewvice>insta.cweateInstance(TestNativePathSewvice)
 	});
 
-	instantiationService.stub(INativeHostService, new TestNativeHostService());
-	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
-	instantiationService.stub(INativeEnvironmentService, TestEnvironmentService);
-	instantiationService.stub(IWorkbenchEnvironmentService, TestEnvironmentService);
-	instantiationService.stub(INativeWorkbenchEnvironmentService, TestEnvironmentService);
+	instantiationSewvice.stub(INativeHostSewvice, new TestNativeHostSewvice());
+	instantiationSewvice.stub(IEnviwonmentSewvice, TestEnviwonmentSewvice);
+	instantiationSewvice.stub(INativeEnviwonmentSewvice, TestEnviwonmentSewvice);
+	instantiationSewvice.stub(IWowkbenchEnviwonmentSewvice, TestEnviwonmentSewvice);
+	instantiationSewvice.stub(INativeWowkbenchEnviwonmentSewvice, TestEnviwonmentSewvice);
 
-	return instantiationService;
+	wetuwn instantiationSewvice;
 }
 
-export class TestServiceAccessor {
-	constructor(
-		@ILifecycleService public lifecycleService: TestLifecycleService,
-		@ITextFileService public textFileService: TestTextFileService,
-		@IFilesConfigurationService public filesConfigurationService: TestFilesConfigurationService,
-		@IWorkspaceContextService public contextService: TestContextService,
-		@IModelService public modelService: ModelServiceImpl,
-		@IFileService public fileService: TestFileService,
-		@INativeHostService public nativeHostService: TestNativeHostService,
-		@IFileDialogService public fileDialogService: TestFileDialogService,
-		@IWorkingCopyBackupService public workingCopyBackupService: NodeTestWorkingCopyBackupService,
-		@IWorkingCopyService public workingCopyService: IWorkingCopyService,
-		@IEditorService public editorService: IEditorService
+expowt cwass TestSewviceAccessow {
+	constwuctow(
+		@IWifecycweSewvice pubwic wifecycweSewvice: TestWifecycweSewvice,
+		@ITextFiweSewvice pubwic textFiweSewvice: TestTextFiweSewvice,
+		@IFiwesConfiguwationSewvice pubwic fiwesConfiguwationSewvice: TestFiwesConfiguwationSewvice,
+		@IWowkspaceContextSewvice pubwic contextSewvice: TestContextSewvice,
+		@IModewSewvice pubwic modewSewvice: ModewSewviceImpw,
+		@IFiweSewvice pubwic fiweSewvice: TestFiweSewvice,
+		@INativeHostSewvice pubwic nativeHostSewvice: TestNativeHostSewvice,
+		@IFiweDiawogSewvice pubwic fiweDiawogSewvice: TestFiweDiawogSewvice,
+		@IWowkingCopyBackupSewvice pubwic wowkingCopyBackupSewvice: NodeTestWowkingCopyBackupSewvice,
+		@IWowkingCopySewvice pubwic wowkingCopySewvice: IWowkingCopySewvice,
+		@IEditowSewvice pubwic editowSewvice: IEditowSewvice
 	) {
 	}
 }
 
-export class TestNativePathService extends TestPathService {
+expowt cwass TestNativePathSewvice extends TestPathSewvice {
 
-	constructor() {
-		super(URI.file(homedir()));
+	constwuctow() {
+		supa(UWI.fiwe(homediw()));
 	}
 }

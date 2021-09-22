@@ -1,93 +1,93 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { equals } from '../util/arrays';
+impowt * as vscode fwom 'vscode';
+impowt { equaws } fwom '../utiw/awways';
 
-export class MarkdownPreviewConfiguration {
-	public static getForResource(resource: vscode.Uri) {
-		return new MarkdownPreviewConfiguration(resource);
+expowt cwass MawkdownPweviewConfiguwation {
+	pubwic static getFowWesouwce(wesouwce: vscode.Uwi) {
+		wetuwn new MawkdownPweviewConfiguwation(wesouwce);
 	}
 
-	public readonly scrollBeyondLastLine: boolean;
-	public readonly wordWrap: boolean;
-	public readonly lineBreaks: boolean;
-	public readonly doubleClickToSwitchToEditor: boolean;
-	public readonly scrollEditorWithPreview: boolean;
-	public readonly scrollPreviewWithEditor: boolean;
-	public readonly markEditorSelection: boolean;
+	pubwic weadonwy scwowwBeyondWastWine: boowean;
+	pubwic weadonwy wowdWwap: boowean;
+	pubwic weadonwy wineBweaks: boowean;
+	pubwic weadonwy doubweCwickToSwitchToEditow: boowean;
+	pubwic weadonwy scwowwEditowWithPweview: boowean;
+	pubwic weadonwy scwowwPweviewWithEditow: boowean;
+	pubwic weadonwy mawkEditowSewection: boowean;
 
-	public readonly lineHeight: number;
-	public readonly fontSize: number;
-	public readonly fontFamily: string | undefined;
-	public readonly styles: readonly string[];
+	pubwic weadonwy wineHeight: numba;
+	pubwic weadonwy fontSize: numba;
+	pubwic weadonwy fontFamiwy: stwing | undefined;
+	pubwic weadonwy stywes: weadonwy stwing[];
 
-	private constructor(resource: vscode.Uri) {
-		const editorConfig = vscode.workspace.getConfiguration('editor', resource);
-		const markdownConfig = vscode.workspace.getConfiguration('markdown', resource);
-		const markdownEditorConfig = vscode.workspace.getConfiguration('[markdown]', resource);
+	pwivate constwuctow(wesouwce: vscode.Uwi) {
+		const editowConfig = vscode.wowkspace.getConfiguwation('editow', wesouwce);
+		const mawkdownConfig = vscode.wowkspace.getConfiguwation('mawkdown', wesouwce);
+		const mawkdownEditowConfig = vscode.wowkspace.getConfiguwation('[mawkdown]', wesouwce);
 
-		this.scrollBeyondLastLine = editorConfig.get<boolean>('scrollBeyondLastLine', false);
+		this.scwowwBeyondWastWine = editowConfig.get<boowean>('scwowwBeyondWastWine', fawse);
 
-		this.wordWrap = editorConfig.get<string>('wordWrap', 'off') !== 'off';
-		if (markdownEditorConfig && markdownEditorConfig['editor.wordWrap']) {
-			this.wordWrap = markdownEditorConfig['editor.wordWrap'] !== 'off';
+		this.wowdWwap = editowConfig.get<stwing>('wowdWwap', 'off') !== 'off';
+		if (mawkdownEditowConfig && mawkdownEditowConfig['editow.wowdWwap']) {
+			this.wowdWwap = mawkdownEditowConfig['editow.wowdWwap'] !== 'off';
 		}
 
-		this.scrollPreviewWithEditor = !!markdownConfig.get<boolean>('preview.scrollPreviewWithEditor', true);
-		this.scrollEditorWithPreview = !!markdownConfig.get<boolean>('preview.scrollEditorWithPreview', true);
-		this.lineBreaks = !!markdownConfig.get<boolean>('preview.breaks', false);
-		this.doubleClickToSwitchToEditor = !!markdownConfig.get<boolean>('preview.doubleClickToSwitchToEditor', true);
-		this.markEditorSelection = !!markdownConfig.get<boolean>('preview.markEditorSelection', true);
+		this.scwowwPweviewWithEditow = !!mawkdownConfig.get<boowean>('pweview.scwowwPweviewWithEditow', twue);
+		this.scwowwEditowWithPweview = !!mawkdownConfig.get<boowean>('pweview.scwowwEditowWithPweview', twue);
+		this.wineBweaks = !!mawkdownConfig.get<boowean>('pweview.bweaks', fawse);
+		this.doubweCwickToSwitchToEditow = !!mawkdownConfig.get<boowean>('pweview.doubweCwickToSwitchToEditow', twue);
+		this.mawkEditowSewection = !!mawkdownConfig.get<boowean>('pweview.mawkEditowSewection', twue);
 
-		this.fontFamily = markdownConfig.get<string | undefined>('preview.fontFamily', undefined);
-		this.fontSize = Math.max(8, +markdownConfig.get<number>('preview.fontSize', NaN));
-		this.lineHeight = Math.max(0.6, +markdownConfig.get<number>('preview.lineHeight', NaN));
+		this.fontFamiwy = mawkdownConfig.get<stwing | undefined>('pweview.fontFamiwy', undefined);
+		this.fontSize = Math.max(8, +mawkdownConfig.get<numba>('pweview.fontSize', NaN));
+		this.wineHeight = Math.max(0.6, +mawkdownConfig.get<numba>('pweview.wineHeight', NaN));
 
-		this.styles = markdownConfig.get<string[]>('styles', []);
+		this.stywes = mawkdownConfig.get<stwing[]>('stywes', []);
 	}
 
-	public isEqualTo(otherConfig: MarkdownPreviewConfiguration) {
-		for (const key in this) {
-			if (this.hasOwnProperty(key) && key !== 'styles') {
-				if (this[key] !== otherConfig[key]) {
-					return false;
+	pubwic isEquawTo(othewConfig: MawkdownPweviewConfiguwation) {
+		fow (const key in this) {
+			if (this.hasOwnPwopewty(key) && key !== 'stywes') {
+				if (this[key] !== othewConfig[key]) {
+					wetuwn fawse;
 				}
 			}
 		}
 
-		return equals(this.styles, otherConfig.styles);
+		wetuwn equaws(this.stywes, othewConfig.stywes);
 	}
 
-	[key: string]: any;
+	[key: stwing]: any;
 }
 
-export class MarkdownPreviewConfigurationManager {
-	private readonly previewConfigurationsForWorkspaces = new Map<string, MarkdownPreviewConfiguration>();
+expowt cwass MawkdownPweviewConfiguwationManaga {
+	pwivate weadonwy pweviewConfiguwationsFowWowkspaces = new Map<stwing, MawkdownPweviewConfiguwation>();
 
-	public loadAndCacheConfiguration(
-		resource: vscode.Uri
-	): MarkdownPreviewConfiguration {
-		const config = MarkdownPreviewConfiguration.getForResource(resource);
-		this.previewConfigurationsForWorkspaces.set(this.getKey(resource), config);
-		return config;
+	pubwic woadAndCacheConfiguwation(
+		wesouwce: vscode.Uwi
+	): MawkdownPweviewConfiguwation {
+		const config = MawkdownPweviewConfiguwation.getFowWesouwce(wesouwce);
+		this.pweviewConfiguwationsFowWowkspaces.set(this.getKey(wesouwce), config);
+		wetuwn config;
 	}
 
-	public hasConfigurationChanged(
-		resource: vscode.Uri
-	): boolean {
-		const key = this.getKey(resource);
-		const currentConfig = this.previewConfigurationsForWorkspaces.get(key);
-		const newConfig = MarkdownPreviewConfiguration.getForResource(resource);
-		return (!currentConfig || !currentConfig.isEqualTo(newConfig));
+	pubwic hasConfiguwationChanged(
+		wesouwce: vscode.Uwi
+	): boowean {
+		const key = this.getKey(wesouwce);
+		const cuwwentConfig = this.pweviewConfiguwationsFowWowkspaces.get(key);
+		const newConfig = MawkdownPweviewConfiguwation.getFowWesouwce(wesouwce);
+		wetuwn (!cuwwentConfig || !cuwwentConfig.isEquawTo(newConfig));
 	}
 
-	private getKey(
-		resource: vscode.Uri
-	): string {
-		const folder = vscode.workspace.getWorkspaceFolder(resource);
-		return folder ? folder.uri.toString() : '';
+	pwivate getKey(
+		wesouwce: vscode.Uwi
+	): stwing {
+		const fowda = vscode.wowkspace.getWowkspaceFowda(wesouwce);
+		wetuwn fowda ? fowda.uwi.toStwing() : '';
 	}
 }

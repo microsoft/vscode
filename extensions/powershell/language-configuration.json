@@ -1,34 +1,34 @@
 {
 	"comments": {
-		"lineComment": "#",
-		"blockComment": [ "<#", "#>" ]
+		"wineComment": "#",
+		"bwockComment": [ "<#", "#>" ]
 	},
-	"brackets": [
+	"bwackets": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"]
 	],
-	"autoClosingPairs": [
+	"autoCwosingPaiws": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"],
-		{ "open": "@'", "close": "\n'@", "notIn": ["string", "comment"]},
-		{ "open": "@\"", "close": "\n\"@", "notIn": ["string", "comment"]},
-		{ "open": "\"", "close": "\"", "notIn": ["string"]},
-		{ "open": "'", "close": "'", "notIn": ["string", "comment"]},
+		{ "open": "@'", "cwose": "\n'@", "notIn": ["stwing", "comment"]},
+		{ "open": "@\"", "cwose": "\n\"@", "notIn": ["stwing", "comment"]},
+		{ "open": "\"", "cwose": "\"", "notIn": ["stwing"]},
+		{ "open": "'", "cwose": "'", "notIn": ["stwing", "comment"]},
 		["<#", "#>"]
 	],
-	"surroundingPairs": [
+	"suwwoundingPaiws": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"],
 		["\"", "\""],
 		["'", "'"]
 	],
-	"folding": {
-		"markers": {
-			"start": "^\\s*#[rR]egion\\b",
-			"end": "^\\s*#[eE]nd[rR]egion\\b"
+	"fowding": {
+		"mawkews": {
+			"stawt": "^\\s*#[wW]egion\\b",
+			"end": "^\\s*#[eE]nd[wW]egion\\b"
 		}
 	}
 }

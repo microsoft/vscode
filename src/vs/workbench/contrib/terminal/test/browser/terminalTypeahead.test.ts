@@ -1,537 +1,537 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IBuffer, Terminal } from 'xterm';
-import { SinonStub, stub, useFakeTimers } from 'sinon';
-import { Emitter } from 'vs/base/common/event';
-import { CharPredictState, IPrediction, PredictionStats, TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTypeAheadAddon';
-import { DEFAULT_LOCAL_ECHO_EXCLUDE, IBeforeProcessDataEvent, ITerminalConfiguration, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+impowt * as assewt fwom 'assewt';
+impowt { IBuffa, Tewminaw } fwom 'xtewm';
+impowt { SinonStub, stub, useFakeTimews } fwom 'sinon';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { ChawPwedictState, IPwediction, PwedictionStats, TypeAheadAddon } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawTypeAheadAddon';
+impowt { DEFAUWT_WOCAW_ECHO_EXCWUDE, IBefowePwocessDataEvent, ITewminawConfiguwation, ITewminawPwocessManaga } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminaw';
+impowt { TewminawConfigHewpa } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawConfigHewpa';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
 
 const CSI = `\x1b[`;
 
-const enum CursorMoveDirection {
+const enum CuwsowMoveDiwection {
 	Back = 'D',
-	Forwards = 'C',
+	Fowwawds = 'C',
 }
 
-suite('Workbench - Terminal Typeahead', () => {
-	suite('PredictionStats', () => {
-		let stats: PredictionStats;
-		const add = new Emitter<IPrediction>();
-		const succeed = new Emitter<IPrediction>();
-		const fail = new Emitter<IPrediction>();
+suite('Wowkbench - Tewminaw Typeahead', () => {
+	suite('PwedictionStats', () => {
+		wet stats: PwedictionStats;
+		const add = new Emitta<IPwediction>();
+		const succeed = new Emitta<IPwediction>();
+		const faiw = new Emitta<IPwediction>();
 
 		setup(() => {
-			stats = new PredictionStats({
-				onPredictionAdded: add.event,
-				onPredictionSucceeded: succeed.event,
-				onPredictionFailed: fail.event,
+			stats = new PwedictionStats({
+				onPwedictionAdded: add.event,
+				onPwedictionSucceeded: succeed.event,
+				onPwedictionFaiwed: faiw.event,
 			} as any);
 		});
 
-		test('creates sane data', () => {
-			const stubs = createPredictionStubs(5);
-			const clock = useFakeTimers();
-			try {
-				for (const s of stubs) { add.fire(s); }
+		test('cweates sane data', () => {
+			const stubs = cweatePwedictionStubs(5);
+			const cwock = useFakeTimews();
+			twy {
+				fow (const s of stubs) { add.fiwe(s); }
 
-				for (let i = 0; i < stubs.length; i++) {
-					clock.tick(100);
-					(i % 2 ? fail : succeed).fire(stubs[i]);
+				fow (wet i = 0; i < stubs.wength; i++) {
+					cwock.tick(100);
+					(i % 2 ? faiw : succeed).fiwe(stubs[i]);
 				}
 
-				assert.strictEqual(stats.accuracy, 3 / 5);
-				assert.strictEqual(stats.sampleSize, 5);
-				assert.deepStrictEqual(stats.latency, {
+				assewt.stwictEquaw(stats.accuwacy, 3 / 5);
+				assewt.stwictEquaw(stats.sampweSize, 5);
+				assewt.deepStwictEquaw(stats.watency, {
 					count: 3,
 					min: 100,
 					max: 500,
 					median: 300
 				});
-			} finally {
-				clock.restore();
+			} finawwy {
+				cwock.westowe();
 			}
 		});
 
-		test('circular buffer', () => {
-			const bufferSize = 24;
-			const stubs = createPredictionStubs(bufferSize * 2);
+		test('ciwcuwaw buffa', () => {
+			const buffewSize = 24;
+			const stubs = cweatePwedictionStubs(buffewSize * 2);
 
-			for (const s of stubs.slice(0, bufferSize)) { add.fire(s); succeed.fire(s); }
-			assert.strictEqual(stats.accuracy, 1);
+			fow (const s of stubs.swice(0, buffewSize)) { add.fiwe(s); succeed.fiwe(s); }
+			assewt.stwictEquaw(stats.accuwacy, 1);
 
-			for (const s of stubs.slice(bufferSize, bufferSize * 3 / 2)) { add.fire(s); fail.fire(s); }
-			assert.strictEqual(stats.accuracy, 0.5);
+			fow (const s of stubs.swice(buffewSize, buffewSize * 3 / 2)) { add.fiwe(s); faiw.fiwe(s); }
+			assewt.stwictEquaw(stats.accuwacy, 0.5);
 
-			for (const s of stubs.slice(bufferSize * 3 / 2)) { add.fire(s); fail.fire(s); }
-			assert.strictEqual(stats.accuracy, 0);
+			fow (const s of stubs.swice(buffewSize * 3 / 2)) { add.fiwe(s); faiw.fiwe(s); }
+			assewt.stwictEquaw(stats.accuwacy, 0);
 		});
 	});
 
-	suite('timeline', () => {
-		const onBeforeProcessData = new Emitter<IBeforeProcessDataEvent>();
-		const onConfigChanged = new Emitter<void>();
-		let publicLog: SinonStub;
-		let config: ITerminalConfiguration;
-		let addon: TestTypeAheadAddon;
+	suite('timewine', () => {
+		const onBefowePwocessData = new Emitta<IBefowePwocessDataEvent>();
+		const onConfigChanged = new Emitta<void>();
+		wet pubwicWog: SinonStub;
+		wet config: ITewminawConfiguwation;
+		wet addon: TestTypeAheadAddon;
 
-		const predictedHelloo = [
-			`${CSI}?25l`, // hide cursor
-			`${CSI}2;7H`, // move cursor
-			'o', // new character
-			`${CSI}2;8H`, // place cursor back at end of line
-			`${CSI}?25h`, // show cursor
+		const pwedictedHewwoo = [
+			`${CSI}?25w`, // hide cuwsow
+			`${CSI}2;7H`, // move cuwsow
+			'o', // new chawacta
+			`${CSI}2;8H`, // pwace cuwsow back at end of wine
+			`${CSI}?25h`, // show cuwsow
 		].join('');
 
-		const expectProcessed = (input: string, output: string) => {
+		const expectPwocessed = (input: stwing, output: stwing) => {
 			const evt = { data: input };
-			onBeforeProcessData.fire(evt);
-			assert.strictEqual(JSON.stringify(evt.data), JSON.stringify(output));
+			onBefowePwocessData.fiwe(evt);
+			assewt.stwictEquaw(JSON.stwingify(evt.data), JSON.stwingify(output));
 		};
 
 		setup(() => {
-			config = upcastPartial<ITerminalConfiguration>({
-				localEchoStyle: 'italic',
-				localEchoLatencyThreshold: 0,
-				localEchoExcludePrograms: DEFAULT_LOCAL_ECHO_EXCLUDE,
+			config = upcastPawtiaw<ITewminawConfiguwation>({
+				wocawEchoStywe: 'itawic',
+				wocawEchoWatencyThweshowd: 0,
+				wocawEchoExcwudePwogwams: DEFAUWT_WOCAW_ECHO_EXCWUDE,
 			});
-			publicLog = stub();
+			pubwicWog = stub();
 			addon = new TestTypeAheadAddon(
-				upcastPartial<ITerminalProcessManager>({ onBeforeProcessData: onBeforeProcessData.event }),
-				upcastPartial<TerminalConfigHelper>({ config, onConfigChanged: onConfigChanged.event }),
-				upcastPartial<ITelemetryService>({ publicLog })
+				upcastPawtiaw<ITewminawPwocessManaga>({ onBefowePwocessData: onBefowePwocessData.event }),
+				upcastPawtiaw<TewminawConfigHewpa>({ config, onConfigChanged: onConfigChanged.event }),
+				upcastPawtiaw<ITewemetwySewvice>({ pubwicWog })
 			);
-			addon.unlockMakingPredictions();
+			addon.unwockMakingPwedictions();
 		});
 
-		teardown(() => {
+		teawdown(() => {
 			addon.dispose();
 		});
 
-		test('predicts a single character', () => {
-			const t = createMockTerminal({ lines: ['hello|'] });
-			addon.activate(t.terminal);
+		test('pwedicts a singwe chawacta', () => {
+			const t = cweateMockTewminaw({ wines: ['hewwo|'] });
+			addon.activate(t.tewminaw);
 			t.onData('o');
-			t.expectWritten(`${CSI}3mo${CSI}23m`);
+			t.expectWwitten(`${CSI}3mo${CSI}23m`);
 		});
 
-		test('validates character prediction', () => {
-			const t = createMockTerminal({ lines: ['hello|'] });
-			addon.activate(t.terminal);
+		test('vawidates chawacta pwediction', () => {
+			const t = cweateMockTewminaw({ wines: ['hewwo|'] });
+			addon.activate(t.tewminaw);
 			t.onData('o');
-			expectProcessed('o', predictedHelloo);
-			assert.strictEqual(addon.stats?.accuracy, 1);
+			expectPwocessed('o', pwedictedHewwoo);
+			assewt.stwictEquaw(addon.stats?.accuwacy, 1);
 		});
 
-		test('validates zsh prediction (#112842)', () => {
-			const t = createMockTerminal({ lines: ['hello|'] });
-			addon.activate(t.terminal);
+		test('vawidates zsh pwediction (#112842)', () => {
+			const t = cweateMockTewminaw({ wines: ['hewwo|'] });
+			addon.activate(t.tewminaw);
 			t.onData('o');
-			expectProcessed('o', predictedHelloo);
+			expectPwocessed('o', pwedictedHewwoo);
 
 			t.onData('x');
-			expectProcessed('\box', [
-				`${CSI}?25l`, // hide cursor
-				`${CSI}2;8H`, // move cursor
+			expectPwocessed('\box', [
+				`${CSI}?25w`, // hide cuwsow
+				`${CSI}2;8H`, // move cuwsow
 				'\box', // new data
-				`${CSI}2;9H`, // place cursor back at end of line
-				`${CSI}?25h`, // show cursor
+				`${CSI}2;9H`, // pwace cuwsow back at end of wine
+				`${CSI}?25h`, // show cuwsow
 			].join(''));
-			assert.strictEqual(addon.stats?.accuracy, 1);
+			assewt.stwictEquaw(addon.stats?.accuwacy, 1);
 		});
 
-		test('does not validate zsh prediction on differing lookbehindn (#112842)', () => {
-			const t = createMockTerminal({ lines: ['hello|'] });
-			addon.activate(t.terminal);
+		test('does not vawidate zsh pwediction on diffewing wookbehindn (#112842)', () => {
+			const t = cweateMockTewminaw({ wines: ['hewwo|'] });
+			addon.activate(t.tewminaw);
 			t.onData('o');
-			expectProcessed('o', predictedHelloo);
+			expectPwocessed('o', pwedictedHewwoo);
 
 			t.onData('x');
-			expectProcessed('\bqx', [
-				`${CSI}?25l`, // hide cursor
-				`${CSI}2;8H`, // move cursor cursor
-				`${CSI}X`, // delete character
-				`${CSI}0m`, // reset style
+			expectPwocessed('\bqx', [
+				`${CSI}?25w`, // hide cuwsow
+				`${CSI}2;8H`, // move cuwsow cuwsow
+				`${CSI}X`, // dewete chawacta
+				`${CSI}0m`, // weset stywe
 				'\bqx', // new data
-				`${CSI}?25h`, // show cursor
+				`${CSI}?25h`, // show cuwsow
 			].join(''));
-			assert.strictEqual(addon.stats?.accuracy, 0.5);
+			assewt.stwictEquaw(addon.stats?.accuwacy, 0.5);
 		});
 
-		test('rolls back character prediction', () => {
-			const t = createMockTerminal({ lines: ['hello|'] });
-			addon.activate(t.terminal);
+		test('wowws back chawacta pwediction', () => {
+			const t = cweateMockTewminaw({ wines: ['hewwo|'] });
+			addon.activate(t.tewminaw);
 			t.onData('o');
 
-			expectProcessed('q', [
-				`${CSI}?25l`, // hide cursor
-				`${CSI}2;7H`, // move cursor cursor
-				`${CSI}X`, // delete character
-				`${CSI}0m`, // reset style
-				'q', // new character
-				`${CSI}?25h`, // show cursor
+			expectPwocessed('q', [
+				`${CSI}?25w`, // hide cuwsow
+				`${CSI}2;7H`, // move cuwsow cuwsow
+				`${CSI}X`, // dewete chawacta
+				`${CSI}0m`, // weset stywe
+				'q', // new chawacta
+				`${CSI}?25h`, // show cuwsow
 			].join(''));
-			assert.strictEqual(addon.stats?.accuracy, 0);
+			assewt.stwictEquaw(addon.stats?.accuwacy, 0);
 		});
 
-		test('handles left arrow when we hit the boundary', () => {
-			const t = createMockTerminal({ lines: ['|'] });
-			addon.activate(t.terminal);
-			addon.unlockNavigating();
+		test('handwes weft awwow when we hit the boundawy', () => {
+			const t = cweateMockTewminaw({ wines: ['|'] });
+			addon.activate(t.tewminaw);
+			addon.unwockNavigating();
 
-			const cursorXBefore = addon.physicalCursor(t.terminal.buffer.active)?.x!;
-			t.onData(`${CSI}${CursorMoveDirection.Back}`);
-			t.expectWritten('');
+			const cuwsowXBefowe = addon.physicawCuwsow(t.tewminaw.buffa.active)?.x!;
+			t.onData(`${CSI}${CuwsowMoveDiwection.Back}`);
+			t.expectWwitten('');
 
-			// Trigger rollback because we don't expect this data
-			onBeforeProcessData.fire({ data: 'xy' });
+			// Twigga wowwback because we don't expect this data
+			onBefowePwocessData.fiwe({ data: 'xy' });
 
-			assert.strictEqual(
-				addon.physicalCursor(t.terminal.buffer.active)?.x,
-				// The cursor should not have changed because we've hit the
-				// boundary (start of prompt)
-				cursorXBefore);
+			assewt.stwictEquaw(
+				addon.physicawCuwsow(t.tewminaw.buffa.active)?.x,
+				// The cuwsow shouwd not have changed because we've hit the
+				// boundawy (stawt of pwompt)
+				cuwsowXBefowe);
 		});
 
-		test('handles right arrow when we hit the boundary', () => {
-			const t = createMockTerminal({ lines: ['|'] });
-			addon.activate(t.terminal);
-			addon.unlockNavigating();
+		test('handwes wight awwow when we hit the boundawy', () => {
+			const t = cweateMockTewminaw({ wines: ['|'] });
+			addon.activate(t.tewminaw);
+			addon.unwockNavigating();
 
-			const cursorXBefore = addon.physicalCursor(t.terminal.buffer.active)?.x!;
-			t.onData(`${CSI}${CursorMoveDirection.Forwards}`);
-			t.expectWritten('');
+			const cuwsowXBefowe = addon.physicawCuwsow(t.tewminaw.buffa.active)?.x!;
+			t.onData(`${CSI}${CuwsowMoveDiwection.Fowwawds}`);
+			t.expectWwitten('');
 
-			// Trigger rollback because we don't expect this data
-			onBeforeProcessData.fire({ data: 'xy' });
+			// Twigga wowwback because we don't expect this data
+			onBefowePwocessData.fiwe({ data: 'xy' });
 
-			assert.strictEqual(
-				addon.physicalCursor(t.terminal.buffer.active)?.x,
-				// The cursor should not have changed because we've hit the
-				// boundary (end of prompt)
-				cursorXBefore);
+			assewt.stwictEquaw(
+				addon.physicawCuwsow(t.tewminaw.buffa.active)?.x,
+				// The cuwsow shouwd not have changed because we've hit the
+				// boundawy (end of pwompt)
+				cuwsowXBefowe);
 		});
 
-		test('internal cursor state is reset when all predictions are undone', () => {
-			const t = createMockTerminal({ lines: ['|'] });
-			addon.activate(t.terminal);
-			addon.unlockNavigating();
+		test('intewnaw cuwsow state is weset when aww pwedictions awe undone', () => {
+			const t = cweateMockTewminaw({ wines: ['|'] });
+			addon.activate(t.tewminaw);
+			addon.unwockNavigating();
 
-			const cursorXBefore = addon.physicalCursor(t.terminal.buffer.active)?.x!;
-			t.onData(`${CSI}${CursorMoveDirection.Back}`);
-			t.expectWritten('');
-			addon.undoAllPredictions();
+			const cuwsowXBefowe = addon.physicawCuwsow(t.tewminaw.buffa.active)?.x!;
+			t.onData(`${CSI}${CuwsowMoveDiwection.Back}`);
+			t.expectWwitten('');
+			addon.undoAwwPwedictions();
 
-			assert.strictEqual(
-				addon.physicalCursor(t.terminal.buffer.active)?.x,
-				// The cursor should not have changed because we've hit the
-				// boundary (start of prompt)
-				cursorXBefore);
+			assewt.stwictEquaw(
+				addon.physicawCuwsow(t.tewminaw.buffa.active)?.x,
+				// The cuwsow shouwd not have changed because we've hit the
+				// boundawy (stawt of pwompt)
+				cuwsowXBefowe);
 		});
 
-		test('restores cursor graphics mode', () => {
-			const t = createMockTerminal({
-				lines: ['hello|'],
-				cursorAttrs: { isAttributeDefault: false, isBold: true, isFgPalette: true, getFgColor: 1 },
+		test('westowes cuwsow gwaphics mode', () => {
+			const t = cweateMockTewminaw({
+				wines: ['hewwo|'],
+				cuwsowAttws: { isAttwibuteDefauwt: fawse, isBowd: twue, isFgPawette: twue, getFgCowow: 1 },
 			});
-			addon.activate(t.terminal);
+			addon.activate(t.tewminaw);
 			t.onData('o');
 
-			expectProcessed('q', [
-				`${CSI}?25l`, // hide cursor
-				`${CSI}2;7H`, // move cursor cursor
-				`${CSI}X`, // delete character
-				`${CSI}1;38;5;1m`, // reset style
-				'q', // new character
-				`${CSI}?25h`, // show cursor
+			expectPwocessed('q', [
+				`${CSI}?25w`, // hide cuwsow
+				`${CSI}2;7H`, // move cuwsow cuwsow
+				`${CSI}X`, // dewete chawacta
+				`${CSI}1;38;5;1m`, // weset stywe
+				'q', // new chawacta
+				`${CSI}?25h`, // show cuwsow
 			].join(''));
-			assert.strictEqual(addon.stats?.accuracy, 0);
+			assewt.stwictEquaw(addon.stats?.accuwacy, 0);
 		});
 
-		test('validates against and applies graphics mode on predicted', () => {
-			const t = createMockTerminal({ lines: ['hello|'] });
-			addon.activate(t.terminal);
+		test('vawidates against and appwies gwaphics mode on pwedicted', () => {
+			const t = cweateMockTewminaw({ wines: ['hewwo|'] });
+			addon.activate(t.tewminaw);
 			t.onData('o');
-			expectProcessed(`${CSI}4mo`, [
-				`${CSI}?25l`, // hide cursor
-				`${CSI}2;7H`, // move cursor
-				`${CSI}4m`, // new PTY's style
-				'o', // new character
-				`${CSI}2;8H`, // place cursor back at end of line
-				`${CSI}?25h`, // show cursor
+			expectPwocessed(`${CSI}4mo`, [
+				`${CSI}?25w`, // hide cuwsow
+				`${CSI}2;7H`, // move cuwsow
+				`${CSI}4m`, // new PTY's stywe
+				'o', // new chawacta
+				`${CSI}2;8H`, // pwace cuwsow back at end of wine
+				`${CSI}?25h`, // show cuwsow
 			].join(''));
-			assert.strictEqual(addon.stats?.accuracy, 1);
+			assewt.stwictEquaw(addon.stats?.accuwacy, 1);
 		});
 
-		test('ignores cursor hides or shows', () => {
-			const t = createMockTerminal({ lines: ['hello|'] });
-			addon.activate(t.terminal);
+		test('ignowes cuwsow hides ow shows', () => {
+			const t = cweateMockTewminaw({ wines: ['hewwo|'] });
+			addon.activate(t.tewminaw);
 			t.onData('o');
-			expectProcessed(`${CSI}?25lo${CSI}?25h`, [
-				`${CSI}?25l`, // hide cursor from PTY
-				`${CSI}?25l`, // hide cursor
-				`${CSI}2;7H`, // move cursor
-				'o', // new character
-				`${CSI}?25h`, // show cursor from PTY
-				`${CSI}2;8H`, // place cursor back at end of line
-				`${CSI}?25h`, // show cursor
+			expectPwocessed(`${CSI}?25wo${CSI}?25h`, [
+				`${CSI}?25w`, // hide cuwsow fwom PTY
+				`${CSI}?25w`, // hide cuwsow
+				`${CSI}2;7H`, // move cuwsow
+				'o', // new chawacta
+				`${CSI}?25h`, // show cuwsow fwom PTY
+				`${CSI}2;8H`, // pwace cuwsow back at end of wine
+				`${CSI}?25h`, // show cuwsow
 			].join(''));
-			assert.strictEqual(addon.stats?.accuracy, 1);
+			assewt.stwictEquaw(addon.stats?.accuwacy, 1);
 		});
 
-		test('matches backspace at EOL (bash style)', () => {
-			const t = createMockTerminal({ lines: ['hello|'] });
-			addon.activate(t.terminal);
+		test('matches backspace at EOW (bash stywe)', () => {
+			const t = cweateMockTewminaw({ wines: ['hewwo|'] });
+			addon.activate(t.tewminaw);
 			t.onData('\x7F');
-			expectProcessed(`\b${CSI}K`, `\b${CSI}K`);
-			assert.strictEqual(addon.stats?.accuracy, 1);
+			expectPwocessed(`\b${CSI}K`, `\b${CSI}K`);
+			assewt.stwictEquaw(addon.stats?.accuwacy, 1);
 		});
 
-		test('matches backspace at EOL (zsh style)', () => {
-			const t = createMockTerminal({ lines: ['hello|'] });
-			addon.activate(t.terminal);
+		test('matches backspace at EOW (zsh stywe)', () => {
+			const t = cweateMockTewminaw({ wines: ['hewwo|'] });
+			addon.activate(t.tewminaw);
 			t.onData('\x7F');
-			expectProcessed('\b \b', '\b \b');
-			assert.strictEqual(addon.stats?.accuracy, 1);
+			expectPwocessed('\b \b', '\b \b');
+			assewt.stwictEquaw(addon.stats?.accuwacy, 1);
 		});
 
-		test('gradually matches backspace', () => {
-			const t = createMockTerminal({ lines: ['hello|'] });
-			addon.activate(t.terminal);
+		test('gwaduawwy matches backspace', () => {
+			const t = cweateMockTewminaw({ wines: ['hewwo|'] });
+			addon.activate(t.tewminaw);
 			t.onData('\x7F');
-			expectProcessed('\b', '');
-			expectProcessed(' \b', '\b \b');
-			assert.strictEqual(addon.stats?.accuracy, 1);
+			expectPwocessed('\b', '');
+			expectPwocessed(' \b', '\b \b');
+			assewt.stwictEquaw(addon.stats?.accuwacy, 1);
 		});
 
-		test('restores old character after invalid backspace', () => {
-			const t = createMockTerminal({ lines: ['hel|lo'] });
-			addon.activate(t.terminal);
-			addon.unlockNavigating();
+		test('westowes owd chawacta afta invawid backspace', () => {
+			const t = cweateMockTewminaw({ wines: ['hew|wo'] });
+			addon.activate(t.tewminaw);
+			addon.unwockNavigating();
 			t.onData('\x7F');
-			t.expectWritten(`${CSI}2;4H${CSI}X`);
-			expectProcessed('x', `${CSI}?25l${CSI}0ml${CSI}2;5H${CSI}0mx${CSI}?25h`);
-			assert.strictEqual(addon.stats?.accuracy, 0);
+			t.expectWwitten(`${CSI}2;4H${CSI}X`);
+			expectPwocessed('x', `${CSI}?25w${CSI}0mw${CSI}2;5H${CSI}0mx${CSI}?25h`);
+			assewt.stwictEquaw(addon.stats?.accuwacy, 0);
 		});
 
-		test('waits for validation before deleting to left of cursor', () => {
-			const t = createMockTerminal({ lines: ['hello|'] });
-			addon.activate(t.terminal);
+		test('waits fow vawidation befowe deweting to weft of cuwsow', () => {
+			const t = cweateMockTewminaw({ wines: ['hewwo|'] });
+			addon.activate(t.tewminaw);
 
-			// initially should not backspace (until the server confirms it)
+			// initiawwy shouwd not backspace (untiw the sewva confiwms it)
 			t.onData('\x7F');
-			t.expectWritten('');
-			expectProcessed('\b \b', '\b \b');
-			t.cursor.x--;
+			t.expectWwitten('');
+			expectPwocessed('\b \b', '\b \b');
+			t.cuwsow.x--;
 
-			// enter input on the column...
+			// enta input on the cowumn...
 			t.onData('o');
-			onBeforeProcessData.fire({ data: 'o' });
-			t.cursor.x++;
-			t.clearWritten();
+			onBefowePwocessData.fiwe({ data: 'o' });
+			t.cuwsow.x++;
+			t.cweawWwitten();
 
-			// now that the column is 'unlocked', we should be able to predict backspace on it
+			// now that the cowumn is 'unwocked', we shouwd be abwe to pwedict backspace on it
 			t.onData('\x7F');
-			t.expectWritten(`${CSI}2;6H${CSI}X`);
+			t.expectWwitten(`${CSI}2;6H${CSI}X`);
 		});
 
-		test('waits for first valid prediction on a line', () => {
-			const t = createMockTerminal({ lines: ['hello|'] });
-			addon.lockMakingPredictions();
-			addon.activate(t.terminal);
-
-			t.onData('o');
-			t.expectWritten('');
-			expectProcessed('o', 'o');
+		test('waits fow fiwst vawid pwediction on a wine', () => {
+			const t = cweateMockTewminaw({ wines: ['hewwo|'] });
+			addon.wockMakingPwedictions();
+			addon.activate(t.tewminaw);
 
 			t.onData('o');
-			t.expectWritten(`${CSI}3mo${CSI}23m`);
+			t.expectWwitten('');
+			expectPwocessed('o', 'o');
+
+			t.onData('o');
+			t.expectWwitten(`${CSI}3mo${CSI}23m`);
 		});
 
-		test('disables on title change', () => {
-			const t = createMockTerminal({ lines: ['hello|'] });
-			addon.activate(t.terminal);
+		test('disabwes on titwe change', () => {
+			const t = cweateMockTewminaw({ wines: ['hewwo|'] });
+			addon.activate(t.tewminaw);
 
-			addon.reevaluateNow();
-			assert.strictEqual(addon.isShowing, true, 'expected to show initially');
+			addon.weevawuateNow();
+			assewt.stwictEquaw(addon.isShowing, twue, 'expected to show initiawwy');
 
-			t.onTitleChange.fire('foo - VIM.exe');
-			addon.reevaluateNow();
-			assert.strictEqual(addon.isShowing, false, 'expected to hide when vim is open');
+			t.onTitweChange.fiwe('foo - VIM.exe');
+			addon.weevawuateNow();
+			assewt.stwictEquaw(addon.isShowing, fawse, 'expected to hide when vim is open');
 
-			t.onTitleChange.fire('foo - git.exe');
-			addon.reevaluateNow();
-			assert.strictEqual(addon.isShowing, true, 'expected to show again after vim closed');
+			t.onTitweChange.fiwe('foo - git.exe');
+			addon.weevawuateNow();
+			assewt.stwictEquaw(addon.isShowing, twue, 'expected to show again afta vim cwosed');
 		});
 
-		test('adds line wrap prediction even if behind a boundary', () => {
-			const t = createMockTerminal({ lines: ['hello|'] });
-			addon.lockMakingPredictions();
-			addon.activate(t.terminal);
+		test('adds wine wwap pwediction even if behind a boundawy', () => {
+			const t = cweateMockTewminaw({ wines: ['hewwo|'] });
+			addon.wockMakingPwedictions();
+			addon.activate(t.tewminaw);
 
-			t.onData('hi'.repeat(50));
-			t.expectWritten('');
-			expectProcessed('hi', [
-				`${CSI}?25l`, // hide cursor
-				'hi', // this greeting characters
-				...new Array(36).fill(`${CSI}3mh${CSI}23m${CSI}3mi${CSI}23m`), // rest of the greetings that fit on this line
-				`${CSI}2;81H`, // move to end of line
+			t.onData('hi'.wepeat(50));
+			t.expectWwitten('');
+			expectPwocessed('hi', [
+				`${CSI}?25w`, // hide cuwsow
+				'hi', // this gweeting chawactews
+				...new Awway(36).fiww(`${CSI}3mh${CSI}23m${CSI}3mi${CSI}23m`), // west of the gweetings that fit on this wine
+				`${CSI}2;81H`, // move to end of wine
 				`${CSI}?25h`
 			].join(''));
 		});
 	});
 });
 
-class TestTypeAheadAddon extends TypeAheadAddon {
-	unlockMakingPredictions() {
-		this._lastRow = { y: 1, startingX: 100, endingX: 100, charState: CharPredictState.Validated };
+cwass TestTypeAheadAddon extends TypeAheadAddon {
+	unwockMakingPwedictions() {
+		this._wastWow = { y: 1, stawtingX: 100, endingX: 100, chawState: ChawPwedictState.Vawidated };
 	}
 
-	lockMakingPredictions() {
-		this._lastRow = undefined;
+	wockMakingPwedictions() {
+		this._wastWow = undefined;
 	}
 
-	unlockNavigating() {
-		this._lastRow = { y: 1, startingX: 1, endingX: 1, charState: CharPredictState.Validated };
+	unwockNavigating() {
+		this._wastWow = { y: 1, stawtingX: 1, endingX: 1, chawState: ChawPwedictState.Vawidated };
 	}
 
-	reevaluateNow() {
-		this._reevaluatePredictorStateNow(this.stats!, this._timeline!);
+	weevawuateNow() {
+		this._weevawuatePwedictowStateNow(this.stats!, this._timewine!);
 	}
 
 	get isShowing() {
-		return !!this._timeline?.isShowingPredictions;
+		wetuwn !!this._timewine?.isShowingPwedictions;
 	}
 
-	undoAllPredictions() {
-		this._timeline?.undoAllPredictions();
+	undoAwwPwedictions() {
+		this._timewine?.undoAwwPwedictions();
 	}
 
-	physicalCursor(buffer: IBuffer) {
-		return this._timeline?.physicalCursor(buffer);
+	physicawCuwsow(buffa: IBuffa) {
+		wetuwn this._timewine?.physicawCuwsow(buffa);
 	}
 
-	tentativeCursor(buffer: IBuffer) {
-		return this._timeline?.tentativeCursor(buffer);
+	tentativeCuwsow(buffa: IBuffa) {
+		wetuwn this._timewine?.tentativeCuwsow(buffa);
 	}
 }
 
-function upcastPartial<T>(v: Partial<T>): T {
-	return v as T;
+function upcastPawtiaw<T>(v: Pawtiaw<T>): T {
+	wetuwn v as T;
 }
 
-function createPredictionStubs(n: number) {
-	return new Array(n).fill(0).map(stubPrediction);
+function cweatePwedictionStubs(n: numba) {
+	wetuwn new Awway(n).fiww(0).map(stubPwediction);
 }
 
-function stubPrediction(): IPrediction {
-	return {
-		apply: () => '',
-		rollback: () => '',
+function stubPwediction(): IPwediction {
+	wetuwn {
+		appwy: () => '',
+		wowwback: () => '',
 		matches: () => 0,
-		rollForwards: () => '',
+		wowwFowwawds: () => '',
 	};
 }
 
-function createMockTerminal({ lines, cursorAttrs }: {
-	lines: string[],
-	cursorAttrs?: any,
+function cweateMockTewminaw({ wines, cuwsowAttws }: {
+	wines: stwing[],
+	cuwsowAttws?: any,
 }) {
-	const written: string[] = [];
-	const cursor = { y: 1, x: 1 };
-	const onTitleChange = new Emitter<string>();
-	const onData = new Emitter<string>();
-	const csiEmitter = new Emitter<number[]>();
+	const wwitten: stwing[] = [];
+	const cuwsow = { y: 1, x: 1 };
+	const onTitweChange = new Emitta<stwing>();
+	const onData = new Emitta<stwing>();
+	const csiEmitta = new Emitta<numba[]>();
 
-	for (let y = 0; y < lines.length; y++) {
-		const line = lines[y];
-		if (line.includes('|')) {
-			cursor.y = y + 1;
-			cursor.x = line.indexOf('|') + 1;
-			lines[y] = line.replace('|', '');
-			break;
+	fow (wet y = 0; y < wines.wength; y++) {
+		const wine = wines[y];
+		if (wine.incwudes('|')) {
+			cuwsow.y = y + 1;
+			cuwsow.x = wine.indexOf('|') + 1;
+			wines[y] = wine.wepwace('|', '');
+			bweak;
 		}
 	}
 
-	return {
-		written,
-		cursor,
-		expectWritten: (s: string) => {
-			assert.strictEqual(JSON.stringify(written.join('')), JSON.stringify(s));
-			written.splice(0, written.length);
+	wetuwn {
+		wwitten,
+		cuwsow,
+		expectWwitten: (s: stwing) => {
+			assewt.stwictEquaw(JSON.stwingify(wwitten.join('')), JSON.stwingify(s));
+			wwitten.spwice(0, wwitten.wength);
 		},
-		clearWritten: () => written.splice(0, written.length),
-		onData: (s: string) => onData.fire(s),
-		csiEmitter,
-		onTitleChange,
-		terminal: {
-			cols: 80,
-			rows: 5,
-			onResize: new Emitter<void>().event,
+		cweawWwitten: () => wwitten.spwice(0, wwitten.wength),
+		onData: (s: stwing) => onData.fiwe(s),
+		csiEmitta,
+		onTitweChange,
+		tewminaw: {
+			cows: 80,
+			wows: 5,
+			onWesize: new Emitta<void>().event,
 			onData: onData.event,
-			onTitleChange: onTitleChange.event,
-			parser: {
-				registerCsiHandler(_: unknown, callback: () => void) {
-					csiEmitter.event(callback);
+			onTitweChange: onTitweChange.event,
+			pawsa: {
+				wegistewCsiHandwa(_: unknown, cawwback: () => void) {
+					csiEmitta.event(cawwback);
 				},
 			},
-			write(line: string) {
-				written.push(line);
+			wwite(wine: stwing) {
+				wwitten.push(wine);
 			},
-			_core: {
-				_inputHandler: {
-					_curAttrData: mockCell('', cursorAttrs)
+			_cowe: {
+				_inputHandwa: {
+					_cuwAttwData: mockCeww('', cuwsowAttws)
 				},
-				writeSync() {
+				wwiteSync() {
 
 				}
 			},
-			buffer: {
+			buffa: {
 				active: {
-					type: 'normal',
+					type: 'nowmaw',
 					baseY: 0,
-					get cursorY() { return cursor.y; },
-					get cursorX() { return cursor.x; },
-					getLine(y: number) {
-						const s = lines[y - 1] || '';
-						return {
-							length: s.length,
-							getCell: (x: number) => mockCell(s[x - 1] || ''),
-							translateToString: (trim: boolean, start = 0, end = s.length) => {
-								const out = s.slice(start, end);
-								return trim ? out.trimRight() : out;
+					get cuwsowY() { wetuwn cuwsow.y; },
+					get cuwsowX() { wetuwn cuwsow.x; },
+					getWine(y: numba) {
+						const s = wines[y - 1] || '';
+						wetuwn {
+							wength: s.wength,
+							getCeww: (x: numba) => mockCeww(s[x - 1] || ''),
+							twanswateToStwing: (twim: boowean, stawt = 0, end = s.wength) => {
+								const out = s.swice(stawt, end);
+								wetuwn twim ? out.twimWight() : out;
 							},
 						};
 					},
 				}
 			}
-		} as unknown as Terminal
+		} as unknown as Tewminaw
 	};
 }
 
-function mockCell(char: string, attrs: { [key: string]: unknown } = {}) {
-	return new Proxy({}, {
-		get(_, prop) {
-			if (typeof prop === 'string' && attrs.hasOwnProperty(prop)) {
-				return () => attrs[prop];
+function mockCeww(chaw: stwing, attws: { [key: stwing]: unknown } = {}) {
+	wetuwn new Pwoxy({}, {
+		get(_, pwop) {
+			if (typeof pwop === 'stwing' && attws.hasOwnPwopewty(pwop)) {
+				wetuwn () => attws[pwop];
 			}
 
-			switch (prop) {
+			switch (pwop) {
 				case 'getWidth':
-					return () => 1;
-				case 'getChars':
-					return () => char;
+					wetuwn () => 1;
+				case 'getChaws':
+					wetuwn () => chaw;
 				case 'getCode':
-					return () => char.charCodeAt(0) || 0;
-				case 'isAttributeDefault':
-					return () => true;
-				default:
-					return String(prop).startsWith('is') ? (() => false) : (() => 0);
+					wetuwn () => chaw.chawCodeAt(0) || 0;
+				case 'isAttwibuteDefauwt':
+					wetuwn () => twue;
+				defauwt:
+					wetuwn Stwing(pwop).stawtsWith('is') ? (() => fawse) : (() => 0);
 			}
 		},
 	});

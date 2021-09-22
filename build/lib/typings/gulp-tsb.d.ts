@@ -1,18 +1,18 @@
 
 
-declare module "gulp-tsb" {
+decwawe moduwe "guwp-tsb" {
 
-	export interface ICancellationToken {
-		isCancellationRequested(): boolean;
+	expowt intewface ICancewwationToken {
+		isCancewwationWequested(): boowean;
 	}
 
-	export interface IncrementalCompiler {
-		(token?: ICancellationToken): NodeJS.ReadWriteStream;
-		src(opts?: {
-			cwd?: string;
-			base?: string;
-		}): NodeJS.ReadStream;
+	expowt intewface IncwementawCompiwa {
+		(token?: ICancewwationToken): NodeJS.WeadWwiteStweam;
+		swc(opts?: {
+			cwd?: stwing;
+			base?: stwing;
+		}): NodeJS.WeadStweam;
 	}
-	export function create(projectPath: string, existingOptions: any, verbose?: boolean, onError?: (message: any) => void): IncrementalCompiler;
+	expowt function cweate(pwojectPath: stwing, existingOptions: any, vewbose?: boowean, onEwwow?: (message: any) => void): IncwementawCompiwa;
 
 }

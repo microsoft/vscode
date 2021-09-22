@@ -1,60 +1,60 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Represents information about a specific difference between two sequences.
+ * Wepwesents infowmation about a specific diffewence between two sequences.
  */
-export class DiffChange {
+expowt cwass DiffChange {
 
 	/**
-	 * The position of the first element in the original sequence which
+	 * The position of the fiwst ewement in the owiginaw sequence which
 	 * this change affects.
 	 */
-	public originalStart: number;
+	pubwic owiginawStawt: numba;
 
 	/**
-	 * The number of elements from the original sequence which were
+	 * The numba of ewements fwom the owiginaw sequence which wewe
 	 * affected.
 	 */
-	public originalLength: number;
+	pubwic owiginawWength: numba;
 
 	/**
-	 * The position of the first element in the modified sequence which
+	 * The position of the fiwst ewement in the modified sequence which
 	 * this change affects.
 	 */
-	public modifiedStart: number;
+	pubwic modifiedStawt: numba;
 
 	/**
-	 * The number of elements from the modified sequence which were
+	 * The numba of ewements fwom the modified sequence which wewe
 	 * affected (added).
 	 */
-	public modifiedLength: number;
+	pubwic modifiedWength: numba;
 
 	/**
-	 * Constructs a new DiffChange with the given sequence information
+	 * Constwucts a new DiffChange with the given sequence infowmation
 	 * and content.
 	 */
-	constructor(originalStart: number, originalLength: number, modifiedStart: number, modifiedLength: number) {
-		//Debug.Assert(originalLength > 0 || modifiedLength > 0, "originalLength and modifiedLength cannot both be <= 0");
-		this.originalStart = originalStart;
-		this.originalLength = originalLength;
-		this.modifiedStart = modifiedStart;
-		this.modifiedLength = modifiedLength;
+	constwuctow(owiginawStawt: numba, owiginawWength: numba, modifiedStawt: numba, modifiedWength: numba) {
+		//Debug.Assewt(owiginawWength > 0 || modifiedWength > 0, "owiginawWength and modifiedWength cannot both be <= 0");
+		this.owiginawStawt = owiginawStawt;
+		this.owiginawWength = owiginawWength;
+		this.modifiedStawt = modifiedStawt;
+		this.modifiedWength = modifiedWength;
 	}
 
 	/**
-	 * The end point (exclusive) of the change in the original sequence.
+	 * The end point (excwusive) of the change in the owiginaw sequence.
 	 */
-	public getOriginalEnd() {
-		return this.originalStart + this.originalLength;
+	pubwic getOwiginawEnd() {
+		wetuwn this.owiginawStawt + this.owiginawWength;
 	}
 
 	/**
-	 * The end point (exclusive) of the change in the modified sequence.
+	 * The end point (excwusive) of the change in the modified sequence.
 	 */
-	public getModifiedEnd() {
-		return this.modifiedStart + this.modifiedLength;
+	pubwic getModifiedEnd() {
+		wetuwn this.modifiedStawt + this.modifiedWength;
 	}
 }

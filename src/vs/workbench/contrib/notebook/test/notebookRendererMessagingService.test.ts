@@ -1,57 +1,57 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { stub } from 'sinon';
-import { NotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/browser/notebookRendererMessagingServiceImpl';
-import * as assert from 'assert';
-import { timeout } from 'vs/base/common/async';
+impowt { NuwwExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { stub } fwom 'sinon';
+impowt { NotebookWendewewMessagingSewvice } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookWendewewMessagingSewviceImpw';
+impowt * as assewt fwom 'assewt';
+impowt { timeout } fwom 'vs/base/common/async';
 
-suite('NotebookRendererMessaging', () => {
-	let extService: NullExtensionService;
-	let m: NotebookRendererMessagingService;
-	let sent: unknown[] = [];
+suite('NotebookWendewewMessaging', () => {
+	wet extSewvice: NuwwExtensionSewvice;
+	wet m: NotebookWendewewMessagingSewvice;
+	wet sent: unknown[] = [];
 
 	setup(() => {
 		sent = [];
-		extService = new NullExtensionService();
-		m = new NotebookRendererMessagingService(extService);
-		m.onShouldPostMessage(e => sent.push(e));
+		extSewvice = new NuwwExtensionSewvice();
+		m = new NotebookWendewewMessagingSewvice(extSewvice);
+		m.onShouwdPostMessage(e => sent.push(e));
 	});
 
-	test('activates on prepare', () => {
-		const activate = stub(extService, 'activateByEvent').returns(Promise.resolve());
-		m.prepare('foo');
-		m.prepare('foo');
-		m.prepare('foo');
+	test('activates on pwepawe', () => {
+		const activate = stub(extSewvice, 'activateByEvent').wetuwns(Pwomise.wesowve());
+		m.pwepawe('foo');
+		m.pwepawe('foo');
+		m.pwepawe('foo');
 
-		assert.deepStrictEqual(activate.args, [['onRenderer:foo']]);
+		assewt.deepStwictEquaw(activate.awgs, [['onWendewa:foo']]);
 	});
 
-	test('buffers and then plays events', async () => {
-		stub(extService, 'activateByEvent').returns(Promise.resolve());
+	test('buffews and then pways events', async () => {
+		stub(extSewvice, 'activateByEvent').wetuwns(Pwomise.wesowve());
 
-		const scoped = m.getScoped('some-editor');
+		const scoped = m.getScoped('some-editow');
 		scoped.postMessage('foo', 1);
 		scoped.postMessage('foo', 2);
-		assert.deepStrictEqual(sent, []);
+		assewt.deepStwictEquaw(sent, []);
 
 		await timeout(0);
 
 		const expected = [
-			{ editorId: 'some-editor', rendererId: 'foo', message: 1 },
-			{ editorId: 'some-editor', rendererId: 'foo', message: 2 }
+			{ editowId: 'some-editow', wendewewId: 'foo', message: 1 },
+			{ editowId: 'some-editow', wendewewId: 'foo', message: 2 }
 		];
 
-		assert.deepStrictEqual(sent, expected);
+		assewt.deepStwictEquaw(sent, expected);
 
 		scoped.postMessage('foo', 3);
 
-		assert.deepStrictEqual(sent, [
+		assewt.deepStwictEquaw(sent, [
 			...expected,
-			{ editorId: 'some-editor', rendererId: 'foo', message: 3 }
+			{ editowId: 'some-editow', wendewewId: 'foo', message: 3 }
 		]);
 	});
 });

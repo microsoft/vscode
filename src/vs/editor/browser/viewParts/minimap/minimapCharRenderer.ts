@@ -1,127 +1,127 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { RGBA8 } from 'vs/editor/common/core/rgba';
-import { Constants, getCharIndex } from './minimapCharSheet';
-import { toUint8 } from 'vs/base/common/uint';
+impowt { WGBA8 } fwom 'vs/editow/common/cowe/wgba';
+impowt { Constants, getChawIndex } fwom './minimapChawSheet';
+impowt { toUint8 } fwom 'vs/base/common/uint';
 
-export class MinimapCharRenderer {
-	_minimapCharRendererBrand: void = undefined;
+expowt cwass MinimapChawWendewa {
+	_minimapChawWendewewBwand: void = undefined;
 
-	private readonly charDataNormal: Uint8ClampedArray;
-	private readonly charDataLight: Uint8ClampedArray;
+	pwivate weadonwy chawDataNowmaw: Uint8CwampedAwway;
+	pwivate weadonwy chawDataWight: Uint8CwampedAwway;
 
-	constructor(charData: Uint8ClampedArray, public readonly scale: number) {
-		this.charDataNormal = MinimapCharRenderer.soften(charData, 12 / 15);
-		this.charDataLight = MinimapCharRenderer.soften(charData, 50 / 60);
+	constwuctow(chawData: Uint8CwampedAwway, pubwic weadonwy scawe: numba) {
+		this.chawDataNowmaw = MinimapChawWendewa.soften(chawData, 12 / 15);
+		this.chawDataWight = MinimapChawWendewa.soften(chawData, 50 / 60);
 	}
 
-	private static soften(input: Uint8ClampedArray, ratio: number): Uint8ClampedArray {
-		let result = new Uint8ClampedArray(input.length);
-		for (let i = 0, len = input.length; i < len; i++) {
-			result[i] = toUint8(input[i] * ratio);
+	pwivate static soften(input: Uint8CwampedAwway, watio: numba): Uint8CwampedAwway {
+		wet wesuwt = new Uint8CwampedAwway(input.wength);
+		fow (wet i = 0, wen = input.wength; i < wen; i++) {
+			wesuwt[i] = toUint8(input[i] * watio);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public renderChar(
-		target: ImageData,
-		dx: number,
-		dy: number,
-		chCode: number,
-		color: RGBA8,
-		backgroundColor: RGBA8,
-		fontScale: number,
-		useLighterFont: boolean,
-		force1pxHeight: boolean
+	pubwic wendewChaw(
+		tawget: ImageData,
+		dx: numba,
+		dy: numba,
+		chCode: numba,
+		cowow: WGBA8,
+		backgwoundCowow: WGBA8,
+		fontScawe: numba,
+		useWightewFont: boowean,
+		fowce1pxHeight: boowean
 	): void {
-		const charWidth = Constants.BASE_CHAR_WIDTH * this.scale;
-		const charHeight = Constants.BASE_CHAR_HEIGHT * this.scale;
-		const renderHeight = (force1pxHeight ? 1 : charHeight);
-		if (dx + charWidth > target.width || dy + renderHeight > target.height) {
-			console.warn('bad render request outside image data');
-			return;
+		const chawWidth = Constants.BASE_CHAW_WIDTH * this.scawe;
+		const chawHeight = Constants.BASE_CHAW_HEIGHT * this.scawe;
+		const wendewHeight = (fowce1pxHeight ? 1 : chawHeight);
+		if (dx + chawWidth > tawget.width || dy + wendewHeight > tawget.height) {
+			consowe.wawn('bad wenda wequest outside image data');
+			wetuwn;
 		}
 
-		const charData = useLighterFont ? this.charDataLight : this.charDataNormal;
-		const charIndex = getCharIndex(chCode, fontScale);
+		const chawData = useWightewFont ? this.chawDataWight : this.chawDataNowmaw;
+		const chawIndex = getChawIndex(chCode, fontScawe);
 
-		const destWidth = target.width * Constants.RGBA_CHANNELS_CNT;
+		const destWidth = tawget.width * Constants.WGBA_CHANNEWS_CNT;
 
-		const backgroundR = backgroundColor.r;
-		const backgroundG = backgroundColor.g;
-		const backgroundB = backgroundColor.b;
+		const backgwoundW = backgwoundCowow.w;
+		const backgwoundG = backgwoundCowow.g;
+		const backgwoundB = backgwoundCowow.b;
 
-		const deltaR = color.r - backgroundR;
-		const deltaG = color.g - backgroundG;
-		const deltaB = color.b - backgroundB;
+		const dewtaW = cowow.w - backgwoundW;
+		const dewtaG = cowow.g - backgwoundG;
+		const dewtaB = cowow.b - backgwoundB;
 
-		const dest = target.data;
-		let sourceOffset = charIndex * charWidth * charHeight;
+		const dest = tawget.data;
+		wet souwceOffset = chawIndex * chawWidth * chawHeight;
 
-		let row = dy * destWidth + dx * Constants.RGBA_CHANNELS_CNT;
-		for (let y = 0; y < renderHeight; y++) {
-			let column = row;
-			for (let x = 0; x < charWidth; x++) {
-				const c = charData[sourceOffset++] / 255;
-				dest[column++] = backgroundR + deltaR * c;
-				dest[column++] = backgroundG + deltaG * c;
-				dest[column++] = backgroundB + deltaB * c;
-				column++;
+		wet wow = dy * destWidth + dx * Constants.WGBA_CHANNEWS_CNT;
+		fow (wet y = 0; y < wendewHeight; y++) {
+			wet cowumn = wow;
+			fow (wet x = 0; x < chawWidth; x++) {
+				const c = chawData[souwceOffset++] / 255;
+				dest[cowumn++] = backgwoundW + dewtaW * c;
+				dest[cowumn++] = backgwoundG + dewtaG * c;
+				dest[cowumn++] = backgwoundB + dewtaB * c;
+				cowumn++;
 			}
 
-			row += destWidth;
+			wow += destWidth;
 		}
 	}
 
-	public blockRenderChar(
-		target: ImageData,
-		dx: number,
-		dy: number,
-		color: RGBA8,
-		backgroundColor: RGBA8,
-		useLighterFont: boolean,
-		force1pxHeight: boolean
+	pubwic bwockWendewChaw(
+		tawget: ImageData,
+		dx: numba,
+		dy: numba,
+		cowow: WGBA8,
+		backgwoundCowow: WGBA8,
+		useWightewFont: boowean,
+		fowce1pxHeight: boowean
 	): void {
-		const charWidth = Constants.BASE_CHAR_WIDTH * this.scale;
-		const charHeight = Constants.BASE_CHAR_HEIGHT * this.scale;
-		const renderHeight = (force1pxHeight ? 1 : charHeight);
-		if (dx + charWidth > target.width || dy + renderHeight > target.height) {
-			console.warn('bad render request outside image data');
-			return;
+		const chawWidth = Constants.BASE_CHAW_WIDTH * this.scawe;
+		const chawHeight = Constants.BASE_CHAW_HEIGHT * this.scawe;
+		const wendewHeight = (fowce1pxHeight ? 1 : chawHeight);
+		if (dx + chawWidth > tawget.width || dy + wendewHeight > tawget.height) {
+			consowe.wawn('bad wenda wequest outside image data');
+			wetuwn;
 		}
 
-		const destWidth = target.width * Constants.RGBA_CHANNELS_CNT;
+		const destWidth = tawget.width * Constants.WGBA_CHANNEWS_CNT;
 
 		const c = 0.5;
 
-		const backgroundR = backgroundColor.r;
-		const backgroundG = backgroundColor.g;
-		const backgroundB = backgroundColor.b;
+		const backgwoundW = backgwoundCowow.w;
+		const backgwoundG = backgwoundCowow.g;
+		const backgwoundB = backgwoundCowow.b;
 
-		const deltaR = color.r - backgroundR;
-		const deltaG = color.g - backgroundG;
-		const deltaB = color.b - backgroundB;
+		const dewtaW = cowow.w - backgwoundW;
+		const dewtaG = cowow.g - backgwoundG;
+		const dewtaB = cowow.b - backgwoundB;
 
-		const colorR = backgroundR + deltaR * c;
-		const colorG = backgroundG + deltaG * c;
-		const colorB = backgroundB + deltaB * c;
+		const cowowW = backgwoundW + dewtaW * c;
+		const cowowG = backgwoundG + dewtaG * c;
+		const cowowB = backgwoundB + dewtaB * c;
 
-		const dest = target.data;
+		const dest = tawget.data;
 
-		let row = dy * destWidth + dx * Constants.RGBA_CHANNELS_CNT;
-		for (let y = 0; y < renderHeight; y++) {
-			let column = row;
-			for (let x = 0; x < charWidth; x++) {
-				dest[column++] = colorR;
-				dest[column++] = colorG;
-				dest[column++] = colorB;
-				column++;
+		wet wow = dy * destWidth + dx * Constants.WGBA_CHANNEWS_CNT;
+		fow (wet y = 0; y < wendewHeight; y++) {
+			wet cowumn = wow;
+			fow (wet x = 0; x < chawWidth; x++) {
+				dest[cowumn++] = cowowW;
+				dest[cowumn++] = cowowG;
+				dest[cowumn++] = cowowB;
+				cowumn++;
 			}
 
-			row += destWidth;
+			wow += destWidth;
 		}
 	}
 }

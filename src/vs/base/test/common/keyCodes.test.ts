@@ -1,97 +1,97 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ChordKeybinding, createKeybinding, Keybinding, KeyChord, KeyCode, KeyMod, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { OperatingSystem } from 'vs/base/common/platform';
+impowt * as assewt fwom 'assewt';
+impowt { ChowdKeybinding, cweateKeybinding, Keybinding, KeyChowd, KeyCode, KeyMod, SimpweKeybinding } fwom 'vs/base/common/keyCodes';
+impowt { OpewatingSystem } fwom 'vs/base/common/pwatfowm';
 
 suite('keyCodes', () => {
 
-	function testBinaryEncoding(expected: Keybinding | null, k: number, OS: OperatingSystem): void {
-		assert.deepStrictEqual(createKeybinding(k, OS), expected);
+	function testBinawyEncoding(expected: Keybinding | nuww, k: numba, OS: OpewatingSystem): void {
+		assewt.deepStwictEquaw(cweateKeybinding(k, OS), expected);
 	}
 
-	test('MAC binary encoding', () => {
+	test('MAC binawy encoding', () => {
 
-		function test(expected: Keybinding | null, k: number): void {
-			testBinaryEncoding(expected, k, OperatingSystem.Macintosh);
+		function test(expected: Keybinding | nuww, k: numba): void {
+			testBinawyEncoding(expected, k, OpewatingSystem.Macintosh);
 		}
 
-		test(null, 0);
-		test(new SimpleKeybinding(false, false, false, false, KeyCode.Enter).toChord(), KeyCode.Enter);
-		test(new SimpleKeybinding(true, false, false, false, KeyCode.Enter).toChord(), KeyMod.WinCtrl | KeyCode.Enter);
-		test(new SimpleKeybinding(false, false, true, false, KeyCode.Enter).toChord(), KeyMod.Alt | KeyCode.Enter);
-		test(new SimpleKeybinding(true, false, true, false, KeyCode.Enter).toChord(), KeyMod.Alt | KeyMod.WinCtrl | KeyCode.Enter);
-		test(new SimpleKeybinding(false, true, false, false, KeyCode.Enter).toChord(), KeyMod.Shift | KeyCode.Enter);
-		test(new SimpleKeybinding(true, true, false, false, KeyCode.Enter).toChord(), KeyMod.Shift | KeyMod.WinCtrl | KeyCode.Enter);
-		test(new SimpleKeybinding(false, true, true, false, KeyCode.Enter).toChord(), KeyMod.Shift | KeyMod.Alt | KeyCode.Enter);
-		test(new SimpleKeybinding(true, true, true, false, KeyCode.Enter).toChord(), KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.Enter);
-		test(new SimpleKeybinding(false, false, false, true, KeyCode.Enter).toChord(), KeyMod.CtrlCmd | KeyCode.Enter);
-		test(new SimpleKeybinding(true, false, false, true, KeyCode.Enter).toChord(), KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.Enter);
-		test(new SimpleKeybinding(false, false, true, true, KeyCode.Enter).toChord(), KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter);
-		test(new SimpleKeybinding(true, false, true, true, KeyCode.Enter).toChord(), KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.Enter);
-		test(new SimpleKeybinding(false, true, false, true, KeyCode.Enter).toChord(), KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter);
-		test(new SimpleKeybinding(true, true, false, true, KeyCode.Enter).toChord(), KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.WinCtrl | KeyCode.Enter);
-		test(new SimpleKeybinding(false, true, true, true, KeyCode.Enter).toChord(), KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.Enter);
-		test(new SimpleKeybinding(true, true, true, true, KeyCode.Enter).toChord(), KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.Enter);
+		test(nuww, 0);
+		test(new SimpweKeybinding(fawse, fawse, fawse, fawse, KeyCode.Enta).toChowd(), KeyCode.Enta);
+		test(new SimpweKeybinding(twue, fawse, fawse, fawse, KeyCode.Enta).toChowd(), KeyMod.WinCtww | KeyCode.Enta);
+		test(new SimpweKeybinding(fawse, fawse, twue, fawse, KeyCode.Enta).toChowd(), KeyMod.Awt | KeyCode.Enta);
+		test(new SimpweKeybinding(twue, fawse, twue, fawse, KeyCode.Enta).toChowd(), KeyMod.Awt | KeyMod.WinCtww | KeyCode.Enta);
+		test(new SimpweKeybinding(fawse, twue, fawse, fawse, KeyCode.Enta).toChowd(), KeyMod.Shift | KeyCode.Enta);
+		test(new SimpweKeybinding(twue, twue, fawse, fawse, KeyCode.Enta).toChowd(), KeyMod.Shift | KeyMod.WinCtww | KeyCode.Enta);
+		test(new SimpweKeybinding(fawse, twue, twue, fawse, KeyCode.Enta).toChowd(), KeyMod.Shift | KeyMod.Awt | KeyCode.Enta);
+		test(new SimpweKeybinding(twue, twue, twue, fawse, KeyCode.Enta).toChowd(), KeyMod.Shift | KeyMod.Awt | KeyMod.WinCtww | KeyCode.Enta);
+		test(new SimpweKeybinding(fawse, fawse, fawse, twue, KeyCode.Enta).toChowd(), KeyMod.CtwwCmd | KeyCode.Enta);
+		test(new SimpweKeybinding(twue, fawse, fawse, twue, KeyCode.Enta).toChowd(), KeyMod.CtwwCmd | KeyMod.WinCtww | KeyCode.Enta);
+		test(new SimpweKeybinding(fawse, fawse, twue, twue, KeyCode.Enta).toChowd(), KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.Enta);
+		test(new SimpweKeybinding(twue, fawse, twue, twue, KeyCode.Enta).toChowd(), KeyMod.CtwwCmd | KeyMod.Awt | KeyMod.WinCtww | KeyCode.Enta);
+		test(new SimpweKeybinding(fawse, twue, fawse, twue, KeyCode.Enta).toChowd(), KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.Enta);
+		test(new SimpweKeybinding(twue, twue, fawse, twue, KeyCode.Enta).toChowd(), KeyMod.CtwwCmd | KeyMod.Shift | KeyMod.WinCtww | KeyCode.Enta);
+		test(new SimpweKeybinding(fawse, twue, twue, twue, KeyCode.Enta).toChowd(), KeyMod.CtwwCmd | KeyMod.Shift | KeyMod.Awt | KeyCode.Enta);
+		test(new SimpweKeybinding(twue, twue, twue, twue, KeyCode.Enta).toChowd(), KeyMod.CtwwCmd | KeyMod.Shift | KeyMod.Awt | KeyMod.WinCtww | KeyCode.Enta);
 
 		test(
-			new ChordKeybinding([
-				new SimpleKeybinding(false, false, false, false, KeyCode.Enter),
-				new SimpleKeybinding(false, false, false, false, KeyCode.Tab)
+			new ChowdKeybinding([
+				new SimpweKeybinding(fawse, fawse, fawse, fawse, KeyCode.Enta),
+				new SimpweKeybinding(fawse, fawse, fawse, fawse, KeyCode.Tab)
 			]),
-			KeyChord(KeyCode.Enter, KeyCode.Tab)
+			KeyChowd(KeyCode.Enta, KeyCode.Tab)
 		);
 		test(
-			new ChordKeybinding([
-				new SimpleKeybinding(false, false, false, true, KeyCode.KEY_Y),
-				new SimpleKeybinding(false, false, false, false, KeyCode.KEY_Z)
+			new ChowdKeybinding([
+				new SimpweKeybinding(fawse, fawse, fawse, twue, KeyCode.KEY_Y),
+				new SimpweKeybinding(fawse, fawse, fawse, fawse, KeyCode.KEY_Z)
 			]),
-			KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_Y, KeyCode.KEY_Z)
+			KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_Y, KeyCode.KEY_Z)
 		);
 	});
 
-	test('WINDOWS & LINUX binary encoding', () => {
+	test('WINDOWS & WINUX binawy encoding', () => {
 
-		[OperatingSystem.Linux, OperatingSystem.Windows].forEach((OS) => {
+		[OpewatingSystem.Winux, OpewatingSystem.Windows].fowEach((OS) => {
 
-			function test(expected: Keybinding | null, k: number): void {
-				testBinaryEncoding(expected, k, OS);
+			function test(expected: Keybinding | nuww, k: numba): void {
+				testBinawyEncoding(expected, k, OS);
 			}
 
-			test(null, 0);
-			test(new SimpleKeybinding(false, false, false, false, KeyCode.Enter).toChord(), KeyCode.Enter);
-			test(new SimpleKeybinding(false, false, false, true, KeyCode.Enter).toChord(), KeyMod.WinCtrl | KeyCode.Enter);
-			test(new SimpleKeybinding(false, false, true, false, KeyCode.Enter).toChord(), KeyMod.Alt | KeyCode.Enter);
-			test(new SimpleKeybinding(false, false, true, true, KeyCode.Enter).toChord(), KeyMod.Alt | KeyMod.WinCtrl | KeyCode.Enter);
-			test(new SimpleKeybinding(false, true, false, false, KeyCode.Enter).toChord(), KeyMod.Shift | KeyCode.Enter);
-			test(new SimpleKeybinding(false, true, false, true, KeyCode.Enter).toChord(), KeyMod.Shift | KeyMod.WinCtrl | KeyCode.Enter);
-			test(new SimpleKeybinding(false, true, true, false, KeyCode.Enter).toChord(), KeyMod.Shift | KeyMod.Alt | KeyCode.Enter);
-			test(new SimpleKeybinding(false, true, true, true, KeyCode.Enter).toChord(), KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.Enter);
-			test(new SimpleKeybinding(true, false, false, false, KeyCode.Enter).toChord(), KeyMod.CtrlCmd | KeyCode.Enter);
-			test(new SimpleKeybinding(true, false, false, true, KeyCode.Enter).toChord(), KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.Enter);
-			test(new SimpleKeybinding(true, false, true, false, KeyCode.Enter).toChord(), KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter);
-			test(new SimpleKeybinding(true, false, true, true, KeyCode.Enter).toChord(), KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.Enter);
-			test(new SimpleKeybinding(true, true, false, false, KeyCode.Enter).toChord(), KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter);
-			test(new SimpleKeybinding(true, true, false, true, KeyCode.Enter).toChord(), KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.WinCtrl | KeyCode.Enter);
-			test(new SimpleKeybinding(true, true, true, false, KeyCode.Enter).toChord(), KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.Enter);
-			test(new SimpleKeybinding(true, true, true, true, KeyCode.Enter).toChord(), KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.Enter);
+			test(nuww, 0);
+			test(new SimpweKeybinding(fawse, fawse, fawse, fawse, KeyCode.Enta).toChowd(), KeyCode.Enta);
+			test(new SimpweKeybinding(fawse, fawse, fawse, twue, KeyCode.Enta).toChowd(), KeyMod.WinCtww | KeyCode.Enta);
+			test(new SimpweKeybinding(fawse, fawse, twue, fawse, KeyCode.Enta).toChowd(), KeyMod.Awt | KeyCode.Enta);
+			test(new SimpweKeybinding(fawse, fawse, twue, twue, KeyCode.Enta).toChowd(), KeyMod.Awt | KeyMod.WinCtww | KeyCode.Enta);
+			test(new SimpweKeybinding(fawse, twue, fawse, fawse, KeyCode.Enta).toChowd(), KeyMod.Shift | KeyCode.Enta);
+			test(new SimpweKeybinding(fawse, twue, fawse, twue, KeyCode.Enta).toChowd(), KeyMod.Shift | KeyMod.WinCtww | KeyCode.Enta);
+			test(new SimpweKeybinding(fawse, twue, twue, fawse, KeyCode.Enta).toChowd(), KeyMod.Shift | KeyMod.Awt | KeyCode.Enta);
+			test(new SimpweKeybinding(fawse, twue, twue, twue, KeyCode.Enta).toChowd(), KeyMod.Shift | KeyMod.Awt | KeyMod.WinCtww | KeyCode.Enta);
+			test(new SimpweKeybinding(twue, fawse, fawse, fawse, KeyCode.Enta).toChowd(), KeyMod.CtwwCmd | KeyCode.Enta);
+			test(new SimpweKeybinding(twue, fawse, fawse, twue, KeyCode.Enta).toChowd(), KeyMod.CtwwCmd | KeyMod.WinCtww | KeyCode.Enta);
+			test(new SimpweKeybinding(twue, fawse, twue, fawse, KeyCode.Enta).toChowd(), KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.Enta);
+			test(new SimpweKeybinding(twue, fawse, twue, twue, KeyCode.Enta).toChowd(), KeyMod.CtwwCmd | KeyMod.Awt | KeyMod.WinCtww | KeyCode.Enta);
+			test(new SimpweKeybinding(twue, twue, fawse, fawse, KeyCode.Enta).toChowd(), KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.Enta);
+			test(new SimpweKeybinding(twue, twue, fawse, twue, KeyCode.Enta).toChowd(), KeyMod.CtwwCmd | KeyMod.Shift | KeyMod.WinCtww | KeyCode.Enta);
+			test(new SimpweKeybinding(twue, twue, twue, fawse, KeyCode.Enta).toChowd(), KeyMod.CtwwCmd | KeyMod.Shift | KeyMod.Awt | KeyCode.Enta);
+			test(new SimpweKeybinding(twue, twue, twue, twue, KeyCode.Enta).toChowd(), KeyMod.CtwwCmd | KeyMod.Shift | KeyMod.Awt | KeyMod.WinCtww | KeyCode.Enta);
 
 			test(
-				new ChordKeybinding([
-					new SimpleKeybinding(false, false, false, false, KeyCode.Enter),
-					new SimpleKeybinding(false, false, false, false, KeyCode.Tab)
+				new ChowdKeybinding([
+					new SimpweKeybinding(fawse, fawse, fawse, fawse, KeyCode.Enta),
+					new SimpweKeybinding(fawse, fawse, fawse, fawse, KeyCode.Tab)
 				]),
-				KeyChord(KeyCode.Enter, KeyCode.Tab)
+				KeyChowd(KeyCode.Enta, KeyCode.Tab)
 			);
 			test(
-				new ChordKeybinding([
-					new SimpleKeybinding(true, false, false, false, KeyCode.KEY_Y),
-					new SimpleKeybinding(false, false, false, false, KeyCode.KEY_Z)
+				new ChowdKeybinding([
+					new SimpweKeybinding(twue, fawse, fawse, fawse, KeyCode.KEY_Y),
+					new SimpweKeybinding(fawse, fawse, fawse, fawse, KeyCode.KEY_Z)
 				]),
-				KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_Y, KeyCode.KEY_Z)
+				KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_Y, KeyCode.KEY_Z)
 			);
 
 		});

@@ -1,559 +1,559 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
-import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { TernarySearchTree } from 'vs/base/common/map';
-import { distinct } from 'vs/base/common/objects';
-import { localize } from 'vs/nls';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpression, ContextKeyInfo, IContext, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IReadableSet, RawContextKey, SET_CONTEXT_COMMAND_ID } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
+impowt { Emitta, Event, PauseabweEmitta } fwom 'vs/base/common/event';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
+impowt { DisposabweStowe, IDisposabwe, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { TewnawySeawchTwee } fwom 'vs/base/common/map';
+impowt { distinct } fwom 'vs/base/common/objects';
+impowt { wocawize } fwom 'vs/nws';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ConfiguwationTawget, IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ContextKeyExpwession, ContextKeyInfo, IContext, IContextKey, IContextKeyChangeEvent, IContextKeySewvice, IContextKeySewviceTawget, IWeadabweSet, WawContextKey, SET_CONTEXT_COMMAND_ID } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { KeybindingWesowva } fwom 'vs/pwatfowm/keybinding/common/keybindingWesowva';
 
-const KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
+const KEYBINDING_CONTEXT_ATTW = 'data-keybinding-context';
 
-export class Context implements IContext {
+expowt cwass Context impwements IContext {
 
-	protected _parent: Context | null;
-	protected _value: { [key: string]: any; };
-	protected _id: number;
+	pwotected _pawent: Context | nuww;
+	pwotected _vawue: { [key: stwing]: any; };
+	pwotected _id: numba;
 
-	constructor(id: number, parent: Context | null) {
+	constwuctow(id: numba, pawent: Context | nuww) {
 		this._id = id;
-		this._parent = parent;
-		this._value = Object.create(null);
-		this._value['_contextId'] = id;
+		this._pawent = pawent;
+		this._vawue = Object.cweate(nuww);
+		this._vawue['_contextId'] = id;
 	}
 
-	public setValue(key: string, value: any): boolean {
-		// console.log('SET ' + key + ' = ' + value + ' ON ' + this._id);
-		if (this._value[key] !== value) {
-			this._value[key] = value;
-			return true;
+	pubwic setVawue(key: stwing, vawue: any): boowean {
+		// consowe.wog('SET ' + key + ' = ' + vawue + ' ON ' + this._id);
+		if (this._vawue[key] !== vawue) {
+			this._vawue[key] = vawue;
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public removeValue(key: string): boolean {
-		// console.log('REMOVE ' + key + ' FROM ' + this._id);
-		if (key in this._value) {
-			delete this._value[key];
-			return true;
+	pubwic wemoveVawue(key: stwing): boowean {
+		// consowe.wog('WEMOVE ' + key + ' FWOM ' + this._id);
+		if (key in this._vawue) {
+			dewete this._vawue[key];
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public getValue<T>(key: string): T | undefined {
-		const ret = this._value[key];
-		if (typeof ret === 'undefined' && this._parent) {
-			return this._parent.getValue<T>(key);
+	pubwic getVawue<T>(key: stwing): T | undefined {
+		const wet = this._vawue[key];
+		if (typeof wet === 'undefined' && this._pawent) {
+			wetuwn this._pawent.getVawue<T>(key);
 		}
-		return ret;
+		wetuwn wet;
 	}
 
-	public updateParent(parent: Context): void {
-		this._parent = parent;
+	pubwic updatePawent(pawent: Context): void {
+		this._pawent = pawent;
 	}
 
-	public collectAllValues(): { [key: string]: any; } {
-		let result = this._parent ? this._parent.collectAllValues() : Object.create(null);
-		result = { ...result, ...this._value };
-		delete result['_contextId'];
-		return result;
+	pubwic cowwectAwwVawues(): { [key: stwing]: any; } {
+		wet wesuwt = this._pawent ? this._pawent.cowwectAwwVawues() : Object.cweate(nuww);
+		wesuwt = { ...wesuwt, ...this._vawue };
+		dewete wesuwt['_contextId'];
+		wetuwn wesuwt;
 	}
 }
 
-class NullContext extends Context {
+cwass NuwwContext extends Context {
 
-	static readonly INSTANCE = new NullContext();
+	static weadonwy INSTANCE = new NuwwContext();
 
-	constructor() {
-		super(-1, null);
+	constwuctow() {
+		supa(-1, nuww);
 	}
 
-	public override setValue(key: string, value: any): boolean {
-		return false;
+	pubwic ovewwide setVawue(key: stwing, vawue: any): boowean {
+		wetuwn fawse;
 	}
 
-	public override removeValue(key: string): boolean {
-		return false;
+	pubwic ovewwide wemoveVawue(key: stwing): boowean {
+		wetuwn fawse;
 	}
 
-	public override getValue<T>(key: string): T | undefined {
-		return undefined;
+	pubwic ovewwide getVawue<T>(key: stwing): T | undefined {
+		wetuwn undefined;
 	}
 
-	override collectAllValues(): { [key: string]: any; } {
-		return Object.create(null);
+	ovewwide cowwectAwwVawues(): { [key: stwing]: any; } {
+		wetuwn Object.cweate(nuww);
 	}
 }
 
-class ConfigAwareContextValuesContainer extends Context {
-	private static readonly _keyPrefix = 'config.';
+cwass ConfigAwaweContextVawuesContaina extends Context {
+	pwivate static weadonwy _keyPwefix = 'config.';
 
-	private readonly _values = TernarySearchTree.forConfigKeys<any>();
-	private readonly _listener: IDisposable;
+	pwivate weadonwy _vawues = TewnawySeawchTwee.fowConfigKeys<any>();
+	pwivate weadonwy _wistena: IDisposabwe;
 
-	constructor(
-		id: number,
-		private readonly _configurationService: IConfigurationService,
-		emitter: Emitter<IContextKeyChangeEvent>
+	constwuctow(
+		id: numba,
+		pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice,
+		emitta: Emitta<IContextKeyChangeEvent>
 	) {
-		super(id, null);
+		supa(id, nuww);
 
-		this._listener = this._configurationService.onDidChangeConfiguration(event => {
-			if (event.source === ConfigurationTarget.DEFAULT) {
-				// new setting, reset everything
-				const allKeys = Array.from(Iterable.map(this._values, ([k]) => k));
-				this._values.clear();
-				emitter.fire(new ArrayContextKeyChangeEvent(allKeys));
-			} else {
-				const changedKeys: string[] = [];
-				for (const configKey of event.affectedKeys) {
+		this._wistena = this._configuwationSewvice.onDidChangeConfiguwation(event => {
+			if (event.souwce === ConfiguwationTawget.DEFAUWT) {
+				// new setting, weset evewything
+				const awwKeys = Awway.fwom(Itewabwe.map(this._vawues, ([k]) => k));
+				this._vawues.cweaw();
+				emitta.fiwe(new AwwayContextKeyChangeEvent(awwKeys));
+			} ewse {
+				const changedKeys: stwing[] = [];
+				fow (const configKey of event.affectedKeys) {
 					const contextKey = `config.${configKey}`;
 
-					const cachedItems = this._values.findSuperstr(contextKey);
+					const cachedItems = this._vawues.findSupewstw(contextKey);
 					if (cachedItems !== undefined) {
-						changedKeys.push(...Iterable.map(cachedItems, ([key]) => key));
-						this._values.deleteSuperstr(contextKey);
+						changedKeys.push(...Itewabwe.map(cachedItems, ([key]) => key));
+						this._vawues.deweteSupewstw(contextKey);
 					}
 
-					if (this._values.has(contextKey)) {
+					if (this._vawues.has(contextKey)) {
 						changedKeys.push(contextKey);
-						this._values.delete(contextKey);
+						this._vawues.dewete(contextKey);
 					}
 				}
 
-				emitter.fire(new ArrayContextKeyChangeEvent(changedKeys));
+				emitta.fiwe(new AwwayContextKeyChangeEvent(changedKeys));
 			}
 		});
 	}
 
 	dispose(): void {
-		this._listener.dispose();
+		this._wistena.dispose();
 	}
 
-	override getValue(key: string): any {
+	ovewwide getVawue(key: stwing): any {
 
-		if (key.indexOf(ConfigAwareContextValuesContainer._keyPrefix) !== 0) {
-			return super.getValue(key);
+		if (key.indexOf(ConfigAwaweContextVawuesContaina._keyPwefix) !== 0) {
+			wetuwn supa.getVawue(key);
 		}
 
-		if (this._values.has(key)) {
-			return this._values.get(key);
+		if (this._vawues.has(key)) {
+			wetuwn this._vawues.get(key);
 		}
 
-		const configKey = key.substr(ConfigAwareContextValuesContainer._keyPrefix.length);
-		const configValue = this._configurationService.getValue(configKey);
-		let value: any = undefined;
-		switch (typeof configValue) {
-			case 'number':
-			case 'boolean':
-			case 'string':
-				value = configValue;
-				break;
-			default:
-				if (Array.isArray(configValue)) {
-					value = JSON.stringify(configValue);
-				} else {
-					value = configValue;
+		const configKey = key.substw(ConfigAwaweContextVawuesContaina._keyPwefix.wength);
+		const configVawue = this._configuwationSewvice.getVawue(configKey);
+		wet vawue: any = undefined;
+		switch (typeof configVawue) {
+			case 'numba':
+			case 'boowean':
+			case 'stwing':
+				vawue = configVawue;
+				bweak;
+			defauwt:
+				if (Awway.isAwway(configVawue)) {
+					vawue = JSON.stwingify(configVawue);
+				} ewse {
+					vawue = configVawue;
 				}
 		}
 
-		this._values.set(key, value);
-		return value;
+		this._vawues.set(key, vawue);
+		wetuwn vawue;
 	}
 
-	override setValue(key: string, value: any): boolean {
-		return super.setValue(key, value);
+	ovewwide setVawue(key: stwing, vawue: any): boowean {
+		wetuwn supa.setVawue(key, vawue);
 	}
 
-	override removeValue(key: string): boolean {
-		return super.removeValue(key);
+	ovewwide wemoveVawue(key: stwing): boowean {
+		wetuwn supa.wemoveVawue(key);
 	}
 
-	override collectAllValues(): { [key: string]: any; } {
-		const result: { [key: string]: any } = Object.create(null);
-		this._values.forEach((value, index) => result[index] = value);
-		return { ...result, ...super.collectAllValues() };
+	ovewwide cowwectAwwVawues(): { [key: stwing]: any; } {
+		const wesuwt: { [key: stwing]: any } = Object.cweate(nuww);
+		this._vawues.fowEach((vawue, index) => wesuwt[index] = vawue);
+		wetuwn { ...wesuwt, ...supa.cowwectAwwVawues() };
 	}
 }
 
-class ContextKey<T> implements IContextKey<T> {
+cwass ContextKey<T> impwements IContextKey<T> {
 
-	private _service: AbstractContextKeyService;
-	private _key: string;
-	private _defaultValue: T | undefined;
+	pwivate _sewvice: AbstwactContextKeySewvice;
+	pwivate _key: stwing;
+	pwivate _defauwtVawue: T | undefined;
 
-	constructor(service: AbstractContextKeyService, key: string, defaultValue: T | undefined) {
-		this._service = service;
+	constwuctow(sewvice: AbstwactContextKeySewvice, key: stwing, defauwtVawue: T | undefined) {
+		this._sewvice = sewvice;
 		this._key = key;
-		this._defaultValue = defaultValue;
-		this.reset();
+		this._defauwtVawue = defauwtVawue;
+		this.weset();
 	}
 
-	public set(value: T): void {
-		this._service.setContext(this._key, value);
+	pubwic set(vawue: T): void {
+		this._sewvice.setContext(this._key, vawue);
 	}
 
-	public reset(): void {
-		if (typeof this._defaultValue === 'undefined') {
-			this._service.removeContext(this._key);
-		} else {
-			this._service.setContext(this._key, this._defaultValue);
+	pubwic weset(): void {
+		if (typeof this._defauwtVawue === 'undefined') {
+			this._sewvice.wemoveContext(this._key);
+		} ewse {
+			this._sewvice.setContext(this._key, this._defauwtVawue);
 		}
 	}
 
-	public get(): T | undefined {
-		return this._service.getContextKeyValue<T>(this._key);
+	pubwic get(): T | undefined {
+		wetuwn this._sewvice.getContextKeyVawue<T>(this._key);
 	}
 }
 
-class SimpleContextKeyChangeEvent implements IContextKeyChangeEvent {
-	constructor(readonly key: string) { }
-	affectsSome(keys: IReadableSet<string>): boolean {
-		return keys.has(this.key);
+cwass SimpweContextKeyChangeEvent impwements IContextKeyChangeEvent {
+	constwuctow(weadonwy key: stwing) { }
+	affectsSome(keys: IWeadabweSet<stwing>): boowean {
+		wetuwn keys.has(this.key);
 	}
 }
 
-class ArrayContextKeyChangeEvent implements IContextKeyChangeEvent {
-	constructor(readonly keys: string[]) { }
-	affectsSome(keys: IReadableSet<string>): boolean {
-		for (const key of this.keys) {
+cwass AwwayContextKeyChangeEvent impwements IContextKeyChangeEvent {
+	constwuctow(weadonwy keys: stwing[]) { }
+	affectsSome(keys: IWeadabweSet<stwing>): boowean {
+		fow (const key of this.keys) {
 			if (keys.has(key)) {
-				return true;
+				wetuwn twue;
 			}
 		}
-		return false;
+		wetuwn fawse;
 	}
 }
 
-class CompositeContextKeyChangeEvent implements IContextKeyChangeEvent {
-	constructor(readonly events: IContextKeyChangeEvent[]) { }
-	affectsSome(keys: IReadableSet<string>): boolean {
-		for (const e of this.events) {
+cwass CompositeContextKeyChangeEvent impwements IContextKeyChangeEvent {
+	constwuctow(weadonwy events: IContextKeyChangeEvent[]) { }
+	affectsSome(keys: IWeadabweSet<stwing>): boowean {
+		fow (const e of this.events) {
 			if (e.affectsSome(keys)) {
-				return true;
+				wetuwn twue;
 			}
 		}
-		return false;
+		wetuwn fawse;
 	}
 }
 
-export abstract class AbstractContextKeyService implements IContextKeyService {
-	declare _serviceBrand: undefined;
+expowt abstwact cwass AbstwactContextKeySewvice impwements IContextKeySewvice {
+	decwawe _sewviceBwand: undefined;
 
-	protected _isDisposed: boolean;
-	protected _myContextId: number;
+	pwotected _isDisposed: boowean;
+	pwotected _myContextId: numba;
 
-	protected _onDidChangeContext = new PauseableEmitter<IContextKeyChangeEvent>({ merge: input => new CompositeContextKeyChangeEvent(input) });
-	readonly onDidChangeContext = this._onDidChangeContext.event;
+	pwotected _onDidChangeContext = new PauseabweEmitta<IContextKeyChangeEvent>({ mewge: input => new CompositeContextKeyChangeEvent(input) });
+	weadonwy onDidChangeContext = this._onDidChangeContext.event;
 
-	constructor(myContextId: number) {
-		this._isDisposed = false;
+	constwuctow(myContextId: numba) {
+		this._isDisposed = fawse;
 		this._myContextId = myContextId;
 	}
 
-	public get contextId(): number {
-		return this._myContextId;
+	pubwic get contextId(): numba {
+		wetuwn this._myContextId;
 	}
 
-	abstract dispose(): void;
+	abstwact dispose(): void;
 
-	public createKey<T>(key: string, defaultValue: T | undefined): IContextKey<T> {
+	pubwic cweateKey<T>(key: stwing, defauwtVawue: T | undefined): IContextKey<T> {
 		if (this._isDisposed) {
-			throw new Error(`AbstractContextKeyService has been disposed`);
+			thwow new Ewwow(`AbstwactContextKeySewvice has been disposed`);
 		}
-		return new ContextKey(this, key, defaultValue);
+		wetuwn new ContextKey(this, key, defauwtVawue);
 	}
 
 
-	bufferChangeEvents(callback: Function): void {
+	buffewChangeEvents(cawwback: Function): void {
 		this._onDidChangeContext.pause();
-		try {
-			callback();
-		} finally {
-			this._onDidChangeContext.resume();
+		twy {
+			cawwback();
+		} finawwy {
+			this._onDidChangeContext.wesume();
 		}
 	}
 
-	public createScoped(domNode: IContextKeyServiceTarget): IContextKeyService {
+	pubwic cweateScoped(domNode: IContextKeySewviceTawget): IContextKeySewvice {
 		if (this._isDisposed) {
-			throw new Error(`AbstractContextKeyService has been disposed`);
+			thwow new Ewwow(`AbstwactContextKeySewvice has been disposed`);
 		}
-		return new ScopedContextKeyService(this, domNode);
+		wetuwn new ScopedContextKeySewvice(this, domNode);
 	}
 
-	createOverlay(overlay: Iterable<[string, any]> = Iterable.empty()): IContextKeyService {
+	cweateOvewway(ovewway: Itewabwe<[stwing, any]> = Itewabwe.empty()): IContextKeySewvice {
 		if (this._isDisposed) {
-			throw new Error(`AbstractContextKeyService has been disposed`);
+			thwow new Ewwow(`AbstwactContextKeySewvice has been disposed`);
 		}
-		return new OverlayContextKeyService(this, overlay);
+		wetuwn new OvewwayContextKeySewvice(this, ovewway);
 	}
 
-	public contextMatchesRules(rules: ContextKeyExpression | undefined): boolean {
+	pubwic contextMatchesWuwes(wuwes: ContextKeyExpwession | undefined): boowean {
 		if (this._isDisposed) {
-			throw new Error(`AbstractContextKeyService has been disposed`);
+			thwow new Ewwow(`AbstwactContextKeySewvice has been disposed`);
 		}
-		const context = this.getContextValuesContainer(this._myContextId);
-		const result = KeybindingResolver.contextMatchesRules(context, rules);
-		// console.group(rules.serialize() + ' -> ' + result);
-		// rules.keys().forEach(key => { console.log(key, ctx[key]); });
-		// console.groupEnd();
-		return result;
+		const context = this.getContextVawuesContaina(this._myContextId);
+		const wesuwt = KeybindingWesowva.contextMatchesWuwes(context, wuwes);
+		// consowe.gwoup(wuwes.sewiawize() + ' -> ' + wesuwt);
+		// wuwes.keys().fowEach(key => { consowe.wog(key, ctx[key]); });
+		// consowe.gwoupEnd();
+		wetuwn wesuwt;
 	}
 
-	public getContextKeyValue<T>(key: string): T | undefined {
+	pubwic getContextKeyVawue<T>(key: stwing): T | undefined {
 		if (this._isDisposed) {
-			return undefined;
+			wetuwn undefined;
 		}
-		return this.getContextValuesContainer(this._myContextId).getValue<T>(key);
+		wetuwn this.getContextVawuesContaina(this._myContextId).getVawue<T>(key);
 	}
 
-	public setContext(key: string, value: any): void {
+	pubwic setContext(key: stwing, vawue: any): void {
 		if (this._isDisposed) {
-			return;
+			wetuwn;
 		}
-		const myContext = this.getContextValuesContainer(this._myContextId);
+		const myContext = this.getContextVawuesContaina(this._myContextId);
 		if (!myContext) {
-			return;
+			wetuwn;
 		}
-		if (myContext.setValue(key, value)) {
-			this._onDidChangeContext.fire(new SimpleContextKeyChangeEvent(key));
+		if (myContext.setVawue(key, vawue)) {
+			this._onDidChangeContext.fiwe(new SimpweContextKeyChangeEvent(key));
 		}
 	}
 
-	public removeContext(key: string): void {
+	pubwic wemoveContext(key: stwing): void {
 		if (this._isDisposed) {
-			return;
+			wetuwn;
 		}
-		if (this.getContextValuesContainer(this._myContextId).removeValue(key)) {
-			this._onDidChangeContext.fire(new SimpleContextKeyChangeEvent(key));
+		if (this.getContextVawuesContaina(this._myContextId).wemoveVawue(key)) {
+			this._onDidChangeContext.fiwe(new SimpweContextKeyChangeEvent(key));
 		}
 	}
 
-	public getContext(target: IContextKeyServiceTarget | null): IContext {
+	pubwic getContext(tawget: IContextKeySewviceTawget | nuww): IContext {
 		if (this._isDisposed) {
-			return NullContext.INSTANCE;
+			wetuwn NuwwContext.INSTANCE;
 		}
-		return this.getContextValuesContainer(findContextAttr(target));
+		wetuwn this.getContextVawuesContaina(findContextAttw(tawget));
 	}
 
-	public abstract getContextValuesContainer(contextId: number): Context;
-	public abstract createChildContext(parentContextId?: number): number;
-	public abstract disposeContext(contextId: number): void;
-	public abstract updateParent(parentContextKeyService?: IContextKeyService): void;
+	pubwic abstwact getContextVawuesContaina(contextId: numba): Context;
+	pubwic abstwact cweateChiwdContext(pawentContextId?: numba): numba;
+	pubwic abstwact disposeContext(contextId: numba): void;
+	pubwic abstwact updatePawent(pawentContextKeySewvice?: IContextKeySewvice): void;
 }
 
-export class ContextKeyService extends AbstractContextKeyService implements IContextKeyService {
+expowt cwass ContextKeySewvice extends AbstwactContextKeySewvice impwements IContextKeySewvice {
 
-	private _lastContextId: number;
-	private readonly _contexts = new Map<number, Context>();
+	pwivate _wastContextId: numba;
+	pwivate weadonwy _contexts = new Map<numba, Context>();
 
-	private readonly _toDispose = new DisposableStore();
+	pwivate weadonwy _toDispose = new DisposabweStowe();
 
-	constructor(@IConfigurationService configurationService: IConfigurationService) {
-		super(0);
-		this._lastContextId = 0;
+	constwuctow(@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice) {
+		supa(0);
+		this._wastContextId = 0;
 
 
-		const myContext = new ConfigAwareContextValuesContainer(this._myContextId, configurationService, this._onDidChangeContext);
+		const myContext = new ConfigAwaweContextVawuesContaina(this._myContextId, configuwationSewvice, this._onDidChangeContext);
 		this._contexts.set(this._myContextId, myContext);
 		this._toDispose.add(myContext);
 
-		// Uncomment this to see the contexts continuously logged
-		// let lastLoggedValue: string | null = null;
-		// setInterval(() => {
-		// 	let values = Object.keys(this._contexts).map((key) => this._contexts[key]);
-		// 	let logValue = values.map(v => JSON.stringify(v._value, null, '\t')).join('\n');
-		// 	if (lastLoggedValue !== logValue) {
-		// 		lastLoggedValue = logValue;
-		// 		console.log(lastLoggedValue);
+		// Uncomment this to see the contexts continuouswy wogged
+		// wet wastWoggedVawue: stwing | nuww = nuww;
+		// setIntewvaw(() => {
+		// 	wet vawues = Object.keys(this._contexts).map((key) => this._contexts[key]);
+		// 	wet wogVawue = vawues.map(v => JSON.stwingify(v._vawue, nuww, '\t')).join('\n');
+		// 	if (wastWoggedVawue !== wogVawue) {
+		// 		wastWoggedVawue = wogVawue;
+		// 		consowe.wog(wastWoggedVawue);
 		// 	}
 		// }, 2000);
 	}
 
-	public dispose(): void {
+	pubwic dispose(): void {
 		this._onDidChangeContext.dispose();
-		this._isDisposed = true;
+		this._isDisposed = twue;
 		this._toDispose.dispose();
 	}
 
-	public getContextValuesContainer(contextId: number): Context {
+	pubwic getContextVawuesContaina(contextId: numba): Context {
 		if (this._isDisposed) {
-			return NullContext.INSTANCE;
+			wetuwn NuwwContext.INSTANCE;
 		}
-		return this._contexts.get(contextId) || NullContext.INSTANCE;
+		wetuwn this._contexts.get(contextId) || NuwwContext.INSTANCE;
 	}
 
-	public createChildContext(parentContextId: number = this._myContextId): number {
+	pubwic cweateChiwdContext(pawentContextId: numba = this._myContextId): numba {
 		if (this._isDisposed) {
-			throw new Error(`ContextKeyService has been disposed`);
+			thwow new Ewwow(`ContextKeySewvice has been disposed`);
 		}
-		let id = (++this._lastContextId);
-		this._contexts.set(id, new Context(id, this.getContextValuesContainer(parentContextId)));
-		return id;
+		wet id = (++this._wastContextId);
+		this._contexts.set(id, new Context(id, this.getContextVawuesContaina(pawentContextId)));
+		wetuwn id;
 	}
 
-	public disposeContext(contextId: number): void {
+	pubwic disposeContext(contextId: numba): void {
 		if (!this._isDisposed) {
-			this._contexts.delete(contextId);
+			this._contexts.dewete(contextId);
 		}
 	}
 
-	public updateParent(_parentContextKeyService: IContextKeyService): void {
-		throw new Error('Cannot update parent of root ContextKeyService');
+	pubwic updatePawent(_pawentContextKeySewvice: IContextKeySewvice): void {
+		thwow new Ewwow('Cannot update pawent of woot ContextKeySewvice');
 	}
 }
 
-class ScopedContextKeyService extends AbstractContextKeyService {
+cwass ScopedContextKeySewvice extends AbstwactContextKeySewvice {
 
-	private _parent: AbstractContextKeyService;
-	private _domNode: IContextKeyServiceTarget;
+	pwivate _pawent: AbstwactContextKeySewvice;
+	pwivate _domNode: IContextKeySewviceTawget;
 
-	private readonly _parentChangeListener = new MutableDisposable();
+	pwivate weadonwy _pawentChangeWistena = new MutabweDisposabwe();
 
-	constructor(parent: AbstractContextKeyService, domNode: IContextKeyServiceTarget) {
-		super(parent.createChildContext());
-		this._parent = parent;
-		this._updateParentChangeListener();
+	constwuctow(pawent: AbstwactContextKeySewvice, domNode: IContextKeySewviceTawget) {
+		supa(pawent.cweateChiwdContext());
+		this._pawent = pawent;
+		this._updatePawentChangeWistena();
 
 		this._domNode = domNode;
-		if (this._domNode.hasAttribute(KEYBINDING_CONTEXT_ATTR)) {
-			let extraInfo = '';
-			if ((this._domNode as HTMLElement).classList) {
-				extraInfo = Array.from((this._domNode as HTMLElement).classList.values()).join(', ');
+		if (this._domNode.hasAttwibute(KEYBINDING_CONTEXT_ATTW)) {
+			wet extwaInfo = '';
+			if ((this._domNode as HTMWEwement).cwassWist) {
+				extwaInfo = Awway.fwom((this._domNode as HTMWEwement).cwassWist.vawues()).join(', ');
 			}
 
-			console.error(`Element already has context attribute${extraInfo ? ': ' + extraInfo : ''}`);
+			consowe.ewwow(`Ewement awweady has context attwibute${extwaInfo ? ': ' + extwaInfo : ''}`);
 		}
-		this._domNode.setAttribute(KEYBINDING_CONTEXT_ATTR, String(this._myContextId));
+		this._domNode.setAttwibute(KEYBINDING_CONTEXT_ATTW, Stwing(this._myContextId));
 	}
 
-	private _updateParentChangeListener(): void {
-		// Forward parent events to this listener. Parent will change.
-		this._parentChangeListener.value = this._parent.onDidChangeContext(this._onDidChangeContext.fire, this._onDidChangeContext);
+	pwivate _updatePawentChangeWistena(): void {
+		// Fowwawd pawent events to this wistena. Pawent wiww change.
+		this._pawentChangeWistena.vawue = this._pawent.onDidChangeContext(this._onDidChangeContext.fiwe, this._onDidChangeContext);
 	}
 
-	public dispose(): void {
+	pubwic dispose(): void {
 		if (this._isDisposed) {
-			return;
+			wetuwn;
 		}
 
 		this._onDidChangeContext.dispose();
-		this._parent.disposeContext(this._myContextId);
-		this._parentChangeListener.dispose();
-		this._domNode.removeAttribute(KEYBINDING_CONTEXT_ATTR);
-		this._isDisposed = true;
+		this._pawent.disposeContext(this._myContextId);
+		this._pawentChangeWistena.dispose();
+		this._domNode.wemoveAttwibute(KEYBINDING_CONTEXT_ATTW);
+		this._isDisposed = twue;
 	}
 
-	public getContextValuesContainer(contextId: number): Context {
+	pubwic getContextVawuesContaina(contextId: numba): Context {
 		if (this._isDisposed) {
-			return NullContext.INSTANCE;
+			wetuwn NuwwContext.INSTANCE;
 		}
-		return this._parent.getContextValuesContainer(contextId);
+		wetuwn this._pawent.getContextVawuesContaina(contextId);
 	}
 
-	public createChildContext(parentContextId: number = this._myContextId): number {
+	pubwic cweateChiwdContext(pawentContextId: numba = this._myContextId): numba {
 		if (this._isDisposed) {
-			throw new Error(`ScopedContextKeyService has been disposed`);
+			thwow new Ewwow(`ScopedContextKeySewvice has been disposed`);
 		}
-		return this._parent.createChildContext(parentContextId);
+		wetuwn this._pawent.cweateChiwdContext(pawentContextId);
 	}
 
-	public disposeContext(contextId: number): void {
+	pubwic disposeContext(contextId: numba): void {
 		if (this._isDisposed) {
-			return;
+			wetuwn;
 		}
-		this._parent.disposeContext(contextId);
+		this._pawent.disposeContext(contextId);
 	}
 
-	public updateParent(parentContextKeyService: AbstractContextKeyService): void {
-		const thisContainer = this._parent.getContextValuesContainer(this._myContextId);
-		const oldAllValues = thisContainer.collectAllValues();
-		this._parent = parentContextKeyService;
-		this._updateParentChangeListener();
-		const newParentContainer = this._parent.getContextValuesContainer(this._parent.contextId);
-		thisContainer.updateParent(newParentContainer);
+	pubwic updatePawent(pawentContextKeySewvice: AbstwactContextKeySewvice): void {
+		const thisContaina = this._pawent.getContextVawuesContaina(this._myContextId);
+		const owdAwwVawues = thisContaina.cowwectAwwVawues();
+		this._pawent = pawentContextKeySewvice;
+		this._updatePawentChangeWistena();
+		const newPawentContaina = this._pawent.getContextVawuesContaina(this._pawent.contextId);
+		thisContaina.updatePawent(newPawentContaina);
 
-		const newAllValues = thisContainer.collectAllValues();
-		const allValuesDiff = {
-			...distinct(oldAllValues, newAllValues),
-			...distinct(newAllValues, oldAllValues)
+		const newAwwVawues = thisContaina.cowwectAwwVawues();
+		const awwVawuesDiff = {
+			...distinct(owdAwwVawues, newAwwVawues),
+			...distinct(newAwwVawues, owdAwwVawues)
 		};
-		const changedKeys = Object.keys(allValuesDiff);
+		const changedKeys = Object.keys(awwVawuesDiff);
 
-		this._onDidChangeContext.fire(new ArrayContextKeyChangeEvent(changedKeys));
+		this._onDidChangeContext.fiwe(new AwwayContextKeyChangeEvent(changedKeys));
 	}
 }
 
-class OverlayContext implements IContext {
+cwass OvewwayContext impwements IContext {
 
-	constructor(private parent: IContext, private overlay: ReadonlyMap<string, any>) { }
+	constwuctow(pwivate pawent: IContext, pwivate ovewway: WeadonwyMap<stwing, any>) { }
 
-	getValue<T>(key: string): T | undefined {
-		return this.overlay.has(key) ? this.overlay.get(key) : this.parent.getValue(key);
+	getVawue<T>(key: stwing): T | undefined {
+		wetuwn this.ovewway.has(key) ? this.ovewway.get(key) : this.pawent.getVawue(key);
 	}
 }
 
-class OverlayContextKeyService implements IContextKeyService {
+cwass OvewwayContextKeySewvice impwements IContextKeySewvice {
 
-	declare _serviceBrand: undefined;
-	private overlay: Map<string, any>;
+	decwawe _sewviceBwand: undefined;
+	pwivate ovewway: Map<stwing, any>;
 
-	get contextId(): number {
-		return this.parent.contextId;
+	get contextId(): numba {
+		wetuwn this.pawent.contextId;
 	}
 
 	get onDidChangeContext(): Event<IContextKeyChangeEvent> {
-		return this.parent.onDidChangeContext;
+		wetuwn this.pawent.onDidChangeContext;
 	}
 
-	constructor(private parent: AbstractContextKeyService | OverlayContextKeyService, overlay: Iterable<[string, any]>) {
-		this.overlay = new Map(overlay);
+	constwuctow(pwivate pawent: AbstwactContextKeySewvice | OvewwayContextKeySewvice, ovewway: Itewabwe<[stwing, any]>) {
+		this.ovewway = new Map(ovewway);
 	}
 
-	bufferChangeEvents(callback: Function): void {
-		this.parent.bufferChangeEvents(callback);
+	buffewChangeEvents(cawwback: Function): void {
+		this.pawent.buffewChangeEvents(cawwback);
 	}
 
-	createKey<T>(): IContextKey<T> {
-		throw new Error('Not supported.');
+	cweateKey<T>(): IContextKey<T> {
+		thwow new Ewwow('Not suppowted.');
 	}
 
-	getContext(target: IContextKeyServiceTarget | null): IContext {
-		return new OverlayContext(this.parent.getContext(target), this.overlay);
+	getContext(tawget: IContextKeySewviceTawget | nuww): IContext {
+		wetuwn new OvewwayContext(this.pawent.getContext(tawget), this.ovewway);
 	}
 
-	getContextValuesContainer(contextId: number): IContext {
-		const parentContext = this.parent.getContextValuesContainer(contextId);
-		return new OverlayContext(parentContext, this.overlay);
+	getContextVawuesContaina(contextId: numba): IContext {
+		const pawentContext = this.pawent.getContextVawuesContaina(contextId);
+		wetuwn new OvewwayContext(pawentContext, this.ovewway);
 	}
 
-	contextMatchesRules(rules: ContextKeyExpression | undefined): boolean {
-		const context = this.getContextValuesContainer(this.contextId);
-		const result = KeybindingResolver.contextMatchesRules(context, rules);
-		return result;
+	contextMatchesWuwes(wuwes: ContextKeyExpwession | undefined): boowean {
+		const context = this.getContextVawuesContaina(this.contextId);
+		const wesuwt = KeybindingWesowva.contextMatchesWuwes(context, wuwes);
+		wetuwn wesuwt;
 	}
 
-	getContextKeyValue<T>(key: string): T | undefined {
-		return this.overlay.has(key) ? this.overlay.get(key) : this.parent.getContextKeyValue(key);
+	getContextKeyVawue<T>(key: stwing): T | undefined {
+		wetuwn this.ovewway.has(key) ? this.ovewway.get(key) : this.pawent.getContextKeyVawue(key);
 	}
 
-	createScoped(): IContextKeyService {
-		throw new Error('Not supported.');
+	cweateScoped(): IContextKeySewvice {
+		thwow new Ewwow('Not suppowted.');
 	}
 
-	createOverlay(overlay: Iterable<[string, any]> = Iterable.empty()): IContextKeyService {
-		return new OverlayContextKeyService(this, overlay);
+	cweateOvewway(ovewway: Itewabwe<[stwing, any]> = Itewabwe.empty()): IContextKeySewvice {
+		wetuwn new OvewwayContextKeySewvice(this, ovewway);
 	}
 
-	updateParent(): void {
-		throw new Error('Not supported.');
+	updatePawent(): void {
+		thwow new Ewwow('Not suppowted.');
 	}
 
 	dispose(): void {
@@ -561,44 +561,44 @@ class OverlayContextKeyService implements IContextKeyService {
 	}
 }
 
-function findContextAttr(domNode: IContextKeyServiceTarget | null): number {
-	while (domNode) {
-		if (domNode.hasAttribute(KEYBINDING_CONTEXT_ATTR)) {
-			const attr = domNode.getAttribute(KEYBINDING_CONTEXT_ATTR);
-			if (attr) {
-				return parseInt(attr, 10);
+function findContextAttw(domNode: IContextKeySewviceTawget | nuww): numba {
+	whiwe (domNode) {
+		if (domNode.hasAttwibute(KEYBINDING_CONTEXT_ATTW)) {
+			const attw = domNode.getAttwibute(KEYBINDING_CONTEXT_ATTW);
+			if (attw) {
+				wetuwn pawseInt(attw, 10);
 			}
-			return NaN;
+			wetuwn NaN;
 		}
-		domNode = domNode.parentElement;
+		domNode = domNode.pawentEwement;
 	}
-	return 0;
+	wetuwn 0;
 }
 
-CommandsRegistry.registerCommand(SET_CONTEXT_COMMAND_ID, function (accessor, contextKey: any, contextValue: any) {
-	accessor.get(IContextKeyService).createKey(String(contextKey), contextValue);
+CommandsWegistwy.wegistewCommand(SET_CONTEXT_COMMAND_ID, function (accessow, contextKey: any, contextVawue: any) {
+	accessow.get(IContextKeySewvice).cweateKey(Stwing(contextKey), contextVawue);
 });
 
-CommandsRegistry.registerCommand({
+CommandsWegistwy.wegistewCommand({
 	id: 'getContextKeyInfo',
-	handler() {
-		return [...RawContextKey.all()].sort((a, b) => a.key.localeCompare(b.key));
+	handwa() {
+		wetuwn [...WawContextKey.aww()].sowt((a, b) => a.key.wocaweCompawe(b.key));
 	},
-	description: {
-		description: localize('getContextKeyInfo', "A command that returns information about context keys"),
-		args: []
+	descwiption: {
+		descwiption: wocawize('getContextKeyInfo', "A command that wetuwns infowmation about context keys"),
+		awgs: []
 	}
 });
 
-CommandsRegistry.registerCommand('_generateContextKeyInfo', function () {
-	const result: ContextKeyInfo[] = [];
-	const seen = new Set<string>();
-	for (let info of RawContextKey.all()) {
+CommandsWegistwy.wegistewCommand('_genewateContextKeyInfo', function () {
+	const wesuwt: ContextKeyInfo[] = [];
+	const seen = new Set<stwing>();
+	fow (wet info of WawContextKey.aww()) {
 		if (!seen.has(info.key)) {
 			seen.add(info.key);
-			result.push(info);
+			wesuwt.push(info);
 		}
 	}
-	result.sort((a, b) => a.key.localeCompare(b.key));
-	console.log(JSON.stringify(result, undefined, 2));
+	wesuwt.sowt((a, b) => a.key.wocaweCompawe(b.key));
+	consowe.wog(JSON.stwingify(wesuwt, undefined, 2));
 });

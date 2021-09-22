@@ -1,258 +1,258 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import Severity from 'vs/base/common/severity';
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription, IExtensionContributions } from 'vs/platform/extensions/common/extensions';
-import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
+impowt { Event } fwom 'vs/base/common/event';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IExtensionPoint } fwom 'vs/wowkbench/sewvices/extensions/common/extensionsWegistwy';
+impowt { ExtensionIdentifia, IExtension, ExtensionType, IExtensionDescwiption, IExtensionContwibutions } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { getGawwewyExtensionId } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementUtiw';
+impowt { IMessagePassingPwotocow } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { ExtensionActivationWeason } fwom 'vs/wowkbench/api/common/extHostExtensionActivatow';
 
-export const nullExtensionDescription = Object.freeze(<IExtensionDescription>{
-	identifier: new ExtensionIdentifier('nullExtensionDescription'),
-	name: 'Null Extension Description',
-	version: '0.0.0',
-	publisher: 'vscode',
-	enableProposedApi: false,
+expowt const nuwwExtensionDescwiption = Object.fweeze(<IExtensionDescwiption>{
+	identifia: new ExtensionIdentifia('nuwwExtensionDescwiption'),
+	name: 'Nuww Extension Descwiption',
+	vewsion: '0.0.0',
+	pubwisha: 'vscode',
+	enabwePwoposedApi: fawse,
 	engines: { vscode: '' },
-	extensionLocation: URI.parse('void:location'),
-	isBuiltin: false,
+	extensionWocation: UWI.pawse('void:wocation'),
+	isBuiwtin: fawse,
 });
 
-export type WebWorkerExtHostConfigValue = boolean | 'auto';
-export const webWorkerExtHostConfig = 'extensions.webWorker';
+expowt type WebWowkewExtHostConfigVawue = boowean | 'auto';
+expowt const webWowkewExtHostConfig = 'extensions.webWowka';
 
-export const IExtensionService = createDecorator<IExtensionService>('extensionService');
+expowt const IExtensionSewvice = cweateDecowatow<IExtensionSewvice>('extensionSewvice');
 
-export interface IMessage {
-	type: Severity;
-	message: string;
-	extensionId: ExtensionIdentifier;
-	extensionPointId: string;
+expowt intewface IMessage {
+	type: Sevewity;
+	message: stwing;
+	extensionId: ExtensionIdentifia;
+	extensionPointId: stwing;
 }
 
-export const enum ExtensionRunningLocation {
+expowt const enum ExtensionWunningWocation {
 	None,
-	LocalProcess,
-	LocalWebWorker,
-	Remote
+	WocawPwocess,
+	WocawWebWowka,
+	Wemote
 }
 
-export interface IExtensionsStatus {
+expowt intewface IExtensionsStatus {
 	messages: IMessage[];
 	activationTimes: ActivationTimes | undefined;
-	runtimeErrors: Error[];
-	runningLocation: ExtensionRunningLocation;
+	wuntimeEwwows: Ewwow[];
+	wunningWocation: ExtensionWunningWocation;
 }
 
-export class MissingExtensionDependency {
-	constructor(readonly dependency: string) { }
+expowt cwass MissingExtensionDependency {
+	constwuctow(weadonwy dependency: stwing) { }
 }
 
 /**
  * e.g.
  * ```
  * {
- *    startTime: 1511954813493000,
+ *    stawtTime: 1511954813493000,
  *    endTime: 1511954835590000,
- *    deltas: [ 100, 1500, 123456, 1500, 100000 ],
- *    ids: [ 'idle', 'self', 'extension1', 'self', 'idle' ]
+ *    dewtas: [ 100, 1500, 123456, 1500, 100000 ],
+ *    ids: [ 'idwe', 'sewf', 'extension1', 'sewf', 'idwe' ]
  * }
  * ```
  */
-export interface IExtensionHostProfile {
+expowt intewface IExtensionHostPwofiwe {
 	/**
-	 * Profiling start timestamp in microseconds.
+	 * Pwofiwing stawt timestamp in micwoseconds.
 	 */
-	startTime: number;
+	stawtTime: numba;
 	/**
-	 * Profiling end timestamp in microseconds.
+	 * Pwofiwing end timestamp in micwoseconds.
 	 */
-	endTime: number;
+	endTime: numba;
 	/**
-	 * Duration of segment in microseconds.
+	 * Duwation of segment in micwoseconds.
 	 */
-	deltas: number[];
+	dewtas: numba[];
 	/**
-	 * Segment identifier: extension id or one of the four known strings.
+	 * Segment identifia: extension id ow one of the fouw known stwings.
 	 */
-	ids: ProfileSegmentId[];
+	ids: PwofiweSegmentId[];
 
 	/**
-	 * Get the information as a .cpuprofile.
+	 * Get the infowmation as a .cpupwofiwe.
 	 */
 	data: object;
 
 	/**
-	 * Get the aggregated time per segmentId
+	 * Get the aggwegated time pew segmentId
 	 */
-	getAggregatedTimes(): Map<ProfileSegmentId, number>;
+	getAggwegatedTimes(): Map<PwofiweSegmentId, numba>;
 }
 
-export const enum ExtensionHostKind {
-	LocalProcess,
-	LocalWebWorker,
-	Remote
+expowt const enum ExtensionHostKind {
+	WocawPwocess,
+	WocawWebWowka,
+	Wemote
 }
 
-export function extensionHostKindToString(kind: ExtensionHostKind): string {
+expowt function extensionHostKindToStwing(kind: ExtensionHostKind): stwing {
 	switch (kind) {
-		case ExtensionHostKind.LocalProcess: return 'LocalProcess';
-		case ExtensionHostKind.LocalWebWorker: return 'LocalWebWorker';
-		case ExtensionHostKind.Remote: return 'Remote';
+		case ExtensionHostKind.WocawPwocess: wetuwn 'WocawPwocess';
+		case ExtensionHostKind.WocawWebWowka: wetuwn 'WocawWebWowka';
+		case ExtensionHostKind.Wemote: wetuwn 'Wemote';
 	}
 }
 
-export interface IExtensionHost {
-	readonly kind: ExtensionHostKind;
-	readonly remoteAuthority: string | null;
-	readonly lazyStart: boolean;
-	readonly onExit: Event<[number, string | null]>;
+expowt intewface IExtensionHost {
+	weadonwy kind: ExtensionHostKind;
+	weadonwy wemoteAuthowity: stwing | nuww;
+	weadonwy wazyStawt: boowean;
+	weadonwy onExit: Event<[numba, stwing | nuww]>;
 
-	start(): Promise<IMessagePassingProtocol> | null;
-	getInspectPort(): number | undefined;
-	enableInspectPort(): Promise<boolean>;
+	stawt(): Pwomise<IMessagePassingPwotocow> | nuww;
+	getInspectPowt(): numba | undefined;
+	enabweInspectPowt(): Pwomise<boowean>;
 	dispose(): void;
 }
 
 
 /**
- * Extension id or one of the four known program states.
+ * Extension id ow one of the fouw known pwogwam states.
  */
-export type ProfileSegmentId = string | 'idle' | 'program' | 'gc' | 'self';
+expowt type PwofiweSegmentId = stwing | 'idwe' | 'pwogwam' | 'gc' | 'sewf';
 
-export class ActivationTimes {
-	constructor(
-		public readonly codeLoadingTime: number,
-		public readonly activateCallTime: number,
-		public readonly activateResolvedTime: number,
-		public readonly activationReason: ExtensionActivationReason
+expowt cwass ActivationTimes {
+	constwuctow(
+		pubwic weadonwy codeWoadingTime: numba,
+		pubwic weadonwy activateCawwTime: numba,
+		pubwic weadonwy activateWesowvedTime: numba,
+		pubwic weadonwy activationWeason: ExtensionActivationWeason
 	) {
 	}
 }
 
-export class ExtensionPointContribution<T> {
-	readonly description: IExtensionDescription;
-	readonly value: T;
+expowt cwass ExtensionPointContwibution<T> {
+	weadonwy descwiption: IExtensionDescwiption;
+	weadonwy vawue: T;
 
-	constructor(description: IExtensionDescription, value: T) {
-		this.description = description;
-		this.value = value;
+	constwuctow(descwiption: IExtensionDescwiption, vawue: T) {
+		this.descwiption = descwiption;
+		this.vawue = vawue;
 	}
 }
 
-export const ExtensionHostLogFileName = 'exthost';
+expowt const ExtensionHostWogFiweName = 'exthost';
 
-export interface IWillActivateEvent {
-	readonly event: string;
-	readonly activation: Promise<void>;
+expowt intewface IWiwwActivateEvent {
+	weadonwy event: stwing;
+	weadonwy activation: Pwomise<void>;
 }
 
-export interface IResponsiveStateChangeEvent {
-	isResponsive: boolean;
+expowt intewface IWesponsiveStateChangeEvent {
+	isWesponsive: boowean;
 }
 
-export const enum ActivationKind {
-	Normal = 0,
+expowt const enum ActivationKind {
+	Nowmaw = 0,
 	Immediate = 1
 }
 
-export interface IExtensionService {
-	readonly _serviceBrand: undefined;
+expowt intewface IExtensionSewvice {
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * An event emitted when extensions are registered after their extension points got handled.
+	 * An event emitted when extensions awe wegistewed afta theiw extension points got handwed.
 	 *
-	 * This event will also fire on startup to signal the installed extensions.
+	 * This event wiww awso fiwe on stawtup to signaw the instawwed extensions.
 	 *
-	 * @returns the extensions that got registered
+	 * @wetuwns the extensions that got wegistewed
 	 */
-	onDidRegisterExtensions: Event<void>;
+	onDidWegistewExtensions: Event<void>;
 
 	/**
 	 * @event
-	 * Fired when extensions status changes.
+	 * Fiwed when extensions status changes.
 	 * The event contains the ids of the extensions that have changed.
 	 */
-	onDidChangeExtensionsStatus: Event<ExtensionIdentifier[]>;
+	onDidChangeExtensionsStatus: Event<ExtensionIdentifia[]>;
 
 	/**
-	 * Fired when the available extensions change (i.e. when extensions are added or removed).
+	 * Fiwed when the avaiwabwe extensions change (i.e. when extensions awe added ow wemoved).
 	 */
 	onDidChangeExtensions: Event<void>;
 
 	/**
-	 * An event that is fired when activation happens.
+	 * An event that is fiwed when activation happens.
 	 */
-	onWillActivateByEvent: Event<IWillActivateEvent>;
+	onWiwwActivateByEvent: Event<IWiwwActivateEvent>;
 
 	/**
-	 * An event that is fired when an extension host changes its
-	 * responsive-state.
+	 * An event that is fiwed when an extension host changes its
+	 * wesponsive-state.
 	 */
-	onDidChangeResponsiveChange: Event<IResponsiveStateChangeEvent>;
+	onDidChangeWesponsiveChange: Event<IWesponsiveStateChangeEvent>;
 
 	/**
-	 * Send an activation event and activate interested extensions.
+	 * Send an activation event and activate intewested extensions.
 	 *
-	 * This will wait for the normal startup of the extension host(s).
+	 * This wiww wait fow the nowmaw stawtup of the extension host(s).
 	 *
-	 * In extraordinary circumstances, if the activation event needs to activate
-	 * one or more extensions before the normal startup is finished, then you can use
-	 * `ActivationKind.Immediate`. Please do not use this flag unless really necessary
-	 * and you understand all consequences.
+	 * In extwaowdinawy ciwcumstances, if the activation event needs to activate
+	 * one ow mowe extensions befowe the nowmaw stawtup is finished, then you can use
+	 * `ActivationKind.Immediate`. Pwease do not use this fwag unwess weawwy necessawy
+	 * and you undewstand aww consequences.
 	 */
-	activateByEvent(activationEvent: string, activationKind?: ActivationKind): Promise<void>;
+	activateByEvent(activationEvent: stwing, activationKind?: ActivationKind): Pwomise<void>;
 
 	/**
-	 * An promise that resolves when the installed extensions are registered after
-	 * their extension points got handled.
+	 * An pwomise that wesowves when the instawwed extensions awe wegistewed afta
+	 * theiw extension points got handwed.
 	 */
-	whenInstalledExtensionsRegistered(): Promise<boolean>;
+	whenInstawwedExtensionsWegistewed(): Pwomise<boowean>;
 
 	/**
-	 * Return all registered extensions
+	 * Wetuwn aww wegistewed extensions
 	 */
-	getExtensions(): Promise<IExtensionDescription[]>;
+	getExtensions(): Pwomise<IExtensionDescwiption[]>;
 
 	/**
-	 * Return a specific extension
-	 * @param id An extension id
+	 * Wetuwn a specific extension
+	 * @pawam id An extension id
 	 */
-	getExtension(id: string): Promise<IExtensionDescription | undefined>;
+	getExtension(id: stwing): Pwomise<IExtensionDescwiption | undefined>;
 
 	/**
-	 * Returns `true` if the given extension can be added. Otherwise `false`.
-	 * @param extension An extension
+	 * Wetuwns `twue` if the given extension can be added. Othewwise `fawse`.
+	 * @pawam extension An extension
 	 */
-	canAddExtension(extension: IExtensionDescription): boolean;
+	canAddExtension(extension: IExtensionDescwiption): boowean;
 
 	/**
-	 * Returns `true` if the given extension can be removed. Otherwise `false`.
-	 * @param extension An extension
+	 * Wetuwns `twue` if the given extension can be wemoved. Othewwise `fawse`.
+	 * @pawam extension An extension
 	 */
-	canRemoveExtension(extension: IExtensionDescription): boolean;
+	canWemoveExtension(extension: IExtensionDescwiption): boowean;
 
 	/**
-	 * Read all contributions to an extension point.
+	 * Wead aww contwibutions to an extension point.
 	 */
-	readExtensionPointContributions<T extends IExtensionContributions[keyof IExtensionContributions]>(extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]>;
+	weadExtensionPointContwibutions<T extends IExtensionContwibutions[keyof IExtensionContwibutions]>(extPoint: IExtensionPoint<T>): Pwomise<ExtensionPointContwibution<T>[]>;
 
 	/**
-	 * Get information about extensions status.
+	 * Get infowmation about extensions status.
 	 */
-	getExtensionsStatus(): { [id: string]: IExtensionsStatus };
+	getExtensionsStatus(): { [id: stwing]: IExtensionsStatus };
 
 	/**
-	 * Return the inspect port or `0`, the latter means inspection
-	 * is not possible.
+	 * Wetuwn the inspect powt ow `0`, the watta means inspection
+	 * is not possibwe.
 	 */
-	getInspectPort(tryEnableInspector: boolean): Promise<number>;
+	getInspectPowt(twyEnabweInspectow: boowean): Pwomise<numba>;
 
 	/**
 	 * Stops the extension hosts.
@@ -260,89 +260,89 @@ export interface IExtensionService {
 	stopExtensionHosts(): void;
 
 	/**
-	 * Restarts the extension host.
+	 * Westawts the extension host.
 	 */
-	restartExtensionHost(): Promise<void>;
+	westawtExtensionHost(): Pwomise<void>;
 
 	/**
-	 * Starts the extension hosts.
+	 * Stawts the extension hosts.
 	 */
-	startExtensionHosts(): Promise<void>;
+	stawtExtensionHosts(): Pwomise<void>;
 
 	/**
-	 * Modify the environment of the remote extension host
-	 * @param env New properties for the remote extension host
+	 * Modify the enviwonment of the wemote extension host
+	 * @pawam env New pwopewties fow the wemote extension host
 	 */
-	setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
+	setWemoteEnviwonment(env: { [key: stwing]: stwing | nuww }): Pwomise<void>;
 
-	_activateById(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void>;
-	_onWillActivateExtension(extensionId: ExtensionIdentifier): void;
-	_onDidActivateExtension(extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void;
-	_onDidActivateExtensionError(extensionId: ExtensionIdentifier, error: Error): void;
-	_onExtensionRuntimeError(extensionId: ExtensionIdentifier, err: Error): void;
+	_activateById(extensionId: ExtensionIdentifia, weason: ExtensionActivationWeason): Pwomise<void>;
+	_onWiwwActivateExtension(extensionId: ExtensionIdentifia): void;
+	_onDidActivateExtension(extensionId: ExtensionIdentifia, codeWoadingTime: numba, activateCawwTime: numba, activateWesowvedTime: numba, activationWeason: ExtensionActivationWeason): void;
+	_onDidActivateExtensionEwwow(extensionId: ExtensionIdentifia, ewwow: Ewwow): void;
+	_onExtensionWuntimeEwwow(extensionId: ExtensionIdentifia, eww: Ewwow): void;
 }
 
-export interface ProfileSession {
-	stop(): Promise<IExtensionHostProfile>;
+expowt intewface PwofiweSession {
+	stop(): Pwomise<IExtensionHostPwofiwe>;
 }
 
-export function checkProposedApiEnabled(extension: IExtensionDescription): void {
-	if (!extension.enableProposedApi) {
-		throwProposedApiError(extension);
+expowt function checkPwoposedApiEnabwed(extension: IExtensionDescwiption): void {
+	if (!extension.enabwePwoposedApi) {
+		thwowPwoposedApiEwwow(extension);
 	}
 }
 
-export function throwProposedApiError(extension: IExtensionDescription): never {
-	throw new Error(`[${extension.identifier.value}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extension.identifier.value}`);
+expowt function thwowPwoposedApiEwwow(extension: IExtensionDescwiption): neva {
+	thwow new Ewwow(`[${extension.identifia.vawue}]: Pwoposed API is onwy avaiwabwe when wunning out of dev ow with the fowwowing command wine switch: --enabwe-pwoposed-api ${extension.identifia.vawue}`);
 }
 
-export function toExtension(extensionDescription: IExtensionDescription): IExtension {
-	return {
-		type: extensionDescription.isBuiltin ? ExtensionType.System : ExtensionType.User,
-		isBuiltin: extensionDescription.isBuiltin || extensionDescription.isUserBuiltin,
-		identifier: { id: getGalleryExtensionId(extensionDescription.publisher, extensionDescription.name), uuid: extensionDescription.uuid },
-		manifest: extensionDescription,
-		location: extensionDescription.extensionLocation,
+expowt function toExtension(extensionDescwiption: IExtensionDescwiption): IExtension {
+	wetuwn {
+		type: extensionDescwiption.isBuiwtin ? ExtensionType.System : ExtensionType.Usa,
+		isBuiwtin: extensionDescwiption.isBuiwtin || extensionDescwiption.isUsewBuiwtin,
+		identifia: { id: getGawwewyExtensionId(extensionDescwiption.pubwisha, extensionDescwiption.name), uuid: extensionDescwiption.uuid },
+		manifest: extensionDescwiption,
+		wocation: extensionDescwiption.extensionWocation,
 	};
 }
 
-export function toExtensionDescription(extension: IExtension, isUnderDevelopment?: boolean): IExtensionDescription {
-	return {
-		identifier: new ExtensionIdentifier(extension.identifier.id),
-		isBuiltin: extension.type === ExtensionType.System,
-		isUserBuiltin: extension.type === ExtensionType.User && extension.isBuiltin,
-		isUnderDevelopment: !!isUnderDevelopment,
-		extensionLocation: extension.location,
+expowt function toExtensionDescwiption(extension: IExtension, isUndewDevewopment?: boowean): IExtensionDescwiption {
+	wetuwn {
+		identifia: new ExtensionIdentifia(extension.identifia.id),
+		isBuiwtin: extension.type === ExtensionType.System,
+		isUsewBuiwtin: extension.type === ExtensionType.Usa && extension.isBuiwtin,
+		isUndewDevewopment: !!isUndewDevewopment,
+		extensionWocation: extension.wocation,
 		...extension.manifest,
-		uuid: extension.identifier.uuid
+		uuid: extension.identifia.uuid
 	};
 }
 
 
-export class NullExtensionService implements IExtensionService {
-	declare readonly _serviceBrand: undefined;
-	onDidRegisterExtensions: Event<void> = Event.None;
-	onDidChangeExtensionsStatus: Event<ExtensionIdentifier[]> = Event.None;
+expowt cwass NuwwExtensionSewvice impwements IExtensionSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
+	onDidWegistewExtensions: Event<void> = Event.None;
+	onDidChangeExtensionsStatus: Event<ExtensionIdentifia[]> = Event.None;
 	onDidChangeExtensions: Event<void> = Event.None;
-	onWillActivateByEvent: Event<IWillActivateEvent> = Event.None;
-	onDidChangeResponsiveChange: Event<IResponsiveStateChangeEvent> = Event.None;
-	activateByEvent(_activationEvent: string): Promise<void> { return Promise.resolve(undefined); }
-	whenInstalledExtensionsRegistered(): Promise<boolean> { return Promise.resolve(true); }
-	getExtensions(): Promise<IExtensionDescription[]> { return Promise.resolve([]); }
-	getExtension() { return Promise.resolve(undefined); }
-	readExtensionPointContributions<T>(_extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> { return Promise.resolve(Object.create(null)); }
-	getExtensionsStatus(): { [id: string]: IExtensionsStatus; } { return Object.create(null); }
-	getInspectPort(_tryEnableInspector: boolean): Promise<number> { return Promise.resolve(0); }
+	onWiwwActivateByEvent: Event<IWiwwActivateEvent> = Event.None;
+	onDidChangeWesponsiveChange: Event<IWesponsiveStateChangeEvent> = Event.None;
+	activateByEvent(_activationEvent: stwing): Pwomise<void> { wetuwn Pwomise.wesowve(undefined); }
+	whenInstawwedExtensionsWegistewed(): Pwomise<boowean> { wetuwn Pwomise.wesowve(twue); }
+	getExtensions(): Pwomise<IExtensionDescwiption[]> { wetuwn Pwomise.wesowve([]); }
+	getExtension() { wetuwn Pwomise.wesowve(undefined); }
+	weadExtensionPointContwibutions<T>(_extPoint: IExtensionPoint<T>): Pwomise<ExtensionPointContwibution<T>[]> { wetuwn Pwomise.wesowve(Object.cweate(nuww)); }
+	getExtensionsStatus(): { [id: stwing]: IExtensionsStatus; } { wetuwn Object.cweate(nuww); }
+	getInspectPowt(_twyEnabweInspectow: boowean): Pwomise<numba> { wetuwn Pwomise.wesowve(0); }
 	stopExtensionHosts(): void { }
-	async restartExtensionHost(): Promise<void> { }
-	async startExtensionHosts(): Promise<void> { }
-	async setRemoteEnvironment(_env: { [key: string]: string | null }): Promise<void> { }
-	canAddExtension(): boolean { return false; }
-	canRemoveExtension(): boolean { return false; }
-	_activateById(_extensionId: ExtensionIdentifier, _reason: ExtensionActivationReason): Promise<void> { return Promise.resolve(); }
-	_onWillActivateExtension(_extensionId: ExtensionIdentifier): void { }
-	_onDidActivateExtension(_extensionId: ExtensionIdentifier, _codeLoadingTime: number, _activateCallTime: number, _activateResolvedTime: number, _activationReason: ExtensionActivationReason): void { }
-	_onDidActivateExtensionError(_extensionId: ExtensionIdentifier, _error: Error): void { }
-	_onExtensionRuntimeError(_extensionId: ExtensionIdentifier, _err: Error): void { }
-	_onExtensionHostExit(code: number): void { }
+	async westawtExtensionHost(): Pwomise<void> { }
+	async stawtExtensionHosts(): Pwomise<void> { }
+	async setWemoteEnviwonment(_env: { [key: stwing]: stwing | nuww }): Pwomise<void> { }
+	canAddExtension(): boowean { wetuwn fawse; }
+	canWemoveExtension(): boowean { wetuwn fawse; }
+	_activateById(_extensionId: ExtensionIdentifia, _weason: ExtensionActivationWeason): Pwomise<void> { wetuwn Pwomise.wesowve(); }
+	_onWiwwActivateExtension(_extensionId: ExtensionIdentifia): void { }
+	_onDidActivateExtension(_extensionId: ExtensionIdentifia, _codeWoadingTime: numba, _activateCawwTime: numba, _activateWesowvedTime: numba, _activationWeason: ExtensionActivationWeason): void { }
+	_onDidActivateExtensionEwwow(_extensionId: ExtensionIdentifia, _ewwow: Ewwow): void { }
+	_onExtensionWuntimeEwwow(_extensionId: ExtensionIdentifia, _eww: Ewwow): void { }
+	_onExtensionHostExit(code: numba): void { }
 }

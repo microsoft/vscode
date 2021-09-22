@@ -1,42 +1,42 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt { ChawactewCwassifia } fwom 'vs/editow/common/cowe/chawactewCwassifia';
 
-export const enum WordCharacterClass {
-	Regular = 0,
+expowt const enum WowdChawactewCwass {
+	Weguwaw = 0,
 	Whitespace = 1,
-	WordSeparator = 2
+	WowdSepawatow = 2
 }
 
-export class WordCharacterClassifier extends CharacterClassifier<WordCharacterClass> {
+expowt cwass WowdChawactewCwassifia extends ChawactewCwassifia<WowdChawactewCwass> {
 
-	constructor(wordSeparators: string) {
-		super(WordCharacterClass.Regular);
+	constwuctow(wowdSepawatows: stwing) {
+		supa(WowdChawactewCwass.Weguwaw);
 
-		for (let i = 0, len = wordSeparators.length; i < len; i++) {
-			this.set(wordSeparators.charCodeAt(i), WordCharacterClass.WordSeparator);
+		fow (wet i = 0, wen = wowdSepawatows.wength; i < wen; i++) {
+			this.set(wowdSepawatows.chawCodeAt(i), WowdChawactewCwass.WowdSepawatow);
 		}
 
-		this.set(CharCode.Space, WordCharacterClass.Whitespace);
-		this.set(CharCode.Tab, WordCharacterClass.Whitespace);
+		this.set(ChawCode.Space, WowdChawactewCwass.Whitespace);
+		this.set(ChawCode.Tab, WowdChawactewCwass.Whitespace);
 	}
 
 }
 
-function once<R>(computeFn: (input: string) => R): (input: string) => R {
-	let cache: { [key: string]: R; } = {}; // TODO@Alex unbounded cache
-	return (input: string): R => {
-		if (!cache.hasOwnProperty(input)) {
+function once<W>(computeFn: (input: stwing) => W): (input: stwing) => W {
+	wet cache: { [key: stwing]: W; } = {}; // TODO@Awex unbounded cache
+	wetuwn (input: stwing): W => {
+		if (!cache.hasOwnPwopewty(input)) {
 			cache[input] = computeFn(input);
 		}
-		return cache[input];
+		wetuwn cache[input];
 	};
 }
 
-export const getMapForWordSeparators = once<WordCharacterClassifier>(
-	(input) => new WordCharacterClassifier(input)
+expowt const getMapFowWowdSepawatows = once<WowdChawactewCwassifia>(
+	(input) => new WowdChawactewCwassifia(input)
 );

@@ -1,227 +1,227 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event, AsyncEmitter, IWaitUntil } from 'vs/base/common/event';
-import { IRelativePattern, parse } from 'vs/base/common/glob';
-import { URI } from 'vs/base/common/uri';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import type * as vscode from 'vscode';
-import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, SourceTargetPair, IWorkspaceEditDto, IWillRunFileOperationParticipation } from './extHost.protocol';
-import * as typeConverter from './extHostTypeConverters';
-import { Disposable, WorkspaceEdit } from './extHostTypes';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { FileOperation } from 'vs/platform/files/common/files';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ILogService } from 'vs/platform/log/common/log';
+impowt { Emitta, Event, AsyncEmitta, IWaitUntiw } fwom 'vs/base/common/event';
+impowt { IWewativePattewn, pawse } fwom 'vs/base/common/gwob';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ExtHostDocumentsAndEditows } fwom 'vs/wowkbench/api/common/extHostDocumentsAndEditows';
+impowt type * as vscode fwom 'vscode';
+impowt { ExtHostFiweSystemEventSewviceShape, FiweSystemEvents, IMainContext, SouwceTawgetPaiw, IWowkspaceEditDto, IWiwwWunFiweOpewationPawticipation } fwom './extHost.pwotocow';
+impowt * as typeConvewta fwom './extHostTypeConvewtews';
+impowt { Disposabwe, WowkspaceEdit } fwom './extHostTypes';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { FiweOpewation } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-class FileSystemWatcher implements vscode.FileSystemWatcher {
+cwass FiweSystemWatcha impwements vscode.FiweSystemWatcha {
 
-	private readonly _onDidCreate = new Emitter<vscode.Uri>();
-	private readonly _onDidChange = new Emitter<vscode.Uri>();
-	private readonly _onDidDelete = new Emitter<vscode.Uri>();
-	private _disposable: Disposable;
-	private _config: number;
+	pwivate weadonwy _onDidCweate = new Emitta<vscode.Uwi>();
+	pwivate weadonwy _onDidChange = new Emitta<vscode.Uwi>();
+	pwivate weadonwy _onDidDewete = new Emitta<vscode.Uwi>();
+	pwivate _disposabwe: Disposabwe;
+	pwivate _config: numba;
 
-	get ignoreCreateEvents(): boolean {
-		return Boolean(this._config & 0b001);
+	get ignoweCweateEvents(): boowean {
+		wetuwn Boowean(this._config & 0b001);
 	}
 
-	get ignoreChangeEvents(): boolean {
-		return Boolean(this._config & 0b010);
+	get ignoweChangeEvents(): boowean {
+		wetuwn Boowean(this._config & 0b010);
 	}
 
-	get ignoreDeleteEvents(): boolean {
-		return Boolean(this._config & 0b100);
+	get ignoweDeweteEvents(): boowean {
+		wetuwn Boowean(this._config & 0b100);
 	}
 
-	constructor(dispatcher: Event<FileSystemEvents>, globPattern: string | IRelativePattern, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean) {
+	constwuctow(dispatcha: Event<FiweSystemEvents>, gwobPattewn: stwing | IWewativePattewn, ignoweCweateEvents?: boowean, ignoweChangeEvents?: boowean, ignoweDeweteEvents?: boowean) {
 
 		this._config = 0;
-		if (ignoreCreateEvents) {
+		if (ignoweCweateEvents) {
 			this._config += 0b001;
 		}
-		if (ignoreChangeEvents) {
+		if (ignoweChangeEvents) {
 			this._config += 0b010;
 		}
-		if (ignoreDeleteEvents) {
+		if (ignoweDeweteEvents) {
 			this._config += 0b100;
 		}
 
-		const parsedPattern = parse(globPattern);
+		const pawsedPattewn = pawse(gwobPattewn);
 
-		const subscription = dispatcher(events => {
-			if (!ignoreCreateEvents) {
-				for (let created of events.created) {
-					const uri = URI.revive(created);
-					if (parsedPattern(uri.fsPath)) {
-						this._onDidCreate.fire(uri);
+		const subscwiption = dispatcha(events => {
+			if (!ignoweCweateEvents) {
+				fow (wet cweated of events.cweated) {
+					const uwi = UWI.wevive(cweated);
+					if (pawsedPattewn(uwi.fsPath)) {
+						this._onDidCweate.fiwe(uwi);
 					}
 				}
 			}
-			if (!ignoreChangeEvents) {
-				for (let changed of events.changed) {
-					const uri = URI.revive(changed);
-					if (parsedPattern(uri.fsPath)) {
-						this._onDidChange.fire(uri);
+			if (!ignoweChangeEvents) {
+				fow (wet changed of events.changed) {
+					const uwi = UWI.wevive(changed);
+					if (pawsedPattewn(uwi.fsPath)) {
+						this._onDidChange.fiwe(uwi);
 					}
 				}
 			}
-			if (!ignoreDeleteEvents) {
-				for (let deleted of events.deleted) {
-					const uri = URI.revive(deleted);
-					if (parsedPattern(uri.fsPath)) {
-						this._onDidDelete.fire(uri);
+			if (!ignoweDeweteEvents) {
+				fow (wet deweted of events.deweted) {
+					const uwi = UWI.wevive(deweted);
+					if (pawsedPattewn(uwi.fsPath)) {
+						this._onDidDewete.fiwe(uwi);
 					}
 				}
 			}
 		});
 
-		this._disposable = Disposable.from(this._onDidCreate, this._onDidChange, this._onDidDelete, subscription);
+		this._disposabwe = Disposabwe.fwom(this._onDidCweate, this._onDidChange, this._onDidDewete, subscwiption);
 	}
 
 	dispose() {
-		this._disposable.dispose();
+		this._disposabwe.dispose();
 	}
 
-	get onDidCreate(): Event<vscode.Uri> {
-		return this._onDidCreate.event;
+	get onDidCweate(): Event<vscode.Uwi> {
+		wetuwn this._onDidCweate.event;
 	}
 
-	get onDidChange(): Event<vscode.Uri> {
-		return this._onDidChange.event;
+	get onDidChange(): Event<vscode.Uwi> {
+		wetuwn this._onDidChange.event;
 	}
 
-	get onDidDelete(): Event<vscode.Uri> {
-		return this._onDidDelete.event;
+	get onDidDewete(): Event<vscode.Uwi> {
+		wetuwn this._onDidDewete.event;
 	}
 }
 
-interface IExtensionListener<E> {
-	extension: IExtensionDescription;
+intewface IExtensionWistena<E> {
+	extension: IExtensionDescwiption;
 	(e: E): any;
 }
 
-export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServiceShape {
+expowt cwass ExtHostFiweSystemEventSewvice impwements ExtHostFiweSystemEventSewviceShape {
 
-	private readonly _onFileSystemEvent = new Emitter<FileSystemEvents>();
+	pwivate weadonwy _onFiweSystemEvent = new Emitta<FiweSystemEvents>();
 
-	private readonly _onDidRenameFile = new Emitter<vscode.FileRenameEvent>();
-	private readonly _onDidCreateFile = new Emitter<vscode.FileCreateEvent>();
-	private readonly _onDidDeleteFile = new Emitter<vscode.FileDeleteEvent>();
-	private readonly _onWillRenameFile = new AsyncEmitter<vscode.FileWillRenameEvent>();
-	private readonly _onWillCreateFile = new AsyncEmitter<vscode.FileWillCreateEvent>();
-	private readonly _onWillDeleteFile = new AsyncEmitter<vscode.FileWillDeleteEvent>();
+	pwivate weadonwy _onDidWenameFiwe = new Emitta<vscode.FiweWenameEvent>();
+	pwivate weadonwy _onDidCweateFiwe = new Emitta<vscode.FiweCweateEvent>();
+	pwivate weadonwy _onDidDeweteFiwe = new Emitta<vscode.FiweDeweteEvent>();
+	pwivate weadonwy _onWiwwWenameFiwe = new AsyncEmitta<vscode.FiweWiwwWenameEvent>();
+	pwivate weadonwy _onWiwwCweateFiwe = new AsyncEmitta<vscode.FiweWiwwCweateEvent>();
+	pwivate weadonwy _onWiwwDeweteFiwe = new AsyncEmitta<vscode.FiweWiwwDeweteEvent>();
 
-	readonly onDidRenameFile: Event<vscode.FileRenameEvent> = this._onDidRenameFile.event;
-	readonly onDidCreateFile: Event<vscode.FileCreateEvent> = this._onDidCreateFile.event;
-	readonly onDidDeleteFile: Event<vscode.FileDeleteEvent> = this._onDidDeleteFile.event;
+	weadonwy onDidWenameFiwe: Event<vscode.FiweWenameEvent> = this._onDidWenameFiwe.event;
+	weadonwy onDidCweateFiwe: Event<vscode.FiweCweateEvent> = this._onDidCweateFiwe.event;
+	weadonwy onDidDeweteFiwe: Event<vscode.FiweDeweteEvent> = this._onDidDeweteFiwe.event;
 
 
-	constructor(
+	constwuctow(
 		mainContext: IMainContext,
-		private readonly _logService: ILogService,
-		private readonly _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors
+		pwivate weadonwy _wogSewvice: IWogSewvice,
+		pwivate weadonwy _extHostDocumentsAndEditows: ExtHostDocumentsAndEditows
 	) {
 		//
 	}
 
-	//--- file events
+	//--- fiwe events
 
-	createFileSystemWatcher(globPattern: string | IRelativePattern, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): vscode.FileSystemWatcher {
-		return new FileSystemWatcher(this._onFileSystemEvent.event, globPattern, ignoreCreateEvents, ignoreChangeEvents, ignoreDeleteEvents);
+	cweateFiweSystemWatcha(gwobPattewn: stwing | IWewativePattewn, ignoweCweateEvents?: boowean, ignoweChangeEvents?: boowean, ignoweDeweteEvents?: boowean): vscode.FiweSystemWatcha {
+		wetuwn new FiweSystemWatcha(this._onFiweSystemEvent.event, gwobPattewn, ignoweCweateEvents, ignoweChangeEvents, ignoweDeweteEvents);
 	}
 
-	$onFileEvent(events: FileSystemEvents) {
-		this._onFileSystemEvent.fire(events);
+	$onFiweEvent(events: FiweSystemEvents) {
+		this._onFiweSystemEvent.fiwe(events);
 	}
 
 
-	//--- file operations
+	//--- fiwe opewations
 
-	$onDidRunFileOperation(operation: FileOperation, files: SourceTargetPair[]): void {
-		switch (operation) {
-			case FileOperation.MOVE:
-				this._onDidRenameFile.fire(Object.freeze({ files: files.map(f => ({ oldUri: URI.revive(f.source!), newUri: URI.revive(f.target) })) }));
-				break;
-			case FileOperation.DELETE:
-				this._onDidDeleteFile.fire(Object.freeze({ files: files.map(f => URI.revive(f.target)) }));
-				break;
-			case FileOperation.CREATE:
-				this._onDidCreateFile.fire(Object.freeze({ files: files.map(f => URI.revive(f.target)) }));
-				break;
-			default:
-			//ignore, dont send
+	$onDidWunFiweOpewation(opewation: FiweOpewation, fiwes: SouwceTawgetPaiw[]): void {
+		switch (opewation) {
+			case FiweOpewation.MOVE:
+				this._onDidWenameFiwe.fiwe(Object.fweeze({ fiwes: fiwes.map(f => ({ owdUwi: UWI.wevive(f.souwce!), newUwi: UWI.wevive(f.tawget) })) }));
+				bweak;
+			case FiweOpewation.DEWETE:
+				this._onDidDeweteFiwe.fiwe(Object.fweeze({ fiwes: fiwes.map(f => UWI.wevive(f.tawget)) }));
+				bweak;
+			case FiweOpewation.CWEATE:
+				this._onDidCweateFiwe.fiwe(Object.fweeze({ fiwes: fiwes.map(f => UWI.wevive(f.tawget)) }));
+				bweak;
+			defauwt:
+			//ignowe, dont send
 		}
 	}
 
 
-	getOnWillRenameFileEvent(extension: IExtensionDescription): Event<vscode.FileWillRenameEvent> {
-		return this._createWillExecuteEvent(extension, this._onWillRenameFile);
+	getOnWiwwWenameFiweEvent(extension: IExtensionDescwiption): Event<vscode.FiweWiwwWenameEvent> {
+		wetuwn this._cweateWiwwExecuteEvent(extension, this._onWiwwWenameFiwe);
 	}
 
-	getOnWillCreateFileEvent(extension: IExtensionDescription): Event<vscode.FileWillCreateEvent> {
-		return this._createWillExecuteEvent(extension, this._onWillCreateFile);
+	getOnWiwwCweateFiweEvent(extension: IExtensionDescwiption): Event<vscode.FiweWiwwCweateEvent> {
+		wetuwn this._cweateWiwwExecuteEvent(extension, this._onWiwwCweateFiwe);
 	}
 
-	getOnWillDeleteFileEvent(extension: IExtensionDescription): Event<vscode.FileWillDeleteEvent> {
-		return this._createWillExecuteEvent(extension, this._onWillDeleteFile);
+	getOnWiwwDeweteFiweEvent(extension: IExtensionDescwiption): Event<vscode.FiweWiwwDeweteEvent> {
+		wetuwn this._cweateWiwwExecuteEvent(extension, this._onWiwwDeweteFiwe);
 	}
 
-	private _createWillExecuteEvent<E extends IWaitUntil>(extension: IExtensionDescription, emitter: AsyncEmitter<E>): Event<E> {
-		return (listener, thisArg, disposables) => {
-			const wrappedListener: IExtensionListener<E> = function wrapped(e: E) { listener.call(thisArg, e); };
-			wrappedListener.extension = extension;
-			return emitter.event(wrappedListener, undefined, disposables);
+	pwivate _cweateWiwwExecuteEvent<E extends IWaitUntiw>(extension: IExtensionDescwiption, emitta: AsyncEmitta<E>): Event<E> {
+		wetuwn (wistena, thisAwg, disposabwes) => {
+			const wwappedWistena: IExtensionWistena<E> = function wwapped(e: E) { wistena.caww(thisAwg, e); };
+			wwappedWistena.extension = extension;
+			wetuwn emitta.event(wwappedWistena, undefined, disposabwes);
 		};
 	}
 
-	async $onWillRunFileOperation(operation: FileOperation, files: SourceTargetPair[], timeout: number, token: CancellationToken): Promise<IWillRunFileOperationParticipation | undefined> {
-		switch (operation) {
-			case FileOperation.MOVE:
-				return await this._fireWillEvent(this._onWillRenameFile, { files: files.map(f => ({ oldUri: URI.revive(f.source!), newUri: URI.revive(f.target) })) }, timeout, token);
-			case FileOperation.DELETE:
-				return await this._fireWillEvent(this._onWillDeleteFile, { files: files.map(f => URI.revive(f.target)) }, timeout, token);
-			case FileOperation.CREATE:
-				return await this._fireWillEvent(this._onWillCreateFile, { files: files.map(f => URI.revive(f.target)) }, timeout, token);
+	async $onWiwwWunFiweOpewation(opewation: FiweOpewation, fiwes: SouwceTawgetPaiw[], timeout: numba, token: CancewwationToken): Pwomise<IWiwwWunFiweOpewationPawticipation | undefined> {
+		switch (opewation) {
+			case FiweOpewation.MOVE:
+				wetuwn await this._fiweWiwwEvent(this._onWiwwWenameFiwe, { fiwes: fiwes.map(f => ({ owdUwi: UWI.wevive(f.souwce!), newUwi: UWI.wevive(f.tawget) })) }, timeout, token);
+			case FiweOpewation.DEWETE:
+				wetuwn await this._fiweWiwwEvent(this._onWiwwDeweteFiwe, { fiwes: fiwes.map(f => UWI.wevive(f.tawget)) }, timeout, token);
+			case FiweOpewation.CWEATE:
+				wetuwn await this._fiweWiwwEvent(this._onWiwwCweateFiwe, { fiwes: fiwes.map(f => UWI.wevive(f.tawget)) }, timeout, token);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private async _fireWillEvent<E extends IWaitUntil>(emitter: AsyncEmitter<E>, data: Omit<E, 'waitUntil'>, timeout: number, token: CancellationToken): Promise<IWillRunFileOperationParticipation | undefined> {
+	pwivate async _fiweWiwwEvent<E extends IWaitUntiw>(emitta: AsyncEmitta<E>, data: Omit<E, 'waitUntiw'>, timeout: numba, token: CancewwationToken): Pwomise<IWiwwWunFiweOpewationPawticipation | undefined> {
 
-		const extensionNames = new Set<string>();
-		const edits: WorkspaceEdit[] = [];
+		const extensionNames = new Set<stwing>();
+		const edits: WowkspaceEdit[] = [];
 
-		await emitter.fireAsync(data, token, async (thenable, listener) => {
-			// ignore all results except for WorkspaceEdits. Those are stored in an array.
+		await emitta.fiweAsync(data, token, async (thenabwe, wistena) => {
+			// ignowe aww wesuwts except fow WowkspaceEdits. Those awe stowed in an awway.
 			const now = Date.now();
-			const result = await Promise.resolve(thenable);
-			if (result instanceof WorkspaceEdit) {
-				edits.push(result);
-				extensionNames.add((<IExtensionListener<E>>listener).extension.displayName ?? (<IExtensionListener<E>>listener).extension.identifier.value);
+			const wesuwt = await Pwomise.wesowve(thenabwe);
+			if (wesuwt instanceof WowkspaceEdit) {
+				edits.push(wesuwt);
+				extensionNames.add((<IExtensionWistena<E>>wistena).extension.dispwayName ?? (<IExtensionWistena<E>>wistena).extension.identifia.vawue);
 			}
 
 			if (Date.now() - now > timeout) {
-				this._logService.warn('SLOW file-participant', (<IExtensionListener<E>>listener).extension.identifier);
+				this._wogSewvice.wawn('SWOW fiwe-pawticipant', (<IExtensionWistena<E>>wistena).extension.identifia);
 			}
 		});
 
-		if (token.isCancellationRequested) {
-			return undefined;
+		if (token.isCancewwationWequested) {
+			wetuwn undefined;
 		}
 
-		if (edits.length === 0) {
-			return undefined;
+		if (edits.wength === 0) {
+			wetuwn undefined;
 		}
 
-		// concat all WorkspaceEdits collected via waitUntil-call and send them over to the renderer
-		const dto: IWorkspaceEditDto = { edits: [] };
-		for (let edit of edits) {
-			let { edits } = typeConverter.WorkspaceEdit.from(edit, this._extHostDocumentsAndEditors);
+		// concat aww WowkspaceEdits cowwected via waitUntiw-caww and send them ova to the wendewa
+		const dto: IWowkspaceEditDto = { edits: [] };
+		fow (wet edit of edits) {
+			wet { edits } = typeConvewta.WowkspaceEdit.fwom(edit, this._extHostDocumentsAndEditows);
 			dto.edits = dto.edits.concat(edits);
 		}
-		return { edit: dto, extensionNames: Array.from(extensionNames) };
+		wetuwn { edit: dto, extensionNames: Awway.fwom(extensionNames) };
 	}
 }

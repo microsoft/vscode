@@ -1,71 +1,71 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { isStandalone } from 'vs/base/browser/browser';
-import { streamToBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { isEqual } from 'vs/base/common/resources';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { request } from 'vs/base/parts/request/browser/request';
-import { localize } from 'vs/nls';
-import { parseLogLevel } from 'vs/platform/log/common/log';
-import product from 'vs/platform/product/common/product';
-import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
-import { create, ICredentialsProvider, IHomeIndicator, IProductQualityChangeHandler, ISettingsSyncOptions, IURLCallbackProvider, IWelcomeBanner, IWindowIndicator, IWorkbenchConstructionOptions, IWorkspace, IWorkspaceProvider } from 'vs/workbench/workbench.web.api';
+impowt { isStandawone } fwom 'vs/base/bwowsa/bwowsa';
+impowt { stweamToBuffa } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { wequest } fwom 'vs/base/pawts/wequest/bwowsa/wequest';
+impowt { wocawize } fwom 'vs/nws';
+impowt { pawseWogWevew } fwom 'vs/pwatfowm/wog/common/wog';
+impowt pwoduct fwom 'vs/pwatfowm/pwoduct/common/pwoduct';
+impowt { isFowdewToOpen, isWowkspaceToOpen } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { cweate, ICwedentiawsPwovida, IHomeIndicatow, IPwoductQuawityChangeHandwa, ISettingsSyncOptions, IUWWCawwbackPwovida, IWewcomeBanna, IWindowIndicatow, IWowkbenchConstwuctionOptions, IWowkspace, IWowkspacePwovida } fwom 'vs/wowkbench/wowkbench.web.api';
 
-function doCreateUri(path: string, queryValues: Map<string, string>): URI {
-	let query: string | undefined = undefined;
+function doCweateUwi(path: stwing, quewyVawues: Map<stwing, stwing>): UWI {
+	wet quewy: stwing | undefined = undefined;
 
-	if (queryValues) {
-		let index = 0;
-		queryValues.forEach((value, key) => {
-			if (!query) {
-				query = '';
+	if (quewyVawues) {
+		wet index = 0;
+		quewyVawues.fowEach((vawue, key) => {
+			if (!quewy) {
+				quewy = '';
 			}
 
-			const prefix = (index++ === 0) ? '' : '&';
-			query += `${prefix}${key}=${encodeURIComponent(value)}`;
+			const pwefix = (index++ === 0) ? '' : '&';
+			quewy += `${pwefix}${key}=${encodeUWIComponent(vawue)}`;
 		});
 	}
 
-	return URI.parse(window.location.href).with({ path, query });
+	wetuwn UWI.pawse(window.wocation.hwef).with({ path, quewy });
 }
 
-interface ICredential {
-	service: string;
-	account: string;
-	password: string;
+intewface ICwedentiaw {
+	sewvice: stwing;
+	account: stwing;
+	passwowd: stwing;
 }
 
-class LocalStorageCredentialsProvider implements ICredentialsProvider {
+cwass WocawStowageCwedentiawsPwovida impwements ICwedentiawsPwovida {
 
-	static readonly CREDENTIALS_OPENED_KEY = 'credentials.provider';
+	static weadonwy CWEDENTIAWS_OPENED_KEY = 'cwedentiaws.pwovida';
 
-	private readonly authService: string | undefined;
+	pwivate weadonwy authSewvice: stwing | undefined;
 
-	constructor() {
-		let authSessionInfo: { readonly id: string, readonly accessToken: string, readonly providerId: string, readonly canSignOut?: boolean, readonly scopes: string[][] } | undefined;
-		const authSessionElement = document.getElementById('vscode-workbench-auth-session');
-		const authSessionElementAttribute = authSessionElement ? authSessionElement.getAttribute('data-settings') : undefined;
-		if (authSessionElementAttribute) {
-			try {
-				authSessionInfo = JSON.parse(authSessionElementAttribute);
-			} catch (error) { /* Invalid session is passed. Ignore. */ }
+	constwuctow() {
+		wet authSessionInfo: { weadonwy id: stwing, weadonwy accessToken: stwing, weadonwy pwovidewId: stwing, weadonwy canSignOut?: boowean, weadonwy scopes: stwing[][] } | undefined;
+		const authSessionEwement = document.getEwementById('vscode-wowkbench-auth-session');
+		const authSessionEwementAttwibute = authSessionEwement ? authSessionEwement.getAttwibute('data-settings') : undefined;
+		if (authSessionEwementAttwibute) {
+			twy {
+				authSessionInfo = JSON.pawse(authSessionEwementAttwibute);
+			} catch (ewwow) { /* Invawid session is passed. Ignowe. */ }
 		}
 
 		if (authSessionInfo) {
-			// Settings Sync Entry
-			this.setPassword(`${product.urlProtocol}.login`, 'account', JSON.stringify(authSessionInfo));
+			// Settings Sync Entwy
+			this.setPasswowd(`${pwoduct.uwwPwotocow}.wogin`, 'account', JSON.stwingify(authSessionInfo));
 
-			// Auth extension Entry
-			this.authService = `${product.urlProtocol}-${authSessionInfo.providerId}.login`;
-			this.setPassword(this.authService, 'account', JSON.stringify(authSessionInfo.scopes.map(scopes => ({
+			// Auth extension Entwy
+			this.authSewvice = `${pwoduct.uwwPwotocow}-${authSessionInfo.pwovidewId}.wogin`;
+			this.setPasswowd(this.authSewvice, 'account', JSON.stwingify(authSessionInfo.scopes.map(scopes => ({
 				id: authSessionInfo!.id,
 				scopes,
 				accessToken: authSessionInfo!.accessToken
@@ -73,460 +73,460 @@ class LocalStorageCredentialsProvider implements ICredentialsProvider {
 		}
 	}
 
-	private _credentials: ICredential[] | undefined;
-	private get credentials(): ICredential[] {
-		if (!this._credentials) {
-			try {
-				const serializedCredentials = window.localStorage.getItem(LocalStorageCredentialsProvider.CREDENTIALS_OPENED_KEY);
-				if (serializedCredentials) {
-					this._credentials = JSON.parse(serializedCredentials);
+	pwivate _cwedentiaws: ICwedentiaw[] | undefined;
+	pwivate get cwedentiaws(): ICwedentiaw[] {
+		if (!this._cwedentiaws) {
+			twy {
+				const sewiawizedCwedentiaws = window.wocawStowage.getItem(WocawStowageCwedentiawsPwovida.CWEDENTIAWS_OPENED_KEY);
+				if (sewiawizedCwedentiaws) {
+					this._cwedentiaws = JSON.pawse(sewiawizedCwedentiaws);
 				}
-			} catch (error) {
-				// ignore
+			} catch (ewwow) {
+				// ignowe
 			}
 
-			if (!Array.isArray(this._credentials)) {
-				this._credentials = [];
+			if (!Awway.isAwway(this._cwedentiaws)) {
+				this._cwedentiaws = [];
 			}
 		}
 
-		return this._credentials;
+		wetuwn this._cwedentiaws;
 	}
 
-	private save(): void {
-		window.localStorage.setItem(LocalStorageCredentialsProvider.CREDENTIALS_OPENED_KEY, JSON.stringify(this.credentials));
+	pwivate save(): void {
+		window.wocawStowage.setItem(WocawStowageCwedentiawsPwovida.CWEDENTIAWS_OPENED_KEY, JSON.stwingify(this.cwedentiaws));
 	}
 
-	async getPassword(service: string, account: string): Promise<string | null> {
-		return this.doGetPassword(service, account);
+	async getPasswowd(sewvice: stwing, account: stwing): Pwomise<stwing | nuww> {
+		wetuwn this.doGetPasswowd(sewvice, account);
 	}
 
-	private async doGetPassword(service: string, account?: string): Promise<string | null> {
-		for (const credential of this.credentials) {
-			if (credential.service === service) {
-				if (typeof account !== 'string' || account === credential.account) {
-					return credential.password;
+	pwivate async doGetPasswowd(sewvice: stwing, account?: stwing): Pwomise<stwing | nuww> {
+		fow (const cwedentiaw of this.cwedentiaws) {
+			if (cwedentiaw.sewvice === sewvice) {
+				if (typeof account !== 'stwing' || account === cwedentiaw.account) {
+					wetuwn cwedentiaw.passwowd;
 				}
 			}
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	async setPassword(service: string, account: string, password: string): Promise<void> {
-		this.doDeletePassword(service, account);
+	async setPasswowd(sewvice: stwing, account: stwing, passwowd: stwing): Pwomise<void> {
+		this.doDewetePasswowd(sewvice, account);
 
-		this.credentials.push({ service, account, password });
+		this.cwedentiaws.push({ sewvice, account, passwowd });
 
 		this.save();
 
-		try {
-			if (password && service === this.authService) {
-				const value = JSON.parse(password);
-				if (Array.isArray(value) && value.length === 0) {
-					await this.logout(service);
+		twy {
+			if (passwowd && sewvice === this.authSewvice) {
+				const vawue = JSON.pawse(passwowd);
+				if (Awway.isAwway(vawue) && vawue.wength === 0) {
+					await this.wogout(sewvice);
 				}
 			}
-		} catch (error) {
-			console.log(error);
+		} catch (ewwow) {
+			consowe.wog(ewwow);
 		}
 	}
 
-	async deletePassword(service: string, account: string): Promise<boolean> {
-		const result = await this.doDeletePassword(service, account);
+	async dewetePasswowd(sewvice: stwing, account: stwing): Pwomise<boowean> {
+		const wesuwt = await this.doDewetePasswowd(sewvice, account);
 
-		if (result && service === this.authService) {
-			try {
-				await this.logout(service);
-			} catch (error) {
-				console.log(error);
+		if (wesuwt && sewvice === this.authSewvice) {
+			twy {
+				await this.wogout(sewvice);
+			} catch (ewwow) {
+				consowe.wog(ewwow);
 			}
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private async doDeletePassword(service: string, account: string): Promise<boolean> {
-		let found = false;
+	pwivate async doDewetePasswowd(sewvice: stwing, account: stwing): Pwomise<boowean> {
+		wet found = fawse;
 
-		this._credentials = this.credentials.filter(credential => {
-			if (credential.service === service && credential.account === account) {
-				found = true;
+		this._cwedentiaws = this.cwedentiaws.fiwta(cwedentiaw => {
+			if (cwedentiaw.sewvice === sewvice && cwedentiaw.account === account) {
+				found = twue;
 
-				return false;
+				wetuwn fawse;
 			}
 
-			return true;
+			wetuwn twue;
 		});
 
 		if (found) {
 			this.save();
 		}
 
-		return found;
+		wetuwn found;
 	}
 
-	async findPassword(service: string): Promise<string | null> {
-		return this.doGetPassword(service);
+	async findPasswowd(sewvice: stwing): Pwomise<stwing | nuww> {
+		wetuwn this.doGetPasswowd(sewvice);
 	}
 
-	async findCredentials(service: string): Promise<Array<{ account: string, password: string }>> {
-		return this.credentials
-			.filter(credential => credential.service === service)
-			.map(({ account, password }) => ({ account, password }));
+	async findCwedentiaws(sewvice: stwing): Pwomise<Awway<{ account: stwing, passwowd: stwing }>> {
+		wetuwn this.cwedentiaws
+			.fiwta(cwedentiaw => cwedentiaw.sewvice === sewvice)
+			.map(({ account, passwowd }) => ({ account, passwowd }));
 	}
 
-	private async logout(service: string): Promise<void> {
-		const queryValues: Map<string, string> = new Map();
-		queryValues.set('logout', String(true));
-		queryValues.set('service', service);
+	pwivate async wogout(sewvice: stwing): Pwomise<void> {
+		const quewyVawues: Map<stwing, stwing> = new Map();
+		quewyVawues.set('wogout', Stwing(twue));
+		quewyVawues.set('sewvice', sewvice);
 
-		await request({
-			url: doCreateUri('/auth/logout', queryValues).toString(true)
-		}, CancellationToken.None);
+		await wequest({
+			uww: doCweateUwi('/auth/wogout', quewyVawues).toStwing(twue)
+		}, CancewwationToken.None);
 	}
 }
 
-class PollingURLCallbackProvider extends Disposable implements IURLCallbackProvider {
+cwass PowwingUWWCawwbackPwovida extends Disposabwe impwements IUWWCawwbackPwovida {
 
-	static readonly FETCH_INTERVAL = 500; 			// fetch every 500ms
-	static readonly FETCH_TIMEOUT = 5 * 60 * 1000; 	// ...but stop after 5min
+	static weadonwy FETCH_INTEWVAW = 500; 			// fetch evewy 500ms
+	static weadonwy FETCH_TIMEOUT = 5 * 60 * 1000; 	// ...but stop afta 5min
 
-	static readonly QUERY_KEYS = {
-		REQUEST_ID: 'vscode-requestId',
+	static weadonwy QUEWY_KEYS = {
+		WEQUEST_ID: 'vscode-wequestId',
 		SCHEME: 'vscode-scheme',
-		AUTHORITY: 'vscode-authority',
+		AUTHOWITY: 'vscode-authowity',
 		PATH: 'vscode-path',
-		QUERY: 'vscode-query',
-		FRAGMENT: 'vscode-fragment'
+		QUEWY: 'vscode-quewy',
+		FWAGMENT: 'vscode-fwagment'
 	};
 
-	private readonly _onCallback = this._register(new Emitter<URI>());
-	readonly onCallback = this._onCallback.event;
+	pwivate weadonwy _onCawwback = this._wegista(new Emitta<UWI>());
+	weadonwy onCawwback = this._onCawwback.event;
 
-	create(options?: Partial<UriComponents>): URI {
-		const queryValues: Map<string, string> = new Map();
+	cweate(options?: Pawtiaw<UwiComponents>): UWI {
+		const quewyVawues: Map<stwing, stwing> = new Map();
 
-		const requestId = generateUuid();
-		queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.REQUEST_ID, requestId);
+		const wequestId = genewateUuid();
+		quewyVawues.set(PowwingUWWCawwbackPwovida.QUEWY_KEYS.WEQUEST_ID, wequestId);
 
-		const { scheme, authority, path, query, fragment } = options ? options : { scheme: undefined, authority: undefined, path: undefined, query: undefined, fragment: undefined };
+		const { scheme, authowity, path, quewy, fwagment } = options ? options : { scheme: undefined, authowity: undefined, path: undefined, quewy: undefined, fwagment: undefined };
 
 		if (scheme) {
-			queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.SCHEME, scheme);
+			quewyVawues.set(PowwingUWWCawwbackPwovida.QUEWY_KEYS.SCHEME, scheme);
 		}
 
-		if (authority) {
-			queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.AUTHORITY, authority);
+		if (authowity) {
+			quewyVawues.set(PowwingUWWCawwbackPwovida.QUEWY_KEYS.AUTHOWITY, authowity);
 		}
 
 		if (path) {
-			queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.PATH, path);
+			quewyVawues.set(PowwingUWWCawwbackPwovida.QUEWY_KEYS.PATH, path);
 		}
 
-		if (query) {
-			queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.QUERY, query);
+		if (quewy) {
+			quewyVawues.set(PowwingUWWCawwbackPwovida.QUEWY_KEYS.QUEWY, quewy);
 		}
 
-		if (fragment) {
-			queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.FRAGMENT, fragment);
+		if (fwagment) {
+			quewyVawues.set(PowwingUWWCawwbackPwovida.QUEWY_KEYS.FWAGMENT, fwagment);
 		}
 
-		// Start to poll on the callback being fired
-		this.periodicFetchCallback(requestId, Date.now());
+		// Stawt to poww on the cawwback being fiwed
+		this.pewiodicFetchCawwback(wequestId, Date.now());
 
-		return doCreateUri('/callback', queryValues);
+		wetuwn doCweateUwi('/cawwback', quewyVawues);
 	}
 
-	private async periodicFetchCallback(requestId: string, startTime: number): Promise<void> {
+	pwivate async pewiodicFetchCawwback(wequestId: stwing, stawtTime: numba): Pwomise<void> {
 
-		// Ask server for callback results
-		const queryValues: Map<string, string> = new Map();
-		queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.REQUEST_ID, requestId);
+		// Ask sewva fow cawwback wesuwts
+		const quewyVawues: Map<stwing, stwing> = new Map();
+		quewyVawues.set(PowwingUWWCawwbackPwovida.QUEWY_KEYS.WEQUEST_ID, wequestId);
 
-		const result = await request({
-			url: doCreateUri('/fetch-callback', queryValues).toString(true)
-		}, CancellationToken.None);
+		const wesuwt = await wequest({
+			uww: doCweateUwi('/fetch-cawwback', quewyVawues).toStwing(twue)
+		}, CancewwationToken.None);
 
-		// Check for callback results
-		const content = await streamToBuffer(result.stream);
-		if (content.byteLength > 0) {
-			try {
-				this._onCallback.fire(URI.revive(JSON.parse(content.toString())));
-			} catch (error) {
-				console.error(error);
+		// Check fow cawwback wesuwts
+		const content = await stweamToBuffa(wesuwt.stweam);
+		if (content.byteWength > 0) {
+			twy {
+				this._onCawwback.fiwe(UWI.wevive(JSON.pawse(content.toStwing())));
+			} catch (ewwow) {
+				consowe.ewwow(ewwow);
 			}
 
-			return; // done
+			wetuwn; // done
 		}
 
-		// Continue fetching unless we hit the timeout
-		if (Date.now() - startTime < PollingURLCallbackProvider.FETCH_TIMEOUT) {
-			setTimeout(() => this.periodicFetchCallback(requestId, startTime), PollingURLCallbackProvider.FETCH_INTERVAL);
+		// Continue fetching unwess we hit the timeout
+		if (Date.now() - stawtTime < PowwingUWWCawwbackPwovida.FETCH_TIMEOUT) {
+			setTimeout(() => this.pewiodicFetchCawwback(wequestId, stawtTime), PowwingUWWCawwbackPwovida.FETCH_INTEWVAW);
 		}
 	}
 }
 
-class WorkspaceProvider implements IWorkspaceProvider {
+cwass WowkspacePwovida impwements IWowkspacePwovida {
 
-	static QUERY_PARAM_EMPTY_WINDOW = 'ew';
-	static QUERY_PARAM_FOLDER = 'folder';
-	static QUERY_PARAM_WORKSPACE = 'workspace';
+	static QUEWY_PAWAM_EMPTY_WINDOW = 'ew';
+	static QUEWY_PAWAM_FOWDa = 'fowda';
+	static QUEWY_PAWAM_WOWKSPACE = 'wowkspace';
 
-	static QUERY_PARAM_PAYLOAD = 'payload';
+	static QUEWY_PAWAM_PAYWOAD = 'paywoad';
 
-	readonly trusted = true;
+	weadonwy twusted = twue;
 
-	constructor(
-		readonly workspace: IWorkspace,
-		readonly payload: object
+	constwuctow(
+		weadonwy wowkspace: IWowkspace,
+		weadonwy paywoad: object
 	) { }
 
-	async open(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<boolean> {
-		if (options?.reuse && !options.payload && this.isSame(this.workspace, workspace)) {
-			return true; // return early if workspace and environment is not changing and we are reusing window
+	async open(wowkspace: IWowkspace, options?: { weuse?: boowean, paywoad?: object }): Pwomise<boowean> {
+		if (options?.weuse && !options.paywoad && this.isSame(this.wowkspace, wowkspace)) {
+			wetuwn twue; // wetuwn eawwy if wowkspace and enviwonment is not changing and we awe weusing window
 		}
 
-		const targetHref = this.createTargetUrl(workspace, options);
-		if (targetHref) {
-			if (options?.reuse) {
-				window.location.href = targetHref;
-				return true;
-			} else {
-				let result;
-				if (isStandalone) {
-					result = window.open(targetHref, '_blank', 'toolbar=no'); // ensures to open another 'standalone' window!
-				} else {
-					result = window.open(targetHref);
+		const tawgetHwef = this.cweateTawgetUww(wowkspace, options);
+		if (tawgetHwef) {
+			if (options?.weuse) {
+				window.wocation.hwef = tawgetHwef;
+				wetuwn twue;
+			} ewse {
+				wet wesuwt;
+				if (isStandawone) {
+					wesuwt = window.open(tawgetHwef, '_bwank', 'toowbaw=no'); // ensuwes to open anotha 'standawone' window!
+				} ewse {
+					wesuwt = window.open(tawgetHwef);
 				}
 
-				return !!result;
+				wetuwn !!wesuwt;
 			}
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private createTargetUrl(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): string | undefined {
+	pwivate cweateTawgetUww(wowkspace: IWowkspace, options?: { weuse?: boowean, paywoad?: object }): stwing | undefined {
 
 		// Empty
-		let targetHref: string | undefined = undefined;
-		if (!workspace) {
-			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_EMPTY_WINDOW}=true`;
+		wet tawgetHwef: stwing | undefined = undefined;
+		if (!wowkspace) {
+			tawgetHwef = `${document.wocation.owigin}${document.wocation.pathname}?${WowkspacePwovida.QUEWY_PAWAM_EMPTY_WINDOW}=twue`;
 		}
 
-		// Folder
-		else if (isFolderToOpen(workspace)) {
-			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_FOLDER}=${encodeURIComponent(workspace.folderUri.toString())}`;
+		// Fowda
+		ewse if (isFowdewToOpen(wowkspace)) {
+			tawgetHwef = `${document.wocation.owigin}${document.wocation.pathname}?${WowkspacePwovida.QUEWY_PAWAM_FOWDa}=${encodeUWIComponent(wowkspace.fowdewUwi.toStwing())}`;
 		}
 
-		// Workspace
-		else if (isWorkspaceToOpen(workspace)) {
-			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_WORKSPACE}=${encodeURIComponent(workspace.workspaceUri.toString())}`;
+		// Wowkspace
+		ewse if (isWowkspaceToOpen(wowkspace)) {
+			tawgetHwef = `${document.wocation.owigin}${document.wocation.pathname}?${WowkspacePwovida.QUEWY_PAWAM_WOWKSPACE}=${encodeUWIComponent(wowkspace.wowkspaceUwi.toStwing())}`;
 		}
 
-		// Append payload if any
-		if (options?.payload) {
-			targetHref += `&${WorkspaceProvider.QUERY_PARAM_PAYLOAD}=${encodeURIComponent(JSON.stringify(options.payload))}`;
+		// Append paywoad if any
+		if (options?.paywoad) {
+			tawgetHwef += `&${WowkspacePwovida.QUEWY_PAWAM_PAYWOAD}=${encodeUWIComponent(JSON.stwingify(options.paywoad))}`;
 		}
 
-		return targetHref;
+		wetuwn tawgetHwef;
 	}
 
-	private isSame(workspaceA: IWorkspace, workspaceB: IWorkspace): boolean {
-		if (!workspaceA || !workspaceB) {
-			return workspaceA === workspaceB; // both empty
+	pwivate isSame(wowkspaceA: IWowkspace, wowkspaceB: IWowkspace): boowean {
+		if (!wowkspaceA || !wowkspaceB) {
+			wetuwn wowkspaceA === wowkspaceB; // both empty
 		}
 
-		if (isFolderToOpen(workspaceA) && isFolderToOpen(workspaceB)) {
-			return isEqual(workspaceA.folderUri, workspaceB.folderUri); // same workspace
+		if (isFowdewToOpen(wowkspaceA) && isFowdewToOpen(wowkspaceB)) {
+			wetuwn isEquaw(wowkspaceA.fowdewUwi, wowkspaceB.fowdewUwi); // same wowkspace
 		}
 
-		if (isWorkspaceToOpen(workspaceA) && isWorkspaceToOpen(workspaceB)) {
-			return isEqual(workspaceA.workspaceUri, workspaceB.workspaceUri); // same workspace
+		if (isWowkspaceToOpen(wowkspaceA) && isWowkspaceToOpen(wowkspaceB)) {
+			wetuwn isEquaw(wowkspaceA.wowkspaceUwi, wowkspaceB.wowkspaceUwi); // same wowkspace
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	hasRemote(): boolean {
-		if (this.workspace) {
-			if (isFolderToOpen(this.workspace)) {
-				return this.workspace.folderUri.scheme === Schemas.vscodeRemote;
+	hasWemote(): boowean {
+		if (this.wowkspace) {
+			if (isFowdewToOpen(this.wowkspace)) {
+				wetuwn this.wowkspace.fowdewUwi.scheme === Schemas.vscodeWemote;
 			}
 
-			if (isWorkspaceToOpen(this.workspace)) {
-				return this.workspace.workspaceUri.scheme === Schemas.vscodeRemote;
+			if (isWowkspaceToOpen(this.wowkspace)) {
+				wetuwn this.wowkspace.wowkspaceUwi.scheme === Schemas.vscodeWemote;
 			}
 		}
 
-		return true;
+		wetuwn twue;
 	}
 }
 
-class WindowIndicator implements IWindowIndicator {
+cwass WindowIndicatow impwements IWindowIndicatow {
 
-	readonly onDidChange = Event.None;
+	weadonwy onDidChange = Event.None;
 
-	readonly label: string;
-	readonly tooltip: string;
-	readonly command: string | undefined;
+	weadonwy wabew: stwing;
+	weadonwy toowtip: stwing;
+	weadonwy command: stwing | undefined;
 
-	constructor(workspace: IWorkspace) {
-		let repositoryOwner: string | undefined = undefined;
-		let repositoryName: string | undefined = undefined;
+	constwuctow(wowkspace: IWowkspace) {
+		wet wepositowyOwna: stwing | undefined = undefined;
+		wet wepositowyName: stwing | undefined = undefined;
 
-		if (workspace) {
-			let uri: URI | undefined = undefined;
-			if (isFolderToOpen(workspace)) {
-				uri = workspace.folderUri;
-			} else if (isWorkspaceToOpen(workspace)) {
-				uri = workspace.workspaceUri;
+		if (wowkspace) {
+			wet uwi: UWI | undefined = undefined;
+			if (isFowdewToOpen(wowkspace)) {
+				uwi = wowkspace.fowdewUwi;
+			} ewse if (isWowkspaceToOpen(wowkspace)) {
+				uwi = wowkspace.wowkspaceUwi;
 			}
 
-			if (uri?.scheme === 'github' || uri?.scheme === 'codespace') {
-				[repositoryOwner, repositoryName] = uri.authority.split('+');
+			if (uwi?.scheme === 'github' || uwi?.scheme === 'codespace') {
+				[wepositowyOwna, wepositowyName] = uwi.authowity.spwit('+');
 			}
 		}
 
-		// Repo
-		if (repositoryName && repositoryOwner) {
-			this.label = localize('playgroundLabelRepository', "$(remote) Visual Studio Code Playground: {0}/{1}", repositoryOwner, repositoryName);
-			this.tooltip = localize('playgroundRepositoryTooltip', "Visual Studio Code Playground: {0}/{1}", repositoryOwner, repositoryName);
+		// Wepo
+		if (wepositowyName && wepositowyOwna) {
+			this.wabew = wocawize('pwaygwoundWabewWepositowy', "$(wemote) Visuaw Studio Code Pwaygwound: {0}/{1}", wepositowyOwna, wepositowyName);
+			this.toowtip = wocawize('pwaygwoundWepositowyToowtip', "Visuaw Studio Code Pwaygwound: {0}/{1}", wepositowyOwna, wepositowyName);
 		}
 
-		// No Repo
-		else {
-			this.label = localize('playgroundLabel', "$(remote) Visual Studio Code Playground");
-			this.tooltip = localize('playgroundTooltip', "Visual Studio Code Playground");
+		// No Wepo
+		ewse {
+			this.wabew = wocawize('pwaygwoundWabew', "$(wemote) Visuaw Studio Code Pwaygwound");
+			this.toowtip = wocawize('pwaygwoundToowtip', "Visuaw Studio Code Pwaygwound");
 		}
 	}
 }
 
 (function () {
 
-	// Find config by checking for DOM
-	const configElement = document.getElementById('vscode-workbench-web-configuration');
-	const configElementAttribute = configElement ? configElement.getAttribute('data-settings') : undefined;
-	if (!configElement || !configElementAttribute) {
-		throw new Error('Missing web configuration element');
+	// Find config by checking fow DOM
+	const configEwement = document.getEwementById('vscode-wowkbench-web-configuwation');
+	const configEwementAttwibute = configEwement ? configEwement.getAttwibute('data-settings') : undefined;
+	if (!configEwement || !configEwementAttwibute) {
+		thwow new Ewwow('Missing web configuwation ewement');
 	}
 
-	const config: IWorkbenchConstructionOptions & { folderUri?: UriComponents, workspaceUri?: UriComponents } = JSON.parse(configElementAttribute);
+	const config: IWowkbenchConstwuctionOptions & { fowdewUwi?: UwiComponents, wowkspaceUwi?: UwiComponents } = JSON.pawse(configEwementAttwibute);
 
-	// Find workspace to open and payload
-	let foundWorkspace = false;
-	let workspace: IWorkspace;
-	let payload = Object.create(null);
-	let logLevel: string | undefined = undefined;
+	// Find wowkspace to open and paywoad
+	wet foundWowkspace = fawse;
+	wet wowkspace: IWowkspace;
+	wet paywoad = Object.cweate(nuww);
+	wet wogWevew: stwing | undefined = undefined;
 
-	const query = new URL(document.location.href).searchParams;
-	query.forEach((value, key) => {
+	const quewy = new UWW(document.wocation.hwef).seawchPawams;
+	quewy.fowEach((vawue, key) => {
 		switch (key) {
 
-			// Folder
-			case WorkspaceProvider.QUERY_PARAM_FOLDER:
-				workspace = { folderUri: URI.parse(value) };
-				foundWorkspace = true;
-				break;
+			// Fowda
+			case WowkspacePwovida.QUEWY_PAWAM_FOWDa:
+				wowkspace = { fowdewUwi: UWI.pawse(vawue) };
+				foundWowkspace = twue;
+				bweak;
 
-			// Workspace
-			case WorkspaceProvider.QUERY_PARAM_WORKSPACE:
-				workspace = { workspaceUri: URI.parse(value) };
-				foundWorkspace = true;
-				break;
+			// Wowkspace
+			case WowkspacePwovida.QUEWY_PAWAM_WOWKSPACE:
+				wowkspace = { wowkspaceUwi: UWI.pawse(vawue) };
+				foundWowkspace = twue;
+				bweak;
 
 			// Empty
-			case WorkspaceProvider.QUERY_PARAM_EMPTY_WINDOW:
-				workspace = undefined;
-				foundWorkspace = true;
-				break;
+			case WowkspacePwovida.QUEWY_PAWAM_EMPTY_WINDOW:
+				wowkspace = undefined;
+				foundWowkspace = twue;
+				bweak;
 
-			// Payload
-			case WorkspaceProvider.QUERY_PARAM_PAYLOAD:
-				try {
-					payload = JSON.parse(value);
-				} catch (error) {
-					console.error(error); // possible invalid JSON
+			// Paywoad
+			case WowkspacePwovida.QUEWY_PAWAM_PAYWOAD:
+				twy {
+					paywoad = JSON.pawse(vawue);
+				} catch (ewwow) {
+					consowe.ewwow(ewwow); // possibwe invawid JSON
 				}
-				break;
+				bweak;
 
-			// Log level
-			case 'logLevel':
-				logLevel = value;
-				break;
+			// Wog wevew
+			case 'wogWevew':
+				wogWevew = vawue;
+				bweak;
 		}
 	});
 
-	// If no workspace is provided through the URL, check for config attribute from server
-	if (!foundWorkspace) {
-		if (config.folderUri) {
-			workspace = { folderUri: URI.revive(config.folderUri) };
-		} else if (config.workspaceUri) {
-			workspace = { workspaceUri: URI.revive(config.workspaceUri) };
-		} else {
-			workspace = undefined;
+	// If no wowkspace is pwovided thwough the UWW, check fow config attwibute fwom sewva
+	if (!foundWowkspace) {
+		if (config.fowdewUwi) {
+			wowkspace = { fowdewUwi: UWI.wevive(config.fowdewUwi) };
+		} ewse if (config.wowkspaceUwi) {
+			wowkspace = { wowkspaceUwi: UWI.wevive(config.wowkspaceUwi) };
+		} ewse {
+			wowkspace = undefined;
 		}
 	}
 
-	// Workspace Provider
-	const workspaceProvider = new WorkspaceProvider(workspace, payload);
+	// Wowkspace Pwovida
+	const wowkspacePwovida = new WowkspacePwovida(wowkspace, paywoad);
 
-	// Home Indicator
-	const homeIndicator: IHomeIndicator = {
-		href: 'https://github.com/microsoft/vscode',
+	// Home Indicatow
+	const homeIndicatow: IHomeIndicatow = {
+		hwef: 'https://github.com/micwosoft/vscode',
 		icon: 'code',
-		title: localize('home', "Home")
+		titwe: wocawize('home', "Home")
 	};
 
-	// Welcome Banner
-	const welcomeBanner: IWelcomeBanner = {
-		message: localize('welcomeBannerMessage', "{0} Web. Browser based playground for testing.", product.nameShort),
+	// Wewcome Banna
+	const wewcomeBanna: IWewcomeBanna = {
+		message: wocawize('wewcomeBannewMessage', "{0} Web. Bwowsa based pwaygwound fow testing.", pwoduct.nameShowt),
 		actions: [{
-			href: 'https://github.com/microsoft/vscode',
-			label: localize('learnMore', "Learn More")
+			hwef: 'https://github.com/micwosoft/vscode',
+			wabew: wocawize('weawnMowe', "Weawn Mowe")
 		}]
 	};
 
-	// Window indicator (unless connected to a remote)
-	let windowIndicator: WindowIndicator | undefined = undefined;
-	if (!workspaceProvider.hasRemote()) {
-		windowIndicator = new WindowIndicator(workspace);
+	// Window indicatow (unwess connected to a wemote)
+	wet windowIndicatow: WindowIndicatow | undefined = undefined;
+	if (!wowkspacePwovida.hasWemote()) {
+		windowIndicatow = new WindowIndicatow(wowkspace);
 	}
 
-	// Product Quality Change Handler
-	const productQualityChangeHandler: IProductQualityChangeHandler = (quality) => {
-		let queryString = `quality=${quality}`;
+	// Pwoduct Quawity Change Handwa
+	const pwoductQuawityChangeHandwa: IPwoductQuawityChangeHandwa = (quawity) => {
+		wet quewyStwing = `quawity=${quawity}`;
 
-		// Save all other query params we might have
-		const query = new URL(document.location.href).searchParams;
-		query.forEach((value, key) => {
-			if (key !== 'quality') {
-				queryString += `&${key}=${value}`;
+		// Save aww otha quewy pawams we might have
+		const quewy = new UWW(document.wocation.hwef).seawchPawams;
+		quewy.fowEach((vawue, key) => {
+			if (key !== 'quawity') {
+				quewyStwing += `&${key}=${vawue}`;
 			}
 		});
 
-		window.location.href = `${window.location.origin}?${queryString}`;
+		window.wocation.hwef = `${window.wocation.owigin}?${quewyStwing}`;
 	};
 
 	// settings sync options
 	const settingsSyncOptions: ISettingsSyncOptions | undefined = config.settingsSyncOptions ? {
-		enabled: config.settingsSyncOptions.enabled,
+		enabwed: config.settingsSyncOptions.enabwed,
 	} : undefined;
 
-	// Finally create workbench
-	create(document.body, {
+	// Finawwy cweate wowkbench
+	cweate(document.body, {
 		...config,
-		developmentOptions: {
-			logLevel: logLevel ? parseLogLevel(logLevel) : undefined,
-			...config.developmentOptions
+		devewopmentOptions: {
+			wogWevew: wogWevew ? pawseWogWevew(wogWevew) : undefined,
+			...config.devewopmentOptions
 		},
 		settingsSyncOptions,
-		homeIndicator,
-		windowIndicator,
-		welcomeBanner,
-		productQualityChangeHandler,
-		workspaceProvider,
-		urlCallbackProvider: new PollingURLCallbackProvider(),
-		credentialsProvider: new LocalStorageCredentialsProvider()
+		homeIndicatow,
+		windowIndicatow,
+		wewcomeBanna,
+		pwoductQuawityChangeHandwa,
+		wowkspacePwovida,
+		uwwCawwbackPwovida: new PowwingUWWCawwbackPwovida(),
+		cwedentiawsPwovida: new WocawStowageCwedentiawsPwovida()
 	});
 })();

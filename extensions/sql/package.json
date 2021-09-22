@@ -1,40 +1,40 @@
 {
-  "name": "sql",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "name": "sqw",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "*"
   },
-  "scripts": {
-    "update-grammar": "node ./build/update-grammar.js"
+  "scwipts": {
+    "update-gwammaw": "node ./buiwd/update-gwammaw.js"
   },
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
-        "id": "sql",
+        "id": "sqw",
         "extensions": [
-          ".sql",
-          ".dsql"
+          ".sqw",
+          ".dsqw"
         ],
-        "aliases": [
-          "SQL"
+        "awiases": [
+          "SQW"
         ],
-        "configuration": "./language-configuration.json"
+        "configuwation": "./wanguage-configuwation.json"
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "sql",
-        "scopeName": "source.sql",
-        "path": "./syntaxes/sql.tmLanguage.json"
+        "wanguage": "sqw",
+        "scopeName": "souwce.sqw",
+        "path": "./syntaxes/sqw.tmWanguage.json"
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

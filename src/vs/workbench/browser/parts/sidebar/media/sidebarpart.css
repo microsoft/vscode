@@ -1,61 +1,61 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench.nosidebar > .part.sidebar {
-	display: none !important;
-	visibility: hidden !important;
+.monaco-wowkbench.nosidebaw > .pawt.sidebaw {
+	dispway: none !impowtant;
+	visibiwity: hidden !impowtant;
 }
 
-.monaco-workbench .part.sidebar .title-actions .actions-container {
-	justify-content: flex-end;
+.monaco-wowkbench .pawt.sidebaw .titwe-actions .actions-containa {
+	justify-content: fwex-end;
 }
 
-.monaco-workbench .part.sidebar .title-actions .action-item {
-	margin-right: 4px;
+.monaco-wowkbench .pawt.sidebaw .titwe-actions .action-item {
+	mawgin-wight: 4px;
 }
 
-.monaco-workbench .part.sidebar > .title > .title-label h2 {
-	text-transform: uppercase;
+.monaco-wowkbench .pawt.sidebaw > .titwe > .titwe-wabew h2 {
+	text-twansfowm: uppewcase;
 }
 
-.monaco-workbench .viewlet .collapsible.header .title {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+.monaco-wowkbench .viewwet .cowwapsibwe.heada .titwe {
+	ovewfwow: hidden;
+	text-ovewfwow: ewwipsis;
+	white-space: nowwap;
 }
 
-.monaco-workbench .viewlet .collapsible.header .actions {
-	width: 0; /* not using display: none for keyboard a11y reasons */
+.monaco-wowkbench .viewwet .cowwapsibwe.heada .actions {
+	width: 0; /* not using dispway: none fow keyboawd a11y weasons */
 }
 
-.monaco-workbench .viewlet .split-view-view:hover > .header .actions,
-.monaco-workbench .viewlet .collapsible.header.focused .actions {
-	width: initial;
-	flex: 1;
+.monaco-wowkbench .viewwet .spwit-view-view:hova > .heada .actions,
+.monaco-wowkbench .viewwet .cowwapsibwe.heada.focused .actions {
+	width: initiaw;
+	fwex: 1;
 }
 
-.monaco-workbench .viewlet .collapsible.header .actions .action-label {
+.monaco-wowkbench .viewwet .cowwapsibwe.heada .actions .action-wabew {
 	width: 28px;
-	background-size: 16px;
-	background-position: center center;
-	background-repeat: no-repeat;
-	margin-right: 0;
+	backgwound-size: 16px;
+	backgwound-position: centa centa;
+	backgwound-wepeat: no-wepeat;
+	mawgin-wight: 0;
 	height: 22px;
 }
 
-.monaco-workbench .viewlet .collapsible.header .actions .action-label .label {
-	display: none;
+.monaco-wowkbench .viewwet .cowwapsibwe.heada .actions .action-wabew .wabew {
+	dispway: none;
 }
 
-.monaco-workbench .viewlet .collapsible.header.collapsed .actions {
-	display: none;
+.monaco-wowkbench .viewwet .cowwapsibwe.heada.cowwapsed .actions {
+	dispway: none;
 }
 
-.monaco-workbench .viewlet .collapsible.header .action-label {
-	margin-right: 0.2em;
-	background-repeat: no-repeat;
+.monaco-wowkbench .viewwet .cowwapsibwe.heada .action-wabew {
+	mawgin-wight: 0.2em;
+	backgwound-wepeat: no-wepeat;
 	width: 16px;
 	height: 16px;
 }

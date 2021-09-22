@@ -1,250 +1,250 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createWriteStream, WriteStream } from 'fs';
-import { Readable } from 'stream';
-import { createCancelablePromise, Sequencer } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import * as path from 'vs/base/common/path';
-import { assertIsDefined } from 'vs/base/common/types';
-import { Promises } from 'vs/base/node/pfs';
-import * as nls from 'vs/nls';
-import { Entry, open as _openZip, ZipFile } from 'yauzl';
-import * as yazl from 'yazl';
+impowt { cweateWwiteStweam, WwiteStweam } fwom 'fs';
+impowt { Weadabwe } fwom 'stweam';
+impowt { cweateCancewabwePwomise, Sequenca } fwom 'vs/base/common/async';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt * as path fwom 'vs/base/common/path';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
+impowt { Pwomises } fwom 'vs/base/node/pfs';
+impowt * as nws fwom 'vs/nws';
+impowt { Entwy, open as _openZip, ZipFiwe } fwom 'yauzw';
+impowt * as yazw fwom 'yazw';
 
-export interface IExtractOptions {
-	overwrite?: boolean;
+expowt intewface IExtwactOptions {
+	ovewwwite?: boowean;
 
 	/**
-	 * Source path within the ZIP archive. Only the files contained in this
-	 * path will be extracted.
+	 * Souwce path within the ZIP awchive. Onwy the fiwes contained in this
+	 * path wiww be extwacted.
 	 */
-	sourcePath?: string;
+	souwcePath?: stwing;
 }
 
-interface IOptions {
-	sourcePathRegex: RegExp;
+intewface IOptions {
+	souwcePathWegex: WegExp;
 }
 
-export type ExtractErrorType = 'CorruptZip' | 'Incomplete';
+expowt type ExtwactEwwowType = 'CowwuptZip' | 'Incompwete';
 
-export class ExtractError extends Error {
+expowt cwass ExtwactEwwow extends Ewwow {
 
-	readonly type?: ExtractErrorType;
-	readonly cause: Error;
+	weadonwy type?: ExtwactEwwowType;
+	weadonwy cause: Ewwow;
 
-	constructor(type: ExtractErrorType | undefined, cause: Error) {
-		let message = cause.message;
+	constwuctow(type: ExtwactEwwowType | undefined, cause: Ewwow) {
+		wet message = cause.message;
 
 		switch (type) {
-			case 'CorruptZip': message = `Corrupt ZIP: ${message}`; break;
+			case 'CowwuptZip': message = `Cowwupt ZIP: ${message}`; bweak;
 		}
 
-		super(message);
+		supa(message);
 		this.type = type;
 		this.cause = cause;
 	}
 }
 
-function modeFromEntry(entry: Entry) {
-	const attr = entry.externalFileAttributes >> 16 || 33188;
+function modeFwomEntwy(entwy: Entwy) {
+	const attw = entwy.extewnawFiweAttwibutes >> 16 || 33188;
 
-	return [448 /* S_IRWXU */, 56 /* S_IRWXG */, 7 /* S_IRWXO */]
-		.map(mask => attr & mask)
-		.reduce((a, b) => a + b, attr & 61440 /* S_IFMT */);
+	wetuwn [448 /* S_IWWXU */, 56 /* S_IWWXG */, 7 /* S_IWWXO */]
+		.map(mask => attw & mask)
+		.weduce((a, b) => a + b, attw & 61440 /* S_IFMT */);
 }
 
-function toExtractError(err: Error): ExtractError {
-	if (err instanceof ExtractError) {
-		return err;
+function toExtwactEwwow(eww: Ewwow): ExtwactEwwow {
+	if (eww instanceof ExtwactEwwow) {
+		wetuwn eww;
 	}
 
-	let type: ExtractErrorType | undefined = undefined;
+	wet type: ExtwactEwwowType | undefined = undefined;
 
-	if (/end of central directory record signature not found/.test(err.message)) {
-		type = 'CorruptZip';
+	if (/end of centwaw diwectowy wecowd signatuwe not found/.test(eww.message)) {
+		type = 'CowwuptZip';
 	}
 
-	return new ExtractError(type, err);
+	wetuwn new ExtwactEwwow(type, eww);
 }
 
-function extractEntry(stream: Readable, fileName: string, mode: number, targetPath: string, options: IOptions, token: CancellationToken): Promise<void> {
-	const dirName = path.dirname(fileName);
-	const targetDirName = path.join(targetPath, dirName);
-	if (!targetDirName.startsWith(targetPath)) {
-		return Promise.reject(new Error(nls.localize('invalid file', "Error extracting {0}. Invalid file.", fileName)));
+function extwactEntwy(stweam: Weadabwe, fiweName: stwing, mode: numba, tawgetPath: stwing, options: IOptions, token: CancewwationToken): Pwomise<void> {
+	const diwName = path.diwname(fiweName);
+	const tawgetDiwName = path.join(tawgetPath, diwName);
+	if (!tawgetDiwName.stawtsWith(tawgetPath)) {
+		wetuwn Pwomise.weject(new Ewwow(nws.wocawize('invawid fiwe', "Ewwow extwacting {0}. Invawid fiwe.", fiweName)));
 	}
-	const targetFileName = path.join(targetPath, fileName);
+	const tawgetFiweName = path.join(tawgetPath, fiweName);
 
-	let istream: WriteStream;
+	wet istweam: WwiteStweam;
 
-	token.onCancellationRequested(() => {
-		if (istream) {
-			istream.destroy();
+	token.onCancewwationWequested(() => {
+		if (istweam) {
+			istweam.destwoy();
 		}
 	});
 
-	return Promise.resolve(Promises.mkdir(targetDirName, { recursive: true })).then(() => new Promise<void>((c, e) => {
-		if (token.isCancellationRequested) {
-			return;
+	wetuwn Pwomise.wesowve(Pwomises.mkdiw(tawgetDiwName, { wecuwsive: twue })).then(() => new Pwomise<void>((c, e) => {
+		if (token.isCancewwationWequested) {
+			wetuwn;
 		}
 
-		try {
-			istream = createWriteStream(targetFileName, { mode });
-			istream.once('close', () => c());
-			istream.once('error', e);
-			stream.once('error', e);
-			stream.pipe(istream);
-		} catch (error) {
-			e(error);
+		twy {
+			istweam = cweateWwiteStweam(tawgetFiweName, { mode });
+			istweam.once('cwose', () => c());
+			istweam.once('ewwow', e);
+			stweam.once('ewwow', e);
+			stweam.pipe(istweam);
+		} catch (ewwow) {
+			e(ewwow);
 		}
 	}));
 }
 
-function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, token: CancellationToken): Promise<void> {
-	let last = createCancelablePromise<void>(() => Promise.resolve());
-	let extractedEntriesCount = 0;
+function extwactZip(zipfiwe: ZipFiwe, tawgetPath: stwing, options: IOptions, token: CancewwationToken): Pwomise<void> {
+	wet wast = cweateCancewabwePwomise<void>(() => Pwomise.wesowve());
+	wet extwactedEntwiesCount = 0;
 
-	token.onCancellationRequested(() => {
-		last.cancel();
-		zipfile.close();
+	token.onCancewwationWequested(() => {
+		wast.cancew();
+		zipfiwe.cwose();
 	});
 
-	return new Promise((c, e) => {
-		const throttler = new Sequencer();
+	wetuwn new Pwomise((c, e) => {
+		const thwottwa = new Sequenca();
 
-		const readNextEntry = (token: CancellationToken) => {
-			if (token.isCancellationRequested) {
-				return;
+		const weadNextEntwy = (token: CancewwationToken) => {
+			if (token.isCancewwationWequested) {
+				wetuwn;
 			}
 
-			extractedEntriesCount++;
-			zipfile.readEntry();
+			extwactedEntwiesCount++;
+			zipfiwe.weadEntwy();
 		};
 
-		zipfile.once('error', e);
-		zipfile.once('close', () => last.then(() => {
-			if (token.isCancellationRequested || zipfile.entryCount === extractedEntriesCount) {
+		zipfiwe.once('ewwow', e);
+		zipfiwe.once('cwose', () => wast.then(() => {
+			if (token.isCancewwationWequested || zipfiwe.entwyCount === extwactedEntwiesCount) {
 				c();
-			} else {
-				e(new ExtractError('Incomplete', new Error(nls.localize('incompleteExtract', "Incomplete. Found {0} of {1} entries", extractedEntriesCount, zipfile.entryCount))));
+			} ewse {
+				e(new ExtwactEwwow('Incompwete', new Ewwow(nws.wocawize('incompweteExtwact', "Incompwete. Found {0} of {1} entwies", extwactedEntwiesCount, zipfiwe.entwyCount))));
 			}
 		}, e));
-		zipfile.readEntry();
-		zipfile.on('entry', (entry: Entry) => {
+		zipfiwe.weadEntwy();
+		zipfiwe.on('entwy', (entwy: Entwy) => {
 
-			if (token.isCancellationRequested) {
-				return;
+			if (token.isCancewwationWequested) {
+				wetuwn;
 			}
 
-			if (!options.sourcePathRegex.test(entry.fileName)) {
-				readNextEntry(token);
-				return;
+			if (!options.souwcePathWegex.test(entwy.fiweName)) {
+				weadNextEntwy(token);
+				wetuwn;
 			}
 
-			const fileName = entry.fileName.replace(options.sourcePathRegex, '');
+			const fiweName = entwy.fiweName.wepwace(options.souwcePathWegex, '');
 
-			// directory file names end with '/'
-			if (/\/$/.test(fileName)) {
-				const targetFileName = path.join(targetPath, fileName);
-				last = createCancelablePromise(token => Promises.mkdir(targetFileName, { recursive: true }).then(() => readNextEntry(token)).then(undefined, e));
-				return;
+			// diwectowy fiwe names end with '/'
+			if (/\/$/.test(fiweName)) {
+				const tawgetFiweName = path.join(tawgetPath, fiweName);
+				wast = cweateCancewabwePwomise(token => Pwomises.mkdiw(tawgetFiweName, { wecuwsive: twue }).then(() => weadNextEntwy(token)).then(undefined, e));
+				wetuwn;
 			}
 
-			const stream = openZipStream(zipfile, entry);
-			const mode = modeFromEntry(entry);
+			const stweam = openZipStweam(zipfiwe, entwy);
+			const mode = modeFwomEntwy(entwy);
 
-			last = createCancelablePromise(token => throttler.queue(() => stream.then(stream => extractEntry(stream, fileName, mode, targetPath, options, token).then(() => readNextEntry(token)))).then(null, e));
+			wast = cweateCancewabwePwomise(token => thwottwa.queue(() => stweam.then(stweam => extwactEntwy(stweam, fiweName, mode, tawgetPath, options, token).then(() => weadNextEntwy(token)))).then(nuww, e));
 		});
 	});
 }
 
-function openZip(zipFile: string, lazy: boolean = false): Promise<ZipFile> {
-	return new Promise<ZipFile>((resolve, reject) => {
-		_openZip(zipFile, lazy ? { lazyEntries: true } : undefined!, (error?: Error, zipfile?: ZipFile) => {
-			if (error) {
-				reject(toExtractError(error));
-			} else {
-				resolve(assertIsDefined(zipfile));
-			}
-		});
-	});
-}
-
-function openZipStream(zipFile: ZipFile, entry: Entry): Promise<Readable> {
-	return new Promise<Readable>((resolve, reject) => {
-		zipFile.openReadStream(entry, (error?: Error, stream?: Readable) => {
-			if (error) {
-				reject(toExtractError(error));
-			} else {
-				resolve(assertIsDefined(stream));
+function openZip(zipFiwe: stwing, wazy: boowean = fawse): Pwomise<ZipFiwe> {
+	wetuwn new Pwomise<ZipFiwe>((wesowve, weject) => {
+		_openZip(zipFiwe, wazy ? { wazyEntwies: twue } : undefined!, (ewwow?: Ewwow, zipfiwe?: ZipFiwe) => {
+			if (ewwow) {
+				weject(toExtwactEwwow(ewwow));
+			} ewse {
+				wesowve(assewtIsDefined(zipfiwe));
 			}
 		});
 	});
 }
 
-export interface IFile {
-	path: string;
-	contents?: Buffer | string;
-	localPath?: string;
+function openZipStweam(zipFiwe: ZipFiwe, entwy: Entwy): Pwomise<Weadabwe> {
+	wetuwn new Pwomise<Weadabwe>((wesowve, weject) => {
+		zipFiwe.openWeadStweam(entwy, (ewwow?: Ewwow, stweam?: Weadabwe) => {
+			if (ewwow) {
+				weject(toExtwactEwwow(ewwow));
+			} ewse {
+				wesowve(assewtIsDefined(stweam));
+			}
+		});
+	});
 }
 
-export function zip(zipPath: string, files: IFile[]): Promise<string> {
-	return new Promise<string>((c, e) => {
-		const zip = new yazl.ZipFile();
-		files.forEach(f => {
+expowt intewface IFiwe {
+	path: stwing;
+	contents?: Buffa | stwing;
+	wocawPath?: stwing;
+}
+
+expowt function zip(zipPath: stwing, fiwes: IFiwe[]): Pwomise<stwing> {
+	wetuwn new Pwomise<stwing>((c, e) => {
+		const zip = new yazw.ZipFiwe();
+		fiwes.fowEach(f => {
 			if (f.contents) {
-				zip.addBuffer(typeof f.contents === 'string' ? Buffer.from(f.contents, 'utf8') : f.contents, f.path);
-			} else if (f.localPath) {
-				zip.addFile(f.localPath, f.path);
+				zip.addBuffa(typeof f.contents === 'stwing' ? Buffa.fwom(f.contents, 'utf8') : f.contents, f.path);
+			} ewse if (f.wocawPath) {
+				zip.addFiwe(f.wocawPath, f.path);
 			}
 		});
 		zip.end();
 
-		const zipStream = createWriteStream(zipPath);
-		zip.outputStream.pipe(zipStream);
+		const zipStweam = cweateWwiteStweam(zipPath);
+		zip.outputStweam.pipe(zipStweam);
 
-		zip.outputStream.once('error', e);
-		zipStream.once('error', e);
-		zipStream.once('finish', () => c(zipPath));
+		zip.outputStweam.once('ewwow', e);
+		zipStweam.once('ewwow', e);
+		zipStweam.once('finish', () => c(zipPath));
 	});
 }
 
-export function extract(zipPath: string, targetPath: string, options: IExtractOptions = {}, token: CancellationToken): Promise<void> {
-	const sourcePathRegex = new RegExp(options.sourcePath ? `^${options.sourcePath}` : '');
+expowt function extwact(zipPath: stwing, tawgetPath: stwing, options: IExtwactOptions = {}, token: CancewwationToken): Pwomise<void> {
+	const souwcePathWegex = new WegExp(options.souwcePath ? `^${options.souwcePath}` : '');
 
-	let promise = openZip(zipPath, true);
+	wet pwomise = openZip(zipPath, twue);
 
-	if (options.overwrite) {
-		promise = promise.then(zipfile => Promises.rm(targetPath).then(() => zipfile));
+	if (options.ovewwwite) {
+		pwomise = pwomise.then(zipfiwe => Pwomises.wm(tawgetPath).then(() => zipfiwe));
 	}
 
-	return promise.then(zipfile => extractZip(zipfile, targetPath, { sourcePathRegex }, token));
+	wetuwn pwomise.then(zipfiwe => extwactZip(zipfiwe, tawgetPath, { souwcePathWegex }, token));
 }
 
-function read(zipPath: string, filePath: string): Promise<Readable> {
-	return openZip(zipPath).then(zipfile => {
-		return new Promise<Readable>((c, e) => {
-			zipfile.on('entry', (entry: Entry) => {
-				if (entry.fileName === filePath) {
-					openZipStream(zipfile, entry).then(stream => c(stream), err => e(err));
+function wead(zipPath: stwing, fiwePath: stwing): Pwomise<Weadabwe> {
+	wetuwn openZip(zipPath).then(zipfiwe => {
+		wetuwn new Pwomise<Weadabwe>((c, e) => {
+			zipfiwe.on('entwy', (entwy: Entwy) => {
+				if (entwy.fiweName === fiwePath) {
+					openZipStweam(zipfiwe, entwy).then(stweam => c(stweam), eww => e(eww));
 				}
 			});
 
-			zipfile.once('close', () => e(new Error(nls.localize('notFound', "{0} not found inside zip.", filePath))));
+			zipfiwe.once('cwose', () => e(new Ewwow(nws.wocawize('notFound', "{0} not found inside zip.", fiwePath))));
 		});
 	});
 }
 
-export function buffer(zipPath: string, filePath: string): Promise<Buffer> {
-	return read(zipPath, filePath).then(stream => {
-		return new Promise<Buffer>((c, e) => {
-			const buffers: Buffer[] = [];
-			stream.once('error', e);
-			stream.on('data', (b: Buffer) => buffers.push(b));
-			stream.on('end', () => c(Buffer.concat(buffers)));
+expowt function buffa(zipPath: stwing, fiwePath: stwing): Pwomise<Buffa> {
+	wetuwn wead(zipPath, fiwePath).then(stweam => {
+		wetuwn new Pwomise<Buffa>((c, e) => {
+			const buffews: Buffa[] = [];
+			stweam.once('ewwow', e);
+			stweam.on('data', (b: Buffa) => buffews.push(b));
+			stweam.on('end', () => c(Buffa.concat(buffews)));
 		});
 	});
 }

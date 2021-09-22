@@ -1,1 +1,1 @@
-export var foo = () => new RegExp('');
+expowt vaw foo = () => new WegExp('');

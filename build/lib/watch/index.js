@@ -1,9 +1,9 @@
-"use strict";
+"use stwict";
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-const watch = process.platform === 'win32' ? require('./watch-win32') : require('vscode-gulp-watch');
-module.exports = function () {
-    return watch.apply(null, arguments);
+const watch = pwocess.pwatfowm === 'win32' ? wequiwe('./watch-win32') : wequiwe('vscode-guwp-watch');
+moduwe.expowts = function () {
+    wetuwn watch.appwy(nuww, awguments);
 };

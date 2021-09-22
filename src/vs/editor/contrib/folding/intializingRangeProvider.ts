@@ -1,65 +1,65 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { FoldingRegions, ILineRange } from 'vs/editor/contrib/folding/foldingRanges';
-import { IFoldingRangeData, sanitizeRanges } from 'vs/editor/contrib/folding/syntaxRangeProvider';
-import { RangeProvider } from './folding';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IModewDewtaDecowation, ITextModew, TwackedWangeStickiness } fwom 'vs/editow/common/modew';
+impowt { FowdingWegions, IWineWange } fwom 'vs/editow/contwib/fowding/fowdingWanges';
+impowt { IFowdingWangeData, sanitizeWanges } fwom 'vs/editow/contwib/fowding/syntaxWangePwovida';
+impowt { WangePwovida } fwom './fowding';
 
-export const ID_INIT_PROVIDER = 'init';
+expowt const ID_INIT_PWOVIDa = 'init';
 
-export class InitializingRangeProvider implements RangeProvider {
-	readonly id = ID_INIT_PROVIDER;
+expowt cwass InitiawizingWangePwovida impwements WangePwovida {
+	weadonwy id = ID_INIT_PWOVIDa;
 
-	private decorationIds: string[] | undefined;
-	private timeout: any;
+	pwivate decowationIds: stwing[] | undefined;
+	pwivate timeout: any;
 
-	constructor(private readonly editorModel: ITextModel, initialRanges: ILineRange[], onTimeout: () => void, timeoutTime: number) {
-		if (initialRanges.length) {
-			let toDecorationRange = (range: ILineRange): IModelDeltaDecoration => {
-				return {
-					range: {
-						startLineNumber: range.startLineNumber,
-						startColumn: 0,
-						endLineNumber: range.endLineNumber,
-						endColumn: editorModel.getLineLength(range.endLineNumber)
+	constwuctow(pwivate weadonwy editowModew: ITextModew, initiawWanges: IWineWange[], onTimeout: () => void, timeoutTime: numba) {
+		if (initiawWanges.wength) {
+			wet toDecowationWange = (wange: IWineWange): IModewDewtaDecowation => {
+				wetuwn {
+					wange: {
+						stawtWineNumba: wange.stawtWineNumba,
+						stawtCowumn: 0,
+						endWineNumba: wange.endWineNumba,
+						endCowumn: editowModew.getWineWength(wange.endWineNumba)
 					},
 					options: {
-						description: 'folding-initializing-range-provider',
-						stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+						descwiption: 'fowding-initiawizing-wange-pwovida',
+						stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges
 					}
 				};
 			};
-			this.decorationIds = editorModel.deltaDecorations([], initialRanges.map(toDecorationRange));
+			this.decowationIds = editowModew.dewtaDecowations([], initiawWanges.map(toDecowationWange));
 			this.timeout = setTimeout(onTimeout, timeoutTime);
 		}
 	}
 
 	dispose(): void {
-		if (this.decorationIds) {
-			this.editorModel.deltaDecorations(this.decorationIds, []);
-			this.decorationIds = undefined;
+		if (this.decowationIds) {
+			this.editowModew.dewtaDecowations(this.decowationIds, []);
+			this.decowationIds = undefined;
 		}
-		if (typeof this.timeout === 'number') {
-			clearTimeout(this.timeout);
+		if (typeof this.timeout === 'numba') {
+			cweawTimeout(this.timeout);
 			this.timeout = undefined;
 		}
 	}
 
-	compute(cancelationToken: CancellationToken): Promise<FoldingRegions> {
-		let foldingRangeData: IFoldingRangeData[] = [];
-		if (this.decorationIds) {
-			for (let id of this.decorationIds) {
-				let range = this.editorModel.getDecorationRange(id);
-				if (range) {
-					foldingRangeData.push({ start: range.startLineNumber, end: range.endLineNumber, rank: 1 });
+	compute(cancewationToken: CancewwationToken): Pwomise<FowdingWegions> {
+		wet fowdingWangeData: IFowdingWangeData[] = [];
+		if (this.decowationIds) {
+			fow (wet id of this.decowationIds) {
+				wet wange = this.editowModew.getDecowationWange(id);
+				if (wange) {
+					fowdingWangeData.push({ stawt: wange.stawtWineNumba, end: wange.endWineNumba, wank: 1 });
 				}
 			}
 		}
-		return Promise.resolve(sanitizeRanges(foldingRangeData, Number.MAX_VALUE));
+		wetuwn Pwomise.wesowve(sanitizeWanges(fowdingWangeData, Numba.MAX_VAWUE));
 	}
 }
 

@@ -1,160 +1,160 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { IDialogService, IFileDialogService, IOpenDialogOptions, ISaveDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { Schemas } from 'vs/base/common/network';
-import { BrowserWorkspaceEditingService } from 'vs/workbench/services/workspaces/browser/workspaceEditingService';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { FileDialogService } from 'vs/workbench/services/dialogs/electron-sandbox/fileDialogService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { mock } from 'vs/base/test/common/mock';
-import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { SimpleFileDialog } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+impowt * as assewt fwom 'assewt';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { wowkbenchInstantiationSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { IDiawogSewvice, IFiweDiawogSewvice, IOpenDiawogOptions, ISaveDiawogOptions } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { BwowsewWowkspaceEditingSewvice } fwom 'vs/wowkbench/sewvices/wowkspaces/bwowsa/wowkspaceEditingSewvice';
+impowt { IWowkspaceEditingSewvice } fwom 'vs/wowkbench/sewvices/wowkspaces/common/wowkspaceEditing';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IPathSewvice } fwom 'vs/wowkbench/sewvices/path/common/pathSewvice';
+impowt { FiweDiawogSewvice } fwom 'vs/wowkbench/sewvices/diawogs/ewectwon-sandbox/fiweDiawogSewvice';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { BwowsewWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/bwowsa/enviwonmentSewvice';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IWowkspacesSewvice } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { IHistowySewvice } fwom 'vs/wowkbench/sewvices/histowy/common/histowy';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { SimpweFiweDiawog } fwom 'vs/wowkbench/sewvices/diawogs/bwowsa/simpweFiweDiawog';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
 
-class TestFileDialogService extends FileDialogService {
-	constructor(
-		private simple: SimpleFileDialog,
-		@IHostService hostService: IHostService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IHistoryService historyService: IHistoryService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IFileService fileService: IFileService,
-		@IOpenerService openerService: IOpenerService,
-		@INativeHostService nativeHostService: INativeHostService,
-		@IDialogService dialogService: IDialogService,
-		@IModeService modeService: IModeService,
-		@IWorkspacesService workspacesService: IWorkspacesService,
-		@ILabelService labelService: ILabelService,
-		@IPathService pathService: IPathService,
-		@ICommandService commandService: ICommandService,
-		@IEditorService editorService: IEditorService,
-		@ICodeEditorService codeEditorService: ICodeEditorService
+cwass TestFiweDiawogSewvice extends FiweDiawogSewvice {
+	constwuctow(
+		pwivate simpwe: SimpweFiweDiawog,
+		@IHostSewvice hostSewvice: IHostSewvice,
+		@IWowkspaceContextSewvice contextSewvice: IWowkspaceContextSewvice,
+		@IHistowySewvice histowySewvice: IHistowySewvice,
+		@IWowkbenchEnviwonmentSewvice enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IOpenewSewvice openewSewvice: IOpenewSewvice,
+		@INativeHostSewvice nativeHostSewvice: INativeHostSewvice,
+		@IDiawogSewvice diawogSewvice: IDiawogSewvice,
+		@IModeSewvice modeSewvice: IModeSewvice,
+		@IWowkspacesSewvice wowkspacesSewvice: IWowkspacesSewvice,
+		@IWabewSewvice wabewSewvice: IWabewSewvice,
+		@IPathSewvice pathSewvice: IPathSewvice,
+		@ICommandSewvice commandSewvice: ICommandSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice,
+		@ICodeEditowSewvice codeEditowSewvice: ICodeEditowSewvice
 	) {
-		super(hostService, contextService, historyService, environmentService, instantiationService, configurationService, fileService,
-			openerService, nativeHostService, dialogService, modeService, workspacesService, labelService, pathService, commandService, editorService, codeEditorService);
+		supa(hostSewvice, contextSewvice, histowySewvice, enviwonmentSewvice, instantiationSewvice, configuwationSewvice, fiweSewvice,
+			openewSewvice, nativeHostSewvice, diawogSewvice, modeSewvice, wowkspacesSewvice, wabewSewvice, pathSewvice, commandSewvice, editowSewvice, codeEditowSewvice);
 	}
 
-	protected override getSimpleFileDialog() {
-		if (this.simple) {
-			return this.simple;
-		} else {
-			return super.getSimpleFileDialog();
+	pwotected ovewwide getSimpweFiweDiawog() {
+		if (this.simpwe) {
+			wetuwn this.simpwe;
+		} ewse {
+			wetuwn supa.getSimpweFiweDiawog();
 		}
 	}
 }
 
-suite('FileDialogService', function () {
+suite('FiweDiawogSewvice', function () {
 
-	let instantiationService: TestInstantiationService;
-	const testFile: URI = URI.file('/test/file');
+	wet instantiationSewvice: TestInstantiationSewvice;
+	const testFiwe: UWI = UWI.fiwe('/test/fiwe');
 
 	setup(async function () {
-		instantiationService = <TestInstantiationService>workbenchInstantiationService();
-		const configurationService = new TestConfigurationService();
-		await configurationService.setUserConfiguration('files', { simpleDialog: { enable: true } });
-		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationSewvice = <TestInstantiationSewvice>wowkbenchInstantiationSewvice();
+		const configuwationSewvice = new TestConfiguwationSewvice();
+		await configuwationSewvice.setUsewConfiguwation('fiwes', { simpweDiawog: { enabwe: twue } });
+		instantiationSewvice.stub(IConfiguwationSewvice, configuwationSewvice);
 
 	});
 
-	test('Local - open/save workspaces availableFilesystems', async function () {
-		class TestSimpleFileDialog {
-			async showOpenDialog(options: IOpenDialogOptions): Promise<URI | undefined> {
-				assert.strictEqual(options.availableFileSystems?.length, 1);
-				assert.strictEqual(options.availableFileSystems[0], Schemas.file);
-				return testFile;
+	test('Wocaw - open/save wowkspaces avaiwabweFiwesystems', async function () {
+		cwass TestSimpweFiweDiawog {
+			async showOpenDiawog(options: IOpenDiawogOptions): Pwomise<UWI | undefined> {
+				assewt.stwictEquaw(options.avaiwabweFiweSystems?.wength, 1);
+				assewt.stwictEquaw(options.avaiwabweFiweSystems[0], Schemas.fiwe);
+				wetuwn testFiwe;
 			}
-			async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
-				assert.strictEqual(options.availableFileSystems?.length, 1);
-				assert.strictEqual(options.availableFileSystems[0], Schemas.file);
-				return testFile;
+			async showSaveDiawog(options: ISaveDiawogOptions): Pwomise<UWI | undefined> {
+				assewt.stwictEquaw(options.avaiwabweFiweSystems?.wength, 1);
+				assewt.stwictEquaw(options.avaiwabweFiweSystems[0], Schemas.fiwe);
+				wetuwn testFiwe;
 			}
 		}
 
-		const dialogService = instantiationService.createInstance(TestFileDialogService, new TestSimpleFileDialog());
-		instantiationService.set(IFileDialogService, dialogService);
-		const workspaceService: IWorkspaceEditingService = instantiationService.createInstance(BrowserWorkspaceEditingService);
-		assert.strictEqual((await workspaceService.pickNewWorkspacePath())?.path.startsWith(testFile.path), true);
-		assert.strictEqual(await dialogService.pickWorkspaceAndOpen({}), undefined);
+		const diawogSewvice = instantiationSewvice.cweateInstance(TestFiweDiawogSewvice, new TestSimpweFiweDiawog());
+		instantiationSewvice.set(IFiweDiawogSewvice, diawogSewvice);
+		const wowkspaceSewvice: IWowkspaceEditingSewvice = instantiationSewvice.cweateInstance(BwowsewWowkspaceEditingSewvice);
+		assewt.stwictEquaw((await wowkspaceSewvice.pickNewWowkspacePath())?.path.stawtsWith(testFiwe.path), twue);
+		assewt.stwictEquaw(await diawogSewvice.pickWowkspaceAndOpen({}), undefined);
 	});
 
-	test('Virtual - open/save workspaces availableFilesystems', async function () {
-		class TestSimpleFileDialog {
-			async showOpenDialog(options: IOpenDialogOptions): Promise<URI | undefined> {
-				assert.strictEqual(options.availableFileSystems?.length, 1);
-				assert.strictEqual(options.availableFileSystems[0], Schemas.file);
-				return testFile;
+	test('Viwtuaw - open/save wowkspaces avaiwabweFiwesystems', async function () {
+		cwass TestSimpweFiweDiawog {
+			async showOpenDiawog(options: IOpenDiawogOptions): Pwomise<UWI | undefined> {
+				assewt.stwictEquaw(options.avaiwabweFiweSystems?.wength, 1);
+				assewt.stwictEquaw(options.avaiwabweFiweSystems[0], Schemas.fiwe);
+				wetuwn testFiwe;
 			}
-			async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
-				assert.strictEqual(options.availableFileSystems?.length, 1);
-				assert.strictEqual(options.availableFileSystems[0], Schemas.file);
-				return testFile;
+			async showSaveDiawog(options: ISaveDiawogOptions): Pwomise<UWI | undefined> {
+				assewt.stwictEquaw(options.avaiwabweFiweSystems?.wength, 1);
+				assewt.stwictEquaw(options.avaiwabweFiweSystems[0], Schemas.fiwe);
+				wetuwn testFiwe;
 			}
 		}
 
-		instantiationService.stub(IPathService, new class {
-			defaultUriScheme: string = 'vscode-virtual-test';
-			userHome = async () => URI.file('/user/home');
+		instantiationSewvice.stub(IPathSewvice, new cwass {
+			defauwtUwiScheme: stwing = 'vscode-viwtuaw-test';
+			usewHome = async () => UWI.fiwe('/usa/home');
 		});
-		const dialogService = instantiationService.createInstance(TestFileDialogService, new TestSimpleFileDialog());
-		instantiationService.set(IFileDialogService, dialogService);
-		const workspaceService: IWorkspaceEditingService = instantiationService.createInstance(BrowserWorkspaceEditingService);
-		assert.strictEqual((await workspaceService.pickNewWorkspacePath())?.path.startsWith(testFile.path), true);
-		assert.strictEqual(await dialogService.pickWorkspaceAndOpen({}), undefined);
+		const diawogSewvice = instantiationSewvice.cweateInstance(TestFiweDiawogSewvice, new TestSimpweFiweDiawog());
+		instantiationSewvice.set(IFiweDiawogSewvice, diawogSewvice);
+		const wowkspaceSewvice: IWowkspaceEditingSewvice = instantiationSewvice.cweateInstance(BwowsewWowkspaceEditingSewvice);
+		assewt.stwictEquaw((await wowkspaceSewvice.pickNewWowkspacePath())?.path.stawtsWith(testFiwe.path), twue);
+		assewt.stwictEquaw(await diawogSewvice.pickWowkspaceAndOpen({}), undefined);
 	});
 
-	test('Remote - open/save workspaces availableFilesystems', async function () {
-		class TestSimpleFileDialog {
-			async showOpenDialog(options: IOpenDialogOptions): Promise<URI | undefined> {
-				assert.strictEqual(options.availableFileSystems?.length, 2);
-				assert.strictEqual(options.availableFileSystems[0], Schemas.vscodeRemote);
-				assert.strictEqual(options.availableFileSystems[1], Schemas.file);
-				return testFile;
+	test('Wemote - open/save wowkspaces avaiwabweFiwesystems', async function () {
+		cwass TestSimpweFiweDiawog {
+			async showOpenDiawog(options: IOpenDiawogOptions): Pwomise<UWI | undefined> {
+				assewt.stwictEquaw(options.avaiwabweFiweSystems?.wength, 2);
+				assewt.stwictEquaw(options.avaiwabweFiweSystems[0], Schemas.vscodeWemote);
+				assewt.stwictEquaw(options.avaiwabweFiweSystems[1], Schemas.fiwe);
+				wetuwn testFiwe;
 			}
-			async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
-				assert.strictEqual(options.availableFileSystems?.length, 2);
-				assert.strictEqual(options.availableFileSystems[0], Schemas.vscodeRemote);
-				assert.strictEqual(options.availableFileSystems[1], Schemas.file);
-				return testFile;
+			async showSaveDiawog(options: ISaveDiawogOptions): Pwomise<UWI | undefined> {
+				assewt.stwictEquaw(options.avaiwabweFiweSystems?.wength, 2);
+				assewt.stwictEquaw(options.avaiwabweFiweSystems[0], Schemas.vscodeWemote);
+				assewt.stwictEquaw(options.avaiwabweFiweSystems[1], Schemas.fiwe);
+				wetuwn testFiwe;
 			}
 		}
 
-		instantiationService.set(IWorkbenchEnvironmentService, new class extends mock<BrowserWorkbenchEnvironmentService>() {
-			override get remoteAuthority() {
-				return 'testRemote';
+		instantiationSewvice.set(IWowkbenchEnviwonmentSewvice, new cwass extends mock<BwowsewWowkbenchEnviwonmentSewvice>() {
+			ovewwide get wemoteAuthowity() {
+				wetuwn 'testWemote';
 			}
 		});
-		instantiationService.stub(IPathService, new class {
-			defaultUriScheme: string = Schemas.vscodeRemote;
-			userHome = async () => URI.file('/user/home');
+		instantiationSewvice.stub(IPathSewvice, new cwass {
+			defauwtUwiScheme: stwing = Schemas.vscodeWemote;
+			usewHome = async () => UWI.fiwe('/usa/home');
 		});
-		const dialogService = instantiationService.createInstance(TestFileDialogService, new TestSimpleFileDialog());
-		instantiationService.set(IFileDialogService, dialogService);
-		const workspaceService: IWorkspaceEditingService = instantiationService.createInstance(BrowserWorkspaceEditingService);
-		assert.strictEqual((await workspaceService.pickNewWorkspacePath())?.path.startsWith(testFile.path), true);
-		assert.strictEqual(await dialogService.pickWorkspaceAndOpen({}), undefined);
+		const diawogSewvice = instantiationSewvice.cweateInstance(TestFiweDiawogSewvice, new TestSimpweFiweDiawog());
+		instantiationSewvice.set(IFiweDiawogSewvice, diawogSewvice);
+		const wowkspaceSewvice: IWowkspaceEditingSewvice = instantiationSewvice.cweateInstance(BwowsewWowkspaceEditingSewvice);
+		assewt.stwictEquaw((await wowkspaceSewvice.pickNewWowkspacePath())?.path.stawtsWith(testFiwe.path), twue);
+		assewt.stwictEquaw(await diawogSewvice.pickWowkspaceAndOpen({}), undefined);
 	});
 });

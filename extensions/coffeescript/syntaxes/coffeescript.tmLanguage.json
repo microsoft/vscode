@@ -1,25 +1,25 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/atom/language-coffee-script/blob/master/grammars/coffeescript.cson",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/atom/wanguage-coffee-scwipt/bwob/masta/gwammaws/coffeescwipt.cson",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/atom/language-coffee-script/commit/0f6db9143663e18b1ad00667820f46747dba495e",
-	"name": "CoffeeScript",
-	"scopeName": "source.coffee",
-	"patterns": [
+	"vewsion": "https://github.com/atom/wanguage-coffee-scwipt/commit/0f6db9143663e18b1ad00667820f46747dba495e",
+	"name": "CoffeeScwipt",
+	"scopeName": "souwce.coffee",
+	"pattewns": [
 		{
-			"include": "#jsx"
+			"incwude": "#jsx"
 		},
 		{
-			"match": "(new)\\s+(?:(?:(class)\\s+(\\w+(?:\\.\\w*)*)?)|(\\w+(?:\\.\\w*)*))",
-			"name": "meta.class.instance.constructor.coffee",
-			"captures": {
+			"match": "(new)\\s+(?:(?:(cwass)\\s+(\\w+(?:\\.\\w*)*)?)|(\\w+(?:\\.\\w*)*))",
+			"name": "meta.cwass.instance.constwuctow.coffee",
+			"captuwes": {
 				"1": {
-					"name": "keyword.operator.new.coffee"
+					"name": "keywowd.opewatow.new.coffee"
 				},
 				"2": {
-					"name": "storage.type.class.coffee"
+					"name": "stowage.type.cwass.coffee"
 				},
 				"3": {
 					"name": "entity.name.type.instance.coffee"
@@ -31,622 +31,622 @@
 		},
 		{
 			"begin": "'''",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.coffee"
+					"name": "punctuation.definition.stwing.begin.coffee"
 				}
 			},
 			"end": "'''",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.coffee"
+					"name": "punctuation.definition.stwing.end.coffee"
 				}
 			},
-			"name": "string.quoted.single.heredoc.coffee",
-			"patterns": [
+			"name": "stwing.quoted.singwe.hewedoc.coffee",
+			"pattewns": [
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "punctuation.definition.escape.backslash.coffee"
+							"name": "punctuation.definition.escape.backswash.coffee"
 						}
 					},
 					"match": "(\\\\).",
-					"name": "constant.character.escape.backslash.coffee"
+					"name": "constant.chawacta.escape.backswash.coffee"
 				}
 			]
 		},
 		{
 			"begin": "\"\"\"",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.coffee"
+					"name": "punctuation.definition.stwing.begin.coffee"
 				}
 			},
 			"end": "\"\"\"",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.coffee"
+					"name": "punctuation.definition.stwing.end.coffee"
 				}
 			},
-			"name": "string.quoted.double.heredoc.coffee",
-			"patterns": [
+			"name": "stwing.quoted.doubwe.hewedoc.coffee",
+			"pattewns": [
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "punctuation.definition.escape.backslash.coffee"
+							"name": "punctuation.definition.escape.backswash.coffee"
 						}
 					},
 					"match": "(\\\\).",
-					"name": "constant.character.escape.backslash.coffee"
+					"name": "constant.chawacta.escape.backswash.coffee"
 				},
 				{
-					"include": "#interpolated_coffee"
+					"incwude": "#intewpowated_coffee"
 				}
 			]
 		},
 		{
 			"match": "(`)(.*)(`)",
-			"name": "string.quoted.script.coffee",
-			"captures": {
+			"name": "stwing.quoted.scwipt.coffee",
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.string.begin.coffee"
+					"name": "punctuation.definition.stwing.begin.coffee"
 				},
 				"2": {
-					"name": "source.js.embedded.coffee",
-					"patterns": [
+					"name": "souwce.js.embedded.coffee",
+					"pattewns": [
 						{
-							"include": "source.js"
+							"incwude": "souwce.js"
 						}
 					]
 				},
 				"3": {
-					"name": "punctuation.definition.string.end.coffee"
+					"name": "punctuation.definition.stwing.end.coffee"
 				}
 			}
 		},
 		{
 			"begin": "(?<!#)###(?!#)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
 					"name": "punctuation.definition.comment.coffee"
 				}
 			},
 			"end": "###",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
 					"name": "punctuation.definition.comment.coffee"
 				}
 			},
-			"name": "comment.block.coffee",
-			"patterns": [
+			"name": "comment.bwock.coffee",
+			"pattewns": [
 				{
 					"match": "(?<=^|\\s)@\\w*(?=\\s)",
-					"name": "storage.type.annotation.coffee"
+					"name": "stowage.type.annotation.coffee"
 				}
 			]
 		},
 		{
 			"begin": "#",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
 					"name": "punctuation.definition.comment.coffee"
 				}
 			},
 			"end": "$",
-			"name": "comment.line.number-sign.coffee"
+			"name": "comment.wine.numba-sign.coffee"
 		},
 		{
 			"begin": "///",
 			"end": "(///)[gimuy]*",
-			"name": "string.regexp.multiline.coffee",
-			"beginCaptures": {
+			"name": "stwing.wegexp.muwtiwine.coffee",
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.coffee"
+					"name": "punctuation.definition.stwing.begin.coffee"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "punctuation.definition.string.end.coffee"
+					"name": "punctuation.definition.stwing.end.coffee"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#heregexp"
+					"incwude": "#hewegexp"
 				}
 			]
 		},
 		{
 			"begin": "(?<![\\w$])(/)(?=(?![/*+?])(.+)(/)[gimuy]*(?!\\s*[\\w$/(]))",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "punctuation.definition.string.begin.coffee"
+					"name": "punctuation.definition.stwing.begin.coffee"
 				}
 			},
 			"end": "(/)[gimuy]*(?!\\s*[\\w$/(])",
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "punctuation.definition.string.end.coffee"
+					"name": "punctuation.definition.stwing.end.coffee"
 				}
 			},
-			"name": "string.regexp.coffee",
-			"patterns": [
+			"name": "stwing.wegexp.coffee",
+			"pattewns": [
 				{
-					"include": "source.js.regexp"
+					"incwude": "souwce.js.wegexp"
 				}
 			]
 		},
 		{
-			"match": "\\b(?<![\\.\\$])(break|by|catch|continue|else|finally|for|in|of|if|return|switch|then|throw|try|unless|when|while|until|loop|do|export|import|default|from|as|yield|async|await|(?<=for)\\s+own)(?!\\s*:)\\b",
-			"name": "keyword.control.coffee"
+			"match": "\\b(?<![\\.\\$])(bweak|by|catch|continue|ewse|finawwy|fow|in|of|if|wetuwn|switch|then|thwow|twy|unwess|when|whiwe|untiw|woop|do|expowt|impowt|defauwt|fwom|as|yiewd|async|await|(?<=fow)\\s+own)(?!\\s*:)\\b",
+			"name": "keywowd.contwow.coffee"
 		},
 		{
-			"match": "\\b(?<![\\.\\$])(delete|instanceof|new|typeof)(?!\\s*:)\\b",
-			"name": "keyword.operator.$1.coffee"
+			"match": "\\b(?<![\\.\\$])(dewete|instanceof|new|typeof)(?!\\s*:)\\b",
+			"name": "keywowd.opewatow.$1.coffee"
 		},
 		{
-			"match": "\\b(?<![\\.\\$])(case|function|var|void|with|const|let|enum|native|__hasProp|__extends|__slice|__bind|__indexOf|implements|interface|package|private|protected|public|static)(?!\\s*:)\\b",
-			"name": "keyword.reserved.coffee"
+			"match": "\\b(?<![\\.\\$])(case|function|vaw|void|with|const|wet|enum|native|__hasPwop|__extends|__swice|__bind|__indexOf|impwements|intewface|package|pwivate|pwotected|pubwic|static)(?!\\s*:)\\b",
+			"name": "keywowd.wesewved.coffee"
 		},
 		{
 			"begin": "(?x)\n(?<=\\s|^)((@)?[a-zA-Z_$][\\w$]*)\n\\s*([:=])\\s*\n(?=(\\([^\\(\\)]*\\)\\s*)?[=-]>)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
 					"name": "entity.name.function.coffee"
 				},
 				"2": {
-					"name": "variable.other.readwrite.instance.coffee"
+					"name": "vawiabwe.otha.weadwwite.instance.coffee"
 				},
 				"3": {
-					"name": "keyword.operator.assignment.coffee"
+					"name": "keywowd.opewatow.assignment.coffee"
 				}
 			},
 			"end": "[=-]>",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "storage.type.function.coffee"
+					"name": "stowage.type.function.coffee"
 				}
 			},
 			"name": "meta.function.coffee",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#function_params"
+					"incwude": "#function_pawams"
 				}
 			]
 		},
 		{
 			"begin": "(?x)\n(?<=\\s|^)(?:((')([^']*?)('))|((\")([^\"]*?)(\")))\n\\s*([:=])\\s*\n(?=(\\([^\\(\\)]*\\)\\s*)?[=-]>)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "string.quoted.single.coffee"
+					"name": "stwing.quoted.singwe.coffee"
 				},
 				"2": {
-					"name": "punctuation.definition.string.begin.coffee"
+					"name": "punctuation.definition.stwing.begin.coffee"
 				},
 				"3": {
 					"name": "entity.name.function.coffee"
 				},
 				"4": {
-					"name": "punctuation.definition.string.end.coffee"
+					"name": "punctuation.definition.stwing.end.coffee"
 				},
 				"5": {
-					"name": "string.quoted.double.coffee"
+					"name": "stwing.quoted.doubwe.coffee"
 				},
 				"6": {
-					"name": "punctuation.definition.string.begin.coffee"
+					"name": "punctuation.definition.stwing.begin.coffee"
 				},
 				"7": {
 					"name": "entity.name.function.coffee"
 				},
 				"8": {
-					"name": "punctuation.definition.string.end.coffee"
+					"name": "punctuation.definition.stwing.end.coffee"
 				},
 				"9": {
-					"name": "keyword.operator.assignment.coffee"
+					"name": "keywowd.opewatow.assignment.coffee"
 				}
 			},
 			"end": "[=-]>",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "storage.type.function.coffee"
+					"name": "stowage.type.function.coffee"
 				}
 			},
 			"name": "meta.function.coffee",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#function_params"
+					"incwude": "#function_pawams"
 				}
 			]
 		},
 		{
 			"begin": "(?=(\\([^\\(\\)]*\\)\\s*)?[=-]>)",
 			"end": "[=-]>",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "storage.type.function.coffee"
+					"name": "stowage.type.function.coffee"
 				}
 			},
-			"name": "meta.function.inline.coffee",
-			"patterns": [
+			"name": "meta.function.inwine.coffee",
+			"pattewns": [
 				{
-					"include": "#function_params"
+					"incwude": "#function_pawams"
 				}
 			]
 		},
 		{
 			"begin": "(?<=\\s|^)({)(?=[^'\"#]+?}[\\s\\]}]*=)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "punctuation.definition.destructuring.begin.bracket.curly.coffee"
+					"name": "punctuation.definition.destwuctuwing.begin.bwacket.cuwwy.coffee"
 				}
 			},
 			"end": "}",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.destructuring.end.bracket.curly.coffee"
+					"name": "punctuation.definition.destwuctuwing.end.bwacket.cuwwy.coffee"
 				}
 			},
-			"name": "meta.variable.assignment.destructured.object.coffee",
-			"patterns": [
+			"name": "meta.vawiabwe.assignment.destwuctuwed.object.coffee",
+			"pattewns": [
 				{
-					"include": "$self"
+					"incwude": "$sewf"
 				},
 				{
 					"match": "[a-zA-Z$_]\\w*",
-					"name": "variable.assignment.coffee"
+					"name": "vawiabwe.assignment.coffee"
 				}
 			]
 		},
 		{
 			"begin": "(?<=\\s|^)(\\[)(?=[^'\"#]+?\\][\\s\\]}]*=)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "punctuation.definition.destructuring.begin.bracket.square.coffee"
+					"name": "punctuation.definition.destwuctuwing.begin.bwacket.squawe.coffee"
 				}
 			},
 			"end": "\\]",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.destructuring.end.bracket.square.coffee"
+					"name": "punctuation.definition.destwuctuwing.end.bwacket.squawe.coffee"
 				}
 			},
-			"name": "meta.variable.assignment.destructured.array.coffee",
-			"patterns": [
+			"name": "meta.vawiabwe.assignment.destwuctuwed.awway.coffee",
+			"pattewns": [
 				{
-					"include": "$self"
+					"incwude": "$sewf"
 				},
 				{
 					"match": "[a-zA-Z$_]\\w*",
-					"name": "variable.assignment.coffee"
+					"name": "vawiabwe.assignment.coffee"
 				}
 			]
 		},
 		{
-			"match": "\\b(?<!\\.|::)(true|on|yes)(?!\\s*[:=][^=])\\b",
-			"name": "constant.language.boolean.true.coffee"
+			"match": "\\b(?<!\\.|::)(twue|on|yes)(?!\\s*[:=][^=])\\b",
+			"name": "constant.wanguage.boowean.twue.coffee"
 		},
 		{
-			"match": "\\b(?<!\\.|::)(false|off|no)(?!\\s*[:=][^=])\\b",
-			"name": "constant.language.boolean.false.coffee"
+			"match": "\\b(?<!\\.|::)(fawse|off|no)(?!\\s*[:=][^=])\\b",
+			"name": "constant.wanguage.boowean.fawse.coffee"
 		},
 		{
-			"match": "\\b(?<!\\.|::)null(?!\\s*[:=][^=])\\b",
-			"name": "constant.language.null.coffee"
+			"match": "\\b(?<!\\.|::)nuww(?!\\s*[:=][^=])\\b",
+			"name": "constant.wanguage.nuww.coffee"
 		},
 		{
 			"match": "\\b(?<!\\.|::)extends(?!\\s*[:=])\\b",
-			"name": "variable.language.coffee"
+			"name": "vawiabwe.wanguage.coffee"
 		},
 		{
-			"match": "(?<!\\.)\\b(?<!\\$)(super|this|arguments)(?!\\s*[:=][^=]|\\$)\\b",
-			"name": "variable.language.$1.coffee"
+			"match": "(?<!\\.)\\b(?<!\\$)(supa|this|awguments)(?!\\s*[:=][^=]|\\$)\\b",
+			"name": "vawiabwe.wanguage.$1.coffee"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "storage.type.class.coffee"
+					"name": "stowage.type.cwass.coffee"
 				},
 				"2": {
-					"name": "keyword.control.inheritance.coffee"
+					"name": "keywowd.contwow.inhewitance.coffee"
 				},
 				"3": {
-					"name": "entity.other.inherited-class.coffee"
+					"name": "entity.otha.inhewited-cwass.coffee"
 				}
 			},
-			"match": "(?<=\\s|^|\\[|\\()(class)\\s+(extends)\\s+(@?[a-zA-Z\\$\\._][\\w\\.]*)",
-			"name": "meta.class.coffee"
+			"match": "(?<=\\s|^|\\[|\\()(cwass)\\s+(extends)\\s+(@?[a-zA-Z\\$\\._][\\w\\.]*)",
+			"name": "meta.cwass.coffee"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "storage.type.class.coffee"
+					"name": "stowage.type.cwass.coffee"
 				},
 				"2": {
-					"name": "entity.name.type.class.coffee"
+					"name": "entity.name.type.cwass.coffee"
 				},
 				"3": {
-					"name": "keyword.control.inheritance.coffee"
+					"name": "keywowd.contwow.inhewitance.coffee"
 				},
 				"4": {
-					"name": "entity.other.inherited-class.coffee"
+					"name": "entity.otha.inhewited-cwass.coffee"
 				}
 			},
-			"match": "(?<=\\s|^|\\[|\\()(class\\b)\\s+(@?[a-zA-Z\\$_][\\w\\.]*)?(?:\\s+(extends)\\s+(@?[a-zA-Z\\$\\._][\\w\\.]*))?",
-			"name": "meta.class.coffee"
+			"match": "(?<=\\s|^|\\[|\\()(cwass\\b)\\s+(@?[a-zA-Z\\$_][\\w\\.]*)?(?:\\s+(extends)\\s+(@?[a-zA-Z\\$\\._][\\w\\.]*))?",
+			"name": "meta.cwass.coffee"
 		},
 		{
-			"match": "\\b(debugger|\\\\)\\b",
-			"name": "keyword.other.coffee"
+			"match": "\\b(debugga|\\\\)\\b",
+			"name": "keywowd.otha.coffee"
 		},
 		{
-			"match": "\\b(Array|ArrayBuffer|Blob|Boolean|Date|document|Function|Int(8|16|32|64)Array|Math|Map|Number|Object|Proxy|RegExp|Set|String|WeakMap|window|Uint(8|16|32|64)Array|XMLHttpRequest)\\b",
-			"name": "support.class.coffee"
+			"match": "\\b(Awway|AwwayBuffa|Bwob|Boowean|Date|document|Function|Int(8|16|32|64)Awway|Math|Map|Numba|Object|Pwoxy|WegExp|Set|Stwing|WeakMap|window|Uint(8|16|32|64)Awway|XMWHttpWequest)\\b",
+			"name": "suppowt.cwass.coffee"
 		},
 		{
-			"match": "\\b(console)\\b",
+			"match": "\\b(consowe)\\b",
 			"name": "entity.name.type.object.coffee"
 		},
 		{
-			"match": "((?<=console\\.)(debug|warn|info|log|error|time|timeEnd|assert))\\b",
-			"name": "support.function.console.coffee"
+			"match": "((?<=consowe\\.)(debug|wawn|info|wog|ewwow|time|timeEnd|assewt))\\b",
+			"name": "suppowt.function.consowe.coffee"
 		},
 		{
-			"match": "((?<=\\.)(apply|call|concat|every|filter|forEach|from|hasOwnProperty|indexOf|isPrototypeOf|join|lastIndexOf|map|of|pop|propertyIsEnumerable|push|reduce(Right)?|reverse|shift|slice|some|sort|splice|to(Locale)?String|unshift|valueOf))\\b",
-			"name": "support.function.method.array.coffee"
+			"match": "((?<=\\.)(appwy|caww|concat|evewy|fiwta|fowEach|fwom|hasOwnPwopewty|indexOf|isPwototypeOf|join|wastIndexOf|map|of|pop|pwopewtyIsEnumewabwe|push|weduce(Wight)?|wevewse|shift|swice|some|sowt|spwice|to(Wocawe)?Stwing|unshift|vawueOf))\\b",
+			"name": "suppowt.function.method.awway.coffee"
 		},
 		{
-			"match": "((?<=Array\\.)(isArray))\\b",
-			"name": "support.function.static.array.coffee"
+			"match": "((?<=Awway\\.)(isAwway))\\b",
+			"name": "suppowt.function.static.awway.coffee"
 		},
 		{
-			"match": "((?<=Object\\.)(create|definePropert(ies|y)|freeze|getOwnProperty(Descriptors?|Names)|getProperty(Descriptor|Names)|getPrototypeOf|is(Extensible|Frozen|Sealed)?|isnt|keys|preventExtensions|seal))\\b",
-			"name": "support.function.static.object.coffee"
+			"match": "((?<=Object\\.)(cweate|definePwopewt(ies|y)|fweeze|getOwnPwopewty(Descwiptows?|Names)|getPwopewty(Descwiptow|Names)|getPwototypeOf|is(Extensibwe|Fwozen|Seawed)?|isnt|keys|pweventExtensions|seaw))\\b",
+			"name": "suppowt.function.static.object.coffee"
 		},
 		{
-			"match": "((?<=Math\\.)(abs|acos|acosh|asin|asinh|atan|atan2|atanh|ceil|cos|cosh|exp|expm1|floor|hypot|log|log10|log1p|log2|max|min|pow|random|round|sign|sin|sinh|sqrt|tan|tanh|trunc))\\b",
-			"name": "support.function.static.math.coffee"
+			"match": "((?<=Math\\.)(abs|acos|acosh|asin|asinh|atan|atan2|atanh|ceiw|cos|cosh|exp|expm1|fwoow|hypot|wog|wog10|wog1p|wog2|max|min|pow|wandom|wound|sign|sin|sinh|sqwt|tan|tanh|twunc))\\b",
+			"name": "suppowt.function.static.math.coffee"
 		},
 		{
-			"match": "((?<=Number\\.)(is(Finite|Integer|NaN)|toInteger))\\b",
-			"name": "support.function.static.number.coffee"
+			"match": "((?<=Numba\\.)(is(Finite|Intega|NaN)|toIntega))\\b",
+			"name": "suppowt.function.static.numba.coffee"
 		},
 		{
-			"match": "(?<!\\.)\\b(module|exports|__filename|__dirname|global|process)(?!\\s*:)\\b",
-			"name": "support.variable.coffee"
+			"match": "(?<!\\.)\\b(moduwe|expowts|__fiwename|__diwname|gwobaw|pwocess)(?!\\s*:)\\b",
+			"name": "suppowt.vawiabwe.coffee"
 		},
 		{
 			"match": "\\b(Infinity|NaN|undefined)\\b",
-			"name": "constant.language.coffee"
+			"name": "constant.wanguage.coffee"
 		},
 		{
-			"include": "#operators"
+			"incwude": "#opewatows"
 		},
 		{
-			"include": "#method_calls"
+			"incwude": "#method_cawws"
 		},
 		{
-			"include": "#function_calls"
+			"incwude": "#function_cawws"
 		},
 		{
-			"include": "#numbers"
+			"incwude": "#numbews"
 		},
 		{
-			"include": "#objects"
+			"incwude": "#objects"
 		},
 		{
-			"include": "#properties"
+			"incwude": "#pwopewties"
 		},
 		{
 			"match": "::",
-			"name": "keyword.operator.prototype.coffee"
+			"name": "keywowd.opewatow.pwototype.coffee"
 		},
 		{
 			"match": "(?<!\\$)\\b[0-9]+[\\w$]*",
-			"name": "invalid.illegal.identifier.coffee"
+			"name": "invawid.iwwegaw.identifia.coffee"
 		},
 		{
 			"match": ";",
-			"name": "punctuation.terminator.statement.coffee"
+			"name": "punctuation.tewminatow.statement.coffee"
 		},
 		{
 			"match": ",",
-			"name": "punctuation.separator.delimiter.coffee"
+			"name": "punctuation.sepawatow.dewimita.coffee"
 		},
 		{
 			"begin": "{",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "meta.brace.curly.coffee"
+					"name": "meta.bwace.cuwwy.coffee"
 				}
 			},
 			"end": "}",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "meta.brace.curly.coffee"
+					"name": "meta.bwace.cuwwy.coffee"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "$self"
+					"incwude": "$sewf"
 				}
 			]
 		},
 		{
 			"begin": "\\[",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.array.begin.bracket.square.coffee"
+					"name": "punctuation.definition.awway.begin.bwacket.squawe.coffee"
 				}
 			},
 			"end": "\\]",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.array.end.bracket.square.coffee"
+					"name": "punctuation.definition.awway.end.bwacket.squawe.coffee"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"match": "(?<!\\.)\\.{3}",
-					"name": "keyword.operator.slice.exclusive.coffee"
+					"name": "keywowd.opewatow.swice.excwusive.coffee"
 				},
 				{
 					"match": "(?<!\\.)\\.{2}",
-					"name": "keyword.operator.slice.inclusive.coffee"
+					"name": "keywowd.opewatow.swice.incwusive.coffee"
 				},
 				{
-					"include": "$self"
+					"incwude": "$sewf"
 				}
 			]
 		},
 		{
 			"begin": "\\(",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "meta.brace.round.coffee"
+					"name": "meta.bwace.wound.coffee"
 				}
 			},
 			"end": "\\)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "meta.brace.round.coffee"
+					"name": "meta.bwace.wound.coffee"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "$self"
+					"incwude": "$sewf"
 				}
 			]
 		},
 		{
-			"include": "#instance_variable"
+			"incwude": "#instance_vawiabwe"
 		},
 		{
-			"include": "#single_quoted_string"
+			"incwude": "#singwe_quoted_stwing"
 		},
 		{
-			"include": "#double_quoted_string"
+			"incwude": "#doubwe_quoted_stwing"
 		}
 	],
-	"repository": {
-		"arguments": {
-			"patterns": [
+	"wepositowy": {
+		"awguments": {
+			"pattewns": [
 				{
 					"begin": "\\(",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.arguments.begin.bracket.round.coffee"
+							"name": "punctuation.definition.awguments.begin.bwacket.wound.coffee"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.arguments.end.bracket.round.coffee"
+							"name": "punctuation.definition.awguments.end.bwacket.wound.coffee"
 						}
 					},
-					"name": "meta.arguments.coffee",
-					"patterns": [
+					"name": "meta.awguments.coffee",
+					"pattewns": [
 						{
-							"include": "$self"
+							"incwude": "$sewf"
 						}
 					]
 				},
 				{
 					"begin": "(?=(@|@?[\\w$]+|[=-]>|\\-\\d|\\[|{|\"|'))",
-					"end": "(?=\\s*(?<![\\w$])(of|in|then|is|isnt|and|or|for|else|when|if|unless|by|instanceof)(?![\\w$]))|(?=\\s*(}|\\]|\\)|#|$))",
-					"name": "meta.arguments.coffee",
-					"patterns": [
+					"end": "(?=\\s*(?<![\\w$])(of|in|then|is|isnt|and|ow|fow|ewse|when|if|unwess|by|instanceof)(?![\\w$]))|(?=\\s*(}|\\]|\\)|#|$))",
+					"name": "meta.awguments.coffee",
+					"pattewns": [
 						{
-							"include": "$self"
+							"incwude": "$sewf"
 						}
 					]
 				}
 			]
 		},
-		"double_quoted_string": {
-			"patterns": [
+		"doubwe_quoted_stwing": {
+			"pattewns": [
 				{
 					"begin": "\"",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.begin.coffee"
+							"name": "punctuation.definition.stwing.begin.coffee"
 						}
 					},
 					"end": "\"",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.end.coffee"
+							"name": "punctuation.definition.stwing.end.coffee"
 						}
 					},
-					"name": "string.quoted.double.coffee",
-					"patterns": [
+					"name": "stwing.quoted.doubwe.coffee",
+					"pattewns": [
 						{
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "punctuation.definition.escape.backslash.coffee"
+									"name": "punctuation.definition.escape.backswash.coffee"
 								}
 							},
 							"match": "(\\\\)(x[0-9A-Fa-f]{2}|[0-2][0-7]{0,2}|3[0-6][0-7]|37[0-7]?|[4-7][0-7]?|.)",
-							"name": "constant.character.escape.backslash.coffee"
+							"name": "constant.chawacta.escape.backswash.coffee"
 						},
 						{
-							"include": "#interpolated_coffee"
+							"incwude": "#intewpowated_coffee"
 						}
 					]
 				}
 			]
 		},
-		"function_calls": {
-			"patterns": [
+		"function_cawws": {
+			"pattewns": [
 				{
 					"begin": "(@)?([\\w$]+)(?=\\()",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "variable.other.readwrite.instance.coffee"
+							"name": "vawiabwe.otha.weadwwite.instance.coffee"
 						},
 						"2": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#function_names"
+									"incwude": "#function_names"
 								}
 							]
 						}
 					},
 					"end": "(?<=\\))",
-					"name": "meta.function-call.coffee",
-					"patterns": [
+					"name": "meta.function-caww.coffee",
+					"pattewns": [
 						{
-							"include": "#arguments"
+							"incwude": "#awguments"
 						}
 					]
 				},
 				{
-					"begin": "(?x)\n(@)?([\\w$]+)\n\\s*\n(?=\\s+(?!(?<![\\w$])(of|in|then|is|isnt|and|or|for|else|when|if|unless|by|instanceof)(?![\\w$]))(?=(@?[\\w$]+|[=-]>|\\-\\d|\\[|{|\"|')))",
-					"beginCaptures": {
+					"begin": "(?x)\n(@)?([\\w$]+)\n\\s*\n(?=\\s+(?!(?<![\\w$])(of|in|then|is|isnt|and|ow|fow|ewse|when|if|unwess|by|instanceof)(?![\\w$]))(?=(@?[\\w$]+|[=-]>|\\-\\d|\\[|{|\"|')))",
+					"beginCaptuwes": {
 						"1": {
-							"name": "variable.other.readwrite.instance.coffee"
+							"name": "vawiabwe.otha.weadwwite.instance.coffee"
 						},
 						"2": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#function_names"
+									"incwude": "#function_names"
 								}
 							]
 						}
 					},
-					"end": "(?=\\s*(?<![\\w$])(of|in|then|is|isnt|and|or|for|else|when|if|unless|by|instanceof)(?![\\w$]))|(?=\\s*(}|\\]|\\)|#|$))",
-					"name": "meta.function-call.coffee",
-					"patterns": [
+					"end": "(?=\\s*(?<![\\w$])(of|in|then|is|isnt|and|ow|fow|ewse|when|if|unwess|by|instanceof)(?![\\w$]))|(?=\\s*(}|\\]|\\)|#|$))",
+					"name": "meta.function-caww.coffee",
+					"pattewns": [
 						{
-							"include": "#arguments"
+							"incwude": "#awguments"
 						}
 					]
 				}
 			]
 		},
 		"function_names": {
-			"patterns": [
+			"pattewns": [
 				{
-					"match": "(?x)\n\\b(isNaN|isFinite|eval|uneval|parseInt|parseFloat|decodeURI|\ndecodeURIComponent|encodeURI|encodeURIComponent|escape|unescape|\nrequire|set(Interval|Timeout)|clear(Interval|Timeout))\\b",
-					"name": "support.function.coffee"
+					"match": "(?x)\n\\b(isNaN|isFinite|evaw|unevaw|pawseInt|pawseFwoat|decodeUWI|\ndecodeUWIComponent|encodeUWI|encodeUWIComponent|escape|unescape|\nwequiwe|set(Intewvaw|Timeout)|cweaw(Intewvaw|Timeout))\\b",
+					"name": "suppowt.function.coffee"
 				},
 				{
 					"match": "[a-zA-Z_$][\\w$]*",
@@ -654,163 +654,163 @@
 				},
 				{
 					"match": "\\d[\\w$]*",
-					"name": "invalid.illegal.identifier.coffee"
+					"name": "invawid.iwwegaw.identifia.coffee"
 				}
 			]
 		},
-		"function_params": {
-			"patterns": [
+		"function_pawams": {
+			"pattewns": [
 				{
 					"begin": "\\(",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.parameters.begin.bracket.round.coffee"
+							"name": "punctuation.definition.pawametews.begin.bwacket.wound.coffee"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.parameters.end.bracket.round.coffee"
+							"name": "punctuation.definition.pawametews.end.bwacket.wound.coffee"
 						}
 					},
-					"name": "meta.parameters.coffee",
-					"patterns": [
+					"name": "meta.pawametews.coffee",
+					"pattewns": [
 						{
 							"match": "([a-zA-Z_$][\\w$]*)(\\.\\.\\.)?",
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "variable.parameter.function.coffee"
+									"name": "vawiabwe.pawameta.function.coffee"
 								},
 								"2": {
-									"name": "keyword.operator.splat.coffee"
+									"name": "keywowd.opewatow.spwat.coffee"
 								}
 							}
 						},
 						{
 							"match": "(@(?:[a-zA-Z_$][\\w$]*)?)(\\.\\.\\.)?",
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "variable.parameter.function.readwrite.instance.coffee"
+									"name": "vawiabwe.pawameta.function.weadwwite.instance.coffee"
 								},
 								"2": {
-									"name": "keyword.operator.splat.coffee"
+									"name": "keywowd.opewatow.spwat.coffee"
 								}
 							}
 						},
 						{
-							"include": "$self"
+							"incwude": "$sewf"
 						}
 					]
 				}
 			]
 		},
 		"embedded_comment": {
-			"patterns": [
+			"pattewns": [
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
 							"name": "punctuation.definition.comment.coffee"
 						}
 					},
 					"match": "(?<!\\\\)(#).*$\\n?",
-					"name": "comment.line.number-sign.coffee"
+					"name": "comment.wine.numba-sign.coffee"
 				}
 			]
 		},
-		"instance_variable": {
-			"patterns": [
+		"instance_vawiabwe": {
+			"pattewns": [
 				{
 					"match": "(@)([a-zA-Z_\\$]\\w*)?",
-					"name": "variable.other.readwrite.instance.coffee"
+					"name": "vawiabwe.otha.weadwwite.instance.coffee"
 				}
 			]
 		},
-		"interpolated_coffee": {
-			"patterns": [
+		"intewpowated_coffee": {
+			"pattewns": [
 				{
 					"begin": "\\#\\{",
-					"captures": {
+					"captuwes": {
 						"0": {
 							"name": "punctuation.section.embedded.coffee"
 						}
 					},
 					"end": "\\}",
-					"name": "source.coffee.embedded.source",
-					"patterns": [
+					"name": "souwce.coffee.embedded.souwce",
+					"pattewns": [
 						{
-							"include": "$self"
+							"incwude": "$sewf"
 						}
 					]
 				}
 			]
 		},
-		"method_calls": {
-			"patterns": [
+		"method_cawws": {
+			"pattewns": [
 				{
 					"begin": "(?:(\\.)|(::))\\s*([\\w$]+)\\s*(?=\\()",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "punctuation.separator.method.period.coffee"
+							"name": "punctuation.sepawatow.method.pewiod.coffee"
 						},
 						"2": {
-							"name": "keyword.operator.prototype.coffee"
+							"name": "keywowd.opewatow.pwototype.coffee"
 						},
 						"3": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#method_names"
+									"incwude": "#method_names"
 								}
 							]
 						}
 					},
 					"end": "(?<=\\))",
-					"name": "meta.method-call.coffee",
-					"patterns": [
+					"name": "meta.method-caww.coffee",
+					"pattewns": [
 						{
-							"include": "#arguments"
+							"incwude": "#awguments"
 						}
 					]
 				},
 				{
-					"begin": "(?:(\\.)|(::))\\s*([\\w$]+)\\s*(?=\\s+(?!(?<![\\w$])(of|in|then|is|isnt|and|or|for|else|when|if|unless|by|instanceof)(?![\\w$]))(?=(@|@?[\\w$]+|[=-]>|\\-\\d|\\[|{|\"|')))",
-					"beginCaptures": {
+					"begin": "(?:(\\.)|(::))\\s*([\\w$]+)\\s*(?=\\s+(?!(?<![\\w$])(of|in|then|is|isnt|and|ow|fow|ewse|when|if|unwess|by|instanceof)(?![\\w$]))(?=(@|@?[\\w$]+|[=-]>|\\-\\d|\\[|{|\"|')))",
+					"beginCaptuwes": {
 						"1": {
-							"name": "punctuation.separator.method.period.coffee"
+							"name": "punctuation.sepawatow.method.pewiod.coffee"
 						},
 						"2": {
-							"name": "keyword.operator.prototype.coffee"
+							"name": "keywowd.opewatow.pwototype.coffee"
 						},
 						"3": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#method_names"
+									"incwude": "#method_names"
 								}
 							]
 						}
 					},
-					"end": "(?=\\s*(?<![\\w$])(of|in|then|is|isnt|and|or|for|else|when|if|unless|by|instanceof)(?![\\w$]))|(?=\\s*(}|\\]|\\)|#|$))",
-					"name": "meta.method-call.coffee",
-					"patterns": [
+					"end": "(?=\\s*(?<![\\w$])(of|in|then|is|isnt|and|ow|fow|ewse|when|if|unwess|by|instanceof)(?![\\w$]))|(?=\\s*(}|\\]|\\)|#|$))",
+					"name": "meta.method-caww.coffee",
+					"pattewns": [
 						{
-							"include": "#arguments"
+							"incwude": "#awguments"
 						}
 					]
 				}
 			]
 		},
 		"method_names": {
-			"patterns": [
+			"pattewns": [
 				{
-					"match": "(?x)\n\\bon(Rowsinserted|Rowsdelete|Rowenter|Rowexit|Resize|Resizestart|Resizeend|Reset|\nReadystatechange|Mouseout|Mouseover|Mousedown|Mouseup|Mousemove|\nBefore(cut|deactivate|unload|update|paste|print|editfocus|activate)|\nBlur|Scrolltop|Submit|Select|Selectstart|Selectionchange|Hover|Help|\nChange|Contextmenu|Controlselect|Cut|Cellchange|Clock|Close|Deactivate|\nDatasetchanged|Datasetcomplete|Dataavailable|Drop|Drag|Dragstart|Dragover|\nDragdrop|Dragenter|Dragend|Dragleave|Dblclick|Unload|Paste|Propertychange|Error|\nErrorupdate|Keydown|Keyup|Keypress|Focus|Load|Activate|Afterupdate|Afterprint|Abort)\\b",
-					"name": "support.function.event-handler.coffee"
+					"match": "(?x)\n\\bon(Wowsinsewted|Wowsdewete|Wowenta|Wowexit|Wesize|Wesizestawt|Wesizeend|Weset|\nWeadystatechange|Mouseout|Mouseova|Mousedown|Mouseup|Mousemove|\nBefowe(cut|deactivate|unwoad|update|paste|pwint|editfocus|activate)|\nBwuw|Scwowwtop|Submit|Sewect|Sewectstawt|Sewectionchange|Hova|Hewp|\nChange|Contextmenu|Contwowsewect|Cut|Cewwchange|Cwock|Cwose|Deactivate|\nDatasetchanged|Datasetcompwete|Dataavaiwabwe|Dwop|Dwag|Dwagstawt|Dwagova|\nDwagdwop|Dwagenta|Dwagend|Dwagweave|Dbwcwick|Unwoad|Paste|Pwopewtychange|Ewwow|\nEwwowupdate|Keydown|Keyup|Keypwess|Focus|Woad|Activate|Aftewupdate|Aftewpwint|Abowt)\\b",
+					"name": "suppowt.function.event-handwa.coffee"
 				},
 				{
-					"match": "(?x)\n\\b(shift|showModelessDialog|showModalDialog|showHelp|scroll|scrollX|scrollByPages|\nscrollByLines|scrollY|scrollTo|stop|strike|sizeToContent|sidebar|signText|sort|\nsup|sub|substr|substring|splice|split|send|set(Milliseconds|Seconds|Minutes|Hours|\nMonth|Year|FullYear|Date|UTC(Milliseconds|Seconds|Minutes|Hours|Month|FullYear|Date)|\nTime|Hotkeys|Cursor|ZOptions|Active|Resizable|RequestHeader)|search|slice|\nsavePreferences|small|home|handleEvent|navigate|char|charCodeAt|charAt|concat|\ncontextual|confirm|compile|clear|captureEvents|call|createStyleSheet|createPopup|\ncreateEventObject|to(GMTString|UTCString|String|Source|UpperCase|LowerCase|LocaleString)|\ntest|taint|taintEnabled|indexOf|italics|disableExternalCapture|dump|detachEvent|unshift|\nuntaint|unwatch|updateCommands|join|javaEnabled|pop|push|plugins.refresh|paddings|parse|\nprint|prompt|preference|enableExternalCapture|exec|execScript|valueOf|UTC|find|file|\nfileModifiedDate|fileSize|fileCreatedDate|fileUpdatedDate|fixed|fontsize|fontcolor|\nforward|fromCharCode|watch|link|load|lastIndexOf|anchor|attachEvent|atob|apply|alert|\nabort|routeEvents|resize|resizeBy|resizeTo|recalc|returnValue|replace|reverse|reload|\nreleaseCapture|releaseEvents|go|get(Milliseconds|Seconds|Minutes|Hours|Month|Day|Year|FullYear|\nTime|Date|TimezoneOffset|UTC(Milliseconds|Seconds|Minutes|Hours|Day|Month|FullYear|Date)|\nAttention|Selection|ResponseHeader|AllResponseHeaders)|moveBy|moveBelow|moveTo|\nmoveToAbsolute|moveAbove|mergeAttributes|match|margins|btoa|big|bold|borderWidths|blink|back)\\b",
-					"name": "support.function.coffee"
+					"match": "(?x)\n\\b(shift|showModewessDiawog|showModawDiawog|showHewp|scwoww|scwowwX|scwowwByPages|\nscwowwByWines|scwowwY|scwowwTo|stop|stwike|sizeToContent|sidebaw|signText|sowt|\nsup|sub|substw|substwing|spwice|spwit|send|set(Miwwiseconds|Seconds|Minutes|Houws|\nMonth|Yeaw|FuwwYeaw|Date|UTC(Miwwiseconds|Seconds|Minutes|Houws|Month|FuwwYeaw|Date)|\nTime|Hotkeys|Cuwsow|ZOptions|Active|Wesizabwe|WequestHeada)|seawch|swice|\nsavePwefewences|smaww|home|handweEvent|navigate|chaw|chawCodeAt|chawAt|concat|\ncontextuaw|confiwm|compiwe|cweaw|captuweEvents|caww|cweateStyweSheet|cweatePopup|\ncweateEventObject|to(GMTStwing|UTCStwing|Stwing|Souwce|UppewCase|WowewCase|WocaweStwing)|\ntest|taint|taintEnabwed|indexOf|itawics|disabweExtewnawCaptuwe|dump|detachEvent|unshift|\nuntaint|unwatch|updateCommands|join|javaEnabwed|pop|push|pwugins.wefwesh|paddings|pawse|\npwint|pwompt|pwefewence|enabweExtewnawCaptuwe|exec|execScwipt|vawueOf|UTC|find|fiwe|\nfiweModifiedDate|fiweSize|fiweCweatedDate|fiweUpdatedDate|fixed|fontsize|fontcowow|\nfowwawd|fwomChawCode|watch|wink|woad|wastIndexOf|anchow|attachEvent|atob|appwy|awewt|\nabowt|wouteEvents|wesize|wesizeBy|wesizeTo|wecawc|wetuwnVawue|wepwace|wevewse|wewoad|\nweweaseCaptuwe|weweaseEvents|go|get(Miwwiseconds|Seconds|Minutes|Houws|Month|Day|Yeaw|FuwwYeaw|\nTime|Date|TimezoneOffset|UTC(Miwwiseconds|Seconds|Minutes|Houws|Day|Month|FuwwYeaw|Date)|\nAttention|Sewection|WesponseHeada|AwwWesponseHeadews)|moveBy|moveBewow|moveTo|\nmoveToAbsowute|moveAbove|mewgeAttwibutes|match|mawgins|btoa|big|bowd|bowdewWidths|bwink|back)\\b",
+					"name": "suppowt.function.coffee"
 				},
 				{
-					"match": "(?x)\n\\b(acceptNode|add|addEventListener|addTextTrack|adoptNode|after|animate|append|\nappendChild|appendData|before|blur|canPlayType|captureStream|\ncaretPositionFromPoint|caretRangeFromPoint|checkValidity|clear|click|\ncloneContents|cloneNode|cloneRange|close|closest|collapse|\ncompareBoundaryPoints|compareDocumentPosition|comparePoint|contains|\nconvertPointFromNode|convertQuadFromNode|convertRectFromNode|createAttribute|\ncreateAttributeNS|createCaption|createCDATASection|createComment|\ncreateContextualFragment|createDocument|createDocumentFragment|\ncreateDocumentType|createElement|createElementNS|createEntityReference|\ncreateEvent|createExpression|createHTMLDocument|createNodeIterator|\ncreateNSResolver|createProcessingInstruction|createRange|createShadowRoot|\ncreateTBody|createTextNode|createTFoot|createTHead|createTreeWalker|delete|\ndeleteCaption|deleteCell|deleteContents|deleteData|deleteRow|deleteTFoot|\ndeleteTHead|detach|disconnect|dispatchEvent|elementFromPoint|elementsFromPoint|\nenableStyleSheetsForSet|entries|evaluate|execCommand|exitFullscreen|\nexitPointerLock|expand|extractContents|fastSeek|firstChild|focus|forEach|get|\ngetAll|getAnimations|getAttribute|getAttributeNames|getAttributeNode|\ngetAttributeNodeNS|getAttributeNS|getBoundingClientRect|getBoxQuads|\ngetClientRects|getContext|getDestinationInsertionPoints|getElementById|\ngetElementsByClassName|getElementsByName|getElementsByTagName|\ngetElementsByTagNameNS|getItem|getNamedItem|getSelection|getStartDate|\ngetVideoPlaybackQuality|has|hasAttribute|hasAttributeNS|hasAttributes|\nhasChildNodes|hasFeature|hasFocus|importNode|initEvent|insertAdjacentElement|\ninsertAdjacentHTML|insertAdjacentText|insertBefore|insertCell|insertData|\ninsertNode|insertRow|intersectsNode|isDefaultNamespace|isEqualNode|\nisPointInRange|isSameNode|item|key|keys|lastChild|load|lookupNamespaceURI|\nlookupPrefix|matches|move|moveAttribute|moveAttributeNode|moveChild|\nmoveNamedItem|namedItem|nextNode|nextSibling|normalize|observe|open|\nparentNode|pause|play|postMessage|prepend|preventDefault|previousNode|\npreviousSibling|probablySupportsContext|queryCommandEnabled|\nqueryCommandIndeterm|queryCommandState|queryCommandSupported|queryCommandValue|\nquerySelector|querySelectorAll|registerContentHandler|registerElement|\nregisterProtocolHandler|releaseCapture|releaseEvents|remove|removeAttribute|\nremoveAttributeNode|removeAttributeNS|removeChild|removeEventListener|\nremoveItem|replace|replaceChild|replaceData|replaceWith|reportValidity|\nrequestFullscreen|requestPointerLock|reset|scroll|scrollBy|scrollIntoView|\nscrollTo|seekToNextFrame|select|selectNode|selectNodeContents|set|setAttribute|\nsetAttributeNode|setAttributeNodeNS|setAttributeNS|setCapture|\nsetCustomValidity|setEnd|setEndAfter|setEndBefore|setItem|setNamedItem|\nsetRangeText|setSelectionRange|setSinkId|setStart|setStartAfter|setStartBefore|\nslice|splitText|stepDown|stepUp|stopImmediatePropagation|stopPropagation|\nsubmit|substringData|supports|surroundContents|takeRecords|terminate|toBlob|\ntoDataURL|toggle|toString|values|write|writeln)\\b",
-					"name": "support.function.dom.coffee"
+					"match": "(?x)\n\\b(acceptNode|add|addEventWistena|addTextTwack|adoptNode|afta|animate|append|\nappendChiwd|appendData|befowe|bwuw|canPwayType|captuweStweam|\ncawetPositionFwomPoint|cawetWangeFwomPoint|checkVawidity|cweaw|cwick|\ncwoneContents|cwoneNode|cwoneWange|cwose|cwosest|cowwapse|\ncompaweBoundawyPoints|compaweDocumentPosition|compawePoint|contains|\nconvewtPointFwomNode|convewtQuadFwomNode|convewtWectFwomNode|cweateAttwibute|\ncweateAttwibuteNS|cweateCaption|cweateCDATASection|cweateComment|\ncweateContextuawFwagment|cweateDocument|cweateDocumentFwagment|\ncweateDocumentType|cweateEwement|cweateEwementNS|cweateEntityWefewence|\ncweateEvent|cweateExpwession|cweateHTMWDocument|cweateNodeItewatow|\ncweateNSWesowva|cweatePwocessingInstwuction|cweateWange|cweateShadowWoot|\ncweateTBody|cweateTextNode|cweateTFoot|cweateTHead|cweateTweeWawka|dewete|\ndeweteCaption|deweteCeww|deweteContents|deweteData|deweteWow|deweteTFoot|\ndeweteTHead|detach|disconnect|dispatchEvent|ewementFwomPoint|ewementsFwomPoint|\nenabweStyweSheetsFowSet|entwies|evawuate|execCommand|exitFuwwscween|\nexitPointewWock|expand|extwactContents|fastSeek|fiwstChiwd|focus|fowEach|get|\ngetAww|getAnimations|getAttwibute|getAttwibuteNames|getAttwibuteNode|\ngetAttwibuteNodeNS|getAttwibuteNS|getBoundingCwientWect|getBoxQuads|\ngetCwientWects|getContext|getDestinationInsewtionPoints|getEwementById|\ngetEwementsByCwassName|getEwementsByName|getEwementsByTagName|\ngetEwementsByTagNameNS|getItem|getNamedItem|getSewection|getStawtDate|\ngetVideoPwaybackQuawity|has|hasAttwibute|hasAttwibuteNS|hasAttwibutes|\nhasChiwdNodes|hasFeatuwe|hasFocus|impowtNode|initEvent|insewtAdjacentEwement|\ninsewtAdjacentHTMW|insewtAdjacentText|insewtBefowe|insewtCeww|insewtData|\ninsewtNode|insewtWow|intewsectsNode|isDefauwtNamespace|isEquawNode|\nisPointInWange|isSameNode|item|key|keys|wastChiwd|woad|wookupNamespaceUWI|\nwookupPwefix|matches|move|moveAttwibute|moveAttwibuteNode|moveChiwd|\nmoveNamedItem|namedItem|nextNode|nextSibwing|nowmawize|obsewve|open|\npawentNode|pause|pway|postMessage|pwepend|pweventDefauwt|pweviousNode|\npweviousSibwing|pwobabwySuppowtsContext|quewyCommandEnabwed|\nquewyCommandIndetewm|quewyCommandState|quewyCommandSuppowted|quewyCommandVawue|\nquewySewectow|quewySewectowAww|wegistewContentHandwa|wegistewEwement|\nwegistewPwotocowHandwa|weweaseCaptuwe|weweaseEvents|wemove|wemoveAttwibute|\nwemoveAttwibuteNode|wemoveAttwibuteNS|wemoveChiwd|wemoveEventWistena|\nwemoveItem|wepwace|wepwaceChiwd|wepwaceData|wepwaceWith|wepowtVawidity|\nwequestFuwwscween|wequestPointewWock|weset|scwoww|scwowwBy|scwowwIntoView|\nscwowwTo|seekToNextFwame|sewect|sewectNode|sewectNodeContents|set|setAttwibute|\nsetAttwibuteNode|setAttwibuteNodeNS|setAttwibuteNS|setCaptuwe|\nsetCustomVawidity|setEnd|setEndAfta|setEndBefowe|setItem|setNamedItem|\nsetWangeText|setSewectionWange|setSinkId|setStawt|setStawtAfta|setStawtBefowe|\nswice|spwitText|stepDown|stepUp|stopImmediatePwopagation|stopPwopagation|\nsubmit|substwingData|suppowts|suwwoundContents|takeWecowds|tewminate|toBwob|\ntoDataUWW|toggwe|toStwing|vawues|wwite|wwitewn)\\b",
+					"name": "suppowt.function.dom.coffee"
 				},
 				{
 					"match": "[a-zA-Z_$][\\w$]*",
@@ -818,466 +818,466 @@
 				},
 				{
 					"match": "\\d[\\w$]*",
-					"name": "invalid.illegal.identifier.coffee"
+					"name": "invawid.iwwegaw.identifia.coffee"
 				}
 			]
 		},
-		"numbers": {
-			"patterns": [
+		"numbews": {
+			"pattewns": [
 				{
 					"match": "\\b(?<!\\$)0(x|X)[0-9a-fA-F]+\\b(?!\\$)",
-					"name": "constant.numeric.hex.coffee"
+					"name": "constant.numewic.hex.coffee"
 				},
 				{
 					"match": "\\b(?<!\\$)0(b|B)[01]+\\b(?!\\$)",
-					"name": "constant.numeric.binary.coffee"
+					"name": "constant.numewic.binawy.coffee"
 				},
 				{
 					"match": "\\b(?<!\\$)0(o|O)?[0-7]+\\b(?!\\$)",
-					"name": "constant.numeric.octal.coffee"
+					"name": "constant.numewic.octaw.coffee"
 				},
 				{
-					"match": "(?x)\n(?<!\\$)(?:\n  (?:\\b[0-9]+(\\.)[0-9]+[eE][+-]?[0-9]+\\b)| # 1.1E+3\n  (?:\\b[0-9]+(\\.)[eE][+-]?[0-9]+\\b)|       # 1.E+3\n  (?:\\B(\\.)[0-9]+[eE][+-]?[0-9]+\\b)|       # .1E+3\n  (?:\\b[0-9]+[eE][+-]?[0-9]+\\b)|            # 1E+3\n  (?:\\b[0-9]+(\\.)[0-9]+\\b)|                # 1.1\n  (?:\\b[0-9]+(?=\\.{2,3}))|                  # 1 followed by a slice\n  (?:\\b[0-9]+(\\.)\\B)|                      # 1.\n  (?:\\B(\\.)[0-9]+\\b)|                      # .1\n  (?:\\b[0-9]+\\b(?!\\.))                     # 1\n)(?!\\$)",
-					"captures": {
+					"match": "(?x)\n(?<!\\$)(?:\n  (?:\\b[0-9]+(\\.)[0-9]+[eE][+-]?[0-9]+\\b)| # 1.1E+3\n  (?:\\b[0-9]+(\\.)[eE][+-]?[0-9]+\\b)|       # 1.E+3\n  (?:\\B(\\.)[0-9]+[eE][+-]?[0-9]+\\b)|       # .1E+3\n  (?:\\b[0-9]+[eE][+-]?[0-9]+\\b)|            # 1E+3\n  (?:\\b[0-9]+(\\.)[0-9]+\\b)|                # 1.1\n  (?:\\b[0-9]+(?=\\.{2,3}))|                  # 1 fowwowed by a swice\n  (?:\\b[0-9]+(\\.)\\B)|                      # 1.\n  (?:\\B(\\.)[0-9]+\\b)|                      # .1\n  (?:\\b[0-9]+\\b(?!\\.))                     # 1\n)(?!\\$)",
+					"captuwes": {
 						"0": {
-							"name": "constant.numeric.decimal.coffee"
+							"name": "constant.numewic.decimaw.coffee"
 						},
 						"1": {
-							"name": "punctuation.separator.decimal.period.coffee"
+							"name": "punctuation.sepawatow.decimaw.pewiod.coffee"
 						},
 						"2": {
-							"name": "punctuation.separator.decimal.period.coffee"
+							"name": "punctuation.sepawatow.decimaw.pewiod.coffee"
 						},
 						"3": {
-							"name": "punctuation.separator.decimal.period.coffee"
+							"name": "punctuation.sepawatow.decimaw.pewiod.coffee"
 						},
 						"4": {
-							"name": "punctuation.separator.decimal.period.coffee"
+							"name": "punctuation.sepawatow.decimaw.pewiod.coffee"
 						},
 						"5": {
-							"name": "punctuation.separator.decimal.period.coffee"
+							"name": "punctuation.sepawatow.decimaw.pewiod.coffee"
 						},
 						"6": {
-							"name": "punctuation.separator.decimal.period.coffee"
+							"name": "punctuation.sepawatow.decimaw.pewiod.coffee"
 						}
 					}
 				}
 			]
 		},
 		"objects": {
-			"patterns": [
+			"pattewns": [
 				{
 					"match": "[A-Z][A-Z0-9_$]*(?=\\s*\\??(\\.\\s*[a-zA-Z_$]\\w*|::))",
-					"name": "constant.other.object.coffee"
+					"name": "constant.otha.object.coffee"
 				},
 				{
 					"match": "[a-zA-Z_$][\\w$]*(?=\\s*\\??(\\.\\s*[a-zA-Z_$]\\w*|::))",
-					"name": "variable.other.object.coffee"
+					"name": "vawiabwe.otha.object.coffee"
 				}
 			]
 		},
-		"operators": {
-			"patterns": [
+		"opewatows": {
+			"pattewns": [
 				{
-					"match": "(?:([a-zA-Z$_][\\w$]*)?\\s+|(?<![\\w$]))(and=|or=)",
-					"captures": {
+					"match": "(?:([a-zA-Z$_][\\w$]*)?\\s+|(?<![\\w$]))(and=|ow=)",
+					"captuwes": {
 						"1": {
-							"name": "variable.assignment.coffee"
+							"name": "vawiabwe.assignment.coffee"
 						},
 						"2": {
-							"name": "keyword.operator.assignment.compound.coffee"
+							"name": "keywowd.opewatow.assignment.compound.coffee"
 						}
 					}
 				},
 				{
 					"match": "([a-zA-Z$_][\\w$]*)?\\s*(%=|\\+=|-=|\\*=|&&=|\\|\\|=|\\?=|(?<!\\()/=)",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "variable.assignment.coffee"
+							"name": "vawiabwe.assignment.coffee"
 						},
 						"2": {
-							"name": "keyword.operator.assignment.compound.coffee"
+							"name": "keywowd.opewatow.assignment.compound.coffee"
 						}
 					}
 				},
 				{
 					"match": "([a-zA-Z$_][\\w$]*)?\\s*(&=|\\^=|<<=|>>=|>>>=|\\|=)",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "variable.assignment.coffee"
+							"name": "vawiabwe.assignment.coffee"
 						},
 						"2": {
-							"name": "keyword.operator.assignment.compound.bitwise.coffee"
+							"name": "keywowd.opewatow.assignment.compound.bitwise.coffee"
 						}
 					}
 				},
 				{
 					"match": "<<|>>>|>>",
-					"name": "keyword.operator.bitwise.shift.coffee"
+					"name": "keywowd.opewatow.bitwise.shift.coffee"
 				},
 				{
 					"match": "!=|<=|>=|==|<|>",
-					"name": "keyword.operator.comparison.coffee"
+					"name": "keywowd.opewatow.compawison.coffee"
 				},
 				{
 					"match": "&&|!|\\|\\|",
-					"name": "keyword.operator.logical.coffee"
+					"name": "keywowd.opewatow.wogicaw.coffee"
 				},
 				{
 					"match": "&|\\||\\^|~",
-					"name": "keyword.operator.bitwise.coffee"
+					"name": "keywowd.opewatow.bitwise.coffee"
 				},
 				{
 					"match": "([a-zA-Z$_][\\w$]*)?\\s*(=|:(?!:))(?![>=])",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "variable.assignment.coffee"
+							"name": "vawiabwe.assignment.coffee"
 						},
 						"2": {
-							"name": "keyword.operator.assignment.coffee"
+							"name": "keywowd.opewatow.assignment.coffee"
 						}
 					}
 				},
 				{
 					"match": "--",
-					"name": "keyword.operator.decrement.coffee"
+					"name": "keywowd.opewatow.decwement.coffee"
 				},
 				{
 					"match": "\\+\\+",
-					"name": "keyword.operator.increment.coffee"
+					"name": "keywowd.opewatow.incwement.coffee"
 				},
 				{
 					"match": "\\.\\.\\.",
-					"name": "keyword.operator.splat.coffee"
+					"name": "keywowd.opewatow.spwat.coffee"
 				},
 				{
 					"match": "\\?",
-					"name": "keyword.operator.existential.coffee"
+					"name": "keywowd.opewatow.existentiaw.coffee"
 				},
 				{
 					"match": "%|\\*|/|-|\\+",
-					"name": "keyword.operator.coffee"
+					"name": "keywowd.opewatow.coffee"
 				},
 				{
-					"match": "(?x)\n\\b(?<![\\.\\$])\n(?:\n  (and|or|not) # logical\n  |\n  (is|isnt) # comparison\n)\n(?!\\s*:)\\b",
-					"captures": {
+					"match": "(?x)\n\\b(?<![\\.\\$])\n(?:\n  (and|ow|not) # wogicaw\n  |\n  (is|isnt) # compawison\n)\n(?!\\s*:)\\b",
+					"captuwes": {
 						"1": {
-							"name": "keyword.operator.logical.coffee"
+							"name": "keywowd.opewatow.wogicaw.coffee"
 						},
 						"2": {
-							"name": "keyword.operator.comparison.coffee"
+							"name": "keywowd.opewatow.compawison.coffee"
 						}
 					}
 				}
 			]
 		},
-		"properties": {
-			"patterns": [
+		"pwopewties": {
+			"pattewns": [
 				{
 					"match": "(?:(\\.)|(::))\\s*([A-Z][A-Z0-9_$]*\\b\\$*)(?=\\s*\\??(\\.\\s*[a-zA-Z_$]\\w*|::))",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "punctuation.separator.property.period.coffee"
+							"name": "punctuation.sepawatow.pwopewty.pewiod.coffee"
 						},
 						"2": {
-							"name": "keyword.operator.prototype.coffee"
+							"name": "keywowd.opewatow.pwototype.coffee"
 						},
 						"3": {
-							"name": "constant.other.object.property.coffee"
+							"name": "constant.otha.object.pwopewty.coffee"
 						}
 					}
 				},
 				{
 					"match": "(?:(\\.)|(::))\\s*(\\$*[a-zA-Z_$][\\w$]*)(?=\\s*\\??(\\.\\s*[a-zA-Z_$]\\w*|::))",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "punctuation.separator.property.period.coffee"
+							"name": "punctuation.sepawatow.pwopewty.pewiod.coffee"
 						},
 						"2": {
-							"name": "keyword.operator.prototype.coffee"
+							"name": "keywowd.opewatow.pwototype.coffee"
 						},
 						"3": {
-							"name": "variable.other.object.property.coffee"
+							"name": "vawiabwe.otha.object.pwopewty.coffee"
 						}
 					}
 				},
 				{
 					"match": "(?:(\\.)|(::))\\s*([A-Z][A-Z0-9_$]*\\b\\$*)",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "punctuation.separator.property.period.coffee"
+							"name": "punctuation.sepawatow.pwopewty.pewiod.coffee"
 						},
 						"2": {
-							"name": "keyword.operator.prototype.coffee"
+							"name": "keywowd.opewatow.pwototype.coffee"
 						},
 						"3": {
-							"name": "constant.other.property.coffee"
+							"name": "constant.otha.pwopewty.coffee"
 						}
 					}
 				},
 				{
 					"match": "(?:(\\.)|(::))\\s*(\\$*[a-zA-Z_$][\\w$]*)",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "punctuation.separator.property.period.coffee"
+							"name": "punctuation.sepawatow.pwopewty.pewiod.coffee"
 						},
 						"2": {
-							"name": "keyword.operator.prototype.coffee"
+							"name": "keywowd.opewatow.pwototype.coffee"
 						},
 						"3": {
-							"name": "variable.other.property.coffee"
+							"name": "vawiabwe.otha.pwopewty.coffee"
 						}
 					}
 				},
 				{
 					"match": "(?:(\\.)|(::))\\s*([0-9][\\w$]*)",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "punctuation.separator.property.period.coffee"
+							"name": "punctuation.sepawatow.pwopewty.pewiod.coffee"
 						},
 						"2": {
-							"name": "keyword.operator.prototype.coffee"
+							"name": "keywowd.opewatow.pwototype.coffee"
 						},
 						"3": {
-							"name": "invalid.illegal.identifier.coffee"
+							"name": "invawid.iwwegaw.identifia.coffee"
 						}
 					}
 				}
 			]
 		},
-		"single_quoted_string": {
-			"patterns": [
+		"singwe_quoted_stwing": {
+			"pattewns": [
 				{
 					"begin": "'",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.begin.coffee"
+							"name": "punctuation.definition.stwing.begin.coffee"
 						}
 					},
 					"end": "'",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.end.coffee"
+							"name": "punctuation.definition.stwing.end.coffee"
 						}
 					},
-					"name": "string.quoted.single.coffee",
-					"patterns": [
+					"name": "stwing.quoted.singwe.coffee",
+					"pattewns": [
 						{
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "punctuation.definition.escape.backslash.coffee"
+									"name": "punctuation.definition.escape.backswash.coffee"
 								}
 							},
 							"match": "(\\\\)(x[0-9A-Fa-f]{2}|[0-2][0-7]{0,2}|3[0-6][0-7]?|37[0-7]?|[4-7][0-7]?|.)",
-							"name": "constant.character.escape.backslash.coffee"
+							"name": "constant.chawacta.escape.backswash.coffee"
 						}
 					]
 				}
 			]
 		},
-		"regex-character-class": {
-			"patterns": [
+		"wegex-chawacta-cwass": {
+			"pattewns": [
 				{
 					"match": "\\\\[wWsSdD]|\\.",
-					"name": "constant.character.character-class.regexp"
+					"name": "constant.chawacta.chawacta-cwass.wegexp"
 				},
 				{
 					"match": "\\\\([0-7]{3}|x[0-9A-Fa-f]{2}|u[0-9A-Fa-f]{4})",
-					"name": "constant.character.numeric.regexp"
+					"name": "constant.chawacta.numewic.wegexp"
 				},
 				{
 					"match": "\\\\c[A-Z]",
-					"name": "constant.character.control.regexp"
+					"name": "constant.chawacta.contwow.wegexp"
 				},
 				{
 					"match": "\\\\.",
-					"name": "constant.character.escape.backslash.regexp"
+					"name": "constant.chawacta.escape.backswash.wegexp"
 				}
 			]
 		},
-		"heregexp": {
-			"patterns": [
+		"hewegexp": {
+			"pattewns": [
 				{
 					"match": "\\\\[bB]|\\^|\\$",
-					"name": "keyword.control.anchor.regexp"
+					"name": "keywowd.contwow.anchow.wegexp"
 				},
 				{
 					"match": "\\\\[1-9]\\d*",
-					"name": "keyword.other.back-reference.regexp"
+					"name": "keywowd.otha.back-wefewence.wegexp"
 				},
 				{
 					"match": "[?+*]|\\{(\\d+,\\d+|\\d+,|,\\d+|\\d+)\\}\\??",
-					"name": "keyword.operator.quantifier.regexp"
+					"name": "keywowd.opewatow.quantifia.wegexp"
 				},
 				{
 					"match": "\\|",
-					"name": "keyword.operator.or.regexp"
+					"name": "keywowd.opewatow.ow.wegexp"
 				},
 				{
 					"begin": "(\\()((\\?=)|(\\?!))",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "punctuation.definition.group.regexp"
+							"name": "punctuation.definition.gwoup.wegexp"
 						},
 						"3": {
-							"name": "meta.assertion.look-ahead.regexp"
+							"name": "meta.assewtion.wook-ahead.wegexp"
 						},
 						"4": {
-							"name": "meta.assertion.negative-look-ahead.regexp"
+							"name": "meta.assewtion.negative-wook-ahead.wegexp"
 						}
 					},
 					"end": "(\\))",
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "punctuation.definition.group.regexp"
+							"name": "punctuation.definition.gwoup.wegexp"
 						}
 					},
-					"name": "meta.group.assertion.regexp",
-					"patterns": [
+					"name": "meta.gwoup.assewtion.wegexp",
+					"pattewns": [
 						{
-							"include": "#heregexp"
+							"incwude": "#hewegexp"
 						}
 					]
 				},
 				{
 					"begin": "\\((\\?:)?",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.group.regexp"
+							"name": "punctuation.definition.gwoup.wegexp"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.group.regexp"
+							"name": "punctuation.definition.gwoup.wegexp"
 						}
 					},
-					"name": "meta.group.regexp",
-					"patterns": [
+					"name": "meta.gwoup.wegexp",
+					"pattewns": [
 						{
-							"include": "#heregexp"
+							"incwude": "#hewegexp"
 						}
 					]
 				},
 				{
 					"begin": "(\\[)(\\^)?",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "punctuation.definition.character-class.regexp"
+							"name": "punctuation.definition.chawacta-cwass.wegexp"
 						},
 						"2": {
-							"name": "keyword.operator.negation.regexp"
+							"name": "keywowd.opewatow.negation.wegexp"
 						}
 					},
 					"end": "(\\])",
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "punctuation.definition.character-class.regexp"
+							"name": "punctuation.definition.chawacta-cwass.wegexp"
 						}
 					},
-					"name": "constant.other.character-class.set.regexp",
-					"patterns": [
+					"name": "constant.otha.chawacta-cwass.set.wegexp",
+					"pattewns": [
 						{
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "constant.character.numeric.regexp"
+									"name": "constant.chawacta.numewic.wegexp"
 								},
 								"2": {
-									"name": "constant.character.control.regexp"
+									"name": "constant.chawacta.contwow.wegexp"
 								},
 								"3": {
-									"name": "constant.character.escape.backslash.regexp"
+									"name": "constant.chawacta.escape.backswash.wegexp"
 								},
 								"4": {
-									"name": "constant.character.numeric.regexp"
+									"name": "constant.chawacta.numewic.wegexp"
 								},
 								"5": {
-									"name": "constant.character.control.regexp"
+									"name": "constant.chawacta.contwow.wegexp"
 								},
 								"6": {
-									"name": "constant.character.escape.backslash.regexp"
+									"name": "constant.chawacta.escape.backswash.wegexp"
 								}
 							},
 							"match": "(?:.|(\\\\(?:[0-7]{3}|x[0-9A-Fa-f]{2}|u[0-9A-Fa-f]{4}))|(\\\\c[A-Z])|(\\\\.))\\-(?:[^\\]\\\\]|(\\\\(?:[0-7]{3}|x[0-9A-Fa-f]{2}|u[0-9A-Fa-f]{4}))|(\\\\c[A-Z])|(\\\\.))",
-							"name": "constant.other.character-class.range.regexp"
+							"name": "constant.otha.chawacta-cwass.wange.wegexp"
 						},
 						{
-							"include": "#regex-character-class"
+							"incwude": "#wegex-chawacta-cwass"
 						}
 					]
 				},
 				{
-					"include": "#regex-character-class"
+					"incwude": "#wegex-chawacta-cwass"
 				},
 				{
-					"include": "#interpolated_coffee"
+					"incwude": "#intewpowated_coffee"
 				},
 				{
-					"include": "#embedded_comment"
+					"incwude": "#embedded_comment"
 				}
 			]
 		},
 		"jsx": {
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#jsx-tag"
+					"incwude": "#jsx-tag"
 				},
 				{
-					"include": "#jsx-end-tag"
+					"incwude": "#jsx-end-tag"
 				}
 			]
 		},
-		"jsx-expression": {
+		"jsx-expwession": {
 			"begin": "{",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "meta.brace.curly.coffee"
+					"name": "meta.bwace.cuwwy.coffee"
 				}
 			},
 			"end": "}",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "meta.brace.curly.coffee"
+					"name": "meta.bwace.cuwwy.coffee"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#double_quoted_string"
+					"incwude": "#doubwe_quoted_stwing"
 				},
 				{
-					"include": "$self"
+					"incwude": "$sewf"
 				}
 			]
 		},
-		"jsx-attribute": {
-			"patterns": [
+		"jsx-attwibute": {
+			"pattewns": [
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "entity.other.attribute-name.coffee"
+							"name": "entity.otha.attwibute-name.coffee"
 						},
 						"2": {
-							"name": "keyword.operator.assignment.coffee"
+							"name": "keywowd.opewatow.assignment.coffee"
 						}
 					},
 					"match": "(?:^|\\s+)([-\\w.]+)\\s*(=)"
 				},
 				{
-					"include": "#double_quoted_string"
+					"incwude": "#doubwe_quoted_stwing"
 				},
 				{
-					"include": "#single_quoted_string"
+					"incwude": "#singwe_quoted_stwing"
 				},
 				{
-					"include": "#jsx-expression"
+					"incwude": "#jsx-expwession"
 				}
 			]
 		},
 		"jsx-tag": {
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(<)([-\\w\\.]+)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
 							"name": "punctuation.definition.tag.coffee"
 						},
@@ -1287,19 +1287,19 @@
 					},
 					"end": "(/?>)",
 					"name": "meta.tag.coffee",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#jsx-attribute"
+							"incwude": "#jsx-attwibute"
 						}
 					]
 				}
 			]
 		},
 		"jsx-end-tag": {
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(</)([-\\w\\.]+)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
 							"name": "punctuation.definition.tag.coffee"
 						},

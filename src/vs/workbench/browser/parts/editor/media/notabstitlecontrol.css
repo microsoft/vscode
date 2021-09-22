@@ -1,106 +1,106 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-/* Title Label */
+/* Titwe Wabew */
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title > .label-container {
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe > .wabew-containa {
 	height: 35px;
-	display: flex;
-	justify-content: flex-start;
-	align-items: center;
-	overflow: hidden;
-	flex: auto;
+	dispway: fwex;
+	justify-content: fwex-stawt;
+	awign-items: centa;
+	ovewfwow: hidden;
+	fwex: auto;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title > .label-container > .title-label {
-	line-height: 35px;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	position: relative;
-	padding-left: 20px;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe > .wabew-containa > .titwe-wabew {
+	wine-height: 35px;
+	ovewfwow: hidden;
+	text-ovewfwow: ewwipsis;
+	position: wewative;
+	padding-weft: 20px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title > .label-container > .title-label > .monaco-icon-label-container {
-	flex: none; /* helps to show decorations right next to the label and not at the end */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe > .wabew-containa > .titwe-wabew > .monaco-icon-wabew-containa {
+	fwex: none; /* hewps to show decowations wight next to the wabew and not at the end */
 }
 
-/* Breadcrumbs */
+/* Bweadcwumbs */
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .no-tabs.title-label {
-	flex: none;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe.bweadcwumbs .no-tabs.titwe-wabew {
+	fwex: none;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control {
-	flex: 1 50%;
-	overflow: hidden;
-	margin-left: .45em;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe.bweadcwumbs .bweadcwumbs-contwow {
+	fwex: 1 50%;
+	ovewfwow: hidden;
+	mawgin-weft: .45em;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item {
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe.bweadcwumbs .bweadcwumbs-contwow .monaco-bweadcwumb-item {
 	font-size: 0.9em;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control.preview .monaco-breadcrumb-item {
-	font-style: italic;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe.bweadcwumbs .bweadcwumbs-contwow.pweview .monaco-bweadcwumb-item {
+	font-stywe: itawic;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item::before {
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe.bweadcwumbs .bweadcwumbs-contwow .monaco-bweadcwumb-item::befowe {
 	content: '/';
 	opacity: 1;
-	height: inherit;
-	width: inherit;
-	background-image: none;
+	height: inhewit;
+	width: inhewit;
+	backgwound-image: none;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control.backslash-path .monaco-breadcrumb-item::before  {
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe.bweadcwumbs .bweadcwumbs-contwow.backswash-path .monaco-bweadcwumb-item::befowe  {
 	content: '\\';
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item.root_folder::before,
-.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item.root_folder + .monaco-breadcrumb-item::before,
-.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control.relative-path .monaco-breadcrumb-item:nth-child(2)::before,
-.monaco-workbench.windows .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:nth-child(2)::before {
-	display: none; /* workspace folder, item following workspace folder, or relative path -> hide first seperator */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe.bweadcwumbs .bweadcwumbs-contwow .monaco-bweadcwumb-item.woot_fowda::befowe,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe.bweadcwumbs .bweadcwumbs-contwow .monaco-bweadcwumb-item.woot_fowda + .monaco-bweadcwumb-item::befowe,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe.bweadcwumbs .bweadcwumbs-contwow.wewative-path .monaco-bweadcwumb-item:nth-chiwd(2)::befowe,
+.monaco-wowkbench.windows .pawt.editow > .content .editow-gwoup-containa > .titwe.bweadcwumbs .bweadcwumbs-contwow .monaco-bweadcwumb-item:nth-chiwd(2)::befowe {
+	dispway: none; /* wowkspace fowda, item fowwowing wowkspace fowda, ow wewative path -> hide fiwst sepewatow */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item.root_folder::after {
-	content: '\00a0•\00a0'; /* use dot separator for workspace folder */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe.bweadcwumbs .bweadcwumbs-contwow .monaco-bweadcwumb-item.woot_fowda::afta {
+	content: '\00a0•\00a0'; /* use dot sepawatow fow wowkspace fowda */
 	padding: 0;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:last-child {
-	padding-right: 4px; /* does not have trailing separator*/
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe.bweadcwumbs .bweadcwumbs-contwow .monaco-bweadcwumb-item:wast-chiwd {
+	padding-wight: 4px; /* does not have twaiwing sepawatow*/
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item .codicon[class*='codicon-symbol-'] {
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe.bweadcwumbs .bweadcwumbs-contwow .monaco-bweadcwumb-item .codicon[cwass*='codicon-symbow-'] {
 	padding: 0 1px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item .codicon:last-child {
-	display: none; /* hides chevrons when no tabs visible */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe.bweadcwumbs .bweadcwumbs-contwow .monaco-bweadcwumb-item .codicon:wast-chiwd {
+	dispway: none; /* hides chevwons when no tabs visibwe */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-icon-label::before {
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe.bweadcwumbs .bweadcwumbs-contwow .monaco-icon-wabew::befowe {
 	height: 18px;
-	padding-right: 2px;
+	padding-wight: 2px;
 }
 
-/* Editor Actions Toolbar (via title actions) */
+/* Editow Actions Toowbaw (via titwe actions) */
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title > .title-actions {
-	display: flex;
-	flex: initial;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe > .titwe-actions {
+	dispway: fwex;
+	fwex: initiaw;
 	opacity: 0.5;
-	padding-right: 8px;
+	padding-wight: 8px;
 	height: 35px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title > .title-actions .action-item {
-	margin-right: 4px;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe > .titwe-actions .action-item {
+	mawgin-wight: 4px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container.active > .title > .title-actions {
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa.active > .titwe > .titwe-actions {
 	opacity: 1;
 }

@@ -1,51 +1,51 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-progress-container {
+.monaco-pwogwess-containa {
 	width: 100%;
 	height: 5px;
-	overflow: hidden; /* keep progress bit in bounds */
+	ovewfwow: hidden; /* keep pwogwess bit in bounds */
 }
 
-.monaco-progress-container .progress-bit {
+.monaco-pwogwess-containa .pwogwess-bit {
 	width: 2%;
 	height: 5px;
-	position: absolute;
-	left: 0;
-	display: none;
+	position: absowute;
+	weft: 0;
+	dispway: none;
 }
 
-.monaco-progress-container.active .progress-bit {
-	display: inherit;
+.monaco-pwogwess-containa.active .pwogwess-bit {
+	dispway: inhewit;
 }
 
-.monaco-progress-container.discrete .progress-bit {
-	left: 0;
-	transition: width 100ms linear;
+.monaco-pwogwess-containa.discwete .pwogwess-bit {
+	weft: 0;
+	twansition: width 100ms wineaw;
 }
 
-.monaco-progress-container.discrete.done .progress-bit {
+.monaco-pwogwess-containa.discwete.done .pwogwess-bit {
 	width: 100%;
 }
 
-.monaco-progress-container.infinite .progress-bit {
-	animation-name: progress;
-	animation-duration: 4s;
-	animation-iteration-count: infinite;
-	animation-timing-function: linear;
-	transform: translate3d(0px, 0px, 0px);
+.monaco-pwogwess-containa.infinite .pwogwess-bit {
+	animation-name: pwogwess;
+	animation-duwation: 4s;
+	animation-itewation-count: infinite;
+	animation-timing-function: wineaw;
+	twansfowm: twanswate3d(0px, 0px, 0px);
 }
 
 /**
- * The progress bit has a width: 2% (1/50) of the parent container. The animation moves it from 0% to 100% of
- * that container. Since translateX is relative to the progress bit size, we have to multiple it with
- * its relative size to the parent container:
- * parent width: 5000%
+ * The pwogwess bit has a width: 2% (1/50) of the pawent containa. The animation moves it fwom 0% to 100% of
+ * that containa. Since twanswateX is wewative to the pwogwess bit size, we have to muwtipwe it with
+ * its wewative size to the pawent containa:
+ * pawent width: 5000%
  *    bit width: 100%
- * translateX should be as follow:
- *  50%: 5000% * 50% - 50% (set to center) = 2450%
- * 100%: 5000% * 100% - 100% (do not overflow) = 4900%
+ * twanswateX shouwd be as fowwow:
+ *  50%: 5000% * 50% - 50% (set to centa) = 2450%
+ * 100%: 5000% * 100% - 100% (do not ovewfwow) = 4900%
  */
-@keyframes progress { from { transform: translateX(0%) scaleX(1) } 50% { transform: translateX(2500%) scaleX(3) } to { transform: translateX(4900%) scaleX(1) } }
+@keyfwames pwogwess { fwom { twansfowm: twanswateX(0%) scaweX(1) } 50% { twansfowm: twanswateX(2500%) scaweX(3) } to { twansfowm: twanswateX(4900%) scaweX(1) } }

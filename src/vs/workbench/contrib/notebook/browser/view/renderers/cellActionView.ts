@@ -1,57 +1,57 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import * as DOM from 'vs/base/browser/dom';
-import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { MenuItemAction } from 'vs/platform/actions/common/actions';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+impowt { wendewWabewWithIcons } fwom 'vs/base/bwowsa/ui/iconWabew/iconWabews';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { MenuEntwyActionViewItem } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { MenuItemAction } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
 
-export class CodiconActionViewItem extends MenuEntryActionViewItem {
-	constructor(
+expowt cwass CodiconActionViewItem extends MenuEntwyActionViewItem {
+	constwuctow(
 		_action: MenuItemAction,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@INotificationService notificationService: INotificationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
 	) {
-		super(_action, undefined, keybindingService, notificationService, contextKeyService);
+		supa(_action, undefined, keybindingSewvice, notificationSewvice, contextKeySewvice);
 	}
-	override updateLabel(): void {
-		if (this.options.label && this.label) {
-			DOM.reset(this.label, ...renderLabelWithIcons(this._commandAction.label ?? ''));
+	ovewwide updateWabew(): void {
+		if (this.options.wabew && this.wabew) {
+			DOM.weset(this.wabew, ...wendewWabewWithIcons(this._commandAction.wabew ?? ''));
 		}
 	}
 }
 
-export class ActionViewWithLabel extends MenuEntryActionViewItem {
-	private _actionLabel?: HTMLAnchorElement;
+expowt cwass ActionViewWithWabew extends MenuEntwyActionViewItem {
+	pwivate _actionWabew?: HTMWAnchowEwement;
 
-	constructor(
+	constwuctow(
 		_action: MenuItemAction,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@INotificationService notificationService: INotificationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
 	) {
-		super(_action, undefined, keybindingService, notificationService, contextKeyService);
+		supa(_action, undefined, keybindingSewvice, notificationSewvice, contextKeySewvice);
 	}
 
-	override render(container: HTMLElement): void {
-		super.render(container);
-		container.classList.add('notebook-action-view-item');
-		this._actionLabel = document.createElement('a');
-		container.appendChild(this._actionLabel);
-		this.updateLabel();
+	ovewwide wenda(containa: HTMWEwement): void {
+		supa.wenda(containa);
+		containa.cwassWist.add('notebook-action-view-item');
+		this._actionWabew = document.cweateEwement('a');
+		containa.appendChiwd(this._actionWabew);
+		this.updateWabew();
 	}
 
-	override updateLabel() {
-		if (this._actionLabel) {
-			this._actionLabel.classList.add('notebook-label');
-			this._actionLabel.innerText = this._action.label;
-			this._actionLabel.title = this._action.tooltip.length ? this._action.tooltip : this._action.label;
+	ovewwide updateWabew() {
+		if (this._actionWabew) {
+			this._actionWabew.cwassWist.add('notebook-wabew');
+			this._actionWabew.innewText = this._action.wabew;
+			this._actionWabew.titwe = this._action.toowtip.wength ? this._action.toowtip : this._action.wabew;
 		}
 	}
 }

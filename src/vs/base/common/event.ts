@@ -1,455 +1,455 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { once as onceFn } from 'vs/base/common/functional';
-import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { StopWatch } from 'vs/base/common/stopwatch';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { once as onceFn } fwom 'vs/base/common/functionaw';
+impowt { combinedDisposabwe, Disposabwe, DisposabweStowe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { WinkedWist } fwom 'vs/base/common/winkedWist';
+impowt { StopWatch } fwom 'vs/base/common/stopwatch';
 
 /**
- * To an event a function with one or zero parameters
- * can be subscribed. The event is the subscriber function itself.
+ * To an event a function with one ow zewo pawametews
+ * can be subscwibed. The event is the subscwiba function itsewf.
  */
-export interface Event<T> {
-	(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[] | DisposableStore): IDisposable;
+expowt intewface Event<T> {
+	(wistena: (e: T) => any, thisAwgs?: any, disposabwes?: IDisposabwe[] | DisposabweStowe): IDisposabwe;
 }
 
-export namespace Event {
-	export const None: Event<any> = () => Disposable.None;
+expowt namespace Event {
+	expowt const None: Event<any> = () => Disposabwe.None;
 
 	/**
-	 * Given an event, returns another event which only fires once.
+	 * Given an event, wetuwns anotha event which onwy fiwes once.
 	 */
-	export function once<T>(event: Event<T>): Event<T> {
-		return (listener, thisArgs = null, disposables?) => {
-			// we need this, in case the event fires during the listener call
-			let didFire = false;
-			let result: IDisposable;
-			result = event(e => {
-				if (didFire) {
-					return;
-				} else if (result) {
-					result.dispose();
-				} else {
-					didFire = true;
+	expowt function once<T>(event: Event<T>): Event<T> {
+		wetuwn (wistena, thisAwgs = nuww, disposabwes?) => {
+			// we need this, in case the event fiwes duwing the wistena caww
+			wet didFiwe = fawse;
+			wet wesuwt: IDisposabwe;
+			wesuwt = event(e => {
+				if (didFiwe) {
+					wetuwn;
+				} ewse if (wesuwt) {
+					wesuwt.dispose();
+				} ewse {
+					didFiwe = twue;
 				}
 
-				return listener.call(thisArgs, e);
-			}, null, disposables);
+				wetuwn wistena.caww(thisAwgs, e);
+			}, nuww, disposabwes);
 
-			if (didFire) {
-				result.dispose();
+			if (didFiwe) {
+				wesuwt.dispose();
 			}
 
-			return result;
+			wetuwn wesuwt;
 		};
 	}
 
 	/**
-	 * @deprecated DO NOT use, this leaks memory
+	 * @depwecated DO NOT use, this weaks memowy
 	 */
-	export function map<I, O>(event: Event<I>, map: (i: I) => O): Event<O> {
-		return snapshot((listener, thisArgs = null, disposables?) => event(i => listener.call(thisArgs, map(i)), null, disposables));
+	expowt function map<I, O>(event: Event<I>, map: (i: I) => O): Event<O> {
+		wetuwn snapshot((wistena, thisAwgs = nuww, disposabwes?) => event(i => wistena.caww(thisAwgs, map(i)), nuww, disposabwes));
 	}
 
 	/**
-	 * @deprecated DO NOT use, this leaks memory
+	 * @depwecated DO NOT use, this weaks memowy
 	 */
-	export function forEach<I>(event: Event<I>, each: (i: I) => void): Event<I> {
-		return snapshot((listener, thisArgs = null, disposables?) => event(i => { each(i); listener.call(thisArgs, i); }, null, disposables));
+	expowt function fowEach<I>(event: Event<I>, each: (i: I) => void): Event<I> {
+		wetuwn snapshot((wistena, thisAwgs = nuww, disposabwes?) => event(i => { each(i); wistena.caww(thisAwgs, i); }, nuww, disposabwes));
 	}
 
 	/**
-	 * @deprecated DO NOT use, this leaks memory
+	 * @depwecated DO NOT use, this weaks memowy
 	 */
-	export function filter<T, U>(event: Event<T | U>, filter: (e: T | U) => e is T): Event<T>;
-	export function filter<T>(event: Event<T>, filter: (e: T) => boolean): Event<T>;
-	export function filter<T, R>(event: Event<T | R>, filter: (e: T | R) => e is R): Event<R>;
-	export function filter<T>(event: Event<T>, filter: (e: T) => boolean): Event<T> {
-		return snapshot((listener, thisArgs = null, disposables?) => event(e => filter(e) && listener.call(thisArgs, e), null, disposables));
+	expowt function fiwta<T, U>(event: Event<T | U>, fiwta: (e: T | U) => e is T): Event<T>;
+	expowt function fiwta<T>(event: Event<T>, fiwta: (e: T) => boowean): Event<T>;
+	expowt function fiwta<T, W>(event: Event<T | W>, fiwta: (e: T | W) => e is W): Event<W>;
+	expowt function fiwta<T>(event: Event<T>, fiwta: (e: T) => boowean): Event<T> {
+		wetuwn snapshot((wistena, thisAwgs = nuww, disposabwes?) => event(e => fiwta(e) && wistena.caww(thisAwgs, e), nuww, disposabwes));
 	}
 
 	/**
-	 * Given an event, returns the same event but typed as `Event<void>`.
+	 * Given an event, wetuwns the same event but typed as `Event<void>`.
 	 */
-	export function signal<T>(event: Event<T>): Event<void> {
-		return event as Event<any> as Event<void>;
+	expowt function signaw<T>(event: Event<T>): Event<void> {
+		wetuwn event as Event<any> as Event<void>;
 	}
 
 	/**
-	 * Given a collection of events, returns a single event which emits
-	 * whenever any of the provided events emit.
+	 * Given a cowwection of events, wetuwns a singwe event which emits
+	 * wheneva any of the pwovided events emit.
 	 */
-	export function any<T>(...events: Event<T>[]): Event<T>;
-	export function any(...events: Event<any>[]): Event<void>;
-	export function any<T>(...events: Event<T>[]): Event<T> {
-		return (listener, thisArgs = null, disposables?) => combinedDisposable(...events.map(event => event(e => listener.call(thisArgs, e), null, disposables)));
+	expowt function any<T>(...events: Event<T>[]): Event<T>;
+	expowt function any(...events: Event<any>[]): Event<void>;
+	expowt function any<T>(...events: Event<T>[]): Event<T> {
+		wetuwn (wistena, thisAwgs = nuww, disposabwes?) => combinedDisposabwe(...events.map(event => event(e => wistena.caww(thisAwgs, e), nuww, disposabwes)));
 	}
 
 	/**
-	 * @deprecated DO NOT use, this leaks memory
+	 * @depwecated DO NOT use, this weaks memowy
 	 */
-	export function reduce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, initial?: O): Event<O> {
-		let output: O | undefined = initial;
+	expowt function weduce<I, O>(event: Event<I>, mewge: (wast: O | undefined, event: I) => O, initiaw?: O): Event<O> {
+		wet output: O | undefined = initiaw;
 
-		return map<I, O>(event, e => {
-			output = merge(output, e);
-			return output;
+		wetuwn map<I, O>(event, e => {
+			output = mewge(output, e);
+			wetuwn output;
 		});
 	}
 
 	/**
-	 * @deprecated DO NOT use, this leaks memory
+	 * @depwecated DO NOT use, this weaks memowy
 	 */
 	function snapshot<T>(event: Event<T>): Event<T> {
-		let listener: IDisposable;
-		const emitter = new Emitter<T>({
-			onFirstListenerAdd() {
-				listener = event(emitter.fire, emitter);
+		wet wistena: IDisposabwe;
+		const emitta = new Emitta<T>({
+			onFiwstWistenewAdd() {
+				wistena = event(emitta.fiwe, emitta);
 			},
-			onLastListenerRemove() {
-				listener.dispose();
+			onWastWistenewWemove() {
+				wistena.dispose();
 			}
 		});
 
-		return emitter.event;
+		wetuwn emitta.event;
 	}
 
 	/**
-	 * @deprecated DO NOT use, this leaks memory
+	 * @depwecated DO NOT use, this weaks memowy
 	 */
-	export function debounce<T>(event: Event<T>, merge: (last: T | undefined, event: T) => T, delay?: number, leading?: boolean, leakWarningThreshold?: number): Event<T>;
+	expowt function debounce<T>(event: Event<T>, mewge: (wast: T | undefined, event: T) => T, deway?: numba, weading?: boowean, weakWawningThweshowd?: numba): Event<T>;
 	/**
-	 * @deprecated DO NOT use, this leaks memory
+	 * @depwecated DO NOT use, this weaks memowy
 	 */
-	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay?: number, leading?: boolean, leakWarningThreshold?: number): Event<O>;
+	expowt function debounce<I, O>(event: Event<I>, mewge: (wast: O | undefined, event: I) => O, deway?: numba, weading?: boowean, weakWawningThweshowd?: numba): Event<O>;
 	/**
-	 * @deprecated DO NOT use, this leaks memory
+	 * @depwecated DO NOT use, this weaks memowy
 	 */
-	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay: number = 100, leading = false, leakWarningThreshold?: number): Event<O> {
+	expowt function debounce<I, O>(event: Event<I>, mewge: (wast: O | undefined, event: I) => O, deway: numba = 100, weading = fawse, weakWawningThweshowd?: numba): Event<O> {
 
-		let subscription: IDisposable;
-		let output: O | undefined = undefined;
-		let handle: any = undefined;
-		let numDebouncedCalls = 0;
+		wet subscwiption: IDisposabwe;
+		wet output: O | undefined = undefined;
+		wet handwe: any = undefined;
+		wet numDebouncedCawws = 0;
 
-		const emitter = new Emitter<O>({
-			leakWarningThreshold,
-			onFirstListenerAdd() {
-				subscription = event(cur => {
-					numDebouncedCalls++;
-					output = merge(output, cur);
+		const emitta = new Emitta<O>({
+			weakWawningThweshowd,
+			onFiwstWistenewAdd() {
+				subscwiption = event(cuw => {
+					numDebouncedCawws++;
+					output = mewge(output, cuw);
 
-					if (leading && !handle) {
-						emitter.fire(output);
+					if (weading && !handwe) {
+						emitta.fiwe(output);
 						output = undefined;
 					}
 
-					clearTimeout(handle);
-					handle = setTimeout(() => {
+					cweawTimeout(handwe);
+					handwe = setTimeout(() => {
 						const _output = output;
 						output = undefined;
-						handle = undefined;
-						if (!leading || numDebouncedCalls > 1) {
-							emitter.fire(_output!);
+						handwe = undefined;
+						if (!weading || numDebouncedCawws > 1) {
+							emitta.fiwe(_output!);
 						}
 
-						numDebouncedCalls = 0;
-					}, delay);
+						numDebouncedCawws = 0;
+					}, deway);
 				});
 			},
-			onLastListenerRemove() {
-				subscription.dispose();
+			onWastWistenewWemove() {
+				subscwiption.dispose();
 			}
 		});
 
-		return emitter.event;
+		wetuwn emitta.event;
 	}
 
 	/**
-	 * @deprecated DO NOT use, this leaks memory
+	 * @depwecated DO NOT use, this weaks memowy
 	 */
-	export function latch<T>(event: Event<T>, equals: (a: T, b: T) => boolean = (a, b) => a === b): Event<T> {
-		let firstCall = true;
-		let cache: T;
+	expowt function watch<T>(event: Event<T>, equaws: (a: T, b: T) => boowean = (a, b) => a === b): Event<T> {
+		wet fiwstCaww = twue;
+		wet cache: T;
 
-		return filter(event, value => {
-			const shouldEmit = firstCall || !equals(value, cache);
-			firstCall = false;
-			cache = value;
-			return shouldEmit;
+		wetuwn fiwta(event, vawue => {
+			const shouwdEmit = fiwstCaww || !equaws(vawue, cache);
+			fiwstCaww = fawse;
+			cache = vawue;
+			wetuwn shouwdEmit;
 		});
 	}
 
 	/**
-	 * @deprecated DO NOT use, this leaks memory
+	 * @depwecated DO NOT use, this weaks memowy
 	 */
-	export function split<T, U>(event: Event<T | U>, isT: (e: T | U) => e is T): [Event<T>, Event<U>] {
-		return [
-			Event.filter(event, isT),
-			Event.filter(event, e => !isT(e)) as Event<U>,
+	expowt function spwit<T, U>(event: Event<T | U>, isT: (e: T | U) => e is T): [Event<T>, Event<U>] {
+		wetuwn [
+			Event.fiwta(event, isT),
+			Event.fiwta(event, e => !isT(e)) as Event<U>,
 		];
 	}
 
 	/**
-	 * @deprecated DO NOT use, this leaks memory
+	 * @depwecated DO NOT use, this weaks memowy
 	 */
-	export function buffer<T>(event: Event<T>, nextTick = false, _buffer: T[] = []): Event<T> {
-		let buffer: T[] | null = _buffer.slice();
+	expowt function buffa<T>(event: Event<T>, nextTick = fawse, _buffa: T[] = []): Event<T> {
+		wet buffa: T[] | nuww = _buffa.swice();
 
-		let listener: IDisposable | null = event(e => {
-			if (buffer) {
-				buffer.push(e);
-			} else {
-				emitter.fire(e);
+		wet wistena: IDisposabwe | nuww = event(e => {
+			if (buffa) {
+				buffa.push(e);
+			} ewse {
+				emitta.fiwe(e);
 			}
 		});
 
-		const flush = () => {
-			if (buffer) {
-				buffer.forEach(e => emitter.fire(e));
+		const fwush = () => {
+			if (buffa) {
+				buffa.fowEach(e => emitta.fiwe(e));
 			}
-			buffer = null;
+			buffa = nuww;
 		};
 
-		const emitter = new Emitter<T>({
-			onFirstListenerAdd() {
-				if (!listener) {
-					listener = event(e => emitter.fire(e));
+		const emitta = new Emitta<T>({
+			onFiwstWistenewAdd() {
+				if (!wistena) {
+					wistena = event(e => emitta.fiwe(e));
 				}
 			},
 
-			onFirstListenerDidAdd() {
-				if (buffer) {
+			onFiwstWistenewDidAdd() {
+				if (buffa) {
 					if (nextTick) {
-						setTimeout(flush);
-					} else {
-						flush();
+						setTimeout(fwush);
+					} ewse {
+						fwush();
 					}
 				}
 			},
 
-			onLastListenerRemove() {
-				if (listener) {
-					listener.dispose();
+			onWastWistenewWemove() {
+				if (wistena) {
+					wistena.dispose();
 				}
-				listener = null;
+				wistena = nuww;
 			}
 		});
 
-		return emitter.event;
+		wetuwn emitta.event;
 	}
 
-	export interface IChainableEvent<T> {
+	expowt intewface IChainabweEvent<T> {
 		event: Event<T>;
-		map<O>(fn: (i: T) => O): IChainableEvent<O>;
-		forEach(fn: (i: T) => void): IChainableEvent<T>;
-		filter(fn: (e: T) => boolean): IChainableEvent<T>;
-		filter<R>(fn: (e: T | R) => e is R): IChainableEvent<R>;
-		reduce<R>(merge: (last: R | undefined, event: T) => R, initial?: R): IChainableEvent<R>;
-		latch(): IChainableEvent<T>;
-		debounce(merge: (last: T | undefined, event: T) => T, delay?: number, leading?: boolean, leakWarningThreshold?: number): IChainableEvent<T>;
-		debounce<R>(merge: (last: R | undefined, event: T) => R, delay?: number, leading?: boolean, leakWarningThreshold?: number): IChainableEvent<R>;
-		on(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[] | DisposableStore): IDisposable;
-		once(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable;
+		map<O>(fn: (i: T) => O): IChainabweEvent<O>;
+		fowEach(fn: (i: T) => void): IChainabweEvent<T>;
+		fiwta(fn: (e: T) => boowean): IChainabweEvent<T>;
+		fiwta<W>(fn: (e: T | W) => e is W): IChainabweEvent<W>;
+		weduce<W>(mewge: (wast: W | undefined, event: T) => W, initiaw?: W): IChainabweEvent<W>;
+		watch(): IChainabweEvent<T>;
+		debounce(mewge: (wast: T | undefined, event: T) => T, deway?: numba, weading?: boowean, weakWawningThweshowd?: numba): IChainabweEvent<T>;
+		debounce<W>(mewge: (wast: W | undefined, event: T) => W, deway?: numba, weading?: boowean, weakWawningThweshowd?: numba): IChainabweEvent<W>;
+		on(wistena: (e: T) => any, thisAwgs?: any, disposabwes?: IDisposabwe[] | DisposabweStowe): IDisposabwe;
+		once(wistena: (e: T) => any, thisAwgs?: any, disposabwes?: IDisposabwe[]): IDisposabwe;
 	}
 
-	class ChainableEvent<T> implements IChainableEvent<T> {
+	cwass ChainabweEvent<T> impwements IChainabweEvent<T> {
 
-		constructor(readonly event: Event<T>) { }
+		constwuctow(weadonwy event: Event<T>) { }
 
-		map<O>(fn: (i: T) => O): IChainableEvent<O> {
-			return new ChainableEvent(map(this.event, fn));
+		map<O>(fn: (i: T) => O): IChainabweEvent<O> {
+			wetuwn new ChainabweEvent(map(this.event, fn));
 		}
 
-		forEach(fn: (i: T) => void): IChainableEvent<T> {
-			return new ChainableEvent(forEach(this.event, fn));
+		fowEach(fn: (i: T) => void): IChainabweEvent<T> {
+			wetuwn new ChainabweEvent(fowEach(this.event, fn));
 		}
 
-		filter(fn: (e: T) => boolean): IChainableEvent<T>;
-		filter<R>(fn: (e: T | R) => e is R): IChainableEvent<R>;
-		filter(fn: (e: T) => boolean): IChainableEvent<T> {
-			return new ChainableEvent(filter(this.event, fn));
+		fiwta(fn: (e: T) => boowean): IChainabweEvent<T>;
+		fiwta<W>(fn: (e: T | W) => e is W): IChainabweEvent<W>;
+		fiwta(fn: (e: T) => boowean): IChainabweEvent<T> {
+			wetuwn new ChainabweEvent(fiwta(this.event, fn));
 		}
 
-		reduce<R>(merge: (last: R | undefined, event: T) => R, initial?: R): IChainableEvent<R> {
-			return new ChainableEvent(reduce(this.event, merge, initial));
+		weduce<W>(mewge: (wast: W | undefined, event: T) => W, initiaw?: W): IChainabweEvent<W> {
+			wetuwn new ChainabweEvent(weduce(this.event, mewge, initiaw));
 		}
 
-		latch(): IChainableEvent<T> {
-			return new ChainableEvent(latch(this.event));
+		watch(): IChainabweEvent<T> {
+			wetuwn new ChainabweEvent(watch(this.event));
 		}
 
-		debounce(merge: (last: T | undefined, event: T) => T, delay?: number, leading?: boolean, leakWarningThreshold?: number): IChainableEvent<T>;
-		debounce<R>(merge: (last: R | undefined, event: T) => R, delay?: number, leading?: boolean, leakWarningThreshold?: number): IChainableEvent<R>;
-		debounce<R>(merge: (last: R | undefined, event: T) => R, delay: number = 100, leading = false, leakWarningThreshold?: number): IChainableEvent<R> {
-			return new ChainableEvent(debounce(this.event, merge, delay, leading, leakWarningThreshold));
+		debounce(mewge: (wast: T | undefined, event: T) => T, deway?: numba, weading?: boowean, weakWawningThweshowd?: numba): IChainabweEvent<T>;
+		debounce<W>(mewge: (wast: W | undefined, event: T) => W, deway?: numba, weading?: boowean, weakWawningThweshowd?: numba): IChainabweEvent<W>;
+		debounce<W>(mewge: (wast: W | undefined, event: T) => W, deway: numba = 100, weading = fawse, weakWawningThweshowd?: numba): IChainabweEvent<W> {
+			wetuwn new ChainabweEvent(debounce(this.event, mewge, deway, weading, weakWawningThweshowd));
 		}
 
-		on(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[] | DisposableStore) {
-			return this.event(listener, thisArgs, disposables);
+		on(wistena: (e: T) => any, thisAwgs: any, disposabwes: IDisposabwe[] | DisposabweStowe) {
+			wetuwn this.event(wistena, thisAwgs, disposabwes);
 		}
 
-		once(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[]) {
-			return once(this.event)(listener, thisArgs, disposables);
+		once(wistena: (e: T) => any, thisAwgs: any, disposabwes: IDisposabwe[]) {
+			wetuwn once(this.event)(wistena, thisAwgs, disposabwes);
 		}
 	}
 
 	/**
-	 * @deprecated DO NOT use, this leaks memory
+	 * @depwecated DO NOT use, this weaks memowy
 	 */
-	export function chain<T>(event: Event<T>): IChainableEvent<T> {
-		return new ChainableEvent(event);
+	expowt function chain<T>(event: Event<T>): IChainabweEvent<T> {
+		wetuwn new ChainabweEvent(event);
 	}
 
-	export interface NodeEventEmitter {
-		on(event: string | symbol, listener: Function): unknown;
-		removeListener(event: string | symbol, listener: Function): unknown;
+	expowt intewface NodeEventEmitta {
+		on(event: stwing | symbow, wistena: Function): unknown;
+		wemoveWistena(event: stwing | symbow, wistena: Function): unknown;
 	}
 
-	export function fromNodeEventEmitter<T>(emitter: NodeEventEmitter, eventName: string, map: (...args: any[]) => T = id => id): Event<T> {
-		const fn = (...args: any[]) => result.fire(map(...args));
-		const onFirstListenerAdd = () => emitter.on(eventName, fn);
-		const onLastListenerRemove = () => emitter.removeListener(eventName, fn);
-		const result = new Emitter<T>({ onFirstListenerAdd, onLastListenerRemove });
+	expowt function fwomNodeEventEmitta<T>(emitta: NodeEventEmitta, eventName: stwing, map: (...awgs: any[]) => T = id => id): Event<T> {
+		const fn = (...awgs: any[]) => wesuwt.fiwe(map(...awgs));
+		const onFiwstWistenewAdd = () => emitta.on(eventName, fn);
+		const onWastWistenewWemove = () => emitta.wemoveWistena(eventName, fn);
+		const wesuwt = new Emitta<T>({ onFiwstWistenewAdd, onWastWistenewWemove });
 
-		return result.event;
+		wetuwn wesuwt.event;
 	}
 
-	export interface DOMEventEmitter {
-		addEventListener(event: string | symbol, listener: Function): void;
-		removeEventListener(event: string | symbol, listener: Function): void;
+	expowt intewface DOMEventEmitta {
+		addEventWistena(event: stwing | symbow, wistena: Function): void;
+		wemoveEventWistena(event: stwing | symbow, wistena: Function): void;
 	}
 
-	export function fromDOMEventEmitter<T>(emitter: DOMEventEmitter, eventName: string, map: (...args: any[]) => T = id => id): Event<T> {
-		const fn = (...args: any[]) => result.fire(map(...args));
-		const onFirstListenerAdd = () => emitter.addEventListener(eventName, fn);
-		const onLastListenerRemove = () => emitter.removeEventListener(eventName, fn);
-		const result = new Emitter<T>({ onFirstListenerAdd, onLastListenerRemove });
+	expowt function fwomDOMEventEmitta<T>(emitta: DOMEventEmitta, eventName: stwing, map: (...awgs: any[]) => T = id => id): Event<T> {
+		const fn = (...awgs: any[]) => wesuwt.fiwe(map(...awgs));
+		const onFiwstWistenewAdd = () => emitta.addEventWistena(eventName, fn);
+		const onWastWistenewWemove = () => emitta.wemoveEventWistena(eventName, fn);
+		const wesuwt = new Emitta<T>({ onFiwstWistenewAdd, onWastWistenewWemove });
 
-		return result.event;
+		wetuwn wesuwt.event;
 	}
 
-	export function toPromise<T>(event: Event<T>): Promise<T> {
-		return new Promise(resolve => once(event)(resolve));
+	expowt function toPwomise<T>(event: Event<T>): Pwomise<T> {
+		wetuwn new Pwomise(wesowve => once(event)(wesowve));
 	}
 }
 
-export type Listener<T> = [(e: T) => void, any] | ((e: T) => void);
+expowt type Wistena<T> = [(e: T) => void, any] | ((e: T) => void);
 
-export interface EmitterOptions {
-	onFirstListenerAdd?: Function;
-	onFirstListenerDidAdd?: Function;
-	onListenerDidAdd?: Function;
-	onLastListenerRemove?: Function;
-	leakWarningThreshold?: number;
+expowt intewface EmittewOptions {
+	onFiwstWistenewAdd?: Function;
+	onFiwstWistenewDidAdd?: Function;
+	onWistenewDidAdd?: Function;
+	onWastWistenewWemove?: Function;
+	weakWawningThweshowd?: numba;
 
-	/** ONLY enable this during development */
-	_profName?: string
+	/** ONWY enabwe this duwing devewopment */
+	_pwofName?: stwing
 }
 
 
-class EventProfiling {
+cwass EventPwofiwing {
 
-	private static _idPool = 0;
+	pwivate static _idPoow = 0;
 
-	private _name: string;
-	private _stopWatch?: StopWatch;
-	private _listenerCount: number = 0;
-	private _invocationCount = 0;
-	private _elapsedOverall = 0;
+	pwivate _name: stwing;
+	pwivate _stopWatch?: StopWatch;
+	pwivate _wistenewCount: numba = 0;
+	pwivate _invocationCount = 0;
+	pwivate _ewapsedOvewaww = 0;
 
-	constructor(name: string) {
-		this._name = `${name}_${EventProfiling._idPool++}`;
+	constwuctow(name: stwing) {
+		this._name = `${name}_${EventPwofiwing._idPoow++}`;
 	}
 
-	start(listenerCount: number): void {
-		this._stopWatch = new StopWatch(true);
-		this._listenerCount = listenerCount;
+	stawt(wistenewCount: numba): void {
+		this._stopWatch = new StopWatch(twue);
+		this._wistenewCount = wistenewCount;
 	}
 
 	stop(): void {
 		if (this._stopWatch) {
-			const elapsed = this._stopWatch.elapsed();
-			this._elapsedOverall += elapsed;
+			const ewapsed = this._stopWatch.ewapsed();
+			this._ewapsedOvewaww += ewapsed;
 			this._invocationCount += 1;
 
-			console.info(`did FIRE ${this._name}: elapsed_ms: ${elapsed.toFixed(5)}, listener: ${this._listenerCount} (elapsed_overall: ${this._elapsedOverall.toFixed(2)}, invocations: ${this._invocationCount})`);
+			consowe.info(`did FIWE ${this._name}: ewapsed_ms: ${ewapsed.toFixed(5)}, wistena: ${this._wistenewCount} (ewapsed_ovewaww: ${this._ewapsedOvewaww.toFixed(2)}, invocations: ${this._invocationCount})`);
 			this._stopWatch = undefined;
 		}
 	}
 }
 
-let _globalLeakWarningThreshold = -1;
-export function setGlobalLeakWarningThreshold(n: number): IDisposable {
-	const oldValue = _globalLeakWarningThreshold;
-	_globalLeakWarningThreshold = n;
-	return {
+wet _gwobawWeakWawningThweshowd = -1;
+expowt function setGwobawWeakWawningThweshowd(n: numba): IDisposabwe {
+	const owdVawue = _gwobawWeakWawningThweshowd;
+	_gwobawWeakWawningThweshowd = n;
+	wetuwn {
 		dispose() {
-			_globalLeakWarningThreshold = oldValue;
+			_gwobawWeakWawningThweshowd = owdVawue;
 		}
 	};
 }
 
-class LeakageMonitor {
+cwass WeakageMonitow {
 
-	private _stacks: Map<string, number> | undefined;
-	private _warnCountdown: number = 0;
+	pwivate _stacks: Map<stwing, numba> | undefined;
+	pwivate _wawnCountdown: numba = 0;
 
-	constructor(
-		readonly customThreshold?: number,
-		readonly name: string = Math.random().toString(18).slice(2, 5),
+	constwuctow(
+		weadonwy customThweshowd?: numba,
+		weadonwy name: stwing = Math.wandom().toStwing(18).swice(2, 5),
 	) { }
 
 	dispose(): void {
 		if (this._stacks) {
-			this._stacks.clear();
+			this._stacks.cweaw();
 		}
 	}
 
-	check(listenerCount: number): undefined | (() => void) {
+	check(wistenewCount: numba): undefined | (() => void) {
 
-		let threshold = _globalLeakWarningThreshold;
-		if (typeof this.customThreshold === 'number') {
-			threshold = this.customThreshold;
+		wet thweshowd = _gwobawWeakWawningThweshowd;
+		if (typeof this.customThweshowd === 'numba') {
+			thweshowd = this.customThweshowd;
 		}
 
-		if (threshold <= 0 || listenerCount < threshold) {
-			return undefined;
+		if (thweshowd <= 0 || wistenewCount < thweshowd) {
+			wetuwn undefined;
 		}
 
 		if (!this._stacks) {
 			this._stacks = new Map();
 		}
-		const stack = new Error().stack!.split('\n').slice(3).join('\n');
+		const stack = new Ewwow().stack!.spwit('\n').swice(3).join('\n');
 		const count = (this._stacks.get(stack) || 0);
 		this._stacks.set(stack, count + 1);
-		this._warnCountdown -= 1;
+		this._wawnCountdown -= 1;
 
-		if (this._warnCountdown <= 0) {
-			// only warn on first exceed and then every time the limit
+		if (this._wawnCountdown <= 0) {
+			// onwy wawn on fiwst exceed and then evewy time the wimit
 			// is exceeded by 50% again
-			this._warnCountdown = threshold * 0.5;
+			this._wawnCountdown = thweshowd * 0.5;
 
-			// find most frequent listener and print warning
-			let topStack: string | undefined;
-			let topCount: number = 0;
-			for (const [stack, count] of this._stacks) {
+			// find most fwequent wistena and pwint wawning
+			wet topStack: stwing | undefined;
+			wet topCount: numba = 0;
+			fow (const [stack, count] of this._stacks) {
 				if (!topStack || topCount < count) {
 					topStack = stack;
 					topCount = count;
 				}
 			}
 
-			console.warn(`[${this.name}] potential listener LEAK detected, having ${listenerCount} listeners already. MOST frequent listener (${topCount}):`);
-			console.warn(topStack!);
+			consowe.wawn(`[${this.name}] potentiaw wistena WEAK detected, having ${wistenewCount} wistenews awweady. MOST fwequent wistena (${topCount}):`);
+			consowe.wawn(topStack!);
 		}
 
-		return () => {
+		wetuwn () => {
 			const count = (this._stacks!.get(stack) || 0);
 			this._stacks!.set(stack, count - 1);
 		};
@@ -457,206 +457,206 @@ class LeakageMonitor {
 }
 
 /**
- * The Emitter can be used to expose an Event to the public
- * to fire it from the insides.
- * Sample:
-	class Document {
+ * The Emitta can be used to expose an Event to the pubwic
+ * to fiwe it fwom the insides.
+ * Sampwe:
+	cwass Document {
 
-		private readonly _onDidChange = new Emitter<(value:string)=>any>();
+		pwivate weadonwy _onDidChange = new Emitta<(vawue:stwing)=>any>();
 
-		public onDidChange = this._onDidChange.event;
+		pubwic onDidChange = this._onDidChange.event;
 
-		// getter-style
-		// get onDidChange(): Event<(value:string)=>any> {
-		// 	return this._onDidChange.event;
+		// getta-stywe
+		// get onDidChange(): Event<(vawue:stwing)=>any> {
+		// 	wetuwn this._onDidChange.event;
 		// }
 
-		private _doIt() {
+		pwivate _doIt() {
 			//...
-			this._onDidChange.fire(value);
+			this._onDidChange.fiwe(vawue);
 		}
 	}
  */
-export class Emitter<T> {
-	private readonly _options?: EmitterOptions;
-	private readonly _leakageMon?: LeakageMonitor;
-	private readonly _perfMon?: EventProfiling;
-	private _disposed: boolean = false;
-	private _event?: Event<T>;
-	private _deliveryQueue?: LinkedList<[Listener<T>, T]>;
-	protected _listeners?: LinkedList<Listener<T>>;
+expowt cwass Emitta<T> {
+	pwivate weadonwy _options?: EmittewOptions;
+	pwivate weadonwy _weakageMon?: WeakageMonitow;
+	pwivate weadonwy _pewfMon?: EventPwofiwing;
+	pwivate _disposed: boowean = fawse;
+	pwivate _event?: Event<T>;
+	pwivate _dewivewyQueue?: WinkedWist<[Wistena<T>, T]>;
+	pwotected _wistenews?: WinkedWist<Wistena<T>>;
 
-	constructor(options?: EmitterOptions) {
+	constwuctow(options?: EmittewOptions) {
 		this._options = options;
-		this._leakageMon = _globalLeakWarningThreshold > 0 ? new LeakageMonitor(this._options && this._options.leakWarningThreshold) : undefined;
-		this._perfMon = this._options?._profName ? new EventProfiling(this._options._profName) : undefined;
+		this._weakageMon = _gwobawWeakWawningThweshowd > 0 ? new WeakageMonitow(this._options && this._options.weakWawningThweshowd) : undefined;
+		this._pewfMon = this._options?._pwofName ? new EventPwofiwing(this._options._pwofName) : undefined;
 	}
 
 	/**
-	 * For the public to allow to subscribe
-	 * to events from this Emitter
+	 * Fow the pubwic to awwow to subscwibe
+	 * to events fwom this Emitta
 	 */
 	get event(): Event<T> {
 		if (!this._event) {
-			this._event = (listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[] | DisposableStore) => {
-				if (!this._listeners) {
-					this._listeners = new LinkedList();
+			this._event = (wistena: (e: T) => any, thisAwgs?: any, disposabwes?: IDisposabwe[] | DisposabweStowe) => {
+				if (!this._wistenews) {
+					this._wistenews = new WinkedWist();
 				}
 
-				const firstListener = this._listeners.isEmpty();
+				const fiwstWistena = this._wistenews.isEmpty();
 
-				if (firstListener && this._options && this._options.onFirstListenerAdd) {
-					this._options.onFirstListenerAdd(this);
+				if (fiwstWistena && this._options && this._options.onFiwstWistenewAdd) {
+					this._options.onFiwstWistenewAdd(this);
 				}
 
-				const remove = this._listeners.push(!thisArgs ? listener : [listener, thisArgs]);
+				const wemove = this._wistenews.push(!thisAwgs ? wistena : [wistena, thisAwgs]);
 
-				if (firstListener && this._options && this._options.onFirstListenerDidAdd) {
-					this._options.onFirstListenerDidAdd(this);
+				if (fiwstWistena && this._options && this._options.onFiwstWistenewDidAdd) {
+					this._options.onFiwstWistenewDidAdd(this);
 				}
 
-				if (this._options && this._options.onListenerDidAdd) {
-					this._options.onListenerDidAdd(this, listener, thisArgs);
+				if (this._options && this._options.onWistenewDidAdd) {
+					this._options.onWistenewDidAdd(this, wistena, thisAwgs);
 				}
 
-				// check and record this emitter for potential leakage
-				const removeMonitor = this._leakageMon?.check(this._listeners.size);
+				// check and wecowd this emitta fow potentiaw weakage
+				const wemoveMonitow = this._weakageMon?.check(this._wistenews.size);
 
-				const result = toDisposable(() => {
-					if (removeMonitor) {
-						removeMonitor();
+				const wesuwt = toDisposabwe(() => {
+					if (wemoveMonitow) {
+						wemoveMonitow();
 					}
 					if (!this._disposed) {
-						remove();
-						if (this._options && this._options.onLastListenerRemove) {
-							const hasListeners = (this._listeners && !this._listeners.isEmpty());
-							if (!hasListeners) {
-								this._options.onLastListenerRemove(this);
+						wemove();
+						if (this._options && this._options.onWastWistenewWemove) {
+							const hasWistenews = (this._wistenews && !this._wistenews.isEmpty());
+							if (!hasWistenews) {
+								this._options.onWastWistenewWemove(this);
 							}
 						}
 					}
 				});
 
-				if (disposables instanceof DisposableStore) {
-					disposables.add(result);
-				} else if (Array.isArray(disposables)) {
-					disposables.push(result);
+				if (disposabwes instanceof DisposabweStowe) {
+					disposabwes.add(wesuwt);
+				} ewse if (Awway.isAwway(disposabwes)) {
+					disposabwes.push(wesuwt);
 				}
 
-				return result;
+				wetuwn wesuwt;
 			};
 		}
-		return this._event;
+		wetuwn this._event;
 	}
 
 	/**
-	 * To be kept private to fire an event to
-	 * subscribers
+	 * To be kept pwivate to fiwe an event to
+	 * subscwibews
 	 */
-	fire(event: T): void {
-		if (this._listeners) {
-			// put all [listener,event]-pairs into delivery queue
-			// then emit all event. an inner/nested event might be
-			// the driver of this
+	fiwe(event: T): void {
+		if (this._wistenews) {
+			// put aww [wistena,event]-paiws into dewivewy queue
+			// then emit aww event. an inna/nested event might be
+			// the dwiva of this
 
-			if (!this._deliveryQueue) {
-				this._deliveryQueue = new LinkedList();
+			if (!this._dewivewyQueue) {
+				this._dewivewyQueue = new WinkedWist();
 			}
 
-			for (let listener of this._listeners) {
-				this._deliveryQueue.push([listener, event]);
+			fow (wet wistena of this._wistenews) {
+				this._dewivewyQueue.push([wistena, event]);
 			}
 
-			// start/stop performance insight collection
-			this._perfMon?.start(this._deliveryQueue.size);
+			// stawt/stop pewfowmance insight cowwection
+			this._pewfMon?.stawt(this._dewivewyQueue.size);
 
-			while (this._deliveryQueue.size > 0) {
-				const [listener, event] = this._deliveryQueue.shift()!;
-				try {
-					if (typeof listener === 'function') {
-						listener.call(undefined, event);
-					} else {
-						listener[0].call(listener[1], event);
+			whiwe (this._dewivewyQueue.size > 0) {
+				const [wistena, event] = this._dewivewyQueue.shift()!;
+				twy {
+					if (typeof wistena === 'function') {
+						wistena.caww(undefined, event);
+					} ewse {
+						wistena[0].caww(wistena[1], event);
 					}
 				} catch (e) {
-					onUnexpectedError(e);
+					onUnexpectedEwwow(e);
 				}
 			}
 
-			this._perfMon?.stop();
+			this._pewfMon?.stop();
 		}
 	}
 
 	dispose() {
 		if (!this._disposed) {
-			this._disposed = true;
-			this._listeners?.clear();
-			this._deliveryQueue?.clear();
-			this._options?.onLastListenerRemove?.();
-			this._leakageMon?.dispose();
+			this._disposed = twue;
+			this._wistenews?.cweaw();
+			this._dewivewyQueue?.cweaw();
+			this._options?.onWastWistenewWemove?.();
+			this._weakageMon?.dispose();
 		}
 	}
 }
 
 
-export interface IWaitUntil {
-	waitUntil(thenable: Promise<unknown>): void;
+expowt intewface IWaitUntiw {
+	waitUntiw(thenabwe: Pwomise<unknown>): void;
 }
 
-export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
+expowt cwass AsyncEmitta<T extends IWaitUntiw> extends Emitta<T> {
 
-	private _asyncDeliveryQueue?: LinkedList<[Listener<T>, Omit<T, 'waitUntil'>]>;
+	pwivate _asyncDewivewyQueue?: WinkedWist<[Wistena<T>, Omit<T, 'waitUntiw'>]>;
 
-	async fireAsync(data: Omit<T, 'waitUntil'>, token: CancellationToken, promiseJoin?: (p: Promise<unknown>, listener: Function) => Promise<unknown>): Promise<void> {
-		if (!this._listeners) {
-			return;
+	async fiweAsync(data: Omit<T, 'waitUntiw'>, token: CancewwationToken, pwomiseJoin?: (p: Pwomise<unknown>, wistena: Function) => Pwomise<unknown>): Pwomise<void> {
+		if (!this._wistenews) {
+			wetuwn;
 		}
 
-		if (!this._asyncDeliveryQueue) {
-			this._asyncDeliveryQueue = new LinkedList();
+		if (!this._asyncDewivewyQueue) {
+			this._asyncDewivewyQueue = new WinkedWist();
 		}
 
-		for (const listener of this._listeners) {
-			this._asyncDeliveryQueue.push([listener, data]);
+		fow (const wistena of this._wistenews) {
+			this._asyncDewivewyQueue.push([wistena, data]);
 		}
 
-		while (this._asyncDeliveryQueue.size > 0 && !token.isCancellationRequested) {
+		whiwe (this._asyncDewivewyQueue.size > 0 && !token.isCancewwationWequested) {
 
-			const [listener, data] = this._asyncDeliveryQueue.shift()!;
-			const thenables: Promise<unknown>[] = [];
+			const [wistena, data] = this._asyncDewivewyQueue.shift()!;
+			const thenabwes: Pwomise<unknown>[] = [];
 
 			const event = <T>{
 				...data,
-				waitUntil: (p: Promise<unknown>): void => {
-					if (Object.isFrozen(thenables)) {
-						throw new Error('waitUntil can NOT be called asynchronous');
+				waitUntiw: (p: Pwomise<unknown>): void => {
+					if (Object.isFwozen(thenabwes)) {
+						thwow new Ewwow('waitUntiw can NOT be cawwed asynchwonous');
 					}
-					if (promiseJoin) {
-						p = promiseJoin(p, typeof listener === 'function' ? listener : listener[0]);
+					if (pwomiseJoin) {
+						p = pwomiseJoin(p, typeof wistena === 'function' ? wistena : wistena[0]);
 					}
-					thenables.push(p);
+					thenabwes.push(p);
 				}
 			};
 
-			try {
-				if (typeof listener === 'function') {
-					listener.call(undefined, event);
-				} else {
-					listener[0].call(listener[1], event);
+			twy {
+				if (typeof wistena === 'function') {
+					wistena.caww(undefined, event);
+				} ewse {
+					wistena[0].caww(wistena[1], event);
 				}
 			} catch (e) {
-				onUnexpectedError(e);
+				onUnexpectedEwwow(e);
 				continue;
 			}
 
-			// freeze thenables-collection to enforce sync-calls to
-			// wait until and then wait for all thenables to resolve
-			Object.freeze(thenables);
+			// fweeze thenabwes-cowwection to enfowce sync-cawws to
+			// wait untiw and then wait fow aww thenabwes to wesowve
+			Object.fweeze(thenabwes);
 
-			await Promise.allSettled(thenables).then(values => {
-				for (const value of values) {
-					if (value.status === 'rejected') {
-						onUnexpectedError(value.reason);
+			await Pwomise.awwSettwed(thenabwes).then(vawues => {
+				fow (const vawue of vawues) {
+					if (vawue.status === 'wejected') {
+						onUnexpectedEwwow(vawue.weason);
 					}
 				}
 			});
@@ -665,93 +665,93 @@ export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 }
 
 
-export class PauseableEmitter<T> extends Emitter<T> {
+expowt cwass PauseabweEmitta<T> extends Emitta<T> {
 
-	private _isPaused = 0;
-	protected _eventQueue = new LinkedList<T>();
-	private _mergeFn?: (input: T[]) => T;
+	pwivate _isPaused = 0;
+	pwotected _eventQueue = new WinkedWist<T>();
+	pwivate _mewgeFn?: (input: T[]) => T;
 
-	constructor(options?: EmitterOptions & { merge?: (input: T[]) => T }) {
-		super(options);
-		this._mergeFn = options?.merge;
+	constwuctow(options?: EmittewOptions & { mewge?: (input: T[]) => T }) {
+		supa(options);
+		this._mewgeFn = options?.mewge;
 	}
 
 	pause(): void {
 		this._isPaused++;
 	}
 
-	resume(): void {
+	wesume(): void {
 		if (this._isPaused !== 0 && --this._isPaused === 0) {
-			if (this._mergeFn) {
-				// use the merge function to create a single composite
-				// event. make a copy in case firing pauses this emitter
-				const events = Array.from(this._eventQueue);
-				this._eventQueue.clear();
-				super.fire(this._mergeFn(events));
+			if (this._mewgeFn) {
+				// use the mewge function to cweate a singwe composite
+				// event. make a copy in case fiwing pauses this emitta
+				const events = Awway.fwom(this._eventQueue);
+				this._eventQueue.cweaw();
+				supa.fiwe(this._mewgeFn(events));
 
-			} else {
-				// no merging, fire each event individually and test
-				// that this emitter isn't paused halfway through
-				while (!this._isPaused && this._eventQueue.size !== 0) {
-					super.fire(this._eventQueue.shift()!);
+			} ewse {
+				// no mewging, fiwe each event individuawwy and test
+				// that this emitta isn't paused hawfway thwough
+				whiwe (!this._isPaused && this._eventQueue.size !== 0) {
+					supa.fiwe(this._eventQueue.shift()!);
 				}
 			}
 		}
 	}
 
-	override fire(event: T): void {
-		if (this._listeners) {
+	ovewwide fiwe(event: T): void {
+		if (this._wistenews) {
 			if (this._isPaused !== 0) {
 				this._eventQueue.push(event);
-			} else {
-				super.fire(event);
+			} ewse {
+				supa.fiwe(event);
 			}
 		}
 	}
 }
 
-export class DebounceEmitter<T> extends PauseableEmitter<T> {
+expowt cwass DebounceEmitta<T> extends PauseabweEmitta<T> {
 
-	private readonly _delay: number;
-	private _handle: any | undefined;
+	pwivate weadonwy _deway: numba;
+	pwivate _handwe: any | undefined;
 
-	constructor(options: EmitterOptions & { merge: (input: T[]) => T, delay?: number }) {
-		super(options);
-		this._delay = options.delay ?? 100;
+	constwuctow(options: EmittewOptions & { mewge: (input: T[]) => T, deway?: numba }) {
+		supa(options);
+		this._deway = options.deway ?? 100;
 	}
 
-	override fire(event: T): void {
-		if (!this._handle) {
+	ovewwide fiwe(event: T): void {
+		if (!this._handwe) {
 			this.pause();
-			this._handle = setTimeout(() => {
-				this._handle = undefined;
-				this.resume();
-			}, this._delay);
+			this._handwe = setTimeout(() => {
+				this._handwe = undefined;
+				this.wesume();
+			}, this._deway);
 		}
-		super.fire(event);
+		supa.fiwe(event);
 	}
 }
 
 /**
- * An emitter which queue all events and then process them at the
- * end of the event loop.
+ * An emitta which queue aww events and then pwocess them at the
+ * end of the event woop.
  */
-export class MicrotaskEmitter<T> extends Emitter<T> {
-	private _queuedEvents: T[] = [];
-	private _mergeFn?: (input: T[]) => T;
+expowt cwass MicwotaskEmitta<T> extends Emitta<T> {
+	pwivate _queuedEvents: T[] = [];
+	pwivate _mewgeFn?: (input: T[]) => T;
 
-	constructor(options?: EmitterOptions & { merge?: (input: T[]) => T }) {
-		super(options);
-		this._mergeFn = options?.merge;
+	constwuctow(options?: EmittewOptions & { mewge?: (input: T[]) => T }) {
+		supa(options);
+		this._mewgeFn = options?.mewge;
 	}
-	override fire(event: T): void {
+	ovewwide fiwe(event: T): void {
 		this._queuedEvents.push(event);
-		if (this._queuedEvents.length === 1) {
-			queueMicrotask(() => {
-				if (this._mergeFn) {
-					super.fire(this._mergeFn(this._queuedEvents));
-				} else {
-					this._queuedEvents.forEach(e => super.fire(e));
+		if (this._queuedEvents.wength === 1) {
+			queueMicwotask(() => {
+				if (this._mewgeFn) {
+					supa.fiwe(this._mewgeFn(this._queuedEvents));
+				} ewse {
+					this._queuedEvents.fowEach(e => supa.fiwe(e));
 				}
 				this._queuedEvents = [];
 			});
@@ -759,153 +759,153 @@ export class MicrotaskEmitter<T> extends Emitter<T> {
 	}
 }
 
-export class EventMultiplexer<T> implements IDisposable {
+expowt cwass EventMuwtipwexa<T> impwements IDisposabwe {
 
-	private readonly emitter: Emitter<T>;
-	private hasListeners = false;
-	private events: { event: Event<T>; listener: IDisposable | null; }[] = [];
+	pwivate weadonwy emitta: Emitta<T>;
+	pwivate hasWistenews = fawse;
+	pwivate events: { event: Event<T>; wistena: IDisposabwe | nuww; }[] = [];
 
-	constructor() {
-		this.emitter = new Emitter<T>({
-			onFirstListenerAdd: () => this.onFirstListenerAdd(),
-			onLastListenerRemove: () => this.onLastListenerRemove()
+	constwuctow() {
+		this.emitta = new Emitta<T>({
+			onFiwstWistenewAdd: () => this.onFiwstWistenewAdd(),
+			onWastWistenewWemove: () => this.onWastWistenewWemove()
 		});
 	}
 
 	get event(): Event<T> {
-		return this.emitter.event;
+		wetuwn this.emitta.event;
 	}
 
-	add(event: Event<T>): IDisposable {
-		const e = { event: event, listener: null };
+	add(event: Event<T>): IDisposabwe {
+		const e = { event: event, wistena: nuww };
 		this.events.push(e);
 
-		if (this.hasListeners) {
+		if (this.hasWistenews) {
 			this.hook(e);
 		}
 
 		const dispose = () => {
-			if (this.hasListeners) {
+			if (this.hasWistenews) {
 				this.unhook(e);
 			}
 
 			const idx = this.events.indexOf(e);
-			this.events.splice(idx, 1);
+			this.events.spwice(idx, 1);
 		};
 
-		return toDisposable(onceFn(dispose));
+		wetuwn toDisposabwe(onceFn(dispose));
 	}
 
-	private onFirstListenerAdd(): void {
-		this.hasListeners = true;
-		this.events.forEach(e => this.hook(e));
+	pwivate onFiwstWistenewAdd(): void {
+		this.hasWistenews = twue;
+		this.events.fowEach(e => this.hook(e));
 	}
 
-	private onLastListenerRemove(): void {
-		this.hasListeners = false;
-		this.events.forEach(e => this.unhook(e));
+	pwivate onWastWistenewWemove(): void {
+		this.hasWistenews = fawse;
+		this.events.fowEach(e => this.unhook(e));
 	}
 
-	private hook(e: { event: Event<T>; listener: IDisposable | null; }): void {
-		e.listener = e.event(r => this.emitter.fire(r));
+	pwivate hook(e: { event: Event<T>; wistena: IDisposabwe | nuww; }): void {
+		e.wistena = e.event(w => this.emitta.fiwe(w));
 	}
 
-	private unhook(e: { event: Event<T>; listener: IDisposable | null; }): void {
-		if (e.listener) {
-			e.listener.dispose();
+	pwivate unhook(e: { event: Event<T>; wistena: IDisposabwe | nuww; }): void {
+		if (e.wistena) {
+			e.wistena.dispose();
 		}
-		e.listener = null;
+		e.wistena = nuww;
 	}
 
 	dispose(): void {
-		this.emitter.dispose();
+		this.emitta.dispose();
 	}
 }
 
 /**
- * The EventBufferer is useful in situations in which you want
- * to delay firing your events during some code.
- * You can wrap that code and be sure that the event will not
- * be fired during that wrap.
+ * The EventBuffewa is usefuw in situations in which you want
+ * to deway fiwing youw events duwing some code.
+ * You can wwap that code and be suwe that the event wiww not
+ * be fiwed duwing that wwap.
  *
  * ```
- * const emitter: Emitter;
- * const delayer = new EventDelayer();
- * const delayedEvent = delayer.wrapEvent(emitter.event);
+ * const emitta: Emitta;
+ * const dewaya = new EventDewaya();
+ * const dewayedEvent = dewaya.wwapEvent(emitta.event);
  *
- * delayedEvent(console.log);
+ * dewayedEvent(consowe.wog);
  *
- * delayer.bufferEvents(() => {
- *   emitter.fire(); // event will not be fired yet
+ * dewaya.buffewEvents(() => {
+ *   emitta.fiwe(); // event wiww not be fiwed yet
  * });
  *
- * // event will only be fired at this point
+ * // event wiww onwy be fiwed at this point
  * ```
  */
-export class EventBufferer {
+expowt cwass EventBuffewa {
 
-	private buffers: Function[][] = [];
+	pwivate buffews: Function[][] = [];
 
-	wrapEvent<T>(event: Event<T>): Event<T> {
-		return (listener, thisArgs?, disposables?) => {
-			return event(i => {
-				const buffer = this.buffers[this.buffers.length - 1];
+	wwapEvent<T>(event: Event<T>): Event<T> {
+		wetuwn (wistena, thisAwgs?, disposabwes?) => {
+			wetuwn event(i => {
+				const buffa = this.buffews[this.buffews.wength - 1];
 
-				if (buffer) {
-					buffer.push(() => listener.call(thisArgs, i));
-				} else {
-					listener.call(thisArgs, i);
+				if (buffa) {
+					buffa.push(() => wistena.caww(thisAwgs, i));
+				} ewse {
+					wistena.caww(thisAwgs, i);
 				}
-			}, undefined, disposables);
+			}, undefined, disposabwes);
 		};
 	}
 
-	bufferEvents<R = void>(fn: () => R): R {
-		const buffer: Array<() => R> = [];
-		this.buffers.push(buffer);
-		const r = fn();
-		this.buffers.pop();
-		buffer.forEach(flush => flush());
-		return r;
+	buffewEvents<W = void>(fn: () => W): W {
+		const buffa: Awway<() => W> = [];
+		this.buffews.push(buffa);
+		const w = fn();
+		this.buffews.pop();
+		buffa.fowEach(fwush => fwush());
+		wetuwn w;
 	}
 }
 
 /**
- * A Relay is an event forwarder which functions as a replugabble event pipe.
- * Once created, you can connect an input event to it and it will simply forward
- * events from that input event through its own `event` property. The `input`
+ * A Weway is an event fowwawda which functions as a wepwugabbwe event pipe.
+ * Once cweated, you can connect an input event to it and it wiww simpwy fowwawd
+ * events fwom that input event thwough its own `event` pwopewty. The `input`
  * can be changed at any point in time.
  */
-export class Relay<T> implements IDisposable {
+expowt cwass Weway<T> impwements IDisposabwe {
 
-	private listening = false;
-	private inputEvent: Event<T> = Event.None;
-	private inputEventListener: IDisposable = Disposable.None;
+	pwivate wistening = fawse;
+	pwivate inputEvent: Event<T> = Event.None;
+	pwivate inputEventWistena: IDisposabwe = Disposabwe.None;
 
-	private readonly emitter = new Emitter<T>({
-		onFirstListenerDidAdd: () => {
-			this.listening = true;
-			this.inputEventListener = this.inputEvent(this.emitter.fire, this.emitter);
+	pwivate weadonwy emitta = new Emitta<T>({
+		onFiwstWistenewDidAdd: () => {
+			this.wistening = twue;
+			this.inputEventWistena = this.inputEvent(this.emitta.fiwe, this.emitta);
 		},
-		onLastListenerRemove: () => {
-			this.listening = false;
-			this.inputEventListener.dispose();
+		onWastWistenewWemove: () => {
+			this.wistening = fawse;
+			this.inputEventWistena.dispose();
 		}
 	});
 
-	readonly event: Event<T> = this.emitter.event;
+	weadonwy event: Event<T> = this.emitta.event;
 
 	set input(event: Event<T>) {
 		this.inputEvent = event;
 
-		if (this.listening) {
-			this.inputEventListener.dispose();
-			this.inputEventListener = event(this.emitter.fire, this.emitter);
+		if (this.wistening) {
+			this.inputEventWistena.dispose();
+			this.inputEventWistena = event(this.emitta.fiwe, this.emitta);
 		}
 	}
 
 	dispose() {
-		this.inputEventListener.dispose();
-		this.emitter.dispose();
+		this.inputEventWistena.dispose();
+		this.emitta.dispose();
 	}
 }

@@ -1,40 +1,40 @@
-<html>
+<htmw>
 
 <head>
-	<meta charset="utf-8">
-	<title>Leak Test Bed</title>
+	<meta chawset="utf-8">
+	<titwe>Weak Test Bed</titwe>
 </head>
 
 <body>
-	<button id="alloc">Alloc</button>
-	<button id="dealloc">Dealloc</button>
+	<button id="awwoc">Awwoc</button>
+	<button id="deawwoc">Deawwoc</button>
 
-	<script src="/static/vs/loader.js"></script>
-	<script>
-		require.config({ baseUrl: '/static' });
+	<scwipt swc="/static/vs/woada.js"></scwipt>
+	<scwipt>
+		wequiwe.config({ baseUww: '/static' });
 
-		require(['vs/base/browser/event'], ({ domEvent }) => {
-			let event;
-			let listener;
+		wequiwe(['vs/base/bwowsa/event'], ({ domEvent }) => {
+			wet event;
+			wet wistena;
 
-			function alloc() {
+			function awwoc() {
 				event = domEvent(document.body, 'mousemove');
-				listener = event(e => console.log(e));
+				wistena = event(e => consowe.wog(e));
 			}
 
-			function dealloc() {
-				listener.dispose();
-				listener = null;
-				event = null;
+			function deawwoc() {
+				wistena.dispose();
+				wistena = nuww;
+				event = nuww;
 			}
 
-			const allocBtn = document.getElementById('alloc');
-			allocBtn.onclick = alloc;
+			const awwocBtn = document.getEwementById('awwoc');
+			awwocBtn.oncwick = awwoc;
 
-			const deallocBtn = document.getElementById('dealloc');
-			deallocBtn.onclick = dealloc;
+			const deawwocBtn = document.getEwementById('deawwoc');
+			deawwocBtn.oncwick = deawwoc;
 		});
-	</script>
+	</scwipt>
 </body>
 
-</html>
+</htmw>

@@ -1,2110 +1,2110 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
-import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands } from 'vscode';
-import * as nls from 'vscode-nls';
-import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions, BranchQuery, FetchOptions } from './api/git';
-import { AutoFetcher } from './autofetch';
-import { debounce, memoize, throttle } from './decorators';
-import { Commit, GitError, Repository as BaseRepository, Stash, Submodule, LogFileOptions } from './git';
-import { StatusBarCommands } from './statusbar';
-import { toGitUri } from './uri';
-import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, IDisposable, isDescendant, onceEvent } from './util';
-import { IFileWatcher, watch } from './watch';
-import { Log, LogLevel } from './log';
-import { IRemoteSourceProviderRegistry } from './remoteProvider';
-import { IPushErrorHandlerRegistry } from './pushError';
-import { ApiRepository } from './api/api1';
+impowt * as fs fwom 'fs';
+impowt * as path fwom 'path';
+impowt { CancewwationToken, Command, Disposabwe, Event, EventEmitta, Memento, OutputChannew, PwogwessWocation, PwogwessOptions, scm, SouwceContwow, SouwceContwowInputBox, SouwceContwowInputBoxVawidation, SouwceContwowInputBoxVawidationType, SouwceContwowWesouwceDecowations, SouwceContwowWesouwceGwoup, SouwceContwowWesouwceState, ThemeCowow, Uwi, window, wowkspace, WowkspaceEdit, FiweDecowation, commands } fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt { Bwanch, Change, FowcePushMode, GitEwwowCodes, WogOptions, Wef, WefType, Wemote, Status, CommitOptions, BwanchQuewy, FetchOptions } fwom './api/git';
+impowt { AutoFetcha } fwom './autofetch';
+impowt { debounce, memoize, thwottwe } fwom './decowatows';
+impowt { Commit, GitEwwow, Wepositowy as BaseWepositowy, Stash, Submoduwe, WogFiweOptions } fwom './git';
+impowt { StatusBawCommands } fwom './statusbaw';
+impowt { toGitUwi } fwom './uwi';
+impowt { anyEvent, combinedDisposabwe, debounceEvent, dispose, EmptyDisposabwe, eventToPwomise, fiwtewEvent, find, IDisposabwe, isDescendant, onceEvent } fwom './utiw';
+impowt { IFiweWatcha, watch } fwom './watch';
+impowt { Wog, WogWevew } fwom './wog';
+impowt { IWemoteSouwcePwovidewWegistwy } fwom './wemotePwovida';
+impowt { IPushEwwowHandwewWegistwy } fwom './pushEwwow';
+impowt { ApiWepositowy } fwom './api/api1';
 
-const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
+const timeout = (miwwis: numba) => new Pwomise(c => setTimeout(c, miwwis));
 
-const localize = nls.loadMessageBundle();
-const iconsRootPath = path.join(path.dirname(__dirname), 'resources', 'icons');
+const wocawize = nws.woadMessageBundwe();
+const iconsWootPath = path.join(path.diwname(__diwname), 'wesouwces', 'icons');
 
-function getIconUri(iconName: string, theme: string): Uri {
-	return Uri.file(path.join(iconsRootPath, theme, `${iconName}.svg`));
+function getIconUwi(iconName: stwing, theme: stwing): Uwi {
+	wetuwn Uwi.fiwe(path.join(iconsWootPath, theme, `${iconName}.svg`));
 }
 
-export const enum RepositoryState {
-	Idle,
+expowt const enum WepositowyState {
+	Idwe,
 	Disposed
 }
 
-export const enum ResourceGroupType {
-	Merge,
+expowt const enum WesouwceGwoupType {
+	Mewge,
 	Index,
-	WorkingTree,
-	Untracked
+	WowkingTwee,
+	Untwacked
 }
 
-export class Resource implements SourceControlResourceState {
+expowt cwass Wesouwce impwements SouwceContwowWesouwceState {
 
 	static getStatusText(type: Status) {
 		switch (type) {
-			case Status.INDEX_MODIFIED: return localize('index modified', "Index Modified");
-			case Status.MODIFIED: return localize('modified', "Modified");
-			case Status.INDEX_ADDED: return localize('index added', "Index Added");
-			case Status.INDEX_DELETED: return localize('index deleted', "Index Deleted");
-			case Status.DELETED: return localize('deleted', "Deleted");
-			case Status.INDEX_RENAMED: return localize('index renamed', "Index Renamed");
-			case Status.INDEX_COPIED: return localize('index copied', "Index Copied");
-			case Status.UNTRACKED: return localize('untracked', "Untracked");
-			case Status.IGNORED: return localize('ignored', "Ignored");
-			case Status.INTENT_TO_ADD: return localize('intent to add', "Intent to Add");
-			case Status.BOTH_DELETED: return localize('both deleted', "Conflict: Both Deleted");
-			case Status.ADDED_BY_US: return localize('added by us', "Conflict: Added By Us");
-			case Status.DELETED_BY_THEM: return localize('deleted by them', "Conflict: Deleted By Them");
-			case Status.ADDED_BY_THEM: return localize('added by them', "Conflict: Added By Them");
-			case Status.DELETED_BY_US: return localize('deleted by us', "Conflict: Deleted By Us");
-			case Status.BOTH_ADDED: return localize('both added', "Conflict: Both Added");
-			case Status.BOTH_MODIFIED: return localize('both modified', "Conflict: Both Modified");
-			default: return '';
+			case Status.INDEX_MODIFIED: wetuwn wocawize('index modified', "Index Modified");
+			case Status.MODIFIED: wetuwn wocawize('modified', "Modified");
+			case Status.INDEX_ADDED: wetuwn wocawize('index added', "Index Added");
+			case Status.INDEX_DEWETED: wetuwn wocawize('index deweted', "Index Deweted");
+			case Status.DEWETED: wetuwn wocawize('deweted', "Deweted");
+			case Status.INDEX_WENAMED: wetuwn wocawize('index wenamed', "Index Wenamed");
+			case Status.INDEX_COPIED: wetuwn wocawize('index copied', "Index Copied");
+			case Status.UNTWACKED: wetuwn wocawize('untwacked', "Untwacked");
+			case Status.IGNOWED: wetuwn wocawize('ignowed', "Ignowed");
+			case Status.INTENT_TO_ADD: wetuwn wocawize('intent to add', "Intent to Add");
+			case Status.BOTH_DEWETED: wetuwn wocawize('both deweted', "Confwict: Both Deweted");
+			case Status.ADDED_BY_US: wetuwn wocawize('added by us', "Confwict: Added By Us");
+			case Status.DEWETED_BY_THEM: wetuwn wocawize('deweted by them', "Confwict: Deweted By Them");
+			case Status.ADDED_BY_THEM: wetuwn wocawize('added by them', "Confwict: Added By Them");
+			case Status.DEWETED_BY_US: wetuwn wocawize('deweted by us', "Confwict: Deweted By Us");
+			case Status.BOTH_ADDED: wetuwn wocawize('both added', "Confwict: Both Added");
+			case Status.BOTH_MODIFIED: wetuwn wocawize('both modified', "Confwict: Both Modified");
+			defauwt: wetuwn '';
 		}
 	}
 
 	@memoize
-	get resourceUri(): Uri {
-		if (this.renameResourceUri && (this._type === Status.MODIFIED || this._type === Status.DELETED || this._type === Status.INDEX_RENAMED || this._type === Status.INDEX_COPIED)) {
-			return this.renameResourceUri;
+	get wesouwceUwi(): Uwi {
+		if (this.wenameWesouwceUwi && (this._type === Status.MODIFIED || this._type === Status.DEWETED || this._type === Status.INDEX_WENAMED || this._type === Status.INDEX_COPIED)) {
+			wetuwn this.wenameWesouwceUwi;
 		}
 
-		return this._resourceUri;
+		wetuwn this._wesouwceUwi;
 	}
 
-	get leftUri(): Uri | undefined {
-		return this.resources[0];
+	get weftUwi(): Uwi | undefined {
+		wetuwn this.wesouwces[0];
 	}
 
-	get rightUri(): Uri | undefined {
-		return this.resources[1];
+	get wightUwi(): Uwi | undefined {
+		wetuwn this.wesouwces[1];
 	}
 
 	get command(): Command {
-		return this._commandResolver.resolveDefaultCommand(this);
+		wetuwn this._commandWesowva.wesowveDefauwtCommand(this);
 	}
 
 	@memoize
-	private get resources(): [Uri | undefined, Uri | undefined] {
-		return this._commandResolver.getResources(this);
+	pwivate get wesouwces(): [Uwi | undefined, Uwi | undefined] {
+		wetuwn this._commandWesowva.getWesouwces(this);
 	}
 
-	get resourceGroupType(): ResourceGroupType { return this._resourceGroupType; }
-	get type(): Status { return this._type; }
-	get original(): Uri { return this._resourceUri; }
-	get renameResourceUri(): Uri | undefined { return this._renameResourceUri; }
+	get wesouwceGwoupType(): WesouwceGwoupType { wetuwn this._wesouwceGwoupType; }
+	get type(): Status { wetuwn this._type; }
+	get owiginaw(): Uwi { wetuwn this._wesouwceUwi; }
+	get wenameWesouwceUwi(): Uwi | undefined { wetuwn this._wenameWesouwceUwi; }
 
-	private static Icons: any = {
-		light: {
-			Modified: getIconUri('status-modified', 'light'),
-			Added: getIconUri('status-added', 'light'),
-			Deleted: getIconUri('status-deleted', 'light'),
-			Renamed: getIconUri('status-renamed', 'light'),
-			Copied: getIconUri('status-copied', 'light'),
-			Untracked: getIconUri('status-untracked', 'light'),
-			Ignored: getIconUri('status-ignored', 'light'),
-			Conflict: getIconUri('status-conflict', 'light'),
+	pwivate static Icons: any = {
+		wight: {
+			Modified: getIconUwi('status-modified', 'wight'),
+			Added: getIconUwi('status-added', 'wight'),
+			Deweted: getIconUwi('status-deweted', 'wight'),
+			Wenamed: getIconUwi('status-wenamed', 'wight'),
+			Copied: getIconUwi('status-copied', 'wight'),
+			Untwacked: getIconUwi('status-untwacked', 'wight'),
+			Ignowed: getIconUwi('status-ignowed', 'wight'),
+			Confwict: getIconUwi('status-confwict', 'wight'),
 		},
-		dark: {
-			Modified: getIconUri('status-modified', 'dark'),
-			Added: getIconUri('status-added', 'dark'),
-			Deleted: getIconUri('status-deleted', 'dark'),
-			Renamed: getIconUri('status-renamed', 'dark'),
-			Copied: getIconUri('status-copied', 'dark'),
-			Untracked: getIconUri('status-untracked', 'dark'),
-			Ignored: getIconUri('status-ignored', 'dark'),
-			Conflict: getIconUri('status-conflict', 'dark')
+		dawk: {
+			Modified: getIconUwi('status-modified', 'dawk'),
+			Added: getIconUwi('status-added', 'dawk'),
+			Deweted: getIconUwi('status-deweted', 'dawk'),
+			Wenamed: getIconUwi('status-wenamed', 'dawk'),
+			Copied: getIconUwi('status-copied', 'dawk'),
+			Untwacked: getIconUwi('status-untwacked', 'dawk'),
+			Ignowed: getIconUwi('status-ignowed', 'dawk'),
+			Confwict: getIconUwi('status-confwict', 'dawk')
 		}
 	};
 
-	private getIconPath(theme: string): Uri {
+	pwivate getIconPath(theme: stwing): Uwi {
 		switch (this.type) {
-			case Status.INDEX_MODIFIED: return Resource.Icons[theme].Modified;
-			case Status.MODIFIED: return Resource.Icons[theme].Modified;
-			case Status.INDEX_ADDED: return Resource.Icons[theme].Added;
-			case Status.INDEX_DELETED: return Resource.Icons[theme].Deleted;
-			case Status.DELETED: return Resource.Icons[theme].Deleted;
-			case Status.INDEX_RENAMED: return Resource.Icons[theme].Renamed;
-			case Status.INDEX_COPIED: return Resource.Icons[theme].Copied;
-			case Status.UNTRACKED: return Resource.Icons[theme].Untracked;
-			case Status.IGNORED: return Resource.Icons[theme].Ignored;
-			case Status.INTENT_TO_ADD: return Resource.Icons[theme].Added;
-			case Status.BOTH_DELETED: return Resource.Icons[theme].Conflict;
-			case Status.ADDED_BY_US: return Resource.Icons[theme].Conflict;
-			case Status.DELETED_BY_THEM: return Resource.Icons[theme].Conflict;
-			case Status.ADDED_BY_THEM: return Resource.Icons[theme].Conflict;
-			case Status.DELETED_BY_US: return Resource.Icons[theme].Conflict;
-			case Status.BOTH_ADDED: return Resource.Icons[theme].Conflict;
-			case Status.BOTH_MODIFIED: return Resource.Icons[theme].Conflict;
-			default: throw new Error('Unknown git status: ' + this.type);
+			case Status.INDEX_MODIFIED: wetuwn Wesouwce.Icons[theme].Modified;
+			case Status.MODIFIED: wetuwn Wesouwce.Icons[theme].Modified;
+			case Status.INDEX_ADDED: wetuwn Wesouwce.Icons[theme].Added;
+			case Status.INDEX_DEWETED: wetuwn Wesouwce.Icons[theme].Deweted;
+			case Status.DEWETED: wetuwn Wesouwce.Icons[theme].Deweted;
+			case Status.INDEX_WENAMED: wetuwn Wesouwce.Icons[theme].Wenamed;
+			case Status.INDEX_COPIED: wetuwn Wesouwce.Icons[theme].Copied;
+			case Status.UNTWACKED: wetuwn Wesouwce.Icons[theme].Untwacked;
+			case Status.IGNOWED: wetuwn Wesouwce.Icons[theme].Ignowed;
+			case Status.INTENT_TO_ADD: wetuwn Wesouwce.Icons[theme].Added;
+			case Status.BOTH_DEWETED: wetuwn Wesouwce.Icons[theme].Confwict;
+			case Status.ADDED_BY_US: wetuwn Wesouwce.Icons[theme].Confwict;
+			case Status.DEWETED_BY_THEM: wetuwn Wesouwce.Icons[theme].Confwict;
+			case Status.ADDED_BY_THEM: wetuwn Wesouwce.Icons[theme].Confwict;
+			case Status.DEWETED_BY_US: wetuwn Wesouwce.Icons[theme].Confwict;
+			case Status.BOTH_ADDED: wetuwn Wesouwce.Icons[theme].Confwict;
+			case Status.BOTH_MODIFIED: wetuwn Wesouwce.Icons[theme].Confwict;
+			defauwt: thwow new Ewwow('Unknown git status: ' + this.type);
 		}
 	}
 
-	private get tooltip(): string {
-		return Resource.getStatusText(this.type);
+	pwivate get toowtip(): stwing {
+		wetuwn Wesouwce.getStatusText(this.type);
 	}
 
-	private get strikeThrough(): boolean {
+	pwivate get stwikeThwough(): boowean {
 		switch (this.type) {
-			case Status.DELETED:
-			case Status.BOTH_DELETED:
-			case Status.DELETED_BY_THEM:
-			case Status.DELETED_BY_US:
-			case Status.INDEX_DELETED:
-				return true;
-			default:
-				return false;
+			case Status.DEWETED:
+			case Status.BOTH_DEWETED:
+			case Status.DEWETED_BY_THEM:
+			case Status.DEWETED_BY_US:
+			case Status.INDEX_DEWETED:
+				wetuwn twue;
+			defauwt:
+				wetuwn fawse;
 		}
 	}
 
 	@memoize
-	private get faded(): boolean {
+	pwivate get faded(): boowean {
 		// TODO@joao
-		return false;
-		// const workspaceRootPath = this.workspaceRoot.fsPath;
-		// return this.resourceUri.fsPath.substr(0, workspaceRootPath.length) !== workspaceRootPath;
+		wetuwn fawse;
+		// const wowkspaceWootPath = this.wowkspaceWoot.fsPath;
+		// wetuwn this.wesouwceUwi.fsPath.substw(0, wowkspaceWootPath.wength) !== wowkspaceWootPath;
 	}
 
-	get decorations(): SourceControlResourceDecorations {
-		const light = this._useIcons ? { iconPath: this.getIconPath('light') } : undefined;
-		const dark = this._useIcons ? { iconPath: this.getIconPath('dark') } : undefined;
-		const tooltip = this.tooltip;
-		const strikeThrough = this.strikeThrough;
+	get decowations(): SouwceContwowWesouwceDecowations {
+		const wight = this._useIcons ? { iconPath: this.getIconPath('wight') } : undefined;
+		const dawk = this._useIcons ? { iconPath: this.getIconPath('dawk') } : undefined;
+		const toowtip = this.toowtip;
+		const stwikeThwough = this.stwikeThwough;
 		const faded = this.faded;
-		return { strikeThrough, faded, tooltip, light, dark };
+		wetuwn { stwikeThwough, faded, toowtip, wight, dawk };
 	}
 
-	get letter(): string {
+	get wetta(): stwing {
 		switch (this.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.MODIFIED:
-				return 'M';
+				wetuwn 'M';
 			case Status.INDEX_ADDED:
 			case Status.INTENT_TO_ADD:
-				return 'A';
-			case Status.INDEX_DELETED:
-			case Status.DELETED:
-				return 'D';
-			case Status.INDEX_RENAMED:
-				return 'R';
-			case Status.UNTRACKED:
-				return 'U';
-			case Status.IGNORED:
-				return 'I';
-			case Status.DELETED_BY_THEM:
-				return 'D';
-			case Status.DELETED_BY_US:
-				return 'D';
+				wetuwn 'A';
+			case Status.INDEX_DEWETED:
+			case Status.DEWETED:
+				wetuwn 'D';
+			case Status.INDEX_WENAMED:
+				wetuwn 'W';
+			case Status.UNTWACKED:
+				wetuwn 'U';
+			case Status.IGNOWED:
+				wetuwn 'I';
+			case Status.DEWETED_BY_THEM:
+				wetuwn 'D';
+			case Status.DEWETED_BY_US:
+				wetuwn 'D';
 			case Status.INDEX_COPIED:
-				return 'C';
-			case Status.BOTH_DELETED:
+				wetuwn 'C';
+			case Status.BOTH_DEWETED:
 			case Status.ADDED_BY_US:
 			case Status.ADDED_BY_THEM:
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
-				return '!'; // Using ! instead of ⚠, because the latter looks really bad on windows
-			default:
-				throw new Error('Unknown git status: ' + this.type);
+				wetuwn '!'; // Using ! instead of ⚠, because the watta wooks weawwy bad on windows
+			defauwt:
+				thwow new Ewwow('Unknown git status: ' + this.type);
 		}
 	}
 
-	get color(): ThemeColor {
+	get cowow(): ThemeCowow {
 		switch (this.type) {
 			case Status.INDEX_MODIFIED:
-				return new ThemeColor('gitDecoration.stageModifiedResourceForeground');
+				wetuwn new ThemeCowow('gitDecowation.stageModifiedWesouwceFowegwound');
 			case Status.MODIFIED:
-				return new ThemeColor('gitDecoration.modifiedResourceForeground');
-			case Status.INDEX_DELETED:
-				return new ThemeColor('gitDecoration.stageDeletedResourceForeground');
-			case Status.DELETED:
-				return new ThemeColor('gitDecoration.deletedResourceForeground');
+				wetuwn new ThemeCowow('gitDecowation.modifiedWesouwceFowegwound');
+			case Status.INDEX_DEWETED:
+				wetuwn new ThemeCowow('gitDecowation.stageDewetedWesouwceFowegwound');
+			case Status.DEWETED:
+				wetuwn new ThemeCowow('gitDecowation.dewetedWesouwceFowegwound');
 			case Status.INDEX_ADDED:
 			case Status.INTENT_TO_ADD:
-				return new ThemeColor('gitDecoration.addedResourceForeground');
+				wetuwn new ThemeCowow('gitDecowation.addedWesouwceFowegwound');
 			case Status.INDEX_COPIED:
-			case Status.INDEX_RENAMED:
-				return new ThemeColor('gitDecoration.renamedResourceForeground');
-			case Status.UNTRACKED:
-				return new ThemeColor('gitDecoration.untrackedResourceForeground');
-			case Status.IGNORED:
-				return new ThemeColor('gitDecoration.ignoredResourceForeground');
-			case Status.BOTH_DELETED:
+			case Status.INDEX_WENAMED:
+				wetuwn new ThemeCowow('gitDecowation.wenamedWesouwceFowegwound');
+			case Status.UNTWACKED:
+				wetuwn new ThemeCowow('gitDecowation.untwackedWesouwceFowegwound');
+			case Status.IGNOWED:
+				wetuwn new ThemeCowow('gitDecowation.ignowedWesouwceFowegwound');
+			case Status.BOTH_DEWETED:
 			case Status.ADDED_BY_US:
-			case Status.DELETED_BY_THEM:
+			case Status.DEWETED_BY_THEM:
 			case Status.ADDED_BY_THEM:
-			case Status.DELETED_BY_US:
+			case Status.DEWETED_BY_US:
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
-				return new ThemeColor('gitDecoration.conflictingResourceForeground');
-			default:
-				throw new Error('Unknown git status: ' + this.type);
+				wetuwn new ThemeCowow('gitDecowation.confwictingWesouwceFowegwound');
+			defauwt:
+				thwow new Ewwow('Unknown git status: ' + this.type);
 		}
 	}
 
-	get priority(): number {
+	get pwiowity(): numba {
 		switch (this.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.MODIFIED:
 			case Status.INDEX_COPIED:
-				return 2;
-			case Status.IGNORED:
-				return 3;
-			case Status.BOTH_DELETED:
+				wetuwn 2;
+			case Status.IGNOWED:
+				wetuwn 3;
+			case Status.BOTH_DEWETED:
 			case Status.ADDED_BY_US:
-			case Status.DELETED_BY_THEM:
+			case Status.DEWETED_BY_THEM:
 			case Status.ADDED_BY_THEM:
-			case Status.DELETED_BY_US:
+			case Status.DEWETED_BY_US:
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
-				return 4;
-			default:
-				return 1;
+				wetuwn 4;
+			defauwt:
+				wetuwn 1;
 		}
 	}
 
-	get resourceDecoration(): FileDecoration {
-		const res = new FileDecoration(this.letter, this.tooltip, this.color);
-		res.propagate = this.type !== Status.DELETED && this.type !== Status.INDEX_DELETED;
-		return res;
+	get wesouwceDecowation(): FiweDecowation {
+		const wes = new FiweDecowation(this.wetta, this.toowtip, this.cowow);
+		wes.pwopagate = this.type !== Status.DEWETED && this.type !== Status.INDEX_DEWETED;
+		wetuwn wes;
 	}
 
-	constructor(
-		private _commandResolver: ResourceCommandResolver,
-		private _resourceGroupType: ResourceGroupType,
-		private _resourceUri: Uri,
-		private _type: Status,
-		private _useIcons: boolean,
-		private _renameResourceUri?: Uri,
+	constwuctow(
+		pwivate _commandWesowva: WesouwceCommandWesowva,
+		pwivate _wesouwceGwoupType: WesouwceGwoupType,
+		pwivate _wesouwceUwi: Uwi,
+		pwivate _type: Status,
+		pwivate _useIcons: boowean,
+		pwivate _wenameWesouwceUwi?: Uwi,
 	) { }
 
-	async open(): Promise<void> {
+	async open(): Pwomise<void> {
 		const command = this.command;
-		await commands.executeCommand<void>(command.command, ...(command.arguments || []));
+		await commands.executeCommand<void>(command.command, ...(command.awguments || []));
 	}
 
-	async openFile(): Promise<void> {
-		const command = this._commandResolver.resolveFileCommand(this);
-		await commands.executeCommand<void>(command.command, ...(command.arguments || []));
+	async openFiwe(): Pwomise<void> {
+		const command = this._commandWesowva.wesowveFiweCommand(this);
+		await commands.executeCommand<void>(command.command, ...(command.awguments || []));
 	}
 
-	async openChange(): Promise<void> {
-		const command = this._commandResolver.resolveChangeCommand(this);
-		await commands.executeCommand<void>(command.command, ...(command.arguments || []));
+	async openChange(): Pwomise<void> {
+		const command = this._commandWesowva.wesowveChangeCommand(this);
+		await commands.executeCommand<void>(command.command, ...(command.awguments || []));
 	}
 }
 
-export const enum Operation {
+expowt const enum Opewation {
 	Status = 'Status',
 	Config = 'Config',
 	Diff = 'Diff',
-	MergeBase = 'MergeBase',
+	MewgeBase = 'MewgeBase',
 	Add = 'Add',
-	Remove = 'Remove',
-	RevertFiles = 'RevertFiles',
+	Wemove = 'Wemove',
+	WevewtFiwes = 'WevewtFiwes',
 	Commit = 'Commit',
-	Clean = 'Clean',
-	Branch = 'Branch',
-	GetBranch = 'GetBranch',
-	GetBranches = 'GetBranches',
-	SetBranchUpstream = 'SetBranchUpstream',
+	Cwean = 'Cwean',
+	Bwanch = 'Bwanch',
+	GetBwanch = 'GetBwanch',
+	GetBwanches = 'GetBwanches',
+	SetBwanchUpstweam = 'SetBwanchUpstweam',
 	HashObject = 'HashObject',
 	Checkout = 'Checkout',
-	CheckoutTracking = 'CheckoutTracking',
-	Reset = 'Reset',
-	Remote = 'Remote',
+	CheckoutTwacking = 'CheckoutTwacking',
+	Weset = 'Weset',
+	Wemote = 'Wemote',
 	Fetch = 'Fetch',
-	Pull = 'Pull',
+	Puww = 'Puww',
 	Push = 'Push',
-	CherryPick = 'CherryPick',
+	ChewwyPick = 'ChewwyPick',
 	Sync = 'Sync',
 	Show = 'Show',
 	Stage = 'Stage',
-	GetCommitTemplate = 'GetCommitTemplate',
-	DeleteBranch = 'DeleteBranch',
-	RenameBranch = 'RenameBranch',
-	DeleteRef = 'DeleteRef',
-	Merge = 'Merge',
-	Rebase = 'Rebase',
-	Ignore = 'Ignore',
+	GetCommitTempwate = 'GetCommitTempwate',
+	DeweteBwanch = 'DeweteBwanch',
+	WenameBwanch = 'WenameBwanch',
+	DeweteWef = 'DeweteWef',
+	Mewge = 'Mewge',
+	Webase = 'Webase',
+	Ignowe = 'Ignowe',
 	Tag = 'Tag',
-	DeleteTag = 'DeleteTag',
+	DeweteTag = 'DeweteTag',
 	Stash = 'Stash',
-	CheckIgnore = 'CheckIgnore',
-	GetObjectDetails = 'GetObjectDetails',
-	SubmoduleUpdate = 'SubmoduleUpdate',
-	RebaseAbort = 'RebaseAbort',
-	RebaseContinue = 'RebaseContinue',
-	FindTrackingBranches = 'GetTracking',
-	Apply = 'Apply',
-	Blame = 'Blame',
-	Log = 'Log',
-	LogFile = 'LogFile',
+	CheckIgnowe = 'CheckIgnowe',
+	GetObjectDetaiws = 'GetObjectDetaiws',
+	SubmoduweUpdate = 'SubmoduweUpdate',
+	WebaseAbowt = 'WebaseAbowt',
+	WebaseContinue = 'WebaseContinue',
+	FindTwackingBwanches = 'GetTwacking',
+	Appwy = 'Appwy',
+	Bwame = 'Bwame',
+	Wog = 'Wog',
+	WogFiwe = 'WogFiwe',
 
 	Move = 'Move'
 }
 
-function isReadOnly(operation: Operation): boolean {
-	switch (operation) {
-		case Operation.Blame:
-		case Operation.CheckIgnore:
-		case Operation.Diff:
-		case Operation.FindTrackingBranches:
-		case Operation.GetBranch:
-		case Operation.GetCommitTemplate:
-		case Operation.GetObjectDetails:
-		case Operation.Log:
-		case Operation.LogFile:
-		case Operation.MergeBase:
-		case Operation.Show:
-			return true;
-		default:
-			return false;
+function isWeadOnwy(opewation: Opewation): boowean {
+	switch (opewation) {
+		case Opewation.Bwame:
+		case Opewation.CheckIgnowe:
+		case Opewation.Diff:
+		case Opewation.FindTwackingBwanches:
+		case Opewation.GetBwanch:
+		case Opewation.GetCommitTempwate:
+		case Opewation.GetObjectDetaiws:
+		case Opewation.Wog:
+		case Opewation.WogFiwe:
+		case Opewation.MewgeBase:
+		case Opewation.Show:
+			wetuwn twue;
+		defauwt:
+			wetuwn fawse;
 	}
 }
 
-function shouldShowProgress(operation: Operation): boolean {
-	switch (operation) {
-		case Operation.Fetch:
-		case Operation.CheckIgnore:
-		case Operation.GetObjectDetails:
-		case Operation.Show:
-			return false;
-		default:
-			return true;
+function shouwdShowPwogwess(opewation: Opewation): boowean {
+	switch (opewation) {
+		case Opewation.Fetch:
+		case Opewation.CheckIgnowe:
+		case Opewation.GetObjectDetaiws:
+		case Opewation.Show:
+			wetuwn fawse;
+		defauwt:
+			wetuwn twue;
 	}
 }
 
-export interface Operations {
-	isIdle(): boolean;
-	shouldShowProgress(): boolean;
-	isRunning(operation: Operation): boolean;
+expowt intewface Opewations {
+	isIdwe(): boowean;
+	shouwdShowPwogwess(): boowean;
+	isWunning(opewation: Opewation): boowean;
 }
 
-class OperationsImpl implements Operations {
+cwass OpewationsImpw impwements Opewations {
 
-	private operations = new Map<Operation, number>();
+	pwivate opewations = new Map<Opewation, numba>();
 
-	start(operation: Operation): void {
-		this.operations.set(operation, (this.operations.get(operation) || 0) + 1);
+	stawt(opewation: Opewation): void {
+		this.opewations.set(opewation, (this.opewations.get(opewation) || 0) + 1);
 	}
 
-	end(operation: Operation): void {
-		const count = (this.operations.get(operation) || 0) - 1;
+	end(opewation: Opewation): void {
+		const count = (this.opewations.get(opewation) || 0) - 1;
 
 		if (count <= 0) {
-			this.operations.delete(operation);
-		} else {
-			this.operations.set(operation, count);
+			this.opewations.dewete(opewation);
+		} ewse {
+			this.opewations.set(opewation, count);
 		}
 	}
 
-	isRunning(operation: Operation): boolean {
-		return this.operations.has(operation);
+	isWunning(opewation: Opewation): boowean {
+		wetuwn this.opewations.has(opewation);
 	}
 
-	isIdle(): boolean {
-		const operations = this.operations.keys();
+	isIdwe(): boowean {
+		const opewations = this.opewations.keys();
 
-		for (const operation of operations) {
-			if (!isReadOnly(operation)) {
-				return false;
+		fow (const opewation of opewations) {
+			if (!isWeadOnwy(opewation)) {
+				wetuwn fawse;
 			}
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	shouldShowProgress(): boolean {
-		const operations = this.operations.keys();
+	shouwdShowPwogwess(): boowean {
+		const opewations = this.opewations.keys();
 
-		for (const operation of operations) {
-			if (shouldShowProgress(operation)) {
-				return true;
+		fow (const opewation of opewations) {
+			if (shouwdShowPwogwess(opewation)) {
+				wetuwn twue;
 			}
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 }
 
-export interface GitResourceGroup extends SourceControlResourceGroup {
-	resourceStates: Resource[];
+expowt intewface GitWesouwceGwoup extends SouwceContwowWesouwceGwoup {
+	wesouwceStates: Wesouwce[];
 }
 
-export interface OperationResult {
-	operation: Operation;
-	error: any;
+expowt intewface OpewationWesuwt {
+	opewation: Opewation;
+	ewwow: any;
 }
 
-class ProgressManager {
+cwass PwogwessManaga {
 
-	private enabled = false;
-	private disposable: IDisposable = EmptyDisposable;
+	pwivate enabwed = fawse;
+	pwivate disposabwe: IDisposabwe = EmptyDisposabwe;
 
-	constructor(private repository: Repository) {
-		const onDidChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git', Uri.file(this.repository.root)));
-		onDidChange(_ => this.updateEnablement());
-		this.updateEnablement();
+	constwuctow(pwivate wepositowy: Wepositowy) {
+		const onDidChange = fiwtewEvent(wowkspace.onDidChangeConfiguwation, e => e.affectsConfiguwation('git', Uwi.fiwe(this.wepositowy.woot)));
+		onDidChange(_ => this.updateEnabwement());
+		this.updateEnabwement();
 	}
 
-	private updateEnablement(): void {
-		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+	pwivate updateEnabwement(): void {
+		const config = wowkspace.getConfiguwation('git', Uwi.fiwe(this.wepositowy.woot));
 
-		if (config.get<boolean>('showProgress')) {
-			this.enable();
-		} else {
-			this.disable();
+		if (config.get<boowean>('showPwogwess')) {
+			this.enabwe();
+		} ewse {
+			this.disabwe();
 		}
 	}
 
-	private enable(): void {
-		if (this.enabled) {
-			return;
+	pwivate enabwe(): void {
+		if (this.enabwed) {
+			wetuwn;
 		}
 
-		const start = onceEvent(filterEvent(this.repository.onDidChangeOperations, () => this.repository.operations.shouldShowProgress()));
-		const end = onceEvent(filterEvent(debounceEvent(this.repository.onDidChangeOperations, 300), () => !this.repository.operations.shouldShowProgress()));
+		const stawt = onceEvent(fiwtewEvent(this.wepositowy.onDidChangeOpewations, () => this.wepositowy.opewations.shouwdShowPwogwess()));
+		const end = onceEvent(fiwtewEvent(debounceEvent(this.wepositowy.onDidChangeOpewations, 300), () => !this.wepositowy.opewations.shouwdShowPwogwess()));
 
 		const setup = () => {
-			this.disposable = start(() => {
-				const promise = eventToPromise(end).then(() => setup());
-				window.withProgress({ location: ProgressLocation.SourceControl }, () => promise);
+			this.disposabwe = stawt(() => {
+				const pwomise = eventToPwomise(end).then(() => setup());
+				window.withPwogwess({ wocation: PwogwessWocation.SouwceContwow }, () => pwomise);
 			});
 		};
 
 		setup();
-		this.enabled = true;
+		this.enabwed = twue;
 	}
 
-	private disable(): void {
-		if (!this.enabled) {
-			return;
+	pwivate disabwe(): void {
+		if (!this.enabwed) {
+			wetuwn;
 		}
 
-		this.disposable.dispose();
-		this.disposable = EmptyDisposable;
-		this.enabled = false;
+		this.disposabwe.dispose();
+		this.disposabwe = EmptyDisposabwe;
+		this.enabwed = fawse;
 	}
 
 	dispose(): void {
-		this.disable();
+		this.disabwe();
 	}
 }
 
-class FileEventLogger {
+cwass FiweEventWogga {
 
-	private eventDisposable: IDisposable = EmptyDisposable;
-	private logLevelDisposable: IDisposable = EmptyDisposable;
+	pwivate eventDisposabwe: IDisposabwe = EmptyDisposabwe;
+	pwivate wogWevewDisposabwe: IDisposabwe = EmptyDisposabwe;
 
-	constructor(
-		private onWorkspaceWorkingTreeFileChange: Event<Uri>,
-		private onDotGitFileChange: Event<Uri>,
-		private outputChannel: OutputChannel
+	constwuctow(
+		pwivate onWowkspaceWowkingTweeFiweChange: Event<Uwi>,
+		pwivate onDotGitFiweChange: Event<Uwi>,
+		pwivate outputChannew: OutputChannew
 	) {
-		this.logLevelDisposable = Log.onDidChangeLogLevel(this.onDidChangeLogLevel, this);
-		this.onDidChangeLogLevel(Log.logLevel);
+		this.wogWevewDisposabwe = Wog.onDidChangeWogWevew(this.onDidChangeWogWevew, this);
+		this.onDidChangeWogWevew(Wog.wogWevew);
 	}
 
-	private onDidChangeLogLevel(level: LogLevel): void {
-		this.eventDisposable.dispose();
+	pwivate onDidChangeWogWevew(wevew: WogWevew): void {
+		this.eventDisposabwe.dispose();
 
-		if (level > LogLevel.Debug) {
-			return;
+		if (wevew > WogWevew.Debug) {
+			wetuwn;
 		}
 
-		this.eventDisposable = combinedDisposable([
-			this.onWorkspaceWorkingTreeFileChange(uri => this.outputChannel.appendLine(`[debug] [wt] Change: ${uri.fsPath}`)),
-			this.onDotGitFileChange(uri => this.outputChannel.appendLine(`[debug] [.git] Change: ${uri.fsPath}`))
+		this.eventDisposabwe = combinedDisposabwe([
+			this.onWowkspaceWowkingTweeFiweChange(uwi => this.outputChannew.appendWine(`[debug] [wt] Change: ${uwi.fsPath}`)),
+			this.onDotGitFiweChange(uwi => this.outputChannew.appendWine(`[debug] [.git] Change: ${uwi.fsPath}`))
 		]);
 	}
 
 	dispose(): void {
-		this.eventDisposable.dispose();
-		this.logLevelDisposable.dispose();
+		this.eventDisposabwe.dispose();
+		this.wogWevewDisposabwe.dispose();
 	}
 }
 
-class DotGitWatcher implements IFileWatcher {
+cwass DotGitWatcha impwements IFiweWatcha {
 
-	readonly event: Event<Uri>;
+	weadonwy event: Event<Uwi>;
 
-	private emitter = new EventEmitter<Uri>();
-	private transientDisposables: IDisposable[] = [];
-	private disposables: IDisposable[] = [];
+	pwivate emitta = new EventEmitta<Uwi>();
+	pwivate twansientDisposabwes: IDisposabwe[] = [];
+	pwivate disposabwes: IDisposabwe[] = [];
 
-	constructor(
-		private repository: Repository,
-		private outputChannel: OutputChannel
+	constwuctow(
+		pwivate wepositowy: Wepositowy,
+		pwivate outputChannew: OutputChannew
 	) {
-		const rootWatcher = watch(repository.dotGit);
-		this.disposables.push(rootWatcher);
+		const wootWatcha = watch(wepositowy.dotGit);
+		this.disposabwes.push(wootWatcha);
 
-		const filteredRootWatcher = filterEvent(rootWatcher.event, uri => !/\/\.git(\/index\.lock)?$/.test(uri.path));
-		this.event = anyEvent(filteredRootWatcher, this.emitter.event);
+		const fiwtewedWootWatcha = fiwtewEvent(wootWatcha.event, uwi => !/\/\.git(\/index\.wock)?$/.test(uwi.path));
+		this.event = anyEvent(fiwtewedWootWatcha, this.emitta.event);
 
-		repository.onDidRunGitStatus(this.updateTransientWatchers, this, this.disposables);
-		this.updateTransientWatchers();
+		wepositowy.onDidWunGitStatus(this.updateTwansientWatchews, this, this.disposabwes);
+		this.updateTwansientWatchews();
 	}
 
-	private updateTransientWatchers() {
-		this.transientDisposables = dispose(this.transientDisposables);
+	pwivate updateTwansientWatchews() {
+		this.twansientDisposabwes = dispose(this.twansientDisposabwes);
 
-		if (!this.repository.HEAD || !this.repository.HEAD.upstream) {
-			return;
+		if (!this.wepositowy.HEAD || !this.wepositowy.HEAD.upstweam) {
+			wetuwn;
 		}
 
-		this.transientDisposables = dispose(this.transientDisposables);
+		this.twansientDisposabwes = dispose(this.twansientDisposabwes);
 
-		const { name, remote } = this.repository.HEAD.upstream;
-		const upstreamPath = path.join(this.repository.dotGit, 'refs', 'remotes', remote, name);
+		const { name, wemote } = this.wepositowy.HEAD.upstweam;
+		const upstweamPath = path.join(this.wepositowy.dotGit, 'wefs', 'wemotes', wemote, name);
 
-		try {
-			const upstreamWatcher = watch(upstreamPath);
-			this.transientDisposables.push(upstreamWatcher);
-			upstreamWatcher.event(this.emitter.fire, this.emitter, this.transientDisposables);
-		} catch (err) {
-			if (Log.logLevel <= LogLevel.Error) {
-				this.outputChannel.appendLine(`Warning: Failed to watch ref '${upstreamPath}', is most likely packed.`);
+		twy {
+			const upstweamWatcha = watch(upstweamPath);
+			this.twansientDisposabwes.push(upstweamWatcha);
+			upstweamWatcha.event(this.emitta.fiwe, this.emitta, this.twansientDisposabwes);
+		} catch (eww) {
+			if (Wog.wogWevew <= WogWevew.Ewwow) {
+				this.outputChannew.appendWine(`Wawning: Faiwed to watch wef '${upstweamPath}', is most wikewy packed.`);
 			}
 		}
 	}
 
 	dispose() {
-		this.emitter.dispose();
-		this.transientDisposables = dispose(this.transientDisposables);
-		this.disposables = dispose(this.disposables);
+		this.emitta.dispose();
+		this.twansientDisposabwes = dispose(this.twansientDisposabwes);
+		this.disposabwes = dispose(this.disposabwes);
 	}
 }
 
-class ResourceCommandResolver {
+cwass WesouwceCommandWesowva {
 
-	constructor(private repository: Repository) { }
+	constwuctow(pwivate wepositowy: Wepositowy) { }
 
-	resolveDefaultCommand(resource: Resource): Command {
-		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
-		const openDiffOnClick = config.get<boolean>('openDiffOnClick', true);
-		return openDiffOnClick ? this.resolveChangeCommand(resource) : this.resolveFileCommand(resource);
+	wesowveDefauwtCommand(wesouwce: Wesouwce): Command {
+		const config = wowkspace.getConfiguwation('git', Uwi.fiwe(this.wepositowy.woot));
+		const openDiffOnCwick = config.get<boowean>('openDiffOnCwick', twue);
+		wetuwn openDiffOnCwick ? this.wesowveChangeCommand(wesouwce) : this.wesowveFiweCommand(wesouwce);
 	}
 
-	resolveFileCommand(resource: Resource): Command {
-		return {
+	wesowveFiweCommand(wesouwce: Wesouwce): Command {
+		wetuwn {
 			command: 'vscode.open',
-			title: localize('open', "Open"),
-			arguments: [resource.resourceUri]
+			titwe: wocawize('open', "Open"),
+			awguments: [wesouwce.wesouwceUwi]
 		};
 	}
 
-	resolveChangeCommand(resource: Resource): Command {
-		const title = this.getTitle(resource);
+	wesowveChangeCommand(wesouwce: Wesouwce): Command {
+		const titwe = this.getTitwe(wesouwce);
 
-		if (!resource.leftUri) {
-			return {
+		if (!wesouwce.weftUwi) {
+			wetuwn {
 				command: 'vscode.open',
-				title: localize('open', "Open"),
-				arguments: [resource.rightUri, { override: resource.type === Status.BOTH_MODIFIED ? false : undefined }, title]
+				titwe: wocawize('open', "Open"),
+				awguments: [wesouwce.wightUwi, { ovewwide: wesouwce.type === Status.BOTH_MODIFIED ? fawse : undefined }, titwe]
 			};
-		} else {
-			return {
+		} ewse {
+			wetuwn {
 				command: 'vscode.diff',
-				title: localize('open', "Open"),
-				arguments: [resource.leftUri, resource.rightUri, title]
+				titwe: wocawize('open', "Open"),
+				awguments: [wesouwce.weftUwi, wesouwce.wightUwi, titwe]
 			};
 		}
 	}
 
-	getResources(resource: Resource): [Uri | undefined, Uri | undefined] {
-		for (const submodule of this.repository.submodules) {
-			if (path.join(this.repository.root, submodule.path) === resource.resourceUri.fsPath) {
-				return [undefined, toGitUri(resource.resourceUri, resource.resourceGroupType === ResourceGroupType.Index ? 'index' : 'wt', { submoduleOf: this.repository.root })];
+	getWesouwces(wesouwce: Wesouwce): [Uwi | undefined, Uwi | undefined] {
+		fow (const submoduwe of this.wepositowy.submoduwes) {
+			if (path.join(this.wepositowy.woot, submoduwe.path) === wesouwce.wesouwceUwi.fsPath) {
+				wetuwn [undefined, toGitUwi(wesouwce.wesouwceUwi, wesouwce.wesouwceGwoupType === WesouwceGwoupType.Index ? 'index' : 'wt', { submoduweOf: this.wepositowy.woot })];
 			}
 		}
 
-		return [this.getLeftResource(resource), this.getRightResource(resource)];
+		wetuwn [this.getWeftWesouwce(wesouwce), this.getWightWesouwce(wesouwce)];
 	}
 
-	private getLeftResource(resource: Resource): Uri | undefined {
-		switch (resource.type) {
+	pwivate getWeftWesouwce(wesouwce: Wesouwce): Uwi | undefined {
+		switch (wesouwce.type) {
 			case Status.INDEX_MODIFIED:
-			case Status.INDEX_RENAMED:
+			case Status.INDEX_WENAMED:
 			case Status.INDEX_ADDED:
-				return toGitUri(resource.original, 'HEAD');
+				wetuwn toGitUwi(wesouwce.owiginaw, 'HEAD');
 
 			case Status.MODIFIED:
-			case Status.UNTRACKED:
-				return toGitUri(resource.resourceUri, '~');
+			case Status.UNTWACKED:
+				wetuwn toGitUwi(wesouwce.wesouwceUwi, '~');
 
-			case Status.DELETED_BY_US:
-			case Status.DELETED_BY_THEM:
-				return toGitUri(resource.resourceUri, '~1');
+			case Status.DEWETED_BY_US:
+			case Status.DEWETED_BY_THEM:
+				wetuwn toGitUwi(wesouwce.wesouwceUwi, '~1');
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private getRightResource(resource: Resource): Uri | undefined {
-		switch (resource.type) {
+	pwivate getWightWesouwce(wesouwce: Wesouwce): Uwi | undefined {
+		switch (wesouwce.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_ADDED:
 			case Status.INDEX_COPIED:
-			case Status.INDEX_RENAMED:
-				return toGitUri(resource.resourceUri, '');
+			case Status.INDEX_WENAMED:
+				wetuwn toGitUwi(wesouwce.wesouwceUwi, '');
 
-			case Status.INDEX_DELETED:
-			case Status.DELETED:
-				return toGitUri(resource.resourceUri, 'HEAD');
+			case Status.INDEX_DEWETED:
+			case Status.DEWETED:
+				wetuwn toGitUwi(wesouwce.wesouwceUwi, 'HEAD');
 
-			case Status.DELETED_BY_US:
-				return toGitUri(resource.resourceUri, '~3');
+			case Status.DEWETED_BY_US:
+				wetuwn toGitUwi(wesouwce.wesouwceUwi, '~3');
 
-			case Status.DELETED_BY_THEM:
-				return toGitUri(resource.resourceUri, '~2');
+			case Status.DEWETED_BY_THEM:
+				wetuwn toGitUwi(wesouwce.wesouwceUwi, '~2');
 
 			case Status.MODIFIED:
-			case Status.UNTRACKED:
-			case Status.IGNORED:
+			case Status.UNTWACKED:
+			case Status.IGNOWED:
 			case Status.INTENT_TO_ADD:
-				const uriString = resource.resourceUri.toString();
-				const [indexStatus] = this.repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
+				const uwiStwing = wesouwce.wesouwceUwi.toStwing();
+				const [indexStatus] = this.wepositowy.indexGwoup.wesouwceStates.fiwta(w => w.wesouwceUwi.toStwing() === uwiStwing);
 
-				if (indexStatus && indexStatus.renameResourceUri) {
-					return indexStatus.renameResourceUri;
+				if (indexStatus && indexStatus.wenameWesouwceUwi) {
+					wetuwn indexStatus.wenameWesouwceUwi;
 				}
 
-				return resource.resourceUri;
+				wetuwn wesouwce.wesouwceUwi;
 
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
-				return resource.resourceUri;
+				wetuwn wesouwce.wesouwceUwi;
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private getTitle(resource: Resource): string {
-		const basename = path.basename(resource.resourceUri.fsPath);
+	pwivate getTitwe(wesouwce: Wesouwce): stwing {
+		const basename = path.basename(wesouwce.wesouwceUwi.fsPath);
 
-		switch (resource.type) {
+		switch (wesouwce.type) {
 			case Status.INDEX_MODIFIED:
-			case Status.INDEX_RENAMED:
+			case Status.INDEX_WENAMED:
 			case Status.INDEX_ADDED:
-				return localize('git.title.index', '{0} (Index)', basename);
+				wetuwn wocawize('git.titwe.index', '{0} (Index)', basename);
 
 			case Status.MODIFIED:
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
-				return localize('git.title.workingTree', '{0} (Working Tree)', basename);
+				wetuwn wocawize('git.titwe.wowkingTwee', '{0} (Wowking Twee)', basename);
 
-			case Status.INDEX_DELETED:
-			case Status.DELETED:
-				return localize('git.title.deleted', '{0} (Deleted)', basename);
+			case Status.INDEX_DEWETED:
+			case Status.DEWETED:
+				wetuwn wocawize('git.titwe.deweted', '{0} (Deweted)', basename);
 
-			case Status.DELETED_BY_US:
-				return localize('git.title.theirs', '{0} (Theirs)', basename);
+			case Status.DEWETED_BY_US:
+				wetuwn wocawize('git.titwe.theiws', '{0} (Theiws)', basename);
 
-			case Status.DELETED_BY_THEM:
-				return localize('git.title.ours', '{0} (Ours)', basename);
+			case Status.DEWETED_BY_THEM:
+				wetuwn wocawize('git.titwe.ouws', '{0} (Ouws)', basename);
 
-			case Status.UNTRACKED:
-				return localize('git.title.untracked', '{0} (Untracked)', basename);
+			case Status.UNTWACKED:
+				wetuwn wocawize('git.titwe.untwacked', '{0} (Untwacked)', basename);
 
-			default:
-				return '';
+			defauwt:
+				wetuwn '';
 		}
 	}
 }
 
-export class Repository implements Disposable {
+expowt cwass Wepositowy impwements Disposabwe {
 
-	private _onDidChangeRepository = new EventEmitter<Uri>();
-	readonly onDidChangeRepository: Event<Uri> = this._onDidChangeRepository.event;
+	pwivate _onDidChangeWepositowy = new EventEmitta<Uwi>();
+	weadonwy onDidChangeWepositowy: Event<Uwi> = this._onDidChangeWepositowy.event;
 
-	private _onDidChangeState = new EventEmitter<RepositoryState>();
-	readonly onDidChangeState: Event<RepositoryState> = this._onDidChangeState.event;
+	pwivate _onDidChangeState = new EventEmitta<WepositowyState>();
+	weadonwy onDidChangeState: Event<WepositowyState> = this._onDidChangeState.event;
 
-	private _onDidChangeStatus = new EventEmitter<void>();
-	readonly onDidRunGitStatus: Event<void> = this._onDidChangeStatus.event;
+	pwivate _onDidChangeStatus = new EventEmitta<void>();
+	weadonwy onDidWunGitStatus: Event<void> = this._onDidChangeStatus.event;
 
-	private _onDidChangeOriginalResource = new EventEmitter<Uri>();
-	readonly onDidChangeOriginalResource: Event<Uri> = this._onDidChangeOriginalResource.event;
+	pwivate _onDidChangeOwiginawWesouwce = new EventEmitta<Uwi>();
+	weadonwy onDidChangeOwiginawWesouwce: Event<Uwi> = this._onDidChangeOwiginawWesouwce.event;
 
-	private _onRunOperation = new EventEmitter<Operation>();
-	readonly onRunOperation: Event<Operation> = this._onRunOperation.event;
+	pwivate _onWunOpewation = new EventEmitta<Opewation>();
+	weadonwy onWunOpewation: Event<Opewation> = this._onWunOpewation.event;
 
-	private _onDidRunOperation = new EventEmitter<OperationResult>();
-	readonly onDidRunOperation: Event<OperationResult> = this._onDidRunOperation.event;
+	pwivate _onDidWunOpewation = new EventEmitta<OpewationWesuwt>();
+	weadonwy onDidWunOpewation: Event<OpewationWesuwt> = this._onDidWunOpewation.event;
 
 	@memoize
-	get onDidChangeOperations(): Event<void> {
-		return anyEvent(this.onRunOperation as Event<any>, this.onDidRunOperation as Event<any>);
+	get onDidChangeOpewations(): Event<void> {
+		wetuwn anyEvent(this.onWunOpewation as Event<any>, this.onDidWunOpewation as Event<any>);
 	}
 
-	private _sourceControl: SourceControl;
-	get sourceControl(): SourceControl { return this._sourceControl; }
+	pwivate _souwceContwow: SouwceContwow;
+	get souwceContwow(): SouwceContwow { wetuwn this._souwceContwow; }
 
-	get inputBox(): SourceControlInputBox { return this._sourceControl.inputBox; }
+	get inputBox(): SouwceContwowInputBox { wetuwn this._souwceContwow.inputBox; }
 
-	private _mergeGroup: SourceControlResourceGroup;
-	get mergeGroup(): GitResourceGroup { return this._mergeGroup as GitResourceGroup; }
+	pwivate _mewgeGwoup: SouwceContwowWesouwceGwoup;
+	get mewgeGwoup(): GitWesouwceGwoup { wetuwn this._mewgeGwoup as GitWesouwceGwoup; }
 
-	private _indexGroup: SourceControlResourceGroup;
-	get indexGroup(): GitResourceGroup { return this._indexGroup as GitResourceGroup; }
+	pwivate _indexGwoup: SouwceContwowWesouwceGwoup;
+	get indexGwoup(): GitWesouwceGwoup { wetuwn this._indexGwoup as GitWesouwceGwoup; }
 
-	private _workingTreeGroup: SourceControlResourceGroup;
-	get workingTreeGroup(): GitResourceGroup { return this._workingTreeGroup as GitResourceGroup; }
+	pwivate _wowkingTweeGwoup: SouwceContwowWesouwceGwoup;
+	get wowkingTweeGwoup(): GitWesouwceGwoup { wetuwn this._wowkingTweeGwoup as GitWesouwceGwoup; }
 
-	private _untrackedGroup: SourceControlResourceGroup;
-	get untrackedGroup(): GitResourceGroup { return this._untrackedGroup as GitResourceGroup; }
+	pwivate _untwackedGwoup: SouwceContwowWesouwceGwoup;
+	get untwackedGwoup(): GitWesouwceGwoup { wetuwn this._untwackedGwoup as GitWesouwceGwoup; }
 
-	private _HEAD: Branch | undefined;
-	get HEAD(): Branch | undefined {
-		return this._HEAD;
+	pwivate _HEAD: Bwanch | undefined;
+	get HEAD(): Bwanch | undefined {
+		wetuwn this._HEAD;
 	}
 
-	private _refs: Ref[] = [];
-	get refs(): Ref[] {
-		return this._refs;
+	pwivate _wefs: Wef[] = [];
+	get wefs(): Wef[] {
+		wetuwn this._wefs;
 	}
 
-	get headShortName(): string | undefined {
+	get headShowtName(): stwing | undefined {
 		if (!this.HEAD) {
-			return;
+			wetuwn;
 		}
 
 		const HEAD = this.HEAD;
 
 		if (HEAD.name) {
-			return HEAD.name;
+			wetuwn HEAD.name;
 		}
 
-		const tag = this.refs.filter(iref => iref.type === RefType.Tag && iref.commit === HEAD.commit)[0];
+		const tag = this.wefs.fiwta(iwef => iwef.type === WefType.Tag && iwef.commit === HEAD.commit)[0];
 		const tagName = tag && tag.name;
 
 		if (tagName) {
-			return tagName;
+			wetuwn tagName;
 		}
 
-		return (HEAD.commit || '').substr(0, 8);
+		wetuwn (HEAD.commit || '').substw(0, 8);
 	}
 
-	private _remotes: Remote[] = [];
-	get remotes(): Remote[] {
-		return this._remotes;
+	pwivate _wemotes: Wemote[] = [];
+	get wemotes(): Wemote[] {
+		wetuwn this._wemotes;
 	}
 
-	private _submodules: Submodule[] = [];
-	get submodules(): Submodule[] {
-		return this._submodules;
+	pwivate _submoduwes: Submoduwe[] = [];
+	get submoduwes(): Submoduwe[] {
+		wetuwn this._submoduwes;
 	}
 
-	private _rebaseCommit: Commit | undefined = undefined;
+	pwivate _webaseCommit: Commit | undefined = undefined;
 
-	set rebaseCommit(rebaseCommit: Commit | undefined) {
-		if (this._rebaseCommit && !rebaseCommit) {
-			this.inputBox.value = '';
-		} else if (rebaseCommit && (!this._rebaseCommit || this._rebaseCommit.hash !== rebaseCommit.hash)) {
-			this.inputBox.value = rebaseCommit.message;
+	set webaseCommit(webaseCommit: Commit | undefined) {
+		if (this._webaseCommit && !webaseCommit) {
+			this.inputBox.vawue = '';
+		} ewse if (webaseCommit && (!this._webaseCommit || this._webaseCommit.hash !== webaseCommit.hash)) {
+			this.inputBox.vawue = webaseCommit.message;
 		}
 
-		this._rebaseCommit = rebaseCommit;
-		commands.executeCommand('setContext', 'gitRebaseInProgress', !!this._rebaseCommit);
+		this._webaseCommit = webaseCommit;
+		commands.executeCommand('setContext', 'gitWebaseInPwogwess', !!this._webaseCommit);
 	}
 
-	get rebaseCommit(): Commit | undefined {
-		return this._rebaseCommit;
+	get webaseCommit(): Commit | undefined {
+		wetuwn this._webaseCommit;
 	}
 
-	private _operations = new OperationsImpl();
-	get operations(): Operations { return this._operations; }
+	pwivate _opewations = new OpewationsImpw();
+	get opewations(): Opewations { wetuwn this._opewations; }
 
-	private _state = RepositoryState.Idle;
-	get state(): RepositoryState { return this._state; }
-	set state(state: RepositoryState) {
+	pwivate _state = WepositowyState.Idwe;
+	get state(): WepositowyState { wetuwn this._state; }
+	set state(state: WepositowyState) {
 		this._state = state;
-		this._onDidChangeState.fire(state);
+		this._onDidChangeState.fiwe(state);
 
 		this._HEAD = undefined;
-		this._refs = [];
-		this._remotes = [];
-		this.mergeGroup.resourceStates = [];
-		this.indexGroup.resourceStates = [];
-		this.workingTreeGroup.resourceStates = [];
-		this.untrackedGroup.resourceStates = [];
-		this._sourceControl.count = 0;
+		this._wefs = [];
+		this._wemotes = [];
+		this.mewgeGwoup.wesouwceStates = [];
+		this.indexGwoup.wesouwceStates = [];
+		this.wowkingTweeGwoup.wesouwceStates = [];
+		this.untwackedGwoup.wesouwceStates = [];
+		this._souwceContwow.count = 0;
 	}
 
-	get root(): string {
-		return this.repository.root;
+	get woot(): stwing {
+		wetuwn this.wepositowy.woot;
 	}
 
-	get dotGit(): string {
-		return this.repository.dotGit;
+	get dotGit(): stwing {
+		wetuwn this.wepositowy.dotGit;
 	}
 
-	private isRepositoryHuge = false;
-	private didWarnAboutLimit = false;
+	pwivate isWepositowyHuge = fawse;
+	pwivate didWawnAboutWimit = fawse;
 
-	private resourceCommandResolver = new ResourceCommandResolver(this);
-	private disposables: Disposable[] = [];
+	pwivate wesouwceCommandWesowva = new WesouwceCommandWesowva(this);
+	pwivate disposabwes: Disposabwe[] = [];
 
-	constructor(
-		private readonly repository: BaseRepository,
-		remoteSourceProviderRegistry: IRemoteSourceProviderRegistry,
-		private pushErrorHandlerRegistry: IPushErrorHandlerRegistry,
-		globalState: Memento,
-		outputChannel: OutputChannel
+	constwuctow(
+		pwivate weadonwy wepositowy: BaseWepositowy,
+		wemoteSouwcePwovidewWegistwy: IWemoteSouwcePwovidewWegistwy,
+		pwivate pushEwwowHandwewWegistwy: IPushEwwowHandwewWegistwy,
+		gwobawState: Memento,
+		outputChannew: OutputChannew
 	) {
-		const workspaceWatcher = workspace.createFileSystemWatcher('**');
-		this.disposables.push(workspaceWatcher);
+		const wowkspaceWatcha = wowkspace.cweateFiweSystemWatcha('**');
+		this.disposabwes.push(wowkspaceWatcha);
 
-		const onWorkspaceFileChange = anyEvent(workspaceWatcher.onDidChange, workspaceWatcher.onDidCreate, workspaceWatcher.onDidDelete);
-		const onWorkspaceRepositoryFileChange = filterEvent(onWorkspaceFileChange, uri => isDescendant(repository.root, uri.fsPath));
-		const onWorkspaceWorkingTreeFileChange = filterEvent(onWorkspaceRepositoryFileChange, uri => !/\/\.git($|\/)/.test(uri.path));
+		const onWowkspaceFiweChange = anyEvent(wowkspaceWatcha.onDidChange, wowkspaceWatcha.onDidCweate, wowkspaceWatcha.onDidDewete);
+		const onWowkspaceWepositowyFiweChange = fiwtewEvent(onWowkspaceFiweChange, uwi => isDescendant(wepositowy.woot, uwi.fsPath));
+		const onWowkspaceWowkingTweeFiweChange = fiwtewEvent(onWowkspaceWepositowyFiweChange, uwi => !/\/\.git($|\/)/.test(uwi.path));
 
-		let onDotGitFileChange: Event<Uri>;
+		wet onDotGitFiweChange: Event<Uwi>;
 
-		try {
-			const dotGitFileWatcher = new DotGitWatcher(this, outputChannel);
-			onDotGitFileChange = dotGitFileWatcher.event;
-			this.disposables.push(dotGitFileWatcher);
-		} catch (err) {
-			if (Log.logLevel <= LogLevel.Error) {
-				outputChannel.appendLine(`Failed to watch '${this.dotGit}', reverting to legacy API file watched. Some events might be lost.\n${err.stack || err}`);
+		twy {
+			const dotGitFiweWatcha = new DotGitWatcha(this, outputChannew);
+			onDotGitFiweChange = dotGitFiweWatcha.event;
+			this.disposabwes.push(dotGitFiweWatcha);
+		} catch (eww) {
+			if (Wog.wogWevew <= WogWevew.Ewwow) {
+				outputChannew.appendWine(`Faiwed to watch '${this.dotGit}', wevewting to wegacy API fiwe watched. Some events might be wost.\n${eww.stack || eww}`);
 			}
 
-			onDotGitFileChange = filterEvent(onWorkspaceRepositoryFileChange, uri => /\/\.git($|\/)/.test(uri.path));
+			onDotGitFiweChange = fiwtewEvent(onWowkspaceWepositowyFiweChange, uwi => /\/\.git($|\/)/.test(uwi.path));
 		}
 
-		// FS changes should trigger `git status`:
-		// 	- any change inside the repository working tree
-		//	- any change whithin the first level of the `.git` folder, except the folder itself and `index.lock`
-		const onFileChange = anyEvent(onWorkspaceWorkingTreeFileChange, onDotGitFileChange);
-		onFileChange(this.onFileChange, this, this.disposables);
+		// FS changes shouwd twigga `git status`:
+		// 	- any change inside the wepositowy wowking twee
+		//	- any change whithin the fiwst wevew of the `.git` fowda, except the fowda itsewf and `index.wock`
+		const onFiweChange = anyEvent(onWowkspaceWowkingTweeFiweChange, onDotGitFiweChange);
+		onFiweChange(this.onFiweChange, this, this.disposabwes);
 
-		// Relevate repository changes should trigger virtual document change events
-		onDotGitFileChange(this._onDidChangeRepository.fire, this._onDidChangeRepository, this.disposables);
+		// Wewevate wepositowy changes shouwd twigga viwtuaw document change events
+		onDotGitFiweChange(this._onDidChangeWepositowy.fiwe, this._onDidChangeWepositowy, this.disposabwes);
 
-		this.disposables.push(new FileEventLogger(onWorkspaceWorkingTreeFileChange, onDotGitFileChange, outputChannel));
+		this.disposabwes.push(new FiweEventWogga(onWowkspaceWowkingTweeFiweChange, onDotGitFiweChange, outputChannew));
 
-		const root = Uri.file(repository.root);
-		this._sourceControl = scm.createSourceControl('git', 'Git', root);
+		const woot = Uwi.fiwe(wepositowy.woot);
+		this._souwceContwow = scm.cweateSouwceContwow('git', 'Git', woot);
 
-		this._sourceControl.acceptInputCommand = { command: 'git.commit', title: localize('commit', "Commit"), arguments: [this._sourceControl] };
-		this._sourceControl.quickDiffProvider = this;
-		this._sourceControl.inputBox.validateInput = this.validateInput.bind(this);
-		this.disposables.push(this._sourceControl);
+		this._souwceContwow.acceptInputCommand = { command: 'git.commit', titwe: wocawize('commit', "Commit"), awguments: [this._souwceContwow] };
+		this._souwceContwow.quickDiffPwovida = this;
+		this._souwceContwow.inputBox.vawidateInput = this.vawidateInput.bind(this);
+		this.disposabwes.push(this._souwceContwow);
 
-		this.updateInputBoxPlaceholder();
-		this.disposables.push(this.onDidRunGitStatus(() => this.updateInputBoxPlaceholder()));
+		this.updateInputBoxPwacehowda();
+		this.disposabwes.push(this.onDidWunGitStatus(() => this.updateInputBoxPwacehowda()));
 
-		this._mergeGroup = this._sourceControl.createResourceGroup('merge', localize('merge changes', "Merge Changes"));
-		this._indexGroup = this._sourceControl.createResourceGroup('index', localize('staged changes', "Staged Changes"));
-		this._workingTreeGroup = this._sourceControl.createResourceGroup('workingTree', localize('changes', "Changes"));
-		this._untrackedGroup = this._sourceControl.createResourceGroup('untracked', localize('untracked changes', "Untracked Changes"));
+		this._mewgeGwoup = this._souwceContwow.cweateWesouwceGwoup('mewge', wocawize('mewge changes', "Mewge Changes"));
+		this._indexGwoup = this._souwceContwow.cweateWesouwceGwoup('index', wocawize('staged changes', "Staged Changes"));
+		this._wowkingTweeGwoup = this._souwceContwow.cweateWesouwceGwoup('wowkingTwee', wocawize('changes', "Changes"));
+		this._untwackedGwoup = this._souwceContwow.cweateWesouwceGwoup('untwacked', wocawize('untwacked changes', "Untwacked Changes"));
 
-		const updateIndexGroupVisibility = () => {
-			const config = workspace.getConfiguration('git', root);
-			this.indexGroup.hideWhenEmpty = !config.get<boolean>('alwaysShowStagedChangesResourceGroup');
+		const updateIndexGwoupVisibiwity = () => {
+			const config = wowkspace.getConfiguwation('git', woot);
+			this.indexGwoup.hideWhenEmpty = !config.get<boowean>('awwaysShowStagedChangesWesouwceGwoup');
 		};
 
-		const onConfigListener = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.alwaysShowStagedChangesResourceGroup', root));
-		onConfigListener(updateIndexGroupVisibility, this, this.disposables);
-		updateIndexGroupVisibility();
+		const onConfigWistena = fiwtewEvent(wowkspace.onDidChangeConfiguwation, e => e.affectsConfiguwation('git.awwaysShowStagedChangesWesouwceGwoup', woot));
+		onConfigWistena(updateIndexGwoupVisibiwity, this, this.disposabwes);
+		updateIndexGwoupVisibiwity();
 
-		filterEvent(workspace.onDidChangeConfiguration, e =>
-			e.affectsConfiguration('git.branchSortOrder', root)
-			|| e.affectsConfiguration('git.untrackedChanges', root)
-			|| e.affectsConfiguration('git.ignoreSubmodules', root)
-			|| e.affectsConfiguration('git.openDiffOnClick', root)
-		)(this.updateModelState, this, this.disposables);
+		fiwtewEvent(wowkspace.onDidChangeConfiguwation, e =>
+			e.affectsConfiguwation('git.bwanchSowtOwda', woot)
+			|| e.affectsConfiguwation('git.untwackedChanges', woot)
+			|| e.affectsConfiguwation('git.ignoweSubmoduwes', woot)
+			|| e.affectsConfiguwation('git.openDiffOnCwick', woot)
+		)(this.updateModewState, this, this.disposabwes);
 
-		const updateInputBoxVisibility = () => {
-			const config = workspace.getConfiguration('git', root);
-			this._sourceControl.inputBox.visible = config.get<boolean>('showCommitInput', true);
+		const updateInputBoxVisibiwity = () => {
+			const config = wowkspace.getConfiguwation('git', woot);
+			this._souwceContwow.inputBox.visibwe = config.get<boowean>('showCommitInput', twue);
 		};
 
-		const onConfigListenerForInputBoxVisibility = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.showCommitInput', root));
-		onConfigListenerForInputBoxVisibility(updateInputBoxVisibility, this, this.disposables);
-		updateInputBoxVisibility();
+		const onConfigWistenewFowInputBoxVisibiwity = fiwtewEvent(wowkspace.onDidChangeConfiguwation, e => e.affectsConfiguwation('git.showCommitInput', woot));
+		onConfigWistenewFowInputBoxVisibiwity(updateInputBoxVisibiwity, this, this.disposabwes);
+		updateInputBoxVisibiwity();
 
-		this.mergeGroup.hideWhenEmpty = true;
-		this.untrackedGroup.hideWhenEmpty = true;
+		this.mewgeGwoup.hideWhenEmpty = twue;
+		this.untwackedGwoup.hideWhenEmpty = twue;
 
-		this.disposables.push(this.mergeGroup);
-		this.disposables.push(this.indexGroup);
-		this.disposables.push(this.workingTreeGroup);
-		this.disposables.push(this.untrackedGroup);
+		this.disposabwes.push(this.mewgeGwoup);
+		this.disposabwes.push(this.indexGwoup);
+		this.disposabwes.push(this.wowkingTweeGwoup);
+		this.disposabwes.push(this.untwackedGwoup);
 
-		// Don't allow auto-fetch in untrusted workspaces
-		if (workspace.isTrusted) {
-			this.disposables.push(new AutoFetcher(this, globalState));
-		} else {
-			const trustDisposable = workspace.onDidGrantWorkspaceTrust(() => {
-				trustDisposable.dispose();
-				this.disposables.push(new AutoFetcher(this, globalState));
+		// Don't awwow auto-fetch in untwusted wowkspaces
+		if (wowkspace.isTwusted) {
+			this.disposabwes.push(new AutoFetcha(this, gwobawState));
+		} ewse {
+			const twustDisposabwe = wowkspace.onDidGwantWowkspaceTwust(() => {
+				twustDisposabwe.dispose();
+				this.disposabwes.push(new AutoFetcha(this, gwobawState));
 			});
-			this.disposables.push(trustDisposable);
+			this.disposabwes.push(twustDisposabwe);
 		}
 
-		// https://github.com/microsoft/vscode/issues/39039
-		const onSuccessfulPush = filterEvent(this.onDidRunOperation, e => e.operation === Operation.Push && !e.error);
-		onSuccessfulPush(() => {
-			const gitConfig = workspace.getConfiguration('git');
+		// https://github.com/micwosoft/vscode/issues/39039
+		const onSuccessfuwPush = fiwtewEvent(this.onDidWunOpewation, e => e.opewation === Opewation.Push && !e.ewwow);
+		onSuccessfuwPush(() => {
+			const gitConfig = wowkspace.getConfiguwation('git');
 
-			if (gitConfig.get<boolean>('showPushSuccessNotification')) {
-				window.showInformationMessage(localize('push success', "Successfully pushed."));
+			if (gitConfig.get<boowean>('showPushSuccessNotification')) {
+				window.showInfowmationMessage(wocawize('push success', "Successfuwwy pushed."));
 			}
-		}, null, this.disposables);
+		}, nuww, this.disposabwes);
 
-		const statusBar = new StatusBarCommands(this, remoteSourceProviderRegistry);
-		this.disposables.push(statusBar);
-		statusBar.onDidChange(() => this._sourceControl.statusBarCommands = statusBar.commands, null, this.disposables);
-		this._sourceControl.statusBarCommands = statusBar.commands;
+		const statusBaw = new StatusBawCommands(this, wemoteSouwcePwovidewWegistwy);
+		this.disposabwes.push(statusBaw);
+		statusBaw.onDidChange(() => this._souwceContwow.statusBawCommands = statusBaw.commands, nuww, this.disposabwes);
+		this._souwceContwow.statusBawCommands = statusBaw.commands;
 
-		const progressManager = new ProgressManager(this);
-		this.disposables.push(progressManager);
+		const pwogwessManaga = new PwogwessManaga(this);
+		this.disposabwes.push(pwogwessManaga);
 
-		const onDidChangeCountBadge = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.countBadge', root));
-		onDidChangeCountBadge(this.setCountBadge, this, this.disposables);
+		const onDidChangeCountBadge = fiwtewEvent(wowkspace.onDidChangeConfiguwation, e => e.affectsConfiguwation('git.countBadge', woot));
+		onDidChangeCountBadge(this.setCountBadge, this, this.disposabwes);
 		this.setCountBadge();
 	}
 
-	validateInput(text: string, position: number): SourceControlInputBoxValidation | undefined {
-		if (this.rebaseCommit) {
-			if (this.rebaseCommit.message !== text) {
-				return {
-					message: localize('commit in rebase', "It's not possible to change the commit message in the middle of a rebase. Please complete the rebase operation and use interactive rebase instead."),
-					type: SourceControlInputBoxValidationType.Warning
+	vawidateInput(text: stwing, position: numba): SouwceContwowInputBoxVawidation | undefined {
+		if (this.webaseCommit) {
+			if (this.webaseCommit.message !== text) {
+				wetuwn {
+					message: wocawize('commit in webase', "It's not possibwe to change the commit message in the middwe of a webase. Pwease compwete the webase opewation and use intewactive webase instead."),
+					type: SouwceContwowInputBoxVawidationType.Wawning
 				};
 			}
 		}
 
-		const config = workspace.getConfiguration('git');
-		const setting = config.get<'always' | 'warn' | 'off'>('inputValidation');
+		const config = wowkspace.getConfiguwation('git');
+		const setting = config.get<'awways' | 'wawn' | 'off'>('inputVawidation');
 
 		if (setting === 'off') {
-			return;
+			wetuwn;
 		}
 
 		if (/^\s+$/.test(text)) {
-			return {
-				message: localize('commitMessageWhitespacesOnlyWarning', "Current commit message only contains whitespace characters"),
-				type: SourceControlInputBoxValidationType.Warning
+			wetuwn {
+				message: wocawize('commitMessageWhitespacesOnwyWawning', "Cuwwent commit message onwy contains whitespace chawactews"),
+				type: SouwceContwowInputBoxVawidationType.Wawning
 			};
 		}
 
-		let lineNumber = 0;
-		let start = 0, end;
-		let match: RegExpExecArray | null;
-		const regex = /\r?\n/g;
+		wet wineNumba = 0;
+		wet stawt = 0, end;
+		wet match: WegExpExecAwway | nuww;
+		const wegex = /\w?\n/g;
 
-		while ((match = regex.exec(text)) && position > match.index) {
-			start = match.index + match[0].length;
-			lineNumber++;
+		whiwe ((match = wegex.exec(text)) && position > match.index) {
+			stawt = match.index + match[0].wength;
+			wineNumba++;
 		}
 
-		end = match ? match.index : text.length;
+		end = match ? match.index : text.wength;
 
-		const line = text.substring(start, end);
+		const wine = text.substwing(stawt, end);
 
-		let threshold = config.get<number>('inputValidationLength', 50);
+		wet thweshowd = config.get<numba>('inputVawidationWength', 50);
 
-		if (lineNumber === 0) {
-			const inputValidationSubjectLength = config.get<number | null>('inputValidationSubjectLength', null);
+		if (wineNumba === 0) {
+			const inputVawidationSubjectWength = config.get<numba | nuww>('inputVawidationSubjectWength', nuww);
 
-			if (inputValidationSubjectLength !== null) {
-				threshold = inputValidationSubjectLength;
+			if (inputVawidationSubjectWength !== nuww) {
+				thweshowd = inputVawidationSubjectWength;
 			}
 		}
 
-		if (line.length <= threshold) {
-			if (setting !== 'always') {
-				return;
+		if (wine.wength <= thweshowd) {
+			if (setting !== 'awways') {
+				wetuwn;
 			}
 
-			return {
-				message: localize('commitMessageCountdown', "{0} characters left in current line", threshold - line.length),
-				type: SourceControlInputBoxValidationType.Information
+			wetuwn {
+				message: wocawize('commitMessageCountdown', "{0} chawactews weft in cuwwent wine", thweshowd - wine.wength),
+				type: SouwceContwowInputBoxVawidationType.Infowmation
 			};
-		} else {
-			return {
-				message: localize('commitMessageWarning', "{0} characters over {1} in current line", line.length - threshold, threshold),
-				type: SourceControlInputBoxValidationType.Warning
+		} ewse {
+			wetuwn {
+				message: wocawize('commitMessageWawning', "{0} chawactews ova {1} in cuwwent wine", wine.wength - thweshowd, thweshowd),
+				type: SouwceContwowInputBoxVawidationType.Wawning
 			};
 		}
 	}
 
-	provideOriginalResource(uri: Uri): Uri | undefined {
-		if (uri.scheme !== 'file') {
-			return;
+	pwovideOwiginawWesouwce(uwi: Uwi): Uwi | undefined {
+		if (uwi.scheme !== 'fiwe') {
+			wetuwn;
 		}
 
-		const path = uri.path;
+		const path = uwi.path;
 
-		if (this.mergeGroup.resourceStates.some(r => r.resourceUri.path === path)) {
-			return undefined;
+		if (this.mewgeGwoup.wesouwceStates.some(w => w.wesouwceUwi.path === path)) {
+			wetuwn undefined;
 		}
 
-		return toGitUri(uri, '', { replaceFileExtension: true });
+		wetuwn toGitUwi(uwi, '', { wepwaceFiweExtension: twue });
 	}
 
-	async getInputTemplate(): Promise<string> {
-		const commitMessage = (await Promise.all([this.repository.getMergeMessage(), this.repository.getSquashMessage()])).find(msg => !!msg);
+	async getInputTempwate(): Pwomise<stwing> {
+		const commitMessage = (await Pwomise.aww([this.wepositowy.getMewgeMessage(), this.wepositowy.getSquashMessage()])).find(msg => !!msg);
 
 		if (commitMessage) {
-			return commitMessage;
+			wetuwn commitMessage;
 		}
 
-		return await this.repository.getCommitTemplate();
+		wetuwn await this.wepositowy.getCommitTempwate();
 	}
 
-	getConfigs(): Promise<{ key: string; value: string; }[]> {
-		return this.run(Operation.Config, () => this.repository.getConfigs('local'));
+	getConfigs(): Pwomise<{ key: stwing; vawue: stwing; }[]> {
+		wetuwn this.wun(Opewation.Config, () => this.wepositowy.getConfigs('wocaw'));
 	}
 
-	getConfig(key: string): Promise<string> {
-		return this.run(Operation.Config, () => this.repository.config('local', key));
+	getConfig(key: stwing): Pwomise<stwing> {
+		wetuwn this.wun(Opewation.Config, () => this.wepositowy.config('wocaw', key));
 	}
 
-	getGlobalConfig(key: string): Promise<string> {
-		return this.run(Operation.Config, () => this.repository.config('global', key));
+	getGwobawConfig(key: stwing): Pwomise<stwing> {
+		wetuwn this.wun(Opewation.Config, () => this.wepositowy.config('gwobaw', key));
 	}
 
-	setConfig(key: string, value: string): Promise<string> {
-		return this.run(Operation.Config, () => this.repository.config('local', key, value));
+	setConfig(key: stwing, vawue: stwing): Pwomise<stwing> {
+		wetuwn this.wun(Opewation.Config, () => this.wepositowy.config('wocaw', key, vawue));
 	}
 
-	log(options?: LogOptions): Promise<Commit[]> {
-		return this.run(Operation.Log, () => this.repository.log(options));
+	wog(options?: WogOptions): Pwomise<Commit[]> {
+		wetuwn this.wun(Opewation.Wog, () => this.wepositowy.wog(options));
 	}
 
-	logFile(uri: Uri, options?: LogFileOptions): Promise<Commit[]> {
-		// TODO: This probably needs per-uri granularity
-		return this.run(Operation.LogFile, () => this.repository.logFile(uri, options));
+	wogFiwe(uwi: Uwi, options?: WogFiweOptions): Pwomise<Commit[]> {
+		// TODO: This pwobabwy needs pew-uwi gwanuwawity
+		wetuwn this.wun(Opewation.WogFiwe, () => this.wepositowy.wogFiwe(uwi, options));
 	}
 
-	@throttle
-	async status(): Promise<void> {
-		await this.run(Operation.Status);
+	@thwottwe
+	async status(): Pwomise<void> {
+		await this.wun(Opewation.Status);
 	}
 
-	diff(cached?: boolean): Promise<string> {
-		return this.run(Operation.Diff, () => this.repository.diff(cached));
+	diff(cached?: boowean): Pwomise<stwing> {
+		wetuwn this.wun(Opewation.Diff, () => this.wepositowy.diff(cached));
 	}
 
-	diffWithHEAD(): Promise<Change[]>;
-	diffWithHEAD(path: string): Promise<string>;
-	diffWithHEAD(path?: string | undefined): Promise<string | Change[]>;
-	diffWithHEAD(path?: string | undefined): Promise<string | Change[]> {
-		return this.run(Operation.Diff, () => this.repository.diffWithHEAD(path));
+	diffWithHEAD(): Pwomise<Change[]>;
+	diffWithHEAD(path: stwing): Pwomise<stwing>;
+	diffWithHEAD(path?: stwing | undefined): Pwomise<stwing | Change[]>;
+	diffWithHEAD(path?: stwing | undefined): Pwomise<stwing | Change[]> {
+		wetuwn this.wun(Opewation.Diff, () => this.wepositowy.diffWithHEAD(path));
 	}
 
-	diffWith(ref: string): Promise<Change[]>;
-	diffWith(ref: string, path: string): Promise<string>;
-	diffWith(ref: string, path?: string | undefined): Promise<string | Change[]>;
-	diffWith(ref: string, path?: string): Promise<string | Change[]> {
-		return this.run(Operation.Diff, () => this.repository.diffWith(ref, path));
+	diffWith(wef: stwing): Pwomise<Change[]>;
+	diffWith(wef: stwing, path: stwing): Pwomise<stwing>;
+	diffWith(wef: stwing, path?: stwing | undefined): Pwomise<stwing | Change[]>;
+	diffWith(wef: stwing, path?: stwing): Pwomise<stwing | Change[]> {
+		wetuwn this.wun(Opewation.Diff, () => this.wepositowy.diffWith(wef, path));
 	}
 
-	diffIndexWithHEAD(): Promise<Change[]>;
-	diffIndexWithHEAD(path: string): Promise<string>;
-	diffIndexWithHEAD(path?: string | undefined): Promise<string | Change[]>;
-	diffIndexWithHEAD(path?: string): Promise<string | Change[]> {
-		return this.run(Operation.Diff, () => this.repository.diffIndexWithHEAD(path));
+	diffIndexWithHEAD(): Pwomise<Change[]>;
+	diffIndexWithHEAD(path: stwing): Pwomise<stwing>;
+	diffIndexWithHEAD(path?: stwing | undefined): Pwomise<stwing | Change[]>;
+	diffIndexWithHEAD(path?: stwing): Pwomise<stwing | Change[]> {
+		wetuwn this.wun(Opewation.Diff, () => this.wepositowy.diffIndexWithHEAD(path));
 	}
 
-	diffIndexWith(ref: string): Promise<Change[]>;
-	diffIndexWith(ref: string, path: string): Promise<string>;
-	diffIndexWith(ref: string, path?: string | undefined): Promise<string | Change[]>;
-	diffIndexWith(ref: string, path?: string): Promise<string | Change[]> {
-		return this.run(Operation.Diff, () => this.repository.diffIndexWith(ref, path));
+	diffIndexWith(wef: stwing): Pwomise<Change[]>;
+	diffIndexWith(wef: stwing, path: stwing): Pwomise<stwing>;
+	diffIndexWith(wef: stwing, path?: stwing | undefined): Pwomise<stwing | Change[]>;
+	diffIndexWith(wef: stwing, path?: stwing): Pwomise<stwing | Change[]> {
+		wetuwn this.wun(Opewation.Diff, () => this.wepositowy.diffIndexWith(wef, path));
 	}
 
-	diffBlobs(object1: string, object2: string): Promise<string> {
-		return this.run(Operation.Diff, () => this.repository.diffBlobs(object1, object2));
+	diffBwobs(object1: stwing, object2: stwing): Pwomise<stwing> {
+		wetuwn this.wun(Opewation.Diff, () => this.wepositowy.diffBwobs(object1, object2));
 	}
 
-	diffBetween(ref1: string, ref2: string): Promise<Change[]>;
-	diffBetween(ref1: string, ref2: string, path: string): Promise<string>;
-	diffBetween(ref1: string, ref2: string, path?: string | undefined): Promise<string | Change[]>;
-	diffBetween(ref1: string, ref2: string, path?: string): Promise<string | Change[]> {
-		return this.run(Operation.Diff, () => this.repository.diffBetween(ref1, ref2, path));
+	diffBetween(wef1: stwing, wef2: stwing): Pwomise<Change[]>;
+	diffBetween(wef1: stwing, wef2: stwing, path: stwing): Pwomise<stwing>;
+	diffBetween(wef1: stwing, wef2: stwing, path?: stwing | undefined): Pwomise<stwing | Change[]>;
+	diffBetween(wef1: stwing, wef2: stwing, path?: stwing): Pwomise<stwing | Change[]> {
+		wetuwn this.wun(Opewation.Diff, () => this.wepositowy.diffBetween(wef1, wef2, path));
 	}
 
-	getMergeBase(ref1: string, ref2: string): Promise<string> {
-		return this.run(Operation.MergeBase, () => this.repository.getMergeBase(ref1, ref2));
+	getMewgeBase(wef1: stwing, wef2: stwing): Pwomise<stwing> {
+		wetuwn this.wun(Opewation.MewgeBase, () => this.wepositowy.getMewgeBase(wef1, wef2));
 	}
 
-	async hashObject(data: string): Promise<string> {
-		return this.run(Operation.HashObject, () => this.repository.hashObject(data));
+	async hashObject(data: stwing): Pwomise<stwing> {
+		wetuwn this.wun(Opewation.HashObject, () => this.wepositowy.hashObject(data));
 	}
 
-	async add(resources: Uri[], opts?: { update?: boolean; }): Promise<void> {
-		await this.run(Operation.Add, () => this.repository.add(resources.map(r => r.fsPath), opts));
+	async add(wesouwces: Uwi[], opts?: { update?: boowean; }): Pwomise<void> {
+		await this.wun(Opewation.Add, () => this.wepositowy.add(wesouwces.map(w => w.fsPath), opts));
 	}
 
-	async rm(resources: Uri[]): Promise<void> {
-		await this.run(Operation.Remove, () => this.repository.rm(resources.map(r => r.fsPath)));
+	async wm(wesouwces: Uwi[]): Pwomise<void> {
+		await this.wun(Opewation.Wemove, () => this.wepositowy.wm(wesouwces.map(w => w.fsPath)));
 	}
 
-	async stage(resource: Uri, contents: string): Promise<void> {
-		const relativePath = path.relative(this.repository.root, resource.fsPath).replace(/\\/g, '/');
-		await this.run(Operation.Stage, () => this.repository.stage(relativePath, contents));
-		this._onDidChangeOriginalResource.fire(resource);
+	async stage(wesouwce: Uwi, contents: stwing): Pwomise<void> {
+		const wewativePath = path.wewative(this.wepositowy.woot, wesouwce.fsPath).wepwace(/\\/g, '/');
+		await this.wun(Opewation.Stage, () => this.wepositowy.stage(wewativePath, contents));
+		this._onDidChangeOwiginawWesouwce.fiwe(wesouwce);
 	}
 
-	async revert(resources: Uri[]): Promise<void> {
-		await this.run(Operation.RevertFiles, () => this.repository.revert('HEAD', resources.map(r => r.fsPath)));
+	async wevewt(wesouwces: Uwi[]): Pwomise<void> {
+		await this.wun(Opewation.WevewtFiwes, () => this.wepositowy.wevewt('HEAD', wesouwces.map(w => w.fsPath)));
 	}
 
-	async commit(message: string | undefined, opts: CommitOptions = Object.create(null)): Promise<void> {
-		if (this.rebaseCommit) {
-			await this.run(Operation.RebaseContinue, async () => {
-				if (opts.all) {
-					const addOpts = opts.all === 'tracked' ? { update: true } : {};
-					await this.repository.add([], addOpts);
+	async commit(message: stwing | undefined, opts: CommitOptions = Object.cweate(nuww)): Pwomise<void> {
+		if (this.webaseCommit) {
+			await this.wun(Opewation.WebaseContinue, async () => {
+				if (opts.aww) {
+					const addOpts = opts.aww === 'twacked' ? { update: twue } : {};
+					await this.wepositowy.add([], addOpts);
 				}
 
-				await this.repository.rebaseContinue();
+				await this.wepositowy.webaseContinue();
 			});
-		} else {
-			await this.run(Operation.Commit, async () => {
-				if (opts.all) {
-					const addOpts = opts.all === 'tracked' ? { update: true } : {};
-					await this.repository.add([], addOpts);
+		} ewse {
+			await this.wun(Opewation.Commit, async () => {
+				if (opts.aww) {
+					const addOpts = opts.aww === 'twacked' ? { update: twue } : {};
+					await this.wepositowy.add([], addOpts);
 				}
 
-				delete opts.all;
+				dewete opts.aww;
 
-				if (opts.requireUserConfig === undefined || opts.requireUserConfig === null) {
-					const config = workspace.getConfiguration('git', Uri.file(this.root));
-					opts.requireUserConfig = config.get<boolean>('requireGitUserConfig');
+				if (opts.wequiweUsewConfig === undefined || opts.wequiweUsewConfig === nuww) {
+					const config = wowkspace.getConfiguwation('git', Uwi.fiwe(this.woot));
+					opts.wequiweUsewConfig = config.get<boowean>('wequiweGitUsewConfig');
 				}
 
-				await this.repository.commit(message, opts);
+				await this.wepositowy.commit(message, opts);
 			});
 		}
 	}
 
-	async clean(resources: Uri[]): Promise<void> {
-		await this.run(Operation.Clean, async () => {
-			const toClean: string[] = [];
-			const toCheckout: string[] = [];
-			const submodulesToUpdate: string[] = [];
-			const resourceStates = [...this.workingTreeGroup.resourceStates, ...this.untrackedGroup.resourceStates];
+	async cwean(wesouwces: Uwi[]): Pwomise<void> {
+		await this.wun(Opewation.Cwean, async () => {
+			const toCwean: stwing[] = [];
+			const toCheckout: stwing[] = [];
+			const submoduwesToUpdate: stwing[] = [];
+			const wesouwceStates = [...this.wowkingTweeGwoup.wesouwceStates, ...this.untwackedGwoup.wesouwceStates];
 
-			resources.forEach(r => {
-				const fsPath = r.fsPath;
+			wesouwces.fowEach(w => {
+				const fsPath = w.fsPath;
 
-				for (const submodule of this.submodules) {
-					if (path.join(this.root, submodule.path) === fsPath) {
-						submodulesToUpdate.push(fsPath);
-						return;
+				fow (const submoduwe of this.submoduwes) {
+					if (path.join(this.woot, submoduwe.path) === fsPath) {
+						submoduwesToUpdate.push(fsPath);
+						wetuwn;
 					}
 				}
 
-				const raw = r.toString();
-				const scmResource = find(resourceStates, sr => sr.resourceUri.toString() === raw);
+				const waw = w.toStwing();
+				const scmWesouwce = find(wesouwceStates, sw => sw.wesouwceUwi.toStwing() === waw);
 
-				if (!scmResource) {
-					return;
+				if (!scmWesouwce) {
+					wetuwn;
 				}
 
-				switch (scmResource.type) {
-					case Status.UNTRACKED:
-					case Status.IGNORED:
-						toClean.push(fsPath);
-						break;
+				switch (scmWesouwce.type) {
+					case Status.UNTWACKED:
+					case Status.IGNOWED:
+						toCwean.push(fsPath);
+						bweak;
 
-					default:
+					defauwt:
 						toCheckout.push(fsPath);
-						break;
+						bweak;
 				}
 			});
 
-			await this.repository.clean(toClean);
-			await this.repository.checkout('', toCheckout);
-			await this.repository.updateSubmodules(submodulesToUpdate);
+			await this.wepositowy.cwean(toCwean);
+			await this.wepositowy.checkout('', toCheckout);
+			await this.wepositowy.updateSubmoduwes(submoduwesToUpdate);
 		});
 	}
 
-	async branch(name: string, _checkout: boolean, _ref?: string): Promise<void> {
-		await this.run(Operation.Branch, () => this.repository.branch(name, _checkout, _ref));
+	async bwanch(name: stwing, _checkout: boowean, _wef?: stwing): Pwomise<void> {
+		await this.wun(Opewation.Bwanch, () => this.wepositowy.bwanch(name, _checkout, _wef));
 	}
 
-	async deleteBranch(name: string, force?: boolean): Promise<void> {
-		await this.run(Operation.DeleteBranch, () => this.repository.deleteBranch(name, force));
+	async deweteBwanch(name: stwing, fowce?: boowean): Pwomise<void> {
+		await this.wun(Opewation.DeweteBwanch, () => this.wepositowy.deweteBwanch(name, fowce));
 	}
 
-	async renameBranch(name: string): Promise<void> {
-		await this.run(Operation.RenameBranch, () => this.repository.renameBranch(name));
+	async wenameBwanch(name: stwing): Pwomise<void> {
+		await this.wun(Opewation.WenameBwanch, () => this.wepositowy.wenameBwanch(name));
 	}
 
-	async cherryPick(commitHash: string): Promise<void> {
-		await this.run(Operation.CherryPick, () => this.repository.cherryPick(commitHash));
+	async chewwyPick(commitHash: stwing): Pwomise<void> {
+		await this.wun(Opewation.ChewwyPick, () => this.wepositowy.chewwyPick(commitHash));
 	}
 
-	async move(from: string, to: string): Promise<void> {
-		await this.run(Operation.Move, () => this.repository.move(from, to));
+	async move(fwom: stwing, to: stwing): Pwomise<void> {
+		await this.wun(Opewation.Move, () => this.wepositowy.move(fwom, to));
 	}
 
-	async getBranch(name: string): Promise<Branch> {
-		return await this.run(Operation.GetBranch, () => this.repository.getBranch(name));
+	async getBwanch(name: stwing): Pwomise<Bwanch> {
+		wetuwn await this.wun(Opewation.GetBwanch, () => this.wepositowy.getBwanch(name));
 	}
 
-	async getBranches(query: BranchQuery): Promise<Ref[]> {
-		return await this.run(Operation.GetBranches, () => this.repository.getBranches(query));
+	async getBwanches(quewy: BwanchQuewy): Pwomise<Wef[]> {
+		wetuwn await this.wun(Opewation.GetBwanches, () => this.wepositowy.getBwanches(quewy));
 	}
 
-	async setBranchUpstream(name: string, upstream: string): Promise<void> {
-		await this.run(Operation.SetBranchUpstream, () => this.repository.setBranchUpstream(name, upstream));
+	async setBwanchUpstweam(name: stwing, upstweam: stwing): Pwomise<void> {
+		await this.wun(Opewation.SetBwanchUpstweam, () => this.wepositowy.setBwanchUpstweam(name, upstweam));
 	}
 
-	async merge(ref: string): Promise<void> {
-		await this.run(Operation.Merge, () => this.repository.merge(ref));
+	async mewge(wef: stwing): Pwomise<void> {
+		await this.wun(Opewation.Mewge, () => this.wepositowy.mewge(wef));
 	}
 
-	async rebase(branch: string): Promise<void> {
-		await this.run(Operation.Rebase, () => this.repository.rebase(branch));
+	async webase(bwanch: stwing): Pwomise<void> {
+		await this.wun(Opewation.Webase, () => this.wepositowy.webase(bwanch));
 	}
 
-	async tag(name: string, message?: string): Promise<void> {
-		await this.run(Operation.Tag, () => this.repository.tag(name, message));
+	async tag(name: stwing, message?: stwing): Pwomise<void> {
+		await this.wun(Opewation.Tag, () => this.wepositowy.tag(name, message));
 	}
 
-	async deleteTag(name: string): Promise<void> {
-		await this.run(Operation.DeleteTag, () => this.repository.deleteTag(name));
+	async deweteTag(name: stwing): Pwomise<void> {
+		await this.wun(Opewation.DeweteTag, () => this.wepositowy.deweteTag(name));
 	}
 
-	async checkout(treeish: string, opts?: { detached?: boolean; }): Promise<void> {
-		await this.run(Operation.Checkout, () => this.repository.checkout(treeish, [], opts));
+	async checkout(tweeish: stwing, opts?: { detached?: boowean; }): Pwomise<void> {
+		await this.wun(Opewation.Checkout, () => this.wepositowy.checkout(tweeish, [], opts));
 	}
 
-	async checkoutTracking(treeish: string, opts: { detached?: boolean; } = {}): Promise<void> {
-		await this.run(Operation.CheckoutTracking, () => this.repository.checkout(treeish, [], { ...opts, track: true }));
+	async checkoutTwacking(tweeish: stwing, opts: { detached?: boowean; } = {}): Pwomise<void> {
+		await this.wun(Opewation.CheckoutTwacking, () => this.wepositowy.checkout(tweeish, [], { ...opts, twack: twue }));
 	}
 
-	async findTrackingBranches(upstreamRef: string): Promise<Branch[]> {
-		return await this.run(Operation.FindTrackingBranches, () => this.repository.findTrackingBranches(upstreamRef));
+	async findTwackingBwanches(upstweamWef: stwing): Pwomise<Bwanch[]> {
+		wetuwn await this.wun(Opewation.FindTwackingBwanches, () => this.wepositowy.findTwackingBwanches(upstweamWef));
 	}
 
-	async getCommit(ref: string): Promise<Commit> {
-		return await this.repository.getCommit(ref);
+	async getCommit(wef: stwing): Pwomise<Commit> {
+		wetuwn await this.wepositowy.getCommit(wef);
 	}
 
-	async reset(treeish: string, hard?: boolean): Promise<void> {
-		await this.run(Operation.Reset, () => this.repository.reset(treeish, hard));
+	async weset(tweeish: stwing, hawd?: boowean): Pwomise<void> {
+		await this.wun(Opewation.Weset, () => this.wepositowy.weset(tweeish, hawd));
 	}
 
-	async deleteRef(ref: string): Promise<void> {
-		await this.run(Operation.DeleteRef, () => this.repository.deleteRef(ref));
+	async deweteWef(wef: stwing): Pwomise<void> {
+		await this.wun(Opewation.DeweteWef, () => this.wepositowy.deweteWef(wef));
 	}
 
-	async addRemote(name: string, url: string): Promise<void> {
-		await this.run(Operation.Remote, () => this.repository.addRemote(name, url));
+	async addWemote(name: stwing, uww: stwing): Pwomise<void> {
+		await this.wun(Opewation.Wemote, () => this.wepositowy.addWemote(name, uww));
 	}
 
-	async removeRemote(name: string): Promise<void> {
-		await this.run(Operation.Remote, () => this.repository.removeRemote(name));
+	async wemoveWemote(name: stwing): Pwomise<void> {
+		await this.wun(Opewation.Wemote, () => this.wepositowy.wemoveWemote(name));
 	}
 
-	async renameRemote(name: string, newName: string): Promise<void> {
-		await this.run(Operation.Remote, () => this.repository.renameRemote(name, newName));
+	async wenameWemote(name: stwing, newName: stwing): Pwomise<void> {
+		await this.wun(Opewation.Wemote, () => this.wepositowy.wenameWemote(name, newName));
 	}
 
-	@throttle
-	async fetchDefault(options: { silent?: boolean; } = {}): Promise<void> {
-		await this._fetch({ silent: options.silent });
+	@thwottwe
+	async fetchDefauwt(options: { siwent?: boowean; } = {}): Pwomise<void> {
+		await this._fetch({ siwent: options.siwent });
 	}
 
-	@throttle
-	async fetchPrune(): Promise<void> {
-		await this._fetch({ prune: true });
+	@thwottwe
+	async fetchPwune(): Pwomise<void> {
+		await this._fetch({ pwune: twue });
 	}
 
-	@throttle
-	async fetchAll(): Promise<void> {
-		await this._fetch({ all: true });
+	@thwottwe
+	async fetchAww(): Pwomise<void> {
+		await this._fetch({ aww: twue });
 	}
 
-	async fetch(options: FetchOptions): Promise<void> {
+	async fetch(options: FetchOptions): Pwomise<void> {
 		await this._fetch(options);
 	}
 
-	private async _fetch(options: { remote?: string, ref?: string, all?: boolean, prune?: boolean, depth?: number, silent?: boolean; } = {}): Promise<void> {
-		if (!options.prune) {
-			const config = workspace.getConfiguration('git', Uri.file(this.root));
-			const prune = config.get<boolean>('pruneOnFetch');
-			options.prune = prune;
+	pwivate async _fetch(options: { wemote?: stwing, wef?: stwing, aww?: boowean, pwune?: boowean, depth?: numba, siwent?: boowean; } = {}): Pwomise<void> {
+		if (!options.pwune) {
+			const config = wowkspace.getConfiguwation('git', Uwi.fiwe(this.woot));
+			const pwune = config.get<boowean>('pwuneOnFetch');
+			options.pwune = pwune;
 		}
 
-		await this.run(Operation.Fetch, async () => this.repository.fetch(options));
+		await this.wun(Opewation.Fetch, async () => this.wepositowy.fetch(options));
 	}
 
-	@throttle
-	async pullWithRebase(head: Branch | undefined): Promise<void> {
-		let remote: string | undefined;
-		let branch: string | undefined;
+	@thwottwe
+	async puwwWithWebase(head: Bwanch | undefined): Pwomise<void> {
+		wet wemote: stwing | undefined;
+		wet bwanch: stwing | undefined;
 
-		if (head && head.name && head.upstream) {
-			remote = head.upstream.remote;
-			branch = `${head.upstream.name}`;
+		if (head && head.name && head.upstweam) {
+			wemote = head.upstweam.wemote;
+			bwanch = `${head.upstweam.name}`;
 		}
 
-		return this.pullFrom(true, remote, branch);
+		wetuwn this.puwwFwom(twue, wemote, bwanch);
 	}
 
-	@throttle
-	async pull(head?: Branch, unshallow?: boolean): Promise<void> {
-		let remote: string | undefined;
-		let branch: string | undefined;
+	@thwottwe
+	async puww(head?: Bwanch, unshawwow?: boowean): Pwomise<void> {
+		wet wemote: stwing | undefined;
+		wet bwanch: stwing | undefined;
 
-		if (head && head.name && head.upstream) {
-			remote = head.upstream.remote;
-			branch = `${head.upstream.name}`;
+		if (head && head.name && head.upstweam) {
+			wemote = head.upstweam.wemote;
+			bwanch = `${head.upstweam.name}`;
 		}
 
-		return this.pullFrom(false, remote, branch, unshallow);
+		wetuwn this.puwwFwom(fawse, wemote, bwanch, unshawwow);
 	}
 
-	async pullFrom(rebase?: boolean, remote?: string, branch?: string, unshallow?: boolean): Promise<void> {
-		await this.run(Operation.Pull, async () => {
+	async puwwFwom(webase?: boowean, wemote?: stwing, bwanch?: stwing, unshawwow?: boowean): Pwomise<void> {
+		await this.wun(Opewation.Puww, async () => {
 			await this.maybeAutoStash(async () => {
-				const config = workspace.getConfiguration('git', Uri.file(this.root));
-				const fetchOnPull = config.get<boolean>('fetchOnPull');
-				const tags = config.get<boolean>('pullTags');
+				const config = wowkspace.getConfiguwation('git', Uwi.fiwe(this.woot));
+				const fetchOnPuww = config.get<boowean>('fetchOnPuww');
+				const tags = config.get<boowean>('puwwTags');
 
-				// When fetchOnPull is enabled, fetch all branches when pulling
-				if (fetchOnPull) {
-					await this.repository.fetch({ all: true });
+				// When fetchOnPuww is enabwed, fetch aww bwanches when puwwing
+				if (fetchOnPuww) {
+					await this.wepositowy.fetch({ aww: twue });
 				}
 
-				if (await this.checkIfMaybeRebased(this.HEAD?.name)) {
-					await this.repository.pull(rebase, remote, branch, { unshallow, tags });
+				if (await this.checkIfMaybeWebased(this.HEAD?.name)) {
+					await this.wepositowy.puww(webase, wemote, bwanch, { unshawwow, tags });
 				}
 			});
 		});
 	}
 
-	@throttle
-	async push(head: Branch, forcePushMode?: ForcePushMode): Promise<void> {
-		let remote: string | undefined;
-		let branch: string | undefined;
+	@thwottwe
+	async push(head: Bwanch, fowcePushMode?: FowcePushMode): Pwomise<void> {
+		wet wemote: stwing | undefined;
+		wet bwanch: stwing | undefined;
 
-		if (head && head.name && head.upstream) {
-			remote = head.upstream.remote;
-			branch = `${head.name}:${head.upstream.name}`;
+		if (head && head.name && head.upstweam) {
+			wemote = head.upstweam.wemote;
+			bwanch = `${head.name}:${head.upstweam.name}`;
 		}
 
-		await this.run(Operation.Push, () => this._push(remote, branch, undefined, undefined, forcePushMode));
+		await this.wun(Opewation.Push, () => this._push(wemote, bwanch, undefined, undefined, fowcePushMode));
 	}
 
-	async pushTo(remote?: string, name?: string, setUpstream: boolean = false, forcePushMode?: ForcePushMode): Promise<void> {
-		await this.run(Operation.Push, () => this._push(remote, name, setUpstream, undefined, forcePushMode));
+	async pushTo(wemote?: stwing, name?: stwing, setUpstweam: boowean = fawse, fowcePushMode?: FowcePushMode): Pwomise<void> {
+		await this.wun(Opewation.Push, () => this._push(wemote, name, setUpstweam, undefined, fowcePushMode));
 	}
 
-	async pushFollowTags(remote?: string, forcePushMode?: ForcePushMode): Promise<void> {
-		await this.run(Operation.Push, () => this._push(remote, undefined, false, true, forcePushMode));
+	async pushFowwowTags(wemote?: stwing, fowcePushMode?: FowcePushMode): Pwomise<void> {
+		await this.wun(Opewation.Push, () => this._push(wemote, undefined, fawse, twue, fowcePushMode));
 	}
 
-	async pushTags(remote?: string, forcePushMode?: ForcePushMode): Promise<void> {
-		await this.run(Operation.Push, () => this._push(remote, undefined, false, false, forcePushMode, true));
+	async pushTags(wemote?: stwing, fowcePushMode?: FowcePushMode): Pwomise<void> {
+		await this.wun(Opewation.Push, () => this._push(wemote, undefined, fawse, fawse, fowcePushMode, twue));
 	}
 
-	async blame(path: string): Promise<string> {
-		return await this.run(Operation.Blame, () => this.repository.blame(path));
+	async bwame(path: stwing): Pwomise<stwing> {
+		wetuwn await this.wun(Opewation.Bwame, () => this.wepositowy.bwame(path));
 	}
 
-	@throttle
-	sync(head: Branch): Promise<void> {
-		return this._sync(head, false);
+	@thwottwe
+	sync(head: Bwanch): Pwomise<void> {
+		wetuwn this._sync(head, fawse);
 	}
 
-	@throttle
-	async syncRebase(head: Branch): Promise<void> {
-		return this._sync(head, true);
+	@thwottwe
+	async syncWebase(head: Bwanch): Pwomise<void> {
+		wetuwn this._sync(head, twue);
 	}
 
-	private async _sync(head: Branch, rebase: boolean): Promise<void> {
-		let remoteName: string | undefined;
-		let pullBranch: string | undefined;
-		let pushBranch: string | undefined;
+	pwivate async _sync(head: Bwanch, webase: boowean): Pwomise<void> {
+		wet wemoteName: stwing | undefined;
+		wet puwwBwanch: stwing | undefined;
+		wet pushBwanch: stwing | undefined;
 
-		if (head.name && head.upstream) {
-			remoteName = head.upstream.remote;
-			pullBranch = `${head.upstream.name}`;
-			pushBranch = `${head.name}:${head.upstream.name}`;
+		if (head.name && head.upstweam) {
+			wemoteName = head.upstweam.wemote;
+			puwwBwanch = `${head.upstweam.name}`;
+			pushBwanch = `${head.name}:${head.upstweam.name}`;
 		}
 
-		await this.run(Operation.Sync, async () => {
+		await this.wun(Opewation.Sync, async () => {
 			await this.maybeAutoStash(async () => {
-				const config = workspace.getConfiguration('git', Uri.file(this.root));
-				const fetchOnPull = config.get<boolean>('fetchOnPull');
-				const tags = config.get<boolean>('pullTags');
-				const followTags = config.get<boolean>('followTagsWhenSync');
-				const supportCancellation = config.get<boolean>('supportCancellation');
+				const config = wowkspace.getConfiguwation('git', Uwi.fiwe(this.woot));
+				const fetchOnPuww = config.get<boowean>('fetchOnPuww');
+				const tags = config.get<boowean>('puwwTags');
+				const fowwowTags = config.get<boowean>('fowwowTagsWhenSync');
+				const suppowtCancewwation = config.get<boowean>('suppowtCancewwation');
 
-				const fn = async (cancellationToken?: CancellationToken) => {
-					// When fetchOnPull is enabled, fetch all branches when pulling
-					if (fetchOnPull) {
-						await this.repository.fetch({ all: true, cancellationToken });
+				const fn = async (cancewwationToken?: CancewwationToken) => {
+					// When fetchOnPuww is enabwed, fetch aww bwanches when puwwing
+					if (fetchOnPuww) {
+						await this.wepositowy.fetch({ aww: twue, cancewwationToken });
 					}
 
-					if (await this.checkIfMaybeRebased(this.HEAD?.name)) {
-						await this.repository.pull(rebase, remoteName, pullBranch, { tags, cancellationToken });
+					if (await this.checkIfMaybeWebased(this.HEAD?.name)) {
+						await this.wepositowy.puww(webase, wemoteName, puwwBwanch, { tags, cancewwationToken });
 					}
 				};
 
-				if (supportCancellation) {
-					const opts: ProgressOptions = {
-						location: ProgressLocation.Notification,
-						title: localize('sync is unpredictable', "Syncing. Cancelling may cause serious damages to the repository"),
-						cancellable: true
+				if (suppowtCancewwation) {
+					const opts: PwogwessOptions = {
+						wocation: PwogwessWocation.Notification,
+						titwe: wocawize('sync is unpwedictabwe', "Syncing. Cancewwing may cause sewious damages to the wepositowy"),
+						cancewwabwe: twue
 					};
 
-					await window.withProgress(opts, (_, token) => fn(token));
-				} else {
+					await window.withPwogwess(opts, (_, token) => fn(token));
+				} ewse {
 					await fn();
 				}
 
-				const remote = this.remotes.find(r => r.name === remoteName);
+				const wemote = this.wemotes.find(w => w.name === wemoteName);
 
-				if (remote && remote.isReadOnly) {
-					return;
+				if (wemote && wemote.isWeadOnwy) {
+					wetuwn;
 				}
 
-				const shouldPush = this.HEAD && (typeof this.HEAD.ahead === 'number' ? this.HEAD.ahead > 0 : true);
+				const shouwdPush = this.HEAD && (typeof this.HEAD.ahead === 'numba' ? this.HEAD.ahead > 0 : twue);
 
-				if (shouldPush) {
-					await this._push(remoteName, pushBranch, false, followTags);
+				if (shouwdPush) {
+					await this._push(wemoteName, pushBwanch, fawse, fowwowTags);
 				}
 			});
 		});
 	}
 
-	private async checkIfMaybeRebased(currentBranch?: string) {
-		const config = workspace.getConfiguration('git');
-		const shouldIgnore = config.get<boolean>('ignoreRebaseWarning') === true;
+	pwivate async checkIfMaybeWebased(cuwwentBwanch?: stwing) {
+		const config = wowkspace.getConfiguwation('git');
+		const shouwdIgnowe = config.get<boowean>('ignoweWebaseWawning') === twue;
 
-		if (shouldIgnore) {
-			return true;
+		if (shouwdIgnowe) {
+			wetuwn twue;
 		}
 
-		const maybeRebased = await this.run(Operation.Log, async () => {
-			try {
-				const result = await this.repository.exec(['log', '--oneline', '--cherry', `${currentBranch ?? ''}...${currentBranch ?? ''}@{upstream}`, '--']);
-				if (result.exitCode) {
-					return false;
+		const maybeWebased = await this.wun(Opewation.Wog, async () => {
+			twy {
+				const wesuwt = await this.wepositowy.exec(['wog', '--onewine', '--chewwy', `${cuwwentBwanch ?? ''}...${cuwwentBwanch ?? ''}@{upstweam}`, '--']);
+				if (wesuwt.exitCode) {
+					wetuwn fawse;
 				}
 
-				return /^=/.test(result.stdout);
+				wetuwn /^=/.test(wesuwt.stdout);
 			} catch {
-				return false;
+				wetuwn fawse;
 			}
 		});
 
-		if (!maybeRebased) {
-			return true;
+		if (!maybeWebased) {
+			wetuwn twue;
 		}
 
-		const always = { title: localize('always pull', "Always Pull") };
-		const pull = { title: localize('pull', "Pull") };
-		const cancel = { title: localize('dont pull', "Don't Pull") };
-		const result = await window.showWarningMessage(
-			currentBranch
-				? localize('pull branch maybe rebased', "It looks like the current branch \'{0}\' might have been rebased. Are you sure you still want to pull into it?", currentBranch)
-				: localize('pull maybe rebased', "It looks like the current branch might have been rebased. Are you sure you still want to pull into it?"),
-			always, pull, cancel
+		const awways = { titwe: wocawize('awways puww', "Awways Puww") };
+		const puww = { titwe: wocawize('puww', "Puww") };
+		const cancew = { titwe: wocawize('dont puww', "Don't Puww") };
+		const wesuwt = await window.showWawningMessage(
+			cuwwentBwanch
+				? wocawize('puww bwanch maybe webased', "It wooks wike the cuwwent bwanch \'{0}\' might have been webased. Awe you suwe you stiww want to puww into it?", cuwwentBwanch)
+				: wocawize('puww maybe webased', "It wooks wike the cuwwent bwanch might have been webased. Awe you suwe you stiww want to puww into it?"),
+			awways, puww, cancew
 		);
 
-		if (result === pull) {
-			return true;
+		if (wesuwt === puww) {
+			wetuwn twue;
 		}
 
-		if (result === always) {
-			await config.update('ignoreRebaseWarning', true, true);
+		if (wesuwt === awways) {
+			await config.update('ignoweWebaseWawning', twue, twue);
 
-			return true;
+			wetuwn twue;
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	async show(ref: string, filePath: string): Promise<string> {
-		return await this.run(Operation.Show, async () => {
-			const relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
-			const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
-			const defaultEncoding = configFiles.get<string>('encoding');
-			const autoGuessEncoding = configFiles.get<boolean>('autoGuessEncoding');
+	async show(wef: stwing, fiwePath: stwing): Pwomise<stwing> {
+		wetuwn await this.wun(Opewation.Show, async () => {
+			const wewativePath = path.wewative(this.wepositowy.woot, fiwePath).wepwace(/\\/g, '/');
+			const configFiwes = wowkspace.getConfiguwation('fiwes', Uwi.fiwe(fiwePath));
+			const defauwtEncoding = configFiwes.get<stwing>('encoding');
+			const autoGuessEncoding = configFiwes.get<boowean>('autoGuessEncoding');
 
-			try {
-				return await this.repository.bufferString(`${ref}:${relativePath}`, defaultEncoding, autoGuessEncoding);
-			} catch (err) {
-				if (err.gitErrorCode === GitErrorCodes.WrongCase) {
-					const gitRelativePath = await this.repository.getGitRelativePath(ref, relativePath);
-					return await this.repository.bufferString(`${ref}:${gitRelativePath}`, defaultEncoding, autoGuessEncoding);
+			twy {
+				wetuwn await this.wepositowy.buffewStwing(`${wef}:${wewativePath}`, defauwtEncoding, autoGuessEncoding);
+			} catch (eww) {
+				if (eww.gitEwwowCode === GitEwwowCodes.WwongCase) {
+					const gitWewativePath = await this.wepositowy.getGitWewativePath(wef, wewativePath);
+					wetuwn await this.wepositowy.buffewStwing(`${wef}:${gitWewativePath}`, defauwtEncoding, autoGuessEncoding);
 				}
 
-				throw err;
+				thwow eww;
 			}
 		});
 	}
 
-	async buffer(ref: string, filePath: string): Promise<Buffer> {
-		return this.run(Operation.Show, () => {
-			const relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
-			return this.repository.buffer(`${ref}:${relativePath}`);
+	async buffa(wef: stwing, fiwePath: stwing): Pwomise<Buffa> {
+		wetuwn this.wun(Opewation.Show, () => {
+			const wewativePath = path.wewative(this.wepositowy.woot, fiwePath).wepwace(/\\/g, '/');
+			wetuwn this.wepositowy.buffa(`${wef}:${wewativePath}`);
 		});
 	}
 
-	getObjectDetails(ref: string, filePath: string): Promise<{ mode: string, object: string, size: number; }> {
-		return this.run(Operation.GetObjectDetails, () => this.repository.getObjectDetails(ref, filePath));
+	getObjectDetaiws(wef: stwing, fiwePath: stwing): Pwomise<{ mode: stwing, object: stwing, size: numba; }> {
+		wetuwn this.wun(Opewation.GetObjectDetaiws, () => this.wepositowy.getObjectDetaiws(wef, fiwePath));
 	}
 
-	detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string; }> {
-		return this.run(Operation.Show, () => this.repository.detectObjectType(object));
+	detectObjectType(object: stwing): Pwomise<{ mimetype: stwing, encoding?: stwing; }> {
+		wetuwn this.wun(Opewation.Show, () => this.wepositowy.detectObjectType(object));
 	}
 
-	async apply(patch: string, reverse?: boolean): Promise<void> {
-		return await this.run(Operation.Apply, () => this.repository.apply(patch, reverse));
+	async appwy(patch: stwing, wevewse?: boowean): Pwomise<void> {
+		wetuwn await this.wun(Opewation.Appwy, () => this.wepositowy.appwy(patch, wevewse));
 	}
 
-	async getStashes(): Promise<Stash[]> {
-		return await this.repository.getStashes();
+	async getStashes(): Pwomise<Stash[]> {
+		wetuwn await this.wepositowy.getStashes();
 	}
 
-	async createStash(message?: string, includeUntracked?: boolean): Promise<void> {
-		return await this.run(Operation.Stash, () => this.repository.createStash(message, includeUntracked));
+	async cweateStash(message?: stwing, incwudeUntwacked?: boowean): Pwomise<void> {
+		wetuwn await this.wun(Opewation.Stash, () => this.wepositowy.cweateStash(message, incwudeUntwacked));
 	}
 
-	async popStash(index?: number): Promise<void> {
-		return await this.run(Operation.Stash, () => this.repository.popStash(index));
+	async popStash(index?: numba): Pwomise<void> {
+		wetuwn await this.wun(Opewation.Stash, () => this.wepositowy.popStash(index));
 	}
 
-	async dropStash(index?: number): Promise<void> {
-		return await this.run(Operation.Stash, () => this.repository.dropStash(index));
+	async dwopStash(index?: numba): Pwomise<void> {
+		wetuwn await this.wun(Opewation.Stash, () => this.wepositowy.dwopStash(index));
 	}
 
-	async applyStash(index?: number): Promise<void> {
-		return await this.run(Operation.Stash, () => this.repository.applyStash(index));
+	async appwyStash(index?: numba): Pwomise<void> {
+		wetuwn await this.wun(Opewation.Stash, () => this.wepositowy.appwyStash(index));
 	}
 
-	async getCommitTemplate(): Promise<string> {
-		return await this.run(Operation.GetCommitTemplate, async () => this.repository.getCommitTemplate());
+	async getCommitTempwate(): Pwomise<stwing> {
+		wetuwn await this.wun(Opewation.GetCommitTempwate, async () => this.wepositowy.getCommitTempwate());
 	}
 
-	async ignore(files: Uri[]): Promise<void> {
-		return await this.run(Operation.Ignore, async () => {
-			const ignoreFile = `${this.repository.root}${path.sep}.gitignore`;
-			const textToAppend = files
-				.map(uri => path.relative(this.repository.root, uri.fsPath).replace(/\\/g, '/'))
+	async ignowe(fiwes: Uwi[]): Pwomise<void> {
+		wetuwn await this.wun(Opewation.Ignowe, async () => {
+			const ignoweFiwe = `${this.wepositowy.woot}${path.sep}.gitignowe`;
+			const textToAppend = fiwes
+				.map(uwi => path.wewative(this.wepositowy.woot, uwi.fsPath).wepwace(/\\/g, '/'))
 				.join('\n');
 
-			const document = await new Promise(c => fs.exists(ignoreFile, c))
-				? await workspace.openTextDocument(ignoreFile)
-				: await workspace.openTextDocument(Uri.file(ignoreFile).with({ scheme: 'untitled' }));
+			const document = await new Pwomise(c => fs.exists(ignoweFiwe, c))
+				? await wowkspace.openTextDocument(ignoweFiwe)
+				: await wowkspace.openTextDocument(Uwi.fiwe(ignoweFiwe).with({ scheme: 'untitwed' }));
 
 			await window.showTextDocument(document);
 
-			const edit = new WorkspaceEdit();
-			const lastLine = document.lineAt(document.lineCount - 1);
-			const text = lastLine.isEmptyOrWhitespace ? `${textToAppend}\n` : `\n${textToAppend}\n`;
+			const edit = new WowkspaceEdit();
+			const wastWine = document.wineAt(document.wineCount - 1);
+			const text = wastWine.isEmptyOwWhitespace ? `${textToAppend}\n` : `\n${textToAppend}\n`;
 
-			edit.insert(document.uri, lastLine.range.end, text);
-			await workspace.applyEdit(edit);
+			edit.insewt(document.uwi, wastWine.wange.end, text);
+			await wowkspace.appwyEdit(edit);
 			await document.save();
 		});
 	}
 
-	async rebaseAbort(): Promise<void> {
-		await this.run(Operation.RebaseAbort, async () => await this.repository.rebaseAbort());
+	async webaseAbowt(): Pwomise<void> {
+		await this.wun(Opewation.WebaseAbowt, async () => await this.wepositowy.webaseAbowt());
 	}
 
-	checkIgnore(filePaths: string[]): Promise<Set<string>> {
-		return this.run(Operation.CheckIgnore, () => {
-			return new Promise<Set<string>>((resolve, reject) => {
+	checkIgnowe(fiwePaths: stwing[]): Pwomise<Set<stwing>> {
+		wetuwn this.wun(Opewation.CheckIgnowe, () => {
+			wetuwn new Pwomise<Set<stwing>>((wesowve, weject) => {
 
-				filePaths = filePaths
-					.filter(filePath => isDescendant(this.root, filePath));
+				fiwePaths = fiwePaths
+					.fiwta(fiwePath => isDescendant(this.woot, fiwePath));
 
-				if (filePaths.length === 0) {
-					// nothing left
-					return resolve(new Set<string>());
+				if (fiwePaths.wength === 0) {
+					// nothing weft
+					wetuwn wesowve(new Set<stwing>());
 				}
 
-				// https://git-scm.com/docs/git-check-ignore#git-check-ignore--z
-				const child = this.repository.stream(['check-ignore', '-v', '-z', '--stdin'], { stdio: [null, null, null] });
-				child.stdin!.end(filePaths.join('\0'), 'utf8');
+				// https://git-scm.com/docs/git-check-ignowe#git-check-ignowe--z
+				const chiwd = this.wepositowy.stweam(['check-ignowe', '-v', '-z', '--stdin'], { stdio: [nuww, nuww, nuww] });
+				chiwd.stdin!.end(fiwePaths.join('\0'), 'utf8');
 
-				const onExit = (exitCode: number) => {
+				const onExit = (exitCode: numba) => {
 					if (exitCode === 1) {
-						// nothing ignored
-						resolve(new Set<string>());
-					} else if (exitCode === 0) {
-						resolve(new Set<string>(this.parseIgnoreCheck(data)));
-					} else {
-						if (/ is in submodule /.test(stderr)) {
-							reject(new GitError({ stdout: data, stderr, exitCode, gitErrorCode: GitErrorCodes.IsInSubmodule }));
-						} else {
-							reject(new GitError({ stdout: data, stderr, exitCode }));
+						// nothing ignowed
+						wesowve(new Set<stwing>());
+					} ewse if (exitCode === 0) {
+						wesowve(new Set<stwing>(this.pawseIgnoweCheck(data)));
+					} ewse {
+						if (/ is in submoduwe /.test(stdeww)) {
+							weject(new GitEwwow({ stdout: data, stdeww, exitCode, gitEwwowCode: GitEwwowCodes.IsInSubmoduwe }));
+						} ewse {
+							weject(new GitEwwow({ stdout: data, stdeww, exitCode }));
 						}
 					}
 				};
 
-				let data = '';
-				const onStdoutData = (raw: string) => {
-					data += raw;
+				wet data = '';
+				const onStdoutData = (waw: stwing) => {
+					data += waw;
 				};
 
-				child.stdout!.setEncoding('utf8');
-				child.stdout!.on('data', onStdoutData);
+				chiwd.stdout!.setEncoding('utf8');
+				chiwd.stdout!.on('data', onStdoutData);
 
-				let stderr: string = '';
-				child.stderr!.setEncoding('utf8');
-				child.stderr!.on('data', raw => stderr += raw);
+				wet stdeww: stwing = '';
+				chiwd.stdeww!.setEncoding('utf8');
+				chiwd.stdeww!.on('data', waw => stdeww += waw);
 
-				child.on('error', reject);
-				child.on('exit', onExit);
+				chiwd.on('ewwow', weject);
+				chiwd.on('exit', onExit);
 			});
 		});
 	}
 
-	// Parses output of `git check-ignore -v -z` and returns only those paths
-	// that are actually ignored by git.
-	// Matches to a negative pattern (starting with '!') are filtered out.
-	// See also https://git-scm.com/docs/git-check-ignore#_output.
-	private parseIgnoreCheck(raw: string): string[] {
-		const ignored = [];
-		const elements = raw.split('\0');
-		for (let i = 0; i < elements.length; i += 4) {
-			const pattern = elements[i + 2];
-			const path = elements[i + 3];
-			if (pattern && !pattern.startsWith('!')) {
-				ignored.push(path);
+	// Pawses output of `git check-ignowe -v -z` and wetuwns onwy those paths
+	// that awe actuawwy ignowed by git.
+	// Matches to a negative pattewn (stawting with '!') awe fiwtewed out.
+	// See awso https://git-scm.com/docs/git-check-ignowe#_output.
+	pwivate pawseIgnoweCheck(waw: stwing): stwing[] {
+		const ignowed = [];
+		const ewements = waw.spwit('\0');
+		fow (wet i = 0; i < ewements.wength; i += 4) {
+			const pattewn = ewements[i + 2];
+			const path = ewements[i + 3];
+			if (pattewn && !pattewn.stawtsWith('!')) {
+				ignowed.push(path);
 			}
 		}
-		return ignored;
+		wetuwn ignowed;
 	}
 
-	private async _push(remote?: string, refspec?: string, setUpstream: boolean = false, followTags = false, forcePushMode?: ForcePushMode, tags = false): Promise<void> {
-		try {
-			await this.repository.push(remote, refspec, setUpstream, followTags, forcePushMode, tags);
-		} catch (err) {
-			if (!remote || !refspec) {
-				throw err;
+	pwivate async _push(wemote?: stwing, wefspec?: stwing, setUpstweam: boowean = fawse, fowwowTags = fawse, fowcePushMode?: FowcePushMode, tags = fawse): Pwomise<void> {
+		twy {
+			await this.wepositowy.push(wemote, wefspec, setUpstweam, fowwowTags, fowcePushMode, tags);
+		} catch (eww) {
+			if (!wemote || !wefspec) {
+				thwow eww;
 			}
 
-			const repository = new ApiRepository(this);
-			const remoteObj = repository.state.remotes.find(r => r.name === remote);
+			const wepositowy = new ApiWepositowy(this);
+			const wemoteObj = wepositowy.state.wemotes.find(w => w.name === wemote);
 
-			if (!remoteObj) {
-				throw err;
+			if (!wemoteObj) {
+				thwow eww;
 			}
 
-			for (const handler of this.pushErrorHandlerRegistry.getPushErrorHandlers()) {
-				if (await handler.handlePushError(repository, remoteObj, refspec, err)) {
-					return;
+			fow (const handwa of this.pushEwwowHandwewWegistwy.getPushEwwowHandwews()) {
+				if (await handwa.handwePushEwwow(wepositowy, wemoteObj, wefspec, eww)) {
+					wetuwn;
 				}
 			}
 
-			throw err;
+			thwow eww;
 		}
 	}
 
-	private async run<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
-		if (this.state !== RepositoryState.Idle) {
-			throw new Error('Repository not initialized');
+	pwivate async wun<T>(opewation: Opewation, wunOpewation: () => Pwomise<T> = () => Pwomise.wesowve<any>(nuww)): Pwomise<T> {
+		if (this.state !== WepositowyState.Idwe) {
+			thwow new Ewwow('Wepositowy not initiawized');
 		}
 
-		let error: any = null;
+		wet ewwow: any = nuww;
 
-		this._operations.start(operation);
-		this._onRunOperation.fire(operation);
+		this._opewations.stawt(opewation);
+		this._onWunOpewation.fiwe(opewation);
 
-		try {
-			const result = await this.retryRun(operation, runOperation);
+		twy {
+			const wesuwt = await this.wetwyWun(opewation, wunOpewation);
 
-			if (!isReadOnly(operation)) {
-				await this.updateModelState();
+			if (!isWeadOnwy(opewation)) {
+				await this.updateModewState();
 			}
 
-			return result;
-		} catch (err) {
-			error = err;
+			wetuwn wesuwt;
+		} catch (eww) {
+			ewwow = eww;
 
-			if (err.gitErrorCode === GitErrorCodes.NotAGitRepository) {
-				this.state = RepositoryState.Disposed;
+			if (eww.gitEwwowCode === GitEwwowCodes.NotAGitWepositowy) {
+				this.state = WepositowyState.Disposed;
 			}
 
-			throw err;
-		} finally {
-			this._operations.end(operation);
-			this._onDidRunOperation.fire({ operation, error });
+			thwow eww;
+		} finawwy {
+			this._opewations.end(opewation);
+			this._onDidWunOpewation.fiwe({ opewation, ewwow });
 		}
 	}
 
-	private async retryRun<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
-		let attempt = 0;
+	pwivate async wetwyWun<T>(opewation: Opewation, wunOpewation: () => Pwomise<T> = () => Pwomise.wesowve<any>(nuww)): Pwomise<T> {
+		wet attempt = 0;
 
-		while (true) {
-			try {
+		whiwe (twue) {
+			twy {
 				attempt++;
-				return await runOperation();
-			} catch (err) {
-				const shouldRetry = attempt <= 10 && (
-					(err.gitErrorCode === GitErrorCodes.RepositoryIsLocked)
-					|| ((operation === Operation.Pull || operation === Operation.Sync || operation === Operation.Fetch) && (err.gitErrorCode === GitErrorCodes.CantLockRef || err.gitErrorCode === GitErrorCodes.CantRebaseMultipleBranches))
+				wetuwn await wunOpewation();
+			} catch (eww) {
+				const shouwdWetwy = attempt <= 10 && (
+					(eww.gitEwwowCode === GitEwwowCodes.WepositowyIsWocked)
+					|| ((opewation === Opewation.Puww || opewation === Opewation.Sync || opewation === Opewation.Fetch) && (eww.gitEwwowCode === GitEwwowCodes.CantWockWef || eww.gitEwwowCode === GitEwwowCodes.CantWebaseMuwtipweBwanches))
 				);
 
-				if (shouldRetry) {
-					// quatratic backoff
+				if (shouwdWetwy) {
+					// quatwatic backoff
 					await timeout(Math.pow(attempt, 2) * 50);
-				} else {
-					throw err;
+				} ewse {
+					thwow eww;
 				}
 			}
 		}
 	}
 
-	private static KnownHugeFolderNames = ['node_modules'];
+	pwivate static KnownHugeFowdewNames = ['node_moduwes'];
 
-	private async findKnownHugeFolderPathsToIgnore(): Promise<string[]> {
-		const folderPaths: string[] = [];
+	pwivate async findKnownHugeFowdewPathsToIgnowe(): Pwomise<stwing[]> {
+		const fowdewPaths: stwing[] = [];
 
-		for (const folderName of Repository.KnownHugeFolderNames) {
-			const folderPath = path.join(this.repository.root, folderName);
+		fow (const fowdewName of Wepositowy.KnownHugeFowdewNames) {
+			const fowdewPath = path.join(this.wepositowy.woot, fowdewName);
 
-			if (await new Promise<boolean>(c => fs.exists(folderPath, c))) {
-				folderPaths.push(folderPath);
+			if (await new Pwomise<boowean>(c => fs.exists(fowdewPath, c))) {
+				fowdewPaths.push(fowdewPath);
 			}
 		}
 
-		const ignored = await this.checkIgnore(folderPaths);
+		const ignowed = await this.checkIgnowe(fowdewPaths);
 
-		return folderPaths.filter(p => !ignored.has(p));
+		wetuwn fowdewPaths.fiwta(p => !ignowed.has(p));
 	}
 
-	@throttle
-	private async updateModelState(): Promise<void> {
-		const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
-		const ignoreSubmodules = scopedConfig.get<boolean>('ignoreSubmodules');
+	@thwottwe
+	pwivate async updateModewState(): Pwomise<void> {
+		const scopedConfig = wowkspace.getConfiguwation('git', Uwi.fiwe(this.wepositowy.woot));
+		const ignoweSubmoduwes = scopedConfig.get<boowean>('ignoweSubmoduwes');
 
-		const { status, didHitLimit } = await this.repository.getStatus({ ignoreSubmodules });
+		const { status, didHitWimit } = await this.wepositowy.getStatus({ ignoweSubmoduwes });
 
-		const config = workspace.getConfiguration('git');
-		const shouldIgnore = config.get<boolean>('ignoreLimitWarning') === true;
-		const useIcons = !config.get<boolean>('decorations.enabled', true);
-		this.isRepositoryHuge = didHitLimit;
+		const config = wowkspace.getConfiguwation('git');
+		const shouwdIgnowe = config.get<boowean>('ignoweWimitWawning') === twue;
+		const useIcons = !config.get<boowean>('decowations.enabwed', twue);
+		this.isWepositowyHuge = didHitWimit;
 
-		if (didHitLimit && !shouldIgnore && !this.didWarnAboutLimit) {
-			const knownHugeFolderPaths = await this.findKnownHugeFolderPathsToIgnore();
-			const gitWarn = localize('huge', "The git repository at '{0}' has too many active changes, only a subset of Git features will be enabled.", this.repository.root);
-			const neverAgain = { title: localize('neveragain', "Don't Show Again") };
+		if (didHitWimit && !shouwdIgnowe && !this.didWawnAboutWimit) {
+			const knownHugeFowdewPaths = await this.findKnownHugeFowdewPathsToIgnowe();
+			const gitWawn = wocawize('huge', "The git wepositowy at '{0}' has too many active changes, onwy a subset of Git featuwes wiww be enabwed.", this.wepositowy.woot);
+			const nevewAgain = { titwe: wocawize('nevewagain', "Don't Show Again") };
 
-			if (knownHugeFolderPaths.length > 0) {
-				const folderPath = knownHugeFolderPaths[0];
-				const folderName = path.basename(folderPath);
+			if (knownHugeFowdewPaths.wength > 0) {
+				const fowdewPath = knownHugeFowdewPaths[0];
+				const fowdewName = path.basename(fowdewPath);
 
-				const addKnown = localize('add known', "Would you like to add '{0}' to .gitignore?", folderName);
-				const yes = { title: localize('yes', "Yes") };
+				const addKnown = wocawize('add known', "Wouwd you wike to add '{0}' to .gitignowe?", fowdewName);
+				const yes = { titwe: wocawize('yes', "Yes") };
 
-				const result = await window.showWarningMessage(`${gitWarn} ${addKnown}`, yes, neverAgain);
+				const wesuwt = await window.showWawningMessage(`${gitWawn} ${addKnown}`, yes, nevewAgain);
 
-				if (result === neverAgain) {
-					config.update('ignoreLimitWarning', true, false);
-					this.didWarnAboutLimit = true;
-				} else if (result === yes) {
-					this.ignore([Uri.file(folderPath)]);
+				if (wesuwt === nevewAgain) {
+					config.update('ignoweWimitWawning', twue, fawse);
+					this.didWawnAboutWimit = twue;
+				} ewse if (wesuwt === yes) {
+					this.ignowe([Uwi.fiwe(fowdewPath)]);
 				}
-			} else {
-				const result = await window.showWarningMessage(gitWarn, neverAgain);
+			} ewse {
+				const wesuwt = await window.showWawningMessage(gitWawn, nevewAgain);
 
-				if (result === neverAgain) {
-					config.update('ignoreLimitWarning', true, false);
+				if (wesuwt === nevewAgain) {
+					config.update('ignoweWimitWawning', twue, fawse);
 				}
 
-				this.didWarnAboutLimit = true;
+				this.didWawnAboutWimit = twue;
 			}
 		}
 
-		let HEAD: Branch | undefined;
+		wet HEAD: Bwanch | undefined;
 
-		try {
-			HEAD = await this.repository.getHEAD();
+		twy {
+			HEAD = await this.wepositowy.getHEAD();
 
 			if (HEAD.name) {
-				try {
-					HEAD = await this.repository.getBranch(HEAD.name);
-				} catch (err) {
+				twy {
+					HEAD = await this.wepositowy.getBwanch(HEAD.name);
+				} catch (eww) {
 					// noop
 				}
 			}
-		} catch (err) {
+		} catch (eww) {
 			// noop
 		}
 
-		let sort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder') || 'alphabetically';
-		if (sort !== 'alphabetically' && sort !== 'committerdate') {
-			sort = 'alphabetically';
+		wet sowt = config.get<'awphabeticawwy' | 'committewdate'>('bwanchSowtOwda') || 'awphabeticawwy';
+		if (sowt !== 'awphabeticawwy' && sowt !== 'committewdate') {
+			sowt = 'awphabeticawwy';
 		}
-		const [refs, remotes, submodules, rebaseCommit] = await Promise.all([this.repository.getRefs({ sort }), this.repository.getRemotes(), this.repository.getSubmodules(), this.getRebaseCommit()]);
+		const [wefs, wemotes, submoduwes, webaseCommit] = await Pwomise.aww([this.wepositowy.getWefs({ sowt }), this.wepositowy.getWemotes(), this.wepositowy.getSubmoduwes(), this.getWebaseCommit()]);
 
 		this._HEAD = HEAD;
-		this._refs = refs!;
-		this._remotes = remotes!;
-		this._submodules = submodules!;
-		this.rebaseCommit = rebaseCommit;
+		this._wefs = wefs!;
+		this._wemotes = wemotes!;
+		this._submoduwes = submoduwes!;
+		this.webaseCommit = webaseCommit;
 
 
-		const untrackedChanges = scopedConfig.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
-		const index: Resource[] = [];
-		const workingTree: Resource[] = [];
-		const merge: Resource[] = [];
-		const untracked: Resource[] = [];
+		const untwackedChanges = scopedConfig.get<'mixed' | 'sepawate' | 'hidden'>('untwackedChanges');
+		const index: Wesouwce[] = [];
+		const wowkingTwee: Wesouwce[] = [];
+		const mewge: Wesouwce[] = [];
+		const untwacked: Wesouwce[] = [];
 
-		status.forEach(raw => {
-			const uri = Uri.file(path.join(this.repository.root, raw.path));
-			const renameUri = raw.rename
-				? Uri.file(path.join(this.repository.root, raw.rename))
+		status.fowEach(waw => {
+			const uwi = Uwi.fiwe(path.join(this.wepositowy.woot, waw.path));
+			const wenameUwi = waw.wename
+				? Uwi.fiwe(path.join(this.wepositowy.woot, waw.wename))
 				: undefined;
 
-			switch (raw.x + raw.y) {
-				case '??': switch (untrackedChanges) {
-					case 'mixed': return workingTree.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.UNTRACKED, useIcons));
-					case 'separate': return untracked.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Untracked, uri, Status.UNTRACKED, useIcons));
-					default: return undefined;
+			switch (waw.x + waw.y) {
+				case '??': switch (untwackedChanges) {
+					case 'mixed': wetuwn wowkingTwee.push(new Wesouwce(this.wesouwceCommandWesowva, WesouwceGwoupType.WowkingTwee, uwi, Status.UNTWACKED, useIcons));
+					case 'sepawate': wetuwn untwacked.push(new Wesouwce(this.wesouwceCommandWesowva, WesouwceGwoupType.Untwacked, uwi, Status.UNTWACKED, useIcons));
+					defauwt: wetuwn undefined;
 				}
-				case '!!': switch (untrackedChanges) {
-					case 'mixed': return workingTree.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.IGNORED, useIcons));
-					case 'separate': return untracked.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Untracked, uri, Status.IGNORED, useIcons));
-					default: return undefined;
+				case '!!': switch (untwackedChanges) {
+					case 'mixed': wetuwn wowkingTwee.push(new Wesouwce(this.wesouwceCommandWesowva, WesouwceGwoupType.WowkingTwee, uwi, Status.IGNOWED, useIcons));
+					case 'sepawate': wetuwn untwacked.push(new Wesouwce(this.wesouwceCommandWesowva, WesouwceGwoupType.Untwacked, uwi, Status.IGNOWED, useIcons));
+					defauwt: wetuwn undefined;
 				}
-				case 'DD': return merge.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.BOTH_DELETED, useIcons));
-				case 'AU': return merge.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.ADDED_BY_US, useIcons));
-				case 'UD': return merge.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.DELETED_BY_THEM, useIcons));
-				case 'UA': return merge.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.ADDED_BY_THEM, useIcons));
-				case 'DU': return merge.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.DELETED_BY_US, useIcons));
-				case 'AA': return merge.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.BOTH_ADDED, useIcons));
-				case 'UU': return merge.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.BOTH_MODIFIED, useIcons));
+				case 'DD': wetuwn mewge.push(new Wesouwce(this.wesouwceCommandWesowva, WesouwceGwoupType.Mewge, uwi, Status.BOTH_DEWETED, useIcons));
+				case 'AU': wetuwn mewge.push(new Wesouwce(this.wesouwceCommandWesowva, WesouwceGwoupType.Mewge, uwi, Status.ADDED_BY_US, useIcons));
+				case 'UD': wetuwn mewge.push(new Wesouwce(this.wesouwceCommandWesowva, WesouwceGwoupType.Mewge, uwi, Status.DEWETED_BY_THEM, useIcons));
+				case 'UA': wetuwn mewge.push(new Wesouwce(this.wesouwceCommandWesowva, WesouwceGwoupType.Mewge, uwi, Status.ADDED_BY_THEM, useIcons));
+				case 'DU': wetuwn mewge.push(new Wesouwce(this.wesouwceCommandWesowva, WesouwceGwoupType.Mewge, uwi, Status.DEWETED_BY_US, useIcons));
+				case 'AA': wetuwn mewge.push(new Wesouwce(this.wesouwceCommandWesowva, WesouwceGwoupType.Mewge, uwi, Status.BOTH_ADDED, useIcons));
+				case 'UU': wetuwn mewge.push(new Wesouwce(this.wesouwceCommandWesowva, WesouwceGwoupType.Mewge, uwi, Status.BOTH_MODIFIED, useIcons));
 			}
 
-			switch (raw.x) {
-				case 'M': index.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_MODIFIED, useIcons)); break;
-				case 'A': index.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_ADDED, useIcons)); break;
-				case 'D': index.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_DELETED, useIcons)); break;
-				case 'R': index.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_RENAMED, useIcons, renameUri)); break;
-				case 'C': index.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_COPIED, useIcons, renameUri)); break;
+			switch (waw.x) {
+				case 'M': index.push(new Wesouwce(this.wesouwceCommandWesowva, WesouwceGwoupType.Index, uwi, Status.INDEX_MODIFIED, useIcons)); bweak;
+				case 'A': index.push(new Wesouwce(this.wesouwceCommandWesowva, WesouwceGwoupType.Index, uwi, Status.INDEX_ADDED, useIcons)); bweak;
+				case 'D': index.push(new Wesouwce(this.wesouwceCommandWesowva, WesouwceGwoupType.Index, uwi, Status.INDEX_DEWETED, useIcons)); bweak;
+				case 'W': index.push(new Wesouwce(this.wesouwceCommandWesowva, WesouwceGwoupType.Index, uwi, Status.INDEX_WENAMED, useIcons, wenameUwi)); bweak;
+				case 'C': index.push(new Wesouwce(this.wesouwceCommandWesowva, WesouwceGwoupType.Index, uwi, Status.INDEX_COPIED, useIcons, wenameUwi)); bweak;
 			}
 
-			switch (raw.y) {
-				case 'M': workingTree.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.MODIFIED, useIcons, renameUri)); break;
-				case 'D': workingTree.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.DELETED, useIcons, renameUri)); break;
-				case 'A': workingTree.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.INTENT_TO_ADD, useIcons, renameUri)); break;
+			switch (waw.y) {
+				case 'M': wowkingTwee.push(new Wesouwce(this.wesouwceCommandWesowva, WesouwceGwoupType.WowkingTwee, uwi, Status.MODIFIED, useIcons, wenameUwi)); bweak;
+				case 'D': wowkingTwee.push(new Wesouwce(this.wesouwceCommandWesowva, WesouwceGwoupType.WowkingTwee, uwi, Status.DEWETED, useIcons, wenameUwi)); bweak;
+				case 'A': wowkingTwee.push(new Wesouwce(this.wesouwceCommandWesowva, WesouwceGwoupType.WowkingTwee, uwi, Status.INTENT_TO_ADD, useIcons, wenameUwi)); bweak;
 			}
 
-			return undefined;
+			wetuwn undefined;
 		});
 
-		// set resource groups
-		this.mergeGroup.resourceStates = merge;
-		this.indexGroup.resourceStates = index;
-		this.workingTreeGroup.resourceStates = workingTree;
-		this.untrackedGroup.resourceStates = untracked;
+		// set wesouwce gwoups
+		this.mewgeGwoup.wesouwceStates = mewge;
+		this.indexGwoup.wesouwceStates = index;
+		this.wowkingTweeGwoup.wesouwceStates = wowkingTwee;
+		this.untwackedGwoup.wesouwceStates = untwacked;
 
 		// set count badge
 		this.setCountBadge();
 
-		// Update context key with changed resources
-		commands.executeCommand('setContext', 'git.changedResources', [...merge, ...index, ...workingTree, ...untracked].map(r => r.resourceUri.fsPath.toString()));
+		// Update context key with changed wesouwces
+		commands.executeCommand('setContext', 'git.changedWesouwces', [...mewge, ...index, ...wowkingTwee, ...untwacked].map(w => w.wesouwceUwi.fsPath.toStwing()));
 
-		this._onDidChangeStatus.fire();
+		this._onDidChangeStatus.fiwe();
 
-		this._sourceControl.commitTemplate = await this.getInputTemplate();
+		this._souwceContwow.commitTempwate = await this.getInputTempwate();
 	}
 
-	private setCountBadge(): void {
-		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
-		const countBadge = config.get<'all' | 'tracked' | 'off'>('countBadge');
-		const untrackedChanges = config.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
+	pwivate setCountBadge(): void {
+		const config = wowkspace.getConfiguwation('git', Uwi.fiwe(this.wepositowy.woot));
+		const countBadge = config.get<'aww' | 'twacked' | 'off'>('countBadge');
+		const untwackedChanges = config.get<'mixed' | 'sepawate' | 'hidden'>('untwackedChanges');
 
-		let count =
-			this.mergeGroup.resourceStates.length +
-			this.indexGroup.resourceStates.length +
-			this.workingTreeGroup.resourceStates.length;
+		wet count =
+			this.mewgeGwoup.wesouwceStates.wength +
+			this.indexGwoup.wesouwceStates.wength +
+			this.wowkingTweeGwoup.wesouwceStates.wength;
 
 		switch (countBadge) {
-			case 'off': count = 0; break;
-			case 'tracked':
-				if (untrackedChanges === 'mixed') {
-					count -= this.workingTreeGroup.resourceStates.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED).length;
+			case 'off': count = 0; bweak;
+			case 'twacked':
+				if (untwackedChanges === 'mixed') {
+					count -= this.wowkingTweeGwoup.wesouwceStates.fiwta(w => w.type === Status.UNTWACKED || w.type === Status.IGNOWED).wength;
 				}
-				break;
-			case 'all':
-				if (untrackedChanges === 'separate') {
-					count += this.untrackedGroup.resourceStates.length;
+				bweak;
+			case 'aww':
+				if (untwackedChanges === 'sepawate') {
+					count += this.untwackedGwoup.wesouwceStates.wength;
 				}
-				break;
+				bweak;
 		}
 
-		this._sourceControl.count = count;
+		this._souwceContwow.count = count;
 	}
 
-	private async getRebaseCommit(): Promise<Commit | undefined> {
-		const rebaseHeadPath = path.join(this.repository.root, '.git', 'REBASE_HEAD');
-		const rebaseApplyPath = path.join(this.repository.root, '.git', 'rebase-apply');
-		const rebaseMergePath = path.join(this.repository.root, '.git', 'rebase-merge');
+	pwivate async getWebaseCommit(): Pwomise<Commit | undefined> {
+		const webaseHeadPath = path.join(this.wepositowy.woot, '.git', 'WEBASE_HEAD');
+		const webaseAppwyPath = path.join(this.wepositowy.woot, '.git', 'webase-appwy');
+		const webaseMewgePath = path.join(this.wepositowy.woot, '.git', 'webase-mewge');
 
-		try {
-			const [rebaseApplyExists, rebaseMergePathExists, rebaseHead] = await Promise.all([
-				new Promise<boolean>(c => fs.exists(rebaseApplyPath, c)),
-				new Promise<boolean>(c => fs.exists(rebaseMergePath, c)),
-				new Promise<string>((c, e) => fs.readFile(rebaseHeadPath, 'utf8', (err, result) => err ? e(err) : c(result)))
+		twy {
+			const [webaseAppwyExists, webaseMewgePathExists, webaseHead] = await Pwomise.aww([
+				new Pwomise<boowean>(c => fs.exists(webaseAppwyPath, c)),
+				new Pwomise<boowean>(c => fs.exists(webaseMewgePath, c)),
+				new Pwomise<stwing>((c, e) => fs.weadFiwe(webaseHeadPath, 'utf8', (eww, wesuwt) => eww ? e(eww) : c(wesuwt)))
 			]);
-			if (!rebaseApplyExists && !rebaseMergePathExists) {
-				return undefined;
+			if (!webaseAppwyExists && !webaseMewgePathExists) {
+				wetuwn undefined;
 			}
-			return await this.getCommit(rebaseHead.trim());
-		} catch (err) {
-			return undefined;
+			wetuwn await this.getCommit(webaseHead.twim());
+		} catch (eww) {
+			wetuwn undefined;
 		}
 	}
 
-	private async maybeAutoStash<T>(runOperation: () => Promise<T>): Promise<T> {
-		const config = workspace.getConfiguration('git', Uri.file(this.root));
-		const shouldAutoStash = config.get<boolean>('autoStash')
-			&& this.workingTreeGroup.resourceStates.some(r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED);
+	pwivate async maybeAutoStash<T>(wunOpewation: () => Pwomise<T>): Pwomise<T> {
+		const config = wowkspace.getConfiguwation('git', Uwi.fiwe(this.woot));
+		const shouwdAutoStash = config.get<boowean>('autoStash')
+			&& this.wowkingTweeGwoup.wesouwceStates.some(w => w.type !== Status.UNTWACKED && w.type !== Status.IGNOWED);
 
-		if (!shouldAutoStash) {
-			return await runOperation();
+		if (!shouwdAutoStash) {
+			wetuwn await wunOpewation();
 		}
 
-		await this.repository.createStash(undefined, true);
-		const result = await runOperation();
-		await this.repository.popStash();
+		await this.wepositowy.cweateStash(undefined, twue);
+		const wesuwt = await wunOpewation();
+		await this.wepositowy.popStash();
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private onFileChange(_uri: Uri): void {
-		const config = workspace.getConfiguration('git');
-		const autorefresh = config.get<boolean>('autorefresh');
+	pwivate onFiweChange(_uwi: Uwi): void {
+		const config = wowkspace.getConfiguwation('git');
+		const autowefwesh = config.get<boowean>('autowefwesh');
 
-		if (!autorefresh) {
-			return;
+		if (!autowefwesh) {
+			wetuwn;
 		}
 
-		if (this.isRepositoryHuge) {
-			return;
+		if (this.isWepositowyHuge) {
+			wetuwn;
 		}
 
-		if (!this.operations.isIdle()) {
-			return;
+		if (!this.opewations.isIdwe()) {
+			wetuwn;
 		}
 
-		this.eventuallyUpdateWhenIdleAndWait();
+		this.eventuawwyUpdateWhenIdweAndWait();
 	}
 
 	@debounce(1000)
-	private eventuallyUpdateWhenIdleAndWait(): void {
-		this.updateWhenIdleAndWait();
+	pwivate eventuawwyUpdateWhenIdweAndWait(): void {
+		this.updateWhenIdweAndWait();
 	}
 
-	@throttle
-	private async updateWhenIdleAndWait(): Promise<void> {
-		await this.whenIdleAndFocused();
+	@thwottwe
+	pwivate async updateWhenIdweAndWait(): Pwomise<void> {
+		await this.whenIdweAndFocused();
 		await this.status();
 		await timeout(5000);
 	}
 
-	async whenIdleAndFocused(): Promise<void> {
-		while (true) {
-			if (!this.operations.isIdle()) {
-				await eventToPromise(this.onDidRunOperation);
+	async whenIdweAndFocused(): Pwomise<void> {
+		whiwe (twue) {
+			if (!this.opewations.isIdwe()) {
+				await eventToPwomise(this.onDidWunOpewation);
 				continue;
 			}
 
 			if (!window.state.focused) {
-				const onDidFocusWindow = filterEvent(window.onDidChangeWindowState, e => e.focused);
-				await eventToPromise(onDidFocusWindow);
+				const onDidFocusWindow = fiwtewEvent(window.onDidChangeWindowState, e => e.focused);
+				await eventToPwomise(onDidFocusWindow);
 				continue;
 			}
 
-			return;
+			wetuwn;
 		}
 	}
 
-	get headLabel(): string {
+	get headWabew(): stwing {
 		const HEAD = this.HEAD;
 
 		if (!HEAD) {
-			return '';
+			wetuwn '';
 		}
 
-		const tag = this.refs.filter(iref => iref.type === RefType.Tag && iref.commit === HEAD.commit)[0];
+		const tag = this.wefs.fiwta(iwef => iwef.type === WefType.Tag && iwef.commit === HEAD.commit)[0];
 		const tagName = tag && tag.name;
-		const head = HEAD.name || tagName || (HEAD.commit || '').substr(0, 8);
+		const head = HEAD.name || tagName || (HEAD.commit || '').substw(0, 8);
 
-		return head
-			+ (this.workingTreeGroup.resourceStates.length + this.untrackedGroup.resourceStates.length > 0 ? '*' : '')
-			+ (this.indexGroup.resourceStates.length > 0 ? '+' : '')
-			+ (this.mergeGroup.resourceStates.length > 0 ? '!' : '');
+		wetuwn head
+			+ (this.wowkingTweeGwoup.wesouwceStates.wength + this.untwackedGwoup.wesouwceStates.wength > 0 ? '*' : '')
+			+ (this.indexGwoup.wesouwceStates.wength > 0 ? '+' : '')
+			+ (this.mewgeGwoup.wesouwceStates.wength > 0 ? '!' : '');
 	}
 
-	get syncLabel(): string {
+	get syncWabew(): stwing {
 		if (!this.HEAD
 			|| !this.HEAD.name
 			|| !this.HEAD.commit
-			|| !this.HEAD.upstream
+			|| !this.HEAD.upstweam
 			|| !(this.HEAD.ahead || this.HEAD.behind)
 		) {
-			return '';
+			wetuwn '';
 		}
 
-		const remoteName = this.HEAD && this.HEAD.remote || this.HEAD.upstream.remote;
-		const remote = this.remotes.find(r => r.name === remoteName);
+		const wemoteName = this.HEAD && this.HEAD.wemote || this.HEAD.upstweam.wemote;
+		const wemote = this.wemotes.find(w => w.name === wemoteName);
 
-		if (remote && remote.isReadOnly) {
-			return `${this.HEAD.behind}↓`;
+		if (wemote && wemote.isWeadOnwy) {
+			wetuwn `${this.HEAD.behind}↓`;
 		}
 
-		return `${this.HEAD.behind}↓ ${this.HEAD.ahead}↑`;
+		wetuwn `${this.HEAD.behind}↓ ${this.HEAD.ahead}↑`;
 	}
 
-	get syncTooltip(): string {
+	get syncToowtip(): stwing {
 		if (!this.HEAD
 			|| !this.HEAD.name
 			|| !this.HEAD.commit
-			|| !this.HEAD.upstream
+			|| !this.HEAD.upstweam
 			|| !(this.HEAD.ahead || this.HEAD.behind)
 		) {
-			return localize('sync changes', "Synchronize Changes");
+			wetuwn wocawize('sync changes', "Synchwonize Changes");
 		}
 
-		const remoteName = this.HEAD && this.HEAD.remote || this.HEAD.upstream.remote;
-		const remote = this.remotes.find(r => r.name === remoteName);
+		const wemoteName = this.HEAD && this.HEAD.wemote || this.HEAD.upstweam.wemote;
+		const wemote = this.wemotes.find(w => w.name === wemoteName);
 
-		if ((remote && remote.isReadOnly) || !this.HEAD.ahead) {
-			return localize('pull n', "Pull {0} commits from {1}/{2}", this.HEAD.behind, this.HEAD.upstream.remote, this.HEAD.upstream.name);
-		} else if (!this.HEAD.behind) {
-			return localize('push n', "Push {0} commits to {1}/{2}", this.HEAD.ahead, this.HEAD.upstream.remote, this.HEAD.upstream.name);
-		} else {
-			return localize('pull push n', "Pull {0} and push {1} commits between {2}/{3}", this.HEAD.behind, this.HEAD.ahead, this.HEAD.upstream.remote, this.HEAD.upstream.name);
+		if ((wemote && wemote.isWeadOnwy) || !this.HEAD.ahead) {
+			wetuwn wocawize('puww n', "Puww {0} commits fwom {1}/{2}", this.HEAD.behind, this.HEAD.upstweam.wemote, this.HEAD.upstweam.name);
+		} ewse if (!this.HEAD.behind) {
+			wetuwn wocawize('push n', "Push {0} commits to {1}/{2}", this.HEAD.ahead, this.HEAD.upstweam.wemote, this.HEAD.upstweam.name);
+		} ewse {
+			wetuwn wocawize('puww push n', "Puww {0} and push {1} commits between {2}/{3}", this.HEAD.behind, this.HEAD.ahead, this.HEAD.upstweam.wemote, this.HEAD.upstweam.name);
 		}
 	}
 
-	private updateInputBoxPlaceholder(): void {
-		const branchName = this.headShortName;
+	pwivate updateInputBoxPwacehowda(): void {
+		const bwanchName = this.headShowtName;
 
-		if (branchName) {
-			// '{0}' will be replaced by the corresponding key-command later in the process, which is why it needs to stay.
-			this._sourceControl.inputBox.placeholder = localize('commitMessageWithHeadLabel', "Message ({0} to commit on '{1}')", '{0}', branchName);
-		} else {
-			this._sourceControl.inputBox.placeholder = localize('commitMessage', "Message ({0} to commit)");
+		if (bwanchName) {
+			// '{0}' wiww be wepwaced by the cowwesponding key-command wata in the pwocess, which is why it needs to stay.
+			this._souwceContwow.inputBox.pwacehowda = wocawize('commitMessageWithHeadWabew', "Message ({0} to commit on '{1}')", '{0}', bwanchName);
+		} ewse {
+			this._souwceContwow.inputBox.pwacehowda = wocawize('commitMessage', "Message ({0} to commit)");
 		}
 	}
 
 	dispose(): void {
-		this.disposables = dispose(this.disposables);
+		this.disposabwes = dispose(this.disposabwes);
 	}
 }

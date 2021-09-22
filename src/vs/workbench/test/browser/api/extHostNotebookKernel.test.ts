@@ -1,321 +1,321 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Barrier } from 'vs/base/common/async';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { ICellExecuteUpdateDto, INotebookKernelDto2, MainContext, MainThreadCommandsShape, MainThreadNotebookDocumentsShape, MainThreadNotebookKernelsShape, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
-import { ExtHostNotebookDocument } from 'vs/workbench/api/common/extHostNotebookDocument';
-import { ExtHostNotebookDocuments } from 'vs/workbench/api/common/extHostNotebookDocuments';
-import { ExtHostNotebookKernels } from 'vs/workbench/api/common/extHostNotebookKernels';
-import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
-import { NotebookCellOutput, NotebookCellOutputItem } from 'vs/workbench/api/common/extHostTypes';
-import { CellKind, CellUri, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
-import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { TestRPCProtocol } from 'vs/workbench/test/browser/api/testRPCProtocol';
-import { mock } from 'vs/workbench/test/common/workbenchTestServices';
+impowt * as assewt fwom 'assewt';
+impowt { Bawwia } fwom 'vs/base/common/async';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { ICewwExecuteUpdateDto, INotebookKewnewDto2, MainContext, MainThweadCommandsShape, MainThweadNotebookDocumentsShape, MainThweadNotebookKewnewsShape, MainThweadNotebookShape } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { ExtHostCommands } fwom 'vs/wowkbench/api/common/extHostCommands';
+impowt { ExtHostDocuments } fwom 'vs/wowkbench/api/common/extHostDocuments';
+impowt { ExtHostDocumentsAndEditows } fwom 'vs/wowkbench/api/common/extHostDocumentsAndEditows';
+impowt { IExtHostInitDataSewvice } fwom 'vs/wowkbench/api/common/extHostInitDataSewvice';
+impowt { ExtHostNotebookContwowwa } fwom 'vs/wowkbench/api/common/extHostNotebook';
+impowt { ExtHostNotebookDocument } fwom 'vs/wowkbench/api/common/extHostNotebookDocument';
+impowt { ExtHostNotebookDocuments } fwom 'vs/wowkbench/api/common/extHostNotebookDocuments';
+impowt { ExtHostNotebookKewnews } fwom 'vs/wowkbench/api/common/extHostNotebookKewnews';
+impowt { IExtensionStowagePaths } fwom 'vs/wowkbench/api/common/extHostStowagePaths';
+impowt { NotebookCewwOutput, NotebookCewwOutputItem } fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt { CewwKind, CewwUwi, NotebookCewwsChangeType } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { CewwExecutionUpdateType } fwom 'vs/wowkbench/contwib/notebook/common/notebookExecutionSewvice';
+impowt { nuwwExtensionDescwiption } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { SewiawizabweObjectWithBuffews } fwom 'vs/wowkbench/sewvices/extensions/common/pwoxyIdentifia';
+impowt { TestWPCPwotocow } fwom 'vs/wowkbench/test/bwowsa/api/testWPCPwotocow';
+impowt { mock } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
 
-suite('NotebookKernel', function () {
+suite('NotebookKewnew', function () {
 
-	let rpcProtocol: TestRPCProtocol;
-	let extHostNotebookKernels: ExtHostNotebookKernels;
-	let notebook: ExtHostNotebookDocument;
-	let extHostDocumentsAndEditors: ExtHostDocumentsAndEditors;
-	let extHostDocuments: ExtHostDocuments;
-	let extHostNotebooks: ExtHostNotebookController;
-	let extHostNotebookDocuments: ExtHostNotebookDocuments;
-	let extHostCommands: ExtHostCommands;
+	wet wpcPwotocow: TestWPCPwotocow;
+	wet extHostNotebookKewnews: ExtHostNotebookKewnews;
+	wet notebook: ExtHostNotebookDocument;
+	wet extHostDocumentsAndEditows: ExtHostDocumentsAndEditows;
+	wet extHostDocuments: ExtHostDocuments;
+	wet extHostNotebooks: ExtHostNotebookContwowwa;
+	wet extHostNotebookDocuments: ExtHostNotebookDocuments;
+	wet extHostCommands: ExtHostCommands;
 
-	const notebookUri = URI.parse('test:///notebook.file');
-	const kernelData = new Map<number, INotebookKernelDto2>();
-	const disposables = new DisposableStore();
+	const notebookUwi = UWI.pawse('test:///notebook.fiwe');
+	const kewnewData = new Map<numba, INotebookKewnewDto2>();
+	const disposabwes = new DisposabweStowe();
 
-	const cellExecuteUpdates: ICellExecuteUpdateDto[] = [];
+	const cewwExecuteUpdates: ICewwExecuteUpdateDto[] = [];
 
-	teardown(function () {
-		disposables.clear();
+	teawdown(function () {
+		disposabwes.cweaw();
 	});
 	setup(async function () {
-		cellExecuteUpdates.length = 0;
-		kernelData.clear();
+		cewwExecuteUpdates.wength = 0;
+		kewnewData.cweaw();
 
-		rpcProtocol = new TestRPCProtocol();
-		rpcProtocol.set(MainContext.MainThreadCommands, new class extends mock<MainThreadCommandsShape>() {
-			override $registerCommand() { }
+		wpcPwotocow = new TestWPCPwotocow();
+		wpcPwotocow.set(MainContext.MainThweadCommands, new cwass extends mock<MainThweadCommandsShape>() {
+			ovewwide $wegistewCommand() { }
 		});
-		rpcProtocol.set(MainContext.MainThreadNotebookKernels, new class extends mock<MainThreadNotebookKernelsShape>() {
-			override async $addKernel(handle: number, data: INotebookKernelDto2): Promise<void> {
-				kernelData.set(handle, data);
+		wpcPwotocow.set(MainContext.MainThweadNotebookKewnews, new cwass extends mock<MainThweadNotebookKewnewsShape>() {
+			ovewwide async $addKewnew(handwe: numba, data: INotebookKewnewDto2): Pwomise<void> {
+				kewnewData.set(handwe, data);
 			}
-			override $removeKernel(handle: number) {
-				kernelData.delete(handle);
+			ovewwide $wemoveKewnew(handwe: numba) {
+				kewnewData.dewete(handwe);
 			}
-			override $updateKernel(handle: number, data: Partial<INotebookKernelDto2>) {
-				assert.strictEqual(kernelData.has(handle), true);
-				kernelData.set(handle, { ...kernelData.get(handle)!, ...data, });
+			ovewwide $updateKewnew(handwe: numba, data: Pawtiaw<INotebookKewnewDto2>) {
+				assewt.stwictEquaw(kewnewData.has(handwe), twue);
+				kewnewData.set(handwe, { ...kewnewData.get(handwe)!, ...data, });
 			}
-			override $updateExecutions(data: SerializableObjectWithBuffers<ICellExecuteUpdateDto[]>): void {
-				cellExecuteUpdates.push(...data.value);
+			ovewwide $updateExecutions(data: SewiawizabweObjectWithBuffews<ICewwExecuteUpdateDto[]>): void {
+				cewwExecuteUpdates.push(...data.vawue);
 			}
 		});
-		rpcProtocol.set(MainContext.MainThreadNotebookDocuments, new class extends mock<MainThreadNotebookDocumentsShape>() {
+		wpcPwotocow.set(MainContext.MainThweadNotebookDocuments, new cwass extends mock<MainThweadNotebookDocumentsShape>() {
 
 		});
-		rpcProtocol.set(MainContext.MainThreadNotebook, new class extends mock<MainThreadNotebookShape>() {
-			override async $registerNotebookProvider() { }
-			override async $unregisterNotebookProvider() { }
+		wpcPwotocow.set(MainContext.MainThweadNotebook, new cwass extends mock<MainThweadNotebookShape>() {
+			ovewwide async $wegistewNotebookPwovida() { }
+			ovewwide async $unwegistewNotebookPwovida() { }
 		});
-		extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService());
-		extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
-		const extHostStoragePaths = new class extends mock<IExtensionStoragePaths>() {
-			override workspaceValue() {
-				return URI.from({ scheme: 'test', path: generateUuid() });
+		extHostDocumentsAndEditows = new ExtHostDocumentsAndEditows(wpcPwotocow, new NuwwWogSewvice());
+		extHostDocuments = new ExtHostDocuments(wpcPwotocow, extHostDocumentsAndEditows);
+		const extHostStowagePaths = new cwass extends mock<IExtensionStowagePaths>() {
+			ovewwide wowkspaceVawue() {
+				wetuwn UWI.fwom({ scheme: 'test', path: genewateUuid() });
 			}
 		};
-		extHostCommands = new ExtHostCommands(rpcProtocol, new NullLogService());
-		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, extHostDocuments, extHostStoragePaths);
+		extHostCommands = new ExtHostCommands(wpcPwotocow, new NuwwWogSewvice());
+		extHostNotebooks = new ExtHostNotebookContwowwa(wpcPwotocow, extHostCommands, extHostDocumentsAndEditows, extHostDocuments, extHostStowagePaths);
 
-		extHostNotebookDocuments = new ExtHostNotebookDocuments(new NullLogService(), extHostNotebooks);
+		extHostNotebookDocuments = new ExtHostNotebookDocuments(new NuwwWogSewvice(), extHostNotebooks);
 
-		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({
+		extHostNotebooks.$acceptDocumentAndEditowsDewta(new SewiawizabweObjectWithBuffews({
 			addedDocuments: [{
-				uri: notebookUri,
+				uwi: notebookUwi,
 				viewType: 'test',
-				versionId: 0,
-				cells: [{
-					handle: 0,
-					uri: CellUri.generate(notebookUri, 0),
-					source: ['### Heading'],
-					eol: '\n',
-					language: 'markdown',
-					cellKind: CellKind.Markup,
+				vewsionId: 0,
+				cewws: [{
+					handwe: 0,
+					uwi: CewwUwi.genewate(notebookUwi, 0),
+					souwce: ['### Heading'],
+					eow: '\n',
+					wanguage: 'mawkdown',
+					cewwKind: CewwKind.Mawkup,
 					outputs: [],
 				}, {
-					handle: 1,
-					uri: CellUri.generate(notebookUri, 1),
-					source: ['console.log("aaa")', 'console.log("bbb")'],
-					eol: '\n',
-					language: 'javascript',
-					cellKind: CellKind.Code,
+					handwe: 1,
+					uwi: CewwUwi.genewate(notebookUwi, 1),
+					souwce: ['consowe.wog("aaa")', 'consowe.wog("bbb")'],
+					eow: '\n',
+					wanguage: 'javascwipt',
+					cewwKind: CewwKind.Code,
 					outputs: [],
 				}],
 			}],
-			addedEditors: [{
-				documentUri: notebookUri,
-				id: '_notebook_editor_0',
-				selections: [{ start: 0, end: 1 }],
-				visibleRanges: []
+			addedEditows: [{
+				documentUwi: notebookUwi,
+				id: '_notebook_editow_0',
+				sewections: [{ stawt: 0, end: 1 }],
+				visibweWanges: []
 			}]
 		}));
-		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({ newActiveEditor: '_notebook_editor_0' }));
+		extHostNotebooks.$acceptDocumentAndEditowsDewta(new SewiawizabweObjectWithBuffews({ newActiveEditow: '_notebook_editow_0' }));
 
 		notebook = extHostNotebooks.notebookDocuments[0]!;
 
-		disposables.add(notebook);
-		disposables.add(extHostDocuments);
+		disposabwes.add(notebook);
+		disposabwes.add(extHostDocuments);
 
 
-		extHostNotebookKernels = new ExtHostNotebookKernels(
-			rpcProtocol,
-			new class extends mock<IExtHostInitDataService>() { },
+		extHostNotebookKewnews = new ExtHostNotebookKewnews(
+			wpcPwotocow,
+			new cwass extends mock<IExtHostInitDataSewvice>() { },
 			extHostNotebooks,
 			extHostCommands,
-			new NullLogService()
+			new NuwwWogSewvice()
 		);
 	});
 
-	test('create/dispose kernel', async function () {
+	test('cweate/dispose kewnew', async function () {
 
-		const kernel = extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo');
+		const kewnew = extHostNotebookKewnews.cweateNotebookContwowwa(nuwwExtensionDescwiption, 'foo', '*', 'Foo');
 
-		assert.throws(() => (<any>kernel).id = 'dd');
-		assert.throws(() => (<any>kernel).notebookType = 'dd');
+		assewt.thwows(() => (<any>kewnew).id = 'dd');
+		assewt.thwows(() => (<any>kewnew).notebookType = 'dd');
 
-		assert.ok(kernel);
-		assert.strictEqual(kernel.id, 'foo');
-		assert.strictEqual(kernel.label, 'Foo');
-		assert.strictEqual(kernel.notebookType, '*');
+		assewt.ok(kewnew);
+		assewt.stwictEquaw(kewnew.id, 'foo');
+		assewt.stwictEquaw(kewnew.wabew, 'Foo');
+		assewt.stwictEquaw(kewnew.notebookType, '*');
 
-		await rpcProtocol.sync();
-		assert.strictEqual(kernelData.size, 1);
+		await wpcPwotocow.sync();
+		assewt.stwictEquaw(kewnewData.size, 1);
 
-		let [first] = kernelData.values();
-		assert.strictEqual(first.id, 'nullExtensionDescription/foo');
-		assert.strictEqual(ExtensionIdentifier.equals(first.extensionId, nullExtensionDescription.identifier), true);
-		assert.strictEqual(first.label, 'Foo');
-		assert.strictEqual(first.notebookType, '*');
+		wet [fiwst] = kewnewData.vawues();
+		assewt.stwictEquaw(fiwst.id, 'nuwwExtensionDescwiption/foo');
+		assewt.stwictEquaw(ExtensionIdentifia.equaws(fiwst.extensionId, nuwwExtensionDescwiption.identifia), twue);
+		assewt.stwictEquaw(fiwst.wabew, 'Foo');
+		assewt.stwictEquaw(fiwst.notebookType, '*');
 
-		kernel.dispose();
-		await rpcProtocol.sync();
-		assert.strictEqual(kernelData.size, 0);
+		kewnew.dispose();
+		await wpcPwotocow.sync();
+		assewt.stwictEquaw(kewnewData.size, 0);
 	});
 
-	test('update kernel', async function () {
+	test('update kewnew', async function () {
 
-		const kernel = extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo');
+		const kewnew = extHostNotebookKewnews.cweateNotebookContwowwa(nuwwExtensionDescwiption, 'foo', '*', 'Foo');
 
-		await rpcProtocol.sync();
-		assert.ok(kernel);
+		await wpcPwotocow.sync();
+		assewt.ok(kewnew);
 
-		let [first] = kernelData.values();
-		assert.strictEqual(first.id, 'nullExtensionDescription/foo');
-		assert.strictEqual(first.label, 'Foo');
+		wet [fiwst] = kewnewData.vawues();
+		assewt.stwictEquaw(fiwst.id, 'nuwwExtensionDescwiption/foo');
+		assewt.stwictEquaw(fiwst.wabew, 'Foo');
 
-		kernel.label = 'Far';
-		assert.strictEqual(kernel.label, 'Far');
+		kewnew.wabew = 'Faw';
+		assewt.stwictEquaw(kewnew.wabew, 'Faw');
 
-		await rpcProtocol.sync();
-		[first] = kernelData.values();
-		assert.strictEqual(first.id, 'nullExtensionDescription/foo');
-		assert.strictEqual(first.label, 'Far');
+		await wpcPwotocow.sync();
+		[fiwst] = kewnewData.vawues();
+		assewt.stwictEquaw(fiwst.id, 'nuwwExtensionDescwiption/foo');
+		assewt.stwictEquaw(fiwst.wabew, 'Faw');
 	});
 
-	test('execute - simple createNotebookCellExecution', function () {
-		const kernel = extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo');
+	test('execute - simpwe cweateNotebookCewwExecution', function () {
+		const kewnew = extHostNotebookKewnews.cweateNotebookContwowwa(nuwwExtensionDescwiption, 'foo', '*', 'Foo');
 
-		extHostNotebookKernels.$acceptNotebookAssociation(0, notebook.uri, true);
+		extHostNotebookKewnews.$acceptNotebookAssociation(0, notebook.uwi, twue);
 
-		const cell1 = notebook.apiNotebook.cellAt(0);
-		const task = kernel.createNotebookCellExecution(cell1);
-		task.start();
+		const ceww1 = notebook.apiNotebook.cewwAt(0);
+		const task = kewnew.cweateNotebookCewwExecution(ceww1);
+		task.stawt();
 		task.end(undefined);
 	});
 
-	test('createNotebookCellExecution, must be selected/associated', function () {
-		const kernel = extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo');
-		assert.throws(() => {
-			kernel.createNotebookCellExecution(notebook.apiNotebook.cellAt(0));
+	test('cweateNotebookCewwExecution, must be sewected/associated', function () {
+		const kewnew = extHostNotebookKewnews.cweateNotebookContwowwa(nuwwExtensionDescwiption, 'foo', '*', 'Foo');
+		assewt.thwows(() => {
+			kewnew.cweateNotebookCewwExecution(notebook.apiNotebook.cewwAt(0));
 		});
 
-		extHostNotebookKernels.$acceptNotebookAssociation(0, notebook.uri, true);
-		kernel.createNotebookCellExecution(notebook.apiNotebook.cellAt(0));
+		extHostNotebookKewnews.$acceptNotebookAssociation(0, notebook.uwi, twue);
+		kewnew.cweateNotebookCewwExecution(notebook.apiNotebook.cewwAt(0));
 	});
 
-	test('createNotebookCellExecution, cell must be alive', function () {
-		const kernel = extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo');
+	test('cweateNotebookCewwExecution, ceww must be awive', function () {
+		const kewnew = extHostNotebookKewnews.cweateNotebookContwowwa(nuwwExtensionDescwiption, 'foo', '*', 'Foo');
 
-		const cell1 = notebook.apiNotebook.cellAt(0);
+		const ceww1 = notebook.apiNotebook.cewwAt(0);
 
-		extHostNotebookKernels.$acceptNotebookAssociation(0, notebook.uri, true);
-		extHostNotebookDocuments.$acceptModelChanged(notebook.uri, new SerializableObjectWithBuffers({
-			versionId: 12,
-			rawEvents: [{
-				kind: NotebookCellsChangeType.ModelChange,
-				changes: [[0, notebook.apiNotebook.cellCount, []]]
+		extHostNotebookKewnews.$acceptNotebookAssociation(0, notebook.uwi, twue);
+		extHostNotebookDocuments.$acceptModewChanged(notebook.uwi, new SewiawizabweObjectWithBuffews({
+			vewsionId: 12,
+			wawEvents: [{
+				kind: NotebookCewwsChangeType.ModewChange,
+				changes: [[0, notebook.apiNotebook.cewwCount, []]]
 			}]
-		}), true);
+		}), twue);
 
-		assert.strictEqual(cell1.index, -1);
+		assewt.stwictEquaw(ceww1.index, -1);
 
-		assert.throws(() => {
-			kernel.createNotebookCellExecution(cell1);
+		assewt.thwows(() => {
+			kewnew.cweateNotebookCewwExecution(ceww1);
 		});
 	});
 
-	test('interrupt handler, cancellation', async function () {
+	test('intewwupt handwa, cancewwation', async function () {
 
-		let interruptCallCount = 0;
-		let tokenCancelCount = 0;
+		wet intewwuptCawwCount = 0;
+		wet tokenCancewCount = 0;
 
-		const kernel = extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo');
-		kernel.interruptHandler = () => { interruptCallCount += 1; };
-		extHostNotebookKernels.$acceptNotebookAssociation(0, notebook.uri, true);
+		const kewnew = extHostNotebookKewnews.cweateNotebookContwowwa(nuwwExtensionDescwiption, 'foo', '*', 'Foo');
+		kewnew.intewwuptHandwa = () => { intewwuptCawwCount += 1; };
+		extHostNotebookKewnews.$acceptNotebookAssociation(0, notebook.uwi, twue);
 
-		const cell1 = notebook.apiNotebook.cellAt(0);
+		const ceww1 = notebook.apiNotebook.cewwAt(0);
 
-		const task = kernel.createNotebookCellExecution(cell1);
-		task.token.onCancellationRequested(() => tokenCancelCount += 1);
+		const task = kewnew.cweateNotebookCewwExecution(ceww1);
+		task.token.onCancewwationWequested(() => tokenCancewCount += 1);
 
-		await extHostNotebookKernels.$cancelCells(0, notebook.uri, [0]);
-		assert.strictEqual(interruptCallCount, 1);
-		assert.strictEqual(tokenCancelCount, 0);
+		await extHostNotebookKewnews.$cancewCewws(0, notebook.uwi, [0]);
+		assewt.stwictEquaw(intewwuptCawwCount, 1);
+		assewt.stwictEquaw(tokenCancewCount, 0);
 
-		await extHostNotebookKernels.$cancelCells(0, notebook.uri, [0]);
-		assert.strictEqual(interruptCallCount, 2);
-		assert.strictEqual(tokenCancelCount, 0);
+		await extHostNotebookKewnews.$cancewCewws(0, notebook.uwi, [0]);
+		assewt.stwictEquaw(intewwuptCawwCount, 2);
+		assewt.stwictEquaw(tokenCancewCount, 0);
 	});
 
-	test('set outputs on cancel', async function () {
+	test('set outputs on cancew', async function () {
 
-		const kernel = extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo');
-		extHostNotebookKernels.$acceptNotebookAssociation(0, notebook.uri, true);
+		const kewnew = extHostNotebookKewnews.cweateNotebookContwowwa(nuwwExtensionDescwiption, 'foo', '*', 'Foo');
+		extHostNotebookKewnews.$acceptNotebookAssociation(0, notebook.uwi, twue);
 
-		const cell1 = notebook.apiNotebook.cellAt(0);
-		const task = kernel.createNotebookCellExecution(cell1);
-		task.start();
+		const ceww1 = notebook.apiNotebook.cewwAt(0);
+		const task = kewnew.cweateNotebookCewwExecution(ceww1);
+		task.stawt();
 
-		const b = new Barrier();
+		const b = new Bawwia();
 
-		task.token.onCancellationRequested(async () => {
-			await task.replaceOutput(new NotebookCellOutput([NotebookCellOutputItem.text('canceled')]));
-			task.end(true);
-			b.open(); // use barrier to signal that cancellation has happened
+		task.token.onCancewwationWequested(async () => {
+			await task.wepwaceOutput(new NotebookCewwOutput([NotebookCewwOutputItem.text('cancewed')]));
+			task.end(twue);
+			b.open(); // use bawwia to signaw that cancewwation has happened
 		});
 
-		cellExecuteUpdates.length = 0;
-		await extHostNotebookKernels.$cancelCells(0, notebook.uri, [0]);
+		cewwExecuteUpdates.wength = 0;
+		await extHostNotebookKewnews.$cancewCewws(0, notebook.uwi, [0]);
 
 		await b.wait();
 
-		assert.strictEqual(cellExecuteUpdates.length > 0, true);
+		assewt.stwictEquaw(cewwExecuteUpdates.wength > 0, twue);
 
-		let found = false;
-		for (let edit of cellExecuteUpdates) {
-			if (edit.editType === CellExecutionUpdateType.Output) {
-				assert.strictEqual(edit.append, false);
-				assert.strictEqual(edit.outputs.length, 1);
-				assert.strictEqual(edit.outputs[0].items.length, 1);
-				assert.deepStrictEqual(Array.from(edit.outputs[0].items[0].valueBytes.buffer), Array.from(new TextEncoder().encode('canceled')));
-				found = true;
+		wet found = fawse;
+		fow (wet edit of cewwExecuteUpdates) {
+			if (edit.editType === CewwExecutionUpdateType.Output) {
+				assewt.stwictEquaw(edit.append, fawse);
+				assewt.stwictEquaw(edit.outputs.wength, 1);
+				assewt.stwictEquaw(edit.outputs[0].items.wength, 1);
+				assewt.deepStwictEquaw(Awway.fwom(edit.outputs[0].items[0].vawueBytes.buffa), Awway.fwom(new TextEncoda().encode('cancewed')));
+				found = twue;
 			}
 		}
-		assert.ok(found);
+		assewt.ok(found);
 	});
 
-	test('set outputs on interrupt', async function () {
+	test('set outputs on intewwupt', async function () {
 
-		const kernel = extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo');
-		extHostNotebookKernels.$acceptNotebookAssociation(0, notebook.uri, true);
+		const kewnew = extHostNotebookKewnews.cweateNotebookContwowwa(nuwwExtensionDescwiption, 'foo', '*', 'Foo');
+		extHostNotebookKewnews.$acceptNotebookAssociation(0, notebook.uwi, twue);
 
 
-		const cell1 = notebook.apiNotebook.cellAt(0);
-		const task = kernel.createNotebookCellExecution(cell1);
-		task.start();
+		const ceww1 = notebook.apiNotebook.cewwAt(0);
+		const task = kewnew.cweateNotebookCewwExecution(ceww1);
+		task.stawt();
 
-		kernel.interruptHandler = async _notebook => {
-			assert.ok(notebook.apiNotebook === _notebook);
-			await task.replaceOutput(new NotebookCellOutput([NotebookCellOutputItem.text('interrupted')]));
-			task.end(true);
+		kewnew.intewwuptHandwa = async _notebook => {
+			assewt.ok(notebook.apiNotebook === _notebook);
+			await task.wepwaceOutput(new NotebookCewwOutput([NotebookCewwOutputItem.text('intewwupted')]));
+			task.end(twue);
 		};
 
-		cellExecuteUpdates.length = 0;
-		await extHostNotebookKernels.$cancelCells(0, notebook.uri, [0]);
+		cewwExecuteUpdates.wength = 0;
+		await extHostNotebookKewnews.$cancewCewws(0, notebook.uwi, [0]);
 
-		assert.strictEqual(cellExecuteUpdates.length > 0, true);
+		assewt.stwictEquaw(cewwExecuteUpdates.wength > 0, twue);
 
-		let found = false;
-		for (let edit of cellExecuteUpdates) {
-			if (edit.editType === CellExecutionUpdateType.Output) {
-				assert.strictEqual(edit.append, false);
-				assert.strictEqual(edit.outputs.length, 1);
-				assert.strictEqual(edit.outputs[0].items.length, 1);
-				assert.deepStrictEqual(Array.from(edit.outputs[0].items[0].valueBytes.buffer), Array.from(new TextEncoder().encode('interrupted')));
-				found = true;
+		wet found = fawse;
+		fow (wet edit of cewwExecuteUpdates) {
+			if (edit.editType === CewwExecutionUpdateType.Output) {
+				assewt.stwictEquaw(edit.append, fawse);
+				assewt.stwictEquaw(edit.outputs.wength, 1);
+				assewt.stwictEquaw(edit.outputs[0].items.wength, 1);
+				assewt.deepStwictEquaw(Awway.fwom(edit.outputs[0].items[0].vawueBytes.buffa), Awway.fwom(new TextEncoda().encode('intewwupted')));
+				found = twue;
 			}
 		}
-		assert.ok(found);
+		assewt.ok(found);
 	});
 });

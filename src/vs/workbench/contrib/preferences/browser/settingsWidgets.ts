@@ -1,220 +1,220 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
-import * as DOM from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
-import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
-import { IAction } from 'vs/base/common/actions';
-import { disposableTimeout } from 'vs/base/common/async';
-import { Codicon } from 'vs/base/common/codicons';
-import { Color, RGBA } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isIOS } from 'vs/base/common/platform';
-import { isDefined, isUndefinedOrNull } from 'vs/base/common/types';
-import 'vs/css!./media/settingsWidgets';
-import { localize } from 'vs/nls';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { editorWidgetBorder, focusBorder, foreground, inputBackground, inputBorder, inputForeground, listActiveSelectionBackground, listActiveSelectionForeground, listDropBackground, listFocusBackground, listHoverBackground, listHoverForeground, listInactiveSelectionBackground, listInactiveSelectionForeground, registerColor, selectBackground, selectBorder, selectForeground, simpleCheckboxBackground, simpleCheckboxBorder, simpleCheckboxForeground, textLinkActiveForeground, textLinkForeground, textPreformatForeground, transparent } from 'vs/platform/theme/common/colorRegistry';
-import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
-import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { settingsDiscardIcon, settingsEditIcon, settingsRemoveIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
+impowt { BwowsewFeatuwes } fwom 'vs/base/bwowsa/canIUse';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { ActionBaw } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { Button } fwom 'vs/base/bwowsa/ui/button/button';
+impowt { Checkbox } fwom 'vs/base/bwowsa/ui/checkbox/checkbox';
+impowt { InputBox } fwom 'vs/base/bwowsa/ui/inputbox/inputBox';
+impowt { SewectBox } fwom 'vs/base/bwowsa/ui/sewectBox/sewectBox';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { disposabweTimeout } fwom 'vs/base/common/async';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { Cowow, WGBA } fwom 'vs/base/common/cowow';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { isIOS } fwom 'vs/base/common/pwatfowm';
+impowt { isDefined, isUndefinedOwNuww } fwom 'vs/base/common/types';
+impowt 'vs/css!./media/settingsWidgets';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { editowWidgetBowda, focusBowda, fowegwound, inputBackgwound, inputBowda, inputFowegwound, wistActiveSewectionBackgwound, wistActiveSewectionFowegwound, wistDwopBackgwound, wistFocusBackgwound, wistHovewBackgwound, wistHovewFowegwound, wistInactiveSewectionBackgwound, wistInactiveSewectionFowegwound, wegistewCowow, sewectBackgwound, sewectBowda, sewectFowegwound, simpweCheckboxBackgwound, simpweCheckboxBowda, simpweCheckboxFowegwound, textWinkActiveFowegwound, textWinkFowegwound, textPwefowmatFowegwound, twanspawent } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { attachButtonStywa, attachInputBoxStywa, attachSewectBoxStywa } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { ICowowTheme, ICssStyweCowwectow, IThemeSewvice, wegistewThemingPawticipant, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { settingsDiscawdIcon, settingsEditIcon, settingsWemoveIcon } fwom 'vs/wowkbench/contwib/pwefewences/bwowsa/pwefewencesIcons';
 
 const $ = DOM.$;
-export const settingsHeaderForeground = registerColor('settings.headerForeground', { light: '#444444', dark: '#e7e7e7', hc: '#ffffff' }, localize('headerForeground', "The foreground color for a section header or active title."));
-export const modifiedItemIndicator = registerColor('settings.modifiedItemIndicator', {
-	light: new Color(new RGBA(102, 175, 224)),
-	dark: new Color(new RGBA(12, 125, 157)),
-	hc: new Color(new RGBA(0, 73, 122))
-}, localize('modifiedItemForeground', "The color of the modified setting indicator."));
+expowt const settingsHeadewFowegwound = wegistewCowow('settings.headewFowegwound', { wight: '#444444', dawk: '#e7e7e7', hc: '#ffffff' }, wocawize('headewFowegwound', "The fowegwound cowow fow a section heada ow active titwe."));
+expowt const modifiedItemIndicatow = wegistewCowow('settings.modifiedItemIndicatow', {
+	wight: new Cowow(new WGBA(102, 175, 224)),
+	dawk: new Cowow(new WGBA(12, 125, 157)),
+	hc: new Cowow(new WGBA(0, 73, 122))
+}, wocawize('modifiedItemFowegwound', "The cowow of the modified setting indicatow."));
 
-// Enum control colors
-export const settingsSelectBackground = registerColor(`settings.dropdownBackground`, { dark: selectBackground, light: selectBackground, hc: selectBackground }, localize('settingsDropdownBackground', "Settings editor dropdown background."));
-export const settingsSelectForeground = registerColor('settings.dropdownForeground', { dark: selectForeground, light: selectForeground, hc: selectForeground }, localize('settingsDropdownForeground', "Settings editor dropdown foreground."));
-export const settingsSelectBorder = registerColor('settings.dropdownBorder', { dark: selectBorder, light: selectBorder, hc: selectBorder }, localize('settingsDropdownBorder', "Settings editor dropdown border."));
-export const settingsSelectListBorder = registerColor('settings.dropdownListBorder', { dark: editorWidgetBorder, light: editorWidgetBorder, hc: editorWidgetBorder }, localize('settingsDropdownListBorder', "Settings editor dropdown list border. This surrounds the options and separates the options from the description."));
+// Enum contwow cowows
+expowt const settingsSewectBackgwound = wegistewCowow(`settings.dwopdownBackgwound`, { dawk: sewectBackgwound, wight: sewectBackgwound, hc: sewectBackgwound }, wocawize('settingsDwopdownBackgwound', "Settings editow dwopdown backgwound."));
+expowt const settingsSewectFowegwound = wegistewCowow('settings.dwopdownFowegwound', { dawk: sewectFowegwound, wight: sewectFowegwound, hc: sewectFowegwound }, wocawize('settingsDwopdownFowegwound', "Settings editow dwopdown fowegwound."));
+expowt const settingsSewectBowda = wegistewCowow('settings.dwopdownBowda', { dawk: sewectBowda, wight: sewectBowda, hc: sewectBowda }, wocawize('settingsDwopdownBowda', "Settings editow dwopdown bowda."));
+expowt const settingsSewectWistBowda = wegistewCowow('settings.dwopdownWistBowda', { dawk: editowWidgetBowda, wight: editowWidgetBowda, hc: editowWidgetBowda }, wocawize('settingsDwopdownWistBowda', "Settings editow dwopdown wist bowda. This suwwounds the options and sepawates the options fwom the descwiption."));
 
-// Bool control colors
-export const settingsCheckboxBackground = registerColor('settings.checkboxBackground', { dark: simpleCheckboxBackground, light: simpleCheckboxBackground, hc: simpleCheckboxBackground }, localize('settingsCheckboxBackground', "Settings editor checkbox background."));
-export const settingsCheckboxForeground = registerColor('settings.checkboxForeground', { dark: simpleCheckboxForeground, light: simpleCheckboxForeground, hc: simpleCheckboxForeground }, localize('settingsCheckboxForeground', "Settings editor checkbox foreground."));
-export const settingsCheckboxBorder = registerColor('settings.checkboxBorder', { dark: simpleCheckboxBorder, light: simpleCheckboxBorder, hc: simpleCheckboxBorder }, localize('settingsCheckboxBorder', "Settings editor checkbox border."));
+// Boow contwow cowows
+expowt const settingsCheckboxBackgwound = wegistewCowow('settings.checkboxBackgwound', { dawk: simpweCheckboxBackgwound, wight: simpweCheckboxBackgwound, hc: simpweCheckboxBackgwound }, wocawize('settingsCheckboxBackgwound', "Settings editow checkbox backgwound."));
+expowt const settingsCheckboxFowegwound = wegistewCowow('settings.checkboxFowegwound', { dawk: simpweCheckboxFowegwound, wight: simpweCheckboxFowegwound, hc: simpweCheckboxFowegwound }, wocawize('settingsCheckboxFowegwound', "Settings editow checkbox fowegwound."));
+expowt const settingsCheckboxBowda = wegistewCowow('settings.checkboxBowda', { dawk: simpweCheckboxBowda, wight: simpweCheckboxBowda, hc: simpweCheckboxBowda }, wocawize('settingsCheckboxBowda', "Settings editow checkbox bowda."));
 
-// Text control colors
-export const settingsTextInputBackground = registerColor('settings.textInputBackground', { dark: inputBackground, light: inputBackground, hc: inputBackground }, localize('textInputBoxBackground', "Settings editor text input box background."));
-export const settingsTextInputForeground = registerColor('settings.textInputForeground', { dark: inputForeground, light: inputForeground, hc: inputForeground }, localize('textInputBoxForeground', "Settings editor text input box foreground."));
-export const settingsTextInputBorder = registerColor('settings.textInputBorder', { dark: inputBorder, light: inputBorder, hc: inputBorder }, localize('textInputBoxBorder', "Settings editor text input box border."));
+// Text contwow cowows
+expowt const settingsTextInputBackgwound = wegistewCowow('settings.textInputBackgwound', { dawk: inputBackgwound, wight: inputBackgwound, hc: inputBackgwound }, wocawize('textInputBoxBackgwound', "Settings editow text input box backgwound."));
+expowt const settingsTextInputFowegwound = wegistewCowow('settings.textInputFowegwound', { dawk: inputFowegwound, wight: inputFowegwound, hc: inputFowegwound }, wocawize('textInputBoxFowegwound', "Settings editow text input box fowegwound."));
+expowt const settingsTextInputBowda = wegistewCowow('settings.textInputBowda', { dawk: inputBowda, wight: inputBowda, hc: inputBowda }, wocawize('textInputBoxBowda', "Settings editow text input box bowda."));
 
-// Number control colors
-export const settingsNumberInputBackground = registerColor('settings.numberInputBackground', { dark: inputBackground, light: inputBackground, hc: inputBackground }, localize('numberInputBoxBackground', "Settings editor number input box background."));
-export const settingsNumberInputForeground = registerColor('settings.numberInputForeground', { dark: inputForeground, light: inputForeground, hc: inputForeground }, localize('numberInputBoxForeground', "Settings editor number input box foreground."));
-export const settingsNumberInputBorder = registerColor('settings.numberInputBorder', { dark: inputBorder, light: inputBorder, hc: inputBorder }, localize('numberInputBoxBorder', "Settings editor number input box border."));
+// Numba contwow cowows
+expowt const settingsNumbewInputBackgwound = wegistewCowow('settings.numbewInputBackgwound', { dawk: inputBackgwound, wight: inputBackgwound, hc: inputBackgwound }, wocawize('numbewInputBoxBackgwound', "Settings editow numba input box backgwound."));
+expowt const settingsNumbewInputFowegwound = wegistewCowow('settings.numbewInputFowegwound', { dawk: inputFowegwound, wight: inputFowegwound, hc: inputFowegwound }, wocawize('numbewInputBoxFowegwound', "Settings editow numba input box fowegwound."));
+expowt const settingsNumbewInputBowda = wegistewCowow('settings.numbewInputBowda', { dawk: inputBowda, wight: inputBowda, hc: inputBowda }, wocawize('numbewInputBoxBowda', "Settings editow numba input box bowda."));
 
-export const focusedRowBackground = registerColor('settings.focusedRowBackground', {
-	dark: Color.fromHex('#808080').transparent(0.14),
-	light: transparent(listFocusBackground, .4),
-	hc: null
-}, localize('focusedRowBackground', "The background color of a settings row when focused."));
+expowt const focusedWowBackgwound = wegistewCowow('settings.focusedWowBackgwound', {
+	dawk: Cowow.fwomHex('#808080').twanspawent(0.14),
+	wight: twanspawent(wistFocusBackgwound, .4),
+	hc: nuww
+}, wocawize('focusedWowBackgwound', "The backgwound cowow of a settings wow when focused."));
 
-export const rowHoverBackground = registerColor('settings.rowHoverBackground', {
-	dark: transparent(focusedRowBackground, .5),
-	light: transparent(focusedRowBackground, .7),
-	hc: null
-}, localize('settings.rowHoverBackground', "The background color of a settings row when hovered."));
+expowt const wowHovewBackgwound = wegistewCowow('settings.wowHovewBackgwound', {
+	dawk: twanspawent(focusedWowBackgwound, .5),
+	wight: twanspawent(focusedWowBackgwound, .7),
+	hc: nuww
+}, wocawize('settings.wowHovewBackgwound', "The backgwound cowow of a settings wow when hovewed."));
 
-export const focusedRowBorder = registerColor('settings.focusedRowBorder', {
-	dark: Color.white.transparent(0.12),
-	light: Color.black.transparent(0.12),
-	hc: focusBorder
-}, localize('settings.focusedRowBorder', "The color of the row's top and bottom border when the row is focused."));
+expowt const focusedWowBowda = wegistewCowow('settings.focusedWowBowda', {
+	dawk: Cowow.white.twanspawent(0.12),
+	wight: Cowow.bwack.twanspawent(0.12),
+	hc: focusBowda
+}, wocawize('settings.focusedWowBowda', "The cowow of the wow's top and bottom bowda when the wow is focused."));
 
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	const checkboxBackgroundColor = theme.getColor(settingsCheckboxBackground);
-	if (checkboxBackgroundColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox { background-color: ${checkboxBackgroundColor} !important; }`);
+wegistewThemingPawticipant((theme: ICowowTheme, cowwectow: ICssStyweCowwectow) => {
+	const checkboxBackgwoundCowow = theme.getCowow(settingsCheckboxBackgwound);
+	if (checkboxBackgwoundCowow) {
+		cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .setting-item-boow .setting-vawue-checkbox { backgwound-cowow: ${checkboxBackgwoundCowow} !impowtant; }`);
 	}
 
-	const checkboxForegroundColor = theme.getColor(settingsCheckboxForeground);
-	if (checkboxForegroundColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox { color: ${checkboxForegroundColor} !important; }`);
+	const checkboxFowegwoundCowow = theme.getCowow(settingsCheckboxFowegwound);
+	if (checkboxFowegwoundCowow) {
+		cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .setting-item-boow .setting-vawue-checkbox { cowow: ${checkboxFowegwoundCowow} !impowtant; }`);
 	}
 
-	const checkboxBorderColor = theme.getColor(settingsCheckboxBorder);
-	if (checkboxBorderColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox { border-color: ${checkboxBorderColor} !important; }`);
+	const checkboxBowdewCowow = theme.getCowow(settingsCheckboxBowda);
+	if (checkboxBowdewCowow) {
+		cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .setting-item-boow .setting-vawue-checkbox { bowda-cowow: ${checkboxBowdewCowow} !impowtant; }`);
 	}
 
-	const link = theme.getColor(textLinkForeground);
-	if (link) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-trust-description a { color: ${link}; }`);
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-trust-description a > code { color: ${link}; }`);
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-markdown a { color: ${link}; }`);
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-markdown a > code { color: ${link}; }`);
-		collector.addRule(`.monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown a { color: ${link}; }`);
-		collector.addRule(`.monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown a > code { color: ${link}; }`);
+	const wink = theme.getCowow(textWinkFowegwound);
+	if (wink) {
+		cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .setting-item-contents .setting-item-twust-descwiption a { cowow: ${wink}; }`);
+		cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .setting-item-contents .setting-item-twust-descwiption a > code { cowow: ${wink}; }`);
+		cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .setting-item-contents .setting-item-mawkdown a { cowow: ${wink}; }`);
+		cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .setting-item-contents .setting-item-mawkdown a > code { cowow: ${wink}; }`);
+		cowwectow.addWuwe(`.monaco-sewect-box-dwopdown-containa > .sewect-box-detaiws-pane > .sewect-box-descwiption-mawkdown a { cowow: ${wink}; }`);
+		cowwectow.addWuwe(`.monaco-sewect-box-dwopdown-containa > .sewect-box-detaiws-pane > .sewect-box-descwiption-mawkdown a > code { cowow: ${wink}; }`);
 
-		const disabledfgColor = new Color(new RGBA(link.rgba.r, link.rgba.g, link.rgba.b, 0.8));
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-untrusted > .setting-item-contents .setting-item-markdown a { color: ${disabledfgColor}; }`);
+		const disabwedfgCowow = new Cowow(new WGBA(wink.wgba.w, wink.wgba.g, wink.wgba.b, 0.8));
+		cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-untwusted > .setting-item-contents .setting-item-mawkdown a { cowow: ${disabwedfgCowow}; }`);
 	}
 
-	const activeLink = theme.getColor(textLinkActiveForeground);
-	if (activeLink) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-trust-description a:hover, .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-trust-description a:active { color: ${activeLink}; }`);
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-trust-description a:hover > code, .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-trust-description a:active > code { color: ${activeLink}; }`);
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-markdown a:hover, .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-markdown a:active { color: ${activeLink}; }`);
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-markdown a:hover > code, .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-markdown a:active > code { color: ${activeLink}; }`);
-		collector.addRule(`.monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown a:hover, .monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown a:active { color: ${activeLink}; }`);
-		collector.addRule(`.monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown a:hover > code, .monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown a:active > code { color: ${activeLink}; }`);
+	const activeWink = theme.getCowow(textWinkActiveFowegwound);
+	if (activeWink) {
+		cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .setting-item-contents .setting-item-twust-descwiption a:hova, .settings-editow > .settings-body > .settings-twee-containa .setting-item-contents .setting-item-twust-descwiption a:active { cowow: ${activeWink}; }`);
+		cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .setting-item-contents .setting-item-twust-descwiption a:hova > code, .settings-editow > .settings-body > .settings-twee-containa .setting-item-contents .setting-item-twust-descwiption a:active > code { cowow: ${activeWink}; }`);
+		cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .setting-item-contents .setting-item-mawkdown a:hova, .settings-editow > .settings-body > .settings-twee-containa .setting-item-contents .setting-item-mawkdown a:active { cowow: ${activeWink}; }`);
+		cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .setting-item-contents .setting-item-mawkdown a:hova > code, .settings-editow > .settings-body > .settings-twee-containa .setting-item-contents .setting-item-mawkdown a:active > code { cowow: ${activeWink}; }`);
+		cowwectow.addWuwe(`.monaco-sewect-box-dwopdown-containa > .sewect-box-detaiws-pane > .sewect-box-descwiption-mawkdown a:hova, .monaco-sewect-box-dwopdown-containa > .sewect-box-detaiws-pane > .sewect-box-descwiption-mawkdown a:active { cowow: ${activeWink}; }`);
+		cowwectow.addWuwe(`.monaco-sewect-box-dwopdown-containa > .sewect-box-detaiws-pane > .sewect-box-descwiption-mawkdown a:hova > code, .monaco-sewect-box-dwopdown-containa > .sewect-box-detaiws-pane > .sewect-box-descwiption-mawkdown a:active > code { cowow: ${activeWink}; }`);
 	}
 
-	const headerForegroundColor = theme.getColor(settingsHeaderForeground);
-	if (headerForegroundColor) {
-		collector.addRule(`.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label.checked { color: ${headerForegroundColor}; border-bottom-color: ${headerForegroundColor}; }`);
+	const headewFowegwoundCowow = theme.getCowow(settingsHeadewFowegwound);
+	if (headewFowegwoundCowow) {
+		cowwectow.addWuwe(`.settings-editow > .settings-heada > .settings-heada-contwows .settings-tabs-widget .action-wabew.checked { cowow: ${headewFowegwoundCowow}; bowda-bottom-cowow: ${headewFowegwoundCowow}; }`);
 	}
 
-	const foregroundColor = theme.getColor(foreground);
-	if (foregroundColor) {
-		collector.addRule(`.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label { color: ${foregroundColor}; }`);
+	const fowegwoundCowow = theme.getCowow(fowegwound);
+	if (fowegwoundCowow) {
+		cowwectow.addWuwe(`.settings-editow > .settings-heada > .settings-heada-contwows .settings-tabs-widget .action-wabew { cowow: ${fowegwoundCowow}; }`);
 	}
 
-	// List control
-	const listHoverBackgroundColor = theme.getColor(listHoverBackground);
-	if (listHoverBackgroundColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row:hover { background-color: ${listHoverBackgroundColor}; }`);
+	// Wist contwow
+	const wistHovewBackgwoundCowow = theme.getCowow(wistHovewBackgwound);
+	if (wistHovewBackgwoundCowow) {
+		cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-wow:hova { backgwound-cowow: ${wistHovewBackgwoundCowow}; }`);
 	}
 
-	const listHoverForegroundColor = theme.getColor(listHoverForeground);
-	if (listHoverForegroundColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row:hover { color: ${listHoverForegroundColor}; }`);
+	const wistHovewFowegwoundCowow = theme.getCowow(wistHovewFowegwound);
+	if (wistHovewFowegwoundCowow) {
+		cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-wow:hova { cowow: ${wistHovewFowegwoundCowow}; }`);
 	}
 
-	const listDropBackgroundColor = theme.getColor(listDropBackground);
-	if (listDropBackgroundColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row.drag-hover { background-color: ${listDropBackgroundColor}; }`);
+	const wistDwopBackgwoundCowow = theme.getCowow(wistDwopBackgwound);
+	if (wistDwopBackgwoundCowow) {
+		cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-wow.dwag-hova { backgwound-cowow: ${wistDwopBackgwoundCowow}; }`);
 	}
 
-	const listSelectBackgroundColor = theme.getColor(listActiveSelectionBackground);
-	if (listSelectBackgroundColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row.selected:focus { background-color: ${listSelectBackgroundColor}; }`);
+	const wistSewectBackgwoundCowow = theme.getCowow(wistActiveSewectionBackgwound);
+	if (wistSewectBackgwoundCowow) {
+		cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-wow.sewected:focus { backgwound-cowow: ${wistSewectBackgwoundCowow}; }`);
 	}
 
-	const listInactiveSelectionBackgroundColor = theme.getColor(listInactiveSelectionBackground);
-	if (listInactiveSelectionBackgroundColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row.selected:not(:focus) { background-color: ${listInactiveSelectionBackgroundColor}; }`);
+	const wistInactiveSewectionBackgwoundCowow = theme.getCowow(wistInactiveSewectionBackgwound);
+	if (wistInactiveSewectionBackgwoundCowow) {
+		cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-wow.sewected:not(:focus) { backgwound-cowow: ${wistInactiveSewectionBackgwoundCowow}; }`);
 	}
 
-	const listInactiveSelectionForegroundColor = theme.getColor(listInactiveSelectionForeground);
-	if (listInactiveSelectionForegroundColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row.selected:not(:focus) { color: ${listInactiveSelectionForegroundColor}; }`);
+	const wistInactiveSewectionFowegwoundCowow = theme.getCowow(wistInactiveSewectionFowegwound);
+	if (wistInactiveSewectionFowegwoundCowow) {
+		cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-wow.sewected:not(:focus) { cowow: ${wistInactiveSewectionFowegwoundCowow}; }`);
 	}
 
-	const listSelectForegroundColor = theme.getColor(listActiveSelectionForeground);
-	if (listSelectForegroundColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row.selected:focus { color: ${listSelectForegroundColor}; }`);
+	const wistSewectFowegwoundCowow = theme.getCowow(wistActiveSewectionFowegwound);
+	if (wistSewectFowegwoundCowow) {
+		cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-wow.sewected:focus { cowow: ${wistSewectFowegwoundCowow}; }`);
 	}
 
-	const codeTextForegroundColor = theme.getColor(textPreformatForeground);
-	if (codeTextForegroundColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-markdown code { color: ${codeTextForegroundColor} }`);
-		collector.addRule(`.monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown code { color: ${codeTextForegroundColor} }`);
-		const disabledfgColor = new Color(new RGBA(codeTextForegroundColor.rgba.r, codeTextForegroundColor.rgba.g, codeTextForegroundColor.rgba.b, 0.8));
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-untrusted > .setting-item-contents .setting-item-description .setting-item-markdown code { color: ${disabledfgColor} }`);
+	const codeTextFowegwoundCowow = theme.getCowow(textPwefowmatFowegwound);
+	if (codeTextFowegwoundCowow) {
+		cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .setting-item .setting-item-mawkdown code { cowow: ${codeTextFowegwoundCowow} }`);
+		cowwectow.addWuwe(`.monaco-sewect-box-dwopdown-containa > .sewect-box-detaiws-pane > .sewect-box-descwiption-mawkdown code { cowow: ${codeTextFowegwoundCowow} }`);
+		const disabwedfgCowow = new Cowow(new WGBA(codeTextFowegwoundCowow.wgba.w, codeTextFowegwoundCowow.wgba.g, codeTextFowegwoundCowow.wgba.b, 0.8));
+		cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-untwusted > .setting-item-contents .setting-item-descwiption .setting-item-mawkdown code { cowow: ${disabwedfgCowow} }`);
 	}
 
-	const modifiedItemIndicatorColor = theme.getColor(modifiedItemIndicator);
-	if (modifiedItemIndicatorColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents > .setting-item-modified-indicator { border-color: ${modifiedItemIndicatorColor}; }`);
+	const modifiedItemIndicatowCowow = theme.getCowow(modifiedItemIndicatow);
+	if (modifiedItemIndicatowCowow) {
+		cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .setting-item-contents > .setting-item-modified-indicatow { bowda-cowow: ${modifiedItemIndicatowCowow}; }`);
 	}
 });
 
-type EditKey = 'none' | 'create' | number;
+type EditKey = 'none' | 'cweate' | numba;
 
-type RowElementGroup = {
-	rowElement: HTMLElement;
-	keyElement: HTMLElement;
-	valueElement?: HTMLElement;
+type WowEwementGwoup = {
+	wowEwement: HTMWEwement;
+	keyEwement: HTMWEwement;
+	vawueEwement?: HTMWEwement;
 };
 
-type IListViewItem<TDataItem extends object> = TDataItem & {
-	editing?: boolean;
-	selected?: boolean;
+type IWistViewItem<TDataItem extends object> = TDataItem & {
+	editing?: boowean;
+	sewected?: boowean;
 };
 
-export class ListSettingListModel<TDataItem extends object> {
-	protected _dataItems: TDataItem[] = [];
-	private _editKey: EditKey | null = null;
-	private _selectedIdx: number | null = null;
-	private _newDataItem: TDataItem;
+expowt cwass WistSettingWistModew<TDataItem extends object> {
+	pwotected _dataItems: TDataItem[] = [];
+	pwivate _editKey: EditKey | nuww = nuww;
+	pwivate _sewectedIdx: numba | nuww = nuww;
+	pwivate _newDataItem: TDataItem;
 
-	get items(): IListViewItem<TDataItem>[] {
+	get items(): IWistViewItem<TDataItem>[] {
 		const items = this._dataItems.map((item, i) => {
-			const editing = typeof this._editKey === 'number' && this._editKey === i;
-			return {
+			const editing = typeof this._editKey === 'numba' && this._editKey === i;
+			wetuwn {
 				...item,
 				editing,
-				selected: i === this._selectedIdx || editing
+				sewected: i === this._sewectedIdx || editing
 			};
 		});
 
-		if (this._editKey === 'create') {
+		if (this._editKey === 'cweate') {
 			items.push({
-				editing: true,
-				selected: true,
+				editing: twue,
+				sewected: twue,
 				...this._newDataItem,
 			});
 		}
 
-		return items;
+		wetuwn items;
 	}
 
-	constructor(newItem: TDataItem) {
+	constwuctow(newItem: TDataItem) {
 		this._newDataItem = newItem;
 	}
 
@@ -222,1223 +222,1223 @@ export class ListSettingListModel<TDataItem extends object> {
 		this._editKey = key;
 	}
 
-	setValue(listData: TDataItem[]): void {
-		this._dataItems = listData;
+	setVawue(wistData: TDataItem[]): void {
+		this._dataItems = wistData;
 	}
 
-	select(idx: number | null): void {
-		this._selectedIdx = idx;
+	sewect(idx: numba | nuww): void {
+		this._sewectedIdx = idx;
 	}
 
-	getSelected(): number | null {
-		return this._selectedIdx;
+	getSewected(): numba | nuww {
+		wetuwn this._sewectedIdx;
 	}
 
-	selectNext(): void {
-		if (typeof this._selectedIdx === 'number') {
-			this._selectedIdx = Math.min(this._selectedIdx + 1, this._dataItems.length - 1);
-		} else {
-			this._selectedIdx = 0;
+	sewectNext(): void {
+		if (typeof this._sewectedIdx === 'numba') {
+			this._sewectedIdx = Math.min(this._sewectedIdx + 1, this._dataItems.wength - 1);
+		} ewse {
+			this._sewectedIdx = 0;
 		}
 	}
 
-	selectPrevious(): void {
-		if (typeof this._selectedIdx === 'number') {
-			this._selectedIdx = Math.max(this._selectedIdx - 1, 0);
-		} else {
-			this._selectedIdx = 0;
+	sewectPwevious(): void {
+		if (typeof this._sewectedIdx === 'numba') {
+			this._sewectedIdx = Math.max(this._sewectedIdx - 1, 0);
+		} ewse {
+			this._sewectedIdx = 0;
 		}
 	}
 }
 
-export interface ISettingListChangeEvent<TDataItem extends object> {
-	originalItem: TDataItem;
+expowt intewface ISettingWistChangeEvent<TDataItem extends object> {
+	owiginawItem: TDataItem;
 	item?: TDataItem;
-	targetIndex?: number;
-	sourceIndex?: number;
+	tawgetIndex?: numba;
+	souwceIndex?: numba;
 }
 
-export abstract class AbstractListSettingWidget<TDataItem extends object> extends Disposable {
-	private listElement: HTMLElement;
-	private rowElements: HTMLElement[] = [];
+expowt abstwact cwass AbstwactWistSettingWidget<TDataItem extends object> extends Disposabwe {
+	pwivate wistEwement: HTMWEwement;
+	pwivate wowEwements: HTMWEwement[] = [];
 
-	protected readonly _onDidChangeList = this._register(new Emitter<ISettingListChangeEvent<TDataItem>>());
-	protected readonly model = new ListSettingListModel<TDataItem>(this.getEmptyItem());
-	protected readonly listDisposables = this._register(new DisposableStore());
+	pwotected weadonwy _onDidChangeWist = this._wegista(new Emitta<ISettingWistChangeEvent<TDataItem>>());
+	pwotected weadonwy modew = new WistSettingWistModew<TDataItem>(this.getEmptyItem());
+	pwotected weadonwy wistDisposabwes = this._wegista(new DisposabweStowe());
 
-	readonly onDidChangeList: Event<ISettingListChangeEvent<TDataItem>> = this._onDidChangeList.event;
+	weadonwy onDidChangeWist: Event<ISettingWistChangeEvent<TDataItem>> = this._onDidChangeWist.event;
 
-	get domNode(): HTMLElement {
-		return this.listElement;
+	get domNode(): HTMWEwement {
+		wetuwn this.wistEwement;
 	}
 
 	get items(): TDataItem[] {
-		return this.model.items;
+		wetuwn this.modew.items;
 	}
 
-	get inReadMode(): boolean {
-		return this.model.items.every(item => !item.editing);
+	get inWeadMode(): boowean {
+		wetuwn this.modew.items.evewy(item => !item.editing);
 	}
 
-	constructor(
-		private container: HTMLElement,
-		@IThemeService protected readonly themeService: IThemeService,
-		@IContextViewService protected readonly contextViewService: IContextViewService
+	constwuctow(
+		pwivate containa: HTMWEwement,
+		@IThemeSewvice pwotected weadonwy themeSewvice: IThemeSewvice,
+		@IContextViewSewvice pwotected weadonwy contextViewSewvice: IContextViewSewvice
 	) {
-		super();
+		supa();
 
-		this.listElement = DOM.append(container, $('div'));
-		this.listElement.setAttribute('role', 'list');
-		this.getContainerClasses().forEach(c => this.listElement.classList.add(c));
-		this.listElement.setAttribute('tabindex', '0');
-		DOM.append(container, this.renderAddButton());
-		this.renderList();
+		this.wistEwement = DOM.append(containa, $('div'));
+		this.wistEwement.setAttwibute('wowe', 'wist');
+		this.getContainewCwasses().fowEach(c => this.wistEwement.cwassWist.add(c));
+		this.wistEwement.setAttwibute('tabindex', '0');
+		DOM.append(containa, this.wendewAddButton());
+		this.wendewWist();
 
-		this._register(DOM.addDisposableListener(this.listElement, DOM.EventType.CLICK, e => this.onListClick(e)));
-		this._register(DOM.addDisposableListener(this.listElement, DOM.EventType.DBLCLICK, e => this.onListDoubleClick(e)));
+		this._wegista(DOM.addDisposabweWistena(this.wistEwement, DOM.EventType.CWICK, e => this.onWistCwick(e)));
+		this._wegista(DOM.addDisposabweWistena(this.wistEwement, DOM.EventType.DBWCWICK, e => this.onWistDoubweCwick(e)));
 
-		this._register(DOM.addStandardDisposableListener(this.listElement, 'keydown', (e: StandardKeyboardEvent) => {
-			if (e.equals(KeyCode.UpArrow)) {
-				this.selectPreviousRow();
-			} else if (e.equals(KeyCode.DownArrow)) {
-				this.selectNextRow();
-			} else {
-				return;
+		this._wegista(DOM.addStandawdDisposabweWistena(this.wistEwement, 'keydown', (e: StandawdKeyboawdEvent) => {
+			if (e.equaws(KeyCode.UpAwwow)) {
+				this.sewectPweviousWow();
+			} ewse if (e.equaws(KeyCode.DownAwwow)) {
+				this.sewectNextWow();
+			} ewse {
+				wetuwn;
 			}
 
-			e.preventDefault();
-			e.stopPropagation();
+			e.pweventDefauwt();
+			e.stopPwopagation();
 		}));
 	}
 
-	setValue(listData: TDataItem[]): void {
-		this.model.setValue(listData);
-		this.renderList();
+	setVawue(wistData: TDataItem[]): void {
+		this.modew.setVawue(wistData);
+		this.wendewWist();
 	}
 
-	protected abstract getEmptyItem(): TDataItem;
-	protected abstract getContainerClasses(): string[];
-	protected abstract getActionsForItem(item: TDataItem, idx: number): IAction[];
-	protected abstract renderItem(item: TDataItem, idx: number): RowElementGroup;
-	protected abstract renderEdit(item: TDataItem, idx: number): HTMLElement;
-	protected abstract isItemNew(item: TDataItem): boolean;
-	protected abstract addTooltipsToRow(rowElement: RowElementGroup, item: TDataItem): void;
-	protected abstract getLocalizedStrings(): {
-		deleteActionTooltip: string
-		editActionTooltip: string
-		addButtonLabel: string
+	pwotected abstwact getEmptyItem(): TDataItem;
+	pwotected abstwact getContainewCwasses(): stwing[];
+	pwotected abstwact getActionsFowItem(item: TDataItem, idx: numba): IAction[];
+	pwotected abstwact wendewItem(item: TDataItem, idx: numba): WowEwementGwoup;
+	pwotected abstwact wendewEdit(item: TDataItem, idx: numba): HTMWEwement;
+	pwotected abstwact isItemNew(item: TDataItem): boowean;
+	pwotected abstwact addToowtipsToWow(wowEwement: WowEwementGwoup, item: TDataItem): void;
+	pwotected abstwact getWocawizedStwings(): {
+		deweteActionToowtip: stwing
+		editActionToowtip: stwing
+		addButtonWabew: stwing
 	};
 
-	protected renderHeader(): HTMLElement | undefined {
-		return;
+	pwotected wendewHeada(): HTMWEwement | undefined {
+		wetuwn;
 	}
 
-	protected isAddButtonVisible(): boolean {
-		return true;
+	pwotected isAddButtonVisibwe(): boowean {
+		wetuwn twue;
 	}
 
-	protected renderList(): void {
-		const focused = DOM.isAncestor(document.activeElement, this.listElement);
+	pwotected wendewWist(): void {
+		const focused = DOM.isAncestow(document.activeEwement, this.wistEwement);
 
-		DOM.clearNode(this.listElement);
-		this.listDisposables.clear();
+		DOM.cweawNode(this.wistEwement);
+		this.wistDisposabwes.cweaw();
 
-		const newMode = this.model.items.some(item => !!(item.editing && this.isItemNew(item)));
-		this.container.classList.toggle('setting-list-hide-add-button', !this.isAddButtonVisible() || newMode);
+		const newMode = this.modew.items.some(item => !!(item.editing && this.isItemNew(item)));
+		this.containa.cwassWist.toggwe('setting-wist-hide-add-button', !this.isAddButtonVisibwe() || newMode);
 
-		const header = this.renderHeader();
+		const heada = this.wendewHeada();
 		const ITEM_HEIGHT = 24;
-		let listHeight = ITEM_HEIGHT * this.model.items.length;
+		wet wistHeight = ITEM_HEIGHT * this.modew.items.wength;
 
-		if (header) {
-			listHeight += ITEM_HEIGHT;
-			this.listElement.appendChild(header);
+		if (heada) {
+			wistHeight += ITEM_HEIGHT;
+			this.wistEwement.appendChiwd(heada);
 		}
 
-		this.rowElements = this.model.items.map((item, i) => this.renderDataOrEditItem(item, i, focused));
-		this.rowElements.forEach(rowElement => this.listElement.appendChild(rowElement));
+		this.wowEwements = this.modew.items.map((item, i) => this.wendewDataOwEditItem(item, i, focused));
+		this.wowEwements.fowEach(wowEwement => this.wistEwement.appendChiwd(wowEwement));
 
-		this.listElement.style.height = listHeight + 'px';
+		this.wistEwement.stywe.height = wistHeight + 'px';
 	}
 
-	protected createBasicSelectBox(value: IObjectEnumData): SelectBox {
-		const selectBoxOptions = value.options.map(({ value, description }) => ({ text: value, description }));
-		const selected = value.options.findIndex(option => value.data === option.value);
+	pwotected cweateBasicSewectBox(vawue: IObjectEnumData): SewectBox {
+		const sewectBoxOptions = vawue.options.map(({ vawue, descwiption }) => ({ text: vawue, descwiption }));
+		const sewected = vawue.options.findIndex(option => vawue.data === option.vawue);
 
-		const selectBox = new SelectBox(selectBoxOptions, selected, this.contextViewService, undefined, {
-			useCustomDrawn: !(isIOS && BrowserFeatures.pointerEvents)
+		const sewectBox = new SewectBox(sewectBoxOptions, sewected, this.contextViewSewvice, undefined, {
+			useCustomDwawn: !(isIOS && BwowsewFeatuwes.pointewEvents)
 		});
 
-		this.listDisposables.add(attachSelectBoxStyler(selectBox, this.themeService, {
-			selectBackground: settingsSelectBackground,
-			selectForeground: settingsSelectForeground,
-			selectBorder: settingsSelectBorder,
-			selectListBorder: settingsSelectListBorder
+		this.wistDisposabwes.add(attachSewectBoxStywa(sewectBox, this.themeSewvice, {
+			sewectBackgwound: settingsSewectBackgwound,
+			sewectFowegwound: settingsSewectFowegwound,
+			sewectBowda: settingsSewectBowda,
+			sewectWistBowda: settingsSewectWistBowda
 		}));
-		return selectBox;
+		wetuwn sewectBox;
 	}
 
-	protected editSetting(idx: number): void {
-		this.model.setEditKey(idx);
-		this.renderList();
+	pwotected editSetting(idx: numba): void {
+		this.modew.setEditKey(idx);
+		this.wendewWist();
 	}
 
-	public cancelEdit(): void {
-		this.model.setEditKey('none');
-		this.renderList();
+	pubwic cancewEdit(): void {
+		this.modew.setEditKey('none');
+		this.wendewWist();
 	}
 
-	protected handleItemChange(originalItem: TDataItem, changedItem: TDataItem, idx: number) {
-		this.model.setEditKey('none');
+	pwotected handweItemChange(owiginawItem: TDataItem, changedItem: TDataItem, idx: numba) {
+		this.modew.setEditKey('none');
 
-		this._onDidChangeList.fire({
-			originalItem,
+		this._onDidChangeWist.fiwe({
+			owiginawItem,
 			item: changedItem,
-			targetIndex: idx,
+			tawgetIndex: idx,
 		});
 
-		this.renderList();
+		this.wendewWist();
 	}
 
-	protected renderDataOrEditItem(item: IListViewItem<TDataItem>, idx: number, listFocused: boolean): HTMLElement {
-		const rowElement = item.editing ?
-			this.renderEdit(item, idx) :
-			this.renderDataItem(item, idx, listFocused);
+	pwotected wendewDataOwEditItem(item: IWistViewItem<TDataItem>, idx: numba, wistFocused: boowean): HTMWEwement {
+		const wowEwement = item.editing ?
+			this.wendewEdit(item, idx) :
+			this.wendewDataItem(item, idx, wistFocused);
 
-		rowElement.setAttribute('role', 'listitem');
+		wowEwement.setAttwibute('wowe', 'wistitem');
 
-		return rowElement;
+		wetuwn wowEwement;
 	}
 
-	private renderDataItem(item: IListViewItem<TDataItem>, idx: number, listFocused: boolean): HTMLElement {
-		const rowElementGroup = this.renderItem(item, idx);
-		const rowElement = rowElementGroup.rowElement;
+	pwivate wendewDataItem(item: IWistViewItem<TDataItem>, idx: numba, wistFocused: boowean): HTMWEwement {
+		const wowEwementGwoup = this.wendewItem(item, idx);
+		const wowEwement = wowEwementGwoup.wowEwement;
 
-		rowElement.setAttribute('data-index', idx + '');
-		rowElement.setAttribute('tabindex', item.selected ? '0' : '-1');
-		rowElement.classList.toggle('selected', item.selected);
+		wowEwement.setAttwibute('data-index', idx + '');
+		wowEwement.setAttwibute('tabindex', item.sewected ? '0' : '-1');
+		wowEwement.cwassWist.toggwe('sewected', item.sewected);
 
-		const actionBar = new ActionBar(rowElement);
-		this.listDisposables.add(actionBar);
+		const actionBaw = new ActionBaw(wowEwement);
+		this.wistDisposabwes.add(actionBaw);
 
-		actionBar.push(this.getActionsForItem(item, idx), { icon: true, label: true });
-		this.addTooltipsToRow(rowElementGroup, item);
+		actionBaw.push(this.getActionsFowItem(item, idx), { icon: twue, wabew: twue });
+		this.addToowtipsToWow(wowEwementGwoup, item);
 
-		if (item.selected && listFocused) {
-			this.listDisposables.add(disposableTimeout(() => rowElement.focus()));
+		if (item.sewected && wistFocused) {
+			this.wistDisposabwes.add(disposabweTimeout(() => wowEwement.focus()));
 		}
 
-		return rowElement;
+		wetuwn wowEwement;
 	}
 
-	private renderAddButton(): HTMLElement {
-		const rowElement = $('.setting-list-new-row');
+	pwivate wendewAddButton(): HTMWEwement {
+		const wowEwement = $('.setting-wist-new-wow');
 
-		const startAddButton = this._register(new Button(rowElement));
-		startAddButton.label = this.getLocalizedStrings().addButtonLabel;
-		startAddButton.element.classList.add('setting-list-addButton');
-		this._register(attachButtonStyler(startAddButton, this.themeService));
+		const stawtAddButton = this._wegista(new Button(wowEwement));
+		stawtAddButton.wabew = this.getWocawizedStwings().addButtonWabew;
+		stawtAddButton.ewement.cwassWist.add('setting-wist-addButton');
+		this._wegista(attachButtonStywa(stawtAddButton, this.themeSewvice));
 
-		this._register(startAddButton.onDidClick(() => {
-			this.model.setEditKey('create');
-			this.renderList();
+		this._wegista(stawtAddButton.onDidCwick(() => {
+			this.modew.setEditKey('cweate');
+			this.wendewWist();
 		}));
 
-		return rowElement;
+		wetuwn wowEwement;
 	}
 
-	private onListClick(e: MouseEvent): void {
-		const targetIdx = this.getClickedItemIndex(e);
-		if (targetIdx < 0) {
-			return;
+	pwivate onWistCwick(e: MouseEvent): void {
+		const tawgetIdx = this.getCwickedItemIndex(e);
+		if (tawgetIdx < 0) {
+			wetuwn;
 		}
 
-		e.preventDefault();
-		e.stopImmediatePropagation();
-		if (this.model.getSelected() === targetIdx) {
-			return;
+		e.pweventDefauwt();
+		e.stopImmediatePwopagation();
+		if (this.modew.getSewected() === tawgetIdx) {
+			wetuwn;
 		}
 
-		this.selectRow(targetIdx);
+		this.sewectWow(tawgetIdx);
 	}
 
-	private onListDoubleClick(e: MouseEvent): void {
-		const targetIdx = this.getClickedItemIndex(e);
-		if (targetIdx < 0) {
-			return;
+	pwivate onWistDoubweCwick(e: MouseEvent): void {
+		const tawgetIdx = this.getCwickedItemIndex(e);
+		if (tawgetIdx < 0) {
+			wetuwn;
 		}
 
-		const item = this.model.items[targetIdx];
+		const item = this.modew.items[tawgetIdx];
 		if (item) {
-			this.editSetting(targetIdx);
-			e.preventDefault();
-			e.stopPropagation();
+			this.editSetting(tawgetIdx);
+			e.pweventDefauwt();
+			e.stopPwopagation();
 		}
 	}
 
-	private getClickedItemIndex(e: MouseEvent): number {
-		if (!e.target) {
-			return -1;
+	pwivate getCwickedItemIndex(e: MouseEvent): numba {
+		if (!e.tawget) {
+			wetuwn -1;
 		}
 
-		const actionbar = DOM.findParentWithClass(e.target as HTMLElement, 'monaco-action-bar');
-		if (actionbar) {
-			// Don't handle doubleclicks inside the action bar
-			return -1;
+		const actionbaw = DOM.findPawentWithCwass(e.tawget as HTMWEwement, 'monaco-action-baw');
+		if (actionbaw) {
+			// Don't handwe doubwecwicks inside the action baw
+			wetuwn -1;
 		}
 
-		const element = DOM.findParentWithClass(e.target as HTMLElement, 'setting-list-row');
-		if (!element) {
-			return -1;
+		const ewement = DOM.findPawentWithCwass(e.tawget as HTMWEwement, 'setting-wist-wow');
+		if (!ewement) {
+			wetuwn -1;
 		}
 
-		const targetIdxStr = element.getAttribute('data-index');
-		if (!targetIdxStr) {
-			return -1;
+		const tawgetIdxStw = ewement.getAttwibute('data-index');
+		if (!tawgetIdxStw) {
+			wetuwn -1;
 		}
 
-		const targetIdx = parseInt(targetIdxStr);
-		return targetIdx;
+		const tawgetIdx = pawseInt(tawgetIdxStw);
+		wetuwn tawgetIdx;
 	}
 
-	private selectRow(idx: number): void {
-		this.model.select(idx);
-		this.rowElements.forEach(row => row.classList.remove('selected'));
+	pwivate sewectWow(idx: numba): void {
+		this.modew.sewect(idx);
+		this.wowEwements.fowEach(wow => wow.cwassWist.wemove('sewected'));
 
-		const selectedRow = this.rowElements[this.model.getSelected()!];
+		const sewectedWow = this.wowEwements[this.modew.getSewected()!];
 
-		selectedRow.classList.add('selected');
-		selectedRow.focus();
+		sewectedWow.cwassWist.add('sewected');
+		sewectedWow.focus();
 	}
 
-	private selectNextRow(): void {
-		this.model.selectNext();
-		this.selectRow(this.model.getSelected()!);
+	pwivate sewectNextWow(): void {
+		this.modew.sewectNext();
+		this.sewectWow(this.modew.getSewected()!);
 	}
 
-	private selectPreviousRow(): void {
-		this.model.selectPrevious();
-		this.selectRow(this.model.getSelected()!);
+	pwivate sewectPweviousWow(): void {
+		this.modew.sewectPwevious();
+		this.sewectWow(this.modew.getSewected()!);
 	}
 }
 
-interface IListSetValueOptions {
-	showAddButton: boolean;
-	keySuggester?: IObjectKeySuggester;
+intewface IWistSetVawueOptions {
+	showAddButton: boowean;
+	keySuggesta?: IObjectKeySuggesta;
 }
 
-export interface IListDataItem {
-	value: ObjectKey,
-	sibling?: string
+expowt intewface IWistDataItem {
+	vawue: ObjectKey,
+	sibwing?: stwing
 }
 
-interface ListSettingWidgetDragDetails {
-	element: HTMLElement;
-	item: IListDataItem;
-	itemIndex: number;
+intewface WistSettingWidgetDwagDetaiws {
+	ewement: HTMWEwement;
+	item: IWistDataItem;
+	itemIndex: numba;
 }
 
-export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> {
-	private keyValueSuggester: IObjectKeySuggester | undefined;
-	private showAddButton: boolean = true;
+expowt cwass WistSettingWidget extends AbstwactWistSettingWidget<IWistDataItem> {
+	pwivate keyVawueSuggesta: IObjectKeySuggesta | undefined;
+	pwivate showAddButton: boowean = twue;
 
-	override setValue(listData: IListDataItem[], options?: IListSetValueOptions) {
-		this.keyValueSuggester = options?.keySuggester;
-		this.showAddButton = options?.showAddButton ?? true;
-		super.setValue(listData);
+	ovewwide setVawue(wistData: IWistDataItem[], options?: IWistSetVawueOptions) {
+		this.keyVawueSuggesta = options?.keySuggesta;
+		this.showAddButton = options?.showAddButton ?? twue;
+		supa.setVawue(wistData);
 	}
 
-	protected getEmptyItem(): IListDataItem {
-		return {
-			value: {
-				type: 'string',
+	pwotected getEmptyItem(): IWistDataItem {
+		wetuwn {
+			vawue: {
+				type: 'stwing',
 				data: ''
 			}
 		};
 	}
 
-	protected override isAddButtonVisible(): boolean {
-		return this.showAddButton;
+	pwotected ovewwide isAddButtonVisibwe(): boowean {
+		wetuwn this.showAddButton;
 	}
 
-	protected getContainerClasses(): string[] {
-		return ['setting-list-widget'];
+	pwotected getContainewCwasses(): stwing[] {
+		wetuwn ['setting-wist-widget'];
 	}
 
-	protected getActionsForItem(item: IListDataItem, idx: number): IAction[] {
-		return [
+	pwotected getActionsFowItem(item: IWistDataItem, idx: numba): IAction[] {
+		wetuwn [
 			{
-				class: ThemeIcon.asClassName(settingsEditIcon),
-				enabled: true,
-				id: 'workbench.action.editListItem',
-				tooltip: this.getLocalizedStrings().editActionTooltip,
-				run: () => this.editSetting(idx)
+				cwass: ThemeIcon.asCwassName(settingsEditIcon),
+				enabwed: twue,
+				id: 'wowkbench.action.editWistItem',
+				toowtip: this.getWocawizedStwings().editActionToowtip,
+				wun: () => this.editSetting(idx)
 			},
 			{
-				class: ThemeIcon.asClassName(settingsRemoveIcon),
-				enabled: true,
-				id: 'workbench.action.removeListItem',
-				tooltip: this.getLocalizedStrings().deleteActionTooltip,
-				run: () => this._onDidChangeList.fire({ originalItem: item, item: undefined, targetIndex: idx })
+				cwass: ThemeIcon.asCwassName(settingsWemoveIcon),
+				enabwed: twue,
+				id: 'wowkbench.action.wemoveWistItem',
+				toowtip: this.getWocawizedStwings().deweteActionToowtip,
+				wun: () => this._onDidChangeWist.fiwe({ owiginawItem: item, item: undefined, tawgetIndex: idx })
 			}
 		] as IAction[];
 	}
 
-	private dragDetails: ListSettingWidgetDragDetails | undefined;
+	pwivate dwagDetaiws: WistSettingWidgetDwagDetaiws | undefined;
 
-	private getDragImage(item: IListDataItem): HTMLElement {
-		const dragImage = $('.monaco-drag-image');
-		dragImage.textContent = item.value.data;
-		return dragImage;
+	pwivate getDwagImage(item: IWistDataItem): HTMWEwement {
+		const dwagImage = $('.monaco-dwag-image');
+		dwagImage.textContent = item.vawue.data;
+		wetuwn dwagImage;
 	}
 
-	protected renderItem(item: IListDataItem, idx: number): RowElementGroup {
-		const rowElement = $('.setting-list-row');
-		const valueElement = DOM.append(rowElement, $('.setting-list-value'));
-		const siblingElement = DOM.append(rowElement, $('.setting-list-sibling'));
+	pwotected wendewItem(item: IWistDataItem, idx: numba): WowEwementGwoup {
+		const wowEwement = $('.setting-wist-wow');
+		const vawueEwement = DOM.append(wowEwement, $('.setting-wist-vawue'));
+		const sibwingEwement = DOM.append(wowEwement, $('.setting-wist-sibwing'));
 
-		valueElement.textContent = item.value.data.toString();
-		siblingElement.textContent = item.sibling ? `when: ${item.sibling}` : null;
+		vawueEwement.textContent = item.vawue.data.toStwing();
+		sibwingEwement.textContent = item.sibwing ? `when: ${item.sibwing}` : nuww;
 
-		this.addDragAndDrop(rowElement, item, idx);
-		return { rowElement, keyElement: valueElement, valueElement: siblingElement };
+		this.addDwagAndDwop(wowEwement, item, idx);
+		wetuwn { wowEwement, keyEwement: vawueEwement, vawueEwement: sibwingEwement };
 	}
 
-	protected addDragAndDrop(rowElement: HTMLElement, item: IListDataItem, idx: number) {
-		if (this.inReadMode) {
-			rowElement.draggable = true;
-			rowElement.classList.add('draggable');
-		} else {
-			rowElement.draggable = false;
-			rowElement.classList.remove('draggable');
+	pwotected addDwagAndDwop(wowEwement: HTMWEwement, item: IWistDataItem, idx: numba) {
+		if (this.inWeadMode) {
+			wowEwement.dwaggabwe = twue;
+			wowEwement.cwassWist.add('dwaggabwe');
+		} ewse {
+			wowEwement.dwaggabwe = fawse;
+			wowEwement.cwassWist.wemove('dwaggabwe');
 		}
 
-		this.listDisposables.add(DOM.addDisposableListener(rowElement, DOM.EventType.DRAG_START, (ev) => {
-			this.dragDetails = {
-				element: rowElement,
+		this.wistDisposabwes.add(DOM.addDisposabweWistena(wowEwement, DOM.EventType.DWAG_STAWT, (ev) => {
+			this.dwagDetaiws = {
+				ewement: wowEwement,
 				item,
 				itemIndex: idx
 			};
-			if (ev.dataTransfer) {
-				ev.dataTransfer.dropEffect = 'move';
-				const dragImage = this.getDragImage(item);
-				document.body.appendChild(dragImage);
-				ev.dataTransfer.setDragImage(dragImage, -10, -10);
-				setTimeout(() => document.body.removeChild(dragImage), 0);
+			if (ev.dataTwansfa) {
+				ev.dataTwansfa.dwopEffect = 'move';
+				const dwagImage = this.getDwagImage(item);
+				document.body.appendChiwd(dwagImage);
+				ev.dataTwansfa.setDwagImage(dwagImage, -10, -10);
+				setTimeout(() => document.body.wemoveChiwd(dwagImage), 0);
 			}
 		}));
-		this.listDisposables.add(DOM.addDisposableListener(rowElement, DOM.EventType.DRAG_OVER, (ev) => {
-			if (!this.dragDetails) {
-				return false;
+		this.wistDisposabwes.add(DOM.addDisposabweWistena(wowEwement, DOM.EventType.DWAG_OVa, (ev) => {
+			if (!this.dwagDetaiws) {
+				wetuwn fawse;
 			}
-			ev.preventDefault();
-			if (ev.dataTransfer) {
-				ev.dataTransfer.dropEffect = 'move';
+			ev.pweventDefauwt();
+			if (ev.dataTwansfa) {
+				ev.dataTwansfa.dwopEffect = 'move';
 			}
-			return true;
+			wetuwn twue;
 		}));
-		let counter = 0;
-		this.listDisposables.add(DOM.addDisposableListener(rowElement, DOM.EventType.DRAG_ENTER, (ev) => {
-			counter++;
-			rowElement.classList.add('drag-hover');
+		wet counta = 0;
+		this.wistDisposabwes.add(DOM.addDisposabweWistena(wowEwement, DOM.EventType.DWAG_ENTa, (ev) => {
+			counta++;
+			wowEwement.cwassWist.add('dwag-hova');
 		}));
-		this.listDisposables.add(DOM.addDisposableListener(rowElement, DOM.EventType.DRAG_LEAVE, (ev) => {
-			counter--;
-			if (!counter) {
-				rowElement.classList.remove('drag-hover');
+		this.wistDisposabwes.add(DOM.addDisposabweWistena(wowEwement, DOM.EventType.DWAG_WEAVE, (ev) => {
+			counta--;
+			if (!counta) {
+				wowEwement.cwassWist.wemove('dwag-hova');
 			}
 		}));
-		this.listDisposables.add(DOM.addDisposableListener(rowElement, DOM.EventType.DROP, (ev) => {
-			// cancel the op if we dragged to a completely different setting
-			if (!this.dragDetails) {
-				return false;
+		this.wistDisposabwes.add(DOM.addDisposabweWistena(wowEwement, DOM.EventType.DWOP, (ev) => {
+			// cancew the op if we dwagged to a compwetewy diffewent setting
+			if (!this.dwagDetaiws) {
+				wetuwn fawse;
 			}
-			ev.preventDefault();
-			counter = 0;
-			if (this.dragDetails.element !== rowElement) {
-				this._onDidChangeList.fire({
-					originalItem: this.dragDetails.item,
-					sourceIndex: this.dragDetails.itemIndex,
+			ev.pweventDefauwt();
+			counta = 0;
+			if (this.dwagDetaiws.ewement !== wowEwement) {
+				this._onDidChangeWist.fiwe({
+					owiginawItem: this.dwagDetaiws.item,
+					souwceIndex: this.dwagDetaiws.itemIndex,
 					item,
-					targetIndex: idx
+					tawgetIndex: idx
 				});
 			}
-			return true;
+			wetuwn twue;
 		}));
-		this.listDisposables.add(DOM.addDisposableListener(rowElement, DOM.EventType.DRAG_END, (ev) => {
-			counter = 0;
-			rowElement.classList.remove('drag-hover');
-			if (ev.dataTransfer) {
-				ev.dataTransfer.clearData();
+		this.wistDisposabwes.add(DOM.addDisposabweWistena(wowEwement, DOM.EventType.DWAG_END, (ev) => {
+			counta = 0;
+			wowEwement.cwassWist.wemove('dwag-hova');
+			if (ev.dataTwansfa) {
+				ev.dataTwansfa.cweawData();
 			}
-			if (this.dragDetails) {
-				this.dragDetails = undefined;
+			if (this.dwagDetaiws) {
+				this.dwagDetaiws = undefined;
 			}
 		}));
 	}
 
-	protected renderEdit(item: IListDataItem, idx: number): HTMLElement {
-		const rowElement = $('.setting-list-edit-row');
-		let valueInput: InputBox | SelectBox;
-		let currentDisplayValue: string;
-		let currentEnumOptions: IObjectEnumOption[] | undefined;
+	pwotected wendewEdit(item: IWistDataItem, idx: numba): HTMWEwement {
+		const wowEwement = $('.setting-wist-edit-wow');
+		wet vawueInput: InputBox | SewectBox;
+		wet cuwwentDispwayVawue: stwing;
+		wet cuwwentEnumOptions: IObjectEnumOption[] | undefined;
 
-		if (this.keyValueSuggester) {
-			const enumData = this.keyValueSuggester(this.model.items.map(({ value: { data } }) => data), idx);
+		if (this.keyVawueSuggesta) {
+			const enumData = this.keyVawueSuggesta(this.modew.items.map(({ vawue: { data } }) => data), idx);
 			item = {
 				...item,
-				value: {
+				vawue: {
 					type: 'enum',
-					data: item.value.data,
+					data: item.vawue.data,
 					options: enumData ? enumData.options : []
 				}
 			};
 		}
 
-		switch (item.value.type) {
-			case 'string':
-				valueInput = this.renderInputBox(item.value, rowElement);
-				break;
+		switch (item.vawue.type) {
+			case 'stwing':
+				vawueInput = this.wendewInputBox(item.vawue, wowEwement);
+				bweak;
 			case 'enum':
-				valueInput = this.renderDropdown(item.value, rowElement);
-				currentEnumOptions = item.value.options;
-				if (item.value.options.length) {
-					currentDisplayValue = this.isItemNew(item) ?
-						currentEnumOptions[0].value : item.value.data;
+				vawueInput = this.wendewDwopdown(item.vawue, wowEwement);
+				cuwwentEnumOptions = item.vawue.options;
+				if (item.vawue.options.wength) {
+					cuwwentDispwayVawue = this.isItemNew(item) ?
+						cuwwentEnumOptions[0].vawue : item.vawue.data;
 				}
-				break;
+				bweak;
 		}
 
-		const updatedInputBoxItem = (): IListDataItem => {
-			const inputBox = valueInput as InputBox;
-			return {
-				value: {
-					type: 'string',
-					data: inputBox.value
+		const updatedInputBoxItem = (): IWistDataItem => {
+			const inputBox = vawueInput as InputBox;
+			wetuwn {
+				vawue: {
+					type: 'stwing',
+					data: inputBox.vawue
 				},
-				sibling: siblingInput?.value
+				sibwing: sibwingInput?.vawue
 			};
 		};
-		const updatedSelectBoxItem = (selectedValue: string): IListDataItem => {
-			return {
-				value: {
+		const updatedSewectBoxItem = (sewectedVawue: stwing): IWistDataItem => {
+			wetuwn {
+				vawue: {
 					type: 'enum',
-					data: selectedValue,
-					options: currentEnumOptions ?? []
+					data: sewectedVawue,
+					options: cuwwentEnumOptions ?? []
 				}
 			};
 		};
-		const onKeyDown = (e: StandardKeyboardEvent) => {
-			if (e.equals(KeyCode.Enter)) {
-				this.handleItemChange(item, updatedInputBoxItem(), idx);
-			} else if (e.equals(KeyCode.Escape)) {
-				this.cancelEdit();
-				e.preventDefault();
+		const onKeyDown = (e: StandawdKeyboawdEvent) => {
+			if (e.equaws(KeyCode.Enta)) {
+				this.handweItemChange(item, updatedInputBoxItem(), idx);
+			} ewse if (e.equaws(KeyCode.Escape)) {
+				this.cancewEdit();
+				e.pweventDefauwt();
 			}
-			rowElement?.focus();
+			wowEwement?.focus();
 		};
 
-		if (item.value.type !== 'string') {
-			const selectBox = valueInput as SelectBox;
-			this.listDisposables.add(
-				selectBox.onDidSelect(({ selected }) => {
-					currentDisplayValue = selected;
+		if (item.vawue.type !== 'stwing') {
+			const sewectBox = vawueInput as SewectBox;
+			this.wistDisposabwes.add(
+				sewectBox.onDidSewect(({ sewected }) => {
+					cuwwentDispwayVawue = sewected;
 				})
 			);
-		} else {
-			const inputBox = valueInput as InputBox;
-			this.listDisposables.add(
-				DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, onKeyDown)
+		} ewse {
+			const inputBox = vawueInput as InputBox;
+			this.wistDisposabwes.add(
+				DOM.addStandawdDisposabweWistena(inputBox.inputEwement, DOM.EventType.KEY_DOWN, onKeyDown)
 			);
 		}
 
-		let siblingInput: InputBox | undefined;
-		if (!isUndefinedOrNull(item.sibling)) {
-			siblingInput = new InputBox(rowElement, this.contextViewService, {
-				placeholder: this.getLocalizedStrings().siblingInputPlaceholder
+		wet sibwingInput: InputBox | undefined;
+		if (!isUndefinedOwNuww(item.sibwing)) {
+			sibwingInput = new InputBox(wowEwement, this.contextViewSewvice, {
+				pwacehowda: this.getWocawizedStwings().sibwingInputPwacehowda
 			});
-			siblingInput.element.classList.add('setting-list-siblingInput');
-			this.listDisposables.add(siblingInput);
-			this.listDisposables.add(attachInputBoxStyler(siblingInput, this.themeService, {
-				inputBackground: settingsTextInputBackground,
-				inputForeground: settingsTextInputForeground,
-				inputBorder: settingsTextInputBorder
+			sibwingInput.ewement.cwassWist.add('setting-wist-sibwingInput');
+			this.wistDisposabwes.add(sibwingInput);
+			this.wistDisposabwes.add(attachInputBoxStywa(sibwingInput, this.themeSewvice, {
+				inputBackgwound: settingsTextInputBackgwound,
+				inputFowegwound: settingsTextInputFowegwound,
+				inputBowda: settingsTextInputBowda
 			}));
-			siblingInput.value = item.sibling;
+			sibwingInput.vawue = item.sibwing;
 
-			this.listDisposables.add(
-				DOM.addStandardDisposableListener(siblingInput.inputElement, DOM.EventType.KEY_DOWN, onKeyDown)
+			this.wistDisposabwes.add(
+				DOM.addStandawdDisposabweWistena(sibwingInput.inputEwement, DOM.EventType.KEY_DOWN, onKeyDown)
 			);
-		} else if (valueInput instanceof InputBox) {
-			valueInput.element.classList.add('no-sibling');
+		} ewse if (vawueInput instanceof InputBox) {
+			vawueInput.ewement.cwassWist.add('no-sibwing');
 		}
 
-		const okButton = this._register(new Button(rowElement));
-		okButton.label = localize('okButton', "OK");
-		okButton.element.classList.add('setting-list-ok-button');
+		const okButton = this._wegista(new Button(wowEwement));
+		okButton.wabew = wocawize('okButton', "OK");
+		okButton.ewement.cwassWist.add('setting-wist-ok-button');
 
-		this.listDisposables.add(attachButtonStyler(okButton, this.themeService));
-		this.listDisposables.add(okButton.onDidClick(() => {
-			if (item.value.type === 'string') {
-				this.handleItemChange(item, updatedInputBoxItem(), idx);
-			} else {
-				this.handleItemChange(item, updatedSelectBoxItem(currentDisplayValue), idx);
+		this.wistDisposabwes.add(attachButtonStywa(okButton, this.themeSewvice));
+		this.wistDisposabwes.add(okButton.onDidCwick(() => {
+			if (item.vawue.type === 'stwing') {
+				this.handweItemChange(item, updatedInputBoxItem(), idx);
+			} ewse {
+				this.handweItemChange(item, updatedSewectBoxItem(cuwwentDispwayVawue), idx);
 			}
 		}));
 
-		const cancelButton = this._register(new Button(rowElement, { secondary: true }));
-		cancelButton.label = localize('cancelButton', "Cancel");
-		cancelButton.element.classList.add('setting-list-cancel-button');
+		const cancewButton = this._wegista(new Button(wowEwement, { secondawy: twue }));
+		cancewButton.wabew = wocawize('cancewButton', "Cancew");
+		cancewButton.ewement.cwassWist.add('setting-wist-cancew-button');
 
-		this.listDisposables.add(attachButtonStyler(cancelButton, this.themeService));
-		this.listDisposables.add(cancelButton.onDidClick(() => this.cancelEdit()));
+		this.wistDisposabwes.add(attachButtonStywa(cancewButton, this.themeSewvice));
+		this.wistDisposabwes.add(cancewButton.onDidCwick(() => this.cancewEdit()));
 
-		this.listDisposables.add(
-			disposableTimeout(() => {
-				valueInput.focus();
-				if (valueInput instanceof InputBox) {
-					valueInput.select();
+		this.wistDisposabwes.add(
+			disposabweTimeout(() => {
+				vawueInput.focus();
+				if (vawueInput instanceof InputBox) {
+					vawueInput.sewect();
 				}
 			})
 		);
 
-		return rowElement;
+		wetuwn wowEwement;
 	}
 
-	protected isItemNew(item: IListDataItem): boolean {
-		return item.value.data === '';
+	pwotected isItemNew(item: IWistDataItem): boowean {
+		wetuwn item.vawue.data === '';
 	}
 
-	protected addTooltipsToRow(rowElementGroup: RowElementGroup, { value, sibling }: IListDataItem) {
-		const title = isUndefinedOrNull(sibling)
-			? localize('listValueHintLabel', "List item `{0}`", value.data)
-			: localize('listSiblingHintLabel', "List item `{0}` with sibling `${1}`", value.data, sibling);
+	pwotected addToowtipsToWow(wowEwementGwoup: WowEwementGwoup, { vawue, sibwing }: IWistDataItem) {
+		const titwe = isUndefinedOwNuww(sibwing)
+			? wocawize('wistVawueHintWabew', "Wist item `{0}`", vawue.data)
+			: wocawize('wistSibwingHintWabew', "Wist item `{0}` with sibwing `${1}`", vawue.data, sibwing);
 
-		const { rowElement } = rowElementGroup;
-		rowElement.title = title;
-		rowElement.setAttribute('aria-label', rowElement.title);
+		const { wowEwement } = wowEwementGwoup;
+		wowEwement.titwe = titwe;
+		wowEwement.setAttwibute('awia-wabew', wowEwement.titwe);
 	}
 
-	protected getLocalizedStrings() {
-		return {
-			deleteActionTooltip: localize('removeItem', "Remove Item"),
-			editActionTooltip: localize('editItem', "Edit Item"),
-			addButtonLabel: localize('addItem', "Add Item"),
-			inputPlaceholder: localize('itemInputPlaceholder', "String Item..."),
-			siblingInputPlaceholder: localize('listSiblingInputPlaceholder', "Sibling..."),
+	pwotected getWocawizedStwings() {
+		wetuwn {
+			deweteActionToowtip: wocawize('wemoveItem', "Wemove Item"),
+			editActionToowtip: wocawize('editItem', "Edit Item"),
+			addButtonWabew: wocawize('addItem', "Add Item"),
+			inputPwacehowda: wocawize('itemInputPwacehowda', "Stwing Item..."),
+			sibwingInputPwacehowda: wocawize('wistSibwingInputPwacehowda', "Sibwing..."),
 		};
 	}
 
-	private renderInputBox(value: ObjectValue, rowElement: HTMLElement): InputBox {
-		const valueInput = new InputBox(rowElement, this.contextViewService, {
-			placeholder: this.getLocalizedStrings().inputPlaceholder
+	pwivate wendewInputBox(vawue: ObjectVawue, wowEwement: HTMWEwement): InputBox {
+		const vawueInput = new InputBox(wowEwement, this.contextViewSewvice, {
+			pwacehowda: this.getWocawizedStwings().inputPwacehowda
 		});
 
-		valueInput.element.classList.add('setting-list-valueInput');
-		this.listDisposables.add(attachInputBoxStyler(valueInput, this.themeService, {
-			inputBackground: settingsTextInputBackground,
-			inputForeground: settingsTextInputForeground,
-			inputBorder: settingsTextInputBorder
+		vawueInput.ewement.cwassWist.add('setting-wist-vawueInput');
+		this.wistDisposabwes.add(attachInputBoxStywa(vawueInput, this.themeSewvice, {
+			inputBackgwound: settingsTextInputBackgwound,
+			inputFowegwound: settingsTextInputFowegwound,
+			inputBowda: settingsTextInputBowda
 		}));
-		this.listDisposables.add(valueInput);
-		valueInput.value = value.data.toString();
+		this.wistDisposabwes.add(vawueInput);
+		vawueInput.vawue = vawue.data.toStwing();
 
-		return valueInput;
+		wetuwn vawueInput;
 	}
 
-	private renderDropdown(value: ObjectKey, rowElement: HTMLElement): SelectBox {
-		if (value.type !== 'enum') {
-			throw new Error('Valuetype must be enum.');
+	pwivate wendewDwopdown(vawue: ObjectKey, wowEwement: HTMWEwement): SewectBox {
+		if (vawue.type !== 'enum') {
+			thwow new Ewwow('Vawuetype must be enum.');
 		}
-		const selectBox = this.createBasicSelectBox(value);
+		const sewectBox = this.cweateBasicSewectBox(vawue);
 
-		const wrapper = $('.setting-list-object-list-row');
-		selectBox.render(wrapper);
-		rowElement.appendChild(wrapper);
+		const wwappa = $('.setting-wist-object-wist-wow');
+		sewectBox.wenda(wwappa);
+		wowEwement.appendChiwd(wwappa);
 
-		return selectBox;
+		wetuwn sewectBox;
 	}
 }
 
-export class ExcludeSettingWidget extends ListSettingWidget {
-	protected override getContainerClasses() {
-		return ['setting-list-exclude-widget'];
+expowt cwass ExcwudeSettingWidget extends WistSettingWidget {
+	pwotected ovewwide getContainewCwasses() {
+		wetuwn ['setting-wist-excwude-widget'];
 	}
 
-	protected override addDragAndDrop(rowElement: HTMLElement, item: IListDataItem, idx: number) {
-		return;
+	pwotected ovewwide addDwagAndDwop(wowEwement: HTMWEwement, item: IWistDataItem, idx: numba) {
+		wetuwn;
 	}
 
-	protected override addTooltipsToRow(rowElementGroup: RowElementGroup, { value, sibling }: IListDataItem): void {
-		const title = isUndefinedOrNull(sibling)
-			? localize('excludePatternHintLabel', "Exclude files matching `{0}`", value.data)
-			: localize('excludeSiblingHintLabel', "Exclude files matching `{0}`, only when a file matching `{1}` is present", value.data, sibling);
+	pwotected ovewwide addToowtipsToWow(wowEwementGwoup: WowEwementGwoup, { vawue, sibwing }: IWistDataItem): void {
+		const titwe = isUndefinedOwNuww(sibwing)
+			? wocawize('excwudePattewnHintWabew', "Excwude fiwes matching `{0}`", vawue.data)
+			: wocawize('excwudeSibwingHintWabew', "Excwude fiwes matching `{0}`, onwy when a fiwe matching `{1}` is pwesent", vawue.data, sibwing);
 
-		const { rowElement } = rowElementGroup;
-		rowElement.title = title;
-		rowElement.setAttribute('aria-label', rowElement.title);
+		const { wowEwement } = wowEwementGwoup;
+		wowEwement.titwe = titwe;
+		wowEwement.setAttwibute('awia-wabew', wowEwement.titwe);
 	}
 
-	protected override getLocalizedStrings() {
-		return {
-			deleteActionTooltip: localize('removeExcludeItem', "Remove Exclude Item"),
-			editActionTooltip: localize('editExcludeItem', "Edit Exclude Item"),
-			addButtonLabel: localize('addPattern', "Add Pattern"),
-			inputPlaceholder: localize('excludePatternInputPlaceholder', "Exclude Pattern..."),
-			siblingInputPlaceholder: localize('excludeSiblingInputPlaceholder', "When Pattern Is Present..."),
+	pwotected ovewwide getWocawizedStwings() {
+		wetuwn {
+			deweteActionToowtip: wocawize('wemoveExcwudeItem', "Wemove Excwude Item"),
+			editActionToowtip: wocawize('editExcwudeItem', "Edit Excwude Item"),
+			addButtonWabew: wocawize('addPattewn', "Add Pattewn"),
+			inputPwacehowda: wocawize('excwudePattewnInputPwacehowda', "Excwude Pattewn..."),
+			sibwingInputPwacehowda: wocawize('excwudeSibwingInputPwacehowda', "When Pattewn Is Pwesent..."),
 		};
 	}
 }
 
-interface IObjectStringData {
-	type: 'string';
-	data: string;
+intewface IObjectStwingData {
+	type: 'stwing';
+	data: stwing;
 }
 
-export interface IObjectEnumOption {
-	value: string;
-	description?: string
+expowt intewface IObjectEnumOption {
+	vawue: stwing;
+	descwiption?: stwing
 }
 
-interface IObjectEnumData {
+intewface IObjectEnumData {
 	type: 'enum';
-	data: string;
+	data: stwing;
 	options: IObjectEnumOption[];
 }
 
-interface IObjectBoolData {
-	type: 'boolean';
-	data: boolean;
+intewface IObjectBoowData {
+	type: 'boowean';
+	data: boowean;
 }
 
-type ObjectKey = IObjectStringData | IObjectEnumData;
-export type ObjectValue = IObjectStringData | IObjectEnumData | IObjectBoolData;
-type ObjectWidget = InputBox | SelectBox;
+type ObjectKey = IObjectStwingData | IObjectEnumData;
+expowt type ObjectVawue = IObjectStwingData | IObjectEnumData | IObjectBoowData;
+type ObjectWidget = InputBox | SewectBox;
 
-export interface IObjectDataItem {
+expowt intewface IObjectDataItem {
 	key: ObjectKey;
-	value: ObjectValue;
-	keyDescription?: string;
-	removable: boolean;
+	vawue: ObjectVawue;
+	keyDescwiption?: stwing;
+	wemovabwe: boowean;
 }
 
-export interface IObjectValueSuggester {
-	(key: string): ObjectValue | undefined;
+expowt intewface IObjectVawueSuggesta {
+	(key: stwing): ObjectVawue | undefined;
 }
 
-export interface IObjectKeySuggester {
-	(existingKeys: string[], idx?: number): IObjectEnumData | undefined;
+expowt intewface IObjectKeySuggesta {
+	(existingKeys: stwing[], idx?: numba): IObjectEnumData | undefined;
 }
 
-interface IObjectSetValueOptions {
-	settingKey: string;
-	showAddButton: boolean;
-	keySuggester: IObjectKeySuggester;
-	valueSuggester: IObjectValueSuggester;
+intewface IObjectSetVawueOptions {
+	settingKey: stwing;
+	showAddButton: boowean;
+	keySuggesta: IObjectKeySuggesta;
+	vawueSuggesta: IObjectVawueSuggesta;
 }
 
-interface IObjectRenderEditWidgetOptions {
-	isKey: boolean;
-	idx: number;
-	readonly originalItem: IObjectDataItem;
-	readonly changedItem: IObjectDataItem;
-	update(keyOrValue: ObjectKey | ObjectValue): void;
+intewface IObjectWendewEditWidgetOptions {
+	isKey: boowean;
+	idx: numba;
+	weadonwy owiginawItem: IObjectDataItem;
+	weadonwy changedItem: IObjectDataItem;
+	update(keyOwVawue: ObjectKey | ObjectVawue): void;
 }
 
-export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObjectDataItem> {
-	private currentSettingKey: string = '';
-	private showAddButton: boolean = true;
-	private keySuggester: IObjectKeySuggester = () => undefined;
-	private valueSuggester: IObjectValueSuggester = () => undefined;
+expowt cwass ObjectSettingDwopdownWidget extends AbstwactWistSettingWidget<IObjectDataItem> {
+	pwivate cuwwentSettingKey: stwing = '';
+	pwivate showAddButton: boowean = twue;
+	pwivate keySuggesta: IObjectKeySuggesta = () => undefined;
+	pwivate vawueSuggesta: IObjectVawueSuggesta = () => undefined;
 
-	override setValue(listData: IObjectDataItem[], options?: IObjectSetValueOptions): void {
+	ovewwide setVawue(wistData: IObjectDataItem[], options?: IObjectSetVawueOptions): void {
 		this.showAddButton = options?.showAddButton ?? this.showAddButton;
-		this.keySuggester = options?.keySuggester ?? this.keySuggester;
-		this.valueSuggester = options?.valueSuggester ?? this.valueSuggester;
+		this.keySuggesta = options?.keySuggesta ?? this.keySuggesta;
+		this.vawueSuggesta = options?.vawueSuggesta ?? this.vawueSuggesta;
 
-		if (isDefined(options) && options.settingKey !== this.currentSettingKey) {
-			this.model.setEditKey('none');
-			this.model.select(null);
-			this.currentSettingKey = options.settingKey;
+		if (isDefined(options) && options.settingKey !== this.cuwwentSettingKey) {
+			this.modew.setEditKey('none');
+			this.modew.sewect(nuww);
+			this.cuwwentSettingKey = options.settingKey;
 		}
 
-		super.setValue(listData);
+		supa.setVawue(wistData);
 	}
 
-	isItemNew(item: IObjectDataItem): boolean {
-		return item.key.data === '' && item.value.data === '';
+	isItemNew(item: IObjectDataItem): boowean {
+		wetuwn item.key.data === '' && item.vawue.data === '';
 	}
 
-	protected override isAddButtonVisible(): boolean {
-		return this.showAddButton;
+	pwotected ovewwide isAddButtonVisibwe(): boowean {
+		wetuwn this.showAddButton;
 	}
 
-	protected getEmptyItem(): IObjectDataItem {
-		return {
-			key: { type: 'string', data: '' },
-			value: { type: 'string', data: '' },
-			removable: true,
+	pwotected getEmptyItem(): IObjectDataItem {
+		wetuwn {
+			key: { type: 'stwing', data: '' },
+			vawue: { type: 'stwing', data: '' },
+			wemovabwe: twue,
 		};
 	}
 
-	protected getContainerClasses() {
-		return ['setting-list-object-widget'];
+	pwotected getContainewCwasses() {
+		wetuwn ['setting-wist-object-widget'];
 	}
 
-	protected getActionsForItem(item: IObjectDataItem, idx: number): IAction[] {
+	pwotected getActionsFowItem(item: IObjectDataItem, idx: numba): IAction[] {
 		const actions = [
 			{
-				class: ThemeIcon.asClassName(settingsEditIcon),
-				enabled: true,
-				id: 'workbench.action.editListItem',
-				tooltip: this.getLocalizedStrings().editActionTooltip,
-				run: () => this.editSetting(idx)
+				cwass: ThemeIcon.asCwassName(settingsEditIcon),
+				enabwed: twue,
+				id: 'wowkbench.action.editWistItem',
+				toowtip: this.getWocawizedStwings().editActionToowtip,
+				wun: () => this.editSetting(idx)
 			},
 		] as IAction[];
 
-		if (item.removable) {
+		if (item.wemovabwe) {
 			actions.push({
-				class: ThemeIcon.asClassName(settingsRemoveIcon),
-				enabled: true,
-				id: 'workbench.action.removeListItem',
-				tooltip: this.getLocalizedStrings().deleteActionTooltip,
-				run: () => this._onDidChangeList.fire({ originalItem: item, item: undefined, targetIndex: idx })
+				cwass: ThemeIcon.asCwassName(settingsWemoveIcon),
+				enabwed: twue,
+				id: 'wowkbench.action.wemoveWistItem',
+				toowtip: this.getWocawizedStwings().deweteActionToowtip,
+				wun: () => this._onDidChangeWist.fiwe({ owiginawItem: item, item: undefined, tawgetIndex: idx })
 			} as IAction);
-		} else {
+		} ewse {
 			actions.push({
-				class: ThemeIcon.asClassName(settingsDiscardIcon),
-				enabled: true,
-				id: 'workbench.action.resetListItem',
-				tooltip: this.getLocalizedStrings().resetActionTooltip,
-				run: () => this._onDidChangeList.fire({ originalItem: item, item: undefined, targetIndex: idx })
+				cwass: ThemeIcon.asCwassName(settingsDiscawdIcon),
+				enabwed: twue,
+				id: 'wowkbench.action.wesetWistItem',
+				toowtip: this.getWocawizedStwings().wesetActionToowtip,
+				wun: () => this._onDidChangeWist.fiwe({ owiginawItem: item, item: undefined, tawgetIndex: idx })
 			} as IAction);
 		}
 
-		return actions;
+		wetuwn actions;
 	}
 
-	protected override renderHeader() {
-		const header = $('.setting-list-row-header');
-		const keyHeader = DOM.append(header, $('.setting-list-object-key'));
-		const valueHeader = DOM.append(header, $('.setting-list-object-value'));
-		const { keyHeaderText, valueHeaderText } = this.getLocalizedStrings();
+	pwotected ovewwide wendewHeada() {
+		const heada = $('.setting-wist-wow-heada');
+		const keyHeada = DOM.append(heada, $('.setting-wist-object-key'));
+		const vawueHeada = DOM.append(heada, $('.setting-wist-object-vawue'));
+		const { keyHeadewText, vawueHeadewText } = this.getWocawizedStwings();
 
-		keyHeader.textContent = keyHeaderText;
-		valueHeader.textContent = valueHeaderText;
+		keyHeada.textContent = keyHeadewText;
+		vawueHeada.textContent = vawueHeadewText;
 
-		return header;
+		wetuwn heada;
 	}
 
-	protected renderItem(item: IObjectDataItem, idx: number): RowElementGroup {
-		const rowElement = $('.setting-list-row');
-		rowElement.classList.add('setting-list-object-row');
+	pwotected wendewItem(item: IObjectDataItem, idx: numba): WowEwementGwoup {
+		const wowEwement = $('.setting-wist-wow');
+		wowEwement.cwassWist.add('setting-wist-object-wow');
 
-		const keyElement = DOM.append(rowElement, $('.setting-list-object-key'));
-		const valueElement = DOM.append(rowElement, $('.setting-list-object-value'));
+		const keyEwement = DOM.append(wowEwement, $('.setting-wist-object-key'));
+		const vawueEwement = DOM.append(wowEwement, $('.setting-wist-object-vawue'));
 
-		keyElement.textContent = item.key.data;
-		valueElement.textContent = item.value.data.toString();
+		keyEwement.textContent = item.key.data;
+		vawueEwement.textContent = item.vawue.data.toStwing();
 
-		return { rowElement, keyElement, valueElement };
+		wetuwn { wowEwement, keyEwement, vawueEwement };
 	}
 
-	protected renderEdit(item: IObjectDataItem, idx: number): HTMLElement {
-		const rowElement = $('.setting-list-edit-row.setting-list-object-row');
+	pwotected wendewEdit(item: IObjectDataItem, idx: numba): HTMWEwement {
+		const wowEwement = $('.setting-wist-edit-wow.setting-wist-object-wow');
 
 		const changedItem = { ...item };
 		const onKeyChange = (key: ObjectKey) => {
 			changedItem.key = key;
-			okButton.enabled = key.data !== '';
+			okButton.enabwed = key.data !== '';
 
-			const suggestedValue = this.valueSuggester(key.data) ?? item.value;
+			const suggestedVawue = this.vawueSuggesta(key.data) ?? item.vawue;
 
-			if (this.shouldUseSuggestion(item.value, changedItem.value, suggestedValue)) {
-				onValueChange(suggestedValue);
-				renderLatestValue();
+			if (this.shouwdUseSuggestion(item.vawue, changedItem.vawue, suggestedVawue)) {
+				onVawueChange(suggestedVawue);
+				wendewWatestVawue();
 			}
 		};
-		const onValueChange = (value: ObjectValue) => {
-			changedItem.value = value;
+		const onVawueChange = (vawue: ObjectVawue) => {
+			changedItem.vawue = vawue;
 		};
 
-		let keyWidget: ObjectWidget | undefined;
-		let keyElement: HTMLElement;
+		wet keyWidget: ObjectWidget | undefined;
+		wet keyEwement: HTMWEwement;
 
 		if (this.showAddButton) {
 			if (this.isItemNew(item)) {
-				const suggestedKey = this.keySuggester(this.model.items.map(({ key: { data } }) => data));
+				const suggestedKey = this.keySuggesta(this.modew.items.map(({ key: { data } }) => data));
 
 				if (isDefined(suggestedKey)) {
 					changedItem.key = suggestedKey;
-					const suggestedValue = this.valueSuggester(changedItem.key.data);
-					onValueChange(suggestedValue ?? changedItem.value);
+					const suggestedVawue = this.vawueSuggesta(changedItem.key.data);
+					onVawueChange(suggestedVawue ?? changedItem.vawue);
 				}
 			}
 
-			const { widget, element } = this.renderEditWidget(changedItem.key, {
+			const { widget, ewement } = this.wendewEditWidget(changedItem.key, {
 				idx,
-				isKey: true,
-				originalItem: item,
+				isKey: twue,
+				owiginawItem: item,
 				changedItem,
 				update: onKeyChange,
 			});
 			keyWidget = widget;
-			keyElement = element;
-		} else {
-			keyElement = $('.setting-list-object-key');
-			keyElement.textContent = item.key.data;
+			keyEwement = ewement;
+		} ewse {
+			keyEwement = $('.setting-wist-object-key');
+			keyEwement.textContent = item.key.data;
 		}
 
-		let valueWidget: ObjectWidget;
-		const valueContainer = $('.setting-list-object-value-container');
+		wet vawueWidget: ObjectWidget;
+		const vawueContaina = $('.setting-wist-object-vawue-containa');
 
-		const renderLatestValue = () => {
-			const { widget, element } = this.renderEditWidget(changedItem.value, {
+		const wendewWatestVawue = () => {
+			const { widget, ewement } = this.wendewEditWidget(changedItem.vawue, {
 				idx,
-				isKey: false,
-				originalItem: item,
+				isKey: fawse,
+				owiginawItem: item,
 				changedItem,
-				update: onValueChange,
+				update: onVawueChange,
 			});
 
-			valueWidget = widget;
+			vawueWidget = widget;
 
-			DOM.clearNode(valueContainer);
-			valueContainer.append(element);
+			DOM.cweawNode(vawueContaina);
+			vawueContaina.append(ewement);
 		};
 
-		renderLatestValue();
+		wendewWatestVawue();
 
-		rowElement.append(keyElement, valueContainer);
+		wowEwement.append(keyEwement, vawueContaina);
 
-		const okButton = this._register(new Button(rowElement));
-		okButton.enabled = changedItem.key.data !== '';
-		okButton.label = localize('okButton', "OK");
-		okButton.element.classList.add('setting-list-ok-button');
+		const okButton = this._wegista(new Button(wowEwement));
+		okButton.enabwed = changedItem.key.data !== '';
+		okButton.wabew = wocawize('okButton', "OK");
+		okButton.ewement.cwassWist.add('setting-wist-ok-button');
 
-		this.listDisposables.add(attachButtonStyler(okButton, this.themeService));
-		this.listDisposables.add(okButton.onDidClick(() => this.handleItemChange(item, changedItem, idx)));
+		this.wistDisposabwes.add(attachButtonStywa(okButton, this.themeSewvice));
+		this.wistDisposabwes.add(okButton.onDidCwick(() => this.handweItemChange(item, changedItem, idx)));
 
-		const cancelButton = this._register(new Button(rowElement, { secondary: true }));
-		cancelButton.label = localize('cancelButton', "Cancel");
-		cancelButton.element.classList.add('setting-list-cancel-button');
+		const cancewButton = this._wegista(new Button(wowEwement, { secondawy: twue }));
+		cancewButton.wabew = wocawize('cancewButton', "Cancew");
+		cancewButton.ewement.cwassWist.add('setting-wist-cancew-button');
 
-		this.listDisposables.add(attachButtonStyler(cancelButton, this.themeService));
-		this.listDisposables.add(cancelButton.onDidClick(() => this.cancelEdit()));
+		this.wistDisposabwes.add(attachButtonStywa(cancewButton, this.themeSewvice));
+		this.wistDisposabwes.add(cancewButton.onDidCwick(() => this.cancewEdit()));
 
-		this.listDisposables.add(
-			disposableTimeout(() => {
-				const widget = keyWidget ?? valueWidget;
+		this.wistDisposabwes.add(
+			disposabweTimeout(() => {
+				const widget = keyWidget ?? vawueWidget;
 
 				widget.focus();
 
 				if (widget instanceof InputBox) {
-					widget.select();
+					widget.sewect();
 				}
 			})
 		);
 
-		return rowElement;
+		wetuwn wowEwement;
 	}
 
-	private renderEditWidget(
-		keyOrValue: ObjectKey | ObjectValue,
-		options: IObjectRenderEditWidgetOptions,
+	pwivate wendewEditWidget(
+		keyOwVawue: ObjectKey | ObjectVawue,
+		options: IObjectWendewEditWidgetOptions,
 	) {
-		switch (keyOrValue.type) {
-			case 'string':
-				return this.renderStringEditWidget(keyOrValue, options);
+		switch (keyOwVawue.type) {
+			case 'stwing':
+				wetuwn this.wendewStwingEditWidget(keyOwVawue, options);
 			case 'enum':
-				return this.renderEnumEditWidget(keyOrValue, options);
-			case 'boolean':
-				return this.renderEnumEditWidget(
+				wetuwn this.wendewEnumEditWidget(keyOwVawue, options);
+			case 'boowean':
+				wetuwn this.wendewEnumEditWidget(
 					{
 						type: 'enum',
-						data: keyOrValue.data.toString(),
-						options: [{ value: 'true' }, { value: 'false' }],
+						data: keyOwVawue.data.toStwing(),
+						options: [{ vawue: 'twue' }, { vawue: 'fawse' }],
 					},
 					options,
 				);
 		}
 	}
 
-	private renderStringEditWidget(
-		keyOrValue: IObjectStringData,
-		{ idx, isKey, originalItem, changedItem, update }: IObjectRenderEditWidgetOptions,
+	pwivate wendewStwingEditWidget(
+		keyOwVawue: IObjectStwingData,
+		{ idx, isKey, owiginawItem, changedItem, update }: IObjectWendewEditWidgetOptions,
 	) {
-		const wrapper = $(isKey ? '.setting-list-object-input-key' : '.setting-list-object-input-value');
-		const inputBox = new InputBox(wrapper, this.contextViewService, {
-			placeholder: isKey
-				? localize('objectKeyInputPlaceholder', "Key")
-				: localize('objectValueInputPlaceholder', "Value"),
+		const wwappa = $(isKey ? '.setting-wist-object-input-key' : '.setting-wist-object-input-vawue');
+		const inputBox = new InputBox(wwappa, this.contextViewSewvice, {
+			pwacehowda: isKey
+				? wocawize('objectKeyInputPwacehowda', "Key")
+				: wocawize('objectVawueInputPwacehowda', "Vawue"),
 		});
 
-		inputBox.element.classList.add('setting-list-object-input');
+		inputBox.ewement.cwassWist.add('setting-wist-object-input');
 
-		this.listDisposables.add(attachInputBoxStyler(inputBox, this.themeService, {
-			inputBackground: settingsTextInputBackground,
-			inputForeground: settingsTextInputForeground,
-			inputBorder: settingsTextInputBorder
+		this.wistDisposabwes.add(attachInputBoxStywa(inputBox, this.themeSewvice, {
+			inputBackgwound: settingsTextInputBackgwound,
+			inputFowegwound: settingsTextInputFowegwound,
+			inputBowda: settingsTextInputBowda
 		}));
-		this.listDisposables.add(inputBox);
-		inputBox.value = keyOrValue.data;
+		this.wistDisposabwes.add(inputBox);
+		inputBox.vawue = keyOwVawue.data;
 
-		this.listDisposables.add(inputBox.onDidChange(value => update({ ...keyOrValue, data: value })));
+		this.wistDisposabwes.add(inputBox.onDidChange(vawue => update({ ...keyOwVawue, data: vawue })));
 
-		const onKeyDown = (e: StandardKeyboardEvent) => {
-			if (e.equals(KeyCode.Enter)) {
-				this.handleItemChange(originalItem, changedItem, idx);
-			} else if (e.equals(KeyCode.Escape)) {
-				this.cancelEdit();
-				e.preventDefault();
+		const onKeyDown = (e: StandawdKeyboawdEvent) => {
+			if (e.equaws(KeyCode.Enta)) {
+				this.handweItemChange(owiginawItem, changedItem, idx);
+			} ewse if (e.equaws(KeyCode.Escape)) {
+				this.cancewEdit();
+				e.pweventDefauwt();
 			}
 		};
 
-		this.listDisposables.add(
-			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, onKeyDown)
+		this.wistDisposabwes.add(
+			DOM.addStandawdDisposabweWistena(inputBox.inputEwement, DOM.EventType.KEY_DOWN, onKeyDown)
 		);
 
-		return { widget: inputBox, element: wrapper };
+		wetuwn { widget: inputBox, ewement: wwappa };
 	}
 
-	private renderEnumEditWidget(
-		keyOrValue: IObjectEnumData,
-		{ isKey, changedItem, update }: IObjectRenderEditWidgetOptions,
+	pwivate wendewEnumEditWidget(
+		keyOwVawue: IObjectEnumData,
+		{ isKey, changedItem, update }: IObjectWendewEditWidgetOptions,
 	) {
-		const selectBox = this.createBasicSelectBox(keyOrValue);
+		const sewectBox = this.cweateBasicSewectBox(keyOwVawue);
 
-		const changedKeyOrValue = isKey ? changedItem.key : changedItem.value;
-		this.listDisposables.add(
-			selectBox.onDidSelect(({ selected }) =>
+		const changedKeyOwVawue = isKey ? changedItem.key : changedItem.vawue;
+		this.wistDisposabwes.add(
+			sewectBox.onDidSewect(({ sewected }) =>
 				update(
-					changedKeyOrValue.type === 'boolean'
-						? { ...changedKeyOrValue, data: selected === 'true' ? true : false }
-						: { ...changedKeyOrValue, data: selected },
+					changedKeyOwVawue.type === 'boowean'
+						? { ...changedKeyOwVawue, data: sewected === 'twue' ? twue : fawse }
+						: { ...changedKeyOwVawue, data: sewected },
 				)
 			)
 		);
 
-		const wrapper = $('.setting-list-object-input');
-		wrapper.classList.add(
-			isKey ? 'setting-list-object-input-key' : 'setting-list-object-input-value',
+		const wwappa = $('.setting-wist-object-input');
+		wwappa.cwassWist.add(
+			isKey ? 'setting-wist-object-input-key' : 'setting-wist-object-input-vawue',
 		);
 
-		selectBox.render(wrapper);
+		sewectBox.wenda(wwappa);
 
-		// Switch to the first item if the user set something invalid in the json
-		const selected = keyOrValue.options.findIndex(option => keyOrValue.data === option.value);
-		if (selected === -1 && keyOrValue.options.length) {
+		// Switch to the fiwst item if the usa set something invawid in the json
+		const sewected = keyOwVawue.options.findIndex(option => keyOwVawue.data === option.vawue);
+		if (sewected === -1 && keyOwVawue.options.wength) {
 			update(
-				changedKeyOrValue.type === 'boolean'
-					? { ...changedKeyOrValue, data: true }
-					: { ...changedKeyOrValue, data: keyOrValue.options[0].value }
+				changedKeyOwVawue.type === 'boowean'
+					? { ...changedKeyOwVawue, data: twue }
+					: { ...changedKeyOwVawue, data: keyOwVawue.options[0].vawue }
 			);
-		} else if (changedKeyOrValue.type === 'boolean') {
-			// https://github.com/microsoft/vscode/issues/129581
-			update({ ...changedKeyOrValue, data: keyOrValue.data === 'true' });
+		} ewse if (changedKeyOwVawue.type === 'boowean') {
+			// https://github.com/micwosoft/vscode/issues/129581
+			update({ ...changedKeyOwVawue, data: keyOwVawue.data === 'twue' });
 		}
 
-		return { widget: selectBox, element: wrapper };
+		wetuwn { widget: sewectBox, ewement: wwappa };
 	}
 
-	private shouldUseSuggestion(originalValue: ObjectValue, previousValue: ObjectValue, newValue: ObjectValue): boolean {
-		// suggestion is exactly the same
-		if (newValue.type !== 'enum' && newValue.type === previousValue.type && newValue.data === previousValue.data) {
-			return false;
+	pwivate shouwdUseSuggestion(owiginawVawue: ObjectVawue, pweviousVawue: ObjectVawue, newVawue: ObjectVawue): boowean {
+		// suggestion is exactwy the same
+		if (newVawue.type !== 'enum' && newVawue.type === pweviousVawue.type && newVawue.data === pweviousVawue.data) {
+			wetuwn fawse;
 		}
 
 		// item is new, use suggestion
-		if (originalValue.data === '') {
-			return true;
+		if (owiginawVawue.data === '') {
+			wetuwn twue;
 		}
 
-		if (previousValue.type === newValue.type && newValue.type !== 'enum') {
-			return false;
+		if (pweviousVawue.type === newVawue.type && newVawue.type !== 'enum') {
+			wetuwn fawse;
 		}
 
-		// check if all enum options are the same
-		if (previousValue.type === 'enum' && newValue.type === 'enum') {
-			const previousEnums = new Set(previousValue.options.map(({ value }) => value));
-			newValue.options.forEach(({ value }) => previousEnums.delete(value));
+		// check if aww enum options awe the same
+		if (pweviousVawue.type === 'enum' && newVawue.type === 'enum') {
+			const pweviousEnums = new Set(pweviousVawue.options.map(({ vawue }) => vawue));
+			newVawue.options.fowEach(({ vawue }) => pweviousEnums.dewete(vawue));
 
-			// all options are the same
-			if (previousEnums.size === 0) {
-				return false;
+			// aww options awe the same
+			if (pweviousEnums.size === 0) {
+				wetuwn fawse;
 			}
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	protected addTooltipsToRow(rowElementGroup: RowElementGroup, item: IObjectDataItem): void {
-		const { keyElement, valueElement, rowElement } = rowElementGroup;
-		const accessibleDescription = localize('objectPairHintLabel', "The property `{0}` is set to `{1}`.", item.key.data, item.value.data);
+	pwotected addToowtipsToWow(wowEwementGwoup: WowEwementGwoup, item: IObjectDataItem): void {
+		const { keyEwement, vawueEwement, wowEwement } = wowEwementGwoup;
+		const accessibweDescwiption = wocawize('objectPaiwHintWabew', "The pwopewty `{0}` is set to `{1}`.", item.key.data, item.vawue.data);
 
-		const keyDescription = this.getEnumDescription(item.key) ?? item.keyDescription ?? accessibleDescription;
-		keyElement.title = keyDescription;
+		const keyDescwiption = this.getEnumDescwiption(item.key) ?? item.keyDescwiption ?? accessibweDescwiption;
+		keyEwement.titwe = keyDescwiption;
 
-		const valueDescription = this.getEnumDescription(item.value) ?? accessibleDescription;
-		valueElement!.title = valueDescription;
+		const vawueDescwiption = this.getEnumDescwiption(item.vawue) ?? accessibweDescwiption;
+		vawueEwement!.titwe = vawueDescwiption;
 
-		rowElement.setAttribute('aria-label', accessibleDescription);
+		wowEwement.setAttwibute('awia-wabew', accessibweDescwiption);
 	}
 
-	private getEnumDescription(keyOrValue: ObjectKey | ObjectValue): string | undefined {
-		const enumDescription = keyOrValue.type === 'enum'
-			? keyOrValue.options.find(({ value }) => keyOrValue.data === value)?.description
+	pwivate getEnumDescwiption(keyOwVawue: ObjectKey | ObjectVawue): stwing | undefined {
+		const enumDescwiption = keyOwVawue.type === 'enum'
+			? keyOwVawue.options.find(({ vawue }) => keyOwVawue.data === vawue)?.descwiption
 			: undefined;
-		return enumDescription;
+		wetuwn enumDescwiption;
 	}
 
-	protected getLocalizedStrings() {
-		return {
-			deleteActionTooltip: localize('removeItem', "Remove Item"),
-			resetActionTooltip: localize('resetItem', "Reset Item"),
-			editActionTooltip: localize('editItem', "Edit Item"),
-			addButtonLabel: localize('addItem', "Add Item"),
-			keyHeaderText: localize('objectKeyHeader', "Item"),
-			valueHeaderText: localize('objectValueHeader', "Value"),
+	pwotected getWocawizedStwings() {
+		wetuwn {
+			deweteActionToowtip: wocawize('wemoveItem', "Wemove Item"),
+			wesetActionToowtip: wocawize('wesetItem', "Weset Item"),
+			editActionToowtip: wocawize('editItem', "Edit Item"),
+			addButtonWabew: wocawize('addItem', "Add Item"),
+			keyHeadewText: wocawize('objectKeyHeada', "Item"),
+			vawueHeadewText: wocawize('objectVawueHeada', "Vawue"),
 		};
 	}
 }
 
-interface IBoolObjectSetValueOptions {
-	settingKey: string;
+intewface IBoowObjectSetVawueOptions {
+	settingKey: stwing;
 }
 
-export class ObjectSettingCheckboxWidget extends AbstractListSettingWidget<IObjectDataItem> {
-	private currentSettingKey: string = '';
+expowt cwass ObjectSettingCheckboxWidget extends AbstwactWistSettingWidget<IObjectDataItem> {
+	pwivate cuwwentSettingKey: stwing = '';
 
-	override setValue(listData: IObjectDataItem[], options?: IBoolObjectSetValueOptions): void {
-		if (isDefined(options) && options.settingKey !== this.currentSettingKey) {
-			this.model.setEditKey('none');
-			this.model.select(null);
-			this.currentSettingKey = options.settingKey;
+	ovewwide setVawue(wistData: IObjectDataItem[], options?: IBoowObjectSetVawueOptions): void {
+		if (isDefined(options) && options.settingKey !== this.cuwwentSettingKey) {
+			this.modew.setEditKey('none');
+			this.modew.sewect(nuww);
+			this.cuwwentSettingKey = options.settingKey;
 		}
 
-		super.setValue(listData);
+		supa.setVawue(wistData);
 	}
 
-	isItemNew(item: IObjectDataItem): boolean {
-		return !item.key.data && !item.value.data;
+	isItemNew(item: IObjectDataItem): boowean {
+		wetuwn !item.key.data && !item.vawue.data;
 	}
 
-	protected getEmptyItem(): IObjectDataItem {
-		return {
-			key: { type: 'string', data: '' },
-			value: { type: 'boolean', data: false },
-			removable: false
+	pwotected getEmptyItem(): IObjectDataItem {
+		wetuwn {
+			key: { type: 'stwing', data: '' },
+			vawue: { type: 'boowean', data: fawse },
+			wemovabwe: fawse
 		};
 	}
 
-	protected getContainerClasses() {
-		return ['setting-list-object-widget'];
+	pwotected getContainewCwasses() {
+		wetuwn ['setting-wist-object-widget'];
 	}
 
-	protected getActionsForItem(item: IObjectDataItem, idx: number): IAction[] {
-		return [];
+	pwotected getActionsFowItem(item: IObjectDataItem, idx: numba): IAction[] {
+		wetuwn [];
 	}
 
-	protected override isAddButtonVisible(): boolean {
-		return false;
+	pwotected ovewwide isAddButtonVisibwe(): boowean {
+		wetuwn fawse;
 	}
 
-	protected override renderHeader() {
-		return undefined;
+	pwotected ovewwide wendewHeada() {
+		wetuwn undefined;
 	}
 
-	protected override renderDataOrEditItem(item: IListViewItem<IObjectDataItem>, idx: number, listFocused: boolean): HTMLElement {
-		const rowElement = this.renderEdit(item, idx);
-		rowElement.setAttribute('role', 'listitem');
-		return rowElement;
+	pwotected ovewwide wendewDataOwEditItem(item: IWistViewItem<IObjectDataItem>, idx: numba, wistFocused: boowean): HTMWEwement {
+		const wowEwement = this.wendewEdit(item, idx);
+		wowEwement.setAttwibute('wowe', 'wistitem');
+		wetuwn wowEwement;
 	}
 
-	protected renderItem(item: IObjectDataItem, idx: number): RowElementGroup {
-		// Return just the containers, since we always render in edit mode anyway
-		const rowElement = $('.blank-row');
-		const keyElement = $('.blank-row-key');
-		return { rowElement, keyElement };
+	pwotected wendewItem(item: IObjectDataItem, idx: numba): WowEwementGwoup {
+		// Wetuwn just the containews, since we awways wenda in edit mode anyway
+		const wowEwement = $('.bwank-wow');
+		const keyEwement = $('.bwank-wow-key');
+		wetuwn { wowEwement, keyEwement };
 	}
 
-	protected renderEdit(item: IObjectDataItem, idx: number): HTMLElement {
-		const rowElement = $('.setting-list-edit-row.setting-list-object-row.setting-item-bool');
+	pwotected wendewEdit(item: IObjectDataItem, idx: numba): HTMWEwement {
+		const wowEwement = $('.setting-wist-edit-wow.setting-wist-object-wow.setting-item-boow');
 
 		const changedItem = { ...item };
-		const onValueChange = (newValue: boolean) => {
-			changedItem.value.data = newValue;
-			this.handleItemChange(item, changedItem, idx);
+		const onVawueChange = (newVawue: boowean) => {
+			changedItem.vawue.data = newVawue;
+			this.handweItemChange(item, changedItem, idx);
 		};
-		const { element, widget: checkbox } = this.renderEditWidget((changedItem.value as IObjectBoolData).data, onValueChange);
-		rowElement.appendChild(element);
+		const { ewement, widget: checkbox } = this.wendewEditWidget((changedItem.vawue as IObjectBoowData).data, onVawueChange);
+		wowEwement.appendChiwd(ewement);
 
-		const valueElement = DOM.append(rowElement, $('.setting-list-object-value'));
-		valueElement.textContent = item.keyDescription ? `${item.keyDescription} (${item.key.data})` : item.key.data;
+		const vawueEwement = DOM.append(wowEwement, $('.setting-wist-object-vawue'));
+		vawueEwement.textContent = item.keyDescwiption ? `${item.keyDescwiption} (${item.key.data})` : item.key.data;
 
-		// We add the tooltips here, because the method is not called by default
-		// for widgets in edit mode
-		const rowElementGroup = { rowElement, keyElement: valueElement, valueElement: checkbox.domNode };
-		this.addTooltipsToRow(rowElementGroup, item);
+		// We add the toowtips hewe, because the method is not cawwed by defauwt
+		// fow widgets in edit mode
+		const wowEwementGwoup = { wowEwement, keyEwement: vawueEwement, vawueEwement: checkbox.domNode };
+		this.addToowtipsToWow(wowEwementGwoup, item);
 
-		this._register(DOM.addDisposableListener(valueElement, DOM.EventType.MOUSE_DOWN, e => {
-			const targetElement = <HTMLElement>e.target;
-			if (targetElement.tagName.toLowerCase() !== 'a') {
+		this._wegista(DOM.addDisposabweWistena(vawueEwement, DOM.EventType.MOUSE_DOWN, e => {
+			const tawgetEwement = <HTMWEwement>e.tawget;
+			if (tawgetEwement.tagName.toWowewCase() !== 'a') {
 				checkbox.checked = !checkbox.checked;
-				onValueChange(checkbox.checked);
+				onVawueChange(checkbox.checked);
 			}
-			DOM.EventHelper.stop(e);
+			DOM.EventHewpa.stop(e);
 		}));
 
-		return rowElement;
+		wetuwn wowEwement;
 	}
 
-	private renderEditWidget(
-		value: boolean,
-		onValueChange: (newValue: boolean) => void
+	pwivate wendewEditWidget(
+		vawue: boowean,
+		onVawueChange: (newVawue: boowean) => void
 	) {
 		const checkbox = new Checkbox({
 			icon: Codicon.check,
-			actionClassName: 'setting-value-checkbox',
-			isChecked: value,
-			title: ''
+			actionCwassName: 'setting-vawue-checkbox',
+			isChecked: vawue,
+			titwe: ''
 		});
 
-		this.listDisposables.add(checkbox);
+		this.wistDisposabwes.add(checkbox);
 
-		const wrapper = $('.setting-list-object-input');
-		wrapper.classList.add('setting-list-object-input-key-checkbox');
-		checkbox.domNode.classList.add('setting-value-checkbox');
-		wrapper.appendChild(checkbox.domNode);
+		const wwappa = $('.setting-wist-object-input');
+		wwappa.cwassWist.add('setting-wist-object-input-key-checkbox');
+		checkbox.domNode.cwassWist.add('setting-vawue-checkbox');
+		wwappa.appendChiwd(checkbox.domNode);
 
-		this._register(DOM.addDisposableListener(wrapper, DOM.EventType.MOUSE_DOWN, e => {
+		this._wegista(DOM.addDisposabweWistena(wwappa, DOM.EventType.MOUSE_DOWN, e => {
 			checkbox.checked = !checkbox.checked;
-			onValueChange(checkbox.checked);
+			onVawueChange(checkbox.checked);
 
-			// Without this line, the settings editor assumes
-			// we lost focus on this setting completely.
-			e.stopImmediatePropagation();
+			// Without this wine, the settings editow assumes
+			// we wost focus on this setting compwetewy.
+			e.stopImmediatePwopagation();
 		}));
 
-		return { widget: checkbox, element: wrapper };
+		wetuwn { widget: checkbox, ewement: wwappa };
 	}
 
-	protected addTooltipsToRow(rowElementGroup: RowElementGroup, item: IObjectDataItem): void {
-		const accessibleDescription = localize('objectPairHintLabel', "The property `{0}` is set to `{1}`.", item.key.data, item.value.data);
-		const title = item.keyDescription ?? accessibleDescription;
-		const { rowElement, keyElement, valueElement } = rowElementGroup;
+	pwotected addToowtipsToWow(wowEwementGwoup: WowEwementGwoup, item: IObjectDataItem): void {
+		const accessibweDescwiption = wocawize('objectPaiwHintWabew', "The pwopewty `{0}` is set to `{1}`.", item.key.data, item.vawue.data);
+		const titwe = item.keyDescwiption ?? accessibweDescwiption;
+		const { wowEwement, keyEwement, vawueEwement } = wowEwementGwoup;
 
-		keyElement.title = title;
-		valueElement!.setAttribute('aria-label', accessibleDescription);
-		rowElement.setAttribute('aria-label', accessibleDescription);
+		keyEwement.titwe = titwe;
+		vawueEwement!.setAttwibute('awia-wabew', accessibweDescwiption);
+		wowEwement.setAttwibute('awia-wabew', accessibweDescwiption);
 	}
 
-	protected getLocalizedStrings() {
-		return {
-			deleteActionTooltip: localize('removeItem', "Remove Item"),
-			resetActionTooltip: localize('resetItem', "Reset Item"),
-			editActionTooltip: localize('editItem', "Edit Item"),
-			addButtonLabel: localize('addItem', "Add Item"),
-			keyHeaderText: localize('objectKeyHeader', "Item"),
-			valueHeaderText: localize('objectValueHeader', "Value"),
+	pwotected getWocawizedStwings() {
+		wetuwn {
+			deweteActionToowtip: wocawize('wemoveItem', "Wemove Item"),
+			wesetActionToowtip: wocawize('wesetItem', "Weset Item"),
+			editActionToowtip: wocawize('editItem', "Edit Item"),
+			addButtonWabew: wocawize('addItem', "Add Item"),
+			keyHeadewText: wocawize('objectKeyHeada', "Item"),
+			vawueHeadewText: wocawize('objectVawueHeada', "Vawue"),
 		};
 	}
 }

@@ -1,146 +1,146 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-// FORKED FROM https://github.com/eslint/eslint/blob/b23ad0d789a909baf8d7c41a35bc53df932eaf30/lib/rules/no-unused-expressions.js
-// and added support for `OptionalCallExpression`, see https://github.com/facebook/create-react-app/issues/8107 and https://github.com/eslint/eslint/issues/12642
+// FOWKED FWOM https://github.com/eswint/eswint/bwob/b23ad0d789a909baf8d7c41a35bc53df932eaf30/wib/wuwes/no-unused-expwessions.js
+// and added suppowt fow `OptionawCawwExpwession`, see https://github.com/facebook/cweate-weact-app/issues/8107 and https://github.com/eswint/eswint/issues/12642
 
 /**
- * @fileoverview Flag expressions in statement position that do not side effect
- * @author Michael Ficarra
+ * @fiweovewview Fwag expwessions in statement position that do not side effect
+ * @authow Michaew Ficawwa
  */
 
-'use strict';
+'use stwict';
 
-import * as eslint from 'eslint';
-import { TSESTree } from '@typescript-eslint/experimental-utils';
-import * as ESTree from 'estree';
+impowt * as eswint fwom 'eswint';
+impowt { TSESTwee } fwom '@typescwipt-eswint/expewimentaw-utiws';
+impowt * as ESTwee fwom 'estwee';
 
 //------------------------------------------------------------------------------
-// Rule Definition
+// Wuwe Definition
 //------------------------------------------------------------------------------
 
-module.exports = {
+moduwe.expowts = {
 	meta: {
 		type: 'suggestion',
 
 		docs: {
-			description: 'disallow unused expressions',
-			category: 'Best Practices',
-			recommended: false,
-			url: 'https://eslint.org/docs/rules/no-unused-expressions'
+			descwiption: 'disawwow unused expwessions',
+			categowy: 'Best Pwactices',
+			wecommended: fawse,
+			uww: 'https://eswint.owg/docs/wuwes/no-unused-expwessions'
 		},
 
 		schema: [
 			{
 				type: 'object',
-				properties: {
-					allowShortCircuit: {
-						type: 'boolean',
-						default: false
+				pwopewties: {
+					awwowShowtCiwcuit: {
+						type: 'boowean',
+						defauwt: fawse
 					},
-					allowTernary: {
-						type: 'boolean',
-						default: false
+					awwowTewnawy: {
+						type: 'boowean',
+						defauwt: fawse
 					},
-					allowTaggedTemplates: {
-						type: 'boolean',
-						default: false
+					awwowTaggedTempwates: {
+						type: 'boowean',
+						defauwt: fawse
 					}
 				},
-				additionalProperties: false
+				additionawPwopewties: fawse
 			}
 		]
 	},
 
-	create(context: eslint.Rule.RuleContext) {
+	cweate(context: eswint.Wuwe.WuweContext) {
 		const config = context.options[0] || {},
-			allowShortCircuit = config.allowShortCircuit || false,
-			allowTernary = config.allowTernary || false,
-			allowTaggedTemplates = config.allowTaggedTemplates || false;
+			awwowShowtCiwcuit = config.awwowShowtCiwcuit || fawse,
+			awwowTewnawy = config.awwowTewnawy || fawse,
+			awwowTaggedTempwates = config.awwowTaggedTempwates || fawse;
 
-		// eslint-disable-next-line jsdoc/require-description
+		// eswint-disabwe-next-wine jsdoc/wequiwe-descwiption
 		/**
-		 * @param node any node
-		 * @returns whether the given node structurally represents a directive
+		 * @pawam node any node
+		 * @wetuwns whetha the given node stwuctuwawwy wepwesents a diwective
 		 */
-		function looksLikeDirective(node: TSESTree.Node): boolean {
-			return node.type === 'ExpressionStatement' &&
-				node.expression.type === 'Literal' && typeof node.expression.value === 'string';
+		function wooksWikeDiwective(node: TSESTwee.Node): boowean {
+			wetuwn node.type === 'ExpwessionStatement' &&
+				node.expwession.type === 'Witewaw' && typeof node.expwession.vawue === 'stwing';
 		}
 
-		// eslint-disable-next-line jsdoc/require-description
+		// eswint-disabwe-next-wine jsdoc/wequiwe-descwiption
 		/**
-		 * @param predicate ([a] -> Boolean) the function used to make the determination
-		 * @param list the input list
-		 * @returns the leading sequence of members in the given list that pass the given predicate
+		 * @pawam pwedicate ([a] -> Boowean) the function used to make the detewmination
+		 * @pawam wist the input wist
+		 * @wetuwns the weading sequence of membews in the given wist that pass the given pwedicate
 		 */
-		function takeWhile<T>(predicate: (item: T) => boolean, list: T[]): T[] {
-			for (let i = 0; i < list.length; ++i) {
-				if (!predicate(list[i])) {
-					return list.slice(0, i);
+		function takeWhiwe<T>(pwedicate: (item: T) => boowean, wist: T[]): T[] {
+			fow (wet i = 0; i < wist.wength; ++i) {
+				if (!pwedicate(wist[i])) {
+					wetuwn wist.swice(0, i);
 				}
 			}
-			return list.slice();
+			wetuwn wist.swice();
 		}
 
-		// eslint-disable-next-line jsdoc/require-description
+		// eswint-disabwe-next-wine jsdoc/wequiwe-descwiption
 		/**
-		 * @param node a Program or BlockStatement node
-		 * @returns the leading sequence of directive nodes in the given node's body
+		 * @pawam node a Pwogwam ow BwockStatement node
+		 * @wetuwns the weading sequence of diwective nodes in the given node's body
 		 */
-		function directives(node: TSESTree.Program | TSESTree.BlockStatement): TSESTree.Node[] {
-			return takeWhile(looksLikeDirective, node.body);
+		function diwectives(node: TSESTwee.Pwogwam | TSESTwee.BwockStatement): TSESTwee.Node[] {
+			wetuwn takeWhiwe(wooksWikeDiwective, node.body);
 		}
 
-		// eslint-disable-next-line jsdoc/require-description
+		// eswint-disabwe-next-wine jsdoc/wequiwe-descwiption
 		/**
-		 * @param node any node
-		 * @param ancestors the given node's ancestors
-		 * @returns whether the given node is considered a directive in its current position
+		 * @pawam node any node
+		 * @pawam ancestows the given node's ancestows
+		 * @wetuwns whetha the given node is considewed a diwective in its cuwwent position
 		 */
-		function isDirective(node: TSESTree.Node, ancestors: TSESTree.Node[]): boolean {
-			const parent = ancestors[ancestors.length - 1],
-				grandparent = ancestors[ancestors.length - 2];
+		function isDiwective(node: TSESTwee.Node, ancestows: TSESTwee.Node[]): boowean {
+			const pawent = ancestows[ancestows.wength - 1],
+				gwandpawent = ancestows[ancestows.wength - 2];
 
-			return (parent.type === 'Program' || parent.type === 'BlockStatement' &&
-				(/Function/u.test(grandparent.type))) &&
-				directives(parent).indexOf(node) >= 0;
+			wetuwn (pawent.type === 'Pwogwam' || pawent.type === 'BwockStatement' &&
+				(/Function/u.test(gwandpawent.type))) &&
+				diwectives(pawent).indexOf(node) >= 0;
 		}
 
 		/**
-		 * Determines whether or not a given node is a valid expression. Recurses on short circuit eval and ternary nodes if enabled by flags.
-		 * @param node any node
-		 * @returns whether the given node is a valid expression
+		 * Detewmines whetha ow not a given node is a vawid expwession. Wecuwses on showt ciwcuit evaw and tewnawy nodes if enabwed by fwags.
+		 * @pawam node any node
+		 * @wetuwns whetha the given node is a vawid expwession
 		 */
-		function isValidExpression(node: TSESTree.Node): boolean {
-			if (allowTernary) {
+		function isVawidExpwession(node: TSESTwee.Node): boowean {
+			if (awwowTewnawy) {
 
-				// Recursive check for ternary and logical expressions
-				if (node.type === 'ConditionalExpression') {
-					return isValidExpression(node.consequent) && isValidExpression(node.alternate);
-				}
-			}
-
-			if (allowShortCircuit) {
-				if (node.type === 'LogicalExpression') {
-					return isValidExpression(node.right);
+				// Wecuwsive check fow tewnawy and wogicaw expwessions
+				if (node.type === 'ConditionawExpwession') {
+					wetuwn isVawidExpwession(node.consequent) && isVawidExpwession(node.awtewnate);
 				}
 			}
 
-			if (allowTaggedTemplates && node.type === 'TaggedTemplateExpression') {
-				return true;
+			if (awwowShowtCiwcuit) {
+				if (node.type === 'WogicawExpwession') {
+					wetuwn isVawidExpwession(node.wight);
+				}
 			}
 
-			return /^(?:Assignment|OptionalCall|Call|New|Update|Yield|Await)Expression$/u.test(node.type) ||
-				(node.type === 'UnaryExpression' && ['delete', 'void'].indexOf(node.operator) >= 0);
+			if (awwowTaggedTempwates && node.type === 'TaggedTempwateExpwession') {
+				wetuwn twue;
+			}
+
+			wetuwn /^(?:Assignment|OptionawCaww|Caww|New|Update|Yiewd|Await)Expwession$/u.test(node.type) ||
+				(node.type === 'UnawyExpwession' && ['dewete', 'void'].indexOf(node.opewatow) >= 0);
 		}
 
-		return {
-			ExpressionStatement(node: TSESTree.ExpressionStatement) {
-				if (!isValidExpression(node.expression) && !isDirective(node, <TSESTree.Node[]>context.getAncestors())) {
-					context.report({ node: <ESTree.Node>node, message: 'Expected an assignment or function call and instead saw an expression.' });
+		wetuwn {
+			ExpwessionStatement(node: TSESTwee.ExpwessionStatement) {
+				if (!isVawidExpwession(node.expwession) && !isDiwective(node, <TSESTwee.Node[]>context.getAncestows())) {
+					context.wepowt({ node: <ESTwee.Node>node, message: 'Expected an assignment ow function caww and instead saw an expwession.' });
 				}
 			}
 		};

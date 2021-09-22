@@ -1,12 +1,12 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Color } from 'vs/base/common/color';
+impowt { Cowow } fwom 'vs/base/common/cowow';
 
-export type styleFn = (colors: { [name: string]: Color | undefined }) => void;
+expowt type styweFn = (cowows: { [name: stwing]: Cowow | undefined }) => void;
 
-export interface IThemable {
-	style: styleFn;
+expowt intewface IThemabwe {
+	stywe: styweFn;
 }

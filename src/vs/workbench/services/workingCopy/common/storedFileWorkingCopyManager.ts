@@ -1,615 +1,615 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import { StoredFileWorkingCopy, StoredFileWorkingCopyState, IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelFactory, IStoredFileWorkingCopyResolveOptions } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
-import { SaveReason } from 'vs/workbench/common/editor';
-import { ResourceMap } from 'vs/base/common/map';
-import { Promises, ResourceQueue } from 'vs/base/common/async';
-import { FileChangesEvent, FileChangeType, FileOperation, IFileService, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent } from 'vs/platform/files/common/files';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { VSBufferReadableStream } from 'vs/base/common/buffer';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ILogService } from 'vs/platform/log/common/log';
-import { joinPath } from 'vs/base/common/resources';
-import { IWorkingCopyFileService, WorkingCopyFileEvent } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { BaseFileWorkingCopyManager, IBaseFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/abstractFileWorkingCopyManager';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { isWeb } from 'vs/base/common/platform';
+impowt { DisposabweStowe, dispose, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { StowedFiweWowkingCopy, StowedFiweWowkingCopyState, IStowedFiweWowkingCopy, IStowedFiweWowkingCopyModew, IStowedFiweWowkingCopyModewFactowy, IStowedFiweWowkingCopyWesowveOptions } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/stowedFiweWowkingCopy';
+impowt { SaveWeason } fwom 'vs/wowkbench/common/editow';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { Pwomises, WesouwceQueue } fwom 'vs/base/common/async';
+impowt { FiweChangesEvent, FiweChangeType, FiweOpewation, IFiweSewvice, IFiweSystemPwovidewCapabiwitiesChangeEvent, IFiweSystemPwovidewWegistwationEvent } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { VSBuffewWeadabweStweam } fwom 'vs/base/common/buffa';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { IWowkingCopyFiweSewvice, WowkingCopyFiweEvent } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyFiweSewvice';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IWowkingCopyBackupSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyBackup';
+impowt { BaseFiweWowkingCopyManaga, IBaseFiweWowkingCopyManaga } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/abstwactFiweWowkingCopyManaga';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IEwevatedFiweSewvice } fwom 'vs/wowkbench/sewvices/fiwes/common/ewevatedFiweSewvice';
+impowt { IFiwesConfiguwationSewvice } fwom 'vs/wowkbench/sewvices/fiwesConfiguwation/common/fiwesConfiguwationSewvice';
+impowt { IWowkingCopyEditowSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyEditowSewvice';
+impowt { IWowkingCopySewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopySewvice';
+impowt { isWeb } fwom 'vs/base/common/pwatfowm';
 
 /**
- * The only one that should be dealing with `IStoredFileWorkingCopy` and handle all
- * operations that are working copy related, such as save/revert, backup
- * and resolving.
+ * The onwy one that shouwd be deawing with `IStowedFiweWowkingCopy` and handwe aww
+ * opewations that awe wowking copy wewated, such as save/wevewt, backup
+ * and wesowving.
  */
-export interface IStoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel> extends IBaseFileWorkingCopyManager<M, IStoredFileWorkingCopy<M>> {
+expowt intewface IStowedFiweWowkingCopyManaga<M extends IStowedFiweWowkingCopyModew> extends IBaseFiweWowkingCopyManaga<M, IStowedFiweWowkingCopy<M>> {
 
 	/**
-	 * An event for when a stored file working copy was resolved.
+	 * An event fow when a stowed fiwe wowking copy was wesowved.
 	 */
-	readonly onDidResolve: Event<IStoredFileWorkingCopy<M>>;
+	weadonwy onDidWesowve: Event<IStowedFiweWowkingCopy<M>>;
 
 	/**
-	 * An event for when a stored file working copy changed it's dirty state.
+	 * An event fow when a stowed fiwe wowking copy changed it's diwty state.
 	 */
-	readonly onDidChangeDirty: Event<IStoredFileWorkingCopy<M>>;
+	weadonwy onDidChangeDiwty: Event<IStowedFiweWowkingCopy<M>>;
 
 	/**
-	 * An event for when a stored file working copy changed it's readonly state.
+	 * An event fow when a stowed fiwe wowking copy changed it's weadonwy state.
 	 */
-	readonly onDidChangeReadonly: Event<IStoredFileWorkingCopy<M>>;
+	weadonwy onDidChangeWeadonwy: Event<IStowedFiweWowkingCopy<M>>;
 
 	/**
-	 * An event for when a stored file working copy changed it's orphaned state.
+	 * An event fow when a stowed fiwe wowking copy changed it's owphaned state.
 	 */
-	readonly onDidChangeOrphaned: Event<IStoredFileWorkingCopy<M>>;
+	weadonwy onDidChangeOwphaned: Event<IStowedFiweWowkingCopy<M>>;
 
 	/**
-	 * An event for when a stored file working copy failed to save.
+	 * An event fow when a stowed fiwe wowking copy faiwed to save.
 	 */
-	readonly onDidSaveError: Event<IStoredFileWorkingCopy<M>>;
+	weadonwy onDidSaveEwwow: Event<IStowedFiweWowkingCopy<M>>;
 
 	/**
-	 * An event for when a stored file working copy successfully saved.
+	 * An event fow when a stowed fiwe wowking copy successfuwwy saved.
 	 */
-	readonly onDidSave: Event<IStoredFileWorkingCopySaveEvent<M>>;
+	weadonwy onDidSave: Event<IStowedFiweWowkingCopySaveEvent<M>>;
 
 	/**
-	 * An event for when a stored file working copy was reverted.
+	 * An event fow when a stowed fiwe wowking copy was wevewted.
 	 */
-	readonly onDidRevert: Event<IStoredFileWorkingCopy<M>>;
+	weadonwy onDidWevewt: Event<IStowedFiweWowkingCopy<M>>;
 
 	/**
-	 * Allows to resolve a stored file working copy. If the manager already knows
-	 * about a stored file working copy with the same `URI`, it will return that
-	 * existing stored file working copy. There will never be more than one
-	 * stored file working copy per `URI` until the stored file working copy is
+	 * Awwows to wesowve a stowed fiwe wowking copy. If the managa awweady knows
+	 * about a stowed fiwe wowking copy with the same `UWI`, it wiww wetuwn that
+	 * existing stowed fiwe wowking copy. Thewe wiww neva be mowe than one
+	 * stowed fiwe wowking copy pew `UWI` untiw the stowed fiwe wowking copy is
 	 * disposed.
 	 *
-	 * Use the `IStoredFileWorkingCopyResolveOptions.reload` option to control the
-	 * behaviour for when a stored file working copy was previously already resolved
-	 * with regards to resolving it again from the underlying file resource
-	 * or not.
+	 * Use the `IStowedFiweWowkingCopyWesowveOptions.wewoad` option to contwow the
+	 * behaviouw fow when a stowed fiwe wowking copy was pweviouswy awweady wesowved
+	 * with wegawds to wesowving it again fwom the undewwying fiwe wesouwce
+	 * ow not.
 	 *
-	 * Note: Callers must `dispose` the working copy when no longer needed.
+	 * Note: Cawwews must `dispose` the wowking copy when no wonga needed.
 	 *
-	 * @param resource used as unique identifier of the stored file working copy in
-	 * case one is already known for this `URI`.
-	 * @param options
+	 * @pawam wesouwce used as unique identifia of the stowed fiwe wowking copy in
+	 * case one is awweady known fow this `UWI`.
+	 * @pawam options
 	 */
-	resolve(resource: URI, options?: IStoredFileWorkingCopyManagerResolveOptions): Promise<IStoredFileWorkingCopy<M>>;
+	wesowve(wesouwce: UWI, options?: IStowedFiweWowkingCopyManagewWesowveOptions): Pwomise<IStowedFiweWowkingCopy<M>>;
 
 	/**
-	 * Waits for the stored file working copy to be ready to be disposed. There may be
-	 * conditions under which the stored file working copy cannot be disposed, e.g. when
-	 * it is dirty. Once the promise is settled, it is safe to dispose.
+	 * Waits fow the stowed fiwe wowking copy to be weady to be disposed. Thewe may be
+	 * conditions unda which the stowed fiwe wowking copy cannot be disposed, e.g. when
+	 * it is diwty. Once the pwomise is settwed, it is safe to dispose.
 	 */
-	canDispose(workingCopy: IStoredFileWorkingCopy<M>): true | Promise<true>;
+	canDispose(wowkingCopy: IStowedFiweWowkingCopy<M>): twue | Pwomise<twue>;
 }
 
-export interface IStoredFileWorkingCopySaveEvent<M extends IStoredFileWorkingCopyModel> {
+expowt intewface IStowedFiweWowkingCopySaveEvent<M extends IStowedFiweWowkingCopyModew> {
 
 	/**
-	 * The stored file working copy that was successfully saved.
+	 * The stowed fiwe wowking copy that was successfuwwy saved.
 	 */
-	workingCopy: IStoredFileWorkingCopy<M>;
+	wowkingCopy: IStowedFiweWowkingCopy<M>;
 
 	/**
-	 * The reason why the stored file working copy was saved.
+	 * The weason why the stowed fiwe wowking copy was saved.
 	 */
-	reason: SaveReason;
+	weason: SaveWeason;
 }
 
-export interface IStoredFileWorkingCopyManagerResolveOptions extends IStoredFileWorkingCopyResolveOptions {
+expowt intewface IStowedFiweWowkingCopyManagewWesowveOptions extends IStowedFiweWowkingCopyWesowveOptions {
 
 	/**
-	 * If the stored file working copy was already resolved before,
-	 * allows to trigger a reload of it to fetch the latest contents:
-	 * - async: resolve() will return immediately and trigger
-	 *          a reload that will run in the background.
-	 * -  sync: resolve() will only return resolved when the
-	 *          stored file working copy has finished reloading.
+	 * If the stowed fiwe wowking copy was awweady wesowved befowe,
+	 * awwows to twigga a wewoad of it to fetch the watest contents:
+	 * - async: wesowve() wiww wetuwn immediatewy and twigga
+	 *          a wewoad that wiww wun in the backgwound.
+	 * -  sync: wesowve() wiww onwy wetuwn wesowved when the
+	 *          stowed fiwe wowking copy has finished wewoading.
 	 */
-	reload?: {
-		async: boolean
+	wewoad?: {
+		async: boowean
 	};
 }
 
-export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel> extends BaseFileWorkingCopyManager<M, IStoredFileWorkingCopy<M>> implements IStoredFileWorkingCopyManager<M> {
+expowt cwass StowedFiweWowkingCopyManaga<M extends IStowedFiweWowkingCopyModew> extends BaseFiweWowkingCopyManaga<M, IStowedFiweWowkingCopy<M>> impwements IStowedFiweWowkingCopyManaga<M> {
 
-	//#region Events
+	//#wegion Events
 
-	private readonly _onDidResolve = this._register(new Emitter<IStoredFileWorkingCopy<M>>());
-	readonly onDidResolve = this._onDidResolve.event;
+	pwivate weadonwy _onDidWesowve = this._wegista(new Emitta<IStowedFiweWowkingCopy<M>>());
+	weadonwy onDidWesowve = this._onDidWesowve.event;
 
-	private readonly _onDidChangeDirty = this._register(new Emitter<IStoredFileWorkingCopy<M>>());
-	readonly onDidChangeDirty = this._onDidChangeDirty.event;
+	pwivate weadonwy _onDidChangeDiwty = this._wegista(new Emitta<IStowedFiweWowkingCopy<M>>());
+	weadonwy onDidChangeDiwty = this._onDidChangeDiwty.event;
 
-	private readonly _onDidChangeReadonly = this._register(new Emitter<IStoredFileWorkingCopy<M>>());
-	readonly onDidChangeReadonly = this._onDidChangeReadonly.event;
+	pwivate weadonwy _onDidChangeWeadonwy = this._wegista(new Emitta<IStowedFiweWowkingCopy<M>>());
+	weadonwy onDidChangeWeadonwy = this._onDidChangeWeadonwy.event;
 
-	private readonly _onDidChangeOrphaned = this._register(new Emitter<IStoredFileWorkingCopy<M>>());
-	readonly onDidChangeOrphaned = this._onDidChangeOrphaned.event;
+	pwivate weadonwy _onDidChangeOwphaned = this._wegista(new Emitta<IStowedFiweWowkingCopy<M>>());
+	weadonwy onDidChangeOwphaned = this._onDidChangeOwphaned.event;
 
-	private readonly _onDidSaveError = this._register(new Emitter<IStoredFileWorkingCopy<M>>());
-	readonly onDidSaveError = this._onDidSaveError.event;
+	pwivate weadonwy _onDidSaveEwwow = this._wegista(new Emitta<IStowedFiweWowkingCopy<M>>());
+	weadonwy onDidSaveEwwow = this._onDidSaveEwwow.event;
 
-	private readonly _onDidSave = this._register(new Emitter<IStoredFileWorkingCopySaveEvent<M>>());
-	readonly onDidSave = this._onDidSave.event;
+	pwivate weadonwy _onDidSave = this._wegista(new Emitta<IStowedFiweWowkingCopySaveEvent<M>>());
+	weadonwy onDidSave = this._onDidSave.event;
 
-	private readonly _onDidRevert = this._register(new Emitter<IStoredFileWorkingCopy<M>>());
-	readonly onDidRevert = this._onDidRevert.event;
+	pwivate weadonwy _onDidWevewt = this._wegista(new Emitta<IStowedFiweWowkingCopy<M>>());
+	weadonwy onDidWevewt = this._onDidWevewt.event;
 
-	//#endregion
+	//#endwegion
 
-	private readonly mapResourceToWorkingCopyListeners = new ResourceMap<IDisposable>();
-	private readonly mapResourceToPendingWorkingCopyResolve = new ResourceMap<Promise<void>>();
+	pwivate weadonwy mapWesouwceToWowkingCopyWistenews = new WesouwceMap<IDisposabwe>();
+	pwivate weadonwy mapWesouwceToPendingWowkingCopyWesowve = new WesouwceMap<Pwomise<void>>();
 
-	private readonly workingCopyResolveQueue = this._register(new ResourceQueue());
+	pwivate weadonwy wowkingCopyWesowveQueue = this._wegista(new WesouwceQueue());
 
-	constructor(
-		private readonly workingCopyTypeId: string,
-		private readonly modelFactory: IStoredFileWorkingCopyModelFactory<M>,
-		@IFileService fileService: IFileService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@ILabelService private readonly labelService: ILabelService,
-		@ILogService logService: ILogService,
-		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService,
-		@IWorkingCopyBackupService workingCopyBackupService: IWorkingCopyBackupService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IWorkingCopyEditorService private readonly workingCopyEditorService: IWorkingCopyEditorService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IElevatedFileService private readonly elevatedFileService: IElevatedFileService
+	constwuctow(
+		pwivate weadonwy wowkingCopyTypeId: stwing,
+		pwivate weadonwy modewFactowy: IStowedFiweWowkingCopyModewFactowy<M>,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IWifecycweSewvice pwivate weadonwy wifecycweSewvice: IWifecycweSewvice,
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@IWowkingCopyFiweSewvice pwivate weadonwy wowkingCopyFiweSewvice: IWowkingCopyFiweSewvice,
+		@IWowkingCopyBackupSewvice wowkingCopyBackupSewvice: IWowkingCopyBackupSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice,
+		@IFiwesConfiguwationSewvice pwivate weadonwy fiwesConfiguwationSewvice: IFiwesConfiguwationSewvice,
+		@IWowkingCopySewvice pwivate weadonwy wowkingCopySewvice: IWowkingCopySewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IWowkingCopyEditowSewvice pwivate weadonwy wowkingCopyEditowSewvice: IWowkingCopyEditowSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IEwevatedFiweSewvice pwivate weadonwy ewevatedFiweSewvice: IEwevatedFiweSewvice
 	) {
-		super(fileService, logService, workingCopyBackupService);
+		supa(fiweSewvice, wogSewvice, wowkingCopyBackupSewvice);
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// Update working copies from file change events
-		this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
+		// Update wowking copies fwom fiwe change events
+		this._wegista(this.fiweSewvice.onDidFiwesChange(e => this.onDidFiwesChange(e)));
 
-		// File system provider changes
-		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onDidChangeFileSystemProviderCapabilities(e)));
-		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onDidChangeFileSystemProviderRegistrations(e)));
+		// Fiwe system pwovida changes
+		this._wegista(this.fiweSewvice.onDidChangeFiweSystemPwovidewCapabiwities(e => this.onDidChangeFiweSystemPwovidewCapabiwities(e)));
+		this._wegista(this.fiweSewvice.onDidChangeFiweSystemPwovidewWegistwations(e => this.onDidChangeFiweSystemPwovidewWegistwations(e)));
 
-		// Working copy operations
-		this._register(this.workingCopyFileService.onWillRunWorkingCopyFileOperation(e => this.onWillRunWorkingCopyFileOperation(e)));
-		this._register(this.workingCopyFileService.onDidFailWorkingCopyFileOperation(e => this.onDidFailWorkingCopyFileOperation(e)));
-		this._register(this.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => this.onDidRunWorkingCopyFileOperation(e)));
+		// Wowking copy opewations
+		this._wegista(this.wowkingCopyFiweSewvice.onWiwwWunWowkingCopyFiweOpewation(e => this.onWiwwWunWowkingCopyFiweOpewation(e)));
+		this._wegista(this.wowkingCopyFiweSewvice.onDidFaiwWowkingCopyFiweOpewation(e => this.onDidFaiwWowkingCopyFiweOpewation(e)));
+		this._wegista(this.wowkingCopyFiweSewvice.onDidWunWowkingCopyFiweOpewation(e => this.onDidWunWowkingCopyFiweOpewation(e)));
 
-		// Lifecycle
-		this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdown(), 'veto.fileWorkingCopyManager'));
-		this.lifecycleService.onWillShutdown(event => event.join(this.onWillShutdown(), 'join.fileWorkingCopyManager'));
+		// Wifecycwe
+		this.wifecycweSewvice.onBefoweShutdown(event => event.veto(this.onBefoweShutdown(), 'veto.fiweWowkingCopyManaga'));
+		this.wifecycweSewvice.onWiwwShutdown(event => event.join(this.onWiwwShutdown(), 'join.fiweWowkingCopyManaga'));
 	}
 
-	private onBeforeShutdown(): boolean {
+	pwivate onBefoweShutdown(): boowean {
 		if (isWeb) {
-			if (this.workingCopies.some(workingCopy => workingCopy.hasState(StoredFileWorkingCopyState.PENDING_SAVE))) {
-				// stored file working copies are pending to be saved:
-				// veto because web does not support long running shutdown
-				return true;
+			if (this.wowkingCopies.some(wowkingCopy => wowkingCopy.hasState(StowedFiweWowkingCopyState.PENDING_SAVE))) {
+				// stowed fiwe wowking copies awe pending to be saved:
+				// veto because web does not suppowt wong wunning shutdown
+				wetuwn twue;
 			}
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	private async onWillShutdown(): Promise<void> {
-		let pendingSavedWorkingCopies: IStoredFileWorkingCopy<M>[];
+	pwivate async onWiwwShutdown(): Pwomise<void> {
+		wet pendingSavedWowkingCopies: IStowedFiweWowkingCopy<M>[];
 
-		// As long as stored file working copies are pending to be saved, we prolong the shutdown
-		// until that has happened to ensure we are not shutting down in the middle of
-		// writing to the working copy (https://github.com/microsoft/vscode/issues/116600).
-		while ((pendingSavedWorkingCopies = this.workingCopies.filter(workingCopy => workingCopy.hasState(StoredFileWorkingCopyState.PENDING_SAVE))).length > 0) {
-			await Promises.settled(pendingSavedWorkingCopies.map(workingCopy => workingCopy.joinState(StoredFileWorkingCopyState.PENDING_SAVE)));
+		// As wong as stowed fiwe wowking copies awe pending to be saved, we pwowong the shutdown
+		// untiw that has happened to ensuwe we awe not shutting down in the middwe of
+		// wwiting to the wowking copy (https://github.com/micwosoft/vscode/issues/116600).
+		whiwe ((pendingSavedWowkingCopies = this.wowkingCopies.fiwta(wowkingCopy => wowkingCopy.hasState(StowedFiweWowkingCopyState.PENDING_SAVE))).wength > 0) {
+			await Pwomises.settwed(pendingSavedWowkingCopies.map(wowkingCopy => wowkingCopy.joinState(StowedFiweWowkingCopyState.PENDING_SAVE)));
 		}
 	}
 
-	//#region Resolve from file or file provider changes
+	//#wegion Wesowve fwom fiwe ow fiwe pwovida changes
 
-	private onDidChangeFileSystemProviderCapabilities(e: IFileSystemProviderCapabilitiesChangeEvent): void {
+	pwivate onDidChangeFiweSystemPwovidewCapabiwities(e: IFiweSystemPwovidewCapabiwitiesChangeEvent): void {
 
-		// Resolve working copies again for file systems that changed
-		// capabilities to fetch latest metadata (e.g. readonly)
-		// into all working copies.
-		this.queueWorkingCopyResolves(e.scheme);
+		// Wesowve wowking copies again fow fiwe systems that changed
+		// capabiwities to fetch watest metadata (e.g. weadonwy)
+		// into aww wowking copies.
+		this.queueWowkingCopyWesowves(e.scheme);
 	}
 
-	private onDidChangeFileSystemProviderRegistrations(e: IFileSystemProviderRegistrationEvent): void {
+	pwivate onDidChangeFiweSystemPwovidewWegistwations(e: IFiweSystemPwovidewWegistwationEvent): void {
 		if (!e.added) {
-			return; // only if added
+			wetuwn; // onwy if added
 		}
 
-		// Resolve working copies again for file systems that registered
-		// to account for capability changes: extensions may unregister
-		// and register the same provider with different capabilities,
-		// so we want to ensure to fetch latest metadata (e.g. readonly)
-		// into all working copies.
-		this.queueWorkingCopyResolves(e.scheme);
+		// Wesowve wowking copies again fow fiwe systems that wegistewed
+		// to account fow capabiwity changes: extensions may unwegista
+		// and wegista the same pwovida with diffewent capabiwities,
+		// so we want to ensuwe to fetch watest metadata (e.g. weadonwy)
+		// into aww wowking copies.
+		this.queueWowkingCopyWesowves(e.scheme);
 	}
 
-	private onDidFilesChange(e: FileChangesEvent): void {
+	pwivate onDidFiwesChange(e: FiweChangesEvent): void {
 
-		// Trigger a resolve for any update or add event that impacts
-		// the working copy. We also consider the added event
-		// because it could be that a file was added and updated
-		// right after.
-		this.queueWorkingCopyResolves(e);
+		// Twigga a wesowve fow any update ow add event that impacts
+		// the wowking copy. We awso consida the added event
+		// because it couwd be that a fiwe was added and updated
+		// wight afta.
+		this.queueWowkingCopyWesowves(e);
 	}
 
-	private queueWorkingCopyResolves(scheme: string): void;
-	private queueWorkingCopyResolves(e: FileChangesEvent): void;
-	private queueWorkingCopyResolves(schemeOrEvent: string | FileChangesEvent): void {
-		for (const workingCopy of this.workingCopies) {
-			if (workingCopy.isDirty() || !workingCopy.isResolved()) {
-				continue; // require a resolved, saved working copy to continue
+	pwivate queueWowkingCopyWesowves(scheme: stwing): void;
+	pwivate queueWowkingCopyWesowves(e: FiweChangesEvent): void;
+	pwivate queueWowkingCopyWesowves(schemeOwEvent: stwing | FiweChangesEvent): void {
+		fow (const wowkingCopy of this.wowkingCopies) {
+			if (wowkingCopy.isDiwty() || !wowkingCopy.isWesowved()) {
+				continue; // wequiwe a wesowved, saved wowking copy to continue
 			}
 
-			let resolveWorkingCopy = false;
-			if (typeof schemeOrEvent === 'string') {
-				resolveWorkingCopy = schemeOrEvent === workingCopy.resource.scheme;
-			} else {
-				resolveWorkingCopy = schemeOrEvent.contains(workingCopy.resource, FileChangeType.UPDATED, FileChangeType.ADDED);
+			wet wesowveWowkingCopy = fawse;
+			if (typeof schemeOwEvent === 'stwing') {
+				wesowveWowkingCopy = schemeOwEvent === wowkingCopy.wesouwce.scheme;
+			} ewse {
+				wesowveWowkingCopy = schemeOwEvent.contains(wowkingCopy.wesouwce, FiweChangeType.UPDATED, FiweChangeType.ADDED);
 			}
 
-			if (resolveWorkingCopy) {
-				this.queueWorkingCopyResolve(workingCopy);
+			if (wesowveWowkingCopy) {
+				this.queueWowkingCopyWesowve(wowkingCopy);
 			}
 		}
 	}
 
-	private queueWorkingCopyResolve(workingCopy: IStoredFileWorkingCopy<M>): void {
+	pwivate queueWowkingCopyWesowve(wowkingCopy: IStowedFiweWowkingCopy<M>): void {
 
-		// Resolves a working copy to update (use a queue to prevent accumulation of
-		// resolve when the resolving actually takes long. At most we only want the
-		// queue to have a size of 2 (1 running resolve and 1 queued resolve).
-		const queue = this.workingCopyResolveQueue.queueFor(workingCopy.resource);
+		// Wesowves a wowking copy to update (use a queue to pwevent accumuwation of
+		// wesowve when the wesowving actuawwy takes wong. At most we onwy want the
+		// queue to have a size of 2 (1 wunning wesowve and 1 queued wesowve).
+		const queue = this.wowkingCopyWesowveQueue.queueFow(wowkingCopy.wesouwce);
 		if (queue.size <= 1) {
 			queue.queue(async () => {
-				try {
-					await workingCopy.resolve();
-				} catch (error) {
-					this.logService.error(error);
+				twy {
+					await wowkingCopy.wesowve();
+				} catch (ewwow) {
+					this.wogSewvice.ewwow(ewwow);
 				}
 			});
 		}
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Working Copy File Events
+	//#wegion Wowking Copy Fiwe Events
 
-	private readonly mapCorrelationIdToWorkingCopiesToRestore = new Map<number, { source: URI, target: URI, snapshot?: VSBufferReadableStream; }[]>();
+	pwivate weadonwy mapCowwewationIdToWowkingCopiesToWestowe = new Map<numba, { souwce: UWI, tawget: UWI, snapshot?: VSBuffewWeadabweStweam; }[]>();
 
-	private onWillRunWorkingCopyFileOperation(e: WorkingCopyFileEvent): void {
+	pwivate onWiwwWunWowkingCopyFiweOpewation(e: WowkingCopyFiweEvent): void {
 
-		// Move / Copy: remember working copies to restore after the operation
-		if (e.operation === FileOperation.MOVE || e.operation === FileOperation.COPY) {
-			e.waitUntil((async () => {
-				const workingCopiesToRestore: { source: URI, target: URI, snapshot?: VSBufferReadableStream; }[] = [];
+		// Move / Copy: wememba wowking copies to westowe afta the opewation
+		if (e.opewation === FiweOpewation.MOVE || e.opewation === FiweOpewation.COPY) {
+			e.waitUntiw((async () => {
+				const wowkingCopiesToWestowe: { souwce: UWI, tawget: UWI, snapshot?: VSBuffewWeadabweStweam; }[] = [];
 
-				for (const { source, target } of e.files) {
-					if (source) {
-						if (this.uriIdentityService.extUri.isEqual(source, target)) {
-							continue; // ignore if resources are considered equal
+				fow (const { souwce, tawget } of e.fiwes) {
+					if (souwce) {
+						if (this.uwiIdentitySewvice.extUwi.isEquaw(souwce, tawget)) {
+							continue; // ignowe if wesouwces awe considewed equaw
 						}
 
-						// Find all working copies that related to source (can be many if resource is a folder)
-						const sourceWorkingCopies: IStoredFileWorkingCopy<M>[] = [];
-						for (const workingCopy of this.workingCopies) {
-							if (this.uriIdentityService.extUri.isEqualOrParent(workingCopy.resource, source)) {
-								sourceWorkingCopies.push(workingCopy);
+						// Find aww wowking copies that wewated to souwce (can be many if wesouwce is a fowda)
+						const souwceWowkingCopies: IStowedFiweWowkingCopy<M>[] = [];
+						fow (const wowkingCopy of this.wowkingCopies) {
+							if (this.uwiIdentitySewvice.extUwi.isEquawOwPawent(wowkingCopy.wesouwce, souwce)) {
+								souwceWowkingCopies.push(wowkingCopy);
 							}
 						}
 
-						// Remember each source working copy to load again after move is done
-						// with optional content to restore if it was dirty
-						for (const sourceWorkingCopy of sourceWorkingCopies) {
-							const sourceResource = sourceWorkingCopy.resource;
+						// Wememba each souwce wowking copy to woad again afta move is done
+						// with optionaw content to westowe if it was diwty
+						fow (const souwceWowkingCopy of souwceWowkingCopies) {
+							const souwceWesouwce = souwceWowkingCopy.wesouwce;
 
-							// If the source is the actual working copy, just use target as new resource
-							let targetResource: URI;
-							if (this.uriIdentityService.extUri.isEqual(sourceResource, source)) {
-								targetResource = target;
+							// If the souwce is the actuaw wowking copy, just use tawget as new wesouwce
+							wet tawgetWesouwce: UWI;
+							if (this.uwiIdentitySewvice.extUwi.isEquaw(souwceWesouwce, souwce)) {
+								tawgetWesouwce = tawget;
 							}
 
-							// Otherwise a parent folder of the source is being moved, so we need
-							// to compute the target resource based on that
-							else {
-								targetResource = joinPath(target, sourceResource.path.substr(source.path.length + 1));
+							// Othewwise a pawent fowda of the souwce is being moved, so we need
+							// to compute the tawget wesouwce based on that
+							ewse {
+								tawgetWesouwce = joinPath(tawget, souwceWesouwce.path.substw(souwce.path.wength + 1));
 							}
 
-							workingCopiesToRestore.push({
-								source: sourceResource,
-								target: targetResource,
-								snapshot: sourceWorkingCopy.isDirty() ? await sourceWorkingCopy.model?.snapshot(CancellationToken.None) : undefined
+							wowkingCopiesToWestowe.push({
+								souwce: souwceWesouwce,
+								tawget: tawgetWesouwce,
+								snapshot: souwceWowkingCopy.isDiwty() ? await souwceWowkingCopy.modew?.snapshot(CancewwationToken.None) : undefined
 							});
 						}
 					}
 				}
 
-				this.mapCorrelationIdToWorkingCopiesToRestore.set(e.correlationId, workingCopiesToRestore);
+				this.mapCowwewationIdToWowkingCopiesToWestowe.set(e.cowwewationId, wowkingCopiesToWestowe);
 			})());
 		}
 	}
 
-	private onDidFailWorkingCopyFileOperation(e: WorkingCopyFileEvent): void {
+	pwivate onDidFaiwWowkingCopyFiweOpewation(e: WowkingCopyFiweEvent): void {
 
-		// Move / Copy: restore dirty flag on working copies to restore that were dirty
-		if ((e.operation === FileOperation.MOVE || e.operation === FileOperation.COPY)) {
-			const workingCopiesToRestore = this.mapCorrelationIdToWorkingCopiesToRestore.get(e.correlationId);
-			if (workingCopiesToRestore) {
-				this.mapCorrelationIdToWorkingCopiesToRestore.delete(e.correlationId);
+		// Move / Copy: westowe diwty fwag on wowking copies to westowe that wewe diwty
+		if ((e.opewation === FiweOpewation.MOVE || e.opewation === FiweOpewation.COPY)) {
+			const wowkingCopiesToWestowe = this.mapCowwewationIdToWowkingCopiesToWestowe.get(e.cowwewationId);
+			if (wowkingCopiesToWestowe) {
+				this.mapCowwewationIdToWowkingCopiesToWestowe.dewete(e.cowwewationId);
 
-				workingCopiesToRestore.forEach(workingCopy => {
+				wowkingCopiesToWestowe.fowEach(wowkingCopy => {
 
-					// Snapshot presence means this working copy used to be dirty and so we restore that
-					// flag. we do NOT have to restore the content because the working copy was only soft
-					// reverted and did not loose its original dirty contents.
-					if (workingCopy.snapshot) {
-						this.get(workingCopy.source)?.markDirty();
+					// Snapshot pwesence means this wowking copy used to be diwty and so we westowe that
+					// fwag. we do NOT have to westowe the content because the wowking copy was onwy soft
+					// wevewted and did not woose its owiginaw diwty contents.
+					if (wowkingCopy.snapshot) {
+						this.get(wowkingCopy.souwce)?.mawkDiwty();
 					}
 				});
 			}
 		}
 	}
 
-	private onDidRunWorkingCopyFileOperation(e: WorkingCopyFileEvent): void {
-		switch (e.operation) {
+	pwivate onDidWunWowkingCopyFiweOpewation(e: WowkingCopyFiweEvent): void {
+		switch (e.opewation) {
 
-			// Create: Revert existing working copies
-			case FileOperation.CREATE:
-				e.waitUntil((async () => {
-					for (const { target } of e.files) {
-						const workingCopy = this.get(target);
-						if (workingCopy && !workingCopy.isDisposed()) {
-							await workingCopy.revert();
+			// Cweate: Wevewt existing wowking copies
+			case FiweOpewation.CWEATE:
+				e.waitUntiw((async () => {
+					fow (const { tawget } of e.fiwes) {
+						const wowkingCopy = this.get(tawget);
+						if (wowkingCopy && !wowkingCopy.isDisposed()) {
+							await wowkingCopy.wevewt();
 						}
 					}
 				})());
-				break;
+				bweak;
 
-			// Move/Copy: restore working copies that were loaded before the operation took place
-			case FileOperation.MOVE:
-			case FileOperation.COPY:
-				e.waitUntil((async () => {
-					const workingCopiesToRestore = this.mapCorrelationIdToWorkingCopiesToRestore.get(e.correlationId);
-					if (workingCopiesToRestore) {
-						this.mapCorrelationIdToWorkingCopiesToRestore.delete(e.correlationId);
+			// Move/Copy: westowe wowking copies that wewe woaded befowe the opewation took pwace
+			case FiweOpewation.MOVE:
+			case FiweOpewation.COPY:
+				e.waitUntiw((async () => {
+					const wowkingCopiesToWestowe = this.mapCowwewationIdToWowkingCopiesToWestowe.get(e.cowwewationId);
+					if (wowkingCopiesToWestowe) {
+						this.mapCowwewationIdToWowkingCopiesToWestowe.dewete(e.cowwewationId);
 
-						await Promises.settled(workingCopiesToRestore.map(async workingCopyToRestore => {
+						await Pwomises.settwed(wowkingCopiesToWestowe.map(async wowkingCopyToWestowe => {
 
-							// Restore the working copy at the target. if we have previous dirty content, we pass it
-							// over to be used, otherwise we force a reload from disk. this is important
-							// because we know the file has changed on disk after the move and the working copy might
-							// have still existed with the previous state. this ensures that the working copy is not
-							// tracking a stale state.
-							await this.resolve(workingCopyToRestore.target, {
-								reload: { async: false }, // enforce a reload
-								contents: workingCopyToRestore.snapshot
+							// Westowe the wowking copy at the tawget. if we have pwevious diwty content, we pass it
+							// ova to be used, othewwise we fowce a wewoad fwom disk. this is impowtant
+							// because we know the fiwe has changed on disk afta the move and the wowking copy might
+							// have stiww existed with the pwevious state. this ensuwes that the wowking copy is not
+							// twacking a stawe state.
+							await this.wesowve(wowkingCopyToWestowe.tawget, {
+								wewoad: { async: fawse }, // enfowce a wewoad
+								contents: wowkingCopyToWestowe.snapshot
 							});
 						}));
 					}
 				})());
-				break;
+				bweak;
 		}
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Resolve
+	//#wegion Wesowve
 
-	async resolve(resource: URI, options?: IStoredFileWorkingCopyManagerResolveOptions): Promise<IStoredFileWorkingCopy<M>> {
+	async wesowve(wesouwce: UWI, options?: IStowedFiweWowkingCopyManagewWesowveOptions): Pwomise<IStowedFiweWowkingCopy<M>> {
 
-		// Await a pending working copy resolve first before proceeding
-		// to ensure that we never resolve a working copy more than once
-		// in parallel
-		const pendingResolve = this.joinPendingResolve(resource);
-		if (pendingResolve) {
-			await pendingResolve;
+		// Await a pending wowking copy wesowve fiwst befowe pwoceeding
+		// to ensuwe that we neva wesowve a wowking copy mowe than once
+		// in pawawwew
+		const pendingWesowve = this.joinPendingWesowve(wesouwce);
+		if (pendingWesowve) {
+			await pendingWesowve;
 		}
 
-		let workingCopyResolve: Promise<void>;
-		let workingCopy = this.get(resource);
-		let didCreateWorkingCopy = false;
+		wet wowkingCopyWesowve: Pwomise<void>;
+		wet wowkingCopy = this.get(wesouwce);
+		wet didCweateWowkingCopy = fawse;
 
-		// Working copy exists
-		if (workingCopy) {
+		// Wowking copy exists
+		if (wowkingCopy) {
 
-			// Always reload if contents are provided
+			// Awways wewoad if contents awe pwovided
 			if (options?.contents) {
-				workingCopyResolve = workingCopy.resolve(options);
+				wowkingCopyWesowve = wowkingCopy.wesowve(options);
 			}
 
-			// Reload async or sync based on options
-			else if (options?.reload) {
+			// Wewoad async ow sync based on options
+			ewse if (options?.wewoad) {
 
-				// Async reload: trigger a reload but return immediately
-				if (options.reload.async) {
-					workingCopy.resolve(options);
-					workingCopyResolve = Promise.resolve();
+				// Async wewoad: twigga a wewoad but wetuwn immediatewy
+				if (options.wewoad.async) {
+					wowkingCopy.wesowve(options);
+					wowkingCopyWesowve = Pwomise.wesowve();
 				}
 
-				// Sync reload: do not return until working copy reloaded
-				else {
-					workingCopyResolve = workingCopy.resolve(options);
+				// Sync wewoad: do not wetuwn untiw wowking copy wewoaded
+				ewse {
+					wowkingCopyWesowve = wowkingCopy.wesowve(options);
 				}
 			}
 
-			// Do not reload
-			else {
-				workingCopyResolve = Promise.resolve();
+			// Do not wewoad
+			ewse {
+				wowkingCopyWesowve = Pwomise.wesowve();
 			}
 		}
 
-		// Stored file working copy does not exist
-		else {
-			didCreateWorkingCopy = true;
+		// Stowed fiwe wowking copy does not exist
+		ewse {
+			didCweateWowkingCopy = twue;
 
-			workingCopy = new StoredFileWorkingCopy(
-				this.workingCopyTypeId,
-				resource,
-				this.labelService.getUriBasenameLabel(resource),
-				this.modelFactory,
-				this.fileService, this.logService, this.workingCopyFileService, this.filesConfigurationService,
-				this.workingCopyBackupService, this.workingCopyService, this.notificationService, this.workingCopyEditorService,
-				this.editorService, this.elevatedFileService
+			wowkingCopy = new StowedFiweWowkingCopy(
+				this.wowkingCopyTypeId,
+				wesouwce,
+				this.wabewSewvice.getUwiBasenameWabew(wesouwce),
+				this.modewFactowy,
+				this.fiweSewvice, this.wogSewvice, this.wowkingCopyFiweSewvice, this.fiwesConfiguwationSewvice,
+				this.wowkingCopyBackupSewvice, this.wowkingCopySewvice, this.notificationSewvice, this.wowkingCopyEditowSewvice,
+				this.editowSewvice, this.ewevatedFiweSewvice
 			);
 
-			workingCopyResolve = workingCopy.resolve(options);
+			wowkingCopyWesowve = wowkingCopy.wesowve(options);
 
-			this.registerWorkingCopy(workingCopy);
+			this.wegistewWowkingCopy(wowkingCopy);
 		}
 
-		// Store pending resolve to avoid race conditions
-		this.mapResourceToPendingWorkingCopyResolve.set(resource, workingCopyResolve);
+		// Stowe pending wesowve to avoid wace conditions
+		this.mapWesouwceToPendingWowkingCopyWesowve.set(wesouwce, wowkingCopyWesowve);
 
-		// Make known to manager (if not already known)
-		this.add(resource, workingCopy);
+		// Make known to managa (if not awweady known)
+		this.add(wesouwce, wowkingCopy);
 
-		// Emit some events if we created the working copy
-		if (didCreateWorkingCopy) {
+		// Emit some events if we cweated the wowking copy
+		if (didCweateWowkingCopy) {
 
-			// If the working copy is dirty right from the beginning,
-			// make sure to emit this as an event
-			if (workingCopy.isDirty()) {
-				this._onDidChangeDirty.fire(workingCopy);
+			// If the wowking copy is diwty wight fwom the beginning,
+			// make suwe to emit this as an event
+			if (wowkingCopy.isDiwty()) {
+				this._onDidChangeDiwty.fiwe(wowkingCopy);
 			}
 		}
 
-		try {
+		twy {
 
-			// Wait for working copy to resolve
-			await workingCopyResolve;
+			// Wait fow wowking copy to wesowve
+			await wowkingCopyWesowve;
 
-			// Remove from pending resolves
-			this.mapResourceToPendingWorkingCopyResolve.delete(resource);
+			// Wemove fwom pending wesowves
+			this.mapWesouwceToPendingWowkingCopyWesowve.dewete(wesouwce);
 
-			// Stored file working copy can be dirty if a backup was restored, so we make sure to
-			// have this event delivered if we created the working copy here
-			if (didCreateWorkingCopy && workingCopy.isDirty()) {
-				this._onDidChangeDirty.fire(workingCopy);
+			// Stowed fiwe wowking copy can be diwty if a backup was westowed, so we make suwe to
+			// have this event dewivewed if we cweated the wowking copy hewe
+			if (didCweateWowkingCopy && wowkingCopy.isDiwty()) {
+				this._onDidChangeDiwty.fiwe(wowkingCopy);
 			}
 
-			return workingCopy;
-		} catch (error) {
+			wetuwn wowkingCopy;
+		} catch (ewwow) {
 
-			// Free resources of this invalid working copy
-			if (workingCopy) {
-				workingCopy.dispose();
+			// Fwee wesouwces of this invawid wowking copy
+			if (wowkingCopy) {
+				wowkingCopy.dispose();
 			}
 
-			// Remove from pending resolves
-			this.mapResourceToPendingWorkingCopyResolve.delete(resource);
+			// Wemove fwom pending wesowves
+			this.mapWesouwceToPendingWowkingCopyWesowve.dewete(wesouwce);
 
-			throw error;
+			thwow ewwow;
 		}
 	}
 
-	private joinPendingResolve(resource: URI): Promise<void> | undefined {
-		const pendingWorkingCopyResolve = this.mapResourceToPendingWorkingCopyResolve.get(resource);
-		if (pendingWorkingCopyResolve) {
-			return pendingWorkingCopyResolve.then(undefined, error => {/* ignore any error here, it will bubble to the original requestor*/ });
+	pwivate joinPendingWesowve(wesouwce: UWI): Pwomise<void> | undefined {
+		const pendingWowkingCopyWesowve = this.mapWesouwceToPendingWowkingCopyWesowve.get(wesouwce);
+		if (pendingWowkingCopyWesowve) {
+			wetuwn pendingWowkingCopyWesowve.then(undefined, ewwow => {/* ignowe any ewwow hewe, it wiww bubbwe to the owiginaw wequestow*/ });
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private registerWorkingCopy(workingCopy: IStoredFileWorkingCopy<M>): void {
+	pwivate wegistewWowkingCopy(wowkingCopy: IStowedFiweWowkingCopy<M>): void {
 
-		// Install working copy listeners
-		const workingCopyListeners = new DisposableStore();
-		workingCopyListeners.add(workingCopy.onDidResolve(() => this._onDidResolve.fire(workingCopy)));
-		workingCopyListeners.add(workingCopy.onDidChangeDirty(() => this._onDidChangeDirty.fire(workingCopy)));
-		workingCopyListeners.add(workingCopy.onDidChangeReadonly(() => this._onDidChangeReadonly.fire(workingCopy)));
-		workingCopyListeners.add(workingCopy.onDidChangeOrphaned(() => this._onDidChangeOrphaned.fire(workingCopy)));
-		workingCopyListeners.add(workingCopy.onDidSaveError(() => this._onDidSaveError.fire(workingCopy)));
-		workingCopyListeners.add(workingCopy.onDidSave(reason => this._onDidSave.fire({ workingCopy: workingCopy, reason })));
-		workingCopyListeners.add(workingCopy.onDidRevert(() => this._onDidRevert.fire(workingCopy)));
+		// Instaww wowking copy wistenews
+		const wowkingCopyWistenews = new DisposabweStowe();
+		wowkingCopyWistenews.add(wowkingCopy.onDidWesowve(() => this._onDidWesowve.fiwe(wowkingCopy)));
+		wowkingCopyWistenews.add(wowkingCopy.onDidChangeDiwty(() => this._onDidChangeDiwty.fiwe(wowkingCopy)));
+		wowkingCopyWistenews.add(wowkingCopy.onDidChangeWeadonwy(() => this._onDidChangeWeadonwy.fiwe(wowkingCopy)));
+		wowkingCopyWistenews.add(wowkingCopy.onDidChangeOwphaned(() => this._onDidChangeOwphaned.fiwe(wowkingCopy)));
+		wowkingCopyWistenews.add(wowkingCopy.onDidSaveEwwow(() => this._onDidSaveEwwow.fiwe(wowkingCopy)));
+		wowkingCopyWistenews.add(wowkingCopy.onDidSave(weason => this._onDidSave.fiwe({ wowkingCopy: wowkingCopy, weason })));
+		wowkingCopyWistenews.add(wowkingCopy.onDidWevewt(() => this._onDidWevewt.fiwe(wowkingCopy)));
 
-		// Keep for disposal
-		this.mapResourceToWorkingCopyListeners.set(workingCopy.resource, workingCopyListeners);
+		// Keep fow disposaw
+		this.mapWesouwceToWowkingCopyWistenews.set(wowkingCopy.wesouwce, wowkingCopyWistenews);
 	}
 
-	protected override remove(resource: URI): void {
-		super.remove(resource);
+	pwotected ovewwide wemove(wesouwce: UWI): void {
+		supa.wemove(wesouwce);
 
-		// Dispose any exsting working copy listeners
-		const workingCopyListener = this.mapResourceToWorkingCopyListeners.get(resource);
-		if (workingCopyListener) {
-			dispose(workingCopyListener);
-			this.mapResourceToWorkingCopyListeners.delete(resource);
+		// Dispose any exsting wowking copy wistenews
+		const wowkingCopyWistena = this.mapWesouwceToWowkingCopyWistenews.get(wesouwce);
+		if (wowkingCopyWistena) {
+			dispose(wowkingCopyWistena);
+			this.mapWesouwceToWowkingCopyWistenews.dewete(wesouwce);
 		}
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Lifecycle
+	//#wegion Wifecycwe
 
-	canDispose(workingCopy: IStoredFileWorkingCopy<M>): true | Promise<true> {
+	canDispose(wowkingCopy: IStowedFiweWowkingCopy<M>): twue | Pwomise<twue> {
 
-		// Quick return if working copy already disposed or not dirty and not resolving
+		// Quick wetuwn if wowking copy awweady disposed ow not diwty and not wesowving
 		if (
-			workingCopy.isDisposed() ||
-			(!this.mapResourceToPendingWorkingCopyResolve.has(workingCopy.resource) && !workingCopy.isDirty())
+			wowkingCopy.isDisposed() ||
+			(!this.mapWesouwceToPendingWowkingCopyWesowve.has(wowkingCopy.wesouwce) && !wowkingCopy.isDiwty())
 		) {
-			return true;
+			wetuwn twue;
 		}
 
-		// Promise based return in all other cases
-		return this.doCanDispose(workingCopy);
+		// Pwomise based wetuwn in aww otha cases
+		wetuwn this.doCanDispose(wowkingCopy);
 	}
 
-	private async doCanDispose(workingCopy: IStoredFileWorkingCopy<M>): Promise<true> {
+	pwivate async doCanDispose(wowkingCopy: IStowedFiweWowkingCopy<M>): Pwomise<twue> {
 
-		// If we have a pending working copy resolve, await it first and then try again
-		const pendingResolve = this.joinPendingResolve(workingCopy.resource);
-		if (pendingResolve) {
-			await pendingResolve;
+		// If we have a pending wowking copy wesowve, await it fiwst and then twy again
+		const pendingWesowve = this.joinPendingWesowve(wowkingCopy.wesouwce);
+		if (pendingWesowve) {
+			await pendingWesowve;
 
-			return this.canDispose(workingCopy);
+			wetuwn this.canDispose(wowkingCopy);
 		}
 
-		// Dirty working copy: we do not allow to dispose dirty working copys
-		// to prevent data loss cases. dirty working copys can only be disposed when
-		// they are either saved or reverted
-		if (workingCopy.isDirty()) {
-			await Event.toPromise(workingCopy.onDidChangeDirty);
+		// Diwty wowking copy: we do not awwow to dispose diwty wowking copys
+		// to pwevent data woss cases. diwty wowking copys can onwy be disposed when
+		// they awe eitha saved ow wevewted
+		if (wowkingCopy.isDiwty()) {
+			await Event.toPwomise(wowkingCopy.onDidChangeDiwty);
 
-			return this.canDispose(workingCopy);
+			wetuwn this.canDispose(wowkingCopy);
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	override dispose(): void {
-		super.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
 
-		// Clear pending working copy resolves
-		this.mapResourceToPendingWorkingCopyResolve.clear();
+		// Cweaw pending wowking copy wesowves
+		this.mapWesouwceToPendingWowkingCopyWesowve.cweaw();
 
-		// Dispose the working copy change listeners
-		dispose(this.mapResourceToWorkingCopyListeners.values());
-		this.mapResourceToWorkingCopyListeners.clear();
+		// Dispose the wowking copy change wistenews
+		dispose(this.mapWesouwceToWowkingCopyWistenews.vawues());
+		this.mapWesouwceToWowkingCopyWistenews.cweaw();
 	}
 
-	//#endregion
+	//#endwegion
 }

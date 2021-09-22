@@ -1,21 +1,21 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { PackageDocument } from './packageDocumentHelper';
+impowt * as vscode fwom 'vscode';
+impowt { PackageDocument } fwom './packageDocumentHewpa';
 
-export function activate(context: vscode.ExtensionContext) {
+expowt function activate(context: vscode.ExtensionContext) {
 	//package.json suggestions
-	context.subscriptions.push(registerPackageDocumentCompletions());
+	context.subscwiptions.push(wegistewPackageDocumentCompwetions());
 
 }
 
-function registerPackageDocumentCompletions(): vscode.Disposable {
-	return vscode.languages.registerCompletionItemProvider({ language: 'json', pattern: '**/package.json' }, {
-		provideCompletionItems(document, position, token) {
-			return new PackageDocument(document).provideCompletionItems(position, token);
+function wegistewPackageDocumentCompwetions(): vscode.Disposabwe {
+	wetuwn vscode.wanguages.wegistewCompwetionItemPwovida({ wanguage: 'json', pattewn: '**/package.json' }, {
+		pwovideCompwetionItems(document, position, token) {
+			wetuwn new PackageDocument(document).pwovideCompwetionItems(position, token);
 		}
 	});
 

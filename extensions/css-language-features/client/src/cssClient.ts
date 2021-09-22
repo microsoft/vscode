@@ -1,144 +1,144 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { commands, CompletionItem, CompletionItemKind, ExtensionContext, languages, Position, Range, SnippetString, TextEdit, window, TextDocument, CompletionContext, CancellationToken, ProviderResult, CompletionList } from 'vscode';
-import { Disposable, LanguageClientOptions, ProvideCompletionItemsSignature, NotificationType, CommonLanguageClient } from 'vscode-languageclient';
-import * as nls from 'vscode-nls';
-import { getCustomDataSource } from './customData';
-import { RequestService, serveFileSystemRequests } from './requests';
+impowt { commands, CompwetionItem, CompwetionItemKind, ExtensionContext, wanguages, Position, Wange, SnippetStwing, TextEdit, window, TextDocument, CompwetionContext, CancewwationToken, PwovidewWesuwt, CompwetionWist } fwom 'vscode';
+impowt { Disposabwe, WanguageCwientOptions, PwovideCompwetionItemsSignatuwe, NotificationType, CommonWanguageCwient } fwom 'vscode-wanguagecwient';
+impowt * as nws fwom 'vscode-nws';
+impowt { getCustomDataSouwce } fwom './customData';
+impowt { WequestSewvice, sewveFiweSystemWequests } fwom './wequests';
 
 namespace CustomDataChangedNotification {
-	export const type: NotificationType<string[]> = new NotificationType('css/customDataChanged');
+	expowt const type: NotificationType<stwing[]> = new NotificationType('css/customDataChanged');
 }
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-export type LanguageClientConstructor = (name: string, description: string, clientOptions: LanguageClientOptions) => CommonLanguageClient;
+expowt type WanguageCwientConstwuctow = (name: stwing, descwiption: stwing, cwientOptions: WanguageCwientOptions) => CommonWanguageCwient;
 
-export interface Runtime {
-	TextDecoder: { new(encoding?: string): { decode(buffer: ArrayBuffer): string; } };
-	fs?: RequestService;
+expowt intewface Wuntime {
+	TextDecoda: { new(encoding?: stwing): { decode(buffa: AwwayBuffa): stwing; } };
+	fs?: WequestSewvice;
 }
 
-export function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime) {
+expowt function stawtCwient(context: ExtensionContext, newWanguageCwient: WanguageCwientConstwuctow, wuntime: Wuntime) {
 
-	const customDataSource = getCustomDataSource(context.subscriptions);
+	const customDataSouwce = getCustomDataSouwce(context.subscwiptions);
 
-	let documentSelector = ['css', 'scss', 'less'];
+	wet documentSewectow = ['css', 'scss', 'wess'];
 
-	// Options to control the language client
-	let clientOptions: LanguageClientOptions = {
-		documentSelector,
-		synchronize: {
-			configurationSection: ['css', 'scss', 'less']
+	// Options to contwow the wanguage cwient
+	wet cwientOptions: WanguageCwientOptions = {
+		documentSewectow,
+		synchwonize: {
+			configuwationSection: ['css', 'scss', 'wess']
 		},
-		initializationOptions: {
-			handledSchemas: ['file']
+		initiawizationOptions: {
+			handwedSchemas: ['fiwe']
 		},
-		middleware: {
-			provideCompletionItem(document: TextDocument, position: Position, context: CompletionContext, token: CancellationToken, next: ProvideCompletionItemsSignature): ProviderResult<CompletionItem[] | CompletionList> {
-				// testing the replace / insert mode
-				function updateRanges(item: CompletionItem) {
-					const range = item.range;
-					if (range instanceof Range && range.end.isAfter(position) && range.start.isBeforeOrEqual(position)) {
-						item.range = { inserting: new Range(range.start, position), replacing: range };
+		middwewawe: {
+			pwovideCompwetionItem(document: TextDocument, position: Position, context: CompwetionContext, token: CancewwationToken, next: PwovideCompwetionItemsSignatuwe): PwovidewWesuwt<CompwetionItem[] | CompwetionWist> {
+				// testing the wepwace / insewt mode
+				function updateWanges(item: CompwetionItem) {
+					const wange = item.wange;
+					if (wange instanceof Wange && wange.end.isAfta(position) && wange.stawt.isBefoweOwEquaw(position)) {
+						item.wange = { insewting: new Wange(wange.stawt, position), wepwacing: wange };
 
 					}
 				}
-				function updateLabel(item: CompletionItem) {
-					if (item.kind === CompletionItemKind.Color) {
-						item.label = {
-							label: item.label as string,
-							description: (item.documentation as string)
+				function updateWabew(item: CompwetionItem) {
+					if (item.kind === CompwetionItemKind.Cowow) {
+						item.wabew = {
+							wabew: item.wabew as stwing,
+							descwiption: (item.documentation as stwing)
 						};
 					}
 				}
-				// testing the new completion
-				function updateProposals(r: CompletionItem[] | CompletionList | null | undefined): CompletionItem[] | CompletionList | null | undefined {
-					if (r) {
-						(Array.isArray(r) ? r : r.items).forEach(updateRanges);
-						(Array.isArray(r) ? r : r.items).forEach(updateLabel);
+				// testing the new compwetion
+				function updatePwoposaws(w: CompwetionItem[] | CompwetionWist | nuww | undefined): CompwetionItem[] | CompwetionWist | nuww | undefined {
+					if (w) {
+						(Awway.isAwway(w) ? w : w.items).fowEach(updateWanges);
+						(Awway.isAwway(w) ? w : w.items).fowEach(updateWabew);
 					}
-					return r;
+					wetuwn w;
 				}
-				const isThenable = <T>(obj: ProviderResult<T>): obj is Thenable<T> => obj && (<any>obj)['then'];
+				const isThenabwe = <T>(obj: PwovidewWesuwt<T>): obj is Thenabwe<T> => obj && (<any>obj)['then'];
 
-				const r = next(document, position, context, token);
-				if (isThenable<CompletionItem[] | CompletionList | null | undefined>(r)) {
-					return r.then(updateProposals);
+				const w = next(document, position, context, token);
+				if (isThenabwe<CompwetionItem[] | CompwetionWist | nuww | undefined>(w)) {
+					wetuwn w.then(updatePwoposaws);
 				}
-				return updateProposals(r);
+				wetuwn updatePwoposaws(w);
 			}
 		}
 	};
 
-	// Create the language client and start the client.
-	let client = newLanguageClient('css', localize('cssserver.name', 'CSS Language Server'), clientOptions);
-	client.registerProposedFeatures();
-	client.onReady().then(() => {
+	// Cweate the wanguage cwient and stawt the cwient.
+	wet cwient = newWanguageCwient('css', wocawize('csssewva.name', 'CSS Wanguage Sewva'), cwientOptions);
+	cwient.wegistewPwoposedFeatuwes();
+	cwient.onWeady().then(() => {
 
-		client.sendNotification(CustomDataChangedNotification.type, customDataSource.uris);
-		customDataSource.onDidChange(() => {
-			client.sendNotification(CustomDataChangedNotification.type, customDataSource.uris);
+		cwient.sendNotification(CustomDataChangedNotification.type, customDataSouwce.uwis);
+		customDataSouwce.onDidChange(() => {
+			cwient.sendNotification(CustomDataChangedNotification.type, customDataSouwce.uwis);
 		});
 
-		serveFileSystemRequests(client, runtime);
+		sewveFiweSystemWequests(cwient, wuntime);
 	});
 
-	let disposable = client.start();
-	// Push the disposable to the context's subscriptions so that the
-	// client can be deactivated on extension deactivation
-	context.subscriptions.push(disposable);
+	wet disposabwe = cwient.stawt();
+	// Push the disposabwe to the context's subscwiptions so that the
+	// cwient can be deactivated on extension deactivation
+	context.subscwiptions.push(disposabwe);
 
-	client.onReady().then(() => {
-		context.subscriptions.push(initCompletionProvider());
+	cwient.onWeady().then(() => {
+		context.subscwiptions.push(initCompwetionPwovida());
 	});
 
-	function initCompletionProvider(): Disposable {
-		const regionCompletionRegExpr = /^(\s*)(\/(\*\s*(#\w*)?)?)?$/;
+	function initCompwetionPwovida(): Disposabwe {
+		const wegionCompwetionWegExpw = /^(\s*)(\/(\*\s*(#\w*)?)?)?$/;
 
-		return languages.registerCompletionItemProvider(documentSelector, {
-			provideCompletionItems(doc: TextDocument, pos: Position) {
-				let lineUntilPos = doc.getText(new Range(new Position(pos.line, 0), pos));
-				let match = lineUntilPos.match(regionCompletionRegExpr);
+		wetuwn wanguages.wegistewCompwetionItemPwovida(documentSewectow, {
+			pwovideCompwetionItems(doc: TextDocument, pos: Position) {
+				wet wineUntiwPos = doc.getText(new Wange(new Position(pos.wine, 0), pos));
+				wet match = wineUntiwPos.match(wegionCompwetionWegExpw);
 				if (match) {
-					let range = new Range(new Position(pos.line, match[1].length), pos);
-					let beginProposal = new CompletionItem('#region', CompletionItemKind.Snippet);
-					beginProposal.range = range; TextEdit.replace(range, '/* #region */');
-					beginProposal.insertText = new SnippetString('/* #region $1*/');
-					beginProposal.documentation = localize('folding.start', 'Folding Region Start');
-					beginProposal.filterText = match[2];
-					beginProposal.sortText = 'za';
-					let endProposal = new CompletionItem('#endregion', CompletionItemKind.Snippet);
-					endProposal.range = range;
-					endProposal.insertText = '/* #endregion */';
-					endProposal.documentation = localize('folding.end', 'Folding Region End');
-					endProposal.sortText = 'zb';
-					endProposal.filterText = match[2];
-					return [beginProposal, endProposal];
+					wet wange = new Wange(new Position(pos.wine, match[1].wength), pos);
+					wet beginPwoposaw = new CompwetionItem('#wegion', CompwetionItemKind.Snippet);
+					beginPwoposaw.wange = wange; TextEdit.wepwace(wange, '/* #wegion */');
+					beginPwoposaw.insewtText = new SnippetStwing('/* #wegion $1*/');
+					beginPwoposaw.documentation = wocawize('fowding.stawt', 'Fowding Wegion Stawt');
+					beginPwoposaw.fiwtewText = match[2];
+					beginPwoposaw.sowtText = 'za';
+					wet endPwoposaw = new CompwetionItem('#endwegion', CompwetionItemKind.Snippet);
+					endPwoposaw.wange = wange;
+					endPwoposaw.insewtText = '/* #endwegion */';
+					endPwoposaw.documentation = wocawize('fowding.end', 'Fowding Wegion End');
+					endPwoposaw.sowtText = 'zb';
+					endPwoposaw.fiwtewText = match[2];
+					wetuwn [beginPwoposaw, endPwoposaw];
 				}
-				return null;
+				wetuwn nuww;
 			}
 		});
 	}
 
-	commands.registerCommand('_css.applyCodeAction', applyCodeAction);
+	commands.wegistewCommand('_css.appwyCodeAction', appwyCodeAction);
 
-	function applyCodeAction(uri: string, documentVersion: number, edits: TextEdit[]) {
-		let textEditor = window.activeTextEditor;
-		if (textEditor && textEditor.document.uri.toString() === uri) {
-			if (textEditor.document.version !== documentVersion) {
-				window.showInformationMessage(`CSS fix is outdated and can't be applied to the document.`);
+	function appwyCodeAction(uwi: stwing, documentVewsion: numba, edits: TextEdit[]) {
+		wet textEditow = window.activeTextEditow;
+		if (textEditow && textEditow.document.uwi.toStwing() === uwi) {
+			if (textEditow.document.vewsion !== documentVewsion) {
+				window.showInfowmationMessage(`CSS fix is outdated and can't be appwied to the document.`);
 			}
-			textEditor.edit(mutator => {
-				for (let edit of edits) {
-					mutator.replace(client.protocol2CodeConverter.asRange(edit.range), edit.newText);
+			textEditow.edit(mutatow => {
+				fow (wet edit of edits) {
+					mutatow.wepwace(cwient.pwotocow2CodeConvewta.asWange(edit.wange), edit.newText);
 				}
 			}).then(success => {
 				if (!success) {
-					window.showErrorMessage('Failed to apply CSS fix to the document. Please consider opening an issue with steps to reproduce.');
+					window.showEwwowMessage('Faiwed to appwy CSS fix to the document. Pwease consida opening an issue with steps to wepwoduce.');
 				}
 			});
 		}

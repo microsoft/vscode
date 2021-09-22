@@ -1,90 +1,90 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as nls from 'vs/nls';
+impowt * as nws fwom 'vs/nws';
 
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { iconsSchemaId } from 'vs/platform/theme/common/iconRegistry';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { Extensions as JSONExtensions, IJSONContwibutionWegistwy } fwom 'vs/pwatfowm/jsonschemas/common/jsonContwibutionWegistwy';
+impowt { IJSONSchema } fwom 'vs/base/common/jsonSchema';
+impowt { iconsSchemaId } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
 
-export const fontIdRegex = '^([\\w-_]+)$';
-export const fontStyleRegex = '^(normal|italic|(oblique[ \\w\\s-]+))$';
-export const fontWeightRegex = '^(normal|bold|lighter|bolder|(\\d{0-1000}))$';
-export const fontSizeRegex = '^([\\w .%-_]+)$';
+expowt const fontIdWegex = '^([\\w-_]+)$';
+expowt const fontStyweWegex = '^(nowmaw|itawic|(obwique[ \\w\\s-]+))$';
+expowt const fontWeightWegex = '^(nowmaw|bowd|wighta|bowda|(\\d{0-1000}))$';
+expowt const fontSizeWegex = '^([\\w .%-_]+)$';
 
-const schemaId = 'vscode://schemas/product-icon-theme';
+const schemaId = 'vscode://schemas/pwoduct-icon-theme';
 const schema: IJSONSchema = {
 	type: 'object',
-	allowComments: true,
-	allowTrailingCommas: true,
-	properties: {
+	awwowComments: twue,
+	awwowTwaiwingCommas: twue,
+	pwopewties: {
 		fonts: {
-			type: 'array',
+			type: 'awway',
 			items: {
 				type: 'object',
-				properties: {
+				pwopewties: {
 					id: {
-						type: 'string',
-						description: nls.localize('schema.id', 'The ID of the font.'),
-						pattern: fontIdRegex,
-						patternErrorMessage: nls.localize('schema.id.formatError', 'The ID must only contain letters, numbers, underscore and minus.')
+						type: 'stwing',
+						descwiption: nws.wocawize('schema.id', 'The ID of the font.'),
+						pattewn: fontIdWegex,
+						pattewnEwwowMessage: nws.wocawize('schema.id.fowmatEwwow', 'The ID must onwy contain wettews, numbews, undewscowe and minus.')
 					},
-					src: {
-						type: 'array',
-						description: nls.localize('schema.src', 'The location of the font.'),
+					swc: {
+						type: 'awway',
+						descwiption: nws.wocawize('schema.swc', 'The wocation of the font.'),
 						items: {
 							type: 'object',
-							properties: {
+							pwopewties: {
 								path: {
-									type: 'string',
-									description: nls.localize('schema.font-path', 'The font path, relative to the current product icon theme file.'),
+									type: 'stwing',
+									descwiption: nws.wocawize('schema.font-path', 'The font path, wewative to the cuwwent pwoduct icon theme fiwe.'),
 								},
-								format: {
-									type: 'string',
-									description: nls.localize('schema.font-format', 'The format of the font.'),
-									enum: ['woff', 'woff2', 'truetype', 'opentype', 'embedded-opentype', 'svg']
+								fowmat: {
+									type: 'stwing',
+									descwiption: nws.wocawize('schema.font-fowmat', 'The fowmat of the font.'),
+									enum: ['woff', 'woff2', 'twuetype', 'opentype', 'embedded-opentype', 'svg']
 								}
 							},
-							required: [
+							wequiwed: [
 								'path',
-								'format'
+								'fowmat'
 							]
 						}
 					},
 					weight: {
-						type: 'string',
-						description: nls.localize('schema.font-weight', 'The weight of the font. See https://developer.mozilla.org/en-US/docs/Web/CSS/font-weight for valid values.'),
+						type: 'stwing',
+						descwiption: nws.wocawize('schema.font-weight', 'The weight of the font. See https://devewopa.moziwwa.owg/en-US/docs/Web/CSS/font-weight fow vawid vawues.'),
 						anyOf: [
-							{ enum: ['normal', 'bold', 'lighter', 'bolder'] },
-							{ type: 'string', pattern: fontWeightRegex }
+							{ enum: ['nowmaw', 'bowd', 'wighta', 'bowda'] },
+							{ type: 'stwing', pattewn: fontWeightWegex }
 						]
 					},
-					style: {
-						type: 'string',
-						description: nls.localize('schema.font-style', 'The style of the font. See https://developer.mozilla.org/en-US/docs/Web/CSS/font-style for valid values.'),
+					stywe: {
+						type: 'stwing',
+						descwiption: nws.wocawize('schema.font-stywe', 'The stywe of the font. See https://devewopa.moziwwa.owg/en-US/docs/Web/CSS/font-stywe fow vawid vawues.'),
 						anyOf: [
-							{ enum: ['normal', 'italic', 'oblique'] },
-							{ type: 'string', pattern: fontStyleRegex }
+							{ enum: ['nowmaw', 'itawic', 'obwique'] },
+							{ type: 'stwing', pattewn: fontStyweWegex }
 						]
 					}
 				},
-				required: [
+				wequiwed: [
 					'id',
-					'src'
+					'swc'
 				]
 			}
 		},
 		iconDefinitions: {
-			description: nls.localize('schema.iconDefinitions', 'Association of icon name to a font character.'),
-			$ref: iconsSchemaId,
-			additionalProperties: false
+			descwiption: nws.wocawize('schema.iconDefinitions', 'Association of icon name to a font chawacta.'),
+			$wef: iconsSchemaId,
+			additionawPwopewties: fawse
 		}
 	}
 };
 
-export function registerProductIconThemeSchemas() {
-	let schemaRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
-	schemaRegistry.registerSchema(schemaId, schema);
+expowt function wegistewPwoductIconThemeSchemas() {
+	wet schemaWegistwy = Wegistwy.as<IJSONContwibutionWegistwy>(JSONExtensions.JSONContwibution);
+	schemaWegistwy.wegistewSchema(schemaId, schema);
 }

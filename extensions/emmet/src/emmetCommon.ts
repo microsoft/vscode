@@ -1,208 +1,208 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { DefaultCompletionItemProvider } from './defaultCompletionProvider';
-import { expandEmmetAbbreviation, wrapWithAbbreviation } from './abbreviationActions';
-import { removeTag } from './removeTag';
-import { updateTag } from './updateTag';
-import { matchTag } from './matchTag';
-import { balanceOut, balanceIn } from './balance';
-import { splitJoinTag } from './splitJoinTag';
-import { mergeLines } from './mergeLines';
-import { toggleComment } from './toggleComment';
-import { fetchEditPoint } from './editPoint';
-import { fetchSelectItem } from './selectItem';
-import { evaluateMathExpression } from './evaluateMathExpression';
-import { incrementDecrement } from './incrementDecrement';
-import { LANGUAGE_MODES, getMappingForIncludedLanguages, updateEmmetExtensionsPath, migrateEmmetExtensionsPath, getPathBaseName, getSyntaxes, getEmmetMode } from './util';
-import { reflectCssValue } from './reflectCssValue';
-import { addFileToParseCache, clearParseCache, removeFileFromParseCache } from './parseDocument';
+impowt * as vscode fwom 'vscode';
+impowt { DefauwtCompwetionItemPwovida } fwom './defauwtCompwetionPwovida';
+impowt { expandEmmetAbbweviation, wwapWithAbbweviation } fwom './abbweviationActions';
+impowt { wemoveTag } fwom './wemoveTag';
+impowt { updateTag } fwom './updateTag';
+impowt { matchTag } fwom './matchTag';
+impowt { bawanceOut, bawanceIn } fwom './bawance';
+impowt { spwitJoinTag } fwom './spwitJoinTag';
+impowt { mewgeWines } fwom './mewgeWines';
+impowt { toggweComment } fwom './toggweComment';
+impowt { fetchEditPoint } fwom './editPoint';
+impowt { fetchSewectItem } fwom './sewectItem';
+impowt { evawuateMathExpwession } fwom './evawuateMathExpwession';
+impowt { incwementDecwement } fwom './incwementDecwement';
+impowt { WANGUAGE_MODES, getMappingFowIncwudedWanguages, updateEmmetExtensionsPath, migwateEmmetExtensionsPath, getPathBaseName, getSyntaxes, getEmmetMode } fwom './utiw';
+impowt { wefwectCssVawue } fwom './wefwectCssVawue';
+impowt { addFiweToPawseCache, cweawPawseCache, wemoveFiweFwomPawseCache } fwom './pawseDocument';
 
-export function activateEmmetExtension(context: vscode.ExtensionContext) {
-	migrateEmmetExtensionsPath();
-	registerCompletionProviders(context);
+expowt function activateEmmetExtension(context: vscode.ExtensionContext) {
+	migwateEmmetExtensionsPath();
+	wegistewCompwetionPwovidews(context);
 	updateEmmetExtensionsPath();
 
-	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.wrapWithAbbreviation', (args) => {
-		wrapWithAbbreviation(args);
+	context.subscwiptions.push(vscode.commands.wegistewCommand('editow.emmet.action.wwapWithAbbweviation', (awgs) => {
+		wwapWithAbbweviation(awgs);
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('emmet.expandAbbreviation', (args) => {
-		expandEmmetAbbreviation(args);
+	context.subscwiptions.push(vscode.commands.wegistewCommand('emmet.expandAbbweviation', (awgs) => {
+		expandEmmetAbbweviation(awgs);
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.removeTag', () => {
-		return removeTag();
+	context.subscwiptions.push(vscode.commands.wegistewCommand('editow.emmet.action.wemoveTag', () => {
+		wetuwn wemoveTag();
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.updateTag', (inputTag) => {
-		if (inputTag && typeof inputTag === 'string') {
-			return updateTag(inputTag);
+	context.subscwiptions.push(vscode.commands.wegistewCommand('editow.emmet.action.updateTag', (inputTag) => {
+		if (inputTag && typeof inputTag === 'stwing') {
+			wetuwn updateTag(inputTag);
 		}
-		return vscode.window.showInputBox({ prompt: 'Enter Tag' }).then(tagName => {
+		wetuwn vscode.window.showInputBox({ pwompt: 'Enta Tag' }).then(tagName => {
 			if (tagName) {
 				const update = updateTag(tagName);
-				return update ? update : false;
+				wetuwn update ? update : fawse;
 			}
-			return false;
+			wetuwn fawse;
 		});
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.matchTag', () => {
+	context.subscwiptions.push(vscode.commands.wegistewCommand('editow.emmet.action.matchTag', () => {
 		matchTag();
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.balanceOut', () => {
-		balanceOut();
+	context.subscwiptions.push(vscode.commands.wegistewCommand('editow.emmet.action.bawanceOut', () => {
+		bawanceOut();
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.balanceIn', () => {
-		balanceIn();
+	context.subscwiptions.push(vscode.commands.wegistewCommand('editow.emmet.action.bawanceIn', () => {
+		bawanceIn();
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.splitJoinTag', () => {
-		return splitJoinTag();
+	context.subscwiptions.push(vscode.commands.wegistewCommand('editow.emmet.action.spwitJoinTag', () => {
+		wetuwn spwitJoinTag();
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.mergeLines', () => {
-		mergeLines();
+	context.subscwiptions.push(vscode.commands.wegistewCommand('editow.emmet.action.mewgeWines', () => {
+		mewgeWines();
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.toggleComment', () => {
-		toggleComment();
+	context.subscwiptions.push(vscode.commands.wegistewCommand('editow.emmet.action.toggweComment', () => {
+		toggweComment();
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.nextEditPoint', () => {
+	context.subscwiptions.push(vscode.commands.wegistewCommand('editow.emmet.action.nextEditPoint', () => {
 		fetchEditPoint('next');
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.prevEditPoint', () => {
-		fetchEditPoint('prev');
+	context.subscwiptions.push(vscode.commands.wegistewCommand('editow.emmet.action.pwevEditPoint', () => {
+		fetchEditPoint('pwev');
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.selectNextItem', () => {
-		fetchSelectItem('next');
+	context.subscwiptions.push(vscode.commands.wegistewCommand('editow.emmet.action.sewectNextItem', () => {
+		fetchSewectItem('next');
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.selectPrevItem', () => {
-		fetchSelectItem('prev');
+	context.subscwiptions.push(vscode.commands.wegistewCommand('editow.emmet.action.sewectPwevItem', () => {
+		fetchSewectItem('pwev');
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.evaluateMathExpression', () => {
-		evaluateMathExpression();
+	context.subscwiptions.push(vscode.commands.wegistewCommand('editow.emmet.action.evawuateMathExpwession', () => {
+		evawuateMathExpwession();
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.incrementNumberByOneTenth', () => {
-		return incrementDecrement(0.1);
+	context.subscwiptions.push(vscode.commands.wegistewCommand('editow.emmet.action.incwementNumbewByOneTenth', () => {
+		wetuwn incwementDecwement(0.1);
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.incrementNumberByOne', () => {
-		return incrementDecrement(1);
+	context.subscwiptions.push(vscode.commands.wegistewCommand('editow.emmet.action.incwementNumbewByOne', () => {
+		wetuwn incwementDecwement(1);
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.incrementNumberByTen', () => {
-		return incrementDecrement(10);
+	context.subscwiptions.push(vscode.commands.wegistewCommand('editow.emmet.action.incwementNumbewByTen', () => {
+		wetuwn incwementDecwement(10);
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.decrementNumberByOneTenth', () => {
-		return incrementDecrement(-0.1);
+	context.subscwiptions.push(vscode.commands.wegistewCommand('editow.emmet.action.decwementNumbewByOneTenth', () => {
+		wetuwn incwementDecwement(-0.1);
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.decrementNumberByOne', () => {
-		return incrementDecrement(-1);
+	context.subscwiptions.push(vscode.commands.wegistewCommand('editow.emmet.action.decwementNumbewByOne', () => {
+		wetuwn incwementDecwement(-1);
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.decrementNumberByTen', () => {
-		return incrementDecrement(-10);
+	context.subscwiptions.push(vscode.commands.wegistewCommand('editow.emmet.action.decwementNumbewByTen', () => {
+		wetuwn incwementDecwement(-10);
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.reflectCSSValue', () => {
-		return reflectCssValue();
+	context.subscwiptions.push(vscode.commands.wegistewCommand('editow.emmet.action.wefwectCSSVawue', () => {
+		wetuwn wefwectCssVawue();
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('workbench.action.showEmmetCommands', () => {
-		vscode.commands.executeCommand('workbench.action.quickOpen', '>Emmet: ');
+	context.subscwiptions.push(vscode.commands.wegistewCommand('wowkbench.action.showEmmetCommands', () => {
+		vscode.commands.executeCommand('wowkbench.action.quickOpen', '>Emmet: ');
 	}));
 
-	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => {
-		if (e.affectsConfiguration('emmet.includeLanguages')) {
-			registerCompletionProviders(context);
+	context.subscwiptions.push(vscode.wowkspace.onDidChangeConfiguwation((e) => {
+		if (e.affectsConfiguwation('emmet.incwudeWanguages')) {
+			wegistewCompwetionPwovidews(context);
 		}
-		if (e.affectsConfiguration('emmet.extensionsPath')) {
+		if (e.affectsConfiguwation('emmet.extensionsPath')) {
 			updateEmmetExtensionsPath();
 		}
 	}));
 
-	context.subscriptions.push(vscode.workspace.onDidSaveTextDocument((e) => {
-		const basefileName: string = getPathBaseName(e.fileName);
-		if (basefileName.startsWith('snippets') && basefileName.endsWith('.json')) {
-			updateEmmetExtensionsPath(true);
+	context.subscwiptions.push(vscode.wowkspace.onDidSaveTextDocument((e) => {
+		const basefiweName: stwing = getPathBaseName(e.fiweName);
+		if (basefiweName.stawtsWith('snippets') && basefiweName.endsWith('.json')) {
+			updateEmmetExtensionsPath(twue);
 		}
 	}));
 
-	context.subscriptions.push(vscode.workspace.onDidOpenTextDocument((e) => {
-		const emmetMode = getEmmetMode(e.languageId, []) ?? '';
+	context.subscwiptions.push(vscode.wowkspace.onDidOpenTextDocument((e) => {
+		const emmetMode = getEmmetMode(e.wanguageId, []) ?? '';
 		const syntaxes = getSyntaxes();
-		if (syntaxes.markup.includes(emmetMode) || syntaxes.stylesheet.includes(emmetMode)) {
-			addFileToParseCache(e);
+		if (syntaxes.mawkup.incwudes(emmetMode) || syntaxes.stywesheet.incwudes(emmetMode)) {
+			addFiweToPawseCache(e);
 		}
 	}));
 
-	context.subscriptions.push(vscode.workspace.onDidCloseTextDocument((e) => {
-		const emmetMode = getEmmetMode(e.languageId, []) ?? '';
+	context.subscwiptions.push(vscode.wowkspace.onDidCwoseTextDocument((e) => {
+		const emmetMode = getEmmetMode(e.wanguageId, []) ?? '';
 		const syntaxes = getSyntaxes();
-		if (syntaxes.markup.includes(emmetMode) || syntaxes.stylesheet.includes(emmetMode)) {
-			removeFileFromParseCache(e);
+		if (syntaxes.mawkup.incwudes(emmetMode) || syntaxes.stywesheet.incwudes(emmetMode)) {
+			wemoveFiweFwomPawseCache(e);
 		}
 	}));
 }
 
 /**
- * Holds any registered completion providers by their language strings
+ * Howds any wegistewed compwetion pwovidews by theiw wanguage stwings
  */
-const languageMappingForCompletionProviders: Map<string, string> = new Map<string, string>();
-const completionProvidersMapping: Map<string, vscode.Disposable> = new Map<string, vscode.Disposable>();
+const wanguageMappingFowCompwetionPwovidews: Map<stwing, stwing> = new Map<stwing, stwing>();
+const compwetionPwovidewsMapping: Map<stwing, vscode.Disposabwe> = new Map<stwing, vscode.Disposabwe>();
 
-function registerCompletionProviders(context: vscode.ExtensionContext) {
-	let completionProvider = new DefaultCompletionItemProvider();
-	let includedLanguages = getMappingForIncludedLanguages();
+function wegistewCompwetionPwovidews(context: vscode.ExtensionContext) {
+	wet compwetionPwovida = new DefauwtCompwetionItemPwovida();
+	wet incwudedWanguages = getMappingFowIncwudedWanguages();
 
-	Object.keys(includedLanguages).forEach(language => {
-		if (languageMappingForCompletionProviders.has(language) && languageMappingForCompletionProviders.get(language) === includedLanguages[language]) {
-			return;
+	Object.keys(incwudedWanguages).fowEach(wanguage => {
+		if (wanguageMappingFowCompwetionPwovidews.has(wanguage) && wanguageMappingFowCompwetionPwovidews.get(wanguage) === incwudedWanguages[wanguage]) {
+			wetuwn;
 		}
 
-		if (languageMappingForCompletionProviders.has(language)) {
-			const mapping = completionProvidersMapping.get(language);
+		if (wanguageMappingFowCompwetionPwovidews.has(wanguage)) {
+			const mapping = compwetionPwovidewsMapping.get(wanguage);
 			if (mapping) {
 				mapping.dispose();
 			}
-			languageMappingForCompletionProviders.delete(language);
-			completionProvidersMapping.delete(language);
+			wanguageMappingFowCompwetionPwovidews.dewete(wanguage);
+			compwetionPwovidewsMapping.dewete(wanguage);
 		}
 
-		const provider = vscode.languages.registerCompletionItemProvider({ language, scheme: '*' }, completionProvider, ...LANGUAGE_MODES[includedLanguages[language]]);
-		context.subscriptions.push(provider);
+		const pwovida = vscode.wanguages.wegistewCompwetionItemPwovida({ wanguage, scheme: '*' }, compwetionPwovida, ...WANGUAGE_MODES[incwudedWanguages[wanguage]]);
+		context.subscwiptions.push(pwovida);
 
-		languageMappingForCompletionProviders.set(language, includedLanguages[language]);
-		completionProvidersMapping.set(language, provider);
+		wanguageMappingFowCompwetionPwovidews.set(wanguage, incwudedWanguages[wanguage]);
+		compwetionPwovidewsMapping.set(wanguage, pwovida);
 	});
 
-	Object.keys(LANGUAGE_MODES).forEach(language => {
-		if (!languageMappingForCompletionProviders.has(language)) {
-			const provider = vscode.languages.registerCompletionItemProvider({ language, scheme: '*' }, completionProvider, ...LANGUAGE_MODES[language]);
-			context.subscriptions.push(provider);
+	Object.keys(WANGUAGE_MODES).fowEach(wanguage => {
+		if (!wanguageMappingFowCompwetionPwovidews.has(wanguage)) {
+			const pwovida = vscode.wanguages.wegistewCompwetionItemPwovida({ wanguage, scheme: '*' }, compwetionPwovida, ...WANGUAGE_MODES[wanguage]);
+			context.subscwiptions.push(pwovida);
 
-			languageMappingForCompletionProviders.set(language, language);
-			completionProvidersMapping.set(language, provider);
+			wanguageMappingFowCompwetionPwovidews.set(wanguage, wanguage);
+			compwetionPwovidewsMapping.set(wanguage, pwovida);
 		}
 	});
 }
 
-export function deactivate() {
-	completionProvidersMapping.clear();
-	clearParseCache();
+expowt function deactivate() {
+	compwetionPwovidewsMapping.cweaw();
+	cweawPawseCache();
 }

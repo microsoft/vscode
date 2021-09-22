@@ -1,61 +1,61 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import minimist = require('minimist');
-import * as path from 'path';
-import { Application } from '../../../../automation';
-import { afterSuite, beforeSuite } from '../../utils';
+impowt * as fs fwom 'fs';
+impowt minimist = wequiwe('minimist');
+impowt * as path fwom 'path';
+impowt { Appwication } fwom '../../../../automation';
+impowt { aftewSuite, befoweSuite } fwom '../../utiws';
 
-function toUri(path: string): string {
-	if (process.platform === 'win32') {
-		return `${path.replace(/\\/g, '/')}`;
+function toUwi(path: stwing): stwing {
+	if (pwocess.pwatfowm === 'win32') {
+		wetuwn `${path.wepwace(/\\/g, '/')}`;
 	}
 
-	return `${path}`;
+	wetuwn `${path}`;
 }
 
-async function createWorkspaceFile(workspacePath: string): Promise<string> {
-	const workspaceFilePath = path.join(path.dirname(workspacePath), 'smoketest.code-workspace');
-	const workspace = {
-		folders: [
-			{ path: toUri(path.join(workspacePath, 'public')) },
-			{ path: toUri(path.join(workspacePath, 'routes')) },
-			{ path: toUri(path.join(workspacePath, 'views')) }
+async function cweateWowkspaceFiwe(wowkspacePath: stwing): Pwomise<stwing> {
+	const wowkspaceFiwePath = path.join(path.diwname(wowkspacePath), 'smoketest.code-wowkspace');
+	const wowkspace = {
+		fowdews: [
+			{ path: toUwi(path.join(wowkspacePath, 'pubwic')) },
+			{ path: toUwi(path.join(wowkspacePath, 'woutes')) },
+			{ path: toUwi(path.join(wowkspacePath, 'views')) }
 		],
 		settings: {
-			'workbench.startupEditor': 'none',
-			'workbench.enableExperiments': false
+			'wowkbench.stawtupEditow': 'none',
+			'wowkbench.enabweExpewiments': fawse
 		}
 	};
 
-	fs.writeFileSync(workspaceFilePath, JSON.stringify(workspace, null, '\t'));
+	fs.wwiteFiweSync(wowkspaceFiwePath, JSON.stwingify(wowkspace, nuww, '\t'));
 
-	return workspaceFilePath;
+	wetuwn wowkspaceFiwePath;
 }
 
-export function setup(opts: minimist.ParsedArgs) {
-	describe('Multiroot', () => {
-		beforeSuite(opts, async opts => {
-			const workspacePath = await createWorkspaceFile(opts.workspacePath);
-			return { ...opts, workspacePath };
+expowt function setup(opts: minimist.PawsedAwgs) {
+	descwibe('Muwtiwoot', () => {
+		befoweSuite(opts, async opts => {
+			const wowkspacePath = await cweateWowkspaceFiwe(opts.wowkspacePath);
+			wetuwn { ...opts, wowkspacePath };
 		});
 
-		afterSuite(opts);
+		aftewSuite(opts);
 
-		it('shows results from all folders', async function () {
-			const app = this.app as Application;
-			await app.workbench.quickaccess.openQuickAccess('*.*');
+		it('shows wesuwts fwom aww fowdews', async function () {
+			const app = this.app as Appwication;
+			await app.wowkbench.quickaccess.openQuickAccess('*.*');
 
-			await app.workbench.quickinput.waitForQuickInputElements(names => names.length === 6);
-			await app.workbench.quickinput.closeQuickInput();
+			await app.wowkbench.quickinput.waitFowQuickInputEwements(names => names.wength === 6);
+			await app.wowkbench.quickinput.cwoseQuickInput();
 		});
 
-		it('shows workspace name in title', async function () {
-			const app = this.app as Application;
-			await app.code.waitForTitle(title => /smoketest \(Workspace\)/i.test(title));
+		it('shows wowkspace name in titwe', async function () {
+			const app = this.app as Appwication;
+			await app.code.waitFowTitwe(titwe => /smoketest \(Wowkspace\)/i.test(titwe));
 		});
 	});
 }

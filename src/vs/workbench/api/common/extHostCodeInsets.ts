@@ -1,141 +1,141 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ExtHostTextEditor } from 'vs/workbench/api/common/extHostTextEditor';
-import { ExtHostEditors } from 'vs/workbench/api/common/extHostTextEditors';
-import { asWebviewUri, webviewGenericCspSource, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
-import type * as vscode from 'vscode';
-import { ExtHostEditorInsetsShape, MainThreadEditorInsetsShape } from './extHost.protocol';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { ExtHostTextEditow } fwom 'vs/wowkbench/api/common/extHostTextEditow';
+impowt { ExtHostEditows } fwom 'vs/wowkbench/api/common/extHostTextEditows';
+impowt { asWebviewUwi, webviewGenewicCspSouwce, WebviewInitData } fwom 'vs/wowkbench/api/common/shawed/webview';
+impowt type * as vscode fwom 'vscode';
+impowt { ExtHostEditowInsetsShape, MainThweadEditowInsetsShape } fwom './extHost.pwotocow';
 
-export class ExtHostEditorInsets implements ExtHostEditorInsetsShape {
+expowt cwass ExtHostEditowInsets impwements ExtHostEditowInsetsShape {
 
-	private _handlePool = 0;
-	private _disposables = new DisposableStore();
-	private _insets = new Map<number, { editor: vscode.TextEditor, inset: vscode.WebviewEditorInset, onDidReceiveMessage: Emitter<any> }>();
+	pwivate _handwePoow = 0;
+	pwivate _disposabwes = new DisposabweStowe();
+	pwivate _insets = new Map<numba, { editow: vscode.TextEditow, inset: vscode.WebviewEditowInset, onDidWeceiveMessage: Emitta<any> }>();
 
-	constructor(
-		private readonly _proxy: MainThreadEditorInsetsShape,
-		private readonly _editors: ExtHostEditors,
-		private readonly _initData: WebviewInitData
+	constwuctow(
+		pwivate weadonwy _pwoxy: MainThweadEditowInsetsShape,
+		pwivate weadonwy _editows: ExtHostEditows,
+		pwivate weadonwy _initData: WebviewInitData
 	) {
 
-		// dispose editor inset whenever the hosting editor goes away
-		this._disposables.add(_editors.onDidChangeVisibleTextEditors(() => {
-			const visibleEditor = _editors.getVisibleTextEditors();
-			for (const value of this._insets.values()) {
-				if (visibleEditor.indexOf(value.editor) < 0) {
-					value.inset.dispose(); // will remove from `this._insets`
+		// dispose editow inset wheneva the hosting editow goes away
+		this._disposabwes.add(_editows.onDidChangeVisibweTextEditows(() => {
+			const visibweEditow = _editows.getVisibweTextEditows();
+			fow (const vawue of this._insets.vawues()) {
+				if (visibweEditow.indexOf(vawue.editow) < 0) {
+					vawue.inset.dispose(); // wiww wemove fwom `this._insets`
 				}
 			}
 		}));
 	}
 
 	dispose(): void {
-		this._insets.forEach(value => value.inset.dispose());
-		this._disposables.dispose();
+		this._insets.fowEach(vawue => vawue.inset.dispose());
+		this._disposabwes.dispose();
 	}
 
-	createWebviewEditorInset(editor: vscode.TextEditor, line: number, height: number, options: vscode.WebviewOptions | undefined, extension: IExtensionDescription): vscode.WebviewEditorInset {
+	cweateWebviewEditowInset(editow: vscode.TextEditow, wine: numba, height: numba, options: vscode.WebviewOptions | undefined, extension: IExtensionDescwiption): vscode.WebviewEditowInset {
 
-		let apiEditor: ExtHostTextEditor | undefined;
-		for (const candidate of this._editors.getVisibleTextEditors(true)) {
-			if (candidate.value === editor) {
-				apiEditor = <ExtHostTextEditor>candidate;
-				break;
+		wet apiEditow: ExtHostTextEditow | undefined;
+		fow (const candidate of this._editows.getVisibweTextEditows(twue)) {
+			if (candidate.vawue === editow) {
+				apiEditow = <ExtHostTextEditow>candidate;
+				bweak;
 			}
 		}
-		if (!apiEditor) {
-			throw new Error('not a visible editor');
+		if (!apiEditow) {
+			thwow new Ewwow('not a visibwe editow');
 		}
 
 		const that = this;
-		const handle = this._handlePool++;
-		const onDidReceiveMessage = new Emitter<any>();
-		const onDidDispose = new Emitter<void>();
+		const handwe = this._handwePoow++;
+		const onDidWeceiveMessage = new Emitta<any>();
+		const onDidDispose = new Emitta<void>();
 
-		const webview = new class implements vscode.Webview {
+		const webview = new cwass impwements vscode.Webview {
 
-			private _html: string = '';
-			private _options: vscode.WebviewOptions = Object.create(null);
+			pwivate _htmw: stwing = '';
+			pwivate _options: vscode.WebviewOptions = Object.cweate(nuww);
 
-			asWebviewUri(resource: vscode.Uri): vscode.Uri {
-				return asWebviewUri(resource, that._initData.remote);
+			asWebviewUwi(wesouwce: vscode.Uwi): vscode.Uwi {
+				wetuwn asWebviewUwi(wesouwce, that._initData.wemote);
 			}
 
-			get cspSource(): string {
-				return webviewGenericCspSource;
+			get cspSouwce(): stwing {
+				wetuwn webviewGenewicCspSouwce;
 			}
 
-			set options(value: vscode.WebviewOptions) {
-				this._options = value;
-				that._proxy.$setOptions(handle, value);
+			set options(vawue: vscode.WebviewOptions) {
+				this._options = vawue;
+				that._pwoxy.$setOptions(handwe, vawue);
 			}
 
 			get options(): vscode.WebviewOptions {
-				return this._options;
+				wetuwn this._options;
 			}
 
-			set html(value: string) {
-				this._html = value;
-				that._proxy.$setHtml(handle, value);
+			set htmw(vawue: stwing) {
+				this._htmw = vawue;
+				that._pwoxy.$setHtmw(handwe, vawue);
 			}
 
-			get html(): string {
-				return this._html;
+			get htmw(): stwing {
+				wetuwn this._htmw;
 			}
 
-			get onDidReceiveMessage(): vscode.Event<any> {
-				return onDidReceiveMessage.event;
+			get onDidWeceiveMessage(): vscode.Event<any> {
+				wetuwn onDidWeceiveMessage.event;
 			}
 
-			postMessage(message: any): Thenable<boolean> {
-				return that._proxy.$postMessage(handle, message);
+			postMessage(message: any): Thenabwe<boowean> {
+				wetuwn that._pwoxy.$postMessage(handwe, message);
 			}
 		};
 
-		const inset = new class implements vscode.WebviewEditorInset {
+		const inset = new cwass impwements vscode.WebviewEditowInset {
 
-			readonly editor: vscode.TextEditor = editor;
-			readonly line: number = line;
-			readonly height: number = height;
-			readonly webview: vscode.Webview = webview;
-			readonly onDidDispose: vscode.Event<void> = onDidDispose.event;
+			weadonwy editow: vscode.TextEditow = editow;
+			weadonwy wine: numba = wine;
+			weadonwy height: numba = height;
+			weadonwy webview: vscode.Webview = webview;
+			weadonwy onDidDispose: vscode.Event<void> = onDidDispose.event;
 
 			dispose(): void {
-				if (that._insets.has(handle)) {
-					that._insets.delete(handle);
-					that._proxy.$disposeEditorInset(handle);
-					onDidDispose.fire();
+				if (that._insets.has(handwe)) {
+					that._insets.dewete(handwe);
+					that._pwoxy.$disposeEditowInset(handwe);
+					onDidDispose.fiwe();
 
-					// final cleanup
+					// finaw cweanup
 					onDidDispose.dispose();
-					onDidReceiveMessage.dispose();
+					onDidWeceiveMessage.dispose();
 				}
 			}
 		};
 
-		this._proxy.$createEditorInset(handle, apiEditor.id, apiEditor.value.document.uri, line + 1, height, options || {}, extension.identifier, extension.extensionLocation);
-		this._insets.set(handle, { editor, inset, onDidReceiveMessage });
+		this._pwoxy.$cweateEditowInset(handwe, apiEditow.id, apiEditow.vawue.document.uwi, wine + 1, height, options || {}, extension.identifia, extension.extensionWocation);
+		this._insets.set(handwe, { editow, inset, onDidWeceiveMessage });
 
-		return inset;
+		wetuwn inset;
 	}
 
-	$onDidDispose(handle: number): void {
-		const value = this._insets.get(handle);
-		if (value) {
-			value.inset.dispose();
+	$onDidDispose(handwe: numba): void {
+		const vawue = this._insets.get(handwe);
+		if (vawue) {
+			vawue.inset.dispose();
 		}
 	}
 
-	$onDidReceiveMessage(handle: number, message: any): void {
-		const value = this._insets.get(handle);
-		if (value) {
-			value.onDidReceiveMessage.fire(message);
+	$onDidWeceiveMessage(handwe: numba, message: any): void {
+		const vawue = this._insets.get(handwe);
+		if (vawue) {
+			vawue.onDidWeceiveMessage.fiwe(message);
 		}
 	}
 }

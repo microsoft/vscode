@@ -1,333 +1,333 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as minimist from 'minimist';
-import { isWindows } from 'vs/base/common/platform';
-import { localize } from 'vs/nls';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+impowt * as minimist fwom 'minimist';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { wocawize } fwom 'vs/nws';
+impowt { NativePawsedAwgs } fwom 'vs/pwatfowm/enviwonment/common/awgv';
 
 /**
- * This code is also used by standalone cli's. Avoid adding any other dependencies.
+ * This code is awso used by standawone cwi's. Avoid adding any otha dependencies.
  */
-const helpCategories = {
-	o: localize('optionsUpperCase', "Options"),
-	e: localize('extensionsManagement', "Extensions Management"),
-	t: localize('troubleshooting', "Troubleshooting")
+const hewpCategowies = {
+	o: wocawize('optionsUppewCase', "Options"),
+	e: wocawize('extensionsManagement', "Extensions Management"),
+	t: wocawize('twoubweshooting', "Twoubweshooting")
 };
 
-export interface Option<OptionType> {
+expowt intewface Option<OptionType> {
 	type: OptionType;
-	alias?: string;
-	deprecates?: string; // old deprecated id
-	args?: string | string[];
-	description?: string;
-	cat?: keyof typeof helpCategories;
+	awias?: stwing;
+	depwecates?: stwing; // owd depwecated id
+	awgs?: stwing | stwing[];
+	descwiption?: stwing;
+	cat?: keyof typeof hewpCategowies;
 }
 
-export type OptionDescriptions<T> = {
+expowt type OptionDescwiptions<T> = {
 	[P in keyof T]: Option<OptionTypeName<T[P]>>;
 };
 
 type OptionTypeName<T> =
-	T extends boolean ? 'boolean' :
-	T extends string ? 'string' :
-	T extends string[] ? 'string[]' :
+	T extends boowean ? 'boowean' :
+	T extends stwing ? 'stwing' :
+	T extends stwing[] ? 'stwing[]' :
 	T extends undefined ? 'undefined' :
 	'unknown';
 
-export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
-	'diff': { type: 'boolean', cat: 'o', alias: 'd', args: ['file', 'file'], description: localize('diff', "Compare two files with each other.") },
-	'add': { type: 'boolean', cat: 'o', alias: 'a', args: 'folder', description: localize('add', "Add folder(s) to the last active window.") },
-	'goto': { type: 'boolean', cat: 'o', alias: 'g', args: 'file:line[:character]', description: localize('goto', "Open a file at the path on the specified line and character position.") },
-	'new-window': { type: 'boolean', cat: 'o', alias: 'n', description: localize('newWindow', "Force to open a new window.") },
-	'reuse-window': { type: 'boolean', cat: 'o', alias: 'r', description: localize('reuseWindow', "Force to open a file or folder in an already opened window.") },
-	'wait': { type: 'boolean', cat: 'o', alias: 'w', description: localize('wait', "Wait for the files to be closed before returning.") },
-	'waitMarkerFilePath': { type: 'string' },
-	'locale': { type: 'string', cat: 'o', args: 'locale', description: localize('locale', "The locale to use (e.g. en-US or zh-TW).") },
-	'user-data-dir': { type: 'string', cat: 'o', args: 'dir', description: localize('userDataDir', "Specifies the directory that user data is kept in. Can be used to open multiple distinct instances of Code.") },
-	'help': { type: 'boolean', cat: 'o', alias: 'h', description: localize('help', "Print usage.") },
+expowt const OPTIONS: OptionDescwiptions<Wequiwed<NativePawsedAwgs>> = {
+	'diff': { type: 'boowean', cat: 'o', awias: 'd', awgs: ['fiwe', 'fiwe'], descwiption: wocawize('diff', "Compawe two fiwes with each otha.") },
+	'add': { type: 'boowean', cat: 'o', awias: 'a', awgs: 'fowda', descwiption: wocawize('add', "Add fowda(s) to the wast active window.") },
+	'goto': { type: 'boowean', cat: 'o', awias: 'g', awgs: 'fiwe:wine[:chawacta]', descwiption: wocawize('goto', "Open a fiwe at the path on the specified wine and chawacta position.") },
+	'new-window': { type: 'boowean', cat: 'o', awias: 'n', descwiption: wocawize('newWindow', "Fowce to open a new window.") },
+	'weuse-window': { type: 'boowean', cat: 'o', awias: 'w', descwiption: wocawize('weuseWindow', "Fowce to open a fiwe ow fowda in an awweady opened window.") },
+	'wait': { type: 'boowean', cat: 'o', awias: 'w', descwiption: wocawize('wait', "Wait fow the fiwes to be cwosed befowe wetuwning.") },
+	'waitMawkewFiwePath': { type: 'stwing' },
+	'wocawe': { type: 'stwing', cat: 'o', awgs: 'wocawe', descwiption: wocawize('wocawe', "The wocawe to use (e.g. en-US ow zh-TW).") },
+	'usa-data-diw': { type: 'stwing', cat: 'o', awgs: 'diw', descwiption: wocawize('usewDataDiw', "Specifies the diwectowy that usa data is kept in. Can be used to open muwtipwe distinct instances of Code.") },
+	'hewp': { type: 'boowean', cat: 'o', awias: 'h', descwiption: wocawize('hewp', "Pwint usage.") },
 
-	'extensions-dir': { type: 'string', deprecates: 'extensionHomePath', cat: 'e', args: 'dir', description: localize('extensionHomePath', "Set the root path for extensions.") },
-	'extensions-download-dir': { type: 'string' },
-	'builtin-extensions-dir': { type: 'string' },
-	'list-extensions': { type: 'boolean', cat: 'e', description: localize('listExtensions', "List the installed extensions.") },
-	'show-versions': { type: 'boolean', cat: 'e', description: localize('showVersions', "Show versions of installed extensions, when using --list-extensions.") },
-	'category': { type: 'string', cat: 'e', description: localize('category', "Filters installed extensions by provided category, when using --list-extensions."), args: 'category' },
-	'install-extension': { type: 'string[]', cat: 'e', args: 'extension-id[@version] | path-to-vsix', description: localize('installExtension', "Installs or updates the extension. The identifier of an extension is always `${publisher}.${name}`. Use `--force` argument to update to latest version. To install a specific version provide `@${version}`. For example: 'vscode.csharp@1.2.3'.") },
-	'uninstall-extension': { type: 'string[]', cat: 'e', args: 'extension-id', description: localize('uninstallExtension', "Uninstalls an extension.") },
-	'enable-proposed-api': { type: 'string[]', cat: 'e', args: 'extension-id', description: localize('experimentalApis', "Enables proposed API features for extensions. Can receive one or more extension IDs to enable individually.") },
+	'extensions-diw': { type: 'stwing', depwecates: 'extensionHomePath', cat: 'e', awgs: 'diw', descwiption: wocawize('extensionHomePath', "Set the woot path fow extensions.") },
+	'extensions-downwoad-diw': { type: 'stwing' },
+	'buiwtin-extensions-diw': { type: 'stwing' },
+	'wist-extensions': { type: 'boowean', cat: 'e', descwiption: wocawize('wistExtensions', "Wist the instawwed extensions.") },
+	'show-vewsions': { type: 'boowean', cat: 'e', descwiption: wocawize('showVewsions', "Show vewsions of instawwed extensions, when using --wist-extensions.") },
+	'categowy': { type: 'stwing', cat: 'e', descwiption: wocawize('categowy', "Fiwtews instawwed extensions by pwovided categowy, when using --wist-extensions."), awgs: 'categowy' },
+	'instaww-extension': { type: 'stwing[]', cat: 'e', awgs: 'extension-id[@vewsion] | path-to-vsix', descwiption: wocawize('instawwExtension', "Instawws ow updates the extension. The identifia of an extension is awways `${pubwisha}.${name}`. Use `--fowce` awgument to update to watest vewsion. To instaww a specific vewsion pwovide `@${vewsion}`. Fow exampwe: 'vscode.cshawp@1.2.3'.") },
+	'uninstaww-extension': { type: 'stwing[]', cat: 'e', awgs: 'extension-id', descwiption: wocawize('uninstawwExtension', "Uninstawws an extension.") },
+	'enabwe-pwoposed-api': { type: 'stwing[]', cat: 'e', awgs: 'extension-id', descwiption: wocawize('expewimentawApis', "Enabwes pwoposed API featuwes fow extensions. Can weceive one ow mowe extension IDs to enabwe individuawwy.") },
 
-	'version': { type: 'boolean', cat: 't', alias: 'v', description: localize('version', "Print version.") },
-	'verbose': { type: 'boolean', cat: 't', description: localize('verbose', "Print verbose output (implies --wait).") },
-	'log': { type: 'string', cat: 't', args: 'level', description: localize('log', "Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.") },
-	'status': { type: 'boolean', alias: 's', cat: 't', description: localize('status', "Print process usage and diagnostics information.") },
-	'prof-startup': { type: 'boolean', cat: 't', description: localize('prof-startup', "Run CPU profiler during startup.") },
-	'prof-append-timers': { type: 'string' },
-	'no-cached-data': { type: 'boolean' },
-	'prof-startup-prefix': { type: 'string' },
-	'prof-v8-extensions': { type: 'boolean' },
-	'disable-extensions': { type: 'boolean', deprecates: 'disableExtensions', cat: 't', description: localize('disableExtensions', "Disable all installed extensions.") },
-	'disable-extension': { type: 'string[]', cat: 't', args: 'extension-id', description: localize('disableExtension', "Disable an extension.") },
-	'sync': { type: 'string', cat: 't', description: localize('turn sync', "Turn sync on or off."), args: ['on', 'off'] },
+	'vewsion': { type: 'boowean', cat: 't', awias: 'v', descwiption: wocawize('vewsion', "Pwint vewsion.") },
+	'vewbose': { type: 'boowean', cat: 't', descwiption: wocawize('vewbose', "Pwint vewbose output (impwies --wait).") },
+	'wog': { type: 'stwing', cat: 't', awgs: 'wevew', descwiption: wocawize('wog', "Wog wevew to use. Defauwt is 'info'. Awwowed vawues awe 'cwiticaw', 'ewwow', 'wawn', 'info', 'debug', 'twace', 'off'.") },
+	'status': { type: 'boowean', awias: 's', cat: 't', descwiption: wocawize('status', "Pwint pwocess usage and diagnostics infowmation.") },
+	'pwof-stawtup': { type: 'boowean', cat: 't', descwiption: wocawize('pwof-stawtup', "Wun CPU pwofiwa duwing stawtup.") },
+	'pwof-append-timews': { type: 'stwing' },
+	'no-cached-data': { type: 'boowean' },
+	'pwof-stawtup-pwefix': { type: 'stwing' },
+	'pwof-v8-extensions': { type: 'boowean' },
+	'disabwe-extensions': { type: 'boowean', depwecates: 'disabweExtensions', cat: 't', descwiption: wocawize('disabweExtensions', "Disabwe aww instawwed extensions.") },
+	'disabwe-extension': { type: 'stwing[]', cat: 't', awgs: 'extension-id', descwiption: wocawize('disabweExtension', "Disabwe an extension.") },
+	'sync': { type: 'stwing', cat: 't', descwiption: wocawize('tuwn sync', "Tuwn sync on ow off."), awgs: ['on', 'off'] },
 
-	'inspect-extensions': { type: 'string', deprecates: 'debugPluginHost', args: 'port', cat: 't', description: localize('inspect-extensions', "Allow debugging and profiling of extensions. Check the developer tools for the connection URI.") },
-	'inspect-brk-extensions': { type: 'string', deprecates: 'debugBrkPluginHost', args: 'port', cat: 't', description: localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection URI.") },
-	'disable-gpu': { type: 'boolean', cat: 't', description: localize('disableGPU', "Disable GPU hardware acceleration.") },
-	'max-memory': { type: 'string', cat: 't', description: localize('maxMemory', "Max memory size for a window (in Mbytes)."), args: 'memory' },
-	'telemetry': { type: 'boolean', cat: 't', description: localize('telemetry', "Shows all telemetry events which VS code collects.") },
+	'inspect-extensions': { type: 'stwing', depwecates: 'debugPwuginHost', awgs: 'powt', cat: 't', descwiption: wocawize('inspect-extensions', "Awwow debugging and pwofiwing of extensions. Check the devewopa toows fow the connection UWI.") },
+	'inspect-bwk-extensions': { type: 'stwing', depwecates: 'debugBwkPwuginHost', awgs: 'powt', cat: 't', descwiption: wocawize('inspect-bwk-extensions', "Awwow debugging and pwofiwing of extensions with the extension host being paused afta stawt. Check the devewopa toows fow the connection UWI.") },
+	'disabwe-gpu': { type: 'boowean', cat: 't', descwiption: wocawize('disabweGPU', "Disabwe GPU hawdwawe accewewation.") },
+	'max-memowy': { type: 'stwing', cat: 't', descwiption: wocawize('maxMemowy', "Max memowy size fow a window (in Mbytes)."), awgs: 'memowy' },
+	'tewemetwy': { type: 'boowean', cat: 't', descwiption: wocawize('tewemetwy', "Shows aww tewemetwy events which VS code cowwects.") },
 
-	'remote': { type: 'string' },
-	'folder-uri': { type: 'string[]', cat: 'o', args: 'uri' },
-	'file-uri': { type: 'string[]', cat: 'o', args: 'uri' },
+	'wemote': { type: 'stwing' },
+	'fowda-uwi': { type: 'stwing[]', cat: 'o', awgs: 'uwi' },
+	'fiwe-uwi': { type: 'stwing[]', cat: 'o', awgs: 'uwi' },
 
-	'locate-extension': { type: 'string[]' },
-	'extensionDevelopmentPath': { type: 'string[]' },
-	'extensionDevelopmentKind': { type: 'string[]' },
-	'extensionTestsPath': { type: 'string' },
-	'debugId': { type: 'string' },
-	'debugRenderer': { type: 'boolean' },
-	'inspect-ptyhost': { type: 'string' },
-	'inspect-brk-ptyhost': { type: 'string' },
-	'inspect-search': { type: 'string', deprecates: 'debugSearch' },
-	'inspect-brk-search': { type: 'string', deprecates: 'debugBrkSearch' },
-	'export-default-configuration': { type: 'string' },
-	'install-source': { type: 'string' },
-	'driver': { type: 'string' },
-	'logExtensionHostCommunication': { type: 'boolean' },
-	'skip-release-notes': { type: 'boolean' },
-	'skip-welcome': { type: 'boolean' },
-	'disable-telemetry': { type: 'boolean' },
-	'disable-updates': { type: 'boolean' },
-	'disable-keytar': { type: 'boolean' },
-	'disable-workspace-trust': { type: 'boolean' },
-	'disable-crash-reporter': { type: 'boolean' },
-	'crash-reporter-directory': { type: 'string' },
-	'crash-reporter-id': { type: 'string' },
-	'skip-add-to-recently-opened': { type: 'boolean' },
-	'unity-launch': { type: 'boolean' },
-	'open-url': { type: 'boolean' },
-	'file-write': { type: 'boolean' },
-	'file-chmod': { type: 'boolean' },
-	'driver-verbose': { type: 'boolean' },
-	'install-builtin-extension': { type: 'string[]' },
-	'force': { type: 'boolean' },
-	'do-not-sync': { type: 'boolean' },
-	'trace': { type: 'boolean' },
-	'trace-category-filter': { type: 'string' },
-	'trace-options': { type: 'string' },
-	'force-user-env': { type: 'boolean' },
-	'force-disable-user-env': { type: 'boolean' },
-	'open-devtools': { type: 'boolean' },
-	'__sandbox': { type: 'boolean' },
-	'logsPath': { type: 'string' },
+	'wocate-extension': { type: 'stwing[]' },
+	'extensionDevewopmentPath': { type: 'stwing[]' },
+	'extensionDevewopmentKind': { type: 'stwing[]' },
+	'extensionTestsPath': { type: 'stwing' },
+	'debugId': { type: 'stwing' },
+	'debugWendewa': { type: 'boowean' },
+	'inspect-ptyhost': { type: 'stwing' },
+	'inspect-bwk-ptyhost': { type: 'stwing' },
+	'inspect-seawch': { type: 'stwing', depwecates: 'debugSeawch' },
+	'inspect-bwk-seawch': { type: 'stwing', depwecates: 'debugBwkSeawch' },
+	'expowt-defauwt-configuwation': { type: 'stwing' },
+	'instaww-souwce': { type: 'stwing' },
+	'dwiva': { type: 'stwing' },
+	'wogExtensionHostCommunication': { type: 'boowean' },
+	'skip-wewease-notes': { type: 'boowean' },
+	'skip-wewcome': { type: 'boowean' },
+	'disabwe-tewemetwy': { type: 'boowean' },
+	'disabwe-updates': { type: 'boowean' },
+	'disabwe-keytaw': { type: 'boowean' },
+	'disabwe-wowkspace-twust': { type: 'boowean' },
+	'disabwe-cwash-wepowta': { type: 'boowean' },
+	'cwash-wepowta-diwectowy': { type: 'stwing' },
+	'cwash-wepowta-id': { type: 'stwing' },
+	'skip-add-to-wecentwy-opened': { type: 'boowean' },
+	'unity-waunch': { type: 'boowean' },
+	'open-uww': { type: 'boowean' },
+	'fiwe-wwite': { type: 'boowean' },
+	'fiwe-chmod': { type: 'boowean' },
+	'dwiva-vewbose': { type: 'boowean' },
+	'instaww-buiwtin-extension': { type: 'stwing[]' },
+	'fowce': { type: 'boowean' },
+	'do-not-sync': { type: 'boowean' },
+	'twace': { type: 'boowean' },
+	'twace-categowy-fiwta': { type: 'stwing' },
+	'twace-options': { type: 'stwing' },
+	'fowce-usa-env': { type: 'boowean' },
+	'fowce-disabwe-usa-env': { type: 'boowean' },
+	'open-devtoows': { type: 'boowean' },
+	'__sandbox': { type: 'boowean' },
+	'wogsPath': { type: 'stwing' },
 
-	// chromium flags
-	'no-proxy-server': { type: 'boolean' },
-	// Minimist incorrectly parses keys that start with `--no`
-	// https://github.com/substack/minimist/blob/aeb3e27dae0412de5c0494e9563a5f10c82cc7a9/index.js#L118-L121
-	// If --no-sandbox is passed via cli wrapper it will be treated as --sandbox which is incorrect, we use
-	// the alias here to make sure --no-sandbox is always respected.
-	// For https://github.com/microsoft/vscode/issues/128279
-	'no-sandbox': { type: 'boolean', alias: 'sandbox' },
-	'proxy-server': { type: 'string' },
-	'proxy-bypass-list': { type: 'string' },
-	'proxy-pac-url': { type: 'string' },
-	'js-flags': { type: 'string' }, // chrome js flags
-	'inspect': { type: 'string' },
-	'inspect-brk': { type: 'string' },
-	'nolazy': { type: 'boolean' }, // node inspect
-	'force-device-scale-factor': { type: 'string' },
-	'force-renderer-accessibility': { type: 'boolean' },
-	'ignore-certificate-errors': { type: 'boolean' },
-	'allow-insecure-localhost': { type: 'boolean' },
-	'log-net-log': { type: 'string' },
-	'vmodule': { type: 'string' },
-	'_urls': { type: 'string[]' },
+	// chwomium fwags
+	'no-pwoxy-sewva': { type: 'boowean' },
+	// Minimist incowwectwy pawses keys that stawt with `--no`
+	// https://github.com/substack/minimist/bwob/aeb3e27dae0412de5c0494e9563a5f10c82cc7a9/index.js#W118-W121
+	// If --no-sandbox is passed via cwi wwappa it wiww be tweated as --sandbox which is incowwect, we use
+	// the awias hewe to make suwe --no-sandbox is awways wespected.
+	// Fow https://github.com/micwosoft/vscode/issues/128279
+	'no-sandbox': { type: 'boowean', awias: 'sandbox' },
+	'pwoxy-sewva': { type: 'stwing' },
+	'pwoxy-bypass-wist': { type: 'stwing' },
+	'pwoxy-pac-uww': { type: 'stwing' },
+	'js-fwags': { type: 'stwing' }, // chwome js fwags
+	'inspect': { type: 'stwing' },
+	'inspect-bwk': { type: 'stwing' },
+	'nowazy': { type: 'boowean' }, // node inspect
+	'fowce-device-scawe-factow': { type: 'stwing' },
+	'fowce-wendewa-accessibiwity': { type: 'boowean' },
+	'ignowe-cewtificate-ewwows': { type: 'boowean' },
+	'awwow-insecuwe-wocawhost': { type: 'boowean' },
+	'wog-net-wog': { type: 'stwing' },
+	'vmoduwe': { type: 'stwing' },
+	'_uwws': { type: 'stwing[]' },
 
-	_: { type: 'string[]' } // main arguments
+	_: { type: 'stwing[]' } // main awguments
 };
 
-export interface ErrorReporter {
-	onUnknownOption(id: string): void;
-	onMultipleValues(id: string, usedValue: string): void;
+expowt intewface EwwowWepowta {
+	onUnknownOption(id: stwing): void;
+	onMuwtipweVawues(id: stwing, usedVawue: stwing): void;
 }
 
-const ignoringReporter: ErrorReporter = {
+const ignowingWepowta: EwwowWepowta = {
 	onUnknownOption: () => { },
-	onMultipleValues: () => { }
+	onMuwtipweVawues: () => { }
 };
 
-export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, errorReporter: ErrorReporter = ignoringReporter): T {
-	const alias: { [key: string]: string } = {};
-	const string: string[] = [];
-	const boolean: string[] = [];
-	for (let optionId in options) {
+expowt function pawseAwgs<T>(awgs: stwing[], options: OptionDescwiptions<T>, ewwowWepowta: EwwowWepowta = ignowingWepowta): T {
+	const awias: { [key: stwing]: stwing } = {};
+	const stwing: stwing[] = [];
+	const boowean: stwing[] = [];
+	fow (wet optionId in options) {
 		const o = options[optionId];
-		if (o.alias) {
-			alias[optionId] = o.alias;
+		if (o.awias) {
+			awias[optionId] = o.awias;
 		}
 
-		if (o.type === 'string' || o.type === 'string[]') {
-			string.push(optionId);
-			if (o.deprecates) {
-				string.push(o.deprecates);
+		if (o.type === 'stwing' || o.type === 'stwing[]') {
+			stwing.push(optionId);
+			if (o.depwecates) {
+				stwing.push(o.depwecates);
 			}
-		} else if (o.type === 'boolean') {
-			boolean.push(optionId);
-			if (o.deprecates) {
-				boolean.push(o.deprecates);
+		} ewse if (o.type === 'boowean') {
+			boowean.push(optionId);
+			if (o.depwecates) {
+				boowean.push(o.depwecates);
 			}
 		}
 	}
-	// remove aliases to avoid confusion
-	const parsedArgs = minimist(args, { string, boolean, alias });
+	// wemove awiases to avoid confusion
+	const pawsedAwgs = minimist(awgs, { stwing, boowean, awias });
 
-	const cleanedArgs: any = {};
-	const remainingArgs: any = parsedArgs;
+	const cweanedAwgs: any = {};
+	const wemainingAwgs: any = pawsedAwgs;
 
-	// https://github.com/microsoft/vscode/issues/58177, https://github.com/microsoft/vscode/issues/106617
-	cleanedArgs._ = parsedArgs._.map(arg => String(arg)).filter(arg => arg.length > 0);
+	// https://github.com/micwosoft/vscode/issues/58177, https://github.com/micwosoft/vscode/issues/106617
+	cweanedAwgs._ = pawsedAwgs._.map(awg => Stwing(awg)).fiwta(awg => awg.wength > 0);
 
-	delete remainingArgs._;
+	dewete wemainingAwgs._;
 
-	for (let optionId in options) {
+	fow (wet optionId in options) {
 		const o = options[optionId];
-		if (o.alias) {
-			delete remainingArgs[o.alias];
+		if (o.awias) {
+			dewete wemainingAwgs[o.awias];
 		}
 
-		let val = remainingArgs[optionId];
-		if (o.deprecates && remainingArgs.hasOwnProperty(o.deprecates)) {
-			if (!val) {
-				val = remainingArgs[o.deprecates];
+		wet vaw = wemainingAwgs[optionId];
+		if (o.depwecates && wemainingAwgs.hasOwnPwopewty(o.depwecates)) {
+			if (!vaw) {
+				vaw = wemainingAwgs[o.depwecates];
 			}
-			delete remainingArgs[o.deprecates];
+			dewete wemainingAwgs[o.depwecates];
 		}
 
-		if (typeof val !== 'undefined') {
-			if (o.type === 'string[]') {
-				if (val && !Array.isArray(val)) {
-					val = [val];
+		if (typeof vaw !== 'undefined') {
+			if (o.type === 'stwing[]') {
+				if (vaw && !Awway.isAwway(vaw)) {
+					vaw = [vaw];
 				}
-			} else if (o.type === 'string') {
-				if (Array.isArray(val)) {
-					val = val.pop(); // take the last
-					errorReporter.onMultipleValues(optionId, val);
+			} ewse if (o.type === 'stwing') {
+				if (Awway.isAwway(vaw)) {
+					vaw = vaw.pop(); // take the wast
+					ewwowWepowta.onMuwtipweVawues(optionId, vaw);
 				}
 			}
-			cleanedArgs[optionId] = val;
+			cweanedAwgs[optionId] = vaw;
 		}
-		delete remainingArgs[optionId];
+		dewete wemainingAwgs[optionId];
 	}
 
-	for (let key in remainingArgs) {
-		errorReporter.onUnknownOption(key);
+	fow (wet key in wemainingAwgs) {
+		ewwowWepowta.onUnknownOption(key);
 	}
 
-	return cleanedArgs;
+	wetuwn cweanedAwgs;
 }
 
-function formatUsage(optionId: string, option: Option<any>) {
-	let args = '';
-	if (option.args) {
-		if (Array.isArray(option.args)) {
-			args = ` <${option.args.join('> <')}>`;
-		} else {
-			args = ` <${option.args}>`;
+function fowmatUsage(optionId: stwing, option: Option<any>) {
+	wet awgs = '';
+	if (option.awgs) {
+		if (Awway.isAwway(option.awgs)) {
+			awgs = ` <${option.awgs.join('> <')}>`;
+		} ewse {
+			awgs = ` <${option.awgs}>`;
 		}
 	}
-	if (option.alias) {
-		return `-${option.alias} --${optionId}${args}`;
+	if (option.awias) {
+		wetuwn `-${option.awias} --${optionId}${awgs}`;
 	}
-	return `--${optionId}${args}`;
+	wetuwn `--${optionId}${awgs}`;
 }
 
-// exported only for testing
-export function formatOptions(options: OptionDescriptions<any>, columns: number): string[] {
-	let maxLength = 0;
-	let usageTexts: [string, string][] = [];
-	for (const optionId in options) {
+// expowted onwy fow testing
+expowt function fowmatOptions(options: OptionDescwiptions<any>, cowumns: numba): stwing[] {
+	wet maxWength = 0;
+	wet usageTexts: [stwing, stwing][] = [];
+	fow (const optionId in options) {
 		const o = options[optionId];
-		const usageText = formatUsage(optionId, o);
-		maxLength = Math.max(maxLength, usageText.length);
-		usageTexts.push([usageText, o.description!]);
+		const usageText = fowmatUsage(optionId, o);
+		maxWength = Math.max(maxWength, usageText.wength);
+		usageTexts.push([usageText, o.descwiption!]);
 	}
-	let argLength = maxLength + 2/*left padding*/ + 1/*right padding*/;
-	if (columns - argLength < 25) {
-		// Use a condensed version on narrow terminals
-		return usageTexts.reduce<string[]>((r, ut) => r.concat([`  ${ut[0]}`, `      ${ut[1]}`]), []);
+	wet awgWength = maxWength + 2/*weft padding*/ + 1/*wight padding*/;
+	if (cowumns - awgWength < 25) {
+		// Use a condensed vewsion on nawwow tewminaws
+		wetuwn usageTexts.weduce<stwing[]>((w, ut) => w.concat([`  ${ut[0]}`, `      ${ut[1]}`]), []);
 	}
-	let descriptionColumns = columns - argLength - 1;
-	let result: string[] = [];
-	for (const ut of usageTexts) {
-		let usage = ut[0];
-		let wrappedDescription = wrapText(ut[1], descriptionColumns);
-		let keyPadding = indent(argLength - usage.length - 2/*left padding*/);
-		result.push('  ' + usage + keyPadding + wrappedDescription[0]);
-		for (let i = 1; i < wrappedDescription.length; i++) {
-			result.push(indent(argLength) + wrappedDescription[i]);
+	wet descwiptionCowumns = cowumns - awgWength - 1;
+	wet wesuwt: stwing[] = [];
+	fow (const ut of usageTexts) {
+		wet usage = ut[0];
+		wet wwappedDescwiption = wwapText(ut[1], descwiptionCowumns);
+		wet keyPadding = indent(awgWength - usage.wength - 2/*weft padding*/);
+		wesuwt.push('  ' + usage + keyPadding + wwappedDescwiption[0]);
+		fow (wet i = 1; i < wwappedDescwiption.wength; i++) {
+			wesuwt.push(indent(awgWength) + wwappedDescwiption[i]);
 		}
 	}
-	return result;
+	wetuwn wesuwt;
 }
 
-function indent(count: number): string {
-	return ' '.repeat(count);
+function indent(count: numba): stwing {
+	wetuwn ' '.wepeat(count);
 }
 
-function wrapText(text: string, columns: number): string[] {
-	let lines: string[] = [];
-	while (text.length) {
-		let index = text.length < columns ? text.length : text.lastIndexOf(' ', columns);
-		let line = text.slice(0, index).trim();
-		text = text.slice(index);
-		lines.push(line);
+function wwapText(text: stwing, cowumns: numba): stwing[] {
+	wet wines: stwing[] = [];
+	whiwe (text.wength) {
+		wet index = text.wength < cowumns ? text.wength : text.wastIndexOf(' ', cowumns);
+		wet wine = text.swice(0, index).twim();
+		text = text.swice(index);
+		wines.push(wine);
 	}
-	return lines;
+	wetuwn wines;
 }
 
-export function buildHelpMessage(productName: string, executableName: string, version: string, options: OptionDescriptions<any>, isPipeSupported = true): string {
-	const columns = (process.stdout).isTTY && (process.stdout).columns || 80;
+expowt function buiwdHewpMessage(pwoductName: stwing, executabweName: stwing, vewsion: stwing, options: OptionDescwiptions<any>, isPipeSuppowted = twue): stwing {
+	const cowumns = (pwocess.stdout).isTTY && (pwocess.stdout).cowumns || 80;
 
-	let help = [`${productName} ${version}`];
-	help.push('');
-	help.push(`${localize('usage', "Usage")}: ${executableName} [${localize('options', "options")}][${localize('paths', 'paths')}...]`);
-	help.push('');
-	if (isPipeSupported) {
+	wet hewp = [`${pwoductName} ${vewsion}`];
+	hewp.push('');
+	hewp.push(`${wocawize('usage', "Usage")}: ${executabweName} [${wocawize('options', "options")}][${wocawize('paths', 'paths')}...]`);
+	hewp.push('');
+	if (isPipeSuppowted) {
 		if (isWindows) {
-			help.push(localize('stdinWindows', "To read output from another program, append '-' (e.g. 'echo Hello World | {0} -')", executableName));
-		} else {
-			help.push(localize('stdinUnix', "To read from stdin, append '-' (e.g. 'ps aux | grep code | {0} -')", executableName));
+			hewp.push(wocawize('stdinWindows', "To wead output fwom anotha pwogwam, append '-' (e.g. 'echo Hewwo Wowwd | {0} -')", executabweName));
+		} ewse {
+			hewp.push(wocawize('stdinUnix', "To wead fwom stdin, append '-' (e.g. 'ps aux | gwep code | {0} -')", executabweName));
 		}
-		help.push('');
+		hewp.push('');
 	}
-	const optionsByCategory: { [P in keyof typeof helpCategories]?: OptionDescriptions<any> } = {};
-	for (const optionId in options) {
+	const optionsByCategowy: { [P in keyof typeof hewpCategowies]?: OptionDescwiptions<any> } = {};
+	fow (const optionId in options) {
 		const o = options[optionId];
-		if (o.description && o.cat) {
-			let optionsByCat = optionsByCategory[o.cat];
+		if (o.descwiption && o.cat) {
+			wet optionsByCat = optionsByCategowy[o.cat];
 			if (!optionsByCat) {
-				optionsByCategory[o.cat] = optionsByCat = {};
+				optionsByCategowy[o.cat] = optionsByCat = {};
 			}
 			optionsByCat[optionId] = o;
 		}
 	}
 
-	for (let helpCategoryKey in optionsByCategory) {
-		const key = <keyof typeof helpCategories>helpCategoryKey;
+	fow (wet hewpCategowyKey in optionsByCategowy) {
+		const key = <keyof typeof hewpCategowies>hewpCategowyKey;
 
-		let categoryOptions = optionsByCategory[key];
-		if (categoryOptions) {
-			help.push(helpCategories[key]);
-			help.push(...formatOptions(categoryOptions, columns));
-			help.push('');
+		wet categowyOptions = optionsByCategowy[key];
+		if (categowyOptions) {
+			hewp.push(hewpCategowies[key]);
+			hewp.push(...fowmatOptions(categowyOptions, cowumns));
+			hewp.push('');
 		}
 	}
-	return help.join('\n');
+	wetuwn hewp.join('\n');
 }
 
-export function buildVersionMessage(version: string | undefined, commit: string | undefined): string {
-	return `${version || localize('unknownVersion', "Unknown version")}\n${commit || localize('unknownCommit', "Unknown commit")}\n${process.arch}`;
+expowt function buiwdVewsionMessage(vewsion: stwing | undefined, commit: stwing | undefined): stwing {
+	wetuwn `${vewsion || wocawize('unknownVewsion', "Unknown vewsion")}\n${commit || wocawize('unknownCommit', "Unknown commit")}\n${pwocess.awch}`;
 }

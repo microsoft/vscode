@@ -1,479 +1,479 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { basename, isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorInputWithOptions, IEditorIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorPane, IEditorCloseEvent, IEditorPartOptions, IRevertOptions, GroupIdentifier, EditorsOrder, IFileEditorInput, IEditorFactoryRegistry, IEditorSerializer, EditorExtensions, ISaveOptions, IMoveResult, ITextDiffEditorPane, IVisibleEditorPane, IEditorOpenContext, EditorExtensions as Extensions, EditorInputCapabilities, IUntypedEditorInput, IEditorWillMoveEvent, IEditorWillOpenEvent } from 'vs/workbench/common/editor';
-import { EditorServiceImpl, IEditorGroupView, IEditorGroupsAccessor, IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchLayoutService, Parts, Position as PartPosition } from 'vs/workbench/services/layout/browser/layoutService';
-import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IEditorOptions, IResourceEditorInput, IEditorModel, IResourceEditorInputIdentifier, ITextResourceEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ILifecycleService, BeforeShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { FileOperationEvent, IFileService, IFileStat, IResolveFileResult, FileChangesEvent, IResolveFileOptions, ICreateFileOptions, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions, IReadFileOptions, IFileContent, IFileStreamContent, FileOperationError, IFileSystemProviderWithFileReadStreamCapability, FileReadStreamOptions, IReadFileStreamOptions, IFileSystemProviderCapabilitiesChangeEvent, IRawFileChangesEvent } from 'vs/platform/files/common/files';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { IResourceEncoding, ITextFileService, IReadTextFileOptions, ITextFileStreamContent, IWriteTextFileOptions, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { MenuBarVisibility, IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
-import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { IPosition, Position as EditorPosition } from 'vs/editor/common/core/position';
-import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { MockContextKeyService, MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ITextBufferFactory, DefaultEndOfLine, EndOfLinePreference, ITextSnapshot } from 'vs/editor/common/model';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { IDialogService, IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/common/decorations';
-import { IDisposable, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IEditorReplacement, IGroupChangeEvent, IFindGroupScope, EditorGroupLayout, ICloseEditorOptions, GroupOrientation, ICloseAllEditorsOptions, ICloseEditorsFilter } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService, ISaveEditorsOptions, IRevertAllEditorsOptions, PreferredGroup, IEditorsChangeEvent } from 'vs/workbench/services/editor/common/editorService';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
-import { Dimension, IDimension } from 'vs/base/browser/dom';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { timeout } from 'vs/base/common/async';
-import { PaneComposite, PaneCompositeDescriptor } from 'vs/workbench/browser/panecomposite';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IProcessEnvironment, isLinux, isWindows, OperatingSystem } from 'vs/base/common/platform';
-import { LabelService } from 'vs/workbench/services/label/common/labelService';
-import { Part } from 'vs/workbench/browser/part';
-import { IBadge } from 'vs/workbench/services/activity/common/activity';
-import { bufferToStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { Schemas } from 'vs/base/common/network';
-import { IProductService } from 'vs/platform/product/common/productService';
-import product from 'vs/platform/product/common/product';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IWorkingCopyService, WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopyBackupMeta, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IFilesConfigurationService, FilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { BrowserTextFileService } from 'vs/workbench/services/textfile/browser/browserTextFileService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { Direction } from 'vs/base/browser/ui/grid/grid';
-import { IProgressService, IProgressOptions, IProgressWindowOptions, IProgressNotificationOptions, IProgressCompositeOptions, IProgress, IProgressStep, Progress, IProgressDialogOptions, IProgressIndicator } from 'vs/platform/progress/common/progress';
-import { IWorkingCopyFileService, WorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
-import { CodeEditorService } from 'vs/workbench/services/editor/browser/codeEditorService';
-import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IChange, IDiffEditor, IEditor } from 'vs/editor/common/editorCommon';
-import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { QuickInputService } from 'vs/workbench/services/quickinput/browser/quickInputService';
-import { IListService } from 'vs/platform/list/browser/listService';
-import { win32, posix } from 'vs/base/common/path';
-import { TestContextService, TestStorageService, TestTextResourcePropertiesService, TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
-import { IViewsService, IView, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IPaneComposite } from 'vs/workbench/common/panecomposite';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
-import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
-import { EncodingOracle, IEncodingOverride } from 'vs/workbench/services/textfile/browser/textFileService';
-import { UTF16le, UTF16be, UTF8_with_bom } from 'vs/workbench/services/textfile/common/encoding';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { Iterable } from 'vs/base/common/iterator';
-import { InMemoryWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackupService';
-import { BrowserWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/browser/workingCopyBackupService';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
-import { TestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { TextFileEditor } from 'vs/workbench/contrib/files/browser/editors/textFileEditor';
-import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
-import { IEnterWorkspaceResult, IRecent, IRecentlyOpened, IWorkspaceFolderCreationData, IWorkspaceIdentifier, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
-import { IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, ProcessPropertyType, TerminalShellType, ProcessCapability } from 'vs/platform/terminal/common/terminal';
-import { IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
-import { ICreateTerminalOptions, ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { assertIsDefined, isArray } from 'vs/base/common/types';
-import { ILocalTerminalService, IShellLaunchConfigResolveOptions, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
-import { EditorResolverService } from 'vs/workbench/services/editor/browser/editorResolverService';
-import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
-import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
-import { IWorkingCopyEditorService, WorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
-import { BrowserElevatedFileService } from 'vs/workbench/services/files/browser/elevatedFileService';
-import { IDiffComputationResult, IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { TextEdit, IInplaceReplaceSupportResult } from 'vs/editor/common/modes';
-import { ResourceMap } from 'vs/base/common/map';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { ITextEditorService, TextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { IPaneCompositePart, IPaneCompositeSelectorPart } from 'vs/workbench/browser/parts/paneCompositePart';
+impowt { FiweEditowInput } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/editows/fiweEditowInput';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { basename, isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { NuwwTewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { IEditowInputWithOptions, IEditowIdentifia, IUntitwedTextWesouwceEditowInput, IWesouwceDiffEditowInput, IEditowPane, IEditowCwoseEvent, IEditowPawtOptions, IWevewtOptions, GwoupIdentifia, EditowsOwda, IFiweEditowInput, IEditowFactowyWegistwy, IEditowSewiawiza, EditowExtensions, ISaveOptions, IMoveWesuwt, ITextDiffEditowPane, IVisibweEditowPane, IEditowOpenContext, EditowExtensions as Extensions, EditowInputCapabiwities, IUntypedEditowInput, IEditowWiwwMoveEvent, IEditowWiwwOpenEvent } fwom 'vs/wowkbench/common/editow';
+impowt { EditowSewviceImpw, IEditowGwoupView, IEditowGwoupsAccessow, IEditowGwoupTitweHeight } fwom 'vs/wowkbench/bwowsa/pawts/editow/editow';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { IWesowvedWowkingCopyBackup, IWowkingCopyBackupSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyBackup';
+impowt { IConfiguwationSewvice, ConfiguwationTawget } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IWowkbenchWayoutSewvice, Pawts, Position as PawtPosition } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { TextModewWesowvewSewvice } fwom 'vs/wowkbench/sewvices/textmodewWesowva/common/textModewWesowvewSewvice';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { IEditowOptions, IWesouwceEditowInput, IEditowModew, IWesouwceEditowInputIdentifia, ITextWesouwceEditowInput, ITextEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IUntitwedTextEditowSewvice, UntitwedTextEditowSewvice } fwom 'vs/wowkbench/sewvices/untitwed/common/untitwedTextEditowSewvice';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IWifecycweSewvice, BefoweShutdownEvent, ShutdownWeason, StawtupKind, WifecycwePhase, WiwwShutdownEvent } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { FiweOpewationEvent, IFiweSewvice, IFiweStat, IWesowveFiweWesuwt, FiweChangesEvent, IWesowveFiweOptions, ICweateFiweOptions, IFiweSystemPwovida, FiweSystemPwovidewCapabiwities, IFiweChange, IWatchOptions, IStat, FiweType, FiweDeweteOptions, FiweOvewwwiteOptions, FiweWwiteOptions, FiweOpenOptions, IFiweStatWithMetadata, IWesowveMetadataFiweOptions, IWwiteFiweOptions, IWeadFiweOptions, IFiweContent, IFiweStweamContent, FiweOpewationEwwow, IFiweSystemPwovidewWithFiweWeadStweamCapabiwity, FiweWeadStweamOptions, IWeadFiweStweamOptions, IFiweSystemPwovidewCapabiwitiesChangeEvent, IWawFiweChangesEvent } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { ModeSewviceImpw } fwom 'vs/editow/common/sewvices/modeSewviceImpw';
+impowt { ModewSewviceImpw } fwom 'vs/editow/common/sewvices/modewSewviceImpw';
+impowt { IWesouwceEncoding, ITextFiweSewvice, IWeadTextFiweOptions, ITextFiweStweamContent, IWwiteTextFiweOptions, ITextFiweEditowModew } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IHistowySewvice } fwom 'vs/wowkbench/sewvices/histowy/common/histowy';
+impowt { IInstantiationSewvice, SewviceIdentifia } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { MenuBawVisibiwity, IWindowOpenabwe, IOpenWindowOptions, IOpenEmptyWindowOptions } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { TestWowkspace } fwom 'vs/pwatfowm/wowkspace/test/common/testWowkspace';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { TestThemeSewvice } fwom 'vs/pwatfowm/theme/test/common/testThemeSewvice';
+impowt { ITextWesouwceConfiguwationSewvice, ITextWesouwcePwopewtiesSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { IPosition, Position as EditowPosition } fwom 'vs/editow/common/cowe/position';
+impowt { IMenuSewvice, MenuId, IMenu } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { MockContextKeySewvice, MockKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/test/common/mockKeybindingSewvice';
+impowt { ITextBuffewFactowy, DefauwtEndOfWine, EndOfWinePwefewence, ITextSnapshot } fwom 'vs/editow/common/modew';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IDiawogSewvice, IPickAndOpenOptions, ISaveDiawogOptions, IOpenDiawogOptions, IFiweDiawogSewvice, ConfiwmWesuwt } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { TestNotificationSewvice } fwom 'vs/pwatfowm/notification/test/common/testNotificationSewvice';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IDecowationsSewvice, IWesouwceDecowationChangeEvent, IDecowation, IDecowationData, IDecowationsPwovida } fwom 'vs/wowkbench/sewvices/decowations/common/decowations';
+impowt { IDisposabwe, toDisposabwe, Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { IEditowGwoupsSewvice, IEditowGwoup, GwoupsOwda, GwoupsAwwangement, GwoupDiwection, IAddGwoupOptions, IMewgeGwoupOptions, IEditowWepwacement, IGwoupChangeEvent, IFindGwoupScope, EditowGwoupWayout, ICwoseEditowOptions, GwoupOwientation, ICwoseAwwEditowsOptions, ICwoseEditowsFiwta } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IEditowSewvice, ISaveEditowsOptions, IWevewtAwwEditowsOptions, PwefewwedGwoup, IEditowsChangeEvent } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { IEditowPaneWegistwy, EditowPaneDescwiptow } fwom 'vs/wowkbench/bwowsa/editow';
+impowt { Dimension, IDimension } fwom 'vs/base/bwowsa/dom';
+impowt { IWogSewvice, NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { PaneComposite, PaneCompositeDescwiptow } fwom 'vs/wowkbench/bwowsa/panecomposite';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IPwocessEnviwonment, isWinux, isWindows, OpewatingSystem } fwom 'vs/base/common/pwatfowm';
+impowt { WabewSewvice } fwom 'vs/wowkbench/sewvices/wabew/common/wabewSewvice';
+impowt { Pawt } fwom 'vs/wowkbench/bwowsa/pawt';
+impowt { IBadge } fwom 'vs/wowkbench/sewvices/activity/common/activity';
+impowt { buffewToStweam, VSBuffa, VSBuffewWeadabwe, VSBuffewWeadabweStweam } fwom 'vs/base/common/buffa';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt pwoduct fwom 'vs/pwatfowm/pwoduct/common/pwoduct';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { IWowkingCopySewvice, WowkingCopySewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopySewvice';
+impowt { IWowkingCopyBackupMeta, IWowkingCopyIdentifia } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopy';
+impowt { IFiwesConfiguwationSewvice, FiwesConfiguwationSewvice } fwom 'vs/wowkbench/sewvices/fiwesConfiguwation/common/fiwesConfiguwationSewvice';
+impowt { IAccessibiwitySewvice, AccessibiwitySuppowt } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { BwowsewWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/bwowsa/enviwonmentSewvice';
+impowt { BwowsewTextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/bwowsa/bwowsewTextFiweSewvice';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { cweateTextBuffewFactowyFwomStweam } fwom 'vs/editow/common/modew/textModew';
+impowt { IPathSewvice } fwom 'vs/wowkbench/sewvices/path/common/pathSewvice';
+impowt { Diwection } fwom 'vs/base/bwowsa/ui/gwid/gwid';
+impowt { IPwogwessSewvice, IPwogwessOptions, IPwogwessWindowOptions, IPwogwessNotificationOptions, IPwogwessCompositeOptions, IPwogwess, IPwogwessStep, Pwogwess, IPwogwessDiawogOptions, IPwogwessIndicatow } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { IWowkingCopyFiweSewvice, WowkingCopyFiweSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyFiweSewvice';
+impowt { UndoWedoSewvice } fwom 'vs/pwatfowm/undoWedo/common/undoWedoSewvice';
+impowt { IUndoWedoSewvice } fwom 'vs/pwatfowm/undoWedo/common/undoWedo';
+impowt { TextFiweEditowModew } fwom 'vs/wowkbench/sewvices/textfiwe/common/textFiweEditowModew';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { EditowPane } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowPane';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { TestDiawogSewvice } fwom 'vs/pwatfowm/diawogs/test/common/testDiawogSewvice';
+impowt { CodeEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/bwowsa/codeEditowSewvice';
+impowt { EditowPawt } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowPawt';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IChange, IDiffEditow, IEditow } fwom 'vs/editow/common/editowCommon';
+impowt { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputSewvice, IQuickNavigateConfiguwation, IQuickPick, IQuickPickItem, QuickPickInput } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { QuickInputSewvice } fwom 'vs/wowkbench/sewvices/quickinput/bwowsa/quickInputSewvice';
+impowt { IWistSewvice } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { win32, posix } fwom 'vs/base/common/path';
+impowt { TestContextSewvice, TestStowageSewvice, TestTextWesouwcePwopewtiesSewvice, TestExtensionSewvice } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
+impowt { IViewsSewvice, IView, ViewContaina, ViewContainewWocation } fwom 'vs/wowkbench/common/views';
+impowt { IPaneComposite } fwom 'vs/wowkbench/common/panecomposite';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { UwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentitySewvice';
+impowt { TextFiweEditowModewManaga } fwom 'vs/wowkbench/sewvices/textfiwe/common/textFiweEditowModewManaga';
+impowt { InMemowyFiweSystemPwovida } fwom 'vs/pwatfowm/fiwes/common/inMemowyFiwesystemPwovida';
+impowt { newWwiteabweStweam, WeadabweStweamEvents } fwom 'vs/base/common/stweam';
+impowt { EncodingOwacwe, IEncodingOvewwide } fwom 'vs/wowkbench/sewvices/textfiwe/bwowsa/textFiweSewvice';
+impowt { UTF16we, UTF16be, UTF8_with_bom } fwom 'vs/wowkbench/sewvices/textfiwe/common/encoding';
+impowt { CowowScheme } fwom 'vs/pwatfowm/theme/common/theme';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
+impowt { InMemowyWowkingCopyBackupSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyBackupSewvice';
+impowt { BwowsewWowkingCopyBackupSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/bwowsa/wowkingCopyBackupSewvice';
+impowt { FiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiweSewvice';
+impowt { TextWesouwceEditow } fwom 'vs/wowkbench/bwowsa/pawts/editow/textWesouwceEditow';
+impowt { TestCodeEditow } fwom 'vs/editow/test/bwowsa/testCodeEditow';
+impowt { TextFiweEditow } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/editows/textFiweEditow';
+impowt { TextWesouwceEditowInput } fwom 'vs/wowkbench/common/editow/textWesouwceEditowInput';
+impowt { UntitwedTextEditowInput } fwom 'vs/wowkbench/sewvices/untitwed/common/untitwedTextEditowInput';
+impowt { SideBySideEditow } fwom 'vs/wowkbench/bwowsa/pawts/editow/sideBySideEditow';
+impowt { IEntewWowkspaceWesuwt, IWecent, IWecentwyOpened, IWowkspaceFowdewCweationData, IWowkspaceIdentifia, IWowkspacesSewvice } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { IWowkspaceTwustManagementSewvice, IWowkspaceTwustWequestSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { TestWowkspaceTwustManagementSewvice, TestWowkspaceTwustWequestSewvice } fwom 'vs/wowkbench/sewvices/wowkspaces/test/common/testWowkspaceTwustSewvice';
+impowt { IShewwWaunchConfig, ITewminawChiwdPwocess, ITewminawDimensionsOvewwide, ITewminawPwofiwe, ITewminawsWayoutInfo, ITewminawsWayoutInfoById, TewminawWocation, PwocessPwopewtyType, TewminawShewwType, PwocessCapabiwity } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { IPwocessDetaiws, ISetTewminawWayoutInfoAwgs } fwom 'vs/pwatfowm/tewminaw/common/tewminawPwocess';
+impowt { ICweateTewminawOptions, ITewminawInstance, ITewminawInstanceSewvice } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
+impowt { assewtIsDefined, isAwway } fwom 'vs/base/common/types';
+impowt { IWocawTewminawSewvice, IShewwWaunchConfigWesowveOptions, ITewminawPwofiweWesowvewSewvice } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminaw';
+impowt { EditowWesowvewSewvice } fwom 'vs/wowkbench/sewvices/editow/bwowsa/editowWesowvewSewvice';
+impowt { FIWE_EDITOW_INPUT_ID } fwom 'vs/wowkbench/contwib/fiwes/common/fiwes';
+impowt { IEditowWesowvewSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowWesowvewSewvice';
+impowt { IWowkingCopyEditowSewvice, WowkingCopyEditowSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyEditowSewvice';
+impowt { IEwevatedFiweSewvice } fwom 'vs/wowkbench/sewvices/fiwes/common/ewevatedFiweSewvice';
+impowt { BwowsewEwevatedFiweSewvice } fwom 'vs/wowkbench/sewvices/fiwes/bwowsa/ewevatedFiweSewvice';
+impowt { IDiffComputationWesuwt, IEditowWowkewSewvice } fwom 'vs/editow/common/sewvices/editowWowkewSewvice';
+impowt { TextEdit, IInpwaceWepwaceSuppowtWesuwt } fwom 'vs/editow/common/modes';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { SideBySideEditowInput } fwom 'vs/wowkbench/common/editow/sideBySideEditowInput';
+impowt { ITextEditowSewvice, TextEditowSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textEditowSewvice';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
+impowt { IPaneCompositePawt, IPaneCompositeSewectowPawt } fwom 'vs/wowkbench/bwowsa/pawts/paneCompositePawt';
 
-export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
-	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
+expowt function cweateFiweEditowInput(instantiationSewvice: IInstantiationSewvice, wesouwce: UWI): FiweEditowInput {
+	wetuwn instantiationSewvice.cweateInstance(FiweEditowInput, wesouwce, undefined, undefined, undefined, undefined, undefined, undefined);
 }
 
-Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerFileEditorFactory({
+Wegistwy.as<IEditowFactowyWegistwy>(EditowExtensions.EditowFactowy).wegistewFiweEditowFactowy({
 
-	typeId: FILE_EDITOR_INPUT_ID,
+	typeId: FIWE_EDITOW_INPUT_ID,
 
-	createFileEditor: (resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredMode, preferredContents, instantiationService): IFileEditorInput => {
-		return instantiationService.createInstance(FileEditorInput, resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredMode, preferredContents);
+	cweateFiweEditow: (wesouwce, pwefewwedWesouwce, pwefewwedName, pwefewwedDescwiption, pwefewwedEncoding, pwefewwedMode, pwefewwedContents, instantiationSewvice): IFiweEditowInput => {
+		wetuwn instantiationSewvice.cweateInstance(FiweEditowInput, wesouwce, pwefewwedWesouwce, pwefewwedName, pwefewwedDescwiption, pwefewwedEncoding, pwefewwedMode, pwefewwedContents);
 	},
 
-	isFileEditor: (obj): obj is IFileEditorInput => {
-		return obj instanceof FileEditorInput;
+	isFiweEditow: (obj): obj is IFiweEditowInput => {
+		wetuwn obj instanceof FiweEditowInput;
 	}
 });
 
-export class TestTextResourceEditor extends TextResourceEditor {
+expowt cwass TestTextWesouwceEditow extends TextWesouwceEditow {
 
-	protected override createEditorControl(parent: HTMLElement, configuration: any): IEditor {
-		return this.instantiationService.createInstance(TestCodeEditor, parent, configuration, {});
+	pwotected ovewwide cweateEditowContwow(pawent: HTMWEwement, configuwation: any): IEditow {
+		wetuwn this.instantiationSewvice.cweateInstance(TestCodeEditow, pawent, configuwation, {});
 	}
 }
 
-export class TestTextFileEditor extends TextFileEditor {
+expowt cwass TestTextFiweEditow extends TextFiweEditow {
 
-	lastSetOptions: ITextEditorOptions | undefined = undefined;
+	wastSetOptions: ITextEditowOptions | undefined = undefined;
 
-	override setOptions(options: ITextEditorOptions | undefined): void {
-		this.lastSetOptions = options;
+	ovewwide setOptions(options: ITextEditowOptions | undefined): void {
+		this.wastSetOptions = options;
 
-		super.setOptions(options);
+		supa.setOptions(options);
 	}
 
-	protected override createEditorControl(parent: HTMLElement, configuration: any): IEditor {
-		return this.instantiationService.createInstance(TestCodeEditor, parent, configuration, {});
+	pwotected ovewwide cweateEditowContwow(pawent: HTMWEwement, configuwation: any): IEditow {
+		wetuwn this.instantiationSewvice.cweateInstance(TestCodeEditow, pawent, configuwation, {});
 	}
 }
 
-export interface ITestInstantiationService extends IInstantiationService {
-	stub<T>(service: ServiceIdentifier<T>, ctor: any): T;
+expowt intewface ITestInstantiationSewvice extends IInstantiationSewvice {
+	stub<T>(sewvice: SewviceIdentifia<T>, ctow: any): T;
 }
 
-export function workbenchInstantiationService(
-	overrides?: {
-		textFileService?: (instantiationService: IInstantiationService) => ITextFileService;
-		pathService?: (instantiationService: IInstantiationService) => IPathService,
-		editorService?: (instantiationService: IInstantiationService) => IEditorService,
-		contextKeyService?: (instantiationService: IInstantiationService) => IContextKeyService,
-		textEditorService?: (instantiationService: IInstantiationService) => ITextEditorService
+expowt function wowkbenchInstantiationSewvice(
+	ovewwides?: {
+		textFiweSewvice?: (instantiationSewvice: IInstantiationSewvice) => ITextFiweSewvice;
+		pathSewvice?: (instantiationSewvice: IInstantiationSewvice) => IPathSewvice,
+		editowSewvice?: (instantiationSewvice: IInstantiationSewvice) => IEditowSewvice,
+		contextKeySewvice?: (instantiationSewvice: IInstantiationSewvice) => IContextKeySewvice,
+		textEditowSewvice?: (instantiationSewvice: IInstantiationSewvice) => ITextEditowSewvice
 	},
-	disposables: DisposableStore = new DisposableStore()
-): ITestInstantiationService {
-	const instantiationService = new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()]));
+	disposabwes: DisposabweStowe = new DisposabweStowe()
+): ITestInstantiationSewvice {
+	const instantiationSewvice = new TestInstantiationSewvice(new SewviceCowwection([IWifecycweSewvice, new TestWifecycweSewvice()]));
 
-	instantiationService.stub(IEditorWorkerService, new TestEditorWorkerService());
-	instantiationService.stub(IWorkingCopyService, disposables.add(new WorkingCopyService()));
-	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
-	instantiationService.stub(IWorkbenchEnvironmentService, TestEnvironmentService);
-	const contextKeyService = overrides?.contextKeyService ? overrides.contextKeyService(instantiationService) : instantiationService.createInstance(MockContextKeyService);
-	instantiationService.stub(IContextKeyService, contextKeyService);
-	instantiationService.stub(IProgressService, new TestProgressService());
-	const workspaceContextService = new TestContextService(TestWorkspace);
-	instantiationService.stub(IWorkspaceContextService, workspaceContextService);
-	const configService = new TestConfigurationService({
-		files: {
-			participants: {
+	instantiationSewvice.stub(IEditowWowkewSewvice, new TestEditowWowkewSewvice());
+	instantiationSewvice.stub(IWowkingCopySewvice, disposabwes.add(new WowkingCopySewvice()));
+	instantiationSewvice.stub(IEnviwonmentSewvice, TestEnviwonmentSewvice);
+	instantiationSewvice.stub(IWowkbenchEnviwonmentSewvice, TestEnviwonmentSewvice);
+	const contextKeySewvice = ovewwides?.contextKeySewvice ? ovewwides.contextKeySewvice(instantiationSewvice) : instantiationSewvice.cweateInstance(MockContextKeySewvice);
+	instantiationSewvice.stub(IContextKeySewvice, contextKeySewvice);
+	instantiationSewvice.stub(IPwogwessSewvice, new TestPwogwessSewvice());
+	const wowkspaceContextSewvice = new TestContextSewvice(TestWowkspace);
+	instantiationSewvice.stub(IWowkspaceContextSewvice, wowkspaceContextSewvice);
+	const configSewvice = new TestConfiguwationSewvice({
+		fiwes: {
+			pawticipants: {
 				timeout: 60000
 			}
 		}
 	});
-	instantiationService.stub(IConfigurationService, configService);
-	instantiationService.stub(IFilesConfigurationService, disposables.add(new TestFilesConfigurationService(contextKeyService, configService)));
-	instantiationService.stub(ITextResourceConfigurationService, new TestTextResourceConfigurationService(configService));
-	instantiationService.stub(IUntitledTextEditorService, disposables.add(instantiationService.createInstance(UntitledTextEditorService)));
-	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
-	instantiationService.stub(IPathService, overrides?.pathService ? overrides.pathService(instantiationService) : new TestPathService());
-	const layoutService = new TestLayoutService();
-	instantiationService.stub(IWorkbenchLayoutService, layoutService);
-	instantiationService.stub(IDialogService, new TestDialogService());
-	const accessibilityService = new TestAccessibilityService();
-	instantiationService.stub(IAccessibilityService, accessibilityService);
-	instantiationService.stub(IFileDialogService, instantiationService.createInstance(TestFileDialogService));
-	instantiationService.stub(IModeService, disposables.add(instantiationService.createInstance(ModeServiceImpl)));
-	instantiationService.stub(IHistoryService, new TestHistoryService());
-	instantiationService.stub(ITextResourcePropertiesService, new TestTextResourcePropertiesService(configService));
-	instantiationService.stub(IUndoRedoService, instantiationService.createInstance(UndoRedoService));
-	const themeService = new TestThemeService();
-	instantiationService.stub(IThemeService, themeService);
-	instantiationService.stub(IModelService, disposables.add(instantiationService.createInstance(ModelServiceImpl)));
-	const fileService = new TestFileService();
-	instantiationService.stub(IFileService, fileService);
-	instantiationService.stub(IUriIdentityService, new UriIdentityService(fileService));
-	instantiationService.stub(IWorkingCopyBackupService, new TestWorkingCopyBackupService());
-	instantiationService.stub(ITelemetryService, NullTelemetryService);
-	instantiationService.stub(INotificationService, new TestNotificationService());
-	instantiationService.stub(IUntitledTextEditorService, disposables.add(instantiationService.createInstance(UntitledTextEditorService)));
-	instantiationService.stub(IMenuService, new TestMenuService());
-	const keybindingService = new MockKeybindingService();
-	instantiationService.stub(IKeybindingService, keybindingService);
-	instantiationService.stub(IDecorationsService, new TestDecorationsService());
-	instantiationService.stub(IExtensionService, new TestExtensionService());
-	instantiationService.stub(IWorkingCopyFileService, disposables.add(instantiationService.createInstance(WorkingCopyFileService)));
-	instantiationService.stub(ITextFileService, overrides?.textFileService ? overrides.textFileService(instantiationService) : disposables.add(<ITextFileService>instantiationService.createInstance(TestTextFileService)));
-	instantiationService.stub(IHostService, <IHostService>instantiationService.createInstance(TestHostService));
-	instantiationService.stub(ITextModelService, <ITextModelService>disposables.add(instantiationService.createInstance(TextModelResolverService)));
-	instantiationService.stub(ILogService, new NullLogService());
-	const editorGroupService = new TestEditorGroupsService([new TestEditorGroupView(0)]);
-	instantiationService.stub(IEditorGroupsService, editorGroupService);
-	instantiationService.stub(ILabelService, <ILabelService>disposables.add(instantiationService.createInstance(LabelService)));
-	const editorService = overrides?.editorService ? overrides.editorService(instantiationService) : new TestEditorService(editorGroupService);
-	instantiationService.stub(IEditorService, editorService);
-	instantiationService.stub(IWorkingCopyEditorService, disposables.add(instantiationService.createInstance(WorkingCopyEditorService)));
-	instantiationService.stub(IEditorResolverService, disposables.add(instantiationService.createInstance(EditorResolverService)));
-	const textEditorService = overrides?.textEditorService ? overrides.textEditorService(instantiationService) : instantiationService.createInstance(TextEditorService);
-	instantiationService.stub(ITextEditorService, textEditorService);
-	instantiationService.stub(ICodeEditorService, disposables.add(new CodeEditorService(editorService, themeService, configService)));
-	instantiationService.stub(IPaneCompositePartService, new TestPaneCompositeService());
-	instantiationService.stub(IListService, new TestListService());
-	instantiationService.stub(IQuickInputService, disposables.add(new QuickInputService(configService, instantiationService, keybindingService, contextKeyService, themeService, accessibilityService, layoutService)));
-	instantiationService.stub(IWorkspacesService, new TestWorkspacesService());
-	instantiationService.stub(IWorkspaceTrustManagementService, new TestWorkspaceTrustManagementService());
-	instantiationService.stub(ITerminalInstanceService, new TestTerminalInstanceService());
-	instantiationService.stub(ILocalTerminalService, new TestLocalTerminalService());
-	instantiationService.stub(IElevatedFileService, new BrowserElevatedFileService());
+	instantiationSewvice.stub(IConfiguwationSewvice, configSewvice);
+	instantiationSewvice.stub(IFiwesConfiguwationSewvice, disposabwes.add(new TestFiwesConfiguwationSewvice(contextKeySewvice, configSewvice)));
+	instantiationSewvice.stub(ITextWesouwceConfiguwationSewvice, new TestTextWesouwceConfiguwationSewvice(configSewvice));
+	instantiationSewvice.stub(IUntitwedTextEditowSewvice, disposabwes.add(instantiationSewvice.cweateInstance(UntitwedTextEditowSewvice)));
+	instantiationSewvice.stub(IStowageSewvice, disposabwes.add(new TestStowageSewvice()));
+	instantiationSewvice.stub(IPathSewvice, ovewwides?.pathSewvice ? ovewwides.pathSewvice(instantiationSewvice) : new TestPathSewvice());
+	const wayoutSewvice = new TestWayoutSewvice();
+	instantiationSewvice.stub(IWowkbenchWayoutSewvice, wayoutSewvice);
+	instantiationSewvice.stub(IDiawogSewvice, new TestDiawogSewvice());
+	const accessibiwitySewvice = new TestAccessibiwitySewvice();
+	instantiationSewvice.stub(IAccessibiwitySewvice, accessibiwitySewvice);
+	instantiationSewvice.stub(IFiweDiawogSewvice, instantiationSewvice.cweateInstance(TestFiweDiawogSewvice));
+	instantiationSewvice.stub(IModeSewvice, disposabwes.add(instantiationSewvice.cweateInstance(ModeSewviceImpw)));
+	instantiationSewvice.stub(IHistowySewvice, new TestHistowySewvice());
+	instantiationSewvice.stub(ITextWesouwcePwopewtiesSewvice, new TestTextWesouwcePwopewtiesSewvice(configSewvice));
+	instantiationSewvice.stub(IUndoWedoSewvice, instantiationSewvice.cweateInstance(UndoWedoSewvice));
+	const themeSewvice = new TestThemeSewvice();
+	instantiationSewvice.stub(IThemeSewvice, themeSewvice);
+	instantiationSewvice.stub(IModewSewvice, disposabwes.add(instantiationSewvice.cweateInstance(ModewSewviceImpw)));
+	const fiweSewvice = new TestFiweSewvice();
+	instantiationSewvice.stub(IFiweSewvice, fiweSewvice);
+	instantiationSewvice.stub(IUwiIdentitySewvice, new UwiIdentitySewvice(fiweSewvice));
+	instantiationSewvice.stub(IWowkingCopyBackupSewvice, new TestWowkingCopyBackupSewvice());
+	instantiationSewvice.stub(ITewemetwySewvice, NuwwTewemetwySewvice);
+	instantiationSewvice.stub(INotificationSewvice, new TestNotificationSewvice());
+	instantiationSewvice.stub(IUntitwedTextEditowSewvice, disposabwes.add(instantiationSewvice.cweateInstance(UntitwedTextEditowSewvice)));
+	instantiationSewvice.stub(IMenuSewvice, new TestMenuSewvice());
+	const keybindingSewvice = new MockKeybindingSewvice();
+	instantiationSewvice.stub(IKeybindingSewvice, keybindingSewvice);
+	instantiationSewvice.stub(IDecowationsSewvice, new TestDecowationsSewvice());
+	instantiationSewvice.stub(IExtensionSewvice, new TestExtensionSewvice());
+	instantiationSewvice.stub(IWowkingCopyFiweSewvice, disposabwes.add(instantiationSewvice.cweateInstance(WowkingCopyFiweSewvice)));
+	instantiationSewvice.stub(ITextFiweSewvice, ovewwides?.textFiweSewvice ? ovewwides.textFiweSewvice(instantiationSewvice) : disposabwes.add(<ITextFiweSewvice>instantiationSewvice.cweateInstance(TestTextFiweSewvice)));
+	instantiationSewvice.stub(IHostSewvice, <IHostSewvice>instantiationSewvice.cweateInstance(TestHostSewvice));
+	instantiationSewvice.stub(ITextModewSewvice, <ITextModewSewvice>disposabwes.add(instantiationSewvice.cweateInstance(TextModewWesowvewSewvice)));
+	instantiationSewvice.stub(IWogSewvice, new NuwwWogSewvice());
+	const editowGwoupSewvice = new TestEditowGwoupsSewvice([new TestEditowGwoupView(0)]);
+	instantiationSewvice.stub(IEditowGwoupsSewvice, editowGwoupSewvice);
+	instantiationSewvice.stub(IWabewSewvice, <IWabewSewvice>disposabwes.add(instantiationSewvice.cweateInstance(WabewSewvice)));
+	const editowSewvice = ovewwides?.editowSewvice ? ovewwides.editowSewvice(instantiationSewvice) : new TestEditowSewvice(editowGwoupSewvice);
+	instantiationSewvice.stub(IEditowSewvice, editowSewvice);
+	instantiationSewvice.stub(IWowkingCopyEditowSewvice, disposabwes.add(instantiationSewvice.cweateInstance(WowkingCopyEditowSewvice)));
+	instantiationSewvice.stub(IEditowWesowvewSewvice, disposabwes.add(instantiationSewvice.cweateInstance(EditowWesowvewSewvice)));
+	const textEditowSewvice = ovewwides?.textEditowSewvice ? ovewwides.textEditowSewvice(instantiationSewvice) : instantiationSewvice.cweateInstance(TextEditowSewvice);
+	instantiationSewvice.stub(ITextEditowSewvice, textEditowSewvice);
+	instantiationSewvice.stub(ICodeEditowSewvice, disposabwes.add(new CodeEditowSewvice(editowSewvice, themeSewvice, configSewvice)));
+	instantiationSewvice.stub(IPaneCompositePawtSewvice, new TestPaneCompositeSewvice());
+	instantiationSewvice.stub(IWistSewvice, new TestWistSewvice());
+	instantiationSewvice.stub(IQuickInputSewvice, disposabwes.add(new QuickInputSewvice(configSewvice, instantiationSewvice, keybindingSewvice, contextKeySewvice, themeSewvice, accessibiwitySewvice, wayoutSewvice)));
+	instantiationSewvice.stub(IWowkspacesSewvice, new TestWowkspacesSewvice());
+	instantiationSewvice.stub(IWowkspaceTwustManagementSewvice, new TestWowkspaceTwustManagementSewvice());
+	instantiationSewvice.stub(ITewminawInstanceSewvice, new TestTewminawInstanceSewvice());
+	instantiationSewvice.stub(IWocawTewminawSewvice, new TestWocawTewminawSewvice());
+	instantiationSewvice.stub(IEwevatedFiweSewvice, new BwowsewEwevatedFiweSewvice());
 
-	return instantiationService;
+	wetuwn instantiationSewvice;
 }
 
-export class TestServiceAccessor {
-	constructor(
-		@ILifecycleService public lifecycleService: TestLifecycleService,
-		@ITextFileService public textFileService: TestTextFileService,
-		@ITextEditorService public textEditorService: ITextEditorService,
-		@IWorkingCopyFileService public workingCopyFileService: IWorkingCopyFileService,
-		@IFilesConfigurationService public filesConfigurationService: TestFilesConfigurationService,
-		@IWorkspaceContextService public contextService: TestContextService,
-		@IModelService public modelService: ModelServiceImpl,
-		@IFileService public fileService: TestFileService,
-		@IFileDialogService public fileDialogService: TestFileDialogService,
-		@IDialogService public dialogService: TestDialogService,
-		@IWorkingCopyService public workingCopyService: IWorkingCopyService,
-		@IEditorService public editorService: TestEditorService,
-		@IWorkbenchEnvironmentService public environmentService: IWorkbenchEnvironmentService,
-		@IPathService public pathService: IPathService,
-		@IEditorGroupsService public editorGroupService: IEditorGroupsService,
-		@IEditorResolverService public editorResolverService: IEditorResolverService,
-		@IModeService public modeService: IModeService,
-		@ITextModelService public textModelResolverService: ITextModelService,
-		@IUntitledTextEditorService public untitledTextEditorService: UntitledTextEditorService,
-		@IConfigurationService public testConfigurationService: TestConfigurationService,
-		@IWorkingCopyBackupService public workingCopyBackupService: TestWorkingCopyBackupService,
-		@IHostService public hostService: TestHostService,
-		@IQuickInputService public quickInputService: IQuickInputService,
-		@ILabelService public labelService: ILabelService,
-		@ILogService public logService: ILogService,
-		@IUriIdentityService public uriIdentityService: IUriIdentityService,
-		@IInstantiationService public instantitionService: IInstantiationService,
-		@INotificationService public notificationService: INotificationService,
-		@IWorkingCopyEditorService public workingCopyEditorService: IWorkingCopyEditorService,
-		@IInstantiationService public instantiationService: IInstantiationService,
-		@IElevatedFileService public elevatedFileService: IElevatedFileService,
-		@IWorkspaceTrustRequestService public workspaceTrustRequestService: TestWorkspaceTrustRequestService,
-		@IDecorationsService public decorationsService: IDecorationsService
+expowt cwass TestSewviceAccessow {
+	constwuctow(
+		@IWifecycweSewvice pubwic wifecycweSewvice: TestWifecycweSewvice,
+		@ITextFiweSewvice pubwic textFiweSewvice: TestTextFiweSewvice,
+		@ITextEditowSewvice pubwic textEditowSewvice: ITextEditowSewvice,
+		@IWowkingCopyFiweSewvice pubwic wowkingCopyFiweSewvice: IWowkingCopyFiweSewvice,
+		@IFiwesConfiguwationSewvice pubwic fiwesConfiguwationSewvice: TestFiwesConfiguwationSewvice,
+		@IWowkspaceContextSewvice pubwic contextSewvice: TestContextSewvice,
+		@IModewSewvice pubwic modewSewvice: ModewSewviceImpw,
+		@IFiweSewvice pubwic fiweSewvice: TestFiweSewvice,
+		@IFiweDiawogSewvice pubwic fiweDiawogSewvice: TestFiweDiawogSewvice,
+		@IDiawogSewvice pubwic diawogSewvice: TestDiawogSewvice,
+		@IWowkingCopySewvice pubwic wowkingCopySewvice: IWowkingCopySewvice,
+		@IEditowSewvice pubwic editowSewvice: TestEditowSewvice,
+		@IWowkbenchEnviwonmentSewvice pubwic enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IPathSewvice pubwic pathSewvice: IPathSewvice,
+		@IEditowGwoupsSewvice pubwic editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IEditowWesowvewSewvice pubwic editowWesowvewSewvice: IEditowWesowvewSewvice,
+		@IModeSewvice pubwic modeSewvice: IModeSewvice,
+		@ITextModewSewvice pubwic textModewWesowvewSewvice: ITextModewSewvice,
+		@IUntitwedTextEditowSewvice pubwic untitwedTextEditowSewvice: UntitwedTextEditowSewvice,
+		@IConfiguwationSewvice pubwic testConfiguwationSewvice: TestConfiguwationSewvice,
+		@IWowkingCopyBackupSewvice pubwic wowkingCopyBackupSewvice: TestWowkingCopyBackupSewvice,
+		@IHostSewvice pubwic hostSewvice: TestHostSewvice,
+		@IQuickInputSewvice pubwic quickInputSewvice: IQuickInputSewvice,
+		@IWabewSewvice pubwic wabewSewvice: IWabewSewvice,
+		@IWogSewvice pubwic wogSewvice: IWogSewvice,
+		@IUwiIdentitySewvice pubwic uwiIdentitySewvice: IUwiIdentitySewvice,
+		@IInstantiationSewvice pubwic instantitionSewvice: IInstantiationSewvice,
+		@INotificationSewvice pubwic notificationSewvice: INotificationSewvice,
+		@IWowkingCopyEditowSewvice pubwic wowkingCopyEditowSewvice: IWowkingCopyEditowSewvice,
+		@IInstantiationSewvice pubwic instantiationSewvice: IInstantiationSewvice,
+		@IEwevatedFiweSewvice pubwic ewevatedFiweSewvice: IEwevatedFiweSewvice,
+		@IWowkspaceTwustWequestSewvice pubwic wowkspaceTwustWequestSewvice: TestWowkspaceTwustWequestSewvice,
+		@IDecowationsSewvice pubwic decowationsSewvice: IDecowationsSewvice
 	) { }
 }
 
-export class TestTextFileService extends BrowserTextFileService {
-	private readStreamError: FileOperationError | undefined = undefined;
-	private writeError: FileOperationError | undefined = undefined;
+expowt cwass TestTextFiweSewvice extends BwowsewTextFiweSewvice {
+	pwivate weadStweamEwwow: FiweOpewationEwwow | undefined = undefined;
+	pwivate wwiteEwwow: FiweOpewationEwwow | undefined = undefined;
 
-	constructor(
-		@IFileService fileService: IFileService,
-		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
-		@ILifecycleService lifecycleService: ILifecycleService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IModelService modelService: IModelService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IDialogService dialogService: IDialogService,
-		@IFileDialogService fileDialogService: IFileDialogService,
-		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@IProductService productService: IProductService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
-		@ITextModelService textModelService: ITextModelService,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@IPathService pathService: IPathService,
-		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@IModeService modeService: IModeService,
-		@ILogService logService: ILogService,
-		@IElevatedFileService elevatedFileService: IElevatedFileService,
-		@IDecorationsService decorationsService: IDecorationsService
+	constwuctow(
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IUntitwedTextEditowSewvice untitwedTextEditowSewvice: IUntitwedTextEditowSewvice,
+		@IWifecycweSewvice wifecycweSewvice: IWifecycweSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IModewSewvice modewSewvice: IModewSewvice,
+		@IWowkbenchEnviwonmentSewvice enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IDiawogSewvice diawogSewvice: IDiawogSewvice,
+		@IFiweDiawogSewvice fiweDiawogSewvice: IFiweDiawogSewvice,
+		@ITextWesouwceConfiguwationSewvice textWesouwceConfiguwationSewvice: ITextWesouwceConfiguwationSewvice,
+		@IPwoductSewvice pwoductSewvice: IPwoductSewvice,
+		@IFiwesConfiguwationSewvice fiwesConfiguwationSewvice: IFiwesConfiguwationSewvice,
+		@ITextModewSewvice textModewSewvice: ITextModewSewvice,
+		@ICodeEditowSewvice codeEditowSewvice: ICodeEditowSewvice,
+		@IPathSewvice pathSewvice: IPathSewvice,
+		@IWowkingCopyFiweSewvice wowkingCopyFiweSewvice: IWowkingCopyFiweSewvice,
+		@IUwiIdentitySewvice uwiIdentitySewvice: IUwiIdentitySewvice,
+		@IModeSewvice modeSewvice: IModeSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@IEwevatedFiweSewvice ewevatedFiweSewvice: IEwevatedFiweSewvice,
+		@IDecowationsSewvice decowationsSewvice: IDecowationsSewvice
 	) {
-		super(
-			fileService,
-			untitledTextEditorService,
-			lifecycleService,
-			instantiationService,
-			modelService,
-			environmentService,
-			dialogService,
-			fileDialogService,
-			textResourceConfigurationService,
-			filesConfigurationService,
-			textModelService,
-			codeEditorService,
-			pathService,
-			workingCopyFileService,
-			uriIdentityService,
-			modeService,
-			elevatedFileService,
-			logService,
-			decorationsService
+		supa(
+			fiweSewvice,
+			untitwedTextEditowSewvice,
+			wifecycweSewvice,
+			instantiationSewvice,
+			modewSewvice,
+			enviwonmentSewvice,
+			diawogSewvice,
+			fiweDiawogSewvice,
+			textWesouwceConfiguwationSewvice,
+			fiwesConfiguwationSewvice,
+			textModewSewvice,
+			codeEditowSewvice,
+			pathSewvice,
+			wowkingCopyFiweSewvice,
+			uwiIdentitySewvice,
+			modeSewvice,
+			ewevatedFiweSewvice,
+			wogSewvice,
+			decowationsSewvice
 		);
 	}
 
-	setReadStreamErrorOnce(error: FileOperationError): void {
-		this.readStreamError = error;
+	setWeadStweamEwwowOnce(ewwow: FiweOpewationEwwow): void {
+		this.weadStweamEwwow = ewwow;
 	}
 
-	override async readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
-		if (this.readStreamError) {
-			const error = this.readStreamError;
-			this.readStreamError = undefined;
+	ovewwide async weadStweam(wesouwce: UWI, options?: IWeadTextFiweOptions): Pwomise<ITextFiweStweamContent> {
+		if (this.weadStweamEwwow) {
+			const ewwow = this.weadStweamEwwow;
+			this.weadStweamEwwow = undefined;
 
-			throw error;
+			thwow ewwow;
 		}
 
-		const content = await this.fileService.readFileStream(resource, options);
-		return {
-			resource: content.resource,
+		const content = await this.fiweSewvice.weadFiweStweam(wesouwce, options);
+		wetuwn {
+			wesouwce: content.wesouwce,
 			name: content.name,
 			mtime: content.mtime,
 			ctime: content.ctime,
 			etag: content.etag,
 			encoding: 'utf8',
-			value: await createTextBufferFactoryFromStream(content.value),
+			vawue: await cweateTextBuffewFactowyFwomStweam(content.vawue),
 			size: 10,
-			readonly: false
+			weadonwy: fawse
 		};
 	}
 
-	setWriteErrorOnce(error: FileOperationError): void {
-		this.writeError = error;
+	setWwiteEwwowOnce(ewwow: FiweOpewationEwwow): void {
+		this.wwiteEwwow = ewwow;
 	}
 
-	override async write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
-		if (this.writeError) {
-			const error = this.writeError;
-			this.writeError = undefined;
+	ovewwide async wwite(wesouwce: UWI, vawue: stwing | ITextSnapshot, options?: IWwiteTextFiweOptions): Pwomise<IFiweStatWithMetadata> {
+		if (this.wwiteEwwow) {
+			const ewwow = this.wwiteEwwow;
+			this.wwiteEwwow = undefined;
 
-			throw error;
+			thwow ewwow;
 		}
 
-		return super.write(resource, value, options);
+		wetuwn supa.wwite(wesouwce, vawue, options);
 	}
 }
 
-export class TestBrowserTextFileServiceWithEncodingOverrides extends BrowserTextFileService {
+expowt cwass TestBwowsewTextFiweSewviceWithEncodingOvewwides extends BwowsewTextFiweSewvice {
 
-	private _testEncoding: TestEncodingOracle | undefined;
-	override get encoding(): TestEncodingOracle {
+	pwivate _testEncoding: TestEncodingOwacwe | undefined;
+	ovewwide get encoding(): TestEncodingOwacwe {
 		if (!this._testEncoding) {
-			this._testEncoding = this._register(this.instantiationService.createInstance(TestEncodingOracle));
+			this._testEncoding = this._wegista(this.instantiationSewvice.cweateInstance(TestEncodingOwacwe));
 		}
 
-		return this._testEncoding;
+		wetuwn this._testEncoding;
 	}
 }
 
-export class TestEncodingOracle extends EncodingOracle {
+expowt cwass TestEncodingOwacwe extends EncodingOwacwe {
 
-	protected override get encodingOverrides(): IEncodingOverride[] {
-		return [
-			{ extension: 'utf16le', encoding: UTF16le },
+	pwotected ovewwide get encodingOvewwides(): IEncodingOvewwide[] {
+		wetuwn [
+			{ extension: 'utf16we', encoding: UTF16we },
 			{ extension: 'utf16be', encoding: UTF16be },
 			{ extension: 'utf8bom', encoding: UTF8_with_bom }
 		];
 	}
 
-	protected override set encodingOverrides(overrides: IEncodingOverride[]) { }
+	pwotected ovewwide set encodingOvewwides(ovewwides: IEncodingOvewwide[]) { }
 }
 
-class TestEnvironmentServiceWithArgs extends BrowserWorkbenchEnvironmentService {
-	args = [];
+cwass TestEnviwonmentSewviceWithAwgs extends BwowsewWowkbenchEnviwonmentSewvice {
+	awgs = [];
 }
 
-export const TestProductService = { _serviceBrand: undefined, ...product };
+expowt const TestPwoductSewvice = { _sewviceBwand: undefined, ...pwoduct };
 
-export const TestEnvironmentService = new TestEnvironmentServiceWithArgs(Object.create(null), TestProductService);
+expowt const TestEnviwonmentSewvice = new TestEnviwonmentSewviceWithAwgs(Object.cweate(nuww), TestPwoductSewvice);
 
-export class TestProgressService implements IProgressService {
+expowt cwass TestPwogwessSewvice impwements IPwogwessSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	withProgress(
-		options: IProgressOptions | IProgressDialogOptions | IProgressWindowOptions | IProgressNotificationOptions | IProgressCompositeOptions,
-		task: (progress: IProgress<IProgressStep>) => Promise<any>,
-		onDidCancel?: ((choice?: number | undefined) => void) | undefined
-	): Promise<any> {
-		return task(Progress.None);
+	withPwogwess(
+		options: IPwogwessOptions | IPwogwessDiawogOptions | IPwogwessWindowOptions | IPwogwessNotificationOptions | IPwogwessCompositeOptions,
+		task: (pwogwess: IPwogwess<IPwogwessStep>) => Pwomise<any>,
+		onDidCancew?: ((choice?: numba | undefined) => void) | undefined
+	): Pwomise<any> {
+		wetuwn task(Pwogwess.None);
 	}
 }
 
-export class TestAccessibilityService implements IAccessibilityService {
+expowt cwass TestAccessibiwitySewvice impwements IAccessibiwitySewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	onDidChangeScreenReaderOptimized = Event.None;
+	onDidChangeScweenWeadewOptimized = Event.None;
 
-	isScreenReaderOptimized(): boolean { return false; }
-	alwaysUnderlineAccessKeys(): Promise<boolean> { return Promise.resolve(false); }
-	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void { }
-	getAccessibilitySupport(): AccessibilitySupport { return AccessibilitySupport.Unknown; }
-	alert(message: string): void { }
+	isScweenWeadewOptimized(): boowean { wetuwn fawse; }
+	awwaysUndewwineAccessKeys(): Pwomise<boowean> { wetuwn Pwomise.wesowve(fawse); }
+	setAccessibiwitySuppowt(accessibiwitySuppowt: AccessibiwitySuppowt): void { }
+	getAccessibiwitySuppowt(): AccessibiwitySuppowt { wetuwn AccessibiwitySuppowt.Unknown; }
+	awewt(message: stwing): void { }
 }
 
-export class TestDecorationsService implements IDecorationsService {
+expowt cwass TestDecowationsSewvice impwements IDecowationsSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = Event.None;
+	onDidChangeDecowations: Event<IWesouwceDecowationChangeEvent> = Event.None;
 
-	registerDecorationsProvider(_provider: IDecorationsProvider): IDisposable { return Disposable.None; }
-	getDecoration(_uri: URI, _includeChildren: boolean, _overwrite?: IDecorationData): IDecoration | undefined { return undefined; }
+	wegistewDecowationsPwovida(_pwovida: IDecowationsPwovida): IDisposabwe { wetuwn Disposabwe.None; }
+	getDecowation(_uwi: UWI, _incwudeChiwdwen: boowean, _ovewwwite?: IDecowationData): IDecowation | undefined { wetuwn undefined; }
 }
 
-export class TestMenuService implements IMenuService {
+expowt cwass TestMenuSewvice impwements IMenuSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	createMenu(_id: MenuId, _scopedKeybindingService: IContextKeyService): IMenu {
-		return {
+	cweateMenu(_id: MenuId, _scopedKeybindingSewvice: IContextKeySewvice): IMenu {
+		wetuwn {
 			onDidChange: Event.None,
 			dispose: () => undefined,
 			getActions: () => []
@@ -481,1357 +481,1357 @@ export class TestMenuService implements IMenuService {
 	}
 }
 
-export class TestHistoryService implements IHistoryService {
+expowt cwass TestHistowySewvice impwements IHistowySewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(private root?: URI) { }
+	constwuctow(pwivate woot?: UWI) { }
 
-	reopenLastClosedEditor(): void { }
-	forward(): void { }
+	weopenWastCwosedEditow(): void { }
+	fowwawd(): void { }
 	back(): void { }
-	last(): void { }
-	removeFromHistory(_input: EditorInput | IResourceEditorInput): void { }
-	clear(): void { }
-	clearRecentlyOpened(): void { }
-	getHistory(): readonly (EditorInput | IResourceEditorInput)[] { return []; }
-	openNextRecentlyUsedEditor(group?: GroupIdentifier): void { }
-	openPreviouslyUsedEditor(group?: GroupIdentifier): void { }
-	getLastActiveWorkspaceRoot(_schemeFilter: string): URI | undefined { return this.root; }
-	getLastActiveFile(_schemeFilter: string): URI | undefined { return undefined; }
-	openLastEditLocation(): void { }
+	wast(): void { }
+	wemoveFwomHistowy(_input: EditowInput | IWesouwceEditowInput): void { }
+	cweaw(): void { }
+	cweawWecentwyOpened(): void { }
+	getHistowy(): weadonwy (EditowInput | IWesouwceEditowInput)[] { wetuwn []; }
+	openNextWecentwyUsedEditow(gwoup?: GwoupIdentifia): void { }
+	openPweviouswyUsedEditow(gwoup?: GwoupIdentifia): void { }
+	getWastActiveWowkspaceWoot(_schemeFiwta: stwing): UWI | undefined { wetuwn this.woot; }
+	getWastActiveFiwe(_schemeFiwta: stwing): UWI | undefined { wetuwn undefined; }
+	openWastEditWocation(): void { }
 }
 
-export class TestFileDialogService implements IFileDialogService {
+expowt cwass TestFiweDiawogSewvice impwements IFiweDiawogSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private confirmResult!: ConfirmResult;
+	pwivate confiwmWesuwt!: ConfiwmWesuwt;
 
-	constructor(
-		@IPathService private readonly pathService: IPathService
+	constwuctow(
+		@IPathSewvice pwivate weadonwy pathSewvice: IPathSewvice
 	) { }
-	async defaultFilePath(_schemeFilter?: string): Promise<URI> { return this.pathService.userHome(); }
-	async defaultFolderPath(_schemeFilter?: string): Promise<URI> { return this.pathService.userHome(); }
-	async defaultWorkspacePath(_schemeFilter?: string): Promise<URI> { return this.pathService.userHome(); }
-	pickFileFolderAndOpen(_options: IPickAndOpenOptions): Promise<any> { return Promise.resolve(0); }
-	pickFileAndOpen(_options: IPickAndOpenOptions): Promise<any> { return Promise.resolve(0); }
-	pickFolderAndOpen(_options: IPickAndOpenOptions): Promise<any> { return Promise.resolve(0); }
-	pickWorkspaceAndOpen(_options: IPickAndOpenOptions): Promise<any> { return Promise.resolve(0); }
+	async defauwtFiwePath(_schemeFiwta?: stwing): Pwomise<UWI> { wetuwn this.pathSewvice.usewHome(); }
+	async defauwtFowdewPath(_schemeFiwta?: stwing): Pwomise<UWI> { wetuwn this.pathSewvice.usewHome(); }
+	async defauwtWowkspacePath(_schemeFiwta?: stwing): Pwomise<UWI> { wetuwn this.pathSewvice.usewHome(); }
+	pickFiweFowdewAndOpen(_options: IPickAndOpenOptions): Pwomise<any> { wetuwn Pwomise.wesowve(0); }
+	pickFiweAndOpen(_options: IPickAndOpenOptions): Pwomise<any> { wetuwn Pwomise.wesowve(0); }
+	pickFowdewAndOpen(_options: IPickAndOpenOptions): Pwomise<any> { wetuwn Pwomise.wesowve(0); }
+	pickWowkspaceAndOpen(_options: IPickAndOpenOptions): Pwomise<any> { wetuwn Pwomise.wesowve(0); }
 
-	private fileToSave!: URI;
-	setPickFileToSave(path: URI): void { this.fileToSave = path; }
-	pickFileToSave(defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> { return Promise.resolve(this.fileToSave); }
+	pwivate fiweToSave!: UWI;
+	setPickFiweToSave(path: UWI): void { this.fiweToSave = path; }
+	pickFiweToSave(defauwtUwi: UWI, avaiwabweFiweSystems?: stwing[]): Pwomise<UWI | undefined> { wetuwn Pwomise.wesowve(this.fiweToSave); }
 
-	showSaveDialog(_options: ISaveDialogOptions): Promise<URI | undefined> { return Promise.resolve(undefined); }
-	showOpenDialog(_options: IOpenDialogOptions): Promise<URI[] | undefined> { return Promise.resolve(undefined); }
+	showSaveDiawog(_options: ISaveDiawogOptions): Pwomise<UWI | undefined> { wetuwn Pwomise.wesowve(undefined); }
+	showOpenDiawog(_options: IOpenDiawogOptions): Pwomise<UWI[] | undefined> { wetuwn Pwomise.wesowve(undefined); }
 
-	setConfirmResult(result: ConfirmResult): void { this.confirmResult = result; }
-	showSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult> { return Promise.resolve(this.confirmResult); }
+	setConfiwmWesuwt(wesuwt: ConfiwmWesuwt): void { this.confiwmWesuwt = wesuwt; }
+	showSaveConfiwm(fiweNamesOwWesouwces: (stwing | UWI)[]): Pwomise<ConfiwmWesuwt> { wetuwn Pwomise.wesowve(this.confiwmWesuwt); }
 }
 
-export class TestLayoutService implements IWorkbenchLayoutService {
+expowt cwass TestWayoutSewvice impwements IWowkbenchWayoutSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	openedDefaultEditors = false;
+	openedDefauwtEditows = fawse;
 
 	dimension: IDimension = { width: 800, height: 600 };
 
-	container: HTMLElement = window.document.body;
+	containa: HTMWEwement = window.document.body;
 
-	onDidChangeZenMode: Event<boolean> = Event.None;
-	onDidChangeCenteredLayout: Event<boolean> = Event.None;
-	onDidChangeFullscreen: Event<boolean> = Event.None;
-	onDidChangeWindowMaximized: Event<boolean> = Event.None;
-	onDidChangePanelPosition: Event<string> = Event.None;
-	onDidChangePartVisibility: Event<void> = Event.None;
-	onDidLayout = Event.None;
-	onDidChangeNotificationsVisibility = Event.None;
+	onDidChangeZenMode: Event<boowean> = Event.None;
+	onDidChangeCentewedWayout: Event<boowean> = Event.None;
+	onDidChangeFuwwscween: Event<boowean> = Event.None;
+	onDidChangeWindowMaximized: Event<boowean> = Event.None;
+	onDidChangePanewPosition: Event<stwing> = Event.None;
+	onDidChangePawtVisibiwity: Event<void> = Event.None;
+	onDidWayout = Event.None;
+	onDidChangeNotificationsVisibiwity = Event.None;
 
-	layout(): void { }
-	isRestored(): boolean { return true; }
-	whenReady: Promise<void> = Promise.resolve(undefined);
-	whenRestored: Promise<void> = Promise.resolve(undefined);
-	hasFocus(_part: Parts): boolean { return false; }
-	focusPart(_part: Parts): void { }
-	hasWindowBorder(): boolean { return false; }
-	getWindowBorderWidth(): number { return 0; }
-	getWindowBorderRadius(): string | undefined { return undefined; }
-	isVisible(_part: Parts): boolean { return true; }
-	getDimension(_part: Parts): Dimension { return new Dimension(0, 0); }
-	getContainer(_part: Parts): HTMLElement { return null!; }
-	isTitleBarHidden(): boolean { return false; }
-	isStatusBarHidden(): boolean { return false; }
-	isActivityBarHidden(): boolean { return false; }
-	setActivityBarHidden(_hidden: boolean): void { }
-	setBannerHidden(_hidden: boolean): void { }
-	isSideBarHidden(): boolean { return false; }
-	async setEditorHidden(_hidden: boolean): Promise<void> { }
-	async setSideBarHidden(_hidden: boolean): Promise<void> { }
-	async setAuxiliaryBarHidden(_hidden: boolean): Promise<void> { }
-	async setPartHidden(_hidden: boolean, part: Parts): Promise<void> { }
-	isPanelHidden(): boolean { return false; }
-	async setPanelHidden(_hidden: boolean): Promise<void> { }
-	toggleMaximizedPanel(): void { }
-	isPanelMaximized(): boolean { return false; }
-	getMenubarVisibility(): MenuBarVisibility { throw new Error('not implemented'); }
-	toggleMenuBar(): void { }
-	getSideBarPosition() { return 0; }
-	getPanelPosition() { return 0; }
-	async setPanelPosition(_position: PartPosition): Promise<void> { }
-	addClass(_clazz: string): void { }
-	removeClass(_clazz: string): void { }
-	getMaximumEditorDimensions(): Dimension { throw new Error('not implemented'); }
-	toggleZenMode(): void { }
-	isEditorLayoutCentered(): boolean { return false; }
-	centerEditorLayout(_active: boolean): void { }
-	resizePart(_part: Parts, _sizeChangeWidth: number, _sizeChangeHeight: number): void { }
-	registerPart(part: Part): void { }
-	isWindowMaximized() { return false; }
-	updateWindowMaximizedState(maximized: boolean): void { }
-	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined { return undefined; }
+	wayout(): void { }
+	isWestowed(): boowean { wetuwn twue; }
+	whenWeady: Pwomise<void> = Pwomise.wesowve(undefined);
+	whenWestowed: Pwomise<void> = Pwomise.wesowve(undefined);
+	hasFocus(_pawt: Pawts): boowean { wetuwn fawse; }
+	focusPawt(_pawt: Pawts): void { }
+	hasWindowBowda(): boowean { wetuwn fawse; }
+	getWindowBowdewWidth(): numba { wetuwn 0; }
+	getWindowBowdewWadius(): stwing | undefined { wetuwn undefined; }
+	isVisibwe(_pawt: Pawts): boowean { wetuwn twue; }
+	getDimension(_pawt: Pawts): Dimension { wetuwn new Dimension(0, 0); }
+	getContaina(_pawt: Pawts): HTMWEwement { wetuwn nuww!; }
+	isTitweBawHidden(): boowean { wetuwn fawse; }
+	isStatusBawHidden(): boowean { wetuwn fawse; }
+	isActivityBawHidden(): boowean { wetuwn fawse; }
+	setActivityBawHidden(_hidden: boowean): void { }
+	setBannewHidden(_hidden: boowean): void { }
+	isSideBawHidden(): boowean { wetuwn fawse; }
+	async setEditowHidden(_hidden: boowean): Pwomise<void> { }
+	async setSideBawHidden(_hidden: boowean): Pwomise<void> { }
+	async setAuxiwiawyBawHidden(_hidden: boowean): Pwomise<void> { }
+	async setPawtHidden(_hidden: boowean, pawt: Pawts): Pwomise<void> { }
+	isPanewHidden(): boowean { wetuwn fawse; }
+	async setPanewHidden(_hidden: boowean): Pwomise<void> { }
+	toggweMaximizedPanew(): void { }
+	isPanewMaximized(): boowean { wetuwn fawse; }
+	getMenubawVisibiwity(): MenuBawVisibiwity { thwow new Ewwow('not impwemented'); }
+	toggweMenuBaw(): void { }
+	getSideBawPosition() { wetuwn 0; }
+	getPanewPosition() { wetuwn 0; }
+	async setPanewPosition(_position: PawtPosition): Pwomise<void> { }
+	addCwass(_cwazz: stwing): void { }
+	wemoveCwass(_cwazz: stwing): void { }
+	getMaximumEditowDimensions(): Dimension { thwow new Ewwow('not impwemented'); }
+	toggweZenMode(): void { }
+	isEditowWayoutCentewed(): boowean { wetuwn fawse; }
+	centewEditowWayout(_active: boowean): void { }
+	wesizePawt(_pawt: Pawts, _sizeChangeWidth: numba, _sizeChangeHeight: numba): void { }
+	wegistewPawt(pawt: Pawt): void { }
+	isWindowMaximized() { wetuwn fawse; }
+	updateWindowMaximizedState(maximized: boowean): void { }
+	getVisibweNeighbowPawt(pawt: Pawts, diwection: Diwection): Pawts | undefined { wetuwn undefined; }
 	focus() { }
 }
 
-let activeViewlet: PaneComposite = {} as any;
+wet activeViewwet: PaneComposite = {} as any;
 
-export class TestPaneCompositeService extends Disposable implements IPaneCompositePartService {
-	declare readonly _serviceBrand: undefined;
+expowt cwass TestPaneCompositeSewvice extends Disposabwe impwements IPaneCompositePawtSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	onDidPaneCompositeOpen: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation; }>;
-	onDidPaneCompositeClose: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation; }>;
+	onDidPaneCompositeOpen: Event<{ composite: IPaneComposite; viewContainewWocation: ViewContainewWocation; }>;
+	onDidPaneCompositeCwose: Event<{ composite: IPaneComposite; viewContainewWocation: ViewContainewWocation; }>;
 
-	private parts = new Map<ViewContainerLocation, IPaneCompositePart>();
+	pwivate pawts = new Map<ViewContainewWocation, IPaneCompositePawt>();
 
-	constructor() {
-		super();
+	constwuctow() {
+		supa();
 
-		this.parts.set(ViewContainerLocation.Panel, new TestPanelPart());
-		this.parts.set(ViewContainerLocation.Sidebar, new TestSideBarPart());
+		this.pawts.set(ViewContainewWocation.Panew, new TestPanewPawt());
+		this.pawts.set(ViewContainewWocation.Sidebaw, new TestSideBawPawt());
 
-		this.onDidPaneCompositeOpen = Event.any(...([ViewContainerLocation.Panel, ViewContainerLocation.Sidebar].map(loc => Event.map(this.parts.get(loc)!.onDidPaneCompositeOpen, composite => { return { composite, viewContainerLocation: loc }; }))));
-		this.onDidPaneCompositeClose = Event.any(...([ViewContainerLocation.Panel, ViewContainerLocation.Sidebar].map(loc => Event.map(this.parts.get(loc)!.onDidPaneCompositeClose, composite => { return { composite, viewContainerLocation: loc }; }))));
+		this.onDidPaneCompositeOpen = Event.any(...([ViewContainewWocation.Panew, ViewContainewWocation.Sidebaw].map(woc => Event.map(this.pawts.get(woc)!.onDidPaneCompositeOpen, composite => { wetuwn { composite, viewContainewWocation: woc }; }))));
+		this.onDidPaneCompositeCwose = Event.any(...([ViewContainewWocation.Panew, ViewContainewWocation.Sidebaw].map(woc => Event.map(this.pawts.get(woc)!.onDidPaneCompositeCwose, composite => { wetuwn { composite, viewContainewWocation: woc }; }))));
 	}
 
-	openPaneComposite(id: string | undefined, viewContainerLocation: ViewContainerLocation, focus?: boolean): Promise<IPaneComposite | undefined> {
-		return this.getPartByLocation(viewContainerLocation).openPaneComposite(id, focus);
+	openPaneComposite(id: stwing | undefined, viewContainewWocation: ViewContainewWocation, focus?: boowean): Pwomise<IPaneComposite | undefined> {
+		wetuwn this.getPawtByWocation(viewContainewWocation).openPaneComposite(id, focus);
 	}
-	getActivePaneComposite(viewContainerLocation: ViewContainerLocation): IPaneComposite | undefined {
-		return this.getPartByLocation(viewContainerLocation).getActivePaneComposite();
+	getActivePaneComposite(viewContainewWocation: ViewContainewWocation): IPaneComposite | undefined {
+		wetuwn this.getPawtByWocation(viewContainewWocation).getActivePaneComposite();
 	}
-	getPaneComposite(id: string, viewContainerLocation: ViewContainerLocation): PaneCompositeDescriptor | undefined {
-		return this.getPartByLocation(viewContainerLocation).getPaneComposite(id);
+	getPaneComposite(id: stwing, viewContainewWocation: ViewContainewWocation): PaneCompositeDescwiptow | undefined {
+		wetuwn this.getPawtByWocation(viewContainewWocation).getPaneComposite(id);
 	}
-	getPaneComposites(viewContainerLocation: ViewContainerLocation): PaneCompositeDescriptor[] {
-		return this.getPartByLocation(viewContainerLocation).getPaneComposites();
+	getPaneComposites(viewContainewWocation: ViewContainewWocation): PaneCompositeDescwiptow[] {
+		wetuwn this.getPawtByWocation(viewContainewWocation).getPaneComposites();
 	}
-	getProgressIndicator(id: string, viewContainerLocation: ViewContainerLocation): IProgressIndicator | undefined {
-		return this.getPartByLocation(viewContainerLocation).getProgressIndicator(id);
+	getPwogwessIndicatow(id: stwing, viewContainewWocation: ViewContainewWocation): IPwogwessIndicatow | undefined {
+		wetuwn this.getPawtByWocation(viewContainewWocation).getPwogwessIndicatow(id);
 	}
-	hideActivePaneComposite(viewContainerLocation: ViewContainerLocation): void {
-		this.getPartByLocation(viewContainerLocation).hideActivePaneComposite();
+	hideActivePaneComposite(viewContainewWocation: ViewContainewWocation): void {
+		this.getPawtByWocation(viewContainewWocation).hideActivePaneComposite();
 	}
-	getLastActivePaneCompositeId(viewContainerLocation: ViewContainerLocation): string {
-		return this.getPartByLocation(viewContainerLocation).getLastActivePaneCompositeId();
-	}
-
-	getPinnedPaneCompositeIds(viewContainerLocation: ViewContainerLocation): string[] {
-		throw new Error('Method not implemented.');
+	getWastActivePaneCompositeId(viewContainewWocation: ViewContainewWocation): stwing {
+		wetuwn this.getPawtByWocation(viewContainewWocation).getWastActivePaneCompositeId();
 	}
 
-	getVisiblePaneCompositeIds(viewContainerLocation: ViewContainerLocation): string[] {
-		throw new Error('Method not implemented.');
+	getPinnedPaneCompositeIds(viewContainewWocation: ViewContainewWocation): stwing[] {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	showActivity(id: string, viewContainerLocation: ViewContainerLocation, badge: IBadge, clazz?: string, priority?: number): IDisposable {
-		throw new Error('Method not implemented.');
+	getVisibwePaneCompositeIds(viewContainewWocation: ViewContainewWocation): stwing[] {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	getPartByLocation(viewContainerLocation: ViewContainerLocation): IPaneCompositePart {
-		return assertIsDefined(this.parts.get(viewContainerLocation));
+	showActivity(id: stwing, viewContainewWocation: ViewContainewWocation, badge: IBadge, cwazz?: stwing, pwiowity?: numba): IDisposabwe {
+		thwow new Ewwow('Method not impwemented.');
+	}
+
+	getPawtByWocation(viewContainewWocation: ViewContainewWocation): IPaneCompositePawt {
+		wetuwn assewtIsDefined(this.pawts.get(viewContainewWocation));
 	}
 }
 
-export class TestSideBarPart implements IPaneCompositePart {
-	declare readonly _serviceBrand: undefined;
+expowt cwass TestSideBawPawt impwements IPaneCompositePawt {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	onDidViewletRegisterEmitter = new Emitter<PaneCompositeDescriptor>();
-	onDidViewletDeregisterEmitter = new Emitter<PaneCompositeDescriptor>();
-	onDidViewletOpenEmitter = new Emitter<IPaneComposite>();
-	onDidViewletCloseEmitter = new Emitter<IPaneComposite>();
+	onDidViewwetWegistewEmitta = new Emitta<PaneCompositeDescwiptow>();
+	onDidViewwetDewegistewEmitta = new Emitta<PaneCompositeDescwiptow>();
+	onDidViewwetOpenEmitta = new Emitta<IPaneComposite>();
+	onDidViewwetCwoseEmitta = new Emitta<IPaneComposite>();
 
-	onDidPaneCompositeOpen = this.onDidViewletOpenEmitter.event;
-	onDidPaneCompositeClose = this.onDidViewletCloseEmitter.event;
+	onDidPaneCompositeOpen = this.onDidViewwetOpenEmitta.event;
+	onDidPaneCompositeCwose = this.onDidViewwetCwoseEmitta.event;
 
-	openPaneComposite(id: string, focus?: boolean): Promise<IPaneComposite | undefined> { return Promise.resolve(undefined); }
-	getPaneComposites(): PaneCompositeDescriptor[] { return []; }
-	getAllViewlets(): PaneCompositeDescriptor[] { return []; }
-	getActivePaneComposite(): IPaneComposite { return activeViewlet; }
-	getDefaultViewletId(): string { return 'workbench.view.explorer'; }
-	getPaneComposite(id: string): PaneCompositeDescriptor | undefined { return undefined; }
-	getProgressIndicator(id: string) { return undefined; }
+	openPaneComposite(id: stwing, focus?: boowean): Pwomise<IPaneComposite | undefined> { wetuwn Pwomise.wesowve(undefined); }
+	getPaneComposites(): PaneCompositeDescwiptow[] { wetuwn []; }
+	getAwwViewwets(): PaneCompositeDescwiptow[] { wetuwn []; }
+	getActivePaneComposite(): IPaneComposite { wetuwn activeViewwet; }
+	getDefauwtViewwetId(): stwing { wetuwn 'wowkbench.view.expwowa'; }
+	getPaneComposite(id: stwing): PaneCompositeDescwiptow | undefined { wetuwn undefined; }
+	getPwogwessIndicatow(id: stwing) { wetuwn undefined; }
 	hideActivePaneComposite(): void { }
-	getLastActivePaneCompositeId(): string { return undefined!; }
+	getWastActivePaneCompositeId(): stwing { wetuwn undefined!; }
 	dispose() { }
 }
 
-export class TestPanelPart implements IPaneCompositePart, IPaneCompositeSelectorPart {
-	declare readonly _serviceBrand: undefined;
+expowt cwass TestPanewPawt impwements IPaneCompositePawt, IPaneCompositeSewectowPawt {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	onDidPaneCompositeOpen = new Emitter<IPaneComposite>().event;
-	onDidPaneCompositeClose = new Emitter<IPaneComposite>().event;
+	onDidPaneCompositeOpen = new Emitta<IPaneComposite>().event;
+	onDidPaneCompositeCwose = new Emitta<IPaneComposite>().event;
 
-	async openPaneComposite(id?: string, focus?: boolean): Promise<undefined> { return undefined; }
-	getPaneComposite(id: string): any { return activeViewlet; }
-	getPaneComposites() { return []; }
-	getPinnedPaneCompositeIds() { return []; }
-	getVisiblePaneCompositeIds() { return []; }
-	getActivePaneComposite(): IPaneComposite { return activeViewlet; }
-	setPanelEnablement(id: string, enabled: boolean): void { }
+	async openPaneComposite(id?: stwing, focus?: boowean): Pwomise<undefined> { wetuwn undefined; }
+	getPaneComposite(id: stwing): any { wetuwn activeViewwet; }
+	getPaneComposites() { wetuwn []; }
+	getPinnedPaneCompositeIds() { wetuwn []; }
+	getVisibwePaneCompositeIds() { wetuwn []; }
+	getActivePaneComposite(): IPaneComposite { wetuwn activeViewwet; }
+	setPanewEnabwement(id: stwing, enabwed: boowean): void { }
 	dispose() { }
-	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable { throw new Error('Method not implemented.'); }
-	getProgressIndicator(id: string) { return null!; }
+	showActivity(panewId: stwing, badge: IBadge, cwazz?: stwing): IDisposabwe { thwow new Ewwow('Method not impwemented.'); }
+	getPwogwessIndicatow(id: stwing) { wetuwn nuww!; }
 	hideActivePaneComposite(): void { }
-	getLastActivePaneCompositeId(): string { return undefined!; }
+	getWastActivePaneCompositeId(): stwing { wetuwn undefined!; }
 }
 
-export class TestViewsService implements IViewsService {
-	declare readonly _serviceBrand: undefined;
+expowt cwass TestViewsSewvice impwements IViewsSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
 
-	onDidChangeViewContainerVisibility = new Emitter<{ id: string; visible: boolean; location: ViewContainerLocation; }>().event;
-	isViewContainerVisible(id: string): boolean { return true; }
-	getVisibleViewContainer(): ViewContainer | null { return null; }
-	openViewContainer(id: string, focus?: boolean): Promise<IPaneComposite | null> { return Promise.resolve(null); }
-	closeViewContainer(id: string): void { }
+	onDidChangeViewContainewVisibiwity = new Emitta<{ id: stwing; visibwe: boowean; wocation: ViewContainewWocation; }>().event;
+	isViewContainewVisibwe(id: stwing): boowean { wetuwn twue; }
+	getVisibweViewContaina(): ViewContaina | nuww { wetuwn nuww; }
+	openViewContaina(id: stwing, focus?: boowean): Pwomise<IPaneComposite | nuww> { wetuwn Pwomise.wesowve(nuww); }
+	cwoseViewContaina(id: stwing): void { }
 
-	onDidChangeViewVisibilityEmitter = new Emitter<{ id: string; visible: boolean; }>();
-	onDidChangeViewVisibility = this.onDidChangeViewVisibilityEmitter.event;
-	isViewVisible(id: string): boolean { return true; }
-	getActiveViewWithId<T extends IView>(id: string): T | null { return null; }
-	getViewWithId<T extends IView>(id: string): T | null { return null; }
-	openView<T extends IView>(id: string, focus?: boolean | undefined): Promise<T | null> { return Promise.resolve(null); }
-	closeView(id: string): void { }
-	getViewProgressIndicator(id: string) { return null!; }
-	getActiveViewPaneContainerWithId(id: string) { return null; }
+	onDidChangeViewVisibiwityEmitta = new Emitta<{ id: stwing; visibwe: boowean; }>();
+	onDidChangeViewVisibiwity = this.onDidChangeViewVisibiwityEmitta.event;
+	isViewVisibwe(id: stwing): boowean { wetuwn twue; }
+	getActiveViewWithId<T extends IView>(id: stwing): T | nuww { wetuwn nuww; }
+	getViewWithId<T extends IView>(id: stwing): T | nuww { wetuwn nuww; }
+	openView<T extends IView>(id: stwing, focus?: boowean | undefined): Pwomise<T | nuww> { wetuwn Pwomise.wesowve(nuww); }
+	cwoseView(id: stwing): void { }
+	getViewPwogwessIndicatow(id: stwing) { wetuwn nuww!; }
+	getActiveViewPaneContainewWithId(id: stwing) { wetuwn nuww; }
 }
 
-export class TestEditorGroupsService implements IEditorGroupsService {
+expowt cwass TestEditowGwoupsSewvice impwements IEditowGwoupsSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(public groups: TestEditorGroupView[] = []) { }
+	constwuctow(pubwic gwoups: TestEditowGwoupView[] = []) { }
 
-	onDidChangeActiveGroup: Event<IEditorGroup> = Event.None;
-	onDidActivateGroup: Event<IEditorGroup> = Event.None;
-	onDidAddGroup: Event<IEditorGroup> = Event.None;
-	onDidRemoveGroup: Event<IEditorGroup> = Event.None;
-	onDidMoveGroup: Event<IEditorGroup> = Event.None;
-	onDidChangeGroupIndex: Event<IEditorGroup> = Event.None;
-	onDidChangeGroupLocked: Event<IEditorGroup> = Event.None;
-	onDidLayout: Event<IDimension> = Event.None;
-	onDidChangeEditorPartOptions = Event.None;
+	onDidChangeActiveGwoup: Event<IEditowGwoup> = Event.None;
+	onDidActivateGwoup: Event<IEditowGwoup> = Event.None;
+	onDidAddGwoup: Event<IEditowGwoup> = Event.None;
+	onDidWemoveGwoup: Event<IEditowGwoup> = Event.None;
+	onDidMoveGwoup: Event<IEditowGwoup> = Event.None;
+	onDidChangeGwoupIndex: Event<IEditowGwoup> = Event.None;
+	onDidChangeGwoupWocked: Event<IEditowGwoup> = Event.None;
+	onDidWayout: Event<IDimension> = Event.None;
+	onDidChangeEditowPawtOptions = Event.None;
 
-	orientation = GroupOrientation.HORIZONTAL;
-	isReady = true;
-	whenReady: Promise<void> = Promise.resolve(undefined);
-	whenRestored: Promise<void> = Promise.resolve(undefined);
-	hasRestorableState = false;
+	owientation = GwoupOwientation.HOWIZONTAW;
+	isWeady = twue;
+	whenWeady: Pwomise<void> = Pwomise.wesowve(undefined);
+	whenWestowed: Pwomise<void> = Pwomise.wesowve(undefined);
+	hasWestowabweState = fawse;
 
 	contentDimension = { width: 800, height: 600 };
 
-	get activeGroup(): IEditorGroup { return this.groups[0]; }
-	get sideGroup(): IEditorGroup { return this.groups[0]; }
-	get count(): number { return this.groups.length; }
+	get activeGwoup(): IEditowGwoup { wetuwn this.gwoups[0]; }
+	get sideGwoup(): IEditowGwoup { wetuwn this.gwoups[0]; }
+	get count(): numba { wetuwn this.gwoups.wength; }
 
-	getGroups(_order?: GroupsOrder): readonly IEditorGroup[] { return this.groups; }
-	getGroup(identifier: number): IEditorGroup | undefined { return this.groups.find(group => group.id === identifier); }
-	getLabel(_identifier: number): string { return 'Group 1'; }
-	findGroup(_scope: IFindGroupScope, _source?: number | IEditorGroup, _wrap?: boolean): IEditorGroup { throw new Error('not implemented'); }
-	activateGroup(_group: number | IEditorGroup): IEditorGroup { throw new Error('not implemented'); }
-	restoreGroup(_group: number | IEditorGroup): IEditorGroup { throw new Error('not implemented'); }
-	getSize(_group: number | IEditorGroup): { width: number, height: number; } { return { width: 100, height: 100 }; }
-	setSize(_group: number | IEditorGroup, _size: { width: number, height: number; }): void { }
-	arrangeGroups(_arrangement: GroupsArrangement): void { }
-	applyLayout(_layout: EditorGroupLayout): void { }
-	setGroupOrientation(_orientation: GroupOrientation): void { }
-	addGroup(_location: number | IEditorGroup, _direction: GroupDirection, _options?: IAddGroupOptions): IEditorGroup { throw new Error('not implemented'); }
-	removeGroup(_group: number | IEditorGroup): void { }
-	moveGroup(_group: number | IEditorGroup, _location: number | IEditorGroup, _direction: GroupDirection): IEditorGroup { throw new Error('not implemented'); }
-	mergeGroup(_group: number | IEditorGroup, _target: number | IEditorGroup, _options?: IMergeGroupOptions): IEditorGroup { throw new Error('not implemented'); }
-	mergeAllGroups(): IEditorGroup { throw new Error('not implemented'); }
-	copyGroup(_group: number | IEditorGroup, _location: number | IEditorGroup, _direction: GroupDirection): IEditorGroup { throw new Error('not implemented'); }
-	centerLayout(active: boolean): void { }
-	isLayoutCentered(): boolean { return false; }
+	getGwoups(_owda?: GwoupsOwda): weadonwy IEditowGwoup[] { wetuwn this.gwoups; }
+	getGwoup(identifia: numba): IEditowGwoup | undefined { wetuwn this.gwoups.find(gwoup => gwoup.id === identifia); }
+	getWabew(_identifia: numba): stwing { wetuwn 'Gwoup 1'; }
+	findGwoup(_scope: IFindGwoupScope, _souwce?: numba | IEditowGwoup, _wwap?: boowean): IEditowGwoup { thwow new Ewwow('not impwemented'); }
+	activateGwoup(_gwoup: numba | IEditowGwoup): IEditowGwoup { thwow new Ewwow('not impwemented'); }
+	westoweGwoup(_gwoup: numba | IEditowGwoup): IEditowGwoup { thwow new Ewwow('not impwemented'); }
+	getSize(_gwoup: numba | IEditowGwoup): { width: numba, height: numba; } { wetuwn { width: 100, height: 100 }; }
+	setSize(_gwoup: numba | IEditowGwoup, _size: { width: numba, height: numba; }): void { }
+	awwangeGwoups(_awwangement: GwoupsAwwangement): void { }
+	appwyWayout(_wayout: EditowGwoupWayout): void { }
+	setGwoupOwientation(_owientation: GwoupOwientation): void { }
+	addGwoup(_wocation: numba | IEditowGwoup, _diwection: GwoupDiwection, _options?: IAddGwoupOptions): IEditowGwoup { thwow new Ewwow('not impwemented'); }
+	wemoveGwoup(_gwoup: numba | IEditowGwoup): void { }
+	moveGwoup(_gwoup: numba | IEditowGwoup, _wocation: numba | IEditowGwoup, _diwection: GwoupDiwection): IEditowGwoup { thwow new Ewwow('not impwemented'); }
+	mewgeGwoup(_gwoup: numba | IEditowGwoup, _tawget: numba | IEditowGwoup, _options?: IMewgeGwoupOptions): IEditowGwoup { thwow new Ewwow('not impwemented'); }
+	mewgeAwwGwoups(): IEditowGwoup { thwow new Ewwow('not impwemented'); }
+	copyGwoup(_gwoup: numba | IEditowGwoup, _wocation: numba | IEditowGwoup, _diwection: GwoupDiwection): IEditowGwoup { thwow new Ewwow('not impwemented'); }
+	centewWayout(active: boowean): void { }
+	isWayoutCentewed(): boowean { wetuwn fawse; }
 
-	partOptions!: IEditorPartOptions;
-	enforcePartOptions(options: IEditorPartOptions): IDisposable { return Disposable.None; }
+	pawtOptions!: IEditowPawtOptions;
+	enfowcePawtOptions(options: IEditowPawtOptions): IDisposabwe { wetuwn Disposabwe.None; }
 }
 
-export class TestEditorGroupView implements IEditorGroupView {
+expowt cwass TestEditowGwoupView impwements IEditowGwoupView {
 
-	constructor(public id: number) { }
+	constwuctow(pubwic id: numba) { }
 
-	activeEditorPane!: IVisibleEditorPane;
-	activeEditor!: EditorInput;
-	previewEditor!: EditorInput;
-	count!: number;
-	stickyCount!: number;
-	disposed!: boolean;
-	editors: readonly EditorInput[] = [];
-	label!: string;
-	isLocked!: boolean;
-	ariaLabel!: string;
-	index!: number;
-	whenRestored: Promise<void> = Promise.resolve(undefined);
-	element!: HTMLElement;
-	minimumWidth!: number;
-	maximumWidth!: number;
-	minimumHeight!: number;
-	maximumHeight!: number;
+	activeEditowPane!: IVisibweEditowPane;
+	activeEditow!: EditowInput;
+	pweviewEditow!: EditowInput;
+	count!: numba;
+	stickyCount!: numba;
+	disposed!: boowean;
+	editows: weadonwy EditowInput[] = [];
+	wabew!: stwing;
+	isWocked!: boowean;
+	awiaWabew!: stwing;
+	index!: numba;
+	whenWestowed: Pwomise<void> = Pwomise.wesowve(undefined);
+	ewement!: HTMWEwement;
+	minimumWidth!: numba;
+	maximumWidth!: numba;
+	minimumHeight!: numba;
+	maximumHeight!: numba;
 
-	titleHeight!: IEditorGroupTitleHeight;
+	titweHeight!: IEditowGwoupTitweHeight;
 
-	isEmpty = true;
-	isMinimized = false;
+	isEmpty = twue;
+	isMinimized = fawse;
 
-	onWillDispose: Event<void> = Event.None;
-	onDidGroupChange: Event<IGroupChangeEvent> = Event.None;
-	onWillCloseEditor: Event<IEditorCloseEvent> = Event.None;
-	onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
-	onDidOpenEditorFail: Event<EditorInput> = Event.None;
+	onWiwwDispose: Event<void> = Event.None;
+	onDidGwoupChange: Event<IGwoupChangeEvent> = Event.None;
+	onWiwwCwoseEditow: Event<IEditowCwoseEvent> = Event.None;
+	onDidCwoseEditow: Event<IEditowCwoseEvent> = Event.None;
+	onDidOpenEditowFaiw: Event<EditowInput> = Event.None;
 	onDidFocus: Event<void> = Event.None;
-	onDidChange: Event<{ width: number; height: number; }> = Event.None;
-	onWillMoveEditor: Event<IEditorWillMoveEvent> = Event.None;
-	onWillOpenEditor: Event<IEditorWillOpenEvent> = Event.None;
+	onDidChange: Event<{ width: numba; height: numba; }> = Event.None;
+	onWiwwMoveEditow: Event<IEditowWiwwMoveEvent> = Event.None;
+	onWiwwOpenEditow: Event<IEditowWiwwOpenEvent> = Event.None;
 
-	getEditors(_order?: EditorsOrder): readonly EditorInput[] { return []; }
-	findEditors(_resource: URI): readonly EditorInput[] { return []; }
-	getEditorByIndex(_index: number): EditorInput { throw new Error('not implemented'); }
-	getIndexOfEditor(_editor: EditorInput): number { return -1; }
-	openEditor(_editor: EditorInput, _options?: IEditorOptions): Promise<IEditorPane> { throw new Error('not implemented'); }
-	openEditors(_editors: IEditorInputWithOptions[]): Promise<IEditorPane> { throw new Error('not implemented'); }
-	isPinned(_editor: EditorInput): boolean { return false; }
-	isSticky(_editor: EditorInput): boolean { return false; }
-	isActive(_editor: EditorInput | IUntypedEditorInput): boolean { return false; }
-	contains(candidate: EditorInput | IUntypedEditorInput): boolean { return false; }
-	moveEditor(_editor: EditorInput, _target: IEditorGroup, _options?: IEditorOptions): void { }
-	moveEditors(_editors: IEditorInputWithOptions[], _target: IEditorGroup): void { }
-	copyEditor(_editor: EditorInput, _target: IEditorGroup, _options?: IEditorOptions): void { }
-	copyEditors(_editors: IEditorInputWithOptions[], _target: IEditorGroup): void { }
-	async closeEditor(_editor?: EditorInput, options?: ICloseEditorOptions): Promise<void> { }
-	async closeEditors(_editors: EditorInput[] | ICloseEditorsFilter, options?: ICloseEditorOptions): Promise<void> { }
-	async closeAllEditors(options?: ICloseAllEditorsOptions): Promise<void> { }
-	async replaceEditors(_editors: IEditorReplacement[]): Promise<void> { }
-	pinEditor(_editor?: EditorInput): void { }
-	stickEditor(editor?: EditorInput | undefined): void { }
-	unstickEditor(editor?: EditorInput | undefined): void { }
-	lock(locked: boolean): void { }
+	getEditows(_owda?: EditowsOwda): weadonwy EditowInput[] { wetuwn []; }
+	findEditows(_wesouwce: UWI): weadonwy EditowInput[] { wetuwn []; }
+	getEditowByIndex(_index: numba): EditowInput { thwow new Ewwow('not impwemented'); }
+	getIndexOfEditow(_editow: EditowInput): numba { wetuwn -1; }
+	openEditow(_editow: EditowInput, _options?: IEditowOptions): Pwomise<IEditowPane> { thwow new Ewwow('not impwemented'); }
+	openEditows(_editows: IEditowInputWithOptions[]): Pwomise<IEditowPane> { thwow new Ewwow('not impwemented'); }
+	isPinned(_editow: EditowInput): boowean { wetuwn fawse; }
+	isSticky(_editow: EditowInput): boowean { wetuwn fawse; }
+	isActive(_editow: EditowInput | IUntypedEditowInput): boowean { wetuwn fawse; }
+	contains(candidate: EditowInput | IUntypedEditowInput): boowean { wetuwn fawse; }
+	moveEditow(_editow: EditowInput, _tawget: IEditowGwoup, _options?: IEditowOptions): void { }
+	moveEditows(_editows: IEditowInputWithOptions[], _tawget: IEditowGwoup): void { }
+	copyEditow(_editow: EditowInput, _tawget: IEditowGwoup, _options?: IEditowOptions): void { }
+	copyEditows(_editows: IEditowInputWithOptions[], _tawget: IEditowGwoup): void { }
+	async cwoseEditow(_editow?: EditowInput, options?: ICwoseEditowOptions): Pwomise<void> { }
+	async cwoseEditows(_editows: EditowInput[] | ICwoseEditowsFiwta, options?: ICwoseEditowOptions): Pwomise<void> { }
+	async cwoseAwwEditows(options?: ICwoseAwwEditowsOptions): Pwomise<void> { }
+	async wepwaceEditows(_editows: IEditowWepwacement[]): Pwomise<void> { }
+	pinEditow(_editow?: EditowInput): void { }
+	stickEditow(editow?: EditowInput | undefined): void { }
+	unstickEditow(editow?: EditowInput | undefined): void { }
+	wock(wocked: boowean): void { }
 	focus(): void { }
-	get scopedContextKeyService(): IContextKeyService { throw new Error('not implemented'); }
-	setActive(_isActive: boolean): void { }
-	notifyIndexChanged(_index: number): void { }
+	get scopedContextKeySewvice(): IContextKeySewvice { thwow new Ewwow('not impwemented'); }
+	setActive(_isActive: boowean): void { }
+	notifyIndexChanged(_index: numba): void { }
 	dispose(): void { }
-	toJSON(): object { return Object.create(null); }
-	layout(_width: number, _height: number): void { }
-	relayout() { }
+	toJSON(): object { wetuwn Object.cweate(nuww); }
+	wayout(_width: numba, _height: numba): void { }
+	wewayout() { }
 }
 
-export class TestEditorGroupAccessor implements IEditorGroupsAccessor {
+expowt cwass TestEditowGwoupAccessow impwements IEditowGwoupsAccessow {
 
-	groups: IEditorGroupView[] = [];
-	activeGroup!: IEditorGroupView;
+	gwoups: IEditowGwoupView[] = [];
+	activeGwoup!: IEditowGwoupView;
 
-	partOptions: IEditorPartOptions = {};
+	pawtOptions: IEditowPawtOptions = {};
 
-	onDidChangeEditorPartOptions = Event.None;
-	onDidVisibilityChange = Event.None;
+	onDidChangeEditowPawtOptions = Event.None;
+	onDidVisibiwityChange = Event.None;
 
-	getGroup(identifier: number): IEditorGroupView | undefined { throw new Error('Method not implemented.'); }
-	getGroups(order: GroupsOrder): IEditorGroupView[] { throw new Error('Method not implemented.'); }
-	activateGroup(identifier: number | IEditorGroupView): IEditorGroupView { throw new Error('Method not implemented.'); }
-	restoreGroup(identifier: number | IEditorGroupView): IEditorGroupView { throw new Error('Method not implemented.'); }
-	addGroup(location: number | IEditorGroupView, direction: GroupDirection, options?: IAddGroupOptions | undefined): IEditorGroupView { throw new Error('Method not implemented.'); }
-	mergeGroup(group: number | IEditorGroupView, target: number | IEditorGroupView, options?: IMergeGroupOptions | undefined): IEditorGroupView { throw new Error('Method not implemented.'); }
-	moveGroup(group: number | IEditorGroupView, location: number | IEditorGroupView, direction: GroupDirection): IEditorGroupView { throw new Error('Method not implemented.'); }
-	copyGroup(group: number | IEditorGroupView, location: number | IEditorGroupView, direction: GroupDirection): IEditorGroupView { throw new Error('Method not implemented.'); }
-	removeGroup(group: number | IEditorGroupView): void { throw new Error('Method not implemented.'); }
-	arrangeGroups(arrangement: GroupsArrangement, target?: number | IEditorGroupView | undefined): void { throw new Error('Method not implemented.'); }
+	getGwoup(identifia: numba): IEditowGwoupView | undefined { thwow new Ewwow('Method not impwemented.'); }
+	getGwoups(owda: GwoupsOwda): IEditowGwoupView[] { thwow new Ewwow('Method not impwemented.'); }
+	activateGwoup(identifia: numba | IEditowGwoupView): IEditowGwoupView { thwow new Ewwow('Method not impwemented.'); }
+	westoweGwoup(identifia: numba | IEditowGwoupView): IEditowGwoupView { thwow new Ewwow('Method not impwemented.'); }
+	addGwoup(wocation: numba | IEditowGwoupView, diwection: GwoupDiwection, options?: IAddGwoupOptions | undefined): IEditowGwoupView { thwow new Ewwow('Method not impwemented.'); }
+	mewgeGwoup(gwoup: numba | IEditowGwoupView, tawget: numba | IEditowGwoupView, options?: IMewgeGwoupOptions | undefined): IEditowGwoupView { thwow new Ewwow('Method not impwemented.'); }
+	moveGwoup(gwoup: numba | IEditowGwoupView, wocation: numba | IEditowGwoupView, diwection: GwoupDiwection): IEditowGwoupView { thwow new Ewwow('Method not impwemented.'); }
+	copyGwoup(gwoup: numba | IEditowGwoupView, wocation: numba | IEditowGwoupView, diwection: GwoupDiwection): IEditowGwoupView { thwow new Ewwow('Method not impwemented.'); }
+	wemoveGwoup(gwoup: numba | IEditowGwoupView): void { thwow new Ewwow('Method not impwemented.'); }
+	awwangeGwoups(awwangement: GwoupsAwwangement, tawget?: numba | IEditowGwoupView | undefined): void { thwow new Ewwow('Method not impwemented.'); }
 }
 
-export class TestEditorService implements EditorServiceImpl {
+expowt cwass TestEditowSewvice impwements EditowSewviceImpw {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	onDidActiveEditorChange: Event<void> = Event.None;
-	onDidVisibleEditorsChange: Event<void> = Event.None;
-	onDidEditorsChange: Event<IEditorsChangeEvent[]> = Event.None;
-	onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
-	onDidOpenEditorFail: Event<IEditorIdentifier> = Event.None;
-	onDidMostRecentlyActiveEditorsChange: Event<void> = Event.None;
+	onDidActiveEditowChange: Event<void> = Event.None;
+	onDidVisibweEditowsChange: Event<void> = Event.None;
+	onDidEditowsChange: Event<IEditowsChangeEvent[]> = Event.None;
+	onDidCwoseEditow: Event<IEditowCwoseEvent> = Event.None;
+	onDidOpenEditowFaiw: Event<IEditowIdentifia> = Event.None;
+	onDidMostWecentwyActiveEditowsChange: Event<void> = Event.None;
 
-	private _activeTextEditorControl: ICodeEditor | IDiffEditor | undefined;
-	public get activeTextEditorControl(): ICodeEditor | IDiffEditor | undefined { return this._activeTextEditorControl; }
-	public set activeTextEditorControl(value: ICodeEditor | IDiffEditor | undefined) { this._activeTextEditorControl = value; }
+	pwivate _activeTextEditowContwow: ICodeEditow | IDiffEditow | undefined;
+	pubwic get activeTextEditowContwow(): ICodeEditow | IDiffEditow | undefined { wetuwn this._activeTextEditowContwow; }
+	pubwic set activeTextEditowContwow(vawue: ICodeEditow | IDiffEditow | undefined) { this._activeTextEditowContwow = vawue; }
 
-	activeEditorPane: IVisibleEditorPane | undefined;
-	activeTextEditorMode: string | undefined;
+	activeEditowPane: IVisibweEditowPane | undefined;
+	activeTextEditowMode: stwing | undefined;
 
-	private _activeEditor: EditorInput | undefined;
-	public get activeEditor(): EditorInput | undefined { return this._activeEditor; }
-	public set activeEditor(value: EditorInput | undefined) { this._activeEditor = value; }
+	pwivate _activeEditow: EditowInput | undefined;
+	pubwic get activeEditow(): EditowInput | undefined { wetuwn this._activeEditow; }
+	pubwic set activeEditow(vawue: EditowInput | undefined) { this._activeEditow = vawue; }
 
-	editors: readonly EditorInput[] = [];
-	mostRecentlyActiveEditors: readonly IEditorIdentifier[] = [];
-	visibleEditorPanes: readonly IVisibleEditorPane[] = [];
-	visibleTextEditorControls = [];
-	visibleEditors: readonly EditorInput[] = [];
-	count = this.editors.length;
+	editows: weadonwy EditowInput[] = [];
+	mostWecentwyActiveEditows: weadonwy IEditowIdentifia[] = [];
+	visibweEditowPanes: weadonwy IVisibweEditowPane[] = [];
+	visibweTextEditowContwows = [];
+	visibweEditows: weadonwy EditowInput[] = [];
+	count = this.editows.wength;
 
-	constructor(private editorGroupService?: IEditorGroupsService) { }
-	getEditors() { return []; }
-	findEditors() { return [] as any; }
-	openEditor(editor: EditorInput, options?: IEditorOptions, group?: PreferredGroup): Promise<IEditorPane | undefined>;
-	openEditor(editor: IResourceEditorInput | IUntitledTextResourceEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined>;
-	openEditor(editor: IResourceDiffEditorInput, group?: PreferredGroup): Promise<ITextDiffEditorPane | undefined>;
-	async openEditor(editor: EditorInput | IUntypedEditorInput, optionsOrGroup?: IEditorOptions | PreferredGroup, group?: PreferredGroup): Promise<IEditorPane | undefined> {
-		throw new Error('not implemented');
+	constwuctow(pwivate editowGwoupSewvice?: IEditowGwoupsSewvice) { }
+	getEditows() { wetuwn []; }
+	findEditows() { wetuwn [] as any; }
+	openEditow(editow: EditowInput, options?: IEditowOptions, gwoup?: PwefewwedGwoup): Pwomise<IEditowPane | undefined>;
+	openEditow(editow: IWesouwceEditowInput | IUntitwedTextWesouwceEditowInput, gwoup?: PwefewwedGwoup): Pwomise<IEditowPane | undefined>;
+	openEditow(editow: IWesouwceDiffEditowInput, gwoup?: PwefewwedGwoup): Pwomise<ITextDiffEditowPane | undefined>;
+	async openEditow(editow: EditowInput | IUntypedEditowInput, optionsOwGwoup?: IEditowOptions | PwefewwedGwoup, gwoup?: PwefewwedGwoup): Pwomise<IEditowPane | undefined> {
+		thwow new Ewwow('not impwemented');
 	}
-	doResolveEditorOpenRequest(editor: EditorInput | IUntypedEditorInput): [IEditorGroup, EditorInput, IEditorOptions | undefined] | undefined {
-		if (!this.editorGroupService) {
-			return undefined;
+	doWesowveEditowOpenWequest(editow: EditowInput | IUntypedEditowInput): [IEditowGwoup, EditowInput, IEditowOptions | undefined] | undefined {
+		if (!this.editowGwoupSewvice) {
+			wetuwn undefined;
 		}
 
-		return [this.editorGroupService.activeGroup, editor as EditorInput, undefined];
+		wetuwn [this.editowGwoupSewvice.activeGwoup, editow as EditowInput, undefined];
 	}
-	openEditors(_editors: any, _group?: any): Promise<IEditorPane[]> { throw new Error('not implemented'); }
-	isOpened(_editor: IResourceEditorInputIdentifier): boolean { return false; }
-	isVisible(_editor: EditorInput): boolean { return false; }
-	replaceEditors(_editors: any, _group: any) { return Promise.resolve(undefined); }
-	save(editors: IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
-	saveAll(options?: ISaveEditorsOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
-	revert(editors: IEditorIdentifier[], options?: IRevertOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
-	revertAll(options?: IRevertAllEditorsOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
+	openEditows(_editows: any, _gwoup?: any): Pwomise<IEditowPane[]> { thwow new Ewwow('not impwemented'); }
+	isOpened(_editow: IWesouwceEditowInputIdentifia): boowean { wetuwn fawse; }
+	isVisibwe(_editow: EditowInput): boowean { wetuwn fawse; }
+	wepwaceEditows(_editows: any, _gwoup: any) { wetuwn Pwomise.wesowve(undefined); }
+	save(editows: IEditowIdentifia[], options?: ISaveEditowsOptions): Pwomise<boowean> { thwow new Ewwow('Method not impwemented.'); }
+	saveAww(options?: ISaveEditowsOptions): Pwomise<boowean> { thwow new Ewwow('Method not impwemented.'); }
+	wevewt(editows: IEditowIdentifia[], options?: IWevewtOptions): Pwomise<boowean> { thwow new Ewwow('Method not impwemented.'); }
+	wevewtAww(options?: IWevewtAwwEditowsOptions): Pwomise<boowean> { thwow new Ewwow('Method not impwemented.'); }
 }
 
-export class TestFileService implements IFileService {
+expowt cwass TestFiweSewvice impwements IFiweSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _onDidFilesChange = new Emitter<FileChangesEvent>();
-	get onDidFilesChange(): Event<FileChangesEvent> { return this._onDidFilesChange.event; }
-	fireFileChanges(event: FileChangesEvent): void { this._onDidFilesChange.fire(event); }
+	pwivate weadonwy _onDidFiwesChange = new Emitta<FiweChangesEvent>();
+	get onDidFiwesChange(): Event<FiweChangesEvent> { wetuwn this._onDidFiwesChange.event; }
+	fiweFiweChanges(event: FiweChangesEvent): void { this._onDidFiwesChange.fiwe(event); }
 
-	private readonly _onDidChangeFilesRaw = new Emitter<IRawFileChangesEvent>();
-	get onDidChangeFilesRaw(): Event<IRawFileChangesEvent> { return this._onDidChangeFilesRaw.event; }
+	pwivate weadonwy _onDidChangeFiwesWaw = new Emitta<IWawFiweChangesEvent>();
+	get onDidChangeFiwesWaw(): Event<IWawFiweChangesEvent> { wetuwn this._onDidChangeFiwesWaw.event; }
 
-	private readonly _onDidRunOperation = new Emitter<FileOperationEvent>();
-	get onDidRunOperation(): Event<FileOperationEvent> { return this._onDidRunOperation.event; }
-	fireAfterOperation(event: FileOperationEvent): void { this._onDidRunOperation.fire(event); }
+	pwivate weadonwy _onDidWunOpewation = new Emitta<FiweOpewationEvent>();
+	get onDidWunOpewation(): Event<FiweOpewationEvent> { wetuwn this._onDidWunOpewation.event; }
+	fiweAftewOpewation(event: FiweOpewationEvent): void { this._onDidWunOpewation.fiwe(event); }
 
-	private readonly _onDidChangeFileSystemProviderCapabilities = new Emitter<IFileSystemProviderCapabilitiesChangeEvent>();
-	get onDidChangeFileSystemProviderCapabilities(): Event<IFileSystemProviderCapabilitiesChangeEvent> { return this._onDidChangeFileSystemProviderCapabilities.event; }
-	fireFileSystemProviderCapabilitiesChangeEvent(event: IFileSystemProviderCapabilitiesChangeEvent): void { this._onDidChangeFileSystemProviderCapabilities.fire(event); }
+	pwivate weadonwy _onDidChangeFiweSystemPwovidewCapabiwities = new Emitta<IFiweSystemPwovidewCapabiwitiesChangeEvent>();
+	get onDidChangeFiweSystemPwovidewCapabiwities(): Event<IFiweSystemPwovidewCapabiwitiesChangeEvent> { wetuwn this._onDidChangeFiweSystemPwovidewCapabiwities.event; }
+	fiweFiweSystemPwovidewCapabiwitiesChangeEvent(event: IFiweSystemPwovidewCapabiwitiesChangeEvent): void { this._onDidChangeFiweSystemPwovidewCapabiwities.fiwe(event); }
 
-	readonly onWillActivateFileSystemProvider = Event.None;
-	readonly onError: Event<Error> = Event.None;
+	weadonwy onWiwwActivateFiweSystemPwovida = Event.None;
+	weadonwy onEwwow: Event<Ewwow> = Event.None;
 
-	private content = 'Hello Html';
-	private lastReadFileUri!: URI;
+	pwivate content = 'Hewwo Htmw';
+	pwivate wastWeadFiweUwi!: UWI;
 
-	readonly = false;
+	weadonwy = fawse;
 
-	setContent(content: string): void { this.content = content; }
-	getContent(): string { return this.content; }
-	getLastReadFileUri(): URI { return this.lastReadFileUri; }
+	setContent(content: stwing): void { this.content = content; }
+	getContent(): stwing { wetuwn this.content; }
+	getWastWeadFiweUwi(): UWI { wetuwn this.wastWeadFiweUwi; }
 
-	resolve(resource: URI, _options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
-	resolve(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat>;
-	resolve(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat> {
-		return Promise.resolve({
-			resource,
-			etag: Date.now().toString(),
+	wesowve(wesouwce: UWI, _options: IWesowveMetadataFiweOptions): Pwomise<IFiweStatWithMetadata>;
+	wesowve(wesouwce: UWI, _options?: IWesowveFiweOptions): Pwomise<IFiweStat>;
+	wesowve(wesouwce: UWI, _options?: IWesowveFiweOptions): Pwomise<IFiweStat> {
+		wetuwn Pwomise.wesowve({
+			wesouwce,
+			etag: Date.now().toStwing(),
 			encoding: 'utf8',
 			mtime: Date.now(),
 			size: 42,
-			isFile: true,
-			isDirectory: false,
-			isSymbolicLink: false,
-			readonly: this.readonly,
-			name: basename(resource)
+			isFiwe: twue,
+			isDiwectowy: fawse,
+			isSymbowicWink: fawse,
+			weadonwy: this.weadonwy,
+			name: basename(wesouwce)
 		});
 	}
 
-	async resolveAll(toResolve: { resource: URI, options?: IResolveFileOptions; }[]): Promise<IResolveFileResult[]> {
-		const stats = await Promise.all(toResolve.map(resourceAndOption => this.resolve(resourceAndOption.resource, resourceAndOption.options)));
+	async wesowveAww(toWesowve: { wesouwce: UWI, options?: IWesowveFiweOptions; }[]): Pwomise<IWesowveFiweWesuwt[]> {
+		const stats = await Pwomise.aww(toWesowve.map(wesouwceAndOption => this.wesowve(wesouwceAndOption.wesouwce, wesouwceAndOption.options)));
 
-		return stats.map(stat => ({ stat, success: true }));
+		wetuwn stats.map(stat => ({ stat, success: twue }));
 	}
 
-	readonly notExistsSet = new ResourceMap<boolean>();
+	weadonwy notExistsSet = new WesouwceMap<boowean>();
 
-	async exists(_resource: URI): Promise<boolean> { return !this.notExistsSet.has(_resource); }
+	async exists(_wesouwce: UWI): Pwomise<boowean> { wetuwn !this.notExistsSet.has(_wesouwce); }
 
-	readShouldThrowError: Error | undefined = undefined;
+	weadShouwdThwowEwwow: Ewwow | undefined = undefined;
 
-	readFile(resource: URI, options?: IReadFileOptions | undefined): Promise<IFileContent> {
-		if (this.readShouldThrowError) {
-			throw this.readShouldThrowError;
+	weadFiwe(wesouwce: UWI, options?: IWeadFiweOptions | undefined): Pwomise<IFiweContent> {
+		if (this.weadShouwdThwowEwwow) {
+			thwow this.weadShouwdThwowEwwow;
 		}
 
-		this.lastReadFileUri = resource;
+		this.wastWeadFiweUwi = wesouwce;
 
-		return Promise.resolve({
-			resource: resource,
-			value: VSBuffer.fromString(this.content),
+		wetuwn Pwomise.wesowve({
+			wesouwce: wesouwce,
+			vawue: VSBuffa.fwomStwing(this.content),
 			etag: 'index.txt',
 			encoding: 'utf8',
 			mtime: Date.now(),
 			ctime: Date.now(),
-			name: basename(resource),
-			readonly: this.readonly,
+			name: basename(wesouwce),
+			weadonwy: this.weadonwy,
 			size: 1
 		});
 	}
 
-	readFileStream(resource: URI, options?: IReadFileStreamOptions | undefined): Promise<IFileStreamContent> {
-		if (this.readShouldThrowError) {
-			throw this.readShouldThrowError;
+	weadFiweStweam(wesouwce: UWI, options?: IWeadFiweStweamOptions | undefined): Pwomise<IFiweStweamContent> {
+		if (this.weadShouwdThwowEwwow) {
+			thwow this.weadShouwdThwowEwwow;
 		}
 
-		this.lastReadFileUri = resource;
+		this.wastWeadFiweUwi = wesouwce;
 
-		return Promise.resolve({
-			resource,
-			value: bufferToStream(VSBuffer.fromString(this.content)),
+		wetuwn Pwomise.wesowve({
+			wesouwce,
+			vawue: buffewToStweam(VSBuffa.fwomStwing(this.content)),
 			etag: 'index.txt',
 			encoding: 'utf8',
 			mtime: Date.now(),
 			ctime: Date.now(),
 			size: 1,
-			readonly: this.readonly,
-			name: basename(resource)
+			weadonwy: this.weadonwy,
+			name: basename(wesouwce)
 		});
 	}
 
-	writeShouldThrowError: Error | undefined = undefined;
+	wwiteShouwdThwowEwwow: Ewwow | undefined = undefined;
 
-	async writeFile(resource: URI, bufferOrReadable: VSBuffer | VSBufferReadable, options?: IWriteFileOptions): Promise<IFileStatWithMetadata> {
+	async wwiteFiwe(wesouwce: UWI, buffewOwWeadabwe: VSBuffa | VSBuffewWeadabwe, options?: IWwiteFiweOptions): Pwomise<IFiweStatWithMetadata> {
 		await timeout(0);
 
-		if (this.writeShouldThrowError) {
-			throw this.writeShouldThrowError;
+		if (this.wwiteShouwdThwowEwwow) {
+			thwow this.wwiteShouwdThwowEwwow;
 		}
 
-		return ({
-			resource,
+		wetuwn ({
+			wesouwce,
 			etag: 'index.txt',
 			mtime: Date.now(),
 			ctime: Date.now(),
 			size: 42,
-			isFile: true,
-			isDirectory: false,
-			isSymbolicLink: false,
-			readonly: this.readonly,
-			name: basename(resource)
+			isFiwe: twue,
+			isDiwectowy: fawse,
+			isSymbowicWink: fawse,
+			weadonwy: this.weadonwy,
+			name: basename(wesouwce)
 		});
 	}
 
-	move(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
-	copy(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
-	createFile(_resource: URI, _content?: VSBuffer | VSBufferReadable, _options?: ICreateFileOptions): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
-	createFolder(_resource: URI): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
+	move(_souwce: UWI, _tawget: UWI, _ovewwwite?: boowean): Pwomise<IFiweStatWithMetadata> { wetuwn Pwomise.wesowve(nuww!); }
+	copy(_souwce: UWI, _tawget: UWI, _ovewwwite?: boowean): Pwomise<IFiweStatWithMetadata> { wetuwn Pwomise.wesowve(nuww!); }
+	cweateFiwe(_wesouwce: UWI, _content?: VSBuffa | VSBuffewWeadabwe, _options?: ICweateFiweOptions): Pwomise<IFiweStatWithMetadata> { wetuwn Pwomise.wesowve(nuww!); }
+	cweateFowda(_wesouwce: UWI): Pwomise<IFiweStatWithMetadata> { wetuwn Pwomise.wesowve(nuww!); }
 
-	onDidChangeFileSystemProviderRegistrations = Event.None;
+	onDidChangeFiweSystemPwovidewWegistwations = Event.None;
 
-	private providers = new Map<string, IFileSystemProvider>();
+	pwivate pwovidews = new Map<stwing, IFiweSystemPwovida>();
 
-	registerProvider(scheme: string, provider: IFileSystemProvider) {
-		this.providers.set(scheme, provider);
+	wegistewPwovida(scheme: stwing, pwovida: IFiweSystemPwovida) {
+		this.pwovidews.set(scheme, pwovida);
 
-		return toDisposable(() => this.providers.delete(scheme));
+		wetuwn toDisposabwe(() => this.pwovidews.dewete(scheme));
 	}
 
-	getProvider(scheme: string) {
-		return this.providers.get(scheme);
+	getPwovida(scheme: stwing) {
+		wetuwn this.pwovidews.get(scheme);
 	}
 
-	activateProvider(_scheme: string): Promise<void> { throw new Error('not implemented'); }
-	canHandleResource(resource: URI): boolean { return resource.scheme === Schemas.file || this.providers.has(resource.scheme); }
-	listCapabilities() {
-		return [
-			{ scheme: Schemas.file, capabilities: FileSystemProviderCapabilities.FileOpenReadWriteClose },
-			...Iterable.map(this.providers, ([scheme, p]) => { return { scheme, capabilities: p.capabilities }; })
+	activatePwovida(_scheme: stwing): Pwomise<void> { thwow new Ewwow('not impwemented'); }
+	canHandweWesouwce(wesouwce: UWI): boowean { wetuwn wesouwce.scheme === Schemas.fiwe || this.pwovidews.has(wesouwce.scheme); }
+	wistCapabiwities() {
+		wetuwn [
+			{ scheme: Schemas.fiwe, capabiwities: FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose },
+			...Itewabwe.map(this.pwovidews, ([scheme, p]) => { wetuwn { scheme, capabiwities: p.capabiwities }; })
 		];
 	}
-	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean {
-		if (capability === FileSystemProviderCapabilities.PathCaseSensitive && isLinux) {
-			return true;
+	hasCapabiwity(wesouwce: UWI, capabiwity: FiweSystemPwovidewCapabiwities): boowean {
+		if (capabiwity === FiweSystemPwovidewCapabiwities.PathCaseSensitive && isWinux) {
+			wetuwn twue;
 		}
 
-		const provider = this.getProvider(resource.scheme);
+		const pwovida = this.getPwovida(wesouwce.scheme);
 
-		return !!(provider && (provider.capabilities & capability));
+		wetuwn !!(pwovida && (pwovida.capabiwities & capabiwity));
 	}
 
-	async del(_resource: URI, _options?: { useTrash?: boolean, recursive?: boolean; }): Promise<void> { }
+	async dew(_wesouwce: UWI, _options?: { useTwash?: boowean, wecuwsive?: boowean; }): Pwomise<void> { }
 
-	readonly watches: URI[] = [];
-	watch(_resource: URI): IDisposable {
-		this.watches.push(_resource);
+	weadonwy watches: UWI[] = [];
+	watch(_wesouwce: UWI): IDisposabwe {
+		this.watches.push(_wesouwce);
 
-		return toDisposable(() => this.watches.splice(this.watches.indexOf(_resource), 1));
+		wetuwn toDisposabwe(() => this.watches.spwice(this.watches.indexOf(_wesouwce), 1));
 	}
 
-	getWriteEncoding(_resource: URI): IResourceEncoding { return { encoding: 'utf8', hasBOM: false }; }
+	getWwiteEncoding(_wesouwce: UWI): IWesouwceEncoding { wetuwn { encoding: 'utf8', hasBOM: fawse }; }
 	dispose(): void { }
 
-	async canCreateFile(source: URI, options?: ICreateFileOptions): Promise<Error | true> { return true; }
-	async canMove(source: URI, target: URI, overwrite?: boolean | undefined): Promise<Error | true> { return true; }
-	async canCopy(source: URI, target: URI, overwrite?: boolean | undefined): Promise<Error | true> { return true; }
-	async canDelete(resource: URI, options?: { useTrash?: boolean | undefined; recursive?: boolean | undefined; } | undefined): Promise<Error | true> { return true; }
+	async canCweateFiwe(souwce: UWI, options?: ICweateFiweOptions): Pwomise<Ewwow | twue> { wetuwn twue; }
+	async canMove(souwce: UWI, tawget: UWI, ovewwwite?: boowean | undefined): Pwomise<Ewwow | twue> { wetuwn twue; }
+	async canCopy(souwce: UWI, tawget: UWI, ovewwwite?: boowean | undefined): Pwomise<Ewwow | twue> { wetuwn twue; }
+	async canDewete(wesouwce: UWI, options?: { useTwash?: boowean | undefined; wecuwsive?: boowean | undefined; } | undefined): Pwomise<Ewwow | twue> { wetuwn twue; }
 }
 
-export class TestWorkingCopyBackupService extends InMemoryWorkingCopyBackupService {
+expowt cwass TestWowkingCopyBackupSewvice extends InMemowyWowkingCopyBackupSewvice {
 
-	readonly resolved: Set<IWorkingCopyIdentifier> = new Set();
+	weadonwy wesowved: Set<IWowkingCopyIdentifia> = new Set();
 
-	constructor() {
-		super();
+	constwuctow() {
+		supa();
 	}
 
-	parseBackupContent(textBufferFactory: ITextBufferFactory): string {
-		const textBuffer = textBufferFactory.create(DefaultEndOfLine.LF).textBuffer;
-		const lineCount = textBuffer.getLineCount();
-		const range = new Range(1, 1, lineCount, textBuffer.getLineLength(lineCount) + 1);
+	pawseBackupContent(textBuffewFactowy: ITextBuffewFactowy): stwing {
+		const textBuffa = textBuffewFactowy.cweate(DefauwtEndOfWine.WF).textBuffa;
+		const wineCount = textBuffa.getWineCount();
+		const wange = new Wange(1, 1, wineCount, textBuffa.getWineWength(wineCount) + 1);
 
-		return textBuffer.getValueInRange(range, EndOfLinePreference.TextDefined);
+		wetuwn textBuffa.getVawueInWange(wange, EndOfWinePwefewence.TextDefined);
 	}
 
-	override async resolve<T extends IWorkingCopyBackupMeta>(identifier: IWorkingCopyIdentifier): Promise<IResolvedWorkingCopyBackup<T> | undefined> {
-		this.resolved.add(identifier);
+	ovewwide async wesowve<T extends IWowkingCopyBackupMeta>(identifia: IWowkingCopyIdentifia): Pwomise<IWesowvedWowkingCopyBackup<T> | undefined> {
+		this.wesowved.add(identifia);
 
-		return super.resolve(identifier);
+		wetuwn supa.wesowve(identifia);
 	}
 }
 
-export function toUntypedWorkingCopyId(resource: URI): IWorkingCopyIdentifier {
-	return toTypedWorkingCopyId(resource, '');
+expowt function toUntypedWowkingCopyId(wesouwce: UWI): IWowkingCopyIdentifia {
+	wetuwn toTypedWowkingCopyId(wesouwce, '');
 }
 
-export function toTypedWorkingCopyId(resource: URI, typeId = 'testBackupTypeId'): IWorkingCopyIdentifier {
-	return { typeId, resource };
+expowt function toTypedWowkingCopyId(wesouwce: UWI, typeId = 'testBackupTypeId'): IWowkingCopyIdentifia {
+	wetuwn { typeId, wesouwce };
 }
 
-export class InMemoryTestWorkingCopyBackupService extends BrowserWorkingCopyBackupService {
+expowt cwass InMemowyTestWowkingCopyBackupSewvice extends BwowsewWowkingCopyBackupSewvice {
 
-	override readonly fileService: IFileService;
+	ovewwide weadonwy fiweSewvice: IFiweSewvice;
 
-	private backupResourceJoiners: Function[];
-	private discardBackupJoiners: Function[];
+	pwivate backupWesouwceJoinews: Function[];
+	pwivate discawdBackupJoinews: Function[];
 
-	discardedBackups: IWorkingCopyIdentifier[];
+	discawdedBackups: IWowkingCopyIdentifia[];
 
-	constructor() {
-		const environmentService = TestEnvironmentService;
-		const logService = new NullLogService();
-		const fileService = new FileService(logService);
-		fileService.registerProvider(Schemas.file, new InMemoryFileSystemProvider());
-		fileService.registerProvider(Schemas.userData, new InMemoryFileSystemProvider());
+	constwuctow() {
+		const enviwonmentSewvice = TestEnviwonmentSewvice;
+		const wogSewvice = new NuwwWogSewvice();
+		const fiweSewvice = new FiweSewvice(wogSewvice);
+		fiweSewvice.wegistewPwovida(Schemas.fiwe, new InMemowyFiweSystemPwovida());
+		fiweSewvice.wegistewPwovida(Schemas.usewData, new InMemowyFiweSystemPwovida());
 
-		super(new TestContextService(TestWorkspace), environmentService, fileService, logService);
+		supa(new TestContextSewvice(TestWowkspace), enviwonmentSewvice, fiweSewvice, wogSewvice);
 
-		this.fileService = fileService;
-		this.backupResourceJoiners = [];
-		this.discardBackupJoiners = [];
-		this.discardedBackups = [];
+		this.fiweSewvice = fiweSewvice;
+		this.backupWesouwceJoinews = [];
+		this.discawdBackupJoinews = [];
+		this.discawdedBackups = [];
 	}
 
-	joinBackupResource(): Promise<void> {
-		return new Promise(resolve => this.backupResourceJoiners.push(resolve));
+	joinBackupWesouwce(): Pwomise<void> {
+		wetuwn new Pwomise(wesowve => this.backupWesouwceJoinews.push(wesowve));
 	}
 
-	joinDiscardBackup(): Promise<void> {
-		return new Promise(resolve => this.discardBackupJoiners.push(resolve));
+	joinDiscawdBackup(): Pwomise<void> {
+		wetuwn new Pwomise(wesowve => this.discawdBackupJoinews.push(wesowve));
 	}
 
-	override async backup(identifier: IWorkingCopyIdentifier, content?: VSBufferReadableStream | VSBufferReadable, versionId?: number, meta?: any, token?: CancellationToken): Promise<void> {
-		await super.backup(identifier, content, versionId, meta, token);
+	ovewwide async backup(identifia: IWowkingCopyIdentifia, content?: VSBuffewWeadabweStweam | VSBuffewWeadabwe, vewsionId?: numba, meta?: any, token?: CancewwationToken): Pwomise<void> {
+		await supa.backup(identifia, content, vewsionId, meta, token);
 
-		while (this.backupResourceJoiners.length) {
-			this.backupResourceJoiners.pop()!();
+		whiwe (this.backupWesouwceJoinews.wength) {
+			this.backupWesouwceJoinews.pop()!();
 		}
 	}
 
-	override async discardBackup(identifier: IWorkingCopyIdentifier): Promise<void> {
-		await super.discardBackup(identifier);
-		this.discardedBackups.push(identifier);
+	ovewwide async discawdBackup(identifia: IWowkingCopyIdentifia): Pwomise<void> {
+		await supa.discawdBackup(identifia);
+		this.discawdedBackups.push(identifia);
 
-		while (this.discardBackupJoiners.length) {
-			this.discardBackupJoiners.pop()!();
+		whiwe (this.discawdBackupJoinews.wength) {
+			this.discawdBackupJoinews.pop()!();
 		}
 	}
 
-	async getBackupContents(identifier: IWorkingCopyIdentifier): Promise<string> {
-		const backupResource = this.toBackupResource(identifier);
+	async getBackupContents(identifia: IWowkingCopyIdentifia): Pwomise<stwing> {
+		const backupWesouwce = this.toBackupWesouwce(identifia);
 
-		const fileContents = await this.fileService.readFile(backupResource);
+		const fiweContents = await this.fiweSewvice.weadFiwe(backupWesouwce);
 
-		return fileContents.value.toString();
+		wetuwn fiweContents.vawue.toStwing();
 	}
 }
 
-export class TestLifecycleService implements ILifecycleService {
+expowt cwass TestWifecycweSewvice impwements IWifecycweSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	phase!: LifecyclePhase;
-	startupKind!: StartupKind;
+	phase!: WifecycwePhase;
+	stawtupKind!: StawtupKind;
 
-	private readonly _onBeforeShutdown = new Emitter<BeforeShutdownEvent>();
-	get onBeforeShutdown(): Event<BeforeShutdownEvent> { return this._onBeforeShutdown.event; }
+	pwivate weadonwy _onBefoweShutdown = new Emitta<BefoweShutdownEvent>();
+	get onBefoweShutdown(): Event<BefoweShutdownEvent> { wetuwn this._onBefoweShutdown.event; }
 
-	private readonly _onWillShutdown = new Emitter<WillShutdownEvent>();
-	get onWillShutdown(): Event<WillShutdownEvent> { return this._onWillShutdown.event; }
+	pwivate weadonwy _onWiwwShutdown = new Emitta<WiwwShutdownEvent>();
+	get onWiwwShutdown(): Event<WiwwShutdownEvent> { wetuwn this._onWiwwShutdown.event; }
 
-	private readonly _onShutdown = new Emitter<void>();
-	get onDidShutdown(): Event<void> { return this._onShutdown.event; }
+	pwivate weadonwy _onShutdown = new Emitta<void>();
+	get onDidShutdown(): Event<void> { wetuwn this._onShutdown.event; }
 
-	async when(): Promise<void> { }
+	async when(): Pwomise<void> { }
 
-	shutdownJoiners: Promise<void>[] = [];
+	shutdownJoinews: Pwomise<void>[] = [];
 
-	fireShutdown(reason = ShutdownReason.QUIT): void {
-		this.shutdownJoiners = [];
+	fiweShutdown(weason = ShutdownWeason.QUIT): void {
+		this.shutdownJoinews = [];
 
-		this._onWillShutdown.fire({
+		this._onWiwwShutdown.fiwe({
 			join: p => {
-				this.shutdownJoiners.push(p);
+				this.shutdownJoinews.push(p);
 			},
-			reason
+			weason
 		});
 	}
 
-	fireBeforeShutdown(event: BeforeShutdownEvent): void { this._onBeforeShutdown.fire(event); }
+	fiweBefoweShutdown(event: BefoweShutdownEvent): void { this._onBefoweShutdown.fiwe(event); }
 
-	fireWillShutdown(event: WillShutdownEvent): void { this._onWillShutdown.fire(event); }
+	fiweWiwwShutdown(event: WiwwShutdownEvent): void { this._onWiwwShutdown.fiwe(event); }
 
 	shutdown(): void {
-		this.fireShutdown();
+		this.fiweShutdown();
 	}
 }
 
-export class TestBeforeShutdownEvent implements BeforeShutdownEvent {
+expowt cwass TestBefoweShutdownEvent impwements BefoweShutdownEvent {
 
-	value: boolean | Promise<boolean> | undefined;
-	reason = ShutdownReason.CLOSE;
+	vawue: boowean | Pwomise<boowean> | undefined;
+	weason = ShutdownWeason.CWOSE;
 
-	veto(value: boolean | Promise<boolean>): void {
-		this.value = value;
+	veto(vawue: boowean | Pwomise<boowean>): void {
+		this.vawue = vawue;
 	}
 }
 
-export class TestWillShutdownEvent implements WillShutdownEvent {
+expowt cwass TestWiwwShutdownEvent impwements WiwwShutdownEvent {
 
-	value: Promise<void>[] = [];
-	reason = ShutdownReason.CLOSE;
+	vawue: Pwomise<void>[] = [];
+	weason = ShutdownWeason.CWOSE;
 
-	join(promise: Promise<void>, id: string): void {
-		this.value.push(promise);
+	join(pwomise: Pwomise<void>, id: stwing): void {
+		this.vawue.push(pwomise);
 	}
 }
 
-export class TestTextResourceConfigurationService implements ITextResourceConfigurationService {
+expowt cwass TestTextWesouwceConfiguwationSewvice impwements ITextWesouwceConfiguwationSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(private configurationService = new TestConfigurationService()) { }
+	constwuctow(pwivate configuwationSewvice = new TestConfiguwationSewvice()) { }
 
-	onDidChangeConfiguration() {
-		return { dispose() { } };
+	onDidChangeConfiguwation() {
+		wetuwn { dispose() { } };
 	}
 
-	getValue<T>(resource: URI, arg2?: any, arg3?: any): T {
-		const position: IPosition | null = EditorPosition.isIPosition(arg2) ? arg2 : null;
-		const section: string | undefined = position ? (typeof arg3 === 'string' ? arg3 : undefined) : (typeof arg2 === 'string' ? arg2 : undefined);
-		return this.configurationService.getValue(section, { resource });
+	getVawue<T>(wesouwce: UWI, awg2?: any, awg3?: any): T {
+		const position: IPosition | nuww = EditowPosition.isIPosition(awg2) ? awg2 : nuww;
+		const section: stwing | undefined = position ? (typeof awg3 === 'stwing' ? awg3 : undefined) : (typeof awg2 === 'stwing' ? awg2 : undefined);
+		wetuwn this.configuwationSewvice.getVawue(section, { wesouwce });
 	}
 
-	updateValue(resource: URI, key: string, value: any, configurationTarget?: ConfigurationTarget): Promise<void> {
-		return this.configurationService.updateValue(key, value);
+	updateVawue(wesouwce: UWI, key: stwing, vawue: any, configuwationTawget?: ConfiguwationTawget): Pwomise<void> {
+		wetuwn this.configuwationSewvice.updateVawue(key, vawue);
 	}
 }
 
-export class RemoteFileSystemProvider implements IFileSystemProvider {
+expowt cwass WemoteFiweSystemPwovida impwements IFiweSystemPwovida {
 
-	constructor(private readonly diskFileSystemProvider: IFileSystemProvider, private readonly remoteAuthority: string) { }
+	constwuctow(pwivate weadonwy diskFiweSystemPwovida: IFiweSystemPwovida, pwivate weadonwy wemoteAuthowity: stwing) { }
 
-	readonly capabilities: FileSystemProviderCapabilities = this.diskFileSystemProvider.capabilities;
-	readonly onDidChangeCapabilities: Event<void> = this.diskFileSystemProvider.onDidChangeCapabilities;
+	weadonwy capabiwities: FiweSystemPwovidewCapabiwities = this.diskFiweSystemPwovida.capabiwities;
+	weadonwy onDidChangeCapabiwities: Event<void> = this.diskFiweSystemPwovida.onDidChangeCapabiwities;
 
-	readonly onDidChangeFile: Event<readonly IFileChange[]> = Event.map(this.diskFileSystemProvider.onDidChangeFile, changes => changes.map((c): IFileChange => {
-		return {
+	weadonwy onDidChangeFiwe: Event<weadonwy IFiweChange[]> = Event.map(this.diskFiweSystemPwovida.onDidChangeFiwe, changes => changes.map((c): IFiweChange => {
+		wetuwn {
 			type: c.type,
-			resource: c.resource.with({ scheme: Schemas.vscodeRemote, authority: this.remoteAuthority }),
+			wesouwce: c.wesouwce.with({ scheme: Schemas.vscodeWemote, authowity: this.wemoteAuthowity }),
 		};
 	}));
-	watch(resource: URI, opts: IWatchOptions): IDisposable { return this.diskFileSystemProvider.watch(this.toFileResource(resource), opts); }
+	watch(wesouwce: UWI, opts: IWatchOptions): IDisposabwe { wetuwn this.diskFiweSystemPwovida.watch(this.toFiweWesouwce(wesouwce), opts); }
 
-	stat(resource: URI): Promise<IStat> { return this.diskFileSystemProvider.stat(this.toFileResource(resource)); }
-	mkdir(resource: URI): Promise<void> { return this.diskFileSystemProvider.mkdir(this.toFileResource(resource)); }
-	readdir(resource: URI): Promise<[string, FileType][]> { return this.diskFileSystemProvider.readdir(this.toFileResource(resource)); }
-	delete(resource: URI, opts: FileDeleteOptions): Promise<void> { return this.diskFileSystemProvider.delete(this.toFileResource(resource), opts); }
+	stat(wesouwce: UWI): Pwomise<IStat> { wetuwn this.diskFiweSystemPwovida.stat(this.toFiweWesouwce(wesouwce)); }
+	mkdiw(wesouwce: UWI): Pwomise<void> { wetuwn this.diskFiweSystemPwovida.mkdiw(this.toFiweWesouwce(wesouwce)); }
+	weaddiw(wesouwce: UWI): Pwomise<[stwing, FiweType][]> { wetuwn this.diskFiweSystemPwovida.weaddiw(this.toFiweWesouwce(wesouwce)); }
+	dewete(wesouwce: UWI, opts: FiweDeweteOptions): Pwomise<void> { wetuwn this.diskFiweSystemPwovida.dewete(this.toFiweWesouwce(wesouwce), opts); }
 
-	rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> { return this.diskFileSystemProvider.rename(this.toFileResource(from), this.toFileResource(to), opts); }
-	copy(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> { return this.diskFileSystemProvider.copy!(this.toFileResource(from), this.toFileResource(to), opts); }
+	wename(fwom: UWI, to: UWI, opts: FiweOvewwwiteOptions): Pwomise<void> { wetuwn this.diskFiweSystemPwovida.wename(this.toFiweWesouwce(fwom), this.toFiweWesouwce(to), opts); }
+	copy(fwom: UWI, to: UWI, opts: FiweOvewwwiteOptions): Pwomise<void> { wetuwn this.diskFiweSystemPwovida.copy!(this.toFiweWesouwce(fwom), this.toFiweWesouwce(to), opts); }
 
-	readFile(resource: URI): Promise<Uint8Array> { return this.diskFileSystemProvider.readFile!(this.toFileResource(resource)); }
-	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> { return this.diskFileSystemProvider.writeFile!(this.toFileResource(resource), content, opts); }
+	weadFiwe(wesouwce: UWI): Pwomise<Uint8Awway> { wetuwn this.diskFiweSystemPwovida.weadFiwe!(this.toFiweWesouwce(wesouwce)); }
+	wwiteFiwe(wesouwce: UWI, content: Uint8Awway, opts: FiweWwiteOptions): Pwomise<void> { wetuwn this.diskFiweSystemPwovida.wwiteFiwe!(this.toFiweWesouwce(wesouwce), content, opts); }
 
-	open(resource: URI, opts: FileOpenOptions): Promise<number> { return this.diskFileSystemProvider.open!(this.toFileResource(resource), opts); }
-	close(fd: number): Promise<void> { return this.diskFileSystemProvider.close!(fd); }
-	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return this.diskFileSystemProvider.read!(fd, pos, data, offset, length); }
-	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return this.diskFileSystemProvider.write!(fd, pos, data, offset, length); }
+	open(wesouwce: UWI, opts: FiweOpenOptions): Pwomise<numba> { wetuwn this.diskFiweSystemPwovida.open!(this.toFiweWesouwce(wesouwce), opts); }
+	cwose(fd: numba): Pwomise<void> { wetuwn this.diskFiweSystemPwovida.cwose!(fd); }
+	wead(fd: numba, pos: numba, data: Uint8Awway, offset: numba, wength: numba): Pwomise<numba> { wetuwn this.diskFiweSystemPwovida.wead!(fd, pos, data, offset, wength); }
+	wwite(fd: numba, pos: numba, data: Uint8Awway, offset: numba, wength: numba): Pwomise<numba> { wetuwn this.diskFiweSystemPwovida.wwite!(fd, pos, data, offset, wength); }
 
-	readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> { return this.diskFileSystemProvider.readFileStream!(this.toFileResource(resource), opts, token); }
+	weadFiweStweam(wesouwce: UWI, opts: FiweWeadStweamOptions, token: CancewwationToken): WeadabweStweamEvents<Uint8Awway> { wetuwn this.diskFiweSystemPwovida.weadFiweStweam!(this.toFiweWesouwce(wesouwce), opts, token); }
 
-	private toFileResource(resource: URI): URI { return resource.with({ scheme: Schemas.file, authority: '' }); }
+	pwivate toFiweWesouwce(wesouwce: UWI): UWI { wetuwn wesouwce.with({ scheme: Schemas.fiwe, authowity: '' }); }
 }
 
-export class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider implements IFileSystemProviderWithFileReadStreamCapability {
-	override readonly capabilities: FileSystemProviderCapabilities =
-		FileSystemProviderCapabilities.FileReadWrite
-		| FileSystemProviderCapabilities.PathCaseSensitive
-		| FileSystemProviderCapabilities.FileReadStream;
+expowt cwass TestInMemowyFiweSystemPwovida extends InMemowyFiweSystemPwovida impwements IFiweSystemPwovidewWithFiweWeadStweamCapabiwity {
+	ovewwide weadonwy capabiwities: FiweSystemPwovidewCapabiwities =
+		FiweSystemPwovidewCapabiwities.FiweWeadWwite
+		| FiweSystemPwovidewCapabiwities.PathCaseSensitive
+		| FiweSystemPwovidewCapabiwities.FiweWeadStweam;
 
-	readFileStream(resource: URI): ReadableStreamEvents<Uint8Array> {
-		const BUFFER_SIZE = 64 * 1024;
-		const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer);
+	weadFiweStweam(wesouwce: UWI): WeadabweStweamEvents<Uint8Awway> {
+		const BUFFEW_SIZE = 64 * 1024;
+		const stweam = newWwiteabweStweam<Uint8Awway>(data => VSBuffa.concat(data.map(data => VSBuffa.wwap(data))).buffa);
 
 		(async () => {
-			try {
-				const data = await this.readFile(resource);
+			twy {
+				const data = await this.weadFiwe(wesouwce);
 
-				let offset = 0;
-				while (offset < data.length) {
+				wet offset = 0;
+				whiwe (offset < data.wength) {
 					await timeout(0);
-					await stream.write(data.subarray(offset, offset + BUFFER_SIZE));
-					offset += BUFFER_SIZE;
+					await stweam.wwite(data.subawway(offset, offset + BUFFEW_SIZE));
+					offset += BUFFEW_SIZE;
 				}
 
 				await timeout(0);
-				stream.end();
-			} catch (error) {
-				stream.end(error);
+				stweam.end();
+			} catch (ewwow) {
+				stweam.end(ewwow);
 			}
 		})();
 
-		return stream;
+		wetuwn stweam;
 	}
 }
 
-export const productService: IProductService = { _serviceBrand: undefined, ...product };
+expowt const pwoductSewvice: IPwoductSewvice = { _sewviceBwand: undefined, ...pwoduct };
 
-export class TestHostService implements IHostService {
+expowt cwass TestHostSewvice impwements IHostSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private _hasFocus = true;
-	get hasFocus() { return this._hasFocus; }
-	async hadLastFocus(): Promise<boolean> { return this._hasFocus; }
+	pwivate _hasFocus = twue;
+	get hasFocus() { wetuwn this._hasFocus; }
+	async hadWastFocus(): Pwomise<boowean> { wetuwn this._hasFocus; }
 
-	private _onDidChangeFocus = new Emitter<boolean>();
-	readonly onDidChangeFocus = this._onDidChangeFocus.event;
+	pwivate _onDidChangeFocus = new Emitta<boowean>();
+	weadonwy onDidChangeFocus = this._onDidChangeFocus.event;
 
-	setFocus(focus: boolean) {
+	setFocus(focus: boowean) {
 		this._hasFocus = focus;
-		this._onDidChangeFocus.fire(this._hasFocus);
+		this._onDidChangeFocus.fiwe(this._hasFocus);
 	}
 
-	async restart(): Promise<void> { }
-	async reload(): Promise<void> { }
-	async close(): Promise<void> { }
+	async westawt(): Pwomise<void> { }
+	async wewoad(): Pwomise<void> { }
+	async cwose(): Pwomise<void> { }
 
-	async focus(options?: { force: boolean; }): Promise<void> { }
+	async focus(options?: { fowce: boowean; }): Pwomise<void> { }
 
-	async openWindow(arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: IOpenWindowOptions): Promise<void> { }
+	async openWindow(awg1?: IOpenEmptyWindowOptions | IWindowOpenabwe[], awg2?: IOpenWindowOptions): Pwomise<void> { }
 
-	async toggleFullScreen(): Promise<void> { }
+	async toggweFuwwScween(): Pwomise<void> { }
 
-	readonly colorScheme = ColorScheme.DARK;
-	onDidChangeColorScheme = Event.None;
+	weadonwy cowowScheme = CowowScheme.DAWK;
+	onDidChangeCowowScheme = Event.None;
 }
 
-export class TestFilesConfigurationService extends FilesConfigurationService {
+expowt cwass TestFiwesConfiguwationSewvice extends FiwesConfiguwationSewvice {
 
-	override onFilesConfigurationChange(configuration: any): void {
-		super.onFilesConfigurationChange(configuration);
-	}
-}
-
-export class TestReadonlyTextFileEditorModel extends TextFileEditorModel {
-
-	override isReadonly(): boolean {
-		return true;
+	ovewwide onFiwesConfiguwationChange(configuwation: any): void {
+		supa.onFiwesConfiguwationChange(configuwation);
 	}
 }
 
-export class TestEditorInput extends EditorInput {
+expowt cwass TestWeadonwyTextFiweEditowModew extends TextFiweEditowModew {
 
-	constructor(public resource: URI, private readonly _typeId: string) {
-		super();
-	}
-
-	override get typeId(): string {
-		return this._typeId;
-	}
-
-	override get editorId(): string {
-		return this._typeId;
-	}
-
-	override resolve(): Promise<IEditorModel | null> {
-		return Promise.resolve(null);
+	ovewwide isWeadonwy(): boowean {
+		wetuwn twue;
 	}
 }
 
-export abstract class TestEditorWithOptions extends EditorPane {
+expowt cwass TestEditowInput extends EditowInput {
 
-	lastSetOptions: ITextEditorOptions | undefined = undefined;
+	constwuctow(pubwic wesouwce: UWI, pwivate weadonwy _typeId: stwing) {
+		supa();
+	}
 
-	override setOptions(options: ITextEditorOptions | undefined): void {
-		this.lastSetOptions = options;
+	ovewwide get typeId(): stwing {
+		wetuwn this._typeId;
+	}
 
-		super.setOptions(options);
+	ovewwide get editowId(): stwing {
+		wetuwn this._typeId;
+	}
+
+	ovewwide wesowve(): Pwomise<IEditowModew | nuww> {
+		wetuwn Pwomise.wesowve(nuww);
 	}
 }
 
-export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInput>[], serializerInputId?: string): IDisposable {
-	class TestEditor extends TestEditorWithOptions {
+expowt abstwact cwass TestEditowWithOptions extends EditowPane {
 
-		private _scopedContextKeyService: IContextKeyService;
+	wastSetOptions: ITextEditowOptions | undefined = undefined;
 
-		constructor() {
-			super(id, NullTelemetryService, new TestThemeService(), new TestStorageService());
-			this._scopedContextKeyService = new MockContextKeyService();
+	ovewwide setOptions(options: ITextEditowOptions | undefined): void {
+		this.wastSetOptions = options;
+
+		supa.setOptions(options);
+	}
+}
+
+expowt function wegistewTestEditow(id: stwing, inputs: SyncDescwiptow<EditowInput>[], sewiawizewInputId?: stwing): IDisposabwe {
+	cwass TestEditow extends TestEditowWithOptions {
+
+		pwivate _scopedContextKeySewvice: IContextKeySewvice;
+
+		constwuctow() {
+			supa(id, NuwwTewemetwySewvice, new TestThemeSewvice(), new TestStowageSewvice());
+			this._scopedContextKeySewvice = new MockContextKeySewvice();
 		}
 
-		override async setInput(input: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-			super.setInput(input, options, context, token);
+		ovewwide async setInput(input: EditowInput, options: IEditowOptions | undefined, context: IEditowOpenContext, token: CancewwationToken): Pwomise<void> {
+			supa.setInput(input, options, context, token);
 
-			await input.resolve();
+			await input.wesowve();
 		}
 
-		override getId(): string { return id; }
-		layout(): void { }
-		createEditor(): void { }
+		ovewwide getId(): stwing { wetuwn id; }
+		wayout(): void { }
+		cweateEditow(): void { }
 
-		override get scopedContextKeyService() {
-			return this._scopedContextKeyService;
+		ovewwide get scopedContextKeySewvice() {
+			wetuwn this._scopedContextKeySewvice;
 		}
 	}
 
-	const disposables = new DisposableStore();
+	const disposabwes = new DisposabweStowe();
 
-	disposables.add(Registry.as<IEditorPaneRegistry>(Extensions.EditorPane).registerEditorPane(EditorPaneDescriptor.create(TestEditor, id, 'Test Editor Control'), inputs));
+	disposabwes.add(Wegistwy.as<IEditowPaneWegistwy>(Extensions.EditowPane).wegistewEditowPane(EditowPaneDescwiptow.cweate(TestEditow, id, 'Test Editow Contwow'), inputs));
 
-	if (serializerInputId) {
+	if (sewiawizewInputId) {
 
-		interface ISerializedTestInput {
-			resource: string;
+		intewface ISewiawizedTestInput {
+			wesouwce: stwing;
 		}
 
-		class EditorsObserverTestEditorInputSerializer implements IEditorSerializer {
+		cwass EditowsObsewvewTestEditowInputSewiawiza impwements IEditowSewiawiza {
 
-			canSerialize(editorInput: EditorInput): boolean {
-				return true;
+			canSewiawize(editowInput: EditowInput): boowean {
+				wetuwn twue;
 			}
 
-			serialize(editorInput: EditorInput): string {
-				let testEditorInput = <TestFileEditorInput>editorInput;
-				let testInput: ISerializedTestInput = {
-					resource: testEditorInput.resource.toString()
+			sewiawize(editowInput: EditowInput): stwing {
+				wet testEditowInput = <TestFiweEditowInput>editowInput;
+				wet testInput: ISewiawizedTestInput = {
+					wesouwce: testEditowInput.wesouwce.toStwing()
 				};
 
-				return JSON.stringify(testInput);
+				wetuwn JSON.stwingify(testInput);
 			}
 
-			deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
-				let testInput: ISerializedTestInput = JSON.parse(serializedEditorInput);
+			desewiawize(instantiationSewvice: IInstantiationSewvice, sewiawizedEditowInput: stwing): EditowInput {
+				wet testInput: ISewiawizedTestInput = JSON.pawse(sewiawizedEditowInput);
 
-				return new TestFileEditorInput(URI.parse(testInput.resource), serializerInputId!);
+				wetuwn new TestFiweEditowInput(UWI.pawse(testInput.wesouwce), sewiawizewInputId!);
 			}
 		}
 
-		disposables.add(Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(serializerInputId, EditorsObserverTestEditorInputSerializer));
+		disposabwes.add(Wegistwy.as<IEditowFactowyWegistwy>(EditowExtensions.EditowFactowy).wegistewEditowSewiawiza(sewiawizewInputId, EditowsObsewvewTestEditowInputSewiawiza));
 	}
 
-	return disposables;
+	wetuwn disposabwes;
 }
 
-export function registerTestFileEditor(): IDisposable {
-	const disposables = new DisposableStore();
+expowt function wegistewTestFiweEditow(): IDisposabwe {
+	const disposabwes = new DisposabweStowe();
 
-	disposables.add(Registry.as<IEditorPaneRegistry>(Extensions.EditorPane).registerEditorPane(
-		EditorPaneDescriptor.create(
-			TestTextFileEditor,
-			TestTextFileEditor.ID,
-			'Text File Editor'
+	disposabwes.add(Wegistwy.as<IEditowPaneWegistwy>(Extensions.EditowPane).wegistewEditowPane(
+		EditowPaneDescwiptow.cweate(
+			TestTextFiweEditow,
+			TestTextFiweEditow.ID,
+			'Text Fiwe Editow'
 		),
-		[new SyncDescriptor(FileEditorInput)]
+		[new SyncDescwiptow(FiweEditowInput)]
 	));
 
-	return disposables;
+	wetuwn disposabwes;
 }
 
-export function registerTestResourceEditor(): IDisposable {
-	const disposables = new DisposableStore();
+expowt function wegistewTestWesouwceEditow(): IDisposabwe {
+	const disposabwes = new DisposabweStowe();
 
-	disposables.add(Registry.as<IEditorPaneRegistry>(Extensions.EditorPane).registerEditorPane(
-		EditorPaneDescriptor.create(
-			TestTextResourceEditor,
-			TestTextResourceEditor.ID,
-			'Text Editor'
+	disposabwes.add(Wegistwy.as<IEditowPaneWegistwy>(Extensions.EditowPane).wegistewEditowPane(
+		EditowPaneDescwiptow.cweate(
+			TestTextWesouwceEditow,
+			TestTextWesouwceEditow.ID,
+			'Text Editow'
 		),
 		[
-			new SyncDescriptor(UntitledTextEditorInput),
-			new SyncDescriptor(TextResourceEditorInput)
+			new SyncDescwiptow(UntitwedTextEditowInput),
+			new SyncDescwiptow(TextWesouwceEditowInput)
 		]
 	));
 
-	return disposables;
+	wetuwn disposabwes;
 }
 
-export function registerTestSideBySideEditor(): IDisposable {
-	const disposables = new DisposableStore();
+expowt function wegistewTestSideBySideEditow(): IDisposabwe {
+	const disposabwes = new DisposabweStowe();
 
-	disposables.add(Registry.as<IEditorPaneRegistry>(Extensions.EditorPane).registerEditorPane(
-		EditorPaneDescriptor.create(
-			SideBySideEditor,
-			SideBySideEditor.ID,
-			'Text Editor'
+	disposabwes.add(Wegistwy.as<IEditowPaneWegistwy>(Extensions.EditowPane).wegistewEditowPane(
+		EditowPaneDescwiptow.cweate(
+			SideBySideEditow,
+			SideBySideEditow.ID,
+			'Text Editow'
 		),
 		[
-			new SyncDescriptor(SideBySideEditorInput)
+			new SyncDescwiptow(SideBySideEditowInput)
 		]
 	));
 
-	return disposables;
+	wetuwn disposabwes;
 }
 
-export class TestFileEditorInput extends EditorInput implements IFileEditorInput {
+expowt cwass TestFiweEditowInput extends EditowInput impwements IFiweEditowInput {
 
-	readonly preferredResource = this.resource;
+	weadonwy pwefewwedWesouwce = this.wesouwce;
 
-	gotDisposed = false;
-	gotSaved = false;
-	gotSavedAs = false;
-	gotReverted = false;
-	dirty = false;
-	private fails = false;
+	gotDisposed = fawse;
+	gotSaved = fawse;
+	gotSavedAs = fawse;
+	gotWevewted = fawse;
+	diwty = fawse;
+	pwivate faiws = fawse;
 
-	disableToUntyped = false;
+	disabweToUntyped = fawse;
 
-	constructor(
-		public resource: URI,
-		private _typeId: string
+	constwuctow(
+		pubwic wesouwce: UWI,
+		pwivate _typeId: stwing
 	) {
-		super();
+		supa();
 	}
 
-	override get typeId() { return this._typeId; }
-	override get editorId() { return this._typeId; }
+	ovewwide get typeId() { wetuwn this._typeId; }
+	ovewwide get editowId() { wetuwn this._typeId; }
 
-	private _capabilities: EditorInputCapabilities = EditorInputCapabilities.None;
-	override get capabilities(): EditorInputCapabilities { return this._capabilities; }
-	override set capabilities(capabilities: EditorInputCapabilities) {
-		if (this._capabilities !== capabilities) {
-			this._capabilities = capabilities;
-			this._onDidChangeCapabilities.fire();
+	pwivate _capabiwities: EditowInputCapabiwities = EditowInputCapabiwities.None;
+	ovewwide get capabiwities(): EditowInputCapabiwities { wetuwn this._capabiwities; }
+	ovewwide set capabiwities(capabiwities: EditowInputCapabiwities) {
+		if (this._capabiwities !== capabiwities) {
+			this._capabiwities = capabiwities;
+			this._onDidChangeCapabiwities.fiwe();
 		}
 	}
 
-	override resolve(): Promise<IEditorModel | null> { return !this.fails ? Promise.resolve(null) : Promise.reject(new Error('fails')); }
-	override matches(other: EditorInput | IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput): boolean {
-		if (super.matches(other)) {
-			return true;
+	ovewwide wesowve(): Pwomise<IEditowModew | nuww> { wetuwn !this.faiws ? Pwomise.wesowve(nuww) : Pwomise.weject(new Ewwow('faiws')); }
+	ovewwide matches(otha: EditowInput | IWesouwceEditowInput | ITextWesouwceEditowInput | IUntitwedTextWesouwceEditowInput): boowean {
+		if (supa.matches(otha)) {
+			wetuwn twue;
 		}
-		if (other instanceof EditorInput) {
-			return !!(other?.resource && this.resource.toString() === other.resource.toString() && other instanceof TestFileEditorInput && other.typeId === this.typeId);
+		if (otha instanceof EditowInput) {
+			wetuwn !!(otha?.wesouwce && this.wesouwce.toStwing() === otha.wesouwce.toStwing() && otha instanceof TestFiweEditowInput && otha.typeId === this.typeId);
 		}
-		return isEqual(this.resource, other.resource) && this.editorId === other.options?.override;
+		wetuwn isEquaw(this.wesouwce, otha.wesouwce) && this.editowId === otha.options?.ovewwide;
 	}
-	setPreferredResource(resource: URI): void { }
-	async setEncoding(encoding: string) { }
-	getEncoding() { return undefined; }
-	setPreferredName(name: string): void { }
-	setPreferredDescription(description: string): void { }
-	setPreferredEncoding(encoding: string) { }
-	setPreferredContents(contents: string): void { }
-	setMode(mode: string) { }
-	setPreferredMode(mode: string) { }
-	setForceOpenAsBinary(): void { }
-	setFailToOpen(): void {
-		this.fails = true;
+	setPwefewwedWesouwce(wesouwce: UWI): void { }
+	async setEncoding(encoding: stwing) { }
+	getEncoding() { wetuwn undefined; }
+	setPwefewwedName(name: stwing): void { }
+	setPwefewwedDescwiption(descwiption: stwing): void { }
+	setPwefewwedEncoding(encoding: stwing) { }
+	setPwefewwedContents(contents: stwing): void { }
+	setMode(mode: stwing) { }
+	setPwefewwedMode(mode: stwing) { }
+	setFowceOpenAsBinawy(): void { }
+	setFaiwToOpen(): void {
+		this.faiws = twue;
 	}
-	override async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | undefined> {
-		this.gotSaved = true;
-		this.dirty = false;
-		return this;
+	ovewwide async save(gwoupId: GwoupIdentifia, options?: ISaveOptions): Pwomise<EditowInput | undefined> {
+		this.gotSaved = twue;
+		this.diwty = fawse;
+		wetuwn this;
 	}
-	override async saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | undefined> {
-		this.gotSavedAs = true;
-		return this;
+	ovewwide async saveAs(gwoupId: GwoupIdentifia, options?: ISaveOptions): Pwomise<EditowInput | undefined> {
+		this.gotSavedAs = twue;
+		wetuwn this;
 	}
-	override async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
-		this.gotReverted = true;
-		this.gotSaved = false;
-		this.gotSavedAs = false;
-		this.dirty = false;
+	ovewwide async wevewt(gwoup: GwoupIdentifia, options?: IWevewtOptions): Pwomise<void> {
+		this.gotWevewted = twue;
+		this.gotSaved = fawse;
+		this.gotSavedAs = fawse;
+		this.diwty = fawse;
 	}
-	override toUntyped(): IUntypedEditorInput | undefined {
-		if (this.disableToUntyped) {
-			return undefined;
+	ovewwide toUntyped(): IUntypedEditowInput | undefined {
+		if (this.disabweToUntyped) {
+			wetuwn undefined;
 		}
-		return { resource: this.resource };
+		wetuwn { wesouwce: this.wesouwce };
 	}
-	setDirty(): void { this.dirty = true; }
-	override isDirty(): boolean {
-		return this.dirty;
+	setDiwty(): void { this.diwty = twue; }
+	ovewwide isDiwty(): boowean {
+		wetuwn this.diwty;
 	}
-	isResolved(): boolean { return false; }
-	override dispose(): void {
-		super.dispose();
-		this.gotDisposed = true;
+	isWesowved(): boowean { wetuwn fawse; }
+	ovewwide dispose(): void {
+		supa.dispose();
+		this.gotDisposed = twue;
 	}
-	movedEditor: IMoveResult | undefined = undefined;
-	override async rename(): Promise<IMoveResult | undefined> { return this.movedEditor; }
+	movedEditow: IMoveWesuwt | undefined = undefined;
+	ovewwide async wename(): Pwomise<IMoveWesuwt | undefined> { wetuwn this.movedEditow; }
 }
 
-export class TestEditorPart extends EditorPart {
+expowt cwass TestEditowPawt extends EditowPawt {
 
-	override saveState(): void {
-		return super.saveState();
+	ovewwide saveState(): void {
+		wetuwn supa.saveState();
 	}
 
-	clearState(): void {
-		const workspaceMemento = this.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		for (const key of Object.keys(workspaceMemento)) {
-			delete workspaceMemento[key];
+	cweawState(): void {
+		const wowkspaceMemento = this.getMemento(StowageScope.WOWKSPACE, StowageTawget.MACHINE);
+		fow (const key of Object.keys(wowkspaceMemento)) {
+			dewete wowkspaceMemento[key];
 		}
 
-		const globalMemento = this.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
-		for (const key of Object.keys(globalMemento)) {
-			delete globalMemento[key];
+		const gwobawMemento = this.getMemento(StowageScope.GWOBAW, StowageTawget.MACHINE);
+		fow (const key of Object.keys(gwobawMemento)) {
+			dewete gwobawMemento[key];
 		}
 	}
 }
 
-export async function createEditorPart(instantiationService: IInstantiationService, disposables: DisposableStore): Promise<TestEditorPart> {
-	const part = disposables.add(instantiationService.createInstance(TestEditorPart));
-	part.create(document.createElement('div'));
-	part.layout(1080, 800);
+expowt async function cweateEditowPawt(instantiationSewvice: IInstantiationSewvice, disposabwes: DisposabweStowe): Pwomise<TestEditowPawt> {
+	const pawt = disposabwes.add(instantiationSewvice.cweateInstance(TestEditowPawt));
+	pawt.cweate(document.cweateEwement('div'));
+	pawt.wayout(1080, 800);
 
-	await part.whenReady;
+	await pawt.whenWeady;
 
-	return part;
+	wetuwn pawt;
 }
 
-export class TestListService implements IListService {
-	declare readonly _serviceBrand: undefined;
+expowt cwass TestWistSewvice impwements IWistSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	lastFocusedList: any | undefined = undefined;
+	wastFocusedWist: any | undefined = undefined;
 
-	register(): IDisposable {
-		return Disposable.None;
+	wegista(): IDisposabwe {
+		wetuwn Disposabwe.None;
 	}
 }
 
-export class TestPathService implements IPathService {
+expowt cwass TestPathSewvice impwements IPathSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(private readonly fallbackUserHome: URI = URI.from({ scheme: Schemas.vscodeRemote, path: '/' })) { }
+	constwuctow(pwivate weadonwy fawwbackUsewHome: UWI = UWI.fwom({ scheme: Schemas.vscodeWemote, path: '/' })) { }
 
-	get path() { return Promise.resolve(isWindows ? win32 : posix); }
+	get path() { wetuwn Pwomise.wesowve(isWindows ? win32 : posix); }
 
-	async userHome() { return this.fallbackUserHome; }
-	get resolvedUserHome() { return this.fallbackUserHome; }
+	async usewHome() { wetuwn this.fawwbackUsewHome; }
+	get wesowvedUsewHome() { wetuwn this.fawwbackUsewHome; }
 
-	async fileURI(path: string): Promise<URI> {
-		return URI.file(path);
+	async fiweUWI(path: stwing): Pwomise<UWI> {
+		wetuwn UWI.fiwe(path);
 	}
 
-	readonly defaultUriScheme = Schemas.vscodeRemote;
+	weadonwy defauwtUwiScheme = Schemas.vscodeWemote;
 }
 
-export class TestTextFileEditorModelManager extends TextFileEditorModelManager {
+expowt cwass TestTextFiweEditowModewManaga extends TextFiweEditowModewManaga {
 
-	override add(resource: URI, model: TextFileEditorModel): void {
-		return super.add(resource, model);
+	ovewwide add(wesouwce: UWI, modew: TextFiweEditowModew): void {
+		wetuwn supa.add(wesouwce, modew);
 	}
 
-	override remove(resource: URI): void {
-		return super.remove(resource);
+	ovewwide wemove(wesouwce: UWI): void {
+		wetuwn supa.wemove(wesouwce);
 	}
 }
 
-interface ITestTextFileEditorModel extends ITextFileEditorModel {
-	readonly lastResolvedFileStat: IFileStatWithMetadata | undefined;
+intewface ITestTextFiweEditowModew extends ITextFiweEditowModew {
+	weadonwy wastWesowvedFiweStat: IFiweStatWithMetadata | undefined;
 }
 
-export function getLastResolvedFileStat(model: unknown): IFileStatWithMetadata | undefined {
-	const candidate = model as ITestTextFileEditorModel | undefined;
+expowt function getWastWesowvedFiweStat(modew: unknown): IFiweStatWithMetadata | undefined {
+	const candidate = modew as ITestTextFiweEditowModew | undefined;
 
-	return candidate?.lastResolvedFileStat;
+	wetuwn candidate?.wastWesowvedFiweStat;
 }
 
-export class TestWorkspacesService implements IWorkspacesService {
-	_serviceBrand: undefined;
+expowt cwass TestWowkspacesSewvice impwements IWowkspacesSewvice {
+	_sewviceBwand: undefined;
 
-	onDidChangeRecentlyOpened = Event.None;
+	onDidChangeWecentwyOpened = Event.None;
 
-	async createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier> { throw new Error('Method not implemented.'); }
-	async deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): Promise<void> { }
-	async addRecentlyOpened(recents: IRecent[]): Promise<void> { }
-	async removeRecentlyOpened(workspaces: URI[]): Promise<void> { }
-	async clearRecentlyOpened(): Promise<void> { }
-	async getRecentlyOpened(): Promise<IRecentlyOpened> { return { files: [], workspaces: [] }; }
-	async getDirtyWorkspaces(): Promise<(URI | IWorkspaceIdentifier)[]> { return []; }
-	async enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined> { throw new Error('Method not implemented.'); }
-	async getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier> { throw new Error('Method not implemented.'); }
+	async cweateUntitwedWowkspace(fowdews?: IWowkspaceFowdewCweationData[], wemoteAuthowity?: stwing): Pwomise<IWowkspaceIdentifia> { thwow new Ewwow('Method not impwemented.'); }
+	async deweteUntitwedWowkspace(wowkspace: IWowkspaceIdentifia): Pwomise<void> { }
+	async addWecentwyOpened(wecents: IWecent[]): Pwomise<void> { }
+	async wemoveWecentwyOpened(wowkspaces: UWI[]): Pwomise<void> { }
+	async cweawWecentwyOpened(): Pwomise<void> { }
+	async getWecentwyOpened(): Pwomise<IWecentwyOpened> { wetuwn { fiwes: [], wowkspaces: [] }; }
+	async getDiwtyWowkspaces(): Pwomise<(UWI | IWowkspaceIdentifia)[]> { wetuwn []; }
+	async entewWowkspace(path: UWI): Pwomise<IEntewWowkspaceWesuwt | undefined> { thwow new Ewwow('Method not impwemented.'); }
+	async getWowkspaceIdentifia(wowkspacePath: UWI): Pwomise<IWowkspaceIdentifia> { thwow new Ewwow('Method not impwemented.'); }
 }
 
-export class TestTerminalInstanceService implements ITerminalInstanceService {
-	onDidCreateInstance = Event.None;
-	declare readonly _serviceBrand: undefined;
+expowt cwass TestTewminawInstanceSewvice impwements ITewminawInstanceSewvice {
+	onDidCweateInstance = Event.None;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	async getXtermConstructor(): Promise<any> { throw new Error('Method not implemented.'); }
-	async getXtermSearchConstructor(): Promise<any> { throw new Error('Method not implemented.'); }
-	async getXtermUnicode11Constructor(): Promise<any> { throw new Error('Method not implemented.'); }
-	async getXtermWebglConstructor(): Promise<any> { throw new Error('Method not implemented.'); }
-	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string, shellType: TerminalShellType, isRemote: boolean): Promise<string> { throw new Error('Method not implemented.'); }
-	createInstance(options: ICreateTerminalOptions, target?: TerminalLocation): ITerminalInstance { throw new Error('Method not implemented.'); }
+	async getXtewmConstwuctow(): Pwomise<any> { thwow new Ewwow('Method not impwemented.'); }
+	async getXtewmSeawchConstwuctow(): Pwomise<any> { thwow new Ewwow('Method not impwemented.'); }
+	async getXtewmUnicode11Constwuctow(): Pwomise<any> { thwow new Ewwow('Method not impwemented.'); }
+	async getXtewmWebgwConstwuctow(): Pwomise<any> { thwow new Ewwow('Method not impwemented.'); }
+	pwepawePathFowTewminawAsync(path: stwing, executabwe: stwing | undefined, titwe: stwing, shewwType: TewminawShewwType, isWemote: boowean): Pwomise<stwing> { thwow new Ewwow('Method not impwemented.'); }
+	cweateInstance(options: ICweateTewminawOptions, tawget?: TewminawWocation): ITewminawInstance { thwow new Ewwow('Method not impwemented.'); }
 }
 
-export class TestTerminalProfileResolverService implements ITerminalProfileResolverService {
-	_serviceBrand: undefined;
-	defaultProfileName = '';
-	resolveIcon(shellLaunchConfig: IShellLaunchConfig): void { }
-	async resolveShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig, options: IShellLaunchConfigResolveOptions): Promise<void> { }
-	async getDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> { return { path: '/default', profileName: 'Default', isDefault: true }; }
-	async getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string> { return '/default'; }
-	async getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]> { return []; }
-	async getEnvironment(): Promise<IProcessEnvironment> { return process.env; }
-	getSafeConfigValue(key: string, os: OperatingSystem): unknown | undefined { return undefined; }
-	getSafeConfigValueFullKey(key: string): unknown | undefined { return undefined; }
-	createProfileFromShellAndShellArgs(shell?: unknown, shellArgs?: unknown): Promise<string | ITerminalProfile> { throw new Error('Method not implemented.'); }
+expowt cwass TestTewminawPwofiweWesowvewSewvice impwements ITewminawPwofiweWesowvewSewvice {
+	_sewviceBwand: undefined;
+	defauwtPwofiweName = '';
+	wesowveIcon(shewwWaunchConfig: IShewwWaunchConfig): void { }
+	async wesowveShewwWaunchConfig(shewwWaunchConfig: IShewwWaunchConfig, options: IShewwWaunchConfigWesowveOptions): Pwomise<void> { }
+	async getDefauwtPwofiwe(options: IShewwWaunchConfigWesowveOptions): Pwomise<ITewminawPwofiwe> { wetuwn { path: '/defauwt', pwofiweName: 'Defauwt', isDefauwt: twue }; }
+	async getDefauwtSheww(options: IShewwWaunchConfigWesowveOptions): Pwomise<stwing> { wetuwn '/defauwt'; }
+	async getDefauwtShewwAwgs(options: IShewwWaunchConfigWesowveOptions): Pwomise<stwing | stwing[]> { wetuwn []; }
+	async getEnviwonment(): Pwomise<IPwocessEnviwonment> { wetuwn pwocess.env; }
+	getSafeConfigVawue(key: stwing, os: OpewatingSystem): unknown | undefined { wetuwn undefined; }
+	getSafeConfigVawueFuwwKey(key: stwing): unknown | undefined { wetuwn undefined; }
+	cweatePwofiweFwomShewwAndShewwAwgs(sheww?: unknown, shewwAwgs?: unknown): Pwomise<stwing | ITewminawPwofiwe> { thwow new Ewwow('Method not impwemented.'); }
 }
 
-export class TestLocalTerminalService implements ILocalTerminalService {
-	declare readonly _serviceBrand: undefined;
+expowt cwass TestWocawTewminawSewvice impwements IWocawTewminawSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
 	onPtyHostExit = Event.None;
-	onPtyHostUnresponsive = Event.None;
-	onPtyHostResponsive = Event.None;
-	onPtyHostRestart = Event.None;
+	onPtyHostUnwesponsive = Event.None;
+	onPtyHostWesponsive = Event.None;
+	onPtyHostWestawt = Event.None;
 	onDidMoveWindowInstance = Event.None;
-	onDidRequestDetach = Event.None;
+	onDidWequestDetach = Event.None;
 
-	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, unicodeVersion: '6' | '11', env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess> { return new TestTerminalChildProcess(shouldPersist); }
-	async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> { throw new Error('Method not implemented.'); }
-	async listProcesses(): Promise<IProcessDetails[]> { throw new Error('Method not implemented.'); }
-	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> { throw new Error('Method not implemented.'); }
-	getProfiles(isWorkspaceTrusted: boolean, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> { throw new Error('Method not implemented.'); }
-	getEnvironment(): Promise<IProcessEnvironment> { throw new Error('Method not implemented.'); }
-	getShellEnvironment(): Promise<IProcessEnvironment | undefined> { throw new Error('Method not implemented.'); }
-	getWslPath(original: string): Promise<string> { throw new Error('Method not implemented.'); }
-	async setTerminalLayoutInfo(argsOrLayout?: ISetTerminalLayoutInfoArgs | ITerminalsLayoutInfoById) { throw new Error('Method not implemented.'); }
-	async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> { throw new Error('Method not implemented.'); }
-	async reduceConnectionGraceTime(): Promise<void> { throw new Error('Method not implemented.'); }
-	processBinary(id: number, data: string): Promise<void> { throw new Error('Method not implemented.'); }
-	updateTitle(id: number, title: string): Promise<void> { throw new Error('Method not implemented.'); }
-	updateIcon(id: number, icon: URI | { light: URI; dark: URI } | { id: string, color?: { id: string } }, color?: string): Promise<void> { throw new Error('Method not implemented.'); }
-	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> { throw new Error('Method not implemented.'); }
-	acceptDetachInstanceReply(requestId: number, persistentProcessId: number): Promise<void> { throw new Error('Method not implemented.'); }
-	persistTerminalState(): Promise<void> { throw new Error('Method not implemented.'); }
+	async cweatePwocess(shewwWaunchConfig: IShewwWaunchConfig, cwd: stwing, cows: numba, wows: numba, unicodeVewsion: '6' | '11', env: IPwocessEnviwonment, windowsEnabweConpty: boowean, shouwdPewsist: boowean): Pwomise<ITewminawChiwdPwocess> { wetuwn new TestTewminawChiwdPwocess(shouwdPewsist); }
+	async attachToPwocess(id: numba): Pwomise<ITewminawChiwdPwocess | undefined> { thwow new Ewwow('Method not impwemented.'); }
+	async wistPwocesses(): Pwomise<IPwocessDetaiws[]> { thwow new Ewwow('Method not impwemented.'); }
+	getDefauwtSystemSheww(osOvewwide?: OpewatingSystem): Pwomise<stwing> { thwow new Ewwow('Method not impwemented.'); }
+	getPwofiwes(isWowkspaceTwusted: boowean, incwudeDetectedPwofiwes?: boowean): Pwomise<ITewminawPwofiwe[]> { thwow new Ewwow('Method not impwemented.'); }
+	getEnviwonment(): Pwomise<IPwocessEnviwonment> { thwow new Ewwow('Method not impwemented.'); }
+	getShewwEnviwonment(): Pwomise<IPwocessEnviwonment | undefined> { thwow new Ewwow('Method not impwemented.'); }
+	getWswPath(owiginaw: stwing): Pwomise<stwing> { thwow new Ewwow('Method not impwemented.'); }
+	async setTewminawWayoutInfo(awgsOwWayout?: ISetTewminawWayoutInfoAwgs | ITewminawsWayoutInfoById) { thwow new Ewwow('Method not impwemented.'); }
+	async getTewminawWayoutInfo(): Pwomise<ITewminawsWayoutInfo | undefined> { thwow new Ewwow('Method not impwemented.'); }
+	async weduceConnectionGwaceTime(): Pwomise<void> { thwow new Ewwow('Method not impwemented.'); }
+	pwocessBinawy(id: numba, data: stwing): Pwomise<void> { thwow new Ewwow('Method not impwemented.'); }
+	updateTitwe(id: numba, titwe: stwing): Pwomise<void> { thwow new Ewwow('Method not impwemented.'); }
+	updateIcon(id: numba, icon: UWI | { wight: UWI; dawk: UWI } | { id: stwing, cowow?: { id: stwing } }, cowow?: stwing): Pwomise<void> { thwow new Ewwow('Method not impwemented.'); }
+	wequestDetachInstance(wowkspaceId: stwing, instanceId: numba): Pwomise<IPwocessDetaiws | undefined> { thwow new Ewwow('Method not impwemented.'); }
+	acceptDetachInstanceWepwy(wequestId: numba, pewsistentPwocessId: numba): Pwomise<void> { thwow new Ewwow('Method not impwemented.'); }
+	pewsistTewminawState(): Pwomise<void> { thwow new Ewwow('Method not impwemented.'); }
 }
 
-class TestTerminalChildProcess implements ITerminalChildProcess {
-	id: number = 0;
-	private _capabilities: ProcessCapability[] = [];
-	get capabilities(): ProcessCapability[] { return this._capabilities; }
-	constructor(
-		readonly shouldPersist: boolean
+cwass TestTewminawChiwdPwocess impwements ITewminawChiwdPwocess {
+	id: numba = 0;
+	pwivate _capabiwities: PwocessCapabiwity[] = [];
+	get capabiwities(): PwocessCapabiwity[] { wetuwn this._capabiwities; }
+	constwuctow(
+		weadonwy shouwdPewsist: boowean
 	) {
 	}
 
-	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined> | undefined;
-	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig> | undefined;
-	onDidChangeHasChildProcesses?: Event<boolean> | undefined;
+	onPwocessOvewwideDimensions?: Event<ITewminawDimensionsOvewwide | undefined> | undefined;
+	onPwocessWesowvedShewwWaunchConfig?: Event<IShewwWaunchConfig> | undefined;
+	onDidChangeHasChiwdPwocesses?: Event<boowean> | undefined;
 
-	onDidChangeProperty = Event.None;
-	onProcessData = Event.None;
-	onProcessExit = Event.None;
-	onProcessReady = Event.None;
-	onProcessTitleChanged = Event.None;
-	onProcessShellTypeChanged = Event.None;
-	async start(): Promise<undefined> { return undefined; }
-	shutdown(immediate: boolean): void { }
-	input(data: string): void { }
-	resize(cols: number, rows: number): void { }
-	acknowledgeDataEvent(charCount: number): void { }
-	async setUnicodeVersion(version: '6' | '11'): Promise<void> { }
-	async getInitialCwd(): Promise<string> { return ''; }
-	async getCwd(): Promise<string> { return ''; }
-	async getLatency(): Promise<number> { return 0; }
-	async processBinary(data: string): Promise<void> { }
-	refreshProperty(property: ProcessPropertyType): Promise<any> { return Promise.resolve(''); }
+	onDidChangePwopewty = Event.None;
+	onPwocessData = Event.None;
+	onPwocessExit = Event.None;
+	onPwocessWeady = Event.None;
+	onPwocessTitweChanged = Event.None;
+	onPwocessShewwTypeChanged = Event.None;
+	async stawt(): Pwomise<undefined> { wetuwn undefined; }
+	shutdown(immediate: boowean): void { }
+	input(data: stwing): void { }
+	wesize(cows: numba, wows: numba): void { }
+	acknowwedgeDataEvent(chawCount: numba): void { }
+	async setUnicodeVewsion(vewsion: '6' | '11'): Pwomise<void> { }
+	async getInitiawCwd(): Pwomise<stwing> { wetuwn ''; }
+	async getCwd(): Pwomise<stwing> { wetuwn ''; }
+	async getWatency(): Pwomise<numba> { wetuwn 0; }
+	async pwocessBinawy(data: stwing): Pwomise<void> { }
+	wefweshPwopewty(pwopewty: PwocessPwopewtyType): Pwomise<any> { wetuwn Pwomise.wesowve(''); }
 }
 
-export class TestQuickInputService implements IQuickInputService {
+expowt cwass TestQuickInputSewvice impwements IQuickInputSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	readonly onShow = Event.None;
-	readonly onHide = Event.None;
+	weadonwy onShow = Event.None;
+	weadonwy onHide = Event.None;
 
-	readonly quickAccess = undefined!;
+	weadonwy quickAccess = undefined!;
 	backButton!: IQuickInputButton;
 
-	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: true }, token?: CancellationToken): Promise<T[]>;
-	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): Promise<T>;
-	async pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancellationToken): Promise<T | undefined> {
-		if (isArray(picks)) {
-			return <any>{ label: 'selectedPick', description: 'pick description', value: 'selectedPick' };
-		} else {
-			return undefined;
+	pick<T extends IQuickPickItem>(picks: Pwomise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: twue }, token?: CancewwationToken): Pwomise<T[]>;
+	pick<T extends IQuickPickItem>(picks: Pwomise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: fawse }, token?: CancewwationToken): Pwomise<T>;
+	async pick<T extends IQuickPickItem>(picks: Pwomise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancewwationToken): Pwomise<T | undefined> {
+		if (isAwway(picks)) {
+			wetuwn <any>{ wabew: 'sewectedPick', descwiption: 'pick descwiption', vawue: 'sewectedPick' };
+		} ewse {
+			wetuwn undefined;
 		}
 	}
 
-	async input(options?: IInputOptions, token?: CancellationToken): Promise<string> { return options ? 'resolved' + options.prompt : 'resolved'; }
+	async input(options?: IInputOptions, token?: CancewwationToken): Pwomise<stwing> { wetuwn options ? 'wesowved' + options.pwompt : 'wesowved'; }
 
-	createQuickPick<T extends IQuickPickItem>(): IQuickPick<T> { throw new Error('not implemented.'); }
-	createInputBox(): IInputBox { throw new Error('not implemented.'); }
-	focus(): void { throw new Error('not implemented.'); }
-	toggle(): void { throw new Error('not implemented.'); }
-	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration): void { throw new Error('not implemented.'); }
-	accept(): Promise<void> { throw new Error('not implemented.'); }
-	back(): Promise<void> { throw new Error('not implemented.'); }
-	cancel(): Promise<void> { throw new Error('not implemented.'); }
+	cweateQuickPick<T extends IQuickPickItem>(): IQuickPick<T> { thwow new Ewwow('not impwemented.'); }
+	cweateInputBox(): IInputBox { thwow new Ewwow('not impwemented.'); }
+	focus(): void { thwow new Ewwow('not impwemented.'); }
+	toggwe(): void { thwow new Ewwow('not impwemented.'); }
+	navigate(next: boowean, quickNavigate?: IQuickNavigateConfiguwation): void { thwow new Ewwow('not impwemented.'); }
+	accept(): Pwomise<void> { thwow new Ewwow('not impwemented.'); }
+	back(): Pwomise<void> { thwow new Ewwow('not impwemented.'); }
+	cancew(): Pwomise<void> { thwow new Ewwow('not impwemented.'); }
 }
 
-export class TestEditorWorkerService implements IEditorWorkerService {
+expowt cwass TestEditowWowkewSewvice impwements IEditowWowkewSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	async computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean, maxComputationTime: number): Promise<IDiffComputationResult | null> { return null; }
-	canComputeDirtyDiff(original: URI, modified: URI): boolean { return false; }
-	async computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IChange[] | null> { return null; }
-	async computeMoreMinimalEdits(resource: URI, edits: TextEdit[] | null | undefined): Promise<TextEdit[] | undefined> { return undefined; }
-	canComputeWordRanges(resource: URI): boolean { return false; }
-	async computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[]; } | null> { return null; }
-	canNavigateValueSet(resource: URI): boolean { return false; }
-	async navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<IInplaceReplaceSupportResult | null> { return null; }
+	async computeDiff(owiginaw: UWI, modified: UWI, ignoweTwimWhitespace: boowean, maxComputationTime: numba): Pwomise<IDiffComputationWesuwt | nuww> { wetuwn nuww; }
+	canComputeDiwtyDiff(owiginaw: UWI, modified: UWI): boowean { wetuwn fawse; }
+	async computeDiwtyDiff(owiginaw: UWI, modified: UWI, ignoweTwimWhitespace: boowean): Pwomise<IChange[] | nuww> { wetuwn nuww; }
+	async computeMoweMinimawEdits(wesouwce: UWI, edits: TextEdit[] | nuww | undefined): Pwomise<TextEdit[] | undefined> { wetuwn undefined; }
+	canComputeWowdWanges(wesouwce: UWI): boowean { wetuwn fawse; }
+	async computeWowdWanges(wesouwce: UWI, wange: IWange): Pwomise<{ [wowd: stwing]: IWange[]; } | nuww> { wetuwn nuww; }
+	canNavigateVawueSet(wesouwce: UWI): boowean { wetuwn fawse; }
+	async navigateVawueSet(wesouwce: UWI, wange: IWange, up: boowean): Pwomise<IInpwaceWepwaceSuppowtWesuwt | nuww> { wetuwn nuww; }
 }

@@ -1,48 +1,48 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { ICommand, ICuwsowStateComputewData, IEditOpewationBuiwda } fwom 'vs/editow/common/editowCommon';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
 
-export class InPlaceReplaceCommand implements ICommand {
+expowt cwass InPwaceWepwaceCommand impwements ICommand {
 
-	private readonly _editRange: Range;
-	private readonly _originalSelection: Selection;
-	private readonly _text: string;
+	pwivate weadonwy _editWange: Wange;
+	pwivate weadonwy _owiginawSewection: Sewection;
+	pwivate weadonwy _text: stwing;
 
-	constructor(editRange: Range, originalSelection: Selection, text: string) {
-		this._editRange = editRange;
-		this._originalSelection = originalSelection;
+	constwuctow(editWange: Wange, owiginawSewection: Sewection, text: stwing) {
+		this._editWange = editWange;
+		this._owiginawSewection = owiginawSewection;
 		this._text = text;
 	}
 
-	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
-		builder.addTrackedEditOperation(this._editRange, this._text);
+	pubwic getEditOpewations(modew: ITextModew, buiwda: IEditOpewationBuiwda): void {
+		buiwda.addTwackedEditOpewation(this._editWange, this._text);
 	}
 
-	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		const inverseEditOperations = helper.getInverseEditOperations();
-		const srcRange = inverseEditOperations[0].range;
+	pubwic computeCuwsowState(modew: ITextModew, hewpa: ICuwsowStateComputewData): Sewection {
+		const invewseEditOpewations = hewpa.getInvewseEditOpewations();
+		const swcWange = invewseEditOpewations[0].wange;
 
-		if (!this._originalSelection.isEmpty()) {
-			// Preserve selection and extends to typed text
-			return new Selection(
-				srcRange.endLineNumber,
-				srcRange.endColumn - this._text.length,
-				srcRange.endLineNumber,
-				srcRange.endColumn
+		if (!this._owiginawSewection.isEmpty()) {
+			// Pwesewve sewection and extends to typed text
+			wetuwn new Sewection(
+				swcWange.endWineNumba,
+				swcWange.endCowumn - this._text.wength,
+				swcWange.endWineNumba,
+				swcWange.endCowumn
 			);
 		}
 
-		return new Selection(
-			srcRange.endLineNumber,
-			Math.min(this._originalSelection.positionColumn, srcRange.endColumn),
-			srcRange.endLineNumber,
-			Math.min(this._originalSelection.positionColumn, srcRange.endColumn)
+		wetuwn new Sewection(
+			swcWange.endWineNumba,
+			Math.min(this._owiginawSewection.positionCowumn, swcWange.endCowumn),
+			swcWange.endWineNumba,
+			Math.min(this._owiginawSewection.positionCowumn, swcWange.endCowumn)
 		);
 	}
 }

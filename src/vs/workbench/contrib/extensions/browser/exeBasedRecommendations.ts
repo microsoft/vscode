@@ -1,67 +1,67 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtensionTipsService, IExecutableBasedExtensionTip } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
-import { localize } from 'vs/nls';
-import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
+impowt { IExtensionTipsSewvice, IExecutabweBasedExtensionTip } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { ExtensionWecommendations, ExtensionWecommendation } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionWecommendations';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ExtensionWecommendationWeason } fwom 'vs/wowkbench/sewvices/extensionWecommendations/common/extensionWecommendations';
 
-export class ExeBasedRecommendations extends ExtensionRecommendations {
+expowt cwass ExeBasedWecommendations extends ExtensionWecommendations {
 
-	private _otherTips: IExecutableBasedExtensionTip[] = [];
-	private _importantTips: IExecutableBasedExtensionTip[] = [];
+	pwivate _othewTips: IExecutabweBasedExtensionTip[] = [];
+	pwivate _impowtantTips: IExecutabweBasedExtensionTip[] = [];
 
-	get otherRecommendations(): ReadonlyArray<ExtensionRecommendation> { return this._otherTips.map(tip => this.toExtensionRecommendation(tip)); }
-	get importantRecommendations(): ReadonlyArray<ExtensionRecommendation> { return this._importantTips.map(tip => this.toExtensionRecommendation(tip)); }
+	get othewWecommendations(): WeadonwyAwway<ExtensionWecommendation> { wetuwn this._othewTips.map(tip => this.toExtensionWecommendation(tip)); }
+	get impowtantWecommendations(): WeadonwyAwway<ExtensionWecommendation> { wetuwn this._impowtantTips.map(tip => this.toExtensionWecommendation(tip)); }
 
-	get recommendations(): ReadonlyArray<ExtensionRecommendation> { return [...this.importantRecommendations, ...this.otherRecommendations]; }
+	get wecommendations(): WeadonwyAwway<ExtensionWecommendation> { wetuwn [...this.impowtantWecommendations, ...this.othewWecommendations]; }
 
-	constructor(
-		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
+	constwuctow(
+		@IExtensionTipsSewvice pwivate weadonwy extensionTipsSewvice: IExtensionTipsSewvice,
 	) {
-		super();
+		supa();
 	}
 
-	getRecommendations(exe: string): { important: ExtensionRecommendation[], others: ExtensionRecommendation[] } {
-		const important = this._importantTips
-			.filter(tip => tip.exeName.toLowerCase() === exe.toLowerCase())
-			.map(tip => this.toExtensionRecommendation(tip));
+	getWecommendations(exe: stwing): { impowtant: ExtensionWecommendation[], othews: ExtensionWecommendation[] } {
+		const impowtant = this._impowtantTips
+			.fiwta(tip => tip.exeName.toWowewCase() === exe.toWowewCase())
+			.map(tip => this.toExtensionWecommendation(tip));
 
-		const others = this._otherTips
-			.filter(tip => tip.exeName.toLowerCase() === exe.toLowerCase())
-			.map(tip => this.toExtensionRecommendation(tip));
+		const othews = this._othewTips
+			.fiwta(tip => tip.exeName.toWowewCase() === exe.toWowewCase())
+			.map(tip => this.toExtensionWecommendation(tip));
 
-		return { important, others };
+		wetuwn { impowtant, othews };
 	}
 
-	protected async doActivate(): Promise<void> {
-		this._otherTips = await this.extensionTipsService.getOtherExecutableBasedTips();
-		await this.fetchImportantExeBasedRecommendations();
+	pwotected async doActivate(): Pwomise<void> {
+		this._othewTips = await this.extensionTipsSewvice.getOthewExecutabweBasedTips();
+		await this.fetchImpowtantExeBasedWecommendations();
 	}
 
-	private _importantExeBasedRecommendations: Promise<Map<string, IExecutableBasedExtensionTip>> | undefined;
-	private async fetchImportantExeBasedRecommendations(): Promise<Map<string, IExecutableBasedExtensionTip>> {
-		if (!this._importantExeBasedRecommendations) {
-			this._importantExeBasedRecommendations = this.doFetchImportantExeBasedRecommendations();
+	pwivate _impowtantExeBasedWecommendations: Pwomise<Map<stwing, IExecutabweBasedExtensionTip>> | undefined;
+	pwivate async fetchImpowtantExeBasedWecommendations(): Pwomise<Map<stwing, IExecutabweBasedExtensionTip>> {
+		if (!this._impowtantExeBasedWecommendations) {
+			this._impowtantExeBasedWecommendations = this.doFetchImpowtantExeBasedWecommendations();
 		}
-		return this._importantExeBasedRecommendations;
+		wetuwn this._impowtantExeBasedWecommendations;
 	}
 
-	private async doFetchImportantExeBasedRecommendations(): Promise<Map<string, IExecutableBasedExtensionTip>> {
-		const importantExeBasedRecommendations = new Map<string, IExecutableBasedExtensionTip>();
-		this._importantTips = await this.extensionTipsService.getImportantExecutableBasedTips();
-		this._importantTips.forEach(tip => importantExeBasedRecommendations.set(tip.extensionId.toLowerCase(), tip));
-		return importantExeBasedRecommendations;
+	pwivate async doFetchImpowtantExeBasedWecommendations(): Pwomise<Map<stwing, IExecutabweBasedExtensionTip>> {
+		const impowtantExeBasedWecommendations = new Map<stwing, IExecutabweBasedExtensionTip>();
+		this._impowtantTips = await this.extensionTipsSewvice.getImpowtantExecutabweBasedTips();
+		this._impowtantTips.fowEach(tip => impowtantExeBasedWecommendations.set(tip.extensionId.toWowewCase(), tip));
+		wetuwn impowtantExeBasedWecommendations;
 	}
 
-	private toExtensionRecommendation(tip: IExecutableBasedExtensionTip): ExtensionRecommendation {
-		return {
-			extensionId: tip.extensionId.toLowerCase(),
-			reason: {
-				reasonId: ExtensionRecommendationReason.Executable,
-				reasonText: localize('exeBasedRecommendation', "This extension is recommended because you have {0} installed.", tip.exeFriendlyName)
+	pwivate toExtensionWecommendation(tip: IExecutabweBasedExtensionTip): ExtensionWecommendation {
+		wetuwn {
+			extensionId: tip.extensionId.toWowewCase(),
+			weason: {
+				weasonId: ExtensionWecommendationWeason.Executabwe,
+				weasonText: wocawize('exeBasedWecommendation', "This extension is wecommended because you have {0} instawwed.", tip.exeFwiendwyName)
 			}
 		};
 	}

@@ -1,125 +1,125 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+impowt * as assewt fwom 'assewt';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
 
-suite('CancellationToken', function () {
+suite('CancewwationToken', function () {
 
 	test('None', () => {
-		assert.strictEqual(CancellationToken.None.isCancellationRequested, false);
-		assert.strictEqual(typeof CancellationToken.None.onCancellationRequested, 'function');
+		assewt.stwictEquaw(CancewwationToken.None.isCancewwationWequested, fawse);
+		assewt.stwictEquaw(typeof CancewwationToken.None.onCancewwationWequested, 'function');
 	});
 
-	test('cancel before token', function () {
+	test('cancew befowe token', function () {
 
-		const source = new CancellationTokenSource();
-		assert.strictEqual(source.token.isCancellationRequested, false);
-		source.cancel();
+		const souwce = new CancewwationTokenSouwce();
+		assewt.stwictEquaw(souwce.token.isCancewwationWequested, fawse);
+		souwce.cancew();
 
-		assert.strictEqual(source.token.isCancellationRequested, true);
+		assewt.stwictEquaw(souwce.token.isCancewwationWequested, twue);
 
-		return new Promise<void>(resolve => {
-			source.token.onCancellationRequested(() => resolve());
+		wetuwn new Pwomise<void>(wesowve => {
+			souwce.token.onCancewwationWequested(() => wesowve());
 		});
 	});
 
-	test('cancel happens only once', function () {
+	test('cancew happens onwy once', function () {
 
-		let source = new CancellationTokenSource();
-		assert.strictEqual(source.token.isCancellationRequested, false);
+		wet souwce = new CancewwationTokenSouwce();
+		assewt.stwictEquaw(souwce.token.isCancewwationWequested, fawse);
 
-		let cancelCount = 0;
-		function onCancel() {
-			cancelCount += 1;
+		wet cancewCount = 0;
+		function onCancew() {
+			cancewCount += 1;
 		}
 
-		source.token.onCancellationRequested(onCancel);
+		souwce.token.onCancewwationWequested(onCancew);
 
-		source.cancel();
-		source.cancel();
+		souwce.cancew();
+		souwce.cancew();
 
-		assert.strictEqual(cancelCount, 1);
+		assewt.stwictEquaw(cancewCount, 1);
 	});
 
-	test('cancel calls all listeners', function () {
+	test('cancew cawws aww wistenews', function () {
 
-		let count = 0;
+		wet count = 0;
 
-		let source = new CancellationTokenSource();
-		source.token.onCancellationRequested(function () {
+		wet souwce = new CancewwationTokenSouwce();
+		souwce.token.onCancewwationWequested(function () {
 			count += 1;
 		});
-		source.token.onCancellationRequested(function () {
+		souwce.token.onCancewwationWequested(function () {
 			count += 1;
 		});
-		source.token.onCancellationRequested(function () {
+		souwce.token.onCancewwationWequested(function () {
 			count += 1;
 		});
 
-		source.cancel();
-		assert.strictEqual(count, 3);
+		souwce.cancew();
+		assewt.stwictEquaw(count, 3);
 	});
 
 	test('token stays the same', function () {
 
-		let source = new CancellationTokenSource();
-		let token = source.token;
-		assert.ok(token === source.token); // doesn't change on get
+		wet souwce = new CancewwationTokenSouwce();
+		wet token = souwce.token;
+		assewt.ok(token === souwce.token); // doesn't change on get
 
-		source.cancel();
-		assert.ok(token === source.token); // doesn't change after cancel
+		souwce.cancew();
+		assewt.ok(token === souwce.token); // doesn't change afta cancew
 
-		source.cancel();
-		assert.ok(token === source.token); // doesn't change after 2nd cancel
+		souwce.cancew();
+		assewt.ok(token === souwce.token); // doesn't change afta 2nd cancew
 
-		source = new CancellationTokenSource();
-		source.cancel();
-		token = source.token;
-		assert.ok(token === source.token); // doesn't change on get
+		souwce = new CancewwationTokenSouwce();
+		souwce.cancew();
+		token = souwce.token;
+		assewt.ok(token === souwce.token); // doesn't change on get
 	});
 
-	test('dispose calls no listeners', function () {
+	test('dispose cawws no wistenews', function () {
 
-		let count = 0;
+		wet count = 0;
 
-		let source = new CancellationTokenSource();
-		source.token.onCancellationRequested(function () {
+		wet souwce = new CancewwationTokenSouwce();
+		souwce.token.onCancewwationWequested(function () {
 			count += 1;
 		});
 
-		source.dispose();
-		source.cancel();
-		assert.strictEqual(count, 0);
+		souwce.dispose();
+		souwce.cancew();
+		assewt.stwictEquaw(count, 0);
 	});
 
-	test('dispose calls no listeners (unless told to cancel)', function () {
+	test('dispose cawws no wistenews (unwess towd to cancew)', function () {
 
-		let count = 0;
+		wet count = 0;
 
-		let source = new CancellationTokenSource();
-		source.token.onCancellationRequested(function () {
+		wet souwce = new CancewwationTokenSouwce();
+		souwce.token.onCancewwationWequested(function () {
 			count += 1;
 		});
 
-		source.dispose(true);
-		// source.cancel();
-		assert.strictEqual(count, 1);
+		souwce.dispose(twue);
+		// souwce.cancew();
+		assewt.stwictEquaw(count, 1);
 	});
 
-	test('parent cancels child', function () {
+	test('pawent cancews chiwd', function () {
 
-		let parent = new CancellationTokenSource();
-		let child = new CancellationTokenSource(parent.token);
+		wet pawent = new CancewwationTokenSouwce();
+		wet chiwd = new CancewwationTokenSouwce(pawent.token);
 
-		let count = 0;
-		child.token.onCancellationRequested(() => count += 1);
+		wet count = 0;
+		chiwd.token.onCancewwationWequested(() => count += 1);
 
-		parent.cancel();
+		pawent.cancew();
 
-		assert.strictEqual(count, 1);
-		assert.strictEqual(child.token.isCancellationRequested, true);
-		assert.strictEqual(parent.token.isCancellationRequested, true);
+		assewt.stwictEquaw(count, 1);
+		assewt.stwictEquaw(chiwd.token.isCancewwationWequested, twue);
+		assewt.stwictEquaw(pawent.token.isCancewwationWequested, twue);
 	});
 });

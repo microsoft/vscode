@@ -1,132 +1,132 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import * as nls from 'vs/nls';
-import { Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, Webview } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewEditor } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditor';
-import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt * as nws fwom 'vs/nws';
+impowt { Action2, MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { IWebviewSewvice, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABWED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBWE, Webview } fwom 'vs/wowkbench/contwib/webview/bwowsa/webview';
+impowt { WebviewEditow } fwom 'vs/wowkbench/contwib/webviewPanew/bwowsa/webviewEditow';
+impowt { WebviewInput } fwom 'vs/wowkbench/contwib/webviewPanew/bwowsa/webviewEditowInput';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
 
-const webviewActiveContextKeyExpr = ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', WebviewEditor.ID), EditorContextKeys.focus.toNegated() /* https://github.com/microsoft/vscode/issues/58668 */)!;
+const webviewActiveContextKeyExpw = ContextKeyExpw.and(ContextKeyExpw.equaws('activeEditow', WebviewEditow.ID), EditowContextKeys.focus.toNegated() /* https://github.com/micwosoft/vscode/issues/58668 */)!;
 
-export class ShowWebViewEditorFindWidgetAction extends Action2 {
-	public static readonly ID = 'editor.action.webvieweditor.showFind';
-	public static readonly LABEL = nls.localize('editor.action.webvieweditor.showFind', "Show find");
+expowt cwass ShowWebViewEditowFindWidgetAction extends Action2 {
+	pubwic static weadonwy ID = 'editow.action.webvieweditow.showFind';
+	pubwic static weadonwy WABEW = nws.wocawize('editow.action.webvieweditow.showFind', "Show find");
 
-	constructor() {
-		super({
-			id: ShowWebViewEditorFindWidgetAction.ID,
-			title: ShowWebViewEditorFindWidgetAction.LABEL,
+	constwuctow() {
+		supa({
+			id: ShowWebViewEditowFindWidgetAction.ID,
+			titwe: ShowWebViewEditowFindWidgetAction.WABEW,
 			keybinding: {
-				when: ContextKeyExpr.and(webviewActiveContextKeyExpr, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED),
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
-				weight: KeybindingWeight.EditorContrib
+				when: ContextKeyExpw.and(webviewActiveContextKeyExpw, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABWED),
+				pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_F,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor): void {
-		getActiveWebviewEditor(accessor)?.showFind();
+	pubwic wun(accessow: SewvicesAccessow): void {
+		getActiveWebviewEditow(accessow)?.showFind();
 	}
 }
 
-export class HideWebViewEditorFindCommand extends Action2 {
-	public static readonly ID = 'editor.action.webvieweditor.hideFind';
-	public static readonly LABEL = nls.localize('editor.action.webvieweditor.hideFind', "Stop find");
+expowt cwass HideWebViewEditowFindCommand extends Action2 {
+	pubwic static weadonwy ID = 'editow.action.webvieweditow.hideFind';
+	pubwic static weadonwy WABEW = nws.wocawize('editow.action.webvieweditow.hideFind', "Stop find");
 
-	constructor() {
-		super({
-			id: HideWebViewEditorFindCommand.ID,
-			title: HideWebViewEditorFindCommand.LABEL,
+	constwuctow() {
+		supa({
+			id: HideWebViewEditowFindCommand.ID,
+			titwe: HideWebViewEditowFindCommand.WABEW,
 			keybinding: {
-				when: ContextKeyExpr.and(webviewActiveContextKeyExpr, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE),
-				primary: KeyCode.Escape,
-				weight: KeybindingWeight.EditorContrib
+				when: ContextKeyExpw.and(webviewActiveContextKeyExpw, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBWE),
+				pwimawy: KeyCode.Escape,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor): void {
-		getActiveWebviewEditor(accessor)?.hideFind();
+	pubwic wun(accessow: SewvicesAccessow): void {
+		getActiveWebviewEditow(accessow)?.hideFind();
 	}
 }
 
-export class WebViewEditorFindNextCommand extends Action2 {
-	public static readonly ID = 'editor.action.webvieweditor.findNext';
-	public static readonly LABEL = nls.localize('editor.action.webvieweditor.findNext', 'Find next');
+expowt cwass WebViewEditowFindNextCommand extends Action2 {
+	pubwic static weadonwy ID = 'editow.action.webvieweditow.findNext';
+	pubwic static weadonwy WABEW = nws.wocawize('editow.action.webvieweditow.findNext', 'Find next');
 
-	constructor() {
-		super({
-			id: WebViewEditorFindNextCommand.ID,
-			title: WebViewEditorFindNextCommand.LABEL,
+	constwuctow() {
+		supa({
+			id: WebViewEditowFindNextCommand.ID,
+			titwe: WebViewEditowFindNextCommand.WABEW,
 			keybinding: {
-				when: ContextKeyExpr.and(webviewActiveContextKeyExpr, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED),
-				primary: KeyCode.Enter,
-				weight: KeybindingWeight.EditorContrib
+				when: ContextKeyExpw.and(webviewActiveContextKeyExpw, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED),
+				pwimawy: KeyCode.Enta,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor): void {
-		getActiveWebviewEditor(accessor)?.runFindAction(false);
+	pubwic wun(accessow: SewvicesAccessow): void {
+		getActiveWebviewEditow(accessow)?.wunFindAction(fawse);
 	}
 }
 
-export class WebViewEditorFindPreviousCommand extends Action2 {
-	public static readonly ID = 'editor.action.webvieweditor.findPrevious';
-	public static readonly LABEL = nls.localize('editor.action.webvieweditor.findPrevious', 'Find previous');
+expowt cwass WebViewEditowFindPweviousCommand extends Action2 {
+	pubwic static weadonwy ID = 'editow.action.webvieweditow.findPwevious';
+	pubwic static weadonwy WABEW = nws.wocawize('editow.action.webvieweditow.findPwevious', 'Find pwevious');
 
-	constructor() {
-		super({
-			id: WebViewEditorFindPreviousCommand.ID,
-			title: WebViewEditorFindPreviousCommand.LABEL,
+	constwuctow() {
+		supa({
+			id: WebViewEditowFindPweviousCommand.ID,
+			titwe: WebViewEditowFindPweviousCommand.WABEW,
 			keybinding: {
-				when: ContextKeyExpr.and(webviewActiveContextKeyExpr, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED),
-				primary: KeyMod.Shift | KeyCode.Enter,
-				weight: KeybindingWeight.EditorContrib
+				when: ContextKeyExpw.and(webviewActiveContextKeyExpw, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED),
+				pwimawy: KeyMod.Shift | KeyCode.Enta,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor): void {
-		getActiveWebviewEditor(accessor)?.runFindAction(true);
+	pubwic wun(accessow: SewvicesAccessow): void {
+		getActiveWebviewEditow(accessow)?.wunFindAction(twue);
 	}
 }
 
-export class ReloadWebviewAction extends Action2 {
-	static readonly ID = 'workbench.action.webview.reloadWebviewAction';
-	static readonly LABEL = nls.localize('refreshWebviewLabel', "Reload Webviews");
+expowt cwass WewoadWebviewAction extends Action2 {
+	static weadonwy ID = 'wowkbench.action.webview.wewoadWebviewAction';
+	static weadonwy WABEW = nws.wocawize('wefweshWebviewWabew', "Wewoad Webviews");
 
-	public constructor() {
-		super({
-			id: ReloadWebviewAction.ID,
-			title: { value: ReloadWebviewAction.LABEL, original: 'Reload Webviews' },
-			category: CATEGORIES.Developer,
+	pubwic constwuctow() {
+		supa({
+			id: WewoadWebviewAction.ID,
+			titwe: { vawue: WewoadWebviewAction.WABEW, owiginaw: 'Wewoad Webviews' },
+			categowy: CATEGOWIES.Devewopa,
 			menu: [{
-				id: MenuId.CommandPalette
+				id: MenuId.CommandPawette
 			}]
 		});
 	}
 
-	public async run(accessor: ServicesAccessor): Promise<void> {
-		const webviewService = accessor.get(IWebviewService);
-		for (const webview of webviewService.webviews) {
-			webview.reload();
+	pubwic async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const webviewSewvice = accessow.get(IWebviewSewvice);
+		fow (const webview of webviewSewvice.webviews) {
+			webview.wewoad();
 		}
 	}
 }
 
-export function getActiveWebviewEditor(accessor: ServicesAccessor): Webview | undefined {
-	const editorService = accessor.get(IEditorService);
-	const activeEditor = editorService.activeEditor;
-	return activeEditor instanceof WebviewInput ? activeEditor.webview : undefined;
+expowt function getActiveWebviewEditow(accessow: SewvicesAccessow): Webview | undefined {
+	const editowSewvice = accessow.get(IEditowSewvice);
+	const activeEditow = editowSewvice.activeEditow;
+	wetuwn activeEditow instanceof WebviewInput ? activeEditow.webview : undefined;
 }

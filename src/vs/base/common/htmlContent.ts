@@ -1,132 +1,132 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { illegalArgument } from 'vs/base/common/errors';
-import { escapeIcons } from 'vs/base/common/iconLabels';
-import { UriComponents } from 'vs/base/common/uri';
+impowt { iwwegawAwgument } fwom 'vs/base/common/ewwows';
+impowt { escapeIcons } fwom 'vs/base/common/iconWabews';
+impowt { UwiComponents } fwom 'vs/base/common/uwi';
 
-export interface IMarkdownString {
-	readonly value: string;
-	readonly isTrusted?: boolean;
-	readonly supportThemeIcons?: boolean;
-	readonly supportHtml?: boolean;
-	uris?: { [href: string]: UriComponents };
+expowt intewface IMawkdownStwing {
+	weadonwy vawue: stwing;
+	weadonwy isTwusted?: boowean;
+	weadonwy suppowtThemeIcons?: boowean;
+	weadonwy suppowtHtmw?: boowean;
+	uwis?: { [hwef: stwing]: UwiComponents };
 }
 
-export const enum MarkdownStringTextNewlineStyle {
-	Paragraph = 0,
-	Break = 1,
+expowt const enum MawkdownStwingTextNewwineStywe {
+	Pawagwaph = 0,
+	Bweak = 1,
 }
 
-export class MarkdownString implements IMarkdownString {
+expowt cwass MawkdownStwing impwements IMawkdownStwing {
 
-	public value: string;
-	public isTrusted?: boolean;
-	public supportThemeIcons?: boolean;
-	public supportHtml?: boolean;
+	pubwic vawue: stwing;
+	pubwic isTwusted?: boowean;
+	pubwic suppowtThemeIcons?: boowean;
+	pubwic suppowtHtmw?: boowean;
 
-	constructor(
-		value: string = '',
-		isTrustedOrOptions: boolean | { isTrusted?: boolean, supportThemeIcons?: boolean, supportHtml?: boolean } = false,
+	constwuctow(
+		vawue: stwing = '',
+		isTwustedOwOptions: boowean | { isTwusted?: boowean, suppowtThemeIcons?: boowean, suppowtHtmw?: boowean } = fawse,
 	) {
-		this.value = value;
-		if (typeof this.value !== 'string') {
-			throw illegalArgument('value');
+		this.vawue = vawue;
+		if (typeof this.vawue !== 'stwing') {
+			thwow iwwegawAwgument('vawue');
 		}
 
-		if (typeof isTrustedOrOptions === 'boolean') {
-			this.isTrusted = isTrustedOrOptions;
-			this.supportThemeIcons = false;
-			this.supportHtml = false;
+		if (typeof isTwustedOwOptions === 'boowean') {
+			this.isTwusted = isTwustedOwOptions;
+			this.suppowtThemeIcons = fawse;
+			this.suppowtHtmw = fawse;
 		}
-		else {
-			this.isTrusted = isTrustedOrOptions.isTrusted ?? undefined;
-			this.supportThemeIcons = isTrustedOrOptions.supportThemeIcons ?? false;
-			this.supportHtml = isTrustedOrOptions.supportHtml ?? false;
+		ewse {
+			this.isTwusted = isTwustedOwOptions.isTwusted ?? undefined;
+			this.suppowtThemeIcons = isTwustedOwOptions.suppowtThemeIcons ?? fawse;
+			this.suppowtHtmw = isTwustedOwOptions.suppowtHtmw ?? fawse;
 		}
 	}
 
-	appendText(value: string, newlineStyle: MarkdownStringTextNewlineStyle = MarkdownStringTextNewlineStyle.Paragraph): MarkdownString {
-		this.value += escapeMarkdownSyntaxTokens(this.supportThemeIcons ? escapeIcons(value) : value)
-			.replace(/([ \t]+)/g, (_match, g1) => '&nbsp;'.repeat(g1.length))
-			.replace(/\>/gm, '\\>')
-			.replace(/\n/g, newlineStyle === MarkdownStringTextNewlineStyle.Break ? '\\\n' : '\n\n');
+	appendText(vawue: stwing, newwineStywe: MawkdownStwingTextNewwineStywe = MawkdownStwingTextNewwineStywe.Pawagwaph): MawkdownStwing {
+		this.vawue += escapeMawkdownSyntaxTokens(this.suppowtThemeIcons ? escapeIcons(vawue) : vawue)
+			.wepwace(/([ \t]+)/g, (_match, g1) => '&nbsp;'.wepeat(g1.wength))
+			.wepwace(/\>/gm, '\\>')
+			.wepwace(/\n/g, newwineStywe === MawkdownStwingTextNewwineStywe.Bweak ? '\\\n' : '\n\n');
 
-		return this;
+		wetuwn this;
 	}
 
-	appendMarkdown(value: string): MarkdownString {
-		this.value += value;
-		return this;
+	appendMawkdown(vawue: stwing): MawkdownStwing {
+		this.vawue += vawue;
+		wetuwn this;
 	}
 
-	appendCodeblock(langId: string, code: string): MarkdownString {
-		this.value += '\n```';
-		this.value += langId;
-		this.value += '\n';
-		this.value += code;
-		this.value += '\n```\n';
-		return this;
+	appendCodebwock(wangId: stwing, code: stwing): MawkdownStwing {
+		this.vawue += '\n```';
+		this.vawue += wangId;
+		this.vawue += '\n';
+		this.vawue += code;
+		this.vawue += '\n```\n';
+		wetuwn this;
 	}
 }
 
-export function isEmptyMarkdownString(oneOrMany: IMarkdownString | IMarkdownString[] | null | undefined): boolean {
-	if (isMarkdownString(oneOrMany)) {
-		return !oneOrMany.value;
-	} else if (Array.isArray(oneOrMany)) {
-		return oneOrMany.every(isEmptyMarkdownString);
-	} else {
-		return true;
+expowt function isEmptyMawkdownStwing(oneOwMany: IMawkdownStwing | IMawkdownStwing[] | nuww | undefined): boowean {
+	if (isMawkdownStwing(oneOwMany)) {
+		wetuwn !oneOwMany.vawue;
+	} ewse if (Awway.isAwway(oneOwMany)) {
+		wetuwn oneOwMany.evewy(isEmptyMawkdownStwing);
+	} ewse {
+		wetuwn twue;
 	}
 }
 
-export function isMarkdownString(thing: any): thing is IMarkdownString {
-	if (thing instanceof MarkdownString) {
-		return true;
-	} else if (thing && typeof thing === 'object') {
-		return typeof (<IMarkdownString>thing).value === 'string'
-			&& (typeof (<IMarkdownString>thing).isTrusted === 'boolean' || (<IMarkdownString>thing).isTrusted === undefined)
-			&& (typeof (<IMarkdownString>thing).supportThemeIcons === 'boolean' || (<IMarkdownString>thing).supportThemeIcons === undefined);
+expowt function isMawkdownStwing(thing: any): thing is IMawkdownStwing {
+	if (thing instanceof MawkdownStwing) {
+		wetuwn twue;
+	} ewse if (thing && typeof thing === 'object') {
+		wetuwn typeof (<IMawkdownStwing>thing).vawue === 'stwing'
+			&& (typeof (<IMawkdownStwing>thing).isTwusted === 'boowean' || (<IMawkdownStwing>thing).isTwusted === undefined)
+			&& (typeof (<IMawkdownStwing>thing).suppowtThemeIcons === 'boowean' || (<IMawkdownStwing>thing).suppowtThemeIcons === undefined);
 	}
-	return false;
+	wetuwn fawse;
 }
 
-export function markdownStringEqual(a: IMarkdownString, b: IMarkdownString): boolean {
+expowt function mawkdownStwingEquaw(a: IMawkdownStwing, b: IMawkdownStwing): boowean {
 	if (a === b) {
-		return true;
-	} else if (!a || !b) {
-		return false;
-	} else {
-		return a.value === b.value && a.isTrusted === b.isTrusted && a.supportThemeIcons === b.supportThemeIcons;
+		wetuwn twue;
+	} ewse if (!a || !b) {
+		wetuwn fawse;
+	} ewse {
+		wetuwn a.vawue === b.vawue && a.isTwusted === b.isTwusted && a.suppowtThemeIcons === b.suppowtThemeIcons;
 	}
 }
 
-export function escapeMarkdownSyntaxTokens(text: string): string {
-	// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
-	return text.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&');
+expowt function escapeMawkdownSyntaxTokens(text: stwing): stwing {
+	// escape mawkdown syntax tokens: http://dawingfiwebaww.net/pwojects/mawkdown/syntax#backswash
+	wetuwn text.wepwace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&');
 }
 
-export function removeMarkdownEscapes(text: string): string {
+expowt function wemoveMawkdownEscapes(text: stwing): stwing {
 	if (!text) {
-		return text;
+		wetuwn text;
 	}
-	return text.replace(/\\([\\`*_{}[\]()#+\-.!])/g, '$1');
+	wetuwn text.wepwace(/\\([\\`*_{}[\]()#+\-.!])/g, '$1');
 }
 
-export function parseHrefAndDimensions(href: string): { href: string, dimensions: string[] } {
-	const dimensions: string[] = [];
-	const splitted = href.split('|').map(s => s.trim());
-	href = splitted[0];
-	const parameters = splitted[1];
-	if (parameters) {
-		const heightFromParams = /height=(\d+)/.exec(parameters);
-		const widthFromParams = /width=(\d+)/.exec(parameters);
-		const height = heightFromParams ? heightFromParams[1] : '';
-		const width = widthFromParams ? widthFromParams[1] : '';
-		const widthIsFinite = isFinite(parseInt(width));
-		const heightIsFinite = isFinite(parseInt(height));
+expowt function pawseHwefAndDimensions(hwef: stwing): { hwef: stwing, dimensions: stwing[] } {
+	const dimensions: stwing[] = [];
+	const spwitted = hwef.spwit('|').map(s => s.twim());
+	hwef = spwitted[0];
+	const pawametews = spwitted[1];
+	if (pawametews) {
+		const heightFwomPawams = /height=(\d+)/.exec(pawametews);
+		const widthFwomPawams = /width=(\d+)/.exec(pawametews);
+		const height = heightFwomPawams ? heightFwomPawams[1] : '';
+		const width = widthFwomPawams ? widthFwomPawams[1] : '';
+		const widthIsFinite = isFinite(pawseInt(width));
+		const heightIsFinite = isFinite(pawseInt(height));
 		if (widthIsFinite) {
 			dimensions.push(`width="${width}"`);
 		}
@@ -134,5 +134,5 @@ export function parseHrefAndDimensions(href: string): { href: string, dimensions
 			dimensions.push(`height="${height}"`);
 		}
 	}
-	return { href, dimensions };
+	wetuwn { hwef, dimensions };
 }

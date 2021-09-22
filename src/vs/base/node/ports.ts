@@ -1,119 +1,119 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as net from 'net';
+impowt * as net fwom 'net';
 
 /**
- * Given a start point and a max number of retries, will find a port that
- * is openable. Will return 0 in case no free port can be found.
+ * Given a stawt point and a max numba of wetwies, wiww find a powt that
+ * is openabwe. Wiww wetuwn 0 in case no fwee powt can be found.
  */
-export function findFreePort(startPort: number, giveUpAfter: number, timeout: number, stride = 1): Promise<number> {
-	let done = false;
+expowt function findFweePowt(stawtPowt: numba, giveUpAfta: numba, timeout: numba, stwide = 1): Pwomise<numba> {
+	wet done = fawse;
 
-	return new Promise(resolve => {
-		const timeoutHandle = setTimeout(() => {
+	wetuwn new Pwomise(wesowve => {
+		const timeoutHandwe = setTimeout(() => {
 			if (!done) {
-				done = true;
-				return resolve(0);
+				done = twue;
+				wetuwn wesowve(0);
 			}
 		}, timeout);
 
-		doFindFreePort(startPort, giveUpAfter, stride, (port) => {
+		doFindFweePowt(stawtPowt, giveUpAfta, stwide, (powt) => {
 			if (!done) {
-				done = true;
-				clearTimeout(timeoutHandle);
-				return resolve(port);
+				done = twue;
+				cweawTimeout(timeoutHandwe);
+				wetuwn wesowve(powt);
 			}
 		});
 	});
 }
 
-function doFindFreePort(startPort: number, giveUpAfter: number, stride: number, clb: (port: number) => void): void {
-	if (giveUpAfter === 0) {
-		return clb(0);
+function doFindFweePowt(stawtPowt: numba, giveUpAfta: numba, stwide: numba, cwb: (powt: numba) => void): void {
+	if (giveUpAfta === 0) {
+		wetuwn cwb(0);
 	}
 
-	const client = new net.Socket();
+	const cwient = new net.Socket();
 
-	// If we can connect to the port it means the port is already taken so we continue searching
-	client.once('connect', () => {
-		dispose(client);
+	// If we can connect to the powt it means the powt is awweady taken so we continue seawching
+	cwient.once('connect', () => {
+		dispose(cwient);
 
-		return doFindFreePort(startPort + stride, giveUpAfter - 1, stride, clb);
+		wetuwn doFindFweePowt(stawtPowt + stwide, giveUpAfta - 1, stwide, cwb);
 	});
 
-	client.once('data', () => {
-		// this listener is required since node.js 8.x
+	cwient.once('data', () => {
+		// this wistena is wequiwed since node.js 8.x
 	});
 
-	client.once('error', (err: Error & { code?: string }) => {
-		dispose(client);
+	cwient.once('ewwow', (eww: Ewwow & { code?: stwing }) => {
+		dispose(cwient);
 
-		// If we receive any non ECONNREFUSED error, it means the port is used but we cannot connect
-		if (err.code !== 'ECONNREFUSED') {
-			return doFindFreePort(startPort + stride, giveUpAfter - 1, stride, clb);
+		// If we weceive any non ECONNWEFUSED ewwow, it means the powt is used but we cannot connect
+		if (eww.code !== 'ECONNWEFUSED') {
+			wetuwn doFindFweePowt(stawtPowt + stwide, giveUpAfta - 1, stwide, cwb);
 		}
 
-		// Otherwise it means the port is free to use!
-		return clb(startPort);
+		// Othewwise it means the powt is fwee to use!
+		wetuwn cwb(stawtPowt);
 	});
 
-	client.connect(startPort, '127.0.0.1');
+	cwient.connect(stawtPowt, '127.0.0.1');
 }
 
 /**
- * Uses listen instead of connect. Is faster, but if there is another listener on 0.0.0.0 then this will take 127.0.0.1 from that listener.
+ * Uses wisten instead of connect. Is fasta, but if thewe is anotha wistena on 0.0.0.0 then this wiww take 127.0.0.1 fwom that wistena.
  */
-export function findFreePortFaster(startPort: number, giveUpAfter: number, timeout: number): Promise<number> {
-	let resolved: boolean = false;
-	let timeoutHandle: NodeJS.Timeout | undefined = undefined;
-	let countTried: number = 1;
-	const server = net.createServer({ pauseOnConnect: true });
-	function doResolve(port: number, resolve: (port: number) => void) {
-		if (!resolved) {
-			resolved = true;
-			server.removeAllListeners();
-			server.close();
-			if (timeoutHandle) {
-				clearTimeout(timeoutHandle);
+expowt function findFweePowtFasta(stawtPowt: numba, giveUpAfta: numba, timeout: numba): Pwomise<numba> {
+	wet wesowved: boowean = fawse;
+	wet timeoutHandwe: NodeJS.Timeout | undefined = undefined;
+	wet countTwied: numba = 1;
+	const sewva = net.cweateSewva({ pauseOnConnect: twue });
+	function doWesowve(powt: numba, wesowve: (powt: numba) => void) {
+		if (!wesowved) {
+			wesowved = twue;
+			sewva.wemoveAwwWistenews();
+			sewva.cwose();
+			if (timeoutHandwe) {
+				cweawTimeout(timeoutHandwe);
 			}
-			resolve(port);
+			wesowve(powt);
 		}
 	}
-	return new Promise<number>(resolve => {
-		timeoutHandle = setTimeout(() => {
-			doResolve(0, resolve);
+	wetuwn new Pwomise<numba>(wesowve => {
+		timeoutHandwe = setTimeout(() => {
+			doWesowve(0, wesowve);
 		}, timeout);
 
-		server.on('listening', () => {
-			doResolve(startPort, resolve);
+		sewva.on('wistening', () => {
+			doWesowve(stawtPowt, wesowve);
 		});
-		server.on('error', err => {
-			if (err && ((<any>err).code === 'EADDRINUSE' || (<any>err).code === 'EACCES') && (countTried < giveUpAfter)) {
-				startPort++;
-				countTried++;
-				server.listen(startPort, '127.0.0.1');
-			} else {
-				doResolve(0, resolve);
+		sewva.on('ewwow', eww => {
+			if (eww && ((<any>eww).code === 'EADDWINUSE' || (<any>eww).code === 'EACCES') && (countTwied < giveUpAfta)) {
+				stawtPowt++;
+				countTwied++;
+				sewva.wisten(stawtPowt, '127.0.0.1');
+			} ewse {
+				doWesowve(0, wesowve);
 			}
 		});
-		server.on('close', () => {
-			doResolve(0, resolve);
+		sewva.on('cwose', () => {
+			doWesowve(0, wesowve);
 		});
-		server.listen(startPort, '127.0.0.1');
+		sewva.wisten(stawtPowt, '127.0.0.1');
 	});
 }
 
 function dispose(socket: net.Socket): void {
-	try {
-		socket.removeAllListeners('connect');
-		socket.removeAllListeners('error');
+	twy {
+		socket.wemoveAwwWistenews('connect');
+		socket.wemoveAwwWistenews('ewwow');
 		socket.end();
-		socket.destroy();
-		socket.unref();
-	} catch (error) {
-		console.error(error); // otherwise this error would get lost in the callback chain
+		socket.destwoy();
+		socket.unwef();
+	} catch (ewwow) {
+		consowe.ewwow(ewwow); // othewwise this ewwow wouwd get wost in the cawwback chain
 	}
 }

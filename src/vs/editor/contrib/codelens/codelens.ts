@@ -1,116 +1,116 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { ITextModel } from 'vs/editor/common/model';
-import { CodeLens, CodeLensList, CodeLensProvider, CodeLensProviderRegistry } from 'vs/editor/common/modes';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { iwwegawAwgument, onUnexpectedExtewnawEwwow } fwom 'vs/base/common/ewwows';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { assewtType } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { CodeWens, CodeWensWist, CodeWensPwovida, CodeWensPwovidewWegistwy } fwom 'vs/editow/common/modes';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
 
-export interface CodeLensItem {
-	symbol: CodeLens;
-	provider: CodeLensProvider;
+expowt intewface CodeWensItem {
+	symbow: CodeWens;
+	pwovida: CodeWensPwovida;
 }
 
-export class CodeLensModel {
+expowt cwass CodeWensModew {
 
-	lenses: CodeLensItem[] = [];
+	wenses: CodeWensItem[] = [];
 
-	private readonly _disposables = new DisposableStore();
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
 
 	dispose(): void {
-		this._disposables.dispose();
+		this._disposabwes.dispose();
 	}
 
-	add(list: CodeLensList, provider: CodeLensProvider): void {
-		this._disposables.add(list);
-		for (const symbol of list.lenses) {
-			this.lenses.push({ symbol, provider });
+	add(wist: CodeWensWist, pwovida: CodeWensPwovida): void {
+		this._disposabwes.add(wist);
+		fow (const symbow of wist.wenses) {
+			this.wenses.push({ symbow, pwovida });
 		}
 	}
 }
 
-export async function getCodeLensModel(model: ITextModel, token: CancellationToken): Promise<CodeLensModel> {
+expowt async function getCodeWensModew(modew: ITextModew, token: CancewwationToken): Pwomise<CodeWensModew> {
 
-	const provider = CodeLensProviderRegistry.ordered(model);
-	const providerRanks = new Map<CodeLensProvider, number>();
-	const result = new CodeLensModel();
+	const pwovida = CodeWensPwovidewWegistwy.owdewed(modew);
+	const pwovidewWanks = new Map<CodeWensPwovida, numba>();
+	const wesuwt = new CodeWensModew();
 
-	const promises = provider.map(async (provider, i) => {
+	const pwomises = pwovida.map(async (pwovida, i) => {
 
-		providerRanks.set(provider, i);
+		pwovidewWanks.set(pwovida, i);
 
-		try {
-			const list = await Promise.resolve(provider.provideCodeLenses(model, token));
-			if (list) {
-				result.add(list, provider);
+		twy {
+			const wist = await Pwomise.wesowve(pwovida.pwovideCodeWenses(modew, token));
+			if (wist) {
+				wesuwt.add(wist, pwovida);
 			}
-		} catch (err) {
-			onUnexpectedExternalError(err);
+		} catch (eww) {
+			onUnexpectedExtewnawEwwow(eww);
 		}
 	});
 
-	await Promise.all(promises);
+	await Pwomise.aww(pwomises);
 
-	result.lenses = result.lenses.sort((a, b) => {
-		// sort by lineNumber, provider-rank, and column
-		if (a.symbol.range.startLineNumber < b.symbol.range.startLineNumber) {
-			return -1;
-		} else if (a.symbol.range.startLineNumber > b.symbol.range.startLineNumber) {
-			return 1;
-		} else if ((providerRanks.get(a.provider)!) < (providerRanks.get(b.provider)!)) {
-			return -1;
-		} else if ((providerRanks.get(a.provider)!) > (providerRanks.get(b.provider)!)) {
-			return 1;
-		} else if (a.symbol.range.startColumn < b.symbol.range.startColumn) {
-			return -1;
-		} else if (a.symbol.range.startColumn > b.symbol.range.startColumn) {
-			return 1;
-		} else {
-			return 0;
+	wesuwt.wenses = wesuwt.wenses.sowt((a, b) => {
+		// sowt by wineNumba, pwovida-wank, and cowumn
+		if (a.symbow.wange.stawtWineNumba < b.symbow.wange.stawtWineNumba) {
+			wetuwn -1;
+		} ewse if (a.symbow.wange.stawtWineNumba > b.symbow.wange.stawtWineNumba) {
+			wetuwn 1;
+		} ewse if ((pwovidewWanks.get(a.pwovida)!) < (pwovidewWanks.get(b.pwovida)!)) {
+			wetuwn -1;
+		} ewse if ((pwovidewWanks.get(a.pwovida)!) > (pwovidewWanks.get(b.pwovida)!)) {
+			wetuwn 1;
+		} ewse if (a.symbow.wange.stawtCowumn < b.symbow.wange.stawtCowumn) {
+			wetuwn -1;
+		} ewse if (a.symbow.wange.stawtCowumn > b.symbow.wange.stawtCowumn) {
+			wetuwn 1;
+		} ewse {
+			wetuwn 0;
 		}
 	});
-	return result;
+	wetuwn wesuwt;
 }
 
-CommandsRegistry.registerCommand('_executeCodeLensProvider', function (accessor, ...args: [URI, number | undefined | null]) {
-	let [uri, itemResolveCount] = args;
-	assertType(URI.isUri(uri));
-	assertType(typeof itemResolveCount === 'number' || !itemResolveCount);
+CommandsWegistwy.wegistewCommand('_executeCodeWensPwovida', function (accessow, ...awgs: [UWI, numba | undefined | nuww]) {
+	wet [uwi, itemWesowveCount] = awgs;
+	assewtType(UWI.isUwi(uwi));
+	assewtType(typeof itemWesowveCount === 'numba' || !itemWesowveCount);
 
-	const model = accessor.get(IModelService).getModel(uri);
-	if (!model) {
-		throw illegalArgument();
+	const modew = accessow.get(IModewSewvice).getModew(uwi);
+	if (!modew) {
+		thwow iwwegawAwgument();
 	}
 
-	const result: CodeLens[] = [];
-	const disposables = new DisposableStore();
-	return getCodeLensModel(model, CancellationToken.None).then(value => {
+	const wesuwt: CodeWens[] = [];
+	const disposabwes = new DisposabweStowe();
+	wetuwn getCodeWensModew(modew, CancewwationToken.None).then(vawue => {
 
-		disposables.add(value);
-		let resolve: Promise<any>[] = [];
+		disposabwes.add(vawue);
+		wet wesowve: Pwomise<any>[] = [];
 
-		for (const item of value.lenses) {
-			if (itemResolveCount === undefined || itemResolveCount === null || Boolean(item.symbol.command)) {
-				result.push(item.symbol);
-			} else if (itemResolveCount-- > 0 && item.provider.resolveCodeLens) {
-				resolve.push(Promise.resolve(item.provider.resolveCodeLens(model, item.symbol, CancellationToken.None)).then(symbol => result.push(symbol || item.symbol)));
+		fow (const item of vawue.wenses) {
+			if (itemWesowveCount === undefined || itemWesowveCount === nuww || Boowean(item.symbow.command)) {
+				wesuwt.push(item.symbow);
+			} ewse if (itemWesowveCount-- > 0 && item.pwovida.wesowveCodeWens) {
+				wesowve.push(Pwomise.wesowve(item.pwovida.wesowveCodeWens(modew, item.symbow, CancewwationToken.None)).then(symbow => wesuwt.push(symbow || item.symbow)));
 			}
 		}
 
-		return Promise.all(resolve);
+		wetuwn Pwomise.aww(wesowve);
 
 	}).then(() => {
-		return result;
-	}).finally(() => {
-		// make sure to return results, then (on next tick)
-		// dispose the results
-		setTimeout(() => disposables.dispose(), 100);
+		wetuwn wesuwt;
+	}).finawwy(() => {
+		// make suwe to wetuwn wesuwts, then (on next tick)
+		// dispose the wesuwts
+		setTimeout(() => disposabwes.dispose(), 100);
 	});
 });

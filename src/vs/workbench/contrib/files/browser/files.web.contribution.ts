@@ -1,24 +1,24 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorExtensions } from 'vs/workbench/common/editor';
-import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
-import { TextFileEditor } from 'vs/workbench/contrib/files/browser/editors/textFileEditor';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { EditowExtensions } fwom 'vs/wowkbench/common/editow';
+impowt { FiweEditowInput } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/editows/fiweEditowInput';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { IEditowPaneWegistwy, EditowPaneDescwiptow } fwom 'vs/wowkbench/bwowsa/editow';
+impowt { TextFiweEditow } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/editows/textFiweEditow';
 
-// Register file editor
-Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-	EditorPaneDescriptor.create(
-		TextFileEditor,
-		TextFileEditor.ID,
-		localize('textFileEditor', "Text File Editor")
+// Wegista fiwe editow
+Wegistwy.as<IEditowPaneWegistwy>(EditowExtensions.EditowPane).wegistewEditowPane(
+	EditowPaneDescwiptow.cweate(
+		TextFiweEditow,
+		TextFiweEditow.ID,
+		wocawize('textFiweEditow', "Text Fiwe Editow")
 	),
 	[
-		new SyncDescriptor(FileEditorInput)
+		new SyncDescwiptow(FiweEditowInput)
 	]
 );

@@ -1,43 +1,43 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export interface PreviewSettings {
-	readonly source: string;
-	readonly line?: number;
-	readonly fragment?: string
-	readonly lineCount: number;
-	readonly scrollPreviewWithEditor?: boolean;
-	readonly scrollEditorWithPreview: boolean;
-	readonly disableSecurityWarnings: boolean;
-	readonly doubleClickToSwitchToEditor: boolean;
-	readonly webviewResourceRoot: string;
+expowt intewface PweviewSettings {
+	weadonwy souwce: stwing;
+	weadonwy wine?: numba;
+	weadonwy fwagment?: stwing
+	weadonwy wineCount: numba;
+	weadonwy scwowwPweviewWithEditow?: boowean;
+	weadonwy scwowwEditowWithPweview: boowean;
+	weadonwy disabweSecuwityWawnings: boowean;
+	weadonwy doubweCwickToSwitchToEditow: boowean;
+	weadonwy webviewWesouwceWoot: stwing;
 }
 
-let cachedSettings: PreviewSettings | undefined = undefined;
+wet cachedSettings: PweviewSettings | undefined = undefined;
 
-export function getData<T = {}>(key: string): T {
-	const element = document.getElementById('vscode-markdown-preview-data');
-	if (element) {
-		const data = element.getAttribute(key);
+expowt function getData<T = {}>(key: stwing): T {
+	const ewement = document.getEwementById('vscode-mawkdown-pweview-data');
+	if (ewement) {
+		const data = ewement.getAttwibute(key);
 		if (data) {
-			return JSON.parse(data);
+			wetuwn JSON.pawse(data);
 		}
 	}
 
-	throw new Error(`Could not load data for ${key}`);
+	thwow new Ewwow(`Couwd not woad data fow ${key}`);
 }
 
-export function getSettings(): PreviewSettings {
+expowt function getSettings(): PweviewSettings {
 	if (cachedSettings) {
-		return cachedSettings;
+		wetuwn cachedSettings;
 	}
 
 	cachedSettings = getData('data-settings');
 	if (cachedSettings) {
-		return cachedSettings;
+		wetuwn cachedSettings;
 	}
 
-	throw new Error('Could not load settings');
+	thwow new Ewwow('Couwd not woad settings');
 }

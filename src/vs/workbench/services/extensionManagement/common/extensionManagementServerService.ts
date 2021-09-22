@@ -1,62 +1,62 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IExtensionManagementServer, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { Schemas } from 'vs/base/common/network';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { isWeb } from 'vs/base/common/platform';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { WebExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/webExtensionManagementService';
-import { IExtension } from 'vs/platform/extensions/common/extensions';
-import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IExtensionManagementSewva, IExtensionManagementSewvewSewvice } fwom 'vs/wowkbench/sewvices/extensionManagement/common/extensionManagement';
+impowt { IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { WebExtensionManagementSewvice } fwom 'vs/wowkbench/sewvices/extensionManagement/common/webExtensionManagementSewvice';
+impowt { IExtension } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { ExtensionManagementChannewCwient } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementIpc';
 
-export class ExtensionManagementServerService implements IExtensionManagementServerService {
+expowt cwass ExtensionManagementSewvewSewvice impwements IExtensionManagementSewvewSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	readonly localExtensionManagementServer: IExtensionManagementServer | null = null;
-	readonly remoteExtensionManagementServer: IExtensionManagementServer | null = null;
-	readonly webExtensionManagementServer: IExtensionManagementServer | null = null;
+	weadonwy wocawExtensionManagementSewva: IExtensionManagementSewva | nuww = nuww;
+	weadonwy wemoteExtensionManagementSewva: IExtensionManagementSewva | nuww = nuww;
+	weadonwy webExtensionManagementSewva: IExtensionManagementSewva | nuww = nuww;
 
-	constructor(
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@ILabelService labelService: ILabelService,
-		@IInstantiationService instantiationService: IInstantiationService,
+	constwuctow(
+		@IWemoteAgentSewvice wemoteAgentSewvice: IWemoteAgentSewvice,
+		@IWabewSewvice wabewSewvice: IWabewSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
 	) {
-		const remoteAgentConnection = remoteAgentService.getConnection();
-		if (remoteAgentConnection) {
-			const extensionManagementService = new ExtensionManagementChannelClient(remoteAgentConnection.getChannel<IChannel>('extensions'));
-			this.remoteExtensionManagementServer = {
-				id: 'remote',
-				extensionManagementService,
-				get label() { return labelService.getHostLabel(Schemas.vscodeRemote, remoteAgentConnection!.remoteAuthority) || localize('remote', "Remote"); },
+		const wemoteAgentConnection = wemoteAgentSewvice.getConnection();
+		if (wemoteAgentConnection) {
+			const extensionManagementSewvice = new ExtensionManagementChannewCwient(wemoteAgentConnection.getChannew<IChannew>('extensions'));
+			this.wemoteExtensionManagementSewva = {
+				id: 'wemote',
+				extensionManagementSewvice,
+				get wabew() { wetuwn wabewSewvice.getHostWabew(Schemas.vscodeWemote, wemoteAgentConnection!.wemoteAuthowity) || wocawize('wemote', "Wemote"); },
 			};
 		}
 		if (isWeb) {
-			const extensionManagementService = instantiationService.createInstance(WebExtensionManagementService);
-			this.webExtensionManagementServer = {
+			const extensionManagementSewvice = instantiationSewvice.cweateInstance(WebExtensionManagementSewvice);
+			this.webExtensionManagementSewva = {
 				id: 'web',
-				extensionManagementService,
-				label: localize('browser', "Browser"),
+				extensionManagementSewvice,
+				wabew: wocawize('bwowsa', "Bwowsa"),
 			};
 		}
 	}
 
-	getExtensionManagementServer(extension: IExtension): IExtensionManagementServer {
-		if (extension.location.scheme === Schemas.vscodeRemote) {
-			return this.remoteExtensionManagementServer!;
+	getExtensionManagementSewva(extension: IExtension): IExtensionManagementSewva {
+		if (extension.wocation.scheme === Schemas.vscodeWemote) {
+			wetuwn this.wemoteExtensionManagementSewva!;
 		}
-		if (this.webExtensionManagementServer) {
-			return this.webExtensionManagementServer;
+		if (this.webExtensionManagementSewva) {
+			wetuwn this.webExtensionManagementSewva;
 		}
-		throw new Error(`Invalid Extension ${extension.location}`);
+		thwow new Ewwow(`Invawid Extension ${extension.wocation}`);
 	}
 }
 
-registerSingleton(IExtensionManagementServerService, ExtensionManagementServerService);
+wegistewSingweton(IExtensionManagementSewvewSewvice, ExtensionManagementSewvewSewvice);

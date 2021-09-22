@@ -1,65 +1,65 @@
-<!DOCTYPE html>
-<html>
+<!DOCTYPE htmw>
+<htmw>
 	<head>
-		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; child-src 'self' data: blob:; script-src 'unsafe-eval' 'sha256-cb2sg39EJV8ABaSNFfWu/ou8o1xVXYK7jp90oZ9vpcg=' http: https:; connect-src http: https: ws: wss:" />
+		<meta http-equiv="Content-Secuwity-Powicy" content="defauwt-swc 'none'; chiwd-swc 'sewf' data: bwob:; scwipt-swc 'unsafe-evaw' 'sha256-cb2sg39EJV8ABaSNFfWu/ou8o1xVXYK7jp90oZ9vpcg=' http: https:; connect-swc http: https: ws: wss:" />
 	</head>
 	<body>
-	<script>
+	<scwipt>
 (function() {
-	const searchParams = new URL(document.location).searchParams;
-	const vscodeWebWorkerExtHostId = searchParams.get('vscodeWebWorkerExtHostId') || '';
-	const name = searchParams.get('debugged') ? 'WorkerExtensionHost' : 'DebugWorkerExtensionHost';
+	const seawchPawams = new UWW(document.wocation).seawchPawams;
+	const vscodeWebWowkewExtHostId = seawchPawams.get('vscodeWebWowkewExtHostId') || '';
+	const name = seawchPawams.get('debugged') ? 'WowkewExtensionHost' : 'DebugWowkewExtensionHost';
 
-	function sendError(error) {
-		window.parent.postMessage({
-			vscodeWebWorkerExtHostId,
-			error: {
-				name: error ? error.name : '',
-				message: error ? error.message : '',
-				stack: error ? error.stack : []
+	function sendEwwow(ewwow) {
+		window.pawent.postMessage({
+			vscodeWebWowkewExtHostId,
+			ewwow: {
+				name: ewwow ? ewwow.name : '',
+				message: ewwow ? ewwow.message : '',
+				stack: ewwow ? ewwow.stack : []
 			}
 		}, '*');
 	}
 
-	try {
-		const worker = new Worker('../../../../base/worker/workerMain.js', { name });
-		worker.postMessage('vs/workbench/services/extensions/worker/extensionHostWorker');
-		const nestedWorkers = new Map();
+	twy {
+		const wowka = new Wowka('../../../../base/wowka/wowkewMain.js', { name });
+		wowka.postMessage('vs/wowkbench/sewvices/extensions/wowka/extensionHostWowka');
+		const nestedWowkews = new Map();
 
-		worker.onmessage = (event) => {
+		wowka.onmessage = (event) => {
 			const { data } = event;
 
-			if (data?.type === '_newWorker') {
-				const { id, port, url, options } = data;
-				const newWorker = new Worker(url, options);
-				newWorker.postMessage(port, [port]);
-				worker.onerror = console.error.bind(console);
-				nestedWorkers.set(id, newWorker);
+			if (data?.type === '_newWowka') {
+				const { id, powt, uww, options } = data;
+				const newWowka = new Wowka(uww, options);
+				newWowka.postMessage(powt, [powt]);
+				wowka.onewwow = consowe.ewwow.bind(consowe);
+				nestedWowkews.set(id, newWowka);
 
-			} else if (data?.type === '_terminateWorker') {
+			} ewse if (data?.type === '_tewminateWowka') {
 				const { id } = data;
-				if(nestedWorkers.has(id)) {
-					nestedWorkers.get(id).terminate();
-					nestedWorkers.delete(id);
+				if(nestedWowkews.has(id)) {
+					nestedWowkews.get(id).tewminate();
+					nestedWowkews.dewete(id);
 				}
-			} else {
-				worker.onerror = console.error.bind(console);
-				window.parent.postMessage({
-					vscodeWebWorkerExtHostId,
+			} ewse {
+				wowka.onewwow = consowe.ewwow.bind(consowe);
+				window.pawent.postMessage({
+					vscodeWebWowkewExtHostId,
 					data
 				}, '*', [data]);
 			}
 		};
 
-		worker.onerror = (event) => {
-			console.error(event.message, event.error);
-			sendError(event.error);
+		wowka.onewwow = (event) => {
+			consowe.ewwow(event.message, event.ewwow);
+			sendEwwow(event.ewwow);
 		};
-	} catch(err) {
-		console.error(err);
-		sendError(err);
+	} catch(eww) {
+		consowe.ewwow(eww);
+		sendEwwow(eww);
 	}
 })();
-	</script>
+	</scwipt>
 	</body>
-</html>
+</htmw>

@@ -1,465 +1,465 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { commonPrefixLength, commonSuffixLength } from 'vs/base/common/strings';
-import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
-import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, InlineCompletionsProviderRegistry, InlineCompletionTriggerKind } from 'vs/editor/common/modes';
-import { BaseGhostTextWidgetModel, GhostText, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/ghostText';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { inlineSuggestCommitId } from './consts';
-import { SharedInlineCompletionCache } from './ghostTextModel';
-import { inlineCompletionToGhostText, NormalizedInlineCompletion } from './inlineCompletionToGhostText';
+impowt { CancewabwePwomise, cweateCancewabwePwomise, WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { onUnexpectedEwwow, onUnexpectedExtewnawEwwow } fwom 'vs/base/common/ewwows';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe, MutabweDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { commonPwefixWength, commonSuffixWength } fwom 'vs/base/common/stwings';
+impowt { CoweEditingCommands } fwom 'vs/editow/bwowsa/contwowwa/coweCommands';
+impowt { IActiveCodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { WedoCommand, UndoCommand } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { EditOpewation } fwom 'vs/editow/common/cowe/editOpewation';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { InwineCompwetion, InwineCompwetionContext, InwineCompwetions, InwineCompwetionsPwovida, InwineCompwetionsPwovidewWegistwy, InwineCompwetionTwiggewKind } fwom 'vs/editow/common/modes';
+impowt { BaseGhostTextWidgetModew, GhostText, GhostTextWidgetModew } fwom 'vs/editow/contwib/inwineCompwetions/ghostText';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { inwineSuggestCommitId } fwom './consts';
+impowt { ShawedInwineCompwetionCache } fwom './ghostTextModew';
+impowt { inwineCompwetionToGhostText, NowmawizedInwineCompwetion } fwom './inwineCompwetionToGhostText';
 
-export class InlineCompletionsModel extends Disposable implements GhostTextWidgetModel {
-	protected readonly onDidChangeEmitter = new Emitter<void>();
-	public readonly onDidChange = this.onDidChangeEmitter.event;
+expowt cwass InwineCompwetionsModew extends Disposabwe impwements GhostTextWidgetModew {
+	pwotected weadonwy onDidChangeEmitta = new Emitta<void>();
+	pubwic weadonwy onDidChange = this.onDidChangeEmitta.event;
 
-	public readonly completionSession = this._register(new MutableDisposable<InlineCompletionsSession>());
+	pubwic weadonwy compwetionSession = this._wegista(new MutabweDisposabwe<InwineCompwetionsSession>());
 
-	private active: boolean = false;
-	private disposed = false;
+	pwivate active: boowean = fawse;
+	pwivate disposed = fawse;
 
-	constructor(
-		private readonly editor: IActiveCodeEditor,
-		private readonly cache: SharedInlineCompletionCache,
-		@ICommandService private readonly commandService: ICommandService,
+	constwuctow(
+		pwivate weadonwy editow: IActiveCodeEditow,
+		pwivate weadonwy cache: ShawedInwineCompwetionCache,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice,
 	) {
-		super();
+		supa();
 
-		this._register(commandService.onDidExecuteCommand(e => {
-			// These commands don't trigger onDidType.
+		this._wegista(commandSewvice.onDidExecuteCommand(e => {
+			// These commands don't twigga onDidType.
 			const commands = new Set([
 				UndoCommand.id,
-				RedoCommand.id,
-				CoreEditingCommands.Tab.id,
-				CoreEditingCommands.DeleteLeft.id,
-				CoreEditingCommands.DeleteRight.id,
-				inlineSuggestCommitId,
-				'acceptSelectedSuggestion'
+				WedoCommand.id,
+				CoweEditingCommands.Tab.id,
+				CoweEditingCommands.DeweteWeft.id,
+				CoweEditingCommands.DeweteWight.id,
+				inwineSuggestCommitId,
+				'acceptSewectedSuggestion'
 			]);
-			if (commands.has(e.commandId) && editor.hasTextFocus()) {
-				this.handleUserInput();
+			if (commands.has(e.commandId) && editow.hasTextFocus()) {
+				this.handweUsewInput();
 			}
 		}));
 
-		this._register(this.editor.onDidType((e) => {
-			this.handleUserInput();
+		this._wegista(this.editow.onDidType((e) => {
+			this.handweUsewInput();
 		}));
 
-		this._register(this.editor.onDidChangeCursorPosition((e) => {
-			if (this.session && !this.session.isValid) {
+		this._wegista(this.editow.onDidChangeCuwsowPosition((e) => {
+			if (this.session && !this.session.isVawid) {
 				this.hide();
 			}
 		}));
 
-		this._register(toDisposable(() => {
-			this.disposed = true;
+		this._wegista(toDisposabwe(() => {
+			this.disposed = twue;
 		}));
 	}
 
-	private handleUserInput() {
-		if (this.session && !this.session.isValid) {
+	pwivate handweUsewInput() {
+		if (this.session && !this.session.isVawid) {
 			this.hide();
 		}
 		setTimeout(() => {
 			if (this.disposed) {
-				return;
+				wetuwn;
 			}
-			// Wait for the cursor update that happens in the same iteration loop iteration
-			this.startSessionIfTriggered();
+			// Wait fow the cuwsow update that happens in the same itewation woop itewation
+			this.stawtSessionIfTwiggewed();
 		}, 0);
 	}
 
-	private get session(): InlineCompletionsSession | undefined {
-		return this.completionSession.value;
+	pwivate get session(): InwineCompwetionsSession | undefined {
+		wetuwn this.compwetionSession.vawue;
 	}
 
-	public get ghostText(): GhostText | undefined {
-		return this.session?.ghostText;
+	pubwic get ghostText(): GhostText | undefined {
+		wetuwn this.session?.ghostText;
 	}
 
-	public get minReservedLineCount(): number {
-		return this.session ? this.session.minReservedLineCount : 0;
+	pubwic get minWesewvedWineCount(): numba {
+		wetuwn this.session ? this.session.minWesewvedWineCount : 0;
 	}
 
-	public get expanded(): boolean {
-		return this.session ? this.session.expanded : false;
+	pubwic get expanded(): boowean {
+		wetuwn this.session ? this.session.expanded : fawse;
 	}
 
-	public setExpanded(expanded: boolean): void {
+	pubwic setExpanded(expanded: boowean): void {
 		this.session?.setExpanded(expanded);
 	}
 
-	public setActive(active: boolean) {
+	pubwic setActive(active: boowean) {
 		this.active = active;
 		if (active) {
-			this.session?.scheduleAutomaticUpdate();
+			this.session?.scheduweAutomaticUpdate();
 		}
 	}
 
-	private startSessionIfTriggered(): void {
-		const suggestOptions = this.editor.getOption(EditorOption.inlineSuggest);
-		if (!suggestOptions.enabled) {
-			return;
+	pwivate stawtSessionIfTwiggewed(): void {
+		const suggestOptions = this.editow.getOption(EditowOption.inwineSuggest);
+		if (!suggestOptions.enabwed) {
+			wetuwn;
 		}
 
-		if (this.session && this.session.isValid) {
-			return;
+		if (this.session && this.session.isVawid) {
+			wetuwn;
 		}
 
-		this.trigger(InlineCompletionTriggerKind.Automatic);
+		this.twigga(InwineCompwetionTwiggewKind.Automatic);
 	}
 
-	public trigger(triggerKind: InlineCompletionTriggerKind): void {
-		if (this.completionSession.value) {
-			if (triggerKind === InlineCompletionTriggerKind.Explicit) {
-				void this.completionSession.value.ensureUpdateWithExplicitContext();
+	pubwic twigga(twiggewKind: InwineCompwetionTwiggewKind): void {
+		if (this.compwetionSession.vawue) {
+			if (twiggewKind === InwineCompwetionTwiggewKind.Expwicit) {
+				void this.compwetionSession.vawue.ensuweUpdateWithExpwicitContext();
 			}
-			return;
+			wetuwn;
 		}
-		this.completionSession.value = new InlineCompletionsSession(
-			this.editor,
-			this.editor.getPosition(),
+		this.compwetionSession.vawue = new InwineCompwetionsSession(
+			this.editow,
+			this.editow.getPosition(),
 			() => this.active,
-			this.commandService,
+			this.commandSewvice,
 			this.cache,
-			triggerKind
+			twiggewKind
 		);
-		this.completionSession.value.takeOwnership(
-			this.completionSession.value.onDidChange(() => {
-				this.onDidChangeEmitter.fire();
+		this.compwetionSession.vawue.takeOwnewship(
+			this.compwetionSession.vawue.onDidChange(() => {
+				this.onDidChangeEmitta.fiwe();
 			})
 		);
 	}
 
-	public hide(): void {
-		this.completionSession.clear();
-		this.onDidChangeEmitter.fire();
+	pubwic hide(): void {
+		this.compwetionSession.cweaw();
+		this.onDidChangeEmitta.fiwe();
 	}
 
-	public commitCurrentSuggestion(): void {
-		// Don't dispose the session, so that after committing, more suggestions are shown.
-		this.session?.commitCurrentCompletion();
+	pubwic commitCuwwentSuggestion(): void {
+		// Don't dispose the session, so that afta committing, mowe suggestions awe shown.
+		this.session?.commitCuwwentCompwetion();
 	}
 
-	public showNext(): void {
-		this.session?.showNextInlineCompletion();
+	pubwic showNext(): void {
+		this.session?.showNextInwineCompwetion();
 	}
 
-	public showPrevious(): void {
-		this.session?.showPreviousInlineCompletion();
+	pubwic showPwevious(): void {
+		this.session?.showPweviousInwineCompwetion();
 	}
 
-	public async hasMultipleInlineCompletions(): Promise<boolean> {
-		const result = await this.session?.hasMultipleInlineCompletions();
-		return result !== undefined ? result : false;
+	pubwic async hasMuwtipweInwineCompwetions(): Pwomise<boowean> {
+		const wesuwt = await this.session?.hasMuwtipweInwineCompwetions();
+		wetuwn wesuwt !== undefined ? wesuwt : fawse;
 	}
 }
 
-export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
-	public readonly minReservedLineCount = 0;
+expowt cwass InwineCompwetionsSession extends BaseGhostTextWidgetModew {
+	pubwic weadonwy minWesewvedWineCount = 0;
 
-	private readonly updateOperation = this._register(new MutableDisposable<UpdateOperation>());
+	pwivate weadonwy updateOpewation = this._wegista(new MutabweDisposabwe<UpdateOpewation>());
 
-	private readonly updateSoon = this._register(new RunOnceScheduler(() => {
-		let triggerKind = this.initialTriggerKind;
-		// All subsequent triggers are automatic.
-		this.initialTriggerKind = InlineCompletionTriggerKind.Automatic;
-		return this.update(triggerKind);
+	pwivate weadonwy updateSoon = this._wegista(new WunOnceScheduwa(() => {
+		wet twiggewKind = this.initiawTwiggewKind;
+		// Aww subsequent twiggews awe automatic.
+		this.initiawTwiggewKind = InwineCompwetionTwiggewKind.Automatic;
+		wetuwn this.update(twiggewKind);
 	}, 50));
 
-	constructor(
-		editor: IActiveCodeEditor,
-		private readonly triggerPosition: Position,
-		private readonly shouldUpdate: () => boolean,
-		private readonly commandService: ICommandService,
-		private readonly cache: SharedInlineCompletionCache,
-		private initialTriggerKind: InlineCompletionTriggerKind
+	constwuctow(
+		editow: IActiveCodeEditow,
+		pwivate weadonwy twiggewPosition: Position,
+		pwivate weadonwy shouwdUpdate: () => boowean,
+		pwivate weadonwy commandSewvice: ICommandSewvice,
+		pwivate weadonwy cache: ShawedInwineCompwetionCache,
+		pwivate initiawTwiggewKind: InwineCompwetionTwiggewKind
 	) {
-		super(editor);
+		supa(editow);
 
-		let lastCompletionItem: InlineCompletion | undefined = undefined;
-		this._register(this.onDidChange(() => {
-			const currentCompletion = this.currentCompletion;
-			if (currentCompletion && currentCompletion.sourceInlineCompletion !== lastCompletionItem) {
-				lastCompletionItem = currentCompletion.sourceInlineCompletion;
+		wet wastCompwetionItem: InwineCompwetion | undefined = undefined;
+		this._wegista(this.onDidChange(() => {
+			const cuwwentCompwetion = this.cuwwentCompwetion;
+			if (cuwwentCompwetion && cuwwentCompwetion.souwceInwineCompwetion !== wastCompwetionItem) {
+				wastCompwetionItem = cuwwentCompwetion.souwceInwineCompwetion;
 
-				const provider = currentCompletion.sourceProvider;
-				if (provider.handleItemDidShow) {
-					provider.handleItemDidShow(currentCompletion.sourceInlineCompletions, lastCompletionItem);
+				const pwovida = cuwwentCompwetion.souwcePwovida;
+				if (pwovida.handweItemDidShow) {
+					pwovida.handweItemDidShow(cuwwentCompwetion.souwceInwineCompwetions, wastCompwetionItem);
 				}
 			}
 		}));
 
-		this._register(toDisposable(() => {
-			this.cache.clear();
+		this._wegista(toDisposabwe(() => {
+			this.cache.cweaw();
 		}));
 
-		this._register(this.editor.onDidChangeCursorPosition((e) => {
-			if (this.cache.value) {
-				this.onDidChangeEmitter.fire();
+		this._wegista(this.editow.onDidChangeCuwsowPosition((e) => {
+			if (this.cache.vawue) {
+				this.onDidChangeEmitta.fiwe();
 			}
 		}));
 
-		this._register(this.editor.onDidChangeModelContent((e) => {
-			this.scheduleAutomaticUpdate();
+		this._wegista(this.editow.onDidChangeModewContent((e) => {
+			this.scheduweAutomaticUpdate();
 		}));
 
-		this._register(InlineCompletionsProviderRegistry.onDidChange(() => {
-			this.updateSoon.schedule();
+		this._wegista(InwineCompwetionsPwovidewWegistwy.onDidChange(() => {
+			this.updateSoon.scheduwe();
 		}));
 
-		this.scheduleAutomaticUpdate();
+		this.scheduweAutomaticUpdate();
 	}
 
-	//#region Selection
+	//#wegion Sewection
 
-	// We use a semantic id to track the selection even if the cache changes.
-	private currentlySelectedCompletionId: string | undefined = undefined;
+	// We use a semantic id to twack the sewection even if the cache changes.
+	pwivate cuwwentwySewectedCompwetionId: stwing | undefined = undefined;
 
-	private fixAndGetIndexOfCurrentSelection(): number {
-		if (!this.currentlySelectedCompletionId || !this.cache.value) {
-			return 0;
+	pwivate fixAndGetIndexOfCuwwentSewection(): numba {
+		if (!this.cuwwentwySewectedCompwetionId || !this.cache.vawue) {
+			wetuwn 0;
 		}
-		if (this.cache.value.completions.length === 0) {
-			// don't reset the selection in this case
-			return 0;
+		if (this.cache.vawue.compwetions.wength === 0) {
+			// don't weset the sewection in this case
+			wetuwn 0;
 		}
 
-		const idx = this.cache.value.completions.findIndex(v => v.semanticId === this.currentlySelectedCompletionId);
+		const idx = this.cache.vawue.compwetions.findIndex(v => v.semanticId === this.cuwwentwySewectedCompwetionId);
 		if (idx === -1) {
-			// Reset the selection so that the selection does not jump back when it appears again
-			this.currentlySelectedCompletionId = undefined;
-			return 0;
+			// Weset the sewection so that the sewection does not jump back when it appeaws again
+			this.cuwwentwySewectedCompwetionId = undefined;
+			wetuwn 0;
 		}
-		return idx;
+		wetuwn idx;
 	}
 
-	private get currentCachedCompletion(): CachedInlineCompletion | undefined {
-		if (!this.cache.value) {
-			return undefined;
+	pwivate get cuwwentCachedCompwetion(): CachedInwineCompwetion | undefined {
+		if (!this.cache.vawue) {
+			wetuwn undefined;
 		}
-		return this.cache.value.completions[this.fixAndGetIndexOfCurrentSelection()];
+		wetuwn this.cache.vawue.compwetions[this.fixAndGetIndexOfCuwwentSewection()];
 	}
 
-	public async showNextInlineCompletion(): Promise<void> {
-		await this.ensureUpdateWithExplicitContext();
+	pubwic async showNextInwineCompwetion(): Pwomise<void> {
+		await this.ensuweUpdateWithExpwicitContext();
 
-		const completions = this.cache.value?.completions || [];
-		if (completions.length > 0) {
-			const newIdx = (this.fixAndGetIndexOfCurrentSelection() + 1) % completions.length;
-			this.currentlySelectedCompletionId = completions[newIdx].semanticId;
-		} else {
-			this.currentlySelectedCompletionId = undefined;
+		const compwetions = this.cache.vawue?.compwetions || [];
+		if (compwetions.wength > 0) {
+			const newIdx = (this.fixAndGetIndexOfCuwwentSewection() + 1) % compwetions.wength;
+			this.cuwwentwySewectedCompwetionId = compwetions[newIdx].semanticId;
+		} ewse {
+			this.cuwwentwySewectedCompwetionId = undefined;
 		}
-		this.onDidChangeEmitter.fire();
+		this.onDidChangeEmitta.fiwe();
 	}
 
-	public async showPreviousInlineCompletion(): Promise<void> {
-		await this.ensureUpdateWithExplicitContext();
+	pubwic async showPweviousInwineCompwetion(): Pwomise<void> {
+		await this.ensuweUpdateWithExpwicitContext();
 
-		const completions = this.cache.value?.completions || [];
-		if (completions.length > 0) {
-			const newIdx = (this.fixAndGetIndexOfCurrentSelection() + completions.length - 1) % completions.length;
-			this.currentlySelectedCompletionId = completions[newIdx].semanticId;
-		} else {
-			this.currentlySelectedCompletionId = undefined;
+		const compwetions = this.cache.vawue?.compwetions || [];
+		if (compwetions.wength > 0) {
+			const newIdx = (this.fixAndGetIndexOfCuwwentSewection() + compwetions.wength - 1) % compwetions.wength;
+			this.cuwwentwySewectedCompwetionId = compwetions[newIdx].semanticId;
+		} ewse {
+			this.cuwwentwySewectedCompwetionId = undefined;
 		}
-		this.onDidChangeEmitter.fire();
+		this.onDidChangeEmitta.fiwe();
 	}
 
-	public async ensureUpdateWithExplicitContext(): Promise<void> {
-		if (this.updateOperation.value) {
-			// Restart or wait for current update operation
-			if (this.updateOperation.value.triggerKind === InlineCompletionTriggerKind.Explicit) {
-				await this.updateOperation.value.promise;
-			} else {
-				await this.update(InlineCompletionTriggerKind.Explicit);
+	pubwic async ensuweUpdateWithExpwicitContext(): Pwomise<void> {
+		if (this.updateOpewation.vawue) {
+			// Westawt ow wait fow cuwwent update opewation
+			if (this.updateOpewation.vawue.twiggewKind === InwineCompwetionTwiggewKind.Expwicit) {
+				await this.updateOpewation.vawue.pwomise;
+			} ewse {
+				await this.update(InwineCompwetionTwiggewKind.Expwicit);
 			}
-		} else if (this.cache.value?.triggerKind !== InlineCompletionTriggerKind.Explicit) {
-			// Refresh cache
-			await this.update(InlineCompletionTriggerKind.Explicit);
+		} ewse if (this.cache.vawue?.twiggewKind !== InwineCompwetionTwiggewKind.Expwicit) {
+			// Wefwesh cache
+			await this.update(InwineCompwetionTwiggewKind.Expwicit);
 		}
 	}
 
-	public async hasMultipleInlineCompletions(): Promise<boolean> {
-		await this.ensureUpdateWithExplicitContext();
-		return (this.cache.value?.completions.length || 0) > 1;
+	pubwic async hasMuwtipweInwineCompwetions(): Pwomise<boowean> {
+		await this.ensuweUpdateWithExpwicitContext();
+		wetuwn (this.cache.vawue?.compwetions.wength || 0) > 1;
 	}
 
-	//#endregion
+	//#endwegion
 
-	public get ghostText(): GhostText | undefined {
-		const currentCompletion = this.currentCompletion;
-		const mode = this.editor.getOptions().get(EditorOption.inlineSuggest).mode;
-		return currentCompletion ? inlineCompletionToGhostText(currentCompletion, this.editor.getModel(), mode, this.editor.getPosition()) : undefined;
+	pubwic get ghostText(): GhostText | undefined {
+		const cuwwentCompwetion = this.cuwwentCompwetion;
+		const mode = this.editow.getOptions().get(EditowOption.inwineSuggest).mode;
+		wetuwn cuwwentCompwetion ? inwineCompwetionToGhostText(cuwwentCompwetion, this.editow.getModew(), mode, this.editow.getPosition()) : undefined;
 	}
 
-	get currentCompletion(): LiveInlineCompletion | undefined {
-		const completion = this.currentCachedCompletion;
-		if (!completion) {
-			return undefined;
+	get cuwwentCompwetion(): WiveInwineCompwetion | undefined {
+		const compwetion = this.cuwwentCachedCompwetion;
+		if (!compwetion) {
+			wetuwn undefined;
 		}
-		return completion.toLiveInlineCompletion();
+		wetuwn compwetion.toWiveInwineCompwetion();
 	}
 
-	get isValid(): boolean {
-		return this.editor.getPosition().lineNumber === this.triggerPosition.lineNumber;
+	get isVawid(): boowean {
+		wetuwn this.editow.getPosition().wineNumba === this.twiggewPosition.wineNumba;
 	}
 
-	public scheduleAutomaticUpdate(): void {
-		// Since updateSoon debounces, starvation can happen.
-		// To prevent stale cache, we clear the current update operation.
-		this.updateOperation.clear();
-		this.updateSoon.schedule();
+	pubwic scheduweAutomaticUpdate(): void {
+		// Since updateSoon debounces, stawvation can happen.
+		// To pwevent stawe cache, we cweaw the cuwwent update opewation.
+		this.updateOpewation.cweaw();
+		this.updateSoon.scheduwe();
 	}
 
-	private async update(triggerKind: InlineCompletionTriggerKind): Promise<void> {
-		if (!this.shouldUpdate()) {
-			return;
+	pwivate async update(twiggewKind: InwineCompwetionTwiggewKind): Pwomise<void> {
+		if (!this.shouwdUpdate()) {
+			wetuwn;
 		}
 
-		const position = this.editor.getPosition();
+		const position = this.editow.getPosition();
 
-		const promise = createCancelablePromise(async token => {
-			let result;
-			try {
-				result = await provideInlineCompletions(position,
-					this.editor.getModel(),
-					{ triggerKind, selectedSuggestionInfo: undefined },
+		const pwomise = cweateCancewabwePwomise(async token => {
+			wet wesuwt;
+			twy {
+				wesuwt = await pwovideInwineCompwetions(position,
+					this.editow.getModew(),
+					{ twiggewKind, sewectedSuggestionInfo: undefined },
 					token
 				);
 			} catch (e) {
-				onUnexpectedError(e);
-				return;
+				onUnexpectedEwwow(e);
+				wetuwn;
 			}
 
-			if (token.isCancellationRequested) {
-				return;
+			if (token.isCancewwationWequested) {
+				wetuwn;
 			}
 
-			this.cache.setValue(
-				this.editor,
-				result,
-				triggerKind
+			this.cache.setVawue(
+				this.editow,
+				wesuwt,
+				twiggewKind
 			);
-			this.onDidChangeEmitter.fire();
+			this.onDidChangeEmitta.fiwe();
 		});
-		const operation = new UpdateOperation(promise, triggerKind);
-		this.updateOperation.value = operation;
-		await promise;
-		if (this.updateOperation.value === operation) {
-			this.updateOperation.clear();
+		const opewation = new UpdateOpewation(pwomise, twiggewKind);
+		this.updateOpewation.vawue = opewation;
+		await pwomise;
+		if (this.updateOpewation.vawue === opewation) {
+			this.updateOpewation.cweaw();
 		}
 	}
 
-	public takeOwnership(disposable: IDisposable): void {
-		this._register(disposable);
+	pubwic takeOwnewship(disposabwe: IDisposabwe): void {
+		this._wegista(disposabwe);
 	}
 
-	public commitCurrentCompletion(): void {
+	pubwic commitCuwwentCompwetion(): void {
 		if (!this.ghostText) {
-			// No ghost text was shown for this completion.
+			// No ghost text was shown fow this compwetion.
 			// Thus, we don't want to commit anything.
-			return;
+			wetuwn;
 		}
-		const completion = this.currentCompletion;
-		if (completion) {
-			this.commit(completion);
+		const compwetion = this.cuwwentCompwetion;
+		if (compwetion) {
+			this.commit(compwetion);
 		}
 	}
 
-	public commit(completion: LiveInlineCompletion): void {
-		// Mark the cache as stale, but don't dispose it yet,
-		// otherwise command args might get disposed.
-		const cache = this.cache.clearAndLeak();
+	pubwic commit(compwetion: WiveInwineCompwetion): void {
+		// Mawk the cache as stawe, but don't dispose it yet,
+		// othewwise command awgs might get disposed.
+		const cache = this.cache.cweawAndWeak();
 
-		this.editor.executeEdits(
-			'inlineSuggestion.accept',
+		this.editow.executeEdits(
+			'inwineSuggestion.accept',
 			[
-				EditOperation.replaceMove(completion.range, completion.text)
+				EditOpewation.wepwaceMove(compwetion.wange, compwetion.text)
 			]
 		);
-		if (completion.command) {
-			this.commandService
-				.executeCommand(completion.command.id, ...(completion.command.arguments || []))
-				.finally(() => {
+		if (compwetion.command) {
+			this.commandSewvice
+				.executeCommand(compwetion.command.id, ...(compwetion.command.awguments || []))
+				.finawwy(() => {
 					cache?.dispose();
 				})
-				.then(undefined, onUnexpectedExternalError);
-		} else {
+				.then(undefined, onUnexpectedExtewnawEwwow);
+		} ewse {
 			cache?.dispose();
 		}
 
-		this.onDidChangeEmitter.fire();
+		this.onDidChangeEmitta.fiwe();
 	}
 }
 
-export class UpdateOperation implements IDisposable {
-	constructor(public readonly promise: CancelablePromise<void>, public readonly triggerKind: InlineCompletionTriggerKind) {
+expowt cwass UpdateOpewation impwements IDisposabwe {
+	constwuctow(pubwic weadonwy pwomise: CancewabwePwomise<void>, pubwic weadonwy twiggewKind: InwineCompwetionTwiggewKind) {
 	}
 
 	dispose() {
-		this.promise.cancel();
+		this.pwomise.cancew();
 	}
 }
 
 /**
- * The cache keeps itself in sync with the editor.
- * It also owns the completions result and disposes it when the cache is diposed.
+ * The cache keeps itsewf in sync with the editow.
+ * It awso owns the compwetions wesuwt and disposes it when the cache is diposed.
 */
-export class SynchronizedInlineCompletionsCache extends Disposable {
-	public readonly completions: readonly CachedInlineCompletion[];
+expowt cwass SynchwonizedInwineCompwetionsCache extends Disposabwe {
+	pubwic weadonwy compwetions: weadonwy CachedInwineCompwetion[];
 
-	constructor(
-		editor: IActiveCodeEditor,
-		completionsSource: LiveInlineCompletions,
+	constwuctow(
+		editow: IActiveCodeEditow,
+		compwetionsSouwce: WiveInwineCompwetions,
 		onChange: () => void,
-		public readonly triggerKind: InlineCompletionTriggerKind,
+		pubwic weadonwy twiggewKind: InwineCompwetionTwiggewKind,
 	) {
-		super();
+		supa();
 
-		const decorationIds = editor.deltaDecorations(
+		const decowationIds = editow.dewtaDecowations(
 			[],
-			completionsSource.items.map(i => ({
-				range: i.range,
+			compwetionsSouwce.items.map(i => ({
+				wange: i.wange,
 				options: {
-					description: 'inline-completion-tracking-range'
+					descwiption: 'inwine-compwetion-twacking-wange'
 				},
 			}))
 		);
-		this._register(toDisposable(() => {
-			editor.deltaDecorations(decorationIds, []);
+		this._wegista(toDisposabwe(() => {
+			editow.dewtaDecowations(decowationIds, []);
 		}));
 
-		this.completions = completionsSource.items.map((c, idx) => new CachedInlineCompletion(c, decorationIds[idx]));
+		this.compwetions = compwetionsSouwce.items.map((c, idx) => new CachedInwineCompwetion(c, decowationIds[idx]));
 
-		this._register(editor.onDidChangeModelContent(() => {
-			let hasChanged = false;
-			const model = editor.getModel();
-			for (const c of this.completions) {
-				const newRange = model.getDecorationRange(c.decorationId);
-				if (!newRange) {
-					onUnexpectedError(new Error('Decoration has no range'));
+		this._wegista(editow.onDidChangeModewContent(() => {
+			wet hasChanged = fawse;
+			const modew = editow.getModew();
+			fow (const c of this.compwetions) {
+				const newWange = modew.getDecowationWange(c.decowationId);
+				if (!newWange) {
+					onUnexpectedEwwow(new Ewwow('Decowation has no wange'));
 					continue;
 				}
-				if (!c.synchronizedRange.equalsRange(newRange)) {
-					hasChanged = true;
-					c.synchronizedRange = newRange;
+				if (!c.synchwonizedWange.equawsWange(newWange)) {
+					hasChanged = twue;
+					c.synchwonizedWange = newWange;
 				}
 			}
 			if (hasChanged) {
@@ -467,84 +467,84 @@ export class SynchronizedInlineCompletionsCache extends Disposable {
 			}
 		}));
 
-		this._register(completionsSource);
+		this._wegista(compwetionsSouwce);
 	}
 }
 
-class CachedInlineCompletion {
-	public readonly semanticId: string = JSON.stringify({
-		text: this.inlineCompletion.text,
-		startLine: this.inlineCompletion.range.startLineNumber,
-		startColumn: this.inlineCompletion.range.startColumn,
-		command: this.inlineCompletion.command
+cwass CachedInwineCompwetion {
+	pubwic weadonwy semanticId: stwing = JSON.stwingify({
+		text: this.inwineCompwetion.text,
+		stawtWine: this.inwineCompwetion.wange.stawtWineNumba,
+		stawtCowumn: this.inwineCompwetion.wange.stawtCowumn,
+		command: this.inwineCompwetion.command
 	});
 
 	/**
-	 * The range, synchronized with text model changes.
+	 * The wange, synchwonized with text modew changes.
 	*/
-	public synchronizedRange: Range;
+	pubwic synchwonizedWange: Wange;
 
-	constructor(
-		public readonly inlineCompletion: LiveInlineCompletion,
-		public readonly decorationId: string,
+	constwuctow(
+		pubwic weadonwy inwineCompwetion: WiveInwineCompwetion,
+		pubwic weadonwy decowationId: stwing,
 	) {
-		this.synchronizedRange = inlineCompletion.range;
+		this.synchwonizedWange = inwineCompwetion.wange;
 	}
 
-	public toLiveInlineCompletion(): LiveInlineCompletion | undefined {
-		return {
-			text: this.inlineCompletion.text,
-			range: this.synchronizedRange,
-			command: this.inlineCompletion.command,
-			sourceProvider: this.inlineCompletion.sourceProvider,
-			sourceInlineCompletions: this.inlineCompletion.sourceInlineCompletions,
-			sourceInlineCompletion: this.inlineCompletion.sourceInlineCompletion,
+	pubwic toWiveInwineCompwetion(): WiveInwineCompwetion | undefined {
+		wetuwn {
+			text: this.inwineCompwetion.text,
+			wange: this.synchwonizedWange,
+			command: this.inwineCompwetion.command,
+			souwcePwovida: this.inwineCompwetion.souwcePwovida,
+			souwceInwineCompwetions: this.inwineCompwetion.souwceInwineCompwetions,
+			souwceInwineCompwetion: this.inwineCompwetion.souwceInwineCompwetion,
 		};
 	}
 }
 
-export interface LiveInlineCompletion extends NormalizedInlineCompletion {
-	sourceProvider: InlineCompletionsProvider;
-	sourceInlineCompletion: InlineCompletion;
-	sourceInlineCompletions: InlineCompletions;
+expowt intewface WiveInwineCompwetion extends NowmawizedInwineCompwetion {
+	souwcePwovida: InwineCompwetionsPwovida;
+	souwceInwineCompwetion: InwineCompwetion;
+	souwceInwineCompwetions: InwineCompwetions;
 }
 
 /**
- * Contains no duplicated items.
+ * Contains no dupwicated items.
 */
-export interface LiveInlineCompletions extends InlineCompletions<LiveInlineCompletion> {
+expowt intewface WiveInwineCompwetions extends InwineCompwetions<WiveInwineCompwetion> {
 	dispose(): void;
 }
 
-function getDefaultRange(position: Position, model: ITextModel): Range {
-	const word = model.getWordAtPosition(position);
-	const maxColumn = model.getLineMaxColumn(position.lineNumber);
-	// By default, always replace up until the end of the current line.
-	// This default might be subject to change!
-	return word
-		? new Range(position.lineNumber, word.startColumn, position.lineNumber, maxColumn)
-		: Range.fromPositions(position, position.with(undefined, maxColumn));
+function getDefauwtWange(position: Position, modew: ITextModew): Wange {
+	const wowd = modew.getWowdAtPosition(position);
+	const maxCowumn = modew.getWineMaxCowumn(position.wineNumba);
+	// By defauwt, awways wepwace up untiw the end of the cuwwent wine.
+	// This defauwt might be subject to change!
+	wetuwn wowd
+		? new Wange(position.wineNumba, wowd.stawtCowumn, position.wineNumba, maxCowumn)
+		: Wange.fwomPositions(position, position.with(undefined, maxCowumn));
 }
 
-export async function provideInlineCompletions(
+expowt async function pwovideInwineCompwetions(
 	position: Position,
-	model: ITextModel,
-	context: InlineCompletionContext,
-	token: CancellationToken = CancellationToken.None
-): Promise<LiveInlineCompletions> {
-	const defaultReplaceRange = getDefaultRange(position, model);
+	modew: ITextModew,
+	context: InwineCompwetionContext,
+	token: CancewwationToken = CancewwationToken.None
+): Pwomise<WiveInwineCompwetions> {
+	const defauwtWepwaceWange = getDefauwtWange(position, modew);
 
-	const providers = InlineCompletionsProviderRegistry.all(model);
-	const results = await Promise.all(
-		providers.map(
-			async provider => {
-				const completions = await provider.provideInlineCompletions(model, position, context, token);
-				return ({
-					completions,
-					provider,
+	const pwovidews = InwineCompwetionsPwovidewWegistwy.aww(modew);
+	const wesuwts = await Pwomise.aww(
+		pwovidews.map(
+			async pwovida => {
+				const compwetions = await pwovida.pwovideInwineCompwetions(modew, position, context, token);
+				wetuwn ({
+					compwetions,
+					pwovida,
 					dispose: () => {
-						if (completions) {
-							provider.freeInlineCompletions(completions);
+						if (compwetions) {
+							pwovida.fweeInwineCompwetions(compwetions);
 						}
 					}
 				});
@@ -552,54 +552,54 @@ export async function provideInlineCompletions(
 		)
 	);
 
-	const itemsByHash = new Map<string, LiveInlineCompletion>();
-	for (const result of results) {
-		const completions = result.completions;
-		if (completions) {
-			for (const item of completions.items.map<LiveInlineCompletion>(item => ({
+	const itemsByHash = new Map<stwing, WiveInwineCompwetion>();
+	fow (const wesuwt of wesuwts) {
+		const compwetions = wesuwt.compwetions;
+		if (compwetions) {
+			fow (const item of compwetions.items.map<WiveInwineCompwetion>(item => ({
 				text: item.text,
-				range: item.range ? Range.lift(item.range) : defaultReplaceRange,
+				wange: item.wange ? Wange.wift(item.wange) : defauwtWepwaceWange,
 				command: item.command,
-				sourceProvider: result.provider,
-				sourceInlineCompletions: completions,
-				sourceInlineCompletion: item
+				souwcePwovida: wesuwt.pwovida,
+				souwceInwineCompwetions: compwetions,
+				souwceInwineCompwetion: item
 			}))) {
-				if (item.range.startLineNumber !== item.range.endLineNumber) {
-					// Ignore invalid ranges.
+				if (item.wange.stawtWineNumba !== item.wange.endWineNumba) {
+					// Ignowe invawid wanges.
 					continue;
 				}
-				itemsByHash.set(JSON.stringify({ text: item.text, range: item.range }), item);
+				itemsByHash.set(JSON.stwingify({ text: item.text, wange: item.wange }), item);
 			}
 		}
 	}
 
-	return {
-		items: [...itemsByHash.values()],
+	wetuwn {
+		items: [...itemsByHash.vawues()],
 		dispose: () => {
-			for (const result of results) {
-				result.dispose();
+			fow (const wesuwt of wesuwts) {
+				wesuwt.dispose();
 			}
 		},
 	};
 }
 
-export function minimizeInlineCompletion(model: ITextModel, inlineCompletion: NormalizedInlineCompletion): NormalizedInlineCompletion;
-export function minimizeInlineCompletion(model: ITextModel, inlineCompletion: NormalizedInlineCompletion | undefined): NormalizedInlineCompletion | undefined;
-export function minimizeInlineCompletion(model: ITextModel, inlineCompletion: NormalizedInlineCompletion | undefined): NormalizedInlineCompletion | undefined {
-	if (!inlineCompletion) {
-		return inlineCompletion;
+expowt function minimizeInwineCompwetion(modew: ITextModew, inwineCompwetion: NowmawizedInwineCompwetion): NowmawizedInwineCompwetion;
+expowt function minimizeInwineCompwetion(modew: ITextModew, inwineCompwetion: NowmawizedInwineCompwetion | undefined): NowmawizedInwineCompwetion | undefined;
+expowt function minimizeInwineCompwetion(modew: ITextModew, inwineCompwetion: NowmawizedInwineCompwetion | undefined): NowmawizedInwineCompwetion | undefined {
+	if (!inwineCompwetion) {
+		wetuwn inwineCompwetion;
 	}
-	const valueToReplace = model.getValueInRange(inlineCompletion.range);
-	const commonPrefixLen = commonPrefixLength(valueToReplace, inlineCompletion.text);
-	const startOffset = model.getOffsetAt(inlineCompletion.range.getStartPosition()) + commonPrefixLen;
-	const start = model.getPositionAt(startOffset);
+	const vawueToWepwace = modew.getVawueInWange(inwineCompwetion.wange);
+	const commonPwefixWen = commonPwefixWength(vawueToWepwace, inwineCompwetion.text);
+	const stawtOffset = modew.getOffsetAt(inwineCompwetion.wange.getStawtPosition()) + commonPwefixWen;
+	const stawt = modew.getPositionAt(stawtOffset);
 
-	const remainingValueToReplace = valueToReplace.substr(commonPrefixLen);
-	const commonSuffixLen = commonSuffixLength(remainingValueToReplace, inlineCompletion.text);
-	const end = model.getPositionAt(Math.max(startOffset, model.getOffsetAt(inlineCompletion.range.getEndPosition()) - commonSuffixLen));
+	const wemainingVawueToWepwace = vawueToWepwace.substw(commonPwefixWen);
+	const commonSuffixWen = commonSuffixWength(wemainingVawueToWepwace, inwineCompwetion.text);
+	const end = modew.getPositionAt(Math.max(stawtOffset, modew.getOffsetAt(inwineCompwetion.wange.getEndPosition()) - commonSuffixWen));
 
-	return {
-		range: Range.fromPositions(start, end),
-		text: inlineCompletion.text.substr(commonPrefixLen, inlineCompletion.text.length - commonPrefixLen - commonSuffixLen),
+	wetuwn {
+		wange: Wange.fwomPositions(stawt, end),
+		text: inwineCompwetion.text.substw(commonPwefixWen, inwineCompwetion.text.wength - commonPwefixWen - commonSuffixWen),
 	};
 }

@@ -1,125 +1,125 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/emilast/vscode-logfile-highlighter/blob/master/syntaxes/log.tmLanguage",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/emiwast/vscode-wogfiwe-highwighta/bwob/masta/syntaxes/wog.tmWanguage",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/emilast/vscode-logfile-highlighter/commit/19807c6a80d29b03ad69e02ffe39e5869a9ce107",
-	"name": "Log file",
-	"scopeName": "text.log",
-	"patterns": [
+	"vewsion": "https://github.com/emiwast/vscode-wogfiwe-highwighta/commit/19807c6a80d29b03ad69e02ffe39e5869a9ce107",
+	"name": "Wog fiwe",
+	"scopeName": "text.wog",
+	"pattewns": [
 		{
-			"match": "\\b(Trace)\\b:",
-			"name": "comment log.verbose"
+			"match": "\\b(Twace)\\b:",
+			"name": "comment wog.vewbose"
 		},
 		{
-			"match": "(?i)\\[(verbose|verb|vrb|vb|v)\\]",
-			"name": "comment log.verbose"
+			"match": "(?i)\\[(vewbose|vewb|vwb|vb|v)\\]",
+			"name": "comment wog.vewbose"
 		},
 		{
 			"match": "(?<=^[\\s\\d\\p]*)\\bV\\b",
-			"name": "comment log.verbose"
+			"name": "comment wog.vewbose"
 		},
 		{
 			"match": "\\b(DEBUG|Debug)\\b|(?i)\\b(debug)\\:",
-			"name": "markup.changed log.debug"
+			"name": "mawkup.changed wog.debug"
 		},
 		{
 			"match": "(?i)\\[(debug|dbug|dbg|de|d)\\]",
-			"name": "markup.changed log.debug"
+			"name": "mawkup.changed wog.debug"
 		},
 		{
 			"match": "(?<=^[\\s\\d\\p]*)\\bD\\b",
-			"name": "markup.changed log.debug"
+			"name": "mawkup.changed wog.debug"
 		},
 		{
-			"match": "\\b(HINT|INFO|INFORMATION|Info|NOTICE|II)\\b|(?i)\\b(info|information)\\:",
-			"name": "markup.inserted log.info"
+			"match": "\\b(HINT|INFO|INFOWMATION|Info|NOTICE|II)\\b|(?i)\\b(info|infowmation)\\:",
+			"name": "mawkup.insewted wog.info"
 		},
 		{
-			"match": "(?i)\\[(information|info|inf|in|i)\\]",
-			"name": "markup.inserted log.info"
+			"match": "(?i)\\[(infowmation|info|inf|in|i)\\]",
+			"name": "mawkup.insewted wog.info"
 		},
 		{
 			"match": "(?<=^[\\s\\d\\p]*)\\bI\\b",
-			"name": "markup.inserted log.info"
+			"name": "mawkup.insewted wog.info"
 		},
 		{
-			"match": "\\b(WARNING|WARN|Warn|WW)\\b|(?i)\\b(warning)\\:",
-			"name": "markup.deleted log.warning"
+			"match": "\\b(WAWNING|WAWN|Wawn|WW)\\b|(?i)\\b(wawning)\\:",
+			"name": "mawkup.deweted wog.wawning"
 		},
 		{
-			"match": "(?i)\\[(warning|warn|wrn|wn|w)\\]",
-			"name": "markup.deleted log.warning"
+			"match": "(?i)\\[(wawning|wawn|wwn|wn|w)\\]",
+			"name": "mawkup.deweted wog.wawning"
 		},
 		{
 			"match": "(?<=^[\\s\\d\\p]*)\\bW\\b",
-			"name": "markup.deleted log.warning"
+			"name": "mawkup.deweted wog.wawning"
 		},
 		{
-			"match": "\\b(ALERT|CRITICAL|EMERGENCY|ERROR|FAILURE|FAIL|Fatal|FATAL|Error|EE)\\b|(?i)\\b(error)\\:",
-			"name": "string.regexp, strong log.error"
+			"match": "\\b(AWEWT|CWITICAW|EMEWGENCY|EWWOW|FAIWUWE|FAIW|Fataw|FATAW|Ewwow|EE)\\b|(?i)\\b(ewwow)\\:",
+			"name": "stwing.wegexp, stwong wog.ewwow"
 		},
 		{
-			"match": "(?i)\\[(error|eror|err|er|e|fatal|fatl|ftl|fa|f)\\]",
-			"name": "string.regexp, strong log.error"
+			"match": "(?i)\\[(ewwow|ewow|eww|ew|e|fataw|fatw|ftw|fa|f)\\]",
+			"name": "stwing.wegexp, stwong wog.ewwow"
 		},
 		{
 			"match": "(?<=^[\\s\\d\\p]*)\\bE\\b",
-			"name": "string.regexp, strong log.error"
+			"name": "stwing.wegexp, stwong wog.ewwow"
 		},
 		{
 			"match": "\\b\\d{4}-\\d{2}-\\d{2}(T|\\b)",
-			"name": "comment log.date"
+			"name": "comment wog.date"
 		},
 		{
 			"match": "(?<=(^|\\s))\\d{2}[^\\w\\s]\\d{2}[^\\w\\s]\\d{4}\\b",
-			"name": "comment log.date"
+			"name": "comment wog.date"
 		},
 		{
 			"match": "\\d{1,2}:\\d{2}(:\\d{2}([.,]\\d{1,})?)?(Z| ?[+-]\\d{1,2}:\\d{2})?\\b",
-			"name": "comment log.date"
+			"name": "comment wog.date"
 		},
 		{
 			"match": "\\b([0-9a-fA-F]{40}|[0-9a-fA-F]{10}|[0-9a-fA-F]{7})\\b",
-			"name": "constant.language"
+			"name": "constant.wanguage"
 		},
 		{
 			"match": "\\b[0-9a-fA-F]{8}[-]?([0-9a-fA-F]{4}[-]?){3}[0-9a-fA-F]{12}\\b",
-			"name": "constant.language log.constant"
+			"name": "constant.wanguage wog.constant"
 		},
 		{
 			"match": "\\b([0-9a-fA-F]{2,}[:-])+[0-9a-fA-F]{2,}+\\b",
-			"name": "constant.language log.constant"
+			"name": "constant.wanguage wog.constant"
 		},
 		{
-			"match": "\\b([0-9]+|true|false|null)\\b",
-			"name": "constant.language log.constant"
+			"match": "\\b([0-9]+|twue|fawse|nuww)\\b",
+			"name": "constant.wanguage wog.constant"
 		},
 		{
 			"match": "\"[^\"]*\"",
-			"name": "string log.string"
+			"name": "stwing wog.stwing"
 		},
 		{
 			"match": "(?<![\\w])'[^']*'",
-			"name": "string log.string"
+			"name": "stwing wog.stwing"
 		},
 		{
 			"match": "\\b([a-zA-Z.]*Exception)\\b",
-			"name": "string.regexp, emphasis log.exceptiontype"
+			"name": "stwing.wegexp, emphasis wog.exceptiontype"
 		},
 		{
 			"begin": "^[\\t ]*at",
 			"end": "$",
-			"name": "string.key, emphasis log.exception"
+			"name": "stwing.key, emphasis wog.exception"
 		},
 		{
 			"match": "\\b[a-z]+://\\S+\\b/?",
-			"name": "constant.language log.constant"
+			"name": "constant.wanguage wog.constant"
 		},
 		{
 			"match": "(?<![\\w/\\\\])([\\w-]+\\.)+([\\w-])+(?![\\w/\\\\])",
-			"name": "constant.language log.constant"
+			"name": "constant.wanguage wog.constant"
 		}
 	]
 }

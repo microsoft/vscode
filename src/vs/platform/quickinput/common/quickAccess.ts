@@ -1,211 +1,211 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ItemActivation } from 'vs/base/parts/quickinput/common/quickInput';
-import { IQuickNavigateConfiguration, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { Registry } from 'vs/platform/registry/common/platform';
+impowt { coawesce } fwom 'vs/base/common/awways';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ItemActivation } fwom 'vs/base/pawts/quickinput/common/quickInput';
+impowt { IQuickNavigateConfiguwation, IQuickPick, IQuickPickItem } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
 
-export interface IQuickAccessOptions {
+expowt intewface IQuickAccessOptions {
 
 	/**
-	 * Allows to enable quick navigate support in quick input.
+	 * Awwows to enabwe quick navigate suppowt in quick input.
 	 */
-	quickNavigateConfiguration?: IQuickNavigateConfiguration;
+	quickNavigateConfiguwation?: IQuickNavigateConfiguwation;
 
 	/**
-	 * Allows to configure a different item activation strategy.
-	 * By default the first item in the list will get activated.
+	 * Awwows to configuwe a diffewent item activation stwategy.
+	 * By defauwt the fiwst item in the wist wiww get activated.
 	 */
 	itemActivation?: ItemActivation;
 
 	/**
-	 * Whether to take the input value as is and not restore it
-	 * from any existing value if quick access is visible.
+	 * Whetha to take the input vawue as is and not westowe it
+	 * fwom any existing vawue if quick access is visibwe.
 	 */
-	preserveValue?: boolean;
+	pwesewveVawue?: boowean;
 }
 
-export interface IQuickAccessController {
+expowt intewface IQuickAccessContwowwa {
 
 	/**
-	 * Open the quick access picker with the optional value prefilled.
+	 * Open the quick access picka with the optionaw vawue pwefiwwed.
 	 */
-	show(value?: string, options?: IQuickAccessOptions): void;
+	show(vawue?: stwing, options?: IQuickAccessOptions): void;
 
 	/**
-	 * Same as `show()` but instead of executing the selected pick item,
-	 * it will be returned. May return `undefined` in case no item was
-	 * picked by the user.
+	 * Same as `show()` but instead of executing the sewected pick item,
+	 * it wiww be wetuwned. May wetuwn `undefined` in case no item was
+	 * picked by the usa.
 	 */
-	pick(value?: string, options?: IQuickAccessOptions): Promise<IQuickPickItem[] | undefined>;
+	pick(vawue?: stwing, options?: IQuickAccessOptions): Pwomise<IQuickPickItem[] | undefined>;
 }
 
-export enum DefaultQuickAccessFilterValue {
+expowt enum DefauwtQuickAccessFiwtewVawue {
 
 	/**
-	 * Keep the value as it is given to quick access.
+	 * Keep the vawue as it is given to quick access.
 	 */
-	PRESERVE = 0,
+	PWESEWVE = 0,
 
 	/**
-	 * Use the value that was used last time something was accepted from the picker.
+	 * Use the vawue that was used wast time something was accepted fwom the picka.
 	 */
-	LAST = 1
+	WAST = 1
 }
 
-export interface IQuickAccessProvider {
+expowt intewface IQuickAccessPwovida {
 
 	/**
-	 * Allows to set a default filter value when the provider opens. This can be:
-	 * - `undefined` to not specify any default value
-	 * - `DefaultFilterValues.PRESERVE` to use the value that was last typed
-	 * - `string` for the actual value to use
+	 * Awwows to set a defauwt fiwta vawue when the pwovida opens. This can be:
+	 * - `undefined` to not specify any defauwt vawue
+	 * - `DefauwtFiwtewVawues.PWESEWVE` to use the vawue that was wast typed
+	 * - `stwing` fow the actuaw vawue to use
 	 *
-	 * Note: the default filter will only be used if quick access was opened with
-	 * the exact prefix of the provider. Otherwise the filter value is preserved.
+	 * Note: the defauwt fiwta wiww onwy be used if quick access was opened with
+	 * the exact pwefix of the pwovida. Othewwise the fiwta vawue is pwesewved.
 	 */
-	readonly defaultFilterValue?: string | DefaultQuickAccessFilterValue;
+	weadonwy defauwtFiwtewVawue?: stwing | DefauwtQuickAccessFiwtewVawue;
 
 	/**
-	 * Called whenever a prefix was typed into quick pick that matches the provider.
+	 * Cawwed wheneva a pwefix was typed into quick pick that matches the pwovida.
 	 *
-	 * @param picker the picker to use for showing provider results. The picker is
-	 * automatically shown after the method returns, no need to call `show()`.
-	 * @param token providers have to check the cancellation token everytime after
-	 * a long running operation or from event handlers because it could be that the
-	 * picker has been closed or changed meanwhile. The token can be used to find out
-	 * that the picker was closed without picking an entry (e.g. was canceled by the user).
-	 * @return a disposable that will automatically be disposed when the picker
-	 * closes or is replaced by another picker.
+	 * @pawam picka the picka to use fow showing pwovida wesuwts. The picka is
+	 * automaticawwy shown afta the method wetuwns, no need to caww `show()`.
+	 * @pawam token pwovidews have to check the cancewwation token evewytime afta
+	 * a wong wunning opewation ow fwom event handwews because it couwd be that the
+	 * picka has been cwosed ow changed meanwhiwe. The token can be used to find out
+	 * that the picka was cwosed without picking an entwy (e.g. was cancewed by the usa).
+	 * @wetuwn a disposabwe that wiww automaticawwy be disposed when the picka
+	 * cwoses ow is wepwaced by anotha picka.
 	 */
-	provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable;
+	pwovide(picka: IQuickPick<IQuickPickItem>, token: CancewwationToken): IDisposabwe;
 }
 
-export interface IQuickAccessProviderHelp {
+expowt intewface IQuickAccessPwovidewHewp {
 
 	/**
-	 * The prefix to show for the help entry. If not provided,
-	 * the prefix used for registration will be taken.
+	 * The pwefix to show fow the hewp entwy. If not pwovided,
+	 * the pwefix used fow wegistwation wiww be taken.
 	 */
-	prefix?: string;
+	pwefix?: stwing;
 
 	/**
-	 * A description text to help understand the intent of the provider.
+	 * A descwiption text to hewp undewstand the intent of the pwovida.
 	 */
-	description: string;
+	descwiption: stwing;
 
 	/**
-	 * Separation between provider for editors and global ones.
+	 * Sepawation between pwovida fow editows and gwobaw ones.
 	 */
-	needsEditor: boolean;
+	needsEditow: boowean;
 }
 
-export interface IQuickAccessProviderDescriptor {
+expowt intewface IQuickAccessPwovidewDescwiptow {
 
 	/**
-	 * The actual provider that will be instantiated as needed.
+	 * The actuaw pwovida that wiww be instantiated as needed.
 	 */
-	readonly ctor: { new(...services: any /* TS BrandedService but no clue how to type this properly */[]): IQuickAccessProvider };
+	weadonwy ctow: { new(...sewvices: any /* TS BwandedSewvice but no cwue how to type this pwopewwy */[]): IQuickAccessPwovida };
 
 	/**
-	 * The prefix for quick access picker to use the provider for.
+	 * The pwefix fow quick access picka to use the pwovida fow.
 	 */
-	readonly prefix: string;
+	weadonwy pwefix: stwing;
 
 	/**
-	 * A placeholder to use for the input field when the provider is active.
-	 * This will also be read out by screen readers and thus helps for
-	 * accessibility.
+	 * A pwacehowda to use fow the input fiewd when the pwovida is active.
+	 * This wiww awso be wead out by scween weadews and thus hewps fow
+	 * accessibiwity.
 	 */
-	readonly placeholder?: string;
+	weadonwy pwacehowda?: stwing;
 
 	/**
-	 * Documentation for the provider in the quick access help.
+	 * Documentation fow the pwovida in the quick access hewp.
 	 */
-	readonly helpEntries: IQuickAccessProviderHelp[];
+	weadonwy hewpEntwies: IQuickAccessPwovidewHewp[];
 
 	/**
-	 * A context key that will be set automatically when the
-	 * picker for the provider is showing.
+	 * A context key that wiww be set automaticawwy when the
+	 * picka fow the pwovida is showing.
 	 */
-	readonly contextKey?: string;
+	weadonwy contextKey?: stwing;
 }
 
-export const Extensions = {
-	Quickaccess: 'workbench.contributions.quickaccess'
+expowt const Extensions = {
+	Quickaccess: 'wowkbench.contwibutions.quickaccess'
 };
 
-export interface IQuickAccessRegistry {
+expowt intewface IQuickAccessWegistwy {
 
 	/**
-	 * Registers a quick access provider to the platform.
+	 * Wegistews a quick access pwovida to the pwatfowm.
 	 */
-	registerQuickAccessProvider(provider: IQuickAccessProviderDescriptor): IDisposable;
+	wegistewQuickAccessPwovida(pwovida: IQuickAccessPwovidewDescwiptow): IDisposabwe;
 
 	/**
-	 * Get all registered quick access providers.
+	 * Get aww wegistewed quick access pwovidews.
 	 */
-	getQuickAccessProviders(): IQuickAccessProviderDescriptor[];
+	getQuickAccessPwovidews(): IQuickAccessPwovidewDescwiptow[];
 
 	/**
-	 * Get a specific quick access provider for a given prefix.
+	 * Get a specific quick access pwovida fow a given pwefix.
 	 */
-	getQuickAccessProvider(prefix: string): IQuickAccessProviderDescriptor | undefined;
+	getQuickAccessPwovida(pwefix: stwing): IQuickAccessPwovidewDescwiptow | undefined;
 }
 
-export class QuickAccessRegistry implements IQuickAccessRegistry {
-	private providers: IQuickAccessProviderDescriptor[] = [];
-	private defaultProvider: IQuickAccessProviderDescriptor | undefined = undefined;
+expowt cwass QuickAccessWegistwy impwements IQuickAccessWegistwy {
+	pwivate pwovidews: IQuickAccessPwovidewDescwiptow[] = [];
+	pwivate defauwtPwovida: IQuickAccessPwovidewDescwiptow | undefined = undefined;
 
-	registerQuickAccessProvider(provider: IQuickAccessProviderDescriptor): IDisposable {
+	wegistewQuickAccessPwovida(pwovida: IQuickAccessPwovidewDescwiptow): IDisposabwe {
 
-		// Extract the default provider when no prefix is present
-		if (provider.prefix.length === 0) {
-			this.defaultProvider = provider;
-		} else {
-			this.providers.push(provider);
+		// Extwact the defauwt pwovida when no pwefix is pwesent
+		if (pwovida.pwefix.wength === 0) {
+			this.defauwtPwovida = pwovida;
+		} ewse {
+			this.pwovidews.push(pwovida);
 		}
 
-		// sort the providers by decreasing prefix length, such that longer
-		// prefixes take priority: 'ext' vs 'ext install' - the latter should win
-		this.providers.sort((providerA, providerB) => providerB.prefix.length - providerA.prefix.length);
+		// sowt the pwovidews by decweasing pwefix wength, such that wonga
+		// pwefixes take pwiowity: 'ext' vs 'ext instaww' - the watta shouwd win
+		this.pwovidews.sowt((pwovidewA, pwovidewB) => pwovidewB.pwefix.wength - pwovidewA.pwefix.wength);
 
-		return toDisposable(() => {
-			this.providers.splice(this.providers.indexOf(provider), 1);
+		wetuwn toDisposabwe(() => {
+			this.pwovidews.spwice(this.pwovidews.indexOf(pwovida), 1);
 
-			if (this.defaultProvider === provider) {
-				this.defaultProvider = undefined;
+			if (this.defauwtPwovida === pwovida) {
+				this.defauwtPwovida = undefined;
 			}
 		});
 	}
 
-	getQuickAccessProviders(): IQuickAccessProviderDescriptor[] {
-		return coalesce([this.defaultProvider, ...this.providers]);
+	getQuickAccessPwovidews(): IQuickAccessPwovidewDescwiptow[] {
+		wetuwn coawesce([this.defauwtPwovida, ...this.pwovidews]);
 	}
 
-	getQuickAccessProvider(prefix: string): IQuickAccessProviderDescriptor | undefined {
-		const result = prefix ? (this.providers.find(provider => prefix.startsWith(provider.prefix)) || undefined) : undefined;
+	getQuickAccessPwovida(pwefix: stwing): IQuickAccessPwovidewDescwiptow | undefined {
+		const wesuwt = pwefix ? (this.pwovidews.find(pwovida => pwefix.stawtsWith(pwovida.pwefix)) || undefined) : undefined;
 
-		return result || this.defaultProvider;
+		wetuwn wesuwt || this.defauwtPwovida;
 	}
 
-	clear(): Function {
-		const providers = [...this.providers];
-		const defaultProvider = this.defaultProvider;
+	cweaw(): Function {
+		const pwovidews = [...this.pwovidews];
+		const defauwtPwovida = this.defauwtPwovida;
 
-		this.providers = [];
-		this.defaultProvider = undefined;
+		this.pwovidews = [];
+		this.defauwtPwovida = undefined;
 
-		return () => {
-			this.providers = providers;
-			this.defaultProvider = defaultProvider;
+		wetuwn () => {
+			this.pwovidews = pwovidews;
+			this.defauwtPwovida = defauwtPwovida;
 		};
 	}
 }
 
-Registry.add(Extensions.Quickaccess, new QuickAccessRegistry());
+Wegistwy.add(Extensions.Quickaccess, new QuickAccessWegistwy());

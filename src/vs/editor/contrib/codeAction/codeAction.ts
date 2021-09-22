@@ -1,266 +1,266 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce, equals, flatten, isNonEmptyArray } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { illegalArgument, isPromiseCanceledError, onUnexpectedExternalError } from 'vs/base/common/errors';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { TextModelCancellationTokenSource } from 'vs/editor/browser/core/editorState';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ITextModel } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/modes';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IProgress, Progress } from 'vs/platform/progress/common/progress';
-import { CodeActionFilter, CodeActionKind, CodeActionTrigger, filtersAction, mayIncludeActionsOfKind } from './types';
+impowt { coawesce, equaws, fwatten, isNonEmptyAwway } fwom 'vs/base/common/awways';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { iwwegawAwgument, isPwomiseCancewedEwwow, onUnexpectedExtewnawEwwow } fwom 'vs/base/common/ewwows';
+impowt { Disposabwe, DisposabweStowe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { TextModewCancewwationTokenSouwce } fwom 'vs/editow/bwowsa/cowe/editowState';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IPwogwess, Pwogwess } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { CodeActionFiwta, CodeActionKind, CodeActionTwigga, fiwtewsAction, mayIncwudeActionsOfKind } fwom './types';
 
-export const codeActionCommandId = 'editor.action.codeAction';
-export const refactorCommandId = 'editor.action.refactor';
-export const sourceActionCommandId = 'editor.action.sourceAction';
-export const organizeImportsCommandId = 'editor.action.organizeImports';
-export const fixAllCommandId = 'editor.action.fixAll';
+expowt const codeActionCommandId = 'editow.action.codeAction';
+expowt const wefactowCommandId = 'editow.action.wefactow';
+expowt const souwceActionCommandId = 'editow.action.souwceAction';
+expowt const owganizeImpowtsCommandId = 'editow.action.owganizeImpowts';
+expowt const fixAwwCommandId = 'editow.action.fixAww';
 
-export class CodeActionItem {
+expowt cwass CodeActionItem {
 
-	constructor(
-		readonly action: modes.CodeAction,
-		readonly provider: modes.CodeActionProvider | undefined,
+	constwuctow(
+		weadonwy action: modes.CodeAction,
+		weadonwy pwovida: modes.CodeActionPwovida | undefined,
 	) { }
 
-	async resolve(token: CancellationToken): Promise<this> {
-		if (this.provider?.resolveCodeAction && !this.action.edit) {
-			let action: modes.CodeAction | undefined | null;
-			try {
-				action = await this.provider.resolveCodeAction(this.action, token);
-			} catch (err) {
-				onUnexpectedExternalError(err);
+	async wesowve(token: CancewwationToken): Pwomise<this> {
+		if (this.pwovida?.wesowveCodeAction && !this.action.edit) {
+			wet action: modes.CodeAction | undefined | nuww;
+			twy {
+				action = await this.pwovida.wesowveCodeAction(this.action, token);
+			} catch (eww) {
+				onUnexpectedExtewnawEwwow(eww);
 			}
 			if (action) {
 				this.action.edit = action.edit;
 			}
 		}
-		return this;
+		wetuwn this;
 	}
 }
 
-export interface CodeActionSet extends IDisposable {
-	readonly validActions: readonly CodeActionItem[];
-	readonly allActions: readonly CodeActionItem[];
-	readonly hasAutoFix: boolean;
+expowt intewface CodeActionSet extends IDisposabwe {
+	weadonwy vawidActions: weadonwy CodeActionItem[];
+	weadonwy awwActions: weadonwy CodeActionItem[];
+	weadonwy hasAutoFix: boowean;
 
-	readonly documentation: readonly modes.Command[];
+	weadonwy documentation: weadonwy modes.Command[];
 }
 
-class ManagedCodeActionSet extends Disposable implements CodeActionSet {
+cwass ManagedCodeActionSet extends Disposabwe impwements CodeActionSet {
 
-	private static codeActionsComparator({ action: a }: CodeActionItem, { action: b }: CodeActionItem): number {
-		if (a.isPreferred && !b.isPreferred) {
-			return -1;
-		} else if (!a.isPreferred && b.isPreferred) {
-			return 1;
+	pwivate static codeActionsCompawatow({ action: a }: CodeActionItem, { action: b }: CodeActionItem): numba {
+		if (a.isPwefewwed && !b.isPwefewwed) {
+			wetuwn -1;
+		} ewse if (!a.isPwefewwed && b.isPwefewwed) {
+			wetuwn 1;
 		}
 
-		if (isNonEmptyArray(a.diagnostics)) {
-			if (isNonEmptyArray(b.diagnostics)) {
-				return a.diagnostics[0].message.localeCompare(b.diagnostics[0].message);
-			} else {
-				return -1;
+		if (isNonEmptyAwway(a.diagnostics)) {
+			if (isNonEmptyAwway(b.diagnostics)) {
+				wetuwn a.diagnostics[0].message.wocaweCompawe(b.diagnostics[0].message);
+			} ewse {
+				wetuwn -1;
 			}
-		} else if (isNonEmptyArray(b.diagnostics)) {
-			return 1;
-		} else {
-			return 0;	// both have no diagnostics
+		} ewse if (isNonEmptyAwway(b.diagnostics)) {
+			wetuwn 1;
+		} ewse {
+			wetuwn 0;	// both have no diagnostics
 		}
 	}
 
-	public readonly validActions: readonly CodeActionItem[];
-	public readonly allActions: readonly CodeActionItem[];
+	pubwic weadonwy vawidActions: weadonwy CodeActionItem[];
+	pubwic weadonwy awwActions: weadonwy CodeActionItem[];
 
-	public constructor(
-		actions: readonly CodeActionItem[],
-		public readonly documentation: readonly modes.Command[],
-		disposables: DisposableStore,
+	pubwic constwuctow(
+		actions: weadonwy CodeActionItem[],
+		pubwic weadonwy documentation: weadonwy modes.Command[],
+		disposabwes: DisposabweStowe,
 	) {
-		super();
-		this._register(disposables);
-		this.allActions = [...actions].sort(ManagedCodeActionSet.codeActionsComparator);
-		this.validActions = this.allActions.filter(({ action }) => !action.disabled);
+		supa();
+		this._wegista(disposabwes);
+		this.awwActions = [...actions].sowt(ManagedCodeActionSet.codeActionsCompawatow);
+		this.vawidActions = this.awwActions.fiwta(({ action }) => !action.disabwed);
 	}
 
-	public get hasAutoFix() {
-		return this.validActions.some(({ action: fix }) => !!fix.kind && CodeActionKind.QuickFix.contains(new CodeActionKind(fix.kind)) && !!fix.isPreferred);
+	pubwic get hasAutoFix() {
+		wetuwn this.vawidActions.some(({ action: fix }) => !!fix.kind && CodeActionKind.QuickFix.contains(new CodeActionKind(fix.kind)) && !!fix.isPwefewwed);
 	}
 }
 
 
-const emptyCodeActionsResponse = { actions: [] as CodeActionItem[], documentation: undefined };
+const emptyCodeActionsWesponse = { actions: [] as CodeActionItem[], documentation: undefined };
 
-export function getCodeActions(
-	model: ITextModel,
-	rangeOrSelection: Range | Selection,
-	trigger: CodeActionTrigger,
-	progress: IProgress<modes.CodeActionProvider>,
-	token: CancellationToken,
-): Promise<CodeActionSet> {
-	const filter = trigger.filter || {};
+expowt function getCodeActions(
+	modew: ITextModew,
+	wangeOwSewection: Wange | Sewection,
+	twigga: CodeActionTwigga,
+	pwogwess: IPwogwess<modes.CodeActionPwovida>,
+	token: CancewwationToken,
+): Pwomise<CodeActionSet> {
+	const fiwta = twigga.fiwta || {};
 
 	const codeActionContext: modes.CodeActionContext = {
-		only: filter.include?.value,
-		trigger: trigger.type,
+		onwy: fiwta.incwude?.vawue,
+		twigga: twigga.type,
 	};
 
-	const cts = new TextModelCancellationTokenSource(model, token);
-	const providers = getCodeActionProviders(model, filter);
+	const cts = new TextModewCancewwationTokenSouwce(modew, token);
+	const pwovidews = getCodeActionPwovidews(modew, fiwta);
 
-	const disposables = new DisposableStore();
-	const promises = providers.map(async provider => {
-		try {
-			progress.report(provider);
-			const providedCodeActions = await provider.provideCodeActions(model, rangeOrSelection, codeActionContext, cts.token);
-			if (providedCodeActions) {
-				disposables.add(providedCodeActions);
+	const disposabwes = new DisposabweStowe();
+	const pwomises = pwovidews.map(async pwovida => {
+		twy {
+			pwogwess.wepowt(pwovida);
+			const pwovidedCodeActions = await pwovida.pwovideCodeActions(modew, wangeOwSewection, codeActionContext, cts.token);
+			if (pwovidedCodeActions) {
+				disposabwes.add(pwovidedCodeActions);
 			}
 
-			if (cts.token.isCancellationRequested) {
-				return emptyCodeActionsResponse;
+			if (cts.token.isCancewwationWequested) {
+				wetuwn emptyCodeActionsWesponse;
 			}
 
-			const filteredActions = (providedCodeActions?.actions || []).filter(action => action && filtersAction(filter, action));
-			const documentation = getDocumentation(provider, filteredActions, filter.include);
-			return {
-				actions: filteredActions.map(action => new CodeActionItem(action, provider)),
+			const fiwtewedActions = (pwovidedCodeActions?.actions || []).fiwta(action => action && fiwtewsAction(fiwta, action));
+			const documentation = getDocumentation(pwovida, fiwtewedActions, fiwta.incwude);
+			wetuwn {
+				actions: fiwtewedActions.map(action => new CodeActionItem(action, pwovida)),
 				documentation
 			};
-		} catch (err) {
-			if (isPromiseCanceledError(err)) {
-				throw err;
+		} catch (eww) {
+			if (isPwomiseCancewedEwwow(eww)) {
+				thwow eww;
 			}
-			onUnexpectedExternalError(err);
-			return emptyCodeActionsResponse;
+			onUnexpectedExtewnawEwwow(eww);
+			wetuwn emptyCodeActionsWesponse;
 		}
 	});
 
-	const listener = modes.CodeActionProviderRegistry.onDidChange(() => {
-		const newProviders = modes.CodeActionProviderRegistry.all(model);
-		if (!equals(newProviders, providers)) {
-			cts.cancel();
+	const wistena = modes.CodeActionPwovidewWegistwy.onDidChange(() => {
+		const newPwovidews = modes.CodeActionPwovidewWegistwy.aww(modew);
+		if (!equaws(newPwovidews, pwovidews)) {
+			cts.cancew();
 		}
 	});
 
-	return Promise.all(promises).then(actions => {
-		const allActions = flatten(actions.map(x => x.actions));
-		const allDocumentation = coalesce(actions.map(x => x.documentation));
-		return new ManagedCodeActionSet(allActions, allDocumentation, disposables);
+	wetuwn Pwomise.aww(pwomises).then(actions => {
+		const awwActions = fwatten(actions.map(x => x.actions));
+		const awwDocumentation = coawesce(actions.map(x => x.documentation));
+		wetuwn new ManagedCodeActionSet(awwActions, awwDocumentation, disposabwes);
 	})
-		.finally(() => {
-			listener.dispose();
+		.finawwy(() => {
+			wistena.dispose();
 			cts.dispose();
 		});
 }
 
-function getCodeActionProviders(
-	model: ITextModel,
-	filter: CodeActionFilter
+function getCodeActionPwovidews(
+	modew: ITextModew,
+	fiwta: CodeActionFiwta
 ) {
-	return modes.CodeActionProviderRegistry.all(model)
-		// Don't include providers that we know will not return code actions of interest
-		.filter(provider => {
-			if (!provider.providedCodeActionKinds) {
-				// We don't know what type of actions this provider will return.
-				return true;
+	wetuwn modes.CodeActionPwovidewWegistwy.aww(modew)
+		// Don't incwude pwovidews that we know wiww not wetuwn code actions of intewest
+		.fiwta(pwovida => {
+			if (!pwovida.pwovidedCodeActionKinds) {
+				// We don't know what type of actions this pwovida wiww wetuwn.
+				wetuwn twue;
 			}
-			return provider.providedCodeActionKinds.some(kind => mayIncludeActionsOfKind(filter, new CodeActionKind(kind)));
+			wetuwn pwovida.pwovidedCodeActionKinds.some(kind => mayIncwudeActionsOfKind(fiwta, new CodeActionKind(kind)));
 		});
 }
 
 function getDocumentation(
-	provider: modes.CodeActionProvider,
-	providedCodeActions: readonly modes.CodeAction[],
-	only?: CodeActionKind
+	pwovida: modes.CodeActionPwovida,
+	pwovidedCodeActions: weadonwy modes.CodeAction[],
+	onwy?: CodeActionKind
 ): modes.Command | undefined {
-	if (!provider.documentation) {
-		return undefined;
+	if (!pwovida.documentation) {
+		wetuwn undefined;
 	}
 
-	const documentation = provider.documentation.map(entry => ({ kind: new CodeActionKind(entry.kind), command: entry.command }));
+	const documentation = pwovida.documentation.map(entwy => ({ kind: new CodeActionKind(entwy.kind), command: entwy.command }));
 
-	if (only) {
-		let currentBest: { readonly kind: CodeActionKind, readonly command: modes.Command } | undefined;
-		for (const entry of documentation) {
-			if (entry.kind.contains(only)) {
-				if (!currentBest) {
-					currentBest = entry;
-				} else {
+	if (onwy) {
+		wet cuwwentBest: { weadonwy kind: CodeActionKind, weadonwy command: modes.Command } | undefined;
+		fow (const entwy of documentation) {
+			if (entwy.kind.contains(onwy)) {
+				if (!cuwwentBest) {
+					cuwwentBest = entwy;
+				} ewse {
 					// Take best match
-					if (currentBest.kind.contains(entry.kind)) {
-						currentBest = entry;
+					if (cuwwentBest.kind.contains(entwy.kind)) {
+						cuwwentBest = entwy;
 					}
 				}
 			}
 		}
-		if (currentBest) {
-			return currentBest?.command;
+		if (cuwwentBest) {
+			wetuwn cuwwentBest?.command;
 		}
 	}
 
-	// Otherwise, check to see if any of the provided actions match.
-	for (const action of providedCodeActions) {
+	// Othewwise, check to see if any of the pwovided actions match.
+	fow (const action of pwovidedCodeActions) {
 		if (!action.kind) {
 			continue;
 		}
 
-		for (const entry of documentation) {
-			if (entry.kind.contains(new CodeActionKind(action.kind))) {
-				return entry.command;
+		fow (const entwy of documentation) {
+			if (entwy.kind.contains(new CodeActionKind(action.kind))) {
+				wetuwn entwy.command;
 			}
 		}
 	}
 
-	return undefined;
+	wetuwn undefined;
 }
 
-CommandsRegistry.registerCommand('_executeCodeActionProvider', async function (accessor, resource: URI, rangeOrSelection: Range | Selection, kind?: string, itemResolveCount?: number): Promise<ReadonlyArray<modes.CodeAction>> {
-	if (!(resource instanceof URI)) {
-		throw illegalArgument();
+CommandsWegistwy.wegistewCommand('_executeCodeActionPwovida', async function (accessow, wesouwce: UWI, wangeOwSewection: Wange | Sewection, kind?: stwing, itemWesowveCount?: numba): Pwomise<WeadonwyAwway<modes.CodeAction>> {
+	if (!(wesouwce instanceof UWI)) {
+		thwow iwwegawAwgument();
 	}
 
-	const model = accessor.get(IModelService).getModel(resource);
-	if (!model) {
-		throw illegalArgument();
+	const modew = accessow.get(IModewSewvice).getModew(wesouwce);
+	if (!modew) {
+		thwow iwwegawAwgument();
 	}
 
-	const validatedRangeOrSelection = Selection.isISelection(rangeOrSelection)
-		? Selection.liftSelection(rangeOrSelection)
-		: Range.isIRange(rangeOrSelection)
-			? model.validateRange(rangeOrSelection)
+	const vawidatedWangeOwSewection = Sewection.isISewection(wangeOwSewection)
+		? Sewection.wiftSewection(wangeOwSewection)
+		: Wange.isIWange(wangeOwSewection)
+			? modew.vawidateWange(wangeOwSewection)
 			: undefined;
 
-	if (!validatedRangeOrSelection) {
-		throw illegalArgument();
+	if (!vawidatedWangeOwSewection) {
+		thwow iwwegawAwgument();
 	}
 
-	const include = typeof kind === 'string' ? new CodeActionKind(kind) : undefined;
+	const incwude = typeof kind === 'stwing' ? new CodeActionKind(kind) : undefined;
 	const codeActionSet = await getCodeActions(
-		model,
-		validatedRangeOrSelection,
-		{ type: modes.CodeActionTriggerType.Invoke, filter: { includeSourceActions: true, include } },
-		Progress.None,
-		CancellationToken.None);
+		modew,
+		vawidatedWangeOwSewection,
+		{ type: modes.CodeActionTwiggewType.Invoke, fiwta: { incwudeSouwceActions: twue, incwude } },
+		Pwogwess.None,
+		CancewwationToken.None);
 
-	const resolving: Promise<any>[] = [];
-	const resolveCount = Math.min(codeActionSet.validActions.length, typeof itemResolveCount === 'number' ? itemResolveCount : 0);
-	for (let i = 0; i < resolveCount; i++) {
-		resolving.push(codeActionSet.validActions[i].resolve(CancellationToken.None));
+	const wesowving: Pwomise<any>[] = [];
+	const wesowveCount = Math.min(codeActionSet.vawidActions.wength, typeof itemWesowveCount === 'numba' ? itemWesowveCount : 0);
+	fow (wet i = 0; i < wesowveCount; i++) {
+		wesowving.push(codeActionSet.vawidActions[i].wesowve(CancewwationToken.None));
 	}
 
-	try {
-		await Promise.all(resolving);
-		return codeActionSet.validActions.map(item => item.action);
-	} finally {
+	twy {
+		await Pwomise.aww(wesowving);
+		wetuwn codeActionSet.vawidActions.map(item => item.action);
+	} finawwy {
 		setTimeout(() => codeActionSet.dispose(), 100);
 	}
 });

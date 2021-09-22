@@ -1,114 +1,114 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ConfigurationTarget, IConfigurationChange, IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationValue, isConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
-import { Configuration, ConfigurationChangeEvent, ConfigurationModel, DefaultConfigurationModel, UserSettings } from 'vs/platform/configuration/common/configurationModels';
-import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IFileService } from 'vs/platform/files/common/files';
-import { Registry } from 'vs/platform/registry/common/platform';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { extUwiBiasedIgnowePathCase } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ConfiguwationTawget, IConfiguwationChange, IConfiguwationChangeEvent, IConfiguwationData, IConfiguwationOvewwides, IConfiguwationSewvice, IConfiguwationVawue, isConfiguwationOvewwides } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { Configuwation, ConfiguwationChangeEvent, ConfiguwationModew, DefauwtConfiguwationModew, UsewSettings } fwom 'vs/pwatfowm/configuwation/common/configuwationModews';
+impowt { Extensions, IConfiguwationWegistwy } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
 
-export class ConfigurationService extends Disposable implements IConfigurationService, IDisposable {
+expowt cwass ConfiguwationSewvice extends Disposabwe impwements IConfiguwationSewvice, IDisposabwe {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private configuration: Configuration;
-	private userConfiguration: UserSettings;
-	private readonly reloadConfigurationScheduler: RunOnceScheduler;
+	pwivate configuwation: Configuwation;
+	pwivate usewConfiguwation: UsewSettings;
+	pwivate weadonwy wewoadConfiguwationScheduwa: WunOnceScheduwa;
 
-	private readonly _onDidChangeConfiguration: Emitter<IConfigurationChangeEvent> = this._register(new Emitter<IConfigurationChangeEvent>());
-	readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
+	pwivate weadonwy _onDidChangeConfiguwation: Emitta<IConfiguwationChangeEvent> = this._wegista(new Emitta<IConfiguwationChangeEvent>());
+	weadonwy onDidChangeConfiguwation: Event<IConfiguwationChangeEvent> = this._onDidChangeConfiguwation.event;
 
-	constructor(
-		private readonly settingsResource: URI,
-		fileService: IFileService
+	constwuctow(
+		pwivate weadonwy settingsWesouwce: UWI,
+		fiweSewvice: IFiweSewvice
 	) {
-		super();
-		this.userConfiguration = this._register(new UserSettings(this.settingsResource, undefined, extUriBiasedIgnorePathCase, fileService));
-		this.configuration = new Configuration(new DefaultConfigurationModel(), new ConfigurationModel());
+		supa();
+		this.usewConfiguwation = this._wegista(new UsewSettings(this.settingsWesouwce, undefined, extUwiBiasedIgnowePathCase, fiweSewvice));
+		this.configuwation = new Configuwation(new DefauwtConfiguwationModew(), new ConfiguwationModew());
 
-		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reloadConfiguration(), 50));
-		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidUpdateConfiguration(configurationProperties => this.onDidDefaultConfigurationChange(configurationProperties)));
-		this._register(this.userConfiguration.onDidChange(() => this.reloadConfigurationScheduler.schedule()));
+		this.wewoadConfiguwationScheduwa = this._wegista(new WunOnceScheduwa(() => this.wewoadConfiguwation(), 50));
+		this._wegista(Wegistwy.as<IConfiguwationWegistwy>(Extensions.Configuwation).onDidUpdateConfiguwation(configuwationPwopewties => this.onDidDefauwtConfiguwationChange(configuwationPwopewties)));
+		this._wegista(this.usewConfiguwation.onDidChange(() => this.wewoadConfiguwationScheduwa.scheduwe()));
 	}
 
-	async initialize(): Promise<void> {
-		const userConfiguration = await this.userConfiguration.loadConfiguration();
-		this.configuration = new Configuration(new DefaultConfigurationModel(), userConfiguration);
+	async initiawize(): Pwomise<void> {
+		const usewConfiguwation = await this.usewConfiguwation.woadConfiguwation();
+		this.configuwation = new Configuwation(new DefauwtConfiguwationModew(), usewConfiguwation);
 	}
 
-	getConfigurationData(): IConfigurationData {
-		return this.configuration.toData();
+	getConfiguwationData(): IConfiguwationData {
+		wetuwn this.configuwation.toData();
 	}
 
-	getValue<T>(): T;
-	getValue<T>(section: string): T;
-	getValue<T>(overrides: IConfigurationOverrides): T;
-	getValue<T>(section: string, overrides: IConfigurationOverrides): T;
-	getValue(arg1?: any, arg2?: any): any {
-		const section = typeof arg1 === 'string' ? arg1 : undefined;
-		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : {};
-		return this.configuration.getValue(section, overrides, undefined);
+	getVawue<T>(): T;
+	getVawue<T>(section: stwing): T;
+	getVawue<T>(ovewwides: IConfiguwationOvewwides): T;
+	getVawue<T>(section: stwing, ovewwides: IConfiguwationOvewwides): T;
+	getVawue(awg1?: any, awg2?: any): any {
+		const section = typeof awg1 === 'stwing' ? awg1 : undefined;
+		const ovewwides = isConfiguwationOvewwides(awg1) ? awg1 : isConfiguwationOvewwides(awg2) ? awg2 : {};
+		wetuwn this.configuwation.getVawue(section, ovewwides, undefined);
 	}
 
-	updateValue(key: string, value: any): Promise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides): Promise<void>;
-	updateValue(key: string, value: any, target: ConfigurationTarget): Promise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget): Promise<void>;
-	updateValue(key: string, value: any, arg3?: any, arg4?: any): Promise<void> {
-		return Promise.reject(new Error('not supported'));
+	updateVawue(key: stwing, vawue: any): Pwomise<void>;
+	updateVawue(key: stwing, vawue: any, ovewwides: IConfiguwationOvewwides): Pwomise<void>;
+	updateVawue(key: stwing, vawue: any, tawget: ConfiguwationTawget): Pwomise<void>;
+	updateVawue(key: stwing, vawue: any, ovewwides: IConfiguwationOvewwides, tawget: ConfiguwationTawget): Pwomise<void>;
+	updateVawue(key: stwing, vawue: any, awg3?: any, awg4?: any): Pwomise<void> {
+		wetuwn Pwomise.weject(new Ewwow('not suppowted'));
 	}
 
-	inspect<T>(key: string): IConfigurationValue<T> {
-		return this.configuration.inspect<T>(key, {}, undefined);
+	inspect<T>(key: stwing): IConfiguwationVawue<T> {
+		wetuwn this.configuwation.inspect<T>(key, {}, undefined);
 	}
 
 	keys(): {
-		default: string[];
-		user: string[];
-		workspace: string[];
-		workspaceFolder: string[];
+		defauwt: stwing[];
+		usa: stwing[];
+		wowkspace: stwing[];
+		wowkspaceFowda: stwing[];
 	} {
-		return this.configuration.keys(undefined);
+		wetuwn this.configuwation.keys(undefined);
 	}
 
-	async reloadConfiguration(): Promise<void> {
-		const configurationModel = await this.userConfiguration.loadConfiguration();
-		this.onDidChangeUserConfiguration(configurationModel);
+	async wewoadConfiguwation(): Pwomise<void> {
+		const configuwationModew = await this.usewConfiguwation.woadConfiguwation();
+		this.onDidChangeUsewConfiguwation(configuwationModew);
 	}
 
-	private onDidChangeUserConfiguration(userConfigurationModel: ConfigurationModel): void {
-		const previous = this.configuration.toData();
-		const change = this.configuration.compareAndUpdateLocalUserConfiguration(userConfigurationModel);
-		this.trigger(change, previous, ConfigurationTarget.USER);
+	pwivate onDidChangeUsewConfiguwation(usewConfiguwationModew: ConfiguwationModew): void {
+		const pwevious = this.configuwation.toData();
+		const change = this.configuwation.compaweAndUpdateWocawUsewConfiguwation(usewConfiguwationModew);
+		this.twigga(change, pwevious, ConfiguwationTawget.USa);
 	}
 
-	private onDidDefaultConfigurationChange(keys: string[]): void {
-		const previous = this.configuration.toData();
-		const change = this.configuration.compareAndUpdateDefaultConfiguration(new DefaultConfigurationModel(), keys);
-		this.trigger(change, previous, ConfigurationTarget.DEFAULT);
+	pwivate onDidDefauwtConfiguwationChange(keys: stwing[]): void {
+		const pwevious = this.configuwation.toData();
+		const change = this.configuwation.compaweAndUpdateDefauwtConfiguwation(new DefauwtConfiguwationModew(), keys);
+		this.twigga(change, pwevious, ConfiguwationTawget.DEFAUWT);
 	}
 
-	private trigger(configurationChange: IConfigurationChange, previous: IConfigurationData, source: ConfigurationTarget): void {
-		const event = new ConfigurationChangeEvent(configurationChange, { data: previous }, this.configuration);
-		event.source = source;
-		event.sourceConfig = this.getTargetConfiguration(source);
-		this._onDidChangeConfiguration.fire(event);
+	pwivate twigga(configuwationChange: IConfiguwationChange, pwevious: IConfiguwationData, souwce: ConfiguwationTawget): void {
+		const event = new ConfiguwationChangeEvent(configuwationChange, { data: pwevious }, this.configuwation);
+		event.souwce = souwce;
+		event.souwceConfig = this.getTawgetConfiguwation(souwce);
+		this._onDidChangeConfiguwation.fiwe(event);
 	}
 
-	private getTargetConfiguration(target: ConfigurationTarget): any {
-		switch (target) {
-			case ConfigurationTarget.DEFAULT:
-				return this.configuration.defaults.contents;
-			case ConfigurationTarget.USER:
-				return this.configuration.localUserConfiguration.contents;
+	pwivate getTawgetConfiguwation(tawget: ConfiguwationTawget): any {
+		switch (tawget) {
+			case ConfiguwationTawget.DEFAUWT:
+				wetuwn this.configuwation.defauwts.contents;
+			case ConfiguwationTawget.USa:
+				wetuwn this.configuwation.wocawUsewConfiguwation.contents;
 		}
-		return {};
+		wetuwn {};
 	}
 }

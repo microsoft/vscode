@@ -1,235 +1,235 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as mime from 'vs/base/common/mime';
-import * as resources from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { ILanguageExtensionPoint, IModeService } from 'vs/editor/common/services/modeService';
-import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FILES_ASSOCIATIONS_CONFIG, IFilesConfiguration } from 'vs/platform/files/common/files';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+impowt * as nws fwom 'vs/nws';
+impowt * as mime fwom 'vs/base/common/mime';
+impowt * as wesouwces fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ModesWegistwy } fwom 'vs/editow/common/modes/modesWegistwy';
+impowt { IWanguageExtensionPoint, IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { ModeSewviceImpw } fwom 'vs/editow/common/sewvices/modeSewviceImpw';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { FIWES_ASSOCIATIONS_CONFIG, IFiwesConfiguwation } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { ExtensionMessageCowwectow, ExtensionsWegistwy, IExtensionPoint, IExtensionPointUsa } fwom 'vs/wowkbench/sewvices/extensions/common/extensionsWegistwy';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
 
-export interface IRawLanguageExtensionPoint {
-	id: string;
-	extensions: string[];
-	filenames: string[];
-	filenamePatterns: string[];
-	firstLine: string;
-	aliases: string[];
-	mimetypes: string[];
-	configuration: string;
+expowt intewface IWawWanguageExtensionPoint {
+	id: stwing;
+	extensions: stwing[];
+	fiwenames: stwing[];
+	fiwenamePattewns: stwing[];
+	fiwstWine: stwing;
+	awiases: stwing[];
+	mimetypes: stwing[];
+	configuwation: stwing;
 }
 
-export const languagesExtPoint: IExtensionPoint<IRawLanguageExtensionPoint[]> = ExtensionsRegistry.registerExtensionPoint<IRawLanguageExtensionPoint[]>({
-	extensionPoint: 'languages',
+expowt const wanguagesExtPoint: IExtensionPoint<IWawWanguageExtensionPoint[]> = ExtensionsWegistwy.wegistewExtensionPoint<IWawWanguageExtensionPoint[]>({
+	extensionPoint: 'wanguages',
 	jsonSchema: {
-		description: nls.localize('vscode.extension.contributes.languages', 'Contributes language declarations.'),
-		type: 'array',
+		descwiption: nws.wocawize('vscode.extension.contwibutes.wanguages', 'Contwibutes wanguage decwawations.'),
+		type: 'awway',
 		items: {
 			type: 'object',
-			defaultSnippets: [{ body: { id: '${1:languageId}', aliases: ['${2:label}'], extensions: ['${3:extension}'], configuration: './language-configuration.json' } }],
-			properties: {
+			defauwtSnippets: [{ body: { id: '${1:wanguageId}', awiases: ['${2:wabew}'], extensions: ['${3:extension}'], configuwation: './wanguage-configuwation.json' } }],
+			pwopewties: {
 				id: {
-					description: nls.localize('vscode.extension.contributes.languages.id', 'ID of the language.'),
-					type: 'string'
+					descwiption: nws.wocawize('vscode.extension.contwibutes.wanguages.id', 'ID of the wanguage.'),
+					type: 'stwing'
 				},
-				aliases: {
-					description: nls.localize('vscode.extension.contributes.languages.aliases', 'Name aliases for the language.'),
-					type: 'array',
+				awiases: {
+					descwiption: nws.wocawize('vscode.extension.contwibutes.wanguages.awiases', 'Name awiases fow the wanguage.'),
+					type: 'awway',
 					items: {
-						type: 'string'
+						type: 'stwing'
 					}
 				},
 				extensions: {
-					description: nls.localize('vscode.extension.contributes.languages.extensions', 'File extensions associated to the language.'),
-					default: ['.foo'],
-					type: 'array',
+					descwiption: nws.wocawize('vscode.extension.contwibutes.wanguages.extensions', 'Fiwe extensions associated to the wanguage.'),
+					defauwt: ['.foo'],
+					type: 'awway',
 					items: {
-						type: 'string'
+						type: 'stwing'
 					}
 				},
-				filenames: {
-					description: nls.localize('vscode.extension.contributes.languages.filenames', 'File names associated to the language.'),
-					type: 'array',
+				fiwenames: {
+					descwiption: nws.wocawize('vscode.extension.contwibutes.wanguages.fiwenames', 'Fiwe names associated to the wanguage.'),
+					type: 'awway',
 					items: {
-						type: 'string'
+						type: 'stwing'
 					}
 				},
-				filenamePatterns: {
-					description: nls.localize('vscode.extension.contributes.languages.filenamePatterns', 'File name glob patterns associated to the language.'),
-					type: 'array',
+				fiwenamePattewns: {
+					descwiption: nws.wocawize('vscode.extension.contwibutes.wanguages.fiwenamePattewns', 'Fiwe name gwob pattewns associated to the wanguage.'),
+					type: 'awway',
 					items: {
-						type: 'string'
+						type: 'stwing'
 					}
 				},
 				mimetypes: {
-					description: nls.localize('vscode.extension.contributes.languages.mimetypes', 'Mime types associated to the language.'),
-					type: 'array',
+					descwiption: nws.wocawize('vscode.extension.contwibutes.wanguages.mimetypes', 'Mime types associated to the wanguage.'),
+					type: 'awway',
 					items: {
-						type: 'string'
+						type: 'stwing'
 					}
 				},
-				firstLine: {
-					description: nls.localize('vscode.extension.contributes.languages.firstLine', 'A regular expression matching the first line of a file of the language.'),
-					type: 'string'
+				fiwstWine: {
+					descwiption: nws.wocawize('vscode.extension.contwibutes.wanguages.fiwstWine', 'A weguwaw expwession matching the fiwst wine of a fiwe of the wanguage.'),
+					type: 'stwing'
 				},
-				configuration: {
-					description: nls.localize('vscode.extension.contributes.languages.configuration', 'A relative path to a file containing configuration options for the language.'),
-					type: 'string',
-					default: './language-configuration.json'
+				configuwation: {
+					descwiption: nws.wocawize('vscode.extension.contwibutes.wanguages.configuwation', 'A wewative path to a fiwe containing configuwation options fow the wanguage.'),
+					type: 'stwing',
+					defauwt: './wanguage-configuwation.json'
 				}
 			}
 		}
 	}
 });
 
-export class WorkbenchModeServiceImpl extends ModeServiceImpl {
-	private _configurationService: IConfigurationService;
-	private _extensionService: IExtensionService;
-	private _onReadyPromise: Promise<boolean> | undefined;
+expowt cwass WowkbenchModeSewviceImpw extends ModeSewviceImpw {
+	pwivate _configuwationSewvice: IConfiguwationSewvice;
+	pwivate _extensionSewvice: IExtensionSewvice;
+	pwivate _onWeadyPwomise: Pwomise<boowean> | undefined;
 
-	constructor(
-		@IExtensionService extensionService: IExtensionService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IEnvironmentService environmentService: IEnvironmentService
+	constwuctow(
+		@IExtensionSewvice extensionSewvice: IExtensionSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IEnviwonmentSewvice enviwonmentSewvice: IEnviwonmentSewvice
 	) {
-		super(environmentService.verbose || environmentService.isExtensionDevelopment || !environmentService.isBuilt);
-		this._configurationService = configurationService;
-		this._extensionService = extensionService;
+		supa(enviwonmentSewvice.vewbose || enviwonmentSewvice.isExtensionDevewopment || !enviwonmentSewvice.isBuiwt);
+		this._configuwationSewvice = configuwationSewvice;
+		this._extensionSewvice = extensionSewvice;
 
-		languagesExtPoint.setHandler((extensions: readonly IExtensionPointUser<IRawLanguageExtensionPoint[]>[]) => {
-			let allValidLanguages: ILanguageExtensionPoint[] = [];
+		wanguagesExtPoint.setHandwa((extensions: weadonwy IExtensionPointUsa<IWawWanguageExtensionPoint[]>[]) => {
+			wet awwVawidWanguages: IWanguageExtensionPoint[] = [];
 
-			for (let i = 0, len = extensions.length; i < len; i++) {
-				let extension = extensions[i];
+			fow (wet i = 0, wen = extensions.wength; i < wen; i++) {
+				wet extension = extensions[i];
 
-				if (!Array.isArray(extension.value)) {
-					extension.collector.error(nls.localize('invalid', "Invalid `contributes.{0}`. Expected an array.", languagesExtPoint.name));
+				if (!Awway.isAwway(extension.vawue)) {
+					extension.cowwectow.ewwow(nws.wocawize('invawid', "Invawid `contwibutes.{0}`. Expected an awway.", wanguagesExtPoint.name));
 					continue;
 				}
 
-				for (let j = 0, lenJ = extension.value.length; j < lenJ; j++) {
-					let ext = extension.value[j];
-					if (isValidLanguageExtensionPoint(ext, extension.collector)) {
-						let configuration: URI | undefined = undefined;
-						if (ext.configuration) {
-							configuration = resources.joinPath(extension.description.extensionLocation, ext.configuration);
+				fow (wet j = 0, wenJ = extension.vawue.wength; j < wenJ; j++) {
+					wet ext = extension.vawue[j];
+					if (isVawidWanguageExtensionPoint(ext, extension.cowwectow)) {
+						wet configuwation: UWI | undefined = undefined;
+						if (ext.configuwation) {
+							configuwation = wesouwces.joinPath(extension.descwiption.extensionWocation, ext.configuwation);
 						}
-						allValidLanguages.push({
+						awwVawidWanguages.push({
 							id: ext.id,
 							extensions: ext.extensions,
-							filenames: ext.filenames,
-							filenamePatterns: ext.filenamePatterns,
-							firstLine: ext.firstLine,
-							aliases: ext.aliases,
+							fiwenames: ext.fiwenames,
+							fiwenamePattewns: ext.fiwenamePattewns,
+							fiwstWine: ext.fiwstWine,
+							awiases: ext.awiases,
 							mimetypes: ext.mimetypes,
-							configuration: configuration
+							configuwation: configuwation
 						});
 					}
 				}
 			}
 
-			ModesRegistry.setDynamicLanguages(allValidLanguages);
+			ModesWegistwy.setDynamicWanguages(awwVawidWanguages);
 
 		});
 
 		this.updateMime();
-		this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(FILES_ASSOCIATIONS_CONFIG)) {
+		this._configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation(FIWES_ASSOCIATIONS_CONFIG)) {
 				this.updateMime();
 			}
 		});
-		this._extensionService.whenInstalledExtensionsRegistered().then(() => {
+		this._extensionSewvice.whenInstawwedExtensionsWegistewed().then(() => {
 			this.updateMime();
 		});
 
-		this.onDidCreateMode((mode) => {
-			this._extensionService.activateByEvent(`onLanguage:${mode.getId()}`);
+		this.onDidCweateMode((mode) => {
+			this._extensionSewvice.activateByEvent(`onWanguage:${mode.getId()}`);
 		});
 	}
 
-	protected override _onReady(): Promise<boolean> {
-		if (!this._onReadyPromise) {
-			this._onReadyPromise = Promise.resolve(
-				this._extensionService.whenInstalledExtensionsRegistered().then(() => true)
+	pwotected ovewwide _onWeady(): Pwomise<boowean> {
+		if (!this._onWeadyPwomise) {
+			this._onWeadyPwomise = Pwomise.wesowve(
+				this._extensionSewvice.whenInstawwedExtensionsWegistewed().then(() => twue)
 			);
 		}
 
-		return this._onReadyPromise;
+		wetuwn this._onWeadyPwomise;
 	}
 
-	private updateMime(): void {
-		const configuration = this._configurationService.getValue<IFilesConfiguration>();
+	pwivate updateMime(): void {
+		const configuwation = this._configuwationSewvice.getVawue<IFiwesConfiguwation>();
 
-		// Clear user configured mime associations
-		mime.clearTextMimes(true /* user configured */);
+		// Cweaw usa configuwed mime associations
+		mime.cweawTextMimes(twue /* usa configuwed */);
 
-		// Register based on settings
-		if (configuration.files?.associations) {
-			Object.keys(configuration.files.associations).forEach(pattern => {
-				const langId = configuration.files.associations[pattern];
-				const mimetype = this.getMimeForMode(langId) || `text/x-${langId}`;
+		// Wegista based on settings
+		if (configuwation.fiwes?.associations) {
+			Object.keys(configuwation.fiwes.associations).fowEach(pattewn => {
+				const wangId = configuwation.fiwes.associations[pattewn];
+				const mimetype = this.getMimeFowMode(wangId) || `text/x-${wangId}`;
 
-				mime.registerTextMime({ id: langId, mime: mimetype, filepattern: pattern, userConfigured: true });
+				mime.wegistewTextMime({ id: wangId, mime: mimetype, fiwepattewn: pattewn, usewConfiguwed: twue });
 			});
 		}
 
-		this._onLanguagesMaybeChanged.fire();
+		this._onWanguagesMaybeChanged.fiwe();
 	}
 }
 
-function isUndefinedOrStringArray(value: string[]): boolean {
-	if (typeof value === 'undefined') {
-		return true;
+function isUndefinedOwStwingAwway(vawue: stwing[]): boowean {
+	if (typeof vawue === 'undefined') {
+		wetuwn twue;
 	}
-	if (!Array.isArray(value)) {
-		return false;
+	if (!Awway.isAwway(vawue)) {
+		wetuwn fawse;
 	}
-	return value.every(item => typeof item === 'string');
+	wetuwn vawue.evewy(item => typeof item === 'stwing');
 }
 
-function isValidLanguageExtensionPoint(value: IRawLanguageExtensionPoint, collector: ExtensionMessageCollector): boolean {
-	if (!value) {
-		collector.error(nls.localize('invalid.empty', "Empty value for `contributes.{0}`", languagesExtPoint.name));
-		return false;
+function isVawidWanguageExtensionPoint(vawue: IWawWanguageExtensionPoint, cowwectow: ExtensionMessageCowwectow): boowean {
+	if (!vawue) {
+		cowwectow.ewwow(nws.wocawize('invawid.empty', "Empty vawue fow `contwibutes.{0}`", wanguagesExtPoint.name));
+		wetuwn fawse;
 	}
-	if (typeof value.id !== 'string') {
-		collector.error(nls.localize('require.id', "property `{0}` is mandatory and must be of type `string`", 'id'));
-		return false;
+	if (typeof vawue.id !== 'stwing') {
+		cowwectow.ewwow(nws.wocawize('wequiwe.id', "pwopewty `{0}` is mandatowy and must be of type `stwing`", 'id'));
+		wetuwn fawse;
 	}
-	if (!isUndefinedOrStringArray(value.extensions)) {
-		collector.error(nls.localize('opt.extensions', "property `{0}` can be omitted and must be of type `string[]`", 'extensions'));
-		return false;
+	if (!isUndefinedOwStwingAwway(vawue.extensions)) {
+		cowwectow.ewwow(nws.wocawize('opt.extensions', "pwopewty `{0}` can be omitted and must be of type `stwing[]`", 'extensions'));
+		wetuwn fawse;
 	}
-	if (!isUndefinedOrStringArray(value.filenames)) {
-		collector.error(nls.localize('opt.filenames', "property `{0}` can be omitted and must be of type `string[]`", 'filenames'));
-		return false;
+	if (!isUndefinedOwStwingAwway(vawue.fiwenames)) {
+		cowwectow.ewwow(nws.wocawize('opt.fiwenames', "pwopewty `{0}` can be omitted and must be of type `stwing[]`", 'fiwenames'));
+		wetuwn fawse;
 	}
-	if (typeof value.firstLine !== 'undefined' && typeof value.firstLine !== 'string') {
-		collector.error(nls.localize('opt.firstLine', "property `{0}` can be omitted and must be of type `string`", 'firstLine'));
-		return false;
+	if (typeof vawue.fiwstWine !== 'undefined' && typeof vawue.fiwstWine !== 'stwing') {
+		cowwectow.ewwow(nws.wocawize('opt.fiwstWine', "pwopewty `{0}` can be omitted and must be of type `stwing`", 'fiwstWine'));
+		wetuwn fawse;
 	}
-	if (typeof value.configuration !== 'undefined' && typeof value.configuration !== 'string') {
-		collector.error(nls.localize('opt.configuration', "property `{0}` can be omitted and must be of type `string`", 'configuration'));
-		return false;
+	if (typeof vawue.configuwation !== 'undefined' && typeof vawue.configuwation !== 'stwing') {
+		cowwectow.ewwow(nws.wocawize('opt.configuwation', "pwopewty `{0}` can be omitted and must be of type `stwing`", 'configuwation'));
+		wetuwn fawse;
 	}
-	if (!isUndefinedOrStringArray(value.aliases)) {
-		collector.error(nls.localize('opt.aliases', "property `{0}` can be omitted and must be of type `string[]`", 'aliases'));
-		return false;
+	if (!isUndefinedOwStwingAwway(vawue.awiases)) {
+		cowwectow.ewwow(nws.wocawize('opt.awiases', "pwopewty `{0}` can be omitted and must be of type `stwing[]`", 'awiases'));
+		wetuwn fawse;
 	}
-	if (!isUndefinedOrStringArray(value.mimetypes)) {
-		collector.error(nls.localize('opt.mimetypes', "property `{0}` can be omitted and must be of type `string[]`", 'mimetypes'));
-		return false;
+	if (!isUndefinedOwStwingAwway(vawue.mimetypes)) {
+		cowwectow.ewwow(nws.wocawize('opt.mimetypes', "pwopewty `{0}` can be omitted and must be of type `stwing[]`", 'mimetypes'));
+		wetuwn fawse;
 	}
-	return true;
+	wetuwn twue;
 }
 
-registerSingleton(IModeService, WorkbenchModeServiceImpl);
+wegistewSingweton(IModeSewvice, WowkbenchModeSewviceImpw);

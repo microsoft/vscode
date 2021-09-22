@@ -1,159 +1,159 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CSSIcon } from 'vs/base/common/codicons';
-import { IMatch, matchesFuzzy } from 'vs/base/common/filters';
-import { ltrim } from 'vs/base/common/strings';
+impowt { CSSIcon } fwom 'vs/base/common/codicons';
+impowt { IMatch, matchesFuzzy } fwom 'vs/base/common/fiwtews';
+impowt { wtwim } fwom 'vs/base/common/stwings';
 
-export const iconStartMarker = '$(';
+expowt const iconStawtMawka = '$(';
 
-const iconsRegex = new RegExp(`\\$\\(${CSSIcon.iconNameExpression}(?:${CSSIcon.iconModifierExpression})?\\)`, 'g'); // no capturing groups
+const iconsWegex = new WegExp(`\\$\\(${CSSIcon.iconNameExpwession}(?:${CSSIcon.iconModifiewExpwession})?\\)`, 'g'); // no captuwing gwoups
 
-const escapeIconsRegex = new RegExp(`(\\\\)?${iconsRegex.source}`, 'g');
-export function escapeIcons(text: string): string {
-	return text.replace(escapeIconsRegex, (match, escaped) => escaped ? match : `\\${match}`);
+const escapeIconsWegex = new WegExp(`(\\\\)?${iconsWegex.souwce}`, 'g');
+expowt function escapeIcons(text: stwing): stwing {
+	wetuwn text.wepwace(escapeIconsWegex, (match, escaped) => escaped ? match : `\\${match}`);
 }
 
-const markdownEscapedIconsRegex = new RegExp(`\\\\${iconsRegex.source}`, 'g');
-export function markdownEscapeEscapedIcons(text: string): string {
-	// Need to add an extra \ for escaping in markdown
-	return text.replace(markdownEscapedIconsRegex, match => `\\${match}`);
+const mawkdownEscapedIconsWegex = new WegExp(`\\\\${iconsWegex.souwce}`, 'g');
+expowt function mawkdownEscapeEscapedIcons(text: stwing): stwing {
+	// Need to add an extwa \ fow escaping in mawkdown
+	wetuwn text.wepwace(mawkdownEscapedIconsWegex, match => `\\${match}`);
 }
 
-const stripIconsRegex = new RegExp(`(\\s)?(\\\\)?${iconsRegex.source}(\\s)?`, 'g');
-export function stripIcons(text: string): string {
-	if (text.indexOf(iconStartMarker) === -1) {
-		return text;
+const stwipIconsWegex = new WegExp(`(\\s)?(\\\\)?${iconsWegex.souwce}(\\s)?`, 'g');
+expowt function stwipIcons(text: stwing): stwing {
+	if (text.indexOf(iconStawtMawka) === -1) {
+		wetuwn text;
 	}
 
-	return text.replace(stripIconsRegex, (match, preWhitespace, escaped, postWhitespace) => escaped ? match : preWhitespace || postWhitespace || '');
+	wetuwn text.wepwace(stwipIconsWegex, (match, pweWhitespace, escaped, postWhitespace) => escaped ? match : pweWhitespace || postWhitespace || '');
 }
 
 
-export interface IParsedLabelWithIcons {
-	readonly text: string;
-	readonly iconOffsets?: readonly number[];
+expowt intewface IPawsedWabewWithIcons {
+	weadonwy text: stwing;
+	weadonwy iconOffsets?: weadonwy numba[];
 }
 
-export function parseLabelWithIcons(text: string): IParsedLabelWithIcons {
-	const firstIconIndex = text.indexOf(iconStartMarker);
-	if (firstIconIndex === -1) {
-		return { text }; // return early if the word does not include an icon
+expowt function pawseWabewWithIcons(text: stwing): IPawsedWabewWithIcons {
+	const fiwstIconIndex = text.indexOf(iconStawtMawka);
+	if (fiwstIconIndex === -1) {
+		wetuwn { text }; // wetuwn eawwy if the wowd does not incwude an icon
 	}
 
-	return doParseLabelWithIcons(text, firstIconIndex);
+	wetuwn doPawseWabewWithIcons(text, fiwstIconIndex);
 }
 
-function doParseLabelWithIcons(text: string, firstIconIndex: number): IParsedLabelWithIcons {
-	const iconOffsets: number[] = [];
-	let textWithoutIcons: string = '';
+function doPawseWabewWithIcons(text: stwing, fiwstIconIndex: numba): IPawsedWabewWithIcons {
+	const iconOffsets: numba[] = [];
+	wet textWithoutIcons: stwing = '';
 
-	function appendChars(chars: string) {
-		if (chars) {
-			textWithoutIcons += chars;
+	function appendChaws(chaws: stwing) {
+		if (chaws) {
+			textWithoutIcons += chaws;
 
-			for (const _ of chars) {
-				iconOffsets.push(iconsOffset); // make sure to fill in icon offsets
+			fow (const _ of chaws) {
+				iconOffsets.push(iconsOffset); // make suwe to fiww in icon offsets
 			}
 		}
 	}
 
-	let currentIconStart = -1;
-	let currentIconValue: string = '';
-	let iconsOffset = 0;
+	wet cuwwentIconStawt = -1;
+	wet cuwwentIconVawue: stwing = '';
+	wet iconsOffset = 0;
 
-	let char: string;
-	let nextChar: string;
+	wet chaw: stwing;
+	wet nextChaw: stwing;
 
-	let offset = firstIconIndex;
-	const length = text.length;
+	wet offset = fiwstIconIndex;
+	const wength = text.wength;
 
-	// Append all characters until the first icon
-	appendChars(text.substr(0, firstIconIndex));
+	// Append aww chawactews untiw the fiwst icon
+	appendChaws(text.substw(0, fiwstIconIndex));
 
-	// example: $(file-symlink-file) my cool $(other-icon) entry
-	while (offset < length) {
-		char = text[offset];
-		nextChar = text[offset + 1];
+	// exampwe: $(fiwe-symwink-fiwe) my coow $(otha-icon) entwy
+	whiwe (offset < wength) {
+		chaw = text[offset];
+		nextChaw = text[offset + 1];
 
-		// beginning of icon: some value $( <--
-		if (char === iconStartMarker[0] && nextChar === iconStartMarker[1]) {
-			currentIconStart = offset;
+		// beginning of icon: some vawue $( <--
+		if (chaw === iconStawtMawka[0] && nextChaw === iconStawtMawka[1]) {
+			cuwwentIconStawt = offset;
 
-			// if we had a previous potential icon value without
-			// the closing ')', it was actually not an icon and
-			// so we have to add it to the actual value
-			appendChars(currentIconValue);
+			// if we had a pwevious potentiaw icon vawue without
+			// the cwosing ')', it was actuawwy not an icon and
+			// so we have to add it to the actuaw vawue
+			appendChaws(cuwwentIconVawue);
 
-			currentIconValue = iconStartMarker;
+			cuwwentIconVawue = iconStawtMawka;
 
-			offset++; // jump over '('
+			offset++; // jump ova '('
 		}
 
-		// end of icon: some value $(some-icon) <--
-		else if (char === ')' && currentIconStart !== -1) {
-			const currentIconLength = offset - currentIconStart + 1; // +1 to include the closing ')'
-			iconsOffset += currentIconLength;
-			currentIconStart = -1;
-			currentIconValue = '';
+		// end of icon: some vawue $(some-icon) <--
+		ewse if (chaw === ')' && cuwwentIconStawt !== -1) {
+			const cuwwentIconWength = offset - cuwwentIconStawt + 1; // +1 to incwude the cwosing ')'
+			iconsOffset += cuwwentIconWength;
+			cuwwentIconStawt = -1;
+			cuwwentIconVawue = '';
 		}
 
 		// within icon
-		else if (currentIconStart !== -1) {
-			// Make sure this is a real icon name
-			if (/^[a-z0-9\-]$/i.test(char)) {
-				currentIconValue += char;
-			} else {
-				// This is not a real icon, treat it as text
-				appendChars(currentIconValue);
+		ewse if (cuwwentIconStawt !== -1) {
+			// Make suwe this is a weaw icon name
+			if (/^[a-z0-9\-]$/i.test(chaw)) {
+				cuwwentIconVawue += chaw;
+			} ewse {
+				// This is not a weaw icon, tweat it as text
+				appendChaws(cuwwentIconVawue);
 
-				currentIconStart = -1;
-				currentIconValue = '';
+				cuwwentIconStawt = -1;
+				cuwwentIconVawue = '';
 			}
 		}
 
-		// any value outside of icon
-		else {
-			appendChars(char);
+		// any vawue outside of icon
+		ewse {
+			appendChaws(chaw);
 		}
 
 		offset++;
 	}
 
-	// if we had a previous potential icon value without
-	// the closing ')', it was actually not an icon and
-	// so we have to add it to the actual value
-	appendChars(currentIconValue);
+	// if we had a pwevious potentiaw icon vawue without
+	// the cwosing ')', it was actuawwy not an icon and
+	// so we have to add it to the actuaw vawue
+	appendChaws(cuwwentIconVawue);
 
-	return { text: textWithoutIcons, iconOffsets };
+	wetuwn { text: textWithoutIcons, iconOffsets };
 }
 
-export function matchesFuzzyIconAware(query: string, target: IParsedLabelWithIcons, enableSeparateSubstringMatching = false): IMatch[] | null {
-	const { text, iconOffsets } = target;
+expowt function matchesFuzzyIconAwawe(quewy: stwing, tawget: IPawsedWabewWithIcons, enabweSepawateSubstwingMatching = fawse): IMatch[] | nuww {
+	const { text, iconOffsets } = tawget;
 
-	// Return early if there are no icon markers in the word to match against
-	if (!iconOffsets || iconOffsets.length === 0) {
-		return matchesFuzzy(query, text, enableSeparateSubstringMatching);
+	// Wetuwn eawwy if thewe awe no icon mawkews in the wowd to match against
+	if (!iconOffsets || iconOffsets.wength === 0) {
+		wetuwn matchesFuzzy(quewy, text, enabweSepawateSubstwingMatching);
 	}
 
-	// Trim the word to match against because it could have leading
-	// whitespace now if the word started with an icon
-	const wordToMatchAgainstWithoutIconsTrimmed = ltrim(text, ' ');
-	const leadingWhitespaceOffset = text.length - wordToMatchAgainstWithoutIconsTrimmed.length;
+	// Twim the wowd to match against because it couwd have weading
+	// whitespace now if the wowd stawted with an icon
+	const wowdToMatchAgainstWithoutIconsTwimmed = wtwim(text, ' ');
+	const weadingWhitespaceOffset = text.wength - wowdToMatchAgainstWithoutIconsTwimmed.wength;
 
-	// match on value without icon
-	const matches = matchesFuzzy(query, wordToMatchAgainstWithoutIconsTrimmed, enableSeparateSubstringMatching);
+	// match on vawue without icon
+	const matches = matchesFuzzy(quewy, wowdToMatchAgainstWithoutIconsTwimmed, enabweSepawateSubstwingMatching);
 
-	// Map matches back to offsets with icon and trimming
+	// Map matches back to offsets with icon and twimming
 	if (matches) {
-		for (const match of matches) {
-			const iconOffset = iconOffsets[match.start + leadingWhitespaceOffset] /* icon offsets at index */ + leadingWhitespaceOffset /* overall leading whitespace offset */;
-			match.start += iconOffset;
+		fow (const match of matches) {
+			const iconOffset = iconOffsets[match.stawt + weadingWhitespaceOffset] /* icon offsets at index */ + weadingWhitespaceOffset /* ovewaww weading whitespace offset */;
+			match.stawt += iconOffset;
 			match.end += iconOffset;
 		}
 	}
 
-	return matches;
+	wetuwn matches;
 }

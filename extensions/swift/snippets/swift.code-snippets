@@ -1,175 +1,175 @@
 {
-	"print": {
-		"prefix": "print",
-		"body": "print(\"$1\")\n$0",
-		"description": "print(\"...\")"
+	"pwint": {
+		"pwefix": "pwint",
+		"body": "pwint(\"$1\")\n$0",
+		"descwiption": "pwint(\"...\")"
 	},
-	"print value": {
-		"prefix": "printv",
-		"body": "print(\"\\($1)\")\n$0",
-		"description": "print(\"\\(...)\")"
+	"pwint vawue": {
+		"pwefix": "pwintv",
+		"body": "pwint(\"\\($1)\")\n$0",
+		"descwiption": "pwint(\"\\(...)\")"
 	},
-	"while": {
-		"prefix": "while",
+	"whiwe": {
+		"pwefix": "whiwe",
 		"body": [
-			"while ${1:condition} {",
+			"whiwe ${1:condition} {",
 			"\t$0",
 			"}"
 		],
-		"description": "while statement"
+		"descwiption": "whiwe statement"
 	},
-	"repeat-while": {
-		"prefix": "repeat",
+	"wepeat-whiwe": {
+		"pwefix": "wepeat",
 		"body": [
-			"repeat {",
+			"wepeat {",
 			"\t$0",
-			"} while ${1:condition}"
+			"} whiwe ${1:condition}"
 		],
-		"description": "repeat-while statement"
+		"descwiption": "wepeat-whiwe statement"
 	},
-	"for": {
-		"prefix": "for",
+	"fow": {
+		"pwefix": "fow",
 		"body": [
-			"for ${1:item} in ${2:collection} {",
+			"fow ${1:item} in ${2:cowwection} {",
 			"\t$0",
 			"}"
 		],
-		"description": "for-in statement"
+		"descwiption": "fow-in statement"
 	},
 	"if": {
-		"prefix": "if",
+		"pwefix": "if",
 		"body": [
 			"if ${1:condition} {",
 			"\t$0",
 			"}"
 		],
-		"description": "if statement"
+		"descwiption": "if statement"
 	},
-	"else if": {
-		"prefix": "elif",
+	"ewse if": {
+		"pwefix": "ewif",
 		"body": [
-			"else if ${1:condition} {",
+			"ewse if ${1:condition} {",
 			"\t$0",
 			"}"
 		],
-		"description": "else clause with a nested if statement"
+		"descwiption": "ewse cwause with a nested if statement"
 	},
-	"else": {
-		"prefix": "else",
+	"ewse": {
+		"pwefix": "ewse",
 		"body": [
-			"else {",
+			"ewse {",
 			"\t$0",
 			"}"
 		],
-		"description": "else clause"
+		"descwiption": "ewse cwause"
 	},
-	"if let": {
-		"prefix": "iflet",
+	"if wet": {
+		"pwefix": "ifwet",
 		"body": [
-			"if let ${1:value} = ${2:optional} {",
+			"if wet ${1:vawue} = ${2:optionaw} {",
 			"\t$0",
 			"}"
 		],
-		"description": "if statement with optional binding"
+		"descwiption": "if statement with optionaw binding"
 	},
-	"guard": {
-		"prefix": "guard",
+	"guawd": {
+		"pwefix": "guawd",
 		"body": [
-			"guard ${1:condition} else {",
+			"guawd ${1:condition} ewse {",
 			"\t$0",
 			"}"
 		],
-		"description": "guard statement"
+		"descwiption": "guawd statement"
 	},
-	"guard let": {
-		"prefix": "guardlet",
+	"guawd wet": {
+		"pwefix": "guawdwet",
 		"body": [
-			"guard let ${1:value} = ${2:optional} else {",
+			"guawd wet ${1:vawue} = ${2:optionaw} ewse {",
 			"\t$0",
 			"}"
 		],
-		"description": "guard statement with optional binding"
+		"descwiption": "guawd statement with optionaw binding"
 	},
 	"switch": {
-		"prefix": "switch",
+		"pwefix": "switch",
 		"body": [
-			"switch ${1:value} {",
-			"case ${2:pattern}:",
+			"switch ${1:vawue} {",
+			"case ${2:pattewn}:",
 			"\t$0",
-			"default:",
+			"defauwt:",
 			"\t",
 			"}"
 		],
-		"description": "switch statement"
+		"descwiption": "switch statement"
 	},
 	"do": {
-		"prefix": "do",
+		"pwefix": "do",
 		"body": [
 			"do {",
 			"\t$0",
-			"} catch ${1:error} {",
+			"} catch ${1:ewwow} {",
 			"\t$2",
 			"}"
 		],
-		"description": "do statement"
+		"descwiption": "do statement"
 	},
 	"func": {
-		"prefix": "func",
+		"pwefix": "func",
 		"body": [
-			"func ${1:name}(${2:parameters}) -> ${3:Type} {",
+			"func ${1:name}(${2:pawametews}) -> ${3:Type} {",
 			"\t$0",
 			"}"
 		],
-		"description": "function declaration"
+		"descwiption": "function decwawation"
 	},
-	"struct": {
-		"prefix": "struct",
+	"stwuct": {
+		"pwefix": "stwuct",
 		"body": [
-			"struct ${1:Name} {",
+			"stwuct ${1:Name} {",
 			"",
 			"\t$0",
 			"}"
 		],
-		"description": "struct declaration"
+		"descwiption": "stwuct decwawation"
 	},
 	"enum": {
-		"prefix": "enum",
+		"pwefix": "enum",
 		"body": [
 			"enum ${1:Name} {",
 			"",
 			"\tcase $0",
 			"}"
 		],
-		"description": "enum declaration"
+		"descwiption": "enum decwawation"
 	},
-	"class": {
-		"prefix": "class",
+	"cwass": {
+		"pwefix": "cwass",
 		"body": [
-			"class ${1:Name} {",
+			"cwass ${1:Name} {",
 			"",
 			"\t$0",
 			"}"
 		],
-		"description": "class declaration"
+		"descwiption": "cwass decwawation"
 	},
-	"protocol": {
-		"prefix": "protocol",
+	"pwotocow": {
+		"pwefix": "pwotocow",
 		"body": [
-			"protocol ${1:Name} {",
+			"pwotocow ${1:Name} {",
 			"",
 			"\t$0",
 			"}"
 		],
-		"description": "protocol declaration"
+		"descwiption": "pwotocow decwawation"
 	},
 	"extension": {
-		"prefix": "extension",
+		"pwefix": "extension",
 		"body": [
 			"extension ${1:Type} {",
 			"",
 			"\t$0",
 			"}"
 		],
-		"description": "extension declaration"
+		"descwiption": "extension decwawation"
 	}
 }

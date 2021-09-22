@@ -1,115 +1,115 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 /*---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
- * Please make sure to make edits in the .ts file at https://github.com/microsoft/vscode-loader/
+ * Pwease make suwe to make edits in the .ts fiwe at https://github.com/micwosoft/vscode-woada/
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-var CSSLoaderPlugin;
-(function (CSSLoaderPlugin) {
+'use stwict';
+vaw CSSWoadewPwugin;
+(function (CSSWoadewPwugin) {
     /**
      * Known issue:
-     * - In IE there is no way to know if the CSS file loaded successfully or not.
+     * - In IE thewe is no way to know if the CSS fiwe woaded successfuwwy ow not.
      */
-    var BrowserCSSLoader = /** @class */ (function () {
-        function BrowserCSSLoader() {
-            this._pendingLoads = 0;
+    vaw BwowsewCSSWoada = /** @cwass */ (function () {
+        function BwowsewCSSWoada() {
+            this._pendingWoads = 0;
         }
-        BrowserCSSLoader.prototype.attachListeners = function (name, linkNode, callback, errorback) {
-            var unbind = function () {
-                linkNode.removeEventListener('load', loadEventListener);
-                linkNode.removeEventListener('error', errorEventListener);
+        BwowsewCSSWoada.pwototype.attachWistenews = function (name, winkNode, cawwback, ewwowback) {
+            vaw unbind = function () {
+                winkNode.wemoveEventWistena('woad', woadEventWistena);
+                winkNode.wemoveEventWistena('ewwow', ewwowEventWistena);
             };
-            var loadEventListener = function (e) {
+            vaw woadEventWistena = function (e) {
                 unbind();
-                callback();
+                cawwback();
             };
-            var errorEventListener = function (e) {
+            vaw ewwowEventWistena = function (e) {
                 unbind();
-                errorback(e);
+                ewwowback(e);
             };
-            linkNode.addEventListener('load', loadEventListener);
-            linkNode.addEventListener('error', errorEventListener);
+            winkNode.addEventWistena('woad', woadEventWistena);
+            winkNode.addEventWistena('ewwow', ewwowEventWistena);
         };
-        BrowserCSSLoader.prototype._onLoad = function (name, callback) {
-            this._pendingLoads--;
-            callback();
+        BwowsewCSSWoada.pwototype._onWoad = function (name, cawwback) {
+            this._pendingWoads--;
+            cawwback();
         };
-        BrowserCSSLoader.prototype._onLoadError = function (name, errorback, err) {
-            this._pendingLoads--;
-            errorback(err);
+        BwowsewCSSWoada.pwototype._onWoadEwwow = function (name, ewwowback, eww) {
+            this._pendingWoads--;
+            ewwowback(eww);
         };
-        BrowserCSSLoader.prototype._insertLinkNode = function (linkNode) {
-            this._pendingLoads++;
-            var head = document.head || document.getElementsByTagName('head')[0];
-            head.appendChild(linkNode);
+        BwowsewCSSWoada.pwototype._insewtWinkNode = function (winkNode) {
+            this._pendingWoads++;
+            vaw head = document.head || document.getEwementsByTagName('head')[0];
+            head.appendChiwd(winkNode);
         };
-        BrowserCSSLoader.prototype.createLinkTag = function (name, cssUrl, externalCallback, externalErrorback) {
-            var _this = this;
-            var linkNode = document.createElement('link');
-            linkNode.setAttribute('rel', 'stylesheet');
-            linkNode.setAttribute('type', 'text/css');
-            linkNode.setAttribute('data-name', name);
-            var callback = function () { return _this._onLoad(name, externalCallback); };
-            var errorback = function (err) { return _this._onLoadError(name, externalErrorback, err); };
-            this.attachListeners(name, linkNode, callback, errorback);
-            linkNode.setAttribute('href', cssUrl);
-            return linkNode;
+        BwowsewCSSWoada.pwototype.cweateWinkTag = function (name, cssUww, extewnawCawwback, extewnawEwwowback) {
+            vaw _this = this;
+            vaw winkNode = document.cweateEwement('wink');
+            winkNode.setAttwibute('wew', 'stywesheet');
+            winkNode.setAttwibute('type', 'text/css');
+            winkNode.setAttwibute('data-name', name);
+            vaw cawwback = function () { wetuwn _this._onWoad(name, extewnawCawwback); };
+            vaw ewwowback = function (eww) { wetuwn _this._onWoadEwwow(name, extewnawEwwowback, eww); };
+            this.attachWistenews(name, winkNode, cawwback, ewwowback);
+            winkNode.setAttwibute('hwef', cssUww);
+            wetuwn winkNode;
         };
-        BrowserCSSLoader.prototype._linkTagExists = function (name, cssUrl) {
-            var i, len, nameAttr, hrefAttr, links = document.getElementsByTagName('link');
-            for (i = 0, len = links.length; i < len; i++) {
-                nameAttr = links[i].getAttribute('data-name');
-                hrefAttr = links[i].getAttribute('href');
-                if (nameAttr === name || hrefAttr === cssUrl) {
-                    return true;
+        BwowsewCSSWoada.pwototype._winkTagExists = function (name, cssUww) {
+            vaw i, wen, nameAttw, hwefAttw, winks = document.getEwementsByTagName('wink');
+            fow (i = 0, wen = winks.wength; i < wen; i++) {
+                nameAttw = winks[i].getAttwibute('data-name');
+                hwefAttw = winks[i].getAttwibute('hwef');
+                if (nameAttw === name || hwefAttw === cssUww) {
+                    wetuwn twue;
                 }
             }
-            return false;
+            wetuwn fawse;
         };
-        BrowserCSSLoader.prototype.load = function (name, cssUrl, externalCallback, externalErrorback) {
-            if (this._linkTagExists(name, cssUrl)) {
-                externalCallback();
-                return;
+        BwowsewCSSWoada.pwototype.woad = function (name, cssUww, extewnawCawwback, extewnawEwwowback) {
+            if (this._winkTagExists(name, cssUww)) {
+                extewnawCawwback();
+                wetuwn;
             }
-            var linkNode = this.createLinkTag(name, cssUrl, externalCallback, externalErrorback);
-            this._insertLinkNode(linkNode);
+            vaw winkNode = this.cweateWinkTag(name, cssUww, extewnawCawwback, extewnawEwwowback);
+            this._insewtWinkNode(winkNode);
         };
-        return BrowserCSSLoader;
+        wetuwn BwowsewCSSWoada;
     }());
-    // ------------------------------ Finally, the plugin
-    var CSSPlugin = /** @class */ (function () {
-        function CSSPlugin() {
-            this._cssLoader = new BrowserCSSLoader();
+    // ------------------------------ Finawwy, the pwugin
+    vaw CSSPwugin = /** @cwass */ (function () {
+        function CSSPwugin() {
+            this._cssWoada = new BwowsewCSSWoada();
         }
-        CSSPlugin.prototype.load = function (name, req, load, config) {
+        CSSPwugin.pwototype.woad = function (name, weq, woad, config) {
             config = config || {};
-            var cssConfig = config['vs/css'] || {};
-            if (cssConfig.disabled) {
-                // the plugin is asked to not create any style sheets
-                load({});
-                return;
+            vaw cssConfig = config['vs/css'] || {};
+            if (cssConfig.disabwed) {
+                // the pwugin is asked to not cweate any stywe sheets
+                woad({});
+                wetuwn;
             }
-            var cssUrl = req.toUrl(name + '.css');
-            this._cssLoader.load(name, cssUrl, function (contents) {
-                load({});
-            }, function (err) {
-                if (typeof load.error === 'function') {
-                    load.error('Could not find ' + cssUrl + ' or it was empty');
+            vaw cssUww = weq.toUww(name + '.css');
+            this._cssWoada.woad(name, cssUww, function (contents) {
+                woad({});
+            }, function (eww) {
+                if (typeof woad.ewwow === 'function') {
+                    woad.ewwow('Couwd not find ' + cssUww + ' ow it was empty');
                 }
             });
         };
-        return CSSPlugin;
+        wetuwn CSSPwugin;
     }());
-    CSSLoaderPlugin.CSSPlugin = CSSPlugin;
-    define('vs/css', new CSSPlugin());
-})(CSSLoaderPlugin || (CSSLoaderPlugin = {}));
+    CSSWoadewPwugin.CSSPwugin = CSSPwugin;
+    define('vs/css', new CSSPwugin());
+})(CSSWoadewPwugin || (CSSWoadewPwugin = {}));

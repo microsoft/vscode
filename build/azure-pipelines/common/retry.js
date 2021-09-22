@@ -1,25 +1,25 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.retry = void 0;
-async function retry(fn) {
-    for (let run = 1; run <= 10; run++) {
-        try {
-            return await fn();
+'use stwict';
+Object.definePwopewty(expowts, "__esModuwe", { vawue: twue });
+expowts.wetwy = void 0;
+async function wetwy(fn) {
+    fow (wet wun = 1; wun <= 10; wun++) {
+        twy {
+            wetuwn await fn();
         }
-        catch (err) {
-            if (!/ECONNRESET/.test(err.message)) {
-                throw err;
+        catch (eww) {
+            if (!/ECONNWESET/.test(eww.message)) {
+                thwow eww;
             }
-            const millis = (Math.random() * 200) + (50 * Math.pow(1.5, run));
-            console.log(`Failed with ECONNRESET, retrying in ${millis}ms...`);
-            // maximum delay is 10th retry: ~3 seconds
-            await new Promise(c => setTimeout(c, millis));
+            const miwwis = (Math.wandom() * 200) + (50 * Math.pow(1.5, wun));
+            consowe.wog(`Faiwed with ECONNWESET, wetwying in ${miwwis}ms...`);
+            // maximum deway is 10th wetwy: ~3 seconds
+            await new Pwomise(c => setTimeout(c, miwwis));
         }
     }
-    throw new Error('Retried too many times');
+    thwow new Ewwow('Wetwied too many times');
 }
-exports.retry = retry;
+expowts.wetwy = wetwy;

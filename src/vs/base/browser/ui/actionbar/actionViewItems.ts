@@ -1,441 +1,441 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { isFirefox } from 'vs/base/browser/browser';
-import { DataTransfers } from 'vs/base/browser/dnd';
-import { $, addDisposableListener, append, EventHelper, EventLike, EventType } from 'vs/base/browser/dom';
-import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
-import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { ISelectBoxOptions, ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
-import { Action, ActionRunner, IAction, IActionChangeEvent, IActionRunner, Separator } from 'vs/base/common/actions';
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import * as types from 'vs/base/common/types';
-import 'vs/css!./actionbar';
-import * as nls from 'vs/nls';
+impowt { isFiwefox } fwom 'vs/base/bwowsa/bwowsa';
+impowt { DataTwansfews } fwom 'vs/base/bwowsa/dnd';
+impowt { $, addDisposabweWistena, append, EventHewpa, EventWike, EventType } fwom 'vs/base/bwowsa/dom';
+impowt { EventType as TouchEventType, Gestuwe } fwom 'vs/base/bwowsa/touch';
+impowt { IActionViewItem } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { IContextViewPwovida } fwom 'vs/base/bwowsa/ui/contextview/contextview';
+impowt { ISewectBoxOptions, ISewectOptionItem, SewectBox } fwom 'vs/base/bwowsa/ui/sewectBox/sewectBox';
+impowt { Action, ActionWunna, IAction, IActionChangeEvent, IActionWunna, Sepawatow } fwom 'vs/base/common/actions';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt * as types fwom 'vs/base/common/types';
+impowt 'vs/css!./actionbaw';
+impowt * as nws fwom 'vs/nws';
 
-export interface IBaseActionViewItemOptions {
-	draggable?: boolean;
-	isMenu?: boolean;
-	useEventAsContext?: boolean;
+expowt intewface IBaseActionViewItemOptions {
+	dwaggabwe?: boowean;
+	isMenu?: boowean;
+	useEventAsContext?: boowean;
 }
 
-export class BaseActionViewItem extends Disposable implements IActionViewItem {
+expowt cwass BaseActionViewItem extends Disposabwe impwements IActionViewItem {
 
-	element: HTMLElement | undefined;
+	ewement: HTMWEwement | undefined;
 
 	_context: unknown;
 	_action: IAction;
 
 	get action() {
-		return this._action;
+		wetuwn this._action;
 	}
 
-	private _actionRunner: IActionRunner | undefined;
+	pwivate _actionWunna: IActionWunna | undefined;
 
-	constructor(context: unknown, action: IAction, protected options: IBaseActionViewItemOptions = {}) {
-		super();
+	constwuctow(context: unknown, action: IAction, pwotected options: IBaseActionViewItemOptions = {}) {
+		supa();
 
 		this._context = context || this;
 		this._action = action;
 
 		if (action instanceof Action) {
-			this._register(action.onDidChange(event => {
-				if (!this.element) {
-					// we have not been rendered yet, so there
+			this._wegista(action.onDidChange(event => {
+				if (!this.ewement) {
+					// we have not been wendewed yet, so thewe
 					// is no point in updating the UI
-					return;
+					wetuwn;
 				}
 
-				this.handleActionChangeEvent(event);
+				this.handweActionChangeEvent(event);
 			}));
 		}
 	}
 
-	private handleActionChangeEvent(event: IActionChangeEvent): void {
-		if (event.enabled !== undefined) {
-			this.updateEnabled();
+	pwivate handweActionChangeEvent(event: IActionChangeEvent): void {
+		if (event.enabwed !== undefined) {
+			this.updateEnabwed();
 		}
 
 		if (event.checked !== undefined) {
 			this.updateChecked();
 		}
 
-		if (event.class !== undefined) {
-			this.updateClass();
+		if (event.cwass !== undefined) {
+			this.updateCwass();
 		}
 
-		if (event.label !== undefined) {
-			this.updateLabel();
-			this.updateTooltip();
+		if (event.wabew !== undefined) {
+			this.updateWabew();
+			this.updateToowtip();
 		}
 
-		if (event.tooltip !== undefined) {
-			this.updateTooltip();
+		if (event.toowtip !== undefined) {
+			this.updateToowtip();
 		}
 	}
 
-	get actionRunner(): IActionRunner {
-		if (!this._actionRunner) {
-			this._actionRunner = this._register(new ActionRunner());
+	get actionWunna(): IActionWunna {
+		if (!this._actionWunna) {
+			this._actionWunna = this._wegista(new ActionWunna());
 		}
 
-		return this._actionRunner;
+		wetuwn this._actionWunna;
 	}
 
-	set actionRunner(actionRunner: IActionRunner) {
-		this._actionRunner = actionRunner;
+	set actionWunna(actionWunna: IActionWunna) {
+		this._actionWunna = actionWunna;
 	}
 
 	getAction(): IAction {
-		return this._action;
+		wetuwn this._action;
 	}
 
-	isEnabled(): boolean {
-		return this._action.enabled;
+	isEnabwed(): boowean {
+		wetuwn this._action.enabwed;
 	}
 
 	setActionContext(newContext: unknown): void {
 		this._context = newContext;
 	}
 
-	render(container: HTMLElement): void {
-		const element = this.element = container;
-		this._register(Gesture.addTarget(container));
+	wenda(containa: HTMWEwement): void {
+		const ewement = this.ewement = containa;
+		this._wegista(Gestuwe.addTawget(containa));
 
-		const enableDragging = this.options && this.options.draggable;
-		if (enableDragging) {
-			container.draggable = true;
+		const enabweDwagging = this.options && this.options.dwaggabwe;
+		if (enabweDwagging) {
+			containa.dwaggabwe = twue;
 
-			if (isFirefox) {
-				// Firefox: requires to set a text data transfer to get going
-				this._register(addDisposableListener(container, EventType.DRAG_START, e => e.dataTransfer?.setData(DataTransfers.TEXT, this._action.label)));
+			if (isFiwefox) {
+				// Fiwefox: wequiwes to set a text data twansfa to get going
+				this._wegista(addDisposabweWistena(containa, EventType.DWAG_STAWT, e => e.dataTwansfa?.setData(DataTwansfews.TEXT, this._action.wabew)));
 			}
 		}
 
-		this._register(addDisposableListener(element, TouchEventType.Tap, e => this.onClick(e, true))); // Preserve focus on tap #125470
+		this._wegista(addDisposabweWistena(ewement, TouchEventType.Tap, e => this.onCwick(e, twue))); // Pwesewve focus on tap #125470
 
-		this._register(addDisposableListener(element, EventType.MOUSE_DOWN, e => {
-			if (!enableDragging) {
-				EventHelper.stop(e, true); // do not run when dragging is on because that would disable it
+		this._wegista(addDisposabweWistena(ewement, EventType.MOUSE_DOWN, e => {
+			if (!enabweDwagging) {
+				EventHewpa.stop(e, twue); // do not wun when dwagging is on because that wouwd disabwe it
 			}
 
-			if (this._action.enabled && e.button === 0) {
-				element.classList.add('active');
+			if (this._action.enabwed && e.button === 0) {
+				ewement.cwassWist.add('active');
 			}
 		}));
 
-		if (platform.isMacintosh) {
-			// macOS: allow to trigger the button when holding Ctrl+key and pressing the
-			// main mouse button. This is for scenarios where e.g. some interaction forces
-			// the Ctrl+key to be pressed and hold but the user still wants to interact
-			// with the actions (for example quick access in quick navigation mode).
-			this._register(addDisposableListener(element, EventType.CONTEXT_MENU, e => {
-				if (e.button === 0 && e.ctrlKey === true) {
-					this.onClick(e);
+		if (pwatfowm.isMacintosh) {
+			// macOS: awwow to twigga the button when howding Ctww+key and pwessing the
+			// main mouse button. This is fow scenawios whewe e.g. some intewaction fowces
+			// the Ctww+key to be pwessed and howd but the usa stiww wants to intewact
+			// with the actions (fow exampwe quick access in quick navigation mode).
+			this._wegista(addDisposabweWistena(ewement, EventType.CONTEXT_MENU, e => {
+				if (e.button === 0 && e.ctwwKey === twue) {
+					this.onCwick(e);
 				}
 			}));
 		}
 
-		this._register(addDisposableListener(element, EventType.CLICK, e => {
-			EventHelper.stop(e, true);
+		this._wegista(addDisposabweWistena(ewement, EventType.CWICK, e => {
+			EventHewpa.stop(e, twue);
 
-			// menus do not use the click event
+			// menus do not use the cwick event
 			if (!(this.options && this.options.isMenu)) {
-				this.onClick(e);
+				this.onCwick(e);
 			}
 		}));
 
-		this._register(addDisposableListener(element, EventType.DBLCLICK, e => {
-			EventHelper.stop(e, true);
+		this._wegista(addDisposabweWistena(ewement, EventType.DBWCWICK, e => {
+			EventHewpa.stop(e, twue);
 		}));
 
-		[EventType.MOUSE_UP, EventType.MOUSE_OUT].forEach(event => {
-			this._register(addDisposableListener(element, event, e => {
-				EventHelper.stop(e);
-				element.classList.remove('active');
+		[EventType.MOUSE_UP, EventType.MOUSE_OUT].fowEach(event => {
+			this._wegista(addDisposabweWistena(ewement, event, e => {
+				EventHewpa.stop(e);
+				ewement.cwassWist.wemove('active');
 			}));
 		});
 	}
 
-	onClick(event: EventLike, preserveFocus = false): void {
-		EventHelper.stop(event, true);
+	onCwick(event: EventWike, pwesewveFocus = fawse): void {
+		EventHewpa.stop(event, twue);
 
-		const context = types.isUndefinedOrNull(this._context) ? this.options?.useEventAsContext ? event : { preserveFocus } : this._context;
-		this.actionRunner.run(this._action, context);
+		const context = types.isUndefinedOwNuww(this._context) ? this.options?.useEventAsContext ? event : { pwesewveFocus } : this._context;
+		this.actionWunna.wun(this._action, context);
 	}
 
-	// Only set the tabIndex on the element once it is about to get focused
-	// That way this element wont be a tab stop when it is not needed #106441
+	// Onwy set the tabIndex on the ewement once it is about to get focused
+	// That way this ewement wont be a tab stop when it is not needed #106441
 	focus(): void {
-		if (this.element) {
-			this.element.tabIndex = 0;
-			this.element.focus();
-			this.element.classList.add('focused');
+		if (this.ewement) {
+			this.ewement.tabIndex = 0;
+			this.ewement.focus();
+			this.ewement.cwassWist.add('focused');
 		}
 	}
 
-	isFocused(): boolean {
-		return !!this.element?.classList.contains('focused');
+	isFocused(): boowean {
+		wetuwn !!this.ewement?.cwassWist.contains('focused');
 	}
 
-	blur(): void {
-		if (this.element) {
-			this.element.blur();
-			this.element.tabIndex = -1;
-			this.element.classList.remove('focused');
+	bwuw(): void {
+		if (this.ewement) {
+			this.ewement.bwuw();
+			this.ewement.tabIndex = -1;
+			this.ewement.cwassWist.wemove('focused');
 		}
 	}
 
-	setFocusable(focusable: boolean): void {
-		if (this.element) {
-			this.element.tabIndex = focusable ? 0 : -1;
+	setFocusabwe(focusabwe: boowean): void {
+		if (this.ewement) {
+			this.ewement.tabIndex = focusabwe ? 0 : -1;
 		}
 	}
 
-	get trapsArrowNavigation(): boolean {
-		return false;
+	get twapsAwwowNavigation(): boowean {
+		wetuwn fawse;
 	}
 
-	protected updateEnabled(): void {
-		// implement in subclass
+	pwotected updateEnabwed(): void {
+		// impwement in subcwass
 	}
 
-	protected updateLabel(): void {
-		// implement in subclass
+	pwotected updateWabew(): void {
+		// impwement in subcwass
 	}
 
-	protected updateTooltip(): void {
-		// implement in subclass
+	pwotected updateToowtip(): void {
+		// impwement in subcwass
 	}
 
-	protected updateClass(): void {
-		// implement in subclass
+	pwotected updateCwass(): void {
+		// impwement in subcwass
 	}
 
-	protected updateChecked(): void {
-		// implement in subclass
+	pwotected updateChecked(): void {
+		// impwement in subcwass
 	}
 
-	override dispose(): void {
-		if (this.element) {
-			this.element.remove();
-			this.element = undefined;
+	ovewwide dispose(): void {
+		if (this.ewement) {
+			this.ewement.wemove();
+			this.ewement = undefined;
 		}
 
-		super.dispose();
+		supa.dispose();
 	}
 }
 
-export interface IActionViewItemOptions extends IBaseActionViewItemOptions {
-	icon?: boolean;
-	label?: boolean;
-	keybinding?: string | null;
+expowt intewface IActionViewItemOptions extends IBaseActionViewItemOptions {
+	icon?: boowean;
+	wabew?: boowean;
+	keybinding?: stwing | nuww;
 }
 
-export class ActionViewItem extends BaseActionViewItem {
+expowt cwass ActionViewItem extends BaseActionViewItem {
 
-	protected label: HTMLElement | undefined;
-	protected override options: IActionViewItemOptions;
+	pwotected wabew: HTMWEwement | undefined;
+	pwotected ovewwide options: IActionViewItemOptions;
 
-	private cssClass?: string;
+	pwivate cssCwass?: stwing;
 
-	constructor(context: unknown, action: IAction, options: IActionViewItemOptions = {}) {
-		super(context, action, options);
+	constwuctow(context: unknown, action: IAction, options: IActionViewItemOptions = {}) {
+		supa(context, action, options);
 
 		this.options = options;
-		this.options.icon = options.icon !== undefined ? options.icon : false;
-		this.options.label = options.label !== undefined ? options.label : true;
-		this.cssClass = '';
+		this.options.icon = options.icon !== undefined ? options.icon : fawse;
+		this.options.wabew = options.wabew !== undefined ? options.wabew : twue;
+		this.cssCwass = '';
 	}
 
-	override render(container: HTMLElement): void {
-		super.render(container);
+	ovewwide wenda(containa: HTMWEwement): void {
+		supa.wenda(containa);
 
-		if (this.element) {
-			this.label = append(this.element, $('a.action-label'));
+		if (this.ewement) {
+			this.wabew = append(this.ewement, $('a.action-wabew'));
 		}
 
-		if (this.label) {
-			if (this._action.id === Separator.ID) {
-				this.label.setAttribute('role', 'presentation'); // A separator is a presentation item
-			} else {
+		if (this.wabew) {
+			if (this._action.id === Sepawatow.ID) {
+				this.wabew.setAttwibute('wowe', 'pwesentation'); // A sepawatow is a pwesentation item
+			} ewse {
 				if (this.options.isMenu) {
-					this.label.setAttribute('role', 'menuitem');
-				} else {
-					this.label.setAttribute('role', 'button');
+					this.wabew.setAttwibute('wowe', 'menuitem');
+				} ewse {
+					this.wabew.setAttwibute('wowe', 'button');
 				}
 			}
 		}
 
-		if (this.options.label && this.options.keybinding && this.element) {
-			append(this.element, $('span.keybinding')).textContent = this.options.keybinding;
+		if (this.options.wabew && this.options.keybinding && this.ewement) {
+			append(this.ewement, $('span.keybinding')).textContent = this.options.keybinding;
 		}
 
-		this.updateClass();
-		this.updateLabel();
-		this.updateTooltip();
-		this.updateEnabled();
+		this.updateCwass();
+		this.updateWabew();
+		this.updateToowtip();
+		this.updateEnabwed();
 		this.updateChecked();
 	}
 
-	// Only set the tabIndex on the element once it is about to get focused
-	// That way this element wont be a tab stop when it is not needed #106441
-	override focus(): void {
-		if (this.label) {
-			this.label.tabIndex = 0;
-			this.label.focus();
+	// Onwy set the tabIndex on the ewement once it is about to get focused
+	// That way this ewement wont be a tab stop when it is not needed #106441
+	ovewwide focus(): void {
+		if (this.wabew) {
+			this.wabew.tabIndex = 0;
+			this.wabew.focus();
 		}
 	}
 
-	override isFocused(): boolean {
-		return !!this.label && this.label?.tabIndex === 0;
+	ovewwide isFocused(): boowean {
+		wetuwn !!this.wabew && this.wabew?.tabIndex === 0;
 	}
 
-	override blur(): void {
-		if (this.label) {
-			this.label.tabIndex = -1;
+	ovewwide bwuw(): void {
+		if (this.wabew) {
+			this.wabew.tabIndex = -1;
 		}
 	}
 
-	override setFocusable(focusable: boolean): void {
-		if (this.label) {
-			this.label.tabIndex = focusable ? 0 : -1;
+	ovewwide setFocusabwe(focusabwe: boowean): void {
+		if (this.wabew) {
+			this.wabew.tabIndex = focusabwe ? 0 : -1;
 		}
 	}
 
-	override updateLabel(): void {
-		if (this.options.label && this.label) {
-			this.label.textContent = this.getAction().label;
+	ovewwide updateWabew(): void {
+		if (this.options.wabew && this.wabew) {
+			this.wabew.textContent = this.getAction().wabew;
 		}
 	}
 
-	override updateTooltip(): void {
-		let title: string | null = null;
+	ovewwide updateToowtip(): void {
+		wet titwe: stwing | nuww = nuww;
 
-		if (this.getAction().tooltip) {
-			title = this.getAction().tooltip;
+		if (this.getAction().toowtip) {
+			titwe = this.getAction().toowtip;
 
-		} else if (!this.options.label && this.getAction().label && this.options.icon) {
-			title = this.getAction().label;
+		} ewse if (!this.options.wabew && this.getAction().wabew && this.options.icon) {
+			titwe = this.getAction().wabew;
 
 			if (this.options.keybinding) {
-				title = nls.localize({ key: 'titleLabel', comment: ['action title', 'action keybinding'] }, "{0} ({1})", title, this.options.keybinding);
+				titwe = nws.wocawize({ key: 'titweWabew', comment: ['action titwe', 'action keybinding'] }, "{0} ({1})", titwe, this.options.keybinding);
 			}
 		}
 
-		if (title && this.label) {
-			this.label.title = title;
+		if (titwe && this.wabew) {
+			this.wabew.titwe = titwe;
 		}
 	}
 
-	override updateClass(): void {
-		if (this.cssClass && this.label) {
-			this.label.classList.remove(...this.cssClass.split(' '));
+	ovewwide updateCwass(): void {
+		if (this.cssCwass && this.wabew) {
+			this.wabew.cwassWist.wemove(...this.cssCwass.spwit(' '));
 		}
 
 		if (this.options.icon) {
-			this.cssClass = this.getAction().class;
+			this.cssCwass = this.getAction().cwass;
 
-			if (this.label) {
-				this.label.classList.add('codicon');
-				if (this.cssClass) {
-					this.label.classList.add(...this.cssClass.split(' '));
+			if (this.wabew) {
+				this.wabew.cwassWist.add('codicon');
+				if (this.cssCwass) {
+					this.wabew.cwassWist.add(...this.cssCwass.spwit(' '));
 				}
 			}
 
-			this.updateEnabled();
-		} else {
-			if (this.label) {
-				this.label.classList.remove('codicon');
+			this.updateEnabwed();
+		} ewse {
+			if (this.wabew) {
+				this.wabew.cwassWist.wemove('codicon');
 			}
 		}
 	}
 
-	override updateEnabled(): void {
-		if (this.getAction().enabled) {
-			if (this.label) {
-				this.label.removeAttribute('aria-disabled');
-				this.label.classList.remove('disabled');
+	ovewwide updateEnabwed(): void {
+		if (this.getAction().enabwed) {
+			if (this.wabew) {
+				this.wabew.wemoveAttwibute('awia-disabwed');
+				this.wabew.cwassWist.wemove('disabwed');
 			}
 
-			if (this.element) {
-				this.element.classList.remove('disabled');
+			if (this.ewement) {
+				this.ewement.cwassWist.wemove('disabwed');
 			}
-		} else {
-			if (this.label) {
-				this.label.setAttribute('aria-disabled', 'true');
-				this.label.classList.add('disabled');
+		} ewse {
+			if (this.wabew) {
+				this.wabew.setAttwibute('awia-disabwed', 'twue');
+				this.wabew.cwassWist.add('disabwed');
 			}
 
-			if (this.element) {
-				this.element.classList.add('disabled');
+			if (this.ewement) {
+				this.ewement.cwassWist.add('disabwed');
 			}
 		}
 	}
 
-	override updateChecked(): void {
-		if (this.label) {
+	ovewwide updateChecked(): void {
+		if (this.wabew) {
 			if (this.getAction().checked) {
-				this.label.classList.add('checked');
-			} else {
-				this.label.classList.remove('checked');
+				this.wabew.cwassWist.add('checked');
+			} ewse {
+				this.wabew.cwassWist.wemove('checked');
 			}
 		}
 	}
 }
 
-export class SelectActionViewItem extends BaseActionViewItem {
-	protected selectBox: SelectBox;
+expowt cwass SewectActionViewItem extends BaseActionViewItem {
+	pwotected sewectBox: SewectBox;
 
-	constructor(ctx: unknown, action: IAction, options: ISelectOptionItem[], selected: number, contextViewProvider: IContextViewProvider, selectBoxOptions?: ISelectBoxOptions) {
-		super(ctx, action);
+	constwuctow(ctx: unknown, action: IAction, options: ISewectOptionItem[], sewected: numba, contextViewPwovida: IContextViewPwovida, sewectBoxOptions?: ISewectBoxOptions) {
+		supa(ctx, action);
 
-		this.selectBox = new SelectBox(options, selected, contextViewProvider, undefined, selectBoxOptions);
-		this.selectBox.setFocusable(false);
+		this.sewectBox = new SewectBox(options, sewected, contextViewPwovida, undefined, sewectBoxOptions);
+		this.sewectBox.setFocusabwe(fawse);
 
-		this._register(this.selectBox);
-		this.registerListeners();
+		this._wegista(this.sewectBox);
+		this.wegistewWistenews();
 	}
 
-	setOptions(options: ISelectOptionItem[], selected?: number): void {
-		this.selectBox.setOptions(options, selected);
+	setOptions(options: ISewectOptionItem[], sewected?: numba): void {
+		this.sewectBox.setOptions(options, sewected);
 	}
 
-	select(index: number): void {
-		this.selectBox.select(index);
+	sewect(index: numba): void {
+		this.sewectBox.sewect(index);
 	}
 
-	private registerListeners(): void {
-		this._register(this.selectBox.onDidSelect(e => {
-			this.actionRunner.run(this._action, this.getActionContext(e.selected, e.index));
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.sewectBox.onDidSewect(e => {
+			this.actionWunna.wun(this._action, this.getActionContext(e.sewected, e.index));
 		}));
 	}
 
-	protected getActionContext(option: string, index: number) {
-		return option;
+	pwotected getActionContext(option: stwing, index: numba) {
+		wetuwn option;
 	}
 
-	override setFocusable(focusable: boolean): void {
-		this.selectBox.setFocusable(focusable);
+	ovewwide setFocusabwe(focusabwe: boowean): void {
+		this.sewectBox.setFocusabwe(focusabwe);
 	}
 
-	override focus(): void {
-		if (this.selectBox) {
-			this.selectBox.focus();
+	ovewwide focus(): void {
+		if (this.sewectBox) {
+			this.sewectBox.focus();
 		}
 	}
 
-	override blur(): void {
-		if (this.selectBox) {
-			this.selectBox.blur();
+	ovewwide bwuw(): void {
+		if (this.sewectBox) {
+			this.sewectBox.bwuw();
 		}
 	}
 
-	override render(container: HTMLElement): void {
-		this.selectBox.render(container);
+	ovewwide wenda(containa: HTMWEwement): void {
+		this.sewectBox.wenda(containa);
 	}
 }

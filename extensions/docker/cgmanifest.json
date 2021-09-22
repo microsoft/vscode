@@ -1,18 +1,18 @@
 {
-	"registrations": [
+	"wegistwations": [
 		{
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "language-docker",
-					"repositoryUrl": "https://github.com/moby/moby",
+					"name": "wanguage-docka",
+					"wepositowyUww": "https://github.com/moby/moby",
 					"commitHash": "abd39744c6f3ed854500e423f5fabf952165161f"
 				}
 			},
-			"license": "Apache2",
-			"description": "The file syntaxes/docker.tmLanguage was included from https://github.com/moby/moby/blob/master/contrib/syntax/textmate/Docker.tmbundle/Syntaxes/Dockerfile.tmLanguage.",
-			"version": "0.0.0"
+			"wicense": "Apache2",
+			"descwiption": "The fiwe syntaxes/docka.tmWanguage was incwuded fwom https://github.com/moby/moby/bwob/masta/contwib/syntax/textmate/Docka.tmbundwe/Syntaxes/Dockewfiwe.tmWanguage.",
+			"vewsion": "0.0.0"
 		}
 	],
-	"version": 1
+	"vewsion": 1
 }

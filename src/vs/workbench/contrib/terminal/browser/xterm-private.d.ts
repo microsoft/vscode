@@ -1,41 +1,41 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IBufferCell } from 'xterm';
+impowt { IBuffewCeww } fwom 'xtewm';
 
-export type XTermAttributes = Omit<IBufferCell, 'getWidth' | 'getChars' | 'getCode'> & { clone?(): XTermAttributes };
+expowt type XTewmAttwibutes = Omit<IBuffewCeww, 'getWidth' | 'getChaws' | 'getCode'> & { cwone?(): XTewmAttwibutes };
 
-export interface XTermCore {
-	_onScroll: IEventEmitter<number>;
-	_onKey: IEventEmitter<{ key: string }>;
+expowt intewface XTewmCowe {
+	_onScwoww: IEventEmitta<numba>;
+	_onKey: IEventEmitta<{ key: stwing }>;
 
-	_charSizeService: {
-		width: number;
-		height: number;
+	_chawSizeSewvice: {
+		width: numba;
+		height: numba;
 	};
 
-	_coreService: {
-		triggerDataEvent(data: string, wasUserInput?: boolean): void;
+	_coweSewvice: {
+		twiggewDataEvent(data: stwing, wasUsewInput?: boowean): void;
 	};
 
-	_inputHandler: {
-		_curAttrData: XTermAttributes;
+	_inputHandwa: {
+		_cuwAttwData: XTewmAttwibutes;
 	};
 
-	_renderService: {
+	_wendewSewvice: {
 		dimensions: {
-			actualCellWidth: number;
-			actualCellHeight: number;
+			actuawCewwWidth: numba;
+			actuawCewwHeight: numba;
 		},
-		_renderer: {
-			_renderLayers: any[];
+		_wendewa: {
+			_wendewWayews: any[];
 		};
-		_onIntersectionChange: any;
+		_onIntewsectionChange: any;
 	};
 }
 
-export interface IEventEmitter<T> {
-	fire(e: T): void;
+expowt intewface IEventEmitta<T> {
+	fiwe(e: T): void;
 }

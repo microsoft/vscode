@@ -1,13 +1,13 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IJSONEditingService, IJSONValue } from 'vs/workbench/services/configuration/common/jsonEditing';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IJSONEditingSewvice, IJSONVawue } fwom 'vs/wowkbench/sewvices/configuwation/common/jsonEditing';
 
-export class TestJSONEditingService implements IJSONEditingService {
-	_serviceBrand: any;
+expowt cwass TestJSONEditingSewvice impwements IJSONEditingSewvice {
+	_sewviceBwand: any;
 
-	async write(resource: URI, values: IJSONValue[], save: boolean): Promise<void> { }
+	async wwite(wesouwce: UWI, vawues: IJSONVawue[], save: boowean): Pwomise<void> { }
 }

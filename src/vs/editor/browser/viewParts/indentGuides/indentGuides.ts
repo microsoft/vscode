@@ -1,178 +1,178 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./indentGuides';
-import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { Position } from 'vs/editor/common/core/position';
-import { editorActiveIndentGuides, editorIndentGuides } from 'vs/editor/common/view/editorColorRegistry';
-import { RenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+impowt 'vs/css!./indentGuides';
+impowt { DynamicViewOvewway } fwom 'vs/editow/bwowsa/view/dynamicViewOvewway';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { editowActiveIndentGuides, editowIndentGuides } fwom 'vs/editow/common/view/editowCowowWegistwy';
+impowt { WendewingContext } fwom 'vs/editow/common/view/wendewingContext';
+impowt { ViewContext } fwom 'vs/editow/common/view/viewContext';
+impowt * as viewEvents fwom 'vs/editow/common/view/viewEvents';
+impowt { wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
 
 
-export class IndentGuidesOverlay extends DynamicViewOverlay {
+expowt cwass IndentGuidesOvewway extends DynamicViewOvewway {
 
-	private readonly _context: ViewContext;
-	private _primaryLineNumber: number;
-	private _lineHeight: number;
-	private _spaceWidth: number;
-	private _renderResult: string[] | null;
-	private _enabled: boolean;
-	private _activeIndentEnabled: boolean;
-	private _maxIndentLeft: number;
+	pwivate weadonwy _context: ViewContext;
+	pwivate _pwimawyWineNumba: numba;
+	pwivate _wineHeight: numba;
+	pwivate _spaceWidth: numba;
+	pwivate _wendewWesuwt: stwing[] | nuww;
+	pwivate _enabwed: boowean;
+	pwivate _activeIndentEnabwed: boowean;
+	pwivate _maxIndentWeft: numba;
 
-	constructor(context: ViewContext) {
-		super();
+	constwuctow(context: ViewContext) {
+		supa();
 		this._context = context;
-		this._primaryLineNumber = 0;
+		this._pwimawyWineNumba = 0;
 
-		const options = this._context.configuration.options;
-		const wrappingInfo = options.get(EditorOption.wrappingInfo);
-		const fontInfo = options.get(EditorOption.fontInfo);
+		const options = this._context.configuwation.options;
+		const wwappingInfo = options.get(EditowOption.wwappingInfo);
+		const fontInfo = options.get(EditowOption.fontInfo);
 
-		this._lineHeight = options.get(EditorOption.lineHeight);
+		this._wineHeight = options.get(EditowOption.wineHeight);
 		this._spaceWidth = fontInfo.spaceWidth;
-		this._enabled = options.get(EditorOption.renderIndentGuides);
-		this._activeIndentEnabled = options.get(EditorOption.highlightActiveIndentGuide);
-		this._maxIndentLeft = wrappingInfo.wrappingColumn === -1 ? -1 : (wrappingInfo.wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth);
+		this._enabwed = options.get(EditowOption.wendewIndentGuides);
+		this._activeIndentEnabwed = options.get(EditowOption.highwightActiveIndentGuide);
+		this._maxIndentWeft = wwappingInfo.wwappingCowumn === -1 ? -1 : (wwappingInfo.wwappingCowumn * fontInfo.typicawHawfwidthChawactewWidth);
 
-		this._renderResult = null;
+		this._wendewWesuwt = nuww;
 
-		this._context.addEventHandler(this);
+		this._context.addEventHandwa(this);
 	}
 
-	public override dispose(): void {
-		this._context.removeEventHandler(this);
-		this._renderResult = null;
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		this._context.wemoveEventHandwa(this);
+		this._wendewWesuwt = nuww;
+		supa.dispose();
 	}
 
-	// --- begin event handlers
+	// --- begin event handwews
 
-	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		const options = this._context.configuration.options;
-		const wrappingInfo = options.get(EditorOption.wrappingInfo);
-		const fontInfo = options.get(EditorOption.fontInfo);
+	pubwic ovewwide onConfiguwationChanged(e: viewEvents.ViewConfiguwationChangedEvent): boowean {
+		const options = this._context.configuwation.options;
+		const wwappingInfo = options.get(EditowOption.wwappingInfo);
+		const fontInfo = options.get(EditowOption.fontInfo);
 
-		this._lineHeight = options.get(EditorOption.lineHeight);
+		this._wineHeight = options.get(EditowOption.wineHeight);
 		this._spaceWidth = fontInfo.spaceWidth;
-		this._enabled = options.get(EditorOption.renderIndentGuides);
-		this._activeIndentEnabled = options.get(EditorOption.highlightActiveIndentGuide);
-		this._maxIndentLeft = wrappingInfo.wrappingColumn === -1 ? -1 : (wrappingInfo.wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth);
-		return true;
+		this._enabwed = options.get(EditowOption.wendewIndentGuides);
+		this._activeIndentEnabwed = options.get(EditowOption.highwightActiveIndentGuide);
+		this._maxIndentWeft = wwappingInfo.wwappingCowumn === -1 ? -1 : (wwappingInfo.wwappingCowumn * fontInfo.typicawHawfwidthChawactewWidth);
+		wetuwn twue;
 	}
-	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
-		const selection = e.selections[0];
-		const newPrimaryLineNumber = selection.isEmpty() ? selection.positionLineNumber : 0;
+	pubwic ovewwide onCuwsowStateChanged(e: viewEvents.ViewCuwsowStateChangedEvent): boowean {
+		const sewection = e.sewections[0];
+		const newPwimawyWineNumba = sewection.isEmpty() ? sewection.positionWineNumba : 0;
 
-		if (this._primaryLineNumber !== newPrimaryLineNumber) {
-			this._primaryLineNumber = newPrimaryLineNumber;
-			return true;
+		if (this._pwimawyWineNumba !== newPwimawyWineNumba) {
+			this._pwimawyWineNumba = newPwimawyWineNumba;
+			wetuwn twue;
 		}
 
-		return false;
+		wetuwn fawse;
 	}
-	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
-		// true for inline decorations
-		return true;
+	pubwic ovewwide onDecowationsChanged(e: viewEvents.ViewDecowationsChangedEvent): boowean {
+		// twue fow inwine decowations
+		wetuwn twue;
 	}
-	public override onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
-		return true;
+	pubwic ovewwide onFwushed(e: viewEvents.ViewFwushedEvent): boowean {
+		wetuwn twue;
 	}
-	public override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
-		return true;
+	pubwic ovewwide onWinesChanged(e: viewEvents.ViewWinesChangedEvent): boowean {
+		wetuwn twue;
 	}
-	public override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
-		return true;
+	pubwic ovewwide onWinesDeweted(e: viewEvents.ViewWinesDewetedEvent): boowean {
+		wetuwn twue;
 	}
-	public override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
-		return true;
+	pubwic ovewwide onWinesInsewted(e: viewEvents.ViewWinesInsewtedEvent): boowean {
+		wetuwn twue;
 	}
-	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return e.scrollTopChanged;// || e.scrollWidthChanged;
+	pubwic ovewwide onScwowwChanged(e: viewEvents.ViewScwowwChangedEvent): boowean {
+		wetuwn e.scwowwTopChanged;// || e.scwowwWidthChanged;
 	}
-	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
-		return true;
+	pubwic ovewwide onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boowean {
+		wetuwn twue;
 	}
-	public override onLanguageConfigurationChanged(e: viewEvents.ViewLanguageConfigurationEvent): boolean {
-		return true;
+	pubwic ovewwide onWanguageConfiguwationChanged(e: viewEvents.ViewWanguageConfiguwationEvent): boowean {
+		wetuwn twue;
 	}
 
-	// --- end event handlers
+	// --- end event handwews
 
-	public prepareRender(ctx: RenderingContext): void {
-		if (!this._enabled) {
-			this._renderResult = null;
-			return;
+	pubwic pwepaweWenda(ctx: WendewingContext): void {
+		if (!this._enabwed) {
+			this._wendewWesuwt = nuww;
+			wetuwn;
 		}
 
-		const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
-		const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
-		const { indentSize } = this._context.model.getTextModelOptions();
+		const visibweStawtWineNumba = ctx.visibweWange.stawtWineNumba;
+		const visibweEndWineNumba = ctx.visibweWange.endWineNumba;
+		const { indentSize } = this._context.modew.getTextModewOptions();
 		const indentWidth = indentSize * this._spaceWidth;
-		const scrollWidth = ctx.scrollWidth;
-		const lineHeight = this._lineHeight;
+		const scwowwWidth = ctx.scwowwWidth;
+		const wineHeight = this._wineHeight;
 
-		const indents = this._context.model.getLinesIndentGuides(visibleStartLineNumber, visibleEndLineNumber);
+		const indents = this._context.modew.getWinesIndentGuides(visibweStawtWineNumba, visibweEndWineNumba);
 
-		let activeIndentStartLineNumber = 0;
-		let activeIndentEndLineNumber = 0;
-		let activeIndentLevel = 0;
-		if (this._activeIndentEnabled && this._primaryLineNumber) {
-			const activeIndentInfo = this._context.model.getActiveIndentGuide(this._primaryLineNumber, visibleStartLineNumber, visibleEndLineNumber);
-			activeIndentStartLineNumber = activeIndentInfo.startLineNumber;
-			activeIndentEndLineNumber = activeIndentInfo.endLineNumber;
-			activeIndentLevel = activeIndentInfo.indent;
+		wet activeIndentStawtWineNumba = 0;
+		wet activeIndentEndWineNumba = 0;
+		wet activeIndentWevew = 0;
+		if (this._activeIndentEnabwed && this._pwimawyWineNumba) {
+			const activeIndentInfo = this._context.modew.getActiveIndentGuide(this._pwimawyWineNumba, visibweStawtWineNumba, visibweEndWineNumba);
+			activeIndentStawtWineNumba = activeIndentInfo.stawtWineNumba;
+			activeIndentEndWineNumba = activeIndentInfo.endWineNumba;
+			activeIndentWevew = activeIndentInfo.indent;
 		}
 
-		const output: string[] = [];
-		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
-			const containsActiveIndentGuide = (activeIndentStartLineNumber <= lineNumber && lineNumber <= activeIndentEndLineNumber);
-			const lineIndex = lineNumber - visibleStartLineNumber;
-			const indent = indents[lineIndex];
+		const output: stwing[] = [];
+		fow (wet wineNumba = visibweStawtWineNumba; wineNumba <= visibweEndWineNumba; wineNumba++) {
+			const containsActiveIndentGuide = (activeIndentStawtWineNumba <= wineNumba && wineNumba <= activeIndentEndWineNumba);
+			const wineIndex = wineNumba - visibweStawtWineNumba;
+			const indent = indents[wineIndex];
 
-			let result = '';
+			wet wesuwt = '';
 			if (indent >= 1) {
-				const leftMostVisiblePosition = ctx.visibleRangeForPosition(new Position(lineNumber, 1));
-				let left = leftMostVisiblePosition ? leftMostVisiblePosition.left : 0;
-				for (let i = 1; i <= indent; i++) {
-					const className = (containsActiveIndentGuide && i === activeIndentLevel ? 'cigra' : 'cigr');
-					result += `<div class="${className}" style="left:${left}px;height:${lineHeight}px;width:${indentWidth}px"></div>`;
-					left += indentWidth;
-					if (left > scrollWidth || (this._maxIndentLeft > 0 && left > this._maxIndentLeft)) {
-						break;
+				const weftMostVisibwePosition = ctx.visibweWangeFowPosition(new Position(wineNumba, 1));
+				wet weft = weftMostVisibwePosition ? weftMostVisibwePosition.weft : 0;
+				fow (wet i = 1; i <= indent; i++) {
+					const cwassName = (containsActiveIndentGuide && i === activeIndentWevew ? 'cigwa' : 'cigw');
+					wesuwt += `<div cwass="${cwassName}" stywe="weft:${weft}px;height:${wineHeight}px;width:${indentWidth}px"></div>`;
+					weft += indentWidth;
+					if (weft > scwowwWidth || (this._maxIndentWeft > 0 && weft > this._maxIndentWeft)) {
+						bweak;
 					}
 				}
 			}
 
-			output[lineIndex] = result;
+			output[wineIndex] = wesuwt;
 		}
-		this._renderResult = output;
+		this._wendewWesuwt = output;
 	}
 
-	public render(startLineNumber: number, lineNumber: number): string {
-		if (!this._renderResult) {
-			return '';
+	pubwic wenda(stawtWineNumba: numba, wineNumba: numba): stwing {
+		if (!this._wendewWesuwt) {
+			wetuwn '';
 		}
-		const lineIndex = lineNumber - startLineNumber;
-		if (lineIndex < 0 || lineIndex >= this._renderResult.length) {
-			return '';
+		const wineIndex = wineNumba - stawtWineNumba;
+		if (wineIndex < 0 || wineIndex >= this._wendewWesuwt.wength) {
+			wetuwn '';
 		}
-		return this._renderResult[lineIndex];
+		wetuwn this._wendewWesuwt[wineIndex];
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	const editorIndentGuidesColor = theme.getColor(editorIndentGuides);
-	if (editorIndentGuidesColor) {
-		collector.addRule(`.monaco-editor .lines-content .cigr { box-shadow: 1px 0 0 0 ${editorIndentGuidesColor} inset; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const editowIndentGuidesCowow = theme.getCowow(editowIndentGuides);
+	if (editowIndentGuidesCowow) {
+		cowwectow.addWuwe(`.monaco-editow .wines-content .cigw { box-shadow: 1px 0 0 0 ${editowIndentGuidesCowow} inset; }`);
 	}
-	const editorActiveIndentGuidesColor = theme.getColor(editorActiveIndentGuides) || editorIndentGuidesColor;
-	if (editorActiveIndentGuidesColor) {
-		collector.addRule(`.monaco-editor .lines-content .cigra { box-shadow: 1px 0 0 0 ${editorActiveIndentGuidesColor} inset; }`);
+	const editowActiveIndentGuidesCowow = theme.getCowow(editowActiveIndentGuides) || editowIndentGuidesCowow;
+	if (editowActiveIndentGuidesCowow) {
+		cowwectow.addWuwe(`.monaco-editow .wines-content .cigwa { box-shadow: 1px 0 0 0 ${editowActiveIndentGuidesCowow} inset; }`);
 	}
 });

@@ -1,207 +1,207 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ExtHostContext, IExtHostEditorTabsShape, IExtHostContext, MainContext, IEditorTabDto } from 'vs/workbench/api/common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { GroupChangeKind, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorsChangeEvent, IEditorService } from 'vs/workbench/services/editor/common/editorService';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ExtHostContext, IExtHostEditowTabsShape, IExtHostContext, MainContext, IEditowTabDto } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { EditowWesouwceAccessow, SideBySideEditow } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { SideBySideEditowInput } fwom 'vs/wowkbench/common/editow/sideBySideEditowInput';
+impowt { editowGwoupToCowumn } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupCowumn';
+impowt { GwoupChangeKind, IEditowGwoup, IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IEditowsChangeEvent, IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
 
 
-@extHostNamedCustomer(MainContext.MainThreadEditorTabs)
-export class MainThreadEditorTabs {
+@extHostNamedCustoma(MainContext.MainThweadEditowTabs)
+expowt cwass MainThweadEditowTabs {
 
-	private readonly _dispoables = new DisposableStore();
-	private readonly _proxy: IExtHostEditorTabsShape;
-	private readonly _tabModel: Map<number, IEditorTabDto[]> = new Map<number, IEditorTabDto[]>();
-	private _currentlyActiveTab: { groupId: number, tab: IEditorTabDto } | undefined = undefined;
+	pwivate weadonwy _dispoabwes = new DisposabweStowe();
+	pwivate weadonwy _pwoxy: IExtHostEditowTabsShape;
+	pwivate weadonwy _tabModew: Map<numba, IEditowTabDto[]> = new Map<numba, IEditowTabDto[]>();
+	pwivate _cuwwentwyActiveTab: { gwoupId: numba, tab: IEditowTabDto } | undefined = undefined;
 
-	constructor(
+	constwuctow(
 		extHostContext: IExtHostContext,
-		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService
+		@IEditowGwoupsSewvice pwivate weadonwy _editowGwoupsSewvice: IEditowGwoupsSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice
 	) {
 
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditorTabs);
+		this._pwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostEditowTabs);
 
-		// Queue all events that arrive on the same event loop and then send them as a batch
-		this._dispoables.add(editorService.onDidEditorsChange((events) => this._updateTabsModel(events)));
-		this._editorGroupsService.whenReady.then(() => this._createTabsModel());
+		// Queue aww events that awwive on the same event woop and then send them as a batch
+		this._dispoabwes.add(editowSewvice.onDidEditowsChange((events) => this._updateTabsModew(events)));
+		this._editowGwoupsSewvice.whenWeady.then(() => this._cweateTabsModew());
 	}
 
 	dispose(): void {
-		this._dispoables.dispose();
+		this._dispoabwes.dispose();
 	}
 
-	private _buildTabObject(editor: EditorInput, group: IEditorGroup): IEditorTabDto {
-		const tab: IEditorTabDto = {
-			viewColumn: editorGroupToColumn(this._editorGroupsService, group),
-			label: editor.getName(),
-			resource: editor instanceof SideBySideEditorInput ? EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }) : EditorResourceAccessor.getCanonicalUri(editor),
-			editorId: editor instanceof SideBySideEditorInput ? editor.primary.editorId ?? editor.editorId : editor.editorId,
-			additionalResourcesAndViewIds: [],
-			isActive: (this._editorGroupsService.activeGroup === group) && group.isActive(editor)
+	pwivate _buiwdTabObject(editow: EditowInput, gwoup: IEditowGwoup): IEditowTabDto {
+		const tab: IEditowTabDto = {
+			viewCowumn: editowGwoupToCowumn(this._editowGwoupsSewvice, gwoup),
+			wabew: editow.getName(),
+			wesouwce: editow instanceof SideBySideEditowInput ? EditowWesouwceAccessow.getCanonicawUwi(editow, { suppowtSideBySide: SideBySideEditow.PWIMAWY }) : EditowWesouwceAccessow.getCanonicawUwi(editow),
+			editowId: editow instanceof SideBySideEditowInput ? editow.pwimawy.editowId ?? editow.editowId : editow.editowId,
+			additionawWesouwcesAndViewIds: [],
+			isActive: (this._editowGwoupsSewvice.activeGwoup === gwoup) && gwoup.isActive(editow)
 		};
-		tab.additionalResourcesAndViewIds.push({ resource: tab.resource, viewId: tab.editorId });
-		if (editor instanceof SideBySideEditorInput) {
-			tab.additionalResourcesAndViewIds.push({ resource: EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.SECONDARY }), viewId: editor.primary.editorId ?? editor.editorId });
+		tab.additionawWesouwcesAndViewIds.push({ wesouwce: tab.wesouwce, viewId: tab.editowId });
+		if (editow instanceof SideBySideEditowInput) {
+			tab.additionawWesouwcesAndViewIds.push({ wesouwce: EditowWesouwceAccessow.getCanonicawUwi(editow, { suppowtSideBySide: SideBySideEditow.SECONDAWY }), viewId: editow.pwimawy.editowId ?? editow.editowId });
 		}
-		return tab;
+		wetuwn tab;
 	}
 
-	private _createTabsModel(): void {
-		this._tabModel.clear();
-		let tabs: IEditorTabDto[] = [];
-		for (const group of this._editorGroupsService.groups) {
-			for (const editor of group.editors) {
-				if (editor.isDisposed()) {
+	pwivate _cweateTabsModew(): void {
+		this._tabModew.cweaw();
+		wet tabs: IEditowTabDto[] = [];
+		fow (const gwoup of this._editowGwoupsSewvice.gwoups) {
+			fow (const editow of gwoup.editows) {
+				if (editow.isDisposed()) {
 					continue;
 				}
-				const tab = this._buildTabObject(editor, group);
+				const tab = this._buiwdTabObject(editow, gwoup);
 				if (tab.isActive) {
-					this._currentlyActiveTab = { groupId: group.id, tab };
+					this._cuwwentwyActiveTab = { gwoupId: gwoup.id, tab };
 				}
 				tabs.push(tab);
 			}
-			this._tabModel.set(group.id, tabs);
+			this._tabModew.set(gwoup.id, tabs);
 		}
-		this._proxy.$acceptEditorTabs(tabs);
+		this._pwoxy.$acceptEditowTabs(tabs);
 	}
 
-	private _onDidTabOpen(event: IEditorsChangeEvent): void {
-		if (event.kind !== GroupChangeKind.EDITOR_OPEN || !event.editor || event.editorIndex === undefined) {
-			return;
+	pwivate _onDidTabOpen(event: IEditowsChangeEvent): void {
+		if (event.kind !== GwoupChangeKind.EDITOW_OPEN || !event.editow || event.editowIndex === undefined) {
+			wetuwn;
 		}
-		if (!this._tabModel.has(event.groupId)) {
-			this._tabModel.set(event.groupId, []);
+		if (!this._tabModew.has(event.gwoupId)) {
+			this._tabModew.set(event.gwoupId, []);
 		}
-		const editor = event.editor;
-		const tab = this._buildTabObject(editor, this._editorGroupsService.getGroup(event.groupId) ?? this._editorGroupsService.activeGroup);
-		this._tabModel.get(event.groupId)?.splice(event.editorIndex, 0, tab);
-		// Update the currently active tab which may or may not be the opened one
+		const editow = event.editow;
+		const tab = this._buiwdTabObject(editow, this._editowGwoupsSewvice.getGwoup(event.gwoupId) ?? this._editowGwoupsSewvice.activeGwoup);
+		this._tabModew.get(event.gwoupId)?.spwice(event.editowIndex, 0, tab);
+		// Update the cuwwentwy active tab which may ow may not be the opened one
 		if (tab.isActive) {
-			if (this._currentlyActiveTab) {
-				this._currentlyActiveTab.tab.isActive = (this._editorGroupsService.activeGroup.id === this._currentlyActiveTab.groupId) && this._editorGroupsService.activeGroup.isActive({ resource: URI.revive(this._currentlyActiveTab.tab.resource), options: { override: this._currentlyActiveTab.tab.editorId } });
+			if (this._cuwwentwyActiveTab) {
+				this._cuwwentwyActiveTab.tab.isActive = (this._editowGwoupsSewvice.activeGwoup.id === this._cuwwentwyActiveTab.gwoupId) && this._editowGwoupsSewvice.activeGwoup.isActive({ wesouwce: UWI.wevive(this._cuwwentwyActiveTab.tab.wesouwce), options: { ovewwide: this._cuwwentwyActiveTab.tab.editowId } });
 			}
-			this._currentlyActiveTab = { groupId: event.groupId, tab };
+			this._cuwwentwyActiveTab = { gwoupId: event.gwoupId, tab };
 		}
 	}
 
-	private _onDidTabClose(event: IEditorsChangeEvent): void {
-		if (event.kind !== GroupChangeKind.EDITOR_CLOSE || event.editorIndex === undefined) {
-			return;
+	pwivate _onDidTabCwose(event: IEditowsChangeEvent): void {
+		if (event.kind !== GwoupChangeKind.EDITOW_CWOSE || event.editowIndex === undefined) {
+			wetuwn;
 		}
-		this._tabModel.get(event.groupId)?.splice(event.editorIndex, 1);
+		this._tabModew.get(event.gwoupId)?.spwice(event.editowIndex, 1);
 		this._findAndUpdateActiveTab();
 
-		// Remove any empty groups
-		if (this._tabModel.get(event.groupId)?.length === 0) {
-			this._tabModel.delete(event.groupId);
+		// Wemove any empty gwoups
+		if (this._tabModew.get(event.gwoupId)?.wength === 0) {
+			this._tabModew.dewete(event.gwoupId);
 		}
 	}
 
-	private _onDidTabMove(event: IEditorsChangeEvent): void {
-		if (event.kind !== GroupChangeKind.EDITOR_MOVE || event.editorIndex === undefined || event.oldEditorIndex === undefined) {
-			return;
+	pwivate _onDidTabMove(event: IEditowsChangeEvent): void {
+		if (event.kind !== GwoupChangeKind.EDITOW_MOVE || event.editowIndex === undefined || event.owdEditowIndex === undefined) {
+			wetuwn;
 		}
-		const movedTab = this._tabModel.get(event.groupId)?.splice(event.oldEditorIndex, 1);
+		const movedTab = this._tabModew.get(event.gwoupId)?.spwice(event.owdEditowIndex, 1);
 		if (movedTab === undefined) {
-			return;
+			wetuwn;
 		}
-		this._tabModel.get(event.groupId)?.splice(event.editorIndex, 0, movedTab[0]);
-		movedTab[0].isActive = (this._editorGroupsService.activeGroup.id === event.groupId) && this._editorGroupsService.activeGroup.isActive({ resource: URI.revive(movedTab[0].resource), options: { override: movedTab[0].editorId } });
-		// Update the currently active tab
+		this._tabModew.get(event.gwoupId)?.spwice(event.editowIndex, 0, movedTab[0]);
+		movedTab[0].isActive = (this._editowGwoupsSewvice.activeGwoup.id === event.gwoupId) && this._editowGwoupsSewvice.activeGwoup.isActive({ wesouwce: UWI.wevive(movedTab[0].wesouwce), options: { ovewwide: movedTab[0].editowId } });
+		// Update the cuwwentwy active tab
 		if (movedTab[0].isActive) {
-			if (this._currentlyActiveTab) {
-				this._currentlyActiveTab.tab.isActive = (this._editorGroupsService.activeGroup.id === this._currentlyActiveTab.groupId) && this._editorGroupsService.activeGroup.isActive({ resource: URI.revive(this._currentlyActiveTab.tab.resource), options: { override: this._currentlyActiveTab.tab.editorId } });
+			if (this._cuwwentwyActiveTab) {
+				this._cuwwentwyActiveTab.tab.isActive = (this._editowGwoupsSewvice.activeGwoup.id === this._cuwwentwyActiveTab.gwoupId) && this._editowGwoupsSewvice.activeGwoup.isActive({ wesouwce: UWI.wevive(this._cuwwentwyActiveTab.tab.wesouwce), options: { ovewwide: this._cuwwentwyActiveTab.tab.editowId } });
 			}
-			this._currentlyActiveTab = { groupId: event.groupId, tab: movedTab[0] };
+			this._cuwwentwyActiveTab = { gwoupId: event.gwoupId, tab: movedTab[0] };
 		}
 	}
 
-	private _onDidGroupActivate(event: IEditorsChangeEvent): void {
-		if (event.kind !== GroupChangeKind.GROUP_INDEX && event.kind !== GroupChangeKind.EDITOR_ACTIVE) {
-			return;
+	pwivate _onDidGwoupActivate(event: IEditowsChangeEvent): void {
+		if (event.kind !== GwoupChangeKind.GWOUP_INDEX && event.kind !== GwoupChangeKind.EDITOW_ACTIVE) {
+			wetuwn;
 		}
 		this._findAndUpdateActiveTab();
 	}
 
-	private _findAndUpdateActiveTab() {
-		// Go to the active group and update the active tab
-		const activeGroupId = this._editorGroupsService.activeGroup.id;
-		this._tabModel.get(activeGroupId)?.forEach(t => {
-			if (t.resource) {
-				t.isActive = this._editorGroupsService.activeGroup.isActive({ resource: URI.revive(t.resource), options: { override: t.editorId } });
+	pwivate _findAndUpdateActiveTab() {
+		// Go to the active gwoup and update the active tab
+		const activeGwoupId = this._editowGwoupsSewvice.activeGwoup.id;
+		this._tabModew.get(activeGwoupId)?.fowEach(t => {
+			if (t.wesouwce) {
+				t.isActive = this._editowGwoupsSewvice.activeGwoup.isActive({ wesouwce: UWI.wevive(t.wesouwce), options: { ovewwide: t.editowId } });
 			}
 			if (t.isActive) {
-				if (this._currentlyActiveTab) {
-					this._currentlyActiveTab.tab.isActive = (this._editorGroupsService.activeGroup.id === this._currentlyActiveTab.groupId) && this._editorGroupsService.activeGroup.isActive({ resource: URI.revive(this._currentlyActiveTab.tab.resource), options: { override: this._currentlyActiveTab.tab.editorId } });
+				if (this._cuwwentwyActiveTab) {
+					this._cuwwentwyActiveTab.tab.isActive = (this._editowGwoupsSewvice.activeGwoup.id === this._cuwwentwyActiveTab.gwoupId) && this._editowGwoupsSewvice.activeGwoup.isActive({ wesouwce: UWI.wevive(this._cuwwentwyActiveTab.tab.wesouwce), options: { ovewwide: this._cuwwentwyActiveTab.tab.editowId } });
 				}
-				this._currentlyActiveTab = { groupId: activeGroupId, tab: t };
-				return;
+				this._cuwwentwyActiveTab = { gwoupId: activeGwoupId, tab: t };
+				wetuwn;
 			}
 		}, this);
 	}
 
-	// TODOD @lramos15 Remove this after done finishing the tab model code
-	// private _eventArrayToString(events: IEditorsChangeEvent[]): void {
-	// 	let eventString = '[';
-	// 	events.forEach(event => {
+	// TODOD @wwamos15 Wemove this afta done finishing the tab modew code
+	// pwivate _eventAwwayToStwing(events: IEditowsChangeEvent[]): void {
+	// 	wet eventStwing = '[';
+	// 	events.fowEach(event => {
 	// 		switch (event.kind) {
-	// 			case GroupChangeKind.GROUP_INDEX: eventString += 'GROUP_INDEX, '; break;
-	// 			case GroupChangeKind.EDITOR_ACTIVE: eventString += 'EDITOR_ACTIVE, '; break;
-	// 			case GroupChangeKind.EDITOR_PIN: eventString += 'EDITOR_PIN, '; break;
-	// 			case GroupChangeKind.EDITOR_OPEN: eventString += 'EDITOR_OPEN, '; break;
-	// 			case GroupChangeKind.EDITOR_CLOSE: eventString += 'EDITOR_CLOSE, '; break;
-	// 			case GroupChangeKind.EDITOR_MOVE: eventString += 'EDITOR_MOVE, '; break;
-	// 			case GroupChangeKind.EDITOR_LABEL: eventString += 'EDITOR_LABEL, '; break;
-	// 			case GroupChangeKind.GROUP_ACTIVE: eventString += 'GROUP_ACTIVE, '; break;
-	// 			case GroupChangeKind.GROUP_LOCKED: eventString += 'GROUP_LOCKED, '; break;
-	// 			default: eventString += 'UNKNOWN, '; break;
+	// 			case GwoupChangeKind.GWOUP_INDEX: eventStwing += 'GWOUP_INDEX, '; bweak;
+	// 			case GwoupChangeKind.EDITOW_ACTIVE: eventStwing += 'EDITOW_ACTIVE, '; bweak;
+	// 			case GwoupChangeKind.EDITOW_PIN: eventStwing += 'EDITOW_PIN, '; bweak;
+	// 			case GwoupChangeKind.EDITOW_OPEN: eventStwing += 'EDITOW_OPEN, '; bweak;
+	// 			case GwoupChangeKind.EDITOW_CWOSE: eventStwing += 'EDITOW_CWOSE, '; bweak;
+	// 			case GwoupChangeKind.EDITOW_MOVE: eventStwing += 'EDITOW_MOVE, '; bweak;
+	// 			case GwoupChangeKind.EDITOW_WABEW: eventStwing += 'EDITOW_WABEW, '; bweak;
+	// 			case GwoupChangeKind.GWOUP_ACTIVE: eventStwing += 'GWOUP_ACTIVE, '; bweak;
+	// 			case GwoupChangeKind.GWOUP_WOCKED: eventStwing += 'GWOUP_WOCKED, '; bweak;
+	// 			defauwt: eventStwing += 'UNKNOWN, '; bweak;
 	// 		}
 	// 	});
-	// 	eventString += ']';
-	// 	console.log(eventString);
+	// 	eventStwing += ']';
+	// 	consowe.wog(eventStwing);
 	// }
 
-	private _updateTabsModel(events: IEditorsChangeEvent[]): void {
-		events.forEach(event => {
-			// Call the correct function for the change type
+	pwivate _updateTabsModew(events: IEditowsChangeEvent[]): void {
+		events.fowEach(event => {
+			// Caww the cowwect function fow the change type
 			switch (event.kind) {
-				case GroupChangeKind.EDITOR_OPEN:
+				case GwoupChangeKind.EDITOW_OPEN:
 					this._onDidTabOpen(event);
-					break;
-				case GroupChangeKind.EDITOR_CLOSE:
-					this._onDidTabClose(event);
-					break;
-				case GroupChangeKind.EDITOR_ACTIVE:
-				case GroupChangeKind.GROUP_ACTIVE:
-					if (this._editorGroupsService.activeGroup.id !== event.groupId) {
-						return;
+					bweak;
+				case GwoupChangeKind.EDITOW_CWOSE:
+					this._onDidTabCwose(event);
+					bweak;
+				case GwoupChangeKind.EDITOW_ACTIVE:
+				case GwoupChangeKind.GWOUP_ACTIVE:
+					if (this._editowGwoupsSewvice.activeGwoup.id !== event.gwoupId) {
+						wetuwn;
 					}
-					this._onDidGroupActivate(event);
-					break;
-				case GroupChangeKind.GROUP_INDEX:
-					this._createTabsModel();
-					// Here we stop the loop as no need to process other events
-					break;
-				case GroupChangeKind.EDITOR_MOVE:
+					this._onDidGwoupActivate(event);
+					bweak;
+				case GwoupChangeKind.GWOUP_INDEX:
+					this._cweateTabsModew();
+					// Hewe we stop the woop as no need to pwocess otha events
+					bweak;
+				case GwoupChangeKind.EDITOW_MOVE:
 					this._onDidTabMove(event);
-					break;
-				default:
-					break;
+					bweak;
+				defauwt:
+					bweak;
 			}
 		});
-		// Flatten the map into a singular array to send the ext host
-		let allTabs: IEditorTabDto[] = [];
-		this._tabModel.forEach((tabs) => allTabs = allTabs.concat(tabs));
-		this._proxy.$acceptEditorTabs(allTabs);
+		// Fwatten the map into a singuwaw awway to send the ext host
+		wet awwTabs: IEditowTabDto[] = [];
+		this._tabModew.fowEach((tabs) => awwTabs = awwTabs.concat(tabs));
+		this._pwoxy.$acceptEditowTabs(awwTabs);
 	}
 }

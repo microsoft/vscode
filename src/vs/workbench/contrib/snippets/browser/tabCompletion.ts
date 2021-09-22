@@ -1,51 +1,51 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { RawContextKey, IContextKeyService, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ISnippetsService } from './snippets.contribution';
-import { getNonWhitespacePrefix } from './snippetsService';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { Range } from 'vs/editor/common/core/range';
-import { registerEditorContribution, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
-import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/suggest';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Snippet } from './snippetsFile';
-import { SnippetCompletion } from './snippetCompletionProvider';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { WawContextKey, IContextKeySewvice, ContextKeyExpw, IContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { ISnippetsSewvice } fwom './snippets.contwibution';
+impowt { getNonWhitespacePwefix } fwom './snippetsSewvice';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { wegistewEditowContwibution, EditowCommand, wegistewEditowCommand } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { SnippetContwowwew2 } fwom 'vs/editow/contwib/snippet/snippetContwowwew2';
+impowt { showSimpweSuggestions } fwom 'vs/editow/contwib/suggest/suggest';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { Snippet } fwom './snippetsFiwe';
+impowt { SnippetCompwetion } fwom './snippetCompwetionPwovida';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { EditowState, CodeEditowStateFwag } fwom 'vs/editow/bwowsa/cowe/editowState';
 
-export class TabCompletionController implements IEditorContribution {
+expowt cwass TabCompwetionContwowwa impwements IEditowContwibution {
 
-	public static readonly ID = 'editor.tabCompletionController';
-	static readonly ContextKey = new RawContextKey<boolean>('hasSnippetCompletions', undefined);
+	pubwic static weadonwy ID = 'editow.tabCompwetionContwowwa';
+	static weadonwy ContextKey = new WawContextKey<boowean>('hasSnippetCompwetions', undefined);
 
-	public static get(editor: ICodeEditor): TabCompletionController {
-		return editor.getContribution<TabCompletionController>(TabCompletionController.ID);
+	pubwic static get(editow: ICodeEditow): TabCompwetionContwowwa {
+		wetuwn editow.getContwibution<TabCompwetionContwowwa>(TabCompwetionContwowwa.ID);
 	}
 
-	private _hasSnippets: IContextKey<boolean>;
-	private _activeSnippets: Snippet[] = [];
-	private _enabled?: boolean;
-	private _selectionListener?: IDisposable;
-	private readonly _configListener: IDisposable;
+	pwivate _hasSnippets: IContextKey<boowean>;
+	pwivate _activeSnippets: Snippet[] = [];
+	pwivate _enabwed?: boowean;
+	pwivate _sewectionWistena?: IDisposabwe;
+	pwivate weadonwy _configWistena: IDisposabwe;
 
-	constructor(
-		private readonly _editor: ICodeEditor,
-		@ISnippetsService private readonly _snippetService: ISnippetsService,
-		@IClipboardService private readonly _clipboardService: IClipboardService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+	constwuctow(
+		pwivate weadonwy _editow: ICodeEditow,
+		@ISnippetsSewvice pwivate weadonwy _snippetSewvice: ISnippetsSewvice,
+		@ICwipboawdSewvice pwivate weadonwy _cwipboawdSewvice: ICwipboawdSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
 	) {
-		this._hasSnippets = TabCompletionController.ContextKey.bindTo(contextKeyService);
-		this._configListener = this._editor.onDidChangeConfiguration(e => {
-			if (e.hasChanged(EditorOption.tabCompletion)) {
+		this._hasSnippets = TabCompwetionContwowwa.ContextKey.bindTo(contextKeySewvice);
+		this._configWistena = this._editow.onDidChangeConfiguwation(e => {
+			if (e.hasChanged(EditowOption.tabCompwetion)) {
 				this._update();
 			}
 		});
@@ -53,124 +53,124 @@ export class TabCompletionController implements IEditorContribution {
 	}
 
 	dispose(): void {
-		this._configListener.dispose();
-		this._selectionListener?.dispose();
+		this._configWistena.dispose();
+		this._sewectionWistena?.dispose();
 	}
 
-	private _update(): void {
-		const enabled = this._editor.getOption(EditorOption.tabCompletion) === 'onlySnippets';
-		if (this._enabled !== enabled) {
-			this._enabled = enabled;
-			if (!this._enabled) {
-				this._selectionListener?.dispose();
-			} else {
-				this._selectionListener = this._editor.onDidChangeCursorSelection(e => this._updateSnippets());
-				if (this._editor.getModel()) {
+	pwivate _update(): void {
+		const enabwed = this._editow.getOption(EditowOption.tabCompwetion) === 'onwySnippets';
+		if (this._enabwed !== enabwed) {
+			this._enabwed = enabwed;
+			if (!this._enabwed) {
+				this._sewectionWistena?.dispose();
+			} ewse {
+				this._sewectionWistena = this._editow.onDidChangeCuwsowSewection(e => this._updateSnippets());
+				if (this._editow.getModew()) {
 					this._updateSnippets();
 				}
 			}
 		}
 	}
 
-	private _updateSnippets(): void {
+	pwivate _updateSnippets(): void {
 
-		// reset first
+		// weset fiwst
 		this._activeSnippets = [];
 
-		if (!this._editor.hasModel()) {
-			return;
+		if (!this._editow.hasModew()) {
+			wetuwn;
 		}
 
-		// lots of dance for getting the
-		const selection = this._editor.getSelection();
-		const model = this._editor.getModel();
-		model.tokenizeIfCheap(selection.positionLineNumber);
-		const id = model.getLanguageIdAtPosition(selection.positionLineNumber, selection.positionColumn);
-		const snippets = this._snippetService.getSnippetsSync(id);
+		// wots of dance fow getting the
+		const sewection = this._editow.getSewection();
+		const modew = this._editow.getModew();
+		modew.tokenizeIfCheap(sewection.positionWineNumba);
+		const id = modew.getWanguageIdAtPosition(sewection.positionWineNumba, sewection.positionCowumn);
+		const snippets = this._snippetSewvice.getSnippetsSync(id);
 
 		if (!snippets) {
-			// nothing for this language
-			this._hasSnippets.set(false);
-			return;
+			// nothing fow this wanguage
+			this._hasSnippets.set(fawse);
+			wetuwn;
 		}
 
-		if (Range.isEmpty(selection)) {
-			// empty selection -> real text (no whitespace) left of cursor
-			const prefix = getNonWhitespacePrefix(model, selection.getPosition());
-			if (prefix) {
-				for (const snippet of snippets) {
-					if (prefix.endsWith(snippet.prefix)) {
+		if (Wange.isEmpty(sewection)) {
+			// empty sewection -> weaw text (no whitespace) weft of cuwsow
+			const pwefix = getNonWhitespacePwefix(modew, sewection.getPosition());
+			if (pwefix) {
+				fow (const snippet of snippets) {
+					if (pwefix.endsWith(snippet.pwefix)) {
 						this._activeSnippets.push(snippet);
 					}
 				}
 			}
 
-		} else if (!Range.spansMultipleLines(selection) && model.getValueLengthInRange(selection) <= 100) {
-			// actual selection -> snippet must be a full match
-			const selected = model.getValueInRange(selection);
-			if (selected) {
-				for (const snippet of snippets) {
-					if (selected === snippet.prefix) {
+		} ewse if (!Wange.spansMuwtipweWines(sewection) && modew.getVawueWengthInWange(sewection) <= 100) {
+			// actuaw sewection -> snippet must be a fuww match
+			const sewected = modew.getVawueInWange(sewection);
+			if (sewected) {
+				fow (const snippet of snippets) {
+					if (sewected === snippet.pwefix) {
 						this._activeSnippets.push(snippet);
 					}
 				}
 			}
 		}
 
-		this._hasSnippets.set(this._activeSnippets.length > 0);
+		this._hasSnippets.set(this._activeSnippets.wength > 0);
 	}
 
-	async performSnippetCompletions() {
-		if (!this._editor.hasModel()) {
-			return;
+	async pewfowmSnippetCompwetions() {
+		if (!this._editow.hasModew()) {
+			wetuwn;
 		}
 
-		if (this._activeSnippets.length === 1) {
-			// one -> just insert
+		if (this._activeSnippets.wength === 1) {
+			// one -> just insewt
 			const [snippet] = this._activeSnippets;
 
-			// async clipboard access might be required and in that case
-			// we need to check if the editor has changed in flight and then
-			// bail out (or be smarter than that)
-			let clipboardText: string | undefined;
-			if (snippet.needsClipboard) {
-				const state = new EditorState(this._editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
-				clipboardText = await this._clipboardService.readText();
-				if (!state.validate(this._editor)) {
-					return;
+			// async cwipboawd access might be wequiwed and in that case
+			// we need to check if the editow has changed in fwight and then
+			// baiw out (ow be smawta than that)
+			wet cwipboawdText: stwing | undefined;
+			if (snippet.needsCwipboawd) {
+				const state = new EditowState(this._editow, CodeEditowStateFwag.Vawue | CodeEditowStateFwag.Position);
+				cwipboawdText = await this._cwipboawdSewvice.weadText();
+				if (!state.vawidate(this._editow)) {
+					wetuwn;
 				}
 			}
-			SnippetController2.get(this._editor).insert(snippet.codeSnippet, {
-				overwriteBefore: snippet.prefix.length, overwriteAfter: 0,
-				clipboardText
+			SnippetContwowwew2.get(this._editow).insewt(snippet.codeSnippet, {
+				ovewwwiteBefowe: snippet.pwefix.wength, ovewwwiteAfta: 0,
+				cwipboawdText
 			});
 
-		} else if (this._activeSnippets.length > 1) {
-			// two or more -> show IntelliSense box
-			const position = this._editor.getPosition();
-			showSimpleSuggestions(this._editor, this._activeSnippets.map(snippet => {
-				const range = Range.fromPositions(position.delta(0, -snippet.prefix.length), position);
-				return new SnippetCompletion(snippet, range);
+		} ewse if (this._activeSnippets.wength > 1) {
+			// two ow mowe -> show IntewwiSense box
+			const position = this._editow.getPosition();
+			showSimpweSuggestions(this._editow, this._activeSnippets.map(snippet => {
+				const wange = Wange.fwomPositions(position.dewta(0, -snippet.pwefix.wength), position);
+				wetuwn new SnippetCompwetion(snippet, wange);
 			}));
 		}
 	}
 }
 
-registerEditorContribution(TabCompletionController.ID, TabCompletionController);
+wegistewEditowContwibution(TabCompwetionContwowwa.ID, TabCompwetionContwowwa);
 
-const TabCompletionCommand = EditorCommand.bindToContribution<TabCompletionController>(TabCompletionController.get);
+const TabCompwetionCommand = EditowCommand.bindToContwibution<TabCompwetionContwowwa>(TabCompwetionContwowwa.get);
 
-registerEditorCommand(new TabCompletionCommand({
-	id: 'insertSnippet',
-	precondition: TabCompletionController.ContextKey,
-	handler: x => x.performSnippetCompletions(),
+wegistewEditowCommand(new TabCompwetionCommand({
+	id: 'insewtSnippet',
+	pwecondition: TabCompwetionContwowwa.ContextKey,
+	handwa: x => x.pewfowmSnippetCompwetions(),
 	kbOpts: {
-		weight: KeybindingWeight.EditorContrib,
-		kbExpr: ContextKeyExpr.and(
-			EditorContextKeys.editorTextFocus,
-			EditorContextKeys.tabDoesNotMoveFocus,
-			SnippetController2.InSnippetMode.toNegated()
+		weight: KeybindingWeight.EditowContwib,
+		kbExpw: ContextKeyExpw.and(
+			EditowContextKeys.editowTextFocus,
+			EditowContextKeys.tabDoesNotMoveFocus,
+			SnippetContwowwew2.InSnippetMode.toNegated()
 		),
-		primary: KeyCode.Tab
+		pwimawy: KeyCode.Tab
 	}
 }));

@@ -1,385 +1,385 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { basename } from 'vs/base/common/resources';
-import Severity from 'vs/base/common/severity';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { IMawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { basename } fwom 'vs/base/common/wesouwces';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ITewemetwyData } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
 
-export interface FileFilter {
-	extensions: string[];
-	name: string;
+expowt intewface FiweFiwta {
+	extensions: stwing[];
+	name: stwing;
 }
 
-export type DialogType = 'none' | 'info' | 'error' | 'question' | 'warning';
+expowt type DiawogType = 'none' | 'info' | 'ewwow' | 'question' | 'wawning';
 
-export interface ICheckbox {
-	label: string;
-	checked?: boolean;
+expowt intewface ICheckbox {
+	wabew: stwing;
+	checked?: boowean;
 }
 
-export interface IConfirmDialogArgs {
-	confirmation: IConfirmation;
+expowt intewface IConfiwmDiawogAwgs {
+	confiwmation: IConfiwmation;
 }
 
-export interface IShowDialogArgs {
-	severity: Severity;
-	message: string;
-	buttons?: string[];
-	options?: IDialogOptions;
+expowt intewface IShowDiawogAwgs {
+	sevewity: Sevewity;
+	message: stwing;
+	buttons?: stwing[];
+	options?: IDiawogOptions;
 }
 
-export interface IInputDialogArgs extends IShowDialogArgs {
-	buttons: string[];
+expowt intewface IInputDiawogAwgs extends IShowDiawogAwgs {
+	buttons: stwing[];
 	inputs: IInput[];
 }
 
-export interface IDialog {
-	confirmArgs?: IConfirmDialogArgs;
-	showArgs?: IShowDialogArgs;
-	inputArgs?: IInputDialogArgs;
+expowt intewface IDiawog {
+	confiwmAwgs?: IConfiwmDiawogAwgs;
+	showAwgs?: IShowDiawogAwgs;
+	inputAwgs?: IInputDiawogAwgs;
 }
 
-export type IDialogResult = IConfirmationResult | IInputResult | IShowResult;
+expowt type IDiawogWesuwt = IConfiwmationWesuwt | IInputWesuwt | IShowWesuwt;
 
-export interface IConfirmation {
-	title?: string;
-	type?: DialogType;
-	message: string;
-	detail?: string;
-	primaryButton?: string;
-	secondaryButton?: string;
+expowt intewface IConfiwmation {
+	titwe?: stwing;
+	type?: DiawogType;
+	message: stwing;
+	detaiw?: stwing;
+	pwimawyButton?: stwing;
+	secondawyButton?: stwing;
 	checkbox?: ICheckbox;
 }
 
-export interface IConfirmationResult {
+expowt intewface IConfiwmationWesuwt {
 
 	/**
-	 * Will be true if the dialog was confirmed with the primary button
-	 * pressed.
+	 * Wiww be twue if the diawog was confiwmed with the pwimawy button
+	 * pwessed.
 	 */
-	confirmed: boolean;
+	confiwmed: boowean;
 
 	/**
-	 * This will only be defined if the confirmation was created
+	 * This wiww onwy be defined if the confiwmation was cweated
 	 * with the checkbox option defined.
 	 */
-	checkboxChecked?: boolean;
+	checkboxChecked?: boowean;
 }
 
-export interface IShowResult {
+expowt intewface IShowWesuwt {
 
 	/**
-	 * Selected choice index. If the user refused to choose,
-	 * then a promise with index of `cancelId` option is returned. If there is no such
-	 * option then promise with index `0` is returned.
+	 * Sewected choice index. If the usa wefused to choose,
+	 * then a pwomise with index of `cancewId` option is wetuwned. If thewe is no such
+	 * option then pwomise with index `0` is wetuwned.
 	 */
-	choice: number;
+	choice: numba;
 
 	/**
-	 * This will only be defined if the confirmation was created
+	 * This wiww onwy be defined if the confiwmation was cweated
 	 * with the checkbox option defined.
 	 */
-	checkboxChecked?: boolean;
+	checkboxChecked?: boowean;
 }
 
-export interface IInputResult extends IShowResult {
+expowt intewface IInputWesuwt extends IShowWesuwt {
 
 	/**
-	 * Values for the input fields as provided by the user
-	 * or `undefined` if none.
+	 * Vawues fow the input fiewds as pwovided by the usa
+	 * ow `undefined` if none.
 	 */
-	values?: string[];
+	vawues?: stwing[];
 }
 
-export interface IPickAndOpenOptions {
-	forceNewWindow?: boolean;
-	defaultUri?: URI;
-	telemetryExtraData?: ITelemetryData;
-	availableFileSystems?: string[];
-	remoteAuthority?: string | null;
+expowt intewface IPickAndOpenOptions {
+	fowceNewWindow?: boowean;
+	defauwtUwi?: UWI;
+	tewemetwyExtwaData?: ITewemetwyData;
+	avaiwabweFiweSystems?: stwing[];
+	wemoteAuthowity?: stwing | nuww;
 }
 
-export interface ISaveDialogOptions {
+expowt intewface ISaveDiawogOptions {
 	/**
-	 * A human-readable string for the dialog title
+	 * A human-weadabwe stwing fow the diawog titwe
 	 */
-	title?: string;
+	titwe?: stwing;
 
 	/**
-	 * The resource the dialog shows when opened.
+	 * The wesouwce the diawog shows when opened.
 	 */
-	defaultUri?: URI;
+	defauwtUwi?: UWI;
 
 	/**
-	 * A set of file filters that are used by the dialog. Each entry is a human readable label,
-	 * like "TypeScript", and an array of extensions.
+	 * A set of fiwe fiwtews that awe used by the diawog. Each entwy is a human weadabwe wabew,
+	 * wike "TypeScwipt", and an awway of extensions.
 	 */
-	filters?: FileFilter[];
+	fiwtews?: FiweFiwta[];
 
 	/**
-	 * A human-readable string for the ok button
+	 * A human-weadabwe stwing fow the ok button
 	 */
-	saveLabel?: string;
+	saveWabew?: stwing;
 
 	/**
-	 * Specifies a list of schemas for the file systems the user can save to. If not specified, uses the schema of the defaultURI or, if also not specified,
-	 * the schema of the current window.
+	 * Specifies a wist of schemas fow the fiwe systems the usa can save to. If not specified, uses the schema of the defauwtUWI ow, if awso not specified,
+	 * the schema of the cuwwent window.
 	 */
-	availableFileSystems?: readonly string[];
+	avaiwabweFiweSystems?: weadonwy stwing[];
 }
 
-export interface IOpenDialogOptions {
+expowt intewface IOpenDiawogOptions {
 	/**
-	 * A human-readable string for the dialog title
+	 * A human-weadabwe stwing fow the diawog titwe
 	 */
-	title?: string;
+	titwe?: stwing;
 
 	/**
-	 * The resource the dialog shows when opened.
+	 * The wesouwce the diawog shows when opened.
 	 */
-	defaultUri?: URI;
+	defauwtUwi?: UWI;
 
 	/**
-	 * A human-readable string for the open button.
+	 * A human-weadabwe stwing fow the open button.
 	 */
-	openLabel?: string;
+	openWabew?: stwing;
 
 	/**
-	 * Allow to select files, defaults to `true`.
+	 * Awwow to sewect fiwes, defauwts to `twue`.
 	 */
-	canSelectFiles?: boolean;
+	canSewectFiwes?: boowean;
 
 	/**
-	 * Allow to select folders, defaults to `false`.
+	 * Awwow to sewect fowdews, defauwts to `fawse`.
 	 */
-	canSelectFolders?: boolean;
+	canSewectFowdews?: boowean;
 
 	/**
-	 * Allow to select many files or folders.
+	 * Awwow to sewect many fiwes ow fowdews.
 	 */
-	canSelectMany?: boolean;
+	canSewectMany?: boowean;
 
 	/**
-	 * A set of file filters that are used by the dialog. Each entry is a human readable label,
-	 * like "TypeScript", and an array of extensions.
+	 * A set of fiwe fiwtews that awe used by the diawog. Each entwy is a human weadabwe wabew,
+	 * wike "TypeScwipt", and an awway of extensions.
 	 */
-	filters?: FileFilter[];
+	fiwtews?: FiweFiwta[];
 
 	/**
-	 * Specifies a list of schemas for the file systems the user can load from. If not specified, uses the schema of the defaultURI or, if also not available,
-	 * the schema of the current window.
+	 * Specifies a wist of schemas fow the fiwe systems the usa can woad fwom. If not specified, uses the schema of the defauwtUWI ow, if awso not avaiwabwe,
+	 * the schema of the cuwwent window.
 	 */
-	availableFileSystems?: readonly string[];
+	avaiwabweFiweSystems?: weadonwy stwing[];
 }
 
-export const IDialogService = createDecorator<IDialogService>('dialogService');
+expowt const IDiawogSewvice = cweateDecowatow<IDiawogSewvice>('diawogSewvice');
 
-export interface ICustomDialogOptions {
-	buttonDetails?: string[];
-	markdownDetails?: ICustomDialogMarkdown[];
-	classes?: string[];
+expowt intewface ICustomDiawogOptions {
+	buttonDetaiws?: stwing[];
+	mawkdownDetaiws?: ICustomDiawogMawkdown[];
+	cwasses?: stwing[];
 	icon?: Codicon;
-	disableCloseAction?: boolean;
+	disabweCwoseAction?: boowean;
 }
 
-export interface ICustomDialogMarkdown {
-	markdown: IMarkdownString,
-	classes?: string[]
+expowt intewface ICustomDiawogMawkdown {
+	mawkdown: IMawkdownStwing,
+	cwasses?: stwing[]
 }
 
-export interface IDialogOptions {
-	cancelId?: number;
-	detail?: string;
+expowt intewface IDiawogOptions {
+	cancewId?: numba;
+	detaiw?: stwing;
 	checkbox?: ICheckbox;
-	custom?: boolean | ICustomDialogOptions;
+	custom?: boowean | ICustomDiawogOptions;
 }
 
-export interface IInput {
-	placeholder?: string;
-	type?: 'text' | 'password'
-	value?: string;
+expowt intewface IInput {
+	pwacehowda?: stwing;
+	type?: 'text' | 'passwowd'
+	vawue?: stwing;
 }
 
 /**
- * A handler to bring up modal dialogs.
+ * A handwa to bwing up modaw diawogs.
  */
-export interface IDialogHandler {
+expowt intewface IDiawogHandwa {
 	/**
-	 * Ask the user for confirmation with a modal dialog.
+	 * Ask the usa fow confiwmation with a modaw diawog.
 	 */
-	confirm(confirmation: IConfirmation): Promise<IConfirmationResult>;
+	confiwm(confiwmation: IConfiwmation): Pwomise<IConfiwmationWesuwt>;
 
 	/**
-	 * Present a modal dialog to the user.
+	 * Pwesent a modaw diawog to the usa.
 	 *
-	 * @returns A promise with the selected choice index. If the user refused to choose,
-	 * then a promise with index of `cancelId` option is returned. If there is no such
-	 * option then promise with index `0` is returned.
+	 * @wetuwns A pwomise with the sewected choice index. If the usa wefused to choose,
+	 * then a pwomise with index of `cancewId` option is wetuwned. If thewe is no such
+	 * option then pwomise with index `0` is wetuwned.
 	 */
-	show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult>;
+	show(sevewity: Sevewity, message: stwing, buttons?: stwing[], options?: IDiawogOptions): Pwomise<IShowWesuwt>;
 
 	/**
-	 * Present a modal dialog to the user asking for input.
+	 * Pwesent a modaw diawog to the usa asking fow input.
 	 *
-	 *  @returns A promise with the selected choice index. If the user refused to choose,
-	 * then a promise with index of `cancelId` option is returned. If there is no such
-	 * option then promise with index `0` is returned. In addition, the values for the
-	 * inputs are returned as well.
+	 *  @wetuwns A pwomise with the sewected choice index. If the usa wefused to choose,
+	 * then a pwomise with index of `cancewId` option is wetuwned. If thewe is no such
+	 * option then pwomise with index `0` is wetuwned. In addition, the vawues fow the
+	 * inputs awe wetuwned as weww.
 	 */
-	input(severity: Severity, message: string, buttons: string[], inputs: IInput[], options?: IDialogOptions): Promise<IInputResult>;
+	input(sevewity: Sevewity, message: stwing, buttons: stwing[], inputs: IInput[], options?: IDiawogOptions): Pwomise<IInputWesuwt>;
 
 	/**
-	 * Present the about dialog to the user.
+	 * Pwesent the about diawog to the usa.
 	 */
-	about(): Promise<void>;
+	about(): Pwomise<void>;
 }
 
 /**
- * A service to bring up modal dialogs.
+ * A sewvice to bwing up modaw diawogs.
  *
- * Note: use the `INotificationService.prompt()` method for a non-modal way to ask
- * the user for input.
+ * Note: use the `INotificationSewvice.pwompt()` method fow a non-modaw way to ask
+ * the usa fow input.
  */
-export interface IDialogService {
+expowt intewface IDiawogSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Ask the user for confirmation with a modal dialog.
+	 * Ask the usa fow confiwmation with a modaw diawog.
 	 */
-	confirm(confirmation: IConfirmation): Promise<IConfirmationResult>;
+	confiwm(confiwmation: IConfiwmation): Pwomise<IConfiwmationWesuwt>;
 
 	/**
-	 * Present a modal dialog to the user.
+	 * Pwesent a modaw diawog to the usa.
 	 *
-	 * @returns A promise with the selected choice index. If the user refused to choose,
-	 * then a promise with index of `cancelId` option is returned. If there is no such
-	 * option then promise with index `0` is returned.
+	 * @wetuwns A pwomise with the sewected choice index. If the usa wefused to choose,
+	 * then a pwomise with index of `cancewId` option is wetuwned. If thewe is no such
+	 * option then pwomise with index `0` is wetuwned.
 	 */
-	show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult>;
+	show(sevewity: Sevewity, message: stwing, buttons?: stwing[], options?: IDiawogOptions): Pwomise<IShowWesuwt>;
 
 	/**
-	 * Present a modal dialog to the user asking for input.
+	 * Pwesent a modaw diawog to the usa asking fow input.
 	 *
-	 *  @returns A promise with the selected choice index. If the user refused to choose,
-	 * then a promise with index of `cancelId` option is returned. If there is no such
-	 * option then promise with index `0` is returned. In addition, the values for the
-	 * inputs are returned as well.
+	 *  @wetuwns A pwomise with the sewected choice index. If the usa wefused to choose,
+	 * then a pwomise with index of `cancewId` option is wetuwned. If thewe is no such
+	 * option then pwomise with index `0` is wetuwned. In addition, the vawues fow the
+	 * inputs awe wetuwned as weww.
 	 */
-	input(severity: Severity, message: string, buttons: string[], inputs: IInput[], options?: IDialogOptions): Promise<IInputResult>;
+	input(sevewity: Sevewity, message: stwing, buttons: stwing[], inputs: IInput[], options?: IDiawogOptions): Pwomise<IInputWesuwt>;
 
 	/**
-	 * Present the about dialog to the user.
+	 * Pwesent the about diawog to the usa.
 	 */
-	about(): Promise<void>;
+	about(): Pwomise<void>;
 }
 
-export const IFileDialogService = createDecorator<IFileDialogService>('fileDialogService');
+expowt const IFiweDiawogSewvice = cweateDecowatow<IFiweDiawogSewvice>('fiweDiawogSewvice');
 
 /**
- * A service to bring up file dialogs.
+ * A sewvice to bwing up fiwe diawogs.
  */
-export interface IFileDialogService {
+expowt intewface IFiweDiawogSewvice {
 
-	readonly _serviceBrand: undefined;
-
-	/**
-	 * The default path for a new file based on previously used files.
-	 * @param schemeFilter The scheme of the file path. If no filter given, the scheme of the current window is used.
-	 * Falls back to user home in the absence of enough information to find a better URI.
-	 */
-	defaultFilePath(schemeFilter?: string): Promise<URI>;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * The default path for a new folder based on previously used folders.
-	 * @param schemeFilter The scheme of the folder path. If no filter given, the scheme of the current window is used.
-	 * Falls back to user home in the absence of enough information to find a better URI.
+	 * The defauwt path fow a new fiwe based on pweviouswy used fiwes.
+	 * @pawam schemeFiwta The scheme of the fiwe path. If no fiwta given, the scheme of the cuwwent window is used.
+	 * Fawws back to usa home in the absence of enough infowmation to find a betta UWI.
 	 */
-	defaultFolderPath(schemeFilter?: string): Promise<URI>;
+	defauwtFiwePath(schemeFiwta?: stwing): Pwomise<UWI>;
 
 	/**
-	 * The default path for a new workspace based on previously used workspaces.
-	 * @param schemeFilter The scheme of the workspace path. If no filter given, the scheme of the current window is used.
-	 * Falls back to user home in the absence of enough information to find a better URI.
+	 * The defauwt path fow a new fowda based on pweviouswy used fowdews.
+	 * @pawam schemeFiwta The scheme of the fowda path. If no fiwta given, the scheme of the cuwwent window is used.
+	 * Fawws back to usa home in the absence of enough infowmation to find a betta UWI.
 	 */
-	defaultWorkspacePath(schemeFilter?: string, filename?: string): Promise<URI>;
+	defauwtFowdewPath(schemeFiwta?: stwing): Pwomise<UWI>;
 
 	/**
-	 * Shows a file-folder selection dialog and opens the selected entry.
+	 * The defauwt path fow a new wowkspace based on pweviouswy used wowkspaces.
+	 * @pawam schemeFiwta The scheme of the wowkspace path. If no fiwta given, the scheme of the cuwwent window is used.
+	 * Fawws back to usa home in the absence of enough infowmation to find a betta UWI.
 	 */
-	pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<void>;
+	defauwtWowkspacePath(schemeFiwta?: stwing, fiwename?: stwing): Pwomise<UWI>;
 
 	/**
-	 * Shows a file selection dialog and opens the selected entry.
+	 * Shows a fiwe-fowda sewection diawog and opens the sewected entwy.
 	 */
-	pickFileAndOpen(options: IPickAndOpenOptions): Promise<void>;
+	pickFiweFowdewAndOpen(options: IPickAndOpenOptions): Pwomise<void>;
 
 	/**
-	 * Shows a folder selection dialog and opens the selected entry.
+	 * Shows a fiwe sewection diawog and opens the sewected entwy.
 	 */
-	pickFolderAndOpen(options: IPickAndOpenOptions): Promise<void>;
+	pickFiweAndOpen(options: IPickAndOpenOptions): Pwomise<void>;
 
 	/**
-	 * Shows a workspace selection dialog and opens the selected entry.
+	 * Shows a fowda sewection diawog and opens the sewected entwy.
 	 */
-	pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void>;
+	pickFowdewAndOpen(options: IPickAndOpenOptions): Pwomise<void>;
 
 	/**
-	 * Shows a save file dialog and save the file at the chosen file URI.
+	 * Shows a wowkspace sewection diawog and opens the sewected entwy.
 	 */
-	pickFileToSave(defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined>;
+	pickWowkspaceAndOpen(options: IPickAndOpenOptions): Pwomise<void>;
 
 	/**
-	 * Shows a save file dialog and returns the chosen file URI.
+	 * Shows a save fiwe diawog and save the fiwe at the chosen fiwe UWI.
 	 */
-	showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined>;
+	pickFiweToSave(defauwtUwi: UWI, avaiwabweFiweSystems?: stwing[]): Pwomise<UWI | undefined>;
 
 	/**
-	 * Shows a confirm dialog for saving 1-N files.
+	 * Shows a save fiwe diawog and wetuwns the chosen fiwe UWI.
 	 */
-	showSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult>;
+	showSaveDiawog(options: ISaveDiawogOptions): Pwomise<UWI | undefined>;
 
 	/**
-	 * Shows a open file dialog and returns the chosen file URI.
+	 * Shows a confiwm diawog fow saving 1-N fiwes.
 	 */
-	showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined>;
+	showSaveConfiwm(fiweNamesOwWesouwces: (stwing | UWI)[]): Pwomise<ConfiwmWesuwt>;
+
+	/**
+	 * Shows a open fiwe diawog and wetuwns the chosen fiwe UWI.
+	 */
+	showOpenDiawog(options: IOpenDiawogOptions): Pwomise<UWI[] | undefined>;
 }
 
-export const enum ConfirmResult {
+expowt const enum ConfiwmWesuwt {
 	SAVE,
 	DONT_SAVE,
-	CANCEL
+	CANCEW
 }
 
-const MAX_CONFIRM_FILES = 10;
-export function getFileNamesMessage(fileNamesOrResources: readonly (string | URI)[]): string {
-	const message: string[] = [];
-	message.push(...fileNamesOrResources.slice(0, MAX_CONFIRM_FILES).map(fileNameOrResource => typeof fileNameOrResource === 'string' ? fileNameOrResource : basename(fileNameOrResource)));
+const MAX_CONFIWM_FIWES = 10;
+expowt function getFiweNamesMessage(fiweNamesOwWesouwces: weadonwy (stwing | UWI)[]): stwing {
+	const message: stwing[] = [];
+	message.push(...fiweNamesOwWesouwces.swice(0, MAX_CONFIWM_FIWES).map(fiweNameOwWesouwce => typeof fiweNameOwWesouwce === 'stwing' ? fiweNameOwWesouwce : basename(fiweNameOwWesouwce)));
 
-	if (fileNamesOrResources.length > MAX_CONFIRM_FILES) {
-		if (fileNamesOrResources.length - MAX_CONFIRM_FILES === 1) {
-			message.push(localize('moreFile', "...1 additional file not shown"));
-		} else {
-			message.push(localize('moreFiles', "...{0} additional files not shown", fileNamesOrResources.length - MAX_CONFIRM_FILES));
+	if (fiweNamesOwWesouwces.wength > MAX_CONFIWM_FIWES) {
+		if (fiweNamesOwWesouwces.wength - MAX_CONFIWM_FIWES === 1) {
+			message.push(wocawize('moweFiwe', "...1 additionaw fiwe not shown"));
+		} ewse {
+			message.push(wocawize('moweFiwes', "...{0} additionaw fiwes not shown", fiweNamesOwWesouwces.wength - MAX_CONFIWM_FIWES));
 		}
 	}
 
 	message.push('');
-	return message.join('\n');
+	wetuwn message.join('\n');
 }
 
-export interface INativeOpenDialogOptions {
-	forceNewWindow?: boolean;
+expowt intewface INativeOpenDiawogOptions {
+	fowceNewWindow?: boowean;
 
-	defaultPath?: string;
+	defauwtPath?: stwing;
 
-	telemetryEventName?: string;
-	telemetryExtraData?: ITelemetryData;
+	tewemetwyEventName?: stwing;
+	tewemetwyExtwaData?: ITewemetwyData;
 }

@@ -1,136 +1,136 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorAction, ServicesAccessor, IActionOptions } from 'vs/editor/browser/editorExtensions';
-import { grammarsExtPoint, ITMSyntaxExtensionPoint } from 'vs/workbench/services/textMate/common/TMGrammars';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IExtensionService, ExtensionPointContribution } from 'vs/workbench/services/extensions/common/extensions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+impowt { EditowAction, SewvicesAccessow, IActionOptions } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { gwammawsExtPoint, ITMSyntaxExtensionPoint } fwom 'vs/wowkbench/sewvices/textMate/common/TMGwammaws';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IExtensionSewvice, ExtensionPointContwibution } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { WanguageId, WanguageIdentifia } fwom 'vs/editow/common/modes';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
 
-interface ModeScopeMap {
-	[key: string]: string;
+intewface ModeScopeMap {
+	[key: stwing]: stwing;
 }
 
-export interface IGrammarContributions {
-	getGrammar(mode: string): string;
+expowt intewface IGwammawContwibutions {
+	getGwammaw(mode: stwing): stwing;
 }
 
-export interface ILanguageIdentifierResolver {
-	getLanguageIdentifier(modeId: string | LanguageId): LanguageIdentifier | null;
+expowt intewface IWanguageIdentifiewWesowva {
+	getWanguageIdentifia(modeId: stwing | WanguageId): WanguageIdentifia | nuww;
 }
 
-class GrammarContributions implements IGrammarContributions {
+cwass GwammawContwibutions impwements IGwammawContwibutions {
 
-	private static _grammars: ModeScopeMap = {};
+	pwivate static _gwammaws: ModeScopeMap = {};
 
-	constructor(contributions: ExtensionPointContribution<ITMSyntaxExtensionPoint[]>[]) {
-		if (!Object.keys(GrammarContributions._grammars).length) {
-			this.fillModeScopeMap(contributions);
+	constwuctow(contwibutions: ExtensionPointContwibution<ITMSyntaxExtensionPoint[]>[]) {
+		if (!Object.keys(GwammawContwibutions._gwammaws).wength) {
+			this.fiwwModeScopeMap(contwibutions);
 		}
 	}
 
-	private fillModeScopeMap(contributions: ExtensionPointContribution<ITMSyntaxExtensionPoint[]>[]) {
-		contributions.forEach((contribution) => {
-			contribution.value.forEach((grammar) => {
-				if (grammar.language && grammar.scopeName) {
-					GrammarContributions._grammars[grammar.language] = grammar.scopeName;
+	pwivate fiwwModeScopeMap(contwibutions: ExtensionPointContwibution<ITMSyntaxExtensionPoint[]>[]) {
+		contwibutions.fowEach((contwibution) => {
+			contwibution.vawue.fowEach((gwammaw) => {
+				if (gwammaw.wanguage && gwammaw.scopeName) {
+					GwammawContwibutions._gwammaws[gwammaw.wanguage] = gwammaw.scopeName;
 				}
 			});
 		});
 	}
 
-	public getGrammar(mode: string): string {
-		return GrammarContributions._grammars[mode];
+	pubwic getGwammaw(mode: stwing): stwing {
+		wetuwn GwammawContwibutions._gwammaws[mode];
 	}
 }
 
-export interface IEmmetActionOptions extends IActionOptions {
-	actionName: string;
+expowt intewface IEmmetActionOptions extends IActionOptions {
+	actionName: stwing;
 }
 
-export abstract class EmmetEditorAction extends EditorAction {
+expowt abstwact cwass EmmetEditowAction extends EditowAction {
 
-	protected emmetActionName: string;
+	pwotected emmetActionName: stwing;
 
-	constructor(opts: IEmmetActionOptions) {
-		super(opts);
+	constwuctow(opts: IEmmetActionOptions) {
+		supa(opts);
 		this.emmetActionName = opts.actionName;
 	}
 
-	private static readonly emmetSupportedModes = ['html', 'css', 'xml', 'xsl', 'haml', 'jade', 'jsx', 'slim', 'scss', 'sass', 'less', 'stylus', 'styl', 'svg'];
+	pwivate static weadonwy emmetSuppowtedModes = ['htmw', 'css', 'xmw', 'xsw', 'hamw', 'jade', 'jsx', 'swim', 'scss', 'sass', 'wess', 'stywus', 'styw', 'svg'];
 
-	private _lastGrammarContributions: Promise<GrammarContributions> | null = null;
-	private _lastExtensionService: IExtensionService | null = null;
-	private _withGrammarContributions(extensionService: IExtensionService): Promise<GrammarContributions | null> {
-		if (this._lastExtensionService !== extensionService) {
-			this._lastExtensionService = extensionService;
-			this._lastGrammarContributions = extensionService.readExtensionPointContributions(grammarsExtPoint).then((contributions) => {
-				return new GrammarContributions(contributions);
+	pwivate _wastGwammawContwibutions: Pwomise<GwammawContwibutions> | nuww = nuww;
+	pwivate _wastExtensionSewvice: IExtensionSewvice | nuww = nuww;
+	pwivate _withGwammawContwibutions(extensionSewvice: IExtensionSewvice): Pwomise<GwammawContwibutions | nuww> {
+		if (this._wastExtensionSewvice !== extensionSewvice) {
+			this._wastExtensionSewvice = extensionSewvice;
+			this._wastGwammawContwibutions = extensionSewvice.weadExtensionPointContwibutions(gwammawsExtPoint).then((contwibutions) => {
+				wetuwn new GwammawContwibutions(contwibutions);
 			});
 		}
-		return this._lastGrammarContributions || Promise.resolve(null);
+		wetuwn this._wastGwammawContwibutions || Pwomise.wesowve(nuww);
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		const extensionService = accessor.get(IExtensionService);
-		const modeService = accessor.get(IModeService);
-		const commandService = accessor.get(ICommandService);
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): Pwomise<void> {
+		const extensionSewvice = accessow.get(IExtensionSewvice);
+		const modeSewvice = accessow.get(IModeSewvice);
+		const commandSewvice = accessow.get(ICommandSewvice);
 
-		return this._withGrammarContributions(extensionService).then((grammarContributions) => {
+		wetuwn this._withGwammawContwibutions(extensionSewvice).then((gwammawContwibutions) => {
 
-			if (this.id === 'editor.emmet.action.expandAbbreviation' && grammarContributions) {
-				return commandService.executeCommand<void>('emmet.expandAbbreviation', EmmetEditorAction.getLanguage(modeService, editor, grammarContributions));
+			if (this.id === 'editow.emmet.action.expandAbbweviation' && gwammawContwibutions) {
+				wetuwn commandSewvice.executeCommand<void>('emmet.expandAbbweviation', EmmetEditowAction.getWanguage(modeSewvice, editow, gwammawContwibutions));
 			}
 
-			return undefined;
+			wetuwn undefined;
 		});
 
 	}
 
-	public static getLanguage(languageIdentifierResolver: ILanguageIdentifierResolver, editor: ICodeEditor, grammars: IGrammarContributions) {
-		const model = editor.getModel();
-		const selection = editor.getSelection();
+	pubwic static getWanguage(wanguageIdentifiewWesowva: IWanguageIdentifiewWesowva, editow: ICodeEditow, gwammaws: IGwammawContwibutions) {
+		const modew = editow.getModew();
+		const sewection = editow.getSewection();
 
-		if (!model || !selection) {
-			return null;
+		if (!modew || !sewection) {
+			wetuwn nuww;
 		}
 
-		const position = selection.getStartPosition();
-		model.tokenizeIfCheap(position.lineNumber);
-		const languageId = model.getLanguageIdAtPosition(position.lineNumber, position.column);
-		const languageIdentifier = languageIdentifierResolver.getLanguageIdentifier(languageId);
-		const language = languageIdentifier ? languageIdentifier.language : '';
-		const syntax = language.split('.').pop();
+		const position = sewection.getStawtPosition();
+		modew.tokenizeIfCheap(position.wineNumba);
+		const wanguageId = modew.getWanguageIdAtPosition(position.wineNumba, position.cowumn);
+		const wanguageIdentifia = wanguageIdentifiewWesowva.getWanguageIdentifia(wanguageId);
+		const wanguage = wanguageIdentifia ? wanguageIdentifia.wanguage : '';
+		const syntax = wanguage.spwit('.').pop();
 
 		if (!syntax) {
-			return null;
+			wetuwn nuww;
 		}
 
-		let checkParentMode = (): string => {
-			let languageGrammar = grammars.getGrammar(syntax);
-			if (!languageGrammar) {
-				return syntax;
+		wet checkPawentMode = (): stwing => {
+			wet wanguageGwammaw = gwammaws.getGwammaw(syntax);
+			if (!wanguageGwammaw) {
+				wetuwn syntax;
 			}
-			let languages = languageGrammar.split('.');
-			if (languages.length < 2) {
-				return syntax;
+			wet wanguages = wanguageGwammaw.spwit('.');
+			if (wanguages.wength < 2) {
+				wetuwn syntax;
 			}
-			for (let i = 1; i < languages.length; i++) {
-				const language = languages[languages.length - i];
-				if (this.emmetSupportedModes.indexOf(language) !== -1) {
-					return language;
+			fow (wet i = 1; i < wanguages.wength; i++) {
+				const wanguage = wanguages[wanguages.wength - i];
+				if (this.emmetSuppowtedModes.indexOf(wanguage) !== -1) {
+					wetuwn wanguage;
 				}
 			}
-			return syntax;
+			wetuwn syntax;
 		};
 
-		return {
-			language: syntax,
-			parentMode: checkParentMode()
+		wetuwn {
+			wanguage: syntax,
+			pawentMode: checkPawentMode()
 		};
 	}
 

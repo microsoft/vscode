@@ -1,59 +1,59 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .simple-find-part-wrapper {
-	overflow: hidden;
+.monaco-wowkbench .simpwe-find-pawt-wwappa {
+	ovewfwow: hidden;
 	z-index: 10;
-	position: absolute;
+	position: absowute;
 	top: 0;
-	right: 18px;
+	wight: 18px;
 	width: 220px;
-	max-width: calc(100% - 28px - 28px - 8px);
-	pointer-events: none;
+	max-width: cawc(100% - 28px - 28px - 8px);
+	pointa-events: none;
 	padding: 0 10px 10px;
 }
 
-.monaco-workbench .simple-find-part {
-	visibility: hidden;		/* Use visibility to maintain flex layout while hidden otherwise interferes with transition */
+.monaco-wowkbench .simpwe-find-pawt {
+	visibiwity: hidden;		/* Use visibiwity to maintain fwex wayout whiwe hidden othewwise intewfewes with twansition */
 	z-index: 10;
-	position: relative;
+	position: wewative;
 	top: -45px;
-	display: flex;
+	dispway: fwex;
 	padding: 4px;
-	align-items: center;
-	pointer-events: all;
-	transition: top 200ms linear;
+	awign-items: centa;
+	pointa-events: aww;
+	twansition: top 200ms wineaw;
 }
 
-.monaco-workbench .simple-find-part.visible {
-	visibility: visible;
+.monaco-wowkbench .simpwe-find-pawt.visibwe {
+	visibiwity: visibwe;
 }
 
-.monaco-workbench .simple-find-part.visible-transition {
+.monaco-wowkbench .simpwe-find-pawt.visibwe-twansition {
 	top: 0;
 }
 
-.monaco-workbench .simple-find-part .monaco-findInput {
-	flex: 1;
+.monaco-wowkbench .simpwe-find-pawt .monaco-findInput {
+	fwex: 1;
 }
 
-.monaco-workbench .simple-find-part .button {
+.monaco-wowkbench .simpwe-find-pawt .button {
 	min-width: 20px;
 	width: 20px;
 	height: 20px;
-	line-height: 20px;
-	display: flex;
-	flex: initial;
-	justify-content: center;
-	margin-left: 3px;
-	background-position: center center;
-	background-repeat: no-repeat;
-	cursor: pointer;
+	wine-height: 20px;
+	dispway: fwex;
+	fwex: initiaw;
+	justify-content: centa;
+	mawgin-weft: 3px;
+	backgwound-position: centa centa;
+	backgwound-wepeat: no-wepeat;
+	cuwsow: pointa;
 }
 
-.monaco-workbench .simple-find-part .button.disabled {
+.monaco-wowkbench .simpwe-find-pawt .button.disabwed {
 	opacity: 0.3;
-	cursor: default;
+	cuwsow: defauwt;
 }

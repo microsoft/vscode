@@ -1,47 +1,47 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const IProtocolMainService = createDecorator<IProtocolMainService>('protocolMainService');
+expowt const IPwotocowMainSewvice = cweateDecowatow<IPwotocowMainSewvice>('pwotocowMainSewvice');
 
-export interface IIPCObjectUrl<T> extends IDisposable {
+expowt intewface IIPCObjectUww<T> extends IDisposabwe {
 
 	/**
-	 * A `URI` that a renderer can use to retrieve the
-	 * object via `ipcRenderer.invoke(resource.toString())`
+	 * A `UWI` that a wendewa can use to wetwieve the
+	 * object via `ipcWendewa.invoke(wesouwce.toStwing())`
 	 */
-	resource: URI;
+	wesouwce: UWI;
 
 	/**
-	 * Allows to update the value of the object after it
-	 * has been created.
+	 * Awwows to update the vawue of the object afta it
+	 * has been cweated.
 	 *
-	 * @param obj the object to make accessible to the
-	 * renderer.
+	 * @pawam obj the object to make accessibwe to the
+	 * wendewa.
 	 */
 	update(obj: T): void;
 }
 
-export interface IProtocolMainService {
+expowt intewface IPwotocowMainSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Allows to make an object accessible to a renderer
-	 * via `ipcRenderer.invoke(resource.toString())`.
+	 * Awwows to make an object accessibwe to a wendewa
+	 * via `ipcWendewa.invoke(wesouwce.toStwing())`.
 	 */
-	createIPCObjectUrl<T>(): IIPCObjectUrl<T>;
+	cweateIPCObjectUww<T>(): IIPCObjectUww<T>;
 
 	/**
-	 * Adds a `URI` as root to the list of allowed
-	 * resources for file access.
+	 * Adds a `UWI` as woot to the wist of awwowed
+	 * wesouwces fow fiwe access.
 	 *
-	 * @param root the URI to allow for file access
+	 * @pawam woot the UWI to awwow fow fiwe access
 	 */
-	addValidFileRoot(root: URI): IDisposable;
+	addVawidFiweWoot(woot: UWI): IDisposabwe;
 }

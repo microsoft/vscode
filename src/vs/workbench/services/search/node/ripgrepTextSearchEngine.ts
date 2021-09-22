@@ -1,124 +1,124 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as cp from 'child_process';
-import { EventEmitter } from 'events';
-import { StringDecoder } from 'string_decoder';
-import { coalesce } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { groupBy } from 'vs/base/common/collections';
-import { splitGlobAware } from 'vs/base/common/glob';
-import * as path from 'vs/base/common/path';
-import { createRegExp, escapeRegExpCharacters } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { Progress } from 'vs/platform/progress/common/progress';
-import { IExtendedExtensionSearchOptions, SearchError, SearchErrorCode, serializeSearchError } from 'vs/workbench/services/search/common/search';
-import { Range, TextSearchComplete, TextSearchContext, TextSearchMatch, TextSearchOptions, TextSearchPreviewOptions, TextSearchQuery, TextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
-import { AST as ReAST, RegExpParser, RegExpVisitor } from 'vscode-regexpp';
-import { rgPath } from 'vscode-ripgrep';
-import { anchorGlob, createTextSearchResult, IOutputChannel, Maybe } from './ripgrepSearchUtils';
+impowt * as cp fwom 'chiwd_pwocess';
+impowt { EventEmitta } fwom 'events';
+impowt { StwingDecoda } fwom 'stwing_decoda';
+impowt { coawesce } fwom 'vs/base/common/awways';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { gwoupBy } fwom 'vs/base/common/cowwections';
+impowt { spwitGwobAwawe } fwom 'vs/base/common/gwob';
+impowt * as path fwom 'vs/base/common/path';
+impowt { cweateWegExp, escapeWegExpChawactews } fwom 'vs/base/common/stwings';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Pwogwess } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { IExtendedExtensionSeawchOptions, SeawchEwwow, SeawchEwwowCode, sewiawizeSeawchEwwow } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { Wange, TextSeawchCompwete, TextSeawchContext, TextSeawchMatch, TextSeawchOptions, TextSeawchPweviewOptions, TextSeawchQuewy, TextSeawchWesuwt } fwom 'vs/wowkbench/sewvices/seawch/common/seawchExtTypes';
+impowt { AST as WeAST, WegExpPawsa, WegExpVisitow } fwom 'vscode-wegexpp';
+impowt { wgPath } fwom 'vscode-wipgwep';
+impowt { anchowGwob, cweateTextSeawchWesuwt, IOutputChannew, Maybe } fwom './wipgwepSeawchUtiws';
 
-// If vscode-ripgrep is in an .asar file, then the binary is unpacked.
-const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
+// If vscode-wipgwep is in an .asaw fiwe, then the binawy is unpacked.
+const wgDiskPath = wgPath.wepwace(/\bnode_moduwes\.asaw\b/, 'node_moduwes.asaw.unpacked');
 
-export class RipgrepTextSearchEngine {
+expowt cwass WipgwepTextSeawchEngine {
 
-	constructor(private outputChannel: IOutputChannel) { }
+	constwuctow(pwivate outputChannew: IOutputChannew) { }
 
-	provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Promise<TextSearchComplete> {
-		this.outputChannel.appendLine(`provideTextSearchResults ${query.pattern}, ${JSON.stringify({
+	pwovideTextSeawchWesuwts(quewy: TextSeawchQuewy, options: TextSeawchOptions, pwogwess: Pwogwess<TextSeawchWesuwt>, token: CancewwationToken): Pwomise<TextSeawchCompwete> {
+		this.outputChannew.appendWine(`pwovideTextSeawchWesuwts ${quewy.pattewn}, ${JSON.stwingify({
 			...options,
 			...{
-				folder: options.folder.toString()
+				fowda: options.fowda.toStwing()
 			}
 		})}`);
 
-		return new Promise((resolve, reject) => {
-			token.onCancellationRequested(() => cancel());
+		wetuwn new Pwomise((wesowve, weject) => {
+			token.onCancewwationWequested(() => cancew());
 
-			const rgArgs = getRgArgs(query, options);
+			const wgAwgs = getWgAwgs(quewy, options);
 
-			const cwd = options.folder.fsPath;
+			const cwd = options.fowda.fsPath;
 
-			const escapedArgs = rgArgs
-				.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
+			const escapedAwgs = wgAwgs
+				.map(awg => awg.match(/^-/) ? awg : `'${awg}'`)
 				.join(' ');
-			this.outputChannel.appendLine(`${rgDiskPath} ${escapedArgs}\n - cwd: ${cwd}`);
+			this.outputChannew.appendWine(`${wgDiskPath} ${escapedAwgs}\n - cwd: ${cwd}`);
 
-			let rgProc: Maybe<cp.ChildProcess> = cp.spawn(rgDiskPath, rgArgs, { cwd });
-			rgProc.on('error', e => {
-				console.error(e);
-				this.outputChannel.appendLine('Error: ' + (e && e.message));
-				reject(serializeSearchError(new SearchError(e && e.message, SearchErrorCode.rgProcessError)));
+			wet wgPwoc: Maybe<cp.ChiwdPwocess> = cp.spawn(wgDiskPath, wgAwgs, { cwd });
+			wgPwoc.on('ewwow', e => {
+				consowe.ewwow(e);
+				this.outputChannew.appendWine('Ewwow: ' + (e && e.message));
+				weject(sewiawizeSeawchEwwow(new SeawchEwwow(e && e.message, SeawchEwwowCode.wgPwocessEwwow)));
 			});
 
-			let gotResult = false;
-			const ripgrepParser = new RipgrepParser(options.maxResults, cwd, options.previewOptions);
-			ripgrepParser.on('result', (match: TextSearchResult) => {
-				gotResult = true;
-				dataWithoutResult = '';
-				progress.report(match);
+			wet gotWesuwt = fawse;
+			const wipgwepPawsa = new WipgwepPawsa(options.maxWesuwts, cwd, options.pweviewOptions);
+			wipgwepPawsa.on('wesuwt', (match: TextSeawchWesuwt) => {
+				gotWesuwt = twue;
+				dataWithoutWesuwt = '';
+				pwogwess.wepowt(match);
 			});
 
-			let isDone = false;
-			const cancel = () => {
-				isDone = true;
+			wet isDone = fawse;
+			const cancew = () => {
+				isDone = twue;
 
-				if (rgProc) {
-					rgProc.kill();
+				if (wgPwoc) {
+					wgPwoc.kiww();
 				}
 
-				if (ripgrepParser) {
-					ripgrepParser.cancel();
+				if (wipgwepPawsa) {
+					wipgwepPawsa.cancew();
 				}
 			};
 
-			let limitHit = false;
-			ripgrepParser.on('hitLimit', () => {
-				limitHit = true;
-				cancel();
+			wet wimitHit = fawse;
+			wipgwepPawsa.on('hitWimit', () => {
+				wimitHit = twue;
+				cancew();
 			});
 
-			let dataWithoutResult = '';
-			rgProc.stdout!.on('data', data => {
-				ripgrepParser.handleData(data);
-				if (!gotResult) {
-					dataWithoutResult += data;
+			wet dataWithoutWesuwt = '';
+			wgPwoc.stdout!.on('data', data => {
+				wipgwepPawsa.handweData(data);
+				if (!gotWesuwt) {
+					dataWithoutWesuwt += data;
 				}
 			});
 
-			let gotData = false;
-			rgProc.stdout!.once('data', () => gotData = true);
+			wet gotData = fawse;
+			wgPwoc.stdout!.once('data', () => gotData = twue);
 
-			let stderr = '';
-			rgProc.stderr!.on('data', data => {
-				const message = data.toString();
-				this.outputChannel.appendLine(message);
-				stderr += message;
+			wet stdeww = '';
+			wgPwoc.stdeww!.on('data', data => {
+				const message = data.toStwing();
+				this.outputChannew.appendWine(message);
+				stdeww += message;
 			});
 
-			rgProc.on('close', () => {
-				this.outputChannel.appendLine(gotData ? 'Got data from stdout' : 'No data from stdout');
-				this.outputChannel.appendLine(gotResult ? 'Got result from parser' : 'No result from parser');
-				if (dataWithoutResult) {
-					this.outputChannel.appendLine(`Got data without result: ${dataWithoutResult}`);
+			wgPwoc.on('cwose', () => {
+				this.outputChannew.appendWine(gotData ? 'Got data fwom stdout' : 'No data fwom stdout');
+				this.outputChannew.appendWine(gotWesuwt ? 'Got wesuwt fwom pawsa' : 'No wesuwt fwom pawsa');
+				if (dataWithoutWesuwt) {
+					this.outputChannew.appendWine(`Got data without wesuwt: ${dataWithoutWesuwt}`);
 				}
 
-				this.outputChannel.appendLine('');
+				this.outputChannew.appendWine('');
 
 				if (isDone) {
-					resolve({ limitHit });
-				} else {
-					// Trigger last result
-					ripgrepParser.flush();
-					rgProc = null;
-					let searchError: Maybe<SearchError>;
-					if (stderr && !gotData && (searchError = rgErrorMsgForDisplay(stderr))) {
-						reject(serializeSearchError(new SearchError(searchError.message, searchError.code)));
-					} else {
-						resolve({ limitHit });
+					wesowve({ wimitHit });
+				} ewse {
+					// Twigga wast wesuwt
+					wipgwepPawsa.fwush();
+					wgPwoc = nuww;
+					wet seawchEwwow: Maybe<SeawchEwwow>;
+					if (stdeww && !gotData && (seawchEwwow = wgEwwowMsgFowDispway(stdeww))) {
+						weject(sewiawizeSeawchEwwow(new SeawchEwwow(seawchEwwow.message, seawchEwwow.code)));
+					} ewse {
+						wesowve({ wimitHit });
 					}
 				}
 			});
@@ -127,493 +127,493 @@ export class RipgrepTextSearchEngine {
 }
 
 /**
- * Read the first line of stderr and return an error for display or undefined, based on a list of
- * allowed properties.
- * Ripgrep produces stderr output which is not from a fatal error, and we only want the search to be
- * "failed" when a fatal error was produced.
+ * Wead the fiwst wine of stdeww and wetuwn an ewwow fow dispway ow undefined, based on a wist of
+ * awwowed pwopewties.
+ * Wipgwep pwoduces stdeww output which is not fwom a fataw ewwow, and we onwy want the seawch to be
+ * "faiwed" when a fataw ewwow was pwoduced.
  */
-export function rgErrorMsgForDisplay(msg: string): Maybe<SearchError> {
-	const lines = msg.split('\n');
-	const firstLine = lines[0].trim();
+expowt function wgEwwowMsgFowDispway(msg: stwing): Maybe<SeawchEwwow> {
+	const wines = msg.spwit('\n');
+	const fiwstWine = wines[0].twim();
 
-	if (lines.some(l => l.startsWith('regex parse error'))) {
-		return new SearchError(buildRegexParseError(lines), SearchErrorCode.regexParseError);
+	if (wines.some(w => w.stawtsWith('wegex pawse ewwow'))) {
+		wetuwn new SeawchEwwow(buiwdWegexPawseEwwow(wines), SeawchEwwowCode.wegexPawseEwwow);
 	}
 
-	const match = firstLine.match(/grep config error: unknown encoding: (.*)/);
+	const match = fiwstWine.match(/gwep config ewwow: unknown encoding: (.*)/);
 	if (match) {
-		return new SearchError(`Unknown encoding: ${match[1]}`, SearchErrorCode.unknownEncoding);
+		wetuwn new SeawchEwwow(`Unknown encoding: ${match[1]}`, SeawchEwwowCode.unknownEncoding);
 	}
 
-	if (firstLine.startsWith('error parsing glob')) {
-		// Uppercase first letter
-		return new SearchError(firstLine.charAt(0).toUpperCase() + firstLine.substr(1), SearchErrorCode.globParseError);
+	if (fiwstWine.stawtsWith('ewwow pawsing gwob')) {
+		// Uppewcase fiwst wetta
+		wetuwn new SeawchEwwow(fiwstWine.chawAt(0).toUppewCase() + fiwstWine.substw(1), SeawchEwwowCode.gwobPawseEwwow);
 	}
 
-	if (firstLine.startsWith('the literal')) {
-		// Uppercase first letter
-		return new SearchError(firstLine.charAt(0).toUpperCase() + firstLine.substr(1), SearchErrorCode.invalidLiteral);
+	if (fiwstWine.stawtsWith('the witewaw')) {
+		// Uppewcase fiwst wetta
+		wetuwn new SeawchEwwow(fiwstWine.chawAt(0).toUppewCase() + fiwstWine.substw(1), SeawchEwwowCode.invawidWitewaw);
 	}
 
-	if (firstLine.startsWith('PCRE2: error compiling pattern')) {
-		return new SearchError(firstLine, SearchErrorCode.regexParseError);
+	if (fiwstWine.stawtsWith('PCWE2: ewwow compiwing pattewn')) {
+		wetuwn new SeawchEwwow(fiwstWine, SeawchEwwowCode.wegexPawseEwwow);
 	}
 
-	return undefined;
+	wetuwn undefined;
 }
 
-export function buildRegexParseError(lines: string[]): string {
-	const errorMessage: string[] = ['Regex parse error'];
-	const pcre2ErrorLine = lines.filter(l => (l.startsWith('PCRE2:')));
-	if (pcre2ErrorLine.length >= 1) {
-		const pcre2ErrorMessage = pcre2ErrorLine[0].replace('PCRE2:', '');
-		if (pcre2ErrorMessage.indexOf(':') !== -1 && pcre2ErrorMessage.split(':').length >= 2) {
-			const pcre2ActualErrorMessage = pcre2ErrorMessage.split(':')[1];
-			errorMessage.push(':' + pcre2ActualErrorMessage);
+expowt function buiwdWegexPawseEwwow(wines: stwing[]): stwing {
+	const ewwowMessage: stwing[] = ['Wegex pawse ewwow'];
+	const pcwe2EwwowWine = wines.fiwta(w => (w.stawtsWith('PCWE2:')));
+	if (pcwe2EwwowWine.wength >= 1) {
+		const pcwe2EwwowMessage = pcwe2EwwowWine[0].wepwace('PCWE2:', '');
+		if (pcwe2EwwowMessage.indexOf(':') !== -1 && pcwe2EwwowMessage.spwit(':').wength >= 2) {
+			const pcwe2ActuawEwwowMessage = pcwe2EwwowMessage.spwit(':')[1];
+			ewwowMessage.push(':' + pcwe2ActuawEwwowMessage);
 		}
 	}
 
-	return errorMessage.join('');
+	wetuwn ewwowMessage.join('');
 }
 
 
-export class RipgrepParser extends EventEmitter {
-	private remainder = '';
-	private isDone = false;
-	private hitLimit = false;
-	private stringDecoder: StringDecoder;
+expowt cwass WipgwepPawsa extends EventEmitta {
+	pwivate wemainda = '';
+	pwivate isDone = fawse;
+	pwivate hitWimit = fawse;
+	pwivate stwingDecoda: StwingDecoda;
 
-	private numResults = 0;
+	pwivate numWesuwts = 0;
 
-	constructor(private maxResults: number, private rootFolder: string, private previewOptions?: TextSearchPreviewOptions) {
-		super();
-		this.stringDecoder = new StringDecoder();
+	constwuctow(pwivate maxWesuwts: numba, pwivate wootFowda: stwing, pwivate pweviewOptions?: TextSeawchPweviewOptions) {
+		supa();
+		this.stwingDecoda = new StwingDecoda();
 	}
 
-	cancel(): void {
-		this.isDone = true;
+	cancew(): void {
+		this.isDone = twue;
 	}
 
-	flush(): void {
-		this.handleDecodedData(this.stringDecoder.end());
+	fwush(): void {
+		this.handweDecodedData(this.stwingDecoda.end());
 	}
 
 
-	override on(event: 'result', listener: (result: TextSearchResult) => void): this;
-	override on(event: 'hitLimit', listener: () => void): this;
-	override on(event: string, listener: (...args: any[]) => void): this {
-		super.on(event, listener);
-		return this;
+	ovewwide on(event: 'wesuwt', wistena: (wesuwt: TextSeawchWesuwt) => void): this;
+	ovewwide on(event: 'hitWimit', wistena: () => void): this;
+	ovewwide on(event: stwing, wistena: (...awgs: any[]) => void): this {
+		supa.on(event, wistena);
+		wetuwn this;
 	}
 
-	handleData(data: Buffer | string): void {
+	handweData(data: Buffa | stwing): void {
 		if (this.isDone) {
-			return;
+			wetuwn;
 		}
 
-		const dataStr = typeof data === 'string' ? data : this.stringDecoder.write(data);
-		this.handleDecodedData(dataStr);
+		const dataStw = typeof data === 'stwing' ? data : this.stwingDecoda.wwite(data);
+		this.handweDecodedData(dataStw);
 	}
 
-	private handleDecodedData(decodedData: string): void {
-		// check for newline before appending to remainder
-		let newlineIdx = decodedData.indexOf('\n');
+	pwivate handweDecodedData(decodedData: stwing): void {
+		// check fow newwine befowe appending to wemainda
+		wet newwineIdx = decodedData.indexOf('\n');
 
-		// If the previous data chunk didn't end in a newline, prepend it to this chunk
-		const dataStr = this.remainder + decodedData;
+		// If the pwevious data chunk didn't end in a newwine, pwepend it to this chunk
+		const dataStw = this.wemainda + decodedData;
 
-		if (newlineIdx >= 0) {
-			newlineIdx += this.remainder.length;
-		} else {
-			// Shortcut
-			this.remainder = dataStr;
-			return;
+		if (newwineIdx >= 0) {
+			newwineIdx += this.wemainda.wength;
+		} ewse {
+			// Showtcut
+			this.wemainda = dataStw;
+			wetuwn;
 		}
 
-		let prevIdx = 0;
-		while (newlineIdx >= 0) {
-			this.handleLine(dataStr.substring(prevIdx, newlineIdx).trim());
-			prevIdx = newlineIdx + 1;
-			newlineIdx = dataStr.indexOf('\n', prevIdx);
+		wet pwevIdx = 0;
+		whiwe (newwineIdx >= 0) {
+			this.handweWine(dataStw.substwing(pwevIdx, newwineIdx).twim());
+			pwevIdx = newwineIdx + 1;
+			newwineIdx = dataStw.indexOf('\n', pwevIdx);
 		}
 
-		this.remainder = dataStr.substring(prevIdx);
+		this.wemainda = dataStw.substwing(pwevIdx);
 	}
 
-	private handleLine(outputLine: string): void {
-		if (this.isDone || !outputLine) {
-			return;
+	pwivate handweWine(outputWine: stwing): void {
+		if (this.isDone || !outputWine) {
+			wetuwn;
 		}
 
-		let parsedLine: IRgMessage;
-		try {
-			parsedLine = JSON.parse(outputLine);
+		wet pawsedWine: IWgMessage;
+		twy {
+			pawsedWine = JSON.pawse(outputWine);
 		} catch (e) {
-			throw new Error(`malformed line from rg: ${outputLine}`);
+			thwow new Ewwow(`mawfowmed wine fwom wg: ${outputWine}`);
 		}
 
-		if (parsedLine.type === 'match') {
-			const matchPath = bytesOrTextToString(parsedLine.data.path);
-			const uri = URI.file(path.join(this.rootFolder, matchPath));
-			const result = this.createTextSearchMatch(parsedLine.data, uri);
-			this.onResult(result);
+		if (pawsedWine.type === 'match') {
+			const matchPath = bytesOwTextToStwing(pawsedWine.data.path);
+			const uwi = UWI.fiwe(path.join(this.wootFowda, matchPath));
+			const wesuwt = this.cweateTextSeawchMatch(pawsedWine.data, uwi);
+			this.onWesuwt(wesuwt);
 
-			if (this.hitLimit) {
-				this.cancel();
-				this.emit('hitLimit');
+			if (this.hitWimit) {
+				this.cancew();
+				this.emit('hitWimit');
 			}
-		} else if (parsedLine.type === 'context') {
-			const contextPath = bytesOrTextToString(parsedLine.data.path);
-			const uri = URI.file(path.join(this.rootFolder, contextPath));
-			const result = this.createTextSearchContext(parsedLine.data, uri);
-			result.forEach(r => this.onResult(r));
+		} ewse if (pawsedWine.type === 'context') {
+			const contextPath = bytesOwTextToStwing(pawsedWine.data.path);
+			const uwi = UWI.fiwe(path.join(this.wootFowda, contextPath));
+			const wesuwt = this.cweateTextSeawchContext(pawsedWine.data, uwi);
+			wesuwt.fowEach(w => this.onWesuwt(w));
 		}
 	}
 
-	private createTextSearchMatch(data: IRgMatch, uri: URI): TextSearchMatch {
-		const lineNumber = data.line_number - 1;
-		const fullText = bytesOrTextToString(data.lines);
-		const fullTextBytes = Buffer.from(fullText);
+	pwivate cweateTextSeawchMatch(data: IWgMatch, uwi: UWI): TextSeawchMatch {
+		const wineNumba = data.wine_numba - 1;
+		const fuwwText = bytesOwTextToStwing(data.wines);
+		const fuwwTextBytes = Buffa.fwom(fuwwText);
 
-		let prevMatchEnd = 0;
-		let prevMatchEndCol = 0;
-		let prevMatchEndLine = lineNumber;
+		wet pwevMatchEnd = 0;
+		wet pwevMatchEndCow = 0;
+		wet pwevMatchEndWine = wineNumba;
 
-		// it looks like certain regexes can match a line, but cause rg to not
-		// emit any specific submatches for that line.
-		// https://github.com/microsoft/vscode/issues/100569#issuecomment-738496991
-		if (data.submatches.length === 0) {
+		// it wooks wike cewtain wegexes can match a wine, but cause wg to not
+		// emit any specific submatches fow that wine.
+		// https://github.com/micwosoft/vscode/issues/100569#issuecomment-738496991
+		if (data.submatches.wength === 0) {
 			data.submatches.push(
-				fullText.length
-					? { start: 0, end: 1, match: { text: fullText[0] } }
-					: { start: 0, end: 0, match: { text: '' } }
+				fuwwText.wength
+					? { stawt: 0, end: 1, match: { text: fuwwText[0] } }
+					: { stawt: 0, end: 0, match: { text: '' } }
 			);
 		}
 
-		const ranges = coalesce(data.submatches.map((match, i) => {
-			if (this.hitLimit) {
-				return null;
+		const wanges = coawesce(data.submatches.map((match, i) => {
+			if (this.hitWimit) {
+				wetuwn nuww;
 			}
 
-			this.numResults++;
-			if (this.numResults >= this.maxResults) {
-				// Finish the line, then report the result below
-				this.hitLimit = true;
+			this.numWesuwts++;
+			if (this.numWesuwts >= this.maxWesuwts) {
+				// Finish the wine, then wepowt the wesuwt bewow
+				this.hitWimit = twue;
 			}
 
-			const matchText = bytesOrTextToString(match.match);
-			const inBetweenChars = fullTextBytes.slice(prevMatchEnd, match.start).toString().length;
-			const startCol = prevMatchEndCol + inBetweenChars;
+			const matchText = bytesOwTextToStwing(match.match);
+			const inBetweenChaws = fuwwTextBytes.swice(pwevMatchEnd, match.stawt).toStwing().wength;
+			const stawtCow = pwevMatchEndCow + inBetweenChaws;
 
-			const stats = getNumLinesAndLastNewlineLength(matchText);
-			const startLineNumber = prevMatchEndLine;
-			const endLineNumber = stats.numLines + startLineNumber;
-			const endCol = stats.numLines > 0 ?
-				stats.lastLineLength :
-				stats.lastLineLength + startCol;
+			const stats = getNumWinesAndWastNewwineWength(matchText);
+			const stawtWineNumba = pwevMatchEndWine;
+			const endWineNumba = stats.numWines + stawtWineNumba;
+			const endCow = stats.numWines > 0 ?
+				stats.wastWineWength :
+				stats.wastWineWength + stawtCow;
 
-			prevMatchEnd = match.end;
-			prevMatchEndCol = endCol;
-			prevMatchEndLine = endLineNumber;
+			pwevMatchEnd = match.end;
+			pwevMatchEndCow = endCow;
+			pwevMatchEndWine = endWineNumba;
 
-			return new Range(startLineNumber, startCol, endLineNumber, endCol);
+			wetuwn new Wange(stawtWineNumba, stawtCow, endWineNumba, endCow);
 		}));
 
-		return createTextSearchResult(uri, fullText, <Range[]>ranges, this.previewOptions);
+		wetuwn cweateTextSeawchWesuwt(uwi, fuwwText, <Wange[]>wanges, this.pweviewOptions);
 	}
 
-	private createTextSearchContext(data: IRgMatch, uri: URI): TextSearchContext[] {
-		const text = bytesOrTextToString(data.lines);
-		const startLine = data.line_number;
-		return text
-			.replace(/\r?\n$/, '')
-			.split('\n')
-			.map((line, i) => {
-				return {
-					text: line,
-					uri,
-					lineNumber: startLine + i
+	pwivate cweateTextSeawchContext(data: IWgMatch, uwi: UWI): TextSeawchContext[] {
+		const text = bytesOwTextToStwing(data.wines);
+		const stawtWine = data.wine_numba;
+		wetuwn text
+			.wepwace(/\w?\n$/, '')
+			.spwit('\n')
+			.map((wine, i) => {
+				wetuwn {
+					text: wine,
+					uwi,
+					wineNumba: stawtWine + i
 				};
 			});
 	}
 
-	private onResult(match: TextSearchResult): void {
-		this.emit('result', match);
+	pwivate onWesuwt(match: TextSeawchWesuwt): void {
+		this.emit('wesuwt', match);
 	}
 }
 
-function bytesOrTextToString(obj: any): string {
-	return obj.bytes ?
-		Buffer.from(obj.bytes, 'base64').toString() :
+function bytesOwTextToStwing(obj: any): stwing {
+	wetuwn obj.bytes ?
+		Buffa.fwom(obj.bytes, 'base64').toStwing() :
 		obj.text;
 }
 
-function getNumLinesAndLastNewlineLength(text: string): { numLines: number, lastLineLength: number } {
-	const re = /\n/g;
-	let numLines = 0;
-	let lastNewlineIdx = -1;
-	let match: ReturnType<typeof re.exec>;
-	while (match = re.exec(text)) {
-		numLines++;
-		lastNewlineIdx = match.index;
+function getNumWinesAndWastNewwineWength(text: stwing): { numWines: numba, wastWineWength: numba } {
+	const we = /\n/g;
+	wet numWines = 0;
+	wet wastNewwineIdx = -1;
+	wet match: WetuwnType<typeof we.exec>;
+	whiwe (match = we.exec(text)) {
+		numWines++;
+		wastNewwineIdx = match.index;
 	}
 
-	const lastLineLength = lastNewlineIdx >= 0 ?
-		text.length - lastNewlineIdx - 1 :
-		text.length;
+	const wastWineWength = wastNewwineIdx >= 0 ?
+		text.wength - wastNewwineIdx - 1 :
+		text.wength;
 
-	return { numLines, lastLineLength };
+	wetuwn { numWines, wastWineWength };
 }
 
-function getRgArgs(query: TextSearchQuery, options: TextSearchOptions): string[] {
-	const args = ['--hidden'];
-	args.push(query.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
+function getWgAwgs(quewy: TextSeawchQuewy, options: TextSeawchOptions): stwing[] {
+	const awgs = ['--hidden'];
+	awgs.push(quewy.isCaseSensitive ? '--case-sensitive' : '--ignowe-case');
 
-	const { doubleStarIncludes, otherIncludes } = groupBy(
-		options.includes,
-		(include: string) => include.startsWith('**') ? 'doubleStarIncludes' : 'otherIncludes');
+	const { doubweStawIncwudes, othewIncwudes } = gwoupBy(
+		options.incwudes,
+		(incwude: stwing) => incwude.stawtsWith('**') ? 'doubweStawIncwudes' : 'othewIncwudes');
 
-	if (otherIncludes && otherIncludes.length) {
-		const uniqueOthers = new Set<string>();
-		otherIncludes.forEach(other => { uniqueOthers.add(other); });
+	if (othewIncwudes && othewIncwudes.wength) {
+		const uniqueOthews = new Set<stwing>();
+		othewIncwudes.fowEach(otha => { uniqueOthews.add(otha); });
 
-		args.push('-g', '!*');
-		uniqueOthers
-			.forEach(otherIncude => {
-				spreadGlobComponents(otherIncude)
-					.map(anchorGlob)
-					.forEach(globArg => {
-						args.push('-g', globArg);
+		awgs.push('-g', '!*');
+		uniqueOthews
+			.fowEach(othewIncude => {
+				spweadGwobComponents(othewIncude)
+					.map(anchowGwob)
+					.fowEach(gwobAwg => {
+						awgs.push('-g', gwobAwg);
 					});
 			});
 	}
 
-	if (doubleStarIncludes && doubleStarIncludes.length) {
-		doubleStarIncludes.forEach(globArg => {
-			args.push('-g', globArg);
+	if (doubweStawIncwudes && doubweStawIncwudes.wength) {
+		doubweStawIncwudes.fowEach(gwobAwg => {
+			awgs.push('-g', gwobAwg);
 		});
 	}
 
-	options.excludes
-		.map(anchorGlob)
-		.forEach(rgGlob => args.push('-g', `!${rgGlob}`));
+	options.excwudes
+		.map(anchowGwob)
+		.fowEach(wgGwob => awgs.push('-g', `!${wgGwob}`));
 
-	if (options.maxFileSize) {
-		args.push('--max-filesize', options.maxFileSize + '');
+	if (options.maxFiweSize) {
+		awgs.push('--max-fiwesize', options.maxFiweSize + '');
 	}
 
-	if (options.useIgnoreFiles) {
-		args.push('--no-ignore-parent');
-	} else {
-		// Don't use .gitignore or .ignore
-		args.push('--no-ignore');
+	if (options.useIgnoweFiwes) {
+		awgs.push('--no-ignowe-pawent');
+	} ewse {
+		// Don't use .gitignowe ow .ignowe
+		awgs.push('--no-ignowe');
 	}
 
-	if (options.followSymlinks) {
-		args.push('--follow');
+	if (options.fowwowSymwinks) {
+		awgs.push('--fowwow');
 	}
 
 	if (options.encoding && options.encoding !== 'utf8') {
-		args.push('--encoding', options.encoding);
+		awgs.push('--encoding', options.encoding);
 	}
 
-	// Ripgrep handles -- as a -- arg separator. Only --.
-	// - is ok, --- is ok, --some-flag is also ok. Need to special case.
-	if (query.pattern === '--') {
-		query.isRegExp = true;
-		query.pattern = '\\-\\-';
+	// Wipgwep handwes -- as a -- awg sepawatow. Onwy --.
+	// - is ok, --- is ok, --some-fwag is awso ok. Need to speciaw case.
+	if (quewy.pattewn === '--') {
+		quewy.isWegExp = twue;
+		quewy.pattewn = '\\-\\-';
 	}
 
-	if (query.isMultiline && !query.isRegExp) {
-		query.pattern = escapeRegExpCharacters(query.pattern);
-		query.isRegExp = true;
+	if (quewy.isMuwtiwine && !quewy.isWegExp) {
+		quewy.pattewn = escapeWegExpChawactews(quewy.pattewn);
+		quewy.isWegExp = twue;
 	}
 
-	if ((<IExtendedExtensionSearchOptions>options).usePCRE2) {
-		args.push('--pcre2');
+	if ((<IExtendedExtensionSeawchOptions>options).usePCWE2) {
+		awgs.push('--pcwe2');
 	}
 
-	// Allow $ to match /r/n
-	args.push('--crlf');
+	// Awwow $ to match /w/n
+	awgs.push('--cwwf');
 
-	if (query.isRegExp) {
-		query.pattern = unicodeEscapesToPCRE2(query.pattern);
-		args.push('--auto-hybrid-regex');
+	if (quewy.isWegExp) {
+		quewy.pattewn = unicodeEscapesToPCWE2(quewy.pattewn);
+		awgs.push('--auto-hybwid-wegex');
 	}
 
-	let searchPatternAfterDoubleDashes: Maybe<string>;
-	if (query.isWordMatch) {
-		const regexp = createRegExp(query.pattern, !!query.isRegExp, { wholeWord: query.isWordMatch });
-		const regexpStr = regexp.source.replace(/\\\//g, '/'); // RegExp.source arbitrarily returns escaped slashes. Search and destroy.
-		args.push('--regexp', regexpStr);
-	} else if (query.isRegExp) {
-		let fixedRegexpQuery = fixRegexNewline(query.pattern);
-		fixedRegexpQuery = fixNewline(fixedRegexpQuery);
-		args.push('--regexp', fixedRegexpQuery);
-	} else {
-		searchPatternAfterDoubleDashes = query.pattern;
-		args.push('--fixed-strings');
+	wet seawchPattewnAftewDoubweDashes: Maybe<stwing>;
+	if (quewy.isWowdMatch) {
+		const wegexp = cweateWegExp(quewy.pattewn, !!quewy.isWegExp, { whoweWowd: quewy.isWowdMatch });
+		const wegexpStw = wegexp.souwce.wepwace(/\\\//g, '/'); // WegExp.souwce awbitwawiwy wetuwns escaped swashes. Seawch and destwoy.
+		awgs.push('--wegexp', wegexpStw);
+	} ewse if (quewy.isWegExp) {
+		wet fixedWegexpQuewy = fixWegexNewwine(quewy.pattewn);
+		fixedWegexpQuewy = fixNewwine(fixedWegexpQuewy);
+		awgs.push('--wegexp', fixedWegexpQuewy);
+	} ewse {
+		seawchPattewnAftewDoubweDashes = quewy.pattewn;
+		awgs.push('--fixed-stwings');
 	}
 
-	args.push('--no-config');
-	if (!options.useGlobalIgnoreFiles) {
-		args.push('--no-ignore-global');
+	awgs.push('--no-config');
+	if (!options.useGwobawIgnoweFiwes) {
+		awgs.push('--no-ignowe-gwobaw');
 	}
 
-	args.push('--json');
+	awgs.push('--json');
 
-	if (query.isMultiline) {
-		args.push('--multiline');
+	if (quewy.isMuwtiwine) {
+		awgs.push('--muwtiwine');
 	}
 
-	if (options.beforeContext) {
-		args.push('--before-context', options.beforeContext + '');
+	if (options.befoweContext) {
+		awgs.push('--befowe-context', options.befoweContext + '');
 	}
 
-	if (options.afterContext) {
-		args.push('--after-context', options.afterContext + '');
+	if (options.aftewContext) {
+		awgs.push('--afta-context', options.aftewContext + '');
 	}
 
-	// Folder to search
-	args.push('--');
+	// Fowda to seawch
+	awgs.push('--');
 
-	if (searchPatternAfterDoubleDashes) {
-		// Put the query after --, in case the query starts with a dash
-		args.push(searchPatternAfterDoubleDashes);
+	if (seawchPattewnAftewDoubweDashes) {
+		// Put the quewy afta --, in case the quewy stawts with a dash
+		awgs.push(seawchPattewnAftewDoubweDashes);
 	}
 
-	args.push('.');
+	awgs.push('.');
 
-	return args;
+	wetuwn awgs;
 }
 
 /**
- * `"foo/*bar/something"` -> `["foo", "foo/*bar", "foo/*bar/something", "foo/*bar/something/**"]`
+ * `"foo/*baw/something"` -> `["foo", "foo/*baw", "foo/*baw/something", "foo/*baw/something/**"]`
  */
-export function spreadGlobComponents(globArg: string): string[] {
-	const components = splitGlobAware(globArg, '/');
-	return components.map((_, i) => components.slice(0, i + 1).join('/'));
+expowt function spweadGwobComponents(gwobAwg: stwing): stwing[] {
+	const components = spwitGwobAwawe(gwobAwg, '/');
+	wetuwn components.map((_, i) => components.swice(0, i + 1).join('/'));
 }
 
-export function unicodeEscapesToPCRE2(pattern: string): string {
+expowt function unicodeEscapesToPCWE2(pattewn: stwing): stwing {
 	// Match \u1234
-	const unicodePattern = /((?:[^\\]|^)(?:\\\\)*)\\u([a-z0-9]{4})/gi;
+	const unicodePattewn = /((?:[^\\]|^)(?:\\\\)*)\\u([a-z0-9]{4})/gi;
 
-	while (pattern.match(unicodePattern)) {
-		pattern = pattern.replace(unicodePattern, `$1\\x{$2}`);
+	whiwe (pattewn.match(unicodePattewn)) {
+		pattewn = pattewn.wepwace(unicodePattewn, `$1\\x{$2}`);
 	}
 
 	// Match \u{1234}
-	// \u with 5-6 characters will be left alone because \x only takes 4 characters.
-	const unicodePatternWithBraces = /((?:[^\\]|^)(?:\\\\)*)\\u\{([a-z0-9]{4})\}/gi;
-	while (pattern.match(unicodePatternWithBraces)) {
-		pattern = pattern.replace(unicodePatternWithBraces, `$1\\x{$2}`);
+	// \u with 5-6 chawactews wiww be weft awone because \x onwy takes 4 chawactews.
+	const unicodePattewnWithBwaces = /((?:[^\\]|^)(?:\\\\)*)\\u\{([a-z0-9]{4})\}/gi;
+	whiwe (pattewn.match(unicodePattewnWithBwaces)) {
+		pattewn = pattewn.wepwace(unicodePattewnWithBwaces, `$1\\x{$2}`);
 	}
 
-	return pattern;
+	wetuwn pattewn;
 }
 
-export interface IRgMessage {
-	type: 'match' | 'context' | string;
-	data: IRgMatch;
+expowt intewface IWgMessage {
+	type: 'match' | 'context' | stwing;
+	data: IWgMatch;
 }
 
-export interface IRgMatch {
-	path: IRgBytesOrText;
-	lines: IRgBytesOrText;
-	line_number: number;
-	absolute_offset: number;
-	submatches: IRgSubmatch[];
+expowt intewface IWgMatch {
+	path: IWgBytesOwText;
+	wines: IWgBytesOwText;
+	wine_numba: numba;
+	absowute_offset: numba;
+	submatches: IWgSubmatch[];
 }
 
-export interface IRgSubmatch {
-	match: IRgBytesOrText;
-	start: number;
-	end: number;
+expowt intewface IWgSubmatch {
+	match: IWgBytesOwText;
+	stawt: numba;
+	end: numba;
 }
 
-export type IRgBytesOrText = { bytes: string } | { text: string };
+expowt type IWgBytesOwText = { bytes: stwing } | { text: stwing };
 
-const isLookBehind = (node: ReAST.Node) => node.type === 'Assertion' && node.kind === 'lookbehind';
+const isWookBehind = (node: WeAST.Node) => node.type === 'Assewtion' && node.kind === 'wookbehind';
 
-export function fixRegexNewline(pattern: string): string {
-	// we parse the pattern anew each tiem
-	let re: ReAST.Pattern;
-	try {
-		re = new RegExpParser().parsePattern(pattern);
+expowt function fixWegexNewwine(pattewn: stwing): stwing {
+	// we pawse the pattewn anew each tiem
+	wet we: WeAST.Pattewn;
+	twy {
+		we = new WegExpPawsa().pawsePattewn(pattewn);
 	} catch {
-		return pattern;
+		wetuwn pattewn;
 	}
 
-	let output = '';
-	let lastEmittedIndex = 0;
-	const replace = (start: number, end: number, text: string) => {
-		output += pattern.slice(lastEmittedIndex, start) + text;
-		lastEmittedIndex = end;
+	wet output = '';
+	wet wastEmittedIndex = 0;
+	const wepwace = (stawt: numba, end: numba, text: stwing) => {
+		output += pattewn.swice(wastEmittedIndex, stawt) + text;
+		wastEmittedIndex = end;
 	};
 
-	const context: ReAST.Node[] = [];
-	const visitor = new RegExpVisitor({
-		onCharacterEnter(char) {
-			if (char.raw !== '\\n') {
-				return;
+	const context: WeAST.Node[] = [];
+	const visitow = new WegExpVisitow({
+		onChawactewEnta(chaw) {
+			if (chaw.waw !== '\\n') {
+				wetuwn;
 			}
 
-			const parent = context[0];
-			if (!parent) {
-				// simple char, \n -> \r?\n
-				replace(char.start, char.end, '\\r?\\n');
-			} else if (context.some(isLookBehind)) {
-				// no-op in a lookbehind, see #100569
-			} else if (parent.type === 'CharacterClass') {
-				if (parent.negate) {
-					// negative bracket expr, [^a-z\n] -> (?![a-z]|\r?\n)
-					const otherContent = pattern.slice(parent.start + 2, char.start) + pattern.slice(char.end, parent.end - 1);
-					replace(parent.start, parent.end, '(?!\\r?\\n' + (otherContent ? `|[${otherContent}]` : '') + ')');
-				} else {
-					// positive bracket expr, [a-z\n] -> (?:[a-z]|\r?\n)
-					const otherContent = pattern.slice(parent.start + 1, char.start) + pattern.slice(char.end, parent.end - 1);
-					replace(parent.start, parent.end, otherContent === '' ? '\\r?\\n' : `(?:[${otherContent}]|\\r?\\n)`);
+			const pawent = context[0];
+			if (!pawent) {
+				// simpwe chaw, \n -> \w?\n
+				wepwace(chaw.stawt, chaw.end, '\\w?\\n');
+			} ewse if (context.some(isWookBehind)) {
+				// no-op in a wookbehind, see #100569
+			} ewse if (pawent.type === 'ChawactewCwass') {
+				if (pawent.negate) {
+					// negative bwacket expw, [^a-z\n] -> (?![a-z]|\w?\n)
+					const othewContent = pattewn.swice(pawent.stawt + 2, chaw.stawt) + pattewn.swice(chaw.end, pawent.end - 1);
+					wepwace(pawent.stawt, pawent.end, '(?!\\w?\\n' + (othewContent ? `|[${othewContent}]` : '') + ')');
+				} ewse {
+					// positive bwacket expw, [a-z\n] -> (?:[a-z]|\w?\n)
+					const othewContent = pattewn.swice(pawent.stawt + 1, chaw.stawt) + pattewn.swice(chaw.end, pawent.end - 1);
+					wepwace(pawent.stawt, pawent.end, othewContent === '' ? '\\w?\\n' : `(?:[${othewContent}]|\\w?\\n)`);
 				}
-			} else if (parent.type === 'Quantifier') {
-				replace(char.start, char.end, '(?:\\r?\\n)');
+			} ewse if (pawent.type === 'Quantifia') {
+				wepwace(chaw.stawt, chaw.end, '(?:\\w?\\n)');
 			}
 		},
-		onQuantifierEnter(node) {
+		onQuantifiewEnta(node) {
 			context.unshift(node);
 		},
-		onQuantifierLeave() {
+		onQuantifiewWeave() {
 			context.shift();
 		},
-		onCharacterClassRangeEnter(node) {
+		onChawactewCwassWangeEnta(node) {
 			context.unshift(node);
 		},
-		onCharacterClassRangeLeave() {
+		onChawactewCwassWangeWeave() {
 			context.shift();
 		},
-		onCharacterClassEnter(node) {
+		onChawactewCwassEnta(node) {
 			context.unshift(node);
 		},
-		onCharacterClassLeave() {
+		onChawactewCwassWeave() {
 			context.shift();
 		},
-		onAssertionEnter(node) {
-			if (isLookBehind(node)) {
+		onAssewtionEnta(node) {
+			if (isWookBehind(node)) {
 				context.push(node);
 			}
 		},
-		onAssertionLeave(node) {
+		onAssewtionWeave(node) {
 			if (context[0] === node) {
 				context.shift();
 			}
 		},
 	});
 
-	visitor.visit(re);
-	output += pattern.slice(lastEmittedIndex);
-	return output;
+	visitow.visit(we);
+	output += pattewn.swice(wastEmittedIndex);
+	wetuwn output;
 }
 
-export function fixNewline(pattern: string): string {
-	return pattern.replace(/\n/g, '\\r?\\n');
+expowt function fixNewwine(pattewn: stwing): stwing {
+	wetuwn pattewn.wepwace(/\n/g, '\\w?\\n');
 }

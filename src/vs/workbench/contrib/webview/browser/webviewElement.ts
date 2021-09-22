@@ -1,685 +1,685 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { isFirefox } from 'vs/base/browser/browser';
-import { addDisposableListener } from 'vs/base/browser/dom';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { IAction } from 'vs/base/common/actions';
-import { ThrottledDelayer } from 'vs/base/common/async';
-import { streamToBuffer } from 'vs/base/common/buffer';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { WebviewPortMappingManager } from 'vs/platform/webview/common/webviewPortMapping';
-import { asWebviewUri, decodeAuthority, webviewGenericCspSource, webviewRootResourceAuthority } from 'vs/workbench/api/common/shared/webview';
-import { loadLocalResource, WebviewResourceResponse } from 'vs/workbench/contrib/webview/browser/resourceLoading';
-import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
-import { areWebviewContentOptionsEqual, Webview, WebviewContentOptions, WebviewExtensionDescription, WebviewMessageReceivedEvent, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+impowt { isFiwefox } fwom 'vs/base/bwowsa/bwowsa';
+impowt { addDisposabweWistena } fwom 'vs/base/bwowsa/dom';
+impowt { IMouseWheewEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { ThwottwedDewaya } fwom 'vs/base/common/async';
+impowt { stweamToBuffa } fwom 'vs/base/common/buffa';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { cweateAndFiwwInContextMenuActions } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { IMenuSewvice, MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IWemoteAuthowityWesowvewSewvice } fwom 'vs/pwatfowm/wemote/common/wemoteAuthowityWesowva';
+impowt { ITunnewSewvice } fwom 'vs/pwatfowm/wemote/common/tunnew';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { WebviewPowtMappingManaga } fwom 'vs/pwatfowm/webview/common/webviewPowtMapping';
+impowt { asWebviewUwi, decodeAuthowity, webviewGenewicCspSouwce, webviewWootWesouwceAuthowity } fwom 'vs/wowkbench/api/common/shawed/webview';
+impowt { woadWocawWesouwce, WebviewWesouwceWesponse } fwom 'vs/wowkbench/contwib/webview/bwowsa/wesouwceWoading';
+impowt { WebviewThemeDataPwovida } fwom 'vs/wowkbench/contwib/webview/bwowsa/themeing';
+impowt { aweWebviewContentOptionsEquaw, Webview, WebviewContentOptions, WebviewExtensionDescwiption, WebviewMessageWeceivedEvent, WebviewOptions } fwom 'vs/wowkbench/contwib/webview/bwowsa/webview';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
 
-export const enum WebviewMessageChannels {
+expowt const enum WebviewMessageChannews {
 	onmessage = 'onmessage',
-	didClickLink = 'did-click-link',
-	didScroll = 'did-scroll',
+	didCwickWink = 'did-cwick-wink',
+	didScwoww = 'did-scwoww',
 	didFocus = 'did-focus',
-	didBlur = 'did-blur',
-	didLoad = 'did-load',
+	didBwuw = 'did-bwuw',
+	didWoad = 'did-woad',
 	doUpdateState = 'do-update-state',
-	doReload = 'do-reload',
-	setConfirmBeforeClose = 'set-confirm-before-close',
-	loadResource = 'load-resource',
-	loadLocalhost = 'load-localhost',
-	webviewReady = 'webview-ready',
-	wheel = 'did-scroll-wheel',
-	fatalError = 'fatal-error',
+	doWewoad = 'do-wewoad',
+	setConfiwmBefoweCwose = 'set-confiwm-befowe-cwose',
+	woadWesouwce = 'woad-wesouwce',
+	woadWocawhost = 'woad-wocawhost',
+	webviewWeady = 'webview-weady',
+	wheew = 'did-scwoww-wheew',
+	fatawEwwow = 'fataw-ewwow',
 	noCspFound = 'no-csp-found',
 	didKeydown = 'did-keydown',
 	didKeyup = 'did-keyup',
 	didContextMenu = 'did-context-menu',
 }
 
-interface IKeydownEvent {
-	key: string;
-	keyCode: number;
-	code: string;
-	shiftKey: boolean;
-	altKey: boolean;
-	ctrlKey: boolean;
-	metaKey: boolean;
-	repeat: boolean;
+intewface IKeydownEvent {
+	key: stwing;
+	keyCode: numba;
+	code: stwing;
+	shiftKey: boowean;
+	awtKey: boowean;
+	ctwwKey: boowean;
+	metaKey: boowean;
+	wepeat: boowean;
 }
 
-interface WebviewContent {
-	readonly html: string;
-	readonly options: WebviewContentOptions;
-	readonly state: string | undefined;
+intewface WebviewContent {
+	weadonwy htmw: stwing;
+	weadonwy options: WebviewContentOptions;
+	weadonwy state: stwing | undefined;
 }
 
 namespace WebviewState {
-	export const enum Type { Initializing, Ready }
+	expowt const enum Type { Initiawizing, Weady }
 
-	export class Initializing {
-		readonly type = Type.Initializing;
+	expowt cwass Initiawizing {
+		weadonwy type = Type.Initiawizing;
 
-		constructor(
-			public readonly pendingMessages: Array<{ readonly channel: string, readonly data?: any }>
+		constwuctow(
+			pubwic weadonwy pendingMessages: Awway<{ weadonwy channew: stwing, weadonwy data?: any }>
 		) { }
 	}
 
-	export const Ready = { type: Type.Ready } as const;
+	expowt const Weady = { type: Type.Weady } as const;
 
-	export type State = typeof Ready | Initializing;
+	expowt type State = typeof Weady | Initiawizing;
 }
 
-export class IFrameWebview extends Disposable implements Webview {
+expowt cwass IFwameWebview extends Disposabwe impwements Webview {
 
-	protected get platform(): string { return 'browser'; }
+	pwotected get pwatfowm(): stwing { wetuwn 'bwowsa'; }
 
-	private readonly _expectedServiceWorkerVersion = 2; // Keep this in sync with the version in service-worker.js
+	pwivate weadonwy _expectedSewviceWowkewVewsion = 2; // Keep this in sync with the vewsion in sewvice-wowka.js
 
-	private _element: HTMLIFrameElement | undefined;
-	protected get element(): HTMLIFrameElement | undefined { return this._element; }
+	pwivate _ewement: HTMWIFwameEwement | undefined;
+	pwotected get ewement(): HTMWIFwameEwement | undefined { wetuwn this._ewement; }
 
-	private _focused: boolean | undefined;
-	public get isFocused(): boolean { return !!this._focused; }
+	pwivate _focused: boowean | undefined;
+	pubwic get isFocused(): boowean { wetuwn !!this._focused; }
 
-	private _state: WebviewState.State = new WebviewState.Initializing([]);
+	pwivate _state: WebviewState.State = new WebviewState.Initiawizing([]);
 
-	private content: WebviewContent;
+	pwivate content: WebviewContent;
 
-	private readonly _portMappingManager: WebviewPortMappingManager;
+	pwivate weadonwy _powtMappingManaga: WebviewPowtMappingManaga;
 
-	private readonly _resourceLoadingCts = this._register(new CancellationTokenSource());
+	pwivate weadonwy _wesouwceWoadingCts = this._wegista(new CancewwationTokenSouwce());
 
-	private _contextKeyService: IContextKeyService | undefined;
+	pwivate _contextKeySewvice: IContextKeySewvice | undefined;
 
-	private _confirmBeforeClose: string;
+	pwivate _confiwmBefoweCwose: stwing;
 
-	private readonly _focusDelayer = this._register(new ThrottledDelayer(50));
+	pwivate weadonwy _focusDewaya = this._wegista(new ThwottwedDewaya(50));
 
-	private readonly _onDidHtmlChange: Emitter<string> = this._register(new Emitter<string>());
-	protected readonly onDidHtmlChange = this._onDidHtmlChange.event;
+	pwivate weadonwy _onDidHtmwChange: Emitta<stwing> = this._wegista(new Emitta<stwing>());
+	pwotected weadonwy onDidHtmwChange = this._onDidHtmwChange.event;
 
-	private readonly _messageHandlers = new Map<string, Set<(data: any) => void>>();
+	pwivate weadonwy _messageHandwews = new Map<stwing, Set<(data: any) => void>>();
 
-	constructor(
-		public readonly id: string,
-		private readonly options: WebviewOptions,
+	constwuctow(
+		pubwic weadonwy id: stwing,
+		pwivate weadonwy options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
-		public extension: WebviewExtensionDescription | undefined,
-		protected readonly webviewThemeDataProvider: WebviewThemeDataProvider,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IMenuService menuService: IMenuService,
-		@INotificationService notificationService: INotificationService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
-		@IFileService private readonly _fileService: IFileService,
-		@ILogService private readonly _logService: ILogService,
-		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@ITunnelService private readonly _tunnelService: ITunnelService,
+		pubwic extension: WebviewExtensionDescwiption | undefined,
+		pwotected weadonwy webviewThemeDataPwovida: WebviewThemeDataPwovida,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IMenuSewvice menuSewvice: IMenuSewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy _enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IFiweSewvice pwivate weadonwy _fiweSewvice: IFiweSewvice,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice,
+		@IWemoteAuthowityWesowvewSewvice pwivate weadonwy _wemoteAuthowityWesowvewSewvice: IWemoteAuthowityWesowvewSewvice,
+		@ITewemetwySewvice pwivate weadonwy _tewemetwySewvice: ITewemetwySewvice,
+		@ITunnewSewvice pwivate weadonwy _tunnewSewvice: ITunnewSewvice,
 	) {
-		super();
+		supa();
 
 		this.content = {
-			html: '',
+			htmw: '',
 			options: contentOptions,
 			state: undefined
 		};
 
-		this._portMappingManager = this._register(new WebviewPortMappingManager(
-			() => this.extension?.location,
-			() => this.content.options.portMapping || [],
-			this._tunnelService
+		this._powtMappingManaga = this._wegista(new WebviewPowtMappingManaga(
+			() => this.extension?.wocation,
+			() => this.content.options.powtMapping || [],
+			this._tunnewSewvice
 		));
 
-		this._element = this.createElement(options, contentOptions);
+		this._ewement = this.cweateEwement(options, contentOptions);
 
-		const subscription = this._register(this.on(WebviewMessageChannels.webviewReady, () => {
-			this._logService.debug(`Webview(${this.id}): webview ready`);
+		const subscwiption = this._wegista(this.on(WebviewMessageChannews.webviewWeady, () => {
+			this._wogSewvice.debug(`Webview(${this.id}): webview weady`);
 
-			this.element?.classList.add('ready');
+			this.ewement?.cwassWist.add('weady');
 
-			if (this._state.type === WebviewState.Type.Initializing) {
-				this._state.pendingMessages.forEach(({ channel, data }) => this.doPostMessage(channel, data));
+			if (this._state.type === WebviewState.Type.Initiawizing) {
+				this._state.pendingMessages.fowEach(({ channew, data }) => this.doPostMessage(channew, data));
 			}
-			this._state = WebviewState.Ready;
+			this._state = WebviewState.Weady;
 
-			subscription.dispose();
+			subscwiption.dispose();
 		}));
 
-		this._register(this.on(WebviewMessageChannels.noCspFound, () => {
-			this.handleNoCspFound();
+		this._wegista(this.on(WebviewMessageChannews.noCspFound, () => {
+			this.handweNoCspFound();
 		}));
 
-		this._register(this.on(WebviewMessageChannels.didClickLink, (uri: string) => {
-			this._onDidClickLink.fire(uri);
+		this._wegista(this.on(WebviewMessageChannews.didCwickWink, (uwi: stwing) => {
+			this._onDidCwickWink.fiwe(uwi);
 		}));
 
-		this._register(this.on(WebviewMessageChannels.onmessage, (data: { message: any, transfer?: ArrayBuffer[] }) => {
-			this._onMessage.fire({
+		this._wegista(this.on(WebviewMessageChannews.onmessage, (data: { message: any, twansfa?: AwwayBuffa[] }) => {
+			this._onMessage.fiwe({
 				message: data.message,
-				transfer: data.transfer,
+				twansfa: data.twansfa,
 			});
 		}));
 
-		this._register(this.on(WebviewMessageChannels.didScroll, (scrollYPercentage: number) => {
-			this._onDidScroll.fire({ scrollYPercentage: scrollYPercentage });
+		this._wegista(this.on(WebviewMessageChannews.didScwoww, (scwowwYPewcentage: numba) => {
+			this._onDidScwoww.fiwe({ scwowwYPewcentage: scwowwYPewcentage });
 		}));
 
-		this._register(this.on(WebviewMessageChannels.doReload, () => {
-			this.reload();
+		this._wegista(this.on(WebviewMessageChannews.doWewoad, () => {
+			this.wewoad();
 		}));
 
-		this._register(this.on(WebviewMessageChannels.doUpdateState, (state: any) => {
+		this._wegista(this.on(WebviewMessageChannews.doUpdateState, (state: any) => {
 			this.state = state;
-			this._onDidUpdateState.fire(state);
+			this._onDidUpdateState.fiwe(state);
 		}));
 
-		this._register(this.on(WebviewMessageChannels.didFocus, () => {
-			this.handleFocusChange(true);
+		this._wegista(this.on(WebviewMessageChannews.didFocus, () => {
+			this.handweFocusChange(twue);
 		}));
 
-		this._register(this.on(WebviewMessageChannels.wheel, (event: IMouseWheelEvent) => {
-			this._onDidWheel.fire(event);
+		this._wegista(this.on(WebviewMessageChannews.wheew, (event: IMouseWheewEvent) => {
+			this._onDidWheew.fiwe(event);
 		}));
 
-		this._register(this.on(WebviewMessageChannels.didBlur, () => {
-			this.handleFocusChange(false);
+		this._wegista(this.on(WebviewMessageChannews.didBwuw, () => {
+			this.handweFocusChange(fawse);
 		}));
 
-		this._register(this.on<{ message: string }>(WebviewMessageChannels.fatalError, (e) => {
-			notificationService.error(localize('fatalErrorMessage', "Error loading webview: {0}", e.message));
+		this._wegista(this.on<{ message: stwing }>(WebviewMessageChannews.fatawEwwow, (e) => {
+			notificationSewvice.ewwow(wocawize('fatawEwwowMessage', "Ewwow woading webview: {0}", e.message));
 		}));
 
-		this._register(this.on(WebviewMessageChannels.didKeydown, (data: KeyboardEvent) => {
-			// Electron: workaround for https://github.com/electron/electron/issues/14258
-			// We have to detect keyboard events in the <webview> and dispatch them to our
-			// keybinding service because these events do not bubble to the parent window anymore.
-			this.handleKeyEvent('keydown', data);
+		this._wegista(this.on(WebviewMessageChannews.didKeydown, (data: KeyboawdEvent) => {
+			// Ewectwon: wowkawound fow https://github.com/ewectwon/ewectwon/issues/14258
+			// We have to detect keyboawd events in the <webview> and dispatch them to ouw
+			// keybinding sewvice because these events do not bubbwe to the pawent window anymowe.
+			this.handweKeyEvent('keydown', data);
 		}));
 
-		this._register(this.on(WebviewMessageChannels.didKeyup, (data: KeyboardEvent) => {
-			this.handleKeyEvent('keyup', data);
+		this._wegista(this.on(WebviewMessageChannews.didKeyup, (data: KeyboawdEvent) => {
+			this.handweKeyEvent('keyup', data);
 		}));
 
-		this._register(this.on(WebviewMessageChannels.didContextMenu, (data: { clientX: number, clientY: number }) => {
-			if (!this.element) {
-				return;
+		this._wegista(this.on(WebviewMessageChannews.didContextMenu, (data: { cwientX: numba, cwientY: numba }) => {
+			if (!this.ewement) {
+				wetuwn;
 			}
-			if (!this._contextKeyService) {
-				return;
+			if (!this._contextKeySewvice) {
+				wetuwn;
 			}
-			const elementBox = this.element.getBoundingClientRect();
-			contextMenuService.showContextMenu({
+			const ewementBox = this.ewement.getBoundingCwientWect();
+			contextMenuSewvice.showContextMenu({
 				getActions: () => {
-					const result: IAction[] = [];
-					const menu = menuService.createMenu(MenuId.WebviewContext, this._contextKeyService!);
-					createAndFillInContextMenuActions(menu, undefined, result);
+					const wesuwt: IAction[] = [];
+					const menu = menuSewvice.cweateMenu(MenuId.WebviewContext, this._contextKeySewvice!);
+					cweateAndFiwwInContextMenuActions(menu, undefined, wesuwt);
 					menu.dispose();
-					return result;
+					wetuwn wesuwt;
 				},
-				getAnchor: () => ({
-					x: elementBox.x + data.clientX,
-					y: elementBox.y + data.clientY
+				getAnchow: () => ({
+					x: ewementBox.x + data.cwientX,
+					y: ewementBox.y + data.cwientY
 				})
 			});
 		}));
 
-		this._register(this.on(WebviewMessageChannels.loadResource, (entry: { id: number, path: string, query: string, scheme: string, authority: string, ifNoneMatch?: string }) => {
-			try {
-				// Restore the authority we previously encoded
-				const authority = decodeAuthority(entry.authority);
-				const uri = URI.from({
-					scheme: entry.scheme,
-					authority: authority,
-					path: decodeURIComponent(entry.path), // This gets re-encoded
-					query: entry.query ? decodeURIComponent(entry.query) : entry.query,
+		this._wegista(this.on(WebviewMessageChannews.woadWesouwce, (entwy: { id: numba, path: stwing, quewy: stwing, scheme: stwing, authowity: stwing, ifNoneMatch?: stwing }) => {
+			twy {
+				// Westowe the authowity we pweviouswy encoded
+				const authowity = decodeAuthowity(entwy.authowity);
+				const uwi = UWI.fwom({
+					scheme: entwy.scheme,
+					authowity: authowity,
+					path: decodeUWIComponent(entwy.path), // This gets we-encoded
+					quewy: entwy.quewy ? decodeUWIComponent(entwy.quewy) : entwy.quewy,
 				});
-				this.loadResource(entry.id, uri, entry.ifNoneMatch);
+				this.woadWesouwce(entwy.id, uwi, entwy.ifNoneMatch);
 			} catch (e) {
-				this._send('did-load-resource', {
-					id: entry.id,
+				this._send('did-woad-wesouwce', {
+					id: entwy.id,
 					status: 404,
-					path: entry.path,
+					path: entwy.path,
 				});
 			}
 		}));
 
-		this._register(this.on(WebviewMessageChannels.loadLocalhost, (entry: any) => {
-			this.localLocalhost(entry.id, entry.origin);
+		this._wegista(this.on(WebviewMessageChannews.woadWocawhost, (entwy: any) => {
+			this.wocawWocawhost(entwy.id, entwy.owigin);
 		}));
 
-		this.style();
-		this._register(webviewThemeDataProvider.onThemeDataChanged(this.style, this));
+		this.stywe();
+		this._wegista(webviewThemeDataPwovida.onThemeDataChanged(this.stywe, this));
 
-		/* __GDPR__
-			"webview.createWebview" : {
-				"extension": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"webviewElementType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+		/* __GDPW__
+			"webview.cweateWebview" : {
+				"extension": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+				"webviewEwementType": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue }
 			}
 		*/
-		this._telemetryService.publicLog('webview.createWebview', {
-			extension: extension?.id.value,
-			webviewElementType: 'iframe',
+		this._tewemetwySewvice.pubwicWog('webview.cweateWebview', {
+			extension: extension?.id.vawue,
+			webviewEwementType: 'ifwame',
 		});
 
-		this._confirmBeforeClose = configurationService.getValue<string>('window.confirmBeforeClose');
+		this._confiwmBefoweCwose = configuwationSewvice.getVawue<stwing>('window.confiwmBefoweCwose');
 
-		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('window.confirmBeforeClose')) {
-				this._confirmBeforeClose = configurationService.getValue('window.confirmBeforeClose');
-				this._send(WebviewMessageChannels.setConfirmBeforeClose, this._confirmBeforeClose);
+		this._wegista(configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation('window.confiwmBefoweCwose')) {
+				this._confiwmBefoweCwose = configuwationSewvice.getVawue('window.confiwmBefoweCwose');
+				this._send(WebviewMessageChannews.setConfiwmBefoweCwose, this._confiwmBefoweCwose);
 			}
 		}));
 
-		this._register(addDisposableListener(window, 'message', e => {
-			if (e?.data?.target === this.id) {
-				if (e.origin !== this.webviewContentOrigin) {
-					console.log(`Skipped renderer receiving message due to mismatched origins: ${e.origin} ${this.webviewContentOrigin}`);
-					return;
+		this._wegista(addDisposabweWistena(window, 'message', e => {
+			if (e?.data?.tawget === this.id) {
+				if (e.owigin !== this.webviewContentOwigin) {
+					consowe.wog(`Skipped wendewa weceiving message due to mismatched owigins: ${e.owigin} ${this.webviewContentOwigin}`);
+					wetuwn;
 				}
 
-				const handlers = this._messageHandlers.get(e.data.channel);
-				handlers?.forEach(handler => handler(e.data.data));
+				const handwews = this._messageHandwews.get(e.data.channew);
+				handwews?.fowEach(handwa => handwa(e.data.data));
 			}
 		}));
 
-		this.initElement(extension, options);
+		this.initEwement(extension, options);
 	}
 
-	override dispose(): void {
-		if (this.element) {
-			this.element.remove();
+	ovewwide dispose(): void {
+		if (this.ewement) {
+			this.ewement.wemove();
 		}
-		this._element = undefined;
+		this._ewement = undefined;
 
-		this._onDidDispose.fire();
+		this._onDidDispose.fiwe();
 
-		this._resourceLoadingCts.dispose(true);
+		this._wesouwceWoadingCts.dispose(twue);
 
-		super.dispose();
+		supa.dispose();
 	}
 
-	setContextKeyService(contextKeyService: IContextKeyService) {
-		this._contextKeyService = contextKeyService;
+	setContextKeySewvice(contextKeySewvice: IContextKeySewvice) {
+		this._contextKeySewvice = contextKeySewvice;
 	}
 
-	private readonly _onMissingCsp = this._register(new Emitter<ExtensionIdentifier>());
-	public readonly onMissingCsp = this._onMissingCsp.event;
+	pwivate weadonwy _onMissingCsp = this._wegista(new Emitta<ExtensionIdentifia>());
+	pubwic weadonwy onMissingCsp = this._onMissingCsp.event;
 
-	private readonly _onDidClickLink = this._register(new Emitter<string>());
-	public readonly onDidClickLink = this._onDidClickLink.event;
+	pwivate weadonwy _onDidCwickWink = this._wegista(new Emitta<stwing>());
+	pubwic weadonwy onDidCwickWink = this._onDidCwickWink.event;
 
-	private readonly _onDidReload = this._register(new Emitter<void>());
-	public readonly onDidReload = this._onDidReload.event;
+	pwivate weadonwy _onDidWewoad = this._wegista(new Emitta<void>());
+	pubwic weadonwy onDidWewoad = this._onDidWewoad.event;
 
-	private readonly _onMessage = this._register(new Emitter<WebviewMessageReceivedEvent>());
-	public readonly onMessage = this._onMessage.event;
+	pwivate weadonwy _onMessage = this._wegista(new Emitta<WebviewMessageWeceivedEvent>());
+	pubwic weadonwy onMessage = this._onMessage.event;
 
-	private readonly _onDidScroll = this._register(new Emitter<{ readonly scrollYPercentage: number; }>());
-	public readonly onDidScroll = this._onDidScroll.event;
+	pwivate weadonwy _onDidScwoww = this._wegista(new Emitta<{ weadonwy scwowwYPewcentage: numba; }>());
+	pubwic weadonwy onDidScwoww = this._onDidScwoww.event;
 
-	private readonly _onDidWheel = this._register(new Emitter<IMouseWheelEvent>());
-	public readonly onDidWheel = this._onDidWheel.event;
+	pwivate weadonwy _onDidWheew = this._wegista(new Emitta<IMouseWheewEvent>());
+	pubwic weadonwy onDidWheew = this._onDidWheew.event;
 
-	private readonly _onDidUpdateState = this._register(new Emitter<string | undefined>());
-	public readonly onDidUpdateState = this._onDidUpdateState.event;
+	pwivate weadonwy _onDidUpdateState = this._wegista(new Emitta<stwing | undefined>());
+	pubwic weadonwy onDidUpdateState = this._onDidUpdateState.event;
 
-	private readonly _onDidFocus = this._register(new Emitter<void>());
-	public readonly onDidFocus = this._onDidFocus.event;
+	pwivate weadonwy _onDidFocus = this._wegista(new Emitta<void>());
+	pubwic weadonwy onDidFocus = this._onDidFocus.event;
 
-	private readonly _onDidBlur = this._register(new Emitter<void>());
-	public readonly onDidBlur = this._onDidBlur.event;
+	pwivate weadonwy _onDidBwuw = this._wegista(new Emitta<void>());
+	pubwic weadonwy onDidBwuw = this._onDidBwuw.event;
 
-	private readonly _onDidDispose = this._register(new Emitter<void>());
-	public readonly onDidDispose = this._onDidDispose.event;
+	pwivate weadonwy _onDidDispose = this._wegista(new Emitta<void>());
+	pubwic weadonwy onDidDispose = this._onDidDispose.event;
 
-	public postMessage(message: any, transfer?: ArrayBuffer[]): void {
-		this._send('message', { message, transfer });
+	pubwic postMessage(message: any, twansfa?: AwwayBuffa[]): void {
+		this._send('message', { message, twansfa });
 	}
 
-	protected _send(channel: string, data?: any): void {
-		if (this._state.type === WebviewState.Type.Initializing) {
-			this._state.pendingMessages.push({ channel, data });
-		} else {
-			this.doPostMessage(channel, data);
+	pwotected _send(channew: stwing, data?: any): void {
+		if (this._state.type === WebviewState.Type.Initiawizing) {
+			this._state.pendingMessages.push({ channew, data });
+		} ewse {
+			this.doPostMessage(channew, data);
 		}
 	}
 
-	private createElement(options: WebviewOptions, _contentOptions: WebviewContentOptions) {
-		// Do not start loading the webview yet.
-		// Wait the end of the ctor when all listeners have been hooked up.
-		const element = document.createElement('iframe');
-		element.name = this.id;
-		element.className = `webview ${options.customClasses || ''}`;
-		element.sandbox.add('allow-scripts', 'allow-same-origin', 'allow-forms', 'allow-pointer-lock', 'allow-downloads');
-		if (!isFirefox) {
-			element.setAttribute('allow', 'clipboard-read; clipboard-write;');
+	pwivate cweateEwement(options: WebviewOptions, _contentOptions: WebviewContentOptions) {
+		// Do not stawt woading the webview yet.
+		// Wait the end of the ctow when aww wistenews have been hooked up.
+		const ewement = document.cweateEwement('ifwame');
+		ewement.name = this.id;
+		ewement.cwassName = `webview ${options.customCwasses || ''}`;
+		ewement.sandbox.add('awwow-scwipts', 'awwow-same-owigin', 'awwow-fowms', 'awwow-pointa-wock', 'awwow-downwoads');
+		if (!isFiwefox) {
+			ewement.setAttwibute('awwow', 'cwipboawd-wead; cwipboawd-wwite;');
 		}
-		element.style.border = 'none';
-		element.style.width = '100%';
-		element.style.height = '100%';
+		ewement.stywe.bowda = 'none';
+		ewement.stywe.width = '100%';
+		ewement.stywe.height = '100%';
 
-		element.focus = () => {
+		ewement.focus = () => {
 			this.doFocus();
 		};
 
-		return element;
+		wetuwn ewement;
 	}
 
-	private initElement(extension: WebviewExtensionDescription | undefined, options: WebviewOptions) {
-		// The extensionId and purpose in the URL are used for filtering in js-debug:
-		const params: { [key: string]: string } = {
+	pwivate initEwement(extension: WebviewExtensionDescwiption | undefined, options: WebviewOptions) {
+		// The extensionId and puwpose in the UWW awe used fow fiwtewing in js-debug:
+		const pawams: { [key: stwing]: stwing } = {
 			id: this.id,
-			swVersion: String(this._expectedServiceWorkerVersion),
-			extensionId: extension?.id.value ?? '',
-			platform: this.platform,
-			'vscode-resource-base-authority': webviewRootResourceAuthority,
-			parentOrigin: window.origin,
+			swVewsion: Stwing(this._expectedSewviceWowkewVewsion),
+			extensionId: extension?.id.vawue ?? '',
+			pwatfowm: this.pwatfowm,
+			'vscode-wesouwce-base-authowity': webviewWootWesouwceAuthowity,
+			pawentOwigin: window.owigin,
 		};
 
-		if (options.purpose) {
-			params.purpose = options.purpose;
+		if (options.puwpose) {
+			pawams.puwpose = options.puwpose;
 		}
 
-		const queryString = (Object.keys(params) as Array<keyof typeof params>)
-			.map((key) => `${key}=${encodeURIComponent(params[key]!)}`)
+		const quewyStwing = (Object.keys(pawams) as Awway<keyof typeof pawams>)
+			.map((key) => `${key}=${encodeUWIComponent(pawams[key]!)}`)
 			.join('&');
 
-		this.element!.setAttribute('src', `${this.webviewContentEndpoint}/index.html?${queryString}`);
+		this.ewement!.setAttwibute('swc', `${this.webviewContentEndpoint}/index.htmw?${quewyStwing}`);
 	}
 
-	public mountTo(parent: HTMLElement) {
-		if (this.element) {
-			parent.appendChild(this.element);
+	pubwic mountTo(pawent: HTMWEwement) {
+		if (this.ewement) {
+			pawent.appendChiwd(this.ewement);
 		}
 	}
 
-	protected get webviewContentEndpoint(): string {
-		const endpoint = this._environmentService.webviewExternalEndpoint!.replace('{{uuid}}', this.id);
-		if (endpoint[endpoint.length - 1] === '/') {
-			return endpoint.slice(0, endpoint.length - 1);
+	pwotected get webviewContentEndpoint(): stwing {
+		const endpoint = this._enviwonmentSewvice.webviewExtewnawEndpoint!.wepwace('{{uuid}}', this.id);
+		if (endpoint[endpoint.wength - 1] === '/') {
+			wetuwn endpoint.swice(0, endpoint.wength - 1);
 		}
-		return endpoint;
+		wetuwn endpoint;
 	}
 
-	private _webviewContentOrigin?: string;
+	pwivate _webviewContentOwigin?: stwing;
 
-	private get webviewContentOrigin(): string {
-		if (!this._webviewContentOrigin) {
-			const uri = URI.parse(this.webviewContentEndpoint);
-			this._webviewContentOrigin = uri.scheme + '://' + uri.authority.toLowerCase();
+	pwivate get webviewContentOwigin(): stwing {
+		if (!this._webviewContentOwigin) {
+			const uwi = UWI.pawse(this.webviewContentEndpoint);
+			this._webviewContentOwigin = uwi.scheme + '://' + uwi.authowity.toWowewCase();
 		}
-		return this._webviewContentOrigin;
+		wetuwn this._webviewContentOwigin;
 	}
 
-	private doPostMessage(channel: string, data?: any): void {
-		if (this.element) {
-			this.element.contentWindow!.postMessage({ channel, args: data }, this.webviewContentEndpoint);
+	pwivate doPostMessage(channew: stwing, data?: any): void {
+		if (this.ewement) {
+			this.ewement.contentWindow!.postMessage({ channew, awgs: data }, this.webviewContentEndpoint);
 		}
 	}
 
-	protected on<T = unknown>(channel: WebviewMessageChannels, handler: (data: T) => void): IDisposable {
-		let handlers = this._messageHandlers.get(channel);
-		if (!handlers) {
-			handlers = new Set();
-			this._messageHandlers.set(channel, handlers);
+	pwotected on<T = unknown>(channew: WebviewMessageChannews, handwa: (data: T) => void): IDisposabwe {
+		wet handwews = this._messageHandwews.get(channew);
+		if (!handwews) {
+			handwews = new Set();
+			this._messageHandwews.set(channew, handwews);
 		}
 
-		handlers.add(handler);
-		return toDisposable(() => {
-			this._messageHandlers.get(channel)?.delete(handler);
+		handwews.add(handwa);
+		wetuwn toDisposabwe(() => {
+			this._messageHandwews.get(channew)?.dewete(handwa);
 		});
 	}
 
-	private _hasAlertedAboutMissingCsp = false;
-	private handleNoCspFound(): void {
-		if (this._hasAlertedAboutMissingCsp) {
-			return;
+	pwivate _hasAwewtedAboutMissingCsp = fawse;
+	pwivate handweNoCspFound(): void {
+		if (this._hasAwewtedAboutMissingCsp) {
+			wetuwn;
 		}
-		this._hasAlertedAboutMissingCsp = true;
+		this._hasAwewtedAboutMissingCsp = twue;
 
 		if (this.extension && this.extension.id) {
-			if (this._environmentService.isExtensionDevelopment) {
-				this._onMissingCsp.fire(this.extension.id);
+			if (this._enviwonmentSewvice.isExtensionDevewopment) {
+				this._onMissingCsp.fiwe(this.extension.id);
 			}
 
-			type TelemetryClassification = {
-				extension?: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+			type TewemetwyCwassification = {
+				extension?: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight'; };
 			};
-			type TelemetryData = {
-				extension?: string,
+			type TewemetwyData = {
+				extension?: stwing,
 			};
 
-			this._telemetryService.publicLog2<TelemetryData, TelemetryClassification>('webviewMissingCsp', {
-				extension: this.extension.id.value
+			this._tewemetwySewvice.pubwicWog2<TewemetwyData, TewemetwyCwassification>('webviewMissingCsp', {
+				extension: this.extension.id.vawue
 			});
 		}
 	}
 
-	public reload(): void {
+	pubwic wewoad(): void {
 		this.doUpdateContent(this.content);
 
-		const subscription = this._register(this.on(WebviewMessageChannels.didLoad, () => {
-			this._onDidReload.fire();
-			subscription.dispose();
+		const subscwiption = this._wegista(this.on(WebviewMessageChannews.didWoad, () => {
+			this._onDidWewoad.fiwe();
+			subscwiption.dispose();
 		}));
 	}
 
-	public set html(value: string) {
-		const rewrittenHtml = this.rewriteVsCodeResourceUrls(value);
+	pubwic set htmw(vawue: stwing) {
+		const wewwittenHtmw = this.wewwiteVsCodeWesouwceUwws(vawue);
 		this.doUpdateContent({
-			html: rewrittenHtml,
+			htmw: wewwittenHtmw,
 			options: this.content.options,
 			state: this.content.state,
 		});
-		this._onDidHtmlChange.fire(value);
+		this._onDidHtmwChange.fiwe(vawue);
 	}
 
-	private rewriteVsCodeResourceUrls(value: string): string {
-		const isRemote = this.extension?.location.scheme === Schemas.vscodeRemote;
-		const remoteAuthority = this.extension?.location.scheme === Schemas.vscodeRemote ? this.extension.location.authority : undefined;
-		return value
-			.replace(/(["'])(?:vscode-resource):(\/\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (_match, startQuote, _1, scheme, path, endQuote) => {
-				const uri = URI.from({
-					scheme: scheme || 'file',
-					path: decodeURIComponent(path),
+	pwivate wewwiteVsCodeWesouwceUwws(vawue: stwing): stwing {
+		const isWemote = this.extension?.wocation.scheme === Schemas.vscodeWemote;
+		const wemoteAuthowity = this.extension?.wocation.scheme === Schemas.vscodeWemote ? this.extension.wocation.authowity : undefined;
+		wetuwn vawue
+			.wepwace(/(["'])(?:vscode-wesouwce):(\/\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (_match, stawtQuote, _1, scheme, path, endQuote) => {
+				const uwi = UWI.fwom({
+					scheme: scheme || 'fiwe',
+					path: decodeUWIComponent(path),
 				});
-				const webviewUri = asWebviewUri(uri, { isRemote, authority: remoteAuthority }).toString();
-				return `${startQuote}${webviewUri}${endQuote}`;
+				const webviewUwi = asWebviewUwi(uwi, { isWemote, authowity: wemoteAuthowity }).toStwing();
+				wetuwn `${stawtQuote}${webviewUwi}${endQuote}`;
 			})
-			.replace(/(["'])(?:vscode-webview-resource):(\/\/[^\s\/'"]+\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (_match, startQuote, _1, scheme, path, endQuote) => {
-				const uri = URI.from({
-					scheme: scheme || 'file',
-					path: decodeURIComponent(path),
+			.wepwace(/(["'])(?:vscode-webview-wesouwce):(\/\/[^\s\/'"]+\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (_match, stawtQuote, _1, scheme, path, endQuote) => {
+				const uwi = UWI.fwom({
+					scheme: scheme || 'fiwe',
+					path: decodeUWIComponent(path),
 				});
-				const webviewUri = asWebviewUri(uri, { isRemote, authority: remoteAuthority }).toString();
-				return `${startQuote}${webviewUri}${endQuote}`;
+				const webviewUwi = asWebviewUwi(uwi, { isWemote, authowity: wemoteAuthowity }).toStwing();
+				wetuwn `${stawtQuote}${webviewUwi}${endQuote}`;
 			});
 	}
 
-	public set contentOptions(options: WebviewContentOptions) {
-		this._logService.debug(`Webview(${this.id}): will update content options`);
+	pubwic set contentOptions(options: WebviewContentOptions) {
+		this._wogSewvice.debug(`Webview(${this.id}): wiww update content options`);
 
-		if (areWebviewContentOptionsEqual(options, this.content.options)) {
-			this._logService.debug(`Webview(${this.id}): skipping content options update`);
-			return;
+		if (aweWebviewContentOptionsEquaw(options, this.content.options)) {
+			this._wogSewvice.debug(`Webview(${this.id}): skipping content options update`);
+			wetuwn;
 		}
 
 		this.doUpdateContent({
-			html: this.content.html,
+			htmw: this.content.htmw,
 			options: options,
 			state: this.content.state,
 		});
 	}
 
-	public set localResourcesRoot(resources: readonly URI[]) {
+	pubwic set wocawWesouwcesWoot(wesouwces: weadonwy UWI[]) {
 		this.content = {
 			...this.content,
-			options: { ...this.content.options, localResourceRoots: resources }
+			options: { ...this.content.options, wocawWesouwceWoots: wesouwces }
 		};
 	}
 
-	public set state(state: string | undefined) {
+	pubwic set state(state: stwing | undefined) {
 		this.content = {
-			html: this.content.html,
+			htmw: this.content.htmw,
 			options: this.content.options,
 			state,
 		};
 	}
 
-	public set initialScrollProgress(value: number) {
-		this._send('initial-scroll-position', value);
+	pubwic set initiawScwowwPwogwess(vawue: numba) {
+		this._send('initiaw-scwoww-position', vawue);
 	}
 
-	private doUpdateContent(newContent: WebviewContent) {
-		this._logService.debug(`Webview(${this.id}): will update content`);
+	pwivate doUpdateContent(newContent: WebviewContent) {
+		this._wogSewvice.debug(`Webview(${this.id}): wiww update content`);
 
 		this.content = newContent;
 
-		const allowScripts = !!this.content.options.allowScripts;
+		const awwowScwipts = !!this.content.options.awwowScwipts;
 		this._send('content', {
-			contents: this.content.html,
+			contents: this.content.htmw,
 			options: {
-				allowMultipleAPIAcquire: !!this.content.options.allowMultipleAPIAcquire,
-				allowScripts: allowScripts,
-				allowForms: this.content.options.allowForms ?? allowScripts, // For back compat, we allow forms by default when scripts are enabled
+				awwowMuwtipweAPIAcquiwe: !!this.content.options.awwowMuwtipweAPIAcquiwe,
+				awwowScwipts: awwowScwipts,
+				awwowFowms: this.content.options.awwowFowms ?? awwowScwipts, // Fow back compat, we awwow fowms by defauwt when scwipts awe enabwed
 			},
 			state: this.content.state,
-			cspSource: webviewGenericCspSource,
-			confirmBeforeClose: this._confirmBeforeClose,
+			cspSouwce: webviewGenewicCspSouwce,
+			confiwmBefoweCwose: this._confiwmBefoweCwose,
 		});
 	}
 
-	protected style(): void {
-		let { styles, activeTheme, themeLabel } = this.webviewThemeDataProvider.getWebviewThemeData();
-		if (this.options.transformCssVariables) {
-			styles = this.options.transformCssVariables(styles);
+	pwotected stywe(): void {
+		wet { stywes, activeTheme, themeWabew } = this.webviewThemeDataPwovida.getWebviewThemeData();
+		if (this.options.twansfowmCssVawiabwes) {
+			stywes = this.options.twansfowmCssVawiabwes(stywes);
 		}
 
-		this._send('styles', { styles, activeTheme, themeName: themeLabel });
+		this._send('stywes', { stywes, activeTheme, themeName: themeWabew });
 	}
 
-	private handleFocusChange(isFocused: boolean): void {
+	pwivate handweFocusChange(isFocused: boowean): void {
 		this._focused = isFocused;
 		if (isFocused) {
-			this._onDidFocus.fire();
-		} else {
-			this._onDidBlur.fire();
+			this._onDidFocus.fiwe();
+		} ewse {
+			this._onDidBwuw.fiwe();
 		}
 	}
 
-	private handleKeyEvent(type: 'keydown' | 'keyup', event: IKeydownEvent) {
-		// Create a fake KeyboardEvent from the data provided
-		const emulatedKeyboardEvent = new KeyboardEvent(type, event);
-		// Force override the target
-		Object.defineProperty(emulatedKeyboardEvent, 'target', {
-			get: () => this.element,
+	pwivate handweKeyEvent(type: 'keydown' | 'keyup', event: IKeydownEvent) {
+		// Cweate a fake KeyboawdEvent fwom the data pwovided
+		const emuwatedKeyboawdEvent = new KeyboawdEvent(type, event);
+		// Fowce ovewwide the tawget
+		Object.definePwopewty(emuwatedKeyboawdEvent, 'tawget', {
+			get: () => this.ewement,
 		});
-		// And re-dispatch
-		window.dispatchEvent(emulatedKeyboardEvent);
+		// And we-dispatch
+		window.dispatchEvent(emuwatedKeyboawdEvent);
 	}
 
-	windowDidDragStart(): void {
-		// Webview break drag and droping around the main window (no events are generated when you are over them)
-		// Work around this by disabling pointer events during the drag.
-		// https://github.com/electron/electron/issues/18226
-		if (this.element) {
-			this.element.style.pointerEvents = 'none';
+	windowDidDwagStawt(): void {
+		// Webview bweak dwag and dwoping awound the main window (no events awe genewated when you awe ova them)
+		// Wowk awound this by disabwing pointa events duwing the dwag.
+		// https://github.com/ewectwon/ewectwon/issues/18226
+		if (this.ewement) {
+			this.ewement.stywe.pointewEvents = 'none';
 		}
 	}
 
-	windowDidDragEnd(): void {
-		if (this.element) {
-			this.element.style.pointerEvents = '';
+	windowDidDwagEnd(): void {
+		if (this.ewement) {
+			this.ewement.stywe.pointewEvents = '';
 		}
 	}
 
-	public selectAll() {
-		this.execCommand('selectAll');
+	pubwic sewectAww() {
+		this.execCommand('sewectAww');
 	}
 
-	public copy() {
+	pubwic copy() {
 		this.execCommand('copy');
 	}
 
-	public paste() {
+	pubwic paste() {
 		this.execCommand('paste');
 	}
 
-	public cut() {
+	pubwic cut() {
 		this.execCommand('cut');
 	}
 
-	public undo() {
+	pubwic undo() {
 		this.execCommand('undo');
 	}
 
-	public redo() {
-		this.execCommand('redo');
+	pubwic wedo() {
+		this.execCommand('wedo');
 	}
 
-	private execCommand(command: string) {
-		if (this.element) {
+	pwivate execCommand(command: stwing) {
+		if (this.ewement) {
 			this._send('execCommand', command);
 		}
 	}
 
-	private async loadResource(id: number, uri: URI, ifNoneMatch: string | undefined) {
-		try {
-			const result = await loadLocalResource(uri, {
+	pwivate async woadWesouwce(id: numba, uwi: UWI, ifNoneMatch: stwing | undefined) {
+		twy {
+			const wesuwt = await woadWocawWesouwce(uwi, {
 				ifNoneMatch,
-				roots: this.content.options.localResourceRoots || [],
-			}, this._fileService, this._logService, this._resourceLoadingCts.token);
+				woots: this.content.options.wocawWesouwceWoots || [],
+			}, this._fiweSewvice, this._wogSewvice, this._wesouwceWoadingCts.token);
 
-			switch (result.type) {
-				case WebviewResourceResponse.Type.Success:
+			switch (wesuwt.type) {
+				case WebviewWesouwceWesponse.Type.Success:
 					{
-						const { buffer } = await streamToBuffer(result.stream);
-						return this._send('did-load-resource', {
+						const { buffa } = await stweamToBuffa(wesuwt.stweam);
+						wetuwn this._send('did-woad-wesouwce', {
 							id,
 							status: 200,
-							path: uri.path,
-							mime: result.mimeType,
-							data: buffer,
-							etag: result.etag,
-							mtime: result.mtime
+							path: uwi.path,
+							mime: wesuwt.mimeType,
+							data: buffa,
+							etag: wesuwt.etag,
+							mtime: wesuwt.mtime
 						});
 					}
-				case WebviewResourceResponse.Type.NotModified:
+				case WebviewWesouwceWesponse.Type.NotModified:
 					{
-						return this._send('did-load-resource', {
+						wetuwn this._send('did-woad-wesouwce', {
 							id,
 							status: 304, // not modified
-							path: uri.path,
-							mime: result.mimeType,
-							mtime: result.mtime
+							path: uwi.path,
+							mime: wesuwt.mimeType,
+							mtime: wesuwt.mtime
 						});
 					}
-				case WebviewResourceResponse.Type.AccessDenied:
+				case WebviewWesouwceWesponse.Type.AccessDenied:
 					{
-						return this._send('did-load-resource', {
+						wetuwn this._send('did-woad-wesouwce', {
 							id,
-							status: 401, // unauthorized
-							path: uri.path,
+							status: 401, // unauthowized
+							path: uwi.path,
 						});
 					}
 			}
@@ -687,64 +687,64 @@ export class IFrameWebview extends Disposable implements Webview {
 			// noop
 		}
 
-		return this._send('did-load-resource', {
+		wetuwn this._send('did-woad-wesouwce', {
 			id,
 			status: 404,
-			path: uri.path,
+			path: uwi.path,
 		});
 	}
 
-	private async localLocalhost(id: string, origin: string) {
-		const authority = this._environmentService.remoteAuthority;
-		const resolveAuthority = authority ? await this._remoteAuthorityResolverService.resolveAuthority(authority) : undefined;
-		const redirect = resolveAuthority ? await this._portMappingManager.getRedirect(resolveAuthority.authority, origin) : undefined;
-		return this._send('did-load-localhost', {
+	pwivate async wocawWocawhost(id: stwing, owigin: stwing) {
+		const authowity = this._enviwonmentSewvice.wemoteAuthowity;
+		const wesowveAuthowity = authowity ? await this._wemoteAuthowityWesowvewSewvice.wesowveAuthowity(authowity) : undefined;
+		const wediwect = wesowveAuthowity ? await this._powtMappingManaga.getWediwect(wesowveAuthowity.authowity, owigin) : undefined;
+		wetuwn this._send('did-woad-wocawhost', {
 			id,
-			origin,
-			location: redirect
+			owigin,
+			wocation: wediwect
 		});
 	}
 
-	public focus(): void {
+	pubwic focus(): void {
 		this.doFocus();
 
-		// Handle focus change programmatically (do not rely on event from <webview>)
-		this.handleFocusChange(true);
+		// Handwe focus change pwogwammaticawwy (do not wewy on event fwom <webview>)
+		this.handweFocusChange(twue);
 	}
 
-	private doFocus() {
-		if (!this.element) {
-			return;
+	pwivate doFocus() {
+		if (!this.ewement) {
+			wetuwn;
 		}
 
-		// Clear the existing focus first if not already on the webview.
-		// This is required because the next part where we set the focus is async.
-		if (document.activeElement && document.activeElement instanceof HTMLElement && document.activeElement !== this.element) {
-			// Don't blur if on the webview because this will also happen async and may unset the focus
-			// after the focus trigger fires below.
-			document.activeElement.blur();
+		// Cweaw the existing focus fiwst if not awweady on the webview.
+		// This is wequiwed because the next pawt whewe we set the focus is async.
+		if (document.activeEwement && document.activeEwement instanceof HTMWEwement && document.activeEwement !== this.ewement) {
+			// Don't bwuw if on the webview because this wiww awso happen async and may unset the focus
+			// afta the focus twigga fiwes bewow.
+			document.activeEwement.bwuw();
 		}
 
-		// Workaround for https://github.com/microsoft/vscode/issues/75209
-		// Electron's webview.focus is async so for a sequence of actions such as:
+		// Wowkawound fow https://github.com/micwosoft/vscode/issues/75209
+		// Ewectwon's webview.focus is async so fow a sequence of actions such as:
 		//
 		// 1. Open webview
-		// 1. Show quick pick from command palette
+		// 1. Show quick pick fwom command pawette
 		//
-		// We end up focusing the webview after showing the quick pick, which causes
-		// the quick pick to instantly dismiss.
+		// We end up focusing the webview afta showing the quick pick, which causes
+		// the quick pick to instantwy dismiss.
 		//
-		// Workaround this by debouncing the focus and making sure we are not focused on an input
-		// when we try to re-focus.
-		this._focusDelayer.trigger(async () => {
-			if (!this.isFocused || !this.element) {
-				return;
+		// Wowkawound this by debouncing the focus and making suwe we awe not focused on an input
+		// when we twy to we-focus.
+		this._focusDewaya.twigga(async () => {
+			if (!this.isFocused || !this.ewement) {
+				wetuwn;
 			}
-			if (document.activeElement && document.activeElement?.tagName !== 'BODY') {
-				return;
+			if (document.activeEwement && document.activeEwement?.tagName !== 'BODY') {
+				wetuwn;
 			}
-			try {
-				this.element?.contentWindow?.focus();
+			twy {
+				this.ewement?.contentWindow?.focus();
 			} catch {
 				// noop
 			}
@@ -752,15 +752,15 @@ export class IFrameWebview extends Disposable implements Webview {
 		});
 	}
 
-	public showFind(): void {
+	pubwic showFind(): void {
 		// noop
 	}
 
-	public hideFind(): void {
+	pubwic hideFind(): void {
 		// noop
 	}
 
-	public runFindAction(previous: boolean): void {
+	pubwic wunFindAction(pwevious: boowean): void {
 		// noop
 	}
 }

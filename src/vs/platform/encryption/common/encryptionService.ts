@@ -1,13 +1,13 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export interface ICommonEncryptionService {
+expowt intewface ICommonEncwyptionSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	encrypt(value: string): Promise<string>;
+	encwypt(vawue: stwing): Pwomise<stwing>;
 
-	decrypt(value: string): Promise<string>;
+	decwypt(vawue: stwing): Pwomise<stwing>;
 }

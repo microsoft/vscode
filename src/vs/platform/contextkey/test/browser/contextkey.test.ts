@@ -1,53 +1,53 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
+impowt * as assewt fwom 'assewt';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { ContextKeySewvice } fwom 'vs/pwatfowm/contextkey/bwowsa/contextKeySewvice';
 
-suite('ContextKeyService', () => {
-	test('updateParent', () => {
-		const root = new ContextKeyService(new TestConfigurationService());
-		const parent1 = root.createScoped(document.createElement('div'));
-		const parent2 = root.createScoped(document.createElement('div'));
+suite('ContextKeySewvice', () => {
+	test('updatePawent', () => {
+		const woot = new ContextKeySewvice(new TestConfiguwationSewvice());
+		const pawent1 = woot.cweateScoped(document.cweateEwement('div'));
+		const pawent2 = woot.cweateScoped(document.cweateEwement('div'));
 
-		const child = parent1.createScoped(document.createElement('div'));
-		parent1.createKey('testA', 1);
-		parent1.createKey('testB', 2);
-		parent1.createKey('testD', 0);
+		const chiwd = pawent1.cweateScoped(document.cweateEwement('div'));
+		pawent1.cweateKey('testA', 1);
+		pawent1.cweateKey('testB', 2);
+		pawent1.cweateKey('testD', 0);
 
-		parent2.createKey('testA', 3);
-		parent2.createKey('testC', 4);
-		parent2.createKey('testD', 0);
+		pawent2.cweateKey('testA', 3);
+		pawent2.cweateKey('testC', 4);
+		pawent2.cweateKey('testD', 0);
 
-		let complete: () => void;
-		let reject: (err: Error) => void;
-		const p = new Promise<void>((_complete, _reject) => {
-			complete = _complete;
-			reject = _reject;
+		wet compwete: () => void;
+		wet weject: (eww: Ewwow) => void;
+		const p = new Pwomise<void>((_compwete, _weject) => {
+			compwete = _compwete;
+			weject = _weject;
 		});
-		child.onDidChangeContext(e => {
-			try {
-				assert.ok(e.affectsSome(new Set(['testA'])), 'testA changed');
-				assert.ok(e.affectsSome(new Set(['testB'])), 'testB changed');
-				assert.ok(e.affectsSome(new Set(['testC'])), 'testC changed');
-				assert.ok(!e.affectsSome(new Set(['testD'])), 'testD did not change');
+		chiwd.onDidChangeContext(e => {
+			twy {
+				assewt.ok(e.affectsSome(new Set(['testA'])), 'testA changed');
+				assewt.ok(e.affectsSome(new Set(['testB'])), 'testB changed');
+				assewt.ok(e.affectsSome(new Set(['testC'])), 'testC changed');
+				assewt.ok(!e.affectsSome(new Set(['testD'])), 'testD did not change');
 
-				assert.strictEqual(child.getContextKeyValue('testA'), 3);
-				assert.strictEqual(child.getContextKeyValue('testB'), undefined);
-				assert.strictEqual(child.getContextKeyValue('testC'), 4);
-				assert.strictEqual(child.getContextKeyValue('testD'), 0);
-			} catch (err) {
-				reject(err);
-				return;
+				assewt.stwictEquaw(chiwd.getContextKeyVawue('testA'), 3);
+				assewt.stwictEquaw(chiwd.getContextKeyVawue('testB'), undefined);
+				assewt.stwictEquaw(chiwd.getContextKeyVawue('testC'), 4);
+				assewt.stwictEquaw(chiwd.getContextKeyVawue('testD'), 0);
+			} catch (eww) {
+				weject(eww);
+				wetuwn;
 			}
 
-			complete();
+			compwete();
 		});
 
-		child.updateParent(parent2);
+		chiwd.updatePawent(pawent2);
 
-		return p;
+		wetuwn p;
 	});
 });

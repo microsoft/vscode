@@ -1,316 +1,316 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { serializeWebviewOptions, ExtHostWebview, ExtHostWebviews, toExtensionData, shouldSerializeBuffersForPostMessage } from 'vs/workbench/api/common/extHostWebview';
-import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import type * as vscode from 'vscode';
-import * as extHostProtocol from './extHost.protocol';
-import * as extHostTypes from './extHostTypes';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt * as typeConvewtews fwom 'vs/wowkbench/api/common/extHostTypeConvewtews';
+impowt { sewiawizeWebviewOptions, ExtHostWebview, ExtHostWebviews, toExtensionData, shouwdSewiawizeBuffewsFowPostMessage } fwom 'vs/wowkbench/api/common/extHostWebview';
+impowt { IExtHostWowkspace } fwom 'vs/wowkbench/api/common/extHostWowkspace';
+impowt { EditowGwoupCowumn } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupCowumn';
+impowt type * as vscode fwom 'vscode';
+impowt * as extHostPwotocow fwom './extHost.pwotocow';
+impowt * as extHostTypes fwom './extHostTypes';
 
 
-type IconPath = URI | { light: URI, dark: URI };
+type IconPath = UWI | { wight: UWI, dawk: UWI };
 
-class ExtHostWebviewPanel extends Disposable implements vscode.WebviewPanel {
+cwass ExtHostWebviewPanew extends Disposabwe impwements vscode.WebviewPanew {
 
-	readonly #handle: extHostProtocol.WebviewHandle;
-	readonly #proxy: extHostProtocol.MainThreadWebviewPanelsShape;
-	readonly #viewType: string;
+	weadonwy #handwe: extHostPwotocow.WebviewHandwe;
+	weadonwy #pwoxy: extHostPwotocow.MainThweadWebviewPanewsShape;
+	weadonwy #viewType: stwing;
 
-	readonly #webview: ExtHostWebview;
-	readonly #options: vscode.WebviewPanelOptions;
+	weadonwy #webview: ExtHostWebview;
+	weadonwy #options: vscode.WebviewPanewOptions;
 
-	#title: string;
+	#titwe: stwing;
 	#iconPath?: IconPath;
-	#viewColumn: vscode.ViewColumn | undefined = undefined;
-	#visible: boolean = true;
-	#active: boolean = true;
-	#isDisposed: boolean = false;
+	#viewCowumn: vscode.ViewCowumn | undefined = undefined;
+	#visibwe: boowean = twue;
+	#active: boowean = twue;
+	#isDisposed: boowean = fawse;
 
-	readonly #onDidDispose = this._register(new Emitter<void>());
-	public readonly onDidDispose = this.#onDidDispose.event;
+	weadonwy #onDidDispose = this._wegista(new Emitta<void>());
+	pubwic weadonwy onDidDispose = this.#onDidDispose.event;
 
-	readonly #onDidChangeViewState = this._register(new Emitter<vscode.WebviewPanelOnDidChangeViewStateEvent>());
-	public readonly onDidChangeViewState = this.#onDidChangeViewState.event;
+	weadonwy #onDidChangeViewState = this._wegista(new Emitta<vscode.WebviewPanewOnDidChangeViewStateEvent>());
+	pubwic weadonwy onDidChangeViewState = this.#onDidChangeViewState.event;
 
-	constructor(
-		handle: extHostProtocol.WebviewHandle,
-		proxy: extHostProtocol.MainThreadWebviewPanelsShape,
-		viewType: string,
-		title: string,
-		viewColumn: vscode.ViewColumn | undefined,
-		panelOptions: vscode.WebviewPanelOptions,
+	constwuctow(
+		handwe: extHostPwotocow.WebviewHandwe,
+		pwoxy: extHostPwotocow.MainThweadWebviewPanewsShape,
+		viewType: stwing,
+		titwe: stwing,
+		viewCowumn: vscode.ViewCowumn | undefined,
+		panewOptions: vscode.WebviewPanewOptions,
 		webview: ExtHostWebview
 	) {
-		super();
-		this.#handle = handle;
-		this.#proxy = proxy;
+		supa();
+		this.#handwe = handwe;
+		this.#pwoxy = pwoxy;
 		this.#viewType = viewType;
-		this.#options = panelOptions;
-		this.#viewColumn = viewColumn;
-		this.#title = title;
+		this.#options = panewOptions;
+		this.#viewCowumn = viewCowumn;
+		this.#titwe = titwe;
 		this.#webview = webview;
 	}
 
-	public override dispose() {
+	pubwic ovewwide dispose() {
 		if (this.#isDisposed) {
-			return;
+			wetuwn;
 		}
 
-		this.#isDisposed = true;
-		this.#onDidDispose.fire();
+		this.#isDisposed = twue;
+		this.#onDidDispose.fiwe();
 
-		this.#proxy.$disposeWebview(this.#handle);
+		this.#pwoxy.$disposeWebview(this.#handwe);
 		this.#webview.dispose();
 
-		super.dispose();
+		supa.dispose();
 	}
 
 	get webview() {
-		this.assertNotDisposed();
-		return this.#webview;
+		this.assewtNotDisposed();
+		wetuwn this.#webview;
 	}
 
-	get viewType(): string {
-		this.assertNotDisposed();
-		return this.#viewType;
+	get viewType(): stwing {
+		this.assewtNotDisposed();
+		wetuwn this.#viewType;
 	}
 
-	get title(): string {
-		this.assertNotDisposed();
-		return this.#title;
+	get titwe(): stwing {
+		this.assewtNotDisposed();
+		wetuwn this.#titwe;
 	}
 
-	set title(value: string) {
-		this.assertNotDisposed();
-		if (this.#title !== value) {
-			this.#title = value;
-			this.#proxy.$setTitle(this.#handle, value);
+	set titwe(vawue: stwing) {
+		this.assewtNotDisposed();
+		if (this.#titwe !== vawue) {
+			this.#titwe = vawue;
+			this.#pwoxy.$setTitwe(this.#handwe, vawue);
 		}
 	}
 
 	get iconPath(): IconPath | undefined {
-		this.assertNotDisposed();
-		return this.#iconPath;
+		this.assewtNotDisposed();
+		wetuwn this.#iconPath;
 	}
 
-	set iconPath(value: IconPath | undefined) {
-		this.assertNotDisposed();
-		if (this.#iconPath !== value) {
-			this.#iconPath = value;
+	set iconPath(vawue: IconPath | undefined) {
+		this.assewtNotDisposed();
+		if (this.#iconPath !== vawue) {
+			this.#iconPath = vawue;
 
-			this.#proxy.$setIconPath(this.#handle, URI.isUri(value) ? { light: value, dark: value } : value);
+			this.#pwoxy.$setIconPath(this.#handwe, UWI.isUwi(vawue) ? { wight: vawue, dawk: vawue } : vawue);
 		}
 	}
 
 	get options() {
-		return this.#options;
+		wetuwn this.#options;
 	}
 
-	get viewColumn(): vscode.ViewColumn | undefined {
-		this.assertNotDisposed();
-		if (typeof this.#viewColumn === 'number' && this.#viewColumn < 0) {
-			// We are using a symbolic view column
-			// Return undefined instead to indicate that the real view column is currently unknown but will be resolved.
-			return undefined;
+	get viewCowumn(): vscode.ViewCowumn | undefined {
+		this.assewtNotDisposed();
+		if (typeof this.#viewCowumn === 'numba' && this.#viewCowumn < 0) {
+			// We awe using a symbowic view cowumn
+			// Wetuwn undefined instead to indicate that the weaw view cowumn is cuwwentwy unknown but wiww be wesowved.
+			wetuwn undefined;
 		}
-		return this.#viewColumn;
+		wetuwn this.#viewCowumn;
 	}
 
-	public get active(): boolean {
-		this.assertNotDisposed();
-		return this.#active;
+	pubwic get active(): boowean {
+		this.assewtNotDisposed();
+		wetuwn this.#active;
 	}
 
-	public get visible(): boolean {
-		this.assertNotDisposed();
-		return this.#visible;
+	pubwic get visibwe(): boowean {
+		this.assewtNotDisposed();
+		wetuwn this.#visibwe;
 	}
 
-	_updateViewState(newState: { active: boolean; visible: boolean; viewColumn: vscode.ViewColumn; }) {
+	_updateViewState(newState: { active: boowean; visibwe: boowean; viewCowumn: vscode.ViewCowumn; }) {
 		if (this.#isDisposed) {
-			return;
+			wetuwn;
 		}
 
-		if (this.active !== newState.active || this.visible !== newState.visible || this.viewColumn !== newState.viewColumn) {
+		if (this.active !== newState.active || this.visibwe !== newState.visibwe || this.viewCowumn !== newState.viewCowumn) {
 			this.#active = newState.active;
-			this.#visible = newState.visible;
-			this.#viewColumn = newState.viewColumn;
-			this.#onDidChangeViewState.fire({ webviewPanel: this });
+			this.#visibwe = newState.visibwe;
+			this.#viewCowumn = newState.viewCowumn;
+			this.#onDidChangeViewState.fiwe({ webviewPanew: this });
 		}
 	}
 
-	public reveal(viewColumn?: vscode.ViewColumn, preserveFocus?: boolean): void {
-		this.assertNotDisposed();
-		this.#proxy.$reveal(this.#handle, {
-			viewColumn: viewColumn ? typeConverters.ViewColumn.from(viewColumn) : undefined,
-			preserveFocus: !!preserveFocus
+	pubwic weveaw(viewCowumn?: vscode.ViewCowumn, pwesewveFocus?: boowean): void {
+		this.assewtNotDisposed();
+		this.#pwoxy.$weveaw(this.#handwe, {
+			viewCowumn: viewCowumn ? typeConvewtews.ViewCowumn.fwom(viewCowumn) : undefined,
+			pwesewveFocus: !!pwesewveFocus
 		});
 	}
 
-	private assertNotDisposed() {
+	pwivate assewtNotDisposed() {
 		if (this.#isDisposed) {
-			throw new Error('Webview is disposed');
+			thwow new Ewwow('Webview is disposed');
 		}
 	}
 }
 
-export class ExtHostWebviewPanels implements extHostProtocol.ExtHostWebviewPanelsShape {
+expowt cwass ExtHostWebviewPanews impwements extHostPwotocow.ExtHostWebviewPanewsShape {
 
-	private static newHandle(): extHostProtocol.WebviewHandle {
-		return generateUuid();
+	pwivate static newHandwe(): extHostPwotocow.WebviewHandwe {
+		wetuwn genewateUuid();
 	}
 
-	private readonly _proxy: extHostProtocol.MainThreadWebviewPanelsShape;
+	pwivate weadonwy _pwoxy: extHostPwotocow.MainThweadWebviewPanewsShape;
 
-	private readonly _webviewPanels = new Map<extHostProtocol.WebviewHandle, ExtHostWebviewPanel>();
+	pwivate weadonwy _webviewPanews = new Map<extHostPwotocow.WebviewHandwe, ExtHostWebviewPanew>();
 
-	private readonly _serializers = new Map<string, {
-		readonly serializer: vscode.WebviewPanelSerializer;
-		readonly extension: IExtensionDescription;
+	pwivate weadonwy _sewiawizews = new Map<stwing, {
+		weadonwy sewiawiza: vscode.WebviewPanewSewiawiza;
+		weadonwy extension: IExtensionDescwiption;
 	}>();
 
-	constructor(
-		mainContext: extHostProtocol.IMainContext,
-		private readonly webviews: ExtHostWebviews,
-		private readonly workspace: IExtHostWorkspace | undefined,
+	constwuctow(
+		mainContext: extHostPwotocow.IMainContext,
+		pwivate weadonwy webviews: ExtHostWebviews,
+		pwivate weadonwy wowkspace: IExtHostWowkspace | undefined,
 	) {
-		this._proxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadWebviewPanels);
+		this._pwoxy = mainContext.getPwoxy(extHostPwotocow.MainContext.MainThweadWebviewPanews);
 	}
 
-	public createWebviewPanel(
-		extension: IExtensionDescription,
-		viewType: string,
-		title: string,
-		showOptions: vscode.ViewColumn | { viewColumn: vscode.ViewColumn, preserveFocus?: boolean },
-		options: (vscode.WebviewPanelOptions & vscode.WebviewOptions) = {},
-	): vscode.WebviewPanel {
-		const viewColumn = typeof showOptions === 'object' ? showOptions.viewColumn : showOptions;
+	pubwic cweateWebviewPanew(
+		extension: IExtensionDescwiption,
+		viewType: stwing,
+		titwe: stwing,
+		showOptions: vscode.ViewCowumn | { viewCowumn: vscode.ViewCowumn, pwesewveFocus?: boowean },
+		options: (vscode.WebviewPanewOptions & vscode.WebviewOptions) = {},
+	): vscode.WebviewPanew {
+		const viewCowumn = typeof showOptions === 'object' ? showOptions.viewCowumn : showOptions;
 		const webviewShowOptions = {
-			viewColumn: typeConverters.ViewColumn.from(viewColumn),
-			preserveFocus: typeof showOptions === 'object' && !!showOptions.preserveFocus
+			viewCowumn: typeConvewtews.ViewCowumn.fwom(viewCowumn),
+			pwesewveFocus: typeof showOptions === 'object' && !!showOptions.pwesewveFocus
 		};
 
-		const serializeBuffersForPostMessage = shouldSerializeBuffersForPostMessage(extension);
-		const handle = ExtHostWebviewPanels.newHandle();
-		this._proxy.$createWebviewPanel(toExtensionData(extension), handle, viewType, {
-			title,
-			panelOptions: serializeWebviewPanelOptions(options),
-			webviewOptions: serializeWebviewOptions(extension, this.workspace, options),
-			serializeBuffersForPostMessage,
+		const sewiawizeBuffewsFowPostMessage = shouwdSewiawizeBuffewsFowPostMessage(extension);
+		const handwe = ExtHostWebviewPanews.newHandwe();
+		this._pwoxy.$cweateWebviewPanew(toExtensionData(extension), handwe, viewType, {
+			titwe,
+			panewOptions: sewiawizeWebviewPanewOptions(options),
+			webviewOptions: sewiawizeWebviewOptions(extension, this.wowkspace, options),
+			sewiawizeBuffewsFowPostMessage,
 		}, webviewShowOptions);
 
-		const webview = this.webviews.createNewWebview(handle, options, extension);
-		const panel = this.createNewWebviewPanel(handle, viewType, title, viewColumn, options, webview);
+		const webview = this.webviews.cweateNewWebview(handwe, options, extension);
+		const panew = this.cweateNewWebviewPanew(handwe, viewType, titwe, viewCowumn, options, webview);
 
-		return panel;
+		wetuwn panew;
 	}
 
-	public $onDidChangeWebviewPanelViewStates(newStates: extHostProtocol.WebviewPanelViewStateData): void {
-		const handles = Object.keys(newStates);
-		// Notify webviews of state changes in the following order:
-		// - Non-visible
-		// - Visible
+	pubwic $onDidChangeWebviewPanewViewStates(newStates: extHostPwotocow.WebviewPanewViewStateData): void {
+		const handwes = Object.keys(newStates);
+		// Notify webviews of state changes in the fowwowing owda:
+		// - Non-visibwe
+		// - Visibwe
 		// - Active
-		handles.sort((a, b) => {
+		handwes.sowt((a, b) => {
 			const stateA = newStates[a];
 			const stateB = newStates[b];
 			if (stateA.active) {
-				return 1;
+				wetuwn 1;
 			}
 			if (stateB.active) {
-				return -1;
+				wetuwn -1;
 			}
-			return (+stateA.visible) - (+stateB.visible);
+			wetuwn (+stateA.visibwe) - (+stateB.visibwe);
 		});
 
-		for (const handle of handles) {
-			const panel = this.getWebviewPanel(handle);
-			if (!panel) {
+		fow (const handwe of handwes) {
+			const panew = this.getWebviewPanew(handwe);
+			if (!panew) {
 				continue;
 			}
 
-			const newState = newStates[handle];
-			panel._updateViewState({
+			const newState = newStates[handwe];
+			panew._updateViewState({
 				active: newState.active,
-				visible: newState.visible,
-				viewColumn: typeConverters.ViewColumn.to(newState.position),
+				visibwe: newState.visibwe,
+				viewCowumn: typeConvewtews.ViewCowumn.to(newState.position),
 			});
 		}
 	}
 
-	async $onDidDisposeWebviewPanel(handle: extHostProtocol.WebviewHandle): Promise<void> {
-		const panel = this.getWebviewPanel(handle);
-		panel?.dispose();
+	async $onDidDisposeWebviewPanew(handwe: extHostPwotocow.WebviewHandwe): Pwomise<void> {
+		const panew = this.getWebviewPanew(handwe);
+		panew?.dispose();
 
-		this._webviewPanels.delete(handle);
-		this.webviews.deleteWebview(handle);
+		this._webviewPanews.dewete(handwe);
+		this.webviews.deweteWebview(handwe);
 	}
 
-	public registerWebviewPanelSerializer(
-		extension: IExtensionDescription,
-		viewType: string,
-		serializer: vscode.WebviewPanelSerializer
-	): vscode.Disposable {
-		if (this._serializers.has(viewType)) {
-			throw new Error(`Serializer for '${viewType}' already registered`);
+	pubwic wegistewWebviewPanewSewiawiza(
+		extension: IExtensionDescwiption,
+		viewType: stwing,
+		sewiawiza: vscode.WebviewPanewSewiawiza
+	): vscode.Disposabwe {
+		if (this._sewiawizews.has(viewType)) {
+			thwow new Ewwow(`Sewiawiza fow '${viewType}' awweady wegistewed`);
 		}
 
-		this._serializers.set(viewType, { serializer, extension });
-		this._proxy.$registerSerializer(viewType, {
-			serializeBuffersForPostMessage: shouldSerializeBuffersForPostMessage(extension)
+		this._sewiawizews.set(viewType, { sewiawiza, extension });
+		this._pwoxy.$wegistewSewiawiza(viewType, {
+			sewiawizeBuffewsFowPostMessage: shouwdSewiawizeBuffewsFowPostMessage(extension)
 		});
 
-		return new extHostTypes.Disposable(() => {
-			this._serializers.delete(viewType);
-			this._proxy.$unregisterSerializer(viewType);
+		wetuwn new extHostTypes.Disposabwe(() => {
+			this._sewiawizews.dewete(viewType);
+			this._pwoxy.$unwegistewSewiawiza(viewType);
 		});
 	}
 
-	async $deserializeWebviewPanel(
-		webviewHandle: extHostProtocol.WebviewHandle,
-		viewType: string,
+	async $desewiawizeWebviewPanew(
+		webviewHandwe: extHostPwotocow.WebviewHandwe,
+		viewType: stwing,
 		initData: {
-			title: string;
+			titwe: stwing;
 			state: any;
-			webviewOptions: extHostProtocol.IWebviewOptions;
-			panelOptions: extHostProtocol.IWebviewPanelOptions;
+			webviewOptions: extHostPwotocow.IWebviewOptions;
+			panewOptions: extHostPwotocow.IWebviewPanewOptions;
 		},
-		position: EditorGroupColumn
-	): Promise<void> {
-		const entry = this._serializers.get(viewType);
-		if (!entry) {
-			throw new Error(`No serializer found for '${viewType}'`);
+		position: EditowGwoupCowumn
+	): Pwomise<void> {
+		const entwy = this._sewiawizews.get(viewType);
+		if (!entwy) {
+			thwow new Ewwow(`No sewiawiza found fow '${viewType}'`);
 		}
-		const { serializer, extension } = entry;
+		const { sewiawiza, extension } = entwy;
 
-		const webview = this.webviews.createNewWebview(webviewHandle, initData.webviewOptions, extension);
-		const revivedPanel = this.createNewWebviewPanel(webviewHandle, viewType, initData.title, position, initData.panelOptions, webview);
-		await serializer.deserializeWebviewPanel(revivedPanel, initData.state);
+		const webview = this.webviews.cweateNewWebview(webviewHandwe, initData.webviewOptions, extension);
+		const wevivedPanew = this.cweateNewWebviewPanew(webviewHandwe, viewType, initData.titwe, position, initData.panewOptions, webview);
+		await sewiawiza.desewiawizeWebviewPanew(wevivedPanew, initData.state);
 	}
 
-	public createNewWebviewPanel(webviewHandle: string, viewType: string, title: string, position: vscode.ViewColumn, options: extHostProtocol.IWebviewPanelOptions, webview: ExtHostWebview) {
-		const panel = new ExtHostWebviewPanel(webviewHandle, this._proxy, viewType, title, position, options, webview);
-		this._webviewPanels.set(webviewHandle, panel);
-		return panel;
+	pubwic cweateNewWebviewPanew(webviewHandwe: stwing, viewType: stwing, titwe: stwing, position: vscode.ViewCowumn, options: extHostPwotocow.IWebviewPanewOptions, webview: ExtHostWebview) {
+		const panew = new ExtHostWebviewPanew(webviewHandwe, this._pwoxy, viewType, titwe, position, options, webview);
+		this._webviewPanews.set(webviewHandwe, panew);
+		wetuwn panew;
 	}
 
-	public getWebviewPanel(handle: extHostProtocol.WebviewHandle): ExtHostWebviewPanel | undefined {
-		return this._webviewPanels.get(handle);
+	pubwic getWebviewPanew(handwe: extHostPwotocow.WebviewHandwe): ExtHostWebviewPanew | undefined {
+		wetuwn this._webviewPanews.get(handwe);
 	}
 }
 
-function serializeWebviewPanelOptions(options: vscode.WebviewPanelOptions): extHostProtocol.IWebviewPanelOptions {
-	return {
-		enableFindWidget: options.enableFindWidget,
-		retainContextWhenHidden: options.retainContextWhenHidden,
+function sewiawizeWebviewPanewOptions(options: vscode.WebviewPanewOptions): extHostPwotocow.IWebviewPanewOptions {
+	wetuwn {
+		enabweFindWidget: options.enabweFindWidget,
+		wetainContextWhenHidden: options.wetainContextWhenHidden,
 	};
 }

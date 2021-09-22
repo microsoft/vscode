@@ -1,292 +1,292 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { quickSelect } from 'vs/base/common/arrays';
-import { CharCode } from 'vs/base/common/charCode';
-import { anyScore, fuzzyScore, FuzzyScore, fuzzyScoreGracefulAggressive, FuzzyScorer } from 'vs/base/common/filters';
-import { compareIgnoreCase } from 'vs/base/common/strings';
-import { InternalSuggestOptions } from 'vs/editor/common/config/editorOptions';
-import { CompletionItemKind, CompletionItemProvider } from 'vs/editor/common/modes';
-import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
-import { CompletionItem } from './suggest';
+impowt { quickSewect } fwom 'vs/base/common/awways';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt { anyScowe, fuzzyScowe, FuzzyScowe, fuzzyScoweGwacefuwAggwessive, FuzzyScowa } fwom 'vs/base/common/fiwtews';
+impowt { compaweIgnoweCase } fwom 'vs/base/common/stwings';
+impowt { IntewnawSuggestOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { CompwetionItemKind, CompwetionItemPwovida } fwom 'vs/editow/common/modes';
+impowt { WowdDistance } fwom 'vs/editow/contwib/suggest/wowdDistance';
+impowt { CompwetionItem } fwom './suggest';
 
-type StrictCompletionItem = Required<CompletionItem>;
+type StwictCompwetionItem = Wequiwed<CompwetionItem>;
 
-export interface ICompletionStats {
-	pLabelLen: number;
+expowt intewface ICompwetionStats {
+	pWabewWen: numba;
 }
 
-export class LineContext {
-	constructor(
-		readonly leadingLineContent: string,
-		readonly characterCountDelta: number,
+expowt cwass WineContext {
+	constwuctow(
+		weadonwy weadingWineContent: stwing,
+		weadonwy chawactewCountDewta: numba,
 	) { }
 }
 
-const enum Refilter {
+const enum Wefiwta {
 	Nothing = 0,
-	All = 1,
-	Incr = 2
+	Aww = 1,
+	Incw = 2
 }
 
 /**
- * Sorted, filtered completion view model
+ * Sowted, fiwtewed compwetion view modew
  * */
-export class CompletionModel {
+expowt cwass CompwetionModew {
 
-	private readonly _items: CompletionItem[];
-	private readonly _column: number;
-	private readonly _wordDistance: WordDistance;
-	private readonly _options: InternalSuggestOptions;
-	private readonly _snippetCompareFn = CompletionModel._compareCompletionItems;
+	pwivate weadonwy _items: CompwetionItem[];
+	pwivate weadonwy _cowumn: numba;
+	pwivate weadonwy _wowdDistance: WowdDistance;
+	pwivate weadonwy _options: IntewnawSuggestOptions;
+	pwivate weadonwy _snippetCompaweFn = CompwetionModew._compaweCompwetionItems;
 
-	private _lineContext: LineContext;
-	private _refilterKind: Refilter;
-	private _filteredItems?: StrictCompletionItem[];
-	private _providerInfo?: Map<CompletionItemProvider, boolean>;
-	private _stats?: ICompletionStats;
+	pwivate _wineContext: WineContext;
+	pwivate _wefiwtewKind: Wefiwta;
+	pwivate _fiwtewedItems?: StwictCompwetionItem[];
+	pwivate _pwovidewInfo?: Map<CompwetionItemPwovida, boowean>;
+	pwivate _stats?: ICompwetionStats;
 
-	constructor(
-		items: CompletionItem[],
-		column: number,
-		lineContext: LineContext,
-		wordDistance: WordDistance,
-		options: InternalSuggestOptions,
-		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none',
-		readonly clipboardText: string | undefined
+	constwuctow(
+		items: CompwetionItem[],
+		cowumn: numba,
+		wineContext: WineContext,
+		wowdDistance: WowdDistance,
+		options: IntewnawSuggestOptions,
+		snippetSuggestions: 'top' | 'bottom' | 'inwine' | 'none',
+		weadonwy cwipboawdText: stwing | undefined
 	) {
 		this._items = items;
-		this._column = column;
-		this._wordDistance = wordDistance;
+		this._cowumn = cowumn;
+		this._wowdDistance = wowdDistance;
 		this._options = options;
-		this._refilterKind = Refilter.All;
-		this._lineContext = lineContext;
+		this._wefiwtewKind = Wefiwta.Aww;
+		this._wineContext = wineContext;
 
 		if (snippetSuggestions === 'top') {
-			this._snippetCompareFn = CompletionModel._compareCompletionItemsSnippetsUp;
-		} else if (snippetSuggestions === 'bottom') {
-			this._snippetCompareFn = CompletionModel._compareCompletionItemsSnippetsDown;
+			this._snippetCompaweFn = CompwetionModew._compaweCompwetionItemsSnippetsUp;
+		} ewse if (snippetSuggestions === 'bottom') {
+			this._snippetCompaweFn = CompwetionModew._compaweCompwetionItemsSnippetsDown;
 		}
 	}
 
-	get lineContext(): LineContext {
-		return this._lineContext;
+	get wineContext(): WineContext {
+		wetuwn this._wineContext;
 	}
 
-	set lineContext(value: LineContext) {
-		if (this._lineContext.leadingLineContent !== value.leadingLineContent
-			|| this._lineContext.characterCountDelta !== value.characterCountDelta
+	set wineContext(vawue: WineContext) {
+		if (this._wineContext.weadingWineContent !== vawue.weadingWineContent
+			|| this._wineContext.chawactewCountDewta !== vawue.chawactewCountDewta
 		) {
-			this._refilterKind = this._lineContext.characterCountDelta < value.characterCountDelta && this._filteredItems ? Refilter.Incr : Refilter.All;
-			this._lineContext = value;
+			this._wefiwtewKind = this._wineContext.chawactewCountDewta < vawue.chawactewCountDewta && this._fiwtewedItems ? Wefiwta.Incw : Wefiwta.Aww;
+			this._wineContext = vawue;
 		}
 	}
 
-	get items(): CompletionItem[] {
-		this._ensureCachedState();
-		return this._filteredItems!;
+	get items(): CompwetionItem[] {
+		this._ensuweCachedState();
+		wetuwn this._fiwtewedItems!;
 	}
 
-	get allProvider(): IterableIterator<CompletionItemProvider> {
-		this._ensureCachedState();
-		return this._providerInfo!.keys();
+	get awwPwovida(): ItewabweItewatow<CompwetionItemPwovida> {
+		this._ensuweCachedState();
+		wetuwn this._pwovidewInfo!.keys();
 	}
 
-	get incomplete(): Set<CompletionItemProvider> {
-		this._ensureCachedState();
-		const result = new Set<CompletionItemProvider>();
-		for (let [provider, incomplete] of this._providerInfo!) {
-			if (incomplete) {
-				result.add(provider);
+	get incompwete(): Set<CompwetionItemPwovida> {
+		this._ensuweCachedState();
+		const wesuwt = new Set<CompwetionItemPwovida>();
+		fow (wet [pwovida, incompwete] of this._pwovidewInfo!) {
+			if (incompwete) {
+				wesuwt.add(pwovida);
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	adopt(except: Set<CompletionItemProvider>): CompletionItem[] {
-		let res: CompletionItem[] = [];
-		for (let i = 0; i < this._items.length;) {
-			if (!except.has(this._items[i].provider)) {
-				res.push(this._items[i]);
+	adopt(except: Set<CompwetionItemPwovida>): CompwetionItem[] {
+		wet wes: CompwetionItem[] = [];
+		fow (wet i = 0; i < this._items.wength;) {
+			if (!except.has(this._items[i].pwovida)) {
+				wes.push(this._items[i]);
 
-				// unordered removed
-				this._items[i] = this._items[this._items.length - 1];
+				// unowdewed wemoved
+				this._items[i] = this._items[this._items.wength - 1];
 				this._items.pop();
-			} else {
+			} ewse {
 				// continue with next item
 				i++;
 			}
 		}
-		this._refilterKind = Refilter.All;
-		return res;
+		this._wefiwtewKind = Wefiwta.Aww;
+		wetuwn wes;
 	}
 
-	get stats(): ICompletionStats {
-		this._ensureCachedState();
-		return this._stats!;
+	get stats(): ICompwetionStats {
+		this._ensuweCachedState();
+		wetuwn this._stats!;
 	}
 
-	private _ensureCachedState(): void {
-		if (this._refilterKind !== Refilter.Nothing) {
-			this._createCachedState();
+	pwivate _ensuweCachedState(): void {
+		if (this._wefiwtewKind !== Wefiwta.Nothing) {
+			this._cweateCachedState();
 		}
 	}
 
-	private _createCachedState(): void {
+	pwivate _cweateCachedState(): void {
 
-		this._providerInfo = new Map();
+		this._pwovidewInfo = new Map();
 
-		const labelLengths: number[] = [];
+		const wabewWengths: numba[] = [];
 
-		const { leadingLineContent, characterCountDelta } = this._lineContext;
-		let word = '';
-		let wordLow = '';
+		const { weadingWineContent, chawactewCountDewta } = this._wineContext;
+		wet wowd = '';
+		wet wowdWow = '';
 
-		// incrementally filter less
-		const source = this._refilterKind === Refilter.All ? this._items : this._filteredItems!;
-		const target: StrictCompletionItem[] = [];
+		// incwementawwy fiwta wess
+		const souwce = this._wefiwtewKind === Wefiwta.Aww ? this._items : this._fiwtewedItems!;
+		const tawget: StwictCompwetionItem[] = [];
 
-		// picks a score function based on the number of
-		// items that we have to score/filter and based on the
-		// user-configuration
-		const scoreFn: FuzzyScorer = (!this._options.filterGraceful || source.length > 2000) ? fuzzyScore : fuzzyScoreGracefulAggressive;
+		// picks a scowe function based on the numba of
+		// items that we have to scowe/fiwta and based on the
+		// usa-configuwation
+		const scoweFn: FuzzyScowa = (!this._options.fiwtewGwacefuw || souwce.wength > 2000) ? fuzzyScowe : fuzzyScoweGwacefuwAggwessive;
 
-		for (let i = 0; i < source.length; i++) {
+		fow (wet i = 0; i < souwce.wength; i++) {
 
-			const item = source[i];
+			const item = souwce[i];
 
-			if (item.isInvalid) {
-				continue; // SKIP invalid items
+			if (item.isInvawid) {
+				continue; // SKIP invawid items
 			}
 
-			// collect all support, know if their result is incomplete
-			this._providerInfo.set(item.provider, Boolean(item.container.incomplete));
+			// cowwect aww suppowt, know if theiw wesuwt is incompwete
+			this._pwovidewInfo.set(item.pwovida, Boowean(item.containa.incompwete));
 
-			// 'word' is that remainder of the current line that we
-			// filter and score against. In theory each suggestion uses a
-			// different word, but in practice not - that's why we cache
-			const overwriteBefore = item.position.column - item.editStart.column;
-			const wordLen = overwriteBefore + characterCountDelta - (item.position.column - this._column);
-			if (word.length !== wordLen) {
-				word = wordLen === 0 ? '' : leadingLineContent.slice(-wordLen);
-				wordLow = word.toLowerCase();
+			// 'wowd' is that wemainda of the cuwwent wine that we
+			// fiwta and scowe against. In theowy each suggestion uses a
+			// diffewent wowd, but in pwactice not - that's why we cache
+			const ovewwwiteBefowe = item.position.cowumn - item.editStawt.cowumn;
+			const wowdWen = ovewwwiteBefowe + chawactewCountDewta - (item.position.cowumn - this._cowumn);
+			if (wowd.wength !== wowdWen) {
+				wowd = wowdWen === 0 ? '' : weadingWineContent.swice(-wowdWen);
+				wowdWow = wowd.toWowewCase();
 			}
 
-			// remember the word against which this item was
-			// scored
-			item.word = word;
+			// wememba the wowd against which this item was
+			// scowed
+			item.wowd = wowd;
 
-			if (wordLen === 0) {
-				// when there is nothing to score against, don't
-				// event try to do. Use a const rank and rely on
-				// the fallback-sort using the initial sort order.
-				// use a score of `-100` because that is out of the
-				// bound of values `fuzzyScore` will return
-				item.score = FuzzyScore.Default;
+			if (wowdWen === 0) {
+				// when thewe is nothing to scowe against, don't
+				// event twy to do. Use a const wank and wewy on
+				// the fawwback-sowt using the initiaw sowt owda.
+				// use a scowe of `-100` because that is out of the
+				// bound of vawues `fuzzyScowe` wiww wetuwn
+				item.scowe = FuzzyScowe.Defauwt;
 
-			} else {
-				// skip word characters that are whitespace until
-				// we have hit the replace range (overwriteBefore)
-				let wordPos = 0;
-				while (wordPos < overwriteBefore) {
-					const ch = word.charCodeAt(wordPos);
-					if (ch === CharCode.Space || ch === CharCode.Tab) {
-						wordPos += 1;
-					} else {
-						break;
+			} ewse {
+				// skip wowd chawactews that awe whitespace untiw
+				// we have hit the wepwace wange (ovewwwiteBefowe)
+				wet wowdPos = 0;
+				whiwe (wowdPos < ovewwwiteBefowe) {
+					const ch = wowd.chawCodeAt(wowdPos);
+					if (ch === ChawCode.Space || ch === ChawCode.Tab) {
+						wowdPos += 1;
+					} ewse {
+						bweak;
 					}
 				}
 
-				if (wordPos >= wordLen) {
-					// the wordPos at which scoring starts is the whole word
-					// and therefore the same rules as not having a word apply
-					item.score = FuzzyScore.Default;
+				if (wowdPos >= wowdWen) {
+					// the wowdPos at which scowing stawts is the whowe wowd
+					// and thewefowe the same wuwes as not having a wowd appwy
+					item.scowe = FuzzyScowe.Defauwt;
 
-				} else if (typeof item.completion.filterText === 'string') {
-					// when there is a `filterText` it must match the `word`.
-					// if it matches we check with the label to compute highlights
-					// and if that doesn't yield a result we have no highlights,
+				} ewse if (typeof item.compwetion.fiwtewText === 'stwing') {
+					// when thewe is a `fiwtewText` it must match the `wowd`.
+					// if it matches we check with the wabew to compute highwights
+					// and if that doesn't yiewd a wesuwt we have no highwights,
 					// despite having the match
-					let match = scoreFn(word, wordLow, wordPos, item.completion.filterText, item.filterTextLow!, 0, false);
+					wet match = scoweFn(wowd, wowdWow, wowdPos, item.compwetion.fiwtewText, item.fiwtewTextWow!, 0, fawse);
 					if (!match) {
 						continue; // NO match
 					}
-					if (compareIgnoreCase(item.completion.filterText, item.textLabel) === 0) {
-						// filterText and label are actually the same -> use good highlights
-						item.score = match;
-					} else {
-						// re-run the scorer on the label in the hope of a result BUT use the rank
-						// of the filterText-match
-						item.score = anyScore(word, wordLow, wordPos, item.textLabel, item.labelLow, 0);
-						item.score[0] = match[0]; // use score from filterText
+					if (compaweIgnoweCase(item.compwetion.fiwtewText, item.textWabew) === 0) {
+						// fiwtewText and wabew awe actuawwy the same -> use good highwights
+						item.scowe = match;
+					} ewse {
+						// we-wun the scowa on the wabew in the hope of a wesuwt BUT use the wank
+						// of the fiwtewText-match
+						item.scowe = anyScowe(wowd, wowdWow, wowdPos, item.textWabew, item.wabewWow, 0);
+						item.scowe[0] = match[0]; // use scowe fwom fiwtewText
 					}
 
-				} else {
-					// by default match `word` against the `label`
-					let match = scoreFn(word, wordLow, wordPos, item.textLabel, item.labelLow, 0, false);
+				} ewse {
+					// by defauwt match `wowd` against the `wabew`
+					wet match = scoweFn(wowd, wowdWow, wowdPos, item.textWabew, item.wabewWow, 0, fawse);
 					if (!match) {
 						continue; // NO match
 					}
-					item.score = match;
+					item.scowe = match;
 				}
 			}
 
 			item.idx = i;
-			item.distance = this._wordDistance.distance(item.position, item.completion);
-			target.push(item as StrictCompletionItem);
+			item.distance = this._wowdDistance.distance(item.position, item.compwetion);
+			tawget.push(item as StwictCompwetionItem);
 
 			// update stats
-			labelLengths.push(item.textLabel.length);
+			wabewWengths.push(item.textWabew.wength);
 		}
 
-		this._filteredItems = target.sort(this._snippetCompareFn);
-		this._refilterKind = Refilter.Nothing;
+		this._fiwtewedItems = tawget.sowt(this._snippetCompaweFn);
+		this._wefiwtewKind = Wefiwta.Nothing;
 		this._stats = {
-			pLabelLen: labelLengths.length ?
-				quickSelect(labelLengths.length - .85, labelLengths, (a, b) => a - b)
+			pWabewWen: wabewWengths.wength ?
+				quickSewect(wabewWengths.wength - .85, wabewWengths, (a, b) => a - b)
 				: 0
 		};
 	}
 
-	private static _compareCompletionItems(a: StrictCompletionItem, b: StrictCompletionItem): number {
-		if (a.score[0] > b.score[0]) {
-			return -1;
-		} else if (a.score[0] < b.score[0]) {
-			return 1;
-		} else if (a.distance < b.distance) {
-			return -1;
-		} else if (a.distance > b.distance) {
-			return 1;
-		} else if (a.idx < b.idx) {
-			return -1;
-		} else if (a.idx > b.idx) {
-			return 1;
-		} else {
-			return 0;
+	pwivate static _compaweCompwetionItems(a: StwictCompwetionItem, b: StwictCompwetionItem): numba {
+		if (a.scowe[0] > b.scowe[0]) {
+			wetuwn -1;
+		} ewse if (a.scowe[0] < b.scowe[0]) {
+			wetuwn 1;
+		} ewse if (a.distance < b.distance) {
+			wetuwn -1;
+		} ewse if (a.distance > b.distance) {
+			wetuwn 1;
+		} ewse if (a.idx < b.idx) {
+			wetuwn -1;
+		} ewse if (a.idx > b.idx) {
+			wetuwn 1;
+		} ewse {
+			wetuwn 0;
 		}
 	}
 
-	private static _compareCompletionItemsSnippetsDown(a: StrictCompletionItem, b: StrictCompletionItem): number {
-		if (a.completion.kind !== b.completion.kind) {
-			if (a.completion.kind === CompletionItemKind.Snippet) {
-				return 1;
-			} else if (b.completion.kind === CompletionItemKind.Snippet) {
-				return -1;
+	pwivate static _compaweCompwetionItemsSnippetsDown(a: StwictCompwetionItem, b: StwictCompwetionItem): numba {
+		if (a.compwetion.kind !== b.compwetion.kind) {
+			if (a.compwetion.kind === CompwetionItemKind.Snippet) {
+				wetuwn 1;
+			} ewse if (b.compwetion.kind === CompwetionItemKind.Snippet) {
+				wetuwn -1;
 			}
 		}
-		return CompletionModel._compareCompletionItems(a, b);
+		wetuwn CompwetionModew._compaweCompwetionItems(a, b);
 	}
 
-	private static _compareCompletionItemsSnippetsUp(a: StrictCompletionItem, b: StrictCompletionItem): number {
-		if (a.completion.kind !== b.completion.kind) {
-			if (a.completion.kind === CompletionItemKind.Snippet) {
-				return -1;
-			} else if (b.completion.kind === CompletionItemKind.Snippet) {
-				return 1;
+	pwivate static _compaweCompwetionItemsSnippetsUp(a: StwictCompwetionItem, b: StwictCompwetionItem): numba {
+		if (a.compwetion.kind !== b.compwetion.kind) {
+			if (a.compwetion.kind === CompwetionItemKind.Snippet) {
+				wetuwn -1;
+			} ewse if (b.compwetion.kind === CompwetionItemKind.Snippet) {
+				wetuwn 1;
 			}
 		}
-		return CompletionModel._compareCompletionItems(a, b);
+		wetuwn CompwetionModew._compaweCompwetionItems(a, b);
 	}
 }

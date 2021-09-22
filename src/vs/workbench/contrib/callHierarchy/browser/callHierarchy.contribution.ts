@@ -1,301 +1,301 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { CallHierarchyProviderRegistry, CallHierarchyDirection, CallHierarchyModel } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { CallHierarchyTreePeekWidget } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchyPeek';
-import { Event } from 'vs/base/common/event';
-import { registerEditorContribution, EditorAction2 } from 'vs/editor/browser/editorExtensions';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IContextKeyService, RawContextKey, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { PeekContext } from 'vs/editor/contrib/peekView/peekView';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { Range } from 'vs/editor/common/core/range';
-import { IPosition } from 'vs/editor/common/core/position';
-import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+impowt { wocawize } fwom 'vs/nws';
+impowt { CawwHiewawchyPwovidewWegistwy, CawwHiewawchyDiwection, CawwHiewawchyModew } fwom 'vs/wowkbench/contwib/cawwHiewawchy/common/cawwHiewawchy';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { CawwHiewawchyTweePeekWidget } fwom 'vs/wowkbench/contwib/cawwHiewawchy/bwowsa/cawwHiewawchyPeek';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { wegistewEditowContwibution, EditowAction2 } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IContextKeySewvice, WawContextKey, IContextKey, ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { PeekContext } fwom 'vs/editow/contwib/peekView/peekView';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IPosition } fwom 'vs/editow/common/cowe/position';
+impowt { MenuId, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { wegistewIcon } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
 
-const _ctxHasCallHierarchyProvider = new RawContextKey<boolean>('editorHasCallHierarchyProvider', false, localize('editorHasCallHierarchyProvider', 'Whether a call hierarchy provider is available'));
-const _ctxCallHierarchyVisible = new RawContextKey<boolean>('callHierarchyVisible', false, localize('callHierarchyVisible', 'Whether call hierarchy peek is currently showing'));
-const _ctxCallHierarchyDirection = new RawContextKey<string>('callHierarchyDirection', undefined, { type: 'string', description: localize('callHierarchyDirection', 'Whether call hierarchy shows incoming or outgoing calls') });
+const _ctxHasCawwHiewawchyPwovida = new WawContextKey<boowean>('editowHasCawwHiewawchyPwovida', fawse, wocawize('editowHasCawwHiewawchyPwovida', 'Whetha a caww hiewawchy pwovida is avaiwabwe'));
+const _ctxCawwHiewawchyVisibwe = new WawContextKey<boowean>('cawwHiewawchyVisibwe', fawse, wocawize('cawwHiewawchyVisibwe', 'Whetha caww hiewawchy peek is cuwwentwy showing'));
+const _ctxCawwHiewawchyDiwection = new WawContextKey<stwing>('cawwHiewawchyDiwection', undefined, { type: 'stwing', descwiption: wocawize('cawwHiewawchyDiwection', 'Whetha caww hiewawchy shows incoming ow outgoing cawws') });
 
-function sanitizedDirection(candidate: string): CallHierarchyDirection {
-	return candidate === CallHierarchyDirection.CallsFrom || candidate === CallHierarchyDirection.CallsTo
+function sanitizedDiwection(candidate: stwing): CawwHiewawchyDiwection {
+	wetuwn candidate === CawwHiewawchyDiwection.CawwsFwom || candidate === CawwHiewawchyDiwection.CawwsTo
 		? candidate
-		: CallHierarchyDirection.CallsTo;
+		: CawwHiewawchyDiwection.CawwsTo;
 }
 
-class CallHierarchyController implements IEditorContribution {
+cwass CawwHiewawchyContwowwa impwements IEditowContwibution {
 
-	static readonly Id = 'callHierarchy';
+	static weadonwy Id = 'cawwHiewawchy';
 
-	static get(editor: ICodeEditor): CallHierarchyController {
-		return editor.getContribution<CallHierarchyController>(CallHierarchyController.Id);
+	static get(editow: ICodeEditow): CawwHiewawchyContwowwa {
+		wetuwn editow.getContwibution<CawwHiewawchyContwowwa>(CawwHiewawchyContwowwa.Id);
 	}
 
-	private static readonly _StorageDirection = 'callHierarchy/defaultDirection';
+	pwivate static weadonwy _StowageDiwection = 'cawwHiewawchy/defauwtDiwection';
 
-	private readonly _ctxHasProvider: IContextKey<boolean>;
-	private readonly _ctxIsVisible: IContextKey<boolean>;
-	private readonly _ctxDirection: IContextKey<string>;
-	private readonly _dispoables = new DisposableStore();
-	private readonly _sessionDisposables = new DisposableStore();
+	pwivate weadonwy _ctxHasPwovida: IContextKey<boowean>;
+	pwivate weadonwy _ctxIsVisibwe: IContextKey<boowean>;
+	pwivate weadonwy _ctxDiwection: IContextKey<stwing>;
+	pwivate weadonwy _dispoabwes = new DisposabweStowe();
+	pwivate weadonwy _sessionDisposabwes = new DisposabweStowe();
 
-	private _widget?: CallHierarchyTreePeekWidget;
+	pwivate _widget?: CawwHiewawchyTweePeekWidget;
 
-	constructor(
-		private readonly _editor: ICodeEditor,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IStorageService private readonly _storageService: IStorageService,
-		@ICodeEditorService private readonly _editorService: ICodeEditorService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+	constwuctow(
+		pwivate weadonwy _editow: ICodeEditow,
+		@IContextKeySewvice pwivate weadonwy _contextKeySewvice: IContextKeySewvice,
+		@IStowageSewvice pwivate weadonwy _stowageSewvice: IStowageSewvice,
+		@ICodeEditowSewvice pwivate weadonwy _editowSewvice: ICodeEditowSewvice,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
 	) {
-		this._ctxIsVisible = _ctxCallHierarchyVisible.bindTo(this._contextKeyService);
-		this._ctxHasProvider = _ctxHasCallHierarchyProvider.bindTo(this._contextKeyService);
-		this._ctxDirection = _ctxCallHierarchyDirection.bindTo(this._contextKeyService);
-		this._dispoables.add(Event.any<any>(_editor.onDidChangeModel, _editor.onDidChangeModelLanguage, CallHierarchyProviderRegistry.onDidChange)(() => {
-			this._ctxHasProvider.set(_editor.hasModel() && CallHierarchyProviderRegistry.has(_editor.getModel()));
+		this._ctxIsVisibwe = _ctxCawwHiewawchyVisibwe.bindTo(this._contextKeySewvice);
+		this._ctxHasPwovida = _ctxHasCawwHiewawchyPwovida.bindTo(this._contextKeySewvice);
+		this._ctxDiwection = _ctxCawwHiewawchyDiwection.bindTo(this._contextKeySewvice);
+		this._dispoabwes.add(Event.any<any>(_editow.onDidChangeModew, _editow.onDidChangeModewWanguage, CawwHiewawchyPwovidewWegistwy.onDidChange)(() => {
+			this._ctxHasPwovida.set(_editow.hasModew() && CawwHiewawchyPwovidewWegistwy.has(_editow.getModew()));
 		}));
-		this._dispoables.add(this._sessionDisposables);
+		this._dispoabwes.add(this._sessionDisposabwes);
 	}
 
 	dispose(): void {
-		this._ctxHasProvider.reset();
-		this._ctxIsVisible.reset();
-		this._dispoables.dispose();
+		this._ctxHasPwovida.weset();
+		this._ctxIsVisibwe.weset();
+		this._dispoabwes.dispose();
 	}
 
-	async startCallHierarchyFromEditor(): Promise<void> {
-		this._sessionDisposables.clear();
+	async stawtCawwHiewawchyFwomEditow(): Pwomise<void> {
+		this._sessionDisposabwes.cweaw();
 
-		if (!this._editor.hasModel()) {
-			return;
+		if (!this._editow.hasModew()) {
+			wetuwn;
 		}
 
-		const document = this._editor.getModel();
-		const position = this._editor.getPosition();
-		if (!CallHierarchyProviderRegistry.has(document)) {
-			return;
+		const document = this._editow.getModew();
+		const position = this._editow.getPosition();
+		if (!CawwHiewawchyPwovidewWegistwy.has(document)) {
+			wetuwn;
 		}
 
-		const cts = new CancellationTokenSource();
-		const model = CallHierarchyModel.create(document, position, cts.token);
-		const direction = sanitizedDirection(this._storageService.get(CallHierarchyController._StorageDirection, StorageScope.GLOBAL, CallHierarchyDirection.CallsTo));
+		const cts = new CancewwationTokenSouwce();
+		const modew = CawwHiewawchyModew.cweate(document, position, cts.token);
+		const diwection = sanitizedDiwection(this._stowageSewvice.get(CawwHiewawchyContwowwa._StowageDiwection, StowageScope.GWOBAW, CawwHiewawchyDiwection.CawwsTo));
 
-		this._showCallHierarchyWidget(position, direction, model, cts);
+		this._showCawwHiewawchyWidget(position, diwection, modew, cts);
 	}
 
-	async startCallHierarchyFromCallHierarchy(): Promise<void> {
+	async stawtCawwHiewawchyFwomCawwHiewawchy(): Pwomise<void> {
 		if (!this._widget) {
-			return;
+			wetuwn;
 		}
-		const model = this._widget.getModel();
-		const call = this._widget.getFocused();
-		if (!call || !model) {
-			return;
+		const modew = this._widget.getModew();
+		const caww = this._widget.getFocused();
+		if (!caww || !modew) {
+			wetuwn;
 		}
-		const newEditor = await this._editorService.openCodeEditor({ resource: call.item.uri }, this._editor);
-		if (!newEditor) {
-			return;
+		const newEditow = await this._editowSewvice.openCodeEditow({ wesouwce: caww.item.uwi }, this._editow);
+		if (!newEditow) {
+			wetuwn;
 		}
-		const newModel = model.fork(call.item);
-		this._sessionDisposables.clear();
+		const newModew = modew.fowk(caww.item);
+		this._sessionDisposabwes.cweaw();
 
-		CallHierarchyController.get(newEditor)._showCallHierarchyWidget(
-			Range.lift(newModel.root.selectionRange).getStartPosition(),
-			this._widget.direction,
-			Promise.resolve(newModel),
-			new CancellationTokenSource()
+		CawwHiewawchyContwowwa.get(newEditow)._showCawwHiewawchyWidget(
+			Wange.wift(newModew.woot.sewectionWange).getStawtPosition(),
+			this._widget.diwection,
+			Pwomise.wesowve(newModew),
+			new CancewwationTokenSouwce()
 		);
 	}
 
-	private _showCallHierarchyWidget(position: IPosition, direction: CallHierarchyDirection, model: Promise<CallHierarchyModel | undefined>, cts: CancellationTokenSource) {
+	pwivate _showCawwHiewawchyWidget(position: IPosition, diwection: CawwHiewawchyDiwection, modew: Pwomise<CawwHiewawchyModew | undefined>, cts: CancewwationTokenSouwce) {
 
-		this._ctxIsVisible.set(true);
-		this._ctxDirection.set(direction);
-		Event.any<any>(this._editor.onDidChangeModel, this._editor.onDidChangeModelLanguage)(this.endCallHierarchy, this, this._sessionDisposables);
-		this._widget = this._instantiationService.createInstance(CallHierarchyTreePeekWidget, this._editor, position, direction);
-		this._widget.showLoading();
-		this._sessionDisposables.add(this._widget.onDidClose(() => {
-			this.endCallHierarchy();
-			this._storageService.store(CallHierarchyController._StorageDirection, this._widget!.direction, StorageScope.GLOBAL, StorageTarget.USER);
+		this._ctxIsVisibwe.set(twue);
+		this._ctxDiwection.set(diwection);
+		Event.any<any>(this._editow.onDidChangeModew, this._editow.onDidChangeModewWanguage)(this.endCawwHiewawchy, this, this._sessionDisposabwes);
+		this._widget = this._instantiationSewvice.cweateInstance(CawwHiewawchyTweePeekWidget, this._editow, position, diwection);
+		this._widget.showWoading();
+		this._sessionDisposabwes.add(this._widget.onDidCwose(() => {
+			this.endCawwHiewawchy();
+			this._stowageSewvice.stowe(CawwHiewawchyContwowwa._StowageDiwection, this._widget!.diwection, StowageScope.GWOBAW, StowageTawget.USa);
 		}));
-		this._sessionDisposables.add({ dispose() { cts.dispose(true); } });
-		this._sessionDisposables.add(this._widget);
+		this._sessionDisposabwes.add({ dispose() { cts.dispose(twue); } });
+		this._sessionDisposabwes.add(this._widget);
 
-		model.then(model => {
-			if (cts.token.isCancellationRequested) {
-				return; // nothing
+		modew.then(modew => {
+			if (cts.token.isCancewwationWequested) {
+				wetuwn; // nothing
 			}
-			if (model) {
-				this._sessionDisposables.add(model);
-				this._widget!.showModel(model);
+			if (modew) {
+				this._sessionDisposabwes.add(modew);
+				this._widget!.showModew(modew);
 			}
-			else {
-				this._widget!.showMessage(localize('no.item', "No results"));
+			ewse {
+				this._widget!.showMessage(wocawize('no.item', "No wesuwts"));
 			}
 		}).catch(e => {
-			this._widget!.showMessage(localize('error', "Failed to show call hierarchy"));
-			console.error(e);
+			this._widget!.showMessage(wocawize('ewwow', "Faiwed to show caww hiewawchy"));
+			consowe.ewwow(e);
 		});
 	}
 
-	showOutgoingCalls(): void {
-		this._widget?.updateDirection(CallHierarchyDirection.CallsFrom);
-		this._ctxDirection.set(CallHierarchyDirection.CallsFrom);
+	showOutgoingCawws(): void {
+		this._widget?.updateDiwection(CawwHiewawchyDiwection.CawwsFwom);
+		this._ctxDiwection.set(CawwHiewawchyDiwection.CawwsFwom);
 	}
 
-	showIncomingCalls(): void {
-		this._widget?.updateDirection(CallHierarchyDirection.CallsTo);
-		this._ctxDirection.set(CallHierarchyDirection.CallsTo);
+	showIncomingCawws(): void {
+		this._widget?.updateDiwection(CawwHiewawchyDiwection.CawwsTo);
+		this._ctxDiwection.set(CawwHiewawchyDiwection.CawwsTo);
 	}
 
-	endCallHierarchy(): void {
-		this._sessionDisposables.clear();
-		this._ctxIsVisible.set(false);
-		this._editor.focus();
+	endCawwHiewawchy(): void {
+		this._sessionDisposabwes.cweaw();
+		this._ctxIsVisibwe.set(fawse);
+		this._editow.focus();
 	}
 }
 
-registerEditorContribution(CallHierarchyController.Id, CallHierarchyController);
+wegistewEditowContwibution(CawwHiewawchyContwowwa.Id, CawwHiewawchyContwowwa);
 
-registerAction2(class extends EditorAction2 {
+wegistewAction2(cwass extends EditowAction2 {
 
-	constructor() {
-		super({
-			id: 'editor.showCallHierarchy',
-			title: { value: localize('title', "Peek Call Hierarchy"), original: 'Peek Call Hierarchy' },
+	constwuctow() {
+		supa({
+			id: 'editow.showCawwHiewawchy',
+			titwe: { vawue: wocawize('titwe', "Peek Caww Hiewawchy"), owiginaw: 'Peek Caww Hiewawchy' },
 			menu: {
-				id: MenuId.EditorContextPeek,
-				group: 'navigation',
-				order: 1000,
-				when: ContextKeyExpr.and(
-					_ctxHasCallHierarchyProvider,
-					PeekContext.notInPeekEditor
+				id: MenuId.EditowContextPeek,
+				gwoup: 'navigation',
+				owda: 1000,
+				when: ContextKeyExpw.and(
+					_ctxHasCawwHiewawchyPwovida,
+					PeekContext.notInPeekEditow
 				),
 			},
 			keybinding: {
-				when: EditorContextKeys.editorTextFocus,
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.Shift + KeyMod.Alt + KeyCode.KEY_H
+				when: EditowContextKeys.editowTextFocus,
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: KeyMod.Shift + KeyMod.Awt + KeyCode.KEY_H
 			},
-			precondition: ContextKeyExpr.and(
-				_ctxHasCallHierarchyProvider,
-				PeekContext.notInPeekEditor
+			pwecondition: ContextKeyExpw.and(
+				_ctxHasCawwHiewawchyPwovida,
+				PeekContext.notInPeekEditow
 			)
 		});
 	}
 
-	async runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		return CallHierarchyController.get(editor).startCallHierarchyFromEditor();
+	async wunEditowCommand(_accessow: SewvicesAccessow, editow: ICodeEditow): Pwomise<void> {
+		wetuwn CawwHiewawchyContwowwa.get(editow).stawtCawwHiewawchyFwomEditow();
 	}
 });
 
-registerAction2(class extends EditorAction2 {
+wegistewAction2(cwass extends EditowAction2 {
 
-	constructor() {
-		super({
-			id: 'editor.showIncomingCalls',
-			title: { value: localize('title.incoming', "Show Incoming Calls"), original: 'Show Incoming Calls' },
-			icon: registerIcon('callhierarchy-incoming', Codicon.callIncoming, localize('showIncomingCallsIcons', 'Icon for incoming calls in the call hierarchy view.')),
-			precondition: ContextKeyExpr.and(_ctxCallHierarchyVisible, _ctxCallHierarchyDirection.isEqualTo(CallHierarchyDirection.CallsFrom)),
+	constwuctow() {
+		supa({
+			id: 'editow.showIncomingCawws',
+			titwe: { vawue: wocawize('titwe.incoming', "Show Incoming Cawws"), owiginaw: 'Show Incoming Cawws' },
+			icon: wegistewIcon('cawwhiewawchy-incoming', Codicon.cawwIncoming, wocawize('showIncomingCawwsIcons', 'Icon fow incoming cawws in the caww hiewawchy view.')),
+			pwecondition: ContextKeyExpw.and(_ctxCawwHiewawchyVisibwe, _ctxCawwHiewawchyDiwection.isEquawTo(CawwHiewawchyDiwection.CawwsFwom)),
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.Shift + KeyMod.Alt + KeyCode.KEY_H,
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: KeyMod.Shift + KeyMod.Awt + KeyCode.KEY_H,
 			},
 			menu: {
-				id: CallHierarchyTreePeekWidget.TitleMenu,
-				when: _ctxCallHierarchyDirection.isEqualTo(CallHierarchyDirection.CallsFrom),
-				order: 1,
+				id: CawwHiewawchyTweePeekWidget.TitweMenu,
+				when: _ctxCawwHiewawchyDiwection.isEquawTo(CawwHiewawchyDiwection.CawwsFwom),
+				owda: 1,
 			}
 		});
 	}
 
-	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
-		return CallHierarchyController.get(editor).showIncomingCalls();
+	wunEditowCommand(_accessow: SewvicesAccessow, editow: ICodeEditow) {
+		wetuwn CawwHiewawchyContwowwa.get(editow).showIncomingCawws();
 	}
 });
 
-registerAction2(class extends EditorAction2 {
+wegistewAction2(cwass extends EditowAction2 {
 
-	constructor() {
-		super({
-			id: 'editor.showOutgoingCalls',
-			title: { value: localize('title.outgoing', "Show Outgoing Calls"), original: 'Show Outgoing Calls' },
-			icon: registerIcon('callhierarchy-outgoing', Codicon.callOutgoing, localize('showOutgoingCallsIcon', 'Icon for outgoing calls in the call hierarchy view.')),
-			precondition: ContextKeyExpr.and(_ctxCallHierarchyVisible, _ctxCallHierarchyDirection.isEqualTo(CallHierarchyDirection.CallsTo)),
+	constwuctow() {
+		supa({
+			id: 'editow.showOutgoingCawws',
+			titwe: { vawue: wocawize('titwe.outgoing', "Show Outgoing Cawws"), owiginaw: 'Show Outgoing Cawws' },
+			icon: wegistewIcon('cawwhiewawchy-outgoing', Codicon.cawwOutgoing, wocawize('showOutgoingCawwsIcon', 'Icon fow outgoing cawws in the caww hiewawchy view.')),
+			pwecondition: ContextKeyExpw.and(_ctxCawwHiewawchyVisibwe, _ctxCawwHiewawchyDiwection.isEquawTo(CawwHiewawchyDiwection.CawwsTo)),
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.Shift + KeyMod.Alt + KeyCode.KEY_H,
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: KeyMod.Shift + KeyMod.Awt + KeyCode.KEY_H,
 			},
 			menu: {
-				id: CallHierarchyTreePeekWidget.TitleMenu,
-				when: _ctxCallHierarchyDirection.isEqualTo(CallHierarchyDirection.CallsTo),
-				order: 1
+				id: CawwHiewawchyTweePeekWidget.TitweMenu,
+				when: _ctxCawwHiewawchyDiwection.isEquawTo(CawwHiewawchyDiwection.CawwsTo),
+				owda: 1
 			}
 		});
 	}
 
-	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
-		return CallHierarchyController.get(editor).showOutgoingCalls();
+	wunEditowCommand(_accessow: SewvicesAccessow, editow: ICodeEditow) {
+		wetuwn CawwHiewawchyContwowwa.get(editow).showOutgoingCawws();
 	}
 });
 
 
-registerAction2(class extends EditorAction2 {
+wegistewAction2(cwass extends EditowAction2 {
 
-	constructor() {
-		super({
-			id: 'editor.refocusCallHierarchy',
-			title: { value: localize('title.refocus', "Refocus Call Hierarchy"), original: 'Refocus Call Hierarchy' },
-			precondition: _ctxCallHierarchyVisible,
+	constwuctow() {
+		supa({
+			id: 'editow.wefocusCawwHiewawchy',
+			titwe: { vawue: wocawize('titwe.wefocus', "Wefocus Caww Hiewawchy"), owiginaw: 'Wefocus Caww Hiewawchy' },
+			pwecondition: _ctxCawwHiewawchyVisibwe,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.Shift + KeyCode.Enter
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: KeyMod.Shift + KeyCode.Enta
 			}
 		});
 	}
 
-	async runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		return CallHierarchyController.get(editor).startCallHierarchyFromCallHierarchy();
+	async wunEditowCommand(_accessow: SewvicesAccessow, editow: ICodeEditow): Pwomise<void> {
+		wetuwn CawwHiewawchyContwowwa.get(editow).stawtCawwHiewawchyFwomCawwHiewawchy();
 	}
 });
 
 
-registerAction2(class extends EditorAction2 {
+wegistewAction2(cwass extends EditowAction2 {
 
-	constructor() {
-		super({
-			id: 'editor.closeCallHierarchy',
-			title: localize('close', 'Close'),
-			icon: Codicon.close,
-			precondition: ContextKeyExpr.and(
-				_ctxCallHierarchyVisible,
-				ContextKeyExpr.not('config.editor.stablePeek')
+	constwuctow() {
+		supa({
+			id: 'editow.cwoseCawwHiewawchy',
+			titwe: wocawize('cwose', 'Cwose'),
+			icon: Codicon.cwose,
+			pwecondition: ContextKeyExpw.and(
+				_ctxCawwHiewawchyVisibwe,
+				ContextKeyExpw.not('config.editow.stabwePeek')
 			),
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib + 10,
-				primary: KeyCode.Escape
+				weight: KeybindingWeight.WowkbenchContwib + 10,
+				pwimawy: KeyCode.Escape
 			},
 			menu: {
-				id: CallHierarchyTreePeekWidget.TitleMenu,
-				order: 1000
+				id: CawwHiewawchyTweePeekWidget.TitweMenu,
+				owda: 1000
 			}
 		});
 	}
 
-	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		return CallHierarchyController.get(editor).endCallHierarchy();
+	wunEditowCommand(_accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		wetuwn CawwHiewawchyContwowwa.get(editow).endCawwHiewawchy();
 	}
 });

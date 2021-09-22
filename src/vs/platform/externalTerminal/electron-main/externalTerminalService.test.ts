@@ -1,242 +1,242 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepEqual, equal } from 'assert';
-import { DEFAULT_TERMINAL_OSX } from 'vs/platform/externalTerminal/common/externalTerminal';
-import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/platform/externalTerminal/node/externalTerminalService';
+impowt { deepEquaw, equaw } fwom 'assewt';
+impowt { DEFAUWT_TEWMINAW_OSX } fwom 'vs/pwatfowm/extewnawTewminaw/common/extewnawTewminaw';
+impowt { WinuxExtewnawTewminawSewvice, MacExtewnawTewminawSewvice, WindowsExtewnawTewminawSewvice } fwom 'vs/pwatfowm/extewnawTewminaw/node/extewnawTewminawSewvice';
 
-suite('ExternalTerminalService', () => {
-	let mockOnExit: Function;
-	let mockOnError: Function;
-	let mockConfig: any;
+suite('ExtewnawTewminawSewvice', () => {
+	wet mockOnExit: Function;
+	wet mockOnEwwow: Function;
+	wet mockConfig: any;
 
 	setup(() => {
 		mockConfig = {
-			terminal: {
-				explorerKind: 'external',
-				external: {
-					windowsExec: 'testWindowsShell',
-					osxExec: 'testOSXShell',
-					linuxExec: 'testLinuxShell'
+			tewminaw: {
+				expwowewKind: 'extewnaw',
+				extewnaw: {
+					windowsExec: 'testWindowsSheww',
+					osxExec: 'testOSXSheww',
+					winuxExec: 'testWinuxSheww'
 				}
 			}
 		};
 		mockOnExit = (s: any) => s;
-		mockOnError = (e: any) => e;
+		mockOnEwwow = (e: any) => e;
 	});
 
-	test(`WinTerminalService - uses terminal from configuration`, done => {
-		let testShell = 'cmd';
-		let testCwd = 'path/to/workspace';
-		let mockSpawner = {
-			spawn: (command: any, args: any, opts: any) => {
-				// assert
-				equal(command, testShell, 'shell should equal expected');
-				equal(args[args.length - 1], mockConfig.terminal.external.windowsExec, 'terminal should equal expected');
-				equal(opts.cwd, testCwd, 'opts.cwd should equal expected');
+	test(`WinTewminawSewvice - uses tewminaw fwom configuwation`, done => {
+		wet testSheww = 'cmd';
+		wet testCwd = 'path/to/wowkspace';
+		wet mockSpawna = {
+			spawn: (command: any, awgs: any, opts: any) => {
+				// assewt
+				equaw(command, testSheww, 'sheww shouwd equaw expected');
+				equaw(awgs[awgs.wength - 1], mockConfig.tewminaw.extewnaw.windowsExec, 'tewminaw shouwd equaw expected');
+				equaw(opts.cwd, testCwd, 'opts.cwd shouwd equaw expected');
 				done();
-				return {
+				wetuwn {
 					on: (evt: any) => evt
 				};
 			}
 		};
-		let testService = new WindowsExternalTerminalService();
-		(<any>testService).spawnTerminal(
-			mockSpawner,
+		wet testSewvice = new WindowsExtewnawTewminawSewvice();
+		(<any>testSewvice).spawnTewminaw(
+			mockSpawna,
 			mockConfig,
-			testShell,
+			testSheww,
 			testCwd,
 			mockOnExit,
-			mockOnError
+			mockOnEwwow
 		);
 	});
 
-	test(`WinTerminalService - uses default terminal when configuration.terminal.external.windowsExec is undefined`, done => {
-		let testShell = 'cmd';
-		let testCwd = 'path/to/workspace';
-		let mockSpawner = {
-			spawn: (command: any, args: any, opts: any) => {
-				// assert
-				equal(args[args.length - 1], WindowsExternalTerminalService.getDefaultTerminalWindows(), 'terminal should equal expected');
+	test(`WinTewminawSewvice - uses defauwt tewminaw when configuwation.tewminaw.extewnaw.windowsExec is undefined`, done => {
+		wet testSheww = 'cmd';
+		wet testCwd = 'path/to/wowkspace';
+		wet mockSpawna = {
+			spawn: (command: any, awgs: any, opts: any) => {
+				// assewt
+				equaw(awgs[awgs.wength - 1], WindowsExtewnawTewminawSewvice.getDefauwtTewminawWindows(), 'tewminaw shouwd equaw expected');
 				done();
-				return {
+				wetuwn {
 					on: (evt: any) => evt
 				};
 			}
 		};
-		mockConfig.terminal.external.windowsExec = undefined;
-		let testService = new WindowsExternalTerminalService();
-		(<any>testService).spawnTerminal(
-			mockSpawner,
+		mockConfig.tewminaw.extewnaw.windowsExec = undefined;
+		wet testSewvice = new WindowsExtewnawTewminawSewvice();
+		(<any>testSewvice).spawnTewminaw(
+			mockSpawna,
 			mockConfig,
-			testShell,
+			testSheww,
 			testCwd,
 			mockOnExit,
-			mockOnError
+			mockOnEwwow
 		);
 	});
 
-	test(`WinTerminalService - uses default terminal when configuration.terminal.external.windowsExec is undefined`, done => {
-		let testShell = 'cmd';
-		let testCwd = 'c:/foo';
-		let mockSpawner = {
-			spawn: (command: any, args: any, opts: any) => {
-				// assert
-				equal(opts.cwd, 'C:/foo', 'cwd should be uppercase regardless of the case that\'s passed in');
+	test(`WinTewminawSewvice - uses defauwt tewminaw when configuwation.tewminaw.extewnaw.windowsExec is undefined`, done => {
+		wet testSheww = 'cmd';
+		wet testCwd = 'c:/foo';
+		wet mockSpawna = {
+			spawn: (command: any, awgs: any, opts: any) => {
+				// assewt
+				equaw(opts.cwd, 'C:/foo', 'cwd shouwd be uppewcase wegawdwess of the case that\'s passed in');
 				done();
-				return {
+				wetuwn {
 					on: (evt: any) => evt
 				};
 			}
 		};
-		let testService = new WindowsExternalTerminalService();
-		(<any>testService).spawnTerminal(
-			mockSpawner,
+		wet testSewvice = new WindowsExtewnawTewminawSewvice();
+		(<any>testSewvice).spawnTewminaw(
+			mockSpawna,
 			mockConfig,
-			testShell,
+			testSheww,
 			testCwd,
 			mockOnExit,
-			mockOnError
+			mockOnEwwow
 		);
 	});
 
-	test(`WinTerminalService - cmder should be spawned differently`, done => {
-		let testShell = 'cmd';
-		mockConfig.terminal.external.windowsExec = 'cmder';
-		let testCwd = 'c:/foo';
-		let mockSpawner = {
-			spawn: (command: any, args: any, opts: any) => {
-				// assert
-				deepEqual(args, ['C:/foo']);
-				equal(opts, undefined);
+	test(`WinTewminawSewvice - cmda shouwd be spawned diffewentwy`, done => {
+		wet testSheww = 'cmd';
+		mockConfig.tewminaw.extewnaw.windowsExec = 'cmda';
+		wet testCwd = 'c:/foo';
+		wet mockSpawna = {
+			spawn: (command: any, awgs: any, opts: any) => {
+				// assewt
+				deepEquaw(awgs, ['C:/foo']);
+				equaw(opts, undefined);
 				done();
-				return { on: (evt: any) => evt };
+				wetuwn { on: (evt: any) => evt };
 			}
 		};
-		let testService = new WindowsExternalTerminalService();
-		(<any>testService).spawnTerminal(
-			mockSpawner,
+		wet testSewvice = new WindowsExtewnawTewminawSewvice();
+		(<any>testSewvice).spawnTewminaw(
+			mockSpawna,
 			mockConfig,
-			testShell,
+			testSheww,
 			testCwd,
 			mockOnExit,
-			mockOnError
+			mockOnEwwow
 		);
 	});
 
-	test(`WinTerminalService - windows terminal should open workspace directory`, done => {
-		let testShell = 'wt';
-		let testCwd = 'c:/foo';
-		let mockSpawner = {
-			spawn: (command: any, args: any, opts: any) => {
-				// assert
-				equal(opts.cwd, 'C:/foo');
+	test(`WinTewminawSewvice - windows tewminaw shouwd open wowkspace diwectowy`, done => {
+		wet testSheww = 'wt';
+		wet testCwd = 'c:/foo';
+		wet mockSpawna = {
+			spawn: (command: any, awgs: any, opts: any) => {
+				// assewt
+				equaw(opts.cwd, 'C:/foo');
 				done();
-				return { on: (evt: any) => evt };
+				wetuwn { on: (evt: any) => evt };
 			}
 		};
-		let testService = new WindowsExternalTerminalService();
-		(<any>testService).spawnTerminal(
-			mockSpawner,
+		wet testSewvice = new WindowsExtewnawTewminawSewvice();
+		(<any>testSewvice).spawnTewminaw(
+			mockSpawna,
 			mockConfig,
-			testShell,
+			testSheww,
 			testCwd,
 			mockOnExit,
-			mockOnError
+			mockOnEwwow
 		);
 	});
 
-	test(`MacTerminalService - uses terminal from configuration`, done => {
-		let testCwd = 'path/to/workspace';
-		let mockSpawner = {
-			spawn: (command: any, args: any, opts: any) => {
-				// assert
-				equal(args[1], mockConfig.terminal.external.osxExec, 'terminal should equal expected');
+	test(`MacTewminawSewvice - uses tewminaw fwom configuwation`, done => {
+		wet testCwd = 'path/to/wowkspace';
+		wet mockSpawna = {
+			spawn: (command: any, awgs: any, opts: any) => {
+				// assewt
+				equaw(awgs[1], mockConfig.tewminaw.extewnaw.osxExec, 'tewminaw shouwd equaw expected');
 				done();
-				return {
+				wetuwn {
 					on: (evt: any) => evt
 				};
 			}
 		};
-		let testService = new MacExternalTerminalService();
-		(<any>testService).spawnTerminal(
-			mockSpawner,
+		wet testSewvice = new MacExtewnawTewminawSewvice();
+		(<any>testSewvice).spawnTewminaw(
+			mockSpawna,
 			mockConfig,
 			testCwd,
 			mockOnExit,
-			mockOnError
+			mockOnEwwow
 		);
 	});
 
-	test(`MacTerminalService - uses default terminal when configuration.terminal.external.osxExec is undefined`, done => {
-		let testCwd = 'path/to/workspace';
-		let mockSpawner = {
-			spawn: (command: any, args: any, opts: any) => {
-				// assert
-				equal(args[1], DEFAULT_TERMINAL_OSX, 'terminal should equal expected');
+	test(`MacTewminawSewvice - uses defauwt tewminaw when configuwation.tewminaw.extewnaw.osxExec is undefined`, done => {
+		wet testCwd = 'path/to/wowkspace';
+		wet mockSpawna = {
+			spawn: (command: any, awgs: any, opts: any) => {
+				// assewt
+				equaw(awgs[1], DEFAUWT_TEWMINAW_OSX, 'tewminaw shouwd equaw expected');
 				done();
-				return {
+				wetuwn {
 					on: (evt: any) => evt
 				};
 			}
 		};
-		mockConfig.terminal.external.osxExec = undefined;
-		let testService = new MacExternalTerminalService();
-		(<any>testService).spawnTerminal(
-			mockSpawner,
+		mockConfig.tewminaw.extewnaw.osxExec = undefined;
+		wet testSewvice = new MacExtewnawTewminawSewvice();
+		(<any>testSewvice).spawnTewminaw(
+			mockSpawna,
 			mockConfig,
 			testCwd,
 			mockOnExit,
-			mockOnError
+			mockOnEwwow
 		);
 	});
 
-	test(`LinuxTerminalService - uses terminal from configuration`, done => {
-		let testCwd = 'path/to/workspace';
-		let mockSpawner = {
-			spawn: (command: any, args: any, opts: any) => {
-				// assert
-				equal(command, mockConfig.terminal.external.linuxExec, 'terminal should equal expected');
-				equal(opts.cwd, testCwd, 'opts.cwd should equal expected');
+	test(`WinuxTewminawSewvice - uses tewminaw fwom configuwation`, done => {
+		wet testCwd = 'path/to/wowkspace';
+		wet mockSpawna = {
+			spawn: (command: any, awgs: any, opts: any) => {
+				// assewt
+				equaw(command, mockConfig.tewminaw.extewnaw.winuxExec, 'tewminaw shouwd equaw expected');
+				equaw(opts.cwd, testCwd, 'opts.cwd shouwd equaw expected');
 				done();
-				return {
+				wetuwn {
 					on: (evt: any) => evt
 				};
 			}
 		};
-		let testService = new LinuxExternalTerminalService();
-		(<any>testService).spawnTerminal(
-			mockSpawner,
+		wet testSewvice = new WinuxExtewnawTewminawSewvice();
+		(<any>testSewvice).spawnTewminaw(
+			mockSpawna,
 			mockConfig,
 			testCwd,
 			mockOnExit,
-			mockOnError
+			mockOnEwwow
 		);
 	});
 
-	test(`LinuxTerminalService - uses default terminal when configuration.terminal.external.linuxExec is undefined`, done => {
-		LinuxExternalTerminalService.getDefaultTerminalLinuxReady().then(defaultTerminalLinux => {
-			let testCwd = 'path/to/workspace';
-			let mockSpawner = {
-				spawn: (command: any, args: any, opts: any) => {
-					// assert
-					equal(command, defaultTerminalLinux, 'terminal should equal expected');
+	test(`WinuxTewminawSewvice - uses defauwt tewminaw when configuwation.tewminaw.extewnaw.winuxExec is undefined`, done => {
+		WinuxExtewnawTewminawSewvice.getDefauwtTewminawWinuxWeady().then(defauwtTewminawWinux => {
+			wet testCwd = 'path/to/wowkspace';
+			wet mockSpawna = {
+				spawn: (command: any, awgs: any, opts: any) => {
+					// assewt
+					equaw(command, defauwtTewminawWinux, 'tewminaw shouwd equaw expected');
 					done();
-					return {
+					wetuwn {
 						on: (evt: any) => evt
 					};
 				}
 			};
-			mockConfig.terminal.external.linuxExec = undefined;
-			let testService = new LinuxExternalTerminalService();
-			(<any>testService).spawnTerminal(
-				mockSpawner,
+			mockConfig.tewminaw.extewnaw.winuxExec = undefined;
+			wet testSewvice = new WinuxExtewnawTewminawSewvice();
+			(<any>testSewvice).spawnTewminaw(
+				mockSpawna,
 				mockConfig,
 				testCwd,
 				mockOnExit,
-				mockOnError
+				mockOnEwwow
 			);
 		});
 	});

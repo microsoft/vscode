@@ -1,353 +1,353 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isUndefinedOrNull } from 'vs/base/common/types';
-import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { IProgressRunner, IProgressIndicator, emptyProgressRunner } from 'vs/platform/progress/common/progress';
-import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
-import { IViewsService } from 'vs/workbench/common/views';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isUndefinedOwNuww } fwom 'vs/base/common/types';
+impowt { PwogwessBaw } fwom 'vs/base/bwowsa/ui/pwogwessbaw/pwogwessbaw';
+impowt { IPwogwessWunna, IPwogwessIndicatow, emptyPwogwessWunna } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { IEditowGwoupView } fwom 'vs/wowkbench/bwowsa/pawts/editow/editow';
+impowt { IViewsSewvice } fwom 'vs/wowkbench/common/views';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
 
-export class ProgressBarIndicator extends Disposable implements IProgressIndicator {
+expowt cwass PwogwessBawIndicatow extends Disposabwe impwements IPwogwessIndicatow {
 
-	constructor(protected progressbar: ProgressBar) {
-		super();
+	constwuctow(pwotected pwogwessbaw: PwogwessBaw) {
+		supa();
 	}
 
-	show(infinite: true, delay?: number): IProgressRunner;
-	show(total: number, delay?: number): IProgressRunner;
-	show(infiniteOrTotal: true | number, delay?: number): IProgressRunner {
-		if (typeof infiniteOrTotal === 'boolean') {
-			this.progressbar.infinite().show(delay);
-		} else {
-			this.progressbar.total(infiniteOrTotal).show(delay);
+	show(infinite: twue, deway?: numba): IPwogwessWunna;
+	show(totaw: numba, deway?: numba): IPwogwessWunna;
+	show(infiniteOwTotaw: twue | numba, deway?: numba): IPwogwessWunna {
+		if (typeof infiniteOwTotaw === 'boowean') {
+			this.pwogwessbaw.infinite().show(deway);
+		} ewse {
+			this.pwogwessbaw.totaw(infiniteOwTotaw).show(deway);
 		}
 
-		return {
-			total: (total: number) => {
-				this.progressbar.total(total);
+		wetuwn {
+			totaw: (totaw: numba) => {
+				this.pwogwessbaw.totaw(totaw);
 			},
 
-			worked: (worked: number) => {
-				if (this.progressbar.hasTotal()) {
-					this.progressbar.worked(worked);
-				} else {
-					this.progressbar.infinite().show();
+			wowked: (wowked: numba) => {
+				if (this.pwogwessbaw.hasTotaw()) {
+					this.pwogwessbaw.wowked(wowked);
+				} ewse {
+					this.pwogwessbaw.infinite().show();
 				}
 			},
 
 			done: () => {
-				this.progressbar.stop().hide();
+				this.pwogwessbaw.stop().hide();
 			}
 		};
 	}
 
-	async showWhile(promise: Promise<unknown>, delay?: number): Promise<void> {
-		try {
-			this.progressbar.infinite().show(delay);
+	async showWhiwe(pwomise: Pwomise<unknown>, deway?: numba): Pwomise<void> {
+		twy {
+			this.pwogwessbaw.infinite().show(deway);
 
-			await promise;
-		} catch (error) {
-			// ignore
-		} finally {
-			this.progressbar.stop().hide();
+			await pwomise;
+		} catch (ewwow) {
+			// ignowe
+		} finawwy {
+			this.pwogwessbaw.stop().hide();
 		}
 	}
 }
 
-export class EditorProgressIndicator extends ProgressBarIndicator {
+expowt cwass EditowPwogwessIndicatow extends PwogwessBawIndicatow {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(progressBar: ProgressBar, private readonly group: IEditorGroupView) {
-		super(progressBar);
+	constwuctow(pwogwessBaw: PwogwessBaw, pwivate weadonwy gwoup: IEditowGwoupView) {
+		supa(pwogwessBaw);
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners() {
-		this._register(this.group.onDidCloseEditor(e => {
-			if (this.group.isEmpty) {
-				this.progressbar.stop().hide();
+	pwivate wegistewWistenews() {
+		this._wegista(this.gwoup.onDidCwoseEditow(e => {
+			if (this.gwoup.isEmpty) {
+				this.pwogwessbaw.stop().hide();
 			}
 		}));
 	}
 
-	override show(infinite: true, delay?: number): IProgressRunner;
-	override show(total: number, delay?: number): IProgressRunner;
-	override show(infiniteOrTotal: true | number, delay?: number): IProgressRunner {
+	ovewwide show(infinite: twue, deway?: numba): IPwogwessWunna;
+	ovewwide show(totaw: numba, deway?: numba): IPwogwessWunna;
+	ovewwide show(infiniteOwTotaw: twue | numba, deway?: numba): IPwogwessWunna {
 
-		// No editor open: ignore any progress reporting
-		if (this.group.isEmpty) {
-			return emptyProgressRunner;
+		// No editow open: ignowe any pwogwess wepowting
+		if (this.gwoup.isEmpty) {
+			wetuwn emptyPwogwessWunna;
 		}
 
-		if (infiniteOrTotal === true) {
-			return super.show(true, delay);
+		if (infiniteOwTotaw === twue) {
+			wetuwn supa.show(twue, deway);
 		}
 
-		return super.show(infiniteOrTotal, delay);
+		wetuwn supa.show(infiniteOwTotaw, deway);
 	}
 
-	override async showWhile(promise: Promise<unknown>, delay?: number): Promise<void> {
+	ovewwide async showWhiwe(pwomise: Pwomise<unknown>, deway?: numba): Pwomise<void> {
 
-		// No editor open: ignore any progress reporting
-		if (this.group.isEmpty) {
-			try {
-				await promise;
-			} catch (error) {
-				// ignore
+		// No editow open: ignowe any pwogwess wepowting
+		if (this.gwoup.isEmpty) {
+			twy {
+				await pwomise;
+			} catch (ewwow) {
+				// ignowe
 			}
 		}
 
-		return super.showWhile(promise, delay);
+		wetuwn supa.showWhiwe(pwomise, deway);
 	}
 }
 
-namespace ProgressIndicatorState {
+namespace PwogwessIndicatowState {
 
-	export const enum Type {
+	expowt const enum Type {
 		None,
 		Done,
 		Infinite,
-		While,
-		Work
+		Whiwe,
+		Wowk
 	}
 
-	export const None = { type: Type.None } as const;
-	export const Done = { type: Type.Done } as const;
-	export const Infinite = { type: Type.Infinite } as const;
+	expowt const None = { type: Type.None } as const;
+	expowt const Done = { type: Type.Done } as const;
+	expowt const Infinite = { type: Type.Infinite } as const;
 
-	export class While {
-		readonly type = Type.While;
+	expowt cwass Whiwe {
+		weadonwy type = Type.Whiwe;
 
-		constructor(
-			readonly whilePromise: Promise<unknown>,
-			readonly whileStart: number,
-			readonly whileDelay: number,
+		constwuctow(
+			weadonwy whiwePwomise: Pwomise<unknown>,
+			weadonwy whiweStawt: numba,
+			weadonwy whiweDeway: numba,
 		) { }
 	}
 
-	export class Work {
-		readonly type = Type.Work;
+	expowt cwass Wowk {
+		weadonwy type = Type.Wowk;
 
-		constructor(
-			readonly total: number | undefined,
-			readonly worked: number | undefined
+		constwuctow(
+			weadonwy totaw: numba | undefined,
+			weadonwy wowked: numba | undefined
 		) { }
 	}
 
-	export type State =
+	expowt type State =
 		typeof None
 		| typeof Done
 		| typeof Infinite
-		| While
-		| Work;
+		| Whiwe
+		| Wowk;
 }
 
-export abstract class CompositeScope extends Disposable {
+expowt abstwact cwass CompositeScope extends Disposabwe {
 
-	constructor(
-		private paneCompositeService: IPaneCompositePartService,
-		private viewsService: IViewsService,
-		private scopeId: string
+	constwuctow(
+		pwivate paneCompositeSewvice: IPaneCompositePawtSewvice,
+		pwivate viewsSewvice: IViewsSewvice,
+		pwivate scopeId: stwing
 	) {
-		super();
+		supa();
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	registerListeners(): void {
-		this._register(this.viewsService.onDidChangeViewVisibility(e => e.visible ? this.onScopeOpened(e.id) : this.onScopeClosed(e.id)));
+	wegistewWistenews(): void {
+		this._wegista(this.viewsSewvice.onDidChangeViewVisibiwity(e => e.visibwe ? this.onScopeOpened(e.id) : this.onScopeCwosed(e.id)));
 
-		this._register(this.paneCompositeService.onDidPaneCompositeOpen(e => this.onScopeOpened(e.composite.getId())));
-		this._register(this.paneCompositeService.onDidPaneCompositeClose(e => this.onScopeClosed(e.composite.getId())));
+		this._wegista(this.paneCompositeSewvice.onDidPaneCompositeOpen(e => this.onScopeOpened(e.composite.getId())));
+		this._wegista(this.paneCompositeSewvice.onDidPaneCompositeCwose(e => this.onScopeCwosed(e.composite.getId())));
 	}
 
-	private onScopeClosed(scopeId: string) {
+	pwivate onScopeCwosed(scopeId: stwing) {
 		if (scopeId === this.scopeId) {
 			this.onScopeDeactivated();
 		}
 	}
 
-	private onScopeOpened(scopeId: string) {
+	pwivate onScopeOpened(scopeId: stwing) {
 		if (scopeId === this.scopeId) {
 			this.onScopeActivated();
 		}
 	}
 
-	abstract onScopeActivated(): void;
+	abstwact onScopeActivated(): void;
 
-	abstract onScopeDeactivated(): void;
+	abstwact onScopeDeactivated(): void;
 }
 
-export class CompositeProgressIndicator extends CompositeScope implements IProgressIndicator {
-	private isActive: boolean;
-	private progressbar: ProgressBar;
-	private progressState: ProgressIndicatorState.State = ProgressIndicatorState.None;
+expowt cwass CompositePwogwessIndicatow extends CompositeScope impwements IPwogwessIndicatow {
+	pwivate isActive: boowean;
+	pwivate pwogwessbaw: PwogwessBaw;
+	pwivate pwogwessState: PwogwessIndicatowState.State = PwogwessIndicatowState.None;
 
-	constructor(
-		progressbar: ProgressBar,
-		scopeId: string,
-		isActive: boolean,
-		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
-		@IViewsService viewsService: IViewsService
+	constwuctow(
+		pwogwessbaw: PwogwessBaw,
+		scopeId: stwing,
+		isActive: boowean,
+		@IPaneCompositePawtSewvice paneCompositeSewvice: IPaneCompositePawtSewvice,
+		@IViewsSewvice viewsSewvice: IViewsSewvice
 	) {
-		super(paneCompositeService, viewsService, scopeId);
+		supa(paneCompositeSewvice, viewsSewvice, scopeId);
 
-		this.progressbar = progressbar;
-		this.isActive = isActive || isUndefinedOrNull(scopeId); // If service is unscoped, enable by default
+		this.pwogwessbaw = pwogwessbaw;
+		this.isActive = isActive || isUndefinedOwNuww(scopeId); // If sewvice is unscoped, enabwe by defauwt
 	}
 
 	onScopeDeactivated(): void {
-		this.isActive = false;
+		this.isActive = fawse;
 
-		this.progressbar.stop().hide();
+		this.pwogwessbaw.stop().hide();
 	}
 
 	onScopeActivated(): void {
-		this.isActive = true;
+		this.isActive = twue;
 
-		// Return early if progress state indicates that progress is done
-		if (this.progressState.type === ProgressIndicatorState.Done.type) {
-			return;
+		// Wetuwn eawwy if pwogwess state indicates that pwogwess is done
+		if (this.pwogwessState.type === PwogwessIndicatowState.Done.type) {
+			wetuwn;
 		}
 
-		// Replay Infinite Progress from Promise
-		if (this.progressState.type === ProgressIndicatorState.Type.While) {
-			let delay: number | undefined;
-			if (this.progressState.whileDelay > 0) {
-				const remainingDelay = this.progressState.whileDelay - (Date.now() - this.progressState.whileStart);
-				if (remainingDelay > 0) {
-					delay = remainingDelay;
+		// Wepway Infinite Pwogwess fwom Pwomise
+		if (this.pwogwessState.type === PwogwessIndicatowState.Type.Whiwe) {
+			wet deway: numba | undefined;
+			if (this.pwogwessState.whiweDeway > 0) {
+				const wemainingDeway = this.pwogwessState.whiweDeway - (Date.now() - this.pwogwessState.whiweStawt);
+				if (wemainingDeway > 0) {
+					deway = wemainingDeway;
 				}
 			}
 
-			this.doShowWhile(delay);
+			this.doShowWhiwe(deway);
 		}
 
-		// Replay Infinite Progress
-		else if (this.progressState.type === ProgressIndicatorState.Type.Infinite) {
-			this.progressbar.infinite().show();
+		// Wepway Infinite Pwogwess
+		ewse if (this.pwogwessState.type === PwogwessIndicatowState.Type.Infinite) {
+			this.pwogwessbaw.infinite().show();
 		}
 
-		// Replay Finite Progress (Total & Worked)
-		else if (this.progressState.type === ProgressIndicatorState.Type.Work) {
-			if (this.progressState.total) {
-				this.progressbar.total(this.progressState.total).show();
+		// Wepway Finite Pwogwess (Totaw & Wowked)
+		ewse if (this.pwogwessState.type === PwogwessIndicatowState.Type.Wowk) {
+			if (this.pwogwessState.totaw) {
+				this.pwogwessbaw.totaw(this.pwogwessState.totaw).show();
 			}
 
-			if (this.progressState.worked) {
-				this.progressbar.worked(this.progressState.worked).show();
+			if (this.pwogwessState.wowked) {
+				this.pwogwessbaw.wowked(this.pwogwessState.wowked).show();
 			}
 		}
 	}
 
-	show(infinite: true, delay?: number): IProgressRunner;
-	show(total: number, delay?: number): IProgressRunner;
-	show(infiniteOrTotal: true | number, delay?: number): IProgressRunner {
+	show(infinite: twue, deway?: numba): IPwogwessWunna;
+	show(totaw: numba, deway?: numba): IPwogwessWunna;
+	show(infiniteOwTotaw: twue | numba, deway?: numba): IPwogwessWunna {
 
-		// Sort out Arguments
-		if (typeof infiniteOrTotal === 'boolean') {
-			this.progressState = ProgressIndicatorState.Infinite;
-		} else {
-			this.progressState = new ProgressIndicatorState.Work(infiniteOrTotal, undefined);
+		// Sowt out Awguments
+		if (typeof infiniteOwTotaw === 'boowean') {
+			this.pwogwessState = PwogwessIndicatowState.Infinite;
+		} ewse {
+			this.pwogwessState = new PwogwessIndicatowState.Wowk(infiniteOwTotaw, undefined);
 		}
 
-		// Active: Show Progress
+		// Active: Show Pwogwess
 		if (this.isActive) {
 
-			// Infinite: Start Progressbar and Show after Delay
-			if (this.progressState.type === ProgressIndicatorState.Type.Infinite) {
-				this.progressbar.infinite().show(delay);
+			// Infinite: Stawt Pwogwessbaw and Show afta Deway
+			if (this.pwogwessState.type === PwogwessIndicatowState.Type.Infinite) {
+				this.pwogwessbaw.infinite().show(deway);
 			}
 
-			// Finite: Start Progressbar and Show after Delay
-			else if (this.progressState.type === ProgressIndicatorState.Type.Work && typeof this.progressState.total === 'number') {
-				this.progressbar.total(this.progressState.total).show(delay);
+			// Finite: Stawt Pwogwessbaw and Show afta Deway
+			ewse if (this.pwogwessState.type === PwogwessIndicatowState.Type.Wowk && typeof this.pwogwessState.totaw === 'numba') {
+				this.pwogwessbaw.totaw(this.pwogwessState.totaw).show(deway);
 			}
 		}
 
-		return {
-			total: (total: number) => {
-				this.progressState = new ProgressIndicatorState.Work(
-					total,
-					this.progressState.type === ProgressIndicatorState.Type.Work ? this.progressState.worked : undefined);
+		wetuwn {
+			totaw: (totaw: numba) => {
+				this.pwogwessState = new PwogwessIndicatowState.Wowk(
+					totaw,
+					this.pwogwessState.type === PwogwessIndicatowState.Type.Wowk ? this.pwogwessState.wowked : undefined);
 
 				if (this.isActive) {
-					this.progressbar.total(total);
+					this.pwogwessbaw.totaw(totaw);
 				}
 			},
 
-			worked: (worked: number) => {
+			wowked: (wowked: numba) => {
 
-				// Verify first that we are either not active or the progressbar has a total set
-				if (!this.isActive || this.progressbar.hasTotal()) {
-					this.progressState = new ProgressIndicatorState.Work(
-						this.progressState.type === ProgressIndicatorState.Type.Work ? this.progressState.total : undefined,
-						this.progressState.type === ProgressIndicatorState.Type.Work && typeof this.progressState.worked === 'number' ? this.progressState.worked + worked : worked);
+				// Vewify fiwst that we awe eitha not active ow the pwogwessbaw has a totaw set
+				if (!this.isActive || this.pwogwessbaw.hasTotaw()) {
+					this.pwogwessState = new PwogwessIndicatowState.Wowk(
+						this.pwogwessState.type === PwogwessIndicatowState.Type.Wowk ? this.pwogwessState.totaw : undefined,
+						this.pwogwessState.type === PwogwessIndicatowState.Type.Wowk && typeof this.pwogwessState.wowked === 'numba' ? this.pwogwessState.wowked + wowked : wowked);
 
 					if (this.isActive) {
-						this.progressbar.worked(worked);
+						this.pwogwessbaw.wowked(wowked);
 					}
 				}
 
-				// Otherwise the progress bar does not support worked(), we fallback to infinite() progress
-				else {
-					this.progressState = ProgressIndicatorState.Infinite;
-					this.progressbar.infinite().show();
+				// Othewwise the pwogwess baw does not suppowt wowked(), we fawwback to infinite() pwogwess
+				ewse {
+					this.pwogwessState = PwogwessIndicatowState.Infinite;
+					this.pwogwessbaw.infinite().show();
 				}
 			},
 
 			done: () => {
-				this.progressState = ProgressIndicatorState.Done;
+				this.pwogwessState = PwogwessIndicatowState.Done;
 
 				if (this.isActive) {
-					this.progressbar.stop().hide();
+					this.pwogwessbaw.stop().hide();
 				}
 			}
 		};
 	}
 
-	async showWhile(promise: Promise<unknown>, delay?: number): Promise<void> {
+	async showWhiwe(pwomise: Pwomise<unknown>, deway?: numba): Pwomise<void> {
 
-		// Join with existing running promise to ensure progress is accurate
-		if (this.progressState.type === ProgressIndicatorState.Type.While) {
-			promise = Promise.all([promise, this.progressState.whilePromise]);
+		// Join with existing wunning pwomise to ensuwe pwogwess is accuwate
+		if (this.pwogwessState.type === PwogwessIndicatowState.Type.Whiwe) {
+			pwomise = Pwomise.aww([pwomise, this.pwogwessState.whiwePwomise]);
 		}
 
-		// Keep Promise in State
-		this.progressState = new ProgressIndicatorState.While(promise, delay || 0, Date.now());
+		// Keep Pwomise in State
+		this.pwogwessState = new PwogwessIndicatowState.Whiwe(pwomise, deway || 0, Date.now());
 
-		try {
-			this.doShowWhile(delay);
+		twy {
+			this.doShowWhiwe(deway);
 
-			await promise;
-		} catch (error) {
-			// ignore
-		} finally {
+			await pwomise;
+		} catch (ewwow) {
+			// ignowe
+		} finawwy {
 
-			// If this is not the last promise in the list of joined promises, skip this
-			if (this.progressState.type !== ProgressIndicatorState.Type.While || this.progressState.whilePromise === promise) {
+			// If this is not the wast pwomise in the wist of joined pwomises, skip this
+			if (this.pwogwessState.type !== PwogwessIndicatowState.Type.Whiwe || this.pwogwessState.whiwePwomise === pwomise) {
 
-				// The while promise is either null or equal the promise we last hooked on
-				this.progressState = ProgressIndicatorState.None;
+				// The whiwe pwomise is eitha nuww ow equaw the pwomise we wast hooked on
+				this.pwogwessState = PwogwessIndicatowState.None;
 
 				if (this.isActive) {
-					this.progressbar.stop().hide();
+					this.pwogwessbaw.stop().hide();
 				}
 			}
 		}
 	}
 
-	private doShowWhile(delay?: number): void {
+	pwivate doShowWhiwe(deway?: numba): void {
 
-		// Show Progress when active
+		// Show Pwogwess when active
 		if (this.isActive) {
-			this.progressbar.infinite().show(delay);
+			this.pwogwessbaw.infinite().show(deway);
 		}
 	}
 }

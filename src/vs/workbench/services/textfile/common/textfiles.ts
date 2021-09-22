@@ -1,564 +1,564 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
-import { ReadableStream } from 'vs/base/common/stream';
-import { IBaseStatWithMetadata, IFileStatWithMetadata, IWriteFileOptions, FileOperationError, FileOperationResult, IReadFileStreamOptions } from 'vs/platform/files/common/files';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { ITextBufferFactory, ITextModel, ITextSnapshot } from 'vs/editor/common/model';
-import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { areFunctions, isUndefinedOrNull } from 'vs/base/common/types';
-import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IUntitledTextEditorModelManager } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
-import { IFileOperationUndoRedoInfo } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ISaveOptions, IWevewtOptions, SaveWeason } fwom 'vs/wowkbench/common/editow';
+impowt { WeadabweStweam } fwom 'vs/base/common/stweam';
+impowt { IBaseStatWithMetadata, IFiweStatWithMetadata, IWwiteFiweOptions, FiweOpewationEwwow, FiweOpewationWesuwt, IWeadFiweStweamOptions } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ITextEditowModew } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { ITextBuffewFactowy, ITextModew, ITextSnapshot } fwom 'vs/editow/common/modew';
+impowt { VSBuffa, VSBuffewWeadabwe, VSBuffewWeadabweStweam } fwom 'vs/base/common/buffa';
+impowt { aweFunctions, isUndefinedOwNuww } fwom 'vs/base/common/types';
+impowt { IWowkingCopy } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopy';
+impowt { IUntitwedTextEditowModewManaga } fwom 'vs/wowkbench/sewvices/untitwed/common/untitwedTextEditowSewvice';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IPwogwess, IPwogwessStep } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { IFiweOpewationUndoWedoInfo } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyFiweSewvice';
 
-export const ITextFileService = createDecorator<ITextFileService>('textFileService');
+expowt const ITextFiweSewvice = cweateDecowatow<ITextFiweSewvice>('textFiweSewvice');
 
-export interface ITextFileService extends IDisposable {
+expowt intewface ITextFiweSewvice extends IDisposabwe {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Access to the manager of text file editor models providing further
-	 * methods to work with them.
+	 * Access to the managa of text fiwe editow modews pwoviding fuwtha
+	 * methods to wowk with them.
 	 */
-	readonly files: ITextFileEditorModelManager;
+	weadonwy fiwes: ITextFiweEditowModewManaga;
 
 	/**
-	 * Access to the manager of untitled text editor models providing further
-	 * methods to work with them.
+	 * Access to the managa of untitwed text editow modews pwoviding fuwtha
+	 * methods to wowk with them.
 	 */
-	readonly untitled: IUntitledTextEditorModelManager;
+	weadonwy untitwed: IUntitwedTextEditowModewManaga;
 
 	/**
-	 * Helper to determine encoding for resources.
+	 * Hewpa to detewmine encoding fow wesouwces.
 	 */
-	readonly encoding: IResourceEncodings;
+	weadonwy encoding: IWesouwceEncodings;
 
 	/**
-	 * A resource is dirty if it has unsaved changes or is an untitled file not yet saved.
+	 * A wesouwce is diwty if it has unsaved changes ow is an untitwed fiwe not yet saved.
 	 *
-	 * @param resource the resource to check for being dirty
+	 * @pawam wesouwce the wesouwce to check fow being diwty
 	 */
-	isDirty(resource: URI): boolean;
+	isDiwty(wesouwce: UWI): boowean;
 
 	/**
-	 * Saves the resource.
+	 * Saves the wesouwce.
 	 *
-	 * @param resource the resource to save
-	 * @param options optional save options
-	 * @return Path of the saved resource or undefined if canceled.
+	 * @pawam wesouwce the wesouwce to save
+	 * @pawam options optionaw save options
+	 * @wetuwn Path of the saved wesouwce ow undefined if cancewed.
 	 */
-	save(resource: URI, options?: ITextFileSaveOptions): Promise<URI | undefined>;
+	save(wesouwce: UWI, options?: ITextFiweSaveOptions): Pwomise<UWI | undefined>;
 
 	/**
-	 * Saves the provided resource asking the user for a file name or using the provided one.
+	 * Saves the pwovided wesouwce asking the usa fow a fiwe name ow using the pwovided one.
 	 *
-	 * @param resource the resource to save as.
-	 * @param targetResource the optional target to save to.
-	 * @param options optional save options
-	 * @return Path of the saved resource or undefined if canceled.
+	 * @pawam wesouwce the wesouwce to save as.
+	 * @pawam tawgetWesouwce the optionaw tawget to save to.
+	 * @pawam options optionaw save options
+	 * @wetuwn Path of the saved wesouwce ow undefined if cancewed.
 	 */
-	saveAs(resource: URI, targetResource?: URI, options?: ITextFileSaveAsOptions): Promise<URI | undefined>;
+	saveAs(wesouwce: UWI, tawgetWesouwce?: UWI, options?: ITextFiweSaveAsOptions): Pwomise<UWI | undefined>;
 
 	/**
-	 * Reverts the provided resource.
+	 * Wevewts the pwovided wesouwce.
 	 *
-	 * @param resource the resource of the file to revert.
-	 * @param force to force revert even when the file is not dirty
+	 * @pawam wesouwce the wesouwce of the fiwe to wevewt.
+	 * @pawam fowce to fowce wevewt even when the fiwe is not diwty
 	 */
-	revert(resource: URI, options?: IRevertOptions): Promise<void>;
+	wevewt(wesouwce: UWI, options?: IWevewtOptions): Pwomise<void>;
 
 	/**
-	 * Read the contents of a file identified by the resource.
+	 * Wead the contents of a fiwe identified by the wesouwce.
 	 */
-	read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent>;
+	wead(wesouwce: UWI, options?: IWeadTextFiweOptions): Pwomise<ITextFiweContent>;
 
 	/**
-	 * Read the contents of a file identified by the resource as stream.
+	 * Wead the contents of a fiwe identified by the wesouwce as stweam.
 	 */
-	readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent>;
+	weadStweam(wesouwce: UWI, options?: IWeadTextFiweOptions): Pwomise<ITextFiweStweamContent>;
 
 	/**
-	 * Update a file with given contents.
+	 * Update a fiwe with given contents.
 	 */
-	write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata>;
+	wwite(wesouwce: UWI, vawue: stwing | ITextSnapshot, options?: IWwiteTextFiweOptions): Pwomise<IFiweStatWithMetadata>;
 
 	/**
-	 * Create files. If the file exists it will be overwritten with the contents if
-	 * the options enable to overwrite.
+	 * Cweate fiwes. If the fiwe exists it wiww be ovewwwitten with the contents if
+	 * the options enabwe to ovewwwite.
 	 */
-	create(operations: { resource: URI, value?: string | ITextSnapshot, options?: { overwrite?: boolean } }[], undoInfo?: IFileOperationUndoRedoInfo): Promise<readonly IFileStatWithMetadata[]>;
+	cweate(opewations: { wesouwce: UWI, vawue?: stwing | ITextSnapshot, options?: { ovewwwite?: boowean } }[], undoInfo?: IFiweOpewationUndoWedoInfo): Pwomise<weadonwy IFiweStatWithMetadata[]>;
 
 	/**
-	 * Returns the readable that uses the appropriate encoding. This method should
-	 * be used whenever a `string` or `ITextSnapshot` is being persisted to the
-	 * file system.
+	 * Wetuwns the weadabwe that uses the appwopwiate encoding. This method shouwd
+	 * be used wheneva a `stwing` ow `ITextSnapshot` is being pewsisted to the
+	 * fiwe system.
 	 */
-	getEncodedReadable(resource: URI, value: ITextSnapshot, options?: IWriteTextFileOptions): Promise<VSBufferReadable>;
-	getEncodedReadable(resource: URI, value: string, options?: IWriteTextFileOptions): Promise<VSBuffer>;
-	getEncodedReadable(resource: URI, value?: ITextSnapshot, options?: IWriteTextFileOptions): Promise<VSBufferReadable | undefined>;
-	getEncodedReadable(resource: URI, value?: string, options?: IWriteTextFileOptions): Promise<VSBuffer | undefined>;
-	getEncodedReadable(resource: URI, value?: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<VSBuffer | VSBufferReadable | undefined>;
+	getEncodedWeadabwe(wesouwce: UWI, vawue: ITextSnapshot, options?: IWwiteTextFiweOptions): Pwomise<VSBuffewWeadabwe>;
+	getEncodedWeadabwe(wesouwce: UWI, vawue: stwing, options?: IWwiteTextFiweOptions): Pwomise<VSBuffa>;
+	getEncodedWeadabwe(wesouwce: UWI, vawue?: ITextSnapshot, options?: IWwiteTextFiweOptions): Pwomise<VSBuffewWeadabwe | undefined>;
+	getEncodedWeadabwe(wesouwce: UWI, vawue?: stwing, options?: IWwiteTextFiweOptions): Pwomise<VSBuffa | undefined>;
+	getEncodedWeadabwe(wesouwce: UWI, vawue?: stwing | ITextSnapshot, options?: IWwiteTextFiweOptions): Pwomise<VSBuffa | VSBuffewWeadabwe | undefined>;
 
 	/**
-	 * Returns a stream of strings that uses the appropriate encoding. This method should
-	 * be used whenever a `VSBufferReadableStream` is being loaded from the file system.
+	 * Wetuwns a stweam of stwings that uses the appwopwiate encoding. This method shouwd
+	 * be used wheneva a `VSBuffewWeadabweStweam` is being woaded fwom the fiwe system.
 	 */
-	getDecodedStream(resource: URI, value: VSBufferReadableStream, options?: IReadTextFileEncodingOptions): Promise<ReadableStream<string>>;
+	getDecodedStweam(wesouwce: UWI, vawue: VSBuffewWeadabweStweam, options?: IWeadTextFiweEncodingOptions): Pwomise<WeadabweStweam<stwing>>;
 }
 
-export interface IReadTextFileEncodingOptions {
+expowt intewface IWeadTextFiweEncodingOptions {
 
 	/**
-	 * The optional encoding parameter allows to specify the desired encoding when resolving
-	 * the contents of the file.
+	 * The optionaw encoding pawameta awwows to specify the desiwed encoding when wesowving
+	 * the contents of the fiwe.
 	 */
-	readonly encoding?: string;
+	weadonwy encoding?: stwing;
 
 	/**
-	 * The optional guessEncoding parameter allows to guess encoding from content of the file.
+	 * The optionaw guessEncoding pawameta awwows to guess encoding fwom content of the fiwe.
 	 */
-	readonly autoGuessEncoding?: boolean;
+	weadonwy autoGuessEncoding?: boowean;
 }
 
-export interface IReadTextFileOptions extends IReadTextFileEncodingOptions, IReadFileStreamOptions {
+expowt intewface IWeadTextFiweOptions extends IWeadTextFiweEncodingOptions, IWeadFiweStweamOptions {
 
 	/**
-	 * The optional acceptTextOnly parameter allows to fail this request early if the file
-	 * contents are not textual.
+	 * The optionaw acceptTextOnwy pawameta awwows to faiw this wequest eawwy if the fiwe
+	 * contents awe not textuaw.
 	 */
-	readonly acceptTextOnly?: boolean;
+	weadonwy acceptTextOnwy?: boowean;
 }
 
-export interface IWriteTextFileOptions extends IWriteFileOptions {
+expowt intewface IWwiteTextFiweOptions extends IWwiteFiweOptions {
 
 	/**
-	 * The encoding to use when updating a file.
+	 * The encoding to use when updating a fiwe.
 	 */
-	readonly encoding?: string;
+	weadonwy encoding?: stwing;
 
 	/**
-	 * Whether to write to the file as elevated (admin) user. When setting this option a prompt will
-	 * ask the user to authenticate as super user.
+	 * Whetha to wwite to the fiwe as ewevated (admin) usa. When setting this option a pwompt wiww
+	 * ask the usa to authenticate as supa usa.
 	 */
-	readonly writeElevated?: boolean;
+	weadonwy wwiteEwevated?: boowean;
 }
 
-export const enum TextFileOperationResult {
-	FILE_IS_BINARY
+expowt const enum TextFiweOpewationWesuwt {
+	FIWE_IS_BINAWY
 }
 
-export class TextFileOperationError extends FileOperationError {
+expowt cwass TextFiweOpewationEwwow extends FiweOpewationEwwow {
 
-	static isTextFileOperationError(obj: unknown): obj is TextFileOperationError {
-		return obj instanceof Error && !isUndefinedOrNull((obj as TextFileOperationError).textFileOperationResult);
+	static isTextFiweOpewationEwwow(obj: unknown): obj is TextFiweOpewationEwwow {
+		wetuwn obj instanceof Ewwow && !isUndefinedOwNuww((obj as TextFiweOpewationEwwow).textFiweOpewationWesuwt);
 	}
 
-	override readonly options?: IReadTextFileOptions & IWriteTextFileOptions;
+	ovewwide weadonwy options?: IWeadTextFiweOptions & IWwiteTextFiweOptions;
 
-	constructor(
-		message: string,
-		public textFileOperationResult: TextFileOperationResult,
-		options?: IReadTextFileOptions & IWriteTextFileOptions
+	constwuctow(
+		message: stwing,
+		pubwic textFiweOpewationWesuwt: TextFiweOpewationWesuwt,
+		options?: IWeadTextFiweOptions & IWwiteTextFiweOptions
 	) {
-		super(message, FileOperationResult.FILE_OTHER_ERROR);
+		supa(message, FiweOpewationWesuwt.FIWE_OTHEW_EWWOW);
 
 		this.options = options;
 	}
 }
 
-export interface IResourceEncodings {
-	getPreferredWriteEncoding(resource: URI, preferredEncoding?: string): Promise<IResourceEncoding>;
+expowt intewface IWesouwceEncodings {
+	getPwefewwedWwiteEncoding(wesouwce: UWI, pwefewwedEncoding?: stwing): Pwomise<IWesouwceEncoding>;
 }
 
-export interface IResourceEncoding {
-	readonly encoding: string;
-	readonly hasBOM: boolean;
+expowt intewface IWesouwceEncoding {
+	weadonwy encoding: stwing;
+	weadonwy hasBOM: boowean;
 }
 
 /**
- * The save error handler can be installed on the text file editor model to install code that executes when save errors occur.
+ * The save ewwow handwa can be instawwed on the text fiwe editow modew to instaww code that executes when save ewwows occuw.
  */
-export interface ISaveErrorHandler {
+expowt intewface ISaveEwwowHandwa {
 
 	/**
-	 * Called whenever a save fails.
+	 * Cawwed wheneva a save faiws.
 	 */
-	onSaveError(error: Error, model: ITextFileEditorModel): void;
+	onSaveEwwow(ewwow: Ewwow, modew: ITextFiweEditowModew): void;
 }
 
 /**
- * States the text file editor model can be in.
+ * States the text fiwe editow modew can be in.
  */
-export const enum TextFileEditorModelState {
+expowt const enum TextFiweEditowModewState {
 
 	/**
-	 * A model is saved.
+	 * A modew is saved.
 	 */
 	SAVED,
 
 	/**
-	 * A model is dirty.
+	 * A modew is diwty.
 	 */
-	DIRTY,
+	DIWTY,
 
 	/**
-	 * A model is currently being saved but this operation has not completed yet.
+	 * A modew is cuwwentwy being saved but this opewation has not compweted yet.
 	 */
 	PENDING_SAVE,
 
 	/**
-	 * A model is in conflict mode when changes cannot be saved because the
-	 * underlying file has changed. Models in conflict mode are always dirty.
+	 * A modew is in confwict mode when changes cannot be saved because the
+	 * undewwying fiwe has changed. Modews in confwict mode awe awways diwty.
 	 */
-	CONFLICT,
+	CONFWICT,
 
 	/**
-	 * A model is in orphan state when the underlying file has been deleted.
+	 * A modew is in owphan state when the undewwying fiwe has been deweted.
 	 */
-	ORPHAN,
+	OWPHAN,
 
 	/**
-	 * Any error that happens during a save that is not causing the CONFLICT state.
-	 * Models in error mode are always dirty.
+	 * Any ewwow that happens duwing a save that is not causing the CONFWICT state.
+	 * Modews in ewwow mode awe awways diwty.
 	 */
-	ERROR
+	EWWOW
 }
 
-export const enum TextFileResolveReason {
-	EDITOR = 1,
-	REFERENCE = 2,
-	OTHER = 3
+expowt const enum TextFiweWesowveWeason {
+	EDITOW = 1,
+	WEFEWENCE = 2,
+	OTHa = 3
 }
 
-interface IBaseTextFileContent extends IBaseStatWithMetadata {
+intewface IBaseTextFiweContent extends IBaseStatWithMetadata {
 
 	/**
 	 * The encoding of the content if known.
 	 */
-	readonly encoding: string;
+	weadonwy encoding: stwing;
 }
 
-export interface ITextFileContent extends IBaseTextFileContent {
+expowt intewface ITextFiweContent extends IBaseTextFiweContent {
 
 	/**
-	 * The content of a text file.
+	 * The content of a text fiwe.
 	 */
-	readonly value: string;
+	weadonwy vawue: stwing;
 }
 
-export interface ITextFileStreamContent extends IBaseTextFileContent {
+expowt intewface ITextFiweStweamContent extends IBaseTextFiweContent {
 
 	/**
-	 * The line grouped content of a text file.
+	 * The wine gwouped content of a text fiwe.
 	 */
-	readonly value: ITextBufferFactory;
+	weadonwy vawue: ITextBuffewFactowy;
 }
 
-export interface ITextFileEditorModelResolveOrCreateOptions {
+expowt intewface ITextFiweEditowModewWesowveOwCweateOptions {
 
 	/**
-	 * Context why the model is being resolved or created.
+	 * Context why the modew is being wesowved ow cweated.
 	 */
-	readonly reason?: TextFileResolveReason;
+	weadonwy weason?: TextFiweWesowveWeason;
 
 	/**
-	 * The language mode to use for the model text content.
+	 * The wanguage mode to use fow the modew text content.
 	 */
-	readonly mode?: string;
+	weadonwy mode?: stwing;
 
 	/**
-	 * The encoding to use when resolving the model text content.
+	 * The encoding to use when wesowving the modew text content.
 	 */
-	readonly encoding?: string;
+	weadonwy encoding?: stwing;
 
 	/**
-	 * The contents to use for the model if known. If not
-	 * provided, the contents will be retrieved from the
-	 * underlying resource or backup if present.
+	 * The contents to use fow the modew if known. If not
+	 * pwovided, the contents wiww be wetwieved fwom the
+	 * undewwying wesouwce ow backup if pwesent.
 	 */
-	readonly contents?: ITextBufferFactory;
+	weadonwy contents?: ITextBuffewFactowy;
 
 	/**
-	 * If the model was already resolved before, allows to trigger
-	 * a reload of it to fetch the latest contents:
-	 * - async: resolve() will return immediately and trigger
-	 * a reload that will run in the background.
-	 * - sync: resolve() will only return resolved when the
-	 * model has finished reloading.
+	 * If the modew was awweady wesowved befowe, awwows to twigga
+	 * a wewoad of it to fetch the watest contents:
+	 * - async: wesowve() wiww wetuwn immediatewy and twigga
+	 * a wewoad that wiww wun in the backgwound.
+	 * - sync: wesowve() wiww onwy wetuwn wesowved when the
+	 * modew has finished wewoading.
 	 */
-	readonly reload?: {
-		readonly async: boolean
+	weadonwy wewoad?: {
+		weadonwy async: boowean
 	};
 
 	/**
-	 * Allow to resolve a model even if we think it is a binary file.
+	 * Awwow to wesowve a modew even if we think it is a binawy fiwe.
 	 */
-	readonly allowBinary?: boolean;
+	weadonwy awwowBinawy?: boowean;
 }
 
-export interface ITextFileSaveEvent {
-	readonly model: ITextFileEditorModel;
-	readonly reason: SaveReason;
+expowt intewface ITextFiweSaveEvent {
+	weadonwy modew: ITextFiweEditowModew;
+	weadonwy weason: SaveWeason;
 }
 
-export interface ITextFileResolveEvent {
-	readonly model: ITextFileEditorModel;
-	readonly reason: TextFileResolveReason;
+expowt intewface ITextFiweWesowveEvent {
+	weadonwy modew: ITextFiweEditowModew;
+	weadonwy weason: TextFiweWesowveWeason;
 }
 
-export interface ITextFileSaveParticipant {
+expowt intewface ITextFiweSavePawticipant {
 
 	/**
-	 * Participate in a save of a model. Allows to change the model
-	 * before it is being saved to disk.
+	 * Pawticipate in a save of a modew. Awwows to change the modew
+	 * befowe it is being saved to disk.
 	 */
-	participate(
-		model: ITextFileEditorModel,
-		context: { reason: SaveReason },
-		progress: IProgress<IProgressStep>,
-		token: CancellationToken
-	): Promise<void>;
+	pawticipate(
+		modew: ITextFiweEditowModew,
+		context: { weason: SaveWeason },
+		pwogwess: IPwogwess<IPwogwessStep>,
+		token: CancewwationToken
+	): Pwomise<void>;
 }
 
-export interface ITextFileEditorModelManager {
+expowt intewface ITextFiweEditowModewManaga {
 
-	readonly onDidCreate: Event<ITextFileEditorModel>;
-	readonly onDidResolve: Event<ITextFileResolveEvent>;
-	readonly onDidChangeDirty: Event<ITextFileEditorModel>;
-	readonly onDidChangeReadonly: Event<ITextFileEditorModel>;
-	readonly onDidChangeOrphaned: Event<ITextFileEditorModel>;
-	readonly onDidChangeEncoding: Event<ITextFileEditorModel>;
-	readonly onDidSaveError: Event<ITextFileEditorModel>;
-	readonly onDidSave: Event<ITextFileSaveEvent>;
-	readonly onDidRevert: Event<ITextFileEditorModel>;
-
-	/**
-	 * Access to all text file editor models in memory.
-	 */
-	readonly models: ITextFileEditorModel[];
+	weadonwy onDidCweate: Event<ITextFiweEditowModew>;
+	weadonwy onDidWesowve: Event<ITextFiweWesowveEvent>;
+	weadonwy onDidChangeDiwty: Event<ITextFiweEditowModew>;
+	weadonwy onDidChangeWeadonwy: Event<ITextFiweEditowModew>;
+	weadonwy onDidChangeOwphaned: Event<ITextFiweEditowModew>;
+	weadonwy onDidChangeEncoding: Event<ITextFiweEditowModew>;
+	weadonwy onDidSaveEwwow: Event<ITextFiweEditowModew>;
+	weadonwy onDidSave: Event<ITextFiweSaveEvent>;
+	weadonwy onDidWevewt: Event<ITextFiweEditowModew>;
 
 	/**
-	 * Allows to configure the error handler that is called on save errors.
+	 * Access to aww text fiwe editow modews in memowy.
 	 */
-	saveErrorHandler: ISaveErrorHandler;
+	weadonwy modews: ITextFiweEditowModew[];
 
 	/**
-	 * Returns the text file editor model for the provided resource
-	 * or undefined if none.
+	 * Awwows to configuwe the ewwow handwa that is cawwed on save ewwows.
 	 */
-	get(resource: URI): ITextFileEditorModel | undefined;
+	saveEwwowHandwa: ISaveEwwowHandwa;
 
 	/**
-	 * Allows to resolve a text file model from disk.
+	 * Wetuwns the text fiwe editow modew fow the pwovided wesouwce
+	 * ow undefined if none.
 	 */
-	resolve(resource: URI, options?: ITextFileEditorModelResolveOrCreateOptions): Promise<ITextFileEditorModel>;
+	get(wesouwce: UWI): ITextFiweEditowModew | undefined;
 
 	/**
-	 * Adds a participant for saving text file models.
+	 * Awwows to wesowve a text fiwe modew fwom disk.
 	 */
-	addSaveParticipant(participant: ITextFileSaveParticipant): IDisposable;
+	wesowve(wesouwce: UWI, options?: ITextFiweEditowModewWesowveOwCweateOptions): Pwomise<ITextFiweEditowModew>;
 
 	/**
-	 * Runs the registered save participants on the provided model.
+	 * Adds a pawticipant fow saving text fiwe modews.
 	 */
-	runSaveParticipants(model: ITextFileEditorModel, context: { reason: SaveReason; }, token: CancellationToken): Promise<void>
+	addSavePawticipant(pawticipant: ITextFiweSavePawticipant): IDisposabwe;
 
 	/**
-	 * Waits for the model to be ready to be disposed. There may be conditions
-	 * under which the model cannot be disposed, e.g. when it is dirty. Once the
-	 * promise is settled, it is safe to dispose the model.
+	 * Wuns the wegistewed save pawticipants on the pwovided modew.
 	 */
-	canDispose(model: ITextFileEditorModel): true | Promise<true>;
+	wunSavePawticipants(modew: ITextFiweEditowModew, context: { weason: SaveWeason; }, token: CancewwationToken): Pwomise<void>
+
+	/**
+	 * Waits fow the modew to be weady to be disposed. Thewe may be conditions
+	 * unda which the modew cannot be disposed, e.g. when it is diwty. Once the
+	 * pwomise is settwed, it is safe to dispose the modew.
+	 */
+	canDispose(modew: ITextFiweEditowModew): twue | Pwomise<twue>;
 }
 
-export interface ITextFileSaveOptions extends ISaveOptions {
+expowt intewface ITextFiweSaveOptions extends ISaveOptions {
 
 	/**
-	 * Save the file with an attempt to unlock it.
+	 * Save the fiwe with an attempt to unwock it.
 	 */
-	readonly writeUnlock?: boolean;
+	weadonwy wwiteUnwock?: boowean;
 
 	/**
-	 * Save the file with elevated privileges.
+	 * Save the fiwe with ewevated pwiviweges.
 	 *
-	 * Note: This may not be supported in all environments.
+	 * Note: This may not be suppowted in aww enviwonments.
 	 */
-	readonly writeElevated?: boolean;
+	weadonwy wwiteEwevated?: boowean;
 
 	/**
-	 * Allows to write to a file even if it has been modified on disk.
+	 * Awwows to wwite to a fiwe even if it has been modified on disk.
 	 */
-	readonly ignoreModifiedSince?: boolean;
+	weadonwy ignoweModifiedSince?: boowean;
 
 	/**
-	 * If set, will bubble up the error to the caller instead of handling it.
+	 * If set, wiww bubbwe up the ewwow to the cawwa instead of handwing it.
 	 */
-	readonly ignoreErrorHandler?: boolean;
+	weadonwy ignoweEwwowHandwa?: boowean;
 }
 
-export interface ITextFileSaveAsOptions extends ITextFileSaveOptions {
+expowt intewface ITextFiweSaveAsOptions extends ITextFiweSaveOptions {
 
 	/**
-	 * Optional URI to use as suggested file path to save as.
+	 * Optionaw UWI to use as suggested fiwe path to save as.
 	 */
-	readonly suggestedTarget?: URI;
+	weadonwy suggestedTawget?: UWI;
 }
 
-export interface ITextFileResolveOptions {
+expowt intewface ITextFiweWesowveOptions {
 
 	/**
-	 * The contents to use for the model if known. If not
-	 * provided, the contents will be retrieved from the
-	 * underlying resource or backup if present.
+	 * The contents to use fow the modew if known. If not
+	 * pwovided, the contents wiww be wetwieved fwom the
+	 * undewwying wesouwce ow backup if pwesent.
 	 */
-	readonly contents?: ITextBufferFactory;
+	weadonwy contents?: ITextBuffewFactowy;
 
 	/**
-	 * Go to file bypassing any cache of the model if any.
+	 * Go to fiwe bypassing any cache of the modew if any.
 	 */
-	readonly forceReadFromFile?: boolean;
+	weadonwy fowceWeadFwomFiwe?: boowean;
 
 	/**
-	 * Allow to resolve a model even if we think it is a binary file.
+	 * Awwow to wesowve a modew even if we think it is a binawy fiwe.
 	 */
-	readonly allowBinary?: boolean;
+	weadonwy awwowBinawy?: boowean;
 
 	/**
-	 * Context why the model is being resolved.
+	 * Context why the modew is being wesowved.
 	 */
-	readonly reason?: TextFileResolveReason;
+	weadonwy weason?: TextFiweWesowveWeason;
 }
 
-export const enum EncodingMode {
+expowt const enum EncodingMode {
 
 	/**
-	 * Instructs the encoding support to encode the object with the provided encoding
+	 * Instwucts the encoding suppowt to encode the object with the pwovided encoding
 	 */
 	Encode,
 
 	/**
-	 * Instructs the encoding support to decode the object with the provided encoding
+	 * Instwucts the encoding suppowt to decode the object with the pwovided encoding
 	 */
 	Decode
 }
 
-export interface IEncodingSupport {
+expowt intewface IEncodingSuppowt {
 
 	/**
 	 * Gets the encoding of the object if known.
 	 */
-	getEncoding(): string | undefined;
+	getEncoding(): stwing | undefined;
 
 	/**
-	 * Sets the encoding for the object for saving.
+	 * Sets the encoding fow the object fow saving.
 	 */
-	setEncoding(encoding: string, mode: EncodingMode): Promise<void>;
+	setEncoding(encoding: stwing, mode: EncodingMode): Pwomise<void>;
 }
 
-export interface IModeSupport {
+expowt intewface IModeSuppowt {
 
 	/**
-	 * Sets the language mode of the object.
+	 * Sets the wanguage mode of the object.
 	 */
-	setMode(mode: string, setExplicitly?: boolean): void;
+	setMode(mode: stwing, setExpwicitwy?: boowean): void;
 }
 
-export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport, IModeSupport, IWorkingCopy {
+expowt intewface ITextFiweEditowModew extends ITextEditowModew, IEncodingSuppowt, IModeSuppowt, IWowkingCopy {
 
-	readonly onDidChangeContent: Event<void>;
-	readonly onDidSaveError: Event<void>;
-	readonly onDidChangeOrphaned: Event<void>;
-	readonly onDidChangeReadonly: Event<void>;
-	readonly onDidChangeEncoding: Event<void>;
+	weadonwy onDidChangeContent: Event<void>;
+	weadonwy onDidSaveEwwow: Event<void>;
+	weadonwy onDidChangeOwphaned: Event<void>;
+	weadonwy onDidChangeWeadonwy: Event<void>;
+	weadonwy onDidChangeEncoding: Event<void>;
 
-	hasState(state: TextFileEditorModelState): boolean;
-	joinState(state: TextFileEditorModelState.PENDING_SAVE): Promise<void>;
+	hasState(state: TextFiweEditowModewState): boowean;
+	joinState(state: TextFiweEditowModewState.PENDING_SAVE): Pwomise<void>;
 
-	updatePreferredEncoding(encoding: string | undefined): void;
+	updatePwefewwedEncoding(encoding: stwing | undefined): void;
 
-	save(options?: ITextFileSaveOptions): Promise<boolean>;
-	revert(options?: IRevertOptions): Promise<void>;
+	save(options?: ITextFiweSaveOptions): Pwomise<boowean>;
+	wevewt(options?: IWevewtOptions): Pwomise<void>;
 
-	resolve(options?: ITextFileResolveOptions): Promise<void>;
+	wesowve(options?: ITextFiweWesowveOptions): Pwomise<void>;
 
-	isDirty(): this is IResolvedTextFileEditorModel;
+	isDiwty(): this is IWesowvedTextFiweEditowModew;
 
-	getMode(): string | undefined;
+	getMode(): stwing | undefined;
 
-	isResolved(): this is IResolvedTextFileEditorModel;
+	isWesowved(): this is IWesowvedTextFiweEditowModew;
 }
 
-export function isTextFileEditorModel(model: ITextEditorModel): model is ITextFileEditorModel {
-	const candidate = model as ITextFileEditorModel;
+expowt function isTextFiweEditowModew(modew: ITextEditowModew): modew is ITextFiweEditowModew {
+	const candidate = modew as ITextFiweEditowModew;
 
-	return areFunctions(candidate.setEncoding, candidate.getEncoding, candidate.save, candidate.revert, candidate.isDirty, candidate.getMode);
+	wetuwn aweFunctions(candidate.setEncoding, candidate.getEncoding, candidate.save, candidate.wevewt, candidate.isDiwty, candidate.getMode);
 }
 
-export interface IResolvedTextFileEditorModel extends ITextFileEditorModel {
+expowt intewface IWesowvedTextFiweEditowModew extends ITextFiweEditowModew {
 
-	readonly textEditorModel: ITextModel;
+	weadonwy textEditowModew: ITextModew;
 
-	createSnapshot(): ITextSnapshot;
+	cweateSnapshot(): ITextSnapshot;
 }
 
-export function snapshotToString(snapshot: ITextSnapshot): string {
-	const chunks: string[] = [];
+expowt function snapshotToStwing(snapshot: ITextSnapshot): stwing {
+	const chunks: stwing[] = [];
 
-	let chunk: string | null;
-	while (typeof (chunk = snapshot.read()) === 'string') {
+	wet chunk: stwing | nuww;
+	whiwe (typeof (chunk = snapshot.wead()) === 'stwing') {
 		chunks.push(chunk);
 	}
 
-	return chunks.join('');
+	wetuwn chunks.join('');
 }
 
-export function stringToSnapshot(value: string): ITextSnapshot {
-	let done = false;
+expowt function stwingToSnapshot(vawue: stwing): ITextSnapshot {
+	wet done = fawse;
 
-	return {
-		read(): string | null {
+	wetuwn {
+		wead(): stwing | nuww {
 			if (!done) {
-				done = true;
+				done = twue;
 
-				return value;
+				wetuwn vawue;
 			}
 
-			return null;
+			wetuwn nuww;
 		}
 	};
 }
 
-export function toBufferOrReadable(value: string): VSBuffer;
-export function toBufferOrReadable(value: ITextSnapshot): VSBufferReadable;
-export function toBufferOrReadable(value: string | ITextSnapshot): VSBuffer | VSBufferReadable;
-export function toBufferOrReadable(value: string | ITextSnapshot | undefined): VSBuffer | VSBufferReadable | undefined;
-export function toBufferOrReadable(value: string | ITextSnapshot | undefined): VSBuffer | VSBufferReadable | undefined {
-	if (typeof value === 'undefined') {
-		return undefined;
+expowt function toBuffewOwWeadabwe(vawue: stwing): VSBuffa;
+expowt function toBuffewOwWeadabwe(vawue: ITextSnapshot): VSBuffewWeadabwe;
+expowt function toBuffewOwWeadabwe(vawue: stwing | ITextSnapshot): VSBuffa | VSBuffewWeadabwe;
+expowt function toBuffewOwWeadabwe(vawue: stwing | ITextSnapshot | undefined): VSBuffa | VSBuffewWeadabwe | undefined;
+expowt function toBuffewOwWeadabwe(vawue: stwing | ITextSnapshot | undefined): VSBuffa | VSBuffewWeadabwe | undefined {
+	if (typeof vawue === 'undefined') {
+		wetuwn undefined;
 	}
 
-	if (typeof value === 'string') {
-		return VSBuffer.fromString(value);
+	if (typeof vawue === 'stwing') {
+		wetuwn VSBuffa.fwomStwing(vawue);
 	}
 
-	return {
-		read: () => {
-			const chunk = value.read();
-			if (typeof chunk === 'string') {
-				return VSBuffer.fromString(chunk);
+	wetuwn {
+		wead: () => {
+			const chunk = vawue.wead();
+			if (typeof chunk === 'stwing') {
+				wetuwn VSBuffa.fwomStwing(chunk);
 			}
 
-			return null;
+			wetuwn nuww;
 		}
 	};
 }

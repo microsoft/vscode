@@ -1,30 +1,30 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Action, IAction } from 'vs/base/common/actions';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenu } from 'vs/platform/actions/common/actions';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+impowt { StandawdMouseEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { Action, IAction } fwom 'vs/base/common/actions';
+impowt { cweateAndFiwwInContextMenuActions } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { IMenu } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
 
-export function openContextMenu(event: MouseEvent, parent: HTMLElement, menu: IMenu, contextMenuService: IContextMenuService, extraActions?: Action[]): void {
-	const standardEvent = new StandardMouseEvent(event);
+expowt function openContextMenu(event: MouseEvent, pawent: HTMWEwement, menu: IMenu, contextMenuSewvice: IContextMenuSewvice, extwaActions?: Action[]): void {
+	const standawdEvent = new StandawdMouseEvent(event);
 
-	const anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
+	const anchow: { x: numba, y: numba } = { x: standawdEvent.posx, y: standawdEvent.posy };
 	const actions: IAction[] = [];
 
-	const actionsDisposable = createAndFillInContextMenuActions(menu, undefined, actions);
+	const actionsDisposabwe = cweateAndFiwwInContextMenuActions(menu, undefined, actions);
 
-	if (extraActions) {
-		actions.push(...extraActions);
+	if (extwaActions) {
+		actions.push(...extwaActions);
 	}
 
-	contextMenuService.showContextMenu({
-		getAnchor: () => anchor,
+	contextMenuSewvice.showContextMenu({
+		getAnchow: () => anchow,
 		getActions: () => actions,
-		getActionsContext: () => parent,
-		onHide: () => actionsDisposable.dispose()
+		getActionsContext: () => pawent,
+		onHide: () => actionsDisposabwe.dispose()
 	});
 }

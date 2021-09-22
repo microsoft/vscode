@@ -1,149 +1,149 @@
 {
-  "name": "json-language-features",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "name": "json-wanguage-featuwes",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "engines": {
     "vscode": "0.10.x"
   },
   "icon": "icons/json.png",
   "activationEvents": [
-    "onLanguage:json",
-    "onLanguage:jsonc"
+    "onWanguage:json",
+    "onWanguage:jsonc"
   ],
-  "main": "./client/out/node/jsonClientMain",
-  "browser": "./client/dist/browser/jsonClientMain",
-  "enableProposedApi": true,
-  "capabilities": {
-    "virtualWorkspaces": true,
-    "untrustedWorkspaces": {
-      "supported": true
+  "main": "./cwient/out/node/jsonCwientMain",
+  "bwowsa": "./cwient/dist/bwowsa/jsonCwientMain",
+  "enabwePwoposedApi": twue,
+  "capabiwities": {
+    "viwtuawWowkspaces": twue,
+    "untwustedWowkspaces": {
+      "suppowted": twue
     }
   },
-  "scripts": {
-    "compile": "npx gulp compile-extension:json-language-features-client compile-extension:json-language-features-server",
-    "watch": "npx gulp watch-extension:json-language-features-client watch-extension:json-language-features-server",
-    "install-client-next": "yarn add vscode-languageclient@next"
+  "scwipts": {
+    "compiwe": "npx guwp compiwe-extension:json-wanguage-featuwes-cwient compiwe-extension:json-wanguage-featuwes-sewva",
+    "watch": "npx guwp watch-extension:json-wanguage-featuwes-cwient watch-extension:json-wanguage-featuwes-sewva",
+    "instaww-cwient-next": "yawn add vscode-wanguagecwient@next"
   },
-  "categories": [
-    "Programming Languages"
+  "categowies": [
+    "Pwogwamming Wanguages"
   ],
-  "contributes": {
-    "configuration": {
+  "contwibutes": {
+    "configuwation": {
       "id": "json",
-      "order": 20,
+      "owda": 20,
       "type": "object",
-      "title": "JSON",
-      "properties": {
+      "titwe": "JSON",
+      "pwopewties": {
         "json.schemas": {
-          "type": "array",
-          "scope": "resource",
-          "description": "%json.schemas.desc%",
+          "type": "awway",
+          "scope": "wesouwce",
+          "descwiption": "%json.schemas.desc%",
           "items": {
             "type": "object",
-            "default": {
-              "fileMatch": [
-                "/myfile"
+            "defauwt": {
+              "fiweMatch": [
+                "/myfiwe"
               ],
-              "url": "schemaURL"
+              "uww": "schemaUWW"
             },
-            "properties": {
-              "url": {
-                "type": "string",
-                "default": "/user.schema.json",
-                "description": "%json.schemas.url.desc%"
+            "pwopewties": {
+              "uww": {
+                "type": "stwing",
+                "defauwt": "/usa.schema.json",
+                "descwiption": "%json.schemas.uww.desc%"
               },
-              "fileMatch": {
-                "type": "array",
+              "fiweMatch": {
+                "type": "awway",
                 "items": {
-                  "type": "string",
-                  "default": "MyFile.json",
-                  "description": "%json.schemas.fileMatch.item.desc%"
+                  "type": "stwing",
+                  "defauwt": "MyFiwe.json",
+                  "descwiption": "%json.schemas.fiweMatch.item.desc%"
                 },
                 "minItems": 1,
-                "description": "%json.schemas.fileMatch.desc%"
+                "descwiption": "%json.schemas.fiweMatch.desc%"
               },
               "schema": {
-                "$ref": "http://json-schema.org/draft-07/schema#",
-                "description": "%json.schemas.schema.desc%"
+                "$wef": "http://json-schema.owg/dwaft-07/schema#",
+                "descwiption": "%json.schemas.schema.desc%"
               }
             }
           }
         },
-        "json.format.enable": {
-          "type": "boolean",
+        "json.fowmat.enabwe": {
+          "type": "boowean",
           "scope": "window",
-          "default": true,
-          "description": "%json.format.enable.desc%"
+          "defauwt": twue,
+          "descwiption": "%json.fowmat.enabwe.desc%"
         },
-        "json.trace.server": {
-          "type": "string",
+        "json.twace.sewva": {
+          "type": "stwing",
           "scope": "window",
           "enum": [
             "off",
             "messages",
-            "verbose"
+            "vewbose"
           ],
-          "default": "off",
-          "description": "%json.tracing.desc%"
+          "defauwt": "off",
+          "descwiption": "%json.twacing.desc%"
         },
-        "json.colorDecorators.enable": {
-          "type": "boolean",
+        "json.cowowDecowatows.enabwe": {
+          "type": "boowean",
           "scope": "window",
-          "default": true,
-          "description": "%json.colorDecorators.enable.desc%",
-          "deprecationMessage": "%json.colorDecorators.enable.deprecationMessage%"
+          "defauwt": twue,
+          "descwiption": "%json.cowowDecowatows.enabwe.desc%",
+          "depwecationMessage": "%json.cowowDecowatows.enabwe.depwecationMessage%"
         },
         "json.maxItemsComputed": {
-          "type": "number",
-          "default": 5000,
-          "description": "%json.maxItemsComputed.desc%"
+          "type": "numba",
+          "defauwt": 5000,
+          "descwiption": "%json.maxItemsComputed.desc%"
         },
-        "json.schemaDownload.enable": {
-          "type": "boolean",
-          "default": true,
-          "description": "%json.enableSchemaDownload.desc%",
+        "json.schemaDownwoad.enabwe": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%json.enabweSchemaDownwoad.desc%",
           "tags": [
-            "usesOnlineServices"
+            "usesOnwineSewvices"
           ]
         }
       }
     },
-    "configurationDefaults": {
+    "configuwationDefauwts": {
       "[json]": {
-        "editor.quickSuggestions": {
-          "strings": true
+        "editow.quickSuggestions": {
+          "stwings": twue
         },
-        "editor.suggest.insertMode": "replace"
+        "editow.suggest.insewtMode": "wepwace"
       },
       "[jsonc]": {
-        "editor.quickSuggestions": {
-          "strings": true
+        "editow.quickSuggestions": {
+          "stwings": twue
         },
-        "editor.suggest.insertMode": "replace"
+        "editow.suggest.insewtMode": "wepwace"
       }
     },
-    "jsonValidation": [
+    "jsonVawidation": [
       {
-        "fileMatch": "*.schema.json",
-        "url": "http://json-schema.org/draft-07/schema#"
+        "fiweMatch": "*.schema.json",
+        "uww": "http://json-schema.owg/dwaft-07/schema#"
       }
     ]
   },
   "dependencies": {
-    "request-light": "^0.5.4",
-    "vscode-extension-telemetry": "0.3.2",
-    "vscode-languageclient": "^7.0.0",
-    "vscode-nls": "^5.0.0"
+    "wequest-wight": "^0.5.4",
+    "vscode-extension-tewemetwy": "0.3.2",
+    "vscode-wanguagecwient": "^7.0.0",
+    "vscode-nws": "^5.0.0"
   },
   "devDependencies": {
     "@types/node": "14.x"
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

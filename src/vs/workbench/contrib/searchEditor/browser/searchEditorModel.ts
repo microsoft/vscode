@@ -1,172 +1,172 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { parseSavedSearchEditor, parseSerializedSearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { SearchConfiguration } from './searchEditorInput';
-import { assertIsDefined } from 'vs/base/common/types';
-import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
-import { SearchEditorWorkingCopyTypeId } from 'vs/workbench/contrib/searchEditor/browser/constants';
-import { Emitter } from 'vs/base/common/event';
-import { ResourceMap } from 'vs/base/common/map';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { pawseSavedSeawchEditow, pawseSewiawizedSeawchEditow } fwom 'vs/wowkbench/contwib/seawchEditow/bwowsa/seawchEditowSewiawization';
+impowt { IWowkingCopyBackupSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyBackup';
+impowt { SeawchConfiguwation } fwom './seawchEditowInput';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
+impowt { cweateTextBuffewFactowyFwomStweam } fwom 'vs/editow/common/modew/textModew';
+impowt { SeawchEditowWowkingCopyTypeId } fwom 'vs/wowkbench/contwib/seawchEditow/bwowsa/constants';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
 
-export type SearchEditorData = { resultsModel: ITextModel, configurationModel: SearchConfigurationModel };
+expowt type SeawchEditowData = { wesuwtsModew: ITextModew, configuwationModew: SeawchConfiguwationModew };
 
-export class SearchConfigurationModel {
-	private _onConfigDidUpdate = new Emitter<SearchConfiguration>();
-	public readonly onConfigDidUpdate = this._onConfigDidUpdate.event;
+expowt cwass SeawchConfiguwationModew {
+	pwivate _onConfigDidUpdate = new Emitta<SeawchConfiguwation>();
+	pubwic weadonwy onConfigDidUpdate = this._onConfigDidUpdate.event;
 
-	constructor(public config: Readonly<SearchConfiguration>) { }
-	updateConfig(config: SearchConfiguration) { this.config = config; this._onConfigDidUpdate.fire(config); }
+	constwuctow(pubwic config: Weadonwy<SeawchConfiguwation>) { }
+	updateConfig(config: SeawchConfiguwation) { this.config = config; this._onConfigDidUpdate.fiwe(config); }
 }
 
-export class SearchEditorModel {
-	constructor(
-		private resource: URI,
-		@IWorkingCopyBackupService readonly workingCopyBackupService: IWorkingCopyBackupService,
+expowt cwass SeawchEditowModew {
+	constwuctow(
+		pwivate wesouwce: UWI,
+		@IWowkingCopyBackupSewvice weadonwy wowkingCopyBackupSewvice: IWowkingCopyBackupSewvice,
 	) {
 	}
 
-	async resolve(): Promise<SearchEditorData> {
-		return assertIsDefined(searchEditorModelFactory.models.get(this.resource)).resolve();
+	async wesowve(): Pwomise<SeawchEditowData> {
+		wetuwn assewtIsDefined(seawchEditowModewFactowy.modews.get(this.wesouwce)).wesowve();
 	}
 }
 
-class SearchEditorModelFactory {
-	models = new ResourceMap<{ resolve: () => Promise<SearchEditorData> }>();
+cwass SeawchEditowModewFactowy {
+	modews = new WesouwceMap<{ wesowve: () => Pwomise<SeawchEditowData> }>();
 
-	constructor() { }
+	constwuctow() { }
 
-	initializeModelFromExistingModel(accessor: ServicesAccessor, resource: URI, config: SearchConfiguration) {
-		if (this.models.has(resource)) {
-			throw Error('Unable to contruct model for resource that already exists');
+	initiawizeModewFwomExistingModew(accessow: SewvicesAccessow, wesouwce: UWI, config: SeawchConfiguwation) {
+		if (this.modews.has(wesouwce)) {
+			thwow Ewwow('Unabwe to contwuct modew fow wesouwce that awweady exists');
 		}
 
-		const modeService = accessor.get(IModeService);
-		const modelService = accessor.get(IModelService);
-		const instantiationService = accessor.get(IInstantiationService);
-		const workingCopyBackupService = accessor.get(IWorkingCopyBackupService);
+		const modeSewvice = accessow.get(IModeSewvice);
+		const modewSewvice = accessow.get(IModewSewvice);
+		const instantiationSewvice = accessow.get(IInstantiationSewvice);
+		const wowkingCopyBackupSewvice = accessow.get(IWowkingCopyBackupSewvice);
 
-		let ongoingResolve: Promise<SearchEditorData> | undefined;
+		wet ongoingWesowve: Pwomise<SeawchEditowData> | undefined;
 
-		this.models.set(resource, {
-			resolve: () => {
-				if (!ongoingResolve) {
-					ongoingResolve = (async () => {
+		this.modews.set(wesouwce, {
+			wesowve: () => {
+				if (!ongoingWesowve) {
+					ongoingWesowve = (async () => {
 
-						const backup = await this.tryFetchModelFromBackupService(resource, modeService, modelService, workingCopyBackupService, instantiationService);
+						const backup = await this.twyFetchModewFwomBackupSewvice(wesouwce, modeSewvice, modewSewvice, wowkingCopyBackupSewvice, instantiationSewvice);
 						if (backup) {
-							return backup;
+							wetuwn backup;
 						}
 
-						return Promise.resolve({
-							resultsModel: modelService.getModel(resource) ?? modelService.createModel('', modeService.create('search-result'), resource),
-							configurationModel: new SearchConfigurationModel(config)
+						wetuwn Pwomise.wesowve({
+							wesuwtsModew: modewSewvice.getModew(wesouwce) ?? modewSewvice.cweateModew('', modeSewvice.cweate('seawch-wesuwt'), wesouwce),
+							configuwationModew: new SeawchConfiguwationModew(config)
 						});
 					})();
 				}
-				return ongoingResolve;
+				wetuwn ongoingWesowve;
 			}
 		});
 	}
 
-	initializeModelFromRawData(accessor: ServicesAccessor, resource: URI, config: SearchConfiguration, contents: string | undefined) {
-		if (this.models.has(resource)) {
-			throw Error('Unable to contruct model for resource that already exists');
+	initiawizeModewFwomWawData(accessow: SewvicesAccessow, wesouwce: UWI, config: SeawchConfiguwation, contents: stwing | undefined) {
+		if (this.modews.has(wesouwce)) {
+			thwow Ewwow('Unabwe to contwuct modew fow wesouwce that awweady exists');
 		}
 
-		const modeService = accessor.get(IModeService);
-		const modelService = accessor.get(IModelService);
-		const instantiationService = accessor.get(IInstantiationService);
-		const workingCopyBackupService = accessor.get(IWorkingCopyBackupService);
+		const modeSewvice = accessow.get(IModeSewvice);
+		const modewSewvice = accessow.get(IModewSewvice);
+		const instantiationSewvice = accessow.get(IInstantiationSewvice);
+		const wowkingCopyBackupSewvice = accessow.get(IWowkingCopyBackupSewvice);
 
-		let ongoingResolve: Promise<SearchEditorData> | undefined;
+		wet ongoingWesowve: Pwomise<SeawchEditowData> | undefined;
 
-		this.models.set(resource, {
-			resolve: () => {
-				if (!ongoingResolve) {
-					ongoingResolve = (async () => {
+		this.modews.set(wesouwce, {
+			wesowve: () => {
+				if (!ongoingWesowve) {
+					ongoingWesowve = (async () => {
 
-						const backup = await this.tryFetchModelFromBackupService(resource, modeService, modelService, workingCopyBackupService, instantiationService);
+						const backup = await this.twyFetchModewFwomBackupSewvice(wesouwce, modeSewvice, modewSewvice, wowkingCopyBackupSewvice, instantiationSewvice);
 						if (backup) {
-							return backup;
+							wetuwn backup;
 						}
 
-						return Promise.resolve({
-							resultsModel: modelService.createModel(contents ?? '', modeService.create('search-result'), resource),
-							configurationModel: new SearchConfigurationModel(config)
+						wetuwn Pwomise.wesowve({
+							wesuwtsModew: modewSewvice.cweateModew(contents ?? '', modeSewvice.cweate('seawch-wesuwt'), wesouwce),
+							configuwationModew: new SeawchConfiguwationModew(config)
 						});
 					})();
 				}
-				return ongoingResolve;
+				wetuwn ongoingWesowve;
 			}
 		});
 	}
 
-	initializeModelFromExistingFile(accessor: ServicesAccessor, resource: URI, existingFile: URI) {
-		if (this.models.has(resource)) {
-			throw Error('Unable to contruct model for resource that already exists');
+	initiawizeModewFwomExistingFiwe(accessow: SewvicesAccessow, wesouwce: UWI, existingFiwe: UWI) {
+		if (this.modews.has(wesouwce)) {
+			thwow Ewwow('Unabwe to contwuct modew fow wesouwce that awweady exists');
 		}
 
-		const modeService = accessor.get(IModeService);
-		const modelService = accessor.get(IModelService);
-		const instantiationService = accessor.get(IInstantiationService);
-		const workingCopyBackupService = accessor.get(IWorkingCopyBackupService);
+		const modeSewvice = accessow.get(IModeSewvice);
+		const modewSewvice = accessow.get(IModewSewvice);
+		const instantiationSewvice = accessow.get(IInstantiationSewvice);
+		const wowkingCopyBackupSewvice = accessow.get(IWowkingCopyBackupSewvice);
 
-		let ongoingResolve: Promise<SearchEditorData> | undefined;
+		wet ongoingWesowve: Pwomise<SeawchEditowData> | undefined;
 
-		this.models.set(resource, {
-			resolve: async () => {
-				if (!ongoingResolve) {
-					ongoingResolve = (async () => {
+		this.modews.set(wesouwce, {
+			wesowve: async () => {
+				if (!ongoingWesowve) {
+					ongoingWesowve = (async () => {
 
-						const backup = await this.tryFetchModelFromBackupService(resource, modeService, modelService, workingCopyBackupService, instantiationService);
+						const backup = await this.twyFetchModewFwomBackupSewvice(wesouwce, modeSewvice, modewSewvice, wowkingCopyBackupSewvice, instantiationSewvice);
 						if (backup) {
-							return backup;
+							wetuwn backup;
 						}
 
-						const { text, config } = await instantiationService.invokeFunction(parseSavedSearchEditor, existingFile);
-						return ({
-							resultsModel: modelService.createModel(text ?? '', modeService.create('search-result'), resource),
-							configurationModel: new SearchConfigurationModel(config)
+						const { text, config } = await instantiationSewvice.invokeFunction(pawseSavedSeawchEditow, existingFiwe);
+						wetuwn ({
+							wesuwtsModew: modewSewvice.cweateModew(text ?? '', modeSewvice.cweate('seawch-wesuwt'), wesouwce),
+							configuwationModew: new SeawchConfiguwationModew(config)
 						});
 					})();
 				}
-				return ongoingResolve;
+				wetuwn ongoingWesowve;
 			}
 		});
 	}
 
-	private async tryFetchModelFromBackupService(resource: URI, modeService: IModeService, modelService: IModelService, workingCopyBackupService: IWorkingCopyBackupService, instantiationService: IInstantiationService): Promise<SearchEditorData | undefined> {
-		const backup = await workingCopyBackupService.resolve({ resource, typeId: SearchEditorWorkingCopyTypeId });
+	pwivate async twyFetchModewFwomBackupSewvice(wesouwce: UWI, modeSewvice: IModeSewvice, modewSewvice: IModewSewvice, wowkingCopyBackupSewvice: IWowkingCopyBackupSewvice, instantiationSewvice: IInstantiationSewvice): Pwomise<SeawchEditowData | undefined> {
+		const backup = await wowkingCopyBackupSewvice.wesowve({ wesouwce, typeId: SeawchEditowWowkingCopyTypeId });
 
-		let model = modelService.getModel(resource);
-		if (!model && backup) {
-			const factory = await createTextBufferFactoryFromStream(backup.value);
+		wet modew = modewSewvice.getModew(wesouwce);
+		if (!modew && backup) {
+			const factowy = await cweateTextBuffewFactowyFwomStweam(backup.vawue);
 
-			model = modelService.createModel(factory, modeService.create('search-result'), resource);
+			modew = modewSewvice.cweateModew(factowy, modeSewvice.cweate('seawch-wesuwt'), wesouwce);
 		}
 
-		if (model) {
-			const existingFile = model.getValue();
-			const { text, config } = parseSerializedSearchEditor(existingFile);
-			modelService.destroyModel(resource);
-			return ({
-				resultsModel: modelService.createModel(text ?? '', modeService.create('search-result'), resource),
-				configurationModel: new SearchConfigurationModel(config)
+		if (modew) {
+			const existingFiwe = modew.getVawue();
+			const { text, config } = pawseSewiawizedSeawchEditow(existingFiwe);
+			modewSewvice.destwoyModew(wesouwce);
+			wetuwn ({
+				wesuwtsModew: modewSewvice.cweateModew(text ?? '', modeSewvice.cweate('seawch-wesuwt'), wesouwce),
+				configuwationModew: new SeawchConfiguwationModew(config)
 			});
 		}
-		else {
-			return undefined;
+		ewse {
+			wetuwn undefined;
 		}
 	}
 }
 
-export const searchEditorModelFactory = new SearchEditorModelFactory();
+expowt const seawchEditowModewFactowy = new SeawchEditowModewFactowy();

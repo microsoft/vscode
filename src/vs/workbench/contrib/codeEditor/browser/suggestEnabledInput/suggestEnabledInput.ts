@@ -1,233 +1,233 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./suggestEnabledInput';
-import { $, Dimension, append } from 'vs/base/browser/dom';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { Color } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { mixin } from 'vs/base/common/objects';
-import { isMacintosh } from 'vs/base/common/platform';
-import { URI as uri } from 'vs/base/common/uri';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/modes';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
-import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ColorIdentifier, editorSelectionBackground, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground, selectionBackground } from 'vs/platform/theme/common/colorRegistry';
-import { IStyleOverrides, attachStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
-import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
-import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
-import { IThemable } from 'vs/base/common/styler';
-import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
-import { HistoryNavigator } from 'vs/base/common/history';
-import { createAndBindHistoryNavigationWidgetScopedContextKeyService, IHistoryNavigationContext } from 'vs/platform/browser/contextScopedHistoryWidget';
-import { IHistoryNavigationWidget } from 'vs/base/browser/history';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+impowt 'vs/css!./suggestEnabwedInput';
+impowt { $, Dimension, append } fwom 'vs/base/bwowsa/dom';
+impowt { Widget } fwom 'vs/base/bwowsa/ui/widget';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { mixin } fwom 'vs/base/common/objects';
+impowt { isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { UWI as uwi } fwom 'vs/base/common/uwi';
+impowt { CodeEditowWidget } fwom 'vs/editow/bwowsa/widget/codeEditowWidget';
+impowt { IEditowOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { EditOpewation } fwom 'vs/editow/common/cowe/editOpewation';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { ContextMenuContwowwa } fwom 'vs/editow/contwib/contextmenu/contextmenu';
+impowt { SnippetContwowwew2 } fwom 'vs/editow/contwib/snippet/snippetContwowwew2';
+impowt { SuggestContwowwa } fwom 'vs/editow/contwib/suggest/suggestContwowwa';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { CowowIdentifia, editowSewectionBackgwound, inputBackgwound, inputBowda, inputFowegwound, inputPwacehowdewFowegwound, sewectionBackgwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { IStyweOvewwides, attachStywa } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { IThemeSewvice, wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { MenuPweventa } fwom 'vs/wowkbench/contwib/codeEditow/bwowsa/menuPweventa';
+impowt { getSimpweEditowOptions } fwom 'vs/wowkbench/contwib/codeEditow/bwowsa/simpweEditowOptions';
+impowt { SewectionCwipboawdContwibutionID } fwom 'vs/wowkbench/contwib/codeEditow/bwowsa/sewectionCwipboawd';
+impowt { EditowExtensionsWegistwy } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { IThemabwe } fwom 'vs/base/common/stywa';
+impowt { DEFAUWT_FONT_FAMIWY } fwom 'vs/wowkbench/bwowsa/stywe';
+impowt { HistowyNavigatow } fwom 'vs/base/common/histowy';
+impowt { cweateAndBindHistowyNavigationWidgetScopedContextKeySewvice, IHistowyNavigationContext } fwom 'vs/pwatfowm/bwowsa/contextScopedHistowyWidget';
+impowt { IHistowyNavigationWidget } fwom 'vs/base/bwowsa/histowy';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
 
-export interface SuggestResultsProvider {
+expowt intewface SuggestWesuwtsPwovida {
 	/**
-	 * Provider function for suggestion results.
+	 * Pwovida function fow suggestion wesuwts.
 	 *
-	 * @param query the full text of the input.
+	 * @pawam quewy the fuww text of the input.
 	 */
-	provideResults: (query: string) => (Partial<modes.CompletionItem> & ({ label: string }) | string)[];
-
-	/**
-	 * Trigger characters for this input. Suggestions will appear when one of these is typed,
-	 * or upon `ctrl+space` triggering at a word boundary.
-	 *
-	 * Defaults to the empty array.
-	 */
-	triggerCharacters?: string[];
+	pwovideWesuwts: (quewy: stwing) => (Pawtiaw<modes.CompwetionItem> & ({ wabew: stwing }) | stwing)[];
 
 	/**
-	 * Defines the sorting function used when showing results.
+	 * Twigga chawactews fow this input. Suggestions wiww appeaw when one of these is typed,
+	 * ow upon `ctww+space` twiggewing at a wowd boundawy.
 	 *
-	 * Defaults to the identity function.
+	 * Defauwts to the empty awway.
 	 */
-	sortKey?: (result: string) => string;
+	twiggewChawactews?: stwing[];
+
+	/**
+	 * Defines the sowting function used when showing wesuwts.
+	 *
+	 * Defauwts to the identity function.
+	 */
+	sowtKey?: (wesuwt: stwing) => stwing;
 }
 
-interface SuggestEnabledInputOptions {
+intewface SuggestEnabwedInputOptions {
 	/**
-	 * The text to show when no input is present.
+	 * The text to show when no input is pwesent.
 	 *
-	 * Defaults to the empty string.
+	 * Defauwts to the empty stwing.
 	 */
-	placeholderText?: string;
-	value?: string;
+	pwacehowdewText?: stwing;
+	vawue?: stwing;
 
 	/**
-	 * Context key tracking the focus state of this element
+	 * Context key twacking the focus state of this ewement
 	 */
-	focusContextKey?: IContextKey<boolean>;
+	focusContextKey?: IContextKey<boowean>;
 }
 
-export interface ISuggestEnabledInputStyleOverrides extends IStyleOverrides {
-	inputBackground?: ColorIdentifier;
-	inputForeground?: ColorIdentifier;
-	inputBorder?: ColorIdentifier;
-	inputPlaceholderForeground?: ColorIdentifier;
+expowt intewface ISuggestEnabwedInputStyweOvewwides extends IStyweOvewwides {
+	inputBackgwound?: CowowIdentifia;
+	inputFowegwound?: CowowIdentifia;
+	inputBowda?: CowowIdentifia;
+	inputPwacehowdewFowegwound?: CowowIdentifia;
 }
 
-type ISuggestEnabledInputStyles = {
-	[P in keyof ISuggestEnabledInputStyleOverrides]: Color | undefined;
+type ISuggestEnabwedInputStywes = {
+	[P in keyof ISuggestEnabwedInputStyweOvewwides]: Cowow | undefined;
 };
 
-export function attachSuggestEnabledInputBoxStyler(widget: IThemable, themeService: IThemeService, style?: ISuggestEnabledInputStyleOverrides): IDisposable {
-	return attachStyler(themeService, {
-		inputBackground: style?.inputBackground || inputBackground,
-		inputForeground: style?.inputForeground || inputForeground,
-		inputBorder: style?.inputBorder || inputBorder,
-		inputPlaceholderForeground: style?.inputPlaceholderForeground || inputPlaceholderForeground,
-	} as ISuggestEnabledInputStyleOverrides, widget);
+expowt function attachSuggestEnabwedInputBoxStywa(widget: IThemabwe, themeSewvice: IThemeSewvice, stywe?: ISuggestEnabwedInputStyweOvewwides): IDisposabwe {
+	wetuwn attachStywa(themeSewvice, {
+		inputBackgwound: stywe?.inputBackgwound || inputBackgwound,
+		inputFowegwound: stywe?.inputFowegwound || inputFowegwound,
+		inputBowda: stywe?.inputBowda || inputBowda,
+		inputPwacehowdewFowegwound: stywe?.inputPwacehowdewFowegwound || inputPwacehowdewFowegwound,
+	} as ISuggestEnabwedInputStyweOvewwides, widget);
 }
 
-export class SuggestEnabledInput extends Widget implements IThemable {
+expowt cwass SuggestEnabwedInput extends Widget impwements IThemabwe {
 
-	private readonly _onShouldFocusResults = new Emitter<void>();
-	readonly onShouldFocusResults: Event<void> = this._onShouldFocusResults.event;
+	pwivate weadonwy _onShouwdFocusWesuwts = new Emitta<void>();
+	weadonwy onShouwdFocusWesuwts: Event<void> = this._onShouwdFocusWesuwts.event;
 
-	private readonly _onEnter = new Emitter<void>();
-	readonly onEnter: Event<void> = this._onEnter.event;
+	pwivate weadonwy _onEnta = new Emitta<void>();
+	weadonwy onEnta: Event<void> = this._onEnta.event;
 
-	private readonly _onInputDidChange = new Emitter<string | undefined>();
-	readonly onInputDidChange: Event<string | undefined> = this._onInputDidChange.event;
+	pwivate weadonwy _onInputDidChange = new Emitta<stwing | undefined>();
+	weadonwy onInputDidChange: Event<stwing | undefined> = this._onInputDidChange.event;
 
-	protected readonly inputWidget: CodeEditorWidget;
-	private readonly inputModel: ITextModel;
-	protected stylingContainer: HTMLDivElement;
-	private placeholderText: HTMLDivElement;
+	pwotected weadonwy inputWidget: CodeEditowWidget;
+	pwivate weadonwy inputModew: ITextModew;
+	pwotected stywingContaina: HTMWDivEwement;
+	pwivate pwacehowdewText: HTMWDivEwement;
 
-	constructor(
-		id: string,
-		parent: HTMLElement,
-		suggestionProvider: SuggestResultsProvider,
-		ariaLabel: string,
-		resourceHandle: string,
-		options: SuggestEnabledInputOptions,
-		@IInstantiationService defaultInstantiationService: IInstantiationService,
-		@IModelService modelService: IModelService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+	constwuctow(
+		id: stwing,
+		pawent: HTMWEwement,
+		suggestionPwovida: SuggestWesuwtsPwovida,
+		awiaWabew: stwing,
+		wesouwceHandwe: stwing,
+		options: SuggestEnabwedInputOptions,
+		@IInstantiationSewvice defauwtInstantiationSewvice: IInstantiationSewvice,
+		@IModewSewvice modewSewvice: IModewSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
 	) {
-		super();
+		supa();
 
-		this.stylingContainer = append(parent, $('.suggest-input-container'));
-		this.placeholderText = append(this.stylingContainer, $('.suggest-input-placeholder', undefined, options.placeholderText || ''));
+		this.stywingContaina = append(pawent, $('.suggest-input-containa'));
+		this.pwacehowdewText = append(this.stywingContaina, $('.suggest-input-pwacehowda', undefined, options.pwacehowdewText || ''));
 
-		const editorOptions: IEditorOptions = mixin(
-			getSimpleEditorOptions(),
-			getSuggestEnabledInputOptions(ariaLabel));
+		const editowOptions: IEditowOptions = mixin(
+			getSimpweEditowOptions(),
+			getSuggestEnabwedInputOptions(awiaWabew));
 
-		const scopedContextKeyService = this.getScopedContextKeyService(contextKeyService, parent);
+		const scopedContextKeySewvice = this.getScopedContextKeySewvice(contextKeySewvice, pawent);
 
-		const instantiationService = scopedContextKeyService
-			? defaultInstantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]))
-			: defaultInstantiationService;
+		const instantiationSewvice = scopedContextKeySewvice
+			? defauwtInstantiationSewvice.cweateChiwd(new SewviceCowwection([IContextKeySewvice, scopedContextKeySewvice]))
+			: defauwtInstantiationSewvice;
 
-		this.inputWidget = instantiationService.createInstance(CodeEditorWidget, this.stylingContainer,
-			editorOptions,
+		this.inputWidget = instantiationSewvice.cweateInstance(CodeEditowWidget, this.stywingContaina,
+			editowOptions,
 			{
-				contributions: EditorExtensionsRegistry.getSomeEditorContributions([
-					SuggestController.ID,
-					SnippetController2.ID,
-					ContextMenuController.ID,
-					MenuPreventer.ID,
-					SelectionClipboardContributionID,
+				contwibutions: EditowExtensionsWegistwy.getSomeEditowContwibutions([
+					SuggestContwowwa.ID,
+					SnippetContwowwew2.ID,
+					ContextMenuContwowwa.ID,
+					MenuPweventa.ID,
+					SewectionCwipboawdContwibutionID,
 				]),
-				isSimpleWidget: true,
+				isSimpweWidget: twue,
 			});
-		this._register(this.inputWidget);
+		this._wegista(this.inputWidget);
 
-		let scopeHandle = uri.parse(resourceHandle);
-		this.inputModel = modelService.createModel('', null, scopeHandle, true);
-		this._register(this.inputModel);
-		this.inputWidget.setModel(this.inputModel);
+		wet scopeHandwe = uwi.pawse(wesouwceHandwe);
+		this.inputModew = modewSewvice.cweateModew('', nuww, scopeHandwe, twue);
+		this._wegista(this.inputModew);
+		this.inputWidget.setModew(this.inputModew);
 
-		this._register(this.inputWidget.onDidPaste(() => this.setValue(this.getValue()))); // setter cleanses
+		this._wegista(this.inputWidget.onDidPaste(() => this.setVawue(this.getVawue()))); // setta cweanses
 
-		this._register((this.inputWidget.onDidFocusEditorText(() => {
-			if (options.focusContextKey) { options.focusContextKey.set(true); }
-			this.stylingContainer.classList.add('synthetic-focus');
+		this._wegista((this.inputWidget.onDidFocusEditowText(() => {
+			if (options.focusContextKey) { options.focusContextKey.set(twue); }
+			this.stywingContaina.cwassWist.add('synthetic-focus');
 		})));
-		this._register((this.inputWidget.onDidBlurEditorText(() => {
-			if (options.focusContextKey) { options.focusContextKey.set(false); }
-			this.stylingContainer.classList.remove('synthetic-focus');
+		this._wegista((this.inputWidget.onDidBwuwEditowText(() => {
+			if (options.focusContextKey) { options.focusContextKey.set(fawse); }
+			this.stywingContaina.cwassWist.wemove('synthetic-focus');
 		})));
 
 		const onKeyDownMonaco = Event.chain(this.inputWidget.onKeyDown);
-		this._register(onKeyDownMonaco.filter(e => e.keyCode === KeyCode.Enter).on(e => { e.preventDefault(); this._onEnter.fire(); }, this));
-		this._register(onKeyDownMonaco.filter(e => e.keyCode === KeyCode.DownArrow && (isMacintosh ? e.metaKey : e.ctrlKey)).on(() => this._onShouldFocusResults.fire(), this));
+		this._wegista(onKeyDownMonaco.fiwta(e => e.keyCode === KeyCode.Enta).on(e => { e.pweventDefauwt(); this._onEnta.fiwe(); }, this));
+		this._wegista(onKeyDownMonaco.fiwta(e => e.keyCode === KeyCode.DownAwwow && (isMacintosh ? e.metaKey : e.ctwwKey)).on(() => this._onShouwdFocusWesuwts.fiwe(), this));
 
-		let preexistingContent = this.getValue();
-		const inputWidgetModel = this.inputWidget.getModel();
-		if (inputWidgetModel) {
-			this._register(inputWidgetModel.onDidChangeContent(() => {
-				let content = this.getValue();
-				this.placeholderText.style.visibility = content ? 'hidden' : 'visible';
-				if (preexistingContent.trim() === content.trim()) { return; }
-				this._onInputDidChange.fire(undefined);
-				preexistingContent = content;
+		wet pweexistingContent = this.getVawue();
+		const inputWidgetModew = this.inputWidget.getModew();
+		if (inputWidgetModew) {
+			this._wegista(inputWidgetModew.onDidChangeContent(() => {
+				wet content = this.getVawue();
+				this.pwacehowdewText.stywe.visibiwity = content ? 'hidden' : 'visibwe';
+				if (pweexistingContent.twim() === content.twim()) { wetuwn; }
+				this._onInputDidChange.fiwe(undefined);
+				pweexistingContent = content;
 			}));
 		}
 
-		let validatedSuggestProvider = {
-			provideResults: suggestionProvider.provideResults,
-			sortKey: suggestionProvider.sortKey || (a => a),
-			triggerCharacters: suggestionProvider.triggerCharacters || []
+		wet vawidatedSuggestPwovida = {
+			pwovideWesuwts: suggestionPwovida.pwovideWesuwts,
+			sowtKey: suggestionPwovida.sowtKey || (a => a),
+			twiggewChawactews: suggestionPwovida.twiggewChawactews || []
 		};
 
-		this.setValue(options.value || '');
+		this.setVawue(options.vawue || '');
 
-		this._register(modes.CompletionProviderRegistry.register({ scheme: scopeHandle.scheme, pattern: '**/' + scopeHandle.path, hasAccessToAllModels: true }, {
-			triggerCharacters: validatedSuggestProvider.triggerCharacters,
-			provideCompletionItems: (model: ITextModel, position: Position, _context: modes.CompletionContext) => {
-				let query = model.getValue();
+		this._wegista(modes.CompwetionPwovidewWegistwy.wegista({ scheme: scopeHandwe.scheme, pattewn: '**/' + scopeHandwe.path, hasAccessToAwwModews: twue }, {
+			twiggewChawactews: vawidatedSuggestPwovida.twiggewChawactews,
+			pwovideCompwetionItems: (modew: ITextModew, position: Position, _context: modes.CompwetionContext) => {
+				wet quewy = modew.getVawue();
 
-				const zeroIndexedColumn = position.column - 1;
+				const zewoIndexedCowumn = position.cowumn - 1;
 
-				let zeroIndexedWordStart = query.lastIndexOf(' ', zeroIndexedColumn - 1) + 1;
-				let alreadyTypedCount = zeroIndexedColumn - zeroIndexedWordStart;
+				wet zewoIndexedWowdStawt = quewy.wastIndexOf(' ', zewoIndexedCowumn - 1) + 1;
+				wet awweadyTypedCount = zewoIndexedCowumn - zewoIndexedWowdStawt;
 
-				// dont show suggestions if the user has typed something, but hasn't used the trigger character
-				if (alreadyTypedCount > 0 && validatedSuggestProvider.triggerCharacters.indexOf(query[zeroIndexedWordStart]) === -1) {
-					return { suggestions: [] };
+				// dont show suggestions if the usa has typed something, but hasn't used the twigga chawacta
+				if (awweadyTypedCount > 0 && vawidatedSuggestPwovida.twiggewChawactews.indexOf(quewy[zewoIndexedWowdStawt]) === -1) {
+					wetuwn { suggestions: [] };
 				}
 
-				return {
-					suggestions: suggestionProvider.provideResults(query).map((result): modes.CompletionItem => {
-						let label: string;
-						let rest: Partial<modes.CompletionItem> | undefined;
-						if (typeof result === 'string') {
-							label = result;
-						} else {
-							label = result.label;
-							rest = result;
+				wetuwn {
+					suggestions: suggestionPwovida.pwovideWesuwts(quewy).map((wesuwt): modes.CompwetionItem => {
+						wet wabew: stwing;
+						wet west: Pawtiaw<modes.CompwetionItem> | undefined;
+						if (typeof wesuwt === 'stwing') {
+							wabew = wesuwt;
+						} ewse {
+							wabew = wesuwt.wabew;
+							west = wesuwt;
 						}
 
-						return {
-							label,
-							insertText: label,
-							range: Range.fromPositions(position.delta(0, -alreadyTypedCount), position),
-							sortText: validatedSuggestProvider.sortKey(label),
-							kind: modes.CompletionItemKind.Keyword,
-							...rest
+						wetuwn {
+							wabew,
+							insewtText: wabew,
+							wange: Wange.fwomPositions(position.dewta(0, -awweadyTypedCount), position),
+							sowtText: vawidatedSuggestPwovida.sowtKey(wabew),
+							kind: modes.CompwetionItemKind.Keywowd,
+							...west
 						};
 					})
 				};
@@ -235,233 +235,233 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		}));
 	}
 
-	protected getScopedContextKeyService(_contextKeyService: IContextKeyService, _parent: HTMLElement): IContextKeyService | undefined {
-		return undefined;
+	pwotected getScopedContextKeySewvice(_contextKeySewvice: IContextKeySewvice, _pawent: HTMWEwement): IContextKeySewvice | undefined {
+		wetuwn undefined;
 	}
 
-	public updateAriaLabel(label: string): void {
-		this.inputWidget.updateOptions({ ariaLabel: label });
+	pubwic updateAwiaWabew(wabew: stwing): void {
+		this.inputWidget.updateOptions({ awiaWabew: wabew });
 	}
 
-	public get onFocus(): Event<void> { return this.inputWidget.onDidFocusEditorText; }
+	pubwic get onFocus(): Event<void> { wetuwn this.inputWidget.onDidFocusEditowText; }
 
-	public setValue(val: string) {
-		val = val.replace(/\s/g, ' ');
-		const fullRange = this.inputModel.getFullModelRange();
-		this.inputWidget.executeEdits('suggestEnabledInput.setValue', [EditOperation.replace(fullRange, val)]);
-		this.inputWidget.setScrollTop(0);
-		this.inputWidget.setPosition(new Position(1, val.length + 1));
+	pubwic setVawue(vaw: stwing) {
+		vaw = vaw.wepwace(/\s/g, ' ');
+		const fuwwWange = this.inputModew.getFuwwModewWange();
+		this.inputWidget.executeEdits('suggestEnabwedInput.setVawue', [EditOpewation.wepwace(fuwwWange, vaw)]);
+		this.inputWidget.setScwowwTop(0);
+		this.inputWidget.setPosition(new Position(1, vaw.wength + 1));
 	}
 
-	public getValue(): string {
-		return this.inputWidget.getValue();
+	pubwic getVawue(): stwing {
+		wetuwn this.inputWidget.getVawue();
 	}
 
-	public style(colors: ISuggestEnabledInputStyles): void {
-		this.stylingContainer.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : '';
-		this.stylingContainer.style.color = colors.inputForeground ? colors.inputForeground.toString() : '';
-		this.placeholderText.style.color = colors.inputPlaceholderForeground ? colors.inputPlaceholderForeground.toString() : '';
+	pubwic stywe(cowows: ISuggestEnabwedInputStywes): void {
+		this.stywingContaina.stywe.backgwoundCowow = cowows.inputBackgwound ? cowows.inputBackgwound.toStwing() : '';
+		this.stywingContaina.stywe.cowow = cowows.inputFowegwound ? cowows.inputFowegwound.toStwing() : '';
+		this.pwacehowdewText.stywe.cowow = cowows.inputPwacehowdewFowegwound ? cowows.inputPwacehowdewFowegwound.toStwing() : '';
 
-		this.stylingContainer.style.borderWidth = '1px';
-		this.stylingContainer.style.borderStyle = 'solid';
-		this.stylingContainer.style.borderColor = colors.inputBorder ?
-			colors.inputBorder.toString() :
-			'transparent';
+		this.stywingContaina.stywe.bowdewWidth = '1px';
+		this.stywingContaina.stywe.bowdewStywe = 'sowid';
+		this.stywingContaina.stywe.bowdewCowow = cowows.inputBowda ?
+			cowows.inputBowda.toStwing() :
+			'twanspawent';
 
-		const cursor = this.stylingContainer.getElementsByClassName('cursor')[0] as HTMLDivElement;
-		if (cursor) {
-			cursor.style.backgroundColor = colors.inputForeground ? colors.inputForeground.toString() : '';
+		const cuwsow = this.stywingContaina.getEwementsByCwassName('cuwsow')[0] as HTMWDivEwement;
+		if (cuwsow) {
+			cuwsow.stywe.backgwoundCowow = cowows.inputFowegwound ? cowows.inputFowegwound.toStwing() : '';
 		}
 	}
 
-	public focus(selectAll?: boolean): void {
+	pubwic focus(sewectAww?: boowean): void {
 		this.inputWidget.focus();
 
-		if (selectAll && this.inputWidget.getValue()) {
-			this.selectAll();
+		if (sewectAww && this.inputWidget.getVawue()) {
+			this.sewectAww();
 		}
 	}
 
-	public onHide(): void {
+	pubwic onHide(): void {
 		this.inputWidget.onHide();
 	}
 
-	public layout(dimension: Dimension): void {
-		this.inputWidget.layout(dimension);
-		this.placeholderText.style.width = `${dimension.width - 2}px`;
+	pubwic wayout(dimension: Dimension): void {
+		this.inputWidget.wayout(dimension);
+		this.pwacehowdewText.stywe.width = `${dimension.width - 2}px`;
 	}
 
-	private selectAll(): void {
-		this.inputWidget.setSelection(new Range(1, 1, 1, this.getValue().length + 1));
+	pwivate sewectAww(): void {
+		this.inputWidget.setSewection(new Wange(1, 1, 1, this.getVawue().wength + 1));
 	}
 }
 
-export interface ISuggestEnabledHistoryOptions {
-	id: string,
-	ariaLabel: string,
-	parent: HTMLElement,
-	suggestionProvider: SuggestResultsProvider,
-	resourceHandle: string,
-	suggestOptions: SuggestEnabledInputOptions,
-	history: string[],
+expowt intewface ISuggestEnabwedHistowyOptions {
+	id: stwing,
+	awiaWabew: stwing,
+	pawent: HTMWEwement,
+	suggestionPwovida: SuggestWesuwtsPwovida,
+	wesouwceHandwe: stwing,
+	suggestOptions: SuggestEnabwedInputOptions,
+	histowy: stwing[],
 }
 
-export class SuggestEnabledInputWithHistory extends SuggestEnabledInput implements IHistoryNavigationWidget {
-	protected readonly history: HistoryNavigator<string>;
+expowt cwass SuggestEnabwedInputWithHistowy extends SuggestEnabwedInput impwements IHistowyNavigationWidget {
+	pwotected weadonwy histowy: HistowyNavigatow<stwing>;
 
-	constructor(
-		{ id, parent, ariaLabel, suggestionProvider, resourceHandle, suggestOptions, history }: ISuggestEnabledHistoryOptions,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IModelService modelService: IModelService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+	constwuctow(
+		{ id, pawent, awiaWabew, suggestionPwovida, wesouwceHandwe, suggestOptions, histowy }: ISuggestEnabwedHistowyOptions,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IModewSewvice modewSewvice: IModewSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
 	) {
-		super(id, parent, suggestionProvider, ariaLabel, resourceHandle, suggestOptions, instantiationService, modelService, contextKeyService);
-		this.history = new HistoryNavigator<string>(history, 100);
+		supa(id, pawent, suggestionPwovida, awiaWabew, wesouwceHandwe, suggestOptions, instantiationSewvice, modewSewvice, contextKeySewvice);
+		this.histowy = new HistowyNavigatow<stwing>(histowy, 100);
 	}
 
-	public addToHistory(): void {
-		const value = this.getValue();
-		if (value && value !== this.getCurrentValue()) {
-			this.history.add(value);
+	pubwic addToHistowy(): void {
+		const vawue = this.getVawue();
+		if (vawue && vawue !== this.getCuwwentVawue()) {
+			this.histowy.add(vawue);
 		}
 	}
 
-	public getHistory(): string[] {
-		return this.history.getHistory();
+	pubwic getHistowy(): stwing[] {
+		wetuwn this.histowy.getHistowy();
 	}
 
-	public showNextValue(): void {
-		if (!this.history.has(this.getValue())) {
-			this.addToHistory();
+	pubwic showNextVawue(): void {
+		if (!this.histowy.has(this.getVawue())) {
+			this.addToHistowy();
 		}
 
-		let next = this.getNextValue();
+		wet next = this.getNextVawue();
 		if (next) {
-			next = next === this.getValue() ? this.getNextValue() : next;
+			next = next === this.getVawue() ? this.getNextVawue() : next;
 		}
 
 		if (next) {
-			this.setValue(next);
+			this.setVawue(next);
 		}
 	}
 
-	public showPreviousValue(): void {
-		if (!this.history.has(this.getValue())) {
-			this.addToHistory();
+	pubwic showPweviousVawue(): void {
+		if (!this.histowy.has(this.getVawue())) {
+			this.addToHistowy();
 		}
 
-		let previous = this.getPreviousValue();
-		if (previous) {
-			previous = previous === this.getValue() ? this.getPreviousValue() : previous;
+		wet pwevious = this.getPweviousVawue();
+		if (pwevious) {
+			pwevious = pwevious === this.getVawue() ? this.getPweviousVawue() : pwevious;
 		}
 
-		if (previous) {
-			this.setValue(previous);
-			this.inputWidget.setPosition({ lineNumber: 0, column: 0 });
+		if (pwevious) {
+			this.setVawue(pwevious);
+			this.inputWidget.setPosition({ wineNumba: 0, cowumn: 0 });
 		}
 	}
 
-	public clearHistory(): void {
-		this.history.clear();
+	pubwic cweawHistowy(): void {
+		this.histowy.cweaw();
 	}
 
-	private getCurrentValue(): string | null {
-		let currentValue = this.history.current();
-		if (!currentValue) {
-			currentValue = this.history.last();
-			this.history.next();
+	pwivate getCuwwentVawue(): stwing | nuww {
+		wet cuwwentVawue = this.histowy.cuwwent();
+		if (!cuwwentVawue) {
+			cuwwentVawue = this.histowy.wast();
+			this.histowy.next();
 		}
-		return currentValue;
+		wetuwn cuwwentVawue;
 	}
 
-	private getPreviousValue(): string | null {
-		return this.history.previous() || this.history.first();
+	pwivate getPweviousVawue(): stwing | nuww {
+		wetuwn this.histowy.pwevious() || this.histowy.fiwst();
 	}
 
-	private getNextValue(): string | null {
-		return this.history.next() || this.history.last();
+	pwivate getNextVawue(): stwing | nuww {
+		wetuwn this.histowy.next() || this.histowy.wast();
 	}
 }
 
-export class ContextScopedSuggestEnabledInputWithHistory extends SuggestEnabledInputWithHistory {
-	private historyContext!: IHistoryNavigationContext;
+expowt cwass ContextScopedSuggestEnabwedInputWithHistowy extends SuggestEnabwedInputWithHistowy {
+	pwivate histowyContext!: IHistowyNavigationContext;
 
-	constructor(
-		options: ISuggestEnabledHistoryOptions,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IModelService modelService: IModelService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+	constwuctow(
+		options: ISuggestEnabwedHistowyOptions,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IModewSewvice modewSewvice: IModewSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
 	) {
-		super(options, instantiationService, modelService, contextKeyService);
+		supa(options, instantiationSewvice, modewSewvice, contextKeySewvice);
 
-		const { historyNavigationBackwardsEnablement, historyNavigationForwardsEnablement } = this.historyContext;
-		this._register(this.inputWidget.onDidChangeCursorPosition(({ position }) => {
-			const viewModel = this.inputWidget._getViewModel()!;
-			const lastLineNumber = viewModel.getLineCount();
-			const lastLineCol = viewModel.getLineContent(lastLineNumber).length + 1;
-			const viewPosition = viewModel.coordinatesConverter.convertModelPositionToViewPosition(position);
-			historyNavigationBackwardsEnablement.set(viewPosition.lineNumber === 1 && viewPosition.column === 1);
-			historyNavigationForwardsEnablement.set(viewPosition.lineNumber === lastLineNumber && viewPosition.column === lastLineCol);
+		const { histowyNavigationBackwawdsEnabwement, histowyNavigationFowwawdsEnabwement } = this.histowyContext;
+		this._wegista(this.inputWidget.onDidChangeCuwsowPosition(({ position }) => {
+			const viewModew = this.inputWidget._getViewModew()!;
+			const wastWineNumba = viewModew.getWineCount();
+			const wastWineCow = viewModew.getWineContent(wastWineNumba).wength + 1;
+			const viewPosition = viewModew.coowdinatesConvewta.convewtModewPositionToViewPosition(position);
+			histowyNavigationBackwawdsEnabwement.set(viewPosition.wineNumba === 1 && viewPosition.cowumn === 1);
+			histowyNavigationFowwawdsEnabwement.set(viewPosition.wineNumba === wastWineNumba && viewPosition.cowumn === wastWineCow);
 		}));
 	}
 
-	protected override getScopedContextKeyService(contextKeyService: IContextKeyService, parent: HTMLElement) {
-		const scoped = this.historyContext = createAndBindHistoryNavigationWidgetScopedContextKeyService(
-			contextKeyService,
-			{ target: parent, historyNavigator: this },
+	pwotected ovewwide getScopedContextKeySewvice(contextKeySewvice: IContextKeySewvice, pawent: HTMWEwement) {
+		const scoped = this.histowyContext = cweateAndBindHistowyNavigationWidgetScopedContextKeySewvice(
+			contextKeySewvice,
+			{ tawget: pawent, histowyNavigatow: this },
 		);
 
-		this._register(scoped.scopedContextKeyService);
+		this._wegista(scoped.scopedContextKeySewvice);
 
-		return scoped.scopedContextKeyService;
+		wetuwn scoped.scopedContextKeySewvice;
 	}
 }
 
-// Override styles in selections.ts
-registerThemingParticipant((theme, collector) => {
-	let selectionColor = theme.getColor(selectionBackground);
-	if (selectionColor) {
-		selectionColor = selectionColor.transparent(0.4);
-	} else {
-		selectionColor = theme.getColor(editorSelectionBackground);
+// Ovewwide stywes in sewections.ts
+wegistewThemingPawticipant((theme, cowwectow) => {
+	wet sewectionCowow = theme.getCowow(sewectionBackgwound);
+	if (sewectionCowow) {
+		sewectionCowow = sewectionCowow.twanspawent(0.4);
+	} ewse {
+		sewectionCowow = theme.getCowow(editowSewectionBackgwound);
 	}
 
-	if (selectionColor) {
-		collector.addRule(`.suggest-input-container .monaco-editor .focused .selected-text { background-color: ${selectionColor}; }`);
+	if (sewectionCowow) {
+		cowwectow.addWuwe(`.suggest-input-containa .monaco-editow .focused .sewected-text { backgwound-cowow: ${sewectionCowow}; }`);
 	}
 
-	// Override inactive selection bg
-	const inputBackgroundColor = theme.getColor(inputBackground);
-	if (inputBackgroundColor) {
-		collector.addRule(`.suggest-input-container .monaco-editor .selected-text { background-color: ${inputBackgroundColor.transparent(0.4)}; }`);
+	// Ovewwide inactive sewection bg
+	const inputBackgwoundCowow = theme.getCowow(inputBackgwound);
+	if (inputBackgwoundCowow) {
+		cowwectow.addWuwe(`.suggest-input-containa .monaco-editow .sewected-text { backgwound-cowow: ${inputBackgwoundCowow.twanspawent(0.4)}; }`);
 	}
 
-	// Override selected fg
-	const inputForegroundColor = theme.getColor(inputForeground);
-	if (inputForegroundColor) {
-		collector.addRule(`.suggest-input-container .monaco-editor .view-line span.inline-selected-text { color: ${inputForegroundColor}; }`);
+	// Ovewwide sewected fg
+	const inputFowegwoundCowow = theme.getCowow(inputFowegwound);
+	if (inputFowegwoundCowow) {
+		cowwectow.addWuwe(`.suggest-input-containa .monaco-editow .view-wine span.inwine-sewected-text { cowow: ${inputFowegwoundCowow}; }`);
 	}
 
-	const backgroundColor = theme.getColor(inputBackground);
-	if (backgroundColor) {
-		collector.addRule(`.suggest-input-container .monaco-editor-background { background-color: ${backgroundColor}; } `);
+	const backgwoundCowow = theme.getCowow(inputBackgwound);
+	if (backgwoundCowow) {
+		cowwectow.addWuwe(`.suggest-input-containa .monaco-editow-backgwound { backgwound-cowow: ${backgwoundCowow}; } `);
 	}
 });
 
 
-function getSuggestEnabledInputOptions(ariaLabel?: string): IEditorOptions {
-	return {
+function getSuggestEnabwedInputOptions(awiaWabew?: stwing): IEditowOptions {
+	wetuwn {
 		fontSize: 13,
-		lineHeight: 20,
-		wordWrap: 'off',
-		scrollbar: { vertical: 'hidden', },
-		roundedSelection: false,
-		renderIndentGuides: false,
-		cursorWidth: 1,
-		fontFamily: DEFAULT_FONT_FAMILY,
-		ariaLabel: ariaLabel || '',
+		wineHeight: 20,
+		wowdWwap: 'off',
+		scwowwbaw: { vewticaw: 'hidden', },
+		woundedSewection: fawse,
+		wendewIndentGuides: fawse,
+		cuwsowWidth: 1,
+		fontFamiwy: DEFAUWT_FONT_FAMIWY,
+		awiaWabew: awiaWabew || '',
 		snippetSuggestions: 'none',
-		suggest: { filterGraceful: false, showIcons: false },
-		autoClosingBrackets: 'never'
+		suggest: { fiwtewGwacefuw: fawse, showIcons: fawse },
+		autoCwosingBwackets: 'neva'
 	};
 }

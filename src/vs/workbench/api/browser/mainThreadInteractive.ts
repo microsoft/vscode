@@ -1,36 +1,36 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ExtHostContext, ExtHostInteractiveShape, IExtHostContext, MainContext, MainThreadInteractiveShape } from 'vs/workbench/api/common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { IInteractiveDocumentService } from 'vs/workbench/contrib/interactive/browser/interactiveDocumentService';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { ExtHostContext, ExtHostIntewactiveShape, IExtHostContext, MainContext, MainThweadIntewactiveShape } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { IIntewactiveDocumentSewvice } fwom 'vs/wowkbench/contwib/intewactive/bwowsa/intewactiveDocumentSewvice';
 
-@extHostNamedCustomer(MainContext.MainThreadInteractive)
-export class MainThreadInteractive implements MainThreadInteractiveShape {
-	private readonly _proxy: ExtHostInteractiveShape;
+@extHostNamedCustoma(MainContext.MainThweadIntewactive)
+expowt cwass MainThweadIntewactive impwements MainThweadIntewactiveShape {
+	pwivate weadonwy _pwoxy: ExtHostIntewactiveShape;
 
-	private readonly _disposables = new DisposableStore();
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
 
-	constructor(
+	constwuctow(
 		extHostContext: IExtHostContext,
-		@IInteractiveDocumentService interactiveDocumentService: IInteractiveDocumentService
+		@IIntewactiveDocumentSewvice intewactiveDocumentSewvice: IIntewactiveDocumentSewvice
 	) {
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostInteractive);
+		this._pwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostIntewactive);
 
-		this._disposables.add(interactiveDocumentService.onWillAddInteractiveDocument((e) => {
-			this._proxy.$willAddInteractiveDocument(e.inputUri, '\n', 'plaintext', e.notebookUri);
+		this._disposabwes.add(intewactiveDocumentSewvice.onWiwwAddIntewactiveDocument((e) => {
+			this._pwoxy.$wiwwAddIntewactiveDocument(e.inputUwi, '\n', 'pwaintext', e.notebookUwi);
 		}));
 
-		this._disposables.add(interactiveDocumentService.onWillRemoveInteractiveDocument((e) => {
-			this._proxy.$willRemoveInteractiveDocument(e.inputUri, e.notebookUri);
+		this._disposabwes.add(intewactiveDocumentSewvice.onWiwwWemoveIntewactiveDocument((e) => {
+			this._pwoxy.$wiwwWemoveIntewactiveDocument(e.inputUwi, e.notebookUwi);
 		}));
 	}
 
 	dispose(): void {
-		this._disposables.dispose();
+		this._disposabwes.dispose();
 
 	}
 }

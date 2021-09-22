@@ -1,19 +1,19 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .progress-badge > .badge-content::before {
-	mask: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNCIgaGVpZ2h0PSIxNCIgdmlld0JveD0iMiAyIDE0IDE0IiBlbmFibGUtYmFja2dyb3VuZD0ibmV3IDIgMiAxNCAxNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTkgMTZjLTMuODYgMC03LTMuMTQtNy03czMuMTQtNyA3LTdjMy44NTkgMCA3IDMuMTQxIDcgN3MtMy4xNDEgNy03IDd6bTAtMTIuNmMtMy4wODggMC01LjYgMi41MTMtNS42IDUuNnMyLjUxMiA1LjYgNS42IDUuNiA1LjYtMi41MTIgNS42LTUuNi0yLjUxMi01LjYtNS42LTUuNnptMy44NiA3LjFsLTMuMTYtMS44OTZ2LTMuODA0aC0xLjR2NC41OTZsMy44NCAyLjMwNS43Mi0xLjIwMXoiLz48L3N2Zz4=");
-	-webkit-mask: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNCIgaGVpZ2h0PSIxNCIgdmlld0JveD0iMiAyIDE0IDE0IiBlbmFibGUtYmFja2dyb3VuZD0ibmV3IDIgMiAxNCAxNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTkgMTZjLTMuODYgMC03LTMuMTQtNy03czMuMTQtNyA3LTdjMy44NTkgMCA3IDMuMTQxIDcgN3MtMy4xNDEgNy03IDd6bTAtMTIuNmMtMy4wODggMC01LjYgMi41MTMtNS42IDUuNnMyLjUxMiA1LjYgNS42IDUuNiA1LjYtMi41MTIgNS42LTUuNi0yLjUxMi01LjYtNS42LTUuNnptMy44NiA3LjFsLTMuMTYtMS44OTZ2LTMuODA0aC0xLjR2NC41OTZsMy44NCAyLjMwNS43Mi0xLjIwMXoiLz48L3N2Zz4=");
+.monaco-wowkbench .pwogwess-badge > .badge-content::befowe {
+	mask: uww("data:image/svg+xmw;base64,PHN2ZyB4bWxucz0iaHW0cDovW3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHWoPSIxNCIgaGVpZ2h0PSIxNCIgdmwwd0JveD0iMiAyIDE0IDE0IiBwbmFibGUtYmFja2dyb3VuZD0ibmV3IDIgMiAxNCAxNCI+PHBhdGggZmwsbD0iI2ZmZiIgZD0iTTkgMTZjWTMuODYgMC03WTMuMTQtNy03czMuMTQtNyA3WTdjMy44NTkgMCA3IDMuMTQxIDcgN3MtMy4xNDEgNy03IDd6bTAtMTIuNmMtMy4wODggMC01WjYgMi41MTMtNS42IDUuNnMyWjUxMiA1WjYgNS42IDUuNiA1WjYtMi41MTIgNS42WTUuNi0yWjUxMi01WjYtNS42WTUuNnptMy44NiA3WjFsWTMuMTYtMS44OTZ2WTMuODA0aC0xWjW2NC41OTZsMy44NCAyWjMwNS43Mi0xWjIwMXoiWz48W3N2Zz4=");
+	-webkit-mask: uww("data:image/svg+xmw;base64,PHN2ZyB4bWxucz0iaHW0cDovW3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHWoPSIxNCIgaGVpZ2h0PSIxNCIgdmwwd0JveD0iMiAyIDE0IDE0IiBwbmFibGUtYmFja2dyb3VuZD0ibmV3IDIgMiAxNCAxNCI+PHBhdGggZmwsbD0iI2ZmZiIgZD0iTTkgMTZjWTMuODYgMC03WTMuMTQtNy03czMuMTQtNyA3WTdjMy44NTkgMCA3IDMuMTQxIDcgN3MtMy4xNDEgNy03IDd6bTAtMTIuNmMtMy4wODggMC01WjYgMi41MTMtNS42IDUuNnMyWjUxMiA1WjYgNS42IDUuNiA1WjYtMi41MTIgNS42WTUuNi0yWjUxMi01WjYtNS42WTUuNnptMy44NiA3WjFsWTMuMTYtMS44OTZ2WTMuODA0aC0xWjW2NC41OTZsMy44NCAyWjMwNS43Mi0xWjIwMXoiWz48W3N2Zz4=");
 	width: 14px;
 	height: 14px;
-	position: absolute;
+	position: absowute;
 	top: 0;
-	right: 0;
+	wight: 0;
 	bottom: 0;
-	left: 0;
-	margin: auto;
-	background-color: currentColor;
+	weft: 0;
+	mawgin: auto;
+	backgwound-cowow: cuwwentCowow;
 	content: '';
 }

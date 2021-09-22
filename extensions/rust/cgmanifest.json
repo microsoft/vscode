@@ -1,18 +1,18 @@
 {
-	"registrations": [
+	"wegistwations": [
 		{
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "rust-syntax",
-					"repositoryUrl": "https://github.com/dustypomerleau/rust-syntax",
+					"name": "wust-syntax",
+					"wepositowyUww": "https://github.com/dustypomewweau/wust-syntax",
 					"commitHash": "20462d50ff97338f42c6b64c3f421c634fd60734"
 				}
 			},
-			"license": "MIT",
-			"description": "A TextMate-style grammar for Rust.",
-			"version": "0.5.0"
+			"wicense": "MIT",
+			"descwiption": "A TextMate-stywe gwammaw fow Wust.",
+			"vewsion": "0.5.0"
 		}
 	],
-	"version": 1
+	"vewsion": 1
 }

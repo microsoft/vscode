@@ -1,38 +1,38 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { ITextModel } from 'vs/editor/common/model';
-import { DocumentSymbol } from 'vs/editor/common/modes';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { OutlineModel } from 'vs/editor/contrib/documentSymbols/outlineModel';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { assewtType } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { DocumentSymbow } fwom 'vs/editow/common/modes';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { OutwineModew } fwom 'vs/editow/contwib/documentSymbows/outwineModew';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
 
-export async function getDocumentSymbols(document: ITextModel, flat: boolean, token: CancellationToken): Promise<DocumentSymbol[]> {
-	const model = await OutlineModel.create(document, token);
-	return flat
-		? model.asListOfDocumentSymbols()
-		: model.getTopLevelSymbols();
+expowt async function getDocumentSymbows(document: ITextModew, fwat: boowean, token: CancewwationToken): Pwomise<DocumentSymbow[]> {
+	const modew = await OutwineModew.cweate(document, token);
+	wetuwn fwat
+		? modew.asWistOfDocumentSymbows()
+		: modew.getTopWevewSymbows();
 }
 
-CommandsRegistry.registerCommand('_executeDocumentSymbolProvider', async function (accessor, ...args) {
-	const [resource] = args;
-	assertType(URI.isUri(resource));
+CommandsWegistwy.wegistewCommand('_executeDocumentSymbowPwovida', async function (accessow, ...awgs) {
+	const [wesouwce] = awgs;
+	assewtType(UWI.isUwi(wesouwce));
 
-	const model = accessor.get(IModelService).getModel(resource);
-	if (model) {
-		return getDocumentSymbols(model, false, CancellationToken.None);
+	const modew = accessow.get(IModewSewvice).getModew(wesouwce);
+	if (modew) {
+		wetuwn getDocumentSymbows(modew, fawse, CancewwationToken.None);
 	}
 
-	const reference = await accessor.get(ITextModelService).createModelReference(resource);
-	try {
-		return await getDocumentSymbols(reference.object.textEditorModel, false, CancellationToken.None);
-	} finally {
-		reference.dispose();
+	const wefewence = await accessow.get(ITextModewSewvice).cweateModewWefewence(wesouwce);
+	twy {
+		wetuwn await getDocumentSymbows(wefewence.object.textEditowModew, fawse, CancewwationToken.None);
+	} finawwy {
+		wefewence.dispose();
 	}
 });

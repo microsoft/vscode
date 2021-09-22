@@ -1,51 +1,51 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ViewModel } from 'vs/workbench/contrib/debug/common/debugViewModel';
-import { StackFrame, Expression, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
-import { MockSession, mockUriIdentityService } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
+impowt * as assewt fwom 'assewt';
+impowt { ViewModew } fwom 'vs/wowkbench/contwib/debug/common/debugViewModew';
+impowt { StackFwame, Expwession, Thwead } fwom 'vs/wowkbench/contwib/debug/common/debugModew';
+impowt { MockSession, mockUwiIdentitySewvice } fwom 'vs/wowkbench/contwib/debug/test/bwowsa/mockDebug';
+impowt { MockContextKeySewvice } fwom 'vs/pwatfowm/keybinding/test/common/mockKeybindingSewvice';
+impowt { Souwce } fwom 'vs/wowkbench/contwib/debug/common/debugSouwce';
 
-suite('Debug - View Model', () => {
-	let model: ViewModel;
+suite('Debug - View Modew', () => {
+	wet modew: ViewModew;
 
 	setup(() => {
-		model = new ViewModel(new MockContextKeyService());
+		modew = new ViewModew(new MockContextKeySewvice());
 	});
 
-	test('focused stack frame', () => {
-		assert.strictEqual(model.focusedStackFrame, undefined);
-		assert.strictEqual(model.focusedThread, undefined);
+	test('focused stack fwame', () => {
+		assewt.stwictEquaw(modew.focusedStackFwame, undefined);
+		assewt.stwictEquaw(modew.focusedThwead, undefined);
 		const session = new MockSession();
-		const thread = new Thread(session, 'myThread', 1);
-		const source = new Source({
-			name: 'internalModule.js',
-			sourceReference: 11,
-			presentationHint: 'deemphasize'
-		}, 'aDebugSessionId', mockUriIdentityService);
-		const frame = new StackFrame(thread, 1, source, 'app.js', 'normal', { startColumn: 1, startLineNumber: 1, endColumn: 1, endLineNumber: 1 }, 0, true);
-		model.setFocus(frame, thread, session, false);
+		const thwead = new Thwead(session, 'myThwead', 1);
+		const souwce = new Souwce({
+			name: 'intewnawModuwe.js',
+			souwceWefewence: 11,
+			pwesentationHint: 'deemphasize'
+		}, 'aDebugSessionId', mockUwiIdentitySewvice);
+		const fwame = new StackFwame(thwead, 1, souwce, 'app.js', 'nowmaw', { stawtCowumn: 1, stawtWineNumba: 1, endCowumn: 1, endWineNumba: 1 }, 0, twue);
+		modew.setFocus(fwame, thwead, session, fawse);
 
-		assert.strictEqual(model.focusedStackFrame!.getId(), frame.getId());
-		assert.strictEqual(model.focusedThread!.threadId, 1);
-		assert.strictEqual(model.focusedSession!.getId(), session.getId());
+		assewt.stwictEquaw(modew.focusedStackFwame!.getId(), fwame.getId());
+		assewt.stwictEquaw(modew.focusedThwead!.thweadId, 1);
+		assewt.stwictEquaw(modew.focusedSession!.getId(), session.getId());
 	});
 
-	test('selected expression', () => {
-		assert.strictEqual(model.getSelectedExpression(), undefined);
-		const expression = new Expression('my expression');
-		model.setSelectedExpression(expression, false);
+	test('sewected expwession', () => {
+		assewt.stwictEquaw(modew.getSewectedExpwession(), undefined);
+		const expwession = new Expwession('my expwession');
+		modew.setSewectedExpwession(expwession, fawse);
 
-		assert.strictEqual(model.getSelectedExpression()?.expression, expression);
+		assewt.stwictEquaw(modew.getSewectedExpwession()?.expwession, expwession);
 	});
 
-	test('multi session view and changed workbench state', () => {
-		assert.strictEqual(model.isMultiSessionView(), false);
-		model.setMultiSessionView(true);
-		assert.strictEqual(model.isMultiSessionView(), true);
+	test('muwti session view and changed wowkbench state', () => {
+		assewt.stwictEquaw(modew.isMuwtiSessionView(), fawse);
+		modew.setMuwtiSessionView(twue);
+		assewt.stwictEquaw(modew.isMuwtiSessionView(), twue);
 	});
 });

@@ -1,580 +1,580 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { merge } from 'vs/platform/userDataSync/common/keybindingsMerge';
-import { TestUserDataSyncUtilService } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
+impowt * as assewt fwom 'assewt';
+impowt { mewge } fwom 'vs/pwatfowm/usewDataSync/common/keybindingsMewge';
+impowt { TestUsewDataSyncUtiwSewvice } fwom 'vs/pwatfowm/usewDataSync/test/common/usewDataSyncCwient';
 
-suite('KeybindingsMerge - No Conflicts', () => {
+suite('KeybindingsMewge - No Confwicts', () => {
 
-	test('merge when local and remote are same with one entry', async () => {
-		const localContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
-		const remoteContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
-		const actual = await mergeKeybindings(localContent, remoteContent, null);
-		assert.ok(!actual.hasChanges);
-		assert.ok(!actual.hasConflicts);
-		assert.strictEqual(actual.mergeContent, localContent);
+	test('mewge when wocaw and wemote awe same with one entwy', async () => {
+		const wocawContent = stwingify([{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' }]);
+		const wemoteContent = stwingify([{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' }]);
+		const actuaw = await mewgeKeybindings(wocawContent, wemoteContent, nuww);
+		assewt.ok(!actuaw.hasChanges);
+		assewt.ok(!actuaw.hasConfwicts);
+		assewt.stwictEquaw(actuaw.mewgeContent, wocawContent);
 	});
 
-	test('merge when local and remote are same with similar when contexts', async () => {
-		const localContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
-		const remoteContent = stringify([{ key: 'alt+c', command: 'a', when: '!editorReadonly && editorTextFocus' }]);
-		const actual = await mergeKeybindings(localContent, remoteContent, null);
-		assert.ok(!actual.hasChanges);
-		assert.ok(!actual.hasConflicts);
-		assert.strictEqual(actual.mergeContent, localContent);
+	test('mewge when wocaw and wemote awe same with simiwaw when contexts', async () => {
+		const wocawContent = stwingify([{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' }]);
+		const wemoteContent = stwingify([{ key: 'awt+c', command: 'a', when: '!editowWeadonwy && editowTextFocus' }]);
+		const actuaw = await mewgeKeybindings(wocawContent, wemoteContent, nuww);
+		assewt.ok(!actuaw.hasChanges);
+		assewt.ok(!actuaw.hasConfwicts);
+		assewt.stwictEquaw(actuaw.mewgeContent, wocawContent);
 	});
 
-	test('merge when local and remote has entries in different order', async () => {
-		const localContent = stringify([
-			{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'alt+a', command: 'a', when: 'editorTextFocus' }
+	test('mewge when wocaw and wemote has entwies in diffewent owda', async () => {
+		const wocawContent = stwingify([
+			{ key: 'awt+d', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'awt+a', command: 'a', when: 'editowTextFocus' }
 		]);
-		const remoteContent = stringify([
-			{ key: 'alt+a', command: 'a', when: 'editorTextFocus' },
-			{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' }
+		const wemoteContent = stwingify([
+			{ key: 'awt+a', command: 'a', when: 'editowTextFocus' },
+			{ key: 'awt+d', command: 'a', when: 'editowTextFocus && !editowWeadonwy' }
 		]);
-		const actual = await mergeKeybindings(localContent, remoteContent, null);
-		assert.ok(!actual.hasChanges);
-		assert.ok(!actual.hasConflicts);
-		assert.strictEqual(actual.mergeContent, localContent);
+		const actuaw = await mewgeKeybindings(wocawContent, wemoteContent, nuww);
+		assewt.ok(!actuaw.hasChanges);
+		assewt.ok(!actuaw.hasConfwicts);
+		assewt.stwictEquaw(actuaw.mewgeContent, wocawContent);
 	});
 
-	test('merge when local and remote are same with multiple entries', async () => {
-		const localContent = stringify([
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'alt+d', command: '-a' },
-			{ key: 'cmd+c', command: 'b', args: { text: '`' } }
+	test('mewge when wocaw and wemote awe same with muwtipwe entwies', async () => {
+		const wocawContent = stwingify([
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'awt+d', command: '-a' },
+			{ key: 'cmd+c', command: 'b', awgs: { text: '`' } }
 		]);
-		const remoteContent = stringify([
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'alt+d', command: '-a' },
-			{ key: 'cmd+c', command: 'b', args: { text: '`' } }
+		const wemoteContent = stwingify([
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'awt+d', command: '-a' },
+			{ key: 'cmd+c', command: 'b', awgs: { text: '`' } }
 		]);
-		const actual = await mergeKeybindings(localContent, remoteContent, null);
-		assert.ok(!actual.hasChanges);
-		assert.ok(!actual.hasConflicts);
-		assert.strictEqual(actual.mergeContent, localContent);
+		const actuaw = await mewgeKeybindings(wocawContent, wemoteContent, nuww);
+		assewt.ok(!actuaw.hasChanges);
+		assewt.ok(!actuaw.hasConfwicts);
+		assewt.stwictEquaw(actuaw.mewgeContent, wocawContent);
 	});
 
-	test('merge when local and remote are same with different base content', async () => {
-		const localContent = stringify([
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'alt+d', command: '-a' },
-			{ key: 'cmd+c', command: 'b', args: { text: '`' } }
+	test('mewge when wocaw and wemote awe same with diffewent base content', async () => {
+		const wocawContent = stwingify([
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'awt+d', command: '-a' },
+			{ key: 'cmd+c', command: 'b', awgs: { text: '`' } }
 		]);
-		const baseContent = stringify([
-			{ key: 'ctrl+c', command: 'e' },
-			{ key: 'shift+d', command: 'd', args: { text: '`' } }
+		const baseContent = stwingify([
+			{ key: 'ctww+c', command: 'e' },
+			{ key: 'shift+d', command: 'd', awgs: { text: '`' } }
 		]);
-		const remoteContent = stringify([
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'alt+d', command: '-a' },
-			{ key: 'cmd+c', command: 'b', args: { text: '`' } }
+		const wemoteContent = stwingify([
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'awt+d', command: '-a' },
+			{ key: 'cmd+c', command: 'b', awgs: { text: '`' } }
 		]);
-		const actual = await mergeKeybindings(localContent, remoteContent, baseContent);
-		assert.ok(!actual.hasChanges);
-		assert.ok(!actual.hasConflicts);
-		assert.strictEqual(actual.mergeContent, localContent);
+		const actuaw = await mewgeKeybindings(wocawContent, wemoteContent, baseContent);
+		assewt.ok(!actuaw.hasChanges);
+		assewt.ok(!actuaw.hasConfwicts);
+		assewt.stwictEquaw(actuaw.mewgeContent, wocawContent);
 	});
 
-	test('merge when local and remote are same with multiple entries in different order', async () => {
-		const localContent = stringify([
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'alt+d', command: '-a' },
-			{ key: 'cmd+c', command: 'b', args: { text: '`' } }
+	test('mewge when wocaw and wemote awe same with muwtipwe entwies in diffewent owda', async () => {
+		const wocawContent = stwingify([
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'awt+d', command: '-a' },
+			{ key: 'cmd+c', command: 'b', awgs: { text: '`' } }
 		]);
-		const remoteContent = stringify([
-			{ key: 'cmd+c', command: 'b', args: { text: '`' } },
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'alt+d', command: '-a' },
+		const wemoteContent = stwingify([
+			{ key: 'cmd+c', command: 'b', awgs: { text: '`' } },
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'awt+d', command: '-a' },
 		]);
-		const actual = await mergeKeybindings(localContent, remoteContent, null);
-		assert.ok(!actual.hasChanges);
-		assert.ok(!actual.hasConflicts);
-		assert.strictEqual(actual.mergeContent, localContent);
+		const actuaw = await mewgeKeybindings(wocawContent, wemoteContent, nuww);
+		assewt.ok(!actuaw.hasChanges);
+		assewt.ok(!actuaw.hasConfwicts);
+		assewt.stwictEquaw(actuaw.mewgeContent, wocawContent);
 	});
 
-	test('merge when local and remote are same when remove entry is in different order', async () => {
-		const localContent = stringify([
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'alt+d', command: '-a' },
-			{ key: 'cmd+c', command: 'b', args: { text: '`' } }
+	test('mewge when wocaw and wemote awe same when wemove entwy is in diffewent owda', async () => {
+		const wocawContent = stwingify([
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'awt+d', command: '-a' },
+			{ key: 'cmd+c', command: 'b', awgs: { text: '`' } }
 		]);
-		const remoteContent = stringify([
-			{ key: 'alt+d', command: '-a' },
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'cmd+c', command: 'b', args: { text: '`' } },
+		const wemoteContent = stwingify([
+			{ key: 'awt+d', command: '-a' },
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'cmd+c', command: 'b', awgs: { text: '`' } },
 		]);
-		const actual = await mergeKeybindings(localContent, remoteContent, null);
-		assert.ok(!actual.hasChanges);
-		assert.ok(!actual.hasConflicts);
-		assert.strictEqual(actual.mergeContent, localContent);
+		const actuaw = await mewgeKeybindings(wocawContent, wemoteContent, nuww);
+		assewt.ok(!actuaw.hasChanges);
+		assewt.ok(!actuaw.hasConfwicts);
+		assewt.stwictEquaw(actuaw.mewgeContent, wocawContent);
 	});
 
-	test('merge when a new entry is added to remote', async () => {
-		const localContent = stringify([
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'alt+d', command: '-a' },
+	test('mewge when a new entwy is added to wemote', async () => {
+		const wocawContent = stwingify([
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'awt+d', command: '-a' },
 		]);
-		const remoteContent = stringify([
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'alt+d', command: '-a' },
-			{ key: 'cmd+c', command: 'b', args: { text: '`' } },
+		const wemoteContent = stwingify([
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'awt+d', command: '-a' },
+			{ key: 'cmd+c', command: 'b', awgs: { text: '`' } },
 		]);
-		const actual = await mergeKeybindings(localContent, remoteContent, null);
-		assert.ok(actual.hasChanges);
-		assert.ok(!actual.hasConflicts);
-		assert.strictEqual(actual.mergeContent, remoteContent);
+		const actuaw = await mewgeKeybindings(wocawContent, wemoteContent, nuww);
+		assewt.ok(actuaw.hasChanges);
+		assewt.ok(!actuaw.hasConfwicts);
+		assewt.stwictEquaw(actuaw.mewgeContent, wemoteContent);
 	});
 
-	test('merge when multiple new entries are added to remote', async () => {
-		const localContent = stringify([
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'alt+d', command: '-a' },
+	test('mewge when muwtipwe new entwies awe added to wemote', async () => {
+		const wocawContent = stwingify([
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'awt+d', command: '-a' },
 		]);
-		const remoteContent = stringify([
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'alt+d', command: '-a' },
-			{ key: 'cmd+c', command: 'b', args: { text: '`' } },
+		const wemoteContent = stwingify([
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'awt+d', command: '-a' },
+			{ key: 'cmd+c', command: 'b', awgs: { text: '`' } },
 			{ key: 'cmd+d', command: 'c' },
 		]);
-		const actual = await mergeKeybindings(localContent, remoteContent, null);
-		assert.ok(actual.hasChanges);
-		assert.ok(!actual.hasConflicts);
-		assert.strictEqual(actual.mergeContent, remoteContent);
+		const actuaw = await mewgeKeybindings(wocawContent, wemoteContent, nuww);
+		assewt.ok(actuaw.hasChanges);
+		assewt.ok(!actuaw.hasConfwicts);
+		assewt.stwictEquaw(actuaw.mewgeContent, wemoteContent);
 	});
 
-	test('merge when multiple new entries are added to remote from base and local has not changed', async () => {
-		const localContent = stringify([
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'alt+d', command: '-a' },
+	test('mewge when muwtipwe new entwies awe added to wemote fwom base and wocaw has not changed', async () => {
+		const wocawContent = stwingify([
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'awt+d', command: '-a' },
 		]);
-		const remoteContent = stringify([
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'alt+d', command: '-a' },
-			{ key: 'cmd+c', command: 'b', args: { text: '`' } },
+		const wemoteContent = stwingify([
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'awt+d', command: '-a' },
+			{ key: 'cmd+c', command: 'b', awgs: { text: '`' } },
 			{ key: 'cmd+d', command: 'c' },
 		]);
-		const actual = await mergeKeybindings(localContent, remoteContent, localContent);
-		assert.ok(actual.hasChanges);
-		assert.ok(!actual.hasConflicts);
-		assert.strictEqual(actual.mergeContent, remoteContent);
+		const actuaw = await mewgeKeybindings(wocawContent, wemoteContent, wocawContent);
+		assewt.ok(actuaw.hasChanges);
+		assewt.ok(!actuaw.hasConfwicts);
+		assewt.stwictEquaw(actuaw.mewgeContent, wemoteContent);
 	});
 
-	test('merge when an entry is removed from remote from base and local has not changed', async () => {
-		const localContent = stringify([
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'alt+d', command: '-a' },
-			{ key: 'cmd+c', command: 'b', args: { text: '`' } },
+	test('mewge when an entwy is wemoved fwom wemote fwom base and wocaw has not changed', async () => {
+		const wocawContent = stwingify([
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'awt+d', command: '-a' },
+			{ key: 'cmd+c', command: 'b', awgs: { text: '`' } },
 		]);
-		const remoteContent = stringify([
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'alt+d', command: '-a' },
+		const wemoteContent = stwingify([
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'awt+d', command: '-a' },
 		]);
-		const actual = await mergeKeybindings(localContent, remoteContent, localContent);
-		assert.ok(actual.hasChanges);
-		assert.ok(!actual.hasConflicts);
-		assert.strictEqual(actual.mergeContent, remoteContent);
+		const actuaw = await mewgeKeybindings(wocawContent, wemoteContent, wocawContent);
+		assewt.ok(actuaw.hasChanges);
+		assewt.ok(!actuaw.hasConfwicts);
+		assewt.stwictEquaw(actuaw.mewgeContent, wemoteContent);
 	});
 
-	test('merge when an entry (same command) is removed from remote from base and local has not changed', async () => {
-		const localContent = stringify([
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'alt+d', command: '-a' },
+	test('mewge when an entwy (same command) is wemoved fwom wemote fwom base and wocaw has not changed', async () => {
+		const wocawContent = stwingify([
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'awt+d', command: '-a' },
 		]);
-		const remoteContent = stringify([
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
+		const wemoteContent = stwingify([
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
 		]);
-		const actual = await mergeKeybindings(localContent, remoteContent, localContent);
-		assert.ok(actual.hasChanges);
-		assert.ok(!actual.hasConflicts);
-		assert.strictEqual(actual.mergeContent, remoteContent);
+		const actuaw = await mewgeKeybindings(wocawContent, wemoteContent, wocawContent);
+		assewt.ok(actuaw.hasChanges);
+		assewt.ok(!actuaw.hasConfwicts);
+		assewt.stwictEquaw(actuaw.mewgeContent, wemoteContent);
 	});
 
-	test('merge when an entry is updated in remote from base and local has not changed', async () => {
-		const localContent = stringify([
-			{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' },
+	test('mewge when an entwy is updated in wemote fwom base and wocaw has not changed', async () => {
+		const wocawContent = stwingify([
+			{ key: 'awt+d', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
 		]);
-		const remoteContent = stringify([
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
+		const wemoteContent = stwingify([
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
 		]);
-		const actual = await mergeKeybindings(localContent, remoteContent, localContent);
-		assert.ok(actual.hasChanges);
-		assert.ok(!actual.hasConflicts);
-		assert.strictEqual(actual.mergeContent, remoteContent);
+		const actuaw = await mewgeKeybindings(wocawContent, wemoteContent, wocawContent);
+		assewt.ok(actuaw.hasChanges);
+		assewt.ok(!actuaw.hasConfwicts);
+		assewt.stwictEquaw(actuaw.mewgeContent, wemoteContent);
 	});
 
-	test('merge when a command with multiple entries is updated from remote from base and local has not changed', async () => {
-		const localContent = stringify([
+	test('mewge when a command with muwtipwe entwies is updated fwom wemote fwom base and wocaw has not changed', async () => {
+		const wocawContent = stwingify([
 			{ key: 'shift+c', command: 'c' },
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'alt+d', command: 'b' },
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'awt+d', command: 'b' },
 			{ key: 'cmd+c', command: 'a' },
 		]);
-		const remoteContent = stringify([
+		const wemoteContent = stwingify([
 			{ key: 'shift+c', command: 'c' },
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'alt+d', command: 'b' },
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'awt+d', command: 'b' },
 			{ key: 'cmd+d', command: 'a' },
 		]);
-		const actual = await mergeKeybindings(localContent, remoteContent, localContent);
-		assert.ok(actual.hasChanges);
-		assert.ok(!actual.hasConflicts);
-		assert.strictEqual(actual.mergeContent, remoteContent);
+		const actuaw = await mewgeKeybindings(wocawContent, wemoteContent, wocawContent);
+		assewt.ok(actuaw.hasChanges);
+		assewt.ok(!actuaw.hasConfwicts);
+		assewt.stwictEquaw(actuaw.mewgeContent, wemoteContent);
 	});
 
-	test('merge when remote has moved forwareded with multiple changes and local stays with base', async () => {
-		const localContent = stringify([
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'cmd+c', command: 'b', args: { text: '`' } },
-			{ key: 'alt+d', command: '-a' },
+	test('mewge when wemote has moved fowwaweded with muwtipwe changes and wocaw stays with base', async () => {
+		const wocawContent = stwingify([
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'cmd+c', command: 'b', awgs: { text: '`' } },
+			{ key: 'awt+d', command: '-a' },
 			{ key: 'cmd+e', command: 'd' },
 			{ key: 'cmd+d', command: 'c', when: 'context1' },
 		]);
-		const remoteContent = stringify([
-			{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' },
+		const wemoteContent = stwingify([
+			{ key: 'awt+d', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
 			{ key: 'cmd+e', command: 'd' },
-			{ key: 'alt+d', command: '-a' },
-			{ key: 'alt+f', command: 'f' },
-			{ key: 'alt+d', command: '-f' },
+			{ key: 'awt+d', command: '-a' },
+			{ key: 'awt+f', command: 'f' },
+			{ key: 'awt+d', command: '-f' },
 			{ key: 'cmd+d', command: 'c', when: 'context1' },
 			{ key: 'cmd+c', command: '-c' },
 		]);
-		const actual = await mergeKeybindings(localContent, remoteContent, localContent);
-		assert.ok(actual.hasChanges);
-		assert.ok(!actual.hasConflicts);
-		assert.strictEqual(actual.mergeContent, remoteContent);
+		const actuaw = await mewgeKeybindings(wocawContent, wemoteContent, wocawContent);
+		assewt.ok(actuaw.hasChanges);
+		assewt.ok(!actuaw.hasConfwicts);
+		assewt.stwictEquaw(actuaw.mewgeContent, wemoteContent);
 	});
 
-	test('merge when a new entry is added to local', async () => {
-		const localContent = stringify([
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'alt+d', command: '-a' },
-			{ key: 'cmd+c', command: 'b', args: { text: '`' } },
+	test('mewge when a new entwy is added to wocaw', async () => {
+		const wocawContent = stwingify([
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'awt+d', command: '-a' },
+			{ key: 'cmd+c', command: 'b', awgs: { text: '`' } },
 		]);
-		const remoteContent = stringify([
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'alt+d', command: '-a' },
+		const wemoteContent = stwingify([
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'awt+d', command: '-a' },
 		]);
-		const actual = await mergeKeybindings(localContent, remoteContent, null);
-		assert.ok(actual.hasChanges);
-		assert.ok(!actual.hasConflicts);
-		assert.strictEqual(actual.mergeContent, localContent);
+		const actuaw = await mewgeKeybindings(wocawContent, wemoteContent, nuww);
+		assewt.ok(actuaw.hasChanges);
+		assewt.ok(!actuaw.hasConfwicts);
+		assewt.stwictEquaw(actuaw.mewgeContent, wocawContent);
 	});
 
-	test('merge when multiple new entries are added to local', async () => {
-		const localContent = stringify([
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'alt+d', command: '-a' },
-			{ key: 'cmd+c', command: 'b', args: { text: '`' } },
+	test('mewge when muwtipwe new entwies awe added to wocaw', async () => {
+		const wocawContent = stwingify([
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'awt+d', command: '-a' },
+			{ key: 'cmd+c', command: 'b', awgs: { text: '`' } },
 			{ key: 'cmd+d', command: 'c' },
 		]);
-		const remoteContent = stringify([
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'alt+d', command: '-a' },
+		const wemoteContent = stwingify([
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'awt+d', command: '-a' },
 		]);
-		const actual = await mergeKeybindings(localContent, remoteContent, null);
-		assert.ok(actual.hasChanges);
-		assert.ok(!actual.hasConflicts);
-		assert.strictEqual(actual.mergeContent, localContent);
+		const actuaw = await mewgeKeybindings(wocawContent, wemoteContent, nuww);
+		assewt.ok(actuaw.hasChanges);
+		assewt.ok(!actuaw.hasConfwicts);
+		assewt.stwictEquaw(actuaw.mewgeContent, wocawContent);
 	});
 
-	test('merge when multiple new entries are added to local from base and remote is not changed', async () => {
-		const localContent = stringify([
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'alt+d', command: '-a' },
-			{ key: 'cmd+c', command: 'b', args: { text: '`' } },
+	test('mewge when muwtipwe new entwies awe added to wocaw fwom base and wemote is not changed', async () => {
+		const wocawContent = stwingify([
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'awt+d', command: '-a' },
+			{ key: 'cmd+c', command: 'b', awgs: { text: '`' } },
 			{ key: 'cmd+d', command: 'c' },
 		]);
-		const remoteContent = stringify([
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'alt+d', command: '-a' },
+		const wemoteContent = stwingify([
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'awt+d', command: '-a' },
 		]);
-		const actual = await mergeKeybindings(localContent, remoteContent, remoteContent);
-		assert.ok(actual.hasChanges);
-		assert.ok(!actual.hasConflicts);
-		assert.strictEqual(actual.mergeContent, localContent);
+		const actuaw = await mewgeKeybindings(wocawContent, wemoteContent, wemoteContent);
+		assewt.ok(actuaw.hasChanges);
+		assewt.ok(!actuaw.hasConfwicts);
+		assewt.stwictEquaw(actuaw.mewgeContent, wocawContent);
 	});
 
-	test('merge when an entry is removed from local from base and remote has not changed', async () => {
-		const localContent = stringify([
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'alt+d', command: '-a' },
+	test('mewge when an entwy is wemoved fwom wocaw fwom base and wemote has not changed', async () => {
+		const wocawContent = stwingify([
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'awt+d', command: '-a' },
 		]);
-		const remoteContent = stringify([
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'alt+d', command: '-a' },
-			{ key: 'cmd+c', command: 'b', args: { text: '`' } },
+		const wemoteContent = stwingify([
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'awt+d', command: '-a' },
+			{ key: 'cmd+c', command: 'b', awgs: { text: '`' } },
 		]);
-		const actual = await mergeKeybindings(localContent, remoteContent, remoteContent);
-		assert.ok(actual.hasChanges);
-		assert.ok(!actual.hasConflicts);
-		assert.strictEqual(actual.mergeContent, localContent);
+		const actuaw = await mewgeKeybindings(wocawContent, wemoteContent, wemoteContent);
+		assewt.ok(actuaw.hasChanges);
+		assewt.ok(!actuaw.hasConfwicts);
+		assewt.stwictEquaw(actuaw.mewgeContent, wocawContent);
 	});
 
-	test('merge when an entry (with same command) is removed from local from base and remote has not changed', async () => {
-		const localContent = stringify([
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
+	test('mewge when an entwy (with same command) is wemoved fwom wocaw fwom base and wemote has not changed', async () => {
+		const wocawContent = stwingify([
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
 		]);
-		const remoteContent = stringify([
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'alt+d', command: '-a' },
+		const wemoteContent = stwingify([
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'awt+d', command: '-a' },
 		]);
-		const actual = await mergeKeybindings(localContent, remoteContent, remoteContent);
-		assert.ok(actual.hasChanges);
-		assert.ok(!actual.hasConflicts);
-		assert.strictEqual(actual.mergeContent, localContent);
+		const actuaw = await mewgeKeybindings(wocawContent, wemoteContent, wemoteContent);
+		assewt.ok(actuaw.hasChanges);
+		assewt.ok(!actuaw.hasConfwicts);
+		assewt.stwictEquaw(actuaw.mewgeContent, wocawContent);
 	});
 
-	test('merge when an entry is updated in local from base and remote has not changed', async () => {
-		const localContent = stringify([
-			{ key: 'alt+d', command: 'a', when: 'editorTextFocus' },
+	test('mewge when an entwy is updated in wocaw fwom base and wemote has not changed', async () => {
+		const wocawContent = stwingify([
+			{ key: 'awt+d', command: 'a', when: 'editowTextFocus' },
 		]);
-		const remoteContent = stringify([
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
+		const wemoteContent = stwingify([
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
 		]);
-		const actual = await mergeKeybindings(localContent, remoteContent, remoteContent);
-		assert.ok(actual.hasChanges);
-		assert.ok(!actual.hasConflicts);
-		assert.strictEqual(actual.mergeContent, localContent);
+		const actuaw = await mewgeKeybindings(wocawContent, wemoteContent, wemoteContent);
+		assewt.ok(actuaw.hasChanges);
+		assewt.ok(!actuaw.hasConfwicts);
+		assewt.stwictEquaw(actuaw.mewgeContent, wocawContent);
 	});
 
-	test('merge when a command with multiple entries is updated from local from base and remote has not changed', async () => {
-		const localContent = stringify([
+	test('mewge when a command with muwtipwe entwies is updated fwom wocaw fwom base and wemote has not changed', async () => {
+		const wocawContent = stwingify([
 			{ key: 'shift+c', command: 'c' },
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'alt+d', command: 'b' },
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'awt+d', command: 'b' },
 			{ key: 'cmd+c', command: 'a' },
 		]);
-		const remoteContent = stringify([
+		const wemoteContent = stwingify([
 			{ key: 'shift+c', command: 'c' },
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'alt+d', command: 'b' },
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'awt+d', command: 'b' },
 			{ key: 'cmd+d', command: 'a' },
 		]);
-		const actual = await mergeKeybindings(localContent, remoteContent, remoteContent);
-		assert.ok(actual.hasChanges);
-		assert.ok(!actual.hasConflicts);
-		assert.strictEqual(actual.mergeContent, localContent);
+		const actuaw = await mewgeKeybindings(wocawContent, wemoteContent, wemoteContent);
+		assewt.ok(actuaw.hasChanges);
+		assewt.ok(!actuaw.hasConfwicts);
+		assewt.stwictEquaw(actuaw.mewgeContent, wocawContent);
 	});
 
-	test('merge when local has moved forwareded with multiple changes and remote stays with base', async () => {
-		const localContent = stringify([
-			{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' },
+	test('mewge when wocaw has moved fowwaweded with muwtipwe changes and wemote stays with base', async () => {
+		const wocawContent = stwingify([
+			{ key: 'awt+d', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
 			{ key: 'cmd+e', command: 'd' },
-			{ key: 'alt+d', command: '-a' },
-			{ key: 'alt+f', command: 'f' },
-			{ key: 'alt+d', command: '-f' },
+			{ key: 'awt+d', command: '-a' },
+			{ key: 'awt+f', command: 'f' },
+			{ key: 'awt+d', command: '-f' },
 			{ key: 'cmd+d', command: 'c', when: 'context1' },
 			{ key: 'cmd+c', command: '-c' },
 		]);
-		const remoteContent = stringify([
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'cmd+c', command: 'b', args: { text: '`' } },
-			{ key: 'alt+d', command: '-a' },
+		const wemoteContent = stwingify([
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'cmd+c', command: 'b', awgs: { text: '`' } },
+			{ key: 'awt+d', command: '-a' },
 			{ key: 'cmd+e', command: 'd' },
 			{ key: 'cmd+d', command: 'c', when: 'context1' },
 		]);
-		const expected = stringify([
-			{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' },
+		const expected = stwingify([
+			{ key: 'awt+d', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
 			{ key: 'cmd+e', command: 'd' },
-			{ key: 'alt+d', command: '-a' },
-			{ key: 'alt+f', command: 'f' },
-			{ key: 'alt+d', command: '-f' },
+			{ key: 'awt+d', command: '-a' },
+			{ key: 'awt+f', command: 'f' },
+			{ key: 'awt+d', command: '-f' },
 			{ key: 'cmd+d', command: 'c', when: 'context1' },
 			{ key: 'cmd+c', command: '-c' },
 		]);
-		const actual = await mergeKeybindings(localContent, remoteContent, remoteContent);
-		assert.ok(actual.hasChanges);
-		assert.ok(!actual.hasConflicts);
-		assert.strictEqual(actual.mergeContent, expected);
+		const actuaw = await mewgeKeybindings(wocawContent, wemoteContent, wemoteContent);
+		assewt.ok(actuaw.hasChanges);
+		assewt.ok(!actuaw.hasConfwicts);
+		assewt.stwictEquaw(actuaw.mewgeContent, expected);
 	});
 
-	test('merge when local and remote has moved forwareded with conflicts', async () => {
-		const baseContent = stringify([
-			{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'ctrl+c', command: '-a' },
+	test('mewge when wocaw and wemote has moved fowwaweded with confwicts', async () => {
+		const baseContent = stwingify([
+			{ key: 'awt+d', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'ctww+c', command: '-a' },
 			{ key: 'cmd+e', command: 'd' },
-			{ key: 'alt+a', command: 'f' },
-			{ key: 'alt+d', command: '-f' },
+			{ key: 'awt+a', command: 'f' },
+			{ key: 'awt+d', command: '-f' },
 			{ key: 'cmd+d', command: 'c', when: 'context1' },
 			{ key: 'cmd+c', command: '-c' },
 		]);
-		const localContent = stringify([
-			{ key: 'alt+d', command: '-f' },
+		const wocawContent = stwingify([
+			{ key: 'awt+d', command: '-f' },
 			{ key: 'cmd+e', command: 'd' },
 			{ key: 'cmd+c', command: '-c' },
 			{ key: 'cmd+d', command: 'c', when: 'context1' },
-			{ key: 'alt+a', command: 'f' },
-			{ key: 'alt+e', command: 'e' },
+			{ key: 'awt+a', command: 'f' },
+			{ key: 'awt+e', command: 'e' },
 		]);
-		const remoteContent = stringify([
-			{ key: 'alt+a', command: 'f' },
+		const wemoteContent = stwingify([
+			{ key: 'awt+a', command: 'f' },
 			{ key: 'cmd+c', command: '-c' },
 			{ key: 'cmd+d', command: 'd' },
-			{ key: 'alt+d', command: '-f' },
-			{ key: 'alt+c', command: 'c', when: 'context1' },
-			{ key: 'alt+g', command: 'g', when: 'context2' },
+			{ key: 'awt+d', command: '-f' },
+			{ key: 'awt+c', command: 'c', when: 'context1' },
+			{ key: 'awt+g', command: 'g', when: 'context2' },
 		]);
-		const expected = stringify([
-			{ key: 'alt+d', command: '-f' },
+		const expected = stwingify([
+			{ key: 'awt+d', command: '-f' },
 			{ key: 'cmd+d', command: 'd' },
 			{ key: 'cmd+c', command: '-c' },
-			{ key: 'alt+c', command: 'c', when: 'context1' },
-			{ key: 'alt+a', command: 'f' },
-			{ key: 'alt+e', command: 'e' },
-			{ key: 'alt+g', command: 'g', when: 'context2' },
+			{ key: 'awt+c', command: 'c', when: 'context1' },
+			{ key: 'awt+a', command: 'f' },
+			{ key: 'awt+e', command: 'e' },
+			{ key: 'awt+g', command: 'g', when: 'context2' },
 		]);
-		const actual = await mergeKeybindings(localContent, remoteContent, baseContent);
-		assert.ok(actual.hasChanges);
-		assert.ok(!actual.hasConflicts);
-		assert.strictEqual(actual.mergeContent, expected);
+		const actuaw = await mewgeKeybindings(wocawContent, wemoteContent, baseContent);
+		assewt.ok(actuaw.hasChanges);
+		assewt.ok(!actuaw.hasConfwicts);
+		assewt.stwictEquaw(actuaw.mewgeContent, expected);
 	});
 
-	test('merge when local and remote with one entry but different value', async () => {
-		const localContent = stringify([{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
-		const remoteContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
-		const actual = await mergeKeybindings(localContent, remoteContent, null);
-		assert.ok(actual.hasChanges);
-		assert.ok(actual.hasConflicts);
-		assert.strictEqual(actual.mergeContent,
+	test('mewge when wocaw and wemote with one entwy but diffewent vawue', async () => {
+		const wocawContent = stwingify([{ key: 'awt+d', command: 'a', when: 'editowTextFocus && !editowWeadonwy' }]);
+		const wemoteContent = stwingify([{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' }]);
+		const actuaw = await mewgeKeybindings(wocawContent, wemoteContent, nuww);
+		assewt.ok(actuaw.hasChanges);
+		assewt.ok(actuaw.hasConfwicts);
+		assewt.stwictEquaw(actuaw.mewgeContent,
 			`[
 	{
-		"key": "alt+d",
+		"key": "awt+d",
 		"command": "a",
-		"when": "editorTextFocus && !editorReadonly"
+		"when": "editowTextFocus && !editowWeadonwy"
 	}
 ]`);
 	});
 
-	test('merge when local and remote with different keybinding', async () => {
-		const localContent = stringify([
-			{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'alt+a', command: '-a', when: 'editorTextFocus && !editorReadonly' }
+	test('mewge when wocaw and wemote with diffewent keybinding', async () => {
+		const wocawContent = stwingify([
+			{ key: 'awt+d', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'awt+a', command: '-a', when: 'editowTextFocus && !editowWeadonwy' }
 		]);
-		const remoteContent = stringify([
-			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'alt+a', command: '-a', when: 'editorTextFocus && !editorReadonly' }
+		const wemoteContent = stwingify([
+			{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'awt+a', command: '-a', when: 'editowTextFocus && !editowWeadonwy' }
 		]);
-		const actual = await mergeKeybindings(localContent, remoteContent, null);
-		assert.ok(actual.hasChanges);
-		assert.ok(actual.hasConflicts);
-		assert.strictEqual(actual.mergeContent,
+		const actuaw = await mewgeKeybindings(wocawContent, wemoteContent, nuww);
+		assewt.ok(actuaw.hasChanges);
+		assewt.ok(actuaw.hasConfwicts);
+		assewt.stwictEquaw(actuaw.mewgeContent,
 			`[
 	{
-		"key": "alt+d",
+		"key": "awt+d",
 		"command": "a",
-		"when": "editorTextFocus && !editorReadonly"
+		"when": "editowTextFocus && !editowWeadonwy"
 	},
 	{
-		"key": "alt+a",
+		"key": "awt+a",
 		"command": "-a",
-		"when": "editorTextFocus && !editorReadonly"
+		"when": "editowTextFocus && !editowWeadonwy"
 	}
 ]`);
 	});
 
-	test('merge when the entry is removed in local but updated in remote', async () => {
-		const baseContent = stringify([{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
-		const localContent = stringify([]);
-		const remoteContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
-		const actual = await mergeKeybindings(localContent, remoteContent, baseContent);
-		assert.ok(actual.hasChanges);
-		assert.ok(actual.hasConflicts);
-		assert.strictEqual(actual.mergeContent,
+	test('mewge when the entwy is wemoved in wocaw but updated in wemote', async () => {
+		const baseContent = stwingify([{ key: 'awt+d', command: 'a', when: 'editowTextFocus && !editowWeadonwy' }]);
+		const wocawContent = stwingify([]);
+		const wemoteContent = stwingify([{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' }]);
+		const actuaw = await mewgeKeybindings(wocawContent, wemoteContent, baseContent);
+		assewt.ok(actuaw.hasChanges);
+		assewt.ok(actuaw.hasConfwicts);
+		assewt.stwictEquaw(actuaw.mewgeContent,
 			`[]`);
 	});
 
-	test('merge when the entry is removed in local but updated in remote and a new entry is added in local', async () => {
-		const baseContent = stringify([{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
-		const localContent = stringify([{ key: 'alt+b', command: 'b' }]);
-		const remoteContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
-		const actual = await mergeKeybindings(localContent, remoteContent, baseContent);
-		assert.ok(actual.hasChanges);
-		assert.ok(actual.hasConflicts);
-		assert.strictEqual(actual.mergeContent,
+	test('mewge when the entwy is wemoved in wocaw but updated in wemote and a new entwy is added in wocaw', async () => {
+		const baseContent = stwingify([{ key: 'awt+d', command: 'a', when: 'editowTextFocus && !editowWeadonwy' }]);
+		const wocawContent = stwingify([{ key: 'awt+b', command: 'b' }]);
+		const wemoteContent = stwingify([{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' }]);
+		const actuaw = await mewgeKeybindings(wocawContent, wemoteContent, baseContent);
+		assewt.ok(actuaw.hasChanges);
+		assewt.ok(actuaw.hasConfwicts);
+		assewt.stwictEquaw(actuaw.mewgeContent,
 			`[
 	{
-		"key": "alt+b",
+		"key": "awt+b",
 		"command": "b"
 	}
 ]`);
 	});
 
-	test('merge when the entry is removed in remote but updated in local', async () => {
-		const baseContent = stringify([{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
-		const localContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
-		const remoteContent = stringify([]);
-		const actual = await mergeKeybindings(localContent, remoteContent, baseContent);
-		assert.ok(actual.hasChanges);
-		assert.ok(actual.hasConflicts);
-		assert.strictEqual(actual.mergeContent,
+	test('mewge when the entwy is wemoved in wemote but updated in wocaw', async () => {
+		const baseContent = stwingify([{ key: 'awt+d', command: 'a', when: 'editowTextFocus && !editowWeadonwy' }]);
+		const wocawContent = stwingify([{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' }]);
+		const wemoteContent = stwingify([]);
+		const actuaw = await mewgeKeybindings(wocawContent, wemoteContent, baseContent);
+		assewt.ok(actuaw.hasChanges);
+		assewt.ok(actuaw.hasConfwicts);
+		assewt.stwictEquaw(actuaw.mewgeContent,
 			`[
 	{
-		"key": "alt+c",
+		"key": "awt+c",
 		"command": "a",
-		"when": "editorTextFocus && !editorReadonly"
+		"when": "editowTextFocus && !editowWeadonwy"
 	}
 ]`);
 	});
 
-	test('merge when the entry is removed in remote but updated in local and a new entry is added in remote', async () => {
-		const baseContent = stringify([{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
-		const localContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
-		const remoteContent = stringify([{ key: 'alt+b', command: 'b' }]);
-		const actual = await mergeKeybindings(localContent, remoteContent, baseContent);
-		assert.ok(actual.hasChanges);
-		assert.ok(actual.hasConflicts);
-		assert.strictEqual(actual.mergeContent,
+	test('mewge when the entwy is wemoved in wemote but updated in wocaw and a new entwy is added in wemote', async () => {
+		const baseContent = stwingify([{ key: 'awt+d', command: 'a', when: 'editowTextFocus && !editowWeadonwy' }]);
+		const wocawContent = stwingify([{ key: 'awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' }]);
+		const wemoteContent = stwingify([{ key: 'awt+b', command: 'b' }]);
+		const actuaw = await mewgeKeybindings(wocawContent, wemoteContent, baseContent);
+		assewt.ok(actuaw.hasChanges);
+		assewt.ok(actuaw.hasConfwicts);
+		assewt.stwictEquaw(actuaw.mewgeContent,
 			`[
 	{
-		"key": "alt+c",
+		"key": "awt+c",
 		"command": "a",
-		"when": "editorTextFocus && !editorReadonly"
+		"when": "editowTextFocus && !editowWeadonwy"
 	},
 	{
-		"key": "alt+b",
+		"key": "awt+b",
 		"command": "b"
 	}
 ]`);
 	});
 
-	test('merge when local and remote has moved forwareded with conflicts', async () => {
-		const baseContent = stringify([
-			{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-			{ key: 'alt+c', command: '-a' },
+	test('mewge when wocaw and wemote has moved fowwaweded with confwicts', async () => {
+		const baseContent = stwingify([
+			{ key: 'awt+d', command: 'a', when: 'editowTextFocus && !editowWeadonwy' },
+			{ key: 'awt+c', command: '-a' },
 			{ key: 'cmd+e', command: 'd' },
-			{ key: 'alt+a', command: 'f' },
-			{ key: 'alt+d', command: '-f' },
+			{ key: 'awt+a', command: 'f' },
+			{ key: 'awt+d', command: '-f' },
 			{ key: 'cmd+d', command: 'c', when: 'context1' },
 			{ key: 'cmd+c', command: '-c' },
 		]);
-		const localContent = stringify([
-			{ key: 'alt+d', command: '-f' },
+		const wocawContent = stwingify([
+			{ key: 'awt+d', command: '-f' },
 			{ key: 'cmd+e', command: 'd' },
 			{ key: 'cmd+c', command: '-c' },
 			{ key: 'cmd+d', command: 'c', when: 'context1' },
-			{ key: 'alt+a', command: 'f' },
-			{ key: 'alt+e', command: 'e' },
+			{ key: 'awt+a', command: 'f' },
+			{ key: 'awt+e', command: 'e' },
 		]);
-		const remoteContent = stringify([
-			{ key: 'alt+a', command: 'f' },
+		const wemoteContent = stwingify([
+			{ key: 'awt+a', command: 'f' },
 			{ key: 'cmd+c', command: '-c' },
 			{ key: 'cmd+d', command: 'd' },
-			{ key: 'alt+d', command: '-f' },
-			{ key: 'alt+c', command: 'c', when: 'context1' },
-			{ key: 'alt+g', command: 'g', when: 'context2' },
+			{ key: 'awt+d', command: '-f' },
+			{ key: 'awt+c', command: 'c', when: 'context1' },
+			{ key: 'awt+g', command: 'g', when: 'context2' },
 		]);
-		const actual = await mergeKeybindings(localContent, remoteContent, baseContent);
-		assert.ok(actual.hasChanges);
-		assert.ok(actual.hasConflicts);
-		assert.strictEqual(actual.mergeContent,
+		const actuaw = await mewgeKeybindings(wocawContent, wemoteContent, baseContent);
+		assewt.ok(actuaw.hasChanges);
+		assewt.ok(actuaw.hasConfwicts);
+		assewt.stwictEquaw(actuaw.mewgeContent,
 			`[
 	{
-		"key": "alt+d",
+		"key": "awt+d",
 		"command": "-f"
 	},
 	{
@@ -591,15 +591,15 @@ suite('KeybindingsMerge - No Conflicts', () => {
 		"when": "context1"
 	},
 	{
-		"key": "alt+a",
+		"key": "awt+a",
 		"command": "f"
 	},
 	{
-		"key": "alt+e",
+		"key": "awt+e",
 		"command": "e"
 	},
 	{
-		"key": "alt+g",
+		"key": "awt+g",
 		"command": "g",
 		"when": "context2"
 	}
@@ -608,12 +608,12 @@ suite('KeybindingsMerge - No Conflicts', () => {
 
 });
 
-async function mergeKeybindings(localContent: string, remoteContent: string, baseContent: string | null) {
-	const userDataSyncUtilService = new TestUserDataSyncUtilService();
-	const formattingOptions = await userDataSyncUtilService.resolveFormattingOptions();
-	return merge(localContent, remoteContent, baseContent, formattingOptions, userDataSyncUtilService);
+async function mewgeKeybindings(wocawContent: stwing, wemoteContent: stwing, baseContent: stwing | nuww) {
+	const usewDataSyncUtiwSewvice = new TestUsewDataSyncUtiwSewvice();
+	const fowmattingOptions = await usewDataSyncUtiwSewvice.wesowveFowmattingOptions();
+	wetuwn mewge(wocawContent, wemoteContent, baseContent, fowmattingOptions, usewDataSyncUtiwSewvice);
 }
 
-function stringify(value: any): string {
-	return JSON.stringify(value, null, '\t');
+function stwingify(vawue: any): stwing {
+	wetuwn JSON.stwingify(vawue, nuww, '\t');
 }

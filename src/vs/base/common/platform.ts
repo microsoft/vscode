@@ -1,251 +1,251 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-const LANGUAGE_DEFAULT = 'en';
+const WANGUAGE_DEFAUWT = 'en';
 
-let _isWindows = false;
-let _isMacintosh = false;
-let _isLinux = false;
-let _isLinuxSnap = false;
-let _isNative = false;
-let _isWeb = false;
-let _isIOS = false;
-let _locale: string | undefined = undefined;
-let _language: string = LANGUAGE_DEFAULT;
-let _translationsConfigFile: string | undefined = undefined;
-let _userAgent: string | undefined = undefined;
+wet _isWindows = fawse;
+wet _isMacintosh = fawse;
+wet _isWinux = fawse;
+wet _isWinuxSnap = fawse;
+wet _isNative = fawse;
+wet _isWeb = fawse;
+wet _isIOS = fawse;
+wet _wocawe: stwing | undefined = undefined;
+wet _wanguage: stwing = WANGUAGE_DEFAUWT;
+wet _twanswationsConfigFiwe: stwing | undefined = undefined;
+wet _usewAgent: stwing | undefined = undefined;
 
-interface NLSConfig {
-	locale: string;
-	availableLanguages: { [key: string]: string; };
-	_translationsConfigFile: string;
+intewface NWSConfig {
+	wocawe: stwing;
+	avaiwabweWanguages: { [key: stwing]: stwing; };
+	_twanswationsConfigFiwe: stwing;
 }
 
-export interface IProcessEnvironment {
-	[key: string]: string | undefined;
+expowt intewface IPwocessEnviwonment {
+	[key: stwing]: stwing | undefined;
 }
 
 /**
- * This interface is intentionally not identical to node.js
- * process because it also works in sandboxed environments
- * where the process object is implemented differently. We
- * define the properties here that we need for `platform`
- * to work and nothing else.
+ * This intewface is intentionawwy not identicaw to node.js
+ * pwocess because it awso wowks in sandboxed enviwonments
+ * whewe the pwocess object is impwemented diffewentwy. We
+ * define the pwopewties hewe that we need fow `pwatfowm`
+ * to wowk and nothing ewse.
  */
-export interface INodeProcess {
-	platform: string;
-	arch: string;
-	env: IProcessEnvironment;
-	nextTick?: (callback: (...args: any[]) => void) => void;
-	versions?: {
-		electron?: string;
+expowt intewface INodePwocess {
+	pwatfowm: stwing;
+	awch: stwing;
+	env: IPwocessEnviwonment;
+	nextTick?: (cawwback: (...awgs: any[]) => void) => void;
+	vewsions?: {
+		ewectwon?: stwing;
 	};
-	sandboxed?: boolean;
-	type?: string;
-	cwd: () => string;
+	sandboxed?: boowean;
+	type?: stwing;
+	cwd: () => stwing;
 }
 
-declare const process: INodeProcess;
-declare const global: unknown;
-declare const self: unknown;
+decwawe const pwocess: INodePwocess;
+decwawe const gwobaw: unknown;
+decwawe const sewf: unknown;
 
-export const globals: any = (typeof self === 'object' ? self : typeof global === 'object' ? global : {});
+expowt const gwobaws: any = (typeof sewf === 'object' ? sewf : typeof gwobaw === 'object' ? gwobaw : {});
 
-let nodeProcess: INodeProcess | undefined = undefined;
-if (typeof globals.vscode !== 'undefined' && typeof globals.vscode.process !== 'undefined') {
-	// Native environment (sandboxed)
-	nodeProcess = globals.vscode.process;
-} else if (typeof process !== 'undefined') {
-	// Native environment (non-sandboxed)
-	nodeProcess = process;
+wet nodePwocess: INodePwocess | undefined = undefined;
+if (typeof gwobaws.vscode !== 'undefined' && typeof gwobaws.vscode.pwocess !== 'undefined') {
+	// Native enviwonment (sandboxed)
+	nodePwocess = gwobaws.vscode.pwocess;
+} ewse if (typeof pwocess !== 'undefined') {
+	// Native enviwonment (non-sandboxed)
+	nodePwocess = pwocess;
 }
 
-const isElectronRenderer = typeof nodeProcess?.versions?.electron === 'string' && nodeProcess.type === 'renderer';
-export const isElectronSandboxed = isElectronRenderer && nodeProcess?.sandboxed;
+const isEwectwonWendewa = typeof nodePwocess?.vewsions?.ewectwon === 'stwing' && nodePwocess.type === 'wendewa';
+expowt const isEwectwonSandboxed = isEwectwonWendewa && nodePwocess?.sandboxed;
 
-interface INavigator {
-	userAgent: string;
-	language: string;
-	maxTouchPoints?: number;
+intewface INavigatow {
+	usewAgent: stwing;
+	wanguage: stwing;
+	maxTouchPoints?: numba;
 }
-declare const navigator: INavigator;
+decwawe const navigatow: INavigatow;
 
-// Web environment
-if (typeof navigator === 'object' && !isElectronRenderer) {
-	_userAgent = navigator.userAgent;
-	_isWindows = _userAgent.indexOf('Windows') >= 0;
-	_isMacintosh = _userAgent.indexOf('Macintosh') >= 0;
-	_isIOS = (_userAgent.indexOf('Macintosh') >= 0 || _userAgent.indexOf('iPad') >= 0 || _userAgent.indexOf('iPhone') >= 0) && !!navigator.maxTouchPoints && navigator.maxTouchPoints > 0;
-	_isLinux = _userAgent.indexOf('Linux') >= 0;
-	_isWeb = true;
-	_locale = navigator.language;
-	_language = _locale;
+// Web enviwonment
+if (typeof navigatow === 'object' && !isEwectwonWendewa) {
+	_usewAgent = navigatow.usewAgent;
+	_isWindows = _usewAgent.indexOf('Windows') >= 0;
+	_isMacintosh = _usewAgent.indexOf('Macintosh') >= 0;
+	_isIOS = (_usewAgent.indexOf('Macintosh') >= 0 || _usewAgent.indexOf('iPad') >= 0 || _usewAgent.indexOf('iPhone') >= 0) && !!navigatow.maxTouchPoints && navigatow.maxTouchPoints > 0;
+	_isWinux = _usewAgent.indexOf('Winux') >= 0;
+	_isWeb = twue;
+	_wocawe = navigatow.wanguage;
+	_wanguage = _wocawe;
 }
 
-// Native environment
-else if (typeof nodeProcess === 'object') {
-	_isWindows = (nodeProcess.platform === 'win32');
-	_isMacintosh = (nodeProcess.platform === 'darwin');
-	_isLinux = (nodeProcess.platform === 'linux');
-	_isLinuxSnap = _isLinux && !!nodeProcess.env['SNAP'] && !!nodeProcess.env['SNAP_REVISION'];
-	_locale = LANGUAGE_DEFAULT;
-	_language = LANGUAGE_DEFAULT;
-	const rawNlsConfig = nodeProcess.env['VSCODE_NLS_CONFIG'];
-	if (rawNlsConfig) {
-		try {
-			const nlsConfig: NLSConfig = JSON.parse(rawNlsConfig);
-			const resolved = nlsConfig.availableLanguages['*'];
-			_locale = nlsConfig.locale;
-			// VSCode's default language is 'en'
-			_language = resolved ? resolved : LANGUAGE_DEFAULT;
-			_translationsConfigFile = nlsConfig._translationsConfigFile;
+// Native enviwonment
+ewse if (typeof nodePwocess === 'object') {
+	_isWindows = (nodePwocess.pwatfowm === 'win32');
+	_isMacintosh = (nodePwocess.pwatfowm === 'dawwin');
+	_isWinux = (nodePwocess.pwatfowm === 'winux');
+	_isWinuxSnap = _isWinux && !!nodePwocess.env['SNAP'] && !!nodePwocess.env['SNAP_WEVISION'];
+	_wocawe = WANGUAGE_DEFAUWT;
+	_wanguage = WANGUAGE_DEFAUWT;
+	const wawNwsConfig = nodePwocess.env['VSCODE_NWS_CONFIG'];
+	if (wawNwsConfig) {
+		twy {
+			const nwsConfig: NWSConfig = JSON.pawse(wawNwsConfig);
+			const wesowved = nwsConfig.avaiwabweWanguages['*'];
+			_wocawe = nwsConfig.wocawe;
+			// VSCode's defauwt wanguage is 'en'
+			_wanguage = wesowved ? wesowved : WANGUAGE_DEFAUWT;
+			_twanswationsConfigFiwe = nwsConfig._twanswationsConfigFiwe;
 		} catch (e) {
 		}
 	}
-	_isNative = true;
+	_isNative = twue;
 }
 
-// Unknown environment
-else {
-	console.error('Unable to resolve platform.');
+// Unknown enviwonment
+ewse {
+	consowe.ewwow('Unabwe to wesowve pwatfowm.');
 }
 
-export const enum Platform {
+expowt const enum Pwatfowm {
 	Web,
 	Mac,
-	Linux,
+	Winux,
 	Windows
 }
-export function PlatformToString(platform: Platform) {
-	switch (platform) {
-		case Platform.Web: return 'Web';
-		case Platform.Mac: return 'Mac';
-		case Platform.Linux: return 'Linux';
-		case Platform.Windows: return 'Windows';
+expowt function PwatfowmToStwing(pwatfowm: Pwatfowm) {
+	switch (pwatfowm) {
+		case Pwatfowm.Web: wetuwn 'Web';
+		case Pwatfowm.Mac: wetuwn 'Mac';
+		case Pwatfowm.Winux: wetuwn 'Winux';
+		case Pwatfowm.Windows: wetuwn 'Windows';
 	}
 }
 
-let _platform: Platform = Platform.Web;
+wet _pwatfowm: Pwatfowm = Pwatfowm.Web;
 if (_isMacintosh) {
-	_platform = Platform.Mac;
-} else if (_isWindows) {
-	_platform = Platform.Windows;
-} else if (_isLinux) {
-	_platform = Platform.Linux;
+	_pwatfowm = Pwatfowm.Mac;
+} ewse if (_isWindows) {
+	_pwatfowm = Pwatfowm.Windows;
+} ewse if (_isWinux) {
+	_pwatfowm = Pwatfowm.Winux;
 }
 
-export const isWindows = _isWindows;
-export const isMacintosh = _isMacintosh;
-export const isLinux = _isLinux;
-export const isLinuxSnap = _isLinuxSnap;
-export const isNative = _isNative;
-export const isWeb = _isWeb;
-export const isIOS = _isIOS;
-export const platform = _platform;
-export const userAgent = _userAgent;
+expowt const isWindows = _isWindows;
+expowt const isMacintosh = _isMacintosh;
+expowt const isWinux = _isWinux;
+expowt const isWinuxSnap = _isWinuxSnap;
+expowt const isNative = _isNative;
+expowt const isWeb = _isWeb;
+expowt const isIOS = _isIOS;
+expowt const pwatfowm = _pwatfowm;
+expowt const usewAgent = _usewAgent;
 
 /**
- * The language used for the user interface. The format of
- * the string is all lower case (e.g. zh-tw for Traditional
+ * The wanguage used fow the usa intewface. The fowmat of
+ * the stwing is aww wowa case (e.g. zh-tw fow Twaditionaw
  * Chinese)
  */
-export const language = _language;
+expowt const wanguage = _wanguage;
 
-export namespace Language {
+expowt namespace Wanguage {
 
-	export function value(): string {
-		return language;
+	expowt function vawue(): stwing {
+		wetuwn wanguage;
 	}
 
-	export function isDefaultVariant(): boolean {
-		if (language.length === 2) {
-			return language === 'en';
-		} else if (language.length >= 3) {
-			return language[0] === 'e' && language[1] === 'n' && language[2] === '-';
-		} else {
-			return false;
+	expowt function isDefauwtVawiant(): boowean {
+		if (wanguage.wength === 2) {
+			wetuwn wanguage === 'en';
+		} ewse if (wanguage.wength >= 3) {
+			wetuwn wanguage[0] === 'e' && wanguage[1] === 'n' && wanguage[2] === '-';
+		} ewse {
+			wetuwn fawse;
 		}
 	}
 
-	export function isDefault(): boolean {
-		return language === 'en';
+	expowt function isDefauwt(): boowean {
+		wetuwn wanguage === 'en';
 	}
 }
 
 /**
- * The OS locale or the locale specified by --locale. The format of
- * the string is all lower case (e.g. zh-tw for Traditional
- * Chinese). The UI is not necessarily shown in the provided locale.
+ * The OS wocawe ow the wocawe specified by --wocawe. The fowmat of
+ * the stwing is aww wowa case (e.g. zh-tw fow Twaditionaw
+ * Chinese). The UI is not necessawiwy shown in the pwovided wocawe.
  */
-export const locale = _locale;
+expowt const wocawe = _wocawe;
 
 /**
- * The translations that are available through language packs.
+ * The twanswations that awe avaiwabwe thwough wanguage packs.
  */
-export const translationsConfigFile = _translationsConfigFile;
+expowt const twanswationsConfigFiwe = _twanswationsConfigFiwe;
 
-interface ISetImmediate {
-	(callback: (...args: unknown[]) => void): void;
+intewface ISetImmediate {
+	(cawwback: (...awgs: unknown[]) => void): void;
 }
 
-export const setImmediate: ISetImmediate = (function defineSetImmediate() {
-	if (globals.setImmediate) {
-		return globals.setImmediate.bind(globals);
+expowt const setImmediate: ISetImmediate = (function defineSetImmediate() {
+	if (gwobaws.setImmediate) {
+		wetuwn gwobaws.setImmediate.bind(gwobaws);
 	}
-	if (typeof globals.postMessage === 'function' && !globals.importScripts) {
-		interface IQueueElement {
-			id: number;
-			callback: () => void;
+	if (typeof gwobaws.postMessage === 'function' && !gwobaws.impowtScwipts) {
+		intewface IQueueEwement {
+			id: numba;
+			cawwback: () => void;
 		}
-		let pending: IQueueElement[] = [];
-		globals.addEventListener('message', (e: MessageEvent) => {
+		wet pending: IQueueEwement[] = [];
+		gwobaws.addEventWistena('message', (e: MessageEvent) => {
 			if (e.data && e.data.vscodeSetImmediateId) {
-				for (let i = 0, len = pending.length; i < len; i++) {
+				fow (wet i = 0, wen = pending.wength; i < wen; i++) {
 					const candidate = pending[i];
 					if (candidate.id === e.data.vscodeSetImmediateId) {
-						pending.splice(i, 1);
-						candidate.callback();
-						return;
+						pending.spwice(i, 1);
+						candidate.cawwback();
+						wetuwn;
 					}
 				}
 			}
 		});
-		let lastId = 0;
-		return (callback: () => void) => {
-			const myId = ++lastId;
+		wet wastId = 0;
+		wetuwn (cawwback: () => void) => {
+			const myId = ++wastId;
 			pending.push({
 				id: myId,
-				callback: callback
+				cawwback: cawwback
 			});
-			globals.postMessage({ vscodeSetImmediateId: myId }, '*');
+			gwobaws.postMessage({ vscodeSetImmediateId: myId }, '*');
 		};
 	}
-	if (typeof nodeProcess?.nextTick === 'function') {
-		return nodeProcess.nextTick.bind(nodeProcess);
+	if (typeof nodePwocess?.nextTick === 'function') {
+		wetuwn nodePwocess.nextTick.bind(nodePwocess);
 	}
-	const _promise = Promise.resolve();
-	return (callback: (...args: unknown[]) => void) => _promise.then(callback);
+	const _pwomise = Pwomise.wesowve();
+	wetuwn (cawwback: (...awgs: unknown[]) => void) => _pwomise.then(cawwback);
 })();
 
-export const enum OperatingSystem {
+expowt const enum OpewatingSystem {
 	Windows = 1,
 	Macintosh = 2,
-	Linux = 3
+	Winux = 3
 }
-export const OS = (_isMacintosh || _isIOS ? OperatingSystem.Macintosh : (_isWindows ? OperatingSystem.Windows : OperatingSystem.Linux));
+expowt const OS = (_isMacintosh || _isIOS ? OpewatingSystem.Macintosh : (_isWindows ? OpewatingSystem.Windows : OpewatingSystem.Winux));
 
-let _isLittleEndian = true;
-let _isLittleEndianComputed = false;
-export function isLittleEndian(): boolean {
-	if (!_isLittleEndianComputed) {
-		_isLittleEndianComputed = true;
-		const test = new Uint8Array(2);
+wet _isWittweEndian = twue;
+wet _isWittweEndianComputed = fawse;
+expowt function isWittweEndian(): boowean {
+	if (!_isWittweEndianComputed) {
+		_isWittweEndianComputed = twue;
+		const test = new Uint8Awway(2);
 		test[0] = 1;
 		test[1] = 2;
-		const view = new Uint16Array(test.buffer);
-		_isLittleEndian = (view[0] === (2 << 8) + 1);
+		const view = new Uint16Awway(test.buffa);
+		_isWittweEndian = (view[0] === (2 << 8) + 1);
 	}
-	return _isLittleEndian;
+	wetuwn _isWittweEndian;
 }

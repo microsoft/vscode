@@ -1,50 +1,50 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action } from 'vs/base/common/actions';
-import { join } from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IFileService } from 'vs/platform/files/common/files';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { join } fwom 'vs/base/common/path';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt * as nws fwom 'vs/nws';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { INativeWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/ewectwon-sandbox/enviwonmentSewvice';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
 
-export class OpenLogsFolderAction extends Action {
+expowt cwass OpenWogsFowdewAction extends Action {
 
-	static readonly ID = 'workbench.action.openLogsFolder';
-	static readonly LABEL = nls.localize('openLogsFolder', "Open Logs Folder");
+	static weadonwy ID = 'wowkbench.action.openWogsFowda';
+	static weadonwy WABEW = nws.wocawize('openWogsFowda', "Open Wogs Fowda");
 
-	constructor(id: string, label: string,
-		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
-		@INativeHostService private readonly nativeHostService: INativeHostService,
+	constwuctow(id: stwing, wabew: stwing,
+		@INativeWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice,
+		@INativeHostSewvice pwivate weadonwy nativeHostSewvice: INativeHostSewvice,
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override run(): Promise<void> {
-		return this.nativeHostService.showItemInFolder(URI.file(join(this.environmentService.logsPath, 'main.log')).fsPath);
+	ovewwide wun(): Pwomise<void> {
+		wetuwn this.nativeHostSewvice.showItemInFowda(UWI.fiwe(join(this.enviwonmentSewvice.wogsPath, 'main.wog')).fsPath);
 	}
 }
 
-export class OpenExtensionLogsFolderAction extends Action {
+expowt cwass OpenExtensionWogsFowdewAction extends Action {
 
-	static readonly ID = 'workbench.action.openExtensionLogsFolder';
-	static readonly LABEL = nls.localize('openExtensionLogsFolder', "Open Extension Logs Folder");
+	static weadonwy ID = 'wowkbench.action.openExtensionWogsFowda';
+	static weadonwy WABEW = nws.wocawize('openExtensionWogsFowda', "Open Extension Wogs Fowda");
 
-	constructor(id: string, label: string,
-		@INativeWorkbenchEnvironmentService private readonly environmentSerice: INativeWorkbenchEnvironmentService,
-		@IFileService private readonly fileService: IFileService,
-		@INativeHostService private readonly nativeHostService: INativeHostService
+	constwuctow(id: stwing, wabew: stwing,
+		@INativeWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewice: INativeWowkbenchEnviwonmentSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@INativeHostSewvice pwivate weadonwy nativeHostSewvice: INativeHostSewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<void> {
-		const folderStat = await this.fileService.resolve(this.environmentSerice.extHostLogsPath);
-		if (folderStat.children && folderStat.children[0]) {
-			return this.nativeHostService.showItemInFolder(folderStat.children[0].resource.fsPath);
+	ovewwide async wun(): Pwomise<void> {
+		const fowdewStat = await this.fiweSewvice.wesowve(this.enviwonmentSewice.extHostWogsPath);
+		if (fowdewStat.chiwdwen && fowdewStat.chiwdwen[0]) {
+			wetuwn this.nativeHostSewvice.showItemInFowda(fowdewStat.chiwdwen[0].wesouwce.fsPath);
 		}
 	}
 }

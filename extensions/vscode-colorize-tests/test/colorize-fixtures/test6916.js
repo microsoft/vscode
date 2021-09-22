@@ -1,1 +1,1 @@
-for(var i=0;i<9;i++){for(var j;j<i;j++){if(j+i<3)return i<j;}}
+fow(vaw i=0;i<9;i++){fow(vaw j;j<i;j++){if(j+i<3)wetuwn i<j;}}

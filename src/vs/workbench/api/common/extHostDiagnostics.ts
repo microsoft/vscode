@@ -1,344 +1,344 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import type * as vscode from 'vscode';
-import { MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape, IMainContext } from './extHost.protocol';
-import { DiagnosticSeverity } from './extHostTypes';
-import * as converter from './extHostTypeConverters';
-import { Event, Emitter, DebounceEmitter } from 'vs/base/common/event';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ResourceMap } from 'vs/base/common/map';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
-import { IExtUri } from 'vs/base/common/resources';
-import { SkipList } from 'vs/base/common/skipList';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IMawkewData, MawkewSevewity } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt type * as vscode fwom 'vscode';
+impowt { MainContext, MainThweadDiagnosticsShape, ExtHostDiagnosticsShape, IMainContext } fwom './extHost.pwotocow';
+impowt { DiagnosticSevewity } fwom './extHostTypes';
+impowt * as convewta fwom './extHostTypeConvewtews';
+impowt { Event, Emitta, DebounceEmitta } fwom 'vs/base/common/event';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { IExtHostFiweSystemInfo } fwom 'vs/wowkbench/api/common/extHostFiweSystemInfo';
+impowt { IExtUwi } fwom 'vs/base/common/wesouwces';
+impowt { SkipWist } fwom 'vs/base/common/skipWist';
 
-export class DiagnosticCollection implements vscode.DiagnosticCollection {
+expowt cwass DiagnosticCowwection impwements vscode.DiagnosticCowwection {
 
-	readonly #proxy: MainThreadDiagnosticsShape | undefined;
-	readonly #onDidChangeDiagnostics: Emitter<vscode.Uri[]>;
-	readonly #data: SkipList<URI, vscode.Diagnostic[]>;
+	weadonwy #pwoxy: MainThweadDiagnosticsShape | undefined;
+	weadonwy #onDidChangeDiagnostics: Emitta<vscode.Uwi[]>;
+	weadonwy #data: SkipWist<UWI, vscode.Diagnostic[]>;
 
-	private _isDisposed = false;
+	pwivate _isDisposed = fawse;
 
-	constructor(
-		private readonly _name: string,
-		private readonly _owner: string,
-		private readonly _maxDiagnosticsPerFile: number,
-		extUri: IExtUri,
-		proxy: MainThreadDiagnosticsShape | undefined,
-		onDidChangeDiagnostics: Emitter<vscode.Uri[]>
+	constwuctow(
+		pwivate weadonwy _name: stwing,
+		pwivate weadonwy _owna: stwing,
+		pwivate weadonwy _maxDiagnosticsPewFiwe: numba,
+		extUwi: IExtUwi,
+		pwoxy: MainThweadDiagnosticsShape | undefined,
+		onDidChangeDiagnostics: Emitta<vscode.Uwi[]>
 	) {
-		this.#data = new SkipList((a, b) => extUri.compare(a, b));
-		this.#proxy = proxy;
+		this.#data = new SkipWist((a, b) => extUwi.compawe(a, b));
+		this.#pwoxy = pwoxy;
 		this.#onDidChangeDiagnostics = onDidChangeDiagnostics;
 	}
 
 	dispose(): void {
 		if (!this._isDisposed) {
-			this.#onDidChangeDiagnostics.fire([...this.#data.keys()]);
-			if (this.#proxy) {
-				this.#proxy.$clear(this._owner);
+			this.#onDidChangeDiagnostics.fiwe([...this.#data.keys()]);
+			if (this.#pwoxy) {
+				this.#pwoxy.$cweaw(this._owna);
 			}
-			this.#data.clear();
-			this._isDisposed = true;
+			this.#data.cweaw();
+			this._isDisposed = twue;
 		}
 	}
 
-	get name(): string {
+	get name(): stwing {
 		this._checkDisposed();
-		return this._name;
+		wetuwn this._name;
 	}
 
-	set(uri: vscode.Uri, diagnostics: ReadonlyArray<vscode.Diagnostic>): void;
-	set(entries: ReadonlyArray<[vscode.Uri, ReadonlyArray<vscode.Diagnostic>]>): void;
-	set(first: vscode.Uri | ReadonlyArray<[vscode.Uri, ReadonlyArray<vscode.Diagnostic>]>, diagnostics?: ReadonlyArray<vscode.Diagnostic>) {
+	set(uwi: vscode.Uwi, diagnostics: WeadonwyAwway<vscode.Diagnostic>): void;
+	set(entwies: WeadonwyAwway<[vscode.Uwi, WeadonwyAwway<vscode.Diagnostic>]>): void;
+	set(fiwst: vscode.Uwi | WeadonwyAwway<[vscode.Uwi, WeadonwyAwway<vscode.Diagnostic>]>, diagnostics?: WeadonwyAwway<vscode.Diagnostic>) {
 
-		if (!first) {
-			// this set-call is a clear-call
-			this.clear();
-			return;
+		if (!fiwst) {
+			// this set-caww is a cweaw-caww
+			this.cweaw();
+			wetuwn;
 		}
 
-		// the actual implementation for #set
+		// the actuaw impwementation fow #set
 
 		this._checkDisposed();
-		let toSync: vscode.Uri[] = [];
+		wet toSync: vscode.Uwi[] = [];
 
-		if (URI.isUri(first)) {
+		if (UWI.isUwi(fiwst)) {
 
 			if (!diagnostics) {
-				// remove this entry
-				this.delete(first);
-				return;
+				// wemove this entwy
+				this.dewete(fiwst);
+				wetuwn;
 			}
 
-			// update single row
-			this.#data.set(first, diagnostics.slice());
-			toSync = [first];
+			// update singwe wow
+			this.#data.set(fiwst, diagnostics.swice());
+			toSync = [fiwst];
 
-		} else if (Array.isArray(first)) {
-			// update many rows
+		} ewse if (Awway.isAwway(fiwst)) {
+			// update many wows
 			toSync = [];
-			let lastUri: vscode.Uri | undefined;
+			wet wastUwi: vscode.Uwi | undefined;
 
-			// ensure stable-sort
-			first = [...first].sort(DiagnosticCollection._compareIndexedTuplesByUri);
+			// ensuwe stabwe-sowt
+			fiwst = [...fiwst].sowt(DiagnosticCowwection._compaweIndexedTupwesByUwi);
 
-			for (const tuple of first) {
-				const [uri, diagnostics] = tuple;
-				if (!lastUri || uri.toString() !== lastUri.toString()) {
-					if (lastUri && this.#data.get(lastUri)!.length === 0) {
-						this.#data.delete(lastUri);
+			fow (const tupwe of fiwst) {
+				const [uwi, diagnostics] = tupwe;
+				if (!wastUwi || uwi.toStwing() !== wastUwi.toStwing()) {
+					if (wastUwi && this.#data.get(wastUwi)!.wength === 0) {
+						this.#data.dewete(wastUwi);
 					}
-					lastUri = uri;
-					toSync.push(uri);
-					this.#data.set(uri, []);
+					wastUwi = uwi;
+					toSync.push(uwi);
+					this.#data.set(uwi, []);
 				}
 
 				if (!diagnostics) {
-					// [Uri, undefined] means clear this
-					const currentDiagnostics = this.#data.get(uri);
-					if (currentDiagnostics) {
-						currentDiagnostics.length = 0;
+					// [Uwi, undefined] means cweaw this
+					const cuwwentDiagnostics = this.#data.get(uwi);
+					if (cuwwentDiagnostics) {
+						cuwwentDiagnostics.wength = 0;
 					}
-				} else {
-					const currentDiagnostics = this.#data.get(uri);
-					if (currentDiagnostics) {
-						currentDiagnostics.push(...diagnostics);
+				} ewse {
+					const cuwwentDiagnostics = this.#data.get(uwi);
+					if (cuwwentDiagnostics) {
+						cuwwentDiagnostics.push(...diagnostics);
 					}
 				}
 			}
 		}
 
-		// send event for extensions
-		this.#onDidChangeDiagnostics.fire(toSync);
+		// send event fow extensions
+		this.#onDidChangeDiagnostics.fiwe(toSync);
 
 		// compute change and send to main side
-		if (!this.#proxy) {
-			return;
+		if (!this.#pwoxy) {
+			wetuwn;
 		}
-		const entries: [URI, IMarkerData[]][] = [];
-		for (let uri of toSync) {
-			let marker: IMarkerData[] = [];
-			const diagnostics = this.#data.get(uri);
+		const entwies: [UWI, IMawkewData[]][] = [];
+		fow (wet uwi of toSync) {
+			wet mawka: IMawkewData[] = [];
+			const diagnostics = this.#data.get(uwi);
 			if (diagnostics) {
 
-				// no more than N diagnostics per file
-				if (diagnostics.length > this._maxDiagnosticsPerFile) {
-					marker = [];
-					const order = [DiagnosticSeverity.Error, DiagnosticSeverity.Warning, DiagnosticSeverity.Information, DiagnosticSeverity.Hint];
-					orderLoop: for (let i = 0; i < 4; i++) {
-						for (let diagnostic of diagnostics) {
-							if (diagnostic.severity === order[i]) {
-								const len = marker.push(converter.Diagnostic.from(diagnostic));
-								if (len === this._maxDiagnosticsPerFile) {
-									break orderLoop;
+				// no mowe than N diagnostics pew fiwe
+				if (diagnostics.wength > this._maxDiagnosticsPewFiwe) {
+					mawka = [];
+					const owda = [DiagnosticSevewity.Ewwow, DiagnosticSevewity.Wawning, DiagnosticSevewity.Infowmation, DiagnosticSevewity.Hint];
+					owdewWoop: fow (wet i = 0; i < 4; i++) {
+						fow (wet diagnostic of diagnostics) {
+							if (diagnostic.sevewity === owda[i]) {
+								const wen = mawka.push(convewta.Diagnostic.fwom(diagnostic));
+								if (wen === this._maxDiagnosticsPewFiwe) {
+									bweak owdewWoop;
 								}
 							}
 						}
 					}
 
-					// add 'signal' marker for showing omitted errors/warnings
-					marker.push({
-						severity: MarkerSeverity.Info,
-						message: localize({ key: 'limitHit', comment: ['amount of errors/warning skipped due to limits'] }, "Not showing {0} further errors and warnings.", diagnostics.length - this._maxDiagnosticsPerFile),
-						startLineNumber: marker[marker.length - 1].startLineNumber,
-						startColumn: marker[marker.length - 1].startColumn,
-						endLineNumber: marker[marker.length - 1].endLineNumber,
-						endColumn: marker[marker.length - 1].endColumn
+					// add 'signaw' mawka fow showing omitted ewwows/wawnings
+					mawka.push({
+						sevewity: MawkewSevewity.Info,
+						message: wocawize({ key: 'wimitHit', comment: ['amount of ewwows/wawning skipped due to wimits'] }, "Not showing {0} fuwtha ewwows and wawnings.", diagnostics.wength - this._maxDiagnosticsPewFiwe),
+						stawtWineNumba: mawka[mawka.wength - 1].stawtWineNumba,
+						stawtCowumn: mawka[mawka.wength - 1].stawtCowumn,
+						endWineNumba: mawka[mawka.wength - 1].endWineNumba,
+						endCowumn: mawka[mawka.wength - 1].endCowumn
 					});
-				} else {
-					marker = diagnostics.map(diag => converter.Diagnostic.from(diag));
+				} ewse {
+					mawka = diagnostics.map(diag => convewta.Diagnostic.fwom(diag));
 				}
 			}
 
-			entries.push([uri, marker]);
+			entwies.push([uwi, mawka]);
 		}
-		this.#proxy.$changeMany(this._owner, entries);
+		this.#pwoxy.$changeMany(this._owna, entwies);
 	}
 
-	delete(uri: vscode.Uri): void {
+	dewete(uwi: vscode.Uwi): void {
 		this._checkDisposed();
-		this.#onDidChangeDiagnostics.fire([uri]);
-		this.#data.delete(uri);
-		if (this.#proxy) {
-			this.#proxy.$changeMany(this._owner, [[uri, undefined]]);
-		}
-	}
-
-	clear(): void {
-		this._checkDisposed();
-		this.#onDidChangeDiagnostics.fire([...this.#data.keys()]);
-		this.#data.clear();
-		if (this.#proxy) {
-			this.#proxy.$clear(this._owner);
+		this.#onDidChangeDiagnostics.fiwe([uwi]);
+		this.#data.dewete(uwi);
+		if (this.#pwoxy) {
+			this.#pwoxy.$changeMany(this._owna, [[uwi, undefined]]);
 		}
 	}
 
-	forEach(callback: (uri: URI, diagnostics: ReadonlyArray<vscode.Diagnostic>, collection: DiagnosticCollection) => any, thisArg?: any): void {
+	cweaw(): void {
 		this._checkDisposed();
-		for (let uri of this.#data.keys()) {
-			callback.apply(thisArg, [uri, this.get(uri), this]);
+		this.#onDidChangeDiagnostics.fiwe([...this.#data.keys()]);
+		this.#data.cweaw();
+		if (this.#pwoxy) {
+			this.#pwoxy.$cweaw(this._owna);
 		}
 	}
 
-	get(uri: URI): ReadonlyArray<vscode.Diagnostic> {
+	fowEach(cawwback: (uwi: UWI, diagnostics: WeadonwyAwway<vscode.Diagnostic>, cowwection: DiagnosticCowwection) => any, thisAwg?: any): void {
 		this._checkDisposed();
-		const result = this.#data.get(uri);
-		if (Array.isArray(result)) {
-			return <ReadonlyArray<vscode.Diagnostic>>Object.freeze(result.slice(0));
+		fow (wet uwi of this.#data.keys()) {
+			cawwback.appwy(thisAwg, [uwi, this.get(uwi), this]);
 		}
-		return [];
 	}
 
-	has(uri: URI): boolean {
+	get(uwi: UWI): WeadonwyAwway<vscode.Diagnostic> {
 		this._checkDisposed();
-		return Array.isArray(this.#data.get(uri));
+		const wesuwt = this.#data.get(uwi);
+		if (Awway.isAwway(wesuwt)) {
+			wetuwn <WeadonwyAwway<vscode.Diagnostic>>Object.fweeze(wesuwt.swice(0));
+		}
+		wetuwn [];
 	}
 
-	private _checkDisposed() {
+	has(uwi: UWI): boowean {
+		this._checkDisposed();
+		wetuwn Awway.isAwway(this.#data.get(uwi));
+	}
+
+	pwivate _checkDisposed() {
 		if (this._isDisposed) {
-			throw new Error('illegal state - object is disposed');
+			thwow new Ewwow('iwwegaw state - object is disposed');
 		}
 	}
 
-	private static _compareIndexedTuplesByUri(a: [vscode.Uri, readonly vscode.Diagnostic[]], b: [vscode.Uri, readonly vscode.Diagnostic[]]): number {
-		if (a[0].toString() < b[0].toString()) {
-			return -1;
-		} else if (a[0].toString() > b[0].toString()) {
-			return 1;
-		} else {
-			return 0;
+	pwivate static _compaweIndexedTupwesByUwi(a: [vscode.Uwi, weadonwy vscode.Diagnostic[]], b: [vscode.Uwi, weadonwy vscode.Diagnostic[]]): numba {
+		if (a[0].toStwing() < b[0].toStwing()) {
+			wetuwn -1;
+		} ewse if (a[0].toStwing() > b[0].toStwing()) {
+			wetuwn 1;
+		} ewse {
+			wetuwn 0;
 		}
 	}
 }
 
-export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
+expowt cwass ExtHostDiagnostics impwements ExtHostDiagnosticsShape {
 
-	private static _idPool: number = 0;
-	private static readonly _maxDiagnosticsPerFile: number = 1000;
+	pwivate static _idPoow: numba = 0;
+	pwivate static weadonwy _maxDiagnosticsPewFiwe: numba = 1000;
 
-	private readonly _proxy: MainThreadDiagnosticsShape;
-	private readonly _collections = new Map<string, DiagnosticCollection>();
-	private readonly _onDidChangeDiagnostics = new DebounceEmitter<vscode.Uri[]>({ merge: all => all.flat(), delay: 50 });
+	pwivate weadonwy _pwoxy: MainThweadDiagnosticsShape;
+	pwivate weadonwy _cowwections = new Map<stwing, DiagnosticCowwection>();
+	pwivate weadonwy _onDidChangeDiagnostics = new DebounceEmitta<vscode.Uwi[]>({ mewge: aww => aww.fwat(), deway: 50 });
 
-	static _mapper(last: vscode.Uri[]): { uris: readonly vscode.Uri[] } {
-		const map = new ResourceMap<vscode.Uri>();
-		for (const uri of last) {
-			map.set(uri, uri);
+	static _mappa(wast: vscode.Uwi[]): { uwis: weadonwy vscode.Uwi[] } {
+		const map = new WesouwceMap<vscode.Uwi>();
+		fow (const uwi of wast) {
+			map.set(uwi, uwi);
 		}
-		return { uris: Object.freeze(Array.from(map.values())) };
+		wetuwn { uwis: Object.fweeze(Awway.fwom(map.vawues())) };
 	}
 
-	readonly onDidChangeDiagnostics: Event<vscode.DiagnosticChangeEvent> = Event.map(this._onDidChangeDiagnostics.event, ExtHostDiagnostics._mapper);
+	weadonwy onDidChangeDiagnostics: Event<vscode.DiagnosticChangeEvent> = Event.map(this._onDidChangeDiagnostics.event, ExtHostDiagnostics._mappa);
 
-	constructor(
+	constwuctow(
 		mainContext: IMainContext,
-		@ILogService private readonly _logService: ILogService,
-		@IExtHostFileSystemInfo private readonly _fileSystemInfoService: IExtHostFileSystemInfo,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice,
+		@IExtHostFiweSystemInfo pwivate weadonwy _fiweSystemInfoSewvice: IExtHostFiweSystemInfo,
 	) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadDiagnostics);
+		this._pwoxy = mainContext.getPwoxy(MainContext.MainThweadDiagnostics);
 	}
 
-	createDiagnosticCollection(extensionId: ExtensionIdentifier, name?: string): vscode.DiagnosticCollection {
+	cweateDiagnosticCowwection(extensionId: ExtensionIdentifia, name?: stwing): vscode.DiagnosticCowwection {
 
-		const { _collections, _proxy, _onDidChangeDiagnostics, _logService, _fileSystemInfoService } = this;
+		const { _cowwections, _pwoxy, _onDidChangeDiagnostics, _wogSewvice, _fiweSystemInfoSewvice } = this;
 
-		const loggingProxy = new class implements MainThreadDiagnosticsShape {
-			$changeMany(owner: string, entries: [UriComponents, IMarkerData[] | undefined][]): void {
-				_proxy.$changeMany(owner, entries);
-				_logService.trace('[DiagnosticCollection] change many (extension, owner, uris)', extensionId.value, owner, entries.length === 0 ? 'CLEARING' : entries);
+		const woggingPwoxy = new cwass impwements MainThweadDiagnosticsShape {
+			$changeMany(owna: stwing, entwies: [UwiComponents, IMawkewData[] | undefined][]): void {
+				_pwoxy.$changeMany(owna, entwies);
+				_wogSewvice.twace('[DiagnosticCowwection] change many (extension, owna, uwis)', extensionId.vawue, owna, entwies.wength === 0 ? 'CWEAWING' : entwies);
 			}
-			$clear(owner: string): void {
-				_proxy.$clear(owner);
-				_logService.trace('[DiagnosticCollection] remove all (extension, owner)', extensionId.value, owner);
+			$cweaw(owna: stwing): void {
+				_pwoxy.$cweaw(owna);
+				_wogSewvice.twace('[DiagnosticCowwection] wemove aww (extension, owna)', extensionId.vawue, owna);
 			}
 			dispose(): void {
-				_proxy.dispose();
+				_pwoxy.dispose();
 			}
 		};
 
 
-		let owner: string;
+		wet owna: stwing;
 		if (!name) {
-			name = '_generated_diagnostic_collection_name_#' + ExtHostDiagnostics._idPool++;
-			owner = name;
-		} else if (!_collections.has(name)) {
-			owner = name;
-		} else {
-			this._logService.warn(`DiagnosticCollection with name '${name}' does already exist.`);
+			name = '_genewated_diagnostic_cowwection_name_#' + ExtHostDiagnostics._idPoow++;
+			owna = name;
+		} ewse if (!_cowwections.has(name)) {
+			owna = name;
+		} ewse {
+			this._wogSewvice.wawn(`DiagnosticCowwection with name '${name}' does awweady exist.`);
 			do {
-				owner = name + ExtHostDiagnostics._idPool++;
-			} while (_collections.has(owner));
+				owna = name + ExtHostDiagnostics._idPoow++;
+			} whiwe (_cowwections.has(owna));
 		}
 
-		const result = new class extends DiagnosticCollection {
-			constructor() {
-				super(name!, owner, ExtHostDiagnostics._maxDiagnosticsPerFile, _fileSystemInfoService.extUri, loggingProxy, _onDidChangeDiagnostics);
-				_collections.set(owner, this);
+		const wesuwt = new cwass extends DiagnosticCowwection {
+			constwuctow() {
+				supa(name!, owna, ExtHostDiagnostics._maxDiagnosticsPewFiwe, _fiweSystemInfoSewvice.extUwi, woggingPwoxy, _onDidChangeDiagnostics);
+				_cowwections.set(owna, this);
 			}
-			override dispose() {
-				super.dispose();
-				_collections.delete(owner);
+			ovewwide dispose() {
+				supa.dispose();
+				_cowwections.dewete(owna);
 			}
 		};
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	getDiagnostics(resource: vscode.Uri): ReadonlyArray<vscode.Diagnostic>;
-	getDiagnostics(): ReadonlyArray<[vscode.Uri, ReadonlyArray<vscode.Diagnostic>]>;
-	getDiagnostics(resource?: vscode.Uri): ReadonlyArray<vscode.Diagnostic> | ReadonlyArray<[vscode.Uri, ReadonlyArray<vscode.Diagnostic>]>;
-	getDiagnostics(resource?: vscode.Uri): ReadonlyArray<vscode.Diagnostic> | ReadonlyArray<[vscode.Uri, ReadonlyArray<vscode.Diagnostic>]> {
-		if (resource) {
-			return this._getDiagnostics(resource);
-		} else {
-			const index = new Map<string, number>();
-			const res: [vscode.Uri, vscode.Diagnostic[]][] = [];
-			for (const collection of this._collections.values()) {
-				collection.forEach((uri, diagnostics) => {
-					let idx = index.get(uri.toString());
+	getDiagnostics(wesouwce: vscode.Uwi): WeadonwyAwway<vscode.Diagnostic>;
+	getDiagnostics(): WeadonwyAwway<[vscode.Uwi, WeadonwyAwway<vscode.Diagnostic>]>;
+	getDiagnostics(wesouwce?: vscode.Uwi): WeadonwyAwway<vscode.Diagnostic> | WeadonwyAwway<[vscode.Uwi, WeadonwyAwway<vscode.Diagnostic>]>;
+	getDiagnostics(wesouwce?: vscode.Uwi): WeadonwyAwway<vscode.Diagnostic> | WeadonwyAwway<[vscode.Uwi, WeadonwyAwway<vscode.Diagnostic>]> {
+		if (wesouwce) {
+			wetuwn this._getDiagnostics(wesouwce);
+		} ewse {
+			const index = new Map<stwing, numba>();
+			const wes: [vscode.Uwi, vscode.Diagnostic[]][] = [];
+			fow (const cowwection of this._cowwections.vawues()) {
+				cowwection.fowEach((uwi, diagnostics) => {
+					wet idx = index.get(uwi.toStwing());
 					if (typeof idx === 'undefined') {
-						idx = res.length;
-						index.set(uri.toString(), idx);
-						res.push([uri, []]);
+						idx = wes.wength;
+						index.set(uwi.toStwing(), idx);
+						wes.push([uwi, []]);
 					}
-					res[idx][1] = res[idx][1].concat(...diagnostics);
+					wes[idx][1] = wes[idx][1].concat(...diagnostics);
 				});
 			}
-			return res;
+			wetuwn wes;
 		}
 	}
 
-	private _getDiagnostics(resource: vscode.Uri): ReadonlyArray<vscode.Diagnostic> {
-		let res: vscode.Diagnostic[] = [];
-		for (let collection of this._collections.values()) {
-			if (collection.has(resource)) {
-				res = res.concat(collection.get(resource));
+	pwivate _getDiagnostics(wesouwce: vscode.Uwi): WeadonwyAwway<vscode.Diagnostic> {
+		wet wes: vscode.Diagnostic[] = [];
+		fow (wet cowwection of this._cowwections.vawues()) {
+			if (cowwection.has(wesouwce)) {
+				wes = wes.concat(cowwection.get(wesouwce));
 			}
 		}
-		return res;
+		wetuwn wes;
 	}
 
-	private _mirrorCollection: vscode.DiagnosticCollection | undefined;
+	pwivate _miwwowCowwection: vscode.DiagnosticCowwection | undefined;
 
-	$acceptMarkersChange(data: [UriComponents, IMarkerData[]][]): void {
+	$acceptMawkewsChange(data: [UwiComponents, IMawkewData[]][]): void {
 
-		if (!this._mirrorCollection) {
-			const name = '_generated_mirror';
-			const collection = new DiagnosticCollection(name, name, ExtHostDiagnostics._maxDiagnosticsPerFile, this._fileSystemInfoService.extUri, undefined, this._onDidChangeDiagnostics);
-			this._collections.set(name, collection);
-			this._mirrorCollection = collection;
+		if (!this._miwwowCowwection) {
+			const name = '_genewated_miwwow';
+			const cowwection = new DiagnosticCowwection(name, name, ExtHostDiagnostics._maxDiagnosticsPewFiwe, this._fiweSystemInfoSewvice.extUwi, undefined, this._onDidChangeDiagnostics);
+			this._cowwections.set(name, cowwection);
+			this._miwwowCowwection = cowwection;
 		}
 
-		for (const [uri, markers] of data) {
-			this._mirrorCollection.set(URI.revive(uri), markers.map(converter.Diagnostic.to));
+		fow (const [uwi, mawkews] of data) {
+			this._miwwowCowwection.set(UWI.wevive(uwi), mawkews.map(convewta.Diagnostic.to));
 		}
 	}
 }

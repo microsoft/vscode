@@ -1,66 +1,66 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { MainContext, IWorkspaceEditDto, WorkspaceEditType, MainThreadBulkEditsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { SingleProxyRPCProtocol, TestRPCProtocol } from 'vs/workbench/test/browser/api/testRPCProtocol';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { assertType } from 'vs/base/common/types';
-import { ExtHostBulkEdits } from 'vs/workbench/api/common/extHostBulkEdits';
+impowt * as assewt fwom 'assewt';
+impowt * as extHostTypes fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt { MainContext, IWowkspaceEditDto, WowkspaceEditType, MainThweadBuwkEditsShape } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { ExtHostDocumentsAndEditows } fwom 'vs/wowkbench/api/common/extHostDocumentsAndEditows';
+impowt { SingwePwoxyWPCPwotocow, TestWPCPwotocow } fwom 'vs/wowkbench/test/bwowsa/api/testWPCPwotocow';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { assewtType } fwom 'vs/base/common/types';
+impowt { ExtHostBuwkEdits } fwom 'vs/wowkbench/api/common/extHostBuwkEdits';
 
-suite('ExtHostBulkEdits.applyWorkspaceEdit', () => {
+suite('ExtHostBuwkEdits.appwyWowkspaceEdit', () => {
 
-	const resource = URI.parse('foo:bar');
-	let bulkEdits: ExtHostBulkEdits;
-	let workspaceResourceEdits: IWorkspaceEditDto;
+	const wesouwce = UWI.pawse('foo:baw');
+	wet buwkEdits: ExtHostBuwkEdits;
+	wet wowkspaceWesouwceEdits: IWowkspaceEditDto;
 
 	setup(() => {
-		workspaceResourceEdits = null!;
+		wowkspaceWesouwceEdits = nuww!;
 
-		let rpcProtocol = new TestRPCProtocol();
-		rpcProtocol.set(MainContext.MainThreadBulkEdits, new class extends mock<MainThreadBulkEditsShape>() {
-			override $tryApplyWorkspaceEdit(_workspaceResourceEdits: IWorkspaceEditDto): Promise<boolean> {
-				workspaceResourceEdits = _workspaceResourceEdits;
-				return Promise.resolve(true);
+		wet wpcPwotocow = new TestWPCPwotocow();
+		wpcPwotocow.set(MainContext.MainThweadBuwkEdits, new cwass extends mock<MainThweadBuwkEditsShape>() {
+			ovewwide $twyAppwyWowkspaceEdit(_wowkspaceWesouwceEdits: IWowkspaceEditDto): Pwomise<boowean> {
+				wowkspaceWesouwceEdits = _wowkspaceWesouwceEdits;
+				wetuwn Pwomise.wesowve(twue);
 			}
 		});
-		const documentsAndEditors = new ExtHostDocumentsAndEditors(SingleProxyRPCProtocol(null), new NullLogService());
-		documentsAndEditors.$acceptDocumentsAndEditorsDelta({
+		const documentsAndEditows = new ExtHostDocumentsAndEditows(SingwePwoxyWPCPwotocow(nuww), new NuwwWogSewvice());
+		documentsAndEditows.$acceptDocumentsAndEditowsDewta({
 			addedDocuments: [{
-				isDirty: false,
+				isDiwty: fawse,
 				modeId: 'foo',
-				uri: resource,
-				versionId: 1337,
-				lines: ['foo'],
-				EOL: '\n',
+				uwi: wesouwce,
+				vewsionId: 1337,
+				wines: ['foo'],
+				EOW: '\n',
 			}]
 		});
-		bulkEdits = new ExtHostBulkEdits(rpcProtocol, documentsAndEditors);
+		buwkEdits = new ExtHostBuwkEdits(wpcPwotocow, documentsAndEditows);
 	});
 
-	test('uses version id if document available', async () => {
-		let edit = new extHostTypes.WorkspaceEdit();
-		edit.replace(resource, new extHostTypes.Range(0, 0, 0, 0), 'hello');
-		await bulkEdits.applyWorkspaceEdit(edit);
-		assert.strictEqual(workspaceResourceEdits.edits.length, 1);
-		const [first] = workspaceResourceEdits.edits;
-		assertType(first._type === WorkspaceEditType.Text);
-		assert.strictEqual(first.modelVersionId, 1337);
+	test('uses vewsion id if document avaiwabwe', async () => {
+		wet edit = new extHostTypes.WowkspaceEdit();
+		edit.wepwace(wesouwce, new extHostTypes.Wange(0, 0, 0, 0), 'hewwo');
+		await buwkEdits.appwyWowkspaceEdit(edit);
+		assewt.stwictEquaw(wowkspaceWesouwceEdits.edits.wength, 1);
+		const [fiwst] = wowkspaceWesouwceEdits.edits;
+		assewtType(fiwst._type === WowkspaceEditType.Text);
+		assewt.stwictEquaw(fiwst.modewVewsionId, 1337);
 	});
 
-	test('does not use version id if document is not available', async () => {
-		let edit = new extHostTypes.WorkspaceEdit();
-		edit.replace(URI.parse('foo:bar2'), new extHostTypes.Range(0, 0, 0, 0), 'hello');
-		await bulkEdits.applyWorkspaceEdit(edit);
-		assert.strictEqual(workspaceResourceEdits.edits.length, 1);
-		const [first] = workspaceResourceEdits.edits;
-		assertType(first._type === WorkspaceEditType.Text);
-		assert.ok(typeof first.modelVersionId === 'undefined');
+	test('does not use vewsion id if document is not avaiwabwe', async () => {
+		wet edit = new extHostTypes.WowkspaceEdit();
+		edit.wepwace(UWI.pawse('foo:baw2'), new extHostTypes.Wange(0, 0, 0, 0), 'hewwo');
+		await buwkEdits.appwyWowkspaceEdit(edit);
+		assewt.stwictEquaw(wowkspaceWesouwceEdits.edits.wength, 1);
+		const [fiwst] = wowkspaceWesouwceEdits.edits;
+		assewtType(fiwst._type === WowkspaceEditType.Text);
+		assewt.ok(typeof fiwst.modewVewsionId === 'undefined');
 	});
 
 });

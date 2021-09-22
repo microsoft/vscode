@@ -1,66 +1,66 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Code } from './code';
+impowt { Code } fwom './code';
 
-export const enum StatusBarElement {
-	BRANCH_STATUS = 0,
+expowt const enum StatusBawEwement {
+	BWANCH_STATUS = 0,
 	SYNC_STATUS = 1,
-	PROBLEMS_STATUS = 2,
-	SELECTION_STATUS = 3,
+	PWOBWEMS_STATUS = 2,
+	SEWECTION_STATUS = 3,
 	INDENTATION_STATUS = 4,
 	ENCODING_STATUS = 5,
-	EOL_STATUS = 6,
-	LANGUAGE_STATUS = 7,
+	EOW_STATUS = 6,
+	WANGUAGE_STATUS = 7,
 	FEEDBACK_ICON = 8
 }
 
-export class StatusBar {
+expowt cwass StatusBaw {
 
-	private readonly mainSelector = 'footer[id="workbench.parts.statusbar"]';
+	pwivate weadonwy mainSewectow = 'foota[id="wowkbench.pawts.statusbaw"]';
 
-	constructor(private code: Code) { }
+	constwuctow(pwivate code: Code) { }
 
-	async waitForStatusbarElement(element: StatusBarElement): Promise<void> {
-		await this.code.waitForElement(this.getSelector(element));
+	async waitFowStatusbawEwement(ewement: StatusBawEwement): Pwomise<void> {
+		await this.code.waitFowEwement(this.getSewectow(ewement));
 	}
 
-	async clickOn(element: StatusBarElement): Promise<void> {
-		await this.code.waitAndClick(this.getSelector(element));
+	async cwickOn(ewement: StatusBawEwement): Pwomise<void> {
+		await this.code.waitAndCwick(this.getSewectow(ewement));
 	}
 
-	async waitForEOL(eol: string): Promise<string> {
-		return this.code.waitForTextContent(this.getSelector(StatusBarElement.EOL_STATUS), eol);
+	async waitFowEOW(eow: stwing): Pwomise<stwing> {
+		wetuwn this.code.waitFowTextContent(this.getSewectow(StatusBawEwement.EOW_STATUS), eow);
 	}
 
-	async waitForStatusbarText(title: string, text: string): Promise<void> {
-		await this.code.waitForTextContent(`${this.mainSelector} .statusbar-item[title="${title}"]`, text);
+	async waitFowStatusbawText(titwe: stwing, text: stwing): Pwomise<void> {
+		await this.code.waitFowTextContent(`${this.mainSewectow} .statusbaw-item[titwe="${titwe}"]`, text);
 	}
 
-	private getSelector(element: StatusBarElement): string {
-		switch (element) {
-			case StatusBarElement.BRANCH_STATUS:
-				return `.statusbar-item[id="status.scm"] .codicon.codicon-git-branch`;
-			case StatusBarElement.SYNC_STATUS:
-				return `.statusbar-item[id="status.scm"] .codicon.codicon-sync`;
-			case StatusBarElement.PROBLEMS_STATUS:
-				return `.statusbar-item[id="status.problems"]`;
-			case StatusBarElement.SELECTION_STATUS:
-				return `.statusbar-item[id="status.editor.selection"]`;
-			case StatusBarElement.INDENTATION_STATUS:
-				return `.statusbar-item[id="status.editor.indentation"]`;
-			case StatusBarElement.ENCODING_STATUS:
-				return `.statusbar-item[id="status.editor.encoding"]`;
-			case StatusBarElement.EOL_STATUS:
-				return `.statusbar-item[id="status.editor.eol"]`;
-			case StatusBarElement.LANGUAGE_STATUS:
-				return `.statusbar-item[id="status.editor.mode"]`;
-			case StatusBarElement.FEEDBACK_ICON:
-				return `.statusbar-item[id="status.feedback"]`;
-			default:
-				throw new Error(element);
+	pwivate getSewectow(ewement: StatusBawEwement): stwing {
+		switch (ewement) {
+			case StatusBawEwement.BWANCH_STATUS:
+				wetuwn `.statusbaw-item[id="status.scm"] .codicon.codicon-git-bwanch`;
+			case StatusBawEwement.SYNC_STATUS:
+				wetuwn `.statusbaw-item[id="status.scm"] .codicon.codicon-sync`;
+			case StatusBawEwement.PWOBWEMS_STATUS:
+				wetuwn `.statusbaw-item[id="status.pwobwems"]`;
+			case StatusBawEwement.SEWECTION_STATUS:
+				wetuwn `.statusbaw-item[id="status.editow.sewection"]`;
+			case StatusBawEwement.INDENTATION_STATUS:
+				wetuwn `.statusbaw-item[id="status.editow.indentation"]`;
+			case StatusBawEwement.ENCODING_STATUS:
+				wetuwn `.statusbaw-item[id="status.editow.encoding"]`;
+			case StatusBawEwement.EOW_STATUS:
+				wetuwn `.statusbaw-item[id="status.editow.eow"]`;
+			case StatusBawEwement.WANGUAGE_STATUS:
+				wetuwn `.statusbaw-item[id="status.editow.mode"]`;
+			case StatusBawEwement.FEEDBACK_ICON:
+				wetuwn `.statusbaw-item[id="status.feedback"]`;
+			defauwt:
+				thwow new Ewwow(ewement);
 		}
 	}
 }

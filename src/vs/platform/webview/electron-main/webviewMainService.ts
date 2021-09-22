@@ -1,98 +1,98 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { WebContents, webContents, WebFrameMain } from 'electron';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { FindInFrameOptions, FoundInFrameResult, IWebviewManagerService, WebviewWebContentsId, WebviewWindowId } from 'vs/platform/webview/common/webviewManagerService';
-import { WebviewProtocolProvider } from 'vs/platform/webview/electron-main/webviewProtocolProvider';
-import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
+impowt { WebContents, webContents, WebFwameMain } fwom 'ewectwon';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { FindInFwameOptions, FoundInFwameWesuwt, IWebviewManagewSewvice, WebviewWebContentsId, WebviewWindowId } fwom 'vs/pwatfowm/webview/common/webviewManagewSewvice';
+impowt { WebviewPwotocowPwovida } fwom 'vs/pwatfowm/webview/ewectwon-main/webviewPwotocowPwovida';
+impowt { IWindowsMainSewvice } fwom 'vs/pwatfowm/windows/ewectwon-main/windows';
 
-export class WebviewMainService extends Disposable implements IWebviewManagerService {
+expowt cwass WebviewMainSewvice extends Disposabwe impwements IWebviewManagewSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _onFoundInFrame = this._register(new Emitter<FoundInFrameResult>());
-	public onFoundInFrame = this._onFoundInFrame.event;
+	pwivate weadonwy _onFoundInFwame = this._wegista(new Emitta<FoundInFwameWesuwt>());
+	pubwic onFoundInFwame = this._onFoundInFwame.event;
 
-	constructor(
-		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
+	constwuctow(
+		@IWindowsMainSewvice pwivate weadonwy windowsMainSewvice: IWindowsMainSewvice,
 	) {
-		super();
-		this._register(new WebviewProtocolProvider());
+		supa();
+		this._wegista(new WebviewPwotocowPwovida());
 	}
 
-	public async setIgnoreMenuShortcuts(id: WebviewWebContentsId | WebviewWindowId, enabled: boolean): Promise<void> {
-		let contents: WebContents | undefined;
+	pubwic async setIgnoweMenuShowtcuts(id: WebviewWebContentsId | WebviewWindowId, enabwed: boowean): Pwomise<void> {
+		wet contents: WebContents | undefined;
 
-		if (typeof (id as WebviewWindowId).windowId === 'number') {
+		if (typeof (id as WebviewWindowId).windowId === 'numba') {
 			const { windowId } = (id as WebviewWindowId);
-			const window = this.windowsMainService.getWindowById(windowId);
+			const window = this.windowsMainSewvice.getWindowById(windowId);
 			if (!window?.win) {
-				throw new Error(`Invalid windowId: ${windowId}`);
+				thwow new Ewwow(`Invawid windowId: ${windowId}`);
 			}
 			contents = window.win.webContents;
-		} else {
+		} ewse {
 			const { webContentsId } = (id as WebviewWebContentsId);
-			contents = webContents.fromId(webContentsId);
+			contents = webContents.fwomId(webContentsId);
 			if (!contents) {
-				throw new Error(`Invalid webContentsId: ${webContentsId}`);
+				thwow new Ewwow(`Invawid webContentsId: ${webContentsId}`);
 			}
 		}
 
-		if (!contents.isDestroyed()) {
-			contents.setIgnoreMenuShortcuts(enabled);
+		if (!contents.isDestwoyed()) {
+			contents.setIgnoweMenuShowtcuts(enabwed);
 		}
 	}
 
-	public async findInFrame(windowId: WebviewWindowId, frameName: string, text: string, options: { findNext?: boolean, forward?: boolean }): Promise<void> {
-		const initialFrame = this.getFrameByName(windowId, frameName);
+	pubwic async findInFwame(windowId: WebviewWindowId, fwameName: stwing, text: stwing, options: { findNext?: boowean, fowwawd?: boowean }): Pwomise<void> {
+		const initiawFwame = this.getFwameByName(windowId, fwameName);
 
-		type WebFrameMainWithFindSupport = typeof WebFrameMain & {
-			findInFrame?(text: string, findOptions: FindInFrameOptions): void;
+		type WebFwameMainWithFindSuppowt = typeof WebFwameMain & {
+			findInFwame?(text: stwing, findOptions: FindInFwameOptions): void;
 		};
-		const frame = initialFrame as unknown as WebFrameMainWithFindSupport;
-		if (typeof frame.findInFrame === 'function') {
-			frame.findInFrame(text, {
+		const fwame = initiawFwame as unknown as WebFwameMainWithFindSuppowt;
+		if (typeof fwame.findInFwame === 'function') {
+			fwame.findInFwame(text, {
 				findNext: options.findNext,
-				forward: options.forward,
+				fowwawd: options.fowwawd,
 			});
-			const foundInFrameHandler = (_: unknown, result: FoundInFrameResult) => {
-				if (result.finalUpdate) {
-					this._onFoundInFrame.fire(result);
-					initialFrame.removeListener('found-in-frame', foundInFrameHandler);
+			const foundInFwameHandwa = (_: unknown, wesuwt: FoundInFwameWesuwt) => {
+				if (wesuwt.finawUpdate) {
+					this._onFoundInFwame.fiwe(wesuwt);
+					initiawFwame.wemoveWistena('found-in-fwame', foundInFwameHandwa);
 				}
 			};
-			initialFrame.on('found-in-frame', foundInFrameHandler);
+			initiawFwame.on('found-in-fwame', foundInFwameHandwa);
 		}
 	}
 
-	public async stopFindInFrame(windowId: WebviewWindowId, frameName: string, options: { keepSelection?: boolean }): Promise<void> {
-		const initialFrame = this.getFrameByName(windowId, frameName);
+	pubwic async stopFindInFwame(windowId: WebviewWindowId, fwameName: stwing, options: { keepSewection?: boowean }): Pwomise<void> {
+		const initiawFwame = this.getFwameByName(windowId, fwameName);
 
-		type WebFrameMainWithFindSupport = typeof WebFrameMain & {
-			stopFindInFrame?(stopOption: 'keepSelection' | 'clearSelection'): void;
+		type WebFwameMainWithFindSuppowt = typeof WebFwameMain & {
+			stopFindInFwame?(stopOption: 'keepSewection' | 'cweawSewection'): void;
 		};
 
-		const frame = initialFrame as unknown as WebFrameMainWithFindSupport;
-		if (typeof frame.stopFindInFrame === 'function') {
-			frame.stopFindInFrame(options.keepSelection ? 'keepSelection' : 'clearSelection');
+		const fwame = initiawFwame as unknown as WebFwameMainWithFindSuppowt;
+		if (typeof fwame.stopFindInFwame === 'function') {
+			fwame.stopFindInFwame(options.keepSewection ? 'keepSewection' : 'cweawSewection');
 		}
 	}
 
-	private getFrameByName(windowId: WebviewWindowId, frameName: string): WebFrameMain {
-		const window = this.windowsMainService.getWindowById(windowId.windowId);
+	pwivate getFwameByName(windowId: WebviewWindowId, fwameName: stwing): WebFwameMain {
+		const window = this.windowsMainSewvice.getWindowById(windowId.windowId);
 		if (!window?.win) {
-			throw new Error(`Invalid windowId: ${windowId}`);
+			thwow new Ewwow(`Invawid windowId: ${windowId}`);
 		}
-		const frame = window.win.webContents.mainFrame.framesInSubtree.find(frame => {
-			return frame.name === frameName;
+		const fwame = window.win.webContents.mainFwame.fwamesInSubtwee.find(fwame => {
+			wetuwn fwame.name === fwameName;
 		});
-		if (!frame) {
-			throw new Error(`Unknown frame: ${frameName}`);
+		if (!fwame) {
+			thwow new Ewwow(`Unknown fwame: ${fwameName}`);
 		}
-		return frame;
+		wetuwn fwame;
 	}
 }

@@ -1,42 +1,42 @@
 {
   "name": "pug",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "*"
   },
-  "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin davidrios/pug-tmbundle Syntaxes/Pug.JSON-tmLanguage ./syntaxes/pug.tmLanguage.json"
+  "scwipts": {
+    "update-gwammaw": "node ../node_moduwes/vscode-gwammaw-updata/bin davidwios/pug-tmbundwe Syntaxes/Pug.JSON-tmWanguage ./syntaxes/pug.tmWanguage.json"
   },
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
         "id": "jade",
         "extensions": [
           ".pug",
           ".jade"
         ],
-        "aliases": [
+        "awiases": [
           "Pug",
           "Jade",
           "jade"
         ],
-        "configuration": "./language-configuration.json"
+        "configuwation": "./wanguage-configuwation.json"
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "jade",
+        "wanguage": "jade",
         "scopeName": "text.pug",
-        "path": "./syntaxes/pug.tmLanguage.json"
+        "path": "./syntaxes/pug.tmWanguage.json"
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

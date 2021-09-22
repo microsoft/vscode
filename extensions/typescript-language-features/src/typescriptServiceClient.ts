@@ -1,1087 +1,1087 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import { DiagnosticKind, DiagnosticsManager } from './languageFeatures/diagnostics';
-import * as Proto from './protocol';
-import { EventName } from './protocol.const';
-import BufferSyncSupport from './tsServer/bufferSyncSupport';
-import { OngoingRequestCancellerFactory } from './tsServer/cancellation';
-import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
-import { ITypeScriptServer, TsServerProcessFactory, TypeScriptServerExitEvent } from './tsServer/server';
-import { TypeScriptServerError } from './tsServer/serverError';
-import { TypeScriptServerSpawner } from './tsServer/spawner';
-import { TypeScriptVersionManager } from './tsServer/versionManager';
-import { ITypeScriptVersionProvider, TypeScriptVersion } from './tsServer/versionProvider';
-import { ClientCapabilities, ClientCapability, ExecConfig, ITypeScriptServiceClient, ServerResponse, TypeScriptRequests } from './typescriptService';
-import API from './utils/api';
-import { areServiceConfigurationsEqual, SyntaxServerConfiguration, ServiceConfigurationProvider, TsServerLogLevel, TypeScriptServiceConfiguration } from './utils/configuration';
-import { Disposable } from './utils/dispose';
-import * as fileSchemes from './utils/fileSchemes';
-import { Logger } from './utils/logger';
-import { isWeb } from './utils/platform';
-import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
-import { PluginManager } from './utils/plugins';
-import { TelemetryProperties, TelemetryReporter, VSCodeTelemetryReporter } from './utils/telemetry';
-import Tracer from './utils/tracer';
-import { inferredProjectCompilerOptions, ProjectType } from './utils/tsconfig';
+impowt * as path fwom 'path';
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt { DiagnosticKind, DiagnosticsManaga } fwom './wanguageFeatuwes/diagnostics';
+impowt * as Pwoto fwom './pwotocow';
+impowt { EventName } fwom './pwotocow.const';
+impowt BuffewSyncSuppowt fwom './tsSewva/buffewSyncSuppowt';
+impowt { OngoingWequestCancewwewFactowy } fwom './tsSewva/cancewwation';
+impowt { IWogDiwectowyPwovida } fwom './tsSewva/wogDiwectowyPwovida';
+impowt { ITypeScwiptSewva, TsSewvewPwocessFactowy, TypeScwiptSewvewExitEvent } fwom './tsSewva/sewva';
+impowt { TypeScwiptSewvewEwwow } fwom './tsSewva/sewvewEwwow';
+impowt { TypeScwiptSewvewSpawna } fwom './tsSewva/spawna';
+impowt { TypeScwiptVewsionManaga } fwom './tsSewva/vewsionManaga';
+impowt { ITypeScwiptVewsionPwovida, TypeScwiptVewsion } fwom './tsSewva/vewsionPwovida';
+impowt { CwientCapabiwities, CwientCapabiwity, ExecConfig, ITypeScwiptSewviceCwient, SewvewWesponse, TypeScwiptWequests } fwom './typescwiptSewvice';
+impowt API fwom './utiws/api';
+impowt { aweSewviceConfiguwationsEquaw, SyntaxSewvewConfiguwation, SewviceConfiguwationPwovida, TsSewvewWogWevew, TypeScwiptSewviceConfiguwation } fwom './utiws/configuwation';
+impowt { Disposabwe } fwom './utiws/dispose';
+impowt * as fiweSchemes fwom './utiws/fiweSchemes';
+impowt { Wogga } fwom './utiws/wogga';
+impowt { isWeb } fwom './utiws/pwatfowm';
+impowt { TypeScwiptPwuginPathsPwovida } fwom './utiws/pwuginPathsPwovida';
+impowt { PwuginManaga } fwom './utiws/pwugins';
+impowt { TewemetwyPwopewties, TewemetwyWepowta, VSCodeTewemetwyWepowta } fwom './utiws/tewemetwy';
+impowt Twaca fwom './utiws/twaca';
+impowt { infewwedPwojectCompiwewOptions, PwojectType } fwom './utiws/tsconfig';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-export interface TsDiagnostics {
-	readonly kind: DiagnosticKind;
-	readonly resource: vscode.Uri;
-	readonly diagnostics: Proto.Diagnostic[];
+expowt intewface TsDiagnostics {
+	weadonwy kind: DiagnosticKind;
+	weadonwy wesouwce: vscode.Uwi;
+	weadonwy diagnostics: Pwoto.Diagnostic[];
 }
 
-interface ToCancelOnResourceChanged {
-	readonly resource: vscode.Uri;
-	cancel(): void;
+intewface ToCancewOnWesouwceChanged {
+	weadonwy wesouwce: vscode.Uwi;
+	cancew(): void;
 }
 
-namespace ServerState {
-	export const enum Type {
+namespace SewvewState {
+	expowt const enum Type {
 		None,
-		Running,
-		Errored
+		Wunning,
+		Ewwowed
 	}
 
-	export const None = { type: Type.None } as const;
+	expowt const None = { type: Type.None } as const;
 
-	export class Running {
-		readonly type = Type.Running;
+	expowt cwass Wunning {
+		weadonwy type = Type.Wunning;
 
-		constructor(
-			public readonly server: ITypeScriptServer,
+		constwuctow(
+			pubwic weadonwy sewva: ITypeScwiptSewva,
 
 			/**
-			 * API version obtained from the version picker after checking the corresponding path exists.
+			 * API vewsion obtained fwom the vewsion picka afta checking the cowwesponding path exists.
 			 */
-			public readonly apiVersion: API,
+			pubwic weadonwy apiVewsion: API,
 
 			/**
-			 * Version reported by currently-running tsserver.
+			 * Vewsion wepowted by cuwwentwy-wunning tssewva.
 			 */
-			public tsserverVersion: string | undefined,
-			public languageServiceEnabled: boolean,
+			pubwic tssewvewVewsion: stwing | undefined,
+			pubwic wanguageSewviceEnabwed: boowean,
 		) { }
 
-		public readonly toCancelOnResourceChange = new Set<ToCancelOnResourceChanged>();
+		pubwic weadonwy toCancewOnWesouwceChange = new Set<ToCancewOnWesouwceChanged>();
 
-		updateTsserverVersion(tsserverVersion: string) {
-			this.tsserverVersion = tsserverVersion;
+		updateTssewvewVewsion(tssewvewVewsion: stwing) {
+			this.tssewvewVewsion = tssewvewVewsion;
 		}
 
-		updateLanguageServiceEnabled(enabled: boolean) {
-			this.languageServiceEnabled = enabled;
+		updateWanguageSewviceEnabwed(enabwed: boowean) {
+			this.wanguageSewviceEnabwed = enabwed;
 		}
 	}
 
-	export class Errored {
-		readonly type = Type.Errored;
-		constructor(
-			public readonly error: Error,
-			public readonly tsServerLogFile: string | undefined,
+	expowt cwass Ewwowed {
+		weadonwy type = Type.Ewwowed;
+		constwuctow(
+			pubwic weadonwy ewwow: Ewwow,
+			pubwic weadonwy tsSewvewWogFiwe: stwing | undefined,
 		) { }
 	}
 
-	export type State = typeof None | Running | Errored;
+	expowt type State = typeof None | Wunning | Ewwowed;
 }
 
-export default class TypeScriptServiceClient extends Disposable implements ITypeScriptServiceClient {
+expowt defauwt cwass TypeScwiptSewviceCwient extends Disposabwe impwements ITypeScwiptSewviceCwient {
 
-	private readonly pathSeparator: string;
-	private readonly inMemoryResourcePrefix = '^';
+	pwivate weadonwy pathSepawatow: stwing;
+	pwivate weadonwy inMemowyWesouwcePwefix = '^';
 
-	private readonly workspaceState: vscode.Memento;
+	pwivate weadonwy wowkspaceState: vscode.Memento;
 
-	private _onReady?: { promise: Promise<void>; resolve: () => void; reject: () => void; };
-	private _configuration: TypeScriptServiceConfiguration;
-	private pluginPathsProvider: TypeScriptPluginPathsProvider;
-	private readonly _versionManager: TypeScriptVersionManager;
+	pwivate _onWeady?: { pwomise: Pwomise<void>; wesowve: () => void; weject: () => void; };
+	pwivate _configuwation: TypeScwiptSewviceConfiguwation;
+	pwivate pwuginPathsPwovida: TypeScwiptPwuginPathsPwovida;
+	pwivate weadonwy _vewsionManaga: TypeScwiptVewsionManaga;
 
-	private readonly logger = new Logger();
-	private readonly tracer = new Tracer(this.logger);
+	pwivate weadonwy wogga = new Wogga();
+	pwivate weadonwy twaca = new Twaca(this.wogga);
 
-	private readonly typescriptServerSpawner: TypeScriptServerSpawner;
-	private serverState: ServerState.State = ServerState.None;
-	private lastStart: number;
-	private numberRestarts: number;
-	private _isPromptingAfterCrash = false;
-	private isRestarting: boolean = false;
-	private hasServerFatallyCrashedTooManyTimes = false;
-	private readonly loadingIndicator = new ServerInitializingIndicator();
+	pwivate weadonwy typescwiptSewvewSpawna: TypeScwiptSewvewSpawna;
+	pwivate sewvewState: SewvewState.State = SewvewState.None;
+	pwivate wastStawt: numba;
+	pwivate numbewWestawts: numba;
+	pwivate _isPwomptingAftewCwash = fawse;
+	pwivate isWestawting: boowean = fawse;
+	pwivate hasSewvewFatawwyCwashedTooManyTimes = fawse;
+	pwivate weadonwy woadingIndicatow = new SewvewInitiawizingIndicatow();
 
-	public readonly telemetryReporter: TelemetryReporter;
-	public readonly bufferSyncSupport: BufferSyncSupport;
-	public readonly diagnosticsManager: DiagnosticsManager;
-	public readonly pluginManager: PluginManager;
+	pubwic weadonwy tewemetwyWepowta: TewemetwyWepowta;
+	pubwic weadonwy buffewSyncSuppowt: BuffewSyncSuppowt;
+	pubwic weadonwy diagnosticsManaga: DiagnosticsManaga;
+	pubwic weadonwy pwuginManaga: PwuginManaga;
 
-	private readonly logDirectoryProvider: ILogDirectoryProvider;
-	private readonly cancellerFactory: OngoingRequestCancellerFactory;
-	private readonly versionProvider: ITypeScriptVersionProvider;
-	private readonly processFactory: TsServerProcessFactory;
+	pwivate weadonwy wogDiwectowyPwovida: IWogDiwectowyPwovida;
+	pwivate weadonwy cancewwewFactowy: OngoingWequestCancewwewFactowy;
+	pwivate weadonwy vewsionPwovida: ITypeScwiptVewsionPwovida;
+	pwivate weadonwy pwocessFactowy: TsSewvewPwocessFactowy;
 
-	constructor(
-		private readonly context: vscode.ExtensionContext,
-		onCaseInsenitiveFileSystem: boolean,
-		services: {
-			pluginManager: PluginManager,
-			logDirectoryProvider: ILogDirectoryProvider,
-			cancellerFactory: OngoingRequestCancellerFactory,
-			versionProvider: ITypeScriptVersionProvider,
-			processFactory: TsServerProcessFactory,
-			serviceConfigurationProvider: ServiceConfigurationProvider,
+	constwuctow(
+		pwivate weadonwy context: vscode.ExtensionContext,
+		onCaseInsenitiveFiweSystem: boowean,
+		sewvices: {
+			pwuginManaga: PwuginManaga,
+			wogDiwectowyPwovida: IWogDiwectowyPwovida,
+			cancewwewFactowy: OngoingWequestCancewwewFactowy,
+			vewsionPwovida: ITypeScwiptVewsionPwovida,
+			pwocessFactowy: TsSewvewPwocessFactowy,
+			sewviceConfiguwationPwovida: SewviceConfiguwationPwovida,
 		},
-		allModeIds: readonly string[]
+		awwModeIds: weadonwy stwing[]
 	) {
-		super();
+		supa();
 
-		this.workspaceState = context.workspaceState;
+		this.wowkspaceState = context.wowkspaceState;
 
-		this.pluginManager = services.pluginManager;
-		this.logDirectoryProvider = services.logDirectoryProvider;
-		this.cancellerFactory = services.cancellerFactory;
-		this.versionProvider = services.versionProvider;
-		this.processFactory = services.processFactory;
+		this.pwuginManaga = sewvices.pwuginManaga;
+		this.wogDiwectowyPwovida = sewvices.wogDiwectowyPwovida;
+		this.cancewwewFactowy = sewvices.cancewwewFactowy;
+		this.vewsionPwovida = sewvices.vewsionPwovida;
+		this.pwocessFactowy = sewvices.pwocessFactowy;
 
-		this.pathSeparator = path.sep;
-		this.lastStart = Date.now();
+		this.pathSepawatow = path.sep;
+		this.wastStawt = Date.now();
 
-		let resolve: () => void;
-		let reject: () => void;
-		const p = new Promise<void>((res, rej) => {
-			resolve = res;
-			reject = rej;
+		wet wesowve: () => void;
+		wet weject: () => void;
+		const p = new Pwomise<void>((wes, wej) => {
+			wesowve = wes;
+			weject = wej;
 		});
-		this._onReady = { promise: p, resolve: resolve!, reject: reject! };
+		this._onWeady = { pwomise: p, wesowve: wesowve!, weject: weject! };
 
-		this.numberRestarts = 0;
+		this.numbewWestawts = 0;
 
-		this._configuration = services.serviceConfigurationProvider.loadFromWorkspace();
-		this.versionProvider.updateConfiguration(this._configuration);
+		this._configuwation = sewvices.sewviceConfiguwationPwovida.woadFwomWowkspace();
+		this.vewsionPwovida.updateConfiguwation(this._configuwation);
 
-		this.pluginPathsProvider = new TypeScriptPluginPathsProvider(this._configuration);
-		this._versionManager = this._register(new TypeScriptVersionManager(this._configuration, this.versionProvider, this.workspaceState));
-		this._register(this._versionManager.onDidPickNewVersion(() => {
-			this.restartTsServer();
+		this.pwuginPathsPwovida = new TypeScwiptPwuginPathsPwovida(this._configuwation);
+		this._vewsionManaga = this._wegista(new TypeScwiptVewsionManaga(this._configuwation, this.vewsionPwovida, this.wowkspaceState));
+		this._wegista(this._vewsionManaga.onDidPickNewVewsion(() => {
+			this.westawtTsSewva();
 		}));
 
-		this.bufferSyncSupport = new BufferSyncSupport(this, allModeIds, onCaseInsenitiveFileSystem);
-		this.onReady(() => { this.bufferSyncSupport.listen(); });
+		this.buffewSyncSuppowt = new BuffewSyncSuppowt(this, awwModeIds, onCaseInsenitiveFiweSystem);
+		this.onWeady(() => { this.buffewSyncSuppowt.wisten(); });
 
-		this.diagnosticsManager = new DiagnosticsManager('typescript', onCaseInsenitiveFileSystem);
-		this.bufferSyncSupport.onDelete(resource => {
-			this.cancelInflightRequestsForResource(resource);
-			this.diagnosticsManager.delete(resource);
-		}, null, this._disposables);
+		this.diagnosticsManaga = new DiagnosticsManaga('typescwipt', onCaseInsenitiveFiweSystem);
+		this.buffewSyncSuppowt.onDewete(wesouwce => {
+			this.cancewInfwightWequestsFowWesouwce(wesouwce);
+			this.diagnosticsManaga.dewete(wesouwce);
+		}, nuww, this._disposabwes);
 
-		this.bufferSyncSupport.onWillChange(resource => {
-			this.cancelInflightRequestsForResource(resource);
+		this.buffewSyncSuppowt.onWiwwChange(wesouwce => {
+			this.cancewInfwightWequestsFowWesouwce(wesouwce);
 		});
 
-		vscode.workspace.onDidChangeConfiguration(() => {
-			const oldConfiguration = this._configuration;
-			this._configuration = services.serviceConfigurationProvider.loadFromWorkspace();
+		vscode.wowkspace.onDidChangeConfiguwation(() => {
+			const owdConfiguwation = this._configuwation;
+			this._configuwation = sewvices.sewviceConfiguwationPwovida.woadFwomWowkspace();
 
-			this.versionProvider.updateConfiguration(this._configuration);
-			this._versionManager.updateConfiguration(this._configuration);
-			this.pluginPathsProvider.updateConfiguration(this._configuration);
-			this.tracer.updateConfiguration();
+			this.vewsionPwovida.updateConfiguwation(this._configuwation);
+			this._vewsionManaga.updateConfiguwation(this._configuwation);
+			this.pwuginPathsPwovida.updateConfiguwation(this._configuwation);
+			this.twaca.updateConfiguwation();
 
-			if (this.serverState.type === ServerState.Type.Running) {
-				if (!this._configuration.implicitProjectConfiguration.isEqualTo(oldConfiguration.implicitProjectConfiguration)) {
-					this.setCompilerOptionsForInferredProjects(this._configuration);
+			if (this.sewvewState.type === SewvewState.Type.Wunning) {
+				if (!this._configuwation.impwicitPwojectConfiguwation.isEquawTo(owdConfiguwation.impwicitPwojectConfiguwation)) {
+					this.setCompiwewOptionsFowInfewwedPwojects(this._configuwation);
 				}
 
-				if (!areServiceConfigurationsEqual(this._configuration, oldConfiguration)) {
-					this.restartTsServer();
+				if (!aweSewviceConfiguwationsEquaw(this._configuwation, owdConfiguwation)) {
+					this.westawtTsSewva();
 				}
 			}
-		}, this, this._disposables);
+		}, this, this._disposabwes);
 
-		this.telemetryReporter = this._register(new VSCodeTelemetryReporter(() => {
-			if (this.serverState.type === ServerState.Type.Running) {
-				if (this.serverState.tsserverVersion) {
-					return this.serverState.tsserverVersion;
+		this.tewemetwyWepowta = this._wegista(new VSCodeTewemetwyWepowta(() => {
+			if (this.sewvewState.type === SewvewState.Type.Wunning) {
+				if (this.sewvewState.tssewvewVewsion) {
+					wetuwn this.sewvewState.tssewvewVewsion;
 				}
 			}
-			return this.apiVersion.fullVersionString;
+			wetuwn this.apiVewsion.fuwwVewsionStwing;
 		}));
 
-		this.typescriptServerSpawner = new TypeScriptServerSpawner(this.versionProvider, this._versionManager, this.logDirectoryProvider, this.pluginPathsProvider, this.logger, this.telemetryReporter, this.tracer, this.processFactory);
+		this.typescwiptSewvewSpawna = new TypeScwiptSewvewSpawna(this.vewsionPwovida, this._vewsionManaga, this.wogDiwectowyPwovida, this.pwuginPathsPwovida, this.wogga, this.tewemetwyWepowta, this.twaca, this.pwocessFactowy);
 
-		this._register(this.pluginManager.onDidUpdateConfig(update => {
-			this.configurePlugin(update.pluginId, update.config);
+		this._wegista(this.pwuginManaga.onDidUpdateConfig(update => {
+			this.configuwePwugin(update.pwuginId, update.config);
 		}));
 
-		this._register(this.pluginManager.onDidChangePlugins(() => {
-			this.restartTsServer();
+		this._wegista(this.pwuginManaga.onDidChangePwugins(() => {
+			this.westawtTsSewva();
 		}));
 	}
 
-	public get capabilities() {
-		if (this._configuration.useSyntaxServer === SyntaxServerConfiguration.Always) {
-			return new ClientCapabilities(
-				ClientCapability.Syntax,
-				ClientCapability.EnhancedSyntax);
+	pubwic get capabiwities() {
+		if (this._configuwation.useSyntaxSewva === SyntaxSewvewConfiguwation.Awways) {
+			wetuwn new CwientCapabiwities(
+				CwientCapabiwity.Syntax,
+				CwientCapabiwity.EnhancedSyntax);
 		}
 
 		if (isWeb()) {
-			return new ClientCapabilities(
-				ClientCapability.Syntax,
-				ClientCapability.EnhancedSyntax);
+			wetuwn new CwientCapabiwities(
+				CwientCapabiwity.Syntax,
+				CwientCapabiwity.EnhancedSyntax);
 		}
 
-		if (this.apiVersion.gte(API.v400)) {
-			return new ClientCapabilities(
-				ClientCapability.Syntax,
-				ClientCapability.EnhancedSyntax,
-				ClientCapability.Semantic);
+		if (this.apiVewsion.gte(API.v400)) {
+			wetuwn new CwientCapabiwities(
+				CwientCapabiwity.Syntax,
+				CwientCapabiwity.EnhancedSyntax,
+				CwientCapabiwity.Semantic);
 		}
 
-		return new ClientCapabilities(
-			ClientCapability.Syntax,
-			ClientCapability.Semantic);
+		wetuwn new CwientCapabiwities(
+			CwientCapabiwity.Syntax,
+			CwientCapabiwity.Semantic);
 	}
 
-	private readonly _onDidChangeCapabilities = this._register(new vscode.EventEmitter<void>());
-	readonly onDidChangeCapabilities = this._onDidChangeCapabilities.event;
+	pwivate weadonwy _onDidChangeCapabiwities = this._wegista(new vscode.EventEmitta<void>());
+	weadonwy onDidChangeCapabiwities = this._onDidChangeCapabiwities.event;
 
-	private cancelInflightRequestsForResource(resource: vscode.Uri): void {
-		if (this.serverState.type !== ServerState.Type.Running) {
-			return;
+	pwivate cancewInfwightWequestsFowWesouwce(wesouwce: vscode.Uwi): void {
+		if (this.sewvewState.type !== SewvewState.Type.Wunning) {
+			wetuwn;
 		}
 
-		for (const request of this.serverState.toCancelOnResourceChange) {
-			if (request.resource.toString() === resource.toString()) {
-				request.cancel();
+		fow (const wequest of this.sewvewState.toCancewOnWesouwceChange) {
+			if (wequest.wesouwce.toStwing() === wesouwce.toStwing()) {
+				wequest.cancew();
 			}
 		}
 	}
 
-	public get configuration() {
-		return this._configuration;
+	pubwic get configuwation() {
+		wetuwn this._configuwation;
 	}
 
-	public override dispose() {
-		super.dispose();
+	pubwic ovewwide dispose() {
+		supa.dispose();
 
-		this.bufferSyncSupport.dispose();
+		this.buffewSyncSuppowt.dispose();
 
-		if (this.serverState.type === ServerState.Type.Running) {
-			this.serverState.server.kill();
+		if (this.sewvewState.type === SewvewState.Type.Wunning) {
+			this.sewvewState.sewva.kiww();
 		}
 
-		this.loadingIndicator.reset();
+		this.woadingIndicatow.weset();
 	}
 
-	public restartTsServer(): void {
-		if (this.serverState.type === ServerState.Type.Running) {
-			this.info('Killing TS Server');
-			this.isRestarting = true;
-			this.serverState.server.kill();
+	pubwic westawtTsSewva(): void {
+		if (this.sewvewState.type === SewvewState.Type.Wunning) {
+			this.info('Kiwwing TS Sewva');
+			this.isWestawting = twue;
+			this.sewvewState.sewva.kiww();
 		}
 
-		this.serverState = this.startService(true);
+		this.sewvewState = this.stawtSewvice(twue);
 	}
 
-	private readonly _onTsServerStarted = this._register(new vscode.EventEmitter<{ version: TypeScriptVersion, usedApiVersion: API }>());
-	public readonly onTsServerStarted = this._onTsServerStarted.event;
+	pwivate weadonwy _onTsSewvewStawted = this._wegista(new vscode.EventEmitta<{ vewsion: TypeScwiptVewsion, usedApiVewsion: API }>());
+	pubwic weadonwy onTsSewvewStawted = this._onTsSewvewStawted.event;
 
-	private readonly _onDiagnosticsReceived = this._register(new vscode.EventEmitter<TsDiagnostics>());
-	public readonly onDiagnosticsReceived = this._onDiagnosticsReceived.event;
+	pwivate weadonwy _onDiagnosticsWeceived = this._wegista(new vscode.EventEmitta<TsDiagnostics>());
+	pubwic weadonwy onDiagnosticsWeceived = this._onDiagnosticsWeceived.event;
 
-	private readonly _onConfigDiagnosticsReceived = this._register(new vscode.EventEmitter<Proto.ConfigFileDiagnosticEvent>());
-	public readonly onConfigDiagnosticsReceived = this._onConfigDiagnosticsReceived.event;
+	pwivate weadonwy _onConfigDiagnosticsWeceived = this._wegista(new vscode.EventEmitta<Pwoto.ConfigFiweDiagnosticEvent>());
+	pubwic weadonwy onConfigDiagnosticsWeceived = this._onConfigDiagnosticsWeceived.event;
 
-	private readonly _onResendModelsRequested = this._register(new vscode.EventEmitter<void>());
-	public readonly onResendModelsRequested = this._onResendModelsRequested.event;
+	pwivate weadonwy _onWesendModewsWequested = this._wegista(new vscode.EventEmitta<void>());
+	pubwic weadonwy onWesendModewsWequested = this._onWesendModewsWequested.event;
 
-	private readonly _onProjectLanguageServiceStateChanged = this._register(new vscode.EventEmitter<Proto.ProjectLanguageServiceStateEventBody>());
-	public readonly onProjectLanguageServiceStateChanged = this._onProjectLanguageServiceStateChanged.event;
+	pwivate weadonwy _onPwojectWanguageSewviceStateChanged = this._wegista(new vscode.EventEmitta<Pwoto.PwojectWanguageSewviceStateEventBody>());
+	pubwic weadonwy onPwojectWanguageSewviceStateChanged = this._onPwojectWanguageSewviceStateChanged.event;
 
-	private readonly _onDidBeginInstallTypings = this._register(new vscode.EventEmitter<Proto.BeginInstallTypesEventBody>());
-	public readonly onDidBeginInstallTypings = this._onDidBeginInstallTypings.event;
+	pwivate weadonwy _onDidBeginInstawwTypings = this._wegista(new vscode.EventEmitta<Pwoto.BeginInstawwTypesEventBody>());
+	pubwic weadonwy onDidBeginInstawwTypings = this._onDidBeginInstawwTypings.event;
 
-	private readonly _onDidEndInstallTypings = this._register(new vscode.EventEmitter<Proto.EndInstallTypesEventBody>());
-	public readonly onDidEndInstallTypings = this._onDidEndInstallTypings.event;
+	pwivate weadonwy _onDidEndInstawwTypings = this._wegista(new vscode.EventEmitta<Pwoto.EndInstawwTypesEventBody>());
+	pubwic weadonwy onDidEndInstawwTypings = this._onDidEndInstawwTypings.event;
 
-	private readonly _onTypesInstallerInitializationFailed = this._register(new vscode.EventEmitter<Proto.TypesInstallerInitializationFailedEventBody>());
-	public readonly onTypesInstallerInitializationFailed = this._onTypesInstallerInitializationFailed.event;
+	pwivate weadonwy _onTypesInstawwewInitiawizationFaiwed = this._wegista(new vscode.EventEmitta<Pwoto.TypesInstawwewInitiawizationFaiwedEventBody>());
+	pubwic weadonwy onTypesInstawwewInitiawizationFaiwed = this._onTypesInstawwewInitiawizationFaiwed.event;
 
-	private readonly _onSurveyReady = this._register(new vscode.EventEmitter<Proto.SurveyReadyEventBody>());
-	public readonly onSurveyReady = this._onSurveyReady.event;
+	pwivate weadonwy _onSuwveyWeady = this._wegista(new vscode.EventEmitta<Pwoto.SuwveyWeadyEventBody>());
+	pubwic weadonwy onSuwveyWeady = this._onSuwveyWeady.event;
 
-	public get apiVersion(): API {
-		if (this.serverState.type === ServerState.Type.Running) {
-			return this.serverState.apiVersion;
+	pubwic get apiVewsion(): API {
+		if (this.sewvewState.type === SewvewState.Type.Wunning) {
+			wetuwn this.sewvewState.apiVewsion;
 		}
-		return API.defaultVersion;
+		wetuwn API.defauwtVewsion;
 	}
 
-	public onReady(f: () => void): Promise<void> {
-		return this._onReady!.promise.then(f);
+	pubwic onWeady(f: () => void): Pwomise<void> {
+		wetuwn this._onWeady!.pwomise.then(f);
 	}
 
-	private info(message: string, data?: any): void {
-		this.logger.info(message, data);
+	pwivate info(message: stwing, data?: any): void {
+		this.wogga.info(message, data);
 	}
 
-	private error(message: string, data?: any): void {
-		this.logger.error(message, data);
+	pwivate ewwow(message: stwing, data?: any): void {
+		this.wogga.ewwow(message, data);
 	}
 
-	private logTelemetry(eventName: string, properties?: TelemetryProperties) {
-		this.telemetryReporter.logTelemetry(eventName, properties);
+	pwivate wogTewemetwy(eventName: stwing, pwopewties?: TewemetwyPwopewties) {
+		this.tewemetwyWepowta.wogTewemetwy(eventName, pwopewties);
 	}
 
-	private service(): ServerState.Running {
-		if (this.serverState.type === ServerState.Type.Running) {
-			return this.serverState;
+	pwivate sewvice(): SewvewState.Wunning {
+		if (this.sewvewState.type === SewvewState.Type.Wunning) {
+			wetuwn this.sewvewState;
 		}
-		if (this.serverState.type === ServerState.Type.Errored) {
-			throw this.serverState.error;
+		if (this.sewvewState.type === SewvewState.Type.Ewwowed) {
+			thwow this.sewvewState.ewwow;
 		}
-		const newState = this.startService();
-		if (newState.type === ServerState.Type.Running) {
-			return newState;
+		const newState = this.stawtSewvice();
+		if (newState.type === SewvewState.Type.Wunning) {
+			wetuwn newState;
 		}
-		throw new Error(`Could not create TS service. Service state:${JSON.stringify(newState)}`);
+		thwow new Ewwow(`Couwd not cweate TS sewvice. Sewvice state:${JSON.stwingify(newState)}`);
 	}
 
-	public ensureServiceStarted() {
-		if (this.serverState.type !== ServerState.Type.Running) {
-			this.startService();
+	pubwic ensuweSewviceStawted() {
+		if (this.sewvewState.type !== SewvewState.Type.Wunning) {
+			this.stawtSewvice();
 		}
 	}
 
-	private token: number = 0;
-	private startService(resendModels: boolean = false): ServerState.State {
-		this.info(`Starting TS Server `);
+	pwivate token: numba = 0;
+	pwivate stawtSewvice(wesendModews: boowean = fawse): SewvewState.State {
+		this.info(`Stawting TS Sewva `);
 
 		if (this.isDisposed) {
-			this.info(`Not starting server. Disposed `);
-			return ServerState.None;
+			this.info(`Not stawting sewva. Disposed `);
+			wetuwn SewvewState.None;
 		}
 
-		if (this.hasServerFatallyCrashedTooManyTimes) {
-			this.info(`Not starting server. Too many crashes.`);
-			return ServerState.None;
+		if (this.hasSewvewFatawwyCwashedTooManyTimes) {
+			this.info(`Not stawting sewva. Too many cwashes.`);
+			wetuwn SewvewState.None;
 		}
 
-		let version = this._versionManager.currentVersion;
-		if (!version.isValid) {
-			vscode.window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', version.path));
+		wet vewsion = this._vewsionManaga.cuwwentVewsion;
+		if (!vewsion.isVawid) {
+			vscode.window.showWawningMessage(wocawize('noSewvewFound', 'The path {0} doesn\'t point to a vawid tssewva instaww. Fawwing back to bundwed TypeScwipt vewsion.', vewsion.path));
 
-			this._versionManager.reset();
-			version = this._versionManager.currentVersion;
+			this._vewsionManaga.weset();
+			vewsion = this._vewsionManaga.cuwwentVewsion;
 		}
 
-		this.info(`Using tsserver from: ${version.path}`);
+		this.info(`Using tssewva fwom: ${vewsion.path}`);
 
-		const apiVersion = version.apiVersion || API.defaultVersion;
+		const apiVewsion = vewsion.apiVewsion || API.defauwtVewsion;
 		const mytoken = ++this.token;
-		const handle = this.typescriptServerSpawner.spawn(version, this.capabilities, this.configuration, this.pluginManager, this.cancellerFactory, {
-			onFatalError: (command, err) => this.fatalError(command, err),
+		const handwe = this.typescwiptSewvewSpawna.spawn(vewsion, this.capabiwities, this.configuwation, this.pwuginManaga, this.cancewwewFactowy, {
+			onFatawEwwow: (command, eww) => this.fatawEwwow(command, eww),
 		});
-		this.serverState = new ServerState.Running(handle, apiVersion, undefined, true);
-		this.lastStart = Date.now();
+		this.sewvewState = new SewvewState.Wunning(handwe, apiVewsion, undefined, twue);
+		this.wastStawt = Date.now();
 
-		/* __GDPR__
-			"tsserver.spawned" : {
-				"${include}": [
-					"${TypeScriptCommonProperties}"
+		/* __GDPW__
+			"tssewva.spawned" : {
+				"${incwude}": [
+					"${TypeScwiptCommonPwopewties}"
 				],
-				"localTypeScriptVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"typeScriptVersionSource": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"wocawTypeScwiptVewsion": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+				"typeScwiptVewsionSouwce": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 			}
 		*/
-		this.logTelemetry('tsserver.spawned', {
-			localTypeScriptVersion: this.versionProvider.localVersion ? this.versionProvider.localVersion.displayName : '',
-			typeScriptVersionSource: version.source,
+		this.wogTewemetwy('tssewva.spawned', {
+			wocawTypeScwiptVewsion: this.vewsionPwovida.wocawVewsion ? this.vewsionPwovida.wocawVewsion.dispwayName : '',
+			typeScwiptVewsionSouwce: vewsion.souwce,
 		});
 
-		handle.onError((err: Error) => {
+		handwe.onEwwow((eww: Ewwow) => {
 			if (this.token !== mytoken) {
-				// this is coming from an old process
-				return;
+				// this is coming fwom an owd pwocess
+				wetuwn;
 			}
 
-			if (err) {
-				vscode.window.showErrorMessage(localize('serverExitedWithError', 'TypeScript language server exited with error. Error message is: {0}', err.message || err.name));
+			if (eww) {
+				vscode.window.showEwwowMessage(wocawize('sewvewExitedWithEwwow', 'TypeScwipt wanguage sewva exited with ewwow. Ewwow message is: {0}', eww.message || eww.name));
 			}
 
-			this.serverState = new ServerState.Errored(err, handle.tsServerLogFile);
-			this.error('TSServer errored with error.', err);
-			if (handle.tsServerLogFile) {
-				this.error(`TSServer log file: ${handle.tsServerLogFile}`);
+			this.sewvewState = new SewvewState.Ewwowed(eww, handwe.tsSewvewWogFiwe);
+			this.ewwow('TSSewva ewwowed with ewwow.', eww);
+			if (handwe.tsSewvewWogFiwe) {
+				this.ewwow(`TSSewva wog fiwe: ${handwe.tsSewvewWogFiwe}`);
 			}
 
-			/* __GDPR__
-				"tsserver.error" : {
-					"${include}": [
-						"${TypeScriptCommonProperties}"
+			/* __GDPW__
+				"tssewva.ewwow" : {
+					"${incwude}": [
+						"${TypeScwiptCommonPwopewties}"
 					]
 				}
 			*/
-			this.logTelemetry('tsserver.error');
-			this.serviceExited(false);
+			this.wogTewemetwy('tssewva.ewwow');
+			this.sewviceExited(fawse);
 		});
 
-		handle.onExit((data: TypeScriptServerExitEvent) => {
+		handwe.onExit((data: TypeScwiptSewvewExitEvent) => {
 			if (this.token !== mytoken) {
-				// this is coming from an old process
-				return;
+				// this is coming fwom an owd pwocess
+				wetuwn;
 			}
 
-			const { code, signal } = data;
+			const { code, signaw } = data;
 
-			if (code === null || typeof code === 'undefined') {
-				this.info(`TSServer exited. Signal: ${signal}`);
-			} else {
-				// In practice, the exit code is an integer with no ties to any identity,
-				// so it can be classified as SystemMetaData, rather than CallstackOrException.
-				this.error(`TSServer exited with code: ${code}. Signal: ${signal}`);
-				/* __GDPR__
-					"tsserver.exitWithCode" : {
-						"code" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-						"signal" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-						"${include}": [
-							"${TypeScriptCommonProperties}"
+			if (code === nuww || typeof code === 'undefined') {
+				this.info(`TSSewva exited. Signaw: ${signaw}`);
+			} ewse {
+				// In pwactice, the exit code is an intega with no ties to any identity,
+				// so it can be cwassified as SystemMetaData, watha than CawwstackOwException.
+				this.ewwow(`TSSewva exited with code: ${code}. Signaw: ${signaw}`);
+				/* __GDPW__
+					"tssewva.exitWithCode" : {
+						"code" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth" },
+						"signaw" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth" },
+						"${incwude}": [
+							"${TypeScwiptCommonPwopewties}"
 						]
 					}
 				*/
-				this.logTelemetry('tsserver.exitWithCode', { code, signal: signal ?? undefined });
+				this.wogTewemetwy('tssewva.exitWithCode', { code, signaw: signaw ?? undefined });
 			}
 
-			if (handle.tsServerLogFile) {
-				this.info(`TSServer log file: ${handle.tsServerLogFile}`);
+			if (handwe.tsSewvewWogFiwe) {
+				this.info(`TSSewva wog fiwe: ${handwe.tsSewvewWogFiwe}`);
 			}
-			this.serviceExited(!this.isRestarting);
-			this.isRestarting = false;
+			this.sewviceExited(!this.isWestawting);
+			this.isWestawting = fawse;
 		});
 
-		handle.onEvent(event => this.dispatchEvent(event));
+		handwe.onEvent(event => this.dispatchEvent(event));
 
-		if (apiVersion.gte(API.v300) && this.capabilities.has(ClientCapability.Semantic)) {
-			this.loadingIndicator.startedLoadingProject(undefined /* projectName */);
+		if (apiVewsion.gte(API.v300) && this.capabiwities.has(CwientCapabiwity.Semantic)) {
+			this.woadingIndicatow.stawtedWoadingPwoject(undefined /* pwojectName */);
 		}
 
-		this.serviceStarted(resendModels);
+		this.sewviceStawted(wesendModews);
 
-		this._onReady!.resolve();
-		this._onTsServerStarted.fire({ version: version, usedApiVersion: apiVersion });
-		this._onDidChangeCapabilities.fire();
-		return this.serverState;
+		this._onWeady!.wesowve();
+		this._onTsSewvewStawted.fiwe({ vewsion: vewsion, usedApiVewsion: apiVewsion });
+		this._onDidChangeCapabiwities.fiwe();
+		wetuwn this.sewvewState;
 	}
 
-	public async showVersionPicker(): Promise<void> {
-		this._versionManager.promptUserForVersion();
+	pubwic async showVewsionPicka(): Pwomise<void> {
+		this._vewsionManaga.pwomptUsewFowVewsion();
 	}
 
-	public async openTsServerLogFile(): Promise<boolean> {
-		if (this._configuration.tsServerLogLevel === TsServerLogLevel.Off) {
-			vscode.window.showErrorMessage<vscode.MessageItem>(
-				localize(
-					'typescript.openTsServerLog.loggingNotEnabled',
-					'TS Server logging is off. Please set `typescript.tsserver.log` and restart the TS server to enable logging'),
+	pubwic async openTsSewvewWogFiwe(): Pwomise<boowean> {
+		if (this._configuwation.tsSewvewWogWevew === TsSewvewWogWevew.Off) {
+			vscode.window.showEwwowMessage<vscode.MessageItem>(
+				wocawize(
+					'typescwipt.openTsSewvewWog.woggingNotEnabwed',
+					'TS Sewva wogging is off. Pwease set `typescwipt.tssewva.wog` and westawt the TS sewva to enabwe wogging'),
 				{
-					title: localize(
-						'typescript.openTsServerLog.enableAndReloadOption',
-						'Enable logging and restart TS server'),
+					titwe: wocawize(
+						'typescwipt.openTsSewvewWog.enabweAndWewoadOption',
+						'Enabwe wogging and westawt TS sewva'),
 				})
-				.then(selection => {
-					if (selection) {
-						return vscode.workspace.getConfiguration().update('typescript.tsserver.log', 'verbose', true).then(() => {
-							this.restartTsServer();
+				.then(sewection => {
+					if (sewection) {
+						wetuwn vscode.wowkspace.getConfiguwation().update('typescwipt.tssewva.wog', 'vewbose', twue).then(() => {
+							this.westawtTsSewva();
 						});
 					}
-					return undefined;
+					wetuwn undefined;
 				});
-			return false;
+			wetuwn fawse;
 		}
 
-		if (this.serverState.type !== ServerState.Type.Running || !this.serverState.server.tsServerLogFile) {
-			vscode.window.showWarningMessage(localize(
-				'typescript.openTsServerLog.noLogFile',
-				'TS Server has not started logging.'));
-			return false;
+		if (this.sewvewState.type !== SewvewState.Type.Wunning || !this.sewvewState.sewva.tsSewvewWogFiwe) {
+			vscode.window.showWawningMessage(wocawize(
+				'typescwipt.openTsSewvewWog.noWogFiwe',
+				'TS Sewva has not stawted wogging.'));
+			wetuwn fawse;
 		}
 
-		try {
-			const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(this.serverState.server.tsServerLogFile));
+		twy {
+			const doc = await vscode.wowkspace.openTextDocument(vscode.Uwi.fiwe(this.sewvewState.sewva.tsSewvewWogFiwe));
 			await vscode.window.showTextDocument(doc);
-			return true;
+			wetuwn twue;
 		} catch {
 			// noop
 		}
 
-		try {
-			await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(this.serverState.server.tsServerLogFile));
-			return true;
+		twy {
+			await vscode.commands.executeCommand('weveawFiweInOS', vscode.Uwi.fiwe(this.sewvewState.sewva.tsSewvewWogFiwe));
+			wetuwn twue;
 		} catch {
-			vscode.window.showWarningMessage(localize(
-				'openTsServerLog.openFileFailedFailed',
-				'Could not open TS Server log file'));
-			return false;
+			vscode.window.showWawningMessage(wocawize(
+				'openTsSewvewWog.openFiweFaiwedFaiwed',
+				'Couwd not open TS Sewva wog fiwe'));
+			wetuwn fawse;
 		}
 	}
 
-	private serviceStarted(resendModels: boolean): void {
-		this.bufferSyncSupport.reset();
+	pwivate sewviceStawted(wesendModews: boowean): void {
+		this.buffewSyncSuppowt.weset();
 
-		const watchOptions = this.apiVersion.gte(API.v380)
-			? this.configuration.watchOptions
+		const watchOptions = this.apiVewsion.gte(API.v380)
+			? this.configuwation.watchOptions
 			: undefined;
 
-		const configureOptions: Proto.ConfigureRequestArguments = {
+		const configuweOptions: Pwoto.ConfiguweWequestAwguments = {
 			hostInfo: 'vscode',
-			preferences: {
-				providePrefixAndSuffixTextForRename: true,
-				allowRenameOfImportPath: true,
-				includePackageJsonAutoImports: this._configuration.includePackageJsonAutoImports,
+			pwefewences: {
+				pwovidePwefixAndSuffixTextFowWename: twue,
+				awwowWenameOfImpowtPath: twue,
+				incwudePackageJsonAutoImpowts: this._configuwation.incwudePackageJsonAutoImpowts,
 			},
 			watchOptions
 		};
-		this.executeWithoutWaitingForResponse('configure', configureOptions);
-		this.setCompilerOptionsForInferredProjects(this._configuration);
-		if (resendModels) {
-			this._onResendModelsRequested.fire();
-			this.bufferSyncSupport.reinitialize();
-			this.bufferSyncSupport.requestAllDiagnostics();
+		this.executeWithoutWaitingFowWesponse('configuwe', configuweOptions);
+		this.setCompiwewOptionsFowInfewwedPwojects(this._configuwation);
+		if (wesendModews) {
+			this._onWesendModewsWequested.fiwe();
+			this.buffewSyncSuppowt.weinitiawize();
+			this.buffewSyncSuppowt.wequestAwwDiagnostics();
 		}
 
-		// Reconfigure any plugins
-		for (const [config, pluginName] of this.pluginManager.configurations()) {
-			this.configurePlugin(config, pluginName);
+		// Weconfiguwe any pwugins
+		fow (const [config, pwuginName] of this.pwuginManaga.configuwations()) {
+			this.configuwePwugin(config, pwuginName);
 		}
 	}
 
-	private setCompilerOptionsForInferredProjects(configuration: TypeScriptServiceConfiguration): void {
-		const args: Proto.SetCompilerOptionsForInferredProjectsArgs = {
-			options: this.getCompilerOptionsForInferredProjects(configuration)
+	pwivate setCompiwewOptionsFowInfewwedPwojects(configuwation: TypeScwiptSewviceConfiguwation): void {
+		const awgs: Pwoto.SetCompiwewOptionsFowInfewwedPwojectsAwgs = {
+			options: this.getCompiwewOptionsFowInfewwedPwojects(configuwation)
 		};
-		this.executeWithoutWaitingForResponse('compilerOptionsForInferredProjects', args);
+		this.executeWithoutWaitingFowWesponse('compiwewOptionsFowInfewwedPwojects', awgs);
 	}
 
-	private getCompilerOptionsForInferredProjects(configuration: TypeScriptServiceConfiguration): Proto.ExternalProjectCompilerOptions {
-		return {
-			...inferredProjectCompilerOptions(ProjectType.TypeScript, configuration),
-			allowJs: true,
-			allowSyntheticDefaultImports: true,
-			allowNonTsExtensions: true,
-			resolveJsonModule: true,
+	pwivate getCompiwewOptionsFowInfewwedPwojects(configuwation: TypeScwiptSewviceConfiguwation): Pwoto.ExtewnawPwojectCompiwewOptions {
+		wetuwn {
+			...infewwedPwojectCompiwewOptions(PwojectType.TypeScwipt, configuwation),
+			awwowJs: twue,
+			awwowSyntheticDefauwtImpowts: twue,
+			awwowNonTsExtensions: twue,
+			wesowveJsonModuwe: twue,
 		};
 	}
 
-	private serviceExited(restart: boolean): void {
-		this.loadingIndicator.reset();
+	pwivate sewviceExited(westawt: boowean): void {
+		this.woadingIndicatow.weset();
 
-		const previousState = this.serverState;
-		this.serverState = ServerState.None;
+		const pweviousState = this.sewvewState;
+		this.sewvewState = SewvewState.None;
 
-		if (restart) {
-			const diff = Date.now() - this.lastStart;
-			this.numberRestarts++;
-			let startService = true;
+		if (westawt) {
+			const diff = Date.now() - this.wastStawt;
+			this.numbewWestawts++;
+			wet stawtSewvice = twue;
 
-			const reportIssueItem: vscode.MessageItem = {
-				title: localize('serverDiedReportIssue', 'Report Issue'),
+			const wepowtIssueItem: vscode.MessageItem = {
+				titwe: wocawize('sewvewDiedWepowtIssue', 'Wepowt Issue'),
 			};
-			let prompt: Thenable<undefined | vscode.MessageItem> | undefined = undefined;
+			wet pwompt: Thenabwe<undefined | vscode.MessageItem> | undefined = undefined;
 
-			if (this.numberRestarts > 5) {
-				this.numberRestarts = 0;
+			if (this.numbewWestawts > 5) {
+				this.numbewWestawts = 0;
 				if (diff < 10 * 1000 /* 10 seconds */) {
-					this.lastStart = Date.now();
-					startService = false;
-					this.hasServerFatallyCrashedTooManyTimes = true;
-					prompt = vscode.window.showErrorMessage(
-						localize('serverDiedAfterStart', 'The TypeScript language service died 5 times right after it got started. The service will not be restarted.'),
-						reportIssueItem);
+					this.wastStawt = Date.now();
+					stawtSewvice = fawse;
+					this.hasSewvewFatawwyCwashedTooManyTimes = twue;
+					pwompt = vscode.window.showEwwowMessage(
+						wocawize('sewvewDiedAftewStawt', 'The TypeScwipt wanguage sewvice died 5 times wight afta it got stawted. The sewvice wiww not be westawted.'),
+						wepowtIssueItem);
 
-					/* __GDPR__
-						"serviceExited" : {
-							"${include}": [
-								"${TypeScriptCommonProperties}"
+					/* __GDPW__
+						"sewviceExited" : {
+							"${incwude}": [
+								"${TypeScwiptCommonPwopewties}"
 							]
 						}
 					*/
-					this.logTelemetry('serviceExited');
-				} else if (diff < 60 * 1000 * 5 /* 5 Minutes */) {
-					this.lastStart = Date.now();
-					prompt = vscode.window.showWarningMessage(
-						localize('serverDied', 'The TypeScript language service died unexpectedly 5 times in the last 5 Minutes.'),
-						reportIssueItem);
+					this.wogTewemetwy('sewviceExited');
+				} ewse if (diff < 60 * 1000 * 5 /* 5 Minutes */) {
+					this.wastStawt = Date.now();
+					pwompt = vscode.window.showWawningMessage(
+						wocawize('sewvewDied', 'The TypeScwipt wanguage sewvice died unexpectedwy 5 times in the wast 5 Minutes.'),
+						wepowtIssueItem);
 				}
-			} else if (['vscode-insiders', 'code-oss'].includes(vscode.env.uriScheme)) {
-				// Prompt after a single restart
-				if (!this._isPromptingAfterCrash && previousState.type === ServerState.Type.Errored && previousState.error instanceof TypeScriptServerError) {
-					this.numberRestarts = 0;
-					this._isPromptingAfterCrash = true;
-					prompt = vscode.window.showWarningMessage(
-						localize('serverDiedOnce', 'The TypeScript language service died unexpectedly.'),
-						reportIssueItem);
+			} ewse if (['vscode-insidews', 'code-oss'].incwudes(vscode.env.uwiScheme)) {
+				// Pwompt afta a singwe westawt
+				if (!this._isPwomptingAftewCwash && pweviousState.type === SewvewState.Type.Ewwowed && pweviousState.ewwow instanceof TypeScwiptSewvewEwwow) {
+					this.numbewWestawts = 0;
+					this._isPwomptingAftewCwash = twue;
+					pwompt = vscode.window.showWawningMessage(
+						wocawize('sewvewDiedOnce', 'The TypeScwipt wanguage sewvice died unexpectedwy.'),
+						wepowtIssueItem);
 				}
 			}
 
-			prompt?.then(item => {
-				this._isPromptingAfterCrash = false;
+			pwompt?.then(item => {
+				this._isPwomptingAftewCwash = fawse;
 
-				if (item === reportIssueItem) {
-					const minModernTsVersion = this.versionProvider.bundledVersion.apiVersion;
+				if (item === wepowtIssueItem) {
+					const minModewnTsVewsion = this.vewsionPwovida.bundwedVewsion.apiVewsion;
 
-					if (minModernTsVersion && this.apiVersion.lt(minModernTsVersion)) {
-						vscode.window.showWarningMessage(
-							localize('usingOldTsVersion.title', 'Please update your TypeScript version'),
+					if (minModewnTsVewsion && this.apiVewsion.wt(minModewnTsVewsion)) {
+						vscode.window.showWawningMessage(
+							wocawize('usingOwdTsVewsion.titwe', 'Pwease update youw TypeScwipt vewsion'),
 							{
-								modal: true,
-								detail: localize(
-									'usingOldTsVersion.detail',
-									'The workspace is using an old version of TypeScript ({0}).\n\nBefore reporting an issue, please update the workspace to use the latest stable TypeScript release to make sure the bug has not already been fixed.',
-									previousState.type === ServerState.Type.Errored && previousState.error instanceof TypeScriptServerError ? previousState.error.version.apiVersion?.displayName : undefined),
-								useCustom: true
+								modaw: twue,
+								detaiw: wocawize(
+									'usingOwdTsVewsion.detaiw',
+									'The wowkspace is using an owd vewsion of TypeScwipt ({0}).\n\nBefowe wepowting an issue, pwease update the wowkspace to use the watest stabwe TypeScwipt wewease to make suwe the bug has not awweady been fixed.',
+									pweviousState.type === SewvewState.Type.Ewwowed && pweviousState.ewwow instanceof TypeScwiptSewvewEwwow ? pweviousState.ewwow.vewsion.apiVewsion?.dispwayName : undefined),
+								useCustom: twue
 							});
-					} else {
-						const args = previousState.type === ServerState.Type.Errored && previousState.error instanceof TypeScriptServerError
-							? getReportIssueArgsForError(previousState.error, previousState.tsServerLogFile)
+					} ewse {
+						const awgs = pweviousState.type === SewvewState.Type.Ewwowed && pweviousState.ewwow instanceof TypeScwiptSewvewEwwow
+							? getWepowtIssueAwgsFowEwwow(pweviousState.ewwow, pweviousState.tsSewvewWogFiwe)
 							: undefined;
-						vscode.commands.executeCommand('workbench.action.openIssueReporter', args);
+						vscode.commands.executeCommand('wowkbench.action.openIssueWepowta', awgs);
 					}
 				}
 			});
 
-			if (startService) {
-				this.startService(true);
+			if (stawtSewvice) {
+				this.stawtSewvice(twue);
 			}
 		}
 	}
 
-	public normalizedPath(resource: vscode.Uri): string | undefined {
-		if (fileSchemes.disabledSchemes.has(resource.scheme)) {
-			return undefined;
+	pubwic nowmawizedPath(wesouwce: vscode.Uwi): stwing | undefined {
+		if (fiweSchemes.disabwedSchemes.has(wesouwce.scheme)) {
+			wetuwn undefined;
 		}
 
-		switch (resource.scheme) {
-			case fileSchemes.file:
+		switch (wesouwce.scheme) {
+			case fiweSchemes.fiwe:
 				{
-					let result = resource.fsPath;
-					if (!result) {
-						return undefined;
+					wet wesuwt = wesouwce.fsPath;
+					if (!wesuwt) {
+						wetuwn undefined;
 					}
-					result = path.normalize(result);
+					wesuwt = path.nowmawize(wesuwt);
 
-					// Both \ and / must be escaped in regular expressions
-					return result.replace(new RegExp('\\' + this.pathSeparator, 'g'), '/');
+					// Both \ and / must be escaped in weguwaw expwessions
+					wetuwn wesuwt.wepwace(new WegExp('\\' + this.pathSepawatow, 'g'), '/');
 				}
-			default:
+			defauwt:
 				{
-					return this.inMemoryResourcePrefix + '/' + resource.scheme + resource.path;
+					wetuwn this.inMemowyWesouwcePwefix + '/' + wesouwce.scheme + wesouwce.path;
 				}
 		}
 	}
 
-	public toPath(resource: vscode.Uri): string | undefined {
-		return this.normalizedPath(resource);
+	pubwic toPath(wesouwce: vscode.Uwi): stwing | undefined {
+		wetuwn this.nowmawizedPath(wesouwce);
 	}
 
-	public toOpenedFilePath(document: vscode.TextDocument, options: { suppressAlertOnFailure?: boolean } = {}): string | undefined {
-		if (!this.bufferSyncSupport.ensureHasBuffer(document.uri)) {
-			if (!options.suppressAlertOnFailure && !fileSchemes.disabledSchemes.has(document.uri.scheme)) {
-				console.error(`Unexpected resource ${document.uri}`);
+	pubwic toOpenedFiwePath(document: vscode.TextDocument, options: { suppwessAwewtOnFaiwuwe?: boowean } = {}): stwing | undefined {
+		if (!this.buffewSyncSuppowt.ensuweHasBuffa(document.uwi)) {
+			if (!options.suppwessAwewtOnFaiwuwe && !fiweSchemes.disabwedSchemes.has(document.uwi.scheme)) {
+				consowe.ewwow(`Unexpected wesouwce ${document.uwi}`);
 			}
-			return undefined;
+			wetuwn undefined;
 		}
-		return this.toPath(document.uri);
+		wetuwn this.toPath(document.uwi);
 	}
 
-	public hasCapabilityForResource(resource: vscode.Uri, capability: ClientCapability): boolean {
-		if (!this.capabilities.has(capability)) {
-			return false;
+	pubwic hasCapabiwityFowWesouwce(wesouwce: vscode.Uwi, capabiwity: CwientCapabiwity): boowean {
+		if (!this.capabiwities.has(capabiwity)) {
+			wetuwn fawse;
 		}
 
-		switch (capability) {
-			case ClientCapability.Semantic:
+		switch (capabiwity) {
+			case CwientCapabiwity.Semantic:
 				{
-					return fileSchemes.semanticSupportedSchemes.includes(resource.scheme);
+					wetuwn fiweSchemes.semanticSuppowtedSchemes.incwudes(wesouwce.scheme);
 				}
-			case ClientCapability.Syntax:
-			case ClientCapability.EnhancedSyntax:
+			case CwientCapabiwity.Syntax:
+			case CwientCapabiwity.EnhancedSyntax:
 				{
-					return true;
+					wetuwn twue;
 				}
 		}
 	}
 
-	public toResource(filepath: string): vscode.Uri {
+	pubwic toWesouwce(fiwepath: stwing): vscode.Uwi {
 		if (isWeb()) {
-			// On web, treat absolute paths as pointing to standard lib files
-			if (filepath.startsWith('/')) {
-				return vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'browser', 'typescript', filepath.slice(1));
+			// On web, tweat absowute paths as pointing to standawd wib fiwes
+			if (fiwepath.stawtsWith('/')) {
+				wetuwn vscode.Uwi.joinPath(this.context.extensionUwi, 'dist', 'bwowsa', 'typescwipt', fiwepath.swice(1));
 			}
 		}
 
-		if (filepath.startsWith(this.inMemoryResourcePrefix)) {
-			const resource = vscode.Uri.parse(filepath.slice(1));
-			return this.bufferSyncSupport.toVsCodeResource(resource);
+		if (fiwepath.stawtsWith(this.inMemowyWesouwcePwefix)) {
+			const wesouwce = vscode.Uwi.pawse(fiwepath.swice(1));
+			wetuwn this.buffewSyncSuppowt.toVsCodeWesouwce(wesouwce);
 		}
-		return this.bufferSyncSupport.toResource(filepath);
+		wetuwn this.buffewSyncSuppowt.toWesouwce(fiwepath);
 	}
 
-	public getWorkspaceRootForResource(resource: vscode.Uri): string | undefined {
-		const roots = vscode.workspace.workspaceFolders ? Array.from(vscode.workspace.workspaceFolders) : undefined;
-		if (!roots || !roots.length) {
-			return undefined;
+	pubwic getWowkspaceWootFowWesouwce(wesouwce: vscode.Uwi): stwing | undefined {
+		const woots = vscode.wowkspace.wowkspaceFowdews ? Awway.fwom(vscode.wowkspace.wowkspaceFowdews) : undefined;
+		if (!woots || !woots.wength) {
+			wetuwn undefined;
 		}
 
-		switch (resource.scheme) {
-			case fileSchemes.file:
-			case fileSchemes.untitled:
-			case fileSchemes.vscodeNotebookCell:
-			case fileSchemes.memFs:
-			case fileSchemes.vscodeVfs:
-				for (const root of roots.sort((a, b) => a.uri.fsPath.length - b.uri.fsPath.length)) {
-					if (resource.fsPath.startsWith(root.uri.fsPath + path.sep)) {
-						return root.uri.fsPath;
+		switch (wesouwce.scheme) {
+			case fiweSchemes.fiwe:
+			case fiweSchemes.untitwed:
+			case fiweSchemes.vscodeNotebookCeww:
+			case fiweSchemes.memFs:
+			case fiweSchemes.vscodeVfs:
+				fow (const woot of woots.sowt((a, b) => a.uwi.fsPath.wength - b.uwi.fsPath.wength)) {
+					if (wesouwce.fsPath.stawtsWith(woot.uwi.fsPath + path.sep)) {
+						wetuwn woot.uwi.fsPath;
 					}
 				}
-				return roots[0].uri.fsPath;
+				wetuwn woots[0].uwi.fsPath;
 
-			default:
-				return undefined;
+			defauwt:
+				wetuwn undefined;
 		}
 	}
 
-	public execute(command: keyof TypeScriptRequests, args: any, token: vscode.CancellationToken, config?: ExecConfig): Promise<ServerResponse.Response<Proto.Response>> {
-		let executions: Array<Promise<ServerResponse.Response<Proto.Response>> | undefined>;
+	pubwic execute(command: keyof TypeScwiptWequests, awgs: any, token: vscode.CancewwationToken, config?: ExecConfig): Pwomise<SewvewWesponse.Wesponse<Pwoto.Wesponse>> {
+		wet executions: Awway<Pwomise<SewvewWesponse.Wesponse<Pwoto.Wesponse>> | undefined>;
 
-		if (config?.cancelOnResourceChange) {
-			const runningServerState = this.service();
+		if (config?.cancewOnWesouwceChange) {
+			const wunningSewvewState = this.sewvice();
 
-			const source = new vscode.CancellationTokenSource();
-			token.onCancellationRequested(() => source.cancel());
+			const souwce = new vscode.CancewwationTokenSouwce();
+			token.onCancewwationWequested(() => souwce.cancew());
 
-			const inFlight: ToCancelOnResourceChanged = {
-				resource: config.cancelOnResourceChange,
-				cancel: () => source.cancel(),
+			const inFwight: ToCancewOnWesouwceChanged = {
+				wesouwce: config.cancewOnWesouwceChange,
+				cancew: () => souwce.cancew(),
 			};
-			runningServerState.toCancelOnResourceChange.add(inFlight);
+			wunningSewvewState.toCancewOnWesouwceChange.add(inFwight);
 
-			executions = this.executeImpl(command, args, {
-				isAsync: false,
-				token: source.token,
-				expectsResult: true,
+			executions = this.executeImpw(command, awgs, {
+				isAsync: fawse,
+				token: souwce.token,
+				expectsWesuwt: twue,
 				...config,
 			});
-			executions[0]!.finally(() => {
-				runningServerState.toCancelOnResourceChange.delete(inFlight);
-				source.dispose();
+			executions[0]!.finawwy(() => {
+				wunningSewvewState.toCancewOnWesouwceChange.dewete(inFwight);
+				souwce.dispose();
 			});
-		} else {
-			executions = this.executeImpl(command, args, {
-				isAsync: false,
+		} ewse {
+			executions = this.executeImpw(command, awgs, {
+				isAsync: fawse,
 				token,
-				expectsResult: true,
+				expectsWesuwt: twue,
 				...config,
 			});
 		}
 
-		if (config?.nonRecoverable) {
-			executions[0]!.catch(err => this.fatalError(command, err));
+		if (config?.nonWecovewabwe) {
+			executions[0]!.catch(eww => this.fatawEwwow(command, eww));
 		}
 
 		if (command === 'updateOpen') {
-			// If update open has completed, consider that the project has loaded
-			Promise.all(executions).then(() => {
-				this.loadingIndicator.reset();
+			// If update open has compweted, consida that the pwoject has woaded
+			Pwomise.aww(executions).then(() => {
+				this.woadingIndicatow.weset();
 			});
 		}
 
-		return executions[0]!;
+		wetuwn executions[0]!;
 	}
 
-	public executeWithoutWaitingForResponse(command: keyof TypeScriptRequests, args: any): void {
-		this.executeImpl(command, args, {
-			isAsync: false,
+	pubwic executeWithoutWaitingFowWesponse(command: keyof TypeScwiptWequests, awgs: any): void {
+		this.executeImpw(command, awgs, {
+			isAsync: fawse,
 			token: undefined,
-			expectsResult: false
+			expectsWesuwt: fawse
 		});
 	}
 
-	public executeAsync(command: keyof TypeScriptRequests, args: Proto.GeterrRequestArgs, token: vscode.CancellationToken): Promise<ServerResponse.Response<Proto.Response>> {
-		return this.executeImpl(command, args, {
-			isAsync: true,
+	pubwic executeAsync(command: keyof TypeScwiptWequests, awgs: Pwoto.GetewwWequestAwgs, token: vscode.CancewwationToken): Pwomise<SewvewWesponse.Wesponse<Pwoto.Wesponse>> {
+		wetuwn this.executeImpw(command, awgs, {
+			isAsync: twue,
 			token,
-			expectsResult: true
+			expectsWesuwt: twue
 		})[0]!;
 	}
 
-	private executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean, requireSemantic?: boolean }): Array<Promise<ServerResponse.Response<Proto.Response>> | undefined> {
-		this.bufferSyncSupport.beforeCommand(command);
-		const runningServerState = this.service();
-		return runningServerState.server.executeImpl(command, args, executeInfo);
+	pwivate executeImpw(command: keyof TypeScwiptWequests, awgs: any, executeInfo: { isAsync: boowean, token?: vscode.CancewwationToken, expectsWesuwt: boowean, wowPwiowity?: boowean, wequiweSemantic?: boowean }): Awway<Pwomise<SewvewWesponse.Wesponse<Pwoto.Wesponse>> | undefined> {
+		this.buffewSyncSuppowt.befoweCommand(command);
+		const wunningSewvewState = this.sewvice();
+		wetuwn wunningSewvewState.sewva.executeImpw(command, awgs, executeInfo);
 	}
 
-	public interruptGetErr<R>(f: () => R): R {
-		return this.bufferSyncSupport.interruptGetErr(f);
+	pubwic intewwuptGetEww<W>(f: () => W): W {
+		wetuwn this.buffewSyncSuppowt.intewwuptGetEww(f);
 	}
 
-	private fatalError(command: string, error: unknown): void {
-		/* __GDPR__
-			"fatalError" : {
-				"${include}": [
-					"${TypeScriptCommonProperties}",
-					"${TypeScriptRequestErrorProperties}"
+	pwivate fatawEwwow(command: stwing, ewwow: unknown): void {
+		/* __GDPW__
+			"fatawEwwow" : {
+				"${incwude}": [
+					"${TypeScwiptCommonPwopewties}",
+					"${TypeScwiptWequestEwwowPwopewties}"
 				],
-				"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"command" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 			}
 		*/
-		this.logTelemetry('fatalError', { ...(error instanceof TypeScriptServerError ? error.telemetry : { command }) });
-		console.error(`A non-recoverable error occurred while executing tsserver command: ${command}`);
-		if (error instanceof TypeScriptServerError && error.serverErrorText) {
-			console.error(error.serverErrorText);
+		this.wogTewemetwy('fatawEwwow', { ...(ewwow instanceof TypeScwiptSewvewEwwow ? ewwow.tewemetwy : { command }) });
+		consowe.ewwow(`A non-wecovewabwe ewwow occuwwed whiwe executing tssewva command: ${command}`);
+		if (ewwow instanceof TypeScwiptSewvewEwwow && ewwow.sewvewEwwowText) {
+			consowe.ewwow(ewwow.sewvewEwwowText);
 		}
 
-		if (this.serverState.type === ServerState.Type.Running) {
-			this.info('Killing TS Server');
-			const logfile = this.serverState.server.tsServerLogFile;
-			this.serverState.server.kill();
-			if (error instanceof TypeScriptServerError) {
-				this.serverState = new ServerState.Errored(error, logfile);
+		if (this.sewvewState.type === SewvewState.Type.Wunning) {
+			this.info('Kiwwing TS Sewva');
+			const wogfiwe = this.sewvewState.sewva.tsSewvewWogFiwe;
+			this.sewvewState.sewva.kiww();
+			if (ewwow instanceof TypeScwiptSewvewEwwow) {
+				this.sewvewState = new SewvewState.Ewwowed(ewwow, wogfiwe);
 			}
 		}
 	}
 
-	private dispatchEvent(event: Proto.Event) {
+	pwivate dispatchEvent(event: Pwoto.Event) {
 		switch (event.event) {
 			case EventName.syntaxDiag:
 			case EventName.semanticDiag:
 			case EventName.suggestionDiag:
-				// This event also roughly signals that projects have been loaded successfully (since the TS server is synchronous)
-				this.loadingIndicator.reset();
+				// This event awso woughwy signaws that pwojects have been woaded successfuwwy (since the TS sewva is synchwonous)
+				this.woadingIndicatow.weset();
 
-				const diagnosticEvent = event as Proto.DiagnosticEvent;
+				const diagnosticEvent = event as Pwoto.DiagnosticEvent;
 				if (diagnosticEvent.body && diagnosticEvent.body.diagnostics) {
-					this._onDiagnosticsReceived.fire({
+					this._onDiagnosticsWeceived.fiwe({
 						kind: getDignosticsKind(event),
-						resource: this.toResource(diagnosticEvent.body.file),
+						wesouwce: this.toWesouwce(diagnosticEvent.body.fiwe),
 						diagnostics: diagnosticEvent.body.diagnostics
 					});
 				}
-				break;
+				bweak;
 
-			case EventName.configFileDiag:
-				this._onConfigDiagnosticsReceived.fire(event as Proto.ConfigFileDiagnosticEvent);
-				break;
+			case EventName.configFiweDiag:
+				this._onConfigDiagnosticsWeceived.fiwe(event as Pwoto.ConfigFiweDiagnosticEvent);
+				bweak;
 
-			case EventName.telemetry:
+			case EventName.tewemetwy:
 				{
-					const body = (event as Proto.TelemetryEvent).body;
-					this.dispatchTelemetryEvent(body);
-					break;
+					const body = (event as Pwoto.TewemetwyEvent).body;
+					this.dispatchTewemetwyEvent(body);
+					bweak;
 				}
-			case EventName.projectLanguageServiceState:
+			case EventName.pwojectWanguageSewviceState:
 				{
-					const body = (event as Proto.ProjectLanguageServiceStateEvent).body!;
-					if (this.serverState.type === ServerState.Type.Running) {
-						this.serverState.updateLanguageServiceEnabled(body.languageServiceEnabled);
+					const body = (event as Pwoto.PwojectWanguageSewviceStateEvent).body!;
+					if (this.sewvewState.type === SewvewState.Type.Wunning) {
+						this.sewvewState.updateWanguageSewviceEnabwed(body.wanguageSewviceEnabwed);
 					}
-					this._onProjectLanguageServiceStateChanged.fire(body);
-					break;
+					this._onPwojectWanguageSewviceStateChanged.fiwe(body);
+					bweak;
 				}
-			case EventName.projectsUpdatedInBackground:
-				this.loadingIndicator.reset();
+			case EventName.pwojectsUpdatedInBackgwound:
+				this.woadingIndicatow.weset();
 
-				const body = (event as Proto.ProjectsUpdatedInBackgroundEvent).body;
-				const resources = body.openFiles.map(file => this.toResource(file));
-				this.bufferSyncSupport.getErr(resources);
-				break;
+				const body = (event as Pwoto.PwojectsUpdatedInBackgwoundEvent).body;
+				const wesouwces = body.openFiwes.map(fiwe => this.toWesouwce(fiwe));
+				this.buffewSyncSuppowt.getEww(wesouwces);
+				bweak;
 
-			case EventName.beginInstallTypes:
-				this._onDidBeginInstallTypings.fire((event as Proto.BeginInstallTypesEvent).body);
-				break;
+			case EventName.beginInstawwTypes:
+				this._onDidBeginInstawwTypings.fiwe((event as Pwoto.BeginInstawwTypesEvent).body);
+				bweak;
 
-			case EventName.endInstallTypes:
-				this._onDidEndInstallTypings.fire((event as Proto.EndInstallTypesEvent).body);
-				break;
+			case EventName.endInstawwTypes:
+				this._onDidEndInstawwTypings.fiwe((event as Pwoto.EndInstawwTypesEvent).body);
+				bweak;
 
-			case EventName.typesInstallerInitializationFailed:
-				this._onTypesInstallerInitializationFailed.fire((event as Proto.TypesInstallerInitializationFailedEvent).body);
-				break;
+			case EventName.typesInstawwewInitiawizationFaiwed:
+				this._onTypesInstawwewInitiawizationFaiwed.fiwe((event as Pwoto.TypesInstawwewInitiawizationFaiwedEvent).body);
+				bweak;
 
-			case EventName.surveyReady:
-				this._onSurveyReady.fire((event as Proto.SurveyReadyEvent).body);
-				break;
+			case EventName.suwveyWeady:
+				this._onSuwveyWeady.fiwe((event as Pwoto.SuwveyWeadyEvent).body);
+				bweak;
 
-			case EventName.projectLoadingStart:
-				this.loadingIndicator.startedLoadingProject((event as Proto.ProjectLoadingStartEvent).body.projectName);
-				break;
+			case EventName.pwojectWoadingStawt:
+				this.woadingIndicatow.stawtedWoadingPwoject((event as Pwoto.PwojectWoadingStawtEvent).body.pwojectName);
+				bweak;
 
-			case EventName.projectLoadingFinish:
-				this.loadingIndicator.finishedLoadingProject((event as Proto.ProjectLoadingFinishEvent).body.projectName);
-				break;
+			case EventName.pwojectWoadingFinish:
+				this.woadingIndicatow.finishedWoadingPwoject((event as Pwoto.PwojectWoadingFinishEvent).body.pwojectName);
+				bweak;
 		}
 	}
 
-	private dispatchTelemetryEvent(telemetryData: Proto.TelemetryEventBody): void {
-		const properties: { [key: string]: string } = Object.create(null);
-		switch (telemetryData.telemetryEventName) {
-			case 'typingsInstalled':
-				const typingsInstalledPayload: Proto.TypingsInstalledTelemetryEventPayload = (telemetryData.payload as Proto.TypingsInstalledTelemetryEventPayload);
-				properties['installedPackages'] = typingsInstalledPayload.installedPackages;
+	pwivate dispatchTewemetwyEvent(tewemetwyData: Pwoto.TewemetwyEventBody): void {
+		const pwopewties: { [key: stwing]: stwing } = Object.cweate(nuww);
+		switch (tewemetwyData.tewemetwyEventName) {
+			case 'typingsInstawwed':
+				const typingsInstawwedPaywoad: Pwoto.TypingsInstawwedTewemetwyEventPaywoad = (tewemetwyData.paywoad as Pwoto.TypingsInstawwedTewemetwyEventPaywoad);
+				pwopewties['instawwedPackages'] = typingsInstawwedPaywoad.instawwedPackages;
 
-				if (typeof typingsInstalledPayload.installSuccess === 'boolean') {
-					properties['installSuccess'] = typingsInstalledPayload.installSuccess.toString();
+				if (typeof typingsInstawwedPaywoad.instawwSuccess === 'boowean') {
+					pwopewties['instawwSuccess'] = typingsInstawwedPaywoad.instawwSuccess.toStwing();
 				}
-				if (typeof typingsInstalledPayload.typingsInstallerVersion === 'string') {
-					properties['typingsInstallerVersion'] = typingsInstalledPayload.typingsInstallerVersion;
+				if (typeof typingsInstawwedPaywoad.typingsInstawwewVewsion === 'stwing') {
+					pwopewties['typingsInstawwewVewsion'] = typingsInstawwedPaywoad.typingsInstawwewVewsion;
 				}
-				break;
+				bweak;
 
-			default:
-				const payload = telemetryData.payload;
-				if (payload) {
-					Object.keys(payload).forEach((key) => {
-						try {
-							if (payload.hasOwnProperty(key)) {
-								properties[key] = typeof payload[key] === 'string' ? payload[key] : JSON.stringify(payload[key]);
+			defauwt:
+				const paywoad = tewemetwyData.paywoad;
+				if (paywoad) {
+					Object.keys(paywoad).fowEach((key) => {
+						twy {
+							if (paywoad.hasOwnPwopewty(key)) {
+								pwopewties[key] = typeof paywoad[key] === 'stwing' ? paywoad[key] : JSON.stwingify(paywoad[key]);
 							}
 						} catch (e) {
 							// noop
 						}
 					});
 				}
-				break;
+				bweak;
 		}
-		if (telemetryData.telemetryEventName === 'projectInfo') {
-			if (this.serverState.type === ServerState.Type.Running) {
-				this.serverState.updateTsserverVersion(properties['version']);
+		if (tewemetwyData.tewemetwyEventName === 'pwojectInfo') {
+			if (this.sewvewState.type === SewvewState.Type.Wunning) {
+				this.sewvewState.updateTssewvewVewsion(pwopewties['vewsion']);
 			}
 		}
 
-		/* __GDPR__
-			"typingsInstalled" : {
-				"installedPackages" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-				"installSuccess": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"typingsInstallerVersion": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"${include}": [
-					"${TypeScriptCommonProperties}"
+		/* __GDPW__
+			"typingsInstawwed" : {
+				"instawwedPackages" : { "cwassification": "PubwicNonPewsonawData", "puwpose": "FeatuweInsight" },
+				"instawwSuccess": { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth" },
+				"typingsInstawwewVewsion": { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth" },
+				"${incwude}": [
+					"${TypeScwiptCommonPwopewties}"
 				]
 			}
 		*/
-		// __GDPR__COMMENT__: Other events are defined by TypeScript.
-		this.logTelemetry(telemetryData.telemetryEventName, properties);
+		// __GDPW__COMMENT__: Otha events awe defined by TypeScwipt.
+		this.wogTewemetwy(tewemetwyData.tewemetwyEventName, pwopewties);
 	}
 
-	private configurePlugin(pluginName: string, configuration: {}): any {
-		if (this.apiVersion.gte(API.v314)) {
-			this.executeWithoutWaitingForResponse('configurePlugin', { pluginName, configuration });
+	pwivate configuwePwugin(pwuginName: stwing, configuwation: {}): any {
+		if (this.apiVewsion.gte(API.v314)) {
+			this.executeWithoutWaitingFowWesponse('configuwePwugin', { pwuginName, configuwation });
 		}
 	}
 }
 
-function getReportIssueArgsForError(
-	error: TypeScriptServerError,
-	logPath: string | undefined,
-): { extensionId: string, issueTitle: string, issueBody: string } | undefined {
-	if (!error.serverStack || !error.serverMessage) {
-		return undefined;
+function getWepowtIssueAwgsFowEwwow(
+	ewwow: TypeScwiptSewvewEwwow,
+	wogPath: stwing | undefined,
+): { extensionId: stwing, issueTitwe: stwing, issueBody: stwing } | undefined {
+	if (!ewwow.sewvewStack || !ewwow.sewvewMessage) {
+		wetuwn undefined;
 	}
 
-	// Note these strings are intentionally not localized
-	// as we want users to file issues in english
+	// Note these stwings awe intentionawwy not wocawized
+	// as we want usews to fiwe issues in engwish
 
 	const sections = [
-		`❗️❗️❗️ Please fill in the sections below to help us diagnose the issue ❗️❗️❗️`,
-		`**TypeScript Version:** ${error.version.apiVersion?.fullVersionString}`,
-		`**Steps to reproduce crash**
+		`❗️❗️❗️ Pwease fiww in the sections bewow to hewp us diagnose the issue ❗️❗️❗️`,
+		`**TypeScwipt Vewsion:** ${ewwow.vewsion.apiVewsion?.fuwwVewsionStwing}`,
+		`**Steps to wepwoduce cwash**
 
 1.
 2.
 3.`,
 	];
 
-	if (logPath) {
-		sections.push(`**TS Server Log**
+	if (wogPath) {
+		sections.push(`**TS Sewva Wog**
 
-❗️ Please review and upload this log file to help us diagnose this crash:
+❗️ Pwease weview and upwoad this wog fiwe to hewp us diagnose this cwash:
 
-\`${logPath}\`
+\`${wogPath}\`
 
-The log file may contain personal data, including full paths and source code from your workspace. You can scrub the log file to remove paths or other personal information.
+The wog fiwe may contain pewsonaw data, incwuding fuww paths and souwce code fwom youw wowkspace. You can scwub the wog fiwe to wemove paths ow otha pewsonaw infowmation.
 `);
-	} else {
+	} ewse {
 
-		sections.push(`**TS Server Log**
+		sections.push(`**TS Sewva Wog**
 
-❗️Server logging disabled. To help us fix crashes like this, please enable logging by setting:
+❗️Sewva wogging disabwed. To hewp us fix cwashes wike this, pwease enabwe wogging by setting:
 
 \`\`\`json
-"typescript.tsserver.log": "verbose"
+"typescwipt.tssewva.wog": "vewbose"
 \`\`\`
 
-After enabling this setting, future crash reports will include the server log.`);
+Afta enabwing this setting, futuwe cwash wepowts wiww incwude the sewva wog.`);
 	}
 
-	sections.push(`**TS Server Error Stack**
+	sections.push(`**TS Sewva Ewwow Stack**
 
-Server: \`${error.serverId}\`
+Sewva: \`${ewwow.sewvewId}\`
 
 \`\`\`
-${error.serverStack}
+${ewwow.sewvewStack}
 \`\`\``);
 
-	return {
-		extensionId: 'vscode.typescript-language-features',
-		issueTitle: `TS Server fatal error:  ${error.serverMessage}`,
+	wetuwn {
+		extensionId: 'vscode.typescwipt-wanguage-featuwes',
+		issueTitwe: `TS Sewva fataw ewwow:  ${ewwow.sewvewMessage}`,
 
 		issueBody: sections.join('\n\n')
 	};
 }
 
-function getDignosticsKind(event: Proto.Event) {
+function getDignosticsKind(event: Pwoto.Event) {
 	switch (event.event) {
-		case 'syntaxDiag': return DiagnosticKind.Syntax;
-		case 'semanticDiag': return DiagnosticKind.Semantic;
-		case 'suggestionDiag': return DiagnosticKind.Suggestion;
+		case 'syntaxDiag': wetuwn DiagnosticKind.Syntax;
+		case 'semanticDiag': wetuwn DiagnosticKind.Semantic;
+		case 'suggestionDiag': wetuwn DiagnosticKind.Suggestion;
 	}
-	throw new Error('Unknown dignostics kind');
+	thwow new Ewwow('Unknown dignostics kind');
 }
 
-class ServerInitializingIndicator extends Disposable {
-	private _task?: { project: string | undefined, resolve: () => void, reject: () => void };
+cwass SewvewInitiawizingIndicatow extends Disposabwe {
+	pwivate _task?: { pwoject: stwing | undefined, wesowve: () => void, weject: () => void };
 
-	public reset(): void {
+	pubwic weset(): void {
 		if (this._task) {
-			this._task.reject();
+			this._task.weject();
 			this._task = undefined;
 		}
 	}
 
 	/**
-	 * Signal that a project has started loading.
+	 * Signaw that a pwoject has stawted woading.
 	 */
-	public startedLoadingProject(projectName: string | undefined): void {
-		// TS projects are loaded sequentially. Cancel existing task because it should always be resolved before
-		// the incoming project loading task is.
-		this.reset();
+	pubwic stawtedWoadingPwoject(pwojectName: stwing | undefined): void {
+		// TS pwojects awe woaded sequentiawwy. Cancew existing task because it shouwd awways be wesowved befowe
+		// the incoming pwoject woading task is.
+		this.weset();
 
-		vscode.window.withProgress({
-			location: vscode.ProgressLocation.Window,
-			title: localize('serverLoading.progress', "Initializing JS/TS language features"),
-		}, () => new Promise<void>((resolve, reject) => {
-			this._task = { project: projectName, resolve, reject };
+		vscode.window.withPwogwess({
+			wocation: vscode.PwogwessWocation.Window,
+			titwe: wocawize('sewvewWoading.pwogwess', "Initiawizing JS/TS wanguage featuwes"),
+		}, () => new Pwomise<void>((wesowve, weject) => {
+			this._task = { pwoject: pwojectName, wesowve, weject };
 		}));
 	}
 
-	public finishedLoadingProject(projectName: string | undefined): void {
-		if (this._task && this._task.project === projectName) {
-			this._task.resolve();
+	pubwic finishedWoadingPwoject(pwojectName: stwing | undefined): void {
+		if (this._task && this._task.pwoject === pwojectName) {
+			this._task.wesowve();
 			this._task = undefined;
 		}
 	}

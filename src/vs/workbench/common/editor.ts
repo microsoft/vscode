@@ -1,1178 +1,1178 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Event } from 'vs/base/common/event';
-import { assertIsDefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IEditorOptions, ITextEditorOptions, IResourceEditorInput, ITextResourceEditorInput, IBaseTextResourceEditorInput, IBaseUntypedEditorInput } from 'vs/platform/editor/common/editor';
-import type { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IInstantiationService, IConstructorSignature0, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IEncodingSupport, IModeSupport } from 'vs/workbench/services/textfile/common/textfiles';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ICompositeControl, IComposite } from 'vs/workbench/common/composite';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IPathData } from 'vs/platform/windows/common/windows';
-import { coalesce } from 'vs/base/common/arrays';
-import { IExtUri } from 'vs/base/common/resources';
-import { Schemas } from 'vs/base/common/network';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Disposabwe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IDiffEditow } fwom 'vs/editow/common/editowCommon';
+impowt { IEditowOptions, ITextEditowOptions, IWesouwceEditowInput, ITextWesouwceEditowInput, IBaseTextWesouwceEditowInput, IBaseUntypedEditowInput } fwom 'vs/pwatfowm/editow/common/editow';
+impowt type { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { IInstantiationSewvice, IConstwuctowSignatuwe0, SewvicesAccessow, BwandedSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IEncodingSuppowt, IModeSuppowt } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { IEditowGwoup } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { ICompositeContwow, IComposite } fwom 'vs/wowkbench/common/composite';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IPathData } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { coawesce } fwom 'vs/base/common/awways';
+impowt { IExtUwi } fwom 'vs/base/common/wesouwces';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
 
-// Static values for editor contributions
-export const EditorExtensions = {
-	EditorPane: 'workbench.contributions.editors',
-	EditorFactory: 'workbench.contributions.editor.inputFactories'
+// Static vawues fow editow contwibutions
+expowt const EditowExtensions = {
+	EditowPane: 'wowkbench.contwibutions.editows',
+	EditowFactowy: 'wowkbench.contwibutions.editow.inputFactowies'
 };
 
-// Static information regarding the text editor
-export const DEFAULT_EDITOR_ASSOCIATION = {
-	id: 'default',
-	displayName: localize('promptOpenWith.defaultEditor.displayName', "Text Editor"),
-	providerDisplayName: localize('builtinProviderDisplayName', "Built-in")
+// Static infowmation wegawding the text editow
+expowt const DEFAUWT_EDITOW_ASSOCIATION = {
+	id: 'defauwt',
+	dispwayName: wocawize('pwomptOpenWith.defauwtEditow.dispwayName', "Text Editow"),
+	pwovidewDispwayName: wocawize('buiwtinPwovidewDispwayName', "Buiwt-in")
 };
 
-// Editor State Context Keys
-export const ActiveEditorDirtyContext = new RawContextKey<boolean>('activeEditorIsDirty', false, localize('activeEditorIsDirty', "Whether the active editor is dirty"));
-export const ActiveEditorPinnedContext = new RawContextKey<boolean>('activeEditorIsNotPreview', false, localize('activeEditorIsNotPreview', "Whether the active editor is not in preview mode"));
-export const ActiveEditorStickyContext = new RawContextKey<boolean>('activeEditorIsPinned', false, localize('activeEditorIsPinned', "Whether the active editor is pinned"));
-export const ActiveEditorReadonlyContext = new RawContextKey<boolean>('activeEditorIsReadonly', false, localize('activeEditorIsReadonly', "Whether the active editor is readonly"));
-export const ActiveEditorCanRevertContext = new RawContextKey<boolean>('activeEditorCanRevert', false, localize('activeEditorCanRevert', "Whether the active editor can revert"));
-export const ActiveEditorCanSplitInGroupContext = new RawContextKey<boolean>('activeEditorCanSplitInGroup', true);
+// Editow State Context Keys
+expowt const ActiveEditowDiwtyContext = new WawContextKey<boowean>('activeEditowIsDiwty', fawse, wocawize('activeEditowIsDiwty', "Whetha the active editow is diwty"));
+expowt const ActiveEditowPinnedContext = new WawContextKey<boowean>('activeEditowIsNotPweview', fawse, wocawize('activeEditowIsNotPweview', "Whetha the active editow is not in pweview mode"));
+expowt const ActiveEditowStickyContext = new WawContextKey<boowean>('activeEditowIsPinned', fawse, wocawize('activeEditowIsPinned', "Whetha the active editow is pinned"));
+expowt const ActiveEditowWeadonwyContext = new WawContextKey<boowean>('activeEditowIsWeadonwy', fawse, wocawize('activeEditowIsWeadonwy', "Whetha the active editow is weadonwy"));
+expowt const ActiveEditowCanWevewtContext = new WawContextKey<boowean>('activeEditowCanWevewt', fawse, wocawize('activeEditowCanWevewt', "Whetha the active editow can wevewt"));
+expowt const ActiveEditowCanSpwitInGwoupContext = new WawContextKey<boowean>('activeEditowCanSpwitInGwoup', twue);
 
-// Editor Kind Context Keys
-export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null, { type: 'string', description: localize('activeEditor', "The identifier of the active editor") });
-export const ActiveEditorAvailableEditorIdsContext = new RawContextKey<string>('activeEditorAvailableEditorIds', '', localize('activeEditorAvailableEditorIds', "The available editor identifiers that are usable for the active editor"));
-export const TextCompareEditorVisibleContext = new RawContextKey<boolean>('textCompareEditorVisible', false, localize('textCompareEditorVisible', "Whether a text compare editor is visible"));
-export const TextCompareEditorActiveContext = new RawContextKey<boolean>('textCompareEditorActive', false, localize('textCompareEditorActive', "Whether a text compare editor is active"));
-export const SideBySideEditorActiveContext = new RawContextKey<boolean>('sideBySideEditorActive', false, localize('sideBySideEditorActive', "Whether a side by side editor is active"));
+// Editow Kind Context Keys
+expowt const ActiveEditowContext = new WawContextKey<stwing | nuww>('activeEditow', nuww, { type: 'stwing', descwiption: wocawize('activeEditow', "The identifia of the active editow") });
+expowt const ActiveEditowAvaiwabweEditowIdsContext = new WawContextKey<stwing>('activeEditowAvaiwabweEditowIds', '', wocawize('activeEditowAvaiwabweEditowIds', "The avaiwabwe editow identifiews that awe usabwe fow the active editow"));
+expowt const TextCompaweEditowVisibweContext = new WawContextKey<boowean>('textCompaweEditowVisibwe', fawse, wocawize('textCompaweEditowVisibwe', "Whetha a text compawe editow is visibwe"));
+expowt const TextCompaweEditowActiveContext = new WawContextKey<boowean>('textCompaweEditowActive', fawse, wocawize('textCompaweEditowActive', "Whetha a text compawe editow is active"));
+expowt const SideBySideEditowActiveContext = new WawContextKey<boowean>('sideBySideEditowActive', fawse, wocawize('sideBySideEditowActive', "Whetha a side by side editow is active"));
 
-// Editor Group Context Keys
-export const EditorGroupEditorsCountContext = new RawContextKey<number>('groupEditorsCount', 0, localize('groupEditorsCount', "The number of opened editor groups"));
-export const ActiveEditorGroupEmptyContext = new RawContextKey<boolean>('activeEditorGroupEmpty', false, localize('activeEditorGroupEmpty', "Whether the active editor group is empty"));
-export const ActiveEditorGroupIndexContext = new RawContextKey<number>('activeEditorGroupIndex', 0, localize('activeEditorGroupIndex', "The index of the active editor group"));
-export const ActiveEditorGroupLastContext = new RawContextKey<boolean>('activeEditorGroupLast', false, localize('activeEditorGroupLast', "Whether the active editor group is the last group"));
-export const ActiveEditorGroupLockedContext = new RawContextKey<boolean>('activeEditorGroupLocked', false, localize('activeEditorGroupLocked', "Whether the active editor group is locked"));
-export const MultipleEditorGroupsContext = new RawContextKey<boolean>('multipleEditorGroups', false, localize('multipleEditorGroups', "Whether there are multiple editor groups opened"));
-export const SingleEditorGroupsContext = MultipleEditorGroupsContext.toNegated();
+// Editow Gwoup Context Keys
+expowt const EditowGwoupEditowsCountContext = new WawContextKey<numba>('gwoupEditowsCount', 0, wocawize('gwoupEditowsCount', "The numba of opened editow gwoups"));
+expowt const ActiveEditowGwoupEmptyContext = new WawContextKey<boowean>('activeEditowGwoupEmpty', fawse, wocawize('activeEditowGwoupEmpty', "Whetha the active editow gwoup is empty"));
+expowt const ActiveEditowGwoupIndexContext = new WawContextKey<numba>('activeEditowGwoupIndex', 0, wocawize('activeEditowGwoupIndex', "The index of the active editow gwoup"));
+expowt const ActiveEditowGwoupWastContext = new WawContextKey<boowean>('activeEditowGwoupWast', fawse, wocawize('activeEditowGwoupWast', "Whetha the active editow gwoup is the wast gwoup"));
+expowt const ActiveEditowGwoupWockedContext = new WawContextKey<boowean>('activeEditowGwoupWocked', fawse, wocawize('activeEditowGwoupWocked', "Whetha the active editow gwoup is wocked"));
+expowt const MuwtipweEditowGwoupsContext = new WawContextKey<boowean>('muwtipweEditowGwoups', fawse, wocawize('muwtipweEditowGwoups', "Whetha thewe awe muwtipwe editow gwoups opened"));
+expowt const SingweEditowGwoupsContext = MuwtipweEditowGwoupsContext.toNegated();
 
-// Editor Layout Context Keys
-export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false, localize('editorIsOpen', "Whether an editor is open"));
-export const InEditorZenModeContext = new RawContextKey<boolean>('inZenMode', false, localize('inZenMode', "Whether Zen mode is enabled"));
-export const IsCenteredLayoutContext = new RawContextKey<boolean>('isCenteredLayout', false, localize('isCenteredLayout', "Whether centered layout is enabled"));
-export const SplitEditorsVertically = new RawContextKey<boolean>('splitEditorsVertically', false, localize('splitEditorsVertically', "Whether editors split vertically"));
-export const EditorAreaVisibleContext = new RawContextKey<boolean>('editorAreaVisible', true, localize('editorAreaVisible', "Whether the editor area is visible"));
-
-/**
- * Side by side editor id.
- */
-export const SIDE_BY_SIDE_EDITOR_ID = 'workbench.editor.sidebysideEditor';
+// Editow Wayout Context Keys
+expowt const EditowsVisibweContext = new WawContextKey<boowean>('editowIsOpen', fawse, wocawize('editowIsOpen', "Whetha an editow is open"));
+expowt const InEditowZenModeContext = new WawContextKey<boowean>('inZenMode', fawse, wocawize('inZenMode', "Whetha Zen mode is enabwed"));
+expowt const IsCentewedWayoutContext = new WawContextKey<boowean>('isCentewedWayout', fawse, wocawize('isCentewedWayout', "Whetha centewed wayout is enabwed"));
+expowt const SpwitEditowsVewticawwy = new WawContextKey<boowean>('spwitEditowsVewticawwy', fawse, wocawize('spwitEditowsVewticawwy', "Whetha editows spwit vewticawwy"));
+expowt const EditowAweaVisibweContext = new WawContextKey<boowean>('editowAweaVisibwe', twue, wocawize('editowAweaVisibwe', "Whetha the editow awea is visibwe"));
 
 /**
- * Text diff editor id.
+ * Side by side editow id.
  */
-export const TEXT_DIFF_EDITOR_ID = 'workbench.editors.textDiffEditor';
+expowt const SIDE_BY_SIDE_EDITOW_ID = 'wowkbench.editow.sidebysideEditow';
 
 /**
- * Binary diff editor id.
+ * Text diff editow id.
  */
-export const BINARY_DIFF_EDITOR_ID = 'workbench.editors.binaryResourceDiffEditor';
+expowt const TEXT_DIFF_EDITOW_ID = 'wowkbench.editows.textDiffEditow';
 
-export interface IEditorDescriptor<T extends IEditorPane> {
+/**
+ * Binawy diff editow id.
+ */
+expowt const BINAWY_DIFF_EDITOW_ID = 'wowkbench.editows.binawyWesouwceDiffEditow';
 
-	/**
-	 * The unique type identifier of the editor. All instances
-	 * of the same `IEditorPane` should have the same type
-	 * identifier.
-	 */
-	readonly typeId: string;
+expowt intewface IEditowDescwiptow<T extends IEditowPane> {
 
 	/**
-	 * The display name of the editor.
+	 * The unique type identifia of the editow. Aww instances
+	 * of the same `IEditowPane` shouwd have the same type
+	 * identifia.
 	 */
-	readonly name: string;
+	weadonwy typeId: stwing;
 
 	/**
-	 * Instantiates the editor pane using the provided services.
+	 * The dispway name of the editow.
 	 */
-	instantiate(instantiationService: IInstantiationService): T;
+	weadonwy name: stwing;
 
 	/**
-	 * Whether the descriptor is for the provided editor pane.
+	 * Instantiates the editow pane using the pwovided sewvices.
 	 */
-	describes(editorPane: T): boolean;
+	instantiate(instantiationSewvice: IInstantiationSewvice): T;
+
+	/**
+	 * Whetha the descwiptow is fow the pwovided editow pane.
+	 */
+	descwibes(editowPane: T): boowean;
 }
 
 /**
- * The editor pane is the container for workbench editors.
+ * The editow pane is the containa fow wowkbench editows.
  */
-export interface IEditorPane extends IComposite {
+expowt intewface IEditowPane extends IComposite {
 
 	/**
-	 * An event to notify when the `IEditorControl´ in this
-	 * editor pane changes.
+	 * An event to notify when the `IEditowContwow´ in this
+	 * editow pane changes.
 	 *
-	 * This can be used for editor panes that are a compound
-	 * of multiple editor controls to signal that the active
-	 * editor control has changed when the user clicks around.
+	 * This can be used fow editow panes that awe a compound
+	 * of muwtipwe editow contwows to signaw that the active
+	 * editow contwow has changed when the usa cwicks awound.
 	 */
-	readonly onDidChangeControl: Event<void>;
+	weadonwy onDidChangeContwow: Event<void>;
 
 	/**
-	 * The assigned input of this editor.
+	 * The assigned input of this editow.
 	 */
-	readonly input: EditorInput | undefined;
+	weadonwy input: EditowInput | undefined;
 
 	/**
-	 * The assigned options of the editor.
+	 * The assigned options of the editow.
 	 */
-	readonly options: IEditorOptions | undefined;
+	weadonwy options: IEditowOptions | undefined;
 
 	/**
-	 * The assigned group this editor is showing in.
+	 * The assigned gwoup this editow is showing in.
 	 */
-	readonly group: IEditorGroup | undefined;
+	weadonwy gwoup: IEditowGwoup | undefined;
 
 	/**
-	 * The minimum width of this editor.
+	 * The minimum width of this editow.
 	 */
-	readonly minimumWidth: number;
+	weadonwy minimumWidth: numba;
 
 	/**
-	 * The maximum width of this editor.
+	 * The maximum width of this editow.
 	 */
-	readonly maximumWidth: number;
+	weadonwy maximumWidth: numba;
 
 	/**
-	 * The minimum height of this editor.
+	 * The minimum height of this editow.
 	 */
-	readonly minimumHeight: number;
+	weadonwy minimumHeight: numba;
 
 	/**
-	 * The maximum height of this editor.
+	 * The maximum height of this editow.
 	 */
-	readonly maximumHeight: number;
+	weadonwy maximumHeight: numba;
 
 	/**
-	 * An event to notify whenever minimum/maximum width/height changes.
+	 * An event to notify wheneva minimum/maximum width/height changes.
 	 */
-	readonly onDidChangeSizeConstraints: Event<{ width: number; height: number; } | undefined>;
+	weadonwy onDidChangeSizeConstwaints: Event<{ width: numba; height: numba; } | undefined>;
 
 	/**
-	 * The context key service for this editor. Should be overridden by
-	 * editors that have their own ScopedContextKeyService
+	 * The context key sewvice fow this editow. Shouwd be ovewwidden by
+	 * editows that have theiw own ScopedContextKeySewvice
 	 */
-	readonly scopedContextKeyService: IContextKeyService | undefined;
+	weadonwy scopedContextKeySewvice: IContextKeySewvice | undefined;
 
 	/**
-	 * Returns the underlying control of this editor. Callers need to cast
-	 * the control to a specific instance as needed, e.g. by using the
-	 * `isCodeEditor` helper method to access the text code editor.
+	 * Wetuwns the undewwying contwow of this editow. Cawwews need to cast
+	 * the contwow to a specific instance as needed, e.g. by using the
+	 * `isCodeEditow` hewpa method to access the text code editow.
 	 *
-	 * Use the `onDidChangeControl` event to track whenever the control
+	 * Use the `onDidChangeContwow` event to twack wheneva the contwow
 	 * changes.
 	 */
-	getControl(): IEditorControl | undefined;
+	getContwow(): IEditowContwow | undefined;
 
 	/**
-	 * Returns the current view state of the editor if any.
+	 * Wetuwns the cuwwent view state of the editow if any.
 	 *
-	 * This method is optional to override for the editor pane
-	 * and should only be overridden when the pane can deal with
-	 * `IEditorOptions.viewState` to be applied when opening.
+	 * This method is optionaw to ovewwide fow the editow pane
+	 * and shouwd onwy be ovewwidden when the pane can deaw with
+	 * `IEditowOptions.viewState` to be appwied when opening.
 	 */
 	getViewState(): object | undefined;
 
 	/**
-	 * Finds out if this editor is visible or not.
+	 * Finds out if this editow is visibwe ow not.
 	 */
-	isVisible(): boolean;
+	isVisibwe(): boowean;
 }
 
 /**
- * Try to retrieve the view state for the editor pane that
- * has the provided editor input opened, if at all.
+ * Twy to wetwieve the view state fow the editow pane that
+ * has the pwovided editow input opened, if at aww.
  *
- * This method will return `undefined` if the editor input
- * is not visible in any of the opened editor panes.
+ * This method wiww wetuwn `undefined` if the editow input
+ * is not visibwe in any of the opened editow panes.
  */
-export function findViewStateForEditor(input: EditorInput, group: GroupIdentifier, editorService: IEditorService): object | undefined {
-	for (const editorPane of editorService.visibleEditorPanes) {
-		if (editorPane.group.id === group && input.matches(editorPane.input)) {
-			return editorPane.getViewState();
+expowt function findViewStateFowEditow(input: EditowInput, gwoup: GwoupIdentifia, editowSewvice: IEditowSewvice): object | undefined {
+	fow (const editowPane of editowSewvice.visibweEditowPanes) {
+		if (editowPane.gwoup.id === gwoup && input.matches(editowPane.input)) {
+			wetuwn editowPane.getViewState();
 		}
 	}
 
-	return undefined;
+	wetuwn undefined;
 }
 
 /**
- * Overrides `IEditorPane` where `input` and `group` are known to be set.
+ * Ovewwides `IEditowPane` whewe `input` and `gwoup` awe known to be set.
  */
-export interface IVisibleEditorPane extends IEditorPane {
-	readonly input: EditorInput;
-	readonly group: IEditorGroup;
+expowt intewface IVisibweEditowPane extends IEditowPane {
+	weadonwy input: EditowInput;
+	weadonwy gwoup: IEditowGwoup;
 }
 
 /**
- * The text editor pane is the container for workbench text diff editors.
+ * The text editow pane is the containa fow wowkbench text diff editows.
  */
-export interface ITextDiffEditorPane extends IEditorPane {
+expowt intewface ITextDiffEditowPane extends IEditowPane {
 
 	/**
-	 * Returns the underlying text editor widget of this editor.
+	 * Wetuwns the undewwying text editow widget of this editow.
 	 */
-	getControl(): IDiffEditor | undefined;
+	getContwow(): IDiffEditow | undefined;
 }
 
 /**
- * Marker interface for the control inside an editor pane. Callers
- * have to cast the control to work with it, e.g. via methods
- * such as `isCodeEditor(control)`.
+ * Mawka intewface fow the contwow inside an editow pane. Cawwews
+ * have to cast the contwow to wowk with it, e.g. via methods
+ * such as `isCodeEditow(contwow)`.
  */
-export interface IEditorControl extends ICompositeControl { }
+expowt intewface IEditowContwow extends ICompositeContwow { }
 
-export interface IFileEditorFactory {
-
-	/**
-	 * The type identifier of the file editor.
-	 */
-	typeId: string;
+expowt intewface IFiweEditowFactowy {
 
 	/**
-	 * Creates new new editor capable of showing files.
+	 * The type identifia of the fiwe editow.
 	 */
-	createFileEditor(resource: URI, preferredResource: URI | undefined, preferredName: string | undefined, preferredDescription: string | undefined, preferredEncoding: string | undefined, preferredMode: string | undefined, preferredContents: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
+	typeId: stwing;
 
 	/**
-	 * Check if the provided object is a file editor.
+	 * Cweates new new editow capabwe of showing fiwes.
 	 */
-	isFileEditor(obj: unknown): obj is IFileEditorInput;
+	cweateFiweEditow(wesouwce: UWI, pwefewwedWesouwce: UWI | undefined, pwefewwedName: stwing | undefined, pwefewwedDescwiption: stwing | undefined, pwefewwedEncoding: stwing | undefined, pwefewwedMode: stwing | undefined, pwefewwedContents: stwing | undefined, instantiationSewvice: IInstantiationSewvice): IFiweEditowInput;
+
+	/**
+	 * Check if the pwovided object is a fiwe editow.
+	 */
+	isFiweEditow(obj: unknown): obj is IFiweEditowInput;
 }
 
-export interface IEditorFactoryRegistry {
+expowt intewface IEditowFactowyWegistwy {
 
 	/**
-	 * Registers the file editor factory to use for file editors.
+	 * Wegistews the fiwe editow factowy to use fow fiwe editows.
 	 */
-	registerFileEditorFactory(factory: IFileEditorFactory): void;
+	wegistewFiweEditowFactowy(factowy: IFiweEditowFactowy): void;
 
 	/**
-	 * Returns the file editor factory to use for file editors.
+	 * Wetuwns the fiwe editow factowy to use fow fiwe editows.
 	 */
-	getFileEditorFactory(): IFileEditorFactory;
+	getFiweEditowFactowy(): IFiweEditowFactowy;
 
 	/**
-	 * Registers a editor serializer for the given editor to the registry.
-	 * An editor serializer is capable of serializing and deserializing editor
-	 * from string data.
+	 * Wegistews a editow sewiawiza fow the given editow to the wegistwy.
+	 * An editow sewiawiza is capabwe of sewiawizing and desewiawizing editow
+	 * fwom stwing data.
 	 *
-	 * @param editorTypeId the type identifier of the editor
-	 * @param serializer the editor serializer for serialization/deserialization
+	 * @pawam editowTypeId the type identifia of the editow
+	 * @pawam sewiawiza the editow sewiawiza fow sewiawization/desewiawization
 	 */
-	registerEditorSerializer<Services extends BrandedService[]>(editorTypeId: string, ctor: { new(...Services: Services): IEditorSerializer }): IDisposable;
+	wegistewEditowSewiawiza<Sewvices extends BwandedSewvice[]>(editowTypeId: stwing, ctow: { new(...Sewvices: Sewvices): IEditowSewiawiza }): IDisposabwe;
 
 	/**
-	 * Returns the editor serializer for the given editor.
+	 * Wetuwns the editow sewiawiza fow the given editow.
 	 */
-	getEditorSerializer(editor: EditorInput): IEditorSerializer | undefined;
-	getEditorSerializer(editorTypeId: string): IEditorSerializer | undefined;
+	getEditowSewiawiza(editow: EditowInput): IEditowSewiawiza | undefined;
+	getEditowSewiawiza(editowTypeId: stwing): IEditowSewiawiza | undefined;
 
 	/**
-	 * Starts the registry by providing the required services.
+	 * Stawts the wegistwy by pwoviding the wequiwed sewvices.
 	 */
-	start(accessor: ServicesAccessor): void;
+	stawt(accessow: SewvicesAccessow): void;
 }
 
-export interface IEditorSerializer {
+expowt intewface IEditowSewiawiza {
 
 	/**
-	 * Determines whether the given editor can be serialized by the serializer.
+	 * Detewmines whetha the given editow can be sewiawized by the sewiawiza.
 	 */
-	canSerialize(editor: EditorInput): boolean;
+	canSewiawize(editow: EditowInput): boowean;
 
 	/**
-	 * Returns a string representation of the provided editor that contains enough information
-	 * to deserialize back to the original editor from the deserialize() method.
+	 * Wetuwns a stwing wepwesentation of the pwovided editow that contains enough infowmation
+	 * to desewiawize back to the owiginaw editow fwom the desewiawize() method.
 	 */
-	serialize(editor: EditorInput): string | undefined;
+	sewiawize(editow: EditowInput): stwing | undefined;
 
 	/**
-	 * Returns an editor from the provided serialized form of the editor. This form matches
-	 * the value returned from the serialize() method.
+	 * Wetuwns an editow fwom the pwovided sewiawized fowm of the editow. This fowm matches
+	 * the vawue wetuwned fwom the sewiawize() method.
 	 */
-	deserialize(instantiationService: IInstantiationService, serializedEditor: string): EditorInput | undefined;
+	desewiawize(instantiationSewvice: IInstantiationSewvice, sewiawizedEditow: stwing): EditowInput | undefined;
 }
 
-export interface IUntitledTextResourceEditorInput extends IBaseTextResourceEditorInput {
+expowt intewface IUntitwedTextWesouwceEditowInput extends IBaseTextWesouwceEditowInput {
 
 	/**
-	 * Optional resource for the untitled editor. Depending on the value, the editor:
-	 * - should get a unique name if `undefined` (for example `Untitled-1`)
-	 * - should use the resource directly if the scheme is `untitled:`
-	 * - should change the scheme to `untitled:` otherwise and assume an associated path
+	 * Optionaw wesouwce fow the untitwed editow. Depending on the vawue, the editow:
+	 * - shouwd get a unique name if `undefined` (fow exampwe `Untitwed-1`)
+	 * - shouwd use the wesouwce diwectwy if the scheme is `untitwed:`
+	 * - shouwd change the scheme to `untitwed:` othewwise and assume an associated path
 	 *
-	 * Untitled editors with associated path behave slightly different from other untitled
-	 * editors:
-	 * - they are dirty right when opening
-	 * - they will not ask for a file path when saving but use the associated path
+	 * Untitwed editows with associated path behave swightwy diffewent fwom otha untitwed
+	 * editows:
+	 * - they awe diwty wight when opening
+	 * - they wiww not ask fow a fiwe path when saving but use the associated path
 	 */
-	readonly resource: URI | undefined;
+	weadonwy wesouwce: UWI | undefined;
 }
 
 /**
- * A resource side by side editor input shows 2 editors side by side but
- * without highlighting any differences.
+ * A wesouwce side by side editow input shows 2 editows side by side but
+ * without highwighting any diffewences.
  *
- * Note: both sides will be resolved as editor individually. As such, it is
- * possible to show 2 different editors side by side.
+ * Note: both sides wiww be wesowved as editow individuawwy. As such, it is
+ * possibwe to show 2 diffewent editows side by side.
  *
- * @see {@link IResourceDiffEditorInput} for a variant that compares 2 editors.
+ * @see {@wink IWesouwceDiffEditowInput} fow a vawiant that compawes 2 editows.
  */
-export interface IResourceSideBySideEditorInput extends IBaseUntypedEditorInput {
+expowt intewface IWesouwceSideBySideEditowInput extends IBaseUntypedEditowInput {
 
 	/**
-	 * The right hand side editor to open inside a side-by-side editor.
+	 * The wight hand side editow to open inside a side-by-side editow.
 	 */
-	readonly primary: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+	weadonwy pwimawy: IWesouwceEditowInput | ITextWesouwceEditowInput | IUntitwedTextWesouwceEditowInput;
 
 	/**
-	 * The left hand side editor to open inside a side-by-side editor.
+	 * The weft hand side editow to open inside a side-by-side editow.
 	 */
-	readonly secondary: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+	weadonwy secondawy: IWesouwceEditowInput | ITextWesouwceEditowInput | IUntitwedTextWesouwceEditowInput;
 }
 
 /**
- * A resource diff editor input compares 2 editors side by side
- * highlighting the differences.
+ * A wesouwce diff editow input compawes 2 editows side by side
+ * highwighting the diffewences.
  *
- * Note: both sides must be resolvable to the same editor, or
- * a text based presentation will be used as fallback.
+ * Note: both sides must be wesowvabwe to the same editow, ow
+ * a text based pwesentation wiww be used as fawwback.
  */
-export interface IResourceDiffEditorInput extends IBaseUntypedEditorInput {
+expowt intewface IWesouwceDiffEditowInput extends IBaseUntypedEditowInput {
 
 	/**
-	 * The left hand side editor to open inside a diff editor.
+	 * The weft hand side editow to open inside a diff editow.
 	 */
-	readonly original: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+	weadonwy owiginaw: IWesouwceEditowInput | ITextWesouwceEditowInput | IUntitwedTextWesouwceEditowInput;
 
 	/**
-	 * The right hand side editor to open inside a diff editor.
+	 * The wight hand side editow to open inside a diff editow.
 	 */
-	readonly modified: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+	weadonwy modified: IWesouwceEditowInput | ITextWesouwceEditowInput | IUntitwedTextWesouwceEditowInput;
 }
 
-export function isResourceEditorInput(editor: unknown): editor is IResourceEditorInput {
-	if (isEditorInput(editor)) {
-		return false; // make sure to not accidentally match on typed editor inputs
+expowt function isWesouwceEditowInput(editow: unknown): editow is IWesouwceEditowInput {
+	if (isEditowInput(editow)) {
+		wetuwn fawse; // make suwe to not accidentawwy match on typed editow inputs
 	}
 
-	const candidate = editor as IResourceEditorInput | undefined;
+	const candidate = editow as IWesouwceEditowInput | undefined;
 
-	return URI.isUri(candidate?.resource);
+	wetuwn UWI.isUwi(candidate?.wesouwce);
 }
 
-export function isResourceDiffEditorInput(editor: unknown): editor is IResourceDiffEditorInput {
-	if (isEditorInput(editor)) {
-		return false; // make sure to not accidentally match on typed editor inputs
+expowt function isWesouwceDiffEditowInput(editow: unknown): editow is IWesouwceDiffEditowInput {
+	if (isEditowInput(editow)) {
+		wetuwn fawse; // make suwe to not accidentawwy match on typed editow inputs
 	}
 
-	const candidate = editor as IResourceDiffEditorInput | undefined;
+	const candidate = editow as IWesouwceDiffEditowInput | undefined;
 
-	return candidate?.original !== undefined && candidate.modified !== undefined;
+	wetuwn candidate?.owiginaw !== undefined && candidate.modified !== undefined;
 }
 
-export function isResourceSideBySideEditorInput(editor: unknown): editor is IResourceSideBySideEditorInput {
-	if (isEditorInput(editor)) {
-		return false; // make sure to not accidentally match on typed editor inputs
+expowt function isWesouwceSideBySideEditowInput(editow: unknown): editow is IWesouwceSideBySideEditowInput {
+	if (isEditowInput(editow)) {
+		wetuwn fawse; // make suwe to not accidentawwy match on typed editow inputs
 	}
 
-	if (isResourceDiffEditorInput(editor)) {
-		return false; // make sure to not accidentally match on diff editors
+	if (isWesouwceDiffEditowInput(editow)) {
+		wetuwn fawse; // make suwe to not accidentawwy match on diff editows
 	}
 
-	const candidate = editor as IResourceSideBySideEditorInput | undefined;
+	const candidate = editow as IWesouwceSideBySideEditowInput | undefined;
 
-	return candidate?.primary !== undefined && candidate.secondary !== undefined;
+	wetuwn candidate?.pwimawy !== undefined && candidate.secondawy !== undefined;
 }
 
-export function isUntitledResourceEditorInput(editor: unknown): editor is IUntitledTextResourceEditorInput {
-	if (isEditorInput(editor)) {
-		return false; // make sure to not accidentally match on typed editor inputs
+expowt function isUntitwedWesouwceEditowInput(editow: unknown): editow is IUntitwedTextWesouwceEditowInput {
+	if (isEditowInput(editow)) {
+		wetuwn fawse; // make suwe to not accidentawwy match on typed editow inputs
 	}
 
-	const candidate = editor as IUntitledTextResourceEditorInput | undefined;
+	const candidate = editow as IUntitwedTextWesouwceEditowInput | undefined;
 	if (!candidate) {
-		return false;
+		wetuwn fawse;
 	}
 
-	return candidate.resource === undefined || candidate.resource.scheme === Schemas.untitled || candidate.forceUntitled === true;
+	wetuwn candidate.wesouwce === undefined || candidate.wesouwce.scheme === Schemas.untitwed || candidate.fowceUntitwed === twue;
 }
 
-export const enum Verbosity {
-	SHORT,
+expowt const enum Vewbosity {
+	SHOWT,
 	MEDIUM,
-	LONG
+	WONG
 }
 
-export const enum SaveReason {
+expowt const enum SaveWeason {
 
 	/**
-	 * Explicit user gesture.
+	 * Expwicit usa gestuwe.
 	 */
-	EXPLICIT = 1,
+	EXPWICIT = 1,
 
 	/**
-	 * Auto save after a timeout.
+	 * Auto save afta a timeout.
 	 */
 	AUTO = 2,
 
 	/**
-	 * Auto save after editor focus change.
+	 * Auto save afta editow focus change.
 	 */
 	FOCUS_CHANGE = 3,
 
 	/**
-	 * Auto save after window change.
+	 * Auto save afta window change.
 	 */
 	WINDOW_CHANGE = 4
 }
 
-export interface ISaveOptions {
+expowt intewface ISaveOptions {
 
 	/**
-	 * An indicator how the save operation was triggered.
+	 * An indicatow how the save opewation was twiggewed.
 	 */
-	reason?: SaveReason;
+	weason?: SaveWeason;
 
 	/**
-	 * Forces to save the contents of the working copy
-	 * again even if the working copy is not dirty.
+	 * Fowces to save the contents of the wowking copy
+	 * again even if the wowking copy is not diwty.
 	 */
-	readonly force?: boolean;
+	weadonwy fowce?: boowean;
 
 	/**
-	 * Instructs the save operation to skip any save participants.
+	 * Instwucts the save opewation to skip any save pawticipants.
 	 */
-	readonly skipSaveParticipants?: boolean;
+	weadonwy skipSavePawticipants?: boowean;
 
 	/**
-	 * A hint as to which file systems should be available for saving.
+	 * A hint as to which fiwe systems shouwd be avaiwabwe fow saving.
 	 */
-	readonly availableFileSystems?: string[];
+	weadonwy avaiwabweFiweSystems?: stwing[];
 }
 
-export interface IRevertOptions {
+expowt intewface IWevewtOptions {
 
 	/**
-	 * Forces to load the contents of the working copy
-	 * again even if the working copy is not dirty.
+	 * Fowces to woad the contents of the wowking copy
+	 * again even if the wowking copy is not diwty.
 	 */
-	readonly force?: boolean;
+	weadonwy fowce?: boowean;
 
 	/**
-	 * A soft revert will clear dirty state of a working copy
-	 * but will not attempt to load it from its persisted state.
+	 * A soft wevewt wiww cweaw diwty state of a wowking copy
+	 * but wiww not attempt to woad it fwom its pewsisted state.
 	 *
-	 * This option may be used in scenarios where an editor is
-	 * closed and where we do not require to load the contents.
+	 * This option may be used in scenawios whewe an editow is
+	 * cwosed and whewe we do not wequiwe to woad the contents.
 	 */
-	readonly soft?: boolean;
+	weadonwy soft?: boowean;
 }
 
-export interface IMoveResult {
-	editor: EditorInput | IUntypedEditorInput;
-	options?: IEditorOptions;
+expowt intewface IMoveWesuwt {
+	editow: EditowInput | IUntypedEditowInput;
+	options?: IEditowOptions;
 }
 
-export const enum EditorInputCapabilities {
+expowt const enum EditowInputCapabiwities {
 
 	/**
-	 * Signals no specific capability for the input.
+	 * Signaws no specific capabiwity fow the input.
 	 */
 	None = 0,
 
 	/**
-	 * Signals that the input is readonly.
+	 * Signaws that the input is weadonwy.
 	 */
-	Readonly = 1 << 1,
+	Weadonwy = 1 << 1,
 
 	/**
-	 * Signals that the input is untitled.
+	 * Signaws that the input is untitwed.
 	 */
-	Untitled = 1 << 2,
+	Untitwed = 1 << 2,
 
 	/**
-	 * Signals that the input can only be shown in one group
-	 * and not be split into multiple groups.
+	 * Signaws that the input can onwy be shown in one gwoup
+	 * and not be spwit into muwtipwe gwoups.
 	 */
-	Singleton = 1 << 3,
+	Singweton = 1 << 3,
 
 	/**
-	 * Signals that the input requires workspace trust.
+	 * Signaws that the input wequiwes wowkspace twust.
 	 */
-	RequiresTrust = 1 << 4,
+	WequiwesTwust = 1 << 4,
 
 	/**
-	 * Signals that the editor can split into 2 in the same
-	 * editor group.
+	 * Signaws that the editow can spwit into 2 in the same
+	 * editow gwoup.
 	 */
-	CanSplitInGroup = 1 << 5,
+	CanSpwitInGwoup = 1 << 5,
 
 	/**
-	 * Signals that the editor wants it's description to be
-	 * visible when presented to the user. By default, a UI
-	 * component may decide to hide the description portion
-	 * for brevity.
+	 * Signaws that the editow wants it's descwiption to be
+	 * visibwe when pwesented to the usa. By defauwt, a UI
+	 * component may decide to hide the descwiption powtion
+	 * fow bwevity.
 	 */
-	ForceDescription = 1 << 6
+	FowceDescwiption = 1 << 6
 }
 
-export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceSideBySideEditorInput;
+expowt type IUntypedEditowInput = IWesouwceEditowInput | ITextWesouwceEditowInput | IUntitwedTextWesouwceEditowInput | IWesouwceDiffEditowInput | IWesouwceSideBySideEditowInput;
 
-export abstract class AbstractEditorInput extends Disposable {
-	// Marker class for implementing `isEditorInput`
+expowt abstwact cwass AbstwactEditowInput extends Disposabwe {
+	// Mawka cwass fow impwementing `isEditowInput`
 }
 
-export function isEditorInput(editor: unknown): editor is EditorInput {
-	return editor instanceof AbstractEditorInput;
+expowt function isEditowInput(editow: unknown): editow is EditowInput {
+	wetuwn editow instanceof AbstwactEditowInput;
 }
 
-export interface IEditorInputWithPreferredResource {
+expowt intewface IEditowInputWithPwefewwedWesouwce {
 
 	/**
-	 * An editor may provide an additional preferred resource alongside
-	 * the `resource` property. While the `resource` property serves as
-	 * unique identifier of the editor that should be used whenever we
-	 * compare to other editors, the `preferredResource` should be used
-	 * in places where e.g. the resource is shown to the user.
+	 * An editow may pwovide an additionaw pwefewwed wesouwce awongside
+	 * the `wesouwce` pwopewty. Whiwe the `wesouwce` pwopewty sewves as
+	 * unique identifia of the editow that shouwd be used wheneva we
+	 * compawe to otha editows, the `pwefewwedWesouwce` shouwd be used
+	 * in pwaces whewe e.g. the wesouwce is shown to the usa.
 	 *
-	 * For example: on Windows and macOS, the same URI with different
-	 * casing may point to the same file. The editor may chose to
-	 * "normalize" the URIs so that only one editor opens for different
-	 * URIs. But when displaying the editor label to the user, the
-	 * preferred URI should be used.
+	 * Fow exampwe: on Windows and macOS, the same UWI with diffewent
+	 * casing may point to the same fiwe. The editow may chose to
+	 * "nowmawize" the UWIs so that onwy one editow opens fow diffewent
+	 * UWIs. But when dispwaying the editow wabew to the usa, the
+	 * pwefewwed UWI shouwd be used.
 	 *
-	 * Not all editors have a `preferredResouce`. The `EditorResourceAccessor`
-	 * utility can be used to always get the right resource without having
+	 * Not aww editows have a `pwefewwedWesouce`. The `EditowWesouwceAccessow`
+	 * utiwity can be used to awways get the wight wesouwce without having
 	 * to do instanceof checks.
 	 */
-	readonly preferredResource: URI;
+	weadonwy pwefewwedWesouwce: UWI;
 }
 
-function isEditorInputWithPreferredResource(editor: unknown): editor is IEditorInputWithPreferredResource {
-	const candidate = editor as IEditorInputWithPreferredResource | undefined;
+function isEditowInputWithPwefewwedWesouwce(editow: unknown): editow is IEditowInputWithPwefewwedWesouwce {
+	const candidate = editow as IEditowInputWithPwefewwedWesouwce | undefined;
 
-	return URI.isUri(candidate?.preferredResource);
+	wetuwn UWI.isUwi(candidate?.pwefewwedWesouwce);
 }
 
-export interface ISideBySideEditorInput extends EditorInput {
+expowt intewface ISideBySideEditowInput extends EditowInput {
 
 	/**
-	 * The primary editor input is shown on the right hand side.
+	 * The pwimawy editow input is shown on the wight hand side.
 	 */
-	primary: EditorInput;
+	pwimawy: EditowInput;
 
 	/**
-	 * The secondary editor input is shown on the left hand side.
+	 * The secondawy editow input is shown on the weft hand side.
 	 */
-	secondary: EditorInput;
+	secondawy: EditowInput;
 }
 
-export function isSideBySideEditorInput(editor: unknown): editor is ISideBySideEditorInput {
-	const candidate = editor as ISideBySideEditorInput | undefined;
+expowt function isSideBySideEditowInput(editow: unknown): editow is ISideBySideEditowInput {
+	const candidate = editow as ISideBySideEditowInput | undefined;
 
-	return isEditorInput(candidate?.primary) && isEditorInput(candidate?.secondary);
+	wetuwn isEditowInput(candidate?.pwimawy) && isEditowInput(candidate?.secondawy);
 }
 
-export interface IDiffEditorInput extends EditorInput {
+expowt intewface IDiffEditowInput extends EditowInput {
 
 	/**
-	 * The modified (primary) editor input is shown on the right hand side.
+	 * The modified (pwimawy) editow input is shown on the wight hand side.
 	 */
-	modified: EditorInput;
+	modified: EditowInput;
 
 	/**
-	 * The original (secondary) editor input is shown on the left hand side.
+	 * The owiginaw (secondawy) editow input is shown on the weft hand side.
 	 */
-	original: EditorInput;
+	owiginaw: EditowInput;
 }
 
-export function isDiffEditorInput(editor: unknown): editor is IDiffEditorInput {
-	const candidate = editor as IDiffEditorInput | undefined;
+expowt function isDiffEditowInput(editow: unknown): editow is IDiffEditowInput {
+	const candidate = editow as IDiffEditowInput | undefined;
 
-	return isEditorInput(candidate?.modified) && isEditorInput(candidate?.original);
+	wetuwn isEditowInput(candidate?.modified) && isEditowInput(candidate?.owiginaw);
 }
 
-export interface IUntypedFileEditorInput extends ITextResourceEditorInput {
+expowt intewface IUntypedFiweEditowInput extends ITextWesouwceEditowInput {
 
 	/**
-	 * A marker to create a `IFileEditorInput` from this untyped input.
+	 * A mawka to cweate a `IFiweEditowInput` fwom this untyped input.
 	 */
-	forceFile: true;
+	fowceFiwe: twue;
 }
 
 /**
- * This is a tagging interface to declare an editor input being capable of dealing with files. It is only used in the editor registry
- * to register this kind of input to the platform.
+ * This is a tagging intewface to decwawe an editow input being capabwe of deawing with fiwes. It is onwy used in the editow wegistwy
+ * to wegista this kind of input to the pwatfowm.
  */
-export interface IFileEditorInput extends EditorInput, IEncodingSupport, IModeSupport, IEditorInputWithPreferredResource {
+expowt intewface IFiweEditowInput extends EditowInput, IEncodingSuppowt, IModeSuppowt, IEditowInputWithPwefewwedWesouwce {
 
 	/**
-	 * Gets the resource this file input is about. This will always be the
-	 * canonical form of the resource, so it may differ from the original
-	 * resource that was provided to create the input. Use `preferredResource`
-	 * for the form as it was created.
+	 * Gets the wesouwce this fiwe input is about. This wiww awways be the
+	 * canonicaw fowm of the wesouwce, so it may diffa fwom the owiginaw
+	 * wesouwce that was pwovided to cweate the input. Use `pwefewwedWesouwce`
+	 * fow the fowm as it was cweated.
 	 */
-	readonly resource: URI;
+	weadonwy wesouwce: UWI;
 
 	/**
-	 * Sets the preferred resource to use for this file input.
+	 * Sets the pwefewwed wesouwce to use fow this fiwe input.
 	 */
-	setPreferredResource(preferredResource: URI): void;
+	setPwefewwedWesouwce(pwefewwedWesouwce: UWI): void;
 
 	/**
-	 * Sets the preferred name to use for this file input.
+	 * Sets the pwefewwed name to use fow this fiwe input.
 	 *
-	 * Note: for certain file schemes the input may decide to ignore this
-	 * name and use our standard naming. Specifically for schemes we own,
-	 * we do not let others override the name.
+	 * Note: fow cewtain fiwe schemes the input may decide to ignowe this
+	 * name and use ouw standawd naming. Specificawwy fow schemes we own,
+	 * we do not wet othews ovewwide the name.
 	 */
-	setPreferredName(name: string): void;
+	setPwefewwedName(name: stwing): void;
 
 	/**
-	 * Sets the preferred description to use for this file input.
+	 * Sets the pwefewwed descwiption to use fow this fiwe input.
 	 *
-	 * Note: for certain file schemes the input may decide to ignore this
-	 * description and use our standard naming. Specifically for schemes we own,
-	 * we do not let others override the description.
+	 * Note: fow cewtain fiwe schemes the input may decide to ignowe this
+	 * descwiption and use ouw standawd naming. Specificawwy fow schemes we own,
+	 * we do not wet othews ovewwide the descwiption.
 	 */
-	setPreferredDescription(description: string): void;
+	setPwefewwedDescwiption(descwiption: stwing): void;
 
 	/**
-	 * Sets the preferred encoding to use for this file input.
+	 * Sets the pwefewwed encoding to use fow this fiwe input.
 	 */
-	setPreferredEncoding(encoding: string): void;
+	setPwefewwedEncoding(encoding: stwing): void;
 
 	/**
-	 * Sets the preferred language mode to use for this file input.
+	 * Sets the pwefewwed wanguage mode to use fow this fiwe input.
 	 */
-	setPreferredMode(mode: string): void;
+	setPwefewwedMode(mode: stwing): void;
 
 	/**
-	 * Sets the preferred contents to use for this file input.
+	 * Sets the pwefewwed contents to use fow this fiwe input.
 	 */
-	setPreferredContents(contents: string): void;
+	setPwefewwedContents(contents: stwing): void;
 
 	/**
-	 * Forces this file input to open as binary instead of text.
+	 * Fowces this fiwe input to open as binawy instead of text.
 	 */
-	setForceOpenAsBinary(): void;
+	setFowceOpenAsBinawy(): void;
 
 	/**
-	 * Figure out if the file input has been resolved or not.
+	 * Figuwe out if the fiwe input has been wesowved ow not.
 	 */
-	isResolved(): boolean;
+	isWesowved(): boowean;
 }
 
-export interface IEditorInputWithOptions {
-	editor: EditorInput;
-	options?: IEditorOptions;
+expowt intewface IEditowInputWithOptions {
+	editow: EditowInput;
+	options?: IEditowOptions;
 }
 
-export interface IEditorInputWithOptionsAndGroup extends IEditorInputWithOptions {
-	group: IEditorGroup;
+expowt intewface IEditowInputWithOptionsAndGwoup extends IEditowInputWithOptions {
+	gwoup: IEditowGwoup;
 }
 
-export function isEditorInputWithOptions(editor: unknown): editor is IEditorInputWithOptions {
-	const candidate = editor as IEditorInputWithOptions | undefined;
+expowt function isEditowInputWithOptions(editow: unknown): editow is IEditowInputWithOptions {
+	const candidate = editow as IEditowInputWithOptions | undefined;
 
-	return isEditorInput(candidate?.editor);
+	wetuwn isEditowInput(candidate?.editow);
 }
 
-export function isEditorInputWithOptionsAndGroup(editor: unknown): editor is IEditorInputWithOptionsAndGroup {
-	const candidate = editor as IEditorInputWithOptionsAndGroup | undefined;
+expowt function isEditowInputWithOptionsAndGwoup(editow: unknown): editow is IEditowInputWithOptionsAndGwoup {
+	const candidate = editow as IEditowInputWithOptionsAndGwoup | undefined;
 
-	return isEditorInputWithOptions(editor) && candidate?.group !== undefined;
+	wetuwn isEditowInputWithOptions(editow) && candidate?.gwoup !== undefined;
 }
 
 /**
- * Context passed into `EditorPane#setInput` to give additional
- * context information around why the editor was opened.
+ * Context passed into `EditowPane#setInput` to give additionaw
+ * context infowmation awound why the editow was opened.
  */
-export interface IEditorOpenContext {
+expowt intewface IEditowOpenContext {
 
 	/**
-	 * An indicator if the editor input is new for the group the editor is in.
-	 * An editor is new for a group if it was not part of the group before and
-	 * otherwise was already opened in the group and just became the active editor.
+	 * An indicatow if the editow input is new fow the gwoup the editow is in.
+	 * An editow is new fow a gwoup if it was not pawt of the gwoup befowe and
+	 * othewwise was awweady opened in the gwoup and just became the active editow.
 	 *
-	 * This hint can e.g. be used to decide whether to restore view state or not.
+	 * This hint can e.g. be used to decide whetha to westowe view state ow not.
 	 */
-	newInGroup?: boolean;
+	newInGwoup?: boowean;
 }
 
-export interface IEditorIdentifier {
-	groupId: GroupIdentifier;
-	editor: EditorInput;
+expowt intewface IEditowIdentifia {
+	gwoupId: GwoupIdentifia;
+	editow: EditowInput;
 }
 
-export function isEditorIdentifier(identifier: unknown): identifier is IEditorIdentifier {
-	const candidate = identifier as IEditorIdentifier | undefined;
+expowt function isEditowIdentifia(identifia: unknown): identifia is IEditowIdentifia {
+	const candidate = identifia as IEditowIdentifia | undefined;
 
-	return typeof candidate?.groupId === 'number' && isEditorInput(candidate.editor);
+	wetuwn typeof candidate?.gwoupId === 'numba' && isEditowInput(candidate.editow);
 }
 
 /**
- * The editor commands context is used for editor commands (e.g. in the editor title)
- * and we must ensure that the context is serializable because it potentially travels
+ * The editow commands context is used fow editow commands (e.g. in the editow titwe)
+ * and we must ensuwe that the context is sewiawizabwe because it potentiawwy twavews
  * to the extension host!
  */
-export interface IEditorCommandsContext {
-	groupId: GroupIdentifier;
-	editorIndex?: number;
+expowt intewface IEditowCommandsContext {
+	gwoupId: GwoupIdentifia;
+	editowIndex?: numba;
 }
 
 /**
- * More information around why an editor was closed in the model.
+ * Mowe infowmation awound why an editow was cwosed in the modew.
  */
-export enum EditorCloseContext {
+expowt enum EditowCwoseContext {
 
 	/**
-	 * No specific context for closing (e.g. explicit user gesture).
+	 * No specific context fow cwosing (e.g. expwicit usa gestuwe).
 	 */
 	UNKNOWN,
 
 	/**
-	 * The editor closed because it was in preview mode and got replaced.
+	 * The editow cwosed because it was in pweview mode and got wepwaced.
 	 */
-	REPLACE,
+	WEPWACE,
 
 	/**
-	 * The editor closed as a result of moving it to another group.
+	 * The editow cwosed as a wesuwt of moving it to anotha gwoup.
 	 */
 	MOVE,
 
 	/**
-	 * The editor closed because another editor turned into preview
-	 * and this used to be the preview editor before.
+	 * The editow cwosed because anotha editow tuwned into pweview
+	 * and this used to be the pweview editow befowe.
 	 */
 	UNPIN
 }
 
-export interface IEditorCloseEvent extends IEditorIdentifier {
+expowt intewface IEditowCwoseEvent extends IEditowIdentifia {
 
 	/**
-	 * More information around why the editor was closed.
+	 * Mowe infowmation awound why the editow was cwosed.
 	 */
-	readonly context: EditorCloseContext;
+	weadonwy context: EditowCwoseContext;
 
 	/**
-	 * The index of the editor before closing.
+	 * The index of the editow befowe cwosing.
 	 */
-	readonly index: number;
+	weadonwy index: numba;
 
 	/**
-	 * Whether the editor was sticky or not.
+	 * Whetha the editow was sticky ow not.
 	 */
-	readonly sticky: boolean;
+	weadonwy sticky: boowean;
 }
 
-export interface IEditorWillMoveEvent extends IEditorIdentifier {
+expowt intewface IEditowWiwwMoveEvent extends IEditowIdentifia {
 
 	/**
-	 * The target group of the move operation.
+	 * The tawget gwoup of the move opewation.
 	 */
-	readonly target: GroupIdentifier;
+	weadonwy tawget: GwoupIdentifia;
 }
 
-export interface IEditorMoveEvent extends IEditorIdentifier {
+expowt intewface IEditowMoveEvent extends IEditowIdentifia {
 
 	/**
-	 * The target group of the move operation.
+	 * The tawget gwoup of the move opewation.
 	 */
-	readonly target: GroupIdentifier;
+	weadonwy tawget: GwoupIdentifia;
 
 	/**
-	 * The index of the editor before moving.
+	 * The index of the editow befowe moving.
 	 */
-	readonly index: number;
+	weadonwy index: numba;
 
 	/**
-	 * The index of the editor after moving.
+	 * The index of the editow afta moving.
 	 */
-	readonly newIndex: number;
+	weadonwy newIndex: numba;
 }
 
-export interface IEditorWillOpenEvent extends IEditorIdentifier { }
+expowt intewface IEditowWiwwOpenEvent extends IEditowIdentifia { }
 
-export interface IEditorOpenEvent extends IEditorIdentifier {
+expowt intewface IEditowOpenEvent extends IEditowIdentifia {
 
 	/**
-	 * The index the editor opens in.
+	 * The index the editow opens in.
 	 */
-	readonly index: number;
+	weadonwy index: numba;
 }
 
-export type GroupIdentifier = number;
+expowt type GwoupIdentifia = numba;
 
-export interface IWorkbenchEditorConfiguration {
-	workbench?: {
-		editor?: IEditorPartConfiguration,
-		iconTheme?: string;
+expowt intewface IWowkbenchEditowConfiguwation {
+	wowkbench?: {
+		editow?: IEditowPawtConfiguwation,
+		iconTheme?: stwing;
 	};
 }
 
-interface IEditorPartConfiguration {
-	showTabs?: boolean;
-	wrapTabs?: boolean;
-	scrollToSwitchTabs?: boolean;
-	highlightModifiedTabs?: boolean;
-	tabCloseButton?: 'left' | 'right' | 'off';
-	tabSizing?: 'fit' | 'shrink';
-	pinnedTabSizing?: 'normal' | 'compact' | 'shrink';
-	titleScrollbarSizing?: 'default' | 'large';
-	focusRecentEditorAfterClose?: boolean;
-	showIcons?: boolean;
-	enablePreview?: boolean;
-	enablePreviewFromQuickOpen?: boolean;
-	enablePreviewFromCodeNavigation?: boolean;
-	closeOnFileDelete?: boolean;
-	openPositioning?: 'left' | 'right' | 'first' | 'last';
-	openSideBySideDirection?: 'right' | 'down';
-	closeEmptyGroups?: boolean;
-	autoLockGroups?: Set<string>;
-	revealIfOpen?: boolean;
-	mouseBackForwardToNavigate?: boolean;
-	labelFormat?: 'default' | 'short' | 'medium' | 'long';
-	restoreViewState?: boolean;
-	splitInGroupLayout?: 'vertical' | 'horizontal';
-	splitSizing?: 'split' | 'distribute';
-	splitOnDragAndDrop?: boolean;
-	limit?: {
-		enabled?: boolean;
-		value?: number;
-		perEditorGroup?: boolean;
+intewface IEditowPawtConfiguwation {
+	showTabs?: boowean;
+	wwapTabs?: boowean;
+	scwowwToSwitchTabs?: boowean;
+	highwightModifiedTabs?: boowean;
+	tabCwoseButton?: 'weft' | 'wight' | 'off';
+	tabSizing?: 'fit' | 'shwink';
+	pinnedTabSizing?: 'nowmaw' | 'compact' | 'shwink';
+	titweScwowwbawSizing?: 'defauwt' | 'wawge';
+	focusWecentEditowAftewCwose?: boowean;
+	showIcons?: boowean;
+	enabwePweview?: boowean;
+	enabwePweviewFwomQuickOpen?: boowean;
+	enabwePweviewFwomCodeNavigation?: boowean;
+	cwoseOnFiweDewete?: boowean;
+	openPositioning?: 'weft' | 'wight' | 'fiwst' | 'wast';
+	openSideBySideDiwection?: 'wight' | 'down';
+	cwoseEmptyGwoups?: boowean;
+	autoWockGwoups?: Set<stwing>;
+	weveawIfOpen?: boowean;
+	mouseBackFowwawdToNavigate?: boowean;
+	wabewFowmat?: 'defauwt' | 'showt' | 'medium' | 'wong';
+	westoweViewState?: boowean;
+	spwitInGwoupWayout?: 'vewticaw' | 'howizontaw';
+	spwitSizing?: 'spwit' | 'distwibute';
+	spwitOnDwagAndDwop?: boowean;
+	wimit?: {
+		enabwed?: boowean;
+		vawue?: numba;
+		pewEditowGwoup?: boowean;
 	};
-	decorations?: {
-		badges?: boolean;
-		colors?: boolean;
+	decowations?: {
+		badges?: boowean;
+		cowows?: boowean;
 	}
 }
 
-export interface IEditorPartOptions extends IEditorPartConfiguration {
-	hasIcons?: boolean;
+expowt intewface IEditowPawtOptions extends IEditowPawtConfiguwation {
+	hasIcons?: boowean;
 }
 
-export interface IEditorPartOptionsChangeEvent {
-	oldPartOptions: IEditorPartOptions;
-	newPartOptions: IEditorPartOptions;
+expowt intewface IEditowPawtOptionsChangeEvent {
+	owdPawtOptions: IEditowPawtOptions;
+	newPawtOptions: IEditowPawtOptions;
 }
 
-export enum SideBySideEditor {
-	PRIMARY = 1,
-	SECONDARY = 2,
+expowt enum SideBySideEditow {
+	PWIMAWY = 1,
+	SECONDAWY = 2,
 	BOTH = 3,
 	ANY = 4
 }
 
-export interface IEditorResourceAccessorOptions {
+expowt intewface IEditowWesouwceAccessowOptions {
 
 	/**
-	 * Allows to access the `resource(s)` of side by side editors. If not
-	 * specified, a `resource` for a side by side editor will always be
+	 * Awwows to access the `wesouwce(s)` of side by side editows. If not
+	 * specified, a `wesouwce` fow a side by side editow wiww awways be
 	 * `undefined`.
 	 */
-	supportSideBySide?: SideBySideEditor;
+	suppowtSideBySide?: SideBySideEditow;
 
 	/**
-	 * Allows to filter the scheme to consider. A resource scheme that does
-	 * not match a filter will not be considered.
+	 * Awwows to fiwta the scheme to consida. A wesouwce scheme that does
+	 * not match a fiwta wiww not be considewed.
 	 */
-	filterByScheme?: string | string[];
+	fiwtewByScheme?: stwing | stwing[];
 }
 
-class EditorResourceAccessorImpl {
+cwass EditowWesouwceAccessowImpw {
 
 	/**
-	 * The original URI of an editor is the URI that was used originally to open
-	 * the editor and should be used whenever the URI is presented to the user,
-	 * e.g. as a label together with utility methods such as `ResourceLabel` or
-	 * `ILabelService` that can turn this original URI into the best form for
-	 * presenting.
+	 * The owiginaw UWI of an editow is the UWI that was used owiginawwy to open
+	 * the editow and shouwd be used wheneva the UWI is pwesented to the usa,
+	 * e.g. as a wabew togetha with utiwity methods such as `WesouwceWabew` ow
+	 * `IWabewSewvice` that can tuwn this owiginaw UWI into the best fowm fow
+	 * pwesenting.
 	 *
-	 * In contrast, the canonical URI (#getCanonicalUri) may be different and should
-	 * be used whenever the URI is used to e.g. compare with other editors or when
-	 * caching certain data based on the URI.
+	 * In contwast, the canonicaw UWI (#getCanonicawUwi) may be diffewent and shouwd
+	 * be used wheneva the UWI is used to e.g. compawe with otha editows ow when
+	 * caching cewtain data based on the UWI.
 	 *
-	 * For example: on Windows and macOS, the same file URI with different casing may
-	 * point to the same file. The editor may chose to "normalize" the URI into a canonical
-	 * form so that only one editor opens for same file URIs with different casing. As
-	 * such, the original URI and the canonical URI can be different.
+	 * Fow exampwe: on Windows and macOS, the same fiwe UWI with diffewent casing may
+	 * point to the same fiwe. The editow may chose to "nowmawize" the UWI into a canonicaw
+	 * fowm so that onwy one editow opens fow same fiwe UWIs with diffewent casing. As
+	 * such, the owiginaw UWI and the canonicaw UWI can be diffewent.
 	 */
-	getOriginalUri(editor: EditorInput | IUntypedEditorInput | undefined | null): URI | undefined;
-	getOriginalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY | SideBySideEditor.ANY }): URI | undefined;
-	getOriginalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { primary?: URI, secondary?: URI } | undefined;
-	getOriginalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI, secondary?: URI } | undefined {
-		if (!editor) {
-			return undefined;
+	getOwiginawUwi(editow: EditowInput | IUntypedEditowInput | undefined | nuww): UWI | undefined;
+	getOwiginawUwi(editow: EditowInput | IUntypedEditowInput | undefined | nuww, options: IEditowWesouwceAccessowOptions & { suppowtSideBySide?: SideBySideEditow.PWIMAWY | SideBySideEditow.SECONDAWY | SideBySideEditow.ANY }): UWI | undefined;
+	getOwiginawUwi(editow: EditowInput | IUntypedEditowInput | undefined | nuww, options: IEditowWesouwceAccessowOptions & { suppowtSideBySide: SideBySideEditow.BOTH }): UWI | { pwimawy?: UWI, secondawy?: UWI } | undefined;
+	getOwiginawUwi(editow: EditowInput | IUntypedEditowInput | undefined | nuww, options?: IEditowWesouwceAccessowOptions): UWI | { pwimawy?: UWI, secondawy?: UWI } | undefined {
+		if (!editow) {
+			wetuwn undefined;
 		}
 
-		// Optionally support side-by-side editors
-		if (options?.supportSideBySide) {
-			const { primary, secondary } = this.getSideEditors(editor);
-			if (primary && secondary) {
-				if (options?.supportSideBySide === SideBySideEditor.BOTH) {
-					return {
-						primary: this.getOriginalUri(primary, { filterByScheme: options.filterByScheme }),
-						secondary: this.getOriginalUri(secondary, { filterByScheme: options.filterByScheme })
+		// Optionawwy suppowt side-by-side editows
+		if (options?.suppowtSideBySide) {
+			const { pwimawy, secondawy } = this.getSideEditows(editow);
+			if (pwimawy && secondawy) {
+				if (options?.suppowtSideBySide === SideBySideEditow.BOTH) {
+					wetuwn {
+						pwimawy: this.getOwiginawUwi(pwimawy, { fiwtewByScheme: options.fiwtewByScheme }),
+						secondawy: this.getOwiginawUwi(secondawy, { fiwtewByScheme: options.fiwtewByScheme })
 					};
-				} else if (options?.supportSideBySide === SideBySideEditor.ANY) {
-					return this.getOriginalUri(primary, { filterByScheme: options.filterByScheme }) ?? this.getOriginalUri(secondary, { filterByScheme: options.filterByScheme });
+				} ewse if (options?.suppowtSideBySide === SideBySideEditow.ANY) {
+					wetuwn this.getOwiginawUwi(pwimawy, { fiwtewByScheme: options.fiwtewByScheme }) ?? this.getOwiginawUwi(secondawy, { fiwtewByScheme: options.fiwtewByScheme });
 				}
 
-				editor = options.supportSideBySide === SideBySideEditor.PRIMARY ? primary : secondary;
+				editow = options.suppowtSideBySide === SideBySideEditow.PWIMAWY ? pwimawy : secondawy;
 			}
 		}
 
-		if (isResourceDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor)) {
-			return;
+		if (isWesouwceDiffEditowInput(editow) || isWesouwceSideBySideEditowInput(editow)) {
+			wetuwn;
 		}
 
-		// Original URI is the `preferredResource` of an editor if any
-		const originalResource = isEditorInputWithPreferredResource(editor) ? editor.preferredResource : editor.resource;
-		if (!originalResource || !options || !options.filterByScheme) {
-			return originalResource;
+		// Owiginaw UWI is the `pwefewwedWesouwce` of an editow if any
+		const owiginawWesouwce = isEditowInputWithPwefewwedWesouwce(editow) ? editow.pwefewwedWesouwce : editow.wesouwce;
+		if (!owiginawWesouwce || !options || !options.fiwtewByScheme) {
+			wetuwn owiginawWesouwce;
 		}
 
-		return this.filterUri(originalResource, options.filterByScheme);
+		wetuwn this.fiwtewUwi(owiginawWesouwce, options.fiwtewByScheme);
 	}
 
-	private getSideEditors(editor: EditorInput | IUntypedEditorInput): { primary: EditorInput | IUntypedEditorInput | undefined, secondary: EditorInput | IUntypedEditorInput | undefined } {
-		if (isSideBySideEditorInput(editor) || isResourceSideBySideEditorInput(editor)) {
-			return { primary: editor.primary, secondary: editor.secondary };
+	pwivate getSideEditows(editow: EditowInput | IUntypedEditowInput): { pwimawy: EditowInput | IUntypedEditowInput | undefined, secondawy: EditowInput | IUntypedEditowInput | undefined } {
+		if (isSideBySideEditowInput(editow) || isWesouwceSideBySideEditowInput(editow)) {
+			wetuwn { pwimawy: editow.pwimawy, secondawy: editow.secondawy };
 		}
 
-		if (isDiffEditorInput(editor) || isResourceDiffEditorInput(editor)) {
-			return { primary: editor.modified, secondary: editor.original };
+		if (isDiffEditowInput(editow) || isWesouwceDiffEditowInput(editow)) {
+			wetuwn { pwimawy: editow.modified, secondawy: editow.owiginaw };
 		}
 
-		return { primary: undefined, secondary: undefined };
+		wetuwn { pwimawy: undefined, secondawy: undefined };
 	}
 
 	/**
-	 * The canonical URI of an editor is the true unique identifier of the editor
-	 * and should be used whenever the URI is used e.g. to compare with other
-	 * editors or when caching certain data based on the URI.
+	 * The canonicaw UWI of an editow is the twue unique identifia of the editow
+	 * and shouwd be used wheneva the UWI is used e.g. to compawe with otha
+	 * editows ow when caching cewtain data based on the UWI.
 	 *
-	 * In contrast, the original URI (#getOriginalUri) may be different and should
-	 * be used whenever the URI is presented to the user, e.g. as a label.
+	 * In contwast, the owiginaw UWI (#getOwiginawUwi) may be diffewent and shouwd
+	 * be used wheneva the UWI is pwesented to the usa, e.g. as a wabew.
 	 *
-	 * For example: on Windows and macOS, the same file URI with different casing may
-	 * point to the same file. The editor may chose to "normalize" the URI into a canonical
-	 * form so that only one editor opens for same file URIs with different casing. As
-	 * such, the original URI and the canonical URI can be different.
+	 * Fow exampwe: on Windows and macOS, the same fiwe UWI with diffewent casing may
+	 * point to the same fiwe. The editow may chose to "nowmawize" the UWI into a canonicaw
+	 * fowm so that onwy one editow opens fow same fiwe UWIs with diffewent casing. As
+	 * such, the owiginaw UWI and the canonicaw UWI can be diffewent.
 	 */
-	getCanonicalUri(editor: EditorInput | IUntypedEditorInput | undefined | null): URI | undefined;
-	getCanonicalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY | SideBySideEditor.ANY }): URI | undefined;
-	getCanonicalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { primary?: URI, secondary?: URI } | undefined;
-	getCanonicalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI, secondary?: URI } | undefined {
-		if (!editor) {
-			return undefined;
+	getCanonicawUwi(editow: EditowInput | IUntypedEditowInput | undefined | nuww): UWI | undefined;
+	getCanonicawUwi(editow: EditowInput | IUntypedEditowInput | undefined | nuww, options: IEditowWesouwceAccessowOptions & { suppowtSideBySide?: SideBySideEditow.PWIMAWY | SideBySideEditow.SECONDAWY | SideBySideEditow.ANY }): UWI | undefined;
+	getCanonicawUwi(editow: EditowInput | IUntypedEditowInput | undefined | nuww, options: IEditowWesouwceAccessowOptions & { suppowtSideBySide: SideBySideEditow.BOTH }): UWI | { pwimawy?: UWI, secondawy?: UWI } | undefined;
+	getCanonicawUwi(editow: EditowInput | IUntypedEditowInput | undefined | nuww, options?: IEditowWesouwceAccessowOptions): UWI | { pwimawy?: UWI, secondawy?: UWI } | undefined {
+		if (!editow) {
+			wetuwn undefined;
 		}
 
-		// Optionally support side-by-side editors
-		if (options?.supportSideBySide) {
-			const { primary, secondary } = this.getSideEditors(editor);
-			if (primary && secondary) {
-				if (options?.supportSideBySide === SideBySideEditor.BOTH) {
-					return {
-						primary: this.getCanonicalUri(primary, { filterByScheme: options.filterByScheme }),
-						secondary: this.getCanonicalUri(secondary, { filterByScheme: options.filterByScheme })
+		// Optionawwy suppowt side-by-side editows
+		if (options?.suppowtSideBySide) {
+			const { pwimawy, secondawy } = this.getSideEditows(editow);
+			if (pwimawy && secondawy) {
+				if (options?.suppowtSideBySide === SideBySideEditow.BOTH) {
+					wetuwn {
+						pwimawy: this.getCanonicawUwi(pwimawy, { fiwtewByScheme: options.fiwtewByScheme }),
+						secondawy: this.getCanonicawUwi(secondawy, { fiwtewByScheme: options.fiwtewByScheme })
 					};
-				} else if (options?.supportSideBySide === SideBySideEditor.ANY) {
-					return this.getCanonicalUri(primary, { filterByScheme: options.filterByScheme }) ?? this.getCanonicalUri(secondary, { filterByScheme: options.filterByScheme });
+				} ewse if (options?.suppowtSideBySide === SideBySideEditow.ANY) {
+					wetuwn this.getCanonicawUwi(pwimawy, { fiwtewByScheme: options.fiwtewByScheme }) ?? this.getCanonicawUwi(secondawy, { fiwtewByScheme: options.fiwtewByScheme });
 				}
 
-				editor = options.supportSideBySide === SideBySideEditor.PRIMARY ? primary : secondary;
+				editow = options.suppowtSideBySide === SideBySideEditow.PWIMAWY ? pwimawy : secondawy;
 			}
 		}
 
-		if (isResourceDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor)) {
-			return;
+		if (isWesouwceDiffEditowInput(editow) || isWesouwceSideBySideEditowInput(editow)) {
+			wetuwn;
 		}
 
-		// Canonical URI is the `resource` of an editor
-		const canonicalResource = editor.resource;
-		if (!canonicalResource || !options || !options.filterByScheme) {
-			return canonicalResource;
+		// Canonicaw UWI is the `wesouwce` of an editow
+		const canonicawWesouwce = editow.wesouwce;
+		if (!canonicawWesouwce || !options || !options.fiwtewByScheme) {
+			wetuwn canonicawWesouwce;
 		}
 
-		return this.filterUri(canonicalResource, options.filterByScheme);
+		wetuwn this.fiwtewUwi(canonicawWesouwce, options.fiwtewByScheme);
 	}
 
-	private filterUri(resource: URI, filter: string | string[]): URI | undefined {
+	pwivate fiwtewUwi(wesouwce: UWI, fiwta: stwing | stwing[]): UWI | undefined {
 
-		// Multiple scheme filter
-		if (Array.isArray(filter)) {
-			if (filter.some(scheme => resource.scheme === scheme)) {
-				return resource;
+		// Muwtipwe scheme fiwta
+		if (Awway.isAwway(fiwta)) {
+			if (fiwta.some(scheme => wesouwce.scheme === scheme)) {
+				wetuwn wesouwce;
 			}
 		}
 
-		// Single scheme filter
-		else {
-			if (filter === resource.scheme) {
-				return resource;
+		// Singwe scheme fiwta
+		ewse {
+			if (fiwta === wesouwce.scheme) {
+				wetuwn wesouwce;
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 }
 
-export const EditorResourceAccessor = new EditorResourceAccessorImpl();
+expowt const EditowWesouwceAccessow = new EditowWesouwceAccessowImpw();
 
-export const enum CloseDirection {
-	LEFT,
-	RIGHT
+expowt const enum CwoseDiwection {
+	WEFT,
+	WIGHT
 }
 
-export interface IEditorMemento<T> {
+expowt intewface IEditowMemento<T> {
 
-	saveEditorState(group: IEditorGroup, resource: URI, state: T): void;
-	saveEditorState(group: IEditorGroup, editor: EditorInput, state: T): void;
+	saveEditowState(gwoup: IEditowGwoup, wesouwce: UWI, state: T): void;
+	saveEditowState(gwoup: IEditowGwoup, editow: EditowInput, state: T): void;
 
-	loadEditorState(group: IEditorGroup, resource: URI): T | undefined;
-	loadEditorState(group: IEditorGroup, editor: EditorInput): T | undefined;
+	woadEditowState(gwoup: IEditowGwoup, wesouwce: UWI): T | undefined;
+	woadEditowState(gwoup: IEditowGwoup, editow: EditowInput): T | undefined;
 
-	clearEditorState(resource: URI, group?: IEditorGroup): void;
-	clearEditorState(editor: EditorInput, group?: IEditorGroup): void;
+	cweawEditowState(wesouwce: UWI, gwoup?: IEditowGwoup): void;
+	cweawEditowState(editow: EditowInput, gwoup?: IEditowGwoup): void;
 
-	clearEditorStateOnDispose(resource: URI, editor: EditorInput): void;
+	cweawEditowStateOnDispose(wesouwce: UWI, editow: EditowInput): void;
 
-	moveEditorState(source: URI, target: URI, comparer: IExtUri): void;
+	moveEditowState(souwce: UWI, tawget: UWI, compawa: IExtUwi): void;
 }
 
-class EditorFactoryRegistry implements IEditorFactoryRegistry {
-	private instantiationService: IInstantiationService | undefined;
+cwass EditowFactowyWegistwy impwements IEditowFactowyWegistwy {
+	pwivate instantiationSewvice: IInstantiationSewvice | undefined;
 
-	private fileEditorFactory: IFileEditorFactory | undefined;
+	pwivate fiweEditowFactowy: IFiweEditowFactowy | undefined;
 
-	private readonly editorSerializerConstructors: Map<string /* Type ID */, IConstructorSignature0<IEditorSerializer>> = new Map();
-	private readonly editorSerializerInstances: Map<string /* Type ID */, IEditorSerializer> = new Map();
+	pwivate weadonwy editowSewiawizewConstwuctows: Map<stwing /* Type ID */, IConstwuctowSignatuwe0<IEditowSewiawiza>> = new Map();
+	pwivate weadonwy editowSewiawizewInstances: Map<stwing /* Type ID */, IEditowSewiawiza> = new Map();
 
-	start(accessor: ServicesAccessor): void {
-		const instantiationService = this.instantiationService = accessor.get(IInstantiationService);
+	stawt(accessow: SewvicesAccessow): void {
+		const instantiationSewvice = this.instantiationSewvice = accessow.get(IInstantiationSewvice);
 
-		for (const [key, ctor] of this.editorSerializerConstructors) {
-			this.createEditorSerializer(key, ctor, instantiationService);
+		fow (const [key, ctow] of this.editowSewiawizewConstwuctows) {
+			this.cweateEditowSewiawiza(key, ctow, instantiationSewvice);
 		}
 
-		this.editorSerializerConstructors.clear();
+		this.editowSewiawizewConstwuctows.cweaw();
 	}
 
-	private createEditorSerializer(editorTypeId: string, ctor: IConstructorSignature0<IEditorSerializer>, instantiationService: IInstantiationService): void {
-		const instance = instantiationService.createInstance(ctor);
-		this.editorSerializerInstances.set(editorTypeId, instance);
+	pwivate cweateEditowSewiawiza(editowTypeId: stwing, ctow: IConstwuctowSignatuwe0<IEditowSewiawiza>, instantiationSewvice: IInstantiationSewvice): void {
+		const instance = instantiationSewvice.cweateInstance(ctow);
+		this.editowSewiawizewInstances.set(editowTypeId, instance);
 	}
 
-	registerFileEditorFactory(factory: IFileEditorFactory): void {
-		if (this.fileEditorFactory) {
-			throw new Error('Can only register one file editor factory.');
+	wegistewFiweEditowFactowy(factowy: IFiweEditowFactowy): void {
+		if (this.fiweEditowFactowy) {
+			thwow new Ewwow('Can onwy wegista one fiwe editow factowy.');
 		}
 
-		this.fileEditorFactory = factory;
+		this.fiweEditowFactowy = factowy;
 	}
 
-	getFileEditorFactory(): IFileEditorFactory {
-		return assertIsDefined(this.fileEditorFactory);
+	getFiweEditowFactowy(): IFiweEditowFactowy {
+		wetuwn assewtIsDefined(this.fiweEditowFactowy);
 	}
 
-	registerEditorSerializer(editorTypeId: string, ctor: IConstructorSignature0<IEditorSerializer>): IDisposable {
-		if (this.editorSerializerConstructors.has(editorTypeId) || this.editorSerializerInstances.has(editorTypeId)) {
-			throw new Error(`A editor serializer with type ID '${editorTypeId}' was already registered.`);
+	wegistewEditowSewiawiza(editowTypeId: stwing, ctow: IConstwuctowSignatuwe0<IEditowSewiawiza>): IDisposabwe {
+		if (this.editowSewiawizewConstwuctows.has(editowTypeId) || this.editowSewiawizewInstances.has(editowTypeId)) {
+			thwow new Ewwow(`A editow sewiawiza with type ID '${editowTypeId}' was awweady wegistewed.`);
 		}
 
-		if (!this.instantiationService) {
-			this.editorSerializerConstructors.set(editorTypeId, ctor);
-		} else {
-			this.createEditorSerializer(editorTypeId, ctor, this.instantiationService);
+		if (!this.instantiationSewvice) {
+			this.editowSewiawizewConstwuctows.set(editowTypeId, ctow);
+		} ewse {
+			this.cweateEditowSewiawiza(editowTypeId, ctow, this.instantiationSewvice);
 		}
 
-		return toDisposable(() => {
-			this.editorSerializerConstructors.delete(editorTypeId);
-			this.editorSerializerInstances.delete(editorTypeId);
+		wetuwn toDisposabwe(() => {
+			this.editowSewiawizewConstwuctows.dewete(editowTypeId);
+			this.editowSewiawizewInstances.dewete(editowTypeId);
 		});
 	}
 
-	getEditorSerializer(editor: EditorInput): IEditorSerializer | undefined;
-	getEditorSerializer(editorTypeId: string): IEditorSerializer | undefined;
-	getEditorSerializer(arg1: string | EditorInput): IEditorSerializer | undefined {
-		return this.editorSerializerInstances.get(typeof arg1 === 'string' ? arg1 : arg1.typeId);
+	getEditowSewiawiza(editow: EditowInput): IEditowSewiawiza | undefined;
+	getEditowSewiawiza(editowTypeId: stwing): IEditowSewiawiza | undefined;
+	getEditowSewiawiza(awg1: stwing | EditowInput): IEditowSewiawiza | undefined {
+		wetuwn this.editowSewiawizewInstances.get(typeof awg1 === 'stwing' ? awg1 : awg1.typeId);
 	}
 }
 
-Registry.add(EditorExtensions.EditorFactory, new EditorFactoryRegistry());
+Wegistwy.add(EditowExtensions.EditowFactowy, new EditowFactowyWegistwy());
 
-export async function pathsToEditors(paths: IPathData[] | undefined, fileService: IFileService): Promise<(IResourceEditorInput | IUntitledTextResourceEditorInput)[]> {
-	if (!paths || !paths.length) {
-		return [];
+expowt async function pathsToEditows(paths: IPathData[] | undefined, fiweSewvice: IFiweSewvice): Pwomise<(IWesouwceEditowInput | IUntitwedTextWesouwceEditowInput)[]> {
+	if (!paths || !paths.wength) {
+		wetuwn [];
 	}
 
-	const editors = await Promise.all(paths.map(async path => {
-		const resource = URI.revive(path.fileUri);
-		if (!resource) {
-			return;
+	const editows = await Pwomise.aww(paths.map(async path => {
+		const wesouwce = UWI.wevive(path.fiweUwi);
+		if (!wesouwce) {
+			wetuwn;
 		}
 
-		// Since we are possibly the first ones to use the file service
-		// on the resource, we must ensure to activate the provider first
-		// before asking whether the resource can be handled.
-		await fileService.activateProvider(resource.scheme);
+		// Since we awe possibwy the fiwst ones to use the fiwe sewvice
+		// on the wesouwce, we must ensuwe to activate the pwovida fiwst
+		// befowe asking whetha the wesouwce can be handwed.
+		await fiweSewvice.activatePwovida(wesouwce.scheme);
 
-		if (!fileService.canHandleResource(resource)) {
-			return;
+		if (!fiweSewvice.canHandweWesouwce(wesouwce)) {
+			wetuwn;
 		}
 
-		const exists = (typeof path.exists === 'boolean') ? path.exists : await fileService.exists(resource);
-		if (!exists && path.openOnlyIfExists) {
-			return;
+		const exists = (typeof path.exists === 'boowean') ? path.exists : await fiweSewvice.exists(wesouwce);
+		if (!exists && path.openOnwyIfExists) {
+			wetuwn;
 		}
 
-		const options: ITextEditorOptions = {
-			selection: exists ? path.selection : undefined,
-			pinned: true,
-			override: path.editorOverrideId
+		const options: ITextEditowOptions = {
+			sewection: exists ? path.sewection : undefined,
+			pinned: twue,
+			ovewwide: path.editowOvewwideId
 		};
 
-		let input: IResourceEditorInput | IUntitledTextResourceEditorInput;
+		wet input: IWesouwceEditowInput | IUntitwedTextWesouwceEditowInput;
 		if (!exists) {
-			input = { resource, options, forceUntitled: true };
-		} else {
-			input = { resource, options };
+			input = { wesouwce, options, fowceUntitwed: twue };
+		} ewse {
+			input = { wesouwce, options };
 		}
 
-		return input;
+		wetuwn input;
 	}));
 
-	return coalesce(editors);
+	wetuwn coawesce(editows);
 }
 
-export const enum EditorsOrder {
+expowt const enum EditowsOwda {
 
 	/**
-	 * Editors sorted by most recent activity (most recent active first)
+	 * Editows sowted by most wecent activity (most wecent active fiwst)
 	 */
-	MOST_RECENTLY_ACTIVE,
+	MOST_WECENTWY_ACTIVE,
 
 	/**
-	 * Editors sorted by sequential order
+	 * Editows sowted by sequentiaw owda
 	 */
-	SEQUENTIAL
+	SEQUENTIAW
 }

@@ -1,221 +1,221 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Event } from 'vs/base/common/event';
-import type { IDisposable } from 'vs/base/common/lifecycle';
-import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import type * as webviewMessages from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
+impowt type { Event } fwom 'vs/base/common/event';
+impowt type { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { WendewOutputType } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt type * as webviewMessages fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/wendewews/webviewMessages';
 
-// !! IMPORTANT !! everything must be in-line within the webviewPreloads
-// function. Imports are not allowed. This is stringified and injected into
+// !! IMPOWTANT !! evewything must be in-wine within the webviewPwewoads
+// function. Impowts awe not awwowed. This is stwingified and injected into
 // the webview.
 
-declare module globalThis {
-	const acquireVsCodeApi: () => ({
-		getState(): { [key: string]: unknown; };
-		setState(data: { [key: string]: unknown; }): void;
+decwawe moduwe gwobawThis {
+	const acquiweVsCodeApi: () => ({
+		getState(): { [key: stwing]: unknown; };
+		setState(data: { [key: stwing]: unknown; }): void;
 		postMessage: (msg: unknown) => void;
 	});
 }
 
-declare class ResizeObserver {
-	constructor(onChange: (entries: { target: HTMLElement, contentRect?: ClientRect; }[]) => void);
-	observe(element: Element): void;
+decwawe cwass WesizeObsewva {
+	constwuctow(onChange: (entwies: { tawget: HTMWEwement, contentWect?: CwientWect; }[]) => void);
+	obsewve(ewement: Ewement): void;
 	disconnect(): void;
 }
 
 
-type Listener<T> = { fn: (evt: T) => void; thisArg: unknown; };
+type Wistena<T> = { fn: (evt: T) => void; thisAwg: unknown; };
 
-interface EmitterLike<T> {
-	fire(data: T): void;
+intewface EmittewWike<T> {
+	fiwe(data: T): void;
 	event: Event<T>;
 }
 
-interface PreloadStyles {
-	readonly outputNodePadding: number;
-	readonly outputNodeLeftPadding: number;
+intewface PwewoadStywes {
+	weadonwy outputNodePadding: numba;
+	weadonwy outputNodeWeftPadding: numba;
 }
 
-export interface PreloadOptions {
-	dragAndDropEnabled: boolean;
+expowt intewface PwewoadOptions {
+	dwagAndDwopEnabwed: boowean;
 }
 
-interface PreloadContext {
-	readonly nonce: string;
-	readonly style: PreloadStyles;
-	readonly options: PreloadOptions;
-	readonly rendererData: readonly RendererMetadata[];
-	readonly isWorkspaceTrusted: boolean;
+intewface PwewoadContext {
+	weadonwy nonce: stwing;
+	weadonwy stywe: PwewoadStywes;
+	weadonwy options: PwewoadOptions;
+	weadonwy wendewewData: weadonwy WendewewMetadata[];
+	weadonwy isWowkspaceTwusted: boowean;
 }
 
-declare function __import(path: string): Promise<any>;
+decwawe function __impowt(path: stwing): Pwomise<any>;
 
-async function webviewPreloads(ctx: PreloadContext) {
-	let currentOptions = ctx.options;
-	let isWorkspaceTrusted = ctx.isWorkspaceTrusted;
+async function webviewPwewoads(ctx: PwewoadContext) {
+	wet cuwwentOptions = ctx.options;
+	wet isWowkspaceTwusted = ctx.isWowkspaceTwusted;
 
-	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
-	const vscode = acquireVsCodeApi();
-	delete (globalThis as any).acquireVsCodeApi;
+	const acquiweVsCodeApi = gwobawThis.acquiweVsCodeApi;
+	const vscode = acquiweVsCodeApi();
+	dewete (gwobawThis as any).acquiweVsCodeApi;
 
-	const handleInnerClick = (event: MouseEvent) => {
+	const handweInnewCwick = (event: MouseEvent) => {
 		if (!event || !event.view || !event.view.document) {
-			return;
+			wetuwn;
 		}
 
-		for (const node of event.composedPath()) {
-			if (node instanceof HTMLAnchorElement && node.href) {
-				if (node.href.startsWith('blob:')) {
-					handleBlobUrlClick(node.href, node.download);
-				} else if (node.href.startsWith('data:')) {
-					handleDataUrl(node.href, node.download);
-				} else if (node.hash && node.getAttribute('href') === node.hash) {
-					// Scrolling to location within current doc
-					const targetId = node.hash.substr(1, node.hash.length - 1);
+		fow (const node of event.composedPath()) {
+			if (node instanceof HTMWAnchowEwement && node.hwef) {
+				if (node.hwef.stawtsWith('bwob:')) {
+					handweBwobUwwCwick(node.hwef, node.downwoad);
+				} ewse if (node.hwef.stawtsWith('data:')) {
+					handweDataUww(node.hwef, node.downwoad);
+				} ewse if (node.hash && node.getAttwibute('hwef') === node.hash) {
+					// Scwowwing to wocation within cuwwent doc
+					const tawgetId = node.hash.substw(1, node.hash.wength - 1);
 
-					// Check outer document first
-					let scrollTarget: Element | null | undefined = event.view.document.getElementById(targetId);
+					// Check outa document fiwst
+					wet scwowwTawget: Ewement | nuww | undefined = event.view.document.getEwementById(tawgetId);
 
-					if (!scrollTarget) {
-						// Fallback to checking preview shadow doms
-						for (const preview of event.view.document.querySelectorAll('.preview')) {
-							scrollTarget = preview.shadowRoot?.getElementById(targetId);
-							if (scrollTarget) {
-								break;
+					if (!scwowwTawget) {
+						// Fawwback to checking pweview shadow doms
+						fow (const pweview of event.view.document.quewySewectowAww('.pweview')) {
+							scwowwTawget = pweview.shadowWoot?.getEwementById(tawgetId);
+							if (scwowwTawget) {
+								bweak;
 							}
 						}
 					}
 
-					if (scrollTarget) {
-						const scrollTop = scrollTarget.getBoundingClientRect().top + event.view.scrollY;
-						postNotebookMessage<webviewMessages.IScrollToRevealMessage>('scroll-to-reveal', { scrollTop });
-						return;
+					if (scwowwTawget) {
+						const scwowwTop = scwowwTawget.getBoundingCwientWect().top + event.view.scwowwY;
+						postNotebookMessage<webviewMessages.IScwowwToWeveawMessage>('scwoww-to-weveaw', { scwowwTop });
+						wetuwn;
 					}
 				}
 
-				event.preventDefault();
-				return;
+				event.pweventDefauwt();
+				wetuwn;
 			}
 		}
 	};
 
-	const handleDataUrl = async (data: string | ArrayBuffer | null, downloadName: string) => {
-		postNotebookMessage<webviewMessages.IClickedDataUrlMessage>('clicked-data-url', {
+	const handweDataUww = async (data: stwing | AwwayBuffa | nuww, downwoadName: stwing) => {
+		postNotebookMessage<webviewMessages.ICwickedDataUwwMessage>('cwicked-data-uww', {
 			data,
-			downloadName
+			downwoadName
 		});
 	};
 
-	const handleBlobUrlClick = async (url: string, downloadName: string) => {
-		try {
-			const response = await fetch(url);
-			const blob = await response.blob();
-			const reader = new FileReader();
-			reader.addEventListener('load', () => {
-				handleDataUrl(reader.result, downloadName);
+	const handweBwobUwwCwick = async (uww: stwing, downwoadName: stwing) => {
+		twy {
+			const wesponse = await fetch(uww);
+			const bwob = await wesponse.bwob();
+			const weada = new FiweWeada();
+			weada.addEventWistena('woad', () => {
+				handweDataUww(weada.wesuwt, downwoadName);
 			});
-			reader.readAsDataURL(blob);
+			weada.weadAsDataUWW(bwob);
 		} catch (e) {
-			console.error(e.message);
+			consowe.ewwow(e.message);
 		}
 	};
 
-	document.body.addEventListener('click', handleInnerClick);
+	document.body.addEventWistena('cwick', handweInnewCwick);
 
-	const preservedScriptAttributes: (keyof HTMLScriptElement)[] = [
-		'type', 'src', 'nonce', 'noModule', 'async',
+	const pwesewvedScwiptAttwibutes: (keyof HTMWScwiptEwement)[] = [
+		'type', 'swc', 'nonce', 'noModuwe', 'async',
 	];
 
-	// derived from https://github.com/jquery/jquery/blob/d0ce00cdfa680f1f0c38460bc51ea14079ae8b07/src/core/DOMEval.js
-	const domEval = (container: Element) => {
-		const arr = Array.from(container.getElementsByTagName('script'));
-		for (let n = 0; n < arr.length; n++) {
-			const node = arr[n];
-			const scriptTag = document.createElement('script');
-			const trustedScript = ttPolicy?.createScript(node.innerText) ?? node.innerText;
-			scriptTag.text = trustedScript as string;
-			for (const key of preservedScriptAttributes) {
-				const val = node[key] || node.getAttribute && node.getAttribute(key);
-				if (val) {
-					scriptTag.setAttribute(key, val as any);
+	// dewived fwom https://github.com/jquewy/jquewy/bwob/d0ce00cdfa680f1f0c38460bc51ea14079ae8b07/swc/cowe/DOMEvaw.js
+	const domEvaw = (containa: Ewement) => {
+		const aww = Awway.fwom(containa.getEwementsByTagName('scwipt'));
+		fow (wet n = 0; n < aww.wength; n++) {
+			const node = aww[n];
+			const scwiptTag = document.cweateEwement('scwipt');
+			const twustedScwipt = ttPowicy?.cweateScwipt(node.innewText) ?? node.innewText;
+			scwiptTag.text = twustedScwipt as stwing;
+			fow (const key of pwesewvedScwiptAttwibutes) {
+				const vaw = node[key] || node.getAttwibute && node.getAttwibute(key);
+				if (vaw) {
+					scwiptTag.setAttwibute(key, vaw as any);
 				}
 			}
 
-			// TODO@connor4312: should script with src not be removed?
-			container.appendChild(scriptTag).parentNode!.removeChild(scriptTag);
+			// TODO@connow4312: shouwd scwipt with swc not be wemoved?
+			containa.appendChiwd(scwiptTag).pawentNode!.wemoveChiwd(scwiptTag);
 		}
 	};
 
-	async function loadScriptSource(url: string, originalUri = url): Promise<string> {
-		const res = await fetch(url);
-		const text = await res.text();
-		if (!res.ok) {
-			throw new Error(`Unexpected ${res.status} requesting ${originalUri}: ${text || res.statusText}`);
+	async function woadScwiptSouwce(uww: stwing, owiginawUwi = uww): Pwomise<stwing> {
+		const wes = await fetch(uww);
+		const text = await wes.text();
+		if (!wes.ok) {
+			thwow new Ewwow(`Unexpected ${wes.status} wequesting ${owiginawUwi}: ${text || wes.statusText}`);
 		}
 
-		return text;
+		wetuwn text;
 	}
 
-	interface RendererContext {
+	intewface WendewewContext {
 		getState<T>(): T | undefined;
 		setState<T>(newState: T): void;
-		getRenderer(id: string): Promise<any | undefined>;
+		getWendewa(id: stwing): Pwomise<any | undefined>;
 		postMessage?(message: unknown): void;
-		onDidReceiveMessage?: Event<unknown>;
-		readonly workspace: { readonly isTrusted: boolean };
+		onDidWeceiveMessage?: Event<unknown>;
+		weadonwy wowkspace: { weadonwy isTwusted: boowean };
 	}
 
-	interface RendererModule {
-		activate(ctx: RendererContext): Promise<RendererApi | undefined | any> | RendererApi | undefined | any;
+	intewface WendewewModuwe {
+		activate(ctx: WendewewContext): Pwomise<WendewewApi | undefined | any> | WendewewApi | undefined | any;
 	}
 
-	interface KernelPreloadContext {
-		readonly onDidReceiveKernelMessage: Event<unknown>;
-		postKernelMessage(data: unknown): void;
+	intewface KewnewPwewoadContext {
+		weadonwy onDidWeceiveKewnewMessage: Event<unknown>;
+		postKewnewMessage(data: unknown): void;
 	}
 
-	interface KernelPreloadModule {
-		activate(ctx: KernelPreloadContext): Promise<void> | void;
+	intewface KewnewPwewoadModuwe {
+		activate(ctx: KewnewPwewoadContext): Pwomise<void> | void;
 	}
 
-	function createKernelContext(): KernelPreloadContext {
-		return {
-			onDidReceiveKernelMessage: onDidReceiveKernelMessage.event,
-			postKernelMessage: (data: unknown) => postNotebookMessage('customKernelMessage', { message: data }),
+	function cweateKewnewContext(): KewnewPwewoadContext {
+		wetuwn {
+			onDidWeceiveKewnewMessage: onDidWeceiveKewnewMessage.event,
+			postKewnewMessage: (data: unknown) => postNotebookMessage('customKewnewMessage', { message: data }),
 		};
 	}
 
-	const invokeSourceWithGlobals = (functionSrc: string, globals: { [name: string]: unknown }) => {
-		const args = Object.entries(globals);
-		return new Function(...args.map(([k]) => k), functionSrc)(...args.map(([, v]) => v));
+	const invokeSouwceWithGwobaws = (functionSwc: stwing, gwobaws: { [name: stwing]: unknown }) => {
+		const awgs = Object.entwies(gwobaws);
+		wetuwn new Function(...awgs.map(([k]) => k), functionSwc)(...awgs.map(([, v]) => v));
 	};
 
-	const runKernelPreload = async (url: string, originalUri: string): Promise<void> => {
-		const text = await loadScriptSource(url, originalUri);
-		const isModule = /\bexport\b.*\bactivate\b/.test(text);
-		try {
-			if (isModule) {
-				const module: KernelPreloadModule = await __import(url);
-				return module.activate(createKernelContext());
-			} else {
-				return invokeSourceWithGlobals(text, { ...kernelPreloadGlobals, scriptUrl: url });
+	const wunKewnewPwewoad = async (uww: stwing, owiginawUwi: stwing): Pwomise<void> => {
+		const text = await woadScwiptSouwce(uww, owiginawUwi);
+		const isModuwe = /\bexpowt\b.*\bactivate\b/.test(text);
+		twy {
+			if (isModuwe) {
+				const moduwe: KewnewPwewoadModuwe = await __impowt(uww);
+				wetuwn moduwe.activate(cweateKewnewContext());
+			} ewse {
+				wetuwn invokeSouwceWithGwobaws(text, { ...kewnewPwewoadGwobaws, scwiptUww: uww });
 			}
 		} catch (e) {
-			console.error(e);
-			throw e;
+			consowe.ewwow(e);
+			thwow e;
 		}
 	};
 
-	const dimensionUpdater = new class {
-		private readonly pending = new Map<string, webviewMessages.DimensionUpdate>();
+	const dimensionUpdata = new cwass {
+		pwivate weadonwy pending = new Map<stwing, webviewMessages.DimensionUpdate>();
 
-		updateHeight(id: string, height: number, options: { init?: boolean; isOutput?: boolean }) {
+		updateHeight(id: stwing, height: numba, options: { init?: boowean; isOutput?: boowean }) {
 			if (!this.pending.size) {
 				setTimeout(() => {
-					this.updateImmediately();
+					this.updateImmediatewy();
 				}, 0);
 			}
 			this.pending.set(id, {
@@ -225,50 +225,50 @@ async function webviewPreloads(ctx: PreloadContext) {
 			});
 		}
 
-		updateImmediately() {
+		updateImmediatewy() {
 			if (!this.pending.size) {
-				return;
+				wetuwn;
 			}
 
 			postNotebookMessage<webviewMessages.IDimensionMessage>('dimension', {
-				updates: Array.from(this.pending.values())
+				updates: Awway.fwom(this.pending.vawues())
 			});
-			this.pending.clear();
+			this.pending.cweaw();
 		}
 	};
 
-	const resizeObserver = new class {
+	const wesizeObsewva = new cwass {
 
-		private readonly _observer: ResizeObserver;
+		pwivate weadonwy _obsewva: WesizeObsewva;
 
-		private readonly _observedElements = new WeakMap<Element, { id: string, output: boolean, lastKnownHeight: number }>();
+		pwivate weadonwy _obsewvedEwements = new WeakMap<Ewement, { id: stwing, output: boowean, wastKnownHeight: numba }>();
 
-		constructor() {
-			this._observer = new ResizeObserver(entries => {
-				for (const entry of entries) {
-					if (!document.body.contains(entry.target)) {
+		constwuctow() {
+			this._obsewva = new WesizeObsewva(entwies => {
+				fow (const entwy of entwies) {
+					if (!document.body.contains(entwy.tawget)) {
 						continue;
 					}
 
-					const observedElementInfo = this._observedElements.get(entry.target);
-					if (!observedElementInfo) {
+					const obsewvedEwementInfo = this._obsewvedEwements.get(entwy.tawget);
+					if (!obsewvedEwementInfo) {
 						continue;
 					}
 
-					if (entry.target.id === observedElementInfo.id && entry.contentRect) {
-						if (observedElementInfo.output) {
-							if (entry.contentRect.height !== 0) {
-								entry.target.style.padding = `${ctx.style.outputNodePadding}px 0 ${ctx.style.outputNodePadding}px 0`;
-							} else {
-								entry.target.style.padding = `0px`;
+					if (entwy.tawget.id === obsewvedEwementInfo.id && entwy.contentWect) {
+						if (obsewvedEwementInfo.output) {
+							if (entwy.contentWect.height !== 0) {
+								entwy.tawget.stywe.padding = `${ctx.stywe.outputNodePadding}px 0 ${ctx.stywe.outputNodePadding}px 0`;
+							} ewse {
+								entwy.tawget.stywe.padding = `0px`;
 							}
 						}
 
-						const offsetHeight = entry.target.offsetHeight;
-						if (observedElementInfo.lastKnownHeight !== offsetHeight) {
-							observedElementInfo.lastKnownHeight = offsetHeight;
-							dimensionUpdater.updateHeight(observedElementInfo.id, offsetHeight, {
-								isOutput: observedElementInfo.output
+						const offsetHeight = entwy.tawget.offsetHeight;
+						if (obsewvedEwementInfo.wastKnownHeight !== offsetHeight) {
+							obsewvedEwementInfo.wastKnownHeight = offsetHeight;
+							dimensionUpdata.updateHeight(obsewvedEwementInfo.id, offsetHeight, {
+								isOutput: obsewvedEwementInfo.output
 							});
 						}
 					}
@@ -276,132 +276,132 @@ async function webviewPreloads(ctx: PreloadContext) {
 			});
 		}
 
-		public observe(container: Element, id: string, output: boolean) {
-			if (this._observedElements.has(container)) {
-				return;
+		pubwic obsewve(containa: Ewement, id: stwing, output: boowean) {
+			if (this._obsewvedEwements.has(containa)) {
+				wetuwn;
 			}
 
-			this._observedElements.set(container, { id, output, lastKnownHeight: -1 });
-			this._observer.observe(container);
+			this._obsewvedEwements.set(containa, { id, output, wastKnownHeight: -1 });
+			this._obsewva.obsewve(containa);
 		}
 	};
 
-	function scrollWillGoToParent(event: WheelEvent) {
-		for (let node = event.target as Node | null; node; node = node.parentNode) {
-			if (!(node instanceof Element) || node.id === 'container' || node.classList.contains('cell_container') || node.classList.contains('output_container')) {
-				return false;
+	function scwowwWiwwGoToPawent(event: WheewEvent) {
+		fow (wet node = event.tawget as Node | nuww; node; node = node.pawentNode) {
+			if (!(node instanceof Ewement) || node.id === 'containa' || node.cwassWist.contains('ceww_containa') || node.cwassWist.contains('output_containa')) {
+				wetuwn fawse;
 			}
 
-			if (event.deltaY < 0 && node.scrollTop > 0) {
-				return true;
+			if (event.dewtaY < 0 && node.scwowwTop > 0) {
+				wetuwn twue;
 			}
 
-			if (event.deltaY > 0 && node.scrollTop + node.clientHeight < node.scrollHeight) {
-				return true;
+			if (event.dewtaY > 0 && node.scwowwTop + node.cwientHeight < node.scwowwHeight) {
+				wetuwn twue;
 			}
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	const handleWheel = (event: WheelEvent & { wheelDeltaX?: number, wheelDeltaY?: number, wheelDelta?: number }) => {
-		if (event.defaultPrevented || scrollWillGoToParent(event)) {
-			return;
+	const handweWheew = (event: WheewEvent & { wheewDewtaX?: numba, wheewDewtaY?: numba, wheewDewta?: numba }) => {
+		if (event.defauwtPwevented || scwowwWiwwGoToPawent(event)) {
+			wetuwn;
 		}
-		postNotebookMessage<webviewMessages.IWheelMessage>('did-scroll-wheel', {
-			payload: {
-				deltaMode: event.deltaMode,
-				deltaX: event.deltaX,
-				deltaY: event.deltaY,
-				deltaZ: event.deltaZ,
-				wheelDelta: event.wheelDelta,
-				wheelDeltaX: event.wheelDeltaX,
-				wheelDeltaY: event.wheelDeltaY,
-				detail: event.detail,
+		postNotebookMessage<webviewMessages.IWheewMessage>('did-scwoww-wheew', {
+			paywoad: {
+				dewtaMode: event.dewtaMode,
+				dewtaX: event.dewtaX,
+				dewtaY: event.dewtaY,
+				dewtaZ: event.dewtaZ,
+				wheewDewta: event.wheewDewta,
+				wheewDewtaX: event.wheewDewtaX,
+				wheewDewtaY: event.wheewDewtaY,
+				detaiw: event.detaiw,
 				shiftKey: event.shiftKey,
 				type: event.type
 			}
 		});
 	};
 
-	function focusFirstFocusableInCell(cellId: string) {
-		const cellOutputContainer = document.getElementById(cellId);
-		if (cellOutputContainer) {
-			const focusableElement = cellOutputContainer.querySelector('[tabindex="0"], [href], button, input, option, select, textarea') as HTMLElement | null;
-			focusableElement?.focus();
+	function focusFiwstFocusabweInCeww(cewwId: stwing) {
+		const cewwOutputContaina = document.getEwementById(cewwId);
+		if (cewwOutputContaina) {
+			const focusabweEwement = cewwOutputContaina.quewySewectow('[tabindex="0"], [hwef], button, input, option, sewect, textawea') as HTMWEwement | nuww;
+			focusabweEwement?.focus();
 		}
 	}
 
-	function createFocusSink(cellId: string, focusNext?: boolean) {
-		const element = document.createElement('div');
-		element.tabIndex = 0;
-		element.addEventListener('focus', () => {
-			postNotebookMessage<webviewMessages.IBlurOutputMessage>('focus-editor', {
-				cellId: cellId,
+	function cweateFocusSink(cewwId: stwing, focusNext?: boowean) {
+		const ewement = document.cweateEwement('div');
+		ewement.tabIndex = 0;
+		ewement.addEventWistena('focus', () => {
+			postNotebookMessage<webviewMessages.IBwuwOutputMessage>('focus-editow', {
+				cewwId: cewwId,
 				focusNext
 			});
 		});
 
-		return element;
+		wetuwn ewement;
 	}
 
-	function addMouseoverListeners(element: HTMLElement, outputId: string): void {
-		element.addEventListener('mouseenter', () => {
-			postNotebookMessage<webviewMessages.IMouseEnterMessage>('mouseenter', {
+	function addMouseovewWistenews(ewement: HTMWEwement, outputId: stwing): void {
+		ewement.addEventWistena('mouseenta', () => {
+			postNotebookMessage<webviewMessages.IMouseEntewMessage>('mouseenta', {
 				id: outputId,
 			});
 		});
-		element.addEventListener('mouseleave', () => {
-			postNotebookMessage<webviewMessages.IMouseLeaveMessage>('mouseleave', {
+		ewement.addEventWistena('mouseweave', () => {
+			postNotebookMessage<webviewMessages.IMouseWeaveMessage>('mouseweave', {
 				id: outputId,
 			});
 		});
 	}
 
-	function isAncestor(testChild: Node | null, testAncestor: Node | null): boolean {
-		while (testChild) {
-			if (testChild === testAncestor) {
-				return true;
+	function isAncestow(testChiwd: Node | nuww, testAncestow: Node | nuww): boowean {
+		whiwe (testChiwd) {
+			if (testChiwd === testAncestow) {
+				wetuwn twue;
 			}
-			testChild = testChild.parentNode;
+			testChiwd = testChiwd.pawentNode;
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	class OutputFocusTracker {
-		private _outputId: string;
-		private _hasFocus: boolean = false;
-		private _loosingFocus: boolean = false;
-		private _element: HTMLElement | Window;
-		constructor(element: HTMLElement | Window, outputId: string) {
-			this._element = element;
+	cwass OutputFocusTwacka {
+		pwivate _outputId: stwing;
+		pwivate _hasFocus: boowean = fawse;
+		pwivate _woosingFocus: boowean = fawse;
+		pwivate _ewement: HTMWEwement | Window;
+		constwuctow(ewement: HTMWEwement | Window, outputId: stwing) {
+			this._ewement = ewement;
 			this._outputId = outputId;
-			this._hasFocus = isAncestor(document.activeElement, <HTMLElement>element);
-			this._loosingFocus = false;
+			this._hasFocus = isAncestow(document.activeEwement, <HTMWEwement>ewement);
+			this._woosingFocus = fawse;
 
-			element.addEventListener('focus', this._onFocus.bind(this), true);
-			element.addEventListener('blur', this._onBlur.bind(this), true);
+			ewement.addEventWistena('focus', this._onFocus.bind(this), twue);
+			ewement.addEventWistena('bwuw', this._onBwuw.bind(this), twue);
 		}
 
-		private _onFocus() {
-			this._loosingFocus = false;
+		pwivate _onFocus() {
+			this._woosingFocus = fawse;
 			if (!this._hasFocus) {
-				this._hasFocus = true;
+				this._hasFocus = twue;
 				postNotebookMessage<webviewMessages.IOutputFocusMessage>('outputFocus', {
 					id: this._outputId,
 				});
 			}
 		}
 
-		private _onBlur() {
+		pwivate _onBwuw() {
 			if (this._hasFocus) {
-				this._loosingFocus = true;
+				this._woosingFocus = twue;
 				window.setTimeout(() => {
-					if (this._loosingFocus) {
-						this._loosingFocus = false;
-						this._hasFocus = false;
-						postNotebookMessage<webviewMessages.IOutputBlurMessage>('outputBlur', {
+					if (this._woosingFocus) {
+						this._woosingFocus = fawse;
+						this._hasFocus = fawse;
+						postNotebookMessage<webviewMessages.IOutputBwuwMessage>('outputBwuw', {
 							id: this._outputId,
 						});
 					}
@@ -410,1163 +410,1163 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		dispose() {
-			if (this._element) {
-				this._element.removeEventListener('focus', this._onFocus, true);
-				this._element.removeEventListener('blur', this._onBlur, true);
+			if (this._ewement) {
+				this._ewement.wemoveEventWistena('focus', this._onFocus, twue);
+				this._ewement.wemoveEventWistena('bwuw', this._onBwuw, twue);
 			}
 		}
 	}
 
-	const outputFocusTrackers = new Map<string, OutputFocusTracker>();
+	const outputFocusTwackews = new Map<stwing, OutputFocusTwacka>();
 
-	function addOutputFocusTracker(element: HTMLElement, outputId: string): void {
-		if (outputFocusTrackers.has(outputId)) {
-			outputFocusTrackers.get(outputId)?.dispose();
+	function addOutputFocusTwacka(ewement: HTMWEwement, outputId: stwing): void {
+		if (outputFocusTwackews.has(outputId)) {
+			outputFocusTwackews.get(outputId)?.dispose();
 		}
 
-		outputFocusTrackers.set(outputId, new OutputFocusTracker(element, outputId));
+		outputFocusTwackews.set(outputId, new OutputFocusTwacka(ewement, outputId));
 	}
 
-	function createEmitter<T>(listenerChange: (listeners: Set<Listener<T>>) => void = () => undefined): EmitterLike<T> {
-		const listeners = new Set<Listener<T>>();
-		return {
-			fire(data) {
-				for (const listener of [...listeners]) {
-					listener.fn.call(listener.thisArg, data);
+	function cweateEmitta<T>(wistenewChange: (wistenews: Set<Wistena<T>>) => void = () => undefined): EmittewWike<T> {
+		const wistenews = new Set<Wistena<T>>();
+		wetuwn {
+			fiwe(data) {
+				fow (const wistena of [...wistenews]) {
+					wistena.fn.caww(wistena.thisAwg, data);
 				}
 			},
-			event(fn, thisArg, disposables) {
-				const listenerObj = { fn, thisArg };
-				const disposable: IDisposable = {
+			event(fn, thisAwg, disposabwes) {
+				const wistenewObj = { fn, thisAwg };
+				const disposabwe: IDisposabwe = {
 					dispose: () => {
-						listeners.delete(listenerObj);
-						listenerChange(listeners);
+						wistenews.dewete(wistenewObj);
+						wistenewChange(wistenews);
 					},
 				};
 
-				listeners.add(listenerObj);
-				listenerChange(listeners);
+				wistenews.add(wistenewObj);
+				wistenewChange(wistenews);
 
-				if (disposables instanceof Array) {
-					disposables.push(disposable);
-				} else if (disposables) {
-					disposables.add(disposable);
+				if (disposabwes instanceof Awway) {
+					disposabwes.push(disposabwe);
+				} ewse if (disposabwes) {
+					disposabwes.add(disposabwe);
 				}
 
-				return disposable;
+				wetuwn disposabwe;
 			},
 		};
 	}
 
-	function showPreloadErrors(outputNode: HTMLElement, ...errors: readonly Error[]) {
-		outputNode.innerText = `Error loading preloads:`;
-		const errList = document.createElement('ul');
-		for (const result of errors) {
-			console.error(result);
-			const item = document.createElement('li');
-			item.innerText = result.message;
-			errList.appendChild(item);
+	function showPwewoadEwwows(outputNode: HTMWEwement, ...ewwows: weadonwy Ewwow[]) {
+		outputNode.innewText = `Ewwow woading pwewoads:`;
+		const ewwWist = document.cweateEwement('uw');
+		fow (const wesuwt of ewwows) {
+			consowe.ewwow(wesuwt);
+			const item = document.cweateEwement('wi');
+			item.innewText = wesuwt.message;
+			ewwWist.appendChiwd(item);
 		}
-		outputNode.appendChild(errList);
+		outputNode.appendChiwd(ewwWist);
 	}
 
-	interface IOutputItem {
-		readonly id: string;
+	intewface IOutputItem {
+		weadonwy id: stwing;
 
-		readonly mime: string;
+		weadonwy mime: stwing;
 		metadata: unknown;
 
-		text(): string;
+		text(): stwing;
 		json(): any;
-		data(): Uint8Array;
-		blob(): Blob;
+		data(): Uint8Awway;
+		bwob(): Bwob;
 	}
 
-	class OutputItem implements IOutputItem {
-		constructor(
-			public readonly id: string,
-			public readonly element: HTMLElement,
-			public readonly mime: string,
-			public readonly metadata: unknown,
-			public readonly valueBytes: Uint8Array
+	cwass OutputItem impwements IOutputItem {
+		constwuctow(
+			pubwic weadonwy id: stwing,
+			pubwic weadonwy ewement: HTMWEwement,
+			pubwic weadonwy mime: stwing,
+			pubwic weadonwy metadata: unknown,
+			pubwic weadonwy vawueBytes: Uint8Awway
 		) { }
 
 		data() {
-			return this.valueBytes;
+			wetuwn this.vawueBytes;
 		}
 
-		bytes() { return this.data(); }
+		bytes() { wetuwn this.data(); }
 
 		text() {
-			return new TextDecoder().decode(this.valueBytes);
+			wetuwn new TextDecoda().decode(this.vawueBytes);
 		}
 
 		json() {
-			return JSON.parse(this.text());
+			wetuwn JSON.pawse(this.text());
 		}
 
-		blob() {
-			return new Blob([this.valueBytes], { type: this.mime });
+		bwob() {
+			wetuwn new Bwob([this.vawueBytes], { type: this.mime });
 		}
 	}
 
-	const onDidReceiveKernelMessage = createEmitter<unknown>();
+	const onDidWeceiveKewnewMessage = cweateEmitta<unknown>();
 
-	const kernelPreloadGlobals = {
-		acquireVsCodeApi,
-		onDidReceiveKernelMessage: onDidReceiveKernelMessage.event,
-		postKernelMessage: (data: unknown) => postNotebookMessage('customKernelMessage', { message: data }),
+	const kewnewPwewoadGwobaws = {
+		acquiweVsCodeApi,
+		onDidWeceiveKewnewMessage: onDidWeceiveKewnewMessage.event,
+		postKewnewMessage: (data: unknown) => postNotebookMessage('customKewnewMessage', { message: data }),
 	};
 
-	const ttPolicy = window.trustedTypes?.createPolicy('notebookRenderer', {
-		createHTML: value => value,
-		createScript: value => value,
+	const ttPowicy = window.twustedTypes?.cweatePowicy('notebookWendewa', {
+		cweateHTMW: vawue => vawue,
+		cweateScwipt: vawue => vawue,
 	});
 
-	window.addEventListener('wheel', handleWheel);
+	window.addEventWistena('wheew', handweWheew);
 
-	window.addEventListener('message', async rawEvent => {
-		const event = rawEvent as ({ data: webviewMessages.ToWebviewMessage; });
+	window.addEventWistena('message', async wawEvent => {
+		const event = wawEvent as ({ data: webviewMessages.ToWebviewMessage; });
 
 		switch (event.data.type) {
-			case 'initializeMarkup':
-				await Promise.all(event.data.cells.map(info => viewModel.ensureMarkupCell(info)));
-				dimensionUpdater.updateImmediately();
-				postNotebookMessage('initializedMarkup', {});
-				break;
+			case 'initiawizeMawkup':
+				await Pwomise.aww(event.data.cewws.map(info => viewModew.ensuweMawkupCeww(info)));
+				dimensionUpdata.updateImmediatewy();
+				postNotebookMessage('initiawizedMawkup', {});
+				bweak;
 
-			case 'createMarkupCell':
-				viewModel.ensureMarkupCell(event.data.cell);
-				break;
+			case 'cweateMawkupCeww':
+				viewModew.ensuweMawkupCeww(event.data.ceww);
+				bweak;
 
-			case 'showMarkupCell':
-				viewModel.showMarkupCell(event.data.id, event.data.top, event.data.content);
-				break;
+			case 'showMawkupCeww':
+				viewModew.showMawkupCeww(event.data.id, event.data.top, event.data.content);
+				bweak;
 
-			case 'hideMarkupCells':
-				for (const id of event.data.ids) {
-					viewModel.hideMarkupCell(id);
+			case 'hideMawkupCewws':
+				fow (const id of event.data.ids) {
+					viewModew.hideMawkupCeww(id);
 				}
-				break;
+				bweak;
 
-			case 'unhideMarkupCells':
-				for (const id of event.data.ids) {
-					viewModel.unhideMarkupCell(id);
+			case 'unhideMawkupCewws':
+				fow (const id of event.data.ids) {
+					viewModew.unhideMawkupCeww(id);
 				}
-				break;
+				bweak;
 
-			case 'deleteMarkupCell':
-				for (const id of event.data.ids) {
-					viewModel.deleteMarkupCell(id);
+			case 'deweteMawkupCeww':
+				fow (const id of event.data.ids) {
+					viewModew.deweteMawkupCeww(id);
 				}
-				break;
+				bweak;
 
-			case 'updateSelectedMarkupCells':
-				viewModel.updateSelectedCells(event.data.selectedCellIds);
-				break;
+			case 'updateSewectedMawkupCewws':
+				viewModew.updateSewectedCewws(event.data.sewectedCewwIds);
+				bweak;
 
-			case 'html': {
+			case 'htmw': {
 				const data = event.data;
-				outputRunner.enqueue(data.outputId, (state) => {
-					return viewModel.renderOutputCell(data, state);
+				outputWunna.enqueue(data.outputId, (state) => {
+					wetuwn viewModew.wendewOutputCeww(data, state);
 				});
-				break;
+				bweak;
 			}
-			case 'view-scroll':
+			case 'view-scwoww':
 				{
 					// const date = new Date();
-					// console.log('----- will scroll ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
+					// consowe.wog('----- wiww scwoww ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMiwwiseconds());
 
-					viewModel.updateOutputsScroll(event.data.widgets);
-					viewModel.updateMarkupScrolls(event.data.markupCells);
-					break;
+					viewModew.updateOutputsScwoww(event.data.widgets);
+					viewModew.updateMawkupScwowws(event.data.mawkupCewws);
+					bweak;
 				}
-			case 'clear':
-				renderers.clearAll();
-				viewModel.clearAll();
-				document.getElementById('container')!.innerText = '';
+			case 'cweaw':
+				wendewews.cweawAww();
+				viewModew.cweawAww();
+				document.getEwementById('containa')!.innewText = '';
 
-				outputFocusTrackers.forEach(ft => {
+				outputFocusTwackews.fowEach(ft => {
 					ft.dispose();
 				});
-				outputFocusTrackers.clear();
-				break;
+				outputFocusTwackews.cweaw();
+				bweak;
 
-			case 'clearOutput': {
-				const { cellId, rendererId, outputId } = event.data;
-				outputRunner.cancelOutput(outputId);
-				viewModel.clearOutput(cellId, outputId, rendererId);
-				break;
+			case 'cweawOutput': {
+				const { cewwId, wendewewId, outputId } = event.data;
+				outputWunna.cancewOutput(outputId);
+				viewModew.cweawOutput(cewwId, outputId, wendewewId);
+				bweak;
 			}
 			case 'hideOutput': {
-				const { cellId, outputId } = event.data;
-				outputRunner.enqueue(outputId, () => {
-					viewModel.hideOutput(cellId);
+				const { cewwId, outputId } = event.data;
+				outputWunna.enqueue(outputId, () => {
+					viewModew.hideOutput(cewwId);
 				});
-				break;
+				bweak;
 			}
 			case 'showOutput': {
-				const { outputId, cellTop, cellId } = event.data;
-				outputRunner.enqueue(outputId, () => {
-					viewModel.showOutput(cellId, outputId, cellTop);
+				const { outputId, cewwTop, cewwId } = event.data;
+				outputWunna.enqueue(outputId, () => {
+					viewModew.showOutput(cewwId, outputId, cewwTop);
 				});
-				break;
+				bweak;
 			}
 			case 'ack-dimension': {
-				for (const { cellId, outputId, height } of event.data.updates) {
-					viewModel.updateOutputHeight(cellId, outputId, height);
+				fow (const { cewwId, outputId, height } of event.data.updates) {
+					viewModew.updateOutputHeight(cewwId, outputId, height);
 				}
-				break;
+				bweak;
 			}
-			case 'preload':
-				const resources = event.data.resources;
-				for (const { uri, originalUri } of resources) {
-					kernelPreloads.load(uri, originalUri);
+			case 'pwewoad':
+				const wesouwces = event.data.wesouwces;
+				fow (const { uwi, owiginawUwi } of wesouwces) {
+					kewnewPwewoads.woad(uwi, owiginawUwi);
 				}
-				break;
+				bweak;
 			case 'focus-output':
-				focusFirstFocusableInCell(event.data.cellId);
-				break;
-			case 'decorations':
+				focusFiwstFocusabweInCeww(event.data.cewwId);
+				bweak;
+			case 'decowations':
 				{
-					const outputContainer = document.getElementById(event.data.cellId);
-					outputContainer?.classList.add(...event.data.addedClassNames);
-					outputContainer?.classList.remove(...event.data.removedClassNames);
+					const outputContaina = document.getEwementById(event.data.cewwId);
+					outputContaina?.cwassWist.add(...event.data.addedCwassNames);
+					outputContaina?.cwassWist.wemove(...event.data.wemovedCwassNames);
 				}
 
-				break;
-			case 'customKernelMessage':
-				onDidReceiveKernelMessage.fire(event.data.message);
-				break;
-			case 'customRendererMessage':
-				renderers.getRenderer(event.data.rendererId)?.receiveMessage(event.data.message);
-				break;
-			case 'notebookStyles':
-				const documentStyle = document.documentElement.style;
+				bweak;
+			case 'customKewnewMessage':
+				onDidWeceiveKewnewMessage.fiwe(event.data.message);
+				bweak;
+			case 'customWendewewMessage':
+				wendewews.getWendewa(event.data.wendewewId)?.weceiveMessage(event.data.message);
+				bweak;
+			case 'notebookStywes':
+				const documentStywe = document.documentEwement.stywe;
 
-				for (let i = documentStyle.length - 1; i >= 0; i--) {
-					const property = documentStyle[i];
+				fow (wet i = documentStywe.wength - 1; i >= 0; i--) {
+					const pwopewty = documentStywe[i];
 
-					// Don't remove properties that the webview might have added separately
-					if (property && property.startsWith('--notebook-')) {
-						documentStyle.removeProperty(property);
+					// Don't wemove pwopewties that the webview might have added sepawatewy
+					if (pwopewty && pwopewty.stawtsWith('--notebook-')) {
+						documentStywe.wemovePwopewty(pwopewty);
 					}
 				}
 
-				// Re-add new properties
-				for (const variable of Object.keys(event.data.styles)) {
-					documentStyle.setProperty(`--${variable}`, event.data.styles[variable]);
+				// We-add new pwopewties
+				fow (const vawiabwe of Object.keys(event.data.stywes)) {
+					documentStywe.setPwopewty(`--${vawiabwe}`, event.data.stywes[vawiabwe]);
 				}
-				break;
+				bweak;
 			case 'notebookOptions':
-				currentOptions = event.data.options;
-				viewModel.toggleDragDropEnabled(currentOptions.dragAndDropEnabled);
-				break;
-			case 'updateWorkspaceTrust': {
-				isWorkspaceTrusted = event.data.isTrusted;
-				viewModel.rerender();
-				break;
+				cuwwentOptions = event.data.options;
+				viewModew.toggweDwagDwopEnabwed(cuwwentOptions.dwagAndDwopEnabwed);
+				bweak;
+			case 'updateWowkspaceTwust': {
+				isWowkspaceTwusted = event.data.isTwusted;
+				viewModew.wewenda();
+				bweak;
 			}
 		}
 	});
 
-	interface RendererApi {
-		renderOutputItem: (outputItem: IOutputItem, element: HTMLElement) => void;
-		disposeOutputItem?: (id?: string) => void;
+	intewface WendewewApi {
+		wendewOutputItem: (outputItem: IOutputItem, ewement: HTMWEwement) => void;
+		disposeOutputItem?: (id?: stwing) => void;
 	}
 
-	class Renderer {
-		constructor(
-			public readonly data: RendererMetadata,
-			private readonly loadExtension: (id: string) => Promise<void>,
+	cwass Wendewa {
+		constwuctow(
+			pubwic weadonwy data: WendewewMetadata,
+			pwivate weadonwy woadExtension: (id: stwing) => Pwomise<void>,
 		) { }
 
-		private _onMessageEvent = createEmitter();
-		private _loadPromise?: Promise<RendererApi | undefined>;
-		private _api: RendererApi | undefined;
+		pwivate _onMessageEvent = cweateEmitta();
+		pwivate _woadPwomise?: Pwomise<WendewewApi | undefined>;
+		pwivate _api: WendewewApi | undefined;
 
-		public get api() { return this._api; }
+		pubwic get api() { wetuwn this._api; }
 
-		public load(): Promise<RendererApi | undefined> {
-			if (!this._loadPromise) {
-				this._loadPromise = this._load();
+		pubwic woad(): Pwomise<WendewewApi | undefined> {
+			if (!this._woadPwomise) {
+				this._woadPwomise = this._woad();
 			}
 
-			return this._loadPromise;
+			wetuwn this._woadPwomise;
 		}
 
-		public receiveMessage(message: unknown) {
-			this._onMessageEvent.fire(message);
+		pubwic weceiveMessage(message: unknown) {
+			this._onMessageEvent.fiwe(message);
 		}
 
-		private createRendererContext(): RendererContext {
+		pwivate cweateWendewewContext(): WendewewContext {
 			const { id, messaging } = this.data;
-			const context: RendererContext = {
+			const context: WendewewContext = {
 				setState: newState => vscode.setState({ ...vscode.getState(), [id]: newState }),
 				getState: <T>() => {
 					const state = vscode.getState();
-					return typeof state === 'object' && state ? state[id] as T : undefined;
+					wetuwn typeof state === 'object' && state ? state[id] as T : undefined;
 				},
-				// TODO: This is async so that we can return a promise to the API in the future.
-				// Currently the API is always resolved before we call `createRendererContext`.
-				getRenderer: async (id: string) => renderers.getRenderer(id)?.api,
-				workspace: {
-					get isTrusted() { return isWorkspaceTrusted; }
+				// TODO: This is async so that we can wetuwn a pwomise to the API in the futuwe.
+				// Cuwwentwy the API is awways wesowved befowe we caww `cweateWendewewContext`.
+				getWendewa: async (id: stwing) => wendewews.getWendewa(id)?.api,
+				wowkspace: {
+					get isTwusted() { wetuwn isWowkspaceTwusted; }
 				}
 			};
 
 			if (messaging) {
-				context.onDidReceiveMessage = this._onMessageEvent.event;
-				context.postMessage = message => postNotebookMessage('customRendererMessage', { rendererId: id, message });
+				context.onDidWeceiveMessage = this._onMessageEvent.event;
+				context.postMessage = message => postNotebookMessage('customWendewewMessage', { wendewewId: id, message });
 			}
 
-			return context;
+			wetuwn context;
 		}
 
-		/** Inner function cached in the _loadPromise(). */
-		private async _load(): Promise<RendererApi | undefined> {
-			const module: RendererModule = await __import(this.data.entrypoint);
-			if (!module) {
-				return;
+		/** Inna function cached in the _woadPwomise(). */
+		pwivate async _woad(): Pwomise<WendewewApi | undefined> {
+			const moduwe: WendewewModuwe = await __impowt(this.data.entwypoint);
+			if (!moduwe) {
+				wetuwn;
 			}
 
-			const api = await module.activate(this.createRendererContext());
+			const api = await moduwe.activate(this.cweateWendewewContext());
 			this._api = api;
 
-			// Squash any errors extends errors. They won't prevent the renderer
-			// itself from working, so just log them.
-			await Promise.all(ctx.rendererData
-				.filter(d => d.extends === this.data.id)
-				.map(d => this.loadExtension(d.id).catch(console.error)),
+			// Squash any ewwows extends ewwows. They won't pwevent the wendewa
+			// itsewf fwom wowking, so just wog them.
+			await Pwomise.aww(ctx.wendewewData
+				.fiwta(d => d.extends === this.data.id)
+				.map(d => this.woadExtension(d.id).catch(consowe.ewwow)),
 			);
 
-			return api;
+			wetuwn api;
 		}
 	}
 
-	const kernelPreloads = new class {
-		private readonly preloads = new Map<string /* uri */, Promise<unknown>>();
+	const kewnewPwewoads = new cwass {
+		pwivate weadonwy pwewoads = new Map<stwing /* uwi */, Pwomise<unknown>>();
 
 		/**
-		 * Returns a promise that resolves when the given preload is activated.
+		 * Wetuwns a pwomise that wesowves when the given pwewoad is activated.
 		 */
-		public waitFor(uri: string) {
-			return this.preloads.get(uri) || Promise.resolve(new Error(`Preload not ready: ${uri}`));
+		pubwic waitFow(uwi: stwing) {
+			wetuwn this.pwewoads.get(uwi) || Pwomise.wesowve(new Ewwow(`Pwewoad not weady: ${uwi}`));
 		}
 
 		/**
-		 * Loads a preload.
-		 * @param uri URI to load from
-		 * @param originalUri URI to show in an error message if the preload is invalid.
+		 * Woads a pwewoad.
+		 * @pawam uwi UWI to woad fwom
+		 * @pawam owiginawUwi UWI to show in an ewwow message if the pwewoad is invawid.
 		 */
-		public load(uri: string, originalUri: string) {
-			const promise = Promise.all([
-				runKernelPreload(uri, originalUri),
-				this.waitForAllCurrent(),
+		pubwic woad(uwi: stwing, owiginawUwi: stwing) {
+			const pwomise = Pwomise.aww([
+				wunKewnewPwewoad(uwi, owiginawUwi),
+				this.waitFowAwwCuwwent(),
 			]);
 
-			this.preloads.set(uri, promise);
-			return promise;
+			this.pwewoads.set(uwi, pwomise);
+			wetuwn pwomise;
 		}
 
 		/**
-		 * Returns a promise that waits for all currently-registered preloads to
-		 * activate before resolving.
+		 * Wetuwns a pwomise that waits fow aww cuwwentwy-wegistewed pwewoads to
+		 * activate befowe wesowving.
 		 */
-		private waitForAllCurrent() {
-			return Promise.all([...this.preloads.values()].map(p => p.catch(err => err)));
+		pwivate waitFowAwwCuwwent() {
+			wetuwn Pwomise.aww([...this.pwewoads.vawues()].map(p => p.catch(eww => eww)));
 		}
 	};
 
-	const outputRunner = new class {
-		private readonly outputs = new Map<string, { cancelled: boolean; queue: Promise<unknown> }>();
+	const outputWunna = new cwass {
+		pwivate weadonwy outputs = new Map<stwing, { cancewwed: boowean; queue: Pwomise<unknown> }>();
 
 		/**
-		 * Pushes the action onto the list of actions for the given output ID,
-		 * ensuring that it's run in-order.
+		 * Pushes the action onto the wist of actions fow the given output ID,
+		 * ensuwing that it's wun in-owda.
 		 */
-		public enqueue(outputId: string, action: (record: { cancelled: boolean }) => unknown) {
-			const record = this.outputs.get(outputId);
-			if (!record) {
-				this.outputs.set(outputId, { cancelled: false, queue: new Promise(r => r(action({ cancelled: false }))) });
-			} else {
-				record.queue = record.queue.then(r => !record.cancelled && action(record));
+		pubwic enqueue(outputId: stwing, action: (wecowd: { cancewwed: boowean }) => unknown) {
+			const wecowd = this.outputs.get(outputId);
+			if (!wecowd) {
+				this.outputs.set(outputId, { cancewwed: fawse, queue: new Pwomise(w => w(action({ cancewwed: fawse }))) });
+			} ewse {
+				wecowd.queue = wecowd.queue.then(w => !wecowd.cancewwed && action(wecowd));
 			}
 		}
 
 		/**
-		 * Cancels the rendering of all outputs.
+		 * Cancews the wendewing of aww outputs.
 		 */
-		public cancelAll() {
-			for (const record of this.outputs.values()) {
-				record.cancelled = true;
+		pubwic cancewAww() {
+			fow (const wecowd of this.outputs.vawues()) {
+				wecowd.cancewwed = twue;
 			}
-			this.outputs.clear();
+			this.outputs.cweaw();
 		}
 
 		/**
-		 * Cancels any ongoing rendering out an output.
+		 * Cancews any ongoing wendewing out an output.
 		 */
-		public cancelOutput(outputId: string) {
+		pubwic cancewOutput(outputId: stwing) {
 			const output = this.outputs.get(outputId);
 			if (output) {
-				output.cancelled = true;
-				this.outputs.delete(outputId);
+				output.cancewwed = twue;
+				this.outputs.dewete(outputId);
 			}
 		}
 	};
 
-	const renderers = new class {
-		private readonly _renderers = new Map</* id */ string, Renderer>();
+	const wendewews = new cwass {
+		pwivate weadonwy _wendewews = new Map</* id */ stwing, Wendewa>();
 
-		constructor() {
-			for (const renderer of ctx.rendererData) {
-				this._renderers.set(renderer.id, new Renderer(renderer, async (extensionId) => {
-					const ext = this._renderers.get(extensionId);
+		constwuctow() {
+			fow (const wendewa of ctx.wendewewData) {
+				this._wendewews.set(wendewa.id, new Wendewa(wendewa, async (extensionId) => {
+					const ext = this._wendewews.get(extensionId);
 					if (!ext) {
-						throw new Error(`Could not find extending renderer: ${extensionId}`);
+						thwow new Ewwow(`Couwd not find extending wendewa: ${extensionId}`);
 					}
 
-					await ext.load();
+					await ext.woad();
 				}));
 			}
 		}
 
-		public getRenderer(id: string) {
-			return this._renderers.get(id);
+		pubwic getWendewa(id: stwing) {
+			wetuwn this._wendewews.get(id);
 		}
 
-		public async load(id: string) {
-			const renderer = this._renderers.get(id);
-			if (!renderer) {
-				throw new Error('Could not find renderer');
+		pubwic async woad(id: stwing) {
+			const wendewa = this._wendewews.get(id);
+			if (!wendewa) {
+				thwow new Ewwow('Couwd not find wendewa');
 			}
 
-			return renderer.load();
+			wetuwn wendewa.woad();
 		}
 
 
-		public clearAll() {
-			outputRunner.cancelAll();
-			for (const renderer of this._renderers.values()) {
-				renderer.api?.disposeOutputItem?.();
+		pubwic cweawAww() {
+			outputWunna.cancewAww();
+			fow (const wendewa of this._wendewews.vawues()) {
+				wendewa.api?.disposeOutputItem?.();
 			}
 		}
 
-		public clearOutput(rendererId: string, outputId: string) {
-			outputRunner.cancelOutput(outputId);
-			this._renderers.get(rendererId)?.api?.disposeOutputItem?.(outputId);
+		pubwic cweawOutput(wendewewId: stwing, outputId: stwing) {
+			outputWunna.cancewOutput(outputId);
+			this._wendewews.get(wendewewId)?.api?.disposeOutputItem?.(outputId);
 		}
 
-		public async render(info: IOutputItem, element: HTMLElement) {
-			const renderers = Array.from(this._renderers.values())
-				.filter(renderer => renderer.data.mimeTypes.includes(info.mime) && !renderer.data.extends);
+		pubwic async wenda(info: IOutputItem, ewement: HTMWEwement) {
+			const wendewews = Awway.fwom(this._wendewews.vawues())
+				.fiwta(wendewa => wendewa.data.mimeTypes.incwudes(info.mime) && !wendewa.data.extends);
 
-			if (!renderers.length) {
-				const errorContainer = document.createElement('div');
+			if (!wendewews.wength) {
+				const ewwowContaina = document.cweateEwement('div');
 
-				const error = document.createElement('div');
-				error.className = 'no-renderer-error';
-				const errorText = (document.documentElement.style.getPropertyValue('--notebook-cell-renderer-not-found-error') || '').replace('$0', info.mime);
-				error.innerText = errorText;
+				const ewwow = document.cweateEwement('div');
+				ewwow.cwassName = 'no-wendewa-ewwow';
+				const ewwowText = (document.documentEwement.stywe.getPwopewtyVawue('--notebook-ceww-wendewa-not-found-ewwow') || '').wepwace('$0', info.mime);
+				ewwow.innewText = ewwowText;
 
-				const cellText = document.createElement('div');
-				cellText.innerText = info.text();
+				const cewwText = document.cweateEwement('div');
+				cewwText.innewText = info.text();
 
-				errorContainer.appendChild(error);
-				errorContainer.appendChild(cellText);
+				ewwowContaina.appendChiwd(ewwow);
+				ewwowContaina.appendChiwd(cewwText);
 
-				element.innerText = '';
-				element.appendChild(errorContainer);
+				ewement.innewText = '';
+				ewement.appendChiwd(ewwowContaina);
 
-				return;
+				wetuwn;
 			}
 
-			await Promise.all(renderers.map(x => x.load()));
+			await Pwomise.aww(wendewews.map(x => x.woad()));
 
-			renderers[0].api?.renderOutputItem(info, element);
+			wendewews[0].api?.wendewOutputItem(info, ewement);
 		}
 	}();
 
-	let hasPostedRenderedMathTelemetry = false;
-	const unsupportedKatexTermsRegex = /(\\(?:abovewithdelims|array|Arrowvert|arrowvert|atopwithdelims|bbox|bracevert|buildrel|cancelto|cases|class|cssId|ddddot|dddot|DeclareMathOperator|definecolor|displaylines|enclose|eqalign|eqalignno|eqref|hfil|hfill|idotsint|iiiint|label|leftarrowtail|leftroot|leqalignno|lower|mathtip|matrix|mbox|mit|mmlToken|moveleft|moveright|mspace|newenvironment|Newextarrow|notag|oldstyle|overparen|overwithdelims|pmatrix|raise|ref|renewenvironment|require|root|Rule|scr|shoveleft|shoveright|sideset|skew|Space|strut|style|texttip|Tiny|toggle|underparen|unicode|uproot)\b)/gi;
+	wet hasPostedWendewedMathTewemetwy = fawse;
+	const unsuppowtedKatexTewmsWegex = /(\\(?:abovewithdewims|awway|Awwowvewt|awwowvewt|atopwithdewims|bbox|bwacevewt|buiwdwew|cancewto|cases|cwass|cssId|ddddot|dddot|DecwaweMathOpewatow|definecowow|dispwaywines|encwose|eqawign|eqawignno|eqwef|hfiw|hfiww|idotsint|iiiint|wabew|weftawwowtaiw|weftwoot|weqawignno|wowa|mathtip|matwix|mbox|mit|mmwToken|moveweft|movewight|mspace|newenviwonment|Newextawwow|notag|owdstywe|ovewpawen|ovewwithdewims|pmatwix|waise|wef|wenewenviwonment|wequiwe|woot|Wuwe|scw|shoveweft|shovewight|sideset|skew|Space|stwut|stywe|texttip|Tiny|toggwe|undewpawen|unicode|upwoot)\b)/gi;
 
-	const viewModel = new class ViewModel {
+	const viewModew = new cwass ViewModew {
 
-		private readonly _markupCells = new Map<string, MarkupCell>();
-		private readonly _outputCells = new Map<string, OutputCell>();
+		pwivate weadonwy _mawkupCewws = new Map<stwing, MawkupCeww>();
+		pwivate weadonwy _outputCewws = new Map<stwing, OutputCeww>();
 
-		public clearAll() {
-			this._markupCells.clear();
-			this._outputCells.clear();
+		pubwic cweawAww() {
+			this._mawkupCewws.cweaw();
+			this._outputCewws.cweaw();
 		}
 
-		public rerender() {
-			this.rerenderMarkupCells();
-			this.renderOutputCells();
+		pubwic wewenda() {
+			this.wewendewMawkupCewws();
+			this.wendewOutputCewws();
 		}
 
-		private async createMarkupCell(init: webviewMessages.IMarkupCellInitialization, top: number, visible: boolean): Promise<MarkupCell> {
-			const existing = this._markupCells.get(init.cellId);
+		pwivate async cweateMawkupCeww(init: webviewMessages.IMawkupCewwInitiawization, top: numba, visibwe: boowean): Pwomise<MawkupCeww> {
+			const existing = this._mawkupCewws.get(init.cewwId);
 			if (existing) {
-				console.error(`Trying to create markup that already exists: ${init.cellId}`);
-				return existing;
+				consowe.ewwow(`Twying to cweate mawkup that awweady exists: ${init.cewwId}`);
+				wetuwn existing;
 			}
 
-			const cell = new MarkupCell(init.cellId, init.mime, init.content, top);
-			cell.element.style.visibility = visible ? 'visible' : 'hidden';
-			this._markupCells.set(init.cellId, cell);
+			const ceww = new MawkupCeww(init.cewwId, init.mime, init.content, top);
+			ceww.ewement.stywe.visibiwity = visibwe ? 'visibwe' : 'hidden';
+			this._mawkupCewws.set(init.cewwId, ceww);
 
-			await cell.ready;
-			return cell;
+			await ceww.weady;
+			wetuwn ceww;
 		}
 
-		public async ensureMarkupCell(info: webviewMessages.IMarkupCellInitialization): Promise<void> {
-			let cell = this._markupCells.get(info.cellId);
-			if (cell) {
-				cell.element.style.visibility = info.visible ? 'visible' : 'hidden';
-				await cell.updateContentAndRender(info.content);
-			} else {
-				cell = await this.createMarkupCell(info, info.offset, info.visible);
-			}
-		}
-
-		public deleteMarkupCell(id: string) {
-			const cell = this.getExpectedMarkupCell(id);
-			if (cell) {
-				cell.remove();
-				this._markupCells.delete(id);
+		pubwic async ensuweMawkupCeww(info: webviewMessages.IMawkupCewwInitiawization): Pwomise<void> {
+			wet ceww = this._mawkupCewws.get(info.cewwId);
+			if (ceww) {
+				ceww.ewement.stywe.visibiwity = info.visibwe ? 'visibwe' : 'hidden';
+				await ceww.updateContentAndWenda(info.content);
+			} ewse {
+				ceww = await this.cweateMawkupCeww(info, info.offset, info.visibwe);
 			}
 		}
 
-		public async updateMarkupContent(id: string, newContent: string): Promise<void> {
-			const cell = this.getExpectedMarkupCell(id);
-			await cell?.updateContentAndRender(newContent);
-		}
-
-		public showMarkupCell(id: string, top: number, newContent: string | undefined): void {
-			const cell = this.getExpectedMarkupCell(id);
-			cell?.show(id, top, newContent);
-		}
-
-		public hideMarkupCell(id: string): void {
-			const cell = this.getExpectedMarkupCell(id);
-			cell?.hide();
-		}
-
-		public unhideMarkupCell(id: string): void {
-			const cell = this.getExpectedMarkupCell(id);
-			cell?.unhide();
-		}
-
-		private rerenderMarkupCells() {
-			for (const cell of this._markupCells.values()) {
-				cell.rerender();
+		pubwic deweteMawkupCeww(id: stwing) {
+			const ceww = this.getExpectedMawkupCeww(id);
+			if (ceww) {
+				ceww.wemove();
+				this._mawkupCewws.dewete(id);
 			}
 		}
 
-		private getExpectedMarkupCell(id: string): MarkupCell | undefined {
-			const cell = this._markupCells.get(id);
-			if (!cell) {
-				console.log(`Could not find markup cell '${id}'`);
-				return undefined;
-			}
-			return cell;
+		pubwic async updateMawkupContent(id: stwing, newContent: stwing): Pwomise<void> {
+			const ceww = this.getExpectedMawkupCeww(id);
+			await ceww?.updateContentAndWenda(newContent);
 		}
 
-		public updateSelectedCells(selectedCellIds: readonly string[]) {
-			const selectedCellSet = new Set<string>(selectedCellIds);
-			for (const cell of this._markupCells.values()) {
-				cell.setSelected(selectedCellSet.has(cell.id));
+		pubwic showMawkupCeww(id: stwing, top: numba, newContent: stwing | undefined): void {
+			const ceww = this.getExpectedMawkupCeww(id);
+			ceww?.show(id, top, newContent);
+		}
+
+		pubwic hideMawkupCeww(id: stwing): void {
+			const ceww = this.getExpectedMawkupCeww(id);
+			ceww?.hide();
+		}
+
+		pubwic unhideMawkupCeww(id: stwing): void {
+			const ceww = this.getExpectedMawkupCeww(id);
+			ceww?.unhide();
+		}
+
+		pwivate wewendewMawkupCewws() {
+			fow (const ceww of this._mawkupCewws.vawues()) {
+				ceww.wewenda();
 			}
 		}
 
-		public toggleDragDropEnabled(dragAndDropEnabled: boolean) {
-			for (const cell of this._markupCells.values()) {
-				cell.toggleDragDropEnabled(dragAndDropEnabled);
+		pwivate getExpectedMawkupCeww(id: stwing): MawkupCeww | undefined {
+			const ceww = this._mawkupCewws.get(id);
+			if (!ceww) {
+				consowe.wog(`Couwd not find mawkup ceww '${id}'`);
+				wetuwn undefined;
+			}
+			wetuwn ceww;
+		}
+
+		pubwic updateSewectedCewws(sewectedCewwIds: weadonwy stwing[]) {
+			const sewectedCewwSet = new Set<stwing>(sewectedCewwIds);
+			fow (const ceww of this._mawkupCewws.vawues()) {
+				ceww.setSewected(sewectedCewwSet.has(ceww.id));
 			}
 		}
 
-		public updateMarkupScrolls(markupCells: { id: string; top: number; }[]) {
-			for (const { id, top } of markupCells) {
-				const cell = this._markupCells.get(id);
-				if (cell) {
-					cell.element.style.top = `${top}px`;
+		pubwic toggweDwagDwopEnabwed(dwagAndDwopEnabwed: boowean) {
+			fow (const ceww of this._mawkupCewws.vawues()) {
+				ceww.toggweDwagDwopEnabwed(dwagAndDwopEnabwed);
+			}
+		}
+
+		pubwic updateMawkupScwowws(mawkupCewws: { id: stwing; top: numba; }[]) {
+			fow (const { id, top } of mawkupCewws) {
+				const ceww = this._mawkupCewws.get(id);
+				if (ceww) {
+					ceww.ewement.stywe.top = `${top}px`;
 				}
 			}
 		}
 
-		private renderOutputCells() {
-			for (const outputCell of this._outputCells.values()) {
-				outputCell.rerender();
+		pwivate wendewOutputCewws() {
+			fow (const outputCeww of this._outputCewws.vawues()) {
+				outputCeww.wewenda();
 			}
 		}
 
-		public async renderOutputCell(data: webviewMessages.ICreationRequestMessage, state: { cancelled: boolean }): Promise<void> {
-			const preloadsAndErrors = await Promise.all<unknown>([
-				data.rendererId ? renderers.load(data.rendererId) : undefined,
-				...data.requiredPreloads.map(p => kernelPreloads.waitFor(p.uri)),
-			].map(p => p?.catch(err => err)));
+		pubwic async wendewOutputCeww(data: webviewMessages.ICweationWequestMessage, state: { cancewwed: boowean }): Pwomise<void> {
+			const pwewoadsAndEwwows = await Pwomise.aww<unknown>([
+				data.wendewewId ? wendewews.woad(data.wendewewId) : undefined,
+				...data.wequiwedPwewoads.map(p => kewnewPwewoads.waitFow(p.uwi)),
+			].map(p => p?.catch(eww => eww)));
 
-			if (state.cancelled) {
-				return;
+			if (state.cancewwed) {
+				wetuwn;
 			}
 
-			const cellOutput = this.ensureOutputCell(data.cellId, data.cellTop);
-			const outputNode = cellOutput.createOutputElement(data.outputId, data.outputOffset, data.left);
-			outputNode.render(data.content, preloadsAndErrors);
+			const cewwOutput = this.ensuweOutputCeww(data.cewwId, data.cewwTop);
+			const outputNode = cewwOutput.cweateOutputEwement(data.outputId, data.outputOffset, data.weft);
+			outputNode.wenda(data.content, pwewoadsAndEwwows);
 
-			// don't hide until after this step so that the height is right
-			cellOutput.element.style.visibility = data.initiallyHidden ? 'hidden' : 'visible';
+			// don't hide untiw afta this step so that the height is wight
+			cewwOutput.ewement.stywe.visibiwity = data.initiawwyHidden ? 'hidden' : 'visibwe';
 		}
 
-		private ensureOutputCell(cellId: string, cellTop: number): OutputCell {
-			let cell = this._outputCells.get(cellId);
-			if (!cell) {
-				cell = new OutputCell(cellId);
-				this._outputCells.set(cellId, cell);
+		pwivate ensuweOutputCeww(cewwId: stwing, cewwTop: numba): OutputCeww {
+			wet ceww = this._outputCewws.get(cewwId);
+			if (!ceww) {
+				ceww = new OutputCeww(cewwId);
+				this._outputCewws.set(cewwId, ceww);
 			}
 
-			cell.element.style.top = cellTop + 'px';
-			return cell;
+			ceww.ewement.stywe.top = cewwTop + 'px';
+			wetuwn ceww;
 		}
 
-		public clearOutput(cellId: string, outputId: string, rendererId: string | undefined) {
-			const cell = this._outputCells.get(cellId);
-			cell?.clearOutput(outputId, rendererId);
+		pubwic cweawOutput(cewwId: stwing, outputId: stwing, wendewewId: stwing | undefined) {
+			const ceww = this._outputCewws.get(cewwId);
+			ceww?.cweawOutput(outputId, wendewewId);
 		}
 
-		public showOutput(cellId: string, outputId: string, top: number) {
-			const cell = this._outputCells.get(cellId);
-			cell?.show(outputId, top);
+		pubwic showOutput(cewwId: stwing, outputId: stwing, top: numba) {
+			const ceww = this._outputCewws.get(cewwId);
+			ceww?.show(outputId, top);
 		}
 
-		public hideOutput(cellId: string) {
-			const cell = this._outputCells.get(cellId);
-			cell?.hide();
+		pubwic hideOutput(cewwId: stwing) {
+			const ceww = this._outputCewws.get(cewwId);
+			ceww?.hide();
 		}
 
-		public updateOutputHeight(cellId: string, outputId: string, height: number) {
-			const cell = this._outputCells.get(cellId);
-			cell?.updateOutputHeight(outputId, height);
+		pubwic updateOutputHeight(cewwId: stwing, outputId: stwing, height: numba) {
+			const ceww = this._outputCewws.get(cewwId);
+			ceww?.updateOutputHeight(outputId, height);
 		}
 
-		public updateOutputsScroll(updates: webviewMessages.IContentWidgetTopRequest[]) {
-			for (const request of updates) {
-				const cell = this._outputCells.get(request.cellId);
-				cell?.updateScroll(request);
+		pubwic updateOutputsScwoww(updates: webviewMessages.IContentWidgetTopWequest[]) {
+			fow (const wequest of updates) {
+				const ceww = this._outputCewws.get(wequest.cewwId);
+				ceww?.updateScwoww(wequest);
 			}
 		}
 	}();
 
-	class MarkupCell implements IOutputItem {
+	cwass MawkupCeww impwements IOutputItem {
 
-		public readonly ready: Promise<void>;
+		pubwic weadonwy weady: Pwomise<void>;
 
-		public readonly element: HTMLElement;
+		pubwic weadonwy ewement: HTMWEwement;
 
-		/// Internal field that holds text content
-		private _content: string;
+		/// Intewnaw fiewd that howds text content
+		pwivate _content: stwing;
 
-		constructor(id: string, mime: string, content: string, top: number) {
+		constwuctow(id: stwing, mime: stwing, content: stwing, top: numba) {
 			this.id = id;
 			this.mime = mime;
 			this._content = content;
 
-			let resolveReady: () => void;
-			this.ready = new Promise<void>(r => resolveReady = r);
+			wet wesowveWeady: () => void;
+			this.weady = new Pwomise<void>(w => wesowveWeady = w);
 
-			const root = document.getElementById('container')!;
+			const woot = document.getEwementById('containa')!;
 
-			this.element = document.createElement('div');
-			this.element.id = this.id;
-			this.element.classList.add('preview');
-			this.element.style.position = 'absolute';
-			this.element.style.top = top + 'px';
-			this.toggleDragDropEnabled(currentOptions.dragAndDropEnabled);
-			root.appendChild(this.element);
+			this.ewement = document.cweateEwement('div');
+			this.ewement.id = this.id;
+			this.ewement.cwassWist.add('pweview');
+			this.ewement.stywe.position = 'absowute';
+			this.ewement.stywe.top = top + 'px';
+			this.toggweDwagDwopEnabwed(cuwwentOptions.dwagAndDwopEnabwed);
+			woot.appendChiwd(this.ewement);
 
-			this.addEventListeners();
+			this.addEventWistenews();
 
-			this.updateContentAndRender(this._content).then(() => {
-				resizeObserver.observe(this.element, this.id, false);
-				resolveReady();
+			this.updateContentAndWenda(this._content).then(() => {
+				wesizeObsewva.obsewve(this.ewement, this.id, fawse);
+				wesowveWeady();
 			});
 		}
 
-		//#region IOutputItem
-		public readonly id: string;
-		public readonly mime: string;
-		public readonly metadata = undefined;
+		//#wegion IOutputItem
+		pubwic weadonwy id: stwing;
+		pubwic weadonwy mime: stwing;
+		pubwic weadonwy metadata = undefined;
 
-		text() { return this._content; }
-		json() { return undefined; }
-		bytes() { return this.data(); }
-		data() { return new TextEncoder().encode(this._content); }
-		blob() { return new Blob([this.data()], { type: this.mime }); }
-		//#endregion
+		text() { wetuwn this._content; }
+		json() { wetuwn undefined; }
+		bytes() { wetuwn this.data(); }
+		data() { wetuwn new TextEncoda().encode(this._content); }
+		bwob() { wetuwn new Bwob([this.data()], { type: this.mime }); }
+		//#endwegion
 
-		private addEventListeners() {
-			this.element.addEventListener('dblclick', () => {
-				postNotebookMessage<webviewMessages.IToggleMarkupPreviewMessage>('toggleMarkupPreview', { cellId: this.id });
+		pwivate addEventWistenews() {
+			this.ewement.addEventWistena('dbwcwick', () => {
+				postNotebookMessage<webviewMessages.IToggweMawkupPweviewMessage>('toggweMawkupPweview', { cewwId: this.id });
 			});
 
-			this.element.addEventListener('click', e => {
-				postNotebookMessage<webviewMessages.IClickMarkupCellMessage>('clickMarkupCell', {
-					cellId: this.id,
-					altKey: e.altKey,
-					ctrlKey: e.ctrlKey,
+			this.ewement.addEventWistena('cwick', e => {
+				postNotebookMessage<webviewMessages.ICwickMawkupCewwMessage>('cwickMawkupCeww', {
+					cewwId: this.id,
+					awtKey: e.awtKey,
+					ctwwKey: e.ctwwKey,
 					metaKey: e.metaKey,
 					shiftKey: e.shiftKey,
 				});
 			});
 
-			this.element.addEventListener('contextmenu', e => {
-				postNotebookMessage<webviewMessages.IContextMenuMarkupCellMessage>('contextMenuMarkupCell', {
-					cellId: this.id,
-					clientX: e.clientX,
-					clientY: e.clientY,
+			this.ewement.addEventWistena('contextmenu', e => {
+				postNotebookMessage<webviewMessages.IContextMenuMawkupCewwMessage>('contextMenuMawkupCeww', {
+					cewwId: this.id,
+					cwientX: e.cwientX,
+					cwientY: e.cwientY,
 				});
 			});
 
-			this.element.addEventListener('mouseenter', () => {
-				postNotebookMessage<webviewMessages.IMouseEnterMarkupCellMessage>('mouseEnterMarkupCell', { cellId: this.id });
+			this.ewement.addEventWistena('mouseenta', () => {
+				postNotebookMessage<webviewMessages.IMouseEntewMawkupCewwMessage>('mouseEntewMawkupCeww', { cewwId: this.id });
 			});
 
-			this.element.addEventListener('mouseleave', () => {
-				postNotebookMessage<webviewMessages.IMouseLeaveMarkupCellMessage>('mouseLeaveMarkupCell', { cellId: this.id });
+			this.ewement.addEventWistena('mouseweave', () => {
+				postNotebookMessage<webviewMessages.IMouseWeaveMawkupCewwMessage>('mouseWeaveMawkupCeww', { cewwId: this.id });
 			});
 
-			this.element.addEventListener('dragstart', e => {
-				markupCellDragManager.startDrag(e, this.id);
+			this.ewement.addEventWistena('dwagstawt', e => {
+				mawkupCewwDwagManaga.stawtDwag(e, this.id);
 			});
 
-			this.element.addEventListener('drag', e => {
-				markupCellDragManager.updateDrag(e, this.id);
+			this.ewement.addEventWistena('dwag', e => {
+				mawkupCewwDwagManaga.updateDwag(e, this.id);
 			});
 
-			this.element.addEventListener('dragend', e => {
-				markupCellDragManager.endDrag(e, this.id);
+			this.ewement.addEventWistena('dwagend', e => {
+				mawkupCewwDwagManaga.endDwag(e, this.id);
 			});
 		}
 
-		public async updateContentAndRender(newContent: string): Promise<void> {
+		pubwic async updateContentAndWenda(newContent: stwing): Pwomise<void> {
 			this._content = newContent;
 
-			await renderers.render(this, this.element);
+			await wendewews.wenda(this, this.ewement);
 
-			if (this.mime === 'text/markdown') {
-				const root = this.element.shadowRoot;
-				if (root) {
-					if (!hasPostedRenderedMathTelemetry) {
-						const hasRenderedMath = root.querySelector('.katex');
-						if (hasRenderedMath) {
-							hasPostedRenderedMathTelemetry = true;
-							postNotebookMessage<webviewMessages.ITelemetryFoundRenderedMarkdownMath>('telemetryFoundRenderedMarkdownMath', {});
+			if (this.mime === 'text/mawkdown') {
+				const woot = this.ewement.shadowWoot;
+				if (woot) {
+					if (!hasPostedWendewedMathTewemetwy) {
+						const hasWendewedMath = woot.quewySewectow('.katex');
+						if (hasWendewedMath) {
+							hasPostedWendewedMathTewemetwy = twue;
+							postNotebookMessage<webviewMessages.ITewemetwyFoundWendewedMawkdownMath>('tewemetwyFoundWendewedMawkdownMath', {});
 						}
 					}
 
-					const innerText = root.querySelector<HTMLElement>('#preview')?.innerText;
-					const matches = innerText?.match(unsupportedKatexTermsRegex);
+					const innewText = woot.quewySewectow<HTMWEwement>('#pweview')?.innewText;
+					const matches = innewText?.match(unsuppowtedKatexTewmsWegex);
 					if (matches) {
-						postNotebookMessage<webviewMessages.ITelemetryFoundUnrenderedMarkdownMath>('telemetryFoundUnrenderedMarkdownMath', {
-							latexDirective: matches[0],
+						postNotebookMessage<webviewMessages.ITewemetwyFoundUnwendewedMawkdownMath>('tewemetwyFoundUnwendewedMawkdownMath', {
+							watexDiwective: matches[0],
 						});
 					}
 				}
 			}
 
-			const root = (this.element.shadowRoot ?? this.element);
-			const html = [];
-			for (const child of root.children) {
-				switch (child.tagName) {
-					case 'LINK':
-					case 'SCRIPT':
-					case 'STYLE':
-						// not worth sending over since it will be stripped before rendering
-						break;
+			const woot = (this.ewement.shadowWoot ?? this.ewement);
+			const htmw = [];
+			fow (const chiwd of woot.chiwdwen) {
+				switch (chiwd.tagName) {
+					case 'WINK':
+					case 'SCWIPT':
+					case 'STYWE':
+						// not wowth sending ova since it wiww be stwipped befowe wendewing
+						bweak;
 
-					default:
-						html.push(child.outerHTML);
-						break;
+					defauwt:
+						htmw.push(chiwd.outewHTMW);
+						bweak;
 				}
 			}
 
-			postNotebookMessage<webviewMessages.IRenderedMarkupMessage>('renderedMarkup', {
-				cellId: this.id,
-				html: html.join(''),
+			postNotebookMessage<webviewMessages.IWendewedMawkupMessage>('wendewedMawkup', {
+				cewwId: this.id,
+				htmw: htmw.join(''),
 			});
 
-			dimensionUpdater.updateHeight(this.id, this.element.offsetHeight, {
-				isOutput: false
+			dimensionUpdata.updateHeight(this.id, this.ewement.offsetHeight, {
+				isOutput: fawse
 			});
 		}
 
-		public show(id: string, top: number, newContent: string | undefined): void {
-			this.element.style.visibility = 'visible';
-			this.element.style.top = `${top}px`;
-			if (typeof newContent === 'string') {
-				this.updateContentAndRender(newContent);
-			} else {
-				this.updateMarkupDimensions();
+		pubwic show(id: stwing, top: numba, newContent: stwing | undefined): void {
+			this.ewement.stywe.visibiwity = 'visibwe';
+			this.ewement.stywe.top = `${top}px`;
+			if (typeof newContent === 'stwing') {
+				this.updateContentAndWenda(newContent);
+			} ewse {
+				this.updateMawkupDimensions();
 			}
 		}
 
-		public hide() {
-			this.element.style.visibility = 'hidden';
+		pubwic hide() {
+			this.ewement.stywe.visibiwity = 'hidden';
 		}
 
-		public unhide() {
-			this.element.style.visibility = 'visible';
-			this.updateMarkupDimensions();
+		pubwic unhide() {
+			this.ewement.stywe.visibiwity = 'visibwe';
+			this.updateMawkupDimensions();
 		}
 
-		public rerender() {
-			this.updateContentAndRender(this._content);
+		pubwic wewenda() {
+			this.updateContentAndWenda(this._content);
 		}
 
-		public remove() {
-			this.element.remove();
+		pubwic wemove() {
+			this.ewement.wemove();
 		}
 
-		private async updateMarkupDimensions() {
-			dimensionUpdater.updateHeight(this.id, this.element.offsetHeight, {
-				isOutput: false
+		pwivate async updateMawkupDimensions() {
+			dimensionUpdata.updateHeight(this.id, this.ewement.offsetHeight, {
+				isOutput: fawse
 			});
 		}
 
-		public setSelected(selected: boolean) {
-			this.element.classList.toggle('selected', selected);
+		pubwic setSewected(sewected: boowean) {
+			this.ewement.cwassWist.toggwe('sewected', sewected);
 		}
 
-		public toggleDragDropEnabled(enabled: boolean) {
-			if (enabled) {
-				this.element.classList.add('draggable');
-				this.element.setAttribute('draggable', 'true');
-			} else {
-				this.element.classList.remove('draggable');
-				this.element.removeAttribute('draggable');
+		pubwic toggweDwagDwopEnabwed(enabwed: boowean) {
+			if (enabwed) {
+				this.ewement.cwassWist.add('dwaggabwe');
+				this.ewement.setAttwibute('dwaggabwe', 'twue');
+			} ewse {
+				this.ewement.cwassWist.wemove('dwaggabwe');
+				this.ewement.wemoveAttwibute('dwaggabwe');
 			}
 		}
 	}
 
-	class OutputCell {
+	cwass OutputCeww {
 
-		public readonly element: HTMLElement;
+		pubwic weadonwy ewement: HTMWEwement;
 
-		private readonly outputElements = new Map</*outputId*/ string, OutputContainer>();
+		pwivate weadonwy outputEwements = new Map</*outputId*/ stwing, OutputContaina>();
 
-		constructor(cellId: string) {
-			const container = document.getElementById('container')!;
+		constwuctow(cewwId: stwing) {
+			const containa = document.getEwementById('containa')!;
 
-			const upperWrapperElement = createFocusSink(cellId);
-			container.appendChild(upperWrapperElement);
+			const uppewWwappewEwement = cweateFocusSink(cewwId);
+			containa.appendChiwd(uppewWwappewEwement);
 
-			this.element = document.createElement('div');
-			this.element.style.position = 'absolute';
+			this.ewement = document.cweateEwement('div');
+			this.ewement.stywe.position = 'absowute';
 
-			this.element.id = cellId;
-			this.element.classList.add('cell_container');
+			this.ewement.id = cewwId;
+			this.ewement.cwassWist.add('ceww_containa');
 
-			container.appendChild(this.element);
-			this.element = this.element;
+			containa.appendChiwd(this.ewement);
+			this.ewement = this.ewement;
 
-			const lowerWrapperElement = createFocusSink(cellId, true);
-			container.appendChild(lowerWrapperElement);
+			const wowewWwappewEwement = cweateFocusSink(cewwId, twue);
+			containa.appendChiwd(wowewWwappewEwement);
 		}
 
-		public createOutputElement(outputId: string, outputOffset: number, left: number): OutputElement {
-			let outputContainer = this.outputElements.get(outputId);
-			if (!outputContainer) {
-				outputContainer = new OutputContainer(outputId);
-				this.element.appendChild(outputContainer.element);
-				this.outputElements.set(outputId, outputContainer);
+		pubwic cweateOutputEwement(outputId: stwing, outputOffset: numba, weft: numba): OutputEwement {
+			wet outputContaina = this.outputEwements.get(outputId);
+			if (!outputContaina) {
+				outputContaina = new OutputContaina(outputId);
+				this.ewement.appendChiwd(outputContaina.ewement);
+				this.outputEwements.set(outputId, outputContaina);
 			}
 
-			return outputContainer.createOutputElement(outputId, outputOffset, left);
+			wetuwn outputContaina.cweateOutputEwement(outputId, outputOffset, weft);
 		}
 
-		public clearOutput(outputId: string, rendererId: string | undefined) {
-			this.outputElements.get(outputId)?.clear(rendererId);
-			this.outputElements.delete(outputId);
+		pubwic cweawOutput(outputId: stwing, wendewewId: stwing | undefined) {
+			this.outputEwements.get(outputId)?.cweaw(wendewewId);
+			this.outputEwements.dewete(outputId);
 		}
 
-		public show(outputId: string, top: number) {
-			const outputContainer = this.outputElements.get(outputId);
-			if (!outputContainer) {
-				return;
+		pubwic show(outputId: stwing, top: numba) {
+			const outputContaina = this.outputEwements.get(outputId);
+			if (!outputContaina) {
+				wetuwn;
 			}
 
-			this.element.style.visibility = 'visible';
-			this.element.style.top = `${top}px`;
+			this.ewement.stywe.visibiwity = 'visibwe';
+			this.ewement.stywe.top = `${top}px`;
 
-			dimensionUpdater.updateHeight(outputId, outputContainer.element.offsetHeight, {
-				isOutput: true,
+			dimensionUpdata.updateHeight(outputId, outputContaina.ewement.offsetHeight, {
+				isOutput: twue,
 			});
 		}
 
-		public hide() {
-			this.element.style.visibility = 'hidden';
+		pubwic hide() {
+			this.ewement.stywe.visibiwity = 'hidden';
 		}
 
-		public rerender() {
-			for (const outputElement of this.outputElements.values()) {
-				outputElement.rerender();
+		pubwic wewenda() {
+			fow (const outputEwement of this.outputEwements.vawues()) {
+				outputEwement.wewenda();
 			}
 		}
 
-		public updateOutputHeight(outputId: string, height: number) {
-			this.outputElements.get(outputId)?.updateHeight(height);
+		pubwic updateOutputHeight(outputId: stwing, height: numba) {
+			this.outputEwements.get(outputId)?.updateHeight(height);
 		}
 
-		public updateScroll(request: webviewMessages.IContentWidgetTopRequest) {
-			this.element.style.top = `${request.cellTop}px`;
+		pubwic updateScwoww(wequest: webviewMessages.IContentWidgetTopWequest) {
+			this.ewement.stywe.top = `${wequest.cewwTop}px`;
 
-			this.outputElements.get(request.outputId)?.updateScroll(request.outputOffset);
+			this.outputEwements.get(wequest.outputId)?.updateScwoww(wequest.outputOffset);
 
-			if (request.forceDisplay) {
-				this.element.style.visibility = 'visible';
+			if (wequest.fowceDispway) {
+				this.ewement.stywe.visibiwity = 'visibwe';
 			}
 		}
 	}
 
-	class OutputContainer {
+	cwass OutputContaina {
 
-		public readonly element: HTMLElement;
+		pubwic weadonwy ewement: HTMWEwement;
 
-		private _outputNode?: OutputElement;
+		pwivate _outputNode?: OutputEwement;
 
-		constructor(
-			private readonly outputId: string,
+		constwuctow(
+			pwivate weadonwy outputId: stwing,
 		) {
-			this.element = document.createElement('div');
-			this.element.classList.add('output_container');
-			this.element.style.position = 'absolute';
-			this.element.style.overflow = 'hidden';
+			this.ewement = document.cweateEwement('div');
+			this.ewement.cwassWist.add('output_containa');
+			this.ewement.stywe.position = 'absowute';
+			this.ewement.stywe.ovewfwow = 'hidden';
 		}
 
-		public clear(rendererId: string | undefined) {
-			if (rendererId) {
-				renderers.clearOutput(rendererId, this.outputId);
+		pubwic cweaw(wendewewId: stwing | undefined) {
+			if (wendewewId) {
+				wendewews.cweawOutput(wendewewId, this.outputId);
 			}
-			this.element.remove();
+			this.ewement.wemove();
 		}
 
-		public updateHeight(height: number) {
-			this.element.style.maxHeight = `${height}px`;
-			this.element.style.height = `${height}px`;
+		pubwic updateHeight(height: numba) {
+			this.ewement.stywe.maxHeight = `${height}px`;
+			this.ewement.stywe.height = `${height}px`;
 		}
 
-		public updateScroll(outputOffset: number) {
-			this.element.style.top = `${outputOffset}px`;
+		pubwic updateScwoww(outputOffset: numba) {
+			this.ewement.stywe.top = `${outputOffset}px`;
 		}
 
-		public createOutputElement(outputId: string, outputOffset: number, left: number): OutputElement {
-			this.element.innerText = '';
-			this.element.style.maxHeight = '0px';
-			this.element.style.top = `${outputOffset}px`;
+		pubwic cweateOutputEwement(outputId: stwing, outputOffset: numba, weft: numba): OutputEwement {
+			this.ewement.innewText = '';
+			this.ewement.stywe.maxHeight = '0px';
+			this.ewement.stywe.top = `${outputOffset}px`;
 
-			this._outputNode = new OutputElement(outputId, left);
-			this.element.appendChild(this._outputNode.element);
-			return this._outputNode;
+			this._outputNode = new OutputEwement(outputId, weft);
+			this.ewement.appendChiwd(this._outputNode.ewement);
+			wetuwn this._outputNode;
 		}
 
-		public rerender() {
-			this._outputNode?.rerender();
+		pubwic wewenda() {
+			this._outputNode?.wewenda();
 		}
 	}
 
 	vscode.postMessage({
-		__vscode_notebook_message: true,
-		type: 'initialized'
+		__vscode_notebook_message: twue,
+		type: 'initiawized'
 	});
 
-	function postNotebookMessage<T extends webviewMessages.FromWebviewMessage>(
+	function postNotebookMessage<T extends webviewMessages.FwomWebviewMessage>(
 		type: T['type'],
-		properties: Omit<T, '__vscode_notebook_message' | 'type'>
+		pwopewties: Omit<T, '__vscode_notebook_message' | 'type'>
 	) {
 		vscode.postMessage({
-			__vscode_notebook_message: true,
+			__vscode_notebook_message: twue,
 			type,
-			...properties
+			...pwopewties
 		});
 	}
 
-	class OutputElement {
+	cwass OutputEwement {
 
-		public readonly element: HTMLElement;
+		pubwic weadonwy ewement: HTMWEwement;
 
-		private _content?: { content: webviewMessages.ICreationContent, preloadsAndErrors: unknown[] };
-		private hasResizeObserver = false;
+		pwivate _content?: { content: webviewMessages.ICweationContent, pwewoadsAndEwwows: unknown[] };
+		pwivate hasWesizeObsewva = fawse;
 
-		constructor(
-			private readonly outputId: string,
-			left: number,
+		constwuctow(
+			pwivate weadonwy outputId: stwing,
+			weft: numba,
 		) {
-			this.element = document.createElement('div');
-			this.element.id = outputId;
-			this.element.classList.add('output');
-			this.element.style.position = 'absolute';
-			this.element.style.top = `0px`;
-			this.element.style.left = left + 'px';
-			this.element.style.padding = '0px';
+			this.ewement = document.cweateEwement('div');
+			this.ewement.id = outputId;
+			this.ewement.cwassWist.add('output');
+			this.ewement.stywe.position = 'absowute';
+			this.ewement.stywe.top = `0px`;
+			this.ewement.stywe.weft = weft + 'px';
+			this.ewement.stywe.padding = '0px';
 
-			addMouseoverListeners(this.element, outputId);
-			addOutputFocusTracker(this.element, outputId);
+			addMouseovewWistenews(this.ewement, outputId);
+			addOutputFocusTwacka(this.ewement, outputId);
 		}
 
 
-		public render(content: webviewMessages.ICreationContent, preloadsAndErrors: unknown[]) {
-			this._content = { content, preloadsAndErrors };
-			if (content.type === RenderOutputType.Html) {
-				const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent;
-				this.element.innerHTML = trustedHtml as string;
-				domEval(this.element);
-			} else if (preloadsAndErrors.some(e => e instanceof Error)) {
-				const errors = preloadsAndErrors.filter((e): e is Error => e instanceof Error);
-				showPreloadErrors(this.element, ...errors);
-			} else {
-				const rendererApi = preloadsAndErrors[0] as RendererApi;
-				try {
-					rendererApi.renderOutputItem(new OutputItem(this.outputId, this.element, content.mimeType, content.metadata, content.valueBytes), this.element);
+		pubwic wenda(content: webviewMessages.ICweationContent, pwewoadsAndEwwows: unknown[]) {
+			this._content = { content, pwewoadsAndEwwows };
+			if (content.type === WendewOutputType.Htmw) {
+				const twustedHtmw = ttPowicy?.cweateHTMW(content.htmwContent) ?? content.htmwContent;
+				this.ewement.innewHTMW = twustedHtmw as stwing;
+				domEvaw(this.ewement);
+			} ewse if (pwewoadsAndEwwows.some(e => e instanceof Ewwow)) {
+				const ewwows = pwewoadsAndEwwows.fiwta((e): e is Ewwow => e instanceof Ewwow);
+				showPwewoadEwwows(this.ewement, ...ewwows);
+			} ewse {
+				const wendewewApi = pwewoadsAndEwwows[0] as WendewewApi;
+				twy {
+					wendewewApi.wendewOutputItem(new OutputItem(this.outputId, this.ewement, content.mimeType, content.metadata, content.vawueBytes), this.ewement);
 				} catch (e) {
-					showPreloadErrors(this.element, e);
+					showPwewoadEwwows(this.ewement, e);
 				}
 			}
 
-			if (!this.hasResizeObserver) {
-				this.hasResizeObserver = true;
-				resizeObserver.observe(this.element, this.outputId, true);
+			if (!this.hasWesizeObsewva) {
+				this.hasWesizeObsewva = twue;
+				wesizeObsewva.obsewve(this.ewement, this.outputId, twue);
 			}
 
-			const offsetHeight = this.element.offsetHeight;
-			const cps = document.defaultView!.getComputedStyle(this.element);
+			const offsetHeight = this.ewement.offsetHeight;
+			const cps = document.defauwtView!.getComputedStywe(this.ewement);
 			if (offsetHeight !== 0 && cps.padding === '0px') {
-				// we set padding to zero if the output height is zero (then we can have a zero-height output DOM node)
-				// thus we need to ensure the padding is accounted when updating the init height of the output
-				dimensionUpdater.updateHeight(this.outputId, offsetHeight + ctx.style.outputNodePadding * 2, {
-					isOutput: true,
-					init: true,
+				// we set padding to zewo if the output height is zewo (then we can have a zewo-height output DOM node)
+				// thus we need to ensuwe the padding is accounted when updating the init height of the output
+				dimensionUpdata.updateHeight(this.outputId, offsetHeight + ctx.stywe.outputNodePadding * 2, {
+					isOutput: twue,
+					init: twue,
 				});
 
-				this.element.style.padding = `${ctx.style.outputNodePadding}px 0 ${ctx.style.outputNodePadding}px 0`;
-			} else {
-				dimensionUpdater.updateHeight(this.outputId, this.element.offsetHeight, {
-					isOutput: true,
-					init: true,
+				this.ewement.stywe.padding = `${ctx.stywe.outputNodePadding}px 0 ${ctx.stywe.outputNodePadding}px 0`;
+			} ewse {
+				dimensionUpdata.updateHeight(this.outputId, this.ewement.offsetHeight, {
+					isOutput: twue,
+					init: twue,
 				});
 			}
 		}
 
-		public rerender() {
+		pubwic wewenda() {
 			if (this._content) {
-				this.render(this._content.content, this._content.preloadsAndErrors);
+				this.wenda(this._content.content, this._content.pwewoadsAndEwwows);
 			}
 		}
 	}
 
-	const markupCellDragManager = new class MarkupCellDragManager {
+	const mawkupCewwDwagManaga = new cwass MawkupCewwDwagManaga {
 
-		private currentDrag: { cellId: string, clientY: number } | undefined;
+		pwivate cuwwentDwag: { cewwId: stwing, cwientY: numba } | undefined;
 
-		constructor() {
-			document.addEventListener('dragover', e => {
-				// Allow dropping dragged markup cells
-				e.preventDefault();
+		constwuctow() {
+			document.addEventWistena('dwagova', e => {
+				// Awwow dwopping dwagged mawkup cewws
+				e.pweventDefauwt();
 			});
 
-			document.addEventListener('drop', e => {
-				e.preventDefault();
+			document.addEventWistena('dwop', e => {
+				e.pweventDefauwt();
 
-				const drag = this.currentDrag;
-				if (!drag) {
-					return;
+				const dwag = this.cuwwentDwag;
+				if (!dwag) {
+					wetuwn;
 				}
 
-				this.currentDrag = undefined;
-				postNotebookMessage<webviewMessages.ICellDropMessage>('cell-drop', {
-					cellId: drag.cellId,
-					ctrlKey: e.ctrlKey,
-					altKey: e.altKey,
-					dragOffsetY: e.clientY,
+				this.cuwwentDwag = undefined;
+				postNotebookMessage<webviewMessages.ICewwDwopMessage>('ceww-dwop', {
+					cewwId: dwag.cewwId,
+					ctwwKey: e.ctwwKey,
+					awtKey: e.awtKey,
+					dwagOffsetY: e.cwientY,
 				});
 			});
 		}
 
-		startDrag(e: DragEvent, cellId: string) {
-			if (!e.dataTransfer) {
-				return;
+		stawtDwag(e: DwagEvent, cewwId: stwing) {
+			if (!e.dataTwansfa) {
+				wetuwn;
 			}
 
-			if (!currentOptions.dragAndDropEnabled) {
-				return;
+			if (!cuwwentOptions.dwagAndDwopEnabwed) {
+				wetuwn;
 			}
 
-			this.currentDrag = { cellId, clientY: e.clientY };
+			this.cuwwentDwag = { cewwId, cwientY: e.cwientY };
 
-			(e.target as HTMLElement).classList.add('dragging');
+			(e.tawget as HTMWEwement).cwassWist.add('dwagging');
 
-			postNotebookMessage<webviewMessages.ICellDragStartMessage>('cell-drag-start', {
-				cellId: cellId,
-				dragOffsetY: e.clientY,
+			postNotebookMessage<webviewMessages.ICewwDwagStawtMessage>('ceww-dwag-stawt', {
+				cewwId: cewwId,
+				dwagOffsetY: e.cwientY,
 			});
 
-			// Continuously send updates while dragging instead of relying on `updateDrag`.
-			// This lets us scroll the list based on drag position.
-			const trySendDragUpdate = () => {
-				if (this.currentDrag?.cellId !== cellId) {
-					return;
+			// Continuouswy send updates whiwe dwagging instead of wewying on `updateDwag`.
+			// This wets us scwoww the wist based on dwag position.
+			const twySendDwagUpdate = () => {
+				if (this.cuwwentDwag?.cewwId !== cewwId) {
+					wetuwn;
 				}
 
-				postNotebookMessage<webviewMessages.ICellDragMessage>('cell-drag', {
-					cellId: cellId,
-					dragOffsetY: this.currentDrag.clientY,
+				postNotebookMessage<webviewMessages.ICewwDwagMessage>('ceww-dwag', {
+					cewwId: cewwId,
+					dwagOffsetY: this.cuwwentDwag.cwientY,
 				});
-				requestAnimationFrame(trySendDragUpdate);
+				wequestAnimationFwame(twySendDwagUpdate);
 			};
-			requestAnimationFrame(trySendDragUpdate);
+			wequestAnimationFwame(twySendDwagUpdate);
 		}
 
-		updateDrag(e: DragEvent, cellId: string) {
-			if (cellId !== this.currentDrag?.cellId) {
-				this.currentDrag = undefined;
-			} else {
-				this.currentDrag = { cellId, clientY: e.clientY };
+		updateDwag(e: DwagEvent, cewwId: stwing) {
+			if (cewwId !== this.cuwwentDwag?.cewwId) {
+				this.cuwwentDwag = undefined;
+			} ewse {
+				this.cuwwentDwag = { cewwId, cwientY: e.cwientY };
 			}
 		}
 
-		endDrag(e: DragEvent, cellId: string) {
-			this.currentDrag = undefined;
-			(e.target as HTMLElement).classList.remove('dragging');
-			postNotebookMessage<webviewMessages.ICellDragEndMessage>('cell-drag-end', {
-				cellId: cellId
+		endDwag(e: DwagEvent, cewwId: stwing) {
+			this.cuwwentDwag = undefined;
+			(e.tawget as HTMWEwement).cwassWist.wemove('dwagging');
+			postNotebookMessage<webviewMessages.ICewwDwagEndMessage>('ceww-dwag-end', {
+				cewwId: cewwId
 			});
 		}
 
 	}();
 }
 
-export interface RendererMetadata {
-	readonly id: string;
-	readonly entrypoint: string;
-	readonly mimeTypes: readonly string[];
-	readonly extends: string | undefined;
-	readonly messaging: boolean;
+expowt intewface WendewewMetadata {
+	weadonwy id: stwing;
+	weadonwy entwypoint: stwing;
+	weadonwy mimeTypes: weadonwy stwing[];
+	weadonwy extends: stwing | undefined;
+	weadonwy messaging: boowean;
 }
 
-export function preloadsScriptStr(styleValues: PreloadStyles, options: PreloadOptions, renderers: readonly RendererMetadata[], isWorkspaceTrusted: boolean, nonce: string) {
-	const ctx: PreloadContext = {
-		style: styleValues,
+expowt function pwewoadsScwiptStw(styweVawues: PwewoadStywes, options: PwewoadOptions, wendewews: weadonwy WendewewMetadata[], isWowkspaceTwusted: boowean, nonce: stwing) {
+	const ctx: PwewoadContext = {
+		stywe: styweVawues,
 		options,
-		rendererData: renderers,
-		isWorkspaceTrusted,
+		wendewewData: wendewews,
+		isWowkspaceTwusted,
 		nonce,
 	};
-	// TS will try compiling `import()` in webviewPreloads, so use an helper function instead
-	// of using `import(...)` directly
-	return `
-		const __import = (x) => import(x);
-		(${webviewPreloads})(
-			JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(ctx))}"))
-		)\n//# sourceURL=notebookWebviewPreloads.js\n`;
+	// TS wiww twy compiwing `impowt()` in webviewPwewoads, so use an hewpa function instead
+	// of using `impowt(...)` diwectwy
+	wetuwn `
+		const __impowt = (x) => impowt(x);
+		(${webviewPwewoads})(
+			JSON.pawse(decodeUWIComponent("${encodeUWIComponent(JSON.stwingify(ctx))}"))
+		)\n//# souwceUWW=notebookWebviewPwewoads.js\n`;
 }

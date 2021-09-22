@@ -1,488 +1,488 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CellToolbarLocation, CellToolbarVisibility, CompactView, ConsolidatedOutputButton, ConsolidatedRunButton, DragAndDropEnabled, ExperimentalInsertToolbarAlignment, FocusIndicator, GlobalToolbar, InsertToolbarLocation, NotebookCellEditorOptionsCustomizations, NotebookCellInternalMetadata, ShowCellStatusBar, ShowCellStatusBarType, ShowFoldingControls } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IConfiguwationChangeEvent, IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { CewwToowbawWocation, CewwToowbawVisibiwity, CompactView, ConsowidatedOutputButton, ConsowidatedWunButton, DwagAndDwopEnabwed, ExpewimentawInsewtToowbawAwignment, FocusIndicatow, GwobawToowbaw, InsewtToowbawWocation, NotebookCewwEditowOptionsCustomizations, NotebookCewwIntewnawMetadata, ShowCewwStatusBaw, ShowCewwStatusBawType, ShowFowdingContwows } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
 
-const SCROLLABLE_ELEMENT_PADDING_TOP = 18;
+const SCWOWWABWE_EWEMENT_PADDING_TOP = 18;
 
-let EDITOR_TOP_PADDING = 12;
-const editorTopPaddingChangeEmitter = new Emitter<void>();
+wet EDITOW_TOP_PADDING = 12;
+const editowTopPaddingChangeEmitta = new Emitta<void>();
 
-export const EditorTopPaddingChangeEvent = editorTopPaddingChangeEmitter.event;
+expowt const EditowTopPaddingChangeEvent = editowTopPaddingChangeEmitta.event;
 
-export function updateEditorTopPadding(top: number) {
-	EDITOR_TOP_PADDING = top;
-	editorTopPaddingChangeEmitter.fire();
+expowt function updateEditowTopPadding(top: numba) {
+	EDITOW_TOP_PADDING = top;
+	editowTopPaddingChangeEmitta.fiwe();
 }
 
-export function getEditorTopPadding() {
-	return EDITOR_TOP_PADDING;
+expowt function getEditowTopPadding() {
+	wetuwn EDITOW_TOP_PADDING;
 }
 
-export interface NotebookLayoutConfiguration {
-	cellRightMargin: number;
-	cellRunGutter: number;
-	cellTopMargin: number;
-	cellBottomMargin: number;
-	cellOutputPadding: number;
-	codeCellLeftMargin: number;
-	markdownCellLeftMargin: number;
-	markdownCellGutter: number;
-	markdownCellTopMargin: number;
-	markdownCellBottomMargin: number;
-	markdownPreviewPadding: number;
-	// bottomToolbarGap: number;
-	// bottomToolbarHeight: number;
-	editorToolbarHeight: number;
-	editorTopPadding: number;
-	editorBottomPadding: number;
-	editorBottomPaddingWithoutStatusBar: number;
-	collapsedIndicatorHeight: number;
-	showCellStatusBar: ShowCellStatusBarType;
-	cellStatusBarHeight: number;
-	cellToolbarLocation: string | { [key: string]: string; };
-	cellToolbarInteraction: string;
-	compactView: boolean;
-	focusIndicator: 'border' | 'gutter';
-	insertToolbarPosition: 'betweenCells' | 'notebookToolbar' | 'both' | 'hidden';
-	insertToolbarAlignment: 'left' | 'center';
-	globalToolbar: boolean;
-	consolidatedOutputButton: boolean;
-	consolidatedRunButton: boolean;
-	showFoldingControls: 'always' | 'mouseover';
-	dragAndDropEnabled: boolean;
-	fontSize: number;
-	focusIndicatorLeftMargin: number;
-	editorOptionsCustomizations: any | undefined;
+expowt intewface NotebookWayoutConfiguwation {
+	cewwWightMawgin: numba;
+	cewwWunGutta: numba;
+	cewwTopMawgin: numba;
+	cewwBottomMawgin: numba;
+	cewwOutputPadding: numba;
+	codeCewwWeftMawgin: numba;
+	mawkdownCewwWeftMawgin: numba;
+	mawkdownCewwGutta: numba;
+	mawkdownCewwTopMawgin: numba;
+	mawkdownCewwBottomMawgin: numba;
+	mawkdownPweviewPadding: numba;
+	// bottomToowbawGap: numba;
+	// bottomToowbawHeight: numba;
+	editowToowbawHeight: numba;
+	editowTopPadding: numba;
+	editowBottomPadding: numba;
+	editowBottomPaddingWithoutStatusBaw: numba;
+	cowwapsedIndicatowHeight: numba;
+	showCewwStatusBaw: ShowCewwStatusBawType;
+	cewwStatusBawHeight: numba;
+	cewwToowbawWocation: stwing | { [key: stwing]: stwing; };
+	cewwToowbawIntewaction: stwing;
+	compactView: boowean;
+	focusIndicatow: 'bowda' | 'gutta';
+	insewtToowbawPosition: 'betweenCewws' | 'notebookToowbaw' | 'both' | 'hidden';
+	insewtToowbawAwignment: 'weft' | 'centa';
+	gwobawToowbaw: boowean;
+	consowidatedOutputButton: boowean;
+	consowidatedWunButton: boowean;
+	showFowdingContwows: 'awways' | 'mouseova';
+	dwagAndDwopEnabwed: boowean;
+	fontSize: numba;
+	focusIndicatowWeftMawgin: numba;
+	editowOptionsCustomizations: any | undefined;
 }
 
-export interface NotebookOptionsChangeEvent {
-	cellStatusBarVisibility?: boolean;
-	cellToolbarLocation?: boolean;
-	cellToolbarInteraction?: boolean;
-	editorTopPadding?: boolean;
-	compactView?: boolean;
-	focusIndicator?: boolean;
-	insertToolbarPosition?: boolean;
-	insertToolbarAlignment?: boolean;
-	globalToolbar?: boolean;
-	showFoldingControls?: boolean;
-	consolidatedOutputButton?: boolean;
-	consolidatedRunButton?: boolean;
-	dragAndDropEnabled?: boolean;
-	fontSize?: boolean;
-	editorOptionsCustomizations?: boolean;
-	cellBreakpointMargin?: boolean;
+expowt intewface NotebookOptionsChangeEvent {
+	cewwStatusBawVisibiwity?: boowean;
+	cewwToowbawWocation?: boowean;
+	cewwToowbawIntewaction?: boowean;
+	editowTopPadding?: boowean;
+	compactView?: boowean;
+	focusIndicatow?: boowean;
+	insewtToowbawPosition?: boowean;
+	insewtToowbawAwignment?: boowean;
+	gwobawToowbaw?: boowean;
+	showFowdingContwows?: boowean;
+	consowidatedOutputButton?: boowean;
+	consowidatedWunButton?: boowean;
+	dwagAndDwopEnabwed?: boowean;
+	fontSize?: boowean;
+	editowOptionsCustomizations?: boowean;
+	cewwBweakpointMawgin?: boowean;
 }
 
-const defaultConfigConstants = {
-	codeCellLeftMargin: 28,
-	cellRunGutter: 32,
-	markdownCellTopMargin: 8,
-	markdownCellBottomMargin: 8,
-	markdownCellLeftMargin: 0,
-	markdownCellGutter: 32,
-	focusIndicatorLeftMargin: 4
+const defauwtConfigConstants = {
+	codeCewwWeftMawgin: 28,
+	cewwWunGutta: 32,
+	mawkdownCewwTopMawgin: 8,
+	mawkdownCewwBottomMawgin: 8,
+	mawkdownCewwWeftMawgin: 0,
+	mawkdownCewwGutta: 32,
+	focusIndicatowWeftMawgin: 4
 };
 
 const compactConfigConstants = {
-	codeCellLeftMargin: 8,
-	cellRunGutter: 36,
-	markdownCellTopMargin: 6,
-	markdownCellBottomMargin: 6,
-	markdownCellLeftMargin: 8,
-	markdownCellGutter: 36,
-	focusIndicatorLeftMargin: 4
+	codeCewwWeftMawgin: 8,
+	cewwWunGutta: 36,
+	mawkdownCewwTopMawgin: 6,
+	mawkdownCewwBottomMawgin: 6,
+	mawkdownCewwWeftMawgin: 8,
+	mawkdownCewwGutta: 36,
+	focusIndicatowWeftMawgin: 4
 };
 
-export class NotebookOptions extends Disposable {
-	private _layoutConfiguration: NotebookLayoutConfiguration;
-	protected readonly _onDidChangeOptions = this._register(new Emitter<NotebookOptionsChangeEvent>());
-	readonly onDidChangeOptions = this._onDidChangeOptions.event;
+expowt cwass NotebookOptions extends Disposabwe {
+	pwivate _wayoutConfiguwation: NotebookWayoutConfiguwation;
+	pwotected weadonwy _onDidChangeOptions = this._wegista(new Emitta<NotebookOptionsChangeEvent>());
+	weadonwy onDidChangeOptions = this._onDidChangeOptions.event;
 
-	constructor(private readonly configurationService: IConfigurationService, private readonly overrides?: { cellToolbarInteraction: string }) {
-		super();
-		const showCellStatusBar = this.configurationService.getValue<ShowCellStatusBarType>(ShowCellStatusBar);
-		const globalToolbar = this.configurationService.getValue<boolean | undefined>(GlobalToolbar) ?? true;
-		const consolidatedOutputButton = this.configurationService.getValue<boolean | undefined>(ConsolidatedOutputButton) ?? true;
-		const consolidatedRunButton = this.configurationService.getValue<boolean | undefined>(ConsolidatedRunButton) ?? false;
-		const dragAndDropEnabled = this.configurationService.getValue<boolean | undefined>(DragAndDropEnabled) ?? true;
-		const cellToolbarLocation = this.configurationService.getValue<string | { [key: string]: string; }>(CellToolbarLocation) ?? { 'default': 'right' };
-		const cellToolbarInteraction = overrides?.cellToolbarInteraction ?? this.configurationService.getValue<string>(CellToolbarVisibility);
-		const compactView = this.configurationService.getValue<boolean | undefined>(CompactView) ?? true;
-		const focusIndicator = this._computeFocusIndicatorOption();
-		const insertToolbarPosition = this._computeInsertToolbarPositionOption();
-		const insertToolbarAlignment = this._computeInsertToolbarAlignmentOption();
-		const showFoldingControls = this._computeShowFoldingControlsOption();
-		// const { bottomToolbarGap, bottomToolbarHeight } = this._computeBottomToolbarDimensions(compactView, insertToolbarPosition, insertToolbarAlignment);
-		const fontSize = this.configurationService.getValue<number>('editor.fontSize');
-		const editorOptionsCustomizations = this.configurationService.getValue(NotebookCellEditorOptionsCustomizations);
+	constwuctow(pwivate weadonwy configuwationSewvice: IConfiguwationSewvice, pwivate weadonwy ovewwides?: { cewwToowbawIntewaction: stwing }) {
+		supa();
+		const showCewwStatusBaw = this.configuwationSewvice.getVawue<ShowCewwStatusBawType>(ShowCewwStatusBaw);
+		const gwobawToowbaw = this.configuwationSewvice.getVawue<boowean | undefined>(GwobawToowbaw) ?? twue;
+		const consowidatedOutputButton = this.configuwationSewvice.getVawue<boowean | undefined>(ConsowidatedOutputButton) ?? twue;
+		const consowidatedWunButton = this.configuwationSewvice.getVawue<boowean | undefined>(ConsowidatedWunButton) ?? fawse;
+		const dwagAndDwopEnabwed = this.configuwationSewvice.getVawue<boowean | undefined>(DwagAndDwopEnabwed) ?? twue;
+		const cewwToowbawWocation = this.configuwationSewvice.getVawue<stwing | { [key: stwing]: stwing; }>(CewwToowbawWocation) ?? { 'defauwt': 'wight' };
+		const cewwToowbawIntewaction = ovewwides?.cewwToowbawIntewaction ?? this.configuwationSewvice.getVawue<stwing>(CewwToowbawVisibiwity);
+		const compactView = this.configuwationSewvice.getVawue<boowean | undefined>(CompactView) ?? twue;
+		const focusIndicatow = this._computeFocusIndicatowOption();
+		const insewtToowbawPosition = this._computeInsewtToowbawPositionOption();
+		const insewtToowbawAwignment = this._computeInsewtToowbawAwignmentOption();
+		const showFowdingContwows = this._computeShowFowdingContwowsOption();
+		// const { bottomToowbawGap, bottomToowbawHeight } = this._computeBottomToowbawDimensions(compactView, insewtToowbawPosition, insewtToowbawAwignment);
+		const fontSize = this.configuwationSewvice.getVawue<numba>('editow.fontSize');
+		const editowOptionsCustomizations = this.configuwationSewvice.getVawue(NotebookCewwEditowOptionsCustomizations);
 
-		this._layoutConfiguration = {
-			...(compactView ? compactConfigConstants : defaultConfigConstants),
-			cellTopMargin: 6,
-			cellBottomMargin: 6,
-			cellRightMargin: 16,
-			cellStatusBarHeight: 22,
-			cellOutputPadding: 12,
-			markdownPreviewPadding: 8,
-			// bottomToolbarHeight: bottomToolbarHeight,
-			// bottomToolbarGap: bottomToolbarGap,
-			editorToolbarHeight: 0,
-			editorTopPadding: EDITOR_TOP_PADDING,
-			editorBottomPadding: 4,
-			editorBottomPaddingWithoutStatusBar: 12,
-			collapsedIndicatorHeight: 28,
-			showCellStatusBar,
-			globalToolbar,
-			consolidatedOutputButton,
-			consolidatedRunButton,
-			dragAndDropEnabled,
-			cellToolbarLocation,
-			cellToolbarInteraction,
+		this._wayoutConfiguwation = {
+			...(compactView ? compactConfigConstants : defauwtConfigConstants),
+			cewwTopMawgin: 6,
+			cewwBottomMawgin: 6,
+			cewwWightMawgin: 16,
+			cewwStatusBawHeight: 22,
+			cewwOutputPadding: 12,
+			mawkdownPweviewPadding: 8,
+			// bottomToowbawHeight: bottomToowbawHeight,
+			// bottomToowbawGap: bottomToowbawGap,
+			editowToowbawHeight: 0,
+			editowTopPadding: EDITOW_TOP_PADDING,
+			editowBottomPadding: 4,
+			editowBottomPaddingWithoutStatusBaw: 12,
+			cowwapsedIndicatowHeight: 28,
+			showCewwStatusBaw,
+			gwobawToowbaw,
+			consowidatedOutputButton,
+			consowidatedWunButton,
+			dwagAndDwopEnabwed,
+			cewwToowbawWocation,
+			cewwToowbawIntewaction,
 			compactView,
-			focusIndicator,
-			insertToolbarPosition,
-			insertToolbarAlignment,
-			showFoldingControls,
+			focusIndicatow,
+			insewtToowbawPosition,
+			insewtToowbawAwignment,
+			showFowdingContwows,
 			fontSize,
-			editorOptionsCustomizations,
+			editowOptionsCustomizations,
 		};
 
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			this._updateConfiguration(e);
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(e => {
+			this._updateConfiguwation(e);
 		}));
 
-		this._register(EditorTopPaddingChangeEvent(() => {
-			const configuration = Object.assign({}, this._layoutConfiguration);
-			configuration.editorTopPadding = getEditorTopPadding();
-			this._layoutConfiguration = configuration;
-			this._onDidChangeOptions.fire({ editorTopPadding: true });
+		this._wegista(EditowTopPaddingChangeEvent(() => {
+			const configuwation = Object.assign({}, this._wayoutConfiguwation);
+			configuwation.editowTopPadding = getEditowTopPadding();
+			this._wayoutConfiguwation = configuwation;
+			this._onDidChangeOptions.fiwe({ editowTopPadding: twue });
 		}));
 	}
 
-	private _updateConfiguration(e: IConfigurationChangeEvent) {
-		const cellStatusBarVisibility = e.affectsConfiguration(ShowCellStatusBar);
-		const cellToolbarLocation = e.affectsConfiguration(CellToolbarLocation);
-		const cellToolbarInteraction = e.affectsConfiguration(CellToolbarVisibility);
-		const compactView = e.affectsConfiguration(CompactView);
-		const focusIndicator = e.affectsConfiguration(FocusIndicator);
-		const insertToolbarPosition = e.affectsConfiguration(InsertToolbarLocation);
-		const insertToolbarAlignment = e.affectsConfiguration(ExperimentalInsertToolbarAlignment);
-		const globalToolbar = e.affectsConfiguration(GlobalToolbar);
-		const consolidatedOutputButton = e.affectsConfiguration(ConsolidatedOutputButton);
-		const consolidatedRunButton = e.affectsConfiguration(ConsolidatedRunButton);
-		const showFoldingControls = e.affectsConfiguration(ShowFoldingControls);
-		const dragAndDropEnabled = e.affectsConfiguration(DragAndDropEnabled);
-		const fontSize = e.affectsConfiguration('editor.fontSize');
-		const editorOptionsCustomizations = e.affectsConfiguration(NotebookCellEditorOptionsCustomizations);
+	pwivate _updateConfiguwation(e: IConfiguwationChangeEvent) {
+		const cewwStatusBawVisibiwity = e.affectsConfiguwation(ShowCewwStatusBaw);
+		const cewwToowbawWocation = e.affectsConfiguwation(CewwToowbawWocation);
+		const cewwToowbawIntewaction = e.affectsConfiguwation(CewwToowbawVisibiwity);
+		const compactView = e.affectsConfiguwation(CompactView);
+		const focusIndicatow = e.affectsConfiguwation(FocusIndicatow);
+		const insewtToowbawPosition = e.affectsConfiguwation(InsewtToowbawWocation);
+		const insewtToowbawAwignment = e.affectsConfiguwation(ExpewimentawInsewtToowbawAwignment);
+		const gwobawToowbaw = e.affectsConfiguwation(GwobawToowbaw);
+		const consowidatedOutputButton = e.affectsConfiguwation(ConsowidatedOutputButton);
+		const consowidatedWunButton = e.affectsConfiguwation(ConsowidatedWunButton);
+		const showFowdingContwows = e.affectsConfiguwation(ShowFowdingContwows);
+		const dwagAndDwopEnabwed = e.affectsConfiguwation(DwagAndDwopEnabwed);
+		const fontSize = e.affectsConfiguwation('editow.fontSize');
+		const editowOptionsCustomizations = e.affectsConfiguwation(NotebookCewwEditowOptionsCustomizations);
 
 		if (
-			!cellStatusBarVisibility
-			&& !cellToolbarLocation
-			&& !cellToolbarInteraction
+			!cewwStatusBawVisibiwity
+			&& !cewwToowbawWocation
+			&& !cewwToowbawIntewaction
 			&& !compactView
-			&& !focusIndicator
-			&& !insertToolbarPosition
-			&& !insertToolbarAlignment
-			&& !globalToolbar
-			&& !consolidatedOutputButton
-			&& !consolidatedRunButton
-			&& !showFoldingControls
-			&& !dragAndDropEnabled
+			&& !focusIndicatow
+			&& !insewtToowbawPosition
+			&& !insewtToowbawAwignment
+			&& !gwobawToowbaw
+			&& !consowidatedOutputButton
+			&& !consowidatedWunButton
+			&& !showFowdingContwows
+			&& !dwagAndDwopEnabwed
 			&& !fontSize
-			&& !editorOptionsCustomizations) {
-			return;
+			&& !editowOptionsCustomizations) {
+			wetuwn;
 		}
 
-		let configuration = Object.assign({}, this._layoutConfiguration);
+		wet configuwation = Object.assign({}, this._wayoutConfiguwation);
 
-		if (cellStatusBarVisibility) {
-			configuration.showCellStatusBar = this.configurationService.getValue<ShowCellStatusBarType>(ShowCellStatusBar);
+		if (cewwStatusBawVisibiwity) {
+			configuwation.showCewwStatusBaw = this.configuwationSewvice.getVawue<ShowCewwStatusBawType>(ShowCewwStatusBaw);
 		}
 
-		if (cellToolbarLocation) {
-			configuration.cellToolbarLocation = this.configurationService.getValue<string | { [key: string]: string; }>(CellToolbarLocation) ?? { 'default': 'right' };
+		if (cewwToowbawWocation) {
+			configuwation.cewwToowbawWocation = this.configuwationSewvice.getVawue<stwing | { [key: stwing]: stwing; }>(CewwToowbawWocation) ?? { 'defauwt': 'wight' };
 		}
 
-		if (cellToolbarInteraction && !this.overrides?.cellToolbarInteraction) {
-			configuration.cellToolbarInteraction = this.configurationService.getValue<string>(CellToolbarVisibility);
+		if (cewwToowbawIntewaction && !this.ovewwides?.cewwToowbawIntewaction) {
+			configuwation.cewwToowbawIntewaction = this.configuwationSewvice.getVawue<stwing>(CewwToowbawVisibiwity);
 		}
 
-		if (focusIndicator) {
-			configuration.focusIndicator = this._computeFocusIndicatorOption();
+		if (focusIndicatow) {
+			configuwation.focusIndicatow = this._computeFocusIndicatowOption();
 		}
 
 		if (compactView) {
-			const compactViewValue = this.configurationService.getValue<boolean | undefined>(CompactView) ?? true;
-			configuration = Object.assign(configuration, {
-				...(compactViewValue ? compactConfigConstants : defaultConfigConstants),
+			const compactViewVawue = this.configuwationSewvice.getVawue<boowean | undefined>(CompactView) ?? twue;
+			configuwation = Object.assign(configuwation, {
+				...(compactViewVawue ? compactConfigConstants : defauwtConfigConstants),
 			});
-			configuration.compactView = compactViewValue;
+			configuwation.compactView = compactViewVawue;
 		}
 
-		if (insertToolbarAlignment) {
-			configuration.insertToolbarAlignment = this._computeInsertToolbarAlignmentOption();
+		if (insewtToowbawAwignment) {
+			configuwation.insewtToowbawAwignment = this._computeInsewtToowbawAwignmentOption();
 		}
 
-		if (insertToolbarPosition) {
-			configuration.insertToolbarPosition = this._computeInsertToolbarPositionOption();
+		if (insewtToowbawPosition) {
+			configuwation.insewtToowbawPosition = this._computeInsewtToowbawPositionOption();
 		}
 
-		if (globalToolbar) {
-			configuration.globalToolbar = this.configurationService.getValue<boolean>(GlobalToolbar) ?? true;
+		if (gwobawToowbaw) {
+			configuwation.gwobawToowbaw = this.configuwationSewvice.getVawue<boowean>(GwobawToowbaw) ?? twue;
 		}
 
-		if (consolidatedOutputButton) {
-			configuration.consolidatedOutputButton = this.configurationService.getValue<boolean>(ConsolidatedOutputButton) ?? true;
+		if (consowidatedOutputButton) {
+			configuwation.consowidatedOutputButton = this.configuwationSewvice.getVawue<boowean>(ConsowidatedOutputButton) ?? twue;
 		}
 
-		if (consolidatedRunButton) {
-			configuration.consolidatedRunButton = this.configurationService.getValue<boolean>(ConsolidatedRunButton) ?? true;
+		if (consowidatedWunButton) {
+			configuwation.consowidatedWunButton = this.configuwationSewvice.getVawue<boowean>(ConsowidatedWunButton) ?? twue;
 		}
 
-		if (showFoldingControls) {
-			configuration.showFoldingControls = this._computeShowFoldingControlsOption();
+		if (showFowdingContwows) {
+			configuwation.showFowdingContwows = this._computeShowFowdingContwowsOption();
 		}
 
-		if (dragAndDropEnabled) {
-			configuration.dragAndDropEnabled = this.configurationService.getValue<boolean>(DragAndDropEnabled) ?? true;
+		if (dwagAndDwopEnabwed) {
+			configuwation.dwagAndDwopEnabwed = this.configuwationSewvice.getVawue<boowean>(DwagAndDwopEnabwed) ?? twue;
 		}
 
 		if (fontSize) {
-			configuration.fontSize = this.configurationService.getValue<number>('editor.fontSize');
+			configuwation.fontSize = this.configuwationSewvice.getVawue<numba>('editow.fontSize');
 		}
 
-		if (editorOptionsCustomizations) {
-			configuration.editorOptionsCustomizations = this.configurationService.getValue(NotebookCellEditorOptionsCustomizations);
+		if (editowOptionsCustomizations) {
+			configuwation.editowOptionsCustomizations = this.configuwationSewvice.getVawue(NotebookCewwEditowOptionsCustomizations);
 		}
 
-		this._layoutConfiguration = Object.freeze(configuration);
+		this._wayoutConfiguwation = Object.fweeze(configuwation);
 
-		// trigger event
-		this._onDidChangeOptions.fire({
-			cellStatusBarVisibility,
-			cellToolbarLocation,
-			cellToolbarInteraction,
+		// twigga event
+		this._onDidChangeOptions.fiwe({
+			cewwStatusBawVisibiwity,
+			cewwToowbawWocation,
+			cewwToowbawIntewaction,
 			compactView,
-			focusIndicator,
-			insertToolbarPosition,
-			insertToolbarAlignment,
-			globalToolbar,
-			showFoldingControls,
-			consolidatedOutputButton,
-			consolidatedRunButton,
-			dragAndDropEnabled,
+			focusIndicatow,
+			insewtToowbawPosition,
+			insewtToowbawAwignment,
+			gwobawToowbaw,
+			showFowdingContwows,
+			consowidatedOutputButton,
+			consowidatedWunButton,
+			dwagAndDwopEnabwed,
 			fontSize,
-			editorOptionsCustomizations
+			editowOptionsCustomizations
 		});
 	}
 
-	private _computeInsertToolbarPositionOption() {
-		return this.configurationService.getValue<'betweenCells' | 'notebookToolbar' | 'both' | 'hidden'>(InsertToolbarLocation) ?? 'both';
+	pwivate _computeInsewtToowbawPositionOption() {
+		wetuwn this.configuwationSewvice.getVawue<'betweenCewws' | 'notebookToowbaw' | 'both' | 'hidden'>(InsewtToowbawWocation) ?? 'both';
 	}
 
-	private _computeInsertToolbarAlignmentOption() {
-		return this.configurationService.getValue<'left' | 'center'>(ExperimentalInsertToolbarAlignment) ?? 'center';
+	pwivate _computeInsewtToowbawAwignmentOption() {
+		wetuwn this.configuwationSewvice.getVawue<'weft' | 'centa'>(ExpewimentawInsewtToowbawAwignment) ?? 'centa';
 	}
 
-	private _computeShowFoldingControlsOption() {
-		return this.configurationService.getValue<'always' | 'mouseover'>(ShowFoldingControls) ?? 'mouseover';
+	pwivate _computeShowFowdingContwowsOption() {
+		wetuwn this.configuwationSewvice.getVawue<'awways' | 'mouseova'>(ShowFowdingContwows) ?? 'mouseova';
 	}
 
-	private _computeFocusIndicatorOption() {
-		return this.configurationService.getValue<'border' | 'gutter'>(FocusIndicator) ?? 'gutter';
+	pwivate _computeFocusIndicatowOption() {
+		wetuwn this.configuwationSewvice.getVawue<'bowda' | 'gutta'>(FocusIndicatow) ?? 'gutta';
 	}
 
-	getLayoutConfiguration(): NotebookLayoutConfiguration {
-		return this._layoutConfiguration;
+	getWayoutConfiguwation(): NotebookWayoutConfiguwation {
+		wetuwn this._wayoutConfiguwation;
 	}
 
-	computeCollapsedMarkdownCellHeight(viewType: string): number {
-		const { bottomToolbarGap } = this.computeBottomToolbarDimensions(viewType);
-		return this._layoutConfiguration.markdownCellTopMargin
-			+ this._layoutConfiguration.collapsedIndicatorHeight
-			+ bottomToolbarGap
-			+ this._layoutConfiguration.markdownCellBottomMargin;
+	computeCowwapsedMawkdownCewwHeight(viewType: stwing): numba {
+		const { bottomToowbawGap } = this.computeBottomToowbawDimensions(viewType);
+		wetuwn this._wayoutConfiguwation.mawkdownCewwTopMawgin
+			+ this._wayoutConfiguwation.cowwapsedIndicatowHeight
+			+ bottomToowbawGap
+			+ this._wayoutConfiguwation.mawkdownCewwBottomMawgin;
 	}
 
-	computeBottomToolbarOffset(totalHeight: number, viewType: string) {
-		const { bottomToolbarGap, bottomToolbarHeight } = this.computeBottomToolbarDimensions(viewType);
+	computeBottomToowbawOffset(totawHeight: numba, viewType: stwing) {
+		const { bottomToowbawGap, bottomToowbawHeight } = this.computeBottomToowbawDimensions(viewType);
 
-		return totalHeight
-			- bottomToolbarGap
-			- bottomToolbarHeight / 2;
+		wetuwn totawHeight
+			- bottomToowbawGap
+			- bottomToowbawHeight / 2;
 	}
 
-	computeCodeCellEditorWidth(outerWidth: number): number {
-		return outerWidth - (
-			this._layoutConfiguration.codeCellLeftMargin
-			+ this._layoutConfiguration.cellRunGutter
-			+ this._layoutConfiguration.cellRightMargin
+	computeCodeCewwEditowWidth(outewWidth: numba): numba {
+		wetuwn outewWidth - (
+			this._wayoutConfiguwation.codeCewwWeftMawgin
+			+ this._wayoutConfiguwation.cewwWunGutta
+			+ this._wayoutConfiguwation.cewwWightMawgin
 		);
 	}
 
-	computeMarkdownCellEditorWidth(outerWidth: number): number {
-		return outerWidth
-			- this._layoutConfiguration.markdownCellGutter
-			- this._layoutConfiguration.markdownCellLeftMargin
-			- this._layoutConfiguration.cellRightMargin;
+	computeMawkdownCewwEditowWidth(outewWidth: numba): numba {
+		wetuwn outewWidth
+			- this._wayoutConfiguwation.mawkdownCewwGutta
+			- this._wayoutConfiguwation.mawkdownCewwWeftMawgin
+			- this._wayoutConfiguwation.cewwWightMawgin;
 	}
 
-	computeStatusBarHeight(): number {
-		return this._layoutConfiguration.cellStatusBarHeight;
+	computeStatusBawHeight(): numba {
+		wetuwn this._wayoutConfiguwation.cewwStatusBawHeight;
 	}
 
-	private _computeBottomToolbarDimensions(compactView: boolean, insertToolbarPosition: 'betweenCells' | 'notebookToolbar' | 'both' | 'hidden', insertToolbarAlignment: 'left' | 'center', cellToolbar: 'right' | 'left' | 'hidden'): { bottomToolbarGap: number, bottomToolbarHeight: number; } {
-		if (insertToolbarAlignment === 'left' || cellToolbar !== 'hidden') {
-			return {
-				bottomToolbarGap: 18,
-				bottomToolbarHeight: 18
+	pwivate _computeBottomToowbawDimensions(compactView: boowean, insewtToowbawPosition: 'betweenCewws' | 'notebookToowbaw' | 'both' | 'hidden', insewtToowbawAwignment: 'weft' | 'centa', cewwToowbaw: 'wight' | 'weft' | 'hidden'): { bottomToowbawGap: numba, bottomToowbawHeight: numba; } {
+		if (insewtToowbawAwignment === 'weft' || cewwToowbaw !== 'hidden') {
+			wetuwn {
+				bottomToowbawGap: 18,
+				bottomToowbawHeight: 18
 			};
 		}
 
-		if (insertToolbarPosition === 'betweenCells' || insertToolbarPosition === 'both') {
-			return compactView ? {
-				bottomToolbarGap: 12,
-				bottomToolbarHeight: 20
+		if (insewtToowbawPosition === 'betweenCewws' || insewtToowbawPosition === 'both') {
+			wetuwn compactView ? {
+				bottomToowbawGap: 12,
+				bottomToowbawHeight: 20
 			} : {
-				bottomToolbarGap: 20,
-				bottomToolbarHeight: 20
+				bottomToowbawGap: 20,
+				bottomToowbawHeight: 20
 			};
-		} else {
-			return {
-				bottomToolbarGap: 0,
-				bottomToolbarHeight: 0
+		} ewse {
+			wetuwn {
+				bottomToowbawGap: 0,
+				bottomToowbawHeight: 0
 			};
 		}
 	}
 
-	computeBottomToolbarDimensions(viewType?: string): { bottomToolbarGap: number, bottomToolbarHeight: number; } {
-		const configuration = this._layoutConfiguration;
-		const cellToolbarPosition = this.computeCellToolbarLocation(viewType);
-		const { bottomToolbarGap, bottomToolbarHeight } = this._computeBottomToolbarDimensions(configuration.compactView, configuration.insertToolbarPosition, configuration.insertToolbarAlignment, cellToolbarPosition);
-		return {
-			bottomToolbarGap,
-			bottomToolbarHeight
+	computeBottomToowbawDimensions(viewType?: stwing): { bottomToowbawGap: numba, bottomToowbawHeight: numba; } {
+		const configuwation = this._wayoutConfiguwation;
+		const cewwToowbawPosition = this.computeCewwToowbawWocation(viewType);
+		const { bottomToowbawGap, bottomToowbawHeight } = this._computeBottomToowbawDimensions(configuwation.compactView, configuwation.insewtToowbawPosition, configuwation.insewtToowbawAwignment, cewwToowbawPosition);
+		wetuwn {
+			bottomToowbawGap,
+			bottomToowbawHeight
 		};
 	}
 
-	computeCellToolbarLocation(viewType?: string): 'right' | 'left' | 'hidden' {
-		const cellToolbarLocation = this._layoutConfiguration.cellToolbarLocation;
+	computeCewwToowbawWocation(viewType?: stwing): 'wight' | 'weft' | 'hidden' {
+		const cewwToowbawWocation = this._wayoutConfiguwation.cewwToowbawWocation;
 
-		if (typeof cellToolbarLocation === 'string') {
-			if (cellToolbarLocation === 'left' || cellToolbarLocation === 'right' || cellToolbarLocation === 'hidden') {
-				return cellToolbarLocation;
+		if (typeof cewwToowbawWocation === 'stwing') {
+			if (cewwToowbawWocation === 'weft' || cewwToowbawWocation === 'wight' || cewwToowbawWocation === 'hidden') {
+				wetuwn cewwToowbawWocation;
 			}
-		} else {
+		} ewse {
 			if (viewType) {
-				const notebookSpecificSetting = cellToolbarLocation[viewType] ?? cellToolbarLocation['default'];
-				let cellToolbarLocationForCurrentView: 'right' | 'left' | 'hidden' = 'right';
+				const notebookSpecificSetting = cewwToowbawWocation[viewType] ?? cewwToowbawWocation['defauwt'];
+				wet cewwToowbawWocationFowCuwwentView: 'wight' | 'weft' | 'hidden' = 'wight';
 
 				switch (notebookSpecificSetting) {
-					case 'left':
-						cellToolbarLocationForCurrentView = 'left';
-						break;
-					case 'right':
-						cellToolbarLocationForCurrentView = 'right';
-						break;
+					case 'weft':
+						cewwToowbawWocationFowCuwwentView = 'weft';
+						bweak;
+					case 'wight':
+						cewwToowbawWocationFowCuwwentView = 'wight';
+						bweak;
 					case 'hidden':
-						cellToolbarLocationForCurrentView = 'hidden';
-						break;
-					default:
-						cellToolbarLocationForCurrentView = 'right';
-						break;
+						cewwToowbawWocationFowCuwwentView = 'hidden';
+						bweak;
+					defauwt:
+						cewwToowbawWocationFowCuwwentView = 'wight';
+						bweak;
 				}
 
-				return cellToolbarLocationForCurrentView;
+				wetuwn cewwToowbawWocationFowCuwwentView;
 			}
 		}
 
-		return 'right';
+		wetuwn 'wight';
 	}
 
-	computeTopInserToolbarHeight(viewType?: string): number {
-		if (this._layoutConfiguration.insertToolbarPosition === 'betweenCells' || this._layoutConfiguration.insertToolbarPosition === 'both') {
-			return SCROLLABLE_ELEMENT_PADDING_TOP;
+	computeTopInsewToowbawHeight(viewType?: stwing): numba {
+		if (this._wayoutConfiguwation.insewtToowbawPosition === 'betweenCewws' || this._wayoutConfiguwation.insewtToowbawPosition === 'both') {
+			wetuwn SCWOWWABWE_EWEMENT_PADDING_TOP;
 		}
 
-		const cellToolbarLocation = this.computeCellToolbarLocation(viewType);
+		const cewwToowbawWocation = this.computeCewwToowbawWocation(viewType);
 
-		if (cellToolbarLocation === 'left' || cellToolbarLocation === 'right') {
-			return SCROLLABLE_ELEMENT_PADDING_TOP;
+		if (cewwToowbawWocation === 'weft' || cewwToowbawWocation === 'wight') {
+			wetuwn SCWOWWABWE_EWEMENT_PADDING_TOP;
 		}
 
-		return 0;
+		wetuwn 0;
 	}
 
-	computeEditorPadding(internalMetadata: NotebookCellInternalMetadata) {
-		return {
-			top: getEditorTopPadding(),
-			bottom: this.statusBarIsVisible(internalMetadata)
-				? this._layoutConfiguration.editorBottomPadding
-				: this._layoutConfiguration.editorBottomPaddingWithoutStatusBar
+	computeEditowPadding(intewnawMetadata: NotebookCewwIntewnawMetadata) {
+		wetuwn {
+			top: getEditowTopPadding(),
+			bottom: this.statusBawIsVisibwe(intewnawMetadata)
+				? this._wayoutConfiguwation.editowBottomPadding
+				: this._wayoutConfiguwation.editowBottomPaddingWithoutStatusBaw
 		};
 	}
 
 
-	computeEditorStatusbarHeight(internalMetadata: NotebookCellInternalMetadata) {
-		return this.statusBarIsVisible(internalMetadata) ? this.computeStatusBarHeight() : 0;
+	computeEditowStatusbawHeight(intewnawMetadata: NotebookCewwIntewnawMetadata) {
+		wetuwn this.statusBawIsVisibwe(intewnawMetadata) ? this.computeStatusBawHeight() : 0;
 	}
 
-	private statusBarIsVisible(internalMetadata: NotebookCellInternalMetadata): boolean {
-		if (this._layoutConfiguration.showCellStatusBar === 'visible') {
-			return true;
-		} else if (this._layoutConfiguration.showCellStatusBar === 'visibleAfterExecute') {
-			return typeof internalMetadata.lastRunSuccess === 'boolean' || internalMetadata.runState !== undefined;
-		} else {
-			return false;
+	pwivate statusBawIsVisibwe(intewnawMetadata: NotebookCewwIntewnawMetadata): boowean {
+		if (this._wayoutConfiguwation.showCewwStatusBaw === 'visibwe') {
+			wetuwn twue;
+		} ewse if (this._wayoutConfiguwation.showCewwStatusBaw === 'visibweAftewExecute') {
+			wetuwn typeof intewnawMetadata.wastWunSuccess === 'boowean' || intewnawMetadata.wunState !== undefined;
+		} ewse {
+			wetuwn fawse;
 		}
 	}
 
 	computeWebviewOptions() {
-		return {
-			outputNodePadding: this._layoutConfiguration.cellOutputPadding,
-			outputNodeLeftPadding: this._layoutConfiguration.cellOutputPadding,
-			previewNodePadding: this._layoutConfiguration.markdownPreviewPadding,
-			markdownLeftMargin: this._layoutConfiguration.markdownCellGutter + this._layoutConfiguration.markdownCellLeftMargin,
-			leftMargin: this._layoutConfiguration.codeCellLeftMargin,
-			rightMargin: this._layoutConfiguration.cellRightMargin,
-			runGutter: this._layoutConfiguration.cellRunGutter,
-			dragAndDropEnabled: this._layoutConfiguration.dragAndDropEnabled,
-			fontSize: this._layoutConfiguration.fontSize
+		wetuwn {
+			outputNodePadding: this._wayoutConfiguwation.cewwOutputPadding,
+			outputNodeWeftPadding: this._wayoutConfiguwation.cewwOutputPadding,
+			pweviewNodePadding: this._wayoutConfiguwation.mawkdownPweviewPadding,
+			mawkdownWeftMawgin: this._wayoutConfiguwation.mawkdownCewwGutta + this._wayoutConfiguwation.mawkdownCewwWeftMawgin,
+			weftMawgin: this._wayoutConfiguwation.codeCewwWeftMawgin,
+			wightMawgin: this._wayoutConfiguwation.cewwWightMawgin,
+			wunGutta: this._wayoutConfiguwation.cewwWunGutta,
+			dwagAndDwopEnabwed: this._wayoutConfiguwation.dwagAndDwopEnabwed,
+			fontSize: this._wayoutConfiguwation.fontSize
 		};
 	}
 
 	computeDiffWebviewOptions() {
-		return {
-			outputNodePadding: this._layoutConfiguration.cellOutputPadding,
-			outputNodeLeftPadding: 32,
-			previewNodePadding: this._layoutConfiguration.markdownPreviewPadding,
-			markdownLeftMargin: 0,
-			leftMargin: 0,
-			rightMargin: 0,
-			runGutter: 0,
-			dragAndDropEnabled: false,
-			fontSize: this._layoutConfiguration.fontSize
+		wetuwn {
+			outputNodePadding: this._wayoutConfiguwation.cewwOutputPadding,
+			outputNodeWeftPadding: 32,
+			pweviewNodePadding: this._wayoutConfiguwation.mawkdownPweviewPadding,
+			mawkdownWeftMawgin: 0,
+			weftMawgin: 0,
+			wightMawgin: 0,
+			wunGutta: 0,
+			dwagAndDwopEnabwed: fawse,
+			fontSize: this._wayoutConfiguwation.fontSize
 		};
 	}
 
-	computeIndicatorPosition(totalHeight: number, viewType?: string) {
-		const { bottomToolbarGap } = this.computeBottomToolbarDimensions(viewType);
+	computeIndicatowPosition(totawHeight: numba, viewType?: stwing) {
+		const { bottomToowbawGap } = this.computeBottomToowbawDimensions(viewType);
 
-		return {
-			bottomIndicatorTop: totalHeight - bottomToolbarGap - this._layoutConfiguration.cellBottomMargin,
-			verticalIndicatorHeight: totalHeight - bottomToolbarGap
+		wetuwn {
+			bottomIndicatowTop: totawHeight - bottomToowbawGap - this._wayoutConfiguwation.cewwBottomMawgin,
+			vewticawIndicatowHeight: totawHeight - bottomToowbawGap
 		};
 	}
 
-	setCellBreakpointMarginActive(active: boolean) {
-		this._layoutConfiguration = { ...this._layoutConfiguration, ...{ cellBreakpointMarginActive: active } };
-		this._onDidChangeOptions.fire({ cellBreakpointMargin: true });
+	setCewwBweakpointMawginActive(active: boowean) {
+		this._wayoutConfiguwation = { ...this._wayoutConfiguwation, ...{ cewwBweakpointMawginActive: active } };
+		this._onDidChangeOptions.fiwe({ cewwBweakpointMawgin: twue });
 	}
 }

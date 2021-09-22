@@ -1,45 +1,45 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IExtHostOutputService, ExtHostOutputService } from 'vs/workbench/api/common/extHostOutput';
-import { IExtHostWorkspace, ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { IExtHostDecorations, ExtHostDecorations } from 'vs/workbench/api/common/extHostDecorations';
-import { IExtHostConfiguration, ExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
-import { IExtHostCommands, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { IExtHostDocumentsAndEditors, ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { IExtHostTerminalService, WorkerExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
-import { IExtHostTask, WorkerExtHostTask } from 'vs/workbench/api/common/extHostTask';
-import { IExtHostDebugService, WorkerExtHostDebugService } from 'vs/workbench/api/common/extHostDebugService';
-import { IExtHostSearch, ExtHostSearch } from 'vs/workbench/api/common/extHostSearch';
-import { IExtHostStorage, ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
-import { IExtHostTunnelService, ExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelService';
-import { IExtHostApiDeprecationService, ExtHostApiDeprecationService, } from 'vs/workbench/api/common/extHostApiDeprecationService';
-import { IExtHostWindow, ExtHostWindow } from 'vs/workbench/api/common/extHostWindow';
-import { IExtHostConsumerFileSystem, ExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
-import { IExtHostFileSystemInfo, ExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
-import { IExtHostSecretState, ExtHostSecretState } from 'vs/workbench/api/common/exHostSecretState';
-import { ExtHostTelemetry, IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
-import { ExtHostEditorTabs, IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IExtHostOutputSewvice, ExtHostOutputSewvice } fwom 'vs/wowkbench/api/common/extHostOutput';
+impowt { IExtHostWowkspace, ExtHostWowkspace } fwom 'vs/wowkbench/api/common/extHostWowkspace';
+impowt { IExtHostDecowations, ExtHostDecowations } fwom 'vs/wowkbench/api/common/extHostDecowations';
+impowt { IExtHostConfiguwation, ExtHostConfiguwation } fwom 'vs/wowkbench/api/common/extHostConfiguwation';
+impowt { IExtHostCommands, ExtHostCommands } fwom 'vs/wowkbench/api/common/extHostCommands';
+impowt { IExtHostDocumentsAndEditows, ExtHostDocumentsAndEditows } fwom 'vs/wowkbench/api/common/extHostDocumentsAndEditows';
+impowt { IExtHostTewminawSewvice, WowkewExtHostTewminawSewvice } fwom 'vs/wowkbench/api/common/extHostTewminawSewvice';
+impowt { IExtHostTask, WowkewExtHostTask } fwom 'vs/wowkbench/api/common/extHostTask';
+impowt { IExtHostDebugSewvice, WowkewExtHostDebugSewvice } fwom 'vs/wowkbench/api/common/extHostDebugSewvice';
+impowt { IExtHostSeawch, ExtHostSeawch } fwom 'vs/wowkbench/api/common/extHostSeawch';
+impowt { IExtHostStowage, ExtHostStowage } fwom 'vs/wowkbench/api/common/extHostStowage';
+impowt { IExtHostTunnewSewvice, ExtHostTunnewSewvice } fwom 'vs/wowkbench/api/common/extHostTunnewSewvice';
+impowt { IExtHostApiDepwecationSewvice, ExtHostApiDepwecationSewvice, } fwom 'vs/wowkbench/api/common/extHostApiDepwecationSewvice';
+impowt { IExtHostWindow, ExtHostWindow } fwom 'vs/wowkbench/api/common/extHostWindow';
+impowt { IExtHostConsumewFiweSystem, ExtHostConsumewFiweSystem } fwom 'vs/wowkbench/api/common/extHostFiweSystemConsuma';
+impowt { IExtHostFiweSystemInfo, ExtHostFiweSystemInfo } fwom 'vs/wowkbench/api/common/extHostFiweSystemInfo';
+impowt { IExtHostSecwetState, ExtHostSecwetState } fwom 'vs/wowkbench/api/common/exHostSecwetState';
+impowt { ExtHostTewemetwy, IExtHostTewemetwy } fwom 'vs/wowkbench/api/common/extHostTewemetwy';
+impowt { ExtHostEditowTabs, IExtHostEditowTabs } fwom 'vs/wowkbench/api/common/extHostEditowTabs';
 
-registerSingleton(IExtHostApiDeprecationService, ExtHostApiDeprecationService);
-registerSingleton(IExtHostCommands, ExtHostCommands);
-registerSingleton(IExtHostConfiguration, ExtHostConfiguration);
-registerSingleton(IExtHostConsumerFileSystem, ExtHostConsumerFileSystem);
-registerSingleton(IExtHostDebugService, WorkerExtHostDebugService);
-registerSingleton(IExtHostDecorations, ExtHostDecorations);
-registerSingleton(IExtHostDocumentsAndEditors, ExtHostDocumentsAndEditors);
-registerSingleton(IExtHostFileSystemInfo, ExtHostFileSystemInfo);
-registerSingleton(IExtHostOutputService, ExtHostOutputService);
-registerSingleton(IExtHostSearch, ExtHostSearch);
-registerSingleton(IExtHostStorage, ExtHostStorage);
-registerSingleton(IExtHostTask, WorkerExtHostTask);
-registerSingleton(IExtHostTerminalService, WorkerExtHostTerminalService);
-registerSingleton(IExtHostTunnelService, ExtHostTunnelService);
-registerSingleton(IExtHostWindow, ExtHostWindow);
-registerSingleton(IExtHostWorkspace, ExtHostWorkspace);
-registerSingleton(IExtHostSecretState, ExtHostSecretState);
-registerSingleton(IExtHostTelemetry, ExtHostTelemetry);
-registerSingleton(IExtHostEditorTabs, ExtHostEditorTabs);
+wegistewSingweton(IExtHostApiDepwecationSewvice, ExtHostApiDepwecationSewvice);
+wegistewSingweton(IExtHostCommands, ExtHostCommands);
+wegistewSingweton(IExtHostConfiguwation, ExtHostConfiguwation);
+wegistewSingweton(IExtHostConsumewFiweSystem, ExtHostConsumewFiweSystem);
+wegistewSingweton(IExtHostDebugSewvice, WowkewExtHostDebugSewvice);
+wegistewSingweton(IExtHostDecowations, ExtHostDecowations);
+wegistewSingweton(IExtHostDocumentsAndEditows, ExtHostDocumentsAndEditows);
+wegistewSingweton(IExtHostFiweSystemInfo, ExtHostFiweSystemInfo);
+wegistewSingweton(IExtHostOutputSewvice, ExtHostOutputSewvice);
+wegistewSingweton(IExtHostSeawch, ExtHostSeawch);
+wegistewSingweton(IExtHostStowage, ExtHostStowage);
+wegistewSingweton(IExtHostTask, WowkewExtHostTask);
+wegistewSingweton(IExtHostTewminawSewvice, WowkewExtHostTewminawSewvice);
+wegistewSingweton(IExtHostTunnewSewvice, ExtHostTunnewSewvice);
+wegistewSingweton(IExtHostWindow, ExtHostWindow);
+wegistewSingweton(IExtHostWowkspace, ExtHostWowkspace);
+wegistewSingweton(IExtHostSecwetState, ExtHostSecwetState);
+wegistewSingweton(IExtHostTewemetwy, ExtHostTewemetwy);
+wegistewSingweton(IExtHostEditowTabs, ExtHostEditowTabs);

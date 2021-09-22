@@ -1,1995 +1,1995 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/editorgroupview';
-import { EditorGroupModel, IEditorOpenOptions, ISerializedEditorGroupModel, isSerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
-import { GroupIdentifier, CloseDirection, IEditorCloseEvent, ActiveEditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, ActiveEditorStickyContext, ActiveEditorPinnedContext, EditorResourceAccessor, IEditorMoveEvent, EditorInputCapabilities, IEditorOpenEvent, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, ActiveEditorGroupLockedContext, SideBySideEditor, EditorCloseContext, IEditorWillMoveEvent, IEditorWillOpenEvent } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { Event, Emitter, Relay } from 'vs/base/common/event';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor, asCSSUrl } from 'vs/base/browser/dom';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService, registerThemingParticipant, Themable } from 'vs/platform/theme/common/themeService';
-import { editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND, EDITOR_GROUP_FOCUSED_EMPTY_BORDER, EDITOR_GROUP_HEADER_BORDER } from 'vs/workbench/common/theme';
-import { ICloseEditorsFilter, IGroupChangeEvent, GroupChangeKind, GroupsOrder, ICloseEditorOptions, ICloseAllEditorsOptions, IEditorReplacement } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
-import { EditorPanes } from 'vs/workbench/browser/parts/editor/editorPanes';
-import { IEditorProgressService } from 'vs/platform/progress/common/progress';
-import { EditorProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
-import { localize } from 'vs/nls';
-import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
-import { isErrorWithActions, isPromiseCanceledError } from 'vs/base/common/errors';
-import { combinedDisposable, dispose, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Promises, RunOnceWorker } from 'vs/base/common/async';
-import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
-import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
-import { IEditorGroupsAccessor, IEditorGroupView, fillActiveEditorViewState, EditorServiceImpl, IEditorGroupTitleHeight, IInternalEditorOpenOptions, IInternalMoveCopyOptions, IInternalEditorCloseOptions, IInternalEditorTitleControlOptions } from 'vs/workbench/browser/parts/editor/editor';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IAction } from 'vs/base/common/actions';
-import { NoTabsTitleControl } from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
-import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { hash } from 'vs/base/common/hash';
-import { guessMimeTypes } from 'vs/base/common/mime';
-import { extname, isEqual } from 'vs/base/common/resources';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { EditorActivation, EditorOpenContext, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IDialogService, IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+impowt 'vs/css!./media/editowgwoupview';
+impowt { EditowGwoupModew, IEditowOpenOptions, ISewiawizedEditowGwoupModew, isSewiawizedEditowGwoupModew } fwom 'vs/wowkbench/common/editow/editowGwoupModew';
+impowt { GwoupIdentifia, CwoseDiwection, IEditowCwoseEvent, ActiveEditowDiwtyContext, IEditowPane, EditowGwoupEditowsCountContext, SaveWeason, IEditowPawtOptionsChangeEvent, EditowsOwda, IVisibweEditowPane, ActiveEditowStickyContext, ActiveEditowPinnedContext, EditowWesouwceAccessow, IEditowMoveEvent, EditowInputCapabiwities, IEditowOpenEvent, IUntypedEditowInput, DEFAUWT_EDITOW_ASSOCIATION, ActiveEditowGwoupWockedContext, SideBySideEditow, EditowCwoseContext, IEditowWiwwMoveEvent, IEditowWiwwOpenEvent } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { SideBySideEditowInput } fwom 'vs/wowkbench/common/editow/sideBySideEditowInput';
+impowt { Event, Emitta, Weway } fwom 'vs/base/common/event';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Dimension, twackFocus, addDisposabweWistena, EventType, EventHewpa, findPawentWithCwass, cweawNode, isAncestow, asCSSUww } fwom 'vs/base/bwowsa/dom';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { PwogwessBaw } fwom 'vs/base/bwowsa/ui/pwogwessbaw/pwogwessbaw';
+impowt { attachPwogwessBawStywa } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { IThemeSewvice, wegistewThemingPawticipant, Themabwe } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { editowBackgwound, contwastBowda } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { EDITOW_GWOUP_HEADEW_TABS_BACKGWOUND, EDITOW_GWOUP_HEADEW_NO_TABS_BACKGWOUND, EDITOW_GWOUP_EMPTY_BACKGWOUND, EDITOW_GWOUP_FOCUSED_EMPTY_BOWDa, EDITOW_GWOUP_HEADEW_BOWDa } fwom 'vs/wowkbench/common/theme';
+impowt { ICwoseEditowsFiwta, IGwoupChangeEvent, GwoupChangeKind, GwoupsOwda, ICwoseEditowOptions, ICwoseAwwEditowsOptions, IEditowWepwacement } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { TabsTitweContwow } fwom 'vs/wowkbench/bwowsa/pawts/editow/tabsTitweContwow';
+impowt { EditowPanes } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowPanes';
+impowt { IEditowPwogwessSewvice } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { EditowPwogwessIndicatow } fwom 'vs/wowkbench/sewvices/pwogwess/bwowsa/pwogwessIndicatow';
+impowt { wocawize } fwom 'vs/nws';
+impowt { coawesce, fiwstOwDefauwt } fwom 'vs/base/common/awways';
+impowt { isEwwowWithActions, isPwomiseCancewedEwwow } fwom 'vs/base/common/ewwows';
+impowt { combinedDisposabwe, dispose, MutabweDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Sevewity, INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { toEwwowMessage } fwom 'vs/base/common/ewwowMessage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { Pwomises, WunOnceWowka } fwom 'vs/base/common/async';
+impowt { EventType as TouchEventType, GestuweEvent } fwom 'vs/base/bwowsa/touch';
+impowt { TitweContwow } fwom 'vs/wowkbench/bwowsa/pawts/editow/titweContwow';
+impowt { IEditowGwoupsAccessow, IEditowGwoupView, fiwwActiveEditowViewState, EditowSewviceImpw, IEditowGwoupTitweHeight, IIntewnawEditowOpenOptions, IIntewnawMoveCopyOptions, IIntewnawEditowCwoseOptions, IIntewnawEditowTitweContwowOptions } fwom 'vs/wowkbench/bwowsa/pawts/editow/editow';
+impowt { ActionBaw } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { NoTabsTitweContwow } fwom 'vs/wowkbench/bwowsa/pawts/editow/noTabsTitweContwow';
+impowt { IMenuSewvice, MenuId, IMenu } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { StandawdMouseEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { cweateAndFiwwInActionBawActions, cweateAndFiwwInContextMenuActions } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { hash } fwom 'vs/base/common/hash';
+impowt { guessMimeTypes } fwom 'vs/base/common/mime';
+impowt { extname, isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { FiweAccess, Schemas } fwom 'vs/base/common/netwowk';
+impowt { EditowActivation, EditowOpenContext, IEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IDiawogSewvice, IFiweDiawogSewvice, ConfiwmWesuwt } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IFiwesConfiguwationSewvice, AutoSaveMode } fwom 'vs/wowkbench/sewvices/fiwesConfiguwation/common/fiwesConfiguwationSewvice';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
 
-export class EditorGroupView extends Themable implements IEditorGroupView {
+expowt cwass EditowGwoupView extends Themabwe impwements IEditowGwoupView {
 
-	//#region factory
+	//#wegion factowy
 
-	static createNew(accessor: IEditorGroupsAccessor, index: number, instantiationService: IInstantiationService): IEditorGroupView {
-		return instantiationService.createInstance(EditorGroupView, accessor, null, index);
+	static cweateNew(accessow: IEditowGwoupsAccessow, index: numba, instantiationSewvice: IInstantiationSewvice): IEditowGwoupView {
+		wetuwn instantiationSewvice.cweateInstance(EditowGwoupView, accessow, nuww, index);
 	}
 
-	static createFromSerialized(serialized: ISerializedEditorGroupModel, accessor: IEditorGroupsAccessor, index: number, instantiationService: IInstantiationService): IEditorGroupView {
-		return instantiationService.createInstance(EditorGroupView, accessor, serialized, index);
+	static cweateFwomSewiawized(sewiawized: ISewiawizedEditowGwoupModew, accessow: IEditowGwoupsAccessow, index: numba, instantiationSewvice: IInstantiationSewvice): IEditowGwoupView {
+		wetuwn instantiationSewvice.cweateInstance(EditowGwoupView, accessow, sewiawized, index);
 	}
 
-	static createCopy(copyFrom: IEditorGroupView, accessor: IEditorGroupsAccessor, index: number, instantiationService: IInstantiationService): IEditorGroupView {
-		return instantiationService.createInstance(EditorGroupView, accessor, copyFrom, index);
+	static cweateCopy(copyFwom: IEditowGwoupView, accessow: IEditowGwoupsAccessow, index: numba, instantiationSewvice: IInstantiationSewvice): IEditowGwoupView {
+		wetuwn instantiationSewvice.cweateInstance(EditowGwoupView, accessow, copyFwom, index);
 	}
 
-	//#endregion
+	//#endwegion
 
 	/**
-	 * Access to the context key service scoped to this editor group.
+	 * Access to the context key sewvice scoped to this editow gwoup.
 	 */
-	readonly scopedContextKeyService: IContextKeyService;
+	weadonwy scopedContextKeySewvice: IContextKeySewvice;
 
-	//#region events
+	//#wegion events
 
-	private readonly _onDidFocus = this._register(new Emitter<void>());
-	readonly onDidFocus = this._onDidFocus.event;
+	pwivate weadonwy _onDidFocus = this._wegista(new Emitta<void>());
+	weadonwy onDidFocus = this._onDidFocus.event;
 
-	private readonly _onWillDispose = this._register(new Emitter<void>());
-	readonly onWillDispose = this._onWillDispose.event;
+	pwivate weadonwy _onWiwwDispose = this._wegista(new Emitta<void>());
+	weadonwy onWiwwDispose = this._onWiwwDispose.event;
 
-	private readonly _onDidGroupChange = this._register(new Emitter<IGroupChangeEvent>());
-	readonly onDidGroupChange = this._onDidGroupChange.event;
+	pwivate weadonwy _onDidGwoupChange = this._wegista(new Emitta<IGwoupChangeEvent>());
+	weadonwy onDidGwoupChange = this._onDidGwoupChange.event;
 
-	private readonly _onDidOpenEditorFail = this._register(new Emitter<EditorInput>());
-	readonly onDidOpenEditorFail = this._onDidOpenEditorFail.event;
+	pwivate weadonwy _onDidOpenEditowFaiw = this._wegista(new Emitta<EditowInput>());
+	weadonwy onDidOpenEditowFaiw = this._onDidOpenEditowFaiw.event;
 
-	private readonly _onWillCloseEditor = this._register(new Emitter<IEditorCloseEvent>());
-	readonly onWillCloseEditor = this._onWillCloseEditor.event;
+	pwivate weadonwy _onWiwwCwoseEditow = this._wegista(new Emitta<IEditowCwoseEvent>());
+	weadonwy onWiwwCwoseEditow = this._onWiwwCwoseEditow.event;
 
-	private readonly _onDidCloseEditor = this._register(new Emitter<IEditorCloseEvent>());
-	readonly onDidCloseEditor = this._onDidCloseEditor.event;
+	pwivate weadonwy _onDidCwoseEditow = this._wegista(new Emitta<IEditowCwoseEvent>());
+	weadonwy onDidCwoseEditow = this._onDidCwoseEditow.event;
 
-	private readonly _onWillMoveEditor = this._register(new Emitter<IEditorWillMoveEvent>());
-	readonly onWillMoveEditor = this._onWillMoveEditor.event;
+	pwivate weadonwy _onWiwwMoveEditow = this._wegista(new Emitta<IEditowWiwwMoveEvent>());
+	weadonwy onWiwwMoveEditow = this._onWiwwMoveEditow.event;
 
-	private readonly _onWillOpenEditor = this._register(new Emitter<IEditorWillOpenEvent>());
-	readonly onWillOpenEditor = this._onWillOpenEditor.event;
+	pwivate weadonwy _onWiwwOpenEditow = this._wegista(new Emitta<IEditowWiwwOpenEvent>());
+	weadonwy onWiwwOpenEditow = this._onWiwwOpenEditow.event;
 
-	//#endregion
+	//#endwegion
 
-	private readonly model: EditorGroupModel;
+	pwivate weadonwy modew: EditowGwoupModew;
 
-	private active: boolean | undefined;
-	private dimension: Dimension | undefined;
+	pwivate active: boowean | undefined;
+	pwivate dimension: Dimension | undefined;
 
-	private readonly scopedInstantiationService: IInstantiationService;
+	pwivate weadonwy scopedInstantiationSewvice: IInstantiationSewvice;
 
-	private readonly titleContainer: HTMLElement;
-	private titleAreaControl: TitleControl;
+	pwivate weadonwy titweContaina: HTMWEwement;
+	pwivate titweAweaContwow: TitweContwow;
 
-	private readonly progressBar: ProgressBar;
+	pwivate weadonwy pwogwessBaw: PwogwessBaw;
 
-	private readonly editorContainer: HTMLElement;
-	private readonly editorPane: EditorPanes;
+	pwivate weadonwy editowContaina: HTMWEwement;
+	pwivate weadonwy editowPane: EditowPanes;
 
-	private readonly disposedEditorsWorker = this._register(new RunOnceWorker<EditorInput>(editors => this.handleDisposedEditors(editors), 0));
+	pwivate weadonwy disposedEditowsWowka = this._wegista(new WunOnceWowka<EditowInput>(editows => this.handweDisposedEditows(editows), 0));
 
-	private readonly mapEditorToPendingConfirmation = new Map<EditorInput, Promise<boolean>>();
+	pwivate weadonwy mapEditowToPendingConfiwmation = new Map<EditowInput, Pwomise<boowean>>();
 
-	private readonly containerToolBarMenuDisposable = this._register(new MutableDisposable());
+	pwivate weadonwy containewToowBawMenuDisposabwe = this._wegista(new MutabweDisposabwe());
 
-	private whenRestoredResolve: (() => void) | undefined;
-	readonly whenRestored = new Promise<void>(resolve => (this.whenRestoredResolve = resolve));
-	private isRestored = false;
+	pwivate whenWestowedWesowve: (() => void) | undefined;
+	weadonwy whenWestowed = new Pwomise<void>(wesowve => (this.whenWestowedWesowve = wesowve));
+	pwivate isWestowed = fawse;
 
-	constructor(
-		private accessor: IEditorGroupsAccessor,
-		from: IEditorGroupView | ISerializedEditorGroupModel | null,
-		private _index: number,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IMenuService private readonly menuService: IMenuService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IFileDialogService private readonly fileDialogService: IFileDialogService,
-		@ILogService private readonly logService: ILogService,
-		@IEditorService private readonly editorService: EditorServiceImpl,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+	constwuctow(
+		pwivate accessow: IEditowGwoupsAccessow,
+		fwom: IEditowGwoupView | ISewiawizedEditowGwoupModew | nuww,
+		pwivate _index: numba,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IDiawogSewvice pwivate weadonwy diawogSewvice: IDiawogSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IKeybindingSewvice pwivate weadonwy keybindingSewvice: IKeybindingSewvice,
+		@IMenuSewvice pwivate weadonwy menuSewvice: IMenuSewvice,
+		@IContextMenuSewvice pwivate weadonwy contextMenuSewvice: IContextMenuSewvice,
+		@IFiweDiawogSewvice pwivate weadonwy fiweDiawogSewvice: IFiweDiawogSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: EditowSewviceImpw,
+		@IFiwesConfiguwationSewvice pwivate weadonwy fiwesConfiguwationSewvice: IFiwesConfiguwationSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice
 	) {
-		super(themeService);
+		supa(themeSewvice);
 
-		if (from instanceof EditorGroupView) {
-			this.model = this._register(from.model.clone());
-		} else if (isSerializedEditorGroupModel(from)) {
-			this.model = this._register(instantiationService.createInstance(EditorGroupModel, from));
-		} else {
-			this.model = this._register(instantiationService.createInstance(EditorGroupModel, undefined));
+		if (fwom instanceof EditowGwoupView) {
+			this.modew = this._wegista(fwom.modew.cwone());
+		} ewse if (isSewiawizedEditowGwoupModew(fwom)) {
+			this.modew = this._wegista(instantiationSewvice.cweateInstance(EditowGwoupModew, fwom));
+		} ewse {
+			this.modew = this._wegista(instantiationSewvice.cweateInstance(EditowGwoupModew, undefined));
 		}
 
-		//#region create()
+		//#wegion cweate()
 		{
-			// Scoped context key service
-			this.scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.element));
+			// Scoped context key sewvice
+			this.scopedContextKeySewvice = this._wegista(this.contextKeySewvice.cweateScoped(this.ewement));
 
-			// Container
-			this.element.classList.add('editor-group-container');
+			// Containa
+			this.ewement.cwassWist.add('editow-gwoup-containa');
 
-			// Container listeners
-			this.registerContainerListeners();
+			// Containa wistenews
+			this.wegistewContainewWistenews();
 
-			// Container toolbar
-			this.createContainerToolbar();
+			// Containa toowbaw
+			this.cweateContainewToowbaw();
 
-			// Container context menu
-			this.createContainerContextMenu();
+			// Containa context menu
+			this.cweateContainewContextMenu();
 
-			// Letterpress container
-			const letterpressContainer = document.createElement('div');
-			letterpressContainer.classList.add('editor-group-letterpress');
-			this.element.appendChild(letterpressContainer);
+			// Wettewpwess containa
+			const wettewpwessContaina = document.cweateEwement('div');
+			wettewpwessContaina.cwassWist.add('editow-gwoup-wettewpwess');
+			this.ewement.appendChiwd(wettewpwessContaina);
 
-			// Progress bar
-			this.progressBar = this._register(new ProgressBar(this.element));
-			this._register(attachProgressBarStyler(this.progressBar, this.themeService));
-			this.progressBar.hide();
+			// Pwogwess baw
+			this.pwogwessBaw = this._wegista(new PwogwessBaw(this.ewement));
+			this._wegista(attachPwogwessBawStywa(this.pwogwessBaw, this.themeSewvice));
+			this.pwogwessBaw.hide();
 
-			// Scoped instantiation service
-			this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
-				[IContextKeyService, this.scopedContextKeyService],
-				[IEditorProgressService, this._register(new EditorProgressIndicator(this.progressBar, this))]
+			// Scoped instantiation sewvice
+			this.scopedInstantiationSewvice = this.instantiationSewvice.cweateChiwd(new SewviceCowwection(
+				[IContextKeySewvice, this.scopedContextKeySewvice],
+				[IEditowPwogwessSewvice, this._wegista(new EditowPwogwessIndicatow(this.pwogwessBaw, this))]
 			));
 
 			// Context keys
-			this.handleGroupContextKeys();
+			this.handweGwoupContextKeys();
 
-			// Title container
-			this.titleContainer = document.createElement('div');
-			this.titleContainer.classList.add('title');
-			this.element.appendChild(this.titleContainer);
+			// Titwe containa
+			this.titweContaina = document.cweateEwement('div');
+			this.titweContaina.cwassWist.add('titwe');
+			this.ewement.appendChiwd(this.titweContaina);
 
-			// Title control
-			this.titleAreaControl = this.createTitleAreaControl();
+			// Titwe contwow
+			this.titweAweaContwow = this.cweateTitweAweaContwow();
 
-			// Editor container
-			this.editorContainer = document.createElement('div');
-			this.editorContainer.classList.add('editor-container');
-			this.element.appendChild(this.editorContainer);
+			// Editow containa
+			this.editowContaina = document.cweateEwement('div');
+			this.editowContaina.cwassWist.add('editow-containa');
+			this.ewement.appendChiwd(this.editowContaina);
 
-			// Editor pane
-			this.editorPane = this._register(this.scopedInstantiationService.createInstance(EditorPanes, this.editorContainer, this));
-			this._onDidChange.input = this.editorPane.onDidChangeSizeConstraints;
+			// Editow pane
+			this.editowPane = this._wegista(this.scopedInstantiationSewvice.cweateInstance(EditowPanes, this.editowContaina, this));
+			this._onDidChange.input = this.editowPane.onDidChangeSizeConstwaints;
 
-			// Track Focus
-			this.doTrackFocus();
+			// Twack Focus
+			this.doTwackFocus();
 
-			// Update containers
-			this.updateTitleContainer();
-			this.updateContainer();
+			// Update containews
+			this.updateTitweContaina();
+			this.updateContaina();
 
-			// Update styles
-			this.updateStyles();
+			// Update stywes
+			this.updateStywes();
 		}
-		//#endregion
+		//#endwegion
 
-		// Restore editors if provided
-		const restoreEditorsPromise = this.restoreEditors(from) ?? Promise.resolve();
+		// Westowe editows if pwovided
+		const westoweEditowsPwomise = this.westoweEditows(fwom) ?? Pwomise.wesowve();
 
-		// Signal restored once editors have restored
-		restoreEditorsPromise.finally(() => {
-			this.isRestored = true;
-			this.whenRestoredResolve?.();
+		// Signaw westowed once editows have westowed
+		westoweEditowsPwomise.finawwy(() => {
+			this.isWestowed = twue;
+			this.whenWestowedWesowve?.();
 		});
 
-		// Register Listeners
-		this.registerListeners();
+		// Wegista Wistenews
+		this.wegistewWistenews();
 	}
 
-	private handleGroupContextKeys(): void {
-		const groupActiveEditorDirtyContext = ActiveEditorDirtyContext.bindTo(this.scopedContextKeyService);
-		const groupActiveEditorPinnedContext = ActiveEditorPinnedContext.bindTo(this.scopedContextKeyService);
-		const groupActiveEditorStickyContext = ActiveEditorStickyContext.bindTo(this.scopedContextKeyService);
-		const groupEditorsCountContext = EditorGroupEditorsCountContext.bindTo(this.scopedContextKeyService);
-		const groupLockedContext = ActiveEditorGroupLockedContext.bindTo(this.scopedContextKeyService);
+	pwivate handweGwoupContextKeys(): void {
+		const gwoupActiveEditowDiwtyContext = ActiveEditowDiwtyContext.bindTo(this.scopedContextKeySewvice);
+		const gwoupActiveEditowPinnedContext = ActiveEditowPinnedContext.bindTo(this.scopedContextKeySewvice);
+		const gwoupActiveEditowStickyContext = ActiveEditowStickyContext.bindTo(this.scopedContextKeySewvice);
+		const gwoupEditowsCountContext = EditowGwoupEditowsCountContext.bindTo(this.scopedContextKeySewvice);
+		const gwoupWockedContext = ActiveEditowGwoupWockedContext.bindTo(this.scopedContextKeySewvice);
 
-		const activeEditorListener = new MutableDisposable();
+		const activeEditowWistena = new MutabweDisposabwe();
 
-		const observeActiveEditor = () => {
-			activeEditorListener.clear();
+		const obsewveActiveEditow = () => {
+			activeEditowWistena.cweaw();
 
-			const activeEditor = this.model.activeEditor;
-			if (activeEditor) {
-				groupActiveEditorDirtyContext.set(activeEditor.isDirty() && !activeEditor.isSaving());
-				activeEditorListener.value = activeEditor.onDidChangeDirty(() => {
-					groupActiveEditorDirtyContext.set(activeEditor.isDirty() && !activeEditor.isSaving());
+			const activeEditow = this.modew.activeEditow;
+			if (activeEditow) {
+				gwoupActiveEditowDiwtyContext.set(activeEditow.isDiwty() && !activeEditow.isSaving());
+				activeEditowWistena.vawue = activeEditow.onDidChangeDiwty(() => {
+					gwoupActiveEditowDiwtyContext.set(activeEditow.isDiwty() && !activeEditow.isSaving());
 				});
-			} else {
-				groupActiveEditorDirtyContext.set(false);
+			} ewse {
+				gwoupActiveEditowDiwtyContext.set(fawse);
 			}
 		};
 
-		// Update group contexts based on group changes
-		this._register(this.onDidGroupChange(e => {
+		// Update gwoup contexts based on gwoup changes
+		this._wegista(this.onDidGwoupChange(e => {
 			switch (e.kind) {
-				case GroupChangeKind.EDITOR_ACTIVE:
-					// Track the active editor and update context key that reflects
-					// the dirty state of this editor
-					observeActiveEditor();
-					break;
-				case GroupChangeKind.EDITOR_PIN:
-					if (e.editor && e.editor === this.model.activeEditor) {
-						groupActiveEditorPinnedContext.set(this.model.isPinned(this.model.activeEditor));
+				case GwoupChangeKind.EDITOW_ACTIVE:
+					// Twack the active editow and update context key that wefwects
+					// the diwty state of this editow
+					obsewveActiveEditow();
+					bweak;
+				case GwoupChangeKind.EDITOW_PIN:
+					if (e.editow && e.editow === this.modew.activeEditow) {
+						gwoupActiveEditowPinnedContext.set(this.modew.isPinned(this.modew.activeEditow));
 					}
-					break;
-				case GroupChangeKind.EDITOR_STICKY:
-					if (e.editor && e.editor === this.model.activeEditor) {
-						groupActiveEditorStickyContext.set(this.model.isSticky(this.model.activeEditor));
+					bweak;
+				case GwoupChangeKind.EDITOW_STICKY:
+					if (e.editow && e.editow === this.modew.activeEditow) {
+						gwoupActiveEditowStickyContext.set(this.modew.isSticky(this.modew.activeEditow));
 					}
-					break;
-				case GroupChangeKind.GROUP_LOCKED:
-					groupLockedContext.set(this.isLocked);
-					break;
+					bweak;
+				case GwoupChangeKind.GWOUP_WOCKED:
+					gwoupWockedContext.set(this.isWocked);
+					bweak;
 			}
 
-			// Group editors count context
-			groupEditorsCountContext.set(this.count);
+			// Gwoup editows count context
+			gwoupEditowsCountContext.set(this.count);
 		}));
 
-		observeActiveEditor();
+		obsewveActiveEditow();
 	}
 
-	private registerContainerListeners(): void {
+	pwivate wegistewContainewWistenews(): void {
 
-		// Open new file via doubleclick on empty container
-		this._register(addDisposableListener(this.element, EventType.DBLCLICK, e => {
+		// Open new fiwe via doubwecwick on empty containa
+		this._wegista(addDisposabweWistena(this.ewement, EventType.DBWCWICK, e => {
 			if (this.isEmpty) {
-				EventHelper.stop(e);
+				EventHewpa.stop(e);
 
-				this.editorService.openEditor({
-					resource: undefined,
+				this.editowSewvice.openEditow({
+					wesouwce: undefined,
 					options: {
-						pinned: true,
-						override: DEFAULT_EDITOR_ASSOCIATION.id
+						pinned: twue,
+						ovewwide: DEFAUWT_EDITOW_ASSOCIATION.id
 					}
 				}, this.id);
 			}
 		}));
 
-		// Close empty editor group via middle mouse click
-		this._register(addDisposableListener(this.element, EventType.AUXCLICK, e => {
-			if (this.isEmpty && e.button === 1 /* Middle Button */) {
-				EventHelper.stop(e, true);
+		// Cwose empty editow gwoup via middwe mouse cwick
+		this._wegista(addDisposabweWistena(this.ewement, EventType.AUXCWICK, e => {
+			if (this.isEmpty && e.button === 1 /* Middwe Button */) {
+				EventHewpa.stop(e, twue);
 
-				this.accessor.removeGroup(this);
+				this.accessow.wemoveGwoup(this);
 			}
 		}));
 	}
 
-	private createContainerToolbar(): void {
+	pwivate cweateContainewToowbaw(): void {
 
-		// Toolbar Container
-		const toolbarContainer = document.createElement('div');
-		toolbarContainer.classList.add('editor-group-container-toolbar');
-		this.element.appendChild(toolbarContainer);
+		// Toowbaw Containa
+		const toowbawContaina = document.cweateEwement('div');
+		toowbawContaina.cwassWist.add('editow-gwoup-containa-toowbaw');
+		this.ewement.appendChiwd(toowbawContaina);
 
-		// Toolbar
-		const containerToolbar = this._register(new ActionBar(toolbarContainer, {
-			ariaLabel: localize('ariaLabelGroupActions', "Empty editor group actions")
+		// Toowbaw
+		const containewToowbaw = this._wegista(new ActionBaw(toowbawContaina, {
+			awiaWabew: wocawize('awiaWabewGwoupActions', "Empty editow gwoup actions")
 		}));
 
-		// Toolbar actions
-		const containerToolbarMenu = this._register(this.menuService.createMenu(MenuId.EmptyEditorGroup, this.scopedContextKeyService));
-		const updateContainerToolbar = () => {
-			const actions: { primary: IAction[], secondary: IAction[] } = { primary: [], secondary: [] };
+		// Toowbaw actions
+		const containewToowbawMenu = this._wegista(this.menuSewvice.cweateMenu(MenuId.EmptyEditowGwoup, this.scopedContextKeySewvice));
+		const updateContainewToowbaw = () => {
+			const actions: { pwimawy: IAction[], secondawy: IAction[] } = { pwimawy: [], secondawy: [] };
 
-			this.containerToolBarMenuDisposable.value = combinedDisposable(
+			this.containewToowBawMenuDisposabwe.vawue = combinedDisposabwe(
 
-				// Clear old actions
-				toDisposable(() => containerToolbar.clear()),
+				// Cweaw owd actions
+				toDisposabwe(() => containewToowbaw.cweaw()),
 
-				// Create new actions
-				createAndFillInActionBarActions(
-					containerToolbarMenu,
-					{ arg: { groupId: this.id }, shouldForwardArgs: true },
+				// Cweate new actions
+				cweateAndFiwwInActionBawActions(
+					containewToowbawMenu,
+					{ awg: { gwoupId: this.id }, shouwdFowwawdAwgs: twue },
 					actions,
 					'navigation'
 				)
 			);
 
-			for (const action of [...actions.primary, ...actions.secondary]) {
-				const keybinding = this.keybindingService.lookupKeybinding(action.id);
-				containerToolbar.push(action, { icon: true, label: false, keybinding: keybinding?.getLabel() });
+			fow (const action of [...actions.pwimawy, ...actions.secondawy]) {
+				const keybinding = this.keybindingSewvice.wookupKeybinding(action.id);
+				containewToowbaw.push(action, { icon: twue, wabew: fawse, keybinding: keybinding?.getWabew() });
 			}
 		};
-		updateContainerToolbar();
-		this._register(containerToolbarMenu.onDidChange(updateContainerToolbar));
+		updateContainewToowbaw();
+		this._wegista(containewToowbawMenu.onDidChange(updateContainewToowbaw));
 	}
 
-	private createContainerContextMenu(): void {
-		const menu = this._register(this.menuService.createMenu(MenuId.EmptyEditorGroupContext, this.contextKeyService));
+	pwivate cweateContainewContextMenu(): void {
+		const menu = this._wegista(this.menuSewvice.cweateMenu(MenuId.EmptyEditowGwoupContext, this.contextKeySewvice));
 
-		this._register(addDisposableListener(this.element, EventType.CONTEXT_MENU, e => this.onShowContainerContextMenu(menu, e)));
-		this._register(addDisposableListener(this.element, TouchEventType.Contextmenu, () => this.onShowContainerContextMenu(menu)));
+		this._wegista(addDisposabweWistena(this.ewement, EventType.CONTEXT_MENU, e => this.onShowContainewContextMenu(menu, e)));
+		this._wegista(addDisposabweWistena(this.ewement, TouchEventType.Contextmenu, () => this.onShowContainewContextMenu(menu)));
 	}
 
-	private onShowContainerContextMenu(menu: IMenu, e?: MouseEvent): void {
+	pwivate onShowContainewContextMenu(menu: IMenu, e?: MouseEvent): void {
 		if (!this.isEmpty) {
-			return; // only for empty editor groups
+			wetuwn; // onwy fow empty editow gwoups
 		}
 
-		// Find target anchor
-		let anchor: HTMLElement | { x: number, y: number } = this.element;
+		// Find tawget anchow
+		wet anchow: HTMWEwement | { x: numba, y: numba } = this.ewement;
 		if (e instanceof MouseEvent) {
-			const event = new StandardMouseEvent(e);
-			anchor = { x: event.posx, y: event.posy };
+			const event = new StandawdMouseEvent(e);
+			anchow = { x: event.posx, y: event.posy };
 		}
 
-		// Fill in contributed actions
+		// Fiww in contwibuted actions
 		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(menu, undefined, actions);
+		const actionsDisposabwe = cweateAndFiwwInContextMenuActions(menu, undefined, actions);
 
 		// Show it
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => anchor,
+		this.contextMenuSewvice.showContextMenu({
+			getAnchow: () => anchow,
 			getActions: () => actions,
 			onHide: () => {
 				this.focus();
-				dispose(actionsDisposable);
+				dispose(actionsDisposabwe);
 			}
 		});
 	}
 
-	private doTrackFocus(): void {
+	pwivate doTwackFocus(): void {
 
-		// Container
-		const containerFocusTracker = this._register(trackFocus(this.element));
-		this._register(containerFocusTracker.onDidFocus(() => {
+		// Containa
+		const containewFocusTwacka = this._wegista(twackFocus(this.ewement));
+		this._wegista(containewFocusTwacka.onDidFocus(() => {
 			if (this.isEmpty) {
-				this._onDidFocus.fire(); // only when empty to prevent accident focus
+				this._onDidFocus.fiwe(); // onwy when empty to pwevent accident focus
 			}
 		}));
 
-		// Title Container
-		const handleTitleClickOrTouch = (e: MouseEvent | GestureEvent): void => {
-			let target: HTMLElement;
+		// Titwe Containa
+		const handweTitweCwickOwTouch = (e: MouseEvent | GestuweEvent): void => {
+			wet tawget: HTMWEwement;
 			if (e instanceof MouseEvent) {
 				if (e.button !== 0) {
-					return undefined; // only for left mouse click
+					wetuwn undefined; // onwy fow weft mouse cwick
 				}
 
-				target = e.target as HTMLElement;
-			} else {
-				target = (e as GestureEvent).initialTarget as HTMLElement;
+				tawget = e.tawget as HTMWEwement;
+			} ewse {
+				tawget = (e as GestuweEvent).initiawTawget as HTMWEwement;
 			}
 
-			if (findParentWithClass(target, 'monaco-action-bar', this.titleContainer) ||
-				findParentWithClass(target, 'monaco-breadcrumb-item', this.titleContainer)
+			if (findPawentWithCwass(tawget, 'monaco-action-baw', this.titweContaina) ||
+				findPawentWithCwass(tawget, 'monaco-bweadcwumb-item', this.titweContaina)
 			) {
-				return; // not when clicking on actions or breadcrumbs
+				wetuwn; // not when cwicking on actions ow bweadcwumbs
 			}
 
-			// timeout to keep focus in editor after mouse up
+			// timeout to keep focus in editow afta mouse up
 			setTimeout(() => {
 				this.focus();
 			});
 		};
 
-		this._register(addDisposableListener(this.titleContainer, EventType.MOUSE_DOWN, e => handleTitleClickOrTouch(e)));
-		this._register(addDisposableListener(this.titleContainer, TouchEventType.Tap, e => handleTitleClickOrTouch(e)));
+		this._wegista(addDisposabweWistena(this.titweContaina, EventType.MOUSE_DOWN, e => handweTitweCwickOwTouch(e)));
+		this._wegista(addDisposabweWistena(this.titweContaina, TouchEventType.Tap, e => handweTitweCwickOwTouch(e)));
 
-		// Editor pane
-		this._register(this.editorPane.onDidFocus(() => {
-			this._onDidFocus.fire();
+		// Editow pane
+		this._wegista(this.editowPane.onDidFocus(() => {
+			this._onDidFocus.fiwe();
 		}));
 	}
 
-	private updateContainer(): void {
+	pwivate updateContaina(): void {
 
-		// Empty Container: add some empty container attributes
+		// Empty Containa: add some empty containa attwibutes
 		if (this.isEmpty) {
-			this.element.classList.add('empty');
-			this.element.tabIndex = 0;
-			this.element.setAttribute('aria-label', localize('emptyEditorGroup', "{0} (empty)", this.label));
+			this.ewement.cwassWist.add('empty');
+			this.ewement.tabIndex = 0;
+			this.ewement.setAttwibute('awia-wabew', wocawize('emptyEditowGwoup', "{0} (empty)", this.wabew));
 		}
 
-		// Non-Empty Container: revert empty container attributes
-		else {
-			this.element.classList.remove('empty');
-			this.element.removeAttribute('tabIndex');
-			this.element.removeAttribute('aria-label');
+		// Non-Empty Containa: wevewt empty containa attwibutes
+		ewse {
+			this.ewement.cwassWist.wemove('empty');
+			this.ewement.wemoveAttwibute('tabIndex');
+			this.ewement.wemoveAttwibute('awia-wabew');
 		}
 
-		// Update styles
-		this.updateStyles();
+		// Update stywes
+		this.updateStywes();
 	}
 
-	private updateTitleContainer(): void {
-		this.titleContainer.classList.toggle('tabs', this.accessor.partOptions.showTabs);
-		this.titleContainer.classList.toggle('show-file-icons', this.accessor.partOptions.showIcons);
+	pwivate updateTitweContaina(): void {
+		this.titweContaina.cwassWist.toggwe('tabs', this.accessow.pawtOptions.showTabs);
+		this.titweContaina.cwassWist.toggwe('show-fiwe-icons', this.accessow.pawtOptions.showIcons);
 	}
 
-	private createTitleAreaControl(): TitleControl {
+	pwivate cweateTitweAweaContwow(): TitweContwow {
 
-		// Clear old if existing
-		if (this.titleAreaControl) {
-			this.titleAreaControl.dispose();
-			clearNode(this.titleContainer);
+		// Cweaw owd if existing
+		if (this.titweAweaContwow) {
+			this.titweAweaContwow.dispose();
+			cweawNode(this.titweContaina);
 		}
 
-		// Create new based on options
-		if (this.accessor.partOptions.showTabs) {
-			this.titleAreaControl = this.scopedInstantiationService.createInstance(TabsTitleControl, this.titleContainer, this.accessor, this);
-		} else {
-			this.titleAreaControl = this.scopedInstantiationService.createInstance(NoTabsTitleControl, this.titleContainer, this.accessor, this);
+		// Cweate new based on options
+		if (this.accessow.pawtOptions.showTabs) {
+			this.titweAweaContwow = this.scopedInstantiationSewvice.cweateInstance(TabsTitweContwow, this.titweContaina, this.accessow, this);
+		} ewse {
+			this.titweAweaContwow = this.scopedInstantiationSewvice.cweateInstance(NoTabsTitweContwow, this.titweContaina, this.accessow, this);
 		}
 
-		return this.titleAreaControl;
+		wetuwn this.titweAweaContwow;
 	}
 
-	private restoreEditors(from: IEditorGroupView | ISerializedEditorGroupModel | null): Promise<void> | undefined {
+	pwivate westoweEditows(fwom: IEditowGwoupView | ISewiawizedEditowGwoupModew | nuww): Pwomise<void> | undefined {
 		if (this.count === 0) {
-			return; // nothing to show
+			wetuwn; // nothing to show
 		}
 
-		// Determine editor options
-		let options: IEditorOptions;
-		if (from instanceof EditorGroupView) {
-			options = fillActiveEditorViewState(from); // if we copy from another group, ensure to copy its active editor viewstate
-		} else {
-			options = Object.create(null);
+		// Detewmine editow options
+		wet options: IEditowOptions;
+		if (fwom instanceof EditowGwoupView) {
+			options = fiwwActiveEditowViewState(fwom); // if we copy fwom anotha gwoup, ensuwe to copy its active editow viewstate
+		} ewse {
+			options = Object.cweate(nuww);
 		}
 
-		const activeEditor = this.model.activeEditor;
-		if (!activeEditor) {
-			return;
+		const activeEditow = this.modew.activeEditow;
+		if (!activeEditow) {
+			wetuwn;
 		}
 
-		options.pinned = this.model.isPinned(activeEditor);	// preserve pinned state
-		options.sticky = this.model.isSticky(activeEditor);	// preserve sticky state
-		options.preserveFocus = true;						// handle focus after editor is opened
+		options.pinned = this.modew.isPinned(activeEditow);	// pwesewve pinned state
+		options.sticky = this.modew.isSticky(activeEditow);	// pwesewve sticky state
+		options.pwesewveFocus = twue;						// handwe focus afta editow is opened
 
-		const activeElement = document.activeElement;
+		const activeEwement = document.activeEwement;
 
-		// Show active editor (intentionally not using async to keep
-		// `restoreEditors` from executing in same stack)
-		return this.doShowEditor(activeEditor, { active: true, isNew: false /* restored */ }, options).then(() => {
+		// Show active editow (intentionawwy not using async to keep
+		// `westoweEditows` fwom executing in same stack)
+		wetuwn this.doShowEditow(activeEditow, { active: twue, isNew: fawse /* westowed */ }, options).then(() => {
 
-			// Set focused now if this is the active group and focus has
-			// not changed meanwhile. This prevents focus from being
-			// stolen accidentally on startup when the user already
-			// clicked somewhere.
-			if (this.accessor.activeGroup === this && activeElement === document.activeElement) {
+			// Set focused now if this is the active gwoup and focus has
+			// not changed meanwhiwe. This pwevents focus fwom being
+			// stowen accidentawwy on stawtup when the usa awweady
+			// cwicked somewhewe.
+			if (this.accessow.activeGwoup === this && activeEwement === document.activeEwement) {
 				this.focus();
 			}
 		});
 	}
 
-	//#region event handling
+	//#wegion event handwing
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// Model Events
-		this._register(this.model.onDidChangeLocked(() => this.onDidChangeGroupLocked()));
-		this._register(this.model.onDidChangeEditorPinned(editor => this.onDidChangeEditorPinned(editor)));
-		this._register(this.model.onDidChangeEditorSticky(editor => this.onDidChangeEditorSticky(editor)));
-		this._register(this.model.onDidMoveEditor(event => this.onDidMoveEditor(event)));
-		this._register(this.model.onDidOpenEditor(editor => this.onDidOpenEditor(editor)));
-		this._register(this.model.onDidCloseEditor(editor => this.handleOnDidCloseEditor(editor)));
-		this._register(this.model.onWillDisposeEditor(editor => this.onWillDisposeEditor(editor)));
-		this._register(this.model.onDidChangeEditorDirty(editor => this.onDidChangeEditorDirty(editor)));
-		this._register(this.model.onDidChangeEditorLabel(editor => this.onDidChangeEditorLabel(editor)));
-		this._register(this.model.onDidChangeEditorCapabilities(editor => this.onDidChangeEditorCapabilities(editor)));
+		// Modew Events
+		this._wegista(this.modew.onDidChangeWocked(() => this.onDidChangeGwoupWocked()));
+		this._wegista(this.modew.onDidChangeEditowPinned(editow => this.onDidChangeEditowPinned(editow)));
+		this._wegista(this.modew.onDidChangeEditowSticky(editow => this.onDidChangeEditowSticky(editow)));
+		this._wegista(this.modew.onDidMoveEditow(event => this.onDidMoveEditow(event)));
+		this._wegista(this.modew.onDidOpenEditow(editow => this.onDidOpenEditow(editow)));
+		this._wegista(this.modew.onDidCwoseEditow(editow => this.handweOnDidCwoseEditow(editow)));
+		this._wegista(this.modew.onWiwwDisposeEditow(editow => this.onWiwwDisposeEditow(editow)));
+		this._wegista(this.modew.onDidChangeEditowDiwty(editow => this.onDidChangeEditowDiwty(editow)));
+		this._wegista(this.modew.onDidChangeEditowWabew(editow => this.onDidChangeEditowWabew(editow)));
+		this._wegista(this.modew.onDidChangeEditowCapabiwities(editow => this.onDidChangeEditowCapabiwities(editow)));
 
 		// Option Changes
-		this._register(this.accessor.onDidChangeEditorPartOptions(e => this.onDidChangeEditorPartOptions(e)));
+		this._wegista(this.accessow.onDidChangeEditowPawtOptions(e => this.onDidChangeEditowPawtOptions(e)));
 
-		// Visibility
-		this._register(this.accessor.onDidVisibilityChange(e => this.onDidVisibilityChange(e)));
+		// Visibiwity
+		this._wegista(this.accessow.onDidVisibiwityChange(e => this.onDidVisibiwityChange(e)));
 	}
 
-	private onDidChangeGroupLocked(): void {
-		this._onDidGroupChange.fire({ kind: GroupChangeKind.GROUP_LOCKED });
+	pwivate onDidChangeGwoupWocked(): void {
+		this._onDidGwoupChange.fiwe({ kind: GwoupChangeKind.GWOUP_WOCKED });
 	}
 
-	private onDidChangeEditorPinned(editor: EditorInput): void {
-		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_PIN, editor });
+	pwivate onDidChangeEditowPinned(editow: EditowInput): void {
+		this._onDidGwoupChange.fiwe({ kind: GwoupChangeKind.EDITOW_PIN, editow });
 	}
 
-	private onDidChangeEditorSticky(editor: EditorInput): void {
-		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_STICKY, editor });
+	pwivate onDidChangeEditowSticky(editow: EditowInput): void {
+		this._onDidGwoupChange.fiwe({ kind: GwoupChangeKind.EDITOW_STICKY, editow });
 	}
 
-	private onDidMoveEditor({ editor, index, newIndex }: IEditorMoveEvent): void {
-		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_MOVE, editor, oldEditorIndex: index, editorIndex: newIndex });
+	pwivate onDidMoveEditow({ editow, index, newIndex }: IEditowMoveEvent): void {
+		this._onDidGwoupChange.fiwe({ kind: GwoupChangeKind.EDITOW_MOVE, editow, owdEditowIndex: index, editowIndex: newIndex });
 	}
 
-	private onDidOpenEditor({ editor, index }: IEditorOpenEvent): void {
+	pwivate onDidOpenEditow({ editow, index }: IEditowOpenEvent): void {
 
-		/* __GDPR__
-			"editorOpened" : {
-				"${include}": [
-					"${EditorTelemetryDescriptor}"
+		/* __GDPW__
+			"editowOpened" : {
+				"${incwude}": [
+					"${EditowTewemetwyDescwiptow}"
 				]
 			}
 		*/
-		this.telemetryService.publicLog('editorOpened', this.toEditorTelemetryDescriptor(editor));
+		this.tewemetwySewvice.pubwicWog('editowOpened', this.toEditowTewemetwyDescwiptow(editow));
 
-		// Update container
-		this.updateContainer();
+		// Update containa
+		this.updateContaina();
 
 		// Event
-		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_OPEN, editor, editorIndex: index });
+		this._onDidGwoupChange.fiwe({ kind: GwoupChangeKind.EDITOW_OPEN, editow, editowIndex: index });
 	}
 
-	private handleOnDidCloseEditor(event: IEditorCloseEvent): void {
+	pwivate handweOnDidCwoseEditow(event: IEditowCwoseEvent): void {
 
-		// Before close
-		this._onWillCloseEditor.fire(event);
+		// Befowe cwose
+		this._onWiwwCwoseEditow.fiwe(event);
 
-		// Handle event
-		const editor = event.editor;
-		const editorsToClose: EditorInput[] = [editor];
+		// Handwe event
+		const editow = event.editow;
+		const editowsToCwose: EditowInput[] = [editow];
 
-		// Include both sides of side by side editors when being closed
-		if (editor instanceof SideBySideEditorInput) {
-			editorsToClose.push(editor.primary, editor.secondary);
+		// Incwude both sides of side by side editows when being cwosed
+		if (editow instanceof SideBySideEditowInput) {
+			editowsToCwose.push(editow.pwimawy, editow.secondawy);
 		}
 
-		// For each editor to close, we call dispose() to free up any resources.
-		// However, certain editors might be shared across multiple editor groups
-		// (including being visible in side by side / diff editors) and as such we
-		// only dispose when they are not opened elsewhere.
-		for (const editor of editorsToClose) {
-			if (this.canDispose(editor)) {
-				editor.dispose();
+		// Fow each editow to cwose, we caww dispose() to fwee up any wesouwces.
+		// Howeva, cewtain editows might be shawed acwoss muwtipwe editow gwoups
+		// (incwuding being visibwe in side by side / diff editows) and as such we
+		// onwy dispose when they awe not opened ewsewhewe.
+		fow (const editow of editowsToCwose) {
+			if (this.canDispose(editow)) {
+				editow.dispose();
 			}
 		}
 
-		/* __GDPR__
-			"editorClosed" : {
-				"${include}": [
-					"${EditorTelemetryDescriptor}"
+		/* __GDPW__
+			"editowCwosed" : {
+				"${incwude}": [
+					"${EditowTewemetwyDescwiptow}"
 				]
 			}
 		*/
-		this.telemetryService.publicLog('editorClosed', this.toEditorTelemetryDescriptor(event.editor));
+		this.tewemetwySewvice.pubwicWog('editowCwosed', this.toEditowTewemetwyDescwiptow(event.editow));
 
-		// Update container
-		this.updateContainer();
+		// Update containa
+		this.updateContaina();
 
 		// Event
-		this._onDidCloseEditor.fire(event);
-		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_CLOSE, editor, editorIndex: event.index });
+		this._onDidCwoseEditow.fiwe(event);
+		this._onDidGwoupChange.fiwe({ kind: GwoupChangeKind.EDITOW_CWOSE, editow, editowIndex: event.index });
 	}
 
-	private canDispose(editor: EditorInput): boolean {
-		for (const groupView of this.accessor.groups) {
-			if (groupView instanceof EditorGroupView && groupView.model.contains(editor, {
-				strictEquals: true,						// only if this input is not shared across editor groups
-				supportSideBySide: SideBySideEditor.ANY // include any side of an opened side by side editor
+	pwivate canDispose(editow: EditowInput): boowean {
+		fow (const gwoupView of this.accessow.gwoups) {
+			if (gwoupView instanceof EditowGwoupView && gwoupView.modew.contains(editow, {
+				stwictEquaws: twue,						// onwy if this input is not shawed acwoss editow gwoups
+				suppowtSideBySide: SideBySideEditow.ANY // incwude any side of an opened side by side editow
 			})) {
-				return false;
+				wetuwn fawse;
 			}
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	private toEditorTelemetryDescriptor(editor: EditorInput): object {
-		const descriptor = editor.getTelemetryDescriptor();
+	pwivate toEditowTewemetwyDescwiptow(editow: EditowInput): object {
+		const descwiptow = editow.getTewemetwyDescwiptow();
 
-		const resource = EditorResourceAccessor.getOriginalUri(editor);
-		const path = resource ? resource.scheme === Schemas.file ? resource.fsPath : resource.path : undefined;
-		if (resource && path) {
-			let resourceExt = extname(resource);
-			// Remove query parameters from the resource extension
-			const queryStringLocation = resourceExt.indexOf('?');
-			resourceExt = queryStringLocation !== -1 ? resourceExt.substr(0, queryStringLocation) : resourceExt;
-			descriptor['resource'] = { mimeType: guessMimeTypes(resource).join(', '), scheme: resource.scheme, ext: resourceExt, path: hash(path) };
+		const wesouwce = EditowWesouwceAccessow.getOwiginawUwi(editow);
+		const path = wesouwce ? wesouwce.scheme === Schemas.fiwe ? wesouwce.fsPath : wesouwce.path : undefined;
+		if (wesouwce && path) {
+			wet wesouwceExt = extname(wesouwce);
+			// Wemove quewy pawametews fwom the wesouwce extension
+			const quewyStwingWocation = wesouwceExt.indexOf('?');
+			wesouwceExt = quewyStwingWocation !== -1 ? wesouwceExt.substw(0, quewyStwingWocation) : wesouwceExt;
+			descwiptow['wesouwce'] = { mimeType: guessMimeTypes(wesouwce).join(', '), scheme: wesouwce.scheme, ext: wesouwceExt, path: hash(path) };
 
-			/* __GDPR__FRAGMENT__
-				"EditorTelemetryDescriptor" : {
-					"resource": { "${inline}": [ "${URIDescriptor}" ] }
+			/* __GDPW__FWAGMENT__
+				"EditowTewemetwyDescwiptow" : {
+					"wesouwce": { "${inwine}": [ "${UWIDescwiptow}" ] }
 				}
 			*/
-			return descriptor;
+			wetuwn descwiptow;
 		}
 
-		return descriptor;
+		wetuwn descwiptow;
 	}
 
-	private onWillDisposeEditor(editor: EditorInput): void {
+	pwivate onWiwwDisposeEditow(editow: EditowInput): void {
 
-		// To prevent race conditions, we handle disposed editors in our worker with a timeout
-		// because it can happen that an input is being disposed with the intent to replace
-		// it with some other input right after.
-		this.disposedEditorsWorker.work(editor);
+		// To pwevent wace conditions, we handwe disposed editows in ouw wowka with a timeout
+		// because it can happen that an input is being disposed with the intent to wepwace
+		// it with some otha input wight afta.
+		this.disposedEditowsWowka.wowk(editow);
 	}
 
-	private handleDisposedEditors(editors: EditorInput[]): void {
+	pwivate handweDisposedEditows(editows: EditowInput[]): void {
 
-		// Split between visible and hidden editors
-		let activeEditor: EditorInput | undefined;
-		const inactiveEditors: EditorInput[] = [];
-		for (const editor of editors) {
-			if (this.model.isActive(editor)) {
-				activeEditor = editor;
-			} else if (this.model.contains(editor)) {
-				inactiveEditors.push(editor);
+		// Spwit between visibwe and hidden editows
+		wet activeEditow: EditowInput | undefined;
+		const inactiveEditows: EditowInput[] = [];
+		fow (const editow of editows) {
+			if (this.modew.isActive(editow)) {
+				activeEditow = editow;
+			} ewse if (this.modew.contains(editow)) {
+				inactiveEditows.push(editow);
 			}
 		}
 
-		// Close all inactive editors first to prevent UI flicker
-		for (const inactiveEditor of inactiveEditors) {
-			this.doCloseEditor(inactiveEditor, false);
+		// Cwose aww inactive editows fiwst to pwevent UI fwicka
+		fow (const inactiveEditow of inactiveEditows) {
+			this.doCwoseEditow(inactiveEditow, fawse);
 		}
 
-		// Close active one last
-		if (activeEditor) {
-			this.doCloseEditor(activeEditor, false);
+		// Cwose active one wast
+		if (activeEditow) {
+			this.doCwoseEditow(activeEditow, fawse);
 		}
 	}
 
-	private onDidChangeEditorPartOptions(event: IEditorPartOptionsChangeEvent): void {
+	pwivate onDidChangeEditowPawtOptions(event: IEditowPawtOptionsChangeEvent): void {
 
-		// Title container
-		this.updateTitleContainer();
+		// Titwe containa
+		this.updateTitweContaina();
 
-		// Title control Switch between showing tabs <=> not showing tabs
-		if (event.oldPartOptions.showTabs !== event.newPartOptions.showTabs) {
+		// Titwe contwow Switch between showing tabs <=> not showing tabs
+		if (event.owdPawtOptions.showTabs !== event.newPawtOptions.showTabs) {
 
-			// Recreate title control
-			this.createTitleAreaControl();
+			// Wecweate titwe contwow
+			this.cweateTitweAweaContwow();
 
-			// Re-layout
-			this.relayout();
+			// We-wayout
+			this.wewayout();
 
-			// Ensure to show active editor if any
-			if (this.model.activeEditor) {
-				this.titleAreaControl.openEditor(this.model.activeEditor);
+			// Ensuwe to show active editow if any
+			if (this.modew.activeEditow) {
+				this.titweAweaContwow.openEditow(this.modew.activeEditow);
 			}
 		}
 
-		// Just update title control
-		else {
-			this.titleAreaControl.updateOptions(event.oldPartOptions, event.newPartOptions);
+		// Just update titwe contwow
+		ewse {
+			this.titweAweaContwow.updateOptions(event.owdPawtOptions, event.newPawtOptions);
 		}
 
-		// Styles
-		this.updateStyles();
+		// Stywes
+		this.updateStywes();
 
-		// Pin preview editor once user disables preview
-		if (event.oldPartOptions.enablePreview && !event.newPartOptions.enablePreview) {
-			if (this.model.previewEditor) {
-				this.pinEditor(this.model.previewEditor);
+		// Pin pweview editow once usa disabwes pweview
+		if (event.owdPawtOptions.enabwePweview && !event.newPawtOptions.enabwePweview) {
+			if (this.modew.pweviewEditow) {
+				this.pinEditow(this.modew.pweviewEditow);
 			}
 		}
 	}
 
-	private onDidChangeEditorDirty(editor: EditorInput): void {
+	pwivate onDidChangeEditowDiwty(editow: EditowInput): void {
 
-		// Always show dirty editors pinned
-		this.pinEditor(editor);
+		// Awways show diwty editows pinned
+		this.pinEditow(editow);
 
-		// Forward to title control
-		this.titleAreaControl.updateEditorDirty(editor);
-
-		// Event
-		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_DIRTY, editor });
-	}
-
-	private onDidChangeEditorLabel(editor: EditorInput): void {
-
-		// Forward to title control
-		this.titleAreaControl.updateEditorLabel(editor);
+		// Fowwawd to titwe contwow
+		this.titweAweaContwow.updateEditowDiwty(editow);
 
 		// Event
-		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_LABEL, editor });
+		this._onDidGwoupChange.fiwe({ kind: GwoupChangeKind.EDITOW_DIWTY, editow });
 	}
 
-	private onDidChangeEditorCapabilities(editor: EditorInput): void {
+	pwivate onDidChangeEditowWabew(editow: EditowInput): void {
+
+		// Fowwawd to titwe contwow
+		this.titweAweaContwow.updateEditowWabew(editow);
 
 		// Event
-		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_CAPABILITIES, editor });
+		this._onDidGwoupChange.fiwe({ kind: GwoupChangeKind.EDITOW_WABEW, editow });
 	}
 
-	private onDidVisibilityChange(visible: boolean): void {
+	pwivate onDidChangeEditowCapabiwities(editow: EditowInput): void {
 
-		// Forward to active editor pane
-		this.editorPane.setVisible(visible);
+		// Event
+		this._onDidGwoupChange.fiwe({ kind: GwoupChangeKind.EDITOW_CAPABIWITIES, editow });
 	}
 
-	//#endregion
+	pwivate onDidVisibiwityChange(visibwe: boowean): void {
 
-	//#region IEditorGroupView
-
-	get index(): number {
-		return this._index;
+		// Fowwawd to active editow pane
+		this.editowPane.setVisibwe(visibwe);
 	}
 
-	get label(): string {
-		return localize('groupLabel', "Group {0}", this._index + 1);
+	//#endwegion
+
+	//#wegion IEditowGwoupView
+
+	get index(): numba {
+		wetuwn this._index;
 	}
 
-	get ariaLabel(): string {
-		return localize('groupAriaLabel', "Editor Group {0}", this._index + 1);
+	get wabew(): stwing {
+		wetuwn wocawize('gwoupWabew', "Gwoup {0}", this._index + 1);
 	}
 
-	private _disposed = false;
-	get disposed(): boolean {
-		return this._disposed;
+	get awiaWabew(): stwing {
+		wetuwn wocawize('gwoupAwiaWabew', "Editow Gwoup {0}", this._index + 1);
 	}
 
-	get isEmpty(): boolean {
-		return this.count === 0;
+	pwivate _disposed = fawse;
+	get disposed(): boowean {
+		wetuwn this._disposed;
 	}
 
-	get titleHeight(): IEditorGroupTitleHeight {
-		return this.titleAreaControl.getHeight();
+	get isEmpty(): boowean {
+		wetuwn this.count === 0;
 	}
 
-	get isMinimized(): boolean {
+	get titweHeight(): IEditowGwoupTitweHeight {
+		wetuwn this.titweAweaContwow.getHeight();
+	}
+
+	get isMinimized(): boowean {
 		if (!this.dimension) {
-			return false;
+			wetuwn fawse;
 		}
 
-		return this.dimension.width === this.minimumWidth || this.dimension.height === this.minimumHeight;
+		wetuwn this.dimension.width === this.minimumWidth || this.dimension.height === this.minimumHeight;
 	}
 
-	notifyIndexChanged(newIndex: number): void {
+	notifyIndexChanged(newIndex: numba): void {
 		if (this._index !== newIndex) {
 			this._index = newIndex;
-			this._onDidGroupChange.fire({ kind: GroupChangeKind.GROUP_INDEX });
+			this._onDidGwoupChange.fiwe({ kind: GwoupChangeKind.GWOUP_INDEX });
 		}
 	}
 
-	setActive(isActive: boolean): void {
+	setActive(isActive: boowean): void {
 		this.active = isActive;
 
-		// Update container
-		this.element.classList.toggle('active', isActive);
-		this.element.classList.toggle('inactive', !isActive);
+		// Update containa
+		this.ewement.cwassWist.toggwe('active', isActive);
+		this.ewement.cwassWist.toggwe('inactive', !isActive);
 
-		// Update title control
-		this.titleAreaControl.setActive(isActive);
+		// Update titwe contwow
+		this.titweAweaContwow.setActive(isActive);
 
-		// Update styles
-		this.updateStyles();
+		// Update stywes
+		this.updateStywes();
 
 		// Event
-		this._onDidGroupChange.fire({ kind: GroupChangeKind.GROUP_ACTIVE });
+		this._onDidGwoupChange.fiwe({ kind: GwoupChangeKind.GWOUP_ACTIVE });
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region IEditorGroup
+	//#wegion IEditowGwoup
 
-	//#region basics()
+	//#wegion basics()
 
-	get id(): GroupIdentifier {
-		return this.model.id;
+	get id(): GwoupIdentifia {
+		wetuwn this.modew.id;
 	}
 
-	get editors(): EditorInput[] {
-		return this.model.getEditors(EditorsOrder.SEQUENTIAL);
+	get editows(): EditowInput[] {
+		wetuwn this.modew.getEditows(EditowsOwda.SEQUENTIAW);
 	}
 
-	get count(): number {
-		return this.model.count;
+	get count(): numba {
+		wetuwn this.modew.count;
 	}
 
-	get stickyCount(): number {
-		return this.model.stickyCount;
+	get stickyCount(): numba {
+		wetuwn this.modew.stickyCount;
 	}
 
-	get activeEditorPane(): IVisibleEditorPane | undefined {
-		return this.editorPane ? withNullAsUndefined(this.editorPane.activeEditorPane) : undefined;
+	get activeEditowPane(): IVisibweEditowPane | undefined {
+		wetuwn this.editowPane ? withNuwwAsUndefined(this.editowPane.activeEditowPane) : undefined;
 	}
 
-	get activeEditor(): EditorInput | null {
-		return this.model.activeEditor;
+	get activeEditow(): EditowInput | nuww {
+		wetuwn this.modew.activeEditow;
 	}
 
-	get previewEditor(): EditorInput | null {
-		return this.model.previewEditor;
+	get pweviewEditow(): EditowInput | nuww {
+		wetuwn this.modew.pweviewEditow;
 	}
 
-	isPinned(editor: EditorInput): boolean {
-		return this.model.isPinned(editor);
+	isPinned(editow: EditowInput): boowean {
+		wetuwn this.modew.isPinned(editow);
 	}
 
-	isSticky(editorOrIndex: EditorInput | number): boolean {
-		return this.model.isSticky(editorOrIndex);
+	isSticky(editowOwIndex: EditowInput | numba): boowean {
+		wetuwn this.modew.isSticky(editowOwIndex);
 	}
 
-	isActive(editor: EditorInput | IUntypedEditorInput): boolean {
-		return this.model.isActive(editor);
+	isActive(editow: EditowInput | IUntypedEditowInput): boowean {
+		wetuwn this.modew.isActive(editow);
 	}
 
-	contains(candidate: EditorInput | IUntypedEditorInput): boolean {
-		return this.model.contains(candidate);
+	contains(candidate: EditowInput | IUntypedEditowInput): boowean {
+		wetuwn this.modew.contains(candidate);
 	}
 
-	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): EditorInput[] {
-		return this.model.getEditors(order, options);
+	getEditows(owda: EditowsOwda, options?: { excwudeSticky?: boowean }): EditowInput[] {
+		wetuwn this.modew.getEditows(owda, options);
 	}
 
-	findEditors(resource: URI): EditorInput[] {
-		const canonicalResource = this.uriIdentityService.asCanonicalUri(resource);
-		return this.getEditors(EditorsOrder.SEQUENTIAL).filter(editor => {
-			return editor.resource && isEqual(editor.resource, canonicalResource);
+	findEditows(wesouwce: UWI): EditowInput[] {
+		const canonicawWesouwce = this.uwiIdentitySewvice.asCanonicawUwi(wesouwce);
+		wetuwn this.getEditows(EditowsOwda.SEQUENTIAW).fiwta(editow => {
+			wetuwn editow.wesouwce && isEquaw(editow.wesouwce, canonicawWesouwce);
 		});
 	}
 
-	getEditorByIndex(index: number): EditorInput | undefined {
-		return this.model.getEditorByIndex(index);
+	getEditowByIndex(index: numba): EditowInput | undefined {
+		wetuwn this.modew.getEditowByIndex(index);
 	}
 
-	getIndexOfEditor(editor: EditorInput): number {
-		return this.model.indexOf(editor);
+	getIndexOfEditow(editow: EditowInput): numba {
+		wetuwn this.modew.indexOf(editow);
 	}
 
 	focus(): void {
 
-		// Pass focus to editor panes
-		if (this.activeEditorPane) {
-			this.activeEditorPane.focus();
-		} else {
-			this.element.focus();
+		// Pass focus to editow panes
+		if (this.activeEditowPane) {
+			this.activeEditowPane.focus();
+		} ewse {
+			this.ewement.focus();
 		}
 
 		// Event
-		this._onDidFocus.fire();
+		this._onDidFocus.fiwe();
 	}
 
-	pinEditor(candidate: EditorInput | undefined = this.activeEditor || undefined): void {
-		if (candidate && !this.model.isPinned(candidate)) {
+	pinEditow(candidate: EditowInput | undefined = this.activeEditow || undefined): void {
+		if (candidate && !this.modew.isPinned(candidate)) {
 
-			// Update model
-			const editor = this.model.pin(candidate);
+			// Update modew
+			const editow = this.modew.pin(candidate);
 
-			// Forward to title control
-			if (editor) {
-				this.titleAreaControl.pinEditor(editor);
+			// Fowwawd to titwe contwow
+			if (editow) {
+				this.titweAweaContwow.pinEditow(editow);
 			}
 		}
 	}
 
-	stickEditor(candidate: EditorInput | undefined = this.activeEditor || undefined): void {
-		this.doStickEditor(candidate, true);
+	stickEditow(candidate: EditowInput | undefined = this.activeEditow || undefined): void {
+		this.doStickEditow(candidate, twue);
 	}
 
-	unstickEditor(candidate: EditorInput | undefined = this.activeEditor || undefined): void {
-		this.doStickEditor(candidate, false);
+	unstickEditow(candidate: EditowInput | undefined = this.activeEditow || undefined): void {
+		this.doStickEditow(candidate, fawse);
 	}
 
-	private doStickEditor(candidate: EditorInput | undefined, sticky: boolean): void {
-		if (candidate && this.model.isSticky(candidate) !== sticky) {
-			const oldIndexOfEditor = this.getIndexOfEditor(candidate);
+	pwivate doStickEditow(candidate: EditowInput | undefined, sticky: boowean): void {
+		if (candidate && this.modew.isSticky(candidate) !== sticky) {
+			const owdIndexOfEditow = this.getIndexOfEditow(candidate);
 
-			// Update model
-			const editor = sticky ? this.model.stick(candidate) : this.model.unstick(candidate);
-			if (!editor) {
-				return;
+			// Update modew
+			const editow = sticky ? this.modew.stick(candidate) : this.modew.unstick(candidate);
+			if (!editow) {
+				wetuwn;
 			}
 
-			// If the index of the editor changed, we need to forward this to
-			// title control and also make sure to emit this as an event
-			const newIndexOfEditor = this.getIndexOfEditor(editor);
-			if (newIndexOfEditor !== oldIndexOfEditor) {
-				this.titleAreaControl.moveEditor(editor, oldIndexOfEditor, newIndexOfEditor);
+			// If the index of the editow changed, we need to fowwawd this to
+			// titwe contwow and awso make suwe to emit this as an event
+			const newIndexOfEditow = this.getIndexOfEditow(editow);
+			if (newIndexOfEditow !== owdIndexOfEditow) {
+				this.titweAweaContwow.moveEditow(editow, owdIndexOfEditow, newIndexOfEditow);
 			}
 
-			// Forward sticky state to title control
+			// Fowwawd sticky state to titwe contwow
 			if (sticky) {
-				this.titleAreaControl.stickEditor(editor);
-			} else {
-				this.titleAreaControl.unstickEditor(editor);
+				this.titweAweaContwow.stickEditow(editow);
+			} ewse {
+				this.titweAweaContwow.unstickEditow(editow);
 			}
 		}
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region openEditor()
+	//#wegion openEditow()
 
-	async openEditor(editor: EditorInput, options?: IEditorOptions): Promise<IEditorPane | undefined> {
-		return this.doOpenEditor(editor, options, {
-			// Allow to match on a side-by-side editor when same
-			// editor is opened on both sides. In that case we
-			// do not want to open a new editor but reuse that one.
-			supportSideBySide: SideBySideEditor.BOTH
+	async openEditow(editow: EditowInput, options?: IEditowOptions): Pwomise<IEditowPane | undefined> {
+		wetuwn this.doOpenEditow(editow, options, {
+			// Awwow to match on a side-by-side editow when same
+			// editow is opened on both sides. In that case we
+			// do not want to open a new editow but weuse that one.
+			suppowtSideBySide: SideBySideEditow.BOTH
 		});
 	}
 
-	private async doOpenEditor(editor: EditorInput, options?: IEditorOptions, internalOptions?: IInternalEditorOpenOptions): Promise<IEditorPane | undefined> {
+	pwivate async doOpenEditow(editow: EditowInput, options?: IEditowOptions, intewnawOptions?: IIntewnawEditowOpenOptions): Pwomise<IEditowPane | undefined> {
 
-		// Guard against invalid editors. Disposed editors
-		// should never open because they emit no events
-		// e.g. to indicate dirty changes.
-		if (!editor || editor.isDisposed()) {
-			return;
+		// Guawd against invawid editows. Disposed editows
+		// shouwd neva open because they emit no events
+		// e.g. to indicate diwty changes.
+		if (!editow || editow.isDisposed()) {
+			wetuwn;
 		}
 
-		// Fire the event letting everyone know we are about to open an editor
-		this._onWillOpenEditor.fire({ editor, groupId: this.id });
+		// Fiwe the event wetting evewyone know we awe about to open an editow
+		this._onWiwwOpenEditow.fiwe({ editow, gwoupId: this.id });
 
-		// Determine options
-		const openEditorOptions: IEditorOpenOptions = {
+		// Detewmine options
+		const openEditowOptions: IEditowOpenOptions = {
 			index: options ? options.index : undefined,
-			pinned: options?.sticky || !this.accessor.partOptions.enablePreview || editor.isDirty() || (options?.pinned ?? typeof options?.index === 'number' /* unless specified, prefer to pin when opening with index */) || (typeof options?.index === 'number' && this.model.isSticky(options.index)),
-			sticky: options?.sticky || (typeof options?.index === 'number' && this.model.isSticky(options.index)),
+			pinned: options?.sticky || !this.accessow.pawtOptions.enabwePweview || editow.isDiwty() || (options?.pinned ?? typeof options?.index === 'numba' /* unwess specified, pwefa to pin when opening with index */) || (typeof options?.index === 'numba' && this.modew.isSticky(options.index)),
+			sticky: options?.sticky || (typeof options?.index === 'numba' && this.modew.isSticky(options.index)),
 			active: this.count === 0 || !options || !options.inactive,
-			supportSideBySide: internalOptions?.supportSideBySide
+			suppowtSideBySide: intewnawOptions?.suppowtSideBySide
 		};
 
-		if (options?.sticky && typeof options?.index === 'number' && !this.model.isSticky(options.index)) {
-			// Special case: we are to open an editor sticky but at an index that is not sticky
-			// In that case we prefer to open the editor at the index but not sticky. This enables
-			// to drag a sticky editor to an index that is not sticky to unstick it.
-			openEditorOptions.sticky = false;
+		if (options?.sticky && typeof options?.index === 'numba' && !this.modew.isSticky(options.index)) {
+			// Speciaw case: we awe to open an editow sticky but at an index that is not sticky
+			// In that case we pwefa to open the editow at the index but not sticky. This enabwes
+			// to dwag a sticky editow to an index that is not sticky to unstick it.
+			openEditowOptions.sticky = fawse;
 		}
 
-		if (!openEditorOptions.active && !openEditorOptions.pinned && this.model.activeEditor && !this.model.isPinned(this.model.activeEditor)) {
-			// Special case: we are to open an editor inactive and not pinned, but the current active
-			// editor is also not pinned, which means it will get replaced with this one. As such,
-			// the editor can only be active.
-			openEditorOptions.active = true;
+		if (!openEditowOptions.active && !openEditowOptions.pinned && this.modew.activeEditow && !this.modew.isPinned(this.modew.activeEditow)) {
+			// Speciaw case: we awe to open an editow inactive and not pinned, but the cuwwent active
+			// editow is awso not pinned, which means it wiww get wepwaced with this one. As such,
+			// the editow can onwy be active.
+			openEditowOptions.active = twue;
 		}
 
-		let activateGroup = false;
-		let restoreGroup = false;
+		wet activateGwoup = fawse;
+		wet westoweGwoup = fawse;
 
-		if (options?.activation === EditorActivation.ACTIVATE) {
-			// Respect option to force activate an editor group.
-			activateGroup = true;
-		} else if (options?.activation === EditorActivation.RESTORE) {
-			// Respect option to force restore an editor group.
-			restoreGroup = true;
-		} else if (options?.activation === EditorActivation.PRESERVE) {
-			// Respect option to preserve active editor group.
-			activateGroup = false;
-			restoreGroup = false;
-		} else if (openEditorOptions.active) {
-			// Finally, we only activate/restore an editor which is
-			// opening as active editor.
-			// If preserveFocus is enabled, we only restore but never
-			// activate the group.
-			activateGroup = !options || !options.preserveFocus;
-			restoreGroup = !activateGroup;
+		if (options?.activation === EditowActivation.ACTIVATE) {
+			// Wespect option to fowce activate an editow gwoup.
+			activateGwoup = twue;
+		} ewse if (options?.activation === EditowActivation.WESTOWE) {
+			// Wespect option to fowce westowe an editow gwoup.
+			westoweGwoup = twue;
+		} ewse if (options?.activation === EditowActivation.PWESEWVE) {
+			// Wespect option to pwesewve active editow gwoup.
+			activateGwoup = fawse;
+			westoweGwoup = fawse;
+		} ewse if (openEditowOptions.active) {
+			// Finawwy, we onwy activate/westowe an editow which is
+			// opening as active editow.
+			// If pwesewveFocus is enabwed, we onwy westowe but neva
+			// activate the gwoup.
+			activateGwoup = !options || !options.pwesewveFocus;
+			westoweGwoup = !activateGwoup;
 		}
 
-		// Actually move the editor if a specific index is provided and we figure
-		// out that the editor is already opened at a different index. This
-		// ensures the right set of events are fired to the outside.
-		if (typeof openEditorOptions.index === 'number') {
-			const indexOfEditor = this.model.indexOf(editor);
-			if (indexOfEditor !== -1 && indexOfEditor !== openEditorOptions.index) {
-				this.doMoveEditorInsideGroup(editor, openEditorOptions);
+		// Actuawwy move the editow if a specific index is pwovided and we figuwe
+		// out that the editow is awweady opened at a diffewent index. This
+		// ensuwes the wight set of events awe fiwed to the outside.
+		if (typeof openEditowOptions.index === 'numba') {
+			const indexOfEditow = this.modew.indexOf(editow);
+			if (indexOfEditow !== -1 && indexOfEditow !== openEditowOptions.index) {
+				this.doMoveEditowInsideGwoup(editow, openEditowOptions);
 			}
 		}
 
-		// Update model and make sure to continue to use the editor we get from
-		// the model. It is possible that the editor was already opened and we
-		// want to ensure that we use the existing instance in that case.
-		const { editor: openedEditor, isNew } = this.model.openEditor(editor, openEditorOptions);
+		// Update modew and make suwe to continue to use the editow we get fwom
+		// the modew. It is possibwe that the editow was awweady opened and we
+		// want to ensuwe that we use the existing instance in that case.
+		const { editow: openedEditow, isNew } = this.modew.openEditow(editow, openEditowOptions);
 
-		// Conditionally lock the group
+		// Conditionawwy wock the gwoup
 		if (
-			isNew &&						// only if this editor was new for the group
-			this.count === 1 &&				// only when this editor was the first editor in the group
-			this.accessor.groups.length > 1	// only when there are more than one groups open
+			isNew &&						// onwy if this editow was new fow the gwoup
+			this.count === 1 &&				// onwy when this editow was the fiwst editow in the gwoup
+			this.accessow.gwoups.wength > 1	// onwy when thewe awe mowe than one gwoups open
 		) {
-			// only when the editor identifier is configured as such
-			if (openedEditor.editorId && this.accessor.partOptions.autoLockGroups?.has(openedEditor.editorId)) {
-				this.lock(true);
+			// onwy when the editow identifia is configuwed as such
+			if (openedEditow.editowId && this.accessow.pawtOptions.autoWockGwoups?.has(openedEditow.editowId)) {
+				this.wock(twue);
 			}
 		}
 
-		// Show editor
-		const showEditorResult = this.doShowEditor(openedEditor, { active: !!openEditorOptions.active, isNew }, options, internalOptions);
+		// Show editow
+		const showEditowWesuwt = this.doShowEditow(openedEditow, { active: !!openEditowOptions.active, isNew }, options, intewnawOptions);
 
-		// Finally make sure the group is active or restored as instructed
-		if (activateGroup) {
-			this.accessor.activateGroup(this);
-		} else if (restoreGroup) {
-			this.accessor.restoreGroup(this);
+		// Finawwy make suwe the gwoup is active ow westowed as instwucted
+		if (activateGwoup) {
+			this.accessow.activateGwoup(this);
+		} ewse if (westoweGwoup) {
+			this.accessow.westoweGwoup(this);
 		}
 
-		return showEditorResult;
+		wetuwn showEditowWesuwt;
 	}
 
-	private doShowEditor(editor: EditorInput, context: { active: boolean, isNew: boolean }, options?: IEditorOptions, internalOptions?: IInternalEditorOpenOptions): Promise<IEditorPane | undefined> {
+	pwivate doShowEditow(editow: EditowInput, context: { active: boowean, isNew: boowean }, options?: IEditowOptions, intewnawOptions?: IIntewnawEditowOpenOptions): Pwomise<IEditowPane | undefined> {
 
-		// Show in editor control if the active editor changed
-		let openEditorPromise: Promise<IEditorPane | undefined>;
+		// Show in editow contwow if the active editow changed
+		wet openEditowPwomise: Pwomise<IEditowPane | undefined>;
 		if (context.active) {
-			openEditorPromise = (async () => {
-				const result = await this.editorPane.openEditor(editor, options, { newInGroup: context.isNew });
+			openEditowPwomise = (async () => {
+				const wesuwt = await this.editowPane.openEditow(editow, options, { newInGwoup: context.isNew });
 
-				// Editor change event
-				if (result.editorChanged) {
-					this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_ACTIVE, editor });
+				// Editow change event
+				if (wesuwt.editowChanged) {
+					this._onDidGwoupChange.fiwe({ kind: GwoupChangeKind.EDITOW_ACTIVE, editow });
 				}
 
-				// Handle errors but do not bubble them up
-				if (result.error) {
-					await this.doHandleOpenEditorError(result.error, editor, options);
+				// Handwe ewwows but do not bubbwe them up
+				if (wesuwt.ewwow) {
+					await this.doHandweOpenEditowEwwow(wesuwt.ewwow, editow, options);
 				}
 
-				// Without an editor pane, recover by closing the active editor
-				// (if the input is still the active one)
-				if (!result.editorPane && this.activeEditor === editor) {
-					const focusNext = !options || !options.preserveFocus;
-					this.doCloseEditor(editor, focusNext, { fromError: true });
+				// Without an editow pane, wecova by cwosing the active editow
+				// (if the input is stiww the active one)
+				if (!wesuwt.editowPane && this.activeEditow === editow) {
+					const focusNext = !options || !options.pwesewveFocus;
+					this.doCwoseEditow(editow, focusNext, { fwomEwwow: twue });
 				}
 
-				return result.editorPane;
+				wetuwn wesuwt.editowPane;
 			})();
-		} else {
-			openEditorPromise = Promise.resolve(undefined); // inactive: return undefined as result to signal this
+		} ewse {
+			openEditowPwomise = Pwomise.wesowve(undefined); // inactive: wetuwn undefined as wesuwt to signaw this
 		}
 
-		// Show in title control after editor control because some actions depend on it
-		// but respect the internal options in case title control updates should skip.
-		if (!internalOptions?.skipTitleUpdate) {
-			this.titleAreaControl.openEditor(editor);
+		// Show in titwe contwow afta editow contwow because some actions depend on it
+		// but wespect the intewnaw options in case titwe contwow updates shouwd skip.
+		if (!intewnawOptions?.skipTitweUpdate) {
+			this.titweAweaContwow.openEditow(editow);
 		}
 
-		return openEditorPromise;
+		wetuwn openEditowPwomise;
 	}
 
-	private async doHandleOpenEditorError(error: Error, editor: EditorInput, options?: IEditorOptions): Promise<void> {
+	pwivate async doHandweOpenEditowEwwow(ewwow: Ewwow, editow: EditowInput, options?: IEditowOptions): Pwomise<void> {
 
-		// Report error only if we are not told to ignore errors that occur from opening an editor
-		if (!isPromiseCanceledError(error) && (!options || !options.ignoreError)) {
+		// Wepowt ewwow onwy if we awe not towd to ignowe ewwows that occuw fwom opening an editow
+		if (!isPwomiseCancewedEwwow(ewwow) && (!options || !options.ignoweEwwow)) {
 
-			// Always log the error to figure out what is going on
-			this.logService.error(error);
+			// Awways wog the ewwow to figuwe out what is going on
+			this.wogSewvice.ewwow(ewwow);
 
-			// Since it is more likely that errors fail to open when restoring them e.g.
-			// because files got deleted or moved meanwhile, we do not show any notifications
-			// if we are still restoring editors.
-			if (this.isRestored) {
+			// Since it is mowe wikewy that ewwows faiw to open when westowing them e.g.
+			// because fiwes got deweted ow moved meanwhiwe, we do not show any notifications
+			// if we awe stiww westowing editows.
+			if (this.isWestowed) {
 
-				// Extract possible error actions from the error
-				let errorActions: readonly IAction[] | undefined = undefined;
-				if (isErrorWithActions(error)) {
-					errorActions = error.actions;
+				// Extwact possibwe ewwow actions fwom the ewwow
+				wet ewwowActions: weadonwy IAction[] | undefined = undefined;
+				if (isEwwowWithActions(ewwow)) {
+					ewwowActions = ewwow.actions;
 				}
 
-				// If the context is USER, we try to show a modal dialog instead of a background notification
-				if (options?.context === EditorOpenContext.USER) {
-					const buttons: string[] = [];
-					if (Array.isArray(errorActions) && errorActions.length > 0) {
-						for (const errorAction of errorActions) {
-							buttons.push(errorAction.label);
+				// If the context is USa, we twy to show a modaw diawog instead of a backgwound notification
+				if (options?.context === EditowOpenContext.USa) {
+					const buttons: stwing[] = [];
+					if (Awway.isAwway(ewwowActions) && ewwowActions.wength > 0) {
+						fow (const ewwowAction of ewwowActions) {
+							buttons.push(ewwowAction.wabew);
 						}
-					} else {
-						buttons.push(localize('ok', 'OK'));
+					} ewse {
+						buttons.push(wocawize('ok', 'OK'));
 					}
 
-					let cancelId: number | undefined = undefined;
-					if (buttons.length === 1) {
-						buttons.push(localize('cancel', "Cancel"));
-						cancelId = 1;
+					wet cancewId: numba | undefined = undefined;
+					if (buttons.wength === 1) {
+						buttons.push(wocawize('cancew', "Cancew"));
+						cancewId = 1;
 					}
 
-					const result = await this.dialogService.show(
-						Severity.Error,
-						localize('editorOpenErrorDialog', "Unable to open '{0}'", editor.getName()),
+					const wesuwt = await this.diawogSewvice.show(
+						Sevewity.Ewwow,
+						wocawize('editowOpenEwwowDiawog', "Unabwe to open '{0}'", editow.getName()),
 						buttons,
 						{
-							detail: toErrorMessage(error),
-							cancelId
+							detaiw: toEwwowMessage(ewwow),
+							cancewId
 						}
 					);
 
-					// Make sure to run any error action if present
-					if (result.choice !== cancelId && Array.isArray(errorActions)) {
-						const errorAction = errorActions[result.choice];
-						if (errorAction) {
-							errorAction.run();
+					// Make suwe to wun any ewwow action if pwesent
+					if (wesuwt.choice !== cancewId && Awway.isAwway(ewwowActions)) {
+						const ewwowAction = ewwowActions[wesuwt.choice];
+						if (ewwowAction) {
+							ewwowAction.wun();
 						}
 					}
 				}
 
-				// Otherwise, show a background notification.
-				else {
-					const actions = { primary: [] as readonly IAction[] };
-					if (Array.isArray(errorActions)) {
-						actions.primary = errorActions;
+				// Othewwise, show a backgwound notification.
+				ewse {
+					const actions = { pwimawy: [] as weadonwy IAction[] };
+					if (Awway.isAwway(ewwowActions)) {
+						actions.pwimawy = ewwowActions;
 					}
 
-					const handle = this.notificationService.notify({
-						id: `${hash(editor.resource?.toString())}`, // unique per editor
-						severity: Severity.Error,
-						message: localize('editorOpenError', "Unable to open '{0}': {1}.", editor.getName(), toErrorMessage(error)),
+					const handwe = this.notificationSewvice.notify({
+						id: `${hash(editow.wesouwce?.toStwing())}`, // unique pew editow
+						sevewity: Sevewity.Ewwow,
+						message: wocawize('editowOpenEwwow', "Unabwe to open '{0}': {1}.", editow.getName(), toEwwowMessage(ewwow)),
 						actions
 					});
 
-					Event.once(handle.onDidClose)(() => actions.primary && dispose(actions.primary));
+					Event.once(handwe.onDidCwose)(() => actions.pwimawy && dispose(actions.pwimawy));
 				}
 			}
 		}
 
 		// Event
-		this._onDidOpenEditorFail.fire(editor);
+		this._onDidOpenEditowFaiw.fiwe(editow);
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region openEditors()
+	//#wegion openEditows()
 
-	async openEditors(editors: { editor: EditorInput, options?: IEditorOptions }[]): Promise<IEditorPane | null> {
+	async openEditows(editows: { editow: EditowInput, options?: IEditowOptions }[]): Pwomise<IEditowPane | nuww> {
 
-		// Guard against invalid editors. Disposed editors
-		// should never open because they emit no events
-		// e.g. to indicate dirty changes.
-		const editorsToOpen = coalesce(editors).filter(({ editor }) => !editor.isDisposed());
+		// Guawd against invawid editows. Disposed editows
+		// shouwd neva open because they emit no events
+		// e.g. to indicate diwty changes.
+		const editowsToOpen = coawesce(editows).fiwta(({ editow }) => !editow.isDisposed());
 
-		// Use the first editor as active editor
-		const firstEditor = firstOrDefault(editorsToOpen);
-		if (!firstEditor) {
-			return null;
+		// Use the fiwst editow as active editow
+		const fiwstEditow = fiwstOwDefauwt(editowsToOpen);
+		if (!fiwstEditow) {
+			wetuwn nuww;
 		}
 
-		const openEditorsOptions: IInternalEditorOpenOptions = {
-			// Allow to match on a side-by-side editor when same
-			// editor is opened on both sides. In that case we
-			// do not want to open a new editor but reuse that one.
-			supportSideBySide: SideBySideEditor.BOTH
+		const openEditowsOptions: IIntewnawEditowOpenOptions = {
+			// Awwow to match on a side-by-side editow when same
+			// editow is opened on both sides. In that case we
+			// do not want to open a new editow but weuse that one.
+			suppowtSideBySide: SideBySideEditow.BOTH
 		};
 
-		await this.doOpenEditor(firstEditor.editor, firstEditor.options, openEditorsOptions);
+		await this.doOpenEditow(fiwstEditow.editow, fiwstEditow.options, openEditowsOptions);
 
-		// Open the other ones inactive
-		const inactiveEditors = editorsToOpen.slice(1);
-		const startingIndex = this.getIndexOfEditor(firstEditor.editor) + 1;
-		await Promises.settled(inactiveEditors.map(({ editor, options }, index) => {
-			return this.doOpenEditor(editor, {
+		// Open the otha ones inactive
+		const inactiveEditows = editowsToOpen.swice(1);
+		const stawtingIndex = this.getIndexOfEditow(fiwstEditow.editow) + 1;
+		await Pwomises.settwed(inactiveEditows.map(({ editow, options }, index) => {
+			wetuwn this.doOpenEditow(editow, {
 				...options,
-				inactive: true,
-				pinned: true,
-				index: startingIndex + index
+				inactive: twue,
+				pinned: twue,
+				index: stawtingIndex + index
 			}, {
-				...openEditorsOptions,
-				// optimization: update the title control later
-				// https://github.com/microsoft/vscode/issues/130634
-				skipTitleUpdate: true
+				...openEditowsOptions,
+				// optimization: update the titwe contwow wata
+				// https://github.com/micwosoft/vscode/issues/130634
+				skipTitweUpdate: twue
 			});
 		}));
 
-		// Update the title control all at once with all editors
-		this.titleAreaControl.openEditors(inactiveEditors.map(({ editor }) => editor));
+		// Update the titwe contwow aww at once with aww editows
+		this.titweAweaContwow.openEditows(inactiveEditows.map(({ editow }) => editow));
 
-		// Opening many editors at once can put any editor to be
-		// the active one depending on options. As such, we simply
-		// return the active editor pane after this operation.
-		return this.editorPane.activeEditorPane;
+		// Opening many editows at once can put any editow to be
+		// the active one depending on options. As such, we simpwy
+		// wetuwn the active editow pane afta this opewation.
+		wetuwn this.editowPane.activeEditowPane;
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region moveEditor()
+	//#wegion moveEditow()
 
-	moveEditors(editors: { editor: EditorInput, options?: IEditorOptions }[], target: EditorGroupView): void {
+	moveEditows(editows: { editow: EditowInput, options?: IEditowOptions }[], tawget: EditowGwoupView): void {
 
-		// Optimization: knowing that we move many editors, we
-		// delay the title update to a later point for this group
-		// through a method that allows for bulk updates but only
-		// when moving to a different group where many editors
-		// are more likely to occur.
-		const internalOptions: IInternalMoveCopyOptions = {
-			skipTitleUpdate: this !== target
+		// Optimization: knowing that we move many editows, we
+		// deway the titwe update to a wata point fow this gwoup
+		// thwough a method that awwows fow buwk updates but onwy
+		// when moving to a diffewent gwoup whewe many editows
+		// awe mowe wikewy to occuw.
+		const intewnawOptions: IIntewnawMoveCopyOptions = {
+			skipTitweUpdate: this !== tawget
 		};
 
-		for (const { editor, options } of editors) {
-			this.moveEditor(editor, target, options, internalOptions);
+		fow (const { editow, options } of editows) {
+			this.moveEditow(editow, tawget, options, intewnawOptions);
 		}
 
-		// Update the title control all at once with all editors
-		// in source and target if the title update was skipped
-		if (internalOptions.skipTitleUpdate) {
-			const movedEditors = editors.map(({ editor }) => editor);
-			target.titleAreaControl.openEditors(movedEditors);
-			this.titleAreaControl.closeEditors(movedEditors);
-		}
-	}
-
-	moveEditor(editor: EditorInput, target: EditorGroupView, options?: IEditorOptions, internalOptions?: IInternalEditorTitleControlOptions): void {
-
-		// Move within same group
-		if (this === target) {
-			this.doMoveEditorInsideGroup(editor, options);
-		}
-
-		// Move across groups
-		else {
-			this.doMoveOrCopyEditorAcrossGroups(editor, target, options, { ...internalOptions, keepCopy: false });
+		// Update the titwe contwow aww at once with aww editows
+		// in souwce and tawget if the titwe update was skipped
+		if (intewnawOptions.skipTitweUpdate) {
+			const movedEditows = editows.map(({ editow }) => editow);
+			tawget.titweAweaContwow.openEditows(movedEditows);
+			this.titweAweaContwow.cwoseEditows(movedEditows);
 		}
 	}
 
-	private doMoveEditorInsideGroup(candidate: EditorInput, options?: IEditorOpenOptions): void {
+	moveEditow(editow: EditowInput, tawget: EditowGwoupView, options?: IEditowOptions, intewnawOptions?: IIntewnawEditowTitweContwowOptions): void {
+
+		// Move within same gwoup
+		if (this === tawget) {
+			this.doMoveEditowInsideGwoup(editow, options);
+		}
+
+		// Move acwoss gwoups
+		ewse {
+			this.doMoveOwCopyEditowAcwossGwoups(editow, tawget, options, { ...intewnawOptions, keepCopy: fawse });
+		}
+	}
+
+	pwivate doMoveEditowInsideGwoup(candidate: EditowInput, options?: IEditowOpenOptions): void {
 		const moveToIndex = options ? options.index : undefined;
-		if (typeof moveToIndex !== 'number') {
-			return; // do nothing if we move into same group without index
+		if (typeof moveToIndex !== 'numba') {
+			wetuwn; // do nothing if we move into same gwoup without index
 		}
 
-		const currentIndex = this.model.indexOf(candidate);
-		if (currentIndex === -1 || currentIndex === moveToIndex) {
-			return; // do nothing if editor unknown in model or is already at the given index
+		const cuwwentIndex = this.modew.indexOf(candidate);
+		if (cuwwentIndex === -1 || cuwwentIndex === moveToIndex) {
+			wetuwn; // do nothing if editow unknown in modew ow is awweady at the given index
 		}
 
-		// Update model and make sure to continue to use the editor we get from
-		// the model. It is possible that the editor was already opened and we
-		// want to ensure that we use the existing instance in that case.
-		const editor = this.model.getEditorByIndex(currentIndex);
-		if (!editor) {
-			return;
+		// Update modew and make suwe to continue to use the editow we get fwom
+		// the modew. It is possibwe that the editow was awweady opened and we
+		// want to ensuwe that we use the existing instance in that case.
+		const editow = this.modew.getEditowByIndex(cuwwentIndex);
+		if (!editow) {
+			wetuwn;
 		}
 
-		// Update model
-		this.model.moveEditor(editor, moveToIndex);
-		this.model.pin(editor);
+		// Update modew
+		this.modew.moveEditow(editow, moveToIndex);
+		this.modew.pin(editow);
 
-		// Forward to title area
-		this.titleAreaControl.moveEditor(editor, currentIndex, moveToIndex);
-		this.titleAreaControl.pinEditor(editor);
+		// Fowwawd to titwe awea
+		this.titweAweaContwow.moveEditow(editow, cuwwentIndex, moveToIndex);
+		this.titweAweaContwow.pinEditow(editow);
 	}
 
-	private doMoveOrCopyEditorAcrossGroups(editor: EditorInput, target: EditorGroupView, openOptions?: IEditorOpenOptions, internalOptions?: IInternalMoveCopyOptions): void {
-		const keepCopy = internalOptions?.keepCopy;
+	pwivate doMoveOwCopyEditowAcwossGwoups(editow: EditowInput, tawget: EditowGwoupView, openOptions?: IEditowOpenOptions, intewnawOptions?: IIntewnawMoveCopyOptions): void {
+		const keepCopy = intewnawOptions?.keepCopy;
 
-		// When moving/copying an editor, try to preserve as much view state as possible
-		// by checking for the editor to be a text editor and creating the options accordingly
+		// When moving/copying an editow, twy to pwesewve as much view state as possibwe
+		// by checking fow the editow to be a text editow and cweating the options accowdingwy
 		// if so
-		const options = fillActiveEditorViewState(this, editor, {
+		const options = fiwwActiveEditowViewState(this, editow, {
 			...openOptions,
-			pinned: true, 										// always pin moved editor
-			sticky: !keepCopy && this.model.isSticky(editor)	// preserve sticky state only if editor is moved (https://github.com/microsoft/vscode/issues/99035)
+			pinned: twue, 										// awways pin moved editow
+			sticky: !keepCopy && this.modew.isSticky(editow)	// pwesewve sticky state onwy if editow is moved (https://github.com/micwosoft/vscode/issues/99035)
 		});
 
-		// Indicate will move event
+		// Indicate wiww move event
 		if (!keepCopy) {
-			this._onWillMoveEditor.fire({
-				groupId: this.id,
-				editor,
-				target: target.id
+			this._onWiwwMoveEditow.fiwe({
+				gwoupId: this.id,
+				editow,
+				tawget: tawget.id
 			});
 		}
 
-		// A move to another group is an open first...
-		target.doOpenEditor(keepCopy ? (editor.copy() as EditorInput) : editor, options, internalOptions);
+		// A move to anotha gwoup is an open fiwst...
+		tawget.doOpenEditow(keepCopy ? (editow.copy() as EditowInput) : editow, options, intewnawOptions);
 
-		// ...and a close afterwards (unless we copy)
+		// ...and a cwose aftewwawds (unwess we copy)
 		if (!keepCopy) {
-			this.doCloseEditor(editor, false /* do not focus next one behind if any */, { ...internalOptions, fromMove: true });
+			this.doCwoseEditow(editow, fawse /* do not focus next one behind if any */, { ...intewnawOptions, fwomMove: twue });
 		}
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region copyEditor()
+	//#wegion copyEditow()
 
-	copyEditors(editors: { editor: EditorInput, options?: IEditorOptions }[], target: EditorGroupView): void {
+	copyEditows(editows: { editow: EditowInput, options?: IEditowOptions }[], tawget: EditowGwoupView): void {
 
-		// Optimization: knowing that we move many editors, we
-		// delay the title update to a later point for this group
-		// through a method that allows for bulk updates but only
-		// when moving to a different group where many editors
-		// are more likely to occur.
-		const internalOptions: IInternalMoveCopyOptions = {
-			skipTitleUpdate: this !== target
+		// Optimization: knowing that we move many editows, we
+		// deway the titwe update to a wata point fow this gwoup
+		// thwough a method that awwows fow buwk updates but onwy
+		// when moving to a diffewent gwoup whewe many editows
+		// awe mowe wikewy to occuw.
+		const intewnawOptions: IIntewnawMoveCopyOptions = {
+			skipTitweUpdate: this !== tawget
 		};
 
-		for (const { editor, options } of editors) {
-			this.copyEditor(editor, target, options, internalOptions);
+		fow (const { editow, options } of editows) {
+			this.copyEditow(editow, tawget, options, intewnawOptions);
 		}
 
-		// Update the title control all at once with all editors
-		// in target if the title update was skipped
-		if (internalOptions.skipTitleUpdate) {
-			const copiedEditors = editors.map(({ editor }) => editor);
-			target.titleAreaControl.openEditors(copiedEditors);
-		}
-	}
-
-	copyEditor(editor: EditorInput, target: EditorGroupView, options?: IEditorOptions, internalOptions?: IInternalEditorTitleControlOptions): void {
-
-		// Move within same group because we do not support to show the same editor
-		// multiple times in the same group
-		if (this === target) {
-			this.doMoveEditorInsideGroup(editor, options);
-		}
-
-		// Copy across groups
-		else {
-			this.doMoveOrCopyEditorAcrossGroups(editor, target, options, { ...internalOptions, keepCopy: true });
+		// Update the titwe contwow aww at once with aww editows
+		// in tawget if the titwe update was skipped
+		if (intewnawOptions.skipTitweUpdate) {
+			const copiedEditows = editows.map(({ editow }) => editow);
+			tawget.titweAweaContwow.openEditows(copiedEditows);
 		}
 	}
 
-	//#endregion
+	copyEditow(editow: EditowInput, tawget: EditowGwoupView, options?: IEditowOptions, intewnawOptions?: IIntewnawEditowTitweContwowOptions): void {
 
-	//#region closeEditor()
-
-	async closeEditor(editor: EditorInput | undefined = this.activeEditor || undefined, options?: ICloseEditorOptions): Promise<void> {
-		await this.doCloseEditorWithDirtyHandling(editor, options);
-	}
-
-	private async doCloseEditorWithDirtyHandling(editor: EditorInput | undefined = this.activeEditor || undefined, options?: ICloseEditorOptions): Promise<boolean> {
-		if (!editor) {
-			return false;
+		// Move within same gwoup because we do not suppowt to show the same editow
+		// muwtipwe times in the same gwoup
+		if (this === tawget) {
+			this.doMoveEditowInsideGwoup(editow, options);
 		}
 
-		// Check for dirty and veto
-		const veto = await this.handleDirtyClosing([editor]);
+		// Copy acwoss gwoups
+		ewse {
+			this.doMoveOwCopyEditowAcwossGwoups(editow, tawget, options, { ...intewnawOptions, keepCopy: twue });
+		}
+	}
+
+	//#endwegion
+
+	//#wegion cwoseEditow()
+
+	async cwoseEditow(editow: EditowInput | undefined = this.activeEditow || undefined, options?: ICwoseEditowOptions): Pwomise<void> {
+		await this.doCwoseEditowWithDiwtyHandwing(editow, options);
+	}
+
+	pwivate async doCwoseEditowWithDiwtyHandwing(editow: EditowInput | undefined = this.activeEditow || undefined, options?: ICwoseEditowOptions): Pwomise<boowean> {
+		if (!editow) {
+			wetuwn fawse;
+		}
+
+		// Check fow diwty and veto
+		const veto = await this.handweDiwtyCwosing([editow]);
 		if (veto) {
-			return false;
+			wetuwn fawse;
 		}
 
-		// Do close
-		this.doCloseEditor(editor, options?.preserveFocus ? false : undefined);
+		// Do cwose
+		this.doCwoseEditow(editow, options?.pwesewveFocus ? fawse : undefined);
 
-		return true;
+		wetuwn twue;
 	}
 
-	private doCloseEditor(editor: EditorInput, focusNext = (this.accessor.activeGroup === this), internalOptions?: IInternalEditorCloseOptions): void {
-		let index: number | undefined;
+	pwivate doCwoseEditow(editow: EditowInput, focusNext = (this.accessow.activeGwoup === this), intewnawOptions?: IIntewnawEditowCwoseOptions): void {
+		wet index: numba | undefined;
 
-		// Closing the active editor of the group is a bit more work
-		if (this.model.isActive(editor)) {
-			index = this.doCloseActiveEditor(focusNext, internalOptions);
+		// Cwosing the active editow of the gwoup is a bit mowe wowk
+		if (this.modew.isActive(editow)) {
+			index = this.doCwoseActiveEditow(focusNext, intewnawOptions);
 		}
 
-		// Closing inactive editor is just a model update
-		else {
-			index = this.doCloseInactiveEditor(editor, internalOptions);
+		// Cwosing inactive editow is just a modew update
+		ewse {
+			index = this.doCwoseInactiveEditow(editow, intewnawOptions);
 		}
 
-		// Forward to title control unless skipped via internal options
-		if (!internalOptions?.skipTitleUpdate) {
-			this.titleAreaControl.closeEditor(editor, index);
+		// Fowwawd to titwe contwow unwess skipped via intewnaw options
+		if (!intewnawOptions?.skipTitweUpdate) {
+			this.titweAweaContwow.cwoseEditow(editow, index);
 		}
 	}
 
-	private doCloseActiveEditor(focusNext = (this.accessor.activeGroup === this), internalOptions?: IInternalEditorCloseOptions): number | undefined {
-		const editorToClose = this.activeEditor;
-		const restoreFocus = this.shouldRestoreFocus(this.element);
+	pwivate doCwoseActiveEditow(focusNext = (this.accessow.activeGwoup === this), intewnawOptions?: IIntewnawEditowCwoseOptions): numba | undefined {
+		const editowToCwose = this.activeEditow;
+		const westoweFocus = this.shouwdWestoweFocus(this.ewement);
 
-		// Optimization: if we are about to close the last editor in this group and settings
-		// are configured to close the group since it will be empty, we first set the last
-		// active group as empty before closing the editor. This reduces the amount of editor
-		// change events that this operation emits and will reduce flicker. Without this
-		// optimization, this group (if active) would first trigger a active editor change
-		// event because it became empty, only to then trigger another one when the next
-		// group gets active.
-		const closeEmptyGroup = this.accessor.partOptions.closeEmptyGroups;
-		if (closeEmptyGroup && this.active && this.count === 1) {
-			const mostRecentlyActiveGroups = this.accessor.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
-			const nextActiveGroup = mostRecentlyActiveGroups[1]; // [0] will be the current one, so take [1]
-			if (nextActiveGroup) {
-				if (restoreFocus) {
-					nextActiveGroup.focus();
-				} else {
-					this.accessor.activateGroup(nextActiveGroup);
+		// Optimization: if we awe about to cwose the wast editow in this gwoup and settings
+		// awe configuwed to cwose the gwoup since it wiww be empty, we fiwst set the wast
+		// active gwoup as empty befowe cwosing the editow. This weduces the amount of editow
+		// change events that this opewation emits and wiww weduce fwicka. Without this
+		// optimization, this gwoup (if active) wouwd fiwst twigga a active editow change
+		// event because it became empty, onwy to then twigga anotha one when the next
+		// gwoup gets active.
+		const cwoseEmptyGwoup = this.accessow.pawtOptions.cwoseEmptyGwoups;
+		if (cwoseEmptyGwoup && this.active && this.count === 1) {
+			const mostWecentwyActiveGwoups = this.accessow.getGwoups(GwoupsOwda.MOST_WECENTWY_ACTIVE);
+			const nextActiveGwoup = mostWecentwyActiveGwoups[1]; // [0] wiww be the cuwwent one, so take [1]
+			if (nextActiveGwoup) {
+				if (westoweFocus) {
+					nextActiveGwoup.focus();
+				} ewse {
+					this.accessow.activateGwoup(nextActiveGwoup);
 				}
 			}
 		}
 
-		// Update model
-		let index: number | undefined = undefined;
-		if (editorToClose) {
-			index = this.model.closeEditor(editorToClose, internalOptions?.fromMove ? EditorCloseContext.MOVE : undefined)?.index;
+		// Update modew
+		wet index: numba | undefined = undefined;
+		if (editowToCwose) {
+			index = this.modew.cwoseEditow(editowToCwose, intewnawOptions?.fwomMove ? EditowCwoseContext.MOVE : undefined)?.index;
 		}
 
-		// Open next active if there are more to show
-		const nextActiveEditor = this.model.activeEditor;
-		if (nextActiveEditor) {
-			const preserveFocus = !focusNext;
+		// Open next active if thewe awe mowe to show
+		const nextActiveEditow = this.modew.activeEditow;
+		if (nextActiveEditow) {
+			const pwesewveFocus = !focusNext;
 
-			let activation: EditorActivation | undefined = undefined;
-			if (preserveFocus && this.accessor.activeGroup !== this) {
-				// If we are opening the next editor in an inactive group
-				// without focussing it, ensure we preserve the editor
-				// group sizes in case that group is minimized.
-				// https://github.com/microsoft/vscode/issues/117686
-				activation = EditorActivation.PRESERVE;
+			wet activation: EditowActivation | undefined = undefined;
+			if (pwesewveFocus && this.accessow.activeGwoup !== this) {
+				// If we awe opening the next editow in an inactive gwoup
+				// without focussing it, ensuwe we pwesewve the editow
+				// gwoup sizes in case that gwoup is minimized.
+				// https://github.com/micwosoft/vscode/issues/117686
+				activation = EditowActivation.PWESEWVE;
 			}
 
-			const options: IEditorOptions = {
-				preserveFocus,
+			const options: IEditowOptions = {
+				pwesewveFocus,
 				activation,
-				// When closing an editor due to an error we can end up in a loop where we continue closing
-				// editors that fail to open (e.g. when the file no longer exists). We do not want to show
-				// repeated errors in this case to the user. As such, if we open the next editor and we are
-				// in a scope of a previous editor failing, we silence the input errors until the editor is
-				// opened by setting ignoreError: true.
-				ignoreError: internalOptions?.fromError
+				// When cwosing an editow due to an ewwow we can end up in a woop whewe we continue cwosing
+				// editows that faiw to open (e.g. when the fiwe no wonga exists). We do not want to show
+				// wepeated ewwows in this case to the usa. As such, if we open the next editow and we awe
+				// in a scope of a pwevious editow faiwing, we siwence the input ewwows untiw the editow is
+				// opened by setting ignoweEwwow: twue.
+				ignoweEwwow: intewnawOptions?.fwomEwwow
 			};
 
-			this.doOpenEditor(nextActiveEditor, options);
+			this.doOpenEditow(nextActiveEditow, options);
 		}
 
-		// Otherwise we are empty, so clear from editor control and send event
-		else {
+		// Othewwise we awe empty, so cweaw fwom editow contwow and send event
+		ewse {
 
-			// Forward to editor pane
-			if (editorToClose) {
-				this.editorPane.closeEditor(editorToClose);
+			// Fowwawd to editow pane
+			if (editowToCwose) {
+				this.editowPane.cwoseEditow(editowToCwose);
 			}
 
-			// Restore focus to group container as needed unless group gets closed
-			if (restoreFocus && !closeEmptyGroup) {
+			// Westowe focus to gwoup containa as needed unwess gwoup gets cwosed
+			if (westoweFocus && !cwoseEmptyGwoup) {
 				this.focus();
 			}
 
 			// Events
-			this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_ACTIVE });
+			this._onDidGwoupChange.fiwe({ kind: GwoupChangeKind.EDITOW_ACTIVE });
 
-			// Remove empty group if we should
-			if (closeEmptyGroup) {
-				this.accessor.removeGroup(this);
+			// Wemove empty gwoup if we shouwd
+			if (cwoseEmptyGwoup) {
+				this.accessow.wemoveGwoup(this);
 			}
 		}
 
-		return index;
+		wetuwn index;
 	}
 
-	private shouldRestoreFocus(target: Element): boolean {
-		const activeElement = document.activeElement;
+	pwivate shouwdWestoweFocus(tawget: Ewement): boowean {
+		const activeEwement = document.activeEwement;
 
-		if (activeElement === document.body) {
-			return true; // always restore focus if nothing is focused currently
+		if (activeEwement === document.body) {
+			wetuwn twue; // awways westowe focus if nothing is focused cuwwentwy
 		}
 
-		// otherwise check for the active element being an ancestor of the target
-		return isAncestor(activeElement, target);
+		// othewwise check fow the active ewement being an ancestow of the tawget
+		wetuwn isAncestow(activeEwement, tawget);
 	}
 
-	private doCloseInactiveEditor(editor: EditorInput, internalOptions?: IInternalEditorCloseOptions): number | undefined {
+	pwivate doCwoseInactiveEditow(editow: EditowInput, intewnawOptions?: IIntewnawEditowCwoseOptions): numba | undefined {
 
-		// Update model
-		return this.model.closeEditor(editor, internalOptions?.fromMove ? EditorCloseContext.MOVE : undefined)?.index;
+		// Update modew
+		wetuwn this.modew.cwoseEditow(editow, intewnawOptions?.fwomMove ? EditowCwoseContext.MOVE : undefined)?.index;
 	}
 
-	private async handleDirtyClosing(editors: EditorInput[]): Promise<boolean /* veto */> {
-		if (!editors.length) {
-			return false; // no veto
+	pwivate async handweDiwtyCwosing(editows: EditowInput[]): Pwomise<boowean /* veto */> {
+		if (!editows.wength) {
+			wetuwn fawse; // no veto
 		}
 
-		const editor = editors.shift()!;
+		const editow = editows.shift()!;
 
-		// To prevent multiple confirmation dialogs from showing up one after the other
-		// we check if a pending confirmation is currently showing and if so, join that
-		let handleDirtyClosingPromise = this.mapEditorToPendingConfirmation.get(editor);
-		if (!handleDirtyClosingPromise) {
-			handleDirtyClosingPromise = this.doHandleDirtyClosing(editor);
-			this.mapEditorToPendingConfirmation.set(editor, handleDirtyClosingPromise);
+		// To pwevent muwtipwe confiwmation diawogs fwom showing up one afta the otha
+		// we check if a pending confiwmation is cuwwentwy showing and if so, join that
+		wet handweDiwtyCwosingPwomise = this.mapEditowToPendingConfiwmation.get(editow);
+		if (!handweDiwtyCwosingPwomise) {
+			handweDiwtyCwosingPwomise = this.doHandweDiwtyCwosing(editow);
+			this.mapEditowToPendingConfiwmation.set(editow, handweDiwtyCwosingPwomise);
 		}
 
-		let veto: boolean;
-		try {
-			veto = await handleDirtyClosingPromise;
-		} finally {
-			this.mapEditorToPendingConfirmation.delete(editor);
+		wet veto: boowean;
+		twy {
+			veto = await handweDiwtyCwosingPwomise;
+		} finawwy {
+			this.mapEditowToPendingConfiwmation.dewete(editow);
 		}
 
-		// Return for the first veto we got
+		// Wetuwn fow the fiwst veto we got
 		if (veto) {
-			return veto;
+			wetuwn veto;
 		}
 
-		// Otherwise continue with the remainders
-		return this.handleDirtyClosing(editors);
+		// Othewwise continue with the wemaindews
+		wetuwn this.handweDiwtyCwosing(editows);
 	}
 
-	private async doHandleDirtyClosing(editor: EditorInput, options?: { skipAutoSave: boolean }): Promise<boolean /* veto */> {
-		if (!editor.isDirty() || editor.isSaving()) {
-			return false; // editor must be dirty and not saving
+	pwivate async doHandweDiwtyCwosing(editow: EditowInput, options?: { skipAutoSave: boowean }): Pwomise<boowean /* veto */> {
+		if (!editow.isDiwty() || editow.isSaving()) {
+			wetuwn fawse; // editow must be diwty and not saving
 		}
 
-		if (editor instanceof SideBySideEditorInput && this.model.contains(editor.primary)) {
-			return false; // primary-side of editor is still opened somewhere else
+		if (editow instanceof SideBySideEditowInput && this.modew.contains(editow.pwimawy)) {
+			wetuwn fawse; // pwimawy-side of editow is stiww opened somewhewe ewse
 		}
 
-		// Note: we explicitly decide to ask for confirm if closing a normal editor even
-		// if it is opened in a side-by-side editor in the group. This decision is made
-		// because it may be less obvious that one side of a side by side editor is dirty
-		// and can still be changed.
+		// Note: we expwicitwy decide to ask fow confiwm if cwosing a nowmaw editow even
+		// if it is opened in a side-by-side editow in the gwoup. This decision is made
+		// because it may be wess obvious that one side of a side by side editow is diwty
+		// and can stiww be changed.
 
-		if (this.accessor.groups.some(groupView => {
-			if (groupView === this) {
-				return false; // skip this group to avoid false assumptions about the editor being opened still
+		if (this.accessow.gwoups.some(gwoupView => {
+			if (gwoupView === this) {
+				wetuwn fawse; // skip this gwoup to avoid fawse assumptions about the editow being opened stiww
 			}
 
-			const otherGroup = groupView;
-			if (otherGroup.contains(editor)) {
-				return true; // exact editor still opened
+			const othewGwoup = gwoupView;
+			if (othewGwoup.contains(editow)) {
+				wetuwn twue; // exact editow stiww opened
 			}
 
-			if (editor instanceof SideBySideEditorInput && otherGroup.contains(editor.primary)) {
-				return true; // primary side of side by side editor still opened
+			if (editow instanceof SideBySideEditowInput && othewGwoup.contains(editow.pwimawy)) {
+				wetuwn twue; // pwimawy side of side by side editow stiww opened
 			}
 
-			return false;
+			wetuwn fawse;
 		})) {
-			return false; // editor is still editable somewhere else
+			wetuwn fawse; // editow is stiww editabwe somewhewe ewse
 		}
 
-		// Auto-save on focus change: assume to Save unless the editor is untitled
-		// because bringing up a dialog would save in this case anyway.
-		// However, make sure to respect `skipAutoSave` option in case the automated
-		// save fails which would result in the editor never closing
-		// (see https://github.com/microsoft/vscode/issues/108752)
-		let confirmation: ConfirmResult;
-		let saveReason = SaveReason.EXPLICIT;
-		let autoSave = false;
-		if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.ON_FOCUS_CHANGE && !editor.hasCapability(EditorInputCapabilities.Untitled) && !options?.skipAutoSave) {
-			autoSave = true;
-			confirmation = ConfirmResult.SAVE;
-			saveReason = SaveReason.FOCUS_CHANGE;
+		// Auto-save on focus change: assume to Save unwess the editow is untitwed
+		// because bwinging up a diawog wouwd save in this case anyway.
+		// Howeva, make suwe to wespect `skipAutoSave` option in case the automated
+		// save faiws which wouwd wesuwt in the editow neva cwosing
+		// (see https://github.com/micwosoft/vscode/issues/108752)
+		wet confiwmation: ConfiwmWesuwt;
+		wet saveWeason = SaveWeason.EXPWICIT;
+		wet autoSave = fawse;
+		if (this.fiwesConfiguwationSewvice.getAutoSaveMode() === AutoSaveMode.ON_FOCUS_CHANGE && !editow.hasCapabiwity(EditowInputCapabiwities.Untitwed) && !options?.skipAutoSave) {
+			autoSave = twue;
+			confiwmation = ConfiwmWesuwt.SAVE;
+			saveWeason = SaveWeason.FOCUS_CHANGE;
 		}
 
-		// No auto-save on focus change: ask user
-		else {
+		// No auto-save on focus change: ask usa
+		ewse {
 
-			// Switch to editor that we want to handle and confirm to save/revert
-			await this.doOpenEditor(editor);
+			// Switch to editow that we want to handwe and confiwm to save/wevewt
+			await this.doOpenEditow(editow);
 
-			// Let editor handle confirmation if implemented
-			if (typeof editor.confirm === 'function') {
-				confirmation = await editor.confirm();
+			// Wet editow handwe confiwmation if impwemented
+			if (typeof editow.confiwm === 'function') {
+				confiwmation = await editow.confiwm();
 			}
 
-			// Show a file specific confirmation
-			else {
-				let name: string;
-				if (editor instanceof SideBySideEditorInput) {
-					name = editor.primary.getName(); // prefer shorter names by using primary's name in this case
-				} else {
-					name = editor.getName();
+			// Show a fiwe specific confiwmation
+			ewse {
+				wet name: stwing;
+				if (editow instanceof SideBySideEditowInput) {
+					name = editow.pwimawy.getName(); // pwefa showta names by using pwimawy's name in this case
+				} ewse {
+					name = editow.getName();
 				}
 
-				confirmation = await this.fileDialogService.showSaveConfirm([name]);
+				confiwmation = await this.fiweDiawogSewvice.showSaveConfiwm([name]);
 			}
 		}
 
-		// It could be that the editor saved meanwhile or is saving, so we check
-		// again to see if anything needs to happen before closing for good.
-		// This can happen for example if autoSave: onFocusChange is configured
-		// so that the save happens when the dialog opens.
-		if (!editor.isDirty() || editor.isSaving()) {
-			return confirmation === ConfirmResult.CANCEL ? true : false;
+		// It couwd be that the editow saved meanwhiwe ow is saving, so we check
+		// again to see if anything needs to happen befowe cwosing fow good.
+		// This can happen fow exampwe if autoSave: onFocusChange is configuwed
+		// so that the save happens when the diawog opens.
+		if (!editow.isDiwty() || editow.isSaving()) {
+			wetuwn confiwmation === ConfiwmWesuwt.CANCEW ? twue : fawse;
 		}
 
-		// Otherwise, handle accordingly
-		switch (confirmation) {
-			case ConfirmResult.SAVE:
-				const result = await editor.save(this.id, { reason: saveReason });
-				if (!result && autoSave) {
-					// Save failed and we need to signal this back to the user, so
-					// we handle the dirty editor again but this time ensuring to
-					// show the confirm dialog
-					// (see https://github.com/microsoft/vscode/issues/108752)
-					return this.doHandleDirtyClosing(editor, { skipAutoSave: true });
+		// Othewwise, handwe accowdingwy
+		switch (confiwmation) {
+			case ConfiwmWesuwt.SAVE:
+				const wesuwt = await editow.save(this.id, { weason: saveWeason });
+				if (!wesuwt && autoSave) {
+					// Save faiwed and we need to signaw this back to the usa, so
+					// we handwe the diwty editow again but this time ensuwing to
+					// show the confiwm diawog
+					// (see https://github.com/micwosoft/vscode/issues/108752)
+					wetuwn this.doHandweDiwtyCwosing(editow, { skipAutoSave: twue });
 				}
 
-				return editor.isDirty(); // veto if still dirty
-			case ConfirmResult.DONT_SAVE:
-				try {
+				wetuwn editow.isDiwty(); // veto if stiww diwty
+			case ConfiwmWesuwt.DONT_SAVE:
+				twy {
 
-					// first try a normal revert where the contents of the editor are restored
-					await editor.revert(this.id);
+					// fiwst twy a nowmaw wevewt whewe the contents of the editow awe westowed
+					await editow.wevewt(this.id);
 
-					return editor.isDirty(); // veto if still dirty
-				} catch (error) {
-					// if that fails, since we are about to close the editor, we accept that
-					// the editor cannot be reverted and instead do a soft revert that just
-					// enables us to close the editor. With this, a user can always close a
-					// dirty editor even when reverting fails.
-					await editor.revert(this.id, { soft: true });
+					wetuwn editow.isDiwty(); // veto if stiww diwty
+				} catch (ewwow) {
+					// if that faiws, since we awe about to cwose the editow, we accept that
+					// the editow cannot be wevewted and instead do a soft wevewt that just
+					// enabwes us to cwose the editow. With this, a usa can awways cwose a
+					// diwty editow even when wevewting faiws.
+					await editow.wevewt(this.id, { soft: twue });
 
-					return editor.isDirty(); // veto if still dirty
+					wetuwn editow.isDiwty(); // veto if stiww diwty
 				}
-			case ConfirmResult.CANCEL:
-				return true; // veto
+			case ConfiwmWesuwt.CANCEW:
+				wetuwn twue; // veto
 		}
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region closeEditors()
+	//#wegion cwoseEditows()
 
-	async closeEditors(args: EditorInput[] | ICloseEditorsFilter, options?: ICloseEditorOptions): Promise<void> {
+	async cwoseEditows(awgs: EditowInput[] | ICwoseEditowsFiwta, options?: ICwoseEditowOptions): Pwomise<void> {
 		if (this.isEmpty) {
-			return;
+			wetuwn;
 		}
 
-		const editors = this.doGetEditorsToClose(args);
+		const editows = this.doGetEditowsToCwose(awgs);
 
-		// Check for dirty and veto
-		const veto = await this.handleDirtyClosing(editors.slice(0));
+		// Check fow diwty and veto
+		const veto = await this.handweDiwtyCwosing(editows.swice(0));
 		if (veto) {
-			return;
+			wetuwn;
 		}
 
-		// Do close
-		this.doCloseEditors(editors, options);
+		// Do cwose
+		this.doCwoseEditows(editows, options);
 	}
 
-	private doGetEditorsToClose(args: EditorInput[] | ICloseEditorsFilter): EditorInput[] {
-		if (Array.isArray(args)) {
-			return args;
+	pwivate doGetEditowsToCwose(awgs: EditowInput[] | ICwoseEditowsFiwta): EditowInput[] {
+		if (Awway.isAwway(awgs)) {
+			wetuwn awgs;
 		}
 
-		const filter = args;
-		const hasDirection = typeof filter.direction === 'number';
+		const fiwta = awgs;
+		const hasDiwection = typeof fiwta.diwection === 'numba';
 
-		let editorsToClose = this.model.getEditors(hasDirection ? EditorsOrder.SEQUENTIAL : EditorsOrder.MOST_RECENTLY_ACTIVE, filter); // in MRU order only if direction is not specified
+		wet editowsToCwose = this.modew.getEditows(hasDiwection ? EditowsOwda.SEQUENTIAW : EditowsOwda.MOST_WECENTWY_ACTIVE, fiwta); // in MWU owda onwy if diwection is not specified
 
-		// Filter: saved or saving only
-		if (filter.savedOnly) {
-			editorsToClose = editorsToClose.filter(editor => !editor.isDirty() || editor.isSaving());
+		// Fiwta: saved ow saving onwy
+		if (fiwta.savedOnwy) {
+			editowsToCwose = editowsToCwose.fiwta(editow => !editow.isDiwty() || editow.isSaving());
 		}
 
-		// Filter: direction (left / right)
-		else if (hasDirection && filter.except) {
-			editorsToClose = (filter.direction === CloseDirection.LEFT) ?
-				editorsToClose.slice(0, this.model.indexOf(filter.except, editorsToClose)) :
-				editorsToClose.slice(this.model.indexOf(filter.except, editorsToClose) + 1);
+		// Fiwta: diwection (weft / wight)
+		ewse if (hasDiwection && fiwta.except) {
+			editowsToCwose = (fiwta.diwection === CwoseDiwection.WEFT) ?
+				editowsToCwose.swice(0, this.modew.indexOf(fiwta.except, editowsToCwose)) :
+				editowsToCwose.swice(this.modew.indexOf(fiwta.except, editowsToCwose) + 1);
 		}
 
-		// Filter: except
-		else if (filter.except) {
-			editorsToClose = editorsToClose.filter(editor => filter.except && !editor.matches(filter.except));
+		// Fiwta: except
+		ewse if (fiwta.except) {
+			editowsToCwose = editowsToCwose.fiwta(editow => fiwta.except && !editow.matches(fiwta.except));
 		}
 
-		return editorsToClose;
+		wetuwn editowsToCwose;
 	}
 
-	private doCloseEditors(editors: EditorInput[], options?: ICloseEditorOptions): void {
+	pwivate doCwoseEditows(editows: EditowInput[], options?: ICwoseEditowOptions): void {
 
-		// Close all inactive editors first
-		let closeActiveEditor = false;
-		for (const editor of editors) {
-			if (!this.isActive(editor)) {
-				this.doCloseInactiveEditor(editor);
-			} else {
-				closeActiveEditor = true;
+		// Cwose aww inactive editows fiwst
+		wet cwoseActiveEditow = fawse;
+		fow (const editow of editows) {
+			if (!this.isActive(editow)) {
+				this.doCwoseInactiveEditow(editow);
+			} ewse {
+				cwoseActiveEditow = twue;
 			}
 		}
 
-		// Close active editor last if contained in editors list to close
-		if (closeActiveEditor) {
-			this.doCloseActiveEditor(options?.preserveFocus ? false : undefined);
+		// Cwose active editow wast if contained in editows wist to cwose
+		if (cwoseActiveEditow) {
+			this.doCwoseActiveEditow(options?.pwesewveFocus ? fawse : undefined);
 		}
 
-		// Forward to title control
-		if (editors.length) {
-			this.titleAreaControl.closeEditors(editors);
+		// Fowwawd to titwe contwow
+		if (editows.wength) {
+			this.titweAweaContwow.cwoseEditows(editows);
 		}
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region closeAllEditors()
+	//#wegion cwoseAwwEditows()
 
-	async closeAllEditors(options?: ICloseAllEditorsOptions): Promise<void> {
+	async cwoseAwwEditows(options?: ICwoseAwwEditowsOptions): Pwomise<void> {
 		if (this.isEmpty) {
 
-			// If the group is empty and the request is to close all editors, we still close
-			// the editor group is the related setting to close empty groups is enabled for
-			// a convenient way of removing empty editor groups for the user.
-			if (this.accessor.partOptions.closeEmptyGroups) {
-				this.accessor.removeGroup(this);
+			// If the gwoup is empty and the wequest is to cwose aww editows, we stiww cwose
+			// the editow gwoup is the wewated setting to cwose empty gwoups is enabwed fow
+			// a convenient way of wemoving empty editow gwoups fow the usa.
+			if (this.accessow.pawtOptions.cwoseEmptyGwoups) {
+				this.accessow.wemoveGwoup(this);
 			}
 
-			return;
+			wetuwn;
 		}
 
-		// Check for dirty and veto
-		const veto = await this.handleDirtyClosing(this.model.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE, options));
+		// Check fow diwty and veto
+		const veto = await this.handweDiwtyCwosing(this.modew.getEditows(EditowsOwda.MOST_WECENTWY_ACTIVE, options));
 		if (veto) {
-			return;
+			wetuwn;
 		}
 
-		// Do close
-		this.doCloseAllEditors(options);
+		// Do cwose
+		this.doCwoseAwwEditows(options);
 	}
 
-	private doCloseAllEditors(options?: ICloseAllEditorsOptions): void {
+	pwivate doCwoseAwwEditows(options?: ICwoseAwwEditowsOptions): void {
 
-		// Close all inactive editors first
-		const editorsToClose: EditorInput[] = [];
-		for (const editor of this.model.getEditors(EditorsOrder.SEQUENTIAL, options)) {
-			if (!this.isActive(editor)) {
-				this.doCloseInactiveEditor(editor);
+		// Cwose aww inactive editows fiwst
+		const editowsToCwose: EditowInput[] = [];
+		fow (const editow of this.modew.getEditows(EditowsOwda.SEQUENTIAW, options)) {
+			if (!this.isActive(editow)) {
+				this.doCwoseInactiveEditow(editow);
 			}
 
-			editorsToClose.push(editor);
+			editowsToCwose.push(editow);
 		}
 
-		// Close active editor last (unless we skip it, e.g. because it is sticky)
-		if (this.activeEditor && editorsToClose.includes(this.activeEditor)) {
-			this.doCloseActiveEditor();
+		// Cwose active editow wast (unwess we skip it, e.g. because it is sticky)
+		if (this.activeEditow && editowsToCwose.incwudes(this.activeEditow)) {
+			this.doCwoseActiveEditow();
 		}
 
-		// Forward to title control
-		if (editorsToClose.length) {
-			this.titleAreaControl.closeEditors(editorsToClose);
+		// Fowwawd to titwe contwow
+		if (editowsToCwose.wength) {
+			this.titweAweaContwow.cwoseEditows(editowsToCwose);
 		}
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region replaceEditors()
+	//#wegion wepwaceEditows()
 
-	async replaceEditors(editors: EditorReplacement[]): Promise<void> {
+	async wepwaceEditows(editows: EditowWepwacement[]): Pwomise<void> {
 
-		// Extract active vs. inactive replacements
-		let activeReplacement: EditorReplacement | undefined;
-		const inactiveReplacements: EditorReplacement[] = [];
-		for (let { editor, replacement, forceReplaceDirty, options } of editors) {
-			const index = this.getIndexOfEditor(editor);
+		// Extwact active vs. inactive wepwacements
+		wet activeWepwacement: EditowWepwacement | undefined;
+		const inactiveWepwacements: EditowWepwacement[] = [];
+		fow (wet { editow, wepwacement, fowceWepwaceDiwty, options } of editows) {
+			const index = this.getIndexOfEditow(editow);
 			if (index >= 0) {
-				const isActiveEditor = this.isActive(editor);
+				const isActiveEditow = this.isActive(editow);
 
-				// make sure we respect the index of the editor to replace
+				// make suwe we wespect the index of the editow to wepwace
 				if (options) {
 					options.index = index;
-				} else {
+				} ewse {
 					options = { index };
 				}
 
-				options.inactive = !isActiveEditor;
-				options.pinned = options.pinned ?? true; // unless specified, prefer to pin upon replace
+				options.inactive = !isActiveEditow;
+				options.pinned = options.pinned ?? twue; // unwess specified, pwefa to pin upon wepwace
 
-				const editorToReplace = { editor, replacement, forceReplaceDirty, options };
-				if (isActiveEditor) {
-					activeReplacement = editorToReplace;
-				} else {
-					inactiveReplacements.push(editorToReplace);
+				const editowToWepwace = { editow, wepwacement, fowceWepwaceDiwty, options };
+				if (isActiveEditow) {
+					activeWepwacement = editowToWepwace;
+				} ewse {
+					inactiveWepwacements.push(editowToWepwace);
 				}
 			}
 		}
 
-		// Handle inactive first
-		for (const { editor, replacement, forceReplaceDirty, options } of inactiveReplacements) {
+		// Handwe inactive fiwst
+		fow (const { editow, wepwacement, fowceWepwaceDiwty, options } of inactiveWepwacements) {
 
-			// Open inactive editor
-			await this.doOpenEditor(replacement, options);
+			// Open inactive editow
+			await this.doOpenEditow(wepwacement, options);
 
-			// Close replaced inactive editor unless they match
-			if (!editor.matches(replacement)) {
-				let closed = false;
-				if (forceReplaceDirty) {
-					this.doCloseEditor(editor, false);
-					closed = true;
-				} else {
-					closed = await this.doCloseEditorWithDirtyHandling(editor, { preserveFocus: true });
+			// Cwose wepwaced inactive editow unwess they match
+			if (!editow.matches(wepwacement)) {
+				wet cwosed = fawse;
+				if (fowceWepwaceDiwty) {
+					this.doCwoseEditow(editow, fawse);
+					cwosed = twue;
+				} ewse {
+					cwosed = await this.doCwoseEditowWithDiwtyHandwing(editow, { pwesewveFocus: twue });
 				}
-				if (!closed) {
-					return; // canceled
-				}
-			}
-		}
-
-		// Handle active last
-		if (activeReplacement) {
-
-			// Open replacement as active editor
-			const openEditorResult = this.doOpenEditor(activeReplacement.replacement, activeReplacement.options);
-
-			// Close replaced active editor unless they match
-			if (!activeReplacement.editor.matches(activeReplacement.replacement)) {
-				if (activeReplacement.forceReplaceDirty) {
-					this.doCloseEditor(activeReplacement.editor, false);
-				} else {
-					await this.doCloseEditorWithDirtyHandling(activeReplacement.editor, { preserveFocus: true });
+				if (!cwosed) {
+					wetuwn; // cancewed
 				}
 			}
+		}
 
-			await openEditorResult;
+		// Handwe active wast
+		if (activeWepwacement) {
+
+			// Open wepwacement as active editow
+			const openEditowWesuwt = this.doOpenEditow(activeWepwacement.wepwacement, activeWepwacement.options);
+
+			// Cwose wepwaced active editow unwess they match
+			if (!activeWepwacement.editow.matches(activeWepwacement.wepwacement)) {
+				if (activeWepwacement.fowceWepwaceDiwty) {
+					this.doCwoseEditow(activeWepwacement.editow, fawse);
+				} ewse {
+					await this.doCwoseEditowWithDiwtyHandwing(activeWepwacement.editow, { pwesewveFocus: twue });
+				}
+			}
+
+			await openEditowWesuwt;
 		}
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Locking
+	//#wegion Wocking
 
-	get isLocked(): boolean {
-		if (this.accessor.groups.length === 1) {
-			// Special case: if only 1 group is opened, never report it as locked
-			// to ensure editors can always open in the "default" editor group
-			return false;
+	get isWocked(): boowean {
+		if (this.accessow.gwoups.wength === 1) {
+			// Speciaw case: if onwy 1 gwoup is opened, neva wepowt it as wocked
+			// to ensuwe editows can awways open in the "defauwt" editow gwoup
+			wetuwn fawse;
 		}
 
-		return this.model.isLocked;
+		wetuwn this.modew.isWocked;
 	}
 
-	lock(locked: boolean): void {
-		if (this.accessor.groups.length === 1) {
-			// Special case: if only 1 group is opened, never allow to lock
-			// to ensure editors can always open in the "default" editor group
-			locked = false;
+	wock(wocked: boowean): void {
+		if (this.accessow.gwoups.wength === 1) {
+			// Speciaw case: if onwy 1 gwoup is opened, neva awwow to wock
+			// to ensuwe editows can awways open in the "defauwt" editow gwoup
+			wocked = fawse;
 		}
 
-		this.model.lock(locked);
+		this.modew.wock(wocked);
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Themable
+	//#wegion Themabwe
 
-	protected override updateStyles(): void {
+	pwotected ovewwide updateStywes(): void {
 		const isEmpty = this.isEmpty;
 
-		// Container
+		// Containa
 		if (isEmpty) {
-			this.element.style.backgroundColor = this.getColor(EDITOR_GROUP_EMPTY_BACKGROUND) || '';
-		} else {
-			this.element.style.backgroundColor = '';
+			this.ewement.stywe.backgwoundCowow = this.getCowow(EDITOW_GWOUP_EMPTY_BACKGWOUND) || '';
+		} ewse {
+			this.ewement.stywe.backgwoundCowow = '';
 		}
 
-		// Title control
-		const borderColor = this.getColor(EDITOR_GROUP_HEADER_BORDER) || this.getColor(contrastBorder);
-		if (!isEmpty && borderColor) {
-			this.titleContainer.classList.add('title-border-bottom');
-			this.titleContainer.style.setProperty('--title-border-bottom-color', borderColor.toString());
-		} else {
-			this.titleContainer.classList.remove('title-border-bottom');
-			this.titleContainer.style.removeProperty('--title-border-bottom-color');
+		// Titwe contwow
+		const bowdewCowow = this.getCowow(EDITOW_GWOUP_HEADEW_BOWDa) || this.getCowow(contwastBowda);
+		if (!isEmpty && bowdewCowow) {
+			this.titweContaina.cwassWist.add('titwe-bowda-bottom');
+			this.titweContaina.stywe.setPwopewty('--titwe-bowda-bottom-cowow', bowdewCowow.toStwing());
+		} ewse {
+			this.titweContaina.cwassWist.wemove('titwe-bowda-bottom');
+			this.titweContaina.stywe.wemovePwopewty('--titwe-bowda-bottom-cowow');
 		}
 
-		const { showTabs } = this.accessor.partOptions;
-		this.titleContainer.style.backgroundColor = this.getColor(showTabs ? EDITOR_GROUP_HEADER_TABS_BACKGROUND : EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND) || '';
+		const { showTabs } = this.accessow.pawtOptions;
+		this.titweContaina.stywe.backgwoundCowow = this.getCowow(showTabs ? EDITOW_GWOUP_HEADEW_TABS_BACKGWOUND : EDITOW_GWOUP_HEADEW_NO_TABS_BACKGWOUND) || '';
 
-		// Editor container
-		this.editorContainer.style.backgroundColor = this.getColor(editorBackground) || '';
+		// Editow containa
+		this.editowContaina.stywe.backgwoundCowow = this.getCowow(editowBackgwound) || '';
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region ISerializableView
+	//#wegion ISewiawizabweView
 
-	readonly element: HTMLElement = document.createElement('div');
+	weadonwy ewement: HTMWEwement = document.cweateEwement('div');
 
-	get minimumWidth(): number { return this.editorPane.minimumWidth; }
-	get minimumHeight(): number { return this.editorPane.minimumHeight; }
-	get maximumWidth(): number { return this.editorPane.maximumWidth; }
-	get maximumHeight(): number { return this.editorPane.maximumHeight; }
+	get minimumWidth(): numba { wetuwn this.editowPane.minimumWidth; }
+	get minimumHeight(): numba { wetuwn this.editowPane.minimumHeight; }
+	get maximumWidth(): numba { wetuwn this.editowPane.maximumWidth; }
+	get maximumHeight(): numba { wetuwn this.editowPane.maximumHeight; }
 
-	private _onDidChange = this._register(new Relay<{ width: number; height: number; } | undefined>());
-	readonly onDidChange = this._onDidChange.event;
+	pwivate _onDidChange = this._wegista(new Weway<{ width: numba; height: numba; } | undefined>());
+	weadonwy onDidChange = this._onDidChange.event;
 
-	layout(width: number, height: number): void {
+	wayout(width: numba, height: numba): void {
 		this.dimension = new Dimension(width, height);
 
-		// Layout the title area first to receive the size it occupies
-		const titleAreaSize = this.titleAreaControl.layout({
-			container: this.dimension,
-			available: new Dimension(width, height - this.editorPane.minimumHeight)
+		// Wayout the titwe awea fiwst to weceive the size it occupies
+		const titweAweaSize = this.titweAweaContwow.wayout({
+			containa: this.dimension,
+			avaiwabwe: new Dimension(width, height - this.editowPane.minimumHeight)
 		});
 
-		// Pass the container width and remaining height to the editor layout
-		const editorHeight = Math.max(0, height - titleAreaSize.height);
-		this.editorContainer.style.height = `${editorHeight}px`;
-		this.editorPane.layout(new Dimension(width, editorHeight));
+		// Pass the containa width and wemaining height to the editow wayout
+		const editowHeight = Math.max(0, height - titweAweaSize.height);
+		this.editowContaina.stywe.height = `${editowHeight}px`;
+		this.editowPane.wayout(new Dimension(width, editowHeight));
 	}
 
-	relayout(): void {
+	wewayout(): void {
 		if (this.dimension) {
 			const { width, height } = this.dimension;
-			this.layout(width, height);
+			this.wayout(width, height);
 		}
 	}
 
-	toJSON(): ISerializedEditorGroupModel {
-		return this.model.serialize();
+	toJSON(): ISewiawizedEditowGwoupModew {
+		wetuwn this.modew.sewiawize();
 	}
 
-	//#endregion
+	//#endwegion
 
-	override dispose(): void {
-		this._disposed = true;
+	ovewwide dispose(): void {
+		this._disposed = twue;
 
-		this._onWillDispose.fire();
+		this._onWiwwDispose.fiwe();
 
-		this.titleAreaControl.dispose();
+		this.titweAweaContwow.dispose();
 
-		super.dispose();
+		supa.dispose();
 	}
 }
 
-export interface EditorReplacement extends IEditorReplacement {
-	readonly editor: EditorInput;
-	readonly replacement: EditorInput;
-	readonly options?: IEditorOptions;
+expowt intewface EditowWepwacement extends IEditowWepwacement {
+	weadonwy editow: EditowInput;
+	weadonwy wepwacement: EditowInput;
+	weadonwy options?: IEditowOptions;
 }
 
-registerThemingParticipant((theme, collector) => {
+wegistewThemingPawticipant((theme, cowwectow) => {
 
-	// Letterpress
-	const letterpress = `./media/letterpress${theme.type === 'dark' ? '-dark' : theme.type === 'hc' ? '-hc' : ''}.svg`;
-	collector.addRule(`
-		.monaco-workbench .part.editor > .content .editor-group-container.empty .editor-group-letterpress {
-			background-image: ${asCSSUrl(FileAccess.asBrowserUri(letterpress, require))}
+	// Wettewpwess
+	const wettewpwess = `./media/wettewpwess${theme.type === 'dawk' ? '-dawk' : theme.type === 'hc' ? '-hc' : ''}.svg`;
+	cowwectow.addWuwe(`
+		.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa.empty .editow-gwoup-wettewpwess {
+			backgwound-image: ${asCSSUww(FiweAccess.asBwowsewUwi(wettewpwess, wequiwe))}
 		}
 	`);
 
-	// Focused Empty Group Border
-	const focusedEmptyGroupBorder = theme.getColor(EDITOR_GROUP_FOCUSED_EMPTY_BORDER);
-	if (focusedEmptyGroupBorder) {
-		collector.addRule(`
-			.monaco-workbench .part.editor > .content:not(.empty) .editor-group-container.empty.active:focus {
-				outline-width: 1px;
-				outline-color: ${focusedEmptyGroupBorder};
-				outline-offset: -2px;
-				outline-style: solid;
+	// Focused Empty Gwoup Bowda
+	const focusedEmptyGwoupBowda = theme.getCowow(EDITOW_GWOUP_FOCUSED_EMPTY_BOWDa);
+	if (focusedEmptyGwoupBowda) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .pawt.editow > .content:not(.empty) .editow-gwoup-containa.empty.active:focus {
+				outwine-width: 1px;
+				outwine-cowow: ${focusedEmptyGwoupBowda};
+				outwine-offset: -2px;
+				outwine-stywe: sowid;
 			}
 
-			.monaco-workbench .part.editor > .content.empty .editor-group-container.empty.active:focus {
-				outline: none; /* never show outline for empty group if it is the last */
+			.monaco-wowkbench .pawt.editow > .content.empty .editow-gwoup-containa.empty.active:focus {
+				outwine: none; /* neva show outwine fow empty gwoup if it is the wast */
 			}
 		`);
-	} else {
-		collector.addRule(`
-			.monaco-workbench .part.editor > .content .editor-group-container.empty.active:focus {
-				outline: none; /* disable focus outline unless active empty group border is defined */
+	} ewse {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa.empty.active:focus {
+				outwine: none; /* disabwe focus outwine unwess active empty gwoup bowda is defined */
 			}
 		`);
 	}

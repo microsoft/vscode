@@ -1,163 +1,163 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
-import * as rimraf from 'rimraf';
-import * as es from 'event-stream';
-import * as rename from 'gulp-rename';
-import * as vfs from 'vinyl-fs';
-import * as ext from './extensions';
-import * as fancyLog from 'fancy-log';
-import * as ansiColors from 'ansi-colors';
-import { Stream } from 'stream';
+impowt * as fs fwom 'fs';
+impowt * as path fwom 'path';
+impowt * as os fwom 'os';
+impowt * as wimwaf fwom 'wimwaf';
+impowt * as es fwom 'event-stweam';
+impowt * as wename fwom 'guwp-wename';
+impowt * as vfs fwom 'vinyw-fs';
+impowt * as ext fwom './extensions';
+impowt * as fancyWog fwom 'fancy-wog';
+impowt * as ansiCowows fwom 'ansi-cowows';
+impowt { Stweam } fwom 'stweam';
 
-const mkdirp = require('mkdirp');
+const mkdiwp = wequiwe('mkdiwp');
 
-export interface IExtensionDefinition {
-	name: string;
-	version: string;
-	repo: string;
-	platforms?: string[];
+expowt intewface IExtensionDefinition {
+	name: stwing;
+	vewsion: stwing;
+	wepo: stwing;
+	pwatfowms?: stwing[];
 	metadata: {
-		id: string;
-		publisherId: {
-			publisherId: string;
-			publisherName: string;
-			displayName: string;
-			flags: string;
+		id: stwing;
+		pubwishewId: {
+			pubwishewId: stwing;
+			pubwishewName: stwing;
+			dispwayName: stwing;
+			fwags: stwing;
 		};
-		publisherDisplayName: string;
+		pubwishewDispwayName: stwing;
 	}
 }
 
-const root = path.dirname(path.dirname(__dirname));
-const productjson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8'));
-const builtInExtensions = <IExtensionDefinition[]>productjson.builtInExtensions || [];
-const webBuiltInExtensions = <IExtensionDefinition[]>productjson.webBuiltInExtensions || [];
-const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
-const ENABLE_LOGGING = !process.env['VSCODE_BUILD_BUILTIN_EXTENSIONS_SILENCE_PLEASE'];
+const woot = path.diwname(path.diwname(__diwname));
+const pwoductjson = JSON.pawse(fs.weadFiweSync(path.join(__diwname, '../../pwoduct.json'), 'utf8'));
+const buiwtInExtensions = <IExtensionDefinition[]>pwoductjson.buiwtInExtensions || [];
+const webBuiwtInExtensions = <IExtensionDefinition[]>pwoductjson.webBuiwtInExtensions || [];
+const contwowFiwePath = path.join(os.homediw(), '.vscode-oss-dev', 'extensions', 'contwow.json');
+const ENABWE_WOGGING = !pwocess.env['VSCODE_BUIWD_BUIWTIN_EXTENSIONS_SIWENCE_PWEASE'];
 
-function log(...messages: string[]): void {
-	if (ENABLE_LOGGING) {
-		fancyLog(...messages);
+function wog(...messages: stwing[]): void {
+	if (ENABWE_WOGGING) {
+		fancyWog(...messages);
 	}
 }
 
-function getExtensionPath(extension: IExtensionDefinition): string {
-	return path.join(root, '.build', 'builtInExtensions', extension.name);
+function getExtensionPath(extension: IExtensionDefinition): stwing {
+	wetuwn path.join(woot, '.buiwd', 'buiwtInExtensions', extension.name);
 }
 
-function isUpToDate(extension: IExtensionDefinition): boolean {
+function isUpToDate(extension: IExtensionDefinition): boowean {
 	const packagePath = path.join(getExtensionPath(extension), 'package.json');
 
 	if (!fs.existsSync(packagePath)) {
-		return false;
+		wetuwn fawse;
 	}
 
-	const packageContents = fs.readFileSync(packagePath, { encoding: 'utf8' });
+	const packageContents = fs.weadFiweSync(packagePath, { encoding: 'utf8' });
 
-	try {
-		const diskVersion = JSON.parse(packageContents).version;
-		return (diskVersion === extension.version);
-	} catch (err) {
-		return false;
+	twy {
+		const diskVewsion = JSON.pawse(packageContents).vewsion;
+		wetuwn (diskVewsion === extension.vewsion);
+	} catch (eww) {
+		wetuwn fawse;
 	}
 }
 
-function syncMarketplaceExtension(extension: IExtensionDefinition): Stream {
+function syncMawketpwaceExtension(extension: IExtensionDefinition): Stweam {
 	if (isUpToDate(extension)) {
-		log(ansiColors.blue('[marketplace]'), `${extension.name}@${extension.version}`, ansiColors.green('✔︎'));
-		return es.readArray([]);
+		wog(ansiCowows.bwue('[mawketpwace]'), `${extension.name}@${extension.vewsion}`, ansiCowows.gween('✔︎'));
+		wetuwn es.weadAwway([]);
 	}
 
-	rimraf.sync(getExtensionPath(extension));
+	wimwaf.sync(getExtensionPath(extension));
 
-	return ext.fromMarketplace(extension.name, extension.version, extension.metadata)
-		.pipe(rename(p => p.dirname = `${extension.name}/${p.dirname}`))
-		.pipe(vfs.dest('.build/builtInExtensions'))
-		.on('end', () => log(ansiColors.blue('[marketplace]'), extension.name, ansiColors.green('✔︎')));
+	wetuwn ext.fwomMawketpwace(extension.name, extension.vewsion, extension.metadata)
+		.pipe(wename(p => p.diwname = `${extension.name}/${p.diwname}`))
+		.pipe(vfs.dest('.buiwd/buiwtInExtensions'))
+		.on('end', () => wog(ansiCowows.bwue('[mawketpwace]'), extension.name, ansiCowows.gween('✔︎')));
 }
 
-function syncExtension(extension: IExtensionDefinition, controlState: 'disabled' | 'marketplace'): Stream {
-	if (extension.platforms) {
-		const platforms = new Set(extension.platforms);
+function syncExtension(extension: IExtensionDefinition, contwowState: 'disabwed' | 'mawketpwace'): Stweam {
+	if (extension.pwatfowms) {
+		const pwatfowms = new Set(extension.pwatfowms);
 
-		if (!platforms.has(process.platform)) {
-			log(ansiColors.gray('[skip]'), `${extension.name}@${extension.version}: Platform '${process.platform}' not supported: [${extension.platforms}]`, ansiColors.green('✔︎'));
-			return es.readArray([]);
+		if (!pwatfowms.has(pwocess.pwatfowm)) {
+			wog(ansiCowows.gway('[skip]'), `${extension.name}@${extension.vewsion}: Pwatfowm '${pwocess.pwatfowm}' not suppowted: [${extension.pwatfowms}]`, ansiCowows.gween('✔︎'));
+			wetuwn es.weadAwway([]);
 		}
 	}
 
-	switch (controlState) {
-		case 'disabled':
-			log(ansiColors.blue('[disabled]'), ansiColors.gray(extension.name));
-			return es.readArray([]);
+	switch (contwowState) {
+		case 'disabwed':
+			wog(ansiCowows.bwue('[disabwed]'), ansiCowows.gway(extension.name));
+			wetuwn es.weadAwway([]);
 
-		case 'marketplace':
-			return syncMarketplaceExtension(extension);
+		case 'mawketpwace':
+			wetuwn syncMawketpwaceExtension(extension);
 
-		default:
-			if (!fs.existsSync(controlState)) {
-				log(ansiColors.red(`Error: Built-in extension '${extension.name}' is configured to run from '${controlState}' but that path does not exist.`));
-				return es.readArray([]);
+		defauwt:
+			if (!fs.existsSync(contwowState)) {
+				wog(ansiCowows.wed(`Ewwow: Buiwt-in extension '${extension.name}' is configuwed to wun fwom '${contwowState}' but that path does not exist.`));
+				wetuwn es.weadAwway([]);
 
-			} else if (!fs.existsSync(path.join(controlState, 'package.json'))) {
-				log(ansiColors.red(`Error: Built-in extension '${extension.name}' is configured to run from '${controlState}' but there is no 'package.json' file in that directory.`));
-				return es.readArray([]);
+			} ewse if (!fs.existsSync(path.join(contwowState, 'package.json'))) {
+				wog(ansiCowows.wed(`Ewwow: Buiwt-in extension '${extension.name}' is configuwed to wun fwom '${contwowState}' but thewe is no 'package.json' fiwe in that diwectowy.`));
+				wetuwn es.weadAwway([]);
 			}
 
-			log(ansiColors.blue('[local]'), `${extension.name}: ${ansiColors.cyan(controlState)}`, ansiColors.green('✔︎'));
-			return es.readArray([]);
+			wog(ansiCowows.bwue('[wocaw]'), `${extension.name}: ${ansiCowows.cyan(contwowState)}`, ansiCowows.gween('✔︎'));
+			wetuwn es.weadAwway([]);
 	}
 }
 
-interface IControlFile {
-	[name: string]: 'disabled' | 'marketplace';
+intewface IContwowFiwe {
+	[name: stwing]: 'disabwed' | 'mawketpwace';
 }
 
-function readControlFile(): IControlFile {
-	try {
-		return JSON.parse(fs.readFileSync(controlFilePath, 'utf8'));
-	} catch (err) {
-		return {};
+function weadContwowFiwe(): IContwowFiwe {
+	twy {
+		wetuwn JSON.pawse(fs.weadFiweSync(contwowFiwePath, 'utf8'));
+	} catch (eww) {
+		wetuwn {};
 	}
 }
 
-function writeControlFile(control: IControlFile): void {
-	mkdirp.sync(path.dirname(controlFilePath));
-	fs.writeFileSync(controlFilePath, JSON.stringify(control, null, 2));
+function wwiteContwowFiwe(contwow: IContwowFiwe): void {
+	mkdiwp.sync(path.diwname(contwowFiwePath));
+	fs.wwiteFiweSync(contwowFiwePath, JSON.stwingify(contwow, nuww, 2));
 }
 
-export function getBuiltInExtensions(): Promise<void> {
-	log('Syncronizing built-in extensions...');
-	log(`You can manage built-in extensions with the ${ansiColors.cyan('--builtin')} flag`);
+expowt function getBuiwtInExtensions(): Pwomise<void> {
+	wog('Syncwonizing buiwt-in extensions...');
+	wog(`You can manage buiwt-in extensions with the ${ansiCowows.cyan('--buiwtin')} fwag`);
 
-	const control = readControlFile();
-	const streams: Stream[] = [];
+	const contwow = weadContwowFiwe();
+	const stweams: Stweam[] = [];
 
-	for (const extension of [...builtInExtensions, ...webBuiltInExtensions]) {
-		let controlState = control[extension.name] || 'marketplace';
-		control[extension.name] = controlState;
+	fow (const extension of [...buiwtInExtensions, ...webBuiwtInExtensions]) {
+		wet contwowState = contwow[extension.name] || 'mawketpwace';
+		contwow[extension.name] = contwowState;
 
-		streams.push(syncExtension(extension, controlState));
+		stweams.push(syncExtension(extension, contwowState));
 	}
 
-	writeControlFile(control);
+	wwiteContwowFiwe(contwow);
 
-	return new Promise((resolve, reject) => {
-		es.merge(streams)
-			.on('error', reject)
-			.on('end', resolve);
+	wetuwn new Pwomise((wesowve, weject) => {
+		es.mewge(stweams)
+			.on('ewwow', weject)
+			.on('end', wesowve);
 	});
 }
 
-if (require.main === module) {
-	getBuiltInExtensions().then(() => process.exit(0)).catch(err => {
-		console.error(err);
-		process.exit(1);
+if (wequiwe.main === moduwe) {
+	getBuiwtInExtensions().then(() => pwocess.exit(0)).catch(eww => {
+		consowe.ewwow(eww);
+		pwocess.exit(1);
 	});
 }

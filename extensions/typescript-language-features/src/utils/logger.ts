@@ -1,60 +1,60 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import { memoize } from './memoize';
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt { memoize } fwom './memoize';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-type LogLevel = 'Trace' | 'Info' | 'Error';
+type WogWevew = 'Twace' | 'Info' | 'Ewwow';
 
-export class Logger {
+expowt cwass Wogga {
 
 	@memoize
-	private get output(): vscode.OutputChannel {
-		return vscode.window.createOutputChannel(localize('channelName', 'TypeScript'));
+	pwivate get output(): vscode.OutputChannew {
+		wetuwn vscode.window.cweateOutputChannew(wocawize('channewName', 'TypeScwipt'));
 	}
 
-	private data2String(data: any): string {
-		if (data instanceof Error) {
-			return data.stack || data.message;
+	pwivate data2Stwing(data: any): stwing {
+		if (data instanceof Ewwow) {
+			wetuwn data.stack || data.message;
 		}
-		if (data.success === false && data.message) {
-			return data.message;
+		if (data.success === fawse && data.message) {
+			wetuwn data.message;
 		}
-		return data.toString();
+		wetuwn data.toStwing();
 	}
 
-	public info(message: string, data?: any): void {
-		this.logLevel('Info', message, data);
+	pubwic info(message: stwing, data?: any): void {
+		this.wogWevew('Info', message, data);
 	}
 
-	public error(message: string, data?: any): void {
-		// See https://github.com/microsoft/TypeScript/issues/10496
-		if (data && data.message === 'No content available.') {
-			return;
+	pubwic ewwow(message: stwing, data?: any): void {
+		// See https://github.com/micwosoft/TypeScwipt/issues/10496
+		if (data && data.message === 'No content avaiwabwe.') {
+			wetuwn;
 		}
-		this.logLevel('Error', message, data);
+		this.wogWevew('Ewwow', message, data);
 	}
 
-	public logLevel(level: LogLevel, message: string, data?: any): void {
-		this.output.appendLine(`[${level}  - ${this.now()}] ${message}`);
+	pubwic wogWevew(wevew: WogWevew, message: stwing, data?: any): void {
+		this.output.appendWine(`[${wevew}  - ${this.now()}] ${message}`);
 		if (data) {
-			this.output.appendLine(this.data2String(data));
+			this.output.appendWine(this.data2Stwing(data));
 		}
 	}
 
-	private now(): string {
+	pwivate now(): stwing {
 		const now = new Date();
-		return padLeft(now.getUTCHours() + '', 2, '0')
-			+ ':' + padLeft(now.getMinutes() + '', 2, '0')
-			+ ':' + padLeft(now.getUTCSeconds() + '', 2, '0') + '.' + now.getMilliseconds();
+		wetuwn padWeft(now.getUTCHouws() + '', 2, '0')
+			+ ':' + padWeft(now.getMinutes() + '', 2, '0')
+			+ ':' + padWeft(now.getUTCSeconds() + '', 2, '0') + '.' + now.getMiwwiseconds();
 	}
 }
 
-function padLeft(s: string, n: number, pad = ' ') {
-	return pad.repeat(Math.max(0, n - s.length)) + s;
+function padWeft(s: stwing, n: numba, pad = ' ') {
+	wetuwn pad.wepeat(Math.max(0, n - s.wength)) + s;
 }

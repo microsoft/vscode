@@ -1,52 +1,52 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { MockDebugAdapter } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
-import { timeout } from 'vs/base/common/async';
+impowt * as assewt fwom 'assewt';
+impowt { MockDebugAdapta } fwom 'vs/wowkbench/contwib/debug/test/bwowsa/mockDebug';
+impowt { timeout } fwom 'vs/base/common/async';
 
-suite('Debug - AbstractDebugAdapter', () => {
-	suite('event ordering', () => {
-		let adapter: MockDebugAdapter;
-		let output: string[];
+suite('Debug - AbstwactDebugAdapta', () => {
+	suite('event owdewing', () => {
+		wet adapta: MockDebugAdapta;
+		wet output: stwing[];
 		setup(() => {
-			adapter = new MockDebugAdapter();
+			adapta = new MockDebugAdapta();
 			output = [];
-			adapter.onEvent(ev => {
-				output.push((ev as DebugProtocol.OutputEvent).body.output);
-				Promise.resolve().then(() => output.push('--end microtask--'));
+			adapta.onEvent(ev => {
+				output.push((ev as DebugPwotocow.OutputEvent).body.output);
+				Pwomise.wesowve().then(() => output.push('--end micwotask--'));
 			});
 		});
 
-		const evaluate = async (expression: string) => {
-			await new Promise(resolve => adapter.sendRequest('evaluate', { expression }, resolve));
-			output.push(`=${expression}`);
-			Promise.resolve().then(() => output.push('--end microtask--'));
+		const evawuate = async (expwession: stwing) => {
+			await new Pwomise(wesowve => adapta.sendWequest('evawuate', { expwession }, wesowve));
+			output.push(`=${expwession}`);
+			Pwomise.wesowve().then(() => output.push('--end micwotask--'));
 		};
 
-		test('inserts task boundary before response', async () => {
-			await evaluate('before.foo');
+		test('insewts task boundawy befowe wesponse', async () => {
+			await evawuate('befowe.foo');
 			await timeout(0);
 
-			assert.deepStrictEqual(output, ['before.foo', '--end microtask--', '=before.foo', '--end microtask--']);
+			assewt.deepStwictEquaw(output, ['befowe.foo', '--end micwotask--', '=befowe.foo', '--end micwotask--']);
 		});
 
-		test('inserts task boundary after response', async () => {
-			await evaluate('after.foo');
+		test('insewts task boundawy afta wesponse', async () => {
+			await evawuate('afta.foo');
 			await timeout(0);
 
-			assert.deepStrictEqual(output, ['=after.foo', '--end microtask--', 'after.foo', '--end microtask--']);
+			assewt.deepStwictEquaw(output, ['=afta.foo', '--end micwotask--', 'afta.foo', '--end micwotask--']);
 		});
 
-		test('does not insert boundaries between events', async () => {
-			adapter.sendEventBody('output', { output: 'a' });
-			adapter.sendEventBody('output', { output: 'b' });
-			adapter.sendEventBody('output', { output: 'c' });
+		test('does not insewt boundawies between events', async () => {
+			adapta.sendEventBody('output', { output: 'a' });
+			adapta.sendEventBody('output', { output: 'b' });
+			adapta.sendEventBody('output', { output: 'c' });
 			await timeout(0);
 
-			assert.deepStrictEqual(output, ['a', 'b', 'c', '--end microtask--', '--end microtask--', '--end microtask--']);
+			assewt.deepStwictEquaw(output, ['a', 'b', 'c', '--end micwotask--', '--end micwotask--', '--end micwotask--']);
 		});
 	});
 });

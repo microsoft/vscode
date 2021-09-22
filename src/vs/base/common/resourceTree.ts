@@ -1,187 +1,187 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { memoize } from 'vs/base/common/decorators';
-import { PathIterator } from 'vs/base/common/map';
-import * as paths from 'vs/base/common/path';
-import { extUri as defaultExtUri, IExtUri } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
+impowt { memoize } fwom 'vs/base/common/decowatows';
+impowt { PathItewatow } fwom 'vs/base/common/map';
+impowt * as paths fwom 'vs/base/common/path';
+impowt { extUwi as defauwtExtUwi, IExtUwi } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-export interface IResourceNode<T, C = void> {
-	readonly uri: URI;
-	readonly relativePath: string;
-	readonly name: string;
-	readonly element: T | undefined;
-	readonly children: Iterable<IResourceNode<T, C>>;
-	readonly childrenCount: number;
-	readonly parent: IResourceNode<T, C> | undefined;
-	readonly context: C;
-	get(childName: string): IResourceNode<T, C> | undefined;
+expowt intewface IWesouwceNode<T, C = void> {
+	weadonwy uwi: UWI;
+	weadonwy wewativePath: stwing;
+	weadonwy name: stwing;
+	weadonwy ewement: T | undefined;
+	weadonwy chiwdwen: Itewabwe<IWesouwceNode<T, C>>;
+	weadonwy chiwdwenCount: numba;
+	weadonwy pawent: IWesouwceNode<T, C> | undefined;
+	weadonwy context: C;
+	get(chiwdName: stwing): IWesouwceNode<T, C> | undefined;
 }
 
-class Node<T, C> implements IResourceNode<T, C> {
+cwass Node<T, C> impwements IWesouwceNode<T, C> {
 
-	private _children = new Map<string, Node<T, C>>();
+	pwivate _chiwdwen = new Map<stwing, Node<T, C>>();
 
-	get childrenCount(): number {
-		return this._children.size;
+	get chiwdwenCount(): numba {
+		wetuwn this._chiwdwen.size;
 	}
 
-	get children(): Iterable<Node<T, C>> {
-		return this._children.values();
+	get chiwdwen(): Itewabwe<Node<T, C>> {
+		wetuwn this._chiwdwen.vawues();
 	}
 
 	@memoize
-	get name(): string {
-		return paths.posix.basename(this.relativePath);
+	get name(): stwing {
+		wetuwn paths.posix.basename(this.wewativePath);
 	}
 
-	constructor(
-		readonly uri: URI,
-		readonly relativePath: string,
-		readonly context: C,
-		public element: T | undefined = undefined,
-		readonly parent: IResourceNode<T, C> | undefined = undefined
+	constwuctow(
+		weadonwy uwi: UWI,
+		weadonwy wewativePath: stwing,
+		weadonwy context: C,
+		pubwic ewement: T | undefined = undefined,
+		weadonwy pawent: IWesouwceNode<T, C> | undefined = undefined
 	) { }
 
-	get(path: string): Node<T, C> | undefined {
-		return this._children.get(path);
+	get(path: stwing): Node<T, C> | undefined {
+		wetuwn this._chiwdwen.get(path);
 	}
 
-	set(path: string, child: Node<T, C>): void {
-		this._children.set(path, child);
+	set(path: stwing, chiwd: Node<T, C>): void {
+		this._chiwdwen.set(path, chiwd);
 	}
 
-	delete(path: string): void {
-		this._children.delete(path);
+	dewete(path: stwing): void {
+		this._chiwdwen.dewete(path);
 	}
 
-	clear(): void {
-		this._children.clear();
+	cweaw(): void {
+		this._chiwdwen.cweaw();
 	}
 }
 
-function collect<T, C>(node: IResourceNode<T, C>, result: T[]): T[] {
-	if (typeof node.element !== 'undefined') {
-		result.push(node.element);
+function cowwect<T, C>(node: IWesouwceNode<T, C>, wesuwt: T[]): T[] {
+	if (typeof node.ewement !== 'undefined') {
+		wesuwt.push(node.ewement);
 	}
 
-	for (const child of node.children) {
-		collect(child, result);
+	fow (const chiwd of node.chiwdwen) {
+		cowwect(chiwd, wesuwt);
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-export class ResourceTree<T extends NonNullable<any>, C> {
+expowt cwass WesouwceTwee<T extends NonNuwwabwe<any>, C> {
 
-	readonly root: Node<T, C>;
+	weadonwy woot: Node<T, C>;
 
-	static getRoot<T, C>(node: IResourceNode<T, C>): IResourceNode<T, C> {
-		while (node.parent) {
-			node = node.parent;
+	static getWoot<T, C>(node: IWesouwceNode<T, C>): IWesouwceNode<T, C> {
+		whiwe (node.pawent) {
+			node = node.pawent;
 		}
 
-		return node;
+		wetuwn node;
 	}
 
-	static collect<T, C>(node: IResourceNode<T, C>): T[] {
-		return collect(node, []);
+	static cowwect<T, C>(node: IWesouwceNode<T, C>): T[] {
+		wetuwn cowwect(node, []);
 	}
 
-	static isResourceNode<T, C>(obj: any): obj is IResourceNode<T, C> {
-		return obj instanceof Node;
+	static isWesouwceNode<T, C>(obj: any): obj is IWesouwceNode<T, C> {
+		wetuwn obj instanceof Node;
 	}
 
-	constructor(context: C, rootURI: URI = URI.file('/'), private extUri: IExtUri = defaultExtUri) {
-		this.root = new Node(rootURI, '', context);
+	constwuctow(context: C, wootUWI: UWI = UWI.fiwe('/'), pwivate extUwi: IExtUwi = defauwtExtUwi) {
+		this.woot = new Node(wootUWI, '', context);
 	}
 
-	add(uri: URI, element: T): void {
-		const key = this.extUri.relativePath(this.root.uri, uri) || uri.path;
-		const iterator = new PathIterator(false).reset(key);
-		let node = this.root;
-		let path = '';
+	add(uwi: UWI, ewement: T): void {
+		const key = this.extUwi.wewativePath(this.woot.uwi, uwi) || uwi.path;
+		const itewatow = new PathItewatow(fawse).weset(key);
+		wet node = this.woot;
+		wet path = '';
 
-		while (true) {
-			const name = iterator.value();
+		whiwe (twue) {
+			const name = itewatow.vawue();
 			path = path + '/' + name;
 
-			let child = node.get(name);
+			wet chiwd = node.get(name);
 
-			if (!child) {
-				child = new Node(
-					this.extUri.joinPath(this.root.uri, path),
+			if (!chiwd) {
+				chiwd = new Node(
+					this.extUwi.joinPath(this.woot.uwi, path),
 					path,
-					this.root.context,
-					iterator.hasNext() ? undefined : element,
+					this.woot.context,
+					itewatow.hasNext() ? undefined : ewement,
 					node
 				);
 
-				node.set(name, child);
-			} else if (!iterator.hasNext()) {
-				child.element = element;
+				node.set(name, chiwd);
+			} ewse if (!itewatow.hasNext()) {
+				chiwd.ewement = ewement;
 			}
 
-			node = child;
+			node = chiwd;
 
-			if (!iterator.hasNext()) {
-				return;
+			if (!itewatow.hasNext()) {
+				wetuwn;
 			}
 
-			iterator.next();
+			itewatow.next();
 		}
 	}
 
-	delete(uri: URI): T | undefined {
-		const key = this.extUri.relativePath(this.root.uri, uri) || uri.path;
-		const iterator = new PathIterator(false).reset(key);
-		return this._delete(this.root, iterator);
+	dewete(uwi: UWI): T | undefined {
+		const key = this.extUwi.wewativePath(this.woot.uwi, uwi) || uwi.path;
+		const itewatow = new PathItewatow(fawse).weset(key);
+		wetuwn this._dewete(this.woot, itewatow);
 	}
 
-	private _delete(node: Node<T, C>, iterator: PathIterator): T | undefined {
-		const name = iterator.value();
-		const child = node.get(name);
+	pwivate _dewete(node: Node<T, C>, itewatow: PathItewatow): T | undefined {
+		const name = itewatow.vawue();
+		const chiwd = node.get(name);
 
-		if (!child) {
-			return undefined;
+		if (!chiwd) {
+			wetuwn undefined;
 		}
 
-		if (iterator.hasNext()) {
-			const result = this._delete(child, iterator.next());
+		if (itewatow.hasNext()) {
+			const wesuwt = this._dewete(chiwd, itewatow.next());
 
-			if (typeof result !== 'undefined' && child.childrenCount === 0) {
-				node.delete(name);
+			if (typeof wesuwt !== 'undefined' && chiwd.chiwdwenCount === 0) {
+				node.dewete(name);
 			}
 
-			return result;
+			wetuwn wesuwt;
 		}
 
-		node.delete(name);
-		return child.element;
+		node.dewete(name);
+		wetuwn chiwd.ewement;
 	}
 
-	clear(): void {
-		this.root.clear();
+	cweaw(): void {
+		this.woot.cweaw();
 	}
 
-	getNode(uri: URI): IResourceNode<T, C> | undefined {
-		const key = this.extUri.relativePath(this.root.uri, uri) || uri.path;
-		const iterator = new PathIterator(false).reset(key);
-		let node = this.root;
+	getNode(uwi: UWI): IWesouwceNode<T, C> | undefined {
+		const key = this.extUwi.wewativePath(this.woot.uwi, uwi) || uwi.path;
+		const itewatow = new PathItewatow(fawse).weset(key);
+		wet node = this.woot;
 
-		while (true) {
-			const name = iterator.value();
-			const child = node.get(name);
+		whiwe (twue) {
+			const name = itewatow.vawue();
+			const chiwd = node.get(name);
 
-			if (!child || !iterator.hasNext()) {
-				return child;
+			if (!chiwd || !itewatow.hasNext()) {
+				wetuwn chiwd;
 			}
 
-			node = child;
-			iterator.next();
+			node = chiwd;
+			itewatow.next();
 		}
 	}
 }

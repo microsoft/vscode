@@ -1,365 +1,365 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { maxIndex, minIndex } from 'vs/base/common/arrays';
-import { Iterable } from 'vs/base/common/iterator';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { localize } from 'vs/nls';
-import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { EditorsOrder } from 'vs/workbench/common/editor';
-import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
-import { cellExecutionArgs, CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, executeNotebookCondition, getContextFromActiveEditor, getContextFromUri, INotebookActionContext, INotebookCellActionContext, INotebookCellToolbarActionContext, INotebookCommandContext, NotebookAction, NotebookCellAction, NotebookMultiCellAction, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, parseMultiCellExecutionArgs } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_MISSING_KERNEL_EXTENSION } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { CellKind, ConsolidatedRunButton, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+impowt { maxIndex, minIndex } fwom 'vs/base/common/awways';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { wocawize } fwom 'vs/nws';
+impowt { MenuId, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { EditowsOwda } fwom 'vs/wowkbench/common/editow';
+impowt { insewtCeww } fwom 'vs/wowkbench/contwib/notebook/bwowsa/contwowwa/cewwOpewations';
+impowt { cewwExecutionAwgs, CewwToowbawOwda, CEWW_TITWE_CEWW_GWOUP_ID, executeNotebookCondition, getContextFwomActiveEditow, getContextFwomUwi, INotebookActionContext, INotebookCewwActionContext, INotebookCewwToowbawActionContext, INotebookCommandContext, NotebookAction, NotebookCewwAction, NotebookMuwtiCewwAction, NOTEBOOK_EDITOW_WIDGET_ACTION_WEIGHT, pawseMuwtiCewwExecutionAwgs } fwom 'vs/wowkbench/contwib/notebook/bwowsa/contwowwa/coweActions';
+impowt { CewwEditState, CewwFocusMode, EXECUTE_CEWW_COMMAND_ID, NOTEBOOK_CEWW_EXECUTING, NOTEBOOK_CEWW_EXECUTION_STATE, NOTEBOOK_CEWW_WIST_FOCUSED, NOTEBOOK_CEWW_TYPE, NOTEBOOK_HAS_WUNNING_CEWW, NOTEBOOK_INTEWWUPTIBWE_KEWNEW, NOTEBOOK_IS_ACTIVE_EDITOW, NOTEBOOK_KEWNEW_COUNT, NOTEBOOK_MISSING_KEWNEW_EXTENSION } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt * as icons fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookIcons';
+impowt { CewwKind, ConsowidatedWunButton, NotebookCewwExecutionState } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { NotebookEditowInput } fwom 'vs/wowkbench/contwib/notebook/common/notebookEditowInput';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
 
 const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
-const CANCEL_NOTEBOOK_COMMAND_ID = 'notebook.cancelExecution';
-const CANCEL_CELL_COMMAND_ID = 'notebook.cell.cancelExecution';
-const EXECUTE_CELL_FOCUS_CONTAINER_COMMAND_ID = 'notebook.cell.executeAndFocusContainer';
-const EXECUTE_CELL_SELECT_BELOW = 'notebook.cell.executeAndSelectBelow';
-const EXECUTE_CELL_INSERT_BELOW = 'notebook.cell.executeAndInsertBelow';
-const EXECUTE_CELL_AND_BELOW = 'notebook.cell.executeCellAndBelow';
-const EXECUTE_CELLS_ABOVE = 'notebook.cell.executeCellsAbove';
-const RENDER_ALL_MARKDOWN_CELLS = 'notebook.renderAllMarkdownCells';
+const CANCEW_NOTEBOOK_COMMAND_ID = 'notebook.cancewExecution';
+const CANCEW_CEWW_COMMAND_ID = 'notebook.ceww.cancewExecution';
+const EXECUTE_CEWW_FOCUS_CONTAINEW_COMMAND_ID = 'notebook.ceww.executeAndFocusContaina';
+const EXECUTE_CEWW_SEWECT_BEWOW = 'notebook.ceww.executeAndSewectBewow';
+const EXECUTE_CEWW_INSEWT_BEWOW = 'notebook.ceww.executeAndInsewtBewow';
+const EXECUTE_CEWW_AND_BEWOW = 'notebook.ceww.executeCewwAndBewow';
+const EXECUTE_CEWWS_ABOVE = 'notebook.ceww.executeCewwsAbove';
+const WENDEW_AWW_MAWKDOWN_CEWWS = 'notebook.wendewAwwMawkdownCewws';
 
-// If this changes, update getCodeCellExecutionContextKeyService to match
-export const executeCondition = ContextKeyExpr.and(
-	NOTEBOOK_CELL_TYPE.isEqualTo('code'),
-	ContextKeyExpr.or(
-		ContextKeyExpr.greater(NOTEBOOK_KERNEL_COUNT.key, 0),
-		NOTEBOOK_MISSING_KERNEL_EXTENSION
+// If this changes, update getCodeCewwExecutionContextKeySewvice to match
+expowt const executeCondition = ContextKeyExpw.and(
+	NOTEBOOK_CEWW_TYPE.isEquawTo('code'),
+	ContextKeyExpw.ow(
+		ContextKeyExpw.gweata(NOTEBOOK_KEWNEW_COUNT.key, 0),
+		NOTEBOOK_MISSING_KEWNEW_EXTENSION
 	));
 
-export const executeThisCellCondition = ContextKeyExpr.and(
+expowt const executeThisCewwCondition = ContextKeyExpw.and(
 	executeCondition,
-	NOTEBOOK_CELL_EXECUTING.toNegated());
+	NOTEBOOK_CEWW_EXECUTING.toNegated());
 
-function renderAllMarkdownCells(context: INotebookActionContext): void {
-	for (let i = 0; i < context.notebookEditor.getLength(); i++) {
-		const cell = context.notebookEditor.cellAt(i);
+function wendewAwwMawkdownCewws(context: INotebookActionContext): void {
+	fow (wet i = 0; i < context.notebookEditow.getWength(); i++) {
+		const ceww = context.notebookEditow.cewwAt(i);
 
-		if (cell.cellKind === CellKind.Markup) {
-			cell.updateEditState(CellEditState.Preview, 'renderAllMarkdownCells');
+		if (ceww.cewwKind === CewwKind.Mawkup) {
+			ceww.updateEditState(CewwEditState.Pweview, 'wendewAwwMawkdownCewws');
 		}
 	}
 }
 
-async function runCell(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
+async function wunCeww(accessow: SewvicesAccessow, context: INotebookActionContext): Pwomise<void> {
 
-	const editorGroupService = accessor.get(IEditorGroupsService);
-	const group = editorGroupService.activeGroup;
+	const editowGwoupSewvice = accessow.get(IEditowGwoupsSewvice);
+	const gwoup = editowGwoupSewvice.activeGwoup;
 
-	if (group) {
-		if (group.activeEditor) {
-			group.pinEditor(group.activeEditor);
+	if (gwoup) {
+		if (gwoup.activeEditow) {
+			gwoup.pinEditow(gwoup.activeEditow);
 		}
 	}
 
-	if (context.ui && context.cell) {
-		if (context.cell.internalMetadata.runState === NotebookCellExecutionState.Executing) {
-			return;
+	if (context.ui && context.ceww) {
+		if (context.ceww.intewnawMetadata.wunState === NotebookCewwExecutionState.Executing) {
+			wetuwn;
 		}
-		await context.notebookEditor.executeNotebookCells(Iterable.single(context.cell));
-		if (context.autoReveal) {
-			const cellIndex = context.notebookEditor.getCellIndex(context.cell);
-			context.notebookEditor.revealCellRangeInView({ start: cellIndex, end: cellIndex + 1 });
+		await context.notebookEditow.executeNotebookCewws(Itewabwe.singwe(context.ceww));
+		if (context.autoWeveaw) {
+			const cewwIndex = context.notebookEditow.getCewwIndex(context.ceww);
+			context.notebookEditow.weveawCewwWangeInView({ stawt: cewwIndex, end: cewwIndex + 1 });
 		}
-	} else if (context.selectedCells) {
-		await context.notebookEditor.executeNotebookCells(context.selectedCells);
-		const firstCell = context.selectedCells[0];
+	} ewse if (context.sewectedCewws) {
+		await context.notebookEditow.executeNotebookCewws(context.sewectedCewws);
+		const fiwstCeww = context.sewectedCewws[0];
 
-		if (firstCell && context.autoReveal) {
-			const cellIndex = context.notebookEditor.getCellIndex(firstCell);
-			context.notebookEditor.revealCellRangeInView({ start: cellIndex, end: cellIndex + 1 });
+		if (fiwstCeww && context.autoWeveaw) {
+			const cewwIndex = context.notebookEditow.getCewwIndex(fiwstCeww);
+			context.notebookEditow.weveawCewwWangeInView({ stawt: cewwIndex, end: cewwIndex + 1 });
 		}
 	}
 }
 
-registerAction2(class RenderAllMarkdownCellsAction extends NotebookAction {
-	constructor() {
-		super({
-			id: RENDER_ALL_MARKDOWN_CELLS,
-			title: localize('notebookActions.renderMarkdown', "Render All Markdown Cells"),
+wegistewAction2(cwass WendewAwwMawkdownCewwsAction extends NotebookAction {
+	constwuctow() {
+		supa({
+			id: WENDEW_AWW_MAWKDOWN_CEWWS,
+			titwe: wocawize('notebookActions.wendewMawkdown', "Wenda Aww Mawkdown Cewws"),
 		});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		renderAllMarkdownCells(context);
+	async wunWithContext(accessow: SewvicesAccessow, context: INotebookActionContext): Pwomise<void> {
+		wendewAwwMawkdownCewws(context);
 	}
 });
 
-registerAction2(class ExecuteNotebookAction extends NotebookAction {
-	constructor() {
-		super({
+wegistewAction2(cwass ExecuteNotebookAction extends NotebookAction {
+	constwuctow() {
+		supa({
 			id: EXECUTE_NOTEBOOK_COMMAND_ID,
-			title: localize('notebookActions.executeNotebook', "Run All"),
-			icon: icons.executeAllIcon,
-			description: {
-				description: localize('notebookActions.executeNotebook', "Run All"),
-				args: [
+			titwe: wocawize('notebookActions.executeNotebook', "Wun Aww"),
+			icon: icons.executeAwwIcon,
+			descwiption: {
+				descwiption: wocawize('notebookActions.executeNotebook', "Wun Aww"),
+				awgs: [
 					{
-						name: 'uri',
-						description: 'The document uri'
+						name: 'uwi',
+						descwiption: 'The document uwi'
 					}
 				]
 			},
 			menu: [
 				{
-					id: MenuId.EditorTitle,
-					order: -1,
-					group: 'navigation',
-					when: ContextKeyExpr.and(
-						NOTEBOOK_IS_ACTIVE_EDITOR,
+					id: MenuId.EditowTitwe,
+					owda: -1,
+					gwoup: 'navigation',
+					when: ContextKeyExpw.and(
+						NOTEBOOK_IS_ACTIVE_EDITOW,
 						executeNotebookCondition,
-						ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_RUNNING_CELL.toNegated()),
-						ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
+						ContextKeyExpw.ow(NOTEBOOK_INTEWWUPTIBWE_KEWNEW.toNegated(), NOTEBOOK_HAS_WUNNING_CEWW.toNegated()),
+						ContextKeyExpw.notEquaws('config.notebook.gwobawToowbaw', twue)
 					)
 				},
 				{
-					id: MenuId.NotebookToolbar,
-					order: -1,
-					group: 'navigation/execute',
-					when: ContextKeyExpr.and(
+					id: MenuId.NotebookToowbaw,
+					owda: -1,
+					gwoup: 'navigation/execute',
+					when: ContextKeyExpw.and(
 						executeNotebookCondition,
-						ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_RUNNING_CELL.toNegated()),
-						ContextKeyExpr.equals('config.notebook.globalToolbar', true)
+						ContextKeyExpw.ow(NOTEBOOK_INTEWWUPTIBWE_KEWNEW.toNegated(), NOTEBOOK_HAS_WUNNING_CEWW.toNegated()),
+						ContextKeyExpw.equaws('config.notebook.gwobawToowbaw', twue)
 					)
 				}
 			]
 		});
 	}
 
-	override getEditorContextFromArgsOrActive(accessor: ServicesAccessor, context?: UriComponents): INotebookActionContext | undefined {
-		return getContextFromUri(accessor, context) ?? getContextFromActiveEditor(accessor.get(IEditorService));
+	ovewwide getEditowContextFwomAwgsOwActive(accessow: SewvicesAccessow, context?: UwiComponents): INotebookActionContext | undefined {
+		wetuwn getContextFwomUwi(accessow, context) ?? getContextFwomActiveEditow(accessow.get(IEditowSewvice));
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		renderAllMarkdownCells(context);
+	async wunWithContext(accessow: SewvicesAccessow, context: INotebookActionContext): Pwomise<void> {
+		wendewAwwMawkdownCewws(context);
 
-		const editorService = accessor.get(IEditorService);
-		const editor = editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).find(
-			editor => editor.editor instanceof NotebookEditorInput && editor.editor.viewType === context.notebookEditor.textModel.viewType && editor.editor.resource.toString() === context.notebookEditor.textModel.uri.toString());
-		const editorGroupService = accessor.get(IEditorGroupsService);
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const editow = editowSewvice.getEditows(EditowsOwda.MOST_WECENTWY_ACTIVE).find(
+			editow => editow.editow instanceof NotebookEditowInput && editow.editow.viewType === context.notebookEditow.textModew.viewType && editow.editow.wesouwce.toStwing() === context.notebookEditow.textModew.uwi.toStwing());
+		const editowGwoupSewvice = accessow.get(IEditowGwoupsSewvice);
 
-		if (editor) {
-			const group = editorGroupService.getGroup(editor.groupId);
-			group?.pinEditor(editor.editor);
+		if (editow) {
+			const gwoup = editowGwoupSewvice.getGwoup(editow.gwoupId);
+			gwoup?.pinEditow(editow.editow);
 		}
 
-		return context.notebookEditor.executeNotebookCells();
+		wetuwn context.notebookEditow.executeNotebookCewws();
 	}
 });
 
-registerAction2(class ExecuteCell extends NotebookMultiCellAction {
-	constructor() {
-		super({
-			id: EXECUTE_CELL_COMMAND_ID,
-			precondition: executeThisCellCondition,
-			title: localize('notebookActions.execute', "Execute Cell"),
+wegistewAction2(cwass ExecuteCeww extends NotebookMuwtiCewwAction {
+	constwuctow() {
+		supa({
+			id: EXECUTE_CEWW_COMMAND_ID,
+			pwecondition: executeThisCewwCondition,
+			titwe: wocawize('notebookActions.execute', "Execute Ceww"),
 			keybinding: {
-				when: NOTEBOOK_CELL_LIST_FOCUSED,
-				primary: KeyMod.WinCtrl | KeyCode.Enter,
+				when: NOTEBOOK_CEWW_WIST_FOCUSED,
+				pwimawy: KeyMod.WinCtww | KeyCode.Enta,
 				win: {
-					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter
+					pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.Enta
 				},
-				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
+				weight: NOTEBOOK_EDITOW_WIDGET_ACTION_WEIGHT
 			},
 			menu: {
-				id: MenuId.NotebookCellExecute,
-				when: executeThisCellCondition,
-				group: 'inline'
+				id: MenuId.NotebookCewwExecute,
+				when: executeThisCewwCondition,
+				gwoup: 'inwine'
 			},
-			description: {
-				description: localize('notebookActions.execute', "Execute Cell"),
-				args: cellExecutionArgs
+			descwiption: {
+				descwiption: wocawize('notebookActions.execute', "Execute Ceww"),
+				awgs: cewwExecutionAwgs
 			},
 			icon: icons.executeIcon
 		});
 	}
 
-	override parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookCommandContext | undefined {
-		return parseMultiCellExecutionArgs(accessor, ...args);
+	ovewwide pawseAwgs(accessow: SewvicesAccessow, ...awgs: any[]): INotebookCommandContext | undefined {
+		wetuwn pawseMuwtiCewwExecutionAwgs(accessow, ...awgs);
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext | INotebookCellToolbarActionContext): Promise<void> {
-		return runCell(accessor, context);
+	async wunWithContext(accessow: SewvicesAccessow, context: INotebookCommandContext | INotebookCewwToowbawActionContext): Pwomise<void> {
+		wetuwn wunCeww(accessow, context);
 	}
 });
 
-registerAction2(class ExecuteAboveCells extends NotebookMultiCellAction {
-	constructor() {
-		super({
-			id: EXECUTE_CELLS_ABOVE,
-			precondition: executeCondition,
-			title: localize('notebookActions.executeAbove', "Execute Above Cells"),
+wegistewAction2(cwass ExecuteAboveCewws extends NotebookMuwtiCewwAction {
+	constwuctow() {
+		supa({
+			id: EXECUTE_CEWWS_ABOVE,
+			pwecondition: executeCondition,
+			titwe: wocawize('notebookActions.executeAbove', "Execute Above Cewws"),
 			menu: [
 				{
-					id: MenuId.NotebookCellExecute,
-					when: ContextKeyExpr.and(
+					id: MenuId.NotebookCewwExecute,
+					when: ContextKeyExpw.and(
 						executeCondition,
-						ContextKeyExpr.equals(`config.${ConsolidatedRunButton}`, true))
+						ContextKeyExpw.equaws(`config.${ConsowidatedWunButton}`, twue))
 				},
 				{
-					id: MenuId.NotebookCellTitle,
-					order: CellToolbarOrder.ExecuteAboveCells,
-					group: CELL_TITLE_CELL_GROUP_ID,
-					when: ContextKeyExpr.and(
+					id: MenuId.NotebookCewwTitwe,
+					owda: CewwToowbawOwda.ExecuteAboveCewws,
+					gwoup: CEWW_TITWE_CEWW_GWOUP_ID,
+					when: ContextKeyExpw.and(
 						executeCondition,
-						ContextKeyExpr.equals(`config.${ConsolidatedRunButton}`, false))
+						ContextKeyExpw.equaws(`config.${ConsowidatedWunButton}`, fawse))
 				}
 			],
 			icon: icons.executeAboveIcon
 		});
 	}
 
-	override parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookCommandContext | undefined {
-		return parseMultiCellExecutionArgs(accessor, ...args);
+	ovewwide pawseAwgs(accessow: SewvicesAccessow, ...awgs: any[]): INotebookCommandContext | undefined {
+		wetuwn pawseMuwtiCewwExecutionAwgs(accessow, ...awgs);
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext | INotebookCellToolbarActionContext): Promise<void> {
-		let endCellIdx: number | undefined = undefined;
+	async wunWithContext(accessow: SewvicesAccessow, context: INotebookCommandContext | INotebookCewwToowbawActionContext): Pwomise<void> {
+		wet endCewwIdx: numba | undefined = undefined;
 		if (context.ui) {
-			endCellIdx = context.notebookEditor.getCellIndex(context.cell);
-		} else {
-			endCellIdx = maxIndex(context.selectedCells, cell => context.notebookEditor.getCellIndex(cell));
+			endCewwIdx = context.notebookEditow.getCewwIndex(context.ceww);
+		} ewse {
+			endCewwIdx = maxIndex(context.sewectedCewws, ceww => context.notebookEditow.getCewwIndex(ceww));
 		}
 
-		if (typeof endCellIdx === 'number') {
-			const range = { start: 0, end: endCellIdx };
-			const cells = context.notebookEditor.getCellsInRange(range);
-			context.notebookEditor.executeNotebookCells(cells);
+		if (typeof endCewwIdx === 'numba') {
+			const wange = { stawt: 0, end: endCewwIdx };
+			const cewws = context.notebookEditow.getCewwsInWange(wange);
+			context.notebookEditow.executeNotebookCewws(cewws);
 		}
 	}
 });
 
-registerAction2(class ExecuteCellAndBelow extends NotebookMultiCellAction {
-	constructor() {
-		super({
-			id: EXECUTE_CELL_AND_BELOW,
-			precondition: executeCondition,
-			title: localize('notebookActions.executeBelow', "Execute Cell and Below"),
+wegistewAction2(cwass ExecuteCewwAndBewow extends NotebookMuwtiCewwAction {
+	constwuctow() {
+		supa({
+			id: EXECUTE_CEWW_AND_BEWOW,
+			pwecondition: executeCondition,
+			titwe: wocawize('notebookActions.executeBewow', "Execute Ceww and Bewow"),
 			menu: [
 				{
-					id: MenuId.NotebookCellExecute,
-					when: ContextKeyExpr.and(
+					id: MenuId.NotebookCewwExecute,
+					when: ContextKeyExpw.and(
 						executeCondition,
-						ContextKeyExpr.equals(`config.${ConsolidatedRunButton}`, true))
+						ContextKeyExpw.equaws(`config.${ConsowidatedWunButton}`, twue))
 				},
 				{
-					id: MenuId.NotebookCellTitle,
-					order: CellToolbarOrder.ExecuteCellAndBelow,
-					group: CELL_TITLE_CELL_GROUP_ID,
-					when: ContextKeyExpr.and(
+					id: MenuId.NotebookCewwTitwe,
+					owda: CewwToowbawOwda.ExecuteCewwAndBewow,
+					gwoup: CEWW_TITWE_CEWW_GWOUP_ID,
+					when: ContextKeyExpw.and(
 						executeCondition,
-						ContextKeyExpr.equals(`config.${ConsolidatedRunButton}`, false))
+						ContextKeyExpw.equaws(`config.${ConsowidatedWunButton}`, fawse))
 				}
 			],
-			icon: icons.executeBelowIcon
+			icon: icons.executeBewowIcon
 		});
 	}
 
-	override parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookCommandContext | undefined {
-		return parseMultiCellExecutionArgs(accessor, ...args);
+	ovewwide pawseAwgs(accessow: SewvicesAccessow, ...awgs: any[]): INotebookCommandContext | undefined {
+		wetuwn pawseMuwtiCewwExecutionAwgs(accessow, ...awgs);
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext | INotebookCellToolbarActionContext): Promise<void> {
-		let startCellIdx: number | undefined = undefined;
+	async wunWithContext(accessow: SewvicesAccessow, context: INotebookCommandContext | INotebookCewwToowbawActionContext): Pwomise<void> {
+		wet stawtCewwIdx: numba | undefined = undefined;
 		if (context.ui) {
-			startCellIdx = context.notebookEditor.getCellIndex(context.cell);
-		} else {
-			startCellIdx = minIndex(context.selectedCells, cell => context.notebookEditor.getCellIndex(cell));
+			stawtCewwIdx = context.notebookEditow.getCewwIndex(context.ceww);
+		} ewse {
+			stawtCewwIdx = minIndex(context.sewectedCewws, ceww => context.notebookEditow.getCewwIndex(ceww));
 		}
 
-		if (typeof startCellIdx === 'number') {
-			const range = { start: startCellIdx, end: context.notebookEditor.getLength() };
-			const cells = context.notebookEditor.getCellsInRange(range);
-			context.notebookEditor.executeNotebookCells(cells);
+		if (typeof stawtCewwIdx === 'numba') {
+			const wange = { stawt: stawtCewwIdx, end: context.notebookEditow.getWength() };
+			const cewws = context.notebookEditow.getCewwsInWange(wange);
+			context.notebookEditow.executeNotebookCewws(cewws);
 		}
 	}
 });
 
-registerAction2(class ExecuteCellFocusContainer extends NotebookMultiCellAction {
-	constructor() {
-		super({
-			id: EXECUTE_CELL_FOCUS_CONTAINER_COMMAND_ID,
-			precondition: executeThisCellCondition,
-			title: localize('notebookActions.executeAndFocusContainer', "Execute Cell and Focus Container"),
-			description: {
-				description: localize('notebookActions.executeAndFocusContainer', "Execute Cell and Focus Container"),
-				args: cellExecutionArgs
+wegistewAction2(cwass ExecuteCewwFocusContaina extends NotebookMuwtiCewwAction {
+	constwuctow() {
+		supa({
+			id: EXECUTE_CEWW_FOCUS_CONTAINEW_COMMAND_ID,
+			pwecondition: executeThisCewwCondition,
+			titwe: wocawize('notebookActions.executeAndFocusContaina', "Execute Ceww and Focus Containa"),
+			descwiption: {
+				descwiption: wocawize('notebookActions.executeAndFocusContaina', "Execute Ceww and Focus Containa"),
+				awgs: cewwExecutionAwgs
 			},
 			icon: icons.executeIcon
 		});
 	}
 
-	override parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookCommandContext | undefined {
-		return parseMultiCellExecutionArgs(accessor, ...args);
+	ovewwide pawseAwgs(accessow: SewvicesAccessow, ...awgs: any[]): INotebookCommandContext | undefined {
+		wetuwn pawseMuwtiCewwExecutionAwgs(accessow, ...awgs);
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext | INotebookCellToolbarActionContext): Promise<void> {
+	async wunWithContext(accessow: SewvicesAccessow, context: INotebookCommandContext | INotebookCewwToowbawActionContext): Pwomise<void> {
 		if (context.ui) {
-			context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
-		} else {
-			const firstCell = context.selectedCells[0];
+			context.notebookEditow.focusNotebookCeww(context.ceww, 'containa', { skipWeveaw: twue });
+		} ewse {
+			const fiwstCeww = context.sewectedCewws[0];
 
-			if (firstCell) {
-				context.notebookEditor.focusNotebookCell(firstCell, 'container', { skipReveal: true });
+			if (fiwstCeww) {
+				context.notebookEditow.focusNotebookCeww(fiwstCeww, 'containa', { skipWeveaw: twue });
 			}
 		}
 
-		await runCell(accessor, context);
+		await wunCeww(accessow, context);
 	}
 });
 
-const cellCancelCondition = ContextKeyExpr.or(
-	ContextKeyExpr.equals(NOTEBOOK_CELL_EXECUTION_STATE.key, 'executing'),
-	ContextKeyExpr.equals(NOTEBOOK_CELL_EXECUTION_STATE.key, 'pending'),
+const cewwCancewCondition = ContextKeyExpw.ow(
+	ContextKeyExpw.equaws(NOTEBOOK_CEWW_EXECUTION_STATE.key, 'executing'),
+	ContextKeyExpw.equaws(NOTEBOOK_CEWW_EXECUTION_STATE.key, 'pending'),
 );
 
-registerAction2(class CancelExecuteCell extends NotebookMultiCellAction {
-	constructor() {
-		super({
-			id: CANCEL_CELL_COMMAND_ID,
-			precondition: cellCancelCondition,
-			title: localize('notebookActions.cancel', "Stop Cell Execution"),
+wegistewAction2(cwass CancewExecuteCeww extends NotebookMuwtiCewwAction {
+	constwuctow() {
+		supa({
+			id: CANCEW_CEWW_COMMAND_ID,
+			pwecondition: cewwCancewCondition,
+			titwe: wocawize('notebookActions.cancew', "Stop Ceww Execution"),
 			icon: icons.stopIcon,
 			menu: {
-				id: MenuId.NotebookCellExecute,
-				when: cellCancelCondition,
-				group: 'inline'
+				id: MenuId.NotebookCewwExecute,
+				when: cewwCancewCondition,
+				gwoup: 'inwine'
 			},
-			description: {
-				description: localize('notebookActions.cancel', "Stop Cell Execution"),
-				args: [
+			descwiption: {
+				descwiption: wocawize('notebookActions.cancew', "Stop Ceww Execution"),
+				awgs: [
 					{
 						name: 'options',
-						description: 'The cell range options',
+						descwiption: 'The ceww wange options',
 						schema: {
 							'type': 'object',
-							'required': ['ranges'],
-							'properties': {
-								'ranges': {
-									'type': 'array',
+							'wequiwed': ['wanges'],
+							'pwopewties': {
+								'wanges': {
+									'type': 'awway',
 									items: [
 										{
 											'type': 'object',
-											'required': ['start', 'end'],
-											'properties': {
-												'start': {
-													'type': 'number'
+											'wequiwed': ['stawt', 'end'],
+											'pwopewties': {
+												'stawt': {
+													'type': 'numba'
 												},
 												'end': {
-													'type': 'number'
+													'type': 'numba'
 												}
 											}
 										}
@@ -367,7 +367,7 @@ registerAction2(class CancelExecuteCell extends NotebookMultiCellAction {
 								},
 								'document': {
 									'type': 'object',
-									'description': 'The document uri',
+									'descwiption': 'The document uwi',
 								}
 							}
 						}
@@ -377,147 +377,147 @@ registerAction2(class CancelExecuteCell extends NotebookMultiCellAction {
 		});
 	}
 
-	override parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookCommandContext | undefined {
-		return parseMultiCellExecutionArgs(accessor, ...args);
+	ovewwide pawseAwgs(accessow: SewvicesAccessow, ...awgs: any[]): INotebookCommandContext | undefined {
+		wetuwn pawseMuwtiCewwExecutionAwgs(accessow, ...awgs);
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext | INotebookCellToolbarActionContext): Promise<void> {
+	async wunWithContext(accessow: SewvicesAccessow, context: INotebookCommandContext | INotebookCewwToowbawActionContext): Pwomise<void> {
 		if (context.ui) {
-			return context.notebookEditor.cancelNotebookCells(Iterable.single(context.cell));
-		} else {
-			return context.notebookEditor.cancelNotebookCells(context.selectedCells);
+			wetuwn context.notebookEditow.cancewNotebookCewws(Itewabwe.singwe(context.ceww));
+		} ewse {
+			wetuwn context.notebookEditow.cancewNotebookCewws(context.sewectedCewws);
 		}
 	}
 });
 
-registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
-	constructor() {
-		super({
-			id: EXECUTE_CELL_SELECT_BELOW,
-			precondition: ContextKeyExpr.or(executeThisCellCondition, NOTEBOOK_CELL_TYPE.isEqualTo('markup')),
-			title: localize('notebookActions.executeAndSelectBelow', "Execute Notebook Cell and Select Below"),
+wegistewAction2(cwass ExecuteCewwSewectBewow extends NotebookCewwAction {
+	constwuctow() {
+		supa({
+			id: EXECUTE_CEWW_SEWECT_BEWOW,
+			pwecondition: ContextKeyExpw.ow(executeThisCewwCondition, NOTEBOOK_CEWW_TYPE.isEquawTo('mawkup')),
+			titwe: wocawize('notebookActions.executeAndSewectBewow', "Execute Notebook Ceww and Sewect Bewow"),
 			keybinding: {
-				when: NOTEBOOK_CELL_LIST_FOCUSED,
-				primary: KeyMod.Shift | KeyCode.Enter,
-				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
+				when: NOTEBOOK_CEWW_WIST_FOCUSED,
+				pwimawy: KeyMod.Shift | KeyCode.Enta,
+				weight: NOTEBOOK_EDITOW_WIDGET_ACTION_WEIGHT
 			},
 		});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		const idx = context.notebookEditor.getCellIndex(context.cell);
-		if (typeof idx !== 'number') {
-			return;
+	async wunWithContext(accessow: SewvicesAccessow, context: INotebookCewwActionContext): Pwomise<void> {
+		const idx = context.notebookEditow.getCewwIndex(context.ceww);
+		if (typeof idx !== 'numba') {
+			wetuwn;
 		}
-		const modeService = accessor.get(IModeService);
+		const modeSewvice = accessow.get(IModeSewvice);
 
-		if (context.cell.cellKind === CellKind.Markup) {
-			const nextCell = context.notebookEditor.cellAt(idx + 1);
-			context.cell.updateEditState(CellEditState.Preview, EXECUTE_CELL_SELECT_BELOW);
-			if (nextCell) {
-				context.notebookEditor.focusNotebookCell(nextCell, 'container');
-			} else {
-				const newCell = insertCell(modeService, context.notebookEditor, idx, CellKind.Markup, 'below');
+		if (context.ceww.cewwKind === CewwKind.Mawkup) {
+			const nextCeww = context.notebookEditow.cewwAt(idx + 1);
+			context.ceww.updateEditState(CewwEditState.Pweview, EXECUTE_CEWW_SEWECT_BEWOW);
+			if (nextCeww) {
+				context.notebookEditow.focusNotebookCeww(nextCeww, 'containa');
+			} ewse {
+				const newCeww = insewtCeww(modeSewvice, context.notebookEditow, idx, CewwKind.Mawkup, 'bewow');
 
-				if (newCell) {
-					context.notebookEditor.focusNotebookCell(newCell, 'editor');
+				if (newCeww) {
+					context.notebookEditow.focusNotebookCeww(newCeww, 'editow');
 				}
 			}
-			return;
-		} else {
-			// Try to select below, fall back on inserting
-			const nextCell = context.notebookEditor.cellAt(idx + 1);
-			if (nextCell) {
-				context.notebookEditor.focusNotebookCell(nextCell, 'container');
-			} else {
-				const newCell = insertCell(modeService, context.notebookEditor, idx, CellKind.Code, 'below');
+			wetuwn;
+		} ewse {
+			// Twy to sewect bewow, faww back on insewting
+			const nextCeww = context.notebookEditow.cewwAt(idx + 1);
+			if (nextCeww) {
+				context.notebookEditow.focusNotebookCeww(nextCeww, 'containa');
+			} ewse {
+				const newCeww = insewtCeww(modeSewvice, context.notebookEditow, idx, CewwKind.Code, 'bewow');
 
-				if (newCell) {
-					context.notebookEditor.focusNotebookCell(newCell, 'editor');
+				if (newCeww) {
+					context.notebookEditow.focusNotebookCeww(newCeww, 'editow');
 				}
 			}
 
-			return runCell(accessor, context);
+			wetuwn wunCeww(accessow, context);
 		}
 	}
 });
 
-registerAction2(class ExecuteCellInsertBelow extends NotebookCellAction {
-	constructor() {
-		super({
-			id: EXECUTE_CELL_INSERT_BELOW,
-			precondition: executeThisCellCondition,
-			title: localize('notebookActions.executeAndInsertBelow', "Execute Notebook Cell and Insert Below"),
+wegistewAction2(cwass ExecuteCewwInsewtBewow extends NotebookCewwAction {
+	constwuctow() {
+		supa({
+			id: EXECUTE_CEWW_INSEWT_BEWOW,
+			pwecondition: executeThisCewwCondition,
+			titwe: wocawize('notebookActions.executeAndInsewtBewow', "Execute Notebook Ceww and Insewt Bewow"),
 			keybinding: {
-				when: NOTEBOOK_CELL_LIST_FOCUSED,
-				primary: KeyMod.Alt | KeyCode.Enter,
-				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
+				when: NOTEBOOK_CEWW_WIST_FOCUSED,
+				pwimawy: KeyMod.Awt | KeyCode.Enta,
+				weight: NOTEBOOK_EDITOW_WIDGET_ACTION_WEIGHT
 			},
 		});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		const idx = context.notebookEditor.getCellIndex(context.cell);
-		const modeService = accessor.get(IModeService);
-		const newFocusMode = context.cell.focusMode === CellFocusMode.Editor ? 'editor' : 'container';
-		const executionP = runCell(accessor, context);
-		const newCell = insertCell(modeService, context.notebookEditor, idx, CellKind.Code, 'below');
+	async wunWithContext(accessow: SewvicesAccessow, context: INotebookCewwActionContext): Pwomise<void> {
+		const idx = context.notebookEditow.getCewwIndex(context.ceww);
+		const modeSewvice = accessow.get(IModeSewvice);
+		const newFocusMode = context.ceww.focusMode === CewwFocusMode.Editow ? 'editow' : 'containa';
+		const executionP = wunCeww(accessow, context);
+		const newCeww = insewtCeww(modeSewvice, context.notebookEditow, idx, CewwKind.Code, 'bewow');
 
-		if (newCell) {
-			context.notebookEditor.focusNotebookCell(newCell, newFocusMode);
+		if (newCeww) {
+			context.notebookEditow.focusNotebookCeww(newCeww, newFocusMode);
 		}
 
-		return executionP;
+		wetuwn executionP;
 	}
 });
 
-registerAction2(class CancelNotebook extends NotebookAction {
-	constructor() {
-		super({
-			id: CANCEL_NOTEBOOK_COMMAND_ID,
-			title: localize('notebookActions.cancelNotebook', "Stop Execution"),
+wegistewAction2(cwass CancewNotebook extends NotebookAction {
+	constwuctow() {
+		supa({
+			id: CANCEW_NOTEBOOK_COMMAND_ID,
+			titwe: wocawize('notebookActions.cancewNotebook', "Stop Execution"),
 			icon: icons.stopIcon,
-			description: {
-				description: localize('notebookActions.cancelNotebook', "Stop Execution"),
-				args: [
+			descwiption: {
+				descwiption: wocawize('notebookActions.cancewNotebook', "Stop Execution"),
+				awgs: [
 					{
-						name: 'uri',
-						description: 'The document uri',
-						constraint: URI
+						name: 'uwi',
+						descwiption: 'The document uwi',
+						constwaint: UWI
 					}
 				]
 			},
 			menu: [
 				{
-					id: MenuId.EditorTitle,
-					order: -1,
-					group: 'navigation',
-					when: ContextKeyExpr.and(
-						NOTEBOOK_IS_ACTIVE_EDITOR,
-						NOTEBOOK_HAS_RUNNING_CELL,
-						NOTEBOOK_INTERRUPTIBLE_KERNEL,
-						ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
+					id: MenuId.EditowTitwe,
+					owda: -1,
+					gwoup: 'navigation',
+					when: ContextKeyExpw.and(
+						NOTEBOOK_IS_ACTIVE_EDITOW,
+						NOTEBOOK_HAS_WUNNING_CEWW,
+						NOTEBOOK_INTEWWUPTIBWE_KEWNEW,
+						ContextKeyExpw.notEquaws('config.notebook.gwobawToowbaw', twue)
 					)
 				},
 				{
-					id: MenuId.NotebookToolbar,
-					order: -1,
-					group: 'navigation/execute',
-					when: ContextKeyExpr.and(
-						NOTEBOOK_HAS_RUNNING_CELL,
-						NOTEBOOK_INTERRUPTIBLE_KERNEL,
-						ContextKeyExpr.equals('config.notebook.globalToolbar', true)
+					id: MenuId.NotebookToowbaw,
+					owda: -1,
+					gwoup: 'navigation/execute',
+					when: ContextKeyExpw.and(
+						NOTEBOOK_HAS_WUNNING_CEWW,
+						NOTEBOOK_INTEWWUPTIBWE_KEWNEW,
+						ContextKeyExpw.equaws('config.notebook.gwobawToowbaw', twue)
 					)
 				}
 			]
 		});
 	}
 
-	override getEditorContextFromArgsOrActive(accessor: ServicesAccessor, context?: UriComponents): INotebookActionContext | undefined {
-		return getContextFromUri(accessor, context) ?? getContextFromActiveEditor(accessor.get(IEditorService));
+	ovewwide getEditowContextFwomAwgsOwActive(accessow: SewvicesAccessow, context?: UwiComponents): INotebookActionContext | undefined {
+		wetuwn getContextFwomUwi(accessow, context) ?? getContextFwomActiveEditow(accessow.get(IEditowSewvice));
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		return context.notebookEditor.cancelNotebookCells();
+	async wunWithContext(accessow: SewvicesAccessow, context: INotebookActionContext): Pwomise<void> {
+		wetuwn context.notebookEditow.cancewNotebookCewws();
 	}
 });

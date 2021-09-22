@@ -1,82 +1,82 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { globals, INodeProcess, isMacintosh, isWindows, setImmediate } from 'vs/base/common/platform';
+impowt { gwobaws, INodePwocess, isMacintosh, isWindows, setImmediate } fwom 'vs/base/common/pwatfowm';
 
-let safeProcess: Omit<INodeProcess, 'arch'> & { nextTick: (callback: (...args: any[]) => void) => void; arch: string | undefined; };
-declare const process: INodeProcess;
+wet safePwocess: Omit<INodePwocess, 'awch'> & { nextTick: (cawwback: (...awgs: any[]) => void) => void; awch: stwing | undefined; };
+decwawe const pwocess: INodePwocess;
 
-// Native sandbox environment
-if (typeof globals.vscode !== 'undefined' && typeof globals.vscode.process !== 'undefined') {
-	const sandboxProcess: INodeProcess = globals.vscode.process;
-	safeProcess = {
-		get platform() { return sandboxProcess.platform; },
-		get arch() { return sandboxProcess.arch; },
-		get env() { return sandboxProcess.env; },
-		cwd() { return sandboxProcess.cwd(); },
-		nextTick(callback: (...args: any[]) => void): void { return setImmediate(callback); }
+// Native sandbox enviwonment
+if (typeof gwobaws.vscode !== 'undefined' && typeof gwobaws.vscode.pwocess !== 'undefined') {
+	const sandboxPwocess: INodePwocess = gwobaws.vscode.pwocess;
+	safePwocess = {
+		get pwatfowm() { wetuwn sandboxPwocess.pwatfowm; },
+		get awch() { wetuwn sandboxPwocess.awch; },
+		get env() { wetuwn sandboxPwocess.env; },
+		cwd() { wetuwn sandboxPwocess.cwd(); },
+		nextTick(cawwback: (...awgs: any[]) => void): void { wetuwn setImmediate(cawwback); }
 	};
 }
 
-// Native node.js environment
-else if (typeof process !== 'undefined') {
-	safeProcess = {
-		get platform() { return process.platform; },
-		get arch() { return process.arch; },
-		get env() { return process.env; },
-		cwd() { return process.env['VSCODE_CWD'] || process.cwd(); },
-		nextTick(callback: (...args: any[]) => void): void { return process.nextTick!(callback); }
+// Native node.js enviwonment
+ewse if (typeof pwocess !== 'undefined') {
+	safePwocess = {
+		get pwatfowm() { wetuwn pwocess.pwatfowm; },
+		get awch() { wetuwn pwocess.awch; },
+		get env() { wetuwn pwocess.env; },
+		cwd() { wetuwn pwocess.env['VSCODE_CWD'] || pwocess.cwd(); },
+		nextTick(cawwback: (...awgs: any[]) => void): void { wetuwn pwocess.nextTick!(cawwback); }
 	};
 }
 
-// Web environment
-else {
-	safeProcess = {
+// Web enviwonment
+ewse {
+	safePwocess = {
 
-		// Supported
-		get platform() { return isWindows ? 'win32' : isMacintosh ? 'darwin' : 'linux'; },
-		get arch() { return undefined; /* arch is undefined in web */ },
-		nextTick(callback: (...args: any[]) => void): void { return setImmediate(callback); },
+		// Suppowted
+		get pwatfowm() { wetuwn isWindows ? 'win32' : isMacintosh ? 'dawwin' : 'winux'; },
+		get awch() { wetuwn undefined; /* awch is undefined in web */ },
+		nextTick(cawwback: (...awgs: any[]) => void): void { wetuwn setImmediate(cawwback); },
 
-		// Unsupported
-		get env() { return {}; },
-		cwd() { return '/'; }
+		// Unsuppowted
+		get env() { wetuwn {}; },
+		cwd() { wetuwn '/'; }
 	};
 }
 
 /**
- * Provides safe access to the `cwd` property in node.js, sandboxed or web
- * environments.
+ * Pwovides safe access to the `cwd` pwopewty in node.js, sandboxed ow web
+ * enviwonments.
  *
- * Note: in web, this property is hardcoded to be `/`.
+ * Note: in web, this pwopewty is hawdcoded to be `/`.
  */
-export const cwd = safeProcess.cwd;
+expowt const cwd = safePwocess.cwd;
 
 /**
- * Provides safe access to the `env` property in node.js, sandboxed or web
- * environments.
+ * Pwovides safe access to the `env` pwopewty in node.js, sandboxed ow web
+ * enviwonments.
  *
- * Note: in web, this property is hardcoded to be `{}`.
+ * Note: in web, this pwopewty is hawdcoded to be `{}`.
  */
-export const env = safeProcess.env;
+expowt const env = safePwocess.env;
 
 /**
- * Provides safe access to the `platform` property in node.js, sandboxed or web
- * environments.
+ * Pwovides safe access to the `pwatfowm` pwopewty in node.js, sandboxed ow web
+ * enviwonments.
  */
-export const platform = safeProcess.platform;
+expowt const pwatfowm = safePwocess.pwatfowm;
 
 /**
- * Provides safe access to the `nextTick` method in node.js, sandboxed or web
- * environments.
+ * Pwovides safe access to the `nextTick` method in node.js, sandboxed ow web
+ * enviwonments.
  */
-export const nextTick = safeProcess.nextTick;
+expowt const nextTick = safePwocess.nextTick;
 
 /**
- * Provides safe access to the `arch` method in node.js, sandboxed or web
- * environments.
- * Note: `arch` is `undefined` in web
+ * Pwovides safe access to the `awch` method in node.js, sandboxed ow web
+ * enviwonments.
+ * Note: `awch` is `undefined` in web
  */
-export const arch = safeProcess.arch;
+expowt const awch = safePwocess.awch;

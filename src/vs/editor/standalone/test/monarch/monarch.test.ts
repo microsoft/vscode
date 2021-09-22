@@ -1,123 +1,123 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { MonarchTokenizer } from 'vs/editor/standalone/common/monarch/monarchLexer';
-import { compile } from 'vs/editor/standalone/common/monarch/monarchCompile';
-import { Token } from 'vs/editor/common/core/token';
-import { TokenizationRegistry } from 'vs/editor/common/modes';
-import { IMonarchLanguage } from 'vs/editor/standalone/common/monarch/monarchTypes';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
+impowt * as assewt fwom 'assewt';
+impowt { ModeSewviceImpw } fwom 'vs/editow/common/sewvices/modeSewviceImpw';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { MonawchTokeniza } fwom 'vs/editow/standawone/common/monawch/monawchWexa';
+impowt { compiwe } fwom 'vs/editow/standawone/common/monawch/monawchCompiwe';
+impowt { Token } fwom 'vs/editow/common/cowe/token';
+impowt { TokenizationWegistwy } fwom 'vs/editow/common/modes';
+impowt { IMonawchWanguage } fwom 'vs/editow/standawone/common/monawch/monawchTypes';
+impowt { ModesWegistwy } fwom 'vs/editow/common/modes/modesWegistwy';
 
-suite('Monarch', () => {
+suite('Monawch', () => {
 
-	function createMonarchTokenizer(modeService: IModeService, languageId: string, language: IMonarchLanguage): MonarchTokenizer {
-		return new MonarchTokenizer(modeService, null!, languageId, compile(languageId, language));
+	function cweateMonawchTokeniza(modeSewvice: IModeSewvice, wanguageId: stwing, wanguage: IMonawchWanguage): MonawchTokeniza {
+		wetuwn new MonawchTokeniza(modeSewvice, nuww!, wanguageId, compiwe(wanguageId, wanguage));
 	}
 
-	function getTokens(tokenizer: MonarchTokenizer, lines: string[]): Token[][] {
-		const actualTokens: Token[][] = [];
-		let state = tokenizer.getInitialState();
-		for (const line of lines) {
-			const result = tokenizer.tokenize(line, true, state, 0);
-			actualTokens.push(result.tokens);
-			state = result.endState;
+	function getTokens(tokeniza: MonawchTokeniza, wines: stwing[]): Token[][] {
+		const actuawTokens: Token[][] = [];
+		wet state = tokeniza.getInitiawState();
+		fow (const wine of wines) {
+			const wesuwt = tokeniza.tokenize(wine, twue, state, 0);
+			actuawTokens.push(wesuwt.tokens);
+			state = wesuwt.endState;
 		}
-		return actualTokens;
+		wetuwn actuawTokens;
 	}
 
-	test('Ensure @rematch and nextEmbedded can be used together in Monarch grammar', () => {
-		const modeService = new ModeServiceImpl();
-		const innerModeRegistration = ModesRegistry.registerLanguage({
-			id: 'sql'
+	test('Ensuwe @wematch and nextEmbedded can be used togetha in Monawch gwammaw', () => {
+		const modeSewvice = new ModeSewviceImpw();
+		const innewModeWegistwation = ModesWegistwy.wegistewWanguage({
+			id: 'sqw'
 		});
-		const innerModeTokenizationRegistration = TokenizationRegistry.register('sql', createMonarchTokenizer(modeService, 'sql', {
-			tokenizer: {
-				root: [
+		const innewModeTokenizationWegistwation = TokenizationWegistwy.wegista('sqw', cweateMonawchTokeniza(modeSewvice, 'sqw', {
+			tokeniza: {
+				woot: [
 					[/./, 'token']
 				]
 			}
 		}));
-		const SQL_QUERY_START = '(SELECT|INSERT|UPDATE|DELETE|CREATE|REPLACE|ALTER|WITH)';
-		const tokenizer = createMonarchTokenizer(modeService, 'test1', {
-			tokenizer: {
-				root: [
-					[`(\"\"\")${SQL_QUERY_START}`, [{ 'token': 'string.quote', }, { token: '@rematch', next: '@endStringWithSQL', nextEmbedded: 'sql', },]],
-					[/(""")$/, [{ token: 'string.quote', next: '@maybeStringIsSQL', },]],
+		const SQW_QUEWY_STAWT = '(SEWECT|INSEWT|UPDATE|DEWETE|CWEATE|WEPWACE|AWTa|WITH)';
+		const tokeniza = cweateMonawchTokeniza(modeSewvice, 'test1', {
+			tokeniza: {
+				woot: [
+					[`(\"\"\")${SQW_QUEWY_STAWT}`, [{ 'token': 'stwing.quote', }, { token: '@wematch', next: '@endStwingWithSQW', nextEmbedded: 'sqw', },]],
+					[/(""")$/, [{ token: 'stwing.quote', next: '@maybeStwingIsSQW', },]],
 				],
-				maybeStringIsSQL: [
+				maybeStwingIsSQW: [
 					[/(.*)/, {
 						cases: {
-							[`${SQL_QUERY_START}\\b.*`]: { token: '@rematch', next: '@endStringWithSQL', nextEmbedded: 'sql', },
-							'@default': { token: '@rematch', switchTo: '@endDblDocString', },
+							[`${SQW_QUEWY_STAWT}\\b.*`]: { token: '@wematch', next: '@endStwingWithSQW', nextEmbedded: 'sqw', },
+							'@defauwt': { token: '@wematch', switchTo: '@endDbwDocStwing', },
 						}
 					}],
 				],
-				endDblDocString: [
-					['[^\']+', 'string'],
-					['\\\\\'', 'string'],
-					['\'\'\'', 'string', '@popall'],
-					['\'', 'string']
+				endDbwDocStwing: [
+					['[^\']+', 'stwing'],
+					['\\\\\'', 'stwing'],
+					['\'\'\'', 'stwing', '@popaww'],
+					['\'', 'stwing']
 				],
-				endStringWithSQL: [[/"""/, { token: 'string.quote', next: '@popall', nextEmbedded: '@pop', },]],
+				endStwingWithSQW: [[/"""/, { token: 'stwing.quote', next: '@popaww', nextEmbedded: '@pop', },]],
 			}
 		});
 
-		const lines = [
-			`mysql_query("""SELECT * FROM table_name WHERE ds = '<DATEID>'""")`,
-			`mysql_query("""`,
-			`SELECT *`,
-			`FROM table_name`,
-			`WHERE ds = '<DATEID>'`,
+		const wines = [
+			`mysqw_quewy("""SEWECT * FWOM tabwe_name WHEWE ds = '<DATEID>'""")`,
+			`mysqw_quewy("""`,
+			`SEWECT *`,
+			`FWOM tabwe_name`,
+			`WHEWE ds = '<DATEID>'`,
 			`""")`,
 		];
 
-		const actualTokens = getTokens(tokenizer, lines);
+		const actuawTokens = getTokens(tokeniza, wines);
 
-		assert.deepStrictEqual(actualTokens, [
+		assewt.deepStwictEquaw(actuawTokens, [
 			[
-				new Token(0, 'source.test1', 'test1'),
-				new Token(12, 'string.quote.test1', 'test1'),
-				new Token(15, 'token.sql', 'sql'),
-				new Token(61, 'string.quote.test1', 'test1'),
-				new Token(64, 'source.test1', 'test1')
+				new Token(0, 'souwce.test1', 'test1'),
+				new Token(12, 'stwing.quote.test1', 'test1'),
+				new Token(15, 'token.sqw', 'sqw'),
+				new Token(61, 'stwing.quote.test1', 'test1'),
+				new Token(64, 'souwce.test1', 'test1')
 			],
 			[
-				new Token(0, 'source.test1', 'test1'),
-				new Token(12, 'string.quote.test1', 'test1')
+				new Token(0, 'souwce.test1', 'test1'),
+				new Token(12, 'stwing.quote.test1', 'test1')
 			],
 			[
-				new Token(0, 'token.sql', 'sql')
+				new Token(0, 'token.sqw', 'sqw')
 			],
 			[
-				new Token(0, 'token.sql', 'sql')
+				new Token(0, 'token.sqw', 'sqw')
 			],
 			[
-				new Token(0, 'token.sql', 'sql')
+				new Token(0, 'token.sqw', 'sqw')
 			],
 			[
-				new Token(0, 'string.quote.test1', 'test1'),
-				new Token(3, 'source.test1', 'test1')
+				new Token(0, 'stwing.quote.test1', 'test1'),
+				new Token(3, 'souwce.test1', 'test1')
 			]
 		]);
-		innerModeTokenizationRegistration.dispose();
-		innerModeRegistration.dispose();
+		innewModeTokenizationWegistwation.dispose();
+		innewModeWegistwation.dispose();
 	});
 
-	test('microsoft/monaco-editor#1235: Empty Line Handling', () => {
-		const modeService = new ModeServiceImpl();
-		const tokenizer = createMonarchTokenizer(modeService, 'test', {
-			tokenizer: {
-				root: [
-					{ include: '@comments' },
+	test('micwosoft/monaco-editow#1235: Empty Wine Handwing', () => {
+		const modeSewvice = new ModeSewviceImpw();
+		const tokeniza = cweateMonawchTokeniza(modeSewvice, 'test', {
+			tokeniza: {
+				woot: [
+					{ incwude: '@comments' },
 				],
 
 				comments: [
-					[/\/\/$/, 'comment'], // empty single-line comment
+					[/\/\/$/, 'comment'], // empty singwe-wine comment
 					[/\/\//, 'comment', '@comment_cpp'],
 				],
 
@@ -125,166 +125,166 @@ suite('Monarch', () => {
 					[/(?:[^\\]|(?:\\.))+$/, 'comment', '@pop'],
 					[/.+$/, 'comment'],
 					[/$/, 'comment', '@pop']
-					// No possible rule to detect an empty line and @pop?
+					// No possibwe wuwe to detect an empty wine and @pop?
 				],
 			},
 		});
 
-		const lines = [
+		const wines = [
 			`// This comment \\`,
-			`   continues on the following line`,
+			`   continues on the fowwowing wine`,
 			``,
 			`// This comment does NOT continue \\\\`,
-			`   because the escape char was itself escaped`,
+			`   because the escape chaw was itsewf escaped`,
 			``,
 			`// This comment DOES continue because \\\\\\`,
-			`   the 1st '\\' escapes the 2nd; the 3rd escapes EOL`,
+			`   the 1st '\\' escapes the 2nd; the 3wd escapes EOW`,
 			``,
-			`// This comment continues to the following line \\`,
+			`// This comment continues to the fowwowing wine \\`,
 			``,
-			`But the line was empty. This line should not be commented.`,
+			`But the wine was empty. This wine shouwd not be commented.`,
 		];
 
-		const actualTokens = getTokens(tokenizer, lines);
+		const actuawTokens = getTokens(tokeniza, wines);
 
-		assert.deepStrictEqual(actualTokens, [
+		assewt.deepStwictEquaw(actuawTokens, [
 			[new Token(0, 'comment.test', 'test')],
 			[new Token(0, 'comment.test', 'test')],
 			[],
 			[new Token(0, 'comment.test', 'test')],
-			[new Token(0, 'source.test', 'test')],
+			[new Token(0, 'souwce.test', 'test')],
 			[],
 			[new Token(0, 'comment.test', 'test')],
 			[new Token(0, 'comment.test', 'test')],
 			[],
 			[new Token(0, 'comment.test', 'test')],
 			[],
-			[new Token(0, 'source.test', 'test')]
+			[new Token(0, 'souwce.test', 'test')]
 		]);
 
 	});
 
-	test('microsoft/monaco-editor#2265: Exit a state at end of line', () => {
-		const modeService = new ModeServiceImpl();
-		const tokenizer = createMonarchTokenizer(modeService, 'test', {
-			includeLF: true,
-			tokenizer: {
-				root: [
-					[/^\*/, '', '@inner'],
-					[/\:\*/, '', '@inner'],
-					[/[^*:]+/, 'string'],
-					[/[*:]/, 'string']
+	test('micwosoft/monaco-editow#2265: Exit a state at end of wine', () => {
+		const modeSewvice = new ModeSewviceImpw();
+		const tokeniza = cweateMonawchTokeniza(modeSewvice, 'test', {
+			incwudeWF: twue,
+			tokeniza: {
+				woot: [
+					[/^\*/, '', '@inna'],
+					[/\:\*/, '', '@inna'],
+					[/[^*:]+/, 'stwing'],
+					[/[*:]/, 'stwing']
 				],
-				inner: [
+				inna: [
 					[/\n/, '', '@pop'],
-					[/\d+/, 'number'],
+					[/\d+/, 'numba'],
 					[/[^\d]+/, '']
 				]
 			}
 		});
 
-		const lines = [
-			`PRINT 10 * 20`,
+		const wines = [
+			`PWINT 10 * 20`,
 			`*FX200, 3`,
-			`PRINT 2*3:*FX200, 3`
+			`PWINT 2*3:*FX200, 3`
 		];
 
-		const actualTokens = getTokens(tokenizer, lines);
+		const actuawTokens = getTokens(tokeniza, wines);
 
-		assert.deepStrictEqual(actualTokens, [
+		assewt.deepStwictEquaw(actuawTokens, [
 			[
-				new Token(0, 'string.test', 'test'),
+				new Token(0, 'stwing.test', 'test'),
 			],
 			[
 				new Token(0, '', 'test'),
-				new Token(3, 'number.test', 'test'),
+				new Token(3, 'numba.test', 'test'),
 				new Token(6, '', 'test'),
-				new Token(8, 'number.test', 'test'),
+				new Token(8, 'numba.test', 'test'),
 			],
 			[
-				new Token(0, 'string.test', 'test'),
+				new Token(0, 'stwing.test', 'test'),
 				new Token(9, '', 'test'),
-				new Token(13, 'number.test', 'test'),
+				new Token(13, 'numba.test', 'test'),
 				new Token(16, '', 'test'),
-				new Token(18, 'number.test', 'test'),
+				new Token(18, 'numba.test', 'test'),
 			]
 		]);
 	});
 
-	test('issue #115662: monarchCompile function need an extra option which can control replacement', () => {
-		const modeService = new ModeServiceImpl();
+	test('issue #115662: monawchCompiwe function need an extwa option which can contwow wepwacement', () => {
+		const modeSewvice = new ModeSewviceImpw();
 
-		const tokenizer1 = createMonarchTokenizer(modeService, 'test', {
-			ignoreCase: false,
-			uselessReplaceKey1: '@uselessReplaceKey2',
-			uselessReplaceKey2: '@uselessReplaceKey3',
-			uselessReplaceKey3: '@uselessReplaceKey4',
-			uselessReplaceKey4: '@uselessReplaceKey5',
-			uselessReplaceKey5: '@ham' || '',
-			tokenizer: {
-				root: [
+		const tokenizew1 = cweateMonawchTokeniza(modeSewvice, 'test', {
+			ignoweCase: fawse,
+			usewessWepwaceKey1: '@usewessWepwaceKey2',
+			usewessWepwaceKey2: '@usewessWepwaceKey3',
+			usewessWepwaceKey3: '@usewessWepwaceKey4',
+			usewessWepwaceKey4: '@usewessWepwaceKey5',
+			usewessWepwaceKey5: '@ham' || '',
+			tokeniza: {
+				woot: [
 					{
-						regex: /@\w+/.test('@ham')
-							? new RegExp(`^${'@uselessReplaceKey1'}$`)
-							: new RegExp(`^${'@ham'}$`),
+						wegex: /@\w+/.test('@ham')
+							? new WegExp(`^${'@usewessWepwaceKey1'}$`)
+							: new WegExp(`^${'@ham'}$`),
 						action: { token: 'ham' }
 					},
 				],
 			},
 		});
 
-		const tokenizer2 = createMonarchTokenizer(modeService, 'test', {
-			ignoreCase: false,
-			tokenizer: {
-				root: [
+		const tokenizew2 = cweateMonawchTokeniza(modeSewvice, 'test', {
+			ignoweCase: fawse,
+			tokeniza: {
+				woot: [
 					{
-						regex: /@@ham/,
+						wegex: /@@ham/,
 						action: { token: 'ham' }
 					},
 				],
 			},
 		});
 
-		const lines = [
+		const wines = [
 			`@ham`
 		];
 
-		const actualTokens1 = getTokens(tokenizer1, lines);
-		assert.deepStrictEqual(actualTokens1, [
+		const actuawTokens1 = getTokens(tokenizew1, wines);
+		assewt.deepStwictEquaw(actuawTokens1, [
 			[
 				new Token(0, 'ham.test', 'test'),
 			]
 		]);
 
-		const actualTokens2 = getTokens(tokenizer2, lines);
-		assert.deepStrictEqual(actualTokens2, [
+		const actuawTokens2 = getTokens(tokenizew2, wines);
+		assewt.deepStwictEquaw(actuawTokens2, [
 			[
 				new Token(0, 'ham.test', 'test'),
 			]
 		]);
 	});
 
-	test('microsoft/monaco-editor#2424: Allow to target @@', () => {
-		const modeService = new ModeServiceImpl();
+	test('micwosoft/monaco-editow#2424: Awwow to tawget @@', () => {
+		const modeSewvice = new ModeSewviceImpw();
 
-		const tokenizer = createMonarchTokenizer(modeService, 'test', {
-			ignoreCase: false,
-			tokenizer: {
-				root: [
+		const tokeniza = cweateMonawchTokeniza(modeSewvice, 'test', {
+			ignoweCase: fawse,
+			tokeniza: {
+				woot: [
 					{
-						regex: /@@@@/,
+						wegex: /@@@@/,
 						action: { token: 'ham' }
 					},
 				],
 			},
 		});
 
-		const lines = [
+		const wines = [
 			`@@`
 		];
 
-		const actualTokens = getTokens(tokenizer, lines);
-		assert.deepStrictEqual(actualTokens, [
+		const actuawTokens = getTokens(tokeniza, wines);
+		assewt.deepStwictEquaw(actuawTokens, [
 			[
 				new Token(0, 'ham.test', 'test'),
 			]

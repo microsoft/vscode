@@ -1,43 +1,43 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export const enum Constants {
-	START_CH_CODE = 32, // Space
-	END_CH_CODE = 126, // Tilde (~)
-	UNKNOWN_CODE = 65533, // UTF placeholder code
-	CHAR_COUNT = END_CH_CODE - START_CH_CODE + 2,
+expowt const enum Constants {
+	STAWT_CH_CODE = 32, // Space
+	END_CH_CODE = 126, // Tiwde (~)
+	UNKNOWN_CODE = 65533, // UTF pwacehowda code
+	CHAW_COUNT = END_CH_CODE - STAWT_CH_CODE + 2,
 
-	SAMPLED_CHAR_HEIGHT = 16,
-	SAMPLED_CHAR_WIDTH = 10,
+	SAMPWED_CHAW_HEIGHT = 16,
+	SAMPWED_CHAW_WIDTH = 10,
 
-	BASE_CHAR_HEIGHT = 2,
-	BASE_CHAR_WIDTH = 1,
+	BASE_CHAW_HEIGHT = 2,
+	BASE_CHAW_WIDTH = 1,
 
-	RGBA_CHANNELS_CNT = 4,
-	RGBA_SAMPLED_ROW_WIDTH = RGBA_CHANNELS_CNT * CHAR_COUNT * SAMPLED_CHAR_WIDTH
+	WGBA_CHANNEWS_CNT = 4,
+	WGBA_SAMPWED_WOW_WIDTH = WGBA_CHANNEWS_CNT * CHAW_COUNT * SAMPWED_CHAW_WIDTH
 }
 
-export const allCharCodes: ReadonlyArray<number> = (() => {
-	const v: number[] = [];
-	for (let i = Constants.START_CH_CODE; i <= Constants.END_CH_CODE; i++) {
+expowt const awwChawCodes: WeadonwyAwway<numba> = (() => {
+	const v: numba[] = [];
+	fow (wet i = Constants.STAWT_CH_CODE; i <= Constants.END_CH_CODE; i++) {
 		v.push(i);
 	}
 
 	v.push(Constants.UNKNOWN_CODE);
-	return v;
+	wetuwn v;
 })();
 
-export const getCharIndex = (chCode: number, fontScale: number) => {
-	chCode -= Constants.START_CH_CODE;
-	if (chCode < 0 || chCode > Constants.CHAR_COUNT) {
-		if (fontScale <= 2) {
-			// for smaller scales, we can get away with using any ASCII character...
-			return (chCode + Constants.CHAR_COUNT) % Constants.CHAR_COUNT;
+expowt const getChawIndex = (chCode: numba, fontScawe: numba) => {
+	chCode -= Constants.STAWT_CH_CODE;
+	if (chCode < 0 || chCode > Constants.CHAW_COUNT) {
+		if (fontScawe <= 2) {
+			// fow smawwa scawes, we can get away with using any ASCII chawacta...
+			wetuwn (chCode + Constants.CHAW_COUNT) % Constants.CHAW_COUNT;
 		}
-		return Constants.CHAR_COUNT - 1; // unknown symbol
+		wetuwn Constants.CHAW_COUNT - 1; // unknown symbow
 	}
 
-	return chCode;
+	wetuwn chCode;
 };

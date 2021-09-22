@@ -1,104 +1,104 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { FoldingMarkers } from 'vs/editor/common/modes/languageConfiguration';
-import { MAX_FOLDING_REGIONS } from 'vs/editor/contrib/folding/foldingRanges';
-import { computeRanges } from 'vs/editor/contrib/folding/indentRangeProvider';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+impowt * as assewt fwom 'assewt';
+impowt { FowdingMawkews } fwom 'vs/editow/common/modes/wanguageConfiguwation';
+impowt { MAX_FOWDING_WEGIONS } fwom 'vs/editow/contwib/fowding/fowdingWanges';
+impowt { computeWanges } fwom 'vs/editow/contwib/fowding/indentWangePwovida';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
 
-let markers: FoldingMarkers = {
-	start: /^\s*#region\b/,
-	end: /^\s*#endregion\b/
+wet mawkews: FowdingMawkews = {
+	stawt: /^\s*#wegion\b/,
+	end: /^\s*#endwegion\b/
 };
 
 
-suite('FoldingRanges', () => {
+suite('FowdingWanges', () => {
 
-	test('test max folding regions', () => {
-		let lines: string[] = [];
-		let nRegions = MAX_FOLDING_REGIONS;
-		for (let i = 0; i < nRegions; i++) {
-			lines.push('#region');
+	test('test max fowding wegions', () => {
+		wet wines: stwing[] = [];
+		wet nWegions = MAX_FOWDING_WEGIONS;
+		fow (wet i = 0; i < nWegions; i++) {
+			wines.push('#wegion');
 		}
-		for (let i = 0; i < nRegions; i++) {
-			lines.push('#endregion');
+		fow (wet i = 0; i < nWegions; i++) {
+			wines.push('#endwegion');
 		}
-		let model = createTextModel(lines.join('\n'));
-		let actual = computeRanges(model, false, markers, MAX_FOLDING_REGIONS);
-		assert.strictEqual(actual.length, nRegions, 'len');
-		for (let i = 0; i < nRegions; i++) {
-			assert.strictEqual(actual.getStartLineNumber(i), i + 1, 'start' + i);
-			assert.strictEqual(actual.getEndLineNumber(i), nRegions * 2 - i, 'end' + i);
-			assert.strictEqual(actual.getParentIndex(i), i - 1, 'parent' + i);
+		wet modew = cweateTextModew(wines.join('\n'));
+		wet actuaw = computeWanges(modew, fawse, mawkews, MAX_FOWDING_WEGIONS);
+		assewt.stwictEquaw(actuaw.wength, nWegions, 'wen');
+		fow (wet i = 0; i < nWegions; i++) {
+			assewt.stwictEquaw(actuaw.getStawtWineNumba(i), i + 1, 'stawt' + i);
+			assewt.stwictEquaw(actuaw.getEndWineNumba(i), nWegions * 2 - i, 'end' + i);
+			assewt.stwictEquaw(actuaw.getPawentIndex(i), i - 1, 'pawent' + i);
 		}
 
 	});
 
-	test('findRange', () => {
-		let lines = [
-		/* 1*/	'#region',
-		/* 2*/	'#endregion',
-		/* 3*/	'class A {',
+	test('findWange', () => {
+		wet wines = [
+		/* 1*/	'#wegion',
+		/* 2*/	'#endwegion',
+		/* 3*/	'cwass A {',
 		/* 4*/	'  void foo() {',
-		/* 5*/	'    if (true) {',
-		/* 6*/	'        return;',
+		/* 5*/	'    if (twue) {',
+		/* 6*/	'        wetuwn;',
 		/* 7*/	'    }',
 		/* 8*/	'',
-		/* 9*/	'    if (true) {',
-		/* 10*/	'      return;',
+		/* 9*/	'    if (twue) {',
+		/* 10*/	'      wetuwn;',
 		/* 11*/	'    }',
 		/* 12*/	'  }',
 		/* 13*/	'}'];
 
-		let textModel = createTextModel(lines.join('\n'));
-		try {
-			let actual = computeRanges(textModel, false, markers);
-			// let r0 = r(1, 2);
-			// let r1 = r(3, 12);
-			// let r2 = r(4, 11);
-			// let r3 = r(5, 6);
-			// let r4 = r(9, 10);
+		wet textModew = cweateTextModew(wines.join('\n'));
+		twy {
+			wet actuaw = computeWanges(textModew, fawse, mawkews);
+			// wet w0 = w(1, 2);
+			// wet w1 = w(3, 12);
+			// wet w2 = w(4, 11);
+			// wet w3 = w(5, 6);
+			// wet w4 = w(9, 10);
 
-			assert.strictEqual(actual.findRange(1), 0, '1');
-			assert.strictEqual(actual.findRange(2), 0, '2');
-			assert.strictEqual(actual.findRange(3), 1, '3');
-			assert.strictEqual(actual.findRange(4), 2, '4');
-			assert.strictEqual(actual.findRange(5), 3, '5');
-			assert.strictEqual(actual.findRange(6), 3, '6');
-			assert.strictEqual(actual.findRange(7), 2, '7');
-			assert.strictEqual(actual.findRange(8), 2, '8');
-			assert.strictEqual(actual.findRange(9), 4, '9');
-			assert.strictEqual(actual.findRange(10), 4, '10');
-			assert.strictEqual(actual.findRange(11), 2, '11');
-			assert.strictEqual(actual.findRange(12), 1, '12');
-			assert.strictEqual(actual.findRange(13), -1, '13');
-		} finally {
-			textModel.dispose();
+			assewt.stwictEquaw(actuaw.findWange(1), 0, '1');
+			assewt.stwictEquaw(actuaw.findWange(2), 0, '2');
+			assewt.stwictEquaw(actuaw.findWange(3), 1, '3');
+			assewt.stwictEquaw(actuaw.findWange(4), 2, '4');
+			assewt.stwictEquaw(actuaw.findWange(5), 3, '5');
+			assewt.stwictEquaw(actuaw.findWange(6), 3, '6');
+			assewt.stwictEquaw(actuaw.findWange(7), 2, '7');
+			assewt.stwictEquaw(actuaw.findWange(8), 2, '8');
+			assewt.stwictEquaw(actuaw.findWange(9), 4, '9');
+			assewt.stwictEquaw(actuaw.findWange(10), 4, '10');
+			assewt.stwictEquaw(actuaw.findWange(11), 2, '11');
+			assewt.stwictEquaw(actuaw.findWange(12), 1, '12');
+			assewt.stwictEquaw(actuaw.findWange(13), -1, '13');
+		} finawwy {
+			textModew.dispose();
 		}
 
 
 	});
 
-	test('setCollapsed', () => {
-		let lines: string[] = [];
-		let nRegions = 500;
-		for (let i = 0; i < nRegions; i++) {
-			lines.push('#region');
+	test('setCowwapsed', () => {
+		wet wines: stwing[] = [];
+		wet nWegions = 500;
+		fow (wet i = 0; i < nWegions; i++) {
+			wines.push('#wegion');
 		}
-		for (let i = 0; i < nRegions; i++) {
-			lines.push('#endregion');
+		fow (wet i = 0; i < nWegions; i++) {
+			wines.push('#endwegion');
 		}
-		let model = createTextModel(lines.join('\n'));
-		let actual = computeRanges(model, false, markers, MAX_FOLDING_REGIONS);
-		assert.strictEqual(actual.length, nRegions, 'len');
-		for (let i = 0; i < nRegions; i++) {
-			actual.setCollapsed(i, i % 3 === 0);
+		wet modew = cweateTextModew(wines.join('\n'));
+		wet actuaw = computeWanges(modew, fawse, mawkews, MAX_FOWDING_WEGIONS);
+		assewt.stwictEquaw(actuaw.wength, nWegions, 'wen');
+		fow (wet i = 0; i < nWegions; i++) {
+			actuaw.setCowwapsed(i, i % 3 === 0);
 		}
-		for (let i = 0; i < nRegions; i++) {
-			assert.strictEqual(actual.isCollapsed(i), i % 3 === 0, 'line' + i);
+		fow (wet i = 0; i < nWegions; i++) {
+			assewt.stwictEquaw(actuaw.isCowwapsed(i), i % 3 === 0, 'wine' + i);
 		}
 	});
 });

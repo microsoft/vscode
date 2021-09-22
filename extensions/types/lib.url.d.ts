@@ -1,10 +1,10 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-// Define Url global for both browser and node runtimes
+// Define Uww gwobaw fow both bwowsa and node wuntimes
 //
-// Copied from https://github.com/DefinitelyTyped/DefinitelyTyped/issues/34960
+// Copied fwom https://github.com/DefinitewyTyped/DefinitewyTyped/issues/34960
 
-declare const URL: typeof import('url').URL;
+decwawe const UWW: typeof impowt('uww').UWW;

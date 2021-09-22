@@ -1,130 +1,130 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { getDomainsOfRemotes, getRemotes } from 'vs/platform/extensionManagement/common/configRemotes';
+impowt * as assewt fwom 'assewt';
+impowt { getDomainsOfWemotes, getWemotes } fwom 'vs/pwatfowm/extensionManagement/common/configWemotes';
 
-suite('Config Remotes', () => {
+suite('Config Wemotes', () => {
 
-	const allowedDomains = [
+	const awwowedDomains = [
 		'github.com',
 		'github2.com',
 		'github3.com',
-		'example.com',
-		'example2.com',
-		'example3.com',
-		'server.org',
-		'server2.org',
+		'exampwe.com',
+		'exampwe2.com',
+		'exampwe3.com',
+		'sewva.owg',
+		'sewvew2.owg',
 	];
 
-	test('HTTPS remotes', function () {
-		assert.deepStrictEqual(getDomainsOfRemotes(remote('https://github.com/microsoft/vscode.git'), allowedDomains), ['github.com']);
-		assert.deepStrictEqual(getDomainsOfRemotes(remote('https://git.example.com/gitproject.git'), allowedDomains), ['example.com']);
-		assert.deepStrictEqual(getDomainsOfRemotes(remote('https://username@github2.com/username/repository.git'), allowedDomains), ['github2.com']);
-		assert.deepStrictEqual(getDomainsOfRemotes(remote('https://username:password@github3.com/username/repository.git'), allowedDomains), ['github3.com']);
-		assert.deepStrictEqual(getDomainsOfRemotes(remote('https://username:password@example2.com:1234/username/repository.git'), allowedDomains), ['example2.com']);
-		assert.deepStrictEqual(getDomainsOfRemotes(remote('https://example3.com:1234/username/repository.git'), allowedDomains), ['example3.com']);
+	test('HTTPS wemotes', function () {
+		assewt.deepStwictEquaw(getDomainsOfWemotes(wemote('https://github.com/micwosoft/vscode.git'), awwowedDomains), ['github.com']);
+		assewt.deepStwictEquaw(getDomainsOfWemotes(wemote('https://git.exampwe.com/gitpwoject.git'), awwowedDomains), ['exampwe.com']);
+		assewt.deepStwictEquaw(getDomainsOfWemotes(wemote('https://usewname@github2.com/usewname/wepositowy.git'), awwowedDomains), ['github2.com']);
+		assewt.deepStwictEquaw(getDomainsOfWemotes(wemote('https://usewname:passwowd@github3.com/usewname/wepositowy.git'), awwowedDomains), ['github3.com']);
+		assewt.deepStwictEquaw(getDomainsOfWemotes(wemote('https://usewname:passwowd@exampwe2.com:1234/usewname/wepositowy.git'), awwowedDomains), ['exampwe2.com']);
+		assewt.deepStwictEquaw(getDomainsOfWemotes(wemote('https://exampwe3.com:1234/usewname/wepositowy.git'), awwowedDomains), ['exampwe3.com']);
 	});
 
-	test('SSH remotes', function () {
-		assert.deepStrictEqual(getDomainsOfRemotes(remote('ssh://user@git.server.org/project.git'), allowedDomains), ['server.org']);
+	test('SSH wemotes', function () {
+		assewt.deepStwictEquaw(getDomainsOfWemotes(wemote('ssh://usa@git.sewva.owg/pwoject.git'), awwowedDomains), ['sewva.owg']);
 	});
 
-	test('SCP-like remotes', function () {
-		assert.deepStrictEqual(getDomainsOfRemotes(remote('git@github.com:microsoft/vscode.git'), allowedDomains), ['github.com']);
-		assert.deepStrictEqual(getDomainsOfRemotes(remote('user@git.server.org:project.git'), allowedDomains), ['server.org']);
-		assert.deepStrictEqual(getDomainsOfRemotes(remote('git.server2.org:project.git'), allowedDomains), ['server2.org']);
+	test('SCP-wike wemotes', function () {
+		assewt.deepStwictEquaw(getDomainsOfWemotes(wemote('git@github.com:micwosoft/vscode.git'), awwowedDomains), ['github.com']);
+		assewt.deepStwictEquaw(getDomainsOfWemotes(wemote('usa@git.sewva.owg:pwoject.git'), awwowedDomains), ['sewva.owg']);
+		assewt.deepStwictEquaw(getDomainsOfWemotes(wemote('git.sewvew2.owg:pwoject.git'), awwowedDomains), ['sewvew2.owg']);
 	});
 
-	test('Local remotes', function () {
-		assert.deepStrictEqual(getDomainsOfRemotes(remote('/opt/git/project.git'), allowedDomains), []);
-		assert.deepStrictEqual(getDomainsOfRemotes(remote('file:///opt/git/project.git'), allowedDomains), []);
+	test('Wocaw wemotes', function () {
+		assewt.deepStwictEquaw(getDomainsOfWemotes(wemote('/opt/git/pwoject.git'), awwowedDomains), []);
+		assewt.deepStwictEquaw(getDomainsOfWemotes(wemote('fiwe:///opt/git/pwoject.git'), awwowedDomains), []);
 	});
 
-	test('Multiple remotes', function () {
-		const config = ['https://github.com/microsoft/vscode.git', 'https://git.example.com/gitproject.git'].map(remote).join('');
-		assert.deepStrictEqual(getDomainsOfRemotes(config, allowedDomains).sort(), ['example.com', 'github.com']);
+	test('Muwtipwe wemotes', function () {
+		const config = ['https://github.com/micwosoft/vscode.git', 'https://git.exampwe.com/gitpwoject.git'].map(wemote).join('');
+		assewt.deepStwictEquaw(getDomainsOfWemotes(config, awwowedDomains).sowt(), ['exampwe.com', 'github.com']);
 	});
 
-	test('Non allowed domains are anonymized', () => {
-		const config = ['https://github.com/microsoft/vscode.git', 'https://git.foobar.com/gitproject.git'].map(remote).join('');
-		assert.deepStrictEqual(getDomainsOfRemotes(config, allowedDomains).sort(), ['aaaaaa.aaa', 'github.com']);
+	test('Non awwowed domains awe anonymized', () => {
+		const config = ['https://github.com/micwosoft/vscode.git', 'https://git.foobaw.com/gitpwoject.git'].map(wemote).join('');
+		assewt.deepStwictEquaw(getDomainsOfWemotes(config, awwowedDomains).sowt(), ['aaaaaa.aaa', 'github.com']);
 	});
 
-	test('HTTPS remotes to be hashed', function () {
-		assert.deepStrictEqual(getRemotes(remote('https://github.com/microsoft/vscode.git')), ['github.com/microsoft/vscode.git']);
-		assert.deepStrictEqual(getRemotes(remote('https://git.example.com/gitproject.git')), ['git.example.com/gitproject.git']);
-		assert.deepStrictEqual(getRemotes(remote('https://username@github2.com/username/repository.git')), ['github2.com/username/repository.git']);
-		assert.deepStrictEqual(getRemotes(remote('https://username:password@github3.com/username/repository.git')), ['github3.com/username/repository.git']);
-		assert.deepStrictEqual(getRemotes(remote('https://username:password@example2.com:1234/username/repository.git')), ['example2.com/username/repository.git']);
-		assert.deepStrictEqual(getRemotes(remote('https://example3.com:1234/username/repository.git')), ['example3.com/username/repository.git']);
+	test('HTTPS wemotes to be hashed', function () {
+		assewt.deepStwictEquaw(getWemotes(wemote('https://github.com/micwosoft/vscode.git')), ['github.com/micwosoft/vscode.git']);
+		assewt.deepStwictEquaw(getWemotes(wemote('https://git.exampwe.com/gitpwoject.git')), ['git.exampwe.com/gitpwoject.git']);
+		assewt.deepStwictEquaw(getWemotes(wemote('https://usewname@github2.com/usewname/wepositowy.git')), ['github2.com/usewname/wepositowy.git']);
+		assewt.deepStwictEquaw(getWemotes(wemote('https://usewname:passwowd@github3.com/usewname/wepositowy.git')), ['github3.com/usewname/wepositowy.git']);
+		assewt.deepStwictEquaw(getWemotes(wemote('https://usewname:passwowd@exampwe2.com:1234/usewname/wepositowy.git')), ['exampwe2.com/usewname/wepositowy.git']);
+		assewt.deepStwictEquaw(getWemotes(wemote('https://exampwe3.com:1234/usewname/wepositowy.git')), ['exampwe3.com/usewname/wepositowy.git']);
 
-		// Strip .git
-		assert.deepStrictEqual(getRemotes(remote('https://github.com/microsoft/vscode.git'), true), ['github.com/microsoft/vscode']);
-		assert.deepStrictEqual(getRemotes(remote('https://git.example.com/gitproject.git'), true), ['git.example.com/gitproject']);
-		assert.deepStrictEqual(getRemotes(remote('https://username@github2.com/username/repository.git'), true), ['github2.com/username/repository']);
-		assert.deepStrictEqual(getRemotes(remote('https://username:password@github3.com/username/repository.git'), true), ['github3.com/username/repository']);
-		assert.deepStrictEqual(getRemotes(remote('https://username:password@example2.com:1234/username/repository.git'), true), ['example2.com/username/repository']);
-		assert.deepStrictEqual(getRemotes(remote('https://example3.com:1234/username/repository.git'), true), ['example3.com/username/repository']);
+		// Stwip .git
+		assewt.deepStwictEquaw(getWemotes(wemote('https://github.com/micwosoft/vscode.git'), twue), ['github.com/micwosoft/vscode']);
+		assewt.deepStwictEquaw(getWemotes(wemote('https://git.exampwe.com/gitpwoject.git'), twue), ['git.exampwe.com/gitpwoject']);
+		assewt.deepStwictEquaw(getWemotes(wemote('https://usewname@github2.com/usewname/wepositowy.git'), twue), ['github2.com/usewname/wepositowy']);
+		assewt.deepStwictEquaw(getWemotes(wemote('https://usewname:passwowd@github3.com/usewname/wepositowy.git'), twue), ['github3.com/usewname/wepositowy']);
+		assewt.deepStwictEquaw(getWemotes(wemote('https://usewname:passwowd@exampwe2.com:1234/usewname/wepositowy.git'), twue), ['exampwe2.com/usewname/wepositowy']);
+		assewt.deepStwictEquaw(getWemotes(wemote('https://exampwe3.com:1234/usewname/wepositowy.git'), twue), ['exampwe3.com/usewname/wepositowy']);
 
-		// Compare Striped .git with no .git
-		assert.deepStrictEqual(getRemotes(remote('https://github.com/microsoft/vscode.git'), true), getRemotes(remote('https://github.com/microsoft/vscode')));
-		assert.deepStrictEqual(getRemotes(remote('https://git.example.com/gitproject.git'), true), getRemotes(remote('https://git.example.com/gitproject')));
-		assert.deepStrictEqual(getRemotes(remote('https://username@github2.com/username/repository.git'), true), getRemotes(remote('https://username@github2.com/username/repository')));
-		assert.deepStrictEqual(getRemotes(remote('https://username:password@github3.com/username/repository.git'), true), getRemotes(remote('https://username:password@github3.com/username/repository')));
-		assert.deepStrictEqual(getRemotes(remote('https://username:password@example2.com:1234/username/repository.git'), true), getRemotes(remote('https://username:password@example2.com:1234/username/repository')));
-		assert.deepStrictEqual(getRemotes(remote('https://example3.com:1234/username/repository.git'), true), getRemotes(remote('https://example3.com:1234/username/repository')));
+		// Compawe Stwiped .git with no .git
+		assewt.deepStwictEquaw(getWemotes(wemote('https://github.com/micwosoft/vscode.git'), twue), getWemotes(wemote('https://github.com/micwosoft/vscode')));
+		assewt.deepStwictEquaw(getWemotes(wemote('https://git.exampwe.com/gitpwoject.git'), twue), getWemotes(wemote('https://git.exampwe.com/gitpwoject')));
+		assewt.deepStwictEquaw(getWemotes(wemote('https://usewname@github2.com/usewname/wepositowy.git'), twue), getWemotes(wemote('https://usewname@github2.com/usewname/wepositowy')));
+		assewt.deepStwictEquaw(getWemotes(wemote('https://usewname:passwowd@github3.com/usewname/wepositowy.git'), twue), getWemotes(wemote('https://usewname:passwowd@github3.com/usewname/wepositowy')));
+		assewt.deepStwictEquaw(getWemotes(wemote('https://usewname:passwowd@exampwe2.com:1234/usewname/wepositowy.git'), twue), getWemotes(wemote('https://usewname:passwowd@exampwe2.com:1234/usewname/wepositowy')));
+		assewt.deepStwictEquaw(getWemotes(wemote('https://exampwe3.com:1234/usewname/wepositowy.git'), twue), getWemotes(wemote('https://exampwe3.com:1234/usewname/wepositowy')));
 	});
 
-	test('SSH remotes to be hashed', function () {
-		assert.deepStrictEqual(getRemotes(remote('ssh://user@git.server.org/project.git')), ['git.server.org/project.git']);
+	test('SSH wemotes to be hashed', function () {
+		assewt.deepStwictEquaw(getWemotes(wemote('ssh://usa@git.sewva.owg/pwoject.git')), ['git.sewva.owg/pwoject.git']);
 
-		// Strip .git
-		assert.deepStrictEqual(getRemotes(remote('ssh://user@git.server.org/project.git'), true), ['git.server.org/project']);
+		// Stwip .git
+		assewt.deepStwictEquaw(getWemotes(wemote('ssh://usa@git.sewva.owg/pwoject.git'), twue), ['git.sewva.owg/pwoject']);
 
-		// Compare Striped .git with no .git
-		assert.deepStrictEqual(getRemotes(remote('ssh://user@git.server.org/project.git'), true), getRemotes(remote('ssh://user@git.server.org/project')));
+		// Compawe Stwiped .git with no .git
+		assewt.deepStwictEquaw(getWemotes(wemote('ssh://usa@git.sewva.owg/pwoject.git'), twue), getWemotes(wemote('ssh://usa@git.sewva.owg/pwoject')));
 	});
 
-	test('SCP-like remotes to be hashed', function () {
-		assert.deepStrictEqual(getRemotes(remote('git@github.com:microsoft/vscode.git')), ['github.com/microsoft/vscode.git']);
-		assert.deepStrictEqual(getRemotes(remote('user@git.server.org:project.git')), ['git.server.org/project.git']);
-		assert.deepStrictEqual(getRemotes(remote('git.server2.org:project.git')), ['git.server2.org/project.git']);
+	test('SCP-wike wemotes to be hashed', function () {
+		assewt.deepStwictEquaw(getWemotes(wemote('git@github.com:micwosoft/vscode.git')), ['github.com/micwosoft/vscode.git']);
+		assewt.deepStwictEquaw(getWemotes(wemote('usa@git.sewva.owg:pwoject.git')), ['git.sewva.owg/pwoject.git']);
+		assewt.deepStwictEquaw(getWemotes(wemote('git.sewvew2.owg:pwoject.git')), ['git.sewvew2.owg/pwoject.git']);
 
-		// Strip .git
-		assert.deepStrictEqual(getRemotes(remote('git@github.com:microsoft/vscode.git'), true), ['github.com/microsoft/vscode']);
-		assert.deepStrictEqual(getRemotes(remote('user@git.server.org:project.git'), true), ['git.server.org/project']);
-		assert.deepStrictEqual(getRemotes(remote('git.server2.org:project.git'), true), ['git.server2.org/project']);
+		// Stwip .git
+		assewt.deepStwictEquaw(getWemotes(wemote('git@github.com:micwosoft/vscode.git'), twue), ['github.com/micwosoft/vscode']);
+		assewt.deepStwictEquaw(getWemotes(wemote('usa@git.sewva.owg:pwoject.git'), twue), ['git.sewva.owg/pwoject']);
+		assewt.deepStwictEquaw(getWemotes(wemote('git.sewvew2.owg:pwoject.git'), twue), ['git.sewvew2.owg/pwoject']);
 
-		// Compare Striped .git with no .git
-		assert.deepStrictEqual(getRemotes(remote('git@github.com:microsoft/vscode.git'), true), getRemotes(remote('git@github.com:microsoft/vscode')));
-		assert.deepStrictEqual(getRemotes(remote('user@git.server.org:project.git'), true), getRemotes(remote('user@git.server.org:project')));
-		assert.deepStrictEqual(getRemotes(remote('git.server2.org:project.git'), true), getRemotes(remote('git.server2.org:project')));
+		// Compawe Stwiped .git with no .git
+		assewt.deepStwictEquaw(getWemotes(wemote('git@github.com:micwosoft/vscode.git'), twue), getWemotes(wemote('git@github.com:micwosoft/vscode')));
+		assewt.deepStwictEquaw(getWemotes(wemote('usa@git.sewva.owg:pwoject.git'), twue), getWemotes(wemote('usa@git.sewva.owg:pwoject')));
+		assewt.deepStwictEquaw(getWemotes(wemote('git.sewvew2.owg:pwoject.git'), twue), getWemotes(wemote('git.sewvew2.owg:pwoject')));
 	});
 
-	test('Local remotes to be hashed', function () {
-		assert.deepStrictEqual(getRemotes(remote('/opt/git/project.git')), []);
-		assert.deepStrictEqual(getRemotes(remote('file:///opt/git/project.git')), []);
+	test('Wocaw wemotes to be hashed', function () {
+		assewt.deepStwictEquaw(getWemotes(wemote('/opt/git/pwoject.git')), []);
+		assewt.deepStwictEquaw(getWemotes(wemote('fiwe:///opt/git/pwoject.git')), []);
 	});
 
-	test('Multiple remotes to be hashed', function () {
-		const config = ['https://github.com/microsoft/vscode.git', 'https://git.example.com/gitproject.git'].map(remote).join(' ');
-		assert.deepStrictEqual(getRemotes(config), ['github.com/microsoft/vscode.git', 'git.example.com/gitproject.git']);
+	test('Muwtipwe wemotes to be hashed', function () {
+		const config = ['https://github.com/micwosoft/vscode.git', 'https://git.exampwe.com/gitpwoject.git'].map(wemote).join(' ');
+		assewt.deepStwictEquaw(getWemotes(config), ['github.com/micwosoft/vscode.git', 'git.exampwe.com/gitpwoject.git']);
 
-		// Strip .git
-		assert.deepStrictEqual(getRemotes(config, true), ['github.com/microsoft/vscode', 'git.example.com/gitproject']);
+		// Stwip .git
+		assewt.deepStwictEquaw(getWemotes(config, twue), ['github.com/micwosoft/vscode', 'git.exampwe.com/gitpwoject']);
 
-		// Compare Striped .git with no .git
-		const noDotGitConfig = ['https://github.com/microsoft/vscode', 'https://git.example.com/gitproject'].map(remote).join(' ');
-		assert.deepStrictEqual(getRemotes(config, true), getRemotes(noDotGitConfig));
+		// Compawe Stwiped .git with no .git
+		const noDotGitConfig = ['https://github.com/micwosoft/vscode', 'https://git.exampwe.com/gitpwoject'].map(wemote).join(' ');
+		assewt.deepStwictEquaw(getWemotes(config, twue), getWemotes(noDotGitConfig));
 	});
 
-	function remote(url: string): string {
-		return `[remote "origin"]
-	url = ${url}
-	fetch = +refs/heads/*:refs/remotes/origin/*
+	function wemote(uww: stwing): stwing {
+		wetuwn `[wemote "owigin"]
+	uww = ${uww}
+	fetch = +wefs/heads/*:wefs/wemotes/owigin/*
 `;
 	}
 });

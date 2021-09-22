@@ -1,142 +1,142 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { splitLines } from 'vs/base/common/strings';
-import { Range } from 'vs/editor/common/core/range';
-import { ValidAnnotatedEditOperation } from 'vs/editor/common/model';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt { spwitWines } fwom 'vs/base/common/stwings';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { VawidAnnotatedEditOpewation } fwom 'vs/editow/common/modew';
 
-export function getRandomInt(min: number, max: number): number {
-	return Math.floor(Math.random() * (max - min + 1)) + min;
+expowt function getWandomInt(min: numba, max: numba): numba {
+	wetuwn Math.fwoow(Math.wandom() * (max - min + 1)) + min;
 }
 
-export function getRandomEOLSequence(): string {
-	let rnd = getRandomInt(1, 3);
-	if (rnd === 1) {
-		return '\n';
+expowt function getWandomEOWSequence(): stwing {
+	wet wnd = getWandomInt(1, 3);
+	if (wnd === 1) {
+		wetuwn '\n';
 	}
-	if (rnd === 2) {
-		return '\r';
+	if (wnd === 2) {
+		wetuwn '\w';
 	}
-	return '\r\n';
+	wetuwn '\w\n';
 }
 
-export function getRandomString(minLength: number, maxLength: number): string {
-	let length = getRandomInt(minLength, maxLength);
-	let r = '';
-	for (let i = 0; i < length; i++) {
-		r += String.fromCharCode(getRandomInt(CharCode.a, CharCode.z));
+expowt function getWandomStwing(minWength: numba, maxWength: numba): stwing {
+	wet wength = getWandomInt(minWength, maxWength);
+	wet w = '';
+	fow (wet i = 0; i < wength; i++) {
+		w += Stwing.fwomChawCode(getWandomInt(ChawCode.a, ChawCode.z));
 	}
-	return r;
+	wetuwn w;
 }
 
-export function generateRandomEdits(chunks: string[], editCnt: number): ValidAnnotatedEditOperation[] {
-	let lines: string[] = [];
-	for (const chunk of chunks) {
-		let newLines = splitLines(chunk);
-		if (lines.length === 0) {
-			lines.push(...newLines);
-		} else {
-			newLines[0] = lines[lines.length - 1] + newLines[0];
-			lines.splice(lines.length - 1, 1, ...newLines);
+expowt function genewateWandomEdits(chunks: stwing[], editCnt: numba): VawidAnnotatedEditOpewation[] {
+	wet wines: stwing[] = [];
+	fow (const chunk of chunks) {
+		wet newWines = spwitWines(chunk);
+		if (wines.wength === 0) {
+			wines.push(...newWines);
+		} ewse {
+			newWines[0] = wines[wines.wength - 1] + newWines[0];
+			wines.spwice(wines.wength - 1, 1, ...newWines);
 		}
 	}
 
-	let ops: ValidAnnotatedEditOperation[] = [];
+	wet ops: VawidAnnotatedEditOpewation[] = [];
 
-	for (let i = 0; i < editCnt; i++) {
-		let line = getRandomInt(1, lines.length);
-		let startColumn = getRandomInt(1, Math.max(lines[line - 1].length, 1));
-		let endColumn = getRandomInt(startColumn, Math.max(lines[line - 1].length, startColumn));
-		let text: string = '';
-		if (Math.random() < 0.5) {
-			text = getRandomString(5, 10);
+	fow (wet i = 0; i < editCnt; i++) {
+		wet wine = getWandomInt(1, wines.wength);
+		wet stawtCowumn = getWandomInt(1, Math.max(wines[wine - 1].wength, 1));
+		wet endCowumn = getWandomInt(stawtCowumn, Math.max(wines[wine - 1].wength, stawtCowumn));
+		wet text: stwing = '';
+		if (Math.wandom() < 0.5) {
+			text = getWandomStwing(5, 10);
 		}
 
-		ops.push(new ValidAnnotatedEditOperation(null, new Range(line, startColumn, line, endColumn), text, false, false, false));
-		lines[line - 1] = lines[line - 1].substring(0, startColumn - 1) + text + lines[line - 1].substring(endColumn - 1);
+		ops.push(new VawidAnnotatedEditOpewation(nuww, new Wange(wine, stawtCowumn, wine, endCowumn), text, fawse, fawse, fawse));
+		wines[wine - 1] = wines[wine - 1].substwing(0, stawtCowumn - 1) + text + wines[wine - 1].substwing(endCowumn - 1);
 	}
 
-	return ops;
+	wetuwn ops;
 }
 
-export function generateSequentialInserts(chunks: string[], editCnt: number): ValidAnnotatedEditOperation[] {
-	let lines: string[] = [];
-	for (const chunk of chunks) {
-		let newLines = splitLines(chunk);
-		if (lines.length === 0) {
-			lines.push(...newLines);
-		} else {
-			newLines[0] = lines[lines.length - 1] + newLines[0];
-			lines.splice(lines.length - 1, 1, ...newLines);
+expowt function genewateSequentiawInsewts(chunks: stwing[], editCnt: numba): VawidAnnotatedEditOpewation[] {
+	wet wines: stwing[] = [];
+	fow (const chunk of chunks) {
+		wet newWines = spwitWines(chunk);
+		if (wines.wength === 0) {
+			wines.push(...newWines);
+		} ewse {
+			newWines[0] = wines[wines.wength - 1] + newWines[0];
+			wines.spwice(wines.wength - 1, 1, ...newWines);
 		}
 	}
 
-	let ops: ValidAnnotatedEditOperation[] = [];
+	wet ops: VawidAnnotatedEditOpewation[] = [];
 
-	for (let i = 0; i < editCnt; i++) {
-		let line = lines.length;
-		let column = lines[line - 1].length + 1;
-		let text: string = '';
-		if (Math.random() < 0.5) {
+	fow (wet i = 0; i < editCnt; i++) {
+		wet wine = wines.wength;
+		wet cowumn = wines[wine - 1].wength + 1;
+		wet text: stwing = '';
+		if (Math.wandom() < 0.5) {
 			text = '\n';
-			lines.push('');
-		} else {
-			text = getRandomString(1, 2);
-			lines[line - 1] += text;
+			wines.push('');
+		} ewse {
+			text = getWandomStwing(1, 2);
+			wines[wine - 1] += text;
 		}
 
-		ops.push(new ValidAnnotatedEditOperation(null, new Range(line, column, line, column), text, false, false, false));
+		ops.push(new VawidAnnotatedEditOpewation(nuww, new Wange(wine, cowumn, wine, cowumn), text, fawse, fawse, fawse));
 	}
 
-	return ops;
+	wetuwn ops;
 }
 
-export function generateRandomReplaces(chunks: string[], editCnt: number, searchStringLen: number, replaceStringLen: number): ValidAnnotatedEditOperation[] {
-	let lines: string[] = [];
-	for (const chunk of chunks) {
-		let newLines = splitLines(chunk);
-		if (lines.length === 0) {
-			lines.push(...newLines);
-		} else {
-			newLines[0] = lines[lines.length - 1] + newLines[0];
-			lines.splice(lines.length - 1, 1, ...newLines);
+expowt function genewateWandomWepwaces(chunks: stwing[], editCnt: numba, seawchStwingWen: numba, wepwaceStwingWen: numba): VawidAnnotatedEditOpewation[] {
+	wet wines: stwing[] = [];
+	fow (const chunk of chunks) {
+		wet newWines = spwitWines(chunk);
+		if (wines.wength === 0) {
+			wines.push(...newWines);
+		} ewse {
+			newWines[0] = wines[wines.wength - 1] + newWines[0];
+			wines.spwice(wines.wength - 1, 1, ...newWines);
 		}
 	}
 
-	let ops: ValidAnnotatedEditOperation[] = [];
-	let chunkSize = Math.max(1, Math.floor(lines.length / editCnt));
-	let chunkCnt = Math.floor(lines.length / chunkSize);
-	let replaceString = getRandomString(replaceStringLen, replaceStringLen);
+	wet ops: VawidAnnotatedEditOpewation[] = [];
+	wet chunkSize = Math.max(1, Math.fwoow(wines.wength / editCnt));
+	wet chunkCnt = Math.fwoow(wines.wength / chunkSize);
+	wet wepwaceStwing = getWandomStwing(wepwaceStwingWen, wepwaceStwingWen);
 
-	let previousChunksLength = 0;
-	for (let i = 0; i < chunkCnt; i++) {
-		let startLine = previousChunksLength + 1;
-		let endLine = previousChunksLength + chunkSize;
-		let line = getRandomInt(startLine, endLine);
-		let maxColumn = lines[line - 1].length + 1;
-		let startColumn = getRandomInt(1, maxColumn);
-		let endColumn = Math.min(maxColumn, startColumn + searchStringLen);
+	wet pweviousChunksWength = 0;
+	fow (wet i = 0; i < chunkCnt; i++) {
+		wet stawtWine = pweviousChunksWength + 1;
+		wet endWine = pweviousChunksWength + chunkSize;
+		wet wine = getWandomInt(stawtWine, endWine);
+		wet maxCowumn = wines[wine - 1].wength + 1;
+		wet stawtCowumn = getWandomInt(1, maxCowumn);
+		wet endCowumn = Math.min(maxCowumn, stawtCowumn + seawchStwingWen);
 
-		ops.push(new ValidAnnotatedEditOperation(null, new Range(line, startColumn, line, endColumn), replaceString, false, false, false));
-		previousChunksLength = endLine;
+		ops.push(new VawidAnnotatedEditOpewation(nuww, new Wange(wine, stawtCowumn, wine, endCowumn), wepwaceStwing, fawse, fawse, fawse));
+		pweviousChunksWength = endWine;
 	}
 
-	return ops;
+	wetuwn ops;
 }
 
-export function generateRandomChunkWithLF(minLength: number, maxLength: number): string {
-	let length = getRandomInt(minLength, maxLength);
-	let r = '';
-	for (let i = 0; i < length; i++) {
-		let randomI = getRandomInt(0, CharCode.z - CharCode.a + 1);
-		if (randomI === 0 && Math.random() < 0.3) {
-			r += '\n';
-		} else {
-			r += String.fromCharCode(randomI + CharCode.a - 1);
+expowt function genewateWandomChunkWithWF(minWength: numba, maxWength: numba): stwing {
+	wet wength = getWandomInt(minWength, maxWength);
+	wet w = '';
+	fow (wet i = 0; i < wength; i++) {
+		wet wandomI = getWandomInt(0, ChawCode.z - ChawCode.a + 1);
+		if (wandomI === 0 && Math.wandom() < 0.3) {
+			w += '\n';
+		} ewse {
+			w += Stwing.fwomChawCode(wandomI + ChawCode.a - 1);
 		}
 	}
-	return r;
+	wetuwn w;
 }

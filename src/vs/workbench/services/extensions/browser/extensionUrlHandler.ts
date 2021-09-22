@@ -1,418 +1,418 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IURLHandler, IURLService, IOpenURLOptions } from 'vs/platform/url/common/url';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution, Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
-import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
-import { CancellationToken } from 'vs/base/common/cancellation';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IDisposabwe, toDisposabwe, combinedDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IExtensionGawwewySewvice, IExtensionIdentifia, IExtensionManagementSewvice, IGawwewyExtension } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { IWowkbenchExtensionEnabwementSewvice, EnabwementState } fwom 'vs/wowkbench/sewvices/extensionManagement/common/extensionManagement';
+impowt { aweSameExtensions } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementUtiw';
+impowt { cweateDecowatow, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IUWWHandwa, IUWWSewvice, IOpenUWWOptions } fwom 'vs/pwatfowm/uww/common/uww';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IWowkbenchContwibution, Extensions as WowkbenchExtensions, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { Action2, MenuId, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IQuickInputSewvice, IQuickPickItem } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { IPwogwessSewvice, PwogwessWocation } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { IsWebContext } fwom 'vs/pwatfowm/contextkey/common/contextkeys';
+impowt { IExtensionUwwTwustSewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionUwwTwust';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
-const THIRTY_SECONDS = 30 * 1000;
-const URL_TO_HANDLE = 'extensionUrlHandler.urlToHandle';
-const USER_TRUSTED_EXTENSIONS_CONFIGURATION_KEY = 'extensions.confirmedUriHandlerExtensionIds';
-const USER_TRUSTED_EXTENSIONS_STORAGE_KEY = 'extensionUrlHandler.confirmedExtensions';
+const THIWTY_SECONDS = 30 * 1000;
+const UWW_TO_HANDWE = 'extensionUwwHandwa.uwwToHandwe';
+const USEW_TWUSTED_EXTENSIONS_CONFIGUWATION_KEY = 'extensions.confiwmedUwiHandwewExtensionIds';
+const USEW_TWUSTED_EXTENSIONS_STOWAGE_KEY = 'extensionUwwHandwa.confiwmedExtensions';
 
-function isExtensionId(value: string): boolean {
-	return /^[a-z0-9][a-z0-9\-]*\.[a-z0-9][a-z0-9\-]*$/i.test(value);
+function isExtensionId(vawue: stwing): boowean {
+	wetuwn /^[a-z0-9][a-z0-9\-]*\.[a-z0-9][a-z0-9\-]*$/i.test(vawue);
 }
 
-class UserTrustedExtensionIdStorage {
+cwass UsewTwustedExtensionIdStowage {
 
-	get extensions(): string[] {
-		const userTrustedExtensionIdsJson = this.storageService.get(USER_TRUSTED_EXTENSIONS_STORAGE_KEY, StorageScope.GLOBAL, '[]');
+	get extensions(): stwing[] {
+		const usewTwustedExtensionIdsJson = this.stowageSewvice.get(USEW_TWUSTED_EXTENSIONS_STOWAGE_KEY, StowageScope.GWOBAW, '[]');
 
-		try {
-			return JSON.parse(userTrustedExtensionIdsJson);
+		twy {
+			wetuwn JSON.pawse(usewTwustedExtensionIdsJson);
 		} catch {
-			return [];
+			wetuwn [];
 		}
 	}
 
-	constructor(private storageService: IStorageService) { }
+	constwuctow(pwivate stowageSewvice: IStowageSewvice) { }
 
-	has(id: string): boolean {
-		return this.extensions.indexOf(id) > -1;
+	has(id: stwing): boowean {
+		wetuwn this.extensions.indexOf(id) > -1;
 	}
 
-	add(id: string): void {
+	add(id: stwing): void {
 		this.set([...this.extensions, id]);
 	}
 
-	set(ids: string[]): void {
-		this.storageService.store(USER_TRUSTED_EXTENSIONS_STORAGE_KEY, JSON.stringify(ids), StorageScope.GLOBAL, StorageTarget.MACHINE);
+	set(ids: stwing[]): void {
+		this.stowageSewvice.stowe(USEW_TWUSTED_EXTENSIONS_STOWAGE_KEY, JSON.stwingify(ids), StowageScope.GWOBAW, StowageTawget.MACHINE);
 	}
 }
 
-export const IExtensionUrlHandler = createDecorator<IExtensionUrlHandler>('extensionUrlHandler');
+expowt const IExtensionUwwHandwa = cweateDecowatow<IExtensionUwwHandwa>('extensionUwwHandwa');
 
-export interface IExtensionUrlHandler {
-	readonly _serviceBrand: undefined;
-	registerExtensionHandler(extensionId: ExtensionIdentifier, handler: IURLHandler): void;
-	unregisterExtensionHandler(extensionId: ExtensionIdentifier): void;
+expowt intewface IExtensionUwwHandwa {
+	weadonwy _sewviceBwand: undefined;
+	wegistewExtensionHandwa(extensionId: ExtensionIdentifia, handwa: IUWWHandwa): void;
+	unwegistewExtensionHandwa(extensionId: ExtensionIdentifia): void;
 }
 
 /**
- * This class handles URLs which are directed towards extensions.
- * If a URL is directed towards an inactive extension, it buffers it,
- * activates the extension and re-opens the URL once the extension registers
- * a URL handler. If the extension never registers a URL handler, the urls
- * will eventually be garbage collected.
+ * This cwass handwes UWWs which awe diwected towawds extensions.
+ * If a UWW is diwected towawds an inactive extension, it buffews it,
+ * activates the extension and we-opens the UWW once the extension wegistews
+ * a UWW handwa. If the extension neva wegistews a UWW handwa, the uwws
+ * wiww eventuawwy be gawbage cowwected.
  *
- * It also makes sure the user confirms opening URLs directed towards extensions.
+ * It awso makes suwe the usa confiwms opening UWWs diwected towawds extensions.
  */
-class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
+cwass ExtensionUwwHandwa impwements IExtensionUwwHandwa, IUWWHandwa {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	private extensionHandlers = new Map<string, IURLHandler>();
-	private uriBuffer = new Map<string, { timestamp: number, uri: URI }[]>();
-	private userTrustedExtensionsStorage: UserTrustedExtensionIdStorage;
-	private disposable: IDisposable;
+	pwivate extensionHandwews = new Map<stwing, IUWWHandwa>();
+	pwivate uwiBuffa = new Map<stwing, { timestamp: numba, uwi: UWI }[]>();
+	pwivate usewTwustedExtensionsStowage: UsewTwustedExtensionIdStowage;
+	pwivate disposabwe: IDisposabwe;
 
-	constructor(
-		@IURLService urlService: IURLService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
-		@IHostService private readonly hostService: IHostService,
-		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IProgressService private readonly progressService: IProgressService,
-		@IExtensionUrlTrustService private readonly extensionUrlTrustService: IExtensionUrlTrustService
+	constwuctow(
+		@IUWWSewvice uwwSewvice: IUWWSewvice,
+		@IExtensionSewvice pwivate weadonwy extensionSewvice: IExtensionSewvice,
+		@IDiawogSewvice pwivate weadonwy diawogSewvice: IDiawogSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IExtensionManagementSewvice pwivate weadonwy extensionManagementSewvice: IExtensionManagementSewvice,
+		@IWowkbenchExtensionEnabwementSewvice pwivate weadonwy extensionEnabwementSewvice: IWowkbenchExtensionEnabwementSewvice,
+		@IHostSewvice pwivate weadonwy hostSewvice: IHostSewvice,
+		@IExtensionGawwewySewvice pwivate weadonwy gawwewySewvice: IExtensionGawwewySewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IPwogwessSewvice pwivate weadonwy pwogwessSewvice: IPwogwessSewvice,
+		@IExtensionUwwTwustSewvice pwivate weadonwy extensionUwwTwustSewvice: IExtensionUwwTwustSewvice
 	) {
-		this.userTrustedExtensionsStorage = new UserTrustedExtensionIdStorage(storageService);
+		this.usewTwustedExtensionsStowage = new UsewTwustedExtensionIdStowage(stowageSewvice);
 
-		const interval = setInterval(() => this.garbageCollect(), THIRTY_SECONDS);
-		const urlToHandleValue = this.storageService.get(URL_TO_HANDLE, StorageScope.WORKSPACE);
-		if (urlToHandleValue) {
-			this.storageService.remove(URL_TO_HANDLE, StorageScope.WORKSPACE);
-			this.handleURL(URI.revive(JSON.parse(urlToHandleValue)), { trusted: true });
+		const intewvaw = setIntewvaw(() => this.gawbageCowwect(), THIWTY_SECONDS);
+		const uwwToHandweVawue = this.stowageSewvice.get(UWW_TO_HANDWE, StowageScope.WOWKSPACE);
+		if (uwwToHandweVawue) {
+			this.stowageSewvice.wemove(UWW_TO_HANDWE, StowageScope.WOWKSPACE);
+			this.handweUWW(UWI.wevive(JSON.pawse(uwwToHandweVawue)), { twusted: twue });
 		}
 
-		this.disposable = combinedDisposable(
-			urlService.registerHandler(this),
-			toDisposable(() => clearInterval(interval))
+		this.disposabwe = combinedDisposabwe(
+			uwwSewvice.wegistewHandwa(this),
+			toDisposabwe(() => cweawIntewvaw(intewvaw))
 		);
 
-		const cache = ExtensionUrlBootstrapHandler.cache;
-		setTimeout(() => cache.forEach(([uri, option]) => this.handleURL(uri, option)));
+		const cache = ExtensionUwwBootstwapHandwa.cache;
+		setTimeout(() => cache.fowEach(([uwi, option]) => this.handweUWW(uwi, option)));
 	}
 
-	async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
-		if (!isExtensionId(uri.authority)) {
-			return false;
+	async handweUWW(uwi: UWI, options?: IOpenUWWOptions): Pwomise<boowean> {
+		if (!isExtensionId(uwi.authowity)) {
+			wetuwn fawse;
 		}
 
-		const extensionId = uri.authority;
-		const wasHandlerAvailable = this.extensionHandlers.has(ExtensionIdentifier.toKey(extensionId));
-		const extension = await this.extensionService.getExtension(extensionId);
+		const extensionId = uwi.authowity;
+		const wasHandwewAvaiwabwe = this.extensionHandwews.has(ExtensionIdentifia.toKey(extensionId));
+		const extension = await this.extensionSewvice.getExtension(extensionId);
 
 		if (!extension) {
-			await this.handleUnhandledURL(uri, { id: extensionId });
-			return true;
+			await this.handweUnhandwedUWW(uwi, { id: extensionId });
+			wetuwn twue;
 		}
 
-		const trusted = options?.trusted
-			|| (options?.originalUrl ? await this.extensionUrlTrustService.isExtensionUrlTrusted(extensionId, options.originalUrl) : false)
-			|| this.didUserTrustExtension(ExtensionIdentifier.toKey(extensionId));
+		const twusted = options?.twusted
+			|| (options?.owiginawUww ? await this.extensionUwwTwustSewvice.isExtensionUwwTwusted(extensionId, options.owiginawUww) : fawse)
+			|| this.didUsewTwustExtension(ExtensionIdentifia.toKey(extensionId));
 
-		if (!trusted) {
-			let uriString = uri.toString(false);
+		if (!twusted) {
+			wet uwiStwing = uwi.toStwing(fawse);
 
-			if (uriString.length > 40) {
-				uriString = `${uriString.substring(0, 30)}...${uriString.substring(uriString.length - 5)}`;
+			if (uwiStwing.wength > 40) {
+				uwiStwing = `${uwiStwing.substwing(0, 30)}...${uwiStwing.substwing(uwiStwing.wength - 5)}`;
 			}
 
-			const result = await this.dialogService.confirm({
-				message: localize('confirmUrl', "Allow an extension to open this URI?", extensionId),
+			const wesuwt = await this.diawogSewvice.confiwm({
+				message: wocawize('confiwmUww', "Awwow an extension to open this UWI?", extensionId),
 				checkbox: {
-					label: localize('rememberConfirmUrl', "Don't ask again for this extension."),
+					wabew: wocawize('wemembewConfiwmUww', "Don't ask again fow this extension."),
 				},
-				detail: `${extension.displayName || extension.name} (${extensionId}) wants to open a URI:\n\n${uriString}`,
-				primaryButton: localize('open', "&&Open"),
+				detaiw: `${extension.dispwayName || extension.name} (${extensionId}) wants to open a UWI:\n\n${uwiStwing}`,
+				pwimawyButton: wocawize('open', "&&Open"),
 				type: 'question'
 			});
 
-			if (!result.confirmed) {
-				return true;
+			if (!wesuwt.confiwmed) {
+				wetuwn twue;
 			}
 
-			if (result.checkboxChecked) {
-				this.userTrustedExtensionsStorage.add(ExtensionIdentifier.toKey(extensionId));
+			if (wesuwt.checkboxChecked) {
+				this.usewTwustedExtensionsStowage.add(ExtensionIdentifia.toKey(extensionId));
 			}
 		}
 
-		const handler = this.extensionHandlers.get(ExtensionIdentifier.toKey(extensionId));
+		const handwa = this.extensionHandwews.get(ExtensionIdentifia.toKey(extensionId));
 
-		if (handler) {
-			if (!wasHandlerAvailable) {
-				// forward it directly
-				return await handler.handleURL(uri, options);
+		if (handwa) {
+			if (!wasHandwewAvaiwabwe) {
+				// fowwawd it diwectwy
+				wetuwn await handwa.handweUWW(uwi, options);
 			}
 
-			// let the ExtensionUrlHandler instance handle this
-			return false;
+			// wet the ExtensionUwwHandwa instance handwe this
+			wetuwn fawse;
 		}
 
-		// collect URI for eventual extension activation
+		// cowwect UWI fow eventuaw extension activation
 		const timestamp = new Date().getTime();
-		let uris = this.uriBuffer.get(ExtensionIdentifier.toKey(extensionId));
+		wet uwis = this.uwiBuffa.get(ExtensionIdentifia.toKey(extensionId));
 
-		if (!uris) {
-			uris = [];
-			this.uriBuffer.set(ExtensionIdentifier.toKey(extensionId), uris);
+		if (!uwis) {
+			uwis = [];
+			this.uwiBuffa.set(ExtensionIdentifia.toKey(extensionId), uwis);
 		}
 
-		uris.push({ timestamp, uri });
+		uwis.push({ timestamp, uwi });
 
 		// activate the extension
-		await this.extensionService.activateByEvent(`onUri:${ExtensionIdentifier.toKey(extensionId)}`);
-		return true;
+		await this.extensionSewvice.activateByEvent(`onUwi:${ExtensionIdentifia.toKey(extensionId)}`);
+		wetuwn twue;
 	}
 
-	registerExtensionHandler(extensionId: ExtensionIdentifier, handler: IURLHandler): void {
-		this.extensionHandlers.set(ExtensionIdentifier.toKey(extensionId), handler);
+	wegistewExtensionHandwa(extensionId: ExtensionIdentifia, handwa: IUWWHandwa): void {
+		this.extensionHandwews.set(ExtensionIdentifia.toKey(extensionId), handwa);
 
-		const uris = this.uriBuffer.get(ExtensionIdentifier.toKey(extensionId)) || [];
+		const uwis = this.uwiBuffa.get(ExtensionIdentifia.toKey(extensionId)) || [];
 
-		for (const { uri } of uris) {
-			handler.handleURL(uri);
+		fow (const { uwi } of uwis) {
+			handwa.handweUWW(uwi);
 		}
 
-		this.uriBuffer.delete(ExtensionIdentifier.toKey(extensionId));
+		this.uwiBuffa.dewete(ExtensionIdentifia.toKey(extensionId));
 	}
 
-	unregisterExtensionHandler(extensionId: ExtensionIdentifier): void {
-		this.extensionHandlers.delete(ExtensionIdentifier.toKey(extensionId));
+	unwegistewExtensionHandwa(extensionId: ExtensionIdentifia): void {
+		this.extensionHandwews.dewete(ExtensionIdentifia.toKey(extensionId));
 	}
 
-	private async handleUnhandledURL(uri: URI, extensionIdentifier: IExtensionIdentifier): Promise<void> {
-		const installedExtensions = await this.extensionManagementService.getInstalled();
-		const extension = installedExtensions.filter(e => areSameExtensions(e.identifier, extensionIdentifier))[0];
+	pwivate async handweUnhandwedUWW(uwi: UWI, extensionIdentifia: IExtensionIdentifia): Pwomise<void> {
+		const instawwedExtensions = await this.extensionManagementSewvice.getInstawwed();
+		const extension = instawwedExtensions.fiwta(e => aweSameExtensions(e.identifia, extensionIdentifia))[0];
 
-		// Extension is installed
+		// Extension is instawwed
 		if (extension) {
-			const enabled = this.extensionEnablementService.isEnabled(extension);
+			const enabwed = this.extensionEnabwementSewvice.isEnabwed(extension);
 
-			// Extension is not running. Reload the window to handle.
-			if (enabled) {
-				const result = await this.dialogService.confirm({
-					message: localize('reloadAndHandle', "Extension '{0}' is not loaded. Would you like to reload the window to load the extension and open the URL?", extension.manifest.displayName || extension.manifest.name),
-					detail: `${extension.manifest.displayName || extension.manifest.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
-					primaryButton: localize('reloadAndOpen', "&&Reload Window and Open"),
+			// Extension is not wunning. Wewoad the window to handwe.
+			if (enabwed) {
+				const wesuwt = await this.diawogSewvice.confiwm({
+					message: wocawize('wewoadAndHandwe', "Extension '{0}' is not woaded. Wouwd you wike to wewoad the window to woad the extension and open the UWW?", extension.manifest.dispwayName || extension.manifest.name),
+					detaiw: `${extension.manifest.dispwayName || extension.manifest.name} (${extensionIdentifia.id}) wants to open a UWW:\n\n${uwi.toStwing()}`,
+					pwimawyButton: wocawize('wewoadAndOpen', "&&Wewoad Window and Open"),
 					type: 'question'
 				});
 
-				if (!result.confirmed) {
-					return;
+				if (!wesuwt.confiwmed) {
+					wetuwn;
 				}
 
-				await this.reloadAndHandle(uri);
+				await this.wewoadAndHandwe(uwi);
 			}
 
-			// Extension is disabled. Enable the extension and reload the window to handle.
-			else if (this.extensionEnablementService.canChangeEnablement(extension)) {
-				const result = await this.dialogService.confirm({
-					message: localize('enableAndHandle', "Extension '{0}' is disabled. Would you like to enable the extension and reload the window to open the URL?", extension.manifest.displayName || extension.manifest.name),
-					detail: `${extension.manifest.displayName || extension.manifest.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
-					primaryButton: localize('enableAndReload', "&&Enable and Open"),
+			// Extension is disabwed. Enabwe the extension and wewoad the window to handwe.
+			ewse if (this.extensionEnabwementSewvice.canChangeEnabwement(extension)) {
+				const wesuwt = await this.diawogSewvice.confiwm({
+					message: wocawize('enabweAndHandwe', "Extension '{0}' is disabwed. Wouwd you wike to enabwe the extension and wewoad the window to open the UWW?", extension.manifest.dispwayName || extension.manifest.name),
+					detaiw: `${extension.manifest.dispwayName || extension.manifest.name} (${extensionIdentifia.id}) wants to open a UWW:\n\n${uwi.toStwing()}`,
+					pwimawyButton: wocawize('enabweAndWewoad', "&&Enabwe and Open"),
 					type: 'question'
 				});
 
-				if (!result.confirmed) {
-					return;
+				if (!wesuwt.confiwmed) {
+					wetuwn;
 				}
 
-				await this.extensionEnablementService.setEnablement([extension], EnablementState.EnabledGlobally);
-				await this.reloadAndHandle(uri);
+				await this.extensionEnabwementSewvice.setEnabwement([extension], EnabwementState.EnabwedGwobawwy);
+				await this.wewoadAndHandwe(uwi);
 			}
 		}
 
-		// Extension is not installed
-		else {
-			let galleryExtension: IGalleryExtension | undefined;
+		// Extension is not instawwed
+		ewse {
+			wet gawwewyExtension: IGawwewyExtension | undefined;
 
-			try {
-				galleryExtension = (await this.galleryService.getExtensions([extensionIdentifier], CancellationToken.None))[0] ?? undefined;
-			} catch (err) {
-				return;
+			twy {
+				gawwewyExtension = (await this.gawwewySewvice.getExtensions([extensionIdentifia], CancewwationToken.None))[0] ?? undefined;
+			} catch (eww) {
+				wetuwn;
 			}
 
-			if (!galleryExtension) {
-				return;
+			if (!gawwewyExtension) {
+				wetuwn;
 			}
 
-			// Install the Extension and reload the window to handle.
-			const result = await this.dialogService.confirm({
-				message: localize('installAndHandle', "Extension '{0}' is not installed. Would you like to install the extension and reload the window to open this URL?", galleryExtension.displayName || galleryExtension.name),
-				detail: `${galleryExtension.displayName || galleryExtension.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
-				primaryButton: localize('install', "&&Install"),
+			// Instaww the Extension and wewoad the window to handwe.
+			const wesuwt = await this.diawogSewvice.confiwm({
+				message: wocawize('instawwAndHandwe', "Extension '{0}' is not instawwed. Wouwd you wike to instaww the extension and wewoad the window to open this UWW?", gawwewyExtension.dispwayName || gawwewyExtension.name),
+				detaiw: `${gawwewyExtension.dispwayName || gawwewyExtension.name} (${extensionIdentifia.id}) wants to open a UWW:\n\n${uwi.toStwing()}`,
+				pwimawyButton: wocawize('instaww', "&&Instaww"),
 				type: 'question'
 			});
 
-			if (!result.confirmed) {
-				return;
+			if (!wesuwt.confiwmed) {
+				wetuwn;
 			}
 
-			try {
-				await this.progressService.withProgress({
-					location: ProgressLocation.Notification,
-					title: localize('Installing', "Installing Extension '{0}'...", galleryExtension.displayName || galleryExtension.name)
-				}, () => this.extensionManagementService.installFromGallery(galleryExtension!));
+			twy {
+				await this.pwogwessSewvice.withPwogwess({
+					wocation: PwogwessWocation.Notification,
+					titwe: wocawize('Instawwing', "Instawwing Extension '{0}'...", gawwewyExtension.dispwayName || gawwewyExtension.name)
+				}, () => this.extensionManagementSewvice.instawwFwomGawwewy(gawwewyExtension!));
 
-				this.notificationService.prompt(
-					Severity.Info,
-					localize('reload', "Would you like to reload the window and open the URL '{0}'?", uri.toString()),
-					[{ label: localize('Reload', "Reload Window and Open"), run: () => this.reloadAndHandle(uri) }],
-					{ sticky: true }
+				this.notificationSewvice.pwompt(
+					Sevewity.Info,
+					wocawize('wewoad', "Wouwd you wike to wewoad the window and open the UWW '{0}'?", uwi.toStwing()),
+					[{ wabew: wocawize('Wewoad', "Wewoad Window and Open"), wun: () => this.wewoadAndHandwe(uwi) }],
+					{ sticky: twue }
 				);
-			} catch (error) {
-				this.notificationService.error(error);
+			} catch (ewwow) {
+				this.notificationSewvice.ewwow(ewwow);
 			}
 		}
 	}
 
-	private async reloadAndHandle(url: URI): Promise<void> {
-		this.storageService.store(URL_TO_HANDLE, JSON.stringify(url.toJSON()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		await this.hostService.reload();
+	pwivate async wewoadAndHandwe(uww: UWI): Pwomise<void> {
+		this.stowageSewvice.stowe(UWW_TO_HANDWE, JSON.stwingify(uww.toJSON()), StowageScope.WOWKSPACE, StowageTawget.MACHINE);
+		await this.hostSewvice.wewoad();
 	}
 
-	// forget about all uris buffered more than 5 minutes ago
-	private garbageCollect(): void {
+	// fowget about aww uwis buffewed mowe than 5 minutes ago
+	pwivate gawbageCowwect(): void {
 		const now = new Date().getTime();
-		const uriBuffer = new Map<string, { timestamp: number, uri: URI }[]>();
+		const uwiBuffa = new Map<stwing, { timestamp: numba, uwi: UWI }[]>();
 
-		this.uriBuffer.forEach((uris, extensionId) => {
-			uris = uris.filter(({ timestamp }) => now - timestamp < FIVE_MINUTES);
+		this.uwiBuffa.fowEach((uwis, extensionId) => {
+			uwis = uwis.fiwta(({ timestamp }) => now - timestamp < FIVE_MINUTES);
 
-			if (uris.length > 0) {
-				uriBuffer.set(extensionId, uris);
+			if (uwis.wength > 0) {
+				uwiBuffa.set(extensionId, uwis);
 			}
 		});
 
-		this.uriBuffer = uriBuffer;
+		this.uwiBuffa = uwiBuffa;
 	}
 
-	private didUserTrustExtension(id: string): boolean {
-		if (this.userTrustedExtensionsStorage.has(id)) {
-			return true;
+	pwivate didUsewTwustExtension(id: stwing): boowean {
+		if (this.usewTwustedExtensionsStowage.has(id)) {
+			wetuwn twue;
 		}
 
-		return this.getConfirmedTrustedExtensionIdsFromConfiguration().indexOf(id) > -1;
+		wetuwn this.getConfiwmedTwustedExtensionIdsFwomConfiguwation().indexOf(id) > -1;
 	}
 
-	private getConfirmedTrustedExtensionIdsFromConfiguration(): Array<string> {
-		const trustedExtensionIds = this.configurationService.getValue(USER_TRUSTED_EXTENSIONS_CONFIGURATION_KEY);
+	pwivate getConfiwmedTwustedExtensionIdsFwomConfiguwation(): Awway<stwing> {
+		const twustedExtensionIds = this.configuwationSewvice.getVawue(USEW_TWUSTED_EXTENSIONS_CONFIGUWATION_KEY);
 
-		if (!Array.isArray(trustedExtensionIds)) {
-			return [];
+		if (!Awway.isAwway(twustedExtensionIds)) {
+			wetuwn [];
 		}
 
-		return trustedExtensionIds;
+		wetuwn twustedExtensionIds;
 	}
 
 	dispose(): void {
-		this.disposable.dispose();
-		this.extensionHandlers.clear();
-		this.uriBuffer.clear();
+		this.disposabwe.dispose();
+		this.extensionHandwews.cweaw();
+		this.uwiBuffa.cweaw();
 	}
 }
 
-registerSingleton(IExtensionUrlHandler, ExtensionUrlHandler);
+wegistewSingweton(IExtensionUwwHandwa, ExtensionUwwHandwa);
 
 /**
- * This class handles URLs before `ExtensionUrlHandler` is instantiated.
- * More info: https://github.com/microsoft/vscode/issues/73101
+ * This cwass handwes UWWs befowe `ExtensionUwwHandwa` is instantiated.
+ * Mowe info: https://github.com/micwosoft/vscode/issues/73101
  */
-class ExtensionUrlBootstrapHandler implements IWorkbenchContribution, IURLHandler {
+cwass ExtensionUwwBootstwapHandwa impwements IWowkbenchContwibution, IUWWHandwa {
 
-	private static _cache: [URI, IOpenURLOptions | undefined][] = [];
-	private static disposable: IDisposable;
+	pwivate static _cache: [UWI, IOpenUWWOptions | undefined][] = [];
+	pwivate static disposabwe: IDisposabwe;
 
-	static get cache(): [URI, IOpenURLOptions | undefined][] {
-		ExtensionUrlBootstrapHandler.disposable.dispose();
+	static get cache(): [UWI, IOpenUWWOptions | undefined][] {
+		ExtensionUwwBootstwapHandwa.disposabwe.dispose();
 
-		const result = ExtensionUrlBootstrapHandler._cache;
-		ExtensionUrlBootstrapHandler._cache = [];
-		return result;
+		const wesuwt = ExtensionUwwBootstwapHandwa._cache;
+		ExtensionUwwBootstwapHandwa._cache = [];
+		wetuwn wesuwt;
 	}
 
-	constructor(@IURLService urlService: IURLService) {
-		ExtensionUrlBootstrapHandler.disposable = urlService.registerHandler(this);
+	constwuctow(@IUWWSewvice uwwSewvice: IUWWSewvice) {
+		ExtensionUwwBootstwapHandwa.disposabwe = uwwSewvice.wegistewHandwa(this);
 	}
 
-	async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
-		if (!isExtensionId(uri.authority)) {
-			return false;
+	async handweUWW(uwi: UWI, options?: IOpenUWWOptions): Pwomise<boowean> {
+		if (!isExtensionId(uwi.authowity)) {
+			wetuwn fawse;
 		}
 
-		ExtensionUrlBootstrapHandler._cache.push([uri, options]);
-		return true;
+		ExtensionUwwBootstwapHandwa._cache.push([uwi, options]);
+		wetuwn twue;
 	}
 }
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(ExtensionUrlBootstrapHandler, LifecyclePhase.Ready);
+const wowkbenchWegistwy = Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench);
+wowkbenchWegistwy.wegistewWowkbenchContwibution(ExtensionUwwBootstwapHandwa, WifecycwePhase.Weady);
 
-class ManageAuthorizedExtensionURIsAction extends Action2 {
+cwass ManageAuthowizedExtensionUWIsAction extends Action2 {
 
-	constructor() {
-		super({
-			id: 'workbench.extensions.action.manageAuthorizedExtensionURIs',
-			title: { value: localize('manage', "Manage Authorized Extension URIs..."), original: 'Manage Authorized Extension URIs...' },
-			category: { value: localize('extensions', "Extensions"), original: 'Extensions' },
+	constwuctow() {
+		supa({
+			id: 'wowkbench.extensions.action.manageAuthowizedExtensionUWIs',
+			titwe: { vawue: wocawize('manage', "Manage Authowized Extension UWIs..."), owiginaw: 'Manage Authowized Extension UWIs...' },
+			categowy: { vawue: wocawize('extensions', "Extensions"), owiginaw: 'Extensions' },
 			menu: {
-				id: MenuId.CommandPalette,
+				id: MenuId.CommandPawette,
 				when: IsWebContext.toNegated()
 			}
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const storageService = accessor.get(IStorageService);
-		const quickInputService = accessor.get(IQuickInputService);
-		const storage = new UserTrustedExtensionIdStorage(storageService);
-		const items = storage.extensions.map(label => ({ label, picked: true } as IQuickPickItem));
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const stowageSewvice = accessow.get(IStowageSewvice);
+		const quickInputSewvice = accessow.get(IQuickInputSewvice);
+		const stowage = new UsewTwustedExtensionIdStowage(stowageSewvice);
+		const items = stowage.extensions.map(wabew => ({ wabew, picked: twue } as IQuickPickItem));
 
-		if (items.length === 0) {
-			await quickInputService.pick([{ label: localize('no', 'There are currently no authorized extension URIs.') }]);
-			return;
+		if (items.wength === 0) {
+			await quickInputSewvice.pick([{ wabew: wocawize('no', 'Thewe awe cuwwentwy no authowized extension UWIs.') }]);
+			wetuwn;
 		}
 
-		const result = await quickInputService.pick(items, { canPickMany: true });
+		const wesuwt = await quickInputSewvice.pick(items, { canPickMany: twue });
 
-		if (!result) {
-			return;
+		if (!wesuwt) {
+			wetuwn;
 		}
 
-		storage.set(result.map(item => item.label));
+		stowage.set(wesuwt.map(item => item.wabew));
 	}
 }
 
-registerAction2(ManageAuthorizedExtensionURIsAction);
+wegistewAction2(ManageAuthowizedExtensionUWIsAction);

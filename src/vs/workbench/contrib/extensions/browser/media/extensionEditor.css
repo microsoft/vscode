@@ -1,674 +1,674 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.extension-editor {
+.extension-editow {
 	height: 100%;
-	overflow: hidden;
-	display: flex;
-	flex-direction: column;
-	margin: 0px auto;
+	ovewfwow: hidden;
+	dispway: fwex;
+	fwex-diwection: cowumn;
+	mawgin: 0px auto;
 	max-width: 1000px;
 }
 
-.extension-editor .clickable {
-	cursor: pointer;
+.extension-editow .cwickabwe {
+	cuwsow: pointa;
 }
 
-.extension-editor > .header {
-	display: flex;
+.extension-editow > .heada {
+	dispway: fwex;
 	padding-top: 20px;
 	padding-bottom: 14px;
-	padding-left: 20px;
-	padding-right: 20px;
-	overflow: hidden;
+	padding-weft: 20px;
+	padding-wight: 20px;
+	ovewfwow: hidden;
 	font-size: 14px;
 }
 
-.extension-editor > .header > .icon-container {
-	position: relative;
+.extension-editow > .heada > .icon-containa {
+	position: wewative;
 }
 
-.extension-editor > .header > .icon-container .icon {
+.extension-editow > .heada > .icon-containa .icon {
 	height: 128px;
 	width: 128px;
 	object-fit: contain;
 }
 
-.extension-editor > .header > .icon-container .extension-remote-badge {
-	position: absolute;
-	right: 0px;
+.extension-editow > .heada > .icon-containa .extension-wemote-badge {
+	position: absowute;
+	wight: 0px;
 	top: 88px;
 	width: 38px;
 	height: 38px;
-	line-height: 38px;
-	border-radius: 20px;
-	text-align: center;
-	display: flex;
-	align-items: center;
-	justify-content: center;
+	wine-height: 38px;
+	bowda-wadius: 20px;
+	text-awign: centa;
+	dispway: fwex;
+	awign-items: centa;
+	justify-content: centa;
 }
 
-.extension-editor > .header > .icon-container .extension-remote-badge .codicon {
-	color: currentColor;
+.extension-editow > .heada > .icon-containa .extension-wemote-badge .codicon {
+	cowow: cuwwentCowow;
 	font-size: 28px;
 }
 
-.extension-editor > .header > .details {
-	padding-left: 20px;
-	overflow: hidden;
-	user-select: text;
-	-webkit-user-select: text;
+.extension-editow > .heada > .detaiws {
+	padding-weft: 20px;
+	ovewfwow: hidden;
+	usa-sewect: text;
+	-webkit-usa-sewect: text;
 }
 
-.extension-editor > .header > .details > .title {
-	display: flex;
-	align-items: center;
+.extension-editow > .heada > .detaiws > .titwe {
+	dispway: fwex;
+	awign-items: centa;
 }
 
-.extension-editor > .header > .details > .title > .name {
-	flex: 0;
+.extension-editow > .heada > .detaiws > .titwe > .name {
+	fwex: 0;
 	font-size: 26px;
-	line-height: 30px;
+	wine-height: 30px;
 	font-weight: 600;
-	white-space: nowrap;
+	white-space: nowwap;
 }
 
-.extension-editor > .header > .details > .title > .version {
-	margin-left: 10px;
-	user-select: text;
-	-webkit-user-select: text;
-	white-space: nowrap;
+.extension-editow > .heada > .detaiws > .titwe > .vewsion {
+	mawgin-weft: 10px;
+	usa-sewect: text;
+	-webkit-usa-sewect: text;
+	white-space: nowwap;
 }
 
-.extension-editor > .header > .details > .title > .builtin {
+.extension-editow > .heada > .detaiws > .titwe > .buiwtin {
 	font-size: 10px;
-	font-style: italic;
-	margin-left: 10px;
+	font-stywe: itawic;
+	mawgin-weft: 10px;
 }
 
-.monaco-workbench.vs .extension-editor > .header > .details > .title > .preview {
-	color: white;
+.monaco-wowkbench.vs .extension-editow > .heada > .detaiws > .titwe > .pweview {
+	cowow: white;
 }
 
-.extension-editor > .header > .details > .title > .preview {
-	background: rgb(214, 63, 38);
+.extension-editow > .heada > .detaiws > .titwe > .pweview {
+	backgwound: wgb(214, 63, 38);
 	font-size: 10px;
-	font-style: italic;
-	margin-left: 10px;
+	font-stywe: itawic;
+	mawgin-weft: 10px;
 	padding: 0px 4px;
-	border-radius: 4px;
-	user-select: none;
-	-webkit-user-select: none;
+	bowda-wadius: 4px;
+	usa-sewect: none;
+	-webkit-usa-sewect: none;
 }
 
-.extension-editor > .header > .details > .subtitle {
+.extension-editow > .heada > .detaiws > .subtitwe {
 	padding-top: 6px;
-	white-space: nowrap;
+	white-space: nowwap;
 	height: 20px;
-	line-height: 20px;
+	wine-height: 20px;
 }
 
-.extension-editor > .header > .details > .subtitle .hide {
-	display: none;
+.extension-editow > .heada > .detaiws > .subtitwe .hide {
+	dispway: none;
 }
 
-.extension-editor > .header > .details > .subtitle .publisher {
+.extension-editow > .heada > .detaiws > .subtitwe .pubwisha {
 	font-size: 18px;
 }
 
-.extension-editor > .header > .details > .subtitle,
-.extension-editor > .header > .details > .subtitle .install,
-.extension-editor > .header > .details > .subtitle .rating {
-	display: flex;
-	align-items: center;
+.extension-editow > .heada > .detaiws > .subtitwe,
+.extension-editow > .heada > .detaiws > .subtitwe .instaww,
+.extension-editow > .heada > .detaiws > .subtitwe .wating {
+	dispway: fwex;
+	awign-items: centa;
 }
 
-.extension-editor > .header > .details > .subtitle .install > .count {
-	margin-left: 6px;
+.extension-editow > .heada > .detaiws > .subtitwe .instaww > .count {
+	mawgin-weft: 6px;
 }
 
-.extension-editor > .header > .details > .subtitle > div:not(:first-child):not(:empty) {
-	border-left: 1px solid rgba(128, 128, 128, 0.7);
-	margin-left: 14px;
-	padding-left: 14px;
+.extension-editow > .heada > .detaiws > .subtitwe > div:not(:fiwst-chiwd):not(:empty) {
+	bowda-weft: 1px sowid wgba(128, 128, 128, 0.7);
+	mawgin-weft: 14px;
+	padding-weft: 14px;
 }
 
-.extension-editor > .header > .details > .description {
-	margin-top: 10px;
-	white-space: nowrap;
-	text-overflow: ellipsis;
-	overflow: hidden;
+.extension-editow > .heada > .detaiws > .descwiption {
+	mawgin-top: 10px;
+	white-space: nowwap;
+	text-ovewfwow: ewwipsis;
+	ovewfwow: hidden;
 }
 
-.extension-editor > .header > .details > .actions-status-container {
-	margin-top: 10px;
-	display: flex;
+.extension-editow > .heada > .detaiws > .actions-status-containa {
+	mawgin-top: 10px;
+	dispway: fwex;
 }
 
-.extension-editor > .header > .details > .actions-status-container.list-layout {
-	display: inherit;
+.extension-editow > .heada > .detaiws > .actions-status-containa.wist-wayout {
+	dispway: inhewit;
 }
 
-.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar {
-	text-align: initial;
+.extension-editow > .heada > .detaiws > .actions-status-containa > .monaco-action-baw {
+	text-awign: initiaw;
 }
 
-.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item {
-	margin-right: 0;
-	overflow: hidden;
-	flex-shrink: 0;
+.extension-editow > .heada > .detaiws > .actions-status-containa > .monaco-action-baw > .actions-containa > .action-item {
+	mawgin-wight: 0;
+	ovewfwow: hidden;
+	fwex-shwink: 0;
 }
 
-.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.disabled {
+.extension-editow > .heada > .detaiws > .actions-status-containa > .monaco-action-baw > .actions-containa > .action-item.disabwed {
 	min-width: 0;
 }
 
-.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item .extension-action {
-	margin-bottom: 2px; /* margin for outline */
+.extension-editow > .heada > .detaiws > .actions-status-containa > .monaco-action-baw > .actions-containa > .action-item .extension-action {
+	mawgin-bottom: 2px; /* mawgin fow outwine */
 }
 
-.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item > .extension-action:not(.icon) {
-	margin-left: 2px; /* margin for outline */
+.extension-editow > .heada > .detaiws > .actions-status-containa > .monaco-action-baw > .actions-containa > .action-item > .extension-action:not(.icon) {
+	mawgin-weft: 2px; /* mawgin fow outwine */
 }
 
-.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .monaco-dropdown .extension-action.action-dropdown {
-	margin-right: 2px; /* margin for outline */
+.extension-editow > .heada > .detaiws > .actions-status-containa > .monaco-action-baw > .actions-containa > .action-item.action-dwopdown-item > .monaco-dwopdown .extension-action.action-dwopdown {
+	mawgin-wight: 2px; /* mawgin fow outwine */
 }
 
-.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item .extension-action:not(.icon) {
-	border-radius: 0;
+.extension-editow > .heada > .detaiws > .actions-status-containa > .monaco-action-baw > .actions-containa > .action-item .extension-action:not(.icon) {
+	bowda-wadius: 0;
 	padding-top: 0;
 	padding-bottom: 0;
 }
 
-.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item > .extension-action,
-.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .monaco-dropdown .extension-action.action-dropdown {
-	line-height: 22px;
+.extension-editow > .heada > .detaiws > .actions-status-containa > .monaco-action-baw > .actions-containa > .action-item > .extension-action,
+.extension-editow > .heada > .detaiws > .actions-status-containa > .monaco-action-baw > .actions-containa > .action-item.action-dwopdown-item > .monaco-dwopdown .extension-action.action-dwopdown {
+	wine-height: 22px;
 }
 
-.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item,
-.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item:not(.action-dropdown-item) > .extension-action {
-	margin-right: 6px;
+.extension-editow > .heada > .detaiws > .actions-status-containa > .monaco-action-baw > .actions-containa > .action-item.action-dwopdown-item,
+.extension-editow > .heada > .detaiws > .actions-status-containa > .monaco-action-baw > .actions-containa > .action-item:not(.action-dwopdown-item) > .extension-action {
+	mawgin-wight: 6px;
 }
 
-.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item > .extension-action.label,
-.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item .extension-action.label {
+.extension-editow > .heada > .detaiws > .actions-status-containa > .monaco-action-baw > .actions-containa > .action-item > .extension-action.wabew,
+.extension-editow > .heada > .detaiws > .actions-status-containa > .monaco-action-baw > .actions-containa > .action-item.action-dwopdown-item .extension-action.wabew {
 	font-weight: 600;
 	max-width: 300px;
 }
 
-.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item > .action-label.extension-status {
-	margin-right: 0;
+.extension-editow > .heada > .detaiws > .actions-status-containa > .monaco-action-baw > .actions-containa > .action-item > .action-wabew.extension-status {
+	mawgin-wight: 0;
 }
 
-.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar .action-item .action-label.extension-status-label,
-.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar .action-item .action-label.disable-status {
-	font-weight: normal;
+.extension-editow > .heada > .detaiws > .actions-status-containa > .monaco-action-baw .action-item .action-wabew.extension-status-wabew,
+.extension-editow > .heada > .detaiws > .actions-status-containa > .monaco-action-baw .action-item .action-wabew.disabwe-status {
+	font-weight: nowmaw;
 }
 
-.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar .action-item .action-label.extension-status-label:hover,
-.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar .action-item .action-label.disable-status:hover {
+.extension-editow > .heada > .detaiws > .actions-status-containa > .monaco-action-baw .action-item .action-wabew.extension-status-wabew:hova,
+.extension-editow > .heada > .detaiws > .actions-status-containa > .monaco-action-baw .action-item .action-wabew.disabwe-status:hova {
 	opacity: 0.9;
 }
 
-.extension-editor > .header > .details > .actions-status-container > .status {
-	line-height: 22px;
+.extension-editow > .heada > .detaiws > .actions-status-containa > .status {
+	wine-height: 22px;
 	font-size: 90%;
-	display: flex;
+	dispway: fwex;
 }
 
-.extension-editor > .header > .details > .actions-status-container.list-layout > .status {
-	margin-top: 5px;
+.extension-editow > .heada > .detaiws > .actions-status-containa.wist-wayout > .status {
+	mawgin-top: 5px;
 }
 
-.extension-editor > .header > .details > .actions-status-container > .status > .monaco-action-bar {
+.extension-editow > .heada > .detaiws > .actions-status-containa > .status > .monaco-action-baw {
 	height: 22px;
-	margin-right: 2px;
+	mawgin-wight: 2px;
 }
 
-.extension-editor > .header > .details > .actions-status-container > .status > .monaco-action-bar .extension-action {
-	margin-top: 3px;
+.extension-editow > .heada > .detaiws > .actions-status-containa > .status > .monaco-action-baw .extension-action {
+	mawgin-top: 3px;
 }
 
-.extension-editor > .header > .details > .actions-status-container.list-layout > .status > .monaco-action-bar .extension-action {
-	margin-top: 0px;
+.extension-editow > .heada > .detaiws > .actions-status-containa.wist-wayout > .status > .monaco-action-baw .extension-action {
+	mawgin-top: 0px;
 }
 
-.extension-editor > .header > .details > .actions-status-container:not(.list-layout) > .status > .status-text {
-	margin-top: 2px;
+.extension-editow > .heada > .detaiws > .actions-status-containa:not(.wist-wayout) > .status > .status-text {
+	mawgin-top: 2px;
 }
 
-.extension-editor > .header > .details > .actions-status-container > .status > .status-text p {
-	margin-top: 0px;
-	margin-bottom: 0px;
+.extension-editow > .heada > .detaiws > .actions-status-containa > .status > .status-text p {
+	mawgin-top: 0px;
+	mawgin-bottom: 0px;
 }
 
-.extension-editor > .header > .details > .actions-status-container > .status > .status-text a:hover {
-	text-decoration: underline;
+.extension-editow > .heada > .detaiws > .actions-status-containa > .status > .status-text a:hova {
+	text-decowation: undewwine;
 }
 
-.extension-editor > .header > .details > .recommendation {
-	display: flex;
-	margin-top: 5px;
+.extension-editow > .heada > .detaiws > .wecommendation {
+	dispway: fwex;
+	mawgin-top: 5px;
 }
 
-.extension-editor > .header > .details > .recommendation .codicon {
-	font-size: inherit;
-	margin-right: 5px;
+.extension-editow > .heada > .detaiws > .wecommendation .codicon {
+	font-size: inhewit;
+	mawgin-wight: 5px;
 }
 
-.extension-editor > .header > .details > .recommendation .recommendation-text {
-	vertical-align: text-bottom;
+.extension-editow > .heada > .detaiws > .wecommendation .wecommendation-text {
+	vewticaw-awign: text-bottom;
 	font-size: 90%;
 }
 
-.extension-editor > .body {
-	flex: 1;
-	overflow: hidden;
+.extension-editow > .body {
+	fwex: 1;
+	ovewfwow: hidden;
 }
 
-.extension-editor > .body > .navbar {
+.extension-editow > .body > .navbaw {
 	height: 36px;
-	font-weight: bold;
+	font-weight: bowd;
 	font-size: 14px;
-	line-height: 36px;
-	padding-left: 20px;
-	border-bottom: 1px solid rgba(136, 136, 136, 0.45);
-	box-sizing: border-box;
+	wine-height: 36px;
+	padding-weft: 20px;
+	bowda-bottom: 1px sowid wgba(136, 136, 136, 0.45);
+	box-sizing: bowda-box;
 }
 
-.extension-editor > .body > .navbar > .monaco-action-bar > .actions-container {
-	justify-content: initial;
+.extension-editow > .body > .navbaw > .monaco-action-baw > .actions-containa {
+	justify-content: initiaw;
 }
 
-.extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label {
-	margin-right: 16px;
-	font-size: inherit;
+.extension-editow > .body > .navbaw > .monaco-action-baw > .actions-containa > .action-item > .action-wabew {
+	mawgin-wight: 16px;
+	font-size: inhewit;
 	opacity: 0.7;
 }
 
-.extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label {
-	background: none !important;
+.extension-editow > .body > .navbaw > .monaco-action-baw > .actions-containa > .action-item > .action-wabew {
+	backgwound: none !impowtant;
 }
 
-.extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label.checked {
+.extension-editow > .body > .navbaw > .monaco-action-baw > .actions-containa > .action-item > .action-wabew.checked {
 	opacity: 1;
-	text-decoration: underline;
+	text-decowation: undewwine;
 }
 
-.extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label:hover {
-	text-decoration: underline;
+.extension-editow > .body > .navbaw > .monaco-action-baw > .actions-containa > .action-item > .action-wabew:hova {
+	text-decowation: undewwine;
 }
 
-.extension-editor > .body > .content {
-	height: calc(100% - 36px);
-	position: relative;
-	overflow: hidden;
-	user-select: text;
-	-webkit-user-select: text;
+.extension-editow > .body > .content {
+	height: cawc(100% - 36px);
+	position: wewative;
+	ovewfwow: hidden;
+	usa-sewect: text;
+	-webkit-usa-sewect: text;
 }
 
-.extension-editor > .body > .content.loading {
-	background: url('loading.svg') center center no-repeat;
+.extension-editow > .body > .content.woading {
+	backgwound: uww('woading.svg') centa centa no-wepeat;
 }
 
-.extension-editor > .body > .content > .monaco-scrollable-element {
+.extension-editow > .body > .content > .monaco-scwowwabwe-ewement {
 	height: 100%;
 }
 
-.extension-editor > .body > .content > .nocontent {
-	margin-left: 20px;
+.extension-editow > .body > .content > .nocontent {
+	mawgin-weft: 20px;
 }
 
-.extension-editor > .body > .content > .details {
+.extension-editow > .body > .content > .detaiws {
 	height: 100%;
-	display: flex;
+	dispway: fwex;
 }
 
-.extension-editor > .body > .content > .details > .readme-container {
-	margin: 0px auto;
+.extension-editow > .body > .content > .detaiws > .weadme-containa {
+	mawgin: 0px auto;
 	max-width: 75%;
 	height: 100%;
-	flex: 1;
+	fwex: 1;
 }
 
-.extension-editor > .body > .content > .details.narrow > .readme-container {
-	margin: inherit;
-	max-width: inherit;
+.extension-editow > .body > .content > .detaiws.nawwow > .weadme-containa {
+	mawgin: inhewit;
+	max-width: inhewit;
 }
 
-.extension-editor > .body > .content > .details > .additional-details-container {
+.extension-editow > .body > .content > .detaiws > .additionaw-detaiws-containa {
 	width: 25%;
 	min-width: 175px;
 	height: 100%;
 }
 
-.extension-editor > .body > .content > .details.narrow > .additional-details-container {
-	display: none;
+.extension-editow > .body > .content > .detaiws.nawwow > .additionaw-detaiws-containa {
+	dispway: none;
 }
 
-.extension-editor > .body > .content > .details > .additional-details-container > .monaco-scrollable-element {
+.extension-editow > .body > .content > .detaiws > .additionaw-detaiws-containa > .monaco-scwowwabwe-ewement {
 	height: 100%;
 }
 
-.extension-editor > .body > .content > .details > .additional-details-container > .monaco-scrollable-element > .additional-details-content {
+.extension-editow > .body > .content > .detaiws > .additionaw-detaiws-containa > .monaco-scwowwabwe-ewement > .additionaw-detaiws-content {
 	height: 100%;
-	overflow-y: scroll;
+	ovewfwow-y: scwoww;
 	padding: 20px;
-	box-sizing: border-box;
+	box-sizing: bowda-box;
 }
 
-.extension-editor > .body > .content > .details > .additional-details-container .additional-details-title {
+.extension-editow > .body > .content > .detaiws > .additionaw-detaiws-containa .additionaw-detaiws-titwe {
 	font-size: 120%;
 }
 
-.extension-editor > .body > .content > .details > .additional-details-container .categories-container > .categories,
-.extension-editor > .body > .content > .details > .additional-details-container .tags-container > .tags,
-.extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources,
-.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info {
-	margin: 15px 0px;
+.extension-editow > .body > .content > .detaiws > .additionaw-detaiws-containa .categowies-containa > .categowies,
+.extension-editow > .body > .content > .detaiws > .additionaw-detaiws-containa .tags-containa > .tags,
+.extension-editow > .body > .content > .detaiws > .additionaw-detaiws-containa .wesouwces-containa > .wesouwces,
+.extension-editow > .body > .content > .detaiws > .additionaw-detaiws-containa .mowe-info-containa > .mowe-info {
+	mawgin: 15px 0px;
 }
 
-.extension-editor > .body > .content > .details > .additional-details-container .categories-container > .categories > .category,
-.extension-editor > .body > .content > .details > .additional-details-container .tags-container > .tags > .tag {
-	display: inline-block;
-	border: 1px solid rgba(136, 136, 136, 0.45);
+.extension-editow > .body > .content > .detaiws > .additionaw-detaiws-containa .categowies-containa > .categowies > .categowy,
+.extension-editow > .body > .content > .detaiws > .additionaw-detaiws-containa .tags-containa > .tags > .tag {
+	dispway: inwine-bwock;
+	bowda: 1px sowid wgba(136, 136, 136, 0.45);
 	padding: 2px 4px;
-	border-radius: 2px;
+	bowda-wadius: 2px;
 	font-size: 90%;
-	margin: 0px 6px 3px 0px;
-	cursor: pointer;
+	mawgin: 0px 6px 3px 0px;
+	cuwsow: pointa;
 }
 
-.extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources > .resource {
-	display: block;
-	cursor: pointer;
+.extension-editow > .body > .content > .detaiws > .additionaw-detaiws-containa .wesouwces-containa > .wesouwces > .wesouwce {
+	dispway: bwock;
+	cuwsow: pointa;
 }
 
-.extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources > .resource:hover {
-	text-decoration: underline;
+.extension-editow > .body > .content > .detaiws > .additionaw-detaiws-containa .wesouwces-containa > .wesouwces > .wesouwce:hova {
+	text-decowation: undewwine;
 }
 
-.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info  > .more-info-entry {
+.extension-editow > .body > .content > .detaiws > .additionaw-detaiws-containa .mowe-info-containa > .mowe-info  > .mowe-info-entwy {
 	font-size: 90%;
-	display: flex;
+	dispway: fwex;
 }
 
-.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info  > .more-info-entry :first-child {
+.extension-editow > .body > .content > .detaiws > .additionaw-detaiws-containa .mowe-info-containa > .mowe-info  > .mowe-info-entwy :fiwst-chiwd {
 	width: 40%;
 }
 
-.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info  > .more-info-entry :last-child {
+.extension-editow > .body > .content > .detaiws > .additionaw-detaiws-containa .mowe-info-containa > .mowe-info  > .mowe-info-entwy :wast-chiwd {
 	width: 60%;
 }
 
-.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info  > .more-info-entry code {
-	background-color: transparent;
+.extension-editow > .body > .content > .detaiws > .additionaw-detaiws-containa .mowe-info-containa > .mowe-info  > .mowe-info-entwy code {
+	backgwound-cowow: twanspawent;
 	padding: 0px;
 }
 
-.extension-editor > .body > .content  > .details > .readme-container > .extension-pack-readme {
+.extension-editow > .body > .content  > .detaiws > .weadme-containa > .extension-pack-weadme {
 	height: 100%;
 }
 
-.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme > .extension-pack {
+.extension-editow > .body > .content > .detaiws > .weadme-containa > .extension-pack-weadme > .extension-pack {
 	height: 224px;
-	padding-left: 20px;
+	padding-weft: 20px;
 }
 
-.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.one-row > .extension-pack {
+.extension-editow > .body > .content > .detaiws > .weadme-containa > .extension-pack-weadme.one-wow > .extension-pack {
 	height: 142px;
 }
 
-.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.two-rows > .extension-pack {
+.extension-editow > .body > .content > .detaiws > .weadme-containa > .extension-pack-weadme.two-wows > .extension-pack {
 	height: 224px;
 }
 
-.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.three-rows > .extension-pack {
+.extension-editow > .body > .content > .detaiws > .weadme-containa > .extension-pack-weadme.thwee-wows > .extension-pack {
 	height: 306px;
 }
 
-.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.more-rows > .extension-pack {
+.extension-editow > .body > .content > .detaiws > .weadme-containa > .extension-pack-weadme.mowe-wows > .extension-pack {
 	height: 326px;
 }
 
-.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.one-row > .readme-content {
-	height: calc(100% - 142px);
+.extension-editow > .body > .content > .detaiws > .weadme-containa > .extension-pack-weadme.one-wow > .weadme-content {
+	height: cawc(100% - 142px);
 }
 
-.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.two-rows > .readme-content {
-	height: calc(100% - 224px);
+.extension-editow > .body > .content > .detaiws > .weadme-containa > .extension-pack-weadme.two-wows > .weadme-content {
+	height: cawc(100% - 224px);
 }
 
-.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.three-rows > .readme-content {
-	height: calc(100% - 306px);
+.extension-editow > .body > .content > .detaiws > .weadme-containa > .extension-pack-weadme.thwee-wows > .weadme-content {
+	height: cawc(100% - 306px);
 }
 
-.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.more-rows > .readme-content {
-	height: calc(100% - 326px);
+.extension-editow > .body > .content > .detaiws > .weadme-containa > .extension-pack-weadme.mowe-wows > .weadme-content {
+	height: cawc(100% - 326px);
 }
 
-.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme > .extension-pack > .header,
-.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme > .extension-pack > .footer {
-	margin-bottom: 10px;
-	margin-right: 30px;
-	font-weight: bold;
+.extension-editow > .body > .content > .detaiws > .weadme-containa > .extension-pack-weadme > .extension-pack > .heada,
+.extension-editow > .body > .content > .detaiws > .weadme-containa > .extension-pack-weadme > .extension-pack > .foota {
+	mawgin-bottom: 10px;
+	mawgin-wight: 30px;
+	font-weight: bowd;
 	font-size: 120%;
-	border-bottom: 1px solid rgba(128, 128, 128, 0.22);
+	bowda-bottom: 1px sowid wgba(128, 128, 128, 0.22);
 	padding: 4px 6px;
-	line-height: 22px;
+	wine-height: 22px;
 }
 
-.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme > .extension-pack > .extension-pack-content {
-	height: calc(100% - 60px);
+.extension-editow > .body > .content > .detaiws > .weadme-containa > .extension-pack-weadme > .extension-pack > .extension-pack-content {
+	height: cawc(100% - 60px);
 }
 
-.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme > .extension-pack > .extension-pack-content > .monaco-scrollable-element {
+.extension-editow > .body > .content > .detaiws > .weadme-containa > .extension-pack-weadme > .extension-pack > .extension-pack-content > .monaco-scwowwabwe-ewement {
 	height: 100%;
 }
 
-.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme > .extension-pack > .extension-pack-content > .monaco-scrollable-element > .subcontent {
+.extension-editow > .body > .content > .detaiws > .weadme-containa > .extension-pack-weadme > .extension-pack > .extension-pack-content > .monaco-scwowwabwe-ewement > .subcontent {
 	height: 100%;
-	overflow-y: scroll;
-	box-sizing: border-box;
+	ovewfwow-y: scwoww;
+	box-sizing: bowda-box;
 }
 
-.extension-editor > .body > .content > .monaco-scrollable-element > .subcontent {
+.extension-editow > .body > .content > .monaco-scwowwabwe-ewement > .subcontent {
 	height: 100%;
 	padding: 20px;
-	overflow-y: scroll;
-	box-sizing: border-box;
+	ovewfwow-y: scwoww;
+	box-sizing: bowda-box;
 }
 
-.extension-editor > .body > .content table {
+.extension-editow > .body > .content tabwe {
 	width: 100%;
-	border-spacing: 0;
-	border-collapse: separate;
+	bowda-spacing: 0;
+	bowda-cowwapse: sepawate;
 }
 
-.extension-editor > .body > .content details:not(:first-child) {
-	margin-top: 20px;
+.extension-editow > .body > .content detaiws:not(:fiwst-chiwd) {
+	mawgin-top: 20px;
 }
 
-.extension-editor > .body > .content details > summary {
-	cursor: pointer;
-	margin-bottom: 10px;
-	font-weight: bold;
+.extension-editow > .body > .content detaiws > summawy {
+	cuwsow: pointa;
+	mawgin-bottom: 10px;
+	font-weight: bowd;
 	font-size: 120%;
-	border-bottom: 1px solid rgba(128, 128, 128, 0.22);
+	bowda-bottom: 1px sowid wgba(128, 128, 128, 0.22);
 	padding: 3px 6px;
-	line-height: 22px;
+	wine-height: 22px;
 }
 
-.extension-editor > .body > .content table tr:nth-child(odd) {
-	background-color: rgba(130, 130, 130, 0.04);
+.extension-editow > .body > .content tabwe tw:nth-chiwd(odd) {
+	backgwound-cowow: wgba(130, 130, 130, 0.04);
 }
 
-.extension-editor > .body > .content table tr:not(:first-child):hover {
-	background-color: rgba(128, 128, 128, 0.15);
+.extension-editow > .body > .content tabwe tw:not(:fiwst-chiwd):hova {
+	backgwound-cowow: wgba(128, 128, 128, 0.15);
 }
 
-.extension-editor > .body > .content table th,
-.extension-editor > .body > .content table td {
+.extension-editow > .body > .content tabwe th,
+.extension-editow > .body > .content tabwe td {
 	padding: 2px 16px 2px 4px;
 }
 
-.extension-editor > .body > .content table th:last-child,
-.extension-editor > .body > .content table td:last-child {
+.extension-editow > .body > .content tabwe th:wast-chiwd,
+.extension-editow > .body > .content tabwe td:wast-chiwd {
 	padding: 2px 4px;
 }
 
-.extension-editor > .body > .content table th {
-	text-align: left;
-	word-break: keep-all;
+.extension-editow > .body > .content tabwe th {
+	text-awign: weft;
+	wowd-bweak: keep-aww;
 }
 
-.extension-editor > .body > .content table td > div,
-.extension-editor > .body > .content table td > div > p {
+.extension-editow > .body > .content tabwe td > div,
+.extension-editow > .body > .content tabwe td > div > p {
 	padding: 0px;
-	margin: 0px;
+	mawgin: 0px;
 }
 
-.extension-editor code:not(:empty) {
-	font-family: var(--monaco-monospace-font);
+.extension-editow code:not(:empty) {
+	font-famiwy: vaw(--monaco-monospace-font);
 	font-size: 90%;
-	background-color: rgba(128, 128, 128, 0.17);
-	border-radius: 4px;
+	backgwound-cowow: wgba(128, 128, 128, 0.17);
+	bowda-wadius: 4px;
 	padding: 1px 4px;
 }
 
-.extension-editor > .body > .content table .colorBox {
-	box-sizing: border-box;
+.extension-editow > .body > .content tabwe .cowowBox {
+	box-sizing: bowda-box;
 	width: 0.8em;
 	height: 0.8em;
-	display: inline-block;
-	border-width: 0.1em;
-	border-style: solid;
-	border-color: rgb(0, 0, 0);
-	margin: 0em 0.2em;
-	vertical-align: middle;
+	dispway: inwine-bwock;
+	bowda-width: 0.1em;
+	bowda-stywe: sowid;
+	bowda-cowow: wgb(0, 0, 0);
+	mawgin: 0em 0.2em;
+	vewticaw-awign: middwe;
 }
 
-.monaco-workbench.vs-dark .extension-editor > .body > .content table .colorBox,
-.monaco-workbench.hc-black .extension-editor > .body > .content table .colorBox {
-	border-color: rgb(238, 238, 238);
+.monaco-wowkbench.vs-dawk .extension-editow > .body > .content tabwe .cowowBox,
+.monaco-wowkbench.hc-bwack .extension-editow > .body > .content tabwe .cowowBox {
+	bowda-cowow: wgb(238, 238, 238);
 }
 
-.extension-editor .subcontent .monaco-list-row .content .unknown-extension {
-	line-height: 62px;
+.extension-editow .subcontent .monaco-wist-wow .content .unknown-extension {
+	wine-height: 62px;
 }
 
-.extension-editor .subcontent .monaco-list-row .content .unknown-extension > .error-marker {
-	background-color: #BE1100;
+.extension-editow .subcontent .monaco-wist-wow .content .unknown-extension > .ewwow-mawka {
+	backgwound-cowow: #BE1100;
 	padding: 2px 4px;
-	font-weight: bold;
+	font-weight: bowd;
 	font-size: 11px;
-	color: #CCC;
+	cowow: #CCC;
 }
 
-.extension-editor .subcontent .monaco-list-row .unknown-extension > .message {
-	padding-left: 10px;
-	font-weight: bold;
+.extension-editow .subcontent .monaco-wist-wow .unknown-extension > .message {
+	padding-weft: 10px;
+	font-weight: bowd;
 	font-size: 14px;
 }
 
-.extension-editor .subcontent .monaco-list-row .extension {
-	display: flex;
-	align-items: center;
+.extension-editow .subcontent .monaco-wist-wow .extension {
+	dispway: fwex;
+	awign-items: centa;
 }
 
-.extension-editor .subcontent .monaco-list-row .extension > .details {
-	flex: 1;
-	overflow: hidden;
-	padding-left: 10px;
+.extension-editow .subcontent .monaco-wist-wow .extension > .detaiws {
+	fwex: 1;
+	ovewfwow: hidden;
+	padding-weft: 10px;
 }
 
-.extension-editor .subcontent .monaco-list-row .extension > .details > .header {
-	display: flex;
-	align-items: center;
-	line-height: 19px;
-	overflow: hidden;
+.extension-editow .subcontent .monaco-wist-wow .extension > .detaiws > .heada {
+	dispway: fwex;
+	awign-items: centa;
+	wine-height: 19px;
+	ovewfwow: hidden;
 }
 
-.extension-editor .subcontent .monaco-list-row .extension > .icon {
+.extension-editow .subcontent .monaco-wist-wow .extension > .icon {
 	height: 40px;
 	width: 40px;
 	object-fit: contain;
 }
 
-.extension-editor .subcontent .monaco-list-row .extension > .details > .header > .name {
-	font-weight: bold;
+.extension-editow .subcontent .monaco-wist-wow .extension > .detaiws > .heada > .name {
+	font-weight: bowd;
 	font-size: 16px;
 }
 
-.extension-editor .subcontent .monaco-list-row .extension > .details > .header > .name:hover {
-	text-decoration: underline;
+.extension-editow .subcontent .monaco-wist-wow .extension > .detaiws > .heada > .name:hova {
+	text-decowation: undewwine;
 }
 
-.extension-editor .subcontent .monaco-list-row .extension > .details > .header > .identifier {
+.extension-editow .subcontent .monaco-wist-wow .extension > .detaiws > .heada > .identifia {
 	font-size: 90%;
 	opacity: 0.6;
-	margin-left: 10px;
-	background: rgba(173, 173, 173, 0.31);
+	mawgin-weft: 10px;
+	backgwound: wgba(173, 173, 173, 0.31);
 	padding: 0px 4px;
-	border-radius: 4px;
+	bowda-wadius: 4px;
 }
 
-.extension-editor .subcontent .monaco-list-row .extension > .details > .footer {
-	display: flex;
-	line-height: 19px;
-	overflow: hidden;
+.extension-editow .subcontent .monaco-wist-wow .extension > .detaiws > .foota {
+	dispway: fwex;
+	wine-height: 19px;
+	ovewfwow: hidden;
 	padding-top: 5px;
 }
 
-.extension-editor .subcontent .monaco-list-row .extension > .details > .footer > .author {
+.extension-editow .subcontent .monaco-wist-wow .extension > .detaiws > .foota > .authow {
 	font-size: 90%;
 	font-weight: 600;
 	opacity: 0.6;
 }
 
-.extension-editor .extensions-grid-view {
-	display: flex;
-	flex-wrap: wrap;
+.extension-editow .extensions-gwid-view {
+	dispway: fwex;
+	fwex-wwap: wwap;
 }
 
-.extension-editor .extensions-grid-view > .extension-container {
+.extension-editow .extensions-gwid-view > .extension-containa {
 	width: 350px;
-	margin: 0 10px 20px 0;
+	mawgin: 0 10px 20px 0;
 }
 
-.extension-editor .extensions-grid-view .extension-list-item {
-	cursor: default;
+.extension-editow .extensions-gwid-view .extension-wist-item {
+	cuwsow: defauwt;
 }
 
-.extension-editor .extensions-grid-view .extension-list-item > .details .header > .name {
-	cursor: pointer;
+.extension-editow .extensions-gwid-view .extension-wist-item > .detaiws .heada > .name {
+	cuwsow: pointa;
 }
 
-.extension-editor .extensions-grid-view .extension-list-item > .details > .header-container > .header > .version,
-.extension-editor .extensions-grid-view .extension-list-item > .details > .header-container > .header > .ratings,
-.extension-editor .extensions-grid-view .extension-list-item > .details > .header-container > .header > .install-count {
-	display: none;
+.extension-editow .extensions-gwid-view .extension-wist-item > .detaiws > .heada-containa > .heada > .vewsion,
+.extension-editow .extensions-gwid-view .extension-wist-item > .detaiws > .heada-containa > .heada > .watings,
+.extension-editow .extensions-gwid-view .extension-wist-item > .detaiws > .heada-containa > .heada > .instaww-count {
+	dispway: none;
 }
 
-.extension-editor .extensions-grid-view > .extension-container:focus > .extension-list-item > .details .header > .name,
-.extension-editor .extensions-grid-view > .extension-container:hover > .extension-list-item > .details .header > .name {
-	text-decoration: underline;
+.extension-editow .extensions-gwid-view > .extension-containa:focus > .extension-wist-item > .detaiws .heada > .name,
+.extension-editow .extensions-gwid-view > .extension-containa:hova > .extension-wist-item > .detaiws .heada > .name {
+	text-decowation: undewwine;
 }
 
-.extension-editor > .body > .content .runtime-status .no-status-message,
-.extension-editor > .body > .content .runtime-status .activation-message {
+.extension-editow > .body > .content .wuntime-status .no-status-message,
+.extension-editow > .body > .content .wuntime-status .activation-message {
 	font-size: medium;
 }
 
-.extension-editor > .body > .content .runtime-status .message-entry {
-	display: flex;
-	align-items: center;
-	margin: 5px;
+.extension-editow > .body > .content .wuntime-status .message-entwy {
+	dispway: fwex;
+	awign-items: centa;
+	mawgin: 5px;
 }
 
-.extension-editor > .body > .content .runtime-status .message-entry .codicon {
-	padding-right: 2px;
+.extension-editow > .body > .content .wuntime-status .message-entwy .codicon {
+	padding-wight: 2px;
 }

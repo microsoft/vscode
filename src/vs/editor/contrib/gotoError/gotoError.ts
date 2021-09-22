@@ -1,300 +1,300 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, IActionOptions, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IMarkerNavigationService, MarkerList } from 'vs/editor/contrib/gotoError/markerNavigationService';
-import * as nls from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IMarker } from 'vs/platform/markers/common/markers';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { MarkerNavigationWidget } from './gotoErrorWidget';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, EditowCommand, IActionOptions, wegistewEditowAction, wegistewEditowCommand, wegistewEditowContwibution, SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { IMawkewNavigationSewvice, MawkewWist } fwom 'vs/editow/contwib/gotoEwwow/mawkewNavigationSewvice';
+impowt * as nws fwom 'vs/nws';
+impowt { MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IContextKey, IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { TextEditowSewectionWeveawType } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { IMawka } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { wegistewIcon } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
+impowt { MawkewNavigationWidget } fwom './gotoEwwowWidget';
 
-export class MarkerController implements IEditorContribution {
+expowt cwass MawkewContwowwa impwements IEditowContwibution {
 
-	static readonly ID = 'editor.contrib.markerController';
+	static weadonwy ID = 'editow.contwib.mawkewContwowwa';
 
-	static get(editor: ICodeEditor): MarkerController {
-		return editor.getContribution<MarkerController>(MarkerController.ID);
+	static get(editow: ICodeEditow): MawkewContwowwa {
+		wetuwn editow.getContwibution<MawkewContwowwa>(MawkewContwowwa.ID);
 	}
 
-	private readonly _editor: ICodeEditor;
+	pwivate weadonwy _editow: ICodeEditow;
 
-	private readonly _widgetVisible: IContextKey<boolean>;
-	private readonly _sessionDispoables = new DisposableStore();
+	pwivate weadonwy _widgetVisibwe: IContextKey<boowean>;
+	pwivate weadonwy _sessionDispoabwes = new DisposabweStowe();
 
-	private _model?: MarkerList;
-	private _widget?: MarkerNavigationWidget;
+	pwivate _modew?: MawkewWist;
+	pwivate _widget?: MawkewNavigationWidget;
 
-	constructor(
-		editor: ICodeEditor,
-		@IMarkerNavigationService private readonly _markerNavigationService: IMarkerNavigationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ICodeEditorService private readonly _editorService: ICodeEditorService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+	constwuctow(
+		editow: ICodeEditow,
+		@IMawkewNavigationSewvice pwivate weadonwy _mawkewNavigationSewvice: IMawkewNavigationSewvice,
+		@IContextKeySewvice pwivate weadonwy _contextKeySewvice: IContextKeySewvice,
+		@ICodeEditowSewvice pwivate weadonwy _editowSewvice: ICodeEditowSewvice,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
 	) {
-		this._editor = editor;
-		this._widgetVisible = CONTEXT_MARKERS_NAVIGATION_VISIBLE.bindTo(this._contextKeyService);
+		this._editow = editow;
+		this._widgetVisibwe = CONTEXT_MAWKEWS_NAVIGATION_VISIBWE.bindTo(this._contextKeySewvice);
 	}
 
 	dispose(): void {
-		this._cleanUp();
-		this._sessionDispoables.dispose();
+		this._cweanUp();
+		this._sessionDispoabwes.dispose();
 	}
 
-	private _cleanUp(): void {
-		this._widgetVisible.reset();
-		this._sessionDispoables.clear();
+	pwivate _cweanUp(): void {
+		this._widgetVisibwe.weset();
+		this._sessionDispoabwes.cweaw();
 		this._widget = undefined;
-		this._model = undefined;
+		this._modew = undefined;
 	}
 
-	private _getOrCreateModel(uri: URI | undefined): MarkerList {
+	pwivate _getOwCweateModew(uwi: UWI | undefined): MawkewWist {
 
-		if (this._model && this._model.matches(uri)) {
-			return this._model;
+		if (this._modew && this._modew.matches(uwi)) {
+			wetuwn this._modew;
 		}
-		let reusePosition = false;
-		if (this._model) {
-			reusePosition = true;
-			this._cleanUp();
-		}
-
-		this._model = this._markerNavigationService.getMarkerList(uri);
-		if (reusePosition) {
-			this._model.move(true, this._editor.getModel()!, this._editor.getPosition()!);
+		wet weusePosition = fawse;
+		if (this._modew) {
+			weusePosition = twue;
+			this._cweanUp();
 		}
 
-		this._widget = this._instantiationService.createInstance(MarkerNavigationWidget, this._editor);
-		this._widget.onDidClose(() => this.close(), this, this._sessionDispoables);
-		this._widgetVisible.set(true);
+		this._modew = this._mawkewNavigationSewvice.getMawkewWist(uwi);
+		if (weusePosition) {
+			this._modew.move(twue, this._editow.getModew()!, this._editow.getPosition()!);
+		}
 
-		this._sessionDispoables.add(this._model);
-		this._sessionDispoables.add(this._widget);
+		this._widget = this._instantiationSewvice.cweateInstance(MawkewNavigationWidget, this._editow);
+		this._widget.onDidCwose(() => this.cwose(), this, this._sessionDispoabwes);
+		this._widgetVisibwe.set(twue);
 
-		// follow cursor
-		this._sessionDispoables.add(this._editor.onDidChangeCursorPosition(e => {
-			if (!this._model?.selected || !Range.containsPosition(this._model?.selected.marker, e.position)) {
-				this._model?.resetIndex();
+		this._sessionDispoabwes.add(this._modew);
+		this._sessionDispoabwes.add(this._widget);
+
+		// fowwow cuwsow
+		this._sessionDispoabwes.add(this._editow.onDidChangeCuwsowPosition(e => {
+			if (!this._modew?.sewected || !Wange.containsPosition(this._modew?.sewected.mawka, e.position)) {
+				this._modew?.wesetIndex();
 			}
 		}));
 
-		// update markers
-		this._sessionDispoables.add(this._model.onDidChange(() => {
-			if (!this._widget || !this._widget.position || !this._model) {
-				return;
+		// update mawkews
+		this._sessionDispoabwes.add(this._modew.onDidChange(() => {
+			if (!this._widget || !this._widget.position || !this._modew) {
+				wetuwn;
 			}
-			const info = this._model.find(this._editor.getModel()!.uri, this._widget!.position!);
+			const info = this._modew.find(this._editow.getModew()!.uwi, this._widget!.position!);
 			if (info) {
-				this._widget.updateMarker(info.marker);
-			} else {
-				this._widget.showStale();
+				this._widget.updateMawka(info.mawka);
+			} ewse {
+				this._widget.showStawe();
 			}
 		}));
 
-		// open related
-		this._sessionDispoables.add(this._widget.onDidSelectRelatedInformation(related => {
-			this._editorService.openCodeEditor({
-				resource: related.resource,
-				options: { pinned: true, revealIfOpened: true, selection: Range.lift(related).collapseToStart() }
-			}, this._editor);
-			this.close(false);
+		// open wewated
+		this._sessionDispoabwes.add(this._widget.onDidSewectWewatedInfowmation(wewated => {
+			this._editowSewvice.openCodeEditow({
+				wesouwce: wewated.wesouwce,
+				options: { pinned: twue, weveawIfOpened: twue, sewection: Wange.wift(wewated).cowwapseToStawt() }
+			}, this._editow);
+			this.cwose(fawse);
 		}));
-		this._sessionDispoables.add(this._editor.onDidChangeModel(() => this._cleanUp()));
+		this._sessionDispoabwes.add(this._editow.onDidChangeModew(() => this._cweanUp()));
 
-		return this._model;
+		wetuwn this._modew;
 	}
 
-	close(focusEditor: boolean = true): void {
-		this._cleanUp();
-		if (focusEditor) {
-			this._editor.focus();
+	cwose(focusEditow: boowean = twue): void {
+		this._cweanUp();
+		if (focusEditow) {
+			this._editow.focus();
 		}
 	}
 
-	showAtMarker(marker: IMarker): void {
-		if (this._editor.hasModel()) {
-			const model = this._getOrCreateModel(this._editor.getModel().uri);
-			model.resetIndex();
-			model.move(true, this._editor.getModel(), new Position(marker.startLineNumber, marker.startColumn));
-			if (model.selected) {
-				this._widget!.showAtMarker(model.selected.marker, model.selected.index, model.selected.total);
+	showAtMawka(mawka: IMawka): void {
+		if (this._editow.hasModew()) {
+			const modew = this._getOwCweateModew(this._editow.getModew().uwi);
+			modew.wesetIndex();
+			modew.move(twue, this._editow.getModew(), new Position(mawka.stawtWineNumba, mawka.stawtCowumn));
+			if (modew.sewected) {
+				this._widget!.showAtMawka(modew.sewected.mawka, modew.sewected.index, modew.sewected.totaw);
 			}
 		}
 	}
 
-	async nagivate(next: boolean, multiFile: boolean) {
-		if (this._editor.hasModel()) {
-			const model = this._getOrCreateModel(multiFile ? undefined : this._editor.getModel().uri);
-			model.move(next, this._editor.getModel(), this._editor.getPosition());
-			if (!model.selected) {
-				return;
+	async nagivate(next: boowean, muwtiFiwe: boowean) {
+		if (this._editow.hasModew()) {
+			const modew = this._getOwCweateModew(muwtiFiwe ? undefined : this._editow.getModew().uwi);
+			modew.move(next, this._editow.getModew(), this._editow.getPosition());
+			if (!modew.sewected) {
+				wetuwn;
 			}
-			if (model.selected.marker.resource.toString() !== this._editor.getModel().uri.toString()) {
-				// show in different editor
-				this._cleanUp();
-				const otherEditor = await this._editorService.openCodeEditor({
-					resource: model.selected.marker.resource,
-					options: { pinned: false, revealIfOpened: true, selectionRevealType: TextEditorSelectionRevealType.NearTop, selection: model.selected.marker }
-				}, this._editor);
+			if (modew.sewected.mawka.wesouwce.toStwing() !== this._editow.getModew().uwi.toStwing()) {
+				// show in diffewent editow
+				this._cweanUp();
+				const othewEditow = await this._editowSewvice.openCodeEditow({
+					wesouwce: modew.sewected.mawka.wesouwce,
+					options: { pinned: fawse, weveawIfOpened: twue, sewectionWeveawType: TextEditowSewectionWeveawType.NeawTop, sewection: modew.sewected.mawka }
+				}, this._editow);
 
-				if (otherEditor) {
-					MarkerController.get(otherEditor).close();
-					MarkerController.get(otherEditor).nagivate(next, multiFile);
+				if (othewEditow) {
+					MawkewContwowwa.get(othewEditow).cwose();
+					MawkewContwowwa.get(othewEditow).nagivate(next, muwtiFiwe);
 				}
 
-			} else {
-				// show in this editor
-				this._widget!.showAtMarker(model.selected.marker, model.selected.index, model.selected.total);
+			} ewse {
+				// show in this editow
+				this._widget!.showAtMawka(modew.sewected.mawka, modew.sewected.index, modew.sewected.totaw);
 			}
 		}
 	}
 }
 
-class MarkerNavigationAction extends EditorAction {
+cwass MawkewNavigationAction extends EditowAction {
 
-	constructor(
-		private readonly _next: boolean,
-		private readonly _multiFile: boolean,
+	constwuctow(
+		pwivate weadonwy _next: boowean,
+		pwivate weadonwy _muwtiFiwe: boowean,
 		opts: IActionOptions
 	) {
-		super(opts);
+		supa(opts);
 	}
 
-	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		if (editor.hasModel()) {
-			MarkerController.get(editor).nagivate(this._next, this._multiFile);
+	async wun(_accessow: SewvicesAccessow, editow: ICodeEditow): Pwomise<void> {
+		if (editow.hasModew()) {
+			MawkewContwowwa.get(editow).nagivate(this._next, this._muwtiFiwe);
 		}
 	}
 }
 
-export class NextMarkerAction extends MarkerNavigationAction {
-	static ID: string = 'editor.action.marker.next';
-	static LABEL: string = nls.localize('markerAction.next.label', "Go to Next Problem (Error, Warning, Info)");
-	constructor() {
-		super(true, false, {
-			id: NextMarkerAction.ID,
-			label: NextMarkerAction.LABEL,
-			alias: 'Go to Next Problem (Error, Warning, Info)',
-			precondition: undefined,
+expowt cwass NextMawkewAction extends MawkewNavigationAction {
+	static ID: stwing = 'editow.action.mawka.next';
+	static WABEW: stwing = nws.wocawize('mawkewAction.next.wabew', "Go to Next Pwobwem (Ewwow, Wawning, Info)");
+	constwuctow() {
+		supa(twue, fawse, {
+			id: NextMawkewAction.ID,
+			wabew: NextMawkewAction.WABEW,
+			awias: 'Go to Next Pwobwem (Ewwow, Wawning, Info)',
+			pwecondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.Alt | KeyCode.F8,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.focus,
+				pwimawy: KeyMod.Awt | KeyCode.F8,
+				weight: KeybindingWeight.EditowContwib
 			},
 			menuOpts: {
-				menuId: MarkerNavigationWidget.TitleMenu,
-				title: NextMarkerAction.LABEL,
-				icon: registerIcon('marker-navigation-next', Codicon.arrowDown, nls.localize('nextMarkerIcon', 'Icon for goto next marker.')),
-				group: 'navigation',
-				order: 1
+				menuId: MawkewNavigationWidget.TitweMenu,
+				titwe: NextMawkewAction.WABEW,
+				icon: wegistewIcon('mawka-navigation-next', Codicon.awwowDown, nws.wocawize('nextMawkewIcon', 'Icon fow goto next mawka.')),
+				gwoup: 'navigation',
+				owda: 1
 			}
 		});
 	}
 }
 
-class PrevMarkerAction extends MarkerNavigationAction {
-	static ID: string = 'editor.action.marker.prev';
-	static LABEL: string = nls.localize('markerAction.previous.label', "Go to Previous Problem (Error, Warning, Info)");
-	constructor() {
-		super(false, false, {
-			id: PrevMarkerAction.ID,
-			label: PrevMarkerAction.LABEL,
-			alias: 'Go to Previous Problem (Error, Warning, Info)',
-			precondition: undefined,
+cwass PwevMawkewAction extends MawkewNavigationAction {
+	static ID: stwing = 'editow.action.mawka.pwev';
+	static WABEW: stwing = nws.wocawize('mawkewAction.pwevious.wabew', "Go to Pwevious Pwobwem (Ewwow, Wawning, Info)");
+	constwuctow() {
+		supa(fawse, fawse, {
+			id: PwevMawkewAction.ID,
+			wabew: PwevMawkewAction.WABEW,
+			awias: 'Go to Pwevious Pwobwem (Ewwow, Wawning, Info)',
+			pwecondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F8,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.focus,
+				pwimawy: KeyMod.Shift | KeyMod.Awt | KeyCode.F8,
+				weight: KeybindingWeight.EditowContwib
 			},
 			menuOpts: {
-				menuId: MarkerNavigationWidget.TitleMenu,
-				title: NextMarkerAction.LABEL,
-				icon: registerIcon('marker-navigation-previous', Codicon.arrowUp, nls.localize('previousMarkerIcon', 'Icon for goto previous marker.')),
-				group: 'navigation',
-				order: 2
+				menuId: MawkewNavigationWidget.TitweMenu,
+				titwe: NextMawkewAction.WABEW,
+				icon: wegistewIcon('mawka-navigation-pwevious', Codicon.awwowUp, nws.wocawize('pweviousMawkewIcon', 'Icon fow goto pwevious mawka.')),
+				gwoup: 'navigation',
+				owda: 2
 			}
 		});
 	}
 }
 
-class NextMarkerInFilesAction extends MarkerNavigationAction {
-	constructor() {
-		super(true, true, {
-			id: 'editor.action.marker.nextInFiles',
-			label: nls.localize('markerAction.nextInFiles.label', "Go to Next Problem in Files (Error, Warning, Info)"),
-			alias: 'Go to Next Problem in Files (Error, Warning, Info)',
-			precondition: undefined,
+cwass NextMawkewInFiwesAction extends MawkewNavigationAction {
+	constwuctow() {
+		supa(twue, twue, {
+			id: 'editow.action.mawka.nextInFiwes',
+			wabew: nws.wocawize('mawkewAction.nextInFiwes.wabew', "Go to Next Pwobwem in Fiwes (Ewwow, Wawning, Info)"),
+			awias: 'Go to Next Pwobwem in Fiwes (Ewwow, Wawning, Info)',
+			pwecondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.focus,
-				primary: KeyCode.F8,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.focus,
+				pwimawy: KeyCode.F8,
+				weight: KeybindingWeight.EditowContwib
 			},
 			menuOpts: {
-				menuId: MenuId.MenubarGoMenu,
-				title: nls.localize({ key: 'miGotoNextProblem', comment: ['&& denotes a mnemonic'] }, "Next &&Problem"),
-				group: '6_problem_nav',
-				order: 1
+				menuId: MenuId.MenubawGoMenu,
+				titwe: nws.wocawize({ key: 'miGotoNextPwobwem', comment: ['&& denotes a mnemonic'] }, "Next &&Pwobwem"),
+				gwoup: '6_pwobwem_nav',
+				owda: 1
 			}
 		});
 	}
 }
 
-class PrevMarkerInFilesAction extends MarkerNavigationAction {
-	constructor() {
-		super(false, true, {
-			id: 'editor.action.marker.prevInFiles',
-			label: nls.localize('markerAction.previousInFiles.label', "Go to Previous Problem in Files (Error, Warning, Info)"),
-			alias: 'Go to Previous Problem in Files (Error, Warning, Info)',
-			precondition: undefined,
+cwass PwevMawkewInFiwesAction extends MawkewNavigationAction {
+	constwuctow() {
+		supa(fawse, twue, {
+			id: 'editow.action.mawka.pwevInFiwes',
+			wabew: nws.wocawize('mawkewAction.pweviousInFiwes.wabew', "Go to Pwevious Pwobwem in Fiwes (Ewwow, Wawning, Info)"),
+			awias: 'Go to Pwevious Pwobwem in Fiwes (Ewwow, Wawning, Info)',
+			pwecondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.Shift | KeyCode.F8,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.focus,
+				pwimawy: KeyMod.Shift | KeyCode.F8,
+				weight: KeybindingWeight.EditowContwib
 			},
 			menuOpts: {
-				menuId: MenuId.MenubarGoMenu,
-				title: nls.localize({ key: 'miGotoPreviousProblem', comment: ['&& denotes a mnemonic'] }, "Previous &&Problem"),
-				group: '6_problem_nav',
-				order: 2
+				menuId: MenuId.MenubawGoMenu,
+				titwe: nws.wocawize({ key: 'miGotoPweviousPwobwem', comment: ['&& denotes a mnemonic'] }, "Pwevious &&Pwobwem"),
+				gwoup: '6_pwobwem_nav',
+				owda: 2
 			}
 		});
 	}
 }
 
-registerEditorContribution(MarkerController.ID, MarkerController);
-registerEditorAction(NextMarkerAction);
-registerEditorAction(PrevMarkerAction);
-registerEditorAction(NextMarkerInFilesAction);
-registerEditorAction(PrevMarkerInFilesAction);
+wegistewEditowContwibution(MawkewContwowwa.ID, MawkewContwowwa);
+wegistewEditowAction(NextMawkewAction);
+wegistewEditowAction(PwevMawkewAction);
+wegistewEditowAction(NextMawkewInFiwesAction);
+wegistewEditowAction(PwevMawkewInFiwesAction);
 
-const CONTEXT_MARKERS_NAVIGATION_VISIBLE = new RawContextKey<boolean>('markersNavigationVisible', false);
+const CONTEXT_MAWKEWS_NAVIGATION_VISIBWE = new WawContextKey<boowean>('mawkewsNavigationVisibwe', fawse);
 
-const MarkerCommand = EditorCommand.bindToContribution<MarkerController>(MarkerController.get);
+const MawkewCommand = EditowCommand.bindToContwibution<MawkewContwowwa>(MawkewContwowwa.get);
 
-registerEditorCommand(new MarkerCommand({
-	id: 'closeMarkersNavigation',
-	precondition: CONTEXT_MARKERS_NAVIGATION_VISIBLE,
-	handler: x => x.close(),
+wegistewEditowCommand(new MawkewCommand({
+	id: 'cwoseMawkewsNavigation',
+	pwecondition: CONTEXT_MAWKEWS_NAVIGATION_VISIBWE,
+	handwa: x => x.cwose(),
 	kbOpts: {
-		weight: KeybindingWeight.EditorContrib + 50,
-		kbExpr: EditorContextKeys.focus,
-		primary: KeyCode.Escape,
-		secondary: [KeyMod.Shift | KeyCode.Escape]
+		weight: KeybindingWeight.EditowContwib + 50,
+		kbExpw: EditowContextKeys.focus,
+		pwimawy: KeyCode.Escape,
+		secondawy: [KeyMod.Shift | KeyCode.Escape]
 	}
 }));

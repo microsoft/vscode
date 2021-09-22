@@ -1,2803 +1,2803 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import Severity from 'vs/base/common/severity';
-import * as Objects from 'vs/base/common/objects';
-import * as resources from 'vs/base/common/resources';
-import * as json from 'vs/base/common/json';
-import { URI } from 'vs/base/common/uri';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Action } from 'vs/base/common/actions';
-import { IDisposable, Disposable, IReference } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import * as Types from 'vs/base/common/types';
-import { TerminateResponseCode } from 'vs/base/common/processes';
-import { ValidationStatus, ValidationState } from 'vs/base/common/parsers';
-import * as UUID from 'vs/base/common/uuid';
-import * as Platform from 'vs/base/common/platform';
-import { LRUCache, Touch } from 'vs/base/common/map';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IFileService, IFileStat } from 'vs/platform/files/common/files';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { ProblemMatcherRegistry, NamedProblemMatcher } from 'vs/workbench/contrib/tasks/common/problemMatcher';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IProgressService, IProgressOptions, ProgressLocation } from 'vs/platform/progress/common/progress';
+impowt * as nws fwom 'vs/nws';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt * as Objects fwom 'vs/base/common/objects';
+impowt * as wesouwces fwom 'vs/base/common/wesouwces';
+impowt * as json fwom 'vs/base/common/json';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IStwingDictionawy } fwom 'vs/base/common/cowwections';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { IDisposabwe, Disposabwe, IWefewence } fwom 'vs/base/common/wifecycwe';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt * as Types fwom 'vs/base/common/types';
+impowt { TewminateWesponseCode } fwom 'vs/base/common/pwocesses';
+impowt { VawidationStatus, VawidationState } fwom 'vs/base/common/pawsews';
+impowt * as UUID fwom 'vs/base/common/uuid';
+impowt * as Pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { WWUCache, Touch } fwom 'vs/base/common/map';
+impowt { IMawkewSewvice } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IConfiguwationSewvice, ConfiguwationTawget } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IFiweSewvice, IFiweStat } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { CommandsWegistwy, ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { PwobwemMatchewWegistwy, NamedPwobwemMatcha } fwom 'vs/wowkbench/contwib/tasks/common/pwobwemMatcha';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IPwogwessSewvice, IPwogwessOptions, PwogwessWocation } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
 
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
 
-import { IModelService } from 'vs/editor/common/services/modelService';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
 
-import Constants from 'vs/workbench/contrib/markers/browser/constants';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder, IWorkspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+impowt Constants fwom 'vs/wowkbench/contwib/mawkews/bwowsa/constants';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IConfiguwationWesowvewSewvice } fwom 'vs/wowkbench/sewvices/configuwationWesowva/common/configuwationWesowva';
+impowt { IWowkspaceContextSewvice, WowkbenchState, IWowkspaceFowda, IWowkspace, WowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
 
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IOutputService, IOutputChannel } from 'vs/workbench/contrib/output/common/output';
+impowt { ITextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { IOutputSewvice, IOutputChannew } fwom 'vs/wowkbench/contwib/output/common/output';
 
-import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
+impowt { ITewminawGwoupSewvice, ITewminawSewvice } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
+impowt { ITewminawPwofiweWesowvewSewvice } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminaw';
 
-import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, TaskErrors, TaskTerminateResponse, TaskSystemInfo, ITaskExecuteResult } from 'vs/workbench/contrib/tasks/common/taskSystem';
-import {
-	Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskEvent,
-	TaskSet, TaskGroup, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
-	TaskSorter, TaskIdentifier, KeyedTaskIdentifier, TASK_RUNNING_STATE, TaskRunSource,
-	KeyedTaskIdentifier as NKeyedTaskIdentifier, TaskDefinition, RuntimeType
-} from 'vs/workbench/contrib/tasks/common/tasks';
-import { ITaskService, ITaskProvider, ProblemMatcherRunOptions, CustomizationProperties, TaskFilter, WorkspaceFolderTaskResult, USER_TASKS_GROUP_KEY, CustomExecutionSupportedContext, ShellExecutionSupportedContext, ProcessExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
-import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/common/taskTemplates';
+impowt { ITaskSystem, ITaskWesowva, ITaskSummawy, TaskExecuteKind, TaskEwwow, TaskEwwows, TaskTewminateWesponse, TaskSystemInfo, ITaskExecuteWesuwt } fwom 'vs/wowkbench/contwib/tasks/common/taskSystem';
+impowt {
+	Task, CustomTask, ConfiguwingTask, ContwibutedTask, InMemowyTask, TaskEvent,
+	TaskSet, TaskGwoup, ExecutionEngine, JsonSchemaVewsion, TaskSouwceKind,
+	TaskSowta, TaskIdentifia, KeyedTaskIdentifia, TASK_WUNNING_STATE, TaskWunSouwce,
+	KeyedTaskIdentifia as NKeyedTaskIdentifia, TaskDefinition, WuntimeType
+} fwom 'vs/wowkbench/contwib/tasks/common/tasks';
+impowt { ITaskSewvice, ITaskPwovida, PwobwemMatchewWunOptions, CustomizationPwopewties, TaskFiwta, WowkspaceFowdewTaskWesuwt, USEW_TASKS_GWOUP_KEY, CustomExecutionSuppowtedContext, ShewwExecutionSuppowtedContext, PwocessExecutionSuppowtedContext } fwom 'vs/wowkbench/contwib/tasks/common/taskSewvice';
+impowt { getTempwates as getTaskTempwates } fwom 'vs/wowkbench/contwib/tasks/common/taskTempwates';
 
-import * as TaskConfig from '../common/taskConfiguration';
-import { TerminalTaskSystem } from './terminalTaskSystem';
+impowt * as TaskConfig fwom '../common/taskConfiguwation';
+impowt { TewminawTaskSystem } fwom './tewminawTaskSystem';
 
-import { IQuickInputService, IQuickPickItem, QuickPickInput, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
+impowt { IQuickInputSewvice, IQuickPickItem, QuickPickInput, IQuickPick } fwom 'vs/pwatfowm/quickinput/common/quickInput';
 
-import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { RunAutomaticTasks } from 'vs/workbench/contrib/tasks/browser/runAutomaticTasks';
+impowt { TaskDefinitionWegistwy } fwom 'vs/wowkbench/contwib/tasks/common/taskDefinitionWegistwy';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { WunAutomaticTasks } fwom 'vs/wowkbench/contwib/tasks/bwowsa/wunAutomaticTasks';
 
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { format } from 'vs/base/common/jsonFormatter';
-import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
-import { applyEdits } from 'vs/base/common/jsonEdit';
-import { SaveReason } from 'vs/workbench/common/editor';
-import { ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
-import { isWorkspaceFolder, TaskQuickPickEntry, QUICKOPEN_DETAIL_CONFIG, TaskQuickPick, QUICKOPEN_SKIP_CONFIG, configureTaskIcon } from 'vs/workbench/contrib/tasks/browser/taskQuickPick';
-import { ILogService } from 'vs/platform/log/common/log';
-import { once } from 'vs/base/common/functional';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
-import { Schemas } from 'vs/base/common/network';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IPathSewvice } fwom 'vs/wowkbench/sewvices/path/common/pathSewvice';
+impowt { fowmat } fwom 'vs/base/common/jsonFowmatta';
+impowt { ITextModewSewvice, IWesowvedTextEditowModew } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { appwyEdits } fwom 'vs/base/common/jsonEdit';
+impowt { SaveWeason } fwom 'vs/wowkbench/common/editow';
+impowt { ITextEditowSewection, TextEditowSewectionWeveawType } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IPwefewencesSewvice } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewences';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { IViewsSewvice, IViewDescwiptowSewvice } fwom 'vs/wowkbench/common/views';
+impowt { isWowkspaceFowda, TaskQuickPickEntwy, QUICKOPEN_DETAIW_CONFIG, TaskQuickPick, QUICKOPEN_SKIP_CONFIG, configuweTaskIcon } fwom 'vs/wowkbench/contwib/tasks/bwowsa/taskQuickPick';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { once } fwom 'vs/base/common/functionaw';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IWowkspaceTwustManagementSewvice, IWowkspaceTwustWequestSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { ViwtuawWowkspaceContext } fwom 'vs/wowkbench/bwowsa/contextkeys';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
 
-const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
-const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
-const USE_SLOW_PICKER = 'task.quickOpen.showAll';
+const QUICKOPEN_HISTOWY_WIMIT_CONFIG = 'task.quickOpen.histowy';
+const PWOBWEM_MATCHEW_NEVEW_CONFIG = 'task.pwobwemMatchews.nevewPwompt';
+const USE_SWOW_PICKa = 'task.quickOpen.showAww';
 
-export namespace ConfigureTaskAction {
-	export const ID = 'workbench.action.tasks.configureTaskRunner';
-	export const TEXT = nls.localize('ConfigureTaskRunnerAction.label', "Configure Task");
+expowt namespace ConfiguweTaskAction {
+	expowt const ID = 'wowkbench.action.tasks.configuweTaskWunna';
+	expowt const TEXT = nws.wocawize('ConfiguweTaskWunnewAction.wabew', "Configuwe Task");
 }
 
-type TaskQuickPickEntryType = (IQuickPickItem & { task: Task; }) | (IQuickPickItem & { folder: IWorkspaceFolder; }) | (IQuickPickItem & { settingType: string; });
+type TaskQuickPickEntwyType = (IQuickPickItem & { task: Task; }) | (IQuickPickItem & { fowda: IWowkspaceFowda; }) | (IQuickPickItem & { settingType: stwing; });
 
-class ProblemReporter implements TaskConfig.IProblemReporter {
+cwass PwobwemWepowta impwements TaskConfig.IPwobwemWepowta {
 
-	private _validationStatus: ValidationStatus;
+	pwivate _vawidationStatus: VawidationStatus;
 
-	constructor(private _outputChannel: IOutputChannel) {
-		this._validationStatus = new ValidationStatus();
+	constwuctow(pwivate _outputChannew: IOutputChannew) {
+		this._vawidationStatus = new VawidationStatus();
 	}
 
-	public info(message: string): void {
-		this._validationStatus.state = ValidationState.Info;
-		this._outputChannel.append(message + '\n');
+	pubwic info(message: stwing): void {
+		this._vawidationStatus.state = VawidationState.Info;
+		this._outputChannew.append(message + '\n');
 	}
 
-	public warn(message: string): void {
-		this._validationStatus.state = ValidationState.Warning;
-		this._outputChannel.append(message + '\n');
+	pubwic wawn(message: stwing): void {
+		this._vawidationStatus.state = VawidationState.Wawning;
+		this._outputChannew.append(message + '\n');
 	}
 
-	public error(message: string): void {
-		this._validationStatus.state = ValidationState.Error;
-		this._outputChannel.append(message + '\n');
+	pubwic ewwow(message: stwing): void {
+		this._vawidationStatus.state = VawidationState.Ewwow;
+		this._outputChannew.append(message + '\n');
 	}
 
-	public fatal(message: string): void {
-		this._validationStatus.state = ValidationState.Fatal;
-		this._outputChannel.append(message + '\n');
+	pubwic fataw(message: stwing): void {
+		this._vawidationStatus.state = VawidationState.Fataw;
+		this._outputChannew.append(message + '\n');
 	}
 
-	public get status(): ValidationStatus {
-		return this._validationStatus;
+	pubwic get status(): VawidationStatus {
+		wetuwn this._vawidationStatus;
 	}
 }
 
-export interface WorkspaceFolderConfigurationResult {
-	workspaceFolder: IWorkspaceFolder;
-	config: TaskConfig.ExternalTaskRunnerConfiguration | undefined;
-	hasErrors: boolean;
+expowt intewface WowkspaceFowdewConfiguwationWesuwt {
+	wowkspaceFowda: IWowkspaceFowda;
+	config: TaskConfig.ExtewnawTaskWunnewConfiguwation | undefined;
+	hasEwwows: boowean;
 }
 
-interface TaskCustomizationTelemetryEvent {
-	properties: string[];
+intewface TaskCustomizationTewemetwyEvent {
+	pwopewties: stwing[];
 }
 
-interface CommandUpgrade {
-	command?: string;
-	args?: string[];
+intewface CommandUpgwade {
+	command?: stwing;
+	awgs?: stwing[];
 }
 
-class TaskMap {
-	private _store: Map<string, Task[]> = new Map();
+cwass TaskMap {
+	pwivate _stowe: Map<stwing, Task[]> = new Map();
 
-	public forEach(callback: (value: Task[], folder: string) => void): void {
-		this._store.forEach(callback);
+	pubwic fowEach(cawwback: (vawue: Task[], fowda: stwing) => void): void {
+		this._stowe.fowEach(cawwback);
 	}
 
-	private getKey(workspaceFolder: IWorkspace | IWorkspaceFolder | string): string {
-		let key: string | undefined;
-		if (Types.isString(workspaceFolder)) {
-			key = workspaceFolder;
-		} else {
-			const uri: URI | null | undefined = isWorkspaceFolder(workspaceFolder) ? workspaceFolder.uri : workspaceFolder.configuration;
-			key = uri ? uri.toString() : '';
+	pwivate getKey(wowkspaceFowda: IWowkspace | IWowkspaceFowda | stwing): stwing {
+		wet key: stwing | undefined;
+		if (Types.isStwing(wowkspaceFowda)) {
+			key = wowkspaceFowda;
+		} ewse {
+			const uwi: UWI | nuww | undefined = isWowkspaceFowda(wowkspaceFowda) ? wowkspaceFowda.uwi : wowkspaceFowda.configuwation;
+			key = uwi ? uwi.toStwing() : '';
 		}
-		return key;
+		wetuwn key;
 	}
 
-	public get(workspaceFolder: IWorkspace | IWorkspaceFolder | string): Task[] {
-		const key = this.getKey(workspaceFolder);
-		let result: Task[] | undefined = this._store.get(key);
-		if (!result) {
-			result = [];
-			this._store.set(key, result);
+	pubwic get(wowkspaceFowda: IWowkspace | IWowkspaceFowda | stwing): Task[] {
+		const key = this.getKey(wowkspaceFowda);
+		wet wesuwt: Task[] | undefined = this._stowe.get(key);
+		if (!wesuwt) {
+			wesuwt = [];
+			this._stowe.set(key, wesuwt);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public add(workspaceFolder: IWorkspace | IWorkspaceFolder | string, ...task: Task[]): void {
-		const key = this.getKey(workspaceFolder);
-		let values = this._store.get(key);
-		if (!values) {
-			values = [];
-			this._store.set(key, values);
+	pubwic add(wowkspaceFowda: IWowkspace | IWowkspaceFowda | stwing, ...task: Task[]): void {
+		const key = this.getKey(wowkspaceFowda);
+		wet vawues = this._stowe.get(key);
+		if (!vawues) {
+			vawues = [];
+			this._stowe.set(key, vawues);
 		}
-		values.push(...task);
+		vawues.push(...task);
 	}
 
-	public all(): Task[] {
-		let result: Task[] = [];
-		this._store.forEach((values) => result.push(...values));
-		return result;
+	pubwic aww(): Task[] {
+		wet wesuwt: Task[] = [];
+		this._stowe.fowEach((vawues) => wesuwt.push(...vawues));
+		wetuwn wesuwt;
 	}
 }
 
-interface ProblemMatcherDisableMetrics {
-	type: string;
+intewface PwobwemMatchewDisabweMetwics {
+	type: stwing;
 }
-type ProblemMatcherDisableMetricsClassification = {
-	type: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+type PwobwemMatchewDisabweMetwicsCwassification = {
+	type: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
 };
 
-export abstract class AbstractTaskService extends Disposable implements ITaskService {
+expowt abstwact cwass AbstwactTaskSewvice extends Disposabwe impwements ITaskSewvice {
 
-	// private static autoDetectTelemetryName: string = 'taskServer.autoDetect';
-	private static readonly RecentlyUsedTasks_Key = 'workbench.tasks.recentlyUsedTasks';
-	private static readonly RecentlyUsedTasks_KeyV2 = 'workbench.tasks.recentlyUsedTasks2';
-	private static readonly IgnoreTask010DonotShowAgain_key = 'workbench.tasks.ignoreTask010Shown';
+	// pwivate static autoDetectTewemetwyName: stwing = 'taskSewva.autoDetect';
+	pwivate static weadonwy WecentwyUsedTasks_Key = 'wowkbench.tasks.wecentwyUsedTasks';
+	pwivate static weadonwy WecentwyUsedTasks_KeyV2 = 'wowkbench.tasks.wecentwyUsedTasks2';
+	pwivate static weadonwy IgnoweTask010DonotShowAgain_key = 'wowkbench.tasks.ignoweTask010Shown';
 
-	private static CustomizationTelemetryEventName: string = 'taskService.customize';
-	public _serviceBrand: undefined;
-	public static OutputChannelId: string = 'tasks';
-	public static OutputChannelLabel: string = nls.localize('tasks', "Tasks");
+	pwivate static CustomizationTewemetwyEventName: stwing = 'taskSewvice.customize';
+	pubwic _sewviceBwand: undefined;
+	pubwic static OutputChannewId: stwing = 'tasks';
+	pubwic static OutputChannewWabew: stwing = nws.wocawize('tasks', "Tasks");
 
-	private static nextHandle: number = 0;
+	pwivate static nextHandwe: numba = 0;
 
-	private _schemaVersion: JsonSchemaVersion | undefined;
-	private _executionEngine: ExecutionEngine | undefined;
-	private _workspaceFolders: IWorkspaceFolder[] | undefined;
-	private _workspace: IWorkspace | undefined;
-	private _ignoredWorkspaceFolders: IWorkspaceFolder[] | undefined;
-	private _showIgnoreMessage?: boolean;
-	private _providers: Map<number, ITaskProvider>;
-	private _providerTypes: Map<number, string>;
-	protected _taskSystemInfos: Map<string, TaskSystemInfo>;
+	pwivate _schemaVewsion: JsonSchemaVewsion | undefined;
+	pwivate _executionEngine: ExecutionEngine | undefined;
+	pwivate _wowkspaceFowdews: IWowkspaceFowda[] | undefined;
+	pwivate _wowkspace: IWowkspace | undefined;
+	pwivate _ignowedWowkspaceFowdews: IWowkspaceFowda[] | undefined;
+	pwivate _showIgnoweMessage?: boowean;
+	pwivate _pwovidews: Map<numba, ITaskPwovida>;
+	pwivate _pwovidewTypes: Map<numba, stwing>;
+	pwotected _taskSystemInfos: Map<stwing, TaskSystemInfo>;
 
-	protected _workspaceTasksPromise?: Promise<Map<string, WorkspaceFolderTaskResult>>;
+	pwotected _wowkspaceTasksPwomise?: Pwomise<Map<stwing, WowkspaceFowdewTaskWesuwt>>;
 
-	protected _taskSystem?: ITaskSystem;
-	protected _taskSystemListener?: IDisposable;
-	private _recentlyUsedTasksV1: LRUCache<string, string> | undefined;
-	private _recentlyUsedTasks: LRUCache<string, string> | undefined;
+	pwotected _taskSystem?: ITaskSystem;
+	pwotected _taskSystemWistena?: IDisposabwe;
+	pwivate _wecentwyUsedTasksV1: WWUCache<stwing, stwing> | undefined;
+	pwivate _wecentwyUsedTasks: WWUCache<stwing, stwing> | undefined;
 
-	protected _taskRunningState: IContextKey<boolean>;
+	pwotected _taskWunningState: IContextKey<boowean>;
 
-	protected _outputChannel: IOutputChannel;
-	protected readonly _onDidStateChange: Emitter<TaskEvent>;
-	private _waitForSupportedExecutions: Promise<void>;
-	private _onDidRegisterSupportedExecutions: Emitter<void> = new Emitter();
-	private _onDidChangeTaskSystemInfo: Emitter<void> = new Emitter();
-	public onDidChangeTaskSystemInfo: Event<void> = this._onDidChangeTaskSystemInfo.event;
+	pwotected _outputChannew: IOutputChannew;
+	pwotected weadonwy _onDidStateChange: Emitta<TaskEvent>;
+	pwivate _waitFowSuppowtedExecutions: Pwomise<void>;
+	pwivate _onDidWegistewSuppowtedExecutions: Emitta<void> = new Emitta();
+	pwivate _onDidChangeTaskSystemInfo: Emitta<void> = new Emitta();
+	pubwic onDidChangeTaskSystemInfo: Event<void> = this._onDidChangeTaskSystemInfo.event;
 
-	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IMarkerService protected readonly markerService: IMarkerService,
-		@IOutputService protected readonly outputService: IOutputService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
-		@IViewsService private readonly viewsService: IViewsService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IFileService protected readonly fileService: IFileService,
-		@IWorkspaceContextService protected readonly contextService: IWorkspaceContextService,
-		@ITelemetryService protected readonly telemetryService: ITelemetryService,
-		@ITextFileService private readonly textFileService: ITextFileService,
-		@IModelService protected readonly modelService: IModelService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IConfigurationResolverService protected readonly configurationResolverService: IConfigurationResolverService,
-		@ITerminalService private readonly terminalService: ITerminalService,
-		@ITerminalGroupService private readonly terminalGroupService: ITerminalGroupService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IProgressService private readonly progressService: IProgressService,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IDialogService protected readonly dialogService: IDialogService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@ITerminalProfileResolverService private readonly terminalProfileResolverService: ITerminalProfileResolverService,
-		@IPathService private readonly pathService: IPathService,
-		@ITextModelService private readonly textModelResolverService: ITextModelService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
-		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@ILogService private readonly logService: ILogService
+	constwuctow(
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IMawkewSewvice pwotected weadonwy mawkewSewvice: IMawkewSewvice,
+		@IOutputSewvice pwotected weadonwy outputSewvice: IOutputSewvice,
+		@IPaneCompositePawtSewvice pwivate weadonwy paneCompositeSewvice: IPaneCompositePawtSewvice,
+		@IViewsSewvice pwivate weadonwy viewsSewvice: IViewsSewvice,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IFiweSewvice pwotected weadonwy fiweSewvice: IFiweSewvice,
+		@IWowkspaceContextSewvice pwotected weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@ITewemetwySewvice pwotected weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@ITextFiweSewvice pwivate weadonwy textFiweSewvice: ITextFiweSewvice,
+		@IModewSewvice pwotected weadonwy modewSewvice: IModewSewvice,
+		@IExtensionSewvice pwivate weadonwy extensionSewvice: IExtensionSewvice,
+		@IQuickInputSewvice pwivate weadonwy quickInputSewvice: IQuickInputSewvice,
+		@IConfiguwationWesowvewSewvice pwotected weadonwy configuwationWesowvewSewvice: IConfiguwationWesowvewSewvice,
+		@ITewminawSewvice pwivate weadonwy tewminawSewvice: ITewminawSewvice,
+		@ITewminawGwoupSewvice pwivate weadonwy tewminawGwoupSewvice: ITewminawGwoupSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IPwogwessSewvice pwivate weadonwy pwogwessSewvice: IPwogwessSewvice,
+		@IOpenewSewvice pwivate weadonwy openewSewvice: IOpenewSewvice,
+		@IDiawogSewvice pwotected weadonwy diawogSewvice: IDiawogSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IContextKeySewvice pwotected weadonwy contextKeySewvice: IContextKeySewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@ITewminawPwofiweWesowvewSewvice pwivate weadonwy tewminawPwofiweWesowvewSewvice: ITewminawPwofiweWesowvewSewvice,
+		@IPathSewvice pwivate weadonwy pathSewvice: IPathSewvice,
+		@ITextModewSewvice pwivate weadonwy textModewWesowvewSewvice: ITextModewSewvice,
+		@IPwefewencesSewvice pwivate weadonwy pwefewencesSewvice: IPwefewencesSewvice,
+		@IViewDescwiptowSewvice pwivate weadonwy viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IWowkspaceTwustWequestSewvice pwivate weadonwy wowkspaceTwustWequestSewvice: IWowkspaceTwustWequestSewvice,
+		@IWowkspaceTwustManagementSewvice pwivate weadonwy wowkspaceTwustManagementSewvice: IWowkspaceTwustManagementSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice
 	) {
-		super();
+		supa();
 
-		this._workspaceTasksPromise = undefined;
+		this._wowkspaceTasksPwomise = undefined;
 		this._taskSystem = undefined;
-		this._taskSystemListener = undefined;
-		this._outputChannel = this.outputService.getChannel(AbstractTaskService.OutputChannelId)!;
-		this._providers = new Map<number, ITaskProvider>();
-		this._providerTypes = new Map<number, string>();
-		this._taskSystemInfos = new Map<string, TaskSystemInfo>();
-		this._register(this.contextService.onDidChangeWorkspaceFolders(() => {
-			let folderSetup = this.computeWorkspaceFolderSetup();
-			if (this.executionEngine !== folderSetup[2]) {
-				this.disposeTaskSystemListeners();
+		this._taskSystemWistena = undefined;
+		this._outputChannew = this.outputSewvice.getChannew(AbstwactTaskSewvice.OutputChannewId)!;
+		this._pwovidews = new Map<numba, ITaskPwovida>();
+		this._pwovidewTypes = new Map<numba, stwing>();
+		this._taskSystemInfos = new Map<stwing, TaskSystemInfo>();
+		this._wegista(this.contextSewvice.onDidChangeWowkspaceFowdews(() => {
+			wet fowdewSetup = this.computeWowkspaceFowdewSetup();
+			if (this.executionEngine !== fowdewSetup[2]) {
+				this.disposeTaskSystemWistenews();
 				this._taskSystem = undefined;
 			}
-			this.updateSetup(folderSetup);
-			this.updateWorkspaceTasks();
+			this.updateSetup(fowdewSetup);
+			this.updateWowkspaceTasks();
 		}));
-		this._register(this.configurationService.onDidChangeConfiguration(() => {
-			if (!this._taskSystem && !this._workspaceTasksPromise) {
-				return;
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(() => {
+			if (!this._taskSystem && !this._wowkspaceTasksPwomise) {
+				wetuwn;
 			}
-			if (!this._taskSystem || this._taskSystem instanceof TerminalTaskSystem) {
-				this._outputChannel.clear();
+			if (!this._taskSystem || this._taskSystem instanceof TewminawTaskSystem) {
+				this._outputChannew.cweaw();
 			}
 
-			this.setTaskLRUCacheLimit();
-			this.updateWorkspaceTasks(TaskRunSource.ConfigurationChange);
+			this.setTaskWWUCacheWimit();
+			this.updateWowkspaceTasks(TaskWunSouwce.ConfiguwationChange);
 		}));
-		this._taskRunningState = TASK_RUNNING_STATE.bindTo(contextKeyService);
-		this._onDidStateChange = this._register(new Emitter());
-		this.registerCommands();
-		this.configurationResolverService.contributeVariable('defaultBuildTask', async (): Promise<string | undefined> => {
-			let tasks = await this.getTasksForGroup(TaskGroup.Build);
-			if (tasks.length > 0) {
-				let { none, defaults } = this.splitPerGroupType(tasks);
-				if (defaults.length === 1) {
-					return defaults[0]._label;
-				} else if (defaults.length + none.length > 0) {
-					tasks = defaults.concat(none);
+		this._taskWunningState = TASK_WUNNING_STATE.bindTo(contextKeySewvice);
+		this._onDidStateChange = this._wegista(new Emitta());
+		this.wegistewCommands();
+		this.configuwationWesowvewSewvice.contwibuteVawiabwe('defauwtBuiwdTask', async (): Pwomise<stwing | undefined> => {
+			wet tasks = await this.getTasksFowGwoup(TaskGwoup.Buiwd);
+			if (tasks.wength > 0) {
+				wet { none, defauwts } = this.spwitPewGwoupType(tasks);
+				if (defauwts.wength === 1) {
+					wetuwn defauwts[0]._wabew;
+				} ewse if (defauwts.wength + none.wength > 0) {
+					tasks = defauwts.concat(none);
 				}
 			}
 
-			let entry: TaskQuickPickEntry | null | undefined;
-			if (tasks && tasks.length > 0) {
-				entry = await this.showQuickPick(tasks, nls.localize('TaskService.pickBuildTaskForLabel', 'Select the build task (there is no default build task defined)'));
+			wet entwy: TaskQuickPickEntwy | nuww | undefined;
+			if (tasks && tasks.wength > 0) {
+				entwy = await this.showQuickPick(tasks, nws.wocawize('TaskSewvice.pickBuiwdTaskFowWabew', 'Sewect the buiwd task (thewe is no defauwt buiwd task defined)'));
 			}
 
-			let task: Task | undefined | null = entry ? entry.task : undefined;
+			wet task: Task | undefined | nuww = entwy ? entwy.task : undefined;
 			if (!task) {
-				return undefined;
+				wetuwn undefined;
 			}
-			return task._label;
+			wetuwn task._wabew;
 		});
 
-		this._waitForSupportedExecutions = new Promise(resolve => {
-			once(this._onDidRegisterSupportedExecutions.event)(() => resolve());
+		this._waitFowSuppowtedExecutions = new Pwomise(wesowve => {
+			once(this._onDidWegistewSuppowtedExecutions.event)(() => wesowve());
 		});
-		this.upgrade();
+		this.upgwade();
 	}
 
-	public registerSupportedExecutions(custom?: boolean, shell?: boolean, process?: boolean) {
+	pubwic wegistewSuppowtedExecutions(custom?: boowean, sheww?: boowean, pwocess?: boowean) {
 		if (custom !== undefined) {
-			const customContext = CustomExecutionSupportedContext.bindTo(this.contextKeyService);
+			const customContext = CustomExecutionSuppowtedContext.bindTo(this.contextKeySewvice);
 			customContext.set(custom);
 		}
-		const isVirtual = !!VirtualWorkspaceContext.getValue(this.contextKeyService);
-		if (shell !== undefined) {
-			const shellContext = ShellExecutionSupportedContext.bindTo(this.contextKeyService);
-			shellContext.set(shell && !isVirtual);
+		const isViwtuaw = !!ViwtuawWowkspaceContext.getVawue(this.contextKeySewvice);
+		if (sheww !== undefined) {
+			const shewwContext = ShewwExecutionSuppowtedContext.bindTo(this.contextKeySewvice);
+			shewwContext.set(sheww && !isViwtuaw);
 		}
-		if (process !== undefined) {
-			const processContext = ProcessExecutionSupportedContext.bindTo(this.contextKeyService);
-			processContext.set(process && !isVirtual);
+		if (pwocess !== undefined) {
+			const pwocessContext = PwocessExecutionSuppowtedContext.bindTo(this.contextKeySewvice);
+			pwocessContext.set(pwocess && !isViwtuaw);
 		}
-		this._onDidRegisterSupportedExecutions.fire();
+		this._onDidWegistewSuppowtedExecutions.fiwe();
 	}
 
-	public get onDidStateChange(): Event<TaskEvent> {
-		return this._onDidStateChange.event;
+	pubwic get onDidStateChange(): Event<TaskEvent> {
+		wetuwn this._onDidStateChange.event;
 	}
 
-	public get supportsMultipleTaskExecutions(): boolean {
-		return this.inTerminal();
+	pubwic get suppowtsMuwtipweTaskExecutions(): boowean {
+		wetuwn this.inTewminaw();
 	}
 
-	private registerCommands(): void {
-		CommandsRegistry.registerCommand({
-			id: 'workbench.action.tasks.runTask',
-			handler: async (accessor, arg) => {
-				if (await this.trust()) {
-					this.runTaskCommand(arg);
+	pwivate wegistewCommands(): void {
+		CommandsWegistwy.wegistewCommand({
+			id: 'wowkbench.action.tasks.wunTask',
+			handwa: async (accessow, awg) => {
+				if (await this.twust()) {
+					this.wunTaskCommand(awg);
 				}
 			},
-			description: {
-				description: 'Run Task',
-				args: [{
-					name: 'args',
+			descwiption: {
+				descwiption: 'Wun Task',
+				awgs: [{
+					name: 'awgs',
 					schema: {
-						'type': 'string',
+						'type': 'stwing',
 					}
 				}]
 			}
 		});
 
-		CommandsRegistry.registerCommand('workbench.action.tasks.reRunTask', async (accessor, arg) => {
-			if (await this.trust()) {
-				this.reRunTaskCommand();
+		CommandsWegistwy.wegistewCommand('wowkbench.action.tasks.weWunTask', async (accessow, awg) => {
+			if (await this.twust()) {
+				this.weWunTaskCommand();
 			}
 		});
 
-		CommandsRegistry.registerCommand('workbench.action.tasks.restartTask', async (accessor, arg) => {
-			if (await this.trust()) {
-				this.runRestartTaskCommand(arg);
+		CommandsWegistwy.wegistewCommand('wowkbench.action.tasks.westawtTask', async (accessow, awg) => {
+			if (await this.twust()) {
+				this.wunWestawtTaskCommand(awg);
 			}
 		});
 
-		CommandsRegistry.registerCommand('workbench.action.tasks.terminate', async (accessor, arg) => {
-			if (await this.trust()) {
-				this.runTerminateCommand(arg);
+		CommandsWegistwy.wegistewCommand('wowkbench.action.tasks.tewminate', async (accessow, awg) => {
+			if (await this.twust()) {
+				this.wunTewminateCommand(awg);
 			}
 		});
 
-		CommandsRegistry.registerCommand('workbench.action.tasks.showLog', () => {
-			if (!this.canRunCommand()) {
-				return;
+		CommandsWegistwy.wegistewCommand('wowkbench.action.tasks.showWog', () => {
+			if (!this.canWunCommand()) {
+				wetuwn;
 			}
 			this.showOutput();
 		});
 
-		CommandsRegistry.registerCommand('workbench.action.tasks.build', async () => {
-			if (!this.canRunCommand()) {
-				return;
+		CommandsWegistwy.wegistewCommand('wowkbench.action.tasks.buiwd', async () => {
+			if (!this.canWunCommand()) {
+				wetuwn;
 			}
-			if (await this.trust()) {
-				this.runBuildCommand();
-			}
-		});
-
-		CommandsRegistry.registerCommand('workbench.action.tasks.test', async () => {
-			if (!this.canRunCommand()) {
-				return;
-			}
-			if (await this.trust()) {
-				this.runTestCommand();
+			if (await this.twust()) {
+				this.wunBuiwdCommand();
 			}
 		});
 
-		CommandsRegistry.registerCommand('workbench.action.tasks.configureTaskRunner', async () => {
-			if (await this.trust()) {
-				this.runConfigureTasks();
+		CommandsWegistwy.wegistewCommand('wowkbench.action.tasks.test', async () => {
+			if (!this.canWunCommand()) {
+				wetuwn;
+			}
+			if (await this.twust()) {
+				this.wunTestCommand();
 			}
 		});
 
-		CommandsRegistry.registerCommand('workbench.action.tasks.configureDefaultBuildTask', async () => {
-			if (await this.trust()) {
-				this.runConfigureDefaultBuildTask();
+		CommandsWegistwy.wegistewCommand('wowkbench.action.tasks.configuweTaskWunna', async () => {
+			if (await this.twust()) {
+				this.wunConfiguweTasks();
 			}
 		});
 
-		CommandsRegistry.registerCommand('workbench.action.tasks.configureDefaultTestTask', async () => {
-			if (await this.trust()) {
-				this.runConfigureDefaultTestTask();
+		CommandsWegistwy.wegistewCommand('wowkbench.action.tasks.configuweDefauwtBuiwdTask', async () => {
+			if (await this.twust()) {
+				this.wunConfiguweDefauwtBuiwdTask();
 			}
 		});
 
-		CommandsRegistry.registerCommand('workbench.action.tasks.showTasks', async () => {
-			if (await this.trust()) {
-				return this.runShowTasks();
+		CommandsWegistwy.wegistewCommand('wowkbench.action.tasks.configuweDefauwtTestTask', async () => {
+			if (await this.twust()) {
+				this.wunConfiguweDefauwtTestTask();
 			}
 		});
 
-		CommandsRegistry.registerCommand('workbench.action.tasks.toggleProblems', () => this.commandService.executeCommand(Constants.TOGGLE_MARKERS_VIEW_ACTION_ID));
-
-		CommandsRegistry.registerCommand('workbench.action.tasks.openUserTasks', async () => {
-			const resource = this.getResourceForKind(TaskSourceKind.User);
-			if (resource) {
-				this.openTaskFile(resource, TaskSourceKind.User);
+		CommandsWegistwy.wegistewCommand('wowkbench.action.tasks.showTasks', async () => {
+			if (await this.twust()) {
+				wetuwn this.wunShowTasks();
 			}
 		});
 
-		CommandsRegistry.registerCommand('workbench.action.tasks.openWorkspaceFileTasks', async () => {
-			const resource = this.getResourceForKind(TaskSourceKind.WorkspaceFile);
-			if (resource) {
-				this.openTaskFile(resource, TaskSourceKind.WorkspaceFile);
+		CommandsWegistwy.wegistewCommand('wowkbench.action.tasks.toggwePwobwems', () => this.commandSewvice.executeCommand(Constants.TOGGWE_MAWKEWS_VIEW_ACTION_ID));
+
+		CommandsWegistwy.wegistewCommand('wowkbench.action.tasks.openUsewTasks', async () => {
+			const wesouwce = this.getWesouwceFowKind(TaskSouwceKind.Usa);
+			if (wesouwce) {
+				this.openTaskFiwe(wesouwce, TaskSouwceKind.Usa);
+			}
+		});
+
+		CommandsWegistwy.wegistewCommand('wowkbench.action.tasks.openWowkspaceFiweTasks', async () => {
+			const wesouwce = this.getWesouwceFowKind(TaskSouwceKind.WowkspaceFiwe);
+			if (wesouwce) {
+				this.openTaskFiwe(wesouwce, TaskSouwceKind.WowkspaceFiwe);
 			}
 		});
 	}
 
-	private get workspaceFolders(): IWorkspaceFolder[] {
-		if (!this._workspaceFolders) {
+	pwivate get wowkspaceFowdews(): IWowkspaceFowda[] {
+		if (!this._wowkspaceFowdews) {
 			this.updateSetup();
 		}
-		return this._workspaceFolders!;
+		wetuwn this._wowkspaceFowdews!;
 	}
 
-	private get ignoredWorkspaceFolders(): IWorkspaceFolder[] {
-		if (!this._ignoredWorkspaceFolders) {
+	pwivate get ignowedWowkspaceFowdews(): IWowkspaceFowda[] {
+		if (!this._ignowedWowkspaceFowdews) {
 			this.updateSetup();
 		}
-		return this._ignoredWorkspaceFolders!;
+		wetuwn this._ignowedWowkspaceFowdews!;
 	}
 
-	protected get executionEngine(): ExecutionEngine {
+	pwotected get executionEngine(): ExecutionEngine {
 		if (this._executionEngine === undefined) {
 			this.updateSetup();
 		}
-		return this._executionEngine!;
+		wetuwn this._executionEngine!;
 	}
 
-	private get schemaVersion(): JsonSchemaVersion {
-		if (this._schemaVersion === undefined) {
+	pwivate get schemaVewsion(): JsonSchemaVewsion {
+		if (this._schemaVewsion === undefined) {
 			this.updateSetup();
 		}
-		return this._schemaVersion!;
+		wetuwn this._schemaVewsion!;
 	}
 
-	private get showIgnoreMessage(): boolean {
-		if (this._showIgnoreMessage === undefined) {
-			this._showIgnoreMessage = !this.storageService.getBoolean(AbstractTaskService.IgnoreTask010DonotShowAgain_key, StorageScope.WORKSPACE, false);
+	pwivate get showIgnoweMessage(): boowean {
+		if (this._showIgnoweMessage === undefined) {
+			this._showIgnoweMessage = !this.stowageSewvice.getBoowean(AbstwactTaskSewvice.IgnoweTask010DonotShowAgain_key, StowageScope.WOWKSPACE, fawse);
 		}
-		return this._showIgnoreMessage;
+		wetuwn this._showIgnoweMessage;
 	}
 
-	private updateSetup(setup?: [IWorkspaceFolder[], IWorkspaceFolder[], ExecutionEngine, JsonSchemaVersion, IWorkspace | undefined]): void {
+	pwivate updateSetup(setup?: [IWowkspaceFowda[], IWowkspaceFowda[], ExecutionEngine, JsonSchemaVewsion, IWowkspace | undefined]): void {
 		if (!setup) {
-			setup = this.computeWorkspaceFolderSetup();
+			setup = this.computeWowkspaceFowdewSetup();
 		}
-		this._workspaceFolders = setup[0];
-		if (this._ignoredWorkspaceFolders) {
-			if (this._ignoredWorkspaceFolders.length !== setup[1].length) {
-				this._showIgnoreMessage = undefined;
-			} else {
-				let set: Set<string> = new Set();
-				this._ignoredWorkspaceFolders.forEach(folder => set.add(folder.uri.toString()));
-				for (let folder of setup[1]) {
-					if (!set.has(folder.uri.toString())) {
-						this._showIgnoreMessage = undefined;
-						break;
+		this._wowkspaceFowdews = setup[0];
+		if (this._ignowedWowkspaceFowdews) {
+			if (this._ignowedWowkspaceFowdews.wength !== setup[1].wength) {
+				this._showIgnoweMessage = undefined;
+			} ewse {
+				wet set: Set<stwing> = new Set();
+				this._ignowedWowkspaceFowdews.fowEach(fowda => set.add(fowda.uwi.toStwing()));
+				fow (wet fowda of setup[1]) {
+					if (!set.has(fowda.uwi.toStwing())) {
+						this._showIgnoweMessage = undefined;
+						bweak;
 					}
 				}
 			}
 		}
-		this._ignoredWorkspaceFolders = setup[1];
+		this._ignowedWowkspaceFowdews = setup[1];
 		this._executionEngine = setup[2];
-		this._schemaVersion = setup[3];
-		this._workspace = setup[4];
+		this._schemaVewsion = setup[3];
+		this._wowkspace = setup[4];
 	}
 
-	protected showOutput(runSource: TaskRunSource = TaskRunSource.User): void {
-		if (!VirtualWorkspaceContext.getValue(this.contextKeyService) && ((runSource === TaskRunSource.User) || (runSource === TaskRunSource.ConfigurationChange))) {
-			this.notificationService.prompt(Severity.Warning, nls.localize('taskServiceOutputPrompt', 'There are task errors. See the output for details.'),
+	pwotected showOutput(wunSouwce: TaskWunSouwce = TaskWunSouwce.Usa): void {
+		if (!ViwtuawWowkspaceContext.getVawue(this.contextKeySewvice) && ((wunSouwce === TaskWunSouwce.Usa) || (wunSouwce === TaskWunSouwce.ConfiguwationChange))) {
+			this.notificationSewvice.pwompt(Sevewity.Wawning, nws.wocawize('taskSewviceOutputPwompt', 'Thewe awe task ewwows. See the output fow detaiws.'),
 				[{
-					label: nls.localize('showOutput', "Show output"),
-					run: () => {
-						this.outputService.showChannel(this._outputChannel.id, true);
+					wabew: nws.wocawize('showOutput', "Show output"),
+					wun: () => {
+						this.outputSewvice.showChannew(this._outputChannew.id, twue);
 					}
 				}]);
 		}
 	}
 
-	protected disposeTaskSystemListeners(): void {
-		if (this._taskSystemListener) {
-			this._taskSystemListener.dispose();
+	pwotected disposeTaskSystemWistenews(): void {
+		if (this._taskSystemWistena) {
+			this._taskSystemWistena.dispose();
 		}
 	}
 
-	public registerTaskProvider(provider: ITaskProvider, type: string): IDisposable {
-		if (!provider) {
-			return {
+	pubwic wegistewTaskPwovida(pwovida: ITaskPwovida, type: stwing): IDisposabwe {
+		if (!pwovida) {
+			wetuwn {
 				dispose: () => { }
 			};
 		}
-		let handle = AbstractTaskService.nextHandle++;
-		this._providers.set(handle, provider);
-		this._providerTypes.set(handle, type);
-		return {
+		wet handwe = AbstwactTaskSewvice.nextHandwe++;
+		this._pwovidews.set(handwe, pwovida);
+		this._pwovidewTypes.set(handwe, type);
+		wetuwn {
 			dispose: () => {
-				this._providers.delete(handle);
-				this._providerTypes.delete(handle);
+				this._pwovidews.dewete(handwe);
+				this._pwovidewTypes.dewete(handwe);
 			}
 		};
 	}
 
-	get hasTaskSystemInfo(): boolean {
-		return this._taskSystemInfos.size > 0;
+	get hasTaskSystemInfo(): boowean {
+		wetuwn this._taskSystemInfos.size > 0;
 	}
 
-	public registerTaskSystem(key: string, info: TaskSystemInfo): void {
-		if (!this._taskSystemInfos.has(key) || info.platform !== Platform.Platform.Web) {
+	pubwic wegistewTaskSystem(key: stwing, info: TaskSystemInfo): void {
+		if (!this._taskSystemInfos.has(key) || info.pwatfowm !== Pwatfowm.Pwatfowm.Web) {
 			this._taskSystemInfos.set(key, info);
-			this._onDidChangeTaskSystemInfo.fire();
+			this._onDidChangeTaskSystemInfo.fiwe();
 		}
 	}
 
-	private getTaskSystemInfo(key: string): TaskSystemInfo | undefined {
-		return this._taskSystemInfos.get(key);
+	pwivate getTaskSystemInfo(key: stwing): TaskSystemInfo | undefined {
+		wetuwn this._taskSystemInfos.get(key);
 	}
 
-	public extensionCallbackTaskComplete(task: Task, result: number): Promise<void> {
+	pubwic extensionCawwbackTaskCompwete(task: Task, wesuwt: numba): Pwomise<void> {
 		if (!this._taskSystem) {
-			return Promise.resolve();
+			wetuwn Pwomise.wesowve();
 		}
-		return this._taskSystem.customExecutionComplete(task, result);
+		wetuwn this._taskSystem.customExecutionCompwete(task, wesuwt);
 	}
 
-	public async getTask(folder: IWorkspace | IWorkspaceFolder | string, identifier: string | TaskIdentifier, compareId: boolean = false): Promise<Task | undefined> {
-		if (!(await this.trust())) {
-			return;
+	pubwic async getTask(fowda: IWowkspace | IWowkspaceFowda | stwing, identifia: stwing | TaskIdentifia, compaweId: boowean = fawse): Pwomise<Task | undefined> {
+		if (!(await this.twust())) {
+			wetuwn;
 		}
-		const name = Types.isString(folder) ? folder : isWorkspaceFolder(folder) ? folder.name : folder.configuration ? resources.basename(folder.configuration) : undefined;
-		if (this.ignoredWorkspaceFolders.some(ignored => ignored.name === name)) {
-			return Promise.reject(new Error(nls.localize('TaskServer.folderIgnored', 'The folder {0} is ignored since it uses task version 0.1.0', name)));
+		const name = Types.isStwing(fowda) ? fowda : isWowkspaceFowda(fowda) ? fowda.name : fowda.configuwation ? wesouwces.basename(fowda.configuwation) : undefined;
+		if (this.ignowedWowkspaceFowdews.some(ignowed => ignowed.name === name)) {
+			wetuwn Pwomise.weject(new Ewwow(nws.wocawize('TaskSewva.fowdewIgnowed', 'The fowda {0} is ignowed since it uses task vewsion 0.1.0', name)));
 		}
-		const key: string | KeyedTaskIdentifier | undefined = !Types.isString(identifier)
-			? TaskDefinition.createTaskIdentifier(identifier, console)
-			: identifier;
+		const key: stwing | KeyedTaskIdentifia | undefined = !Types.isStwing(identifia)
+			? TaskDefinition.cweateTaskIdentifia(identifia, consowe)
+			: identifia;
 
 		if (key === undefined) {
-			return Promise.resolve(undefined);
+			wetuwn Pwomise.wesowve(undefined);
 		}
-		return this.getGroupedTasks().then((map) => {
-			let values = map.get(folder);
-			values = values.concat(map.get(USER_TASKS_GROUP_KEY));
+		wetuwn this.getGwoupedTasks().then((map) => {
+			wet vawues = map.get(fowda);
+			vawues = vawues.concat(map.get(USEW_TASKS_GWOUP_KEY));
 
-			if (!values) {
-				return undefined;
+			if (!vawues) {
+				wetuwn undefined;
 			}
-			values = values.filter(task => task.matches(key, compareId)).sort(task => task._source.kind === TaskSourceKind.Extension ? 1 : -1);
-			return values.length > 0 ? values[0] : undefined;
+			vawues = vawues.fiwta(task => task.matches(key, compaweId)).sowt(task => task._souwce.kind === TaskSouwceKind.Extension ? 1 : -1);
+			wetuwn vawues.wength > 0 ? vawues[0] : undefined;
 		});
 	}
 
-	public async tryResolveTask(configuringTask: ConfiguringTask): Promise<Task | undefined> {
-		if (!(await this.trust())) {
-			return;
+	pubwic async twyWesowveTask(configuwingTask: ConfiguwingTask): Pwomise<Task | undefined> {
+		if (!(await this.twust())) {
+			wetuwn;
 		}
-		await Promise.all([this.extensionService.activateByEvent('onCommand:workbench.action.tasks.runTask'), this.extensionService.whenInstalledExtensionsRegistered()]);
-		let matchingProvider: ITaskProvider | undefined;
-		let matchingProviderUnavailable: boolean = false;
-		for (const [handle, provider] of this._providers) {
-			const providerType = this._providerTypes.get(handle);
-			if (configuringTask.type === providerType) {
-				if (providerType && !this.isTaskProviderEnabled(providerType)) {
-					matchingProviderUnavailable = true;
+		await Pwomise.aww([this.extensionSewvice.activateByEvent('onCommand:wowkbench.action.tasks.wunTask'), this.extensionSewvice.whenInstawwedExtensionsWegistewed()]);
+		wet matchingPwovida: ITaskPwovida | undefined;
+		wet matchingPwovidewUnavaiwabwe: boowean = fawse;
+		fow (const [handwe, pwovida] of this._pwovidews) {
+			const pwovidewType = this._pwovidewTypes.get(handwe);
+			if (configuwingTask.type === pwovidewType) {
+				if (pwovidewType && !this.isTaskPwovidewEnabwed(pwovidewType)) {
+					matchingPwovidewUnavaiwabwe = twue;
 					continue;
 				}
-				matchingProvider = provider;
-				break;
+				matchingPwovida = pwovida;
+				bweak;
 			}
 		}
 
-		if (!matchingProvider) {
-			if (matchingProviderUnavailable) {
-				this._outputChannel.append(nls.localize(
-					'TaskService.providerUnavailable',
-					'Warning: {0} tasks are unavailable in the current environment.\n',
-					configuringTask.configures.type
+		if (!matchingPwovida) {
+			if (matchingPwovidewUnavaiwabwe) {
+				this._outputChannew.append(nws.wocawize(
+					'TaskSewvice.pwovidewUnavaiwabwe',
+					'Wawning: {0} tasks awe unavaiwabwe in the cuwwent enviwonment.\n',
+					configuwingTask.configuwes.type
 				));
 			}
-			return;
+			wetuwn;
 		}
 
-		// Try to resolve the task first
-		try {
-			const resolvedTask = await matchingProvider.resolveTask(configuringTask);
-			if (resolvedTask && (resolvedTask._id === configuringTask._id)) {
-				return TaskConfig.createCustomTask(resolvedTask, configuringTask);
+		// Twy to wesowve the task fiwst
+		twy {
+			const wesowvedTask = await matchingPwovida.wesowveTask(configuwingTask);
+			if (wesowvedTask && (wesowvedTask._id === configuwingTask._id)) {
+				wetuwn TaskConfig.cweateCustomTask(wesowvedTask, configuwingTask);
 			}
-		} catch (error) {
-			// Ignore errors. The task could not be provided by any of the providers.
+		} catch (ewwow) {
+			// Ignowe ewwows. The task couwd not be pwovided by any of the pwovidews.
 		}
 
-		// The task couldn't be resolved. Instead, use the less efficient provideTask.
-		const tasks = await this.tasks({ type: configuringTask.type });
-		for (const task of tasks) {
-			if (task._id === configuringTask._id) {
-				return TaskConfig.createCustomTask(<ContributedTask>task, configuringTask);
+		// The task couwdn't be wesowved. Instead, use the wess efficient pwovideTask.
+		const tasks = await this.tasks({ type: configuwingTask.type });
+		fow (const task of tasks) {
+			if (task._id === configuwingTask._id) {
+				wetuwn TaskConfig.cweateCustomTask(<ContwibutedTask>task, configuwingTask);
 			}
 		}
 
-		return;
+		wetuwn;
 	}
 
-	protected abstract versionAndEngineCompatible(filter?: TaskFilter): boolean;
+	pwotected abstwact vewsionAndEngineCompatibwe(fiwta?: TaskFiwta): boowean;
 
-	public async tasks(filter?: TaskFilter): Promise<Task[]> {
-		if (!(await this.trust())) {
-			return [];
+	pubwic async tasks(fiwta?: TaskFiwta): Pwomise<Task[]> {
+		if (!(await this.twust())) {
+			wetuwn [];
 		}
-		if (!this.versionAndEngineCompatible(filter)) {
-			return Promise.resolve<Task[]>([]);
+		if (!this.vewsionAndEngineCompatibwe(fiwta)) {
+			wetuwn Pwomise.wesowve<Task[]>([]);
 		}
-		return this.getGroupedTasks(filter ? filter.type : undefined).then((map) => {
-			if (!filter || !filter.type) {
-				return map.all();
+		wetuwn this.getGwoupedTasks(fiwta ? fiwta.type : undefined).then((map) => {
+			if (!fiwta || !fiwta.type) {
+				wetuwn map.aww();
 			}
-			let result: Task[] = [];
-			map.forEach((tasks) => {
-				for (let task of tasks) {
-					if (ContributedTask.is(task) && ((task.defines.type === filter.type) || (task._source.label === filter.type))) {
-						result.push(task);
-					} else if (CustomTask.is(task)) {
-						if (task.type === filter.type) {
-							result.push(task);
-						} else {
-							let customizes = task.customizes();
-							if (customizes && customizes.type === filter.type) {
-								result.push(task);
+			wet wesuwt: Task[] = [];
+			map.fowEach((tasks) => {
+				fow (wet task of tasks) {
+					if (ContwibutedTask.is(task) && ((task.defines.type === fiwta.type) || (task._souwce.wabew === fiwta.type))) {
+						wesuwt.push(task);
+					} ewse if (CustomTask.is(task)) {
+						if (task.type === fiwta.type) {
+							wesuwt.push(task);
+						} ewse {
+							wet customizes = task.customizes();
+							if (customizes && customizes.type === fiwta.type) {
+								wesuwt.push(task);
 							}
 						}
 					}
 				}
 			});
-			return result;
+			wetuwn wesuwt;
 		});
 	}
 
-	public taskTypes(): string[] {
-		const types: string[] = [];
-		if (this.isProvideTasksEnabled()) {
-			for (const [handle] of this._providers) {
-				const type = this._providerTypes.get(handle);
-				if (type && this.isTaskProviderEnabled(type)) {
+	pubwic taskTypes(): stwing[] {
+		const types: stwing[] = [];
+		if (this.isPwovideTasksEnabwed()) {
+			fow (const [handwe] of this._pwovidews) {
+				const type = this._pwovidewTypes.get(handwe);
+				if (type && this.isTaskPwovidewEnabwed(type)) {
 					types.push(type);
 				}
 			}
 		}
-		return types;
+		wetuwn types;
 	}
 
-	public createSorter(): TaskSorter {
-		return new TaskSorter(this.contextService.getWorkspace() ? this.contextService.getWorkspace().folders : []);
+	pubwic cweateSowta(): TaskSowta {
+		wetuwn new TaskSowta(this.contextSewvice.getWowkspace() ? this.contextSewvice.getWowkspace().fowdews : []);
 	}
 
-	private isActive(): Promise<boolean> {
+	pwivate isActive(): Pwomise<boowean> {
 		if (!this._taskSystem) {
-			return Promise.resolve(false);
+			wetuwn Pwomise.wesowve(fawse);
 		}
-		return this._taskSystem.isActive();
+		wetuwn this._taskSystem.isActive();
 	}
 
-	public async getActiveTasks(): Promise<Task[]> {
+	pubwic async getActiveTasks(): Pwomise<Task[]> {
 		if (!this._taskSystem) {
-			return [];
+			wetuwn [];
 		}
-		return this._taskSystem.getActiveTasks();
+		wetuwn this._taskSystem.getActiveTasks();
 	}
 
-	public async getBusyTasks(): Promise<Task[]> {
+	pubwic async getBusyTasks(): Pwomise<Task[]> {
 		if (!this._taskSystem) {
-			return [];
+			wetuwn [];
 		}
-		return this._taskSystem.getBusyTasks();
+		wetuwn this._taskSystem.getBusyTasks();
 	}
 
-	public getRecentlyUsedTasksV1(): LRUCache<string, string> {
-		if (this._recentlyUsedTasksV1) {
-			return this._recentlyUsedTasksV1;
+	pubwic getWecentwyUsedTasksV1(): WWUCache<stwing, stwing> {
+		if (this._wecentwyUsedTasksV1) {
+			wetuwn this._wecentwyUsedTasksV1;
 		}
-		const quickOpenHistoryLimit = this.configurationService.getValue<number>(QUICKOPEN_HISTORY_LIMIT_CONFIG);
-		this._recentlyUsedTasksV1 = new LRUCache<string, string>(quickOpenHistoryLimit);
+		const quickOpenHistowyWimit = this.configuwationSewvice.getVawue<numba>(QUICKOPEN_HISTOWY_WIMIT_CONFIG);
+		this._wecentwyUsedTasksV1 = new WWUCache<stwing, stwing>(quickOpenHistowyWimit);
 
-		let storageValue = this.storageService.get(AbstractTaskService.RecentlyUsedTasks_Key, StorageScope.WORKSPACE);
-		if (storageValue) {
-			try {
-				let values: string[] = JSON.parse(storageValue);
-				if (Array.isArray(values)) {
-					for (let value of values) {
-						this._recentlyUsedTasksV1.set(value, value);
+		wet stowageVawue = this.stowageSewvice.get(AbstwactTaskSewvice.WecentwyUsedTasks_Key, StowageScope.WOWKSPACE);
+		if (stowageVawue) {
+			twy {
+				wet vawues: stwing[] = JSON.pawse(stowageVawue);
+				if (Awway.isAwway(vawues)) {
+					fow (wet vawue of vawues) {
+						this._wecentwyUsedTasksV1.set(vawue, vawue);
 					}
 				}
-			} catch (error) {
-				// Ignore. We use the empty result
+			} catch (ewwow) {
+				// Ignowe. We use the empty wesuwt
 			}
 		}
-		return this._recentlyUsedTasksV1;
+		wetuwn this._wecentwyUsedTasksV1;
 	}
 
-	private getRecentlyUsedTasks(): LRUCache<string, string> {
-		if (this._recentlyUsedTasks) {
-			return this._recentlyUsedTasks;
+	pwivate getWecentwyUsedTasks(): WWUCache<stwing, stwing> {
+		if (this._wecentwyUsedTasks) {
+			wetuwn this._wecentwyUsedTasks;
 		}
-		const quickOpenHistoryLimit = this.configurationService.getValue<number>(QUICKOPEN_HISTORY_LIMIT_CONFIG);
-		this._recentlyUsedTasks = new LRUCache<string, string>(quickOpenHistoryLimit);
+		const quickOpenHistowyWimit = this.configuwationSewvice.getVawue<numba>(QUICKOPEN_HISTOWY_WIMIT_CONFIG);
+		this._wecentwyUsedTasks = new WWUCache<stwing, stwing>(quickOpenHistowyWimit);
 
-		let storageValue = this.storageService.get(AbstractTaskService.RecentlyUsedTasks_KeyV2, StorageScope.WORKSPACE);
-		if (storageValue) {
-			try {
-				let values: [string, string][] = JSON.parse(storageValue);
-				if (Array.isArray(values)) {
-					for (let value of values) {
-						this._recentlyUsedTasks.set(value[0], value[1]);
+		wet stowageVawue = this.stowageSewvice.get(AbstwactTaskSewvice.WecentwyUsedTasks_KeyV2, StowageScope.WOWKSPACE);
+		if (stowageVawue) {
+			twy {
+				wet vawues: [stwing, stwing][] = JSON.pawse(stowageVawue);
+				if (Awway.isAwway(vawues)) {
+					fow (wet vawue of vawues) {
+						this._wecentwyUsedTasks.set(vawue[0], vawue[1]);
 					}
 				}
-			} catch (error) {
-				// Ignore. We use the empty result
+			} catch (ewwow) {
+				// Ignowe. We use the empty wesuwt
 			}
 		}
-		return this._recentlyUsedTasks;
+		wetuwn this._wecentwyUsedTasks;
 	}
 
-	private getFolderFromTaskKey(key: string): string | undefined {
-		const keyValue: { folder: string | undefined } = JSON.parse(key);
-		return keyValue.folder;
+	pwivate getFowdewFwomTaskKey(key: stwing): stwing | undefined {
+		const keyVawue: { fowda: stwing | undefined } = JSON.pawse(key);
+		wetuwn keyVawue.fowda;
 	}
 
-	public async readRecentTasks(): Promise<(Task | ConfiguringTask)[]> {
-		const folderMap: IStringDictionary<IWorkspaceFolder> = Object.create(null);
-		this.workspaceFolders.forEach(folder => {
-			folderMap[folder.uri.toString()] = folder;
+	pubwic async weadWecentTasks(): Pwomise<(Task | ConfiguwingTask)[]> {
+		const fowdewMap: IStwingDictionawy<IWowkspaceFowda> = Object.cweate(nuww);
+		this.wowkspaceFowdews.fowEach(fowda => {
+			fowdewMap[fowda.uwi.toStwing()] = fowda;
 		});
-		const folderToTasksMap: Map<string, any> = new Map();
-		const recentlyUsedTasks = this.getRecentlyUsedTasks();
-		const tasks: (Task | ConfiguringTask)[] = [];
-		for (const entry of recentlyUsedTasks.entries()) {
-			const key = entry[0];
-			const task = JSON.parse(entry[1]);
-			const folder = this.getFolderFromTaskKey(key);
-			if (folder && !folderToTasksMap.has(folder)) {
-				folderToTasksMap.set(folder, []);
+		const fowdewToTasksMap: Map<stwing, any> = new Map();
+		const wecentwyUsedTasks = this.getWecentwyUsedTasks();
+		const tasks: (Task | ConfiguwingTask)[] = [];
+		fow (const entwy of wecentwyUsedTasks.entwies()) {
+			const key = entwy[0];
+			const task = JSON.pawse(entwy[1]);
+			const fowda = this.getFowdewFwomTaskKey(key);
+			if (fowda && !fowdewToTasksMap.has(fowda)) {
+				fowdewToTasksMap.set(fowda, []);
 			}
-			if (folder && (folderMap[folder] || (folder === USER_TASKS_GROUP_KEY)) && task) {
-				folderToTasksMap.get(folder).push(task);
+			if (fowda && (fowdewMap[fowda] || (fowda === USEW_TASKS_GWOUP_KEY)) && task) {
+				fowdewToTasksMap.get(fowda).push(task);
 			}
 		}
-		const readTasksMap: Map<string, (Task | ConfiguringTask)> = new Map();
-		for (const key of folderToTasksMap.keys()) {
-			let custom: CustomTask[] = [];
-			let customized: IStringDictionary<ConfiguringTask> = Object.create(null);
-			await this.computeTasksForSingleConfig(folderMap[key] ?? await this.getAFolder(), {
-				version: '2.0.0',
-				tasks: folderToTasksMap.get(key)
-			}, TaskRunSource.System, custom, customized, folderMap[key] ? TaskConfig.TaskConfigSource.TasksJson : TaskConfig.TaskConfigSource.User, true);
-			custom.forEach(task => {
-				const taskKey = task.getRecentlyUsedKey();
+		const weadTasksMap: Map<stwing, (Task | ConfiguwingTask)> = new Map();
+		fow (const key of fowdewToTasksMap.keys()) {
+			wet custom: CustomTask[] = [];
+			wet customized: IStwingDictionawy<ConfiguwingTask> = Object.cweate(nuww);
+			await this.computeTasksFowSingweConfig(fowdewMap[key] ?? await this.getAFowda(), {
+				vewsion: '2.0.0',
+				tasks: fowdewToTasksMap.get(key)
+			}, TaskWunSouwce.System, custom, customized, fowdewMap[key] ? TaskConfig.TaskConfigSouwce.TasksJson : TaskConfig.TaskConfigSouwce.Usa, twue);
+			custom.fowEach(task => {
+				const taskKey = task.getWecentwyUsedKey();
 				if (taskKey) {
-					readTasksMap.set(taskKey, task);
+					weadTasksMap.set(taskKey, task);
 				}
 			});
-			for (const configuration in customized) {
-				const taskKey = customized[configuration].getRecentlyUsedKey();
+			fow (const configuwation in customized) {
+				const taskKey = customized[configuwation].getWecentwyUsedKey();
 				if (taskKey) {
-					readTasksMap.set(taskKey, customized[configuration]);
+					weadTasksMap.set(taskKey, customized[configuwation]);
 				}
 			}
 		}
 
-		for (const key of recentlyUsedTasks.keys()) {
-			if (readTasksMap.has(key)) {
-				tasks.push(readTasksMap.get(key)!);
+		fow (const key of wecentwyUsedTasks.keys()) {
+			if (weadTasksMap.has(key)) {
+				tasks.push(weadTasksMap.get(key)!);
 			}
 		}
-		return tasks;
+		wetuwn tasks;
 	}
 
-	public removeRecentlyUsedTask(taskRecentlyUsedKey: string) {
-		if (this.getRecentlyUsedTasks().has(taskRecentlyUsedKey)) {
-			this.getRecentlyUsedTasks().delete(taskRecentlyUsedKey);
-			this.saveRecentlyUsedTasks();
+	pubwic wemoveWecentwyUsedTask(taskWecentwyUsedKey: stwing) {
+		if (this.getWecentwyUsedTasks().has(taskWecentwyUsedKey)) {
+			this.getWecentwyUsedTasks().dewete(taskWecentwyUsedKey);
+			this.saveWecentwyUsedTasks();
 		}
 	}
 
-	private setTaskLRUCacheLimit() {
-		const quickOpenHistoryLimit = this.configurationService.getValue<number>(QUICKOPEN_HISTORY_LIMIT_CONFIG);
-		if (this._recentlyUsedTasks) {
-			this._recentlyUsedTasks.limit = quickOpenHistoryLimit;
+	pwivate setTaskWWUCacheWimit() {
+		const quickOpenHistowyWimit = this.configuwationSewvice.getVawue<numba>(QUICKOPEN_HISTOWY_WIMIT_CONFIG);
+		if (this._wecentwyUsedTasks) {
+			this._wecentwyUsedTasks.wimit = quickOpenHistowyWimit;
 		}
 	}
 
-	private async setRecentlyUsedTask(task: Task): Promise<void> {
-		let key = task.getRecentlyUsedKey();
-		if (!InMemoryTask.is(task) && key) {
-			const customizations = this.createCustomizableTask(task);
-			if (ContributedTask.is(task) && customizations) {
-				let custom: CustomTask[] = [];
-				let customized: IStringDictionary<ConfiguringTask> = Object.create(null);
-				await this.computeTasksForSingleConfig(task._source.workspaceFolder ?? this.workspaceFolders[0], {
-					version: '2.0.0',
+	pwivate async setWecentwyUsedTask(task: Task): Pwomise<void> {
+		wet key = task.getWecentwyUsedKey();
+		if (!InMemowyTask.is(task) && key) {
+			const customizations = this.cweateCustomizabweTask(task);
+			if (ContwibutedTask.is(task) && customizations) {
+				wet custom: CustomTask[] = [];
+				wet customized: IStwingDictionawy<ConfiguwingTask> = Object.cweate(nuww);
+				await this.computeTasksFowSingweConfig(task._souwce.wowkspaceFowda ?? this.wowkspaceFowdews[0], {
+					vewsion: '2.0.0',
 					tasks: [customizations]
-				}, TaskRunSource.System, custom, customized, TaskConfig.TaskConfigSource.TasksJson, true);
-				for (const configuration in customized) {
-					key = customized[configuration].getRecentlyUsedKey()!;
+				}, TaskWunSouwce.System, custom, customized, TaskConfig.TaskConfigSouwce.TasksJson, twue);
+				fow (const configuwation in customized) {
+					key = customized[configuwation].getWecentwyUsedKey()!;
 				}
 			}
-			this.getRecentlyUsedTasks().set(key, JSON.stringify(customizations));
-			this.saveRecentlyUsedTasks();
+			this.getWecentwyUsedTasks().set(key, JSON.stwingify(customizations));
+			this.saveWecentwyUsedTasks();
 		}
 	}
 
-	private saveRecentlyUsedTasks(): void {
-		if (!this._recentlyUsedTasks) {
-			return;
+	pwivate saveWecentwyUsedTasks(): void {
+		if (!this._wecentwyUsedTasks) {
+			wetuwn;
 		}
-		const quickOpenHistoryLimit = this.configurationService.getValue<number>(QUICKOPEN_HISTORY_LIMIT_CONFIG);
-		// setting history limit to 0 means no LRU sorting
-		if (quickOpenHistoryLimit === 0) {
-			return;
+		const quickOpenHistowyWimit = this.configuwationSewvice.getVawue<numba>(QUICKOPEN_HISTOWY_WIMIT_CONFIG);
+		// setting histowy wimit to 0 means no WWU sowting
+		if (quickOpenHistowyWimit === 0) {
+			wetuwn;
 		}
-		let keys = [...this._recentlyUsedTasks.keys()];
-		if (keys.length > quickOpenHistoryLimit) {
-			keys = keys.slice(0, quickOpenHistoryLimit);
+		wet keys = [...this._wecentwyUsedTasks.keys()];
+		if (keys.wength > quickOpenHistowyWimit) {
+			keys = keys.swice(0, quickOpenHistowyWimit);
 		}
-		const keyValues: [string, string][] = [];
-		for (const key of keys) {
-			keyValues.push([key, this._recentlyUsedTasks.get(key, Touch.None)!]);
+		const keyVawues: [stwing, stwing][] = [];
+		fow (const key of keys) {
+			keyVawues.push([key, this._wecentwyUsedTasks.get(key, Touch.None)!]);
 		}
-		this.storageService.store(AbstractTaskService.RecentlyUsedTasks_KeyV2, JSON.stringify(keyValues), StorageScope.WORKSPACE, StorageTarget.USER);
+		this.stowageSewvice.stowe(AbstwactTaskSewvice.WecentwyUsedTasks_KeyV2, JSON.stwingify(keyVawues), StowageScope.WOWKSPACE, StowageTawget.USa);
 	}
 
-	private openDocumentation(): void {
-		this.openerService.open(URI.parse('https://code.visualstudio.com/docs/editor/tasks#_defining-a-problem-matcher'));
+	pwivate openDocumentation(): void {
+		this.openewSewvice.open(UWI.pawse('https://code.visuawstudio.com/docs/editow/tasks#_defining-a-pwobwem-matcha'));
 	}
 
-	private build(): Promise<ITaskSummary> {
-		return this.getGroupedTasks().then((tasks) => {
-			let runnable = this.createRunnableTask(tasks, TaskGroup.Build);
-			if (!runnable || !runnable.task) {
-				if (this.schemaVersion === JsonSchemaVersion.V0_1_0) {
-					throw new TaskError(Severity.Info, nls.localize('TaskService.noBuildTask1', 'No build task defined. Mark a task with \'isBuildCommand\' in the tasks.json file.'), TaskErrors.NoBuildTask);
-				} else {
-					throw new TaskError(Severity.Info, nls.localize('TaskService.noBuildTask2', 'No build task defined. Mark a task with as a \'build\' group in the tasks.json file.'), TaskErrors.NoBuildTask);
+	pwivate buiwd(): Pwomise<ITaskSummawy> {
+		wetuwn this.getGwoupedTasks().then((tasks) => {
+			wet wunnabwe = this.cweateWunnabweTask(tasks, TaskGwoup.Buiwd);
+			if (!wunnabwe || !wunnabwe.task) {
+				if (this.schemaVewsion === JsonSchemaVewsion.V0_1_0) {
+					thwow new TaskEwwow(Sevewity.Info, nws.wocawize('TaskSewvice.noBuiwdTask1', 'No buiwd task defined. Mawk a task with \'isBuiwdCommand\' in the tasks.json fiwe.'), TaskEwwows.NoBuiwdTask);
+				} ewse {
+					thwow new TaskEwwow(Sevewity.Info, nws.wocawize('TaskSewvice.noBuiwdTask2', 'No buiwd task defined. Mawk a task with as a \'buiwd\' gwoup in the tasks.json fiwe.'), TaskEwwows.NoBuiwdTask);
 				}
 			}
-			return this.executeTask(runnable.task, runnable.resolver, TaskRunSource.User);
-		}).then(value => value, (error) => {
-			this.handleError(error);
-			return Promise.reject(error);
+			wetuwn this.executeTask(wunnabwe.task, wunnabwe.wesowva, TaskWunSouwce.Usa);
+		}).then(vawue => vawue, (ewwow) => {
+			this.handweEwwow(ewwow);
+			wetuwn Pwomise.weject(ewwow);
 		});
 	}
 
-	private runTest(): Promise<ITaskSummary> {
-		return this.getGroupedTasks().then((tasks) => {
-			let runnable = this.createRunnableTask(tasks, TaskGroup.Test);
-			if (!runnable || !runnable.task) {
-				if (this.schemaVersion === JsonSchemaVersion.V0_1_0) {
-					throw new TaskError(Severity.Info, nls.localize('TaskService.noTestTask1', 'No test task defined. Mark a task with \'isTestCommand\' in the tasks.json file.'), TaskErrors.NoTestTask);
-				} else {
-					throw new TaskError(Severity.Info, nls.localize('TaskService.noTestTask2', 'No test task defined. Mark a task with as a \'test\' group in the tasks.json file.'), TaskErrors.NoTestTask);
+	pwivate wunTest(): Pwomise<ITaskSummawy> {
+		wetuwn this.getGwoupedTasks().then((tasks) => {
+			wet wunnabwe = this.cweateWunnabweTask(tasks, TaskGwoup.Test);
+			if (!wunnabwe || !wunnabwe.task) {
+				if (this.schemaVewsion === JsonSchemaVewsion.V0_1_0) {
+					thwow new TaskEwwow(Sevewity.Info, nws.wocawize('TaskSewvice.noTestTask1', 'No test task defined. Mawk a task with \'isTestCommand\' in the tasks.json fiwe.'), TaskEwwows.NoTestTask);
+				} ewse {
+					thwow new TaskEwwow(Sevewity.Info, nws.wocawize('TaskSewvice.noTestTask2', 'No test task defined. Mawk a task with as a \'test\' gwoup in the tasks.json fiwe.'), TaskEwwows.NoTestTask);
 				}
 			}
-			return this.executeTask(runnable.task, runnable.resolver, TaskRunSource.User);
-		}).then(value => value, (error) => {
-			this.handleError(error);
-			return Promise.reject(error);
+			wetuwn this.executeTask(wunnabwe.task, wunnabwe.wesowva, TaskWunSouwce.Usa);
+		}).then(vawue => vawue, (ewwow) => {
+			this.handweEwwow(ewwow);
+			wetuwn Pwomise.weject(ewwow);
 		});
 	}
 
-	public async run(task: Task | undefined, options?: ProblemMatcherRunOptions, runSource: TaskRunSource = TaskRunSource.System): Promise<ITaskSummary | undefined> {
-		if (!(await this.trust())) {
-			return;
+	pubwic async wun(task: Task | undefined, options?: PwobwemMatchewWunOptions, wunSouwce: TaskWunSouwce = TaskWunSouwce.System): Pwomise<ITaskSummawy | undefined> {
+		if (!(await this.twust())) {
+			wetuwn;
 		}
 
 		if (!task) {
-			throw new TaskError(Severity.Info, nls.localize('TaskServer.noTask', 'Task to execute is undefined'), TaskErrors.TaskNotFound);
+			thwow new TaskEwwow(Sevewity.Info, nws.wocawize('TaskSewva.noTask', 'Task to execute is undefined'), TaskEwwows.TaskNotFound);
 		}
 
-		return new Promise<ITaskSummary | undefined>(async (resolve) => {
-			let resolver = this.createResolver();
-			if (options && options.attachProblemMatcher && this.shouldAttachProblemMatcher(task) && !InMemoryTask.is(task)) {
-				const toExecute = await this.attachProblemMatcher(task);
+		wetuwn new Pwomise<ITaskSummawy | undefined>(async (wesowve) => {
+			wet wesowva = this.cweateWesowva();
+			if (options && options.attachPwobwemMatcha && this.shouwdAttachPwobwemMatcha(task) && !InMemowyTask.is(task)) {
+				const toExecute = await this.attachPwobwemMatcha(task);
 				if (toExecute) {
-					resolve(this.executeTask(toExecute, resolver, runSource));
-				} else {
-					resolve(undefined);
+					wesowve(this.executeTask(toExecute, wesowva, wunSouwce));
+				} ewse {
+					wesowve(undefined);
 				}
-			} else {
-				resolve(this.executeTask(task, resolver, runSource));
+			} ewse {
+				wesowve(this.executeTask(task, wesowva, wunSouwce));
 			}
-		}).then((value) => {
-			if (runSource === TaskRunSource.User) {
-				this.getWorkspaceTasks().then(workspaceTasks => {
-					RunAutomaticTasks.promptForPermission(this, this.storageService, this.notificationService, this.workspaceTrustManagementService, this.openerService, workspaceTasks);
+		}).then((vawue) => {
+			if (wunSouwce === TaskWunSouwce.Usa) {
+				this.getWowkspaceTasks().then(wowkspaceTasks => {
+					WunAutomaticTasks.pwomptFowPewmission(this, this.stowageSewvice, this.notificationSewvice, this.wowkspaceTwustManagementSewvice, this.openewSewvice, wowkspaceTasks);
 				});
 			}
-			return value;
-		}, (error) => {
-			this.handleError(error);
-			return Promise.reject(error);
+			wetuwn vawue;
+		}, (ewwow) => {
+			this.handweEwwow(ewwow);
+			wetuwn Pwomise.weject(ewwow);
 		});
 	}
 
-	private isProvideTasksEnabled(): boolean {
-		const settingValue = this.configurationService.getValue('task.autoDetect');
-		return settingValue === 'on';
+	pwivate isPwovideTasksEnabwed(): boowean {
+		const settingVawue = this.configuwationSewvice.getVawue('task.autoDetect');
+		wetuwn settingVawue === 'on';
 	}
 
-	private isProblemMatcherPromptEnabled(type?: string): boolean {
-		const settingValue = this.configurationService.getValue(PROBLEM_MATCHER_NEVER_CONFIG);
-		if (Types.isBoolean(settingValue)) {
-			return !settingValue;
+	pwivate isPwobwemMatchewPwomptEnabwed(type?: stwing): boowean {
+		const settingVawue = this.configuwationSewvice.getVawue(PWOBWEM_MATCHEW_NEVEW_CONFIG);
+		if (Types.isBoowean(settingVawue)) {
+			wetuwn !settingVawue;
 		}
 		if (type === undefined) {
-			return true;
+			wetuwn twue;
 		}
-		const settingValueMap: IStringDictionary<boolean> = <any>settingValue;
-		return !settingValueMap[type];
+		const settingVawueMap: IStwingDictionawy<boowean> = <any>settingVawue;
+		wetuwn !settingVawueMap[type];
 	}
 
-	private getTypeForTask(task: Task): string {
-		let type: string;
+	pwivate getTypeFowTask(task: Task): stwing {
+		wet type: stwing;
 		if (CustomTask.is(task)) {
-			let configProperties: TaskConfig.ConfigurationProperties = task._source.config.element;
-			type = (<any>configProperties).type;
-		} else {
+			wet configPwopewties: TaskConfig.ConfiguwationPwopewties = task._souwce.config.ewement;
+			type = (<any>configPwopewties).type;
+		} ewse {
 			type = task.getDefinition()!.type;
 		}
-		return type;
+		wetuwn type;
 	}
 
-	private shouldAttachProblemMatcher(task: Task): boolean {
-		const enabled = this.isProblemMatcherPromptEnabled(this.getTypeForTask(task));
-		if (enabled === false) {
-			return false;
+	pwivate shouwdAttachPwobwemMatcha(task: Task): boowean {
+		const enabwed = this.isPwobwemMatchewPwomptEnabwed(this.getTypeFowTask(task));
+		if (enabwed === fawse) {
+			wetuwn fawse;
 		}
 		if (!this.canCustomize(task)) {
-			return false;
+			wetuwn fawse;
 		}
-		if (task.configurationProperties.group !== undefined && task.configurationProperties.group !== TaskGroup.Build) {
-			return false;
+		if (task.configuwationPwopewties.gwoup !== undefined && task.configuwationPwopewties.gwoup !== TaskGwoup.Buiwd) {
+			wetuwn fawse;
 		}
-		if (task.configurationProperties.problemMatchers !== undefined && task.configurationProperties.problemMatchers.length > 0) {
-			return false;
+		if (task.configuwationPwopewties.pwobwemMatchews !== undefined && task.configuwationPwopewties.pwobwemMatchews.wength > 0) {
+			wetuwn fawse;
 		}
-		if (ContributedTask.is(task)) {
-			return !task.hasDefinedMatchers && !!task.configurationProperties.problemMatchers && (task.configurationProperties.problemMatchers.length === 0);
+		if (ContwibutedTask.is(task)) {
+			wetuwn !task.hasDefinedMatchews && !!task.configuwationPwopewties.pwobwemMatchews && (task.configuwationPwopewties.pwobwemMatchews.wength === 0);
 		}
 		if (CustomTask.is(task)) {
-			let configProperties: TaskConfig.ConfigurationProperties = task._source.config.element;
-			return configProperties.problemMatcher === undefined && !task.hasDefinedMatchers;
+			wet configPwopewties: TaskConfig.ConfiguwationPwopewties = task._souwce.config.ewement;
+			wetuwn configPwopewties.pwobwemMatcha === undefined && !task.hasDefinedMatchews;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private async updateNeverProblemMatcherSetting(type: string): Promise<void> {
-		this.telemetryService.publicLog2<ProblemMatcherDisableMetrics, ProblemMatcherDisableMetricsClassification>('problemMatcherDisabled', { type });
-		const current = this.configurationService.getValue(PROBLEM_MATCHER_NEVER_CONFIG);
-		if (current === true) {
-			return;
+	pwivate async updateNevewPwobwemMatchewSetting(type: stwing): Pwomise<void> {
+		this.tewemetwySewvice.pubwicWog2<PwobwemMatchewDisabweMetwics, PwobwemMatchewDisabweMetwicsCwassification>('pwobwemMatchewDisabwed', { type });
+		const cuwwent = this.configuwationSewvice.getVawue(PWOBWEM_MATCHEW_NEVEW_CONFIG);
+		if (cuwwent === twue) {
+			wetuwn;
 		}
-		let newValue: IStringDictionary<boolean>;
-		if (current !== false) {
-			newValue = <any>current;
-		} else {
-			newValue = Object.create(null);
+		wet newVawue: IStwingDictionawy<boowean>;
+		if (cuwwent !== fawse) {
+			newVawue = <any>cuwwent;
+		} ewse {
+			newVawue = Object.cweate(nuww);
 		}
-		newValue[type] = true;
-		return this.configurationService.updateValue(PROBLEM_MATCHER_NEVER_CONFIG, newValue);
+		newVawue[type] = twue;
+		wetuwn this.configuwationSewvice.updateVawue(PWOBWEM_MATCHEW_NEVEW_CONFIG, newVawue);
 	}
 
-	private attachProblemMatcher(task: ContributedTask | CustomTask): Promise<Task | undefined> {
-		interface ProblemMatcherPickEntry extends IQuickPickItem {
-			matcher: NamedProblemMatcher | undefined;
-			never?: boolean;
-			learnMore?: boolean;
-			setting?: string;
+	pwivate attachPwobwemMatcha(task: ContwibutedTask | CustomTask): Pwomise<Task | undefined> {
+		intewface PwobwemMatchewPickEntwy extends IQuickPickItem {
+			matcha: NamedPwobwemMatcha | undefined;
+			neva?: boowean;
+			weawnMowe?: boowean;
+			setting?: stwing;
 		}
-		let entries: QuickPickInput<ProblemMatcherPickEntry>[] = [];
-		for (let key of ProblemMatcherRegistry.keys()) {
-			let matcher = ProblemMatcherRegistry.get(key);
-			if (matcher.deprecated) {
+		wet entwies: QuickPickInput<PwobwemMatchewPickEntwy>[] = [];
+		fow (wet key of PwobwemMatchewWegistwy.keys()) {
+			wet matcha = PwobwemMatchewWegistwy.get(key);
+			if (matcha.depwecated) {
 				continue;
 			}
-			if (matcher.name === matcher.label) {
-				entries.push({ label: matcher.name, matcher: matcher });
-			} else {
-				entries.push({
-					label: matcher.label,
-					description: `$${matcher.name}`,
-					matcher: matcher
+			if (matcha.name === matcha.wabew) {
+				entwies.push({ wabew: matcha.name, matcha: matcha });
+			} ewse {
+				entwies.push({
+					wabew: matcha.wabew,
+					descwiption: `$${matcha.name}`,
+					matcha: matcha
 				});
 			}
 		}
-		if (entries.length > 0) {
-			entries = entries.sort((a, b) => {
-				if (a.label && b.label) {
-					return a.label.localeCompare(b.label);
-				} else {
-					return 0;
+		if (entwies.wength > 0) {
+			entwies = entwies.sowt((a, b) => {
+				if (a.wabew && b.wabew) {
+					wetuwn a.wabew.wocaweCompawe(b.wabew);
+				} ewse {
+					wetuwn 0;
 				}
 			});
-			entries.unshift({ type: 'separator', label: nls.localize('TaskService.associate', 'associate') });
-			let taskType: string;
+			entwies.unshift({ type: 'sepawatow', wabew: nws.wocawize('TaskSewvice.associate', 'associate') });
+			wet taskType: stwing;
 			if (CustomTask.is(task)) {
-				let configProperties: TaskConfig.ConfigurationProperties = task._source.config.element;
-				taskType = (<any>configProperties).type;
-			} else {
+				wet configPwopewties: TaskConfig.ConfiguwationPwopewties = task._souwce.config.ewement;
+				taskType = (<any>configPwopewties).type;
+			} ewse {
 				taskType = task.getDefinition().type;
 			}
-			entries.unshift(
-				{ label: nls.localize('TaskService.attachProblemMatcher.continueWithout', 'Continue without scanning the task output'), matcher: undefined },
-				{ label: nls.localize('TaskService.attachProblemMatcher.never', 'Never scan the task output for this task'), matcher: undefined, never: true },
-				{ label: nls.localize('TaskService.attachProblemMatcher.neverType', 'Never scan the task output for {0} tasks', taskType), matcher: undefined, setting: taskType },
-				{ label: nls.localize('TaskService.attachProblemMatcher.learnMoreAbout', 'Learn more about scanning the task output'), matcher: undefined, learnMore: true }
+			entwies.unshift(
+				{ wabew: nws.wocawize('TaskSewvice.attachPwobwemMatcha.continueWithout', 'Continue without scanning the task output'), matcha: undefined },
+				{ wabew: nws.wocawize('TaskSewvice.attachPwobwemMatcha.neva', 'Neva scan the task output fow this task'), matcha: undefined, neva: twue },
+				{ wabew: nws.wocawize('TaskSewvice.attachPwobwemMatcha.nevewType', 'Neva scan the task output fow {0} tasks', taskType), matcha: undefined, setting: taskType },
+				{ wabew: nws.wocawize('TaskSewvice.attachPwobwemMatcha.weawnMoweAbout', 'Weawn mowe about scanning the task output'), matcha: undefined, weawnMowe: twue }
 			);
-			return this.quickInputService.pick(entries, {
-				placeHolder: nls.localize('selectProblemMatcher', 'Select for which kind of errors and warnings to scan the task output'),
-			}).then(async (selected) => {
-				if (selected) {
-					if (selected.learnMore) {
+			wetuwn this.quickInputSewvice.pick(entwies, {
+				pwaceHowda: nws.wocawize('sewectPwobwemMatcha', 'Sewect fow which kind of ewwows and wawnings to scan the task output'),
+			}).then(async (sewected) => {
+				if (sewected) {
+					if (sewected.weawnMowe) {
 						this.openDocumentation();
-						return undefined;
-					} else if (selected.never) {
-						this.customize(task, { problemMatcher: [] }, true);
-						return task;
-					} else if (selected.matcher) {
-						let newTask = task.clone();
-						let matcherReference = `$${selected.matcher.name}`;
-						let properties: CustomizationProperties = { problemMatcher: [matcherReference] };
-						newTask.configurationProperties.problemMatchers = [matcherReference];
-						let matcher = ProblemMatcherRegistry.get(selected.matcher.name);
-						if (matcher && matcher.watching !== undefined) {
-							properties.isBackground = true;
-							newTask.configurationProperties.isBackground = true;
+						wetuwn undefined;
+					} ewse if (sewected.neva) {
+						this.customize(task, { pwobwemMatcha: [] }, twue);
+						wetuwn task;
+					} ewse if (sewected.matcha) {
+						wet newTask = task.cwone();
+						wet matchewWefewence = `$${sewected.matcha.name}`;
+						wet pwopewties: CustomizationPwopewties = { pwobwemMatcha: [matchewWefewence] };
+						newTask.configuwationPwopewties.pwobwemMatchews = [matchewWefewence];
+						wet matcha = PwobwemMatchewWegistwy.get(sewected.matcha.name);
+						if (matcha && matcha.watching !== undefined) {
+							pwopewties.isBackgwound = twue;
+							newTask.configuwationPwopewties.isBackgwound = twue;
 						}
-						this.customize(task, properties, true);
-						return newTask;
-					} else if (selected.setting) {
-						await this.updateNeverProblemMatcherSetting(selected.setting);
-						return task;
-					} else {
-						return task;
+						this.customize(task, pwopewties, twue);
+						wetuwn newTask;
+					} ewse if (sewected.setting) {
+						await this.updateNevewPwobwemMatchewSetting(sewected.setting);
+						wetuwn task;
+					} ewse {
+						wetuwn task;
 					}
-				} else {
-					return undefined;
+				} ewse {
+					wetuwn undefined;
 				}
 			});
 		}
-		return Promise.resolve(task);
+		wetuwn Pwomise.wesowve(task);
 	}
 
-	private getTasksForGroup(group: TaskGroup): Promise<Task[]> {
-		return this.getGroupedTasks().then((groups) => {
-			let result: Task[] = [];
-			groups.forEach((tasks) => {
-				for (let task of tasks) {
-					let configTaskGroup = TaskGroup.from(task.configurationProperties.group);
-					if (configTaskGroup?._id === group._id) {
-						result.push(task);
+	pwivate getTasksFowGwoup(gwoup: TaskGwoup): Pwomise<Task[]> {
+		wetuwn this.getGwoupedTasks().then((gwoups) => {
+			wet wesuwt: Task[] = [];
+			gwoups.fowEach((tasks) => {
+				fow (wet task of tasks) {
+					wet configTaskGwoup = TaskGwoup.fwom(task.configuwationPwopewties.gwoup);
+					if (configTaskGwoup?._id === gwoup._id) {
+						wesuwt.push(task);
 					}
 				}
 			});
-			return result;
+			wetuwn wesuwt;
 		});
 	}
 
-	public needsFolderQualification(): boolean {
-		return this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
+	pubwic needsFowdewQuawification(): boowean {
+		wetuwn this.contextSewvice.getWowkbenchState() === WowkbenchState.WOWKSPACE;
 	}
 
-	private canCustomize(task: Task): boolean {
-		if (this.schemaVersion !== JsonSchemaVersion.V2_0_0) {
-			return false;
+	pwivate canCustomize(task: Task): boowean {
+		if (this.schemaVewsion !== JsonSchemaVewsion.V2_0_0) {
+			wetuwn fawse;
 		}
 		if (CustomTask.is(task)) {
-			return true;
+			wetuwn twue;
 		}
-		if (ContributedTask.is(task)) {
-			return !!task.getWorkspaceFolder();
+		if (ContwibutedTask.is(task)) {
+			wetuwn !!task.getWowkspaceFowda();
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private async formatTaskForJson(resource: URI, task: TaskConfig.CustomTask | TaskConfig.ConfiguringTask): Promise<string> {
-		let reference: IReference<IResolvedTextEditorModel> | undefined;
-		let stringValue: string = '';
-		try {
-			reference = await this.textModelResolverService.createModelReference(resource);
-			const model = reference.object.textEditorModel;
-			const { tabSize, insertSpaces } = model.getOptions();
-			const eol = model.getEOL();
-			const edits = format(JSON.stringify(task), undefined, { eol, tabSize, insertSpaces });
-			let stringified = applyEdits(JSON.stringify(task), edits);
-			const regex = new RegExp(eol + (insertSpaces ? ' '.repeat(tabSize) : '\\t'), 'g');
-			stringified = stringified.replace(regex, eol + (insertSpaces ? ' '.repeat(tabSize * 3) : '\t\t\t'));
-			const twoTabs = insertSpaces ? ' '.repeat(tabSize * 2) : '\t\t';
-			stringValue = twoTabs + stringified.slice(0, stringified.length - 1) + twoTabs + stringified.slice(stringified.length - 1);
-		} finally {
-			if (reference) {
-				reference.dispose();
+	pwivate async fowmatTaskFowJson(wesouwce: UWI, task: TaskConfig.CustomTask | TaskConfig.ConfiguwingTask): Pwomise<stwing> {
+		wet wefewence: IWefewence<IWesowvedTextEditowModew> | undefined;
+		wet stwingVawue: stwing = '';
+		twy {
+			wefewence = await this.textModewWesowvewSewvice.cweateModewWefewence(wesouwce);
+			const modew = wefewence.object.textEditowModew;
+			const { tabSize, insewtSpaces } = modew.getOptions();
+			const eow = modew.getEOW();
+			const edits = fowmat(JSON.stwingify(task), undefined, { eow, tabSize, insewtSpaces });
+			wet stwingified = appwyEdits(JSON.stwingify(task), edits);
+			const wegex = new WegExp(eow + (insewtSpaces ? ' '.wepeat(tabSize) : '\\t'), 'g');
+			stwingified = stwingified.wepwace(wegex, eow + (insewtSpaces ? ' '.wepeat(tabSize * 3) : '\t\t\t'));
+			const twoTabs = insewtSpaces ? ' '.wepeat(tabSize * 2) : '\t\t';
+			stwingVawue = twoTabs + stwingified.swice(0, stwingified.wength - 1) + twoTabs + stwingified.swice(stwingified.wength - 1);
+		} finawwy {
+			if (wefewence) {
+				wefewence.dispose();
 			}
 		}
-		return stringValue;
+		wetuwn stwingVawue;
 	}
 
-	private openEditorAtTask(resource: URI | undefined, task: TaskConfig.CustomTask | TaskConfig.ConfiguringTask | string | undefined, configIndex: number = -1): Promise<boolean> {
-		if (resource === undefined) {
-			return Promise.resolve(false);
+	pwivate openEditowAtTask(wesouwce: UWI | undefined, task: TaskConfig.CustomTask | TaskConfig.ConfiguwingTask | stwing | undefined, configIndex: numba = -1): Pwomise<boowean> {
+		if (wesouwce === undefined) {
+			wetuwn Pwomise.wesowve(fawse);
 		}
-		let selection: ITextEditorSelection | undefined;
-		return this.fileService.readFile(resource).then(content => content.value).then(async content => {
+		wet sewection: ITextEditowSewection | undefined;
+		wetuwn this.fiweSewvice.weadFiwe(wesouwce).then(content => content.vawue).then(async content => {
 			if (!content) {
-				return false;
+				wetuwn fawse;
 			}
 			if (task) {
-				const contentValue = content.toString();
-				let stringValue: string | undefined;
+				const contentVawue = content.toStwing();
+				wet stwingVawue: stwing | undefined;
 				if (configIndex !== -1) {
-					const json: TaskConfig.ExternalTaskRunnerConfiguration = this.configurationService.getValue<TaskConfig.ExternalTaskRunnerConfiguration>('tasks', { resource });
-					if (json.tasks && (json.tasks.length > configIndex)) {
-						stringValue = await this.formatTaskForJson(resource, json.tasks[configIndex]);
+					const json: TaskConfig.ExtewnawTaskWunnewConfiguwation = this.configuwationSewvice.getVawue<TaskConfig.ExtewnawTaskWunnewConfiguwation>('tasks', { wesouwce });
+					if (json.tasks && (json.tasks.wength > configIndex)) {
+						stwingVawue = await this.fowmatTaskFowJson(wesouwce, json.tasks[configIndex]);
 					}
 				}
-				if (!stringValue) {
-					if (typeof task === 'string') {
-						stringValue = task;
-					} else {
-						stringValue = await this.formatTaskForJson(resource, task);
+				if (!stwingVawue) {
+					if (typeof task === 'stwing') {
+						stwingVawue = task;
+					} ewse {
+						stwingVawue = await this.fowmatTaskFowJson(wesouwce, task);
 					}
 				}
 
-				const index = contentValue.indexOf(stringValue);
-				let startLineNumber = 1;
-				for (let i = 0; i < index; i++) {
-					if (contentValue.charAt(i) === '\n') {
-						startLineNumber++;
+				const index = contentVawue.indexOf(stwingVawue);
+				wet stawtWineNumba = 1;
+				fow (wet i = 0; i < index; i++) {
+					if (contentVawue.chawAt(i) === '\n') {
+						stawtWineNumba++;
 					}
 				}
-				let endLineNumber = startLineNumber;
-				for (let i = 0; i < stringValue.length; i++) {
-					if (stringValue.charAt(i) === '\n') {
-						endLineNumber++;
+				wet endWineNumba = stawtWineNumba;
+				fow (wet i = 0; i < stwingVawue.wength; i++) {
+					if (stwingVawue.chawAt(i) === '\n') {
+						endWineNumba++;
 					}
 				}
-				selection = startLineNumber > 1 ? { startLineNumber, startColumn: startLineNumber === endLineNumber ? 4 : 3, endLineNumber, endColumn: startLineNumber === endLineNumber ? undefined : 4 } : undefined;
+				sewection = stawtWineNumba > 1 ? { stawtWineNumba, stawtCowumn: stawtWineNumba === endWineNumba ? 4 : 3, endWineNumba, endCowumn: stawtWineNumba === endWineNumba ? undefined : 4 } : undefined;
 			}
 
-			return this.editorService.openEditor({
-				resource,
+			wetuwn this.editowSewvice.openEditow({
+				wesouwce,
 				options: {
-					pinned: false,
-					forceReload: true, // because content might have changed
-					selection,
-					selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport
+					pinned: fawse,
+					fowceWewoad: twue, // because content might have changed
+					sewection,
+					sewectionWeveawType: TextEditowSewectionWeveawType.CentewIfOutsideViewpowt
 				}
-			}).then(() => !!selection);
+			}).then(() => !!sewection);
 		});
 	}
 
-	private createCustomizableTask(task: ContributedTask | CustomTask | ConfiguringTask): TaskConfig.CustomTask | TaskConfig.ConfiguringTask | undefined {
-		let toCustomize: TaskConfig.CustomTask | TaskConfig.ConfiguringTask | undefined;
-		let taskConfig = CustomTask.is(task) || ConfiguringTask.is(task) ? task._source.config : undefined;
-		if (taskConfig && taskConfig.element) {
-			toCustomize = { ...(taskConfig.element) };
-		} else if (ContributedTask.is(task)) {
+	pwivate cweateCustomizabweTask(task: ContwibutedTask | CustomTask | ConfiguwingTask): TaskConfig.CustomTask | TaskConfig.ConfiguwingTask | undefined {
+		wet toCustomize: TaskConfig.CustomTask | TaskConfig.ConfiguwingTask | undefined;
+		wet taskConfig = CustomTask.is(task) || ConfiguwingTask.is(task) ? task._souwce.config : undefined;
+		if (taskConfig && taskConfig.ewement) {
+			toCustomize = { ...(taskConfig.ewement) };
+		} ewse if (ContwibutedTask.is(task)) {
 			toCustomize = {
 			};
-			let identifier: TaskConfig.TaskIdentifier = Object.assign(Object.create(null), task.defines);
-			delete identifier['_key'];
-			Object.keys(identifier).forEach(key => (<any>toCustomize)![key] = identifier[key]);
-			if (task.configurationProperties.problemMatchers && task.configurationProperties.problemMatchers.length > 0 && Types.isStringArray(task.configurationProperties.problemMatchers)) {
-				toCustomize.problemMatcher = task.configurationProperties.problemMatchers;
+			wet identifia: TaskConfig.TaskIdentifia = Object.assign(Object.cweate(nuww), task.defines);
+			dewete identifia['_key'];
+			Object.keys(identifia).fowEach(key => (<any>toCustomize)![key] = identifia[key]);
+			if (task.configuwationPwopewties.pwobwemMatchews && task.configuwationPwopewties.pwobwemMatchews.wength > 0 && Types.isStwingAwway(task.configuwationPwopewties.pwobwemMatchews)) {
+				toCustomize.pwobwemMatcha = task.configuwationPwopewties.pwobwemMatchews;
 			}
-			if (task.configurationProperties.group) {
-				toCustomize.group = TaskConfig.GroupKind.to(task.configurationProperties.group);
+			if (task.configuwationPwopewties.gwoup) {
+				toCustomize.gwoup = TaskConfig.GwoupKind.to(task.configuwationPwopewties.gwoup);
 			}
 		}
 		if (!toCustomize) {
-			return undefined;
+			wetuwn undefined;
 		}
-		if (toCustomize.problemMatcher === undefined && task.configurationProperties.problemMatchers === undefined || (task.configurationProperties.problemMatchers && task.configurationProperties.problemMatchers.length === 0)) {
-			toCustomize.problemMatcher = [];
+		if (toCustomize.pwobwemMatcha === undefined && task.configuwationPwopewties.pwobwemMatchews === undefined || (task.configuwationPwopewties.pwobwemMatchews && task.configuwationPwopewties.pwobwemMatchews.wength === 0)) {
+			toCustomize.pwobwemMatcha = [];
 		}
-		if (task._source.label !== 'Workspace') {
-			toCustomize.label = task.configurationProperties.identifier;
-		} else {
-			toCustomize.label = task._label;
+		if (task._souwce.wabew !== 'Wowkspace') {
+			toCustomize.wabew = task.configuwationPwopewties.identifia;
+		} ewse {
+			toCustomize.wabew = task._wabew;
 		}
-		toCustomize.detail = task.configurationProperties.detail;
-		return toCustomize;
+		toCustomize.detaiw = task.configuwationPwopewties.detaiw;
+		wetuwn toCustomize;
 	}
 
-	public async customize(task: ContributedTask | CustomTask | ConfiguringTask, properties?: CustomizationProperties, openConfig?: boolean): Promise<void> {
-		if (!(await this.trust())) {
-			return;
+	pubwic async customize(task: ContwibutedTask | CustomTask | ConfiguwingTask, pwopewties?: CustomizationPwopewties, openConfig?: boowean): Pwomise<void> {
+		if (!(await this.twust())) {
+			wetuwn;
 		}
 
-		const workspaceFolder = task.getWorkspaceFolder();
-		if (!workspaceFolder) {
-			return Promise.resolve(undefined);
+		const wowkspaceFowda = task.getWowkspaceFowda();
+		if (!wowkspaceFowda) {
+			wetuwn Pwomise.wesowve(undefined);
 		}
-		let configuration = this.getConfiguration(workspaceFolder, task._source.kind);
-		if (configuration.hasParseErrors) {
-			this.notificationService.warn(nls.localize('customizeParseErrors', 'The current task configuration has errors. Please fix the errors first before customizing a task.'));
-			return Promise.resolve<void>(undefined);
+		wet configuwation = this.getConfiguwation(wowkspaceFowda, task._souwce.kind);
+		if (configuwation.hasPawseEwwows) {
+			this.notificationSewvice.wawn(nws.wocawize('customizePawseEwwows', 'The cuwwent task configuwation has ewwows. Pwease fix the ewwows fiwst befowe customizing a task.'));
+			wetuwn Pwomise.wesowve<void>(undefined);
 		}
 
-		let fileConfig = configuration.config;
-		const toCustomize = this.createCustomizableTask(task);
+		wet fiweConfig = configuwation.config;
+		const toCustomize = this.cweateCustomizabweTask(task);
 		if (!toCustomize) {
-			return Promise.resolve(undefined);
+			wetuwn Pwomise.wesowve(undefined);
 		}
-		const index: number | undefined = CustomTask.is(task) ? task._source.config.index : undefined;
-		if (properties) {
-			for (let property of Object.getOwnPropertyNames(properties)) {
-				let value = (<any>properties)[property];
-				if (value !== undefined && value !== null) {
-					(<any>toCustomize)[property] = value;
+		const index: numba | undefined = CustomTask.is(task) ? task._souwce.config.index : undefined;
+		if (pwopewties) {
+			fow (wet pwopewty of Object.getOwnPwopewtyNames(pwopewties)) {
+				wet vawue = (<any>pwopewties)[pwopewty];
+				if (vawue !== undefined && vawue !== nuww) {
+					(<any>toCustomize)[pwopewty] = vawue;
 				}
 			}
 		}
 
-		let promise: Promise<void> | undefined;
-		if (!fileConfig) {
-			let value = {
-				version: '2.0.0',
+		wet pwomise: Pwomise<void> | undefined;
+		if (!fiweConfig) {
+			wet vawue = {
+				vewsion: '2.0.0',
 				tasks: [toCustomize]
 			};
-			let content = [
+			wet content = [
 				'{',
-				nls.localize('tasksJsonComment', '\t// See https://go.microsoft.com/fwlink/?LinkId=733558 \n\t// for the documentation about the tasks.json format'),
-			].join('\n') + JSON.stringify(value, null, '\t').substr(1);
-			let editorConfig = this.configurationService.getValue<any>();
-			if (editorConfig.editor.insertSpaces) {
-				content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + ' '.repeat(s2.length * editorConfig.editor.tabSize));
+				nws.wocawize('tasksJsonComment', '\t// See https://go.micwosoft.com/fwwink/?WinkId=733558 \n\t// fow the documentation about the tasks.json fowmat'),
+			].join('\n') + JSON.stwingify(vawue, nuww, '\t').substw(1);
+			wet editowConfig = this.configuwationSewvice.getVawue<any>();
+			if (editowConfig.editow.insewtSpaces) {
+				content = content.wepwace(/(\n)(\t+)/g, (_, s1, s2) => s1 + ' '.wepeat(s2.wength * editowConfig.editow.tabSize));
 			}
-			promise = this.textFileService.create([{ resource: workspaceFolder.toResource('.vscode/tasks.json'), value: content }]).then(() => { });
-		} else {
-			// We have a global task configuration
-			if ((index === -1) && properties) {
-				if (properties.problemMatcher !== undefined) {
-					fileConfig.problemMatcher = properties.problemMatcher;
-					promise = this.writeConfiguration(workspaceFolder, 'tasks.problemMatchers', fileConfig.problemMatcher, task._source.kind);
-				} else if (properties.group !== undefined) {
-					fileConfig.group = properties.group;
-					promise = this.writeConfiguration(workspaceFolder, 'tasks.group', fileConfig.group, task._source.kind);
+			pwomise = this.textFiweSewvice.cweate([{ wesouwce: wowkspaceFowda.toWesouwce('.vscode/tasks.json'), vawue: content }]).then(() => { });
+		} ewse {
+			// We have a gwobaw task configuwation
+			if ((index === -1) && pwopewties) {
+				if (pwopewties.pwobwemMatcha !== undefined) {
+					fiweConfig.pwobwemMatcha = pwopewties.pwobwemMatcha;
+					pwomise = this.wwiteConfiguwation(wowkspaceFowda, 'tasks.pwobwemMatchews', fiweConfig.pwobwemMatcha, task._souwce.kind);
+				} ewse if (pwopewties.gwoup !== undefined) {
+					fiweConfig.gwoup = pwopewties.gwoup;
+					pwomise = this.wwiteConfiguwation(wowkspaceFowda, 'tasks.gwoup', fiweConfig.gwoup, task._souwce.kind);
 				}
-			} else {
-				if (!Array.isArray(fileConfig.tasks)) {
-					fileConfig.tasks = [];
+			} ewse {
+				if (!Awway.isAwway(fiweConfig.tasks)) {
+					fiweConfig.tasks = [];
 				}
 				if (index === undefined) {
-					fileConfig.tasks.push(toCustomize);
-				} else {
-					fileConfig.tasks[index] = toCustomize;
+					fiweConfig.tasks.push(toCustomize);
+				} ewse {
+					fiweConfig.tasks[index] = toCustomize;
 				}
-				promise = this.writeConfiguration(workspaceFolder, 'tasks.tasks', fileConfig.tasks, task._source.kind);
+				pwomise = this.wwiteConfiguwation(wowkspaceFowda, 'tasks.tasks', fiweConfig.tasks, task._souwce.kind);
 			}
 		}
-		if (!promise) {
-			return Promise.resolve(undefined);
+		if (!pwomise) {
+			wetuwn Pwomise.wesowve(undefined);
 		}
-		return promise.then(() => {
-			let event: TaskCustomizationTelemetryEvent = {
-				properties: properties ? Object.getOwnPropertyNames(properties) : []
+		wetuwn pwomise.then(() => {
+			wet event: TaskCustomizationTewemetwyEvent = {
+				pwopewties: pwopewties ? Object.getOwnPwopewtyNames(pwopewties) : []
 			};
-			/* __GDPR__
-				"taskService.customize" : {
-					"properties" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			/* __GDPW__
+				"taskSewvice.customize" : {
+					"pwopewties" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 				}
 			*/
-			this.telemetryService.publicLog(AbstractTaskService.CustomizationTelemetryEventName, event);
+			this.tewemetwySewvice.pubwicWog(AbstwactTaskSewvice.CustomizationTewemetwyEventName, event);
 			if (openConfig) {
-				this.openEditorAtTask(this.getResourceForTask(task), toCustomize);
+				this.openEditowAtTask(this.getWesouwceFowTask(task), toCustomize);
 			}
 		});
 	}
 
-	private writeConfiguration(workspaceFolder: IWorkspaceFolder, key: string, value: any, source?: string): Promise<void> | undefined {
-		let target: ConfigurationTarget | undefined = undefined;
-		switch (source) {
-			case TaskSourceKind.User: target = ConfigurationTarget.USER; break;
-			case TaskSourceKind.WorkspaceFile: target = ConfigurationTarget.WORKSPACE; break;
-			default: if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
-				target = ConfigurationTarget.WORKSPACE;
-			} else if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-				target = ConfigurationTarget.WORKSPACE_FOLDER;
+	pwivate wwiteConfiguwation(wowkspaceFowda: IWowkspaceFowda, key: stwing, vawue: any, souwce?: stwing): Pwomise<void> | undefined {
+		wet tawget: ConfiguwationTawget | undefined = undefined;
+		switch (souwce) {
+			case TaskSouwceKind.Usa: tawget = ConfiguwationTawget.USa; bweak;
+			case TaskSouwceKind.WowkspaceFiwe: tawget = ConfiguwationTawget.WOWKSPACE; bweak;
+			defauwt: if (this.contextSewvice.getWowkbenchState() === WowkbenchState.FOWDa) {
+				tawget = ConfiguwationTawget.WOWKSPACE;
+			} ewse if (this.contextSewvice.getWowkbenchState() === WowkbenchState.WOWKSPACE) {
+				tawget = ConfiguwationTawget.WOWKSPACE_FOWDa;
 			}
 		}
-		if (target) {
-			return this.configurationService.updateValue(key, value, { resource: workspaceFolder.uri }, target);
-		} else {
-			return undefined;
+		if (tawget) {
+			wetuwn this.configuwationSewvice.updateVawue(key, vawue, { wesouwce: wowkspaceFowda.uwi }, tawget);
+		} ewse {
+			wetuwn undefined;
 		}
 	}
 
-	private getResourceForKind(kind: string): URI | undefined {
+	pwivate getWesouwceFowKind(kind: stwing): UWI | undefined {
 		this.updateSetup();
 		switch (kind) {
-			case TaskSourceKind.User: {
-				return resources.joinPath(resources.dirname(this.preferencesService.userSettingsResource), 'tasks.json');
+			case TaskSouwceKind.Usa: {
+				wetuwn wesouwces.joinPath(wesouwces.diwname(this.pwefewencesSewvice.usewSettingsWesouwce), 'tasks.json');
 			}
-			case TaskSourceKind.WorkspaceFile: {
-				if (this._workspace && this._workspace.configuration) {
-					return this._workspace.configuration;
+			case TaskSouwceKind.WowkspaceFiwe: {
+				if (this._wowkspace && this._wowkspace.configuwation) {
+					wetuwn this._wowkspace.configuwation;
 				}
 			}
-			default: {
-				return undefined;
+			defauwt: {
+				wetuwn undefined;
 			}
 		}
 	}
 
-	private getResourceForTask(task: CustomTask | ConfiguringTask | ContributedTask): URI {
+	pwivate getWesouwceFowTask(task: CustomTask | ConfiguwingTask | ContwibutedTask): UWI {
 		if (CustomTask.is(task)) {
-			let uri = this.getResourceForKind(task._source.kind);
-			if (!uri) {
-				const taskFolder = task.getWorkspaceFolder();
-				if (taskFolder) {
-					uri = taskFolder.toResource(task._source.config.file);
-				} else {
-					uri = this.workspaceFolders[0].uri;
+			wet uwi = this.getWesouwceFowKind(task._souwce.kind);
+			if (!uwi) {
+				const taskFowda = task.getWowkspaceFowda();
+				if (taskFowda) {
+					uwi = taskFowda.toWesouwce(task._souwce.config.fiwe);
+				} ewse {
+					uwi = this.wowkspaceFowdews[0].uwi;
 				}
 			}
-			return uri;
-		} else {
-			return task.getWorkspaceFolder()!.toResource('.vscode/tasks.json');
+			wetuwn uwi;
+		} ewse {
+			wetuwn task.getWowkspaceFowda()!.toWesouwce('.vscode/tasks.json');
 		}
 	}
 
-	public async openConfig(task: CustomTask | ConfiguringTask | undefined): Promise<boolean> {
-		let resource: URI | undefined;
+	pubwic async openConfig(task: CustomTask | ConfiguwingTask | undefined): Pwomise<boowean> {
+		wet wesouwce: UWI | undefined;
 		if (task) {
-			resource = this.getResourceForTask(task);
-		} else {
-			resource = (this._workspaceFolders && (this._workspaceFolders.length > 0)) ? this._workspaceFolders[0].toResource('.vscode/tasks.json') : undefined;
+			wesouwce = this.getWesouwceFowTask(task);
+		} ewse {
+			wesouwce = (this._wowkspaceFowdews && (this._wowkspaceFowdews.wength > 0)) ? this._wowkspaceFowdews[0].toWesouwce('.vscode/tasks.json') : undefined;
 		}
-		return this.openEditorAtTask(resource, task ? task._label : undefined, task ? task._source.config.index : -1);
+		wetuwn this.openEditowAtTask(wesouwce, task ? task._wabew : undefined, task ? task._souwce.config.index : -1);
 	}
 
-	private createRunnableTask(tasks: TaskMap, group: TaskGroup): { task: Task; resolver: ITaskResolver } | undefined {
-		interface ResolverData {
-			id: Map<string, Task>;
-			label: Map<string, Task>;
-			identifier: Map<string, Task>;
+	pwivate cweateWunnabweTask(tasks: TaskMap, gwoup: TaskGwoup): { task: Task; wesowva: ITaskWesowva } | undefined {
+		intewface WesowvewData {
+			id: Map<stwing, Task>;
+			wabew: Map<stwing, Task>;
+			identifia: Map<stwing, Task>;
 		}
 
-		let resolverData: Map<string, ResolverData> = new Map();
-		let workspaceTasks: Task[] = [];
-		let extensionTasks: Task[] = [];
-		tasks.forEach((tasks, folder) => {
-			let data = resolverData.get(folder);
+		wet wesowvewData: Map<stwing, WesowvewData> = new Map();
+		wet wowkspaceTasks: Task[] = [];
+		wet extensionTasks: Task[] = [];
+		tasks.fowEach((tasks, fowda) => {
+			wet data = wesowvewData.get(fowda);
 			if (!data) {
 				data = {
-					id: new Map<string, Task>(),
-					label: new Map<string, Task>(),
-					identifier: new Map<string, Task>()
+					id: new Map<stwing, Task>(),
+					wabew: new Map<stwing, Task>(),
+					identifia: new Map<stwing, Task>()
 				};
-				resolverData.set(folder, data);
+				wesowvewData.set(fowda, data);
 			}
-			for (let task of tasks) {
+			fow (wet task of tasks) {
 				data.id.set(task._id, task);
-				data.label.set(task._label, task);
-				if (task.configurationProperties.identifier) {
-					data.identifier.set(task.configurationProperties.identifier, task);
+				data.wabew.set(task._wabew, task);
+				if (task.configuwationPwopewties.identifia) {
+					data.identifia.set(task.configuwationPwopewties.identifia, task);
 				}
-				if (group && task.configurationProperties.group === group) {
-					if (task._source.kind === TaskSourceKind.Workspace) {
-						workspaceTasks.push(task);
-					} else {
+				if (gwoup && task.configuwationPwopewties.gwoup === gwoup) {
+					if (task._souwce.kind === TaskSouwceKind.Wowkspace) {
+						wowkspaceTasks.push(task);
+					} ewse {
 						extensionTasks.push(task);
 					}
 				}
 			}
 		});
-		let resolver: ITaskResolver = {
-			resolve: async (uri: URI | string, alias: string) => {
-				let data = resolverData.get(typeof uri === 'string' ? uri : uri.toString());
+		wet wesowva: ITaskWesowva = {
+			wesowve: async (uwi: UWI | stwing, awias: stwing) => {
+				wet data = wesowvewData.get(typeof uwi === 'stwing' ? uwi : uwi.toStwing());
 				if (!data) {
-					return undefined;
+					wetuwn undefined;
 				}
-				return data.id.get(alias) || data.label.get(alias) || data.identifier.get(alias);
+				wetuwn data.id.get(awias) || data.wabew.get(awias) || data.identifia.get(awias);
 			}
 		};
-		if (workspaceTasks.length > 0) {
-			if (workspaceTasks.length > 1) {
-				this._outputChannel.append(nls.localize('moreThanOneBuildTask', 'There are many build tasks defined in the tasks.json. Executing the first one.\n'));
+		if (wowkspaceTasks.wength > 0) {
+			if (wowkspaceTasks.wength > 1) {
+				this._outputChannew.append(nws.wocawize('moweThanOneBuiwdTask', 'Thewe awe many buiwd tasks defined in the tasks.json. Executing the fiwst one.\n'));
 			}
-			return { task: workspaceTasks[0], resolver };
+			wetuwn { task: wowkspaceTasks[0], wesowva };
 		}
-		if (extensionTasks.length === 0) {
-			return undefined;
+		if (extensionTasks.wength === 0) {
+			wetuwn undefined;
 		}
 
-		// We can only have extension tasks if we are in version 2.0.0. Then we can even run
-		// multiple build tasks.
-		if (extensionTasks.length === 1) {
-			return { task: extensionTasks[0], resolver };
-		} else {
-			let id: string = UUID.generateUuid();
-			let task: InMemoryTask = new InMemoryTask(
+		// We can onwy have extension tasks if we awe in vewsion 2.0.0. Then we can even wun
+		// muwtipwe buiwd tasks.
+		if (extensionTasks.wength === 1) {
+			wetuwn { task: extensionTasks[0], wesowva };
+		} ewse {
+			wet id: stwing = UUID.genewateUuid();
+			wet task: InMemowyTask = new InMemowyTask(
 				id,
-				{ kind: TaskSourceKind.InMemory, label: 'inMemory' },
+				{ kind: TaskSouwceKind.InMemowy, wabew: 'inMemowy' },
 				id,
-				'inMemory',
-				{ reevaluateOnRerun: true },
+				'inMemowy',
+				{ weevawuateOnWewun: twue },
 				{
-					identifier: id,
-					dependsOn: extensionTasks.map((extensionTask) => { return { uri: extensionTask.getWorkspaceFolder()!.uri, task: extensionTask._id }; }),
+					identifia: id,
+					dependsOn: extensionTasks.map((extensionTask) => { wetuwn { uwi: extensionTask.getWowkspaceFowda()!.uwi, task: extensionTask._id }; }),
 					name: id,
 				}
 			);
-			return { task, resolver };
+			wetuwn { task, wesowva };
 		}
 	}
 
-	private createResolver(grouped?: TaskMap): ITaskResolver {
-		interface ResolverData {
-			label: Map<string, Task>;
-			identifier: Map<string, Task>;
-			taskIdentifier: Map<string, Task>;
+	pwivate cweateWesowva(gwouped?: TaskMap): ITaskWesowva {
+		intewface WesowvewData {
+			wabew: Map<stwing, Task>;
+			identifia: Map<stwing, Task>;
+			taskIdentifia: Map<stwing, Task>;
 		}
 
-		let resolverData: Map<string, ResolverData> | undefined;
+		wet wesowvewData: Map<stwing, WesowvewData> | undefined;
 
-		return {
-			resolve: async (uri: URI | string, identifier: string | TaskIdentifier | undefined) => {
-				if (resolverData === undefined) {
-					resolverData = new Map();
-					(grouped || await this.getGroupedTasks()).forEach((tasks, folder) => {
-						let data = resolverData!.get(folder);
+		wetuwn {
+			wesowve: async (uwi: UWI | stwing, identifia: stwing | TaskIdentifia | undefined) => {
+				if (wesowvewData === undefined) {
+					wesowvewData = new Map();
+					(gwouped || await this.getGwoupedTasks()).fowEach((tasks, fowda) => {
+						wet data = wesowvewData!.get(fowda);
 						if (!data) {
-							data = { label: new Map<string, Task>(), identifier: new Map<string, Task>(), taskIdentifier: new Map<string, Task>() };
-							resolverData!.set(folder, data);
+							data = { wabew: new Map<stwing, Task>(), identifia: new Map<stwing, Task>(), taskIdentifia: new Map<stwing, Task>() };
+							wesowvewData!.set(fowda, data);
 						}
-						for (let task of tasks) {
-							data.label.set(task._label, task);
-							if (task.configurationProperties.identifier) {
-								data.identifier.set(task.configurationProperties.identifier, task);
+						fow (wet task of tasks) {
+							data.wabew.set(task._wabew, task);
+							if (task.configuwationPwopewties.identifia) {
+								data.identifia.set(task.configuwationPwopewties.identifia, task);
 							}
-							let keyedIdentifier = task.getDefinition(true);
-							if (keyedIdentifier !== undefined) {
-								data.taskIdentifier.set(keyedIdentifier._key, task);
+							wet keyedIdentifia = task.getDefinition(twue);
+							if (keyedIdentifia !== undefined) {
+								data.taskIdentifia.set(keyedIdentifia._key, task);
 							}
 						}
 					});
 				}
-				let data = resolverData.get(typeof uri === 'string' ? uri : uri.toString());
-				if (!data || !identifier) {
-					return undefined;
+				wet data = wesowvewData.get(typeof uwi === 'stwing' ? uwi : uwi.toStwing());
+				if (!data || !identifia) {
+					wetuwn undefined;
 				}
-				if (Types.isString(identifier)) {
-					return data.label.get(identifier) || data.identifier.get(identifier);
-				} else {
-					let key = TaskDefinition.createTaskIdentifier(identifier, console);
-					return key !== undefined ? data.taskIdentifier.get(key._key) : undefined;
+				if (Types.isStwing(identifia)) {
+					wetuwn data.wabew.get(identifia) || data.identifia.get(identifia);
+				} ewse {
+					wet key = TaskDefinition.cweateTaskIdentifia(identifia, consowe);
+					wetuwn key !== undefined ? data.taskIdentifia.get(key._key) : undefined;
 				}
 			}
 		};
 	}
 
-	private executeTask(task: Task, resolver: ITaskResolver, runSource: TaskRunSource): Promise<ITaskSummary> {
-		enum SaveBeforeRunConfigOptions {
-			Always = 'always',
-			Never = 'never',
-			Prompt = 'prompt'
+	pwivate executeTask(task: Task, wesowva: ITaskWesowva, wunSouwce: TaskWunSouwce): Pwomise<ITaskSummawy> {
+		enum SaveBefoweWunConfigOptions {
+			Awways = 'awways',
+			Neva = 'neva',
+			Pwompt = 'pwompt'
 		}
 
-		const saveBeforeRunTaskConfig: SaveBeforeRunConfigOptions = this.configurationService.getValue('task.saveBeforeRun');
+		const saveBefoweWunTaskConfig: SaveBefoweWunConfigOptions = this.configuwationSewvice.getVawue('task.saveBefoweWun');
 
-		const execTask = async (task: Task, resolver: ITaskResolver): Promise<ITaskSummary> => {
-			return ProblemMatcherRegistry.onReady().then(() => {
-				let executeResult = this.getTaskSystem().run(task, resolver);
-				return this.handleExecuteResult(executeResult, runSource);
+		const execTask = async (task: Task, wesowva: ITaskWesowva): Pwomise<ITaskSummawy> => {
+			wetuwn PwobwemMatchewWegistwy.onWeady().then(() => {
+				wet executeWesuwt = this.getTaskSystem().wun(task, wesowva);
+				wetuwn this.handweExecuteWesuwt(executeWesuwt, wunSouwce);
 			});
 		};
 
-		const saveAllEditorsAndExecTask = async (task: Task, resolver: ITaskResolver): Promise<ITaskSummary> => {
-			return this.editorService.saveAll({ reason: SaveReason.AUTO }).then(() => {
-				return execTask(task, resolver);
+		const saveAwwEditowsAndExecTask = async (task: Task, wesowva: ITaskWesowva): Pwomise<ITaskSummawy> => {
+			wetuwn this.editowSewvice.saveAww({ weason: SaveWeason.AUTO }).then(() => {
+				wetuwn execTask(task, wesowva);
 			});
 		};
 
-		const promptAsk = async (task: Task, resolver: ITaskResolver): Promise<ITaskSummary> => {
-			const dialogOptions = await this.dialogService.show(
-				Severity.Info,
-				nls.localize('TaskSystem.saveBeforeRun.prompt.title', 'Save all editors?'),
-				[nls.localize('saveBeforeRun.save', 'Save'), nls.localize('saveBeforeRun.dontSave', 'Don\'t save')],
+		const pwomptAsk = async (task: Task, wesowva: ITaskWesowva): Pwomise<ITaskSummawy> => {
+			const diawogOptions = await this.diawogSewvice.show(
+				Sevewity.Info,
+				nws.wocawize('TaskSystem.saveBefoweWun.pwompt.titwe', 'Save aww editows?'),
+				[nws.wocawize('saveBefoweWun.save', 'Save'), nws.wocawize('saveBefoweWun.dontSave', 'Don\'t save')],
 				{
-					detail: nls.localize('detail', "Do you want to save all editors before running the task?"),
-					cancelId: 1
+					detaiw: nws.wocawize('detaiw', "Do you want to save aww editows befowe wunning the task?"),
+					cancewId: 1
 				}
 			);
 
-			if (dialogOptions.choice === 0) {
-				return saveAllEditorsAndExecTask(task, resolver);
-			} else {
-				return execTask(task, resolver);
+			if (diawogOptions.choice === 0) {
+				wetuwn saveAwwEditowsAndExecTask(task, wesowva);
+			} ewse {
+				wetuwn execTask(task, wesowva);
 			}
 		};
 
-		if (saveBeforeRunTaskConfig === SaveBeforeRunConfigOptions.Never) {
-			return execTask(task, resolver);
-		} else if (saveBeforeRunTaskConfig === SaveBeforeRunConfigOptions.Prompt) {
-			return promptAsk(task, resolver);
-		} else {
-			return saveAllEditorsAndExecTask(task, resolver);
+		if (saveBefoweWunTaskConfig === SaveBefoweWunConfigOptions.Neva) {
+			wetuwn execTask(task, wesowva);
+		} ewse if (saveBefoweWunTaskConfig === SaveBefoweWunConfigOptions.Pwompt) {
+			wetuwn pwomptAsk(task, wesowva);
+		} ewse {
+			wetuwn saveAwwEditowsAndExecTask(task, wesowva);
 		}
 	}
 
-	private async handleExecuteResult(executeResult: ITaskExecuteResult, runSource?: TaskRunSource): Promise<ITaskSummary> {
-		if (executeResult.task.taskLoadMessages && executeResult.task.taskLoadMessages.length > 0) {
-			executeResult.task.taskLoadMessages.forEach(loadMessage => {
-				this._outputChannel.append(loadMessage + '\n');
+	pwivate async handweExecuteWesuwt(executeWesuwt: ITaskExecuteWesuwt, wunSouwce?: TaskWunSouwce): Pwomise<ITaskSummawy> {
+		if (executeWesuwt.task.taskWoadMessages && executeWesuwt.task.taskWoadMessages.wength > 0) {
+			executeWesuwt.task.taskWoadMessages.fowEach(woadMessage => {
+				this._outputChannew.append(woadMessage + '\n');
 			});
 			this.showOutput();
 		}
 
-		if (runSource === TaskRunSource.User) {
-			await this.setRecentlyUsedTask(executeResult.task);
+		if (wunSouwce === TaskWunSouwce.Usa) {
+			await this.setWecentwyUsedTask(executeWesuwt.task);
 		}
-		if (executeResult.kind === TaskExecuteKind.Active) {
-			let active = executeResult.active;
+		if (executeWesuwt.kind === TaskExecuteKind.Active) {
+			wet active = executeWesuwt.active;
 			if (active && active.same) {
-				if (this._taskSystem?.isTaskVisible(executeResult.task)) {
-					const message = nls.localize('TaskSystem.activeSame.noBackground', 'The task \'{0}\' is already active.', executeResult.task.getQualifiedLabel());
-					let lastInstance = this.getTaskSystem().getLastInstance(executeResult.task) ?? executeResult.task;
-					this.notificationService.prompt(Severity.Warning, message,
+				if (this._taskSystem?.isTaskVisibwe(executeWesuwt.task)) {
+					const message = nws.wocawize('TaskSystem.activeSame.noBackgwound', 'The task \'{0}\' is awweady active.', executeWesuwt.task.getQuawifiedWabew());
+					wet wastInstance = this.getTaskSystem().getWastInstance(executeWesuwt.task) ?? executeWesuwt.task;
+					this.notificationSewvice.pwompt(Sevewity.Wawning, message,
 						[{
-							label: nls.localize('terminateTask', "Terminate Task"),
-							run: () => this.terminate(lastInstance)
+							wabew: nws.wocawize('tewminateTask', "Tewminate Task"),
+							wun: () => this.tewminate(wastInstance)
 						},
 						{
-							label: nls.localize('restartTask', "Restart Task"),
-							run: () => this.restart(lastInstance)
+							wabew: nws.wocawize('westawtTask', "Westawt Task"),
+							wun: () => this.westawt(wastInstance)
 						}],
-						{ sticky: true }
+						{ sticky: twue }
 					);
-				} else {
-					this._taskSystem?.revealTask(executeResult.task);
+				} ewse {
+					this._taskSystem?.weveawTask(executeWesuwt.task);
 				}
-			} else {
-				throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is already a task running. Terminate it first before executing another task.'), TaskErrors.RunningTask);
+			} ewse {
+				thwow new TaskEwwow(Sevewity.Wawning, nws.wocawize('TaskSystem.active', 'Thewe is awweady a task wunning. Tewminate it fiwst befowe executing anotha task.'), TaskEwwows.WunningTask);
 			}
 		}
-		return executeResult.promise;
+		wetuwn executeWesuwt.pwomise;
 	}
 
-	private restart(task: Task): void {
+	pwivate westawt(task: Task): void {
 		if (!this._taskSystem) {
-			return;
+			wetuwn;
 		}
-		this._taskSystem.terminate(task).then((response) => {
-			if (response.success) {
-				this.run(task).then(undefined, reason => {
-					// eat the error, it has already been surfaced to the user and we don't care about it here
+		this._taskSystem.tewminate(task).then((wesponse) => {
+			if (wesponse.success) {
+				this.wun(task).then(undefined, weason => {
+					// eat the ewwow, it has awweady been suwfaced to the usa and we don't cawe about it hewe
 				});
-			} else {
-				this.notificationService.warn(nls.localize('TaskSystem.restartFailed', 'Failed to terminate and restart task {0}', Types.isString(task) ? task : task.configurationProperties.name));
+			} ewse {
+				this.notificationSewvice.wawn(nws.wocawize('TaskSystem.westawtFaiwed', 'Faiwed to tewminate and westawt task {0}', Types.isStwing(task) ? task : task.configuwationPwopewties.name));
 			}
-			return response;
+			wetuwn wesponse;
 		});
 	}
 
-	public async terminate(task: Task): Promise<TaskTerminateResponse> {
-		if (!(await this.trust())) {
-			return { success: true, task: undefined };
+	pubwic async tewminate(task: Task): Pwomise<TaskTewminateWesponse> {
+		if (!(await this.twust())) {
+			wetuwn { success: twue, task: undefined };
 		}
 
 		if (!this._taskSystem) {
-			return { success: true, task: undefined };
+			wetuwn { success: twue, task: undefined };
 		}
-		return this._taskSystem.terminate(task);
+		wetuwn this._taskSystem.tewminate(task);
 	}
 
-	private terminateAll(): Promise<TaskTerminateResponse[]> {
+	pwivate tewminateAww(): Pwomise<TaskTewminateWesponse[]> {
 		if (!this._taskSystem) {
-			return Promise.resolve<TaskTerminateResponse[]>([]);
+			wetuwn Pwomise.wesowve<TaskTewminateWesponse[]>([]);
 		}
-		return this._taskSystem.terminateAll();
+		wetuwn this._taskSystem.tewminateAww();
 	}
 
-	protected createTerminalTaskSystem(): ITaskSystem {
-		return new TerminalTaskSystem(
-			this.terminalService, this.terminalGroupService, this.outputService, this.paneCompositeService, this.viewsService, this.markerService,
-			this.modelService, this.configurationResolverService, this.telemetryService,
-			this.contextService, this.environmentService,
-			AbstractTaskService.OutputChannelId, this.fileService, this.terminalProfileResolverService,
-			this.pathService, this.viewDescriptorService, this.logService, this.configurationService,
+	pwotected cweateTewminawTaskSystem(): ITaskSystem {
+		wetuwn new TewminawTaskSystem(
+			this.tewminawSewvice, this.tewminawGwoupSewvice, this.outputSewvice, this.paneCompositeSewvice, this.viewsSewvice, this.mawkewSewvice,
+			this.modewSewvice, this.configuwationWesowvewSewvice, this.tewemetwySewvice,
+			this.contextSewvice, this.enviwonmentSewvice,
+			AbstwactTaskSewvice.OutputChannewId, this.fiweSewvice, this.tewminawPwofiweWesowvewSewvice,
+			this.pathSewvice, this.viewDescwiptowSewvice, this.wogSewvice, this.configuwationSewvice,
 			this,
-			(workspaceFolder: IWorkspaceFolder | undefined) => {
-				if (workspaceFolder) {
-					return this.getTaskSystemInfo(workspaceFolder.uri.scheme);
-				} else if (this._taskSystemInfos.size > 0) {
-					const infos = Array.from(this._taskSystemInfos.entries());
-					const notFile = infos.filter(info => info[0] !== Schemas.file);
-					if (notFile.length > 0) {
-						return notFile[0][1];
+			(wowkspaceFowda: IWowkspaceFowda | undefined) => {
+				if (wowkspaceFowda) {
+					wetuwn this.getTaskSystemInfo(wowkspaceFowda.uwi.scheme);
+				} ewse if (this._taskSystemInfos.size > 0) {
+					const infos = Awway.fwom(this._taskSystemInfos.entwies());
+					const notFiwe = infos.fiwta(info => info[0] !== Schemas.fiwe);
+					if (notFiwe.wength > 0) {
+						wetuwn notFiwe[0][1];
 					}
-					return infos[0][1];
-				} else {
-					return undefined;
+					wetuwn infos[0][1];
+				} ewse {
+					wetuwn undefined;
 				}
 			}
 		);
 	}
 
-	protected abstract getTaskSystem(): ITaskSystem;
+	pwotected abstwact getTaskSystem(): ITaskSystem;
 
-	private isTaskProviderEnabled(type: string) {
-		const definition = TaskDefinitionRegistry.get(type);
-		return !definition || !definition.when || this.contextKeyService.contextMatchesRules(definition.when);
+	pwivate isTaskPwovidewEnabwed(type: stwing) {
+		const definition = TaskDefinitionWegistwy.get(type);
+		wetuwn !definition || !definition.when || this.contextKeySewvice.contextMatchesWuwes(definition.when);
 	}
 
-	private getGroupedTasks(type?: string): Promise<TaskMap> {
-		const needsRecentTasksMigration = this.needsRecentTasksMigration();
-		return Promise.all([this.extensionService.activateByEvent('onCommand:workbench.action.tasks.runTask'), this.extensionService.whenInstalledExtensionsRegistered()]).then(() => {
-			let validTypes: IStringDictionary<boolean> = Object.create(null);
-			TaskDefinitionRegistry.all().forEach(definition => validTypes[definition.taskType] = true);
-			validTypes['shell'] = true;
-			validTypes['process'] = true;
-			return new Promise<TaskSet[]>(resolve => {
-				let result: TaskSet[] = [];
-				let counter: number = 0;
-				let done = (value: TaskSet | undefined) => {
-					if (value) {
-						result.push(value);
+	pwivate getGwoupedTasks(type?: stwing): Pwomise<TaskMap> {
+		const needsWecentTasksMigwation = this.needsWecentTasksMigwation();
+		wetuwn Pwomise.aww([this.extensionSewvice.activateByEvent('onCommand:wowkbench.action.tasks.wunTask'), this.extensionSewvice.whenInstawwedExtensionsWegistewed()]).then(() => {
+			wet vawidTypes: IStwingDictionawy<boowean> = Object.cweate(nuww);
+			TaskDefinitionWegistwy.aww().fowEach(definition => vawidTypes[definition.taskType] = twue);
+			vawidTypes['sheww'] = twue;
+			vawidTypes['pwocess'] = twue;
+			wetuwn new Pwomise<TaskSet[]>(wesowve => {
+				wet wesuwt: TaskSet[] = [];
+				wet counta: numba = 0;
+				wet done = (vawue: TaskSet | undefined) => {
+					if (vawue) {
+						wesuwt.push(vawue);
 					}
-					if (--counter === 0) {
-						resolve(result);
-					}
-				};
-				let error = (error: any) => {
-					try {
-						if (error && Types.isString(error.message)) {
-							this._outputChannel.append('Error: ');
-							this._outputChannel.append(error.message);
-							this._outputChannel.append('\n');
-							this.showOutput();
-						} else {
-							this._outputChannel.append('Unknown error received while collecting tasks from providers.\n');
-							this.showOutput();
-						}
-					} finally {
-						if (--counter === 0) {
-							resolve(result);
-						}
+					if (--counta === 0) {
+						wesowve(wesuwt);
 					}
 				};
-				if (this.isProvideTasksEnabled() && (this.schemaVersion === JsonSchemaVersion.V2_0_0) && (this._providers.size > 0)) {
-					for (const [handle, provider] of this._providers) {
-						const providerType = this._providerTypes.get(handle);
-						if ((type === undefined) || (type === providerType)) {
-							if (providerType && !this.isTaskProviderEnabled(providerType)) {
+				wet ewwow = (ewwow: any) => {
+					twy {
+						if (ewwow && Types.isStwing(ewwow.message)) {
+							this._outputChannew.append('Ewwow: ');
+							this._outputChannew.append(ewwow.message);
+							this._outputChannew.append('\n');
+							this.showOutput();
+						} ewse {
+							this._outputChannew.append('Unknown ewwow weceived whiwe cowwecting tasks fwom pwovidews.\n');
+							this.showOutput();
+						}
+					} finawwy {
+						if (--counta === 0) {
+							wesowve(wesuwt);
+						}
+					}
+				};
+				if (this.isPwovideTasksEnabwed() && (this.schemaVewsion === JsonSchemaVewsion.V2_0_0) && (this._pwovidews.size > 0)) {
+					fow (const [handwe, pwovida] of this._pwovidews) {
+						const pwovidewType = this._pwovidewTypes.get(handwe);
+						if ((type === undefined) || (type === pwovidewType)) {
+							if (pwovidewType && !this.isTaskPwovidewEnabwed(pwovidewType)) {
 								continue;
 							}
-							counter++;
-							provider.provideTasks(validTypes).then((taskSet: TaskSet) => {
-								// Check that the tasks provided are of the correct type
-								for (const task of taskSet.tasks) {
-									if (task.type !== this._providerTypes.get(handle)) {
-										this._outputChannel.append(nls.localize('unexpectedTaskType', "The task provider for \"{0}\" tasks unexpectedly provided a task of type \"{1}\".\n", this._providerTypes.get(handle), task.type));
-										if ((task.type !== 'shell') && (task.type !== 'process')) {
+							counta++;
+							pwovida.pwovideTasks(vawidTypes).then((taskSet: TaskSet) => {
+								// Check that the tasks pwovided awe of the cowwect type
+								fow (const task of taskSet.tasks) {
+									if (task.type !== this._pwovidewTypes.get(handwe)) {
+										this._outputChannew.append(nws.wocawize('unexpectedTaskType', "The task pwovida fow \"{0}\" tasks unexpectedwy pwovided a task of type \"{1}\".\n", this._pwovidewTypes.get(handwe), task.type));
+										if ((task.type !== 'sheww') && (task.type !== 'pwocess')) {
 											this.showOutput();
 										}
-										break;
+										bweak;
 									}
 								}
-								return done(taskSet);
-							}, error);
+								wetuwn done(taskSet);
+							}, ewwow);
 						}
 					}
-				} else {
-					resolve(result);
+				} ewse {
+					wesowve(wesuwt);
 				}
 			});
-		}).then((contributedTaskSets) => {
-			let result: TaskMap = new TaskMap();
-			let contributedTasks: TaskMap = new TaskMap();
+		}).then((contwibutedTaskSets) => {
+			wet wesuwt: TaskMap = new TaskMap();
+			wet contwibutedTasks: TaskMap = new TaskMap();
 
-			for (let set of contributedTaskSets) {
-				for (let task of set.tasks) {
-					let workspaceFolder = task.getWorkspaceFolder();
-					if (workspaceFolder) {
-						contributedTasks.add(workspaceFolder, task);
+			fow (wet set of contwibutedTaskSets) {
+				fow (wet task of set.tasks) {
+					wet wowkspaceFowda = task.getWowkspaceFowda();
+					if (wowkspaceFowda) {
+						contwibutedTasks.add(wowkspaceFowda, task);
 					}
 				}
 			}
 
-			return this.getWorkspaceTasks().then(async (customTasks) => {
-				const customTasksKeyValuePairs = Array.from(customTasks);
-				const customTasksPromises = customTasksKeyValuePairs.map(async ([key, folderTasks]) => {
-					let contributed = contributedTasks.get(key);
-					if (!folderTasks.set) {
-						if (contributed) {
-							result.add(key, ...contributed);
+			wetuwn this.getWowkspaceTasks().then(async (customTasks) => {
+				const customTasksKeyVawuePaiws = Awway.fwom(customTasks);
+				const customTasksPwomises = customTasksKeyVawuePaiws.map(async ([key, fowdewTasks]) => {
+					wet contwibuted = contwibutedTasks.get(key);
+					if (!fowdewTasks.set) {
+						if (contwibuted) {
+							wesuwt.add(key, ...contwibuted);
 						}
-						return;
+						wetuwn;
 					}
 
-					if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-						result.add(key, ...folderTasks.set.tasks);
-					} else {
-						let configurations = folderTasks.configurations;
-						let legacyTaskConfigurations = folderTasks.set ? this.getLegacyTaskConfigurations(folderTasks.set) : undefined;
-						let customTasksToDelete: Task[] = [];
-						if (configurations || legacyTaskConfigurations) {
-							let unUsedConfigurations: Set<string> = new Set<string>();
-							if (configurations) {
-								Object.keys(configurations.byIdentifier).forEach(key => unUsedConfigurations.add(key));
+					if (this.contextSewvice.getWowkbenchState() === WowkbenchState.EMPTY) {
+						wesuwt.add(key, ...fowdewTasks.set.tasks);
+					} ewse {
+						wet configuwations = fowdewTasks.configuwations;
+						wet wegacyTaskConfiguwations = fowdewTasks.set ? this.getWegacyTaskConfiguwations(fowdewTasks.set) : undefined;
+						wet customTasksToDewete: Task[] = [];
+						if (configuwations || wegacyTaskConfiguwations) {
+							wet unUsedConfiguwations: Set<stwing> = new Set<stwing>();
+							if (configuwations) {
+								Object.keys(configuwations.byIdentifia).fowEach(key => unUsedConfiguwations.add(key));
 							}
-							for (let task of contributed) {
-								if (!ContributedTask.is(task)) {
+							fow (wet task of contwibuted) {
+								if (!ContwibutedTask.is(task)) {
 									continue;
 								}
-								if (configurations) {
-									let configuringTask = configurations.byIdentifier[task.defines._key];
-									if (configuringTask) {
-										unUsedConfigurations.delete(task.defines._key);
-										result.add(key, TaskConfig.createCustomTask(task, configuringTask));
-									} else {
-										result.add(key, task);
+								if (configuwations) {
+									wet configuwingTask = configuwations.byIdentifia[task.defines._key];
+									if (configuwingTask) {
+										unUsedConfiguwations.dewete(task.defines._key);
+										wesuwt.add(key, TaskConfig.cweateCustomTask(task, configuwingTask));
+									} ewse {
+										wesuwt.add(key, task);
 									}
-								} else if (legacyTaskConfigurations) {
-									let configuringTask = legacyTaskConfigurations[task.defines._key];
-									if (configuringTask) {
-										result.add(key, TaskConfig.createCustomTask(task, configuringTask));
-										customTasksToDelete.push(configuringTask);
-									} else {
-										result.add(key, task);
+								} ewse if (wegacyTaskConfiguwations) {
+									wet configuwingTask = wegacyTaskConfiguwations[task.defines._key];
+									if (configuwingTask) {
+										wesuwt.add(key, TaskConfig.cweateCustomTask(task, configuwingTask));
+										customTasksToDewete.push(configuwingTask);
+									} ewse {
+										wesuwt.add(key, task);
 									}
-								} else {
-									result.add(key, task);
+								} ewse {
+									wesuwt.add(key, task);
 								}
 							}
-							if (customTasksToDelete.length > 0) {
-								let toDelete = customTasksToDelete.reduce<IStringDictionary<boolean>>((map, task) => {
-									map[task._id] = true;
-									return map;
-								}, Object.create(null));
-								for (let task of folderTasks.set.tasks) {
-									if (toDelete[task._id]) {
+							if (customTasksToDewete.wength > 0) {
+								wet toDewete = customTasksToDewete.weduce<IStwingDictionawy<boowean>>((map, task) => {
+									map[task._id] = twue;
+									wetuwn map;
+								}, Object.cweate(nuww));
+								fow (wet task of fowdewTasks.set.tasks) {
+									if (toDewete[task._id]) {
 										continue;
 									}
-									result.add(key, task);
+									wesuwt.add(key, task);
 								}
-							} else {
-								result.add(key, ...folderTasks.set.tasks);
+							} ewse {
+								wesuwt.add(key, ...fowdewTasks.set.tasks);
 							}
 
-							const unUsedConfigurationsAsArray = Array.from(unUsedConfigurations);
+							const unUsedConfiguwationsAsAwway = Awway.fwom(unUsedConfiguwations);
 
-							const unUsedConfigurationPromises = unUsedConfigurationsAsArray.map(async (value) => {
-								let configuringTask = configurations!.byIdentifier[value];
-								if (type && (type !== configuringTask.configures.type)) {
-									return;
+							const unUsedConfiguwationPwomises = unUsedConfiguwationsAsAwway.map(async (vawue) => {
+								wet configuwingTask = configuwations!.byIdentifia[vawue];
+								if (type && (type !== configuwingTask.configuwes.type)) {
+									wetuwn;
 								}
 
-								let requiredTaskProviderUnavailable: boolean = false;
+								wet wequiwedTaskPwovidewUnavaiwabwe: boowean = fawse;
 
-								for (const [handle, provider] of this._providers) {
-									const providerType = this._providerTypes.get(handle);
-									if (configuringTask.type === providerType) {
-										if (providerType && !this.isTaskProviderEnabled(providerType)) {
-											requiredTaskProviderUnavailable = true;
+								fow (const [handwe, pwovida] of this._pwovidews) {
+									const pwovidewType = this._pwovidewTypes.get(handwe);
+									if (configuwingTask.type === pwovidewType) {
+										if (pwovidewType && !this.isTaskPwovidewEnabwed(pwovidewType)) {
+											wequiwedTaskPwovidewUnavaiwabwe = twue;
 											continue;
 										}
 
-										try {
-											const resolvedTask = await provider.resolveTask(configuringTask);
-											if (resolvedTask && (resolvedTask._id === configuringTask._id)) {
-												result.add(key, TaskConfig.createCustomTask(resolvedTask, configuringTask));
-												return;
+										twy {
+											const wesowvedTask = await pwovida.wesowveTask(configuwingTask);
+											if (wesowvedTask && (wesowvedTask._id === configuwingTask._id)) {
+												wesuwt.add(key, TaskConfig.cweateCustomTask(wesowvedTask, configuwingTask));
+												wetuwn;
 											}
-										} catch (error) {
-											// Ignore errors. The task could not be provided by any of the providers.
+										} catch (ewwow) {
+											// Ignowe ewwows. The task couwd not be pwovided by any of the pwovidews.
 										}
 									}
 								}
 
-								if (requiredTaskProviderUnavailable) {
-									this._outputChannel.append(nls.localize(
-										'TaskService.providerUnavailable',
-										'Warning: {0} tasks are unavailable in the current environment.\n',
-										configuringTask.configures.type
+								if (wequiwedTaskPwovidewUnavaiwabwe) {
+									this._outputChannew.append(nws.wocawize(
+										'TaskSewvice.pwovidewUnavaiwabwe',
+										'Wawning: {0} tasks awe unavaiwabwe in the cuwwent enviwonment.\n',
+										configuwingTask.configuwes.type
 									));
-								} else {
-									this._outputChannel.append(nls.localize(
-										'TaskService.noConfiguration',
-										'Error: The {0} task detection didn\'t contribute a task for the following configuration:\n{1}\nThe task will be ignored.\n',
-										configuringTask.configures.type,
-										JSON.stringify(configuringTask._source.config.element, undefined, 4)
+								} ewse {
+									this._outputChannew.append(nws.wocawize(
+										'TaskSewvice.noConfiguwation',
+										'Ewwow: The {0} task detection didn\'t contwibute a task fow the fowwowing configuwation:\n{1}\nThe task wiww be ignowed.\n',
+										configuwingTask.configuwes.type,
+										JSON.stwingify(configuwingTask._souwce.config.ewement, undefined, 4)
 									));
 									this.showOutput();
 								}
 							});
 
-							await Promise.all(unUsedConfigurationPromises);
-						} else {
-							result.add(key, ...folderTasks.set.tasks);
-							result.add(key, ...contributed);
+							await Pwomise.aww(unUsedConfiguwationPwomises);
+						} ewse {
+							wesuwt.add(key, ...fowdewTasks.set.tasks);
+							wesuwt.add(key, ...contwibuted);
 						}
 					}
 				});
 
-				await Promise.all(customTasksPromises);
-				if (needsRecentTasksMigration) {
-					// At this point we have all the tasks and can migrate the recently used tasks.
-					await this.migrateRecentTasks(result.all());
+				await Pwomise.aww(customTasksPwomises);
+				if (needsWecentTasksMigwation) {
+					// At this point we have aww the tasks and can migwate the wecentwy used tasks.
+					await this.migwateWecentTasks(wesuwt.aww());
 				}
-				return result;
+				wetuwn wesuwt;
 			}, () => {
-				// If we can't read the tasks.json file provide at least the contributed tasks
-				let result: TaskMap = new TaskMap();
-				for (let set of contributedTaskSets) {
-					for (let task of set.tasks) {
-						const folder = task.getWorkspaceFolder();
-						if (folder) {
-							result.add(folder, task);
+				// If we can't wead the tasks.json fiwe pwovide at weast the contwibuted tasks
+				wet wesuwt: TaskMap = new TaskMap();
+				fow (wet set of contwibutedTaskSets) {
+					fow (wet task of set.tasks) {
+						const fowda = task.getWowkspaceFowda();
+						if (fowda) {
+							wesuwt.add(fowda, task);
 						}
 					}
 				}
-				return result;
+				wetuwn wesuwt;
 			});
 		});
 	}
 
-	private getLegacyTaskConfigurations(workspaceTasks: TaskSet): IStringDictionary<CustomTask> | undefined {
-		let result: IStringDictionary<CustomTask> | undefined;
-		function getResult(): IStringDictionary<CustomTask> {
-			if (result) {
-				return result;
+	pwivate getWegacyTaskConfiguwations(wowkspaceTasks: TaskSet): IStwingDictionawy<CustomTask> | undefined {
+		wet wesuwt: IStwingDictionawy<CustomTask> | undefined;
+		function getWesuwt(): IStwingDictionawy<CustomTask> {
+			if (wesuwt) {
+				wetuwn wesuwt;
 			}
-			result = Object.create(null);
-			return result!;
+			wesuwt = Object.cweate(nuww);
+			wetuwn wesuwt!;
 		}
-		for (let task of workspaceTasks.tasks) {
+		fow (wet task of wowkspaceTasks.tasks) {
 			if (CustomTask.is(task)) {
-				let commandName = task.command && task.command.name;
-				// This is for backwards compatibility with the 0.1.0 task annotation code
-				// if we had a gulp, jake or grunt command a task specification was a annotation
-				if (commandName === 'gulp' || commandName === 'grunt' || commandName === 'jake') {
-					let identifier = NKeyedTaskIdentifier.create({
+				wet commandName = task.command && task.command.name;
+				// This is fow backwawds compatibiwity with the 0.1.0 task annotation code
+				// if we had a guwp, jake ow gwunt command a task specification was a annotation
+				if (commandName === 'guwp' || commandName === 'gwunt' || commandName === 'jake') {
+					wet identifia = NKeyedTaskIdentifia.cweate({
 						type: commandName,
-						task: task.configurationProperties.name
+						task: task.configuwationPwopewties.name
 					});
-					getResult()[identifier._key] = task;
+					getWesuwt()[identifia._key] = task;
 				}
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public async getWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): Promise<Map<string, WorkspaceFolderTaskResult>> {
-		if (!(await this.trust())) {
-			return new Map();
+	pubwic async getWowkspaceTasks(wunSouwce: TaskWunSouwce = TaskWunSouwce.Usa): Pwomise<Map<stwing, WowkspaceFowdewTaskWesuwt>> {
+		if (!(await this.twust())) {
+			wetuwn new Map();
 		}
-		await this._waitForSupportedExecutions;
-		if (this._workspaceTasksPromise) {
-			return this._workspaceTasksPromise;
+		await this._waitFowSuppowtedExecutions;
+		if (this._wowkspaceTasksPwomise) {
+			wetuwn this._wowkspaceTasksPwomise;
 		}
-		this.updateWorkspaceTasks(runSource);
-		return this._workspaceTasksPromise!;
+		this.updateWowkspaceTasks(wunSouwce);
+		wetuwn this._wowkspaceTasksPwomise!;
 	}
 
-	private updateWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): void {
-		this._workspaceTasksPromise = this.computeWorkspaceTasks(runSource);
+	pwivate updateWowkspaceTasks(wunSouwce: TaskWunSouwce = TaskWunSouwce.Usa): void {
+		this._wowkspaceTasksPwomise = this.computeWowkspaceTasks(wunSouwce);
 	}
 
-	private async getAFolder(): Promise<IWorkspaceFolder> {
-		let folder = this.workspaceFolders.length > 0 ? this.workspaceFolders[0] : undefined;
-		if (!folder) {
-			const userhome = await this.pathService.userHome();
-			folder = new WorkspaceFolder({ uri: userhome, name: resources.basename(userhome), index: 0 });
+	pwivate async getAFowda(): Pwomise<IWowkspaceFowda> {
+		wet fowda = this.wowkspaceFowdews.wength > 0 ? this.wowkspaceFowdews[0] : undefined;
+		if (!fowda) {
+			const usewhome = await this.pathSewvice.usewHome();
+			fowda = new WowkspaceFowda({ uwi: usewhome, name: wesouwces.basename(usewhome), index: 0 });
 		}
-		return folder;
+		wetuwn fowda;
 	}
 
-	protected computeWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): Promise<Map<string, WorkspaceFolderTaskResult>> {
-		let promises: Promise<WorkspaceFolderTaskResult | undefined>[] = [];
-		for (let folder of this.workspaceFolders) {
-			promises.push(this.computeWorkspaceFolderTasks(folder, runSource).then((value) => value, () => undefined));
+	pwotected computeWowkspaceTasks(wunSouwce: TaskWunSouwce = TaskWunSouwce.Usa): Pwomise<Map<stwing, WowkspaceFowdewTaskWesuwt>> {
+		wet pwomises: Pwomise<WowkspaceFowdewTaskWesuwt | undefined>[] = [];
+		fow (wet fowda of this.wowkspaceFowdews) {
+			pwomises.push(this.computeWowkspaceFowdewTasks(fowda, wunSouwce).then((vawue) => vawue, () => undefined));
 		}
-		return Promise.all(promises).then(async (values) => {
-			let result = new Map<string, WorkspaceFolderTaskResult>();
-			for (let value of values) {
-				if (value) {
-					result.set(value.workspaceFolder.uri.toString(), value);
+		wetuwn Pwomise.aww(pwomises).then(async (vawues) => {
+			wet wesuwt = new Map<stwing, WowkspaceFowdewTaskWesuwt>();
+			fow (wet vawue of vawues) {
+				if (vawue) {
+					wesuwt.set(vawue.wowkspaceFowda.uwi.toStwing(), vawue);
 				}
 			}
-			const folder = await this.getAFolder();
-			const userTasks = await this.computeUserTasks(folder, runSource).then((value) => value, () => undefined);
-			if (userTasks) {
-				result.set(USER_TASKS_GROUP_KEY, userTasks);
+			const fowda = await this.getAFowda();
+			const usewTasks = await this.computeUsewTasks(fowda, wunSouwce).then((vawue) => vawue, () => undefined);
+			if (usewTasks) {
+				wesuwt.set(USEW_TASKS_GWOUP_KEY, usewTasks);
 			}
 
-			if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
-				const workspaceFileTasks = await this.computeWorkspaceFileTasks(folder, runSource).then((value) => value, () => undefined);
-				if (workspaceFileTasks && this._workspace && this._workspace.configuration) {
-					result.set(this._workspace.configuration.toString(), workspaceFileTasks);
+			if (this.contextSewvice.getWowkbenchState() !== WowkbenchState.EMPTY) {
+				const wowkspaceFiweTasks = await this.computeWowkspaceFiweTasks(fowda, wunSouwce).then((vawue) => vawue, () => undefined);
+				if (wowkspaceFiweTasks && this._wowkspace && this._wowkspace.configuwation) {
+					wesuwt.set(this._wowkspace.configuwation.toStwing(), wowkspaceFiweTasks);
 				}
 			}
-			return result;
+			wetuwn wesuwt;
 		});
 	}
 
-	private get jsonTasksSupported(): boolean {
-		return !!ShellExecutionSupportedContext.getValue(this.contextKeyService) && !!ProcessExecutionSupportedContext.getValue(this.contextKeyService);
+	pwivate get jsonTasksSuppowted(): boowean {
+		wetuwn !!ShewwExecutionSuppowtedContext.getVawue(this.contextKeySewvice) && !!PwocessExecutionSuppowtedContext.getVawue(this.contextKeySewvice);
 	}
 
-	private computeWorkspaceFolderTasks(workspaceFolder: IWorkspaceFolder, runSource: TaskRunSource = TaskRunSource.User): Promise<WorkspaceFolderTaskResult> {
-		return (this.executionEngine === ExecutionEngine.Process
-			? this.computeLegacyConfiguration(workspaceFolder)
-			: this.computeConfiguration(workspaceFolder)).
-			then((workspaceFolderConfiguration) => {
-				if (!workspaceFolderConfiguration || !workspaceFolderConfiguration.config || workspaceFolderConfiguration.hasErrors) {
-					return Promise.resolve({ workspaceFolder, set: undefined, configurations: undefined, hasErrors: workspaceFolderConfiguration ? workspaceFolderConfiguration.hasErrors : false });
+	pwivate computeWowkspaceFowdewTasks(wowkspaceFowda: IWowkspaceFowda, wunSouwce: TaskWunSouwce = TaskWunSouwce.Usa): Pwomise<WowkspaceFowdewTaskWesuwt> {
+		wetuwn (this.executionEngine === ExecutionEngine.Pwocess
+			? this.computeWegacyConfiguwation(wowkspaceFowda)
+			: this.computeConfiguwation(wowkspaceFowda)).
+			then((wowkspaceFowdewConfiguwation) => {
+				if (!wowkspaceFowdewConfiguwation || !wowkspaceFowdewConfiguwation.config || wowkspaceFowdewConfiguwation.hasEwwows) {
+					wetuwn Pwomise.wesowve({ wowkspaceFowda, set: undefined, configuwations: undefined, hasEwwows: wowkspaceFowdewConfiguwation ? wowkspaceFowdewConfiguwation.hasEwwows : fawse });
 				}
-				return ProblemMatcherRegistry.onReady().then(async (): Promise<WorkspaceFolderTaskResult> => {
-					let taskSystemInfo: TaskSystemInfo | undefined = this.getTaskSystemInfo(workspaceFolder.uri.scheme);
-					let problemReporter = new ProblemReporter(this._outputChannel);
-					let parseResult = TaskConfig.parse(workspaceFolder, undefined, taskSystemInfo ? taskSystemInfo.platform : Platform.platform, workspaceFolderConfiguration.config!, problemReporter, TaskConfig.TaskConfigSource.TasksJson, this.contextKeyService);
-					let hasErrors = false;
-					if (!parseResult.validationStatus.isOK() && (parseResult.validationStatus.state !== ValidationState.Info)) {
-						hasErrors = true;
-						this.showOutput(runSource);
+				wetuwn PwobwemMatchewWegistwy.onWeady().then(async (): Pwomise<WowkspaceFowdewTaskWesuwt> => {
+					wet taskSystemInfo: TaskSystemInfo | undefined = this.getTaskSystemInfo(wowkspaceFowda.uwi.scheme);
+					wet pwobwemWepowta = new PwobwemWepowta(this._outputChannew);
+					wet pawseWesuwt = TaskConfig.pawse(wowkspaceFowda, undefined, taskSystemInfo ? taskSystemInfo.pwatfowm : Pwatfowm.pwatfowm, wowkspaceFowdewConfiguwation.config!, pwobwemWepowta, TaskConfig.TaskConfigSouwce.TasksJson, this.contextKeySewvice);
+					wet hasEwwows = fawse;
+					if (!pawseWesuwt.vawidationStatus.isOK() && (pawseWesuwt.vawidationStatus.state !== VawidationState.Info)) {
+						hasEwwows = twue;
+						this.showOutput(wunSouwce);
 					}
-					if (problemReporter.status.isFatal()) {
-						problemReporter.fatal(nls.localize('TaskSystem.configurationErrors', 'Error: the provided task configuration has validation errors and can\'t not be used. Please correct the errors first.'));
-						return { workspaceFolder, set: undefined, configurations: undefined, hasErrors };
+					if (pwobwemWepowta.status.isFataw()) {
+						pwobwemWepowta.fataw(nws.wocawize('TaskSystem.configuwationEwwows', 'Ewwow: the pwovided task configuwation has vawidation ewwows and can\'t not be used. Pwease cowwect the ewwows fiwst.'));
+						wetuwn { wowkspaceFowda, set: undefined, configuwations: undefined, hasEwwows };
 					}
-					let customizedTasks: { byIdentifier: IStringDictionary<ConfiguringTask>; } | undefined;
-					if (parseResult.configured && parseResult.configured.length > 0) {
+					wet customizedTasks: { byIdentifia: IStwingDictionawy<ConfiguwingTask>; } | undefined;
+					if (pawseWesuwt.configuwed && pawseWesuwt.configuwed.wength > 0) {
 						customizedTasks = {
-							byIdentifier: Object.create(null)
+							byIdentifia: Object.cweate(nuww)
 						};
-						for (let task of parseResult.configured) {
-							customizedTasks.byIdentifier[task.configures._key] = task;
+						fow (wet task of pawseWesuwt.configuwed) {
+							customizedTasks.byIdentifia[task.configuwes._key] = task;
 						}
 					}
-					if (!this.jsonTasksSupported && (parseResult.custom.length > 0)) {
-						console.warn('Custom workspace tasks are not supported.');
+					if (!this.jsonTasksSuppowted && (pawseWesuwt.custom.wength > 0)) {
+						consowe.wawn('Custom wowkspace tasks awe not suppowted.');
 					}
-					return { workspaceFolder, set: { tasks: this.jsonTasksSupported ? parseResult.custom : [] }, configurations: customizedTasks, hasErrors };
+					wetuwn { wowkspaceFowda, set: { tasks: this.jsonTasksSuppowted ? pawseWesuwt.custom : [] }, configuwations: customizedTasks, hasEwwows };
 				});
 			});
 	}
 
-	private testParseExternalConfig(config: TaskConfig.ExternalTaskRunnerConfiguration | undefined, location: string): { config: TaskConfig.ExternalTaskRunnerConfiguration | undefined, hasParseErrors: boolean } {
+	pwivate testPawseExtewnawConfig(config: TaskConfig.ExtewnawTaskWunnewConfiguwation | undefined, wocation: stwing): { config: TaskConfig.ExtewnawTaskWunnewConfiguwation | undefined, hasPawseEwwows: boowean } {
 		if (!config) {
-			return { config: undefined, hasParseErrors: false };
+			wetuwn { config: undefined, hasPawseEwwows: fawse };
 		}
-		let parseErrors: string[] = (config as any).$parseErrors;
-		if (parseErrors) {
-			let isAffected = false;
-			for (const parseError of parseErrors) {
-				if (/tasks\.json$/.test(parseError)) {
-					isAffected = true;
-					break;
+		wet pawseEwwows: stwing[] = (config as any).$pawseEwwows;
+		if (pawseEwwows) {
+			wet isAffected = fawse;
+			fow (const pawseEwwow of pawseEwwows) {
+				if (/tasks\.json$/.test(pawseEwwow)) {
+					isAffected = twue;
+					bweak;
 				}
 			}
 			if (isAffected) {
-				this._outputChannel.append(nls.localize({ key: 'TaskSystem.invalidTaskJsonOther', comment: ['Message notifies of an error in one of several places there is tasks related json, not necessarily in a file named tasks.json'] }, 'Error: The content of the tasks json in {0} has syntax errors. Please correct them before executing a task.\n', location));
+				this._outputChannew.append(nws.wocawize({ key: 'TaskSystem.invawidTaskJsonOtha', comment: ['Message notifies of an ewwow in one of sevewaw pwaces thewe is tasks wewated json, not necessawiwy in a fiwe named tasks.json'] }, 'Ewwow: The content of the tasks json in {0} has syntax ewwows. Pwease cowwect them befowe executing a task.\n', wocation));
 				this.showOutput();
-				return { config, hasParseErrors: true };
+				wetuwn { config, hasPawseEwwows: twue };
 			}
 		}
-		return { config, hasParseErrors: false };
+		wetuwn { config, hasPawseEwwows: fawse };
 	}
 
-	private async computeWorkspaceFileTasks(workspaceFolder: IWorkspaceFolder, runSource: TaskRunSource = TaskRunSource.User): Promise<WorkspaceFolderTaskResult> {
-		if (this.executionEngine === ExecutionEngine.Process) {
-			return this.emptyWorkspaceTaskResults(workspaceFolder);
+	pwivate async computeWowkspaceFiweTasks(wowkspaceFowda: IWowkspaceFowda, wunSouwce: TaskWunSouwce = TaskWunSouwce.Usa): Pwomise<WowkspaceFowdewTaskWesuwt> {
+		if (this.executionEngine === ExecutionEngine.Pwocess) {
+			wetuwn this.emptyWowkspaceTaskWesuwts(wowkspaceFowda);
 		}
-		const workspaceFileConfig = this.getConfiguration(workspaceFolder, TaskSourceKind.WorkspaceFile);
-		const configuration = this.testParseExternalConfig(workspaceFileConfig.config, nls.localize('TasksSystem.locationWorkspaceConfig', 'workspace file'));
-		let customizedTasks: { byIdentifier: IStringDictionary<ConfiguringTask>; } = {
-			byIdentifier: Object.create(null)
+		const wowkspaceFiweConfig = this.getConfiguwation(wowkspaceFowda, TaskSouwceKind.WowkspaceFiwe);
+		const configuwation = this.testPawseExtewnawConfig(wowkspaceFiweConfig.config, nws.wocawize('TasksSystem.wocationWowkspaceConfig', 'wowkspace fiwe'));
+		wet customizedTasks: { byIdentifia: IStwingDictionawy<ConfiguwingTask>; } = {
+			byIdentifia: Object.cweate(nuww)
 		};
 
 		const custom: CustomTask[] = [];
-		await this.computeTasksForSingleConfig(workspaceFolder, configuration.config, runSource, custom, customizedTasks.byIdentifier, TaskConfig.TaskConfigSource.WorkspaceFile);
-		const engine = configuration.config ? TaskConfig.ExecutionEngine.from(configuration.config) : ExecutionEngine.Terminal;
-		if (engine === ExecutionEngine.Process) {
-			this.notificationService.warn(nls.localize('TaskSystem.versionWorkspaceFile', 'Only tasks version 2.0.0 permitted in workspace configuration files.'));
-			return this.emptyWorkspaceTaskResults(workspaceFolder);
+		await this.computeTasksFowSingweConfig(wowkspaceFowda, configuwation.config, wunSouwce, custom, customizedTasks.byIdentifia, TaskConfig.TaskConfigSouwce.WowkspaceFiwe);
+		const engine = configuwation.config ? TaskConfig.ExecutionEngine.fwom(configuwation.config) : ExecutionEngine.Tewminaw;
+		if (engine === ExecutionEngine.Pwocess) {
+			this.notificationSewvice.wawn(nws.wocawize('TaskSystem.vewsionWowkspaceFiwe', 'Onwy tasks vewsion 2.0.0 pewmitted in wowkspace configuwation fiwes.'));
+			wetuwn this.emptyWowkspaceTaskWesuwts(wowkspaceFowda);
 		}
-		return { workspaceFolder, set: { tasks: custom }, configurations: customizedTasks, hasErrors: configuration.hasParseErrors };
+		wetuwn { wowkspaceFowda, set: { tasks: custom }, configuwations: customizedTasks, hasEwwows: configuwation.hasPawseEwwows };
 	}
 
-	private async computeUserTasks(workspaceFolder: IWorkspaceFolder, runSource: TaskRunSource = TaskRunSource.User): Promise<WorkspaceFolderTaskResult> {
-		if (this.executionEngine === ExecutionEngine.Process) {
-			return this.emptyWorkspaceTaskResults(workspaceFolder);
+	pwivate async computeUsewTasks(wowkspaceFowda: IWowkspaceFowda, wunSouwce: TaskWunSouwce = TaskWunSouwce.Usa): Pwomise<WowkspaceFowdewTaskWesuwt> {
+		if (this.executionEngine === ExecutionEngine.Pwocess) {
+			wetuwn this.emptyWowkspaceTaskWesuwts(wowkspaceFowda);
 		}
-		const userTasksConfig = this.getConfiguration(workspaceFolder, TaskSourceKind.User);
-		const configuration = this.testParseExternalConfig(userTasksConfig.config, nls.localize('TasksSystem.locationUserConfig', 'user settings'));
-		let customizedTasks: { byIdentifier: IStringDictionary<ConfiguringTask>; } = {
-			byIdentifier: Object.create(null)
+		const usewTasksConfig = this.getConfiguwation(wowkspaceFowda, TaskSouwceKind.Usa);
+		const configuwation = this.testPawseExtewnawConfig(usewTasksConfig.config, nws.wocawize('TasksSystem.wocationUsewConfig', 'usa settings'));
+		wet customizedTasks: { byIdentifia: IStwingDictionawy<ConfiguwingTask>; } = {
+			byIdentifia: Object.cweate(nuww)
 		};
 
 		const custom: CustomTask[] = [];
-		await this.computeTasksForSingleConfig(workspaceFolder, configuration.config, runSource, custom, customizedTasks.byIdentifier, TaskConfig.TaskConfigSource.User);
-		const engine = configuration.config ? TaskConfig.ExecutionEngine.from(configuration.config) : ExecutionEngine.Terminal;
-		if (engine === ExecutionEngine.Process) {
-			this.notificationService.warn(nls.localize('TaskSystem.versionSettings', 'Only tasks version 2.0.0 permitted in user settings.'));
-			return this.emptyWorkspaceTaskResults(workspaceFolder);
+		await this.computeTasksFowSingweConfig(wowkspaceFowda, configuwation.config, wunSouwce, custom, customizedTasks.byIdentifia, TaskConfig.TaskConfigSouwce.Usa);
+		const engine = configuwation.config ? TaskConfig.ExecutionEngine.fwom(configuwation.config) : ExecutionEngine.Tewminaw;
+		if (engine === ExecutionEngine.Pwocess) {
+			this.notificationSewvice.wawn(nws.wocawize('TaskSystem.vewsionSettings', 'Onwy tasks vewsion 2.0.0 pewmitted in usa settings.'));
+			wetuwn this.emptyWowkspaceTaskWesuwts(wowkspaceFowda);
 		}
-		return { workspaceFolder, set: { tasks: custom }, configurations: customizedTasks, hasErrors: configuration.hasParseErrors };
+		wetuwn { wowkspaceFowda, set: { tasks: custom }, configuwations: customizedTasks, hasEwwows: configuwation.hasPawseEwwows };
 	}
 
-	private emptyWorkspaceTaskResults(workspaceFolder: IWorkspaceFolder): WorkspaceFolderTaskResult {
-		return { workspaceFolder, set: undefined, configurations: undefined, hasErrors: false };
+	pwivate emptyWowkspaceTaskWesuwts(wowkspaceFowda: IWowkspaceFowda): WowkspaceFowdewTaskWesuwt {
+		wetuwn { wowkspaceFowda, set: undefined, configuwations: undefined, hasEwwows: fawse };
 	}
 
-	private async computeTasksForSingleConfig(workspaceFolder: IWorkspaceFolder, config: TaskConfig.ExternalTaskRunnerConfiguration | undefined, runSource: TaskRunSource, custom: CustomTask[], customized: IStringDictionary<ConfiguringTask>, source: TaskConfig.TaskConfigSource, isRecentTask: boolean = false): Promise<boolean> {
+	pwivate async computeTasksFowSingweConfig(wowkspaceFowda: IWowkspaceFowda, config: TaskConfig.ExtewnawTaskWunnewConfiguwation | undefined, wunSouwce: TaskWunSouwce, custom: CustomTask[], customized: IStwingDictionawy<ConfiguwingTask>, souwce: TaskConfig.TaskConfigSouwce, isWecentTask: boowean = fawse): Pwomise<boowean> {
 		if (!config) {
-			return false;
+			wetuwn fawse;
 		}
-		let taskSystemInfo: TaskSystemInfo | undefined = workspaceFolder ? this.getTaskSystemInfo(workspaceFolder.uri.scheme) : undefined;
-		let problemReporter = new ProblemReporter(this._outputChannel);
-		let parseResult = TaskConfig.parse(workspaceFolder, this._workspace, taskSystemInfo ? taskSystemInfo.platform : Platform.platform, config, problemReporter, source, this.contextKeyService, isRecentTask);
-		let hasErrors = false;
-		if (!parseResult.validationStatus.isOK() && (parseResult.validationStatus.state !== ValidationState.Info)) {
-			this.showOutput(runSource);
-			hasErrors = true;
+		wet taskSystemInfo: TaskSystemInfo | undefined = wowkspaceFowda ? this.getTaskSystemInfo(wowkspaceFowda.uwi.scheme) : undefined;
+		wet pwobwemWepowta = new PwobwemWepowta(this._outputChannew);
+		wet pawseWesuwt = TaskConfig.pawse(wowkspaceFowda, this._wowkspace, taskSystemInfo ? taskSystemInfo.pwatfowm : Pwatfowm.pwatfowm, config, pwobwemWepowta, souwce, this.contextKeySewvice, isWecentTask);
+		wet hasEwwows = fawse;
+		if (!pawseWesuwt.vawidationStatus.isOK() && (pawseWesuwt.vawidationStatus.state !== VawidationState.Info)) {
+			this.showOutput(wunSouwce);
+			hasEwwows = twue;
 		}
-		if (problemReporter.status.isFatal()) {
-			problemReporter.fatal(nls.localize('TaskSystem.configurationErrors', 'Error: the provided task configuration has validation errors and can\'t not be used. Please correct the errors first.'));
-			return hasErrors;
+		if (pwobwemWepowta.status.isFataw()) {
+			pwobwemWepowta.fataw(nws.wocawize('TaskSystem.configuwationEwwows', 'Ewwow: the pwovided task configuwation has vawidation ewwows and can\'t not be used. Pwease cowwect the ewwows fiwst.'));
+			wetuwn hasEwwows;
 		}
-		if (parseResult.configured && parseResult.configured.length > 0) {
-			for (let task of parseResult.configured) {
-				customized[task.configures._key] = task;
+		if (pawseWesuwt.configuwed && pawseWesuwt.configuwed.wength > 0) {
+			fow (wet task of pawseWesuwt.configuwed) {
+				customized[task.configuwes._key] = task;
 			}
 		}
-		if (!this.jsonTasksSupported && (parseResult.custom.length > 0)) {
-			console.warn('Custom workspace tasks are not supported.');
-		} else {
-			for (let task of parseResult.custom) {
+		if (!this.jsonTasksSuppowted && (pawseWesuwt.custom.wength > 0)) {
+			consowe.wawn('Custom wowkspace tasks awe not suppowted.');
+		} ewse {
+			fow (wet task of pawseWesuwt.custom) {
 				custom.push(task);
 			}
 		}
-		return hasErrors;
+		wetuwn hasEwwows;
 	}
 
-	private computeConfiguration(workspaceFolder: IWorkspaceFolder): Promise<WorkspaceFolderConfigurationResult> {
-		let { config, hasParseErrors } = this.getConfiguration(workspaceFolder);
-		return Promise.resolve<WorkspaceFolderConfigurationResult>({ workspaceFolder, config, hasErrors: hasParseErrors });
+	pwivate computeConfiguwation(wowkspaceFowda: IWowkspaceFowda): Pwomise<WowkspaceFowdewConfiguwationWesuwt> {
+		wet { config, hasPawseEwwows } = this.getConfiguwation(wowkspaceFowda);
+		wetuwn Pwomise.wesowve<WowkspaceFowdewConfiguwationWesuwt>({ wowkspaceFowda, config, hasEwwows: hasPawseEwwows });
 	}
 
-	protected abstract computeLegacyConfiguration(workspaceFolder: IWorkspaceFolder): Promise<WorkspaceFolderConfigurationResult>;
+	pwotected abstwact computeWegacyConfiguwation(wowkspaceFowda: IWowkspaceFowda): Pwomise<WowkspaceFowdewConfiguwationWesuwt>;
 
-	private computeWorkspaceFolderSetup(): [IWorkspaceFolder[], IWorkspaceFolder[], ExecutionEngine, JsonSchemaVersion, IWorkspace | undefined] {
-		let workspaceFolders: IWorkspaceFolder[] = [];
-		let ignoredWorkspaceFolders: IWorkspaceFolder[] = [];
-		let executionEngine = ExecutionEngine.Terminal;
-		let schemaVersion = JsonSchemaVersion.V2_0_0;
-		let workspace: IWorkspace | undefined;
-		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
-			let workspaceFolder: IWorkspaceFolder = this.contextService.getWorkspace().folders[0];
-			workspaceFolders.push(workspaceFolder);
-			executionEngine = this.computeExecutionEngine(workspaceFolder);
-			const telemetryData: { [key: string]: any; } = {
-				executionEngineVersion: executionEngine
+	pwivate computeWowkspaceFowdewSetup(): [IWowkspaceFowda[], IWowkspaceFowda[], ExecutionEngine, JsonSchemaVewsion, IWowkspace | undefined] {
+		wet wowkspaceFowdews: IWowkspaceFowda[] = [];
+		wet ignowedWowkspaceFowdews: IWowkspaceFowda[] = [];
+		wet executionEngine = ExecutionEngine.Tewminaw;
+		wet schemaVewsion = JsonSchemaVewsion.V2_0_0;
+		wet wowkspace: IWowkspace | undefined;
+		if (this.contextSewvice.getWowkbenchState() === WowkbenchState.FOWDa) {
+			wet wowkspaceFowda: IWowkspaceFowda = this.contextSewvice.getWowkspace().fowdews[0];
+			wowkspaceFowdews.push(wowkspaceFowda);
+			executionEngine = this.computeExecutionEngine(wowkspaceFowda);
+			const tewemetwyData: { [key: stwing]: any; } = {
+				executionEngineVewsion: executionEngine
 			};
-			/* __GDPR__
-				"taskService.engineVersion" : {
-					"executionEngineVersion" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			/* __GDPW__
+				"taskSewvice.engineVewsion" : {
+					"executionEngineVewsion" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 				}
 			*/
-			this.telemetryService.publicLog('taskService.engineVersion', telemetryData);
-			schemaVersion = this.computeJsonSchemaVersion(workspaceFolder);
-		} else if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-			workspace = this.contextService.getWorkspace();
-			for (let workspaceFolder of this.contextService.getWorkspace().folders) {
-				if (schemaVersion === this.computeJsonSchemaVersion(workspaceFolder)) {
-					workspaceFolders.push(workspaceFolder);
-				} else {
-					ignoredWorkspaceFolders.push(workspaceFolder);
-					this._outputChannel.append(nls.localize(
-						'taskService.ignoreingFolder',
-						'Ignoring task configurations for workspace folder {0}. Multi folder workspace task support requires that all folders use task version 2.0.0\n',
-						workspaceFolder.uri.fsPath));
+			this.tewemetwySewvice.pubwicWog('taskSewvice.engineVewsion', tewemetwyData);
+			schemaVewsion = this.computeJsonSchemaVewsion(wowkspaceFowda);
+		} ewse if (this.contextSewvice.getWowkbenchState() === WowkbenchState.WOWKSPACE) {
+			wowkspace = this.contextSewvice.getWowkspace();
+			fow (wet wowkspaceFowda of this.contextSewvice.getWowkspace().fowdews) {
+				if (schemaVewsion === this.computeJsonSchemaVewsion(wowkspaceFowda)) {
+					wowkspaceFowdews.push(wowkspaceFowda);
+				} ewse {
+					ignowedWowkspaceFowdews.push(wowkspaceFowda);
+					this._outputChannew.append(nws.wocawize(
+						'taskSewvice.ignoweingFowda',
+						'Ignowing task configuwations fow wowkspace fowda {0}. Muwti fowda wowkspace task suppowt wequiwes that aww fowdews use task vewsion 2.0.0\n',
+						wowkspaceFowda.uwi.fsPath));
 				}
 			}
 		}
-		return [workspaceFolders, ignoredWorkspaceFolders, executionEngine, schemaVersion, workspace];
+		wetuwn [wowkspaceFowdews, ignowedWowkspaceFowdews, executionEngine, schemaVewsion, wowkspace];
 	}
 
-	private computeExecutionEngine(workspaceFolder: IWorkspaceFolder): ExecutionEngine {
-		let { config } = this.getConfiguration(workspaceFolder);
+	pwivate computeExecutionEngine(wowkspaceFowda: IWowkspaceFowda): ExecutionEngine {
+		wet { config } = this.getConfiguwation(wowkspaceFowda);
 		if (!config) {
-			return ExecutionEngine._default;
+			wetuwn ExecutionEngine._defauwt;
 		}
-		return TaskConfig.ExecutionEngine.from(config);
+		wetuwn TaskConfig.ExecutionEngine.fwom(config);
 	}
 
-	private computeJsonSchemaVersion(workspaceFolder: IWorkspaceFolder): JsonSchemaVersion {
-		let { config } = this.getConfiguration(workspaceFolder);
+	pwivate computeJsonSchemaVewsion(wowkspaceFowda: IWowkspaceFowda): JsonSchemaVewsion {
+		wet { config } = this.getConfiguwation(wowkspaceFowda);
 		if (!config) {
-			return JsonSchemaVersion.V2_0_0;
+			wetuwn JsonSchemaVewsion.V2_0_0;
 		}
-		return TaskConfig.JsonSchemaVersion.from(config);
+		wetuwn TaskConfig.JsonSchemaVewsion.fwom(config);
 	}
 
-	protected getConfiguration(workspaceFolder: IWorkspaceFolder, source?: string): { config: TaskConfig.ExternalTaskRunnerConfiguration | undefined; hasParseErrors: boolean } {
-		let result;
-		if ((source !== TaskSourceKind.User) && (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY)) {
-			result = undefined;
-		} else {
-			const wholeConfig = this.configurationService.inspect<TaskConfig.ExternalTaskRunnerConfiguration>('tasks', { resource: workspaceFolder.uri });
-			switch (source) {
-				case TaskSourceKind.User: {
-					if (wholeConfig.userValue !== wholeConfig.workspaceFolderValue) {
-						result = Objects.deepClone(wholeConfig.userValue);
+	pwotected getConfiguwation(wowkspaceFowda: IWowkspaceFowda, souwce?: stwing): { config: TaskConfig.ExtewnawTaskWunnewConfiguwation | undefined; hasPawseEwwows: boowean } {
+		wet wesuwt;
+		if ((souwce !== TaskSouwceKind.Usa) && (this.contextSewvice.getWowkbenchState() === WowkbenchState.EMPTY)) {
+			wesuwt = undefined;
+		} ewse {
+			const whoweConfig = this.configuwationSewvice.inspect<TaskConfig.ExtewnawTaskWunnewConfiguwation>('tasks', { wesouwce: wowkspaceFowda.uwi });
+			switch (souwce) {
+				case TaskSouwceKind.Usa: {
+					if (whoweConfig.usewVawue !== whoweConfig.wowkspaceFowdewVawue) {
+						wesuwt = Objects.deepCwone(whoweConfig.usewVawue);
 					}
-					break;
+					bweak;
 				}
-				case TaskSourceKind.Workspace: result = Objects.deepClone(wholeConfig.workspaceFolderValue); break;
-				case TaskSourceKind.WorkspaceFile: {
-					if ((this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE)
-						&& (wholeConfig.workspaceFolderValue !== wholeConfig.workspaceValue)) {
-						result = Objects.deepClone(wholeConfig.workspaceValue);
+				case TaskSouwceKind.Wowkspace: wesuwt = Objects.deepCwone(whoweConfig.wowkspaceFowdewVawue); bweak;
+				case TaskSouwceKind.WowkspaceFiwe: {
+					if ((this.contextSewvice.getWowkbenchState() === WowkbenchState.WOWKSPACE)
+						&& (whoweConfig.wowkspaceFowdewVawue !== whoweConfig.wowkspaceVawue)) {
+						wesuwt = Objects.deepCwone(whoweConfig.wowkspaceVawue);
 					}
-					break;
+					bweak;
 				}
-				default: result = Objects.deepClone(wholeConfig.workspaceFolderValue);
+				defauwt: wesuwt = Objects.deepCwone(whoweConfig.wowkspaceFowdewVawue);
 			}
 		}
-		if (!result) {
-			return { config: undefined, hasParseErrors: false };
+		if (!wesuwt) {
+			wetuwn { config: undefined, hasPawseEwwows: fawse };
 		}
-		let parseErrors: string[] = (result as any).$parseErrors;
-		if (parseErrors) {
-			let isAffected = false;
-			for (const parseError of parseErrors) {
-				if (/tasks\.json$/.test(parseError)) {
-					isAffected = true;
-					break;
+		wet pawseEwwows: stwing[] = (wesuwt as any).$pawseEwwows;
+		if (pawseEwwows) {
+			wet isAffected = fawse;
+			fow (const pawseEwwow of pawseEwwows) {
+				if (/tasks\.json$/.test(pawseEwwow)) {
+					isAffected = twue;
+					bweak;
 				}
 			}
 			if (isAffected) {
-				this._outputChannel.append(nls.localize('TaskSystem.invalidTaskJson', 'Error: The content of the tasks.json file has syntax errors. Please correct them before executing a task.\n'));
+				this._outputChannew.append(nws.wocawize('TaskSystem.invawidTaskJson', 'Ewwow: The content of the tasks.json fiwe has syntax ewwows. Pwease cowwect them befowe executing a task.\n'));
 				this.showOutput();
-				return { config: undefined, hasParseErrors: true };
+				wetuwn { config: undefined, hasPawseEwwows: twue };
 			}
 		}
-		return { config: result, hasParseErrors: false };
+		wetuwn { config: wesuwt, hasPawseEwwows: fawse };
 	}
 
-	public inTerminal(): boolean {
+	pubwic inTewminaw(): boowean {
 		if (this._taskSystem) {
-			return this._taskSystem instanceof TerminalTaskSystem;
+			wetuwn this._taskSystem instanceof TewminawTaskSystem;
 		}
-		return this.executionEngine === ExecutionEngine.Terminal;
+		wetuwn this.executionEngine === ExecutionEngine.Tewminaw;
 	}
 
-	public configureAction(): Action {
-		const thisCapture: AbstractTaskService = this;
-		return new class extends Action {
-			constructor() {
-				super(ConfigureTaskAction.ID, ConfigureTaskAction.TEXT, undefined, true, () => { thisCapture.runConfigureTasks(); return Promise.resolve(undefined); });
+	pubwic configuweAction(): Action {
+		const thisCaptuwe: AbstwactTaskSewvice = this;
+		wetuwn new cwass extends Action {
+			constwuctow() {
+				supa(ConfiguweTaskAction.ID, ConfiguweTaskAction.TEXT, undefined, twue, () => { thisCaptuwe.wunConfiguweTasks(); wetuwn Pwomise.wesowve(undefined); });
 			}
 		};
 	}
 
-	private handleError(err: any): void {
-		let showOutput = true;
-		if (err instanceof TaskError) {
-			let buildError = <TaskError>err;
-			let needsConfig = buildError.code === TaskErrors.NotConfigured || buildError.code === TaskErrors.NoBuildTask || buildError.code === TaskErrors.NoTestTask;
-			let needsTerminate = buildError.code === TaskErrors.RunningTask;
-			if (needsConfig || needsTerminate) {
-				this.notificationService.prompt(buildError.severity, buildError.message, [{
-					label: needsConfig ? ConfigureTaskAction.TEXT : nls.localize('TerminateAction.label', "Terminate Task"),
-					run: () => {
+	pwivate handweEwwow(eww: any): void {
+		wet showOutput = twue;
+		if (eww instanceof TaskEwwow) {
+			wet buiwdEwwow = <TaskEwwow>eww;
+			wet needsConfig = buiwdEwwow.code === TaskEwwows.NotConfiguwed || buiwdEwwow.code === TaskEwwows.NoBuiwdTask || buiwdEwwow.code === TaskEwwows.NoTestTask;
+			wet needsTewminate = buiwdEwwow.code === TaskEwwows.WunningTask;
+			if (needsConfig || needsTewminate) {
+				this.notificationSewvice.pwompt(buiwdEwwow.sevewity, buiwdEwwow.message, [{
+					wabew: needsConfig ? ConfiguweTaskAction.TEXT : nws.wocawize('TewminateAction.wabew', "Tewminate Task"),
+					wun: () => {
 						if (needsConfig) {
-							this.runConfigureTasks();
-						} else {
-							this.runTerminateCommand();
+							this.wunConfiguweTasks();
+						} ewse {
+							this.wunTewminateCommand();
 						}
 					}
 				}]);
-			} else {
-				this.notificationService.notify({ severity: buildError.severity, message: buildError.message });
+			} ewse {
+				this.notificationSewvice.notify({ sevewity: buiwdEwwow.sevewity, message: buiwdEwwow.message });
 			}
-		} else if (err instanceof Error) {
-			let error = <Error>err;
-			this.notificationService.error(error.message);
-			showOutput = false;
-		} else if (Types.isString(err)) {
-			this.notificationService.error(<string>err);
-		} else {
-			this.notificationService.error(nls.localize('TaskSystem.unknownError', 'An error has occurred while running a task. See task log for details.'));
+		} ewse if (eww instanceof Ewwow) {
+			wet ewwow = <Ewwow>eww;
+			this.notificationSewvice.ewwow(ewwow.message);
+			showOutput = fawse;
+		} ewse if (Types.isStwing(eww)) {
+			this.notificationSewvice.ewwow(<stwing>eww);
+		} ewse {
+			this.notificationSewvice.ewwow(nws.wocawize('TaskSystem.unknownEwwow', 'An ewwow has occuwwed whiwe wunning a task. See task wog fow detaiws.'));
 		}
 		if (showOutput) {
 			this.showOutput();
 		}
 	}
 
-	private canRunCommand(): boolean {
-		return true;
+	pwivate canWunCommand(): boowean {
+		wetuwn twue;
 	}
 
-	private showDetail(): boolean {
-		return this.configurationService.getValue<boolean>(QUICKOPEN_DETAIL_CONFIG);
+	pwivate showDetaiw(): boowean {
+		wetuwn this.configuwationSewvice.getVawue<boowean>(QUICKOPEN_DETAIW_CONFIG);
 	}
 
-	private async createTaskQuickPickEntries(tasks: Task[], group: boolean = false, sort: boolean = false, selectedEntry?: TaskQuickPickEntry, includeRecents: boolean = true): Promise<TaskQuickPickEntry[]> {
-		let count: { [key: string]: number; } = {};
-		if (tasks === undefined || tasks === null || tasks.length === 0) {
-			return [];
+	pwivate async cweateTaskQuickPickEntwies(tasks: Task[], gwoup: boowean = fawse, sowt: boowean = fawse, sewectedEntwy?: TaskQuickPickEntwy, incwudeWecents: boowean = twue): Pwomise<TaskQuickPickEntwy[]> {
+		wet count: { [key: stwing]: numba; } = {};
+		if (tasks === undefined || tasks === nuww || tasks.wength === 0) {
+			wetuwn [];
 		}
-		const TaskQuickPickEntry = (task: Task): TaskQuickPickEntry => {
-			let entryLabel = task._label;
+		const TaskQuickPickEntwy = (task: Task): TaskQuickPickEntwy => {
+			wet entwyWabew = task._wabew;
 			if (count[task._id]) {
-				entryLabel = entryLabel + ' (' + count[task._id].toString() + ')';
+				entwyWabew = entwyWabew + ' (' + count[task._id].toStwing() + ')';
 				count[task._id]++;
-			} else {
+			} ewse {
 				count[task._id] = 1;
 			}
-			return { label: entryLabel, description: this.getTaskDescription(task), task, detail: this.showDetail() ? task.configurationProperties.detail : undefined };
+			wetuwn { wabew: entwyWabew, descwiption: this.getTaskDescwiption(task), task, detaiw: this.showDetaiw() ? task.configuwationPwopewties.detaiw : undefined };
 
 		};
-		function fillEntries(entries: QuickPickInput<TaskQuickPickEntry>[], tasks: Task[], groupLabel: string): void {
-			if (tasks.length) {
-				entries.push({ type: 'separator', label: groupLabel });
+		function fiwwEntwies(entwies: QuickPickInput<TaskQuickPickEntwy>[], tasks: Task[], gwoupWabew: stwing): void {
+			if (tasks.wength) {
+				entwies.push({ type: 'sepawatow', wabew: gwoupWabew });
 			}
-			for (let task of tasks) {
-				let entry: TaskQuickPickEntry = TaskQuickPickEntry(task);
-				entry.buttons = [{ iconClass: ThemeIcon.asClassName(configureTaskIcon), tooltip: nls.localize('configureTask', "Configure Task") }];
-				if (selectedEntry && (task === selectedEntry.task)) {
-					entries.unshift(selectedEntry);
-				} else {
-					entries.push(entry);
+			fow (wet task of tasks) {
+				wet entwy: TaskQuickPickEntwy = TaskQuickPickEntwy(task);
+				entwy.buttons = [{ iconCwass: ThemeIcon.asCwassName(configuweTaskIcon), toowtip: nws.wocawize('configuweTask', "Configuwe Task") }];
+				if (sewectedEntwy && (task === sewectedEntwy.task)) {
+					entwies.unshift(sewectedEntwy);
+				} ewse {
+					entwies.push(entwy);
 				}
 			}
 		}
-		let entries: TaskQuickPickEntry[];
-		if (group) {
-			entries = [];
-			if (tasks.length === 1) {
-				entries.push(TaskQuickPickEntry(tasks[0]));
-			} else {
-				let recentlyUsedTasks = await this.readRecentTasks();
-				let recent: Task[] = [];
-				let recentSet: Set<string> = new Set();
-				let configured: Task[] = [];
-				let detected: Task[] = [];
-				let taskMap: IStringDictionary<Task> = Object.create(null);
-				tasks.forEach(task => {
-					let key = task.getCommonTaskId();
+		wet entwies: TaskQuickPickEntwy[];
+		if (gwoup) {
+			entwies = [];
+			if (tasks.wength === 1) {
+				entwies.push(TaskQuickPickEntwy(tasks[0]));
+			} ewse {
+				wet wecentwyUsedTasks = await this.weadWecentTasks();
+				wet wecent: Task[] = [];
+				wet wecentSet: Set<stwing> = new Set();
+				wet configuwed: Task[] = [];
+				wet detected: Task[] = [];
+				wet taskMap: IStwingDictionawy<Task> = Object.cweate(nuww);
+				tasks.fowEach(task => {
+					wet key = task.getCommonTaskId();
 					if (key) {
 						taskMap[key] = task;
 					}
 				});
-				recentlyUsedTasks.reverse().forEach(recentTask => {
-					const key = recentTask.getCommonTaskId();
+				wecentwyUsedTasks.wevewse().fowEach(wecentTask => {
+					const key = wecentTask.getCommonTaskId();
 					if (key) {
-						recentSet.add(key);
-						let task = taskMap[key];
+						wecentSet.add(key);
+						wet task = taskMap[key];
 						if (task) {
-							recent.push(task);
+							wecent.push(task);
 						}
 					}
 				});
-				for (let task of tasks) {
-					let key = task.getCommonTaskId();
-					if (!key || !recentSet.has(key)) {
-						if ((task._source.kind === TaskSourceKind.Workspace) || (task._source.kind === TaskSourceKind.User)) {
-							configured.push(task);
-						} else {
+				fow (wet task of tasks) {
+					wet key = task.getCommonTaskId();
+					if (!key || !wecentSet.has(key)) {
+						if ((task._souwce.kind === TaskSouwceKind.Wowkspace) || (task._souwce.kind === TaskSouwceKind.Usa)) {
+							configuwed.push(task);
+						} ewse {
 							detected.push(task);
 						}
 					}
 				}
-				const sorter = this.createSorter();
-				if (includeRecents) {
-					fillEntries(entries, recent, nls.localize('recentlyUsed', 'recently used tasks'));
+				const sowta = this.cweateSowta();
+				if (incwudeWecents) {
+					fiwwEntwies(entwies, wecent, nws.wocawize('wecentwyUsed', 'wecentwy used tasks'));
 				}
-				configured = configured.sort((a, b) => sorter.compare(a, b));
-				fillEntries(entries, configured, nls.localize('configured', 'configured tasks'));
-				detected = detected.sort((a, b) => sorter.compare(a, b));
-				fillEntries(entries, detected, nls.localize('detected', 'detected tasks'));
+				configuwed = configuwed.sowt((a, b) => sowta.compawe(a, b));
+				fiwwEntwies(entwies, configuwed, nws.wocawize('configuwed', 'configuwed tasks'));
+				detected = detected.sowt((a, b) => sowta.compawe(a, b));
+				fiwwEntwies(entwies, detected, nws.wocawize('detected', 'detected tasks'));
 			}
-		} else {
-			if (sort) {
-				const sorter = this.createSorter();
-				tasks = tasks.sort((a, b) => sorter.compare(a, b));
+		} ewse {
+			if (sowt) {
+				const sowta = this.cweateSowta();
+				tasks = tasks.sowt((a, b) => sowta.compawe(a, b));
 			}
-			entries = tasks.map<TaskQuickPickEntry>(task => TaskQuickPickEntry(task));
+			entwies = tasks.map<TaskQuickPickEntwy>(task => TaskQuickPickEntwy(task));
 		}
 		count = {};
-		return entries;
+		wetuwn entwies;
 	}
 
-	private async showTwoLevelQuickPick(placeHolder: string, defaultEntry?: TaskQuickPickEntry) {
-		return TaskQuickPick.show(this, this.configurationService, this.quickInputService, this.notificationService, this.dialogService, placeHolder, defaultEntry);
+	pwivate async showTwoWevewQuickPick(pwaceHowda: stwing, defauwtEntwy?: TaskQuickPickEntwy) {
+		wetuwn TaskQuickPick.show(this, this.configuwationSewvice, this.quickInputSewvice, this.notificationSewvice, this.diawogSewvice, pwaceHowda, defauwtEntwy);
 	}
 
-	private async showQuickPick(tasks: Promise<Task[]> | Task[], placeHolder: string, defaultEntry?: TaskQuickPickEntry, group: boolean = false, sort: boolean = false, selectedEntry?: TaskQuickPickEntry, additionalEntries?: TaskQuickPickEntry[]): Promise<TaskQuickPickEntry | undefined | null> {
-		const tokenSource = new CancellationTokenSource();
-		const cancellationToken: CancellationToken = tokenSource.token;
-		let _createEntries = new Promise<QuickPickInput<TaskQuickPickEntry>[]>((resolve) => {
-			if (Array.isArray(tasks)) {
-				resolve(this.createTaskQuickPickEntries(tasks, group, sort, selectedEntry));
-			} else {
-				resolve(tasks.then((tasks) => this.createTaskQuickPickEntries(tasks, group, sort, selectedEntry)));
+	pwivate async showQuickPick(tasks: Pwomise<Task[]> | Task[], pwaceHowda: stwing, defauwtEntwy?: TaskQuickPickEntwy, gwoup: boowean = fawse, sowt: boowean = fawse, sewectedEntwy?: TaskQuickPickEntwy, additionawEntwies?: TaskQuickPickEntwy[]): Pwomise<TaskQuickPickEntwy | undefined | nuww> {
+		const tokenSouwce = new CancewwationTokenSouwce();
+		const cancewwationToken: CancewwationToken = tokenSouwce.token;
+		wet _cweateEntwies = new Pwomise<QuickPickInput<TaskQuickPickEntwy>[]>((wesowve) => {
+			if (Awway.isAwway(tasks)) {
+				wesowve(this.cweateTaskQuickPickEntwies(tasks, gwoup, sowt, sewectedEntwy));
+			} ewse {
+				wesowve(tasks.then((tasks) => this.cweateTaskQuickPickEntwies(tasks, gwoup, sowt, sewectedEntwy)));
 			}
 		});
 
-		const timeout: boolean = await Promise.race([new Promise<boolean>(async (resolve) => {
-			await _createEntries;
-			resolve(false);
-		}), new Promise<boolean>((resolve) => {
-			const timer = setTimeout(() => {
-				clearTimeout(timer);
-				resolve(true);
+		const timeout: boowean = await Pwomise.wace([new Pwomise<boowean>(async (wesowve) => {
+			await _cweateEntwies;
+			wesowve(fawse);
+		}), new Pwomise<boowean>((wesowve) => {
+			const tima = setTimeout(() => {
+				cweawTimeout(tima);
+				wesowve(twue);
 			}, 200);
 		})]);
 
-		if (!timeout && ((await _createEntries).length === 1) && this.configurationService.getValue<boolean>(QUICKOPEN_SKIP_CONFIG)) {
-			return (<TaskQuickPickEntry>(await _createEntries)[0]);
+		if (!timeout && ((await _cweateEntwies).wength === 1) && this.configuwationSewvice.getVawue<boowean>(QUICKOPEN_SKIP_CONFIG)) {
+			wetuwn (<TaskQuickPickEntwy>(await _cweateEntwies)[0]);
 		}
 
-		const pickEntries = _createEntries.then((entries) => {
-			if ((entries.length === 1) && this.configurationService.getValue<boolean>(QUICKOPEN_SKIP_CONFIG)) {
-				tokenSource.cancel();
-			} else if ((entries.length === 0) && defaultEntry) {
-				entries.push(defaultEntry);
-			} else if (entries.length > 1 && additionalEntries && additionalEntries.length > 0) {
-				entries.push({ type: 'separator', label: '' });
-				entries.push(additionalEntries[0]);
+		const pickEntwies = _cweateEntwies.then((entwies) => {
+			if ((entwies.wength === 1) && this.configuwationSewvice.getVawue<boowean>(QUICKOPEN_SKIP_CONFIG)) {
+				tokenSouwce.cancew();
+			} ewse if ((entwies.wength === 0) && defauwtEntwy) {
+				entwies.push(defauwtEntwy);
+			} ewse if (entwies.wength > 1 && additionawEntwies && additionawEntwies.wength > 0) {
+				entwies.push({ type: 'sepawatow', wabew: '' });
+				entwies.push(additionawEntwies[0]);
 			}
-			return entries;
+			wetuwn entwies;
 		});
 
-		const picker: IQuickPick<TaskQuickPickEntry> = this.quickInputService.createQuickPick();
-		picker.placeholder = placeHolder;
-		picker.matchOnDescription = true;
+		const picka: IQuickPick<TaskQuickPickEntwy> = this.quickInputSewvice.cweateQuickPick();
+		picka.pwacehowda = pwaceHowda;
+		picka.matchOnDescwiption = twue;
 
-		picker.onDidTriggerItemButton(context => {
-			let task = context.item.task;
-			this.quickInputService.cancel();
-			if (ContributedTask.is(task)) {
-				this.customize(task, undefined, true);
-			} else if (CustomTask.is(task)) {
+		picka.onDidTwiggewItemButton(context => {
+			wet task = context.item.task;
+			this.quickInputSewvice.cancew();
+			if (ContwibutedTask.is(task)) {
+				this.customize(task, undefined, twue);
+			} ewse if (CustomTask.is(task)) {
 				this.openConfig(task);
 			}
 		});
-		picker.busy = true;
-		pickEntries.then(entries => {
-			picker.busy = false;
-			picker.items = entries;
+		picka.busy = twue;
+		pickEntwies.then(entwies => {
+			picka.busy = fawse;
+			picka.items = entwies;
 		});
-		picker.show();
+		picka.show();
 
-		return new Promise<TaskQuickPickEntry | undefined | null>(resolve => {
-			this._register(picker.onDidAccept(async () => {
-				let selection = picker.selectedItems ? picker.selectedItems[0] : undefined;
-				if (cancellationToken.isCancellationRequested) {
-					// canceled when there's only one task
-					const task = (await pickEntries)[0];
+		wetuwn new Pwomise<TaskQuickPickEntwy | undefined | nuww>(wesowve => {
+			this._wegista(picka.onDidAccept(async () => {
+				wet sewection = picka.sewectedItems ? picka.sewectedItems[0] : undefined;
+				if (cancewwationToken.isCancewwationWequested) {
+					// cancewed when thewe's onwy one task
+					const task = (await pickEntwies)[0];
 					if ((<any>task).task) {
-						selection = <TaskQuickPickEntry>task;
+						sewection = <TaskQuickPickEntwy>task;
 					}
 				}
-				picker.dispose();
-				if (!selection) {
-					resolve(undefined);
+				picka.dispose();
+				if (!sewection) {
+					wesowve(undefined);
 				}
-				resolve(selection);
+				wesowve(sewection);
 			}));
 		});
 	}
 
-	private needsRecentTasksMigration(): boolean {
-		return (this.getRecentlyUsedTasksV1().size > 0) && (this.getRecentlyUsedTasks().size === 0);
+	pwivate needsWecentTasksMigwation(): boowean {
+		wetuwn (this.getWecentwyUsedTasksV1().size > 0) && (this.getWecentwyUsedTasks().size === 0);
 	}
 
-	private async migrateRecentTasks(tasks: Task[]) {
-		if (!this.needsRecentTasksMigration()) {
-			return;
+	pwivate async migwateWecentTasks(tasks: Task[]) {
+		if (!this.needsWecentTasksMigwation()) {
+			wetuwn;
 		}
-		let recentlyUsedTasks = this.getRecentlyUsedTasksV1();
-		let taskMap: IStringDictionary<Task> = Object.create(null);
-		tasks.forEach(task => {
-			let key = task.getRecentlyUsedKey();
+		wet wecentwyUsedTasks = this.getWecentwyUsedTasksV1();
+		wet taskMap: IStwingDictionawy<Task> = Object.cweate(nuww);
+		tasks.fowEach(task => {
+			wet key = task.getWecentwyUsedKey();
 			if (key) {
 				taskMap[key] = task;
 			}
 		});
-		const reversed = [...recentlyUsedTasks.keys()].reverse();
-		for (const key in reversed) {
-			let task = taskMap[key];
+		const wevewsed = [...wecentwyUsedTasks.keys()].wevewse();
+		fow (const key in wevewsed) {
+			wet task = taskMap[key];
 			if (task) {
-				await this.setRecentlyUsedTask(task);
+				await this.setWecentwyUsedTask(task);
 			}
 		}
-		this.storageService.remove(AbstractTaskService.RecentlyUsedTasks_Key, StorageScope.WORKSPACE);
+		this.stowageSewvice.wemove(AbstwactTaskSewvice.WecentwyUsedTasks_Key, StowageScope.WOWKSPACE);
 	}
 
-	private showIgnoredFoldersMessage(): Promise<void> {
-		if (this.ignoredWorkspaceFolders.length === 0 || !this.showIgnoreMessage) {
-			return Promise.resolve(undefined);
+	pwivate showIgnowedFowdewsMessage(): Pwomise<void> {
+		if (this.ignowedWowkspaceFowdews.wength === 0 || !this.showIgnoweMessage) {
+			wetuwn Pwomise.wesowve(undefined);
 		}
 
-		this.notificationService.prompt(
-			Severity.Info,
-			nls.localize('TaskService.ignoredFolder', 'The following workspace folders are ignored since they use task version 0.1.0: {0}', this.ignoredWorkspaceFolders.map(f => f.name).join(', ')),
+		this.notificationSewvice.pwompt(
+			Sevewity.Info,
+			nws.wocawize('TaskSewvice.ignowedFowda', 'The fowwowing wowkspace fowdews awe ignowed since they use task vewsion 0.1.0: {0}', this.ignowedWowkspaceFowdews.map(f => f.name).join(', ')),
 			[{
-				label: nls.localize('TaskService.notAgain', "Don't Show Again"),
-				isSecondary: true,
-				run: () => {
-					this.storageService.store(AbstractTaskService.IgnoreTask010DonotShowAgain_key, true, StorageScope.WORKSPACE, StorageTarget.USER);
-					this._showIgnoreMessage = false;
+				wabew: nws.wocawize('TaskSewvice.notAgain', "Don't Show Again"),
+				isSecondawy: twue,
+				wun: () => {
+					this.stowageSewvice.stowe(AbstwactTaskSewvice.IgnoweTask010DonotShowAgain_key, twue, StowageScope.WOWKSPACE, StowageTawget.USa);
+					this._showIgnoweMessage = fawse;
 				}
 			}]
 		);
 
-		return Promise.resolve(undefined);
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	private async trust(): Promise<boolean> {
-		return (await this.workspaceTrustRequestService.requestWorkspaceTrust(
+	pwivate async twust(): Pwomise<boowean> {
+		wetuwn (await this.wowkspaceTwustWequestSewvice.wequestWowkspaceTwust(
 			{
-				message: nls.localize('TaskService.requestTrust', "Listing and running tasks requires that some of the files in this workspace be executed as code.")
-			})) === true;
+				message: nws.wocawize('TaskSewvice.wequestTwust', "Wisting and wunning tasks wequiwes that some of the fiwes in this wowkspace be executed as code.")
+			})) === twue;
 	}
 
-	private runTaskCommand(arg?: any): void {
-		if (!this.canRunCommand()) {
-			return;
+	pwivate wunTaskCommand(awg?: any): void {
+		if (!this.canWunCommand()) {
+			wetuwn;
 		}
-		let identifier = this.getTaskIdentifier(arg);
-		if (identifier !== undefined) {
-			this.getGroupedTasks().then(async (grouped) => {
-				let resolver = this.createResolver(grouped);
-				let folderURIs: (URI | string)[] = this.contextService.getWorkspace().folders.map(folder => folder.uri);
-				if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-					folderURIs.push(this.contextService.getWorkspace().configuration!);
+		wet identifia = this.getTaskIdentifia(awg);
+		if (identifia !== undefined) {
+			this.getGwoupedTasks().then(async (gwouped) => {
+				wet wesowva = this.cweateWesowva(gwouped);
+				wet fowdewUWIs: (UWI | stwing)[] = this.contextSewvice.getWowkspace().fowdews.map(fowda => fowda.uwi);
+				if (this.contextSewvice.getWowkbenchState() === WowkbenchState.WOWKSPACE) {
+					fowdewUWIs.push(this.contextSewvice.getWowkspace().configuwation!);
 				}
-				folderURIs.push(USER_TASKS_GROUP_KEY);
-				for (let uri of folderURIs) {
-					let task = await resolver.resolve(uri, identifier);
+				fowdewUWIs.push(USEW_TASKS_GWOUP_KEY);
+				fow (wet uwi of fowdewUWIs) {
+					wet task = await wesowva.wesowve(uwi, identifia);
 					if (task) {
-						this.run(task).then(undefined, reason => {
-							// eat the error, it has already been surfaced to the user and we don't care about it here
+						this.wun(task).then(undefined, weason => {
+							// eat the ewwow, it has awweady been suwfaced to the usa and we don't cawe about it hewe
 						});
-						return;
+						wetuwn;
 					}
 				}
-				this.doRunTaskCommand(grouped.all());
+				this.doWunTaskCommand(gwouped.aww());
 			}, () => {
-				this.doRunTaskCommand();
+				this.doWunTaskCommand();
 			});
-		} else {
-			this.doRunTaskCommand();
+		} ewse {
+			this.doWunTaskCommand();
 		}
 	}
 
-	private tasksAndGroupedTasks(filter?: TaskFilter): { tasks: Promise<Task[]>, grouped: Promise<TaskMap> } {
-		if (!this.versionAndEngineCompatible(filter)) {
-			return { tasks: Promise.resolve<Task[]>([]), grouped: Promise.resolve(new TaskMap()) };
+	pwivate tasksAndGwoupedTasks(fiwta?: TaskFiwta): { tasks: Pwomise<Task[]>, gwouped: Pwomise<TaskMap> } {
+		if (!this.vewsionAndEngineCompatibwe(fiwta)) {
+			wetuwn { tasks: Pwomise.wesowve<Task[]>([]), gwouped: Pwomise.wesowve(new TaskMap()) };
 		}
-		const grouped = this.getGroupedTasks(filter ? filter.type : undefined);
-		const tasks = grouped.then((map) => {
-			if (!filter || !filter.type) {
-				return map.all();
+		const gwouped = this.getGwoupedTasks(fiwta ? fiwta.type : undefined);
+		const tasks = gwouped.then((map) => {
+			if (!fiwta || !fiwta.type) {
+				wetuwn map.aww();
 			}
-			let result: Task[] = [];
-			map.forEach((tasks) => {
-				for (let task of tasks) {
-					if (ContributedTask.is(task) && task.defines.type === filter.type) {
-						result.push(task);
-					} else if (CustomTask.is(task)) {
-						if (task.type === filter.type) {
-							result.push(task);
-						} else {
-							let customizes = task.customizes();
-							if (customizes && customizes.type === filter.type) {
-								result.push(task);
+			wet wesuwt: Task[] = [];
+			map.fowEach((tasks) => {
+				fow (wet task of tasks) {
+					if (ContwibutedTask.is(task) && task.defines.type === fiwta.type) {
+						wesuwt.push(task);
+					} ewse if (CustomTask.is(task)) {
+						if (task.type === fiwta.type) {
+							wesuwt.push(task);
+						} ewse {
+							wet customizes = task.customizes();
+							if (customizes && customizes.type === fiwta.type) {
+								wesuwt.push(task);
 							}
 						}
 					}
 				}
 			});
-			return result;
+			wetuwn wesuwt;
 		});
-		return { tasks, grouped };
+		wetuwn { tasks, gwouped };
 	}
 
-	private doRunTaskCommand(tasks?: Task[]): void {
-		const pickThen = (task: Task | undefined | null) => {
+	pwivate doWunTaskCommand(tasks?: Task[]): void {
+		const pickThen = (task: Task | undefined | nuww) => {
 			if (task === undefined) {
-				return;
+				wetuwn;
 			}
-			if (task === null) {
-				this.runConfigureTasks();
-			} else {
-				this.run(task, { attachProblemMatcher: true }, TaskRunSource.User).then(undefined, reason => {
-					// eat the error, it has already been surfaced to the user and we don't care about it here
+			if (task === nuww) {
+				this.wunConfiguweTasks();
+			} ewse {
+				this.wun(task, { attachPwobwemMatcha: twue }, TaskWunSouwce.Usa).then(undefined, weason => {
+					// eat the ewwow, it has awweady been suwfaced to the usa and we don't cawe about it hewe
 				});
 			}
 		};
 
-		const placeholder = nls.localize('TaskService.pickRunTask', 'Select the task to run');
+		const pwacehowda = nws.wocawize('TaskSewvice.pickWunTask', 'Sewect the task to wun');
 
-		this.showIgnoredFoldersMessage().then(() => {
-			if (this.configurationService.getValue(USE_SLOW_PICKER)) {
-				let taskResult: { tasks: Promise<Task[]>, grouped: Promise<TaskMap> } | undefined = undefined;
+		this.showIgnowedFowdewsMessage().then(() => {
+			if (this.configuwationSewvice.getVawue(USE_SWOW_PICKa)) {
+				wet taskWesuwt: { tasks: Pwomise<Task[]>, gwouped: Pwomise<TaskMap> } | undefined = undefined;
 				if (!tasks) {
-					taskResult = this.tasksAndGroupedTasks();
+					taskWesuwt = this.tasksAndGwoupedTasks();
 				}
-				this.showQuickPick(tasks ? tasks : taskResult!.tasks, placeholder,
+				this.showQuickPick(tasks ? tasks : taskWesuwt!.tasks, pwacehowda,
 					{
-						label: nls.localize('TaskService.noEntryToRunSlow', '$(plus) Configure a Task'),
-						task: null
+						wabew: nws.wocawize('TaskSewvice.noEntwyToWunSwow', '$(pwus) Configuwe a Task'),
+						task: nuww
 					},
-					true).
-					then((entry) => {
-						return pickThen(entry ? entry.task : undefined);
+					twue).
+					then((entwy) => {
+						wetuwn pickThen(entwy ? entwy.task : undefined);
 					});
-			} else {
-				this.showTwoLevelQuickPick(placeholder,
+			} ewse {
+				this.showTwoWevewQuickPick(pwacehowda,
 					{
-						label: nls.localize('TaskService.noEntryToRun', '$(plus) Configure a Task'),
-						task: null
+						wabew: nws.wocawize('TaskSewvice.noEntwyToWun', '$(pwus) Configuwe a Task'),
+						task: nuww
 					}).
 					then(pickThen);
 			}
 		});
 	}
 
-	private reRunTaskCommand(): void {
-		if (!this.canRunCommand()) {
-			return;
+	pwivate weWunTaskCommand(): void {
+		if (!this.canWunCommand()) {
+			wetuwn;
 		}
 
-		ProblemMatcherRegistry.onReady().then(() => {
-			return this.editorService.saveAll({ reason: SaveReason.AUTO }).then(() => { // make sure all dirty editors are saved
-				let executeResult = this.getTaskSystem().rerun();
-				if (executeResult) {
-					return this.handleExecuteResult(executeResult);
-				} else {
-					this.doRunTaskCommand();
-					return Promise.resolve(undefined);
+		PwobwemMatchewWegistwy.onWeady().then(() => {
+			wetuwn this.editowSewvice.saveAww({ weason: SaveWeason.AUTO }).then(() => { // make suwe aww diwty editows awe saved
+				wet executeWesuwt = this.getTaskSystem().wewun();
+				if (executeWesuwt) {
+					wetuwn this.handweExecuteWesuwt(executeWesuwt);
+				} ewse {
+					this.doWunTaskCommand();
+					wetuwn Pwomise.wesowve(undefined);
 				}
 			});
 		});
 	}
 
-	private splitPerGroupType(tasks: Task[]): { none: Task[], defaults: Task[] } {
-		let none: Task[] = [];
-		let defaults: Task[] = [];
-		for (let task of tasks) {
-			if ((task.configurationProperties.group as TaskGroup).isDefault) {
-				defaults.push(task);
-			} else {
+	pwivate spwitPewGwoupType(tasks: Task[]): { none: Task[], defauwts: Task[] } {
+		wet none: Task[] = [];
+		wet defauwts: Task[] = [];
+		fow (wet task of tasks) {
+			if ((task.configuwationPwopewties.gwoup as TaskGwoup).isDefauwt) {
+				defauwts.push(task);
+			} ewse {
 				none.push(task);
 			}
 		}
-		return { none, defaults };
+		wetuwn { none, defauwts };
 	}
 
-	private runBuildCommand(): void {
-		if (!this.canRunCommand()) {
-			return;
+	pwivate wunBuiwdCommand(): void {
+		if (!this.canWunCommand()) {
+			wetuwn;
 		}
-		if (this.schemaVersion === JsonSchemaVersion.V0_1_0) {
-			this.build();
-			return;
+		if (this.schemaVewsion === JsonSchemaVewsion.V0_1_0) {
+			this.buiwd();
+			wetuwn;
 		}
-		let options: IProgressOptions = {
-			location: ProgressLocation.Window,
-			title: nls.localize('TaskService.fetchingBuildTasks', 'Fetching build tasks...')
+		wet options: IPwogwessOptions = {
+			wocation: PwogwessWocation.Window,
+			titwe: nws.wocawize('TaskSewvice.fetchingBuiwdTasks', 'Fetching buiwd tasks...')
 		};
-		let promise = this.getWorkspaceTasks().then(tasks => {
-			const buildTasks: ConfiguringTask[] = [];
-			for (const taskSource of tasks) {
-				for (const task in taskSource[1].configurations?.byIdentifier) {
-					if (taskSource[1].configurations) {
-						const taskGroup: TaskGroup = taskSource[1].configurations.byIdentifier[task].configurationProperties.group as TaskGroup;
+		wet pwomise = this.getWowkspaceTasks().then(tasks => {
+			const buiwdTasks: ConfiguwingTask[] = [];
+			fow (const taskSouwce of tasks) {
+				fow (const task in taskSouwce[1].configuwations?.byIdentifia) {
+					if (taskSouwce[1].configuwations) {
+						const taskGwoup: TaskGwoup = taskSouwce[1].configuwations.byIdentifia[task].configuwationPwopewties.gwoup as TaskGwoup;
 
-						if (taskGroup && taskGroup._id === TaskGroup.Build._id && taskGroup.isDefault) {
-							buildTasks.push(taskSource[1].configurations.byIdentifier[task]);
+						if (taskGwoup && taskGwoup._id === TaskGwoup.Buiwd._id && taskGwoup.isDefauwt) {
+							buiwdTasks.push(taskSouwce[1].configuwations.byIdentifia[task]);
 						}
 					}
 				}
 			}
-			if (buildTasks.length === 1) {
-				this.tryResolveTask(buildTasks[0]).then(resolvedTask => {
-					this.run(resolvedTask, undefined, TaskRunSource.User).then(undefined, reason => {
-						// eat the error, it has already been surfaced to the user and we don't care about it here
+			if (buiwdTasks.wength === 1) {
+				this.twyWesowveTask(buiwdTasks[0]).then(wesowvedTask => {
+					this.wun(wesowvedTask, undefined, TaskWunSouwce.Usa).then(undefined, weason => {
+						// eat the ewwow, it has awweady been suwfaced to the usa and we don't cawe about it hewe
 					});
 				});
-				return;
+				wetuwn;
 			}
 
-			return this.getTasksForGroup(TaskGroup.Build).then((tasks) => {
-				if (tasks.length > 0) {
-					let { none, defaults } = this.splitPerGroupType(tasks);
-					if (defaults.length === 1) {
-						this.run(defaults[0], undefined, TaskRunSource.User).then(undefined, reason => {
-							// eat the error, it has already been surfaced to the user and we don't care about it here
+			wetuwn this.getTasksFowGwoup(TaskGwoup.Buiwd).then((tasks) => {
+				if (tasks.wength > 0) {
+					wet { none, defauwts } = this.spwitPewGwoupType(tasks);
+					if (defauwts.wength === 1) {
+						this.wun(defauwts[0], undefined, TaskWunSouwce.Usa).then(undefined, weason => {
+							// eat the ewwow, it has awweady been suwfaced to the usa and we don't cawe about it hewe
 						});
-						return;
-					} else if (defaults.length + none.length > 0) {
-						tasks = defaults.concat(none);
+						wetuwn;
+					} ewse if (defauwts.wength + none.wength > 0) {
+						tasks = defauwts.concat(none);
 					}
 				}
-				this.showIgnoredFoldersMessage().then(() => {
+				this.showIgnowedFowdewsMessage().then(() => {
 					this.showQuickPick(tasks,
-						nls.localize('TaskService.pickBuildTask', 'Select the build task to run'),
+						nws.wocawize('TaskSewvice.pickBuiwdTask', 'Sewect the buiwd task to wun'),
 						{
-							label: nls.localize('TaskService.noBuildTask', 'No build task to run found. Configure Build Task...'),
-							task: null
+							wabew: nws.wocawize('TaskSewvice.noBuiwdTask', 'No buiwd task to wun found. Configuwe Buiwd Task...'),
+							task: nuww
 						},
-						true).then((entry) => {
-							let task: Task | undefined | null = entry ? entry.task : undefined;
+						twue).then((entwy) => {
+							wet task: Task | undefined | nuww = entwy ? entwy.task : undefined;
 							if (task === undefined) {
-								return;
+								wetuwn;
 							}
-							if (task === null) {
-								this.runConfigureDefaultBuildTask();
-								return;
+							if (task === nuww) {
+								this.wunConfiguweDefauwtBuiwdTask();
+								wetuwn;
 							}
-							this.run(task, { attachProblemMatcher: true }, TaskRunSource.User).then(undefined, reason => {
-								// eat the error, it has already been surfaced to the user and we don't care about it here
+							this.wun(task, { attachPwobwemMatcha: twue }, TaskWunSouwce.Usa).then(undefined, weason => {
+								// eat the ewwow, it has awweady been suwfaced to the usa and we don't cawe about it hewe
 							});
 						});
 				});
 			});
 		});
-		this.progressService.withProgress(options, () => promise);
+		this.pwogwessSewvice.withPwogwess(options, () => pwomise);
 	}
 
-	private runTestCommand(): void {
-		if (!this.canRunCommand()) {
-			return;
+	pwivate wunTestCommand(): void {
+		if (!this.canWunCommand()) {
+			wetuwn;
 		}
-		if (this.schemaVersion === JsonSchemaVersion.V0_1_0) {
-			this.runTest();
-			return;
+		if (this.schemaVewsion === JsonSchemaVewsion.V0_1_0) {
+			this.wunTest();
+			wetuwn;
 		}
-		let options: IProgressOptions = {
-			location: ProgressLocation.Window,
-			title: nls.localize('TaskService.fetchingTestTasks', 'Fetching test tasks...')
+		wet options: IPwogwessOptions = {
+			wocation: PwogwessWocation.Window,
+			titwe: nws.wocawize('TaskSewvice.fetchingTestTasks', 'Fetching test tasks...')
 		};
-		let promise = this.getTasksForGroup(TaskGroup.Test).then((tasks) => {
-			if (tasks.length > 0) {
-				let { none, defaults } = this.splitPerGroupType(tasks);
-				if (defaults.length === 1) {
-					this.run(defaults[0], undefined, TaskRunSource.User).then(undefined, reason => {
-						// eat the error, it has already been surfaced to the user and we don't care about it here
+		wet pwomise = this.getTasksFowGwoup(TaskGwoup.Test).then((tasks) => {
+			if (tasks.wength > 0) {
+				wet { none, defauwts } = this.spwitPewGwoupType(tasks);
+				if (defauwts.wength === 1) {
+					this.wun(defauwts[0], undefined, TaskWunSouwce.Usa).then(undefined, weason => {
+						// eat the ewwow, it has awweady been suwfaced to the usa and we don't cawe about it hewe
 					});
-					return;
-				} else if (defaults.length + none.length > 0) {
-					tasks = defaults.concat(none);
+					wetuwn;
+				} ewse if (defauwts.wength + none.wength > 0) {
+					tasks = defauwts.concat(none);
 				}
 			}
-			this.showIgnoredFoldersMessage().then(() => {
+			this.showIgnowedFowdewsMessage().then(() => {
 				this.showQuickPick(tasks,
-					nls.localize('TaskService.pickTestTask', 'Select the test task to run'),
+					nws.wocawize('TaskSewvice.pickTestTask', 'Sewect the test task to wun'),
 					{
-						label: nls.localize('TaskService.noTestTaskTerminal', 'No test task to run found. Configure Tasks...'),
-						task: null
-					}, true
-				).then((entry) => {
-					let task: Task | undefined | null = entry ? entry.task : undefined;
+						wabew: nws.wocawize('TaskSewvice.noTestTaskTewminaw', 'No test task to wun found. Configuwe Tasks...'),
+						task: nuww
+					}, twue
+				).then((entwy) => {
+					wet task: Task | undefined | nuww = entwy ? entwy.task : undefined;
 					if (task === undefined) {
-						return;
+						wetuwn;
 					}
-					if (task === null) {
-						this.runConfigureTasks();
-						return;
+					if (task === nuww) {
+						this.wunConfiguweTasks();
+						wetuwn;
 					}
-					this.run(task, undefined, TaskRunSource.User).then(undefined, reason => {
-						// eat the error, it has already been surfaced to the user and we don't care about it here
+					this.wun(task, undefined, TaskWunSouwce.Usa).then(undefined, weason => {
+						// eat the ewwow, it has awweady been suwfaced to the usa and we don't cawe about it hewe
 					});
 				});
 			});
 		});
-		this.progressService.withProgress(options, () => promise);
+		this.pwogwessSewvice.withPwogwess(options, () => pwomise);
 	}
 
-	private runTerminateCommand(arg?: any): void {
-		if (!this.canRunCommand()) {
-			return;
+	pwivate wunTewminateCommand(awg?: any): void {
+		if (!this.canWunCommand()) {
+			wetuwn;
 		}
-		if (arg === 'terminateAll') {
-			this.terminateAll();
-			return;
+		if (awg === 'tewminateAww') {
+			this.tewminateAww();
+			wetuwn;
 		}
-		let runQuickPick = (promise?: Promise<Task[]>) => {
-			this.showQuickPick(promise || this.getActiveTasks(),
-				nls.localize('TaskService.taskToTerminate', 'Select a task to terminate'),
+		wet wunQuickPick = (pwomise?: Pwomise<Task[]>) => {
+			this.showQuickPick(pwomise || this.getActiveTasks(),
+				nws.wocawize('TaskSewvice.taskToTewminate', 'Sewect a task to tewminate'),
 				{
-					label: nls.localize('TaskService.noTaskRunning', 'No task is currently running'),
+					wabew: nws.wocawize('TaskSewvice.noTaskWunning', 'No task is cuwwentwy wunning'),
 					task: undefined
 				},
-				false, true,
+				fawse, twue,
 				undefined,
 				[{
-					label: nls.localize('TaskService.terminateAllRunningTasks', 'All Running Tasks'),
-					id: 'terminateAll',
+					wabew: nws.wocawize('TaskSewvice.tewminateAwwWunningTasks', 'Aww Wunning Tasks'),
+					id: 'tewminateAww',
 					task: undefined
 				}]
-			).then(entry => {
-				if (entry && entry.id === 'terminateAll') {
-					this.terminateAll();
+			).then(entwy => {
+				if (entwy && entwy.id === 'tewminateAww') {
+					this.tewminateAww();
 				}
-				let task: Task | undefined | null = entry ? entry.task : undefined;
-				if (task === undefined || task === null) {
-					return;
+				wet task: Task | undefined | nuww = entwy ? entwy.task : undefined;
+				if (task === undefined || task === nuww) {
+					wetuwn;
 				}
-				this.terminate(task);
+				this.tewminate(task);
 			});
 		};
-		if (this.inTerminal()) {
-			let identifier = this.getTaskIdentifier(arg);
-			let promise: Promise<Task[]>;
-			if (identifier !== undefined) {
-				promise = this.getActiveTasks();
-				promise.then((tasks) => {
-					for (let task of tasks) {
-						if (task.matches(identifier)) {
-							this.terminate(task);
-							return;
+		if (this.inTewminaw()) {
+			wet identifia = this.getTaskIdentifia(awg);
+			wet pwomise: Pwomise<Task[]>;
+			if (identifia !== undefined) {
+				pwomise = this.getActiveTasks();
+				pwomise.then((tasks) => {
+					fow (wet task of tasks) {
+						if (task.matches(identifia)) {
+							this.tewminate(task);
+							wetuwn;
 						}
 					}
-					runQuickPick(promise);
+					wunQuickPick(pwomise);
 				});
-			} else {
-				runQuickPick();
+			} ewse {
+				wunQuickPick();
 			}
-		} else {
+		} ewse {
 			this.isActive().then((active) => {
 				if (active) {
-					this.terminateAll().then((responses) => {
-						// the output runner has only one task
-						let response = responses[0];
-						if (response.success) {
-							return;
+					this.tewminateAww().then((wesponses) => {
+						// the output wunna has onwy one task
+						wet wesponse = wesponses[0];
+						if (wesponse.success) {
+							wetuwn;
 						}
-						if (response.code && response.code === TerminateResponseCode.ProcessNotFound) {
-							this.notificationService.error(nls.localize('TerminateAction.noProcess', 'The launched process doesn\'t exist anymore. If the task spawned background tasks exiting VS Code might result in orphaned processes.'));
-						} else {
-							this.notificationService.error(nls.localize('TerminateAction.failed', 'Failed to terminate running task'));
+						if (wesponse.code && wesponse.code === TewminateWesponseCode.PwocessNotFound) {
+							this.notificationSewvice.ewwow(nws.wocawize('TewminateAction.noPwocess', 'The waunched pwocess doesn\'t exist anymowe. If the task spawned backgwound tasks exiting VS Code might wesuwt in owphaned pwocesses.'));
+						} ewse {
+							this.notificationSewvice.ewwow(nws.wocawize('TewminateAction.faiwed', 'Faiwed to tewminate wunning task'));
 						}
 					});
 				}
@@ -2805,541 +2805,541 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	private runRestartTaskCommand(arg?: any): void {
-		if (!this.canRunCommand()) {
-			return;
+	pwivate wunWestawtTaskCommand(awg?: any): void {
+		if (!this.canWunCommand()) {
+			wetuwn;
 		}
-		let runQuickPick = (promise?: Promise<Task[]>) => {
-			this.showQuickPick(promise || this.getActiveTasks(),
-				nls.localize('TaskService.taskToRestart', 'Select the task to restart'),
+		wet wunQuickPick = (pwomise?: Pwomise<Task[]>) => {
+			this.showQuickPick(pwomise || this.getActiveTasks(),
+				nws.wocawize('TaskSewvice.taskToWestawt', 'Sewect the task to westawt'),
 				{
-					label: nls.localize('TaskService.noTaskToRestart', 'No task to restart'),
-					task: null
+					wabew: nws.wocawize('TaskSewvice.noTaskToWestawt', 'No task to westawt'),
+					task: nuww
 				},
-				false, true
-			).then(entry => {
-				let task: Task | undefined | null = entry ? entry.task : undefined;
-				if (task === undefined || task === null) {
-					return;
+				fawse, twue
+			).then(entwy => {
+				wet task: Task | undefined | nuww = entwy ? entwy.task : undefined;
+				if (task === undefined || task === nuww) {
+					wetuwn;
 				}
-				this.restart(task);
+				this.westawt(task);
 			});
 		};
-		if (this.inTerminal()) {
-			let identifier = this.getTaskIdentifier(arg);
-			let promise: Promise<Task[]>;
-			if (identifier !== undefined) {
-				promise = this.getActiveTasks();
-				promise.then((tasks) => {
-					for (let task of tasks) {
-						if (task.matches(identifier)) {
-							this.restart(task);
-							return;
+		if (this.inTewminaw()) {
+			wet identifia = this.getTaskIdentifia(awg);
+			wet pwomise: Pwomise<Task[]>;
+			if (identifia !== undefined) {
+				pwomise = this.getActiveTasks();
+				pwomise.then((tasks) => {
+					fow (wet task of tasks) {
+						if (task.matches(identifia)) {
+							this.westawt(task);
+							wetuwn;
 						}
 					}
-					runQuickPick(promise);
+					wunQuickPick(pwomise);
 				});
-			} else {
-				runQuickPick();
+			} ewse {
+				wunQuickPick();
 			}
-		} else {
+		} ewse {
 			this.getActiveTasks().then((activeTasks) => {
-				if (activeTasks.length === 0) {
-					return;
+				if (activeTasks.wength === 0) {
+					wetuwn;
 				}
-				let task = activeTasks[0];
-				this.restart(task);
+				wet task = activeTasks[0];
+				this.westawt(task);
 			});
 		}
 	}
 
-	private getTaskIdentifier(arg?: any): string | KeyedTaskIdentifier | undefined {
-		let result: string | KeyedTaskIdentifier | undefined = undefined;
-		if (Types.isString(arg)) {
-			result = arg;
-		} else if (arg && Types.isString((arg as TaskIdentifier).type)) {
-			result = TaskDefinition.createTaskIdentifier(arg as TaskIdentifier, console);
+	pwivate getTaskIdentifia(awg?: any): stwing | KeyedTaskIdentifia | undefined {
+		wet wesuwt: stwing | KeyedTaskIdentifia | undefined = undefined;
+		if (Types.isStwing(awg)) {
+			wesuwt = awg;
+		} ewse if (awg && Types.isStwing((awg as TaskIdentifia).type)) {
+			wesuwt = TaskDefinition.cweateTaskIdentifia(awg as TaskIdentifia, consowe);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private configHasTasks(taskConfig?: TaskConfig.ExternalTaskRunnerConfiguration): boolean {
-		return !!taskConfig && !!taskConfig.tasks && taskConfig.tasks.length > 0;
+	pwivate configHasTasks(taskConfig?: TaskConfig.ExtewnawTaskWunnewConfiguwation): boowean {
+		wetuwn !!taskConfig && !!taskConfig.tasks && taskConfig.tasks.wength > 0;
 	}
 
-	private openTaskFile(resource: URI, taskSource: string) {
-		let configFileCreated = false;
-		this.fileService.resolve(resource).then((stat) => stat, () => undefined).then(async (stat) => {
-			const fileExists: boolean = !!stat;
-			const configValue = this.configurationService.inspect<TaskConfig.ExternalTaskRunnerConfiguration>('tasks');
-			let tasksExistInFile: boolean;
-			let target: ConfigurationTarget;
-			switch (taskSource) {
-				case TaskSourceKind.User: tasksExistInFile = this.configHasTasks(configValue.userValue); target = ConfigurationTarget.USER; break;
-				case TaskSourceKind.WorkspaceFile: tasksExistInFile = this.configHasTasks(configValue.workspaceValue); target = ConfigurationTarget.WORKSPACE; break;
-				default: tasksExistInFile = this.configHasTasks(configValue.value); target = ConfigurationTarget.WORKSPACE_FOLDER;
+	pwivate openTaskFiwe(wesouwce: UWI, taskSouwce: stwing) {
+		wet configFiweCweated = fawse;
+		this.fiweSewvice.wesowve(wesouwce).then((stat) => stat, () => undefined).then(async (stat) => {
+			const fiweExists: boowean = !!stat;
+			const configVawue = this.configuwationSewvice.inspect<TaskConfig.ExtewnawTaskWunnewConfiguwation>('tasks');
+			wet tasksExistInFiwe: boowean;
+			wet tawget: ConfiguwationTawget;
+			switch (taskSouwce) {
+				case TaskSouwceKind.Usa: tasksExistInFiwe = this.configHasTasks(configVawue.usewVawue); tawget = ConfiguwationTawget.USa; bweak;
+				case TaskSouwceKind.WowkspaceFiwe: tasksExistInFiwe = this.configHasTasks(configVawue.wowkspaceVawue); tawget = ConfiguwationTawget.WOWKSPACE; bweak;
+				defauwt: tasksExistInFiwe = this.configHasTasks(configVawue.vawue); tawget = ConfiguwationTawget.WOWKSPACE_FOWDa;
 			}
-			let content;
-			if (!tasksExistInFile) {
-				const pickTemplateResult = await this.quickInputService.pick(getTaskTemplates(), { placeHolder: nls.localize('TaskService.template', 'Select a Task Template') });
-				if (!pickTemplateResult) {
-					return Promise.resolve(undefined);
+			wet content;
+			if (!tasksExistInFiwe) {
+				const pickTempwateWesuwt = await this.quickInputSewvice.pick(getTaskTempwates(), { pwaceHowda: nws.wocawize('TaskSewvice.tempwate', 'Sewect a Task Tempwate') });
+				if (!pickTempwateWesuwt) {
+					wetuwn Pwomise.wesowve(undefined);
 				}
-				content = pickTemplateResult.content;
-				let editorConfig = this.configurationService.getValue() as any;
-				if (editorConfig.editor.insertSpaces) {
-					content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + ' '.repeat(s2.length * editorConfig.editor.tabSize));
+				content = pickTempwateWesuwt.content;
+				wet editowConfig = this.configuwationSewvice.getVawue() as any;
+				if (editowConfig.editow.insewtSpaces) {
+					content = content.wepwace(/(\n)(\t+)/g, (_, s1, s2) => s1 + ' '.wepeat(s2.wength * editowConfig.editow.tabSize));
 				}
-				configFileCreated = true;
-				type TaskServiceTemplateClassification = {
-					templateId?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-					autoDetect: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+				configFiweCweated = twue;
+				type TaskSewviceTempwateCwassification = {
+					tempwateId?: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+					autoDetect: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
 				};
-				type TaskServiceEvent = {
-					templateId?: string;
-					autoDetect: boolean;
+				type TaskSewviceEvent = {
+					tempwateId?: stwing;
+					autoDetect: boowean;
 				};
-				this.telemetryService.publicLog2<TaskServiceEvent, TaskServiceTemplateClassification>('taskService.template', {
-					templateId: pickTemplateResult.id,
-					autoDetect: pickTemplateResult.autoDetect
+				this.tewemetwySewvice.pubwicWog2<TaskSewviceEvent, TaskSewviceTempwateCwassification>('taskSewvice.tempwate', {
+					tempwateId: pickTempwateWesuwt.id,
+					autoDetect: pickTempwateWesuwt.autoDetect
 				});
 			}
 
-			if (!fileExists && content) {
-				return this.textFileService.create([{ resource, value: content }]).then(result => {
-					return result[0].resource;
+			if (!fiweExists && content) {
+				wetuwn this.textFiweSewvice.cweate([{ wesouwce, vawue: content }]).then(wesuwt => {
+					wetuwn wesuwt[0].wesouwce;
 				});
-			} else if (fileExists && (tasksExistInFile || content)) {
+			} ewse if (fiweExists && (tasksExistInFiwe || content)) {
 				if (content) {
-					this.configurationService.updateValue('tasks', json.parse(content), target);
+					this.configuwationSewvice.updateVawue('tasks', json.pawse(content), tawget);
 				}
-				return stat?.resource;
+				wetuwn stat?.wesouwce;
 			}
-			return undefined;
-		}).then((resource) => {
-			if (!resource) {
-				return;
+			wetuwn undefined;
+		}).then((wesouwce) => {
+			if (!wesouwce) {
+				wetuwn;
 			}
-			this.editorService.openEditor({
-				resource,
+			this.editowSewvice.openEditow({
+				wesouwce,
 				options: {
-					pinned: configFileCreated // pin only if config file is created #8727
+					pinned: configFiweCweated // pin onwy if config fiwe is cweated #8727
 				}
 			});
 		});
 	}
 
-	private isTaskEntry(value: IQuickPickItem): value is IQuickPickItem & { task: Task } {
-		let candidate: IQuickPickItem & { task: Task } = value as any;
-		return candidate && !!candidate.task;
+	pwivate isTaskEntwy(vawue: IQuickPickItem): vawue is IQuickPickItem & { task: Task } {
+		wet candidate: IQuickPickItem & { task: Task } = vawue as any;
+		wetuwn candidate && !!candidate.task;
 	}
 
-	private isSettingEntry(value: IQuickPickItem): value is IQuickPickItem & { settingType: string } {
-		let candidate: IQuickPickItem & { settingType: string } = value as any;
-		return candidate && !!candidate.settingType;
+	pwivate isSettingEntwy(vawue: IQuickPickItem): vawue is IQuickPickItem & { settingType: stwing } {
+		wet candidate: IQuickPickItem & { settingType: stwing } = vawue as any;
+		wetuwn candidate && !!candidate.settingType;
 	}
 
-	private configureTask(task: Task) {
-		if (ContributedTask.is(task)) {
-			this.customize(task, undefined, true);
-		} else if (CustomTask.is(task)) {
+	pwivate configuweTask(task: Task) {
+		if (ContwibutedTask.is(task)) {
+			this.customize(task, undefined, twue);
+		} ewse if (CustomTask.is(task)) {
 			this.openConfig(task);
-		} else if (ConfiguringTask.is(task)) {
+		} ewse if (ConfiguwingTask.is(task)) {
 			// Do nothing.
 		}
 	}
 
-	private handleSelection(selection: TaskQuickPickEntryType | undefined) {
-		if (!selection) {
-			return;
+	pwivate handweSewection(sewection: TaskQuickPickEntwyType | undefined) {
+		if (!sewection) {
+			wetuwn;
 		}
-		if (this.isTaskEntry(selection)) {
-			this.configureTask(selection.task);
-		} else if (this.isSettingEntry(selection)) {
-			const taskQuickPick = new TaskQuickPick(this, this.configurationService, this.quickInputService, this.notificationService, this.dialogService);
-			taskQuickPick.handleSettingOption(selection.settingType);
-		} else if (selection.folder && (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY)) {
-			this.openTaskFile(selection.folder.toResource('.vscode/tasks.json'), TaskSourceKind.Workspace);
-		} else {
-			const resource = this.getResourceForKind(TaskSourceKind.User);
-			if (resource) {
-				this.openTaskFile(resource, TaskSourceKind.User);
+		if (this.isTaskEntwy(sewection)) {
+			this.configuweTask(sewection.task);
+		} ewse if (this.isSettingEntwy(sewection)) {
+			const taskQuickPick = new TaskQuickPick(this, this.configuwationSewvice, this.quickInputSewvice, this.notificationSewvice, this.diawogSewvice);
+			taskQuickPick.handweSettingOption(sewection.settingType);
+		} ewse if (sewection.fowda && (this.contextSewvice.getWowkbenchState() !== WowkbenchState.EMPTY)) {
+			this.openTaskFiwe(sewection.fowda.toWesouwce('.vscode/tasks.json'), TaskSouwceKind.Wowkspace);
+		} ewse {
+			const wesouwce = this.getWesouwceFowKind(TaskSouwceKind.Usa);
+			if (wesouwce) {
+				this.openTaskFiwe(wesouwce, TaskSouwceKind.Usa);
 			}
 		}
 	}
 
-	public getTaskDescription(task: Task | ConfiguringTask): string | undefined {
-		let description: string | undefined;
-		if (task._source.kind === TaskSourceKind.User) {
-			description = nls.localize('taskQuickPick.userSettings', 'User Settings');
-		} else if (task._source.kind === TaskSourceKind.WorkspaceFile) {
-			description = task.getWorkspaceFileName();
-		} else if (this.needsFolderQualification()) {
-			let workspaceFolder = task.getWorkspaceFolder();
-			if (workspaceFolder) {
-				description = workspaceFolder.name;
+	pubwic getTaskDescwiption(task: Task | ConfiguwingTask): stwing | undefined {
+		wet descwiption: stwing | undefined;
+		if (task._souwce.kind === TaskSouwceKind.Usa) {
+			descwiption = nws.wocawize('taskQuickPick.usewSettings', 'Usa Settings');
+		} ewse if (task._souwce.kind === TaskSouwceKind.WowkspaceFiwe) {
+			descwiption = task.getWowkspaceFiweName();
+		} ewse if (this.needsFowdewQuawification()) {
+			wet wowkspaceFowda = task.getWowkspaceFowda();
+			if (wowkspaceFowda) {
+				descwiption = wowkspaceFowda.name;
 			}
 		}
-		return description;
+		wetuwn descwiption;
 	}
 
-	private async runConfigureTasks(): Promise<void> {
-		if (!(await this.trust())) {
-			return;
+	pwivate async wunConfiguweTasks(): Pwomise<void> {
+		if (!(await this.twust())) {
+			wetuwn;
 		}
 
-		if (!this.canRunCommand()) {
-			return undefined;
+		if (!this.canWunCommand()) {
+			wetuwn undefined;
 		}
-		let taskPromise: Promise<TaskMap>;
-		if (this.schemaVersion === JsonSchemaVersion.V2_0_0) {
-			taskPromise = this.getGroupedTasks();
-		} else {
-			taskPromise = Promise.resolve(new TaskMap());
+		wet taskPwomise: Pwomise<TaskMap>;
+		if (this.schemaVewsion === JsonSchemaVewsion.V2_0_0) {
+			taskPwomise = this.getGwoupedTasks();
+		} ewse {
+			taskPwomise = Pwomise.wesowve(new TaskMap());
 		}
 
-		let stats = this.contextService.getWorkspace().folders.map<Promise<IFileStat | undefined>>((folder) => {
-			return this.fileService.resolve(folder.toResource('.vscode/tasks.json')).then(stat => stat, () => undefined);
+		wet stats = this.contextSewvice.getWowkspace().fowdews.map<Pwomise<IFiweStat | undefined>>((fowda) => {
+			wetuwn this.fiweSewvice.wesowve(fowda.toWesouwce('.vscode/tasks.json')).then(stat => stat, () => undefined);
 		});
 
-		let createLabel = nls.localize('TaskService.createJsonFile', 'Create tasks.json file from template');
-		let openLabel = nls.localize('TaskService.openJsonFile', 'Open tasks.json file');
-		const tokenSource = new CancellationTokenSource();
-		const cancellationToken: CancellationToken = tokenSource.token;
-		let entries = Promise.all(stats).then((stats) => {
-			return taskPromise.then((taskMap) => {
-				let entries: QuickPickInput<TaskQuickPickEntryType>[] = [];
-				let needsCreateOrOpen: boolean = true;
-				let tasks = taskMap.all();
-				if (tasks.length > 0) {
-					tasks = tasks.sort((a, b) => a._label.localeCompare(b._label));
-					for (let task of tasks) {
-						entries.push({ label: task._label, task, description: this.getTaskDescription(task), detail: this.showDetail() ? task.configurationProperties.detail : undefined });
-						if (!ContributedTask.is(task)) {
-							needsCreateOrOpen = false;
+		wet cweateWabew = nws.wocawize('TaskSewvice.cweateJsonFiwe', 'Cweate tasks.json fiwe fwom tempwate');
+		wet openWabew = nws.wocawize('TaskSewvice.openJsonFiwe', 'Open tasks.json fiwe');
+		const tokenSouwce = new CancewwationTokenSouwce();
+		const cancewwationToken: CancewwationToken = tokenSouwce.token;
+		wet entwies = Pwomise.aww(stats).then((stats) => {
+			wetuwn taskPwomise.then((taskMap) => {
+				wet entwies: QuickPickInput<TaskQuickPickEntwyType>[] = [];
+				wet needsCweateOwOpen: boowean = twue;
+				wet tasks = taskMap.aww();
+				if (tasks.wength > 0) {
+					tasks = tasks.sowt((a, b) => a._wabew.wocaweCompawe(b._wabew));
+					fow (wet task of tasks) {
+						entwies.push({ wabew: task._wabew, task, descwiption: this.getTaskDescwiption(task), detaiw: this.showDetaiw() ? task.configuwationPwopewties.detaiw : undefined });
+						if (!ContwibutedTask.is(task)) {
+							needsCweateOwOpen = fawse;
 						}
 					}
 				}
-				if (needsCreateOrOpen) {
-					let label = stats[0] !== undefined ? openLabel : createLabel;
-					if (entries.length) {
-						entries.push({ type: 'separator' });
+				if (needsCweateOwOpen) {
+					wet wabew = stats[0] !== undefined ? openWabew : cweateWabew;
+					if (entwies.wength) {
+						entwies.push({ type: 'sepawatow' });
 					}
-					entries.push({ label, folder: this.contextService.getWorkspace().folders[0] });
+					entwies.push({ wabew, fowda: this.contextSewvice.getWowkspace().fowdews[0] });
 				}
-				if ((entries.length === 1) && !needsCreateOrOpen) {
-					tokenSource.cancel();
+				if ((entwies.wength === 1) && !needsCweateOwOpen) {
+					tokenSouwce.cancew();
 				}
-				return entries;
+				wetuwn entwies;
 			});
 		});
 
-		const timeout: boolean = await Promise.race([new Promise<boolean>(async (resolve) => {
-			await entries;
-			resolve(false);
-		}), new Promise<boolean>((resolve) => {
-			const timer = setTimeout(() => {
-				clearTimeout(timer);
-				resolve(true);
+		const timeout: boowean = await Pwomise.wace([new Pwomise<boowean>(async (wesowve) => {
+			await entwies;
+			wesowve(fawse);
+		}), new Pwomise<boowean>((wesowve) => {
+			const tima = setTimeout(() => {
+				cweawTimeout(tima);
+				wesowve(twue);
 			}, 200);
 		})]);
 
-		if (!timeout && ((await entries).length === 1) && this.configurationService.getValue<boolean>(QUICKOPEN_SKIP_CONFIG)) {
-			const entry: any = <any>((await entries)[0]);
-			if (entry.task) {
-				this.handleSelection(entry);
-				return;
+		if (!timeout && ((await entwies).wength === 1) && this.configuwationSewvice.getVawue<boowean>(QUICKOPEN_SKIP_CONFIG)) {
+			const entwy: any = <any>((await entwies)[0]);
+			if (entwy.task) {
+				this.handweSewection(entwy);
+				wetuwn;
 			}
 		}
 
-		const entriesWithSettings = entries.then(resolvedEntries => {
-			resolvedEntries.push(...TaskQuickPick.allSettingEntries(this.configurationService));
-			return resolvedEntries;
+		const entwiesWithSettings = entwies.then(wesowvedEntwies => {
+			wesowvedEntwies.push(...TaskQuickPick.awwSettingEntwies(this.configuwationSewvice));
+			wetuwn wesowvedEntwies;
 		});
 
-		this.quickInputService.pick(entriesWithSettings,
-			{ placeHolder: nls.localize('TaskService.pickTask', 'Select a task to configure') }, cancellationToken).
-			then(async (selection) => {
-				if (cancellationToken.isCancellationRequested) {
-					// canceled when there's only one task
-					const task = (await entries)[0];
+		this.quickInputSewvice.pick(entwiesWithSettings,
+			{ pwaceHowda: nws.wocawize('TaskSewvice.pickTask', 'Sewect a task to configuwe') }, cancewwationToken).
+			then(async (sewection) => {
+				if (cancewwationToken.isCancewwationWequested) {
+					// cancewed when thewe's onwy one task
+					const task = (await entwies)[0];
 					if ((<any>task).task) {
-						selection = <TaskQuickPickEntryType>task;
+						sewection = <TaskQuickPickEntwyType>task;
 					}
 				}
-				this.handleSelection(selection);
+				this.handweSewection(sewection);
 			});
 	}
 
-	private runConfigureDefaultBuildTask(): void {
-		if (!this.canRunCommand()) {
-			return;
+	pwivate wunConfiguweDefauwtBuiwdTask(): void {
+		if (!this.canWunCommand()) {
+			wetuwn;
 		}
-		if (this.schemaVersion === JsonSchemaVersion.V2_0_0) {
+		if (this.schemaVewsion === JsonSchemaVewsion.V2_0_0) {
 			this.tasks().then((tasks => {
-				if (tasks.length === 0) {
-					this.runConfigureTasks();
-					return;
+				if (tasks.wength === 0) {
+					this.wunConfiguweTasks();
+					wetuwn;
 				}
-				let selectedTask: Task | undefined;
-				let selectedEntry: TaskQuickPickEntry;
-				for (let task of tasks) {
-					let taskGroup: TaskGroup | undefined = TaskGroup.from(task.configurationProperties.group);
-					if (taskGroup && taskGroup.isDefault && taskGroup._id === TaskGroup.Build._id) {
-						selectedTask = task;
-						break;
+				wet sewectedTask: Task | undefined;
+				wet sewectedEntwy: TaskQuickPickEntwy;
+				fow (wet task of tasks) {
+					wet taskGwoup: TaskGwoup | undefined = TaskGwoup.fwom(task.configuwationPwopewties.gwoup);
+					if (taskGwoup && taskGwoup.isDefauwt && taskGwoup._id === TaskGwoup.Buiwd._id) {
+						sewectedTask = task;
+						bweak;
 					}
 				}
-				if (selectedTask) {
-					selectedEntry = {
-						label: nls.localize('TaskService.defaultBuildTaskExists', '{0} is already marked as the default build task', selectedTask.getQualifiedLabel()),
-						task: selectedTask,
-						detail: this.showDetail() ? selectedTask.configurationProperties.detail : undefined
+				if (sewectedTask) {
+					sewectedEntwy = {
+						wabew: nws.wocawize('TaskSewvice.defauwtBuiwdTaskExists', '{0} is awweady mawked as the defauwt buiwd task', sewectedTask.getQuawifiedWabew()),
+						task: sewectedTask,
+						detaiw: this.showDetaiw() ? sewectedTask.configuwationPwopewties.detaiw : undefined
 					};
 				}
-				this.showIgnoredFoldersMessage().then(() => {
+				this.showIgnowedFowdewsMessage().then(() => {
 					this.showQuickPick(tasks,
-						nls.localize('TaskService.pickDefaultBuildTask', 'Select the task to be used as the default build task'), undefined, true, false, selectedEntry).
-						then((entry) => {
-							let task: Task | undefined | null = entry ? entry.task : undefined;
-							if ((task === undefined) || (task === null)) {
-								return;
+						nws.wocawize('TaskSewvice.pickDefauwtBuiwdTask', 'Sewect the task to be used as the defauwt buiwd task'), undefined, twue, fawse, sewectedEntwy).
+						then((entwy) => {
+							wet task: Task | undefined | nuww = entwy ? entwy.task : undefined;
+							if ((task === undefined) || (task === nuww)) {
+								wetuwn;
 							}
-							if (task === selectedTask && CustomTask.is(task)) {
+							if (task === sewectedTask && CustomTask.is(task)) {
 								this.openConfig(task);
 							}
-							if (!InMemoryTask.is(task)) {
-								this.customize(task, { group: { kind: 'build', isDefault: true } }, true).then(() => {
-									if (selectedTask && (task !== selectedTask) && !InMemoryTask.is(selectedTask)) {
-										this.customize(selectedTask, { group: 'build' }, false);
+							if (!InMemowyTask.is(task)) {
+								this.customize(task, { gwoup: { kind: 'buiwd', isDefauwt: twue } }, twue).then(() => {
+									if (sewectedTask && (task !== sewectedTask) && !InMemowyTask.is(sewectedTask)) {
+										this.customize(sewectedTask, { gwoup: 'buiwd' }, fawse);
 									}
 								});
 							}
 						});
 				});
 			}));
-		} else {
-			this.runConfigureTasks();
+		} ewse {
+			this.wunConfiguweTasks();
 		}
 	}
 
-	private runConfigureDefaultTestTask(): void {
-		if (!this.canRunCommand()) {
-			return;
+	pwivate wunConfiguweDefauwtTestTask(): void {
+		if (!this.canWunCommand()) {
+			wetuwn;
 		}
-		if (this.schemaVersion === JsonSchemaVersion.V2_0_0) {
+		if (this.schemaVewsion === JsonSchemaVewsion.V2_0_0) {
 			this.tasks().then((tasks => {
-				if (tasks.length === 0) {
-					this.runConfigureTasks();
-					return;
+				if (tasks.wength === 0) {
+					this.wunConfiguweTasks();
+					wetuwn;
 				}
-				let selectedTask: Task | undefined;
-				let selectedEntry: TaskQuickPickEntry;
+				wet sewectedTask: Task | undefined;
+				wet sewectedEntwy: TaskQuickPickEntwy;
 
-				for (let task of tasks) {
-					let taskGroup: TaskGroup | undefined = TaskGroup.from(task.configurationProperties.group);
-					if (taskGroup && taskGroup.isDefault && taskGroup._id === TaskGroup.Test._id) {
-						selectedTask = task;
-						break;
+				fow (wet task of tasks) {
+					wet taskGwoup: TaskGwoup | undefined = TaskGwoup.fwom(task.configuwationPwopewties.gwoup);
+					if (taskGwoup && taskGwoup.isDefauwt && taskGwoup._id === TaskGwoup.Test._id) {
+						sewectedTask = task;
+						bweak;
 					}
 				}
-				if (selectedTask) {
-					selectedEntry = {
-						label: nls.localize('TaskService.defaultTestTaskExists', '{0} is already marked as the default test task.', selectedTask.getQualifiedLabel()),
-						task: selectedTask,
-						detail: this.showDetail() ? selectedTask.configurationProperties.detail : undefined
+				if (sewectedTask) {
+					sewectedEntwy = {
+						wabew: nws.wocawize('TaskSewvice.defauwtTestTaskExists', '{0} is awweady mawked as the defauwt test task.', sewectedTask.getQuawifiedWabew()),
+						task: sewectedTask,
+						detaiw: this.showDetaiw() ? sewectedTask.configuwationPwopewties.detaiw : undefined
 					};
 				}
 
-				this.showIgnoredFoldersMessage().then(() => {
+				this.showIgnowedFowdewsMessage().then(() => {
 					this.showQuickPick(tasks,
-						nls.localize('TaskService.pickDefaultTestTask', 'Select the task to be used as the default test task'), undefined, true, false, selectedEntry).then((entry) => {
-							let task: Task | undefined | null = entry ? entry.task : undefined;
+						nws.wocawize('TaskSewvice.pickDefauwtTestTask', 'Sewect the task to be used as the defauwt test task'), undefined, twue, fawse, sewectedEntwy).then((entwy) => {
+							wet task: Task | undefined | nuww = entwy ? entwy.task : undefined;
 							if (!task) {
-								return;
+								wetuwn;
 							}
-							if (task === selectedTask && CustomTask.is(task)) {
+							if (task === sewectedTask && CustomTask.is(task)) {
 								this.openConfig(task);
 							}
-							if (!InMemoryTask.is(task)) {
-								this.customize(task, { group: { kind: 'test', isDefault: true } }, true).then(() => {
-									if (selectedTask && (task !== selectedTask) && !InMemoryTask.is(selectedTask)) {
-										this.customize(selectedTask, { group: 'test' }, false);
+							if (!InMemowyTask.is(task)) {
+								this.customize(task, { gwoup: { kind: 'test', isDefauwt: twue } }, twue).then(() => {
+									if (sewectedTask && (task !== sewectedTask) && !InMemowyTask.is(sewectedTask)) {
+										this.customize(sewectedTask, { gwoup: 'test' }, fawse);
 									}
 								});
 							}
 						});
 				});
 			}));
-		} else {
-			this.runConfigureTasks();
+		} ewse {
+			this.wunConfiguweTasks();
 		}
 	}
 
-	public async runShowTasks(): Promise<void> {
-		if (!this.canRunCommand()) {
-			return;
+	pubwic async wunShowTasks(): Pwomise<void> {
+		if (!this.canWunCommand()) {
+			wetuwn;
 		}
-		const activeTasksPromise: Promise<Task[]> = this.getActiveTasks();
-		const activeTasks: Task[] = await activeTasksPromise;
-		let group: string | undefined;
-		if (activeTasks.length === 1) {
-			this._taskSystem!.revealTask(activeTasks[0]);
-		} else if (activeTasks.length && activeTasks.every((task) => {
-			if (InMemoryTask.is(task)) {
-				return false;
+		const activeTasksPwomise: Pwomise<Task[]> = this.getActiveTasks();
+		const activeTasks: Task[] = await activeTasksPwomise;
+		wet gwoup: stwing | undefined;
+		if (activeTasks.wength === 1) {
+			this._taskSystem!.weveawTask(activeTasks[0]);
+		} ewse if (activeTasks.wength && activeTasks.evewy((task) => {
+			if (InMemowyTask.is(task)) {
+				wetuwn fawse;
 			}
 
-			if (!group) {
-				group = task.command.presentation?.group;
+			if (!gwoup) {
+				gwoup = task.command.pwesentation?.gwoup;
 			}
-			return task.command.presentation?.group && (task.command.presentation.group === group);
+			wetuwn task.command.pwesentation?.gwoup && (task.command.pwesentation.gwoup === gwoup);
 		})) {
-			this._taskSystem!.revealTask(activeTasks[0]);
-		} else {
-			this.showQuickPick(activeTasksPromise,
-				nls.localize('TaskService.pickShowTask', 'Select the task to show its output'),
+			this._taskSystem!.weveawTask(activeTasks[0]);
+		} ewse {
+			this.showQuickPick(activeTasksPwomise,
+				nws.wocawize('TaskSewvice.pickShowTask', 'Sewect the task to show its output'),
 				{
-					label: nls.localize('TaskService.noTaskIsRunning', 'No task is running'),
-					task: null
+					wabew: nws.wocawize('TaskSewvice.noTaskIsWunning', 'No task is wunning'),
+					task: nuww
 				},
-				false, true
-			).then((entry) => {
-				let task: Task | undefined | null = entry ? entry.task : undefined;
-				if (task === undefined || task === null) {
-					return;
+				fawse, twue
+			).then((entwy) => {
+				wet task: Task | undefined | nuww = entwy ? entwy.task : undefined;
+				if (task === undefined || task === nuww) {
+					wetuwn;
 				}
-				this._taskSystem!.revealTask(task);
+				this._taskSystem!.weveawTask(task);
 			});
 		}
 	}
 
-	private async createTasksDotOld(folder: IWorkspaceFolder): Promise<[URI, URI] | undefined> {
-		const tasksFile = folder.toResource('.vscode/tasks.json');
-		if (await this.fileService.exists(tasksFile)) {
-			const oldFile = tasksFile.with({ path: `${tasksFile.path}.old` });
-			await this.fileService.copy(tasksFile, oldFile, true);
-			return [oldFile, tasksFile];
+	pwivate async cweateTasksDotOwd(fowda: IWowkspaceFowda): Pwomise<[UWI, UWI] | undefined> {
+		const tasksFiwe = fowda.toWesouwce('.vscode/tasks.json');
+		if (await this.fiweSewvice.exists(tasksFiwe)) {
+			const owdFiwe = tasksFiwe.with({ path: `${tasksFiwe.path}.owd` });
+			await this.fiweSewvice.copy(tasksFiwe, owdFiwe, twue);
+			wetuwn [owdFiwe, tasksFiwe];
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private upgradeTask(task: Task, suppressTaskName: boolean, globalConfig: { windows?: CommandUpgrade, osx?: CommandUpgrade, linux?: CommandUpgrade }): TaskConfig.CustomTask | TaskConfig.ConfiguringTask | undefined {
+	pwivate upgwadeTask(task: Task, suppwessTaskName: boowean, gwobawConfig: { windows?: CommandUpgwade, osx?: CommandUpgwade, winux?: CommandUpgwade }): TaskConfig.CustomTask | TaskConfig.ConfiguwingTask | undefined {
 		if (!CustomTask.is(task)) {
-			return;
+			wetuwn;
 		}
-		const configElement: any = {
-			label: task._label
+		const configEwement: any = {
+			wabew: task._wabew
 		};
-		const oldTaskTypes = new Set(['gulp', 'jake', 'grunt']);
-		if (Types.isString(task.command.name) && oldTaskTypes.has(task.command.name)) {
-			configElement.type = task.command.name;
-			configElement.task = task.command.args![0];
-		} else {
-			if (task.command.runtime === RuntimeType.Shell) {
-				configElement.type = RuntimeType.toString(RuntimeType.Shell);
+		const owdTaskTypes = new Set(['guwp', 'jake', 'gwunt']);
+		if (Types.isStwing(task.command.name) && owdTaskTypes.has(task.command.name)) {
+			configEwement.type = task.command.name;
+			configEwement.task = task.command.awgs![0];
+		} ewse {
+			if (task.command.wuntime === WuntimeType.Sheww) {
+				configEwement.type = WuntimeType.toStwing(WuntimeType.Sheww);
 			}
-			if (task.command.name && !suppressTaskName && !globalConfig.windows?.command && !globalConfig.osx?.command && !globalConfig.linux?.command) {
-				configElement.command = task.command.name;
-			} else if (suppressTaskName) {
-				configElement.command = task._source.config.element.command;
+			if (task.command.name && !suppwessTaskName && !gwobawConfig.windows?.command && !gwobawConfig.osx?.command && !gwobawConfig.winux?.command) {
+				configEwement.command = task.command.name;
+			} ewse if (suppwessTaskName) {
+				configEwement.command = task._souwce.config.ewement.command;
 			}
-			if (task.command.args && (!Types.isArray(task.command.args) || (task.command.args.length > 0))) {
-				if (!globalConfig.windows?.args && !globalConfig.osx?.args && !globalConfig.linux?.args) {
-					configElement.args = task.command.args;
-				} else {
-					configElement.args = task._source.config.element.args;
+			if (task.command.awgs && (!Types.isAwway(task.command.awgs) || (task.command.awgs.wength > 0))) {
+				if (!gwobawConfig.windows?.awgs && !gwobawConfig.osx?.awgs && !gwobawConfig.winux?.awgs) {
+					configEwement.awgs = task.command.awgs;
+				} ewse {
+					configEwement.awgs = task._souwce.config.ewement.awgs;
 				}
 			}
 		}
 
-		if (task.configurationProperties.presentation) {
-			configElement.presentation = task.configurationProperties.presentation;
+		if (task.configuwationPwopewties.pwesentation) {
+			configEwement.pwesentation = task.configuwationPwopewties.pwesentation;
 		}
-		if (task.configurationProperties.isBackground) {
-			configElement.isBackground = task.configurationProperties.isBackground;
+		if (task.configuwationPwopewties.isBackgwound) {
+			configEwement.isBackgwound = task.configuwationPwopewties.isBackgwound;
 		}
-		if (task.configurationProperties.problemMatchers) {
-			configElement.problemMatcher = task._source.config.element.problemMatcher;
+		if (task.configuwationPwopewties.pwobwemMatchews) {
+			configEwement.pwobwemMatcha = task._souwce.config.ewement.pwobwemMatcha;
 		}
-		if (task.configurationProperties.group) {
-			configElement.group = task.configurationProperties.group;
+		if (task.configuwationPwopewties.gwoup) {
+			configEwement.gwoup = task.configuwationPwopewties.gwoup;
 		}
 
-		task._source.config.element = configElement;
-		const tempTask = new CustomTask(task._id, task._source, task._label, task.type, task.command, task.hasDefinedMatchers, task.runOptions, task.configurationProperties);
-		const configTask = this.createCustomizableTask(tempTask);
+		task._souwce.config.ewement = configEwement;
+		const tempTask = new CustomTask(task._id, task._souwce, task._wabew, task.type, task.command, task.hasDefinedMatchews, task.wunOptions, task.configuwationPwopewties);
+		const configTask = this.cweateCustomizabweTask(tempTask);
 		if (configTask) {
-			return configTask;
+			wetuwn configTask;
 		}
-		return;
+		wetuwn;
 	}
 
-	private async upgrade(): Promise<void> {
-		if (this.schemaVersion === JsonSchemaVersion.V2_0_0) {
-			return;
+	pwivate async upgwade(): Pwomise<void> {
+		if (this.schemaVewsion === JsonSchemaVewsion.V2_0_0) {
+			wetuwn;
 		}
 
-		if (!this.workspaceTrustManagementService.isWorkspaceTrusted()) {
-			this._register(Event.once(this.workspaceTrustManagementService.onDidChangeTrust)(isTrusted => {
-				if (isTrusted) {
-					this.upgrade();
+		if (!this.wowkspaceTwustManagementSewvice.isWowkspaceTwusted()) {
+			this._wegista(Event.once(this.wowkspaceTwustManagementSewvice.onDidChangeTwust)(isTwusted => {
+				if (isTwusted) {
+					this.upgwade();
 				}
 			}));
-			return;
+			wetuwn;
 		}
 
-		const tasks = await this.getGroupedTasks();
-		const fileDiffs: [URI, URI][] = [];
-		for (const folder of this.workspaceFolders) {
-			const diff = await this.createTasksDotOld(folder);
+		const tasks = await this.getGwoupedTasks();
+		const fiweDiffs: [UWI, UWI][] = [];
+		fow (const fowda of this.wowkspaceFowdews) {
+			const diff = await this.cweateTasksDotOwd(fowda);
 			if (diff) {
-				fileDiffs.push(diff);
+				fiweDiffs.push(diff);
 			}
 			if (!diff) {
 				continue;
 			}
 
-			const configTasks: (TaskConfig.CustomTask | TaskConfig.ConfiguringTask)[] = [];
-			const suppressTaskName = !!this.configurationService.getValue('tasks.suppressTaskName', { resource: folder.uri });
-			const globalConfig = {
-				windows: <CommandUpgrade>this.configurationService.getValue('tasks.windows', { resource: folder.uri }),
-				osx: <CommandUpgrade>this.configurationService.getValue('tasks.osx', { resource: folder.uri }),
-				linux: <CommandUpgrade>this.configurationService.getValue('tasks.linux', { resource: folder.uri })
+			const configTasks: (TaskConfig.CustomTask | TaskConfig.ConfiguwingTask)[] = [];
+			const suppwessTaskName = !!this.configuwationSewvice.getVawue('tasks.suppwessTaskName', { wesouwce: fowda.uwi });
+			const gwobawConfig = {
+				windows: <CommandUpgwade>this.configuwationSewvice.getVawue('tasks.windows', { wesouwce: fowda.uwi }),
+				osx: <CommandUpgwade>this.configuwationSewvice.getVawue('tasks.osx', { wesouwce: fowda.uwi }),
+				winux: <CommandUpgwade>this.configuwationSewvice.getVawue('tasks.winux', { wesouwce: fowda.uwi })
 			};
-			tasks.get(folder).forEach(task => {
-				const configTask = this.upgradeTask(task, suppressTaskName, globalConfig);
+			tasks.get(fowda).fowEach(task => {
+				const configTask = this.upgwadeTask(task, suppwessTaskName, gwobawConfig);
 				if (configTask) {
 					configTasks.push(configTask);
 				}
 			});
 			this._taskSystem = undefined;
-			this._workspaceTasksPromise = undefined;
-			await this.writeConfiguration(folder, 'tasks.tasks', configTasks);
-			await this.writeConfiguration(folder, 'tasks.version', '2.0.0');
-			if (this.configurationService.getValue('tasks.showOutput', { resource: folder.uri })) {
-				await this.configurationService.updateValue('tasks.showOutput', undefined, { resource: folder.uri });
+			this._wowkspaceTasksPwomise = undefined;
+			await this.wwiteConfiguwation(fowda, 'tasks.tasks', configTasks);
+			await this.wwiteConfiguwation(fowda, 'tasks.vewsion', '2.0.0');
+			if (this.configuwationSewvice.getVawue('tasks.showOutput', { wesouwce: fowda.uwi })) {
+				await this.configuwationSewvice.updateVawue('tasks.showOutput', undefined, { wesouwce: fowda.uwi });
 			}
-			if (this.configurationService.getValue('tasks.isShellCommand', { resource: folder.uri })) {
-				await this.configurationService.updateValue('tasks.isShellCommand', undefined, { resource: folder.uri });
+			if (this.configuwationSewvice.getVawue('tasks.isShewwCommand', { wesouwce: fowda.uwi })) {
+				await this.configuwationSewvice.updateVawue('tasks.isShewwCommand', undefined, { wesouwce: fowda.uwi });
 			}
-			if (this.configurationService.getValue('tasks.suppressTaskName', { resource: folder.uri })) {
-				await this.configurationService.updateValue('tasks.suppressTaskName', undefined, { resource: folder.uri });
+			if (this.configuwationSewvice.getVawue('tasks.suppwessTaskName', { wesouwce: fowda.uwi })) {
+				await this.configuwationSewvice.updateVawue('tasks.suppwessTaskName', undefined, { wesouwce: fowda.uwi });
 			}
 		}
 		this.updateSetup();
 
-		this.notificationService.prompt(Severity.Warning,
-			fileDiffs.length === 1 ?
-				nls.localize('taskService.upgradeVersion', "The deprecated tasks version 0.1.0 has been removed. Your tasks have been upgraded to version 2.0.0. Open the diff to review the upgrade.")
-				: nls.localize('taskService.upgradeVersionPlural', "The deprecated tasks version 0.1.0 has been removed. Your tasks have been upgraded to version 2.0.0. Open the diffs to review the upgrade."),
+		this.notificationSewvice.pwompt(Sevewity.Wawning,
+			fiweDiffs.wength === 1 ?
+				nws.wocawize('taskSewvice.upgwadeVewsion', "The depwecated tasks vewsion 0.1.0 has been wemoved. Youw tasks have been upgwaded to vewsion 2.0.0. Open the diff to weview the upgwade.")
+				: nws.wocawize('taskSewvice.upgwadeVewsionPwuwaw', "The depwecated tasks vewsion 0.1.0 has been wemoved. Youw tasks have been upgwaded to vewsion 2.0.0. Open the diffs to weview the upgwade."),
 			[{
-				label: fileDiffs.length === 1 ? nls.localize('taskService.openDiff', "Open diff") : nls.localize('taskService.openDiffs', "Open diffs"),
-				run: async () => {
-					for (const upgrade of fileDiffs) {
-						await this.editorService.openEditor({
-							original: { resource: upgrade[0] },
-							modified: { resource: upgrade[1] }
+				wabew: fiweDiffs.wength === 1 ? nws.wocawize('taskSewvice.openDiff', "Open diff") : nws.wocawize('taskSewvice.openDiffs', "Open diffs"),
+				wun: async () => {
+					fow (const upgwade of fiweDiffs) {
+						await this.editowSewvice.openEditow({
+							owiginaw: { wesouwce: upgwade[0] },
+							modified: { wesouwce: upgwade[1] }
 						});
 					}
 				}

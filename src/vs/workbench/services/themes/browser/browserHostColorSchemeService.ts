@@ -1,59 +1,59 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import * as dom from 'vs/base/browser/dom';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IHostColorSchemeService } from 'vs/workbench/services/themes/common/hostColorSchemeService';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IHostCowowSchemeSewvice } fwom 'vs/wowkbench/sewvices/themes/common/hostCowowSchemeSewvice';
 
-export class BrowserHostColorSchemeService extends Disposable implements IHostColorSchemeService {
+expowt cwass BwowsewHostCowowSchemeSewvice extends Disposabwe impwements IHostCowowSchemeSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _onDidSchemeChangeEvent = this._register(new Emitter<void>());
+	pwivate weadonwy _onDidSchemeChangeEvent = this._wegista(new Emitta<void>());
 
-	constructor(
-		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService
+	constwuctow(
+		@IWowkbenchEnviwonmentSewvice pwivate enviwonmentSewvice: IWowkbenchEnviwonmentSewvice
 	) {
-		super();
+		supa();
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		dom.addMatchMediaChangeListener('(prefers-color-scheme: dark)', () => {
-			this._onDidSchemeChangeEvent.fire();
+		dom.addMatchMediaChangeWistena('(pwefews-cowow-scheme: dawk)', () => {
+			this._onDidSchemeChangeEvent.fiwe();
 		});
-		dom.addMatchMediaChangeListener('(forced-colors: active)', () => {
-			this._onDidSchemeChangeEvent.fire();
+		dom.addMatchMediaChangeWistena('(fowced-cowows: active)', () => {
+			this._onDidSchemeChangeEvent.fiwe();
 		});
 	}
 
-	get onDidChangeColorScheme(): Event<void> {
-		return this._onDidSchemeChangeEvent.event;
+	get onDidChangeCowowScheme(): Event<void> {
+		wetuwn this._onDidSchemeChangeEvent.event;
 	}
 
-	get dark(): boolean {
-		if (window.matchMedia(`(prefers-color-scheme: light)`).matches) {
-			return false;
-		} else if (window.matchMedia(`(prefers-color-scheme: dark)`).matches) {
-			return true;
+	get dawk(): boowean {
+		if (window.matchMedia(`(pwefews-cowow-scheme: wight)`).matches) {
+			wetuwn fawse;
+		} ewse if (window.matchMedia(`(pwefews-cowow-scheme: dawk)`).matches) {
+			wetuwn twue;
 		}
-		return this.environmentService.configuration.colorScheme.dark;
+		wetuwn this.enviwonmentSewvice.configuwation.cowowScheme.dawk;
 	}
 
-	get highContrast(): boolean {
-		if (window.matchMedia(`(forced-colors: active)`).matches) {
-			return true;
+	get highContwast(): boowean {
+		if (window.matchMedia(`(fowced-cowows: active)`).matches) {
+			wetuwn twue;
 		}
-		return this.environmentService.configuration.colorScheme.highContrast;
+		wetuwn this.enviwonmentSewvice.configuwation.cowowScheme.highContwast;
 	}
 
 }
 
-registerSingleton(IHostColorSchemeService, BrowserHostColorSchemeService, true);
+wegistewSingweton(IHostCowowSchemeSewvice, BwowsewHostCowowSchemeSewvice, twue);

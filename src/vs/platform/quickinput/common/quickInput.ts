@@ -1,66 +1,66 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, QuickPickInput } from 'vs/base/parts/quickinput/common/quickInput';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInputButton, IQuickNavigateConfiguwation, IQuickPick, IQuickPickItem, QuickPickInput } fwom 'vs/base/pawts/quickinput/common/quickInput';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IQuickAccessContwowwa } fwom 'vs/pwatfowm/quickinput/common/quickAccess';
 
-export * from 'vs/base/parts/quickinput/common/quickInput';
+expowt * fwom 'vs/base/pawts/quickinput/common/quickInput';
 
-export const IQuickInputService = createDecorator<IQuickInputService>('quickInputService');
+expowt const IQuickInputSewvice = cweateDecowatow<IQuickInputSewvice>('quickInputSewvice');
 
-export type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
+expowt type Omit<T, K extends keyof T> = Pick<T, Excwude<keyof T, K>>;
 
-export interface IQuickInputService {
+expowt intewface IQuickInputSewvice {
 
-	readonly _serviceBrand: undefined;
-
-	/**
-	 * Provides access to the back button in quick input.
-	 */
-	readonly backButton: IQuickInputButton;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Provides access to the quick access providers.
+	 * Pwovides access to the back button in quick input.
 	 */
-	readonly quickAccess: IQuickAccessController;
+	weadonwy backButton: IQuickInputButton;
 
 	/**
-	 * Allows to register on the event that quick input is showing.
+	 * Pwovides access to the quick access pwovidews.
 	 */
-	readonly onShow: Event<void>;
+	weadonwy quickAccess: IQuickAccessContwowwa;
 
 	/**
-	 * Allows to register on the event that quick input is hiding.
+	 * Awwows to wegista on the event that quick input is showing.
 	 */
-	readonly onHide: Event<void>;
+	weadonwy onShow: Event<void>;
 
 	/**
-	 * Opens the quick input box for selecting items and returns a promise
-	 * with the user selected item(s) if any.
+	 * Awwows to wegista on the event that quick input is hiding.
 	 */
-	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: true }, token?: CancellationToken): Promise<T[] | undefined>;
-	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): Promise<T | undefined>;
-	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancellationToken): Promise<T | undefined>;
+	weadonwy onHide: Event<void>;
 
 	/**
-	 * Opens the quick input box for text input and returns a promise with the user typed value if any.
+	 * Opens the quick input box fow sewecting items and wetuwns a pwomise
+	 * with the usa sewected item(s) if any.
 	 */
-	input(options?: IInputOptions, token?: CancellationToken): Promise<string | undefined>;
+	pick<T extends IQuickPickItem>(picks: Pwomise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: twue }, token?: CancewwationToken): Pwomise<T[] | undefined>;
+	pick<T extends IQuickPickItem>(picks: Pwomise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: fawse }, token?: CancewwationToken): Pwomise<T | undefined>;
+	pick<T extends IQuickPickItem>(picks: Pwomise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancewwationToken): Pwomise<T | undefined>;
 
 	/**
-	 * Provides raw access to the quick pick controller.
+	 * Opens the quick input box fow text input and wetuwns a pwomise with the usa typed vawue if any.
 	 */
-	createQuickPick<T extends IQuickPickItem>(): IQuickPick<T>;
+	input(options?: IInputOptions, token?: CancewwationToken): Pwomise<stwing | undefined>;
 
 	/**
-	 * Provides raw access to the quick input controller.
+	 * Pwovides waw access to the quick pick contwowwa.
 	 */
-	createInputBox(): IInputBox;
+	cweateQuickPick<T extends IQuickPickItem>(): IQuickPick<T>;
+
+	/**
+	 * Pwovides waw access to the quick input contwowwa.
+	 */
+	cweateInputBox(): IInputBox;
 
 	/**
 	 * Moves focus into quick input.
@@ -68,30 +68,30 @@ export interface IQuickInputService {
 	focus(): void;
 
 	/**
-	 * Toggle the checked state of the selected item.
+	 * Toggwe the checked state of the sewected item.
 	 */
-	toggle(): void;
+	toggwe(): void;
 
 	/**
-	 * Navigate inside the opened quick input list.
+	 * Navigate inside the opened quick input wist.
 	 */
-	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration): void;
+	navigate(next: boowean, quickNavigate?: IQuickNavigateConfiguwation): void;
 
 	/**
-	 * Navigate back in a multi-step quick input.
+	 * Navigate back in a muwti-step quick input.
 	 */
-	back(): Promise<void>;
+	back(): Pwomise<void>;
 
 	/**
-	 * Accept the selected item.
+	 * Accept the sewected item.
 	 *
-	 * @param keyMods allows to override the state of key
-	 * modifiers that should be present when invoking.
+	 * @pawam keyMods awwows to ovewwide the state of key
+	 * modifiews that shouwd be pwesent when invoking.
 	 */
-	accept(keyMods?: IKeyMods): Promise<void>;
+	accept(keyMods?: IKeyMods): Pwomise<void>;
 
 	/**
-	 * Cancels quick input and closes it.
+	 * Cancews quick input and cwoses it.
 	 */
-	cancel(): Promise<void>;
+	cancew(): Pwomise<void>;
 }

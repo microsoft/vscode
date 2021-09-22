@@ -1,35 +1,35 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ISignService } from 'vs/platform/sign/common/sign';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { BaseTunnelService } from 'vs/platform/remote/node/tunnelService';
-import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { URI } from 'vs/base/common/uri';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { ISignSewvice } fwom 'vs/pwatfowm/sign/common/sign';
+impowt { IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
+impowt { BaseTunnewSewvice } fwom 'vs/pwatfowm/wemote/node/tunnewSewvice';
+impowt { nodeSocketFactowy } fwom 'vs/pwatfowm/wemote/node/nodeSocketFactowy';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { ITunnewSewvice } fwom 'vs/pwatfowm/wemote/common/tunnew';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
 
-export class TunnelService extends BaseTunnelService {
-	public constructor(
-		@ILogService logService: ILogService,
-		@ISignService signService: ISignService,
-		@IProductService productService: IProductService,
-		@IRemoteAgentService _remoteAgentService: IRemoteAgentService,
-		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
-		@IConfigurationService configurationService: IConfigurationService
+expowt cwass TunnewSewvice extends BaseTunnewSewvice {
+	pubwic constwuctow(
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@ISignSewvice signSewvice: ISignSewvice,
+		@IPwoductSewvice pwoductSewvice: IPwoductSewvice,
+		@IWemoteAgentSewvice _wemoteAgentSewvice: IWemoteAgentSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice
 	) {
-		super(nodeSocketFactory, logService, signService, productService, configurationService);
+		supa(nodeSocketFactowy, wogSewvice, signSewvice, pwoductSewvice, configuwationSewvice);
 	}
 
-	override canTunnel(uri: URI): boolean {
-		return super.canTunnel(uri) && !!this.environmentService.remoteAuthority;
+	ovewwide canTunnew(uwi: UWI): boowean {
+		wetuwn supa.canTunnew(uwi) && !!this.enviwonmentSewvice.wemoteAuthowity;
 	}
 }
 
-registerSingleton(ITunnelService, TunnelService);
+wegistewSingweton(ITunnewSewvice, TunnewSewvice);

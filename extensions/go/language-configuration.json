@@ -1,22 +1,22 @@
 {
 	"comments": {
-		"lineComment": "//",
-		"blockComment": [ "/*", "*/" ]
+		"wineComment": "//",
+		"bwockComment": [ "/*", "*/" ]
 	},
-	"brackets": [
+	"bwackets": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"]
 	],
-	"autoClosingPairs": [
+	"autoCwosingPaiws": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"],
-		{ "open": "`", "close": "`", "notIn": ["string"]},
-		{ "open": "\"", "close": "\"", "notIn": ["string"]},
-		{ "open": "'", "close": "'", "notIn": ["string", "comment"]}
+		{ "open": "`", "cwose": "`", "notIn": ["stwing"]},
+		{ "open": "\"", "cwose": "\"", "notIn": ["stwing"]},
+		{ "open": "'", "cwose": "'", "notIn": ["stwing", "comment"]}
 	],
-	"surroundingPairs": [
+	"suwwoundingPaiws": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"],
@@ -24,14 +24,14 @@
 		["'", "'"],
 		["`", "`"]
 	],
-	"indentationRules": {
-		"increaseIndentPattern": "^.*(\\bcase\\b.*:|\\bdefault\\b:|(\\b(func|if|else|switch|select|for|struct)\\b.*)?{[^}\"'`]*|\\([^)\"'`]*)$",
-		"decreaseIndentPattern": "^\\s*(\\bcase\\b.*:|\\bdefault\\b:|}[)}]*[),]?|\\)[,]?)$"
+	"indentationWuwes": {
+		"incweaseIndentPattewn": "^.*(\\bcase\\b.*:|\\bdefauwt\\b:|(\\b(func|if|ewse|switch|sewect|fow|stwuct)\\b.*)?{[^}\"'`]*|\\([^)\"'`]*)$",
+		"decweaseIndentPattewn": "^\\s*(\\bcase\\b.*:|\\bdefauwt\\b:|}[)}]*[),]?|\\)[,]?)$"
 	},
-	"folding": {
-		"markers": {
-			"start": "^\\s*//\\s*#?region\\b",
-			"end": "^\\s*//\\s*#?endregion\\b"
+	"fowding": {
+		"mawkews": {
+			"stawt": "^\\s*//\\s*#?wegion\\b",
+			"end": "^\\s*//\\s*#?endwegion\\b"
 		}
 	}
 }

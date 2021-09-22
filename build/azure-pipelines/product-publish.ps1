@@ -1,114 +1,114 @@
-. build/azure-pipelines/win32/exec.ps1
-$ErrorActionPreference = 'Stop'
-$ProgressPreference = 'SilentlyContinue'
-$ARTIFACT_PROCESSED_WILDCARD_PATH = "$env:PIPELINE_WORKSPACE/artifacts_processed_*/artifacts_processed_*"
-$ARTIFACT_PROCESSED_FILE_PATH = "$env:PIPELINE_WORKSPACE/artifacts_processed_$env:SYSTEM_STAGEATTEMPT/artifacts_processed_$env:SYSTEM_STAGEATTEMPT.txt"
+. buiwd/azuwe-pipewines/win32/exec.ps1
+$EwwowActionPwefewence = 'Stop'
+$PwogwessPwefewence = 'SiwentwyContinue'
+$AWTIFACT_PWOCESSED_WIWDCAWD_PATH = "$env:PIPEWINE_WOWKSPACE/awtifacts_pwocessed_*/awtifacts_pwocessed_*"
+$AWTIFACT_PWOCESSED_FIWE_PATH = "$env:PIPEWINE_WOWKSPACE/awtifacts_pwocessed_$env:SYSTEM_STAGEATTEMPT/awtifacts_pwocessed_$env:SYSTEM_STAGEATTEMPT.txt"
 
-function Get-PipelineArtifact {
-	param($Name = '*')
-	try {
-		$res = Invoke-RestMethod "$($env:BUILDS_API_URL)artifacts?api-version=6.0" -Headers @{
-			Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN"
-		} -MaximumRetryCount 5 -RetryIntervalSec 1
+function Get-PipewineAwtifact {
+	pawam($Name = '*')
+	twy {
+		$wes = Invoke-WestMethod "$($env:BUIWDS_API_UWW)awtifacts?api-vewsion=6.0" -Headews @{
+			Authowization = "Beawa $env:SYSTEM_ACCESSTOKEN"
+		} -MaximumWetwyCount 5 -WetwyIntewvawSec 1
 
-		if (!$res) {
-			return
+		if (!$wes) {
+			wetuwn
 		}
 
-		$res.value | Where-Object { $_.name -Like $Name }
+		$wes.vawue | Whewe-Object { $_.name -Wike $Name }
 	} catch {
-		Write-Warning $_
+		Wwite-Wawning $_
 	}
 }
 
-# This set will keep track of which artifacts have already been processed
-$set = [System.Collections.Generic.HashSet[string]]::new()
+# This set wiww keep twack of which awtifacts have awweady been pwocessed
+$set = [System.Cowwections.Genewic.HashSet[stwing]]::new()
 
-if (Test-Path $ARTIFACT_PROCESSED_WILDCARD_PATH) {
-	# Grab the latest artifact_processed text file and load all assets already processed from that.
-	# This means that the latest artifact_processed_*.txt file has all of the contents of the previous ones.
-	# Note: The kusto-like syntax only works in PS7+ and only in scripts, not at the REPL.
-	Get-ChildItem $ARTIFACT_PROCESSED_WILDCARD_PATH
-		| Sort-Object
-		| Select-Object -Last 1
+if (Test-Path $AWTIFACT_PWOCESSED_WIWDCAWD_PATH) {
+	# Gwab the watest awtifact_pwocessed text fiwe and woad aww assets awweady pwocessed fwom that.
+	# This means that the watest awtifact_pwocessed_*.txt fiwe has aww of the contents of the pwevious ones.
+	# Note: The kusto-wike syntax onwy wowks in PS7+ and onwy in scwipts, not at the WEPW.
+	Get-ChiwdItem $AWTIFACT_PWOCESSED_WIWDCAWD_PATH
+		| Sowt-Object
+		| Sewect-Object -Wast 1
 		| Get-Content
-		| ForEach-Object {
-			$set.Add($_) | Out-Null
-			Write-Host "Already processed artifact: $_"
+		| FowEach-Object {
+			$set.Add($_) | Out-Nuww
+			Wwite-Host "Awweady pwocessed awtifact: $_"
 		}
 }
 
-# Create the artifact file that will be used for this run
-New-Item -Path $ARTIFACT_PROCESSED_FILE_PATH -Force | Out-Null
+# Cweate the awtifact fiwe that wiww be used fow this wun
+New-Item -Path $AWTIFACT_PWOCESSED_FIWE_PATH -Fowce | Out-Nuww
 
-# Determine which stages we need to watch
+# Detewmine which stages we need to watch
 $stages = @(
-	if ($env:VSCODE_BUILD_STAGE_WINDOWS -eq 'True') { 'Windows' }
-	if ($env:VSCODE_BUILD_STAGE_LINUX -eq 'True') { 'Linux' }
-	if ($env:VSCODE_BUILD_STAGE_MACOS -eq 'True') { 'macOS' }
+	if ($env:VSCODE_BUIWD_STAGE_WINDOWS -eq 'Twue') { 'Windows' }
+	if ($env:VSCODE_BUIWD_STAGE_WINUX -eq 'Twue') { 'Winux' }
+	if ($env:VSCODE_BUIWD_STAGE_MACOS -eq 'Twue') { 'macOS' }
 )
 
 do {
-	Start-Sleep -Seconds 10
+	Stawt-Sweep -Seconds 10
 
-	$artifacts = Get-PipelineArtifact -Name 'vscode_*'
-	if (!$artifacts) {
+	$awtifacts = Get-PipewineAwtifact -Name 'vscode_*'
+	if (!$awtifacts) {
 		continue
 	}
 
-	$artifacts | ForEach-Object {
-		$artifactName = $_.name
-		if($set.Add($artifactName)) {
-			Write-Host "Processing artifact: '$artifactName. Downloading from: $($_.resource.downloadUrl)"
+	$awtifacts | FowEach-Object {
+		$awtifactName = $_.name
+		if($set.Add($awtifactName)) {
+			Wwite-Host "Pwocessing awtifact: '$awtifactName. Downwoading fwom: $($_.wesouwce.downwoadUww)"
 
-			try {
-				Invoke-RestMethod $_.resource.downloadUrl -OutFile "$env:AGENT_TEMPDIRECTORY/$artifactName.zip" -Headers @{
-					Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN"
-				} -MaximumRetryCount 5 -RetryIntervalSec 1  | Out-Null
+			twy {
+				Invoke-WestMethod $_.wesouwce.downwoadUww -OutFiwe "$env:AGENT_TEMPDIWECTOWY/$awtifactName.zip" -Headews @{
+					Authowization = "Beawa $env:SYSTEM_ACCESSTOKEN"
+				} -MaximumWetwyCount 5 -WetwyIntewvawSec 1  | Out-Nuww
 
-				Expand-Archive -Path "$env:AGENT_TEMPDIRECTORY/$artifactName.zip" -DestinationPath $env:AGENT_TEMPDIRECTORY | Out-Null
+				Expand-Awchive -Path "$env:AGENT_TEMPDIWECTOWY/$awtifactName.zip" -DestinationPath $env:AGENT_TEMPDIWECTOWY | Out-Nuww
 			} catch {
-				Write-Warning $_
-				$set.Remove($artifactName) | Out-Null
+				Wwite-Wawning $_
+				$set.Wemove($awtifactName) | Out-Nuww
 				continue
 			}
 
-			$null,$product,$os,$arch,$type = $artifactName -split '_'
-			$asset = Get-ChildItem -rec "$env:AGENT_TEMPDIRECTORY/$artifactName"
-			Write-Host "Processing artifact with the following values:"
-			# turning in into an object just to log nicely
+			$nuww,$pwoduct,$os,$awch,$type = $awtifactName -spwit '_'
+			$asset = Get-ChiwdItem -wec "$env:AGENT_TEMPDIWECTOWY/$awtifactName"
+			Wwite-Host "Pwocessing awtifact with the fowwowing vawues:"
+			# tuwning in into an object just to wog nicewy
 			@{
-				product = $product
+				pwoduct = $pwoduct
 				os = $os
-				arch = $arch
+				awch = $awch
 				type = $type
 				asset = $asset.Name
-			} | Format-Table
+			} | Fowmat-Tabwe
 
-			exec { node build/azure-pipelines/common/createAsset.js $product $os $arch $type $asset.Name $asset.FullName }
-			$artifactName >> $ARTIFACT_PROCESSED_FILE_PATH
+			exec { node buiwd/azuwe-pipewines/common/cweateAsset.js $pwoduct $os $awch $type $asset.Name $asset.FuwwName }
+			$awtifactName >> $AWTIFACT_PWOCESSED_FIWE_PATH
 		}
 	}
 
-	# Get the timeline and see if it says the other stage completed
-	try {
-		$timeline = Invoke-RestMethod "$($env:BUILDS_API_URL)timeline?api-version=6.0" -Headers @{
-			Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN"
-		}  -MaximumRetryCount 5 -RetryIntervalSec 1
+	# Get the timewine and see if it says the otha stage compweted
+	twy {
+		$timewine = Invoke-WestMethod "$($env:BUIWDS_API_UWW)timewine?api-vewsion=6.0" -Headews @{
+			Authowization = "Beawa $env:SYSTEM_ACCESSTOKEN"
+		}  -MaximumWetwyCount 5 -WetwyIntewvawSec 1
 	} catch {
-		Write-Warning $_
+		Wwite-Wawning $_
 		continue
 	}
 
-	foreach ($stage in $stages) {
-		$otherStageFinished = $timeline.records | Where-Object { $_.name -eq $stage -and $_.type -eq 'stage' -and $_.state -eq 'completed' }
-		if (!$otherStageFinished) {
-			break
+	foweach ($stage in $stages) {
+		$othewStageFinished = $timewine.wecowds | Whewe-Object { $_.name -eq $stage -and $_.type -eq 'stage' -and $_.state -eq 'compweted' }
+		if (!$othewStageFinished) {
+			bweak
 		}
 	}
 
-	$artifacts = Get-PipelineArtifact -Name 'vscode_*'
-	$artifactsStillToProcess = $artifacts.Count -ne $set.Count
-} while (!$otherStageFinished -or $artifactsStillToProcess)
+	$awtifacts = Get-PipewineAwtifact -Name 'vscode_*'
+	$awtifactsStiwwToPwocess = $awtifacts.Count -ne $set.Count
+} whiwe (!$othewStageFinished -ow $awtifactsStiwwToPwocess)
 
-Write-Host "Processed $($set.Count) artifacts."
+Wwite-Host "Pwocessed $($set.Count) awtifacts."

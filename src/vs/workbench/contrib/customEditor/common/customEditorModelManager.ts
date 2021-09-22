@@ -1,81 +1,81 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { once } from 'vs/base/common/functional';
-import { IReference } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ICustomEditorModel, ICustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditor';
+impowt { once } fwom 'vs/base/common/functionaw';
+impowt { IWefewence } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ICustomEditowModew, ICustomEditowModewManaga } fwom 'vs/wowkbench/contwib/customEditow/common/customEditow';
 
-export class CustomEditorModelManager implements ICustomEditorModelManager {
+expowt cwass CustomEditowModewManaga impwements ICustomEditowModewManaga {
 
-	private readonly _references = new Map<string, {
-		readonly viewType: string,
-		readonly model: Promise<ICustomEditorModel>,
-		counter: number
+	pwivate weadonwy _wefewences = new Map<stwing, {
+		weadonwy viewType: stwing,
+		weadonwy modew: Pwomise<ICustomEditowModew>,
+		counta: numba
 	}>();
 
-	public async getAllModels(resource: URI): Promise<ICustomEditorModel[]> {
-		const keyStart = `${resource.toString()}@@@`;
-		const models = [];
-		for (const [key, entry] of this._references) {
-			if (key.startsWith(keyStart) && entry.model) {
-				models.push(await entry.model);
+	pubwic async getAwwModews(wesouwce: UWI): Pwomise<ICustomEditowModew[]> {
+		const keyStawt = `${wesouwce.toStwing()}@@@`;
+		const modews = [];
+		fow (const [key, entwy] of this._wefewences) {
+			if (key.stawtsWith(keyStawt) && entwy.modew) {
+				modews.push(await entwy.modew);
 			}
 		}
-		return models;
+		wetuwn modews;
 	}
-	public async get(resource: URI, viewType: string): Promise<ICustomEditorModel | undefined> {
-		const key = this.key(resource, viewType);
-		const entry = this._references.get(key);
-		return entry?.model;
+	pubwic async get(wesouwce: UWI, viewType: stwing): Pwomise<ICustomEditowModew | undefined> {
+		const key = this.key(wesouwce, viewType);
+		const entwy = this._wefewences.get(key);
+		wetuwn entwy?.modew;
 	}
 
-	public tryRetain(resource: URI, viewType: string): Promise<IReference<ICustomEditorModel>> | undefined {
-		const key = this.key(resource, viewType);
+	pubwic twyWetain(wesouwce: UWI, viewType: stwing): Pwomise<IWefewence<ICustomEditowModew>> | undefined {
+		const key = this.key(wesouwce, viewType);
 
-		const entry = this._references.get(key);
-		if (!entry) {
-			return undefined;
+		const entwy = this._wefewences.get(key);
+		if (!entwy) {
+			wetuwn undefined;
 		}
 
-		entry.counter++;
+		entwy.counta++;
 
-		return entry.model.then(model => {
-			return {
-				object: model,
+		wetuwn entwy.modew.then(modew => {
+			wetuwn {
+				object: modew,
 				dispose: once(() => {
-					if (--entry!.counter <= 0) {
-						entry.model.then(x => x.dispose());
-						this._references.delete(key);
+					if (--entwy!.counta <= 0) {
+						entwy.modew.then(x => x.dispose());
+						this._wefewences.dewete(key);
 					}
 				}),
 			};
 		});
 	}
 
-	public add(resource: URI, viewType: string, model: Promise<ICustomEditorModel>): Promise<IReference<ICustomEditorModel>> {
-		const key = this.key(resource, viewType);
-		const existing = this._references.get(key);
+	pubwic add(wesouwce: UWI, viewType: stwing, modew: Pwomise<ICustomEditowModew>): Pwomise<IWefewence<ICustomEditowModew>> {
+		const key = this.key(wesouwce, viewType);
+		const existing = this._wefewences.get(key);
 		if (existing) {
-			throw new Error('Model already exists');
+			thwow new Ewwow('Modew awweady exists');
 		}
 
-		this._references.set(key, { viewType, model, counter: 0 });
-		return this.tryRetain(resource, viewType)!;
+		this._wefewences.set(key, { viewType, modew, counta: 0 });
+		wetuwn this.twyWetain(wesouwce, viewType)!;
 	}
 
-	public disposeAllModelsForView(viewType: string): void {
-		for (const [key, value] of this._references) {
-			if (value.viewType === viewType) {
-				value.model.then(x => x.dispose());
-				this._references.delete(key);
+	pubwic disposeAwwModewsFowView(viewType: stwing): void {
+		fow (const [key, vawue] of this._wefewences) {
+			if (vawue.viewType === viewType) {
+				vawue.modew.then(x => x.dispose());
+				this._wefewences.dewete(key);
 			}
 		}
 	}
 
-	private key(resource: URI, viewType: string): string {
-		return `${resource.toString()}@@@${viewType}`;
+	pwivate key(wesouwce: UWI, viewType: stwing): stwing {
+		wetuwn `${wesouwce.toStwing()}@@@${viewType}`;
 	}
 }

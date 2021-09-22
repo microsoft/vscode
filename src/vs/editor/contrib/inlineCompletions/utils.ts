@@ -1,33 +1,33 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, IReference } from 'vs/base/common/lifecycle';
+impowt { IDisposabwe, IWefewence } fwom 'vs/base/common/wifecycwe';
 
-export function createDisposableRef<T>(object: T, disposable?: IDisposable): IReference<T> {
-	return {
+expowt function cweateDisposabweWef<T>(object: T, disposabwe?: IDisposabwe): IWefewence<T> {
+	wetuwn {
 		object,
-		dispose: () => disposable?.dispose(),
+		dispose: () => disposabwe?.dispose(),
 	};
 }
 
-export type Comparator<T> = (a: T, b: T) => number;
+expowt type Compawatow<T> = (a: T, b: T) => numba;
 
-export function compareBy<TItem, TCompareBy>(selector: (item: TItem) => TCompareBy, comparator: Comparator<TCompareBy>): Comparator<TItem> {
-	return (a, b) => comparator(selector(a), selector(b));
+expowt function compaweBy<TItem, TCompaweBy>(sewectow: (item: TItem) => TCompaweBy, compawatow: Compawatow<TCompaweBy>): Compawatow<TItem> {
+	wetuwn (a, b) => compawatow(sewectow(a), sewectow(b));
 }
 
-export function compareByNumberAsc<T>(): Comparator<number> {
-	return (a, b) => a - b;
+expowt function compaweByNumbewAsc<T>(): Compawatow<numba> {
+	wetuwn (a, b) => a - b;
 }
 
-export function findMinBy<T>(items: T[], comparator: Comparator<T>): T | undefined {
-	let min: T | undefined = undefined;
-	for (const item of items) {
-		if (min === undefined || comparator(item, min) < 0) {
+expowt function findMinBy<T>(items: T[], compawatow: Compawatow<T>): T | undefined {
+	wet min: T | undefined = undefined;
+	fow (const item of items) {
+		if (min === undefined || compawatow(item, min) < 0) {
 			min = item;
 		}
 	}
-	return min;
+	wetuwn min;
 }

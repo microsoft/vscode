@@ -1,318 +1,318 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ScrollEvent } from 'vs/base/common/scrollable';
-import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { IModelDecorationsChangedEvent } from 'vs/editor/common/model/textModelEvents';
+impowt { ScwowwEvent } fwom 'vs/base/common/scwowwabwe';
+impowt { ConfiguwationChangedEvent, EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { IModewDecowationsChangedEvent } fwom 'vs/editow/common/modew/textModewEvents';
 
-export const enum ViewEventType {
-	ViewCompositionStart,
+expowt const enum ViewEventType {
+	ViewCompositionStawt,
 	ViewCompositionEnd,
-	ViewConfigurationChanged,
-	ViewCursorStateChanged,
-	ViewDecorationsChanged,
-	ViewFlushed,
+	ViewConfiguwationChanged,
+	ViewCuwsowStateChanged,
+	ViewDecowationsChanged,
+	ViewFwushed,
 	ViewFocusChanged,
-	ViewLanguageConfigurationChanged,
-	ViewLineMappingChanged,
-	ViewLinesChanged,
-	ViewLinesDeleted,
-	ViewLinesInserted,
-	ViewRevealRangeRequest,
-	ViewScrollChanged,
+	ViewWanguageConfiguwationChanged,
+	ViewWineMappingChanged,
+	ViewWinesChanged,
+	ViewWinesDeweted,
+	ViewWinesInsewted,
+	ViewWeveawWangeWequest,
+	ViewScwowwChanged,
 	ViewThemeChanged,
 	ViewTokensChanged,
-	ViewTokensColorsChanged,
+	ViewTokensCowowsChanged,
 	ViewZonesChanged,
 }
 
-export class ViewCompositionStartEvent {
-	public readonly type = ViewEventType.ViewCompositionStart;
-	constructor() { }
+expowt cwass ViewCompositionStawtEvent {
+	pubwic weadonwy type = ViewEventType.ViewCompositionStawt;
+	constwuctow() { }
 }
 
-export class ViewCompositionEndEvent {
-	public readonly type = ViewEventType.ViewCompositionEnd;
-	constructor() { }
+expowt cwass ViewCompositionEndEvent {
+	pubwic weadonwy type = ViewEventType.ViewCompositionEnd;
+	constwuctow() { }
 }
 
-export class ViewConfigurationChangedEvent {
+expowt cwass ViewConfiguwationChangedEvent {
 
-	public readonly type = ViewEventType.ViewConfigurationChanged;
+	pubwic weadonwy type = ViewEventType.ViewConfiguwationChanged;
 
-	public readonly _source: ConfigurationChangedEvent;
+	pubwic weadonwy _souwce: ConfiguwationChangedEvent;
 
-	constructor(source: ConfigurationChangedEvent) {
-		this._source = source;
+	constwuctow(souwce: ConfiguwationChangedEvent) {
+		this._souwce = souwce;
 	}
 
-	public hasChanged(id: EditorOption): boolean {
-		return this._source.hasChanged(id);
-	}
-}
-
-export class ViewCursorStateChangedEvent {
-
-	public readonly type = ViewEventType.ViewCursorStateChanged;
-
-	public readonly selections: Selection[];
-	public readonly modelSelections: Selection[];
-
-	constructor(selections: Selection[], modelSelections: Selection[]) {
-		this.selections = selections;
-		this.modelSelections = modelSelections;
+	pubwic hasChanged(id: EditowOption): boowean {
+		wetuwn this._souwce.hasChanged(id);
 	}
 }
 
-export class ViewDecorationsChangedEvent {
+expowt cwass ViewCuwsowStateChangedEvent {
 
-	public readonly type = ViewEventType.ViewDecorationsChanged;
+	pubwic weadonwy type = ViewEventType.ViewCuwsowStateChanged;
 
-	readonly affectsMinimap: boolean;
-	readonly affectsOverviewRuler: boolean;
+	pubwic weadonwy sewections: Sewection[];
+	pubwic weadonwy modewSewections: Sewection[];
 
-	constructor(source: IModelDecorationsChangedEvent | null) {
-		if (source) {
-			this.affectsMinimap = source.affectsMinimap;
-			this.affectsOverviewRuler = source.affectsOverviewRuler;
-		} else {
-			this.affectsMinimap = true;
-			this.affectsOverviewRuler = true;
+	constwuctow(sewections: Sewection[], modewSewections: Sewection[]) {
+		this.sewections = sewections;
+		this.modewSewections = modewSewections;
+	}
+}
+
+expowt cwass ViewDecowationsChangedEvent {
+
+	pubwic weadonwy type = ViewEventType.ViewDecowationsChanged;
+
+	weadonwy affectsMinimap: boowean;
+	weadonwy affectsOvewviewWuwa: boowean;
+
+	constwuctow(souwce: IModewDecowationsChangedEvent | nuww) {
+		if (souwce) {
+			this.affectsMinimap = souwce.affectsMinimap;
+			this.affectsOvewviewWuwa = souwce.affectsOvewviewWuwa;
+		} ewse {
+			this.affectsMinimap = twue;
+			this.affectsOvewviewWuwa = twue;
 		}
 	}
 }
 
-export class ViewFlushedEvent {
+expowt cwass ViewFwushedEvent {
 
-	public readonly type = ViewEventType.ViewFlushed;
+	pubwic weadonwy type = ViewEventType.ViewFwushed;
 
-	constructor() {
+	constwuctow() {
 		// Nothing to do
 	}
 }
 
-export class ViewFocusChangedEvent {
+expowt cwass ViewFocusChangedEvent {
 
-	public readonly type = ViewEventType.ViewFocusChanged;
+	pubwic weadonwy type = ViewEventType.ViewFocusChanged;
 
-	public readonly isFocused: boolean;
+	pubwic weadonwy isFocused: boowean;
 
-	constructor(isFocused: boolean) {
+	constwuctow(isFocused: boowean) {
 		this.isFocused = isFocused;
 	}
 }
 
-export class ViewLanguageConfigurationEvent {
+expowt cwass ViewWanguageConfiguwationEvent {
 
-	public readonly type = ViewEventType.ViewLanguageConfigurationChanged;
+	pubwic weadonwy type = ViewEventType.ViewWanguageConfiguwationChanged;
 }
 
-export class ViewLineMappingChangedEvent {
+expowt cwass ViewWineMappingChangedEvent {
 
-	public readonly type = ViewEventType.ViewLineMappingChanged;
+	pubwic weadonwy type = ViewEventType.ViewWineMappingChanged;
 
-	constructor() {
+	constwuctow() {
 		// Nothing to do
 	}
 }
 
-export class ViewLinesChangedEvent {
+expowt cwass ViewWinesChangedEvent {
 
-	public readonly type = ViewEventType.ViewLinesChanged;
+	pubwic weadonwy type = ViewEventType.ViewWinesChanged;
 
 	/**
-	 * The first line that has changed.
+	 * The fiwst wine that has changed.
 	 */
-	public readonly fromLineNumber: number;
+	pubwic weadonwy fwomWineNumba: numba;
 	/**
-	 * The last line that has changed.
+	 * The wast wine that has changed.
 	 */
-	public readonly toLineNumber: number;
+	pubwic weadonwy toWineNumba: numba;
 
-	constructor(fromLineNumber: number, toLineNumber: number) {
-		this.fromLineNumber = fromLineNumber;
-		this.toLineNumber = toLineNumber;
+	constwuctow(fwomWineNumba: numba, toWineNumba: numba) {
+		this.fwomWineNumba = fwomWineNumba;
+		this.toWineNumba = toWineNumba;
 	}
 }
 
-export class ViewLinesDeletedEvent {
+expowt cwass ViewWinesDewetedEvent {
 
-	public readonly type = ViewEventType.ViewLinesDeleted;
+	pubwic weadonwy type = ViewEventType.ViewWinesDeweted;
 
 	/**
-	 * At what line the deletion began (inclusive).
+	 * At what wine the dewetion began (incwusive).
 	 */
-	public readonly fromLineNumber: number;
+	pubwic weadonwy fwomWineNumba: numba;
 	/**
-	 * At what line the deletion stopped (inclusive).
+	 * At what wine the dewetion stopped (incwusive).
 	 */
-	public readonly toLineNumber: number;
+	pubwic weadonwy toWineNumba: numba;
 
-	constructor(fromLineNumber: number, toLineNumber: number) {
-		this.fromLineNumber = fromLineNumber;
-		this.toLineNumber = toLineNumber;
+	constwuctow(fwomWineNumba: numba, toWineNumba: numba) {
+		this.fwomWineNumba = fwomWineNumba;
+		this.toWineNumba = toWineNumba;
 	}
 }
 
-export class ViewLinesInsertedEvent {
+expowt cwass ViewWinesInsewtedEvent {
 
-	public readonly type = ViewEventType.ViewLinesInserted;
+	pubwic weadonwy type = ViewEventType.ViewWinesInsewted;
 
 	/**
-	 * Before what line did the insertion begin
+	 * Befowe what wine did the insewtion begin
 	 */
-	public readonly fromLineNumber: number;
+	pubwic weadonwy fwomWineNumba: numba;
 	/**
-	 * `toLineNumber` - `fromLineNumber` + 1 denotes the number of lines that were inserted
+	 * `toWineNumba` - `fwomWineNumba` + 1 denotes the numba of wines that wewe insewted
 	 */
-	public readonly toLineNumber: number;
+	pubwic weadonwy toWineNumba: numba;
 
-	constructor(fromLineNumber: number, toLineNumber: number) {
-		this.fromLineNumber = fromLineNumber;
-		this.toLineNumber = toLineNumber;
+	constwuctow(fwomWineNumba: numba, toWineNumba: numba) {
+		this.fwomWineNumba = fwomWineNumba;
+		this.toWineNumba = toWineNumba;
 	}
 }
 
-export const enum VerticalRevealType {
-	Simple = 0,
-	Center = 1,
-	CenterIfOutsideViewport = 2,
+expowt const enum VewticawWeveawType {
+	Simpwe = 0,
+	Centa = 1,
+	CentewIfOutsideViewpowt = 2,
 	Top = 3,
 	Bottom = 4,
-	NearTop = 5,
-	NearTopIfOutsideViewport = 6,
+	NeawTop = 5,
+	NeawTopIfOutsideViewpowt = 6,
 }
 
-export class ViewRevealRangeRequestEvent {
+expowt cwass ViewWeveawWangeWequestEvent {
 
-	public readonly type = ViewEventType.ViewRevealRangeRequest;
-
-	/**
-	 * Range to be reavealed.
-	 */
-	public readonly range: Range | null;
+	pubwic weadonwy type = ViewEventType.ViewWeveawWangeWequest;
 
 	/**
-	 * Selections to be revealed.
+	 * Wange to be weaveawed.
 	 */
-	public readonly selections: Selection[] | null;
-
-	public readonly verticalType: VerticalRevealType;
-	/**
-	 * If true: there should be a horizontal & vertical revealing
-	 * If false: there should be just a vertical revealing
-	 */
-	public readonly revealHorizontal: boolean;
-
-	public readonly scrollType: ScrollType;
+	pubwic weadonwy wange: Wange | nuww;
 
 	/**
-	 * Source of the call that caused the event.
+	 * Sewections to be weveawed.
 	 */
-	readonly source: string | null | undefined;
+	pubwic weadonwy sewections: Sewection[] | nuww;
 
-	constructor(source: string | null | undefined, range: Range | null, selections: Selection[] | null, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: ScrollType) {
-		this.source = source;
-		this.range = range;
-		this.selections = selections;
-		this.verticalType = verticalType;
-		this.revealHorizontal = revealHorizontal;
-		this.scrollType = scrollType;
+	pubwic weadonwy vewticawType: VewticawWeveawType;
+	/**
+	 * If twue: thewe shouwd be a howizontaw & vewticaw weveawing
+	 * If fawse: thewe shouwd be just a vewticaw weveawing
+	 */
+	pubwic weadonwy weveawHowizontaw: boowean;
+
+	pubwic weadonwy scwowwType: ScwowwType;
+
+	/**
+	 * Souwce of the caww that caused the event.
+	 */
+	weadonwy souwce: stwing | nuww | undefined;
+
+	constwuctow(souwce: stwing | nuww | undefined, wange: Wange | nuww, sewections: Sewection[] | nuww, vewticawType: VewticawWeveawType, weveawHowizontaw: boowean, scwowwType: ScwowwType) {
+		this.souwce = souwce;
+		this.wange = wange;
+		this.sewections = sewections;
+		this.vewticawType = vewticawType;
+		this.weveawHowizontaw = weveawHowizontaw;
+		this.scwowwType = scwowwType;
 	}
 }
 
-export class ViewScrollChangedEvent {
+expowt cwass ViewScwowwChangedEvent {
 
-	public readonly type = ViewEventType.ViewScrollChanged;
+	pubwic weadonwy type = ViewEventType.ViewScwowwChanged;
 
-	public readonly scrollWidth: number;
-	public readonly scrollLeft: number;
-	public readonly scrollHeight: number;
-	public readonly scrollTop: number;
+	pubwic weadonwy scwowwWidth: numba;
+	pubwic weadonwy scwowwWeft: numba;
+	pubwic weadonwy scwowwHeight: numba;
+	pubwic weadonwy scwowwTop: numba;
 
-	public readonly scrollWidthChanged: boolean;
-	public readonly scrollLeftChanged: boolean;
-	public readonly scrollHeightChanged: boolean;
-	public readonly scrollTopChanged: boolean;
+	pubwic weadonwy scwowwWidthChanged: boowean;
+	pubwic weadonwy scwowwWeftChanged: boowean;
+	pubwic weadonwy scwowwHeightChanged: boowean;
+	pubwic weadonwy scwowwTopChanged: boowean;
 
-	constructor(source: ScrollEvent) {
-		this.scrollWidth = source.scrollWidth;
-		this.scrollLeft = source.scrollLeft;
-		this.scrollHeight = source.scrollHeight;
-		this.scrollTop = source.scrollTop;
+	constwuctow(souwce: ScwowwEvent) {
+		this.scwowwWidth = souwce.scwowwWidth;
+		this.scwowwWeft = souwce.scwowwWeft;
+		this.scwowwHeight = souwce.scwowwHeight;
+		this.scwowwTop = souwce.scwowwTop;
 
-		this.scrollWidthChanged = source.scrollWidthChanged;
-		this.scrollLeftChanged = source.scrollLeftChanged;
-		this.scrollHeightChanged = source.scrollHeightChanged;
-		this.scrollTopChanged = source.scrollTopChanged;
+		this.scwowwWidthChanged = souwce.scwowwWidthChanged;
+		this.scwowwWeftChanged = souwce.scwowwWeftChanged;
+		this.scwowwHeightChanged = souwce.scwowwHeightChanged;
+		this.scwowwTopChanged = souwce.scwowwTopChanged;
 	}
 }
 
-export class ViewThemeChangedEvent {
+expowt cwass ViewThemeChangedEvent {
 
-	public readonly type = ViewEventType.ViewThemeChanged;
+	pubwic weadonwy type = ViewEventType.ViewThemeChanged;
 }
 
-export class ViewTokensChangedEvent {
+expowt cwass ViewTokensChangedEvent {
 
-	public readonly type = ViewEventType.ViewTokensChanged;
+	pubwic weadonwy type = ViewEventType.ViewTokensChanged;
 
-	public readonly ranges: {
+	pubwic weadonwy wanges: {
 		/**
-		 * Start line number of range
+		 * Stawt wine numba of wange
 		 */
-		readonly fromLineNumber: number;
+		weadonwy fwomWineNumba: numba;
 		/**
-		 * End line number of range
+		 * End wine numba of wange
 		 */
-		readonly toLineNumber: number;
+		weadonwy toWineNumba: numba;
 	}[];
 
-	constructor(ranges: { fromLineNumber: number; toLineNumber: number; }[]) {
-		this.ranges = ranges;
+	constwuctow(wanges: { fwomWineNumba: numba; toWineNumba: numba; }[]) {
+		this.wanges = wanges;
 	}
 }
 
-export class ViewTokensColorsChangedEvent {
+expowt cwass ViewTokensCowowsChangedEvent {
 
-	public readonly type = ViewEventType.ViewTokensColorsChanged;
+	pubwic weadonwy type = ViewEventType.ViewTokensCowowsChanged;
 
-	constructor() {
+	constwuctow() {
 		// Nothing to do
 	}
 }
 
-export class ViewZonesChangedEvent {
+expowt cwass ViewZonesChangedEvent {
 
-	public readonly type = ViewEventType.ViewZonesChanged;
+	pubwic weadonwy type = ViewEventType.ViewZonesChanged;
 
-	constructor() {
+	constwuctow() {
 		// Nothing to do
 	}
 }
 
-export type ViewEvent = (
-	ViewCompositionStartEvent
+expowt type ViewEvent = (
+	ViewCompositionStawtEvent
 	| ViewCompositionEndEvent
-	| ViewConfigurationChangedEvent
-	| ViewCursorStateChangedEvent
-	| ViewDecorationsChangedEvent
-	| ViewFlushedEvent
+	| ViewConfiguwationChangedEvent
+	| ViewCuwsowStateChangedEvent
+	| ViewDecowationsChangedEvent
+	| ViewFwushedEvent
 	| ViewFocusChangedEvent
-	| ViewLanguageConfigurationEvent
-	| ViewLineMappingChangedEvent
-	| ViewLinesChangedEvent
-	| ViewLinesDeletedEvent
-	| ViewLinesInsertedEvent
-	| ViewRevealRangeRequestEvent
-	| ViewScrollChangedEvent
+	| ViewWanguageConfiguwationEvent
+	| ViewWineMappingChangedEvent
+	| ViewWinesChangedEvent
+	| ViewWinesDewetedEvent
+	| ViewWinesInsewtedEvent
+	| ViewWeveawWangeWequestEvent
+	| ViewScwowwChangedEvent
 	| ViewThemeChangedEvent
 	| ViewTokensChangedEvent
-	| ViewTokensColorsChangedEvent
+	| ViewTokensCowowsChangedEvent
 	| ViewZonesChangedEvent
 );

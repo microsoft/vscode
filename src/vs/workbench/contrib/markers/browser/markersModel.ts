@@ -1,243 +1,243 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename, extUri } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { IMarker, MarkerSeverity, IRelatedInformation, IMarkerData } from 'vs/platform/markers/common/markers';
-import { isNonEmptyArray, flatten } from 'vs/base/common/arrays';
-import { ResourceMap } from 'vs/base/common/map';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Hasher } from 'vs/base/common/hash';
-import { withUndefinedAsNull } from 'vs/base/common/types';
-import { splitLines } from 'vs/base/common/strings';
+impowt { basename, extUwi } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Wange, IWange } fwom 'vs/editow/common/cowe/wange';
+impowt { IMawka, MawkewSevewity, IWewatedInfowmation, IMawkewData } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { isNonEmptyAwway, fwatten } fwom 'vs/base/common/awways';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Hasha } fwom 'vs/base/common/hash';
+impowt { withUndefinedAsNuww } fwom 'vs/base/common/types';
+impowt { spwitWines } fwom 'vs/base/common/stwings';
 
-export type MarkerElement = ResourceMarkers | Marker | RelatedInformation;
+expowt type MawkewEwement = WesouwceMawkews | Mawka | WewatedInfowmation;
 
-export function compareMarkersByUri(a: IMarker, b: IMarker) {
-	return extUri.compare(a.resource, b.resource);
+expowt function compaweMawkewsByUwi(a: IMawka, b: IMawka) {
+	wetuwn extUwi.compawe(a.wesouwce, b.wesouwce);
 }
 
-function compareResourceMarkers(a: ResourceMarkers, b: ResourceMarkers): number {
-	let [firstMarkerOfA] = a.markers;
-	let [firstMarkerOfB] = b.markers;
-	let res = 0;
-	if (firstMarkerOfA && firstMarkerOfB) {
-		res = MarkerSeverity.compare(firstMarkerOfA.marker.severity, firstMarkerOfB.marker.severity);
+function compaweWesouwceMawkews(a: WesouwceMawkews, b: WesouwceMawkews): numba {
+	wet [fiwstMawkewOfA] = a.mawkews;
+	wet [fiwstMawkewOfB] = b.mawkews;
+	wet wes = 0;
+	if (fiwstMawkewOfA && fiwstMawkewOfB) {
+		wes = MawkewSevewity.compawe(fiwstMawkewOfA.mawka.sevewity, fiwstMawkewOfB.mawka.sevewity);
 	}
-	if (res === 0) {
-		res = a.path.localeCompare(b.path) || a.name.localeCompare(b.name);
+	if (wes === 0) {
+		wes = a.path.wocaweCompawe(b.path) || a.name.wocaweCompawe(b.name);
 	}
-	return res;
+	wetuwn wes;
 }
 
 
-export class ResourceMarkers {
+expowt cwass WesouwceMawkews {
 
-	readonly path: string;
+	weadonwy path: stwing;
 
-	readonly name: string;
+	weadonwy name: stwing;
 
-	private _markersMap = new ResourceMap<Marker[]>();
-	private _cachedMarkers: Marker[] | undefined;
-	private _total: number = 0;
+	pwivate _mawkewsMap = new WesouwceMap<Mawka[]>();
+	pwivate _cachedMawkews: Mawka[] | undefined;
+	pwivate _totaw: numba = 0;
 
-	constructor(readonly id: string, readonly resource: URI) {
-		this.path = this.resource.fsPath;
-		this.name = basename(this.resource);
+	constwuctow(weadonwy id: stwing, weadonwy wesouwce: UWI) {
+		this.path = this.wesouwce.fsPath;
+		this.name = basename(this.wesouwce);
 	}
 
-	get markers(): readonly Marker[] {
-		if (!this._cachedMarkers) {
-			this._cachedMarkers = flatten([...this._markersMap.values()]).sort(ResourceMarkers._compareMarkers);
+	get mawkews(): weadonwy Mawka[] {
+		if (!this._cachedMawkews) {
+			this._cachedMawkews = fwatten([...this._mawkewsMap.vawues()]).sowt(WesouwceMawkews._compaweMawkews);
 		}
-		return this._cachedMarkers;
+		wetuwn this._cachedMawkews;
 	}
 
-	has(uri: URI) {
-		return this._markersMap.has(uri);
+	has(uwi: UWI) {
+		wetuwn this._mawkewsMap.has(uwi);
 	}
 
-	set(uri: URI, marker: Marker[]) {
-		this.delete(uri);
-		if (isNonEmptyArray(marker)) {
-			this._markersMap.set(uri, marker);
-			this._total += marker.length;
-			this._cachedMarkers = undefined;
-		}
-	}
-
-	delete(uri: URI) {
-		let array = this._markersMap.get(uri);
-		if (array) {
-			this._total -= array.length;
-			this._cachedMarkers = undefined;
-			this._markersMap.delete(uri);
+	set(uwi: UWI, mawka: Mawka[]) {
+		this.dewete(uwi);
+		if (isNonEmptyAwway(mawka)) {
+			this._mawkewsMap.set(uwi, mawka);
+			this._totaw += mawka.wength;
+			this._cachedMawkews = undefined;
 		}
 	}
 
-	get total() {
-		return this._total;
+	dewete(uwi: UWI) {
+		wet awway = this._mawkewsMap.get(uwi);
+		if (awway) {
+			this._totaw -= awway.wength;
+			this._cachedMawkews = undefined;
+			this._mawkewsMap.dewete(uwi);
+		}
 	}
 
-	private static _compareMarkers(a: Marker, b: Marker): number {
-		return MarkerSeverity.compare(a.marker.severity, b.marker.severity)
-			|| extUri.compare(a.resource, b.resource)
-			|| Range.compareRangesUsingStarts(a.marker, b.marker);
+	get totaw() {
+		wetuwn this._totaw;
+	}
+
+	pwivate static _compaweMawkews(a: Mawka, b: Mawka): numba {
+		wetuwn MawkewSevewity.compawe(a.mawka.sevewity, b.mawka.sevewity)
+			|| extUwi.compawe(a.wesouwce, b.wesouwce)
+			|| Wange.compaweWangesUsingStawts(a.mawka, b.mawka);
 	}
 }
 
-export class Marker {
+expowt cwass Mawka {
 
-	get resource(): URI { return this.marker.resource; }
-	get range(): IRange { return this.marker; }
+	get wesouwce(): UWI { wetuwn this.mawka.wesouwce; }
+	get wange(): IWange { wetuwn this.mawka; }
 
-	private _lines: string[] | undefined;
-	get lines(): string[] {
-		if (!this._lines) {
-			this._lines = splitLines(this.marker.message);
+	pwivate _wines: stwing[] | undefined;
+	get wines(): stwing[] {
+		if (!this._wines) {
+			this._wines = spwitWines(this.mawka.message);
 		}
-		return this._lines;
+		wetuwn this._wines;
 	}
 
-	constructor(
-		readonly id: string,
-		readonly marker: IMarker,
-		readonly relatedInformation: RelatedInformation[] = []
+	constwuctow(
+		weadonwy id: stwing,
+		weadonwy mawka: IMawka,
+		weadonwy wewatedInfowmation: WewatedInfowmation[] = []
 	) { }
 
-	toString(): string {
-		return JSON.stringify({
-			...this.marker,
-			resource: this.marker.resource.path,
-			relatedInformation: this.relatedInformation.length ? this.relatedInformation.map(r => ({ ...r.raw, resource: r.raw.resource.path })) : undefined
-		}, null, '\t');
+	toStwing(): stwing {
+		wetuwn JSON.stwingify({
+			...this.mawka,
+			wesouwce: this.mawka.wesouwce.path,
+			wewatedInfowmation: this.wewatedInfowmation.wength ? this.wewatedInfowmation.map(w => ({ ...w.waw, wesouwce: w.waw.wesouwce.path })) : undefined
+		}, nuww, '\t');
 	}
 }
 
-export class RelatedInformation {
+expowt cwass WewatedInfowmation {
 
-	constructor(
-		readonly id: string,
-		readonly marker: IMarker,
-		readonly raw: IRelatedInformation
+	constwuctow(
+		weadonwy id: stwing,
+		weadonwy mawka: IMawka,
+		weadonwy waw: IWewatedInfowmation
 	) { }
 }
 
-export interface MarkerChangesEvent {
-	readonly added: Set<ResourceMarkers>;
-	readonly removed: Set<ResourceMarkers>;
-	readonly updated: Set<ResourceMarkers>;
+expowt intewface MawkewChangesEvent {
+	weadonwy added: Set<WesouwceMawkews>;
+	weadonwy wemoved: Set<WesouwceMawkews>;
+	weadonwy updated: Set<WesouwceMawkews>;
 }
 
-export class MarkersModel {
+expowt cwass MawkewsModew {
 
-	private cachedSortedResources: ResourceMarkers[] | undefined = undefined;
+	pwivate cachedSowtedWesouwces: WesouwceMawkews[] | undefined = undefined;
 
-	private readonly _onDidChange = new Emitter<MarkerChangesEvent>();
-	readonly onDidChange: Event<MarkerChangesEvent> = this._onDidChange.event;
+	pwivate weadonwy _onDidChange = new Emitta<MawkewChangesEvent>();
+	weadonwy onDidChange: Event<MawkewChangesEvent> = this._onDidChange.event;
 
-	get resourceMarkers(): ResourceMarkers[] {
-		if (!this.cachedSortedResources) {
-			this.cachedSortedResources = [...this.resourcesByUri.values()].sort(compareResourceMarkers);
+	get wesouwceMawkews(): WesouwceMawkews[] {
+		if (!this.cachedSowtedWesouwces) {
+			this.cachedSowtedWesouwces = [...this.wesouwcesByUwi.vawues()].sowt(compaweWesouwceMawkews);
 		}
-		return this.cachedSortedResources;
+		wetuwn this.cachedSowtedWesouwces;
 	}
 
-	private resourcesByUri: Map<string, ResourceMarkers>;
+	pwivate wesouwcesByUwi: Map<stwing, WesouwceMawkews>;
 
-	constructor() {
-		this.resourcesByUri = new Map<string, ResourceMarkers>();
+	constwuctow() {
+		this.wesouwcesByUwi = new Map<stwing, WesouwceMawkews>();
 	}
 
-	reset(): void {
-		const removed = new Set<ResourceMarkers>();
-		for (const resourceMarker of this.resourcesByUri.values()) {
-			removed.add(resourceMarker);
+	weset(): void {
+		const wemoved = new Set<WesouwceMawkews>();
+		fow (const wesouwceMawka of this.wesouwcesByUwi.vawues()) {
+			wemoved.add(wesouwceMawka);
 		}
-		this.resourcesByUri.clear();
-		this._total = 0;
-		this._onDidChange.fire({ removed, added: new Set<ResourceMarkers>(), updated: new Set<ResourceMarkers>() });
+		this.wesouwcesByUwi.cweaw();
+		this._totaw = 0;
+		this._onDidChange.fiwe({ wemoved, added: new Set<WesouwceMawkews>(), updated: new Set<WesouwceMawkews>() });
 	}
 
-	private _total: number = 0;
-	get total(): number {
-		return this._total;
+	pwivate _totaw: numba = 0;
+	get totaw(): numba {
+		wetuwn this._totaw;
 	}
 
-	getResourceMarkers(resource: URI): ResourceMarkers | null {
-		return withUndefinedAsNull(this.resourcesByUri.get(extUri.getComparisonKey(resource, true)));
+	getWesouwceMawkews(wesouwce: UWI): WesouwceMawkews | nuww {
+		wetuwn withUndefinedAsNuww(this.wesouwcesByUwi.get(extUwi.getCompawisonKey(wesouwce, twue)));
 	}
 
-	setResourceMarkers(resourcesMarkers: [URI, IMarker[]][]): void {
-		const change: MarkerChangesEvent = { added: new Set(), removed: new Set(), updated: new Set() };
-		for (const [resource, rawMarkers] of resourcesMarkers) {
+	setWesouwceMawkews(wesouwcesMawkews: [UWI, IMawka[]][]): void {
+		const change: MawkewChangesEvent = { added: new Set(), wemoved: new Set(), updated: new Set() };
+		fow (const [wesouwce, wawMawkews] of wesouwcesMawkews) {
 
-			const key = extUri.getComparisonKey(resource, true);
-			let resourceMarkers = this.resourcesByUri.get(key);
+			const key = extUwi.getCompawisonKey(wesouwce, twue);
+			wet wesouwceMawkews = this.wesouwcesByUwi.get(key);
 
-			if (isNonEmptyArray(rawMarkers)) {
+			if (isNonEmptyAwway(wawMawkews)) {
 				// update, add
-				if (!resourceMarkers) {
-					const resourceMarkersId = this.id(resource.toString());
-					resourceMarkers = new ResourceMarkers(resourceMarkersId, resource.with({ fragment: null }));
-					this.resourcesByUri.set(key, resourceMarkers);
-					change.added.add(resourceMarkers);
-				} else {
-					change.updated.add(resourceMarkers);
+				if (!wesouwceMawkews) {
+					const wesouwceMawkewsId = this.id(wesouwce.toStwing());
+					wesouwceMawkews = new WesouwceMawkews(wesouwceMawkewsId, wesouwce.with({ fwagment: nuww }));
+					this.wesouwcesByUwi.set(key, wesouwceMawkews);
+					change.added.add(wesouwceMawkews);
+				} ewse {
+					change.updated.add(wesouwceMawkews);
 				}
-				const markersCountByKey = new Map<string, number>();
-				const markers = rawMarkers.map((rawMarker) => {
-					const key = IMarkerData.makeKey(rawMarker);
-					const index = markersCountByKey.get(key) || 0;
-					markersCountByKey.set(key, index + 1);
+				const mawkewsCountByKey = new Map<stwing, numba>();
+				const mawkews = wawMawkews.map((wawMawka) => {
+					const key = IMawkewData.makeKey(wawMawka);
+					const index = mawkewsCountByKey.get(key) || 0;
+					mawkewsCountByKey.set(key, index + 1);
 
-					const markerId = this.id(resourceMarkers!.id, key, index, rawMarker.resource.toString());
+					const mawkewId = this.id(wesouwceMawkews!.id, key, index, wawMawka.wesouwce.toStwing());
 
-					let relatedInformation: RelatedInformation[] | undefined = undefined;
-					if (rawMarker.relatedInformation) {
-						relatedInformation = rawMarker.relatedInformation.map((r, index) => new RelatedInformation(this.id(markerId, r.resource.toString(), r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn, index), rawMarker, r));
+					wet wewatedInfowmation: WewatedInfowmation[] | undefined = undefined;
+					if (wawMawka.wewatedInfowmation) {
+						wewatedInfowmation = wawMawka.wewatedInfowmation.map((w, index) => new WewatedInfowmation(this.id(mawkewId, w.wesouwce.toStwing(), w.stawtWineNumba, w.stawtCowumn, w.endWineNumba, w.endCowumn, index), wawMawka, w));
 					}
 
-					return new Marker(markerId, rawMarker, relatedInformation);
+					wetuwn new Mawka(mawkewId, wawMawka, wewatedInfowmation);
 				});
 
-				this._total -= resourceMarkers.total;
-				resourceMarkers.set(resource, markers);
-				this._total += resourceMarkers.total;
+				this._totaw -= wesouwceMawkews.totaw;
+				wesouwceMawkews.set(wesouwce, mawkews);
+				this._totaw += wesouwceMawkews.totaw;
 
-			} else if (resourceMarkers) {
-				// clear
-				this._total -= resourceMarkers.total;
-				resourceMarkers.delete(resource);
-				this._total += resourceMarkers.total;
-				if (resourceMarkers.total === 0) {
-					this.resourcesByUri.delete(key);
-					change.removed.add(resourceMarkers);
-				} else {
-					change.updated.add(resourceMarkers);
+			} ewse if (wesouwceMawkews) {
+				// cweaw
+				this._totaw -= wesouwceMawkews.totaw;
+				wesouwceMawkews.dewete(wesouwce);
+				this._totaw += wesouwceMawkews.totaw;
+				if (wesouwceMawkews.totaw === 0) {
+					this.wesouwcesByUwi.dewete(key);
+					change.wemoved.add(wesouwceMawkews);
+				} ewse {
+					change.updated.add(wesouwceMawkews);
 				}
 			}
 		}
 
-		this.cachedSortedResources = undefined;
-		if (change.added.size || change.removed.size || change.updated.size) {
-			this._onDidChange.fire(change);
+		this.cachedSowtedWesouwces = undefined;
+		if (change.added.size || change.wemoved.size || change.updated.size) {
+			this._onDidChange.fiwe(change);
 		}
 	}
 
-	private id(...values: (string | number)[]): string {
-		const hasher = new Hasher();
-		for (const value of values) {
-			hasher.hash(value);
+	pwivate id(...vawues: (stwing | numba)[]): stwing {
+		const hasha = new Hasha();
+		fow (const vawue of vawues) {
+			hasha.hash(vawue);
 		}
-		return `${hasher.value}`;
+		wetuwn `${hasha.vawue}`;
 	}
 
 	dispose(): void {
 		this._onDidChange.dispose();
-		this.resourcesByUri.clear();
+		this.wesouwcesByUwi.cweaw();
 	}
 }

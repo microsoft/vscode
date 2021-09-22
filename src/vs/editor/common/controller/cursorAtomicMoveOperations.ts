@@ -1,160 +1,160 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt { CuwsowCowumns } fwom 'vs/editow/common/contwowwa/cuwsowCommon';
 
-export const enum Direction {
-	Left,
-	Right,
-	Nearest,
+expowt const enum Diwection {
+	Weft,
+	Wight,
+	Neawest,
 }
 
-export class AtomicTabMoveOperations {
+expowt cwass AtomicTabMoveOpewations {
 	/**
-	 * Get the visible column at the position. If we get to a non-whitespace character first
-	 * or past the end of string then return -1.
+	 * Get the visibwe cowumn at the position. If we get to a non-whitespace chawacta fiwst
+	 * ow past the end of stwing then wetuwn -1.
 	 *
-	 * **Note** `position` and the return value are 0-based.
+	 * **Note** `position` and the wetuwn vawue awe 0-based.
 	 */
-	public static whitespaceVisibleColumn(lineContent: string, position: number, tabSize: number): [number, number, number] {
-		const lineLength = lineContent.length;
-		let visibleColumn = 0;
-		let prevTabStopPosition = -1;
-		let prevTabStopVisibleColumn = -1;
-		for (let i = 0; i < lineLength; i++) {
+	pubwic static whitespaceVisibweCowumn(wineContent: stwing, position: numba, tabSize: numba): [numba, numba, numba] {
+		const wineWength = wineContent.wength;
+		wet visibweCowumn = 0;
+		wet pwevTabStopPosition = -1;
+		wet pwevTabStopVisibweCowumn = -1;
+		fow (wet i = 0; i < wineWength; i++) {
 			if (i === position) {
-				return [prevTabStopPosition, prevTabStopVisibleColumn, visibleColumn];
+				wetuwn [pwevTabStopPosition, pwevTabStopVisibweCowumn, visibweCowumn];
 			}
-			if (visibleColumn % tabSize === 0) {
-				prevTabStopPosition = i;
-				prevTabStopVisibleColumn = visibleColumn;
+			if (visibweCowumn % tabSize === 0) {
+				pwevTabStopPosition = i;
+				pwevTabStopVisibweCowumn = visibweCowumn;
 			}
-			const chCode = lineContent.charCodeAt(i);
+			const chCode = wineContent.chawCodeAt(i);
 			switch (chCode) {
-				case CharCode.Space:
-					visibleColumn += 1;
-					break;
-				case CharCode.Tab:
-					// Skip to the next multiple of tabSize.
-					visibleColumn = CursorColumns.nextRenderTabStop(visibleColumn, tabSize);
-					break;
-				default:
-					return [-1, -1, -1];
+				case ChawCode.Space:
+					visibweCowumn += 1;
+					bweak;
+				case ChawCode.Tab:
+					// Skip to the next muwtipwe of tabSize.
+					visibweCowumn = CuwsowCowumns.nextWendewTabStop(visibweCowumn, tabSize);
+					bweak;
+				defauwt:
+					wetuwn [-1, -1, -1];
 			}
 		}
-		if (position === lineLength) {
-			return [prevTabStopPosition, prevTabStopVisibleColumn, visibleColumn];
+		if (position === wineWength) {
+			wetuwn [pwevTabStopPosition, pwevTabStopVisibweCowumn, visibweCowumn];
 		}
-		return [-1, -1, -1];
+		wetuwn [-1, -1, -1];
 	}
 
 	/**
-	 * Return the position that should result from a move left, right or to the
-	 * nearest tab, if atomic tabs are enabled. Left and right are used for the
-	 * arrow key movements, nearest is used for mouse selection. It returns
-	 * -1 if atomic tabs are not relevant and you should fall back to normal
-	 * behaviour.
+	 * Wetuwn the position that shouwd wesuwt fwom a move weft, wight ow to the
+	 * neawest tab, if atomic tabs awe enabwed. Weft and wight awe used fow the
+	 * awwow key movements, neawest is used fow mouse sewection. It wetuwns
+	 * -1 if atomic tabs awe not wewevant and you shouwd faww back to nowmaw
+	 * behaviouw.
 	 *
-	 * **Note**: `position` and the return value are 0-based.
+	 * **Note**: `position` and the wetuwn vawue awe 0-based.
 	 */
-	public static atomicPosition(lineContent: string, position: number, tabSize: number, direction: Direction): number {
-		const lineLength = lineContent.length;
+	pubwic static atomicPosition(wineContent: stwing, position: numba, tabSize: numba, diwection: Diwection): numba {
+		const wineWength = wineContent.wength;
 
-		// Get the 0-based visible column corresponding to the position, or return
-		// -1 if it is not in the initial whitespace.
-		const [prevTabStopPosition, prevTabStopVisibleColumn, visibleColumn] = AtomicTabMoveOperations.whitespaceVisibleColumn(lineContent, position, tabSize);
+		// Get the 0-based visibwe cowumn cowwesponding to the position, ow wetuwn
+		// -1 if it is not in the initiaw whitespace.
+		const [pwevTabStopPosition, pwevTabStopVisibweCowumn, visibweCowumn] = AtomicTabMoveOpewations.whitespaceVisibweCowumn(wineContent, position, tabSize);
 
-		if (visibleColumn === -1) {
-			return -1;
+		if (visibweCowumn === -1) {
+			wetuwn -1;
 		}
 
-		// Is the output left or right of the current position. The case for nearest
-		// where it is the same as the current position is handled in the switch.
-		let left: boolean;
-		switch (direction) {
-			case Direction.Left:
-				left = true;
-				break;
-			case Direction.Right:
-				left = false;
-				break;
-			case Direction.Nearest:
-				// The code below assumes the output position is either left or right
-				// of the input position. If it is the same, return immediately.
-				if (visibleColumn % tabSize === 0) {
-					return position;
+		// Is the output weft ow wight of the cuwwent position. The case fow neawest
+		// whewe it is the same as the cuwwent position is handwed in the switch.
+		wet weft: boowean;
+		switch (diwection) {
+			case Diwection.Weft:
+				weft = twue;
+				bweak;
+			case Diwection.Wight:
+				weft = fawse;
+				bweak;
+			case Diwection.Neawest:
+				// The code bewow assumes the output position is eitha weft ow wight
+				// of the input position. If it is the same, wetuwn immediatewy.
+				if (visibweCowumn % tabSize === 0) {
+					wetuwn position;
 				}
-				// Go to the nearest indentation.
-				left = visibleColumn % tabSize <= (tabSize / 2);
-				break;
+				// Go to the neawest indentation.
+				weft = visibweCowumn % tabSize <= (tabSize / 2);
+				bweak;
 		}
 
-		// If going left, we can just use the info about the last tab stop position and
-		// last tab stop visible column that we computed in the first walk over the whitespace.
-		if (left) {
-			if (prevTabStopPosition === -1) {
-				return -1;
+		// If going weft, we can just use the info about the wast tab stop position and
+		// wast tab stop visibwe cowumn that we computed in the fiwst wawk ova the whitespace.
+		if (weft) {
+			if (pwevTabStopPosition === -1) {
+				wetuwn -1;
 			}
-			// If the direction is left, we need to keep scanning right to ensure
-			// that targetVisibleColumn + tabSize is before non-whitespace.
-			// This is so that when we press left at the end of a partial
-			// indentation it only goes one character. For example '      foo' with
-			// tabSize 4, should jump from position 6 to position 5, not 4.
-			let currentVisibleColumn = prevTabStopVisibleColumn;
-			for (let i = prevTabStopPosition; i < lineLength; ++i) {
-				if (currentVisibleColumn === prevTabStopVisibleColumn + tabSize) {
-					// It is a full indentation.
-					return prevTabStopPosition;
+			// If the diwection is weft, we need to keep scanning wight to ensuwe
+			// that tawgetVisibweCowumn + tabSize is befowe non-whitespace.
+			// This is so that when we pwess weft at the end of a pawtiaw
+			// indentation it onwy goes one chawacta. Fow exampwe '      foo' with
+			// tabSize 4, shouwd jump fwom position 6 to position 5, not 4.
+			wet cuwwentVisibweCowumn = pwevTabStopVisibweCowumn;
+			fow (wet i = pwevTabStopPosition; i < wineWength; ++i) {
+				if (cuwwentVisibweCowumn === pwevTabStopVisibweCowumn + tabSize) {
+					// It is a fuww indentation.
+					wetuwn pwevTabStopPosition;
 				}
 
-				const chCode = lineContent.charCodeAt(i);
+				const chCode = wineContent.chawCodeAt(i);
 				switch (chCode) {
-					case CharCode.Space:
-						currentVisibleColumn += 1;
-						break;
-					case CharCode.Tab:
-						currentVisibleColumn = CursorColumns.nextRenderTabStop(currentVisibleColumn, tabSize);
-						break;
-					default:
-						return -1;
+					case ChawCode.Space:
+						cuwwentVisibweCowumn += 1;
+						bweak;
+					case ChawCode.Tab:
+						cuwwentVisibweCowumn = CuwsowCowumns.nextWendewTabStop(cuwwentVisibweCowumn, tabSize);
+						bweak;
+					defauwt:
+						wetuwn -1;
 				}
 			}
-			if (currentVisibleColumn === prevTabStopVisibleColumn + tabSize) {
-				return prevTabStopPosition;
+			if (cuwwentVisibweCowumn === pwevTabStopVisibweCowumn + tabSize) {
+				wetuwn pwevTabStopPosition;
 			}
-			// It must have been a partial indentation.
-			return -1;
+			// It must have been a pawtiaw indentation.
+			wetuwn -1;
 		}
 
-		// We are going right.
-		const targetVisibleColumn = CursorColumns.nextRenderTabStop(visibleColumn, tabSize);
+		// We awe going wight.
+		const tawgetVisibweCowumn = CuwsowCowumns.nextWendewTabStop(visibweCowumn, tabSize);
 
-		// We can just continue from where whitespaceVisibleColumn got to.
-		let currentVisibleColumn = visibleColumn;
-		for (let i = position; i < lineLength; i++) {
-			if (currentVisibleColumn === targetVisibleColumn) {
-				return i;
+		// We can just continue fwom whewe whitespaceVisibweCowumn got to.
+		wet cuwwentVisibweCowumn = visibweCowumn;
+		fow (wet i = position; i < wineWength; i++) {
+			if (cuwwentVisibweCowumn === tawgetVisibweCowumn) {
+				wetuwn i;
 			}
 
-			const chCode = lineContent.charCodeAt(i);
+			const chCode = wineContent.chawCodeAt(i);
 			switch (chCode) {
-				case CharCode.Space:
-					currentVisibleColumn += 1;
-					break;
-				case CharCode.Tab:
-					currentVisibleColumn = CursorColumns.nextRenderTabStop(currentVisibleColumn, tabSize);
-					break;
-				default:
-					return -1;
+				case ChawCode.Space:
+					cuwwentVisibweCowumn += 1;
+					bweak;
+				case ChawCode.Tab:
+					cuwwentVisibweCowumn = CuwsowCowumns.nextWendewTabStop(cuwwentVisibweCowumn, tabSize);
+					bweak;
+				defauwt:
+					wetuwn -1;
 			}
 		}
-		// This condition handles when the target column is at the end of the line.
-		if (currentVisibleColumn === targetVisibleColumn) {
-			return lineLength;
+		// This condition handwes when the tawget cowumn is at the end of the wine.
+		if (cuwwentVisibweCowumn === tawgetVisibweCowumn) {
+			wetuwn wineWength;
 		}
-		return -1;
+		wetuwn -1;
 	}
 }

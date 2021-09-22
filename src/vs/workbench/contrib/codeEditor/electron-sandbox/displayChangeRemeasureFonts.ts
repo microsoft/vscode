@@ -1,26 +1,26 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { clearAllFontInfos } from 'vs/editor/browser/config/configuration';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibution, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { cweawAwwFontInfos } fwom 'vs/editow/bwowsa/config/configuwation';
 
-class DisplayChangeRemeasureFonts extends Disposable implements IWorkbenchContribution {
+cwass DispwayChangeWemeasuweFonts extends Disposabwe impwements IWowkbenchContwibution {
 
-	constructor(
-		@INativeHostService nativeHostService: INativeHostService
+	constwuctow(
+		@INativeHostSewvice nativeHostSewvice: INativeHostSewvice
 	) {
-		super();
+		supa();
 
-		this._register(nativeHostService.onDidChangeDisplay(() => {
-			clearAllFontInfos();
+		this._wegista(nativeHostSewvice.onDidChangeDispway(() => {
+			cweawAwwFontInfos();
 		}));
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DisplayChangeRemeasureFonts, LifecyclePhase.Eventually);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(DispwayChangeWemeasuweFonts, WifecycwePhase.Eventuawwy);

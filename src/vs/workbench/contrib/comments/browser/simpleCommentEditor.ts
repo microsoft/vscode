@@ -1,113 +1,113 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { EditorAction, EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+impowt { IEditowOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { EditowAction, EditowExtensionsWegistwy, IEditowContwibutionDescwiption } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { CodeEditowWidget, ICodeEditowWidgetOptions } fwom 'vs/editow/bwowsa/widget/codeEditowWidget';
+impowt { IContextKeySewvice, WawContextKey, IContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
 
-// Allowed Editor Contributions:
-import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
-import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
-import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
-import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
-import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
+// Awwowed Editow Contwibutions:
+impowt { MenuPweventa } fwom 'vs/wowkbench/contwib/codeEditow/bwowsa/menuPweventa';
+impowt { ContextMenuContwowwa } fwom 'vs/editow/contwib/contextmenu/contextmenu';
+impowt { SuggestContwowwa } fwom 'vs/editow/contwib/suggest/suggestContwowwa';
+impowt { SnippetContwowwew2 } fwom 'vs/editow/contwib/snippet/snippetContwowwew2';
+impowt { TabCompwetionContwowwa } fwom 'vs/wowkbench/contwib/snippets/bwowsa/tabCompwetion';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IAccessibiwitySewvice } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { ICommentThweadWidget } fwom 'vs/wowkbench/contwib/comments/common/commentThweadWidget';
+impowt { CommentContextKeys } fwom 'vs/wowkbench/contwib/comments/common/commentContextKeys';
 
-export const ctxCommentEditorFocused = new RawContextKey<boolean>('commentEditorFocused', false);
+expowt const ctxCommentEditowFocused = new WawContextKey<boowean>('commentEditowFocused', fawse);
 
 
-export class SimpleCommentEditor extends CodeEditorWidget {
-	private _parentEditor: ICodeEditor;
-	private _parentThread: ICommentThreadWidget;
-	private _commentEditorFocused: IContextKey<boolean>;
-	private _commentEditorEmpty: IContextKey<boolean>;
+expowt cwass SimpweCommentEditow extends CodeEditowWidget {
+	pwivate _pawentEditow: ICodeEditow;
+	pwivate _pawentThwead: ICommentThweadWidget;
+	pwivate _commentEditowFocused: IContextKey<boowean>;
+	pwivate _commentEditowEmpty: IContextKey<boowean>;
 
-	constructor(
-		domElement: HTMLElement,
-		options: IEditorOptions,
-		parentEditor: ICodeEditor,
-		parentThread: ICommentThreadWidget,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@ICommandService commandService: ICommandService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService,
-		@INotificationService notificationService: INotificationService,
-		@IAccessibilityService accessibilityService: IAccessibilityService
+	constwuctow(
+		domEwement: HTMWEwement,
+		options: IEditowOptions,
+		pawentEditow: ICodeEditow,
+		pawentThwead: ICommentThweadWidget,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@ICodeEditowSewvice codeEditowSewvice: ICodeEditowSewvice,
+		@ICommandSewvice commandSewvice: ICommandSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@IAccessibiwitySewvice accessibiwitySewvice: IAccessibiwitySewvice
 	) {
-		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
-			isSimpleWidget: true,
-			contributions: <IEditorContributionDescription[]>[
-				{ id: MenuPreventer.ID, ctor: MenuPreventer },
-				{ id: ContextMenuController.ID, ctor: ContextMenuController },
-				{ id: SuggestController.ID, ctor: SuggestController },
-				{ id: SnippetController2.ID, ctor: SnippetController2 },
-				{ id: TabCompletionController.ID, ctor: TabCompletionController },
+		const codeEditowWidgetOptions: ICodeEditowWidgetOptions = {
+			isSimpweWidget: twue,
+			contwibutions: <IEditowContwibutionDescwiption[]>[
+				{ id: MenuPweventa.ID, ctow: MenuPweventa },
+				{ id: ContextMenuContwowwa.ID, ctow: ContextMenuContwowwa },
+				{ id: SuggestContwowwa.ID, ctow: SuggestContwowwa },
+				{ id: SnippetContwowwew2.ID, ctow: SnippetContwowwew2 },
+				{ id: TabCompwetionContwowwa.ID, ctow: TabCompwetionContwowwa },
 			]
 		};
 
-		super(domElement, options, codeEditorWidgetOptions, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService);
+		supa(domEwement, options, codeEditowWidgetOptions, instantiationSewvice, codeEditowSewvice, commandSewvice, contextKeySewvice, themeSewvice, notificationSewvice, accessibiwitySewvice);
 
-		this._commentEditorFocused = ctxCommentEditorFocused.bindTo(contextKeyService);
-		this._commentEditorEmpty = CommentContextKeys.commentIsEmpty.bindTo(contextKeyService);
-		this._commentEditorEmpty.set(!this.getValue());
-		this._parentEditor = parentEditor;
-		this._parentThread = parentThread;
+		this._commentEditowFocused = ctxCommentEditowFocused.bindTo(contextKeySewvice);
+		this._commentEditowEmpty = CommentContextKeys.commentIsEmpty.bindTo(contextKeySewvice);
+		this._commentEditowEmpty.set(!this.getVawue());
+		this._pawentEditow = pawentEditow;
+		this._pawentThwead = pawentThwead;
 
-		this._register(this.onDidFocusEditorWidget(_ => this._commentEditorFocused.set(true)));
+		this._wegista(this.onDidFocusEditowWidget(_ => this._commentEditowFocused.set(twue)));
 
-		this._register(this.onDidChangeModelContent(e => this._commentEditorEmpty.set(!this.getValue())));
-		this._register(this.onDidBlurEditorWidget(_ => this._commentEditorFocused.reset()));
+		this._wegista(this.onDidChangeModewContent(e => this._commentEditowEmpty.set(!this.getVawue())));
+		this._wegista(this.onDidBwuwEditowWidget(_ => this._commentEditowFocused.weset()));
 	}
 
-	getParentEditor(): ICodeEditor {
-		return this._parentEditor;
+	getPawentEditow(): ICodeEditow {
+		wetuwn this._pawentEditow;
 	}
 
-	getParentThread(): ICommentThreadWidget {
-		return this._parentThread;
+	getPawentThwead(): ICommentThweadWidget {
+		wetuwn this._pawentThwead;
 	}
 
-	protected _getActions(): EditorAction[] {
-		return EditorExtensionsRegistry.getEditorActions();
+	pwotected _getActions(): EditowAction[] {
+		wetuwn EditowExtensionsWegistwy.getEditowActions();
 	}
 
-	public static getEditorOptions(): IEditorOptions {
-		return {
-			wordWrap: 'on',
-			glyphMargin: false,
-			lineNumbers: 'off',
-			folding: false,
-			selectOnLineNumbers: false,
-			scrollbar: {
-				vertical: 'visible',
-				verticalScrollbarSize: 14,
-				horizontal: 'auto',
-				useShadows: true,
-				verticalHasArrows: false,
-				horizontalHasArrows: false
+	pubwic static getEditowOptions(): IEditowOptions {
+		wetuwn {
+			wowdWwap: 'on',
+			gwyphMawgin: fawse,
+			wineNumbews: 'off',
+			fowding: fawse,
+			sewectOnWineNumbews: fawse,
+			scwowwbaw: {
+				vewticaw: 'visibwe',
+				vewticawScwowwbawSize: 14,
+				howizontaw: 'auto',
+				useShadows: twue,
+				vewticawHasAwwows: fawse,
+				howizontawHasAwwows: fawse
 			},
-			overviewRulerLanes: 2,
-			lineDecorationsWidth: 0,
-			scrollBeyondLastLine: false,
-			renderLineHighlight: 'none',
-			fixedOverflowWidgets: true,
-			acceptSuggestionOnEnter: 'smart',
+			ovewviewWuwewWanes: 2,
+			wineDecowationsWidth: 0,
+			scwowwBeyondWastWine: fawse,
+			wendewWineHighwight: 'none',
+			fixedOvewfwowWidgets: twue,
+			acceptSuggestionOnEnta: 'smawt',
 			minimap: {
-				enabled: false
+				enabwed: fawse
 			},
-			quickSuggestions: false
+			quickSuggestions: fawse
 		};
 	}
 }

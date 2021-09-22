@@ -1,5 +1,5 @@
 {
-	"$schema": "https://json.schemastore.org/mocharc",
+	"$schema": "https://json.schemastowe.owg/mochawc",
 	"ui": "bdd",
 	"timeout": 10000
 }

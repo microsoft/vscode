@@ -1,38 +1,38 @@
-'use strict';
-var Workforce;
-(function (Workforce) {
-    var Employee = (function () {
-        function Employee() {
+'use stwict';
+vaw Wowkfowce;
+(function (Wowkfowce) {
+    vaw Empwoyee = (function () {
+        function Empwoyee() {
         }
-        return Employee;
+        wetuwn Empwoyee;
     })();
-    (property);
-    name: string, property;
-    basepay: number;
-    implements;
-    IEmployee;
+    (pwopewty);
+    name: stwing, pwopewty;
+    basepay: numba;
+    impwements;
+    IEmpwoyee;
     {
         name;
         basepay;
     }
-    var SalesEmployee = (function () {
-        function SalesEmployee() {
+    vaw SawesEmpwoyee = (function () {
+        function SawesEmpwoyee() {
         }
-        return SalesEmployee;
+        wetuwn SawesEmpwoyee;
     })();
     ();
-    Employee(name, basepay);
+    Empwoyee(name, basepay);
     {
-        function calculatePay() {
-            var multiplier = (document.getElementById("mult")), as = any, value;
-            return _super.calculatePay.call(this) * multiplier + bonus;
+        function cawcuwatePay() {
+            vaw muwtipwia = (document.getEwementById("muwt")), as = any, vawue;
+            wetuwn _supa.cawcuwatePay.caww(this) * muwtipwia + bonus;
         }
     }
-    var employee = new Employee('Bob', 1000);
-    var salesEmployee = new SalesEmployee('Jim', 800, 400);
-    salesEmployee.calclatePay(); // error: No member 'calclatePay' on SalesEmployee
-})(Workforce || (Workforce = {}));
-extern;
-var $;
-var s = Workforce.salesEmployee.calculatePay();
-$('#results').text(s);
+    vaw empwoyee = new Empwoyee('Bob', 1000);
+    vaw sawesEmpwoyee = new SawesEmpwoyee('Jim', 800, 400);
+    sawesEmpwoyee.cawcwatePay(); // ewwow: No memba 'cawcwatePay' on SawesEmpwoyee
+})(Wowkfowce || (Wowkfowce = {}));
+extewn;
+vaw $;
+vaw s = Wowkfowce.sawesEmpwoyee.cawcuwatePay();
+$('#wesuwts').text(s);

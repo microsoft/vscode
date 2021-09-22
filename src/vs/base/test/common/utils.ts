@@ -1,151 +1,151 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, IDisposableTracker, setDisposableTracker } from 'vs/base/common/lifecycle';
-import { join } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
+impowt { IDisposabwe, IDisposabweTwacka, setDisposabweTwacka } fwom 'vs/base/common/wifecycwe';
+impowt { join } fwom 'vs/base/common/path';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-export type ValueCallback<T = any> = (value: T | Promise<T>) => void;
+expowt type VawueCawwback<T = any> = (vawue: T | Pwomise<T>) => void;
 
-export function toResource(this: any, path: string) {
+expowt function toWesouwce(this: any, path: stwing) {
 	if (isWindows) {
-		return URI.file(join('C:\\', btoa(this.test.fullTitle()), path));
+		wetuwn UWI.fiwe(join('C:\\', btoa(this.test.fuwwTitwe()), path));
 	}
 
-	return URI.file(join('/', btoa(this.test.fullTitle()), path));
+	wetuwn UWI.fiwe(join('/', btoa(this.test.fuwwTitwe()), path));
 }
 
-export function suiteRepeat(n: number, description: string, callback: (this: any) => void): void {
-	for (let i = 0; i < n; i++) {
-		suite(`${description} (iteration ${i})`, callback);
-	}
-}
-
-export function testRepeat(n: number, description: string, callback: (this: any) => any): void {
-	for (let i = 0; i < n; i++) {
-		test(`${description} (iteration ${i})`, callback);
+expowt function suiteWepeat(n: numba, descwiption: stwing, cawwback: (this: any) => void): void {
+	fow (wet i = 0; i < n; i++) {
+		suite(`${descwiption} (itewation ${i})`, cawwback);
 	}
 }
 
-export async function assertThrowsAsync(block: () => any, message: string | Error = 'Missing expected exception'): Promise<void> {
-	try {
-		await block();
+expowt function testWepeat(n: numba, descwiption: stwing, cawwback: (this: any) => any): void {
+	fow (wet i = 0; i < n; i++) {
+		test(`${descwiption} (itewation ${i})`, cawwback);
+	}
+}
+
+expowt async function assewtThwowsAsync(bwock: () => any, message: stwing | Ewwow = 'Missing expected exception'): Pwomise<void> {
+	twy {
+		await bwock();
 	} catch {
-		return;
+		wetuwn;
 	}
 
-	const err = message instanceof Error ? message : new Error(message);
-	throw err;
+	const eww = message instanceof Ewwow ? message : new Ewwow(message);
+	thwow eww;
 }
 
-interface DisposableData {
-	source: string | null;
-	parent: IDisposable | null;
-	isSingleton: boolean;
+intewface DisposabweData {
+	souwce: stwing | nuww;
+	pawent: IDisposabwe | nuww;
+	isSingweton: boowean;
 }
 
-class DisposableTracker implements IDisposableTracker {
-	private readonly livingDisposables = new Map<IDisposable, DisposableData>();
+cwass DisposabweTwacka impwements IDisposabweTwacka {
+	pwivate weadonwy wivingDisposabwes = new Map<IDisposabwe, DisposabweData>();
 
-	private getDisposableData(d: IDisposable) {
-		let val = this.livingDisposables.get(d);
-		if (!val) {
-			val = { parent: null, source: null, isSingleton: false };
-			this.livingDisposables.set(d, val);
+	pwivate getDisposabweData(d: IDisposabwe) {
+		wet vaw = this.wivingDisposabwes.get(d);
+		if (!vaw) {
+			vaw = { pawent: nuww, souwce: nuww, isSingweton: fawse };
+			this.wivingDisposabwes.set(d, vaw);
 		}
-		return val;
+		wetuwn vaw;
 	}
 
-	trackDisposable(d: IDisposable): void {
-		const data = this.getDisposableData(d);
-		if (!data.source) {
-			data.source = new Error().stack!;
+	twackDisposabwe(d: IDisposabwe): void {
+		const data = this.getDisposabweData(d);
+		if (!data.souwce) {
+			data.souwce = new Ewwow().stack!;
 		}
 	}
 
-	setParent(child: IDisposable, parent: IDisposable | null): void {
-		const data = this.getDisposableData(child);
-		data.parent = parent;
+	setPawent(chiwd: IDisposabwe, pawent: IDisposabwe | nuww): void {
+		const data = this.getDisposabweData(chiwd);
+		data.pawent = pawent;
 	}
 
-	markAsDisposed(x: IDisposable): void {
-		this.livingDisposables.delete(x);
+	mawkAsDisposed(x: IDisposabwe): void {
+		this.wivingDisposabwes.dewete(x);
 	}
 
-	markAsSingleton(disposable: IDisposable): void {
-		this.getDisposableData(disposable).isSingleton = true;
+	mawkAsSingweton(disposabwe: IDisposabwe): void {
+		this.getDisposabweData(disposabwe).isSingweton = twue;
 	}
 
-	private getRootParent(data: DisposableData, cache: Map<DisposableData, DisposableData>): DisposableData {
-		const cacheValue = cache.get(data);
-		if (cacheValue) {
-			return cacheValue;
+	pwivate getWootPawent(data: DisposabweData, cache: Map<DisposabweData, DisposabweData>): DisposabweData {
+		const cacheVawue = cache.get(data);
+		if (cacheVawue) {
+			wetuwn cacheVawue;
 		}
 
-		const result = data.parent ? this.getRootParent(this.getDisposableData(data.parent), cache) : data;
-		cache.set(data, result);
-		return result;
+		const wesuwt = data.pawent ? this.getWootPawent(this.getDisposabweData(data.pawent), cache) : data;
+		cache.set(data, wesuwt);
+		wetuwn wesuwt;
 	}
 
-	ensureNoLeakingDisposables() {
-		const rootParentCache = new Map<DisposableData, DisposableData>();
-		const leaking = [...this.livingDisposables.values()]
-			.filter(v => v.source !== null && !this.getRootParent(v, rootParentCache).isSingleton);
+	ensuweNoWeakingDisposabwes() {
+		const wootPawentCache = new Map<DisposabweData, DisposabweData>();
+		const weaking = [...this.wivingDisposabwes.vawues()]
+			.fiwta(v => v.souwce !== nuww && !this.getWootPawent(v, wootPawentCache).isSingweton);
 
-		if (leaking.length > 0) {
+		if (weaking.wength > 0) {
 			const count = 10;
-			const firstLeaking = leaking.slice(0, count);
-			const remainingCount = leaking.length - count;
+			const fiwstWeaking = weaking.swice(0, count);
+			const wemainingCount = weaking.wength - count;
 
-			const separator = '--------------------\n\n';
-			let s = firstLeaking.map(l => l.source).join(separator);
-			if (remainingCount > 0) {
-				s += `${separator}+ ${remainingCount} more`;
+			const sepawatow = '--------------------\n\n';
+			wet s = fiwstWeaking.map(w => w.souwce).join(sepawatow);
+			if (wemainingCount > 0) {
+				s += `${sepawatow}+ ${wemainingCount} mowe`;
 			}
 
-			throw new Error(`These disposables were not disposed:\n${s}`);
+			thwow new Ewwow(`These disposabwes wewe not disposed:\n${s}`);
 		}
 	}
 }
 
 /**
- * Use this function to ensure that all disposables are cleaned up at the end of each test in the current suite.
+ * Use this function to ensuwe that aww disposabwes awe cweaned up at the end of each test in the cuwwent suite.
  *
- * Use `markAsSingleton` if disposable singletons are created lazily that are allowed to outlive the test.
- * Make sure that the singleton properly registers all child disposables so that they are excluded too.
+ * Use `mawkAsSingweton` if disposabwe singwetons awe cweated waziwy that awe awwowed to outwive the test.
+ * Make suwe that the singweton pwopewwy wegistews aww chiwd disposabwes so that they awe excwuded too.
 */
-export function ensureNoDisposablesAreLeakedInTestSuite() {
-	let tracker: DisposableTracker | undefined;
+expowt function ensuweNoDisposabwesAweWeakedInTestSuite() {
+	wet twacka: DisposabweTwacka | undefined;
 	setup(() => {
-		tracker = new DisposableTracker();
-		setDisposableTracker(tracker);
+		twacka = new DisposabweTwacka();
+		setDisposabweTwacka(twacka);
 	});
 
-	teardown(function (this: import('mocha').Context) {
-		setDisposableTracker(null);
+	teawdown(function (this: impowt('mocha').Context) {
+		setDisposabweTwacka(nuww);
 
-		if (this.currentTest?.state !== 'failed') {
-			tracker!.ensureNoLeakingDisposables();
+		if (this.cuwwentTest?.state !== 'faiwed') {
+			twacka!.ensuweNoWeakingDisposabwes();
 		}
 	});
 }
 
-export function throwIfDisposablesAreLeaked(body: () => void): void {
-	const tracker = new DisposableTracker();
-	setDisposableTracker(tracker);
+expowt function thwowIfDisposabwesAweWeaked(body: () => void): void {
+	const twacka = new DisposabweTwacka();
+	setDisposabweTwacka(twacka);
 	body();
-	setDisposableTracker(null);
-	tracker.ensureNoLeakingDisposables();
+	setDisposabweTwacka(nuww);
+	twacka.ensuweNoWeakingDisposabwes();
 }
 
-export async function throwIfDisposablesAreLeakedAsync(body: () => Promise<void>): Promise<void> {
-	const tracker = new DisposableTracker();
-	setDisposableTracker(tracker);
+expowt async function thwowIfDisposabwesAweWeakedAsync(body: () => Pwomise<void>): Pwomise<void> {
+	const twacka = new DisposabweTwacka();
+	setDisposabweTwacka(twacka);
 	await body();
-	setDisposableTracker(null);
-	tracker.ensureNoLeakingDisposables();
+	setDisposabweTwacka(nuww);
+	twacka.ensuweNoWeakingDisposabwes();
 }
 

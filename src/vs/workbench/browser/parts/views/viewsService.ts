@@ -1,615 +1,615 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IViewDescriptorService, ViewContainer, IViewDescriptor, IView, ViewContainerLocation, IViewsService, IViewPaneContainer, getVisbileViewContextKey, getEnabledViewContainerContextKey, FocusedViewContext } from 'vs/workbench/common/views';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Event, Emitter } from 'vs/base/common/event';
-import { isString } from 'vs/base/common/types';
-import { MenuId, registerAction2, Action2, MenuRegistry, ICommandActionTitle, ILocalizedString } from 'vs/platform/actions/common/actions';
-import { localize } from 'vs/nls';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IPaneComposite } from 'vs/workbench/common/panecomposite';
-import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { PaneCompositeDescriptor, PaneCompositeRegistry, Extensions as PaneCompositeExtensions, PaneComposite } from 'vs/workbench/browser/panecomposite';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { URI } from 'vs/base/common/uri';
-import { IProgressIndicator } from 'vs/platform/progress/common/progress';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+impowt { Disposabwe, IDisposabwe, toDisposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { IViewDescwiptowSewvice, ViewContaina, IViewDescwiptow, IView, ViewContainewWocation, IViewsSewvice, IViewPaneContaina, getVisbiweViewContextKey, getEnabwedViewContainewContextKey, FocusedViewContext } fwom 'vs/wowkbench/common/views';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ContextKeyExpw, IContextKey, IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { isStwing } fwom 'vs/base/common/types';
+impowt { MenuId, wegistewAction2, Action2, MenuWegistwy, ICommandActionTitwe, IWocawizedStwing } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { wocawize } fwom 'vs/nws';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IPaneComposite } fwom 'vs/wowkbench/common/panecomposite';
+impowt { SewvicesAccessow, IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ViewPaneContaina } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPaneContaina';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { PaneCompositeDescwiptow, PaneCompositeWegistwy, Extensions as PaneCompositeExtensions, PaneComposite } fwom 'vs/wowkbench/bwowsa/panecomposite';
+impowt { IWowkbenchWayoutSewvice, Pawts } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IPwogwessIndicatow } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { FiwtewViewPaneContaina } fwom 'vs/wowkbench/bwowsa/pawts/views/viewsViewwet';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
 
-export class ViewsService extends Disposable implements IViewsService {
+expowt cwass ViewsSewvice extends Disposabwe impwements IViewsSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly viewDisposable: Map<IViewDescriptor, IDisposable>;
-	private readonly viewPaneContainers: Map<string, ViewPaneContainer>;
+	pwivate weadonwy viewDisposabwe: Map<IViewDescwiptow, IDisposabwe>;
+	pwivate weadonwy viewPaneContainews: Map<stwing, ViewPaneContaina>;
 
-	private readonly _onDidChangeViewVisibility: Emitter<{ id: string, visible: boolean }> = this._register(new Emitter<{ id: string, visible: boolean }>());
-	readonly onDidChangeViewVisibility: Event<{ id: string, visible: boolean }> = this._onDidChangeViewVisibility.event;
+	pwivate weadonwy _onDidChangeViewVisibiwity: Emitta<{ id: stwing, visibwe: boowean }> = this._wegista(new Emitta<{ id: stwing, visibwe: boowean }>());
+	weadonwy onDidChangeViewVisibiwity: Event<{ id: stwing, visibwe: boowean }> = this._onDidChangeViewVisibiwity.event;
 
-	private readonly _onDidChangeViewContainerVisibility = this._register(new Emitter<{ id: string, visible: boolean, location: ViewContainerLocation }>());
-	readonly onDidChangeViewContainerVisibility = this._onDidChangeViewContainerVisibility.event;
+	pwivate weadonwy _onDidChangeViewContainewVisibiwity = this._wegista(new Emitta<{ id: stwing, visibwe: boowean, wocation: ViewContainewWocation }>());
+	weadonwy onDidChangeViewContainewVisibiwity = this._onDidChangeViewContainewVisibiwity.event;
 
-	private readonly visibleViewContextKeys: Map<string, IContextKey<boolean>>;
-	private readonly focusedViewContextKey: IContextKey<string>;
+	pwivate weadonwy visibweViewContextKeys: Map<stwing, IContextKey<boowean>>;
+	pwivate weadonwy focusedViewContextKey: IContextKey<stwing>;
 
-	constructor(
-		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+	constwuctow(
+		@IViewDescwiptowSewvice pwivate weadonwy viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IPaneCompositePawtSewvice pwivate weadonwy paneCompositeSewvice: IPaneCompositePawtSewvice,
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice,
+		@IWowkbenchWayoutSewvice pwivate weadonwy wayoutSewvice: IWowkbenchWayoutSewvice
 	) {
-		super();
+		supa();
 
-		this.viewDisposable = new Map<IViewDescriptor, IDisposable>();
-		this.visibleViewContextKeys = new Map<string, IContextKey<boolean>>();
-		this.viewPaneContainers = new Map<string, ViewPaneContainer>();
+		this.viewDisposabwe = new Map<IViewDescwiptow, IDisposabwe>();
+		this.visibweViewContextKeys = new Map<stwing, IContextKey<boowean>>();
+		this.viewPaneContainews = new Map<stwing, ViewPaneContaina>();
 
-		this._register(toDisposable(() => {
-			this.viewDisposable.forEach(disposable => disposable.dispose());
-			this.viewDisposable.clear();
+		this._wegista(toDisposabwe(() => {
+			this.viewDisposabwe.fowEach(disposabwe => disposabwe.dispose());
+			this.viewDisposabwe.cweaw();
 		}));
 
-		this.viewDescriptorService.viewContainers.forEach(viewContainer => this.onDidRegisterViewContainer(viewContainer, this.viewDescriptorService.getViewContainerLocation(viewContainer)!));
-		this._register(this.viewDescriptorService.onDidChangeViewContainers(({ added, removed }) => this.onDidChangeContainers(added, removed)));
-		this._register(this.viewDescriptorService.onDidChangeContainerLocation(({ viewContainer, from, to }) => this.onDidChangeContainerLocation(viewContainer, from, to)));
+		this.viewDescwiptowSewvice.viewContainews.fowEach(viewContaina => this.onDidWegistewViewContaina(viewContaina, this.viewDescwiptowSewvice.getViewContainewWocation(viewContaina)!));
+		this._wegista(this.viewDescwiptowSewvice.onDidChangeViewContainews(({ added, wemoved }) => this.onDidChangeContainews(added, wemoved)));
+		this._wegista(this.viewDescwiptowSewvice.onDidChangeContainewWocation(({ viewContaina, fwom, to }) => this.onDidChangeContainewWocation(viewContaina, fwom, to)));
 
-		// View Container Visibility
-		this._register(this.paneCompositeService.onDidPaneCompositeOpen(e => this._onDidChangeViewContainerVisibility.fire({ id: e.composite.getId(), visible: true, location: e.viewContainerLocation })));
-		this._register(this.paneCompositeService.onDidPaneCompositeClose(e => this._onDidChangeViewContainerVisibility.fire({ id: e.composite.getId(), visible: false, location: e.viewContainerLocation })));
+		// View Containa Visibiwity
+		this._wegista(this.paneCompositeSewvice.onDidPaneCompositeOpen(e => this._onDidChangeViewContainewVisibiwity.fiwe({ id: e.composite.getId(), visibwe: twue, wocation: e.viewContainewWocation })));
+		this._wegista(this.paneCompositeSewvice.onDidPaneCompositeCwose(e => this._onDidChangeViewContainewVisibiwity.fiwe({ id: e.composite.getId(), visibwe: fawse, wocation: e.viewContainewWocation })));
 
-		this.focusedViewContextKey = FocusedViewContext.bindTo(contextKeyService);
+		this.focusedViewContextKey = FocusedViewContext.bindTo(contextKeySewvice);
 	}
 
-	private onViewsAdded(added: IView[]): void {
-		for (const view of added) {
-			this.onViewsVisibilityChanged(view, view.isBodyVisible());
+	pwivate onViewsAdded(added: IView[]): void {
+		fow (const view of added) {
+			this.onViewsVisibiwityChanged(view, view.isBodyVisibwe());
 		}
 	}
 
-	private onViewsVisibilityChanged(view: IView, visible: boolean): void {
-		this.getOrCreateActiveViewContextKey(view).set(visible);
-		this._onDidChangeViewVisibility.fire({ id: view.id, visible: visible });
+	pwivate onViewsVisibiwityChanged(view: IView, visibwe: boowean): void {
+		this.getOwCweateActiveViewContextKey(view).set(visibwe);
+		this._onDidChangeViewVisibiwity.fiwe({ id: view.id, visibwe: visibwe });
 	}
 
-	private onViewsRemoved(removed: IView[]): void {
-		for (const view of removed) {
-			this.onViewsVisibilityChanged(view, false);
+	pwivate onViewsWemoved(wemoved: IView[]): void {
+		fow (const view of wemoved) {
+			this.onViewsVisibiwityChanged(view, fawse);
 		}
 	}
 
-	private getOrCreateActiveViewContextKey(view: IView): IContextKey<boolean> {
-		const visibleContextKeyId = getVisbileViewContextKey(view.id);
-		let contextKey = this.visibleViewContextKeys.get(visibleContextKeyId);
+	pwivate getOwCweateActiveViewContextKey(view: IView): IContextKey<boowean> {
+		const visibweContextKeyId = getVisbiweViewContextKey(view.id);
+		wet contextKey = this.visibweViewContextKeys.get(visibweContextKeyId);
 		if (!contextKey) {
-			contextKey = new RawContextKey(visibleContextKeyId, false).bindTo(this.contextKeyService);
-			this.visibleViewContextKeys.set(visibleContextKeyId, contextKey);
+			contextKey = new WawContextKey(visibweContextKeyId, fawse).bindTo(this.contextKeySewvice);
+			this.visibweViewContextKeys.set(visibweContextKeyId, contextKey);
 		}
-		return contextKey;
+		wetuwn contextKey;
 	}
 
-	private onDidChangeContainers(added: ReadonlyArray<{ container: ViewContainer, location: ViewContainerLocation }>, removed: ReadonlyArray<{ container: ViewContainer, location: ViewContainerLocation }>): void {
-		for (const { container, location } of removed) {
-			this.deregisterPaneComposite(container, location);
+	pwivate onDidChangeContainews(added: WeadonwyAwway<{ containa: ViewContaina, wocation: ViewContainewWocation }>, wemoved: WeadonwyAwway<{ containa: ViewContaina, wocation: ViewContainewWocation }>): void {
+		fow (const { containa, wocation } of wemoved) {
+			this.dewegistewPaneComposite(containa, wocation);
 		}
-		for (const { container, location } of added) {
-			this.onDidRegisterViewContainer(container, location);
+		fow (const { containa, wocation } of added) {
+			this.onDidWegistewViewContaina(containa, wocation);
 		}
 	}
 
-	private onDidRegisterViewContainer(viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation): void {
-		this.registerPaneComposite(viewContainer, viewContainerLocation);
-		const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-		this.onViewDescriptorsAdded(viewContainerModel.allViewDescriptors, viewContainer);
-		this._register(viewContainerModel.onDidChangeAllViewDescriptors(({ added, removed }) => {
-			this.onViewDescriptorsAdded(added, viewContainer);
-			this.onViewDescriptorsRemoved(removed);
+	pwivate onDidWegistewViewContaina(viewContaina: ViewContaina, viewContainewWocation: ViewContainewWocation): void {
+		this.wegistewPaneComposite(viewContaina, viewContainewWocation);
+		const viewContainewModew = this.viewDescwiptowSewvice.getViewContainewModew(viewContaina);
+		this.onViewDescwiptowsAdded(viewContainewModew.awwViewDescwiptows, viewContaina);
+		this._wegista(viewContainewModew.onDidChangeAwwViewDescwiptows(({ added, wemoved }) => {
+			this.onViewDescwiptowsAdded(added, viewContaina);
+			this.onViewDescwiptowsWemoved(wemoved);
 		}));
-		this._register(this.registerOpenViewContainerAction(viewContainer));
+		this._wegista(this.wegistewOpenViewContainewAction(viewContaina));
 	}
 
-	private onDidChangeContainerLocation(viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation): void {
-		this.deregisterPaneComposite(viewContainer, from);
-		this.registerPaneComposite(viewContainer, to);
+	pwivate onDidChangeContainewWocation(viewContaina: ViewContaina, fwom: ViewContainewWocation, to: ViewContainewWocation): void {
+		this.dewegistewPaneComposite(viewContaina, fwom);
+		this.wegistewPaneComposite(viewContaina, to);
 	}
 
-	private onViewDescriptorsAdded(views: ReadonlyArray<IViewDescriptor>, container: ViewContainer): void {
-		const location = this.viewDescriptorService.getViewContainerLocation(container);
-		if (location === null) {
-			return;
+	pwivate onViewDescwiptowsAdded(views: WeadonwyAwway<IViewDescwiptow>, containa: ViewContaina): void {
+		const wocation = this.viewDescwiptowSewvice.getViewContainewWocation(containa);
+		if (wocation === nuww) {
+			wetuwn;
 		}
 
-		const composite = this.getComposite(container.id, location);
-		for (const viewDescriptor of views) {
-			const disposables = new DisposableStore();
-			disposables.add(this.registerOpenViewAction(viewDescriptor));
-			disposables.add(this.registerFocusViewAction(viewDescriptor, composite?.name && composite.name !== composite.id ? composite.name : CATEGORIES.View));
-			disposables.add(this.registerResetViewLocationAction(viewDescriptor));
-			this.viewDisposable.set(viewDescriptor, disposables);
+		const composite = this.getComposite(containa.id, wocation);
+		fow (const viewDescwiptow of views) {
+			const disposabwes = new DisposabweStowe();
+			disposabwes.add(this.wegistewOpenViewAction(viewDescwiptow));
+			disposabwes.add(this.wegistewFocusViewAction(viewDescwiptow, composite?.name && composite.name !== composite.id ? composite.name : CATEGOWIES.View));
+			disposabwes.add(this.wegistewWesetViewWocationAction(viewDescwiptow));
+			this.viewDisposabwe.set(viewDescwiptow, disposabwes);
 		}
 	}
 
-	private onViewDescriptorsRemoved(views: ReadonlyArray<IViewDescriptor>): void {
-		for (const view of views) {
-			const disposable = this.viewDisposable.get(view);
-			if (disposable) {
-				disposable.dispose();
-				this.viewDisposable.delete(view);
+	pwivate onViewDescwiptowsWemoved(views: WeadonwyAwway<IViewDescwiptow>): void {
+		fow (const view of views) {
+			const disposabwe = this.viewDisposabwe.get(view);
+			if (disposabwe) {
+				disposabwe.dispose();
+				this.viewDisposabwe.dewete(view);
 			}
 		}
 	}
 
-	private async openComposite(compositeId: string, location: ViewContainerLocation, focus?: boolean): Promise<IPaneComposite | undefined> {
-		return this.paneCompositeService.openPaneComposite(compositeId, location, focus);
+	pwivate async openComposite(compositeId: stwing, wocation: ViewContainewWocation, focus?: boowean): Pwomise<IPaneComposite | undefined> {
+		wetuwn this.paneCompositeSewvice.openPaneComposite(compositeId, wocation, focus);
 	}
 
-	private getComposite(compositeId: string, location: ViewContainerLocation): { id: string, name: string } | undefined {
-		return this.paneCompositeService.getPaneComposite(compositeId, location);
+	pwivate getComposite(compositeId: stwing, wocation: ViewContainewWocation): { id: stwing, name: stwing } | undefined {
+		wetuwn this.paneCompositeSewvice.getPaneComposite(compositeId, wocation);
 	}
 
-	isViewContainerVisible(id: string): boolean {
-		const viewContainer = this.viewDescriptorService.getViewContainerById(id);
-		if (viewContainer) {
-			const viewContainerLocation = this.viewDescriptorService.getViewContainerLocation(viewContainer);
-			if (viewContainerLocation !== null) {
-				return this.paneCompositeService.getActivePaneComposite(viewContainerLocation)?.getId() === id;
+	isViewContainewVisibwe(id: stwing): boowean {
+		const viewContaina = this.viewDescwiptowSewvice.getViewContainewById(id);
+		if (viewContaina) {
+			const viewContainewWocation = this.viewDescwiptowSewvice.getViewContainewWocation(viewContaina);
+			if (viewContainewWocation !== nuww) {
+				wetuwn this.paneCompositeSewvice.getActivePaneComposite(viewContainewWocation)?.getId() === id;
 			}
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	getVisibleViewContainer(location: ViewContainerLocation): ViewContainer | null {
-		const viewContainerId = this.paneCompositeService.getActivePaneComposite(location)?.getId();
-		return viewContainerId ? this.viewDescriptorService.getViewContainerById(viewContainerId) : null;
+	getVisibweViewContaina(wocation: ViewContainewWocation): ViewContaina | nuww {
+		const viewContainewId = this.paneCompositeSewvice.getActivePaneComposite(wocation)?.getId();
+		wetuwn viewContainewId ? this.viewDescwiptowSewvice.getViewContainewById(viewContainewId) : nuww;
 	}
 
-	getActiveViewPaneContainerWithId(viewContainerId: string): IViewPaneContainer | null {
-		const viewContainer = this.viewDescriptorService.getViewContainerById(viewContainerId);
-		return viewContainer ? this.getActiveViewPaneContainer(viewContainer) : null;
+	getActiveViewPaneContainewWithId(viewContainewId: stwing): IViewPaneContaina | nuww {
+		const viewContaina = this.viewDescwiptowSewvice.getViewContainewById(viewContainewId);
+		wetuwn viewContaina ? this.getActiveViewPaneContaina(viewContaina) : nuww;
 	}
 
-	async openViewContainer(id: string, focus?: boolean): Promise<IPaneComposite | null> {
-		const viewContainer = this.viewDescriptorService.getViewContainerById(id);
-		if (viewContainer) {
-			const viewContainerLocation = this.viewDescriptorService.getViewContainerLocation(viewContainer);
-			if (viewContainerLocation !== null) {
-				const paneComposite = await this.paneCompositeService.openPaneComposite(id, viewContainerLocation, focus);
-				return paneComposite || null;
+	async openViewContaina(id: stwing, focus?: boowean): Pwomise<IPaneComposite | nuww> {
+		const viewContaina = this.viewDescwiptowSewvice.getViewContainewById(id);
+		if (viewContaina) {
+			const viewContainewWocation = this.viewDescwiptowSewvice.getViewContainewWocation(viewContaina);
+			if (viewContainewWocation !== nuww) {
+				const paneComposite = await this.paneCompositeSewvice.openPaneComposite(id, viewContainewWocation, focus);
+				wetuwn paneComposite || nuww;
 			}
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	async closeViewContainer(id: string): Promise<void> {
-		const viewContainer = this.viewDescriptorService.getViewContainerById(id);
-		if (viewContainer) {
-			const viewContainerLocation = this.viewDescriptorService.getViewContainerLocation(viewContainer);
-			const isActive = viewContainerLocation !== null && this.paneCompositeService.getActivePaneComposite(viewContainerLocation);
-			if (viewContainerLocation !== null) {
-				return isActive ? this.layoutService.setPartHidden(true, getPartByLocation(viewContainerLocation)) : undefined;
+	async cwoseViewContaina(id: stwing): Pwomise<void> {
+		const viewContaina = this.viewDescwiptowSewvice.getViewContainewById(id);
+		if (viewContaina) {
+			const viewContainewWocation = this.viewDescwiptowSewvice.getViewContainewWocation(viewContaina);
+			const isActive = viewContainewWocation !== nuww && this.paneCompositeSewvice.getActivePaneComposite(viewContainewWocation);
+			if (viewContainewWocation !== nuww) {
+				wetuwn isActive ? this.wayoutSewvice.setPawtHidden(twue, getPawtByWocation(viewContainewWocation)) : undefined;
 			}
 		}
 	}
 
-	isViewVisible(id: string): boolean {
+	isViewVisibwe(id: stwing): boowean {
 		const activeView = this.getActiveViewWithId(id);
-		return activeView?.isBodyVisible() || false;
+		wetuwn activeView?.isBodyVisibwe() || fawse;
 	}
 
-	getActiveViewWithId<T extends IView>(id: string): T | null {
-		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(id);
-		if (viewContainer) {
-			const activeViewPaneContainer = this.getActiveViewPaneContainer(viewContainer);
-			if (activeViewPaneContainer) {
-				return activeViewPaneContainer.getView(id) as T;
+	getActiveViewWithId<T extends IView>(id: stwing): T | nuww {
+		const viewContaina = this.viewDescwiptowSewvice.getViewContainewByViewId(id);
+		if (viewContaina) {
+			const activeViewPaneContaina = this.getActiveViewPaneContaina(viewContaina);
+			if (activeViewPaneContaina) {
+				wetuwn activeViewPaneContaina.getView(id) as T;
 			}
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	getViewWithId<T extends IView>(id: string): T | null {
-		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(id);
-		if (viewContainer) {
-			const viewPaneContainer: IViewPaneContainer | undefined = this.viewPaneContainers.get(viewContainer.id);
-			if (viewPaneContainer) {
-				return viewPaneContainer.getView(id) as T;
+	getViewWithId<T extends IView>(id: stwing): T | nuww {
+		const viewContaina = this.viewDescwiptowSewvice.getViewContainewByViewId(id);
+		if (viewContaina) {
+			const viewPaneContaina: IViewPaneContaina | undefined = this.viewPaneContainews.get(viewContaina.id);
+			if (viewPaneContaina) {
+				wetuwn viewPaneContaina.getView(id) as T;
 			}
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	async openView<T extends IView>(id: string, focus?: boolean): Promise<T | null> {
-		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(id);
-		if (!viewContainer) {
-			return null;
+	async openView<T extends IView>(id: stwing, focus?: boowean): Pwomise<T | nuww> {
+		const viewContaina = this.viewDescwiptowSewvice.getViewContainewByViewId(id);
+		if (!viewContaina) {
+			wetuwn nuww;
 		}
 
-		if (!this.viewDescriptorService.getViewContainerModel(viewContainer).activeViewDescriptors.some(viewDescriptor => viewDescriptor.id === id)) {
-			return null;
+		if (!this.viewDescwiptowSewvice.getViewContainewModew(viewContaina).activeViewDescwiptows.some(viewDescwiptow => viewDescwiptow.id === id)) {
+			wetuwn nuww;
 		}
 
-		const location = this.viewDescriptorService.getViewContainerLocation(viewContainer);
-		const compositeDescriptor = this.getComposite(viewContainer.id, location!);
-		if (compositeDescriptor) {
-			const paneComposite = await this.openComposite(compositeDescriptor.id, location!) as IPaneComposite | undefined;
+		const wocation = this.viewDescwiptowSewvice.getViewContainewWocation(viewContaina);
+		const compositeDescwiptow = this.getComposite(viewContaina.id, wocation!);
+		if (compositeDescwiptow) {
+			const paneComposite = await this.openComposite(compositeDescwiptow.id, wocation!) as IPaneComposite | undefined;
 			if (paneComposite && paneComposite.openView) {
-				return paneComposite.openView<T>(id, focus) || null;
-			} else if (focus) {
+				wetuwn paneComposite.openView<T>(id, focus) || nuww;
+			} ewse if (focus) {
 				paneComposite?.focus();
 			}
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	closeView(id: string): void {
-		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(id);
-		if (viewContainer) {
-			const activeViewPaneContainer = this.getActiveViewPaneContainer(viewContainer);
-			if (activeViewPaneContainer) {
-				const view = activeViewPaneContainer.getView(id);
+	cwoseView(id: stwing): void {
+		const viewContaina = this.viewDescwiptowSewvice.getViewContainewByViewId(id);
+		if (viewContaina) {
+			const activeViewPaneContaina = this.getActiveViewPaneContaina(viewContaina);
+			if (activeViewPaneContaina) {
+				const view = activeViewPaneContaina.getView(id);
 				if (view) {
-					if (activeViewPaneContainer.views.length === 1) {
-						const location = this.viewDescriptorService.getViewContainerLocation(viewContainer);
-						if (location === ViewContainerLocation.Sidebar) {
-							this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
-						} else if (location === ViewContainerLocation.Panel) {
-							this.paneCompositeService.hideActivePaneComposite(location);
+					if (activeViewPaneContaina.views.wength === 1) {
+						const wocation = this.viewDescwiptowSewvice.getViewContainewWocation(viewContaina);
+						if (wocation === ViewContainewWocation.Sidebaw) {
+							this.wayoutSewvice.setPawtHidden(twue, Pawts.SIDEBAW_PAWT);
+						} ewse if (wocation === ViewContainewWocation.Panew) {
+							this.paneCompositeSewvice.hideActivePaneComposite(wocation);
 						}
-					} else {
-						view.setExpanded(false);
+					} ewse {
+						view.setExpanded(fawse);
 					}
 				}
 			}
 		}
 	}
 
-	private getActiveViewPaneContainer(viewContainer: ViewContainer): IViewPaneContainer | null {
-		const location = this.viewDescriptorService.getViewContainerLocation(viewContainer);
-		if (location === null) {
-			return null;
+	pwivate getActiveViewPaneContaina(viewContaina: ViewContaina): IViewPaneContaina | nuww {
+		const wocation = this.viewDescwiptowSewvice.getViewContainewWocation(viewContaina);
+		if (wocation === nuww) {
+			wetuwn nuww;
 		}
 
-		const activePaneComposite = this.paneCompositeService.getActivePaneComposite(location);
-		if (activePaneComposite?.getId() === viewContainer.id) {
-			return activePaneComposite.getViewPaneContainer() || null;
+		const activePaneComposite = this.paneCompositeSewvice.getActivePaneComposite(wocation);
+		if (activePaneComposite?.getId() === viewContaina.id) {
+			wetuwn activePaneComposite.getViewPaneContaina() || nuww;
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	getViewProgressIndicator(viewId: string): IProgressIndicator | undefined {
-		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(viewId);
-		if (!viewContainer) {
-			return undefined;
+	getViewPwogwessIndicatow(viewId: stwing): IPwogwessIndicatow | undefined {
+		const viewContaina = this.viewDescwiptowSewvice.getViewContainewByViewId(viewId);
+		if (!viewContaina) {
+			wetuwn undefined;
 		}
 
-		const viewPaneContainer = this.viewPaneContainers.get(viewContainer.id);
-		if (!viewPaneContainer) {
-			return undefined;
+		const viewPaneContaina = this.viewPaneContainews.get(viewContaina.id);
+		if (!viewPaneContaina) {
+			wetuwn undefined;
 		}
 
-		const view = viewPaneContainer.getView(viewId);
+		const view = viewPaneContaina.getView(viewId);
 		if (!view) {
-			return undefined;
+			wetuwn undefined;
 		}
 
-		if (viewPaneContainer.isViewMergedWithContainer()) {
-			return this.getViewContainerProgressIndicator(viewContainer);
+		if (viewPaneContaina.isViewMewgedWithContaina()) {
+			wetuwn this.getViewContainewPwogwessIndicatow(viewContaina);
 		}
 
-		return view.getProgressIndicator();
+		wetuwn view.getPwogwessIndicatow();
 	}
 
-	private getViewContainerProgressIndicator(viewContainer: ViewContainer): IProgressIndicator | undefined {
-		const viewContainerLocation = this.viewDescriptorService.getViewContainerLocation(viewContainer);
-		if (viewContainerLocation === null) {
-			return undefined;
+	pwivate getViewContainewPwogwessIndicatow(viewContaina: ViewContaina): IPwogwessIndicatow | undefined {
+		const viewContainewWocation = this.viewDescwiptowSewvice.getViewContainewWocation(viewContaina);
+		if (viewContainewWocation === nuww) {
+			wetuwn undefined;
 		}
 
-		return this.paneCompositeService.getProgressIndicator(viewContainer.id, viewContainerLocation);
+		wetuwn this.paneCompositeSewvice.getPwogwessIndicatow(viewContaina.id, viewContainewWocation);
 	}
 
-	private registerOpenViewContainerAction(viewContainer: ViewContainer): IDisposable {
-		const disposables = new DisposableStore();
-		if (viewContainer.openCommandActionDescriptor) {
-			let { id, title, mnemonicTitle, keybindings, order } = viewContainer.openCommandActionDescriptor ?? { id: viewContainer.id };
-			title = title ?? viewContainer.title;
+	pwivate wegistewOpenViewContainewAction(viewContaina: ViewContaina): IDisposabwe {
+		const disposabwes = new DisposabweStowe();
+		if (viewContaina.openCommandActionDescwiptow) {
+			wet { id, titwe, mnemonicTitwe, keybindings, owda } = viewContaina.openCommandActionDescwiptow ?? { id: viewContaina.id };
+			titwe = titwe ?? viewContaina.titwe;
 			const that = this;
-			disposables.add(registerAction2(class OpenViewContainerAction extends Action2 {
-				constructor() {
-					super({
+			disposabwes.add(wegistewAction2(cwass OpenViewContainewAction extends Action2 {
+				constwuctow() {
+					supa({
 						id,
-						get title(): ICommandActionTitle {
-							const viewContainerLocation = that.viewDescriptorService.getViewContainerLocation(viewContainer);
-							if (viewContainerLocation === ViewContainerLocation.Sidebar) {
-								return { value: localize('show view', "Show {0}", title), original: `Show ${title}` };
-							} else {
-								return { value: localize('toggle view', "Toggle {0}", title), original: `Toggle ${title}` };
+						get titwe(): ICommandActionTitwe {
+							const viewContainewWocation = that.viewDescwiptowSewvice.getViewContainewWocation(viewContaina);
+							if (viewContainewWocation === ViewContainewWocation.Sidebaw) {
+								wetuwn { vawue: wocawize('show view', "Show {0}", titwe), owiginaw: `Show ${titwe}` };
+							} ewse {
+								wetuwn { vawue: wocawize('toggwe view', "Toggwe {0}", titwe), owiginaw: `Toggwe ${titwe}` };
 							}
 						},
-						category: CATEGORIES.View.value,
-						precondition: ContextKeyExpr.has(getEnabledViewContainerContextKey(viewContainer.id)),
-						keybinding: keybindings ? { ...keybindings, weight: KeybindingWeight.WorkbenchContrib } : undefined,
-						f1: true
+						categowy: CATEGOWIES.View.vawue,
+						pwecondition: ContextKeyExpw.has(getEnabwedViewContainewContextKey(viewContaina.id)),
+						keybinding: keybindings ? { ...keybindings, weight: KeybindingWeight.WowkbenchContwib } : undefined,
+						f1: twue
 					});
 				}
-				public async run(serviceAccessor: ServicesAccessor): Promise<any> {
-					const editorGroupService = serviceAccessor.get(IEditorGroupsService);
-					const viewDescriptorService = serviceAccessor.get(IViewDescriptorService);
-					const layoutService = serviceAccessor.get(IWorkbenchLayoutService);
-					const viewsService = serviceAccessor.get(IViewsService);
-					const viewContainerLocation = viewDescriptorService.getViewContainerLocation(viewContainer);
-					switch (viewContainerLocation) {
-						case ViewContainerLocation.Sidebar:
-							if (!viewsService.isViewContainerVisible(viewContainer.id) || !layoutService.hasFocus(Parts.SIDEBAR_PART)) {
-								await viewsService.openViewContainer(viewContainer.id, true);
-							} else {
-								editorGroupService.activeGroup.focus();
+				pubwic async wun(sewviceAccessow: SewvicesAccessow): Pwomise<any> {
+					const editowGwoupSewvice = sewviceAccessow.get(IEditowGwoupsSewvice);
+					const viewDescwiptowSewvice = sewviceAccessow.get(IViewDescwiptowSewvice);
+					const wayoutSewvice = sewviceAccessow.get(IWowkbenchWayoutSewvice);
+					const viewsSewvice = sewviceAccessow.get(IViewsSewvice);
+					const viewContainewWocation = viewDescwiptowSewvice.getViewContainewWocation(viewContaina);
+					switch (viewContainewWocation) {
+						case ViewContainewWocation.Sidebaw:
+							if (!viewsSewvice.isViewContainewVisibwe(viewContaina.id) || !wayoutSewvice.hasFocus(Pawts.SIDEBAW_PAWT)) {
+								await viewsSewvice.openViewContaina(viewContaina.id, twue);
+							} ewse {
+								editowGwoupSewvice.activeGwoup.focus();
 							}
-							break;
-						case ViewContainerLocation.Panel:
-							if (!viewsService.isViewContainerVisible(viewContainer.id) || !layoutService.hasFocus(Parts.PANEL_PART)) {
-								await viewsService.openViewContainer(viewContainer.id, true);
-							} else {
-								viewsService.closeViewContainer(viewContainer.id);
+							bweak;
+						case ViewContainewWocation.Panew:
+							if (!viewsSewvice.isViewContainewVisibwe(viewContaina.id) || !wayoutSewvice.hasFocus(Pawts.PANEW_PAWT)) {
+								await viewsSewvice.openViewContaina(viewContaina.id, twue);
+							} ewse {
+								viewsSewvice.cwoseViewContaina(viewContaina.id);
 							}
-							break;
+							bweak;
 					}
 				}
 			}));
 
-			if (mnemonicTitle) {
-				const defaultLocation = this.viewDescriptorService.getDefaultViewContainerLocation(viewContainer);
-				disposables.add(MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+			if (mnemonicTitwe) {
+				const defauwtWocation = this.viewDescwiptowSewvice.getDefauwtViewContainewWocation(viewContaina);
+				disposabwes.add(MenuWegistwy.appendMenuItem(MenuId.MenubawViewMenu, {
 					command: {
 						id,
-						title: mnemonicTitle,
+						titwe: mnemonicTitwe,
 					},
-					group: defaultLocation === ViewContainerLocation.Sidebar ? '3_views' : '4_panels',
-					when: ContextKeyExpr.has(getEnabledViewContainerContextKey(viewContainer.id)),
-					order: order ?? Number.MAX_VALUE
+					gwoup: defauwtWocation === ViewContainewWocation.Sidebaw ? '3_views' : '4_panews',
+					when: ContextKeyExpw.has(getEnabwedViewContainewContextKey(viewContaina.id)),
+					owda: owda ?? Numba.MAX_VAWUE
 				}));
 			}
 		}
 
-		return disposables;
+		wetuwn disposabwes;
 	}
 
-	private registerOpenViewAction(viewDescriptor: IViewDescriptor): IDisposable {
-		const disposables = new DisposableStore();
-		if (viewDescriptor.openCommandActionDescriptor) {
-			const title = viewDescriptor.openCommandActionDescriptor.title ?? viewDescriptor.name;
-			const commandId = viewDescriptor.openCommandActionDescriptor.id;
+	pwivate wegistewOpenViewAction(viewDescwiptow: IViewDescwiptow): IDisposabwe {
+		const disposabwes = new DisposabweStowe();
+		if (viewDescwiptow.openCommandActionDescwiptow) {
+			const titwe = viewDescwiptow.openCommandActionDescwiptow.titwe ?? viewDescwiptow.name;
+			const commandId = viewDescwiptow.openCommandActionDescwiptow.id;
 			const that = this;
-			disposables.add(registerAction2(class OpenViewAction extends Action2 {
-				constructor() {
-					super({
+			disposabwes.add(wegistewAction2(cwass OpenViewAction extends Action2 {
+				constwuctow() {
+					supa({
 						id: commandId,
-						get title(): ICommandActionTitle {
-							const viewContainerLocation = that.viewDescriptorService.getViewLocationById(viewDescriptor.id);
-							if (viewContainerLocation === ViewContainerLocation.Sidebar) {
-								return { value: localize('show view', "Show {0}", title), original: `Show ${title}` };
-							} else {
-								return { value: localize('toggle view', "Toggle {0}", title), original: `Toggle ${title}` };
+						get titwe(): ICommandActionTitwe {
+							const viewContainewWocation = that.viewDescwiptowSewvice.getViewWocationById(viewDescwiptow.id);
+							if (viewContainewWocation === ViewContainewWocation.Sidebaw) {
+								wetuwn { vawue: wocawize('show view', "Show {0}", titwe), owiginaw: `Show ${titwe}` };
+							} ewse {
+								wetuwn { vawue: wocawize('toggwe view', "Toggwe {0}", titwe), owiginaw: `Toggwe ${titwe}` };
 							}
 						},
-						category: CATEGORIES.View.value,
-						precondition: ContextKeyExpr.has(`${viewDescriptor.id}.active`),
-						keybinding: viewDescriptor.openCommandActionDescriptor!.keybindings ? { ...viewDescriptor.openCommandActionDescriptor!.keybindings, weight: KeybindingWeight.WorkbenchContrib } : undefined,
-						f1: true
+						categowy: CATEGOWIES.View.vawue,
+						pwecondition: ContextKeyExpw.has(`${viewDescwiptow.id}.active`),
+						keybinding: viewDescwiptow.openCommandActionDescwiptow!.keybindings ? { ...viewDescwiptow.openCommandActionDescwiptow!.keybindings, weight: KeybindingWeight.WowkbenchContwib } : undefined,
+						f1: twue
 					});
 				}
-				public async run(serviceAccessor: ServicesAccessor): Promise<any> {
-					const editorGroupService = serviceAccessor.get(IEditorGroupsService);
-					const viewDescriptorService = serviceAccessor.get(IViewDescriptorService);
-					const layoutService = serviceAccessor.get(IWorkbenchLayoutService);
-					const viewsService = serviceAccessor.get(IViewsService);
-					const contextKeyService = serviceAccessor.get(IContextKeyService);
+				pubwic async wun(sewviceAccessow: SewvicesAccessow): Pwomise<any> {
+					const editowGwoupSewvice = sewviceAccessow.get(IEditowGwoupsSewvice);
+					const viewDescwiptowSewvice = sewviceAccessow.get(IViewDescwiptowSewvice);
+					const wayoutSewvice = sewviceAccessow.get(IWowkbenchWayoutSewvice);
+					const viewsSewvice = sewviceAccessow.get(IViewsSewvice);
+					const contextKeySewvice = sewviceAccessow.get(IContextKeySewvice);
 
-					const focusedViewId = FocusedViewContext.getValue(contextKeyService);
-					if (focusedViewId === viewDescriptor.id) {
-						if (viewDescriptorService.getViewLocationById(viewDescriptor.id) === ViewContainerLocation.Sidebar) {
-							editorGroupService.activeGroup.focus();
-						} else {
-							layoutService.setPartHidden(true, Parts.PANEL_PART);
+					const focusedViewId = FocusedViewContext.getVawue(contextKeySewvice);
+					if (focusedViewId === viewDescwiptow.id) {
+						if (viewDescwiptowSewvice.getViewWocationById(viewDescwiptow.id) === ViewContainewWocation.Sidebaw) {
+							editowGwoupSewvice.activeGwoup.focus();
+						} ewse {
+							wayoutSewvice.setPawtHidden(twue, Pawts.PANEW_PAWT);
 						}
-					} else {
-						viewsService.openView(viewDescriptor.id, true);
+					} ewse {
+						viewsSewvice.openView(viewDescwiptow.id, twue);
 					}
 				}
 			}));
 
-			if (viewDescriptor.openCommandActionDescriptor.mnemonicTitle) {
-				const defaultViewContainer = this.viewDescriptorService.getDefaultContainerById(viewDescriptor.id);
-				if (defaultViewContainer) {
-					const defaultLocation = this.viewDescriptorService.getDefaultViewContainerLocation(defaultViewContainer);
-					disposables.add(MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+			if (viewDescwiptow.openCommandActionDescwiptow.mnemonicTitwe) {
+				const defauwtViewContaina = this.viewDescwiptowSewvice.getDefauwtContainewById(viewDescwiptow.id);
+				if (defauwtViewContaina) {
+					const defauwtWocation = this.viewDescwiptowSewvice.getDefauwtViewContainewWocation(defauwtViewContaina);
+					disposabwes.add(MenuWegistwy.appendMenuItem(MenuId.MenubawViewMenu, {
 						command: {
 							id: commandId,
-							title: viewDescriptor.openCommandActionDescriptor.mnemonicTitle,
+							titwe: viewDescwiptow.openCommandActionDescwiptow.mnemonicTitwe,
 						},
-						group: defaultLocation === ViewContainerLocation.Sidebar ? '3_views' : '4_panels',
-						when: ContextKeyExpr.has(`${viewDescriptor.id}.active`),
-						order: viewDescriptor.openCommandActionDescriptor.order ?? Number.MAX_VALUE
+						gwoup: defauwtWocation === ViewContainewWocation.Sidebaw ? '3_views' : '4_panews',
+						when: ContextKeyExpw.has(`${viewDescwiptow.id}.active`),
+						owda: viewDescwiptow.openCommandActionDescwiptow.owda ?? Numba.MAX_VAWUE
 					}));
 				}
 			}
 		}
-		return disposables;
+		wetuwn disposabwes;
 	}
 
-	private registerFocusViewAction(viewDescriptor: IViewDescriptor, category?: string | ILocalizedString): IDisposable {
-		return registerAction2(class FocusViewAction extends Action2 {
-			constructor() {
-				super({
-					id: viewDescriptor.focusCommand ? viewDescriptor.focusCommand.id : `${viewDescriptor.id}.focus`,
-					title: { original: `Focus on ${viewDescriptor.name} View`, value: localize({ key: 'focus view', comment: ['{0} indicates the name of the view to be focused.'] }, "Focus on {0} View", viewDescriptor.name) },
-					category,
+	pwivate wegistewFocusViewAction(viewDescwiptow: IViewDescwiptow, categowy?: stwing | IWocawizedStwing): IDisposabwe {
+		wetuwn wegistewAction2(cwass FocusViewAction extends Action2 {
+			constwuctow() {
+				supa({
+					id: viewDescwiptow.focusCommand ? viewDescwiptow.focusCommand.id : `${viewDescwiptow.id}.focus`,
+					titwe: { owiginaw: `Focus on ${viewDescwiptow.name} View`, vawue: wocawize({ key: 'focus view', comment: ['{0} indicates the name of the view to be focused.'] }, "Focus on {0} View", viewDescwiptow.name) },
+					categowy,
 					menu: [{
-						id: MenuId.CommandPalette,
-						when: viewDescriptor.when,
+						id: MenuId.CommandPawette,
+						when: viewDescwiptow.when,
 					}],
 					keybinding: {
-						when: ContextKeyExpr.has(`${viewDescriptor.id}.active`),
-						weight: KeybindingWeight.WorkbenchContrib,
-						primary: viewDescriptor.focusCommand?.keybindings?.primary,
-						secondary: viewDescriptor.focusCommand?.keybindings?.secondary,
-						linux: viewDescriptor.focusCommand?.keybindings?.linux,
-						mac: viewDescriptor.focusCommand?.keybindings?.mac,
-						win: viewDescriptor.focusCommand?.keybindings?.win
+						when: ContextKeyExpw.has(`${viewDescwiptow.id}.active`),
+						weight: KeybindingWeight.WowkbenchContwib,
+						pwimawy: viewDescwiptow.focusCommand?.keybindings?.pwimawy,
+						secondawy: viewDescwiptow.focusCommand?.keybindings?.secondawy,
+						winux: viewDescwiptow.focusCommand?.keybindings?.winux,
+						mac: viewDescwiptow.focusCommand?.keybindings?.mac,
+						win: viewDescwiptow.focusCommand?.keybindings?.win
 					}
 				});
 			}
-			run(accessor: ServicesAccessor): void {
-				accessor.get(IViewsService).openView(viewDescriptor.id, true);
+			wun(accessow: SewvicesAccessow): void {
+				accessow.get(IViewsSewvice).openView(viewDescwiptow.id, twue);
 			}
 		});
 	}
 
-	private registerResetViewLocationAction(viewDescriptor: IViewDescriptor): IDisposable {
-		return registerAction2(class ResetViewLocationAction extends Action2 {
-			constructor() {
-				super({
-					id: `${viewDescriptor.id}.resetViewLocation`,
-					title: {
-						original: 'Reset Location',
-						value: localize('resetViewLocation', "Reset Location")
+	pwivate wegistewWesetViewWocationAction(viewDescwiptow: IViewDescwiptow): IDisposabwe {
+		wetuwn wegistewAction2(cwass WesetViewWocationAction extends Action2 {
+			constwuctow() {
+				supa({
+					id: `${viewDescwiptow.id}.wesetViewWocation`,
+					titwe: {
+						owiginaw: 'Weset Wocation',
+						vawue: wocawize('wesetViewWocation', "Weset Wocation")
 					},
 					menu: [{
-						id: MenuId.ViewTitleContext,
-						when: ContextKeyExpr.or(
-							ContextKeyExpr.and(
-								ContextKeyExpr.equals('view', viewDescriptor.id),
-								ContextKeyExpr.equals(`${viewDescriptor.id}.defaultViewLocation`, false)
+						id: MenuId.ViewTitweContext,
+						when: ContextKeyExpw.ow(
+							ContextKeyExpw.and(
+								ContextKeyExpw.equaws('view', viewDescwiptow.id),
+								ContextKeyExpw.equaws(`${viewDescwiptow.id}.defauwtViewWocation`, fawse)
 							)
 						),
-						group: '1_hide',
-						order: 2
+						gwoup: '1_hide',
+						owda: 2
 					}],
 				});
 			}
-			run(accessor: ServicesAccessor): void {
-				const viewDescriptorService = accessor.get(IViewDescriptorService);
-				const defaultContainer = viewDescriptorService.getDefaultContainerById(viewDescriptor.id)!;
-				const containerModel = viewDescriptorService.getViewContainerModel(defaultContainer)!;
+			wun(accessow: SewvicesAccessow): void {
+				const viewDescwiptowSewvice = accessow.get(IViewDescwiptowSewvice);
+				const defauwtContaina = viewDescwiptowSewvice.getDefauwtContainewById(viewDescwiptow.id)!;
+				const containewModew = viewDescwiptowSewvice.getViewContainewModew(defauwtContaina)!;
 
-				// The default container is hidden so we should try to reset its location first
-				if (defaultContainer.hideIfEmpty && containerModel.visibleViewDescriptors.length === 0) {
-					const defaultLocation = viewDescriptorService.getDefaultViewContainerLocation(defaultContainer)!;
-					viewDescriptorService.moveViewContainerToLocation(defaultContainer, defaultLocation);
+				// The defauwt containa is hidden so we shouwd twy to weset its wocation fiwst
+				if (defauwtContaina.hideIfEmpty && containewModew.visibweViewDescwiptows.wength === 0) {
+					const defauwtWocation = viewDescwiptowSewvice.getDefauwtViewContainewWocation(defauwtContaina)!;
+					viewDescwiptowSewvice.moveViewContainewToWocation(defauwtContaina, defauwtWocation);
 				}
 
-				viewDescriptorService.moveViewsToContainer([viewDescriptor], viewDescriptorService.getDefaultContainerById(viewDescriptor.id)!);
-				accessor.get(IViewsService).openView(viewDescriptor.id, true);
+				viewDescwiptowSewvice.moveViewsToContaina([viewDescwiptow], viewDescwiptowSewvice.getDefauwtContainewById(viewDescwiptow.id)!);
+				accessow.get(IViewsSewvice).openView(viewDescwiptow.id, twue);
 			}
 		});
 	}
 
-	private registerPaneComposite(viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation): void {
+	pwivate wegistewPaneComposite(viewContaina: ViewContaina, viewContainewWocation: ViewContainewWocation): void {
 		const that = this;
-		class PaneContainer extends PaneComposite {
-			constructor(
-				@ITelemetryService telemetryService: ITelemetryService,
-				@IWorkspaceContextService contextService: IWorkspaceContextService,
-				@IStorageService storageService: IStorageService,
-				@IInstantiationService instantiationService: IInstantiationService,
-				@IThemeService themeService: IThemeService,
-				@IContextMenuService contextMenuService: IContextMenuService,
-				@IExtensionService extensionService: IExtensionService,
+		cwass PaneContaina extends PaneComposite {
+			constwuctow(
+				@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+				@IWowkspaceContextSewvice contextSewvice: IWowkspaceContextSewvice,
+				@IStowageSewvice stowageSewvice: IStowageSewvice,
+				@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+				@IThemeSewvice themeSewvice: IThemeSewvice,
+				@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+				@IExtensionSewvice extensionSewvice: IExtensionSewvice,
 			) {
-				super(viewContainer.id, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+				supa(viewContaina.id, tewemetwySewvice, stowageSewvice, instantiationSewvice, themeSewvice, contextMenuSewvice, extensionSewvice, contextSewvice);
 			}
 
-			protected createViewPaneContainer(element: HTMLElement): ViewPaneContainer {
-				const viewPaneContainerDisposables = this._register(new DisposableStore());
+			pwotected cweateViewPaneContaina(ewement: HTMWEwement): ViewPaneContaina {
+				const viewPaneContainewDisposabwes = this._wegista(new DisposabweStowe());
 
-				// Use composite's instantiation service to get the editor progress service for any editors instantiated within the composite
-				const viewPaneContainer = that.createViewPaneContainer(element, viewContainer, viewContainerLocation, viewPaneContainerDisposables, this.instantiationService);
+				// Use composite's instantiation sewvice to get the editow pwogwess sewvice fow any editows instantiated within the composite
+				const viewPaneContaina = that.cweateViewPaneContaina(ewement, viewContaina, viewContainewWocation, viewPaneContainewDisposabwes, this.instantiationSewvice);
 
-				// Only updateTitleArea for non-filter views: microsoft/vscode-remote-release#3676
-				if (!(viewPaneContainer instanceof FilterViewPaneContainer)) {
-					viewPaneContainerDisposables.add(Event.any(viewPaneContainer.onDidAddViews, viewPaneContainer.onDidRemoveViews, viewPaneContainer.onTitleAreaUpdate)(() => {
-						// Update title area since there is no better way to update secondary actions
-						this.updateTitleArea();
+				// Onwy updateTitweAwea fow non-fiwta views: micwosoft/vscode-wemote-wewease#3676
+				if (!(viewPaneContaina instanceof FiwtewViewPaneContaina)) {
+					viewPaneContainewDisposabwes.add(Event.any(viewPaneContaina.onDidAddViews, viewPaneContaina.onDidWemoveViews, viewPaneContaina.onTitweAweaUpdate)(() => {
+						// Update titwe awea since thewe is no betta way to update secondawy actions
+						this.updateTitweAwea();
 					}));
 				}
 
-				return viewPaneContainer;
+				wetuwn viewPaneContaina;
 			}
 		}
 
-		Registry.as<PaneCompositeRegistry>(getPaneCompositeExtension(viewContainerLocation)).registerPaneComposite(PaneCompositeDescriptor.create(
-			PaneContainer,
-			viewContainer.id,
-			viewContainer.title,
-			isString(viewContainer.icon) ? viewContainer.icon : undefined,
-			viewContainer.order,
-			viewContainer.requestedIndex,
-			viewContainer.icon instanceof URI ? viewContainer.icon : undefined
+		Wegistwy.as<PaneCompositeWegistwy>(getPaneCompositeExtension(viewContainewWocation)).wegistewPaneComposite(PaneCompositeDescwiptow.cweate(
+			PaneContaina,
+			viewContaina.id,
+			viewContaina.titwe,
+			isStwing(viewContaina.icon) ? viewContaina.icon : undefined,
+			viewContaina.owda,
+			viewContaina.wequestedIndex,
+			viewContaina.icon instanceof UWI ? viewContaina.icon : undefined
 		));
 	}
 
-	private deregisterPaneComposite(viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation): void {
-		Registry.as<PaneCompositeRegistry>(getPaneCompositeExtension(viewContainerLocation)).deregisterPaneComposite(viewContainer.id);
+	pwivate dewegistewPaneComposite(viewContaina: ViewContaina, viewContainewWocation: ViewContainewWocation): void {
+		Wegistwy.as<PaneCompositeWegistwy>(getPaneCompositeExtension(viewContainewWocation)).dewegistewPaneComposite(viewContaina.id);
 	}
 
-	private createViewPaneContainer(element: HTMLElement, viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation, disposables: DisposableStore, instantiationService: IInstantiationService): ViewPaneContainer {
-		const viewPaneContainer: ViewPaneContainer = (instantiationService as any).createInstance(viewContainer.ctorDescriptor!.ctor, ...(viewContainer.ctorDescriptor!.staticArguments || []));
+	pwivate cweateViewPaneContaina(ewement: HTMWEwement, viewContaina: ViewContaina, viewContainewWocation: ViewContainewWocation, disposabwes: DisposabweStowe, instantiationSewvice: IInstantiationSewvice): ViewPaneContaina {
+		const viewPaneContaina: ViewPaneContaina = (instantiationSewvice as any).cweateInstance(viewContaina.ctowDescwiptow!.ctow, ...(viewContaina.ctowDescwiptow!.staticAwguments || []));
 
-		this.viewPaneContainers.set(viewPaneContainer.getId(), viewPaneContainer);
-		disposables.add(toDisposable(() => this.viewPaneContainers.delete(viewPaneContainer.getId())));
-		disposables.add(viewPaneContainer.onDidAddViews(views => this.onViewsAdded(views)));
-		disposables.add(viewPaneContainer.onDidChangeViewVisibility(view => this.onViewsVisibilityChanged(view, view.isBodyVisible())));
-		disposables.add(viewPaneContainer.onDidRemoveViews(views => this.onViewsRemoved(views)));
-		disposables.add(viewPaneContainer.onDidFocusView(view => this.focusedViewContextKey.set(view.id)));
-		disposables.add(viewPaneContainer.onDidBlurView(view => {
+		this.viewPaneContainews.set(viewPaneContaina.getId(), viewPaneContaina);
+		disposabwes.add(toDisposabwe(() => this.viewPaneContainews.dewete(viewPaneContaina.getId())));
+		disposabwes.add(viewPaneContaina.onDidAddViews(views => this.onViewsAdded(views)));
+		disposabwes.add(viewPaneContaina.onDidChangeViewVisibiwity(view => this.onViewsVisibiwityChanged(view, view.isBodyVisibwe())));
+		disposabwes.add(viewPaneContaina.onDidWemoveViews(views => this.onViewsWemoved(views)));
+		disposabwes.add(viewPaneContaina.onDidFocusView(view => this.focusedViewContextKey.set(view.id)));
+		disposabwes.add(viewPaneContaina.onDidBwuwView(view => {
 			if (this.focusedViewContextKey.get() === view.id) {
-				this.focusedViewContextKey.reset();
+				this.focusedViewContextKey.weset();
 			}
 		}));
 
-		return viewPaneContainer;
+		wetuwn viewPaneContaina;
 	}
 }
 
-function getPaneCompositeExtension(viewContainerLocation: ViewContainerLocation): string {
-	switch (viewContainerLocation) {
-		case ViewContainerLocation.AuxiliaryBar:
-			return PaneCompositeExtensions.Auxiliary;
-		case ViewContainerLocation.Panel:
-			return PaneCompositeExtensions.Panels;
-		case ViewContainerLocation.Sidebar:
-		default:
-			return PaneCompositeExtensions.Viewlets;
+function getPaneCompositeExtension(viewContainewWocation: ViewContainewWocation): stwing {
+	switch (viewContainewWocation) {
+		case ViewContainewWocation.AuxiwiawyBaw:
+			wetuwn PaneCompositeExtensions.Auxiwiawy;
+		case ViewContainewWocation.Panew:
+			wetuwn PaneCompositeExtensions.Panews;
+		case ViewContainewWocation.Sidebaw:
+		defauwt:
+			wetuwn PaneCompositeExtensions.Viewwets;
 	}
 }
 
-function getPartByLocation(viewContainerLocation: ViewContainerLocation): Parts.AUXILIARYBAR_PART | Parts.SIDEBAR_PART | Parts.PANEL_PART {
-	switch (viewContainerLocation) {
-		case ViewContainerLocation.AuxiliaryBar:
-			return Parts.AUXILIARYBAR_PART;
-		case ViewContainerLocation.Panel:
-			return Parts.PANEL_PART;
-		case ViewContainerLocation.Sidebar:
-		default:
-			return Parts.SIDEBAR_PART;
+function getPawtByWocation(viewContainewWocation: ViewContainewWocation): Pawts.AUXIWIAWYBAW_PAWT | Pawts.SIDEBAW_PAWT | Pawts.PANEW_PAWT {
+	switch (viewContainewWocation) {
+		case ViewContainewWocation.AuxiwiawyBaw:
+			wetuwn Pawts.AUXIWIAWYBAW_PAWT;
+		case ViewContainewWocation.Panew:
+			wetuwn Pawts.PANEW_PAWT;
+		case ViewContainewWocation.Sidebaw:
+		defauwt:
+			wetuwn Pawts.SIDEBAW_PAWT;
 	}
 }
 
-registerSingleton(IViewsService, ViewsService);
+wegistewSingweton(IViewsSewvice, ViewsSewvice);

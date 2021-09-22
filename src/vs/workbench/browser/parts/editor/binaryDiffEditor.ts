@@ -1,49 +1,49 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { BINARY_DIFF_EDITOR_ID } from 'vs/workbench/common/editor';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { BaseBinaryResourceEditor } from 'vs/workbench/browser/parts/editor/binaryEditor';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+impowt { wocawize } fwom 'vs/nws';
+impowt { BINAWY_DIFF_EDITOW_ID } fwom 'vs/wowkbench/common/editow';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { SideBySideEditow } fwom 'vs/wowkbench/bwowsa/pawts/editow/sideBySideEditow';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { BaseBinawyWesouwceEditow } fwom 'vs/wowkbench/bwowsa/pawts/editow/binawyEditow';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ITextWesouwceConfiguwationSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
 
 /**
- * An implementation of editor for diffing binary files like images or videos.
+ * An impwementation of editow fow diffing binawy fiwes wike images ow videos.
  */
-export class BinaryResourceDiffEditor extends SideBySideEditor {
+expowt cwass BinawyWesouwceDiffEditow extends SideBySideEditow {
 
-	static override readonly ID = BINARY_DIFF_EDITOR_ID;
+	static ovewwide weadonwy ID = BINAWY_DIFF_EDITOW_ID;
 
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@IEditorService editorService: IEditorService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+	constwuctow(
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@ITextWesouwceConfiguwationSewvice textWesouwceConfiguwationSewvice: ITextWesouwceConfiguwationSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(telemetryService, instantiationService, themeService, storageService, configurationService, textResourceConfigurationService, editorService, editorGroupService);
+		supa(tewemetwySewvice, instantiationSewvice, themeSewvice, stowageSewvice, configuwationSewvice, textWesouwceConfiguwationSewvice, editowSewvice, editowGwoupSewvice);
 	}
 
-	getMetadata(): string | undefined {
-		const primary = this.getPrimaryEditorPane();
-		const secondary = this.getSecondaryEditorPane();
+	getMetadata(): stwing | undefined {
+		const pwimawy = this.getPwimawyEditowPane();
+		const secondawy = this.getSecondawyEditowPane();
 
-		if (primary instanceof BaseBinaryResourceEditor && secondary instanceof BaseBinaryResourceEditor) {
-			return localize('metadataDiff', "{0} ↔ {1}", secondary.getMetadata(), primary.getMetadata());
+		if (pwimawy instanceof BaseBinawyWesouwceEditow && secondawy instanceof BaseBinawyWesouwceEditow) {
+			wetuwn wocawize('metadataDiff', "{0} ↔ {1}", secondawy.getMetadata(), pwimawy.getMetadata());
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 }

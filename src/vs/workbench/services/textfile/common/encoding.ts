@@ -1,686 +1,686 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Readable, ReadableStream, newWriteableStream, listenStream } from 'vs/base/common/stream';
-import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
+impowt { Weadabwe, WeadabweStweam, newWwiteabweStweam, wistenStweam } fwom 'vs/base/common/stweam';
+impowt { VSBuffa, VSBuffewWeadabwe, VSBuffewWeadabweStweam } fwom 'vs/base/common/buffa';
 
-export const UTF8 = 'utf8';
-export const UTF8_with_bom = 'utf8bom';
-export const UTF16be = 'utf16be';
-export const UTF16le = 'utf16le';
+expowt const UTF8 = 'utf8';
+expowt const UTF8_with_bom = 'utf8bom';
+expowt const UTF16be = 'utf16be';
+expowt const UTF16we = 'utf16we';
 
-export type UTF_ENCODING = typeof UTF8 | typeof UTF8_with_bom | typeof UTF16be | typeof UTF16le;
+expowt type UTF_ENCODING = typeof UTF8 | typeof UTF8_with_bom | typeof UTF16be | typeof UTF16we;
 
-export function isUTFEncoding(encoding: string): encoding is UTF_ENCODING {
-	return [UTF8, UTF8_with_bom, UTF16be, UTF16le].some(utfEncoding => utfEncoding === encoding);
+expowt function isUTFEncoding(encoding: stwing): encoding is UTF_ENCODING {
+	wetuwn [UTF8, UTF8_with_bom, UTF16be, UTF16we].some(utfEncoding => utfEncoding === encoding);
 }
 
-export const UTF16be_BOM = [0xFE, 0xFF];
-export const UTF16le_BOM = [0xFF, 0xFE];
-export const UTF8_BOM = [0xEF, 0xBB, 0xBF];
+expowt const UTF16be_BOM = [0xFE, 0xFF];
+expowt const UTF16we_BOM = [0xFF, 0xFE];
+expowt const UTF8_BOM = [0xEF, 0xBB, 0xBF];
 
-const ZERO_BYTE_DETECTION_BUFFER_MAX_LEN = 512; 	// number of bytes to look at to decide about a file being binary or not
-const NO_ENCODING_GUESS_MIN_BYTES = 512; 			// when not auto guessing the encoding, small number of bytes are enough
-const AUTO_ENCODING_GUESS_MIN_BYTES = 512 * 8; 		// with auto guessing we want a lot more content to be read for guessing
-const AUTO_ENCODING_GUESS_MAX_BYTES = 512 * 128; 	// set an upper limit for the number of bytes we pass on to jschardet
+const ZEWO_BYTE_DETECTION_BUFFEW_MAX_WEN = 512; 	// numba of bytes to wook at to decide about a fiwe being binawy ow not
+const NO_ENCODING_GUESS_MIN_BYTES = 512; 			// when not auto guessing the encoding, smaww numba of bytes awe enough
+const AUTO_ENCODING_GUESS_MIN_BYTES = 512 * 8; 		// with auto guessing we want a wot mowe content to be wead fow guessing
+const AUTO_ENCODING_GUESS_MAX_BYTES = 512 * 128; 	// set an uppa wimit fow the numba of bytes we pass on to jschawdet
 
-export interface IDecodeStreamOptions {
-	guessEncoding: boolean;
-	minBytesRequiredForDetection?: number;
+expowt intewface IDecodeStweamOptions {
+	guessEncoding: boowean;
+	minBytesWequiwedFowDetection?: numba;
 
-	overwriteEncoding(detectedEncoding: string | null): Promise<string>;
+	ovewwwiteEncoding(detectedEncoding: stwing | nuww): Pwomise<stwing>;
 }
 
-export interface IDecodeStreamResult {
-	stream: ReadableStream<string>;
-	detected: IDetectedEncodingResult;
+expowt intewface IDecodeStweamWesuwt {
+	stweam: WeadabweStweam<stwing>;
+	detected: IDetectedEncodingWesuwt;
 }
 
-export interface IDecoderStream {
-	write(buffer: Uint8Array): string;
-	end(): string | undefined;
+expowt intewface IDecodewStweam {
+	wwite(buffa: Uint8Awway): stwing;
+	end(): stwing | undefined;
 }
 
-class DecoderStream implements IDecoderStream {
+cwass DecodewStweam impwements IDecodewStweam {
 
 	/**
-	 * This stream will only load iconv-lite lazily if the encoding
-	 * is not UTF-8. This ensures that for most common cases we do
-	 * not pay the price of loading the module from disk.
+	 * This stweam wiww onwy woad iconv-wite waziwy if the encoding
+	 * is not UTF-8. This ensuwes that fow most common cases we do
+	 * not pay the pwice of woading the moduwe fwom disk.
 	 *
-	 * We still need to be careful when converting UTF-8 to a string
-	 * though because we read the file in chunks of Buffer and thus
-	 * need to decode it via TextDecoder helper that is available
-	 * in browser and node.js environments.
+	 * We stiww need to be cawefuw when convewting UTF-8 to a stwing
+	 * though because we wead the fiwe in chunks of Buffa and thus
+	 * need to decode it via TextDecoda hewpa that is avaiwabwe
+	 * in bwowsa and node.js enviwonments.
 	 */
-	static async create(encoding: string): Promise<DecoderStream> {
-		let decoder: IDecoderStream | undefined = undefined;
+	static async cweate(encoding: stwing): Pwomise<DecodewStweam> {
+		wet decoda: IDecodewStweam | undefined = undefined;
 		if (encoding !== UTF8) {
-			const iconv = await import('iconv-lite-umd');
-			decoder = iconv.getDecoder(toNodeEncoding(encoding));
-		} else {
-			const utf8TextDecoder = new TextDecoder();
-			decoder = {
-				write(buffer: Uint8Array): string {
-					return utf8TextDecoder.decode(buffer, {
-						// Signal to TextDecoder that potentially more data is coming
-						// and that we are calling `decode` in the end to consume any
-						// remainders
-						stream: true
+			const iconv = await impowt('iconv-wite-umd');
+			decoda = iconv.getDecoda(toNodeEncoding(encoding));
+		} ewse {
+			const utf8TextDecoda = new TextDecoda();
+			decoda = {
+				wwite(buffa: Uint8Awway): stwing {
+					wetuwn utf8TextDecoda.decode(buffa, {
+						// Signaw to TextDecoda that potentiawwy mowe data is coming
+						// and that we awe cawwing `decode` in the end to consume any
+						// wemaindews
+						stweam: twue
 					});
 				},
 
-				end(): string | undefined {
-					return utf8TextDecoder.decode();
+				end(): stwing | undefined {
+					wetuwn utf8TextDecoda.decode();
 				}
 			};
 		}
 
-		return new DecoderStream(decoder);
+		wetuwn new DecodewStweam(decoda);
 	}
 
-	private constructor(private iconvLiteDecoder: IDecoderStream) { }
+	pwivate constwuctow(pwivate iconvWiteDecoda: IDecodewStweam) { }
 
-	write(buffer: Uint8Array): string {
-		return this.iconvLiteDecoder.write(buffer);
+	wwite(buffa: Uint8Awway): stwing {
+		wetuwn this.iconvWiteDecoda.wwite(buffa);
 	}
 
-	end(): string | undefined {
-		return this.iconvLiteDecoder.end();
+	end(): stwing | undefined {
+		wetuwn this.iconvWiteDecoda.end();
 	}
 }
 
-export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeStreamOptions): Promise<IDecodeStreamResult> {
-	const minBytesRequiredForDetection = options.minBytesRequiredForDetection ?? options.guessEncoding ? AUTO_ENCODING_GUESS_MIN_BYTES : NO_ENCODING_GUESS_MIN_BYTES;
+expowt function toDecodeStweam(souwce: VSBuffewWeadabweStweam, options: IDecodeStweamOptions): Pwomise<IDecodeStweamWesuwt> {
+	const minBytesWequiwedFowDetection = options.minBytesWequiwedFowDetection ?? options.guessEncoding ? AUTO_ENCODING_GUESS_MIN_BYTES : NO_ENCODING_GUESS_MIN_BYTES;
 
-	return new Promise<IDecodeStreamResult>((resolve, reject) => {
-		const target = newWriteableStream<string>(strings => strings.join(''));
+	wetuwn new Pwomise<IDecodeStweamWesuwt>((wesowve, weject) => {
+		const tawget = newWwiteabweStweam<stwing>(stwings => stwings.join(''));
 
-		const bufferedChunks: VSBuffer[] = [];
-		let bytesBuffered = 0;
+		const buffewedChunks: VSBuffa[] = [];
+		wet bytesBuffewed = 0;
 
-		let decoder: IDecoderStream | undefined = undefined;
+		wet decoda: IDecodewStweam | undefined = undefined;
 
-		const createDecoder = async () => {
-			try {
+		const cweateDecoda = async () => {
+			twy {
 
-				// detect encoding from buffer
-				const detected = await detectEncodingFromBuffer({
-					buffer: VSBuffer.concat(bufferedChunks),
-					bytesRead: bytesBuffered
+				// detect encoding fwom buffa
+				const detected = await detectEncodingFwomBuffa({
+					buffa: VSBuffa.concat(buffewedChunks),
+					bytesWead: bytesBuffewed
 				}, options.guessEncoding);
 
-				// ensure to respect overwrite of encoding
-				detected.encoding = await options.overwriteEncoding(detected.encoding);
+				// ensuwe to wespect ovewwwite of encoding
+				detected.encoding = await options.ovewwwiteEncoding(detected.encoding);
 
-				// decode and write buffered content
-				decoder = await DecoderStream.create(detected.encoding);
-				const decoded = decoder.write(VSBuffer.concat(bufferedChunks).buffer);
-				target.write(decoded);
+				// decode and wwite buffewed content
+				decoda = await DecodewStweam.cweate(detected.encoding);
+				const decoded = decoda.wwite(VSBuffa.concat(buffewedChunks).buffa);
+				tawget.wwite(decoded);
 
-				bufferedChunks.length = 0;
-				bytesBuffered = 0;
+				buffewedChunks.wength = 0;
+				bytesBuffewed = 0;
 
-				// signal to the outside our detected encoding and final decoder stream
-				resolve({
-					stream: target,
+				// signaw to the outside ouw detected encoding and finaw decoda stweam
+				wesowve({
+					stweam: tawget,
 					detected
 				});
-			} catch (error) {
-				reject(error);
+			} catch (ewwow) {
+				weject(ewwow);
 			}
 		};
 
-		listenStream(source, {
+		wistenStweam(souwce, {
 			onData: async chunk => {
 
-				// if the decoder is ready, we just write directly
-				if (decoder) {
-					target.write(decoder.write(chunk.buffer));
+				// if the decoda is weady, we just wwite diwectwy
+				if (decoda) {
+					tawget.wwite(decoda.wwite(chunk.buffa));
 				}
 
-				// otherwise we need to buffer the data until the stream is ready
-				else {
-					bufferedChunks.push(chunk);
-					bytesBuffered += chunk.byteLength;
+				// othewwise we need to buffa the data untiw the stweam is weady
+				ewse {
+					buffewedChunks.push(chunk);
+					bytesBuffewed += chunk.byteWength;
 
-					// buffered enough data for encoding detection, create stream
-					if (bytesBuffered >= minBytesRequiredForDetection) {
+					// buffewed enough data fow encoding detection, cweate stweam
+					if (bytesBuffewed >= minBytesWequiwedFowDetection) {
 
-						// pause stream here until the decoder is ready
-						source.pause();
+						// pause stweam hewe untiw the decoda is weady
+						souwce.pause();
 
-						await createDecoder();
+						await cweateDecoda();
 
-						// resume stream now that decoder is ready but
-						// outside of this stack to reduce recursion
-						setTimeout(() => source.resume());
+						// wesume stweam now that decoda is weady but
+						// outside of this stack to weduce wecuwsion
+						setTimeout(() => souwce.wesume());
 					}
 				}
 			},
-			onError: error => target.error(error), // simply forward to target
+			onEwwow: ewwow => tawget.ewwow(ewwow), // simpwy fowwawd to tawget
 			onEnd: async () => {
 
-				// we were still waiting for data to do the encoding
-				// detection. thus, wrap up starting the stream even
-				// without all the data to get things going
-				if (!decoder) {
-					await createDecoder();
+				// we wewe stiww waiting fow data to do the encoding
+				// detection. thus, wwap up stawting the stweam even
+				// without aww the data to get things going
+				if (!decoda) {
+					await cweateDecoda();
 				}
 
-				// end the target with the remainders of the decoder
-				target.end(decoder?.end());
+				// end the tawget with the wemaindews of the decoda
+				tawget.end(decoda?.end());
 			}
 		});
 	});
 }
 
-export async function toEncodeReadable(readable: Readable<string>, encoding: string, options?: { addBOM?: boolean }): Promise<VSBufferReadable> {
-	const iconv = await import('iconv-lite-umd');
-	const encoder = iconv.getEncoder(toNodeEncoding(encoding), options);
+expowt async function toEncodeWeadabwe(weadabwe: Weadabwe<stwing>, encoding: stwing, options?: { addBOM?: boowean }): Pwomise<VSBuffewWeadabwe> {
+	const iconv = await impowt('iconv-wite-umd');
+	const encoda = iconv.getEncoda(toNodeEncoding(encoding), options);
 
-	let bytesWritten = false;
-	let done = false;
+	wet bytesWwitten = fawse;
+	wet done = fawse;
 
-	return {
-		read() {
+	wetuwn {
+		wead() {
 			if (done) {
-				return null;
+				wetuwn nuww;
 			}
 
-			const chunk = readable.read();
-			if (typeof chunk !== 'string') {
-				done = true;
+			const chunk = weadabwe.wead();
+			if (typeof chunk !== 'stwing') {
+				done = twue;
 
-				// If we are instructed to add a BOM but we detect that no
-				// bytes have been written, we must ensure to return the BOM
-				// ourselves so that we comply with the contract.
-				if (!bytesWritten && options?.addBOM) {
+				// If we awe instwucted to add a BOM but we detect that no
+				// bytes have been wwitten, we must ensuwe to wetuwn the BOM
+				// ouwsewves so that we compwy with the contwact.
+				if (!bytesWwitten && options?.addBOM) {
 					switch (encoding) {
 						case UTF8:
 						case UTF8_with_bom:
-							return VSBuffer.wrap(Uint8Array.from(UTF8_BOM));
+							wetuwn VSBuffa.wwap(Uint8Awway.fwom(UTF8_BOM));
 						case UTF16be:
-							return VSBuffer.wrap(Uint8Array.from(UTF16be_BOM));
-						case UTF16le:
-							return VSBuffer.wrap(Uint8Array.from(UTF16le_BOM));
+							wetuwn VSBuffa.wwap(Uint8Awway.fwom(UTF16be_BOM));
+						case UTF16we:
+							wetuwn VSBuffa.wwap(Uint8Awway.fwom(UTF16we_BOM));
 					}
 				}
 
-				const leftovers = encoder.end();
-				if (leftovers && leftovers.length > 0) {
-					bytesWritten = true;
+				const weftovews = encoda.end();
+				if (weftovews && weftovews.wength > 0) {
+					bytesWwitten = twue;
 
-					return VSBuffer.wrap(leftovers);
+					wetuwn VSBuffa.wwap(weftovews);
 				}
 
-				return null;
+				wetuwn nuww;
 			}
 
-			bytesWritten = true;
+			bytesWwitten = twue;
 
-			return VSBuffer.wrap(encoder.write(chunk));
+			wetuwn VSBuffa.wwap(encoda.wwite(chunk));
 		}
 	};
 }
 
-export async function encodingExists(encoding: string): Promise<boolean> {
-	const iconv = await import('iconv-lite-umd');
+expowt async function encodingExists(encoding: stwing): Pwomise<boowean> {
+	const iconv = await impowt('iconv-wite-umd');
 
-	return iconv.encodingExists(toNodeEncoding(encoding));
+	wetuwn iconv.encodingExists(toNodeEncoding(encoding));
 }
 
-export function toNodeEncoding(enc: string | null): string {
-	if (enc === UTF8_with_bom || enc === null) {
-		return UTF8; // iconv does not distinguish UTF 8 with or without BOM, so we need to help it
+expowt function toNodeEncoding(enc: stwing | nuww): stwing {
+	if (enc === UTF8_with_bom || enc === nuww) {
+		wetuwn UTF8; // iconv does not distinguish UTF 8 with ow without BOM, so we need to hewp it
 	}
 
-	return enc;
+	wetuwn enc;
 }
 
-export function detectEncodingByBOMFromBuffer(buffer: VSBuffer | null, bytesRead: number): typeof UTF8_with_bom | typeof UTF16le | typeof UTF16be | null {
-	if (!buffer || bytesRead < UTF16be_BOM.length) {
-		return null;
+expowt function detectEncodingByBOMFwomBuffa(buffa: VSBuffa | nuww, bytesWead: numba): typeof UTF8_with_bom | typeof UTF16we | typeof UTF16be | nuww {
+	if (!buffa || bytesWead < UTF16be_BOM.wength) {
+		wetuwn nuww;
 	}
 
-	const b0 = buffer.readUInt8(0);
-	const b1 = buffer.readUInt8(1);
+	const b0 = buffa.weadUInt8(0);
+	const b1 = buffa.weadUInt8(1);
 
 	// UTF-16 BE
 	if (b0 === UTF16be_BOM[0] && b1 === UTF16be_BOM[1]) {
-		return UTF16be;
+		wetuwn UTF16be;
 	}
 
-	// UTF-16 LE
-	if (b0 === UTF16le_BOM[0] && b1 === UTF16le_BOM[1]) {
-		return UTF16le;
+	// UTF-16 WE
+	if (b0 === UTF16we_BOM[0] && b1 === UTF16we_BOM[1]) {
+		wetuwn UTF16we;
 	}
 
-	if (bytesRead < UTF8_BOM.length) {
-		return null;
+	if (bytesWead < UTF8_BOM.wength) {
+		wetuwn nuww;
 	}
 
-	const b2 = buffer.readUInt8(2);
+	const b2 = buffa.weadUInt8(2);
 
 	// UTF-8
 	if (b0 === UTF8_BOM[0] && b1 === UTF8_BOM[1] && b2 === UTF8_BOM[2]) {
-		return UTF8_with_bom;
+		wetuwn UTF8_with_bom;
 	}
 
-	return null;
+	wetuwn nuww;
 }
 
-// we explicitly ignore a specific set of encodings from auto guessing
-// - ASCII: we never want this encoding (most UTF-8 files would happily detect as
-//          ASCII files and then you could not type non-ASCII characters anymore)
-// - UTF-16: we have our own detection logic for UTF-16
-// - UTF-32: we do not support this encoding in VSCode
-const IGNORE_ENCODINGS = ['ascii', 'utf-16', 'utf-32'];
+// we expwicitwy ignowe a specific set of encodings fwom auto guessing
+// - ASCII: we neva want this encoding (most UTF-8 fiwes wouwd happiwy detect as
+//          ASCII fiwes and then you couwd not type non-ASCII chawactews anymowe)
+// - UTF-16: we have ouw own detection wogic fow UTF-16
+// - UTF-32: we do not suppowt this encoding in VSCode
+const IGNOWE_ENCODINGS = ['ascii', 'utf-16', 'utf-32'];
 
 /**
- * Guesses the encoding from buffer.
+ * Guesses the encoding fwom buffa.
  */
-async function guessEncodingByBuffer(buffer: VSBuffer): Promise<string | null> {
-	const jschardet = await import('jschardet');
+async function guessEncodingByBuffa(buffa: VSBuffa): Pwomise<stwing | nuww> {
+	const jschawdet = await impowt('jschawdet');
 
-	// ensure to limit buffer for guessing due to https://github.com/aadsm/jschardet/issues/53
-	const limitedBuffer = buffer.slice(0, AUTO_ENCODING_GUESS_MAX_BYTES);
+	// ensuwe to wimit buffa fow guessing due to https://github.com/aadsm/jschawdet/issues/53
+	const wimitedBuffa = buffa.swice(0, AUTO_ENCODING_GUESS_MAX_BYTES);
 
-	// before guessing jschardet calls toString('binary') on input if it is a Buffer,
-	// since we are using it inside browser environment as well we do conversion ourselves
-	// https://github.com/aadsm/jschardet/blob/v2.1.1/src/index.js#L36-L40
-	const binaryString = encodeLatin1(limitedBuffer.buffer);
+	// befowe guessing jschawdet cawws toStwing('binawy') on input if it is a Buffa,
+	// since we awe using it inside bwowsa enviwonment as weww we do convewsion ouwsewves
+	// https://github.com/aadsm/jschawdet/bwob/v2.1.1/swc/index.js#W36-W40
+	const binawyStwing = encodeWatin1(wimitedBuffa.buffa);
 
-	const guessed = jschardet.detect(binaryString);
+	const guessed = jschawdet.detect(binawyStwing);
 	if (!guessed || !guessed.encoding) {
-		return null;
+		wetuwn nuww;
 	}
 
-	const enc = guessed.encoding.toLowerCase();
-	if (0 <= IGNORE_ENCODINGS.indexOf(enc)) {
-		return null; // see comment above why we ignore some encodings
+	const enc = guessed.encoding.toWowewCase();
+	if (0 <= IGNOWE_ENCODINGS.indexOf(enc)) {
+		wetuwn nuww; // see comment above why we ignowe some encodings
 	}
 
-	return toIconvLiteEncoding(guessed.encoding);
+	wetuwn toIconvWiteEncoding(guessed.encoding);
 }
 
-const JSCHARDET_TO_ICONV_ENCODINGS: { [name: string]: string } = {
+const JSCHAWDET_TO_ICONV_ENCODINGS: { [name: stwing]: stwing } = {
 	'ibm866': 'cp866',
 	'big5': 'cp950'
 };
 
-function toIconvLiteEncoding(encodingName: string): string {
-	const normalizedEncodingName = encodingName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-	const mapped = JSCHARDET_TO_ICONV_ENCODINGS[normalizedEncodingName];
+function toIconvWiteEncoding(encodingName: stwing): stwing {
+	const nowmawizedEncodingName = encodingName.wepwace(/[^a-zA-Z0-9]/g, '').toWowewCase();
+	const mapped = JSCHAWDET_TO_ICONV_ENCODINGS[nowmawizedEncodingName];
 
-	return mapped || normalizedEncodingName;
+	wetuwn mapped || nowmawizedEncodingName;
 }
 
-function encodeLatin1(buffer: Uint8Array): string {
-	let result = '';
-	for (let i = 0; i < buffer.length; i++) {
-		result += String.fromCharCode(buffer[i]);
+function encodeWatin1(buffa: Uint8Awway): stwing {
+	wet wesuwt = '';
+	fow (wet i = 0; i < buffa.wength; i++) {
+		wesuwt += Stwing.fwomChawCode(buffa[i]);
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
 /**
- * The encodings that are allowed in a settings file don't match the canonical encoding labels specified by WHATWG.
- * See https://encoding.spec.whatwg.org/#names-and-labels
- * Iconv-lite strips all non-alphanumeric characters, but ripgrep doesn't. For backcompat, allow these labels.
+ * The encodings that awe awwowed in a settings fiwe don't match the canonicaw encoding wabews specified by WHATWG.
+ * See https://encoding.spec.whatwg.owg/#names-and-wabews
+ * Iconv-wite stwips aww non-awphanumewic chawactews, but wipgwep doesn't. Fow backcompat, awwow these wabews.
  */
-export function toCanonicalName(enc: string): string {
+expowt function toCanonicawName(enc: stwing): stwing {
 	switch (enc) {
 		case 'shiftjis':
-			return 'shift-jis';
-		case 'utf16le':
-			return 'utf-16le';
+			wetuwn 'shift-jis';
+		case 'utf16we':
+			wetuwn 'utf-16we';
 		case 'utf16be':
-			return 'utf-16be';
+			wetuwn 'utf-16be';
 		case 'big5hkscs':
-			return 'big5-hkscs';
+			wetuwn 'big5-hkscs';
 		case 'eucjp':
-			return 'euc-jp';
-		case 'euckr':
-			return 'euc-kr';
-		case 'koi8r':
-			return 'koi8-r';
+			wetuwn 'euc-jp';
+		case 'euckw':
+			wetuwn 'euc-kw';
+		case 'koi8w':
+			wetuwn 'koi8-w';
 		case 'koi8u':
-			return 'koi8-u';
-		case 'macroman':
-			return 'x-mac-roman';
+			wetuwn 'koi8-u';
+		case 'macwoman':
+			wetuwn 'x-mac-woman';
 		case 'utf8bom':
-			return 'utf8';
-		default:
+			wetuwn 'utf8';
+		defauwt:
 			const m = enc.match(/windows(\d+)/);
 			if (m) {
-				return 'windows-' + m[1];
+				wetuwn 'windows-' + m[1];
 			}
 
-			return enc;
+			wetuwn enc;
 	}
 }
 
-export interface IDetectedEncodingResult {
-	encoding: string | null;
-	seemsBinary: boolean;
+expowt intewface IDetectedEncodingWesuwt {
+	encoding: stwing | nuww;
+	seemsBinawy: boowean;
 }
 
-export interface IReadResult {
-	buffer: VSBuffer | null;
-	bytesRead: number;
+expowt intewface IWeadWesuwt {
+	buffa: VSBuffa | nuww;
+	bytesWead: numba;
 }
 
-export function detectEncodingFromBuffer(readResult: IReadResult, autoGuessEncoding?: false): IDetectedEncodingResult;
-export function detectEncodingFromBuffer(readResult: IReadResult, autoGuessEncoding?: boolean): Promise<IDetectedEncodingResult>;
-export function detectEncodingFromBuffer({ buffer, bytesRead }: IReadResult, autoGuessEncoding?: boolean): Promise<IDetectedEncodingResult> | IDetectedEncodingResult {
+expowt function detectEncodingFwomBuffa(weadWesuwt: IWeadWesuwt, autoGuessEncoding?: fawse): IDetectedEncodingWesuwt;
+expowt function detectEncodingFwomBuffa(weadWesuwt: IWeadWesuwt, autoGuessEncoding?: boowean): Pwomise<IDetectedEncodingWesuwt>;
+expowt function detectEncodingFwomBuffa({ buffa, bytesWead }: IWeadWesuwt, autoGuessEncoding?: boowean): Pwomise<IDetectedEncodingWesuwt> | IDetectedEncodingWesuwt {
 
-	// Always first check for BOM to find out about encoding
-	let encoding = detectEncodingByBOMFromBuffer(buffer, bytesRead);
+	// Awways fiwst check fow BOM to find out about encoding
+	wet encoding = detectEncodingByBOMFwomBuffa(buffa, bytesWead);
 
-	// Detect 0 bytes to see if file is binary or UTF-16 LE/BE
-	// unless we already know that this file has a UTF-16 encoding
-	let seemsBinary = false;
-	if (encoding !== UTF16be && encoding !== UTF16le && buffer) {
-		let couldBeUTF16LE = true; // e.g. 0xAA 0x00
-		let couldBeUTF16BE = true; // e.g. 0x00 0xAA
-		let containsZeroByte = false;
+	// Detect 0 bytes to see if fiwe is binawy ow UTF-16 WE/BE
+	// unwess we awweady know that this fiwe has a UTF-16 encoding
+	wet seemsBinawy = fawse;
+	if (encoding !== UTF16be && encoding !== UTF16we && buffa) {
+		wet couwdBeUTF16WE = twue; // e.g. 0xAA 0x00
+		wet couwdBeUTF16BE = twue; // e.g. 0x00 0xAA
+		wet containsZewoByte = fawse;
 
-		// This is a simplified guess to detect UTF-16 BE or LE by just checking if
-		// the first 512 bytes have the 0-byte at a specific location. For UTF-16 LE
-		// this would be the odd byte index and for UTF-16 BE the even one.
-		// Note: this can produce false positives (a binary file that uses a 2-byte
-		// encoding of the same format as UTF-16) and false negatives (a UTF-16 file
-		// that is using 4 bytes to encode a character).
-		for (let i = 0; i < bytesRead && i < ZERO_BYTE_DETECTION_BUFFER_MAX_LEN; i++) {
-			const isEndian = (i % 2 === 1); // assume 2-byte sequences typical for UTF-16
-			const isZeroByte = (buffer.readUInt8(i) === 0);
+		// This is a simpwified guess to detect UTF-16 BE ow WE by just checking if
+		// the fiwst 512 bytes have the 0-byte at a specific wocation. Fow UTF-16 WE
+		// this wouwd be the odd byte index and fow UTF-16 BE the even one.
+		// Note: this can pwoduce fawse positives (a binawy fiwe that uses a 2-byte
+		// encoding of the same fowmat as UTF-16) and fawse negatives (a UTF-16 fiwe
+		// that is using 4 bytes to encode a chawacta).
+		fow (wet i = 0; i < bytesWead && i < ZEWO_BYTE_DETECTION_BUFFEW_MAX_WEN; i++) {
+			const isEndian = (i % 2 === 1); // assume 2-byte sequences typicaw fow UTF-16
+			const isZewoByte = (buffa.weadUInt8(i) === 0);
 
-			if (isZeroByte) {
-				containsZeroByte = true;
+			if (isZewoByte) {
+				containsZewoByte = twue;
 			}
 
-			// UTF-16 LE: expect e.g. 0xAA 0x00
-			if (couldBeUTF16LE && (isEndian && !isZeroByte || !isEndian && isZeroByte)) {
-				couldBeUTF16LE = false;
+			// UTF-16 WE: expect e.g. 0xAA 0x00
+			if (couwdBeUTF16WE && (isEndian && !isZewoByte || !isEndian && isZewoByte)) {
+				couwdBeUTF16WE = fawse;
 			}
 
 			// UTF-16 BE: expect e.g. 0x00 0xAA
-			if (couldBeUTF16BE && (isEndian && isZeroByte || !isEndian && !isZeroByte)) {
-				couldBeUTF16BE = false;
+			if (couwdBeUTF16BE && (isEndian && isZewoByte || !isEndian && !isZewoByte)) {
+				couwdBeUTF16BE = fawse;
 			}
 
-			// Return if this is neither UTF16-LE nor UTF16-BE and thus treat as binary
-			if (isZeroByte && !couldBeUTF16LE && !couldBeUTF16BE) {
-				break;
+			// Wetuwn if this is neitha UTF16-WE now UTF16-BE and thus tweat as binawy
+			if (isZewoByte && !couwdBeUTF16WE && !couwdBeUTF16BE) {
+				bweak;
 			}
 		}
 
-		// Handle case of 0-byte included
-		if (containsZeroByte) {
-			if (couldBeUTF16LE) {
-				encoding = UTF16le;
-			} else if (couldBeUTF16BE) {
+		// Handwe case of 0-byte incwuded
+		if (containsZewoByte) {
+			if (couwdBeUTF16WE) {
+				encoding = UTF16we;
+			} ewse if (couwdBeUTF16BE) {
 				encoding = UTF16be;
-			} else {
-				seemsBinary = true;
+			} ewse {
+				seemsBinawy = twue;
 			}
 		}
 	}
 
-	// Auto guess encoding if configured
-	if (autoGuessEncoding && !seemsBinary && !encoding && buffer) {
-		return guessEncodingByBuffer(buffer.slice(0, bytesRead)).then(guessedEncoding => {
-			return {
-				seemsBinary: false,
+	// Auto guess encoding if configuwed
+	if (autoGuessEncoding && !seemsBinawy && !encoding && buffa) {
+		wetuwn guessEncodingByBuffa(buffa.swice(0, bytesWead)).then(guessedEncoding => {
+			wetuwn {
+				seemsBinawy: fawse,
 				encoding: guessedEncoding
 			};
 		});
 	}
 
-	return { seemsBinary, encoding };
+	wetuwn { seemsBinawy, encoding };
 }
 
-export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; labelShort: string; order: number; encodeOnly?: boolean; alias?: string } } = {
+expowt const SUPPOWTED_ENCODINGS: { [encoding: stwing]: { wabewWong: stwing; wabewShowt: stwing; owda: numba; encodeOnwy?: boowean; awias?: stwing } } = {
 	utf8: {
-		labelLong: 'UTF-8',
-		labelShort: 'UTF-8',
-		order: 1,
-		alias: 'utf8bom'
+		wabewWong: 'UTF-8',
+		wabewShowt: 'UTF-8',
+		owda: 1,
+		awias: 'utf8bom'
 	},
 	utf8bom: {
-		labelLong: 'UTF-8 with BOM',
-		labelShort: 'UTF-8 with BOM',
-		encodeOnly: true,
-		order: 2,
-		alias: 'utf8'
+		wabewWong: 'UTF-8 with BOM',
+		wabewShowt: 'UTF-8 with BOM',
+		encodeOnwy: twue,
+		owda: 2,
+		awias: 'utf8'
 	},
-	utf16le: {
-		labelLong: 'UTF-16 LE',
-		labelShort: 'UTF-16 LE',
-		order: 3
+	utf16we: {
+		wabewWong: 'UTF-16 WE',
+		wabewShowt: 'UTF-16 WE',
+		owda: 3
 	},
 	utf16be: {
-		labelLong: 'UTF-16 BE',
-		labelShort: 'UTF-16 BE',
-		order: 4
+		wabewWong: 'UTF-16 BE',
+		wabewShowt: 'UTF-16 BE',
+		owda: 4
 	},
 	windows1252: {
-		labelLong: 'Western (Windows 1252)',
-		labelShort: 'Windows 1252',
-		order: 5
+		wabewWong: 'Westewn (Windows 1252)',
+		wabewShowt: 'Windows 1252',
+		owda: 5
 	},
 	iso88591: {
-		labelLong: 'Western (ISO 8859-1)',
-		labelShort: 'ISO 8859-1',
-		order: 6
+		wabewWong: 'Westewn (ISO 8859-1)',
+		wabewShowt: 'ISO 8859-1',
+		owda: 6
 	},
 	iso88593: {
-		labelLong: 'Western (ISO 8859-3)',
-		labelShort: 'ISO 8859-3',
-		order: 7
+		wabewWong: 'Westewn (ISO 8859-3)',
+		wabewShowt: 'ISO 8859-3',
+		owda: 7
 	},
 	iso885915: {
-		labelLong: 'Western (ISO 8859-15)',
-		labelShort: 'ISO 8859-15',
-		order: 8
+		wabewWong: 'Westewn (ISO 8859-15)',
+		wabewShowt: 'ISO 8859-15',
+		owda: 8
 	},
-	macroman: {
-		labelLong: 'Western (Mac Roman)',
-		labelShort: 'Mac Roman',
-		order: 9
+	macwoman: {
+		wabewWong: 'Westewn (Mac Woman)',
+		wabewShowt: 'Mac Woman',
+		owda: 9
 	},
 	cp437: {
-		labelLong: 'DOS (CP 437)',
-		labelShort: 'CP437',
-		order: 10
+		wabewWong: 'DOS (CP 437)',
+		wabewShowt: 'CP437',
+		owda: 10
 	},
 	windows1256: {
-		labelLong: 'Arabic (Windows 1256)',
-		labelShort: 'Windows 1256',
-		order: 11
+		wabewWong: 'Awabic (Windows 1256)',
+		wabewShowt: 'Windows 1256',
+		owda: 11
 	},
 	iso88596: {
-		labelLong: 'Arabic (ISO 8859-6)',
-		labelShort: 'ISO 8859-6',
-		order: 12
+		wabewWong: 'Awabic (ISO 8859-6)',
+		wabewShowt: 'ISO 8859-6',
+		owda: 12
 	},
 	windows1257: {
-		labelLong: 'Baltic (Windows 1257)',
-		labelShort: 'Windows 1257',
-		order: 13
+		wabewWong: 'Bawtic (Windows 1257)',
+		wabewShowt: 'Windows 1257',
+		owda: 13
 	},
 	iso88594: {
-		labelLong: 'Baltic (ISO 8859-4)',
-		labelShort: 'ISO 8859-4',
-		order: 14
+		wabewWong: 'Bawtic (ISO 8859-4)',
+		wabewShowt: 'ISO 8859-4',
+		owda: 14
 	},
 	iso885914: {
-		labelLong: 'Celtic (ISO 8859-14)',
-		labelShort: 'ISO 8859-14',
-		order: 15
+		wabewWong: 'Cewtic (ISO 8859-14)',
+		wabewShowt: 'ISO 8859-14',
+		owda: 15
 	},
 	windows1250: {
-		labelLong: 'Central European (Windows 1250)',
-		labelShort: 'Windows 1250',
-		order: 16
+		wabewWong: 'Centwaw Euwopean (Windows 1250)',
+		wabewShowt: 'Windows 1250',
+		owda: 16
 	},
 	iso88592: {
-		labelLong: 'Central European (ISO 8859-2)',
-		labelShort: 'ISO 8859-2',
-		order: 17
+		wabewWong: 'Centwaw Euwopean (ISO 8859-2)',
+		wabewShowt: 'ISO 8859-2',
+		owda: 17
 	},
 	cp852: {
-		labelLong: 'Central European (CP 852)',
-		labelShort: 'CP 852',
-		order: 18
+		wabewWong: 'Centwaw Euwopean (CP 852)',
+		wabewShowt: 'CP 852',
+		owda: 18
 	},
 	windows1251: {
-		labelLong: 'Cyrillic (Windows 1251)',
-		labelShort: 'Windows 1251',
-		order: 19
+		wabewWong: 'Cywiwwic (Windows 1251)',
+		wabewShowt: 'Windows 1251',
+		owda: 19
 	},
 	cp866: {
-		labelLong: 'Cyrillic (CP 866)',
-		labelShort: 'CP 866',
-		order: 20
+		wabewWong: 'Cywiwwic (CP 866)',
+		wabewShowt: 'CP 866',
+		owda: 20
 	},
 	iso88595: {
-		labelLong: 'Cyrillic (ISO 8859-5)',
-		labelShort: 'ISO 8859-5',
-		order: 21
+		wabewWong: 'Cywiwwic (ISO 8859-5)',
+		wabewShowt: 'ISO 8859-5',
+		owda: 21
 	},
-	koi8r: {
-		labelLong: 'Cyrillic (KOI8-R)',
-		labelShort: 'KOI8-R',
-		order: 22
+	koi8w: {
+		wabewWong: 'Cywiwwic (KOI8-W)',
+		wabewShowt: 'KOI8-W',
+		owda: 22
 	},
 	koi8u: {
-		labelLong: 'Cyrillic (KOI8-U)',
-		labelShort: 'KOI8-U',
-		order: 23
+		wabewWong: 'Cywiwwic (KOI8-U)',
+		wabewShowt: 'KOI8-U',
+		owda: 23
 	},
 	iso885913: {
-		labelLong: 'Estonian (ISO 8859-13)',
-		labelShort: 'ISO 8859-13',
-		order: 24
+		wabewWong: 'Estonian (ISO 8859-13)',
+		wabewShowt: 'ISO 8859-13',
+		owda: 24
 	},
 	windows1253: {
-		labelLong: 'Greek (Windows 1253)',
-		labelShort: 'Windows 1253',
-		order: 25
+		wabewWong: 'Gweek (Windows 1253)',
+		wabewShowt: 'Windows 1253',
+		owda: 25
 	},
 	iso88597: {
-		labelLong: 'Greek (ISO 8859-7)',
-		labelShort: 'ISO 8859-7',
-		order: 26
+		wabewWong: 'Gweek (ISO 8859-7)',
+		wabewShowt: 'ISO 8859-7',
+		owda: 26
 	},
 	windows1255: {
-		labelLong: 'Hebrew (Windows 1255)',
-		labelShort: 'Windows 1255',
-		order: 27
+		wabewWong: 'Hebwew (Windows 1255)',
+		wabewShowt: 'Windows 1255',
+		owda: 27
 	},
 	iso88598: {
-		labelLong: 'Hebrew (ISO 8859-8)',
-		labelShort: 'ISO 8859-8',
-		order: 28
+		wabewWong: 'Hebwew (ISO 8859-8)',
+		wabewShowt: 'ISO 8859-8',
+		owda: 28
 	},
 	iso885910: {
-		labelLong: 'Nordic (ISO 8859-10)',
-		labelShort: 'ISO 8859-10',
-		order: 29
+		wabewWong: 'Nowdic (ISO 8859-10)',
+		wabewShowt: 'ISO 8859-10',
+		owda: 29
 	},
 	iso885916: {
-		labelLong: 'Romanian (ISO 8859-16)',
-		labelShort: 'ISO 8859-16',
-		order: 30
+		wabewWong: 'Womanian (ISO 8859-16)',
+		wabewShowt: 'ISO 8859-16',
+		owda: 30
 	},
 	windows1254: {
-		labelLong: 'Turkish (Windows 1254)',
-		labelShort: 'Windows 1254',
-		order: 31
+		wabewWong: 'Tuwkish (Windows 1254)',
+		wabewShowt: 'Windows 1254',
+		owda: 31
 	},
 	iso88599: {
-		labelLong: 'Turkish (ISO 8859-9)',
-		labelShort: 'ISO 8859-9',
-		order: 32
+		wabewWong: 'Tuwkish (ISO 8859-9)',
+		wabewShowt: 'ISO 8859-9',
+		owda: 32
 	},
 	windows1258: {
-		labelLong: 'Vietnamese (Windows 1258)',
-		labelShort: 'Windows 1258',
-		order: 33
+		wabewWong: 'Vietnamese (Windows 1258)',
+		wabewShowt: 'Windows 1258',
+		owda: 33
 	},
 	gbk: {
-		labelLong: 'Simplified Chinese (GBK)',
-		labelShort: 'GBK',
-		order: 34
+		wabewWong: 'Simpwified Chinese (GBK)',
+		wabewShowt: 'GBK',
+		owda: 34
 	},
 	gb18030: {
-		labelLong: 'Simplified Chinese (GB18030)',
-		labelShort: 'GB18030',
-		order: 35
+		wabewWong: 'Simpwified Chinese (GB18030)',
+		wabewShowt: 'GB18030',
+		owda: 35
 	},
 	cp950: {
-		labelLong: 'Traditional Chinese (Big5)',
-		labelShort: 'Big5',
-		order: 36
+		wabewWong: 'Twaditionaw Chinese (Big5)',
+		wabewShowt: 'Big5',
+		owda: 36
 	},
 	big5hkscs: {
-		labelLong: 'Traditional Chinese (Big5-HKSCS)',
-		labelShort: 'Big5-HKSCS',
-		order: 37
+		wabewWong: 'Twaditionaw Chinese (Big5-HKSCS)',
+		wabewShowt: 'Big5-HKSCS',
+		owda: 37
 	},
 	shiftjis: {
-		labelLong: 'Japanese (Shift JIS)',
-		labelShort: 'Shift JIS',
-		order: 38
+		wabewWong: 'Japanese (Shift JIS)',
+		wabewShowt: 'Shift JIS',
+		owda: 38
 	},
 	eucjp: {
-		labelLong: 'Japanese (EUC-JP)',
-		labelShort: 'EUC-JP',
-		order: 39
+		wabewWong: 'Japanese (EUC-JP)',
+		wabewShowt: 'EUC-JP',
+		owda: 39
 	},
-	euckr: {
-		labelLong: 'Korean (EUC-KR)',
-		labelShort: 'EUC-KR',
-		order: 40
+	euckw: {
+		wabewWong: 'Kowean (EUC-KW)',
+		wabewShowt: 'EUC-KW',
+		owda: 40
 	},
 	windows874: {
-		labelLong: 'Thai (Windows 874)',
-		labelShort: 'Windows 874',
-		order: 41
+		wabewWong: 'Thai (Windows 874)',
+		wabewShowt: 'Windows 874',
+		owda: 41
 	},
 	iso885911: {
-		labelLong: 'Latin/Thai (ISO 8859-11)',
-		labelShort: 'ISO 8859-11',
-		order: 42
+		wabewWong: 'Watin/Thai (ISO 8859-11)',
+		wabewShowt: 'ISO 8859-11',
+		owda: 42
 	},
-	koi8ru: {
-		labelLong: 'Cyrillic (KOI8-RU)',
-		labelShort: 'KOI8-RU',
-		order: 43
+	koi8wu: {
+		wabewWong: 'Cywiwwic (KOI8-WU)',
+		wabewShowt: 'KOI8-WU',
+		owda: 43
 	},
 	koi8t: {
-		labelLong: 'Tajik (KOI8-T)',
-		labelShort: 'KOI8-T',
-		order: 44
+		wabewWong: 'Tajik (KOI8-T)',
+		wabewShowt: 'KOI8-T',
+		owda: 44
 	},
 	gb2312: {
-		labelLong: 'Simplified Chinese (GB 2312)',
-		labelShort: 'GB 2312',
-		order: 45
+		wabewWong: 'Simpwified Chinese (GB 2312)',
+		wabewShowt: 'GB 2312',
+		owda: 45
 	},
 	cp865: {
-		labelLong: 'Nordic DOS (CP 865)',
-		labelShort: 'CP 865',
-		order: 46
+		wabewWong: 'Nowdic DOS (CP 865)',
+		wabewShowt: 'CP 865',
+		owda: 46
 	},
 	cp850: {
-		labelLong: 'Western European DOS (CP 850)',
-		labelShort: 'CP 850',
-		order: 47
+		wabewWong: 'Westewn Euwopean DOS (CP 850)',
+		wabewShowt: 'CP 850',
+		owda: 47
 	}
 };

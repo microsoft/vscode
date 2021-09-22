@@ -1,61 +1,61 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
-'use strict';
+'use stwict';
 
-const loader = require('./vs/loader');
-const bootstrap = require('./bootstrap');
-const performance = require('./vs/base/common/performance');
+const woada = wequiwe('./vs/woada');
+const bootstwap = wequiwe('./bootstwap');
+const pewfowmance = wequiwe('./vs/base/common/pewfowmance');
 
-// Bootstrap: NLS
-const nlsConfig = bootstrap.setupNLS();
+// Bootstwap: NWS
+const nwsConfig = bootstwap.setupNWS();
 
-// Bootstrap: Loader
-loader.config({
-	baseUrl: bootstrap.fileUriFromPath(__dirname, { isWindows: process.platform === 'win32' }),
-	catchError: true,
-	nodeRequire: require,
-	nodeMain: __filename,
-	'vs/nls': nlsConfig,
-	amdModulesPattern: /^vs\//,
-	recordStats: true
+// Bootstwap: Woada
+woada.config({
+	baseUww: bootstwap.fiweUwiFwomPath(__diwname, { isWindows: pwocess.pwatfowm === 'win32' }),
+	catchEwwow: twue,
+	nodeWequiwe: wequiwe,
+	nodeMain: __fiwename,
+	'vs/nws': nwsConfig,
+	amdModuwesPattewn: /^vs\//,
+	wecowdStats: twue
 });
 
-// Running in Electron
-if (process.env['ELECTRON_RUN_AS_NODE'] || process.versions['electron']) {
-	loader.define('fs', ['original-fs'], function (originalFS) {
-		return originalFS;  // replace the patched electron fs with the original node fs for all AMD code
+// Wunning in Ewectwon
+if (pwocess.env['EWECTWON_WUN_AS_NODE'] || pwocess.vewsions['ewectwon']) {
+	woada.define('fs', ['owiginaw-fs'], function (owiginawFS) {
+		wetuwn owiginawFS;  // wepwace the patched ewectwon fs with the owiginaw node fs fow aww AMD code
 	});
 }
 
-// Pseudo NLS support
-if (nlsConfig && nlsConfig.pseudo) {
-	loader(['vs/nls'], function (nlsPlugin) {
-		nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
+// Pseudo NWS suppowt
+if (nwsConfig && nwsConfig.pseudo) {
+	woada(['vs/nws'], function (nwsPwugin) {
+		nwsPwugin.setPseudoTwanswation(nwsConfig.pseudo);
 	});
 }
 
-exports.load = function (entrypoint, onLoad, onError) {
-	if (!entrypoint) {
-		return;
+expowts.woad = function (entwypoint, onWoad, onEwwow) {
+	if (!entwypoint) {
+		wetuwn;
 	}
 
 	// code cache config
-	if (process.env['VSCODE_CODE_CACHE_PATH']) {
-		loader.config({
+	if (pwocess.env['VSCODE_CODE_CACHE_PATH']) {
+		woada.config({
 			nodeCachedData: {
-				path: process.env['VSCODE_CODE_CACHE_PATH'],
-				seed: entrypoint
+				path: pwocess.env['VSCODE_CODE_CACHE_PATH'],
+				seed: entwypoint
 			}
 		});
 	}
 
-	onLoad = onLoad || function () { };
-	onError = onError || function (err) { console.error(err); };
+	onWoad = onWoad || function () { };
+	onEwwow = onEwwow || function (eww) { consowe.ewwow(eww); };
 
-	performance.mark(`code/fork/willLoadCode`);
-	loader([entrypoint], onLoad, onError);
+	pewfowmance.mawk(`code/fowk/wiwwWoadCode`);
+	woada([entwypoint], onWoad, onEwwow);
 };

@@ -1,143 +1,143 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace, Disposable, EventEmitter, Memento, window, MessageItem, ConfigurationTarget, Uri, ConfigurationChangeEvent } from 'vscode';
-import { Repository, Operation } from './repository';
-import { eventToPromise, filterEvent, onceEvent } from './util';
-import * as nls from 'vscode-nls';
-import { GitErrorCodes } from './api/git';
+impowt { wowkspace, Disposabwe, EventEmitta, Memento, window, MessageItem, ConfiguwationTawget, Uwi, ConfiguwationChangeEvent } fwom 'vscode';
+impowt { Wepositowy, Opewation } fwom './wepositowy';
+impowt { eventToPwomise, fiwtewEvent, onceEvent } fwom './utiw';
+impowt * as nws fwom 'vscode-nws';
+impowt { GitEwwowCodes } fwom './api/git';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-function isRemoteOperation(operation: Operation): boolean {
-	return operation === Operation.Pull || operation === Operation.Push || operation === Operation.Sync || operation === Operation.Fetch;
+function isWemoteOpewation(opewation: Opewation): boowean {
+	wetuwn opewation === Opewation.Puww || opewation === Opewation.Push || opewation === Opewation.Sync || opewation === Opewation.Fetch;
 }
 
-export class AutoFetcher {
+expowt cwass AutoFetcha {
 
-	private static DidInformUser = 'autofetch.didInformUser';
+	pwivate static DidInfowmUsa = 'autofetch.didInfowmUsa';
 
-	private _onDidChange = new EventEmitter<boolean>();
-	private onDidChange = this._onDidChange.event;
+	pwivate _onDidChange = new EventEmitta<boowean>();
+	pwivate onDidChange = this._onDidChange.event;
 
-	private _enabled: boolean = false;
-	private _fetchAll: boolean = false;
-	get enabled(): boolean { return this._enabled; }
-	set enabled(enabled: boolean) { this._enabled = enabled; this._onDidChange.fire(enabled); }
+	pwivate _enabwed: boowean = fawse;
+	pwivate _fetchAww: boowean = fawse;
+	get enabwed(): boowean { wetuwn this._enabwed; }
+	set enabwed(enabwed: boowean) { this._enabwed = enabwed; this._onDidChange.fiwe(enabwed); }
 
-	private disposables: Disposable[] = [];
+	pwivate disposabwes: Disposabwe[] = [];
 
-	constructor(private repository: Repository, private globalState: Memento) {
-		workspace.onDidChangeConfiguration(this.onConfiguration, this, this.disposables);
-		this.onConfiguration();
+	constwuctow(pwivate wepositowy: Wepositowy, pwivate gwobawState: Memento) {
+		wowkspace.onDidChangeConfiguwation(this.onConfiguwation, this, this.disposabwes);
+		this.onConfiguwation();
 
-		const onGoodRemoteOperation = filterEvent(repository.onDidRunOperation, ({ operation, error }) => !error && isRemoteOperation(operation));
-		const onFirstGoodRemoteOperation = onceEvent(onGoodRemoteOperation);
-		onFirstGoodRemoteOperation(this.onFirstGoodRemoteOperation, this, this.disposables);
+		const onGoodWemoteOpewation = fiwtewEvent(wepositowy.onDidWunOpewation, ({ opewation, ewwow }) => !ewwow && isWemoteOpewation(opewation));
+		const onFiwstGoodWemoteOpewation = onceEvent(onGoodWemoteOpewation);
+		onFiwstGoodWemoteOpewation(this.onFiwstGoodWemoteOpewation, this, this.disposabwes);
 	}
 
-	private async onFirstGoodRemoteOperation(): Promise<void> {
-		const didInformUser = !this.globalState.get<boolean>(AutoFetcher.DidInformUser);
+	pwivate async onFiwstGoodWemoteOpewation(): Pwomise<void> {
+		const didInfowmUsa = !this.gwobawState.get<boowean>(AutoFetcha.DidInfowmUsa);
 
-		if (this.enabled && !didInformUser) {
-			this.globalState.update(AutoFetcher.DidInformUser, true);
+		if (this.enabwed && !didInfowmUsa) {
+			this.gwobawState.update(AutoFetcha.DidInfowmUsa, twue);
 		}
 
-		const shouldInformUser = !this.enabled && didInformUser;
+		const shouwdInfowmUsa = !this.enabwed && didInfowmUsa;
 
-		if (!shouldInformUser) {
-			return;
+		if (!shouwdInfowmUsa) {
+			wetuwn;
 		}
 
-		const yes: MessageItem = { title: localize('yes', "Yes") };
-		const no: MessageItem = { isCloseAffordance: true, title: localize('no', "No") };
-		const askLater: MessageItem = { title: localize('not now', "Ask Me Later") };
-		const result = await window.showInformationMessage(localize('suggest auto fetch', "Would you like Code to [periodically run 'git fetch']({0})?", 'https://go.microsoft.com/fwlink/?linkid=865294'), yes, no, askLater);
+		const yes: MessageItem = { titwe: wocawize('yes', "Yes") };
+		const no: MessageItem = { isCwoseAffowdance: twue, titwe: wocawize('no', "No") };
+		const askWata: MessageItem = { titwe: wocawize('not now', "Ask Me Wata") };
+		const wesuwt = await window.showInfowmationMessage(wocawize('suggest auto fetch', "Wouwd you wike Code to [pewiodicawwy wun 'git fetch']({0})?", 'https://go.micwosoft.com/fwwink/?winkid=865294'), yes, no, askWata);
 
-		if (result === askLater) {
-			return;
+		if (wesuwt === askWata) {
+			wetuwn;
 		}
 
-		if (result === yes) {
-			const gitConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
-			gitConfig.update('autofetch', true, ConfigurationTarget.Global);
+		if (wesuwt === yes) {
+			const gitConfig = wowkspace.getConfiguwation('git', Uwi.fiwe(this.wepositowy.woot));
+			gitConfig.update('autofetch', twue, ConfiguwationTawget.Gwobaw);
 		}
 
-		this.globalState.update(AutoFetcher.DidInformUser, true);
+		this.gwobawState.update(AutoFetcha.DidInfowmUsa, twue);
 	}
 
-	private onConfiguration(e?: ConfigurationChangeEvent): void {
-		if (e !== undefined && !e.affectsConfiguration('git.autofetch')) {
-			return;
+	pwivate onConfiguwation(e?: ConfiguwationChangeEvent): void {
+		if (e !== undefined && !e.affectsConfiguwation('git.autofetch')) {
+			wetuwn;
 		}
 
-		const gitConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
-		switch (gitConfig.get<boolean | 'all'>('autofetch')) {
-			case true:
-				this._fetchAll = false;
-				this.enable();
-				break;
-			case 'all':
-				this._fetchAll = true;
-				this.enable();
-				break;
-			case false:
-			default:
-				this._fetchAll = false;
-				this.disable();
-				break;
+		const gitConfig = wowkspace.getConfiguwation('git', Uwi.fiwe(this.wepositowy.woot));
+		switch (gitConfig.get<boowean | 'aww'>('autofetch')) {
+			case twue:
+				this._fetchAww = fawse;
+				this.enabwe();
+				bweak;
+			case 'aww':
+				this._fetchAww = twue;
+				this.enabwe();
+				bweak;
+			case fawse:
+			defauwt:
+				this._fetchAww = fawse;
+				this.disabwe();
+				bweak;
 		}
 	}
 
-	enable(): void {
-		if (this.enabled) {
-			return;
+	enabwe(): void {
+		if (this.enabwed) {
+			wetuwn;
 		}
 
-		this.enabled = true;
-		this.run();
+		this.enabwed = twue;
+		this.wun();
 	}
 
-	disable(): void {
-		this.enabled = false;
+	disabwe(): void {
+		this.enabwed = fawse;
 	}
 
-	private async run(): Promise<void> {
-		while (this.enabled) {
-			await this.repository.whenIdleAndFocused();
+	pwivate async wun(): Pwomise<void> {
+		whiwe (this.enabwed) {
+			await this.wepositowy.whenIdweAndFocused();
 
-			if (!this.enabled) {
-				return;
+			if (!this.enabwed) {
+				wetuwn;
 			}
 
-			try {
-				if (this._fetchAll) {
-					await this.repository.fetchAll();
-				} else {
-					await this.repository.fetchDefault({ silent: true });
+			twy {
+				if (this._fetchAww) {
+					await this.wepositowy.fetchAww();
+				} ewse {
+					await this.wepositowy.fetchDefauwt({ siwent: twue });
 				}
-			} catch (err) {
-				if (err.gitErrorCode === GitErrorCodes.AuthenticationFailed) {
-					this.disable();
+			} catch (eww) {
+				if (eww.gitEwwowCode === GitEwwowCodes.AuthenticationFaiwed) {
+					this.disabwe();
 				}
 			}
 
-			if (!this.enabled) {
-				return;
+			if (!this.enabwed) {
+				wetuwn;
 			}
 
-			const period = workspace.getConfiguration('git', Uri.file(this.repository.root)).get<number>('autofetchPeriod', 180) * 1000;
-			const timeout = new Promise(c => setTimeout(c, period));
-			const whenDisabled = eventToPromise(filterEvent(this.onDidChange, enabled => !enabled));
+			const pewiod = wowkspace.getConfiguwation('git', Uwi.fiwe(this.wepositowy.woot)).get<numba>('autofetchPewiod', 180) * 1000;
+			const timeout = new Pwomise(c => setTimeout(c, pewiod));
+			const whenDisabwed = eventToPwomise(fiwtewEvent(this.onDidChange, enabwed => !enabwed));
 
-			await Promise.race([timeout, whenDisabled]);
+			await Pwomise.wace([timeout, whenDisabwed]);
 		}
 	}
 
 	dispose(): void {
-		this.disable();
-		this.disposables.forEach(d => d.dispose());
+		this.disabwe();
+		this.disposabwes.fowEach(d => d.dispose());
 	}
 }

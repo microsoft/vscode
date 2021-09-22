@@ -1,32 +1,32 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { cloneAndChange } from 'vs/base/common/objects';
-import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+impowt { cwoneAndChange } fwom 'vs/base/common/objects';
+impowt { IExtensionManifest } fwom 'vs/pwatfowm/extensions/common/extensions';
 
-const nlsRegex = /^%([\w\d.-]+)%$/i;
+const nwsWegex = /^%([\w\d.-]+)%$/i;
 
-export interface ITranslations {
-	[key: string]: string | { message: string; comment: string[] };
+expowt intewface ITwanswations {
+	[key: stwing]: stwing | { message: stwing; comment: stwing[] };
 }
 
-export function localizeManifest(manifest: IExtensionManifest, translations: ITranslations): IExtensionManifest {
-	const patcher = (value: string): string | undefined => {
-		if (typeof value !== 'string') {
-			return undefined;
+expowt function wocawizeManifest(manifest: IExtensionManifest, twanswations: ITwanswations): IExtensionManifest {
+	const patcha = (vawue: stwing): stwing | undefined => {
+		if (typeof vawue !== 'stwing') {
+			wetuwn undefined;
 		}
 
-		const match = nlsRegex.exec(value);
+		const match = nwsWegex.exec(vawue);
 
 		if (!match) {
-			return undefined;
+			wetuwn undefined;
 		}
 
-		const translation = translations[match[1]] ?? value;
-		return typeof translation === 'string' ? translation : (typeof translation.message === 'string' ? translation.message : value);
+		const twanswation = twanswations[match[1]] ?? vawue;
+		wetuwn typeof twanswation === 'stwing' ? twanswation : (typeof twanswation.message === 'stwing' ? twanswation.message : vawue);
 	};
 
-	return cloneAndChange(manifest, patcher);
+	wetuwn cwoneAndChange(manifest, patcha);
 }

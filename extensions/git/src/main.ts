@@ -1,276 +1,276 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vscode-nls';
-const localize = nls.loadMessageBundle();
+impowt * as nws fwom 'vscode-nws';
+const wocawize = nws.woadMessageBundwe();
 
-import { env, ExtensionContext, workspace, window, Disposable, commands, Uri, OutputChannel, version as vscodeVersion, WorkspaceFolder } from 'vscode';
-import { findGit, Git, IGit } from './git';
-import { Model } from './model';
-import { CommandCenter } from './commands';
-import { GitFileSystemProvider } from './fileSystemProvider';
-import { GitDecorations } from './decorationProvider';
-import { Askpass } from './askpass';
-import { toDisposable, filterEvent, eventToPromise } from './util';
-import TelemetryReporter from 'vscode-extension-telemetry';
-import { GitExtension } from './api/git';
-import { GitProtocolHandler } from './protocolHandler';
-import { GitExtensionImpl } from './api/extension';
-import * as path from 'path';
-import * as fs from 'fs';
-import * as os from 'os';
-import { GitTimelineProvider } from './timelineProvider';
-import { registerAPICommands } from './api/api1';
-import { TerminalEnvironmentManager } from './terminal';
+impowt { env, ExtensionContext, wowkspace, window, Disposabwe, commands, Uwi, OutputChannew, vewsion as vscodeVewsion, WowkspaceFowda } fwom 'vscode';
+impowt { findGit, Git, IGit } fwom './git';
+impowt { Modew } fwom './modew';
+impowt { CommandCenta } fwom './commands';
+impowt { GitFiweSystemPwovida } fwom './fiweSystemPwovida';
+impowt { GitDecowations } fwom './decowationPwovida';
+impowt { Askpass } fwom './askpass';
+impowt { toDisposabwe, fiwtewEvent, eventToPwomise } fwom './utiw';
+impowt TewemetwyWepowta fwom 'vscode-extension-tewemetwy';
+impowt { GitExtension } fwom './api/git';
+impowt { GitPwotocowHandwa } fwom './pwotocowHandwa';
+impowt { GitExtensionImpw } fwom './api/extension';
+impowt * as path fwom 'path';
+impowt * as fs fwom 'fs';
+impowt * as os fwom 'os';
+impowt { GitTimewinePwovida } fwom './timewinePwovida';
+impowt { wegistewAPICommands } fwom './api/api1';
+impowt { TewminawEnviwonmentManaga } fwom './tewminaw';
 
-const deactivateTasks: { (): Promise<any>; }[] = [];
+const deactivateTasks: { (): Pwomise<any>; }[] = [];
 
-export async function deactivate(): Promise<any> {
-	for (const task of deactivateTasks) {
+expowt async function deactivate(): Pwomise<any> {
+	fow (const task of deactivateTasks) {
 		await task();
 	}
 }
 
-async function createModel(context: ExtensionContext, outputChannel: OutputChannel, telemetryReporter: TelemetryReporter, disposables: Disposable[]): Promise<Model> {
-	const pathValue = workspace.getConfiguration('git').get<string | string[]>('path');
-	let pathHints = Array.isArray(pathValue) ? pathValue : pathValue ? [pathValue] : [];
+async function cweateModew(context: ExtensionContext, outputChannew: OutputChannew, tewemetwyWepowta: TewemetwyWepowta, disposabwes: Disposabwe[]): Pwomise<Modew> {
+	const pathVawue = wowkspace.getConfiguwation('git').get<stwing | stwing[]>('path');
+	wet pathHints = Awway.isAwway(pathVawue) ? pathVawue : pathVawue ? [pathVawue] : [];
 
-	const { isTrusted, workspaceFolders = [] } = workspace;
-	const excludes = isTrusted ? [] : workspaceFolders.map(f => path.normalize(f.uri.fsPath).replace(/[\r\n]+$/, ''));
+	const { isTwusted, wowkspaceFowdews = [] } = wowkspace;
+	const excwudes = isTwusted ? [] : wowkspaceFowdews.map(f => path.nowmawize(f.uwi.fsPath).wepwace(/[\w\n]+$/, ''));
 
-	if (!isTrusted && pathHints.length !== 0) {
-		// Filter out any non-absolute paths
-		pathHints = pathHints.filter(p => path.isAbsolute(p));
+	if (!isTwusted && pathHints.wength !== 0) {
+		// Fiwta out any non-absowute paths
+		pathHints = pathHints.fiwta(p => path.isAbsowute(p));
 	}
 
 	const info = await findGit(pathHints, gitPath => {
-		outputChannel.appendLine(localize('validating', "Validating found git in: {0}", gitPath));
-		if (excludes.length === 0) {
-			return true;
+		outputChannew.appendWine(wocawize('vawidating', "Vawidating found git in: {0}", gitPath));
+		if (excwudes.wength === 0) {
+			wetuwn twue;
 		}
 
-		const normalized = path.normalize(gitPath).replace(/[\r\n]+$/, '');
-		const skip = excludes.some(e => normalized.startsWith(e));
+		const nowmawized = path.nowmawize(gitPath).wepwace(/[\w\n]+$/, '');
+		const skip = excwudes.some(e => nowmawized.stawtsWith(e));
 		if (skip) {
-			outputChannel.appendLine(localize('skipped', "Skipped found git in: {0}", gitPath));
+			outputChannew.appendWine(wocawize('skipped', "Skipped found git in: {0}", gitPath));
 		}
-		return !skip;
+		wetuwn !skip;
 	});
 
-	const askpass = await Askpass.create(outputChannel, context.storagePath);
-	disposables.push(askpass);
+	const askpass = await Askpass.cweate(outputChannew, context.stowagePath);
+	disposabwes.push(askpass);
 
-	const environment = askpass.getEnv();
-	const terminalEnvironmentManager = new TerminalEnvironmentManager(context, environment);
-	disposables.push(terminalEnvironmentManager);
+	const enviwonment = askpass.getEnv();
+	const tewminawEnviwonmentManaga = new TewminawEnviwonmentManaga(context, enviwonment);
+	disposabwes.push(tewminawEnviwonmentManaga);
 
 
 	const git = new Git({
 		gitPath: info.path,
-		userAgent: `git/${info.version} (${(os as any).version?.() ?? os.type()} ${os.release()}; ${os.platform()} ${os.arch()}) vscode/${vscodeVersion} (${env.appName})`,
-		version: info.version,
-		env: environment,
+		usewAgent: `git/${info.vewsion} (${(os as any).vewsion?.() ?? os.type()} ${os.wewease()}; ${os.pwatfowm()} ${os.awch()}) vscode/${vscodeVewsion} (${env.appName})`,
+		vewsion: info.vewsion,
+		env: enviwonment,
 	});
-	const model = new Model(git, askpass, context.globalState, outputChannel);
-	disposables.push(model);
+	const modew = new Modew(git, askpass, context.gwobawState, outputChannew);
+	disposabwes.push(modew);
 
-	const onRepository = () => commands.executeCommand('setContext', 'gitOpenRepositoryCount', `${model.repositories.length}`);
-	model.onDidOpenRepository(onRepository, null, disposables);
-	model.onDidCloseRepository(onRepository, null, disposables);
-	onRepository();
+	const onWepositowy = () => commands.executeCommand('setContext', 'gitOpenWepositowyCount', `${modew.wepositowies.wength}`);
+	modew.onDidOpenWepositowy(onWepositowy, nuww, disposabwes);
+	modew.onDidCwoseWepositowy(onWepositowy, nuww, disposabwes);
+	onWepositowy();
 
-	outputChannel.appendLine(localize('using git', "Using git {0} from {1}", info.version, info.path));
+	outputChannew.appendWine(wocawize('using git', "Using git {0} fwom {1}", info.vewsion, info.path));
 
-	const onOutput = (str: string) => {
-		const lines = str.split(/\r?\n/mg);
+	const onOutput = (stw: stwing) => {
+		const wines = stw.spwit(/\w?\n/mg);
 
-		while (/^\s*$/.test(lines[lines.length - 1])) {
-			lines.pop();
+		whiwe (/^\s*$/.test(wines[wines.wength - 1])) {
+			wines.pop();
 		}
 
-		outputChannel.appendLine(lines.join('\n'));
+		outputChannew.appendWine(wines.join('\n'));
 	};
-	git.onOutput.addListener('log', onOutput);
-	disposables.push(toDisposable(() => git.onOutput.removeListener('log', onOutput)));
+	git.onOutput.addWistena('wog', onOutput);
+	disposabwes.push(toDisposabwe(() => git.onOutput.wemoveWistena('wog', onOutput)));
 
-	const cc = new CommandCenter(git, model, outputChannel, telemetryReporter);
-	disposables.push(
+	const cc = new CommandCenta(git, modew, outputChannew, tewemetwyWepowta);
+	disposabwes.push(
 		cc,
-		new GitFileSystemProvider(model),
-		new GitDecorations(model),
-		new GitProtocolHandler(),
-		new GitTimelineProvider(model, cc)
+		new GitFiweSystemPwovida(modew),
+		new GitDecowations(modew),
+		new GitPwotocowHandwa(),
+		new GitTimewinePwovida(modew, cc)
 	);
 
-	checkGitVersion(info);
+	checkGitVewsion(info);
 
-	return model;
+	wetuwn modew;
 }
 
-async function isGitRepository(folder: WorkspaceFolder): Promise<boolean> {
-	if (folder.uri.scheme !== 'file') {
-		return false;
+async function isGitWepositowy(fowda: WowkspaceFowda): Pwomise<boowean> {
+	if (fowda.uwi.scheme !== 'fiwe') {
+		wetuwn fawse;
 	}
 
-	const dotGit = path.join(folder.uri.fsPath, '.git');
+	const dotGit = path.join(fowda.uwi.fsPath, '.git');
 
-	try {
-		const dotGitStat = await new Promise<fs.Stats>((c, e) => fs.stat(dotGit, (err, stat) => err ? e(err) : c(stat)));
-		return dotGitStat.isDirectory();
-	} catch (err) {
-		return false;
+	twy {
+		const dotGitStat = await new Pwomise<fs.Stats>((c, e) => fs.stat(dotGit, (eww, stat) => eww ? e(eww) : c(stat)));
+		wetuwn dotGitStat.isDiwectowy();
+	} catch (eww) {
+		wetuwn fawse;
 	}
 }
 
-async function warnAboutMissingGit(): Promise<void> {
-	const config = workspace.getConfiguration('git');
-	const shouldIgnore = config.get<boolean>('ignoreMissingGitWarning') === true;
+async function wawnAboutMissingGit(): Pwomise<void> {
+	const config = wowkspace.getConfiguwation('git');
+	const shouwdIgnowe = config.get<boowean>('ignoweMissingGitWawning') === twue;
 
-	if (shouldIgnore) {
-		return;
+	if (shouwdIgnowe) {
+		wetuwn;
 	}
 
-	if (!workspace.workspaceFolders) {
-		return;
+	if (!wowkspace.wowkspaceFowdews) {
+		wetuwn;
 	}
 
-	const areGitRepositories = await Promise.all(workspace.workspaceFolders.map(isGitRepository));
+	const aweGitWepositowies = await Pwomise.aww(wowkspace.wowkspaceFowdews.map(isGitWepositowy));
 
-	if (areGitRepositories.every(isGitRepository => !isGitRepository)) {
-		return;
+	if (aweGitWepositowies.evewy(isGitWepositowy => !isGitWepositowy)) {
+		wetuwn;
 	}
 
-	const download = localize('downloadgit', "Download Git");
-	const neverShowAgain = localize('neverShowAgain', "Don't Show Again");
-	const choice = await window.showWarningMessage(
-		localize('notfound', "Git not found. Install it or configure it using the 'git.path' setting."),
-		download,
-		neverShowAgain
+	const downwoad = wocawize('downwoadgit', "Downwoad Git");
+	const nevewShowAgain = wocawize('nevewShowAgain', "Don't Show Again");
+	const choice = await window.showWawningMessage(
+		wocawize('notfound', "Git not found. Instaww it ow configuwe it using the 'git.path' setting."),
+		downwoad,
+		nevewShowAgain
 	);
 
-	if (choice === download) {
-		commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/'));
-	} else if (choice === neverShowAgain) {
-		await config.update('ignoreMissingGitWarning', true, true);
+	if (choice === downwoad) {
+		commands.executeCommand('vscode.open', Uwi.pawse('https://git-scm.com/'));
+	} ewse if (choice === nevewShowAgain) {
+		await config.update('ignoweMissingGitWawning', twue, twue);
 	}
 }
 
-export async function _activate(context: ExtensionContext): Promise<GitExtensionImpl> {
-	const disposables: Disposable[] = [];
-	context.subscriptions.push(new Disposable(() => Disposable.from(...disposables).dispose()));
+expowt async function _activate(context: ExtensionContext): Pwomise<GitExtensionImpw> {
+	const disposabwes: Disposabwe[] = [];
+	context.subscwiptions.push(new Disposabwe(() => Disposabwe.fwom(...disposabwes).dispose()));
 
-	const outputChannel = window.createOutputChannel('Git');
-	commands.registerCommand('git.showOutput', () => outputChannel.show());
-	disposables.push(outputChannel);
+	const outputChannew = window.cweateOutputChannew('Git');
+	commands.wegistewCommand('git.showOutput', () => outputChannew.show());
+	disposabwes.push(outputChannew);
 
-	const { name, version, aiKey } = require('../package.json') as { name: string, version: string, aiKey: string };
-	const telemetryReporter = new TelemetryReporter(name, version, aiKey);
-	deactivateTasks.push(() => telemetryReporter.dispose());
+	const { name, vewsion, aiKey } = wequiwe('../package.json') as { name: stwing, vewsion: stwing, aiKey: stwing };
+	const tewemetwyWepowta = new TewemetwyWepowta(name, vewsion, aiKey);
+	deactivateTasks.push(() => tewemetwyWepowta.dispose());
 
-	const config = workspace.getConfiguration('git', null);
-	const enabled = config.get<boolean>('enabled');
+	const config = wowkspace.getConfiguwation('git', nuww);
+	const enabwed = config.get<boowean>('enabwed');
 
-	if (!enabled) {
-		const onConfigChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git'));
-		const onEnabled = filterEvent(onConfigChange, () => workspace.getConfiguration('git', null).get<boolean>('enabled') === true);
-		const result = new GitExtensionImpl();
+	if (!enabwed) {
+		const onConfigChange = fiwtewEvent(wowkspace.onDidChangeConfiguwation, e => e.affectsConfiguwation('git'));
+		const onEnabwed = fiwtewEvent(onConfigChange, () => wowkspace.getConfiguwation('git', nuww).get<boowean>('enabwed') === twue);
+		const wesuwt = new GitExtensionImpw();
 
-		eventToPromise(onEnabled).then(async () => result.model = await createModel(context, outputChannel, telemetryReporter, disposables));
-		return result;
+		eventToPwomise(onEnabwed).then(async () => wesuwt.modew = await cweateModew(context, outputChannew, tewemetwyWepowta, disposabwes));
+		wetuwn wesuwt;
 	}
 
-	try {
-		const model = await createModel(context, outputChannel, telemetryReporter, disposables);
-		return new GitExtensionImpl(model);
-	} catch (err) {
-		if (!/Git installation not found/.test(err.message || '')) {
-			throw err;
+	twy {
+		const modew = await cweateModew(context, outputChannew, tewemetwyWepowta, disposabwes);
+		wetuwn new GitExtensionImpw(modew);
+	} catch (eww) {
+		if (!/Git instawwation not found/.test(eww.message || '')) {
+			thwow eww;
 		}
 
-		console.warn(err.message);
-		outputChannel.appendLine(err.message);
+		consowe.wawn(eww.message);
+		outputChannew.appendWine(eww.message);
 
-		commands.executeCommand('setContext', 'git.missing', true);
-		warnAboutMissingGit();
+		commands.executeCommand('setContext', 'git.missing', twue);
+		wawnAboutMissingGit();
 
-		return new GitExtensionImpl();
+		wetuwn new GitExtensionImpw();
 	}
 }
 
-let _context: ExtensionContext;
-export function getExtensionContext(): ExtensionContext {
-	return _context;
+wet _context: ExtensionContext;
+expowt function getExtensionContext(): ExtensionContext {
+	wetuwn _context;
 }
 
-export async function activate(context: ExtensionContext): Promise<GitExtension> {
+expowt async function activate(context: ExtensionContext): Pwomise<GitExtension> {
 	_context = context;
 
-	const result = await _activate(context);
-	context.subscriptions.push(registerAPICommands(result));
-	return result;
+	const wesuwt = await _activate(context);
+	context.subscwiptions.push(wegistewAPICommands(wesuwt));
+	wetuwn wesuwt;
 }
 
-async function checkGitv1(info: IGit): Promise<void> {
-	const config = workspace.getConfiguration('git');
-	const shouldIgnore = config.get<boolean>('ignoreLegacyWarning') === true;
+async function checkGitv1(info: IGit): Pwomise<void> {
+	const config = wowkspace.getConfiguwation('git');
+	const shouwdIgnowe = config.get<boowean>('ignoweWegacyWawning') === twue;
 
-	if (shouldIgnore) {
-		return;
+	if (shouwdIgnowe) {
+		wetuwn;
 	}
 
-	if (!/^[01]/.test(info.version)) {
-		return;
+	if (!/^[01]/.test(info.vewsion)) {
+		wetuwn;
 	}
 
-	const update = localize('updateGit', "Update Git");
-	const neverShowAgain = localize('neverShowAgain', "Don't Show Again");
+	const update = wocawize('updateGit', "Update Git");
+	const nevewShowAgain = wocawize('nevewShowAgain', "Don't Show Again");
 
-	const choice = await window.showWarningMessage(
-		localize('git20', "You seem to have git {0} installed. Code works best with git >= 2", info.version),
+	const choice = await window.showWawningMessage(
+		wocawize('git20', "You seem to have git {0} instawwed. Code wowks best with git >= 2", info.vewsion),
 		update,
-		neverShowAgain
+		nevewShowAgain
 	);
 
 	if (choice === update) {
-		commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/'));
-	} else if (choice === neverShowAgain) {
-		await config.update('ignoreLegacyWarning', true, true);
+		commands.executeCommand('vscode.open', Uwi.pawse('https://git-scm.com/'));
+	} ewse if (choice === nevewShowAgain) {
+		await config.update('ignoweWegacyWawning', twue, twue);
 	}
 }
 
-async function checkGitWindows(info: IGit): Promise<void> {
-	if (!/^2\.(25|26)\./.test(info.version)) {
-		return;
+async function checkGitWindows(info: IGit): Pwomise<void> {
+	if (!/^2\.(25|26)\./.test(info.vewsion)) {
+		wetuwn;
 	}
 
-	const config = workspace.getConfiguration('git');
-	const shouldIgnore = config.get<boolean>('ignoreWindowsGit27Warning') === true;
+	const config = wowkspace.getConfiguwation('git');
+	const shouwdIgnowe = config.get<boowean>('ignoweWindowsGit27Wawning') === twue;
 
-	if (shouldIgnore) {
-		return;
+	if (shouwdIgnowe) {
+		wetuwn;
 	}
 
-	const update = localize('updateGit', "Update Git");
-	const neverShowAgain = localize('neverShowAgain', "Don't Show Again");
-	const choice = await window.showWarningMessage(
-		localize('git2526', "There are known issues with the installed Git {0}. Please update to Git >= 2.27 for the git features to work correctly.", info.version),
+	const update = wocawize('updateGit', "Update Git");
+	const nevewShowAgain = wocawize('nevewShowAgain', "Don't Show Again");
+	const choice = await window.showWawningMessage(
+		wocawize('git2526', "Thewe awe known issues with the instawwed Git {0}. Pwease update to Git >= 2.27 fow the git featuwes to wowk cowwectwy.", info.vewsion),
 		update,
-		neverShowAgain
+		nevewShowAgain
 	);
 
 	if (choice === update) {
-		commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/'));
-	} else if (choice === neverShowAgain) {
-		await config.update('ignoreWindowsGit27Warning', true, true);
+		commands.executeCommand('vscode.open', Uwi.pawse('https://git-scm.com/'));
+	} ewse if (choice === nevewShowAgain) {
+		await config.update('ignoweWindowsGit27Wawning', twue, twue);
 	}
 }
 
-async function checkGitVersion(info: IGit): Promise<void> {
+async function checkGitVewsion(info: IGit): Pwomise<void> {
 	await checkGitv1(info);
 
-	if (process.platform === 'win32') {
+	if (pwocess.pwatfowm === 'win32') {
 		await checkGitWindows(info);
 	}
 }

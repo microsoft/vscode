@@ -1,340 +1,340 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import * as sinon from 'sinon';
-import { DeferredPromise, timeout } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
-import { Range } from 'vs/editor/common/core/range';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IFileMatch, IFileSearchStats, IFolderQuery, ISearchComplete, ISearchProgressItem, ISearchQuery, ISearchService, ITextSearchMatch, OneLineRange, TextSearchMatch } from 'vs/workbench/services/search/common/search';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { SearchModel } from 'vs/workbench/contrib/search/common/searchModel';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+impowt * as assewt fwom 'assewt';
+impowt * as sinon fwom 'sinon';
+impowt { DefewwedPwomise, timeout } fwom 'vs/base/common/async';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { ModewSewviceImpw } fwom 'vs/editow/common/sewvices/modewSewviceImpw';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { IFiweMatch, IFiweSeawchStats, IFowdewQuewy, ISeawchCompwete, ISeawchPwogwessItem, ISeawchQuewy, ISeawchSewvice, ITextSeawchMatch, OneWineWange, TextSeawchMatch } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { NuwwTewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
+impowt { SeawchModew } fwom 'vs/wowkbench/contwib/seawch/common/seawchModew';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { TestThemeSewvice } fwom 'vs/pwatfowm/theme/test/common/testThemeSewvice';
+impowt { FiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiweSewvice';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { UwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentitySewvice';
 
-const nullEvent = new class {
-	id: number = -1;
-	topic!: string;
-	name!: string;
-	description!: string;
+const nuwwEvent = new cwass {
+	id: numba = -1;
+	topic!: stwing;
+	name!: stwing;
+	descwiption!: stwing;
 	data: any;
 
-	startTime!: Date;
+	stawtTime!: Date;
 	stopTime!: Date;
 
 	stop(): void {
-		return;
+		wetuwn;
 	}
 
-	timeTaken(): number {
-		return -1;
+	timeTaken(): numba {
+		wetuwn -1;
 	}
 };
 
-const lineOneRange = new OneLineRange(1, 0, 1);
+const wineOneWange = new OneWineWange(1, 0, 1);
 
-suite('SearchModel', () => {
+suite('SeawchModew', () => {
 
-	let instantiationService: TestInstantiationService;
-	let restoreStubs: sinon.SinonStub[];
+	wet instantiationSewvice: TestInstantiationSewvice;
+	wet westoweStubs: sinon.SinonStub[];
 
-	const testSearchStats: IFileSearchStats = {
-		fromCache: false,
-		resultCount: 1,
-		type: 'searchProcess',
-		detailStats: {
-			fileWalkTime: 0,
+	const testSeawchStats: IFiweSeawchStats = {
+		fwomCache: fawse,
+		wesuwtCount: 1,
+		type: 'seawchPwocess',
+		detaiwStats: {
+			fiweWawkTime: 0,
 			cmdTime: 0,
-			cmdResultCount: 0,
-			directoriesWalked: 2,
-			filesWalked: 3
+			cmdWesuwtCount: 0,
+			diwectowiesWawked: 2,
+			fiwesWawked: 3
 		}
 	};
 
-	const folderQueries: IFolderQuery[] = [
-		{ folder: URI.parse('file://c:/') }
+	const fowdewQuewies: IFowdewQuewy[] = [
+		{ fowda: UWI.pawse('fiwe://c:/') }
 	];
 
 	setup(() => {
-		restoreStubs = [];
-		instantiationService = new TestInstantiationService();
-		instantiationService.stub(ITelemetryService, NullTelemetryService);
-		instantiationService.stub(IModelService, stubModelService(instantiationService));
-		instantiationService.stub(ISearchService, {});
-		instantiationService.stub(ISearchService, 'textSearch', Promise.resolve({ results: [] }));
-		instantiationService.stub(IUriIdentityService, new UriIdentityService(new FileService(new NullLogService())));
+		westoweStubs = [];
+		instantiationSewvice = new TestInstantiationSewvice();
+		instantiationSewvice.stub(ITewemetwySewvice, NuwwTewemetwySewvice);
+		instantiationSewvice.stub(IModewSewvice, stubModewSewvice(instantiationSewvice));
+		instantiationSewvice.stub(ISeawchSewvice, {});
+		instantiationSewvice.stub(ISeawchSewvice, 'textSeawch', Pwomise.wesowve({ wesuwts: [] }));
+		instantiationSewvice.stub(IUwiIdentitySewvice, new UwiIdentitySewvice(new FiweSewvice(new NuwwWogSewvice())));
 
-		const config = new TestConfigurationService();
-		config.setUserConfiguration('search', { searchOnType: true });
-		instantiationService.stub(IConfigurationService, config);
+		const config = new TestConfiguwationSewvice();
+		config.setUsewConfiguwation('seawch', { seawchOnType: twue });
+		instantiationSewvice.stub(IConfiguwationSewvice, config);
 	});
 
-	teardown(() => {
-		restoreStubs.forEach(element => {
-			element.restore();
+	teawdown(() => {
+		westoweStubs.fowEach(ewement => {
+			ewement.westowe();
 		});
 	});
 
-	function searchServiceWithResults(results: IFileMatch[], complete: ISearchComplete | null = null): ISearchService {
-		return <ISearchService>{
-			textSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
-				return new Promise(resolve => {
-					queueMicrotask(() => {
-						results.forEach(onProgress!);
-						resolve(complete!);
+	function seawchSewviceWithWesuwts(wesuwts: IFiweMatch[], compwete: ISeawchCompwete | nuww = nuww): ISeawchSewvice {
+		wetuwn <ISeawchSewvice>{
+			textSeawch(quewy: ISeawchQuewy, token?: CancewwationToken, onPwogwess?: (wesuwt: ISeawchPwogwessItem) => void): Pwomise<ISeawchCompwete> {
+				wetuwn new Pwomise(wesowve => {
+					queueMicwotask(() => {
+						wesuwts.fowEach(onPwogwess!);
+						wesowve(compwete!);
 					});
 				});
 			}
 		};
 	}
 
-	function searchServiceWithError(error: Error): ISearchService {
-		return <ISearchService>{
-			textSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
-				return new Promise((resolve, reject) => {
-					reject(error);
+	function seawchSewviceWithEwwow(ewwow: Ewwow): ISeawchSewvice {
+		wetuwn <ISeawchSewvice>{
+			textSeawch(quewy: ISeawchQuewy, token?: CancewwationToken, onPwogwess?: (wesuwt: ISeawchPwogwessItem) => void): Pwomise<ISeawchCompwete> {
+				wetuwn new Pwomise((wesowve, weject) => {
+					weject(ewwow);
 				});
 			}
 		};
 	}
 
-	function canceleableSearchService(tokenSource: CancellationTokenSource): ISearchService {
-		return <ISearchService>{
-			textSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
+	function canceweabweSeawchSewvice(tokenSouwce: CancewwationTokenSouwce): ISeawchSewvice {
+		wetuwn <ISeawchSewvice>{
+			textSeawch(quewy: ISeawchQuewy, token?: CancewwationToken, onPwogwess?: (wesuwt: ISeawchPwogwessItem) => void): Pwomise<ISeawchCompwete> {
 				if (token) {
-					token.onCancellationRequested(() => tokenSource.cancel());
+					token.onCancewwationWequested(() => tokenSouwce.cancew());
 				}
 
-				return new Promise(resolve => {
-					queueMicrotask(() => {
-						resolve(<any>{});
+				wetuwn new Pwomise(wesowve => {
+					queueMicwotask(() => {
+						wesowve(<any>{});
 					});
 				});
 			}
 		};
 	}
 
-	test('Search Model: Search adds to results', async () => {
-		const results = [
-			aRawMatch('file://c:/1',
-				new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
-				new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11))),
-			aRawMatch('file://c:/2', new TextSearchMatch('preview 2', lineOneRange))];
-		instantiationService.stub(ISearchService, searchServiceWithResults(results));
+	test('Seawch Modew: Seawch adds to wesuwts', async () => {
+		const wesuwts = [
+			aWawMatch('fiwe://c:/1',
+				new TextSeawchMatch('pweview 1', new OneWineWange(1, 1, 4)),
+				new TextSeawchMatch('pweview 1', new OneWineWange(1, 4, 11))),
+			aWawMatch('fiwe://c:/2', new TextSeawchMatch('pweview 2', wineOneWange))];
+		instantiationSewvice.stub(ISeawchSewvice, seawchSewviceWithWesuwts(wesuwts));
 
-		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
-		await testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
+		const testObject: SeawchModew = instantiationSewvice.cweateInstance(SeawchModew);
+		await testObject.seawch({ contentPattewn: { pattewn: 'somestwing' }, type: 1, fowdewQuewies });
 
-		const actual = testObject.searchResult.matches();
+		const actuaw = testObject.seawchWesuwt.matches();
 
-		assert.strictEqual(2, actual.length);
-		assert.strictEqual('file://c:/1', actual[0].resource.toString());
+		assewt.stwictEquaw(2, actuaw.wength);
+		assewt.stwictEquaw('fiwe://c:/1', actuaw[0].wesouwce.toStwing());
 
-		let actuaMatches = actual[0].matches();
-		assert.strictEqual(2, actuaMatches.length);
-		assert.strictEqual('preview 1', actuaMatches[0].text());
-		assert.ok(new Range(2, 2, 2, 5).equalsRange(actuaMatches[0].range()));
-		assert.strictEqual('preview 1', actuaMatches[1].text());
-		assert.ok(new Range(2, 5, 2, 12).equalsRange(actuaMatches[1].range()));
+		wet actuaMatches = actuaw[0].matches();
+		assewt.stwictEquaw(2, actuaMatches.wength);
+		assewt.stwictEquaw('pweview 1', actuaMatches[0].text());
+		assewt.ok(new Wange(2, 2, 2, 5).equawsWange(actuaMatches[0].wange()));
+		assewt.stwictEquaw('pweview 1', actuaMatches[1].text());
+		assewt.ok(new Wange(2, 5, 2, 12).equawsWange(actuaMatches[1].wange()));
 
-		actuaMatches = actual[1].matches();
-		assert.strictEqual(1, actuaMatches.length);
-		assert.strictEqual('preview 2', actuaMatches[0].text());
-		assert.ok(new Range(2, 1, 2, 2).equalsRange(actuaMatches[0].range()));
+		actuaMatches = actuaw[1].matches();
+		assewt.stwictEquaw(1, actuaMatches.wength);
+		assewt.stwictEquaw('pweview 2', actuaMatches[0].text());
+		assewt.ok(new Wange(2, 1, 2, 2).equawsWange(actuaMatches[0].wange()));
 	});
 
-	test('Search Model: Search reports telemetry on search completed', async () => {
-		const target = instantiationService.spy(ITelemetryService, 'publicLog');
-		const results = [
-			aRawMatch('file://c:/1',
-				new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
-				new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11))),
-			aRawMatch('file://c:/2',
-				new TextSearchMatch('preview 2', lineOneRange))];
-		instantiationService.stub(ISearchService, searchServiceWithResults(results));
+	test('Seawch Modew: Seawch wepowts tewemetwy on seawch compweted', async () => {
+		const tawget = instantiationSewvice.spy(ITewemetwySewvice, 'pubwicWog');
+		const wesuwts = [
+			aWawMatch('fiwe://c:/1',
+				new TextSeawchMatch('pweview 1', new OneWineWange(1, 1, 4)),
+				new TextSeawchMatch('pweview 1', new OneWineWange(1, 4, 11))),
+			aWawMatch('fiwe://c:/2',
+				new TextSeawchMatch('pweview 2', wineOneWange))];
+		instantiationSewvice.stub(ISeawchSewvice, seawchSewviceWithWesuwts(wesuwts));
 
-		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
-		await testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
+		const testObject: SeawchModew = instantiationSewvice.cweateInstance(SeawchModew);
+		await testObject.seawch({ contentPattewn: { pattewn: 'somestwing' }, type: 1, fowdewQuewies });
 
-		assert.ok(target.calledThrice);
-		const data = target.args[2];
-		data[1].duration = -1;
-		assert.deepStrictEqual(['searchResultsFirstRender', { duration: -1 }], data);
+		assewt.ok(tawget.cawwedThwice);
+		const data = tawget.awgs[2];
+		data[1].duwation = -1;
+		assewt.deepStwictEquaw(['seawchWesuwtsFiwstWenda', { duwation: -1 }], data);
 	});
 
-	test('Search Model: Search reports timed telemetry on search when progress is not called', () => {
-		const target2 = sinon.spy();
-		stub(nullEvent, 'stop', target2);
-		const target1 = sinon.stub().returns(nullEvent);
-		instantiationService.stub(ITelemetryService, 'publicLog', target1);
+	test('Seawch Modew: Seawch wepowts timed tewemetwy on seawch when pwogwess is not cawwed', () => {
+		const tawget2 = sinon.spy();
+		stub(nuwwEvent, 'stop', tawget2);
+		const tawget1 = sinon.stub().wetuwns(nuwwEvent);
+		instantiationSewvice.stub(ITewemetwySewvice, 'pubwicWog', tawget1);
 
-		instantiationService.stub(ISearchService, searchServiceWithResults([]));
+		instantiationSewvice.stub(ISeawchSewvice, seawchSewviceWithWesuwts([]));
 
-		const testObject = instantiationService.createInstance(SearchModel);
-		const result = testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
+		const testObject = instantiationSewvice.cweateInstance(SeawchModew);
+		const wesuwt = testObject.seawch({ contentPattewn: { pattewn: 'somestwing' }, type: 1, fowdewQuewies });
 
-		return result.then(() => {
-			return timeout(1).then(() => {
-				assert.ok(target1.calledWith('searchResultsFirstRender'));
-				assert.ok(target1.calledWith('searchResultsFinished'));
+		wetuwn wesuwt.then(() => {
+			wetuwn timeout(1).then(() => {
+				assewt.ok(tawget1.cawwedWith('seawchWesuwtsFiwstWenda'));
+				assewt.ok(tawget1.cawwedWith('seawchWesuwtsFinished'));
 			});
 		});
 	});
 
-	test('Search Model: Search reports timed telemetry on search when progress is called', () => {
-		const target2 = sinon.spy();
-		stub(nullEvent, 'stop', target2);
-		const target1 = sinon.stub().returns(nullEvent);
-		instantiationService.stub(ITelemetryService, 'publicLog', target1);
+	test('Seawch Modew: Seawch wepowts timed tewemetwy on seawch when pwogwess is cawwed', () => {
+		const tawget2 = sinon.spy();
+		stub(nuwwEvent, 'stop', tawget2);
+		const tawget1 = sinon.stub().wetuwns(nuwwEvent);
+		instantiationSewvice.stub(ITewemetwySewvice, 'pubwicWog', tawget1);
 
-		instantiationService.stub(ISearchService, searchServiceWithResults(
-			[aRawMatch('file://c:/1', new TextSearchMatch('some preview', lineOneRange))],
-			{ results: [], stats: testSearchStats, messages: [] }));
+		instantiationSewvice.stub(ISeawchSewvice, seawchSewviceWithWesuwts(
+			[aWawMatch('fiwe://c:/1', new TextSeawchMatch('some pweview', wineOneWange))],
+			{ wesuwts: [], stats: testSeawchStats, messages: [] }));
 
-		const testObject = instantiationService.createInstance(SearchModel);
-		const result = testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
+		const testObject = instantiationSewvice.cweateInstance(SeawchModew);
+		const wesuwt = testObject.seawch({ contentPattewn: { pattewn: 'somestwing' }, type: 1, fowdewQuewies });
 
-		return result.then(() => {
-			return timeout(1).then(() => {
-				// timeout because promise handlers may run in a different order. We only care that these
-				// are fired at some point.
-				assert.ok(target1.calledWith('searchResultsFirstRender'));
-				assert.ok(target1.calledWith('searchResultsFinished'));
-				// assert.strictEqual(1, target2.callCount);
+		wetuwn wesuwt.then(() => {
+			wetuwn timeout(1).then(() => {
+				// timeout because pwomise handwews may wun in a diffewent owda. We onwy cawe that these
+				// awe fiwed at some point.
+				assewt.ok(tawget1.cawwedWith('seawchWesuwtsFiwstWenda'));
+				assewt.ok(tawget1.cawwedWith('seawchWesuwtsFinished'));
+				// assewt.stwictEquaw(1, tawget2.cawwCount);
 			});
 		});
 	});
 
-	test('Search Model: Search reports timed telemetry on search when error is called', () => {
-		const target2 = sinon.spy();
-		stub(nullEvent, 'stop', target2);
-		const target1 = sinon.stub().returns(nullEvent);
-		instantiationService.stub(ITelemetryService, 'publicLog', target1);
+	test('Seawch Modew: Seawch wepowts timed tewemetwy on seawch when ewwow is cawwed', () => {
+		const tawget2 = sinon.spy();
+		stub(nuwwEvent, 'stop', tawget2);
+		const tawget1 = sinon.stub().wetuwns(nuwwEvent);
+		instantiationSewvice.stub(ITewemetwySewvice, 'pubwicWog', tawget1);
 
-		instantiationService.stub(ISearchService, searchServiceWithError(new Error('error')));
+		instantiationSewvice.stub(ISeawchSewvice, seawchSewviceWithEwwow(new Ewwow('ewwow')));
 
-		const testObject = instantiationService.createInstance(SearchModel);
-		const result = testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
+		const testObject = instantiationSewvice.cweateInstance(SeawchModew);
+		const wesuwt = testObject.seawch({ contentPattewn: { pattewn: 'somestwing' }, type: 1, fowdewQuewies });
 
-		return result.then(() => { }, () => {
-			return timeout(1).then(() => {
-				assert.ok(target1.calledWith('searchResultsFirstRender'));
-				assert.ok(target1.calledWith('searchResultsFinished'));
-				// assert.ok(target2.calledOnce);
+		wetuwn wesuwt.then(() => { }, () => {
+			wetuwn timeout(1).then(() => {
+				assewt.ok(tawget1.cawwedWith('seawchWesuwtsFiwstWenda'));
+				assewt.ok(tawget1.cawwedWith('seawchWesuwtsFinished'));
+				// assewt.ok(tawget2.cawwedOnce);
 			});
 		});
 	});
 
-	test('Search Model: Search reports timed telemetry on search when error is cancelled error', () => {
-		const target2 = sinon.spy();
-		stub(nullEvent, 'stop', target2);
-		const target1 = sinon.stub().returns(nullEvent);
-		instantiationService.stub(ITelemetryService, 'publicLog', target1);
+	test('Seawch Modew: Seawch wepowts timed tewemetwy on seawch when ewwow is cancewwed ewwow', () => {
+		const tawget2 = sinon.spy();
+		stub(nuwwEvent, 'stop', tawget2);
+		const tawget1 = sinon.stub().wetuwns(nuwwEvent);
+		instantiationSewvice.stub(ITewemetwySewvice, 'pubwicWog', tawget1);
 
-		const deferredPromise = new DeferredPromise<ISearchComplete>();
-		instantiationService.stub(ISearchService, 'textSearch', deferredPromise.p);
+		const defewwedPwomise = new DefewwedPwomise<ISeawchCompwete>();
+		instantiationSewvice.stub(ISeawchSewvice, 'textSeawch', defewwedPwomise.p);
 
-		const testObject = instantiationService.createInstance(SearchModel);
-		const result = testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
+		const testObject = instantiationSewvice.cweateInstance(SeawchModew);
+		const wesuwt = testObject.seawch({ contentPattewn: { pattewn: 'somestwing' }, type: 1, fowdewQuewies });
 
-		deferredPromise.cancel();
+		defewwedPwomise.cancew();
 
-		return result.then(() => { }, () => {
-			return timeout(1).then(() => {
-				assert.ok(target1.calledWith('searchResultsFirstRender'));
-				assert.ok(target1.calledWith('searchResultsFinished'));
-				// assert.ok(target2.calledOnce);
+		wetuwn wesuwt.then(() => { }, () => {
+			wetuwn timeout(1).then(() => {
+				assewt.ok(tawget1.cawwedWith('seawchWesuwtsFiwstWenda'));
+				assewt.ok(tawget1.cawwedWith('seawchWesuwtsFinished'));
+				// assewt.ok(tawget2.cawwedOnce);
 			});
 		});
 	});
 
-	test('Search Model: Search results are cleared during search', async () => {
-		const results = [
-			aRawMatch('file://c:/1',
-				new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
-				new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11))),
-			aRawMatch('file://c:/2',
-				new TextSearchMatch('preview 2', lineOneRange))];
-		instantiationService.stub(ISearchService, searchServiceWithResults(results));
-		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
-		await testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
-		assert.ok(!testObject.searchResult.isEmpty());
+	test('Seawch Modew: Seawch wesuwts awe cweawed duwing seawch', async () => {
+		const wesuwts = [
+			aWawMatch('fiwe://c:/1',
+				new TextSeawchMatch('pweview 1', new OneWineWange(1, 1, 4)),
+				new TextSeawchMatch('pweview 1', new OneWineWange(1, 4, 11))),
+			aWawMatch('fiwe://c:/2',
+				new TextSeawchMatch('pweview 2', wineOneWange))];
+		instantiationSewvice.stub(ISeawchSewvice, seawchSewviceWithWesuwts(wesuwts));
+		const testObject: SeawchModew = instantiationSewvice.cweateInstance(SeawchModew);
+		await testObject.seawch({ contentPattewn: { pattewn: 'somestwing' }, type: 1, fowdewQuewies });
+		assewt.ok(!testObject.seawchWesuwt.isEmpty());
 
-		instantiationService.stub(ISearchService, searchServiceWithResults([]));
+		instantiationSewvice.stub(ISeawchSewvice, seawchSewviceWithWesuwts([]));
 
-		testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
-		assert.ok(testObject.searchResult.isEmpty());
+		testObject.seawch({ contentPattewn: { pattewn: 'somestwing' }, type: 1, fowdewQuewies });
+		assewt.ok(testObject.seawchWesuwt.isEmpty());
 	});
 
-	test('Search Model: Previous search is cancelled when new search is called', async () => {
-		const tokenSource = new CancellationTokenSource();
-		instantiationService.stub(ISearchService, canceleableSearchService(tokenSource));
-		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
+	test('Seawch Modew: Pwevious seawch is cancewwed when new seawch is cawwed', async () => {
+		const tokenSouwce = new CancewwationTokenSouwce();
+		instantiationSewvice.stub(ISeawchSewvice, canceweabweSeawchSewvice(tokenSouwce));
+		const testObject: SeawchModew = instantiationSewvice.cweateInstance(SeawchModew);
 
-		testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
-		instantiationService.stub(ISearchService, searchServiceWithResults([]));
-		testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
+		testObject.seawch({ contentPattewn: { pattewn: 'somestwing' }, type: 1, fowdewQuewies });
+		instantiationSewvice.stub(ISeawchSewvice, seawchSewviceWithWesuwts([]));
+		testObject.seawch({ contentPattewn: { pattewn: 'somestwing' }, type: 1, fowdewQuewies });
 
-		assert.ok(tokenSource.token.isCancellationRequested);
+		assewt.ok(tokenSouwce.token.isCancewwationWequested);
 	});
 
-	test('getReplaceString returns proper replace string for regExpressions', async () => {
-		const results = [
-			aRawMatch('file://c:/1',
-				new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
-				new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11)))];
-		instantiationService.stub(ISearchService, searchServiceWithResults(results));
+	test('getWepwaceStwing wetuwns pwopa wepwace stwing fow wegExpwessions', async () => {
+		const wesuwts = [
+			aWawMatch('fiwe://c:/1',
+				new TextSeawchMatch('pweview 1', new OneWineWange(1, 1, 4)),
+				new TextSeawchMatch('pweview 1', new OneWineWange(1, 4, 11)))];
+		instantiationSewvice.stub(ISeawchSewvice, seawchSewviceWithWesuwts(wesuwts));
 
-		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
-		await testObject.search({ contentPattern: { pattern: 're' }, type: 1, folderQueries });
-		testObject.replaceString = 'hello';
-		let match = testObject.searchResult.matches()[0].matches()[0];
-		assert.strictEqual('hello', match.replaceString);
+		const testObject: SeawchModew = instantiationSewvice.cweateInstance(SeawchModew);
+		await testObject.seawch({ contentPattewn: { pattewn: 'we' }, type: 1, fowdewQuewies });
+		testObject.wepwaceStwing = 'hewwo';
+		wet match = testObject.seawchWesuwt.matches()[0].matches()[0];
+		assewt.stwictEquaw('hewwo', match.wepwaceStwing);
 
-		await testObject.search({ contentPattern: { pattern: 're', isRegExp: true }, type: 1, folderQueries });
-		match = testObject.searchResult.matches()[0].matches()[0];
-		assert.strictEqual('hello', match.replaceString);
+		await testObject.seawch({ contentPattewn: { pattewn: 'we', isWegExp: twue }, type: 1, fowdewQuewies });
+		match = testObject.seawchWesuwt.matches()[0].matches()[0];
+		assewt.stwictEquaw('hewwo', match.wepwaceStwing);
 
-		await testObject.search({ contentPattern: { pattern: 're(?:vi)', isRegExp: true }, type: 1, folderQueries });
-		match = testObject.searchResult.matches()[0].matches()[0];
-		assert.strictEqual('hello', match.replaceString);
+		await testObject.seawch({ contentPattewn: { pattewn: 'we(?:vi)', isWegExp: twue }, type: 1, fowdewQuewies });
+		match = testObject.seawchWesuwt.matches()[0].matches()[0];
+		assewt.stwictEquaw('hewwo', match.wepwaceStwing);
 
-		await testObject.search({ contentPattern: { pattern: 'r(e)(?:vi)', isRegExp: true }, type: 1, folderQueries });
-		match = testObject.searchResult.matches()[0].matches()[0];
-		assert.strictEqual('hello', match.replaceString);
+		await testObject.seawch({ contentPattewn: { pattewn: 'w(e)(?:vi)', isWegExp: twue }, type: 1, fowdewQuewies });
+		match = testObject.seawchWesuwt.matches()[0].matches()[0];
+		assewt.stwictEquaw('hewwo', match.wepwaceStwing);
 
-		await testObject.search({ contentPattern: { pattern: 'r(e)(?:vi)', isRegExp: true }, type: 1, folderQueries });
-		testObject.replaceString = 'hello$1';
-		match = testObject.searchResult.matches()[0].matches()[0];
-		assert.strictEqual('helloe', match.replaceString);
+		await testObject.seawch({ contentPattewn: { pattewn: 'w(e)(?:vi)', isWegExp: twue }, type: 1, fowdewQuewies });
+		testObject.wepwaceStwing = 'hewwo$1';
+		match = testObject.seawchWesuwt.matches()[0].matches()[0];
+		assewt.stwictEquaw('hewwoe', match.wepwaceStwing);
 	});
 
-	function aRawMatch(resource: string, ...results: ITextSearchMatch[]): IFileMatch {
-		return { resource: URI.parse(resource), results };
+	function aWawMatch(wesouwce: stwing, ...wesuwts: ITextSeawchMatch[]): IFiweMatch {
+		wetuwn { wesouwce: UWI.pawse(wesouwce), wesuwts };
 	}
 
-	function stub(arg1: any, arg2: any, arg3: any): sinon.SinonStub {
-		const stub = sinon.stub(arg1, arg2).callsFake(arg3);
-		restoreStubs.push(stub);
-		return stub;
+	function stub(awg1: any, awg2: any, awg3: any): sinon.SinonStub {
+		const stub = sinon.stub(awg1, awg2).cawwsFake(awg3);
+		westoweStubs.push(stub);
+		wetuwn stub;
 	}
 
-	function stubModelService(instantiationService: TestInstantiationService): IModelService {
-		instantiationService.stub(IConfigurationService, new TestConfigurationService());
-		instantiationService.stub(IThemeService, new TestThemeService());
-		return instantiationService.createInstance(ModelServiceImpl);
+	function stubModewSewvice(instantiationSewvice: TestInstantiationSewvice): IModewSewvice {
+		instantiationSewvice.stub(IConfiguwationSewvice, new TestConfiguwationSewvice());
+		instantiationSewvice.stub(IThemeSewvice, new TestThemeSewvice());
+		wetuwn instantiationSewvice.cweateInstance(ModewSewviceImpw);
 	}
 
 });

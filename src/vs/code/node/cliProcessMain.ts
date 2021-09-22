@@ -1,256 +1,256 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import { gracefulify } from 'graceful-fs';
-import { hostname, release } from 'os';
-import { raceTimeout } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { isAbsolute, join } from 'vs/base/common/path';
-import { cwd } from 'vs/base/common/process';
-import { URI } from 'vs/base/common/uri';
-import { Promises } from 'vs/base/node/pfs';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
-import { IDownloadService } from 'vs/platform/download/common/download';
-import { DownloadService } from 'vs/platform/download/common/downloadService';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { ExtensionGalleryServiceWithNoStorageService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
-import { IExtensionGalleryService, IExtensionManagementCLIService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagementCLIService';
-import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
-import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
-import { ConsoleLogger, getLogLevel, ILogger, ILogService, LogLevel, MultiplexLogService } from 'vs/platform/log/common/log';
-import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
-import product from 'vs/platform/product/common/product';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { RequestService } from 'vs/platform/request/node/requestService';
-import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
-import { ITelemetryService, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
-import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { supportsTelemetry, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
-import { buildTelemetryMessage } from 'vs/platform/telemetry/node/telemetry';
+impowt * as fs fwom 'fs';
+impowt { gwacefuwify } fwom 'gwacefuw-fs';
+impowt { hostname, wewease } fwom 'os';
+impowt { waceTimeout } fwom 'vs/base/common/async';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { toEwwowMessage } fwom 'vs/base/common/ewwowMessage';
+impowt { onUnexpectedEwwow, setUnexpectedEwwowHandwa } fwom 'vs/base/common/ewwows';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { isAbsowute, join } fwom 'vs/base/common/path';
+impowt { cwd } fwom 'vs/base/common/pwocess';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Pwomises } fwom 'vs/base/node/pfs';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwationSewvice';
+impowt { IDownwoadSewvice } fwom 'vs/pwatfowm/downwoad/common/downwoad';
+impowt { DownwoadSewvice } fwom 'vs/pwatfowm/downwoad/common/downwoadSewvice';
+impowt { NativePawsedAwgs } fwom 'vs/pwatfowm/enviwonment/common/awgv';
+impowt { INativeEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { NativeEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/node/enviwonmentSewvice';
+impowt { ExtensionGawwewySewviceWithNoStowageSewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionGawwewySewvice';
+impowt { IExtensionGawwewySewvice, IExtensionManagementCWISewvice, IExtensionManagementSewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { ExtensionManagementCWISewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementCWISewvice';
+impowt { ExtensionManagementSewvice } fwom 'vs/pwatfowm/extensionManagement/node/extensionManagementSewvice';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { FiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiweSewvice';
+impowt { DiskFiweSystemPwovida } fwom 'vs/pwatfowm/fiwes/node/diskFiweSystemPwovida';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { InstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiationSewvice';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { IWocawizationsSewvice } fwom 'vs/pwatfowm/wocawizations/common/wocawizations';
+impowt { WocawizationsSewvice } fwom 'vs/pwatfowm/wocawizations/node/wocawizations';
+impowt { ConsoweWogga, getWogWevew, IWogga, IWogSewvice, WogWevew, MuwtipwexWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { SpdWogWogga } fwom 'vs/pwatfowm/wog/node/spdwogWog';
+impowt pwoduct fwom 'vs/pwatfowm/pwoduct/common/pwoduct';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IWequestSewvice } fwom 'vs/pwatfowm/wequest/common/wequest';
+impowt { WequestSewvice } fwom 'vs/pwatfowm/wequest/node/wequestSewvice';
+impowt { wesowveCommonPwopewties } fwom 'vs/pwatfowm/tewemetwy/common/commonPwopewties';
+impowt { ITewemetwySewvice, machineIdKey } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { ITewemetwySewviceConfig, TewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwySewvice';
+impowt { suppowtsTewemetwy, NuwwTewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
+impowt { AppInsightsAppenda } fwom 'vs/pwatfowm/tewemetwy/node/appInsightsAppenda';
+impowt { buiwdTewemetwyMessage } fwom 'vs/pwatfowm/tewemetwy/node/tewemetwy';
 
-class CliMain extends Disposable {
+cwass CwiMain extends Disposabwe {
 
-	constructor(
-		private argv: NativeParsedArgs
+	constwuctow(
+		pwivate awgv: NativePawsedAwgs
 	) {
-		super();
+		supa();
 
-		// Enable gracefulFs
-		gracefulify(fs);
+		// Enabwe gwacefuwFs
+		gwacefuwify(fs);
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
 		// Dispose on exit
-		process.once('exit', () => this.dispose());
+		pwocess.once('exit', () => this.dispose());
 	}
 
-	async run(): Promise<void> {
+	async wun(): Pwomise<void> {
 
-		// Services
-		const [instantiationService, appenders] = await this.initServices();
+		// Sewvices
+		const [instantiationSewvice, appendews] = await this.initSewvices();
 
-		return instantiationService.invokeFunction(async accessor => {
-			const logService = accessor.get(ILogService);
-			const fileService = accessor.get(IFileService);
-			const environmentService = accessor.get(INativeEnvironmentService);
-			const extensionManagementCLIService = accessor.get(IExtensionManagementCLIService);
+		wetuwn instantiationSewvice.invokeFunction(async accessow => {
+			const wogSewvice = accessow.get(IWogSewvice);
+			const fiweSewvice = accessow.get(IFiweSewvice);
+			const enviwonmentSewvice = accessow.get(INativeEnviwonmentSewvice);
+			const extensionManagementCWISewvice = accessow.get(IExtensionManagementCWISewvice);
 
-			// Log info
-			logService.info('CLI main', this.argv);
+			// Wog info
+			wogSewvice.info('CWI main', this.awgv);
 
-			// Error handler
-			this.registerErrorHandler(logService);
+			// Ewwow handwa
+			this.wegistewEwwowHandwa(wogSewvice);
 
-			// Run based on argv
-			await this.doRun(environmentService, extensionManagementCLIService, fileService);
+			// Wun based on awgv
+			await this.doWun(enviwonmentSewvice, extensionManagementCWISewvice, fiweSewvice);
 
-			// Flush the remaining data in AI adapter (with 1s timeout)
-			await Promise.all(appenders.map(a => {
-				raceTimeout(a.flush(), 1000);
+			// Fwush the wemaining data in AI adapta (with 1s timeout)
+			await Pwomise.aww(appendews.map(a => {
+				waceTimeout(a.fwush(), 1000);
 			}));
-			return;
+			wetuwn;
 		});
 	}
 
-	private async initServices(): Promise<[IInstantiationService, AppInsightsAppender[]]> {
-		const services = new ServiceCollection();
+	pwivate async initSewvices(): Pwomise<[IInstantiationSewvice, AppInsightsAppenda[]]> {
+		const sewvices = new SewviceCowwection();
 
-		// Product
-		const productService = { _serviceBrand: undefined, ...product };
-		services.set(IProductService, productService);
+		// Pwoduct
+		const pwoductSewvice = { _sewviceBwand: undefined, ...pwoduct };
+		sewvices.set(IPwoductSewvice, pwoductSewvice);
 
-		// Environment
-		const environmentService = new NativeEnvironmentService(this.argv, productService);
-		services.set(INativeEnvironmentService, environmentService);
+		// Enviwonment
+		const enviwonmentSewvice = new NativeEnviwonmentSewvice(this.awgv, pwoductSewvice);
+		sewvices.set(INativeEnviwonmentSewvice, enviwonmentSewvice);
 
-		// Init folders
-		await Promise.all([environmentService.appSettingsHome.fsPath, environmentService.extensionsPath].map(path => path ? Promises.mkdir(path, { recursive: true }) : undefined));
+		// Init fowdews
+		await Pwomise.aww([enviwonmentSewvice.appSettingsHome.fsPath, enviwonmentSewvice.extensionsPath].map(path => path ? Pwomises.mkdiw(path, { wecuwsive: twue }) : undefined));
 
-		// Log
-		const logLevel = getLogLevel(environmentService);
-		const loggers: ILogger[] = [];
-		loggers.push(new SpdLogLogger('cli', join(environmentService.logsPath, 'cli.log'), true, logLevel));
-		if (logLevel === LogLevel.Trace) {
-			loggers.push(new ConsoleLogger(logLevel));
+		// Wog
+		const wogWevew = getWogWevew(enviwonmentSewvice);
+		const woggews: IWogga[] = [];
+		woggews.push(new SpdWogWogga('cwi', join(enviwonmentSewvice.wogsPath, 'cwi.wog'), twue, wogWevew));
+		if (wogWevew === WogWevew.Twace) {
+			woggews.push(new ConsoweWogga(wogWevew));
 		}
 
-		const logService = this._register(new MultiplexLogService(loggers));
-		services.set(ILogService, logService);
+		const wogSewvice = this._wegista(new MuwtipwexWogSewvice(woggews));
+		sewvices.set(IWogSewvice, wogSewvice);
 
-		// Files
-		const fileService = this._register(new FileService(logService));
-		services.set(IFileService, fileService);
+		// Fiwes
+		const fiweSewvice = this._wegista(new FiweSewvice(wogSewvice));
+		sewvices.set(IFiweSewvice, fiweSewvice);
 
-		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService));
-		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
+		const diskFiweSystemPwovida = this._wegista(new DiskFiweSystemPwovida(wogSewvice));
+		fiweSewvice.wegistewPwovida(Schemas.fiwe, diskFiweSystemPwovida);
 
-		// Configuration
-		const configurationService = this._register(new ConfigurationService(environmentService.settingsResource, fileService));
-		services.set(IConfigurationService, configurationService);
+		// Configuwation
+		const configuwationSewvice = this._wegista(new ConfiguwationSewvice(enviwonmentSewvice.settingsWesouwce, fiweSewvice));
+		sewvices.set(IConfiguwationSewvice, configuwationSewvice);
 
 		// Init config
-		await configurationService.initialize();
+		await configuwationSewvice.initiawize();
 
-		// Request
-		services.set(IRequestService, new SyncDescriptor(RequestService));
+		// Wequest
+		sewvices.set(IWequestSewvice, new SyncDescwiptow(WequestSewvice));
 
-		// Download Service
-		services.set(IDownloadService, new SyncDescriptor(DownloadService));
+		// Downwoad Sewvice
+		sewvices.set(IDownwoadSewvice, new SyncDescwiptow(DownwoadSewvice));
 
 		// Extensions
-		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
-		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryServiceWithNoStorageService));
-		services.set(IExtensionManagementCLIService, new SyncDescriptor(ExtensionManagementCLIService));
+		sewvices.set(IExtensionManagementSewvice, new SyncDescwiptow(ExtensionManagementSewvice));
+		sewvices.set(IExtensionGawwewySewvice, new SyncDescwiptow(ExtensionGawwewySewviceWithNoStowageSewvice));
+		sewvices.set(IExtensionManagementCWISewvice, new SyncDescwiptow(ExtensionManagementCWISewvice));
 
-		// Localizations
-		services.set(ILocalizationsService, new SyncDescriptor(LocalizationsService));
+		// Wocawizations
+		sewvices.set(IWocawizationsSewvice, new SyncDescwiptow(WocawizationsSewvice));
 
-		// Telemetry
-		const appenders: AppInsightsAppender[] = [];
-		if (supportsTelemetry(productService, environmentService)) {
-			if (productService.aiConfig && productService.aiConfig.asimovKey) {
-				appenders.push(new AppInsightsAppender('monacoworkbench', null, productService.aiConfig.asimovKey));
+		// Tewemetwy
+		const appendews: AppInsightsAppenda[] = [];
+		if (suppowtsTewemetwy(pwoductSewvice, enviwonmentSewvice)) {
+			if (pwoductSewvice.aiConfig && pwoductSewvice.aiConfig.asimovKey) {
+				appendews.push(new AppInsightsAppenda('monacowowkbench', nuww, pwoductSewvice.aiConfig.asimovKey));
 			}
 
-			const { appRoot, extensionsPath, installSourcePath } = environmentService;
+			const { appWoot, extensionsPath, instawwSouwcePath } = enviwonmentSewvice;
 
-			const config: ITelemetryServiceConfig = {
-				appenders,
-				sendErrorTelemetry: false,
-				commonProperties: (async () => {
-					let machineId: string | undefined = undefined;
-					try {
-						const storageContents = await Promises.readFile(join(environmentService.userDataPath, 'storage.json'));
-						machineId = JSON.parse(storageContents.toString())[machineIdKey];
-					} catch (error) {
-						if (error.code !== 'ENOENT') {
-							logService.error(error);
+			const config: ITewemetwySewviceConfig = {
+				appendews,
+				sendEwwowTewemetwy: fawse,
+				commonPwopewties: (async () => {
+					wet machineId: stwing | undefined = undefined;
+					twy {
+						const stowageContents = await Pwomises.weadFiwe(join(enviwonmentSewvice.usewDataPath, 'stowage.json'));
+						machineId = JSON.pawse(stowageContents.toStwing())[machineIdKey];
+					} catch (ewwow) {
+						if (ewwow.code !== 'ENOENT') {
+							wogSewvice.ewwow(ewwow);
 						}
 					}
 
-					return resolveCommonProperties(fileService, release(), hostname(), process.arch, productService.commit, productService.version, machineId, productService.msftInternalDomains, installSourcePath);
+					wetuwn wesowveCommonPwopewties(fiweSewvice, wewease(), hostname(), pwocess.awch, pwoductSewvice.commit, pwoductSewvice.vewsion, machineId, pwoductSewvice.msftIntewnawDomains, instawwSouwcePath);
 				})(),
-				piiPaths: [appRoot, extensionsPath]
+				piiPaths: [appWoot, extensionsPath]
 			};
 
-			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));
+			sewvices.set(ITewemetwySewvice, new SyncDescwiptow(TewemetwySewvice, [config]));
 
-		} else {
-			services.set(ITelemetryService, NullTelemetryService);
+		} ewse {
+			sewvices.set(ITewemetwySewvice, NuwwTewemetwySewvice);
 		}
 
-		return [new InstantiationService(services), appenders];
+		wetuwn [new InstantiationSewvice(sewvices), appendews];
 	}
 
-	private registerErrorHandler(logService: ILogService): void {
+	pwivate wegistewEwwowHandwa(wogSewvice: IWogSewvice): void {
 
-		// Install handler for unexpected errors
-		setUnexpectedErrorHandler(error => {
-			const message = toErrorMessage(error, true);
+		// Instaww handwa fow unexpected ewwows
+		setUnexpectedEwwowHandwa(ewwow => {
+			const message = toEwwowMessage(ewwow, twue);
 			if (!message) {
-				return;
+				wetuwn;
 			}
 
-			logService.error(`[uncaught exception in CLI]: ${message}`);
+			wogSewvice.ewwow(`[uncaught exception in CWI]: ${message}`);
 		});
 
-		// Handle unhandled errors that can occur
-		process.on('uncaughtException', err => onUnexpectedError(err));
-		process.on('unhandledRejection', (reason: unknown) => onUnexpectedError(reason));
+		// Handwe unhandwed ewwows that can occuw
+		pwocess.on('uncaughtException', eww => onUnexpectedEwwow(eww));
+		pwocess.on('unhandwedWejection', (weason: unknown) => onUnexpectedEwwow(weason));
 	}
 
-	private async doRun(environmentService: INativeEnvironmentService, extensionManagementCLIService: IExtensionManagementCLIService, fileService: IFileService): Promise<void> {
+	pwivate async doWun(enviwonmentSewvice: INativeEnviwonmentSewvice, extensionManagementCWISewvice: IExtensionManagementCWISewvice, fiweSewvice: IFiweSewvice): Pwomise<void> {
 
-		// Install Source
-		if (this.argv['install-source']) {
-			return this.setInstallSource(environmentService, fileService, this.argv['install-source']);
+		// Instaww Souwce
+		if (this.awgv['instaww-souwce']) {
+			wetuwn this.setInstawwSouwce(enviwonmentSewvice, fiweSewvice, this.awgv['instaww-souwce']);
 		}
 
-		// List Extensions
-		if (this.argv['list-extensions']) {
-			return extensionManagementCLIService.listExtensions(!!this.argv['show-versions'], this.argv['category']);
+		// Wist Extensions
+		if (this.awgv['wist-extensions']) {
+			wetuwn extensionManagementCWISewvice.wistExtensions(!!this.awgv['show-vewsions'], this.awgv['categowy']);
 		}
 
-		// Install Extension
-		else if (this.argv['install-extension'] || this.argv['install-builtin-extension']) {
-			return extensionManagementCLIService.installExtensions(this.asExtensionIdOrVSIX(this.argv['install-extension'] || []), this.argv['install-builtin-extension'] || [], !!this.argv['do-not-sync'], !!this.argv['force']);
+		// Instaww Extension
+		ewse if (this.awgv['instaww-extension'] || this.awgv['instaww-buiwtin-extension']) {
+			wetuwn extensionManagementCWISewvice.instawwExtensions(this.asExtensionIdOwVSIX(this.awgv['instaww-extension'] || []), this.awgv['instaww-buiwtin-extension'] || [], !!this.awgv['do-not-sync'], !!this.awgv['fowce']);
 		}
 
-		// Uninstall Extension
-		else if (this.argv['uninstall-extension']) {
-			return extensionManagementCLIService.uninstallExtensions(this.asExtensionIdOrVSIX(this.argv['uninstall-extension']), !!this.argv['force']);
+		// Uninstaww Extension
+		ewse if (this.awgv['uninstaww-extension']) {
+			wetuwn extensionManagementCWISewvice.uninstawwExtensions(this.asExtensionIdOwVSIX(this.awgv['uninstaww-extension']), !!this.awgv['fowce']);
 		}
 
-		// Locate Extension
-		else if (this.argv['locate-extension']) {
-			return extensionManagementCLIService.locateExtension(this.argv['locate-extension']);
+		// Wocate Extension
+		ewse if (this.awgv['wocate-extension']) {
+			wetuwn extensionManagementCWISewvice.wocateExtension(this.awgv['wocate-extension']);
 		}
 
-		// Telemetry
-		else if (this.argv['telemetry']) {
-			console.log(await buildTelemetryMessage(environmentService.appRoot, environmentService.extensionsPath));
+		// Tewemetwy
+		ewse if (this.awgv['tewemetwy']) {
+			consowe.wog(await buiwdTewemetwyMessage(enviwonmentSewvice.appWoot, enviwonmentSewvice.extensionsPath));
 		}
 	}
 
-	private asExtensionIdOrVSIX(inputs: string[]): (string | URI)[] {
-		return inputs.map(input => /\.vsix$/i.test(input) ? URI.file(isAbsolute(input) ? input : join(cwd(), input)) : input);
+	pwivate asExtensionIdOwVSIX(inputs: stwing[]): (stwing | UWI)[] {
+		wetuwn inputs.map(input => /\.vsix$/i.test(input) ? UWI.fiwe(isAbsowute(input) ? input : join(cwd(), input)) : input);
 	}
 
-	private async setInstallSource(environmentService: INativeEnvironmentService, fileService: IFileService, installSource: string): Promise<void> {
-		await fileService.writeFile(URI.file(environmentService.installSourcePath), VSBuffer.fromString(installSource.slice(0, 30)));
+	pwivate async setInstawwSouwce(enviwonmentSewvice: INativeEnviwonmentSewvice, fiweSewvice: IFiweSewvice, instawwSouwce: stwing): Pwomise<void> {
+		await fiweSewvice.wwiteFiwe(UWI.fiwe(enviwonmentSewvice.instawwSouwcePath), VSBuffa.fwomStwing(instawwSouwce.swice(0, 30)));
 	}
 }
 
-export async function main(argv: NativeParsedArgs): Promise<void> {
-	const cliMain = new CliMain(argv);
+expowt async function main(awgv: NativePawsedAwgs): Pwomise<void> {
+	const cwiMain = new CwiMain(awgv);
 
-	try {
-		await cliMain.run();
-	} finally {
-		cliMain.dispose();
+	twy {
+		await cwiMain.wun();
+	} finawwy {
+		cwiMain.dispose();
 	}
 }

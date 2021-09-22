@@ -1,44 +1,44 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench > .notifications-center {
-	position: absolute;
+.monaco-wowkbench > .notifications-centa {
+	position: absowute;
 	z-index: 1000;
-	right: 8px;
+	wight: 8px;
 	bottom: 31px;
-	display: none;
-	overflow: hidden;
+	dispway: none;
+	ovewfwow: hidden;
 }
 
-.monaco-workbench.nostatusbar > .notifications-center {
+.monaco-wowkbench.nostatusbaw > .notifications-centa {
 	bottom: 8px;
 }
 
-.monaco-workbench > .notifications-center.visible {
-	display: block;
+.monaco-wowkbench > .notifications-centa.visibwe {
+	dispway: bwock;
 }
 
-/* Header */
+/* Heada */
 
-.monaco-workbench > .notifications-center > .notifications-center-header {
-	display: flex;
-	align-items: center;
-	padding-left: 8px;
-	padding-right: 5px;
+.monaco-wowkbench > .notifications-centa > .notifications-centa-heada {
+	dispway: fwex;
+	awign-items: centa;
+	padding-weft: 8px;
+	padding-wight: 5px;
 	height: 35px;
 }
 
-.monaco-workbench > .notifications-center > .notifications-center-header > .notifications-center-header-title {
-	text-transform: uppercase;
+.monaco-wowkbench > .notifications-centa > .notifications-centa-heada > .notifications-centa-heada-titwe {
+	text-twansfowm: uppewcase;
 	font-size: 11px;
 }
 
-.monaco-workbench > .notifications-center > .notifications-center-header > .notifications-center-header-toolbar {
-	flex: 1;
+.monaco-wowkbench > .notifications-centa > .notifications-centa-heada > .notifications-centa-heada-toowbaw {
+	fwex: 1;
 }
 
-.monaco-workbench > .notifications-center > .notifications-center-header > .notifications-center-header-toolbar .actions-container {
-	justify-content: flex-end;
+.monaco-wowkbench > .notifications-centa > .notifications-centa-heada > .notifications-centa-heada-toowbaw .actions-containa {
+	justify-content: fwex-end;
 }

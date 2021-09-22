@@ -1,84 +1,84 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/atom/language-php/blob/master/grammars/html.cson",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/atom/wanguage-php/bwob/masta/gwammaws/htmw.cson",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/atom/language-php/commit/2bf736a814e1a58aa63470c1a29590bd02e924e7",
+	"vewsion": "https://github.com/atom/wanguage-php/commit/2bf736a814e1a58aa63470c1a29590bd02e924e7",
 	"name": "PHP",
-	"scopeName": "text.html.php",
+	"scopeName": "text.htmw.php",
 	"injections": {
-		"text.html.php - (meta.embedded | meta.tag), L:((text.html.php meta.tag) - (meta.embedded.block.php | meta.embedded.line.php)), L:(source.js - (meta.embedded.block.php | meta.embedded.line.php)), L:(source.css - (meta.embedded.block.php | meta.embedded.line.php))": {
-			"patterns": [
+		"text.htmw.php - (meta.embedded | meta.tag), W:((text.htmw.php meta.tag) - (meta.embedded.bwock.php | meta.embedded.wine.php)), W:(souwce.js - (meta.embedded.bwock.php | meta.embedded.wine.php)), W:(souwce.css - (meta.embedded.bwock.php | meta.embedded.wine.php))": {
+			"pattewns": [
 				{
-					"include": "#php-tag"
+					"incwude": "#php-tag"
 				}
 			]
 		}
 	},
-	"patterns": [
+	"pattewns": [
 		{
 			"begin": "\\A#!",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
 					"name": "punctuation.definition.comment.php"
 				}
 			},
 			"end": "$",
-			"name": "comment.line.shebang.php"
+			"name": "comment.wine.shebang.php"
 		},
 		{
-			"include": "text.html.derivative"
+			"incwude": "text.htmw.dewivative"
 		}
 	],
-	"repository": {
+	"wepositowy": {
 		"php-tag": {
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "<\\?(?i:php|=)?(?![^?]*\\?>)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
 							"name": "punctuation.section.embedded.begin.php"
 						}
 					},
 					"end": "(\\?)>",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
 							"name": "punctuation.section.embedded.end.php"
 						},
 						"1": {
-							"name": "source.php"
+							"name": "souwce.php"
 						}
 					},
-					"name": "meta.embedded.block.php",
-					"contentName": "source.php",
-					"patterns": [
+					"name": "meta.embedded.bwock.php",
+					"contentName": "souwce.php",
+					"pattewns": [
 						{
-							"include": "source.php"
+							"incwude": "souwce.php"
 						}
 					]
 				},
 				{
 					"begin": "<\\?(?i:php|=)?",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
 							"name": "punctuation.section.embedded.begin.php"
 						}
 					},
 					"end": "(\\?)>",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
 							"name": "punctuation.section.embedded.end.php"
 						},
 						"1": {
-							"name": "source.php"
+							"name": "souwce.php"
 						}
 					},
-					"name": "meta.embedded.line.php",
-					"contentName": "source.php",
-					"patterns": [
+					"name": "meta.embedded.wine.php",
+					"contentName": "souwce.php",
+					"pattewns": [
 						{
-							"include": "source.php"
+							"incwude": "souwce.php"
 						}
 					]
 				}

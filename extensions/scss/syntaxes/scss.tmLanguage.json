@@ -1,275 +1,275 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/atom/language-sass/blob/master/grammars/scss.cson",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/atom/wanguage-sass/bwob/masta/gwammaws/scss.cson",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/atom/language-sass/commit/f52ab12f7f9346cc2568129d8c4419bd3d506b47",
+	"vewsion": "https://github.com/atom/wanguage-sass/commit/f52ab12f7f9346cc2568129d8c4419bd3d506b47",
 	"name": "SCSS",
-	"scopeName": "source.css.scss",
-	"patterns": [
+	"scopeName": "souwce.css.scss",
+	"pattewns": [
 		{
-			"include": "#variable_setting"
+			"incwude": "#vawiabwe_setting"
 		},
 		{
-			"include": "#at_rule_forward"
+			"incwude": "#at_wuwe_fowwawd"
 		},
 		{
-			"include": "#at_rule_use"
+			"incwude": "#at_wuwe_use"
 		},
 		{
-			"include": "#at_rule_include"
+			"incwude": "#at_wuwe_incwude"
 		},
 		{
-			"include": "#at_rule_import"
+			"incwude": "#at_wuwe_impowt"
 		},
 		{
-			"include": "#general"
+			"incwude": "#genewaw"
 		},
 		{
-			"include": "#flow_control"
+			"incwude": "#fwow_contwow"
 		},
 		{
-			"include": "#rules"
+			"incwude": "#wuwes"
 		},
 		{
-			"include": "#property_list"
+			"incwude": "#pwopewty_wist"
 		},
 		{
-			"include": "#at_rule_mixin"
+			"incwude": "#at_wuwe_mixin"
 		},
 		{
-			"include": "#at_rule_media"
+			"incwude": "#at_wuwe_media"
 		},
 		{
-			"include": "#at_rule_function"
+			"incwude": "#at_wuwe_function"
 		},
 		{
-			"include": "#at_rule_charset"
+			"incwude": "#at_wuwe_chawset"
 		},
 		{
-			"include": "#at_rule_option"
+			"incwude": "#at_wuwe_option"
 		},
 		{
-			"include": "#at_rule_namespace"
+			"incwude": "#at_wuwe_namespace"
 		},
 		{
-			"include": "#at_rule_fontface"
+			"incwude": "#at_wuwe_fontface"
 		},
 		{
-			"include": "#at_rule_page"
+			"incwude": "#at_wuwe_page"
 		},
 		{
-			"include": "#at_rule_keyframes"
+			"incwude": "#at_wuwe_keyfwames"
 		},
 		{
-			"include": "#at_rule_at_root"
+			"incwude": "#at_wuwe_at_woot"
 		},
 		{
-			"include": "#at_rule_supports"
+			"incwude": "#at_wuwe_suppowts"
 		},
 		{
 			"match": ";",
-			"name": "punctuation.terminator.rule.css"
+			"name": "punctuation.tewminatow.wuwe.css"
 		}
 	],
-	"repository": {
-		"at_rule_charset": {
-			"begin": "\\s*((@)charset\\b)\\s*",
-			"captures": {
+	"wepositowy": {
+		"at_wuwe_chawset": {
+			"begin": "\\s*((@)chawset\\b)\\s*",
+			"captuwes": {
 				"1": {
-					"name": "keyword.control.at-rule.charset.scss"
+					"name": "keywowd.contwow.at-wuwe.chawset.scss"
 				},
 				"2": {
-					"name": "punctuation.definition.keyword.scss"
+					"name": "punctuation.definition.keywowd.scss"
 				}
 			},
 			"end": "\\s*((?=;|$))",
-			"name": "meta.at-rule.charset.scss",
-			"patterns": [
+			"name": "meta.at-wuwe.chawset.scss",
+			"pattewns": [
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				},
 				{
-					"include": "#string_single"
+					"incwude": "#stwing_singwe"
 				},
 				{
-					"include": "#string_double"
+					"incwude": "#stwing_doubwe"
 				}
 			]
 		},
-		"at_rule_content": {
+		"at_wuwe_content": {
 			"begin": "\\s*((@)content\\b)\\s*",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "keyword.control.content.scss"
+					"name": "keywowd.contwow.content.scss"
 				}
 			},
 			"end": "\\s*((?=;))",
 			"name": "meta.content.scss",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				},
 				{
-					"include": "#selectors"
+					"incwude": "#sewectows"
 				},
 				{
-					"include": "#property_values"
+					"incwude": "#pwopewty_vawues"
 				}
 			]
 		},
-		"at_rule_each": {
+		"at_wuwe_each": {
 			"begin": "\\s*((@)each\\b)\\s*",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "keyword.control.each.scss"
+					"name": "keywowd.contwow.each.scss"
 				},
 				"2": {
-					"name": "punctuation.definition.keyword.scss"
+					"name": "punctuation.definition.keywowd.scss"
 				}
 			},
 			"end": "\\s*((?=}))",
-			"name": "meta.at-rule.each.scss",
-			"patterns": [
+			"name": "meta.at-wuwe.each.scss",
+			"pattewns": [
 				{
 					"match": "\\b(in|,)\\b",
-					"name": "keyword.control.operator"
+					"name": "keywowd.contwow.opewatow"
 				},
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				},
 				{
-					"include": "#property_values"
+					"incwude": "#pwopewty_vawues"
 				},
 				{
-					"include": "$self"
+					"incwude": "$sewf"
 				}
 			]
 		},
-		"at_rule_else": {
-			"begin": "\\s*((@)else(\\s*(if)?))\\s*",
-			"captures": {
+		"at_wuwe_ewse": {
+			"begin": "\\s*((@)ewse(\\s*(if)?))\\s*",
+			"captuwes": {
 				"1": {
-					"name": "keyword.control.else.scss"
+					"name": "keywowd.contwow.ewse.scss"
 				},
 				"2": {
-					"name": "punctuation.definition.keyword.scss"
+					"name": "punctuation.definition.keywowd.scss"
 				}
 			},
 			"end": "\\s*(?={)",
-			"name": "meta.at-rule.else.scss",
-			"patterns": [
+			"name": "meta.at-wuwe.ewse.scss",
+			"pattewns": [
 				{
-					"include": "#conditional_operators"
+					"incwude": "#conditionaw_opewatows"
 				},
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				},
 				{
-					"include": "#property_values"
+					"incwude": "#pwopewty_vawues"
 				}
 			]
 		},
-		"at_rule_extend": {
+		"at_wuwe_extend": {
 			"begin": "\\s*((@)extend\\b)\\s*",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "keyword.control.at-rule.extend.scss"
+					"name": "keywowd.contwow.at-wuwe.extend.scss"
 				},
 				"2": {
-					"name": "punctuation.definition.keyword.scss"
+					"name": "punctuation.definition.keywowd.scss"
 				}
 			},
 			"end": "\\s*(?=;)",
-			"name": "meta.at-rule.extend.scss",
-			"patterns": [
+			"name": "meta.at-wuwe.extend.scss",
+			"pattewns": [
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				},
 				{
-					"include": "#selectors"
+					"incwude": "#sewectows"
 				},
 				{
-					"include": "#property_values"
+					"incwude": "#pwopewty_vawues"
 				}
 			]
 		},
-		"at_rule_fontface": {
-			"patterns": [
+		"at_wuwe_fontface": {
+			"pattewns": [
 				{
 					"begin": "^\\s*((@)font-face\\b)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.control.at-rule.fontface.scss"
+							"name": "keywowd.contwow.at-wuwe.fontface.scss"
 						},
 						"2": {
-							"name": "punctuation.definition.keyword.scss"
+							"name": "punctuation.definition.keywowd.scss"
 						}
 					},
 					"end": "\\s*(?={)",
-					"name": "meta.at-rule.fontface.scss",
-					"patterns": [
+					"name": "meta.at-wuwe.fontface.scss",
+					"pattewns": [
 						{
-							"include": "#function_attributes"
+							"incwude": "#function_attwibutes"
 						}
 					]
 				}
 			]
 		},
-		"at_rule_for": {
-			"begin": "\\s*((@)for\\b)\\s*",
-			"captures": {
+		"at_wuwe_fow": {
+			"begin": "\\s*((@)fow\\b)\\s*",
+			"captuwes": {
 				"1": {
-					"name": "keyword.control.for.scss"
+					"name": "keywowd.contwow.fow.scss"
 				},
 				"2": {
-					"name": "punctuation.definition.keyword.scss"
+					"name": "punctuation.definition.keywowd.scss"
 				}
 			},
 			"end": "\\s*(?={)",
-			"name": "meta.at-rule.for.scss",
-			"patterns": [
+			"name": "meta.at-wuwe.fow.scss",
+			"pattewns": [
 				{
-					"match": "(==|!=|<=|>=|<|>|from|to|through)",
-					"name": "keyword.control.operator"
+					"match": "(==|!=|<=|>=|<|>|fwom|to|thwough)",
+					"name": "keywowd.contwow.opewatow"
 				},
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				},
 				{
-					"include": "#property_values"
+					"incwude": "#pwopewty_vawues"
 				},
 				{
-					"include": "$self"
+					"incwude": "$sewf"
 				}
 			]
 		},
-		"at_rule_forward": {
-			"begin": "\\s*((@)forward\\b)\\s*",
-			"captures": {
+		"at_wuwe_fowwawd": {
+			"begin": "\\s*((@)fowwawd\\b)\\s*",
+			"captuwes": {
 				"1": {
-					"name": "keyword.control.at-rule.forward.scss"
+					"name": "keywowd.contwow.at-wuwe.fowwawd.scss"
 				},
 				"2": {
-					"name": "punctuation.definition.keyword.scss"
+					"name": "punctuation.definition.keywowd.scss"
 				}
 			},
 			"end": "\\s*(?=;)",
-			"name": "meta.at-rule.forward.scss",
-			"patterns": [
+			"name": "meta.at-wuwe.fowwawd.scss",
+			"pattewns": [
 				{
 					"match": "\\b(as|hide|show)\\b",
-					"name": "keyword.control.operator"
+					"name": "keywowd.contwow.opewatow"
 				},
 				{
 					"match": "\\b([\\w-]+)(\\*)",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "entity.other.attribute-name.module.scss"
+							"name": "entity.otha.attwibute-name.moduwe.scss"
 						},
 						"2": {
-							"name": "punctuation.definition.wildcard.scss"
+							"name": "punctuation.definition.wiwdcawd.scss"
 						}
 					}
 				},
@@ -278,158 +278,158 @@
 					"name": "entity.name.function.scss"
 				},
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				},
 				{
-					"include": "#string_single"
+					"incwude": "#stwing_singwe"
 				},
 				{
-					"include": "#string_double"
+					"incwude": "#stwing_doubwe"
 				},
 				{
-					"include": "#comment_line"
+					"incwude": "#comment_wine"
 				},
 				{
-					"include": "#comment_block"
+					"incwude": "#comment_bwock"
 				}
 			]
 		},
-		"at_rule_function": {
-			"patterns": [
+		"at_wuwe_function": {
+			"pattewns": [
 				{
 					"begin": "\\s*((@)function\\b)\\s*",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "keyword.control.at-rule.function.scss"
+							"name": "keywowd.contwow.at-wuwe.function.scss"
 						},
 						"2": {
-							"name": "punctuation.definition.keyword.scss"
+							"name": "punctuation.definition.keywowd.scss"
 						},
 						"3": {
 							"name": "entity.name.function.scss"
 						}
 					},
 					"end": "\\s*(?={)",
-					"name": "meta.at-rule.function.scss",
-					"patterns": [
+					"name": "meta.at-wuwe.function.scss",
+					"pattewns": [
 						{
-							"include": "#function_attributes"
+							"incwude": "#function_attwibutes"
 						}
 					]
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "keyword.control.at-rule.function.scss"
+							"name": "keywowd.contwow.at-wuwe.function.scss"
 						},
 						"2": {
-							"name": "punctuation.definition.keyword.scss"
+							"name": "punctuation.definition.keywowd.scss"
 						},
 						"3": {
 							"name": "entity.name.function.scss"
 						}
 					},
 					"match": "\\s*((@)function\\b)\\s*",
-					"name": "meta.at-rule.function.scss"
+					"name": "meta.at-wuwe.function.scss"
 				}
 			]
 		},
-		"at_rule_if": {
+		"at_wuwe_if": {
 			"begin": "\\s*((@)if\\b)\\s*",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "keyword.control.if.scss"
+					"name": "keywowd.contwow.if.scss"
 				},
 				"2": {
-					"name": "punctuation.definition.keyword.scss"
+					"name": "punctuation.definition.keywowd.scss"
 				}
 			},
 			"end": "\\s*(?={)",
-			"name": "meta.at-rule.if.scss",
-			"patterns": [
+			"name": "meta.at-wuwe.if.scss",
+			"pattewns": [
 				{
-					"include": "#conditional_operators"
+					"incwude": "#conditionaw_opewatows"
 				},
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				},
 				{
-					"include": "#property_values"
+					"incwude": "#pwopewty_vawues"
 				}
 			]
 		},
-		"at_rule_import": {
-			"begin": "\\s*((@)import\\b)\\s*",
-			"captures": {
+		"at_wuwe_impowt": {
+			"begin": "\\s*((@)impowt\\b)\\s*",
+			"captuwes": {
 				"1": {
-					"name": "keyword.control.at-rule.import.scss"
+					"name": "keywowd.contwow.at-wuwe.impowt.scss"
 				},
 				"2": {
-					"name": "punctuation.definition.keyword.scss"
+					"name": "punctuation.definition.keywowd.scss"
 				}
 			},
 			"end": "\\s*((?=;)|(?=}))",
-			"name": "meta.at-rule.import.scss",
-			"patterns": [
+			"name": "meta.at-wuwe.impowt.scss",
+			"pattewns": [
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				},
 				{
-					"include": "#string_single"
+					"incwude": "#stwing_singwe"
 				},
 				{
-					"include": "#string_double"
+					"incwude": "#stwing_doubwe"
 				},
 				{
-					"include": "#functions"
+					"incwude": "#functions"
 				},
 				{
-					"include": "#comment_line"
+					"incwude": "#comment_wine"
 				}
 			]
 		},
-		"at_rule_include": {
-			"patterns": [
+		"at_wuwe_incwude": {
+			"pattewns": [
 				{
-					"begin": "(?<=@include)\\s+(?:([\\w-]+)\\s*(\\.))?([\\w-]+)\\s*(\\()",
-					"beginCaptures": {
+					"begin": "(?<=@incwude)\\s+(?:([\\w-]+)\\s*(\\.))?([\\w-]+)\\s*(\\()",
+					"beginCaptuwes": {
 						"1": {
-							"name": "variable.scss"
+							"name": "vawiabwe.scss"
 						},
 						"2": {
-							"name": "punctuation.access.module.scss"
+							"name": "punctuation.access.moduwe.scss"
 						},
 						"3": {
 							"name": "entity.name.function.scss"
 						},
 						"4": {
-							"name": "punctuation.definition.parameters.begin.bracket.round.scss"
+							"name": "punctuation.definition.pawametews.begin.bwacket.wound.scss"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.parameters.end.bracket.round.scss"
+							"name": "punctuation.definition.pawametews.end.bwacket.wound.scss"
 						}
 					},
-					"name": "meta.at-rule.include.scss",
-					"patterns": [
+					"name": "meta.at-wuwe.incwude.scss",
+					"pattewns": [
 						{
-							"include": "#function_attributes"
+							"incwude": "#function_attwibutes"
 						}
 					]
 				},
 				{
-					"match": "(?<=@include)\\s+(?:([\\w-]+)\\s*(\\.))?([\\w-]+)",
-					"captures": {
+					"match": "(?<=@incwude)\\s+(?:([\\w-]+)\\s*(\\.))?([\\w-]+)",
+					"captuwes": {
 						"0": {
-							"name": "meta.at-rule.include.scss"
+							"name": "meta.at-wuwe.incwude.scss"
 						},
 						"1": {
-							"name": "variable.scss"
+							"name": "vawiabwe.scss"
 						},
 						"2": {
-							"name": "punctuation.access.module.scss"
+							"name": "punctuation.access.moduwe.scss"
 						},
 						"3": {
 							"name": "entity.name.function.scss"
@@ -437,1441 +437,1441 @@
 					}
 				},
 				{
-					"match": "((@)include)\\b",
-					"captures": {
+					"match": "((@)incwude)\\b",
+					"captuwes": {
 						"0": {
-							"name": "meta.at-rule.include.scss"
+							"name": "meta.at-wuwe.incwude.scss"
 						},
 						"1": {
-							"name": "keyword.control.at-rule.include.scss"
+							"name": "keywowd.contwow.at-wuwe.incwude.scss"
 						},
 						"2": {
-							"name": "punctuation.definition.keyword.scss"
+							"name": "punctuation.definition.keywowd.scss"
 						}
 					}
 				}
 			]
 		},
-		"at_rule_keyframes": {
-			"begin": "(?<=^|\\s)(@)(?:-(?:webkit|moz)-)?keyframes\\b",
-			"beginCaptures": {
+		"at_wuwe_keyfwames": {
+			"begin": "(?<=^|\\s)(@)(?:-(?:webkit|moz)-)?keyfwames\\b",
+			"beginCaptuwes": {
 				"0": {
-					"name": "keyword.control.at-rule.keyframes.scss"
+					"name": "keywowd.contwow.at-wuwe.keyfwames.scss"
 				},
 				"1": {
-					"name": "punctuation.definition.keyword.scss"
+					"name": "punctuation.definition.keywowd.scss"
 				}
 			},
 			"end": "(?<=})",
-			"name": "meta.at-rule.keyframes.scss",
-			"patterns": [
+			"name": "meta.at-wuwe.keyfwames.scss",
+			"pattewns": [
 				{
-					"match": "(?<=@keyframes)\\s+((?:[_A-Za-z][-\\w]|-[_A-Za-z])[-\\w]*)",
-					"captures": {
+					"match": "(?<=@keyfwames)\\s+((?:[_A-Za-z][-\\w]|-[_A-Za-z])[-\\w]*)",
+					"captuwes": {
 						"1": {
 							"name": "entity.name.function.scss"
 						}
 					}
 				},
 				{
-					"begin": "(?<=@keyframes)\\s+(\")",
-					"beginCaptures": {
+					"begin": "(?<=@keyfwames)\\s+(\")",
+					"beginCaptuwes": {
 						"1": {
-							"name": "punctuation.definition.string.begin.scss"
+							"name": "punctuation.definition.stwing.begin.scss"
 						}
 					},
 					"end": "\"",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.end.scss"
+							"name": "punctuation.definition.stwing.end.scss"
 						}
 					},
-					"name": "string.quoted.double.scss",
+					"name": "stwing.quoted.doubwe.scss",
 					"contentName": "entity.name.function.scss",
-					"patterns": [
+					"pattewns": [
 						{
 							"match": "\\\\(\\h{1,6}|.)",
-							"name": "constant.character.escape.scss"
+							"name": "constant.chawacta.escape.scss"
 						},
 						{
-							"include": "#interpolation"
+							"incwude": "#intewpowation"
 						}
 					]
 				},
 				{
-					"begin": "(?<=@keyframes)\\s+(')",
-					"beginCaptures": {
+					"begin": "(?<=@keyfwames)\\s+(')",
+					"beginCaptuwes": {
 						"1": {
-							"name": "punctuation.definition.string.begin.scss"
+							"name": "punctuation.definition.stwing.begin.scss"
 						}
 					},
 					"end": "'",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.end.scss"
+							"name": "punctuation.definition.stwing.end.scss"
 						}
 					},
-					"name": "string.quoted.single.scss",
+					"name": "stwing.quoted.singwe.scss",
 					"contentName": "entity.name.function.scss",
-					"patterns": [
+					"pattewns": [
 						{
 							"match": "\\\\(\\h{1,6}|.)",
-							"name": "constant.character.escape.scss"
+							"name": "constant.chawacta.escape.scss"
 						},
 						{
-							"include": "#interpolation"
+							"incwude": "#intewpowation"
 						}
 					]
 				},
 				{
 					"begin": "{",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.section.keyframes.begin.scss"
+							"name": "punctuation.section.keyfwames.begin.scss"
 						}
 					},
 					"end": "}",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.section.keyframes.end.scss"
+							"name": "punctuation.section.keyfwames.end.scss"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"match": "\\b(?:(?:100|[1-9]\\d|\\d)%|from|to)(?=\\s*{)",
-							"name": "entity.other.attribute-name.scss"
+							"match": "\\b(?:(?:100|[1-9]\\d|\\d)%|fwom|to)(?=\\s*{)",
+							"name": "entity.otha.attwibute-name.scss"
 						},
 						{
-							"include": "#flow_control"
+							"incwude": "#fwow_contwow"
 						},
 						{
-							"include": "#interpolation"
+							"incwude": "#intewpowation"
 						},
 						{
-							"include": "#property_list"
+							"incwude": "#pwopewty_wist"
 						},
 						{
-							"include": "#rules"
+							"incwude": "#wuwes"
 						}
 					]
 				}
 			]
 		},
-		"at_rule_media": {
-			"patterns": [
+		"at_wuwe_media": {
+			"pattewns": [
 				{
 					"begin": "^\\s*((@)media)\\b",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.control.at-rule.media.scss"
+							"name": "keywowd.contwow.at-wuwe.media.scss"
 						},
 						"2": {
-							"name": "punctuation.definition.keyword.scss"
+							"name": "punctuation.definition.keywowd.scss"
 						}
 					},
 					"end": "\\s*(?={)",
-					"name": "meta.at-rule.media.scss",
-					"patterns": [
+					"name": "meta.at-wuwe.media.scss",
+					"pattewns": [
 						{
-							"include": "#comment_docblock"
+							"incwude": "#comment_docbwock"
 						},
 						{
-							"include": "#comment_block"
+							"incwude": "#comment_bwock"
 						},
 						{
-							"include": "#comment_line"
+							"incwude": "#comment_wine"
 						},
 						{
-							"match": "\\b(only)\\b",
-							"name": "keyword.control.operator.css.scss"
+							"match": "\\b(onwy)\\b",
+							"name": "keywowd.contwow.opewatow.css.scss"
 						},
 						{
 							"begin": "\\(",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.definition.media-query.begin.bracket.round.scss"
+									"name": "punctuation.definition.media-quewy.begin.bwacket.wound.scss"
 								}
 							},
 							"end": "\\)",
-							"endCaptures": {
+							"endCaptuwes": {
 								"0": {
-									"name": "punctuation.definition.media-query.end.bracket.round.scss"
+									"name": "punctuation.definition.media-quewy.end.bwacket.wound.scss"
 								}
 							},
-							"name": "meta.property-list.media-query.scss",
-							"patterns": [
+							"name": "meta.pwopewty-wist.media-quewy.scss",
+							"pattewns": [
 								{
 									"begin": "(?<![-a-z])(?=[-a-z])",
 									"end": "$|(?![-a-z])",
-									"name": "meta.property-name.media-query.scss",
-									"patterns": [
+									"name": "meta.pwopewty-name.media-quewy.scss",
+									"pattewns": [
 										{
-											"include": "source.css#media-features"
+											"incwude": "souwce.css#media-featuwes"
 										},
 										{
-											"include": "source.css#property-names"
+											"incwude": "souwce.css#pwopewty-names"
 										}
 									]
 								},
 								{
 									"begin": "(:)\\s*(?!(\\s*{))",
-									"beginCaptures": {
+									"beginCaptuwes": {
 										"1": {
-											"name": "punctuation.separator.key-value.scss"
+											"name": "punctuation.sepawatow.key-vawue.scss"
 										}
 									},
 									"end": "\\s*(;|(?=}|\\)))",
-									"endCaptures": {
+									"endCaptuwes": {
 										"1": {
-											"name": "punctuation.terminator.rule.scss"
+											"name": "punctuation.tewminatow.wuwe.scss"
 										}
 									},
-									"contentName": "meta.property-value.media-query.scss",
-									"patterns": [
+									"contentName": "meta.pwopewty-vawue.media-quewy.scss",
+									"pattewns": [
 										{
-											"include": "#general"
+											"incwude": "#genewaw"
 										},
 										{
-											"include": "#property_values"
+											"incwude": "#pwopewty_vawues"
 										}
 									]
 								}
 							]
 						},
 						{
-							"include": "#variable"
+							"incwude": "#vawiabwe"
 						},
 						{
-							"include": "#conditional_operators"
+							"incwude": "#conditionaw_opewatows"
 						},
 						{
-							"include": "source.css#media-types"
+							"incwude": "souwce.css#media-types"
 						}
 					]
 				}
 			]
 		},
-		"at_rule_mixin": {
-			"patterns": [
+		"at_wuwe_mixin": {
+			"pattewns": [
 				{
 					"begin": "(?<=@mixin)\\s+([\\w-]+)\\s*(\\()",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
 							"name": "entity.name.function.scss"
 						},
 						"2": {
-							"name": "punctuation.definition.parameters.begin.bracket.round.scss"
+							"name": "punctuation.definition.pawametews.begin.bwacket.wound.scss"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.parameters.end.bracket.round.scss"
+							"name": "punctuation.definition.pawametews.end.bwacket.wound.scss"
 						}
 					},
-					"name": "meta.at-rule.mixin.scss",
-					"patterns": [
+					"name": "meta.at-wuwe.mixin.scss",
+					"pattewns": [
 						{
-							"include": "#function_attributes"
+							"incwude": "#function_attwibutes"
 						}
 					]
 				},
 				{
 					"match": "(?<=@mixin)\\s+([\\w-]+)",
-					"captures": {
+					"captuwes": {
 						"1": {
 							"name": "entity.name.function.scss"
 						}
 					},
-					"name": "meta.at-rule.mixin.scss"
+					"name": "meta.at-wuwe.mixin.scss"
 				},
 				{
 					"match": "((@)mixin)\\b",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "keyword.control.at-rule.mixin.scss"
+							"name": "keywowd.contwow.at-wuwe.mixin.scss"
 						},
 						"2": {
-							"name": "punctuation.definition.keyword.scss"
+							"name": "punctuation.definition.keywowd.scss"
 						}
 					},
-					"name": "meta.at-rule.mixin.scss"
+					"name": "meta.at-wuwe.mixin.scss"
 				}
 			]
 		},
-		"at_rule_namespace": {
-			"patterns": [
+		"at_wuwe_namespace": {
+			"pattewns": [
 				{
-					"begin": "(?<=@namespace)\\s+(?=url)",
+					"begin": "(?<=@namespace)\\s+(?=uww)",
 					"end": "(?=;|$)",
-					"name": "meta.at-rule.namespace.scss",
-					"patterns": [
+					"name": "meta.at-wuwe.namespace.scss",
+					"pattewns": [
 						{
-							"include": "#property_values"
+							"incwude": "#pwopewty_vawues"
 						},
 						{
-							"include": "#string_single"
+							"incwude": "#stwing_singwe"
 						},
 						{
-							"include": "#string_double"
+							"incwude": "#stwing_doubwe"
 						}
 					]
 				},
 				{
 					"begin": "(?<=@namespace)\\s+([\\w-]*)",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "entity.name.namespace-prefix.scss"
+							"name": "entity.name.namespace-pwefix.scss"
 						}
 					},
 					"end": "(?=;|$)",
-					"name": "meta.at-rule.namespace.scss",
-					"patterns": [
+					"name": "meta.at-wuwe.namespace.scss",
+					"pattewns": [
 						{
-							"include": "#variables"
+							"incwude": "#vawiabwes"
 						},
 						{
-							"include": "#property_values"
+							"incwude": "#pwopewty_vawues"
 						},
 						{
-							"include": "#string_single"
+							"incwude": "#stwing_singwe"
 						},
 						{
-							"include": "#string_double"
+							"incwude": "#stwing_doubwe"
 						}
 					]
 				},
 				{
 					"match": "((@)namespace)\\b",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "keyword.control.at-rule.namespace.scss"
+							"name": "keywowd.contwow.at-wuwe.namespace.scss"
 						},
 						"2": {
-							"name": "punctuation.definition.keyword.scss"
+							"name": "punctuation.definition.keywowd.scss"
 						}
 					},
-					"name": "meta.at-rule.namespace.scss"
+					"name": "meta.at-wuwe.namespace.scss"
 				}
 			]
 		},
-		"at_rule_option": {
-			"captures": {
+		"at_wuwe_option": {
+			"captuwes": {
 				"1": {
-					"name": "keyword.control.at-rule.charset.scss"
+					"name": "keywowd.contwow.at-wuwe.chawset.scss"
 				},
 				"2": {
-					"name": "punctuation.definition.keyword.scss"
+					"name": "punctuation.definition.keywowd.scss"
 				}
 			},
 			"match": "^\\s*((@)option\\b)\\s*",
-			"name": "meta.at-rule.option.scss"
+			"name": "meta.at-wuwe.option.scss"
 		},
-		"at_rule_page": {
-			"patterns": [
+		"at_wuwe_page": {
+			"pattewns": [
 				{
 					"begin": "^\\s*((@)page)(?=:|\\s)\\s*([-:\\w]*)",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "keyword.control.at-rule.page.scss"
+							"name": "keywowd.contwow.at-wuwe.page.scss"
 						},
 						"2": {
-							"name": "punctuation.definition.keyword.scss"
+							"name": "punctuation.definition.keywowd.scss"
 						},
 						"3": {
 							"name": "entity.name.function.scss"
 						}
 					},
 					"end": "\\s*(?={)",
-					"name": "meta.at-rule.page.scss"
+					"name": "meta.at-wuwe.page.scss"
 				}
 			]
 		},
-		"at_rule_return": {
-			"begin": "\\s*((@)(return)\\b)",
-			"captures": {
+		"at_wuwe_wetuwn": {
+			"begin": "\\s*((@)(wetuwn)\\b)",
+			"captuwes": {
 				"1": {
-					"name": "keyword.control.return.scss"
+					"name": "keywowd.contwow.wetuwn.scss"
 				},
 				"2": {
-					"name": "punctuation.definition.keyword.scss"
+					"name": "punctuation.definition.keywowd.scss"
 				}
 			},
 			"end": "\\s*((?=;))",
-			"name": "meta.at-rule.return.scss",
-			"patterns": [
+			"name": "meta.at-wuwe.wetuwn.scss",
+			"pattewns": [
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				},
 				{
-					"include": "#property_values"
+					"incwude": "#pwopewty_vawues"
 				}
 			]
 		},
-		"at_rule_at_root": {
-			"begin": "\\s*((@)(at-root))(\\s+|$)",
+		"at_wuwe_at_woot": {
+			"begin": "\\s*((@)(at-woot))(\\s+|$)",
 			"end": "\\s*(?={)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.control.at-rule.at-root.scss"
+					"name": "keywowd.contwow.at-wuwe.at-woot.scss"
 				},
 				"2": {
-					"name": "punctuation.definition.keyword.scss"
+					"name": "punctuation.definition.keywowd.scss"
 				}
 			},
-			"name": "meta.at-rule.at-root.scss",
-			"patterns": [
+			"name": "meta.at-wuwe.at-woot.scss",
+			"pattewns": [
 				{
-					"include": "#function_attributes"
+					"incwude": "#function_attwibutes"
 				},
 				{
-					"include": "#functions"
+					"incwude": "#functions"
 				},
 				{
-					"include": "#selectors"
+					"incwude": "#sewectows"
 				}
 			]
 		},
-		"at_rule_supports": {
-			"begin": "(?<=^|\\s)(@)supports\\b",
-			"captures": {
+		"at_wuwe_suppowts": {
+			"begin": "(?<=^|\\s)(@)suppowts\\b",
+			"captuwes": {
 				"0": {
-					"name": "keyword.control.at-rule.supports.scss"
+					"name": "keywowd.contwow.at-wuwe.suppowts.scss"
 				},
 				"1": {
-					"name": "punctuation.definition.keyword.scss"
+					"name": "punctuation.definition.keywowd.scss"
 				}
 			},
 			"end": "(?={)|$",
-			"name": "meta.at-rule.supports.scss",
-			"patterns": [
+			"name": "meta.at-wuwe.suppowts.scss",
+			"pattewns": [
 				{
-					"include": "#logical_operators"
+					"incwude": "#wogicaw_opewatows"
 				},
 				{
-					"include": "#properties"
+					"incwude": "#pwopewties"
 				},
 				{
 					"match": "\\(",
-					"name": "punctuation.definition.condition.begin.bracket.round.scss"
+					"name": "punctuation.definition.condition.begin.bwacket.wound.scss"
 				},
 				{
 					"match": "\\)",
-					"name": "punctuation.definition.condition.end.bracket.round.scss"
+					"name": "punctuation.definition.condition.end.bwacket.wound.scss"
 				}
 			]
 		},
-		"at_rule_use": {
+		"at_wuwe_use": {
 			"begin": "\\s*((@)use\\b)\\s*",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "keyword.control.at-rule.use.scss"
+					"name": "keywowd.contwow.at-wuwe.use.scss"
 				},
 				"2": {
-					"name": "punctuation.definition.keyword.scss"
+					"name": "punctuation.definition.keywowd.scss"
 				}
 			},
 			"end": "\\s*(?=;)",
-			"name": "meta.at-rule.use.scss",
-			"patterns": [
+			"name": "meta.at-wuwe.use.scss",
+			"pattewns": [
 				{
 					"match": "\\b(as|with)\\b",
-					"name": "keyword.control.operator"
+					"name": "keywowd.contwow.opewatow"
 				},
 				{
 					"match": "\\b[\\w-]+\\b",
-					"name": "variable.scss"
+					"name": "vawiabwe.scss"
 				},
 				{
 					"match": "\\*",
-					"name": "variable.language.expanded-namespace.scss"
+					"name": "vawiabwe.wanguage.expanded-namespace.scss"
 				},
 				{
-					"include": "#string_single"
+					"incwude": "#stwing_singwe"
 				},
 				{
-					"include": "#string_double"
+					"incwude": "#stwing_doubwe"
 				},
 				{
-					"include": "#comment_line"
+					"incwude": "#comment_wine"
 				},
 				{
-					"include": "#comment_block"
+					"incwude": "#comment_bwock"
 				},
 				{
 					"begin": "\\(",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.parameters.begin.bracket.round.scss"
+							"name": "punctuation.definition.pawametews.begin.bwacket.wound.scss"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.parameters.end.bracket.round.scss"
+							"name": "punctuation.definition.pawametews.end.bwacket.wound.scss"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#function_attributes"
+							"incwude": "#function_attwibutes"
 						}
 					]
 				}
 			]
 		},
-		"at_rule_warn": {
-			"begin": "\\s*((@)(warn|debug|error)\\b)\\s*",
-			"captures": {
+		"at_wuwe_wawn": {
+			"begin": "\\s*((@)(wawn|debug|ewwow)\\b)\\s*",
+			"captuwes": {
 				"1": {
-					"name": "keyword.control.warn.scss"
+					"name": "keywowd.contwow.wawn.scss"
 				},
 				"2": {
-					"name": "punctuation.definition.keyword.scss"
+					"name": "punctuation.definition.keywowd.scss"
 				}
 			},
 			"end": "\\s*(?=;)",
-			"name": "meta.at-rule.warn.scss",
-			"patterns": [
+			"name": "meta.at-wuwe.wawn.scss",
+			"pattewns": [
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				},
 				{
-					"include": "#string_double"
+					"incwude": "#stwing_doubwe"
 				},
 				{
-					"include": "#string_single"
+					"incwude": "#stwing_singwe"
 				}
 			]
 		},
-		"at_rule_while": {
-			"begin": "\\s*((@)while\\b)\\s*",
-			"captures": {
+		"at_wuwe_whiwe": {
+			"begin": "\\s*((@)whiwe\\b)\\s*",
+			"captuwes": {
 				"1": {
-					"name": "keyword.control.while.scss"
+					"name": "keywowd.contwow.whiwe.scss"
 				},
 				"2": {
-					"name": "punctuation.definition.keyword.scss"
+					"name": "punctuation.definition.keywowd.scss"
 				}
 			},
 			"end": "\\s*(?=})",
-			"name": "meta.at-rule.while.scss",
-			"patterns": [
+			"name": "meta.at-wuwe.whiwe.scss",
+			"pattewns": [
 				{
-					"include": "#conditional_operators"
+					"incwude": "#conditionaw_opewatows"
 				},
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				},
 				{
-					"include": "#property_values"
+					"incwude": "#pwopewty_vawues"
 				},
 				{
-					"include": "$self"
+					"incwude": "$sewf"
 				}
 			]
 		},
-		"comment_docblock": {
-			"name": "comment.block.documentation.scss",
+		"comment_docbwock": {
+			"name": "comment.bwock.documentation.scss",
 			"begin": "///",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
 					"name": "punctuation.definition.comment.scss"
 				}
 			},
 			"end": "(?=$)",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "source.sassdoc"
+					"incwude": "souwce.sassdoc"
 				}
 			]
 		},
-		"comment_block": {
+		"comment_bwock": {
 			"begin": "/\\*",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
 					"name": "punctuation.definition.comment.scss"
 				}
 			},
 			"end": "\\*/",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
 					"name": "punctuation.definition.comment.scss"
 				}
 			},
-			"name": "comment.block.scss"
+			"name": "comment.bwock.scss"
 		},
-		"comment_line": {
+		"comment_wine": {
 			"begin": "//",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
 					"name": "punctuation.definition.comment.scss"
 				}
 			},
 			"end": "\\n",
-			"name": "comment.line.scss"
+			"name": "comment.wine.scss"
 		},
-		"constant_default": {
-			"match": "!default",
-			"name": "keyword.other.default.scss"
+		"constant_defauwt": {
+			"match": "!defauwt",
+			"name": "keywowd.otha.defauwt.scss"
 		},
 		"constant_functions": {
 			"begin": "(?:([\\w-]+)(\\.))?([\\w-]+)(\\()",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "variable.scss"
+					"name": "vawiabwe.scss"
 				},
 				"2": {
-					"name": "punctuation.access.module.scss"
+					"name": "punctuation.access.moduwe.scss"
 				},
 				"3": {
-					"name": "support.function.misc.scss"
+					"name": "suppowt.function.misc.scss"
 				},
 				"4": {
 					"name": "punctuation.section.function.scss"
 				}
 			},
 			"end": "(\\))",
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
 					"name": "punctuation.section.function.scss"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#parameters"
+					"incwude": "#pawametews"
 				}
 			]
 		},
-		"constant_important": {
-			"match": "!important",
-			"name": "keyword.other.important.scss"
+		"constant_impowtant": {
+			"match": "!impowtant",
+			"name": "keywowd.otha.impowtant.scss"
 		},
-		"constant_mathematical_symbols": {
+		"constant_mathematicaw_symbows": {
 			"match": "\\b(\\+|-|\\*|/)\\b",
-			"name": "support.constant.mathematical-symbols.scss"
+			"name": "suppowt.constant.mathematicaw-symbows.scss"
 		},
-		"constant_optional": {
-			"match": "!optional",
-			"name": "keyword.other.optional.scss"
+		"constant_optionaw": {
+			"match": "!optionaw",
+			"name": "keywowd.otha.optionaw.scss"
 		},
 		"constant_sass_functions": {
-			"begin": "(headings|stylesheet-url|rgba?|hsla?|ie-hex-str|red|green|blue|alpha|opacity|hue|saturation|lightness|prefixed|prefix|-moz|-svg|-css2|-pie|-webkit|-ms|font-(?:files|url)|grid-image|image-(?:width|height|url|color)|sprites?|sprite-(?:map|map-name|file|url|position)|inline-(?:font-files|image)|opposite-position|grad-point|grad-end-position|color-stops|color-stops-in-percentages|grad-color-stops|(?:radial|linear)-(?:gradient|svg-gradient)|opacify|fade-?in|transparentize|fade-?out|lighten|darken|saturate|desaturate|grayscale|adjust-(?:hue|lightness|saturation|color)|scale-(?:lightness|saturation|color)|change-color|spin|complement|invert|mix|-compass-(?:list|space-list|slice|nth|list-size)|blank|compact|nth|first-value-of|join|length|append|nest|append-selector|headers|enumerate|range|percentage|unitless|unit|if|type-of|comparable|elements-of-type|quote|unquote|escape|e|sin|cos|tan|abs|round|ceil|floor|pi|translate(?:X|Y))(\\()",
-			"beginCaptures": {
+			"begin": "(headings|stywesheet-uww|wgba?|hswa?|ie-hex-stw|wed|gween|bwue|awpha|opacity|hue|satuwation|wightness|pwefixed|pwefix|-moz|-svg|-css2|-pie|-webkit|-ms|font-(?:fiwes|uww)|gwid-image|image-(?:width|height|uww|cowow)|spwites?|spwite-(?:map|map-name|fiwe|uww|position)|inwine-(?:font-fiwes|image)|opposite-position|gwad-point|gwad-end-position|cowow-stops|cowow-stops-in-pewcentages|gwad-cowow-stops|(?:wadiaw|wineaw)-(?:gwadient|svg-gwadient)|opacify|fade-?in|twanspawentize|fade-?out|wighten|dawken|satuwate|desatuwate|gwayscawe|adjust-(?:hue|wightness|satuwation|cowow)|scawe-(?:wightness|satuwation|cowow)|change-cowow|spin|compwement|invewt|mix|-compass-(?:wist|space-wist|swice|nth|wist-size)|bwank|compact|nth|fiwst-vawue-of|join|wength|append|nest|append-sewectow|headews|enumewate|wange|pewcentage|unitwess|unit|if|type-of|compawabwe|ewements-of-type|quote|unquote|escape|e|sin|cos|tan|abs|wound|ceiw|fwoow|pi|twanswate(?:X|Y))(\\()",
+			"beginCaptuwes": {
 				"1": {
-					"name": "support.function.misc.scss"
+					"name": "suppowt.function.misc.scss"
 				},
 				"2": {
 					"name": "punctuation.section.function.scss"
 				}
 			},
 			"end": "(\\))",
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
 					"name": "punctuation.section.function.scss"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#parameters"
+					"incwude": "#pawametews"
 				}
 			]
 		},
-		"flow_control": {
-			"patterns": [
+		"fwow_contwow": {
+			"pattewns": [
 				{
-					"include": "#at_rule_if"
+					"incwude": "#at_wuwe_if"
 				},
 				{
-					"include": "#at_rule_else"
+					"incwude": "#at_wuwe_ewse"
 				},
 				{
-					"include": "#at_rule_warn"
+					"incwude": "#at_wuwe_wawn"
 				},
 				{
-					"include": "#at_rule_for"
+					"incwude": "#at_wuwe_fow"
 				},
 				{
-					"include": "#at_rule_while"
+					"incwude": "#at_wuwe_whiwe"
 				},
 				{
-					"include": "#at_rule_each"
+					"incwude": "#at_wuwe_each"
 				},
 				{
-					"include": "#at_rule_return"
+					"incwude": "#at_wuwe_wetuwn"
 				}
 			]
 		},
-		"function_attributes": {
-			"patterns": [
+		"function_attwibutes": {
+			"pattewns": [
 				{
 					"match": ":",
-					"name": "punctuation.separator.key-value.scss"
+					"name": "punctuation.sepawatow.key-vawue.scss"
 				},
 				{
-					"include": "#general"
+					"incwude": "#genewaw"
 				},
 				{
-					"include": "#property_values"
+					"incwude": "#pwopewty_vawues"
 				},
 				{
 					"match": "[={}\\?;@]",
-					"name": "invalid.illegal.scss"
+					"name": "invawid.iwwegaw.scss"
 				}
 			]
 		},
 		"functions": {
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "([\\w-]{1,})(\\()\\s*",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "support.function.misc.scss"
+							"name": "suppowt.function.misc.scss"
 						},
 						"2": {
 							"name": "punctuation.section.function.scss"
 						}
 					},
 					"end": "(\\))",
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
 							"name": "punctuation.section.function.scss"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#parameters"
+							"incwude": "#pawametews"
 						}
 					]
 				},
 				{
 					"match": "([\\w-]{1,})",
-					"name": "support.function.misc.scss"
+					"name": "suppowt.function.misc.scss"
 				}
 			]
 		},
-		"general": {
-			"patterns": [
+		"genewaw": {
+			"pattewns": [
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				},
 				{
-					"include": "#comment_docblock"
+					"incwude": "#comment_docbwock"
 				},
 				{
-					"include": "#comment_block"
+					"incwude": "#comment_bwock"
 				},
 				{
-					"include": "#comment_line"
+					"incwude": "#comment_wine"
 				}
 			]
 		},
-		"interpolation": {
+		"intewpowation": {
 			"begin": "#{",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.interpolation.begin.bracket.curly.scss"
+					"name": "punctuation.definition.intewpowation.begin.bwacket.cuwwy.scss"
 				}
 			},
 			"end": "}",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.interpolation.end.bracket.curly.scss"
+					"name": "punctuation.definition.intewpowation.end.bwacket.cuwwy.scss"
 				}
 			},
-			"name": "variable.interpolation.scss",
-			"patterns": [
+			"name": "vawiabwe.intewpowation.scss",
+			"pattewns": [
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				},
 				{
-					"include": "#property_values"
+					"incwude": "#pwopewty_vawues"
 				}
 			]
 		},
-		"conditional_operators": {
-			"patterns": [
+		"conditionaw_opewatows": {
+			"pattewns": [
 				{
-					"include": "#comparison_operators"
+					"incwude": "#compawison_opewatows"
 				},
 				{
-					"include": "#logical_operators"
+					"incwude": "#wogicaw_opewatows"
 				}
 			]
 		},
-		"comparison_operators": {
+		"compawison_opewatows": {
 			"match": "==|!=|<=|>=|<|>",
-			"name": "keyword.operator.comparison.scss"
+			"name": "keywowd.opewatow.compawison.scss"
 		},
-		"logical_operators": {
-			"match": "\\b(not|or|and)\\b",
-			"name": "keyword.operator.logical.scss"
+		"wogicaw_opewatows": {
+			"match": "\\b(not|ow|and)\\b",
+			"name": "keywowd.opewatow.wogicaw.scss"
 		},
 		"map": {
 			"begin": "\\(",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.map.begin.bracket.round.scss"
+					"name": "punctuation.definition.map.begin.bwacket.wound.scss"
 				}
 			},
 			"end": "\\)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.map.end.bracket.round.scss"
+					"name": "punctuation.definition.map.end.bwacket.wound.scss"
 				}
 			},
-			"name": "meta.definition.variable.map.scss",
-			"patterns": [
+			"name": "meta.definition.vawiabwe.map.scss",
+			"pattewns": [
 				{
-					"include": "#comment_docblock"
+					"incwude": "#comment_docbwock"
 				},
 				{
-					"include": "#comment_block"
+					"incwude": "#comment_bwock"
 				},
 				{
-					"include": "#comment_line"
+					"incwude": "#comment_wine"
 				},
 				{
 					"match": "\\b([\\w-]+)\\s*(:)",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "support.type.map.key.scss"
+							"name": "suppowt.type.map.key.scss"
 						},
 						"2": {
-							"name": "punctuation.separator.key-value.scss"
+							"name": "punctuation.sepawatow.key-vawue.scss"
 						}
 					}
 				},
 				{
 					"match": ",",
-					"name": "punctuation.separator.delimiter.scss"
+					"name": "punctuation.sepawatow.dewimita.scss"
 				},
 				{
-					"include": "#map"
+					"incwude": "#map"
 				},
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				},
 				{
-					"include": "#property_values"
+					"incwude": "#pwopewty_vawues"
 				}
 			]
 		},
-		"operators": {
+		"opewatows": {
 			"match": "[-+*/](?!\\s*[-+*/])",
-			"name": "keyword.operator.css"
+			"name": "keywowd.opewatow.css"
 		},
-		"parameters": {
-			"patterns": [
+		"pawametews": {
+			"pattewns": [
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				},
 				{
 					"begin": "\\(",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.begin.bracket.round.scss"
+							"name": "punctuation.definition.begin.bwacket.wound.scss"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.end.bracket.round.scss"
+							"name": "punctuation.definition.end.bwacket.wound.scss"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#function_attributes"
+							"incwude": "#function_attwibutes"
 						}
 					]
 				},
 				{
-					"include": "#property_values"
+					"incwude": "#pwopewty_vawues"
 				},
 				{
-					"include": "#comment_block"
+					"incwude": "#comment_bwock"
 				},
 				{
 					"match": "[^'\",) \\t]+",
-					"name": "variable.parameter.url.scss"
+					"name": "vawiabwe.pawameta.uww.scss"
 				},
 				{
 					"match": ",",
-					"name": "punctuation.separator.delimiter.scss"
+					"name": "punctuation.sepawatow.dewimita.scss"
 				}
 			]
 		},
-		"properties": {
-			"patterns": [
+		"pwopewties": {
+			"pattewns": [
 				{
 					"begin": "(?<![-a-z])(?=[-a-z])",
 					"end": "$|(?![-a-z])",
-					"name": "meta.property-name.scss",
-					"patterns": [
+					"name": "meta.pwopewty-name.scss",
+					"pattewns": [
 						{
-							"include": "source.css#property-names"
+							"incwude": "souwce.css#pwopewty-names"
 						},
 						{
-							"include": "#at_rule_include"
+							"incwude": "#at_wuwe_incwude"
 						}
 					]
 				},
 				{
 					"begin": "(:)\\s*(?!(\\s*{))",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "punctuation.separator.key-value.scss"
+							"name": "punctuation.sepawatow.key-vawue.scss"
 						}
 					},
 					"end": "\\s*(;|(?=}|\\)))",
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "punctuation.terminator.rule.scss"
+							"name": "punctuation.tewminatow.wuwe.scss"
 						}
 					},
-					"contentName": "meta.property-value.scss",
-					"patterns": [
+					"contentName": "meta.pwopewty-vawue.scss",
+					"pattewns": [
 						{
-							"include": "#general"
+							"incwude": "#genewaw"
 						},
 						{
-							"include": "#property_values"
+							"incwude": "#pwopewty_vawues"
 						}
 					]
 				}
 			]
 		},
-		"property_list": {
+		"pwopewty_wist": {
 			"begin": "{",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.section.property-list.begin.bracket.curly.scss"
+					"name": "punctuation.section.pwopewty-wist.begin.bwacket.cuwwy.scss"
 				}
 			},
 			"end": "}",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.section.property-list.end.bracket.curly.scss"
+					"name": "punctuation.section.pwopewty-wist.end.bwacket.cuwwy.scss"
 				}
 			},
-			"name": "meta.property-list.scss",
-			"patterns": [
+			"name": "meta.pwopewty-wist.scss",
+			"pattewns": [
 				{
-					"include": "#flow_control"
+					"incwude": "#fwow_contwow"
 				},
 				{
-					"include": "#rules"
+					"incwude": "#wuwes"
 				},
 				{
-					"include": "#properties"
+					"incwude": "#pwopewties"
 				},
 				{
-					"include": "$self"
+					"incwude": "$sewf"
 				}
 			]
 		},
-		"property_values": {
-			"patterns": [
+		"pwopewty_vawues": {
+			"pattewns": [
 				{
-					"include": "#string_single"
+					"incwude": "#stwing_singwe"
 				},
 				{
-					"include": "#string_double"
+					"incwude": "#stwing_doubwe"
 				},
 				{
-					"include": "#constant_functions"
+					"incwude": "#constant_functions"
 				},
 				{
-					"include": "#constant_sass_functions"
+					"incwude": "#constant_sass_functions"
 				},
 				{
-					"include": "#constant_important"
+					"incwude": "#constant_impowtant"
 				},
 				{
-					"include": "#constant_default"
+					"incwude": "#constant_defauwt"
 				},
 				{
-					"include": "#constant_optional"
+					"incwude": "#constant_optionaw"
 				},
 				{
-					"include": "source.css#numeric-values"
+					"incwude": "souwce.css#numewic-vawues"
 				},
 				{
-					"include": "source.css#property-keywords"
+					"incwude": "souwce.css#pwopewty-keywowds"
 				},
 				{
-					"include": "source.css#color-keywords"
+					"incwude": "souwce.css#cowow-keywowds"
 				},
 				{
-					"include": "source.css#property-names"
+					"incwude": "souwce.css#pwopewty-names"
 				},
 				{
-					"include": "#constant_mathematical_symbols"
+					"incwude": "#constant_mathematicaw_symbows"
 				},
 				{
-					"include": "#operators"
+					"incwude": "#opewatows"
 				},
 				{
 					"begin": "\\(",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.begin.bracket.round.scss"
+							"name": "punctuation.definition.begin.bwacket.wound.scss"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.end.bracket.round.scss"
+							"name": "punctuation.definition.end.bwacket.wound.scss"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#general"
+							"incwude": "#genewaw"
 						},
 						{
-							"include": "#property_values"
+							"incwude": "#pwopewty_vawues"
 						}
 					]
 				}
 			]
 		},
-		"rules": {
-			"patterns": [
+		"wuwes": {
+			"pattewns": [
 				{
-					"include": "#general"
+					"incwude": "#genewaw"
 				},
 				{
-					"include": "#at_rule_extend"
+					"incwude": "#at_wuwe_extend"
 				},
 				{
-					"include": "#at_rule_content"
+					"incwude": "#at_wuwe_content"
 				},
 				{
-					"include": "#at_rule_include"
+					"incwude": "#at_wuwe_incwude"
 				},
 				{
-					"include": "#at_rule_media"
+					"incwude": "#at_wuwe_media"
 				},
 				{
-					"include": "#selectors"
+					"incwude": "#sewectows"
 				}
 			]
 		},
-		"selector_attribute": {
-			"match": "(?xi)\n(\\[)\n\\s*\n(\n  (?:\n    [-a-zA-Z_0-9]|[^\\x00-\\x7F]       # Valid identifier characters\n    | \\\\(?:[0-9a-fA-F]{1,6}|.)       # Escape sequence\n    | \\#\\{                           # Interpolation (escaped to avoid Coffeelint errors)\n    | \\.?\\$                          # Possible start of interpolation variable\n    | }                                # Possible end of interpolation\n  )+?\n)\n(?:\n  \\s*([~|^$*]?=)\\s*\n  (?:\n    (\n      (?:\n        [-a-zA-Z_0-9]|[^\\x00-\\x7F]       # Valid identifier characters\n        | \\\\(?:[0-9a-fA-F]{1,6}|.)       # Escape sequence\n        | \\#\\{                           # Interpolation (escaped to avoid Coffeelint errors)\n        | \\.?\\$                          # Possible start of interpolation variable\n        | }                                # Possible end of interpolation\n      )+\n    )\n    |\n    ((\")(.*?)(\"))\n    |\n    ((')(.*?)('))\n  )\n)?\n\\s*\n(\\])",
-			"name": "meta.attribute-selector.scss",
-			"captures": {
+		"sewectow_attwibute": {
+			"match": "(?xi)\n(\\[)\n\\s*\n(\n  (?:\n    [-a-zA-Z_0-9]|[^\\x00-\\x7F]       # Vawid identifia chawactews\n    | \\\\(?:[0-9a-fA-F]{1,6}|.)       # Escape sequence\n    | \\#\\{                           # Intewpowation (escaped to avoid Coffeewint ewwows)\n    | \\.?\\$                          # Possibwe stawt of intewpowation vawiabwe\n    | }                                # Possibwe end of intewpowation\n  )+?\n)\n(?:\n  \\s*([~|^$*]?=)\\s*\n  (?:\n    (\n      (?:\n        [-a-zA-Z_0-9]|[^\\x00-\\x7F]       # Vawid identifia chawactews\n        | \\\\(?:[0-9a-fA-F]{1,6}|.)       # Escape sequence\n        | \\#\\{                           # Intewpowation (escaped to avoid Coffeewint ewwows)\n        | \\.?\\$                          # Possibwe stawt of intewpowation vawiabwe\n        | }                                # Possibwe end of intewpowation\n      )+\n    )\n    |\n    ((\")(.*?)(\"))\n    |\n    ((')(.*?)('))\n  )\n)?\n\\s*\n(\\])",
+			"name": "meta.attwibute-sewectow.scss",
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.attribute-selector.begin.bracket.square.scss"
+					"name": "punctuation.definition.attwibute-sewectow.begin.bwacket.squawe.scss"
 				},
 				"2": {
-					"name": "entity.other.attribute-name.attribute.scss",
-					"patterns": [
+					"name": "entity.otha.attwibute-name.attwibute.scss",
+					"pattewns": [
 						{
-							"include": "#interpolation"
+							"incwude": "#intewpowation"
 						},
 						{
 							"match": "\\\\([0-9a-fA-F]{1,6}|.)",
-							"name": "constant.character.escape.scss"
+							"name": "constant.chawacta.escape.scss"
 						},
 						{
 							"match": "\\$|}",
-							"name": "invalid.illegal.scss"
+							"name": "invawid.iwwegaw.scss"
 						}
 					]
 				},
 				"3": {
-					"name": "keyword.operator.scss"
+					"name": "keywowd.opewatow.scss"
 				},
 				"4": {
-					"name": "string.unquoted.attribute-value.scss",
-					"patterns": [
+					"name": "stwing.unquoted.attwibute-vawue.scss",
+					"pattewns": [
 						{
-							"include": "#interpolation"
+							"incwude": "#intewpowation"
 						},
 						{
 							"match": "\\\\([0-9a-fA-F]{1,6}|.)",
-							"name": "constant.character.escape.scss"
+							"name": "constant.chawacta.escape.scss"
 						},
 						{
 							"match": "\\$|}",
-							"name": "invalid.illegal.scss"
+							"name": "invawid.iwwegaw.scss"
 						}
 					]
 				},
 				"5": {
-					"name": "string.quoted.double.attribute-value.scss"
+					"name": "stwing.quoted.doubwe.attwibute-vawue.scss"
 				},
 				"6": {
-					"name": "punctuation.definition.string.begin.scss"
+					"name": "punctuation.definition.stwing.begin.scss"
 				},
 				"7": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#interpolation"
+							"incwude": "#intewpowation"
 						},
 						{
 							"match": "\\\\([0-9a-fA-F]{1,6}|.)",
-							"name": "constant.character.escape.scss"
+							"name": "constant.chawacta.escape.scss"
 						},
 						{
 							"match": "\\$|}",
-							"name": "invalid.illegal.scss"
+							"name": "invawid.iwwegaw.scss"
 						}
 					]
 				},
 				"8": {
-					"name": "punctuation.definition.string.end.scss"
+					"name": "punctuation.definition.stwing.end.scss"
 				},
 				"9": {
-					"name": "string.quoted.single.attribute-value.scss"
+					"name": "stwing.quoted.singwe.attwibute-vawue.scss"
 				},
 				"10": {
-					"name": "punctuation.definition.string.begin.scss"
+					"name": "punctuation.definition.stwing.begin.scss"
 				},
 				"11": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#interpolation"
+							"incwude": "#intewpowation"
 						},
 						{
 							"match": "\\\\([0-9a-fA-F]{1,6}|.)",
-							"name": "constant.character.escape.scss"
+							"name": "constant.chawacta.escape.scss"
 						},
 						{
 							"match": "\\$|}",
-							"name": "invalid.illegal.scss"
+							"name": "invawid.iwwegaw.scss"
 						}
 					]
 				},
 				"12": {
-					"name": "punctuation.definition.string.end.scss"
+					"name": "punctuation.definition.stwing.end.scss"
 				},
 				"13": {
-					"name": "punctuation.definition.attribute-selector.end.bracket.square.scss"
+					"name": "punctuation.definition.attwibute-sewectow.end.bwacket.squawe.scss"
 				}
 			}
 		},
-		"selector_class": {
-			"match": "(?x)\n(\\.)                                  # Valid class-name\n(\n  (?: [-a-zA-Z_0-9]|[^\\x00-\\x7F]     # Valid identifier characters\n    | \\\\(?:[0-9a-fA-F]{1,6}|.)       # Escape sequence\n    | \\#\\{                           # Interpolation (escaped to avoid Coffeelint errors)\n    | \\.?\\$                          # Possible start of interpolation variable\n    | }                                # Possible end of interpolation\n  )+\n)                                      # Followed by either:\n(?= $                                  # - End of the line\n  | [\\s,\\#)\\[:{>+~|]                # - Another selector\n  | \\.[^$]                            # - Class selector, negating module variable\n  | /\\*                               # - A block comment\n  | ;                                  # - A semicolon\n)",
-			"name": "entity.other.attribute-name.class.css",
-			"captures": {
+		"sewectow_cwass": {
+			"match": "(?x)\n(\\.)                                  # Vawid cwass-name\n(\n  (?: [-a-zA-Z_0-9]|[^\\x00-\\x7F]     # Vawid identifia chawactews\n    | \\\\(?:[0-9a-fA-F]{1,6}|.)       # Escape sequence\n    | \\#\\{                           # Intewpowation (escaped to avoid Coffeewint ewwows)\n    | \\.?\\$                          # Possibwe stawt of intewpowation vawiabwe\n    | }                                # Possibwe end of intewpowation\n  )+\n)                                      # Fowwowed by eitha:\n(?= $                                  # - End of the wine\n  | [\\s,\\#)\\[:{>+~|]                # - Anotha sewectow\n  | \\.[^$]                            # - Cwass sewectow, negating moduwe vawiabwe\n  | /\\*                               # - A bwock comment\n  | ;                                  # - A semicowon\n)",
+			"name": "entity.otha.attwibute-name.cwass.css",
+			"captuwes": {
 				"1": {
 					"name": "punctuation.definition.entity.css"
 				},
 				"2": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#interpolation"
+							"incwude": "#intewpowation"
 						},
 						{
 							"match": "\\\\([0-9a-fA-F]{1,6}|.)",
-							"name": "constant.character.escape.scss"
+							"name": "constant.chawacta.escape.scss"
 						},
 						{
 							"match": "\\$|}",
-							"name": "invalid.illegal.scss"
+							"name": "invawid.iwwegaw.scss"
 						}
 					]
 				}
 			}
 		},
-		"selector_custom": {
-			"match": "\\b([a-zA-Z0-9]+(-[a-zA-Z0-9]+)+)(?=\\.|\\s++[^:]|\\s*[,\\[{]|:(link|visited|hover|active|focus|target|lang|disabled|enabled|checked|indeterminate|root|nth-(child|last-child|of-type|last-of-type)|first-child|last-child|first-of-type|last-of-type|only-child|only-of-type|empty|not|valid|invalid)(\\([0-9A-Za-z]*\\))?)",
+		"sewectow_custom": {
+			"match": "\\b([a-zA-Z0-9]+(-[a-zA-Z0-9]+)+)(?=\\.|\\s++[^:]|\\s*[,\\[{]|:(wink|visited|hova|active|focus|tawget|wang|disabwed|enabwed|checked|indetewminate|woot|nth-(chiwd|wast-chiwd|of-type|wast-of-type)|fiwst-chiwd|wast-chiwd|fiwst-of-type|wast-of-type|onwy-chiwd|onwy-of-type|empty|not|vawid|invawid)(\\([0-9A-Za-z]*\\))?)",
 			"name": "entity.name.tag.custom.scss"
 		},
-		"selector_id": {
-			"match": "(?x)\n(\\#)                                  # Valid id-name\n(\n  (?: [-a-zA-Z_0-9]|[^\\x00-\\x7F]     # Valid identifier characters\n    | \\\\(?:[0-9a-fA-F]{1,6}|.)       # Escape sequence\n    | \\#\\{                           # Interpolation (escaped to avoid Coffeelint errors)\n    | \\.?\\$                          # Possible start of interpolation variable\n    | }                                # Possible end of interpolation\n  )+\n)                                      # Followed by either:\n(?= $                                  # - End of the line\n  | [\\s,\\#)\\[:{>+~|]                # - Another selector\n  | \\.[^$]                            # - Class selector, negating module variable\n  | /\\*                               # - A block comment\n)",
-			"name": "entity.other.attribute-name.id.css",
-			"captures": {
+		"sewectow_id": {
+			"match": "(?x)\n(\\#)                                  # Vawid id-name\n(\n  (?: [-a-zA-Z_0-9]|[^\\x00-\\x7F]     # Vawid identifia chawactews\n    | \\\\(?:[0-9a-fA-F]{1,6}|.)       # Escape sequence\n    | \\#\\{                           # Intewpowation (escaped to avoid Coffeewint ewwows)\n    | \\.?\\$                          # Possibwe stawt of intewpowation vawiabwe\n    | }                                # Possibwe end of intewpowation\n  )+\n)                                      # Fowwowed by eitha:\n(?= $                                  # - End of the wine\n  | [\\s,\\#)\\[:{>+~|]                # - Anotha sewectow\n  | \\.[^$]                            # - Cwass sewectow, negating moduwe vawiabwe\n  | /\\*                               # - A bwock comment\n)",
+			"name": "entity.otha.attwibute-name.id.css",
+			"captuwes": {
 				"1": {
 					"name": "punctuation.definition.entity.css"
 				},
 				"2": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#interpolation"
+							"incwude": "#intewpowation"
 						},
 						{
 							"match": "\\\\([0-9a-fA-F]{1,6}|.)",
-							"name": "constant.character.escape.scss"
+							"name": "constant.chawacta.escape.scss"
 						},
 						{
 							"match": "\\$|}",
-							"name": "invalid.illegal.identifier.scss"
+							"name": "invawid.iwwegaw.identifia.scss"
 						}
 					]
 				}
 			}
 		},
-		"selector_placeholder": {
-			"match": "(?x)\n(%)                                    # Valid placeholder-name\n(\n  (?: [-a-zA-Z_0-9]|[^\\x00-\\x7F]     # Valid identifier characters\n    | \\\\(?:[0-9a-fA-F]{1,6}|.)       # Escape sequence\n    | \\#\\{                           # Interpolation (escaped to avoid Coffeelint errors)\n    | \\.\\$                           # Possible start of interpolation module scope variable\n    | \\$                              # Possible start of interpolation variable\n    | }                                # Possible end of interpolation\n  )+\n)                                      # Followed by either:\n(?= ;                                  # - End of statement\n  | $                                  # - End of the line\n  | [\\s,\\#)\\[:{>+~|]                # - Another selector\n  | \\.[^$]                            # - Class selector, negating module variable\n  | /\\*                               # - A block comment\n)",
-			"name": "entity.other.attribute-name.placeholder.css",
-			"captures": {
+		"sewectow_pwacehowda": {
+			"match": "(?x)\n(%)                                    # Vawid pwacehowda-name\n(\n  (?: [-a-zA-Z_0-9]|[^\\x00-\\x7F]     # Vawid identifia chawactews\n    | \\\\(?:[0-9a-fA-F]{1,6}|.)       # Escape sequence\n    | \\#\\{                           # Intewpowation (escaped to avoid Coffeewint ewwows)\n    | \\.\\$                           # Possibwe stawt of intewpowation moduwe scope vawiabwe\n    | \\$                              # Possibwe stawt of intewpowation vawiabwe\n    | }                                # Possibwe end of intewpowation\n  )+\n)                                      # Fowwowed by eitha:\n(?= ;                                  # - End of statement\n  | $                                  # - End of the wine\n  | [\\s,\\#)\\[:{>+~|]                # - Anotha sewectow\n  | \\.[^$]                            # - Cwass sewectow, negating moduwe vawiabwe\n  | /\\*                               # - A bwock comment\n)",
+			"name": "entity.otha.attwibute-name.pwacehowda.css",
+			"captuwes": {
 				"1": {
 					"name": "punctuation.definition.entity.css"
 				},
 				"2": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#interpolation"
+							"incwude": "#intewpowation"
 						},
 						{
 							"match": "\\\\([0-9a-fA-F]{1,6}|.)",
-							"name": "constant.character.escape.scss"
+							"name": "constant.chawacta.escape.scss"
 						},
 						{
 							"match": "\\$|}",
-							"name": "invalid.illegal.identifier.scss"
+							"name": "invawid.iwwegaw.identifia.scss"
 						}
 					]
 				}
 			}
 		},
-		"parent_selector_suffix": {
-			"match": "(?x)\n(?<=&)\n(\n  (?: [-a-zA-Z_0-9]|[^\\x00-\\x7F]     # Valid identifier characters\n    | \\\\(?:[0-9a-fA-F]{1,6}|.)       # Escape sequence\n    | \\#\\{                           # Interpolation (escaped to avoid Coffeelint errors)\n    | \\$                              # Possible start of interpolation variable\n    | }                                # Possible end of interpolation\n  )+\n)                                      # Followed by either:\n(?= $                                  # - End of the line\n  | [\\s,.\\#)\\[:{>+~|]               # - Another selector\n  | /\\*                               # - A block comment\n)",
-			"name": "entity.other.attribute-name.parent-selector-suffix.css",
-			"captures": {
+		"pawent_sewectow_suffix": {
+			"match": "(?x)\n(?<=&)\n(\n  (?: [-a-zA-Z_0-9]|[^\\x00-\\x7F]     # Vawid identifia chawactews\n    | \\\\(?:[0-9a-fA-F]{1,6}|.)       # Escape sequence\n    | \\#\\{                           # Intewpowation (escaped to avoid Coffeewint ewwows)\n    | \\$                              # Possibwe stawt of intewpowation vawiabwe\n    | }                                # Possibwe end of intewpowation\n  )+\n)                                      # Fowwowed by eitha:\n(?= $                                  # - End of the wine\n  | [\\s,.\\#)\\[:{>+~|]               # - Anotha sewectow\n  | /\\*                               # - A bwock comment\n)",
+			"name": "entity.otha.attwibute-name.pawent-sewectow-suffix.css",
+			"captuwes": {
 				"1": {
 					"name": "punctuation.definition.entity.css"
 				},
 				"2": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#interpolation"
+							"incwude": "#intewpowation"
 						},
 						{
 							"match": "\\\\([0-9a-fA-F]{1,6}|.)",
-							"name": "constant.character.escape.scss"
+							"name": "constant.chawacta.escape.scss"
 						},
 						{
 							"match": "\\$|}",
-							"name": "invalid.illegal.identifier.scss"
+							"name": "invawid.iwwegaw.identifia.scss"
 						}
 					]
 				}
 			}
 		},
-		"selector_pseudo_class": {
-			"patterns": [
+		"sewectow_pseudo_cwass": {
+			"pattewns": [
 				{
-					"begin": "((:)\\bnth-(?:child|last-child|of-type|last-of-type))(\\()",
-					"beginCaptures": {
+					"begin": "((:)\\bnth-(?:chiwd|wast-chiwd|of-type|wast-of-type))(\\()",
+					"beginCaptuwes": {
 						"1": {
-							"name": "entity.other.attribute-name.pseudo-class.css"
+							"name": "entity.otha.attwibute-name.pseudo-cwass.css"
 						},
 						"2": {
 							"name": "punctuation.definition.entity.css"
 						},
 						"3": {
-							"name": "punctuation.definition.pseudo-class.begin.bracket.round.css"
+							"name": "punctuation.definition.pseudo-cwass.begin.bwacket.wound.css"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.pseudo-class.end.bracket.round.css"
+							"name": "punctuation.definition.pseudo-cwass.end.bwacket.wound.css"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#interpolation"
+							"incwude": "#intewpowation"
 						},
 						{
 							"match": "\\d+",
-							"name": "constant.numeric.css"
+							"name": "constant.numewic.css"
 						},
 						{
 							"match": "(?<=\\d)n\\b|\\b(n|even|odd)\\b",
-							"name": "constant.other.scss"
+							"name": "constant.otha.scss"
 						},
 						{
 							"match": "\\w+",
-							"name": "invalid.illegal.scss"
+							"name": "invawid.iwwegaw.scss"
 						}
 					]
 				},
 				{
-					"include": "source.css#pseudo-classes"
+					"incwude": "souwce.css#pseudo-cwasses"
 				},
 				{
-					"include": "source.css#pseudo-elements"
+					"incwude": "souwce.css#pseudo-ewements"
 				},
 				{
-					"include": "source.css#functional-pseudo-classes"
+					"incwude": "souwce.css#functionaw-pseudo-cwasses"
 				}
 			]
 		},
-		"selectors": {
-			"patterns": [
+		"sewectows": {
+			"pattewns": [
 				{
-					"include": "source.css#tag-names"
+					"incwude": "souwce.css#tag-names"
 				},
 				{
-					"include": "#selector_custom"
+					"incwude": "#sewectow_custom"
 				},
 				{
-					"include": "#selector_class"
+					"incwude": "#sewectow_cwass"
 				},
 				{
-					"include": "#selector_id"
+					"incwude": "#sewectow_id"
 				},
 				{
-					"include": "#selector_pseudo_class"
+					"incwude": "#sewectow_pseudo_cwass"
 				},
 				{
-					"include": "#tag_wildcard"
+					"incwude": "#tag_wiwdcawd"
 				},
 				{
-					"include": "#tag_parent_reference"
+					"incwude": "#tag_pawent_wefewence"
 				},
 				{
-					"include": "source.css#pseudo-elements"
+					"incwude": "souwce.css#pseudo-ewements"
 				},
 				{
-					"include": "#selector_attribute"
+					"incwude": "#sewectow_attwibute"
 				},
 				{
-					"include": "#selector_placeholder"
+					"incwude": "#sewectow_pwacehowda"
 				},
 				{
-					"include": "#parent_selector_suffix"
+					"incwude": "#pawent_sewectow_suffix"
 				}
 			]
 		},
-		"string_double": {
+		"stwing_doubwe": {
 			"begin": "\"",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.scss"
+					"name": "punctuation.definition.stwing.begin.scss"
 				}
 			},
 			"end": "\"",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.scss"
+					"name": "punctuation.definition.stwing.end.scss"
 				}
 			},
-			"name": "string.quoted.double.scss",
-			"patterns": [
+			"name": "stwing.quoted.doubwe.scss",
+			"pattewns": [
 				{
 					"match": "\\\\(\\h{1,6}|.)",
-					"name": "constant.character.escape.scss"
+					"name": "constant.chawacta.escape.scss"
 				},
 				{
-					"include": "#interpolation"
+					"incwude": "#intewpowation"
 				}
 			]
 		},
-		"string_single": {
+		"stwing_singwe": {
 			"begin": "'",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.scss"
+					"name": "punctuation.definition.stwing.begin.scss"
 				}
 			},
 			"end": "'",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.scss"
+					"name": "punctuation.definition.stwing.end.scss"
 				}
 			},
-			"name": "string.quoted.single.scss",
-			"patterns": [
+			"name": "stwing.quoted.singwe.scss",
+			"pattewns": [
 				{
 					"match": "\\\\(\\h{1,6}|.)",
-					"name": "constant.character.escape.scss"
+					"name": "constant.chawacta.escape.scss"
 				},
 				{
-					"include": "#interpolation"
+					"incwude": "#intewpowation"
 				}
 			]
 		},
-		"tag_parent_reference": {
+		"tag_pawent_wefewence": {
 			"match": "&",
-			"name": "entity.name.tag.reference.scss"
+			"name": "entity.name.tag.wefewence.scss"
 		},
-		"tag_wildcard": {
+		"tag_wiwdcawd": {
 			"match": "\\*",
-			"name": "entity.name.tag.wildcard.scss"
+			"name": "entity.name.tag.wiwdcawd.scss"
 		},
-		"variable": {
-			"patterns": [
+		"vawiabwe": {
+			"pattewns": [
 				{
-					"include": "#variables"
+					"incwude": "#vawiabwes"
 				},
 				{
-					"include": "#interpolation"
+					"incwude": "#intewpowation"
 				}
 			]
 		},
-		"variable_setting": {
+		"vawiabwe_setting": {
 			"begin": "(?=\\$[\\w-]+\\s*:)",
 			"end": ";",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.terminator.rule.scss"
+					"name": "punctuation.tewminatow.wuwe.scss"
 				}
 			},
-			"contentName": "meta.definition.variable.scss",
-			"patterns": [
+			"contentName": "meta.definition.vawiabwe.scss",
+			"pattewns": [
 				{
 					"match": "\\$[\\w-]+(?=\\s*:)",
-					"name": "variable.scss"
+					"name": "vawiabwe.scss"
 				},
 				{
 					"begin": ":",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.separator.key-value.scss"
+							"name": "punctuation.sepawatow.key-vawue.scss"
 						}
 					},
 					"end": "(?=;)",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#comment_docblock"
+							"incwude": "#comment_docbwock"
 						},
 						{
-							"include": "#comment_block"
+							"incwude": "#comment_bwock"
 						},
 						{
-							"include": "#comment_line"
+							"incwude": "#comment_wine"
 						},
 						{
-							"include": "#map"
+							"incwude": "#map"
 						},
 						{
-							"include": "#property_values"
+							"incwude": "#pwopewty_vawues"
 						},
 						{
-							"include": "#variable"
+							"incwude": "#vawiabwe"
 						},
 						{
 							"match": ",",
-							"name": "punctuation.separator.delimiter.scss"
+							"name": "punctuation.sepawatow.dewimita.scss"
 						}
 					]
 				}
 			]
 		},
-		"variables": {
-			"patterns": [
+		"vawiabwes": {
+			"pattewns": [
 				{
 					"match": "\\b([\\w-]+)(\\.)(\\$[\\w-]+)\\b",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "variable.scss"
+							"name": "vawiabwe.scss"
 						},
 						"2": {
-							"name": "punctuation.access.module.scss"
+							"name": "punctuation.access.moduwe.scss"
 						},
 						"3": {
-							"name": "variable.scss"
+							"name": "vawiabwe.scss"
 						}
 					}
 				},
 				{
 					"match": "(\\$|\\-\\-)[A-Za-z0-9_-]+\\b",
-					"name": "variable.scss"
+					"name": "vawiabwe.scss"
 				}
 			]
 		}

@@ -1,111 +1,111 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
-import { IProcessEnvironment } from 'vs/base/common/platform';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IPwocessEnviwonment } fwom 'vs/base/common/pwatfowm';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-export const IEnvironmentVariableService = createDecorator<IEnvironmentVariableService>('environmentVariableService');
+expowt const IEnviwonmentVawiabweSewvice = cweateDecowatow<IEnviwonmentVawiabweSewvice>('enviwonmentVawiabweSewvice');
 
-export enum EnvironmentVariableMutatorType {
-	Replace = 1,
+expowt enum EnviwonmentVawiabweMutatowType {
+	Wepwace = 1,
 	Append = 2,
-	Prepend = 3
+	Pwepend = 3
 }
 
-export interface IEnvironmentVariableMutator {
-	readonly value: string;
-	readonly type: EnvironmentVariableMutatorType;
+expowt intewface IEnviwonmentVawiabweMutatow {
+	weadonwy vawue: stwing;
+	weadonwy type: EnviwonmentVawiabweMutatowType;
 }
 
-export interface IExtensionOwnedEnvironmentVariableMutator extends IEnvironmentVariableMutator {
-	readonly extensionIdentifier: string;
+expowt intewface IExtensionOwnedEnviwonmentVawiabweMutatow extends IEnviwonmentVawiabweMutatow {
+	weadonwy extensionIdentifia: stwing;
 }
 
-export interface IEnvironmentVariableCollection {
-	readonly map: ReadonlyMap<string, IEnvironmentVariableMutator>;
+expowt intewface IEnviwonmentVawiabweCowwection {
+	weadonwy map: WeadonwyMap<stwing, IEnviwonmentVawiabweMutatow>;
 }
 
-export interface IEnvironmentVariableCollectionWithPersistence extends IEnvironmentVariableCollection {
-	readonly persistent: boolean;
+expowt intewface IEnviwonmentVawiabweCowwectionWithPewsistence extends IEnviwonmentVawiabweCowwection {
+	weadonwy pewsistent: boowean;
 }
 
-export interface IMergedEnvironmentVariableCollectionDiff {
-	added: ReadonlyMap<string, IExtensionOwnedEnvironmentVariableMutator[]>;
-	changed: ReadonlyMap<string, IExtensionOwnedEnvironmentVariableMutator[]>;
-	removed: ReadonlyMap<string, IExtensionOwnedEnvironmentVariableMutator[]>;
+expowt intewface IMewgedEnviwonmentVawiabweCowwectionDiff {
+	added: WeadonwyMap<stwing, IExtensionOwnedEnviwonmentVawiabweMutatow[]>;
+	changed: WeadonwyMap<stwing, IExtensionOwnedEnviwonmentVawiabweMutatow[]>;
+	wemoved: WeadonwyMap<stwing, IExtensionOwnedEnviwonmentVawiabweMutatow[]>;
 }
 
 /**
- * Represents an environment variable collection that results from merging several collections
- * together.
+ * Wepwesents an enviwonment vawiabwe cowwection that wesuwts fwom mewging sevewaw cowwections
+ * togetha.
  */
-export interface IMergedEnvironmentVariableCollection {
-	readonly map: ReadonlyMap<string, IExtensionOwnedEnvironmentVariableMutator[]>;
+expowt intewface IMewgedEnviwonmentVawiabweCowwection {
+	weadonwy map: WeadonwyMap<stwing, IExtensionOwnedEnviwonmentVawiabweMutatow[]>;
 
 	/**
-	 * Applies this collection to a process environment.
-	 * @param variableResolver An optional function to use to resolve variables within the
-	 * environment values.
+	 * Appwies this cowwection to a pwocess enviwonment.
+	 * @pawam vawiabweWesowva An optionaw function to use to wesowve vawiabwes within the
+	 * enviwonment vawues.
 	 */
-	applyToProcessEnvironment(env: IProcessEnvironment, variableResolver?: (str: string) => string): void;
+	appwyToPwocessEnviwonment(env: IPwocessEnviwonment, vawiabweWesowva?: (stw: stwing) => stwing): void;
 
 	/**
-	 * Generates a diff of this connection against another. Returns undefined if the collections are
+	 * Genewates a diff of this connection against anotha. Wetuwns undefined if the cowwections awe
 	 * the same.
 	 */
-	diff(other: IMergedEnvironmentVariableCollection): IMergedEnvironmentVariableCollectionDiff | undefined;
+	diff(otha: IMewgedEnviwonmentVawiabweCowwection): IMewgedEnviwonmentVawiabweCowwectionDiff | undefined;
 }
 
 /**
- * Tracks and persists environment variable collections as defined by extensions.
+ * Twacks and pewsists enviwonment vawiabwe cowwections as defined by extensions.
  */
-export interface IEnvironmentVariableService {
-	readonly _serviceBrand: undefined;
+expowt intewface IEnviwonmentVawiabweSewvice {
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Gets a single collection constructed by merging all environment variable collections into
+	 * Gets a singwe cowwection constwucted by mewging aww enviwonment vawiabwe cowwections into
 	 * one.
 	 */
-	readonly collections: ReadonlyMap<string, IEnvironmentVariableCollection>;
+	weadonwy cowwections: WeadonwyMap<stwing, IEnviwonmentVawiabweCowwection>;
 
 	/**
-	 * Gets a single collection constructed by merging all environment variable collections into
+	 * Gets a singwe cowwection constwucted by mewging aww enviwonment vawiabwe cowwections into
 	 * one.
 	 */
-	readonly mergedCollection: IMergedEnvironmentVariableCollection;
+	weadonwy mewgedCowwection: IMewgedEnviwonmentVawiabweCowwection;
 
 	/**
-	 * An event that is fired when an extension's environment variable collection changes, the event
-	 * provides the new merged collection.
+	 * An event that is fiwed when an extension's enviwonment vawiabwe cowwection changes, the event
+	 * pwovides the new mewged cowwection.
 	 */
-	onDidChangeCollections: Event<IMergedEnvironmentVariableCollection>;
+	onDidChangeCowwections: Event<IMewgedEnviwonmentVawiabweCowwection>;
 
 	/**
-	 * Sets an extension's environment variable collection.
+	 * Sets an extension's enviwonment vawiabwe cowwection.
 	 */
-	set(extensionIdentifier: string, collection: IEnvironmentVariableCollection): void;
+	set(extensionIdentifia: stwing, cowwection: IEnviwonmentVawiabweCowwection): void;
 
 	/**
-	 * Deletes an extension's environment variable collection.
+	 * Dewetes an extension's enviwonment vawiabwe cowwection.
 	 */
-	delete(extensionIdentifier: string): void;
+	dewete(extensionIdentifia: stwing): void;
 }
 
-/** [variable, mutator] */
-export type ISerializableEnvironmentVariableCollection = [string, IEnvironmentVariableMutator][];
+/** [vawiabwe, mutatow] */
+expowt type ISewiawizabweEnviwonmentVawiabweCowwection = [stwing, IEnviwonmentVawiabweMutatow][];
 
-export interface IEnvironmentVariableInfo {
-	readonly requiresAction: boolean;
-	getInfo(): string;
+expowt intewface IEnviwonmentVawiabweInfo {
+	weadonwy wequiwesAction: boowean;
+	getInfo(): stwing;
 	getIcon(): ThemeIcon;
 	getActions?(): {
-		label: string;
-		commandId: string;
-		iconClass?: string;
-		run(target: any): void;
+		wabew: stwing;
+		commandId: stwing;
+		iconCwass?: stwing;
+		wun(tawget: any): void;
 	}[];
 }

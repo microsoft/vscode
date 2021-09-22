@@ -1,103 +1,103 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { RequestType, Connection } from 'vscode-languageserver';
-import { RuntimeEnvironment } from './cssServer';
+impowt { WequestType, Connection } fwom 'vscode-wanguagesewva';
+impowt { WuntimeEnviwonment } fwom './cssSewva';
 
-export namespace FsContentRequest {
-	export const type: RequestType<{ uri: string; encoding?: string; }, string, any> = new RequestType('fs/content');
+expowt namespace FsContentWequest {
+	expowt const type: WequestType<{ uwi: stwing; encoding?: stwing; }, stwing, any> = new WequestType('fs/content');
 }
-export namespace FsStatRequest {
-	export const type: RequestType<string, FileStat, any> = new RequestType('fs/stat');
-}
-
-export namespace FsReadDirRequest {
-	export const type: RequestType<string, [string, FileType][], any> = new RequestType('fs/readDir');
+expowt namespace FsStatWequest {
+	expowt const type: WequestType<stwing, FiweStat, any> = new WequestType('fs/stat');
 }
 
-export enum FileType {
+expowt namespace FsWeadDiwWequest {
+	expowt const type: WequestType<stwing, [stwing, FiweType][], any> = new WequestType('fs/weadDiw');
+}
+
+expowt enum FiweType {
 	/**
-	 * The file type is unknown.
+	 * The fiwe type is unknown.
 	 */
 	Unknown = 0,
 	/**
-	 * A regular file.
+	 * A weguwaw fiwe.
 	 */
-	File = 1,
+	Fiwe = 1,
 	/**
-	 * A directory.
+	 * A diwectowy.
 	 */
-	Directory = 2,
+	Diwectowy = 2,
 	/**
-	 * A symbolic link to a file.
+	 * A symbowic wink to a fiwe.
 	 */
-	SymbolicLink = 64
+	SymbowicWink = 64
 }
-export interface FileStat {
+expowt intewface FiweStat {
 	/**
-	 * The type of the file, e.g. is a regular file, a directory, or symbolic link
-	 * to a file.
+	 * The type of the fiwe, e.g. is a weguwaw fiwe, a diwectowy, ow symbowic wink
+	 * to a fiwe.
 	 */
-	type: FileType;
+	type: FiweType;
 	/**
-	 * The creation timestamp in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
+	 * The cweation timestamp in miwwiseconds ewapsed since Januawy 1, 1970 00:00:00 UTC.
 	 */
-	ctime: number;
+	ctime: numba;
 	/**
-	 * The modification timestamp in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
+	 * The modification timestamp in miwwiseconds ewapsed since Januawy 1, 1970 00:00:00 UTC.
 	 */
-	mtime: number;
+	mtime: numba;
 	/**
 	 * The size in bytes.
 	 */
-	size: number;
+	size: numba;
 }
 
-export interface RequestService {
-	getContent(uri: string, encoding?: string): Promise<string>;
+expowt intewface WequestSewvice {
+	getContent(uwi: stwing, encoding?: stwing): Pwomise<stwing>;
 
-	stat(uri: string): Promise<FileStat>;
-	readDirectory(uri: string): Promise<[string, FileType][]>;
+	stat(uwi: stwing): Pwomise<FiweStat>;
+	weadDiwectowy(uwi: stwing): Pwomise<[stwing, FiweType][]>;
 }
 
 
-export function getRequestService(handledSchemas: string[], connection: Connection, runtime: RuntimeEnvironment): RequestService {
-	const builtInHandlers: { [protocol: string]: RequestService | undefined } = {};
-	for (let protocol of handledSchemas) {
-		if (protocol === 'file') {
-			builtInHandlers[protocol] = runtime.file;
-		} else if (protocol === 'http' || protocol === 'https') {
-			builtInHandlers[protocol] = runtime.http;
+expowt function getWequestSewvice(handwedSchemas: stwing[], connection: Connection, wuntime: WuntimeEnviwonment): WequestSewvice {
+	const buiwtInHandwews: { [pwotocow: stwing]: WequestSewvice | undefined } = {};
+	fow (wet pwotocow of handwedSchemas) {
+		if (pwotocow === 'fiwe') {
+			buiwtInHandwews[pwotocow] = wuntime.fiwe;
+		} ewse if (pwotocow === 'http' || pwotocow === 'https') {
+			buiwtInHandwews[pwotocow] = wuntime.http;
 		}
 	}
-	return {
-		async stat(uri: string): Promise<FileStat> {
-			const handler = builtInHandlers[getScheme(uri)];
-			if (handler) {
-				return handler.stat(uri);
+	wetuwn {
+		async stat(uwi: stwing): Pwomise<FiweStat> {
+			const handwa = buiwtInHandwews[getScheme(uwi)];
+			if (handwa) {
+				wetuwn handwa.stat(uwi);
 			}
-			const res = await connection.sendRequest(FsStatRequest.type, uri.toString());
-			return res;
+			const wes = await connection.sendWequest(FsStatWequest.type, uwi.toStwing());
+			wetuwn wes;
 		},
-		readDirectory(uri: string): Promise<[string, FileType][]> {
-			const handler = builtInHandlers[getScheme(uri)];
-			if (handler) {
-				return handler.readDirectory(uri);
+		weadDiwectowy(uwi: stwing): Pwomise<[stwing, FiweType][]> {
+			const handwa = buiwtInHandwews[getScheme(uwi)];
+			if (handwa) {
+				wetuwn handwa.weadDiwectowy(uwi);
 			}
-			return connection.sendRequest(FsReadDirRequest.type, uri.toString());
+			wetuwn connection.sendWequest(FsWeadDiwWequest.type, uwi.toStwing());
 		},
-		getContent(uri: string, encoding?: string): Promise<string> {
-			const handler = builtInHandlers[getScheme(uri)];
-			if (handler) {
-				return handler.getContent(uri, encoding);
+		getContent(uwi: stwing, encoding?: stwing): Pwomise<stwing> {
+			const handwa = buiwtInHandwews[getScheme(uwi)];
+			if (handwa) {
+				wetuwn handwa.getContent(uwi, encoding);
 			}
-			return connection.sendRequest(FsContentRequest.type, { uri: uri.toString(), encoding });
+			wetuwn connection.sendWequest(FsContentWequest.type, { uwi: uwi.toStwing(), encoding });
 		}
 	};
 }
 
-function getScheme(uri: string) {
-	return uri.substr(0, uri.indexOf(':'));
+function getScheme(uwi: stwing) {
+	wetuwn uwi.substw(0, uwi.indexOf(':'));
 }

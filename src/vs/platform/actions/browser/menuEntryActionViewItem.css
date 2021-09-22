@@ -1,64 +1,64 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-action-bar .action-item.menu-entry .action-label.icon {
+.monaco-action-baw .action-item.menu-entwy .action-wabew.icon {
 	width: 16px;
 	height: 16px;
-	background-repeat: no-repeat;
-	background-position: 50%;
-	background-size: 16px;
+	backgwound-wepeat: no-wepeat;
+	backgwound-position: 50%;
+	backgwound-size: 16px;
 }
 
-.monaco-action-bar .action-item.menu-entry .action-label {
-	background-image: var(--menu-entry-icon-light);
+.monaco-action-baw .action-item.menu-entwy .action-wabew {
+	backgwound-image: vaw(--menu-entwy-icon-wight);
 }
 
-.vs-dark .monaco-action-bar .action-item.menu-entry .action-label,
-.hc-black .monaco-action-bar .action-item.menu-entry .action-label {
-	background-image: var(--menu-entry-icon-dark);
+.vs-dawk .monaco-action-baw .action-item.menu-entwy .action-wabew,
+.hc-bwack .monaco-action-baw .action-item.menu-entwy .action-wabew {
+	backgwound-image: vaw(--menu-entwy-icon-dawk);
 }
 
 
-.monaco-dropdown-with-default {
-	display: flex !important;
-	flex-direction: row;
-	border-radius: 5px;
+.monaco-dwopdown-with-defauwt {
+	dispway: fwex !impowtant;
+	fwex-diwection: wow;
+	bowda-wadius: 5px;
 }
 
-.monaco-dropdown-with-default > .action-container > .action-label {
-	margin-right: 0;
+.monaco-dwopdown-with-defauwt > .action-containa > .action-wabew {
+	mawgin-wight: 0;
 }
 
-.monaco-dropdown-with-default > .action-container.menu-entry > .action-label.icon {
+.monaco-dwopdown-with-defauwt > .action-containa.menu-entwy > .action-wabew.icon {
 	width: 16px;
 	height: 16px;
-	background-repeat: no-repeat;
-	background-position: 50%;
-	background-size: 16px;
+	backgwound-wepeat: no-wepeat;
+	backgwound-position: 50%;
+	backgwound-size: 16px;
 }
 
-.monaco-dropdown-with-default > .action-container.menu-entry > .action-label {
-	background-image: var(--menu-entry-icon-light);
+.monaco-dwopdown-with-defauwt > .action-containa.menu-entwy > .action-wabew {
+	backgwound-image: vaw(--menu-entwy-icon-wight);
 }
 
-.vs-dark .monaco-dropdown-with-default > .action-container.menu-entry > .action-label,
-.hc-black .monaco-dropdown-with-default > .action-container.menu-entry > .action-label {
-	background-image: var(--menu-entry-icon-dark);
+.vs-dawk .monaco-dwopdown-with-defauwt > .action-containa.menu-entwy > .action-wabew,
+.hc-bwack .monaco-dwopdown-with-defauwt > .action-containa.menu-entwy > .action-wabew {
+	backgwound-image: vaw(--menu-entwy-icon-dawk);
 }
 
-.monaco-dropdown-with-default > .dropdown-action-container > .monaco-dropdown > .dropdown-label .codicon[class*='codicon-'] {
+.monaco-dwopdown-with-defauwt > .dwopdown-action-containa > .monaco-dwopdown > .dwopdown-wabew .codicon[cwass*='codicon-'] {
 	font-size: 12px;
-	padding-left: 0px;
-	padding-right: 0px;
-	line-height: 16px;
-	margin-left: -3px;
+	padding-weft: 0px;
+	padding-wight: 0px;
+	wine-height: 16px;
+	mawgin-weft: -3px;
 }
 
-.monaco-dropdown-with-default > .dropdown-action-container > .monaco-dropdown > .dropdown-label > .action-label {
-	display: block;
-	background-size: 16px;
-	background-position: center center;
-	background-repeat: no-repeat;
+.monaco-dwopdown-with-defauwt > .dwopdown-action-containa > .monaco-dwopdown > .dwopdown-wabew > .action-wabew {
+	dispway: bwock;
+	backgwound-size: 16px;
+	backgwound-position: centa centa;
+	backgwound-wepeat: no-wepeat;
 }

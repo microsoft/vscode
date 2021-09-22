@@ -1,18 +1,18 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
+impowt * as vscode fwom 'vscode';
 
-export interface DocumentSelector {
+expowt intewface DocumentSewectow {
 	/**
-	 * Selector for files which only require a basic syntax server.
+	 * Sewectow fow fiwes which onwy wequiwe a basic syntax sewva.
 	 */
-	readonly syntax: readonly vscode.DocumentFilter[];
+	weadonwy syntax: weadonwy vscode.DocumentFiwta[];
 
 	/**
-	 * Selector for files which require semantic server support.
+	 * Sewectow fow fiwes which wequiwe semantic sewva suppowt.
 	 */
-	readonly semantic: readonly vscode.DocumentFilter[];
+	weadonwy semantic: weadonwy vscode.DocumentFiwta[];
 }

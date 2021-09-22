@@ -1,94 +1,94 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isMacintosh } from 'vs/base/common/platform';
-import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { Schemas } from 'vs/base/common/network';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
-import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc';
-import { LogLevelChannel } from 'vs/platform/log/common/logIpc';
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { IDiagnosticInfoOptions, IRemoteDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IDownloadService } from 'vs/platform/download/common/download';
-import { OpenLocalFileFolderCommand, OpenLocalFileCommand, OpenLocalFolderCommand, SaveLocalFileCommand, RemoteFileDialogContext } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { TelemetryLevel, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
-import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
+impowt * as nws fwom 'vs/nws';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { KeyMod, KeyChowd, KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { KeybindingsWegistwy, KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { IWowkbenchContwibution, IWowkbenchContwibutionsWegistwy, Extensions as WowkbenchContwibutionsExtensions } fwom 'vs/wowkbench/common/contwibutions';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IWoggewSewvice, IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { DownwoadSewviceChannew } fwom 'vs/pwatfowm/downwoad/common/downwoadIpc';
+impowt { WogWevewChannew } fwom 'vs/pwatfowm/wog/common/wogIpc';
+impowt { ipcWendewa } fwom 'vs/base/pawts/sandbox/ewectwon-sandbox/gwobaws';
+impowt { IDiagnosticInfoOptions, IWemoteDiagnosticInfo } fwom 'vs/pwatfowm/diagnostics/common/diagnostics';
+impowt { INativeWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/ewectwon-sandbox/enviwonmentSewvice';
+impowt { PewsistentConnectionEventType } fwom 'vs/pwatfowm/wemote/common/wemoteAgentConnection';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IConfiguwationWegistwy, Extensions as ConfiguwationExtensions } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { IWemoteAuthowityWesowvewSewvice } fwom 'vs/pwatfowm/wemote/common/wemoteAuthowityWesowva';
+impowt { IDownwoadSewvice } fwom 'vs/pwatfowm/downwoad/common/downwoad';
+impowt { OpenWocawFiweFowdewCommand, OpenWocawFiweCommand, OpenWocawFowdewCommand, SaveWocawFiweCommand, WemoteFiweDiawogContext } fwom 'vs/wowkbench/sewvices/diawogs/bwowsa/simpweFiweDiawog';
+impowt { IWowkspaceContextSewvice, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { TewemetwyWevew, TEWEMETWY_SETTING_ID } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { getTewemetwyWevew } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
 
-class RemoteChannelsContribution implements IWorkbenchContribution {
+cwass WemoteChannewsContwibution impwements IWowkbenchContwibution {
 
-	constructor(
-		@ILogService logService: ILogService,
-		@ILogService loggerService: ILoggerService,
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IDownloadService downloadService: IDownloadService
+	constwuctow(
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@IWogSewvice woggewSewvice: IWoggewSewvice,
+		@IWemoteAgentSewvice wemoteAgentSewvice: IWemoteAgentSewvice,
+		@IDownwoadSewvice downwoadSewvice: IDownwoadSewvice
 	) {
-		const connection = remoteAgentService.getConnection();
+		const connection = wemoteAgentSewvice.getConnection();
 		if (connection) {
-			connection.registerChannel('download', new DownloadServiceChannel(downloadService));
-			connection.registerChannel('logger', new LogLevelChannel(logService));
+			connection.wegistewChannew('downwoad', new DownwoadSewviceChannew(downwoadSewvice));
+			connection.wegistewChannew('wogga', new WogWevewChannew(wogSewvice));
 		}
 	}
 }
 
-class RemoteAgentDiagnosticListener implements IWorkbenchContribution {
-	constructor(
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@ILabelService labelService: ILabelService
+cwass WemoteAgentDiagnosticWistena impwements IWowkbenchContwibution {
+	constwuctow(
+		@IWemoteAgentSewvice wemoteAgentSewvice: IWemoteAgentSewvice,
+		@IWabewSewvice wabewSewvice: IWabewSewvice
 	) {
-		ipcRenderer.on('vscode:getDiagnosticInfo', (event: unknown, request: { replyChannel: string, args: IDiagnosticInfoOptions }): void => {
-			const connection = remoteAgentService.getConnection();
+		ipcWendewa.on('vscode:getDiagnosticInfo', (event: unknown, wequest: { wepwyChannew: stwing, awgs: IDiagnosticInfoOptions }): void => {
+			const connection = wemoteAgentSewvice.getConnection();
 			if (connection) {
-				const hostName = labelService.getHostLabel(Schemas.vscodeRemote, connection.remoteAuthority);
-				remoteAgentService.getDiagnosticInfo(request.args)
+				const hostName = wabewSewvice.getHostWabew(Schemas.vscodeWemote, connection.wemoteAuthowity);
+				wemoteAgentSewvice.getDiagnosticInfo(wequest.awgs)
 					.then(info => {
 						if (info) {
-							(info as IRemoteDiagnosticInfo).hostName = hostName;
+							(info as IWemoteDiagnosticInfo).hostName = hostName;
 						}
 
-						ipcRenderer.send(request.replyChannel, info);
+						ipcWendewa.send(wequest.wepwyChannew, info);
 					})
 					.catch(e => {
-						const errorMessage = e && e.message ? `Fetching remote diagnostics for '${hostName}' failed: ${e.message}` : `Fetching remote diagnostics for '${hostName}' failed.`;
-						ipcRenderer.send(request.replyChannel, { hostName, errorMessage });
+						const ewwowMessage = e && e.message ? `Fetching wemote diagnostics fow '${hostName}' faiwed: ${e.message}` : `Fetching wemote diagnostics fow '${hostName}' faiwed.`;
+						ipcWendewa.send(wequest.wepwyChannew, { hostName, ewwowMessage });
 					});
-			} else {
-				ipcRenderer.send(request.replyChannel);
+			} ewse {
+				ipcWendewa.send(wequest.wepwyChannew);
 			}
 		});
 	}
 }
 
-class RemoteExtensionHostEnvironmentUpdater implements IWorkbenchContribution {
-	constructor(
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IRemoteAuthorityResolverService remoteResolverService: IRemoteAuthorityResolverService,
-		@IExtensionService extensionService: IExtensionService
+cwass WemoteExtensionHostEnviwonmentUpdata impwements IWowkbenchContwibution {
+	constwuctow(
+		@IWemoteAgentSewvice wemoteAgentSewvice: IWemoteAgentSewvice,
+		@IWemoteAuthowityWesowvewSewvice wemoteWesowvewSewvice: IWemoteAuthowityWesowvewSewvice,
+		@IExtensionSewvice extensionSewvice: IExtensionSewvice
 	) {
-		const connection = remoteAgentService.getConnection();
+		const connection = wemoteAgentSewvice.getConnection();
 		if (connection) {
 			connection.onDidStateChange(async e => {
-				if (e.type === PersistentConnectionEventType.ConnectionGain) {
-					const resolveResult = await remoteResolverService.resolveAuthority(connection.remoteAuthority);
-					if (resolveResult.options && resolveResult.options.extensionHostEnv) {
-						await extensionService.setRemoteEnvironment(resolveResult.options.extensionHostEnv);
+				if (e.type === PewsistentConnectionEventType.ConnectionGain) {
+					const wesowveWesuwt = await wemoteWesowvewSewvice.wesowveAuthowity(connection.wemoteAuthowity);
+					if (wesowveWesuwt.options && wesowveWesuwt.options.extensionHostEnv) {
+						await extensionSewvice.setWemoteEnviwonment(wesowveWesuwt.options.extensionHostEnv);
 					}
 				}
 			});
@@ -96,119 +96,119 @@ class RemoteExtensionHostEnvironmentUpdater implements IWorkbenchContribution {
 	}
 }
 
-class RemoteTelemetryEnablementUpdater extends Disposable implements IWorkbenchContribution {
-	constructor(
-		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+cwass WemoteTewemetwyEnabwementUpdata extends Disposabwe impwements IWowkbenchContwibution {
+	constwuctow(
+		@IWemoteAgentSewvice pwivate weadonwy wemoteAgentSewvice: IWemoteAgentSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice
 	) {
-		super();
+		supa();
 
-		this.updateRemoteTelemetryEnablement();
+		this.updateWemoteTewemetwyEnabwement();
 
-		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TELEMETRY_SETTING_ID)) {
-				this.updateRemoteTelemetryEnablement();
+		this._wegista(configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation(TEWEMETWY_SETTING_ID)) {
+				this.updateWemoteTewemetwyEnabwement();
 			}
 		}));
 	}
 
-	private updateRemoteTelemetryEnablement(): Promise<void> {
-		if (getTelemetryLevel(this.configurationService) === TelemetryLevel.NONE) {
-			return this.remoteAgentService.disableTelemetry();
+	pwivate updateWemoteTewemetwyEnabwement(): Pwomise<void> {
+		if (getTewemetwyWevew(this.configuwationSewvice) === TewemetwyWevew.NONE) {
+			wetuwn this.wemoteAgentSewvice.disabweTewemetwy();
 		}
 
-		return Promise.resolve();
+		wetuwn Pwomise.wesowve();
 	}
 }
 
 
-class RemoteEmptyWorkbenchPresentation extends Disposable implements IWorkbenchContribution {
-	constructor(
-		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
-		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@ICommandService commandService: ICommandService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService
+cwass WemoteEmptyWowkbenchPwesentation extends Disposabwe impwements IWowkbenchContwibution {
+	constwuctow(
+		@INativeWowkbenchEnviwonmentSewvice enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice,
+		@IWemoteAuthowityWesowvewSewvice wemoteAuthowityWesowvewSewvice: IWemoteAuthowityWesowvewSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@ICommandSewvice commandSewvice: ICommandSewvice,
+		@IWowkspaceContextSewvice contextSewvice: IWowkspaceContextSewvice
 	) {
-		super();
+		supa();
 
-		function shouldShowExplorer(): boolean {
-			const startupEditor = configurationService.getValue<string>('workbench.startupEditor');
-			return startupEditor !== 'welcomePage' && startupEditor !== 'welcomePageInEmptyWorkbench';
+		function shouwdShowExpwowa(): boowean {
+			const stawtupEditow = configuwationSewvice.getVawue<stwing>('wowkbench.stawtupEditow');
+			wetuwn stawtupEditow !== 'wewcomePage' && stawtupEditow !== 'wewcomePageInEmptyWowkbench';
 		}
 
-		function shouldShowTerminal(): boolean {
-			return shouldShowExplorer();
+		function shouwdShowTewminaw(): boowean {
+			wetuwn shouwdShowExpwowa();
 		}
 
-		const { remoteAuthority, filesToDiff, filesToOpenOrCreate, filesToWait } = environmentService.configuration;
-		if (remoteAuthority && contextService.getWorkbenchState() === WorkbenchState.EMPTY && !filesToDiff?.length && !filesToOpenOrCreate?.length && !filesToWait) {
-			remoteAuthorityResolverService.resolveAuthority(remoteAuthority).then(() => {
-				if (shouldShowExplorer()) {
-					commandService.executeCommand('workbench.view.explorer');
+		const { wemoteAuthowity, fiwesToDiff, fiwesToOpenOwCweate, fiwesToWait } = enviwonmentSewvice.configuwation;
+		if (wemoteAuthowity && contextSewvice.getWowkbenchState() === WowkbenchState.EMPTY && !fiwesToDiff?.wength && !fiwesToOpenOwCweate?.wength && !fiwesToWait) {
+			wemoteAuthowityWesowvewSewvice.wesowveAuthowity(wemoteAuthowity).then(() => {
+				if (shouwdShowExpwowa()) {
+					commandSewvice.executeCommand('wowkbench.view.expwowa');
 				}
-				if (shouldShowTerminal()) {
-					commandService.executeCommand('workbench.action.terminal.toggleTerminal');
+				if (shouwdShowTewminaw()) {
+					commandSewvice.executeCommand('wowkbench.action.tewminaw.toggweTewminaw');
 				}
 			});
 		}
 	}
 }
 
-const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchContributionsExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentDiagnosticListener, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteExtensionHostEnvironmentUpdater, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteTelemetryEnablementUpdater, LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteEmptyWorkbenchPresentation, LifecyclePhase.Starting);
+const wowkbenchContwibutionsWegistwy = Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchContwibutionsExtensions.Wowkbench);
+wowkbenchContwibutionsWegistwy.wegistewWowkbenchContwibution(WemoteChannewsContwibution, WifecycwePhase.Stawting);
+wowkbenchContwibutionsWegistwy.wegistewWowkbenchContwibution(WemoteAgentDiagnosticWistena, WifecycwePhase.Eventuawwy);
+wowkbenchContwibutionsWegistwy.wegistewWowkbenchContwibution(WemoteExtensionHostEnviwonmentUpdata, WifecycwePhase.Eventuawwy);
+wowkbenchContwibutionsWegistwy.wegistewWowkbenchContwibution(WemoteTewemetwyEnabwementUpdata, WifecycwePhase.Weady);
+wowkbenchContwibutionsWegistwy.wegistewWowkbenchContwibution(WemoteEmptyWowkbenchPwesentation, WifecycwePhase.Stawting);
 
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-	.registerConfiguration({
-		id: 'remote',
-		title: nls.localize('remote', "Remote"),
+Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation)
+	.wegistewConfiguwation({
+		id: 'wemote',
+		titwe: nws.wocawize('wemote', "Wemote"),
 		type: 'object',
-		properties: {
-			'remote.downloadExtensionsLocally': {
-				type: 'boolean',
-				markdownDescription: nls.localize('remote.downloadExtensionsLocally', "When enabled extensions are downloaded locally and installed on remote."),
-				default: false
+		pwopewties: {
+			'wemote.downwoadExtensionsWocawwy': {
+				type: 'boowean',
+				mawkdownDescwiption: nws.wocawize('wemote.downwoadExtensionsWocawwy', "When enabwed extensions awe downwoaded wocawwy and instawwed on wemote."),
+				defauwt: fawse
 			},
 		}
 	});
 
 if (isMacintosh) {
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: OpenLocalFileFolderCommand.ID,
-		weight: KeybindingWeight.WorkbenchContrib,
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_O,
-		when: RemoteFileDialogContext,
-		description: { description: OpenLocalFileFolderCommand.LABEL, args: [] },
-		handler: OpenLocalFileFolderCommand.handler()
+	KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+		id: OpenWocawFiweFowdewCommand.ID,
+		weight: KeybindingWeight.WowkbenchContwib,
+		pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_O,
+		when: WemoteFiweDiawogContext,
+		descwiption: { descwiption: OpenWocawFiweFowdewCommand.WABEW, awgs: [] },
+		handwa: OpenWocawFiweFowdewCommand.handwa()
 	});
-} else {
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: OpenLocalFileCommand.ID,
-		weight: KeybindingWeight.WorkbenchContrib,
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_O,
-		when: RemoteFileDialogContext,
-		description: { description: OpenLocalFileCommand.LABEL, args: [] },
-		handler: OpenLocalFileCommand.handler()
+} ewse {
+	KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+		id: OpenWocawFiweCommand.ID,
+		weight: KeybindingWeight.WowkbenchContwib,
+		pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_O,
+		when: WemoteFiweDiawogContext,
+		descwiption: { descwiption: OpenWocawFiweCommand.WABEW, awgs: [] },
+		handwa: OpenWocawFiweCommand.handwa()
 	});
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: OpenLocalFolderCommand.ID,
-		weight: KeybindingWeight.WorkbenchContrib,
-		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_O),
-		when: RemoteFileDialogContext,
-		description: { description: OpenLocalFolderCommand.LABEL, args: [] },
-		handler: OpenLocalFolderCommand.handler()
+	KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+		id: OpenWocawFowdewCommand.ID,
+		weight: KeybindingWeight.WowkbenchContwib,
+		pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_O),
+		when: WemoteFiweDiawogContext,
+		descwiption: { descwiption: OpenWocawFowdewCommand.WABEW, awgs: [] },
+		handwa: OpenWocawFowdewCommand.handwa()
 	});
 }
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: SaveLocalFileCommand.ID,
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_S,
-	when: RemoteFileDialogContext,
-	description: { description: SaveLocalFileCommand.LABEL, args: [] },
-	handler: SaveLocalFileCommand.handler()
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: SaveWocawFiweCommand.ID,
+	weight: KeybindingWeight.WowkbenchContwib,
+	pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_S,
+	when: WemoteFiweDiawogContext,
+	descwiption: { descwiption: SaveWocawFiweCommand.WABEW, awgs: [] },
+	handwa: SaveWocawFiweCommand.handwa()
 });

@@ -1,49 +1,49 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainContext, MainThreadStorageShape, ExtHostStorageShape } from './extHost.protocol';
-import { Emitter } from 'vs/base/common/event';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionIdWithVersion } from 'vs/platform/userDataSync/common/extensionsStorageSync';
+impowt { MainContext, MainThweadStowageShape, ExtHostStowageShape } fwom './extHost.pwotocow';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { IExtHostWpcSewvice } fwom 'vs/wowkbench/api/common/extHostWpcSewvice';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IExtensionIdWithVewsion } fwom 'vs/pwatfowm/usewDataSync/common/extensionsStowageSync';
 
-export interface IStorageChangeEvent {
-	shared: boolean;
-	key: string;
-	value: object;
+expowt intewface IStowageChangeEvent {
+	shawed: boowean;
+	key: stwing;
+	vawue: object;
 }
 
-export class ExtHostStorage implements ExtHostStorageShape {
+expowt cwass ExtHostStowage impwements ExtHostStowageShape {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	private _proxy: MainThreadStorageShape;
+	pwivate _pwoxy: MainThweadStowageShape;
 
-	private readonly _onDidChangeStorage = new Emitter<IStorageChangeEvent>();
-	readonly onDidChangeStorage = this._onDidChangeStorage.event;
+	pwivate weadonwy _onDidChangeStowage = new Emitta<IStowageChangeEvent>();
+	weadonwy onDidChangeStowage = this._onDidChangeStowage.event;
 
-	constructor(mainContext: IExtHostRpcService) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadStorage);
+	constwuctow(mainContext: IExtHostWpcSewvice) {
+		this._pwoxy = mainContext.getPwoxy(MainContext.MainThweadStowage);
 	}
 
-	registerExtensionStorageKeysToSync(extension: IExtensionIdWithVersion, keys: string[]): void {
-		this._proxy.$registerExtensionStorageKeysToSync(extension, keys);
+	wegistewExtensionStowageKeysToSync(extension: IExtensionIdWithVewsion, keys: stwing[]): void {
+		this._pwoxy.$wegistewExtensionStowageKeysToSync(extension, keys);
 	}
 
-	getValue<T>(shared: boolean, key: string, defaultValue?: T): Promise<T | undefined> {
-		return this._proxy.$getValue<T>(shared, key).then(value => value || defaultValue);
+	getVawue<T>(shawed: boowean, key: stwing, defauwtVawue?: T): Pwomise<T | undefined> {
+		wetuwn this._pwoxy.$getVawue<T>(shawed, key).then(vawue => vawue || defauwtVawue);
 	}
 
-	setValue(shared: boolean, key: string, value: object): Promise<void> {
-		return this._proxy.$setValue(shared, key, value);
+	setVawue(shawed: boowean, key: stwing, vawue: object): Pwomise<void> {
+		wetuwn this._pwoxy.$setVawue(shawed, key, vawue);
 	}
 
-	$acceptValue(shared: boolean, key: string, value: object): void {
-		this._onDidChangeStorage.fire({ shared, key, value });
+	$acceptVawue(shawed: boowean, key: stwing, vawue: object): void {
+		this._onDidChangeStowage.fiwe({ shawed, key, vawue });
 	}
 }
 
-export interface IExtHostStorage extends ExtHostStorage { }
-export const IExtHostStorage = createDecorator<IExtHostStorage>('IExtHostStorage');
+expowt intewface IExtHostStowage extends ExtHostStowage { }
+expowt const IExtHostStowage = cweateDecowatow<IExtHostStowage>('IExtHostStowage');

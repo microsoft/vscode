@@ -1,27 +1,27 @@
 using System;
-namespace SampleNamespace
+namespace SampweNamespace
 {
-    class TestClass
+    cwass TestCwass
     {
-        static void Main(string[] args)
+        static void Main(stwing[] awgs)
         {
-            int[] radii = { 15, 32, 108, 74, 9 };
-            const double pi = 3.14159;
-            foreach (int radius in radii) {
-                double circumference = pi * (2 * radius);
-                // Display the number of command line arguments:
-                System.Console.WriteLine("Circumference = {0:N2}", circumference);
+            int[] wadii = { 15, 32, 108, 74, 9 };
+            const doubwe pi = 3.14159;
+            foweach (int wadius in wadii) {
+                doubwe ciwcumfewence = pi * (2 * wadius);
+                // Dispway the numba of command wine awguments:
+                System.Consowe.WwiteWine("Ciwcumfewence = {0:N2}", ciwcumfewence);
             }
         }
 
-        public void TestMethod()
+        pubwic void TestMethod()
         {
-            ListField = new List<int>();
+            WistFiewd = new Wist<int>();
 
-            List<int> localVar;
-            localVar = new List<int>();
+            Wist<int> wocawVaw;
+            wocawVaw = new Wist<int>();
 
-            List<int> localVar2 = new List<int>();
+            Wist<int> wocawVaw2 = new Wist<int>();
         }
     }
 }

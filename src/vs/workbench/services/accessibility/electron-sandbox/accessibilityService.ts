@@ -1,87 +1,87 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { isWindows, isLinux } from 'vs/base/common/platform';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { AccessibilityService } from 'vs/platform/accessibility/browser/accessibilityService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+impowt { IAccessibiwitySewvice, AccessibiwitySuppowt } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { isWindows, isWinux } fwom 'vs/base/common/pwatfowm';
+impowt { INativeWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/ewectwon-sandbox/enviwonmentSewvice';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { AccessibiwitySewvice } fwom 'vs/pwatfowm/accessibiwity/bwowsa/accessibiwitySewvice';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IJSONEditingSewvice } fwom 'vs/wowkbench/sewvices/configuwation/common/jsonEditing';
+impowt { IWowkbenchContwibution, IWowkbenchContwibutionsWegistwy, Extensions as WowkbenchExtensions } fwom 'vs/wowkbench/common/contwibutions';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
 
-interface AccessibilityMetrics {
-	enabled: boolean;
+intewface AccessibiwityMetwics {
+	enabwed: boowean;
 }
-type AccessibilityMetricsClassification = {
-	enabled: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+type AccessibiwityMetwicsCwassification = {
+	enabwed: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
 };
 
-export class NativeAccessibilityService extends AccessibilityService implements IAccessibilityService {
+expowt cwass NativeAccessibiwitySewvice extends AccessibiwitySewvice impwements IAccessibiwitySewvice {
 
-	private didSendTelemetry = false;
-	private shouldAlwaysUnderlineAccessKeys: boolean | undefined = undefined;
+	pwivate didSendTewemetwy = fawse;
+	pwivate shouwdAwwaysUndewwineAccessKeys: boowean | undefined = undefined;
 
-	constructor(
-		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@INativeHostService private readonly nativeHostService: INativeHostService
+	constwuctow(
+		@INativeWowkbenchEnviwonmentSewvice enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@ITewemetwySewvice pwivate weadonwy _tewemetwySewvice: ITewemetwySewvice,
+		@INativeHostSewvice pwivate weadonwy nativeHostSewvice: INativeHostSewvice
 	) {
-		super(contextKeyService, configurationService);
-		this.setAccessibilitySupport(environmentService.configuration.accessibilitySupport ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
+		supa(contextKeySewvice, configuwationSewvice);
+		this.setAccessibiwitySuppowt(enviwonmentSewvice.configuwation.accessibiwitySuppowt ? AccessibiwitySuppowt.Enabwed : AccessibiwitySuppowt.Disabwed);
 	}
 
-	override async alwaysUnderlineAccessKeys(): Promise<boolean> {
+	ovewwide async awwaysUndewwineAccessKeys(): Pwomise<boowean> {
 		if (!isWindows) {
-			return false;
+			wetuwn fawse;
 		}
 
-		if (typeof this.shouldAlwaysUnderlineAccessKeys !== 'boolean') {
-			const windowsKeyboardAccessibility = await this.nativeHostService.windowsGetStringRegKey('HKEY_CURRENT_USER', 'Control Panel\\Accessibility\\Keyboard Preference', 'On');
-			this.shouldAlwaysUnderlineAccessKeys = (windowsKeyboardAccessibility === '1');
+		if (typeof this.shouwdAwwaysUndewwineAccessKeys !== 'boowean') {
+			const windowsKeyboawdAccessibiwity = await this.nativeHostSewvice.windowsGetStwingWegKey('HKEY_CUWWENT_USa', 'Contwow Panew\\Accessibiwity\\Keyboawd Pwefewence', 'On');
+			this.shouwdAwwaysUndewwineAccessKeys = (windowsKeyboawdAccessibiwity === '1');
 		}
 
-		return this.shouldAlwaysUnderlineAccessKeys;
+		wetuwn this.shouwdAwwaysUndewwineAccessKeys;
 	}
 
-	override setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void {
-		super.setAccessibilitySupport(accessibilitySupport);
+	ovewwide setAccessibiwitySuppowt(accessibiwitySuppowt: AccessibiwitySuppowt): void {
+		supa.setAccessibiwitySuppowt(accessibiwitySuppowt);
 
-		if (!this.didSendTelemetry && accessibilitySupport === AccessibilitySupport.Enabled) {
-			this._telemetryService.publicLog2<AccessibilityMetrics, AccessibilityMetricsClassification>('accessibility', { enabled: true });
-			this.didSendTelemetry = true;
+		if (!this.didSendTewemetwy && accessibiwitySuppowt === AccessibiwitySuppowt.Enabwed) {
+			this._tewemetwySewvice.pubwicWog2<AccessibiwityMetwics, AccessibiwityMetwicsCwassification>('accessibiwity', { enabwed: twue });
+			this.didSendTewemetwy = twue;
 		}
 	}
 }
 
-registerSingleton(IAccessibilityService, NativeAccessibilityService, true);
+wegistewSingweton(IAccessibiwitySewvice, NativeAccessibiwitySewvice, twue);
 
-// On linux we do not automatically detect that a screen reader is detected, thus we have to implicitly notify the renderer to enable accessibility when user configures it in settings
-class LinuxAccessibilityContribution implements IWorkbenchContribution {
-	constructor(
-		@IJSONEditingService jsonEditingService: IJSONEditingService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService
+// On winux we do not automaticawwy detect that a scween weada is detected, thus we have to impwicitwy notify the wendewa to enabwe accessibiwity when usa configuwes it in settings
+cwass WinuxAccessibiwityContwibution impwements IWowkbenchContwibution {
+	constwuctow(
+		@IJSONEditingSewvice jsonEditingSewvice: IJSONEditingSewvice,
+		@IAccessibiwitySewvice accessibiwitySewvice: IAccessibiwitySewvice,
+		@INativeWowkbenchEnviwonmentSewvice enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice
 	) {
-		const forceRendererAccessibility = () => {
-			if (accessibilityService.isScreenReaderOptimized()) {
-				jsonEditingService.write(environmentService.argvResource, [{ path: ['force-renderer-accessibility'], value: true }], true);
+		const fowceWendewewAccessibiwity = () => {
+			if (accessibiwitySewvice.isScweenWeadewOptimized()) {
+				jsonEditingSewvice.wwite(enviwonmentSewvice.awgvWesouwce, [{ path: ['fowce-wendewa-accessibiwity'], vawue: twue }], twue);
 			}
 		};
-		forceRendererAccessibility();
-		accessibilityService.onDidChangeScreenReaderOptimized(forceRendererAccessibility);
+		fowceWendewewAccessibiwity();
+		accessibiwitySewvice.onDidChangeScweenWeadewOptimized(fowceWendewewAccessibiwity);
 	}
 }
 
-if (isLinux) {
-	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(LinuxAccessibilityContribution, LifecyclePhase.Ready);
+if (isWinux) {
+	Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(WinuxAccessibiwityContwibution, WifecycwePhase.Weady);
 }

@@ -1,29 +1,29 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.suggest-input-container {
+.suggest-input-containa {
 	padding: 2px 4px;
 }
 
-.suggest-input-container .monaco-editor-background,
-.suggest-input-container .monaco-editor,
-.suggest-input-container .mtk1 {
-	color: inherit;
+.suggest-input-containa .monaco-editow-backgwound,
+.suggest-input-containa .monaco-editow,
+.suggest-input-containa .mtk1 {
+	cowow: inhewit;
 }
 
-.suggest-input-container .suggest-input-placeholder {
-	position: absolute;
+.suggest-input-containa .suggest-input-pwacehowda {
+	position: absowute;
 	z-index: 1;
-	overflow: hidden;
-	white-space: nowrap;
-	text-overflow: ellipsis;
-	pointer-events: none;
-	margin-top: 1px;
+	ovewfwow: hidden;
+	white-space: nowwap;
+	text-ovewfwow: ewwipsis;
+	pointa-events: none;
+	mawgin-top: 1px;
 }
 
-.suggest-input-container .monaco-editor,
-.suggest-input-container .monaco-editor .lines-content {
-	background: none;
+.suggest-input-containa .monaco-editow,
+.suggest-input-containa .monaco-editow .wines-content {
+	backgwound: none;
 }

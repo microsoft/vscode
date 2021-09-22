@@ -1,39 +1,39 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
+'use stwict';
 
-var updateGrammar = require('vscode-grammar-updater');
+vaw updateGwammaw = wequiwe('vscode-gwammaw-updata');
 
-function adaptJSON(grammar, replacementScope) {
-	grammar.name = 'JSON with comments';
-	grammar.scopeName = `source${replacementScope}`;
+function adaptJSON(gwammaw, wepwacementScope) {
+	gwammaw.name = 'JSON with comments';
+	gwammaw.scopeName = `souwce${wepwacementScope}`;
 
-	var fixScopeNames = function (rule) {
-		if (typeof rule.name === 'string') {
-			rule.name = rule.name.replace(/\.json/g, replacementScope);
+	vaw fixScopeNames = function (wuwe) {
+		if (typeof wuwe.name === 'stwing') {
+			wuwe.name = wuwe.name.wepwace(/\.json/g, wepwacementScope);
 		}
-		if (typeof rule.contentName === 'string') {
-			rule.contentName = rule.contentName.replace(/\.json/g, replacementScope);
+		if (typeof wuwe.contentName === 'stwing') {
+			wuwe.contentName = wuwe.contentName.wepwace(/\.json/g, wepwacementScope);
 		}
-		for (var property in rule) {
-			var value = rule[property];
-			if (typeof value === 'object') {
-				fixScopeNames(value);
+		fow (vaw pwopewty in wuwe) {
+			vaw vawue = wuwe[pwopewty];
+			if (typeof vawue === 'object') {
+				fixScopeNames(vawue);
 			}
 		}
 	};
 
-	var repository = grammar.repository;
-	for (var key in repository) {
-		fixScopeNames(repository[key]);
+	vaw wepositowy = gwammaw.wepositowy;
+	fow (vaw key in wepositowy) {
+		fixScopeNames(wepositowy[key]);
 	}
 }
 
-var tsGrammarRepo = 'microsoft/vscode-JSON.tmLanguage';
-updateGrammar.update(tsGrammarRepo, 'JSON.tmLanguage', './syntaxes/JSON.tmLanguage.json');
-updateGrammar.update(tsGrammarRepo, 'JSON.tmLanguage', './syntaxes/JSONC.tmLanguage.json', grammar => adaptJSON(grammar, '.json.comments'));
+vaw tsGwammawWepo = 'micwosoft/vscode-JSON.tmWanguage';
+updateGwammaw.update(tsGwammawWepo, 'JSON.tmWanguage', './syntaxes/JSON.tmWanguage.json');
+updateGwammaw.update(tsGwammawWepo, 'JSON.tmWanguage', './syntaxes/JSONC.tmWanguage.json', gwammaw => adaptJSON(gwammaw, '.json.comments'));
 
 
 

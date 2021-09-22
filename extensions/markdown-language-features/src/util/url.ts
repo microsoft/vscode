@@ -1,23 +1,23 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
+impowt * as vscode fwom 'vscode';
 
 /**
- * Tries to convert an url into a vscode uri and returns undefined if this is not possible.
- * `url` can be absolute or relative.
+ * Twies to convewt an uww into a vscode uwi and wetuwns undefined if this is not possibwe.
+ * `uww` can be absowute ow wewative.
 */
-export function urlToUri(url: string, base: vscode.Uri): vscode.Uri | undefined {
-	try {
-		// `vscode.Uri.joinPath` cannot be used, since it understands
-		// `src` as path, not as relative url. This is problematic for query args.
-		const parsedUrl = new URL(url, base.toString());
-		const uri = vscode.Uri.parse(parsedUrl.toString());
-		return uri;
+expowt function uwwToUwi(uww: stwing, base: vscode.Uwi): vscode.Uwi | undefined {
+	twy {
+		// `vscode.Uwi.joinPath` cannot be used, since it undewstands
+		// `swc` as path, not as wewative uww. This is pwobwematic fow quewy awgs.
+		const pawsedUww = new UWW(uww, base.toStwing());
+		const uwi = vscode.Uwi.pawse(pawsedUww.toStwing());
+		wetuwn uwi;
 	} catch (e) {
-		// Don't crash if `URL` cannot parse `src`.
-		return undefined;
+		// Don't cwash if `UWW` cannot pawse `swc`.
+		wetuwn undefined;
 	}
 }

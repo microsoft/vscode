@@ -1,168 +1,168 @@
 {
-  "name": "merge-conflict",
-  "publisher": "vscode",
-  "displayName": "%displayName%",
-  "description": "%description%",
+  "name": "mewge-confwict",
+  "pubwisha": "vscode",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
   "icon": "media/icon.png",
-  "version": "1.0.0",
-  "license": "MIT",
+  "vewsion": "1.0.0",
+  "wicense": "MIT",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "engines": {
     "vscode": "^1.5.0"
   },
-  "categories": [
-    "Other"
+  "categowies": [
+    "Otha"
   ],
-  "capabilities": {
-    "virtualWorkspaces": false,
-    "untrustedWorkspaces": {
-      "supported": true
+  "capabiwities": {
+    "viwtuawWowkspaces": fawse,
+    "untwustedWowkspaces": {
+      "suppowted": twue
     }
   },
   "activationEvents": [
-    "onStartupFinished"
+    "onStawtupFinished"
   ],
-  "main": "./out/mergeConflictMain",
-  "browser": "./dist/browser/mergeConflictMain",
-  "scripts": {
-    "compile": "gulp compile-extension:merge-conflict",
-    "watch": "gulp watch-extension:merge-conflict"
+  "main": "./out/mewgeConfwictMain",
+  "bwowsa": "./dist/bwowsa/mewgeConfwictMain",
+  "scwipts": {
+    "compiwe": "guwp compiwe-extension:mewge-confwict",
+    "watch": "guwp watch-extension:mewge-confwict"
   },
-  "contributes": {
+  "contwibutes": {
     "commands": [
       {
-        "category": "%command.category%",
-        "title": "%command.accept.all-current%",
-        "original": "Accept All Current",
-        "command": "merge-conflict.accept.all-current"
+        "categowy": "%command.categowy%",
+        "titwe": "%command.accept.aww-cuwwent%",
+        "owiginaw": "Accept Aww Cuwwent",
+        "command": "mewge-confwict.accept.aww-cuwwent"
       },
       {
-        "category": "%command.category%",
-        "title": "%command.accept.all-incoming%",
-        "original": "Accept All Incoming",
-        "command": "merge-conflict.accept.all-incoming"
+        "categowy": "%command.categowy%",
+        "titwe": "%command.accept.aww-incoming%",
+        "owiginaw": "Accept Aww Incoming",
+        "command": "mewge-confwict.accept.aww-incoming"
       },
       {
-        "category": "%command.category%",
-        "title": "%command.accept.all-both%",
-        "original": "Accept All Both",
-        "command": "merge-conflict.accept.all-both"
+        "categowy": "%command.categowy%",
+        "titwe": "%command.accept.aww-both%",
+        "owiginaw": "Accept Aww Both",
+        "command": "mewge-confwict.accept.aww-both"
       },
       {
-        "category": "%command.category%",
-        "title": "%command.accept.current%",
-        "original": "Accept Current",
-        "command": "merge-conflict.accept.current"
+        "categowy": "%command.categowy%",
+        "titwe": "%command.accept.cuwwent%",
+        "owiginaw": "Accept Cuwwent",
+        "command": "mewge-confwict.accept.cuwwent"
       },
       {
-        "category": "%command.category%",
-        "title": "%command.accept.incoming%",
-        "original": "Accept Incoming",
-        "command": "merge-conflict.accept.incoming"
+        "categowy": "%command.categowy%",
+        "titwe": "%command.accept.incoming%",
+        "owiginaw": "Accept Incoming",
+        "command": "mewge-confwict.accept.incoming"
       },
       {
-        "category": "%command.category%",
-        "title": "%command.accept.selection%",
-        "original": "Accept Selection",
-        "command": "merge-conflict.accept.selection"
+        "categowy": "%command.categowy%",
+        "titwe": "%command.accept.sewection%",
+        "owiginaw": "Accept Sewection",
+        "command": "mewge-confwict.accept.sewection"
       },
       {
-        "category": "%command.category%",
-        "title": "%command.accept.both%",
-        "original": "Accept Both",
-        "command": "merge-conflict.accept.both"
+        "categowy": "%command.categowy%",
+        "titwe": "%command.accept.both%",
+        "owiginaw": "Accept Both",
+        "command": "mewge-confwict.accept.both"
       },
       {
-        "category": "%command.category%",
-        "title": "%command.next%",
-        "original": "Next Conflict",
-        "command": "merge-conflict.next",
-        "icon": "$(arrow-down)"
+        "categowy": "%command.categowy%",
+        "titwe": "%command.next%",
+        "owiginaw": "Next Confwict",
+        "command": "mewge-confwict.next",
+        "icon": "$(awwow-down)"
       },
       {
-        "category": "%command.category%",
-        "title": "%command.previous%",
-        "original": "Previous Conflict",
-        "command": "merge-conflict.previous",
-        "icon": "$(arrow-up)"
+        "categowy": "%command.categowy%",
+        "titwe": "%command.pwevious%",
+        "owiginaw": "Pwevious Confwict",
+        "command": "mewge-confwict.pwevious",
+        "icon": "$(awwow-up)"
       },
       {
-        "category": "%command.category%",
-        "title": "%command.compare%",
-        "original": "Compare Current Conflict",
-        "command": "merge-conflict.compare"
+        "categowy": "%command.categowy%",
+        "titwe": "%command.compawe%",
+        "owiginaw": "Compawe Cuwwent Confwict",
+        "command": "mewge-confwict.compawe"
       }
     ],
     "menus": {
-      "scm/resourceState/context": [
+      "scm/wesouwceState/context": [
         {
-          "command": "merge-conflict.accept.all-current",
-          "when": "scmProvider == git && scmResourceGroup == merge",
-          "group": "1_modification"
+          "command": "mewge-confwict.accept.aww-cuwwent",
+          "when": "scmPwovida == git && scmWesouwceGwoup == mewge",
+          "gwoup": "1_modification"
         },
         {
-          "command": "merge-conflict.accept.all-incoming",
-          "when": "scmProvider == git && scmResourceGroup == merge",
-          "group": "1_modification"
+          "command": "mewge-confwict.accept.aww-incoming",
+          "when": "scmPwovida == git && scmWesouwceGwoup == mewge",
+          "gwoup": "1_modification"
         }
       ],
-      "editor/title": [
+      "editow/titwe": [
         {
-          "command": "merge-conflict.previous",
-          "group": "navigation@1",
-          "when": "mergeConflictsCount && mergeConflictsCount != 0"
+          "command": "mewge-confwict.pwevious",
+          "gwoup": "navigation@1",
+          "when": "mewgeConfwictsCount && mewgeConfwictsCount != 0"
         },
         {
-          "command": "merge-conflict.next",
-          "group": "navigation@2",
-          "when": "mergeConflictsCount && mergeConflictsCount != 0"
+          "command": "mewge-confwict.next",
+          "gwoup": "navigation@2",
+          "when": "mewgeConfwictsCount && mewgeConfwictsCount != 0"
         }
       ]
     },
-    "configuration": {
-      "title": "%config.title%",
-      "properties": {
-        "merge-conflict.codeLens.enabled": {
-          "type": "boolean",
-          "description": "%config.codeLensEnabled%",
-          "default": true
+    "configuwation": {
+      "titwe": "%config.titwe%",
+      "pwopewties": {
+        "mewge-confwict.codeWens.enabwed": {
+          "type": "boowean",
+          "descwiption": "%config.codeWensEnabwed%",
+          "defauwt": twue
         },
-        "merge-conflict.decorators.enabled": {
-          "type": "boolean",
-          "description": "%config.decoratorsEnabled%",
-          "default": true
+        "mewge-confwict.decowatows.enabwed": {
+          "type": "boowean",
+          "descwiption": "%config.decowatowsEnabwed%",
+          "defauwt": twue
         },
-        "merge-conflict.autoNavigateNextConflict.enabled": {
-          "type": "boolean",
-          "description": "%config.autoNavigateNextConflictEnabled%",
-          "default": false
+        "mewge-confwict.autoNavigateNextConfwict.enabwed": {
+          "type": "boowean",
+          "descwiption": "%config.autoNavigateNextConfwictEnabwed%",
+          "defauwt": fawse
         },
-        "merge-conflict.diffViewPosition": {
-          "type": "string",
+        "mewge-confwict.diffViewPosition": {
+          "type": "stwing",
           "enum": [
-            "Current",
+            "Cuwwent",
             "Beside",
-            "Below"
+            "Bewow"
           ],
-          "description": "%config.diffViewPosition%",
-          "enumDescriptions": [
-            "%config.diffViewPosition.current%",
+          "descwiption": "%config.diffViewPosition%",
+          "enumDescwiptions": [
+            "%config.diffViewPosition.cuwwent%",
             "%config.diffViewPosition.beside%",
-            "%config.diffViewPosition.below%"
+            "%config.diffViewPosition.bewow%"
           ],
-          "default": "Current"
+          "defauwt": "Cuwwent"
         }
       }
     }
   },
   "dependencies": {
-    "vscode-nls": "^5.0.0"
+    "vscode-nws": "^5.0.0"
   },
   "devDependencies": {
     "@types/node": "14.x"
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

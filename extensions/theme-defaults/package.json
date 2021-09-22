@@ -1,59 +1,59 @@
 {
-  "name": "theme-defaults",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "categories": [
+  "name": "theme-defauwts",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "categowies": [
     "Themes"
   ],
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "*"
   },
-  "contributes": {
+  "contwibutes": {
     "themes": [
       {
-        "id": "Default Dark+",
-        "label": "%darkPlusColorThemeLabel%",
-        "uiTheme": "vs-dark",
-        "path": "./themes/dark_plus.json"
+        "id": "Defauwt Dawk+",
+        "wabew": "%dawkPwusCowowThemeWabew%",
+        "uiTheme": "vs-dawk",
+        "path": "./themes/dawk_pwus.json"
       },
       {
-        "id": "Default Light+",
-        "label": "%lightPlusColorThemeLabel%",
+        "id": "Defauwt Wight+",
+        "wabew": "%wightPwusCowowThemeWabew%",
         "uiTheme": "vs",
-        "path": "./themes/light_plus.json"
+        "path": "./themes/wight_pwus.json"
       },
       {
-        "id": "Visual Studio Dark",
-        "label": "%darkColorThemeLabel%",
-        "uiTheme": "vs-dark",
-        "path": "./themes/dark_vs.json"
+        "id": "Visuaw Studio Dawk",
+        "wabew": "%dawkCowowThemeWabew%",
+        "uiTheme": "vs-dawk",
+        "path": "./themes/dawk_vs.json"
       },
       {
-        "id": "Visual Studio Light",
-        "label": "%lightColorThemeLabel%",
+        "id": "Visuaw Studio Wight",
+        "wabew": "%wightCowowThemeWabew%",
         "uiTheme": "vs",
-        "path": "./themes/light_vs.json"
+        "path": "./themes/wight_vs.json"
       },
       {
-        "id": "Default High Contrast",
-        "label": "%hcColorThemeLabel%",
-        "uiTheme": "hc-black",
-        "path": "./themes/hc_black.json"
+        "id": "Defauwt High Contwast",
+        "wabew": "%hcCowowThemeWabew%",
+        "uiTheme": "hc-bwack",
+        "path": "./themes/hc_bwack.json"
       }
     ],
     "iconThemes": [
       {
-        "id": "vs-minimal",
-        "label": "%minimalIconThemeLabel%",
-        "path": "./fileicons/vs_minimal-icon-theme.json"
+        "id": "vs-minimaw",
+        "wabew": "%minimawIconThemeWabew%",
+        "path": "./fiweicons/vs_minimaw-icon-theme.json"
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

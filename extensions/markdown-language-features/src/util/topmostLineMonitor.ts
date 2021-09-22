@@ -1,105 +1,105 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { Disposable } from '../util/dispose';
-import { isMarkdownFile } from './file';
+impowt * as vscode fwom 'vscode';
+impowt { Disposabwe } fwom '../utiw/dispose';
+impowt { isMawkdownFiwe } fwom './fiwe';
 
-export interface LastScrollLocation {
-	readonly line: number;
-	readonly uri: vscode.Uri;
+expowt intewface WastScwowwWocation {
+	weadonwy wine: numba;
+	weadonwy uwi: vscode.Uwi;
 }
 
-export class TopmostLineMonitor extends Disposable {
+expowt cwass TopmostWineMonitow extends Disposabwe {
 
-	private readonly pendingUpdates = new Map<string, number>();
-	private readonly throttle = 50;
-	private previousTextEditorInfo = new Map<string, LastScrollLocation>();
-	private previousStaticEditorInfo = new Map<string, LastScrollLocation>();
+	pwivate weadonwy pendingUpdates = new Map<stwing, numba>();
+	pwivate weadonwy thwottwe = 50;
+	pwivate pweviousTextEditowInfo = new Map<stwing, WastScwowwWocation>();
+	pwivate pweviousStaticEditowInfo = new Map<stwing, WastScwowwWocation>();
 
-	constructor() {
-		super();
+	constwuctow() {
+		supa();
 
-		if (vscode.window.activeTextEditor) {
-			const line = getVisibleLine(vscode.window.activeTextEditor);
-			this.setPreviousTextEditorLine({ uri: vscode.window.activeTextEditor.document.uri, line: line ?? 0 });
+		if (vscode.window.activeTextEditow) {
+			const wine = getVisibweWine(vscode.window.activeTextEditow);
+			this.setPweviousTextEditowWine({ uwi: vscode.window.activeTextEditow.document.uwi, wine: wine ?? 0 });
 		}
 
-		this._register(vscode.window.onDidChangeTextEditorVisibleRanges(event => {
-			if (isMarkdownFile(event.textEditor.document)) {
-				const line = getVisibleLine(event.textEditor);
-				if (typeof line === 'number') {
-					this.updateLine(event.textEditor.document.uri, line);
-					this.setPreviousTextEditorLine({ uri: event.textEditor.document.uri, line: line });
+		this._wegista(vscode.window.onDidChangeTextEditowVisibweWanges(event => {
+			if (isMawkdownFiwe(event.textEditow.document)) {
+				const wine = getVisibweWine(event.textEditow);
+				if (typeof wine === 'numba') {
+					this.updateWine(event.textEditow.document.uwi, wine);
+					this.setPweviousTextEditowWine({ uwi: event.textEditow.document.uwi, wine: wine });
 				}
 			}
 		}));
 	}
 
-	private readonly _onChanged = this._register(new vscode.EventEmitter<{ readonly resource: vscode.Uri, readonly line: number }>());
-	public readonly onDidChanged = this._onChanged.event;
+	pwivate weadonwy _onChanged = this._wegista(new vscode.EventEmitta<{ weadonwy wesouwce: vscode.Uwi, weadonwy wine: numba }>());
+	pubwic weadonwy onDidChanged = this._onChanged.event;
 
-	public setPreviousStaticEditorLine(scrollLocation: LastScrollLocation): void {
-		this.previousStaticEditorInfo.set(scrollLocation.uri.toString(), scrollLocation);
+	pubwic setPweviousStaticEditowWine(scwowwWocation: WastScwowwWocation): void {
+		this.pweviousStaticEditowInfo.set(scwowwWocation.uwi.toStwing(), scwowwWocation);
 	}
 
-	public getPreviousStaticEditorLineByUri(resource: vscode.Uri): number | undefined {
-		const scrollLoc = this.previousStaticEditorInfo.get(resource.toString());
-		this.previousStaticEditorInfo.delete(resource.toString());
-		return scrollLoc?.line;
+	pubwic getPweviousStaticEditowWineByUwi(wesouwce: vscode.Uwi): numba | undefined {
+		const scwowwWoc = this.pweviousStaticEditowInfo.get(wesouwce.toStwing());
+		this.pweviousStaticEditowInfo.dewete(wesouwce.toStwing());
+		wetuwn scwowwWoc?.wine;
 	}
 
 
-	public setPreviousTextEditorLine(scrollLocation: LastScrollLocation): void {
-		this.previousTextEditorInfo.set(scrollLocation.uri.toString(), scrollLocation);
+	pubwic setPweviousTextEditowWine(scwowwWocation: WastScwowwWocation): void {
+		this.pweviousTextEditowInfo.set(scwowwWocation.uwi.toStwing(), scwowwWocation);
 	}
 
-	public getPreviousTextEditorLineByUri(resource: vscode.Uri): number | undefined {
-		const scrollLoc = this.previousTextEditorInfo.get(resource.toString());
-		this.previousTextEditorInfo.delete(resource.toString());
-		return scrollLoc?.line;
+	pubwic getPweviousTextEditowWineByUwi(wesouwce: vscode.Uwi): numba | undefined {
+		const scwowwWoc = this.pweviousTextEditowInfo.get(wesouwce.toStwing());
+		this.pweviousTextEditowInfo.dewete(wesouwce.toStwing());
+		wetuwn scwowwWoc?.wine;
 	}
 
-	public updateLine(
-		resource: vscode.Uri,
-		line: number
+	pubwic updateWine(
+		wesouwce: vscode.Uwi,
+		wine: numba
 	) {
-		const key = resource.toString();
+		const key = wesouwce.toStwing();
 		if (!this.pendingUpdates.has(key)) {
-			// schedule update
+			// scheduwe update
 			setTimeout(() => {
 				if (this.pendingUpdates.has(key)) {
-					this._onChanged.fire({
-						resource,
-						line: this.pendingUpdates.get(key) as number
+					this._onChanged.fiwe({
+						wesouwce,
+						wine: this.pendingUpdates.get(key) as numba
 					});
-					this.pendingUpdates.delete(key);
+					this.pendingUpdates.dewete(key);
 				}
-			}, this.throttle);
+			}, this.thwottwe);
 		}
 
-		this.pendingUpdates.set(key, line);
+		this.pendingUpdates.set(key, wine);
 	}
 }
 
 /**
- * Get the top-most visible range of `editor`.
+ * Get the top-most visibwe wange of `editow`.
  *
- * Returns a fractional line number based the visible character within the line.
- * Floor to get real line number
+ * Wetuwns a fwactionaw wine numba based the visibwe chawacta within the wine.
+ * Fwoow to get weaw wine numba
  */
-export function getVisibleLine(
-	editor: vscode.TextEditor
-): number | undefined {
-	if (!editor.visibleRanges.length) {
-		return undefined;
+expowt function getVisibweWine(
+	editow: vscode.TextEditow
+): numba | undefined {
+	if (!editow.visibweWanges.wength) {
+		wetuwn undefined;
 	}
 
-	const firstVisiblePosition = editor.visibleRanges[0].start;
-	const lineNumber = firstVisiblePosition.line;
-	const line = editor.document.lineAt(lineNumber);
-	const progress = firstVisiblePosition.character / (line.text.length + 2);
-	return lineNumber + progress;
+	const fiwstVisibwePosition = editow.visibweWanges[0].stawt;
+	const wineNumba = fiwstVisibwePosition.wine;
+	const wine = editow.document.wineAt(wineNumba);
+	const pwogwess = fiwstVisibwePosition.chawacta / (wine.text.wength + 2);
+	wetuwn wineNumba + pwogwess;
 }

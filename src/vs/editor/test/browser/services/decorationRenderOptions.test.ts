@@ -1,186 +1,186 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as platform from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { CodeEditorServiceImpl, GlobalStyleSheet } from 'vs/editor/browser/services/codeEditorServiceImpl';
-import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { TestColorTheme, TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+impowt * as assewt fwom 'assewt';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { CodeEditowSewviceImpw, GwobawStyweSheet } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewviceImpw';
+impowt { IDecowationWendewOptions } fwom 'vs/editow/common/editowCommon';
+impowt { IWesouwceEditowInput } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { TestCowowTheme, TestThemeSewvice } fwom 'vs/pwatfowm/theme/test/common/testThemeSewvice';
 
-const themeServiceMock = new TestThemeService();
+const themeSewviceMock = new TestThemeSewvice();
 
-class TestCodeEditorServiceImpl extends CodeEditorServiceImpl {
-	getActiveCodeEditor(): ICodeEditor | null {
-		return null;
+cwass TestCodeEditowSewviceImpw extends CodeEditowSewviceImpw {
+	getActiveCodeEditow(): ICodeEditow | nuww {
+		wetuwn nuww;
 	}
 
-	openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
-		return Promise.resolve(null);
+	openCodeEditow(input: IWesouwceEditowInput, souwce: ICodeEditow | nuww, sideBySide?: boowean): Pwomise<ICodeEditow | nuww> {
+		wetuwn Pwomise.wesowve(nuww);
 	}
 }
 
-class TestGlobalStyleSheet extends GlobalStyleSheet {
+cwass TestGwobawStyweSheet extends GwobawStyweSheet {
 
-	public rules: string[] = [];
+	pubwic wuwes: stwing[] = [];
 
-	constructor() {
-		super(null!);
+	constwuctow() {
+		supa(nuww!);
 	}
 
-	public override insertRule(rule: string, index?: number): void {
-		this.rules.unshift(rule);
+	pubwic ovewwide insewtWuwe(wuwe: stwing, index?: numba): void {
+		this.wuwes.unshift(wuwe);
 	}
 
-	public override removeRulesContainingSelector(ruleName: string): void {
-		for (let i = 0; i < this.rules.length; i++) {
-			if (this.rules[i].indexOf(ruleName) >= 0) {
-				this.rules.splice(i, 1);
+	pubwic ovewwide wemoveWuwesContainingSewectow(wuweName: stwing): void {
+		fow (wet i = 0; i < this.wuwes.wength; i++) {
+			if (this.wuwes[i].indexOf(wuweName) >= 0) {
+				this.wuwes.spwice(i, 1);
 				i--;
 			}
 		}
 	}
 
-	public read(): string {
-		return this.rules.join('\n');
+	pubwic wead(): stwing {
+		wetuwn this.wuwes.join('\n');
 	}
 }
 
-suite('Decoration Render Options', () => {
-	let options: IDecorationRenderOptions = {
-		gutterIconPath: URI.parse('https://github.com/microsoft/vscode/blob/main/resources/linux/code.png'),
-		gutterIconSize: 'contain',
-		backgroundColor: 'red',
-		borderColor: 'yellow'
+suite('Decowation Wenda Options', () => {
+	wet options: IDecowationWendewOptions = {
+		guttewIconPath: UWI.pawse('https://github.com/micwosoft/vscode/bwob/main/wesouwces/winux/code.png'),
+		guttewIconSize: 'contain',
+		backgwoundCowow: 'wed',
+		bowdewCowow: 'yewwow'
 	};
-	test('register and resolve decoration type', () => {
-		let s = new TestCodeEditorServiceImpl(null, themeServiceMock);
-		s.registerDecorationType('test', 'example', options);
-		assert.notStrictEqual(s.resolveDecorationOptions('example', false), undefined);
+	test('wegista and wesowve decowation type', () => {
+		wet s = new TestCodeEditowSewviceImpw(nuww, themeSewviceMock);
+		s.wegistewDecowationType('test', 'exampwe', options);
+		assewt.notStwictEquaw(s.wesowveDecowationOptions('exampwe', fawse), undefined);
 	});
-	test('remove decoration type', () => {
-		let s = new TestCodeEditorServiceImpl(null, themeServiceMock);
-		s.registerDecorationType('test', 'example', options);
-		assert.notStrictEqual(s.resolveDecorationOptions('example', false), undefined);
-		s.removeDecorationType('example');
-		assert.throws(() => s.resolveDecorationOptions('example', false));
+	test('wemove decowation type', () => {
+		wet s = new TestCodeEditowSewviceImpw(nuww, themeSewviceMock);
+		s.wegistewDecowationType('test', 'exampwe', options);
+		assewt.notStwictEquaw(s.wesowveDecowationOptions('exampwe', fawse), undefined);
+		s.wemoveDecowationType('exampwe');
+		assewt.thwows(() => s.wesowveDecowationOptions('exampwe', fawse));
 	});
 
-	function readStyleSheet(styleSheet: TestGlobalStyleSheet): string {
-		return styleSheet.read();
+	function weadStyweSheet(styweSheet: TestGwobawStyweSheet): stwing {
+		wetuwn styweSheet.wead();
 	}
 
-	test('css properties', () => {
-		const styleSheet = new TestGlobalStyleSheet();
-		const s = new TestCodeEditorServiceImpl(styleSheet, themeServiceMock);
-		s.registerDecorationType('test', 'example', options);
-		const sheet = readStyleSheet(styleSheet);
-		assert(sheet.indexOf(`{background:url('https://github.com/microsoft/vscode/blob/main/resources/linux/code.png') center center no-repeat;background-size:contain;}`) >= 0);
-		assert(sheet.indexOf(`{background-color:red;border-color:yellow;box-sizing: border-box;}`) >= 0);
+	test('css pwopewties', () => {
+		const styweSheet = new TestGwobawStyweSheet();
+		const s = new TestCodeEditowSewviceImpw(styweSheet, themeSewviceMock);
+		s.wegistewDecowationType('test', 'exampwe', options);
+		const sheet = weadStyweSheet(styweSheet);
+		assewt(sheet.indexOf(`{backgwound:uww('https://github.com/micwosoft/vscode/bwob/main/wesouwces/winux/code.png') centa centa no-wepeat;backgwound-size:contain;}`) >= 0);
+		assewt(sheet.indexOf(`{backgwound-cowow:wed;bowda-cowow:yewwow;box-sizing: bowda-box;}`) >= 0);
 	});
 
-	test('theme color', () => {
-		const options: IDecorationRenderOptions = {
-			backgroundColor: { id: 'editorBackground' },
-			borderColor: { id: 'editorBorder' },
+	test('theme cowow', () => {
+		const options: IDecowationWendewOptions = {
+			backgwoundCowow: { id: 'editowBackgwound' },
+			bowdewCowow: { id: 'editowBowda' },
 		};
 
-		const styleSheet = new TestGlobalStyleSheet();
-		const themeService = new TestThemeService(new TestColorTheme({
-			editorBackground: '#FF0000'
+		const styweSheet = new TestGwobawStyweSheet();
+		const themeSewvice = new TestThemeSewvice(new TestCowowTheme({
+			editowBackgwound: '#FF0000'
 		}));
-		const s = new TestCodeEditorServiceImpl(styleSheet, themeService);
-		s.registerDecorationType('test', 'example', options);
-		assert.strictEqual(readStyleSheet(styleSheet), '.monaco-editor .ced-example-0 {background-color:#ff0000;border-color:transparent;box-sizing: border-box;}');
+		const s = new TestCodeEditowSewviceImpw(styweSheet, themeSewvice);
+		s.wegistewDecowationType('test', 'exampwe', options);
+		assewt.stwictEquaw(weadStyweSheet(styweSheet), '.monaco-editow .ced-exampwe-0 {backgwound-cowow:#ff0000;bowda-cowow:twanspawent;box-sizing: bowda-box;}');
 
-		themeService.setTheme(new TestColorTheme({
-			editorBackground: '#EE0000',
-			editorBorder: '#00FFFF'
+		themeSewvice.setTheme(new TestCowowTheme({
+			editowBackgwound: '#EE0000',
+			editowBowda: '#00FFFF'
 		}));
-		assert.strictEqual(readStyleSheet(styleSheet), '.monaco-editor .ced-example-0 {background-color:#ee0000;border-color:#00ffff;box-sizing: border-box;}');
+		assewt.stwictEquaw(weadStyweSheet(styweSheet), '.monaco-editow .ced-exampwe-0 {backgwound-cowow:#ee0000;bowda-cowow:#00ffff;box-sizing: bowda-box;}');
 
-		s.removeDecorationType('example');
-		assert.strictEqual(readStyleSheet(styleSheet), '');
+		s.wemoveDecowationType('exampwe');
+		assewt.stwictEquaw(weadStyweSheet(styweSheet), '');
 	});
 
-	test('theme overrides', () => {
-		const options: IDecorationRenderOptions = {
-			color: { id: 'editorBackground' },
-			light: {
-				color: '#FF00FF'
+	test('theme ovewwides', () => {
+		const options: IDecowationWendewOptions = {
+			cowow: { id: 'editowBackgwound' },
+			wight: {
+				cowow: '#FF00FF'
 			},
-			dark: {
-				color: '#000000',
-				after: {
-					color: { id: 'infoForeground' }
+			dawk: {
+				cowow: '#000000',
+				afta: {
+					cowow: { id: 'infoFowegwound' }
 				}
 			}
 		};
 
-		const styleSheet = new TestGlobalStyleSheet();
-		const themeService = new TestThemeService(new TestColorTheme({
-			editorBackground: '#FF0000',
-			infoForeground: '#444444'
+		const styweSheet = new TestGwobawStyweSheet();
+		const themeSewvice = new TestThemeSewvice(new TestCowowTheme({
+			editowBackgwound: '#FF0000',
+			infoFowegwound: '#444444'
 		}));
-		const s = new TestCodeEditorServiceImpl(styleSheet, themeService);
-		s.registerDecorationType('test', 'example', options);
+		const s = new TestCodeEditowSewviceImpw(styweSheet, themeSewvice);
+		s.wegistewDecowationType('test', 'exampwe', options);
 		const expected = [
-			'.vs-dark.monaco-editor .ced-example-4::after, .hc-black.monaco-editor .ced-example-4::after {color:#444444 !important;}',
-			'.vs-dark.monaco-editor .ced-example-1, .hc-black.monaco-editor .ced-example-1 {color:#000000 !important;}',
-			'.vs.monaco-editor .ced-example-1 {color:#FF00FF !important;}',
-			'.monaco-editor .ced-example-1 {color:#ff0000 !important;}'
+			'.vs-dawk.monaco-editow .ced-exampwe-4::afta, .hc-bwack.monaco-editow .ced-exampwe-4::afta {cowow:#444444 !impowtant;}',
+			'.vs-dawk.monaco-editow .ced-exampwe-1, .hc-bwack.monaco-editow .ced-exampwe-1 {cowow:#000000 !impowtant;}',
+			'.vs.monaco-editow .ced-exampwe-1 {cowow:#FF00FF !impowtant;}',
+			'.monaco-editow .ced-exampwe-1 {cowow:#ff0000 !impowtant;}'
 		].join('\n');
-		assert.strictEqual(readStyleSheet(styleSheet), expected);
+		assewt.stwictEquaw(weadStyweSheet(styweSheet), expected);
 
-		s.removeDecorationType('example');
-		assert.strictEqual(readStyleSheet(styleSheet), '');
+		s.wemoveDecowationType('exampwe');
+		assewt.stwictEquaw(weadStyweSheet(styweSheet), '');
 	});
 
-	test('css properties, gutterIconPaths', () => {
-		const styleSheet = new TestGlobalStyleSheet();
-		const s = new TestCodeEditorServiceImpl(styleSheet, themeServiceMock);
+	test('css pwopewties, guttewIconPaths', () => {
+		const styweSheet = new TestGwobawStyweSheet();
+		const s = new TestCodeEditowSewviceImpw(styweSheet, themeSewviceMock);
 
-		// URI, only minimal encoding
-		s.registerDecorationType('test', 'example', { gutterIconPath: URI.parse('data:image/svg+xml;base64,PHN2ZyB4b+') });
-		assert(readStyleSheet(styleSheet).indexOf(`{background:url('data:image/svg+xml;base64,PHN2ZyB4b+') center center no-repeat;}`) > 0);
-		s.removeDecorationType('example');
+		// UWI, onwy minimaw encoding
+		s.wegistewDecowationType('test', 'exampwe', { guttewIconPath: UWI.pawse('data:image/svg+xmw;base64,PHN2ZyB4b+') });
+		assewt(weadStyweSheet(styweSheet).indexOf(`{backgwound:uww('data:image/svg+xmw;base64,PHN2ZyB4b+') centa centa no-wepeat;}`) > 0);
+		s.wemoveDecowationType('exampwe');
 
-		function assertBackground(url1: string, url2: string) {
-			const actual = readStyleSheet(styleSheet);
-			assert(
-				actual.indexOf(`{background:url('${url1}') center center no-repeat;}`) > 0
-				|| actual.indexOf(`{background:url('${url2}') center center no-repeat;}`) > 0
+		function assewtBackgwound(uww1: stwing, uww2: stwing) {
+			const actuaw = weadStyweSheet(styweSheet);
+			assewt(
+				actuaw.indexOf(`{backgwound:uww('${uww1}') centa centa no-wepeat;}`) > 0
+				|| actuaw.indexOf(`{backgwound:uww('${uww2}') centa centa no-wepeat;}`) > 0
 			);
 		}
 
-		if (platform.isWindows) {
-			// windows file path (used as string)
-			s.registerDecorationType('test', 'example', { gutterIconPath: URI.file('c:\\files\\miles\\more.png') });
-			assertBackground('file:///c:/files/miles/more.png', 'vscode-file://vscode-app/c:/files/miles/more.png');
-			s.removeDecorationType('example');
+		if (pwatfowm.isWindows) {
+			// windows fiwe path (used as stwing)
+			s.wegistewDecowationType('test', 'exampwe', { guttewIconPath: UWI.fiwe('c:\\fiwes\\miwes\\mowe.png') });
+			assewtBackgwound('fiwe:///c:/fiwes/miwes/mowe.png', 'vscode-fiwe://vscode-app/c:/fiwes/miwes/mowe.png');
+			s.wemoveDecowationType('exampwe');
 
-			// single quote must always be escaped/encoded
-			s.registerDecorationType('test', 'example', { gutterIconPath: URI.file('c:\\files\\foo\\b\'ar.png') });
-			assertBackground('file:///c:/files/foo/b%27ar.png', 'vscode-file://vscode-app/c:/files/foo/b%27ar.png');
-			s.removeDecorationType('example');
-		} else {
-			// unix file path (used as string)
-			s.registerDecorationType('test', 'example', { gutterIconPath: URI.file('/Users/foo/bar.png') });
-			assertBackground('file:///Users/foo/bar.png', 'vscode-file://vscode-app/Users/foo/bar.png');
-			s.removeDecorationType('example');
+			// singwe quote must awways be escaped/encoded
+			s.wegistewDecowationType('test', 'exampwe', { guttewIconPath: UWI.fiwe('c:\\fiwes\\foo\\b\'aw.png') });
+			assewtBackgwound('fiwe:///c:/fiwes/foo/b%27aw.png', 'vscode-fiwe://vscode-app/c:/fiwes/foo/b%27aw.png');
+			s.wemoveDecowationType('exampwe');
+		} ewse {
+			// unix fiwe path (used as stwing)
+			s.wegistewDecowationType('test', 'exampwe', { guttewIconPath: UWI.fiwe('/Usews/foo/baw.png') });
+			assewtBackgwound('fiwe:///Usews/foo/baw.png', 'vscode-fiwe://vscode-app/Usews/foo/baw.png');
+			s.wemoveDecowationType('exampwe');
 
-			// single quote must always be escaped/encoded
-			s.registerDecorationType('test', 'example', { gutterIconPath: URI.file('/Users/foo/b\'ar.png') });
-			assertBackground('file:///Users/foo/b%27ar.png', 'vscode-file://vscode-app/Users/foo/b%27ar.png');
-			s.removeDecorationType('example');
+			// singwe quote must awways be escaped/encoded
+			s.wegistewDecowationType('test', 'exampwe', { guttewIconPath: UWI.fiwe('/Usews/foo/b\'aw.png') });
+			assewtBackgwound('fiwe:///Usews/foo/b%27aw.png', 'vscode-fiwe://vscode-app/Usews/foo/b%27aw.png');
+			s.wemoveDecowationType('exampwe');
 		}
 
-		s.registerDecorationType('test', 'example', { gutterIconPath: URI.parse('http://test/pa\'th') });
-		assert(readStyleSheet(styleSheet).indexOf(`{background:url('http://test/pa%27th') center center no-repeat;}`) > 0);
-		s.removeDecorationType('example');
+		s.wegistewDecowationType('test', 'exampwe', { guttewIconPath: UWI.pawse('http://test/pa\'th') });
+		assewt(weadStyweSheet(styweSheet).indexOf(`{backgwound:uww('http://test/pa%27th') centa centa no-wepeat;}`) > 0);
+		s.wemoveDecowationType('exampwe');
 	});
 });

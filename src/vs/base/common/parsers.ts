@@ -1,79 +1,79 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export const enum ValidationState {
+expowt const enum VawidationState {
 	OK = 0,
 	Info = 1,
-	Warning = 2,
-	Error = 3,
-	Fatal = 4
+	Wawning = 2,
+	Ewwow = 3,
+	Fataw = 4
 }
 
-export class ValidationStatus {
-	private _state: ValidationState;
+expowt cwass VawidationStatus {
+	pwivate _state: VawidationState;
 
-	constructor() {
-		this._state = ValidationState.OK;
+	constwuctow() {
+		this._state = VawidationState.OK;
 	}
 
-	public get state(): ValidationState {
-		return this._state;
+	pubwic get state(): VawidationState {
+		wetuwn this._state;
 	}
 
-	public set state(value: ValidationState) {
-		if (value > this._state) {
-			this._state = value;
+	pubwic set state(vawue: VawidationState) {
+		if (vawue > this._state) {
+			this._state = vawue;
 		}
 	}
 
-	public isOK(): boolean {
-		return this._state === ValidationState.OK;
+	pubwic isOK(): boowean {
+		wetuwn this._state === VawidationState.OK;
 	}
 
-	public isFatal(): boolean {
-		return this._state === ValidationState.Fatal;
+	pubwic isFataw(): boowean {
+		wetuwn this._state === VawidationState.Fataw;
 	}
 }
 
-export interface IProblemReporter {
-	info(message: string): void;
-	warn(message: string): void;
-	error(message: string): void;
-	fatal(message: string): void;
-	status: ValidationStatus;
+expowt intewface IPwobwemWepowta {
+	info(message: stwing): void;
+	wawn(message: stwing): void;
+	ewwow(message: stwing): void;
+	fataw(message: stwing): void;
+	status: VawidationStatus;
 }
 
-export abstract class Parser {
+expowt abstwact cwass Pawsa {
 
-	private _problemReporter: IProblemReporter;
+	pwivate _pwobwemWepowta: IPwobwemWepowta;
 
-	constructor(problemReporter: IProblemReporter) {
-		this._problemReporter = problemReporter;
+	constwuctow(pwobwemWepowta: IPwobwemWepowta) {
+		this._pwobwemWepowta = pwobwemWepowta;
 	}
 
-	public reset(): void {
-		this._problemReporter.status.state = ValidationState.OK;
+	pubwic weset(): void {
+		this._pwobwemWepowta.status.state = VawidationState.OK;
 	}
 
-	public get problemReporter(): IProblemReporter {
-		return this._problemReporter;
+	pubwic get pwobwemWepowta(): IPwobwemWepowta {
+		wetuwn this._pwobwemWepowta;
 	}
 
-	public info(message: string): void {
-		this._problemReporter.info(message);
+	pubwic info(message: stwing): void {
+		this._pwobwemWepowta.info(message);
 	}
 
-	public warn(message: string): void {
-		this._problemReporter.warn(message);
+	pubwic wawn(message: stwing): void {
+		this._pwobwemWepowta.wawn(message);
 	}
 
-	public error(message: string): void {
-		this._problemReporter.error(message);
+	pubwic ewwow(message: stwing): void {
+		this._pwobwemWepowta.ewwow(message);
 	}
 
-	public fatal(message: string): void {
-		this._problemReporter.fatal(message);
+	pubwic fataw(message: stwing): void {
+		this._pwobwemWepowta.fataw(message);
 	}
 }

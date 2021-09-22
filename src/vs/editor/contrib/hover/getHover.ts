@@ -1,36 +1,36 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { registerModelAndPositionCommand } from 'vs/editor/browser/editorExtensions';
-import { Position } from 'vs/editor/common/core/position';
-import { ITextModel } from 'vs/editor/common/model';
-import { Hover, HoverProviderRegistry } from 'vs/editor/common/modes';
+impowt { coawesce } fwom 'vs/base/common/awways';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { onUnexpectedExtewnawEwwow } fwom 'vs/base/common/ewwows';
+impowt { wegistewModewAndPositionCommand } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { Hova, HovewPwovidewWegistwy } fwom 'vs/editow/common/modes';
 
-export function getHover(model: ITextModel, position: Position, token: CancellationToken): Promise<Hover[]> {
+expowt function getHova(modew: ITextModew, position: Position, token: CancewwationToken): Pwomise<Hova[]> {
 
-	const supports = HoverProviderRegistry.ordered(model);
+	const suppowts = HovewPwovidewWegistwy.owdewed(modew);
 
-	const promises = supports.map(support => {
-		return Promise.resolve(support.provideHover(model, position, token)).then(hover => {
-			return hover && isValid(hover) ? hover : undefined;
-		}, err => {
-			onUnexpectedExternalError(err);
-			return undefined;
+	const pwomises = suppowts.map(suppowt => {
+		wetuwn Pwomise.wesowve(suppowt.pwovideHova(modew, position, token)).then(hova => {
+			wetuwn hova && isVawid(hova) ? hova : undefined;
+		}, eww => {
+			onUnexpectedExtewnawEwwow(eww);
+			wetuwn undefined;
 		});
 	});
 
-	return Promise.all(promises).then(coalesce);
+	wetuwn Pwomise.aww(pwomises).then(coawesce);
 }
 
-registerModelAndPositionCommand('_executeHoverProvider', (model, position) => getHover(model, position, CancellationToken.None));
+wegistewModewAndPositionCommand('_executeHovewPwovida', (modew, position) => getHova(modew, position, CancewwationToken.None));
 
-function isValid(result: Hover) {
-	const hasRange = (typeof result.range !== 'undefined');
-	const hasHtmlContent = typeof result.contents !== 'undefined' && result.contents && result.contents.length > 0;
-	return hasRange && hasHtmlContent;
+function isVawid(wesuwt: Hova) {
+	const hasWange = (typeof wesuwt.wange !== 'undefined');
+	const hasHtmwContent = typeof wesuwt.contents !== 'undefined' && wesuwt.contents && wesuwt.contents.wength > 0;
+	wetuwn hasWange && hasHtmwContent;
 }

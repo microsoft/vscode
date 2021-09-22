@@ -1,656 +1,656 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { Position } from 'vs/editor/common/core/position';
-import { IEditorContribution, IDiffEditorContribution } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { MenuId, MenuRegistry, Action2 } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { IConstructorSignature1, ServicesAccessor as InstantiationServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindings, KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { withNullAsUndefined, assertType } from 'vs/base/common/types';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { ILogService } from 'vs/platform/log/common/log';
+impowt * as nws fwom 'vs/nws';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ICodeEditow, IDiffEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { IEditowContwibution, IDiffEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { MenuId, MenuWegistwy, Action2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { CommandsWegistwy, ICommandHandwewDescwiption } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ContextKeyExpw, IContextKeySewvice, ContextKeyExpwession } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IConstwuctowSignatuwe1, SewvicesAccessow as InstantiationSewvicesAccessow, BwandedSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindings, KeybindingsWegistwy, KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { withNuwwAsUndefined, assewtType } fwom 'vs/base/common/types';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { KeyMod, KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
 
-export type ServicesAccessor = InstantiationServicesAccessor;
-export type IEditorContributionCtor = IConstructorSignature1<ICodeEditor, IEditorContribution>;
-export type IDiffEditorContributionCtor = IConstructorSignature1<IDiffEditor, IDiffEditorContribution>;
+expowt type SewvicesAccessow = InstantiationSewvicesAccessow;
+expowt type IEditowContwibutionCtow = IConstwuctowSignatuwe1<ICodeEditow, IEditowContwibution>;
+expowt type IDiffEditowContwibutionCtow = IConstwuctowSignatuwe1<IDiffEditow, IDiffEditowContwibution>;
 
-export interface IEditorContributionDescription {
-	id: string;
-	ctor: IEditorContributionCtor;
+expowt intewface IEditowContwibutionDescwiption {
+	id: stwing;
+	ctow: IEditowContwibutionCtow;
 }
 
-export interface IDiffEditorContributionDescription {
-	id: string;
-	ctor: IDiffEditorContributionCtor;
+expowt intewface IDiffEditowContwibutionDescwiption {
+	id: stwing;
+	ctow: IDiffEditowContwibutionCtow;
 }
 
-//#region Command
+//#wegion Command
 
-export interface ICommandKeybindingsOptions extends IKeybindings {
-	kbExpr?: ContextKeyExpression | null;
-	weight: number;
+expowt intewface ICommandKeybindingsOptions extends IKeybindings {
+	kbExpw?: ContextKeyExpwession | nuww;
+	weight: numba;
 	/**
-	 * the default keybinding arguments
+	 * the defauwt keybinding awguments
 	 */
-	args?: any;
+	awgs?: any;
 }
-export interface ICommandMenuOptions {
+expowt intewface ICommandMenuOptions {
 	menuId: MenuId;
-	group: string;
-	order: number;
-	when?: ContextKeyExpression;
-	title: string;
+	gwoup: stwing;
+	owda: numba;
+	when?: ContextKeyExpwession;
+	titwe: stwing;
 	icon?: ThemeIcon
 }
-export interface ICommandOptions {
-	id: string;
-	precondition: ContextKeyExpression | undefined;
+expowt intewface ICommandOptions {
+	id: stwing;
+	pwecondition: ContextKeyExpwession | undefined;
 	kbOpts?: ICommandKeybindingsOptions | ICommandKeybindingsOptions[];
-	description?: ICommandHandlerDescription;
+	descwiption?: ICommandHandwewDescwiption;
 	menuOpts?: ICommandMenuOptions | ICommandMenuOptions[];
 }
-export abstract class Command {
-	public readonly id: string;
-	public readonly precondition: ContextKeyExpression | undefined;
-	private readonly _kbOpts: ICommandKeybindingsOptions | ICommandKeybindingsOptions[] | undefined;
-	private readonly _menuOpts: ICommandMenuOptions | ICommandMenuOptions[] | undefined;
-	private readonly _description: ICommandHandlerDescription | undefined;
+expowt abstwact cwass Command {
+	pubwic weadonwy id: stwing;
+	pubwic weadonwy pwecondition: ContextKeyExpwession | undefined;
+	pwivate weadonwy _kbOpts: ICommandKeybindingsOptions | ICommandKeybindingsOptions[] | undefined;
+	pwivate weadonwy _menuOpts: ICommandMenuOptions | ICommandMenuOptions[] | undefined;
+	pwivate weadonwy _descwiption: ICommandHandwewDescwiption | undefined;
 
-	constructor(opts: ICommandOptions) {
+	constwuctow(opts: ICommandOptions) {
 		this.id = opts.id;
-		this.precondition = opts.precondition;
+		this.pwecondition = opts.pwecondition;
 		this._kbOpts = opts.kbOpts;
 		this._menuOpts = opts.menuOpts;
-		this._description = opts.description;
+		this._descwiption = opts.descwiption;
 	}
 
-	public register(): void {
+	pubwic wegista(): void {
 
-		if (Array.isArray(this._menuOpts)) {
-			this._menuOpts.forEach(this._registerMenuItem, this);
-		} else if (this._menuOpts) {
-			this._registerMenuItem(this._menuOpts);
+		if (Awway.isAwway(this._menuOpts)) {
+			this._menuOpts.fowEach(this._wegistewMenuItem, this);
+		} ewse if (this._menuOpts) {
+			this._wegistewMenuItem(this._menuOpts);
 		}
 
 		if (this._kbOpts) {
-			const kbOptsArr = Array.isArray(this._kbOpts) ? this._kbOpts : [this._kbOpts];
-			for (const kbOpts of kbOptsArr) {
-				let kbWhen = kbOpts.kbExpr;
-				if (this.precondition) {
+			const kbOptsAww = Awway.isAwway(this._kbOpts) ? this._kbOpts : [this._kbOpts];
+			fow (const kbOpts of kbOptsAww) {
+				wet kbWhen = kbOpts.kbExpw;
+				if (this.pwecondition) {
 					if (kbWhen) {
-						kbWhen = ContextKeyExpr.and(kbWhen, this.precondition);
-					} else {
-						kbWhen = this.precondition;
+						kbWhen = ContextKeyExpw.and(kbWhen, this.pwecondition);
+					} ewse {
+						kbWhen = this.pwecondition;
 					}
 				}
 
 				const desc = {
 					id: this.id,
 					weight: kbOpts.weight,
-					args: kbOpts.args,
+					awgs: kbOpts.awgs,
 					when: kbWhen,
-					primary: kbOpts.primary,
-					secondary: kbOpts.secondary,
+					pwimawy: kbOpts.pwimawy,
+					secondawy: kbOpts.secondawy,
 					win: kbOpts.win,
-					linux: kbOpts.linux,
+					winux: kbOpts.winux,
 					mac: kbOpts.mac,
 				};
 
-				KeybindingsRegistry.registerKeybindingRule(desc);
+				KeybindingsWegistwy.wegistewKeybindingWuwe(desc);
 			}
 		}
 
-		CommandsRegistry.registerCommand({
+		CommandsWegistwy.wegistewCommand({
 			id: this.id,
-			handler: (accessor, args) => this.runCommand(accessor, args),
-			description: this._description
+			handwa: (accessow, awgs) => this.wunCommand(accessow, awgs),
+			descwiption: this._descwiption
 		});
 	}
 
-	private _registerMenuItem(item: ICommandMenuOptions): void {
-		MenuRegistry.appendMenuItem(item.menuId, {
-			group: item.group,
+	pwivate _wegistewMenuItem(item: ICommandMenuOptions): void {
+		MenuWegistwy.appendMenuItem(item.menuId, {
+			gwoup: item.gwoup,
 			command: {
 				id: this.id,
-				title: item.title,
+				titwe: item.titwe,
 				icon: item.icon,
-				precondition: this.precondition
+				pwecondition: this.pwecondition
 			},
 			when: item.when,
-			order: item.order
+			owda: item.owda
 		});
 	}
 
-	public abstract runCommand(accessor: ServicesAccessor, args: any): void | Promise<void>;
+	pubwic abstwact wunCommand(accessow: SewvicesAccessow, awgs: any): void | Pwomise<void>;
 }
 
-//#endregion Command
+//#endwegion Command
 
-//#region MultiplexingCommand
+//#wegion MuwtipwexingCommand
 
 /**
- * Potential override for a command.
+ * Potentiaw ovewwide fow a command.
  *
- * @return `true` if the command was successfully run. This stops other overrides from being executed.
+ * @wetuwn `twue` if the command was successfuwwy wun. This stops otha ovewwides fwom being executed.
  */
-export type CommandImplementation = (accessor: ServicesAccessor, args: unknown) => boolean | Promise<void>;
+expowt type CommandImpwementation = (accessow: SewvicesAccessow, awgs: unknown) => boowean | Pwomise<void>;
 
-interface ICommandImplementationRegistration {
-	priority: number;
-	name: string;
-	implementation: CommandImplementation;
+intewface ICommandImpwementationWegistwation {
+	pwiowity: numba;
+	name: stwing;
+	impwementation: CommandImpwementation;
 }
 
-export class MultiCommand extends Command {
+expowt cwass MuwtiCommand extends Command {
 
-	private readonly _implementations: ICommandImplementationRegistration[] = [];
+	pwivate weadonwy _impwementations: ICommandImpwementationWegistwation[] = [];
 
 	/**
-	 * A higher priority gets to be looked at first
+	 * A higha pwiowity gets to be wooked at fiwst
 	 */
-	public addImplementation(priority: number, name: string, implementation: CommandImplementation): IDisposable {
-		this._implementations.push({ priority, name, implementation });
-		this._implementations.sort((a, b) => b.priority - a.priority);
-		return {
+	pubwic addImpwementation(pwiowity: numba, name: stwing, impwementation: CommandImpwementation): IDisposabwe {
+		this._impwementations.push({ pwiowity, name, impwementation });
+		this._impwementations.sowt((a, b) => b.pwiowity - a.pwiowity);
+		wetuwn {
 			dispose: () => {
-				for (let i = 0; i < this._implementations.length; i++) {
-					if (this._implementations[i].implementation === implementation) {
-						this._implementations.splice(i, 1);
-						return;
+				fow (wet i = 0; i < this._impwementations.wength; i++) {
+					if (this._impwementations[i].impwementation === impwementation) {
+						this._impwementations.spwice(i, 1);
+						wetuwn;
 					}
 				}
 			}
 		};
 	}
 
-	public runCommand(accessor: ServicesAccessor, args: any): void | Promise<void> {
-		const logService = accessor.get(ILogService);
-		logService.trace(`Executing Command '${this.id}' which has ${this._implementations.length} bound.`);
-		for (const impl of this._implementations) {
-			const result = impl.implementation(accessor, args);
-			if (result) {
-				logService.trace(`Command '${this.id}' was handled by '${impl.name}'.`);
-				if (typeof result === 'boolean') {
-					return;
+	pubwic wunCommand(accessow: SewvicesAccessow, awgs: any): void | Pwomise<void> {
+		const wogSewvice = accessow.get(IWogSewvice);
+		wogSewvice.twace(`Executing Command '${this.id}' which has ${this._impwementations.wength} bound.`);
+		fow (const impw of this._impwementations) {
+			const wesuwt = impw.impwementation(accessow, awgs);
+			if (wesuwt) {
+				wogSewvice.twace(`Command '${this.id}' was handwed by '${impw.name}'.`);
+				if (typeof wesuwt === 'boowean') {
+					wetuwn;
 				}
-				return result;
+				wetuwn wesuwt;
 			}
 		}
-		logService.trace(`The Command '${this.id}' was not handled by any implementation.`);
+		wogSewvice.twace(`The Command '${this.id}' was not handwed by any impwementation.`);
 	}
 }
 
-//#endregion
+//#endwegion
 
 /**
- * A command that delegates to another command's implementation.
+ * A command that dewegates to anotha command's impwementation.
  *
- * This lets different commands be registered but share the same implementation
+ * This wets diffewent commands be wegistewed but shawe the same impwementation
  */
-export class ProxyCommand extends Command {
-	constructor(
-		private readonly command: Command,
+expowt cwass PwoxyCommand extends Command {
+	constwuctow(
+		pwivate weadonwy command: Command,
 		opts: ICommandOptions
 	) {
-		super(opts);
+		supa(opts);
 	}
 
-	public runCommand(accessor: ServicesAccessor, args: any): void | Promise<void> {
-		return this.command.runCommand(accessor, args);
+	pubwic wunCommand(accessow: SewvicesAccessow, awgs: any): void | Pwomise<void> {
+		wetuwn this.command.wunCommand(accessow, awgs);
 	}
 }
 
-//#region EditorCommand
+//#wegion EditowCommand
 
-export interface IContributionCommandOptions<T> extends ICommandOptions {
-	handler: (controller: T, args: any) => void;
+expowt intewface IContwibutionCommandOptions<T> extends ICommandOptions {
+	handwa: (contwowwa: T, awgs: any) => void;
 }
-export interface EditorControllerCommand<T extends IEditorContribution> {
-	new(opts: IContributionCommandOptions<T>): EditorCommand;
+expowt intewface EditowContwowwewCommand<T extends IEditowContwibution> {
+	new(opts: IContwibutionCommandOptions<T>): EditowCommand;
 }
-export abstract class EditorCommand extends Command {
+expowt abstwact cwass EditowCommand extends Command {
 
 	/**
-	 * Create a command class that is bound to a certain editor contribution.
+	 * Cweate a command cwass that is bound to a cewtain editow contwibution.
 	 */
-	public static bindToContribution<T extends IEditorContribution>(controllerGetter: (editor: ICodeEditor) => T): EditorControllerCommand<T> {
-		return class EditorControllerCommandImpl extends EditorCommand {
-			private readonly _callback: (controller: T, args: any) => void;
+	pubwic static bindToContwibution<T extends IEditowContwibution>(contwowwewGetta: (editow: ICodeEditow) => T): EditowContwowwewCommand<T> {
+		wetuwn cwass EditowContwowwewCommandImpw extends EditowCommand {
+			pwivate weadonwy _cawwback: (contwowwa: T, awgs: any) => void;
 
-			constructor(opts: IContributionCommandOptions<T>) {
-				super(opts);
+			constwuctow(opts: IContwibutionCommandOptions<T>) {
+				supa(opts);
 
-				this._callback = opts.handler;
+				this._cawwback = opts.handwa;
 			}
 
-			public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-				const controller = controllerGetter(editor);
-				if (controller) {
-					this._callback(controllerGetter(editor), args);
+			pubwic wunEditowCommand(accessow: SewvicesAccessow, editow: ICodeEditow, awgs: any): void {
+				const contwowwa = contwowwewGetta(editow);
+				if (contwowwa) {
+					this._cawwback(contwowwewGetta(editow), awgs);
 				}
 			}
 		};
 	}
 
-	public runCommand(accessor: ServicesAccessor, args: any): void | Promise<void> {
-		const codeEditorService = accessor.get(ICodeEditorService);
+	pubwic wunCommand(accessow: SewvicesAccessow, awgs: any): void | Pwomise<void> {
+		const codeEditowSewvice = accessow.get(ICodeEditowSewvice);
 
-		// Find the editor with text focus or active
-		const editor = codeEditorService.getFocusedCodeEditor() || codeEditorService.getActiveCodeEditor();
-		if (!editor) {
-			// well, at least we tried...
-			return;
+		// Find the editow with text focus ow active
+		const editow = codeEditowSewvice.getFocusedCodeEditow() || codeEditowSewvice.getActiveCodeEditow();
+		if (!editow) {
+			// weww, at weast we twied...
+			wetuwn;
 		}
 
-		return editor.invokeWithinContext((editorAccessor) => {
-			const kbService = editorAccessor.get(IContextKeyService);
-			if (!kbService.contextMatchesRules(withNullAsUndefined(this.precondition))) {
-				// precondition does not hold
-				return;
+		wetuwn editow.invokeWithinContext((editowAccessow) => {
+			const kbSewvice = editowAccessow.get(IContextKeySewvice);
+			if (!kbSewvice.contextMatchesWuwes(withNuwwAsUndefined(this.pwecondition))) {
+				// pwecondition does not howd
+				wetuwn;
 			}
 
-			return this.runEditorCommand(editorAccessor, editor!, args);
+			wetuwn this.wunEditowCommand(editowAccessow, editow!, awgs);
 		});
 	}
 
-	public abstract runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void | Promise<void>;
+	pubwic abstwact wunEditowCommand(accessow: SewvicesAccessow | nuww, editow: ICodeEditow, awgs: any): void | Pwomise<void>;
 }
 
-//#endregion EditorCommand
+//#endwegion EditowCommand
 
-//#region EditorAction
+//#wegion EditowAction
 
-export interface IEditorActionContextMenuOptions {
-	group: string;
-	order: number;
-	when?: ContextKeyExpression;
+expowt intewface IEditowActionContextMenuOptions {
+	gwoup: stwing;
+	owda: numba;
+	when?: ContextKeyExpwession;
 	menuId?: MenuId;
 }
-export interface IActionOptions extends ICommandOptions {
-	label: string;
-	alias: string;
-	contextMenuOpts?: IEditorActionContextMenuOptions | IEditorActionContextMenuOptions[];
+expowt intewface IActionOptions extends ICommandOptions {
+	wabew: stwing;
+	awias: stwing;
+	contextMenuOpts?: IEditowActionContextMenuOptions | IEditowActionContextMenuOptions[];
 }
 
-export abstract class EditorAction extends EditorCommand {
+expowt abstwact cwass EditowAction extends EditowCommand {
 
-	private static convertOptions(opts: IActionOptions): ICommandOptions {
+	pwivate static convewtOptions(opts: IActionOptions): ICommandOptions {
 
-		let menuOpts: ICommandMenuOptions[];
-		if (Array.isArray(opts.menuOpts)) {
+		wet menuOpts: ICommandMenuOptions[];
+		if (Awway.isAwway(opts.menuOpts)) {
 			menuOpts = opts.menuOpts;
-		} else if (opts.menuOpts) {
+		} ewse if (opts.menuOpts) {
 			menuOpts = [opts.menuOpts];
-		} else {
+		} ewse {
 			menuOpts = [];
 		}
 
-		function withDefaults(item: Partial<ICommandMenuOptions>): ICommandMenuOptions {
+		function withDefauwts(item: Pawtiaw<ICommandMenuOptions>): ICommandMenuOptions {
 			if (!item.menuId) {
-				item.menuId = MenuId.EditorContext;
+				item.menuId = MenuId.EditowContext;
 			}
-			if (!item.title) {
-				item.title = opts.label;
+			if (!item.titwe) {
+				item.titwe = opts.wabew;
 			}
-			item.when = ContextKeyExpr.and(opts.precondition, item.when);
-			return <ICommandMenuOptions>item;
+			item.when = ContextKeyExpw.and(opts.pwecondition, item.when);
+			wetuwn <ICommandMenuOptions>item;
 		}
 
-		if (Array.isArray(opts.contextMenuOpts)) {
-			menuOpts.push(...opts.contextMenuOpts.map(withDefaults));
-		} else if (opts.contextMenuOpts) {
-			menuOpts.push(withDefaults(opts.contextMenuOpts));
+		if (Awway.isAwway(opts.contextMenuOpts)) {
+			menuOpts.push(...opts.contextMenuOpts.map(withDefauwts));
+		} ewse if (opts.contextMenuOpts) {
+			menuOpts.push(withDefauwts(opts.contextMenuOpts));
 		}
 
 		opts.menuOpts = menuOpts;
-		return <ICommandOptions>opts;
+		wetuwn <ICommandOptions>opts;
 	}
 
-	public readonly label: string;
-	public readonly alias: string;
+	pubwic weadonwy wabew: stwing;
+	pubwic weadonwy awias: stwing;
 
-	constructor(opts: IActionOptions) {
-		super(EditorAction.convertOptions(opts));
-		this.label = opts.label;
-		this.alias = opts.alias;
+	constwuctow(opts: IActionOptions) {
+		supa(EditowAction.convewtOptions(opts));
+		this.wabew = opts.wabew;
+		this.awias = opts.awias;
 	}
 
-	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void> {
-		this.reportTelemetry(accessor, editor);
-		return this.run(accessor, editor, args || {});
+	pubwic wunEditowCommand(accessow: SewvicesAccessow, editow: ICodeEditow, awgs: any): void | Pwomise<void> {
+		this.wepowtTewemetwy(accessow, editow);
+		wetuwn this.wun(accessow, editow, awgs || {});
 	}
 
-	protected reportTelemetry(accessor: ServicesAccessor, editor: ICodeEditor) {
-		type EditorActionInvokedClassification = {
-			name: { classification: 'SystemMetaData', purpose: 'FeatureInsight', };
-			id: { classification: 'SystemMetaData', purpose: 'FeatureInsight', };
+	pwotected wepowtTewemetwy(accessow: SewvicesAccessow, editow: ICodeEditow) {
+		type EditowActionInvokedCwassification = {
+			name: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', };
+			id: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', };
 		};
-		type EditorActionInvokedEvent = {
-			name: string;
-			id: string;
+		type EditowActionInvokedEvent = {
+			name: stwing;
+			id: stwing;
 		};
-		accessor.get(ITelemetryService).publicLog2<EditorActionInvokedEvent, EditorActionInvokedClassification>('editorActionInvoked', { name: this.label, id: this.id });
+		accessow.get(ITewemetwySewvice).pubwicWog2<EditowActionInvokedEvent, EditowActionInvokedCwassification>('editowActionInvoked', { name: this.wabew, id: this.id });
 	}
 
-	public abstract run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void>;
+	pubwic abstwact wun(accessow: SewvicesAccessow, editow: ICodeEditow, awgs: any): void | Pwomise<void>;
 }
 
-export type EditorActionImplementation = (accessor: ServicesAccessor, editor: ICodeEditor, args: any) => boolean | Promise<void>;
+expowt type EditowActionImpwementation = (accessow: SewvicesAccessow, editow: ICodeEditow, awgs: any) => boowean | Pwomise<void>;
 
-export class MultiEditorAction extends EditorAction {
+expowt cwass MuwtiEditowAction extends EditowAction {
 
-	private readonly _implementations: [number, EditorActionImplementation][] = [];
+	pwivate weadonwy _impwementations: [numba, EditowActionImpwementation][] = [];
 
 	/**
-	 * A higher priority gets to be looked at first
+	 * A higha pwiowity gets to be wooked at fiwst
 	 */
-	public addImplementation(priority: number, implementation: EditorActionImplementation): IDisposable {
-		this._implementations.push([priority, implementation]);
-		this._implementations.sort((a, b) => b[0] - a[0]);
-		return {
+	pubwic addImpwementation(pwiowity: numba, impwementation: EditowActionImpwementation): IDisposabwe {
+		this._impwementations.push([pwiowity, impwementation]);
+		this._impwementations.sowt((a, b) => b[0] - a[0]);
+		wetuwn {
 			dispose: () => {
-				for (let i = 0; i < this._implementations.length; i++) {
-					if (this._implementations[i][1] === implementation) {
-						this._implementations.splice(i, 1);
-						return;
+				fow (wet i = 0; i < this._impwementations.wength; i++) {
+					if (this._impwementations[i][1] === impwementation) {
+						this._impwementations.spwice(i, 1);
+						wetuwn;
 					}
 				}
 			}
 		};
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void> {
-		for (const impl of this._implementations) {
-			const result = impl[1](accessor, editor, args);
-			if (result) {
-				if (typeof result === 'boolean') {
-					return;
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow, awgs: any): void | Pwomise<void> {
+		fow (const impw of this._impwementations) {
+			const wesuwt = impw[1](accessow, editow, awgs);
+			if (wesuwt) {
+				if (typeof wesuwt === 'boowean') {
+					wetuwn;
 				}
-				return result;
+				wetuwn wesuwt;
 			}
 		}
 	}
 
 }
 
-//#endregion EditorAction
+//#endwegion EditowAction
 
-//#region EditorAction2
+//#wegion EditowAction2
 
-export abstract class EditorAction2 extends Action2 {
+expowt abstwact cwass EditowAction2 extends Action2 {
 
-	run(accessor: ServicesAccessor, ...args: any[]) {
-		// Find the editor with text focus or active
-		const codeEditorService = accessor.get(ICodeEditorService);
-		const editor = codeEditorService.getFocusedCodeEditor() || codeEditorService.getActiveCodeEditor();
-		if (!editor) {
-			// well, at least we tried...
-			return;
+	wun(accessow: SewvicesAccessow, ...awgs: any[]) {
+		// Find the editow with text focus ow active
+		const codeEditowSewvice = accessow.get(ICodeEditowSewvice);
+		const editow = codeEditowSewvice.getFocusedCodeEditow() || codeEditowSewvice.getActiveCodeEditow();
+		if (!editow) {
+			// weww, at weast we twied...
+			wetuwn;
 		}
-		// precondition does hold
-		return editor.invokeWithinContext((editorAccessor) => {
-			const kbService = editorAccessor.get(IContextKeyService);
-			if (kbService.contextMatchesRules(withNullAsUndefined(this.desc.precondition))) {
-				return this.runEditorCommand(editorAccessor, editor!, args);
+		// pwecondition does howd
+		wetuwn editow.invokeWithinContext((editowAccessow) => {
+			const kbSewvice = editowAccessow.get(IContextKeySewvice);
+			if (kbSewvice.contextMatchesWuwes(withNuwwAsUndefined(this.desc.pwecondition))) {
+				wetuwn this.wunEditowCommand(editowAccessow, editow!, awgs);
 			}
 		});
 	}
 
-	abstract runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]): any;
+	abstwact wunEditowCommand(accessow: SewvicesAccessow, editow: ICodeEditow, ...awgs: any[]): any;
 }
 
-//#endregion
+//#endwegion
 
-// --- Registration of commands and actions
+// --- Wegistwation of commands and actions
 
 
-export function registerModelAndPositionCommand(id: string, handler: (model: ITextModel, position: Position, ...args: any[]) => any) {
-	CommandsRegistry.registerCommand(id, function (accessor, ...args) {
+expowt function wegistewModewAndPositionCommand(id: stwing, handwa: (modew: ITextModew, position: Position, ...awgs: any[]) => any) {
+	CommandsWegistwy.wegistewCommand(id, function (accessow, ...awgs) {
 
-		const [resource, position] = args;
-		assertType(URI.isUri(resource));
-		assertType(Position.isIPosition(position));
+		const [wesouwce, position] = awgs;
+		assewtType(UWI.isUwi(wesouwce));
+		assewtType(Position.isIPosition(position));
 
-		const model = accessor.get(IModelService).getModel(resource);
-		if (model) {
-			const editorPosition = Position.lift(position);
-			return handler(model, editorPosition, ...args.slice(2));
+		const modew = accessow.get(IModewSewvice).getModew(wesouwce);
+		if (modew) {
+			const editowPosition = Position.wift(position);
+			wetuwn handwa(modew, editowPosition, ...awgs.swice(2));
 		}
 
-		return accessor.get(ITextModelService).createModelReference(resource).then(reference => {
-			return new Promise((resolve, reject) => {
-				try {
-					const result = handler(reference.object.textEditorModel, Position.lift(position), args.slice(2));
-					resolve(result);
-				} catch (err) {
-					reject(err);
+		wetuwn accessow.get(ITextModewSewvice).cweateModewWefewence(wesouwce).then(wefewence => {
+			wetuwn new Pwomise((wesowve, weject) => {
+				twy {
+					const wesuwt = handwa(wefewence.object.textEditowModew, Position.wift(position), awgs.swice(2));
+					wesowve(wesuwt);
+				} catch (eww) {
+					weject(eww);
 				}
-			}).finally(() => {
-				reference.dispose();
+			}).finawwy(() => {
+				wefewence.dispose();
 			});
 		});
 	});
 }
 
-export function registerModelCommand(id: string, handler: (model: ITextModel, ...args: any[]) => any) {
-	CommandsRegistry.registerCommand(id, function (accessor, ...args) {
+expowt function wegistewModewCommand(id: stwing, handwa: (modew: ITextModew, ...awgs: any[]) => any) {
+	CommandsWegistwy.wegistewCommand(id, function (accessow, ...awgs) {
 
-		const [resource] = args;
-		assertType(URI.isUri(resource));
+		const [wesouwce] = awgs;
+		assewtType(UWI.isUwi(wesouwce));
 
-		const model = accessor.get(IModelService).getModel(resource);
-		if (model) {
-			return handler(model, ...args.slice(1));
+		const modew = accessow.get(IModewSewvice).getModew(wesouwce);
+		if (modew) {
+			wetuwn handwa(modew, ...awgs.swice(1));
 		}
 
-		return accessor.get(ITextModelService).createModelReference(resource).then(reference => {
-			return new Promise((resolve, reject) => {
-				try {
-					const result = handler(reference.object.textEditorModel, args.slice(1));
-					resolve(result);
-				} catch (err) {
-					reject(err);
+		wetuwn accessow.get(ITextModewSewvice).cweateModewWefewence(wesouwce).then(wefewence => {
+			wetuwn new Pwomise((wesowve, weject) => {
+				twy {
+					const wesuwt = handwa(wefewence.object.textEditowModew, awgs.swice(1));
+					wesowve(wesuwt);
+				} catch (eww) {
+					weject(eww);
 				}
-			}).finally(() => {
-				reference.dispose();
+			}).finawwy(() => {
+				wefewence.dispose();
 			});
 		});
 	});
 }
 
-export function registerEditorCommand<T extends EditorCommand>(editorCommand: T): T {
-	EditorContributionRegistry.INSTANCE.registerEditorCommand(editorCommand);
-	return editorCommand;
+expowt function wegistewEditowCommand<T extends EditowCommand>(editowCommand: T): T {
+	EditowContwibutionWegistwy.INSTANCE.wegistewEditowCommand(editowCommand);
+	wetuwn editowCommand;
 }
 
-export function registerEditorAction<T extends EditorAction>(ctor: { new(): T; }): T {
-	const action = new ctor();
-	EditorContributionRegistry.INSTANCE.registerEditorAction(action);
-	return action;
+expowt function wegistewEditowAction<T extends EditowAction>(ctow: { new(): T; }): T {
+	const action = new ctow();
+	EditowContwibutionWegistwy.INSTANCE.wegistewEditowAction(action);
+	wetuwn action;
 }
 
-export function registerMultiEditorAction<T extends MultiEditorAction>(action: T): T {
-	EditorContributionRegistry.INSTANCE.registerEditorAction(action);
-	return action;
+expowt function wegistewMuwtiEditowAction<T extends MuwtiEditowAction>(action: T): T {
+	EditowContwibutionWegistwy.INSTANCE.wegistewEditowAction(action);
+	wetuwn action;
 }
 
-export function registerInstantiatedEditorAction(editorAction: EditorAction): void {
-	EditorContributionRegistry.INSTANCE.registerEditorAction(editorAction);
+expowt function wegistewInstantiatedEditowAction(editowAction: EditowAction): void {
+	EditowContwibutionWegistwy.INSTANCE.wegistewEditowAction(editowAction);
 }
 
-export function registerEditorContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: ICodeEditor, ...services: Services): IEditorContribution }): void {
-	EditorContributionRegistry.INSTANCE.registerEditorContribution(id, ctor);
+expowt function wegistewEditowContwibution<Sewvices extends BwandedSewvice[]>(id: stwing, ctow: { new(editow: ICodeEditow, ...sewvices: Sewvices): IEditowContwibution }): void {
+	EditowContwibutionWegistwy.INSTANCE.wegistewEditowContwibution(id, ctow);
 }
 
-export function registerDiffEditorContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: IDiffEditor, ...services: Services): IEditorContribution }): void {
-	EditorContributionRegistry.INSTANCE.registerDiffEditorContribution(id, ctor);
+expowt function wegistewDiffEditowContwibution<Sewvices extends BwandedSewvice[]>(id: stwing, ctow: { new(editow: IDiffEditow, ...sewvices: Sewvices): IEditowContwibution }): void {
+	EditowContwibutionWegistwy.INSTANCE.wegistewDiffEditowContwibution(id, ctow);
 }
 
-export namespace EditorExtensionsRegistry {
+expowt namespace EditowExtensionsWegistwy {
 
-	export function getEditorCommand(commandId: string): EditorCommand {
-		return EditorContributionRegistry.INSTANCE.getEditorCommand(commandId);
+	expowt function getEditowCommand(commandId: stwing): EditowCommand {
+		wetuwn EditowContwibutionWegistwy.INSTANCE.getEditowCommand(commandId);
 	}
 
-	export function getEditorActions(): EditorAction[] {
-		return EditorContributionRegistry.INSTANCE.getEditorActions();
+	expowt function getEditowActions(): EditowAction[] {
+		wetuwn EditowContwibutionWegistwy.INSTANCE.getEditowActions();
 	}
 
-	export function getEditorContributions(): IEditorContributionDescription[] {
-		return EditorContributionRegistry.INSTANCE.getEditorContributions();
+	expowt function getEditowContwibutions(): IEditowContwibutionDescwiption[] {
+		wetuwn EditowContwibutionWegistwy.INSTANCE.getEditowContwibutions();
 	}
 
-	export function getSomeEditorContributions(ids: string[]): IEditorContributionDescription[] {
-		return EditorContributionRegistry.INSTANCE.getEditorContributions().filter(c => ids.indexOf(c.id) >= 0);
+	expowt function getSomeEditowContwibutions(ids: stwing[]): IEditowContwibutionDescwiption[] {
+		wetuwn EditowContwibutionWegistwy.INSTANCE.getEditowContwibutions().fiwta(c => ids.indexOf(c.id) >= 0);
 	}
 
-	export function getDiffEditorContributions(): IDiffEditorContributionDescription[] {
-		return EditorContributionRegistry.INSTANCE.getDiffEditorContributions();
+	expowt function getDiffEditowContwibutions(): IDiffEditowContwibutionDescwiption[] {
+		wetuwn EditowContwibutionWegistwy.INSTANCE.getDiffEditowContwibutions();
 	}
 }
 
-// Editor extension points
+// Editow extension points
 const Extensions = {
-	EditorCommonContributions: 'editor.contributions'
+	EditowCommonContwibutions: 'editow.contwibutions'
 };
 
-class EditorContributionRegistry {
+cwass EditowContwibutionWegistwy {
 
-	public static readonly INSTANCE = new EditorContributionRegistry();
+	pubwic static weadonwy INSTANCE = new EditowContwibutionWegistwy();
 
-	private readonly editorContributions: IEditorContributionDescription[];
-	private readonly diffEditorContributions: IDiffEditorContributionDescription[];
-	private readonly editorActions: EditorAction[];
-	private readonly editorCommands: { [commandId: string]: EditorCommand; };
+	pwivate weadonwy editowContwibutions: IEditowContwibutionDescwiption[];
+	pwivate weadonwy diffEditowContwibutions: IDiffEditowContwibutionDescwiption[];
+	pwivate weadonwy editowActions: EditowAction[];
+	pwivate weadonwy editowCommands: { [commandId: stwing]: EditowCommand; };
 
-	constructor() {
-		this.editorContributions = [];
-		this.diffEditorContributions = [];
-		this.editorActions = [];
-		this.editorCommands = Object.create(null);
+	constwuctow() {
+		this.editowContwibutions = [];
+		this.diffEditowContwibutions = [];
+		this.editowActions = [];
+		this.editowCommands = Object.cweate(nuww);
 	}
 
-	public registerEditorContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: ICodeEditor, ...services: Services): IEditorContribution }): void {
-		this.editorContributions.push({ id, ctor: ctor as IEditorContributionCtor });
+	pubwic wegistewEditowContwibution<Sewvices extends BwandedSewvice[]>(id: stwing, ctow: { new(editow: ICodeEditow, ...sewvices: Sewvices): IEditowContwibution }): void {
+		this.editowContwibutions.push({ id, ctow: ctow as IEditowContwibutionCtow });
 	}
 
-	public getEditorContributions(): IEditorContributionDescription[] {
-		return this.editorContributions.slice(0);
+	pubwic getEditowContwibutions(): IEditowContwibutionDescwiption[] {
+		wetuwn this.editowContwibutions.swice(0);
 	}
 
-	public registerDiffEditorContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: IDiffEditor, ...services: Services): IEditorContribution }): void {
-		this.diffEditorContributions.push({ id, ctor: ctor as IDiffEditorContributionCtor });
+	pubwic wegistewDiffEditowContwibution<Sewvices extends BwandedSewvice[]>(id: stwing, ctow: { new(editow: IDiffEditow, ...sewvices: Sewvices): IEditowContwibution }): void {
+		this.diffEditowContwibutions.push({ id, ctow: ctow as IDiffEditowContwibutionCtow });
 	}
 
-	public getDiffEditorContributions(): IDiffEditorContributionDescription[] {
-		return this.diffEditorContributions.slice(0);
+	pubwic getDiffEditowContwibutions(): IDiffEditowContwibutionDescwiption[] {
+		wetuwn this.diffEditowContwibutions.swice(0);
 	}
 
-	public registerEditorAction(action: EditorAction) {
-		action.register();
-		this.editorActions.push(action);
+	pubwic wegistewEditowAction(action: EditowAction) {
+		action.wegista();
+		this.editowActions.push(action);
 	}
 
-	public getEditorActions(): EditorAction[] {
-		return this.editorActions.slice(0);
+	pubwic getEditowActions(): EditowAction[] {
+		wetuwn this.editowActions.swice(0);
 	}
 
-	public registerEditorCommand(editorCommand: EditorCommand) {
-		editorCommand.register();
-		this.editorCommands[editorCommand.id] = editorCommand;
+	pubwic wegistewEditowCommand(editowCommand: EditowCommand) {
+		editowCommand.wegista();
+		this.editowCommands[editowCommand.id] = editowCommand;
 	}
 
-	public getEditorCommand(commandId: string): EditorCommand {
-		return (this.editorCommands[commandId] || null);
+	pubwic getEditowCommand(commandId: stwing): EditowCommand {
+		wetuwn (this.editowCommands[commandId] || nuww);
 	}
 
 }
-Registry.add(Extensions.EditorCommonContributions, EditorContributionRegistry.INSTANCE);
+Wegistwy.add(Extensions.EditowCommonContwibutions, EditowContwibutionWegistwy.INSTANCE);
 
-function registerCommand<T extends Command>(command: T): T {
-	command.register();
-	return command;
+function wegistewCommand<T extends Command>(command: T): T {
+	command.wegista();
+	wetuwn command;
 }
 
-export const UndoCommand = registerCommand(new MultiCommand({
+expowt const UndoCommand = wegistewCommand(new MuwtiCommand({
 	id: 'undo',
-	precondition: undefined,
+	pwecondition: undefined,
 	kbOpts: {
-		weight: KeybindingWeight.EditorCore,
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_Z
+		weight: KeybindingWeight.EditowCowe,
+		pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_Z
 	},
 	menuOpts: [{
-		menuId: MenuId.MenubarEditMenu,
-		group: '1_do',
-		title: nls.localize({ key: 'miUndo', comment: ['&& denotes a mnemonic'] }, "&&Undo"),
-		order: 1
+		menuId: MenuId.MenubawEditMenu,
+		gwoup: '1_do',
+		titwe: nws.wocawize({ key: 'miUndo', comment: ['&& denotes a mnemonic'] }, "&&Undo"),
+		owda: 1
 	}, {
-		menuId: MenuId.CommandPalette,
-		group: '',
-		title: nls.localize('undo', "Undo"),
-		order: 1
+		menuId: MenuId.CommandPawette,
+		gwoup: '',
+		titwe: nws.wocawize('undo', "Undo"),
+		owda: 1
 	}]
 }));
 
-registerCommand(new ProxyCommand(UndoCommand, { id: 'default:undo', precondition: undefined }));
+wegistewCommand(new PwoxyCommand(UndoCommand, { id: 'defauwt:undo', pwecondition: undefined }));
 
-export const RedoCommand = registerCommand(new MultiCommand({
-	id: 'redo',
-	precondition: undefined,
+expowt const WedoCommand = wegistewCommand(new MuwtiCommand({
+	id: 'wedo',
+	pwecondition: undefined,
 	kbOpts: {
-		weight: KeybindingWeight.EditorCore,
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_Y,
-		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z],
-		mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z }
+		weight: KeybindingWeight.EditowCowe,
+		pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_Y,
+		secondawy: [KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_Z],
+		mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_Z }
 	},
 	menuOpts: [{
-		menuId: MenuId.MenubarEditMenu,
-		group: '1_do',
-		title: nls.localize({ key: 'miRedo', comment: ['&& denotes a mnemonic'] }, "&&Redo"),
-		order: 2
+		menuId: MenuId.MenubawEditMenu,
+		gwoup: '1_do',
+		titwe: nws.wocawize({ key: 'miWedo', comment: ['&& denotes a mnemonic'] }, "&&Wedo"),
+		owda: 2
 	}, {
-		menuId: MenuId.CommandPalette,
-		group: '',
-		title: nls.localize('redo', "Redo"),
-		order: 1
+		menuId: MenuId.CommandPawette,
+		gwoup: '',
+		titwe: nws.wocawize('wedo', "Wedo"),
+		owda: 1
 	}]
 }));
 
-registerCommand(new ProxyCommand(RedoCommand, { id: 'default:redo', precondition: undefined }));
+wegistewCommand(new PwoxyCommand(WedoCommand, { id: 'defauwt:wedo', pwecondition: undefined }));
 
-export const SelectAllCommand = registerCommand(new MultiCommand({
-	id: 'editor.action.selectAll',
-	precondition: undefined,
+expowt const SewectAwwCommand = wegistewCommand(new MuwtiCommand({
+	id: 'editow.action.sewectAww',
+	pwecondition: undefined,
 	kbOpts: {
-		weight: KeybindingWeight.EditorCore,
-		kbExpr: null,
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_A
+		weight: KeybindingWeight.EditowCowe,
+		kbExpw: nuww,
+		pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_A
 	},
 	menuOpts: [{
-		menuId: MenuId.MenubarSelectionMenu,
-		group: '1_basic',
-		title: nls.localize({ key: 'miSelectAll', comment: ['&& denotes a mnemonic'] }, "&&Select All"),
-		order: 1
+		menuId: MenuId.MenubawSewectionMenu,
+		gwoup: '1_basic',
+		titwe: nws.wocawize({ key: 'miSewectAww', comment: ['&& denotes a mnemonic'] }, "&&Sewect Aww"),
+		owda: 1
 	}, {
-		menuId: MenuId.CommandPalette,
-		group: '',
-		title: nls.localize('selectAll', "Select All"),
-		order: 1
+		menuId: MenuId.CommandPawette,
+		gwoup: '',
+		titwe: nws.wocawize('sewectAww', "Sewect Aww"),
+		owda: 1
 	}]
 }));

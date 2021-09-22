@@ -1,163 +1,163 @@
 {
   "name": "vscode-api-tests",
-  "description": "API tests for VS Code",
-  "version": "0.0.1",
-  "publisher": "vscode",
-  "license": "MIT",
-  "enableProposedApi": true,
-  "private": true,
+  "descwiption": "API tests fow VS Code",
+  "vewsion": "0.0.1",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
+  "enabwePwoposedApi": twue,
+  "pwivate": twue,
   "activationEvents": [],
   "main": "./out/extension",
   "engines": {
     "vscode": "^1.55.0"
   },
   "icon": "media/icon.png",
-  "contributes": {
-    "configuration": {
+  "contwibutes": {
+    "configuwation": {
       "type": "object",
-      "title": "Test Config",
-      "properties": {
-        "farboo.config0": {
-          "type": "boolean",
-          "default": true
+      "titwe": "Test Config",
+      "pwopewties": {
+        "fawboo.config0": {
+          "type": "boowean",
+          "defauwt": twue
         },
-        "farboo.nested.config1": {
-          "type": "number",
-          "default": 42
+        "fawboo.nested.config1": {
+          "type": "numba",
+          "defauwt": 42
         },
-        "farboo.nested.config2": {
-          "type": "string",
-          "default": "Das Pferd frisst kein Reis."
+        "fawboo.nested.config2": {
+          "type": "stwing",
+          "defauwt": "Das Pfewd fwisst kein Weis."
         },
-        "farboo.config4": {
-          "type": "string"
+        "fawboo.config4": {
+          "type": "stwing"
         },
-        "farboo.get": {
-          "type": "string",
-          "default": "get-prop"
+        "fawboo.get": {
+          "type": "stwing",
+          "defauwt": "get-pwop"
         }
       }
     },
     "views": {
-      "remote": [
+      "wemote": [
         {
-          "id": "test.treeId",
-          "name": "test-tree",
-          "when": "never"
+          "id": "test.tweeId",
+          "name": "test-twee",
+          "when": "neva"
         }
       ]
     },
-    "configurationDefaults": {
-      "[abcLang]": {
-        "editor.lineNumbers": "off",
-        "editor.tabSize": 2
+    "configuwationDefauwts": {
+      "[abcWang]": {
+        "editow.wineNumbews": "off",
+        "editow.tabSize": 2
       }
     },
     "taskDefinitions": [
       {
-        "type": "custombuildscript",
-        "required": [
-          "flavor"
+        "type": "custombuiwdscwipt",
+        "wequiwed": [
+          "fwavow"
         ],
-        "properties": {
-          "flavor": {
-            "type": "string",
-            "description": "The build flavor. Should be either '32' or '64'."
+        "pwopewties": {
+          "fwavow": {
+            "type": "stwing",
+            "descwiption": "The buiwd fwavow. Shouwd be eitha '32' ow '64'."
           },
-          "flags": {
-            "type": "array",
-            "description": "Additional build flags."
+          "fwags": {
+            "type": "awway",
+            "descwiption": "Additionaw buiwd fwags."
           }
         }
       }
     ],
-    "breakpoints": [
+    "bweakpoints": [
       {
-        "language": "markdown"
+        "wanguage": "mawkdown"
       }
     ],
-    "debuggers": [
+    "debuggews": [
       {
         "type": "mock",
-        "label": "Mock Debug",
-        "languages": [
-          "markdown"
+        "wabew": "Mock Debug",
+        "wanguages": [
+          "mawkdown"
         ],
-        "configurationAttributes": {
-          "launch": {
-            "required": [
-              "program"
+        "configuwationAttwibutes": {
+          "waunch": {
+            "wequiwed": [
+              "pwogwam"
             ],
-            "properties": {
-              "program": {
-                "type": "string",
-                "description": "Absolute path to a text file.",
-                "default": "${workspaceFolder}/file.md"
+            "pwopewties": {
+              "pwogwam": {
+                "type": "stwing",
+                "descwiption": "Absowute path to a text fiwe.",
+                "defauwt": "${wowkspaceFowda}/fiwe.md"
               },
-              "stopOnEntry": {
-                "type": "boolean",
-                "description": "Automatically stop after launch.",
-                "default": true
+              "stopOnEntwy": {
+                "type": "boowean",
+                "descwiption": "Automaticawwy stop afta waunch.",
+                "defauwt": twue
               },
-              "trace": {
-                "type": "boolean",
-                "description": "Enable logging of the Debug Adapter Protocol.",
-                "default": true
+              "twace": {
+                "type": "boowean",
+                "descwiption": "Enabwe wogging of the Debug Adapta Pwotocow.",
+                "defauwt": twue
               }
             }
           }
         },
-        "initialConfigurations": [
+        "initiawConfiguwations": [
           {
             "type": "mock",
-            "request": "launch",
-            "name": "Debug file.md",
-            "program": "${workspaceFolder}/file.md"
+            "wequest": "waunch",
+            "name": "Debug fiwe.md",
+            "pwogwam": "${wowkspaceFowda}/fiwe.md"
           }
         ]
       }
     ],
     "notebooks": [
       {
-        "type": "notebookCoreTest",
-        "displayName": "Notebook Core Test",
-        "selector": [
+        "type": "notebookCoweTest",
+        "dispwayName": "Notebook Cowe Test",
+        "sewectow": [
           {
-            "filenamePattern": "*.vsctestnb",
-            "excludeFileNamePattern": ""
+            "fiwenamePattewn": "*.vsctestnb",
+            "excwudeFiweNamePattewn": ""
           }
         ]
       },
       {
         "type": "notebook.nbdtest",
-        "displayName": "notebook.nbdtest",
-        "selector": [
+        "dispwayName": "notebook.nbdtest",
+        "sewectow": [
           {
-            "filenamePattern": "**/*.nbdtest"
+            "fiwenamePattewn": "**/*.nbdtest"
           }
         ]
       },
       {
-        "type": "notebook.nbdserializer",
-        "displayName": "notebook.nbdserializer",
-        "selector": [
+        "type": "notebook.nbdsewiawiza",
+        "dispwayName": "notebook.nbdsewiawiza",
+        "sewectow": [
           {
-            "filenamePattern": "**/*.nbdserializer"
+            "fiwenamePattewn": "**/*.nbdsewiawiza"
           }
         ]
       }
     ]
   },
-  "scripts": {
-    "compile": "node ./node_modules/vscode/bin/compile -watch -p ./",
-    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-api-tests ./tsconfig.json"
+  "scwipts": {
+    "compiwe": "node ./node_moduwes/vscode/bin/compiwe -watch -p ./",
+    "vscode:pwepubwish": "node ../../node_moduwes/guwp/bin/guwp.js --guwpfiwe ../../buiwd/guwpfiwe.extensions.js compiwe-extension:vscode-api-tests ./tsconfig.json"
   },
   "devDependencies": {
     "@types/mocha": "^8.2.0",
     "@types/node": "14.x"
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

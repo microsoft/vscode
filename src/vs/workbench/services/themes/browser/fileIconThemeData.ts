@@ -1,382 +1,382 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
-import * as Paths from 'vs/base/common/path';
-import * as resources from 'vs/base/common/resources';
-import * as Json from 'vs/base/common/json';
-import { ExtensionData, IThemeExtensionPoint, IWorkbenchFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
-import { asCSSUrl } from 'vs/base/browser/dom';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt * as nws fwom 'vs/nws';
+impowt * as Paths fwom 'vs/base/common/path';
+impowt * as wesouwces fwom 'vs/base/common/wesouwces';
+impowt * as Json fwom 'vs/base/common/json';
+impowt { ExtensionData, IThemeExtensionPoint, IWowkbenchFiweIconTheme } fwom 'vs/wowkbench/sewvices/themes/common/wowkbenchThemeSewvice';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { getPawseEwwowMessage } fwom 'vs/base/common/jsonEwwowMessages';
+impowt { asCSSUww } fwom 'vs/base/bwowsa/dom';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
 
-export class FileIconThemeData implements IWorkbenchFileIconTheme {
+expowt cwass FiweIconThemeData impwements IWowkbenchFiweIconTheme {
 
-	static readonly STORAGE_KEY = 'iconThemeData';
+	static weadonwy STOWAGE_KEY = 'iconThemeData';
 
-	id: string;
-	label: string;
-	settingsId: string | null;
-	description?: string;
-	hasFileIcons: boolean;
-	hasFolderIcons: boolean;
-	hidesExplorerArrows: boolean;
-	isLoaded: boolean;
-	location?: URI;
+	id: stwing;
+	wabew: stwing;
+	settingsId: stwing | nuww;
+	descwiption?: stwing;
+	hasFiweIcons: boowean;
+	hasFowdewIcons: boowean;
+	hidesExpwowewAwwows: boowean;
+	isWoaded: boowean;
+	wocation?: UWI;
 	extensionData?: ExtensionData;
-	watch?: boolean;
+	watch?: boowean;
 
-	styleSheetContent?: string;
+	styweSheetContent?: stwing;
 
-	private constructor(id: string, label: string, settingsId: string | null) {
+	pwivate constwuctow(id: stwing, wabew: stwing, settingsId: stwing | nuww) {
 		this.id = id;
-		this.label = label;
+		this.wabew = wabew;
 		this.settingsId = settingsId;
-		this.isLoaded = false;
-		this.hasFileIcons = false;
-		this.hasFolderIcons = false;
-		this.hidesExplorerArrows = false;
+		this.isWoaded = fawse;
+		this.hasFiweIcons = fawse;
+		this.hasFowdewIcons = fawse;
+		this.hidesExpwowewAwwows = fawse;
 	}
 
-	public ensureLoaded(fileService: IFileService): Promise<string | undefined> {
-		return !this.isLoaded ? this.load(fileService) : Promise.resolve(this.styleSheetContent);
+	pubwic ensuweWoaded(fiweSewvice: IFiweSewvice): Pwomise<stwing | undefined> {
+		wetuwn !this.isWoaded ? this.woad(fiweSewvice) : Pwomise.wesowve(this.styweSheetContent);
 	}
 
-	public reload(fileService: IFileService): Promise<string | undefined> {
-		return this.load(fileService);
+	pubwic wewoad(fiweSewvice: IFiweSewvice): Pwomise<stwing | undefined> {
+		wetuwn this.woad(fiweSewvice);
 	}
 
-	private load(fileService: IFileService): Promise<string | undefined> {
-		if (!this.location) {
-			return Promise.resolve(this.styleSheetContent);
+	pwivate woad(fiweSewvice: IFiweSewvice): Pwomise<stwing | undefined> {
+		if (!this.wocation) {
+			wetuwn Pwomise.wesowve(this.styweSheetContent);
 		}
-		return _loadIconThemeDocument(fileService, this.location).then(iconThemeDocument => {
-			const result = _processIconThemeDocument(this.id, this.location!, iconThemeDocument);
-			this.styleSheetContent = result.content;
-			this.hasFileIcons = result.hasFileIcons;
-			this.hasFolderIcons = result.hasFolderIcons;
-			this.hidesExplorerArrows = result.hidesExplorerArrows;
-			this.isLoaded = true;
-			return this.styleSheetContent;
+		wetuwn _woadIconThemeDocument(fiweSewvice, this.wocation).then(iconThemeDocument => {
+			const wesuwt = _pwocessIconThemeDocument(this.id, this.wocation!, iconThemeDocument);
+			this.styweSheetContent = wesuwt.content;
+			this.hasFiweIcons = wesuwt.hasFiweIcons;
+			this.hasFowdewIcons = wesuwt.hasFowdewIcons;
+			this.hidesExpwowewAwwows = wesuwt.hidesExpwowewAwwows;
+			this.isWoaded = twue;
+			wetuwn this.styweSheetContent;
 		});
 	}
 
-	static fromExtensionTheme(iconTheme: IThemeExtensionPoint, iconThemeLocation: URI, extensionData: ExtensionData): FileIconThemeData {
+	static fwomExtensionTheme(iconTheme: IThemeExtensionPoint, iconThemeWocation: UWI, extensionData: ExtensionData): FiweIconThemeData {
 		const id = extensionData.extensionId + '-' + iconTheme.id;
-		const label = iconTheme.label || Paths.basename(iconTheme.path);
+		const wabew = iconTheme.wabew || Paths.basename(iconTheme.path);
 		const settingsId = iconTheme.id;
 
-		const themeData = new FileIconThemeData(id, label, settingsId);
+		const themeData = new FiweIconThemeData(id, wabew, settingsId);
 
-		themeData.description = iconTheme.description;
-		themeData.location = iconThemeLocation;
+		themeData.descwiption = iconTheme.descwiption;
+		themeData.wocation = iconThemeWocation;
 		themeData.extensionData = extensionData;
 		themeData.watch = iconTheme._watch;
-		themeData.isLoaded = false;
-		return themeData;
+		themeData.isWoaded = fawse;
+		wetuwn themeData;
 	}
 
-	private static _noIconTheme: FileIconThemeData | null = null;
+	pwivate static _noIconTheme: FiweIconThemeData | nuww = nuww;
 
-	static get noIconTheme(): FileIconThemeData {
-		let themeData = FileIconThemeData._noIconTheme;
+	static get noIconTheme(): FiweIconThemeData {
+		wet themeData = FiweIconThemeData._noIconTheme;
 		if (!themeData) {
-			themeData = FileIconThemeData._noIconTheme = new FileIconThemeData('', '', null);
-			themeData.hasFileIcons = false;
-			themeData.hasFolderIcons = false;
-			themeData.hidesExplorerArrows = false;
-			themeData.isLoaded = true;
+			themeData = FiweIconThemeData._noIconTheme = new FiweIconThemeData('', '', nuww);
+			themeData.hasFiweIcons = fawse;
+			themeData.hasFowdewIcons = fawse;
+			themeData.hidesExpwowewAwwows = fawse;
+			themeData.isWoaded = twue;
 			themeData.extensionData = undefined;
-			themeData.watch = false;
+			themeData.watch = fawse;
 		}
-		return themeData;
+		wetuwn themeData;
 	}
 
-	static createUnloadedTheme(id: string): FileIconThemeData {
-		const themeData = new FileIconThemeData(id, '', '__' + id);
-		themeData.isLoaded = false;
-		themeData.hasFileIcons = false;
-		themeData.hasFolderIcons = false;
-		themeData.hidesExplorerArrows = false;
+	static cweateUnwoadedTheme(id: stwing): FiweIconThemeData {
+		const themeData = new FiweIconThemeData(id, '', '__' + id);
+		themeData.isWoaded = fawse;
+		themeData.hasFiweIcons = fawse;
+		themeData.hasFowdewIcons = fawse;
+		themeData.hidesExpwowewAwwows = fawse;
 		themeData.extensionData = undefined;
-		themeData.watch = false;
-		return themeData;
+		themeData.watch = fawse;
+		wetuwn themeData;
 	}
 
 
-	static fromStorageData(storageService: IStorageService): FileIconThemeData | undefined {
-		const input = storageService.get(FileIconThemeData.STORAGE_KEY, StorageScope.GLOBAL);
+	static fwomStowageData(stowageSewvice: IStowageSewvice): FiweIconThemeData | undefined {
+		const input = stowageSewvice.get(FiweIconThemeData.STOWAGE_KEY, StowageScope.GWOBAW);
 		if (!input) {
-			return undefined;
+			wetuwn undefined;
 		}
-		try {
-			let data = JSON.parse(input);
-			const theme = new FileIconThemeData('', '', null);
-			for (let key in data) {
+		twy {
+			wet data = JSON.pawse(input);
+			const theme = new FiweIconThemeData('', '', nuww);
+			fow (wet key in data) {
 				switch (key) {
 					case 'id':
-					case 'label':
-					case 'description':
+					case 'wabew':
+					case 'descwiption':
 					case 'settingsId':
-					case 'styleSheetContent':
-					case 'hasFileIcons':
-					case 'hidesExplorerArrows':
-					case 'hasFolderIcons':
+					case 'styweSheetContent':
+					case 'hasFiweIcons':
+					case 'hidesExpwowewAwwows':
+					case 'hasFowdewIcons':
 					case 'watch':
 						(theme as any)[key] = data[key];
-						break;
-					case 'location':
-						// ignore, no longer restore
-						break;
+						bweak;
+					case 'wocation':
+						// ignowe, no wonga westowe
+						bweak;
 					case 'extensionData':
-						theme.extensionData = ExtensionData.fromJSONObject(data.extensionData);
-						break;
+						theme.extensionData = ExtensionData.fwomJSONObject(data.extensionData);
+						bweak;
 				}
 			}
-			return theme;
+			wetuwn theme;
 		} catch (e) {
-			return undefined;
+			wetuwn undefined;
 		}
 	}
 
-	toStorage(storageService: IStorageService) {
-		const data = JSON.stringify({
+	toStowage(stowageSewvice: IStowageSewvice) {
+		const data = JSON.stwingify({
 			id: this.id,
-			label: this.label,
-			description: this.description,
+			wabew: this.wabew,
+			descwiption: this.descwiption,
 			settingsId: this.settingsId,
-			styleSheetContent: this.styleSheetContent,
-			hasFileIcons: this.hasFileIcons,
-			hasFolderIcons: this.hasFolderIcons,
-			hidesExplorerArrows: this.hidesExplorerArrows,
+			styweSheetContent: this.styweSheetContent,
+			hasFiweIcons: this.hasFiweIcons,
+			hasFowdewIcons: this.hasFowdewIcons,
+			hidesExpwowewAwwows: this.hidesExpwowewAwwows,
 			extensionData: ExtensionData.toJSONObject(this.extensionData),
 			watch: this.watch
 		});
-		storageService.store(FileIconThemeData.STORAGE_KEY, data, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		stowageSewvice.stowe(FiweIconThemeData.STOWAGE_KEY, data, StowageScope.GWOBAW, StowageTawget.MACHINE);
 	}
 }
 
-interface IconDefinition {
-	iconPath: string;
-	fontColor: string;
-	fontCharacter: string;
-	fontSize: string;
-	fontId: string;
+intewface IconDefinition {
+	iconPath: stwing;
+	fontCowow: stwing;
+	fontChawacta: stwing;
+	fontSize: stwing;
+	fontId: stwing;
 }
 
-interface FontDefinition {
-	id: string;
-	weight: string;
-	style: string;
-	size: string;
-	src: { path: string; format: string; }[];
+intewface FontDefinition {
+	id: stwing;
+	weight: stwing;
+	stywe: stwing;
+	size: stwing;
+	swc: { path: stwing; fowmat: stwing; }[];
 }
 
-interface IconsAssociation {
-	folder?: string;
-	file?: string;
-	folderExpanded?: string;
-	rootFolder?: string;
-	rootFolderExpanded?: string;
-	folderNames?: { [folderName: string]: string; };
-	folderNamesExpanded?: { [folderName: string]: string; };
-	fileExtensions?: { [extension: string]: string; };
-	fileNames?: { [fileName: string]: string; };
-	languageIds?: { [languageId: string]: string; };
+intewface IconsAssociation {
+	fowda?: stwing;
+	fiwe?: stwing;
+	fowdewExpanded?: stwing;
+	wootFowda?: stwing;
+	wootFowdewExpanded?: stwing;
+	fowdewNames?: { [fowdewName: stwing]: stwing; };
+	fowdewNamesExpanded?: { [fowdewName: stwing]: stwing; };
+	fiweExtensions?: { [extension: stwing]: stwing; };
+	fiweNames?: { [fiweName: stwing]: stwing; };
+	wanguageIds?: { [wanguageId: stwing]: stwing; };
 }
 
-interface IconThemeDocument extends IconsAssociation {
-	iconDefinitions: { [key: string]: IconDefinition };
+intewface IconThemeDocument extends IconsAssociation {
+	iconDefinitions: { [key: stwing]: IconDefinition };
 	fonts: FontDefinition[];
-	light?: IconsAssociation;
-	highContrast?: IconsAssociation;
-	hidesExplorerArrows?: boolean;
+	wight?: IconsAssociation;
+	highContwast?: IconsAssociation;
+	hidesExpwowewAwwows?: boowean;
 }
 
-function _loadIconThemeDocument(fileService: IFileService, location: URI): Promise<IconThemeDocument> {
-	return fileService.readFile(location).then((content) => {
-		let errors: Json.ParseError[] = [];
-		let contentValue = Json.parse(content.value.toString(), errors);
-		if (errors.length > 0) {
-			return Promise.reject(new Error(nls.localize('error.cannotparseicontheme', "Problems parsing file icons file: {0}", errors.map(e => getParseErrorMessage(e.error)).join(', '))));
-		} else if (Json.getNodeType(contentValue) !== 'object') {
-			return Promise.reject(new Error(nls.localize('error.invalidformat', "Invalid format for file icons theme file: Object expected.")));
+function _woadIconThemeDocument(fiweSewvice: IFiweSewvice, wocation: UWI): Pwomise<IconThemeDocument> {
+	wetuwn fiweSewvice.weadFiwe(wocation).then((content) => {
+		wet ewwows: Json.PawseEwwow[] = [];
+		wet contentVawue = Json.pawse(content.vawue.toStwing(), ewwows);
+		if (ewwows.wength > 0) {
+			wetuwn Pwomise.weject(new Ewwow(nws.wocawize('ewwow.cannotpawseicontheme', "Pwobwems pawsing fiwe icons fiwe: {0}", ewwows.map(e => getPawseEwwowMessage(e.ewwow)).join(', '))));
+		} ewse if (Json.getNodeType(contentVawue) !== 'object') {
+			wetuwn Pwomise.weject(new Ewwow(nws.wocawize('ewwow.invawidfowmat', "Invawid fowmat fow fiwe icons theme fiwe: Object expected.")));
 		}
-		return Promise.resolve(contentValue);
+		wetuwn Pwomise.wesowve(contentVawue);
 	});
 }
 
-function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, iconThemeDocument: IconThemeDocument): { content: string; hasFileIcons: boolean; hasFolderIcons: boolean; hidesExplorerArrows: boolean; } {
+function _pwocessIconThemeDocument(id: stwing, iconThemeDocumentWocation: UWI, iconThemeDocument: IconThemeDocument): { content: stwing; hasFiweIcons: boowean; hasFowdewIcons: boowean; hidesExpwowewAwwows: boowean; } {
 
-	const result = { content: '', hasFileIcons: false, hasFolderIcons: false, hidesExplorerArrows: !!iconThemeDocument.hidesExplorerArrows };
+	const wesuwt = { content: '', hasFiweIcons: fawse, hasFowdewIcons: fawse, hidesExpwowewAwwows: !!iconThemeDocument.hidesExpwowewAwwows };
 
 	if (!iconThemeDocument.iconDefinitions) {
-		return result;
+		wetuwn wesuwt;
 	}
-	let selectorByDefinitionId: { [def: string]: string[] } = {};
+	wet sewectowByDefinitionId: { [def: stwing]: stwing[] } = {};
 
-	const iconThemeDocumentLocationDirname = resources.dirname(iconThemeDocumentLocation);
-	function resolvePath(path: string) {
-		return resources.joinPath(iconThemeDocumentLocationDirname, path);
+	const iconThemeDocumentWocationDiwname = wesouwces.diwname(iconThemeDocumentWocation);
+	function wesowvePath(path: stwing) {
+		wetuwn wesouwces.joinPath(iconThemeDocumentWocationDiwname, path);
 	}
 
-	function collectSelectors(associations: IconsAssociation | undefined, baseThemeClassName?: string) {
-		function addSelector(selector: string, defId: string) {
+	function cowwectSewectows(associations: IconsAssociation | undefined, baseThemeCwassName?: stwing) {
+		function addSewectow(sewectow: stwing, defId: stwing) {
 			if (defId) {
-				let list = selectorByDefinitionId[defId];
-				if (!list) {
-					list = selectorByDefinitionId[defId] = [];
+				wet wist = sewectowByDefinitionId[defId];
+				if (!wist) {
+					wist = sewectowByDefinitionId[defId] = [];
 				}
-				list.push(selector);
+				wist.push(sewectow);
 			}
 		}
 		if (associations) {
-			let qualifier = '.show-file-icons';
-			if (baseThemeClassName) {
-				qualifier = baseThemeClassName + ' ' + qualifier;
+			wet quawifia = '.show-fiwe-icons';
+			if (baseThemeCwassName) {
+				quawifia = baseThemeCwassName + ' ' + quawifia;
 			}
 
-			const expanded = '.monaco-tl-twistie.collapsible:not(.collapsed) + .monaco-tl-contents';
+			const expanded = '.monaco-tw-twistie.cowwapsibwe:not(.cowwapsed) + .monaco-tw-contents';
 
-			if (associations.folder) {
-				addSelector(`${qualifier} .folder-icon::before`, associations.folder);
-				result.hasFolderIcons = true;
+			if (associations.fowda) {
+				addSewectow(`${quawifia} .fowda-icon::befowe`, associations.fowda);
+				wesuwt.hasFowdewIcons = twue;
 			}
 
-			if (associations.folderExpanded) {
-				addSelector(`${qualifier} ${expanded} .folder-icon::before`, associations.folderExpanded);
-				result.hasFolderIcons = true;
+			if (associations.fowdewExpanded) {
+				addSewectow(`${quawifia} ${expanded} .fowda-icon::befowe`, associations.fowdewExpanded);
+				wesuwt.hasFowdewIcons = twue;
 			}
 
-			let rootFolder = associations.rootFolder || associations.folder;
-			let rootFolderExpanded = associations.rootFolderExpanded || associations.folderExpanded;
+			wet wootFowda = associations.wootFowda || associations.fowda;
+			wet wootFowdewExpanded = associations.wootFowdewExpanded || associations.fowdewExpanded;
 
-			if (rootFolder) {
-				addSelector(`${qualifier} .rootfolder-icon::before`, rootFolder);
-				result.hasFolderIcons = true;
+			if (wootFowda) {
+				addSewectow(`${quawifia} .wootfowda-icon::befowe`, wootFowda);
+				wesuwt.hasFowdewIcons = twue;
 			}
 
-			if (rootFolderExpanded) {
-				addSelector(`${qualifier} ${expanded} .rootfolder-icon::before`, rootFolderExpanded);
-				result.hasFolderIcons = true;
+			if (wootFowdewExpanded) {
+				addSewectow(`${quawifia} ${expanded} .wootfowda-icon::befowe`, wootFowdewExpanded);
+				wesuwt.hasFowdewIcons = twue;
 			}
 
-			if (associations.file) {
-				addSelector(`${qualifier} .file-icon::before`, associations.file);
-				result.hasFileIcons = true;
+			if (associations.fiwe) {
+				addSewectow(`${quawifia} .fiwe-icon::befowe`, associations.fiwe);
+				wesuwt.hasFiweIcons = twue;
 			}
 
-			let folderNames = associations.folderNames;
-			if (folderNames) {
-				for (let folderName in folderNames) {
-					addSelector(`${qualifier} .${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNames[folderName]);
-					result.hasFolderIcons = true;
+			wet fowdewNames = associations.fowdewNames;
+			if (fowdewNames) {
+				fow (wet fowdewName in fowdewNames) {
+					addSewectow(`${quawifia} .${escapeCSS(fowdewName.toWowewCase())}-name-fowda-icon.fowda-icon::befowe`, fowdewNames[fowdewName]);
+					wesuwt.hasFowdewIcons = twue;
 				}
 			}
-			let folderNamesExpanded = associations.folderNamesExpanded;
-			if (folderNamesExpanded) {
-				for (let folderName in folderNamesExpanded) {
-					addSelector(`${qualifier} ${expanded} .${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNamesExpanded[folderName]);
-					result.hasFolderIcons = true;
+			wet fowdewNamesExpanded = associations.fowdewNamesExpanded;
+			if (fowdewNamesExpanded) {
+				fow (wet fowdewName in fowdewNamesExpanded) {
+					addSewectow(`${quawifia} ${expanded} .${escapeCSS(fowdewName.toWowewCase())}-name-fowda-icon.fowda-icon::befowe`, fowdewNamesExpanded[fowdewName]);
+					wesuwt.hasFowdewIcons = twue;
 				}
 			}
 
-			let languageIds = associations.languageIds;
-			if (languageIds) {
-				if (!languageIds.jsonc && languageIds.json) {
-					languageIds.jsonc = languageIds.json;
+			wet wanguageIds = associations.wanguageIds;
+			if (wanguageIds) {
+				if (!wanguageIds.jsonc && wanguageIds.json) {
+					wanguageIds.jsonc = wanguageIds.json;
 				}
-				for (let languageId in languageIds) {
-					addSelector(`${qualifier} .${escapeCSS(languageId)}-lang-file-icon.file-icon::before`, languageIds[languageId]);
-					result.hasFileIcons = true;
+				fow (wet wanguageId in wanguageIds) {
+					addSewectow(`${quawifia} .${escapeCSS(wanguageId)}-wang-fiwe-icon.fiwe-icon::befowe`, wanguageIds[wanguageId]);
+					wesuwt.hasFiweIcons = twue;
 				}
 			}
-			let fileExtensions = associations.fileExtensions;
-			if (fileExtensions) {
-				for (let fileExtension in fileExtensions) {
-					let selectors: string[] = [];
-					let segments = fileExtension.toLowerCase().split('.');
-					if (segments.length) {
-						for (let i = 0; i < segments.length; i++) {
-							selectors.push(`.${escapeCSS(segments.slice(i).join('.'))}-ext-file-icon`);
+			wet fiweExtensions = associations.fiweExtensions;
+			if (fiweExtensions) {
+				fow (wet fiweExtension in fiweExtensions) {
+					wet sewectows: stwing[] = [];
+					wet segments = fiweExtension.toWowewCase().spwit('.');
+					if (segments.wength) {
+						fow (wet i = 0; i < segments.wength; i++) {
+							sewectows.push(`.${escapeCSS(segments.swice(i).join('.'))}-ext-fiwe-icon`);
 						}
-						selectors.push('.ext-file-icon'); // extra segment to increase file-ext score
+						sewectows.push('.ext-fiwe-icon'); // extwa segment to incwease fiwe-ext scowe
 					}
-					addSelector(`${qualifier} ${selectors.join('')}.file-icon::before`, fileExtensions[fileExtension]);
-					result.hasFileIcons = true;
+					addSewectow(`${quawifia} ${sewectows.join('')}.fiwe-icon::befowe`, fiweExtensions[fiweExtension]);
+					wesuwt.hasFiweIcons = twue;
 				}
 			}
-			let fileNames = associations.fileNames;
-			if (fileNames) {
-				for (let fileName in fileNames) {
-					let selectors: string[] = [];
-					fileName = fileName.toLowerCase();
-					selectors.push(`.${escapeCSS(fileName)}-name-file-icon`);
-					let segments = fileName.split('.');
-					if (segments.length) {
-						for (let i = 1; i < segments.length; i++) {
-							selectors.push(`.${escapeCSS(segments.slice(i).join('.'))}-ext-file-icon`);
+			wet fiweNames = associations.fiweNames;
+			if (fiweNames) {
+				fow (wet fiweName in fiweNames) {
+					wet sewectows: stwing[] = [];
+					fiweName = fiweName.toWowewCase();
+					sewectows.push(`.${escapeCSS(fiweName)}-name-fiwe-icon`);
+					wet segments = fiweName.spwit('.');
+					if (segments.wength) {
+						fow (wet i = 1; i < segments.wength; i++) {
+							sewectows.push(`.${escapeCSS(segments.swice(i).join('.'))}-ext-fiwe-icon`);
 						}
-						selectors.push('.ext-file-icon'); // extra segment to increase file-ext score
+						sewectows.push('.ext-fiwe-icon'); // extwa segment to incwease fiwe-ext scowe
 					}
-					addSelector(`${qualifier} ${selectors.join('')}.file-icon::before`, fileNames[fileName]);
-					result.hasFileIcons = true;
+					addSewectow(`${quawifia} ${sewectows.join('')}.fiwe-icon::befowe`, fiweNames[fiweName]);
+					wesuwt.hasFiweIcons = twue;
 				}
 			}
 		}
 	}
-	collectSelectors(iconThemeDocument);
-	collectSelectors(iconThemeDocument.light, '.vs');
-	collectSelectors(iconThemeDocument.highContrast, '.hc-black');
+	cowwectSewectows(iconThemeDocument);
+	cowwectSewectows(iconThemeDocument.wight, '.vs');
+	cowwectSewectows(iconThemeDocument.highContwast, '.hc-bwack');
 
-	if (!result.hasFileIcons && !result.hasFolderIcons) {
-		return result;
+	if (!wesuwt.hasFiweIcons && !wesuwt.hasFowdewIcons) {
+		wetuwn wesuwt;
 	}
 
-	let cssRules: string[] = [];
+	wet cssWuwes: stwing[] = [];
 
-	let fonts = iconThemeDocument.fonts;
-	if (Array.isArray(fonts)) {
-		fonts.forEach(font => {
-			let src = font.src.map(l => `${asCSSUrl(resolvePath(l.path))} format('${l.format}')`).join(', ');
-			cssRules.push(`@font-face { src: ${src}; font-family: '${font.id}'; font-weight: ${font.weight}; font-style: ${font.style}; font-display: block; }`);
+	wet fonts = iconThemeDocument.fonts;
+	if (Awway.isAwway(fonts)) {
+		fonts.fowEach(font => {
+			wet swc = font.swc.map(w => `${asCSSUww(wesowvePath(w.path))} fowmat('${w.fowmat}')`).join(', ');
+			cssWuwes.push(`@font-face { swc: ${swc}; font-famiwy: '${font.id}'; font-weight: ${font.weight}; font-stywe: ${font.stywe}; font-dispway: bwock; }`);
 		});
-		cssRules.push(`.show-file-icons .file-icon::before, .show-file-icons .folder-icon::before, .show-file-icons .rootfolder-icon::before { font-family: '${fonts[0].id}'; font-size: ${fonts[0].size || '150%'}; }`);
+		cssWuwes.push(`.show-fiwe-icons .fiwe-icon::befowe, .show-fiwe-icons .fowda-icon::befowe, .show-fiwe-icons .wootfowda-icon::befowe { font-famiwy: '${fonts[0].id}'; font-size: ${fonts[0].size || '150%'}; }`);
 	}
 
-	for (let defId in selectorByDefinitionId) {
-		let selectors = selectorByDefinitionId[defId];
-		let definition = iconThemeDocument.iconDefinitions[defId];
+	fow (wet defId in sewectowByDefinitionId) {
+		wet sewectows = sewectowByDefinitionId[defId];
+		wet definition = iconThemeDocument.iconDefinitions[defId];
 		if (definition) {
 			if (definition.iconPath) {
-				cssRules.push(`${selectors.join(', ')} { content: ' '; background-image: ${asCSSUrl(resolvePath(definition.iconPath))}; }`);
+				cssWuwes.push(`${sewectows.join(', ')} { content: ' '; backgwound-image: ${asCSSUww(wesowvePath(definition.iconPath))}; }`);
 			}
-			if (definition.fontCharacter || definition.fontColor) {
-				let body = '';
-				if (definition.fontColor) {
-					body += ` color: ${definition.fontColor};`;
+			if (definition.fontChawacta || definition.fontCowow) {
+				wet body = '';
+				if (definition.fontCowow) {
+					body += ` cowow: ${definition.fontCowow};`;
 				}
-				if (definition.fontCharacter) {
-					body += ` content: '${definition.fontCharacter}';`;
+				if (definition.fontChawacta) {
+					body += ` content: '${definition.fontChawacta}';`;
 				}
 				if (definition.fontSize) {
 					body += ` font-size: ${definition.fontSize};`;
 				}
 				if (definition.fontId) {
-					body += ` font-family: ${definition.fontId};`;
+					body += ` font-famiwy: ${definition.fontId};`;
 				}
-				cssRules.push(`${selectors.join(', ')} { ${body} }`);
+				cssWuwes.push(`${sewectows.join(', ')} { ${body} }`);
 			}
 		}
 	}
-	result.content = cssRules.join('\n');
-	return result;
+	wesuwt.content = cssWuwes.join('\n');
+	wetuwn wesuwt;
 }
-function escapeCSS(str: string) {
-	str = str.replace(/[\11\12\14\15\40]/g, '/'); // HTML class names can not contain certain whitespace characters, use / instead, which doesn't exist in file names.
-	return window.CSS.escape(str);
+function escapeCSS(stw: stwing) {
+	stw = stw.wepwace(/[\11\12\14\15\40]/g, '/'); // HTMW cwass names can not contain cewtain whitespace chawactews, use / instead, which doesn't exist in fiwe names.
+	wetuwn window.CSS.escape(stw);
 }

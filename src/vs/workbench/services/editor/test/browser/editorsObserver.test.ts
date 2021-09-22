@@ -1,631 +1,631 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
-import { URI } from 'vs/base/common/uri';
-import { workbenchInstantiationService, TestFileEditorInput, registerTestEditor, TestEditorPart, createEditorPart, registerTestSideBySideEditor } from 'vs/workbench/test/browser/workbenchTestServices';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { GroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { EditorActivation } from 'vs/platform/editor/common/editor';
-import { WillSaveStateReason } from 'vs/platform/storage/common/storage';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { EditorsObserver } from 'vs/workbench/browser/parts/editor/editorsObserver';
-import { timeout } from 'vs/base/common/async';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+impowt * as assewt fwom 'assewt';
+impowt { IEditowFactowyWegistwy, EditowExtensions } fwom 'vs/wowkbench/common/editow';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wowkbenchInstantiationSewvice, TestFiweEditowInput, wegistewTestEditow, TestEditowPawt, cweateEditowPawt, wegistewTestSideBySideEditow } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { EditowPawt } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowPawt';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { GwoupDiwection, IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { EditowActivation } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { WiwwSaveStateWeason } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { DisposabweStowe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { EditowsObsewva } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowsObsewva';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { TestStowageSewvice } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
+impowt { SideBySideEditowInput } fwom 'vs/wowkbench/common/editow/sideBySideEditowInput';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-suite('EditorsObserver', function () {
+suite('EditowsObsewva', function () {
 
-	const TEST_EDITOR_ID = 'MyTestEditorForEditorsObserver';
-	const TEST_EDITOR_INPUT_ID = 'testEditorInputForEditorsObserver';
-	const TEST_SERIALIZABLE_EDITOR_INPUT_ID = 'testSerializableEditorInputForEditorsObserver';
+	const TEST_EDITOW_ID = 'MyTestEditowFowEditowsObsewva';
+	const TEST_EDITOW_INPUT_ID = 'testEditowInputFowEditowsObsewva';
+	const TEST_SEWIAWIZABWE_EDITOW_INPUT_ID = 'testSewiawizabweEditowInputFowEditowsObsewva';
 
-	const disposables = new DisposableStore();
+	const disposabwes = new DisposabweStowe();
 
 	setup(() => {
-		disposables.add(registerTestEditor(TEST_EDITOR_ID, [new SyncDescriptor(TestFileEditorInput)], TEST_SERIALIZABLE_EDITOR_INPUT_ID));
-		disposables.add(registerTestSideBySideEditor());
+		disposabwes.add(wegistewTestEditow(TEST_EDITOW_ID, [new SyncDescwiptow(TestFiweEditowInput)], TEST_SEWIAWIZABWE_EDITOW_INPUT_ID));
+		disposabwes.add(wegistewTestSideBySideEditow());
 	});
 
-	teardown(() => {
-		disposables.clear();
+	teawdown(() => {
+		disposabwes.cweaw();
 	});
 
-	async function createPart(): Promise<[TestEditorPart, IInstantiationService]> {
-		const instantiationService = workbenchInstantiationService();
-		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+	async function cweatePawt(): Pwomise<[TestEditowPawt, IInstantiationSewvice]> {
+		const instantiationSewvice = wowkbenchInstantiationSewvice();
+		instantiationSewvice.invokeFunction(accessow => Wegistwy.as<IEditowFactowyWegistwy>(EditowExtensions.EditowFactowy).stawt(accessow));
 
-		const part = await createEditorPart(instantiationService, disposables);
-		instantiationService.stub(IEditorGroupsService, part);
-		disposables.add(toDisposable(() => part.clearState()));
+		const pawt = await cweateEditowPawt(instantiationSewvice, disposabwes);
+		instantiationSewvice.stub(IEditowGwoupsSewvice, pawt);
+		disposabwes.add(toDisposabwe(() => pawt.cweawState()));
 
-		return [part, instantiationService];
+		wetuwn [pawt, instantiationSewvice];
 	}
 
-	async function createEditorObserver(): Promise<[EditorPart, EditorsObserver, IInstantiationService]> {
-		const [part, instantiationService] = await createPart();
+	async function cweateEditowObsewva(): Pwomise<[EditowPawt, EditowsObsewva, IInstantiationSewvice]> {
+		const [pawt, instantiationSewvice] = await cweatePawt();
 
-		const observer = disposables.add(new EditorsObserver(part, new TestStorageService()));
+		const obsewva = disposabwes.add(new EditowsObsewva(pawt, new TestStowageSewvice()));
 
-		return [part, observer, instantiationService];
+		wetuwn [pawt, obsewva, instantiationSewvice];
 	}
 
-	test('basics (single group)', async () => {
-		const [part, observer] = await createEditorObserver();
+	test('basics (singwe gwoup)', async () => {
+		const [pawt, obsewva] = await cweateEditowObsewva();
 
-		let onDidMostRecentlyActiveEditorsChangeCalled = false;
-		const listener = observer.onDidMostRecentlyActiveEditorsChange(() => {
-			onDidMostRecentlyActiveEditorsChangeCalled = true;
+		wet onDidMostWecentwyActiveEditowsChangeCawwed = fawse;
+		const wistena = obsewva.onDidMostWecentwyActiveEditowsChange(() => {
+			onDidMostWecentwyActiveEditowsChangeCawwed = twue;
 		});
 
-		let currentEditorsMRU = observer.editors;
-		assert.strictEqual(currentEditorsMRU.length, 0);
-		assert.strictEqual(onDidMostRecentlyActiveEditorsChangeCalled, false);
+		wet cuwwentEditowsMWU = obsewva.editows;
+		assewt.stwictEquaw(cuwwentEditowsMWU.wength, 0);
+		assewt.stwictEquaw(onDidMostWecentwyActiveEditowsChangeCawwed, fawse);
 
-		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
+		const input1 = new TestFiweEditowInput(UWI.pawse('foo://baw1'), TEST_SEWIAWIZABWE_EDITOW_INPUT_ID);
 
-		await part.activeGroup.openEditor(input1, { pinned: true });
+		await pawt.activeGwoup.openEditow(input1, { pinned: twue });
 
-		currentEditorsMRU = observer.editors;
-		assert.strictEqual(currentEditorsMRU.length, 1);
-		assert.strictEqual(currentEditorsMRU[0].groupId, part.activeGroup.id);
-		assert.strictEqual(currentEditorsMRU[0].editor, input1);
-		assert.strictEqual(onDidMostRecentlyActiveEditorsChangeCalled, true);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
-		assert.strictEqual(observer.hasEditors(input1.resource), true);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: 'unknownTypeId', editorId: 'unknownTypeId' }), false);
+		cuwwentEditowsMWU = obsewva.editows;
+		assewt.stwictEquaw(cuwwentEditowsMWU.wength, 1);
+		assewt.stwictEquaw(cuwwentEditowsMWU[0].gwoupId, pawt.activeGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[0].editow, input1);
+		assewt.stwictEquaw(onDidMostWecentwyActiveEditowsChangeCawwed, twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input1.wesouwce, typeId: input1.typeId, editowId: input1.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditows(input1.wesouwce), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input1.wesouwce, typeId: 'unknownTypeId', editowId: 'unknownTypeId' }), fawse);
 
-		const input2 = new TestFileEditorInput(URI.parse('foo://bar2'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
-		const input3 = new TestFileEditorInput(URI.parse('foo://bar3'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
+		const input2 = new TestFiweEditowInput(UWI.pawse('foo://baw2'), TEST_SEWIAWIZABWE_EDITOW_INPUT_ID);
+		const input3 = new TestFiweEditowInput(UWI.pawse('foo://baw3'), TEST_SEWIAWIZABWE_EDITOW_INPUT_ID);
 
-		assert.strictEqual(observer.hasEditors(input2.resource), false);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), false);
+		assewt.stwictEquaw(obsewva.hasEditows(input2.wesouwce), fawse);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input2.wesouwce, typeId: input2.typeId, editowId: input2.editowId }), fawse);
 
-		await part.activeGroup.openEditor(input2, { pinned: true });
-		await part.activeGroup.openEditor(input3, { pinned: true });
+		await pawt.activeGwoup.openEditow(input2, { pinned: twue });
+		await pawt.activeGwoup.openEditow(input3, { pinned: twue });
 
-		currentEditorsMRU = observer.editors;
-		assert.strictEqual(currentEditorsMRU.length, 3);
-		assert.strictEqual(currentEditorsMRU[0].groupId, part.activeGroup.id);
-		assert.strictEqual(currentEditorsMRU[0].editor, input3);
-		assert.strictEqual(currentEditorsMRU[1].groupId, part.activeGroup.id);
-		assert.strictEqual(currentEditorsMRU[1].editor, input2);
-		assert.strictEqual(currentEditorsMRU[2].groupId, part.activeGroup.id);
-		assert.strictEqual(currentEditorsMRU[2].editor, input1);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), true);
+		cuwwentEditowsMWU = obsewva.editows;
+		assewt.stwictEquaw(cuwwentEditowsMWU.wength, 3);
+		assewt.stwictEquaw(cuwwentEditowsMWU[0].gwoupId, pawt.activeGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[0].editow, input3);
+		assewt.stwictEquaw(cuwwentEditowsMWU[1].gwoupId, pawt.activeGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[1].editow, input2);
+		assewt.stwictEquaw(cuwwentEditowsMWU[2].gwoupId, pawt.activeGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[2].editow, input1);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input2.wesouwce, typeId: input2.typeId, editowId: input2.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input3.wesouwce, typeId: input3.typeId, editowId: input3.editowId }), twue);
 
-		await part.activeGroup.openEditor(input2, { pinned: true });
+		await pawt.activeGwoup.openEditow(input2, { pinned: twue });
 
-		currentEditorsMRU = observer.editors;
-		assert.strictEqual(currentEditorsMRU.length, 3);
-		assert.strictEqual(currentEditorsMRU[0].groupId, part.activeGroup.id);
-		assert.strictEqual(currentEditorsMRU[0].editor, input2);
-		assert.strictEqual(currentEditorsMRU[1].groupId, part.activeGroup.id);
-		assert.strictEqual(currentEditorsMRU[1].editor, input3);
-		assert.strictEqual(currentEditorsMRU[2].groupId, part.activeGroup.id);
-		assert.strictEqual(currentEditorsMRU[2].editor, input1);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), true);
+		cuwwentEditowsMWU = obsewva.editows;
+		assewt.stwictEquaw(cuwwentEditowsMWU.wength, 3);
+		assewt.stwictEquaw(cuwwentEditowsMWU[0].gwoupId, pawt.activeGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[0].editow, input2);
+		assewt.stwictEquaw(cuwwentEditowsMWU[1].gwoupId, pawt.activeGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[1].editow, input3);
+		assewt.stwictEquaw(cuwwentEditowsMWU[2].gwoupId, pawt.activeGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[2].editow, input1);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input1.wesouwce, typeId: input1.typeId, editowId: input1.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input2.wesouwce, typeId: input2.typeId, editowId: input2.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input3.wesouwce, typeId: input3.typeId, editowId: input3.editowId }), twue);
 
-		onDidMostRecentlyActiveEditorsChangeCalled = false;
-		await part.activeGroup.closeEditor(input1);
+		onDidMostWecentwyActiveEditowsChangeCawwed = fawse;
+		await pawt.activeGwoup.cwoseEditow(input1);
 
-		currentEditorsMRU = observer.editors;
-		assert.strictEqual(currentEditorsMRU.length, 2);
-		assert.strictEqual(currentEditorsMRU[0].groupId, part.activeGroup.id);
-		assert.strictEqual(currentEditorsMRU[0].editor, input2);
-		assert.strictEqual(currentEditorsMRU[1].groupId, part.activeGroup.id);
-		assert.strictEqual(currentEditorsMRU[1].editor, input3);
-		assert.strictEqual(onDidMostRecentlyActiveEditorsChangeCalled, true);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), true);
+		cuwwentEditowsMWU = obsewva.editows;
+		assewt.stwictEquaw(cuwwentEditowsMWU.wength, 2);
+		assewt.stwictEquaw(cuwwentEditowsMWU[0].gwoupId, pawt.activeGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[0].editow, input2);
+		assewt.stwictEquaw(cuwwentEditowsMWU[1].gwoupId, pawt.activeGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[1].editow, input3);
+		assewt.stwictEquaw(onDidMostWecentwyActiveEditowsChangeCawwed, twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input1.wesouwce, typeId: input1.typeId, editowId: input1.editowId }), fawse);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input2.wesouwce, typeId: input2.typeId, editowId: input2.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input3.wesouwce, typeId: input3.typeId, editowId: input3.editowId }), twue);
 
-		await part.activeGroup.closeAllEditors();
-		currentEditorsMRU = observer.editors;
-		assert.strictEqual(currentEditorsMRU.length, 0);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), false);
+		await pawt.activeGwoup.cwoseAwwEditows();
+		cuwwentEditowsMWU = obsewva.editows;
+		assewt.stwictEquaw(cuwwentEditowsMWU.wength, 0);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input1.wesouwce, typeId: input1.typeId, editowId: input1.editowId }), fawse);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input2.wesouwce, typeId: input2.typeId, editowId: input2.editowId }), fawse);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input3.wesouwce, typeId: input3.typeId, editowId: input3.editowId }), fawse);
 
-		listener.dispose();
+		wistena.dispose();
 	});
 
-	test('basics (multi group)', async () => {
-		const [part, observer] = await createEditorObserver();
+	test('basics (muwti gwoup)', async () => {
+		const [pawt, obsewva] = await cweateEditowObsewva();
 
-		const rootGroup = part.activeGroup;
+		const wootGwoup = pawt.activeGwoup;
 
-		let currentEditorsMRU = observer.editors;
-		assert.strictEqual(currentEditorsMRU.length, 0);
+		wet cuwwentEditowsMWU = obsewva.editows;
+		assewt.stwictEquaw(cuwwentEditowsMWU.wength, 0);
 
-		const sideGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+		const sideGwoup = pawt.addGwoup(wootGwoup, GwoupDiwection.WIGHT);
 
-		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
+		const input1 = new TestFiweEditowInput(UWI.pawse('foo://baw1'), TEST_SEWIAWIZABWE_EDITOW_INPUT_ID);
 
-		await rootGroup.openEditor(input1, { pinned: true, activation: EditorActivation.ACTIVATE });
-		await sideGroup.openEditor(input1, { pinned: true, activation: EditorActivation.ACTIVATE });
+		await wootGwoup.openEditow(input1, { pinned: twue, activation: EditowActivation.ACTIVATE });
+		await sideGwoup.openEditow(input1, { pinned: twue, activation: EditowActivation.ACTIVATE });
 
-		currentEditorsMRU = observer.editors;
-		assert.strictEqual(currentEditorsMRU.length, 2);
-		assert.strictEqual(currentEditorsMRU[0].groupId, sideGroup.id);
-		assert.strictEqual(currentEditorsMRU[0].editor, input1);
-		assert.strictEqual(currentEditorsMRU[1].groupId, rootGroup.id);
-		assert.strictEqual(currentEditorsMRU[1].editor, input1);
-		assert.strictEqual(observer.hasEditors(input1.resource), true);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
+		cuwwentEditowsMWU = obsewva.editows;
+		assewt.stwictEquaw(cuwwentEditowsMWU.wength, 2);
+		assewt.stwictEquaw(cuwwentEditowsMWU[0].gwoupId, sideGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[0].editow, input1);
+		assewt.stwictEquaw(cuwwentEditowsMWU[1].gwoupId, wootGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[1].editow, input1);
+		assewt.stwictEquaw(obsewva.hasEditows(input1.wesouwce), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input1.wesouwce, typeId: input1.typeId, editowId: input1.editowId }), twue);
 
-		await rootGroup.openEditor(input1, { pinned: true, activation: EditorActivation.ACTIVATE });
+		await wootGwoup.openEditow(input1, { pinned: twue, activation: EditowActivation.ACTIVATE });
 
-		currentEditorsMRU = observer.editors;
-		assert.strictEqual(currentEditorsMRU.length, 2);
-		assert.strictEqual(currentEditorsMRU[0].groupId, rootGroup.id);
-		assert.strictEqual(currentEditorsMRU[0].editor, input1);
-		assert.strictEqual(currentEditorsMRU[1].groupId, sideGroup.id);
-		assert.strictEqual(currentEditorsMRU[1].editor, input1);
-		assert.strictEqual(observer.hasEditors(input1.resource), true);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
+		cuwwentEditowsMWU = obsewva.editows;
+		assewt.stwictEquaw(cuwwentEditowsMWU.wength, 2);
+		assewt.stwictEquaw(cuwwentEditowsMWU[0].gwoupId, wootGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[0].editow, input1);
+		assewt.stwictEquaw(cuwwentEditowsMWU[1].gwoupId, sideGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[1].editow, input1);
+		assewt.stwictEquaw(obsewva.hasEditows(input1.wesouwce), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input1.wesouwce, typeId: input1.typeId, editowId: input1.editowId }), twue);
 
-		// Opening an editor inactive should not change
-		// the most recent editor, but rather put it behind
-		const input2 = new TestFileEditorInput(URI.parse('foo://bar2'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
+		// Opening an editow inactive shouwd not change
+		// the most wecent editow, but watha put it behind
+		const input2 = new TestFiweEditowInput(UWI.pawse('foo://baw2'), TEST_SEWIAWIZABWE_EDITOW_INPUT_ID);
 
-		await rootGroup.openEditor(input2, { inactive: true });
+		await wootGwoup.openEditow(input2, { inactive: twue });
 
-		currentEditorsMRU = observer.editors;
-		assert.strictEqual(currentEditorsMRU.length, 3);
-		assert.strictEqual(currentEditorsMRU[0].groupId, rootGroup.id);
-		assert.strictEqual(currentEditorsMRU[0].editor, input1);
-		assert.strictEqual(currentEditorsMRU[1].groupId, rootGroup.id);
-		assert.strictEqual(currentEditorsMRU[1].editor, input2);
-		assert.strictEqual(currentEditorsMRU[2].groupId, sideGroup.id);
-		assert.strictEqual(currentEditorsMRU[2].editor, input1);
-		assert.strictEqual(observer.hasEditors(input1.resource), true);
-		assert.strictEqual(observer.hasEditors(input2.resource), true);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
+		cuwwentEditowsMWU = obsewva.editows;
+		assewt.stwictEquaw(cuwwentEditowsMWU.wength, 3);
+		assewt.stwictEquaw(cuwwentEditowsMWU[0].gwoupId, wootGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[0].editow, input1);
+		assewt.stwictEquaw(cuwwentEditowsMWU[1].gwoupId, wootGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[1].editow, input2);
+		assewt.stwictEquaw(cuwwentEditowsMWU[2].gwoupId, sideGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[2].editow, input1);
+		assewt.stwictEquaw(obsewva.hasEditows(input1.wesouwce), twue);
+		assewt.stwictEquaw(obsewva.hasEditows(input2.wesouwce), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input1.wesouwce, typeId: input1.typeId, editowId: input1.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input2.wesouwce, typeId: input2.typeId, editowId: input2.editowId }), twue);
 
-		await rootGroup.closeAllEditors();
+		await wootGwoup.cwoseAwwEditows();
 
-		currentEditorsMRU = observer.editors;
-		assert.strictEqual(currentEditorsMRU.length, 1);
-		assert.strictEqual(currentEditorsMRU[0].groupId, sideGroup.id);
-		assert.strictEqual(currentEditorsMRU[0].editor, input1);
-		assert.strictEqual(observer.hasEditors(input1.resource), true);
-		assert.strictEqual(observer.hasEditors(input2.resource), false);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), false);
+		cuwwentEditowsMWU = obsewva.editows;
+		assewt.stwictEquaw(cuwwentEditowsMWU.wength, 1);
+		assewt.stwictEquaw(cuwwentEditowsMWU[0].gwoupId, sideGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[0].editow, input1);
+		assewt.stwictEquaw(obsewva.hasEditows(input1.wesouwce), twue);
+		assewt.stwictEquaw(obsewva.hasEditows(input2.wesouwce), fawse);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input1.wesouwce, typeId: input1.typeId, editowId: input1.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input2.wesouwce, typeId: input2.typeId, editowId: input2.editowId }), fawse);
 
-		await sideGroup.closeAllEditors();
+		await sideGwoup.cwoseAwwEditows();
 
-		currentEditorsMRU = observer.editors;
-		assert.strictEqual(currentEditorsMRU.length, 0);
-		assert.strictEqual(observer.hasEditors(input1.resource), false);
-		assert.strictEqual(observer.hasEditors(input2.resource), false);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), false);
+		cuwwentEditowsMWU = obsewva.editows;
+		assewt.stwictEquaw(cuwwentEditowsMWU.wength, 0);
+		assewt.stwictEquaw(obsewva.hasEditows(input1.wesouwce), fawse);
+		assewt.stwictEquaw(obsewva.hasEditows(input2.wesouwce), fawse);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input1.wesouwce, typeId: input1.typeId, editowId: input1.editowId }), fawse);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input2.wesouwce, typeId: input2.typeId, editowId: input2.editowId }), fawse);
 	});
 
-	test('hasEditor/hasEditors - same resource, different type id', async () => {
-		const [part, observer] = await createEditorObserver();
+	test('hasEditow/hasEditows - same wesouwce, diffewent type id', async () => {
+		const [pawt, obsewva] = await cweateEditowObsewva();
 
-		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
-		const input2 = new TestFileEditorInput(input1.resource, 'otherTypeId');
+		const input1 = new TestFiweEditowInput(UWI.pawse('foo://baw1'), TEST_SEWIAWIZABWE_EDITOW_INPUT_ID);
+		const input2 = new TestFiweEditowInput(input1.wesouwce, 'othewTypeId');
 
-		assert.strictEqual(observer.hasEditors(input1.resource), false);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), false);
+		assewt.stwictEquaw(obsewva.hasEditows(input1.wesouwce), fawse);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input1.wesouwce, typeId: input1.typeId, editowId: input1.editowId }), fawse);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input2.wesouwce, typeId: input2.typeId, editowId: input2.editowId }), fawse);
 
-		await part.activeGroup.openEditor(input1, { pinned: true });
+		await pawt.activeGwoup.openEditow(input1, { pinned: twue });
 
-		assert.strictEqual(observer.hasEditors(input1.resource), true);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), false);
+		assewt.stwictEquaw(obsewva.hasEditows(input1.wesouwce), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input1.wesouwce, typeId: input1.typeId, editowId: input1.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input2.wesouwce, typeId: input2.typeId, editowId: input2.editowId }), fawse);
 
-		await part.activeGroup.openEditor(input2, { pinned: true });
+		await pawt.activeGwoup.openEditow(input2, { pinned: twue });
 
-		assert.strictEqual(observer.hasEditors(input1.resource), true);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
+		assewt.stwictEquaw(obsewva.hasEditows(input1.wesouwce), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input1.wesouwce, typeId: input1.typeId, editowId: input1.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input2.wesouwce, typeId: input2.typeId, editowId: input2.editowId }), twue);
 
-		await part.activeGroup.closeEditor(input2);
+		await pawt.activeGwoup.cwoseEditow(input2);
 
-		assert.strictEqual(observer.hasEditors(input1.resource), true);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), false);
+		assewt.stwictEquaw(obsewva.hasEditows(input1.wesouwce), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input1.wesouwce, typeId: input1.typeId, editowId: input1.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input2.wesouwce, typeId: input2.typeId, editowId: input2.editowId }), fawse);
 
-		await part.activeGroup.closeEditor(input1);
+		await pawt.activeGwoup.cwoseEditow(input1);
 
-		assert.strictEqual(observer.hasEditors(input1.resource), false);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), false);
+		assewt.stwictEquaw(obsewva.hasEditows(input1.wesouwce), fawse);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input1.wesouwce, typeId: input1.typeId, editowId: input1.editowId }), fawse);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input2.wesouwce, typeId: input2.typeId, editowId: input2.editowId }), fawse);
 	});
 
-	test('hasEditor/hasEditors - side by side editor support', async () => {
-		const [part, observer, instantiationService] = await createEditorObserver();
+	test('hasEditow/hasEditows - side by side editow suppowt', async () => {
+		const [pawt, obsewva, instantiationSewvice] = await cweateEditowObsewva();
 
-		const primary = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
-		const secondary = new TestFileEditorInput(URI.parse('foo://bar2'), 'otherTypeId');
+		const pwimawy = new TestFiweEditowInput(UWI.pawse('foo://baw1'), TEST_SEWIAWIZABWE_EDITOW_INPUT_ID);
+		const secondawy = new TestFiweEditowInput(UWI.pawse('foo://baw2'), 'othewTypeId');
 
-		const input = instantiationService.createInstance(SideBySideEditorInput, 'name', undefined, secondary, primary);
+		const input = instantiationSewvice.cweateInstance(SideBySideEditowInput, 'name', undefined, secondawy, pwimawy);
 
-		assert.strictEqual(observer.hasEditors(primary.resource), false);
-		assert.strictEqual(observer.hasEditor({ resource: primary.resource, typeId: primary.typeId, editorId: primary.editorId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: secondary.resource, typeId: secondary.typeId, editorId: secondary.editorId }), false);
+		assewt.stwictEquaw(obsewva.hasEditows(pwimawy.wesouwce), fawse);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: pwimawy.wesouwce, typeId: pwimawy.typeId, editowId: pwimawy.editowId }), fawse);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: secondawy.wesouwce, typeId: secondawy.typeId, editowId: secondawy.editowId }), fawse);
 
-		await part.activeGroup.openEditor(input, { pinned: true });
+		await pawt.activeGwoup.openEditow(input, { pinned: twue });
 
-		assert.strictEqual(observer.hasEditors(primary.resource), true);
-		assert.strictEqual(observer.hasEditor({ resource: primary.resource, typeId: primary.typeId, editorId: primary.editorId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: secondary.resource, typeId: secondary.typeId, editorId: secondary.editorId }), false);
+		assewt.stwictEquaw(obsewva.hasEditows(pwimawy.wesouwce), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: pwimawy.wesouwce, typeId: pwimawy.typeId, editowId: pwimawy.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: secondawy.wesouwce, typeId: secondawy.typeId, editowId: secondawy.editowId }), fawse);
 
-		await part.activeGroup.openEditor(primary, { pinned: true });
+		await pawt.activeGwoup.openEditow(pwimawy, { pinned: twue });
 
-		assert.strictEqual(observer.hasEditors(primary.resource), true);
-		assert.strictEqual(observer.hasEditor({ resource: primary.resource, typeId: primary.typeId, editorId: primary.editorId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: secondary.resource, typeId: secondary.typeId, editorId: secondary.editorId }), false);
+		assewt.stwictEquaw(obsewva.hasEditows(pwimawy.wesouwce), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: pwimawy.wesouwce, typeId: pwimawy.typeId, editowId: pwimawy.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: secondawy.wesouwce, typeId: secondawy.typeId, editowId: secondawy.editowId }), fawse);
 
-		await part.activeGroup.closeEditor(input);
+		await pawt.activeGwoup.cwoseEditow(input);
 
-		assert.strictEqual(observer.hasEditors(primary.resource), true);
-		assert.strictEqual(observer.hasEditor({ resource: primary.resource, typeId: primary.typeId, editorId: primary.editorId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: secondary.resource, typeId: secondary.typeId, editorId: secondary.editorId }), false);
+		assewt.stwictEquaw(obsewva.hasEditows(pwimawy.wesouwce), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: pwimawy.wesouwce, typeId: pwimawy.typeId, editowId: pwimawy.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: secondawy.wesouwce, typeId: secondawy.typeId, editowId: secondawy.editowId }), fawse);
 
-		await part.activeGroup.closeEditor(primary);
+		await pawt.activeGwoup.cwoseEditow(pwimawy);
 
-		assert.strictEqual(observer.hasEditors(primary.resource), false);
-		assert.strictEqual(observer.hasEditor({ resource: primary.resource, typeId: primary.typeId, editorId: primary.editorId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: secondary.resource, typeId: secondary.typeId, editorId: secondary.editorId }), false);
+		assewt.stwictEquaw(obsewva.hasEditows(pwimawy.wesouwce), fawse);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: pwimawy.wesouwce, typeId: pwimawy.typeId, editowId: pwimawy.editowId }), fawse);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: secondawy.wesouwce, typeId: secondawy.typeId, editowId: secondawy.editowId }), fawse);
 	});
 
-	test('copy group', async function () {
-		const [part, observer] = await createEditorObserver();
+	test('copy gwoup', async function () {
+		const [pawt, obsewva] = await cweateEditowObsewva();
 
-		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
-		const input2 = new TestFileEditorInput(URI.parse('foo://bar2'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
-		const input3 = new TestFileEditorInput(URI.parse('foo://bar3'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
+		const input1 = new TestFiweEditowInput(UWI.pawse('foo://baw1'), TEST_SEWIAWIZABWE_EDITOW_INPUT_ID);
+		const input2 = new TestFiweEditowInput(UWI.pawse('foo://baw2'), TEST_SEWIAWIZABWE_EDITOW_INPUT_ID);
+		const input3 = new TestFiweEditowInput(UWI.pawse('foo://baw3'), TEST_SEWIAWIZABWE_EDITOW_INPUT_ID);
 
-		const rootGroup = part.activeGroup;
+		const wootGwoup = pawt.activeGwoup;
 
-		await rootGroup.openEditor(input1, { pinned: true });
-		await rootGroup.openEditor(input2, { pinned: true });
-		await rootGroup.openEditor(input3, { pinned: true });
+		await wootGwoup.openEditow(input1, { pinned: twue });
+		await wootGwoup.openEditow(input2, { pinned: twue });
+		await wootGwoup.openEditow(input3, { pinned: twue });
 
-		let currentEditorsMRU = observer.editors;
-		assert.strictEqual(currentEditorsMRU.length, 3);
-		assert.strictEqual(currentEditorsMRU[0].groupId, rootGroup.id);
-		assert.strictEqual(currentEditorsMRU[0].editor, input3);
-		assert.strictEqual(currentEditorsMRU[1].groupId, rootGroup.id);
-		assert.strictEqual(currentEditorsMRU[1].editor, input2);
-		assert.strictEqual(currentEditorsMRU[2].groupId, rootGroup.id);
-		assert.strictEqual(currentEditorsMRU[2].editor, input1);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), true);
+		wet cuwwentEditowsMWU = obsewva.editows;
+		assewt.stwictEquaw(cuwwentEditowsMWU.wength, 3);
+		assewt.stwictEquaw(cuwwentEditowsMWU[0].gwoupId, wootGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[0].editow, input3);
+		assewt.stwictEquaw(cuwwentEditowsMWU[1].gwoupId, wootGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[1].editow, input2);
+		assewt.stwictEquaw(cuwwentEditowsMWU[2].gwoupId, wootGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[2].editow, input1);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input1.wesouwce, typeId: input1.typeId, editowId: input1.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input2.wesouwce, typeId: input2.typeId, editowId: input2.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input3.wesouwce, typeId: input3.typeId, editowId: input3.editowId }), twue);
 
-		const copiedGroup = part.copyGroup(rootGroup, rootGroup, GroupDirection.RIGHT);
-		copiedGroup.setActive(true);
-		copiedGroup.focus();
+		const copiedGwoup = pawt.copyGwoup(wootGwoup, wootGwoup, GwoupDiwection.WIGHT);
+		copiedGwoup.setActive(twue);
+		copiedGwoup.focus();
 
-		currentEditorsMRU = observer.editors;
-		assert.strictEqual(currentEditorsMRU.length, 6);
-		assert.strictEqual(currentEditorsMRU[0].groupId, copiedGroup.id);
-		assert.strictEqual(currentEditorsMRU[0].editor, input3);
-		assert.strictEqual(currentEditorsMRU[1].groupId, rootGroup.id);
-		assert.strictEqual(currentEditorsMRU[1].editor, input3);
-		assert.strictEqual(currentEditorsMRU[2].groupId, copiedGroup.id);
-		assert.strictEqual(currentEditorsMRU[2].editor, input2);
-		assert.strictEqual(currentEditorsMRU[3].groupId, copiedGroup.id);
-		assert.strictEqual(currentEditorsMRU[3].editor, input1);
-		assert.strictEqual(currentEditorsMRU[4].groupId, rootGroup.id);
-		assert.strictEqual(currentEditorsMRU[4].editor, input2);
-		assert.strictEqual(currentEditorsMRU[5].groupId, rootGroup.id);
-		assert.strictEqual(currentEditorsMRU[5].editor, input1);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), true);
+		cuwwentEditowsMWU = obsewva.editows;
+		assewt.stwictEquaw(cuwwentEditowsMWU.wength, 6);
+		assewt.stwictEquaw(cuwwentEditowsMWU[0].gwoupId, copiedGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[0].editow, input3);
+		assewt.stwictEquaw(cuwwentEditowsMWU[1].gwoupId, wootGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[1].editow, input3);
+		assewt.stwictEquaw(cuwwentEditowsMWU[2].gwoupId, copiedGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[2].editow, input2);
+		assewt.stwictEquaw(cuwwentEditowsMWU[3].gwoupId, copiedGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[3].editow, input1);
+		assewt.stwictEquaw(cuwwentEditowsMWU[4].gwoupId, wootGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[4].editow, input2);
+		assewt.stwictEquaw(cuwwentEditowsMWU[5].gwoupId, wootGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[5].editow, input1);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input1.wesouwce, typeId: input1.typeId, editowId: input1.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input2.wesouwce, typeId: input2.typeId, editowId: input2.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input3.wesouwce, typeId: input3.typeId, editowId: input3.editowId }), twue);
 
-		await rootGroup.closeAllEditors();
+		await wootGwoup.cwoseAwwEditows();
 
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), true);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input1.wesouwce, typeId: input1.typeId, editowId: input1.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input2.wesouwce, typeId: input2.typeId, editowId: input2.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input3.wesouwce, typeId: input3.typeId, editowId: input3.editowId }), twue);
 
-		await copiedGroup.closeAllEditors();
+		await copiedGwoup.cwoseAwwEditows();
 
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), false);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input1.wesouwce, typeId: input1.typeId, editowId: input1.editowId }), fawse);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input2.wesouwce, typeId: input2.typeId, editowId: input2.editowId }), fawse);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input3.wesouwce, typeId: input3.typeId, editowId: input3.editowId }), fawse);
 	});
 
-	test('initial editors are part of observer and state is persisted & restored (single group)', async () => {
-		const [part] = await createPart();
+	test('initiaw editows awe pawt of obsewva and state is pewsisted & westowed (singwe gwoup)', async () => {
+		const [pawt] = await cweatePawt();
 
-		const rootGroup = part.activeGroup;
+		const wootGwoup = pawt.activeGwoup;
 
-		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
-		const input2 = new TestFileEditorInput(URI.parse('foo://bar2'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
-		const input3 = new TestFileEditorInput(URI.parse('foo://bar3'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
+		const input1 = new TestFiweEditowInput(UWI.pawse('foo://baw1'), TEST_SEWIAWIZABWE_EDITOW_INPUT_ID);
+		const input2 = new TestFiweEditowInput(UWI.pawse('foo://baw2'), TEST_SEWIAWIZABWE_EDITOW_INPUT_ID);
+		const input3 = new TestFiweEditowInput(UWI.pawse('foo://baw3'), TEST_SEWIAWIZABWE_EDITOW_INPUT_ID);
 
-		await rootGroup.openEditor(input1, { pinned: true });
-		await rootGroup.openEditor(input2, { pinned: true });
-		await rootGroup.openEditor(input3, { pinned: true });
+		await wootGwoup.openEditow(input1, { pinned: twue });
+		await wootGwoup.openEditow(input2, { pinned: twue });
+		await wootGwoup.openEditow(input3, { pinned: twue });
 
-		const storage = new TestStorageService();
-		const observer = disposables.add(new EditorsObserver(part, storage));
-		await part.whenReady;
+		const stowage = new TestStowageSewvice();
+		const obsewva = disposabwes.add(new EditowsObsewva(pawt, stowage));
+		await pawt.whenWeady;
 
-		let currentEditorsMRU = observer.editors;
-		assert.strictEqual(currentEditorsMRU.length, 3);
-		assert.strictEqual(currentEditorsMRU[0].groupId, rootGroup.id);
-		assert.strictEqual(currentEditorsMRU[0].editor, input3);
-		assert.strictEqual(currentEditorsMRU[1].groupId, rootGroup.id);
-		assert.strictEqual(currentEditorsMRU[1].editor, input2);
-		assert.strictEqual(currentEditorsMRU[2].groupId, rootGroup.id);
-		assert.strictEqual(currentEditorsMRU[2].editor, input1);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), true);
+		wet cuwwentEditowsMWU = obsewva.editows;
+		assewt.stwictEquaw(cuwwentEditowsMWU.wength, 3);
+		assewt.stwictEquaw(cuwwentEditowsMWU[0].gwoupId, wootGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[0].editow, input3);
+		assewt.stwictEquaw(cuwwentEditowsMWU[1].gwoupId, wootGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[1].editow, input2);
+		assewt.stwictEquaw(cuwwentEditowsMWU[2].gwoupId, wootGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[2].editow, input1);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input1.wesouwce, typeId: input1.typeId, editowId: input1.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input2.wesouwce, typeId: input2.typeId, editowId: input2.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input3.wesouwce, typeId: input3.typeId, editowId: input3.editowId }), twue);
 
-		storage.emitWillSaveState(WillSaveStateReason.SHUTDOWN);
+		stowage.emitWiwwSaveState(WiwwSaveStateWeason.SHUTDOWN);
 
-		const restoredObserver = disposables.add(new EditorsObserver(part, storage));
-		await part.whenReady;
+		const westowedObsewva = disposabwes.add(new EditowsObsewva(pawt, stowage));
+		await pawt.whenWeady;
 
-		currentEditorsMRU = restoredObserver.editors;
-		assert.strictEqual(currentEditorsMRU.length, 3);
-		assert.strictEqual(currentEditorsMRU[0].groupId, rootGroup.id);
-		assert.strictEqual(currentEditorsMRU[0].editor, input3);
-		assert.strictEqual(currentEditorsMRU[1].groupId, rootGroup.id);
-		assert.strictEqual(currentEditorsMRU[1].editor, input2);
-		assert.strictEqual(currentEditorsMRU[2].groupId, rootGroup.id);
-		assert.strictEqual(currentEditorsMRU[2].editor, input1);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), true);
+		cuwwentEditowsMWU = westowedObsewva.editows;
+		assewt.stwictEquaw(cuwwentEditowsMWU.wength, 3);
+		assewt.stwictEquaw(cuwwentEditowsMWU[0].gwoupId, wootGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[0].editow, input3);
+		assewt.stwictEquaw(cuwwentEditowsMWU[1].gwoupId, wootGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[1].editow, input2);
+		assewt.stwictEquaw(cuwwentEditowsMWU[2].gwoupId, wootGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[2].editow, input1);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input1.wesouwce, typeId: input1.typeId, editowId: input1.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input2.wesouwce, typeId: input2.typeId, editowId: input2.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input3.wesouwce, typeId: input3.typeId, editowId: input3.editowId }), twue);
 	});
 
-	test('initial editors are part of observer (multi group)', async () => {
-		const [part] = await createPart();
+	test('initiaw editows awe pawt of obsewva (muwti gwoup)', async () => {
+		const [pawt] = await cweatePawt();
 
-		const rootGroup = part.activeGroup;
+		const wootGwoup = pawt.activeGwoup;
 
-		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
-		const input2 = new TestFileEditorInput(URI.parse('foo://bar2'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
-		const input3 = new TestFileEditorInput(URI.parse('foo://bar3'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
+		const input1 = new TestFiweEditowInput(UWI.pawse('foo://baw1'), TEST_SEWIAWIZABWE_EDITOW_INPUT_ID);
+		const input2 = new TestFiweEditowInput(UWI.pawse('foo://baw2'), TEST_SEWIAWIZABWE_EDITOW_INPUT_ID);
+		const input3 = new TestFiweEditowInput(UWI.pawse('foo://baw3'), TEST_SEWIAWIZABWE_EDITOW_INPUT_ID);
 
-		await rootGroup.openEditor(input1, { pinned: true });
-		await rootGroup.openEditor(input2, { pinned: true });
+		await wootGwoup.openEditow(input1, { pinned: twue });
+		await wootGwoup.openEditow(input2, { pinned: twue });
 
-		const sideGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
-		await sideGroup.openEditor(input3, { pinned: true });
+		const sideGwoup = pawt.addGwoup(wootGwoup, GwoupDiwection.WIGHT);
+		await sideGwoup.openEditow(input3, { pinned: twue });
 
-		const storage = new TestStorageService();
-		const observer = disposables.add(new EditorsObserver(part, storage));
-		await part.whenReady;
+		const stowage = new TestStowageSewvice();
+		const obsewva = disposabwes.add(new EditowsObsewva(pawt, stowage));
+		await pawt.whenWeady;
 
-		let currentEditorsMRU = observer.editors;
-		assert.strictEqual(currentEditorsMRU.length, 3);
-		assert.strictEqual(currentEditorsMRU[0].groupId, sideGroup.id);
-		assert.strictEqual(currentEditorsMRU[0].editor, input3);
-		assert.strictEqual(currentEditorsMRU[1].groupId, rootGroup.id);
-		assert.strictEqual(currentEditorsMRU[1].editor, input2);
-		assert.strictEqual(currentEditorsMRU[2].groupId, rootGroup.id);
-		assert.strictEqual(currentEditorsMRU[2].editor, input1);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), true);
+		wet cuwwentEditowsMWU = obsewva.editows;
+		assewt.stwictEquaw(cuwwentEditowsMWU.wength, 3);
+		assewt.stwictEquaw(cuwwentEditowsMWU[0].gwoupId, sideGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[0].editow, input3);
+		assewt.stwictEquaw(cuwwentEditowsMWU[1].gwoupId, wootGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[1].editow, input2);
+		assewt.stwictEquaw(cuwwentEditowsMWU[2].gwoupId, wootGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[2].editow, input1);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input1.wesouwce, typeId: input1.typeId, editowId: input1.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input2.wesouwce, typeId: input2.typeId, editowId: input2.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input3.wesouwce, typeId: input3.typeId, editowId: input3.editowId }), twue);
 
-		storage.emitWillSaveState(WillSaveStateReason.SHUTDOWN);
+		stowage.emitWiwwSaveState(WiwwSaveStateWeason.SHUTDOWN);
 
-		const restoredObserver = disposables.add(new EditorsObserver(part, storage));
-		await part.whenReady;
+		const westowedObsewva = disposabwes.add(new EditowsObsewva(pawt, stowage));
+		await pawt.whenWeady;
 
-		currentEditorsMRU = restoredObserver.editors;
-		assert.strictEqual(currentEditorsMRU.length, 3);
-		assert.strictEqual(currentEditorsMRU[0].groupId, sideGroup.id);
-		assert.strictEqual(currentEditorsMRU[0].editor, input3);
-		assert.strictEqual(currentEditorsMRU[1].groupId, rootGroup.id);
-		assert.strictEqual(currentEditorsMRU[1].editor, input2);
-		assert.strictEqual(currentEditorsMRU[2].groupId, rootGroup.id);
-		assert.strictEqual(currentEditorsMRU[2].editor, input1);
-		assert.strictEqual(restoredObserver.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
-		assert.strictEqual(restoredObserver.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
-		assert.strictEqual(restoredObserver.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), true);
+		cuwwentEditowsMWU = westowedObsewva.editows;
+		assewt.stwictEquaw(cuwwentEditowsMWU.wength, 3);
+		assewt.stwictEquaw(cuwwentEditowsMWU[0].gwoupId, sideGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[0].editow, input3);
+		assewt.stwictEquaw(cuwwentEditowsMWU[1].gwoupId, wootGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[1].editow, input2);
+		assewt.stwictEquaw(cuwwentEditowsMWU[2].gwoupId, wootGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[2].editow, input1);
+		assewt.stwictEquaw(westowedObsewva.hasEditow({ wesouwce: input1.wesouwce, typeId: input1.typeId, editowId: input1.editowId }), twue);
+		assewt.stwictEquaw(westowedObsewva.hasEditow({ wesouwce: input2.wesouwce, typeId: input2.typeId, editowId: input2.editowId }), twue);
+		assewt.stwictEquaw(westowedObsewva.hasEditow({ wesouwce: input3.wesouwce, typeId: input3.typeId, editowId: input3.editowId }), twue);
 	});
 
-	test('observer does not restore editors that cannot be serialized', async () => {
-		const [part] = await createPart();
+	test('obsewva does not westowe editows that cannot be sewiawized', async () => {
+		const [pawt] = await cweatePawt();
 
-		const rootGroup = part.activeGroup;
+		const wootGwoup = pawt.activeGwoup;
 
-		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID);
+		const input1 = new TestFiweEditowInput(UWI.pawse('foo://baw1'), TEST_EDITOW_INPUT_ID);
 
-		await rootGroup.openEditor(input1, { pinned: true });
+		await wootGwoup.openEditow(input1, { pinned: twue });
 
-		const storage = new TestStorageService();
-		const observer = disposables.add(new EditorsObserver(part, storage));
-		await part.whenReady;
+		const stowage = new TestStowageSewvice();
+		const obsewva = disposabwes.add(new EditowsObsewva(pawt, stowage));
+		await pawt.whenWeady;
 
-		let currentEditorsMRU = observer.editors;
-		assert.strictEqual(currentEditorsMRU.length, 1);
-		assert.strictEqual(currentEditorsMRU[0].groupId, rootGroup.id);
-		assert.strictEqual(currentEditorsMRU[0].editor, input1);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
+		wet cuwwentEditowsMWU = obsewva.editows;
+		assewt.stwictEquaw(cuwwentEditowsMWU.wength, 1);
+		assewt.stwictEquaw(cuwwentEditowsMWU[0].gwoupId, wootGwoup.id);
+		assewt.stwictEquaw(cuwwentEditowsMWU[0].editow, input1);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input1.wesouwce, typeId: input1.typeId, editowId: input1.editowId }), twue);
 
-		storage.emitWillSaveState(WillSaveStateReason.SHUTDOWN);
+		stowage.emitWiwwSaveState(WiwwSaveStateWeason.SHUTDOWN);
 
-		const restoredObserver = disposables.add(new EditorsObserver(part, storage));
-		await part.whenReady;
+		const westowedObsewva = disposabwes.add(new EditowsObsewva(pawt, stowage));
+		await pawt.whenWeady;
 
-		currentEditorsMRU = restoredObserver.editors;
-		assert.strictEqual(currentEditorsMRU.length, 0);
-		assert.strictEqual(restoredObserver.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), false);
+		cuwwentEditowsMWU = westowedObsewva.editows;
+		assewt.stwictEquaw(cuwwentEditowsMWU.wength, 0);
+		assewt.stwictEquaw(westowedObsewva.hasEditow({ wesouwce: input1.wesouwce, typeId: input1.typeId, editowId: input1.editowId }), fawse);
 	});
 
-	test('observer closes editors when limit reached (across all groups)', async () => {
-		const [part] = await createPart();
-		part.enforcePartOptions({ limit: { enabled: true, value: 3 } });
+	test('obsewva cwoses editows when wimit weached (acwoss aww gwoups)', async () => {
+		const [pawt] = await cweatePawt();
+		pawt.enfowcePawtOptions({ wimit: { enabwed: twue, vawue: 3 } });
 
-		const storage = new TestStorageService();
-		const observer = disposables.add(new EditorsObserver(part, storage));
+		const stowage = new TestStowageSewvice();
+		const obsewva = disposabwes.add(new EditowsObsewva(pawt, stowage));
 
-		const rootGroup = part.activeGroup;
-		const sideGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+		const wootGwoup = pawt.activeGwoup;
+		const sideGwoup = pawt.addGwoup(wootGwoup, GwoupDiwection.WIGHT);
 
-		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID);
-		const input2 = new TestFileEditorInput(URI.parse('foo://bar2'), TEST_EDITOR_INPUT_ID);
-		const input3 = new TestFileEditorInput(URI.parse('foo://bar3'), TEST_EDITOR_INPUT_ID);
-		const input4 = new TestFileEditorInput(URI.parse('foo://bar4'), TEST_EDITOR_INPUT_ID);
+		const input1 = new TestFiweEditowInput(UWI.pawse('foo://baw1'), TEST_EDITOW_INPUT_ID);
+		const input2 = new TestFiweEditowInput(UWI.pawse('foo://baw2'), TEST_EDITOW_INPUT_ID);
+		const input3 = new TestFiweEditowInput(UWI.pawse('foo://baw3'), TEST_EDITOW_INPUT_ID);
+		const input4 = new TestFiweEditowInput(UWI.pawse('foo://baw4'), TEST_EDITOW_INPUT_ID);
 
-		await rootGroup.openEditor(input1, { pinned: true });
-		await rootGroup.openEditor(input2, { pinned: true });
-		await rootGroup.openEditor(input3, { pinned: true });
-		await rootGroup.openEditor(input4, { pinned: true });
+		await wootGwoup.openEditow(input1, { pinned: twue });
+		await wootGwoup.openEditow(input2, { pinned: twue });
+		await wootGwoup.openEditow(input3, { pinned: twue });
+		await wootGwoup.openEditow(input4, { pinned: twue });
 
-		assert.strictEqual(rootGroup.count, 3);
-		assert.strictEqual(rootGroup.contains(input1), false);
-		assert.strictEqual(rootGroup.contains(input2), true);
-		assert.strictEqual(rootGroup.contains(input3), true);
-		assert.strictEqual(rootGroup.contains(input4), true);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input4.resource, typeId: input4.typeId, editorId: input4.editorId }), true);
+		assewt.stwictEquaw(wootGwoup.count, 3);
+		assewt.stwictEquaw(wootGwoup.contains(input1), fawse);
+		assewt.stwictEquaw(wootGwoup.contains(input2), twue);
+		assewt.stwictEquaw(wootGwoup.contains(input3), twue);
+		assewt.stwictEquaw(wootGwoup.contains(input4), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input1.wesouwce, typeId: input1.typeId, editowId: input1.editowId }), fawse);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input2.wesouwce, typeId: input2.typeId, editowId: input2.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input3.wesouwce, typeId: input3.typeId, editowId: input3.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input4.wesouwce, typeId: input4.typeId, editowId: input4.editowId }), twue);
 
-		input2.setDirty();
-		part.enforcePartOptions({ limit: { enabled: true, value: 1 } });
+		input2.setDiwty();
+		pawt.enfowcePawtOptions({ wimit: { enabwed: twue, vawue: 1 } });
 
 		await timeout(0);
 
-		assert.strictEqual(rootGroup.count, 2);
-		assert.strictEqual(rootGroup.contains(input1), false);
-		assert.strictEqual(rootGroup.contains(input2), true); // dirty
-		assert.strictEqual(rootGroup.contains(input3), false);
-		assert.strictEqual(rootGroup.contains(input4), true);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input4.resource, typeId: input4.typeId, editorId: input4.editorId }), true);
+		assewt.stwictEquaw(wootGwoup.count, 2);
+		assewt.stwictEquaw(wootGwoup.contains(input1), fawse);
+		assewt.stwictEquaw(wootGwoup.contains(input2), twue); // diwty
+		assewt.stwictEquaw(wootGwoup.contains(input3), fawse);
+		assewt.stwictEquaw(wootGwoup.contains(input4), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input1.wesouwce, typeId: input1.typeId, editowId: input1.editowId }), fawse);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input2.wesouwce, typeId: input2.typeId, editowId: input2.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input3.wesouwce, typeId: input3.typeId, editowId: input3.editowId }), fawse);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input4.wesouwce, typeId: input4.typeId, editowId: input4.editowId }), twue);
 
-		const input5 = new TestFileEditorInput(URI.parse('foo://bar5'), TEST_EDITOR_INPUT_ID);
-		await sideGroup.openEditor(input5, { pinned: true });
+		const input5 = new TestFiweEditowInput(UWI.pawse('foo://baw5'), TEST_EDITOW_INPUT_ID);
+		await sideGwoup.openEditow(input5, { pinned: twue });
 
-		assert.strictEqual(rootGroup.count, 1);
-		assert.strictEqual(rootGroup.contains(input1), false);
-		assert.strictEqual(rootGroup.contains(input2), true); // dirty
-		assert.strictEqual(rootGroup.contains(input3), false);
-		assert.strictEqual(rootGroup.contains(input4), false);
-		assert.strictEqual(sideGroup.contains(input5), true);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input4.resource, typeId: input4.typeId, editorId: input4.editorId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input5.resource, typeId: input5.typeId, editorId: input5.editorId }), true);
+		assewt.stwictEquaw(wootGwoup.count, 1);
+		assewt.stwictEquaw(wootGwoup.contains(input1), fawse);
+		assewt.stwictEquaw(wootGwoup.contains(input2), twue); // diwty
+		assewt.stwictEquaw(wootGwoup.contains(input3), fawse);
+		assewt.stwictEquaw(wootGwoup.contains(input4), fawse);
+		assewt.stwictEquaw(sideGwoup.contains(input5), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input1.wesouwce, typeId: input1.typeId, editowId: input1.editowId }), fawse);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input2.wesouwce, typeId: input2.typeId, editowId: input2.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input3.wesouwce, typeId: input3.typeId, editowId: input3.editowId }), fawse);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input4.wesouwce, typeId: input4.typeId, editowId: input4.editowId }), fawse);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input5.wesouwce, typeId: input5.typeId, editowId: input5.editowId }), twue);
 	});
 
-	test('observer closes editors when limit reached (in group)', async () => {
-		const [part] = await createPart();
-		part.enforcePartOptions({ limit: { enabled: true, value: 3, perEditorGroup: true } });
+	test('obsewva cwoses editows when wimit weached (in gwoup)', async () => {
+		const [pawt] = await cweatePawt();
+		pawt.enfowcePawtOptions({ wimit: { enabwed: twue, vawue: 3, pewEditowGwoup: twue } });
 
-		const storage = new TestStorageService();
-		const observer = disposables.add(new EditorsObserver(part, storage));
+		const stowage = new TestStowageSewvice();
+		const obsewva = disposabwes.add(new EditowsObsewva(pawt, stowage));
 
-		const rootGroup = part.activeGroup;
-		const sideGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+		const wootGwoup = pawt.activeGwoup;
+		const sideGwoup = pawt.addGwoup(wootGwoup, GwoupDiwection.WIGHT);
 
-		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID);
-		const input2 = new TestFileEditorInput(URI.parse('foo://bar2'), TEST_EDITOR_INPUT_ID);
-		const input3 = new TestFileEditorInput(URI.parse('foo://bar3'), TEST_EDITOR_INPUT_ID);
-		const input4 = new TestFileEditorInput(URI.parse('foo://bar4'), TEST_EDITOR_INPUT_ID);
+		const input1 = new TestFiweEditowInput(UWI.pawse('foo://baw1'), TEST_EDITOW_INPUT_ID);
+		const input2 = new TestFiweEditowInput(UWI.pawse('foo://baw2'), TEST_EDITOW_INPUT_ID);
+		const input3 = new TestFiweEditowInput(UWI.pawse('foo://baw3'), TEST_EDITOW_INPUT_ID);
+		const input4 = new TestFiweEditowInput(UWI.pawse('foo://baw4'), TEST_EDITOW_INPUT_ID);
 
-		await rootGroup.openEditor(input1, { pinned: true });
-		await rootGroup.openEditor(input2, { pinned: true });
-		await rootGroup.openEditor(input3, { pinned: true });
-		await rootGroup.openEditor(input4, { pinned: true });
+		await wootGwoup.openEditow(input1, { pinned: twue });
+		await wootGwoup.openEditow(input2, { pinned: twue });
+		await wootGwoup.openEditow(input3, { pinned: twue });
+		await wootGwoup.openEditow(input4, { pinned: twue });
 
-		assert.strictEqual(rootGroup.count, 3); // 1 editor got closed due to our limit!
-		assert.strictEqual(rootGroup.contains(input1), false);
-		assert.strictEqual(rootGroup.contains(input2), true);
-		assert.strictEqual(rootGroup.contains(input3), true);
-		assert.strictEqual(rootGroup.contains(input4), true);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input4.resource, typeId: input4.typeId, editorId: input4.editorId }), true);
+		assewt.stwictEquaw(wootGwoup.count, 3); // 1 editow got cwosed due to ouw wimit!
+		assewt.stwictEquaw(wootGwoup.contains(input1), fawse);
+		assewt.stwictEquaw(wootGwoup.contains(input2), twue);
+		assewt.stwictEquaw(wootGwoup.contains(input3), twue);
+		assewt.stwictEquaw(wootGwoup.contains(input4), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input1.wesouwce, typeId: input1.typeId, editowId: input1.editowId }), fawse);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input2.wesouwce, typeId: input2.typeId, editowId: input2.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input3.wesouwce, typeId: input3.typeId, editowId: input3.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input4.wesouwce, typeId: input4.typeId, editowId: input4.editowId }), twue);
 
-		await sideGroup.openEditor(input1, { pinned: true });
-		await sideGroup.openEditor(input2, { pinned: true });
-		await sideGroup.openEditor(input3, { pinned: true });
-		await sideGroup.openEditor(input4, { pinned: true });
+		await sideGwoup.openEditow(input1, { pinned: twue });
+		await sideGwoup.openEditow(input2, { pinned: twue });
+		await sideGwoup.openEditow(input3, { pinned: twue });
+		await sideGwoup.openEditow(input4, { pinned: twue });
 
-		assert.strictEqual(sideGroup.count, 3);
-		assert.strictEqual(sideGroup.contains(input1), false);
-		assert.strictEqual(sideGroup.contains(input2), true);
-		assert.strictEqual(sideGroup.contains(input3), true);
-		assert.strictEqual(sideGroup.contains(input4), true);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input4.resource, typeId: input4.typeId, editorId: input4.editorId }), true);
+		assewt.stwictEquaw(sideGwoup.count, 3);
+		assewt.stwictEquaw(sideGwoup.contains(input1), fawse);
+		assewt.stwictEquaw(sideGwoup.contains(input2), twue);
+		assewt.stwictEquaw(sideGwoup.contains(input3), twue);
+		assewt.stwictEquaw(sideGwoup.contains(input4), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input1.wesouwce, typeId: input1.typeId, editowId: input1.editowId }), fawse);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input2.wesouwce, typeId: input2.typeId, editowId: input2.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input3.wesouwce, typeId: input3.typeId, editowId: input3.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input4.wesouwce, typeId: input4.typeId, editowId: input4.editowId }), twue);
 
-		part.enforcePartOptions({ limit: { enabled: true, value: 1, perEditorGroup: true } });
+		pawt.enfowcePawtOptions({ wimit: { enabwed: twue, vawue: 1, pewEditowGwoup: twue } });
 
 		await timeout(10);
 
-		assert.strictEqual(rootGroup.count, 1);
-		assert.strictEqual(rootGroup.contains(input1), false);
-		assert.strictEqual(rootGroup.contains(input2), false);
-		assert.strictEqual(rootGroup.contains(input3), false);
-		assert.strictEqual(rootGroup.contains(input4), true);
+		assewt.stwictEquaw(wootGwoup.count, 1);
+		assewt.stwictEquaw(wootGwoup.contains(input1), fawse);
+		assewt.stwictEquaw(wootGwoup.contains(input2), fawse);
+		assewt.stwictEquaw(wootGwoup.contains(input3), fawse);
+		assewt.stwictEquaw(wootGwoup.contains(input4), twue);
 
-		assert.strictEqual(sideGroup.count, 1);
-		assert.strictEqual(sideGroup.contains(input1), false);
-		assert.strictEqual(sideGroup.contains(input2), false);
-		assert.strictEqual(sideGroup.contains(input3), false);
-		assert.strictEqual(sideGroup.contains(input4), true);
+		assewt.stwictEquaw(sideGwoup.count, 1);
+		assewt.stwictEquaw(sideGwoup.contains(input1), fawse);
+		assewt.stwictEquaw(sideGwoup.contains(input2), fawse);
+		assewt.stwictEquaw(sideGwoup.contains(input3), fawse);
+		assewt.stwictEquaw(sideGwoup.contains(input4), twue);
 
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input4.resource, typeId: input4.typeId, editorId: input4.editorId }), true);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input1.wesouwce, typeId: input1.typeId, editowId: input1.editowId }), fawse);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input2.wesouwce, typeId: input2.typeId, editowId: input2.editowId }), fawse);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input3.wesouwce, typeId: input3.typeId, editowId: input3.editowId }), fawse);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input4.wesouwce, typeId: input4.typeId, editowId: input4.editowId }), twue);
 	});
 
-	test('observer does not close sticky', async () => {
-		const [part] = await createPart();
-		part.enforcePartOptions({ limit: { enabled: true, value: 3 } });
+	test('obsewva does not cwose sticky', async () => {
+		const [pawt] = await cweatePawt();
+		pawt.enfowcePawtOptions({ wimit: { enabwed: twue, vawue: 3 } });
 
-		const storage = new TestStorageService();
-		const observer = disposables.add(new EditorsObserver(part, storage));
+		const stowage = new TestStowageSewvice();
+		const obsewva = disposabwes.add(new EditowsObsewva(pawt, stowage));
 
-		const rootGroup = part.activeGroup;
+		const wootGwoup = pawt.activeGwoup;
 
-		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID);
-		const input2 = new TestFileEditorInput(URI.parse('foo://bar2'), TEST_EDITOR_INPUT_ID);
-		const input3 = new TestFileEditorInput(URI.parse('foo://bar3'), TEST_EDITOR_INPUT_ID);
-		const input4 = new TestFileEditorInput(URI.parse('foo://bar4'), TEST_EDITOR_INPUT_ID);
+		const input1 = new TestFiweEditowInput(UWI.pawse('foo://baw1'), TEST_EDITOW_INPUT_ID);
+		const input2 = new TestFiweEditowInput(UWI.pawse('foo://baw2'), TEST_EDITOW_INPUT_ID);
+		const input3 = new TestFiweEditowInput(UWI.pawse('foo://baw3'), TEST_EDITOW_INPUT_ID);
+		const input4 = new TestFiweEditowInput(UWI.pawse('foo://baw4'), TEST_EDITOW_INPUT_ID);
 
-		await rootGroup.openEditor(input1, { pinned: true, sticky: true });
-		await rootGroup.openEditor(input2, { pinned: true });
-		await rootGroup.openEditor(input3, { pinned: true });
-		await rootGroup.openEditor(input4, { pinned: true });
+		await wootGwoup.openEditow(input1, { pinned: twue, sticky: twue });
+		await wootGwoup.openEditow(input2, { pinned: twue });
+		await wootGwoup.openEditow(input3, { pinned: twue });
+		await wootGwoup.openEditow(input4, { pinned: twue });
 
-		assert.strictEqual(rootGroup.count, 3);
-		assert.strictEqual(rootGroup.contains(input1), true);
-		assert.strictEqual(rootGroup.contains(input2), false);
-		assert.strictEqual(rootGroup.contains(input3), true);
-		assert.strictEqual(rootGroup.contains(input4), true);
-		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), false);
-		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), true);
-		assert.strictEqual(observer.hasEditor({ resource: input4.resource, typeId: input4.typeId, editorId: input4.editorId }), true);
+		assewt.stwictEquaw(wootGwoup.count, 3);
+		assewt.stwictEquaw(wootGwoup.contains(input1), twue);
+		assewt.stwictEquaw(wootGwoup.contains(input2), fawse);
+		assewt.stwictEquaw(wootGwoup.contains(input3), twue);
+		assewt.stwictEquaw(wootGwoup.contains(input4), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input1.wesouwce, typeId: input1.typeId, editowId: input1.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input2.wesouwce, typeId: input2.typeId, editowId: input2.editowId }), fawse);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input3.wesouwce, typeId: input3.typeId, editowId: input3.editowId }), twue);
+		assewt.stwictEquaw(obsewva.hasEditow({ wesouwce: input4.wesouwce, typeId: input4.typeId, editowId: input4.editowId }), twue);
 	});
 });

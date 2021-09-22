@@ -1,94 +1,94 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IURLService } from 'vs/platform/url/common/url';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { AbstractURLService } from 'vs/platform/url/common/urlService';
-import { Event } from 'vs/base/common/event';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IOpenerService, IOpener, OpenExternalOptions, OpenInternalOptions, matchesScheme } from 'vs/platform/opener/common/opener';
-import { IProductService } from 'vs/platform/product/common/productService';
+impowt { IUWWSewvice } fwom 'vs/pwatfowm/uww/common/uww';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { AbstwactUWWSewvice } fwom 'vs/pwatfowm/uww/common/uwwSewvice';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IOpenewSewvice, IOpena, OpenExtewnawOptions, OpenIntewnawOptions, matchesScheme } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
 
-export interface IURLCallbackProvider {
-
-	/**
-	 * Indicates that a Uri has been opened outside of VSCode. The Uri
-	 * will be forwarded to all installed Uri handlers in the system.
-	 */
-	readonly onCallback: Event<URI>;
+expowt intewface IUWWCawwbackPwovida {
 
 	/**
-	 * Creates a Uri that - if opened in a browser - must result in
-	 * the `onCallback` to fire.
-	 *
-	 * The optional `Partial<UriComponents>` must be properly restored for
-	 * the Uri passed to the `onCallback` handler.
-	 *
-	 * For example: if a Uri is to be created with `scheme:"vscode"`,
-	 * `authority:"foo"` and `path:"bar"` the `onCallback` should fire
-	 * with a Uri `vscode://foo/bar`.
-	 *
-	 * If there are additional `query` values in the Uri, they should
-	 * be added to the list of provided `query` arguments from the
-	 * `Partial<UriComponents>`.
+	 * Indicates that a Uwi has been opened outside of VSCode. The Uwi
+	 * wiww be fowwawded to aww instawwed Uwi handwews in the system.
 	 */
-	create(options?: Partial<UriComponents>): URI;
+	weadonwy onCawwback: Event<UWI>;
+
+	/**
+	 * Cweates a Uwi that - if opened in a bwowsa - must wesuwt in
+	 * the `onCawwback` to fiwe.
+	 *
+	 * The optionaw `Pawtiaw<UwiComponents>` must be pwopewwy westowed fow
+	 * the Uwi passed to the `onCawwback` handwa.
+	 *
+	 * Fow exampwe: if a Uwi is to be cweated with `scheme:"vscode"`,
+	 * `authowity:"foo"` and `path:"baw"` the `onCawwback` shouwd fiwe
+	 * with a Uwi `vscode://foo/baw`.
+	 *
+	 * If thewe awe additionaw `quewy` vawues in the Uwi, they shouwd
+	 * be added to the wist of pwovided `quewy` awguments fwom the
+	 * `Pawtiaw<UwiComponents>`.
+	 */
+	cweate(options?: Pawtiaw<UwiComponents>): UWI;
 }
 
-class BrowserURLOpener implements IOpener {
+cwass BwowsewUWWOpena impwements IOpena {
 
-	constructor(
-		private urlService: IURLService,
-		private productService: IProductService
+	constwuctow(
+		pwivate uwwSewvice: IUWWSewvice,
+		pwivate pwoductSewvice: IPwoductSewvice
 	) { }
 
-	async open(resource: string | URI, options?: OpenInternalOptions | OpenExternalOptions): Promise<boolean> {
-		if ((options as OpenExternalOptions | undefined)?.openExternal) {
-			return false;
+	async open(wesouwce: stwing | UWI, options?: OpenIntewnawOptions | OpenExtewnawOptions): Pwomise<boowean> {
+		if ((options as OpenExtewnawOptions | undefined)?.openExtewnaw) {
+			wetuwn fawse;
 		}
 
-		if (!matchesScheme(resource, this.productService.urlProtocol)) {
-			return false;
+		if (!matchesScheme(wesouwce, this.pwoductSewvice.uwwPwotocow)) {
+			wetuwn fawse;
 		}
 
-		if (typeof resource === 'string') {
-			resource = URI.parse(resource);
+		if (typeof wesouwce === 'stwing') {
+			wesouwce = UWI.pawse(wesouwce);
 		}
 
-		return this.urlService.open(resource, { trusted: true });
+		wetuwn this.uwwSewvice.open(wesouwce, { twusted: twue });
 	}
 }
 
-export class BrowserURLService extends AbstractURLService {
+expowt cwass BwowsewUWWSewvice extends AbstwactUWWSewvice {
 
-	private provider: IURLCallbackProvider | undefined;
+	pwivate pwovida: IUWWCawwbackPwovida | undefined;
 
-	constructor(
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IOpenerService openerService: IOpenerService,
-		@IProductService productService: IProductService
+	constwuctow(
+		@IWowkbenchEnviwonmentSewvice enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IOpenewSewvice openewSewvice: IOpenewSewvice,
+		@IPwoductSewvice pwoductSewvice: IPwoductSewvice
 	) {
-		super();
+		supa();
 
-		this.provider = environmentService.options?.urlCallbackProvider;
+		this.pwovida = enviwonmentSewvice.options?.uwwCawwbackPwovida;
 
-		if (this.provider) {
-			this._register(this.provider.onCallback(uri => this.open(uri, { trusted: true })));
+		if (this.pwovida) {
+			this._wegista(this.pwovida.onCawwback(uwi => this.open(uwi, { twusted: twue })));
 		}
 
-		this._register(openerService.registerOpener(new BrowserURLOpener(this, productService)));
+		this._wegista(openewSewvice.wegistewOpena(new BwowsewUWWOpena(this, pwoductSewvice)));
 	}
 
-	create(options?: Partial<UriComponents>): URI {
-		if (this.provider) {
-			return this.provider.create(options);
+	cweate(options?: Pawtiaw<UwiComponents>): UWI {
+		if (this.pwovida) {
+			wetuwn this.pwovida.cweate(options);
 		}
 
-		return URI.parse('unsupported://');
+		wetuwn UWI.pawse('unsuppowted://');
 	}
 }
 
-registerSingleton(IURLService, BrowserURLService, true);
+wegistewSingweton(IUWWSewvice, BwowsewUWWSewvice, twue);

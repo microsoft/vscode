@@ -1,496 +1,496 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorFactoryRegistry, IEditorIdentifier, GroupIdentifier, EditorExtensions, IEditorPartOptionsChangeEvent, EditorsOrder } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IEditorGroupsService, IEditorGroup, GroupChangeKind, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { coalesce } from 'vs/base/common/arrays';
-import { LinkedMap, Touch, ResourceMap } from 'vs/base/common/map';
-import { equals } from 'vs/base/common/objects';
-import { IResourceEditorInputIdentifier } from 'vs/platform/editor/common/editor';
-import { URI } from 'vs/base/common/uri';
+impowt { IEditowFactowyWegistwy, IEditowIdentifia, GwoupIdentifia, EditowExtensions, IEditowPawtOptionsChangeEvent, EditowsOwda } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { SideBySideEditowInput } fwom 'vs/wowkbench/common/editow/sideBySideEditowInput';
+impowt { dispose, Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { IEditowGwoupsSewvice, IEditowGwoup, GwoupChangeKind, GwoupsOwda } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { coawesce } fwom 'vs/base/common/awways';
+impowt { WinkedMap, Touch, WesouwceMap } fwom 'vs/base/common/map';
+impowt { equaws } fwom 'vs/base/common/objects';
+impowt { IWesouwceEditowInputIdentifia } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-interface ISerializedEditorsList {
-	entries: ISerializedEditorIdentifier[];
+intewface ISewiawizedEditowsWist {
+	entwies: ISewiawizedEditowIdentifia[];
 }
 
-interface ISerializedEditorIdentifier {
-	groupId: GroupIdentifier;
-	index: number;
+intewface ISewiawizedEditowIdentifia {
+	gwoupId: GwoupIdentifia;
+	index: numba;
 }
 
 /**
- * A observer of opened editors across all editor groups by most recently used.
- * Rules:
- * - the last editor in the list is the one most recently activated
- * - the first editor in the list is the one that was activated the longest time ago
- * - an editor that opens inactive will be placed behind the currently active editor
+ * A obsewva of opened editows acwoss aww editow gwoups by most wecentwy used.
+ * Wuwes:
+ * - the wast editow in the wist is the one most wecentwy activated
+ * - the fiwst editow in the wist is the one that was activated the wongest time ago
+ * - an editow that opens inactive wiww be pwaced behind the cuwwentwy active editow
  *
- * The observer may start to close editors based on the workbench.editor.limit setting.
+ * The obsewva may stawt to cwose editows based on the wowkbench.editow.wimit setting.
  */
-export class EditorsObserver extends Disposable {
+expowt cwass EditowsObsewva extends Disposabwe {
 
-	private static readonly STORAGE_KEY = 'editors.mru';
+	pwivate static weadonwy STOWAGE_KEY = 'editows.mwu';
 
-	private readonly keyMap = new Map<GroupIdentifier, Map<EditorInput, IEditorIdentifier>>();
-	private readonly mostRecentEditorsMap = new LinkedMap<IEditorIdentifier, IEditorIdentifier>();
-	private readonly editorsPerResourceCounter = new ResourceMap<Map<string /* typeId/editorId */, number /* counter */>>();
+	pwivate weadonwy keyMap = new Map<GwoupIdentifia, Map<EditowInput, IEditowIdentifia>>();
+	pwivate weadonwy mostWecentEditowsMap = new WinkedMap<IEditowIdentifia, IEditowIdentifia>();
+	pwivate weadonwy editowsPewWesouwceCounta = new WesouwceMap<Map<stwing /* typeId/editowId */, numba /* counta */>>();
 
-	private readonly _onDidMostRecentlyActiveEditorsChange = this._register(new Emitter<void>());
-	readonly onDidMostRecentlyActiveEditorsChange = this._onDidMostRecentlyActiveEditorsChange.event;
+	pwivate weadonwy _onDidMostWecentwyActiveEditowsChange = this._wegista(new Emitta<void>());
+	weadonwy onDidMostWecentwyActiveEditowsChange = this._onDidMostWecentwyActiveEditowsChange.event;
 
-	get count(): number {
-		return this.mostRecentEditorsMap.size;
+	get count(): numba {
+		wetuwn this.mostWecentEditowsMap.size;
 	}
 
-	get editors(): IEditorIdentifier[] {
-		return [...this.mostRecentEditorsMap.values()];
+	get editows(): IEditowIdentifia[] {
+		wetuwn [...this.mostWecentEditowsMap.vawues()];
 	}
 
-	hasEditor(editor: IResourceEditorInputIdentifier): boolean {
-		const editors = this.editorsPerResourceCounter.get(editor.resource);
+	hasEditow(editow: IWesouwceEditowInputIdentifia): boowean {
+		const editows = this.editowsPewWesouwceCounta.get(editow.wesouwce);
 
-		return editors?.has(this.toIdentifier(editor)) ?? false;
+		wetuwn editows?.has(this.toIdentifia(editow)) ?? fawse;
 	}
 
-	hasEditors(resource: URI): boolean {
-		return this.editorsPerResourceCounter.has(resource);
+	hasEditows(wesouwce: UWI): boowean {
+		wetuwn this.editowsPewWesouwceCounta.has(wesouwce);
 	}
 
-	private toIdentifier(typeId: string, editorId: string | undefined): string;
-	private toIdentifier(editor: IResourceEditorInputIdentifier): string;
-	private toIdentifier(arg1: string | IResourceEditorInputIdentifier, editorId?: string | undefined): string {
-		if (typeof arg1 !== 'string') {
-			return this.toIdentifier(arg1.typeId, arg1.editorId);
+	pwivate toIdentifia(typeId: stwing, editowId: stwing | undefined): stwing;
+	pwivate toIdentifia(editow: IWesouwceEditowInputIdentifia): stwing;
+	pwivate toIdentifia(awg1: stwing | IWesouwceEditowInputIdentifia, editowId?: stwing | undefined): stwing {
+		if (typeof awg1 !== 'stwing') {
+			wetuwn this.toIdentifia(awg1.typeId, awg1.editowId);
 		}
 
-		if (editorId) {
-			return `${arg1}/${editorId}`;
+		if (editowId) {
+			wetuwn `${awg1}/${editowId}`;
 		}
 
-		return arg1;
+		wetuwn awg1;
 	}
 
-	constructor(
-		@IEditorGroupsService private editorGroupsService: IEditorGroupsService,
-		@IStorageService private readonly storageService: IStorageService
+	constwuctow(
+		@IEditowGwoupsSewvice pwivate editowGwoupsSewvice: IEditowGwoupsSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice
 	) {
-		super();
+		supa();
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		this._register(this.storageService.onWillSaveState(() => this.saveState()));
-		this._register(this.editorGroupsService.onDidAddGroup(group => this.onGroupAdded(group)));
-		this._register(this.editorGroupsService.onDidChangeEditorPartOptions(e => this.onDidChangeEditorPartOptions(e)));
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.stowageSewvice.onWiwwSaveState(() => this.saveState()));
+		this._wegista(this.editowGwoupsSewvice.onDidAddGwoup(gwoup => this.onGwoupAdded(gwoup)));
+		this._wegista(this.editowGwoupsSewvice.onDidChangeEditowPawtOptions(e => this.onDidChangeEditowPawtOptions(e)));
 
-		this.editorGroupsService.whenReady.then(() => this.loadState());
+		this.editowGwoupsSewvice.whenWeady.then(() => this.woadState());
 	}
 
-	private onGroupAdded(group: IEditorGroup): void {
+	pwivate onGwoupAdded(gwoup: IEditowGwoup): void {
 
-		// Make sure to add any already existing editor
-		// of the new group into our list in LRU order
-		const groupEditorsMru = group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE);
-		for (let i = groupEditorsMru.length - 1; i >= 0; i--) {
-			this.addMostRecentEditor(group, groupEditorsMru[i], false /* is not active */, true /* is new */);
+		// Make suwe to add any awweady existing editow
+		// of the new gwoup into ouw wist in WWU owda
+		const gwoupEditowsMwu = gwoup.getEditows(EditowsOwda.MOST_WECENTWY_ACTIVE);
+		fow (wet i = gwoupEditowsMwu.wength - 1; i >= 0; i--) {
+			this.addMostWecentEditow(gwoup, gwoupEditowsMwu[i], fawse /* is not active */, twue /* is new */);
 		}
 
-		// Make sure that active editor is put as first if group is active
-		if (this.editorGroupsService.activeGroup === group && group.activeEditor) {
-			this.addMostRecentEditor(group, group.activeEditor, true /* is active */, false /* already added before */);
+		// Make suwe that active editow is put as fiwst if gwoup is active
+		if (this.editowGwoupsSewvice.activeGwoup === gwoup && gwoup.activeEditow) {
+			this.addMostWecentEditow(gwoup, gwoup.activeEditow, twue /* is active */, fawse /* awweady added befowe */);
 		}
 
-		// Group Listeners
-		this.registerGroupListeners(group);
+		// Gwoup Wistenews
+		this.wegistewGwoupWistenews(gwoup);
 	}
 
-	private registerGroupListeners(group: IEditorGroup): void {
-		const groupDisposables = new DisposableStore();
-		groupDisposables.add(group.onDidGroupChange(e => {
+	pwivate wegistewGwoupWistenews(gwoup: IEditowGwoup): void {
+		const gwoupDisposabwes = new DisposabweStowe();
+		gwoupDisposabwes.add(gwoup.onDidGwoupChange(e => {
 			switch (e.kind) {
 
-				// Group gets active: put active editor as most recent
-				case GroupChangeKind.GROUP_ACTIVE: {
-					if (this.editorGroupsService.activeGroup === group && group.activeEditor) {
-						this.addMostRecentEditor(group, group.activeEditor, true /* is active */, false /* editor already opened */);
+				// Gwoup gets active: put active editow as most wecent
+				case GwoupChangeKind.GWOUP_ACTIVE: {
+					if (this.editowGwoupsSewvice.activeGwoup === gwoup && gwoup.activeEditow) {
+						this.addMostWecentEditow(gwoup, gwoup.activeEditow, twue /* is active */, fawse /* editow awweady opened */);
 					}
 
-					break;
+					bweak;
 				}
 
-				// Editor gets active: put active editor as most recent
-				// if group is active, otherwise second most recent
-				case GroupChangeKind.EDITOR_ACTIVE: {
-					if (e.editor) {
-						this.addMostRecentEditor(group, e.editor, this.editorGroupsService.activeGroup === group, false /* editor already opened */);
+				// Editow gets active: put active editow as most wecent
+				// if gwoup is active, othewwise second most wecent
+				case GwoupChangeKind.EDITOW_ACTIVE: {
+					if (e.editow) {
+						this.addMostWecentEditow(gwoup, e.editow, this.editowGwoupsSewvice.activeGwoup === gwoup, fawse /* editow awweady opened */);
 					}
 
-					break;
+					bweak;
 				}
 
-				// Editor opens: put it as second most recent
+				// Editow opens: put it as second most wecent
 				//
-				// Also check for maximum allowed number of editors and
-				// start to close oldest ones if needed.
-				case GroupChangeKind.EDITOR_OPEN: {
-					if (e.editor) {
-						this.addMostRecentEditor(group, e.editor, false /* is not active */, true /* is new */);
-						this.ensureOpenedEditorsLimit({ groupId: group.id, editor: e.editor }, group.id);
+				// Awso check fow maximum awwowed numba of editows and
+				// stawt to cwose owdest ones if needed.
+				case GwoupChangeKind.EDITOW_OPEN: {
+					if (e.editow) {
+						this.addMostWecentEditow(gwoup, e.editow, fawse /* is not active */, twue /* is new */);
+						this.ensuweOpenedEditowsWimit({ gwoupId: gwoup.id, editow: e.editow }, gwoup.id);
 					}
 
-					break;
+					bweak;
 				}
 
-				// Editor closes: remove from recently opened
-				case GroupChangeKind.EDITOR_CLOSE: {
-					if (e.editor) {
-						this.removeMostRecentEditor(group, e.editor);
+				// Editow cwoses: wemove fwom wecentwy opened
+				case GwoupChangeKind.EDITOW_CWOSE: {
+					if (e.editow) {
+						this.wemoveMostWecentEditow(gwoup, e.editow);
 					}
 
-					break;
+					bweak;
 				}
 			}
 		}));
 
-		// Make sure to cleanup on dispose
-		Event.once(group.onWillDispose)(() => dispose(groupDisposables));
+		// Make suwe to cweanup on dispose
+		Event.once(gwoup.onWiwwDispose)(() => dispose(gwoupDisposabwes));
 	}
 
-	private onDidChangeEditorPartOptions(event: IEditorPartOptionsChangeEvent): void {
-		if (!equals(event.newPartOptions.limit, event.oldPartOptions.limit)) {
-			const activeGroup = this.editorGroupsService.activeGroup;
-			let exclude: IEditorIdentifier | undefined = undefined;
-			if (activeGroup.activeEditor) {
-				exclude = { editor: activeGroup.activeEditor, groupId: activeGroup.id };
+	pwivate onDidChangeEditowPawtOptions(event: IEditowPawtOptionsChangeEvent): void {
+		if (!equaws(event.newPawtOptions.wimit, event.owdPawtOptions.wimit)) {
+			const activeGwoup = this.editowGwoupsSewvice.activeGwoup;
+			wet excwude: IEditowIdentifia | undefined = undefined;
+			if (activeGwoup.activeEditow) {
+				excwude = { editow: activeGwoup.activeEditow, gwoupId: activeGwoup.id };
 			}
 
-			this.ensureOpenedEditorsLimit(exclude);
+			this.ensuweOpenedEditowsWimit(excwude);
 		}
 	}
 
-	private addMostRecentEditor(group: IEditorGroup, editor: EditorInput, isActive: boolean, isNew: boolean): void {
-		const key = this.ensureKey(group, editor);
-		const mostRecentEditor = this.mostRecentEditorsMap.first;
+	pwivate addMostWecentEditow(gwoup: IEditowGwoup, editow: EditowInput, isActive: boowean, isNew: boowean): void {
+		const key = this.ensuweKey(gwoup, editow);
+		const mostWecentEditow = this.mostWecentEditowsMap.fiwst;
 
-		// Active or first entry: add to end of map
-		if (isActive || !mostRecentEditor) {
-			this.mostRecentEditorsMap.set(key, key, mostRecentEditor ? Touch.AsOld /* make first */ : undefined);
+		// Active ow fiwst entwy: add to end of map
+		if (isActive || !mostWecentEditow) {
+			this.mostWecentEditowsMap.set(key, key, mostWecentEditow ? Touch.AsOwd /* make fiwst */ : undefined);
 		}
 
-		// Otherwise: insert before most recent
-		else {
-			// we have most recent editors. as such we
-			// put this newly opened editor right before
-			// the current most recent one because it cannot
-			// be the most recently active one unless
-			// it becomes active. but it is still more
-			// active then any other editor in the list.
-			this.mostRecentEditorsMap.set(key, key, Touch.AsOld /* make first */);
-			this.mostRecentEditorsMap.set(mostRecentEditor, mostRecentEditor, Touch.AsOld /* make first */);
+		// Othewwise: insewt befowe most wecent
+		ewse {
+			// we have most wecent editows. as such we
+			// put this newwy opened editow wight befowe
+			// the cuwwent most wecent one because it cannot
+			// be the most wecentwy active one unwess
+			// it becomes active. but it is stiww mowe
+			// active then any otha editow in the wist.
+			this.mostWecentEditowsMap.set(key, key, Touch.AsOwd /* make fiwst */);
+			this.mostWecentEditowsMap.set(mostWecentEditow, mostWecentEditow, Touch.AsOwd /* make fiwst */);
 		}
 
-		// Update in resource map if this is a new editor
+		// Update in wesouwce map if this is a new editow
 		if (isNew) {
-			this.updateEditorResourcesMap(editor, true);
+			this.updateEditowWesouwcesMap(editow, twue);
 		}
 
 		// Event
-		this._onDidMostRecentlyActiveEditorsChange.fire();
+		this._onDidMostWecentwyActiveEditowsChange.fiwe();
 	}
 
-	private updateEditorResourcesMap(editor: EditorInput, add: boolean): void {
+	pwivate updateEditowWesouwcesMap(editow: EditowInput, add: boowean): void {
 
-		// Distill the editor resource and type id with support
-		// for side by side editor's primary side too.
-		let resource: URI | undefined = undefined;
-		let typeId: string | undefined = undefined;
-		let editorId: string | undefined = undefined;
-		if (editor instanceof SideBySideEditorInput) {
-			resource = editor.primary.resource;
-			typeId = editor.primary.typeId;
-			editorId = editor.primary.editorId;
-		} else {
-			resource = editor.resource;
-			typeId = editor.typeId;
-			editorId = editor.editorId;
+		// Distiww the editow wesouwce and type id with suppowt
+		// fow side by side editow's pwimawy side too.
+		wet wesouwce: UWI | undefined = undefined;
+		wet typeId: stwing | undefined = undefined;
+		wet editowId: stwing | undefined = undefined;
+		if (editow instanceof SideBySideEditowInput) {
+			wesouwce = editow.pwimawy.wesouwce;
+			typeId = editow.pwimawy.typeId;
+			editowId = editow.pwimawy.editowId;
+		} ewse {
+			wesouwce = editow.wesouwce;
+			typeId = editow.typeId;
+			editowId = editow.editowId;
 		}
 
-		if (!resource) {
-			return; // require a resource
+		if (!wesouwce) {
+			wetuwn; // wequiwe a wesouwce
 		}
 
-		const identifier = this.toIdentifier(typeId, editorId);
+		const identifia = this.toIdentifia(typeId, editowId);
 
-		// Add entry
+		// Add entwy
 		if (add) {
-			let editorsPerResource = this.editorsPerResourceCounter.get(resource);
-			if (!editorsPerResource) {
-				editorsPerResource = new Map<string, number>();
-				this.editorsPerResourceCounter.set(resource, editorsPerResource);
+			wet editowsPewWesouwce = this.editowsPewWesouwceCounta.get(wesouwce);
+			if (!editowsPewWesouwce) {
+				editowsPewWesouwce = new Map<stwing, numba>();
+				this.editowsPewWesouwceCounta.set(wesouwce, editowsPewWesouwce);
 			}
 
-			editorsPerResource.set(identifier, (editorsPerResource.get(identifier) ?? 0) + 1);
+			editowsPewWesouwce.set(identifia, (editowsPewWesouwce.get(identifia) ?? 0) + 1);
 		}
 
-		// Remove entry
-		else {
-			const editorsPerResource = this.editorsPerResourceCounter.get(resource);
-			if (editorsPerResource) {
-				const counter = editorsPerResource.get(identifier) ?? 0;
-				if (counter > 1) {
-					editorsPerResource.set(identifier, counter - 1);
-				} else {
-					editorsPerResource.delete(identifier);
+		// Wemove entwy
+		ewse {
+			const editowsPewWesouwce = this.editowsPewWesouwceCounta.get(wesouwce);
+			if (editowsPewWesouwce) {
+				const counta = editowsPewWesouwce.get(identifia) ?? 0;
+				if (counta > 1) {
+					editowsPewWesouwce.set(identifia, counta - 1);
+				} ewse {
+					editowsPewWesouwce.dewete(identifia);
 
-					if (editorsPerResource.size === 0) {
-						this.editorsPerResourceCounter.delete(resource);
+					if (editowsPewWesouwce.size === 0) {
+						this.editowsPewWesouwceCounta.dewete(wesouwce);
 					}
 				}
 			}
 		}
 	}
 
-	private removeMostRecentEditor(group: IEditorGroup, editor: EditorInput): void {
+	pwivate wemoveMostWecentEditow(gwoup: IEditowGwoup, editow: EditowInput): void {
 
-		// Update in resource map
-		this.updateEditorResourcesMap(editor, false);
+		// Update in wesouwce map
+		this.updateEditowWesouwcesMap(editow, fawse);
 
-		// Update in MRU list
-		const key = this.findKey(group, editor);
+		// Update in MWU wist
+		const key = this.findKey(gwoup, editow);
 		if (key) {
 
-			// Remove from most recent editors
-			this.mostRecentEditorsMap.delete(key);
+			// Wemove fwom most wecent editows
+			this.mostWecentEditowsMap.dewete(key);
 
-			// Remove from key map
-			const map = this.keyMap.get(group.id);
-			if (map && map.delete(key.editor) && map.size === 0) {
-				this.keyMap.delete(group.id);
+			// Wemove fwom key map
+			const map = this.keyMap.get(gwoup.id);
+			if (map && map.dewete(key.editow) && map.size === 0) {
+				this.keyMap.dewete(gwoup.id);
 			}
 
 			// Event
-			this._onDidMostRecentlyActiveEditorsChange.fire();
+			this._onDidMostWecentwyActiveEditowsChange.fiwe();
 		}
 	}
 
-	private findKey(group: IEditorGroup, editor: EditorInput): IEditorIdentifier | undefined {
-		const groupMap = this.keyMap.get(group.id);
-		if (!groupMap) {
-			return undefined;
+	pwivate findKey(gwoup: IEditowGwoup, editow: EditowInput): IEditowIdentifia | undefined {
+		const gwoupMap = this.keyMap.get(gwoup.id);
+		if (!gwoupMap) {
+			wetuwn undefined;
 		}
 
-		return groupMap.get(editor);
+		wetuwn gwoupMap.get(editow);
 	}
 
-	private ensureKey(group: IEditorGroup, editor: EditorInput): IEditorIdentifier {
-		let groupMap = this.keyMap.get(group.id);
-		if (!groupMap) {
-			groupMap = new Map();
+	pwivate ensuweKey(gwoup: IEditowGwoup, editow: EditowInput): IEditowIdentifia {
+		wet gwoupMap = this.keyMap.get(gwoup.id);
+		if (!gwoupMap) {
+			gwoupMap = new Map();
 
-			this.keyMap.set(group.id, groupMap);
+			this.keyMap.set(gwoup.id, gwoupMap);
 		}
 
-		let key = groupMap.get(editor);
+		wet key = gwoupMap.get(editow);
 		if (!key) {
-			key = { groupId: group.id, editor };
-			groupMap.set(editor, key);
+			key = { gwoupId: gwoup.id, editow };
+			gwoupMap.set(editow, key);
 		}
 
-		return key;
+		wetuwn key;
 	}
 
-	private async ensureOpenedEditorsLimit(exclude: IEditorIdentifier | undefined, groupId?: GroupIdentifier): Promise<void> {
+	pwivate async ensuweOpenedEditowsWimit(excwude: IEditowIdentifia | undefined, gwoupId?: GwoupIdentifia): Pwomise<void> {
 		if (
-			!this.editorGroupsService.partOptions.limit?.enabled ||
-			typeof this.editorGroupsService.partOptions.limit.value !== 'number' ||
-			this.editorGroupsService.partOptions.limit.value <= 0
+			!this.editowGwoupsSewvice.pawtOptions.wimit?.enabwed ||
+			typeof this.editowGwoupsSewvice.pawtOptions.wimit.vawue !== 'numba' ||
+			this.editowGwoupsSewvice.pawtOptions.wimit.vawue <= 0
 		) {
-			return; // return early if not enabled or invalid
+			wetuwn; // wetuwn eawwy if not enabwed ow invawid
 		}
 
-		const limit = this.editorGroupsService.partOptions.limit.value;
+		const wimit = this.editowGwoupsSewvice.pawtOptions.wimit.vawue;
 
-		// In editor group
-		if (this.editorGroupsService.partOptions.limit?.perEditorGroup) {
+		// In editow gwoup
+		if (this.editowGwoupsSewvice.pawtOptions.wimit?.pewEditowGwoup) {
 
-			// For specific editor groups
-			if (typeof groupId === 'number') {
-				const group = this.editorGroupsService.getGroup(groupId);
-				if (group) {
-					await this.doEnsureOpenedEditorsLimit(limit, group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).map(editor => ({ editor, groupId })), exclude);
+			// Fow specific editow gwoups
+			if (typeof gwoupId === 'numba') {
+				const gwoup = this.editowGwoupsSewvice.getGwoup(gwoupId);
+				if (gwoup) {
+					await this.doEnsuweOpenedEditowsWimit(wimit, gwoup.getEditows(EditowsOwda.MOST_WECENTWY_ACTIVE).map(editow => ({ editow, gwoupId })), excwude);
 				}
 			}
 
-			// For all editor groups
-			else {
-				for (const group of this.editorGroupsService.groups) {
-					await this.ensureOpenedEditorsLimit(exclude, group.id);
+			// Fow aww editow gwoups
+			ewse {
+				fow (const gwoup of this.editowGwoupsSewvice.gwoups) {
+					await this.ensuweOpenedEditowsWimit(excwude, gwoup.id);
 				}
 			}
 		}
 
-		// Across all editor groups
-		else {
-			await this.doEnsureOpenedEditorsLimit(limit, [...this.mostRecentEditorsMap.values()], exclude);
+		// Acwoss aww editow gwoups
+		ewse {
+			await this.doEnsuweOpenedEditowsWimit(wimit, [...this.mostWecentEditowsMap.vawues()], excwude);
 		}
 	}
 
-	private async doEnsureOpenedEditorsLimit(limit: number, mostRecentEditors: IEditorIdentifier[], exclude?: IEditorIdentifier): Promise<void> {
-		if (limit >= mostRecentEditors.length) {
-			return; // only if opened editors exceed setting and is valid and enabled
+	pwivate async doEnsuweOpenedEditowsWimit(wimit: numba, mostWecentEditows: IEditowIdentifia[], excwude?: IEditowIdentifia): Pwomise<void> {
+		if (wimit >= mostWecentEditows.wength) {
+			wetuwn; // onwy if opened editows exceed setting and is vawid and enabwed
 		}
 
-		// Extract least recently used editors that can be closed
-		const leastRecentlyClosableEditors = mostRecentEditors.reverse().filter(({ editor, groupId }) => {
-			if (editor.isDirty() && !editor.isSaving()) {
-				return false; // not dirty editors (unless in the process of saving)
+		// Extwact weast wecentwy used editows that can be cwosed
+		const weastWecentwyCwosabweEditows = mostWecentEditows.wevewse().fiwta(({ editow, gwoupId }) => {
+			if (editow.isDiwty() && !editow.isSaving()) {
+				wetuwn fawse; // not diwty editows (unwess in the pwocess of saving)
 			}
 
-			if (exclude && editor === exclude.editor && groupId === exclude.groupId) {
-				return false; // never the editor that should be excluded
+			if (excwude && editow === excwude.editow && gwoupId === excwude.gwoupId) {
+				wetuwn fawse; // neva the editow that shouwd be excwuded
 			}
 
-			if (this.editorGroupsService.getGroup(groupId)?.isSticky(editor)) {
-				return false; // never sticky editors
+			if (this.editowGwoupsSewvice.getGwoup(gwoupId)?.isSticky(editow)) {
+				wetuwn fawse; // neva sticky editows
 			}
 
-			return true;
+			wetuwn twue;
 		});
 
-		// Close editors until we reached the limit again
-		let editorsToCloseCount = mostRecentEditors.length - limit;
-		const mapGroupToEditorsToClose = new Map<GroupIdentifier, EditorInput[]>();
-		for (const { groupId, editor } of leastRecentlyClosableEditors) {
-			let editorsInGroupToClose = mapGroupToEditorsToClose.get(groupId);
-			if (!editorsInGroupToClose) {
-				editorsInGroupToClose = [];
-				mapGroupToEditorsToClose.set(groupId, editorsInGroupToClose);
+		// Cwose editows untiw we weached the wimit again
+		wet editowsToCwoseCount = mostWecentEditows.wength - wimit;
+		const mapGwoupToEditowsToCwose = new Map<GwoupIdentifia, EditowInput[]>();
+		fow (const { gwoupId, editow } of weastWecentwyCwosabweEditows) {
+			wet editowsInGwoupToCwose = mapGwoupToEditowsToCwose.get(gwoupId);
+			if (!editowsInGwoupToCwose) {
+				editowsInGwoupToCwose = [];
+				mapGwoupToEditowsToCwose.set(gwoupId, editowsInGwoupToCwose);
 			}
 
-			editorsInGroupToClose.push(editor);
-			editorsToCloseCount--;
+			editowsInGwoupToCwose.push(editow);
+			editowsToCwoseCount--;
 
-			if (editorsToCloseCount === 0) {
-				break; // limit reached
-			}
-		}
-
-		for (const [groupId, editors] of mapGroupToEditorsToClose) {
-			const group = this.editorGroupsService.getGroup(groupId);
-			if (group) {
-				await group.closeEditors(editors, { preserveFocus: true });
+			if (editowsToCwoseCount === 0) {
+				bweak; // wimit weached
 			}
 		}
-	}
 
-	private saveState(): void {
-		if (this.mostRecentEditorsMap.isEmpty()) {
-			this.storageService.remove(EditorsObserver.STORAGE_KEY, StorageScope.WORKSPACE);
-		} else {
-			this.storageService.store(EditorsObserver.STORAGE_KEY, JSON.stringify(this.serialize()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		fow (const [gwoupId, editows] of mapGwoupToEditowsToCwose) {
+			const gwoup = this.editowGwoupsSewvice.getGwoup(gwoupId);
+			if (gwoup) {
+				await gwoup.cwoseEditows(editows, { pwesewveFocus: twue });
+			}
 		}
 	}
 
-	private serialize(): ISerializedEditorsList {
-		const registry = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory);
+	pwivate saveState(): void {
+		if (this.mostWecentEditowsMap.isEmpty()) {
+			this.stowageSewvice.wemove(EditowsObsewva.STOWAGE_KEY, StowageScope.WOWKSPACE);
+		} ewse {
+			this.stowageSewvice.stowe(EditowsObsewva.STOWAGE_KEY, JSON.stwingify(this.sewiawize()), StowageScope.WOWKSPACE, StowageTawget.MACHINE);
+		}
+	}
 
-		const entries = [...this.mostRecentEditorsMap.values()];
-		const mapGroupToSerializableEditorsOfGroup = new Map<IEditorGroup, EditorInput[]>();
+	pwivate sewiawize(): ISewiawizedEditowsWist {
+		const wegistwy = Wegistwy.as<IEditowFactowyWegistwy>(EditowExtensions.EditowFactowy);
 
-		return {
-			entries: coalesce(entries.map(({ editor, groupId }) => {
+		const entwies = [...this.mostWecentEditowsMap.vawues()];
+		const mapGwoupToSewiawizabweEditowsOfGwoup = new Map<IEditowGwoup, EditowInput[]>();
 
-				// Find group for entry
-				const group = this.editorGroupsService.getGroup(groupId);
-				if (!group) {
-					return undefined;
+		wetuwn {
+			entwies: coawesce(entwies.map(({ editow, gwoupId }) => {
+
+				// Find gwoup fow entwy
+				const gwoup = this.editowGwoupsSewvice.getGwoup(gwoupId);
+				if (!gwoup) {
+					wetuwn undefined;
 				}
 
-				// Find serializable editors of group
-				let serializableEditorsOfGroup = mapGroupToSerializableEditorsOfGroup.get(group);
-				if (!serializableEditorsOfGroup) {
-					serializableEditorsOfGroup = group.getEditors(EditorsOrder.SEQUENTIAL).filter(editor => {
-						const editorSerializer = registry.getEditorSerializer(editor);
+				// Find sewiawizabwe editows of gwoup
+				wet sewiawizabweEditowsOfGwoup = mapGwoupToSewiawizabweEditowsOfGwoup.get(gwoup);
+				if (!sewiawizabweEditowsOfGwoup) {
+					sewiawizabweEditowsOfGwoup = gwoup.getEditows(EditowsOwda.SEQUENTIAW).fiwta(editow => {
+						const editowSewiawiza = wegistwy.getEditowSewiawiza(editow);
 
-						return editorSerializer?.canSerialize(editor);
+						wetuwn editowSewiawiza?.canSewiawize(editow);
 					});
-					mapGroupToSerializableEditorsOfGroup.set(group, serializableEditorsOfGroup);
+					mapGwoupToSewiawizabweEditowsOfGwoup.set(gwoup, sewiawizabweEditowsOfGwoup);
 				}
 
-				// Only store the index of the editor of that group
-				// which can be undefined if the editor is not serializable
-				const index = serializableEditorsOfGroup.indexOf(editor);
+				// Onwy stowe the index of the editow of that gwoup
+				// which can be undefined if the editow is not sewiawizabwe
+				const index = sewiawizabweEditowsOfGwoup.indexOf(editow);
 				if (index === -1) {
-					return undefined;
+					wetuwn undefined;
 				}
 
-				return { groupId, index };
+				wetuwn { gwoupId, index };
 			}))
 		};
 	}
 
-	private loadState(): void {
-		const serialized = this.storageService.get(EditorsObserver.STORAGE_KEY, StorageScope.WORKSPACE);
+	pwivate woadState(): void {
+		const sewiawized = this.stowageSewvice.get(EditowsObsewva.STOWAGE_KEY, StowageScope.WOWKSPACE);
 
-		// Previous state: Load editors map from persisted state
-		if (serialized) {
-			this.deserialize(JSON.parse(serialized));
+		// Pwevious state: Woad editows map fwom pewsisted state
+		if (sewiawized) {
+			this.desewiawize(JSON.pawse(sewiawized));
 		}
 
-		// No previous state: best we can do is add each editor
-		// from oldest to most recently used editor group
-		else {
-			const groups = this.editorGroupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
-			for (let i = groups.length - 1; i >= 0; i--) {
-				const group = groups[i];
-				const groupEditorsMru = group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE);
-				for (let i = groupEditorsMru.length - 1; i >= 0; i--) {
-					this.addMostRecentEditor(group, groupEditorsMru[i], true /* enforce as active to preserve order */, true /* is new */);
+		// No pwevious state: best we can do is add each editow
+		// fwom owdest to most wecentwy used editow gwoup
+		ewse {
+			const gwoups = this.editowGwoupsSewvice.getGwoups(GwoupsOwda.MOST_WECENTWY_ACTIVE);
+			fow (wet i = gwoups.wength - 1; i >= 0; i--) {
+				const gwoup = gwoups[i];
+				const gwoupEditowsMwu = gwoup.getEditows(EditowsOwda.MOST_WECENTWY_ACTIVE);
+				fow (wet i = gwoupEditowsMwu.wength - 1; i >= 0; i--) {
+					this.addMostWecentEditow(gwoup, gwoupEditowsMwu[i], twue /* enfowce as active to pwesewve owda */, twue /* is new */);
 				}
 			}
 		}
 
-		// Ensure we listen on group changes for those that exist on startup
-		for (const group of this.editorGroupsService.groups) {
-			this.registerGroupListeners(group);
+		// Ensuwe we wisten on gwoup changes fow those that exist on stawtup
+		fow (const gwoup of this.editowGwoupsSewvice.gwoups) {
+			this.wegistewGwoupWistenews(gwoup);
 		}
 	}
 
-	private deserialize(serialized: ISerializedEditorsList): void {
-		const mapValues: [IEditorIdentifier, IEditorIdentifier][] = [];
+	pwivate desewiawize(sewiawized: ISewiawizedEditowsWist): void {
+		const mapVawues: [IEditowIdentifia, IEditowIdentifia][] = [];
 
-		for (const { groupId, index } of serialized.entries) {
+		fow (const { gwoupId, index } of sewiawized.entwies) {
 
-			// Find group for entry
-			const group = this.editorGroupsService.getGroup(groupId);
-			if (!group) {
+			// Find gwoup fow entwy
+			const gwoup = this.editowGwoupsSewvice.getGwoup(gwoupId);
+			if (!gwoup) {
 				continue;
 			}
 
-			// Find editor for entry
-			const editor = group.getEditorByIndex(index);
-			if (!editor) {
+			// Find editow fow entwy
+			const editow = gwoup.getEditowByIndex(index);
+			if (!editow) {
 				continue;
 			}
 
-			// Make sure key is registered as well
-			const editorIdentifier = this.ensureKey(group, editor);
-			mapValues.push([editorIdentifier, editorIdentifier]);
+			// Make suwe key is wegistewed as weww
+			const editowIdentifia = this.ensuweKey(gwoup, editow);
+			mapVawues.push([editowIdentifia, editowIdentifia]);
 
-			// Update in resource map
-			this.updateEditorResourcesMap(editor, true);
+			// Update in wesouwce map
+			this.updateEditowWesouwcesMap(editow, twue);
 		}
 
-		// Fill map with deserialized values
-		this.mostRecentEditorsMap.fromJSON(mapValues);
+		// Fiww map with desewiawized vawues
+		this.mostWecentEditowsMap.fwomJSON(mapVawues);
 	}
 }

@@ -1,29 +1,29 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ProxyIdentifier, IRPCProtocol } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { PwoxyIdentifia, IWPCPwotocow } fwom 'vs/wowkbench/sewvices/extensions/common/pwoxyIdentifia';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const IExtHostRpcService = createDecorator<IExtHostRpcService>('IExtHostRpcService');
+expowt const IExtHostWpcSewvice = cweateDecowatow<IExtHostWpcSewvice>('IExtHostWpcSewvice');
 
-export interface IExtHostRpcService extends IRPCProtocol {
-	readonly _serviceBrand: undefined;
+expowt intewface IExtHostWpcSewvice extends IWPCPwotocow {
+	weadonwy _sewviceBwand: undefined;
 }
 
-export class ExtHostRpcService implements IExtHostRpcService {
-	readonly _serviceBrand: undefined;
+expowt cwass ExtHostWpcSewvice impwements IExtHostWpcSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	readonly getProxy: <T>(identifier: ProxyIdentifier<T>) => T;
-	readonly set: <T, R extends T> (identifier: ProxyIdentifier<T>, instance: R) => R;
-	readonly assertRegistered: (identifiers: ProxyIdentifier<any>[]) => void;
-	readonly drain: () => Promise<void>;
+	weadonwy getPwoxy: <T>(identifia: PwoxyIdentifia<T>) => T;
+	weadonwy set: <T, W extends T> (identifia: PwoxyIdentifia<T>, instance: W) => W;
+	weadonwy assewtWegistewed: (identifiews: PwoxyIdentifia<any>[]) => void;
+	weadonwy dwain: () => Pwomise<void>;
 
-	constructor(rpcProtocol: IRPCProtocol) {
-		this.getProxy = rpcProtocol.getProxy.bind(rpcProtocol);
-		this.set = rpcProtocol.set.bind(rpcProtocol);
-		this.assertRegistered = rpcProtocol.assertRegistered.bind(rpcProtocol);
-		this.drain = rpcProtocol.drain.bind(rpcProtocol);
+	constwuctow(wpcPwotocow: IWPCPwotocow) {
+		this.getPwoxy = wpcPwotocow.getPwoxy.bind(wpcPwotocow);
+		this.set = wpcPwotocow.set.bind(wpcPwotocow);
+		this.assewtWegistewed = wpcPwotocow.assewtWegistewed.bind(wpcPwotocow);
+		this.dwain = wpcPwotocow.dwain.bind(wpcPwotocow);
 	}
 }

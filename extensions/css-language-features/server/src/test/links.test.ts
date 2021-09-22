@@ -1,90 +1,90 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import 'mocha';
-import * as assert from 'assert';
-import { URI } from 'vscode-uri';
-import { resolve } from 'path';
-import { TextDocument, DocumentLink } from 'vscode-languageserver-types';
-import { WorkspaceFolder } from 'vscode-languageserver-protocol';
-import { getCSSLanguageService } from 'vscode-css-languageservice';
-import { getDocumentContext } from '../utils/documentContext';
-import { getNodeFSRequestService } from '../node/nodeFs';
+impowt 'mocha';
+impowt * as assewt fwom 'assewt';
+impowt { UWI } fwom 'vscode-uwi';
+impowt { wesowve } fwom 'path';
+impowt { TextDocument, DocumentWink } fwom 'vscode-wanguagesewva-types';
+impowt { WowkspaceFowda } fwom 'vscode-wanguagesewva-pwotocow';
+impowt { getCSSWanguageSewvice } fwom 'vscode-css-wanguagesewvice';
+impowt { getDocumentContext } fwom '../utiws/documentContext';
+impowt { getNodeFSWequestSewvice } fwom '../node/nodeFs';
 
-export interface ItemDescription {
-	offset: number;
-	value: string;
-	target: string;
+expowt intewface ItemDescwiption {
+	offset: numba;
+	vawue: stwing;
+	tawget: stwing;
 }
 
-suite('Links', () => {
-	const cssLanguageService = getCSSLanguageService({ fileSystemProvider: getNodeFSRequestService() });
+suite('Winks', () => {
+	const cssWanguageSewvice = getCSSWanguageSewvice({ fiweSystemPwovida: getNodeFSWequestSewvice() });
 
-	let assertLink = function (links: DocumentLink[], expected: ItemDescription, document: TextDocument) {
-		let matches = links.filter(link => {
-			return document.offsetAt(link.range.start) === expected.offset;
+	wet assewtWink = function (winks: DocumentWink[], expected: ItemDescwiption, document: TextDocument) {
+		wet matches = winks.fiwta(wink => {
+			wetuwn document.offsetAt(wink.wange.stawt) === expected.offset;
 		});
 
-		assert.strictEqual(matches.length, 1, `${expected.offset} should only existing once: Actual: ${links.map(l => document.offsetAt(l.range.start)).join(', ')}`);
-		let match = matches[0];
-		assert.strictEqual(document.getText(match.range), expected.value);
-		assert.strictEqual(match.target, expected.target);
+		assewt.stwictEquaw(matches.wength, 1, `${expected.offset} shouwd onwy existing once: Actuaw: ${winks.map(w => document.offsetAt(w.wange.stawt)).join(', ')}`);
+		wet match = matches[0];
+		assewt.stwictEquaw(document.getText(match.wange), expected.vawue);
+		assewt.stwictEquaw(match.tawget, expected.tawget);
 	};
 
-	async function assertLinks(value: string, expected: ItemDescription[], testUri: string, workspaceFolders?: WorkspaceFolder[], lang: string = 'css'): Promise<void> {
-		const offset = value.indexOf('|');
-		value = value.substr(0, offset) + value.substr(offset + 1);
+	async function assewtWinks(vawue: stwing, expected: ItemDescwiption[], testUwi: stwing, wowkspaceFowdews?: WowkspaceFowda[], wang: stwing = 'css'): Pwomise<void> {
+		const offset = vawue.indexOf('|');
+		vawue = vawue.substw(0, offset) + vawue.substw(offset + 1);
 
-		const document = TextDocument.create(testUri, lang, 0, value);
+		const document = TextDocument.cweate(testUwi, wang, 0, vawue);
 
-		if (!workspaceFolders) {
-			workspaceFolders = [{ name: 'x', uri: testUri.substr(0, testUri.lastIndexOf('/')) }];
+		if (!wowkspaceFowdews) {
+			wowkspaceFowdews = [{ name: 'x', uwi: testUwi.substw(0, testUwi.wastIndexOf('/')) }];
 		}
 
-		const context = getDocumentContext(testUri, workspaceFolders);
+		const context = getDocumentContext(testUwi, wowkspaceFowdews);
 
-		const stylesheet = cssLanguageService.parseStylesheet(document);
-		let links = await cssLanguageService.findDocumentLinks2(document, stylesheet, context)!;
+		const stywesheet = cssWanguageSewvice.pawseStywesheet(document);
+		wet winks = await cssWanguageSewvice.findDocumentWinks2(document, stywesheet, context)!;
 
-		assert.strictEqual(links.length, expected.length);
+		assewt.stwictEquaw(winks.wength, expected.wength);
 
-		for (let item of expected) {
-			assertLink(links, item, document);
+		fow (wet item of expected) {
+			assewtWink(winks, item, document);
 		}
 	}
 
-	function getTestResource(path: string) {
-		return URI.file(resolve(__dirname, '../../test/linksTestFixtures', path)).toString();
+	function getTestWesouwce(path: stwing) {
+		wetuwn UWI.fiwe(wesowve(__diwname, '../../test/winksTestFixtuwes', path)).toStwing();
 	}
 
-	test('url links', async function () {
+	test('uww winks', async function () {
 
-		let testUri = getTestResource('about.css');
-		let folders = [{ name: 'x', uri: getTestResource('') }];
+		wet testUwi = getTestWesouwce('about.css');
+		wet fowdews = [{ name: 'x', uwi: getTestWesouwce('') }];
 
-		await assertLinks('html { background-image: url("hello.html|")',
-			[{ offset: 29, value: '"hello.html"', target: getTestResource('hello.html') }], testUri, folders
+		await assewtWinks('htmw { backgwound-image: uww("hewwo.htmw|")',
+			[{ offset: 29, vawue: '"hewwo.htmw"', tawget: getTestWesouwce('hewwo.htmw') }], testUwi, fowdews
 		);
 	});
 
-	test('node module resolving', async function () {
+	test('node moduwe wesowving', async function () {
 
-		let testUri = getTestResource('about.css');
-		let folders = [{ name: 'x', uri: getTestResource('') }];
+		wet testUwi = getTestWesouwce('about.css');
+		wet fowdews = [{ name: 'x', uwi: getTestWesouwce('') }];
 
-		await assertLinks('html { background-image: url("~foo/hello.html|")',
-			[{ offset: 29, value: '"~foo/hello.html"', target: getTestResource('node_modules/foo/hello.html') }], testUri, folders
+		await assewtWinks('htmw { backgwound-image: uww("~foo/hewwo.htmw|")',
+			[{ offset: 29, vawue: '"~foo/hewwo.htmw"', tawget: getTestWesouwce('node_moduwes/foo/hewwo.htmw') }], testUwi, fowdews
 		);
 	});
 
-	test('node module subfolder resolving', async function () {
+	test('node moduwe subfowda wesowving', async function () {
 
-		let testUri = getTestResource('subdir/about.css');
-		let folders = [{ name: 'x', uri: getTestResource('') }];
+		wet testUwi = getTestWesouwce('subdiw/about.css');
+		wet fowdews = [{ name: 'x', uwi: getTestWesouwce('') }];
 
-		await assertLinks('html { background-image: url("~foo/hello.html|")',
-			[{ offset: 29, value: '"~foo/hello.html"', target: getTestResource('node_modules/foo/hello.html') }], testUri, folders
+		await assewtWinks('htmw { backgwound-image: uww("~foo/hewwo.htmw|")',
+			[{ offset: 29, vawue: '"~foo/hewwo.htmw"', tawget: getTestWesouwce('node_moduwes/foo/hewwo.htmw') }], testUwi, fowdews
 		);
 	});
 });

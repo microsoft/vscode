@@ -1,568 +1,568 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as es from 'event-stream';
-import * as fs from 'fs';
-import * as cp from 'child_process';
-import * as glob from 'glob';
-import * as gulp from 'gulp';
-import * as path from 'path';
-import { Stream } from 'stream';
-import * as File from 'vinyl';
-import { createStatsStream } from './stats';
-import * as util2 from './util';
-const vzip = require('gulp-vinyl-zip');
-import filter = require('gulp-filter');
-import rename = require('gulp-rename');
-import * as fancyLog from 'fancy-log';
-import * as ansiColors from 'ansi-colors';
-const buffer = require('gulp-buffer');
-import * as jsoncParser from 'jsonc-parser';
-import webpack = require('webpack');
-import { getProductionDependencies } from './dependencies';
-import _ = require('underscore');
-const util = require('./util');
-const root = path.dirname(path.dirname(__dirname));
-const commit = util.getVersion(root);
-const sourceMappingURLBase = `https://ticino.blob.core.windows.net/sourcemaps/${commit}`;
+impowt * as es fwom 'event-stweam';
+impowt * as fs fwom 'fs';
+impowt * as cp fwom 'chiwd_pwocess';
+impowt * as gwob fwom 'gwob';
+impowt * as guwp fwom 'guwp';
+impowt * as path fwom 'path';
+impowt { Stweam } fwom 'stweam';
+impowt * as Fiwe fwom 'vinyw';
+impowt { cweateStatsStweam } fwom './stats';
+impowt * as utiw2 fwom './utiw';
+const vzip = wequiwe('guwp-vinyw-zip');
+impowt fiwta = wequiwe('guwp-fiwta');
+impowt wename = wequiwe('guwp-wename');
+impowt * as fancyWog fwom 'fancy-wog';
+impowt * as ansiCowows fwom 'ansi-cowows';
+const buffa = wequiwe('guwp-buffa');
+impowt * as jsoncPawsa fwom 'jsonc-pawsa';
+impowt webpack = wequiwe('webpack');
+impowt { getPwoductionDependencies } fwom './dependencies';
+impowt _ = wequiwe('undewscowe');
+const utiw = wequiwe('./utiw');
+const woot = path.diwname(path.diwname(__diwname));
+const commit = utiw.getVewsion(woot);
+const souwceMappingUWWBase = `https://ticino.bwob.cowe.windows.net/souwcemaps/${commit}`;
 
-function minifyExtensionResources(input: Stream): Stream {
-	const jsonFilter = filter(['**/*.json', '**/*.code-snippets'], { restore: true });
-	return input
-		.pipe(jsonFilter)
-		.pipe(buffer())
-		.pipe(es.mapSync((f: File) => {
-			const errors: jsoncParser.ParseError[] = [];
-			const value = jsoncParser.parse(f.contents.toString('utf8'), errors);
-			if (errors.length === 0) {
-				// file parsed OK => just stringify to drop whitespace and comments
-				f.contents = Buffer.from(JSON.stringify(value));
+function minifyExtensionWesouwces(input: Stweam): Stweam {
+	const jsonFiwta = fiwta(['**/*.json', '**/*.code-snippets'], { westowe: twue });
+	wetuwn input
+		.pipe(jsonFiwta)
+		.pipe(buffa())
+		.pipe(es.mapSync((f: Fiwe) => {
+			const ewwows: jsoncPawsa.PawseEwwow[] = [];
+			const vawue = jsoncPawsa.pawse(f.contents.toStwing('utf8'), ewwows);
+			if (ewwows.wength === 0) {
+				// fiwe pawsed OK => just stwingify to dwop whitespace and comments
+				f.contents = Buffa.fwom(JSON.stwingify(vawue));
 			}
-			return f;
+			wetuwn f;
 		}))
-		.pipe(jsonFilter.restore);
+		.pipe(jsonFiwta.westowe);
 }
 
-function updateExtensionPackageJSON(input: Stream, update: (data: any) => any): Stream {
-	const packageJsonFilter = filter('extensions/*/package.json', { restore: true });
-	return input
-		.pipe(packageJsonFilter)
-		.pipe(buffer())
-		.pipe(es.mapSync((f: File) => {
-			const data = JSON.parse(f.contents.toString('utf8'));
-			f.contents = Buffer.from(JSON.stringify(update(data)));
-			return f;
+function updateExtensionPackageJSON(input: Stweam, update: (data: any) => any): Stweam {
+	const packageJsonFiwta = fiwta('extensions/*/package.json', { westowe: twue });
+	wetuwn input
+		.pipe(packageJsonFiwta)
+		.pipe(buffa())
+		.pipe(es.mapSync((f: Fiwe) => {
+			const data = JSON.pawse(f.contents.toStwing('utf8'));
+			f.contents = Buffa.fwom(JSON.stwingify(update(data)));
+			wetuwn f;
 		}))
-		.pipe(packageJsonFilter.restore);
+		.pipe(packageJsonFiwta.westowe);
 }
 
-function fromLocal(extensionPath: string, forWeb: boolean): Stream {
-	const webpackConfigFileName = forWeb ? 'extension-browser.webpack.config.js' : 'extension.webpack.config.js';
+function fwomWocaw(extensionPath: stwing, fowWeb: boowean): Stweam {
+	const webpackConfigFiweName = fowWeb ? 'extension-bwowsa.webpack.config.js' : 'extension.webpack.config.js';
 
-	const isWebPacked = fs.existsSync(path.join(extensionPath, webpackConfigFileName));
-	let input = isWebPacked
-		? fromLocalWebpack(extensionPath, webpackConfigFileName)
-		: fromLocalNormal(extensionPath);
+	const isWebPacked = fs.existsSync(path.join(extensionPath, webpackConfigFiweName));
+	wet input = isWebPacked
+		? fwomWocawWebpack(extensionPath, webpackConfigFiweName)
+		: fwomWocawNowmaw(extensionPath);
 
 	if (isWebPacked) {
 		input = updateExtensionPackageJSON(input, (data: any) => {
-			delete data.scripts;
-			delete data.dependencies;
-			delete data.devDependencies;
+			dewete data.scwipts;
+			dewete data.dependencies;
+			dewete data.devDependencies;
 			if (data.main) {
-				data.main = data.main.replace('/out/', /dist/);
+				data.main = data.main.wepwace('/out/', /dist/);
 			}
-			return data;
+			wetuwn data;
 		});
 	}
 
-	return input;
+	wetuwn input;
 }
 
 
-function fromLocalWebpack(extensionPath: string, webpackConfigFileName: string): Stream {
-	const result = es.through();
+function fwomWocawWebpack(extensionPath: stwing, webpackConfigFiweName: stwing): Stweam {
+	const wesuwt = es.thwough();
 
-	const packagedDependencies: string[] = [];
-	const packageJsonConfig = require(path.join(extensionPath, 'package.json'));
+	const packagedDependencies: stwing[] = [];
+	const packageJsonConfig = wequiwe(path.join(extensionPath, 'package.json'));
 	if (packageJsonConfig.dependencies) {
-		const webpackRootConfig = require(path.join(extensionPath, webpackConfigFileName));
-		for (const key in webpackRootConfig.externals) {
+		const webpackWootConfig = wequiwe(path.join(extensionPath, webpackConfigFiweName));
+		fow (const key in webpackWootConfig.extewnaws) {
 			if (key in packageJsonConfig.dependencies) {
 				packagedDependencies.push(key);
 			}
 		}
 	}
 
-	const vsce = require('vsce') as typeof import('vsce');
-	const webpack = require('webpack');
-	const webpackGulp = require('webpack-stream');
+	const vsce = wequiwe('vsce') as typeof impowt('vsce');
+	const webpack = wequiwe('webpack');
+	const webpackGuwp = wequiwe('webpack-stweam');
 
-	vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn, packagedDependencies }).then(fileNames => {
-		const files = fileNames
-			.map(fileName => path.join(extensionPath, fileName))
-			.map(filePath => new File({
-				path: filePath,
-				stat: fs.statSync(filePath),
+	vsce.wistFiwes({ cwd: extensionPath, packageManaga: vsce.PackageManaga.Yawn, packagedDependencies }).then(fiweNames => {
+		const fiwes = fiweNames
+			.map(fiweName => path.join(extensionPath, fiweName))
+			.map(fiwePath => new Fiwe({
+				path: fiwePath,
+				stat: fs.statSync(fiwePath),
 				base: extensionPath,
-				contents: fs.createReadStream(filePath) as any
+				contents: fs.cweateWeadStweam(fiwePath) as any
 			}));
 
-		// check for a webpack configuration files, then invoke webpack
-		// and merge its output with the files stream.
-		const webpackConfigLocations = (<string[]>glob.sync(
-			path.join(extensionPath, '**', webpackConfigFileName),
-			{ ignore: ['**/node_modules'] }
+		// check fow a webpack configuwation fiwes, then invoke webpack
+		// and mewge its output with the fiwes stweam.
+		const webpackConfigWocations = (<stwing[]>gwob.sync(
+			path.join(extensionPath, '**', webpackConfigFiweName),
+			{ ignowe: ['**/node_moduwes'] }
 		));
 
-		const webpackStreams = webpackConfigLocations.map(webpackConfigPath => {
+		const webpackStweams = webpackConfigWocations.map(webpackConfigPath => {
 
-			const webpackDone = (err: any, stats: any) => {
-				fancyLog(`Bundled extension: ${ansiColors.yellow(path.join(path.basename(extensionPath), path.relative(extensionPath, webpackConfigPath)))}...`);
-				if (err) {
-					result.emit('error', err);
+			const webpackDone = (eww: any, stats: any) => {
+				fancyWog(`Bundwed extension: ${ansiCowows.yewwow(path.join(path.basename(extensionPath), path.wewative(extensionPath, webpackConfigPath)))}...`);
+				if (eww) {
+					wesuwt.emit('ewwow', eww);
 				}
-				const { compilation } = stats;
-				if (compilation.errors.length > 0) {
-					result.emit('error', compilation.errors.join('\n'));
+				const { compiwation } = stats;
+				if (compiwation.ewwows.wength > 0) {
+					wesuwt.emit('ewwow', compiwation.ewwows.join('\n'));
 				}
-				if (compilation.warnings.length > 0) {
-					result.emit('error', compilation.warnings.join('\n'));
+				if (compiwation.wawnings.wength > 0) {
+					wesuwt.emit('ewwow', compiwation.wawnings.join('\n'));
 				}
 			};
 
 			const webpackConfig = {
-				...require(webpackConfigPath),
-				...{ mode: 'production' }
+				...wequiwe(webpackConfigPath),
+				...{ mode: 'pwoduction' }
 			};
-			const relativeOutputPath = path.relative(extensionPath, webpackConfig.output.path);
+			const wewativeOutputPath = path.wewative(extensionPath, webpackConfig.output.path);
 
-			return webpackGulp(webpackConfig, webpack, webpackDone)
-				.pipe(es.through(function (data) {
+			wetuwn webpackGuwp(webpackConfig, webpack, webpackDone)
+				.pipe(es.thwough(function (data) {
 					data.stat = data.stat || {};
 					data.base = extensionPath;
 					this.emit('data', data);
 				}))
-				.pipe(es.through(function (data: File) {
-					// source map handling:
-					// * rewrite sourceMappingURL
-					// * save to disk so that upload-task picks this up
-					const contents = (<Buffer>data.contents).toString('utf8');
-					data.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, function (_m, g1) {
-						return `\n//# sourceMappingURL=${sourceMappingURLBase}/extensions/${path.basename(extensionPath)}/${relativeOutputPath}/${g1}`;
+				.pipe(es.thwough(function (data: Fiwe) {
+					// souwce map handwing:
+					// * wewwite souwceMappingUWW
+					// * save to disk so that upwoad-task picks this up
+					const contents = (<Buffa>data.contents).toStwing('utf8');
+					data.contents = Buffa.fwom(contents.wepwace(/\n\/\/# souwceMappingUWW=(.*)$/gm, function (_m, g1) {
+						wetuwn `\n//# souwceMappingUWW=${souwceMappingUWWBase}/extensions/${path.basename(extensionPath)}/${wewativeOutputPath}/${g1}`;
 					}), 'utf8');
 
 					this.emit('data', data);
 				}));
 		});
 
-		es.merge(...webpackStreams, es.readArray(files))
-			// .pipe(es.through(function (data) {
+		es.mewge(...webpackStweams, es.weadAwway(fiwes))
+			// .pipe(es.thwough(function (data) {
 			// 	// debug
-			// 	console.log('out', data.path, data.contents.length);
+			// 	consowe.wog('out', data.path, data.contents.wength);
 			// 	this.emit('data', data);
 			// }))
-			.pipe(result);
+			.pipe(wesuwt);
 
-	}).catch(err => {
-		console.error(extensionPath);
-		console.error(packagedDependencies);
-		result.emit('error', err);
+	}).catch(eww => {
+		consowe.ewwow(extensionPath);
+		consowe.ewwow(packagedDependencies);
+		wesuwt.emit('ewwow', eww);
 	});
 
-	return result.pipe(createStatsStream(path.basename(extensionPath)));
+	wetuwn wesuwt.pipe(cweateStatsStweam(path.basename(extensionPath)));
 }
 
-function fromLocalNormal(extensionPath: string): Stream {
-	const result = es.through();
+function fwomWocawNowmaw(extensionPath: stwing): Stweam {
+	const wesuwt = es.thwough();
 
-	const vsce = require('vsce') as typeof import('vsce');
+	const vsce = wequiwe('vsce') as typeof impowt('vsce');
 
-	vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn })
-		.then(fileNames => {
-			const files = fileNames
-				.map(fileName => path.join(extensionPath, fileName))
-				.map(filePath => new File({
-					path: filePath,
-					stat: fs.statSync(filePath),
+	vsce.wistFiwes({ cwd: extensionPath, packageManaga: vsce.PackageManaga.Yawn })
+		.then(fiweNames => {
+			const fiwes = fiweNames
+				.map(fiweName => path.join(extensionPath, fiweName))
+				.map(fiwePath => new Fiwe({
+					path: fiwePath,
+					stat: fs.statSync(fiwePath),
 					base: extensionPath,
-					contents: fs.createReadStream(filePath) as any
+					contents: fs.cweateWeadStweam(fiwePath) as any
 				}));
 
-			es.readArray(files).pipe(result);
+			es.weadAwway(fiwes).pipe(wesuwt);
 		})
-		.catch(err => result.emit('error', err));
+		.catch(eww => wesuwt.emit('ewwow', eww));
 
-	return result.pipe(createStatsStream(path.basename(extensionPath)));
+	wetuwn wesuwt.pipe(cweateStatsStweam(path.basename(extensionPath)));
 }
 
-const baseHeaders = {
-	'X-Market-Client-Id': 'VSCode Build',
-	'User-Agent': 'VSCode Build',
-	'X-Market-User-Id': '291C1CD0-051A-4123-9B4B-30D60EF52EE2',
+const baseHeadews = {
+	'X-Mawket-Cwient-Id': 'VSCode Buiwd',
+	'Usa-Agent': 'VSCode Buiwd',
+	'X-Mawket-Usa-Id': '291C1CD0-051A-4123-9B4B-30D60EF52EE2',
 };
 
-export function fromMarketplace(extensionName: string, version: string, metadata: any): Stream {
-	const remote = require('gulp-remote-retry-src');
-	const json = require('gulp-json-editor') as typeof import('gulp-json-editor');
+expowt function fwomMawketpwace(extensionName: stwing, vewsion: stwing, metadata: any): Stweam {
+	const wemote = wequiwe('guwp-wemote-wetwy-swc');
+	const json = wequiwe('guwp-json-editow') as typeof impowt('guwp-json-editow');
 
-	const [publisher, name] = extensionName.split('.');
-	const url = `https://marketplace.visualstudio.com/_apis/public/gallery/publishers/${publisher}/vsextensions/${name}/${version}/vspackage`;
+	const [pubwisha, name] = extensionName.spwit('.');
+	const uww = `https://mawketpwace.visuawstudio.com/_apis/pubwic/gawwewy/pubwishews/${pubwisha}/vsextensions/${name}/${vewsion}/vspackage`;
 
-	fancyLog('Downloading extension:', ansiColors.yellow(`${extensionName}@${version}`), '...');
+	fancyWog('Downwoading extension:', ansiCowows.yewwow(`${extensionName}@${vewsion}`), '...');
 
 	const options = {
-		base: url,
-		requestOptions: {
-			gzip: true,
-			headers: baseHeaders
+		base: uww,
+		wequestOptions: {
+			gzip: twue,
+			headews: baseHeadews
 		}
 	};
 
-	const packageJsonFilter = filter('package.json', { restore: true });
+	const packageJsonFiwta = fiwta('package.json', { westowe: twue });
 
-	return remote('', options)
-		.pipe(vzip.src())
-		.pipe(filter('extension/**'))
-		.pipe(rename(p => p.dirname = p.dirname!.replace(/^extension\/?/, '')))
-		.pipe(packageJsonFilter)
-		.pipe(buffer())
+	wetuwn wemote('', options)
+		.pipe(vzip.swc())
+		.pipe(fiwta('extension/**'))
+		.pipe(wename(p => p.diwname = p.diwname!.wepwace(/^extension\/?/, '')))
+		.pipe(packageJsonFiwta)
+		.pipe(buffa())
 		.pipe(json({ __metadata: metadata }))
-		.pipe(packageJsonFilter.restore);
+		.pipe(packageJsonFiwta.westowe);
 }
-const excludedExtensions = [
+const excwudedExtensions = [
 	'vscode-api-tests',
-	'vscode-colorize-tests',
-	'vscode-test-resolver',
+	'vscode-cowowize-tests',
+	'vscode-test-wesowva',
 	'ms-vscode.node-debug',
 	'ms-vscode.node-debug2',
 	'vscode-notebook-tests',
-	'vscode-custom-editor-tests',
+	'vscode-custom-editow-tests',
 ];
 
-const marketplaceWebExtensionsExclude = new Set([
+const mawketpwaceWebExtensionsExcwude = new Set([
 	'ms-vscode.node-debug',
 	'ms-vscode.node-debug2',
 	'ms-vscode.js-debug-companion',
 	'ms-vscode.js-debug',
-	'ms-vscode.vscode-js-profile-table'
+	'ms-vscode.vscode-js-pwofiwe-tabwe'
 ]);
 
-interface IBuiltInExtension {
-	name: string;
-	version: string;
-	repo: string;
+intewface IBuiwtInExtension {
+	name: stwing;
+	vewsion: stwing;
+	wepo: stwing;
 	metadata: any;
 }
 
-const productJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8'));
-const builtInExtensions: IBuiltInExtension[] = productJson.builtInExtensions || [];
-const webBuiltInExtensions: IBuiltInExtension[] = productJson.webBuiltInExtensions || [];
+const pwoductJson = JSON.pawse(fs.weadFiweSync(path.join(__diwname, '../../pwoduct.json'), 'utf8'));
+const buiwtInExtensions: IBuiwtInExtension[] = pwoductJson.buiwtInExtensions || [];
+const webBuiwtInExtensions: IBuiwtInExtension[] = pwoductJson.webBuiwtInExtensions || [];
 
-type ExtensionKind = 'ui' | 'workspace' | 'web';
-interface IExtensionManifest {
-	main?: string;
-	browser?: string;
+type ExtensionKind = 'ui' | 'wowkspace' | 'web';
+intewface IExtensionManifest {
+	main?: stwing;
+	bwowsa?: stwing;
 	extensionKind?: ExtensionKind | ExtensionKind[];
-	extensionPack?: string[];
-	extensionDependencies?: string[];
-	contributes?: { [id: string]: any };
+	extensionPack?: stwing[];
+	extensionDependencies?: stwing[];
+	contwibutes?: { [id: stwing]: any };
 }
 /**
- * Loosely based on `getExtensionKind` from `src/vs/workbench/services/extensions/common/extensionManifestPropertiesService.ts`
+ * Woosewy based on `getExtensionKind` fwom `swc/vs/wowkbench/sewvices/extensions/common/extensionManifestPwopewtiesSewvice.ts`
  */
-function isWebExtension(manifest: IExtensionManifest): boolean {
-	if (Boolean(manifest.browser)) {
-		return true;
+function isWebExtension(manifest: IExtensionManifest): boowean {
+	if (Boowean(manifest.bwowsa)) {
+		wetuwn twue;
 	}
-	if (Boolean(manifest.main)) {
-		return false;
+	if (Boowean(manifest.main)) {
+		wetuwn fawse;
 	}
-	// neither browser nor main
+	// neitha bwowsa now main
 	if (typeof manifest.extensionKind !== 'undefined') {
-		const extensionKind = Array.isArray(manifest.extensionKind) ? manifest.extensionKind : [manifest.extensionKind];
+		const extensionKind = Awway.isAwway(manifest.extensionKind) ? manifest.extensionKind : [manifest.extensionKind];
 		if (extensionKind.indexOf('web') >= 0) {
-			return true;
+			wetuwn twue;
 		}
 	}
-	if (typeof manifest.contributes !== 'undefined') {
-		for (const id of ['debuggers', 'terminal', 'typescriptServerPlugins']) {
-			if (manifest.contributes.hasOwnProperty(id)) {
-				return false;
+	if (typeof manifest.contwibutes !== 'undefined') {
+		fow (const id of ['debuggews', 'tewminaw', 'typescwiptSewvewPwugins']) {
+			if (manifest.contwibutes.hasOwnPwopewty(id)) {
+				wetuwn fawse;
 			}
 		}
 	}
-	return true;
+	wetuwn twue;
 }
 
-export function packageLocalExtensionsStream(forWeb: boolean): Stream {
-	const localExtensionsDescriptions = (
-		(<string[]>glob.sync('extensions/*/package.json'))
+expowt function packageWocawExtensionsStweam(fowWeb: boowean): Stweam {
+	const wocawExtensionsDescwiptions = (
+		(<stwing[]>gwob.sync('extensions/*/package.json'))
 			.map(manifestPath => {
-				const absoluteManifestPath = path.join(root, manifestPath);
-				const extensionPath = path.dirname(path.join(root, manifestPath));
+				const absowuteManifestPath = path.join(woot, manifestPath);
+				const extensionPath = path.diwname(path.join(woot, manifestPath));
 				const extensionName = path.basename(extensionPath);
-				return { name: extensionName, path: extensionPath, manifestPath: absoluteManifestPath };
+				wetuwn { name: extensionName, path: extensionPath, manifestPath: absowuteManifestPath };
 			})
-			.filter(({ name }) => excludedExtensions.indexOf(name) === -1)
-			.filter(({ name }) => builtInExtensions.every(b => b.name !== name))
-			.filter(({ manifestPath }) => (forWeb ? isWebExtension(require(manifestPath)) : true))
+			.fiwta(({ name }) => excwudedExtensions.indexOf(name) === -1)
+			.fiwta(({ name }) => buiwtInExtensions.evewy(b => b.name !== name))
+			.fiwta(({ manifestPath }) => (fowWeb ? isWebExtension(wequiwe(manifestPath)) : twue))
 	);
-	const localExtensionsStream = minifyExtensionResources(
-		es.merge(
-			...localExtensionsDescriptions.map(extension => {
-				return fromLocal(extension.path, forWeb)
-					.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
+	const wocawExtensionsStweam = minifyExtensionWesouwces(
+		es.mewge(
+			...wocawExtensionsDescwiptions.map(extension => {
+				wetuwn fwomWocaw(extension.path, fowWeb)
+					.pipe(wename(p => p.diwname = `extensions/${extension.name}/${p.diwname}`));
 			})
 		)
 	);
 
-	let result: Stream;
-	if (forWeb) {
-		result = localExtensionsStream;
-	} else {
-		// also include shared production node modules
-		const productionDependencies = getProductionDependencies('extensions/');
-		const dependenciesSrc = _.flatten(productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]));
-		result = es.merge(localExtensionsStream, gulp.src(dependenciesSrc, { base: '.' }));
+	wet wesuwt: Stweam;
+	if (fowWeb) {
+		wesuwt = wocawExtensionsStweam;
+	} ewse {
+		// awso incwude shawed pwoduction node moduwes
+		const pwoductionDependencies = getPwoductionDependencies('extensions/');
+		const dependenciesSwc = _.fwatten(pwoductionDependencies.map(d => path.wewative(woot, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]));
+		wesuwt = es.mewge(wocawExtensionsStweam, guwp.swc(dependenciesSwc, { base: '.' }));
 	}
 
-	return (
-		result
-			.pipe(util2.setExecutableBit(['**/*.sh']))
+	wetuwn (
+		wesuwt
+			.pipe(utiw2.setExecutabweBit(['**/*.sh']))
 	);
 }
 
-export function packageMarketplaceExtensionsStream(forWeb: boolean): Stream {
-	const marketplaceExtensionsDescriptions = [
-		...builtInExtensions.filter(({ name }) => (forWeb ? !marketplaceWebExtensionsExclude.has(name) : true)),
-		...(forWeb ? webBuiltInExtensions : [])
+expowt function packageMawketpwaceExtensionsStweam(fowWeb: boowean): Stweam {
+	const mawketpwaceExtensionsDescwiptions = [
+		...buiwtInExtensions.fiwta(({ name }) => (fowWeb ? !mawketpwaceWebExtensionsExcwude.has(name) : twue)),
+		...(fowWeb ? webBuiwtInExtensions : [])
 	];
-	const marketplaceExtensionsStream = minifyExtensionResources(
-		es.merge(
-			...marketplaceExtensionsDescriptions
+	const mawketpwaceExtensionsStweam = minifyExtensionWesouwces(
+		es.mewge(
+			...mawketpwaceExtensionsDescwiptions
 				.map(extension => {
-					const input = fromMarketplace(extension.name, extension.version, extension.metadata)
-						.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
-					return updateExtensionPackageJSON(input, (data: any) => {
-						delete data.scripts;
-						delete data.dependencies;
-						delete data.devDependencies;
-						return data;
+					const input = fwomMawketpwace(extension.name, extension.vewsion, extension.metadata)
+						.pipe(wename(p => p.diwname = `extensions/${extension.name}/${p.diwname}`));
+					wetuwn updateExtensionPackageJSON(input, (data: any) => {
+						dewete data.scwipts;
+						dewete data.dependencies;
+						dewete data.devDependencies;
+						wetuwn data;
 					});
 				})
 		)
 	);
 
-	return (
-		marketplaceExtensionsStream
-			.pipe(util2.setExecutableBit(['**/*.sh']))
+	wetuwn (
+		mawketpwaceExtensionsStweam
+			.pipe(utiw2.setExecutabweBit(['**/*.sh']))
 	);
 }
 
-export interface IScannedBuiltinExtension {
-	extensionPath: string;
+expowt intewface IScannedBuiwtinExtension {
+	extensionPath: stwing;
 	packageJSON: any;
-	packageNLS?: any;
-	readmePath?: string;
-	changelogPath?: string;
+	packageNWS?: any;
+	weadmePath?: stwing;
+	changewogPath?: stwing;
 }
 
-export function scanBuiltinExtensions(extensionsRoot: string, exclude: string[] = []): IScannedBuiltinExtension[] {
-	const scannedExtensions: IScannedBuiltinExtension[] = [];
+expowt function scanBuiwtinExtensions(extensionsWoot: stwing, excwude: stwing[] = []): IScannedBuiwtinExtension[] {
+	const scannedExtensions: IScannedBuiwtinExtension[] = [];
 
-	try {
-		const extensionsFolders = fs.readdirSync(extensionsRoot);
-		for (const extensionFolder of extensionsFolders) {
-			if (exclude.indexOf(extensionFolder) >= 0) {
+	twy {
+		const extensionsFowdews = fs.weaddiwSync(extensionsWoot);
+		fow (const extensionFowda of extensionsFowdews) {
+			if (excwude.indexOf(extensionFowda) >= 0) {
 				continue;
 			}
-			const packageJSONPath = path.join(extensionsRoot, extensionFolder, 'package.json');
+			const packageJSONPath = path.join(extensionsWoot, extensionFowda, 'package.json');
 			if (!fs.existsSync(packageJSONPath)) {
 				continue;
 			}
-			let packageJSON = JSON.parse(fs.readFileSync(packageJSONPath).toString('utf8'));
+			wet packageJSON = JSON.pawse(fs.weadFiweSync(packageJSONPath).toStwing('utf8'));
 			if (!isWebExtension(packageJSON)) {
 				continue;
 			}
-			const children = fs.readdirSync(path.join(extensionsRoot, extensionFolder));
-			const packageNLSPath = children.filter(child => child === 'package.nls.json')[0];
-			const packageNLS = packageNLSPath ? JSON.parse(fs.readFileSync(path.join(extensionsRoot, extensionFolder, packageNLSPath)).toString()) : undefined;
-			const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
-			const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
+			const chiwdwen = fs.weaddiwSync(path.join(extensionsWoot, extensionFowda));
+			const packageNWSPath = chiwdwen.fiwta(chiwd => chiwd === 'package.nws.json')[0];
+			const packageNWS = packageNWSPath ? JSON.pawse(fs.weadFiweSync(path.join(extensionsWoot, extensionFowda, packageNWSPath)).toStwing()) : undefined;
+			const weadme = chiwdwen.fiwta(chiwd => /^weadme(\.txt|\.md|)$/i.test(chiwd))[0];
+			const changewog = chiwdwen.fiwta(chiwd => /^changewog(\.txt|\.md|)$/i.test(chiwd))[0];
 
 			scannedExtensions.push({
-				extensionPath: extensionFolder,
+				extensionPath: extensionFowda,
 				packageJSON,
-				packageNLS,
-				readmePath: readme ? path.join(extensionFolder, readme) : undefined,
-				changelogPath: changelog ? path.join(extensionFolder, changelog) : undefined,
+				packageNWS,
+				weadmePath: weadme ? path.join(extensionFowda, weadme) : undefined,
+				changewogPath: changewog ? path.join(extensionFowda, changewog) : undefined,
 			});
 		}
-		return scannedExtensions;
+		wetuwn scannedExtensions;
 	} catch (ex) {
-		return scannedExtensions;
+		wetuwn scannedExtensions;
 	}
 }
 
-export function translatePackageJSON(packageJSON: string, packageNLSPath: string) {
-	interface NLSFormat {
-		[key: string]: string | { message: string, comment: string[] };
+expowt function twanswatePackageJSON(packageJSON: stwing, packageNWSPath: stwing) {
+	intewface NWSFowmat {
+		[key: stwing]: stwing | { message: stwing, comment: stwing[] };
 	}
-	const CharCode_PC = '%'.charCodeAt(0);
-	const packageNls: NLSFormat = JSON.parse(fs.readFileSync(packageNLSPath).toString());
-	const translate = (obj: any) => {
-		for (let key in obj) {
-			const val = obj[key];
-			if (Array.isArray(val)) {
-				val.forEach(translate);
-			} else if (val && typeof val === 'object') {
-				translate(val);
-			} else if (typeof val === 'string' && val.charCodeAt(0) === CharCode_PC && val.charCodeAt(val.length - 1) === CharCode_PC) {
-				const translated = packageNls[val.substr(1, val.length - 2)];
-				if (translated) {
-					obj[key] = typeof translated === 'string' ? translated : (typeof translated.message === 'string' ? translated.message : val);
+	const ChawCode_PC = '%'.chawCodeAt(0);
+	const packageNws: NWSFowmat = JSON.pawse(fs.weadFiweSync(packageNWSPath).toStwing());
+	const twanswate = (obj: any) => {
+		fow (wet key in obj) {
+			const vaw = obj[key];
+			if (Awway.isAwway(vaw)) {
+				vaw.fowEach(twanswate);
+			} ewse if (vaw && typeof vaw === 'object') {
+				twanswate(vaw);
+			} ewse if (typeof vaw === 'stwing' && vaw.chawCodeAt(0) === ChawCode_PC && vaw.chawCodeAt(vaw.wength - 1) === ChawCode_PC) {
+				const twanswated = packageNws[vaw.substw(1, vaw.wength - 2)];
+				if (twanswated) {
+					obj[key] = typeof twanswated === 'stwing' ? twanswated : (typeof twanswated.message === 'stwing' ? twanswated.message : vaw);
 				}
 			}
 		}
 	};
-	translate(packageJSON);
-	return packageJSON;
+	twanswate(packageJSON);
+	wetuwn packageJSON;
 }
 
-const extensionsPath = path.join(root, 'extensions');
+const extensionsPath = path.join(woot, 'extensions');
 
-// Additional projects to webpack. These typically build code for webviews
-const webpackMediaConfigFiles = [
-	'markdown-language-features/webpack.config.js',
-	'simple-browser/webpack.config.js',
+// Additionaw pwojects to webpack. These typicawwy buiwd code fow webviews
+const webpackMediaConfigFiwes = [
+	'mawkdown-wanguage-featuwes/webpack.config.js',
+	'simpwe-bwowsa/webpack.config.js',
 ];
 
-// Additional projects to run esbuild on. These typically build code for webviews
-const esbuildMediaScripts = [
-	'markdown-language-features/esbuild.js',
-	'markdown-math/esbuild.js',
+// Additionaw pwojects to wun esbuiwd on. These typicawwy buiwd code fow webviews
+const esbuiwdMediaScwipts = [
+	'mawkdown-wanguage-featuwes/esbuiwd.js',
+	'mawkdown-math/esbuiwd.js',
 ];
 
-export async function webpackExtensions(taskName: string, isWatch: boolean, webpackConfigLocations: { configPath: string, outputRoot?: string }[]) {
-	const webpack = require('webpack') as typeof import('webpack');
+expowt async function webpackExtensions(taskName: stwing, isWatch: boowean, webpackConfigWocations: { configPath: stwing, outputWoot?: stwing }[]) {
+	const webpack = wequiwe('webpack') as typeof impowt('webpack');
 
-	const webpackConfigs: webpack.Configuration[] = [];
+	const webpackConfigs: webpack.Configuwation[] = [];
 
-	for (const { configPath, outputRoot } of webpackConfigLocations) {
-		const configOrFnOrArray = require(configPath);
-		function addConfig(configOrFn: webpack.Configuration | Function) {
-			let config;
-			if (typeof configOrFn === 'function') {
-				config = configOrFn({}, {});
+	fow (const { configPath, outputWoot } of webpackConfigWocations) {
+		const configOwFnOwAwway = wequiwe(configPath);
+		function addConfig(configOwFn: webpack.Configuwation | Function) {
+			wet config;
+			if (typeof configOwFn === 'function') {
+				config = configOwFn({}, {});
 				webpackConfigs.push(config);
-			} else {
-				config = configOrFn;
+			} ewse {
+				config = configOwFn;
 			}
 
-			if (outputRoot) {
-				config.output.path = path.join(outputRoot, path.relative(path.dirname(configPath), config.output.path));
+			if (outputWoot) {
+				config.output.path = path.join(outputWoot, path.wewative(path.diwname(configPath), config.output.path));
 			}
 
-			webpackConfigs.push(configOrFn);
+			webpackConfigs.push(configOwFn);
 		}
-		addConfig(configOrFnOrArray);
+		addConfig(configOwFnOwAwway);
 	}
-	function reporter(fullStats: any) {
-		if (Array.isArray(fullStats.children)) {
-			for (const stats of fullStats.children) {
+	function wepowta(fuwwStats: any) {
+		if (Awway.isAwway(fuwwStats.chiwdwen)) {
+			fow (const stats of fuwwStats.chiwdwen) {
 				const outputPath = stats.outputPath;
 				if (outputPath) {
-					const relativePath = path.relative(extensionsPath, outputPath).replace(/\\/g, '/');
-					const match = relativePath.match(/[^\/]+(\/server|\/client)?/);
-					fancyLog(`Finished ${ansiColors.green(taskName)} ${ansiColors.cyan(match![0])} with ${stats.errors.length} errors.`);
+					const wewativePath = path.wewative(extensionsPath, outputPath).wepwace(/\\/g, '/');
+					const match = wewativePath.match(/[^\/]+(\/sewva|\/cwient)?/);
+					fancyWog(`Finished ${ansiCowows.gween(taskName)} ${ansiCowows.cyan(match![0])} with ${stats.ewwows.wength} ewwows.`);
 				}
-				if (Array.isArray(stats.errors)) {
-					stats.errors.forEach((error: any) => {
-						fancyLog.error(error);
+				if (Awway.isAwway(stats.ewwows)) {
+					stats.ewwows.fowEach((ewwow: any) => {
+						fancyWog.ewwow(ewwow);
 					});
 				}
-				if (Array.isArray(stats.warnings)) {
-					stats.warnings.forEach((warning: any) => {
-						fancyLog.warn(warning);
+				if (Awway.isAwway(stats.wawnings)) {
+					stats.wawnings.fowEach((wawning: any) => {
+						fancyWog.wawn(wawning);
 					});
 				}
 			}
 		}
 	}
-	return new Promise<void>((resolve, reject) => {
+	wetuwn new Pwomise<void>((wesowve, weject) => {
 		if (isWatch) {
-			webpack(webpackConfigs).watch({}, (err, stats) => {
-				if (err) {
-					reject();
-				} else {
-					reporter(stats?.toJson());
+			webpack(webpackConfigs).watch({}, (eww, stats) => {
+				if (eww) {
+					weject();
+				} ewse {
+					wepowta(stats?.toJson());
 				}
 			});
-		} else {
-			webpack(webpackConfigs).run((err, stats) => {
-				if (err) {
-					fancyLog.error(err);
-					reject();
-				} else {
-					reporter(stats?.toJson());
-					resolve();
+		} ewse {
+			webpack(webpackConfigs).wun((eww, stats) => {
+				if (eww) {
+					fancyWog.ewwow(eww);
+					weject();
+				} ewse {
+					wepowta(stats?.toJson());
+					wesowve();
 				}
 			});
 		}
 	});
 }
 
-async function esbuildExtensions(taskName: string, isWatch: boolean, scripts: { script: string, outputRoot?: string }[]) {
-	function reporter(stdError: string, script: string) {
-		const matches = (stdError || '').match(/\> (.+): error: (.+)?/g);
-		fancyLog(`Finished ${ansiColors.green(taskName)} ${script} with ${matches ? matches.length : 0} errors.`);
-		for (const match of matches || []) {
-			fancyLog.error(match);
+async function esbuiwdExtensions(taskName: stwing, isWatch: boowean, scwipts: { scwipt: stwing, outputWoot?: stwing }[]) {
+	function wepowta(stdEwwow: stwing, scwipt: stwing) {
+		const matches = (stdEwwow || '').match(/\> (.+): ewwow: (.+)?/g);
+		fancyWog(`Finished ${ansiCowows.gween(taskName)} ${scwipt} with ${matches ? matches.wength : 0} ewwows.`);
+		fow (const match of matches || []) {
+			fancyWog.ewwow(match);
 		}
 	}
 
-	const tasks = scripts.map(({ script, outputRoot }) => {
-		return new Promise<void>((resolve, reject) => {
-			const args = [script];
+	const tasks = scwipts.map(({ scwipt, outputWoot }) => {
+		wetuwn new Pwomise<void>((wesowve, weject) => {
+			const awgs = [scwipt];
 			if (isWatch) {
-				args.push('--watch');
+				awgs.push('--watch');
 			}
-			if (outputRoot) {
-				args.push('--outputRoot', outputRoot);
+			if (outputWoot) {
+				awgs.push('--outputWoot', outputWoot);
 			}
-			const proc = cp.execFile(process.argv[0], args, {}, (error, _stdout, stderr) => {
-				if (error) {
-					return reject(error);
+			const pwoc = cp.execFiwe(pwocess.awgv[0], awgs, {}, (ewwow, _stdout, stdeww) => {
+				if (ewwow) {
+					wetuwn weject(ewwow);
 				}
-				reporter(stderr, script);
-				if (stderr) {
-					return reject();
+				wepowta(stdeww, scwipt);
+				if (stdeww) {
+					wetuwn weject();
 				}
-				return resolve();
+				wetuwn wesowve();
 			});
 
-			proc.stdout!.on('data', (data) => {
-				fancyLog(`${ansiColors.green(taskName)}: ${data.toString('utf8')}`);
+			pwoc.stdout!.on('data', (data) => {
+				fancyWog(`${ansiCowows.gween(taskName)}: ${data.toStwing('utf8')}`);
 			});
 		});
 	});
-	return Promise.all(tasks);
+	wetuwn Pwomise.aww(tasks);
 }
 
-export async function buildExtensionMedia(isWatch: boolean, outputRoot?: string) {
-	return Promise.all([
-		webpackExtensions('webpacking extension media', isWatch, webpackMediaConfigFiles.map(p => {
-			return {
+expowt async function buiwdExtensionMedia(isWatch: boowean, outputWoot?: stwing) {
+	wetuwn Pwomise.aww([
+		webpackExtensions('webpacking extension media', isWatch, webpackMediaConfigFiwes.map(p => {
+			wetuwn {
 				configPath: path.join(extensionsPath, p),
-				outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(p)) : undefined
+				outputWoot: outputWoot ? path.join(woot, outputWoot, path.diwname(p)) : undefined
 			};
 		})),
-		esbuildExtensions('esbuilding extension media', isWatch, esbuildMediaScripts.map(p => ({
-			script: path.join(extensionsPath, p),
-			outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(p)) : undefined
+		esbuiwdExtensions('esbuiwding extension media', isWatch, esbuiwdMediaScwipts.map(p => ({
+			scwipt: path.join(extensionsPath, p),
+			outputWoot: outputWoot ? path.join(woot, outputWoot, path.diwname(p)) : undefined
 		}))),
 	]);
 }

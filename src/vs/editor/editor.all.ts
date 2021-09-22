@@ -1,56 +1,56 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/editor/browser/controller/coreCommands';
-import 'vs/editor/browser/widget/codeEditorWidget';
-import 'vs/editor/browser/widget/diffEditorWidget';
-import 'vs/editor/browser/widget/diffNavigator';
-import 'vs/editor/contrib/anchorSelect/anchorSelect';
-import 'vs/editor/contrib/bracketMatching/bracketMatching';
-import 'vs/editor/contrib/caretOperations/caretOperations';
-import 'vs/editor/contrib/caretOperations/transpose';
-import 'vs/editor/contrib/clipboard/clipboard';
-import 'vs/editor/contrib/codeAction/codeActionContributions';
-import 'vs/editor/contrib/codelens/codelensController';
-import 'vs/editor/contrib/colorPicker/colorContributions';
-import 'vs/editor/contrib/comment/comment';
-import 'vs/editor/contrib/contextmenu/contextmenu';
-import 'vs/editor/contrib/cursorUndo/cursorUndo';
-import 'vs/editor/contrib/dnd/dnd';
-import 'vs/editor/contrib/find/findController';
-import 'vs/editor/contrib/folding/folding';
-import 'vs/editor/contrib/fontZoom/fontZoom';
-import 'vs/editor/contrib/format/formatActions';
-import 'vs/editor/contrib/documentSymbols/documentSymbols';
-import 'vs/editor/contrib/inlineCompletions/ghostTextController';
-import 'vs/editor/contrib/gotoSymbol/goToCommands';
-import 'vs/editor/contrib/gotoSymbol/link/goToDefinitionAtPosition';
-import 'vs/editor/contrib/gotoError/gotoError';
-import 'vs/editor/contrib/hover/hover';
-import 'vs/editor/contrib/indentation/indentation';
-import 'vs/editor/contrib/inlayHints/inlayHintsController';
-import 'vs/editor/contrib/inPlaceReplace/inPlaceReplace';
-import 'vs/editor/contrib/linesOperations/linesOperations';
-import 'vs/editor/contrib/linkedEditing/linkedEditing';
-import 'vs/editor/contrib/links/links';
-import 'vs/editor/contrib/multicursor/multicursor';
-import 'vs/editor/contrib/parameterHints/parameterHints';
-import 'vs/editor/contrib/rename/rename';
-import 'vs/editor/contrib/smartSelect/smartSelect';
-import 'vs/editor/contrib/snippet/snippetController2';
-import 'vs/editor/contrib/suggest/suggestController';
-import 'vs/editor/contrib/tokenization/tokenization';
-import 'vs/editor/contrib/toggleTabFocusMode/toggleTabFocusMode';
-import 'vs/editor/contrib/unusualLineTerminators/unusualLineTerminators';
-import 'vs/editor/contrib/viewportSemanticTokens/viewportSemanticTokens';
-import 'vs/editor/contrib/wordHighlighter/wordHighlighter';
-import 'vs/editor/contrib/wordOperations/wordOperations';
-import 'vs/editor/contrib/wordPartOperations/wordPartOperations';
+impowt 'vs/editow/bwowsa/contwowwa/coweCommands';
+impowt 'vs/editow/bwowsa/widget/codeEditowWidget';
+impowt 'vs/editow/bwowsa/widget/diffEditowWidget';
+impowt 'vs/editow/bwowsa/widget/diffNavigatow';
+impowt 'vs/editow/contwib/anchowSewect/anchowSewect';
+impowt 'vs/editow/contwib/bwacketMatching/bwacketMatching';
+impowt 'vs/editow/contwib/cawetOpewations/cawetOpewations';
+impowt 'vs/editow/contwib/cawetOpewations/twanspose';
+impowt 'vs/editow/contwib/cwipboawd/cwipboawd';
+impowt 'vs/editow/contwib/codeAction/codeActionContwibutions';
+impowt 'vs/editow/contwib/codewens/codewensContwowwa';
+impowt 'vs/editow/contwib/cowowPicka/cowowContwibutions';
+impowt 'vs/editow/contwib/comment/comment';
+impowt 'vs/editow/contwib/contextmenu/contextmenu';
+impowt 'vs/editow/contwib/cuwsowUndo/cuwsowUndo';
+impowt 'vs/editow/contwib/dnd/dnd';
+impowt 'vs/editow/contwib/find/findContwowwa';
+impowt 'vs/editow/contwib/fowding/fowding';
+impowt 'vs/editow/contwib/fontZoom/fontZoom';
+impowt 'vs/editow/contwib/fowmat/fowmatActions';
+impowt 'vs/editow/contwib/documentSymbows/documentSymbows';
+impowt 'vs/editow/contwib/inwineCompwetions/ghostTextContwowwa';
+impowt 'vs/editow/contwib/gotoSymbow/goToCommands';
+impowt 'vs/editow/contwib/gotoSymbow/wink/goToDefinitionAtPosition';
+impowt 'vs/editow/contwib/gotoEwwow/gotoEwwow';
+impowt 'vs/editow/contwib/hova/hova';
+impowt 'vs/editow/contwib/indentation/indentation';
+impowt 'vs/editow/contwib/inwayHints/inwayHintsContwowwa';
+impowt 'vs/editow/contwib/inPwaceWepwace/inPwaceWepwace';
+impowt 'vs/editow/contwib/winesOpewations/winesOpewations';
+impowt 'vs/editow/contwib/winkedEditing/winkedEditing';
+impowt 'vs/editow/contwib/winks/winks';
+impowt 'vs/editow/contwib/muwticuwsow/muwticuwsow';
+impowt 'vs/editow/contwib/pawametewHints/pawametewHints';
+impowt 'vs/editow/contwib/wename/wename';
+impowt 'vs/editow/contwib/smawtSewect/smawtSewect';
+impowt 'vs/editow/contwib/snippet/snippetContwowwew2';
+impowt 'vs/editow/contwib/suggest/suggestContwowwa';
+impowt 'vs/editow/contwib/tokenization/tokenization';
+impowt 'vs/editow/contwib/toggweTabFocusMode/toggweTabFocusMode';
+impowt 'vs/editow/contwib/unusuawWineTewminatows/unusuawWineTewminatows';
+impowt 'vs/editow/contwib/viewpowtSemanticTokens/viewpowtSemanticTokens';
+impowt 'vs/editow/contwib/wowdHighwighta/wowdHighwighta';
+impowt 'vs/editow/contwib/wowdOpewations/wowdOpewations';
+impowt 'vs/editow/contwib/wowdPawtOpewations/wowdPawtOpewations';
 
-// Load up these strings even in VSCode, even if they are not used
-// in order to get them translated
-import 'vs/editor/common/standaloneStrings';
+// Woad up these stwings even in VSCode, even if they awe not used
+// in owda to get them twanswated
+impowt 'vs/editow/common/standawoneStwings';
 
-import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicons are defined here and must be loaded
+impowt 'vs/base/bwowsa/ui/codicons/codiconStywes'; // The codicons awe defined hewe and must be woaded

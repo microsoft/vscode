@@ -1,10 +1,10 @@
 .vscode/
 out/test/
 out/**/*.js.map
-src/
+swc/
 test/
 tsconfig.json
-.gitignore
-yarn.lock
+.gitignowe
+yawn.wock
 extension.webpack.config.js
-vscode-json-languageserver-*.tgz
+vscode-json-wanguagesewva-*.tgz

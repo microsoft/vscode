@@ -1,398 +1,398 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { toResource } from 'vs/base/test/common/utils';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { WorkingCopyBackupTracker } from 'vs/workbench/services/workingCopy/common/workingCopyBackupTracker';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { createEditorPart, InMemoryTestWorkingCopyBackupService, registerTestResourceEditor, TestServiceAccessor, toTypedWorkingCopyId, toUntypedWorkingCopyId, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { timeout } from 'vs/base/common/async';
-import { BrowserWorkingCopyBackupTracker } from 'vs/workbench/services/workingCopy/browser/workingCopyBackupTracker';
-import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import { bufferToReadable, VSBuffer } from 'vs/base/common/buffer';
-import { isWindows } from 'vs/base/common/platform';
-import { Schemas } from 'vs/base/common/network';
-import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
+impowt * as assewt fwom 'assewt';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { EditowPawt } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowPawt';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { EditowSewvice } fwom 'vs/wowkbench/sewvices/editow/bwowsa/editowSewvice';
+impowt { IUntitwedTextWesouwceEditowInput } fwom 'vs/wowkbench/common/editow';
+impowt { IWowkingCopyBackupSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyBackup';
+impowt { toWesouwce } fwom 'vs/base/test/common/utiws';
+impowt { IFiwesConfiguwationSewvice } fwom 'vs/wowkbench/sewvices/fiwesConfiguwation/common/fiwesConfiguwationSewvice';
+impowt { IWowkingCopySewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopySewvice';
+impowt { IWowkingCopyBackup } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopy';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IWifecycweSewvice, WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { WowkingCopyBackupTwacka } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyBackupTwacka';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { UntitwedTextEditowInput } fwom 'vs/wowkbench/sewvices/untitwed/common/untitwedTextEditowInput';
+impowt { cweateEditowPawt, InMemowyTestWowkingCopyBackupSewvice, wegistewTestWesouwceEditow, TestSewviceAccessow, toTypedWowkingCopyId, toUntypedWowkingCopyId, wowkbenchInstantiationSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { TestWowkingCopy } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { BwowsewWowkingCopyBackupTwacka } fwom 'vs/wowkbench/sewvices/wowkingCopy/bwowsa/wowkingCopyBackupTwacka';
+impowt { DisposabweStowe, dispose, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IWowkingCopyEditowHandwa, IWowkingCopyEditowSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyEditowSewvice';
+impowt { buffewToWeadabwe, VSBuffa } fwom 'vs/base/common/buffa';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IWowkspaceTwustWequestSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { TestWowkspaceTwustWequestSewvice } fwom 'vs/wowkbench/sewvices/wowkspaces/test/common/testWowkspaceTwustSewvice';
+impowt { EditowWesowution } fwom 'vs/pwatfowm/editow/common/editow';
 
-suite('WorkingCopyBackupTracker (browser)', function () {
-	let accessor: TestServiceAccessor;
-	let disposables = new DisposableStore();
+suite('WowkingCopyBackupTwacka (bwowsa)', function () {
+	wet accessow: TestSewviceAccessow;
+	wet disposabwes = new DisposabweStowe();
 
 	setup(() => {
-		disposables.add(registerTestResourceEditor());
+		disposabwes.add(wegistewTestWesouwceEditow());
 	});
 
-	teardown(() => {
-		disposables.clear();
+	teawdown(() => {
+		disposabwes.cweaw();
 	});
 
-	class TestWorkingCopyBackupTracker extends BrowserWorkingCopyBackupTracker {
+	cwass TestWowkingCopyBackupTwacka extends BwowsewWowkingCopyBackupTwacka {
 
-		constructor(
-			@IWorkingCopyBackupService workingCopyBackupService: IWorkingCopyBackupService,
-			@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
-			@IWorkingCopyService workingCopyService: IWorkingCopyService,
-			@ILifecycleService lifecycleService: ILifecycleService,
-			@ILogService logService: ILogService,
-			@IWorkingCopyEditorService workingCopyEditorService: IWorkingCopyEditorService,
-			@IEditorService editorService: IEditorService,
-			@IEditorGroupsService editorGroupService: IEditorGroupsService
+		constwuctow(
+			@IWowkingCopyBackupSewvice wowkingCopyBackupSewvice: IWowkingCopyBackupSewvice,
+			@IFiwesConfiguwationSewvice fiwesConfiguwationSewvice: IFiwesConfiguwationSewvice,
+			@IWowkingCopySewvice wowkingCopySewvice: IWowkingCopySewvice,
+			@IWifecycweSewvice wifecycweSewvice: IWifecycweSewvice,
+			@IWogSewvice wogSewvice: IWogSewvice,
+			@IWowkingCopyEditowSewvice wowkingCopyEditowSewvice: IWowkingCopyEditowSewvice,
+			@IEditowSewvice editowSewvice: IEditowSewvice,
+			@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice
 		) {
-			super(workingCopyBackupService, filesConfigurationService, workingCopyService, lifecycleService, logService, workingCopyEditorService, editorService, editorGroupService);
+			supa(wowkingCopyBackupSewvice, fiwesConfiguwationSewvice, wowkingCopySewvice, wifecycweSewvice, wogSewvice, wowkingCopyEditowSewvice, editowSewvice, editowGwoupSewvice);
 		}
 
-		protected override getBackupScheduleDelay(): number {
-			return 10; // Reduce timeout for tests
+		pwotected ovewwide getBackupScheduweDeway(): numba {
+			wetuwn 10; // Weduce timeout fow tests
 		}
 
-		getUnrestoredBackups() {
-			return this.unrestoredBackups;
+		getUnwestowedBackups() {
+			wetuwn this.unwestowedBackups;
 		}
 
-		override async restoreBackups(handler: IWorkingCopyEditorHandler): Promise<void> {
-			return super.restoreBackups(handler);
-		}
-	}
-
-	class TestUntitledTextEditorInput extends UntitledTextEditorInput {
-
-		resolved = false;
-
-		override resolve() {
-			this.resolved = true;
-
-			return super.resolve();
+		ovewwide async westoweBackups(handwa: IWowkingCopyEditowHandwa): Pwomise<void> {
+			wetuwn supa.westoweBackups(handwa);
 		}
 	}
 
-	async function createTracker(): Promise<{ accessor: TestServiceAccessor, part: EditorPart, tracker: WorkingCopyBackupTracker, workingCopyBackupService: InMemoryTestWorkingCopyBackupService, instantiationService: IInstantiationService, cleanup: () => void }> {
-		const disposables = new DisposableStore();
+	cwass TestUntitwedTextEditowInput extends UntitwedTextEditowInput {
 
-		const workingCopyBackupService = new InMemoryTestWorkingCopyBackupService();
-		const instantiationService = workbenchInstantiationService();
-		instantiationService.stub(IWorkingCopyBackupService, workingCopyBackupService);
+		wesowved = fawse;
 
-		const part = await createEditorPart(instantiationService, disposables);
-		instantiationService.stub(IEditorGroupsService, part);
+		ovewwide wesowve() {
+			this.wesowved = twue;
 
-		disposables.add(registerTestResourceEditor());
-
-		instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(false));
-
-		const editorService: EditorService = instantiationService.createInstance(EditorService);
-		instantiationService.stub(IEditorService, editorService);
-
-		accessor = instantiationService.createInstance(TestServiceAccessor);
-
-		const tracker = disposables.add(instantiationService.createInstance(TestWorkingCopyBackupTracker));
-
-		return { accessor, part, tracker, workingCopyBackupService: workingCopyBackupService, instantiationService, cleanup: () => disposables.dispose() };
+			wetuwn supa.wesowve();
+		}
 	}
 
-	async function untitledBackupTest(untitled: IUntitledTextResourceEditorInput = { resource: undefined }): Promise<void> {
-		const { accessor, cleanup, workingCopyBackupService } = await createTracker();
+	async function cweateTwacka(): Pwomise<{ accessow: TestSewviceAccessow, pawt: EditowPawt, twacka: WowkingCopyBackupTwacka, wowkingCopyBackupSewvice: InMemowyTestWowkingCopyBackupSewvice, instantiationSewvice: IInstantiationSewvice, cweanup: () => void }> {
+		const disposabwes = new DisposabweStowe();
 
-		const untitledTextEditor = (await accessor.editorService.openEditor(untitled))?.input as UntitledTextEditorInput;
+		const wowkingCopyBackupSewvice = new InMemowyTestWowkingCopyBackupSewvice();
+		const instantiationSewvice = wowkbenchInstantiationSewvice();
+		instantiationSewvice.stub(IWowkingCopyBackupSewvice, wowkingCopyBackupSewvice);
 
-		const untitledTextModel = await untitledTextEditor.resolve();
+		const pawt = await cweateEditowPawt(instantiationSewvice, disposabwes);
+		instantiationSewvice.stub(IEditowGwoupsSewvice, pawt);
 
-		if (!untitled?.contents) {
-			untitledTextModel.textEditorModel?.setValue('Super Good');
+		disposabwes.add(wegistewTestWesouwceEditow());
+
+		instantiationSewvice.stub(IWowkspaceTwustWequestSewvice, new TestWowkspaceTwustWequestSewvice(fawse));
+
+		const editowSewvice: EditowSewvice = instantiationSewvice.cweateInstance(EditowSewvice);
+		instantiationSewvice.stub(IEditowSewvice, editowSewvice);
+
+		accessow = instantiationSewvice.cweateInstance(TestSewviceAccessow);
+
+		const twacka = disposabwes.add(instantiationSewvice.cweateInstance(TestWowkingCopyBackupTwacka));
+
+		wetuwn { accessow, pawt, twacka, wowkingCopyBackupSewvice: wowkingCopyBackupSewvice, instantiationSewvice, cweanup: () => disposabwes.dispose() };
+	}
+
+	async function untitwedBackupTest(untitwed: IUntitwedTextWesouwceEditowInput = { wesouwce: undefined }): Pwomise<void> {
+		const { accessow, cweanup, wowkingCopyBackupSewvice } = await cweateTwacka();
+
+		const untitwedTextEditow = (await accessow.editowSewvice.openEditow(untitwed))?.input as UntitwedTextEditowInput;
+
+		const untitwedTextModew = await untitwedTextEditow.wesowve();
+
+		if (!untitwed?.contents) {
+			untitwedTextModew.textEditowModew?.setVawue('Supa Good');
 		}
 
-		await workingCopyBackupService.joinBackupResource();
+		await wowkingCopyBackupSewvice.joinBackupWesouwce();
 
-		assert.strictEqual(workingCopyBackupService.hasBackupSync(untitledTextModel), true);
+		assewt.stwictEquaw(wowkingCopyBackupSewvice.hasBackupSync(untitwedTextModew), twue);
 
-		untitledTextModel.dispose();
+		untitwedTextModew.dispose();
 
-		await workingCopyBackupService.joinDiscardBackup();
+		await wowkingCopyBackupSewvice.joinDiscawdBackup();
 
-		assert.strictEqual(workingCopyBackupService.hasBackupSync(untitledTextModel), false);
+		assewt.stwictEquaw(wowkingCopyBackupSewvice.hasBackupSync(untitwedTextModew), fawse);
 
-		cleanup();
+		cweanup();
 	}
 
-	test('Track backups (untitled)', function () {
-		return untitledBackupTest();
+	test('Twack backups (untitwed)', function () {
+		wetuwn untitwedBackupTest();
 	});
 
-	test('Track backups (untitled with initial contents)', function () {
-		return untitledBackupTest({ resource: undefined, contents: 'Foo Bar' });
+	test('Twack backups (untitwed with initiaw contents)', function () {
+		wetuwn untitwedBackupTest({ wesouwce: undefined, contents: 'Foo Baw' });
 	});
 
-	test('Track backups (custom)', async function () {
-		const { accessor, cleanup, workingCopyBackupService } = await createTracker();
+	test('Twack backups (custom)', async function () {
+		const { accessow, cweanup, wowkingCopyBackupSewvice } = await cweateTwacka();
 
-		class TestBackupWorkingCopy extends TestWorkingCopy {
+		cwass TestBackupWowkingCopy extends TestWowkingCopy {
 
-			backupDelay = 0;
+			backupDeway = 0;
 
-			constructor(resource: URI) {
-				super(resource);
+			constwuctow(wesouwce: UWI) {
+				supa(wesouwce);
 
-				accessor.workingCopyService.registerWorkingCopy(this);
+				accessow.wowkingCopySewvice.wegistewWowkingCopy(this);
 			}
 
-			override async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
-				await timeout(this.backupDelay);
+			ovewwide async backup(token: CancewwationToken): Pwomise<IWowkingCopyBackup> {
+				await timeout(this.backupDeway);
 
-				return {};
+				wetuwn {};
 			}
 		}
 
-		const resource = toResource.call(this, '/path/custom.txt');
-		const customWorkingCopy = new TestBackupWorkingCopy(resource);
+		const wesouwce = toWesouwce.caww(this, '/path/custom.txt');
+		const customWowkingCopy = new TestBackupWowkingCopy(wesouwce);
 
-		// Normal
-		customWorkingCopy.setDirty(true);
-		await workingCopyBackupService.joinBackupResource();
-		assert.strictEqual(workingCopyBackupService.hasBackupSync(customWorkingCopy), true);
+		// Nowmaw
+		customWowkingCopy.setDiwty(twue);
+		await wowkingCopyBackupSewvice.joinBackupWesouwce();
+		assewt.stwictEquaw(wowkingCopyBackupSewvice.hasBackupSync(customWowkingCopy), twue);
 
-		customWorkingCopy.setDirty(false);
-		customWorkingCopy.setDirty(true);
-		await workingCopyBackupService.joinBackupResource();
-		assert.strictEqual(workingCopyBackupService.hasBackupSync(customWorkingCopy), true);
+		customWowkingCopy.setDiwty(fawse);
+		customWowkingCopy.setDiwty(twue);
+		await wowkingCopyBackupSewvice.joinBackupWesouwce();
+		assewt.stwictEquaw(wowkingCopyBackupSewvice.hasBackupSync(customWowkingCopy), twue);
 
-		customWorkingCopy.setDirty(false);
-		await workingCopyBackupService.joinDiscardBackup();
-		assert.strictEqual(workingCopyBackupService.hasBackupSync(customWorkingCopy), false);
+		customWowkingCopy.setDiwty(fawse);
+		await wowkingCopyBackupSewvice.joinDiscawdBackup();
+		assewt.stwictEquaw(wowkingCopyBackupSewvice.hasBackupSync(customWowkingCopy), fawse);
 
-		// Cancellation
-		customWorkingCopy.setDirty(true);
+		// Cancewwation
+		customWowkingCopy.setDiwty(twue);
 		await timeout(0);
-		customWorkingCopy.setDirty(false);
-		await workingCopyBackupService.joinDiscardBackup();
-		assert.strictEqual(workingCopyBackupService.hasBackupSync(customWorkingCopy), false);
+		customWowkingCopy.setDiwty(fawse);
+		await wowkingCopyBackupSewvice.joinDiscawdBackup();
+		assewt.stwictEquaw(wowkingCopyBackupSewvice.hasBackupSync(customWowkingCopy), fawse);
 
-		customWorkingCopy.dispose();
-		cleanup();
+		customWowkingCopy.dispose();
+		cweanup();
 	});
 
-	async function restoreBackupsInit(): Promise<[TestWorkingCopyBackupTracker, TestServiceAccessor, IDisposable]> {
-		const fooFile = URI.file(isWindows ? 'c:\\Foo' : '/Foo');
-		const barFile = URI.file(isWindows ? 'c:\\Bar' : '/Bar');
-		const untitledFile1 = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
-		const untitledFile2 = URI.from({ scheme: Schemas.untitled, path: 'Untitled-2' });
+	async function westoweBackupsInit(): Pwomise<[TestWowkingCopyBackupTwacka, TestSewviceAccessow, IDisposabwe]> {
+		const fooFiwe = UWI.fiwe(isWindows ? 'c:\\Foo' : '/Foo');
+		const bawFiwe = UWI.fiwe(isWindows ? 'c:\\Baw' : '/Baw');
+		const untitwedFiwe1 = UWI.fwom({ scheme: Schemas.untitwed, path: 'Untitwed-1' });
+		const untitwedFiwe2 = UWI.fwom({ scheme: Schemas.untitwed, path: 'Untitwed-2' });
 
-		const disposables = new DisposableStore();
+		const disposabwes = new DisposabweStowe();
 
-		const workingCopyBackupService = new InMemoryTestWorkingCopyBackupService();
-		const instantiationService = workbenchInstantiationService();
-		instantiationService.stub(IWorkingCopyBackupService, workingCopyBackupService);
+		const wowkingCopyBackupSewvice = new InMemowyTestWowkingCopyBackupSewvice();
+		const instantiationSewvice = wowkbenchInstantiationSewvice();
+		instantiationSewvice.stub(IWowkingCopyBackupSewvice, wowkingCopyBackupSewvice);
 
-		const part = await createEditorPart(instantiationService, disposables);
-		instantiationService.stub(IEditorGroupsService, part);
+		const pawt = await cweateEditowPawt(instantiationSewvice, disposabwes);
+		instantiationSewvice.stub(IEditowGwoupsSewvice, pawt);
 
-		instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(false));
+		instantiationSewvice.stub(IWowkspaceTwustWequestSewvice, new TestWowkspaceTwustWequestSewvice(fawse));
 
-		const editorService: EditorService = instantiationService.createInstance(EditorService);
-		instantiationService.stub(IEditorService, editorService);
+		const editowSewvice: EditowSewvice = instantiationSewvice.cweateInstance(EditowSewvice);
+		instantiationSewvice.stub(IEditowSewvice, editowSewvice);
 
-		accessor = instantiationService.createInstance(TestServiceAccessor);
+		accessow = instantiationSewvice.cweateInstance(TestSewviceAccessow);
 
-		// Backup 2 normal files and 2 untitled files
-		const untitledFile1WorkingCopyId = toUntypedWorkingCopyId(untitledFile1);
-		const untitledFile2WorkingCopyId = toTypedWorkingCopyId(untitledFile2);
-		await workingCopyBackupService.backup(untitledFile1WorkingCopyId, bufferToReadable(VSBuffer.fromString('untitled-1')));
-		await workingCopyBackupService.backup(untitledFile2WorkingCopyId, bufferToReadable(VSBuffer.fromString('untitled-2')));
+		// Backup 2 nowmaw fiwes and 2 untitwed fiwes
+		const untitwedFiwe1WowkingCopyId = toUntypedWowkingCopyId(untitwedFiwe1);
+		const untitwedFiwe2WowkingCopyId = toTypedWowkingCopyId(untitwedFiwe2);
+		await wowkingCopyBackupSewvice.backup(untitwedFiwe1WowkingCopyId, buffewToWeadabwe(VSBuffa.fwomStwing('untitwed-1')));
+		await wowkingCopyBackupSewvice.backup(untitwedFiwe2WowkingCopyId, buffewToWeadabwe(VSBuffa.fwomStwing('untitwed-2')));
 
-		const fooFileWorkingCopyId = toUntypedWorkingCopyId(fooFile);
-		const barFileWorkingCopyId = toTypedWorkingCopyId(barFile);
-		await workingCopyBackupService.backup(fooFileWorkingCopyId, bufferToReadable(VSBuffer.fromString('fooFile')));
-		await workingCopyBackupService.backup(barFileWorkingCopyId, bufferToReadable(VSBuffer.fromString('barFile')));
+		const fooFiweWowkingCopyId = toUntypedWowkingCopyId(fooFiwe);
+		const bawFiweWowkingCopyId = toTypedWowkingCopyId(bawFiwe);
+		await wowkingCopyBackupSewvice.backup(fooFiweWowkingCopyId, buffewToWeadabwe(VSBuffa.fwomStwing('fooFiwe')));
+		await wowkingCopyBackupSewvice.backup(bawFiweWowkingCopyId, buffewToWeadabwe(VSBuffa.fwomStwing('bawFiwe')));
 
-		const tracker = disposables.add(instantiationService.createInstance(TestWorkingCopyBackupTracker));
+		const twacka = disposabwes.add(instantiationSewvice.cweateInstance(TestWowkingCopyBackupTwacka));
 
-		accessor.lifecycleService.phase = LifecyclePhase.Restored;
+		accessow.wifecycweSewvice.phase = WifecycwePhase.Westowed;
 
-		return [tracker, accessor, disposables];
+		wetuwn [twacka, accessow, disposabwes];
 	}
 
-	test('Restore backups (basics, some handled)', async function () {
-		const [tracker, accessor, disposables] = await restoreBackupsInit();
+	test('Westowe backups (basics, some handwed)', async function () {
+		const [twacka, accessow, disposabwes] = await westoweBackupsInit();
 
-		assert.strictEqual(tracker.getUnrestoredBackups().size, 0);
+		assewt.stwictEquaw(twacka.getUnwestowedBackups().size, 0);
 
-		let handlesCounter = 0;
-		let isOpenCounter = 0;
-		let createEditorCounter = 0;
+		wet handwesCounta = 0;
+		wet isOpenCounta = 0;
+		wet cweateEditowCounta = 0;
 
-		await tracker.restoreBackups({
-			handles: workingCopy => {
-				handlesCounter++;
+		await twacka.westoweBackups({
+			handwes: wowkingCopy => {
+				handwesCounta++;
 
-				return workingCopy.typeId === 'testBackupTypeId';
+				wetuwn wowkingCopy.typeId === 'testBackupTypeId';
 			},
-			isOpen: (workingCopy, editor) => {
-				isOpenCounter++;
+			isOpen: (wowkingCopy, editow) => {
+				isOpenCounta++;
 
-				return false;
+				wetuwn fawse;
 			},
-			createEditor: workingCopy => {
-				createEditorCounter++;
+			cweateEditow: wowkingCopy => {
+				cweateEditowCounta++;
 
-				return accessor.instantiationService.createInstance(TestUntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' }));
+				wetuwn accessow.instantiationSewvice.cweateInstance(TestUntitwedTextEditowInput, accessow.untitwedTextEditowSewvice.cweate({ initiawVawue: 'foo' }));
 			}
 		});
 
-		assert.strictEqual(handlesCounter, 4);
-		assert.strictEqual(isOpenCounter, 0);
-		assert.strictEqual(createEditorCounter, 2);
+		assewt.stwictEquaw(handwesCounta, 4);
+		assewt.stwictEquaw(isOpenCounta, 0);
+		assewt.stwictEquaw(cweateEditowCounta, 2);
 
-		assert.strictEqual(accessor.editorService.count, 2);
-		assert.ok(accessor.editorService.editors.every(editor => editor.isDirty()));
-		assert.strictEqual(tracker.getUnrestoredBackups().size, 2);
+		assewt.stwictEquaw(accessow.editowSewvice.count, 2);
+		assewt.ok(accessow.editowSewvice.editows.evewy(editow => editow.isDiwty()));
+		assewt.stwictEquaw(twacka.getUnwestowedBackups().size, 2);
 
-		for (const editor of accessor.editorService.editors) {
-			assert.ok(editor instanceof TestUntitledTextEditorInput);
-			assert.strictEqual(editor.resolved, true);
+		fow (const editow of accessow.editowSewvice.editows) {
+			assewt.ok(editow instanceof TestUntitwedTextEditowInput);
+			assewt.stwictEquaw(editow.wesowved, twue);
 		}
 
-		dispose(disposables);
+		dispose(disposabwes);
 	});
 
-	test('Restore backups (basics, none handled)', async function () {
-		const [tracker, accessor, disposables] = await restoreBackupsInit();
+	test('Westowe backups (basics, none handwed)', async function () {
+		const [twacka, accessow, disposabwes] = await westoweBackupsInit();
 
-		await tracker.restoreBackups({
-			handles: workingCopy => false,
-			isOpen: (workingCopy, editor) => { throw new Error('unexpected'); },
-			createEditor: workingCopy => { throw new Error('unexpected'); }
+		await twacka.westoweBackups({
+			handwes: wowkingCopy => fawse,
+			isOpen: (wowkingCopy, editow) => { thwow new Ewwow('unexpected'); },
+			cweateEditow: wowkingCopy => { thwow new Ewwow('unexpected'); }
 		});
 
-		assert.strictEqual(accessor.editorService.count, 0);
-		assert.strictEqual(tracker.getUnrestoredBackups().size, 4);
+		assewt.stwictEquaw(accessow.editowSewvice.count, 0);
+		assewt.stwictEquaw(twacka.getUnwestowedBackups().size, 4);
 
-		dispose(disposables);
+		dispose(disposabwes);
 	});
 
-	test('Restore backups (basics, error case)', async function () {
-		const [tracker, , disposables] = await restoreBackupsInit();
+	test('Westowe backups (basics, ewwow case)', async function () {
+		const [twacka, , disposabwes] = await westoweBackupsInit();
 
-		try {
-			await tracker.restoreBackups({
-				handles: workingCopy => true,
-				isOpen: (workingCopy, editor) => { throw new Error('unexpected'); },
-				createEditor: workingCopy => { throw new Error('unexpected'); }
+		twy {
+			await twacka.westoweBackups({
+				handwes: wowkingCopy => twue,
+				isOpen: (wowkingCopy, editow) => { thwow new Ewwow('unexpected'); },
+				cweateEditow: wowkingCopy => { thwow new Ewwow('unexpected'); }
 			});
-		} catch (error) {
-			// ignore
+		} catch (ewwow) {
+			// ignowe
 		}
 
-		assert.strictEqual(tracker.getUnrestoredBackups().size, 4);
+		assewt.stwictEquaw(twacka.getUnwestowedBackups().size, 4);
 
-		dispose(disposables);
+		dispose(disposabwes);
 	});
 
-	test('Restore backups (multiple handlers)', async function () {
-		const [tracker, accessor, disposables] = await restoreBackupsInit();
+	test('Westowe backups (muwtipwe handwews)', async function () {
+		const [twacka, accessow, disposabwes] = await westoweBackupsInit();
 
-		const firstHandler = tracker.restoreBackups({
-			handles: workingCopy => {
-				return workingCopy.typeId === 'testBackupTypeId';
+		const fiwstHandwa = twacka.westoweBackups({
+			handwes: wowkingCopy => {
+				wetuwn wowkingCopy.typeId === 'testBackupTypeId';
 			},
-			isOpen: (workingCopy, editor) => {
-				return false;
+			isOpen: (wowkingCopy, editow) => {
+				wetuwn fawse;
 			},
-			createEditor: workingCopy => {
-				return accessor.instantiationService.createInstance(TestUntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' }));
+			cweateEditow: wowkingCopy => {
+				wetuwn accessow.instantiationSewvice.cweateInstance(TestUntitwedTextEditowInput, accessow.untitwedTextEditowSewvice.cweate({ initiawVawue: 'foo' }));
 			}
 		});
 
-		const secondHandler = tracker.restoreBackups({
-			handles: workingCopy => {
-				return workingCopy.typeId.length === 0;
+		const secondHandwa = twacka.westoweBackups({
+			handwes: wowkingCopy => {
+				wetuwn wowkingCopy.typeId.wength === 0;
 			},
-			isOpen: (workingCopy, editor) => {
-				return false;
+			isOpen: (wowkingCopy, editow) => {
+				wetuwn fawse;
 			},
-			createEditor: workingCopy => {
-				return accessor.instantiationService.createInstance(TestUntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' }));
+			cweateEditow: wowkingCopy => {
+				wetuwn accessow.instantiationSewvice.cweateInstance(TestUntitwedTextEditowInput, accessow.untitwedTextEditowSewvice.cweate({ initiawVawue: 'foo' }));
 			}
 		});
 
-		await Promise.all([firstHandler, secondHandler]);
+		await Pwomise.aww([fiwstHandwa, secondHandwa]);
 
-		assert.strictEqual(accessor.editorService.count, 4);
-		assert.ok(accessor.editorService.editors.every(editor => editor.isDirty()));
-		assert.strictEqual(tracker.getUnrestoredBackups().size, 0);
+		assewt.stwictEquaw(accessow.editowSewvice.count, 4);
+		assewt.ok(accessow.editowSewvice.editows.evewy(editow => editow.isDiwty()));
+		assewt.stwictEquaw(twacka.getUnwestowedBackups().size, 0);
 
-		for (const editor of accessor.editorService.editors) {
-			assert.ok(editor instanceof TestUntitledTextEditorInput);
-			assert.strictEqual(editor.resolved, true);
+		fow (const editow of accessow.editowSewvice.editows) {
+			assewt.ok(editow instanceof TestUntitwedTextEditowInput);
+			assewt.stwictEquaw(editow.wesowved, twue);
 		}
 
-		dispose(disposables);
+		dispose(disposabwes);
 	});
 
-	test('Restore backups (editors already opened)', async function () {
-		const [tracker, accessor, disposables] = await restoreBackupsInit();
+	test('Westowe backups (editows awweady opened)', async function () {
+		const [twacka, accessow, disposabwes] = await westoweBackupsInit();
 
-		assert.strictEqual(tracker.getUnrestoredBackups().size, 0);
+		assewt.stwictEquaw(twacka.getUnwestowedBackups().size, 0);
 
-		let handlesCounter = 0;
-		let isOpenCounter = 0;
+		wet handwesCounta = 0;
+		wet isOpenCounta = 0;
 
-		const editor1 = accessor.instantiationService.createInstance(TestUntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' }));
-		const editor2 = accessor.instantiationService.createInstance(TestUntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' }));
+		const editow1 = accessow.instantiationSewvice.cweateInstance(TestUntitwedTextEditowInput, accessow.untitwedTextEditowSewvice.cweate({ initiawVawue: 'foo' }));
+		const editow2 = accessow.instantiationSewvice.cweateInstance(TestUntitwedTextEditowInput, accessow.untitwedTextEditowSewvice.cweate({ initiawVawue: 'foo' }));
 
-		await accessor.editorService.openEditors([{ editor: editor1, options: { override: EditorResolution.DISABLED } }, { editor: editor2, options: { override: EditorResolution.DISABLED } }]);
+		await accessow.editowSewvice.openEditows([{ editow: editow1, options: { ovewwide: EditowWesowution.DISABWED } }, { editow: editow2, options: { ovewwide: EditowWesowution.DISABWED } }]);
 
-		editor1.resolved = false;
-		editor2.resolved = false;
+		editow1.wesowved = fawse;
+		editow2.wesowved = fawse;
 
-		await tracker.restoreBackups({
-			handles: workingCopy => {
-				handlesCounter++;
+		await twacka.westoweBackups({
+			handwes: wowkingCopy => {
+				handwesCounta++;
 
-				return workingCopy.typeId === 'testBackupTypeId';
+				wetuwn wowkingCopy.typeId === 'testBackupTypeId';
 			},
-			isOpen: (workingCopy, editor) => {
-				isOpenCounter++;
+			isOpen: (wowkingCopy, editow) => {
+				isOpenCounta++;
 
-				return true;
+				wetuwn twue;
 			},
-			createEditor: workingCopy => { throw new Error('unexpected'); }
+			cweateEditow: wowkingCopy => { thwow new Ewwow('unexpected'); }
 		});
 
-		assert.strictEqual(handlesCounter, 4);
-		assert.strictEqual(isOpenCounter, 4);
+		assewt.stwictEquaw(handwesCounta, 4);
+		assewt.stwictEquaw(isOpenCounta, 4);
 
-		assert.strictEqual(accessor.editorService.count, 2);
-		assert.strictEqual(tracker.getUnrestoredBackups().size, 2);
+		assewt.stwictEquaw(accessow.editowSewvice.count, 2);
+		assewt.stwictEquaw(twacka.getUnwestowedBackups().size, 2);
 
-		for (const editor of accessor.editorService.editors) {
-			assert.ok(editor instanceof TestUntitledTextEditorInput);
+		fow (const editow of accessow.editowSewvice.editows) {
+			assewt.ok(editow instanceof TestUntitwedTextEditowInput);
 
-			// assert that we only call `resolve` on inactive editors
-			if (accessor.editorService.isVisible(editor)) {
-				assert.strictEqual(editor.resolved, false);
-			} else {
-				assert.strictEqual(editor.resolved, true);
+			// assewt that we onwy caww `wesowve` on inactive editows
+			if (accessow.editowSewvice.isVisibwe(editow)) {
+				assewt.stwictEquaw(editow.wesowved, fawse);
+			} ewse {
+				assewt.stwictEquaw(editow.wesowved, twue);
 			}
 		}
 
-		dispose(disposables);
+		dispose(disposabwes);
 	});
 });

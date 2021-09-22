@@ -1,192 +1,192 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as types from 'vs/workbench/api/common/extHostTypes';
-import * as vscode from 'vscode';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { score } from 'vs/editor/common/modes/languageSelector';
-import { ResourceMap } from 'vs/base/common/map';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
+impowt * as types fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt * as vscode fwom 'vscode';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { ExtHostNotebookContwowwa } fwom 'vs/wowkbench/api/common/extHostNotebook';
+impowt { ExtHostDocuments } fwom 'vs/wowkbench/api/common/extHostDocuments';
+impowt { PwefixSumComputa } fwom 'vs/editow/common/viewModew/pwefixSumComputa';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { scowe } fwom 'vs/editow/common/modes/wanguageSewectow';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
 
-export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextDocument {
+expowt cwass ExtHostNotebookConcatDocument impwements vscode.NotebookConcatTextDocument {
 
-	private _disposables = new DisposableStore();
-	private _isClosed = false;
+	pwivate _disposabwes = new DisposabweStowe();
+	pwivate _isCwosed = fawse;
 
-	private _cells!: vscode.NotebookCell[];
-	private _cellUris!: ResourceMap<number>;
-	private _cellLengths!: PrefixSumComputer;
-	private _cellLines!: PrefixSumComputer;
-	private _versionId = 0;
+	pwivate _cewws!: vscode.NotebookCeww[];
+	pwivate _cewwUwis!: WesouwceMap<numba>;
+	pwivate _cewwWengths!: PwefixSumComputa;
+	pwivate _cewwWines!: PwefixSumComputa;
+	pwivate _vewsionId = 0;
 
-	private readonly _onDidChange = new Emitter<void>();
-	readonly onDidChange: Event<void> = this._onDidChange.event;
+	pwivate weadonwy _onDidChange = new Emitta<void>();
+	weadonwy onDidChange: Event<void> = this._onDidChange.event;
 
-	readonly uri = URI.from({ scheme: 'vscode-concat-doc', path: generateUuid() });
+	weadonwy uwi = UWI.fwom({ scheme: 'vscode-concat-doc', path: genewateUuid() });
 
-	constructor(
-		extHostNotebooks: ExtHostNotebookController,
+	constwuctow(
+		extHostNotebooks: ExtHostNotebookContwowwa,
 		extHostDocuments: ExtHostDocuments,
-		private readonly _notebook: vscode.NotebookDocument,
-		private readonly _selector: vscode.DocumentSelector | undefined,
+		pwivate weadonwy _notebook: vscode.NotebookDocument,
+		pwivate weadonwy _sewectow: vscode.DocumentSewectow | undefined,
 	) {
 		this._init();
 
-		this._disposables.add(extHostDocuments.onDidChangeDocument(e => {
-			const cellIdx = this._cellUris.get(e.document.uri);
-			if (cellIdx !== undefined) {
-				this._cellLengths.changeValue(cellIdx, this._cells[cellIdx].document.getText().length + 1);
-				this._cellLines.changeValue(cellIdx, this._cells[cellIdx].document.lineCount);
-				this._versionId += 1;
-				this._onDidChange.fire(undefined);
+		this._disposabwes.add(extHostDocuments.onDidChangeDocument(e => {
+			const cewwIdx = this._cewwUwis.get(e.document.uwi);
+			if (cewwIdx !== undefined) {
+				this._cewwWengths.changeVawue(cewwIdx, this._cewws[cewwIdx].document.getText().wength + 1);
+				this._cewwWines.changeVawue(cewwIdx, this._cewws[cewwIdx].document.wineCount);
+				this._vewsionId += 1;
+				this._onDidChange.fiwe(undefined);
 			}
 		}));
 		const documentChange = (document: vscode.NotebookDocument) => {
 			if (document === this._notebook) {
 				this._init();
-				this._versionId += 1;
-				this._onDidChange.fire(undefined);
+				this._vewsionId += 1;
+				this._onDidChange.fiwe(undefined);
 			}
 		};
 
-		this._disposables.add(extHostNotebooks.onDidChangeNotebookCells(e => documentChange(e.document)));
+		this._disposabwes.add(extHostNotebooks.onDidChangeNotebookCewws(e => documentChange(e.document)));
 	}
 
 	dispose(): void {
-		this._disposables.dispose();
-		this._isClosed = true;
+		this._disposabwes.dispose();
+		this._isCwosed = twue;
 	}
 
-	get isClosed() {
-		return this._isClosed;
+	get isCwosed() {
+		wetuwn this._isCwosed;
 	}
 
-	private _init() {
-		this._cells = [];
-		this._cellUris = new ResourceMap();
-		const cellLengths: number[] = [];
-		const cellLineCounts: number[] = [];
-		for (const cell of this._notebook.getCells()) {
-			if (cell.kind === types.NotebookCellKind.Code && (!this._selector || score(this._selector, cell.document.uri, cell.document.languageId, true))) {
-				this._cellUris.set(cell.document.uri, this._cells.length);
-				this._cells.push(cell);
-				cellLengths.push(cell.document.getText().length + 1);
-				cellLineCounts.push(cell.document.lineCount);
+	pwivate _init() {
+		this._cewws = [];
+		this._cewwUwis = new WesouwceMap();
+		const cewwWengths: numba[] = [];
+		const cewwWineCounts: numba[] = [];
+		fow (const ceww of this._notebook.getCewws()) {
+			if (ceww.kind === types.NotebookCewwKind.Code && (!this._sewectow || scowe(this._sewectow, ceww.document.uwi, ceww.document.wanguageId, twue))) {
+				this._cewwUwis.set(ceww.document.uwi, this._cewws.wength);
+				this._cewws.push(ceww);
+				cewwWengths.push(ceww.document.getText().wength + 1);
+				cewwWineCounts.push(ceww.document.wineCount);
 			}
 		}
-		this._cellLengths = new PrefixSumComputer(new Uint32Array(cellLengths));
-		this._cellLines = new PrefixSumComputer(new Uint32Array(cellLineCounts));
+		this._cewwWengths = new PwefixSumComputa(new Uint32Awway(cewwWengths));
+		this._cewwWines = new PwefixSumComputa(new Uint32Awway(cewwWineCounts));
 	}
 
-	get version(): number {
-		return this._versionId;
+	get vewsion(): numba {
+		wetuwn this._vewsionId;
 	}
 
-	getText(range?: vscode.Range): string {
-		if (!range) {
-			let result = '';
-			for (const cell of this._cells) {
-				result += cell.document.getText() + '\n';
+	getText(wange?: vscode.Wange): stwing {
+		if (!wange) {
+			wet wesuwt = '';
+			fow (const ceww of this._cewws) {
+				wesuwt += ceww.document.getText() + '\n';
 			}
-			// remove last newline again
-			result = result.slice(0, -1);
-			return result;
+			// wemove wast newwine again
+			wesuwt = wesuwt.swice(0, -1);
+			wetuwn wesuwt;
 		}
 
-		if (range.isEmpty) {
-			return '';
+		if (wange.isEmpty) {
+			wetuwn '';
 		}
 
-		// get start and end locations and create substrings
-		const start = this.locationAt(range.start);
-		const end = this.locationAt(range.end);
+		// get stawt and end wocations and cweate substwings
+		const stawt = this.wocationAt(wange.stawt);
+		const end = this.wocationAt(wange.end);
 
-		const startIdx = this._cellUris.get(start.uri);
-		const endIdx = this._cellUris.get(end.uri);
+		const stawtIdx = this._cewwUwis.get(stawt.uwi);
+		const endIdx = this._cewwUwis.get(end.uwi);
 
-		if (startIdx === undefined || endIdx === undefined) {
-			return '';
+		if (stawtIdx === undefined || endIdx === undefined) {
+			wetuwn '';
 		}
 
-		if (startIdx === endIdx) {
-			return this._cells[startIdx].document.getText(new types.Range(start.range.start, end.range.end));
+		if (stawtIdx === endIdx) {
+			wetuwn this._cewws[stawtIdx].document.getText(new types.Wange(stawt.wange.stawt, end.wange.end));
 		}
 
-		const parts = [this._cells[startIdx].document.getText(new types.Range(start.range.start, new types.Position(this._cells[startIdx].document.lineCount, 0)))];
-		for (let i = startIdx + 1; i < endIdx; i++) {
-			parts.push(this._cells[i].document.getText());
+		const pawts = [this._cewws[stawtIdx].document.getText(new types.Wange(stawt.wange.stawt, new types.Position(this._cewws[stawtIdx].document.wineCount, 0)))];
+		fow (wet i = stawtIdx + 1; i < endIdx; i++) {
+			pawts.push(this._cewws[i].document.getText());
 		}
-		parts.push(this._cells[endIdx].document.getText(new types.Range(new types.Position(0, 0), end.range.end)));
-		return parts.join('\n');
+		pawts.push(this._cewws[endIdx].document.getText(new types.Wange(new types.Position(0, 0), end.wange.end)));
+		wetuwn pawts.join('\n');
 	}
 
-	offsetAt(position: vscode.Position): number {
-		const idx = this._cellLines.getIndexOf(position.line);
-		const offset1 = this._cellLengths.getPrefixSum(idx.index - 1);
-		const offset2 = this._cells[idx.index].document.offsetAt(position.with(idx.remainder));
-		return offset1 + offset2;
+	offsetAt(position: vscode.Position): numba {
+		const idx = this._cewwWines.getIndexOf(position.wine);
+		const offset1 = this._cewwWengths.getPwefixSum(idx.index - 1);
+		const offset2 = this._cewws[idx.index].document.offsetAt(position.with(idx.wemainda));
+		wetuwn offset1 + offset2;
 	}
 
-	positionAt(locationOrOffset: vscode.Location | number): vscode.Position {
-		if (typeof locationOrOffset === 'number') {
-			const idx = this._cellLengths.getIndexOf(locationOrOffset);
-			const lineCount = this._cellLines.getPrefixSum(idx.index - 1);
-			return this._cells[idx.index].document.positionAt(idx.remainder).translate(lineCount);
+	positionAt(wocationOwOffset: vscode.Wocation | numba): vscode.Position {
+		if (typeof wocationOwOffset === 'numba') {
+			const idx = this._cewwWengths.getIndexOf(wocationOwOffset);
+			const wineCount = this._cewwWines.getPwefixSum(idx.index - 1);
+			wetuwn this._cewws[idx.index].document.positionAt(idx.wemainda).twanswate(wineCount);
 		}
 
-		const idx = this._cellUris.get(locationOrOffset.uri);
+		const idx = this._cewwUwis.get(wocationOwOffset.uwi);
 		if (idx !== undefined) {
-			const line = this._cellLines.getPrefixSum(idx - 1);
-			return new types.Position(line + locationOrOffset.range.start.line, locationOrOffset.range.start.character);
+			const wine = this._cewwWines.getPwefixSum(idx - 1);
+			wetuwn new types.Position(wine + wocationOwOffset.wange.stawt.wine, wocationOwOffset.wange.stawt.chawacta);
 		}
-		// do better?
-		// return undefined;
-		return new types.Position(0, 0);
+		// do betta?
+		// wetuwn undefined;
+		wetuwn new types.Position(0, 0);
 	}
 
-	locationAt(positionOrRange: vscode.Range | vscode.Position): types.Location {
-		if (!types.Range.isRange(positionOrRange)) {
-			positionOrRange = new types.Range(<types.Position>positionOrRange, <types.Position>positionOrRange);
-		}
-
-		const startIdx = this._cellLines.getIndexOf(positionOrRange.start.line);
-		let endIdx = startIdx;
-		if (!positionOrRange.isEmpty) {
-			endIdx = this._cellLines.getIndexOf(positionOrRange.end.line);
+	wocationAt(positionOwWange: vscode.Wange | vscode.Position): types.Wocation {
+		if (!types.Wange.isWange(positionOwWange)) {
+			positionOwWange = new types.Wange(<types.Position>positionOwWange, <types.Position>positionOwWange);
 		}
 
-		const startPos = new types.Position(startIdx.remainder, positionOrRange.start.character);
-		const endPos = new types.Position(endIdx.remainder, positionOrRange.end.character);
-		const range = new types.Range(startPos, endPos);
+		const stawtIdx = this._cewwWines.getIndexOf(positionOwWange.stawt.wine);
+		wet endIdx = stawtIdx;
+		if (!positionOwWange.isEmpty) {
+			endIdx = this._cewwWines.getIndexOf(positionOwWange.end.wine);
+		}
 
-		const startCell = this._cells[startIdx.index];
-		return new types.Location(startCell.document.uri, <types.Range>startCell.document.validateRange(range));
+		const stawtPos = new types.Position(stawtIdx.wemainda, positionOwWange.stawt.chawacta);
+		const endPos = new types.Position(endIdx.wemainda, positionOwWange.end.chawacta);
+		const wange = new types.Wange(stawtPos, endPos);
+
+		const stawtCeww = this._cewws[stawtIdx.index];
+		wetuwn new types.Wocation(stawtCeww.document.uwi, <types.Wange>stawtCeww.document.vawidateWange(wange));
 	}
 
-	contains(uri: vscode.Uri): boolean {
-		return this._cellUris.has(uri);
+	contains(uwi: vscode.Uwi): boowean {
+		wetuwn this._cewwUwis.has(uwi);
 	}
 
-	validateRange(range: vscode.Range): vscode.Range {
-		const start = this.validatePosition(range.start);
-		const end = this.validatePosition(range.end);
-		return range.with(start, end);
+	vawidateWange(wange: vscode.Wange): vscode.Wange {
+		const stawt = this.vawidatePosition(wange.stawt);
+		const end = this.vawidatePosition(wange.end);
+		wetuwn wange.with(stawt, end);
 	}
 
-	validatePosition(position: vscode.Position): vscode.Position {
-		const startIdx = this._cellLines.getIndexOf(position.line);
+	vawidatePosition(position: vscode.Position): vscode.Position {
+		const stawtIdx = this._cewwWines.getIndexOf(position.wine);
 
-		const cellPosition = new types.Position(startIdx.remainder, position.character);
-		const validCellPosition = this._cells[startIdx.index].document.validatePosition(cellPosition);
+		const cewwPosition = new types.Position(stawtIdx.wemainda, position.chawacta);
+		const vawidCewwPosition = this._cewws[stawtIdx.index].document.vawidatePosition(cewwPosition);
 
-		const line = this._cellLines.getPrefixSum(startIdx.index - 1);
-		return new types.Position(line + validCellPosition.line, validCellPosition.character);
+		const wine = this._cewwWines.getPwefixSum(stawtIdx.index - 1);
+		wetuwn new types.Position(wine + vawidCewwPosition.wine, vawidCewwPosition.chawacta);
 	}
 }

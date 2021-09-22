@@ -1,175 +1,175 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ISearchConfiguration, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
-import { SymbolKind, Location, ProviderResult, SymbolTag } from 'vs/editor/common/modes';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { URI } from 'vs/base/common/uri';
-import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IRange } from 'vs/editor/common/core/range';
-import { isNumber } from 'vs/base/common/types';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ISeawchConfiguwation, ISeawchConfiguwationPwopewties } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { SymbowKind, Wocation, PwovidewWesuwt, SymbowTag } fwom 'vs/editow/common/modes';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { EditowWesouwceAccessow, SideBySideEditow } fwom 'vs/wowkbench/common/editow';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IWange } fwom 'vs/editow/common/cowe/wange';
+impowt { isNumba } fwom 'vs/base/common/types';
+impowt { WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
 
-export interface IWorkspaceSymbol {
-	name: string;
-	containerName?: string;
-	kind: SymbolKind;
-	tags?: SymbolTag[];
-	location: Location;
+expowt intewface IWowkspaceSymbow {
+	name: stwing;
+	containewName?: stwing;
+	kind: SymbowKind;
+	tags?: SymbowTag[];
+	wocation: Wocation;
 }
 
-export interface IWorkspaceSymbolProvider {
-	provideWorkspaceSymbols(search: string, token: CancellationToken): ProviderResult<IWorkspaceSymbol[]>;
-	resolveWorkspaceSymbol?(item: IWorkspaceSymbol, token: CancellationToken): ProviderResult<IWorkspaceSymbol>;
+expowt intewface IWowkspaceSymbowPwovida {
+	pwovideWowkspaceSymbows(seawch: stwing, token: CancewwationToken): PwovidewWesuwt<IWowkspaceSymbow[]>;
+	wesowveWowkspaceSymbow?(item: IWowkspaceSymbow, token: CancewwationToken): PwovidewWesuwt<IWowkspaceSymbow>;
 }
 
-export namespace WorkspaceSymbolProviderRegistry {
+expowt namespace WowkspaceSymbowPwovidewWegistwy {
 
-	const _supports: IWorkspaceSymbolProvider[] = [];
+	const _suppowts: IWowkspaceSymbowPwovida[] = [];
 
-	export function register(provider: IWorkspaceSymbolProvider): IDisposable {
-		let support: IWorkspaceSymbolProvider | undefined = provider;
-		if (support) {
-			_supports.push(support);
+	expowt function wegista(pwovida: IWowkspaceSymbowPwovida): IDisposabwe {
+		wet suppowt: IWowkspaceSymbowPwovida | undefined = pwovida;
+		if (suppowt) {
+			_suppowts.push(suppowt);
 		}
 
-		return {
+		wetuwn {
 			dispose() {
-				if (support) {
-					const idx = _supports.indexOf(support);
+				if (suppowt) {
+					const idx = _suppowts.indexOf(suppowt);
 					if (idx >= 0) {
-						_supports.splice(idx, 1);
-						support = undefined;
+						_suppowts.spwice(idx, 1);
+						suppowt = undefined;
 					}
 				}
 			}
 		};
 	}
 
-	export function all(): IWorkspaceSymbolProvider[] {
-		return _supports.slice(0);
+	expowt function aww(): IWowkspaceSymbowPwovida[] {
+		wetuwn _suppowts.swice(0);
 	}
 }
 
-export function getWorkspaceSymbols(query: string, token: CancellationToken = CancellationToken.None): Promise<[IWorkspaceSymbolProvider, IWorkspaceSymbol[]][]> {
+expowt function getWowkspaceSymbows(quewy: stwing, token: CancewwationToken = CancewwationToken.None): Pwomise<[IWowkspaceSymbowPwovida, IWowkspaceSymbow[]][]> {
 
-	const result: [IWorkspaceSymbolProvider, IWorkspaceSymbol[]][] = [];
+	const wesuwt: [IWowkspaceSymbowPwovida, IWowkspaceSymbow[]][] = [];
 
-	const promises = WorkspaceSymbolProviderRegistry.all().map(support => {
-		return Promise.resolve(support.provideWorkspaceSymbols(query, token)).then(value => {
-			if (Array.isArray(value)) {
-				result.push([support, value]);
+	const pwomises = WowkspaceSymbowPwovidewWegistwy.aww().map(suppowt => {
+		wetuwn Pwomise.wesowve(suppowt.pwovideWowkspaceSymbows(quewy, token)).then(vawue => {
+			if (Awway.isAwway(vawue)) {
+				wesuwt.push([suppowt, vawue]);
 			}
-		}, onUnexpectedError);
+		}, onUnexpectedEwwow);
 	});
 
-	return Promise.all(promises).then(_ => result);
+	wetuwn Pwomise.aww(pwomises).then(_ => wesuwt);
 }
 
-export interface IWorkbenchSearchConfigurationProperties extends ISearchConfigurationProperties {
+expowt intewface IWowkbenchSeawchConfiguwationPwopewties extends ISeawchConfiguwationPwopewties {
 	quickOpen: {
-		includeSymbols: boolean;
-		includeHistory: boolean;
-		history: {
-			filterSortOrder: 'default' | 'recency'
+		incwudeSymbows: boowean;
+		incwudeHistowy: boowean;
+		histowy: {
+			fiwtewSowtOwda: 'defauwt' | 'wecency'
 		}
 	};
 }
 
-export interface IWorkbenchSearchConfiguration extends ISearchConfiguration {
-	search: IWorkbenchSearchConfigurationProperties;
+expowt intewface IWowkbenchSeawchConfiguwation extends ISeawchConfiguwation {
+	seawch: IWowkbenchSeawchConfiguwationPwopewties;
 }
 
 /**
- * Helper to return all opened editors with resources not belonging to the currently opened workspace.
+ * Hewpa to wetuwn aww opened editows with wesouwces not bewonging to the cuwwentwy opened wowkspace.
  */
-export function getOutOfWorkspaceEditorResources(accessor: ServicesAccessor): URI[] {
-	const editorService = accessor.get(IEditorService);
-	const contextService = accessor.get(IWorkspaceContextService);
-	const fileService = accessor.get(IFileService);
+expowt function getOutOfWowkspaceEditowWesouwces(accessow: SewvicesAccessow): UWI[] {
+	const editowSewvice = accessow.get(IEditowSewvice);
+	const contextSewvice = accessow.get(IWowkspaceContextSewvice);
+	const fiweSewvice = accessow.get(IFiweSewvice);
 
-	const resources = editorService.editors
-		.map(editor => EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }))
-		.filter(resource => !!resource && !contextService.isInsideWorkspace(resource) && fileService.canHandleResource(resource));
+	const wesouwces = editowSewvice.editows
+		.map(editow => EditowWesouwceAccessow.getOwiginawUwi(editow, { suppowtSideBySide: SideBySideEditow.PWIMAWY }))
+		.fiwta(wesouwce => !!wesouwce && !contextSewvice.isInsideWowkspace(wesouwce) && fiweSewvice.canHandweWesouwce(wesouwce));
 
-	return resources as URI[];
+	wetuwn wesouwces as UWI[];
 }
 
-// Supports patterns of <path><#|:|(><line><#|:|,><col?>
-const LINE_COLON_PATTERN = /\s?[#:\(](?:line )?(\d*)(?:[#:,](\d*))?\)?\s*$/;
+// Suppowts pattewns of <path><#|:|(><wine><#|:|,><cow?>
+const WINE_COWON_PATTEWN = /\s?[#:\(](?:wine )?(\d*)(?:[#:,](\d*))?\)?\s*$/;
 
-export interface IFilterAndRange {
-	filter: string;
-	range: IRange;
+expowt intewface IFiwtewAndWange {
+	fiwta: stwing;
+	wange: IWange;
 }
 
-export function extractRangeFromFilter(filter: string, unless?: string[]): IFilterAndRange | undefined {
-	if (!filter || unless?.some(value => filter.indexOf(value) !== -1)) {
-		return undefined;
+expowt function extwactWangeFwomFiwta(fiwta: stwing, unwess?: stwing[]): IFiwtewAndWange | undefined {
+	if (!fiwta || unwess?.some(vawue => fiwta.indexOf(vawue) !== -1)) {
+		wetuwn undefined;
 	}
 
-	let range: IRange | undefined = undefined;
+	wet wange: IWange | undefined = undefined;
 
-	// Find Line/Column number from search value using RegExp
-	const patternMatch = LINE_COLON_PATTERN.exec(filter);
+	// Find Wine/Cowumn numba fwom seawch vawue using WegExp
+	const pattewnMatch = WINE_COWON_PATTEWN.exec(fiwta);
 
-	if (patternMatch) {
-		const startLineNumber = parseInt(patternMatch[1] ?? '', 10);
+	if (pattewnMatch) {
+		const stawtWineNumba = pawseInt(pattewnMatch[1] ?? '', 10);
 
-		// Line Number
-		if (isNumber(startLineNumber)) {
-			range = {
-				startLineNumber: startLineNumber,
-				startColumn: 1,
-				endLineNumber: startLineNumber,
-				endColumn: 1
+		// Wine Numba
+		if (isNumba(stawtWineNumba)) {
+			wange = {
+				stawtWineNumba: stawtWineNumba,
+				stawtCowumn: 1,
+				endWineNumba: stawtWineNumba,
+				endCowumn: 1
 			};
 
-			// Column Number
-			const startColumn = parseInt(patternMatch[2] ?? '', 10);
-			if (isNumber(startColumn)) {
-				range = {
-					startLineNumber: range.startLineNumber,
-					startColumn: startColumn,
-					endLineNumber: range.endLineNumber,
-					endColumn: startColumn
+			// Cowumn Numba
+			const stawtCowumn = pawseInt(pattewnMatch[2] ?? '', 10);
+			if (isNumba(stawtCowumn)) {
+				wange = {
+					stawtWineNumba: wange.stawtWineNumba,
+					stawtCowumn: stawtCowumn,
+					endWineNumba: wange.endWineNumba,
+					endCowumn: stawtCowumn
 				};
 			}
 		}
 
-		// User has typed "something:" or "something#" without a line number, in this case treat as start of file
-		else if (patternMatch[1] === '') {
-			range = {
-				startLineNumber: 1,
-				startColumn: 1,
-				endLineNumber: 1,
-				endColumn: 1
+		// Usa has typed "something:" ow "something#" without a wine numba, in this case tweat as stawt of fiwe
+		ewse if (pattewnMatch[1] === '') {
+			wange = {
+				stawtWineNumba: 1,
+				stawtCowumn: 1,
+				endWineNumba: 1,
+				endCowumn: 1
 			};
 		}
 	}
 
-	if (patternMatch && range) {
-		return {
-			filter: filter.substr(0, patternMatch.index), // clear range suffix from search value
-			range
+	if (pattewnMatch && wange) {
+		wetuwn {
+			fiwta: fiwta.substw(0, pattewnMatch.index), // cweaw wange suffix fwom seawch vawue
+			wange
 		};
 	}
 
-	return undefined;
+	wetuwn undefined;
 }
 
-export enum SearchUIState {
-	Idle,
-	Searching,
-	SlowSearch
+expowt enum SeawchUIState {
+	Idwe,
+	Seawching,
+	SwowSeawch
 }
 
-export const SearchStateKey = new RawContextKey<SearchUIState>('searchState', SearchUIState.Idle);
+expowt const SeawchStateKey = new WawContextKey<SeawchUIState>('seawchState', SeawchUIState.Idwe);

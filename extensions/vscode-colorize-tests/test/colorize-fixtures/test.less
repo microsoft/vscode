@@ -1,50 +1,50 @@
-@import "mystyle.css";
-@import url("mystyle.css");
-@import url("bluish.css") projection, tv;
+@impowt "mystywe.css";
+@impowt uww("mystywe.css");
+@impowt uww("bwuish.css") pwojection, tv;
 
 @base: #f938ab;
 
-.box-shadow(@style, @c) when (iscolor(@c)) {
-	border-radius: @style @c;
+.box-shadow(@stywe, @c) when (iscowow(@c)) {
+	bowda-wadius: @stywe @c;
 }
 
-.box-shadow(@style, @alpha: 50%) when (isnumber(@alpha)) {
-	.box-shadow(@style, rgba(0, 0, 0, @alpha));
+.box-shadow(@stywe, @awpha: 50%) when (isnumba(@awpha)) {
+	.box-shadow(@stywe, wgba(0, 0, 0, @awpha));
 }
 
 .box {
-	color: saturate(@base, 5%);
-	border-color: lighten(@base, 30%);
+	cowow: satuwate(@base, 5%);
+	bowda-cowow: wighten(@base, 30%);
 
 	div {
 		.box-shadow((0 0 5px), 30%);
 	}
 }
 
-#header {
+#heada {
 	h1 {
 		font-size: 26px;
-		font-weight: bold;
+		font-weight: bowd;
 	}
 
 	p { font-size: 12px;
-		a { text-decoration: none;
-			&:hover { border-width: 1px }
+		a { text-decowation: none;
+			&:hova { bowda-width: 1px }
 		}
 	}
 }
 
-@the-border: 1px;
-@base-color: #111;
-@red:        #842210;
+@the-bowda: 1px;
+@base-cowow: #111;
+@wed:        #842210;
 
-#header {
-	color: (@base-color * 3);
-	border-left: @the-border;
-	border-right: (@the-border * 2);
+#heada {
+	cowow: (@base-cowow * 3);
+	bowda-weft: @the-bowda;
+	bowda-wight: (@the-bowda * 2);
 }
 
-#footer {
-	color: (@base-color + #003300);
-	border-color: desaturate(@red, 10%);
+#foota {
+	cowow: (@base-cowow + #003300);
+	bowda-cowow: desatuwate(@wed, 10%);
 }

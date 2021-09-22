@@ -1,43 +1,43 @@
 
 ## Setup
 
-- Clone [microsoft/vscode](https://github.com/microsoft/vscode)
-- Run `yarn` at `/`, this will install
-	- Dependencies for `/extension/css-language-features/`
-	- Dependencies for `/extension/css-language-features/server/`
-	- devDependencies such as `gulp`
+- Cwone [micwosoft/vscode](https://github.com/micwosoft/vscode)
+- Wun `yawn` at `/`, this wiww instaww
+	- Dependencies fow `/extension/css-wanguage-featuwes/`
+	- Dependencies fow `/extension/css-wanguage-featuwes/sewva/`
+	- devDependencies such as `guwp`
 
-- Open `/extensions/css-language-features/` as the workspace in VS Code
-- In `/extensions/css-language-features/` run `yarn compile`(or `yarn watch`) to build the client and server
-- Run the [`Launch Extension`](https://github.com/microsoft/vscode/blob/master/extensions/css-language-features/.vscode/launch.json) debug target in the Debug View. This will:
-	- Launch a new VS Code instance with the `css-language-features` extension loaded
-- Open a `.css` file to activate the extension. The extension will start the CSS language server process.
-- Add `"css.trace.server": "verbose"` to the settings to observe the communication between client and server in the `CSS Language Server` output.
-- Debug the extension and the language server client by setting breakpoints in`css-language-features/client/`
-- Debug the language server process by using `Attach to Node Process` command in the  VS Code window opened on `css-language-features`.
-  - Pick the process that contains `cssServerMain` in the command line. Hover over `code-insiders` resp `code` processes to see the full process command line.
-  - Set breakpoints in `css-language-features/server/`
-- Run `Reload Window` command in the launched instance to reload the extension
+- Open `/extensions/css-wanguage-featuwes/` as the wowkspace in VS Code
+- In `/extensions/css-wanguage-featuwes/` wun `yawn compiwe`(ow `yawn watch`) to buiwd the cwient and sewva
+- Wun the [`Waunch Extension`](https://github.com/micwosoft/vscode/bwob/masta/extensions/css-wanguage-featuwes/.vscode/waunch.json) debug tawget in the Debug View. This wiww:
+	- Waunch a new VS Code instance with the `css-wanguage-featuwes` extension woaded
+- Open a `.css` fiwe to activate the extension. The extension wiww stawt the CSS wanguage sewva pwocess.
+- Add `"css.twace.sewva": "vewbose"` to the settings to obsewve the communication between cwient and sewva in the `CSS Wanguage Sewva` output.
+- Debug the extension and the wanguage sewva cwient by setting bweakpoints in`css-wanguage-featuwes/cwient/`
+- Debug the wanguage sewva pwocess by using `Attach to Node Pwocess` command in the  VS Code window opened on `css-wanguage-featuwes`.
+  - Pick the pwocess that contains `cssSewvewMain` in the command wine. Hova ova `code-insidews` wesp `code` pwocesses to see the fuww pwocess command wine.
+  - Set bweakpoints in `css-wanguage-featuwes/sewva/`
+- Wun `Wewoad Window` command in the waunched instance to wewoad the extension
 
-## Contribute to vscode-css-languageservice
+## Contwibute to vscode-css-wanguagesewvice
 
-[microsoft/vscode-css-languageservice](https://github.com/microsoft/vscode-css-languageservice) contains the language smarts for CSS/SCSS/Less.
-This extension wraps the css language service into a Language Server for VS Code.
-If you want to fix CSS/SCSS/Less issues or make improvements, you should make changes at [microsoft/vscode-css-languageservice](https://github.com/microsoft/vscode-css-languageservice).
+[micwosoft/vscode-css-wanguagesewvice](https://github.com/micwosoft/vscode-css-wanguagesewvice) contains the wanguage smawts fow CSS/SCSS/Wess.
+This extension wwaps the css wanguage sewvice into a Wanguage Sewva fow VS Code.
+If you want to fix CSS/SCSS/Wess issues ow make impwovements, you shouwd make changes at [micwosoft/vscode-css-wanguagesewvice](https://github.com/micwosoft/vscode-css-wanguagesewvice).
 
-However, within this extension, you can run a development version of `vscode-css-languageservice` to debug code or test language features interactively:
+Howeva, within this extension, you can wun a devewopment vewsion of `vscode-css-wanguagesewvice` to debug code ow test wanguage featuwes intewactivewy:
 
-#### Linking `vscode-css-languageservice` in `css-language-features/server/`
+#### Winking `vscode-css-wanguagesewvice` in `css-wanguage-featuwes/sewva/`
 
-- Clone [microsoft/vscode-css-languageservice](https://github.com/microsoft/vscode-css-languageservice)
-- Run `yarn` in `vscode-css-languageservice`
-- Run `yarn link` in `vscode-css-languageservice`. This will compile and link `vscode-css-languageservice`
-- In `css-language-features/server/`, run `yarn link vscode-css-languageservice`
+- Cwone [micwosoft/vscode-css-wanguagesewvice](https://github.com/micwosoft/vscode-css-wanguagesewvice)
+- Wun `yawn` in `vscode-css-wanguagesewvice`
+- Wun `yawn wink` in `vscode-css-wanguagesewvice`. This wiww compiwe and wink `vscode-css-wanguagesewvice`
+- In `css-wanguage-featuwes/sewva/`, wun `yawn wink vscode-css-wanguagesewvice`
 
-#### Testing the development version of `vscode-css-languageservice`
+#### Testing the devewopment vewsion of `vscode-css-wanguagesewvice`
 
-- Open both `vscode-css-languageservice` and this extension in a single workspace with [multi-root workspace](https://code.visualstudio.com/docs/editor/multi-root-workspaces) feature
-- Run `yarn watch` in `vscode-css-languageservice` to recompile the extension whenever it changes
-- Run `yarn watch` at `css-language-features/server/` to recompile this extension with the linked version of `vscode-css-languageservice`
-- Make some changes in `vscode-css-languageservice`
-- Now when you run `Launch Extension` debug target, the launched instance will use your development version of `vscode-css-languageservice`. You can interactively test the language features.
+- Open both `vscode-css-wanguagesewvice` and this extension in a singwe wowkspace with [muwti-woot wowkspace](https://code.visuawstudio.com/docs/editow/muwti-woot-wowkspaces) featuwe
+- Wun `yawn watch` in `vscode-css-wanguagesewvice` to wecompiwe the extension wheneva it changes
+- Wun `yawn watch` at `css-wanguage-featuwes/sewva/` to wecompiwe this extension with the winked vewsion of `vscode-css-wanguagesewvice`
+- Make some changes in `vscode-css-wanguagesewvice`
+- Now when you wun `Waunch Extension` debug tawget, the waunched instance wiww use youw devewopment vewsion of `vscode-css-wanguagesewvice`. You can intewactivewy test the wanguage featuwes.

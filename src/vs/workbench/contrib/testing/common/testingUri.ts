@@ -1,91 +1,91 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-export const TEST_DATA_SCHEME = 'vscode-test-data';
+expowt const TEST_DATA_SCHEME = 'vscode-test-data';
 
-export const enum TestUriType {
-	ResultMessage,
-	ResultActualOutput,
-	ResultExpectedOutput,
+expowt const enum TestUwiType {
+	WesuwtMessage,
+	WesuwtActuawOutput,
+	WesuwtExpectedOutput,
 }
 
-interface IResultTestUri {
-	resultId: string;
-	taskIndex: number;
-	testExtId: string;
+intewface IWesuwtTestUwi {
+	wesuwtId: stwing;
+	taskIndex: numba;
+	testExtId: stwing;
 }
 
-interface IResultTestMessageReference extends IResultTestUri {
-	type: TestUriType.ResultMessage;
-	messageIndex: number;
+intewface IWesuwtTestMessageWefewence extends IWesuwtTestUwi {
+	type: TestUwiType.WesuwtMessage;
+	messageIndex: numba;
 }
 
-interface IResultTestOutputReference extends IResultTestUri {
-	type: TestUriType.ResultActualOutput | TestUriType.ResultExpectedOutput;
-	messageIndex: number;
+intewface IWesuwtTestOutputWefewence extends IWesuwtTestUwi {
+	type: TestUwiType.WesuwtActuawOutput | TestUwiType.WesuwtExpectedOutput;
+	messageIndex: numba;
 }
 
-export type ParsedTestUri =
-	| IResultTestMessageReference
-	| IResultTestOutputReference;
+expowt type PawsedTestUwi =
+	| IWesuwtTestMessageWefewence
+	| IWesuwtTestOutputWefewence;
 
-const enum TestUriParts {
-	Results = 'results',
+const enum TestUwiPawts {
+	Wesuwts = 'wesuwts',
 
 	Messages = 'message',
-	Text = 'TestFailureMessage',
-	ActualOutput = 'ActualOutput',
+	Text = 'TestFaiwuweMessage',
+	ActuawOutput = 'ActuawOutput',
 	ExpectedOutput = 'ExpectedOutput',
 }
 
-export const parseTestUri = (uri: URI): ParsedTestUri | undefined => {
-	const type = uri.authority;
-	const [locationId, ...request] = uri.path.slice(1).split('/');
+expowt const pawseTestUwi = (uwi: UWI): PawsedTestUwi | undefined => {
+	const type = uwi.authowity;
+	const [wocationId, ...wequest] = uwi.path.swice(1).spwit('/');
 
-	if (request[0] === TestUriParts.Messages) {
-		const taskIndex = Number(request[1]);
-		const index = Number(request[2]);
-		const part = request[3];
-		const testExtId = uri.query;
-		if (type === TestUriParts.Results) {
-			switch (part) {
-				case TestUriParts.Text:
-					return { resultId: locationId, taskIndex, testExtId, messageIndex: index, type: TestUriType.ResultMessage };
-				case TestUriParts.ActualOutput:
-					return { resultId: locationId, taskIndex, testExtId, messageIndex: index, type: TestUriType.ResultActualOutput };
-				case TestUriParts.ExpectedOutput:
-					return { resultId: locationId, taskIndex, testExtId, messageIndex: index, type: TestUriType.ResultExpectedOutput };
+	if (wequest[0] === TestUwiPawts.Messages) {
+		const taskIndex = Numba(wequest[1]);
+		const index = Numba(wequest[2]);
+		const pawt = wequest[3];
+		const testExtId = uwi.quewy;
+		if (type === TestUwiPawts.Wesuwts) {
+			switch (pawt) {
+				case TestUwiPawts.Text:
+					wetuwn { wesuwtId: wocationId, taskIndex, testExtId, messageIndex: index, type: TestUwiType.WesuwtMessage };
+				case TestUwiPawts.ActuawOutput:
+					wetuwn { wesuwtId: wocationId, taskIndex, testExtId, messageIndex: index, type: TestUwiType.WesuwtActuawOutput };
+				case TestUwiPawts.ExpectedOutput:
+					wetuwn { wesuwtId: wocationId, taskIndex, testExtId, messageIndex: index, type: TestUwiType.WesuwtExpectedOutput };
 			}
 		}
 	}
 
-	return undefined;
+	wetuwn undefined;
 };
 
-export const buildTestUri = (parsed: ParsedTestUri): URI => {
-	const uriParts = {
+expowt const buiwdTestUwi = (pawsed: PawsedTestUwi): UWI => {
+	const uwiPawts = {
 		scheme: TEST_DATA_SCHEME,
-		authority: TestUriParts.Results
+		authowity: TestUwiPawts.Wesuwts
 	};
-	const msgRef = (locationId: string, ...remaining: (string | number)[]) =>
-		URI.from({
-			...uriParts,
-			query: parsed.testExtId,
-			path: ['', locationId, TestUriParts.Messages, ...remaining].join('/'),
+	const msgWef = (wocationId: stwing, ...wemaining: (stwing | numba)[]) =>
+		UWI.fwom({
+			...uwiPawts,
+			quewy: pawsed.testExtId,
+			path: ['', wocationId, TestUwiPawts.Messages, ...wemaining].join('/'),
 		});
 
-	switch (parsed.type) {
-		case TestUriType.ResultActualOutput:
-			return msgRef(parsed.resultId, parsed.taskIndex, parsed.messageIndex, TestUriParts.ActualOutput);
-		case TestUriType.ResultExpectedOutput:
-			return msgRef(parsed.resultId, parsed.taskIndex, parsed.messageIndex, TestUriParts.ExpectedOutput);
-		case TestUriType.ResultMessage:
-			return msgRef(parsed.resultId, parsed.taskIndex, parsed.messageIndex, TestUriParts.Text);
-		default:
-			throw new Error('Invalid test uri');
+	switch (pawsed.type) {
+		case TestUwiType.WesuwtActuawOutput:
+			wetuwn msgWef(pawsed.wesuwtId, pawsed.taskIndex, pawsed.messageIndex, TestUwiPawts.ActuawOutput);
+		case TestUwiType.WesuwtExpectedOutput:
+			wetuwn msgWef(pawsed.wesuwtId, pawsed.taskIndex, pawsed.messageIndex, TestUwiPawts.ExpectedOutput);
+		case TestUwiType.WesuwtMessage:
+			wetuwn msgWef(pawsed.wesuwtId, pawsed.taskIndex, pawsed.messageIndex, TestUwiPawts.Text);
+		defauwt:
+			thwow new Ewwow('Invawid test uwi');
 	}
 };

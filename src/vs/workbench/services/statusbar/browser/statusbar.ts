@@ -1,156 +1,156 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { Event } from 'vs/base/common/event';
-import { Command } from 'vs/editor/common/modes';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IStatusbarEntryLocation } from 'vs/workbench/browser/parts/statusbar/statusbarModel';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ThemeCowow } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { Command } fwom 'vs/editow/common/modes';
+impowt { IMawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { IStatusbawEntwyWocation } fwom 'vs/wowkbench/bwowsa/pawts/statusbaw/statusbawModew';
 
-export const IStatusbarService = createDecorator<IStatusbarService>('statusbarService');
+expowt const IStatusbawSewvice = cweateDecowatow<IStatusbawSewvice>('statusbawSewvice');
 
-export const enum StatusbarAlignment {
-	LEFT,
-	RIGHT
+expowt const enum StatusbawAwignment {
+	WEFT,
+	WIGHT
 }
 
-export const ShowTooltipCommand: Command = {
-	id: 'statusBar.entry.showTooltip',
-	title: ''
+expowt const ShowToowtipCommand: Command = {
+	id: 'statusBaw.entwy.showToowtip',
+	titwe: ''
 };
 
 /**
- * A declarative way of describing a status bar entry
+ * A decwawative way of descwibing a status baw entwy
  */
-export interface IStatusbarEntry {
+expowt intewface IStatusbawEntwy {
 
 	/**
-	 * The (short) name to show for the entry like 'Language Indicator',
+	 * The (showt) name to show fow the entwy wike 'Wanguage Indicatow',
 	 * 'Git Status' etc.
 	 */
-	readonly name: string;
+	weadonwy name: stwing;
 
 	/**
-	 * The text to show for the entry. You can embed icons in the text by leveraging the syntax:
+	 * The text to show fow the entwy. You can embed icons in the text by wevewaging the syntax:
 	 *
-	 * `My text $(icon name) contains icons like $(icon name) this one.`
+	 * `My text $(icon name) contains icons wike $(icon name) this one.`
 	 */
-	readonly text: string;
+	weadonwy text: stwing;
 
 	/**
-	 * Text to be read out by the screen reader.
+	 * Text to be wead out by the scween weada.
 	 */
-	readonly ariaLabel: string;
+	weadonwy awiaWabew: stwing;
 
 	/**
-	 * Role of the status bar entry which defines how a screen reader interacts with it.
-	 * Default is 'button'.
+	 * Wowe of the status baw entwy which defines how a scween weada intewacts with it.
+	 * Defauwt is 'button'.
 	 */
-	readonly role?: string;
+	weadonwy wowe?: stwing;
 
 	/**
-	 * An optional tooltip text to show when you hover over the entry
+	 * An optionaw toowtip text to show when you hova ova the entwy
 	 */
-	readonly tooltip?: string | IMarkdownString | HTMLElement;
+	weadonwy toowtip?: stwing | IMawkdownStwing | HTMWEwement;
 
 	/**
-	 * An optional color to use for the entry
+	 * An optionaw cowow to use fow the entwy
 	 */
-	readonly color?: string | ThemeColor;
+	weadonwy cowow?: stwing | ThemeCowow;
 
 	/**
-	 * An optional background color to use for the entry
+	 * An optionaw backgwound cowow to use fow the entwy
 	 */
-	readonly backgroundColor?: string | ThemeColor;
+	weadonwy backgwoundCowow?: stwing | ThemeCowow;
 
 	/**
-	 * An optional command to execute on click.
+	 * An optionaw command to execute on cwick.
 	 *
-	 * Can use the special `ShowTooltipCommand` to
-	 * show the tooltip on click if provided.
+	 * Can use the speciaw `ShowToowtipCommand` to
+	 * show the toowtip on cwick if pwovided.
 	 */
-	readonly command?: string | Command | typeof ShowTooltipCommand;
+	weadonwy command?: stwing | Command | typeof ShowToowtipCommand;
 
 	/**
-	 * Whether to show a beak above the status bar entry.
+	 * Whetha to show a beak above the status baw entwy.
 	 */
-	readonly showBeak?: boolean;
+	weadonwy showBeak?: boowean;
 
 	/**
-	 * Will enable a spinning icon in front of the text to indicate progress.
+	 * Wiww enabwe a spinning icon in fwont of the text to indicate pwogwess.
 	 */
-	readonly showProgress?: boolean;
+	weadonwy showPwogwess?: boowean;
 }
 
-export interface IStatusbarService {
+expowt intewface IStatusbawSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * An event that is triggered when an entry's visibility is changed.
+	 * An event that is twiggewed when an entwy's visibiwity is changed.
 	 */
-	readonly onDidChangeEntryVisibility: Event<{ id: string, visible: boolean }>;
+	weadonwy onDidChangeEntwyVisibiwity: Event<{ id: stwing, visibwe: boowean }>;
 
 	/**
-	 * Adds an entry to the statusbar with the given alignment and priority. Use the returned accessor
-	 * to update or remove the statusbar entry.
+	 * Adds an entwy to the statusbaw with the given awignment and pwiowity. Use the wetuwned accessow
+	 * to update ow wemove the statusbaw entwy.
 	 *
-	 * @param id identifier of the entry is needed to allow users to hide entries via settings
-	 * @param alignment either LEFT or RIGHT side in the status bar
-	 * @param priority items get arranged from highest priority to lowest priority from left to right
-	 * in their respective alignment slot
+	 * @pawam id identifia of the entwy is needed to awwow usews to hide entwies via settings
+	 * @pawam awignment eitha WEFT ow WIGHT side in the status baw
+	 * @pawam pwiowity items get awwanged fwom highest pwiowity to wowest pwiowity fwom weft to wight
+	 * in theiw wespective awignment swot
 	 */
-	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priority?: number): IStatusbarEntryAccessor;
+	addEntwy(entwy: IStatusbawEntwy, id: stwing, awignment: StatusbawAwignment, pwiowity?: numba): IStatusbawEntwyAccessow;
 
 	/**
-	 * Adds an entry to the statusbar with the given alignment relative to another entry. Use the returned
-	 * accessor to update or remove the statusbar entry.
+	 * Adds an entwy to the statusbaw with the given awignment wewative to anotha entwy. Use the wetuwned
+	 * accessow to update ow wemove the statusbaw entwy.
 	 *
-	 * @param id identifier of the entry is needed to allow users to hide entries via settings
-	 * @param alignment either LEFT or RIGHT side in the status bar
-	 * @param location a reference to another entry to position relative to
+	 * @pawam id identifia of the entwy is needed to awwow usews to hide entwies via settings
+	 * @pawam awignment eitha WEFT ow WIGHT side in the status baw
+	 * @pawam wocation a wefewence to anotha entwy to position wewative to
 	 */
-	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, location?: IStatusbarEntryLocation): IStatusbarEntryAccessor;
+	addEntwy(entwy: IStatusbawEntwy, id: stwing, awignment: StatusbawAwignment, wocation?: IStatusbawEntwyWocation): IStatusbawEntwyAccessow;
 
 	/**
-	 * Return if an entry is visible or not.
+	 * Wetuwn if an entwy is visibwe ow not.
 	 */
-	isEntryVisible(id: string): boolean;
+	isEntwyVisibwe(id: stwing): boowean;
 
 	/**
-	 * Allows to update an entry's visibility with the provided ID.
+	 * Awwows to update an entwy's visibiwity with the pwovided ID.
 	 */
-	updateEntryVisibility(id: string, visible: boolean): void;
+	updateEntwyVisibiwity(id: stwing, visibwe: boowean): void;
 
 	/**
-	 * Focused the status bar. If one of the status bar entries was focused, focuses it directly.
+	 * Focused the status baw. If one of the status baw entwies was focused, focuses it diwectwy.
 	 */
-	focus(preserveEntryFocus?: boolean): void;
+	focus(pwesewveEntwyFocus?: boowean): void;
 
 	/**
-	 * Focuses the next status bar entry. If none focused, focuses the first.
+	 * Focuses the next status baw entwy. If none focused, focuses the fiwst.
 	 */
-	focusNextEntry(): void;
+	focusNextEntwy(): void;
 
 	/**
-	 * Focuses the previous status bar entry. If none focused, focuses the last.
+	 * Focuses the pwevious status baw entwy. If none focused, focuses the wast.
 	 */
-	focusPreviousEntry(): void;
+	focusPweviousEntwy(): void;
 
 	/**
-	 *	Returns true if a status bar entry is focused.
+	 *	Wetuwns twue if a status baw entwy is focused.
 	 */
-	isEntryFocused(): boolean;
+	isEntwyFocused(): boowean;
 }
 
-export interface IStatusbarEntryAccessor extends IDisposable {
+expowt intewface IStatusbawEntwyAccessow extends IDisposabwe {
 
 	/**
-	 * Allows to update an existing status bar entry.
+	 * Awwows to update an existing status baw entwy.
 	 */
-	update(properties: IStatusbarEntry): void;
+	update(pwopewties: IStatusbawEntwy): void;
 }

@@ -1,50 +1,50 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { ICommand, ICuwsowStateComputewData, IEditOpewationBuiwda } fwom 'vs/editow/common/editowCommon';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
 
-export class SurroundSelectionCommand implements ICommand {
-	private readonly _range: Selection;
-	private readonly _charBeforeSelection: string;
-	private readonly _charAfterSelection: string;
+expowt cwass SuwwoundSewectionCommand impwements ICommand {
+	pwivate weadonwy _wange: Sewection;
+	pwivate weadonwy _chawBefoweSewection: stwing;
+	pwivate weadonwy _chawAftewSewection: stwing;
 
-	constructor(range: Selection, charBeforeSelection: string, charAfterSelection: string) {
-		this._range = range;
-		this._charBeforeSelection = charBeforeSelection;
-		this._charAfterSelection = charAfterSelection;
+	constwuctow(wange: Sewection, chawBefoweSewection: stwing, chawAftewSewection: stwing) {
+		this._wange = wange;
+		this._chawBefoweSewection = chawBefoweSewection;
+		this._chawAftewSewection = chawAftewSewection;
 	}
 
-	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
-		builder.addTrackedEditOperation(new Range(
-			this._range.startLineNumber,
-			this._range.startColumn,
-			this._range.startLineNumber,
-			this._range.startColumn
-		), this._charBeforeSelection);
+	pubwic getEditOpewations(modew: ITextModew, buiwda: IEditOpewationBuiwda): void {
+		buiwda.addTwackedEditOpewation(new Wange(
+			this._wange.stawtWineNumba,
+			this._wange.stawtCowumn,
+			this._wange.stawtWineNumba,
+			this._wange.stawtCowumn
+		), this._chawBefoweSewection);
 
-		builder.addTrackedEditOperation(new Range(
-			this._range.endLineNumber,
-			this._range.endColumn,
-			this._range.endLineNumber,
-			this._range.endColumn
-		), this._charAfterSelection);
+		buiwda.addTwackedEditOpewation(new Wange(
+			this._wange.endWineNumba,
+			this._wange.endCowumn,
+			this._wange.endWineNumba,
+			this._wange.endCowumn
+		), this._chawAftewSewection);
 	}
 
-	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		let inverseEditOperations = helper.getInverseEditOperations();
-		let firstOperationRange = inverseEditOperations[0].range;
-		let secondOperationRange = inverseEditOperations[1].range;
+	pubwic computeCuwsowState(modew: ITextModew, hewpa: ICuwsowStateComputewData): Sewection {
+		wet invewseEditOpewations = hewpa.getInvewseEditOpewations();
+		wet fiwstOpewationWange = invewseEditOpewations[0].wange;
+		wet secondOpewationWange = invewseEditOpewations[1].wange;
 
-		return new Selection(
-			firstOperationRange.endLineNumber,
-			firstOperationRange.endColumn,
-			secondOperationRange.endLineNumber,
-			secondOperationRange.endColumn - this._charAfterSelection.length
+		wetuwn new Sewection(
+			fiwstOpewationWange.endWineNumba,
+			fiwstOpewationWange.endCowumn,
+			secondOpewationWange.endWineNumba,
+			secondOpewationWange.endCowumn - this._chawAftewSewection.wength
 		);
 	}
 }

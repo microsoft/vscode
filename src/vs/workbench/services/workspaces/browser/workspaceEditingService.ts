@@ -1,56 +1,56 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { AbstractWorkspaceEditingService } from 'vs/workbench/services/workspaces/browser/abstractWorkspaceEditingService';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { URI } from 'vs/base/common/uri';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IJSONEditingSewvice } fwom 'vs/wowkbench/sewvices/configuwation/common/jsonEditing';
+impowt { IWowkspacesSewvice } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { WowkspaceSewvice } fwom 'vs/wowkbench/sewvices/configuwation/bwowsa/configuwationSewvice';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IFiweDiawogSewvice, IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ITextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { AbstwactWowkspaceEditingSewvice } fwom 'vs/wowkbench/sewvices/wowkspaces/bwowsa/abstwactWowkspaceEditingSewvice';
+impowt { IWowkspaceEditingSewvice } fwom 'vs/wowkbench/sewvices/wowkspaces/common/wowkspaceEditing';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { IWowkspaceTwustManagementSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
 
-export class BrowserWorkspaceEditingService extends AbstractWorkspaceEditingService {
+expowt cwass BwowsewWowkspaceEditingSewvice extends AbstwactWowkspaceEditingSewvice {
 
-	constructor(
-		@IJSONEditingService jsonEditingService: IJSONEditingService,
-		@IWorkspaceContextService contextService: WorkspaceService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@INotificationService notificationService: INotificationService,
-		@ICommandService commandService: ICommandService,
-		@IFileService fileService: IFileService,
-		@ITextFileService textFileService: ITextFileService,
-		@IWorkspacesService workspacesService: IWorkspacesService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IFileDialogService fileDialogService: IFileDialogService,
-		@IDialogService dialogService: IDialogService,
-		@IHostService hostService: IHostService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService
+	constwuctow(
+		@IJSONEditingSewvice jsonEditingSewvice: IJSONEditingSewvice,
+		@IWowkspaceContextSewvice contextSewvice: WowkspaceSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@ICommandSewvice commandSewvice: ICommandSewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@ITextFiweSewvice textFiweSewvice: ITextFiweSewvice,
+		@IWowkspacesSewvice wowkspacesSewvice: IWowkspacesSewvice,
+		@IWowkbenchEnviwonmentSewvice enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IFiweDiawogSewvice fiweDiawogSewvice: IFiweDiawogSewvice,
+		@IDiawogSewvice diawogSewvice: IDiawogSewvice,
+		@IHostSewvice hostSewvice: IHostSewvice,
+		@IUwiIdentitySewvice uwiIdentitySewvice: IUwiIdentitySewvice,
+		@IWowkspaceTwustManagementSewvice wowkspaceTwustManagementSewvice: IWowkspaceTwustManagementSewvice
 	) {
-		super(jsonEditingService, contextService, configurationService, notificationService, commandService, fileService, textFileService, workspacesService, environmentService, fileDialogService, dialogService, hostService, uriIdentityService, workspaceTrustManagementService);
+		supa(jsonEditingSewvice, contextSewvice, configuwationSewvice, notificationSewvice, commandSewvice, fiweSewvice, textFiweSewvice, wowkspacesSewvice, enviwonmentSewvice, fiweDiawogSewvice, diawogSewvice, hostSewvice, uwiIdentitySewvice, wowkspaceTwustManagementSewvice);
 	}
 
-	async enterWorkspace(path: URI): Promise<void> {
-		const result = await this.doEnterWorkspace(path);
-		if (result) {
+	async entewWowkspace(path: UWI): Pwomise<void> {
+		const wesuwt = await this.doEntewWowkspace(path);
+		if (wesuwt) {
 
-			// Open workspace in same window
-			await this.hostService.openWindow([{ workspaceUri: path }], { forceReuseWindow: true });
+			// Open wowkspace in same window
+			await this.hostSewvice.openWindow([{ wowkspaceUwi: path }], { fowceWeuseWindow: twue });
 		}
 	}
 }
 
-registerSingleton(IWorkspaceEditingService, BrowserWorkspaceEditingService, true);
+wegistewSingweton(IWowkspaceEditingSewvice, BwowsewWowkspaceEditingSewvice, twue);

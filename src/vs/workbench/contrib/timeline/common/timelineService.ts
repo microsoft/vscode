@@ -1,130 +1,130 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-// import { basename } from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ITimelineService, TimelineChangeEvent, TimelineOptions, TimelineProvidersChangeEvent, TimelineProvider, InternalTimelineOptions, TimelinePaneId } from './timeline';
-import { IViewsService } from 'vs/workbench/common/views';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+// impowt { basename } fwom 'vs/base/common/path';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { ITimewineSewvice, TimewineChangeEvent, TimewineOptions, TimewinePwovidewsChangeEvent, TimewinePwovida, IntewnawTimewineOptions, TimewinePaneId } fwom './timewine';
+impowt { IViewsSewvice } fwom 'vs/wowkbench/common/views';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKey, IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
 
-export const TimelineHasProviderContext = new RawContextKey<boolean>('timelineHasProvider', false);
+expowt const TimewineHasPwovidewContext = new WawContextKey<boowean>('timewineHasPwovida', fawse);
 
-export class TimelineService implements ITimelineService {
-	declare readonly _serviceBrand: undefined;
+expowt cwass TimewineSewvice impwements ITimewineSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _onDidChangeProviders = new Emitter<TimelineProvidersChangeEvent>();
-	readonly onDidChangeProviders: Event<TimelineProvidersChangeEvent> = this._onDidChangeProviders.event;
+	pwivate weadonwy _onDidChangePwovidews = new Emitta<TimewinePwovidewsChangeEvent>();
+	weadonwy onDidChangePwovidews: Event<TimewinePwovidewsChangeEvent> = this._onDidChangePwovidews.event;
 
-	private readonly _onDidChangeTimeline = new Emitter<TimelineChangeEvent>();
-	readonly onDidChangeTimeline: Event<TimelineChangeEvent> = this._onDidChangeTimeline.event;
-	private readonly _onDidChangeUri = new Emitter<URI>();
-	readonly onDidChangeUri: Event<URI> = this._onDidChangeUri.event;
+	pwivate weadonwy _onDidChangeTimewine = new Emitta<TimewineChangeEvent>();
+	weadonwy onDidChangeTimewine: Event<TimewineChangeEvent> = this._onDidChangeTimewine.event;
+	pwivate weadonwy _onDidChangeUwi = new Emitta<UWI>();
+	weadonwy onDidChangeUwi: Event<UWI> = this._onDidChangeUwi.event;
 
-	private readonly hasProviderContext: IContextKey<boolean>;
-	private readonly providers = new Map<string, TimelineProvider>();
-	private readonly providerSubscriptions = new Map<string, IDisposable>();
+	pwivate weadonwy hasPwovidewContext: IContextKey<boowean>;
+	pwivate weadonwy pwovidews = new Map<stwing, TimewinePwovida>();
+	pwivate weadonwy pwovidewSubscwiptions = new Map<stwing, IDisposabwe>();
 
-	constructor(
-		@ILogService private readonly logService: ILogService,
-		@IViewsService protected viewsService: IViewsService,
-		@IConfigurationService protected configurationService: IConfigurationService,
-		@IContextKeyService protected contextKeyService: IContextKeyService,
+	constwuctow(
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IViewsSewvice pwotected viewsSewvice: IViewsSewvice,
+		@IConfiguwationSewvice pwotected configuwationSewvice: IConfiguwationSewvice,
+		@IContextKeySewvice pwotected contextKeySewvice: IContextKeySewvice,
 	) {
-		this.hasProviderContext = TimelineHasProviderContext.bindTo(this.contextKeyService);
-		this.updateHasProviderContext();
+		this.hasPwovidewContext = TimewineHasPwovidewContext.bindTo(this.contextKeySewvice);
+		this.updateHasPwovidewContext();
 
-		// let source = 'fast-source';
-		// this.registerTimelineProvider({
+		// wet souwce = 'fast-souwce';
+		// this.wegistewTimewinePwovida({
 		// 	scheme: '*',
-		// 	id: source,
-		// 	label: 'Fast Source',
-		// 	provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: { cacheResults?: boolean | undefined; }) {
-		// 		if (options.cursor === undefined) {
-		// 			return Promise.resolve<Timeline>({
-		// 				source: source,
+		// 	id: souwce,
+		// 	wabew: 'Fast Souwce',
+		// 	pwovideTimewine(uwi: UWI, options: TimewineOptions, token: CancewwationToken, intewnawOptions?: { cacheWesuwts?: boowean | undefined; }) {
+		// 		if (options.cuwsow === undefined) {
+		// 			wetuwn Pwomise.wesowve<Timewine>({
+		// 				souwce: souwce,
 		// 				items: [
 		// 					{
-		// 						handle: `${source}|1`,
+		// 						handwe: `${souwce}|1`,
 		// 						id: '1',
-		// 						label: 'Fast Timeline1',
-		// 						description: '',
+		// 						wabew: 'Fast Timewine1',
+		// 						descwiption: '',
 		// 						timestamp: Date.now(),
-		// 						source: source
+		// 						souwce: souwce
 		// 					},
 		// 					{
-		// 						handle: `${source}|2`,
+		// 						handwe: `${souwce}|2`,
 		// 						id: '2',
-		// 						label: 'Fast Timeline2',
-		// 						description: '',
+		// 						wabew: 'Fast Timewine2',
+		// 						descwiption: '',
 		// 						timestamp: Date.now() - 3000000000,
-		// 						source: source
+		// 						souwce: souwce
 		// 					}
 		// 				],
 		// 				paging: {
-		// 					cursor: 'next'
+		// 					cuwsow: 'next'
 		// 				}
 		// 			});
 		// 		}
-		// 		return Promise.resolve<Timeline>({
-		// 			source: source,
+		// 		wetuwn Pwomise.wesowve<Timewine>({
+		// 			souwce: souwce,
 		// 			items: [
 		// 				{
-		// 					handle: `${source}|3`,
+		// 					handwe: `${souwce}|3`,
 		// 					id: '3',
-		// 					label: 'Fast Timeline3',
-		// 					description: '',
+		// 					wabew: 'Fast Timewine3',
+		// 					descwiption: '',
 		// 					timestamp: Date.now() - 4000000000,
-		// 					source: source
+		// 					souwce: souwce
 		// 				},
 		// 				{
-		// 					handle: `${source}|4`,
+		// 					handwe: `${souwce}|4`,
 		// 					id: '4',
-		// 					label: 'Fast Timeline4',
-		// 					description: '',
+		// 					wabew: 'Fast Timewine4',
+		// 					descwiption: '',
 		// 					timestamp: Date.now() - 300000000000,
-		// 					source: source
+		// 					souwce: souwce
 		// 				}
 		// 			],
 		// 			paging: {
-		// 				cursor: undefined
+		// 				cuwsow: undefined
 		// 			}
 		// 		});
 		// 	},
 		// 	dispose() { }
 		// });
 
-		// let source = 'slow-source';
-		// this.registerTimelineProvider({
+		// wet souwce = 'swow-souwce';
+		// this.wegistewTimewinePwovida({
 		// 	scheme: '*',
-		// 	id: source,
-		// 	label: 'Slow Source',
-		// 	provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: { cacheResults?: boolean | undefined; }) {
-		// 		return new Promise<Timeline>(resolve => setTimeout(() => {
-		// 			resolve({
-		// 				source: source,
+		// 	id: souwce,
+		// 	wabew: 'Swow Souwce',
+		// 	pwovideTimewine(uwi: UWI, options: TimewineOptions, token: CancewwationToken, intewnawOptions?: { cacheWesuwts?: boowean | undefined; }) {
+		// 		wetuwn new Pwomise<Timewine>(wesowve => setTimeout(() => {
+		// 			wesowve({
+		// 				souwce: souwce,
 		// 				items: [
 		// 					{
-		// 						handle: `${source}|1`,
+		// 						handwe: `${souwce}|1`,
 		// 						id: '1',
-		// 						label: 'Slow Timeline1',
-		// 						description: basename(uri.fsPath),
+		// 						wabew: 'Swow Timewine1',
+		// 						descwiption: basename(uwi.fsPath),
 		// 						timestamp: Date.now(),
-		// 						source: source
+		// 						souwce: souwce
 		// 					},
 		// 					{
-		// 						handle: `${source}|2`,
+		// 						handwe: `${souwce}|2`,
 		// 						id: '2',
-		// 						label: 'Slow Timeline2',
-		// 						description: basename(uri.fsPath),
+		// 						wabew: 'Swow Timewine2',
+		// 						descwiption: basename(uwi.fsPath),
 		// 						timestamp: new Date(0).getTime(),
-		// 						source: source
+		// 						souwce: souwce
 		// 					}
 		// 				]
 		// 			});
@@ -133,31 +133,31 @@ export class TimelineService implements ITimelineService {
 		// 	dispose() { }
 		// });
 
-		// source = 'very-slow-source';
-		// this.registerTimelineProvider({
+		// souwce = 'vewy-swow-souwce';
+		// this.wegistewTimewinePwovida({
 		// 	scheme: '*',
-		// 	id: source,
-		// 	label: 'Very Slow Source',
-		// 	provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: { cacheResults?: boolean | undefined; }) {
-		// 		return new Promise<Timeline>(resolve => setTimeout(() => {
-		// 			resolve({
-		// 				source: source,
+		// 	id: souwce,
+		// 	wabew: 'Vewy Swow Souwce',
+		// 	pwovideTimewine(uwi: UWI, options: TimewineOptions, token: CancewwationToken, intewnawOptions?: { cacheWesuwts?: boowean | undefined; }) {
+		// 		wetuwn new Pwomise<Timewine>(wesowve => setTimeout(() => {
+		// 			wesowve({
+		// 				souwce: souwce,
 		// 				items: [
 		// 					{
-		// 						handle: `${source}|1`,
+		// 						handwe: `${souwce}|1`,
 		// 						id: '1',
-		// 						label: 'VERY Slow Timeline1',
-		// 						description: basename(uri.fsPath),
+		// 						wabew: 'VEWY Swow Timewine1',
+		// 						descwiption: basename(uwi.fsPath),
 		// 						timestamp: Date.now(),
-		// 						source: source
+		// 						souwce: souwce
 		// 					},
 		// 					{
-		// 						handle: `${source}|2`,
+		// 						handwe: `${souwce}|2`,
 		// 						id: '2',
-		// 						label: 'VERY Slow Timeline2',
-		// 						description: basename(uri.fsPath),
+		// 						wabew: 'VEWY Swow Timewine2',
+		// 						descwiption: basename(uwi.fsPath),
 		// 						timestamp: new Date(0).getTime(),
-		// 						source: source
+		// 						souwce: souwce
 		// 					}
 		// 				]
 		// 			});
@@ -167,99 +167,99 @@ export class TimelineService implements ITimelineService {
 		// });
 	}
 
-	getSources() {
-		return [...this.providers.values()].map(p => ({ id: p.id, label: p.label }));
+	getSouwces() {
+		wetuwn [...this.pwovidews.vawues()].map(p => ({ id: p.id, wabew: p.wabew }));
 	}
 
-	getTimeline(id: string, uri: URI, options: TimelineOptions, tokenSource: CancellationTokenSource, internalOptions?: InternalTimelineOptions) {
-		this.logService.trace(`TimelineService#getTimeline(${id}): uri=${uri.toString(true)}`);
+	getTimewine(id: stwing, uwi: UWI, options: TimewineOptions, tokenSouwce: CancewwationTokenSouwce, intewnawOptions?: IntewnawTimewineOptions) {
+		this.wogSewvice.twace(`TimewineSewvice#getTimewine(${id}): uwi=${uwi.toStwing(twue)}`);
 
-		const provider = this.providers.get(id);
-		if (provider === undefined) {
-			return undefined;
+		const pwovida = this.pwovidews.get(id);
+		if (pwovida === undefined) {
+			wetuwn undefined;
 		}
 
-		if (typeof provider.scheme === 'string') {
-			if (provider.scheme !== '*' && provider.scheme !== uri.scheme) {
-				return undefined;
+		if (typeof pwovida.scheme === 'stwing') {
+			if (pwovida.scheme !== '*' && pwovida.scheme !== uwi.scheme) {
+				wetuwn undefined;
 			}
-		} else if (!provider.scheme.includes(uri.scheme)) {
-			return undefined;
+		} ewse if (!pwovida.scheme.incwudes(uwi.scheme)) {
+			wetuwn undefined;
 		}
 
-		return {
-			result: provider.provideTimeline(uri, options, tokenSource.token, internalOptions)
-				.then(result => {
-					if (result === undefined) {
-						return undefined;
+		wetuwn {
+			wesuwt: pwovida.pwovideTimewine(uwi, options, tokenSouwce.token, intewnawOptions)
+				.then(wesuwt => {
+					if (wesuwt === undefined) {
+						wetuwn undefined;
 					}
 
-					result.items = result.items.map(item => ({ ...item, source: provider.id }));
-					result.items.sort((a, b) => (b.timestamp - a.timestamp) || b.source.localeCompare(a.source, undefined, { numeric: true, sensitivity: 'base' }));
+					wesuwt.items = wesuwt.items.map(item => ({ ...item, souwce: pwovida.id }));
+					wesuwt.items.sowt((a, b) => (b.timestamp - a.timestamp) || b.souwce.wocaweCompawe(a.souwce, undefined, { numewic: twue, sensitivity: 'base' }));
 
-					return result;
+					wetuwn wesuwt;
 				}),
 			options: options,
-			source: provider.id,
-			tokenSource: tokenSource,
-			uri: uri
+			souwce: pwovida.id,
+			tokenSouwce: tokenSouwce,
+			uwi: uwi
 		};
 	}
 
-	registerTimelineProvider(provider: TimelineProvider): IDisposable {
-		this.logService.trace(`TimelineService#registerTimelineProvider: id=${provider.id}`);
+	wegistewTimewinePwovida(pwovida: TimewinePwovida): IDisposabwe {
+		this.wogSewvice.twace(`TimewineSewvice#wegistewTimewinePwovida: id=${pwovida.id}`);
 
-		const id = provider.id;
+		const id = pwovida.id;
 
-		const existing = this.providers.get(id);
+		const existing = this.pwovidews.get(id);
 		if (existing) {
-			// For now to deal with https://github.com/microsoft/vscode/issues/89553 allow any overwritting here (still will be blocked in the Extension Host)
-			// TODO@eamodio: Ultimately will need to figure out a way to unregister providers when the Extension Host restarts/crashes
-			// throw new Error(`Timeline Provider ${id} already exists.`);
-			try {
+			// Fow now to deaw with https://github.com/micwosoft/vscode/issues/89553 awwow any ovewwwitting hewe (stiww wiww be bwocked in the Extension Host)
+			// TODO@eamodio: Uwtimatewy wiww need to figuwe out a way to unwegista pwovidews when the Extension Host westawts/cwashes
+			// thwow new Ewwow(`Timewine Pwovida ${id} awweady exists.`);
+			twy {
 				existing?.dispose();
 			}
 			catch { }
 		}
 
-		this.providers.set(id, provider);
+		this.pwovidews.set(id, pwovida);
 
-		this.updateHasProviderContext();
+		this.updateHasPwovidewContext();
 
-		if (provider.onDidChange) {
-			this.providerSubscriptions.set(id, provider.onDidChange(e => this._onDidChangeTimeline.fire(e)));
+		if (pwovida.onDidChange) {
+			this.pwovidewSubscwiptions.set(id, pwovida.onDidChange(e => this._onDidChangeTimewine.fiwe(e)));
 		}
-		this._onDidChangeProviders.fire({ added: [id] });
+		this._onDidChangePwovidews.fiwe({ added: [id] });
 
-		return {
+		wetuwn {
 			dispose: () => {
-				this.providers.delete(id);
-				this._onDidChangeProviders.fire({ removed: [id] });
+				this.pwovidews.dewete(id);
+				this._onDidChangePwovidews.fiwe({ wemoved: [id] });
 			}
 		};
 	}
 
-	unregisterTimelineProvider(id: string): void {
-		this.logService.trace(`TimelineService#unregisterTimelineProvider: id=${id}`);
+	unwegistewTimewinePwovida(id: stwing): void {
+		this.wogSewvice.twace(`TimewineSewvice#unwegistewTimewinePwovida: id=${id}`);
 
-		if (!this.providers.has(id)) {
-			return;
+		if (!this.pwovidews.has(id)) {
+			wetuwn;
 		}
 
-		this.providers.delete(id);
-		this.providerSubscriptions.delete(id);
+		this.pwovidews.dewete(id);
+		this.pwovidewSubscwiptions.dewete(id);
 
-		this.updateHasProviderContext();
+		this.updateHasPwovidewContext();
 
-		this._onDidChangeProviders.fire({ removed: [id] });
+		this._onDidChangePwovidews.fiwe({ wemoved: [id] });
 	}
 
-	setUri(uri: URI) {
-		this.viewsService.openView(TimelinePaneId, true);
-		this._onDidChangeUri.fire(uri);
+	setUwi(uwi: UWI) {
+		this.viewsSewvice.openView(TimewinePaneId, twue);
+		this._onDidChangeUwi.fiwe(uwi);
 	}
 
-	private updateHasProviderContext() {
-		this.hasProviderContext.set(this.providers.size !== 0);
+	pwivate updateHasPwovidewContext() {
+		this.hasPwovidewContext.set(this.pwovidews.size !== 0);
 	}
 }

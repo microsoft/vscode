@@ -1,25 +1,25 @@
 {
-  "name": "theme-quietlight",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "name": "theme-quietwight",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "*"
   },
-  "contributes": {
+  "contwibutes": {
     "themes": [
       {
-        "id": "Quiet Light",
-        "label": "%themeLabel%",
+        "id": "Quiet Wight",
+        "wabew": "%themeWabew%",
         "uiTheme": "vs",
-        "path": "./themes/quietlight-color-theme.json"
+        "path": "./themes/quietwight-cowow-theme.json"
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

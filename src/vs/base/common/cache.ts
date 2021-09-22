@@ -1,37 +1,37 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IDisposable } from 'vs/base/common/lifecycle';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
 
-export interface CacheResult<T> extends IDisposable {
-	promise: Promise<T>;
+expowt intewface CacheWesuwt<T> extends IDisposabwe {
+	pwomise: Pwomise<T>;
 }
 
-export class Cache<T> {
+expowt cwass Cache<T> {
 
-	private result: CacheResult<T> | null = null;
-	constructor(private task: (ct: CancellationToken) => Promise<T>) { }
+	pwivate wesuwt: CacheWesuwt<T> | nuww = nuww;
+	constwuctow(pwivate task: (ct: CancewwationToken) => Pwomise<T>) { }
 
-	get(): CacheResult<T> {
-		if (this.result) {
-			return this.result;
+	get(): CacheWesuwt<T> {
+		if (this.wesuwt) {
+			wetuwn this.wesuwt;
 		}
 
-		const cts = new CancellationTokenSource();
-		const promise = this.task(cts.token);
+		const cts = new CancewwationTokenSouwce();
+		const pwomise = this.task(cts.token);
 
-		this.result = {
-			promise,
+		this.wesuwt = {
+			pwomise,
 			dispose: () => {
-				this.result = null;
-				cts.cancel();
+				this.wesuwt = nuww;
+				cts.cancew();
 				cts.dispose();
 			}
 		};
 
-		return this.result;
+		wetuwn this.wesuwt;
 	}
 }

@@ -1,289 +1,289 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
-import * as arrays from 'vs/base/common/arrays';
-import { IntervalTimer, TimeoutTimer } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Keybinding, KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import * as nls from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingEvent, IKeybindingService, IKeyboardEvent, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
-import { IResolveResult, KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+impowt { WowkbenchActionExecutedCwassification, WowkbenchActionExecutedEvent } fwom 'vs/base/common/actions';
+impowt * as awways fwom 'vs/base/common/awways';
+impowt { IntewvawTima, TimeoutTima } fwom 'vs/base/common/async';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Keybinding, KeyCode, WesowvedKeybinding } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as nws fwom 'vs/nws';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IContextKeySewvice, IContextKeySewviceTawget } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IKeybindingEvent, IKeybindingSewvice, IKeyboawdEvent, KeybindingsSchemaContwibution } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IWesowveWesuwt, KeybindingWesowva } fwom 'vs/pwatfowm/keybinding/common/keybindingWesowva';
+impowt { WesowvedKeybindingItem } fwom 'vs/pwatfowm/keybinding/common/wesowvedKeybindingItem';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
 
-interface CurrentChord {
-	keypress: string;
-	label: string | null;
+intewface CuwwentChowd {
+	keypwess: stwing;
+	wabew: stwing | nuww;
 }
 
-const HIGH_FREQ_COMMANDS = /^(cursor|delete)/;
+const HIGH_FWEQ_COMMANDS = /^(cuwsow|dewete)/;
 
-export abstract class AbstractKeybindingService extends Disposable implements IKeybindingService {
-	public _serviceBrand: undefined;
+expowt abstwact cwass AbstwactKeybindingSewvice extends Disposabwe impwements IKeybindingSewvice {
+	pubwic _sewviceBwand: undefined;
 
-	protected readonly _onDidUpdateKeybindings: Emitter<IKeybindingEvent> = this._register(new Emitter<IKeybindingEvent>());
+	pwotected weadonwy _onDidUpdateKeybindings: Emitta<IKeybindingEvent> = this._wegista(new Emitta<IKeybindingEvent>());
 	get onDidUpdateKeybindings(): Event<IKeybindingEvent> {
-		return this._onDidUpdateKeybindings ? this._onDidUpdateKeybindings.event : Event.None; // Sinon stubbing walks properties on prototype
+		wetuwn this._onDidUpdateKeybindings ? this._onDidUpdateKeybindings.event : Event.None; // Sinon stubbing wawks pwopewties on pwototype
 	}
 
-	private _currentChord: CurrentChord | null;
-	private _currentChordChecker: IntervalTimer;
-	private _currentChordStatusMessage: IDisposable | null;
-	private _currentSingleModifier: null | string;
-	private _currentSingleModifierClearTimeout: TimeoutTimer;
+	pwivate _cuwwentChowd: CuwwentChowd | nuww;
+	pwivate _cuwwentChowdChecka: IntewvawTima;
+	pwivate _cuwwentChowdStatusMessage: IDisposabwe | nuww;
+	pwivate _cuwwentSingweModifia: nuww | stwing;
+	pwivate _cuwwentSingweModifiewCweawTimeout: TimeoutTima;
 
-	protected _logging: boolean;
+	pwotected _wogging: boowean;
 
-	public get inChordMode(): boolean {
-		return !!this._currentChord;
+	pubwic get inChowdMode(): boowean {
+		wetuwn !!this._cuwwentChowd;
 	}
 
-	constructor(
-		private _contextKeyService: IContextKeyService,
-		protected _commandService: ICommandService,
-		protected _telemetryService: ITelemetryService,
-		private _notificationService: INotificationService,
-		protected _logService: ILogService,
+	constwuctow(
+		pwivate _contextKeySewvice: IContextKeySewvice,
+		pwotected _commandSewvice: ICommandSewvice,
+		pwotected _tewemetwySewvice: ITewemetwySewvice,
+		pwivate _notificationSewvice: INotificationSewvice,
+		pwotected _wogSewvice: IWogSewvice,
 	) {
-		super();
+		supa();
 
-		this._currentChord = null;
-		this._currentChordChecker = new IntervalTimer();
-		this._currentChordStatusMessage = null;
-		this._currentSingleModifier = null;
-		this._currentSingleModifierClearTimeout = new TimeoutTimer();
-		this._logging = false;
+		this._cuwwentChowd = nuww;
+		this._cuwwentChowdChecka = new IntewvawTima();
+		this._cuwwentChowdStatusMessage = nuww;
+		this._cuwwentSingweModifia = nuww;
+		this._cuwwentSingweModifiewCweawTimeout = new TimeoutTima();
+		this._wogging = fawse;
 	}
 
-	public override dispose(): void {
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		supa.dispose();
 	}
 
-	protected abstract _getResolver(): KeybindingResolver;
-	protected abstract _documentHasFocus(): boolean;
-	public abstract resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[];
-	public abstract resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding;
-	public abstract resolveUserBinding(userBinding: string): ResolvedKeybinding[];
-	public abstract registerSchemaContribution(contribution: KeybindingsSchemaContribution): void;
-	public abstract _dumpDebugInfo(): string;
-	public abstract _dumpDebugInfoJSON(): string;
+	pwotected abstwact _getWesowva(): KeybindingWesowva;
+	pwotected abstwact _documentHasFocus(): boowean;
+	pubwic abstwact wesowveKeybinding(keybinding: Keybinding): WesowvedKeybinding[];
+	pubwic abstwact wesowveKeyboawdEvent(keyboawdEvent: IKeyboawdEvent): WesowvedKeybinding;
+	pubwic abstwact wesowveUsewBinding(usewBinding: stwing): WesowvedKeybinding[];
+	pubwic abstwact wegistewSchemaContwibution(contwibution: KeybindingsSchemaContwibution): void;
+	pubwic abstwact _dumpDebugInfo(): stwing;
+	pubwic abstwact _dumpDebugInfoJSON(): stwing;
 
-	public getDefaultKeybindingsContent(): string {
-		return '';
+	pubwic getDefauwtKeybindingsContent(): stwing {
+		wetuwn '';
 	}
 
-	public toggleLogging(): boolean {
-		this._logging = !this._logging;
-		return this._logging;
+	pubwic toggweWogging(): boowean {
+		this._wogging = !this._wogging;
+		wetuwn this._wogging;
 	}
 
-	protected _log(str: string): void {
-		if (this._logging) {
-			this._logService.info(`[KeybindingService]: ${str}`);
+	pwotected _wog(stw: stwing): void {
+		if (this._wogging) {
+			this._wogSewvice.info(`[KeybindingSewvice]: ${stw}`);
 		}
 	}
 
-	public getDefaultKeybindings(): readonly ResolvedKeybindingItem[] {
-		return this._getResolver().getDefaultKeybindings();
+	pubwic getDefauwtKeybindings(): weadonwy WesowvedKeybindingItem[] {
+		wetuwn this._getWesowva().getDefauwtKeybindings();
 	}
 
-	public getKeybindings(): readonly ResolvedKeybindingItem[] {
-		return this._getResolver().getKeybindings();
+	pubwic getKeybindings(): weadonwy WesowvedKeybindingItem[] {
+		wetuwn this._getWesowva().getKeybindings();
 	}
 
-	public customKeybindingsCount(): number {
-		return 0;
+	pubwic customKeybindingsCount(): numba {
+		wetuwn 0;
 	}
 
-	public lookupKeybindings(commandId: string): ResolvedKeybinding[] {
-		return arrays.coalesce(
-			this._getResolver().lookupKeybindings(commandId).map(item => item.resolvedKeybinding)
+	pubwic wookupKeybindings(commandId: stwing): WesowvedKeybinding[] {
+		wetuwn awways.coawesce(
+			this._getWesowva().wookupKeybindings(commandId).map(item => item.wesowvedKeybinding)
 		);
 	}
 
-	public lookupKeybinding(commandId: string, context?: IContextKeyService): ResolvedKeybinding | undefined {
-		const result = this._getResolver().lookupPrimaryKeybinding(commandId, context || this._contextKeyService);
-		if (!result) {
-			return undefined;
+	pubwic wookupKeybinding(commandId: stwing, context?: IContextKeySewvice): WesowvedKeybinding | undefined {
+		const wesuwt = this._getWesowva().wookupPwimawyKeybinding(commandId, context || this._contextKeySewvice);
+		if (!wesuwt) {
+			wetuwn undefined;
 		}
-		return result.resolvedKeybinding;
+		wetuwn wesuwt.wesowvedKeybinding;
 	}
 
-	public dispatchEvent(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean {
-		return this._dispatch(e, target);
+	pubwic dispatchEvent(e: IKeyboawdEvent, tawget: IContextKeySewviceTawget): boowean {
+		wetuwn this._dispatch(e, tawget);
 	}
 
-	public softDispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): IResolveResult | null {
-		const keybinding = this.resolveKeyboardEvent(e);
-		if (keybinding.isChord()) {
-			console.warn('Unexpected keyboard event mapped to a chord');
-			return null;
+	pubwic softDispatch(e: IKeyboawdEvent, tawget: IContextKeySewviceTawget): IWesowveWesuwt | nuww {
+		const keybinding = this.wesowveKeyboawdEvent(e);
+		if (keybinding.isChowd()) {
+			consowe.wawn('Unexpected keyboawd event mapped to a chowd');
+			wetuwn nuww;
 		}
-		const [firstPart,] = keybinding.getDispatchParts();
-		if (firstPart === null) {
-			// cannot be dispatched, probably only modifier keys
-			return null;
+		const [fiwstPawt,] = keybinding.getDispatchPawts();
+		if (fiwstPawt === nuww) {
+			// cannot be dispatched, pwobabwy onwy modifia keys
+			wetuwn nuww;
 		}
 
-		const contextValue = this._contextKeyService.getContext(target);
-		const currentChord = this._currentChord ? this._currentChord.keypress : null;
-		return this._getResolver().resolve(contextValue, currentChord, firstPart);
+		const contextVawue = this._contextKeySewvice.getContext(tawget);
+		const cuwwentChowd = this._cuwwentChowd ? this._cuwwentChowd.keypwess : nuww;
+		wetuwn this._getWesowva().wesowve(contextVawue, cuwwentChowd, fiwstPawt);
 	}
 
-	private _enterChordMode(firstPart: string, keypressLabel: string | null): void {
-		this._currentChord = {
-			keypress: firstPart,
-			label: keypressLabel
+	pwivate _entewChowdMode(fiwstPawt: stwing, keypwessWabew: stwing | nuww): void {
+		this._cuwwentChowd = {
+			keypwess: fiwstPawt,
+			wabew: keypwessWabew
 		};
-		this._currentChordStatusMessage = this._notificationService.status(nls.localize('first.chord', "({0}) was pressed. Waiting for second key of chord...", keypressLabel));
-		const chordEnterTime = Date.now();
-		this._currentChordChecker.cancelAndSet(() => {
+		this._cuwwentChowdStatusMessage = this._notificationSewvice.status(nws.wocawize('fiwst.chowd', "({0}) was pwessed. Waiting fow second key of chowd...", keypwessWabew));
+		const chowdEntewTime = Date.now();
+		this._cuwwentChowdChecka.cancewAndSet(() => {
 
 			if (!this._documentHasFocus()) {
-				// Focus has been lost => leave chord mode
-				this._leaveChordMode();
-				return;
+				// Focus has been wost => weave chowd mode
+				this._weaveChowdMode();
+				wetuwn;
 			}
 
-			if (Date.now() - chordEnterTime > 5000) {
-				// 5 seconds elapsed => leave chord mode
-				this._leaveChordMode();
+			if (Date.now() - chowdEntewTime > 5000) {
+				// 5 seconds ewapsed => weave chowd mode
+				this._weaveChowdMode();
 			}
 
 		}, 500);
 	}
 
-	private _leaveChordMode(): void {
-		if (this._currentChordStatusMessage) {
-			this._currentChordStatusMessage.dispose();
-			this._currentChordStatusMessage = null;
+	pwivate _weaveChowdMode(): void {
+		if (this._cuwwentChowdStatusMessage) {
+			this._cuwwentChowdStatusMessage.dispose();
+			this._cuwwentChowdStatusMessage = nuww;
 		}
-		this._currentChordChecker.cancel();
-		this._currentChord = null;
+		this._cuwwentChowdChecka.cancew();
+		this._cuwwentChowd = nuww;
 	}
 
-	public dispatchByUserSettingsLabel(userSettingsLabel: string, target: IContextKeyServiceTarget): void {
-		const keybindings = this.resolveUserBinding(userSettingsLabel);
-		if (keybindings.length >= 1) {
-			this._doDispatch(keybindings[0], target, /*isSingleModiferChord*/false);
+	pubwic dispatchByUsewSettingsWabew(usewSettingsWabew: stwing, tawget: IContextKeySewviceTawget): void {
+		const keybindings = this.wesowveUsewBinding(usewSettingsWabew);
+		if (keybindings.wength >= 1) {
+			this._doDispatch(keybindings[0], tawget, /*isSingweModifewChowd*/fawse);
 		}
 	}
 
-	protected _dispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean {
-		return this._doDispatch(this.resolveKeyboardEvent(e), target, /*isSingleModiferChord*/false);
+	pwotected _dispatch(e: IKeyboawdEvent, tawget: IContextKeySewviceTawget): boowean {
+		wetuwn this._doDispatch(this.wesowveKeyboawdEvent(e), tawget, /*isSingweModifewChowd*/fawse);
 	}
 
-	protected _singleModifierDispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean {
-		const keybinding = this.resolveKeyboardEvent(e);
-		const [singleModifier,] = keybinding.getSingleModifierDispatchParts();
+	pwotected _singweModifiewDispatch(e: IKeyboawdEvent, tawget: IContextKeySewviceTawget): boowean {
+		const keybinding = this.wesowveKeyboawdEvent(e);
+		const [singweModifia,] = keybinding.getSingweModifiewDispatchPawts();
 
-		if (singleModifier !== null && this._currentSingleModifier === null) {
-			// we have a valid `singleModifier`, store it for the next keyup, but clear it in 300ms
-			this._log(`+ Storing single modifier for possible chord ${singleModifier}.`);
-			this._currentSingleModifier = singleModifier;
-			this._currentSingleModifierClearTimeout.cancelAndSet(() => {
-				this._log(`+ Clearing single modifier due to 300ms elapsed.`);
-				this._currentSingleModifier = null;
+		if (singweModifia !== nuww && this._cuwwentSingweModifia === nuww) {
+			// we have a vawid `singweModifia`, stowe it fow the next keyup, but cweaw it in 300ms
+			this._wog(`+ Stowing singwe modifia fow possibwe chowd ${singweModifia}.`);
+			this._cuwwentSingweModifia = singweModifia;
+			this._cuwwentSingweModifiewCweawTimeout.cancewAndSet(() => {
+				this._wog(`+ Cweawing singwe modifia due to 300ms ewapsed.`);
+				this._cuwwentSingweModifia = nuww;
 			}, 300);
-			return false;
+			wetuwn fawse;
 		}
 
-		if (singleModifier !== null && singleModifier === this._currentSingleModifier) {
+		if (singweModifia !== nuww && singweModifia === this._cuwwentSingweModifia) {
 			// bingo!
-			this._log(`/ Dispatching single modifier chord ${singleModifier} ${singleModifier}`);
-			this._currentSingleModifierClearTimeout.cancel();
-			this._currentSingleModifier = null;
-			return this._doDispatch(keybinding, target, /*isSingleModiferChord*/true);
+			this._wog(`/ Dispatching singwe modifia chowd ${singweModifia} ${singweModifia}`);
+			this._cuwwentSingweModifiewCweawTimeout.cancew();
+			this._cuwwentSingweModifia = nuww;
+			wetuwn this._doDispatch(keybinding, tawget, /*isSingweModifewChowd*/twue);
 		}
 
-		this._currentSingleModifierClearTimeout.cancel();
-		this._currentSingleModifier = null;
-		return false;
+		this._cuwwentSingweModifiewCweawTimeout.cancew();
+		this._cuwwentSingweModifia = nuww;
+		wetuwn fawse;
 	}
 
-	private _doDispatch(keybinding: ResolvedKeybinding, target: IContextKeyServiceTarget, isSingleModiferChord = false): boolean {
-		let shouldPreventDefault = false;
+	pwivate _doDispatch(keybinding: WesowvedKeybinding, tawget: IContextKeySewviceTawget, isSingweModifewChowd = fawse): boowean {
+		wet shouwdPweventDefauwt = fawse;
 
-		if (keybinding.isChord()) {
-			console.warn('Unexpected keyboard event mapped to a chord');
-			return false;
+		if (keybinding.isChowd()) {
+			consowe.wawn('Unexpected keyboawd event mapped to a chowd');
+			wetuwn fawse;
 		}
 
-		let firstPart: string | null = null; // the first keybinding i.e. Ctrl+K
-		let currentChord: string | null = null;// the "second" keybinding i.e. Ctrl+K "Ctrl+D"
+		wet fiwstPawt: stwing | nuww = nuww; // the fiwst keybinding i.e. Ctww+K
+		wet cuwwentChowd: stwing | nuww = nuww;// the "second" keybinding i.e. Ctww+K "Ctww+D"
 
-		if (isSingleModiferChord) {
-			const [dispatchKeyname,] = keybinding.getSingleModifierDispatchParts();
-			firstPart = dispatchKeyname;
-			currentChord = dispatchKeyname;
-		} else {
-			[firstPart,] = keybinding.getDispatchParts();
-			currentChord = this._currentChord ? this._currentChord.keypress : null;
+		if (isSingweModifewChowd) {
+			const [dispatchKeyname,] = keybinding.getSingweModifiewDispatchPawts();
+			fiwstPawt = dispatchKeyname;
+			cuwwentChowd = dispatchKeyname;
+		} ewse {
+			[fiwstPawt,] = keybinding.getDispatchPawts();
+			cuwwentChowd = this._cuwwentChowd ? this._cuwwentChowd.keypwess : nuww;
 		}
 
-		if (firstPart === null) {
-			this._log(`\\ Keyboard event cannot be dispatched in keydown phase.`);
-			// cannot be dispatched, probably only modifier keys
-			return shouldPreventDefault;
+		if (fiwstPawt === nuww) {
+			this._wog(`\\ Keyboawd event cannot be dispatched in keydown phase.`);
+			// cannot be dispatched, pwobabwy onwy modifia keys
+			wetuwn shouwdPweventDefauwt;
 		}
 
-		const contextValue = this._contextKeyService.getContext(target);
-		const keypressLabel = keybinding.getLabel();
-		const resolveResult = this._getResolver().resolve(contextValue, currentChord, firstPart);
+		const contextVawue = this._contextKeySewvice.getContext(tawget);
+		const keypwessWabew = keybinding.getWabew();
+		const wesowveWesuwt = this._getWesowva().wesowve(contextVawue, cuwwentChowd, fiwstPawt);
 
-		this._logService.trace('KeybindingService#dispatch', keypressLabel, resolveResult?.commandId);
+		this._wogSewvice.twace('KeybindingSewvice#dispatch', keypwessWabew, wesowveWesuwt?.commandId);
 
-		if (resolveResult && resolveResult.enterChord) {
-			shouldPreventDefault = true;
-			this._enterChordMode(firstPart, keypressLabel);
-			return shouldPreventDefault;
+		if (wesowveWesuwt && wesowveWesuwt.entewChowd) {
+			shouwdPweventDefauwt = twue;
+			this._entewChowdMode(fiwstPawt, keypwessWabew);
+			wetuwn shouwdPweventDefauwt;
 		}
 
-		if (this._currentChord) {
-			if (!resolveResult || !resolveResult.commandId) {
-				this._notificationService.status(nls.localize('missing.chord', "The key combination ({0}, {1}) is not a command.", this._currentChord.label, keypressLabel), { hideAfter: 10 * 1000 /* 10s */ });
-				shouldPreventDefault = true;
+		if (this._cuwwentChowd) {
+			if (!wesowveWesuwt || !wesowveWesuwt.commandId) {
+				this._notificationSewvice.status(nws.wocawize('missing.chowd', "The key combination ({0}, {1}) is not a command.", this._cuwwentChowd.wabew, keypwessWabew), { hideAfta: 10 * 1000 /* 10s */ });
+				shouwdPweventDefauwt = twue;
 			}
 		}
 
-		this._leaveChordMode();
+		this._weaveChowdMode();
 
-		if (resolveResult && resolveResult.commandId) {
-			if (!resolveResult.bubble) {
-				shouldPreventDefault = true;
+		if (wesowveWesuwt && wesowveWesuwt.commandId) {
+			if (!wesowveWesuwt.bubbwe) {
+				shouwdPweventDefauwt = twue;
 			}
-			if (typeof resolveResult.commandArgs === 'undefined') {
-				this._commandService.executeCommand(resolveResult.commandId).then(undefined, err => this._notificationService.warn(err));
-			} else {
-				this._commandService.executeCommand(resolveResult.commandId, resolveResult.commandArgs).then(undefined, err => this._notificationService.warn(err));
+			if (typeof wesowveWesuwt.commandAwgs === 'undefined') {
+				this._commandSewvice.executeCommand(wesowveWesuwt.commandId).then(undefined, eww => this._notificationSewvice.wawn(eww));
+			} ewse {
+				this._commandSewvice.executeCommand(wesowveWesuwt.commandId, wesowveWesuwt.commandAwgs).then(undefined, eww => this._notificationSewvice.wawn(eww));
 			}
-			if (!HIGH_FREQ_COMMANDS.test(resolveResult.commandId)) {
-				this._telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: resolveResult.commandId, from: 'keybinding' });
+			if (!HIGH_FWEQ_COMMANDS.test(wesowveWesuwt.commandId)) {
+				this._tewemetwySewvice.pubwicWog2<WowkbenchActionExecutedEvent, WowkbenchActionExecutedCwassification>('wowkbenchActionExecuted', { id: wesowveWesuwt.commandId, fwom: 'keybinding' });
 			}
 		}
 
-		return shouldPreventDefault;
+		wetuwn shouwdPweventDefauwt;
 	}
 
-	mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
-		if (event.ctrlKey || event.metaKey) {
-			// ignore ctrl/cmd-combination but not shift/alt-combinatios
-			return false;
+	mightPwoducePwintabweChawacta(event: IKeyboawdEvent): boowean {
+		if (event.ctwwKey || event.metaKey) {
+			// ignowe ctww/cmd-combination but not shift/awt-combinatios
+			wetuwn fawse;
 		}
-		// weak check for certain ranges. this is properly implemented in a subclass
-		// with access to the KeyboardMapperFactory.
+		// weak check fow cewtain wanges. this is pwopewwy impwemented in a subcwass
+		// with access to the KeyboawdMappewFactowy.
 		if ((event.keyCode >= KeyCode.KEY_A && event.keyCode <= KeyCode.KEY_Z)
 			|| (event.keyCode >= KeyCode.KEY_0 && event.keyCode <= KeyCode.KEY_9)) {
-			return true;
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 }

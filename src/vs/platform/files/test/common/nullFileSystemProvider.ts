@@ -1,46 +1,46 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { FileDeleteOptions, FileOpenOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, IFileChange, IFileSystemProvider, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { FiweDeweteOptions, FiweOpenOptions, FiweOvewwwiteOptions, FiweSystemPwovidewCapabiwities, FiweType, FiweWwiteOptions, IFiweChange, IFiweSystemPwovida, IStat, IWatchOptions } fwom 'vs/pwatfowm/fiwes/common/fiwes';
 
-export class NullFileSystemProvider implements IFileSystemProvider {
+expowt cwass NuwwFiweSystemPwovida impwements IFiweSystemPwovida {
 
-	capabilities: FileSystemProviderCapabilities = FileSystemProviderCapabilities.Readonly;
+	capabiwities: FiweSystemPwovidewCapabiwities = FiweSystemPwovidewCapabiwities.Weadonwy;
 
-	private readonly _onDidChangeCapabilities = new Emitter<void>();
-	readonly onDidChangeCapabilities: Event<void> = this._onDidChangeCapabilities.event;
+	pwivate weadonwy _onDidChangeCapabiwities = new Emitta<void>();
+	weadonwy onDidChangeCapabiwities: Event<void> = this._onDidChangeCapabiwities.event;
 
-	private readonly _onDidChangeFile = new Emitter<readonly IFileChange[]>();
-	readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChangeFile.event;
+	pwivate weadonwy _onDidChangeFiwe = new Emitta<weadonwy IFiweChange[]>();
+	weadonwy onDidChangeFiwe: Event<weadonwy IFiweChange[]> = this._onDidChangeFiwe.event;
 
-	constructor(private disposableFactory: () => IDisposable = () => Disposable.None) { }
+	constwuctow(pwivate disposabweFactowy: () => IDisposabwe = () => Disposabwe.None) { }
 
-	emitFileChangeEvents(changes: IFileChange[]): void {
-		this._onDidChangeFile.fire(changes);
+	emitFiweChangeEvents(changes: IFiweChange[]): void {
+		this._onDidChangeFiwe.fiwe(changes);
 	}
 
-	setCapabilities(capabilities: FileSystemProviderCapabilities): void {
-		this.capabilities = capabilities;
+	setCapabiwities(capabiwities: FiweSystemPwovidewCapabiwities): void {
+		this.capabiwities = capabiwities;
 
-		this._onDidChangeCapabilities.fire();
+		this._onDidChangeCapabiwities.fiwe();
 	}
 
-	watch(resource: URI, opts: IWatchOptions): IDisposable { return this.disposableFactory(); }
-	async stat(resource: URI): Promise<IStat> { return undefined!; }
-	async mkdir(resource: URI): Promise<void> { return undefined; }
-	async readdir(resource: URI): Promise<[string, FileType][]> { return undefined!; }
-	async delete(resource: URI, opts: FileDeleteOptions): Promise<void> { return undefined; }
-	async rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> { return undefined; }
-	async copy?(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> { return undefined; }
-	async readFile?(resource: URI): Promise<Uint8Array> { return undefined!; }
-	async writeFile?(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> { return undefined; }
-	async open?(resource: URI, opts: FileOpenOptions): Promise<number> { return undefined!; }
-	async close?(fd: number): Promise<void> { return undefined; }
-	async read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return undefined!; }
-	async write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return undefined!; }
+	watch(wesouwce: UWI, opts: IWatchOptions): IDisposabwe { wetuwn this.disposabweFactowy(); }
+	async stat(wesouwce: UWI): Pwomise<IStat> { wetuwn undefined!; }
+	async mkdiw(wesouwce: UWI): Pwomise<void> { wetuwn undefined; }
+	async weaddiw(wesouwce: UWI): Pwomise<[stwing, FiweType][]> { wetuwn undefined!; }
+	async dewete(wesouwce: UWI, opts: FiweDeweteOptions): Pwomise<void> { wetuwn undefined; }
+	async wename(fwom: UWI, to: UWI, opts: FiweOvewwwiteOptions): Pwomise<void> { wetuwn undefined; }
+	async copy?(fwom: UWI, to: UWI, opts: FiweOvewwwiteOptions): Pwomise<void> { wetuwn undefined; }
+	async weadFiwe?(wesouwce: UWI): Pwomise<Uint8Awway> { wetuwn undefined!; }
+	async wwiteFiwe?(wesouwce: UWI, content: Uint8Awway, opts: FiweWwiteOptions): Pwomise<void> { wetuwn undefined; }
+	async open?(wesouwce: UWI, opts: FiweOpenOptions): Pwomise<numba> { wetuwn undefined!; }
+	async cwose?(fd: numba): Pwomise<void> { wetuwn undefined; }
+	async wead?(fd: numba, pos: numba, data: Uint8Awway, offset: numba, wength: numba): Pwomise<numba> { wetuwn undefined!; }
+	async wwite?(fd: numba, pos: numba, data: Uint8Awway, offset: numba, wength: numba): Pwomise<numba> { wetuwn undefined!; }
 }

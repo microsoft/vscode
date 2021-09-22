@@ -1,270 +1,270 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { isObject } from 'vs/base/common/types';
-import { IJSONSchema, IJSONSchemaMap, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IConfig, IDebuggerContribution, IDebugAdapter, IDebugger, IDebugSession, IAdapterManager, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import * as ConfigurationResolverUtils from 'vs/workbench/services/configurationResolver/common/configurationResolverUtils';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import { isDebuggerMainContribution } from 'vs/workbench/contrib/debug/common/debugUtils';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ITelemetryEndpoint } from 'vs/platform/telemetry/common/telemetry';
-import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
+impowt * as nws fwom 'vs/nws';
+impowt { isObject } fwom 'vs/base/common/types';
+impowt { IJSONSchema, IJSONSchemaMap, IJSONSchemaSnippet } fwom 'vs/base/common/jsonSchema';
+impowt { IWowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IConfig, IDebuggewContwibution, IDebugAdapta, IDebugga, IDebugSession, IAdaptewManaga, IDebugSewvice } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IConfiguwationWesowvewSewvice } fwom 'vs/wowkbench/sewvices/configuwationWesowva/common/configuwationWesowva';
+impowt * as ConfiguwationWesowvewUtiws fwom 'vs/wowkbench/sewvices/configuwationWesowva/common/configuwationWesowvewUtiws';
+impowt { ITextWesouwcePwopewtiesSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { isDebuggewMainContwibution } fwom 'vs/wowkbench/contwib/debug/common/debugUtiws';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { ITewemetwyEndpoint } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { cweanWemoteAuthowity } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { ContextKeyExpw, ContextKeyExpwession } fwom 'vs/pwatfowm/contextkey/common/contextkey';
 
-export class Debugger implements IDebugger {
+expowt cwass Debugga impwements IDebugga {
 
-	private debuggerContribution: IDebuggerContribution;
-	private mergedExtensionDescriptions: IExtensionDescription[] = [];
-	private mainExtensionDescription: IExtensionDescription | undefined;
+	pwivate debuggewContwibution: IDebuggewContwibution;
+	pwivate mewgedExtensionDescwiptions: IExtensionDescwiption[] = [];
+	pwivate mainExtensionDescwiption: IExtensionDescwiption | undefined;
 
-	private debuggerWhen: ContextKeyExpression | undefined;
+	pwivate debuggewWhen: ContextKeyExpwession | undefined;
 
-	constructor(
-		private adapterManager: IAdapterManager,
-		dbgContribution: IDebuggerContribution,
-		extensionDescription: IExtensionDescription,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ITextResourcePropertiesService private readonly resourcePropertiesService: ITextResourcePropertiesService,
-		@IConfigurationResolverService private readonly configurationResolverService: IConfigurationResolverService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IDebugService private readonly debugService: IDebugService
+	constwuctow(
+		pwivate adaptewManaga: IAdaptewManaga,
+		dbgContwibution: IDebuggewContwibution,
+		extensionDescwiption: IExtensionDescwiption,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@ITextWesouwcePwopewtiesSewvice pwivate weadonwy wesouwcePwopewtiesSewvice: ITextWesouwcePwopewtiesSewvice,
+		@IConfiguwationWesowvewSewvice pwivate weadonwy configuwationWesowvewSewvice: IConfiguwationWesowvewSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IDebugSewvice pwivate weadonwy debugSewvice: IDebugSewvice
 	) {
-		this.debuggerContribution = { type: dbgContribution.type };
-		this.merge(dbgContribution, extensionDescription);
+		this.debuggewContwibution = { type: dbgContwibution.type };
+		this.mewge(dbgContwibution, extensionDescwiption);
 
-		this.debuggerWhen = typeof this.debuggerContribution.when === 'string' ? ContextKeyExpr.deserialize(this.debuggerContribution.when) : undefined;
+		this.debuggewWhen = typeof this.debuggewContwibution.when === 'stwing' ? ContextKeyExpw.desewiawize(this.debuggewContwibution.when) : undefined;
 	}
 
-	merge(otherDebuggerContribution: IDebuggerContribution, extensionDescription: IExtensionDescription): void {
+	mewge(othewDebuggewContwibution: IDebuggewContwibution, extensionDescwiption: IExtensionDescwiption): void {
 
 		/**
-		 * Copies all properties of source into destination. The optional parameter "overwrite" allows to control
-		 * if existing non-structured properties on the destination should be overwritten or not. Defaults to true (overwrite).
+		 * Copies aww pwopewties of souwce into destination. The optionaw pawameta "ovewwwite" awwows to contwow
+		 * if existing non-stwuctuwed pwopewties on the destination shouwd be ovewwwitten ow not. Defauwts to twue (ovewwwite).
 		 */
-		function mixin(destination: any, source: any, overwrite: boolean, level = 0): any {
+		function mixin(destination: any, souwce: any, ovewwwite: boowean, wevew = 0): any {
 
 			if (!isObject(destination)) {
-				return source;
+				wetuwn souwce;
 			}
 
-			if (isObject(source)) {
-				Object.keys(source).forEach(key => {
-					if (key !== '__proto__') {
-						if (isObject(destination[key]) && isObject(source[key])) {
-							mixin(destination[key], source[key], overwrite, level + 1);
-						} else {
+			if (isObject(souwce)) {
+				Object.keys(souwce).fowEach(key => {
+					if (key !== '__pwoto__') {
+						if (isObject(destination[key]) && isObject(souwce[key])) {
+							mixin(destination[key], souwce[key], ovewwwite, wevew + 1);
+						} ewse {
 							if (key in destination) {
-								if (overwrite) {
-									if (level === 0 && key === 'type') {
-										// don't merge the 'type' property
-									} else {
-										destination[key] = source[key];
+								if (ovewwwite) {
+									if (wevew === 0 && key === 'type') {
+										// don't mewge the 'type' pwopewty
+									} ewse {
+										destination[key] = souwce[key];
 									}
 								}
-							} else {
-								destination[key] = source[key];
+							} ewse {
+								destination[key] = souwce[key];
 							}
 						}
 					}
 				});
 			}
 
-			return destination;
+			wetuwn destination;
 		}
 
-		// only if not already merged
-		if (this.mergedExtensionDescriptions.indexOf(extensionDescription) < 0) {
+		// onwy if not awweady mewged
+		if (this.mewgedExtensionDescwiptions.indexOf(extensionDescwiption) < 0) {
 
-			// remember all extensions that have been merged for this debugger
-			this.mergedExtensionDescriptions.push(extensionDescription);
+			// wememba aww extensions that have been mewged fow this debugga
+			this.mewgedExtensionDescwiptions.push(extensionDescwiption);
 
-			// merge new debugger contribution into existing contributions (and don't overwrite values in built-in extensions)
-			mixin(this.debuggerContribution, otherDebuggerContribution, extensionDescription.isBuiltin);
+			// mewge new debugga contwibution into existing contwibutions (and don't ovewwwite vawues in buiwt-in extensions)
+			mixin(this.debuggewContwibution, othewDebuggewContwibution, extensionDescwiption.isBuiwtin);
 
-			// remember the extension that is considered the "main" debugger contribution
-			if (isDebuggerMainContribution(otherDebuggerContribution)) {
-				this.mainExtensionDescription = extensionDescription;
+			// wememba the extension that is considewed the "main" debugga contwibution
+			if (isDebuggewMainContwibution(othewDebuggewContwibution)) {
+				this.mainExtensionDescwiption = extensionDescwiption;
 			}
 		}
 	}
 
-	createDebugAdapter(session: IDebugSession): Promise<IDebugAdapter> {
-		return this.adapterManager.activateDebuggers('onDebugAdapterProtocolTracker', this.type).then(_ => {
-			const da = this.adapterManager.createDebugAdapter(session);
+	cweateDebugAdapta(session: IDebugSession): Pwomise<IDebugAdapta> {
+		wetuwn this.adaptewManaga.activateDebuggews('onDebugAdaptewPwotocowTwacka', this.type).then(_ => {
+			const da = this.adaptewManaga.cweateDebugAdapta(session);
 			if (da) {
-				return Promise.resolve(da);
+				wetuwn Pwomise.wesowve(da);
 			}
-			throw new Error(nls.localize('cannot.find.da', "Cannot find debug adapter for type '{0}'.", this.type));
+			thwow new Ewwow(nws.wocawize('cannot.find.da', "Cannot find debug adapta fow type '{0}'.", this.type));
 		});
 	}
 
-	substituteVariables(folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig> {
-		return this.adapterManager.substituteVariables(this.type, folder, config).then(config => {
-			return this.configurationResolverService.resolveWithInteractionReplace(folder, config, 'launch', this.variables, config.__configurationTarget);
+	substituteVawiabwes(fowda: IWowkspaceFowda | undefined, config: IConfig): Pwomise<IConfig> {
+		wetuwn this.adaptewManaga.substituteVawiabwes(this.type, fowda, config).then(config => {
+			wetuwn this.configuwationWesowvewSewvice.wesowveWithIntewactionWepwace(fowda, config, 'waunch', this.vawiabwes, config.__configuwationTawget);
 		});
 	}
 
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined> {
-		return this.adapterManager.runInTerminal(this.type, args, sessionId);
+	wunInTewminaw(awgs: DebugPwotocow.WunInTewminawWequestAwguments, sessionId: stwing): Pwomise<numba | undefined> {
+		wetuwn this.adaptewManaga.wunInTewminaw(this.type, awgs, sessionId);
 	}
 
-	get label(): string {
-		return this.debuggerContribution.label || this.debuggerContribution.type;
+	get wabew(): stwing {
+		wetuwn this.debuggewContwibution.wabew || this.debuggewContwibution.type;
 	}
 
-	get type(): string {
-		return this.debuggerContribution.type;
+	get type(): stwing {
+		wetuwn this.debuggewContwibution.type;
 	}
 
-	get variables(): { [key: string]: string } | undefined {
-		return this.debuggerContribution.variables;
+	get vawiabwes(): { [key: stwing]: stwing } | undefined {
+		wetuwn this.debuggewContwibution.vawiabwes;
 	}
 
-	get configurationSnippets(): IJSONSchemaSnippet[] | undefined {
-		return this.debuggerContribution.configurationSnippets;
+	get configuwationSnippets(): IJSONSchemaSnippet[] | undefined {
+		wetuwn this.debuggewContwibution.configuwationSnippets;
 	}
 
-	get languages(): string[] | undefined {
-		return this.debuggerContribution.languages;
+	get wanguages(): stwing[] | undefined {
+		wetuwn this.debuggewContwibution.wanguages;
 	}
 
-	get when(): ContextKeyExpression | undefined {
-		return this.debuggerWhen;
+	get when(): ContextKeyExpwession | undefined {
+		wetuwn this.debuggewWhen;
 	}
 
-	hasInitialConfiguration(): boolean {
-		return !!this.debuggerContribution.initialConfigurations;
+	hasInitiawConfiguwation(): boowean {
+		wetuwn !!this.debuggewContwibution.initiawConfiguwations;
 	}
 
-	hasConfigurationProvider(): boolean {
-		return this.debugService.getConfigurationManager().hasDebugConfigurationProvider(this.type);
+	hasConfiguwationPwovida(): boowean {
+		wetuwn this.debugSewvice.getConfiguwationManaga().hasDebugConfiguwationPwovida(this.type);
 	}
 
-	getInitialConfigurationContent(initialConfigs?: IConfig[]): Promise<string> {
-		// at this point we got some configs from the package.json and/or from registered DebugConfigurationProviders
-		let initialConfigurations = this.debuggerContribution.initialConfigurations || [];
-		if (initialConfigs) {
-			initialConfigurations = initialConfigurations.concat(initialConfigs);
+	getInitiawConfiguwationContent(initiawConfigs?: IConfig[]): Pwomise<stwing> {
+		// at this point we got some configs fwom the package.json and/ow fwom wegistewed DebugConfiguwationPwovidews
+		wet initiawConfiguwations = this.debuggewContwibution.initiawConfiguwations || [];
+		if (initiawConfigs) {
+			initiawConfiguwations = initiawConfiguwations.concat(initiawConfigs);
 		}
 
-		const eol = this.resourcePropertiesService.getEOL(URI.from({ scheme: Schemas.untitled, path: '1' })) === '\r\n' ? '\r\n' : '\n';
-		const configs = JSON.stringify(initialConfigurations, null, '\t').split('\n').map(line => '\t' + line).join(eol).trim();
-		const comment1 = nls.localize('launch.config.comment1', "Use IntelliSense to learn about possible attributes.");
-		const comment2 = nls.localize('launch.config.comment2', "Hover to view descriptions of existing attributes.");
-		const comment3 = nls.localize('launch.config.comment3', "For more information, visit: {0}", 'https://go.microsoft.com/fwlink/?linkid=830387');
+		const eow = this.wesouwcePwopewtiesSewvice.getEOW(UWI.fwom({ scheme: Schemas.untitwed, path: '1' })) === '\w\n' ? '\w\n' : '\n';
+		const configs = JSON.stwingify(initiawConfiguwations, nuww, '\t').spwit('\n').map(wine => '\t' + wine).join(eow).twim();
+		const comment1 = nws.wocawize('waunch.config.comment1', "Use IntewwiSense to weawn about possibwe attwibutes.");
+		const comment2 = nws.wocawize('waunch.config.comment2', "Hova to view descwiptions of existing attwibutes.");
+		const comment3 = nws.wocawize('waunch.config.comment3', "Fow mowe infowmation, visit: {0}", 'https://go.micwosoft.com/fwwink/?winkid=830387');
 
-		let content = [
+		wet content = [
 			'{',
 			`\t// ${comment1}`,
 			`\t// ${comment2}`,
 			`\t// ${comment3}`,
-			`\t"version": "0.2.0",`,
-			`\t"configurations": ${configs}`,
+			`\t"vewsion": "0.2.0",`,
+			`\t"configuwations": ${configs}`,
 			'}'
-		].join(eol);
+		].join(eow);
 
-		// fix formatting
-		const editorConfig = this.configurationService.getValue<any>();
-		if (editorConfig.editor && editorConfig.editor.insertSpaces) {
-			content = content.replace(new RegExp('\t', 'g'), ' '.repeat(editorConfig.editor.tabSize));
+		// fix fowmatting
+		const editowConfig = this.configuwationSewvice.getVawue<any>();
+		if (editowConfig.editow && editowConfig.editow.insewtSpaces) {
+			content = content.wepwace(new WegExp('\t', 'g'), ' '.wepeat(editowConfig.editow.tabSize));
 		}
 
-		return Promise.resolve(content);
+		wetuwn Pwomise.wesowve(content);
 	}
 
-	getMainExtensionDescriptor(): IExtensionDescription {
-		return this.mainExtensionDescription || this.mergedExtensionDescriptions[0];
+	getMainExtensionDescwiptow(): IExtensionDescwiption {
+		wetuwn this.mainExtensionDescwiption || this.mewgedExtensionDescwiptions[0];
 	}
 
-	getCustomTelemetryEndpoint(): ITelemetryEndpoint | undefined {
-		const aiKey = this.debuggerContribution.aiKey;
+	getCustomTewemetwyEndpoint(): ITewemetwyEndpoint | undefined {
+		const aiKey = this.debuggewContwibution.aiKey;
 		if (!aiKey) {
-			return undefined;
+			wetuwn undefined;
 		}
 
-		const sendErrorTelemtry = cleanRemoteAuthority(this.environmentService.remoteAuthority) !== 'other';
-		return {
-			id: `${this.getMainExtensionDescriptor().publisher}.${this.type}`,
+		const sendEwwowTewemtwy = cweanWemoteAuthowity(this.enviwonmentSewvice.wemoteAuthowity) !== 'otha';
+		wetuwn {
+			id: `${this.getMainExtensionDescwiptow().pubwisha}.${this.type}`,
 			aiKey,
-			sendErrorTelemetry: sendErrorTelemtry
+			sendEwwowTewemetwy: sendEwwowTewemtwy
 		};
 	}
 
-	getSchemaAttributes(definitions: IJSONSchemaMap): IJSONSchema[] | null {
+	getSchemaAttwibutes(definitions: IJSONSchemaMap): IJSONSchema[] | nuww {
 
-		if (!this.debuggerContribution.configurationAttributes) {
-			return null;
+		if (!this.debuggewContwibution.configuwationAttwibutes) {
+			wetuwn nuww;
 		}
 
-		// fill in the default configuration attributes shared by all adapters.
-		return Object.keys(this.debuggerContribution.configurationAttributes).map(request => {
-			const definitionId = `${this.type}:${request}`;
-			const attributes: IJSONSchema = this.debuggerContribution.configurationAttributes[request];
-			const defaultRequired = ['name', 'type', 'request'];
-			attributes.required = attributes.required && attributes.required.length ? defaultRequired.concat(attributes.required) : defaultRequired;
-			attributes.type = 'object';
-			if (!attributes.properties) {
-				attributes.properties = {};
+		// fiww in the defauwt configuwation attwibutes shawed by aww adaptews.
+		wetuwn Object.keys(this.debuggewContwibution.configuwationAttwibutes).map(wequest => {
+			const definitionId = `${this.type}:${wequest}`;
+			const attwibutes: IJSONSchema = this.debuggewContwibution.configuwationAttwibutes[wequest];
+			const defauwtWequiwed = ['name', 'type', 'wequest'];
+			attwibutes.wequiwed = attwibutes.wequiwed && attwibutes.wequiwed.wength ? defauwtWequiwed.concat(attwibutes.wequiwed) : defauwtWequiwed;
+			attwibutes.type = 'object';
+			if (!attwibutes.pwopewties) {
+				attwibutes.pwopewties = {};
 			}
-			const properties = attributes.properties;
-			properties['type'] = {
+			const pwopewties = attwibutes.pwopewties;
+			pwopewties['type'] = {
 				enum: [this.type],
-				description: nls.localize('debugType', "Type of configuration."),
-				pattern: '^(?!node2)',
-				errorMessage: nls.localize('debugTypeNotRecognised', "The debug type is not recognized. Make sure that you have a corresponding debug extension installed and that it is enabled."),
-				patternErrorMessage: nls.localize('node2NotSupported', "\"node2\" is no longer supported, use \"node\" instead and set the \"protocol\" attribute to \"inspector\".")
+				descwiption: nws.wocawize('debugType', "Type of configuwation."),
+				pattewn: '^(?!node2)',
+				ewwowMessage: nws.wocawize('debugTypeNotWecognised', "The debug type is not wecognized. Make suwe that you have a cowwesponding debug extension instawwed and that it is enabwed."),
+				pattewnEwwowMessage: nws.wocawize('node2NotSuppowted', "\"node2\" is no wonga suppowted, use \"node\" instead and set the \"pwotocow\" attwibute to \"inspectow\".")
 			};
-			properties['request'] = {
-				enum: [request],
-				description: nls.localize('debugRequest', "Request type of configuration. Can be \"launch\" or \"attach\"."),
+			pwopewties['wequest'] = {
+				enum: [wequest],
+				descwiption: nws.wocawize('debugWequest', "Wequest type of configuwation. Can be \"waunch\" ow \"attach\"."),
 			};
-			for (const prop in definitions['common'].properties) {
-				properties[prop] = {
-					$ref: `#/definitions/common/properties/${prop}`
+			fow (const pwop in definitions['common'].pwopewties) {
+				pwopewties[pwop] = {
+					$wef: `#/definitions/common/pwopewties/${pwop}`
 				};
 			}
-			definitions[definitionId] = attributes;
+			definitions[definitionId] = attwibutes;
 
-			Object.keys(properties).forEach(name => {
-				// Use schema allOf property to get independent error reporting #21113
-				ConfigurationResolverUtils.applyDeprecatedVariableMessage(properties[name]);
+			Object.keys(pwopewties).fowEach(name => {
+				// Use schema awwOf pwopewty to get independent ewwow wepowting #21113
+				ConfiguwationWesowvewUtiws.appwyDepwecatedVawiabweMessage(pwopewties[name]);
 			});
 
-			const result = {
-				allOf: [{
-					$ref: `#/definitions/${definitionId}`
+			const wesuwt = {
+				awwOf: [{
+					$wef: `#/definitions/${definitionId}`
 				}, {
-					properties: {
+					pwopewties: {
 						windows: {
-							$ref: `#/definitions/${definitionId}`,
-							description: nls.localize('debugWindowsConfiguration', "Windows specific launch configuration attributes."),
-							required: [],
+							$wef: `#/definitions/${definitionId}`,
+							descwiption: nws.wocawize('debugWindowsConfiguwation', "Windows specific waunch configuwation attwibutes."),
+							wequiwed: [],
 						},
 						osx: {
-							$ref: `#/definitions/${definitionId}`,
-							description: nls.localize('debugOSXConfiguration', "OS X specific launch configuration attributes."),
-							required: [],
+							$wef: `#/definitions/${definitionId}`,
+							descwiption: nws.wocawize('debugOSXConfiguwation', "OS X specific waunch configuwation attwibutes."),
+							wequiwed: [],
 						},
-						linux: {
-							$ref: `#/definitions/${definitionId}`,
-							description: nls.localize('debugLinuxConfiguration', "Linux specific launch configuration attributes."),
-							required: [],
+						winux: {
+							$wef: `#/definitions/${definitionId}`,
+							descwiption: nws.wocawize('debugWinuxConfiguwation', "Winux specific waunch configuwation attwibutes."),
+							wequiwed: [],
 						}
 					}
 				}]
 			};
 
-			return result;
+			wetuwn wesuwt;
 		});
 	}
 }

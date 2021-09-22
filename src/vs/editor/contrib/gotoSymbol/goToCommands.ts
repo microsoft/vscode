@@ -1,851 +1,851 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { isStandalone } from 'vs/base/browser/browser';
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { createCancelablePromise, raceCancellation } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { isWeb } from 'vs/base/common/platform';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/browser/core/editorState';
-import { IActiveCodeEditor, ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, IActionOptions, registerInstantiatedEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
-import { EditorOption, GoToLocationValues } from 'vs/editor/common/config/editorOptions';
-import * as corePosition from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { IEditorAction, ScrollType } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
-import { isLocationLink, Location, LocationLink } from 'vs/editor/common/modes';
-import { ReferencesController } from 'vs/editor/contrib/gotoSymbol/peek/referencesController';
-import { ReferencesModel } from 'vs/editor/contrib/gotoSymbol/referencesModel';
-import { ISymbolNavigationService } from 'vs/editor/contrib/gotoSymbol/symbolNavigation';
-import { MessageController } from 'vs/editor/contrib/message/messageController';
-import { PeekContext } from 'vs/editor/contrib/peekView/peekView';
-import * as nls from 'vs/nls';
-import { ISubmenuItem, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IEditorProgressService } from 'vs/platform/progress/common/progress';
-import { getDeclarationsAtPosition, getDefinitionsAtPosition, getImplementationsAtPosition, getReferencesAtPosition, getTypeDefinitionsAtPosition } from './goToSymbol';
+impowt { isStandawone } fwom 'vs/base/bwowsa/bwowsa';
+impowt { awewt } fwom 'vs/base/bwowsa/ui/awia/awia';
+impowt { cweateCancewabwePwomise, waceCancewwation } fwom 'vs/base/common/async';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { KeyChowd, KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { assewtType } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { CodeEditowStateFwag, EditowStateCancewwationTokenSouwce } fwom 'vs/editow/bwowsa/cowe/editowState';
+impowt { IActiveCodeEditow, ICodeEditow, isCodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, IActionOptions, wegistewInstantiatedEditowAction, SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { EmbeddedCodeEditowWidget } fwom 'vs/editow/bwowsa/widget/embeddedCodeEditowWidget';
+impowt { EditowOption, GoToWocationVawues } fwom 'vs/editow/common/config/editowOptions';
+impowt * as cowePosition fwom 'vs/editow/common/cowe/position';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IEditowAction, ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { ITextModew, IWowdAtPosition } fwom 'vs/editow/common/modew';
+impowt { isWocationWink, Wocation, WocationWink } fwom 'vs/editow/common/modes';
+impowt { WefewencesContwowwa } fwom 'vs/editow/contwib/gotoSymbow/peek/wefewencesContwowwa';
+impowt { WefewencesModew } fwom 'vs/editow/contwib/gotoSymbow/wefewencesModew';
+impowt { ISymbowNavigationSewvice } fwom 'vs/editow/contwib/gotoSymbow/symbowNavigation';
+impowt { MessageContwowwa } fwom 'vs/editow/contwib/message/messageContwowwa';
+impowt { PeekContext } fwom 'vs/editow/contwib/peekView/peekView';
+impowt * as nws fwom 'vs/nws';
+impowt { ISubmenuItem, MenuId, MenuWegistwy } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { CommandsWegistwy, ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { TextEditowSewectionWeveawType } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IEditowPwogwessSewvice } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { getDecwawationsAtPosition, getDefinitionsAtPosition, getImpwementationsAtPosition, getWefewencesAtPosition, getTypeDefinitionsAtPosition } fwom './goToSymbow';
 
 
-MenuRegistry.appendMenuItem(MenuId.EditorContext, <ISubmenuItem>{
-	submenu: MenuId.EditorContextPeek,
-	title: nls.localize('peek.submenu', "Peek"),
-	group: 'navigation',
-	order: 100
+MenuWegistwy.appendMenuItem(MenuId.EditowContext, <ISubmenuItem>{
+	submenu: MenuId.EditowContextPeek,
+	titwe: nws.wocawize('peek.submenu', "Peek"),
+	gwoup: 'navigation',
+	owda: 100
 });
 
-export interface SymbolNavigationActionConfig {
-	openToSide: boolean;
-	openInPeek: boolean;
-	muteMessage: boolean;
+expowt intewface SymbowNavigationActionConfig {
+	openToSide: boowean;
+	openInPeek: boowean;
+	muteMessage: boowean;
 }
 
 
-const _goToActionIds = new Set<string>();
+const _goToActionIds = new Set<stwing>();
 
-function registerGoToAction<T extends EditorAction>(ctor: { new(): T; }): T {
-	const result = new ctor();
-	registerInstantiatedEditorAction(result);
-	_goToActionIds.add(result.id);
-	return result;
+function wegistewGoToAction<T extends EditowAction>(ctow: { new(): T; }): T {
+	const wesuwt = new ctow();
+	wegistewInstantiatedEditowAction(wesuwt);
+	_goToActionIds.add(wesuwt.id);
+	wetuwn wesuwt;
 }
 
-abstract class SymbolNavigationAction extends EditorAction {
+abstwact cwass SymbowNavigationAction extends EditowAction {
 
-	private readonly _configuration: SymbolNavigationActionConfig;
+	pwivate weadonwy _configuwation: SymbowNavigationActionConfig;
 
-	constructor(configuration: SymbolNavigationActionConfig, opts: IActionOptions) {
-		super(opts);
-		this._configuration = configuration;
+	constwuctow(configuwation: SymbowNavigationActionConfig, opts: IActionOptions) {
+		supa(opts);
+		this._configuwation = configuwation;
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		if (!editor.hasModel()) {
-			return Promise.resolve(undefined);
+	wun(accessow: SewvicesAccessow, editow: ICodeEditow): Pwomise<void> {
+		if (!editow.hasModew()) {
+			wetuwn Pwomise.wesowve(undefined);
 		}
-		const notificationService = accessor.get(INotificationService);
-		const editorService = accessor.get(ICodeEditorService);
-		const progressService = accessor.get(IEditorProgressService);
-		const symbolNavService = accessor.get(ISymbolNavigationService);
+		const notificationSewvice = accessow.get(INotificationSewvice);
+		const editowSewvice = accessow.get(ICodeEditowSewvice);
+		const pwogwessSewvice = accessow.get(IEditowPwogwessSewvice);
+		const symbowNavSewvice = accessow.get(ISymbowNavigationSewvice);
 
-		const model = editor.getModel();
-		const pos = editor.getPosition();
+		const modew = editow.getModew();
+		const pos = editow.getPosition();
 
-		const cts = new EditorStateCancellationTokenSource(editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
+		const cts = new EditowStateCancewwationTokenSouwce(editow, CodeEditowStateFwag.Vawue | CodeEditowStateFwag.Position);
 
-		const promise = raceCancellation(this._getLocationModel(model, pos, cts.token), cts.token).then(async references => {
+		const pwomise = waceCancewwation(this._getWocationModew(modew, pos, cts.token), cts.token).then(async wefewences => {
 
-			if (!references || cts.token.isCancellationRequested) {
-				return;
+			if (!wefewences || cts.token.isCancewwationWequested) {
+				wetuwn;
 			}
 
-			alert(references.ariaMessage);
+			awewt(wefewences.awiaMessage);
 
-			let altAction: IEditorAction | null | undefined;
-			if (references.referenceAt(model.uri, pos)) {
-				const altActionId = this._getAlternativeCommand(editor);
-				if (altActionId !== this.id && _goToActionIds.has(altActionId)) {
-					altAction = editor.getAction(altActionId);
+			wet awtAction: IEditowAction | nuww | undefined;
+			if (wefewences.wefewenceAt(modew.uwi, pos)) {
+				const awtActionId = this._getAwtewnativeCommand(editow);
+				if (awtActionId !== this.id && _goToActionIds.has(awtActionId)) {
+					awtAction = editow.getAction(awtActionId);
 				}
 			}
 
-			const referenceCount = references.references.length;
+			const wefewenceCount = wefewences.wefewences.wength;
 
-			if (referenceCount === 0) {
-				// no result -> show message
-				if (!this._configuration.muteMessage) {
-					const info = model.getWordAtPosition(pos);
-					MessageController.get(editor).showMessage(this._getNoResultFoundMessage(info), pos);
+			if (wefewenceCount === 0) {
+				// no wesuwt -> show message
+				if (!this._configuwation.muteMessage) {
+					const info = modew.getWowdAtPosition(pos);
+					MessageContwowwa.get(editow).showMessage(this._getNoWesuwtFoundMessage(info), pos);
 				}
-			} else if (referenceCount === 1 && altAction) {
-				// already at the only result, run alternative
-				altAction.run();
+			} ewse if (wefewenceCount === 1 && awtAction) {
+				// awweady at the onwy wesuwt, wun awtewnative
+				awtAction.wun();
 
-			} else {
-				// normal results handling
-				return this._onResult(editorService, symbolNavService, editor, references);
+			} ewse {
+				// nowmaw wesuwts handwing
+				wetuwn this._onWesuwt(editowSewvice, symbowNavSewvice, editow, wefewences);
 			}
 
-		}, (err) => {
-			// report an error
-			notificationService.error(err);
-		}).finally(() => {
+		}, (eww) => {
+			// wepowt an ewwow
+			notificationSewvice.ewwow(eww);
+		}).finawwy(() => {
 			cts.dispose();
 		});
 
-		progressService.showWhile(promise, 250);
-		return promise;
+		pwogwessSewvice.showWhiwe(pwomise, 250);
+		wetuwn pwomise;
 	}
 
-	protected abstract _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel | undefined>;
+	pwotected abstwact _getWocationModew(modew: ITextModew, position: cowePosition.Position, token: CancewwationToken): Pwomise<WefewencesModew | undefined>;
 
-	protected abstract _getNoResultFoundMessage(info: IWordAtPosition | null): string;
+	pwotected abstwact _getNoWesuwtFoundMessage(info: IWowdAtPosition | nuww): stwing;
 
-	protected abstract _getAlternativeCommand(editor: IActiveCodeEditor): string;
+	pwotected abstwact _getAwtewnativeCommand(editow: IActiveCodeEditow): stwing;
 
-	protected abstract _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues;
+	pwotected abstwact _getGoToPwefewence(editow: IActiveCodeEditow): GoToWocationVawues;
 
-	private async _onResult(editorService: ICodeEditorService, symbolNavService: ISymbolNavigationService, editor: IActiveCodeEditor, model: ReferencesModel): Promise<void> {
+	pwivate async _onWesuwt(editowSewvice: ICodeEditowSewvice, symbowNavSewvice: ISymbowNavigationSewvice, editow: IActiveCodeEditow, modew: WefewencesModew): Pwomise<void> {
 
-		const gotoLocation = this._getGoToPreference(editor);
-		if (!(editor instanceof EmbeddedCodeEditorWidget) && (this._configuration.openInPeek || (gotoLocation === 'peek' && model.references.length > 1))) {
-			this._openInPeek(editor, model);
+		const gotoWocation = this._getGoToPwefewence(editow);
+		if (!(editow instanceof EmbeddedCodeEditowWidget) && (this._configuwation.openInPeek || (gotoWocation === 'peek' && modew.wefewences.wength > 1))) {
+			this._openInPeek(editow, modew);
 
-		} else {
-			const next = model.firstReference()!;
-			const peek = model.references.length > 1 && gotoLocation === 'gotoAndPeek';
-			const targetEditor = await this._openReference(editor, editorService, next, this._configuration.openToSide, !peek);
-			if (peek && targetEditor) {
-				this._openInPeek(targetEditor, model);
-			} else {
-				model.dispose();
+		} ewse {
+			const next = modew.fiwstWefewence()!;
+			const peek = modew.wefewences.wength > 1 && gotoWocation === 'gotoAndPeek';
+			const tawgetEditow = await this._openWefewence(editow, editowSewvice, next, this._configuwation.openToSide, !peek);
+			if (peek && tawgetEditow) {
+				this._openInPeek(tawgetEditow, modew);
+			} ewse {
+				modew.dispose();
 			}
 
-			// keep remaining locations around when using
+			// keep wemaining wocations awound when using
 			// 'goto'-mode
-			if (gotoLocation === 'goto') {
-				symbolNavService.put(next);
+			if (gotoWocation === 'goto') {
+				symbowNavSewvice.put(next);
 			}
 		}
 	}
 
-	private async _openReference(editor: ICodeEditor, editorService: ICodeEditorService, reference: Location | LocationLink, sideBySide: boolean, highlight: boolean): Promise<ICodeEditor | undefined> {
-		// range is the target-selection-range when we have one
-		// and the fallback is the 'full' range
-		let range: IRange | undefined = undefined;
-		if (isLocationLink(reference)) {
-			range = reference.targetSelectionRange;
+	pwivate async _openWefewence(editow: ICodeEditow, editowSewvice: ICodeEditowSewvice, wefewence: Wocation | WocationWink, sideBySide: boowean, highwight: boowean): Pwomise<ICodeEditow | undefined> {
+		// wange is the tawget-sewection-wange when we have one
+		// and the fawwback is the 'fuww' wange
+		wet wange: IWange | undefined = undefined;
+		if (isWocationWink(wefewence)) {
+			wange = wefewence.tawgetSewectionWange;
 		}
-		if (!range) {
-			range = reference.range;
+		if (!wange) {
+			wange = wefewence.wange;
 		}
-		if (!range) {
-			return undefined;
+		if (!wange) {
+			wetuwn undefined;
 		}
 
-		const targetEditor = await editorService.openCodeEditor({
-			resource: reference.uri,
+		const tawgetEditow = await editowSewvice.openCodeEditow({
+			wesouwce: wefewence.uwi,
 			options: {
-				selection: Range.collapseToStart(range),
-				selectionRevealType: TextEditorSelectionRevealType.NearTopIfOutsideViewport
+				sewection: Wange.cowwapseToStawt(wange),
+				sewectionWeveawType: TextEditowSewectionWeveawType.NeawTopIfOutsideViewpowt
 			}
-		}, editor, sideBySide);
+		}, editow, sideBySide);
 
-		if (!targetEditor) {
-			return undefined;
+		if (!tawgetEditow) {
+			wetuwn undefined;
 		}
 
-		if (highlight) {
-			const modelNow = targetEditor.getModel();
-			const ids = targetEditor.deltaDecorations([], [{ range, options: { description: 'symbol-navigate-action-highlight', className: 'symbolHighlight' } }]);
+		if (highwight) {
+			const modewNow = tawgetEditow.getModew();
+			const ids = tawgetEditow.dewtaDecowations([], [{ wange, options: { descwiption: 'symbow-navigate-action-highwight', cwassName: 'symbowHighwight' } }]);
 			setTimeout(() => {
-				if (targetEditor.getModel() === modelNow) {
-					targetEditor.deltaDecorations(ids, []);
+				if (tawgetEditow.getModew() === modewNow) {
+					tawgetEditow.dewtaDecowations(ids, []);
 				}
 			}, 350);
 		}
 
-		return targetEditor;
+		wetuwn tawgetEditow;
 	}
 
-	private _openInPeek(target: ICodeEditor, model: ReferencesModel) {
-		let controller = ReferencesController.get(target);
-		if (controller && target.hasModel()) {
-			controller.toggleWidget(target.getSelection(), createCancelablePromise(_ => Promise.resolve(model)), this._configuration.openInPeek);
-		} else {
-			model.dispose();
+	pwivate _openInPeek(tawget: ICodeEditow, modew: WefewencesModew) {
+		wet contwowwa = WefewencesContwowwa.get(tawget);
+		if (contwowwa && tawget.hasModew()) {
+			contwowwa.toggweWidget(tawget.getSewection(), cweateCancewabwePwomise(_ => Pwomise.wesowve(modew)), this._configuwation.openInPeek);
+		} ewse {
+			modew.dispose();
 		}
 	}
 }
 
-//#region --- DEFINITION
+//#wegion --- DEFINITION
 
-export class DefinitionAction extends SymbolNavigationAction {
+expowt cwass DefinitionAction extends SymbowNavigationAction {
 
-	protected async _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel> {
-		return new ReferencesModel(await getDefinitionsAtPosition(model, position, token), nls.localize('def.title', 'Definitions'));
+	pwotected async _getWocationModew(modew: ITextModew, position: cowePosition.Position, token: CancewwationToken): Pwomise<WefewencesModew> {
+		wetuwn new WefewencesModew(await getDefinitionsAtPosition(modew, position, token), nws.wocawize('def.titwe', 'Definitions'));
 	}
 
-	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
-		return info && info.word
-			? nls.localize('noResultWord', "No definition found for '{0}'", info.word)
-			: nls.localize('generic.noResults', "No definition found");
+	pwotected _getNoWesuwtFoundMessage(info: IWowdAtPosition | nuww): stwing {
+		wetuwn info && info.wowd
+			? nws.wocawize('noWesuwtWowd', "No definition found fow '{0}'", info.wowd)
+			: nws.wocawize('genewic.noWesuwts', "No definition found");
 	}
 
-	protected _getAlternativeCommand(editor: IActiveCodeEditor): string {
-		return editor.getOption(EditorOption.gotoLocation).alternativeDefinitionCommand;
+	pwotected _getAwtewnativeCommand(editow: IActiveCodeEditow): stwing {
+		wetuwn editow.getOption(EditowOption.gotoWocation).awtewnativeDefinitionCommand;
 	}
 
-	protected _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues {
-		return editor.getOption(EditorOption.gotoLocation).multipleDefinitions;
+	pwotected _getGoToPwefewence(editow: IActiveCodeEditow): GoToWocationVawues {
+		wetuwn editow.getOption(EditowOption.gotoWocation).muwtipweDefinitions;
 	}
 }
 
-const goToDefinitionKb = isWeb && !isStandalone
-	? KeyMod.CtrlCmd | KeyCode.F12
+const goToDefinitionKb = isWeb && !isStandawone
+	? KeyMod.CtwwCmd | KeyCode.F12
 	: KeyCode.F12;
 
-registerGoToAction(class GoToDefinitionAction extends DefinitionAction {
+wegistewGoToAction(cwass GoToDefinitionAction extends DefinitionAction {
 
-	static readonly id = 'editor.action.revealDefinition';
+	static weadonwy id = 'editow.action.weveawDefinition';
 
-	constructor() {
-		super({
-			openToSide: false,
-			openInPeek: false,
-			muteMessage: false
+	constwuctow() {
+		supa({
+			openToSide: fawse,
+			openInPeek: fawse,
+			muteMessage: fawse
 		}, {
 			id: GoToDefinitionAction.id,
-			label: nls.localize('actions.goToDecl.label', "Go to Definition"),
-			alias: 'Go to Definition',
-			precondition: ContextKeyExpr.and(
-				EditorContextKeys.hasDefinitionProvider,
-				EditorContextKeys.isInWalkThroughSnippet.toNegated()),
+			wabew: nws.wocawize('actions.goToDecw.wabew', "Go to Definition"),
+			awias: 'Go to Definition',
+			pwecondition: ContextKeyExpw.and(
+				EditowContextKeys.hasDefinitionPwovida,
+				EditowContextKeys.isInWawkThwoughSnippet.toNegated()),
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: goToDefinitionKb,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: goToDefinitionKb,
+				weight: KeybindingWeight.EditowContwib
 			},
 			contextMenuOpts: {
-				group: 'navigation',
-				order: 1.1
+				gwoup: 'navigation',
+				owda: 1.1
 			}
 		});
-		CommandsRegistry.registerCommandAlias('editor.action.goToDeclaration', GoToDefinitionAction.id);
+		CommandsWegistwy.wegistewCommandAwias('editow.action.goToDecwawation', GoToDefinitionAction.id);
 	}
 });
 
-registerGoToAction(class OpenDefinitionToSideAction extends DefinitionAction {
+wegistewGoToAction(cwass OpenDefinitionToSideAction extends DefinitionAction {
 
-	static readonly id = 'editor.action.revealDefinitionAside';
+	static weadonwy id = 'editow.action.weveawDefinitionAside';
 
-	constructor() {
-		super({
-			openToSide: true,
-			openInPeek: false,
-			muteMessage: false
+	constwuctow() {
+		supa({
+			openToSide: twue,
+			openInPeek: fawse,
+			muteMessage: fawse
 		}, {
 			id: OpenDefinitionToSideAction.id,
-			label: nls.localize('actions.goToDeclToSide.label', "Open Definition to the Side"),
-			alias: 'Open Definition to the Side',
-			precondition: ContextKeyExpr.and(
-				EditorContextKeys.hasDefinitionProvider,
-				EditorContextKeys.isInWalkThroughSnippet.toNegated()),
+			wabew: nws.wocawize('actions.goToDecwToSide.wabew', "Open Definition to the Side"),
+			awias: 'Open Definition to the Side',
+			pwecondition: ContextKeyExpw.and(
+				EditowContextKeys.hasDefinitionPwovida,
+				EditowContextKeys.isInWawkThwoughSnippet.toNegated()),
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, goToDefinitionKb),
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, goToDefinitionKb),
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
-		CommandsRegistry.registerCommandAlias('editor.action.openDeclarationToTheSide', OpenDefinitionToSideAction.id);
+		CommandsWegistwy.wegistewCommandAwias('editow.action.openDecwawationToTheSide', OpenDefinitionToSideAction.id);
 	}
 });
 
-registerGoToAction(class PeekDefinitionAction extends DefinitionAction {
+wegistewGoToAction(cwass PeekDefinitionAction extends DefinitionAction {
 
-	static readonly id = 'editor.action.peekDefinition';
+	static weadonwy id = 'editow.action.peekDefinition';
 
-	constructor() {
-		super({
-			openToSide: false,
-			openInPeek: true,
-			muteMessage: false
+	constwuctow() {
+		supa({
+			openToSide: fawse,
+			openInPeek: twue,
+			muteMessage: fawse
 		}, {
 			id: PeekDefinitionAction.id,
-			label: nls.localize('actions.previewDecl.label', "Peek Definition"),
-			alias: 'Peek Definition',
-			precondition: ContextKeyExpr.and(
-				EditorContextKeys.hasDefinitionProvider,
-				PeekContext.notInPeekEditor,
-				EditorContextKeys.isInWalkThroughSnippet.toNegated()
+			wabew: nws.wocawize('actions.pweviewDecw.wabew', "Peek Definition"),
+			awias: 'Peek Definition',
+			pwecondition: ContextKeyExpw.and(
+				EditowContextKeys.hasDefinitionPwovida,
+				PeekContext.notInPeekEditow,
+				EditowContextKeys.isInWawkThwoughSnippet.toNegated()
 			),
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Alt | KeyCode.F12,
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F10 },
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyMod.Awt | KeyCode.F12,
+				winux: { pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.F10 },
+				weight: KeybindingWeight.EditowContwib
 			},
 			contextMenuOpts: {
-				menuId: MenuId.EditorContextPeek,
-				group: 'peek',
-				order: 2
+				menuId: MenuId.EditowContextPeek,
+				gwoup: 'peek',
+				owda: 2
 			}
 		});
-		CommandsRegistry.registerCommandAlias('editor.action.previewDeclaration', PeekDefinitionAction.id);
+		CommandsWegistwy.wegistewCommandAwias('editow.action.pweviewDecwawation', PeekDefinitionAction.id);
 	}
 });
 
-//#endregion
+//#endwegion
 
-//#region --- DECLARATION
+//#wegion --- DECWAWATION
 
-class DeclarationAction extends SymbolNavigationAction {
+cwass DecwawationAction extends SymbowNavigationAction {
 
-	protected async _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel> {
-		return new ReferencesModel(await getDeclarationsAtPosition(model, position, token), nls.localize('decl.title', 'Declarations'));
+	pwotected async _getWocationModew(modew: ITextModew, position: cowePosition.Position, token: CancewwationToken): Pwomise<WefewencesModew> {
+		wetuwn new WefewencesModew(await getDecwawationsAtPosition(modew, position, token), nws.wocawize('decw.titwe', 'Decwawations'));
 	}
 
-	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
-		return info && info.word
-			? nls.localize('decl.noResultWord', "No declaration found for '{0}'", info.word)
-			: nls.localize('decl.generic.noResults', "No declaration found");
+	pwotected _getNoWesuwtFoundMessage(info: IWowdAtPosition | nuww): stwing {
+		wetuwn info && info.wowd
+			? nws.wocawize('decw.noWesuwtWowd', "No decwawation found fow '{0}'", info.wowd)
+			: nws.wocawize('decw.genewic.noWesuwts', "No decwawation found");
 	}
 
-	protected _getAlternativeCommand(editor: IActiveCodeEditor): string {
-		return editor.getOption(EditorOption.gotoLocation).alternativeDeclarationCommand;
+	pwotected _getAwtewnativeCommand(editow: IActiveCodeEditow): stwing {
+		wetuwn editow.getOption(EditowOption.gotoWocation).awtewnativeDecwawationCommand;
 	}
 
-	protected _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues {
-		return editor.getOption(EditorOption.gotoLocation).multipleDeclarations;
+	pwotected _getGoToPwefewence(editow: IActiveCodeEditow): GoToWocationVawues {
+		wetuwn editow.getOption(EditowOption.gotoWocation).muwtipweDecwawations;
 	}
 }
 
-registerGoToAction(class GoToDeclarationAction extends DeclarationAction {
+wegistewGoToAction(cwass GoToDecwawationAction extends DecwawationAction {
 
-	static readonly id = 'editor.action.revealDeclaration';
+	static weadonwy id = 'editow.action.weveawDecwawation';
 
-	constructor() {
-		super({
-			openToSide: false,
-			openInPeek: false,
-			muteMessage: false
+	constwuctow() {
+		supa({
+			openToSide: fawse,
+			openInPeek: fawse,
+			muteMessage: fawse
 		}, {
-			id: GoToDeclarationAction.id,
-			label: nls.localize('actions.goToDeclaration.label', "Go to Declaration"),
-			alias: 'Go to Declaration',
-			precondition: ContextKeyExpr.and(
-				EditorContextKeys.hasDeclarationProvider,
-				EditorContextKeys.isInWalkThroughSnippet.toNegated()
+			id: GoToDecwawationAction.id,
+			wabew: nws.wocawize('actions.goToDecwawation.wabew', "Go to Decwawation"),
+			awias: 'Go to Decwawation',
+			pwecondition: ContextKeyExpw.and(
+				EditowContextKeys.hasDecwawationPwovida,
+				EditowContextKeys.isInWawkThwoughSnippet.toNegated()
 			),
 			contextMenuOpts: {
-				group: 'navigation',
-				order: 1.3
+				gwoup: 'navigation',
+				owda: 1.3
 			},
 		});
 	}
 
-	protected override _getNoResultFoundMessage(info: IWordAtPosition | null): string {
-		return info && info.word
-			? nls.localize('decl.noResultWord', "No declaration found for '{0}'", info.word)
-			: nls.localize('decl.generic.noResults', "No declaration found");
+	pwotected ovewwide _getNoWesuwtFoundMessage(info: IWowdAtPosition | nuww): stwing {
+		wetuwn info && info.wowd
+			? nws.wocawize('decw.noWesuwtWowd', "No decwawation found fow '{0}'", info.wowd)
+			: nws.wocawize('decw.genewic.noWesuwts', "No decwawation found");
 	}
 });
 
-registerGoToAction(class PeekDeclarationAction extends DeclarationAction {
-	constructor() {
-		super({
-			openToSide: false,
-			openInPeek: true,
-			muteMessage: false
+wegistewGoToAction(cwass PeekDecwawationAction extends DecwawationAction {
+	constwuctow() {
+		supa({
+			openToSide: fawse,
+			openInPeek: twue,
+			muteMessage: fawse
 		}, {
-			id: 'editor.action.peekDeclaration',
-			label: nls.localize('actions.peekDecl.label', "Peek Declaration"),
-			alias: 'Peek Declaration',
-			precondition: ContextKeyExpr.and(
-				EditorContextKeys.hasDeclarationProvider,
-				PeekContext.notInPeekEditor,
-				EditorContextKeys.isInWalkThroughSnippet.toNegated()
+			id: 'editow.action.peekDecwawation',
+			wabew: nws.wocawize('actions.peekDecw.wabew', "Peek Decwawation"),
+			awias: 'Peek Decwawation',
+			pwecondition: ContextKeyExpw.and(
+				EditowContextKeys.hasDecwawationPwovida,
+				PeekContext.notInPeekEditow,
+				EditowContextKeys.isInWawkThwoughSnippet.toNegated()
 			),
 			contextMenuOpts: {
-				menuId: MenuId.EditorContextPeek,
-				group: 'peek',
-				order: 3
+				menuId: MenuId.EditowContextPeek,
+				gwoup: 'peek',
+				owda: 3
 			}
 		});
 	}
 });
 
-//#endregion
+//#endwegion
 
-//#region --- TYPE DEFINITION
+//#wegion --- TYPE DEFINITION
 
-class TypeDefinitionAction extends SymbolNavigationAction {
+cwass TypeDefinitionAction extends SymbowNavigationAction {
 
-	protected async _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel> {
-		return new ReferencesModel(await getTypeDefinitionsAtPosition(model, position, token), nls.localize('typedef.title', 'Type Definitions'));
+	pwotected async _getWocationModew(modew: ITextModew, position: cowePosition.Position, token: CancewwationToken): Pwomise<WefewencesModew> {
+		wetuwn new WefewencesModew(await getTypeDefinitionsAtPosition(modew, position, token), nws.wocawize('typedef.titwe', 'Type Definitions'));
 	}
 
-	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
-		return info && info.word
-			? nls.localize('goToTypeDefinition.noResultWord', "No type definition found for '{0}'", info.word)
-			: nls.localize('goToTypeDefinition.generic.noResults', "No type definition found");
+	pwotected _getNoWesuwtFoundMessage(info: IWowdAtPosition | nuww): stwing {
+		wetuwn info && info.wowd
+			? nws.wocawize('goToTypeDefinition.noWesuwtWowd', "No type definition found fow '{0}'", info.wowd)
+			: nws.wocawize('goToTypeDefinition.genewic.noWesuwts', "No type definition found");
 	}
 
-	protected _getAlternativeCommand(editor: IActiveCodeEditor): string {
-		return editor.getOption(EditorOption.gotoLocation).alternativeTypeDefinitionCommand;
+	pwotected _getAwtewnativeCommand(editow: IActiveCodeEditow): stwing {
+		wetuwn editow.getOption(EditowOption.gotoWocation).awtewnativeTypeDefinitionCommand;
 	}
 
-	protected _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues {
-		return editor.getOption(EditorOption.gotoLocation).multipleTypeDefinitions;
+	pwotected _getGoToPwefewence(editow: IActiveCodeEditow): GoToWocationVawues {
+		wetuwn editow.getOption(EditowOption.gotoWocation).muwtipweTypeDefinitions;
 	}
 }
 
-registerGoToAction(class GoToTypeDefinitionAction extends TypeDefinitionAction {
+wegistewGoToAction(cwass GoToTypeDefinitionAction extends TypeDefinitionAction {
 
-	public static readonly ID = 'editor.action.goToTypeDefinition';
+	pubwic static weadonwy ID = 'editow.action.goToTypeDefinition';
 
-	constructor() {
-		super({
-			openToSide: false,
-			openInPeek: false,
-			muteMessage: false
+	constwuctow() {
+		supa({
+			openToSide: fawse,
+			openInPeek: fawse,
+			muteMessage: fawse
 		}, {
 			id: GoToTypeDefinitionAction.ID,
-			label: nls.localize('actions.goToTypeDefinition.label', "Go to Type Definition"),
-			alias: 'Go to Type Definition',
-			precondition: ContextKeyExpr.and(
-				EditorContextKeys.hasTypeDefinitionProvider,
-				EditorContextKeys.isInWalkThroughSnippet.toNegated()),
+			wabew: nws.wocawize('actions.goToTypeDefinition.wabew', "Go to Type Definition"),
+			awias: 'Go to Type Definition',
+			pwecondition: ContextKeyExpw.and(
+				EditowContextKeys.hasTypeDefinitionPwovida,
+				EditowContextKeys.isInWawkThwoughSnippet.toNegated()),
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: 0,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: 0,
+				weight: KeybindingWeight.EditowContwib
 			},
 			contextMenuOpts: {
-				group: 'navigation',
-				order: 1.4
+				gwoup: 'navigation',
+				owda: 1.4
 			}
 		});
 	}
 });
 
-registerGoToAction(class PeekTypeDefinitionAction extends TypeDefinitionAction {
+wegistewGoToAction(cwass PeekTypeDefinitionAction extends TypeDefinitionAction {
 
-	public static readonly ID = 'editor.action.peekTypeDefinition';
+	pubwic static weadonwy ID = 'editow.action.peekTypeDefinition';
 
-	constructor() {
-		super({
-			openToSide: false,
-			openInPeek: true,
-			muteMessage: false
+	constwuctow() {
+		supa({
+			openToSide: fawse,
+			openInPeek: twue,
+			muteMessage: fawse
 		}, {
 			id: PeekTypeDefinitionAction.ID,
-			label: nls.localize('actions.peekTypeDefinition.label', "Peek Type Definition"),
-			alias: 'Peek Type Definition',
-			precondition: ContextKeyExpr.and(
-				EditorContextKeys.hasTypeDefinitionProvider,
-				PeekContext.notInPeekEditor,
-				EditorContextKeys.isInWalkThroughSnippet.toNegated()
+			wabew: nws.wocawize('actions.peekTypeDefinition.wabew', "Peek Type Definition"),
+			awias: 'Peek Type Definition',
+			pwecondition: ContextKeyExpw.and(
+				EditowContextKeys.hasTypeDefinitionPwovida,
+				PeekContext.notInPeekEditow,
+				EditowContextKeys.isInWawkThwoughSnippet.toNegated()
 			),
 			contextMenuOpts: {
-				menuId: MenuId.EditorContextPeek,
-				group: 'peek',
-				order: 4
+				menuId: MenuId.EditowContextPeek,
+				gwoup: 'peek',
+				owda: 4
 			}
 		});
 	}
 });
 
-//#endregion
+//#endwegion
 
-//#region --- IMPLEMENTATION
+//#wegion --- IMPWEMENTATION
 
-class ImplementationAction extends SymbolNavigationAction {
+cwass ImpwementationAction extends SymbowNavigationAction {
 
-	protected async _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel> {
-		return new ReferencesModel(await getImplementationsAtPosition(model, position, token), nls.localize('impl.title', 'Implementations'));
+	pwotected async _getWocationModew(modew: ITextModew, position: cowePosition.Position, token: CancewwationToken): Pwomise<WefewencesModew> {
+		wetuwn new WefewencesModew(await getImpwementationsAtPosition(modew, position, token), nws.wocawize('impw.titwe', 'Impwementations'));
 	}
 
-	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
-		return info && info.word
-			? nls.localize('goToImplementation.noResultWord', "No implementation found for '{0}'", info.word)
-			: nls.localize('goToImplementation.generic.noResults', "No implementation found");
+	pwotected _getNoWesuwtFoundMessage(info: IWowdAtPosition | nuww): stwing {
+		wetuwn info && info.wowd
+			? nws.wocawize('goToImpwementation.noWesuwtWowd', "No impwementation found fow '{0}'", info.wowd)
+			: nws.wocawize('goToImpwementation.genewic.noWesuwts', "No impwementation found");
 	}
 
-	protected _getAlternativeCommand(editor: IActiveCodeEditor): string {
-		return editor.getOption(EditorOption.gotoLocation).alternativeImplementationCommand;
+	pwotected _getAwtewnativeCommand(editow: IActiveCodeEditow): stwing {
+		wetuwn editow.getOption(EditowOption.gotoWocation).awtewnativeImpwementationCommand;
 	}
 
-	protected _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues {
-		return editor.getOption(EditorOption.gotoLocation).multipleImplementations;
+	pwotected _getGoToPwefewence(editow: IActiveCodeEditow): GoToWocationVawues {
+		wetuwn editow.getOption(EditowOption.gotoWocation).muwtipweImpwementations;
 	}
 }
 
-registerGoToAction(class GoToImplementationAction extends ImplementationAction {
+wegistewGoToAction(cwass GoToImpwementationAction extends ImpwementationAction {
 
-	public static readonly ID = 'editor.action.goToImplementation';
+	pubwic static weadonwy ID = 'editow.action.goToImpwementation';
 
-	constructor() {
-		super({
-			openToSide: false,
-			openInPeek: false,
-			muteMessage: false
+	constwuctow() {
+		supa({
+			openToSide: fawse,
+			openInPeek: fawse,
+			muteMessage: fawse
 		}, {
-			id: GoToImplementationAction.ID,
-			label: nls.localize('actions.goToImplementation.label', "Go to Implementations"),
-			alias: 'Go to Implementations',
-			precondition: ContextKeyExpr.and(
-				EditorContextKeys.hasImplementationProvider,
-				EditorContextKeys.isInWalkThroughSnippet.toNegated()),
+			id: GoToImpwementationAction.ID,
+			wabew: nws.wocawize('actions.goToImpwementation.wabew', "Go to Impwementations"),
+			awias: 'Go to Impwementations',
+			pwecondition: ContextKeyExpw.and(
+				EditowContextKeys.hasImpwementationPwovida,
+				EditowContextKeys.isInWawkThwoughSnippet.toNegated()),
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.F12,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyMod.CtwwCmd | KeyCode.F12,
+				weight: KeybindingWeight.EditowContwib
 			},
 			contextMenuOpts: {
-				group: 'navigation',
-				order: 1.45
+				gwoup: 'navigation',
+				owda: 1.45
 			}
 		});
 	}
 });
 
-registerGoToAction(class PeekImplementationAction extends ImplementationAction {
+wegistewGoToAction(cwass PeekImpwementationAction extends ImpwementationAction {
 
-	public static readonly ID = 'editor.action.peekImplementation';
+	pubwic static weadonwy ID = 'editow.action.peekImpwementation';
 
-	constructor() {
-		super({
-			openToSide: false,
-			openInPeek: true,
-			muteMessage: false
+	constwuctow() {
+		supa({
+			openToSide: fawse,
+			openInPeek: twue,
+			muteMessage: fawse
 		}, {
-			id: PeekImplementationAction.ID,
-			label: nls.localize('actions.peekImplementation.label', "Peek Implementations"),
-			alias: 'Peek Implementations',
-			precondition: ContextKeyExpr.and(
-				EditorContextKeys.hasImplementationProvider,
-				PeekContext.notInPeekEditor,
-				EditorContextKeys.isInWalkThroughSnippet.toNegated()
+			id: PeekImpwementationAction.ID,
+			wabew: nws.wocawize('actions.peekImpwementation.wabew', "Peek Impwementations"),
+			awias: 'Peek Impwementations',
+			pwecondition: ContextKeyExpw.and(
+				EditowContextKeys.hasImpwementationPwovida,
+				PeekContext.notInPeekEditow,
+				EditowContextKeys.isInWawkThwoughSnippet.toNegated()
 			),
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F12,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.F12,
+				weight: KeybindingWeight.EditowContwib
 			},
 			contextMenuOpts: {
-				menuId: MenuId.EditorContextPeek,
-				group: 'peek',
-				order: 5
+				menuId: MenuId.EditowContextPeek,
+				gwoup: 'peek',
+				owda: 5
 			}
 		});
 	}
 });
 
-//#endregion
+//#endwegion
 
-//#region --- REFERENCES
+//#wegion --- WEFEWENCES
 
-abstract class ReferencesAction extends SymbolNavigationAction {
+abstwact cwass WefewencesAction extends SymbowNavigationAction {
 
-	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
-		return info
-			? nls.localize('references.no', "No references found for '{0}'", info.word)
-			: nls.localize('references.noGeneric', "No references found");
+	pwotected _getNoWesuwtFoundMessage(info: IWowdAtPosition | nuww): stwing {
+		wetuwn info
+			? nws.wocawize('wefewences.no', "No wefewences found fow '{0}'", info.wowd)
+			: nws.wocawize('wefewences.noGenewic', "No wefewences found");
 	}
 
-	protected _getAlternativeCommand(editor: IActiveCodeEditor): string {
-		return editor.getOption(EditorOption.gotoLocation).alternativeReferenceCommand;
+	pwotected _getAwtewnativeCommand(editow: IActiveCodeEditow): stwing {
+		wetuwn editow.getOption(EditowOption.gotoWocation).awtewnativeWefewenceCommand;
 	}
 
-	protected _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues {
-		return editor.getOption(EditorOption.gotoLocation).multipleReferences;
+	pwotected _getGoToPwefewence(editow: IActiveCodeEditow): GoToWocationVawues {
+		wetuwn editow.getOption(EditowOption.gotoWocation).muwtipweWefewences;
 	}
 }
 
-registerGoToAction(class GoToReferencesAction extends ReferencesAction {
+wegistewGoToAction(cwass GoToWefewencesAction extends WefewencesAction {
 
-	constructor() {
-		super({
-			openToSide: false,
-			openInPeek: false,
-			muteMessage: false
+	constwuctow() {
+		supa({
+			openToSide: fawse,
+			openInPeek: fawse,
+			muteMessage: fawse
 		}, {
-			id: 'editor.action.goToReferences',
-			label: nls.localize('goToReferences.label', "Go to References"),
-			alias: 'Go to References',
-			precondition: ContextKeyExpr.and(
-				EditorContextKeys.hasReferenceProvider,
-				PeekContext.notInPeekEditor,
-				EditorContextKeys.isInWalkThroughSnippet.toNegated()
+			id: 'editow.action.goToWefewences',
+			wabew: nws.wocawize('goToWefewences.wabew', "Go to Wefewences"),
+			awias: 'Go to Wefewences',
+			pwecondition: ContextKeyExpw.and(
+				EditowContextKeys.hasWefewencePwovida,
+				PeekContext.notInPeekEditow,
+				EditowContextKeys.isInWawkThwoughSnippet.toNegated()
 			),
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Shift | KeyCode.F12,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyMod.Shift | KeyCode.F12,
+				weight: KeybindingWeight.EditowContwib
 			},
 			contextMenuOpts: {
-				group: 'navigation',
-				order: 1.45
+				gwoup: 'navigation',
+				owda: 1.45
 			}
 		});
 	}
 
-	protected async _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel> {
-		return new ReferencesModel(await getReferencesAtPosition(model, position, true, token), nls.localize('ref.title', 'References'));
+	pwotected async _getWocationModew(modew: ITextModew, position: cowePosition.Position, token: CancewwationToken): Pwomise<WefewencesModew> {
+		wetuwn new WefewencesModew(await getWefewencesAtPosition(modew, position, twue, token), nws.wocawize('wef.titwe', 'Wefewences'));
 	}
 });
 
-registerGoToAction(class PeekReferencesAction extends ReferencesAction {
+wegistewGoToAction(cwass PeekWefewencesAction extends WefewencesAction {
 
-	constructor() {
-		super({
-			openToSide: false,
-			openInPeek: true,
-			muteMessage: false
+	constwuctow() {
+		supa({
+			openToSide: fawse,
+			openInPeek: twue,
+			muteMessage: fawse
 		}, {
-			id: 'editor.action.referenceSearch.trigger',
-			label: nls.localize('references.action.label', "Peek References"),
-			alias: 'Peek References',
-			precondition: ContextKeyExpr.and(
-				EditorContextKeys.hasReferenceProvider,
-				PeekContext.notInPeekEditor,
-				EditorContextKeys.isInWalkThroughSnippet.toNegated()
+			id: 'editow.action.wefewenceSeawch.twigga',
+			wabew: nws.wocawize('wefewences.action.wabew', "Peek Wefewences"),
+			awias: 'Peek Wefewences',
+			pwecondition: ContextKeyExpw.and(
+				EditowContextKeys.hasWefewencePwovida,
+				PeekContext.notInPeekEditow,
+				EditowContextKeys.isInWawkThwoughSnippet.toNegated()
 			),
 			contextMenuOpts: {
-				menuId: MenuId.EditorContextPeek,
-				group: 'peek',
-				order: 6
+				menuId: MenuId.EditowContextPeek,
+				gwoup: 'peek',
+				owda: 6
 			}
 		});
 	}
 
-	protected async _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel> {
-		return new ReferencesModel(await getReferencesAtPosition(model, position, false, token), nls.localize('ref.title', 'References'));
+	pwotected async _getWocationModew(modew: ITextModew, position: cowePosition.Position, token: CancewwationToken): Pwomise<WefewencesModew> {
+		wetuwn new WefewencesModew(await getWefewencesAtPosition(modew, position, fawse, token), nws.wocawize('wef.titwe', 'Wefewences'));
 	}
 });
 
-//#endregion
+//#endwegion
 
 
-//#region --- GENERIC goto symbols command
+//#wegion --- GENEWIC goto symbows command
 
-class GenericGoToLocationAction extends SymbolNavigationAction {
+cwass GenewicGoToWocationAction extends SymbowNavigationAction {
 
-	constructor(
-		config: SymbolNavigationActionConfig,
-		private readonly _references: Location[],
-		private readonly _gotoMultipleBehaviour: GoToLocationValues | undefined,
+	constwuctow(
+		config: SymbowNavigationActionConfig,
+		pwivate weadonwy _wefewences: Wocation[],
+		pwivate weadonwy _gotoMuwtipweBehaviouw: GoToWocationVawues | undefined,
 	) {
-		super(config, {
-			id: 'editor.action.goToLocation',
-			label: nls.localize('label.generic', "Go To Any Symbol"),
-			alias: 'Go To Any Symbol',
-			precondition: ContextKeyExpr.and(
-				PeekContext.notInPeekEditor,
-				EditorContextKeys.isInWalkThroughSnippet.toNegated()
+		supa(config, {
+			id: 'editow.action.goToWocation',
+			wabew: nws.wocawize('wabew.genewic', "Go To Any Symbow"),
+			awias: 'Go To Any Symbow',
+			pwecondition: ContextKeyExpw.and(
+				PeekContext.notInPeekEditow,
+				EditowContextKeys.isInWawkThwoughSnippet.toNegated()
 			),
 		});
 	}
 
-	protected async _getLocationModel(_model: ITextModel, _position: corePosition.Position, _token: CancellationToken): Promise<ReferencesModel | undefined> {
-		return new ReferencesModel(this._references, nls.localize('generic.title', 'Locations'));
+	pwotected async _getWocationModew(_modew: ITextModew, _position: cowePosition.Position, _token: CancewwationToken): Pwomise<WefewencesModew | undefined> {
+		wetuwn new WefewencesModew(this._wefewences, nws.wocawize('genewic.titwe', 'Wocations'));
 	}
 
-	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
-		return info && nls.localize('generic.noResult', "No results for '{0}'", info.word) || '';
+	pwotected _getNoWesuwtFoundMessage(info: IWowdAtPosition | nuww): stwing {
+		wetuwn info && nws.wocawize('genewic.noWesuwt', "No wesuwts fow '{0}'", info.wowd) || '';
 	}
 
-	protected _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues {
-		return this._gotoMultipleBehaviour ?? editor.getOption(EditorOption.gotoLocation).multipleReferences;
+	pwotected _getGoToPwefewence(editow: IActiveCodeEditow): GoToWocationVawues {
+		wetuwn this._gotoMuwtipweBehaviouw ?? editow.getOption(EditowOption.gotoWocation).muwtipweWefewences;
 	}
 
-	protected _getAlternativeCommand() { return ''; }
+	pwotected _getAwtewnativeCommand() { wetuwn ''; }
 }
 
-CommandsRegistry.registerCommand({
-	id: 'editor.action.goToLocations',
-	description: {
-		description: 'Go to locations from a position in a file',
-		args: [
-			{ name: 'uri', description: 'The text document in which to start', constraint: URI },
-			{ name: 'position', description: 'The position at which to start', constraint: corePosition.Position.isIPosition },
-			{ name: 'locations', description: 'An array of locations.', constraint: Array },
-			{ name: 'multiple', description: 'Define what to do when having multiple results, either `peek`, `gotoAndPeek`, or `goto' },
-			{ name: 'noResultsMessage', description: 'Human readable message that shows when locations is empty.' },
+CommandsWegistwy.wegistewCommand({
+	id: 'editow.action.goToWocations',
+	descwiption: {
+		descwiption: 'Go to wocations fwom a position in a fiwe',
+		awgs: [
+			{ name: 'uwi', descwiption: 'The text document in which to stawt', constwaint: UWI },
+			{ name: 'position', descwiption: 'The position at which to stawt', constwaint: cowePosition.Position.isIPosition },
+			{ name: 'wocations', descwiption: 'An awway of wocations.', constwaint: Awway },
+			{ name: 'muwtipwe', descwiption: 'Define what to do when having muwtipwe wesuwts, eitha `peek`, `gotoAndPeek`, ow `goto' },
+			{ name: 'noWesuwtsMessage', descwiption: 'Human weadabwe message that shows when wocations is empty.' },
 		]
 	},
-	handler: async (accessor: ServicesAccessor, resource: any, position: any, references: any, multiple?: any, noResultsMessage?: string, openInPeek?: boolean) => {
-		assertType(URI.isUri(resource));
-		assertType(corePosition.Position.isIPosition(position));
-		assertType(Array.isArray(references));
-		assertType(typeof multiple === 'undefined' || typeof multiple === 'string');
-		assertType(typeof openInPeek === 'undefined' || typeof openInPeek === 'boolean');
+	handwa: async (accessow: SewvicesAccessow, wesouwce: any, position: any, wefewences: any, muwtipwe?: any, noWesuwtsMessage?: stwing, openInPeek?: boowean) => {
+		assewtType(UWI.isUwi(wesouwce));
+		assewtType(cowePosition.Position.isIPosition(position));
+		assewtType(Awway.isAwway(wefewences));
+		assewtType(typeof muwtipwe === 'undefined' || typeof muwtipwe === 'stwing');
+		assewtType(typeof openInPeek === 'undefined' || typeof openInPeek === 'boowean');
 
-		const editorService = accessor.get(ICodeEditorService);
-		const editor = await editorService.openCodeEditor({ resource }, editorService.getFocusedCodeEditor());
+		const editowSewvice = accessow.get(ICodeEditowSewvice);
+		const editow = await editowSewvice.openCodeEditow({ wesouwce }, editowSewvice.getFocusedCodeEditow());
 
-		if (isCodeEditor(editor)) {
-			editor.setPosition(position);
-			editor.revealPositionInCenterIfOutsideViewport(position, ScrollType.Smooth);
+		if (isCodeEditow(editow)) {
+			editow.setPosition(position);
+			editow.weveawPositionInCentewIfOutsideViewpowt(position, ScwowwType.Smooth);
 
-			return editor.invokeWithinContext(accessor => {
-				const command = new class extends GenericGoToLocationAction {
-					override _getNoResultFoundMessage(info: IWordAtPosition | null) {
-						return noResultsMessage || super._getNoResultFoundMessage(info);
+			wetuwn editow.invokeWithinContext(accessow => {
+				const command = new cwass extends GenewicGoToWocationAction {
+					ovewwide _getNoWesuwtFoundMessage(info: IWowdAtPosition | nuww) {
+						wetuwn noWesuwtsMessage || supa._getNoWesuwtFoundMessage(info);
 					}
 				}({
-					muteMessage: !Boolean(noResultsMessage),
-					openInPeek: Boolean(openInPeek),
-					openToSide: false
-				}, references, multiple as GoToLocationValues);
+					muteMessage: !Boowean(noWesuwtsMessage),
+					openInPeek: Boowean(openInPeek),
+					openToSide: fawse
+				}, wefewences, muwtipwe as GoToWocationVawues);
 
-				accessor.get(IInstantiationService).invokeFunction(command.run.bind(command), editor);
+				accessow.get(IInstantiationSewvice).invokeFunction(command.wun.bind(command), editow);
 			});
 		}
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: 'editor.action.peekLocations',
-	description: {
-		description: 'Peek locations from a position in a file',
-		args: [
-			{ name: 'uri', description: 'The text document in which to start', constraint: URI },
-			{ name: 'position', description: 'The position at which to start', constraint: corePosition.Position.isIPosition },
-			{ name: 'locations', description: 'An array of locations.', constraint: Array },
-			{ name: 'multiple', description: 'Define what to do when having multiple results, either `peek`, `gotoAndPeek`, or `goto' },
+CommandsWegistwy.wegistewCommand({
+	id: 'editow.action.peekWocations',
+	descwiption: {
+		descwiption: 'Peek wocations fwom a position in a fiwe',
+		awgs: [
+			{ name: 'uwi', descwiption: 'The text document in which to stawt', constwaint: UWI },
+			{ name: 'position', descwiption: 'The position at which to stawt', constwaint: cowePosition.Position.isIPosition },
+			{ name: 'wocations', descwiption: 'An awway of wocations.', constwaint: Awway },
+			{ name: 'muwtipwe', descwiption: 'Define what to do when having muwtipwe wesuwts, eitha `peek`, `gotoAndPeek`, ow `goto' },
 		]
 	},
-	handler: async (accessor: ServicesAccessor, resource: any, position: any, references: any, multiple?: any) => {
-		accessor.get(ICommandService).executeCommand('editor.action.goToLocations', resource, position, references, multiple, undefined, true);
+	handwa: async (accessow: SewvicesAccessow, wesouwce: any, position: any, wefewences: any, muwtipwe?: any) => {
+		accessow.get(ICommandSewvice).executeCommand('editow.action.goToWocations', wesouwce, position, wefewences, muwtipwe, undefined, twue);
 	}
 });
 
-//#endregion
+//#endwegion
 
 
-//#region --- REFERENCE search special commands
+//#wegion --- WEFEWENCE seawch speciaw commands
 
-CommandsRegistry.registerCommand({
-	id: 'editor.action.findReferences',
-	handler: (accessor: ServicesAccessor, resource: any, position: any) => {
-		assertType(URI.isUri(resource));
-		assertType(corePosition.Position.isIPosition(position));
+CommandsWegistwy.wegistewCommand({
+	id: 'editow.action.findWefewences',
+	handwa: (accessow: SewvicesAccessow, wesouwce: any, position: any) => {
+		assewtType(UWI.isUwi(wesouwce));
+		assewtType(cowePosition.Position.isIPosition(position));
 
-		const codeEditorService = accessor.get(ICodeEditorService);
-		return codeEditorService.openCodeEditor({ resource }, codeEditorService.getFocusedCodeEditor()).then(control => {
-			if (!isCodeEditor(control) || !control.hasModel()) {
-				return undefined;
+		const codeEditowSewvice = accessow.get(ICodeEditowSewvice);
+		wetuwn codeEditowSewvice.openCodeEditow({ wesouwce }, codeEditowSewvice.getFocusedCodeEditow()).then(contwow => {
+			if (!isCodeEditow(contwow) || !contwow.hasModew()) {
+				wetuwn undefined;
 			}
 
-			const controller = ReferencesController.get(control);
-			if (!controller) {
-				return undefined;
+			const contwowwa = WefewencesContwowwa.get(contwow);
+			if (!contwowwa) {
+				wetuwn undefined;
 			}
 
-			const references = createCancelablePromise(token => getReferencesAtPosition(control.getModel(), corePosition.Position.lift(position), false, token).then(references => new ReferencesModel(references, nls.localize('ref.title', 'References'))));
-			const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-			return Promise.resolve(controller.toggleWidget(range, references, false));
+			const wefewences = cweateCancewabwePwomise(token => getWefewencesAtPosition(contwow.getModew(), cowePosition.Position.wift(position), fawse, token).then(wefewences => new WefewencesModew(wefewences, nws.wocawize('wef.titwe', 'Wefewences'))));
+			const wange = new Wange(position.wineNumba, position.cowumn, position.wineNumba, position.cowumn);
+			wetuwn Pwomise.wesowve(contwowwa.toggweWidget(wange, wefewences, fawse));
 		});
 	}
 });
 
 // use NEW command
-CommandsRegistry.registerCommandAlias('editor.action.showReferences', 'editor.action.peekLocations');
+CommandsWegistwy.wegistewCommandAwias('editow.action.showWefewences', 'editow.action.peekWocations');
 
-//#endregion
+//#endwegion
 
-// -- unconditionally register goto-action
+// -- unconditionawwy wegista goto-action
 
-MenuRegistry.appendMenuItems([
+MenuWegistwy.appendMenuItems([
 	{
-		id: MenuId.MenubarGoMenu,
+		id: MenuId.MenubawGoMenu,
 		item: {
 			command: {
-				id: 'editor.action.revealDefinition',
-				title: nls.localize({ key: 'miGotoDefinition', comment: ['&& denotes a mnemonic'] }, "Go to &&Definition")
+				id: 'editow.action.weveawDefinition',
+				titwe: nws.wocawize({ key: 'miGotoDefinition', comment: ['&& denotes a mnemonic'] }, "Go to &&Definition")
 			},
-			group: '4_symbol_nav',
-			order: 2,
+			gwoup: '4_symbow_nav',
+			owda: 2,
 		},
 	},
 	{
-		id: MenuId.MenubarGoMenu,
+		id: MenuId.MenubawGoMenu,
 		item: {
 			command: {
-				id: 'editor.action.revealDeclaration',
-				title: nls.localize({ key: 'miGotoDeclaration', comment: ['&& denotes a mnemonic'] }, "Go to &&Declaration")
+				id: 'editow.action.weveawDecwawation',
+				titwe: nws.wocawize({ key: 'miGotoDecwawation', comment: ['&& denotes a mnemonic'] }, "Go to &&Decwawation")
 			},
-			group: '4_symbol_nav',
-			order: 3,
+			gwoup: '4_symbow_nav',
+			owda: 3,
 
 		},
 	},
 	{
-		id: MenuId.MenubarGoMenu,
+		id: MenuId.MenubawGoMenu,
 		item: {
 			command: {
-				id: 'editor.action.goToTypeDefinition',
-				title: nls.localize({ key: 'miGotoTypeDefinition', comment: ['&& denotes a mnemonic'] }, "Go to &&Type Definition")
+				id: 'editow.action.goToTypeDefinition',
+				titwe: nws.wocawize({ key: 'miGotoTypeDefinition', comment: ['&& denotes a mnemonic'] }, "Go to &&Type Definition")
 			},
-			group: '4_symbol_nav',
-			order: 3,
+			gwoup: '4_symbow_nav',
+			owda: 3,
 		},
 	},
 	{
-		id: MenuId.MenubarGoMenu,
+		id: MenuId.MenubawGoMenu,
 		item: {
 			command: {
-				id: 'editor.action.goToImplementation',
-				title: nls.localize({ key: 'miGotoImplementation', comment: ['&& denotes a mnemonic'] }, "Go to &&Implementations")
+				id: 'editow.action.goToImpwementation',
+				titwe: nws.wocawize({ key: 'miGotoImpwementation', comment: ['&& denotes a mnemonic'] }, "Go to &&Impwementations")
 			},
-			group: '4_symbol_nav',
-			order: 4,
+			gwoup: '4_symbow_nav',
+			owda: 4,
 		},
 	},
 	{
-		id: MenuId.MenubarGoMenu,
+		id: MenuId.MenubawGoMenu,
 		item: {
 			command: {
-				id: 'editor.action.goToReferences',
-				title: nls.localize({ key: 'miGotoReference', comment: ['&& denotes a mnemonic'] }, "Go to &&References")
+				id: 'editow.action.goToWefewences',
+				titwe: nws.wocawize({ key: 'miGotoWefewence', comment: ['&& denotes a mnemonic'] }, "Go to &&Wefewences")
 			},
-			group: '4_symbol_nav',
-			order: 5,
+			gwoup: '4_symbow_nav',
+			owda: 5,
 		},
 	},
 ]);

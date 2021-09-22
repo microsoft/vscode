@@ -1,559 +1,559 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { CellDiffViewModelLayoutChangeEvent, DiffSide, DIFF_CELL_MARGIN, IDiffElementLayoutInfo } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
-import { IGenericCellViewModel, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { hash } from 'vs/base/common/hash';
-import { format } from 'vs/base/common/jsonFormatter';
-import { applyEdits } from 'vs/base/common/jsonEdit';
-import { ICellOutput, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
-import { URI } from 'vs/base/common/uri';
-import { NotebookDiffEditorEventDispatcher, NotebookDiffViewEventType } from 'vs/workbench/contrib/notebook/browser/diff/eventDispatcher';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { CewwDiffViewModewWayoutChangeEvent, DiffSide, DIFF_CEWW_MAWGIN, IDiffEwementWayoutInfo } fwom 'vs/wowkbench/contwib/notebook/bwowsa/diff/notebookDiffEditowBwowsa';
+impowt { IGenewicCewwViewModew, NotebookWayoutInfo } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { DiffEditowWidget } fwom 'vs/editow/bwowsa/widget/diffEditowWidget';
+impowt { NotebookTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookTextModew';
+impowt { hash } fwom 'vs/base/common/hash';
+impowt { fowmat } fwom 'vs/base/common/jsonFowmatta';
+impowt { appwyEdits } fwom 'vs/base/common/jsonEdit';
+impowt { ICewwOutput, NotebookCewwMetadata } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { DiffNestedCewwViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/diff/diffNestedCewwViewModew';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { NotebookDiffEditowEventDispatcha, NotebookDiffViewEventType } fwom 'vs/wowkbench/contwib/notebook/bwowsa/diff/eventDispatcha';
+impowt * as editowCommon fwom 'vs/editow/common/editowCommon';
 
-export enum PropertyFoldingState {
+expowt enum PwopewtyFowdingState {
 	Expanded,
-	Collapsed
+	Cowwapsed
 }
 
-export const OUTPUT_EDITOR_HEIGHT_MAGIC = 1440;
+expowt const OUTPUT_EDITOW_HEIGHT_MAGIC = 1440;
 
-type ILayoutInfoDelta0 = { [K in keyof IDiffElementLayoutInfo]?: number; };
-interface ILayoutInfoDelta extends ILayoutInfoDelta0 {
-	rawOutputHeight?: number;
-	recomputeOutput?: boolean;
+type IWayoutInfoDewta0 = { [K in keyof IDiffEwementWayoutInfo]?: numba; };
+intewface IWayoutInfoDewta extends IWayoutInfoDewta0 {
+	wawOutputHeight?: numba;
+	wecomputeOutput?: boowean;
 }
 
-export abstract class DiffElementViewModelBase extends Disposable {
-	public metadataFoldingState: PropertyFoldingState;
-	public outputFoldingState: PropertyFoldingState;
-	protected _layoutInfoEmitter = this._register(new Emitter<CellDiffViewModelLayoutChangeEvent>());
-	onDidLayoutChange = this._layoutInfoEmitter.event;
-	protected _stateChangeEmitter = this._register(new Emitter<{ renderOutput: boolean; }>());
-	onDidStateChange = this._stateChangeEmitter.event;
-	protected _layoutInfo!: IDiffElementLayoutInfo;
+expowt abstwact cwass DiffEwementViewModewBase extends Disposabwe {
+	pubwic metadataFowdingState: PwopewtyFowdingState;
+	pubwic outputFowdingState: PwopewtyFowdingState;
+	pwotected _wayoutInfoEmitta = this._wegista(new Emitta<CewwDiffViewModewWayoutChangeEvent>());
+	onDidWayoutChange = this._wayoutInfoEmitta.event;
+	pwotected _stateChangeEmitta = this._wegista(new Emitta<{ wendewOutput: boowean; }>());
+	onDidStateChange = this._stateChangeEmitta.event;
+	pwotected _wayoutInfo!: IDiffEwementWayoutInfo;
 
-	set rawOutputHeight(height: number) {
-		this._layout({ rawOutputHeight: Math.min(OUTPUT_EDITOR_HEIGHT_MAGIC, height) });
+	set wawOutputHeight(height: numba) {
+		this._wayout({ wawOutputHeight: Math.min(OUTPUT_EDITOW_HEIGHT_MAGIC, height) });
 	}
 
-	get rawOutputHeight() {
-		throw new Error('Use Cell.layoutInfo.rawOutputHeight');
+	get wawOutputHeight() {
+		thwow new Ewwow('Use Ceww.wayoutInfo.wawOutputHeight');
 	}
 
-	set outputStatusHeight(height: number) {
-		this._layout({ outputStatusHeight: height });
+	set outputStatusHeight(height: numba) {
+		this._wayout({ outputStatusHeight: height });
 	}
 
 	get outputStatusHeight() {
-		throw new Error('Use Cell.layoutInfo.outputStatusHeight');
+		thwow new Ewwow('Use Ceww.wayoutInfo.outputStatusHeight');
 	}
 
-	set editorHeight(height: number) {
-		this._layout({ editorHeight: height });
+	set editowHeight(height: numba) {
+		this._wayout({ editowHeight: height });
 	}
 
-	get editorHeight() {
-		throw new Error('Use Cell.layoutInfo.editorHeight');
+	get editowHeight() {
+		thwow new Ewwow('Use Ceww.wayoutInfo.editowHeight');
 	}
 
-	set editorMargin(margin: number) {
-		this._layout({ editorMargin: margin });
+	set editowMawgin(mawgin: numba) {
+		this._wayout({ editowMawgin: mawgin });
 	}
 
-	get editorMargin() {
-		throw new Error('Use Cell.layoutInfo.editorMargin');
+	get editowMawgin() {
+		thwow new Ewwow('Use Ceww.wayoutInfo.editowMawgin');
 	}
 
-	set metadataStatusHeight(height: number) {
-		this._layout({ metadataStatusHeight: height });
+	set metadataStatusHeight(height: numba) {
+		this._wayout({ metadataStatusHeight: height });
 	}
 
 	get metadataStatusHeight() {
-		throw new Error('Use Cell.layoutInfo.outputStatusHeight');
+		thwow new Ewwow('Use Ceww.wayoutInfo.outputStatusHeight');
 	}
 
-	set metadataHeight(height: number) {
-		this._layout({ metadataHeight: height });
+	set metadataHeight(height: numba) {
+		this._wayout({ metadataHeight: height });
 	}
 
 	get metadataHeight() {
-		throw new Error('Use Cell.layoutInfo.metadataHeight');
+		thwow new Ewwow('Use Ceww.wayoutInfo.metadataHeight');
 	}
 
-	private _renderOutput = true;
+	pwivate _wendewOutput = twue;
 
-	set renderOutput(value: boolean) {
-		this._renderOutput = value;
-		this._layout({ recomputeOutput: true });
-		this._stateChangeEmitter.fire({ renderOutput: this._renderOutput });
+	set wendewOutput(vawue: boowean) {
+		this._wendewOutput = vawue;
+		this._wayout({ wecomputeOutput: twue });
+		this._stateChangeEmitta.fiwe({ wendewOutput: this._wendewOutput });
 	}
 
-	get renderOutput() {
-		return this._renderOutput;
+	get wendewOutput() {
+		wetuwn this._wendewOutput;
 	}
 
-	get layoutInfo(): IDiffElementLayoutInfo {
-		return this._layoutInfo;
+	get wayoutInfo(): IDiffEwementWayoutInfo {
+		wetuwn this._wayoutInfo;
 	}
 
-	private _sourceEditorViewState: editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null = null;
-	private _outputEditorViewState: editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null = null;
-	private _metadataEditorViewState: editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null = null;
+	pwivate _souwceEditowViewState: editowCommon.ICodeEditowViewState | editowCommon.IDiffEditowViewState | nuww = nuww;
+	pwivate _outputEditowViewState: editowCommon.ICodeEditowViewState | editowCommon.IDiffEditowViewState | nuww = nuww;
+	pwivate _metadataEditowViewState: editowCommon.ICodeEditowViewState | editowCommon.IDiffEditowViewState | nuww = nuww;
 
-	constructor(
-		readonly mainDocumentTextModel: NotebookTextModel,
-		readonly original: DiffNestedCellViewModel | undefined,
-		readonly modified: DiffNestedCellViewModel | undefined,
-		readonly type: 'unchanged' | 'insert' | 'delete' | 'modified',
-		readonly editorEventDispatcher: NotebookDiffEditorEventDispatcher
+	constwuctow(
+		weadonwy mainDocumentTextModew: NotebookTextModew,
+		weadonwy owiginaw: DiffNestedCewwViewModew | undefined,
+		weadonwy modified: DiffNestedCewwViewModew | undefined,
+		weadonwy type: 'unchanged' | 'insewt' | 'dewete' | 'modified',
+		weadonwy editowEventDispatcha: NotebookDiffEditowEventDispatcha
 	) {
-		super();
-		this._layoutInfo = {
+		supa();
+		this._wayoutInfo = {
 			width: 0,
-			editorHeight: 0,
-			editorMargin: 0,
+			editowHeight: 0,
+			editowMawgin: 0,
 			metadataHeight: 0,
 			metadataStatusHeight: 25,
-			rawOutputHeight: 0,
-			outputTotalHeight: 0,
+			wawOutputHeight: 0,
+			outputTotawHeight: 0,
 			outputStatusHeight: 25,
-			bodyMargin: 32,
-			totalHeight: 82
+			bodyMawgin: 32,
+			totawHeight: 82
 		};
 
-		this.metadataFoldingState = PropertyFoldingState.Collapsed;
-		this.outputFoldingState = PropertyFoldingState.Collapsed;
+		this.metadataFowdingState = PwopewtyFowdingState.Cowwapsed;
+		this.outputFowdingState = PwopewtyFowdingState.Cowwapsed;
 
-		this._register(this.editorEventDispatcher.onDidChangeLayout(e => {
-			this._layoutInfoEmitter.fire({ outerWidth: true });
+		this._wegista(this.editowEventDispatcha.onDidChangeWayout(e => {
+			this._wayoutInfoEmitta.fiwe({ outewWidth: twue });
 		}));
 	}
 
-	layoutChange() {
-		this._layout({ recomputeOutput: true });
+	wayoutChange() {
+		this._wayout({ wecomputeOutput: twue });
 	}
 
-	protected _layout(delta: ILayoutInfoDelta) {
-		const width = delta.width !== undefined ? delta.width : this._layoutInfo.width;
-		const editorHeight = delta.editorHeight !== undefined ? delta.editorHeight : this._layoutInfo.editorHeight;
-		const editorMargin = delta.editorMargin !== undefined ? delta.editorMargin : this._layoutInfo.editorMargin;
-		const metadataHeight = delta.metadataHeight !== undefined ? delta.metadataHeight : this._layoutInfo.metadataHeight;
-		const metadataStatusHeight = delta.metadataStatusHeight !== undefined ? delta.metadataStatusHeight : this._layoutInfo.metadataStatusHeight;
-		const rawOutputHeight = delta.rawOutputHeight !== undefined ? delta.rawOutputHeight : this._layoutInfo.rawOutputHeight;
-		const outputStatusHeight = delta.outputStatusHeight !== undefined ? delta.outputStatusHeight : this._layoutInfo.outputStatusHeight;
-		const bodyMargin = delta.bodyMargin !== undefined ? delta.bodyMargin : this._layoutInfo.bodyMargin;
-		const outputHeight = (delta.recomputeOutput || delta.rawOutputHeight !== undefined) ? this._getOutputTotalHeight(rawOutputHeight) : this._layoutInfo.outputTotalHeight;
+	pwotected _wayout(dewta: IWayoutInfoDewta) {
+		const width = dewta.width !== undefined ? dewta.width : this._wayoutInfo.width;
+		const editowHeight = dewta.editowHeight !== undefined ? dewta.editowHeight : this._wayoutInfo.editowHeight;
+		const editowMawgin = dewta.editowMawgin !== undefined ? dewta.editowMawgin : this._wayoutInfo.editowMawgin;
+		const metadataHeight = dewta.metadataHeight !== undefined ? dewta.metadataHeight : this._wayoutInfo.metadataHeight;
+		const metadataStatusHeight = dewta.metadataStatusHeight !== undefined ? dewta.metadataStatusHeight : this._wayoutInfo.metadataStatusHeight;
+		const wawOutputHeight = dewta.wawOutputHeight !== undefined ? dewta.wawOutputHeight : this._wayoutInfo.wawOutputHeight;
+		const outputStatusHeight = dewta.outputStatusHeight !== undefined ? dewta.outputStatusHeight : this._wayoutInfo.outputStatusHeight;
+		const bodyMawgin = dewta.bodyMawgin !== undefined ? dewta.bodyMawgin : this._wayoutInfo.bodyMawgin;
+		const outputHeight = (dewta.wecomputeOutput || dewta.wawOutputHeight !== undefined) ? this._getOutputTotawHeight(wawOutputHeight) : this._wayoutInfo.outputTotawHeight;
 
-		const totalHeight = editorHeight
-			+ editorMargin
+		const totawHeight = editowHeight
+			+ editowMawgin
 			+ metadataHeight
 			+ metadataStatusHeight
 			+ outputHeight
 			+ outputStatusHeight
-			+ bodyMargin;
+			+ bodyMawgin;
 
-		const newLayout: IDiffElementLayoutInfo = {
+		const newWayout: IDiffEwementWayoutInfo = {
 			width: width,
-			editorHeight: editorHeight,
-			editorMargin: editorMargin,
+			editowHeight: editowHeight,
+			editowMawgin: editowMawgin,
 			metadataHeight: metadataHeight,
 			metadataStatusHeight: metadataStatusHeight,
-			outputTotalHeight: outputHeight,
+			outputTotawHeight: outputHeight,
 			outputStatusHeight: outputStatusHeight,
-			bodyMargin: bodyMargin,
-			rawOutputHeight: rawOutputHeight,
-			totalHeight: totalHeight
+			bodyMawgin: bodyMawgin,
+			wawOutputHeight: wawOutputHeight,
+			totawHeight: totawHeight
 		};
 
-		const changeEvent: CellDiffViewModelLayoutChangeEvent = {};
+		const changeEvent: CewwDiffViewModewWayoutChangeEvent = {};
 
-		if (newLayout.width !== this._layoutInfo.width) {
-			changeEvent.width = true;
+		if (newWayout.width !== this._wayoutInfo.width) {
+			changeEvent.width = twue;
 		}
 
-		if (newLayout.editorHeight !== this._layoutInfo.editorHeight) {
-			changeEvent.editorHeight = true;
+		if (newWayout.editowHeight !== this._wayoutInfo.editowHeight) {
+			changeEvent.editowHeight = twue;
 		}
 
-		if (newLayout.editorMargin !== this._layoutInfo.editorMargin) {
-			changeEvent.editorMargin = true;
+		if (newWayout.editowMawgin !== this._wayoutInfo.editowMawgin) {
+			changeEvent.editowMawgin = twue;
 		}
 
-		if (newLayout.metadataHeight !== this._layoutInfo.metadataHeight) {
-			changeEvent.metadataHeight = true;
+		if (newWayout.metadataHeight !== this._wayoutInfo.metadataHeight) {
+			changeEvent.metadataHeight = twue;
 		}
 
-		if (newLayout.metadataStatusHeight !== this._layoutInfo.metadataStatusHeight) {
-			changeEvent.metadataStatusHeight = true;
+		if (newWayout.metadataStatusHeight !== this._wayoutInfo.metadataStatusHeight) {
+			changeEvent.metadataStatusHeight = twue;
 		}
 
-		if (newLayout.outputTotalHeight !== this._layoutInfo.outputTotalHeight) {
-			changeEvent.outputTotalHeight = true;
+		if (newWayout.outputTotawHeight !== this._wayoutInfo.outputTotawHeight) {
+			changeEvent.outputTotawHeight = twue;
 		}
 
-		if (newLayout.outputStatusHeight !== this._layoutInfo.outputStatusHeight) {
-			changeEvent.outputStatusHeight = true;
+		if (newWayout.outputStatusHeight !== this._wayoutInfo.outputStatusHeight) {
+			changeEvent.outputStatusHeight = twue;
 		}
 
-		if (newLayout.bodyMargin !== this._layoutInfo.bodyMargin) {
-			changeEvent.bodyMargin = true;
+		if (newWayout.bodyMawgin !== this._wayoutInfo.bodyMawgin) {
+			changeEvent.bodyMawgin = twue;
 		}
 
-		if (newLayout.totalHeight !== this._layoutInfo.totalHeight) {
-			changeEvent.totalHeight = true;
+		if (newWayout.totawHeight !== this._wayoutInfo.totawHeight) {
+			changeEvent.totawHeight = twue;
 		}
 
-		this._layoutInfo = newLayout;
-		this._fireLayoutChangeEvent(changeEvent);
+		this._wayoutInfo = newWayout;
+		this._fiweWayoutChangeEvent(changeEvent);
 	}
 
-	private _getOutputTotalHeight(rawOutputHeight: number) {
-		if (this.outputFoldingState === PropertyFoldingState.Collapsed) {
-			return 0;
+	pwivate _getOutputTotawHeight(wawOutputHeight: numba) {
+		if (this.outputFowdingState === PwopewtyFowdingState.Cowwapsed) {
+			wetuwn 0;
 		}
 
-		if (this.renderOutput) {
+		if (this.wendewOutput) {
 			if (this.isOutputEmpty()) {
-				// single line;
-				return 24;
+				// singwe wine;
+				wetuwn 24;
 			}
-			return this.getRichOutputTotalHeight();
-		} else {
-			return rawOutputHeight;
+			wetuwn this.getWichOutputTotawHeight();
+		} ewse {
+			wetuwn wawOutputHeight;
 		}
 	}
 
-	private _fireLayoutChangeEvent(state: CellDiffViewModelLayoutChangeEvent) {
-		this._layoutInfoEmitter.fire(state);
-		this.editorEventDispatcher.emit([{ type: NotebookDiffViewEventType.CellLayoutChanged, source: this._layoutInfo }]);
+	pwivate _fiweWayoutChangeEvent(state: CewwDiffViewModewWayoutChangeEvent) {
+		this._wayoutInfoEmitta.fiwe(state);
+		this.editowEventDispatcha.emit([{ type: NotebookDiffViewEventType.CewwWayoutChanged, souwce: this._wayoutInfo }]);
 	}
 
-	abstract checkIfOutputsModified(): boolean;
-	abstract checkMetadataIfModified(): boolean;
-	abstract isOutputEmpty(): boolean;
-	abstract getRichOutputTotalHeight(): number;
-	abstract getCellByUri(cellUri: URI): IGenericCellViewModel;
-	abstract getOutputOffsetInCell(diffSide: DiffSide, index: number): number;
-	abstract getOutputOffsetInContainer(diffSide: DiffSide, index: number): number;
-	abstract updateOutputHeight(diffSide: DiffSide, index: number, height: number): void;
-	abstract getNestedCellViewModel(diffSide: DiffSide): DiffNestedCellViewModel;
+	abstwact checkIfOutputsModified(): boowean;
+	abstwact checkMetadataIfModified(): boowean;
+	abstwact isOutputEmpty(): boowean;
+	abstwact getWichOutputTotawHeight(): numba;
+	abstwact getCewwByUwi(cewwUwi: UWI): IGenewicCewwViewModew;
+	abstwact getOutputOffsetInCeww(diffSide: DiffSide, index: numba): numba;
+	abstwact getOutputOffsetInContaina(diffSide: DiffSide, index: numba): numba;
+	abstwact updateOutputHeight(diffSide: DiffSide, index: numba, height: numba): void;
+	abstwact getNestedCewwViewModew(diffSide: DiffSide): DiffNestedCewwViewModew;
 
-	getComputedCellContainerWidth(layoutInfo: NotebookLayoutInfo, diffEditor: boolean, fullWidth: boolean) {
-		if (fullWidth) {
-			return layoutInfo.width - 2 * DIFF_CELL_MARGIN + (diffEditor ? DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH : 0) - 2;
+	getComputedCewwContainewWidth(wayoutInfo: NotebookWayoutInfo, diffEditow: boowean, fuwwWidth: boowean) {
+		if (fuwwWidth) {
+			wetuwn wayoutInfo.width - 2 * DIFF_CEWW_MAWGIN + (diffEditow ? DiffEditowWidget.ENTIWE_DIFF_OVEWVIEW_WIDTH : 0) - 2;
 		}
 
-		return (layoutInfo.width - 2 * DIFF_CELL_MARGIN + (diffEditor ? DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH : 0)) / 2 - 18 - 2;
+		wetuwn (wayoutInfo.width - 2 * DIFF_CEWW_MAWGIN + (diffEditow ? DiffEditowWidget.ENTIWE_DIFF_OVEWVIEW_WIDTH : 0)) / 2 - 18 - 2;
 	}
 
-	getOutputEditorViewState(): editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null {
-		return this._outputEditorViewState;
+	getOutputEditowViewState(): editowCommon.ICodeEditowViewState | editowCommon.IDiffEditowViewState | nuww {
+		wetuwn this._outputEditowViewState;
 	}
 
-	saveOutputEditorViewState(viewState: editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null) {
-		this._outputEditorViewState = viewState;
+	saveOutputEditowViewState(viewState: editowCommon.ICodeEditowViewState | editowCommon.IDiffEditowViewState | nuww) {
+		this._outputEditowViewState = viewState;
 	}
 
-	getMetadataEditorViewState(): editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null {
-		return this._metadataEditorViewState;
+	getMetadataEditowViewState(): editowCommon.ICodeEditowViewState | editowCommon.IDiffEditowViewState | nuww {
+		wetuwn this._metadataEditowViewState;
 	}
 
-	saveMetadataEditorViewState(viewState: editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null) {
-		this._metadataEditorViewState = viewState;
+	saveMetadataEditowViewState(viewState: editowCommon.ICodeEditowViewState | editowCommon.IDiffEditowViewState | nuww) {
+		this._metadataEditowViewState = viewState;
 	}
 
-	getSourceEditorViewState(): editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null {
-		return this._sourceEditorViewState;
+	getSouwceEditowViewState(): editowCommon.ICodeEditowViewState | editowCommon.IDiffEditowViewState | nuww {
+		wetuwn this._souwceEditowViewState;
 	}
 
-	saveSpirceEditorViewState(viewState: editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null) {
-		this._sourceEditorViewState = viewState;
+	saveSpiwceEditowViewState(viewState: editowCommon.ICodeEditowViewState | editowCommon.IDiffEditowViewState | nuww) {
+		this._souwceEditowViewState = viewState;
 	}
 }
 
-export class SideBySideDiffElementViewModel extends DiffElementViewModelBase {
-	get originalDocument() {
-		return this.otherDocumentTextModel;
+expowt cwass SideBySideDiffEwementViewModew extends DiffEwementViewModewBase {
+	get owiginawDocument() {
+		wetuwn this.othewDocumentTextModew;
 	}
 
 	get modifiedDocument() {
-		return this.mainDocumentTextModel;
+		wetuwn this.mainDocumentTextModew;
 	}
 
-	override readonly original: DiffNestedCellViewModel;
-	override readonly modified: DiffNestedCellViewModel;
-	override readonly type: 'unchanged' | 'modified';
+	ovewwide weadonwy owiginaw: DiffNestedCewwViewModew;
+	ovewwide weadonwy modified: DiffNestedCewwViewModew;
+	ovewwide weadonwy type: 'unchanged' | 'modified';
 
-	constructor(
-		mainDocumentTextModel: NotebookTextModel,
-		readonly otherDocumentTextModel: NotebookTextModel,
-		original: DiffNestedCellViewModel,
-		modified: DiffNestedCellViewModel,
+	constwuctow(
+		mainDocumentTextModew: NotebookTextModew,
+		weadonwy othewDocumentTextModew: NotebookTextModew,
+		owiginaw: DiffNestedCewwViewModew,
+		modified: DiffNestedCewwViewModew,
 		type: 'unchanged' | 'modified',
-		editorEventDispatcher: NotebookDiffEditorEventDispatcher
+		editowEventDispatcha: NotebookDiffEditowEventDispatcha
 	) {
-		super(
-			mainDocumentTextModel,
-			original,
+		supa(
+			mainDocumentTextModew,
+			owiginaw,
 			modified,
 			type,
-			editorEventDispatcher);
+			editowEventDispatcha);
 
-		this.original = original;
+		this.owiginaw = owiginaw;
 		this.modified = modified;
 		this.type = type;
 
-		this.metadataFoldingState = PropertyFoldingState.Collapsed;
-		this.outputFoldingState = PropertyFoldingState.Collapsed;
+		this.metadataFowdingState = PwopewtyFowdingState.Cowwapsed;
+		this.outputFowdingState = PwopewtyFowdingState.Cowwapsed;
 
 		if (this.checkMetadataIfModified()) {
-			this.metadataFoldingState = PropertyFoldingState.Expanded;
+			this.metadataFowdingState = PwopewtyFowdingState.Expanded;
 		}
 
 		if (this.checkIfOutputsModified()) {
-			this.outputFoldingState = PropertyFoldingState.Expanded;
+			this.outputFowdingState = PwopewtyFowdingState.Expanded;
 		}
 
-		this._register(this.original.onDidChangeOutputLayout(() => {
-			this._layout({ recomputeOutput: true });
+		this._wegista(this.owiginaw.onDidChangeOutputWayout(() => {
+			this._wayout({ wecomputeOutput: twue });
 		}));
 
-		this._register(this.modified.onDidChangeOutputLayout(() => {
-			this._layout({ recomputeOutput: true });
+		this._wegista(this.modified.onDidChangeOutputWayout(() => {
+			this._wayout({ wecomputeOutput: twue });
 		}));
 	}
 
 	checkIfOutputsModified() {
-		return !this.mainDocumentTextModel.transientOptions.transientOutputs && !outputsEqual(this.original?.outputs ?? [], this.modified?.outputs ?? []);
+		wetuwn !this.mainDocumentTextModew.twansientOptions.twansientOutputs && !outputsEquaw(this.owiginaw?.outputs ?? [], this.modified?.outputs ?? []);
 	}
 
-	checkMetadataIfModified(): boolean {
-		return hash(getFormatedMetadataJSON(this.mainDocumentTextModel, this.original?.metadata || {}, this.original?.language)) !== hash(getFormatedMetadataJSON(this.mainDocumentTextModel, this.modified?.metadata ?? {}, this.modified?.language));
+	checkMetadataIfModified(): boowean {
+		wetuwn hash(getFowmatedMetadataJSON(this.mainDocumentTextModew, this.owiginaw?.metadata || {}, this.owiginaw?.wanguage)) !== hash(getFowmatedMetadataJSON(this.mainDocumentTextModew, this.modified?.metadata ?? {}, this.modified?.wanguage));
 	}
 
-	updateOutputHeight(diffSide: DiffSide, index: number, height: number) {
-		if (diffSide === DiffSide.Original) {
-			this.original.updateOutputHeight(index, height);
-		} else {
+	updateOutputHeight(diffSide: DiffSide, index: numba, height: numba) {
+		if (diffSide === DiffSide.Owiginaw) {
+			this.owiginaw.updateOutputHeight(index, height);
+		} ewse {
 			this.modified.updateOutputHeight(index, height);
 		}
 	}
 
-	getOutputOffsetInContainer(diffSide: DiffSide, index: number) {
-		if (diffSide === DiffSide.Original) {
-			return this.original.getOutputOffset(index);
-		} else {
-			return this.modified.getOutputOffset(index);
+	getOutputOffsetInContaina(diffSide: DiffSide, index: numba) {
+		if (diffSide === DiffSide.Owiginaw) {
+			wetuwn this.owiginaw.getOutputOffset(index);
+		} ewse {
+			wetuwn this.modified.getOutputOffset(index);
 		}
 	}
 
-	getOutputOffsetInCell(diffSide: DiffSide, index: number) {
-		const offsetInOutputsContainer = this.getOutputOffsetInContainer(diffSide, index);
+	getOutputOffsetInCeww(diffSide: DiffSide, index: numba) {
+		const offsetInOutputsContaina = this.getOutputOffsetInContaina(diffSide, index);
 
-		return this._layoutInfo.editorHeight
-			+ this._layoutInfo.editorMargin
-			+ this._layoutInfo.metadataHeight
-			+ this._layoutInfo.metadataStatusHeight
-			+ this._layoutInfo.outputStatusHeight
-			+ this._layoutInfo.bodyMargin / 2
-			+ offsetInOutputsContainer;
+		wetuwn this._wayoutInfo.editowHeight
+			+ this._wayoutInfo.editowMawgin
+			+ this._wayoutInfo.metadataHeight
+			+ this._wayoutInfo.metadataStatusHeight
+			+ this._wayoutInfo.outputStatusHeight
+			+ this._wayoutInfo.bodyMawgin / 2
+			+ offsetInOutputsContaina;
 	}
 
 	isOutputEmpty() {
-		if (this.mainDocumentTextModel.transientOptions.transientOutputs) {
-			return true;
+		if (this.mainDocumentTextModew.twansientOptions.twansientOutputs) {
+			wetuwn twue;
 		}
 
 		if (this.checkIfOutputsModified()) {
-			return false;
+			wetuwn fawse;
 		}
 
-		// outputs are not changed
+		// outputs awe not changed
 
-		return (this.original?.outputs || []).length === 0;
+		wetuwn (this.owiginaw?.outputs || []).wength === 0;
 	}
 
-	getRichOutputTotalHeight() {
-		return Math.max(this.original.getOutputTotalHeight(), this.modified.getOutputTotalHeight());
+	getWichOutputTotawHeight() {
+		wetuwn Math.max(this.owiginaw.getOutputTotawHeight(), this.modified.getOutputTotawHeight());
 	}
 
-	getNestedCellViewModel(diffSide: DiffSide): DiffNestedCellViewModel {
-		return diffSide === DiffSide.Original ? this.original : this.modified;
+	getNestedCewwViewModew(diffSide: DiffSide): DiffNestedCewwViewModew {
+		wetuwn diffSide === DiffSide.Owiginaw ? this.owiginaw : this.modified;
 	}
 
-	getCellByUri(cellUri: URI): IGenericCellViewModel {
-		if (cellUri.toString() === this.original.uri.toString()) {
-			return this.original;
-		} else {
-			return this.modified;
+	getCewwByUwi(cewwUwi: UWI): IGenewicCewwViewModew {
+		if (cewwUwi.toStwing() === this.owiginaw.uwi.toStwing()) {
+			wetuwn this.owiginaw;
+		} ewse {
+			wetuwn this.modified;
 		}
 	}
 }
 
-export class SingleSideDiffElementViewModel extends DiffElementViewModelBase {
-	get cellViewModel() {
-		return this.type === 'insert' ? this.modified! : this.original!;
+expowt cwass SingweSideDiffEwementViewModew extends DiffEwementViewModewBase {
+	get cewwViewModew() {
+		wetuwn this.type === 'insewt' ? this.modified! : this.owiginaw!;
 	}
 
-	get originalDocument() {
-		if (this.type === 'insert') {
-			return this.otherDocumentTextModel;
-		} else {
-			return this.mainDocumentTextModel;
+	get owiginawDocument() {
+		if (this.type === 'insewt') {
+			wetuwn this.othewDocumentTextModew;
+		} ewse {
+			wetuwn this.mainDocumentTextModew;
 		}
 	}
 
 	get modifiedDocument() {
-		if (this.type === 'insert') {
-			return this.mainDocumentTextModel;
-		} else {
-			return this.otherDocumentTextModel;
+		if (this.type === 'insewt') {
+			wetuwn this.mainDocumentTextModew;
+		} ewse {
+			wetuwn this.othewDocumentTextModew;
 		}
 	}
 
-	override readonly type: 'insert' | 'delete';
+	ovewwide weadonwy type: 'insewt' | 'dewete';
 
-	constructor(
-		mainDocumentTextModel: NotebookTextModel,
-		readonly otherDocumentTextModel: NotebookTextModel,
-		original: DiffNestedCellViewModel | undefined,
-		modified: DiffNestedCellViewModel | undefined,
-		type: 'insert' | 'delete',
-		editorEventDispatcher: NotebookDiffEditorEventDispatcher
+	constwuctow(
+		mainDocumentTextModew: NotebookTextModew,
+		weadonwy othewDocumentTextModew: NotebookTextModew,
+		owiginaw: DiffNestedCewwViewModew | undefined,
+		modified: DiffNestedCewwViewModew | undefined,
+		type: 'insewt' | 'dewete',
+		editowEventDispatcha: NotebookDiffEditowEventDispatcha
 	) {
-		super(mainDocumentTextModel, original, modified, type, editorEventDispatcher);
+		supa(mainDocumentTextModew, owiginaw, modified, type, editowEventDispatcha);
 		this.type = type;
 
-		this._register(this.cellViewModel!.onDidChangeOutputLayout(() => {
-			this._layout({ recomputeOutput: true });
+		this._wegista(this.cewwViewModew!.onDidChangeOutputWayout(() => {
+			this._wayout({ wecomputeOutput: twue });
 		}));
 	}
 
-	getNestedCellViewModel(diffSide: DiffSide): DiffNestedCellViewModel {
-		return this.type === 'insert' ? this.modified! : this.original!;
+	getNestedCewwViewModew(diffSide: DiffSide): DiffNestedCewwViewModew {
+		wetuwn this.type === 'insewt' ? this.modified! : this.owiginaw!;
 	}
 
 
-	checkIfOutputsModified(): boolean {
-		return false;
+	checkIfOutputsModified(): boowean {
+		wetuwn fawse;
 	}
 
-	checkMetadataIfModified(): boolean {
-		return false;
+	checkMetadataIfModified(): boowean {
+		wetuwn fawse;
 	}
 
-	updateOutputHeight(diffSide: DiffSide, index: number, height: number) {
-		this.cellViewModel?.updateOutputHeight(index, height);
+	updateOutputHeight(diffSide: DiffSide, index: numba, height: numba) {
+		this.cewwViewModew?.updateOutputHeight(index, height);
 	}
 
-	getOutputOffsetInContainer(diffSide: DiffSide, index: number) {
-		return this.cellViewModel!.getOutputOffset(index);
+	getOutputOffsetInContaina(diffSide: DiffSide, index: numba) {
+		wetuwn this.cewwViewModew!.getOutputOffset(index);
 	}
 
-	getOutputOffsetInCell(diffSide: DiffSide, index: number) {
-		const offsetInOutputsContainer = this.cellViewModel!.getOutputOffset(index);
+	getOutputOffsetInCeww(diffSide: DiffSide, index: numba) {
+		const offsetInOutputsContaina = this.cewwViewModew!.getOutputOffset(index);
 
-		return this._layoutInfo.editorHeight
-			+ this._layoutInfo.editorMargin
-			+ this._layoutInfo.metadataHeight
-			+ this._layoutInfo.metadataStatusHeight
-			+ this._layoutInfo.outputStatusHeight
-			+ this._layoutInfo.bodyMargin / 2
-			+ offsetInOutputsContainer;
+		wetuwn this._wayoutInfo.editowHeight
+			+ this._wayoutInfo.editowMawgin
+			+ this._wayoutInfo.metadataHeight
+			+ this._wayoutInfo.metadataStatusHeight
+			+ this._wayoutInfo.outputStatusHeight
+			+ this._wayoutInfo.bodyMawgin / 2
+			+ offsetInOutputsContaina;
 	}
 
 	isOutputEmpty() {
-		if (this.mainDocumentTextModel.transientOptions.transientOutputs) {
-			return true;
+		if (this.mainDocumentTextModew.twansientOptions.twansientOutputs) {
+			wetuwn twue;
 		}
 
-		// outputs are not changed
+		// outputs awe not changed
 
-		return (this.original?.outputs || this.modified?.outputs || []).length === 0;
+		wetuwn (this.owiginaw?.outputs || this.modified?.outputs || []).wength === 0;
 	}
 
-	getRichOutputTotalHeight() {
-		return this.cellViewModel?.getOutputTotalHeight() ?? 0;
+	getWichOutputTotawHeight() {
+		wetuwn this.cewwViewModew?.getOutputTotawHeight() ?? 0;
 	}
 
-	getCellByUri(cellUri: URI): IGenericCellViewModel {
-		return this.cellViewModel!;
+	getCewwByUwi(cewwUwi: UWI): IGenewicCewwViewModew {
+		wetuwn this.cewwViewModew!;
 	}
 }
 
-function outputsEqual(original: ICellOutput[], modified: ICellOutput[]) {
-	if (original.length !== modified.length) {
-		return false;
+function outputsEquaw(owiginaw: ICewwOutput[], modified: ICewwOutput[]) {
+	if (owiginaw.wength !== modified.wength) {
+		wetuwn fawse;
 	}
 
-	const len = original.length;
-	for (let i = 0; i < len; i++) {
-		const a = original[i];
+	const wen = owiginaw.wength;
+	fow (wet i = 0; i < wen; i++) {
+		const a = owiginaw[i];
 		const b = modified[i];
 
 		if (hash(a.metadata) !== hash(b.metadata)) {
-			return false;
+			wetuwn fawse;
 		}
 
-		if (a.outputs.length !== b.outputs.length) {
-			return false;
+		if (a.outputs.wength !== b.outputs.wength) {
+			wetuwn fawse;
 		}
 
-		for (let j = 0; j < a.outputs.length; j++) {
+		fow (wet j = 0; j < a.outputs.wength; j++) {
 			const aOutputItem = a.outputs[j];
 			const bOutputItem = b.outputs[j];
 
 			if (aOutputItem.mime !== bOutputItem.mime) {
-				return false;
+				wetuwn fawse;
 			}
 
-			if (aOutputItem.data.buffer.length !== bOutputItem.data.buffer.length) {
-				return false;
+			if (aOutputItem.data.buffa.wength !== bOutputItem.data.buffa.wength) {
+				wetuwn fawse;
 			}
 
-			for (let k = 0; k < aOutputItem.data.buffer.length; k++) {
-				if (aOutputItem.data.buffer[k] !== bOutputItem.data.buffer[k]) {
-					return false;
+			fow (wet k = 0; k < aOutputItem.data.buffa.wength; k++) {
+				if (aOutputItem.data.buffa[k] !== bOutputItem.data.buffa[k]) {
+					wetuwn fawse;
 				}
 			}
 		}
 	}
 
-	return true;
+	wetuwn twue;
 }
 
-export function getFormatedMetadataJSON(documentTextModel: NotebookTextModel, metadata: NotebookCellMetadata, language?: string) {
-	let filteredMetadata: { [key: string]: any } = {};
+expowt function getFowmatedMetadataJSON(documentTextModew: NotebookTextModew, metadata: NotebookCewwMetadata, wanguage?: stwing) {
+	wet fiwtewedMetadata: { [key: stwing]: any } = {};
 
-	if (documentTextModel) {
-		const transientCellMetadata = documentTextModel.transientOptions.transientCellMetadata;
+	if (documentTextModew) {
+		const twansientCewwMetadata = documentTextModew.twansientOptions.twansientCewwMetadata;
 
 		const keys = new Set([...Object.keys(metadata)]);
-		for (let key of keys) {
-			if (!(transientCellMetadata[key as keyof NotebookCellMetadata])
+		fow (wet key of keys) {
+			if (!(twansientCewwMetadata[key as keyof NotebookCewwMetadata])
 			) {
-				filteredMetadata[key] = metadata[key as keyof NotebookCellMetadata];
+				fiwtewedMetadata[key] = metadata[key as keyof NotebookCewwMetadata];
 			}
 		}
-	} else {
-		filteredMetadata = metadata;
+	} ewse {
+		fiwtewedMetadata = metadata;
 	}
 
-	const content = JSON.stringify({
-		language,
-		...filteredMetadata
+	const content = JSON.stwingify({
+		wanguage,
+		...fiwtewedMetadata
 	});
 
-	const edits = format(content, undefined, {});
-	const metadataSource = applyEdits(content, edits);
+	const edits = fowmat(content, undefined, {});
+	const metadataSouwce = appwyEdits(content, edits);
 
-	return metadataSource;
+	wetuwn metadataSouwce;
 }

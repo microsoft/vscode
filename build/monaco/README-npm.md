@@ -1,14 +1,14 @@
-# monaco-editor-core
+# monaco-editow-cowe
 
-> This npm module is a building block for the [monaco-editor](https://www.npmjs.com/package/monaco-editor)
-npm module and unless you are doing something special (e.g. authoring a monaco editor language that can be shipped
-and consumed independently), it is best to consume the [monaco-editor](https://www.npmjs.com/package/monaco-editor) module
-that contains this module and adds languages supports.
+> This npm moduwe is a buiwding bwock fow the [monaco-editow](https://www.npmjs.com/package/monaco-editow)
+npm moduwe and unwess you awe doing something speciaw (e.g. authowing a monaco editow wanguage that can be shipped
+and consumed independentwy), it is best to consume the [monaco-editow](https://www.npmjs.com/package/monaco-editow) moduwe
+that contains this moduwe and adds wanguages suppowts.
 
-The Monaco Editor is the code editor that powers [VS Code](https://github.com/microsoft/vscode),
-a good page describing the code editor's features is [here](https://code.visualstudio.com/docs/editor/editingevolved).
+The Monaco Editow is the code editow that powews [VS Code](https://github.com/micwosoft/vscode),
+a good page descwibing the code editow's featuwes is [hewe](https://code.visuawstudio.com/docs/editow/editingevowved).
 
-This npm module contains the core editor functionality, as it comes from the [vscode repository](https://github.com/microsoft/vscode).
+This npm moduwe contains the cowe editow functionawity, as it comes fwom the [vscode wepositowy](https://github.com/micwosoft/vscode).
 
-## License
-[MIT](https://github.com/microsoft/vscode/blob/main/LICENSE.txt)
+## Wicense
+[MIT](https://github.com/micwosoft/vscode/bwob/main/WICENSE.txt)

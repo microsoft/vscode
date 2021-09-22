@@ -1,75 +1,75 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { MarkdownEngine } from '../markdownEngine';
-import { SkinnyTextDocument, TableOfContentsProvider, TocEntry } from '../tableOfContentsProvider';
+impowt * as vscode fwom 'vscode';
+impowt { MawkdownEngine } fwom '../mawkdownEngine';
+impowt { SkinnyTextDocument, TabweOfContentsPwovida, TocEntwy } fwom '../tabweOfContentsPwovida';
 
-interface MarkdownSymbol {
-	readonly level: number;
-	readonly parent: MarkdownSymbol | undefined;
-	readonly children: vscode.DocumentSymbol[];
+intewface MawkdownSymbow {
+	weadonwy wevew: numba;
+	weadonwy pawent: MawkdownSymbow | undefined;
+	weadonwy chiwdwen: vscode.DocumentSymbow[];
 }
 
-export default class MDDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
+expowt defauwt cwass MDDocumentSymbowPwovida impwements vscode.DocumentSymbowPwovida {
 
-	constructor(
-		private readonly engine: MarkdownEngine
+	constwuctow(
+		pwivate weadonwy engine: MawkdownEngine
 	) { }
 
-	public async provideDocumentSymbolInformation(document: SkinnyTextDocument): Promise<vscode.SymbolInformation[]> {
-		const toc = await new TableOfContentsProvider(this.engine, document).getToc();
-		return toc.map(entry => this.toSymbolInformation(entry));
+	pubwic async pwovideDocumentSymbowInfowmation(document: SkinnyTextDocument): Pwomise<vscode.SymbowInfowmation[]> {
+		const toc = await new TabweOfContentsPwovida(this.engine, document).getToc();
+		wetuwn toc.map(entwy => this.toSymbowInfowmation(entwy));
 	}
 
-	public async provideDocumentSymbols(document: SkinnyTextDocument): Promise<vscode.DocumentSymbol[]> {
-		const toc = await new TableOfContentsProvider(this.engine, document).getToc();
-		const root: MarkdownSymbol = {
-			level: -Infinity,
-			children: [],
-			parent: undefined
+	pubwic async pwovideDocumentSymbows(document: SkinnyTextDocument): Pwomise<vscode.DocumentSymbow[]> {
+		const toc = await new TabweOfContentsPwovida(this.engine, document).getToc();
+		const woot: MawkdownSymbow = {
+			wevew: -Infinity,
+			chiwdwen: [],
+			pawent: undefined
 		};
-		this.buildTree(root, toc);
-		return root.children;
+		this.buiwdTwee(woot, toc);
+		wetuwn woot.chiwdwen;
 	}
 
-	private buildTree(parent: MarkdownSymbol, entries: TocEntry[]) {
-		if (!entries.length) {
-			return;
+	pwivate buiwdTwee(pawent: MawkdownSymbow, entwies: TocEntwy[]) {
+		if (!entwies.wength) {
+			wetuwn;
 		}
 
-		const entry = entries[0];
-		const symbol = this.toDocumentSymbol(entry);
-		symbol.children = [];
+		const entwy = entwies[0];
+		const symbow = this.toDocumentSymbow(entwy);
+		symbow.chiwdwen = [];
 
-		while (parent && entry.level <= parent.level) {
-			parent = parent.parent!;
+		whiwe (pawent && entwy.wevew <= pawent.wevew) {
+			pawent = pawent.pawent!;
 		}
-		parent.children.push(symbol);
-		this.buildTree({ level: entry.level, children: symbol.children, parent }, entries.slice(1));
+		pawent.chiwdwen.push(symbow);
+		this.buiwdTwee({ wevew: entwy.wevew, chiwdwen: symbow.chiwdwen, pawent }, entwies.swice(1));
 	}
 
 
-	private toSymbolInformation(entry: TocEntry): vscode.SymbolInformation {
-		return new vscode.SymbolInformation(
-			this.getSymbolName(entry),
-			vscode.SymbolKind.String,
+	pwivate toSymbowInfowmation(entwy: TocEntwy): vscode.SymbowInfowmation {
+		wetuwn new vscode.SymbowInfowmation(
+			this.getSymbowName(entwy),
+			vscode.SymbowKind.Stwing,
 			'',
-			entry.location);
+			entwy.wocation);
 	}
 
-	private toDocumentSymbol(entry: TocEntry) {
-		return new vscode.DocumentSymbol(
-			this.getSymbolName(entry),
+	pwivate toDocumentSymbow(entwy: TocEntwy) {
+		wetuwn new vscode.DocumentSymbow(
+			this.getSymbowName(entwy),
 			'',
-			vscode.SymbolKind.String,
-			entry.location.range,
-			entry.location.range);
+			vscode.SymbowKind.Stwing,
+			entwy.wocation.wange,
+			entwy.wocation.wange);
 	}
 
-	private getSymbolName(entry: TocEntry): string {
-		return '#'.repeat(entry.level) + ' ' + entry.text;
+	pwivate getSymbowName(entwy: TocEntwy): stwing {
+		wetuwn '#'.wepeat(entwy.wevew) + ' ' + entwy.text;
 	}
 }

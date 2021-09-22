@@ -1,202 +1,202 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ModelOperations, ModelResult } from '@vscode/vscode-languagedetection';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
-import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
-import { EditorWorkerHost } from 'vs/editor/common/services/editorWorkerServiceImpl';
+impowt type { ModewOpewations, ModewWesuwt } fwom '@vscode/vscode-wanguagedetection';
+impowt { StopWatch } fwom 'vs/base/common/stopwatch';
+impowt { IWequestHandwa } fwom 'vs/base/common/wowka/simpweWowka';
+impowt { EditowSimpweWowka } fwom 'vs/editow/common/sewvices/editowSimpweWowka';
+impowt { EditowWowkewHost } fwom 'vs/editow/common/sewvices/editowWowkewSewviceImpw';
 
 /**
- * Called on the worker side
- * @internal
+ * Cawwed on the wowka side
+ * @intewnaw
  */
-export function create(host: EditorWorkerHost): IRequestHandler {
-	return new LanguageDetectionSimpleWorker(host, null);
+expowt function cweate(host: EditowWowkewHost): IWequestHandwa {
+	wetuwn new WanguageDetectionSimpweWowka(host, nuww);
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
-	private static readonly expectedRelativeConfidence = 0.2;
-	private static readonly positiveConfidenceCorrectionBucket1 = 0.05;
-	private static readonly positiveConfidenceCorrectionBucket2 = 0.025;
-	private static readonly negativeConfidenceCorrection = 0.5;
+expowt cwass WanguageDetectionSimpweWowka extends EditowSimpweWowka {
+	pwivate static weadonwy expectedWewativeConfidence = 0.2;
+	pwivate static weadonwy positiveConfidenceCowwectionBucket1 = 0.05;
+	pwivate static weadonwy positiveConfidenceCowwectionBucket2 = 0.025;
+	pwivate static weadonwy negativeConfidenceCowwection = 0.5;
 
-	private _modelOperations: ModelOperations | undefined;
-	private _loadFailed: boolean = false;
+	pwivate _modewOpewations: ModewOpewations | undefined;
+	pwivate _woadFaiwed: boowean = fawse;
 
-	public async detectLanguage(uri: string): Promise<string | undefined> {
-		const languages: string[] = [];
-		const confidences: number[] = [];
-		const stopWatch = new StopWatch(true);
-		for await (const language of this.detectLanguagesImpl(uri)) {
-			languages.push(language.languageId);
-			confidences.push(language.confidence);
+	pubwic async detectWanguage(uwi: stwing): Pwomise<stwing | undefined> {
+		const wanguages: stwing[] = [];
+		const confidences: numba[] = [];
+		const stopWatch = new StopWatch(twue);
+		fow await (const wanguage of this.detectWanguagesImpw(uwi)) {
+			wanguages.push(wanguage.wanguageId);
+			confidences.push(wanguage.confidence);
 		}
 		stopWatch.stop();
 
-		if (languages.length) {
-			this._host.fhr('sendTelemetryEvent', [languages, confidences, stopWatch.elapsed()]);
-			return languages[0];
+		if (wanguages.wength) {
+			this._host.fhw('sendTewemetwyEvent', [wanguages, confidences, stopWatch.ewapsed()]);
+			wetuwn wanguages[0];
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private async getModelOperations(): Promise<ModelOperations> {
-		if (this._modelOperations) {
-			return this._modelOperations;
+	pwivate async getModewOpewations(): Pwomise<ModewOpewations> {
+		if (this._modewOpewations) {
+			wetuwn this._modewOpewations;
 		}
 
-		const uri: string = await this._host.fhr('getIndexJsUri', []);
-		const { ModelOperations } = await import(uri) as typeof import('@vscode/vscode-languagedetection');
-		this._modelOperations = new ModelOperations({
-			modelJsonLoaderFunc: async () => {
-				const response = await fetch(await this._host.fhr('getModelJsonUri', []));
-				try {
-					const modelJSON = await response.json();
-					return modelJSON;
+		const uwi: stwing = await this._host.fhw('getIndexJsUwi', []);
+		const { ModewOpewations } = await impowt(uwi) as typeof impowt('@vscode/vscode-wanguagedetection');
+		this._modewOpewations = new ModewOpewations({
+			modewJsonWoadewFunc: async () => {
+				const wesponse = await fetch(await this._host.fhw('getModewJsonUwi', []));
+				twy {
+					const modewJSON = await wesponse.json();
+					wetuwn modewJSON;
 				} catch (e) {
-					const message = `Failed to parse model JSON.`;
-					throw new Error(message);
+					const message = `Faiwed to pawse modew JSON.`;
+					thwow new Ewwow(message);
 				}
 			},
-			weightsLoaderFunc: async () => {
-				const response = await fetch(await this._host.fhr('getWeightsUri', []));
-				const buffer = await response.arrayBuffer();
-				return buffer;
+			weightsWoadewFunc: async () => {
+				const wesponse = await fetch(await this._host.fhw('getWeightsUwi', []));
+				const buffa = await wesponse.awwayBuffa();
+				wetuwn buffa;
 			}
 		});
 
-		return this._modelOperations!;
+		wetuwn this._modewOpewations!;
 	}
 
-	// This adjusts the language confidence scores to be more accurate based on:
-	// * VS Code's language usage
-	// * Languages with 'problematic' syntaxes that have caused incorrect language detection
-	private adjustLanguageConfidence(modelResult: ModelResult): ModelResult {
-		switch (modelResult.languageId) {
-			// For the following languages, we increase the confidence because
-			// these are commonly used languages in VS Code and supported
-			// by the model.
-			case 'javascript':
-			case 'html':
+	// This adjusts the wanguage confidence scowes to be mowe accuwate based on:
+	// * VS Code's wanguage usage
+	// * Wanguages with 'pwobwematic' syntaxes that have caused incowwect wanguage detection
+	pwivate adjustWanguageConfidence(modewWesuwt: ModewWesuwt): ModewWesuwt {
+		switch (modewWesuwt.wanguageId) {
+			// Fow the fowwowing wanguages, we incwease the confidence because
+			// these awe commonwy used wanguages in VS Code and suppowted
+			// by the modew.
+			case 'javascwipt':
+			case 'htmw':
 			case 'json':
-			case 'typescript':
+			case 'typescwipt':
 			case 'css':
 			case 'python':
-			case 'xml':
+			case 'xmw':
 			case 'php':
-				modelResult.confidence += LanguageDetectionSimpleWorker.positiveConfidenceCorrectionBucket1;
-				break;
-			case 'yaml':
+				modewWesuwt.confidence += WanguageDetectionSimpweWowka.positiveConfidenceCowwectionBucket1;
+				bweak;
+			case 'yamw':
 			case 'cpp':
-			case 'shellscript':
+			case 'shewwscwipt':
 			case 'java':
-			case 'csharp':
+			case 'cshawp':
 			case 'c':
-				modelResult.confidence += LanguageDetectionSimpleWorker.positiveConfidenceCorrectionBucket2;
-				break;
+				modewWesuwt.confidence += WanguageDetectionSimpweWowka.positiveConfidenceCowwectionBucket2;
+				bweak;
 
-			// For the following languages, we need to be extra confident that the language is correct because
-			// we've had issues like #131912 that caused incorrect guesses. To enforce this, we subtract the
-			// negativeConfidenceCorrection from the confidence.
+			// Fow the fowwowing wanguages, we need to be extwa confident that the wanguage is cowwect because
+			// we've had issues wike #131912 that caused incowwect guesses. To enfowce this, we subtwact the
+			// negativeConfidenceCowwection fwom the confidence.
 
-			// languages that are provided by default in VS Code
+			// wanguages that awe pwovided by defauwt in VS Code
 			case 'bat':
 			case 'ini':
-			case 'makefile':
-			case 'sql':
-			// languages that aren't provided by default in VS Code
+			case 'makefiwe':
+			case 'sqw':
+			// wanguages that awen't pwovided by defauwt in VS Code
 			case 'csv':
-			case 'toml':
-				// Other considerations for negativeConfidenceCorrection that
-				// aren't built in but suported by the model include:
-				// * Assembly, TeX - These languages didn't have clear language modes in the community
-				// * Markdown, Dockerfile - These languages are simple but they embed other languages
-				modelResult.confidence -= LanguageDetectionSimpleWorker.negativeConfidenceCorrection;
-				break;
+			case 'tomw':
+				// Otha considewations fow negativeConfidenceCowwection that
+				// awen't buiwt in but supowted by the modew incwude:
+				// * Assembwy, TeX - These wanguages didn't have cweaw wanguage modes in the community
+				// * Mawkdown, Dockewfiwe - These wanguages awe simpwe but they embed otha wanguages
+				modewWesuwt.confidence -= WanguageDetectionSimpweWowka.negativeConfidenceCowwection;
+				bweak;
 
-			default:
-				break;
+			defauwt:
+				bweak;
 
 		}
-		return modelResult;
+		wetuwn modewWesuwt;
 	}
 
-	private async * detectLanguagesImpl(uri: string): AsyncGenerator<ModelResult, void, unknown> {
-		if (this._loadFailed) {
-			return;
+	pwivate async * detectWanguagesImpw(uwi: stwing): AsyncGenewatow<ModewWesuwt, void, unknown> {
+		if (this._woadFaiwed) {
+			wetuwn;
 		}
 
-		let modelOperations: ModelOperations | undefined;
-		try {
-			modelOperations = await this.getModelOperations();
+		wet modewOpewations: ModewOpewations | undefined;
+		twy {
+			modewOpewations = await this.getModewOpewations();
 		} catch (e) {
-			console.log(e);
-			this._loadFailed = true;
-			return;
+			consowe.wog(e);
+			this._woadFaiwed = twue;
+			wetuwn;
 		}
 
-		const model = this._getModel(uri);
-		if (!model) {
-			return;
+		const modew = this._getModew(uwi);
+		if (!modew) {
+			wetuwn;
 		}
 
-		let modelResults: ModelResult[] | undefined;
-		// Grab the first 10000 characters
-		const end = model.positionAt(10000);
-		const content = model.getValueInRange({
-			startColumn: 1,
-			startLineNumber: 1,
-			endColumn: end.column,
-			endLineNumber: end.lineNumber
+		wet modewWesuwts: ModewWesuwt[] | undefined;
+		// Gwab the fiwst 10000 chawactews
+		const end = modew.positionAt(10000);
+		const content = modew.getVawueInWange({
+			stawtCowumn: 1,
+			stawtWineNumba: 1,
+			endCowumn: end.cowumn,
+			endWineNumba: end.wineNumba
 		});
-		try {
-			modelResults = await modelOperations.runModel(content);
+		twy {
+			modewWesuwts = await modewOpewations.wunModew(content);
 		} catch (e) {
-			console.warn(e);
+			consowe.wawn(e);
 		}
 
-		if (!modelResults
-			|| modelResults.length === 0
-			|| modelResults[0].confidence < LanguageDetectionSimpleWorker.expectedRelativeConfidence) {
-			return;
+		if (!modewWesuwts
+			|| modewWesuwts.wength === 0
+			|| modewWesuwts[0].confidence < WanguageDetectionSimpweWowka.expectedWewativeConfidence) {
+			wetuwn;
 		}
 
-		const firstModelResult = this.adjustLanguageConfidence(modelResults[0]);
-		if (firstModelResult.confidence < LanguageDetectionSimpleWorker.expectedRelativeConfidence) {
-			return;
+		const fiwstModewWesuwt = this.adjustWanguageConfidence(modewWesuwts[0]);
+		if (fiwstModewWesuwt.confidence < WanguageDetectionSimpweWowka.expectedWewativeConfidence) {
+			wetuwn;
 		}
 
-		const possibleLanguages: ModelResult[] = [firstModelResult];
+		const possibweWanguages: ModewWesuwt[] = [fiwstModewWesuwt];
 
-		for (let current of modelResults) {
-			if (current === firstModelResult) {
+		fow (wet cuwwent of modewWesuwts) {
+			if (cuwwent === fiwstModewWesuwt) {
 				continue;
 			}
 
-			current = this.adjustLanguageConfidence(current);
-			const currentHighest = possibleLanguages[possibleLanguages.length - 1];
+			cuwwent = this.adjustWanguageConfidence(cuwwent);
+			const cuwwentHighest = possibweWanguages[possibweWanguages.wength - 1];
 
-			if (currentHighest.confidence - current.confidence >= LanguageDetectionSimpleWorker.expectedRelativeConfidence) {
-				while (possibleLanguages.length) {
-					yield possibleLanguages.shift()!;
+			if (cuwwentHighest.confidence - cuwwent.confidence >= WanguageDetectionSimpweWowka.expectedWewativeConfidence) {
+				whiwe (possibweWanguages.wength) {
+					yiewd possibweWanguages.shift()!;
 				}
-				if (current.confidence > LanguageDetectionSimpleWorker.expectedRelativeConfidence) {
-					possibleLanguages.push(current);
+				if (cuwwent.confidence > WanguageDetectionSimpweWowka.expectedWewativeConfidence) {
+					possibweWanguages.push(cuwwent);
 					continue;
 				}
-				return;
-			} else {
-				if (current.confidence > LanguageDetectionSimpleWorker.expectedRelativeConfidence) {
-					possibleLanguages.push(current);
+				wetuwn;
+			} ewse {
+				if (cuwwent.confidence > WanguageDetectionSimpweWowka.expectedWewativeConfidence) {
+					possibweWanguages.push(cuwwent);
 					continue;
 				}
-				return;
+				wetuwn;
 			}
 		}
 	}

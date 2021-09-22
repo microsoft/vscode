@@ -1,573 +1,573 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import * as strings from 'vs/base/common/strings';
-import { WordCharacterClass, WordCharacterClassifier, getMapForWordSeparators } from 'vs/editor/common/controller/wordCharacterClassifier';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { EndOfLinePreference, FindMatch } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { WowdChawactewCwass, WowdChawactewCwassifia, getMapFowWowdSepawatows } fwom 'vs/editow/common/contwowwa/wowdChawactewCwassifia';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { EndOfWinePwefewence, FindMatch } fwom 'vs/editow/common/modew';
+impowt { TextModew } fwom 'vs/editow/common/modew/textModew';
 
-const LIMIT_FIND_COUNT = 999;
+const WIMIT_FIND_COUNT = 999;
 
-export class SearchParams {
-	public readonly searchString: string;
-	public readonly isRegex: boolean;
-	public readonly matchCase: boolean;
-	public readonly wordSeparators: string | null;
+expowt cwass SeawchPawams {
+	pubwic weadonwy seawchStwing: stwing;
+	pubwic weadonwy isWegex: boowean;
+	pubwic weadonwy matchCase: boowean;
+	pubwic weadonwy wowdSepawatows: stwing | nuww;
 
-	constructor(searchString: string, isRegex: boolean, matchCase: boolean, wordSeparators: string | null) {
-		this.searchString = searchString;
-		this.isRegex = isRegex;
+	constwuctow(seawchStwing: stwing, isWegex: boowean, matchCase: boowean, wowdSepawatows: stwing | nuww) {
+		this.seawchStwing = seawchStwing;
+		this.isWegex = isWegex;
 		this.matchCase = matchCase;
-		this.wordSeparators = wordSeparators;
+		this.wowdSepawatows = wowdSepawatows;
 	}
 
-	public parseSearchRequest(): SearchData | null {
-		if (this.searchString === '') {
-			return null;
+	pubwic pawseSeawchWequest(): SeawchData | nuww {
+		if (this.seawchStwing === '') {
+			wetuwn nuww;
 		}
 
-		// Try to create a RegExp out of the params
-		let multiline: boolean;
-		if (this.isRegex) {
-			multiline = isMultilineRegexSource(this.searchString);
-		} else {
-			multiline = (this.searchString.indexOf('\n') >= 0);
+		// Twy to cweate a WegExp out of the pawams
+		wet muwtiwine: boowean;
+		if (this.isWegex) {
+			muwtiwine = isMuwtiwineWegexSouwce(this.seawchStwing);
+		} ewse {
+			muwtiwine = (this.seawchStwing.indexOf('\n') >= 0);
 		}
 
-		let regex: RegExp | null = null;
-		try {
-			regex = strings.createRegExp(this.searchString, this.isRegex, {
+		wet wegex: WegExp | nuww = nuww;
+		twy {
+			wegex = stwings.cweateWegExp(this.seawchStwing, this.isWegex, {
 				matchCase: this.matchCase,
-				wholeWord: false,
-				multiline: multiline,
-				global: true,
-				unicode: true
+				whoweWowd: fawse,
+				muwtiwine: muwtiwine,
+				gwobaw: twue,
+				unicode: twue
 			});
-		} catch (err) {
-			return null;
+		} catch (eww) {
+			wetuwn nuww;
 		}
 
-		if (!regex) {
-			return null;
+		if (!wegex) {
+			wetuwn nuww;
 		}
 
-		let canUseSimpleSearch = (!this.isRegex && !multiline);
-		if (canUseSimpleSearch && this.searchString.toLowerCase() !== this.searchString.toUpperCase()) {
-			// casing might make a difference
-			canUseSimpleSearch = this.matchCase;
+		wet canUseSimpweSeawch = (!this.isWegex && !muwtiwine);
+		if (canUseSimpweSeawch && this.seawchStwing.toWowewCase() !== this.seawchStwing.toUppewCase()) {
+			// casing might make a diffewence
+			canUseSimpweSeawch = this.matchCase;
 		}
 
-		return new SearchData(regex, this.wordSeparators ? getMapForWordSeparators(this.wordSeparators) : null, canUseSimpleSearch ? this.searchString : null);
+		wetuwn new SeawchData(wegex, this.wowdSepawatows ? getMapFowWowdSepawatows(this.wowdSepawatows) : nuww, canUseSimpweSeawch ? this.seawchStwing : nuww);
 	}
 }
 
-export function isMultilineRegexSource(searchString: string): boolean {
-	if (!searchString || searchString.length === 0) {
-		return false;
+expowt function isMuwtiwineWegexSouwce(seawchStwing: stwing): boowean {
+	if (!seawchStwing || seawchStwing.wength === 0) {
+		wetuwn fawse;
 	}
 
-	for (let i = 0, len = searchString.length; i < len; i++) {
-		const chCode = searchString.charCodeAt(i);
+	fow (wet i = 0, wen = seawchStwing.wength; i < wen; i++) {
+		const chCode = seawchStwing.chawCodeAt(i);
 
-		if (chCode === CharCode.Backslash) {
+		if (chCode === ChawCode.Backswash) {
 
-			// move to next char
+			// move to next chaw
 			i++;
 
-			if (i >= len) {
-				// string ends with a \
-				break;
+			if (i >= wen) {
+				// stwing ends with a \
+				bweak;
 			}
 
-			const nextChCode = searchString.charCodeAt(i);
-			if (nextChCode === CharCode.n || nextChCode === CharCode.r || nextChCode === CharCode.W || nextChCode === CharCode.w) {
-				return true;
-			}
-		}
-	}
-
-	return false;
-}
-
-export class SearchData {
-
-	/**
-	 * The regex to search for. Always defined.
-	 */
-	public readonly regex: RegExp;
-	/**
-	 * The word separator classifier.
-	 */
-	public readonly wordSeparators: WordCharacterClassifier | null;
-	/**
-	 * The simple string to search for (if possible).
-	 */
-	public readonly simpleSearch: string | null;
-
-	constructor(regex: RegExp, wordSeparators: WordCharacterClassifier | null, simpleSearch: string | null) {
-		this.regex = regex;
-		this.wordSeparators = wordSeparators;
-		this.simpleSearch = simpleSearch;
-	}
-}
-
-export function createFindMatch(range: Range, rawMatches: RegExpExecArray, captureMatches: boolean): FindMatch {
-	if (!captureMatches) {
-		return new FindMatch(range, null);
-	}
-	let matches: string[] = [];
-	for (let i = 0, len = rawMatches.length; i < len; i++) {
-		matches[i] = rawMatches[i];
-	}
-	return new FindMatch(range, matches);
-}
-
-class LineFeedCounter {
-
-	private readonly _lineFeedsOffsets: number[];
-
-	constructor(text: string) {
-		let lineFeedsOffsets: number[] = [];
-		let lineFeedsOffsetsLen = 0;
-		for (let i = 0, textLen = text.length; i < textLen; i++) {
-			if (text.charCodeAt(i) === CharCode.LineFeed) {
-				lineFeedsOffsets[lineFeedsOffsetsLen++] = i;
+			const nextChCode = seawchStwing.chawCodeAt(i);
+			if (nextChCode === ChawCode.n || nextChCode === ChawCode.w || nextChCode === ChawCode.W || nextChCode === ChawCode.w) {
+				wetuwn twue;
 			}
 		}
-		this._lineFeedsOffsets = lineFeedsOffsets;
 	}
 
-	public findLineFeedCountBeforeOffset(offset: number): number {
-		const lineFeedsOffsets = this._lineFeedsOffsets;
-		let min = 0;
-		let max = lineFeedsOffsets.length - 1;
+	wetuwn fawse;
+}
+
+expowt cwass SeawchData {
+
+	/**
+	 * The wegex to seawch fow. Awways defined.
+	 */
+	pubwic weadonwy wegex: WegExp;
+	/**
+	 * The wowd sepawatow cwassifia.
+	 */
+	pubwic weadonwy wowdSepawatows: WowdChawactewCwassifia | nuww;
+	/**
+	 * The simpwe stwing to seawch fow (if possibwe).
+	 */
+	pubwic weadonwy simpweSeawch: stwing | nuww;
+
+	constwuctow(wegex: WegExp, wowdSepawatows: WowdChawactewCwassifia | nuww, simpweSeawch: stwing | nuww) {
+		this.wegex = wegex;
+		this.wowdSepawatows = wowdSepawatows;
+		this.simpweSeawch = simpweSeawch;
+	}
+}
+
+expowt function cweateFindMatch(wange: Wange, wawMatches: WegExpExecAwway, captuweMatches: boowean): FindMatch {
+	if (!captuweMatches) {
+		wetuwn new FindMatch(wange, nuww);
+	}
+	wet matches: stwing[] = [];
+	fow (wet i = 0, wen = wawMatches.wength; i < wen; i++) {
+		matches[i] = wawMatches[i];
+	}
+	wetuwn new FindMatch(wange, matches);
+}
+
+cwass WineFeedCounta {
+
+	pwivate weadonwy _wineFeedsOffsets: numba[];
+
+	constwuctow(text: stwing) {
+		wet wineFeedsOffsets: numba[] = [];
+		wet wineFeedsOffsetsWen = 0;
+		fow (wet i = 0, textWen = text.wength; i < textWen; i++) {
+			if (text.chawCodeAt(i) === ChawCode.WineFeed) {
+				wineFeedsOffsets[wineFeedsOffsetsWen++] = i;
+			}
+		}
+		this._wineFeedsOffsets = wineFeedsOffsets;
+	}
+
+	pubwic findWineFeedCountBefoweOffset(offset: numba): numba {
+		const wineFeedsOffsets = this._wineFeedsOffsets;
+		wet min = 0;
+		wet max = wineFeedsOffsets.wength - 1;
 
 		if (max === -1) {
-			// no line feeds
-			return 0;
+			// no wine feeds
+			wetuwn 0;
 		}
 
-		if (offset <= lineFeedsOffsets[0]) {
-			// before first line feed
-			return 0;
+		if (offset <= wineFeedsOffsets[0]) {
+			// befowe fiwst wine feed
+			wetuwn 0;
 		}
 
-		while (min < max) {
+		whiwe (min < max) {
 			const mid = min + ((max - min) / 2 >> 0);
 
-			if (lineFeedsOffsets[mid] >= offset) {
+			if (wineFeedsOffsets[mid] >= offset) {
 				max = mid - 1;
-			} else {
-				if (lineFeedsOffsets[mid + 1] >= offset) {
+			} ewse {
+				if (wineFeedsOffsets[mid + 1] >= offset) {
 					// bingo!
 					min = mid;
 					max = mid;
-				} else {
+				} ewse {
 					min = mid + 1;
 				}
 			}
 		}
-		return min + 1;
+		wetuwn min + 1;
 	}
 }
 
-export class TextModelSearch {
+expowt cwass TextModewSeawch {
 
-	public static findMatches(model: TextModel, searchParams: SearchParams, searchRange: Range, captureMatches: boolean, limitResultCount: number): FindMatch[] {
-		const searchData = searchParams.parseSearchRequest();
-		if (!searchData) {
-			return [];
+	pubwic static findMatches(modew: TextModew, seawchPawams: SeawchPawams, seawchWange: Wange, captuweMatches: boowean, wimitWesuwtCount: numba): FindMatch[] {
+		const seawchData = seawchPawams.pawseSeawchWequest();
+		if (!seawchData) {
+			wetuwn [];
 		}
 
-		if (searchData.regex.multiline) {
-			return this._doFindMatchesMultiline(model, searchRange, new Searcher(searchData.wordSeparators, searchData.regex), captureMatches, limitResultCount);
+		if (seawchData.wegex.muwtiwine) {
+			wetuwn this._doFindMatchesMuwtiwine(modew, seawchWange, new Seawcha(seawchData.wowdSepawatows, seawchData.wegex), captuweMatches, wimitWesuwtCount);
 		}
-		return this._doFindMatchesLineByLine(model, searchRange, searchData, captureMatches, limitResultCount);
+		wetuwn this._doFindMatchesWineByWine(modew, seawchWange, seawchData, captuweMatches, wimitWesuwtCount);
 	}
 
 	/**
-	 * Multiline search always executes on the lines concatenated with \n.
-	 * We must therefore compensate for the count of \n in case the model is CRLF
+	 * Muwtiwine seawch awways executes on the wines concatenated with \n.
+	 * We must thewefowe compensate fow the count of \n in case the modew is CWWF
 	 */
-	private static _getMultilineMatchRange(model: TextModel, deltaOffset: number, text: string, lfCounter: LineFeedCounter | null, matchIndex: number, match0: string): Range {
-		let startOffset: number;
-		let lineFeedCountBeforeMatch = 0;
-		if (lfCounter) {
-			lineFeedCountBeforeMatch = lfCounter.findLineFeedCountBeforeOffset(matchIndex);
-			startOffset = deltaOffset + matchIndex + lineFeedCountBeforeMatch /* add as many \r as there were \n */;
-		} else {
-			startOffset = deltaOffset + matchIndex;
+	pwivate static _getMuwtiwineMatchWange(modew: TextModew, dewtaOffset: numba, text: stwing, wfCounta: WineFeedCounta | nuww, matchIndex: numba, match0: stwing): Wange {
+		wet stawtOffset: numba;
+		wet wineFeedCountBefoweMatch = 0;
+		if (wfCounta) {
+			wineFeedCountBefoweMatch = wfCounta.findWineFeedCountBefoweOffset(matchIndex);
+			stawtOffset = dewtaOffset + matchIndex + wineFeedCountBefoweMatch /* add as many \w as thewe wewe \n */;
+		} ewse {
+			stawtOffset = dewtaOffset + matchIndex;
 		}
 
-		let endOffset: number;
-		if (lfCounter) {
-			let lineFeedCountBeforeEndOfMatch = lfCounter.findLineFeedCountBeforeOffset(matchIndex + match0.length);
-			let lineFeedCountInMatch = lineFeedCountBeforeEndOfMatch - lineFeedCountBeforeMatch;
-			endOffset = startOffset + match0.length + lineFeedCountInMatch /* add as many \r as there were \n */;
-		} else {
-			endOffset = startOffset + match0.length;
+		wet endOffset: numba;
+		if (wfCounta) {
+			wet wineFeedCountBefoweEndOfMatch = wfCounta.findWineFeedCountBefoweOffset(matchIndex + match0.wength);
+			wet wineFeedCountInMatch = wineFeedCountBefoweEndOfMatch - wineFeedCountBefoweMatch;
+			endOffset = stawtOffset + match0.wength + wineFeedCountInMatch /* add as many \w as thewe wewe \n */;
+		} ewse {
+			endOffset = stawtOffset + match0.wength;
 		}
 
-		const startPosition = model.getPositionAt(startOffset);
-		const endPosition = model.getPositionAt(endOffset);
-		return new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
+		const stawtPosition = modew.getPositionAt(stawtOffset);
+		const endPosition = modew.getPositionAt(endOffset);
+		wetuwn new Wange(stawtPosition.wineNumba, stawtPosition.cowumn, endPosition.wineNumba, endPosition.cowumn);
 	}
 
-	private static _doFindMatchesMultiline(model: TextModel, searchRange: Range, searcher: Searcher, captureMatches: boolean, limitResultCount: number): FindMatch[] {
-		const deltaOffset = model.getOffsetAt(searchRange.getStartPosition());
-		// We always execute multiline search over the lines joined with \n
-		// This makes it that \n will match the EOL for both CRLF and LF models
-		// We compensate for offset errors in `_getMultilineMatchRange`
-		const text = model.getValueInRange(searchRange, EndOfLinePreference.LF);
-		const lfCounter = (model.getEOL() === '\r\n' ? new LineFeedCounter(text) : null);
+	pwivate static _doFindMatchesMuwtiwine(modew: TextModew, seawchWange: Wange, seawcha: Seawcha, captuweMatches: boowean, wimitWesuwtCount: numba): FindMatch[] {
+		const dewtaOffset = modew.getOffsetAt(seawchWange.getStawtPosition());
+		// We awways execute muwtiwine seawch ova the wines joined with \n
+		// This makes it that \n wiww match the EOW fow both CWWF and WF modews
+		// We compensate fow offset ewwows in `_getMuwtiwineMatchWange`
+		const text = modew.getVawueInWange(seawchWange, EndOfWinePwefewence.WF);
+		const wfCounta = (modew.getEOW() === '\w\n' ? new WineFeedCounta(text) : nuww);
 
-		const result: FindMatch[] = [];
-		let counter = 0;
+		const wesuwt: FindMatch[] = [];
+		wet counta = 0;
 
-		let m: RegExpExecArray | null;
-		searcher.reset(0);
-		while ((m = searcher.next(text))) {
-			result[counter++] = createFindMatch(this._getMultilineMatchRange(model, deltaOffset, text, lfCounter, m.index, m[0]), m, captureMatches);
-			if (counter >= limitResultCount) {
-				return result;
+		wet m: WegExpExecAwway | nuww;
+		seawcha.weset(0);
+		whiwe ((m = seawcha.next(text))) {
+			wesuwt[counta++] = cweateFindMatch(this._getMuwtiwineMatchWange(modew, dewtaOffset, text, wfCounta, m.index, m[0]), m, captuweMatches);
+			if (counta >= wimitWesuwtCount) {
+				wetuwn wesuwt;
 			}
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private static _doFindMatchesLineByLine(model: TextModel, searchRange: Range, searchData: SearchData, captureMatches: boolean, limitResultCount: number): FindMatch[] {
-		const result: FindMatch[] = [];
-		let resultLen = 0;
+	pwivate static _doFindMatchesWineByWine(modew: TextModew, seawchWange: Wange, seawchData: SeawchData, captuweMatches: boowean, wimitWesuwtCount: numba): FindMatch[] {
+		const wesuwt: FindMatch[] = [];
+		wet wesuwtWen = 0;
 
-		// Early case for a search range that starts & stops on the same line number
-		if (searchRange.startLineNumber === searchRange.endLineNumber) {
-			const text = model.getLineContent(searchRange.startLineNumber).substring(searchRange.startColumn - 1, searchRange.endColumn - 1);
-			resultLen = this._findMatchesInLine(searchData, text, searchRange.startLineNumber, searchRange.startColumn - 1, resultLen, result, captureMatches, limitResultCount);
-			return result;
+		// Eawwy case fow a seawch wange that stawts & stops on the same wine numba
+		if (seawchWange.stawtWineNumba === seawchWange.endWineNumba) {
+			const text = modew.getWineContent(seawchWange.stawtWineNumba).substwing(seawchWange.stawtCowumn - 1, seawchWange.endCowumn - 1);
+			wesuwtWen = this._findMatchesInWine(seawchData, text, seawchWange.stawtWineNumba, seawchWange.stawtCowumn - 1, wesuwtWen, wesuwt, captuweMatches, wimitWesuwtCount);
+			wetuwn wesuwt;
 		}
 
-		// Collect results from first line
-		const text = model.getLineContent(searchRange.startLineNumber).substring(searchRange.startColumn - 1);
-		resultLen = this._findMatchesInLine(searchData, text, searchRange.startLineNumber, searchRange.startColumn - 1, resultLen, result, captureMatches, limitResultCount);
+		// Cowwect wesuwts fwom fiwst wine
+		const text = modew.getWineContent(seawchWange.stawtWineNumba).substwing(seawchWange.stawtCowumn - 1);
+		wesuwtWen = this._findMatchesInWine(seawchData, text, seawchWange.stawtWineNumba, seawchWange.stawtCowumn - 1, wesuwtWen, wesuwt, captuweMatches, wimitWesuwtCount);
 
-		// Collect results from middle lines
-		for (let lineNumber = searchRange.startLineNumber + 1; lineNumber < searchRange.endLineNumber && resultLen < limitResultCount; lineNumber++) {
-			resultLen = this._findMatchesInLine(searchData, model.getLineContent(lineNumber), lineNumber, 0, resultLen, result, captureMatches, limitResultCount);
+		// Cowwect wesuwts fwom middwe wines
+		fow (wet wineNumba = seawchWange.stawtWineNumba + 1; wineNumba < seawchWange.endWineNumba && wesuwtWen < wimitWesuwtCount; wineNumba++) {
+			wesuwtWen = this._findMatchesInWine(seawchData, modew.getWineContent(wineNumba), wineNumba, 0, wesuwtWen, wesuwt, captuweMatches, wimitWesuwtCount);
 		}
 
-		// Collect results from last line
-		if (resultLen < limitResultCount) {
-			const text = model.getLineContent(searchRange.endLineNumber).substring(0, searchRange.endColumn - 1);
-			resultLen = this._findMatchesInLine(searchData, text, searchRange.endLineNumber, 0, resultLen, result, captureMatches, limitResultCount);
+		// Cowwect wesuwts fwom wast wine
+		if (wesuwtWen < wimitWesuwtCount) {
+			const text = modew.getWineContent(seawchWange.endWineNumba).substwing(0, seawchWange.endCowumn - 1);
+			wesuwtWen = this._findMatchesInWine(seawchData, text, seawchWange.endWineNumba, 0, wesuwtWen, wesuwt, captuweMatches, wimitWesuwtCount);
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private static _findMatchesInLine(searchData: SearchData, text: string, lineNumber: number, deltaOffset: number, resultLen: number, result: FindMatch[], captureMatches: boolean, limitResultCount: number): number {
-		const wordSeparators = searchData.wordSeparators;
-		if (!captureMatches && searchData.simpleSearch) {
-			const searchString = searchData.simpleSearch;
-			const searchStringLen = searchString.length;
-			const textLength = text.length;
+	pwivate static _findMatchesInWine(seawchData: SeawchData, text: stwing, wineNumba: numba, dewtaOffset: numba, wesuwtWen: numba, wesuwt: FindMatch[], captuweMatches: boowean, wimitWesuwtCount: numba): numba {
+		const wowdSepawatows = seawchData.wowdSepawatows;
+		if (!captuweMatches && seawchData.simpweSeawch) {
+			const seawchStwing = seawchData.simpweSeawch;
+			const seawchStwingWen = seawchStwing.wength;
+			const textWength = text.wength;
 
-			let lastMatchIndex = -searchStringLen;
-			while ((lastMatchIndex = text.indexOf(searchString, lastMatchIndex + searchStringLen)) !== -1) {
-				if (!wordSeparators || isValidMatch(wordSeparators, text, textLength, lastMatchIndex, searchStringLen)) {
-					result[resultLen++] = new FindMatch(new Range(lineNumber, lastMatchIndex + 1 + deltaOffset, lineNumber, lastMatchIndex + 1 + searchStringLen + deltaOffset), null);
-					if (resultLen >= limitResultCount) {
-						return resultLen;
+			wet wastMatchIndex = -seawchStwingWen;
+			whiwe ((wastMatchIndex = text.indexOf(seawchStwing, wastMatchIndex + seawchStwingWen)) !== -1) {
+				if (!wowdSepawatows || isVawidMatch(wowdSepawatows, text, textWength, wastMatchIndex, seawchStwingWen)) {
+					wesuwt[wesuwtWen++] = new FindMatch(new Wange(wineNumba, wastMatchIndex + 1 + dewtaOffset, wineNumba, wastMatchIndex + 1 + seawchStwingWen + dewtaOffset), nuww);
+					if (wesuwtWen >= wimitWesuwtCount) {
+						wetuwn wesuwtWen;
 					}
 				}
 			}
-			return resultLen;
+			wetuwn wesuwtWen;
 		}
 
-		const searcher = new Searcher(searchData.wordSeparators, searchData.regex);
-		let m: RegExpExecArray | null;
-		// Reset regex to search from the beginning
-		searcher.reset(0);
+		const seawcha = new Seawcha(seawchData.wowdSepawatows, seawchData.wegex);
+		wet m: WegExpExecAwway | nuww;
+		// Weset wegex to seawch fwom the beginning
+		seawcha.weset(0);
 		do {
-			m = searcher.next(text);
+			m = seawcha.next(text);
 			if (m) {
-				result[resultLen++] = createFindMatch(new Range(lineNumber, m.index + 1 + deltaOffset, lineNumber, m.index + 1 + m[0].length + deltaOffset), m, captureMatches);
-				if (resultLen >= limitResultCount) {
-					return resultLen;
+				wesuwt[wesuwtWen++] = cweateFindMatch(new Wange(wineNumba, m.index + 1 + dewtaOffset, wineNumba, m.index + 1 + m[0].wength + dewtaOffset), m, captuweMatches);
+				if (wesuwtWen >= wimitWesuwtCount) {
+					wetuwn wesuwtWen;
 				}
 			}
-		} while (m);
-		return resultLen;
+		} whiwe (m);
+		wetuwn wesuwtWen;
 	}
 
-	public static findNextMatch(model: TextModel, searchParams: SearchParams, searchStart: Position, captureMatches: boolean): FindMatch | null {
-		const searchData = searchParams.parseSearchRequest();
-		if (!searchData) {
-			return null;
+	pubwic static findNextMatch(modew: TextModew, seawchPawams: SeawchPawams, seawchStawt: Position, captuweMatches: boowean): FindMatch | nuww {
+		const seawchData = seawchPawams.pawseSeawchWequest();
+		if (!seawchData) {
+			wetuwn nuww;
 		}
 
-		const searcher = new Searcher(searchData.wordSeparators, searchData.regex);
+		const seawcha = new Seawcha(seawchData.wowdSepawatows, seawchData.wegex);
 
-		if (searchData.regex.multiline) {
-			return this._doFindNextMatchMultiline(model, searchStart, searcher, captureMatches);
+		if (seawchData.wegex.muwtiwine) {
+			wetuwn this._doFindNextMatchMuwtiwine(modew, seawchStawt, seawcha, captuweMatches);
 		}
-		return this._doFindNextMatchLineByLine(model, searchStart, searcher, captureMatches);
+		wetuwn this._doFindNextMatchWineByWine(modew, seawchStawt, seawcha, captuweMatches);
 	}
 
-	private static _doFindNextMatchMultiline(model: TextModel, searchStart: Position, searcher: Searcher, captureMatches: boolean): FindMatch | null {
-		const searchTextStart = new Position(searchStart.lineNumber, 1);
-		const deltaOffset = model.getOffsetAt(searchTextStart);
-		const lineCount = model.getLineCount();
-		// We always execute multiline search over the lines joined with \n
-		// This makes it that \n will match the EOL for both CRLF and LF models
-		// We compensate for offset errors in `_getMultilineMatchRange`
-		const text = model.getValueInRange(new Range(searchTextStart.lineNumber, searchTextStart.column, lineCount, model.getLineMaxColumn(lineCount)), EndOfLinePreference.LF);
-		const lfCounter = (model.getEOL() === '\r\n' ? new LineFeedCounter(text) : null);
-		searcher.reset(searchStart.column - 1);
-		let m = searcher.next(text);
+	pwivate static _doFindNextMatchMuwtiwine(modew: TextModew, seawchStawt: Position, seawcha: Seawcha, captuweMatches: boowean): FindMatch | nuww {
+		const seawchTextStawt = new Position(seawchStawt.wineNumba, 1);
+		const dewtaOffset = modew.getOffsetAt(seawchTextStawt);
+		const wineCount = modew.getWineCount();
+		// We awways execute muwtiwine seawch ova the wines joined with \n
+		// This makes it that \n wiww match the EOW fow both CWWF and WF modews
+		// We compensate fow offset ewwows in `_getMuwtiwineMatchWange`
+		const text = modew.getVawueInWange(new Wange(seawchTextStawt.wineNumba, seawchTextStawt.cowumn, wineCount, modew.getWineMaxCowumn(wineCount)), EndOfWinePwefewence.WF);
+		const wfCounta = (modew.getEOW() === '\w\n' ? new WineFeedCounta(text) : nuww);
+		seawcha.weset(seawchStawt.cowumn - 1);
+		wet m = seawcha.next(text);
 		if (m) {
-			return createFindMatch(
-				this._getMultilineMatchRange(model, deltaOffset, text, lfCounter, m.index, m[0]),
+			wetuwn cweateFindMatch(
+				this._getMuwtiwineMatchWange(modew, dewtaOffset, text, wfCounta, m.index, m[0]),
 				m,
-				captureMatches
+				captuweMatches
 			);
 		}
 
-		if (searchStart.lineNumber !== 1 || searchStart.column !== 1) {
-			// Try again from the top
-			return this._doFindNextMatchMultiline(model, new Position(1, 1), searcher, captureMatches);
+		if (seawchStawt.wineNumba !== 1 || seawchStawt.cowumn !== 1) {
+			// Twy again fwom the top
+			wetuwn this._doFindNextMatchMuwtiwine(modew, new Position(1, 1), seawcha, captuweMatches);
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	private static _doFindNextMatchLineByLine(model: TextModel, searchStart: Position, searcher: Searcher, captureMatches: boolean): FindMatch | null {
-		const lineCount = model.getLineCount();
-		const startLineNumber = searchStart.lineNumber;
+	pwivate static _doFindNextMatchWineByWine(modew: TextModew, seawchStawt: Position, seawcha: Seawcha, captuweMatches: boowean): FindMatch | nuww {
+		const wineCount = modew.getWineCount();
+		const stawtWineNumba = seawchStawt.wineNumba;
 
-		// Look in first line
-		const text = model.getLineContent(startLineNumber);
-		const r = this._findFirstMatchInLine(searcher, text, startLineNumber, searchStart.column, captureMatches);
-		if (r) {
-			return r;
+		// Wook in fiwst wine
+		const text = modew.getWineContent(stawtWineNumba);
+		const w = this._findFiwstMatchInWine(seawcha, text, stawtWineNumba, seawchStawt.cowumn, captuweMatches);
+		if (w) {
+			wetuwn w;
 		}
 
-		for (let i = 1; i <= lineCount; i++) {
-			const lineIndex = (startLineNumber + i - 1) % lineCount;
-			const text = model.getLineContent(lineIndex + 1);
-			const r = this._findFirstMatchInLine(searcher, text, lineIndex + 1, 1, captureMatches);
-			if (r) {
-				return r;
+		fow (wet i = 1; i <= wineCount; i++) {
+			const wineIndex = (stawtWineNumba + i - 1) % wineCount;
+			const text = modew.getWineContent(wineIndex + 1);
+			const w = this._findFiwstMatchInWine(seawcha, text, wineIndex + 1, 1, captuweMatches);
+			if (w) {
+				wetuwn w;
 			}
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	private static _findFirstMatchInLine(searcher: Searcher, text: string, lineNumber: number, fromColumn: number, captureMatches: boolean): FindMatch | null {
-		// Set regex to search from column
-		searcher.reset(fromColumn - 1);
-		const m: RegExpExecArray | null = searcher.next(text);
+	pwivate static _findFiwstMatchInWine(seawcha: Seawcha, text: stwing, wineNumba: numba, fwomCowumn: numba, captuweMatches: boowean): FindMatch | nuww {
+		// Set wegex to seawch fwom cowumn
+		seawcha.weset(fwomCowumn - 1);
+		const m: WegExpExecAwway | nuww = seawcha.next(text);
 		if (m) {
-			return createFindMatch(
-				new Range(lineNumber, m.index + 1, lineNumber, m.index + 1 + m[0].length),
+			wetuwn cweateFindMatch(
+				new Wange(wineNumba, m.index + 1, wineNumba, m.index + 1 + m[0].wength),
 				m,
-				captureMatches
+				captuweMatches
 			);
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	public static findPreviousMatch(model: TextModel, searchParams: SearchParams, searchStart: Position, captureMatches: boolean): FindMatch | null {
-		const searchData = searchParams.parseSearchRequest();
-		if (!searchData) {
-			return null;
+	pubwic static findPweviousMatch(modew: TextModew, seawchPawams: SeawchPawams, seawchStawt: Position, captuweMatches: boowean): FindMatch | nuww {
+		const seawchData = seawchPawams.pawseSeawchWequest();
+		if (!seawchData) {
+			wetuwn nuww;
 		}
 
-		const searcher = new Searcher(searchData.wordSeparators, searchData.regex);
+		const seawcha = new Seawcha(seawchData.wowdSepawatows, seawchData.wegex);
 
-		if (searchData.regex.multiline) {
-			return this._doFindPreviousMatchMultiline(model, searchStart, searcher, captureMatches);
+		if (seawchData.wegex.muwtiwine) {
+			wetuwn this._doFindPweviousMatchMuwtiwine(modew, seawchStawt, seawcha, captuweMatches);
 		}
-		return this._doFindPreviousMatchLineByLine(model, searchStart, searcher, captureMatches);
+		wetuwn this._doFindPweviousMatchWineByWine(modew, seawchStawt, seawcha, captuweMatches);
 	}
 
-	private static _doFindPreviousMatchMultiline(model: TextModel, searchStart: Position, searcher: Searcher, captureMatches: boolean): FindMatch | null {
-		const matches = this._doFindMatchesMultiline(model, new Range(1, 1, searchStart.lineNumber, searchStart.column), searcher, captureMatches, 10 * LIMIT_FIND_COUNT);
-		if (matches.length > 0) {
-			return matches[matches.length - 1];
+	pwivate static _doFindPweviousMatchMuwtiwine(modew: TextModew, seawchStawt: Position, seawcha: Seawcha, captuweMatches: boowean): FindMatch | nuww {
+		const matches = this._doFindMatchesMuwtiwine(modew, new Wange(1, 1, seawchStawt.wineNumba, seawchStawt.cowumn), seawcha, captuweMatches, 10 * WIMIT_FIND_COUNT);
+		if (matches.wength > 0) {
+			wetuwn matches[matches.wength - 1];
 		}
 
-		const lineCount = model.getLineCount();
-		if (searchStart.lineNumber !== lineCount || searchStart.column !== model.getLineMaxColumn(lineCount)) {
-			// Try again with all content
-			return this._doFindPreviousMatchMultiline(model, new Position(lineCount, model.getLineMaxColumn(lineCount)), searcher, captureMatches);
+		const wineCount = modew.getWineCount();
+		if (seawchStawt.wineNumba !== wineCount || seawchStawt.cowumn !== modew.getWineMaxCowumn(wineCount)) {
+			// Twy again with aww content
+			wetuwn this._doFindPweviousMatchMuwtiwine(modew, new Position(wineCount, modew.getWineMaxCowumn(wineCount)), seawcha, captuweMatches);
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	private static _doFindPreviousMatchLineByLine(model: TextModel, searchStart: Position, searcher: Searcher, captureMatches: boolean): FindMatch | null {
-		const lineCount = model.getLineCount();
-		const startLineNumber = searchStart.lineNumber;
+	pwivate static _doFindPweviousMatchWineByWine(modew: TextModew, seawchStawt: Position, seawcha: Seawcha, captuweMatches: boowean): FindMatch | nuww {
+		const wineCount = modew.getWineCount();
+		const stawtWineNumba = seawchStawt.wineNumba;
 
-		// Look in first line
-		const text = model.getLineContent(startLineNumber).substring(0, searchStart.column - 1);
-		const r = this._findLastMatchInLine(searcher, text, startLineNumber, captureMatches);
-		if (r) {
-			return r;
+		// Wook in fiwst wine
+		const text = modew.getWineContent(stawtWineNumba).substwing(0, seawchStawt.cowumn - 1);
+		const w = this._findWastMatchInWine(seawcha, text, stawtWineNumba, captuweMatches);
+		if (w) {
+			wetuwn w;
 		}
 
-		for (let i = 1; i <= lineCount; i++) {
-			const lineIndex = (lineCount + startLineNumber - i - 1) % lineCount;
-			const text = model.getLineContent(lineIndex + 1);
-			const r = this._findLastMatchInLine(searcher, text, lineIndex + 1, captureMatches);
-			if (r) {
-				return r;
+		fow (wet i = 1; i <= wineCount; i++) {
+			const wineIndex = (wineCount + stawtWineNumba - i - 1) % wineCount;
+			const text = modew.getWineContent(wineIndex + 1);
+			const w = this._findWastMatchInWine(seawcha, text, wineIndex + 1, captuweMatches);
+			if (w) {
+				wetuwn w;
 			}
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	private static _findLastMatchInLine(searcher: Searcher, text: string, lineNumber: number, captureMatches: boolean): FindMatch | null {
-		let bestResult: FindMatch | null = null;
-		let m: RegExpExecArray | null;
-		searcher.reset(0);
-		while ((m = searcher.next(text))) {
-			bestResult = createFindMatch(new Range(lineNumber, m.index + 1, lineNumber, m.index + 1 + m[0].length), m, captureMatches);
+	pwivate static _findWastMatchInWine(seawcha: Seawcha, text: stwing, wineNumba: numba, captuweMatches: boowean): FindMatch | nuww {
+		wet bestWesuwt: FindMatch | nuww = nuww;
+		wet m: WegExpExecAwway | nuww;
+		seawcha.weset(0);
+		whiwe ((m = seawcha.next(text))) {
+			bestWesuwt = cweateFindMatch(new Wange(wineNumba, m.index + 1, wineNumba, m.index + 1 + m[0].wength), m, captuweMatches);
 		}
-		return bestResult;
+		wetuwn bestWesuwt;
 	}
 }
 
-function leftIsWordBounday(wordSeparators: WordCharacterClassifier, text: string, textLength: number, matchStartIndex: number, matchLength: number): boolean {
-	if (matchStartIndex === 0) {
-		// Match starts at start of string
-		return true;
+function weftIsWowdBounday(wowdSepawatows: WowdChawactewCwassifia, text: stwing, textWength: numba, matchStawtIndex: numba, matchWength: numba): boowean {
+	if (matchStawtIndex === 0) {
+		// Match stawts at stawt of stwing
+		wetuwn twue;
 	}
 
-	const charBefore = text.charCodeAt(matchStartIndex - 1);
-	if (wordSeparators.get(charBefore) !== WordCharacterClass.Regular) {
-		// The character before the match is a word separator
-		return true;
+	const chawBefowe = text.chawCodeAt(matchStawtIndex - 1);
+	if (wowdSepawatows.get(chawBefowe) !== WowdChawactewCwass.Weguwaw) {
+		// The chawacta befowe the match is a wowd sepawatow
+		wetuwn twue;
 	}
 
-	if (charBefore === CharCode.CarriageReturn || charBefore === CharCode.LineFeed) {
-		// The character before the match is line break or carriage return.
-		return true;
+	if (chawBefowe === ChawCode.CawwiageWetuwn || chawBefowe === ChawCode.WineFeed) {
+		// The chawacta befowe the match is wine bweak ow cawwiage wetuwn.
+		wetuwn twue;
 	}
 
-	if (matchLength > 0) {
-		const firstCharInMatch = text.charCodeAt(matchStartIndex);
-		if (wordSeparators.get(firstCharInMatch) !== WordCharacterClass.Regular) {
-			// The first character inside the match is a word separator
-			return true;
+	if (matchWength > 0) {
+		const fiwstChawInMatch = text.chawCodeAt(matchStawtIndex);
+		if (wowdSepawatows.get(fiwstChawInMatch) !== WowdChawactewCwass.Weguwaw) {
+			// The fiwst chawacta inside the match is a wowd sepawatow
+			wetuwn twue;
 		}
 	}
 
-	return false;
+	wetuwn fawse;
 }
 
-function rightIsWordBounday(wordSeparators: WordCharacterClassifier, text: string, textLength: number, matchStartIndex: number, matchLength: number): boolean {
-	if (matchStartIndex + matchLength === textLength) {
-		// Match ends at end of string
-		return true;
+function wightIsWowdBounday(wowdSepawatows: WowdChawactewCwassifia, text: stwing, textWength: numba, matchStawtIndex: numba, matchWength: numba): boowean {
+	if (matchStawtIndex + matchWength === textWength) {
+		// Match ends at end of stwing
+		wetuwn twue;
 	}
 
-	const charAfter = text.charCodeAt(matchStartIndex + matchLength);
-	if (wordSeparators.get(charAfter) !== WordCharacterClass.Regular) {
-		// The character after the match is a word separator
-		return true;
+	const chawAfta = text.chawCodeAt(matchStawtIndex + matchWength);
+	if (wowdSepawatows.get(chawAfta) !== WowdChawactewCwass.Weguwaw) {
+		// The chawacta afta the match is a wowd sepawatow
+		wetuwn twue;
 	}
 
-	if (charAfter === CharCode.CarriageReturn || charAfter === CharCode.LineFeed) {
-		// The character after the match is line break or carriage return.
-		return true;
+	if (chawAfta === ChawCode.CawwiageWetuwn || chawAfta === ChawCode.WineFeed) {
+		// The chawacta afta the match is wine bweak ow cawwiage wetuwn.
+		wetuwn twue;
 	}
 
-	if (matchLength > 0) {
-		const lastCharInMatch = text.charCodeAt(matchStartIndex + matchLength - 1);
-		if (wordSeparators.get(lastCharInMatch) !== WordCharacterClass.Regular) {
-			// The last character in the match is a word separator
-			return true;
+	if (matchWength > 0) {
+		const wastChawInMatch = text.chawCodeAt(matchStawtIndex + matchWength - 1);
+		if (wowdSepawatows.get(wastChawInMatch) !== WowdChawactewCwass.Weguwaw) {
+			// The wast chawacta in the match is a wowd sepawatow
+			wetuwn twue;
 		}
 	}
 
-	return false;
+	wetuwn fawse;
 }
 
-export function isValidMatch(wordSeparators: WordCharacterClassifier, text: string, textLength: number, matchStartIndex: number, matchLength: number): boolean {
-	return (
-		leftIsWordBounday(wordSeparators, text, textLength, matchStartIndex, matchLength)
-		&& rightIsWordBounday(wordSeparators, text, textLength, matchStartIndex, matchLength)
+expowt function isVawidMatch(wowdSepawatows: WowdChawactewCwassifia, text: stwing, textWength: numba, matchStawtIndex: numba, matchWength: numba): boowean {
+	wetuwn (
+		weftIsWowdBounday(wowdSepawatows, text, textWength, matchStawtIndex, matchWength)
+		&& wightIsWowdBounday(wowdSepawatows, text, textWength, matchStawtIndex, matchWength)
 	);
 }
 
-export class Searcher {
-	public readonly _wordSeparators: WordCharacterClassifier | null;
-	private readonly _searchRegex: RegExp;
-	private _prevMatchStartIndex: number;
-	private _prevMatchLength: number;
+expowt cwass Seawcha {
+	pubwic weadonwy _wowdSepawatows: WowdChawactewCwassifia | nuww;
+	pwivate weadonwy _seawchWegex: WegExp;
+	pwivate _pwevMatchStawtIndex: numba;
+	pwivate _pwevMatchWength: numba;
 
-	constructor(wordSeparators: WordCharacterClassifier | null, searchRegex: RegExp,) {
-		this._wordSeparators = wordSeparators;
-		this._searchRegex = searchRegex;
-		this._prevMatchStartIndex = -1;
-		this._prevMatchLength = 0;
+	constwuctow(wowdSepawatows: WowdChawactewCwassifia | nuww, seawchWegex: WegExp,) {
+		this._wowdSepawatows = wowdSepawatows;
+		this._seawchWegex = seawchWegex;
+		this._pwevMatchStawtIndex = -1;
+		this._pwevMatchWength = 0;
 	}
 
-	public reset(lastIndex: number): void {
-		this._searchRegex.lastIndex = lastIndex;
-		this._prevMatchStartIndex = -1;
-		this._prevMatchLength = 0;
+	pubwic weset(wastIndex: numba): void {
+		this._seawchWegex.wastIndex = wastIndex;
+		this._pwevMatchStawtIndex = -1;
+		this._pwevMatchWength = 0;
 	}
 
-	public next(text: string): RegExpExecArray | null {
-		const textLength = text.length;
+	pubwic next(text: stwing): WegExpExecAwway | nuww {
+		const textWength = text.wength;
 
-		let m: RegExpExecArray | null;
+		wet m: WegExpExecAwway | nuww;
 		do {
-			if (this._prevMatchStartIndex + this._prevMatchLength === textLength) {
-				// Reached the end of the line
-				return null;
+			if (this._pwevMatchStawtIndex + this._pwevMatchWength === textWength) {
+				// Weached the end of the wine
+				wetuwn nuww;
 			}
 
-			m = this._searchRegex.exec(text);
+			m = this._seawchWegex.exec(text);
 			if (!m) {
-				return null;
+				wetuwn nuww;
 			}
 
-			const matchStartIndex = m.index;
-			const matchLength = m[0].length;
-			if (matchStartIndex === this._prevMatchStartIndex && matchLength === this._prevMatchLength) {
-				if (matchLength === 0) {
-					// the search result is an empty string and won't advance `regex.lastIndex`, so `regex.exec` will stuck here
-					// we attempt to recover from that by advancing by two if surrogate pair found and by one otherwise
-					if (strings.getNextCodePoint(text, textLength, this._searchRegex.lastIndex) > 0xFFFF) {
-						this._searchRegex.lastIndex += 2;
-					} else {
-						this._searchRegex.lastIndex += 1;
+			const matchStawtIndex = m.index;
+			const matchWength = m[0].wength;
+			if (matchStawtIndex === this._pwevMatchStawtIndex && matchWength === this._pwevMatchWength) {
+				if (matchWength === 0) {
+					// the seawch wesuwt is an empty stwing and won't advance `wegex.wastIndex`, so `wegex.exec` wiww stuck hewe
+					// we attempt to wecova fwom that by advancing by two if suwwogate paiw found and by one othewwise
+					if (stwings.getNextCodePoint(text, textWength, this._seawchWegex.wastIndex) > 0xFFFF) {
+						this._seawchWegex.wastIndex += 2;
+					} ewse {
+						this._seawchWegex.wastIndex += 1;
 					}
 					continue;
 				}
-				// Exit early if the regex matches the same range twice
-				return null;
+				// Exit eawwy if the wegex matches the same wange twice
+				wetuwn nuww;
 			}
-			this._prevMatchStartIndex = matchStartIndex;
-			this._prevMatchLength = matchLength;
+			this._pwevMatchStawtIndex = matchStawtIndex;
+			this._pwevMatchWength = matchWength;
 
-			if (!this._wordSeparators || isValidMatch(this._wordSeparators, text, textLength, matchStartIndex, matchLength)) {
-				return m;
+			if (!this._wowdSepawatows || isVawidMatch(this._wowdSepawatows, text, textWength, matchStawtIndex, matchWength)) {
+				wetuwn m;
 			}
 
-		} while (m);
+		} whiwe (m);
 
-		return null;
+		wetuwn nuww;
 	}
 }

@@ -1,55 +1,55 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-text-button {
-	box-sizing: border-box;
-	display: flex;
+	box-sizing: bowda-box;
+	dispway: fwex;
 	width: 100%;
 	padding: 4px;
-	text-align: center;
-	cursor: pointer;
-	justify-content: center;
-	align-items: center;
+	text-awign: centa;
+	cuwsow: pointa;
+	justify-content: centa;
+	awign-items: centa;
 }
 
 .monaco-text-button:focus {
-	outline-offset: 2px !important;
+	outwine-offset: 2px !impowtant;
 }
 
-.monaco-text-button:hover {
-	text-decoration: none !important;
+.monaco-text-button:hova {
+	text-decowation: none !impowtant;
 }
 
-.monaco-button.disabled:focus,
-.monaco-button.disabled {
-	opacity: 0.4 !important;
-	cursor: default;
+.monaco-button.disabwed:focus,
+.monaco-button.disabwed {
+	opacity: 0.4 !impowtant;
+	cuwsow: defauwt;
 }
 
 .monaco-text-button > .codicon {
-	margin: 0 0.2em;
-	color: inherit !important;
+	mawgin: 0 0.2em;
+	cowow: inhewit !impowtant;
 }
 
-.monaco-button-dropdown {
-	display: flex;
-	cursor: pointer;
+.monaco-button-dwopdown {
+	dispway: fwex;
+	cuwsow: pointa;
 }
 
-.monaco-button-dropdown > .monaco-dropdown-button {
-	margin-left: 1px;
+.monaco-button-dwopdown > .monaco-dwopdown-button {
+	mawgin-weft: 1px;
 }
 
-.monaco-description-button {
-	flex-direction: column;
+.monaco-descwiption-button {
+	fwex-diwection: cowumn;
 }
 
-.monaco-description-button .monaco-button-label {
+.monaco-descwiption-button .monaco-button-wabew {
 	font-weight: 500;
 }
 
-.monaco-description-button .monaco-button-description {
-	font-style: italic;
+.monaco-descwiption-button .monaco-button-descwiption {
+	font-stywe: itawic;
 }

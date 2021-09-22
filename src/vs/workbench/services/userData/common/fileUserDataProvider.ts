@@ -1,148 +1,148 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IFileSystemProviderWithFileReadWriteCapability, IFileChange, IWatchOptions, IStat, FileOverwriteOptions, FileType, FileWriteOptions, FileDeleteOptions, FileSystemProviderCapabilities, IFileSystemProviderWithOpenReadWriteCloseCapability, FileOpenOptions, hasReadWriteCapability, hasOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadStreamCapability, FileReadStreamOptions, hasFileReadStreamCapability } from 'vs/platform/files/common/files';
-import { URI } from 'vs/base/common/uri';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ReadableStreamEvents } from 'vs/base/common/stream';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ExtUri, extUri, extUriIgnorePathCase } from 'vs/base/common/resources';
-import { TernarySearchTree } from 'vs/base/common/map';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity, IFiweChange, IWatchOptions, IStat, FiweOvewwwiteOptions, FiweType, FiweWwiteOptions, FiweDeweteOptions, FiweSystemPwovidewCapabiwities, IFiweSystemPwovidewWithOpenWeadWwiteCwoseCapabiwity, FiweOpenOptions, hasWeadWwiteCapabiwity, hasOpenWeadWwiteCwoseCapabiwity, IFiweSystemPwovidewWithFiweWeadStweamCapabiwity, FiweWeadStweamOptions, hasFiweWeadStweamCapabiwity } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { WeadabweStweamEvents } fwom 'vs/base/common/stweam';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { ExtUwi, extUwi, extUwiIgnowePathCase } fwom 'vs/base/common/wesouwces';
+impowt { TewnawySeawchTwee } fwom 'vs/base/common/map';
 
-export class FileUserDataProvider extends Disposable implements
-	IFileSystemProviderWithFileReadWriteCapability,
-	IFileSystemProviderWithOpenReadWriteCloseCapability,
-	IFileSystemProviderWithFileReadStreamCapability {
+expowt cwass FiweUsewDataPwovida extends Disposabwe impwements
+	IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity,
+	IFiweSystemPwovidewWithOpenWeadWwiteCwoseCapabiwity,
+	IFiweSystemPwovidewWithFiweWeadStweamCapabiwity {
 
-	get capabilities() { return this.fileSystemProvider.capabilities; }
-	readonly onDidChangeCapabilities: Event<void> = this.fileSystemProvider.onDidChangeCapabilities;
+	get capabiwities() { wetuwn this.fiweSystemPwovida.capabiwities; }
+	weadonwy onDidChangeCapabiwities: Event<void> = this.fiweSystemPwovida.onDidChangeCapabiwities;
 
-	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
-	readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChangeFile.event;
+	pwivate weadonwy _onDidChangeFiwe = this._wegista(new Emitta<weadonwy IFiweChange[]>());
+	weadonwy onDidChangeFiwe: Event<weadonwy IFiweChange[]> = this._onDidChangeFiwe.event;
 
-	private extUri: ExtUri;
+	pwivate extUwi: ExtUwi;
 
-	private readonly watchResources = TernarySearchTree.forUris<URI>(uri => this.extUri.ignorePathCasing(uri));
+	pwivate weadonwy watchWesouwces = TewnawySeawchTwee.fowUwis<UWI>(uwi => this.extUwi.ignowePathCasing(uwi));
 
-	constructor(
-		private readonly fileSystemScheme: string,
-		private readonly fileSystemProvider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability,
-		private readonly userDataScheme: string,
-		private readonly logService: ILogService,
+	constwuctow(
+		pwivate weadonwy fiweSystemScheme: stwing,
+		pwivate weadonwy fiweSystemPwovida: IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity | IFiweSystemPwovidewWithOpenWeadWwiteCwoseCapabiwity,
+		pwivate weadonwy usewDataScheme: stwing,
+		pwivate weadonwy wogSewvice: IWogSewvice,
 	) {
-		super();
+		supa();
 
-		this.extUri = !!(this.capabilities & FileSystemProviderCapabilities.PathCaseSensitive) ? extUri : extUriIgnorePathCase;
-		// update extUri as capabilites might change.
-		this._register(this.onDidChangeCapabilities(() => this.extUri = !!(this.capabilities & FileSystemProviderCapabilities.PathCaseSensitive) ? extUri : extUriIgnorePathCase));
-		this._register(this.fileSystemProvider.onDidChangeFile(e => this.handleFileChanges(e)));
+		this.extUwi = !!(this.capabiwities & FiweSystemPwovidewCapabiwities.PathCaseSensitive) ? extUwi : extUwiIgnowePathCase;
+		// update extUwi as capabiwites might change.
+		this._wegista(this.onDidChangeCapabiwities(() => this.extUwi = !!(this.capabiwities & FiweSystemPwovidewCapabiwities.PathCaseSensitive) ? extUwi : extUwiIgnowePathCase));
+		this._wegista(this.fiweSystemPwovida.onDidChangeFiwe(e => this.handweFiweChanges(e)));
 	}
 
-	watch(resource: URI, opts: IWatchOptions): IDisposable {
-		this.watchResources.set(resource, resource);
-		const disposable = this.fileSystemProvider.watch(this.toFileSystemResource(resource), opts);
-		return toDisposable(() => {
-			this.watchResources.delete(resource);
-			disposable.dispose();
+	watch(wesouwce: UWI, opts: IWatchOptions): IDisposabwe {
+		this.watchWesouwces.set(wesouwce, wesouwce);
+		const disposabwe = this.fiweSystemPwovida.watch(this.toFiweSystemWesouwce(wesouwce), opts);
+		wetuwn toDisposabwe(() => {
+			this.watchWesouwces.dewete(wesouwce);
+			disposabwe.dispose();
 		});
 	}
 
-	stat(resource: URI): Promise<IStat> {
-		return this.fileSystemProvider.stat(this.toFileSystemResource(resource));
+	stat(wesouwce: UWI): Pwomise<IStat> {
+		wetuwn this.fiweSystemPwovida.stat(this.toFiweSystemWesouwce(wesouwce));
 	}
 
-	mkdir(resource: URI): Promise<void> {
-		return this.fileSystemProvider.mkdir(this.toFileSystemResource(resource));
+	mkdiw(wesouwce: UWI): Pwomise<void> {
+		wetuwn this.fiweSystemPwovida.mkdiw(this.toFiweSystemWesouwce(wesouwce));
 	}
 
-	rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
-		return this.fileSystemProvider.rename(this.toFileSystemResource(from), this.toFileSystemResource(to), opts);
+	wename(fwom: UWI, to: UWI, opts: FiweOvewwwiteOptions): Pwomise<void> {
+		wetuwn this.fiweSystemPwovida.wename(this.toFiweSystemWesouwce(fwom), this.toFiweSystemWesouwce(to), opts);
 	}
 
-	readFile(resource: URI): Promise<Uint8Array> {
-		if (hasReadWriteCapability(this.fileSystemProvider)) {
-			return this.fileSystemProvider.readFile(this.toFileSystemResource(resource));
+	weadFiwe(wesouwce: UWI): Pwomise<Uint8Awway> {
+		if (hasWeadWwiteCapabiwity(this.fiweSystemPwovida)) {
+			wetuwn this.fiweSystemPwovida.weadFiwe(this.toFiweSystemWesouwce(wesouwce));
 		}
-		throw new Error('not supported');
+		thwow new Ewwow('not suppowted');
 	}
 
-	readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
-		if (hasFileReadStreamCapability(this.fileSystemProvider)) {
-			return this.fileSystemProvider.readFileStream(this.toFileSystemResource(resource), opts, token);
+	weadFiweStweam(wesouwce: UWI, opts: FiweWeadStweamOptions, token: CancewwationToken): WeadabweStweamEvents<Uint8Awway> {
+		if (hasFiweWeadStweamCapabiwity(this.fiweSystemPwovida)) {
+			wetuwn this.fiweSystemPwovida.weadFiweStweam(this.toFiweSystemWesouwce(wesouwce), opts, token);
 		}
-		throw new Error('not supported');
+		thwow new Ewwow('not suppowted');
 	}
 
-	readdir(resource: URI): Promise<[string, FileType][]> {
-		return this.fileSystemProvider.readdir(this.toFileSystemResource(resource));
+	weaddiw(wesouwce: UWI): Pwomise<[stwing, FiweType][]> {
+		wetuwn this.fiweSystemPwovida.weaddiw(this.toFiweSystemWesouwce(wesouwce));
 	}
 
-	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
-		if (hasReadWriteCapability(this.fileSystemProvider)) {
-			return this.fileSystemProvider.writeFile(this.toFileSystemResource(resource), content, opts);
+	wwiteFiwe(wesouwce: UWI, content: Uint8Awway, opts: FiweWwiteOptions): Pwomise<void> {
+		if (hasWeadWwiteCapabiwity(this.fiweSystemPwovida)) {
+			wetuwn this.fiweSystemPwovida.wwiteFiwe(this.toFiweSystemWesouwce(wesouwce), content, opts);
 		}
-		throw new Error('not supported');
+		thwow new Ewwow('not suppowted');
 	}
 
-	open(resource: URI, opts: FileOpenOptions): Promise<number> {
-		if (hasOpenReadWriteCloseCapability(this.fileSystemProvider)) {
-			return this.fileSystemProvider.open(this.toFileSystemResource(resource), opts);
+	open(wesouwce: UWI, opts: FiweOpenOptions): Pwomise<numba> {
+		if (hasOpenWeadWwiteCwoseCapabiwity(this.fiweSystemPwovida)) {
+			wetuwn this.fiweSystemPwovida.open(this.toFiweSystemWesouwce(wesouwce), opts);
 		}
-		throw new Error('not supported');
+		thwow new Ewwow('not suppowted');
 	}
 
-	close(fd: number): Promise<void> {
-		if (hasOpenReadWriteCloseCapability(this.fileSystemProvider)) {
-			return this.fileSystemProvider.close(fd);
+	cwose(fd: numba): Pwomise<void> {
+		if (hasOpenWeadWwiteCwoseCapabiwity(this.fiweSystemPwovida)) {
+			wetuwn this.fiweSystemPwovida.cwose(fd);
 		}
-		throw new Error('not supported');
+		thwow new Ewwow('not suppowted');
 	}
 
-	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
-		if (hasOpenReadWriteCloseCapability(this.fileSystemProvider)) {
-			return this.fileSystemProvider.read(fd, pos, data, offset, length);
+	wead(fd: numba, pos: numba, data: Uint8Awway, offset: numba, wength: numba): Pwomise<numba> {
+		if (hasOpenWeadWwiteCwoseCapabiwity(this.fiweSystemPwovida)) {
+			wetuwn this.fiweSystemPwovida.wead(fd, pos, data, offset, wength);
 		}
-		throw new Error('not supported');
+		thwow new Ewwow('not suppowted');
 	}
 
-	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
-		if (hasOpenReadWriteCloseCapability(this.fileSystemProvider)) {
-			return this.fileSystemProvider.write(fd, pos, data, offset, length);
+	wwite(fd: numba, pos: numba, data: Uint8Awway, offset: numba, wength: numba): Pwomise<numba> {
+		if (hasOpenWeadWwiteCwoseCapabiwity(this.fiweSystemPwovida)) {
+			wetuwn this.fiweSystemPwovida.wwite(fd, pos, data, offset, wength);
 		}
-		throw new Error('not supported');
+		thwow new Ewwow('not suppowted');
 	}
 
-	delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
-		return this.fileSystemProvider.delete(this.toFileSystemResource(resource), opts);
+	dewete(wesouwce: UWI, opts: FiweDeweteOptions): Pwomise<void> {
+		wetuwn this.fiweSystemPwovida.dewete(this.toFiweSystemWesouwce(wesouwce), opts);
 	}
 
-	private handleFileChanges(changes: readonly IFileChange[]): void {
-		const userDataChanges: IFileChange[] = [];
-		for (const change of changes) {
-			const userDataResource = this.toUserDataResource(change.resource);
-			if (this.watchResources.findSubstr(userDataResource)) {
-				userDataChanges.push({
-					resource: userDataResource,
+	pwivate handweFiweChanges(changes: weadonwy IFiweChange[]): void {
+		const usewDataChanges: IFiweChange[] = [];
+		fow (const change of changes) {
+			const usewDataWesouwce = this.toUsewDataWesouwce(change.wesouwce);
+			if (this.watchWesouwces.findSubstw(usewDataWesouwce)) {
+				usewDataChanges.push({
+					wesouwce: usewDataWesouwce,
 					type: change.type
 				});
 			}
 		}
-		if (userDataChanges.length) {
-			this.logService.debug('User data changed');
-			this._onDidChangeFile.fire(userDataChanges);
+		if (usewDataChanges.wength) {
+			this.wogSewvice.debug('Usa data changed');
+			this._onDidChangeFiwe.fiwe(usewDataChanges);
 		}
 	}
 
-	private toFileSystemResource(userDataResource: URI): URI {
-		return userDataResource.with({ scheme: this.fileSystemScheme });
+	pwivate toFiweSystemWesouwce(usewDataWesouwce: UWI): UWI {
+		wetuwn usewDataWesouwce.with({ scheme: this.fiweSystemScheme });
 	}
 
-	private toUserDataResource(fileSystemResource: URI): URI {
-		return fileSystemResource.with({ scheme: this.userDataScheme });
+	pwivate toUsewDataWesouwce(fiweSystemWesouwce: UWI): UWI {
+		wetuwn fiweSystemWesouwce.with({ scheme: this.usewDataScheme });
 	}
 
 }

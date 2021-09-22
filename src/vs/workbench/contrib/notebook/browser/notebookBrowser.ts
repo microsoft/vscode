@@ -1,841 +1,841 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { FindMatch, IModelDeltaDecoration, IReadonlyTextBuffer, ITextModel } from 'vs/editor/common/model';
-import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
-import { CellViewModel, IModelDecorationsChangeAccessor, INotebookViewCellsUpdateEvent, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, NotebookCellMetadata, IOrderedMimeType, INotebookRendererInfo, ICellOutput, INotebookCellStatusBarItem, NotebookCellInternalMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICellRange, cellRangesToIndexes, reduceCellRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IEditorPane } from 'vs/workbench/common/editor';
-import { ITextEditorOptions, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
-import { INotebookWebviewMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
-import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { isCompositeNotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { FontInfo } fwom 'vs/editow/common/config/fontInfo';
+impowt { IPosition } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { FindMatch, IModewDewtaDecowation, IWeadonwyTextBuffa, ITextModew } fwom 'vs/editow/common/modew';
+impowt { ContextKeyExpw, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { OutputWendewa } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/output/outputWendewa';
+impowt { CewwViewModew, IModewDecowationsChangeAccessow, INotebookViewCewwsUpdateEvent, NotebookViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/notebookViewModew';
+impowt { NotebookCewwTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookCewwTextModew';
+impowt { CewwKind, NotebookCewwMetadata, IOwdewedMimeType, INotebookWendewewInfo, ICewwOutput, INotebookCewwStatusBawItem, NotebookCewwIntewnawMetadata, NotebookDocumentMetadata } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { ICewwWange, cewwWangesToIndexes, weduceCewwWanges } fwom 'vs/wowkbench/contwib/notebook/common/notebookWange';
+impowt { Webview } fwom 'vs/wowkbench/contwib/webview/bwowsa/webview';
+impowt { NotebookTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookTextModew';
+impowt { MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IEditowPane } fwom 'vs/wowkbench/common/editow';
+impowt { ITextEditowOptions, ITextWesouwceEditowInput } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IConstwuctowSignatuwe1 } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { INotebookWebviewMessage } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/wendewews/backWayewWebView';
+impowt { NotebookOptions } fwom 'vs/wowkbench/contwib/notebook/common/notebookOptions';
+impowt { INotebookKewnew } fwom 'vs/wowkbench/contwib/notebook/common/notebookKewnewSewvice';
+impowt { isCompositeNotebookEditowInput } fwom 'vs/wowkbench/contwib/notebook/common/notebookEditowInput';
+impowt { IEditowContwibutionDescwiption } fwom 'vs/editow/bwowsa/editowExtensions';
 
-export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
-export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
+expowt const NOTEBOOK_EDITOW_ID = 'wowkbench.editow.notebook';
+expowt const NOTEBOOK_DIFF_EDITOW_ID = 'wowkbench.editow.notebookTextDiffEditow';
 
-//#region Context Keys
-export const HAS_OPENED_NOTEBOOK = new RawContextKey<boolean>('userHasOpenedNotebook', false);
-export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
+//#wegion Context Keys
+expowt const HAS_OPENED_NOTEBOOK = new WawContextKey<boowean>('usewHasOpenedNotebook', fawse);
+expowt const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new WawContextKey<boowean>('notebookFindWidgetFocused', fawse);
 
 // Is Notebook
-export const NOTEBOOK_IS_ACTIVE_EDITOR = ContextKeyExpr.equals('activeEditor', NOTEBOOK_EDITOR_ID);
+expowt const NOTEBOOK_IS_ACTIVE_EDITOW = ContextKeyExpw.equaws('activeEditow', NOTEBOOK_EDITOW_ID);
 
-// Editor keys
-export const NOTEBOOK_EDITOR_FOCUSED = new RawContextKey<boolean>('notebookEditorFocused', false);
-export const NOTEBOOK_CELL_LIST_FOCUSED = new RawContextKey<boolean>('notebookCellListFocused', false);
-export const NOTEBOOK_OUTPUT_FOCUSED = new RawContextKey<boolean>('notebookOutputFocused', false);
-export const NOTEBOOK_EDITOR_EDITABLE = new RawContextKey<boolean>('notebookEditable', true);
-export const NOTEBOOK_HAS_RUNNING_CELL = new RawContextKey<boolean>('notebookHasRunningCell', false);
-export const NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON = new RawContextKey<boolean>('notebookUseConsolidatedOutputButton', false);
-export const NOTEBOOK_BREAKPOINT_MARGIN_ACTIVE = new RawContextKey<boolean>('notebookBreakpointMargin', false);
-export const NOTEBOOK_CELL_TOOLBAR_LOCATION = new RawContextKey<'left' | 'right' | 'hidden'>('notebookCellToolbarLocation', 'left');
+// Editow keys
+expowt const NOTEBOOK_EDITOW_FOCUSED = new WawContextKey<boowean>('notebookEditowFocused', fawse);
+expowt const NOTEBOOK_CEWW_WIST_FOCUSED = new WawContextKey<boowean>('notebookCewwWistFocused', fawse);
+expowt const NOTEBOOK_OUTPUT_FOCUSED = new WawContextKey<boowean>('notebookOutputFocused', fawse);
+expowt const NOTEBOOK_EDITOW_EDITABWE = new WawContextKey<boowean>('notebookEditabwe', twue);
+expowt const NOTEBOOK_HAS_WUNNING_CEWW = new WawContextKey<boowean>('notebookHasWunningCeww', fawse);
+expowt const NOTEBOOK_USE_CONSOWIDATED_OUTPUT_BUTTON = new WawContextKey<boowean>('notebookUseConsowidatedOutputButton', fawse);
+expowt const NOTEBOOK_BWEAKPOINT_MAWGIN_ACTIVE = new WawContextKey<boowean>('notebookBweakpointMawgin', fawse);
+expowt const NOTEBOOK_CEWW_TOOWBAW_WOCATION = new WawContextKey<'weft' | 'wight' | 'hidden'>('notebookCewwToowbawWocation', 'weft');
 
-// Cell keys
-export const NOTEBOOK_VIEW_TYPE = new RawContextKey<string>('notebookType', undefined);
-export const NOTEBOOK_CELL_TYPE = new RawContextKey<'code' | 'markup'>('notebookCellType', undefined);
-export const NOTEBOOK_CELL_EDITABLE = new RawContextKey<boolean>('notebookCellEditable', false);
-export const NOTEBOOK_CELL_FOCUSED = new RawContextKey<boolean>('notebookCellFocused', false);
-export const NOTEBOOK_CELL_EDITOR_FOCUSED = new RawContextKey<boolean>('notebookCellEditorFocused', false);
-export const NOTEBOOK_CELL_MARKDOWN_EDIT_MODE = new RawContextKey<boolean>('notebookCellMarkdownEditMode', false);
-export const NOTEBOOK_CELL_LINE_NUMBERS = new RawContextKey<'on' | 'off' | 'inherit'>('notebookCellLineNumbers', 'inherit');
-export type NotebookCellExecutionStateContext = 'idle' | 'pending' | 'executing' | 'succeeded' | 'failed';
-export const NOTEBOOK_CELL_EXECUTION_STATE = new RawContextKey<NotebookCellExecutionStateContext>('notebookCellExecutionState', undefined);
-export const NOTEBOOK_CELL_EXECUTING = new RawContextKey<boolean>('notebookCellExecuting', false); // This only exists to simplify a context key expression, see #129625
-export const NOTEBOOK_CELL_HAS_OUTPUTS = new RawContextKey<boolean>('notebookCellHasOutputs', false);
-export const NOTEBOOK_CELL_INPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellInputIsCollapsed', false);
-export const NOTEBOOK_CELL_OUTPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellOutputIsCollapsed', false);
-// Kernels
-export const NOTEBOOK_KERNEL_COUNT = new RawContextKey<number>('notebookKernelCount', 0);
-export const NOTEBOOK_KERNEL_SELECTED = new RawContextKey<boolean>('notebookKernelSelected', false);
-export const NOTEBOOK_INTERRUPTIBLE_KERNEL = new RawContextKey<boolean>('notebookInterruptibleKernel', false);
-export const NOTEBOOK_MISSING_KERNEL_EXTENSION = new RawContextKey<boolean>('notebookMissingKernelExtension', false);
-export const NOTEBOOK_HAS_OUTPUTS = new RawContextKey<boolean>('notebookHasOutputs', false);
+// Ceww keys
+expowt const NOTEBOOK_VIEW_TYPE = new WawContextKey<stwing>('notebookType', undefined);
+expowt const NOTEBOOK_CEWW_TYPE = new WawContextKey<'code' | 'mawkup'>('notebookCewwType', undefined);
+expowt const NOTEBOOK_CEWW_EDITABWE = new WawContextKey<boowean>('notebookCewwEditabwe', fawse);
+expowt const NOTEBOOK_CEWW_FOCUSED = new WawContextKey<boowean>('notebookCewwFocused', fawse);
+expowt const NOTEBOOK_CEWW_EDITOW_FOCUSED = new WawContextKey<boowean>('notebookCewwEditowFocused', fawse);
+expowt const NOTEBOOK_CEWW_MAWKDOWN_EDIT_MODE = new WawContextKey<boowean>('notebookCewwMawkdownEditMode', fawse);
+expowt const NOTEBOOK_CEWW_WINE_NUMBEWS = new WawContextKey<'on' | 'off' | 'inhewit'>('notebookCewwWineNumbews', 'inhewit');
+expowt type NotebookCewwExecutionStateContext = 'idwe' | 'pending' | 'executing' | 'succeeded' | 'faiwed';
+expowt const NOTEBOOK_CEWW_EXECUTION_STATE = new WawContextKey<NotebookCewwExecutionStateContext>('notebookCewwExecutionState', undefined);
+expowt const NOTEBOOK_CEWW_EXECUTING = new WawContextKey<boowean>('notebookCewwExecuting', fawse); // This onwy exists to simpwify a context key expwession, see #129625
+expowt const NOTEBOOK_CEWW_HAS_OUTPUTS = new WawContextKey<boowean>('notebookCewwHasOutputs', fawse);
+expowt const NOTEBOOK_CEWW_INPUT_COWWAPSED = new WawContextKey<boowean>('notebookCewwInputIsCowwapsed', fawse);
+expowt const NOTEBOOK_CEWW_OUTPUT_COWWAPSED = new WawContextKey<boowean>('notebookCewwOutputIsCowwapsed', fawse);
+// Kewnews
+expowt const NOTEBOOK_KEWNEW_COUNT = new WawContextKey<numba>('notebookKewnewCount', 0);
+expowt const NOTEBOOK_KEWNEW_SEWECTED = new WawContextKey<boowean>('notebookKewnewSewected', fawse);
+expowt const NOTEBOOK_INTEWWUPTIBWE_KEWNEW = new WawContextKey<boowean>('notebookIntewwuptibweKewnew', fawse);
+expowt const NOTEBOOK_MISSING_KEWNEW_EXTENSION = new WawContextKey<boowean>('notebookMissingKewnewExtension', fawse);
+expowt const NOTEBOOK_HAS_OUTPUTS = new WawContextKey<boowean>('notebookHasOutputs', fawse);
 
-//#endregion
+//#endwegion
 
-//#region Shared commands
-export const EXPAND_CELL_INPUT_COMMAND_ID = 'notebook.cell.expandCellInput';
-export const EXECUTE_CELL_COMMAND_ID = 'notebook.cell.execute';
-export const CHANGE_CELL_LANGUAGE = 'notebook.cell.changeLanguage';
-export const QUIT_EDIT_CELL_COMMAND_ID = 'notebook.cell.quitEdit';
-export const EXPAND_CELL_OUTPUT_COMMAND_ID = 'notebook.cell.expandCellOutput';
+//#wegion Shawed commands
+expowt const EXPAND_CEWW_INPUT_COMMAND_ID = 'notebook.ceww.expandCewwInput';
+expowt const EXECUTE_CEWW_COMMAND_ID = 'notebook.ceww.execute';
+expowt const CHANGE_CEWW_WANGUAGE = 'notebook.ceww.changeWanguage';
+expowt const QUIT_EDIT_CEWW_COMMAND_ID = 'notebook.ceww.quitEdit';
+expowt const EXPAND_CEWW_OUTPUT_COMMAND_ID = 'notebook.ceww.expandCewwOutput';
 
 
-//#endregion
+//#endwegion
 
-//#region Notebook extensions
+//#wegion Notebook extensions
 
-// Hardcoding viewType/extension ID for now. TODO these should be replaced once we can
-// look them up in the marketplace dynamically.
-export const IPYNB_VIEW_TYPE = 'jupyter-notebook';
-export const JUPYTER_EXTENSION_ID = 'ms-toolsai.jupyter';
-/** @deprecated use the notebookKernel<Type> "keyword" instead */
-export const KERNEL_EXTENSIONS = new Map<string, string>([
-	[IPYNB_VIEW_TYPE, JUPYTER_EXTENSION_ID],
+// Hawdcoding viewType/extension ID fow now. TODO these shouwd be wepwaced once we can
+// wook them up in the mawketpwace dynamicawwy.
+expowt const IPYNB_VIEW_TYPE = 'jupyta-notebook';
+expowt const JUPYTEW_EXTENSION_ID = 'ms-toowsai.jupyta';
+/** @depwecated use the notebookKewnew<Type> "keywowd" instead */
+expowt const KEWNEW_EXTENSIONS = new Map<stwing, stwing>([
+	[IPYNB_VIEW_TYPE, JUPYTEW_EXTENSION_ID],
 ]);
 
-//#endregion
+//#endwegion
 
-//#region  Output related types
-export const enum RenderOutputType {
-	Mainframe,
-	Html,
+//#wegion  Output wewated types
+expowt const enum WendewOutputType {
+	Mainfwame,
+	Htmw,
 	Extension
 }
 
-export interface IRenderMainframeOutput {
-	type: RenderOutputType.Mainframe;
-	supportAppend?: boolean;
-	initHeight?: number;
-	disposable?: IDisposable;
+expowt intewface IWendewMainfwameOutput {
+	type: WendewOutputType.Mainfwame;
+	suppowtAppend?: boowean;
+	initHeight?: numba;
+	disposabwe?: IDisposabwe;
 }
 
-export interface IRenderPlainHtmlOutput {
-	type: RenderOutputType.Html;
-	source: IDisplayOutputViewModel;
-	htmlContent: string;
+expowt intewface IWendewPwainHtmwOutput {
+	type: WendewOutputType.Htmw;
+	souwce: IDispwayOutputViewModew;
+	htmwContent: stwing;
 }
 
-export interface IRenderOutputViaExtension {
-	type: RenderOutputType.Extension;
-	source: IDisplayOutputViewModel;
-	mimeType: string;
-	renderer: INotebookRendererInfo;
+expowt intewface IWendewOutputViaExtension {
+	type: WendewOutputType.Extension;
+	souwce: IDispwayOutputViewModew;
+	mimeType: stwing;
+	wendewa: INotebookWendewewInfo;
 }
 
-export type IInsetRenderOutput = IRenderPlainHtmlOutput | IRenderOutputViaExtension;
-export type IRenderOutput = IRenderMainframeOutput | IInsetRenderOutput;
+expowt type IInsetWendewOutput = IWendewPwainHtmwOutput | IWendewOutputViaExtension;
+expowt type IWendewOutput = IWendewMainfwameOutput | IInsetWendewOutput;
 
-export interface ICellOutputViewModel extends IDisposable {
-	cellViewModel: IGenericCellViewModel;
+expowt intewface ICewwOutputViewModew extends IDisposabwe {
+	cewwViewModew: IGenewicCewwViewModew;
 	/**
-	 * When rendering an output, `model` should always be used as we convert legacy `text/error` output to `display_data` output under the hood.
+	 * When wendewing an output, `modew` shouwd awways be used as we convewt wegacy `text/ewwow` output to `dispway_data` output unda the hood.
 	 */
-	model: ICellOutput;
-	resolveMimeTypes(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined): [readonly IOrderedMimeType[], number];
-	pickedMimeType: IOrderedMimeType | undefined;
-	supportAppend(): boolean;
-	hasMultiMimeType(): boolean;
-	toRawJSON(): any;
+	modew: ICewwOutput;
+	wesowveMimeTypes(textModew: NotebookTextModew, kewnewPwovides: weadonwy stwing[] | undefined): [weadonwy IOwdewedMimeType[], numba];
+	pickedMimeType: IOwdewedMimeType | undefined;
+	suppowtAppend(): boowean;
+	hasMuwtiMimeType(): boowean;
+	toWawJSON(): any;
 }
 
-export interface IDisplayOutputViewModel extends ICellOutputViewModel {
-	resolveMimeTypes(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined): [readonly IOrderedMimeType[], number];
+expowt intewface IDispwayOutputViewModew extends ICewwOutputViewModew {
+	wesowveMimeTypes(textModew: NotebookTextModew, kewnewPwovides: weadonwy stwing[] | undefined): [weadonwy IOwdewedMimeType[], numba];
 }
 
 
-//#endregion
+//#endwegion
 
-//#region Shared types between the Notebook Editor and Notebook Diff Editor, they are mostly used for output rendering
+//#wegion Shawed types between the Notebook Editow and Notebook Diff Editow, they awe mostwy used fow output wendewing
 
-export interface IGenericCellViewModel {
-	id: string;
-	handle: number;
-	uri: URI;
-	metadata: NotebookCellMetadata;
-	outputIsHovered: boolean;
-	outputIsFocused: boolean;
-	outputsViewModels: ICellOutputViewModel[];
-	getOutputOffset(index: number): number;
-	updateOutputHeight(index: number, height: number, source?: string): void;
+expowt intewface IGenewicCewwViewModew {
+	id: stwing;
+	handwe: numba;
+	uwi: UWI;
+	metadata: NotebookCewwMetadata;
+	outputIsHovewed: boowean;
+	outputIsFocused: boowean;
+	outputsViewModews: ICewwOutputViewModew[];
+	getOutputOffset(index: numba): numba;
+	updateOutputHeight(index: numba, height: numba, souwce?: stwing): void;
 }
 
-export interface IDisplayOutputLayoutUpdateRequest {
-	readonly cell: IGenericCellViewModel;
-	output: IDisplayOutputViewModel;
-	cellTop: number;
-	outputOffset: number;
-	forceDisplay: boolean;
+expowt intewface IDispwayOutputWayoutUpdateWequest {
+	weadonwy ceww: IGenewicCewwViewModew;
+	output: IDispwayOutputViewModew;
+	cewwTop: numba;
+	outputOffset: numba;
+	fowceDispway: boowean;
 }
 
-export interface ICommonCellInfo {
-	cellId: string;
-	cellHandle: number;
-	cellUri: URI;
+expowt intewface ICommonCewwInfo {
+	cewwId: stwing;
+	cewwHandwe: numba;
+	cewwUwi: UWI;
 }
 
-export interface INotebookCellOutputLayoutInfo {
-	width: number;
-	height: number;
+expowt intewface INotebookCewwOutputWayoutInfo {
+	width: numba;
+	height: numba;
 	fontInfo: FontInfo;
 }
 
-export interface IFocusNotebookCellOptions {
-	readonly skipReveal?: boolean;
+expowt intewface IFocusNotebookCewwOptions {
+	weadonwy skipWeveaw?: boowean;
 }
 
-//#endregion
+//#endwegion
 
-export interface NotebookLayoutInfo {
-	width: number;
-	height: number;
+expowt intewface NotebookWayoutInfo {
+	width: numba;
+	height: numba;
 	fontInfo: FontInfo;
 }
 
-export interface NotebookLayoutChangeEvent {
-	width?: boolean;
-	height?: boolean;
-	fontInfo?: boolean;
+expowt intewface NotebookWayoutChangeEvent {
+	width?: boowean;
+	height?: boowean;
+	fontInfo?: boowean;
 }
 
-export enum CellLayoutState {
-	Uninitialized,
+expowt enum CewwWayoutState {
+	Uninitiawized,
 	Estimated,
-	FromCache,
-	Measured
+	FwomCache,
+	Measuwed
 }
 
-export interface CodeCellLayoutInfo {
-	readonly fontInfo: FontInfo | null;
-	readonly editorHeight: number;
-	readonly editorWidth: number;
-	readonly totalHeight: number;
-	readonly outputContainerOffset: number;
-	readonly outputTotalHeight: number;
-	readonly outputShowMoreContainerHeight: number;
-	readonly outputShowMoreContainerOffset: number;
-	readonly indicatorHeight: number;
-	readonly bottomToolbarOffset: number;
-	readonly layoutState: CellLayoutState;
+expowt intewface CodeCewwWayoutInfo {
+	weadonwy fontInfo: FontInfo | nuww;
+	weadonwy editowHeight: numba;
+	weadonwy editowWidth: numba;
+	weadonwy totawHeight: numba;
+	weadonwy outputContainewOffset: numba;
+	weadonwy outputTotawHeight: numba;
+	weadonwy outputShowMoweContainewHeight: numba;
+	weadonwy outputShowMoweContainewOffset: numba;
+	weadonwy indicatowHeight: numba;
+	weadonwy bottomToowbawOffset: numba;
+	weadonwy wayoutState: CewwWayoutState;
 }
 
-export interface CodeCellLayoutChangeEvent {
-	source?: string;
-	editorHeight?: boolean;
-	outputHeight?: boolean;
-	outputShowMoreContainerHeight?: number;
-	totalHeight?: boolean;
-	outerWidth?: number;
+expowt intewface CodeCewwWayoutChangeEvent {
+	souwce?: stwing;
+	editowHeight?: boowean;
+	outputHeight?: boowean;
+	outputShowMoweContainewHeight?: numba;
+	totawHeight?: boowean;
+	outewWidth?: numba;
 	font?: FontInfo;
 }
 
-export interface MarkdownCellLayoutInfo {
-	readonly fontInfo: FontInfo | null;
-	readonly editorWidth: number;
-	readonly editorHeight: number;
-	readonly previewHeight: number;
-	readonly bottomToolbarOffset: number;
-	readonly totalHeight: number;
-	readonly layoutState: CellLayoutState;
+expowt intewface MawkdownCewwWayoutInfo {
+	weadonwy fontInfo: FontInfo | nuww;
+	weadonwy editowWidth: numba;
+	weadonwy editowHeight: numba;
+	weadonwy pweviewHeight: numba;
+	weadonwy bottomToowbawOffset: numba;
+	weadonwy totawHeight: numba;
+	weadonwy wayoutState: CewwWayoutState;
 }
 
-export interface MarkdownCellLayoutChangeEvent {
+expowt intewface MawkdownCewwWayoutChangeEvent {
 	font?: FontInfo;
-	outerWidth?: number;
-	editorHeight?: number;
-	previewHeight?: number;
-	totalHeight?: number;
+	outewWidth?: numba;
+	editowHeight?: numba;
+	pweviewHeight?: numba;
+	totawHeight?: numba;
 }
 
-export interface ICellViewModel extends IGenericCellViewModel {
-	readonly model: NotebookCellTextModel;
-	readonly id: string;
-	readonly textBuffer: IReadonlyTextBuffer;
-	readonly layoutInfo: { totalHeight: number; };
-	readonly onDidChangeLayout: Event<{ totalHeight?: boolean | number; outerWidth?: number; }>;
-	readonly onDidChangeCellStatusBarItems: Event<void>;
-	readonly editStateSource: string;
-	readonly editorAttached: boolean;
-	dragging: boolean;
-	handle: number;
-	uri: URI;
-	language: string;
-	readonly mime: string;
-	cellKind: CellKind;
-	lineNumbers: 'on' | 'off' | 'inherit';
-	focusMode: CellFocusMode;
-	outputIsHovered: boolean;
-	getText(): string;
-	getTextLength(): number;
-	getHeight(lineHeight: number): number;
-	metadata: NotebookCellMetadata;
-	internalMetadata: NotebookCellInternalMetadata;
-	textModel: ITextModel | undefined;
-	hasModel(): this is IEditableCellViewModel;
-	resolveTextModel(): Promise<ITextModel>;
-	getSelectionsStartPosition(): IPosition[] | undefined;
-	getCellDecorations(): INotebookCellDecorationOptions[];
-	getCellStatusBarItems(): INotebookCellStatusBarItem[];
-	getEditState(): CellEditState;
-	updateEditState(state: CellEditState, source: string): void;
-	deltaModelDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
-	getCellDecorationRange(id: string): Range | null;
+expowt intewface ICewwViewModew extends IGenewicCewwViewModew {
+	weadonwy modew: NotebookCewwTextModew;
+	weadonwy id: stwing;
+	weadonwy textBuffa: IWeadonwyTextBuffa;
+	weadonwy wayoutInfo: { totawHeight: numba; };
+	weadonwy onDidChangeWayout: Event<{ totawHeight?: boowean | numba; outewWidth?: numba; }>;
+	weadonwy onDidChangeCewwStatusBawItems: Event<void>;
+	weadonwy editStateSouwce: stwing;
+	weadonwy editowAttached: boowean;
+	dwagging: boowean;
+	handwe: numba;
+	uwi: UWI;
+	wanguage: stwing;
+	weadonwy mime: stwing;
+	cewwKind: CewwKind;
+	wineNumbews: 'on' | 'off' | 'inhewit';
+	focusMode: CewwFocusMode;
+	outputIsHovewed: boowean;
+	getText(): stwing;
+	getTextWength(): numba;
+	getHeight(wineHeight: numba): numba;
+	metadata: NotebookCewwMetadata;
+	intewnawMetadata: NotebookCewwIntewnawMetadata;
+	textModew: ITextModew | undefined;
+	hasModew(): this is IEditabweCewwViewModew;
+	wesowveTextModew(): Pwomise<ITextModew>;
+	getSewectionsStawtPosition(): IPosition[] | undefined;
+	getCewwDecowations(): INotebookCewwDecowationOptions[];
+	getCewwStatusBawItems(): INotebookCewwStatusBawItem[];
+	getEditState(): CewwEditState;
+	updateEditState(state: CewwEditState, souwce: stwing): void;
+	dewtaModewDecowations(owdDecowations: stwing[], newDecowations: IModewDewtaDecowation[]): stwing[];
+	getCewwDecowationWange(id: stwing): Wange | nuww;
 }
 
-export interface IEditableCellViewModel extends ICellViewModel {
-	textModel: ITextModel;
+expowt intewface IEditabweCewwViewModew extends ICewwViewModew {
+	textModew: ITextModew;
 }
 
-export interface INotebookEditorMouseEvent {
-	readonly event: MouseEvent;
-	readonly target: CellViewModel;
+expowt intewface INotebookEditowMouseEvent {
+	weadonwy event: MouseEvent;
+	weadonwy tawget: CewwViewModew;
 }
 
-export interface INotebookEditorContribution {
+expowt intewface INotebookEditowContwibution {
 	/**
-	 * Dispose this contribution.
+	 * Dispose this contwibution.
 	 */
 	dispose(): void;
 	/**
-	 * Store view state.
+	 * Stowe view state.
 	 */
 	saveViewState?(): unknown;
 	/**
-	 * Restore view state.
+	 * Westowe view state.
 	 */
-	restoreViewState?(state: unknown): void;
+	westoweViewState?(state: unknown): void;
 }
 
-export interface INotebookCellDecorationOptions {
-	className?: string;
-	gutterClassName?: string;
-	outputClassName?: string;
-	topClassName?: string;
+expowt intewface INotebookCewwDecowationOptions {
+	cwassName?: stwing;
+	guttewCwassName?: stwing;
+	outputCwassName?: stwing;
+	topCwassName?: stwing;
 }
 
-export interface INotebookDeltaDecoration {
-	handle: number;
-	options: INotebookCellDecorationOptions;
+expowt intewface INotebookDewtaDecowation {
+	handwe: numba;
+	options: INotebookCewwDecowationOptions;
 }
 
-export interface INotebookDeltaCellStatusBarItems {
-	handle: number;
-	items: INotebookCellStatusBarItem[];
+expowt intewface INotebookDewtaCewwStatusBawItems {
+	handwe: numba;
+	items: INotebookCewwStatusBawItem[];
 }
 
-export interface INotebookEditorOptions extends ITextEditorOptions {
-	readonly cellOptions?: ITextResourceEditorInput;
-	readonly cellSelections?: ICellRange[];
-	readonly isReadOnly?: boolean;
+expowt intewface INotebookEditowOptions extends ITextEditowOptions {
+	weadonwy cewwOptions?: ITextWesouwceEditowInput;
+	weadonwy cewwSewections?: ICewwWange[];
+	weadonwy isWeadOnwy?: boowean;
 }
 
-export type INotebookEditorContributionCtor = IConstructorSignature1<INotebookEditor, INotebookEditorContribution>;
+expowt type INotebookEditowContwibutionCtow = IConstwuctowSignatuwe1<INotebookEditow, INotebookEditowContwibution>;
 
-export interface INotebookEditorContributionDescription {
-	id: string;
-	ctor: INotebookEditorContributionCtor;
+expowt intewface INotebookEditowContwibutionDescwiption {
+	id: stwing;
+	ctow: INotebookEditowContwibutionCtow;
 }
 
-export interface INotebookEditorCreationOptions {
-	readonly isEmbedded?: boolean;
-	readonly isReadOnly?: boolean;
-	readonly contributions?: INotebookEditorContributionDescription[];
-	readonly cellEditorContributions?: IEditorContributionDescription[];
-	readonly menuIds: {
-		notebookToolbar: MenuId;
-		cellTitleToolbar: MenuId;
-		cellInsertToolbar: MenuId;
-		cellTopInsertToolbar: MenuId;
-		cellExecuteToolbar: MenuId;
+expowt intewface INotebookEditowCweationOptions {
+	weadonwy isEmbedded?: boowean;
+	weadonwy isWeadOnwy?: boowean;
+	weadonwy contwibutions?: INotebookEditowContwibutionDescwiption[];
+	weadonwy cewwEditowContwibutions?: IEditowContwibutionDescwiption[];
+	weadonwy menuIds: {
+		notebookToowbaw: MenuId;
+		cewwTitweToowbaw: MenuId;
+		cewwInsewtToowbaw: MenuId;
+		cewwTopInsewtToowbaw: MenuId;
+		cewwExecuteToowbaw: MenuId;
 	};
-	readonly options?: NotebookOptions;
+	weadonwy options?: NotebookOptions;
 }
 
-export enum NotebookViewEventType {
-	LayoutChanged = 1,
+expowt enum NotebookViewEventType {
+	WayoutChanged = 1,
 	MetadataChanged = 2,
-	CellStateChanged = 3
+	CewwStateChanged = 3
 }
 
-export class NotebookLayoutChangedEvent {
-	public readonly type = NotebookViewEventType.LayoutChanged;
+expowt cwass NotebookWayoutChangedEvent {
+	pubwic weadonwy type = NotebookViewEventType.WayoutChanged;
 
-	constructor(readonly source: NotebookLayoutChangeEvent, readonly value: NotebookLayoutInfo) {
+	constwuctow(weadonwy souwce: NotebookWayoutChangeEvent, weadonwy vawue: NotebookWayoutInfo) {
 
 	}
 }
 
 
-export class NotebookMetadataChangedEvent {
-	public readonly type = NotebookViewEventType.MetadataChanged;
+expowt cwass NotebookMetadataChangedEvent {
+	pubwic weadonwy type = NotebookViewEventType.MetadataChanged;
 
-	constructor(readonly source: NotebookDocumentMetadata) {
-
-	}
-}
-
-export class NotebookCellStateChangedEvent {
-	public readonly type = NotebookViewEventType.CellStateChanged;
-
-	constructor(readonly source: CellViewModelStateChangeEvent, readonly cell: ICellViewModel) {
+	constwuctow(weadonwy souwce: NotebookDocumentMetadata) {
 
 	}
 }
 
+expowt cwass NotebookCewwStateChangedEvent {
+	pubwic weadonwy type = NotebookViewEventType.CewwStateChanged;
 
-export type NotebookViewEvent = NotebookLayoutChangedEvent | NotebookMetadataChangedEvent | NotebookCellStateChangedEvent;
+	constwuctow(weadonwy souwce: CewwViewModewStateChangeEvent, weadonwy ceww: ICewwViewModew) {
+
+	}
+}
 
 
-export interface INotebookEditor {
-	//#region Eventing
-	readonly onDidChangeCellState: Event<NotebookCellStateChangedEvent>;
-	readonly onDidChangeViewCells: Event<INotebookViewCellsUpdateEvent>;
-	readonly onDidChangeVisibleRanges: Event<void>;
-	readonly onDidChangeSelection: Event<void>;
+expowt type NotebookViewEvent = NotebookWayoutChangedEvent | NotebookMetadataChangedEvent | NotebookCewwStateChangedEvent;
+
+
+expowt intewface INotebookEditow {
+	//#wegion Eventing
+	weadonwy onDidChangeCewwState: Event<NotebookCewwStateChangedEvent>;
+	weadonwy onDidChangeViewCewws: Event<INotebookViewCewwsUpdateEvent>;
+	weadonwy onDidChangeVisibweWanges: Event<void>;
+	weadonwy onDidChangeSewection: Event<void>;
 	/**
-	 * An event emitted when the model of this editor has changed.
+	 * An event emitted when the modew of this editow has changed.
 	 */
-	readonly onDidChangeModel: Event<NotebookTextModel | undefined>;
-	readonly onDidFocusEditorWidget: Event<void>;
-	readonly onDidScroll: Event<void>;
-	readonly onDidChangeActiveCell: Event<void>;
-	readonly onMouseUp: Event<INotebookEditorMouseEvent>;
-	readonly onMouseDown: Event<INotebookEditorMouseEvent>;
+	weadonwy onDidChangeModew: Event<NotebookTextModew | undefined>;
+	weadonwy onDidFocusEditowWidget: Event<void>;
+	weadonwy onDidScwoww: Event<void>;
+	weadonwy onDidChangeActiveCeww: Event<void>;
+	weadonwy onMouseUp: Event<INotebookEditowMouseEvent>;
+	weadonwy onMouseDown: Event<INotebookEditowMouseEvent>;
 
-	//#endregion
+	//#endwegion
 
-	//#region readonly properties
-	readonly visibleRanges: ICellRange[];
-	readonly textModel?: NotebookTextModel;
-	readonly isReadOnly: boolean;
-	readonly notebookOptions: NotebookOptions;
-	readonly isDisposed: boolean;
-	readonly activeKernel: INotebookKernel | undefined;
-	//#endregion
+	//#wegion weadonwy pwopewties
+	weadonwy visibweWanges: ICewwWange[];
+	weadonwy textModew?: NotebookTextModew;
+	weadonwy isWeadOnwy: boowean;
+	weadonwy notebookOptions: NotebookOptions;
+	weadonwy isDisposed: boowean;
+	weadonwy activeKewnew: INotebookKewnew | undefined;
+	//#endwegion
 
-	getLength(): number;
-	getSelections(): ICellRange[];
-	setSelections(selections: ICellRange[]): void;
-	getFocus(): ICellRange;
-	setFocus(focus: ICellRange): void;
-	getId(): string;
-	hasEditorFocus(): boolean;
+	getWength(): numba;
+	getSewections(): ICewwWange[];
+	setSewections(sewections: ICewwWange[]): void;
+	getFocus(): ICewwWange;
+	setFocus(focus: ICewwWange): void;
+	getId(): stwing;
+	hasEditowFocus(): boowean;
 
-	cursorNavigationMode: boolean;
+	cuwsowNavigationMode: boowean;
 
-	_getViewModel(): NotebookViewModel | undefined;
-	hasModel(): this is IActiveNotebookEditor;
+	_getViewModew(): NotebookViewModew | undefined;
+	hasModew(): this is IActiveNotebookEditow;
 	dispose(): void;
-	getDomNode(): HTMLElement;
-	getInnerWebview(): Webview | undefined;
-	getSelectionViewModels(): ICellViewModel[];
+	getDomNode(): HTMWEwement;
+	getInnewWebview(): Webview | undefined;
+	getSewectionViewModews(): ICewwViewModew[];
 
 	/**
-	 * Focus the notebook editor cell list
+	 * Focus the notebook editow ceww wist
 	 */
 	focus(): void;
 
-	hasEditorFocus(): boolean;
-	hasWebviewFocus(): boolean;
+	hasEditowFocus(): boowean;
+	hasWebviewFocus(): boowean;
 
-	hasOutputTextSelection(): boolean;
-	setOptions(options: INotebookEditorOptions | undefined): Promise<void>;
+	hasOutputTextSewection(): boowean;
+	setOptions(options: INotebookEditowOptions | undefined): Pwomise<void>;
 
 	/**
-	 * Select & focus cell
+	 * Sewect & focus ceww
 	 */
-	focusElement(cell: ICellViewModel): void;
+	focusEwement(ceww: ICewwViewModew): void;
 
 	/**
-	 * Layout info for the notebook editor
+	 * Wayout info fow the notebook editow
 	 */
-	getLayoutInfo(): NotebookLayoutInfo;
+	getWayoutInfo(): NotebookWayoutInfo;
 
-	getVisibleRangesPlusViewportBelow(): ICellRange[];
+	getVisibweWangesPwusViewpowtBewow(): ICewwWange[];
 
 	/**
-	 * Fetch the output renderers for notebook outputs.
+	 * Fetch the output wendewews fow notebook outputs.
 	 */
-	getOutputRenderer(): OutputRenderer;
+	getOutputWendewa(): OutputWendewa;
 
 	/**
-	 * Focus the container of a cell (the monaco editor inside is not focused).
+	 * Focus the containa of a ceww (the monaco editow inside is not focused).
 	 */
-	focusNotebookCell(cell: ICellViewModel, focus: 'editor' | 'container' | 'output', options?: IFocusNotebookCellOptions): void;
+	focusNotebookCeww(ceww: ICewwViewModew, focus: 'editow' | 'containa' | 'output', options?: IFocusNotebookCewwOptions): void;
 
 	/**
-	 * Execute the given notebook cells
+	 * Execute the given notebook cewws
 	 */
-	executeNotebookCells(cells?: Iterable<ICellViewModel>): Promise<void>;
+	executeNotebookCewws(cewws?: Itewabwe<ICewwViewModew>): Pwomise<void>;
 
 	/**
-	 * Cancel the given notebook cells
+	 * Cancew the given notebook cewws
 	 */
-	cancelNotebookCells(cells?: Iterable<ICellViewModel>): Promise<void>;
+	cancewNotebookCewws(cewws?: Itewabwe<ICewwViewModew>): Pwomise<void>;
 
 	/**
-	 * Get current active cell
+	 * Get cuwwent active ceww
 	 */
-	getActiveCell(): ICellViewModel | undefined;
+	getActiveCeww(): ICewwViewModew | undefined;
 
 	/**
-	 * Layout the cell with a new height
+	 * Wayout the ceww with a new height
 	 */
-	layoutNotebookCell(cell: ICellViewModel, height: number): Promise<void>;
+	wayoutNotebookCeww(ceww: ICewwViewModew, height: numba): Pwomise<void>;
 
 	/**
-	 * Render the output in webview layer
+	 * Wenda the output in webview waya
 	 */
-	createOutput(cell: ICellViewModel, output: IInsetRenderOutput, offset: number): Promise<void>;
+	cweateOutput(ceww: ICewwViewModew, output: IInsetWendewOutput, offset: numba): Pwomise<void>;
 
-	readonly onDidReceiveMessage: Event<INotebookWebviewMessage>;
+	weadonwy onDidWeceiveMessage: Event<INotebookWebviewMessage>;
 
 	/**
-	 * Send message to the webview for outputs.
+	 * Send message to the webview fow outputs.
 	 */
 	postMessage(message: any): void;
 
 	/**
-	 * Remove class name on the notebook editor root DOM node.
+	 * Wemove cwass name on the notebook editow woot DOM node.
 	 */
-	addClassName(className: string): void;
+	addCwassName(cwassName: stwing): void;
 
 	/**
-	 * Remove class name on the notebook editor root DOM node.
+	 * Wemove cwass name on the notebook editow woot DOM node.
 	 */
-	removeClassName(className: string): void;
+	wemoveCwassName(cwassName: stwing): void;
 
 	/**
-	 * The range will be revealed with as little scrolling as possible.
+	 * The wange wiww be weveawed with as wittwe scwowwing as possibwe.
 	 */
-	revealCellRangeInView(range: ICellRange): void;
+	weveawCewwWangeInView(wange: ICewwWange): void;
 
 	/**
-	 * Reveal cell into viewport.
+	 * Weveaw ceww into viewpowt.
 	 */
-	revealInView(cell: ICellViewModel): void;
+	weveawInView(ceww: ICewwViewModew): void;
 
 	/**
-	 * Reveal cell into the top of viewport.
+	 * Weveaw ceww into the top of viewpowt.
 	 */
-	revealInViewAtTop(cell: ICellViewModel): void;
+	weveawInViewAtTop(ceww: ICewwViewModew): void;
 
 	/**
-	 * Reveal cell into viewport center.
+	 * Weveaw ceww into viewpowt centa.
 	 */
-	revealInCenter(cell: ICellViewModel): void;
+	weveawInCenta(ceww: ICewwViewModew): void;
 
 	/**
-	 * Reveal cell into viewport center if cell is currently out of the viewport.
+	 * Weveaw ceww into viewpowt centa if ceww is cuwwentwy out of the viewpowt.
 	 */
-	revealInCenterIfOutsideViewport(cell: ICellViewModel): void;
+	weveawInCentewIfOutsideViewpowt(ceww: ICewwViewModew): void;
 
 	/**
-	 * Reveal a line in notebook cell into viewport with minimal scrolling.
+	 * Weveaw a wine in notebook ceww into viewpowt with minimaw scwowwing.
 	 */
-	revealLineInViewAsync(cell: ICellViewModel, line: number): Promise<void>;
+	weveawWineInViewAsync(ceww: ICewwViewModew, wine: numba): Pwomise<void>;
 
 	/**
-	 * Reveal a line in notebook cell into viewport center.
+	 * Weveaw a wine in notebook ceww into viewpowt centa.
 	 */
-	revealLineInCenterAsync(cell: ICellViewModel, line: number): Promise<void>;
+	weveawWineInCentewAsync(ceww: ICewwViewModew, wine: numba): Pwomise<void>;
 
 	/**
-	 * Reveal a line in notebook cell into viewport center.
+	 * Weveaw a wine in notebook ceww into viewpowt centa.
 	 */
-	revealLineInCenterIfOutsideViewportAsync(cell: ICellViewModel, line: number): Promise<void>;
+	weveawWineInCentewIfOutsideViewpowtAsync(ceww: ICewwViewModew, wine: numba): Pwomise<void>;
 
 	/**
-	 * Reveal a range in notebook cell into viewport with minimal scrolling.
+	 * Weveaw a wange in notebook ceww into viewpowt with minimaw scwowwing.
 	 */
-	revealRangeInViewAsync(cell: ICellViewModel, range: Range): Promise<void>;
+	weveawWangeInViewAsync(ceww: ICewwViewModew, wange: Wange): Pwomise<void>;
 
 	/**
-	 * Reveal a range in notebook cell into viewport center.
+	 * Weveaw a wange in notebook ceww into viewpowt centa.
 	 */
-	revealRangeInCenterAsync(cell: ICellViewModel, range: Range): Promise<void>;
+	weveawWangeInCentewAsync(ceww: ICewwViewModew, wange: Wange): Pwomise<void>;
 
 	/**
-	 * Reveal a range in notebook cell into viewport center.
+	 * Weveaw a wange in notebook ceww into viewpowt centa.
 	 */
-	revealRangeInCenterIfOutsideViewportAsync(cell: ICellViewModel, range: Range): Promise<void>;
+	weveawWangeInCentewIfOutsideViewpowtAsync(ceww: ICewwViewModew, wange: Wange): Pwomise<void>;
 
 	/**
-	 * Convert the view range to model range
-	 * @param startIndex Inclusive
-	 * @param endIndex Exclusive
+	 * Convewt the view wange to modew wange
+	 * @pawam stawtIndex Incwusive
+	 * @pawam endIndex Excwusive
 	 */
-	getCellRangeFromViewRange(startIndex: number, endIndex: number): ICellRange | undefined;
+	getCewwWangeFwomViewWange(stawtIndex: numba, endIndex: numba): ICewwWange | undefined;
 
 	/**
-	 * Set hidden areas on cell text models.
+	 * Set hidden aweas on ceww text modews.
 	 */
-	setHiddenAreas(_ranges: ICellRange[]): boolean;
+	setHiddenAweas(_wanges: ICewwWange[]): boowean;
 
 	/**
-	 * Set selectiosn on the text editor attached to the cell
+	 * Set sewectiosn on the text editow attached to the ceww
 	 */
 
-	setCellEditorSelection(cell: ICellViewModel, selection: Range): void;
+	setCewwEditowSewection(ceww: ICewwViewModew, sewection: Wange): void;
 
 	/**
-	 *Change the decorations on the notebook cell list
+	 *Change the decowations on the notebook ceww wist
 	 */
 
-	deltaCellDecorations(oldDecorations: string[], newDecorations: INotebookDeltaDecoration[]): string[];
-
-	/**
-	 * Change the decorations on cell editors.
-	 * The notebook is virtualized and this method should be called to create/delete editor decorations safely.
-	 */
-	changeModelDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null;
+	dewtaCewwDecowations(owdDecowations: stwing[], newDecowations: INotebookDewtaDecowation[]): stwing[];
 
 	/**
-	 * Set decoration key on cells in the range
+	 * Change the decowations on ceww editows.
+	 * The notebook is viwtuawized and this method shouwd be cawwed to cweate/dewete editow decowations safewy.
 	 */
-	setEditorDecorations(key: string, range: ICellRange): void;
+	changeModewDecowations<T>(cawwback: (changeAccessow: IModewDecowationsChangeAccessow) => T): T | nuww;
 
 	/**
-	 * Remove decoration key from the notebook editor
+	 * Set decowation key on cewws in the wange
 	 */
-	removeEditorDecorations(key: string): void;
+	setEditowDecowations(key: stwing, wange: ICewwWange): void;
 
 	/**
-	 * Get a contribution of this editor.
-	 * @id Unique identifier of the contribution.
-	 * @return The contribution or null if contribution not found.
+	 * Wemove decowation key fwom the notebook editow
 	 */
-	getContribution<T extends INotebookEditorContribution>(id: string): T;
+	wemoveEditowDecowations(key: stwing): void;
 
 	/**
-	 * Get the view index of a cell at model `index`
+	 * Get a contwibution of this editow.
+	 * @id Unique identifia of the contwibution.
+	 * @wetuwn The contwibution ow nuww if contwibution not found.
 	 */
-	getViewIndexByModelIndex(index: number): number;
-	getCellsInRange(range?: ICellRange): ReadonlyArray<ICellViewModel>;
-	cellAt(index: number): ICellViewModel | undefined;
-	getCellByHandle(handle: number): ICellViewModel | undefined;
-	getCellIndex(cell: ICellViewModel): number | undefined;
-	getNextVisibleCellIndex(index: number): number | undefined;
+	getContwibution<T extends INotebookEditowContwibution>(id: stwing): T;
+
+	/**
+	 * Get the view index of a ceww at modew `index`
+	 */
+	getViewIndexByModewIndex(index: numba): numba;
+	getCewwsInWange(wange?: ICewwWange): WeadonwyAwway<ICewwViewModew>;
+	cewwAt(index: numba): ICewwViewModew | undefined;
+	getCewwByHandwe(handwe: numba): ICewwViewModew | undefined;
+	getCewwIndex(ceww: ICewwViewModew): numba | undefined;
+	getNextVisibweCewwIndex(index: numba): numba | undefined;
 }
 
-export interface IActiveNotebookEditor extends INotebookEditor {
-	_getViewModel(): NotebookViewModel;
-	textModel: NotebookTextModel;
-	getFocus(): ICellRange;
-	cellAt(index: number): ICellViewModel;
-	getCellIndex(cell: ICellViewModel): number;
-	getNextVisibleCellIndex(index: number): number;
+expowt intewface IActiveNotebookEditow extends INotebookEditow {
+	_getViewModew(): NotebookViewModew;
+	textModew: NotebookTextModew;
+	getFocus(): ICewwWange;
+	cewwAt(index: numba): ICewwViewModew;
+	getCewwIndex(ceww: ICewwViewModew): numba;
+	getNextVisibweCewwIndex(index: numba): numba;
 }
 
 /**
- * A mix of public interface and internal one (used by internal rendering code, e.g., cellRenderer)
+ * A mix of pubwic intewface and intewnaw one (used by intewnaw wendewing code, e.g., cewwWendewa)
  */
-export interface INotebookEditorDelegate extends INotebookEditor {
-	hasModel(): this is IActiveNotebookEditorDelegate;
+expowt intewface INotebookEditowDewegate extends INotebookEditow {
+	hasModew(): this is IActiveNotebookEditowDewegate;
 
-	readonly creationOptions: INotebookEditorCreationOptions;
-	readonly onDidChangeOptions: Event<void>;
-	createMarkupPreview(cell: ICellViewModel): Promise<void>;
-	unhideMarkupPreviews(cells: readonly ICellViewModel[]): Promise<void>;
-	hideMarkupPreviews(cells: readonly ICellViewModel[]): Promise<void>;
-
-	/**
-	 * Remove the output from the webview layer
-	 */
-	removeInset(output: IDisplayOutputViewModel): void;
+	weadonwy cweationOptions: INotebookEditowCweationOptions;
+	weadonwy onDidChangeOptions: Event<void>;
+	cweateMawkupPweview(ceww: ICewwViewModew): Pwomise<void>;
+	unhideMawkupPweviews(cewws: weadonwy ICewwViewModew[]): Pwomise<void>;
+	hideMawkupPweviews(cewws: weadonwy ICewwViewModew[]): Pwomise<void>;
 
 	/**
-	 * Hide the inset in the webview layer without removing it
+	 * Wemove the output fwom the webview waya
 	 */
-	hideInset(output: IDisplayOutputViewModel): void;
-	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]): void;
+	wemoveInset(output: IDispwayOutputViewModew): void;
+
+	/**
+	 * Hide the inset in the webview waya without wemoving it
+	 */
+	hideInset(output: IDispwayOutputViewModew): void;
+	dewtaCewwOutputContainewCwassNames(cewwId: stwing, added: stwing[], wemoved: stwing[]): void;
 }
 
-export interface IActiveNotebookEditorDelegate extends INotebookEditorDelegate {
-	_getViewModel(): NotebookViewModel;
-	textModel: NotebookTextModel;
-	getFocus(): ICellRange;
-	cellAt(index: number): ICellViewModel;
-	getCellIndex(cell: ICellViewModel): number;
-	getNextVisibleCellIndex(index: number): number;
+expowt intewface IActiveNotebookEditowDewegate extends INotebookEditowDewegate {
+	_getViewModew(): NotebookViewModew;
+	textModew: NotebookTextModew;
+	getFocus(): ICewwWange;
+	cewwAt(index: numba): ICewwViewModew;
+	getCewwIndex(ceww: ICewwViewModew): numba;
+	getNextVisibweCewwIndex(index: numba): numba;
 }
 
-export interface CellFindMatch {
-	cell: CellViewModel;
+expowt intewface CewwFindMatch {
+	ceww: CewwViewModew;
 	matches: FindMatch[];
 }
 
-export interface CellFindMatchWithIndex {
-	cell: CellViewModel;
-	index: number;
+expowt intewface CewwFindMatchWithIndex {
+	ceww: CewwViewModew;
+	index: numba;
 	matches: FindMatch[];
 }
 
-export enum CellRevealType {
-	Line,
-	Range
+expowt enum CewwWeveawType {
+	Wine,
+	Wange
 }
 
-export enum CellRevealPosition {
+expowt enum CewwWeveawPosition {
 	Top,
-	Center,
+	Centa,
 	Bottom
 }
 
-export enum CellEditState {
+expowt enum CewwEditState {
 	/**
-	 * Default state.
-	 * For markup cells, this is the renderer version of the markup.
-	 * For code cell, the browser focus should be on the container instead of the editor
+	 * Defauwt state.
+	 * Fow mawkup cewws, this is the wendewa vewsion of the mawkup.
+	 * Fow code ceww, the bwowsa focus shouwd be on the containa instead of the editow
 	 */
-	Preview,
+	Pweview,
 
 	/**
-	 * Editing mode. Source for markup or code is rendered in editors and the state will be persistent.
+	 * Editing mode. Souwce fow mawkup ow code is wendewed in editows and the state wiww be pewsistent.
 	 */
 	Editing
 }
 
-export enum CellFocusMode {
-	Container,
-	Editor
+expowt enum CewwFocusMode {
+	Containa,
+	Editow
 }
 
-export enum CursorAtBoundary {
+expowt enum CuwsowAtBoundawy {
 	None,
 	Top,
 	Bottom,
 	Both
 }
 
-export interface CellViewModelStateChangeEvent {
-	readonly metadataChanged?: boolean;
-	readonly internalMetadataChanged?: boolean;
-	readonly runStateChanged?: boolean;
-	readonly selectionChanged?: boolean;
-	readonly focusModeChanged?: boolean;
-	readonly editStateChanged?: boolean;
-	readonly languageChanged?: boolean;
-	readonly foldingStateChanged?: boolean;
-	readonly contentChanged?: boolean;
-	readonly outputIsHoveredChanged?: boolean;
-	readonly outputIsFocusedChanged?: boolean;
-	readonly cellIsHoveredChanged?: boolean;
-	readonly cellLineNumberChanged?: boolean;
+expowt intewface CewwViewModewStateChangeEvent {
+	weadonwy metadataChanged?: boowean;
+	weadonwy intewnawMetadataChanged?: boowean;
+	weadonwy wunStateChanged?: boowean;
+	weadonwy sewectionChanged?: boowean;
+	weadonwy focusModeChanged?: boowean;
+	weadonwy editStateChanged?: boowean;
+	weadonwy wanguageChanged?: boowean;
+	weadonwy fowdingStateChanged?: boowean;
+	weadonwy contentChanged?: boowean;
+	weadonwy outputIsHovewedChanged?: boowean;
+	weadonwy outputIsFocusedChanged?: boowean;
+	weadonwy cewwIsHovewedChanged?: boowean;
+	weadonwy cewwWineNumbewChanged?: boowean;
 }
 
-export function getVisibleCells(cells: CellViewModel[], hiddenRanges: ICellRange[]) {
-	if (!hiddenRanges.length) {
-		return cells;
+expowt function getVisibweCewws(cewws: CewwViewModew[], hiddenWanges: ICewwWange[]) {
+	if (!hiddenWanges.wength) {
+		wetuwn cewws;
 	}
 
-	let start = 0;
-	let hiddenRangeIndex = 0;
-	const result: CellViewModel[] = [];
+	wet stawt = 0;
+	wet hiddenWangeIndex = 0;
+	const wesuwt: CewwViewModew[] = [];
 
-	while (start < cells.length && hiddenRangeIndex < hiddenRanges.length) {
-		if (start < hiddenRanges[hiddenRangeIndex].start) {
-			result.push(...cells.slice(start, hiddenRanges[hiddenRangeIndex].start));
+	whiwe (stawt < cewws.wength && hiddenWangeIndex < hiddenWanges.wength) {
+		if (stawt < hiddenWanges[hiddenWangeIndex].stawt) {
+			wesuwt.push(...cewws.swice(stawt, hiddenWanges[hiddenWangeIndex].stawt));
 		}
 
-		start = hiddenRanges[hiddenRangeIndex].end + 1;
-		hiddenRangeIndex++;
+		stawt = hiddenWanges[hiddenWangeIndex].end + 1;
+		hiddenWangeIndex++;
 	}
 
-	if (start < cells.length) {
-		result.push(...cells.slice(start));
+	if (stawt < cewws.wength) {
+		wesuwt.push(...cewws.swice(stawt));
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-export function getNotebookEditorFromEditorPane(editorPane?: IEditorPane): INotebookEditor | undefined {
-	if (!editorPane) {
-		return;
+expowt function getNotebookEditowFwomEditowPane(editowPane?: IEditowPane): INotebookEditow | undefined {
+	if (!editowPane) {
+		wetuwn;
 	}
 
-	if (editorPane.getId() === NOTEBOOK_EDITOR_ID) {
-		return editorPane.getControl() as INotebookEditor | undefined;
+	if (editowPane.getId() === NOTEBOOK_EDITOW_ID) {
+		wetuwn editowPane.getContwow() as INotebookEditow | undefined;
 	}
 
-	const input = editorPane.input;
+	const input = editowPane.input;
 
-	if (input && isCompositeNotebookEditorInput(input)) {
-		return (editorPane.getControl() as { notebookEditor: INotebookEditor | undefined; }).notebookEditor;
+	if (input && isCompositeNotebookEditowInput(input)) {
+		wetuwn (editowPane.getContwow() as { notebookEditow: INotebookEditow | undefined; }).notebookEditow;
 	}
 
-	return undefined;
+	wetuwn undefined;
 }
 
 /**
- * ranges: model selections
- * this will convert model selections to view indexes first, and then include the hidden ranges in the list view
+ * wanges: modew sewections
+ * this wiww convewt modew sewections to view indexes fiwst, and then incwude the hidden wanges in the wist view
  */
-export function expandCellRangesWithHiddenCells(editor: INotebookEditor, ranges: ICellRange[]) {
-	// assuming ranges are sorted and no overlap
-	const indexes = cellRangesToIndexes(ranges);
-	let modelRanges: ICellRange[] = [];
-	indexes.forEach(index => {
-		const viewCell = editor.cellAt(index);
+expowt function expandCewwWangesWithHiddenCewws(editow: INotebookEditow, wanges: ICewwWange[]) {
+	// assuming wanges awe sowted and no ovewwap
+	const indexes = cewwWangesToIndexes(wanges);
+	wet modewWanges: ICewwWange[] = [];
+	indexes.fowEach(index => {
+		const viewCeww = editow.cewwAt(index);
 
-		if (!viewCell) {
-			return;
+		if (!viewCeww) {
+			wetuwn;
 		}
 
-		const viewIndex = editor.getViewIndexByModelIndex(index);
+		const viewIndex = editow.getViewIndexByModewIndex(index);
 		if (viewIndex < 0) {
-			return;
+			wetuwn;
 		}
 
 		const nextViewIndex = viewIndex + 1;
-		const range = editor.getCellRangeFromViewRange(viewIndex, nextViewIndex);
+		const wange = editow.getCewwWangeFwomViewWange(viewIndex, nextViewIndex);
 
-		if (range) {
-			modelRanges.push(range);
+		if (wange) {
+			modewWanges.push(wange);
 		}
 	});
 
-	return reduceCellRanges(modelRanges);
+	wetuwn weduceCewwWanges(modewWanges);
 }
 
 /**
- * Return a set of ranges for the cells matching the given predicate
+ * Wetuwn a set of wanges fow the cewws matching the given pwedicate
  */
-export function getRanges(cells: ICellViewModel[], included: (cell: ICellViewModel) => boolean): ICellRange[] {
-	const ranges: ICellRange[] = [];
-	let currentRange: ICellRange | undefined;
+expowt function getWanges(cewws: ICewwViewModew[], incwuded: (ceww: ICewwViewModew) => boowean): ICewwWange[] {
+	const wanges: ICewwWange[] = [];
+	wet cuwwentWange: ICewwWange | undefined;
 
-	cells.forEach((cell, idx) => {
-		if (included(cell)) {
-			if (!currentRange) {
-				currentRange = { start: idx, end: idx + 1 };
-				ranges.push(currentRange);
-			} else {
-				currentRange.end = idx + 1;
+	cewws.fowEach((ceww, idx) => {
+		if (incwuded(ceww)) {
+			if (!cuwwentWange) {
+				cuwwentWange = { stawt: idx, end: idx + 1 };
+				wanges.push(cuwwentWange);
+			} ewse {
+				cuwwentWange.end = idx + 1;
 			}
-		} else {
-			currentRange = undefined;
+		} ewse {
+			cuwwentWange = undefined;
 		}
 	});
 
-	return ranges;
+	wetuwn wanges;
 }
 
-export function cellRangeToViewCells(editor: IActiveNotebookEditor, ranges: ICellRange[]) {
-	const cells: ICellViewModel[] = [];
-	reduceCellRanges(ranges).forEach(range => {
-		cells.push(...editor.getCellsInRange(range));
+expowt function cewwWangeToViewCewws(editow: IActiveNotebookEditow, wanges: ICewwWange[]) {
+	const cewws: ICewwViewModew[] = [];
+	weduceCewwWanges(wanges).fowEach(wange => {
+		cewws.push(...editow.getCewwsInWange(wange));
 	});
 
-	return cells;
+	wetuwn cewws;
 }
 
-export function formatCellDuration(duration: number): string {
-	const minutes = Math.floor(duration / 1000 / 60);
-	const seconds = Math.floor(duration / 1000) % 60;
-	const tenths = String(duration - minutes * 60 * 1000 - seconds * 1000).charAt(0);
+expowt function fowmatCewwDuwation(duwation: numba): stwing {
+	const minutes = Math.fwoow(duwation / 1000 / 60);
+	const seconds = Math.fwoow(duwation / 1000) % 60;
+	const tenths = Stwing(duwation - minutes * 60 * 1000 - seconds * 1000).chawAt(0);
 
 	if (minutes > 0) {
-		return `${minutes}m ${seconds}.${tenths}s`;
-	} else {
-		return `${seconds}.${tenths}s`;
+		wetuwn `${minutes}m ${seconds}.${tenths}s`;
+	} ewse {
+		wetuwn `${seconds}.${tenths}s`;
 	}
 }

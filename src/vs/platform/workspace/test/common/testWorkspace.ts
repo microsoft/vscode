@@ -1,26 +1,26 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { isLinux, isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { toWorkspaceFolder, Workspace as BaseWorkspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+impowt { isWinux, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { toWowkspaceFowda, Wowkspace as BaseWowkspace, WowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
 
-export class Workspace extends BaseWorkspace {
-	constructor(
-		id: string,
-		folders: WorkspaceFolder[] = [],
-		configuration: URI | null = null,
-		ignorePathCasing: (key: URI) => boolean = () => !isLinux
+expowt cwass Wowkspace extends BaseWowkspace {
+	constwuctow(
+		id: stwing,
+		fowdews: WowkspaceFowda[] = [],
+		configuwation: UWI | nuww = nuww,
+		ignowePathCasing: (key: UWI) => boowean = () => !isWinux
 	) {
-		super(id, folders, configuration, ignorePathCasing);
+		supa(id, fowdews, configuwation, ignowePathCasing);
 	}
 }
 
-const wsUri = URI.file(isWindows ? 'C:\\testWorkspace' : '/testWorkspace');
-export const TestWorkspace = testWorkspace(wsUri);
+const wsUwi = UWI.fiwe(isWindows ? 'C:\\testWowkspace' : '/testWowkspace');
+expowt const TestWowkspace = testWowkspace(wsUwi);
 
-export function testWorkspace(resource: URI): Workspace {
-	return new Workspace(resource.toString(), [toWorkspaceFolder(resource)]);
+expowt function testWowkspace(wesouwce: UWI): Wowkspace {
+	wetuwn new Wowkspace(wesouwce.toStwing(), [toWowkspaceFowda(wesouwce)]);
 }

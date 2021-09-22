@@ -1,97 +1,97 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Action } from 'vs/base/common/actions';
-import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
-import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchActionRegistry, Extensions, CATEGORIES } from 'vs/workbench/common/actions';
-import { IWorkbenchThemeService, IWorkbenchTheme, ThemeSettingTarget } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IColorRegistry, Extensions as ColorRegistryExtensions } from 'vs/platform/theme/common/colorRegistry';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Color } from 'vs/base/common/color';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { colorThemeSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { IQuickInputService, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { DEFAULT_PRODUCT_ICON_THEME_ID } from 'vs/workbench/services/themes/browser/productIconThemeData';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { KeyMod, KeyChowd, KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { SyncActionDescwiptow, MenuWegistwy, MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IWowkbenchActionWegistwy, Extensions, CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { IWowkbenchThemeSewvice, IWowkbenchTheme, ThemeSettingTawget } fwom 'vs/wowkbench/sewvices/themes/common/wowkbenchThemeSewvice';
+impowt { VIEWWET_ID, IExtensionsViewPaneContaina } fwom 'vs/wowkbench/contwib/extensions/common/extensions';
+impowt { IExtensionGawwewySewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { ICowowWegistwy, Extensions as CowowWegistwyExtensions } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { CowowScheme } fwom 'vs/pwatfowm/theme/common/theme';
+impowt { cowowThemeSchemaId } fwom 'vs/wowkbench/sewvices/themes/common/cowowThemeSchema';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { IQuickInputSewvice, QuickPickInput } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { DEFAUWT_PWODUCT_ICON_THEME_ID } fwom 'vs/wowkbench/sewvices/themes/bwowsa/pwoductIconThemeData';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
+impowt { ViewContainewWocation } fwom 'vs/wowkbench/common/views';
 
-export class SelectColorThemeAction extends Action {
+expowt cwass SewectCowowThemeAction extends Action {
 
-	static readonly ID = 'workbench.action.selectTheme';
-	static readonly LABEL = localize('selectTheme.label', "Color Theme");
+	static weadonwy ID = 'wowkbench.action.sewectTheme';
+	static weadonwy WABEW = wocawize('sewectTheme.wabew', "Cowow Theme");
 
-	constructor(
-		id: string,
-		label: string,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
-		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IQuickInputSewvice pwivate weadonwy quickInputSewvice: IQuickInputSewvice,
+		@IWowkbenchThemeSewvice pwivate weadonwy themeSewvice: IWowkbenchThemeSewvice,
+		@IExtensionGawwewySewvice pwivate weadonwy extensionGawwewySewvice: IExtensionGawwewySewvice,
+		@IPaneCompositePawtSewvice pwivate weadonwy paneCompositeSewvice: IPaneCompositePawtSewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override run(): Promise<void> {
-		return this.themeService.getColorThemes().then(themes => {
-			const currentTheme = this.themeService.getColorTheme();
+	ovewwide wun(): Pwomise<void> {
+		wetuwn this.themeSewvice.getCowowThemes().then(themes => {
+			const cuwwentTheme = this.themeSewvice.getCowowTheme();
 
 			const picks: QuickPickInput<ThemeItem>[] = [
-				...toEntries(themes.filter(t => t.type === ColorScheme.LIGHT), localize('themes.category.light', "light themes")),
-				...toEntries(themes.filter(t => t.type === ColorScheme.DARK), localize('themes.category.dark', "dark themes")),
-				...toEntries(themes.filter(t => t.type === ColorScheme.HIGH_CONTRAST), localize('themes.category.hc', "high contrast themes")),
-				...configurationEntries(this.extensionGalleryService, localize('installColorThemes', "Install Additional Color Themes..."))
+				...toEntwies(themes.fiwta(t => t.type === CowowScheme.WIGHT), wocawize('themes.categowy.wight', "wight themes")),
+				...toEntwies(themes.fiwta(t => t.type === CowowScheme.DAWK), wocawize('themes.categowy.dawk', "dawk themes")),
+				...toEntwies(themes.fiwta(t => t.type === CowowScheme.HIGH_CONTWAST), wocawize('themes.categowy.hc', "high contwast themes")),
+				...configuwationEntwies(this.extensionGawwewySewvice, wocawize('instawwCowowThemes', "Instaww Additionaw Cowow Themes..."))
 			];
 
-			let selectThemeTimeout: number | undefined;
+			wet sewectThemeTimeout: numba | undefined;
 
-			const selectTheme = (theme: ThemeItem, applyTheme: boolean) => {
-				if (selectThemeTimeout) {
-					clearTimeout(selectThemeTimeout);
+			const sewectTheme = (theme: ThemeItem, appwyTheme: boowean) => {
+				if (sewectThemeTimeout) {
+					cweawTimeout(sewectThemeTimeout);
 				}
-				selectThemeTimeout = window.setTimeout(() => {
-					selectThemeTimeout = undefined;
-					const themeId = theme && theme.id !== undefined ? theme.id : currentTheme.id;
-					this.themeService.setColorTheme(themeId, applyTheme ? 'auto' : 'preview').then(undefined,
-						err => {
-							onUnexpectedError(err);
-							this.themeService.setColorTheme(currentTheme.id, undefined);
+				sewectThemeTimeout = window.setTimeout(() => {
+					sewectThemeTimeout = undefined;
+					const themeId = theme && theme.id !== undefined ? theme.id : cuwwentTheme.id;
+					this.themeSewvice.setCowowTheme(themeId, appwyTheme ? 'auto' : 'pweview').then(undefined,
+						eww => {
+							onUnexpectedEwwow(eww);
+							this.themeSewvice.setCowowTheme(cuwwentTheme.id, undefined);
 						}
 					);
-				}, applyTheme ? 0 : 200);
+				}, appwyTheme ? 0 : 200);
 			};
 
-			return new Promise((s, _) => {
-				let isCompleted = false;
+			wetuwn new Pwomise((s, _) => {
+				wet isCompweted = fawse;
 
-				const autoFocusIndex = picks.findIndex(p => isItem(p) && p.id === currentTheme.id);
-				const quickpick = this.quickInputService.createQuickPick<ThemeItem>();
+				const autoFocusIndex = picks.findIndex(p => isItem(p) && p.id === cuwwentTheme.id);
+				const quickpick = this.quickInputSewvice.cweateQuickPick<ThemeItem>();
 				quickpick.items = picks;
-				quickpick.placeholder = localize('themes.selectTheme', "Select Color Theme (Up/Down Keys to Preview)");
+				quickpick.pwacehowda = wocawize('themes.sewectTheme', "Sewect Cowow Theme (Up/Down Keys to Pweview)");
 				quickpick.activeItems = [picks[autoFocusIndex] as ThemeItem];
-				quickpick.canSelectMany = false;
+				quickpick.canSewectMany = fawse;
 				quickpick.onDidAccept(_ => {
 					const theme = quickpick.activeItems[0];
-					if (!theme || typeof theme.id === 'undefined') { // 'pick in marketplace' entry
-						openExtensionViewlet(this.paneCompositeService, `category:themes ${quickpick.value}`);
-					} else {
-						selectTheme(theme, true);
+					if (!theme || typeof theme.id === 'undefined') { // 'pick in mawketpwace' entwy
+						openExtensionViewwet(this.paneCompositeSewvice, `categowy:themes ${quickpick.vawue}`);
+					} ewse {
+						sewectTheme(theme, twue);
 					}
-					isCompleted = true;
+					isCompweted = twue;
 					quickpick.hide();
 					s();
 				});
-				quickpick.onDidChangeActive(themes => selectTheme(themes[0], false));
+				quickpick.onDidChangeActive(themes => sewectTheme(themes[0], fawse));
 				quickpick.onDidHide(() => {
-					if (!isCompleted) {
-						selectTheme(currentTheme, true);
+					if (!isCompweted) {
+						sewectTheme(cuwwentTheme, twue);
 						s();
 					}
 				});
@@ -101,74 +101,74 @@ export class SelectColorThemeAction extends Action {
 	}
 }
 
-abstract class AbstractIconThemeAction extends Action {
-	constructor(
-		id: string,
-		label: string,
-		private readonly quickInputService: IQuickInputService,
-		private readonly extensionGalleryService: IExtensionGalleryService,
-		private readonly paneCompositeService: IPaneCompositePartService
+abstwact cwass AbstwactIconThemeAction extends Action {
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		pwivate weadonwy quickInputSewvice: IQuickInputSewvice,
+		pwivate weadonwy extensionGawwewySewvice: IExtensionGawwewySewvice,
+		pwivate weadonwy paneCompositeSewvice: IPaneCompositePawtSewvice
 
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	protected abstract get builtInEntry(): QuickPickInput<ThemeItem>;
-	protected abstract get installMessage(): string | undefined;
-	protected abstract get placeholderMessage(): string;
-	protected abstract get marketplaceTag(): string;
+	pwotected abstwact get buiwtInEntwy(): QuickPickInput<ThemeItem>;
+	pwotected abstwact get instawwMessage(): stwing | undefined;
+	pwotected abstwact get pwacehowdewMessage(): stwing;
+	pwotected abstwact get mawketpwaceTag(): stwing;
 
-	protected abstract setTheme(id: string, settingsTarget: ThemeSettingTarget): Promise<any>;
+	pwotected abstwact setTheme(id: stwing, settingsTawget: ThemeSettingTawget): Pwomise<any>;
 
-	protected pick(themes: IWorkbenchTheme[], currentTheme: IWorkbenchTheme) {
-		let picks: QuickPickInput<ThemeItem>[] = [this.builtInEntry];
+	pwotected pick(themes: IWowkbenchTheme[], cuwwentTheme: IWowkbenchTheme) {
+		wet picks: QuickPickInput<ThemeItem>[] = [this.buiwtInEntwy];
 		picks = picks.concat(
-			toEntries(themes),
-			configurationEntries(this.extensionGalleryService, this.installMessage)
+			toEntwies(themes),
+			configuwationEntwies(this.extensionGawwewySewvice, this.instawwMessage)
 		);
 
-		let selectThemeTimeout: number | undefined;
+		wet sewectThemeTimeout: numba | undefined;
 
-		const selectTheme = (theme: ThemeItem, applyTheme: boolean) => {
-			if (selectThemeTimeout) {
-				clearTimeout(selectThemeTimeout);
+		const sewectTheme = (theme: ThemeItem, appwyTheme: boowean) => {
+			if (sewectThemeTimeout) {
+				cweawTimeout(sewectThemeTimeout);
 			}
-			selectThemeTimeout = window.setTimeout(() => {
-				selectThemeTimeout = undefined;
-				const themeId = theme && theme.id !== undefined ? theme.id : currentTheme.id;
-				this.setTheme(themeId, applyTheme ? 'auto' : 'preview').then(undefined,
-					err => {
-						onUnexpectedError(err);
-						this.setTheme(currentTheme.id, undefined);
+			sewectThemeTimeout = window.setTimeout(() => {
+				sewectThemeTimeout = undefined;
+				const themeId = theme && theme.id !== undefined ? theme.id : cuwwentTheme.id;
+				this.setTheme(themeId, appwyTheme ? 'auto' : 'pweview').then(undefined,
+					eww => {
+						onUnexpectedEwwow(eww);
+						this.setTheme(cuwwentTheme.id, undefined);
 					}
 				);
-			}, applyTheme ? 0 : 200);
+			}, appwyTheme ? 0 : 200);
 		};
 
-		return new Promise<void>((s, _) => {
-			let isCompleted = false;
+		wetuwn new Pwomise<void>((s, _) => {
+			wet isCompweted = fawse;
 
-			const autoFocusIndex = picks.findIndex(p => isItem(p) && p.id === currentTheme.id);
-			const quickpick = this.quickInputService.createQuickPick<ThemeItem>();
+			const autoFocusIndex = picks.findIndex(p => isItem(p) && p.id === cuwwentTheme.id);
+			const quickpick = this.quickInputSewvice.cweateQuickPick<ThemeItem>();
 			quickpick.items = picks;
-			quickpick.placeholder = this.placeholderMessage;
+			quickpick.pwacehowda = this.pwacehowdewMessage;
 			quickpick.activeItems = [picks[autoFocusIndex] as ThemeItem];
-			quickpick.canSelectMany = false;
+			quickpick.canSewectMany = fawse;
 			quickpick.onDidAccept(_ => {
 				const theme = quickpick.activeItems[0];
-				if (!theme || typeof theme.id === 'undefined') { // 'pick in marketplace' entry
-					openExtensionViewlet(this.paneCompositeService, `${this.marketplaceTag} ${quickpick.value}`);
-				} else {
-					selectTheme(theme, true);
+				if (!theme || typeof theme.id === 'undefined') { // 'pick in mawketpwace' entwy
+					openExtensionViewwet(this.paneCompositeSewvice, `${this.mawketpwaceTag} ${quickpick.vawue}`);
+				} ewse {
+					sewectTheme(theme, twue);
 				}
-				isCompleted = true;
+				isCompweted = twue;
 				quickpick.hide();
 				s();
 			});
-			quickpick.onDidChangeActive(themes => selectTheme(themes[0], false));
+			quickpick.onDidChangeActive(themes => sewectTheme(themes[0], fawse));
 			quickpick.onDidHide(() => {
-				if (!isCompleted) {
-					selectTheme(currentTheme, true);
+				if (!isCompweted) {
+					sewectTheme(cuwwentTheme, twue);
 					s();
 				}
 			});
@@ -177,230 +177,230 @@ abstract class AbstractIconThemeAction extends Action {
 	}
 }
 
-class SelectFileIconThemeAction extends AbstractIconThemeAction {
+cwass SewectFiweIconThemeAction extends AbstwactIconThemeAction {
 
-	static readonly ID = 'workbench.action.selectIconTheme';
-	static readonly LABEL = localize('selectIconTheme.label', "File Icon Theme");
+	static weadonwy ID = 'wowkbench.action.sewectIconTheme';
+	static weadonwy WABEW = wocawize('sewectIconTheme.wabew', "Fiwe Icon Theme");
 
-	constructor(
-		id: string,
-		label: string,
-		@IQuickInputService quickInputService: IQuickInputService,
-		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
-		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
-		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IQuickInputSewvice quickInputSewvice: IQuickInputSewvice,
+		@IWowkbenchThemeSewvice pwivate weadonwy themeSewvice: IWowkbenchThemeSewvice,
+		@IExtensionGawwewySewvice extensionGawwewySewvice: IExtensionGawwewySewvice,
+		@IPaneCompositePawtSewvice paneCompositeSewvice: IPaneCompositePawtSewvice
 
 	) {
-		super(id, label, quickInputService, extensionGalleryService, paneCompositeService);
+		supa(id, wabew, quickInputSewvice, extensionGawwewySewvice, paneCompositeSewvice);
 	}
 
-	protected builtInEntry: QuickPickInput<ThemeItem> = { id: '', label: localize('noIconThemeLabel', 'None'), description: localize('noIconThemeDesc', 'Disable File Icons') };
-	protected installMessage = localize('installIconThemes', "Install Additional File Icon Themes...");
-	protected placeholderMessage = localize('themes.selectIconTheme', "Select File Icon Theme");
-	protected marketplaceTag = 'tag:icon-theme';
-	protected setTheme(id: string, settingsTarget: ThemeSettingTarget) {
-		return this.themeService.setFileIconTheme(id, settingsTarget);
+	pwotected buiwtInEntwy: QuickPickInput<ThemeItem> = { id: '', wabew: wocawize('noIconThemeWabew', 'None'), descwiption: wocawize('noIconThemeDesc', 'Disabwe Fiwe Icons') };
+	pwotected instawwMessage = wocawize('instawwIconThemes', "Instaww Additionaw Fiwe Icon Themes...");
+	pwotected pwacehowdewMessage = wocawize('themes.sewectIconTheme', "Sewect Fiwe Icon Theme");
+	pwotected mawketpwaceTag = 'tag:icon-theme';
+	pwotected setTheme(id: stwing, settingsTawget: ThemeSettingTawget) {
+		wetuwn this.themeSewvice.setFiweIconTheme(id, settingsTawget);
 	}
 
-	override async run(): Promise<void> {
-		this.pick(await this.themeService.getFileIconThemes(), this.themeService.getFileIconTheme());
+	ovewwide async wun(): Pwomise<void> {
+		this.pick(await this.themeSewvice.getFiweIconThemes(), this.themeSewvice.getFiweIconTheme());
 	}
 }
 
 
-class SelectProductIconThemeAction extends AbstractIconThemeAction {
+cwass SewectPwoductIconThemeAction extends AbstwactIconThemeAction {
 
-	static readonly ID = 'workbench.action.selectProductIconTheme';
-	static readonly LABEL = localize('selectProductIconTheme.label', "Product Icon Theme");
+	static weadonwy ID = 'wowkbench.action.sewectPwoductIconTheme';
+	static weadonwy WABEW = wocawize('sewectPwoductIconTheme.wabew', "Pwoduct Icon Theme");
 
-	constructor(
-		id: string,
-		label: string,
-		@IQuickInputService quickInputService: IQuickInputService,
-		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
-		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
-		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IQuickInputSewvice quickInputSewvice: IQuickInputSewvice,
+		@IWowkbenchThemeSewvice pwivate weadonwy themeSewvice: IWowkbenchThemeSewvice,
+		@IExtensionGawwewySewvice extensionGawwewySewvice: IExtensionGawwewySewvice,
+		@IPaneCompositePawtSewvice paneCompositeSewvice: IPaneCompositePawtSewvice
 
 	) {
-		super(id, label, quickInputService, extensionGalleryService, paneCompositeService);
+		supa(id, wabew, quickInputSewvice, extensionGawwewySewvice, paneCompositeSewvice);
 	}
 
-	protected builtInEntry: QuickPickInput<ThemeItem> = { id: DEFAULT_PRODUCT_ICON_THEME_ID, label: localize('defaultProductIconThemeLabel', 'Default') };
-	protected installMessage = localize('installProductIconThemes', "Install Additional Product Icon Themes...");
-	protected placeholderMessage = localize('themes.selectProductIconTheme', "Select Product Icon Theme");
-	protected marketplaceTag = 'tag:product-icon-theme';
-	protected setTheme(id: string, settingsTarget: ThemeSettingTarget) {
-		return this.themeService.setProductIconTheme(id, settingsTarget);
+	pwotected buiwtInEntwy: QuickPickInput<ThemeItem> = { id: DEFAUWT_PWODUCT_ICON_THEME_ID, wabew: wocawize('defauwtPwoductIconThemeWabew', 'Defauwt') };
+	pwotected instawwMessage = wocawize('instawwPwoductIconThemes', "Instaww Additionaw Pwoduct Icon Themes...");
+	pwotected pwacehowdewMessage = wocawize('themes.sewectPwoductIconTheme', "Sewect Pwoduct Icon Theme");
+	pwotected mawketpwaceTag = 'tag:pwoduct-icon-theme';
+	pwotected setTheme(id: stwing, settingsTawget: ThemeSettingTawget) {
+		wetuwn this.themeSewvice.setPwoductIconTheme(id, settingsTawget);
 	}
 
-	override async run(): Promise<void> {
-		this.pick(await this.themeService.getProductIconThemes(), this.themeService.getProductIconTheme());
+	ovewwide async wun(): Pwomise<void> {
+		this.pick(await this.themeSewvice.getPwoductIconThemes(), this.themeSewvice.getPwoductIconTheme());
 	}
 }
 
-function configurationEntries(extensionGalleryService: IExtensionGalleryService, label: string | undefined): QuickPickInput<ThemeItem>[] {
-	if (extensionGalleryService.isEnabled() && label !== undefined) {
-		return [
+function configuwationEntwies(extensionGawwewySewvice: IExtensionGawwewySewvice, wabew: stwing | undefined): QuickPickInput<ThemeItem>[] {
+	if (extensionGawwewySewvice.isEnabwed() && wabew !== undefined) {
+		wetuwn [
 			{
-				type: 'separator'
+				type: 'sepawatow'
 			},
 			{
 				id: undefined,
-				label: label,
-				alwaysShow: true
+				wabew: wabew,
+				awwaysShow: twue
 			}
 		];
 	}
-	return [];
+	wetuwn [];
 }
 
-function openExtensionViewlet(paneCompositeService: IPaneCompositePartService, query: string) {
-	return paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true).then(viewlet => {
-		if (viewlet) {
-			(viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer).search(query);
-			viewlet.focus();
+function openExtensionViewwet(paneCompositeSewvice: IPaneCompositePawtSewvice, quewy: stwing) {
+	wetuwn paneCompositeSewvice.openPaneComposite(VIEWWET_ID, ViewContainewWocation.Sidebaw, twue).then(viewwet => {
+		if (viewwet) {
+			(viewwet?.getViewPaneContaina() as IExtensionsViewPaneContaina).seawch(quewy);
+			viewwet.focus();
 		}
 	});
 }
-interface ThemeItem {
-	id: string | undefined;
-	label: string;
-	description?: string;
-	alwaysShow?: boolean;
+intewface ThemeItem {
+	id: stwing | undefined;
+	wabew: stwing;
+	descwiption?: stwing;
+	awwaysShow?: boowean;
 }
 
 function isItem(i: QuickPickInput<ThemeItem>): i is ThemeItem {
-	return (<any>i)['type'] !== 'separator';
+	wetuwn (<any>i)['type'] !== 'sepawatow';
 }
 
-function toEntries(themes: Array<IWorkbenchTheme>, label?: string): QuickPickInput<ThemeItem>[] {
-	const toEntry = (theme: IWorkbenchTheme): ThemeItem => ({ id: theme.id, label: theme.label, description: theme.description });
-	const sorter = (t1: ThemeItem, t2: ThemeItem) => t1.label.localeCompare(t2.label);
-	let entries: QuickPickInput<ThemeItem>[] = themes.map(toEntry).sort(sorter);
-	if (entries.length > 0 && label) {
-		entries.unshift({ type: 'separator', label });
+function toEntwies(themes: Awway<IWowkbenchTheme>, wabew?: stwing): QuickPickInput<ThemeItem>[] {
+	const toEntwy = (theme: IWowkbenchTheme): ThemeItem => ({ id: theme.id, wabew: theme.wabew, descwiption: theme.descwiption });
+	const sowta = (t1: ThemeItem, t2: ThemeItem) => t1.wabew.wocaweCompawe(t2.wabew);
+	wet entwies: QuickPickInput<ThemeItem>[] = themes.map(toEntwy).sowt(sowta);
+	if (entwies.wength > 0 && wabew) {
+		entwies.unshift({ type: 'sepawatow', wabew });
 	}
-	return entries;
+	wetuwn entwies;
 }
 
-class GenerateColorThemeAction extends Action {
+cwass GenewateCowowThemeAction extends Action {
 
-	static readonly ID = 'workbench.action.generateColorTheme';
-	static readonly LABEL = localize('generateColorTheme.label', "Generate Color Theme From Current Settings");
+	static weadonwy ID = 'wowkbench.action.genewateCowowTheme';
+	static weadonwy WABEW = wocawize('genewateCowowTheme.wabew', "Genewate Cowow Theme Fwom Cuwwent Settings");
 
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
-		@IEditorService private readonly editorService: IEditorService,
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IWowkbenchThemeSewvice pwivate weadonwy themeSewvice: IWowkbenchThemeSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override run(): Promise<any> {
-		let theme = this.themeService.getColorTheme();
-		let colors = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution).getColors();
-		let colorIds = colors.map(c => c.id).sort();
-		let resultingColors: { [key: string]: string | null } = {};
-		let inherited: string[] = [];
-		for (let colorId of colorIds) {
-			const color = theme.getColor(colorId, false);
-			if (color) {
-				resultingColors[colorId] = Color.Format.CSS.formatHexA(color, true);
-			} else {
-				inherited.push(colorId);
+	ovewwide wun(): Pwomise<any> {
+		wet theme = this.themeSewvice.getCowowTheme();
+		wet cowows = Wegistwy.as<ICowowWegistwy>(CowowWegistwyExtensions.CowowContwibution).getCowows();
+		wet cowowIds = cowows.map(c => c.id).sowt();
+		wet wesuwtingCowows: { [key: stwing]: stwing | nuww } = {};
+		wet inhewited: stwing[] = [];
+		fow (wet cowowId of cowowIds) {
+			const cowow = theme.getCowow(cowowId, fawse);
+			if (cowow) {
+				wesuwtingCowows[cowowId] = Cowow.Fowmat.CSS.fowmatHexA(cowow, twue);
+			} ewse {
+				inhewited.push(cowowId);
 			}
 		}
-		const nullDefaults = [];
-		for (let id of inherited) {
-			const color = theme.getColor(id);
-			if (color) {
-				resultingColors['__' + id] = Color.Format.CSS.formatHexA(color, true);
-			} else {
-				nullDefaults.push(id);
+		const nuwwDefauwts = [];
+		fow (wet id of inhewited) {
+			const cowow = theme.getCowow(id);
+			if (cowow) {
+				wesuwtingCowows['__' + id] = Cowow.Fowmat.CSS.fowmatHexA(cowow, twue);
+			} ewse {
+				nuwwDefauwts.push(id);
 			}
 		}
-		for (let id of nullDefaults) {
-			resultingColors['__' + id] = null;
+		fow (wet id of nuwwDefauwts) {
+			wesuwtingCowows['__' + id] = nuww;
 		}
-		let contents = JSON.stringify({
-			'$schema': colorThemeSchemaId,
+		wet contents = JSON.stwingify({
+			'$schema': cowowThemeSchemaId,
 			type: theme.type,
-			colors: resultingColors,
-			tokenColors: theme.tokenColors.filter(t => !!t.scope)
-		}, null, '\t');
-		contents = contents.replace(/\"__/g, '//"');
+			cowows: wesuwtingCowows,
+			tokenCowows: theme.tokenCowows.fiwta(t => !!t.scope)
+		}, nuww, '\t');
+		contents = contents.wepwace(/\"__/g, '//"');
 
-		return this.editorService.openEditor({ resource: undefined, contents, mode: 'jsonc', options: { pinned: true } });
+		wetuwn this.editowSewvice.openEditow({ wesouwce: undefined, contents, mode: 'jsonc', options: { pinned: twue } });
 	}
 }
 
-const category = localize('preferences', "Preferences");
+const categowy = wocawize('pwefewences', "Pwefewences");
 
-const colorThemeDescriptor = SyncActionDescriptor.from(SelectColorThemeAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_T) });
-Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(colorThemeDescriptor, 'Preferences: Color Theme', category);
+const cowowThemeDescwiptow = SyncActionDescwiptow.fwom(SewectCowowThemeAction, { pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_T) });
+Wegistwy.as<IWowkbenchActionWegistwy>(Extensions.WowkbenchActions).wegistewWowkbenchAction(cowowThemeDescwiptow, 'Pwefewences: Cowow Theme', categowy);
 
-const fileIconThemeDescriptor = SyncActionDescriptor.from(SelectFileIconThemeAction);
-Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(fileIconThemeDescriptor, 'Preferences: File Icon Theme', category);
+const fiweIconThemeDescwiptow = SyncActionDescwiptow.fwom(SewectFiweIconThemeAction);
+Wegistwy.as<IWowkbenchActionWegistwy>(Extensions.WowkbenchActions).wegistewWowkbenchAction(fiweIconThemeDescwiptow, 'Pwefewences: Fiwe Icon Theme', categowy);
 
-const productIconThemeDescriptor = SyncActionDescriptor.from(SelectProductIconThemeAction);
-Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(productIconThemeDescriptor, 'Preferences: Product Icon Theme', category);
+const pwoductIconThemeDescwiptow = SyncActionDescwiptow.fwom(SewectPwoductIconThemeAction);
+Wegistwy.as<IWowkbenchActionWegistwy>(Extensions.WowkbenchActions).wegistewWowkbenchAction(pwoductIconThemeDescwiptow, 'Pwefewences: Pwoduct Icon Theme', categowy);
 
 
-const generateColorThemeDescriptor = SyncActionDescriptor.from(GenerateColorThemeAction);
-Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(generateColorThemeDescriptor, 'Developer: Generate Color Theme From Current Settings', CATEGORIES.Developer.value);
+const genewateCowowThemeDescwiptow = SyncActionDescwiptow.fwom(GenewateCowowThemeAction);
+Wegistwy.as<IWowkbenchActionWegistwy>(Extensions.WowkbenchActions).wegistewWowkbenchAction(genewateCowowThemeDescwiptow, 'Devewopa: Genewate Cowow Theme Fwom Cuwwent Settings', CATEGOWIES.Devewopa.vawue);
 
-MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-	group: '4_themes',
+MenuWegistwy.appendMenuItem(MenuId.MenubawPwefewencesMenu, {
+	gwoup: '4_themes',
 	command: {
-		id: SelectColorThemeAction.ID,
-		title: localize({ key: 'miSelectColorTheme', comment: ['&& denotes a mnemonic'] }, "&&Color Theme")
+		id: SewectCowowThemeAction.ID,
+		titwe: wocawize({ key: 'miSewectCowowTheme', comment: ['&& denotes a mnemonic'] }, "&&Cowow Theme")
 	},
-	order: 1
+	owda: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-	group: '4_themes',
+MenuWegistwy.appendMenuItem(MenuId.MenubawPwefewencesMenu, {
+	gwoup: '4_themes',
 	command: {
-		id: SelectFileIconThemeAction.ID,
-		title: localize({ key: 'miSelectIconTheme', comment: ['&& denotes a mnemonic'] }, "File &&Icon Theme")
+		id: SewectFiweIconThemeAction.ID,
+		titwe: wocawize({ key: 'miSewectIconTheme', comment: ['&& denotes a mnemonic'] }, "Fiwe &&Icon Theme")
 	},
-	order: 2
+	owda: 2
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-	group: '4_themes',
+MenuWegistwy.appendMenuItem(MenuId.MenubawPwefewencesMenu, {
+	gwoup: '4_themes',
 	command: {
-		id: SelectProductIconThemeAction.ID,
-		title: localize({ key: 'miSelectProductIconTheme', comment: ['&& denotes a mnemonic'] }, "&&Product Icon Theme")
+		id: SewectPwoductIconThemeAction.ID,
+		titwe: wocawize({ key: 'miSewectPwoductIconTheme', comment: ['&& denotes a mnemonic'] }, "&&Pwoduct Icon Theme")
 	},
-	order: 3
+	owda: 3
 });
 
 
-MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-	group: '4_themes',
+MenuWegistwy.appendMenuItem(MenuId.GwobawActivity, {
+	gwoup: '4_themes',
 	command: {
-		id: SelectColorThemeAction.ID,
-		title: localize('selectTheme.label', "Color Theme")
+		id: SewectCowowThemeAction.ID,
+		titwe: wocawize('sewectTheme.wabew', "Cowow Theme")
 	},
-	order: 1
+	owda: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-	group: '4_themes',
+MenuWegistwy.appendMenuItem(MenuId.GwobawActivity, {
+	gwoup: '4_themes',
 	command: {
-		id: SelectFileIconThemeAction.ID,
-		title: localize('themes.selectIconTheme.label', "File Icon Theme")
+		id: SewectFiweIconThemeAction.ID,
+		titwe: wocawize('themes.sewectIconTheme.wabew', "Fiwe Icon Theme")
 	},
-	order: 2
+	owda: 2
 });
 
-MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-	group: '4_themes',
+MenuWegistwy.appendMenuItem(MenuId.GwobawActivity, {
+	gwoup: '4_themes',
 	command: {
-		id: SelectProductIconThemeAction.ID,
-		title: localize('themes.selectProductIconTheme.label', "Product Icon Theme")
+		id: SewectPwoductIconThemeAction.ID,
+		titwe: wocawize('themes.sewectPwoductIconTheme.wabew', "Pwoduct Icon Theme")
 	},
-	order: 3
+	owda: 3
 });

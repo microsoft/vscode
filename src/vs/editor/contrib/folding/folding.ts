@@ -1,613 +1,613 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise, Delayer, RunOnceScheduler } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import * as types from 'vs/base/common/types';
-import 'vs/css!./folding';
-import { IEmptyContentData, IMarginData } from 'vs/editor/browser/controller/mouseTarget';
-import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution, registerInstantiatedEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IPosition } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
-import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ITextModel } from 'vs/editor/common/model';
-import { FoldingRangeKind, FoldingRangeProviderRegistry } from 'vs/editor/common/modes';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { CollapseMemento, FoldingModel, getNextFoldLine, getParentFoldLine as getParentFoldLine, getPreviousFoldLine, setCollapseStateAtLevel, setCollapseStateForMatchingLines, setCollapseStateForRest, setCollapseStateForType, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateUp, toggleCollapseState } from 'vs/editor/contrib/folding/foldingModel';
-import { HiddenRangeModel } from 'vs/editor/contrib/folding/hiddenRangeModel';
-import { IndentRangeProvider } from 'vs/editor/contrib/folding/indentRangeProvider';
-import { ID_INIT_PROVIDER, InitializingRangeProvider } from 'vs/editor/contrib/folding/intializingRangeProvider';
-import * as nls from 'vs/nls';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { editorSelectionBackground, iconForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { foldingCollapsedIcon, FoldingDecorationProvider, foldingExpandedIcon } from './foldingDecorations';
-import { FoldingRegion, FoldingRegions } from './foldingRanges';
-import { ID_SYNTAX_PROVIDER, SyntaxRangeProvider } from './syntaxRangeProvider';
+impowt { CancewabwePwomise, cweateCancewabwePwomise, Dewaya, WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { KeyChowd, KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { escapeWegExpChawactews } fwom 'vs/base/common/stwings';
+impowt * as types fwom 'vs/base/common/types';
+impowt 'vs/css!./fowding';
+impowt { IEmptyContentData, IMawginData } fwom 'vs/editow/bwowsa/contwowwa/mouseTawget';
+impowt { StabweEditowScwowwState } fwom 'vs/editow/bwowsa/cowe/editowState';
+impowt { ICodeEditow, IEditowMouseEvent, MouseTawgetType } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, wegistewEditowAction, wegistewEditowContwibution, wegistewInstantiatedEditowAction, SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { ConfiguwationChangedEvent, EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { IPosition } fwom 'vs/editow/common/cowe/position';
+impowt { IWange } fwom 'vs/editow/common/cowe/wange';
+impowt { IEditowContwibution, ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { FowdingWangeKind, FowdingWangePwovidewWegistwy } fwom 'vs/editow/common/modes';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
+impowt { CowwapseMemento, FowdingModew, getNextFowdWine, getPawentFowdWine as getPawentFowdWine, getPweviousFowdWine, setCowwapseStateAtWevew, setCowwapseStateFowMatchingWines, setCowwapseStateFowWest, setCowwapseStateFowType, setCowwapseStateWevewsDown, setCowwapseStateWevewsUp, setCowwapseStateUp, toggweCowwapseState } fwom 'vs/editow/contwib/fowding/fowdingModew';
+impowt { HiddenWangeModew } fwom 'vs/editow/contwib/fowding/hiddenWangeModew';
+impowt { IndentWangePwovida } fwom 'vs/editow/contwib/fowding/indentWangePwovida';
+impowt { ID_INIT_PWOVIDa, InitiawizingWangePwovida } fwom 'vs/editow/contwib/fowding/intiawizingWangePwovida';
+impowt * as nws fwom 'vs/nws';
+impowt { IContextKey, IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { editowSewectionBackgwound, iconFowegwound, wegistewCowow, twanspawent } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { wegistewThemingPawticipant, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { fowdingCowwapsedIcon, FowdingDecowationPwovida, fowdingExpandedIcon } fwom './fowdingDecowations';
+impowt { FowdingWegion, FowdingWegions } fwom './fowdingWanges';
+impowt { ID_SYNTAX_PWOVIDa, SyntaxWangePwovida } fwom './syntaxWangePwovida';
 
-const CONTEXT_FOLDING_ENABLED = new RawContextKey<boolean>('foldingEnabled', false);
+const CONTEXT_FOWDING_ENABWED = new WawContextKey<boowean>('fowdingEnabwed', fawse);
 
-export interface RangeProvider {
-	readonly id: string;
-	compute(cancelationToken: CancellationToken): Promise<FoldingRegions | null>;
+expowt intewface WangePwovida {
+	weadonwy id: stwing;
+	compute(cancewationToken: CancewwationToken): Pwomise<FowdingWegions | nuww>;
 	dispose(): void;
 }
 
-interface FoldingStateMemento {
-	collapsedRegions?: CollapseMemento;
-	lineCount?: number;
-	provider?: string;
-	foldedImports?: boolean
+intewface FowdingStateMemento {
+	cowwapsedWegions?: CowwapseMemento;
+	wineCount?: numba;
+	pwovida?: stwing;
+	fowdedImpowts?: boowean
 }
 
-export class FoldingController extends Disposable implements IEditorContribution {
+expowt cwass FowdingContwowwa extends Disposabwe impwements IEditowContwibution {
 
-	public static readonly ID = 'editor.contrib.folding';
+	pubwic static weadonwy ID = 'editow.contwib.fowding';
 
-	static readonly MAX_FOLDING_REGIONS = 5000;
+	static weadonwy MAX_FOWDING_WEGIONS = 5000;
 
-	public static get(editor: ICodeEditor): FoldingController {
-		return editor.getContribution<FoldingController>(FoldingController.ID);
+	pubwic static get(editow: ICodeEditow): FowdingContwowwa {
+		wetuwn editow.getContwibution<FowdingContwowwa>(FowdingContwowwa.ID);
 	}
 
-	private readonly editor: ICodeEditor;
-	private _isEnabled: boolean;
-	private _useFoldingProviders: boolean;
-	private _unfoldOnClickAfterEndOfLine: boolean;
-	private _restoringViewState: boolean;
-	private _foldingImportsByDefault: boolean;
-	private _currentModelHasFoldedImports: boolean;
+	pwivate weadonwy editow: ICodeEditow;
+	pwivate _isEnabwed: boowean;
+	pwivate _useFowdingPwovidews: boowean;
+	pwivate _unfowdOnCwickAftewEndOfWine: boowean;
+	pwivate _westowingViewState: boowean;
+	pwivate _fowdingImpowtsByDefauwt: boowean;
+	pwivate _cuwwentModewHasFowdedImpowts: boowean;
 
-	private readonly foldingDecorationProvider: FoldingDecorationProvider;
+	pwivate weadonwy fowdingDecowationPwovida: FowdingDecowationPwovida;
 
-	private foldingModel: FoldingModel | null;
-	private hiddenRangeModel: HiddenRangeModel | null;
+	pwivate fowdingModew: FowdingModew | nuww;
+	pwivate hiddenWangeModew: HiddenWangeModew | nuww;
 
-	private rangeProvider: RangeProvider | null;
-	private foldingRegionPromise: CancelablePromise<FoldingRegions | null> | null;
+	pwivate wangePwovida: WangePwovida | nuww;
+	pwivate fowdingWegionPwomise: CancewabwePwomise<FowdingWegions | nuww> | nuww;
 
-	private foldingStateMemento: FoldingStateMemento | null;
+	pwivate fowdingStateMemento: FowdingStateMemento | nuww;
 
-	private foldingModelPromise: Promise<FoldingModel | null> | null;
-	private updateScheduler: Delayer<FoldingModel | null> | null;
+	pwivate fowdingModewPwomise: Pwomise<FowdingModew | nuww> | nuww;
+	pwivate updateScheduwa: Dewaya<FowdingModew | nuww> | nuww;
 
-	private foldingEnabled: IContextKey<boolean>;
-	private cursorChangedScheduler: RunOnceScheduler | null;
+	pwivate fowdingEnabwed: IContextKey<boowean>;
+	pwivate cuwsowChangedScheduwa: WunOnceScheduwa | nuww;
 
-	private readonly localToDispose = this._register(new DisposableStore());
-	private mouseDownInfo: { lineNumber: number, iconClicked: boolean } | null;
+	pwivate weadonwy wocawToDispose = this._wegista(new DisposabweStowe());
+	pwivate mouseDownInfo: { wineNumba: numba, iconCwicked: boowean } | nuww;
 
-	constructor(
-		editor: ICodeEditor,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+	constwuctow(
+		editow: ICodeEditow,
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice
 	) {
-		super();
-		this.editor = editor;
-		const options = this.editor.getOptions();
-		this._isEnabled = options.get(EditorOption.folding);
-		this._useFoldingProviders = options.get(EditorOption.foldingStrategy) !== 'indentation';
-		this._unfoldOnClickAfterEndOfLine = options.get(EditorOption.unfoldOnClickAfterEndOfLine);
-		this._restoringViewState = false;
-		this._currentModelHasFoldedImports = false;
-		this._foldingImportsByDefault = options.get(EditorOption.foldingImportsByDefault);
+		supa();
+		this.editow = editow;
+		const options = this.editow.getOptions();
+		this._isEnabwed = options.get(EditowOption.fowding);
+		this._useFowdingPwovidews = options.get(EditowOption.fowdingStwategy) !== 'indentation';
+		this._unfowdOnCwickAftewEndOfWine = options.get(EditowOption.unfowdOnCwickAftewEndOfWine);
+		this._westowingViewState = fawse;
+		this._cuwwentModewHasFowdedImpowts = fawse;
+		this._fowdingImpowtsByDefauwt = options.get(EditowOption.fowdingImpowtsByDefauwt);
 
-		this.foldingModel = null;
-		this.hiddenRangeModel = null;
-		this.rangeProvider = null;
-		this.foldingRegionPromise = null;
-		this.foldingStateMemento = null;
-		this.foldingModelPromise = null;
-		this.updateScheduler = null;
-		this.cursorChangedScheduler = null;
-		this.mouseDownInfo = null;
+		this.fowdingModew = nuww;
+		this.hiddenWangeModew = nuww;
+		this.wangePwovida = nuww;
+		this.fowdingWegionPwomise = nuww;
+		this.fowdingStateMemento = nuww;
+		this.fowdingModewPwomise = nuww;
+		this.updateScheduwa = nuww;
+		this.cuwsowChangedScheduwa = nuww;
+		this.mouseDownInfo = nuww;
 
-		this.foldingDecorationProvider = new FoldingDecorationProvider(editor);
-		this.foldingDecorationProvider.autoHideFoldingControls = options.get(EditorOption.showFoldingControls) === 'mouseover';
-		this.foldingDecorationProvider.showFoldingHighlights = options.get(EditorOption.foldingHighlight);
-		this.foldingEnabled = CONTEXT_FOLDING_ENABLED.bindTo(this.contextKeyService);
-		this.foldingEnabled.set(this._isEnabled);
+		this.fowdingDecowationPwovida = new FowdingDecowationPwovida(editow);
+		this.fowdingDecowationPwovida.autoHideFowdingContwows = options.get(EditowOption.showFowdingContwows) === 'mouseova';
+		this.fowdingDecowationPwovida.showFowdingHighwights = options.get(EditowOption.fowdingHighwight);
+		this.fowdingEnabwed = CONTEXT_FOWDING_ENABWED.bindTo(this.contextKeySewvice);
+		this.fowdingEnabwed.set(this._isEnabwed);
 
-		this._register(this.editor.onDidChangeModel(() => this.onModelChanged()));
+		this._wegista(this.editow.onDidChangeModew(() => this.onModewChanged()));
 
-		this._register(this.editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
-			if (e.hasChanged(EditorOption.folding)) {
-				this._isEnabled = this.editor.getOptions().get(EditorOption.folding);
-				this.foldingEnabled.set(this._isEnabled);
-				this.onModelChanged();
+		this._wegista(this.editow.onDidChangeConfiguwation((e: ConfiguwationChangedEvent) => {
+			if (e.hasChanged(EditowOption.fowding)) {
+				this._isEnabwed = this.editow.getOptions().get(EditowOption.fowding);
+				this.fowdingEnabwed.set(this._isEnabwed);
+				this.onModewChanged();
 			}
-			if (e.hasChanged(EditorOption.showFoldingControls) || e.hasChanged(EditorOption.foldingHighlight)) {
-				const options = this.editor.getOptions();
-				this.foldingDecorationProvider.autoHideFoldingControls = options.get(EditorOption.showFoldingControls) === 'mouseover';
-				this.foldingDecorationProvider.showFoldingHighlights = options.get(EditorOption.foldingHighlight);
-				this.onModelContentChanged();
+			if (e.hasChanged(EditowOption.showFowdingContwows) || e.hasChanged(EditowOption.fowdingHighwight)) {
+				const options = this.editow.getOptions();
+				this.fowdingDecowationPwovida.autoHideFowdingContwows = options.get(EditowOption.showFowdingContwows) === 'mouseova';
+				this.fowdingDecowationPwovida.showFowdingHighwights = options.get(EditowOption.fowdingHighwight);
+				this.onModewContentChanged();
 			}
-			if (e.hasChanged(EditorOption.foldingStrategy)) {
-				this._useFoldingProviders = this.editor.getOptions().get(EditorOption.foldingStrategy) !== 'indentation';
-				this.onFoldingStrategyChanged();
+			if (e.hasChanged(EditowOption.fowdingStwategy)) {
+				this._useFowdingPwovidews = this.editow.getOptions().get(EditowOption.fowdingStwategy) !== 'indentation';
+				this.onFowdingStwategyChanged();
 			}
-			if (e.hasChanged(EditorOption.unfoldOnClickAfterEndOfLine)) {
-				this._unfoldOnClickAfterEndOfLine = this.editor.getOptions().get(EditorOption.unfoldOnClickAfterEndOfLine);
+			if (e.hasChanged(EditowOption.unfowdOnCwickAftewEndOfWine)) {
+				this._unfowdOnCwickAftewEndOfWine = this.editow.getOptions().get(EditowOption.unfowdOnCwickAftewEndOfWine);
 			}
-			if (e.hasChanged(EditorOption.foldingImportsByDefault)) {
-				this._foldingImportsByDefault = this.editor.getOptions().get(EditorOption.foldingImportsByDefault);
+			if (e.hasChanged(EditowOption.fowdingImpowtsByDefauwt)) {
+				this._fowdingImpowtsByDefauwt = this.editow.getOptions().get(EditowOption.fowdingImpowtsByDefauwt);
 			}
 		}));
-		this.onModelChanged();
+		this.onModewChanged();
 	}
 
 	/**
-	 * Store view state.
+	 * Stowe view state.
 	 */
-	public saveViewState(): FoldingStateMemento | undefined {
-		let model = this.editor.getModel();
-		if (!model || !this._isEnabled || model.isTooLargeForTokenization()) {
-			return {};
+	pubwic saveViewState(): FowdingStateMemento | undefined {
+		wet modew = this.editow.getModew();
+		if (!modew || !this._isEnabwed || modew.isTooWawgeFowTokenization()) {
+			wetuwn {};
 		}
-		if (this.foldingModel) { // disposed ?
-			let collapsedRegions = this.foldingModel.isInitialized ? this.foldingModel.getMemento() : this.hiddenRangeModel!.getMemento();
-			let provider = this.rangeProvider ? this.rangeProvider.id : undefined;
-			return { collapsedRegions, lineCount: model.getLineCount(), provider, foldedImports: this._currentModelHasFoldedImports };
+		if (this.fowdingModew) { // disposed ?
+			wet cowwapsedWegions = this.fowdingModew.isInitiawized ? this.fowdingModew.getMemento() : this.hiddenWangeModew!.getMemento();
+			wet pwovida = this.wangePwovida ? this.wangePwovida.id : undefined;
+			wetuwn { cowwapsedWegions, wineCount: modew.getWineCount(), pwovida, fowdedImpowts: this._cuwwentModewHasFowdedImpowts };
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
 	/**
-	 * Restore view state.
+	 * Westowe view state.
 	 */
-	public restoreViewState(state: FoldingStateMemento): void {
-		let model = this.editor.getModel();
-		if (!model || !this._isEnabled || model.isTooLargeForTokenization() || !this.hiddenRangeModel) {
-			return;
+	pubwic westoweViewState(state: FowdingStateMemento): void {
+		wet modew = this.editow.getModew();
+		if (!modew || !this._isEnabwed || modew.isTooWawgeFowTokenization() || !this.hiddenWangeModew) {
+			wetuwn;
 		}
-		if (!state || state.lineCount !== model.getLineCount()) {
-			return;
-		}
-
-		this._currentModelHasFoldedImports = !!state.foldedImports;
-		if (!state.collapsedRegions) {
-			return;
+		if (!state || state.wineCount !== modew.getWineCount()) {
+			wetuwn;
 		}
 
-		if (state.provider === ID_SYNTAX_PROVIDER || state.provider === ID_INIT_PROVIDER) {
-			this.foldingStateMemento = state;
+		this._cuwwentModewHasFowdedImpowts = !!state.fowdedImpowts;
+		if (!state.cowwapsedWegions) {
+			wetuwn;
 		}
 
-		const collapsedRegions = state.collapsedRegions;
-		// set the hidden ranges right away, before waiting for the folding model.
-		if (this.hiddenRangeModel.applyMemento(collapsedRegions)) {
-			const foldingModel = this.getFoldingModel();
-			if (foldingModel) {
-				foldingModel.then(foldingModel => {
-					if (foldingModel) {
-						this._restoringViewState = true;
-						try {
-							foldingModel.applyMemento(collapsedRegions);
-						} finally {
-							this._restoringViewState = false;
+		if (state.pwovida === ID_SYNTAX_PWOVIDa || state.pwovida === ID_INIT_PWOVIDa) {
+			this.fowdingStateMemento = state;
+		}
+
+		const cowwapsedWegions = state.cowwapsedWegions;
+		// set the hidden wanges wight away, befowe waiting fow the fowding modew.
+		if (this.hiddenWangeModew.appwyMemento(cowwapsedWegions)) {
+			const fowdingModew = this.getFowdingModew();
+			if (fowdingModew) {
+				fowdingModew.then(fowdingModew => {
+					if (fowdingModew) {
+						this._westowingViewState = twue;
+						twy {
+							fowdingModew.appwyMemento(cowwapsedWegions);
+						} finawwy {
+							this._westowingViewState = fawse;
 						}
 					}
-				}).then(undefined, onUnexpectedError);
+				}).then(undefined, onUnexpectedEwwow);
 			}
 		}
 	}
 
-	private onModelChanged(): void {
-		this.localToDispose.clear();
+	pwivate onModewChanged(): void {
+		this.wocawToDispose.cweaw();
 
-		let model = this.editor.getModel();
-		if (!this._isEnabled || !model || model.isTooLargeForTokenization()) {
-			// huge files get no view model, so they cannot support hidden areas
-			return;
+		wet modew = this.editow.getModew();
+		if (!this._isEnabwed || !modew || modew.isTooWawgeFowTokenization()) {
+			// huge fiwes get no view modew, so they cannot suppowt hidden aweas
+			wetuwn;
 		}
 
-		this._currentModelHasFoldedImports = false;
-		this.foldingModel = new FoldingModel(model, this.foldingDecorationProvider);
-		this.localToDispose.add(this.foldingModel);
+		this._cuwwentModewHasFowdedImpowts = fawse;
+		this.fowdingModew = new FowdingModew(modew, this.fowdingDecowationPwovida);
+		this.wocawToDispose.add(this.fowdingModew);
 
-		this.hiddenRangeModel = new HiddenRangeModel(this.foldingModel);
-		this.localToDispose.add(this.hiddenRangeModel);
-		this.localToDispose.add(this.hiddenRangeModel.onDidChange(hr => this.onHiddenRangesChanges(hr)));
+		this.hiddenWangeModew = new HiddenWangeModew(this.fowdingModew);
+		this.wocawToDispose.add(this.hiddenWangeModew);
+		this.wocawToDispose.add(this.hiddenWangeModew.onDidChange(hw => this.onHiddenWangesChanges(hw)));
 
-		this.updateScheduler = new Delayer<FoldingModel>(200);
+		this.updateScheduwa = new Dewaya<FowdingModew>(200);
 
-		this.cursorChangedScheduler = new RunOnceScheduler(() => this.revealCursor(), 200);
-		this.localToDispose.add(this.cursorChangedScheduler);
-		this.localToDispose.add(FoldingRangeProviderRegistry.onDidChange(() => this.onFoldingStrategyChanged()));
-		this.localToDispose.add(this.editor.onDidChangeModelLanguageConfiguration(() => this.onFoldingStrategyChanged())); // covers model language changes as well
-		this.localToDispose.add(this.editor.onDidChangeModelContent(() => this.onModelContentChanged()));
-		this.localToDispose.add(this.editor.onDidChangeCursorPosition(() => this.onCursorPositionChanged()));
-		this.localToDispose.add(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
-		this.localToDispose.add(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
-		this.localToDispose.add({
+		this.cuwsowChangedScheduwa = new WunOnceScheduwa(() => this.weveawCuwsow(), 200);
+		this.wocawToDispose.add(this.cuwsowChangedScheduwa);
+		this.wocawToDispose.add(FowdingWangePwovidewWegistwy.onDidChange(() => this.onFowdingStwategyChanged()));
+		this.wocawToDispose.add(this.editow.onDidChangeModewWanguageConfiguwation(() => this.onFowdingStwategyChanged())); // covews modew wanguage changes as weww
+		this.wocawToDispose.add(this.editow.onDidChangeModewContent(() => this.onModewContentChanged()));
+		this.wocawToDispose.add(this.editow.onDidChangeCuwsowPosition(() => this.onCuwsowPositionChanged()));
+		this.wocawToDispose.add(this.editow.onMouseDown(e => this.onEditowMouseDown(e)));
+		this.wocawToDispose.add(this.editow.onMouseUp(e => this.onEditowMouseUp(e)));
+		this.wocawToDispose.add({
 			dispose: () => {
-				if (this.foldingRegionPromise) {
-					this.foldingRegionPromise.cancel();
-					this.foldingRegionPromise = null;
+				if (this.fowdingWegionPwomise) {
+					this.fowdingWegionPwomise.cancew();
+					this.fowdingWegionPwomise = nuww;
 				}
-				if (this.updateScheduler) {
-					this.updateScheduler.cancel();
+				if (this.updateScheduwa) {
+					this.updateScheduwa.cancew();
 				}
-				this.updateScheduler = null;
-				this.foldingModel = null;
-				this.foldingModelPromise = null;
-				this.hiddenRangeModel = null;
-				this.cursorChangedScheduler = null;
-				this.foldingStateMemento = null;
-				if (this.rangeProvider) {
-					this.rangeProvider.dispose();
+				this.updateScheduwa = nuww;
+				this.fowdingModew = nuww;
+				this.fowdingModewPwomise = nuww;
+				this.hiddenWangeModew = nuww;
+				this.cuwsowChangedScheduwa = nuww;
+				this.fowdingStateMemento = nuww;
+				if (this.wangePwovida) {
+					this.wangePwovida.dispose();
 				}
-				this.rangeProvider = null;
+				this.wangePwovida = nuww;
 			}
 		});
-		this.onModelContentChanged();
+		this.onModewContentChanged();
 	}
 
-	private onFoldingStrategyChanged() {
-		if (this.rangeProvider) {
-			this.rangeProvider.dispose();
+	pwivate onFowdingStwategyChanged() {
+		if (this.wangePwovida) {
+			this.wangePwovida.dispose();
 		}
-		this.rangeProvider = null;
-		this.onModelContentChanged();
+		this.wangePwovida = nuww;
+		this.onModewContentChanged();
 	}
 
-	private getRangeProvider(editorModel: ITextModel): RangeProvider {
-		if (this.rangeProvider) {
-			return this.rangeProvider;
+	pwivate getWangePwovida(editowModew: ITextModew): WangePwovida {
+		if (this.wangePwovida) {
+			wetuwn this.wangePwovida;
 		}
-		this.rangeProvider = new IndentRangeProvider(editorModel); // fallback
+		this.wangePwovida = new IndentWangePwovida(editowModew); // fawwback
 
 
-		if (this._useFoldingProviders && this.foldingModel) {
-			let foldingProviders = FoldingRangeProviderRegistry.ordered(this.foldingModel.textModel);
-			if (foldingProviders.length === 0 && this.foldingStateMemento && this.foldingStateMemento.collapsedRegions) {
-				const rangeProvider = this.rangeProvider = new InitializingRangeProvider(editorModel, this.foldingStateMemento.collapsedRegions, () => {
-					// if after 30 the InitializingRangeProvider is still not replaced, force a refresh
-					this.foldingStateMemento = null;
-					this.onFoldingStrategyChanged();
+		if (this._useFowdingPwovidews && this.fowdingModew) {
+			wet fowdingPwovidews = FowdingWangePwovidewWegistwy.owdewed(this.fowdingModew.textModew);
+			if (fowdingPwovidews.wength === 0 && this.fowdingStateMemento && this.fowdingStateMemento.cowwapsedWegions) {
+				const wangePwovida = this.wangePwovida = new InitiawizingWangePwovida(editowModew, this.fowdingStateMemento.cowwapsedWegions, () => {
+					// if afta 30 the InitiawizingWangePwovida is stiww not wepwaced, fowce a wefwesh
+					this.fowdingStateMemento = nuww;
+					this.onFowdingStwategyChanged();
 				}, 30000);
-				return rangeProvider; // keep memento in case there are still no foldingProviders on the next request.
-			} else if (foldingProviders.length > 0) {
-				this.rangeProvider = new SyntaxRangeProvider(editorModel, foldingProviders, () => this.onModelContentChanged());
+				wetuwn wangePwovida; // keep memento in case thewe awe stiww no fowdingPwovidews on the next wequest.
+			} ewse if (fowdingPwovidews.wength > 0) {
+				this.wangePwovida = new SyntaxWangePwovida(editowModew, fowdingPwovidews, () => this.onModewContentChanged());
 			}
 		}
-		this.foldingStateMemento = null;
-		return this.rangeProvider;
+		this.fowdingStateMemento = nuww;
+		wetuwn this.wangePwovida;
 	}
 
-	public getFoldingModel() {
-		return this.foldingModelPromise;
+	pubwic getFowdingModew() {
+		wetuwn this.fowdingModewPwomise;
 	}
 
-	private onModelContentChanged() {
-		if (this.updateScheduler) {
-			if (this.foldingRegionPromise) {
-				this.foldingRegionPromise.cancel();
-				this.foldingRegionPromise = null;
+	pwivate onModewContentChanged() {
+		if (this.updateScheduwa) {
+			if (this.fowdingWegionPwomise) {
+				this.fowdingWegionPwomise.cancew();
+				this.fowdingWegionPwomise = nuww;
 			}
-			this.foldingModelPromise = this.updateScheduler.trigger(() => {
-				const foldingModel = this.foldingModel;
-				if (!foldingModel) { // null if editor has been disposed, or folding turned off
-					return null;
+			this.fowdingModewPwomise = this.updateScheduwa.twigga(() => {
+				const fowdingModew = this.fowdingModew;
+				if (!fowdingModew) { // nuww if editow has been disposed, ow fowding tuwned off
+					wetuwn nuww;
 				}
-				const provider = this.getRangeProvider(foldingModel.textModel);
-				let foldingRegionPromise = this.foldingRegionPromise = createCancelablePromise(token => provider.compute(token));
-				return foldingRegionPromise.then(foldingRanges => {
-					if (foldingRanges && foldingRegionPromise === this.foldingRegionPromise) { // new request or cancelled in the meantime?
-						let scrollState: StableEditorScrollState | undefined;
+				const pwovida = this.getWangePwovida(fowdingModew.textModew);
+				wet fowdingWegionPwomise = this.fowdingWegionPwomise = cweateCancewabwePwomise(token => pwovida.compute(token));
+				wetuwn fowdingWegionPwomise.then(fowdingWanges => {
+					if (fowdingWanges && fowdingWegionPwomise === this.fowdingWegionPwomise) { // new wequest ow cancewwed in the meantime?
+						wet scwowwState: StabweEditowScwowwState | undefined;
 
-						if (this._foldingImportsByDefault && !this._currentModelHasFoldedImports) {
-							const hasChanges = foldingRanges.setCollapsedAllOfType(FoldingRangeKind.Imports.value, true);
+						if (this._fowdingImpowtsByDefauwt && !this._cuwwentModewHasFowdedImpowts) {
+							const hasChanges = fowdingWanges.setCowwapsedAwwOfType(FowdingWangeKind.Impowts.vawue, twue);
 							if (hasChanges) {
-								scrollState = StableEditorScrollState.capture(this.editor);
-								this._currentModelHasFoldedImports = hasChanges;
+								scwowwState = StabweEditowScwowwState.captuwe(this.editow);
+								this._cuwwentModewHasFowdedImpowts = hasChanges;
 							}
 						}
 
-						// some cursors might have moved into hidden regions, make sure they are in expanded regions
-						let selections = this.editor.getSelections();
-						let selectionLineNumbers = selections ? selections.map(s => s.startLineNumber) : [];
-						foldingModel.update(foldingRanges, selectionLineNumbers);
+						// some cuwsows might have moved into hidden wegions, make suwe they awe in expanded wegions
+						wet sewections = this.editow.getSewections();
+						wet sewectionWineNumbews = sewections ? sewections.map(s => s.stawtWineNumba) : [];
+						fowdingModew.update(fowdingWanges, sewectionWineNumbews);
 
-						if (scrollState) {
-							scrollState.restore(this.editor);
+						if (scwowwState) {
+							scwowwState.westowe(this.editow);
 						}
 					}
-					return foldingModel;
+					wetuwn fowdingModew;
 				});
-			}).then(undefined, (err) => {
-				onUnexpectedError(err);
-				return null;
+			}).then(undefined, (eww) => {
+				onUnexpectedEwwow(eww);
+				wetuwn nuww;
 			});
 		}
 	}
 
-	private onHiddenRangesChanges(hiddenRanges: IRange[]) {
-		if (this.hiddenRangeModel && hiddenRanges.length && !this._restoringViewState) {
-			let selections = this.editor.getSelections();
-			if (selections) {
-				if (this.hiddenRangeModel.adjustSelections(selections)) {
-					this.editor.setSelections(selections);
+	pwivate onHiddenWangesChanges(hiddenWanges: IWange[]) {
+		if (this.hiddenWangeModew && hiddenWanges.wength && !this._westowingViewState) {
+			wet sewections = this.editow.getSewections();
+			if (sewections) {
+				if (this.hiddenWangeModew.adjustSewections(sewections)) {
+					this.editow.setSewections(sewections);
 				}
 			}
 		}
-		this.editor.setHiddenAreas(hiddenRanges);
+		this.editow.setHiddenAweas(hiddenWanges);
 	}
 
-	private onCursorPositionChanged() {
-		if (this.hiddenRangeModel && this.hiddenRangeModel.hasRanges()) {
-			this.cursorChangedScheduler!.schedule();
+	pwivate onCuwsowPositionChanged() {
+		if (this.hiddenWangeModew && this.hiddenWangeModew.hasWanges()) {
+			this.cuwsowChangedScheduwa!.scheduwe();
 		}
 	}
 
-	private revealCursor() {
-		const foldingModel = this.getFoldingModel();
-		if (!foldingModel) {
-			return;
+	pwivate weveawCuwsow() {
+		const fowdingModew = this.getFowdingModew();
+		if (!fowdingModew) {
+			wetuwn;
 		}
-		foldingModel.then(foldingModel => { // null is returned if folding got disabled in the meantime
-			if (foldingModel) {
-				let selections = this.editor.getSelections();
-				if (selections && selections.length > 0) {
-					let toToggle: FoldingRegion[] = [];
-					for (let selection of selections) {
-						let lineNumber = selection.selectionStartLineNumber;
-						if (this.hiddenRangeModel && this.hiddenRangeModel.isHidden(lineNumber)) {
-							toToggle.push(...foldingModel.getAllRegionsAtLine(lineNumber, r => r.isCollapsed && lineNumber > r.startLineNumber));
+		fowdingModew.then(fowdingModew => { // nuww is wetuwned if fowding got disabwed in the meantime
+			if (fowdingModew) {
+				wet sewections = this.editow.getSewections();
+				if (sewections && sewections.wength > 0) {
+					wet toToggwe: FowdingWegion[] = [];
+					fow (wet sewection of sewections) {
+						wet wineNumba = sewection.sewectionStawtWineNumba;
+						if (this.hiddenWangeModew && this.hiddenWangeModew.isHidden(wineNumba)) {
+							toToggwe.push(...fowdingModew.getAwwWegionsAtWine(wineNumba, w => w.isCowwapsed && wineNumba > w.stawtWineNumba));
 						}
 					}
-					if (toToggle.length) {
-						foldingModel.toggleCollapseState(toToggle);
-						this.reveal(selections[0].getPosition());
+					if (toToggwe.wength) {
+						fowdingModew.toggweCowwapseState(toToggwe);
+						this.weveaw(sewections[0].getPosition());
 					}
 				}
 			}
-		}).then(undefined, onUnexpectedError);
+		}).then(undefined, onUnexpectedEwwow);
 
 	}
 
-	private onEditorMouseDown(e: IEditorMouseEvent): void {
-		this.mouseDownInfo = null;
+	pwivate onEditowMouseDown(e: IEditowMouseEvent): void {
+		this.mouseDownInfo = nuww;
 
 
-		if (!this.hiddenRangeModel || !e.target || !e.target.range) {
-			return;
+		if (!this.hiddenWangeModew || !e.tawget || !e.tawget.wange) {
+			wetuwn;
 		}
-		if (!e.event.leftButton && !e.event.middleButton) {
-			return;
+		if (!e.event.weftButton && !e.event.middweButton) {
+			wetuwn;
 		}
-		const range = e.target.range;
-		let iconClicked = false;
-		switch (e.target.type) {
-			case MouseTargetType.GUTTER_LINE_DECORATIONS:
-				const data = e.target.detail as IMarginData;
-				const offsetLeftInGutter = (e.target.element as HTMLElement).offsetLeft;
-				const gutterOffsetX = data.offsetX - offsetLeftInGutter;
+		const wange = e.tawget.wange;
+		wet iconCwicked = fawse;
+		switch (e.tawget.type) {
+			case MouseTawgetType.GUTTEW_WINE_DECOWATIONS:
+				const data = e.tawget.detaiw as IMawginData;
+				const offsetWeftInGutta = (e.tawget.ewement as HTMWEwement).offsetWeft;
+				const guttewOffsetX = data.offsetX - offsetWeftInGutta;
 
-				// const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth - data.glyphMarginLeft;
+				// const guttewOffsetX = data.offsetX - data.gwyphMawginWidth - data.wineNumbewsWidth - data.gwyphMawginWeft;
 
-				// TODO@joao TODO@alex TODO@martin this is such that we don't collide with dirty diff
-				if (gutterOffsetX < 5) { // the whitespace between the border and the real folding icon border is 5px
-					return;
+				// TODO@joao TODO@awex TODO@mawtin this is such that we don't cowwide with diwty diff
+				if (guttewOffsetX < 5) { // the whitespace between the bowda and the weaw fowding icon bowda is 5px
+					wetuwn;
 				}
 
-				iconClicked = true;
-				break;
-			case MouseTargetType.CONTENT_EMPTY: {
-				if (this._unfoldOnClickAfterEndOfLine && this.hiddenRangeModel.hasRanges()) {
-					const data = e.target.detail as IEmptyContentData;
-					if (!data.isAfterLines) {
-						break;
+				iconCwicked = twue;
+				bweak;
+			case MouseTawgetType.CONTENT_EMPTY: {
+				if (this._unfowdOnCwickAftewEndOfWine && this.hiddenWangeModew.hasWanges()) {
+					const data = e.tawget.detaiw as IEmptyContentData;
+					if (!data.isAftewWines) {
+						bweak;
 					}
 				}
-				return;
+				wetuwn;
 			}
-			case MouseTargetType.CONTENT_TEXT: {
-				if (this.hiddenRangeModel.hasRanges()) {
-					let model = this.editor.getModel();
-					if (model && range.startColumn === model.getLineMaxColumn(range.startLineNumber)) {
-						break;
+			case MouseTawgetType.CONTENT_TEXT: {
+				if (this.hiddenWangeModew.hasWanges()) {
+					wet modew = this.editow.getModew();
+					if (modew && wange.stawtCowumn === modew.getWineMaxCowumn(wange.stawtWineNumba)) {
+						bweak;
 					}
 				}
-				return;
+				wetuwn;
 			}
-			default:
-				return;
+			defauwt:
+				wetuwn;
 		}
 
-		this.mouseDownInfo = { lineNumber: range.startLineNumber, iconClicked };
+		this.mouseDownInfo = { wineNumba: wange.stawtWineNumba, iconCwicked };
 	}
 
-	private onEditorMouseUp(e: IEditorMouseEvent): void {
-		const foldingModel = this.getFoldingModel();
-		if (!foldingModel || !this.mouseDownInfo || !e.target) {
-			return;
+	pwivate onEditowMouseUp(e: IEditowMouseEvent): void {
+		const fowdingModew = this.getFowdingModew();
+		if (!fowdingModew || !this.mouseDownInfo || !e.tawget) {
+			wetuwn;
 		}
-		let lineNumber = this.mouseDownInfo.lineNumber;
-		let iconClicked = this.mouseDownInfo.iconClicked;
+		wet wineNumba = this.mouseDownInfo.wineNumba;
+		wet iconCwicked = this.mouseDownInfo.iconCwicked;
 
-		let range = e.target.range;
-		if (!range || range.startLineNumber !== lineNumber) {
-			return;
+		wet wange = e.tawget.wange;
+		if (!wange || wange.stawtWineNumba !== wineNumba) {
+			wetuwn;
 		}
 
-		if (iconClicked) {
-			if (e.target.type !== MouseTargetType.GUTTER_LINE_DECORATIONS) {
-				return;
+		if (iconCwicked) {
+			if (e.tawget.type !== MouseTawgetType.GUTTEW_WINE_DECOWATIONS) {
+				wetuwn;
 			}
-		} else {
-			let model = this.editor.getModel();
-			if (!model || range.startColumn !== model.getLineMaxColumn(lineNumber)) {
-				return;
+		} ewse {
+			wet modew = this.editow.getModew();
+			if (!modew || wange.stawtCowumn !== modew.getWineMaxCowumn(wineNumba)) {
+				wetuwn;
 			}
 		}
 
-		foldingModel.then(foldingModel => {
-			if (foldingModel) {
-				let region = foldingModel.getRegionAtLine(lineNumber);
-				if (region && region.startLineNumber === lineNumber) {
-					let isCollapsed = region.isCollapsed;
-					if (iconClicked || isCollapsed) {
-						let surrounding = e.event.altKey;
-						let toToggle = [];
-						if (surrounding) {
-							let filter = (otherRegion: FoldingRegion) => !otherRegion.containedBy(region!) && !region!.containedBy(otherRegion);
-							let toMaybeToggle = foldingModel.getRegionsInside(null, filter);
-							for (const r of toMaybeToggle) {
-								if (r.isCollapsed) {
-									toToggle.push(r);
+		fowdingModew.then(fowdingModew => {
+			if (fowdingModew) {
+				wet wegion = fowdingModew.getWegionAtWine(wineNumba);
+				if (wegion && wegion.stawtWineNumba === wineNumba) {
+					wet isCowwapsed = wegion.isCowwapsed;
+					if (iconCwicked || isCowwapsed) {
+						wet suwwounding = e.event.awtKey;
+						wet toToggwe = [];
+						if (suwwounding) {
+							wet fiwta = (othewWegion: FowdingWegion) => !othewWegion.containedBy(wegion!) && !wegion!.containedBy(othewWegion);
+							wet toMaybeToggwe = fowdingModew.getWegionsInside(nuww, fiwta);
+							fow (const w of toMaybeToggwe) {
+								if (w.isCowwapsed) {
+									toToggwe.push(w);
 								}
 							}
-							// if any surrounding regions are folded, unfold those. Otherwise, fold all surrounding
-							if (toToggle.length === 0) {
-								toToggle = toMaybeToggle;
+							// if any suwwounding wegions awe fowded, unfowd those. Othewwise, fowd aww suwwounding
+							if (toToggwe.wength === 0) {
+								toToggwe = toMaybeToggwe;
 							}
 						}
-						else {
-							let recursive = e.event.middleButton || e.event.shiftKey;
-							if (recursive) {
-								for (const r of foldingModel.getRegionsInside(region)) {
-									if (r.isCollapsed === isCollapsed) {
-										toToggle.push(r);
+						ewse {
+							wet wecuwsive = e.event.middweButton || e.event.shiftKey;
+							if (wecuwsive) {
+								fow (const w of fowdingModew.getWegionsInside(wegion)) {
+									if (w.isCowwapsed === isCowwapsed) {
+										toToggwe.push(w);
 									}
 								}
 							}
-							// when recursive, first only collapse all children. If all are already folded or there are no children, also fold parent.
-							if (isCollapsed || !recursive || toToggle.length === 0) {
-								toToggle.push(region);
+							// when wecuwsive, fiwst onwy cowwapse aww chiwdwen. If aww awe awweady fowded ow thewe awe no chiwdwen, awso fowd pawent.
+							if (isCowwapsed || !wecuwsive || toToggwe.wength === 0) {
+								toToggwe.push(wegion);
 							}
 						}
-						foldingModel.toggleCollapseState(toToggle);
-						this.reveal({ lineNumber, column: 1 });
+						fowdingModew.toggweCowwapseState(toToggwe);
+						this.weveaw({ wineNumba, cowumn: 1 });
 					}
 				}
 			}
-		}).then(undefined, onUnexpectedError);
+		}).then(undefined, onUnexpectedEwwow);
 	}
 
-	public reveal(position: IPosition): void {
-		this.editor.revealPositionInCenterIfOutsideViewport(position, ScrollType.Smooth);
+	pubwic weveaw(position: IPosition): void {
+		this.editow.weveawPositionInCentewIfOutsideViewpowt(position, ScwowwType.Smooth);
 	}
 }
 
-abstract class FoldingAction<T> extends EditorAction {
+abstwact cwass FowdingAction<T> extends EditowAction {
 
-	abstract invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor, args: T): void;
+	abstwact invoke(fowdingContwowwa: FowdingContwowwa, fowdingModew: FowdingModew, editow: ICodeEditow, awgs: T): void;
 
-	public override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: T): void | Promise<void> {
-		let foldingController = FoldingController.get(editor);
-		if (!foldingController) {
-			return;
+	pubwic ovewwide wunEditowCommand(accessow: SewvicesAccessow, editow: ICodeEditow, awgs: T): void | Pwomise<void> {
+		wet fowdingContwowwa = FowdingContwowwa.get(editow);
+		if (!fowdingContwowwa) {
+			wetuwn;
 		}
-		let foldingModelPromise = foldingController.getFoldingModel();
-		if (foldingModelPromise) {
-			this.reportTelemetry(accessor, editor);
-			return foldingModelPromise.then(foldingModel => {
-				if (foldingModel) {
-					this.invoke(foldingController, foldingModel, editor, args);
-					const selection = editor.getSelection();
-					if (selection) {
-						foldingController.reveal(selection.getStartPosition());
+		wet fowdingModewPwomise = fowdingContwowwa.getFowdingModew();
+		if (fowdingModewPwomise) {
+			this.wepowtTewemetwy(accessow, editow);
+			wetuwn fowdingModewPwomise.then(fowdingModew => {
+				if (fowdingModew) {
+					this.invoke(fowdingContwowwa, fowdingModew, editow, awgs);
+					const sewection = editow.getSewection();
+					if (sewection) {
+						fowdingContwowwa.weveaw(sewection.getStawtPosition());
 					}
 				}
 			});
 		}
 	}
 
-	protected getSelectedLines(editor: ICodeEditor) {
-		let selections = editor.getSelections();
-		return selections ? selections.map(s => s.startLineNumber) : [];
+	pwotected getSewectedWines(editow: ICodeEditow) {
+		wet sewections = editow.getSewections();
+		wetuwn sewections ? sewections.map(s => s.stawtWineNumba) : [];
 	}
 
-	protected getLineNumbers(args: FoldingArguments, editor: ICodeEditor) {
-		if (args && args.selectionLines) {
-			return args.selectionLines.map(l => l + 1); // to 0-bases line numbers
+	pwotected getWineNumbews(awgs: FowdingAwguments, editow: ICodeEditow) {
+		if (awgs && awgs.sewectionWines) {
+			wetuwn awgs.sewectionWines.map(w => w + 1); // to 0-bases wine numbews
 		}
-		return this.getSelectedLines(editor);
+		wetuwn this.getSewectedWines(editow);
 	}
 
-	public run(_accessor: ServicesAccessor, _editor: ICodeEditor): void {
+	pubwic wun(_accessow: SewvicesAccessow, _editow: ICodeEditow): void {
 	}
 }
 
-interface FoldingArguments {
-	levels?: number;
-	direction?: 'up' | 'down';
-	selectionLines?: number[];
+intewface FowdingAwguments {
+	wevews?: numba;
+	diwection?: 'up' | 'down';
+	sewectionWines?: numba[];
 }
 
-function foldingArgumentsConstraint(args: any) {
-	if (!types.isUndefined(args)) {
-		if (!types.isObject(args)) {
-			return false;
+function fowdingAwgumentsConstwaint(awgs: any) {
+	if (!types.isUndefined(awgs)) {
+		if (!types.isObject(awgs)) {
+			wetuwn fawse;
 		}
-		const foldingArgs: FoldingArguments = args;
-		if (!types.isUndefined(foldingArgs.levels) && !types.isNumber(foldingArgs.levels)) {
-			return false;
+		const fowdingAwgs: FowdingAwguments = awgs;
+		if (!types.isUndefined(fowdingAwgs.wevews) && !types.isNumba(fowdingAwgs.wevews)) {
+			wetuwn fawse;
 		}
-		if (!types.isUndefined(foldingArgs.direction) && !types.isString(foldingArgs.direction)) {
-			return false;
+		if (!types.isUndefined(fowdingAwgs.diwection) && !types.isStwing(fowdingAwgs.diwection)) {
+			wetuwn fawse;
 		}
-		if (!types.isUndefined(foldingArgs.selectionLines) && (!types.isArray(foldingArgs.selectionLines) || !foldingArgs.selectionLines.every(types.isNumber))) {
-			return false;
+		if (!types.isUndefined(fowdingAwgs.sewectionWines) && (!types.isAwway(fowdingAwgs.sewectionWines) || !fowdingAwgs.sewectionWines.evewy(types.isNumba))) {
+			wetuwn fawse;
 		}
 	}
-	return true;
+	wetuwn twue;
 }
 
-class UnfoldAction extends FoldingAction<FoldingArguments> {
+cwass UnfowdAction extends FowdingAction<FowdingAwguments> {
 
-	constructor() {
-		super({
-			id: 'editor.unfold',
-			label: nls.localize('unfoldAction.label', "Unfold"),
-			alias: 'Unfold',
-			precondition: CONTEXT_FOLDING_ENABLED,
+	constwuctow() {
+		supa({
+			id: 'editow.unfowd',
+			wabew: nws.wocawize('unfowdAction.wabew', "Unfowd"),
+			awias: 'Unfowd',
+			pwecondition: CONTEXT_FOWDING_ENABWED,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET,
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.US_CWOSE_SQUAWE_BWACKET,
 				mac: {
-					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_CLOSE_SQUARE_BRACKET
+					pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.US_CWOSE_SQUAWE_BWACKET
 				},
-				weight: KeybindingWeight.EditorContrib
+				weight: KeybindingWeight.EditowContwib
 			},
-			description: {
-				description: 'Unfold the content in the editor',
-				args: [
+			descwiption: {
+				descwiption: 'Unfowd the content in the editow',
+				awgs: [
 					{
-						name: 'Unfold editor argument',
-						description: `Property-value pairs that can be passed through this argument:
-						* 'levels': Number of levels to unfold. If not set, defaults to 1.
-						* 'direction': If 'up', unfold given number of levels up otherwise unfolds down.
-						* 'selectionLines': The start lines (0-based) of the editor selections to apply the unfold action to. If not set, the active selection(s) will be used.
+						name: 'Unfowd editow awgument',
+						descwiption: `Pwopewty-vawue paiws that can be passed thwough this awgument:
+						* 'wevews': Numba of wevews to unfowd. If not set, defauwts to 1.
+						* 'diwection': If 'up', unfowd given numba of wevews up othewwise unfowds down.
+						* 'sewectionWines': The stawt wines (0-based) of the editow sewections to appwy the unfowd action to. If not set, the active sewection(s) wiww be used.
 						`,
-						constraint: foldingArgumentsConstraint,
+						constwaint: fowdingAwgumentsConstwaint,
 						schema: {
 							'type': 'object',
-							'properties': {
-								'levels': {
-									'type': 'number',
-									'default': 1
+							'pwopewties': {
+								'wevews': {
+									'type': 'numba',
+									'defauwt': 1
 								},
-								'direction': {
-									'type': 'string',
+								'diwection': {
+									'type': 'stwing',
 									'enum': ['up', 'down'],
-									'default': 'down'
+									'defauwt': 'down'
 								},
-								'selectionLines': {
-									'type': 'array',
+								'sewectionWines': {
+									'type': 'awway',
 									'items': {
-										'type': 'number'
+										'type': 'numba'
 									}
 								}
 							}
@@ -618,80 +618,80 @@ class UnfoldAction extends FoldingAction<FoldingArguments> {
 		});
 	}
 
-	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor, args: FoldingArguments): void {
-		let levels = args && args.levels || 1;
-		let lineNumbers = this.getLineNumbers(args, editor);
-		if (args && args.direction === 'up') {
-			setCollapseStateLevelsUp(foldingModel, false, levels, lineNumbers);
-		} else {
-			setCollapseStateLevelsDown(foldingModel, false, levels, lineNumbers);
+	invoke(_fowdingContwowwa: FowdingContwowwa, fowdingModew: FowdingModew, editow: ICodeEditow, awgs: FowdingAwguments): void {
+		wet wevews = awgs && awgs.wevews || 1;
+		wet wineNumbews = this.getWineNumbews(awgs, editow);
+		if (awgs && awgs.diwection === 'up') {
+			setCowwapseStateWevewsUp(fowdingModew, fawse, wevews, wineNumbews);
+		} ewse {
+			setCowwapseStateWevewsDown(fowdingModew, fawse, wevews, wineNumbews);
 		}
 	}
 }
 
-class UnFoldRecursivelyAction extends FoldingAction<void> {
+cwass UnFowdWecuwsivewyAction extends FowdingAction<void> {
 
-	constructor() {
-		super({
-			id: 'editor.unfoldRecursively',
-			label: nls.localize('unFoldRecursivelyAction.label', "Unfold Recursively"),
-			alias: 'Unfold Recursively',
-			precondition: CONTEXT_FOLDING_ENABLED,
+	constwuctow() {
+		supa({
+			id: 'editow.unfowdWecuwsivewy',
+			wabew: nws.wocawize('unFowdWecuwsivewyAction.wabew', "Unfowd Wecuwsivewy"),
+			awias: 'Unfowd Wecuwsivewy',
+			pwecondition: CONTEXT_FOWDING_ENABWED,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET),
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.US_CWOSE_SQUAWE_BWACKET),
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor, _args: any): void {
-		setCollapseStateLevelsDown(foldingModel, false, Number.MAX_VALUE, this.getSelectedLines(editor));
+	invoke(_fowdingContwowwa: FowdingContwowwa, fowdingModew: FowdingModew, editow: ICodeEditow, _awgs: any): void {
+		setCowwapseStateWevewsDown(fowdingModew, fawse, Numba.MAX_VAWUE, this.getSewectedWines(editow));
 	}
 }
 
-class FoldAction extends FoldingAction<FoldingArguments> {
+cwass FowdAction extends FowdingAction<FowdingAwguments> {
 
-	constructor() {
-		super({
-			id: 'editor.fold',
-			label: nls.localize('foldAction.label', "Fold"),
-			alias: 'Fold',
-			precondition: CONTEXT_FOLDING_ENABLED,
+	constwuctow() {
+		supa({
+			id: 'editow.fowd',
+			wabew: nws.wocawize('fowdAction.wabew', "Fowd"),
+			awias: 'Fowd',
+			pwecondition: CONTEXT_FOWDING_ENABWED,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_OPEN_SQUARE_BRACKET,
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.US_OPEN_SQUAWE_BWACKET,
 				mac: {
-					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_OPEN_SQUARE_BRACKET
+					pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.US_OPEN_SQUAWE_BWACKET
 				},
-				weight: KeybindingWeight.EditorContrib
+				weight: KeybindingWeight.EditowContwib
 			},
-			description: {
-				description: 'Fold the content in the editor',
-				args: [
+			descwiption: {
+				descwiption: 'Fowd the content in the editow',
+				awgs: [
 					{
-						name: 'Fold editor argument',
-						description: `Property-value pairs that can be passed through this argument:
-							* 'levels': Number of levels to fold.
-							* 'direction': If 'up', folds given number of levels up otherwise folds down.
-							* 'selectionLines': The start lines (0-based) of the editor selections to apply the fold action to. If not set, the active selection(s) will be used.
-							If no levels or direction is set, folds the region at the locations or if already collapsed, the first uncollapsed parent instead.
+						name: 'Fowd editow awgument',
+						descwiption: `Pwopewty-vawue paiws that can be passed thwough this awgument:
+							* 'wevews': Numba of wevews to fowd.
+							* 'diwection': If 'up', fowds given numba of wevews up othewwise fowds down.
+							* 'sewectionWines': The stawt wines (0-based) of the editow sewections to appwy the fowd action to. If not set, the active sewection(s) wiww be used.
+							If no wevews ow diwection is set, fowds the wegion at the wocations ow if awweady cowwapsed, the fiwst uncowwapsed pawent instead.
 						`,
-						constraint: foldingArgumentsConstraint,
+						constwaint: fowdingAwgumentsConstwaint,
 						schema: {
 							'type': 'object',
-							'properties': {
-								'levels': {
-									'type': 'number',
+							'pwopewties': {
+								'wevews': {
+									'type': 'numba',
 								},
-								'direction': {
-									'type': 'string',
+								'diwection': {
+									'type': 'stwing',
 									'enum': ['up', 'down'],
 								},
-								'selectionLines': {
-									'type': 'array',
+								'sewectionWines': {
+									'type': 'awway',
 									'items': {
-										'type': 'number'
+										'type': 'numba'
 									}
 								}
 							}
@@ -702,411 +702,411 @@ class FoldAction extends FoldingAction<FoldingArguments> {
 		});
 	}
 
-	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor, args: FoldingArguments): void {
-		let lineNumbers = this.getLineNumbers(args, editor);
+	invoke(_fowdingContwowwa: FowdingContwowwa, fowdingModew: FowdingModew, editow: ICodeEditow, awgs: FowdingAwguments): void {
+		wet wineNumbews = this.getWineNumbews(awgs, editow);
 
-		const levels = args && args.levels;
-		const direction = args && args.direction;
+		const wevews = awgs && awgs.wevews;
+		const diwection = awgs && awgs.diwection;
 
-		if (typeof levels !== 'number' && typeof direction !== 'string') {
-			// fold the region at the location or if already collapsed, the first uncollapsed parent instead.
-			setCollapseStateUp(foldingModel, true, lineNumbers);
-		} else {
-			if (direction === 'up') {
-				setCollapseStateLevelsUp(foldingModel, true, levels || 1, lineNumbers);
-			} else {
-				setCollapseStateLevelsDown(foldingModel, true, levels || 1, lineNumbers);
+		if (typeof wevews !== 'numba' && typeof diwection !== 'stwing') {
+			// fowd the wegion at the wocation ow if awweady cowwapsed, the fiwst uncowwapsed pawent instead.
+			setCowwapseStateUp(fowdingModew, twue, wineNumbews);
+		} ewse {
+			if (diwection === 'up') {
+				setCowwapseStateWevewsUp(fowdingModew, twue, wevews || 1, wineNumbews);
+			} ewse {
+				setCowwapseStateWevewsDown(fowdingModew, twue, wevews || 1, wineNumbews);
 			}
 		}
 	}
 }
 
 
-class ToggleFoldAction extends FoldingAction<void> {
+cwass ToggweFowdAction extends FowdingAction<void> {
 
-	constructor() {
-		super({
-			id: 'editor.toggleFold',
-			label: nls.localize('toggleFoldAction.label', "Toggle Fold"),
-			alias: 'Toggle Fold',
-			precondition: CONTEXT_FOLDING_ENABLED,
+	constwuctow() {
+		supa({
+			id: 'editow.toggweFowd',
+			wabew: nws.wocawize('toggweFowdAction.wabew', "Toggwe Fowd"),
+			awias: 'Toggwe Fowd',
+			pwecondition: CONTEXT_FOWDING_ENABWED,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_L),
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_W),
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
-		let selectedLines = this.getSelectedLines(editor);
-		toggleCollapseState(foldingModel, 1, selectedLines);
+	invoke(_fowdingContwowwa: FowdingContwowwa, fowdingModew: FowdingModew, editow: ICodeEditow): void {
+		wet sewectedWines = this.getSewectedWines(editow);
+		toggweCowwapseState(fowdingModew, 1, sewectedWines);
 	}
 }
 
 
-class FoldRecursivelyAction extends FoldingAction<void> {
+cwass FowdWecuwsivewyAction extends FowdingAction<void> {
 
-	constructor() {
-		super({
-			id: 'editor.foldRecursively',
-			label: nls.localize('foldRecursivelyAction.label', "Fold Recursively"),
-			alias: 'Fold Recursively',
-			precondition: CONTEXT_FOLDING_ENABLED,
+	constwuctow() {
+		supa({
+			id: 'editow.fowdWecuwsivewy',
+			wabew: nws.wocawize('fowdWecuwsivewyAction.wabew', "Fowd Wecuwsivewy"),
+			awias: 'Fowd Wecuwsivewy',
+			pwecondition: CONTEXT_FOWDING_ENABWED,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_OPEN_SQUARE_BRACKET),
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.US_OPEN_SQUAWE_BWACKET),
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
-		let selectedLines = this.getSelectedLines(editor);
-		setCollapseStateLevelsDown(foldingModel, true, Number.MAX_VALUE, selectedLines);
+	invoke(_fowdingContwowwa: FowdingContwowwa, fowdingModew: FowdingModew, editow: ICodeEditow): void {
+		wet sewectedWines = this.getSewectedWines(editow);
+		setCowwapseStateWevewsDown(fowdingModew, twue, Numba.MAX_VAWUE, sewectedWines);
 	}
 }
 
-class FoldAllBlockCommentsAction extends FoldingAction<void> {
+cwass FowdAwwBwockCommentsAction extends FowdingAction<void> {
 
-	constructor() {
-		super({
-			id: 'editor.foldAllBlockComments',
-			label: nls.localize('foldAllBlockComments.label', "Fold All Block Comments"),
-			alias: 'Fold All Block Comments',
-			precondition: CONTEXT_FOLDING_ENABLED,
+	constwuctow() {
+		supa({
+			id: 'editow.fowdAwwBwockComments',
+			wabew: nws.wocawize('fowdAwwBwockComments.wabew', "Fowd Aww Bwock Comments"),
+			awias: 'Fowd Aww Bwock Comments',
+			pwecondition: CONTEXT_FOWDING_ENABWED,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_SLASH),
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.US_SWASH),
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
-		if (foldingModel.regions.hasTypes()) {
-			setCollapseStateForType(foldingModel, FoldingRangeKind.Comment.value, true);
-		} else {
-			const editorModel = editor.getModel();
-			if (!editorModel) {
-				return;
+	invoke(_fowdingContwowwa: FowdingContwowwa, fowdingModew: FowdingModew, editow: ICodeEditow): void {
+		if (fowdingModew.wegions.hasTypes()) {
+			setCowwapseStateFowType(fowdingModew, FowdingWangeKind.Comment.vawue, twue);
+		} ewse {
+			const editowModew = editow.getModew();
+			if (!editowModew) {
+				wetuwn;
 			}
-			let comments = LanguageConfigurationRegistry.getComments(editorModel.getLanguageIdentifier().id);
-			if (comments && comments.blockCommentStartToken) {
-				let regExp = new RegExp('^\\s*' + escapeRegExpCharacters(comments.blockCommentStartToken));
-				setCollapseStateForMatchingLines(foldingModel, regExp, true);
+			wet comments = WanguageConfiguwationWegistwy.getComments(editowModew.getWanguageIdentifia().id);
+			if (comments && comments.bwockCommentStawtToken) {
+				wet wegExp = new WegExp('^\\s*' + escapeWegExpChawactews(comments.bwockCommentStawtToken));
+				setCowwapseStateFowMatchingWines(fowdingModew, wegExp, twue);
 			}
 		}
 	}
 }
 
-class FoldAllRegionsAction extends FoldingAction<void> {
+cwass FowdAwwWegionsAction extends FowdingAction<void> {
 
-	constructor() {
-		super({
-			id: 'editor.foldAllMarkerRegions',
-			label: nls.localize('foldAllMarkerRegions.label', "Fold All Regions"),
-			alias: 'Fold All Regions',
-			precondition: CONTEXT_FOLDING_ENABLED,
+	constwuctow() {
+		supa({
+			id: 'editow.fowdAwwMawkewWegions',
+			wabew: nws.wocawize('fowdAwwMawkewWegions.wabew', "Fowd Aww Wegions"),
+			awias: 'Fowd Aww Wegions',
+			pwecondition: CONTEXT_FOWDING_ENABWED,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_8),
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_8),
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
-		if (foldingModel.regions.hasTypes()) {
-			setCollapseStateForType(foldingModel, FoldingRangeKind.Region.value, true);
-		} else {
-			const editorModel = editor.getModel();
-			if (!editorModel) {
-				return;
+	invoke(_fowdingContwowwa: FowdingContwowwa, fowdingModew: FowdingModew, editow: ICodeEditow): void {
+		if (fowdingModew.wegions.hasTypes()) {
+			setCowwapseStateFowType(fowdingModew, FowdingWangeKind.Wegion.vawue, twue);
+		} ewse {
+			const editowModew = editow.getModew();
+			if (!editowModew) {
+				wetuwn;
 			}
-			let foldingRules = LanguageConfigurationRegistry.getFoldingRules(editorModel.getLanguageIdentifier().id);
-			if (foldingRules && foldingRules.markers && foldingRules.markers.start) {
-				let regExp = new RegExp(foldingRules.markers.start);
-				setCollapseStateForMatchingLines(foldingModel, regExp, true);
+			wet fowdingWuwes = WanguageConfiguwationWegistwy.getFowdingWuwes(editowModew.getWanguageIdentifia().id);
+			if (fowdingWuwes && fowdingWuwes.mawkews && fowdingWuwes.mawkews.stawt) {
+				wet wegExp = new WegExp(fowdingWuwes.mawkews.stawt);
+				setCowwapseStateFowMatchingWines(fowdingModew, wegExp, twue);
 			}
 		}
 	}
 }
 
-class UnfoldAllRegionsAction extends FoldingAction<void> {
+cwass UnfowdAwwWegionsAction extends FowdingAction<void> {
 
-	constructor() {
-		super({
-			id: 'editor.unfoldAllMarkerRegions',
-			label: nls.localize('unfoldAllMarkerRegions.label', "Unfold All Regions"),
-			alias: 'Unfold All Regions',
-			precondition: CONTEXT_FOLDING_ENABLED,
+	constwuctow() {
+		supa({
+			id: 'editow.unfowdAwwMawkewWegions',
+			wabew: nws.wocawize('unfowdAwwMawkewWegions.wabew', "Unfowd Aww Wegions"),
+			awias: 'Unfowd Aww Wegions',
+			pwecondition: CONTEXT_FOWDING_ENABWED,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_9),
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_9),
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
-		if (foldingModel.regions.hasTypes()) {
-			setCollapseStateForType(foldingModel, FoldingRangeKind.Region.value, false);
-		} else {
-			const editorModel = editor.getModel();
-			if (!editorModel) {
-				return;
+	invoke(_fowdingContwowwa: FowdingContwowwa, fowdingModew: FowdingModew, editow: ICodeEditow): void {
+		if (fowdingModew.wegions.hasTypes()) {
+			setCowwapseStateFowType(fowdingModew, FowdingWangeKind.Wegion.vawue, fawse);
+		} ewse {
+			const editowModew = editow.getModew();
+			if (!editowModew) {
+				wetuwn;
 			}
-			let foldingRules = LanguageConfigurationRegistry.getFoldingRules(editorModel.getLanguageIdentifier().id);
-			if (foldingRules && foldingRules.markers && foldingRules.markers.start) {
-				let regExp = new RegExp(foldingRules.markers.start);
-				setCollapseStateForMatchingLines(foldingModel, regExp, false);
+			wet fowdingWuwes = WanguageConfiguwationWegistwy.getFowdingWuwes(editowModew.getWanguageIdentifia().id);
+			if (fowdingWuwes && fowdingWuwes.mawkews && fowdingWuwes.mawkews.stawt) {
+				wet wegExp = new WegExp(fowdingWuwes.mawkews.stawt);
+				setCowwapseStateFowMatchingWines(fowdingModew, wegExp, fawse);
 			}
 		}
 	}
 }
 
-class FoldAllRegionsExceptAction extends FoldingAction<void> {
+cwass FowdAwwWegionsExceptAction extends FowdingAction<void> {
 
-	constructor() {
-		super({
-			id: 'editor.foldAllExcept',
-			label: nls.localize('foldAllExcept.label', "Fold All Regions Except Selected"),
-			alias: 'Fold All Regions Except Selected',
-			precondition: CONTEXT_FOLDING_ENABLED,
+	constwuctow() {
+		supa({
+			id: 'editow.fowdAwwExcept',
+			wabew: nws.wocawize('fowdAwwExcept.wabew', "Fowd Aww Wegions Except Sewected"),
+			awias: 'Fowd Aww Wegions Except Sewected',
+			pwecondition: CONTEXT_FOWDING_ENABWED,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_MINUS),
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.US_MINUS),
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
-		let selectedLines = this.getSelectedLines(editor);
-		setCollapseStateForRest(foldingModel, true, selectedLines);
+	invoke(_fowdingContwowwa: FowdingContwowwa, fowdingModew: FowdingModew, editow: ICodeEditow): void {
+		wet sewectedWines = this.getSewectedWines(editow);
+		setCowwapseStateFowWest(fowdingModew, twue, sewectedWines);
 	}
 
 }
 
-class UnfoldAllRegionsExceptAction extends FoldingAction<void> {
+cwass UnfowdAwwWegionsExceptAction extends FowdingAction<void> {
 
-	constructor() {
-		super({
-			id: 'editor.unfoldAllExcept',
-			label: nls.localize('unfoldAllExcept.label', "Unfold All Regions Except Selected"),
-			alias: 'Unfold All Regions Except Selected',
-			precondition: CONTEXT_FOLDING_ENABLED,
+	constwuctow() {
+		supa({
+			id: 'editow.unfowdAwwExcept',
+			wabew: nws.wocawize('unfowdAwwExcept.wabew', "Unfowd Aww Wegions Except Sewected"),
+			awias: 'Unfowd Aww Wegions Except Sewected',
+			pwecondition: CONTEXT_FOWDING_ENABWED,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_EQUAL),
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.US_EQUAW),
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
-		let selectedLines = this.getSelectedLines(editor);
-		setCollapseStateForRest(foldingModel, false, selectedLines);
+	invoke(_fowdingContwowwa: FowdingContwowwa, fowdingModew: FowdingModew, editow: ICodeEditow): void {
+		wet sewectedWines = this.getSewectedWines(editow);
+		setCowwapseStateFowWest(fowdingModew, fawse, sewectedWines);
 	}
 }
 
-class FoldAllAction extends FoldingAction<void> {
+cwass FowdAwwAction extends FowdingAction<void> {
 
-	constructor() {
-		super({
-			id: 'editor.foldAll',
-			label: nls.localize('foldAllAction.label', "Fold All"),
-			alias: 'Fold All',
-			precondition: CONTEXT_FOLDING_ENABLED,
+	constwuctow() {
+		supa({
+			id: 'editow.fowdAww',
+			wabew: nws.wocawize('fowdAwwAction.wabew', "Fowd Aww"),
+			awias: 'Fowd Aww',
+			pwecondition: CONTEXT_FOWDING_ENABWED,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_0),
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_0),
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, _editor: ICodeEditor): void {
-		setCollapseStateLevelsDown(foldingModel, true);
+	invoke(_fowdingContwowwa: FowdingContwowwa, fowdingModew: FowdingModew, _editow: ICodeEditow): void {
+		setCowwapseStateWevewsDown(fowdingModew, twue);
 	}
 }
 
-class UnfoldAllAction extends FoldingAction<void> {
+cwass UnfowdAwwAction extends FowdingAction<void> {
 
-	constructor() {
-		super({
-			id: 'editor.unfoldAll',
-			label: nls.localize('unfoldAllAction.label', "Unfold All"),
-			alias: 'Unfold All',
-			precondition: CONTEXT_FOLDING_ENABLED,
+	constwuctow() {
+		supa({
+			id: 'editow.unfowdAww',
+			wabew: nws.wocawize('unfowdAwwAction.wabew', "Unfowd Aww"),
+			awias: 'Unfowd Aww',
+			pwecondition: CONTEXT_FOWDING_ENABWED,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_J),
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_J),
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, _editor: ICodeEditor): void {
-		setCollapseStateLevelsDown(foldingModel, false);
+	invoke(_fowdingContwowwa: FowdingContwowwa, fowdingModew: FowdingModew, _editow: ICodeEditow): void {
+		setCowwapseStateWevewsDown(fowdingModew, fawse);
 	}
 }
 
-class FoldLevelAction extends FoldingAction<void> {
-	private static readonly ID_PREFIX = 'editor.foldLevel';
-	public static readonly ID = (level: number) => FoldLevelAction.ID_PREFIX + level;
+cwass FowdWevewAction extends FowdingAction<void> {
+	pwivate static weadonwy ID_PWEFIX = 'editow.fowdWevew';
+	pubwic static weadonwy ID = (wevew: numba) => FowdWevewAction.ID_PWEFIX + wevew;
 
-	private getFoldingLevel() {
-		return parseInt(this.id.substr(FoldLevelAction.ID_PREFIX.length));
+	pwivate getFowdingWevew() {
+		wetuwn pawseInt(this.id.substw(FowdWevewAction.ID_PWEFIX.wength));
 	}
 
-	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
-		setCollapseStateAtLevel(foldingModel, this.getFoldingLevel(), true, this.getSelectedLines(editor));
+	invoke(_fowdingContwowwa: FowdingContwowwa, fowdingModew: FowdingModew, editow: ICodeEditow): void {
+		setCowwapseStateAtWevew(fowdingModew, this.getFowdingWevew(), twue, this.getSewectedWines(editow));
 	}
 }
 
-/** Action to go to the parent fold of current line */
-class GotoParentFoldAction extends FoldingAction<void> {
-	constructor() {
-		super({
-			id: 'editor.gotoParentFold',
-			label: nls.localize('gotoParentFold.label', "Go to Parent Fold"),
-			alias: 'Go to Parent Fold',
-			precondition: CONTEXT_FOLDING_ENABLED,
+/** Action to go to the pawent fowd of cuwwent wine */
+cwass GotoPawentFowdAction extends FowdingAction<void> {
+	constwuctow() {
+		supa({
+			id: 'editow.gotoPawentFowd',
+			wabew: nws.wocawize('gotoPawentFowd.wabew', "Go to Pawent Fowd"),
+			awias: 'Go to Pawent Fowd',
+			pwecondition: CONTEXT_FOWDING_ENABWED,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
-		let selectedLines = this.getSelectedLines(editor);
-		if (selectedLines.length > 0) {
-			let startLineNumber = getParentFoldLine(selectedLines[0], foldingModel);
-			if (startLineNumber !== null) {
-				editor.setSelection({
-					startLineNumber: startLineNumber,
-					startColumn: 1,
-					endLineNumber: startLineNumber,
-					endColumn: 1
+	invoke(_fowdingContwowwa: FowdingContwowwa, fowdingModew: FowdingModew, editow: ICodeEditow): void {
+		wet sewectedWines = this.getSewectedWines(editow);
+		if (sewectedWines.wength > 0) {
+			wet stawtWineNumba = getPawentFowdWine(sewectedWines[0], fowdingModew);
+			if (stawtWineNumba !== nuww) {
+				editow.setSewection({
+					stawtWineNumba: stawtWineNumba,
+					stawtCowumn: 1,
+					endWineNumba: stawtWineNumba,
+					endCowumn: 1
 				});
 			}
 		}
 	}
 }
 
-/** Action to go to the previous fold of current line */
-class GotoPreviousFoldAction extends FoldingAction<void> {
-	constructor() {
-		super({
-			id: 'editor.gotoPreviousFold',
-			label: nls.localize('gotoPreviousFold.label', "Go to Previous Fold"),
-			alias: 'Go to Previous Fold',
-			precondition: CONTEXT_FOLDING_ENABLED,
+/** Action to go to the pwevious fowd of cuwwent wine */
+cwass GotoPweviousFowdAction extends FowdingAction<void> {
+	constwuctow() {
+		supa({
+			id: 'editow.gotoPweviousFowd',
+			wabew: nws.wocawize('gotoPweviousFowd.wabew', "Go to Pwevious Fowd"),
+			awias: 'Go to Pwevious Fowd',
+			pwecondition: CONTEXT_FOWDING_ENABWED,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
-		let selectedLines = this.getSelectedLines(editor);
-		if (selectedLines.length > 0) {
-			let startLineNumber = getPreviousFoldLine(selectedLines[0], foldingModel);
-			if (startLineNumber !== null) {
-				editor.setSelection({
-					startLineNumber: startLineNumber,
-					startColumn: 1,
-					endLineNumber: startLineNumber,
-					endColumn: 1
+	invoke(_fowdingContwowwa: FowdingContwowwa, fowdingModew: FowdingModew, editow: ICodeEditow): void {
+		wet sewectedWines = this.getSewectedWines(editow);
+		if (sewectedWines.wength > 0) {
+			wet stawtWineNumba = getPweviousFowdWine(sewectedWines[0], fowdingModew);
+			if (stawtWineNumba !== nuww) {
+				editow.setSewection({
+					stawtWineNumba: stawtWineNumba,
+					stawtCowumn: 1,
+					endWineNumba: stawtWineNumba,
+					endCowumn: 1
 				});
 			}
 		}
 	}
 }
 
-/** Action to go to the next fold of current line */
-class GotoNextFoldAction extends FoldingAction<void> {
-	constructor() {
-		super({
-			id: 'editor.gotoNextFold',
-			label: nls.localize('gotoNextFold.label', "Go to Next Fold"),
-			alias: 'Go to Next Fold',
-			precondition: CONTEXT_FOLDING_ENABLED,
+/** Action to go to the next fowd of cuwwent wine */
+cwass GotoNextFowdAction extends FowdingAction<void> {
+	constwuctow() {
+		supa({
+			id: 'editow.gotoNextFowd',
+			wabew: nws.wocawize('gotoNextFowd.wabew', "Go to Next Fowd"),
+			awias: 'Go to Next Fowd',
+			pwecondition: CONTEXT_FOWDING_ENABWED,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
-		let selectedLines = this.getSelectedLines(editor);
-		if (selectedLines.length > 0) {
-			let startLineNumber = getNextFoldLine(selectedLines[0], foldingModel);
-			if (startLineNumber !== null) {
-				editor.setSelection({
-					startLineNumber: startLineNumber,
-					startColumn: 1,
-					endLineNumber: startLineNumber,
-					endColumn: 1
+	invoke(_fowdingContwowwa: FowdingContwowwa, fowdingModew: FowdingModew, editow: ICodeEditow): void {
+		wet sewectedWines = this.getSewectedWines(editow);
+		if (sewectedWines.wength > 0) {
+			wet stawtWineNumba = getNextFowdWine(sewectedWines[0], fowdingModew);
+			if (stawtWineNumba !== nuww) {
+				editow.setSewection({
+					stawtWineNumba: stawtWineNumba,
+					stawtCowumn: 1,
+					endWineNumba: stawtWineNumba,
+					endCowumn: 1
 				});
 			}
 		}
 	}
 }
 
-registerEditorContribution(FoldingController.ID, FoldingController);
-registerEditorAction(UnfoldAction);
-registerEditorAction(UnFoldRecursivelyAction);
-registerEditorAction(FoldAction);
-registerEditorAction(FoldRecursivelyAction);
-registerEditorAction(FoldAllAction);
-registerEditorAction(UnfoldAllAction);
-registerEditorAction(FoldAllBlockCommentsAction);
-registerEditorAction(FoldAllRegionsAction);
-registerEditorAction(UnfoldAllRegionsAction);
-registerEditorAction(FoldAllRegionsExceptAction);
-registerEditorAction(UnfoldAllRegionsExceptAction);
-registerEditorAction(ToggleFoldAction);
-registerEditorAction(GotoParentFoldAction);
-registerEditorAction(GotoPreviousFoldAction);
-registerEditorAction(GotoNextFoldAction);
+wegistewEditowContwibution(FowdingContwowwa.ID, FowdingContwowwa);
+wegistewEditowAction(UnfowdAction);
+wegistewEditowAction(UnFowdWecuwsivewyAction);
+wegistewEditowAction(FowdAction);
+wegistewEditowAction(FowdWecuwsivewyAction);
+wegistewEditowAction(FowdAwwAction);
+wegistewEditowAction(UnfowdAwwAction);
+wegistewEditowAction(FowdAwwBwockCommentsAction);
+wegistewEditowAction(FowdAwwWegionsAction);
+wegistewEditowAction(UnfowdAwwWegionsAction);
+wegistewEditowAction(FowdAwwWegionsExceptAction);
+wegistewEditowAction(UnfowdAwwWegionsExceptAction);
+wegistewEditowAction(ToggweFowdAction);
+wegistewEditowAction(GotoPawentFowdAction);
+wegistewEditowAction(GotoPweviousFowdAction);
+wegistewEditowAction(GotoNextFowdAction);
 
-for (let i = 1; i <= 7; i++) {
-	registerInstantiatedEditorAction(
-		new FoldLevelAction({
-			id: FoldLevelAction.ID(i),
-			label: nls.localize('foldLevelAction.label', "Fold Level {0}", i),
-			alias: `Fold Level ${i}`,
-			precondition: CONTEXT_FOLDING_ENABLED,
+fow (wet i = 1; i <= 7; i++) {
+	wegistewInstantiatedEditowAction(
+		new FowdWevewAction({
+			id: FowdWevewAction.ID(i),
+			wabew: nws.wocawize('fowdWevewAction.wabew', "Fowd Wevew {0}", i),
+			awias: `Fowd Wevew ${i}`,
+			pwecondition: CONTEXT_FOWDING_ENABWED,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | (KeyCode.KEY_0 + i)),
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | (KeyCode.KEY_0 + i)),
+				weight: KeybindingWeight.EditowContwib
 			}
 		})
 	);
 }
 
-export const foldBackgroundBackground = registerColor('editor.foldBackground', { light: transparent(editorSelectionBackground, 0.3), dark: transparent(editorSelectionBackground, 0.3), hc: null }, nls.localize('foldBackgroundBackground', "Background color behind folded ranges. The color must not be opaque so as not to hide underlying decorations."), true);
-export const editorFoldForeground = registerColor('editorGutter.foldingControlForeground', { dark: iconForeground, light: iconForeground, hc: iconForeground }, nls.localize('editorGutter.foldingControlForeground', 'Color of the folding control in the editor gutter.'));
+expowt const fowdBackgwoundBackgwound = wegistewCowow('editow.fowdBackgwound', { wight: twanspawent(editowSewectionBackgwound, 0.3), dawk: twanspawent(editowSewectionBackgwound, 0.3), hc: nuww }, nws.wocawize('fowdBackgwoundBackgwound', "Backgwound cowow behind fowded wanges. The cowow must not be opaque so as not to hide undewwying decowations."), twue);
+expowt const editowFowdFowegwound = wegistewCowow('editowGutta.fowdingContwowFowegwound', { dawk: iconFowegwound, wight: iconFowegwound, hc: iconFowegwound }, nws.wocawize('editowGutta.fowdingContwowFowegwound', 'Cowow of the fowding contwow in the editow gutta.'));
 
-registerThemingParticipant((theme, collector) => {
-	const foldBackground = theme.getColor(foldBackgroundBackground);
-	if (foldBackground) {
-		collector.addRule(`.monaco-editor .folded-background { background-color: ${foldBackground}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const fowdBackgwound = theme.getCowow(fowdBackgwoundBackgwound);
+	if (fowdBackgwound) {
+		cowwectow.addWuwe(`.monaco-editow .fowded-backgwound { backgwound-cowow: ${fowdBackgwound}; }`);
 	}
 
-	const editorFoldColor = theme.getColor(editorFoldForeground);
-	if (editorFoldColor) {
-		collector.addRule(`
-		.monaco-editor .cldr${ThemeIcon.asCSSSelector(foldingExpandedIcon)},
-		.monaco-editor .cldr${ThemeIcon.asCSSSelector(foldingCollapsedIcon)} {
-			color: ${editorFoldColor} !important;
+	const editowFowdCowow = theme.getCowow(editowFowdFowegwound);
+	if (editowFowdCowow) {
+		cowwectow.addWuwe(`
+		.monaco-editow .cwdw${ThemeIcon.asCSSSewectow(fowdingExpandedIcon)},
+		.monaco-editow .cwdw${ThemeIcon.asCSSSewectow(fowdingCowwapsedIcon)} {
+			cowow: ${editowFowdCowow} !impowtant;
 		}
 		`);
 	}

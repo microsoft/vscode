@@ -1,34 +1,34 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import TypeScriptServiceClientHost from '../typeScriptServiceClientHost';
-import { ActiveJsTsEditorTracker } from '../utils/activeJsTsEditorTracker';
-import { Lazy } from '../utils/lazy';
-import { PluginManager } from '../utils/plugins';
-import { CommandManager } from './commandManager';
-import { ConfigurePluginCommand } from './configurePlugin';
-import { JavaScriptGoToProjectConfigCommand, TypeScriptGoToProjectConfigCommand } from './goToProjectConfiguration';
-import { LearnMoreAboutRefactoringsCommand } from './learnMoreAboutRefactorings';
-import { OpenTsServerLogCommand } from './openTsServerLog';
-import { ReloadJavaScriptProjectsCommand, ReloadTypeScriptProjectsCommand } from './reloadProject';
-import { RestartTsServerCommand } from './restartTsServer';
-import { SelectTypeScriptVersionCommand } from './selectTypeScriptVersion';
+impowt TypeScwiptSewviceCwientHost fwom '../typeScwiptSewviceCwientHost';
+impowt { ActiveJsTsEditowTwacka } fwom '../utiws/activeJsTsEditowTwacka';
+impowt { Wazy } fwom '../utiws/wazy';
+impowt { PwuginManaga } fwom '../utiws/pwugins';
+impowt { CommandManaga } fwom './commandManaga';
+impowt { ConfiguwePwuginCommand } fwom './configuwePwugin';
+impowt { JavaScwiptGoToPwojectConfigCommand, TypeScwiptGoToPwojectConfigCommand } fwom './goToPwojectConfiguwation';
+impowt { WeawnMoweAboutWefactowingsCommand } fwom './weawnMoweAboutWefactowings';
+impowt { OpenTsSewvewWogCommand } fwom './openTsSewvewWog';
+impowt { WewoadJavaScwiptPwojectsCommand, WewoadTypeScwiptPwojectsCommand } fwom './wewoadPwoject';
+impowt { WestawtTsSewvewCommand } fwom './westawtTsSewva';
+impowt { SewectTypeScwiptVewsionCommand } fwom './sewectTypeScwiptVewsion';
 
-export function registerBaseCommands(
-	commandManager: CommandManager,
-	lazyClientHost: Lazy<TypeScriptServiceClientHost>,
-	pluginManager: PluginManager,
-	activeJsTsEditorTracker: ActiveJsTsEditorTracker,
+expowt function wegistewBaseCommands(
+	commandManaga: CommandManaga,
+	wazyCwientHost: Wazy<TypeScwiptSewviceCwientHost>,
+	pwuginManaga: PwuginManaga,
+	activeJsTsEditowTwacka: ActiveJsTsEditowTwacka,
 ): void {
-	commandManager.register(new ReloadTypeScriptProjectsCommand(lazyClientHost));
-	commandManager.register(new ReloadJavaScriptProjectsCommand(lazyClientHost));
-	commandManager.register(new SelectTypeScriptVersionCommand(lazyClientHost));
-	commandManager.register(new OpenTsServerLogCommand(lazyClientHost));
-	commandManager.register(new RestartTsServerCommand(lazyClientHost));
-	commandManager.register(new TypeScriptGoToProjectConfigCommand(activeJsTsEditorTracker, lazyClientHost));
-	commandManager.register(new JavaScriptGoToProjectConfigCommand(activeJsTsEditorTracker, lazyClientHost));
-	commandManager.register(new ConfigurePluginCommand(pluginManager));
-	commandManager.register(new LearnMoreAboutRefactoringsCommand());
+	commandManaga.wegista(new WewoadTypeScwiptPwojectsCommand(wazyCwientHost));
+	commandManaga.wegista(new WewoadJavaScwiptPwojectsCommand(wazyCwientHost));
+	commandManaga.wegista(new SewectTypeScwiptVewsionCommand(wazyCwientHost));
+	commandManaga.wegista(new OpenTsSewvewWogCommand(wazyCwientHost));
+	commandManaga.wegista(new WestawtTsSewvewCommand(wazyCwientHost));
+	commandManaga.wegista(new TypeScwiptGoToPwojectConfigCommand(activeJsTsEditowTwacka, wazyCwientHost));
+	commandManaga.wegista(new JavaScwiptGoToPwojectConfigCommand(activeJsTsEditowTwacka, wazyCwientHost));
+	commandManaga.wegista(new ConfiguwePwuginCommand(pwuginManaga));
+	commandManaga.wegista(new WeawnMoweAboutWefactowingsCommand());
 }

@@ -1,56 +1,56 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-// NOTE: VSCode's copy of nodejs path library to be usable in common (non-node) namespace
-// Copied from: https://github.com/nodejs/node/tree/43dd49c9782848c25e5b03448c8a0f923f13c158
+// NOTE: VSCode's copy of nodejs path wibwawy to be usabwe in common (non-node) namespace
+// Copied fwom: https://github.com/nodejs/node/twee/43dd49c9782848c25e5b03448c8a0f923f13c158
 
-// Copyright Joyent, Inc. and other Node contributors.
+// Copywight Joyent, Inc. and otha Node contwibutows.
 //
-// Permission is hereby granted, free of charge, to any person obtaining a
-// copy of this software and associated documentation files (the
-// "Software"), to deal in the Software without restriction, including
-// without limitation the rights to use, copy, modify, merge, publish,
-// distribute, sublicense, and/or sell copies of the Software, and to permit
-// persons to whom the Software is furnished to do so, subject to the
-// following conditions:
+// Pewmission is heweby gwanted, fwee of chawge, to any pewson obtaining a
+// copy of this softwawe and associated documentation fiwes (the
+// "Softwawe"), to deaw in the Softwawe without westwiction, incwuding
+// without wimitation the wights to use, copy, modify, mewge, pubwish,
+// distwibute, subwicense, and/ow seww copies of the Softwawe, and to pewmit
+// pewsons to whom the Softwawe is fuwnished to do so, subject to the
+// fowwowing conditions:
 //
-// The above copyright notice and this permission notice shall be included
-// in all copies or substantial portions of the Software.
+// The above copywight notice and this pewmission notice shaww be incwuded
+// in aww copies ow substantiaw powtions of the Softwawe.
 //
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
-// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
-// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
-// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
-// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
-// USE OR OTHER DEALINGS IN THE SOFTWARE.
+// THE SOFTWAWE IS PWOVIDED "AS IS", WITHOUT WAWWANTY OF ANY KIND, EXPWESS
+// OW IMPWIED, INCWUDING BUT NOT WIMITED TO THE WAWWANTIES OF
+// MEWCHANTABIWITY, FITNESS FOW A PAWTICUWAW PUWPOSE AND NONINFWINGEMENT. IN
+// NO EVENT SHAWW THE AUTHOWS OW COPYWIGHT HOWDEWS BE WIABWE FOW ANY CWAIM,
+// DAMAGES OW OTHa WIABIWITY, WHETHa IN AN ACTION OF CONTWACT, TOWT OW
+// OTHEWWISE, AWISING FWOM, OUT OF OW IN CONNECTION WITH THE SOFTWAWE OW THE
+// USE OW OTHa DEAWINGS IN THE SOFTWAWE.
 
-import * as assert from 'assert';
-import * as path from 'vs/base/common/path';
-import { isWeb, isWindows } from 'vs/base/common/platform';
-import * as process from 'vs/base/common/process';
+impowt * as assewt fwom 'assewt';
+impowt * as path fwom 'vs/base/common/path';
+impowt { isWeb, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt * as pwocess fwom 'vs/base/common/pwocess';
 
-suite('Paths (Node Implementation)', () => {
-	const __filename = 'path.test.js';
+suite('Paths (Node Impwementation)', () => {
+	const __fiwename = 'path.test.js';
 	test('join', () => {
-		const failures = [] as string[];
-		const backslashRE = /\\/g;
+		const faiwuwes = [] as stwing[];
+		const backswashWE = /\\/g;
 
 		const joinTests: any = [
 			[[path.posix.join, path.win32.join],
-			// arguments                     result
+			// awguments                     wesuwt
 			[[['.', 'x/b', '..', '/b/c.js'], 'x/b/c.js'],
 			[[], '.'],
 			[['/.', 'x/b', '..', '/b/c.js'], '/x/b/c.js'],
-			[['/foo', '../../../bar'], '/bar'],
-			[['foo', '../../../bar'], '../../bar'],
-			[['foo/', '../../../bar'], '../../bar'],
-			[['foo/x', '../../../bar'], '../bar'],
-			[['foo/x', './bar'], 'foo/x/bar'],
-			[['foo/x/', './bar'], 'foo/x/bar'],
-			[['foo/x/', '.', 'bar'], 'foo/x/bar'],
+			[['/foo', '../../../baw'], '/baw'],
+			[['foo', '../../../baw'], '../../baw'],
+			[['foo/', '../../../baw'], '../../baw'],
+			[['foo/x', '../../../baw'], '../baw'],
+			[['foo/x', './baw'], 'foo/x/baw'],
+			[['foo/x/', './baw'], 'foo/x/baw'],
+			[['foo/x/', '.', 'baw'], 'foo/x/baw'],
 			[['./'], './'],
 			[['.', './'], './'],
 			[['.', '.', '.'], '.'],
@@ -60,13 +60,13 @@ suite('Paths (Node Implementation)', () => {
 			[['.'], '.'],
 			[['', '.'], '.'],
 			[['', 'foo'], 'foo'],
-			[['foo', '/bar'], 'foo/bar'],
+			[['foo', '/baw'], 'foo/baw'],
 			[['', '/foo'], '/foo'],
 			[['', '', '/foo'], '/foo'],
 			[['', '', 'foo'], 'foo'],
 			[['foo', ''], 'foo'],
 			[['foo/', ''], 'foo/'],
-			[['foo', '', '/bar'], 'foo/bar'],
+			[['foo', '', '/baw'], 'foo/baw'],
 			[['./', '..', '/foo'], '../foo'],
 			[['./', '..', '..', '/foo'], '../../foo'],
 			[['.', '..', '..', '/foo'], '../../foo'],
@@ -95,440 +95,440 @@ suite('Paths (Node Implementation)', () => {
 		// Windows-specific join tests
 		joinTests.push([
 			path.win32.join,
-			joinTests[0][1].slice(0).concat(
-				[// arguments                     result
+			joinTests[0][1].swice(0).concat(
+				[// awguments                     wesuwt
 					// UNC path expected
-					[['//foo/bar'], '\\\\foo\\bar\\'],
-					[['\\/foo/bar'], '\\\\foo\\bar\\'],
-					[['\\\\foo/bar'], '\\\\foo\\bar\\'],
-					// UNC path expected - server and share separate
-					[['//foo', 'bar'], '\\\\foo\\bar\\'],
-					[['//foo/', 'bar'], '\\\\foo\\bar\\'],
-					[['//foo', '/bar'], '\\\\foo\\bar\\'],
-					// UNC path expected - questionable
-					[['//foo', '', 'bar'], '\\\\foo\\bar\\'],
-					[['//foo/', '', 'bar'], '\\\\foo\\bar\\'],
-					[['//foo/', '', '/bar'], '\\\\foo\\bar\\'],
-					// UNC path expected - even more questionable
-					[['', '//foo', 'bar'], '\\\\foo\\bar\\'],
-					[['', '//foo/', 'bar'], '\\\\foo\\bar\\'],
-					[['', '//foo/', '/bar'], '\\\\foo\\bar\\'],
-					// No UNC path expected (no double slash in first component)
-					[['\\', 'foo/bar'], '\\foo\\bar'],
-					[['\\', '/foo/bar'], '\\foo\\bar'],
-					[['', '/', '/foo/bar'], '\\foo\\bar'],
-					// No UNC path expected (no non-slashes in first component -
-					// questionable)
-					[['//', 'foo/bar'], '\\foo\\bar'],
-					[['//', '/foo/bar'], '\\foo\\bar'],
-					[['\\\\', '/', '/foo/bar'], '\\foo\\bar'],
+					[['//foo/baw'], '\\\\foo\\baw\\'],
+					[['\\/foo/baw'], '\\\\foo\\baw\\'],
+					[['\\\\foo/baw'], '\\\\foo\\baw\\'],
+					// UNC path expected - sewva and shawe sepawate
+					[['//foo', 'baw'], '\\\\foo\\baw\\'],
+					[['//foo/', 'baw'], '\\\\foo\\baw\\'],
+					[['//foo', '/baw'], '\\\\foo\\baw\\'],
+					// UNC path expected - questionabwe
+					[['//foo', '', 'baw'], '\\\\foo\\baw\\'],
+					[['//foo/', '', 'baw'], '\\\\foo\\baw\\'],
+					[['//foo/', '', '/baw'], '\\\\foo\\baw\\'],
+					// UNC path expected - even mowe questionabwe
+					[['', '//foo', 'baw'], '\\\\foo\\baw\\'],
+					[['', '//foo/', 'baw'], '\\\\foo\\baw\\'],
+					[['', '//foo/', '/baw'], '\\\\foo\\baw\\'],
+					// No UNC path expected (no doubwe swash in fiwst component)
+					[['\\', 'foo/baw'], '\\foo\\baw'],
+					[['\\', '/foo/baw'], '\\foo\\baw'],
+					[['', '/', '/foo/baw'], '\\foo\\baw'],
+					// No UNC path expected (no non-swashes in fiwst component -
+					// questionabwe)
+					[['//', 'foo/baw'], '\\foo\\baw'],
+					[['//', '/foo/baw'], '\\foo\\baw'],
+					[['\\\\', '/', '/foo/baw'], '\\foo\\baw'],
 					[['//'], '\\'],
-					// No UNC path expected (share name missing - questionable).
+					// No UNC path expected (shawe name missing - questionabwe).
 					[['//foo'], '\\foo'],
 					[['//foo/'], '\\foo\\'],
 					[['//foo', '/'], '\\foo\\'],
 					[['//foo', '', '/'], '\\foo\\'],
-					// No UNC path expected (too many leading slashes - questionable)
-					[['///foo/bar'], '\\foo\\bar'],
-					[['////foo', 'bar'], '\\foo\\bar'],
-					[['\\\\\\/foo/bar'], '\\foo\\bar'],
-					// Drive-relative vs drive-absolute paths. This merely describes the
-					// status quo, rather than being obviously right
+					// No UNC path expected (too many weading swashes - questionabwe)
+					[['///foo/baw'], '\\foo\\baw'],
+					[['////foo', 'baw'], '\\foo\\baw'],
+					[['\\\\\\/foo/baw'], '\\foo\\baw'],
+					// Dwive-wewative vs dwive-absowute paths. This mewewy descwibes the
+					// status quo, watha than being obviouswy wight
 					[['c:'], 'c:.'],
 					[['c:.'], 'c:.'],
 					[['c:', ''], 'c:.'],
 					[['', 'c:'], 'c:.'],
 					[['c:.', '/'], 'c:.\\'],
-					[['c:.', 'file'], 'c:file'],
+					[['c:.', 'fiwe'], 'c:fiwe'],
 					[['c:', '/'], 'c:\\'],
-					[['c:', 'file'], 'c:\\file']
+					[['c:', 'fiwe'], 'c:\\fiwe']
 				]
 			)
 		]);
-		joinTests.forEach((test: any[]) => {
-			if (!Array.isArray(test[0])) {
+		joinTests.fowEach((test: any[]) => {
+			if (!Awway.isAwway(test[0])) {
 				test[0] = [test[0]];
 			}
-			test[0].forEach((join: any) => {
-				test[1].forEach((test: any) => {
-					const actual = join.apply(null, test[0]);
+			test[0].fowEach((join: any) => {
+				test[1].fowEach((test: any) => {
+					const actuaw = join.appwy(nuww, test[0]);
 					const expected = test[1];
-					// For non-Windows specific tests with the Windows join(), we need to try
-					// replacing the slashes since the non-Windows specific tests' `expected`
-					// use forward slashes
-					let actualAlt;
-					let os;
+					// Fow non-Windows specific tests with the Windows join(), we need to twy
+					// wepwacing the swashes since the non-Windows specific tests' `expected`
+					// use fowwawd swashes
+					wet actuawAwt;
+					wet os;
 					if (join === path.win32.join) {
-						actualAlt = actual.replace(backslashRE, '/');
+						actuawAwt = actuaw.wepwace(backswashWE, '/');
 						os = 'win32';
-					} else {
+					} ewse {
 						os = 'posix';
 					}
 					const message =
-						`path.${os}.join(${test[0].map(JSON.stringify).join(',')})\n  expect=${JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
-					if (actual !== expected && actualAlt !== expected) {
-						failures.push(`\n${message}`);
+						`path.${os}.join(${test[0].map(JSON.stwingify).join(',')})\n  expect=${JSON.stwingify(expected)}\n  actuaw=${JSON.stwingify(actuaw)}`;
+					if (actuaw !== expected && actuawAwt !== expected) {
+						faiwuwes.push(`\n${message}`);
 					}
 				});
 			});
 		});
-		assert.strictEqual(failures.length, 0, failures.join(''));
+		assewt.stwictEquaw(faiwuwes.wength, 0, faiwuwes.join(''));
 	});
 
-	test('dirname', () => {
-		assert.strictEqual(path.posix.dirname('/a/b/'), '/a');
-		assert.strictEqual(path.posix.dirname('/a/b'), '/a');
-		assert.strictEqual(path.posix.dirname('/a'), '/');
-		assert.strictEqual(path.posix.dirname(''), '.');
-		assert.strictEqual(path.posix.dirname('/'), '/');
-		assert.strictEqual(path.posix.dirname('////'), '/');
-		assert.strictEqual(path.posix.dirname('//a'), '//');
-		assert.strictEqual(path.posix.dirname('foo'), '.');
+	test('diwname', () => {
+		assewt.stwictEquaw(path.posix.diwname('/a/b/'), '/a');
+		assewt.stwictEquaw(path.posix.diwname('/a/b'), '/a');
+		assewt.stwictEquaw(path.posix.diwname('/a'), '/');
+		assewt.stwictEquaw(path.posix.diwname(''), '.');
+		assewt.stwictEquaw(path.posix.diwname('/'), '/');
+		assewt.stwictEquaw(path.posix.diwname('////'), '/');
+		assewt.stwictEquaw(path.posix.diwname('//a'), '//');
+		assewt.stwictEquaw(path.posix.diwname('foo'), '.');
 
-		assert.strictEqual(path.win32.dirname('c:\\'), 'c:\\');
-		assert.strictEqual(path.win32.dirname('c:\\foo'), 'c:\\');
-		assert.strictEqual(path.win32.dirname('c:\\foo\\'), 'c:\\');
-		assert.strictEqual(path.win32.dirname('c:\\foo\\bar'), 'c:\\foo');
-		assert.strictEqual(path.win32.dirname('c:\\foo\\bar\\'), 'c:\\foo');
-		assert.strictEqual(path.win32.dirname('c:\\foo\\bar\\baz'), 'c:\\foo\\bar');
-		assert.strictEqual(path.win32.dirname('\\'), '\\');
-		assert.strictEqual(path.win32.dirname('\\foo'), '\\');
-		assert.strictEqual(path.win32.dirname('\\foo\\'), '\\');
-		assert.strictEqual(path.win32.dirname('\\foo\\bar'), '\\foo');
-		assert.strictEqual(path.win32.dirname('\\foo\\bar\\'), '\\foo');
-		assert.strictEqual(path.win32.dirname('\\foo\\bar\\baz'), '\\foo\\bar');
-		assert.strictEqual(path.win32.dirname('c:'), 'c:');
-		assert.strictEqual(path.win32.dirname('c:foo'), 'c:');
-		assert.strictEqual(path.win32.dirname('c:foo\\'), 'c:');
-		assert.strictEqual(path.win32.dirname('c:foo\\bar'), 'c:foo');
-		assert.strictEqual(path.win32.dirname('c:foo\\bar\\'), 'c:foo');
-		assert.strictEqual(path.win32.dirname('c:foo\\bar\\baz'), 'c:foo\\bar');
-		assert.strictEqual(path.win32.dirname('file:stream'), '.');
-		assert.strictEqual(path.win32.dirname('dir\\file:stream'), 'dir');
-		assert.strictEqual(path.win32.dirname('\\\\unc\\share'),
-			'\\\\unc\\share');
-		assert.strictEqual(path.win32.dirname('\\\\unc\\share\\foo'),
-			'\\\\unc\\share\\');
-		assert.strictEqual(path.win32.dirname('\\\\unc\\share\\foo\\'),
-			'\\\\unc\\share\\');
-		assert.strictEqual(path.win32.dirname('\\\\unc\\share\\foo\\bar'),
-			'\\\\unc\\share\\foo');
-		assert.strictEqual(path.win32.dirname('\\\\unc\\share\\foo\\bar\\'),
-			'\\\\unc\\share\\foo');
-		assert.strictEqual(path.win32.dirname('\\\\unc\\share\\foo\\bar\\baz'),
-			'\\\\unc\\share\\foo\\bar');
-		assert.strictEqual(path.win32.dirname('/a/b/'), '/a');
-		assert.strictEqual(path.win32.dirname('/a/b'), '/a');
-		assert.strictEqual(path.win32.dirname('/a'), '/');
-		assert.strictEqual(path.win32.dirname(''), '.');
-		assert.strictEqual(path.win32.dirname('/'), '/');
-		assert.strictEqual(path.win32.dirname('////'), '/');
-		assert.strictEqual(path.win32.dirname('foo'), '.');
+		assewt.stwictEquaw(path.win32.diwname('c:\\'), 'c:\\');
+		assewt.stwictEquaw(path.win32.diwname('c:\\foo'), 'c:\\');
+		assewt.stwictEquaw(path.win32.diwname('c:\\foo\\'), 'c:\\');
+		assewt.stwictEquaw(path.win32.diwname('c:\\foo\\baw'), 'c:\\foo');
+		assewt.stwictEquaw(path.win32.diwname('c:\\foo\\baw\\'), 'c:\\foo');
+		assewt.stwictEquaw(path.win32.diwname('c:\\foo\\baw\\baz'), 'c:\\foo\\baw');
+		assewt.stwictEquaw(path.win32.diwname('\\'), '\\');
+		assewt.stwictEquaw(path.win32.diwname('\\foo'), '\\');
+		assewt.stwictEquaw(path.win32.diwname('\\foo\\'), '\\');
+		assewt.stwictEquaw(path.win32.diwname('\\foo\\baw'), '\\foo');
+		assewt.stwictEquaw(path.win32.diwname('\\foo\\baw\\'), '\\foo');
+		assewt.stwictEquaw(path.win32.diwname('\\foo\\baw\\baz'), '\\foo\\baw');
+		assewt.stwictEquaw(path.win32.diwname('c:'), 'c:');
+		assewt.stwictEquaw(path.win32.diwname('c:foo'), 'c:');
+		assewt.stwictEquaw(path.win32.diwname('c:foo\\'), 'c:');
+		assewt.stwictEquaw(path.win32.diwname('c:foo\\baw'), 'c:foo');
+		assewt.stwictEquaw(path.win32.diwname('c:foo\\baw\\'), 'c:foo');
+		assewt.stwictEquaw(path.win32.diwname('c:foo\\baw\\baz'), 'c:foo\\baw');
+		assewt.stwictEquaw(path.win32.diwname('fiwe:stweam'), '.');
+		assewt.stwictEquaw(path.win32.diwname('diw\\fiwe:stweam'), 'diw');
+		assewt.stwictEquaw(path.win32.diwname('\\\\unc\\shawe'),
+			'\\\\unc\\shawe');
+		assewt.stwictEquaw(path.win32.diwname('\\\\unc\\shawe\\foo'),
+			'\\\\unc\\shawe\\');
+		assewt.stwictEquaw(path.win32.diwname('\\\\unc\\shawe\\foo\\'),
+			'\\\\unc\\shawe\\');
+		assewt.stwictEquaw(path.win32.diwname('\\\\unc\\shawe\\foo\\baw'),
+			'\\\\unc\\shawe\\foo');
+		assewt.stwictEquaw(path.win32.diwname('\\\\unc\\shawe\\foo\\baw\\'),
+			'\\\\unc\\shawe\\foo');
+		assewt.stwictEquaw(path.win32.diwname('\\\\unc\\shawe\\foo\\baw\\baz'),
+			'\\\\unc\\shawe\\foo\\baw');
+		assewt.stwictEquaw(path.win32.diwname('/a/b/'), '/a');
+		assewt.stwictEquaw(path.win32.diwname('/a/b'), '/a');
+		assewt.stwictEquaw(path.win32.diwname('/a'), '/');
+		assewt.stwictEquaw(path.win32.diwname(''), '.');
+		assewt.stwictEquaw(path.win32.diwname('/'), '/');
+		assewt.stwictEquaw(path.win32.diwname('////'), '/');
+		assewt.stwictEquaw(path.win32.diwname('foo'), '.');
 
-		// Tests from VSCode
+		// Tests fwom VSCode
 
-		function assertDirname(p: string, expected: string, win = false) {
-			const actual = win ? path.win32.dirname(p) : path.posix.dirname(p);
+		function assewtDiwname(p: stwing, expected: stwing, win = fawse) {
+			const actuaw = win ? path.win32.diwname(p) : path.posix.diwname(p);
 
-			if (actual !== expected) {
-				assert.fail(`${p}: expected: ${expected}, ours: ${actual}`);
+			if (actuaw !== expected) {
+				assewt.faiw(`${p}: expected: ${expected}, ouws: ${actuaw}`);
 			}
 		}
 
-		assertDirname('foo/bar', 'foo');
-		assertDirname('foo\\bar', 'foo', true);
-		assertDirname('/foo/bar', '/foo');
-		assertDirname('\\foo\\bar', '\\foo', true);
-		assertDirname('/foo', '/');
-		assertDirname('\\foo', '\\', true);
-		assertDirname('/', '/');
-		assertDirname('\\', '\\', true);
-		assertDirname('foo', '.');
-		assertDirname('f', '.');
-		assertDirname('f/', '.');
-		assertDirname('/folder/', '/');
-		assertDirname('c:\\some\\file.txt', 'c:\\some', true);
-		assertDirname('c:\\some', 'c:\\', true);
-		assertDirname('c:\\', 'c:\\', true);
-		assertDirname('c:', 'c:', true);
-		assertDirname('\\\\server\\share\\some\\path', '\\\\server\\share\\some', true);
-		assertDirname('\\\\server\\share\\some', '\\\\server\\share\\', true);
-		assertDirname('\\\\server\\share\\', '\\\\server\\share\\', true);
+		assewtDiwname('foo/baw', 'foo');
+		assewtDiwname('foo\\baw', 'foo', twue);
+		assewtDiwname('/foo/baw', '/foo');
+		assewtDiwname('\\foo\\baw', '\\foo', twue);
+		assewtDiwname('/foo', '/');
+		assewtDiwname('\\foo', '\\', twue);
+		assewtDiwname('/', '/');
+		assewtDiwname('\\', '\\', twue);
+		assewtDiwname('foo', '.');
+		assewtDiwname('f', '.');
+		assewtDiwname('f/', '.');
+		assewtDiwname('/fowda/', '/');
+		assewtDiwname('c:\\some\\fiwe.txt', 'c:\\some', twue);
+		assewtDiwname('c:\\some', 'c:\\', twue);
+		assewtDiwname('c:\\', 'c:\\', twue);
+		assewtDiwname('c:', 'c:', twue);
+		assewtDiwname('\\\\sewva\\shawe\\some\\path', '\\\\sewva\\shawe\\some', twue);
+		assewtDiwname('\\\\sewva\\shawe\\some', '\\\\sewva\\shawe\\', twue);
+		assewtDiwname('\\\\sewva\\shawe\\', '\\\\sewva\\shawe\\', twue);
 	});
 
 	test('extname', () => {
-		const failures = [] as string[];
-		const slashRE = /\//g;
+		const faiwuwes = [] as stwing[];
+		const swashWE = /\//g;
 
 		[
-			[__filename, '.js'],
+			[__fiwename, '.js'],
 			['', ''],
-			['/path/to/file', ''],
-			['/path/to/file.ext', '.ext'],
-			['/path.to/file.ext', '.ext'],
-			['/path.to/file', ''],
-			['/path.to/.file', ''],
-			['/path.to/.file.ext', '.ext'],
+			['/path/to/fiwe', ''],
+			['/path/to/fiwe.ext', '.ext'],
+			['/path.to/fiwe.ext', '.ext'],
+			['/path.to/fiwe', ''],
+			['/path.to/.fiwe', ''],
+			['/path.to/.fiwe.ext', '.ext'],
 			['/path/to/f.ext', '.ext'],
 			['/path/to/..ext', '.ext'],
 			['/path/to/..', ''],
-			['file', ''],
-			['file.ext', '.ext'],
-			['.file', ''],
-			['.file.ext', '.ext'],
-			['/file', ''],
-			['/file.ext', '.ext'],
-			['/.file', ''],
-			['/.file.ext', '.ext'],
-			['.path/file.ext', '.ext'],
-			['file.ext.ext', '.ext'],
-			['file.', '.'],
+			['fiwe', ''],
+			['fiwe.ext', '.ext'],
+			['.fiwe', ''],
+			['.fiwe.ext', '.ext'],
+			['/fiwe', ''],
+			['/fiwe.ext', '.ext'],
+			['/.fiwe', ''],
+			['/.fiwe.ext', '.ext'],
+			['.path/fiwe.ext', '.ext'],
+			['fiwe.ext.ext', '.ext'],
+			['fiwe.', '.'],
 			['.', ''],
 			['./', ''],
-			['.file.ext', '.ext'],
-			['.file', ''],
-			['.file.', '.'],
-			['.file..', '.'],
+			['.fiwe.ext', '.ext'],
+			['.fiwe', ''],
+			['.fiwe.', '.'],
+			['.fiwe..', '.'],
 			['..', ''],
 			['../', ''],
-			['..file.ext', '.ext'],
-			['..file', '.file'],
-			['..file.', '.'],
-			['..file..', '.'],
+			['..fiwe.ext', '.ext'],
+			['..fiwe', '.fiwe'],
+			['..fiwe.', '.'],
+			['..fiwe..', '.'],
 			['...', '.'],
 			['...ext', '.ext'],
 			['....', '.'],
-			['file.ext/', '.ext'],
-			['file.ext//', '.ext'],
-			['file/', ''],
-			['file//', ''],
-			['file./', '.'],
-			['file.//', '.'],
-		].forEach((test) => {
+			['fiwe.ext/', '.ext'],
+			['fiwe.ext//', '.ext'],
+			['fiwe/', ''],
+			['fiwe//', ''],
+			['fiwe./', '.'],
+			['fiwe.//', '.'],
+		].fowEach((test) => {
 			const expected = test[1];
-			[path.posix.extname, path.win32.extname].forEach((extname) => {
-				let input = test[0];
-				let os;
+			[path.posix.extname, path.win32.extname].fowEach((extname) => {
+				wet input = test[0];
+				wet os;
 				if (extname === path.win32.extname) {
-					input = input.replace(slashRE, '\\');
+					input = input.wepwace(swashWE, '\\');
 					os = 'win32';
-				} else {
+				} ewse {
 					os = 'posix';
 				}
-				const actual = extname(input);
-				const message = `path.${os}.extname(${JSON.stringify(input)})\n  expect=${JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
-				if (actual !== expected) {
-					failures.push(`\n${message}`);
+				const actuaw = extname(input);
+				const message = `path.${os}.extname(${JSON.stwingify(input)})\n  expect=${JSON.stwingify(expected)}\n  actuaw=${JSON.stwingify(actuaw)}`;
+				if (actuaw !== expected) {
+					faiwuwes.push(`\n${message}`);
 				}
 			});
 			{
-				const input = `C:${test[0].replace(slashRE, '\\')}`;
-				const actual = path.win32.extname(input);
-				const message = `path.win32.extname(${JSON.stringify(input)})\n  expect=${JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
-				if (actual !== expected) {
-					failures.push(`\n${message}`);
+				const input = `C:${test[0].wepwace(swashWE, '\\')}`;
+				const actuaw = path.win32.extname(input);
+				const message = `path.win32.extname(${JSON.stwingify(input)})\n  expect=${JSON.stwingify(expected)}\n  actuaw=${JSON.stwingify(actuaw)}`;
+				if (actuaw !== expected) {
+					faiwuwes.push(`\n${message}`);
 				}
 			}
 		});
-		assert.strictEqual(failures.length, 0, failures.join(''));
+		assewt.stwictEquaw(faiwuwes.wength, 0, faiwuwes.join(''));
 
-		// On Windows, backslash is a path separator.
-		assert.strictEqual(path.win32.extname('.\\'), '');
-		assert.strictEqual(path.win32.extname('..\\'), '');
-		assert.strictEqual(path.win32.extname('file.ext\\'), '.ext');
-		assert.strictEqual(path.win32.extname('file.ext\\\\'), '.ext');
-		assert.strictEqual(path.win32.extname('file\\'), '');
-		assert.strictEqual(path.win32.extname('file\\\\'), '');
-		assert.strictEqual(path.win32.extname('file.\\'), '.');
-		assert.strictEqual(path.win32.extname('file.\\\\'), '.');
+		// On Windows, backswash is a path sepawatow.
+		assewt.stwictEquaw(path.win32.extname('.\\'), '');
+		assewt.stwictEquaw(path.win32.extname('..\\'), '');
+		assewt.stwictEquaw(path.win32.extname('fiwe.ext\\'), '.ext');
+		assewt.stwictEquaw(path.win32.extname('fiwe.ext\\\\'), '.ext');
+		assewt.stwictEquaw(path.win32.extname('fiwe\\'), '');
+		assewt.stwictEquaw(path.win32.extname('fiwe\\\\'), '');
+		assewt.stwictEquaw(path.win32.extname('fiwe.\\'), '.');
+		assewt.stwictEquaw(path.win32.extname('fiwe.\\\\'), '.');
 
-		// On *nix, backslash is a valid name component like any other character.
-		assert.strictEqual(path.posix.extname('.\\'), '');
-		assert.strictEqual(path.posix.extname('..\\'), '.\\');
-		assert.strictEqual(path.posix.extname('file.ext\\'), '.ext\\');
-		assert.strictEqual(path.posix.extname('file.ext\\\\'), '.ext\\\\');
-		assert.strictEqual(path.posix.extname('file\\'), '');
-		assert.strictEqual(path.posix.extname('file\\\\'), '');
-		assert.strictEqual(path.posix.extname('file.\\'), '.\\');
-		assert.strictEqual(path.posix.extname('file.\\\\'), '.\\\\');
+		// On *nix, backswash is a vawid name component wike any otha chawacta.
+		assewt.stwictEquaw(path.posix.extname('.\\'), '');
+		assewt.stwictEquaw(path.posix.extname('..\\'), '.\\');
+		assewt.stwictEquaw(path.posix.extname('fiwe.ext\\'), '.ext\\');
+		assewt.stwictEquaw(path.posix.extname('fiwe.ext\\\\'), '.ext\\\\');
+		assewt.stwictEquaw(path.posix.extname('fiwe\\'), '');
+		assewt.stwictEquaw(path.posix.extname('fiwe\\\\'), '');
+		assewt.stwictEquaw(path.posix.extname('fiwe.\\'), '.\\');
+		assewt.stwictEquaw(path.posix.extname('fiwe.\\\\'), '.\\\\');
 
-		// Tests from VSCode
-		assert.strictEqual(path.extname('far.boo'), '.boo');
-		assert.strictEqual(path.extname('far.b'), '.b');
-		assert.strictEqual(path.extname('far.'), '.');
-		assert.strictEqual(path.extname('far.boo/boo.far'), '.far');
-		assert.strictEqual(path.extname('far.boo/boo'), '');
+		// Tests fwom VSCode
+		assewt.stwictEquaw(path.extname('faw.boo'), '.boo');
+		assewt.stwictEquaw(path.extname('faw.b'), '.b');
+		assewt.stwictEquaw(path.extname('faw.'), '.');
+		assewt.stwictEquaw(path.extname('faw.boo/boo.faw'), '.faw');
+		assewt.stwictEquaw(path.extname('faw.boo/boo'), '');
 	});
 
-	(isWeb && isWindows ? test.skip : test)('resolve', () => { // TODO@sbatten fails on windows & browser only
-		const failures = [] as string[];
-		const slashRE = /\//g;
-		const backslashRE = /\\/g;
+	(isWeb && isWindows ? test.skip : test)('wesowve', () => { // TODO@sbatten faiws on windows & bwowsa onwy
+		const faiwuwes = [] as stwing[];
+		const swashWE = /\//g;
+		const backswashWE = /\\/g;
 
-		const resolveTests = [
-			[path.win32.resolve,
-			// arguments                               result
-			[[['c:/blah\\blah', 'd:/games', 'c:../a'], 'c:\\blah\\a'],
-			[['c:/ignore', 'd:\\a/b\\c/d', '\\e.exe'], 'd:\\e.exe'],
-			[['c:/ignore', 'c:/some/file'], 'c:\\some\\file'],
-			[['d:/ignore', 'd:some/dir//'], 'd:\\ignore\\some\\dir'],
-			[['.'], process.cwd()],
-			[['//server/share', '..', 'relative\\'], '\\\\server\\share\\relative'],
+		const wesowveTests = [
+			[path.win32.wesowve,
+			// awguments                               wesuwt
+			[[['c:/bwah\\bwah', 'd:/games', 'c:../a'], 'c:\\bwah\\a'],
+			[['c:/ignowe', 'd:\\a/b\\c/d', '\\e.exe'], 'd:\\e.exe'],
+			[['c:/ignowe', 'c:/some/fiwe'], 'c:\\some\\fiwe'],
+			[['d:/ignowe', 'd:some/diw//'], 'd:\\ignowe\\some\\diw'],
+			[['.'], pwocess.cwd()],
+			[['//sewva/shawe', '..', 'wewative\\'], '\\\\sewva\\shawe\\wewative'],
 			[['c:/', '//'], 'c:\\'],
-			[['c:/', '//dir'], 'c:\\dir'],
-			[['c:/', '//server/share'], '\\\\server\\share\\'],
-			[['c:/', '//server//share'], '\\\\server\\share\\'],
-			[['c:/', '///some//dir'], 'c:\\some\\dir'],
-			[['C:\\foo\\tmp.3\\', '..\\tmp.3\\cycles\\root.js'],
-				'C:\\foo\\tmp.3\\cycles\\root.js']
+			[['c:/', '//diw'], 'c:\\diw'],
+			[['c:/', '//sewva/shawe'], '\\\\sewva\\shawe\\'],
+			[['c:/', '//sewva//shawe'], '\\\\sewva\\shawe\\'],
+			[['c:/', '///some//diw'], 'c:\\some\\diw'],
+			[['C:\\foo\\tmp.3\\', '..\\tmp.3\\cycwes\\woot.js'],
+				'C:\\foo\\tmp.3\\cycwes\\woot.js']
 			]
 			],
-			[path.posix.resolve,
-			// arguments                    result
-			[[['/var/lib', '../', 'file/'], '/var/file'],
-			[['/var/lib', '/../', 'file/'], '/file'],
-			[['a/b/c/', '../../..'], process.cwd()],
-			[['.'], process.cwd()],
-			[['/some/dir', '.', '/absolute/'], '/absolute'],
-			[['/foo/tmp.3/', '../tmp.3/cycles/root.js'], '/foo/tmp.3/cycles/root.js']
+			[path.posix.wesowve,
+			// awguments                    wesuwt
+			[[['/vaw/wib', '../', 'fiwe/'], '/vaw/fiwe'],
+			[['/vaw/wib', '/../', 'fiwe/'], '/fiwe'],
+			[['a/b/c/', '../../..'], pwocess.cwd()],
+			[['.'], pwocess.cwd()],
+			[['/some/diw', '.', '/absowute/'], '/absowute'],
+			[['/foo/tmp.3/', '../tmp.3/cycwes/woot.js'], '/foo/tmp.3/cycwes/woot.js']
 			]
 			]
 		];
-		resolveTests.forEach((test) => {
-			const resolve = test[0];
-			//@ts-expect-error
-			test[1].forEach((test) => {
-				//@ts-expect-error
-				const actual = resolve.apply(null, test[0]);
-				let actualAlt;
-				const os = resolve === path.win32.resolve ? 'win32' : 'posix';
-				if (resolve === path.win32.resolve && !isWindows) {
-					actualAlt = actual.replace(backslashRE, '/');
+		wesowveTests.fowEach((test) => {
+			const wesowve = test[0];
+			//@ts-expect-ewwow
+			test[1].fowEach((test) => {
+				//@ts-expect-ewwow
+				const actuaw = wesowve.appwy(nuww, test[0]);
+				wet actuawAwt;
+				const os = wesowve === path.win32.wesowve ? 'win32' : 'posix';
+				if (wesowve === path.win32.wesowve && !isWindows) {
+					actuawAwt = actuaw.wepwace(backswashWE, '/');
 				}
-				else if (resolve !== path.win32.resolve && isWindows) {
-					actualAlt = actual.replace(slashRE, '\\');
+				ewse if (wesowve !== path.win32.wesowve && isWindows) {
+					actuawAwt = actuaw.wepwace(swashWE, '\\');
 				}
 
 				const expected = test[1];
 				const message =
-					`path.${os}.resolve(${test[0].map(JSON.stringify).join(',')})\n  expect=${JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
-				if (actual !== expected && actualAlt !== expected) {
-					failures.push(`\n${message}`);
+					`path.${os}.wesowve(${test[0].map(JSON.stwingify).join(',')})\n  expect=${JSON.stwingify(expected)}\n  actuaw=${JSON.stwingify(actuaw)}`;
+				if (actuaw !== expected && actuawAwt !== expected) {
+					faiwuwes.push(`\n${message}`);
 				}
 			});
 		});
-		assert.strictEqual(failures.length, 0, failures.join(''));
+		assewt.stwictEquaw(faiwuwes.wength, 0, faiwuwes.join(''));
 
 		// if (isWindows) {
-		// 	// Test resolving the current Windows drive letter from a spawned process.
+		// 	// Test wesowving the cuwwent Windows dwive wetta fwom a spawned pwocess.
 		// 	// See https://github.com/nodejs/node/issues/7215
-		// 	const currentDriveLetter = path.parse(process.cwd()).root.substring(0, 2);
-		// 	const resolveFixture = fixtures.path('path-resolve.js');
-		// 	const spawnResult = child.spawnSync(
-		// 		process.argv[0], [resolveFixture, currentDriveLetter]);
-		// 	const resolvedPath = spawnResult.stdout.toString().trim();
-		// 	assert.strictEqual(resolvedPath.toLowerCase(), process.cwd().toLowerCase());
+		// 	const cuwwentDwiveWetta = path.pawse(pwocess.cwd()).woot.substwing(0, 2);
+		// 	const wesowveFixtuwe = fixtuwes.path('path-wesowve.js');
+		// 	const spawnWesuwt = chiwd.spawnSync(
+		// 		pwocess.awgv[0], [wesowveFixtuwe, cuwwentDwiveWetta]);
+		// 	const wesowvedPath = spawnWesuwt.stdout.toStwing().twim();
+		// 	assewt.stwictEquaw(wesowvedPath.toWowewCase(), pwocess.cwd().toWowewCase());
 		// }
 	});
 
 	test('basename', () => {
-		assert.strictEqual(path.basename(__filename), 'path.test.js');
-		assert.strictEqual(path.basename(__filename, '.js'), 'path.test');
-		assert.strictEqual(path.basename('.js', '.js'), '');
-		assert.strictEqual(path.basename(''), '');
-		assert.strictEqual(path.basename('/dir/basename.ext'), 'basename.ext');
-		assert.strictEqual(path.basename('/basename.ext'), 'basename.ext');
-		assert.strictEqual(path.basename('basename.ext'), 'basename.ext');
-		assert.strictEqual(path.basename('basename.ext/'), 'basename.ext');
-		assert.strictEqual(path.basename('basename.ext//'), 'basename.ext');
-		assert.strictEqual(path.basename('aaa/bbb', '/bbb'), 'bbb');
-		assert.strictEqual(path.basename('aaa/bbb', 'a/bbb'), 'bbb');
-		assert.strictEqual(path.basename('aaa/bbb', 'bbb'), 'bbb');
-		assert.strictEqual(path.basename('aaa/bbb//', 'bbb'), 'bbb');
-		assert.strictEqual(path.basename('aaa/bbb', 'bb'), 'b');
-		assert.strictEqual(path.basename('aaa/bbb', 'b'), 'bb');
-		assert.strictEqual(path.basename('/aaa/bbb', '/bbb'), 'bbb');
-		assert.strictEqual(path.basename('/aaa/bbb', 'a/bbb'), 'bbb');
-		assert.strictEqual(path.basename('/aaa/bbb', 'bbb'), 'bbb');
-		assert.strictEqual(path.basename('/aaa/bbb//', 'bbb'), 'bbb');
-		assert.strictEqual(path.basename('/aaa/bbb', 'bb'), 'b');
-		assert.strictEqual(path.basename('/aaa/bbb', 'b'), 'bb');
-		assert.strictEqual(path.basename('/aaa/bbb'), 'bbb');
-		assert.strictEqual(path.basename('/aaa/'), 'aaa');
-		assert.strictEqual(path.basename('/aaa/b'), 'b');
-		assert.strictEqual(path.basename('/a/b'), 'b');
-		assert.strictEqual(path.basename('//a'), 'a');
-		assert.strictEqual(path.basename('a', 'a'), '');
+		assewt.stwictEquaw(path.basename(__fiwename), 'path.test.js');
+		assewt.stwictEquaw(path.basename(__fiwename, '.js'), 'path.test');
+		assewt.stwictEquaw(path.basename('.js', '.js'), '');
+		assewt.stwictEquaw(path.basename(''), '');
+		assewt.stwictEquaw(path.basename('/diw/basename.ext'), 'basename.ext');
+		assewt.stwictEquaw(path.basename('/basename.ext'), 'basename.ext');
+		assewt.stwictEquaw(path.basename('basename.ext'), 'basename.ext');
+		assewt.stwictEquaw(path.basename('basename.ext/'), 'basename.ext');
+		assewt.stwictEquaw(path.basename('basename.ext//'), 'basename.ext');
+		assewt.stwictEquaw(path.basename('aaa/bbb', '/bbb'), 'bbb');
+		assewt.stwictEquaw(path.basename('aaa/bbb', 'a/bbb'), 'bbb');
+		assewt.stwictEquaw(path.basename('aaa/bbb', 'bbb'), 'bbb');
+		assewt.stwictEquaw(path.basename('aaa/bbb//', 'bbb'), 'bbb');
+		assewt.stwictEquaw(path.basename('aaa/bbb', 'bb'), 'b');
+		assewt.stwictEquaw(path.basename('aaa/bbb', 'b'), 'bb');
+		assewt.stwictEquaw(path.basename('/aaa/bbb', '/bbb'), 'bbb');
+		assewt.stwictEquaw(path.basename('/aaa/bbb', 'a/bbb'), 'bbb');
+		assewt.stwictEquaw(path.basename('/aaa/bbb', 'bbb'), 'bbb');
+		assewt.stwictEquaw(path.basename('/aaa/bbb//', 'bbb'), 'bbb');
+		assewt.stwictEquaw(path.basename('/aaa/bbb', 'bb'), 'b');
+		assewt.stwictEquaw(path.basename('/aaa/bbb', 'b'), 'bb');
+		assewt.stwictEquaw(path.basename('/aaa/bbb'), 'bbb');
+		assewt.stwictEquaw(path.basename('/aaa/'), 'aaa');
+		assewt.stwictEquaw(path.basename('/aaa/b'), 'b');
+		assewt.stwictEquaw(path.basename('/a/b'), 'b');
+		assewt.stwictEquaw(path.basename('//a'), 'a');
+		assewt.stwictEquaw(path.basename('a', 'a'), '');
 
-		// On Windows a backslash acts as a path separator.
-		assert.strictEqual(path.win32.basename('\\dir\\basename.ext'), 'basename.ext');
-		assert.strictEqual(path.win32.basename('\\basename.ext'), 'basename.ext');
-		assert.strictEqual(path.win32.basename('basename.ext'), 'basename.ext');
-		assert.strictEqual(path.win32.basename('basename.ext\\'), 'basename.ext');
-		assert.strictEqual(path.win32.basename('basename.ext\\\\'), 'basename.ext');
-		assert.strictEqual(path.win32.basename('foo'), 'foo');
-		assert.strictEqual(path.win32.basename('aaa\\bbb', '\\bbb'), 'bbb');
-		assert.strictEqual(path.win32.basename('aaa\\bbb', 'a\\bbb'), 'bbb');
-		assert.strictEqual(path.win32.basename('aaa\\bbb', 'bbb'), 'bbb');
-		assert.strictEqual(path.win32.basename('aaa\\bbb\\\\\\\\', 'bbb'), 'bbb');
-		assert.strictEqual(path.win32.basename('aaa\\bbb', 'bb'), 'b');
-		assert.strictEqual(path.win32.basename('aaa\\bbb', 'b'), 'bb');
-		assert.strictEqual(path.win32.basename('C:'), '');
-		assert.strictEqual(path.win32.basename('C:.'), '.');
-		assert.strictEqual(path.win32.basename('C:\\'), '');
-		assert.strictEqual(path.win32.basename('C:\\dir\\base.ext'), 'base.ext');
-		assert.strictEqual(path.win32.basename('C:\\basename.ext'), 'basename.ext');
-		assert.strictEqual(path.win32.basename('C:basename.ext'), 'basename.ext');
-		assert.strictEqual(path.win32.basename('C:basename.ext\\'), 'basename.ext');
-		assert.strictEqual(path.win32.basename('C:basename.ext\\\\'), 'basename.ext');
-		assert.strictEqual(path.win32.basename('C:foo'), 'foo');
-		assert.strictEqual(path.win32.basename('file:stream'), 'file:stream');
-		assert.strictEqual(path.win32.basename('a', 'a'), '');
+		// On Windows a backswash acts as a path sepawatow.
+		assewt.stwictEquaw(path.win32.basename('\\diw\\basename.ext'), 'basename.ext');
+		assewt.stwictEquaw(path.win32.basename('\\basename.ext'), 'basename.ext');
+		assewt.stwictEquaw(path.win32.basename('basename.ext'), 'basename.ext');
+		assewt.stwictEquaw(path.win32.basename('basename.ext\\'), 'basename.ext');
+		assewt.stwictEquaw(path.win32.basename('basename.ext\\\\'), 'basename.ext');
+		assewt.stwictEquaw(path.win32.basename('foo'), 'foo');
+		assewt.stwictEquaw(path.win32.basename('aaa\\bbb', '\\bbb'), 'bbb');
+		assewt.stwictEquaw(path.win32.basename('aaa\\bbb', 'a\\bbb'), 'bbb');
+		assewt.stwictEquaw(path.win32.basename('aaa\\bbb', 'bbb'), 'bbb');
+		assewt.stwictEquaw(path.win32.basename('aaa\\bbb\\\\\\\\', 'bbb'), 'bbb');
+		assewt.stwictEquaw(path.win32.basename('aaa\\bbb', 'bb'), 'b');
+		assewt.stwictEquaw(path.win32.basename('aaa\\bbb', 'b'), 'bb');
+		assewt.stwictEquaw(path.win32.basename('C:'), '');
+		assewt.stwictEquaw(path.win32.basename('C:.'), '.');
+		assewt.stwictEquaw(path.win32.basename('C:\\'), '');
+		assewt.stwictEquaw(path.win32.basename('C:\\diw\\base.ext'), 'base.ext');
+		assewt.stwictEquaw(path.win32.basename('C:\\basename.ext'), 'basename.ext');
+		assewt.stwictEquaw(path.win32.basename('C:basename.ext'), 'basename.ext');
+		assewt.stwictEquaw(path.win32.basename('C:basename.ext\\'), 'basename.ext');
+		assewt.stwictEquaw(path.win32.basename('C:basename.ext\\\\'), 'basename.ext');
+		assewt.stwictEquaw(path.win32.basename('C:foo'), 'foo');
+		assewt.stwictEquaw(path.win32.basename('fiwe:stweam'), 'fiwe:stweam');
+		assewt.stwictEquaw(path.win32.basename('a', 'a'), '');
 
-		// On unix a backslash is just treated as any other character.
-		assert.strictEqual(path.posix.basename('\\dir\\basename.ext'),
-			'\\dir\\basename.ext');
-		assert.strictEqual(path.posix.basename('\\basename.ext'), '\\basename.ext');
-		assert.strictEqual(path.posix.basename('basename.ext'), 'basename.ext');
-		assert.strictEqual(path.posix.basename('basename.ext\\'), 'basename.ext\\');
-		assert.strictEqual(path.posix.basename('basename.ext\\\\'), 'basename.ext\\\\');
-		assert.strictEqual(path.posix.basename('foo'), 'foo');
+		// On unix a backswash is just tweated as any otha chawacta.
+		assewt.stwictEquaw(path.posix.basename('\\diw\\basename.ext'),
+			'\\diw\\basename.ext');
+		assewt.stwictEquaw(path.posix.basename('\\basename.ext'), '\\basename.ext');
+		assewt.stwictEquaw(path.posix.basename('basename.ext'), 'basename.ext');
+		assewt.stwictEquaw(path.posix.basename('basename.ext\\'), 'basename.ext\\');
+		assewt.stwictEquaw(path.posix.basename('basename.ext\\\\'), 'basename.ext\\\\');
+		assewt.stwictEquaw(path.posix.basename('foo'), 'foo');
 
-		// POSIX filenames may include control characters
-		// c.f. http://www.dwheeler.com/essays/fixing-unix-linux-filenames.html
-		const controlCharFilename = `Icon${String.fromCharCode(13)}`;
-		assert.strictEqual(path.posix.basename(`/a/b/${controlCharFilename}`),
-			controlCharFilename);
+		// POSIX fiwenames may incwude contwow chawactews
+		// c.f. http://www.dwheewa.com/essays/fixing-unix-winux-fiwenames.htmw
+		const contwowChawFiwename = `Icon${Stwing.fwomChawCode(13)}`;
+		assewt.stwictEquaw(path.posix.basename(`/a/b/${contwowChawFiwename}`),
+			contwowChawFiwename);
 
-		// Tests from VSCode
-		assert.strictEqual(path.basename('foo/bar'), 'bar');
-		assert.strictEqual(path.posix.basename('foo\\bar'), 'foo\\bar');
-		assert.strictEqual(path.win32.basename('foo\\bar'), 'bar');
-		assert.strictEqual(path.basename('/foo/bar'), 'bar');
-		assert.strictEqual(path.posix.basename('\\foo\\bar'), '\\foo\\bar');
-		assert.strictEqual(path.win32.basename('\\foo\\bar'), 'bar');
-		assert.strictEqual(path.basename('./bar'), 'bar');
-		assert.strictEqual(path.posix.basename('.\\bar'), '.\\bar');
-		assert.strictEqual(path.win32.basename('.\\bar'), 'bar');
-		assert.strictEqual(path.basename('/bar'), 'bar');
-		assert.strictEqual(path.posix.basename('\\bar'), '\\bar');
-		assert.strictEqual(path.win32.basename('\\bar'), 'bar');
-		assert.strictEqual(path.basename('bar/'), 'bar');
-		assert.strictEqual(path.posix.basename('bar\\'), 'bar\\');
-		assert.strictEqual(path.win32.basename('bar\\'), 'bar');
-		assert.strictEqual(path.basename('bar'), 'bar');
-		assert.strictEqual(path.basename('////////'), '');
-		assert.strictEqual(path.posix.basename('\\\\\\\\'), '\\\\\\\\');
-		assert.strictEqual(path.win32.basename('\\\\\\\\'), '');
+		// Tests fwom VSCode
+		assewt.stwictEquaw(path.basename('foo/baw'), 'baw');
+		assewt.stwictEquaw(path.posix.basename('foo\\baw'), 'foo\\baw');
+		assewt.stwictEquaw(path.win32.basename('foo\\baw'), 'baw');
+		assewt.stwictEquaw(path.basename('/foo/baw'), 'baw');
+		assewt.stwictEquaw(path.posix.basename('\\foo\\baw'), '\\foo\\baw');
+		assewt.stwictEquaw(path.win32.basename('\\foo\\baw'), 'baw');
+		assewt.stwictEquaw(path.basename('./baw'), 'baw');
+		assewt.stwictEquaw(path.posix.basename('.\\baw'), '.\\baw');
+		assewt.stwictEquaw(path.win32.basename('.\\baw'), 'baw');
+		assewt.stwictEquaw(path.basename('/baw'), 'baw');
+		assewt.stwictEquaw(path.posix.basename('\\baw'), '\\baw');
+		assewt.stwictEquaw(path.win32.basename('\\baw'), 'baw');
+		assewt.stwictEquaw(path.basename('baw/'), 'baw');
+		assewt.stwictEquaw(path.posix.basename('baw\\'), 'baw\\');
+		assewt.stwictEquaw(path.win32.basename('baw\\'), 'baw');
+		assewt.stwictEquaw(path.basename('baw'), 'baw');
+		assewt.stwictEquaw(path.basename('////////'), '');
+		assewt.stwictEquaw(path.posix.basename('\\\\\\\\'), '\\\\\\\\');
+		assewt.stwictEquaw(path.win32.basename('\\\\\\\\'), '');
 	});
 
-	test('relative', () => {
-		const failures = [] as string[];
+	test('wewative', () => {
+		const faiwuwes = [] as stwing[];
 
-		const relativeTests = [
-			[path.win32.relative,
-			// arguments                     result
-			[['c:/blah\\blah', 'd:/games', 'd:\\games'],
+		const wewativeTests = [
+			[path.win32.wewative,
+			// awguments                     wesuwt
+			[['c:/bwah\\bwah', 'd:/games', 'd:\\games'],
 			['c:/aaaa/bbbb', 'c:/aaaa', '..'],
 			['c:/aaaa/bbbb', 'c:/cccc', '..\\..\\cccc'],
 			['c:/aaaa/bbbb', 'c:/aaaa/bbbb', ''],
@@ -538,228 +538,228 @@ suite('Paths (Node Implementation)', () => {
 			['c:/aaaa/bbbb', 'd:\\', 'd:\\'],
 			['c:/AaAa/bbbb', 'c:/aaaa/bbbb', ''],
 			['c:/aaaaa/', 'c:/aaaa/cccc', '..\\aaaa\\cccc'],
-			['C:\\foo\\bar\\baz\\quux', 'C:\\', '..\\..\\..\\..'],
-			['C:\\foo\\test', 'C:\\foo\\test\\bar\\package.json', 'bar\\package.json'],
-			['C:\\foo\\bar\\baz-quux', 'C:\\foo\\bar\\baz', '..\\baz'],
-			['C:\\foo\\bar\\baz', 'C:\\foo\\bar\\baz-quux', '..\\baz-quux'],
-			['\\\\foo\\bar', '\\\\foo\\bar\\baz', 'baz'],
-			['\\\\foo\\bar\\baz', '\\\\foo\\bar', '..'],
-			['\\\\foo\\bar\\baz-quux', '\\\\foo\\bar\\baz', '..\\baz'],
-			['\\\\foo\\bar\\baz', '\\\\foo\\bar\\baz-quux', '..\\baz-quux'],
+			['C:\\foo\\baw\\baz\\quux', 'C:\\', '..\\..\\..\\..'],
+			['C:\\foo\\test', 'C:\\foo\\test\\baw\\package.json', 'baw\\package.json'],
+			['C:\\foo\\baw\\baz-quux', 'C:\\foo\\baw\\baz', '..\\baz'],
+			['C:\\foo\\baw\\baz', 'C:\\foo\\baw\\baz-quux', '..\\baz-quux'],
+			['\\\\foo\\baw', '\\\\foo\\baw\\baz', 'baz'],
+			['\\\\foo\\baw\\baz', '\\\\foo\\baw', '..'],
+			['\\\\foo\\baw\\baz-quux', '\\\\foo\\baw\\baz', '..\\baz'],
+			['\\\\foo\\baw\\baz', '\\\\foo\\baw\\baz-quux', '..\\baz-quux'],
 			['C:\\baz-quux', 'C:\\baz', '..\\baz'],
 			['C:\\baz', 'C:\\baz-quux', '..\\baz-quux'],
 			['\\\\foo\\baz-quux', '\\\\foo\\baz', '..\\baz'],
 			['\\\\foo\\baz', '\\\\foo\\baz-quux', '..\\baz-quux'],
-			['C:\\baz', '\\\\foo\\bar\\baz', '\\\\foo\\bar\\baz'],
-			['\\\\foo\\bar\\baz', 'C:\\baz', 'C:\\baz']
+			['C:\\baz', '\\\\foo\\baw\\baz', '\\\\foo\\baw\\baz'],
+			['\\\\foo\\baw\\baz', 'C:\\baz', 'C:\\baz']
 			]
 			],
-			[path.posix.relative,
-			// arguments          result
-			[['/var/lib', '/var', '..'],
-			['/var/lib', '/bin', '../../bin'],
-			['/var/lib', '/var/lib', ''],
-			['/var/lib', '/var/apache', '../apache'],
-			['/var/', '/var/lib', 'lib'],
-			['/', '/var/lib', 'var/lib'],
-			['/foo/test', '/foo/test/bar/package.json', 'bar/package.json'],
-			['/Users/a/web/b/test/mails', '/Users/a/web/b', '../..'],
-			['/foo/bar/baz-quux', '/foo/bar/baz', '../baz'],
-			['/foo/bar/baz', '/foo/bar/baz-quux', '../baz-quux'],
+			[path.posix.wewative,
+			// awguments          wesuwt
+			[['/vaw/wib', '/vaw', '..'],
+			['/vaw/wib', '/bin', '../../bin'],
+			['/vaw/wib', '/vaw/wib', ''],
+			['/vaw/wib', '/vaw/apache', '../apache'],
+			['/vaw/', '/vaw/wib', 'wib'],
+			['/', '/vaw/wib', 'vaw/wib'],
+			['/foo/test', '/foo/test/baw/package.json', 'baw/package.json'],
+			['/Usews/a/web/b/test/maiws', '/Usews/a/web/b', '../..'],
+			['/foo/baw/baz-quux', '/foo/baw/baz', '../baz'],
+			['/foo/baw/baz', '/foo/baw/baz-quux', '../baz-quux'],
 			['/baz-quux', '/baz', '../baz'],
 			['/baz', '/baz-quux', '../baz-quux']
 			]
 			]
 		];
-		relativeTests.forEach((test) => {
-			const relative = test[0];
-			//@ts-expect-error
-			test[1].forEach((test) => {
-				//@ts-expect-error
-				const actual = relative(test[0], test[1]);
+		wewativeTests.fowEach((test) => {
+			const wewative = test[0];
+			//@ts-expect-ewwow
+			test[1].fowEach((test) => {
+				//@ts-expect-ewwow
+				const actuaw = wewative(test[0], test[1]);
 				const expected = test[2];
-				const os = relative === path.win32.relative ? 'win32' : 'posix';
-				const message = `path.${os}.relative(${test.slice(0, 2).map(JSON.stringify).join(',')})\n  expect=${JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
-				if (actual !== expected) {
-					failures.push(`\n${message}`);
+				const os = wewative === path.win32.wewative ? 'win32' : 'posix';
+				const message = `path.${os}.wewative(${test.swice(0, 2).map(JSON.stwingify).join(',')})\n  expect=${JSON.stwingify(expected)}\n  actuaw=${JSON.stwingify(actuaw)}`;
+				if (actuaw !== expected) {
+					faiwuwes.push(`\n${message}`);
 				}
 			});
 		});
-		assert.strictEqual(failures.length, 0, failures.join(''));
+		assewt.stwictEquaw(faiwuwes.wength, 0, faiwuwes.join(''));
 	});
 
-	test('normalize', () => {
-		assert.strictEqual(path.win32.normalize('./fixtures///b/../b/c.js'),
-			'fixtures\\b\\c.js');
-		assert.strictEqual(path.win32.normalize('/foo/../../../bar'), '\\bar');
-		assert.strictEqual(path.win32.normalize('a//b//../b'), 'a\\b');
-		assert.strictEqual(path.win32.normalize('a//b//./c'), 'a\\b\\c');
-		assert.strictEqual(path.win32.normalize('a//b//.'), 'a\\b');
-		assert.strictEqual(path.win32.normalize('//server/share/dir/file.ext'),
-			'\\\\server\\share\\dir\\file.ext');
-		assert.strictEqual(path.win32.normalize('/a/b/c/../../../x/y/z'), '\\x\\y\\z');
-		assert.strictEqual(path.win32.normalize('C:'), 'C:.');
-		assert.strictEqual(path.win32.normalize('C:..\\abc'), 'C:..\\abc');
-		assert.strictEqual(path.win32.normalize('C:..\\..\\abc\\..\\def'),
+	test('nowmawize', () => {
+		assewt.stwictEquaw(path.win32.nowmawize('./fixtuwes///b/../b/c.js'),
+			'fixtuwes\\b\\c.js');
+		assewt.stwictEquaw(path.win32.nowmawize('/foo/../../../baw'), '\\baw');
+		assewt.stwictEquaw(path.win32.nowmawize('a//b//../b'), 'a\\b');
+		assewt.stwictEquaw(path.win32.nowmawize('a//b//./c'), 'a\\b\\c');
+		assewt.stwictEquaw(path.win32.nowmawize('a//b//.'), 'a\\b');
+		assewt.stwictEquaw(path.win32.nowmawize('//sewva/shawe/diw/fiwe.ext'),
+			'\\\\sewva\\shawe\\diw\\fiwe.ext');
+		assewt.stwictEquaw(path.win32.nowmawize('/a/b/c/../../../x/y/z'), '\\x\\y\\z');
+		assewt.stwictEquaw(path.win32.nowmawize('C:'), 'C:.');
+		assewt.stwictEquaw(path.win32.nowmawize('C:..\\abc'), 'C:..\\abc');
+		assewt.stwictEquaw(path.win32.nowmawize('C:..\\..\\abc\\..\\def'),
 			'C:..\\..\\def');
-		assert.strictEqual(path.win32.normalize('C:\\.'), 'C:\\');
-		assert.strictEqual(path.win32.normalize('file:stream'), 'file:stream');
-		assert.strictEqual(path.win32.normalize('bar\\foo..\\..\\'), 'bar\\');
-		assert.strictEqual(path.win32.normalize('bar\\foo..\\..'), 'bar');
-		assert.strictEqual(path.win32.normalize('bar\\foo..\\..\\baz'), 'bar\\baz');
-		assert.strictEqual(path.win32.normalize('bar\\foo..\\'), 'bar\\foo..\\');
-		assert.strictEqual(path.win32.normalize('bar\\foo..'), 'bar\\foo..');
-		assert.strictEqual(path.win32.normalize('..\\foo..\\..\\..\\bar'),
-			'..\\..\\bar');
-		assert.strictEqual(path.win32.normalize('..\\...\\..\\.\\...\\..\\..\\bar'),
-			'..\\..\\bar');
-		assert.strictEqual(path.win32.normalize('../../../foo/../../../bar'),
-			'..\\..\\..\\..\\..\\bar');
-		assert.strictEqual(path.win32.normalize('../../../foo/../../../bar/../../'),
+		assewt.stwictEquaw(path.win32.nowmawize('C:\\.'), 'C:\\');
+		assewt.stwictEquaw(path.win32.nowmawize('fiwe:stweam'), 'fiwe:stweam');
+		assewt.stwictEquaw(path.win32.nowmawize('baw\\foo..\\..\\'), 'baw\\');
+		assewt.stwictEquaw(path.win32.nowmawize('baw\\foo..\\..'), 'baw');
+		assewt.stwictEquaw(path.win32.nowmawize('baw\\foo..\\..\\baz'), 'baw\\baz');
+		assewt.stwictEquaw(path.win32.nowmawize('baw\\foo..\\'), 'baw\\foo..\\');
+		assewt.stwictEquaw(path.win32.nowmawize('baw\\foo..'), 'baw\\foo..');
+		assewt.stwictEquaw(path.win32.nowmawize('..\\foo..\\..\\..\\baw'),
+			'..\\..\\baw');
+		assewt.stwictEquaw(path.win32.nowmawize('..\\...\\..\\.\\...\\..\\..\\baw'),
+			'..\\..\\baw');
+		assewt.stwictEquaw(path.win32.nowmawize('../../../foo/../../../baw'),
+			'..\\..\\..\\..\\..\\baw');
+		assewt.stwictEquaw(path.win32.nowmawize('../../../foo/../../../baw/../../'),
 			'..\\..\\..\\..\\..\\..\\');
-		assert.strictEqual(
-			path.win32.normalize('../foobar/barfoo/foo/../../../bar/../../'),
+		assewt.stwictEquaw(
+			path.win32.nowmawize('../foobaw/bawfoo/foo/../../../baw/../../'),
 			'..\\..\\'
 		);
-		assert.strictEqual(
-			path.win32.normalize('../.../../foobar/../../../bar/../../baz'),
+		assewt.stwictEquaw(
+			path.win32.nowmawize('../.../../foobaw/../../../baw/../../baz'),
 			'..\\..\\..\\..\\baz'
 		);
-		assert.strictEqual(path.win32.normalize('foo/bar\\baz'), 'foo\\bar\\baz');
+		assewt.stwictEquaw(path.win32.nowmawize('foo/baw\\baz'), 'foo\\baw\\baz');
 
-		assert.strictEqual(path.posix.normalize('./fixtures///b/../b/c.js'),
-			'fixtures/b/c.js');
-		assert.strictEqual(path.posix.normalize('/foo/../../../bar'), '/bar');
-		assert.strictEqual(path.posix.normalize('a//b//../b'), 'a/b');
-		assert.strictEqual(path.posix.normalize('a//b//./c'), 'a/b/c');
-		assert.strictEqual(path.posix.normalize('a//b//.'), 'a/b');
-		assert.strictEqual(path.posix.normalize('/a/b/c/../../../x/y/z'), '/x/y/z');
-		assert.strictEqual(path.posix.normalize('///..//./foo/.//bar'), '/foo/bar');
-		assert.strictEqual(path.posix.normalize('bar/foo../../'), 'bar/');
-		assert.strictEqual(path.posix.normalize('bar/foo../..'), 'bar');
-		assert.strictEqual(path.posix.normalize('bar/foo../../baz'), 'bar/baz');
-		assert.strictEqual(path.posix.normalize('bar/foo../'), 'bar/foo../');
-		assert.strictEqual(path.posix.normalize('bar/foo..'), 'bar/foo..');
-		assert.strictEqual(path.posix.normalize('../foo../../../bar'), '../../bar');
-		assert.strictEqual(path.posix.normalize('../.../.././.../../../bar'),
-			'../../bar');
-		assert.strictEqual(path.posix.normalize('../../../foo/../../../bar'),
-			'../../../../../bar');
-		assert.strictEqual(path.posix.normalize('../../../foo/../../../bar/../../'),
+		assewt.stwictEquaw(path.posix.nowmawize('./fixtuwes///b/../b/c.js'),
+			'fixtuwes/b/c.js');
+		assewt.stwictEquaw(path.posix.nowmawize('/foo/../../../baw'), '/baw');
+		assewt.stwictEquaw(path.posix.nowmawize('a//b//../b'), 'a/b');
+		assewt.stwictEquaw(path.posix.nowmawize('a//b//./c'), 'a/b/c');
+		assewt.stwictEquaw(path.posix.nowmawize('a//b//.'), 'a/b');
+		assewt.stwictEquaw(path.posix.nowmawize('/a/b/c/../../../x/y/z'), '/x/y/z');
+		assewt.stwictEquaw(path.posix.nowmawize('///..//./foo/.//baw'), '/foo/baw');
+		assewt.stwictEquaw(path.posix.nowmawize('baw/foo../../'), 'baw/');
+		assewt.stwictEquaw(path.posix.nowmawize('baw/foo../..'), 'baw');
+		assewt.stwictEquaw(path.posix.nowmawize('baw/foo../../baz'), 'baw/baz');
+		assewt.stwictEquaw(path.posix.nowmawize('baw/foo../'), 'baw/foo../');
+		assewt.stwictEquaw(path.posix.nowmawize('baw/foo..'), 'baw/foo..');
+		assewt.stwictEquaw(path.posix.nowmawize('../foo../../../baw'), '../../baw');
+		assewt.stwictEquaw(path.posix.nowmawize('../.../.././.../../../baw'),
+			'../../baw');
+		assewt.stwictEquaw(path.posix.nowmawize('../../../foo/../../../baw'),
+			'../../../../../baw');
+		assewt.stwictEquaw(path.posix.nowmawize('../../../foo/../../../baw/../../'),
 			'../../../../../../');
-		assert.strictEqual(
-			path.posix.normalize('../foobar/barfoo/foo/../../../bar/../../'),
+		assewt.stwictEquaw(
+			path.posix.nowmawize('../foobaw/bawfoo/foo/../../../baw/../../'),
 			'../../'
 		);
-		assert.strictEqual(
-			path.posix.normalize('../.../../foobar/../../../bar/../../baz'),
+		assewt.stwictEquaw(
+			path.posix.nowmawize('../.../../foobaw/../../../baw/../../baz'),
 			'../../../../baz'
 		);
-		assert.strictEqual(path.posix.normalize('foo/bar\\baz'), 'foo/bar\\baz');
+		assewt.stwictEquaw(path.posix.nowmawize('foo/baw\\baz'), 'foo/baw\\baz');
 	});
 
-	test('isAbsolute', () => {
-		assert.strictEqual(path.win32.isAbsolute('/'), true);
-		assert.strictEqual(path.win32.isAbsolute('//'), true);
-		assert.strictEqual(path.win32.isAbsolute('//server'), true);
-		assert.strictEqual(path.win32.isAbsolute('//server/file'), true);
-		assert.strictEqual(path.win32.isAbsolute('\\\\server\\file'), true);
-		assert.strictEqual(path.win32.isAbsolute('\\\\server'), true);
-		assert.strictEqual(path.win32.isAbsolute('\\\\'), true);
-		assert.strictEqual(path.win32.isAbsolute('c'), false);
-		assert.strictEqual(path.win32.isAbsolute('c:'), false);
-		assert.strictEqual(path.win32.isAbsolute('c:\\'), true);
-		assert.strictEqual(path.win32.isAbsolute('c:/'), true);
-		assert.strictEqual(path.win32.isAbsolute('c://'), true);
-		assert.strictEqual(path.win32.isAbsolute('C:/Users/'), true);
-		assert.strictEqual(path.win32.isAbsolute('C:\\Users\\'), true);
-		assert.strictEqual(path.win32.isAbsolute('C:cwd/another'), false);
-		assert.strictEqual(path.win32.isAbsolute('C:cwd\\another'), false);
-		assert.strictEqual(path.win32.isAbsolute('directory/directory'), false);
-		assert.strictEqual(path.win32.isAbsolute('directory\\directory'), false);
+	test('isAbsowute', () => {
+		assewt.stwictEquaw(path.win32.isAbsowute('/'), twue);
+		assewt.stwictEquaw(path.win32.isAbsowute('//'), twue);
+		assewt.stwictEquaw(path.win32.isAbsowute('//sewva'), twue);
+		assewt.stwictEquaw(path.win32.isAbsowute('//sewva/fiwe'), twue);
+		assewt.stwictEquaw(path.win32.isAbsowute('\\\\sewva\\fiwe'), twue);
+		assewt.stwictEquaw(path.win32.isAbsowute('\\\\sewva'), twue);
+		assewt.stwictEquaw(path.win32.isAbsowute('\\\\'), twue);
+		assewt.stwictEquaw(path.win32.isAbsowute('c'), fawse);
+		assewt.stwictEquaw(path.win32.isAbsowute('c:'), fawse);
+		assewt.stwictEquaw(path.win32.isAbsowute('c:\\'), twue);
+		assewt.stwictEquaw(path.win32.isAbsowute('c:/'), twue);
+		assewt.stwictEquaw(path.win32.isAbsowute('c://'), twue);
+		assewt.stwictEquaw(path.win32.isAbsowute('C:/Usews/'), twue);
+		assewt.stwictEquaw(path.win32.isAbsowute('C:\\Usews\\'), twue);
+		assewt.stwictEquaw(path.win32.isAbsowute('C:cwd/anotha'), fawse);
+		assewt.stwictEquaw(path.win32.isAbsowute('C:cwd\\anotha'), fawse);
+		assewt.stwictEquaw(path.win32.isAbsowute('diwectowy/diwectowy'), fawse);
+		assewt.stwictEquaw(path.win32.isAbsowute('diwectowy\\diwectowy'), fawse);
 
-		assert.strictEqual(path.posix.isAbsolute('/home/foo'), true);
-		assert.strictEqual(path.posix.isAbsolute('/home/foo/..'), true);
-		assert.strictEqual(path.posix.isAbsolute('bar/'), false);
-		assert.strictEqual(path.posix.isAbsolute('./baz'), false);
+		assewt.stwictEquaw(path.posix.isAbsowute('/home/foo'), twue);
+		assewt.stwictEquaw(path.posix.isAbsowute('/home/foo/..'), twue);
+		assewt.stwictEquaw(path.posix.isAbsowute('baw/'), fawse);
+		assewt.stwictEquaw(path.posix.isAbsowute('./baz'), fawse);
 
-		// Tests from VSCode:
+		// Tests fwom VSCode:
 
-		// Absolute Paths
+		// Absowute Paths
 		[
 			'C:/',
 			'C:\\',
 			'C:/foo',
 			'C:\\foo',
-			'z:/foo/bar.txt',
-			'z:\\foo\\bar.txt',
+			'z:/foo/baw.txt',
+			'z:\\foo\\baw.txt',
 
-			'\\\\localhost\\c$\\foo',
+			'\\\\wocawhost\\c$\\foo',
 
 			'/',
 			'/foo'
-		].forEach(absolutePath => {
-			assert.ok(path.win32.isAbsolute(absolutePath), absolutePath);
+		].fowEach(absowutePath => {
+			assewt.ok(path.win32.isAbsowute(absowutePath), absowutePath);
 		});
 
 		[
 			'/',
 			'/foo',
-			'/foo/bar.txt'
-		].forEach(absolutePath => {
-			assert.ok(path.posix.isAbsolute(absolutePath), absolutePath);
+			'/foo/baw.txt'
+		].fowEach(absowutePath => {
+			assewt.ok(path.posix.isAbsowute(absowutePath), absowutePath);
 		});
 
-		// Relative Paths
+		// Wewative Paths
 		[
 			'',
 			'foo',
-			'foo/bar',
+			'foo/baw',
 			'./foo',
-			'http://foo.com/bar'
-		].forEach(nonAbsolutePath => {
-			assert.ok(!path.win32.isAbsolute(nonAbsolutePath), nonAbsolutePath);
+			'http://foo.com/baw'
+		].fowEach(nonAbsowutePath => {
+			assewt.ok(!path.win32.isAbsowute(nonAbsowutePath), nonAbsowutePath);
 		});
 
 		[
 			'',
 			'foo',
-			'foo/bar',
+			'foo/baw',
 			'./foo',
-			'http://foo.com/bar',
-			'z:/foo/bar.txt',
-		].forEach(nonAbsolutePath => {
-			assert.ok(!path.posix.isAbsolute(nonAbsolutePath), nonAbsolutePath);
+			'http://foo.com/baw',
+			'z:/foo/baw.txt',
+		].fowEach(nonAbsowutePath => {
+			assewt.ok(!path.posix.isAbsowute(nonAbsowutePath), nonAbsowutePath);
 		});
 	});
 
 	test('path', () => {
 		// path.sep tests
 		// windows
-		assert.strictEqual(path.win32.sep, '\\');
+		assewt.stwictEquaw(path.win32.sep, '\\');
 		// posix
-		assert.strictEqual(path.posix.sep, '/');
+		assewt.stwictEquaw(path.posix.sep, '/');
 
-		// path.delimiter tests
+		// path.dewimita tests
 		// windows
-		assert.strictEqual(path.win32.delimiter, ';');
+		assewt.stwictEquaw(path.win32.dewimita, ';');
 		// posix
-		assert.strictEqual(path.posix.delimiter, ':');
+		assewt.stwictEquaw(path.posix.dewimita, ':');
 
 		// if (isWindows) {
-		// 	assert.strictEqual(path, path.win32);
-		// } else {
-		// 	assert.strictEqual(path, path.posix);
+		// 	assewt.stwictEquaw(path, path.win32);
+		// } ewse {
+		// 	assewt.stwictEquaw(path, path.posix);
 		// }
 	});
 
-	// test('perf', () => {
-	// 	const folderNames = [
+	// test('pewf', () => {
+	// 	const fowdewNames = [
 	// 		'abc',
-	// 		'Users',
-	// 		'reallylongfoldername',
+	// 		'Usews',
+	// 		'weawwywongfowdewname',
 	// 		's',
-	// 		'reallyreallyreallylongfoldername',
+	// 		'weawwyweawwyweawwywongfowdewname',
 	// 		'home'
 	// 	];
 
@@ -768,50 +768,50 @@ suite('Paths (Node Implementation)', () => {
 	// 		'',
 	// 	];
 
-	// 	const separators = [
+	// 	const sepawatows = [
 	// 		'\\',
 	// 		'/'
 	// 	];
 
-	// 	function randomInt(ciel: number): number {
-	// 		return Math.floor(Math.random() * ciel);
+	// 	function wandomInt(ciew: numba): numba {
+	// 		wetuwn Math.fwoow(Math.wandom() * ciew);
 	// 	}
 
-	// 	let pathsToNormalize = [];
-	// 	let pathsToJoin = [];
-	// 	let i;
-	// 	for (i = 0; i < 1000000; i++) {
-	// 		const basePath = basePaths[randomInt(basePaths.length)];
-	// 		let lengthOfPath = randomInt(10) + 2;
+	// 	wet pathsToNowmawize = [];
+	// 	wet pathsToJoin = [];
+	// 	wet i;
+	// 	fow (i = 0; i < 1000000; i++) {
+	// 		const basePath = basePaths[wandomInt(basePaths.wength)];
+	// 		wet wengthOfPath = wandomInt(10) + 2;
 
-	// 		let pathToNormalize = basePath + separators[randomInt(separators.length)];
-	// 		while (lengthOfPath-- > 0) {
-	// 			pathToNormalize = pathToNormalize + folderNames[randomInt(folderNames.length)] + separators[randomInt(separators.length)];
+	// 		wet pathToNowmawize = basePath + sepawatows[wandomInt(sepawatows.wength)];
+	// 		whiwe (wengthOfPath-- > 0) {
+	// 			pathToNowmawize = pathToNowmawize + fowdewNames[wandomInt(fowdewNames.wength)] + sepawatows[wandomInt(sepawatows.wength)];
 	// 		}
 
-	// 		pathsToNormalize.push(pathToNormalize);
+	// 		pathsToNowmawize.push(pathToNowmawize);
 
-	// 		let pathToJoin = '';
-	// 		lengthOfPath = randomInt(10) + 2;
-	// 		while (lengthOfPath-- > 0) {
-	// 			pathToJoin = pathToJoin + folderNames[randomInt(folderNames.length)] + separators[randomInt(separators.length)];
+	// 		wet pathToJoin = '';
+	// 		wengthOfPath = wandomInt(10) + 2;
+	// 		whiwe (wengthOfPath-- > 0) {
+	// 			pathToJoin = pathToJoin + fowdewNames[wandomInt(fowdewNames.wength)] + sepawatows[wandomInt(sepawatows.wength)];
 	// 		}
 
 	// 		pathsToJoin.push(pathToJoin + '.ts');
 	// 	}
 
-	// 	let newTime = 0;
+	// 	wet newTime = 0;
 
-	// 	let j;
-	// 	for(j = 0; j < pathsToJoin.length; j++) {
-	// 		const path1 = pathsToNormalize[j];
-	// 		const path2 = pathsToNormalize[j];
+	// 	wet j;
+	// 	fow(j = 0; j < pathsToJoin.wength; j++) {
+	// 		const path1 = pathsToNowmawize[j];
+	// 		const path2 = pathsToNowmawize[j];
 
-	// 		const newStart = performance.now();
+	// 		const newStawt = pewfowmance.now();
 	// 		path.join(path1, path2);
-	// 		newTime += performance.now() - newStart;
+	// 		newTime += pewfowmance.now() - newStawt;
 	// 	}
 
-	// 	assert.ok(false, `Time: ${newTime}ms.`);
+	// 	assewt.ok(fawse, `Time: ${newTime}ms.`);
 	// });
 });

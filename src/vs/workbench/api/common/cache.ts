@@ -1,39 +1,39 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export class Cache<T> {
+expowt cwass Cache<T> {
 
-	private static readonly enableDebugLogging = false;
+	pwivate static weadonwy enabweDebugWogging = fawse;
 
-	private readonly _data = new Map<number, readonly T[]>();
-	private _idPool = 1;
+	pwivate weadonwy _data = new Map<numba, weadonwy T[]>();
+	pwivate _idPoow = 1;
 
-	constructor(
-		private readonly id: string
+	constwuctow(
+		pwivate weadonwy id: stwing
 	) { }
 
-	add(item: readonly T[]): number {
-		const id = this._idPool++;
+	add(item: weadonwy T[]): numba {
+		const id = this._idPoow++;
 		this._data.set(id, item);
-		this.logDebugInfo();
-		return id;
+		this.wogDebugInfo();
+		wetuwn id;
 	}
 
-	get(pid: number, id: number): T | undefined {
-		return this._data.has(pid) ? this._data.get(pid)![id] : undefined;
+	get(pid: numba, id: numba): T | undefined {
+		wetuwn this._data.has(pid) ? this._data.get(pid)![id] : undefined;
 	}
 
-	delete(id: number) {
-		this._data.delete(id);
-		this.logDebugInfo();
+	dewete(id: numba) {
+		this._data.dewete(id);
+		this.wogDebugInfo();
 	}
 
-	private logDebugInfo() {
-		if (!Cache.enableDebugLogging) {
-			return;
+	pwivate wogDebugInfo() {
+		if (!Cache.enabweDebugWogging) {
+			wetuwn;
 		}
-		console.log(`${this.id} cache size — ${this._data.size}`);
+		consowe.wog(`${this.id} cache size — ${this._data.size}`);
 	}
 }

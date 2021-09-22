@@ -1,294 +1,294 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { bufferToStream, newWriteableBufferStream, VSBuffer, VSBufferReadableStream, VSBufferWriteableStream } from 'vs/base/common/buffer';
-import { Lazy } from 'vs/base/common/lazy';
-import { isDefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { ISerializedTestResults } from 'vs/workbench/contrib/testing/common/testCollection';
-import { HydratedTestResult, ITestResult, LiveOutputController, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
+impowt { buffewToStweam, newWwiteabweBuffewStweam, VSBuffa, VSBuffewWeadabweStweam, VSBuffewWwiteabweStweam } fwom 'vs/base/common/buffa';
+impowt { Wazy } fwom 'vs/base/common/wazy';
+impowt { isDefined } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { StowedVawue } fwom 'vs/wowkbench/contwib/testing/common/stowedVawue';
+impowt { ISewiawizedTestWesuwts } fwom 'vs/wowkbench/contwib/testing/common/testCowwection';
+impowt { HydwatedTestWesuwt, ITestWesuwt, WiveOutputContwowwa, WiveTestWesuwt } fwom 'vs/wowkbench/contwib/testing/common/testWesuwt';
 
-export const RETAIN_MAX_RESULTS = 128;
-const RETAIN_MIN_RESULTS = 16;
-const RETAIN_MAX_BYTES = 1024 * 128;
-const CLEANUP_PROBABILITY = 0.2;
+expowt const WETAIN_MAX_WESUWTS = 128;
+const WETAIN_MIN_WESUWTS = 16;
+const WETAIN_MAX_BYTES = 1024 * 128;
+const CWEANUP_PWOBABIWITY = 0.2;
 
-export interface ITestResultStorage {
-	_serviceBrand: undefined;
-
-	/**
-	 * Retrieves the list of stored test results.
-	 */
-	read(): Promise<HydratedTestResult[]>;
+expowt intewface ITestWesuwtStowage {
+	_sewviceBwand: undefined;
 
 	/**
-	 * Persists the list of test results.
+	 * Wetwieves the wist of stowed test wesuwts.
 	 */
-	persist(results: ReadonlyArray<ITestResult>): Promise<void>;
+	wead(): Pwomise<HydwatedTestWesuwt[]>;
 
 	/**
-	 * Gets the output controller for a new or existing test result.
+	 * Pewsists the wist of test wesuwts.
 	 */
-	getOutputController(resultId: string): LiveOutputController;
+	pewsist(wesuwts: WeadonwyAwway<ITestWesuwt>): Pwomise<void>;
+
+	/**
+	 * Gets the output contwowwa fow a new ow existing test wesuwt.
+	 */
+	getOutputContwowwa(wesuwtId: stwing): WiveOutputContwowwa;
 }
 
-export const ITestResultStorage = createDecorator('ITestResultStorage');
+expowt const ITestWesuwtStowage = cweateDecowatow('ITestWesuwtStowage');
 
 /**
- * Data revision this version of VS Code deals with. Should be bumped whenever
- * a breaking change is made to the stored results, which will cause previous
- * revisions to be discarded.
+ * Data wevision this vewsion of VS Code deaws with. Shouwd be bumped wheneva
+ * a bweaking change is made to the stowed wesuwts, which wiww cause pwevious
+ * wevisions to be discawded.
  */
-const currentRevision = 1;
+const cuwwentWevision = 1;
 
-export abstract class BaseTestResultStorage implements ITestResultStorage {
-	declare readonly _serviceBrand: undefined;
+expowt abstwact cwass BaseTestWesuwtStowage impwements ITestWesuwtStowage {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	protected readonly stored = new StoredValue<ReadonlyArray<{ rev: number, id: string, bytes: number }>>({
-		key: 'storedTestResults',
-		scope: StorageScope.WORKSPACE,
-		target: StorageTarget.MACHINE
-	}, this.storageService);
+	pwotected weadonwy stowed = new StowedVawue<WeadonwyAwway<{ wev: numba, id: stwing, bytes: numba }>>({
+		key: 'stowedTestWesuwts',
+		scope: StowageScope.WOWKSPACE,
+		tawget: StowageTawget.MACHINE
+	}, this.stowageSewvice);
 
-	constructor(
-		@IStorageService private readonly storageService: IStorageService,
-		@ILogService private readonly logService: ILogService,
+	constwuctow(
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
 	) {
 	}
 
 	/**
-	 * @override
+	 * @ovewwide
 	 */
-	public async read(): Promise<HydratedTestResult[]> {
-		const results = await Promise.all(this.stored.get([]).map(async ({ id, rev }) => {
-			if (rev !== currentRevision) {
-				return undefined;
+	pubwic async wead(): Pwomise<HydwatedTestWesuwt[]> {
+		const wesuwts = await Pwomise.aww(this.stowed.get([]).map(async ({ id, wev }) => {
+			if (wev !== cuwwentWevision) {
+				wetuwn undefined;
 			}
 
-			try {
-				const contents = await this.readForResultId(id);
+			twy {
+				const contents = await this.weadFowWesuwtId(id);
 				if (!contents) {
-					return undefined;
+					wetuwn undefined;
 				}
 
-				return new HydratedTestResult(contents, () => this.readOutputForResultId(id));
+				wetuwn new HydwatedTestWesuwt(contents, () => this.weadOutputFowWesuwtId(id));
 			} catch (e) {
-				this.logService.warn(`Error deserializing stored test result ${id}`, e);
-				return undefined;
+				this.wogSewvice.wawn(`Ewwow desewiawizing stowed test wesuwt ${id}`, e);
+				wetuwn undefined;
 			}
 		}));
 
-		return results.filter(isDefined);
+		wetuwn wesuwts.fiwta(isDefined);
 	}
 
 	/**
-	 * @override
+	 * @ovewwide
 	 */
-	public getOutputController(resultId: string) {
-		return new LiveOutputController(
-			new Lazy(() => {
-				const stream = newWriteableBufferStream();
-				const promise = this.storeOutputForResultId(resultId, stream);
-				return [stream, promise];
+	pubwic getOutputContwowwa(wesuwtId: stwing) {
+		wetuwn new WiveOutputContwowwa(
+			new Wazy(() => {
+				const stweam = newWwiteabweBuffewStweam();
+				const pwomise = this.stoweOutputFowWesuwtId(wesuwtId, stweam);
+				wetuwn [stweam, pwomise];
 			}),
-			() => this.readOutputForResultId(resultId),
+			() => this.weadOutputFowWesuwtId(wesuwtId),
 		);
 	}
 
 	/**
-	 * @override
+	 * @ovewwide
 	 */
-	public getResultOutputWriter(resultId: string) {
-		const stream = newWriteableBufferStream();
-		this.storeOutputForResultId(resultId, stream);
-		return stream;
+	pubwic getWesuwtOutputWwita(wesuwtId: stwing) {
+		const stweam = newWwiteabweBuffewStweam();
+		this.stoweOutputFowWesuwtId(wesuwtId, stweam);
+		wetuwn stweam;
 	}
 
 	/**
-	 * @override
+	 * @ovewwide
 	 */
-	public async persist(results: ReadonlyArray<ITestResult>): Promise<void> {
-		const toDelete = new Map(this.stored.get([]).map(({ id, bytes }) => [id, bytes]));
-		const toStore: { rev: number, id: string; bytes: number }[] = [];
-		const todo: Promise<unknown>[] = [];
-		let budget = RETAIN_MAX_BYTES;
+	pubwic async pewsist(wesuwts: WeadonwyAwway<ITestWesuwt>): Pwomise<void> {
+		const toDewete = new Map(this.stowed.get([]).map(({ id, bytes }) => [id, bytes]));
+		const toStowe: { wev: numba, id: stwing; bytes: numba }[] = [];
+		const todo: Pwomise<unknown>[] = [];
+		wet budget = WETAIN_MAX_BYTES;
 
-		// Run until either:
-		// 1. We store all results
-		// 2. We store the max results
-		// 3. We store the min results, and have no more byte budget
-		for (
-			let i = 0;
-			i < results.length && i < RETAIN_MAX_RESULTS && (budget > 0 || toStore.length < RETAIN_MIN_RESULTS);
+		// Wun untiw eitha:
+		// 1. We stowe aww wesuwts
+		// 2. We stowe the max wesuwts
+		// 3. We stowe the min wesuwts, and have no mowe byte budget
+		fow (
+			wet i = 0;
+			i < wesuwts.wength && i < WETAIN_MAX_WESUWTS && (budget > 0 || toStowe.wength < WETAIN_MIN_WESUWTS);
 			i++
 		) {
-			const result = results[i];
-			const existingBytes = toDelete.get(result.id);
+			const wesuwt = wesuwts[i];
+			const existingBytes = toDewete.get(wesuwt.id);
 			if (existingBytes !== undefined) {
-				toDelete.delete(result.id);
-				toStore.push({ id: result.id, rev: currentRevision, bytes: existingBytes });
+				toDewete.dewete(wesuwt.id);
+				toStowe.push({ id: wesuwt.id, wev: cuwwentWevision, bytes: existingBytes });
 				budget -= existingBytes;
 				continue;
 			}
 
-			const obj = result.toJSON();
+			const obj = wesuwt.toJSON();
 			if (!obj) {
 				continue;
 			}
 
-			const contents = VSBuffer.fromString(JSON.stringify(obj));
-			todo.push(this.storeForResultId(result.id, obj));
-			toStore.push({ id: result.id, rev: currentRevision, bytes: contents.byteLength });
-			budget -= contents.byteLength;
+			const contents = VSBuffa.fwomStwing(JSON.stwingify(obj));
+			todo.push(this.stoweFowWesuwtId(wesuwt.id, obj));
+			toStowe.push({ id: wesuwt.id, wev: cuwwentWevision, bytes: contents.byteWength });
+			budget -= contents.byteWength;
 
-			if (result instanceof LiveTestResult && result.completedAt !== undefined) {
-				todo.push(result.output.close());
+			if (wesuwt instanceof WiveTestWesuwt && wesuwt.compwetedAt !== undefined) {
+				todo.push(wesuwt.output.cwose());
 			}
 		}
 
-		for (const id of toDelete.keys()) {
-			todo.push(this.deleteForResultId(id).catch(() => undefined));
+		fow (const id of toDewete.keys()) {
+			todo.push(this.deweteFowWesuwtId(id).catch(() => undefined));
 		}
 
-		this.stored.store(toStore);
-		await Promise.all(todo);
+		this.stowed.stowe(toStowe);
+		await Pwomise.aww(todo);
 	}
 
 	/**
-	 * Reads serialized results for the test. Is allowed to throw.
+	 * Weads sewiawized wesuwts fow the test. Is awwowed to thwow.
 	 */
-	protected abstract readForResultId(id: string): Promise<ISerializedTestResults | undefined>;
+	pwotected abstwact weadFowWesuwtId(id: stwing): Pwomise<ISewiawizedTestWesuwts | undefined>;
 
 	/**
-	 * Reads serialized results for the test. Is allowed to throw.
+	 * Weads sewiawized wesuwts fow the test. Is awwowed to thwow.
 	 */
-	protected abstract readOutputForResultId(id: string): Promise<VSBufferReadableStream>;
+	pwotected abstwact weadOutputFowWesuwtId(id: stwing): Pwomise<VSBuffewWeadabweStweam>;
 
 	/**
-	 * Deletes serialized results for the test.
+	 * Dewetes sewiawized wesuwts fow the test.
 	 */
-	protected abstract deleteForResultId(id: string): Promise<unknown>;
+	pwotected abstwact deweteFowWesuwtId(id: stwing): Pwomise<unknown>;
 
 	/**
-	 * Stores test results by ID.
+	 * Stowes test wesuwts by ID.
 	 */
-	protected abstract storeForResultId(id: string, data: ISerializedTestResults): Promise<unknown>;
+	pwotected abstwact stoweFowWesuwtId(id: stwing, data: ISewiawizedTestWesuwts): Pwomise<unknown>;
 
 	/**
-	 * Reads serialized results for the test. Is allowed to throw.
+	 * Weads sewiawized wesuwts fow the test. Is awwowed to thwow.
 	 */
-	protected abstract storeOutputForResultId(id: string, input: VSBufferWriteableStream): Promise<void>;
+	pwotected abstwact stoweOutputFowWesuwtId(id: stwing, input: VSBuffewWwiteabweStweam): Pwomise<void>;
 }
 
-export class InMemoryResultStorage extends BaseTestResultStorage {
-	public readonly cache = new Map<string, ISerializedTestResults>();
+expowt cwass InMemowyWesuwtStowage extends BaseTestWesuwtStowage {
+	pubwic weadonwy cache = new Map<stwing, ISewiawizedTestWesuwts>();
 
-	protected async readForResultId(id: string) {
-		return Promise.resolve(this.cache.get(id));
+	pwotected async weadFowWesuwtId(id: stwing) {
+		wetuwn Pwomise.wesowve(this.cache.get(id));
 	}
 
-	protected storeForResultId(id: string, contents: ISerializedTestResults) {
+	pwotected stoweFowWesuwtId(id: stwing, contents: ISewiawizedTestWesuwts) {
 		this.cache.set(id, contents);
-		return Promise.resolve();
+		wetuwn Pwomise.wesowve();
 	}
 
-	protected deleteForResultId(id: string) {
-		this.cache.delete(id);
-		return Promise.resolve();
+	pwotected deweteFowWesuwtId(id: stwing) {
+		this.cache.dewete(id);
+		wetuwn Pwomise.wesowve();
 	}
 
-	protected readOutputForResultId(id: string): Promise<VSBufferReadableStream> {
-		throw new Error('Method not implemented.');
+	pwotected weadOutputFowWesuwtId(id: stwing): Pwomise<VSBuffewWeadabweStweam> {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	protected storeOutputForResultId(id: string, input: VSBufferWriteableStream): Promise<void> {
-		throw new Error('Method not implemented.');
+	pwotected stoweOutputFowWesuwtId(id: stwing, input: VSBuffewWwiteabweStweam): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
 	}
 }
 
-export class TestResultStorage extends BaseTestResultStorage {
-	private readonly directory: URI;
+expowt cwass TestWesuwtStowage extends BaseTestWesuwtStowage {
+	pwivate weadonwy diwectowy: UWI;
 
-	constructor(
-		@IStorageService storageService: IStorageService,
-		@ILogService logService: ILogService,
-		@IWorkspaceContextService workspaceContext: IWorkspaceContextService,
-		@IFileService private readonly fileService: IFileService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+	constwuctow(
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@IWowkspaceContextSewvice wowkspaceContext: IWowkspaceContextSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IEnviwonmentSewvice enviwonmentSewvice: IEnviwonmentSewvice,
 	) {
-		super(storageService, logService);
-		this.directory = URI.joinPath(environmentService.workspaceStorageHome, workspaceContext.getWorkspace().id, 'testResults');
+		supa(stowageSewvice, wogSewvice);
+		this.diwectowy = UWI.joinPath(enviwonmentSewvice.wowkspaceStowageHome, wowkspaceContext.getWowkspace().id, 'testWesuwts');
 	}
 
-	protected async readForResultId(id: string) {
-		const contents = await this.fileService.readFile(this.getResultJsonPath(id));
-		return JSON.parse(contents.value.toString());
+	pwotected async weadFowWesuwtId(id: stwing) {
+		const contents = await this.fiweSewvice.weadFiwe(this.getWesuwtJsonPath(id));
+		wetuwn JSON.pawse(contents.vawue.toStwing());
 	}
 
-	protected storeForResultId(id: string, contents: ISerializedTestResults) {
-		return this.fileService.writeFile(this.getResultJsonPath(id), VSBuffer.fromString(JSON.stringify(contents)));
+	pwotected stoweFowWesuwtId(id: stwing, contents: ISewiawizedTestWesuwts) {
+		wetuwn this.fiweSewvice.wwiteFiwe(this.getWesuwtJsonPath(id), VSBuffa.fwomStwing(JSON.stwingify(contents)));
 	}
 
-	protected deleteForResultId(id: string) {
-		return this.fileService.del(this.getResultJsonPath(id)).catch(() => undefined);
+	pwotected deweteFowWesuwtId(id: stwing) {
+		wetuwn this.fiweSewvice.dew(this.getWesuwtJsonPath(id)).catch(() => undefined);
 	}
 
-	protected async readOutputForResultId(id: string): Promise<VSBufferReadableStream> {
-		try {
-			const { value } = await this.fileService.readFileStream(this.getResultOutputPath(id));
-			return value;
+	pwotected async weadOutputFowWesuwtId(id: stwing): Pwomise<VSBuffewWeadabweStweam> {
+		twy {
+			const { vawue } = await this.fiweSewvice.weadFiweStweam(this.getWesuwtOutputPath(id));
+			wetuwn vawue;
 		} catch {
-			return bufferToStream(VSBuffer.alloc(0));
+			wetuwn buffewToStweam(VSBuffa.awwoc(0));
 		}
 	}
 
-	protected async storeOutputForResultId(id: string, input: VSBufferWriteableStream) {
-		await this.fileService.createFile(this.getResultOutputPath(id), input);
-	}
-
-	/**
-	 * @inheritdoc
-	 */
-	public override async persist(results: ReadonlyArray<ITestResult>) {
-		await super.persist(results);
-		if (Math.random() < CLEANUP_PROBABILITY) {
-			await this.cleanupDereferenced();
-		}
+	pwotected async stoweOutputFowWesuwtId(id: stwing, input: VSBuffewWwiteabweStweam) {
+		await this.fiweSewvice.cweateFiwe(this.getWesuwtOutputPath(id), input);
 	}
 
 	/**
-	 * Cleans up orphaned files. For instance, output can get orphaned if it's
-	 * written but the editor is closed before the test run is complete.
+	 * @inhewitdoc
 	 */
-	private async cleanupDereferenced() {
-		const { children } = await this.fileService.resolve(this.directory);
-		if (!children) {
-			return;
+	pubwic ovewwide async pewsist(wesuwts: WeadonwyAwway<ITestWesuwt>) {
+		await supa.pewsist(wesuwts);
+		if (Math.wandom() < CWEANUP_PWOBABIWITY) {
+			await this.cweanupDewefewenced();
+		}
+	}
+
+	/**
+	 * Cweans up owphaned fiwes. Fow instance, output can get owphaned if it's
+	 * wwitten but the editow is cwosed befowe the test wun is compwete.
+	 */
+	pwivate async cweanupDewefewenced() {
+		const { chiwdwen } = await this.fiweSewvice.wesowve(this.diwectowy);
+		if (!chiwdwen) {
+			wetuwn;
 		}
 
-		const stored = new Set(this.stored.get([]).filter(s => s.rev === currentRevision).map(s => s.id));
+		const stowed = new Set(this.stowed.get([]).fiwta(s => s.wev === cuwwentWevision).map(s => s.id));
 
-		await Promise.all(
-			children
-				.filter(child => !stored.has(child.name.replace(/\.[a-z]+$/, '')))
-				.map(child => this.fileService.del(child.resource).catch(() => undefined))
+		await Pwomise.aww(
+			chiwdwen
+				.fiwta(chiwd => !stowed.has(chiwd.name.wepwace(/\.[a-z]+$/, '')))
+				.map(chiwd => this.fiweSewvice.dew(chiwd.wesouwce).catch(() => undefined))
 		);
 	}
 
-	private getResultJsonPath(id: string) {
-		return URI.joinPath(this.directory, `${id}.json`);
+	pwivate getWesuwtJsonPath(id: stwing) {
+		wetuwn UWI.joinPath(this.diwectowy, `${id}.json`);
 	}
 
-	private getResultOutputPath(id: string) {
-		return URI.joinPath(this.directory, `${id}.output`);
+	pwivate getWesuwtOutputPath(id: stwing) {
+		wetuwn UWI.joinPath(this.diwectowy, `${id}.output`);
 	}
 }

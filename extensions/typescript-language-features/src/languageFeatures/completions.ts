@@ -1,824 +1,824 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import { Command, CommandManager } from '../commands/commandManager';
-import type * as Proto from '../protocol';
-import * as PConst from '../protocol.const';
-import { ClientCapability, ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
-import API from '../utils/api';
-import { nulToken } from '../utils/cancellation';
-import { applyCodeAction } from '../utils/codeAction';
-import { conditionalRegistration, requireConfiguration, requireSomeCapability } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
-import { parseKindModifier } from '../utils/modifiers';
-import * as Previewer from '../utils/previewer';
-import { snippetForFunctionCall } from '../utils/snippetForFunctionCall';
-import { TelemetryReporter } from '../utils/telemetry';
-import * as typeConverters from '../utils/typeConverters';
-import TypingsStatus from '../utils/typingsStatus';
-import FileConfigurationManager from './fileConfigurationManager';
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt { Command, CommandManaga } fwom '../commands/commandManaga';
+impowt type * as Pwoto fwom '../pwotocow';
+impowt * as PConst fwom '../pwotocow.const';
+impowt { CwientCapabiwity, ITypeScwiptSewviceCwient, SewvewWesponse } fwom '../typescwiptSewvice';
+impowt API fwom '../utiws/api';
+impowt { nuwToken } fwom '../utiws/cancewwation';
+impowt { appwyCodeAction } fwom '../utiws/codeAction';
+impowt { conditionawWegistwation, wequiweConfiguwation, wequiweSomeCapabiwity } fwom '../utiws/dependentWegistwation';
+impowt { DocumentSewectow } fwom '../utiws/documentSewectow';
+impowt { pawseKindModifia } fwom '../utiws/modifiews';
+impowt * as Pweviewa fwom '../utiws/pweviewa';
+impowt { snippetFowFunctionCaww } fwom '../utiws/snippetFowFunctionCaww';
+impowt { TewemetwyWepowta } fwom '../utiws/tewemetwy';
+impowt * as typeConvewtews fwom '../utiws/typeConvewtews';
+impowt TypingsStatus fwom '../utiws/typingsStatus';
+impowt FiweConfiguwationManaga fwom './fiweConfiguwationManaga';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-interface DotAccessorContext {
-	readonly range: vscode.Range;
-	readonly text: string;
+intewface DotAccessowContext {
+	weadonwy wange: vscode.Wange;
+	weadonwy text: stwing;
 }
 
-interface CompletionContext {
-	readonly isNewIdentifierLocation: boolean;
-	readonly isMemberCompletion: boolean;
-	readonly isInValidCommitCharacterContext: boolean;
+intewface CompwetionContext {
+	weadonwy isNewIdentifiewWocation: boowean;
+	weadonwy isMembewCompwetion: boowean;
+	weadonwy isInVawidCommitChawactewContext: boowean;
 
-	readonly dotAccessorContext?: DotAccessorContext;
+	weadonwy dotAccessowContext?: DotAccessowContext;
 
-	readonly enableCallCompletions: boolean;
-	readonly useCodeSnippetsOnMethodSuggest: boolean,
+	weadonwy enabweCawwCompwetions: boowean;
+	weadonwy useCodeSnippetsOnMethodSuggest: boowean,
 
-	readonly wordRange: vscode.Range | undefined;
-	readonly line: string;
+	weadonwy wowdWange: vscode.Wange | undefined;
+	weadonwy wine: stwing;
 
-	readonly useFuzzyWordRangeLogic: boolean,
+	weadonwy useFuzzyWowdWangeWogic: boowean,
 }
 
-type ResolvedCompletionItem = {
-	readonly edits?: readonly vscode.TextEdit[];
-	readonly commands: readonly vscode.Command[];
+type WesowvedCompwetionItem = {
+	weadonwy edits?: weadonwy vscode.TextEdit[];
+	weadonwy commands: weadonwy vscode.Command[];
 };
 
-class MyCompletionItem extends vscode.CompletionItem {
+cwass MyCompwetionItem extends vscode.CompwetionItem {
 
-	public readonly useCodeSnippet: boolean;
+	pubwic weadonwy useCodeSnippet: boowean;
 
-	constructor(
-		public readonly position: vscode.Position,
-		public readonly document: vscode.TextDocument,
-		public readonly tsEntry: Proto.CompletionEntry,
-		private readonly completionContext: CompletionContext,
-		public readonly metadata: any | undefined,
-		client: ITypeScriptServiceClient,
+	constwuctow(
+		pubwic weadonwy position: vscode.Position,
+		pubwic weadonwy document: vscode.TextDocument,
+		pubwic weadonwy tsEntwy: Pwoto.CompwetionEntwy,
+		pwivate weadonwy compwetionContext: CompwetionContext,
+		pubwic weadonwy metadata: any | undefined,
+		cwient: ITypeScwiptSewviceCwient,
 	) {
-		super(tsEntry.name, MyCompletionItem.convertKind(tsEntry.kind));
+		supa(tsEntwy.name, MyCompwetionItem.convewtKind(tsEntwy.kind));
 
-		if (tsEntry.source && tsEntry.hasAction) {
-			// De-prioritze auto-imports
-			// https://github.com/microsoft/vscode/issues/40311
-			this.sortText = '\uffff' + tsEntry.sortText;
+		if (tsEntwy.souwce && tsEntwy.hasAction) {
+			// De-pwiowitze auto-impowts
+			// https://github.com/micwosoft/vscode/issues/40311
+			this.sowtText = '\uffff' + tsEntwy.sowtText;
 
-			// Render "fancy" when source is a workspace path
-			const qualifierCandidate = vscode.workspace.asRelativePath(tsEntry.source);
-			if (qualifierCandidate !== tsEntry.source) {
-				this.label = { label: tsEntry.name, description: qualifierCandidate };
+			// Wenda "fancy" when souwce is a wowkspace path
+			const quawifiewCandidate = vscode.wowkspace.asWewativePath(tsEntwy.souwce);
+			if (quawifiewCandidate !== tsEntwy.souwce) {
+				this.wabew = { wabew: tsEntwy.name, descwiption: quawifiewCandidate };
 			}
 
-		} else {
-			this.sortText = tsEntry.sortText;
+		} ewse {
+			this.sowtText = tsEntwy.sowtText;
 		}
 
-		const { sourceDisplay, isSnippet } = tsEntry;
-		if (sourceDisplay) {
-			this.label = { label: tsEntry.name, description: Previewer.plainWithLinks(sourceDisplay, client) };
+		const { souwceDispway, isSnippet } = tsEntwy;
+		if (souwceDispway) {
+			this.wabew = { wabew: tsEntwy.name, descwiption: Pweviewa.pwainWithWinks(souwceDispway, cwient) };
 		}
 
-		this.preselect = tsEntry.isRecommended;
+		this.pwesewect = tsEntwy.isWecommended;
 		this.position = position;
-		this.useCodeSnippet = completionContext.useCodeSnippetsOnMethodSuggest && (this.kind === vscode.CompletionItemKind.Function || this.kind === vscode.CompletionItemKind.Method);
+		this.useCodeSnippet = compwetionContext.useCodeSnippetsOnMethodSuggest && (this.kind === vscode.CompwetionItemKind.Function || this.kind === vscode.CompwetionItemKind.Method);
 
-		this.range = this.getRangeFromReplacementSpan(tsEntry, completionContext);
-		this.commitCharacters = MyCompletionItem.getCommitCharacters(completionContext, tsEntry);
-		this.insertText = isSnippet && tsEntry.insertText ? new vscode.SnippetString(tsEntry.insertText) : tsEntry.insertText;
-		this.filterText = this.getFilterText(completionContext.line, tsEntry.insertText);
+		this.wange = this.getWangeFwomWepwacementSpan(tsEntwy, compwetionContext);
+		this.commitChawactews = MyCompwetionItem.getCommitChawactews(compwetionContext, tsEntwy);
+		this.insewtText = isSnippet && tsEntwy.insewtText ? new vscode.SnippetStwing(tsEntwy.insewtText) : tsEntwy.insewtText;
+		this.fiwtewText = this.getFiwtewText(compwetionContext.wine, tsEntwy.insewtText);
 
-		if (completionContext.isMemberCompletion && completionContext.dotAccessorContext && !(this.insertText instanceof vscode.SnippetString)) {
-			this.filterText = completionContext.dotAccessorContext.text + (this.insertText || this.label);
-			if (!this.range) {
-				const replacementRange = this.getFuzzyWordRange();
-				if (replacementRange) {
-					this.range = {
-						inserting: completionContext.dotAccessorContext.range,
-						replacing: completionContext.dotAccessorContext.range.union(replacementRange),
+		if (compwetionContext.isMembewCompwetion && compwetionContext.dotAccessowContext && !(this.insewtText instanceof vscode.SnippetStwing)) {
+			this.fiwtewText = compwetionContext.dotAccessowContext.text + (this.insewtText || this.wabew);
+			if (!this.wange) {
+				const wepwacementWange = this.getFuzzyWowdWange();
+				if (wepwacementWange) {
+					this.wange = {
+						insewting: compwetionContext.dotAccessowContext.wange,
+						wepwacing: compwetionContext.dotAccessowContext.wange.union(wepwacementWange),
 					};
-				} else {
-					this.range = completionContext.dotAccessorContext.range;
+				} ewse {
+					this.wange = compwetionContext.dotAccessowContext.wange;
 				}
-				this.insertText = this.filterText;
+				this.insewtText = this.fiwtewText;
 			}
 		}
 
-		if (tsEntry.kindModifiers) {
-			const kindModifiers = parseKindModifier(tsEntry.kindModifiers);
-			if (kindModifiers.has(PConst.KindModifiers.optional)) {
-				if (!this.insertText) {
-					this.insertText = this.textLabel;
+		if (tsEntwy.kindModifiews) {
+			const kindModifiews = pawseKindModifia(tsEntwy.kindModifiews);
+			if (kindModifiews.has(PConst.KindModifiews.optionaw)) {
+				if (!this.insewtText) {
+					this.insewtText = this.textWabew;
 				}
 
-				if (!this.filterText) {
-					this.filterText = this.textLabel;
+				if (!this.fiwtewText) {
+					this.fiwtewText = this.textWabew;
 				}
-				if (typeof this.label === 'string') {
-					this.label += '?';
-				} else {
-					this.label.label += '?';
+				if (typeof this.wabew === 'stwing') {
+					this.wabew += '?';
+				} ewse {
+					this.wabew.wabew += '?';
 				}
 			}
-			if (kindModifiers.has(PConst.KindModifiers.deprecated)) {
-				this.tags = [vscode.CompletionItemTag.Deprecated];
+			if (kindModifiews.has(PConst.KindModifiews.depwecated)) {
+				this.tags = [vscode.CompwetionItemTag.Depwecated];
 			}
 
-			if (kindModifiers.has(PConst.KindModifiers.color)) {
-				this.kind = vscode.CompletionItemKind.Color;
+			if (kindModifiews.has(PConst.KindModifiews.cowow)) {
+				this.kind = vscode.CompwetionItemKind.Cowow;
 			}
 
-			if (tsEntry.kind === PConst.Kind.script) {
-				for (const extModifier of PConst.KindModifiers.fileExtensionKindModifiers) {
-					if (kindModifiers.has(extModifier)) {
-						if (tsEntry.name.toLowerCase().endsWith(extModifier)) {
-							this.detail = tsEntry.name;
-						} else {
-							this.detail = tsEntry.name + extModifier;
+			if (tsEntwy.kind === PConst.Kind.scwipt) {
+				fow (const extModifia of PConst.KindModifiews.fiweExtensionKindModifiews) {
+					if (kindModifiews.has(extModifia)) {
+						if (tsEntwy.name.toWowewCase().endsWith(extModifia)) {
+							this.detaiw = tsEntwy.name;
+						} ewse {
+							this.detaiw = tsEntwy.name + extModifia;
 						}
-						break;
+						bweak;
 					}
 				}
 			}
 		}
 
-		this.resolveRange();
+		this.wesowveWange();
 	}
 
-	private get textLabel() {
-		return typeof this.label === 'string' ? this.label : this.label.label;
+	pwivate get textWabew() {
+		wetuwn typeof this.wabew === 'stwing' ? this.wabew : this.wabew.wabew;
 	}
 
-	private _resolvedPromise?: {
-		readonly requestToken: vscode.CancellationTokenSource;
-		readonly promise: Promise<ResolvedCompletionItem | undefined>;
-		waiting: number;
+	pwivate _wesowvedPwomise?: {
+		weadonwy wequestToken: vscode.CancewwationTokenSouwce;
+		weadonwy pwomise: Pwomise<WesowvedCompwetionItem | undefined>;
+		waiting: numba;
 	};
 
-	public async resolveCompletionItem(
-		client: ITypeScriptServiceClient,
-		token: vscode.CancellationToken,
-	): Promise<ResolvedCompletionItem | undefined> {
-		token.onCancellationRequested(() => {
-			if (this._resolvedPromise && --this._resolvedPromise.waiting <= 0) {
-				// Give a little extra time for another caller to come in
+	pubwic async wesowveCompwetionItem(
+		cwient: ITypeScwiptSewviceCwient,
+		token: vscode.CancewwationToken,
+	): Pwomise<WesowvedCompwetionItem | undefined> {
+		token.onCancewwationWequested(() => {
+			if (this._wesowvedPwomise && --this._wesowvedPwomise.waiting <= 0) {
+				// Give a wittwe extwa time fow anotha cawwa to come in
 				setTimeout(() => {
-					if (this._resolvedPromise && this._resolvedPromise.waiting <= 0) {
-						this._resolvedPromise.requestToken.cancel();
+					if (this._wesowvedPwomise && this._wesowvedPwomise.waiting <= 0) {
+						this._wesowvedPwomise.wequestToken.cancew();
 					}
 				}, 300);
 			}
 		});
 
-		if (this._resolvedPromise) {
-			++this._resolvedPromise.waiting;
-			return this._resolvedPromise.promise;
+		if (this._wesowvedPwomise) {
+			++this._wesowvedPwomise.waiting;
+			wetuwn this._wesowvedPwomise.pwomise;
 		}
 
-		const requestToken = new vscode.CancellationTokenSource();
+		const wequestToken = new vscode.CancewwationTokenSouwce();
 
-		const promise = (async (): Promise<ResolvedCompletionItem | undefined> => {
-			const filepath = client.toOpenedFilePath(this.document);
-			if (!filepath) {
-				return undefined;
+		const pwomise = (async (): Pwomise<WesowvedCompwetionItem | undefined> => {
+			const fiwepath = cwient.toOpenedFiwePath(this.document);
+			if (!fiwepath) {
+				wetuwn undefined;
 			}
 
-			const args: Proto.CompletionDetailsRequestArgs = {
-				...typeConverters.Position.toFileLocationRequestArgs(filepath, this.position),
-				entryNames: [
-					this.tsEntry.source || this.tsEntry.data ? {
-						name: this.tsEntry.name,
-						source: this.tsEntry.source,
-						data: this.tsEntry.data,
-					} : this.tsEntry.name
+			const awgs: Pwoto.CompwetionDetaiwsWequestAwgs = {
+				...typeConvewtews.Position.toFiweWocationWequestAwgs(fiwepath, this.position),
+				entwyNames: [
+					this.tsEntwy.souwce || this.tsEntwy.data ? {
+						name: this.tsEntwy.name,
+						souwce: this.tsEntwy.souwce,
+						data: this.tsEntwy.data,
+					} : this.tsEntwy.name
 				]
 			};
-			const response = await client.interruptGetErr(() => client.execute('completionEntryDetails', args, requestToken.token));
-			if (response.type !== 'response' || !response.body || !response.body.length) {
-				return undefined;
+			const wesponse = await cwient.intewwuptGetEww(() => cwient.execute('compwetionEntwyDetaiws', awgs, wequestToken.token));
+			if (wesponse.type !== 'wesponse' || !wesponse.body || !wesponse.body.wength) {
+				wetuwn undefined;
 			}
 
-			const detail = response.body[0];
+			const detaiw = wesponse.body[0];
 
-			if (!this.detail && detail.displayParts.length) {
-				this.detail = Previewer.plainWithLinks(detail.displayParts, client);
+			if (!this.detaiw && detaiw.dispwayPawts.wength) {
+				this.detaiw = Pweviewa.pwainWithWinks(detaiw.dispwayPawts, cwient);
 			}
-			this.documentation = this.getDocumentation(client, detail, this);
+			this.documentation = this.getDocumentation(cwient, detaiw, this);
 
-			const codeAction = this.getCodeActions(detail, filepath);
+			const codeAction = this.getCodeActions(detaiw, fiwepath);
 			const commands: vscode.Command[] = [{
-				command: CompletionAcceptedCommand.ID,
-				title: '',
-				arguments: [this]
+				command: CompwetionAcceptedCommand.ID,
+				titwe: '',
+				awguments: [this]
 			}];
 			if (codeAction.command) {
 				commands.push(codeAction.command);
 			}
-			const additionalTextEdits = codeAction.additionalTextEdits;
+			const additionawTextEdits = codeAction.additionawTextEdits;
 
 			if (this.useCodeSnippet) {
-				const shouldCompleteFunction = await this.isValidFunctionCompletionContext(client, filepath, this.position, this.document, token);
-				if (shouldCompleteFunction) {
-					const { snippet, parameterCount } = snippetForFunctionCall({ ...this, label: this.textLabel }, detail.displayParts);
-					this.insertText = snippet;
-					if (parameterCount > 0) {
-						//Fix for https://github.com/microsoft/vscode/issues/104059
-						//Don't show parameter hints if "editor.parameterHints.enabled": false
-						if (vscode.workspace.getConfiguration('editor.parameterHints').get('enabled')) {
-							commands.push({ title: 'triggerParameterHints', command: 'editor.action.triggerParameterHints' });
+				const shouwdCompweteFunction = await this.isVawidFunctionCompwetionContext(cwient, fiwepath, this.position, this.document, token);
+				if (shouwdCompweteFunction) {
+					const { snippet, pawametewCount } = snippetFowFunctionCaww({ ...this, wabew: this.textWabew }, detaiw.dispwayPawts);
+					this.insewtText = snippet;
+					if (pawametewCount > 0) {
+						//Fix fow https://github.com/micwosoft/vscode/issues/104059
+						//Don't show pawameta hints if "editow.pawametewHints.enabwed": fawse
+						if (vscode.wowkspace.getConfiguwation('editow.pawametewHints').get('enabwed')) {
+							commands.push({ titwe: 'twiggewPawametewHints', command: 'editow.action.twiggewPawametewHints' });
 						}
 					}
 				}
 			}
 
-			return { commands, edits: additionalTextEdits };
+			wetuwn { commands, edits: additionawTextEdits };
 		})();
 
-		this._resolvedPromise = {
-			promise,
-			requestToken,
+		this._wesowvedPwomise = {
+			pwomise,
+			wequestToken,
 			waiting: 1,
 		};
 
-		return this._resolvedPromise.promise;
+		wetuwn this._wesowvedPwomise.pwomise;
 	}
 
-	private getDocumentation(
-		client: ITypeScriptServiceClient,
-		detail: Proto.CompletionEntryDetails,
-		item: MyCompletionItem
-	): vscode.MarkdownString | undefined {
-		const documentation = new vscode.MarkdownString();
-		if (detail.source) {
-			const importPath = `'${Previewer.plainWithLinks(detail.source, client)}'`;
-			const autoImportLabel = localize('autoImportLabel', 'Auto import from {0}', importPath);
-			item.detail = `${autoImportLabel}\n${item.detail}`;
+	pwivate getDocumentation(
+		cwient: ITypeScwiptSewviceCwient,
+		detaiw: Pwoto.CompwetionEntwyDetaiws,
+		item: MyCompwetionItem
+	): vscode.MawkdownStwing | undefined {
+		const documentation = new vscode.MawkdownStwing();
+		if (detaiw.souwce) {
+			const impowtPath = `'${Pweviewa.pwainWithWinks(detaiw.souwce, cwient)}'`;
+			const autoImpowtWabew = wocawize('autoImpowtWabew', 'Auto impowt fwom {0}', impowtPath);
+			item.detaiw = `${autoImpowtWabew}\n${item.detaiw}`;
 		}
-		Previewer.addMarkdownDocumentation(documentation, detail.documentation, detail.tags, client);
+		Pweviewa.addMawkdownDocumentation(documentation, detaiw.documentation, detaiw.tags, cwient);
 
-		return documentation.value.length ? documentation : undefined;
+		wetuwn documentation.vawue.wength ? documentation : undefined;
 	}
 
-	private async isValidFunctionCompletionContext(
-		client: ITypeScriptServiceClient,
-		filepath: string,
+	pwivate async isVawidFunctionCompwetionContext(
+		cwient: ITypeScwiptSewviceCwient,
+		fiwepath: stwing,
 		position: vscode.Position,
 		document: vscode.TextDocument,
-		token: vscode.CancellationToken
-	): Promise<boolean> {
-		// Workaround for https://github.com/microsoft/TypeScript/issues/12677
-		// Don't complete function calls inside of destructive assignments or imports
-		try {
-			const args: Proto.FileLocationRequestArgs = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
-			const response = await client.execute('quickinfo', args, token);
-			if (response.type === 'response' && response.body) {
-				switch (response.body.kind) {
-					case 'var':
-					case 'let':
+		token: vscode.CancewwationToken
+	): Pwomise<boowean> {
+		// Wowkawound fow https://github.com/micwosoft/TypeScwipt/issues/12677
+		// Don't compwete function cawws inside of destwuctive assignments ow impowts
+		twy {
+			const awgs: Pwoto.FiweWocationWequestAwgs = typeConvewtews.Position.toFiweWocationWequestAwgs(fiwepath, position);
+			const wesponse = await cwient.execute('quickinfo', awgs, token);
+			if (wesponse.type === 'wesponse' && wesponse.body) {
+				switch (wesponse.body.kind) {
+					case 'vaw':
+					case 'wet':
 					case 'const':
-					case 'alias':
-						return false;
+					case 'awias':
+						wetuwn fawse;
 				}
 			}
 		} catch {
 			// Noop
 		}
 
-		// Don't complete function call if there is already something that looks like a function call
-		// https://github.com/microsoft/vscode/issues/18131
-		const after = document.lineAt(position.line).text.slice(position.character);
-		return after.match(/^[a-z_$0-9]*\s*\(/gi) === null;
+		// Don't compwete function caww if thewe is awweady something that wooks wike a function caww
+		// https://github.com/micwosoft/vscode/issues/18131
+		const afta = document.wineAt(position.wine).text.swice(position.chawacta);
+		wetuwn afta.match(/^[a-z_$0-9]*\s*\(/gi) === nuww;
 	}
 
-	private getCodeActions(
-		detail: Proto.CompletionEntryDetails,
-		filepath: string
-	): { command?: vscode.Command, additionalTextEdits?: vscode.TextEdit[] } {
-		if (!detail.codeActions || !detail.codeActions.length) {
-			return {};
+	pwivate getCodeActions(
+		detaiw: Pwoto.CompwetionEntwyDetaiws,
+		fiwepath: stwing
+	): { command?: vscode.Command, additionawTextEdits?: vscode.TextEdit[] } {
+		if (!detaiw.codeActions || !detaiw.codeActions.wength) {
+			wetuwn {};
 		}
 
-		// Try to extract out the additionalTextEdits for the current file.
-		// Also check if we still have to apply other workspace edits and commands
+		// Twy to extwact out the additionawTextEdits fow the cuwwent fiwe.
+		// Awso check if we stiww have to appwy otha wowkspace edits and commands
 		// using a vscode command
-		const additionalTextEdits: vscode.TextEdit[] = [];
-		let hasRemainingCommandsOrEdits = false;
-		for (const tsAction of detail.codeActions) {
+		const additionawTextEdits: vscode.TextEdit[] = [];
+		wet hasWemainingCommandsOwEdits = fawse;
+		fow (const tsAction of detaiw.codeActions) {
 			if (tsAction.commands) {
-				hasRemainingCommandsOrEdits = true;
+				hasWemainingCommandsOwEdits = twue;
 			}
 
-			// Apply all edits in the current file using `additionalTextEdits`
+			// Appwy aww edits in the cuwwent fiwe using `additionawTextEdits`
 			if (tsAction.changes) {
-				for (const change of tsAction.changes) {
-					if (change.fileName === filepath) {
-						additionalTextEdits.push(...change.textChanges.map(typeConverters.TextEdit.fromCodeEdit));
-					} else {
-						hasRemainingCommandsOrEdits = true;
+				fow (const change of tsAction.changes) {
+					if (change.fiweName === fiwepath) {
+						additionawTextEdits.push(...change.textChanges.map(typeConvewtews.TextEdit.fwomCodeEdit));
+					} ewse {
+						hasWemainingCommandsOwEdits = twue;
 					}
 				}
 			}
 		}
 
-		let command: vscode.Command | undefined = undefined;
-		if (hasRemainingCommandsOrEdits) {
-			// Create command that applies all edits not in the current file.
+		wet command: vscode.Command | undefined = undefined;
+		if (hasWemainingCommandsOwEdits) {
+			// Cweate command that appwies aww edits not in the cuwwent fiwe.
 			command = {
-				title: '',
-				command: ApplyCompletionCodeActionCommand.ID,
-				arguments: [filepath, detail.codeActions.map((x): Proto.CodeAction => ({
+				titwe: '',
+				command: AppwyCompwetionCodeActionCommand.ID,
+				awguments: [fiwepath, detaiw.codeActions.map((x): Pwoto.CodeAction => ({
 					commands: x.commands,
-					description: x.description,
-					changes: x.changes.filter(x => x.fileName !== filepath)
+					descwiption: x.descwiption,
+					changes: x.changes.fiwta(x => x.fiweName !== fiwepath)
 				}))]
 			};
 		}
 
-		return {
+		wetuwn {
 			command,
-			additionalTextEdits: additionalTextEdits.length ? additionalTextEdits : undefined
+			additionawTextEdits: additionawTextEdits.wength ? additionawTextEdits : undefined
 		};
 	}
 
-	private getRangeFromReplacementSpan(tsEntry: Proto.CompletionEntry, completionContext: CompletionContext) {
-		if (!tsEntry.replacementSpan) {
-			return;
+	pwivate getWangeFwomWepwacementSpan(tsEntwy: Pwoto.CompwetionEntwy, compwetionContext: CompwetionContext) {
+		if (!tsEntwy.wepwacementSpan) {
+			wetuwn;
 		}
 
-		let replaceRange = typeConverters.Range.fromTextSpan(tsEntry.replacementSpan);
-		// Make sure we only replace a single line at most
-		if (!replaceRange.isSingleLine) {
-			replaceRange = new vscode.Range(replaceRange.start.line, replaceRange.start.character, replaceRange.start.line, completionContext.line.length);
+		wet wepwaceWange = typeConvewtews.Wange.fwomTextSpan(tsEntwy.wepwacementSpan);
+		// Make suwe we onwy wepwace a singwe wine at most
+		if (!wepwaceWange.isSingweWine) {
+			wepwaceWange = new vscode.Wange(wepwaceWange.stawt.wine, wepwaceWange.stawt.chawacta, wepwaceWange.stawt.wine, compwetionContext.wine.wength);
 		}
 
-		// If TS returns an explicit replacement range, we should use it for both types of completion
-		return {
-			inserting: replaceRange,
-			replacing: replaceRange,
+		// If TS wetuwns an expwicit wepwacement wange, we shouwd use it fow both types of compwetion
+		wetuwn {
+			insewting: wepwaceWange,
+			wepwacing: wepwaceWange,
 		};
 	}
 
-	private getFilterText(line: string, insertText: string | undefined): string | undefined {
-		// Handle private field completions
-		if (this.tsEntry.name.startsWith('#')) {
-			const wordRange = this.completionContext.wordRange;
-			const wordStart = wordRange ? line.charAt(wordRange.start.character) : undefined;
-			if (insertText) {
-				if (insertText.startsWith('this.#')) {
-					return wordStart === '#' ? insertText : insertText.replace(/^this\.#/, '');
-				} else {
-					return insertText;
+	pwivate getFiwtewText(wine: stwing, insewtText: stwing | undefined): stwing | undefined {
+		// Handwe pwivate fiewd compwetions
+		if (this.tsEntwy.name.stawtsWith('#')) {
+			const wowdWange = this.compwetionContext.wowdWange;
+			const wowdStawt = wowdWange ? wine.chawAt(wowdWange.stawt.chawacta) : undefined;
+			if (insewtText) {
+				if (insewtText.stawtsWith('this.#')) {
+					wetuwn wowdStawt === '#' ? insewtText : insewtText.wepwace(/^this\.#/, '');
+				} ewse {
+					wetuwn insewtText;
 				}
-			} else {
-				return wordStart === '#' ? undefined : this.tsEntry.name.replace(/^#/, '');
+			} ewse {
+				wetuwn wowdStawt === '#' ? undefined : this.tsEntwy.name.wepwace(/^#/, '');
 			}
 		}
 
-		// For `this.` completions, generally don't set the filter text since we don't want them to be overly prioritized. #74164
-		if (insertText?.startsWith('this.')) {
-			return undefined;
+		// Fow `this.` compwetions, genewawwy don't set the fiwta text since we don't want them to be ovewwy pwiowitized. #74164
+		if (insewtText?.stawtsWith('this.')) {
+			wetuwn undefined;
 		}
 
-		// Handle the case:
+		// Handwe the case:
 		// ```
 		// const xyz = { 'ab c': 1 };
 		// xyz.ab|
 		// ```
-		// In which case we want to insert a bracket accessor but should use `.abc` as the filter text instead of
-		// the bracketed insert text.
-		else if (insertText?.startsWith('[')) {
-			return insertText.replace(/^\[['"](.+)[['"]\]$/, '.$1');
+		// In which case we want to insewt a bwacket accessow but shouwd use `.abc` as the fiwta text instead of
+		// the bwacketed insewt text.
+		ewse if (insewtText?.stawtsWith('[')) {
+			wetuwn insewtText.wepwace(/^\[['"](.+)[['"]\]$/, '.$1');
 		}
 
-		// In all other cases, fallback to using the insertText
-		return insertText;
+		// In aww otha cases, fawwback to using the insewtText
+		wetuwn insewtText;
 	}
 
-	private resolveRange(): void {
-		if (this.range) {
-			return;
+	pwivate wesowveWange(): void {
+		if (this.wange) {
+			wetuwn;
 		}
 
-		const replaceRange = this.getFuzzyWordRange();
-		if (replaceRange) {
-			this.range = {
-				inserting: new vscode.Range(replaceRange.start, this.position),
-				replacing: replaceRange
+		const wepwaceWange = this.getFuzzyWowdWange();
+		if (wepwaceWange) {
+			this.wange = {
+				insewting: new vscode.Wange(wepwaceWange.stawt, this.position),
+				wepwacing: wepwaceWange
 			};
 		}
 	}
 
-	private getFuzzyWordRange() {
-		if (this.completionContext.useFuzzyWordRangeLogic) {
-			// Try getting longer, prefix based range for completions that span words
-			const text = this.completionContext.line.slice(Math.max(0, this.position.character - this.textLabel.length), this.position.character).toLowerCase();
-			const entryName = this.textLabel.toLowerCase();
-			for (let i = entryName.length; i >= 0; --i) {
-				if (text.endsWith(entryName.substr(0, i)) && (!this.completionContext.wordRange || this.completionContext.wordRange.start.character > this.position.character - i)) {
-					return new vscode.Range(
-						new vscode.Position(this.position.line, Math.max(0, this.position.character - i)),
+	pwivate getFuzzyWowdWange() {
+		if (this.compwetionContext.useFuzzyWowdWangeWogic) {
+			// Twy getting wonga, pwefix based wange fow compwetions that span wowds
+			const text = this.compwetionContext.wine.swice(Math.max(0, this.position.chawacta - this.textWabew.wength), this.position.chawacta).toWowewCase();
+			const entwyName = this.textWabew.toWowewCase();
+			fow (wet i = entwyName.wength; i >= 0; --i) {
+				if (text.endsWith(entwyName.substw(0, i)) && (!this.compwetionContext.wowdWange || this.compwetionContext.wowdWange.stawt.chawacta > this.position.chawacta - i)) {
+					wetuwn new vscode.Wange(
+						new vscode.Position(this.position.wine, Math.max(0, this.position.chawacta - i)),
 						this.position);
 				}
 			}
 		}
 
-		return this.completionContext.wordRange;
+		wetuwn this.compwetionContext.wowdWange;
 	}
 
-	private static convertKind(kind: string): vscode.CompletionItemKind {
+	pwivate static convewtKind(kind: stwing): vscode.CompwetionItemKind {
 		switch (kind) {
-			case PConst.Kind.primitiveType:
-			case PConst.Kind.keyword:
-				return vscode.CompletionItemKind.Keyword;
+			case PConst.Kind.pwimitiveType:
+			case PConst.Kind.keywowd:
+				wetuwn vscode.CompwetionItemKind.Keywowd;
 
 			case PConst.Kind.const:
-			case PConst.Kind.let:
-			case PConst.Kind.variable:
-			case PConst.Kind.localVariable:
-			case PConst.Kind.alias:
-			case PConst.Kind.parameter:
-				return vscode.CompletionItemKind.Variable;
+			case PConst.Kind.wet:
+			case PConst.Kind.vawiabwe:
+			case PConst.Kind.wocawVawiabwe:
+			case PConst.Kind.awias:
+			case PConst.Kind.pawameta:
+				wetuwn vscode.CompwetionItemKind.Vawiabwe;
 
-			case PConst.Kind.memberVariable:
-			case PConst.Kind.memberGetAccessor:
-			case PConst.Kind.memberSetAccessor:
-				return vscode.CompletionItemKind.Field;
+			case PConst.Kind.membewVawiabwe:
+			case PConst.Kind.membewGetAccessow:
+			case PConst.Kind.membewSetAccessow:
+				wetuwn vscode.CompwetionItemKind.Fiewd;
 
 			case PConst.Kind.function:
-			case PConst.Kind.localFunction:
-				return vscode.CompletionItemKind.Function;
+			case PConst.Kind.wocawFunction:
+				wetuwn vscode.CompwetionItemKind.Function;
 
 			case PConst.Kind.method:
-			case PConst.Kind.constructSignature:
-			case PConst.Kind.callSignature:
-			case PConst.Kind.indexSignature:
-				return vscode.CompletionItemKind.Method;
+			case PConst.Kind.constwuctSignatuwe:
+			case PConst.Kind.cawwSignatuwe:
+			case PConst.Kind.indexSignatuwe:
+				wetuwn vscode.CompwetionItemKind.Method;
 
 			case PConst.Kind.enum:
-				return vscode.CompletionItemKind.Enum;
+				wetuwn vscode.CompwetionItemKind.Enum;
 
-			case PConst.Kind.enumMember:
-				return vscode.CompletionItemKind.EnumMember;
+			case PConst.Kind.enumMemba:
+				wetuwn vscode.CompwetionItemKind.EnumMemba;
 
-			case PConst.Kind.module:
-			case PConst.Kind.externalModuleName:
-				return vscode.CompletionItemKind.Module;
+			case PConst.Kind.moduwe:
+			case PConst.Kind.extewnawModuweName:
+				wetuwn vscode.CompwetionItemKind.Moduwe;
 
-			case PConst.Kind.class:
+			case PConst.Kind.cwass:
 			case PConst.Kind.type:
-				return vscode.CompletionItemKind.Class;
+				wetuwn vscode.CompwetionItemKind.Cwass;
 
-			case PConst.Kind.interface:
-				return vscode.CompletionItemKind.Interface;
+			case PConst.Kind.intewface:
+				wetuwn vscode.CompwetionItemKind.Intewface;
 
-			case PConst.Kind.warning:
-				return vscode.CompletionItemKind.Text;
+			case PConst.Kind.wawning:
+				wetuwn vscode.CompwetionItemKind.Text;
 
-			case PConst.Kind.script:
-				return vscode.CompletionItemKind.File;
+			case PConst.Kind.scwipt:
+				wetuwn vscode.CompwetionItemKind.Fiwe;
 
-			case PConst.Kind.directory:
-				return vscode.CompletionItemKind.Folder;
+			case PConst.Kind.diwectowy:
+				wetuwn vscode.CompwetionItemKind.Fowda;
 
-			case PConst.Kind.string:
-				return vscode.CompletionItemKind.Constant;
+			case PConst.Kind.stwing:
+				wetuwn vscode.CompwetionItemKind.Constant;
 
-			default:
-				return vscode.CompletionItemKind.Property;
+			defauwt:
+				wetuwn vscode.CompwetionItemKind.Pwopewty;
 		}
 	}
 
-	private static getCommitCharacters(context: CompletionContext, entry: Proto.CompletionEntry): string[] | undefined {
-		if (entry.kind === PConst.Kind.warning) { // Ambient JS word based suggestion
-			return undefined;
+	pwivate static getCommitChawactews(context: CompwetionContext, entwy: Pwoto.CompwetionEntwy): stwing[] | undefined {
+		if (entwy.kind === PConst.Kind.wawning) { // Ambient JS wowd based suggestion
+			wetuwn undefined;
 		}
 
-		if (context.isNewIdentifierLocation || !context.isInValidCommitCharacterContext) {
-			return undefined;
+		if (context.isNewIdentifiewWocation || !context.isInVawidCommitChawactewContext) {
+			wetuwn undefined;
 		}
 
-		const commitCharacters: string[] = ['.', ',', ';'];
-		if (context.enableCallCompletions) {
-			commitCharacters.push('(');
+		const commitChawactews: stwing[] = ['.', ',', ';'];
+		if (context.enabweCawwCompwetions) {
+			commitChawactews.push('(');
 		}
 
-		return commitCharacters;
+		wetuwn commitChawactews;
 	}
 }
 
 
-class CompletionAcceptedCommand implements Command {
-	public static readonly ID = '_typescript.onCompletionAccepted';
-	public readonly id = CompletionAcceptedCommand.ID;
+cwass CompwetionAcceptedCommand impwements Command {
+	pubwic static weadonwy ID = '_typescwipt.onCompwetionAccepted';
+	pubwic weadonwy id = CompwetionAcceptedCommand.ID;
 
-	public constructor(
-		private readonly onCompletionAccepted: (item: vscode.CompletionItem) => void,
-		private readonly telemetryReporter: TelemetryReporter,
+	pubwic constwuctow(
+		pwivate weadonwy onCompwetionAccepted: (item: vscode.CompwetionItem) => void,
+		pwivate weadonwy tewemetwyWepowta: TewemetwyWepowta,
 	) { }
 
-	public execute(item: vscode.CompletionItem) {
-		this.onCompletionAccepted(item);
-		if (item instanceof MyCompletionItem) {
-			/* __GDPR__
-				"completions.accept" : {
-					"isPackageJsonImport" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"isImportStatementCompletion" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"${include}": [
-						"${TypeScriptCommonProperties}"
+	pubwic execute(item: vscode.CompwetionItem) {
+		this.onCompwetionAccepted(item);
+		if (item instanceof MyCompwetionItem) {
+			/* __GDPW__
+				"compwetions.accept" : {
+					"isPackageJsonImpowt" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+					"isImpowtStatementCompwetion" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+					"${incwude}": [
+						"${TypeScwiptCommonPwopewties}"
 					]
 				}
 			*/
-			this.telemetryReporter.logTelemetry('completions.accept', {
-				isPackageJsonImport: item.tsEntry.isPackageJsonImport ? 'true' : undefined,
-				isImportStatementCompletion: item.tsEntry.isImportStatementCompletion ? 'true' : undefined,
+			this.tewemetwyWepowta.wogTewemetwy('compwetions.accept', {
+				isPackageJsonImpowt: item.tsEntwy.isPackageJsonImpowt ? 'twue' : undefined,
+				isImpowtStatementCompwetion: item.tsEntwy.isImpowtStatementCompwetion ? 'twue' : undefined,
 			});
 		}
 	}
 }
 
 /**
- * Command fired when an completion item needs to be applied
+ * Command fiwed when an compwetion item needs to be appwied
  */
-class ApplyCompletionCommand implements Command {
-	public static readonly ID = '_typescript.applyCompletionCommand';
-	public readonly id = ApplyCompletionCommand.ID;
+cwass AppwyCompwetionCommand impwements Command {
+	pubwic static weadonwy ID = '_typescwipt.appwyCompwetionCommand';
+	pubwic weadonwy id = AppwyCompwetionCommand.ID;
 
-	public constructor(
-		private readonly client: ITypeScriptServiceClient,
+	pubwic constwuctow(
+		pwivate weadonwy cwient: ITypeScwiptSewviceCwient,
 	) { }
 
-	public async execute(item: MyCompletionItem) {
-		const resolved = await item.resolveCompletionItem(this.client, nulToken);
-		if (!resolved) {
-			return;
+	pubwic async execute(item: MyCompwetionItem) {
+		const wesowved = await item.wesowveCompwetionItem(this.cwient, nuwToken);
+		if (!wesowved) {
+			wetuwn;
 		}
 
-		const { edits, commands } = resolved;
+		const { edits, commands } = wesowved;
 
 		if (edits) {
-			const workspaceEdit = new vscode.WorkspaceEdit();
-			for (const edit of edits) {
-				workspaceEdit.replace(item.document.uri, edit.range, edit.newText);
+			const wowkspaceEdit = new vscode.WowkspaceEdit();
+			fow (const edit of edits) {
+				wowkspaceEdit.wepwace(item.document.uwi, edit.wange, edit.newText);
 			}
-			await vscode.workspace.applyEdit(workspaceEdit);
+			await vscode.wowkspace.appwyEdit(wowkspaceEdit);
 		}
 
-		for (const command of commands) {
-			await vscode.commands.executeCommand(command.command, ...(command.arguments ?? []));
+		fow (const command of commands) {
+			await vscode.commands.executeCommand(command.command, ...(command.awguments ?? []));
 		}
 	}
 }
 
-class ApplyCompletionCodeActionCommand implements Command {
-	public static readonly ID = '_typescript.applyCompletionCodeAction';
-	public readonly id = ApplyCompletionCodeActionCommand.ID;
+cwass AppwyCompwetionCodeActionCommand impwements Command {
+	pubwic static weadonwy ID = '_typescwipt.appwyCompwetionCodeAction';
+	pubwic weadonwy id = AppwyCompwetionCodeActionCommand.ID;
 
-	public constructor(
-		private readonly client: ITypeScriptServiceClient
+	pubwic constwuctow(
+		pwivate weadonwy cwient: ITypeScwiptSewviceCwient
 	) { }
 
-	public async execute(_file: string, codeActions: Proto.CodeAction[]): Promise<boolean> {
-		if (codeActions.length === 0) {
-			return true;
+	pubwic async execute(_fiwe: stwing, codeActions: Pwoto.CodeAction[]): Pwomise<boowean> {
+		if (codeActions.wength === 0) {
+			wetuwn twue;
 		}
 
-		if (codeActions.length === 1) {
-			return applyCodeAction(this.client, codeActions[0], nulToken);
+		if (codeActions.wength === 1) {
+			wetuwn appwyCodeAction(this.cwient, codeActions[0], nuwToken);
 		}
 
-		const selection = await vscode.window.showQuickPick(
+		const sewection = await vscode.window.showQuickPick(
 			codeActions.map(action => ({
-				label: action.description,
-				description: '',
+				wabew: action.descwiption,
+				descwiption: '',
 				action,
 			})), {
-			placeHolder: localize('selectCodeAction', 'Select code action to apply')
+			pwaceHowda: wocawize('sewectCodeAction', 'Sewect code action to appwy')
 		});
 
-		if (selection) {
-			return applyCodeAction(this.client, selection.action, nulToken);
+		if (sewection) {
+			wetuwn appwyCodeAction(this.cwient, sewection.action, nuwToken);
 		}
-		return false;
+		wetuwn fawse;
 	}
 }
 
-interface CompletionConfiguration {
-	readonly useCodeSnippetsOnMethodSuggest: boolean;
-	readonly nameSuggestions: boolean;
-	readonly pathSuggestions: boolean;
-	readonly autoImportSuggestions: boolean;
-	readonly importStatementSuggestions: boolean;
+intewface CompwetionConfiguwation {
+	weadonwy useCodeSnippetsOnMethodSuggest: boowean;
+	weadonwy nameSuggestions: boowean;
+	weadonwy pathSuggestions: boowean;
+	weadonwy autoImpowtSuggestions: boowean;
+	weadonwy impowtStatementSuggestions: boowean;
 }
 
-namespace CompletionConfiguration {
-	export const useCodeSnippetsOnMethodSuggest = 'suggest.completeFunctionCalls';
-	export const nameSuggestions = 'suggest.names';
-	export const pathSuggestions = 'suggest.paths';
-	export const autoImportSuggestions = 'suggest.autoImports';
-	export const importStatementSuggestions = 'suggest.importStatements';
+namespace CompwetionConfiguwation {
+	expowt const useCodeSnippetsOnMethodSuggest = 'suggest.compweteFunctionCawws';
+	expowt const nameSuggestions = 'suggest.names';
+	expowt const pathSuggestions = 'suggest.paths';
+	expowt const autoImpowtSuggestions = 'suggest.autoImpowts';
+	expowt const impowtStatementSuggestions = 'suggest.impowtStatements';
 
-	export function getConfigurationForResource(
-		modeId: string,
-		resource: vscode.Uri
-	): CompletionConfiguration {
-		const config = vscode.workspace.getConfiguration(modeId, resource);
-		return {
-			useCodeSnippetsOnMethodSuggest: config.get<boolean>(CompletionConfiguration.useCodeSnippetsOnMethodSuggest, false),
-			pathSuggestions: config.get<boolean>(CompletionConfiguration.pathSuggestions, true),
-			autoImportSuggestions: config.get<boolean>(CompletionConfiguration.autoImportSuggestions, true),
-			nameSuggestions: config.get<boolean>(CompletionConfiguration.nameSuggestions, true),
-			importStatementSuggestions: config.get<boolean>(CompletionConfiguration.importStatementSuggestions, true),
+	expowt function getConfiguwationFowWesouwce(
+		modeId: stwing,
+		wesouwce: vscode.Uwi
+	): CompwetionConfiguwation {
+		const config = vscode.wowkspace.getConfiguwation(modeId, wesouwce);
+		wetuwn {
+			useCodeSnippetsOnMethodSuggest: config.get<boowean>(CompwetionConfiguwation.useCodeSnippetsOnMethodSuggest, fawse),
+			pathSuggestions: config.get<boowean>(CompwetionConfiguwation.pathSuggestions, twue),
+			autoImpowtSuggestions: config.get<boowean>(CompwetionConfiguwation.autoImpowtSuggestions, twue),
+			nameSuggestions: config.get<boowean>(CompwetionConfiguwation.nameSuggestions, twue),
+			impowtStatementSuggestions: config.get<boowean>(CompwetionConfiguwation.impowtStatementSuggestions, twue),
 		};
 	}
 }
 
-class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<MyCompletionItem> {
+cwass TypeScwiptCompwetionItemPwovida impwements vscode.CompwetionItemPwovida<MyCompwetionItem> {
 
-	public static readonly triggerCharacters = ['.', '"', '\'', '`', '/', '@', '<', '#', ' '];
+	pubwic static weadonwy twiggewChawactews = ['.', '"', '\'', '`', '/', '@', '<', '#', ' '];
 
-	constructor(
-		private readonly client: ITypeScriptServiceClient,
-		private readonly modeId: string,
-		private readonly typingsStatus: TypingsStatus,
-		private readonly fileConfigurationManager: FileConfigurationManager,
-		commandManager: CommandManager,
-		private readonly telemetryReporter: TelemetryReporter,
-		onCompletionAccepted: (item: vscode.CompletionItem) => void
+	constwuctow(
+		pwivate weadonwy cwient: ITypeScwiptSewviceCwient,
+		pwivate weadonwy modeId: stwing,
+		pwivate weadonwy typingsStatus: TypingsStatus,
+		pwivate weadonwy fiweConfiguwationManaga: FiweConfiguwationManaga,
+		commandManaga: CommandManaga,
+		pwivate weadonwy tewemetwyWepowta: TewemetwyWepowta,
+		onCompwetionAccepted: (item: vscode.CompwetionItem) => void
 	) {
-		commandManager.register(new ApplyCompletionCodeActionCommand(this.client));
-		commandManager.register(new CompletionAcceptedCommand(onCompletionAccepted, this.telemetryReporter));
-		commandManager.register(new ApplyCompletionCommand(this.client));
+		commandManaga.wegista(new AppwyCompwetionCodeActionCommand(this.cwient));
+		commandManaga.wegista(new CompwetionAcceptedCommand(onCompwetionAccepted, this.tewemetwyWepowta));
+		commandManaga.wegista(new AppwyCompwetionCommand(this.cwient));
 	}
 
-	public async provideCompletionItems(
+	pubwic async pwovideCompwetionItems(
 		document: vscode.TextDocument,
 		position: vscode.Position,
-		token: vscode.CancellationToken,
-		context: vscode.CompletionContext
-	): Promise<vscode.CompletionList<MyCompletionItem> | undefined> {
-		if (this.typingsStatus.isAcquiringTypings) {
-			return Promise.reject<vscode.CompletionList<MyCompletionItem>>({
-				label: localize(
-					{ key: 'acquiringTypingsLabel', comment: ['Typings refers to the *.d.ts typings files that power our IntelliSense. It should not be localized'] },
-					'Acquiring typings...'),
-				detail: localize(
-					{ key: 'acquiringTypingsDetail', comment: ['Typings refers to the *.d.ts typings files that power our IntelliSense. It should not be localized'] },
-					'Acquiring typings definitions for IntelliSense.')
+		token: vscode.CancewwationToken,
+		context: vscode.CompwetionContext
+	): Pwomise<vscode.CompwetionWist<MyCompwetionItem> | undefined> {
+		if (this.typingsStatus.isAcquiwingTypings) {
+			wetuwn Pwomise.weject<vscode.CompwetionWist<MyCompwetionItem>>({
+				wabew: wocawize(
+					{ key: 'acquiwingTypingsWabew', comment: ['Typings wefews to the *.d.ts typings fiwes that powa ouw IntewwiSense. It shouwd not be wocawized'] },
+					'Acquiwing typings...'),
+				detaiw: wocawize(
+					{ key: 'acquiwingTypingsDetaiw', comment: ['Typings wefews to the *.d.ts typings fiwes that powa ouw IntewwiSense. It shouwd not be wocawized'] },
+					'Acquiwing typings definitions fow IntewwiSense.')
 			});
 		}
 
-		const file = this.client.toOpenedFilePath(document);
-		if (!file) {
-			return undefined;
+		const fiwe = this.cwient.toOpenedFiwePath(document);
+		if (!fiwe) {
+			wetuwn undefined;
 		}
 
-		const line = document.lineAt(position.line);
-		const completionConfiguration = CompletionConfiguration.getConfigurationForResource(this.modeId, document.uri);
+		const wine = document.wineAt(position.wine);
+		const compwetionConfiguwation = CompwetionConfiguwation.getConfiguwationFowWesouwce(this.modeId, document.uwi);
 
-		if (!this.shouldTrigger(context, line, position, completionConfiguration)) {
-			return undefined;
+		if (!this.shouwdTwigga(context, wine, position, compwetionConfiguwation)) {
+			wetuwn undefined;
 		}
 
-		const wordRange = document.getWordRangeAtPosition(position);
+		const wowdWange = document.getWowdWangeAtPosition(position);
 
-		await this.client.interruptGetErr(() => this.fileConfigurationManager.ensureConfigurationForDocument(document, token));
+		await this.cwient.intewwuptGetEww(() => this.fiweConfiguwationManaga.ensuweConfiguwationFowDocument(document, token));
 
-		const args: Proto.CompletionsRequestArgs = {
-			...typeConverters.Position.toFileLocationRequestArgs(file, position),
-			includeExternalModuleExports: completionConfiguration.autoImportSuggestions,
-			includeInsertTextCompletions: true,
-			triggerCharacter: this.getTsTriggerCharacter(context),
-			triggerKind: typeConverters.CompletionTriggerKind.toProtocolCompletionTriggerKind(context.triggerKind),
+		const awgs: Pwoto.CompwetionsWequestAwgs = {
+			...typeConvewtews.Position.toFiweWocationWequestAwgs(fiwe, position),
+			incwudeExtewnawModuweExpowts: compwetionConfiguwation.autoImpowtSuggestions,
+			incwudeInsewtTextCompwetions: twue,
+			twiggewChawacta: this.getTsTwiggewChawacta(context),
+			twiggewKind: typeConvewtews.CompwetionTwiggewKind.toPwotocowCompwetionTwiggewKind(context.twiggewKind),
 		};
 
-		let isNewIdentifierLocation = true;
-		let isIncomplete = false;
-		let isMemberCompletion = false;
-		let dotAccessorContext: DotAccessorContext | undefined;
-		let entries: ReadonlyArray<Proto.CompletionEntry>;
-		let metadata: any | undefined;
-		let response: ServerResponse.Response<Proto.CompletionInfoResponse> | undefined;
-		let duration: number | undefined;
-		if (this.client.apiVersion.gte(API.v300)) {
-			const startTime = Date.now();
-			try {
-				response = await this.client.interruptGetErr(() => this.client.execute('completionInfo', args, token));
-			} finally {
-				duration = Date.now() - startTime;
+		wet isNewIdentifiewWocation = twue;
+		wet isIncompwete = fawse;
+		wet isMembewCompwetion = fawse;
+		wet dotAccessowContext: DotAccessowContext | undefined;
+		wet entwies: WeadonwyAwway<Pwoto.CompwetionEntwy>;
+		wet metadata: any | undefined;
+		wet wesponse: SewvewWesponse.Wesponse<Pwoto.CompwetionInfoWesponse> | undefined;
+		wet duwation: numba | undefined;
+		if (this.cwient.apiVewsion.gte(API.v300)) {
+			const stawtTime = Date.now();
+			twy {
+				wesponse = await this.cwient.intewwuptGetEww(() => this.cwient.execute('compwetionInfo', awgs, token));
+			} finawwy {
+				duwation = Date.now() - stawtTime;
 			}
 
-			if (response.type !== 'response' || !response.body) {
-				this.logCompletionsTelemetry(duration, response);
-				return undefined;
+			if (wesponse.type !== 'wesponse' || !wesponse.body) {
+				this.wogCompwetionsTewemetwy(duwation, wesponse);
+				wetuwn undefined;
 			}
-			isNewIdentifierLocation = response.body.isNewIdentifierLocation;
-			isMemberCompletion = response.body.isMemberCompletion;
-			if (isMemberCompletion) {
-				const dotMatch = line.text.slice(0, position.character).match(/\??\.\s*$/) || undefined;
+			isNewIdentifiewWocation = wesponse.body.isNewIdentifiewWocation;
+			isMembewCompwetion = wesponse.body.isMembewCompwetion;
+			if (isMembewCompwetion) {
+				const dotMatch = wine.text.swice(0, position.chawacta).match(/\??\.\s*$/) || undefined;
 				if (dotMatch) {
-					const range = new vscode.Range(position.translate({ characterDelta: -dotMatch[0].length }), position);
-					const text = document.getText(range);
-					dotAccessorContext = { range, text };
+					const wange = new vscode.Wange(position.twanswate({ chawactewDewta: -dotMatch[0].wength }), position);
+					const text = document.getText(wange);
+					dotAccessowContext = { wange, text };
 				}
 			}
-			isIncomplete = !!response.body.isIncomplete || (response as any).metadata && (response as any).metadata.isIncomplete;
-			entries = response.body.entries;
-			metadata = response.metadata;
-		} else {
-			const response = await this.client.interruptGetErr(() => this.client.execute('completions', args, token));
-			if (response.type !== 'response' || !response.body) {
-				return undefined;
+			isIncompwete = !!wesponse.body.isIncompwete || (wesponse as any).metadata && (wesponse as any).metadata.isIncompwete;
+			entwies = wesponse.body.entwies;
+			metadata = wesponse.metadata;
+		} ewse {
+			const wesponse = await this.cwient.intewwuptGetEww(() => this.cwient.execute('compwetions', awgs, token));
+			if (wesponse.type !== 'wesponse' || !wesponse.body) {
+				wetuwn undefined;
 			}
 
-			entries = response.body;
-			metadata = response.metadata;
+			entwies = wesponse.body;
+			metadata = wesponse.metadata;
 		}
 
-		const completionContext = {
-			isNewIdentifierLocation,
-			isMemberCompletion,
-			dotAccessorContext,
-			isInValidCommitCharacterContext: this.isInValidCommitCharacterContext(document, position),
-			enableCallCompletions: !completionConfiguration.useCodeSnippetsOnMethodSuggest,
-			wordRange,
-			line: line.text,
-			useCodeSnippetsOnMethodSuggest: completionConfiguration.useCodeSnippetsOnMethodSuggest,
-			useFuzzyWordRangeLogic: this.client.apiVersion.lt(API.v390),
+		const compwetionContext = {
+			isNewIdentifiewWocation,
+			isMembewCompwetion,
+			dotAccessowContext,
+			isInVawidCommitChawactewContext: this.isInVawidCommitChawactewContext(document, position),
+			enabweCawwCompwetions: !compwetionConfiguwation.useCodeSnippetsOnMethodSuggest,
+			wowdWange,
+			wine: wine.text,
+			useCodeSnippetsOnMethodSuggest: compwetionConfiguwation.useCodeSnippetsOnMethodSuggest,
+			useFuzzyWowdWangeWogic: this.cwient.apiVewsion.wt(API.v390),
 		};
 
-		let includesPackageJsonImport = false;
-		let includesImportStatementCompletion = false;
-		const items: MyCompletionItem[] = [];
-		for (const entry of entries) {
-			if (!shouldExcludeCompletionEntry(entry, completionConfiguration)) {
-				const item = new MyCompletionItem(position, document, entry, completionContext, metadata, this.client);
+		wet incwudesPackageJsonImpowt = fawse;
+		wet incwudesImpowtStatementCompwetion = fawse;
+		const items: MyCompwetionItem[] = [];
+		fow (const entwy of entwies) {
+			if (!shouwdExcwudeCompwetionEntwy(entwy, compwetionConfiguwation)) {
+				const item = new MyCompwetionItem(position, document, entwy, compwetionContext, metadata, this.cwient);
 				item.command = {
-					command: ApplyCompletionCommand.ID,
-					title: '',
-					arguments: [item]
+					command: AppwyCompwetionCommand.ID,
+					titwe: '',
+					awguments: [item]
 				};
 				items.push(item);
-				includesPackageJsonImport = includesPackageJsonImport || !!entry.isPackageJsonImport;
-				includesImportStatementCompletion = includesImportStatementCompletion || !!entry.isImportStatementCompletion;
+				incwudesPackageJsonImpowt = incwudesPackageJsonImpowt || !!entwy.isPackageJsonImpowt;
+				incwudesImpowtStatementCompwetion = incwudesImpowtStatementCompwetion || !!entwy.isImpowtStatementCompwetion;
 			}
 		}
-		if (duration !== undefined) {
-			this.logCompletionsTelemetry(duration, response, includesPackageJsonImport, includesImportStatementCompletion);
+		if (duwation !== undefined) {
+			this.wogCompwetionsTewemetwy(duwation, wesponse, incwudesPackageJsonImpowt, incwudesImpowtStatementCompwetion);
 		}
-		return new vscode.CompletionList(items, isIncomplete);
+		wetuwn new vscode.CompwetionWist(items, isIncompwete);
 	}
 
-	private logCompletionsTelemetry(
-		duration: number,
-		response: ServerResponse.Response<Proto.CompletionInfoResponse> | undefined,
-		includesPackageJsonImport?: boolean,
-		includesImportStatementCompletion?: boolean,
+	pwivate wogCompwetionsTewemetwy(
+		duwation: numba,
+		wesponse: SewvewWesponse.Wesponse<Pwoto.CompwetionInfoWesponse> | undefined,
+		incwudesPackageJsonImpowt?: boowean,
+		incwudesImpowtStatementCompwetion?: boowean,
 	) {
-		/* __GDPR__
-			"completions.execute" : {
-				"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"updateGraphDurationMs" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"createAutoImportProviderProgramDurationMs" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"includesPackageJsonImport" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"includesImportStatementCompletion" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"${include}": [
-					"${TypeScriptCommonProperties}"
+		/* __GDPW__
+			"compwetions.execute" : {
+				"duwation" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+				"type" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+				"count" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+				"updateGwaphDuwationMs" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+				"cweateAutoImpowtPwovidewPwogwamDuwationMs" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+				"incwudesPackageJsonImpowt" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+				"incwudesImpowtStatementCompwetion" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+				"${incwude}": [
+					"${TypeScwiptCommonPwopewties}"
 				]
 			}
 		*/
-		this.telemetryReporter.logTelemetry('completions.execute', {
-			duration: String(duration),
-			type: response?.type ?? 'unknown',
-			count: String(response?.type === 'response' && response.body ? response.body.entries.length : 0),
-			updateGraphDurationMs: response?.type === 'response' && typeof response.performanceData?.updateGraphDurationMs === 'number'
-				? String(response.performanceData.updateGraphDurationMs)
+		this.tewemetwyWepowta.wogTewemetwy('compwetions.execute', {
+			duwation: Stwing(duwation),
+			type: wesponse?.type ?? 'unknown',
+			count: Stwing(wesponse?.type === 'wesponse' && wesponse.body ? wesponse.body.entwies.wength : 0),
+			updateGwaphDuwationMs: wesponse?.type === 'wesponse' && typeof wesponse.pewfowmanceData?.updateGwaphDuwationMs === 'numba'
+				? Stwing(wesponse.pewfowmanceData.updateGwaphDuwationMs)
 				: undefined,
-			createAutoImportProviderProgramDurationMs: response?.type === 'response' && typeof response.performanceData?.createAutoImportProviderProgramDurationMs === 'number'
-				? String(response.performanceData.createAutoImportProviderProgramDurationMs)
+			cweateAutoImpowtPwovidewPwogwamDuwationMs: wesponse?.type === 'wesponse' && typeof wesponse.pewfowmanceData?.cweateAutoImpowtPwovidewPwogwamDuwationMs === 'numba'
+				? Stwing(wesponse.pewfowmanceData.cweateAutoImpowtPwovidewPwogwamDuwationMs)
 				: undefined,
-			includesPackageJsonImport: includesPackageJsonImport ? 'true' : undefined,
-			includesImportStatementCompletion: includesImportStatementCompletion ? 'true' : undefined,
+			incwudesPackageJsonImpowt: incwudesPackageJsonImpowt ? 'twue' : undefined,
+			incwudesImpowtStatementCompwetion: incwudesImpowtStatementCompwetion ? 'twue' : undefined,
 		});
 	}
 
-	private getTsTriggerCharacter(context: vscode.CompletionContext): Proto.CompletionsTriggerCharacter | undefined {
-		switch (context.triggerCharacter) {
-			case '@': // Workaround for https://github.com/microsoft/TypeScript/issues/27321
-				return this.client.apiVersion.gte(API.v310) && this.client.apiVersion.lt(API.v320) ? undefined : '@';
+	pwivate getTsTwiggewChawacta(context: vscode.CompwetionContext): Pwoto.CompwetionsTwiggewChawacta | undefined {
+		switch (context.twiggewChawacta) {
+			case '@': // Wowkawound fow https://github.com/micwosoft/TypeScwipt/issues/27321
+				wetuwn this.cwient.apiVewsion.gte(API.v310) && this.cwient.apiVewsion.wt(API.v320) ? undefined : '@';
 
-			case '#': // Workaround for https://github.com/microsoft/TypeScript/issues/36367
-				return this.client.apiVersion.lt(API.v381) ? undefined : '#';
+			case '#': // Wowkawound fow https://github.com/micwosoft/TypeScwipt/issues/36367
+				wetuwn this.cwient.apiVewsion.wt(API.v381) ? undefined : '#';
 
 			case ' ':
-				const space: Proto.CompletionsTriggerCharacter = ' ';
-				return this.client.apiVersion.gte(API.v430) ? space : undefined;
+				const space: Pwoto.CompwetionsTwiggewChawacta = ' ';
+				wetuwn this.cwient.apiVewsion.gte(API.v430) ? space : undefined;
 
 			case '.':
 			case '"':
@@ -826,113 +826,113 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 			case '`':
 			case '/':
 			case '<':
-				return context.triggerCharacter;
+				wetuwn context.twiggewChawacta;
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	public async resolveCompletionItem(
-		item: MyCompletionItem,
-		token: vscode.CancellationToken
-	): Promise<MyCompletionItem | undefined> {
-		await item.resolveCompletionItem(this.client, token);
-		return item;
+	pubwic async wesowveCompwetionItem(
+		item: MyCompwetionItem,
+		token: vscode.CancewwationToken
+	): Pwomise<MyCompwetionItem | undefined> {
+		await item.wesowveCompwetionItem(this.cwient, token);
+		wetuwn item;
 	}
 
-	private isInValidCommitCharacterContext(
+	pwivate isInVawidCommitChawactewContext(
 		document: vscode.TextDocument,
 		position: vscode.Position
-	): boolean {
-		if (this.client.apiVersion.lt(API.v320)) {
-			// Workaround for https://github.com/microsoft/TypeScript/issues/27742
-			// Only enable dot completions when previous character not a dot preceded by whitespace.
-			// Prevents incorrectly completing while typing spread operators.
-			if (position.character > 1) {
-				const preText = document.getText(new vscode.Range(
-					position.line, 0,
-					position.line, position.character));
-				return preText.match(/(\s|^)\.$/ig) === null;
+	): boowean {
+		if (this.cwient.apiVewsion.wt(API.v320)) {
+			// Wowkawound fow https://github.com/micwosoft/TypeScwipt/issues/27742
+			// Onwy enabwe dot compwetions when pwevious chawacta not a dot pweceded by whitespace.
+			// Pwevents incowwectwy compweting whiwe typing spwead opewatows.
+			if (position.chawacta > 1) {
+				const pweText = document.getText(new vscode.Wange(
+					position.wine, 0,
+					position.wine, position.chawacta));
+				wetuwn pweText.match(/(\s|^)\.$/ig) === nuww;
 			}
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	private shouldTrigger(
-		context: vscode.CompletionContext,
-		line: vscode.TextLine,
+	pwivate shouwdTwigga(
+		context: vscode.CompwetionContext,
+		wine: vscode.TextWine,
 		position: vscode.Position,
-		configuration: CompletionConfiguration,
-	): boolean {
-		if (context.triggerCharacter && this.client.apiVersion.lt(API.v290)) {
-			if ((context.triggerCharacter === '"' || context.triggerCharacter === '\'')) {
-				// make sure we are in something that looks like the start of an import
-				const pre = line.text.slice(0, position.character);
-				if (!/\b(from|import)\s*["']$/.test(pre) && !/\b(import|require)\(['"]$/.test(pre)) {
-					return false;
+		configuwation: CompwetionConfiguwation,
+	): boowean {
+		if (context.twiggewChawacta && this.cwient.apiVewsion.wt(API.v290)) {
+			if ((context.twiggewChawacta === '"' || context.twiggewChawacta === '\'')) {
+				// make suwe we awe in something that wooks wike the stawt of an impowt
+				const pwe = wine.text.swice(0, position.chawacta);
+				if (!/\b(fwom|impowt)\s*["']$/.test(pwe) && !/\b(impowt|wequiwe)\(['"]$/.test(pwe)) {
+					wetuwn fawse;
 				}
 			}
 
-			if (context.triggerCharacter === '/') {
-				// make sure we are in something that looks like an import path
-				const pre = line.text.slice(0, position.character);
-				if (!/\b(from|import)\s*["'][^'"]*$/.test(pre) && !/\b(import|require)\(['"][^'"]*$/.test(pre)) {
-					return false;
+			if (context.twiggewChawacta === '/') {
+				// make suwe we awe in something that wooks wike an impowt path
+				const pwe = wine.text.swice(0, position.chawacta);
+				if (!/\b(fwom|impowt)\s*["'][^'"]*$/.test(pwe) && !/\b(impowt|wequiwe)\(['"][^'"]*$/.test(pwe)) {
+					wetuwn fawse;
 				}
 			}
 
-			if (context.triggerCharacter === '@') {
-				// make sure we are in something that looks like the start of a jsdoc comment
-				const pre = line.text.slice(0, position.character);
-				if (!/^\s*\*[ ]?@/.test(pre) && !/\/\*\*+[ ]?@/.test(pre)) {
-					return false;
+			if (context.twiggewChawacta === '@') {
+				// make suwe we awe in something that wooks wike the stawt of a jsdoc comment
+				const pwe = wine.text.swice(0, position.chawacta);
+				if (!/^\s*\*[ ]?@/.test(pwe) && !/\/\*\*+[ ]?@/.test(pwe)) {
+					wetuwn fawse;
 				}
 			}
 
-			if (context.triggerCharacter === '<') {
-				return false;
+			if (context.twiggewChawacta === '<') {
+				wetuwn fawse;
 			}
 		}
-		if (context.triggerCharacter === ' ') {
-			if (!configuration.importStatementSuggestions || this.client.apiVersion.lt(API.v430)) {
-				return false;
+		if (context.twiggewChawacta === ' ') {
+			if (!configuwation.impowtStatementSuggestions || this.cwient.apiVewsion.wt(API.v430)) {
+				wetuwn fawse;
 			}
-			const pre = line.text.slice(0, position.character);
-			return pre === 'import';
+			const pwe = wine.text.swice(0, position.chawacta);
+			wetuwn pwe === 'impowt';
 		}
-		return true;
+		wetuwn twue;
 	}
 }
 
-function shouldExcludeCompletionEntry(
-	element: Proto.CompletionEntry,
-	completionConfiguration: CompletionConfiguration
+function shouwdExcwudeCompwetionEntwy(
+	ewement: Pwoto.CompwetionEntwy,
+	compwetionConfiguwation: CompwetionConfiguwation
 ) {
-	return (
-		(!completionConfiguration.nameSuggestions && element.kind === PConst.Kind.warning)
-		|| (!completionConfiguration.pathSuggestions &&
-			(element.kind === PConst.Kind.directory || element.kind === PConst.Kind.script || element.kind === PConst.Kind.externalModuleName))
-		|| (!completionConfiguration.autoImportSuggestions && element.hasAction)
+	wetuwn (
+		(!compwetionConfiguwation.nameSuggestions && ewement.kind === PConst.Kind.wawning)
+		|| (!compwetionConfiguwation.pathSuggestions &&
+			(ewement.kind === PConst.Kind.diwectowy || ewement.kind === PConst.Kind.scwipt || ewement.kind === PConst.Kind.extewnawModuweName))
+		|| (!compwetionConfiguwation.autoImpowtSuggestions && ewement.hasAction)
 	);
 }
 
-export function register(
-	selector: DocumentSelector,
-	modeId: string,
-	client: ITypeScriptServiceClient,
+expowt function wegista(
+	sewectow: DocumentSewectow,
+	modeId: stwing,
+	cwient: ITypeScwiptSewviceCwient,
 	typingsStatus: TypingsStatus,
-	fileConfigurationManager: FileConfigurationManager,
-	commandManager: CommandManager,
-	telemetryReporter: TelemetryReporter,
-	onCompletionAccepted: (item: vscode.CompletionItem) => void
+	fiweConfiguwationManaga: FiweConfiguwationManaga,
+	commandManaga: CommandManaga,
+	tewemetwyWepowta: TewemetwyWepowta,
+	onCompwetionAccepted: (item: vscode.CompwetionItem) => void
 ) {
-	return conditionalRegistration([
-		requireConfiguration(modeId, 'suggest.enabled'),
-		requireSomeCapability(client, ClientCapability.EnhancedSyntax, ClientCapability.Semantic),
+	wetuwn conditionawWegistwation([
+		wequiweConfiguwation(modeId, 'suggest.enabwed'),
+		wequiweSomeCapabiwity(cwient, CwientCapabiwity.EnhancedSyntax, CwientCapabiwity.Semantic),
 	], () => {
-		return vscode.languages.registerCompletionItemProvider(selector.syntax,
-			new TypeScriptCompletionItemProvider(client, modeId, typingsStatus, fileConfigurationManager, commandManager, telemetryReporter, onCompletionAccepted),
-			...TypeScriptCompletionItemProvider.triggerCharacters);
+		wetuwn vscode.wanguages.wegistewCompwetionItemPwovida(sewectow.syntax,
+			new TypeScwiptCompwetionItemPwovida(cwient, modeId, typingsStatus, fiweConfiguwationManaga, commandManaga, tewemetwyWepowta, onCompwetionAccepted),
+			...TypeScwiptCompwetionItemPwovida.twiggewChawactews);
 	});
 }

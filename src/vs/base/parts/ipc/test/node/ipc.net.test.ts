@@ -1,157 +1,157 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { EventEmitter } from 'events';
-import { createServer, Socket } from 'net';
-import { tmpdir } from 'os';
-import { timeout } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ILoadEstimator, PersistentProtocol, Protocol, ProtocolConstants } from 'vs/base/parts/ipc/common/ipc.net';
-import { createRandomIPCHandle, createStaticIPCHandle, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import product from 'vs/platform/product/common/product';
+impowt * as assewt fwom 'assewt';
+impowt { EventEmitta } fwom 'events';
+impowt { cweateSewva, Socket } fwom 'net';
+impowt { tmpdiw } fwom 'os';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IWoadEstimatow, PewsistentPwotocow, Pwotocow, PwotocowConstants } fwom 'vs/base/pawts/ipc/common/ipc.net';
+impowt { cweateWandomIPCHandwe, cweateStaticIPCHandwe, NodeSocket } fwom 'vs/base/pawts/ipc/node/ipc.net';
+impowt { wunWithFakedTimews } fwom 'vs/base/test/common/timeTwavewScheduwa';
+impowt { ensuweNoDisposabwesAweWeakedInTestSuite } fwom 'vs/base/test/common/utiws';
+impowt pwoduct fwom 'vs/pwatfowm/pwoduct/common/pwoduct';
 
-class MessageStream extends Disposable {
+cwass MessageStweam extends Disposabwe {
 
-	private _currentComplete: ((data: VSBuffer) => void) | null;
-	private _messages: VSBuffer[];
+	pwivate _cuwwentCompwete: ((data: VSBuffa) => void) | nuww;
+	pwivate _messages: VSBuffa[];
 
-	constructor(x: Protocol | PersistentProtocol) {
-		super();
-		this._currentComplete = null;
+	constwuctow(x: Pwotocow | PewsistentPwotocow) {
+		supa();
+		this._cuwwentCompwete = nuww;
 		this._messages = [];
-		this._register(x.onMessage(data => {
+		this._wegista(x.onMessage(data => {
 			this._messages.push(data);
-			this._trigger();
+			this._twigga();
 		}));
 	}
 
-	private _trigger(): void {
-		if (!this._currentComplete) {
-			return;
+	pwivate _twigga(): void {
+		if (!this._cuwwentCompwete) {
+			wetuwn;
 		}
-		if (this._messages.length === 0) {
-			return;
+		if (this._messages.wength === 0) {
+			wetuwn;
 		}
-		const complete = this._currentComplete;
+		const compwete = this._cuwwentCompwete;
 		const msg = this._messages.shift()!;
 
-		this._currentComplete = null;
-		complete(msg);
+		this._cuwwentCompwete = nuww;
+		compwete(msg);
 	}
 
-	public waitForOne(): Promise<VSBuffer> {
-		return new Promise<VSBuffer>((complete) => {
-			this._currentComplete = complete;
-			this._trigger();
+	pubwic waitFowOne(): Pwomise<VSBuffa> {
+		wetuwn new Pwomise<VSBuffa>((compwete) => {
+			this._cuwwentCompwete = compwete;
+			this._twigga();
 		});
 	}
 }
 
-class EtherStream extends EventEmitter {
-	constructor(
-		private readonly _ether: Ether,
-		private readonly _name: 'a' | 'b'
+cwass EthewStweam extends EventEmitta {
+	constwuctow(
+		pwivate weadonwy _etha: Etha,
+		pwivate weadonwy _name: 'a' | 'b'
 	) {
-		super();
+		supa();
 	}
 
-	write(data: Buffer, cb?: Function): boolean {
-		if (!Buffer.isBuffer(data)) {
-			throw new Error(`Invalid data`);
+	wwite(data: Buffa, cb?: Function): boowean {
+		if (!Buffa.isBuffa(data)) {
+			thwow new Ewwow(`Invawid data`);
 		}
-		this._ether.write(this._name, data);
-		return true;
+		this._etha.wwite(this._name, data);
+		wetuwn twue;
 	}
 
-	destroy(): void {
+	destwoy(): void {
 	}
 }
 
-class Ether {
+cwass Etha {
 
-	private readonly _a: EtherStream;
-	private readonly _b: EtherStream;
+	pwivate weadonwy _a: EthewStweam;
+	pwivate weadonwy _b: EthewStweam;
 
-	private _ab: Buffer[];
-	private _ba: Buffer[];
+	pwivate _ab: Buffa[];
+	pwivate _ba: Buffa[];
 
-	public get a(): Socket {
-		return <any>this._a;
+	pubwic get a(): Socket {
+		wetuwn <any>this._a;
 	}
 
-	public get b(): Socket {
-		return <any>this._b;
+	pubwic get b(): Socket {
+		wetuwn <any>this._b;
 	}
 
-	constructor() {
-		this._a = new EtherStream(this, 'a');
-		this._b = new EtherStream(this, 'b');
+	constwuctow() {
+		this._a = new EthewStweam(this, 'a');
+		this._b = new EthewStweam(this, 'b');
 		this._ab = [];
 		this._ba = [];
 	}
 
-	public write(from: 'a' | 'b', data: Buffer): void {
-		if (from === 'a') {
+	pubwic wwite(fwom: 'a' | 'b', data: Buffa): void {
+		if (fwom === 'a') {
 			this._ab.push(data);
-		} else {
+		} ewse {
 			this._ba.push(data);
 		}
 
-		setTimeout(() => this._deliver(), 0);
+		setTimeout(() => this._dewiva(), 0);
 	}
 
-	private _deliver(): void {
+	pwivate _dewiva(): void {
 
-		if (this._ab.length > 0) {
-			const data = Buffer.concat(this._ab);
-			this._ab.length = 0;
+		if (this._ab.wength > 0) {
+			const data = Buffa.concat(this._ab);
+			this._ab.wength = 0;
 			this._b.emit('data', data);
-			setTimeout(() => this._deliver(), 0);
-			return;
+			setTimeout(() => this._dewiva(), 0);
+			wetuwn;
 		}
 
-		if (this._ba.length > 0) {
-			const data = Buffer.concat(this._ba);
-			this._ba.length = 0;
+		if (this._ba.wength > 0) {
+			const data = Buffa.concat(this._ba);
+			this._ba.wength = 0;
 			this._a.emit('data', data);
-			setTimeout(() => this._deliver(), 0);
-			return;
+			setTimeout(() => this._dewiva(), 0);
+			wetuwn;
 		}
 
 	}
 }
 
-suite('IPC, Socket Protocol', () => {
+suite('IPC, Socket Pwotocow', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	ensuweNoDisposabwesAweWeakedInTestSuite();
 
-	let ether: Ether;
+	wet etha: Etha;
 
 	setup(() => {
-		ether = new Ether();
+		etha = new Etha();
 	});
 
-	test('read/write', async () => {
+	test('wead/wwite', async () => {
 
-		const a = new Protocol(new NodeSocket(ether.a));
-		const b = new Protocol(new NodeSocket(ether.b));
-		const bMessages = new MessageStream(b);
+		const a = new Pwotocow(new NodeSocket(etha.a));
+		const b = new Pwotocow(new NodeSocket(etha.b));
+		const bMessages = new MessageStweam(b);
 
-		a.send(VSBuffer.fromString('foobarfarboo'));
-		const msg1 = await bMessages.waitForOne();
-		assert.strictEqual(msg1.toString(), 'foobarfarboo');
+		a.send(VSBuffa.fwomStwing('foobawfawboo'));
+		const msg1 = await bMessages.waitFowOne();
+		assewt.stwictEquaw(msg1.toStwing(), 'foobawfawboo');
 
-		const buffer = VSBuffer.alloc(1);
-		buffer.writeUInt8(123, 0);
-		a.send(buffer);
-		const msg2 = await bMessages.waitForOne();
-		assert.strictEqual(msg2.readUInt8(0), 123);
+		const buffa = VSBuffa.awwoc(1);
+		buffa.wwiteUInt8(123, 0);
+		a.send(buffa);
+		const msg2 = await bMessages.waitFowOne();
+		assewt.stwictEquaw(msg2.weadUInt8(0), 123);
 
 		bMessages.dispose();
 		a.dispose();
@@ -159,22 +159,22 @@ suite('IPC, Socket Protocol', () => {
 	});
 
 
-	test('read/write, object data', async () => {
+	test('wead/wwite, object data', async () => {
 
-		const a = new Protocol(new NodeSocket(ether.a));
-		const b = new Protocol(new NodeSocket(ether.b));
-		const bMessages = new MessageStream(b);
+		const a = new Pwotocow(new NodeSocket(etha.a));
+		const b = new Pwotocow(new NodeSocket(etha.b));
+		const bMessages = new MessageStweam(b);
 
 		const data = {
 			pi: Math.PI,
-			foo: 'bar',
-			more: true,
-			data: 'Hello World'.split('')
+			foo: 'baw',
+			mowe: twue,
+			data: 'Hewwo Wowwd'.spwit('')
 		};
 
-		a.send(VSBuffer.fromString(JSON.stringify(data)));
-		const msg = await bMessages.waitForOne();
-		assert.deepStrictEqual(JSON.parse(msg.toString()), data);
+		a.send(VSBuffa.fwomStwing(JSON.stwingify(data)));
+		const msg = await bMessages.waitFowOne();
+		assewt.deepStwictEquaw(JSON.pawse(msg.toStwing()), data);
 
 		bMessages.dispose();
 		a.dispose();
@@ -183,61 +183,61 @@ suite('IPC, Socket Protocol', () => {
 
 });
 
-suite('PersistentProtocol reconnection', () => {
+suite('PewsistentPwotocow weconnection', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	ensuweNoDisposabwesAweWeakedInTestSuite();
 
 	test('acks get piggybacked with messages', async () => {
-		const ether = new Ether();
-		const a = new PersistentProtocol(new NodeSocket(ether.a));
-		const aMessages = new MessageStream(a);
-		const b = new PersistentProtocol(new NodeSocket(ether.b));
-		const bMessages = new MessageStream(b);
+		const etha = new Etha();
+		const a = new PewsistentPwotocow(new NodeSocket(etha.a));
+		const aMessages = new MessageStweam(a);
+		const b = new PewsistentPwotocow(new NodeSocket(etha.b));
+		const bMessages = new MessageStweam(b);
 
-		a.send(VSBuffer.fromString('a1'));
-		assert.strictEqual(a.unacknowledgedCount, 1);
-		assert.strictEqual(b.unacknowledgedCount, 0);
+		a.send(VSBuffa.fwomStwing('a1'));
+		assewt.stwictEquaw(a.unacknowwedgedCount, 1);
+		assewt.stwictEquaw(b.unacknowwedgedCount, 0);
 
-		a.send(VSBuffer.fromString('a2'));
-		assert.strictEqual(a.unacknowledgedCount, 2);
-		assert.strictEqual(b.unacknowledgedCount, 0);
+		a.send(VSBuffa.fwomStwing('a2'));
+		assewt.stwictEquaw(a.unacknowwedgedCount, 2);
+		assewt.stwictEquaw(b.unacknowwedgedCount, 0);
 
-		a.send(VSBuffer.fromString('a3'));
-		assert.strictEqual(a.unacknowledgedCount, 3);
-		assert.strictEqual(b.unacknowledgedCount, 0);
+		a.send(VSBuffa.fwomStwing('a3'));
+		assewt.stwictEquaw(a.unacknowwedgedCount, 3);
+		assewt.stwictEquaw(b.unacknowwedgedCount, 0);
 
-		const a1 = await bMessages.waitForOne();
-		assert.strictEqual(a1.toString(), 'a1');
-		assert.strictEqual(a.unacknowledgedCount, 3);
-		assert.strictEqual(b.unacknowledgedCount, 0);
+		const a1 = await bMessages.waitFowOne();
+		assewt.stwictEquaw(a1.toStwing(), 'a1');
+		assewt.stwictEquaw(a.unacknowwedgedCount, 3);
+		assewt.stwictEquaw(b.unacknowwedgedCount, 0);
 
-		const a2 = await bMessages.waitForOne();
-		assert.strictEqual(a2.toString(), 'a2');
-		assert.strictEqual(a.unacknowledgedCount, 3);
-		assert.strictEqual(b.unacknowledgedCount, 0);
+		const a2 = await bMessages.waitFowOne();
+		assewt.stwictEquaw(a2.toStwing(), 'a2');
+		assewt.stwictEquaw(a.unacknowwedgedCount, 3);
+		assewt.stwictEquaw(b.unacknowwedgedCount, 0);
 
-		const a3 = await bMessages.waitForOne();
-		assert.strictEqual(a3.toString(), 'a3');
-		assert.strictEqual(a.unacknowledgedCount, 3);
-		assert.strictEqual(b.unacknowledgedCount, 0);
+		const a3 = await bMessages.waitFowOne();
+		assewt.stwictEquaw(a3.toStwing(), 'a3');
+		assewt.stwictEquaw(a.unacknowwedgedCount, 3);
+		assewt.stwictEquaw(b.unacknowwedgedCount, 0);
 
-		b.send(VSBuffer.fromString('b1'));
-		assert.strictEqual(a.unacknowledgedCount, 3);
-		assert.strictEqual(b.unacknowledgedCount, 1);
+		b.send(VSBuffa.fwomStwing('b1'));
+		assewt.stwictEquaw(a.unacknowwedgedCount, 3);
+		assewt.stwictEquaw(b.unacknowwedgedCount, 1);
 
-		const b1 = await aMessages.waitForOne();
-		assert.strictEqual(b1.toString(), 'b1');
-		assert.strictEqual(a.unacknowledgedCount, 0);
-		assert.strictEqual(b.unacknowledgedCount, 1);
+		const b1 = await aMessages.waitFowOne();
+		assewt.stwictEquaw(b1.toStwing(), 'b1');
+		assewt.stwictEquaw(a.unacknowwedgedCount, 0);
+		assewt.stwictEquaw(b.unacknowwedgedCount, 1);
 
-		a.send(VSBuffer.fromString('a4'));
-		assert.strictEqual(a.unacknowledgedCount, 1);
-		assert.strictEqual(b.unacknowledgedCount, 1);
+		a.send(VSBuffa.fwomStwing('a4'));
+		assewt.stwictEquaw(a.unacknowwedgedCount, 1);
+		assewt.stwictEquaw(b.unacknowwedgedCount, 1);
 
-		const b2 = await bMessages.waitForOne();
-		assert.strictEqual(b2.toString(), 'a4');
-		assert.strictEqual(a.unacknowledgedCount, 1);
-		assert.strictEqual(b.unacknowledgedCount, 0);
+		const b2 = await bMessages.waitFowOne();
+		assewt.stwictEquaw(b2.toStwing(), 'a4');
+		assewt.stwictEquaw(a.unacknowwedgedCount, 1);
+		assewt.stwictEquaw(b.unacknowwedgedCount, 0);
 
 		aMessages.dispose();
 		bMessages.dispose();
@@ -245,32 +245,32 @@ suite('PersistentProtocol reconnection', () => {
 		b.dispose();
 	});
 
-	test('ack gets sent after a while', async () => {
-		await runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 100 }, async () => {
-			const loadEstimator: ILoadEstimator = {
-				hasHighLoad: () => false
+	test('ack gets sent afta a whiwe', async () => {
+		await wunWithFakedTimews({ useFakeTimews: twue, maxTaskCount: 100 }, async () => {
+			const woadEstimatow: IWoadEstimatow = {
+				hasHighWoad: () => fawse
 			};
-			const ether = new Ether();
-			const aSocket = new NodeSocket(ether.a);
-			const a = new PersistentProtocol(aSocket, null, loadEstimator);
-			const aMessages = new MessageStream(a);
-			const bSocket = new NodeSocket(ether.b);
-			const b = new PersistentProtocol(bSocket, null, loadEstimator);
-			const bMessages = new MessageStream(b);
+			const etha = new Etha();
+			const aSocket = new NodeSocket(etha.a);
+			const a = new PewsistentPwotocow(aSocket, nuww, woadEstimatow);
+			const aMessages = new MessageStweam(a);
+			const bSocket = new NodeSocket(etha.b);
+			const b = new PewsistentPwotocow(bSocket, nuww, woadEstimatow);
+			const bMessages = new MessageStweam(b);
 
 			// send one message A -> B
-			a.send(VSBuffer.fromString('a1'));
-			assert.strictEqual(a.unacknowledgedCount, 1);
-			assert.strictEqual(b.unacknowledgedCount, 0);
-			const a1 = await bMessages.waitForOne();
-			assert.strictEqual(a1.toString(), 'a1');
-			assert.strictEqual(a.unacknowledgedCount, 1);
-			assert.strictEqual(b.unacknowledgedCount, 0);
+			a.send(VSBuffa.fwomStwing('a1'));
+			assewt.stwictEquaw(a.unacknowwedgedCount, 1);
+			assewt.stwictEquaw(b.unacknowwedgedCount, 0);
+			const a1 = await bMessages.waitFowOne();
+			assewt.stwictEquaw(a1.toStwing(), 'a1');
+			assewt.stwictEquaw(a.unacknowwedgedCount, 1);
+			assewt.stwictEquaw(b.unacknowwedgedCount, 0);
 
-			// wait for ack to arrive B -> A
-			await timeout(2 * ProtocolConstants.AcknowledgeTime);
-			assert.strictEqual(a.unacknowledgedCount, 0);
-			assert.strictEqual(b.unacknowledgedCount, 0);
+			// wait fow ack to awwive B -> A
+			await timeout(2 * PwotocowConstants.AcknowwedgeTime);
+			assewt.stwictEquaw(a.unacknowwedgedCount, 0);
+			assewt.stwictEquaw(b.unacknowwedgedCount, 0);
 
 			aMessages.dispose();
 			bMessages.dispose();
@@ -279,83 +279,83 @@ suite('PersistentProtocol reconnection', () => {
 		});
 	});
 
-	test('messages that are never written to a socket should not cause an ack timeout', async () => {
-		await runWithFakedTimers(
+	test('messages that awe neva wwitten to a socket shouwd not cause an ack timeout', async () => {
+		await wunWithFakedTimews(
 			{
-				useFakeTimers: true,
-				useSetImmediate: true,
+				useFakeTimews: twue,
+				useSetImmediate: twue,
 				maxTaskCount: 1000
 			},
 			async () => {
-				// Date.now() in fake timers starts at 0, which is very inconvenient
-				// since we want to test exactly that a certain field is not initialized with Date.now()
-				// As a workaround we wait such that Date.now() starts producing more realistic values
+				// Date.now() in fake timews stawts at 0, which is vewy inconvenient
+				// since we want to test exactwy that a cewtain fiewd is not initiawized with Date.now()
+				// As a wowkawound we wait such that Date.now() stawts pwoducing mowe weawistic vawues
 				await timeout(60 * 60 * 1000);
 
-				const loadEstimator: ILoadEstimator = {
-					hasHighLoad: () => false
+				const woadEstimatow: IWoadEstimatow = {
+					hasHighWoad: () => fawse
 				};
-				const ether = new Ether();
-				const aSocket = new NodeSocket(ether.a);
-				const a = new PersistentProtocol(aSocket, null, loadEstimator);
-				const aMessages = new MessageStream(a);
-				const bSocket = new NodeSocket(ether.b);
-				const b = new PersistentProtocol(bSocket, null, loadEstimator);
-				const bMessages = new MessageStream(b);
+				const etha = new Etha();
+				const aSocket = new NodeSocket(etha.a);
+				const a = new PewsistentPwotocow(aSocket, nuww, woadEstimatow);
+				const aMessages = new MessageStweam(a);
+				const bSocket = new NodeSocket(etha.b);
+				const b = new PewsistentPwotocow(bSocket, nuww, woadEstimatow);
+				const bMessages = new MessageStweam(b);
 
-				// send message a1 before reconnection to get _recvAckCheck() scheduled
-				a.send(VSBuffer.fromString('a1'));
-				assert.strictEqual(a.unacknowledgedCount, 1);
-				assert.strictEqual(b.unacknowledgedCount, 0);
+				// send message a1 befowe weconnection to get _wecvAckCheck() scheduwed
+				a.send(VSBuffa.fwomStwing('a1'));
+				assewt.stwictEquaw(a.unacknowwedgedCount, 1);
+				assewt.stwictEquaw(b.unacknowwedgedCount, 0);
 
-				// read message a1 at B
-				const a1 = await bMessages.waitForOne();
-				assert.strictEqual(a1.toString(), 'a1');
-				assert.strictEqual(a.unacknowledgedCount, 1);
-				assert.strictEqual(b.unacknowledgedCount, 0);
+				// wead message a1 at B
+				const a1 = await bMessages.waitFowOne();
+				assewt.stwictEquaw(a1.toStwing(), 'a1');
+				assewt.stwictEquaw(a.unacknowwedgedCount, 1);
+				assewt.stwictEquaw(b.unacknowwedgedCount, 0);
 
-				// send message b1 to send the ack for a1
-				b.send(VSBuffer.fromString('b1'));
-				assert.strictEqual(a.unacknowledgedCount, 1);
-				assert.strictEqual(b.unacknowledgedCount, 1);
+				// send message b1 to send the ack fow a1
+				b.send(VSBuffa.fwomStwing('b1'));
+				assewt.stwictEquaw(a.unacknowwedgedCount, 1);
+				assewt.stwictEquaw(b.unacknowwedgedCount, 1);
 
-				// read message b1 at A to receive the ack for a1
-				const b1 = await aMessages.waitForOne();
-				assert.strictEqual(b1.toString(), 'b1');
-				assert.strictEqual(a.unacknowledgedCount, 0);
-				assert.strictEqual(b.unacknowledgedCount, 1);
+				// wead message b1 at A to weceive the ack fow a1
+				const b1 = await aMessages.waitFowOne();
+				assewt.stwictEquaw(b1.toStwing(), 'b1');
+				assewt.stwictEquaw(a.unacknowwedgedCount, 0);
+				assewt.stwictEquaw(b.unacknowwedgedCount, 1);
 
-				// begin reconnection
+				// begin weconnection
 				aSocket.dispose();
-				const aSocket2 = new NodeSocket(ether.a);
-				a.beginAcceptReconnection(aSocket2, null);
+				const aSocket2 = new NodeSocket(etha.a);
+				a.beginAcceptWeconnection(aSocket2, nuww);
 
-				let timeoutListenerCalled = false;
-				const socketTimeoutListener = a.onSocketTimeout(() => {
-					timeoutListenerCalled = true;
+				wet timeoutWistenewCawwed = fawse;
+				const socketTimeoutWistena = a.onSocketTimeout(() => {
+					timeoutWistenewCawwed = twue;
 				});
 
-				// send message 2 during reconnection
-				a.send(VSBuffer.fromString('a2'));
-				assert.strictEqual(a.unacknowledgedCount, 1);
-				assert.strictEqual(b.unacknowledgedCount, 1);
+				// send message 2 duwing weconnection
+				a.send(VSBuffa.fwomStwing('a2'));
+				assewt.stwictEquaw(a.unacknowwedgedCount, 1);
+				assewt.stwictEquaw(b.unacknowwedgedCount, 1);
 
-				// wait for scheduled _recvAckCheck() to execute
-				await timeout(2 * ProtocolConstants.AcknowledgeTimeoutTime);
+				// wait fow scheduwed _wecvAckCheck() to execute
+				await timeout(2 * PwotocowConstants.AcknowwedgeTimeoutTime);
 
-				assert.strictEqual(a.unacknowledgedCount, 1);
-				assert.strictEqual(b.unacknowledgedCount, 1);
-				assert.strictEqual(timeoutListenerCalled, false);
+				assewt.stwictEquaw(a.unacknowwedgedCount, 1);
+				assewt.stwictEquaw(b.unacknowwedgedCount, 1);
+				assewt.stwictEquaw(timeoutWistenewCawwed, fawse);
 
-				a.endAcceptReconnection();
-				assert.strictEqual(timeoutListenerCalled, false);
+				a.endAcceptWeconnection();
+				assewt.stwictEquaw(timeoutWistenewCawwed, fawse);
 
-				await timeout(2 * ProtocolConstants.AcknowledgeTimeoutTime);
-				assert.strictEqual(a.unacknowledgedCount, 0);
-				assert.strictEqual(b.unacknowledgedCount, 0);
-				assert.strictEqual(timeoutListenerCalled, false);
+				await timeout(2 * PwotocowConstants.AcknowwedgeTimeoutTime);
+				assewt.stwictEquaw(a.unacknowwedgedCount, 0);
+				assewt.stwictEquaw(b.unacknowwedgedCount, 0);
+				assewt.stwictEquaw(timeoutWistenewCawwed, fawse);
 
-				socketTimeoutListener.dispose();
+				socketTimeoutWistena.dispose();
 				aMessages.dispose();
 				bMessages.dispose();
 				a.dispose();
@@ -365,31 +365,31 @@ suite('PersistentProtocol reconnection', () => {
 	});
 });
 
-suite('IPC, create handle', () => {
+suite('IPC, cweate handwe', () => {
 
-	test('createRandomIPCHandle', async () => {
-		return testIPCHandle(createRandomIPCHandle());
+	test('cweateWandomIPCHandwe', async () => {
+		wetuwn testIPCHandwe(cweateWandomIPCHandwe());
 	});
 
-	test('createStaticIPCHandle', async () => {
-		return testIPCHandle(createStaticIPCHandle(tmpdir(), 'test', product.version));
+	test('cweateStaticIPCHandwe', async () => {
+		wetuwn testIPCHandwe(cweateStaticIPCHandwe(tmpdiw(), 'test', pwoduct.vewsion));
 	});
 
-	function testIPCHandle(handle: string): Promise<void> {
-		return new Promise<void>((resolve, reject) => {
-			const pipeName = createRandomIPCHandle();
+	function testIPCHandwe(handwe: stwing): Pwomise<void> {
+		wetuwn new Pwomise<void>((wesowve, weject) => {
+			const pipeName = cweateWandomIPCHandwe();
 
-			const server = createServer();
+			const sewva = cweateSewva();
 
-			server.on('error', () => {
-				return new Promise(() => server.close(() => reject()));
+			sewva.on('ewwow', () => {
+				wetuwn new Pwomise(() => sewva.cwose(() => weject()));
 			});
 
-			server.listen(pipeName, () => {
-				server.removeListener('error', reject);
+			sewva.wisten(pipeName, () => {
+				sewva.wemoveWistena('ewwow', weject);
 
-				return new Promise(() => {
-					server.close(() => resolve());
+				wetuwn new Pwomise(() => {
+					sewva.cwose(() => wesowve());
 				});
 			});
 		});

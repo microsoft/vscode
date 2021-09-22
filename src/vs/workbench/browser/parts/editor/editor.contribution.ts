@@ -1,955 +1,955 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Registry } from 'vs/platform/registry/common/platform';
-import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
-import {
-	IEditorFactoryRegistry, TextCompareEditorActiveContext, ActiveEditorPinnedContext, EditorExtensions, EditorGroupEditorsCountContext,
-	ActiveEditorStickyContext, ActiveEditorAvailableEditorIdsContext, MultipleEditorGroupsContext, ActiveEditorDirtyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext
-} from 'vs/workbench/common/editor';
-import { SideBySideEditorInput, SideBySideEditorInputSerializer } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
-import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
-import { DiffEditorInput, DiffEditorInputSerializer } from 'vs/workbench/common/editor/diffEditorInput';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
-import { BinaryResourceDiffEditor } from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
-import { ChangeEncodingAction, ChangeEOLAction, ChangeModeAction, EditorStatus } from 'vs/workbench/browser/parts/editor/editorStatus';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions, CATEGORIES } from 'vs/workbench/common/actions';
-import { SyncActionDescriptor, MenuRegistry, MenuId, IMenuItem } from 'vs/platform/actions/common/actions';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
-import {
-	CloseEditorsInOtherGroupsAction, CloseAllEditorsAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, JoinTwoGroupsAction, RevertAndCloseEditorAction,
-	NavigateBetweenGroupsAction, FocusActiveGroupAction, FocusFirstGroupAction, ResetGroupSizesAction, MaximizeGroupAction, MinimizeOtherGroupsAction, FocusPreviousGroup, FocusNextGroup,
-	CloseLeftEditorsInGroupAction, OpenNextEditor, OpenPreviousEditor, NavigateBackwardsAction, NavigateForwardAction, NavigateLastAction, ReopenClosedEditorAction,
-	QuickAccessPreviousRecentlyUsedEditorInGroupAction, QuickAccessPreviousEditorFromHistoryAction, ShowAllEditorsByAppearanceAction, ClearEditorHistoryAction, MoveEditorRightInGroupAction, OpenNextEditorInGroup,
-	OpenPreviousEditorInGroup, OpenNextRecentlyUsedEditorAction, OpenPreviousRecentlyUsedEditorAction, MoveEditorToPreviousGroupAction,
-	MoveEditorToNextGroupAction, MoveEditorToFirstGroupAction, MoveEditorLeftInGroupAction, ClearRecentFilesAction, OpenLastEditorInGroup,
-	ShowEditorsInActiveGroupByMostRecentlyUsedAction, MoveEditorToLastGroupAction, OpenFirstEditorInGroup, MoveGroupUpAction, MoveGroupDownAction, FocusLastGroupAction, SplitEditorLeftAction, SplitEditorRightAction,
-	SplitEditorUpAction, SplitEditorDownAction, MoveEditorToLeftGroupAction, MoveEditorToRightGroupAction, MoveEditorToAboveGroupAction, MoveEditorToBelowGroupAction, CloseAllEditorGroupsAction,
-	JoinAllGroupsAction, FocusLeftGroup, FocusAboveGroup, FocusRightGroup, FocusBelowGroup, EditorLayoutSingleAction, EditorLayoutTwoColumnsAction, EditorLayoutThreeColumnsAction, EditorLayoutTwoByTwoGridAction,
-	EditorLayoutTwoRowsAction, EditorLayoutThreeRowsAction, EditorLayoutTwoColumnsBottomAction, EditorLayoutTwoRowsRightAction, NewEditorGroupLeftAction, NewEditorGroupRightAction,
-	NewEditorGroupAboveAction, NewEditorGroupBelowAction, SplitEditorOrthogonalAction, CloseEditorInAllGroupsAction, NavigateToLastEditLocationAction, ToggleGroupSizesAction, ShowAllEditorsByMostRecentlyUsedAction,
-	QuickAccessPreviousRecentlyUsedEditorAction, OpenPreviousRecentlyUsedEditorInGroupAction, OpenNextRecentlyUsedEditorInGroupAction, QuickAccessLeastRecentlyUsedEditorAction, QuickAccessLeastRecentlyUsedEditorInGroupAction, ReOpenInTextEditorAction, DuplicateGroupDownAction, DuplicateGroupLeftAction, DuplicateGroupRightAction, DuplicateGroupUpAction, ToggleEditorTypeAction, SplitEditorToAboveGroupAction, SplitEditorToBelowGroupAction, SplitEditorToFirstGroupAction, SplitEditorToLastGroupAction, SplitEditorToLeftGroupAction, SplitEditorToNextGroupAction, SplitEditorToPreviousGroupAction, SplitEditorToRightGroupAction
-} from 'vs/workbench/browser/parts/editor/editorActions';
-import {
-	CLOSE_EDITORS_AND_GROUP_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_EDITOR_GROUP_COMMAND_ID,
-	CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_PINNED_EDITOR_COMMAND_ID, CLOSE_SAVED_EDITORS_COMMAND_ID, GOTO_NEXT_CHANGE, GOTO_PREVIOUS_CHANGE, KEEP_EDITOR_COMMAND_ID,
-	PIN_EDITOR_COMMAND_ID, SHOW_EDITORS_IN_GROUP, SPLIT_EDITOR_DOWN, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
-	TOGGLE_DIFF_SIDE_BY_SIDE, TOGGLE_KEEP_EDITORS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, setup as registerEditorCommands, REOPEN_WITH_COMMAND_ID, TOGGLE_LOCK_GROUP_COMMAND_ID, UNLOCK_GROUP_COMMAND_ID, SPLIT_EDITOR_IN_GROUP, JOIN_EDITOR_IN_GROUP, FOCUS_FIRST_SIDE_EDITOR, FOCUS_SECOND_SIDE_EDITOR, TOGGLE_SPLIT_EDITOR_IN_GROUP_LAYOUT
-} from 'vs/workbench/browser/parts/editor/editorCommands';
-import { inQuickPickContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { isMacintosh } from 'vs/base/common/platform';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { OpenWorkspaceButtonContribution } from 'vs/workbench/browser/codeeditor';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { EditorAutoSave } from 'vs/workbench/browser/parts/editor/editorAutoSave';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
-import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess, AllEditorsByAppearanceQuickAccess, AllEditorsByMostRecentlyUsedQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
-import { FileAccess } from 'vs/base/common/network';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { UntitledTextEditorInputSerializer, UntitledTextEditorWorkingCopyEditorHandler } from 'vs/workbench/services/untitled/common/untitledTextEditorHandler';
-import { DynamicEditorGroupAutoLockConfiguration } from 'vs/workbench/browser/parts/editor/editorConfiguration';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { wocawize } fwom 'vs/nws';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IEditowPaneWegistwy, EditowPaneDescwiptow } fwom 'vs/wowkbench/bwowsa/editow';
+impowt {
+	IEditowFactowyWegistwy, TextCompaweEditowActiveContext, ActiveEditowPinnedContext, EditowExtensions, EditowGwoupEditowsCountContext,
+	ActiveEditowStickyContext, ActiveEditowAvaiwabweEditowIdsContext, MuwtipweEditowGwoupsContext, ActiveEditowDiwtyContext, ActiveEditowGwoupWockedContext, ActiveEditowCanSpwitInGwoupContext, SideBySideEditowActiveContext
+} fwom 'vs/wowkbench/common/editow';
+impowt { SideBySideEditowInput, SideBySideEditowInputSewiawiza } fwom 'vs/wowkbench/common/editow/sideBySideEditowInput';
+impowt { TextWesouwceEditow } fwom 'vs/wowkbench/bwowsa/pawts/editow/textWesouwceEditow';
+impowt { SideBySideEditow } fwom 'vs/wowkbench/bwowsa/pawts/editow/sideBySideEditow';
+impowt { DiffEditowInput, DiffEditowInputSewiawiza } fwom 'vs/wowkbench/common/editow/diffEditowInput';
+impowt { UntitwedTextEditowInput } fwom 'vs/wowkbench/sewvices/untitwed/common/untitwedTextEditowInput';
+impowt { TextWesouwceEditowInput } fwom 'vs/wowkbench/common/editow/textWesouwceEditowInput';
+impowt { TextDiffEditow } fwom 'vs/wowkbench/bwowsa/pawts/editow/textDiffEditow';
+impowt { BinawyWesouwceDiffEditow } fwom 'vs/wowkbench/bwowsa/pawts/editow/binawyDiffEditow';
+impowt { ChangeEncodingAction, ChangeEOWAction, ChangeModeAction, EditowStatus } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowStatus';
+impowt { IWowkbenchActionWegistwy, Extensions as ActionExtensions, CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { SyncActionDescwiptow, MenuWegistwy, MenuId, IMenuItem } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { KeyMod, KeyChowd, KeyCode } fwom 'vs/base/common/keyCodes';
+impowt {
+	CwoseEditowsInOthewGwoupsAction, CwoseAwwEditowsAction, MoveGwoupWeftAction, MoveGwoupWightAction, SpwitEditowAction, JoinTwoGwoupsAction, WevewtAndCwoseEditowAction,
+	NavigateBetweenGwoupsAction, FocusActiveGwoupAction, FocusFiwstGwoupAction, WesetGwoupSizesAction, MaximizeGwoupAction, MinimizeOthewGwoupsAction, FocusPweviousGwoup, FocusNextGwoup,
+	CwoseWeftEditowsInGwoupAction, OpenNextEditow, OpenPweviousEditow, NavigateBackwawdsAction, NavigateFowwawdAction, NavigateWastAction, WeopenCwosedEditowAction,
+	QuickAccessPweviousWecentwyUsedEditowInGwoupAction, QuickAccessPweviousEditowFwomHistowyAction, ShowAwwEditowsByAppeawanceAction, CweawEditowHistowyAction, MoveEditowWightInGwoupAction, OpenNextEditowInGwoup,
+	OpenPweviousEditowInGwoup, OpenNextWecentwyUsedEditowAction, OpenPweviousWecentwyUsedEditowAction, MoveEditowToPweviousGwoupAction,
+	MoveEditowToNextGwoupAction, MoveEditowToFiwstGwoupAction, MoveEditowWeftInGwoupAction, CweawWecentFiwesAction, OpenWastEditowInGwoup,
+	ShowEditowsInActiveGwoupByMostWecentwyUsedAction, MoveEditowToWastGwoupAction, OpenFiwstEditowInGwoup, MoveGwoupUpAction, MoveGwoupDownAction, FocusWastGwoupAction, SpwitEditowWeftAction, SpwitEditowWightAction,
+	SpwitEditowUpAction, SpwitEditowDownAction, MoveEditowToWeftGwoupAction, MoveEditowToWightGwoupAction, MoveEditowToAboveGwoupAction, MoveEditowToBewowGwoupAction, CwoseAwwEditowGwoupsAction,
+	JoinAwwGwoupsAction, FocusWeftGwoup, FocusAboveGwoup, FocusWightGwoup, FocusBewowGwoup, EditowWayoutSingweAction, EditowWayoutTwoCowumnsAction, EditowWayoutThweeCowumnsAction, EditowWayoutTwoByTwoGwidAction,
+	EditowWayoutTwoWowsAction, EditowWayoutThweeWowsAction, EditowWayoutTwoCowumnsBottomAction, EditowWayoutTwoWowsWightAction, NewEditowGwoupWeftAction, NewEditowGwoupWightAction,
+	NewEditowGwoupAboveAction, NewEditowGwoupBewowAction, SpwitEditowOwthogonawAction, CwoseEditowInAwwGwoupsAction, NavigateToWastEditWocationAction, ToggweGwoupSizesAction, ShowAwwEditowsByMostWecentwyUsedAction,
+	QuickAccessPweviousWecentwyUsedEditowAction, OpenPweviousWecentwyUsedEditowInGwoupAction, OpenNextWecentwyUsedEditowInGwoupAction, QuickAccessWeastWecentwyUsedEditowAction, QuickAccessWeastWecentwyUsedEditowInGwoupAction, WeOpenInTextEditowAction, DupwicateGwoupDownAction, DupwicateGwoupWeftAction, DupwicateGwoupWightAction, DupwicateGwoupUpAction, ToggweEditowTypeAction, SpwitEditowToAboveGwoupAction, SpwitEditowToBewowGwoupAction, SpwitEditowToFiwstGwoupAction, SpwitEditowToWastGwoupAction, SpwitEditowToWeftGwoupAction, SpwitEditowToNextGwoupAction, SpwitEditowToPweviousGwoupAction, SpwitEditowToWightGwoupAction
+} fwom 'vs/wowkbench/bwowsa/pawts/editow/editowActions';
+impowt {
+	CWOSE_EDITOWS_AND_GWOUP_COMMAND_ID, CWOSE_EDITOWS_IN_GWOUP_COMMAND_ID, CWOSE_EDITOWS_TO_THE_WIGHT_COMMAND_ID, CWOSE_EDITOW_COMMAND_ID, CWOSE_EDITOW_GWOUP_COMMAND_ID,
+	CWOSE_OTHEW_EDITOWS_IN_GWOUP_COMMAND_ID, CWOSE_PINNED_EDITOW_COMMAND_ID, CWOSE_SAVED_EDITOWS_COMMAND_ID, GOTO_NEXT_CHANGE, GOTO_PWEVIOUS_CHANGE, KEEP_EDITOW_COMMAND_ID,
+	PIN_EDITOW_COMMAND_ID, SHOW_EDITOWS_IN_GWOUP, SPWIT_EDITOW_DOWN, SPWIT_EDITOW_WEFT, SPWIT_EDITOW_WIGHT, SPWIT_EDITOW_UP, TOGGWE_DIFF_IGNOWE_TWIM_WHITESPACE,
+	TOGGWE_DIFF_SIDE_BY_SIDE, TOGGWE_KEEP_EDITOWS_COMMAND_ID, UNPIN_EDITOW_COMMAND_ID, setup as wegistewEditowCommands, WEOPEN_WITH_COMMAND_ID, TOGGWE_WOCK_GWOUP_COMMAND_ID, UNWOCK_GWOUP_COMMAND_ID, SPWIT_EDITOW_IN_GWOUP, JOIN_EDITOW_IN_GWOUP, FOCUS_FIWST_SIDE_EDITOW, FOCUS_SECOND_SIDE_EDITOW, TOGGWE_SPWIT_EDITOW_IN_GWOUP_WAYOUT
+} fwom 'vs/wowkbench/bwowsa/pawts/editow/editowCommands';
+impowt { inQuickPickContext, getQuickNavigateHandwa } fwom 'vs/wowkbench/bwowsa/quickaccess';
+impowt { KeybindingsWegistwy, KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { ContextKeyExpw, ContextKeyExpwession } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { wegistewEditowContwibution } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { OpenWowkspaceButtonContwibution } fwom 'vs/wowkbench/bwowsa/codeeditow';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { EditowAutoSave } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowAutoSave';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IQuickAccessWegistwy, Extensions as QuickAccessExtensions } fwom 'vs/pwatfowm/quickinput/common/quickAccess';
+impowt { ActiveGwoupEditowsByMostWecentwyUsedQuickAccess, AwwEditowsByAppeawanceQuickAccess, AwwEditowsByMostWecentwyUsedQuickAccess } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowQuickAccess';
+impowt { FiweAccess } fwom 'vs/base/common/netwowk';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { wegistewIcon } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
+impowt { UntitwedTextEditowInputSewiawiza, UntitwedTextEditowWowkingCopyEditowHandwa } fwom 'vs/wowkbench/sewvices/untitwed/common/untitwedTextEditowHandwa';
+impowt { DynamicEditowGwoupAutoWockConfiguwation } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowConfiguwation';
 
-//#region Editor Registrations
+//#wegion Editow Wegistwations
 
-Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-	EditorPaneDescriptor.create(
-		TextResourceEditor,
-		TextResourceEditor.ID,
-		localize('textEditor', "Text Editor"),
+Wegistwy.as<IEditowPaneWegistwy>(EditowExtensions.EditowPane).wegistewEditowPane(
+	EditowPaneDescwiptow.cweate(
+		TextWesouwceEditow,
+		TextWesouwceEditow.ID,
+		wocawize('textEditow', "Text Editow"),
 	),
 	[
-		new SyncDescriptor(UntitledTextEditorInput),
-		new SyncDescriptor(TextResourceEditorInput)
+		new SyncDescwiptow(UntitwedTextEditowInput),
+		new SyncDescwiptow(TextWesouwceEditowInput)
 	]
 );
 
-Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-	EditorPaneDescriptor.create(
-		TextDiffEditor,
-		TextDiffEditor.ID,
-		localize('textDiffEditor', "Text Diff Editor")
+Wegistwy.as<IEditowPaneWegistwy>(EditowExtensions.EditowPane).wegistewEditowPane(
+	EditowPaneDescwiptow.cweate(
+		TextDiffEditow,
+		TextDiffEditow.ID,
+		wocawize('textDiffEditow', "Text Diff Editow")
 	),
 	[
-		new SyncDescriptor(DiffEditorInput)
+		new SyncDescwiptow(DiffEditowInput)
 	]
 );
 
-Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-	EditorPaneDescriptor.create(
-		BinaryResourceDiffEditor,
-		BinaryResourceDiffEditor.ID,
-		localize('binaryDiffEditor', "Binary Diff Editor")
+Wegistwy.as<IEditowPaneWegistwy>(EditowExtensions.EditowPane).wegistewEditowPane(
+	EditowPaneDescwiptow.cweate(
+		BinawyWesouwceDiffEditow,
+		BinawyWesouwceDiffEditow.ID,
+		wocawize('binawyDiffEditow', "Binawy Diff Editow")
 	),
 	[
-		new SyncDescriptor(DiffEditorInput)
+		new SyncDescwiptow(DiffEditowInput)
 	]
 );
 
-Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-	EditorPaneDescriptor.create(
-		SideBySideEditor,
-		SideBySideEditor.ID,
-		localize('sideBySideEditor', "Side by Side Editor")
+Wegistwy.as<IEditowPaneWegistwy>(EditowExtensions.EditowPane).wegistewEditowPane(
+	EditowPaneDescwiptow.cweate(
+		SideBySideEditow,
+		SideBySideEditow.ID,
+		wocawize('sideBySideEditow', "Side by Side Editow")
 	),
 	[
-		new SyncDescriptor(SideBySideEditorInput)
+		new SyncDescwiptow(SideBySideEditowInput)
 	]
 );
 
-Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(UntitledTextEditorInput.ID, UntitledTextEditorInputSerializer);
-Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(SideBySideEditorInput.ID, SideBySideEditorInputSerializer);
-Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(DiffEditorInput.ID, DiffEditorInputSerializer);
+Wegistwy.as<IEditowFactowyWegistwy>(EditowExtensions.EditowFactowy).wegistewEditowSewiawiza(UntitwedTextEditowInput.ID, UntitwedTextEditowInputSewiawiza);
+Wegistwy.as<IEditowFactowyWegistwy>(EditowExtensions.EditowFactowy).wegistewEditowSewiawiza(SideBySideEditowInput.ID, SideBySideEditowInputSewiawiza);
+Wegistwy.as<IEditowFactowyWegistwy>(EditowExtensions.EditowFactowy).wegistewEditowSewiawiza(DiffEditowInput.ID, DiffEditowInputSewiawiza);
 
-//#endregion
+//#endwegion
 
-//#region Workbench Contributions
+//#wegion Wowkbench Contwibutions
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EditorAutoSave, LifecyclePhase.Ready);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EditorStatus, LifecyclePhase.Ready);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(UntitledTextEditorWorkingCopyEditorHandler, LifecyclePhase.Ready);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DynamicEditorGroupAutoLockConfiguration, LifecyclePhase.Ready);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(EditowAutoSave, WifecycwePhase.Weady);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(EditowStatus, WifecycwePhase.Weady);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(UntitwedTextEditowWowkingCopyEditowHandwa, WifecycwePhase.Weady);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(DynamicEditowGwoupAutoWockConfiguwation, WifecycwePhase.Weady);
 
-registerEditorContribution(OpenWorkspaceButtonContribution.ID, OpenWorkspaceButtonContribution);
+wegistewEditowContwibution(OpenWowkspaceButtonContwibution.ID, OpenWowkspaceButtonContwibution);
 
-//#endregion
+//#endwegion
 
-//#region Quick Access
+//#wegion Quick Access
 
-const quickAccessRegistry = Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess);
-const editorPickerContextKey = 'inEditorsPicker';
-const editorPickerContext = ContextKeyExpr.and(inQuickPickContext, ContextKeyExpr.has(editorPickerContextKey));
+const quickAccessWegistwy = Wegistwy.as<IQuickAccessWegistwy>(QuickAccessExtensions.Quickaccess);
+const editowPickewContextKey = 'inEditowsPicka';
+const editowPickewContext = ContextKeyExpw.and(inQuickPickContext, ContextKeyExpw.has(editowPickewContextKey));
 
-quickAccessRegistry.registerQuickAccessProvider({
-	ctor: ActiveGroupEditorsByMostRecentlyUsedQuickAccess,
-	prefix: ActiveGroupEditorsByMostRecentlyUsedQuickAccess.PREFIX,
-	contextKey: editorPickerContextKey,
-	placeholder: localize('editorQuickAccessPlaceholder', "Type the name of an editor to open it."),
-	helpEntries: [{ description: localize('activeGroupEditorsByMostRecentlyUsedQuickAccess', "Show Editors in Active Group by Most Recently Used"), needsEditor: false }]
+quickAccessWegistwy.wegistewQuickAccessPwovida({
+	ctow: ActiveGwoupEditowsByMostWecentwyUsedQuickAccess,
+	pwefix: ActiveGwoupEditowsByMostWecentwyUsedQuickAccess.PWEFIX,
+	contextKey: editowPickewContextKey,
+	pwacehowda: wocawize('editowQuickAccessPwacehowda', "Type the name of an editow to open it."),
+	hewpEntwies: [{ descwiption: wocawize('activeGwoupEditowsByMostWecentwyUsedQuickAccess', "Show Editows in Active Gwoup by Most Wecentwy Used"), needsEditow: fawse }]
 });
 
-quickAccessRegistry.registerQuickAccessProvider({
-	ctor: AllEditorsByAppearanceQuickAccess,
-	prefix: AllEditorsByAppearanceQuickAccess.PREFIX,
-	contextKey: editorPickerContextKey,
-	placeholder: localize('editorQuickAccessPlaceholder', "Type the name of an editor to open it."),
-	helpEntries: [{ description: localize('allEditorsByAppearanceQuickAccess', "Show All Opened Editors By Appearance"), needsEditor: false }]
+quickAccessWegistwy.wegistewQuickAccessPwovida({
+	ctow: AwwEditowsByAppeawanceQuickAccess,
+	pwefix: AwwEditowsByAppeawanceQuickAccess.PWEFIX,
+	contextKey: editowPickewContextKey,
+	pwacehowda: wocawize('editowQuickAccessPwacehowda', "Type the name of an editow to open it."),
+	hewpEntwies: [{ descwiption: wocawize('awwEditowsByAppeawanceQuickAccess', "Show Aww Opened Editows By Appeawance"), needsEditow: fawse }]
 });
 
-quickAccessRegistry.registerQuickAccessProvider({
-	ctor: AllEditorsByMostRecentlyUsedQuickAccess,
-	prefix: AllEditorsByMostRecentlyUsedQuickAccess.PREFIX,
-	contextKey: editorPickerContextKey,
-	placeholder: localize('editorQuickAccessPlaceholder', "Type the name of an editor to open it."),
-	helpEntries: [{ description: localize('allEditorsByMostRecentlyUsedQuickAccess', "Show All Opened Editors By Most Recently Used"), needsEditor: false }]
+quickAccessWegistwy.wegistewQuickAccessPwovida({
+	ctow: AwwEditowsByMostWecentwyUsedQuickAccess,
+	pwefix: AwwEditowsByMostWecentwyUsedQuickAccess.PWEFIX,
+	contextKey: editowPickewContextKey,
+	pwacehowda: wocawize('editowQuickAccessPwacehowda', "Type the name of an editow to open it."),
+	hewpEntwies: [{ descwiption: wocawize('awwEditowsByMostWecentwyUsedQuickAccess', "Show Aww Opened Editows By Most Wecentwy Used"), needsEditow: fawse }]
 });
 
-//#endregion
+//#endwegion
 
-//#region Actions & Commands
+//#wegion Actions & Commands
 
-// Editor Status
-const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ChangeModeAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_M) }), 'Change Language Mode', undefined, ContextKeyExpr.not('notebookEditorFocused'));
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ChangeEOLAction), 'Change End of Line Sequence');
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ChangeEncodingAction), 'Change File Encoding');
+// Editow Status
+const wegistwy = Wegistwy.as<IWowkbenchActionWegistwy>(ActionExtensions.WowkbenchActions);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(ChangeModeAction, { pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyCode.KEY_M) }), 'Change Wanguage Mode', undefined, ContextKeyExpw.not('notebookEditowFocused'));
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(ChangeEOWAction), 'Change End of Wine Sequence');
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(ChangeEncodingAction), 'Change Fiwe Encoding');
 
-// Editor Management
-registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenNextEditor, { primary: KeyMod.CtrlCmd | KeyCode.PageDown, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET] } }), 'View: Open Next Editor', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenPreviousEditor, { primary: KeyMod.CtrlCmd | KeyCode.PageUp, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_OPEN_SQUARE_BRACKET] } }), 'View: Open Previous Editor', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenNextEditorInGroup, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.PageDown), mac: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow) } }), 'View: Open Next Editor in Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenPreviousEditorInGroup, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.PageUp), mac: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow) } }), 'View: Open Previous Editor in Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenNextRecentlyUsedEditorAction), 'View: Open Next Recently Used Editor', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenPreviousRecentlyUsedEditorAction), 'View: Open Previous Recently Used Editor', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenNextRecentlyUsedEditorInGroupAction), 'View: Open Next Recently Used Editor In Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenPreviousRecentlyUsedEditorInGroupAction), 'View: Open Previous Recently Used Editor In Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenFirstEditorInGroup), 'View: Open First Editor in Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenLastEditorInGroup, { primary: KeyMod.Alt | KeyCode.KEY_0, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_9], mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_0, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_9] } }), 'View: Open Last Editor in Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ReopenClosedEditorAction, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_T }), 'View: Reopen Closed Editor', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ShowAllEditorsByAppearanceAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_P), mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Tab } }), 'View: Show All Editors By Appearance', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ShowAllEditorsByMostRecentlyUsedAction), 'View: Show All Editors By Most Recently Used', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ShowEditorsInActiveGroupByMostRecentlyUsedAction), 'View: Show Editors in Active Group By Most Recently Used', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ClearRecentFilesAction), 'File: Clear Recently Opened', localize('file', "File"));
-registry.registerWorkbenchAction(SyncActionDescriptor.from(CloseAllEditorsAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_W) }), 'View: Close All Editors', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(CloseAllEditorGroupsAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_W) }), 'View: Close All Editor Groups', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(CloseLeftEditorsInGroupAction), 'View: Close Editors to the Left in Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(CloseEditorsInOtherGroupsAction), 'View: Close Editors in Other Groups', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(CloseEditorInAllGroupsAction), 'View: Close Editor in All Groups', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(SplitEditorAction, { primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH }), 'View: Split Editor', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(SplitEditorOrthogonalAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_BACKSLASH) }), 'View: Split Editor Orthogonal', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(SplitEditorLeftAction), 'View: Split Editor Left', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(SplitEditorRightAction), 'View: Split Editor Right', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(SplitEditorUpAction), 'Split Editor Up', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(SplitEditorDownAction), 'View: Split Editor Down', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(JoinTwoGroupsAction), 'View: Join Editor Group with Next Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(JoinAllGroupsAction), 'View: Join All Editor Groups', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateBetweenGroupsAction), 'View: Navigate Between Editor Groups', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ResetGroupSizesAction), 'View: Reset Editor Group Sizes', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleGroupSizesAction), 'View: Toggle Editor Group Sizes', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(MaximizeGroupAction), 'View: Maximize Editor Group and Hide Side Bar', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(MinimizeOtherGroupsAction), 'View: Maximize Editor Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveEditorLeftInGroupAction, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.PageUp, mac: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow) } }), 'View: Move Editor Left', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveEditorRightInGroupAction, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.PageDown, mac: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow) } }), 'View: Move Editor Right', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveGroupLeftAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.LeftArrow) }), 'View: Move Editor Group Left', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveGroupRightAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.RightArrow) }), 'View: Move Editor Group Right', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveGroupUpAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.UpArrow) }), 'View: Move Editor Group Up', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveGroupDownAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.DownArrow) }), 'View: Move Editor Group Down', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(DuplicateGroupLeftAction), 'View: Duplicate Editor Group Left', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(DuplicateGroupRightAction), 'View: Duplicate Editor Group Right', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(DuplicateGroupUpAction), 'View: Duplicate Editor Group Up', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(DuplicateGroupDownAction), 'View: Duplicate Editor Group Down', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveEditorToPreviousGroupAction, { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.LeftArrow } }), 'View: Move Editor into Previous Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveEditorToNextGroupAction, { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.RightArrow } }), 'View: Move Editor into Next Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveEditorToFirstGroupAction, { primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_1, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_1 } }), 'View: Move Editor into First Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveEditorToLastGroupAction, { primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_9, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_9 } }), 'View: Move Editor into Last Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveEditorToLeftGroupAction), 'View: Move Editor into Left Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveEditorToRightGroupAction), 'View: Move Editor into Right Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveEditorToAboveGroupAction), 'View: Move Editor into Above Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveEditorToBelowGroupAction), 'View: Move Editor into Below Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(SplitEditorToPreviousGroupAction), 'View: Split Editor into Previous Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(SplitEditorToNextGroupAction), 'View: Split Editor into Next Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(SplitEditorToFirstGroupAction), 'View: Split Editor into First Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(SplitEditorToLastGroupAction), 'View: Split Editor into Last Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(SplitEditorToLeftGroupAction), 'View: Split Editor into Left Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(SplitEditorToRightGroupAction), 'View: Split Editor into Right Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(SplitEditorToAboveGroupAction), 'View: Split Editor into Above Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(SplitEditorToBelowGroupAction), 'View: Split Editor into Below Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusActiveGroupAction), 'View: Focus Active Editor Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusFirstGroupAction, { primary: KeyMod.CtrlCmd | KeyCode.KEY_1 }), 'View: Focus First Editor Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusLastGroupAction), 'View: Focus Last Editor Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusPreviousGroup), 'View: Focus Previous Editor Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusNextGroup), 'View: Focus Next Editor Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusLeftGroup, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.LeftArrow) }), 'View: Focus Left Editor Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusRightGroup, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.RightArrow) }), 'View: Focus Right Editor Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusAboveGroup, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.UpArrow) }), 'View: Focus Above Editor Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusBelowGroup, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.DownArrow) }), 'View: Focus Below Editor Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(NewEditorGroupLeftAction), 'View: New Editor Group to the Left', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(NewEditorGroupRightAction), 'View: New Editor Group to the Right', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(NewEditorGroupAboveAction), 'View: New Editor Group Above', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(NewEditorGroupBelowAction), 'View: New Editor Group Below', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateForwardAction, { primary: 0, win: { primary: KeyMod.Alt | KeyCode.RightArrow }, mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.US_MINUS }, linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_MINUS } }), 'Go Forward');
-registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateBackwardsAction, { primary: 0, win: { primary: KeyMod.Alt | KeyCode.LeftArrow }, mac: { primary: KeyMod.WinCtrl | KeyCode.US_MINUS }, linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_MINUS } }), 'Go Back');
-registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateToLastEditLocationAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_Q) }), 'Go to Last Edit Location');
-registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateLastAction), 'Go Last');
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ClearEditorHistoryAction), 'Clear Editor History');
-registry.registerWorkbenchAction(SyncActionDescriptor.from(RevertAndCloseEditorAction), 'View: Revert and Close Editor', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutSingleAction), 'View: Single Column Editor Layout', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutTwoColumnsAction), 'View: Two Columns Editor Layout', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutThreeColumnsAction), 'View: Three Columns Editor Layout', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutTwoRowsAction), 'View: Two Rows Editor Layout', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutThreeRowsAction), 'View: Three Rows Editor Layout', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutTwoByTwoGridAction), 'View: Grid Editor Layout (2x2)', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutTwoRowsRightAction), 'View: Two Rows Right Editor Layout', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutTwoColumnsBottomAction), 'View: Two Columns Bottom Editor Layout', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleEditorTypeAction), 'View: Toggle Editor Type', CATEGORIES.View.value, ActiveEditorAvailableEditorIdsContext);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ReOpenInTextEditorAction), 'View: Reopen Editor With Text Editor', CATEGORIES.View.value, ActiveEditorAvailableEditorIdsContext);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(QuickAccessPreviousRecentlyUsedEditorAction), 'View: Quick Open Previous Recently Used Editor', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(QuickAccessLeastRecentlyUsedEditorAction), 'View: Quick Open Least Recently Used Editor', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(QuickAccessPreviousRecentlyUsedEditorInGroupAction, { primary: KeyMod.CtrlCmd | KeyCode.Tab, mac: { primary: KeyMod.WinCtrl | KeyCode.Tab } }), 'View: Quick Open Previous Recently Used Editor in Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(QuickAccessLeastRecentlyUsedEditorInGroupAction, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab, mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab } }), 'View: Quick Open Least Recently Used Editor in Group', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(QuickAccessPreviousEditorFromHistoryAction), 'Quick Open Previous Editor from History');
+// Editow Management
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(OpenNextEditow, { pwimawy: KeyMod.CtwwCmd | KeyCode.PageDown, mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.WightAwwow, secondawy: [KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.US_CWOSE_SQUAWE_BWACKET] } }), 'View: Open Next Editow', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(OpenPweviousEditow, { pwimawy: KeyMod.CtwwCmd | KeyCode.PageUp, mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.WeftAwwow, secondawy: [KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.US_OPEN_SQUAWE_BWACKET] } }), 'View: Open Pwevious Editow', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(OpenNextEditowInGwoup, { pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.PageDown), mac: { pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.WightAwwow) } }), 'View: Open Next Editow in Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(OpenPweviousEditowInGwoup, { pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.PageUp), mac: { pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.WeftAwwow) } }), 'View: Open Pwevious Editow in Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(OpenNextWecentwyUsedEditowAction), 'View: Open Next Wecentwy Used Editow', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(OpenPweviousWecentwyUsedEditowAction), 'View: Open Pwevious Wecentwy Used Editow', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(OpenNextWecentwyUsedEditowInGwoupAction), 'View: Open Next Wecentwy Used Editow In Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(OpenPweviousWecentwyUsedEditowInGwoupAction), 'View: Open Pwevious Wecentwy Used Editow In Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(OpenFiwstEditowInGwoup), 'View: Open Fiwst Editow in Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(OpenWastEditowInGwoup, { pwimawy: KeyMod.Awt | KeyCode.KEY_0, secondawy: [KeyMod.CtwwCmd | KeyCode.KEY_9], mac: { pwimawy: KeyMod.WinCtww | KeyCode.KEY_0, secondawy: [KeyMod.CtwwCmd | KeyCode.KEY_9] } }), 'View: Open Wast Editow in Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(WeopenCwosedEditowAction, { pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_T }), 'View: Weopen Cwosed Editow', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(ShowAwwEditowsByAppeawanceAction, { pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_P), mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.Tab } }), 'View: Show Aww Editows By Appeawance', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(ShowAwwEditowsByMostWecentwyUsedAction), 'View: Show Aww Editows By Most Wecentwy Used', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(ShowEditowsInActiveGwoupByMostWecentwyUsedAction), 'View: Show Editows in Active Gwoup By Most Wecentwy Used', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(CweawWecentFiwesAction), 'Fiwe: Cweaw Wecentwy Opened', wocawize('fiwe', "Fiwe"));
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(CwoseAwwEditowsAction, { pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_W) }), 'View: Cwose Aww Editows', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(CwoseAwwEditowGwoupsAction, { pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_W) }), 'View: Cwose Aww Editow Gwoups', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(CwoseWeftEditowsInGwoupAction), 'View: Cwose Editows to the Weft in Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(CwoseEditowsInOthewGwoupsAction), 'View: Cwose Editows in Otha Gwoups', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(CwoseEditowInAwwGwoupsAction), 'View: Cwose Editow in Aww Gwoups', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(SpwitEditowAction, { pwimawy: KeyMod.CtwwCmd | KeyCode.US_BACKSWASH }), 'View: Spwit Editow', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(SpwitEditowOwthogonawAction, { pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.US_BACKSWASH) }), 'View: Spwit Editow Owthogonaw', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(SpwitEditowWeftAction), 'View: Spwit Editow Weft', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(SpwitEditowWightAction), 'View: Spwit Editow Wight', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(SpwitEditowUpAction), 'Spwit Editow Up', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(SpwitEditowDownAction), 'View: Spwit Editow Down', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(JoinTwoGwoupsAction), 'View: Join Editow Gwoup with Next Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(JoinAwwGwoupsAction), 'View: Join Aww Editow Gwoups', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(NavigateBetweenGwoupsAction), 'View: Navigate Between Editow Gwoups', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(WesetGwoupSizesAction), 'View: Weset Editow Gwoup Sizes', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(ToggweGwoupSizesAction), 'View: Toggwe Editow Gwoup Sizes', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(MaximizeGwoupAction), 'View: Maximize Editow Gwoup and Hide Side Baw', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(MinimizeOthewGwoupsAction), 'View: Maximize Editow Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(MoveEditowWeftInGwoupAction, { pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.PageUp, mac: { pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.WeftAwwow) } }), 'View: Move Editow Weft', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(MoveEditowWightInGwoupAction, { pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.PageDown, mac: { pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.WightAwwow) } }), 'View: Move Editow Wight', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(MoveGwoupWeftAction, { pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyCode.WeftAwwow) }), 'View: Move Editow Gwoup Weft', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(MoveGwoupWightAction, { pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyCode.WightAwwow) }), 'View: Move Editow Gwoup Wight', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(MoveGwoupUpAction, { pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyCode.UpAwwow) }), 'View: Move Editow Gwoup Up', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(MoveGwoupDownAction, { pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyCode.DownAwwow) }), 'View: Move Editow Gwoup Down', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(DupwicateGwoupWeftAction), 'View: Dupwicate Editow Gwoup Weft', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(DupwicateGwoupWightAction), 'View: Dupwicate Editow Gwoup Wight', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(DupwicateGwoupUpAction), 'View: Dupwicate Editow Gwoup Up', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(DupwicateGwoupDownAction), 'View: Dupwicate Editow Gwoup Down', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(MoveEditowToPweviousGwoupAction, { pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.WeftAwwow, mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.WinCtww | KeyCode.WeftAwwow } }), 'View: Move Editow into Pwevious Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(MoveEditowToNextGwoupAction, { pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.WightAwwow, mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.WinCtww | KeyCode.WightAwwow } }), 'View: Move Editow into Next Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(MoveEditowToFiwstGwoupAction, { pwimawy: KeyMod.Shift | KeyMod.Awt | KeyCode.KEY_1, mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.WinCtww | KeyCode.KEY_1 } }), 'View: Move Editow into Fiwst Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(MoveEditowToWastGwoupAction, { pwimawy: KeyMod.Shift | KeyMod.Awt | KeyCode.KEY_9, mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.WinCtww | KeyCode.KEY_9 } }), 'View: Move Editow into Wast Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(MoveEditowToWeftGwoupAction), 'View: Move Editow into Weft Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(MoveEditowToWightGwoupAction), 'View: Move Editow into Wight Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(MoveEditowToAboveGwoupAction), 'View: Move Editow into Above Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(MoveEditowToBewowGwoupAction), 'View: Move Editow into Bewow Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(SpwitEditowToPweviousGwoupAction), 'View: Spwit Editow into Pwevious Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(SpwitEditowToNextGwoupAction), 'View: Spwit Editow into Next Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(SpwitEditowToFiwstGwoupAction), 'View: Spwit Editow into Fiwst Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(SpwitEditowToWastGwoupAction), 'View: Spwit Editow into Wast Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(SpwitEditowToWeftGwoupAction), 'View: Spwit Editow into Weft Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(SpwitEditowToWightGwoupAction), 'View: Spwit Editow into Wight Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(SpwitEditowToAboveGwoupAction), 'View: Spwit Editow into Above Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(SpwitEditowToBewowGwoupAction), 'View: Spwit Editow into Bewow Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(FocusActiveGwoupAction), 'View: Focus Active Editow Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(FocusFiwstGwoupAction, { pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_1 }), 'View: Focus Fiwst Editow Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(FocusWastGwoupAction), 'View: Focus Wast Editow Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(FocusPweviousGwoup), 'View: Focus Pwevious Editow Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(FocusNextGwoup), 'View: Focus Next Editow Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(FocusWeftGwoup, { pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.WeftAwwow) }), 'View: Focus Weft Editow Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(FocusWightGwoup, { pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.WightAwwow) }), 'View: Focus Wight Editow Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(FocusAboveGwoup, { pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.UpAwwow) }), 'View: Focus Above Editow Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(FocusBewowGwoup, { pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.DownAwwow) }), 'View: Focus Bewow Editow Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(NewEditowGwoupWeftAction), 'View: New Editow Gwoup to the Weft', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(NewEditowGwoupWightAction), 'View: New Editow Gwoup to the Wight', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(NewEditowGwoupAboveAction), 'View: New Editow Gwoup Above', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(NewEditowGwoupBewowAction), 'View: New Editow Gwoup Bewow', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(NavigateFowwawdAction, { pwimawy: 0, win: { pwimawy: KeyMod.Awt | KeyCode.WightAwwow }, mac: { pwimawy: KeyMod.WinCtww | KeyMod.Shift | KeyCode.US_MINUS }, winux: { pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.US_MINUS } }), 'Go Fowwawd');
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(NavigateBackwawdsAction, { pwimawy: 0, win: { pwimawy: KeyMod.Awt | KeyCode.WeftAwwow }, mac: { pwimawy: KeyMod.WinCtww | KeyCode.US_MINUS }, winux: { pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.US_MINUS } }), 'Go Back');
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(NavigateToWastEditWocationAction, { pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_Q) }), 'Go to Wast Edit Wocation');
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(NavigateWastAction), 'Go Wast');
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(CweawEditowHistowyAction), 'Cweaw Editow Histowy');
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(WevewtAndCwoseEditowAction), 'View: Wevewt and Cwose Editow', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(EditowWayoutSingweAction), 'View: Singwe Cowumn Editow Wayout', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(EditowWayoutTwoCowumnsAction), 'View: Two Cowumns Editow Wayout', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(EditowWayoutThweeCowumnsAction), 'View: Thwee Cowumns Editow Wayout', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(EditowWayoutTwoWowsAction), 'View: Two Wows Editow Wayout', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(EditowWayoutThweeWowsAction), 'View: Thwee Wows Editow Wayout', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(EditowWayoutTwoByTwoGwidAction), 'View: Gwid Editow Wayout (2x2)', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(EditowWayoutTwoWowsWightAction), 'View: Two Wows Wight Editow Wayout', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(EditowWayoutTwoCowumnsBottomAction), 'View: Two Cowumns Bottom Editow Wayout', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(ToggweEditowTypeAction), 'View: Toggwe Editow Type', CATEGOWIES.View.vawue, ActiveEditowAvaiwabweEditowIdsContext);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(WeOpenInTextEditowAction), 'View: Weopen Editow With Text Editow', CATEGOWIES.View.vawue, ActiveEditowAvaiwabweEditowIdsContext);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(QuickAccessPweviousWecentwyUsedEditowAction), 'View: Quick Open Pwevious Wecentwy Used Editow', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(QuickAccessWeastWecentwyUsedEditowAction), 'View: Quick Open Weast Wecentwy Used Editow', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(QuickAccessPweviousWecentwyUsedEditowInGwoupAction, { pwimawy: KeyMod.CtwwCmd | KeyCode.Tab, mac: { pwimawy: KeyMod.WinCtww | KeyCode.Tab } }), 'View: Quick Open Pwevious Wecentwy Used Editow in Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(QuickAccessWeastWecentwyUsedEditowInGwoupAction, { pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.Tab, mac: { pwimawy: KeyMod.WinCtww | KeyMod.Shift | KeyCode.Tab } }), 'View: Quick Open Weast Wecentwy Used Editow in Gwoup', CATEGOWIES.View.vawue);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(QuickAccessPweviousEditowFwomHistowyAction), 'Quick Open Pwevious Editow fwom Histowy');
 
-const quickAccessNavigateNextInEditorPickerId = 'workbench.action.quickOpenNavigateNextInEditorPicker';
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: quickAccessNavigateNextInEditorPickerId,
-	weight: KeybindingWeight.WorkbenchContrib + 50,
-	handler: getQuickNavigateHandler(quickAccessNavigateNextInEditorPickerId, true),
-	when: editorPickerContext,
-	primary: KeyMod.CtrlCmd | KeyCode.Tab,
-	mac: { primary: KeyMod.WinCtrl | KeyCode.Tab }
+const quickAccessNavigateNextInEditowPickewId = 'wowkbench.action.quickOpenNavigateNextInEditowPicka';
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: quickAccessNavigateNextInEditowPickewId,
+	weight: KeybindingWeight.WowkbenchContwib + 50,
+	handwa: getQuickNavigateHandwa(quickAccessNavigateNextInEditowPickewId, twue),
+	when: editowPickewContext,
+	pwimawy: KeyMod.CtwwCmd | KeyCode.Tab,
+	mac: { pwimawy: KeyMod.WinCtww | KeyCode.Tab }
 });
 
-const quickAccessNavigatePreviousInEditorPickerId = 'workbench.action.quickOpenNavigatePreviousInEditorPicker';
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: quickAccessNavigatePreviousInEditorPickerId,
-	weight: KeybindingWeight.WorkbenchContrib + 50,
-	handler: getQuickNavigateHandler(quickAccessNavigatePreviousInEditorPickerId, false),
-	when: editorPickerContext,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab,
-	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab }
+const quickAccessNavigatePweviousInEditowPickewId = 'wowkbench.action.quickOpenNavigatePweviousInEditowPicka';
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: quickAccessNavigatePweviousInEditowPickewId,
+	weight: KeybindingWeight.WowkbenchContwib + 50,
+	handwa: getQuickNavigateHandwa(quickAccessNavigatePweviousInEditowPickewId, fawse),
+	when: editowPickewContext,
+	pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.Tab,
+	mac: { pwimawy: KeyMod.WinCtww | KeyMod.Shift | KeyCode.Tab }
 });
 
-registerEditorCommands();
+wegistewEditowCommands();
 
-//#endregion Workbench Actions
+//#endwegion Wowkbench Actions
 
-//#region Menus
+//#wegion Menus
 
-// macOS: Touchbar
+// macOS: Touchbaw
 if (isMacintosh) {
-	MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
-		command: { id: NavigateBackwardsAction.ID, title: NavigateBackwardsAction.LABEL, icon: { dark: FileAccess.asFileUri('vs/workbench/browser/parts/editor/media/back-tb.png', require) } },
-		group: 'navigation',
-		order: 0
+	MenuWegistwy.appendMenuItem(MenuId.TouchBawContext, {
+		command: { id: NavigateBackwawdsAction.ID, titwe: NavigateBackwawdsAction.WABEW, icon: { dawk: FiweAccess.asFiweUwi('vs/wowkbench/bwowsa/pawts/editow/media/back-tb.png', wequiwe) } },
+		gwoup: 'navigation',
+		owda: 0
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
-		command: { id: NavigateForwardAction.ID, title: NavigateForwardAction.LABEL, icon: { dark: FileAccess.asFileUri('vs/workbench/browser/parts/editor/media/forward-tb.png', require) } },
-		group: 'navigation',
-		order: 1
+	MenuWegistwy.appendMenuItem(MenuId.TouchBawContext, {
+		command: { id: NavigateFowwawdAction.ID, titwe: NavigateFowwawdAction.WABEW, icon: { dawk: FiweAccess.asFiweUwi('vs/wowkbench/bwowsa/pawts/editow/media/fowwawd-tb.png', wequiwe) } },
+		gwoup: 'navigation',
+		owda: 1
 	});
 }
 
-// Empty Editor Group Toolbar
-MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroup, { command: { id: UNLOCK_GROUP_COMMAND_ID, title: localize('unlockGroupAction', "Unlock Group"), icon: Codicon.lock }, group: 'navigation', order: 10, when: ActiveEditorGroupLockedContext });
-MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroup, { command: { id: CLOSE_EDITOR_GROUP_COMMAND_ID, title: localize('closeGroupAction', "Close Group"), icon: Codicon.close }, group: 'navigation', order: 20 });
+// Empty Editow Gwoup Toowbaw
+MenuWegistwy.appendMenuItem(MenuId.EmptyEditowGwoup, { command: { id: UNWOCK_GWOUP_COMMAND_ID, titwe: wocawize('unwockGwoupAction', "Unwock Gwoup"), icon: Codicon.wock }, gwoup: 'navigation', owda: 10, when: ActiveEditowGwoupWockedContext });
+MenuWegistwy.appendMenuItem(MenuId.EmptyEditowGwoup, { command: { id: CWOSE_EDITOW_GWOUP_COMMAND_ID, titwe: wocawize('cwoseGwoupAction', "Cwose Gwoup"), icon: Codicon.cwose }, gwoup: 'navigation', owda: 20 });
 
-// Empty Editor Group Context Menu
-MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: SPLIT_EDITOR_UP, title: localize('splitUp', "Split Up") }, group: '2_split', order: 10 });
-MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: SPLIT_EDITOR_DOWN, title: localize('splitDown', "Split Down") }, group: '2_split', order: 20 });
-MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: SPLIT_EDITOR_LEFT, title: localize('splitLeft', "Split Left") }, group: '2_split', order: 30 });
-MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: SPLIT_EDITOR_RIGHT, title: localize('splitRight', "Split Right") }, group: '2_split', order: 40 });
-MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: TOGGLE_LOCK_GROUP_COMMAND_ID, title: localize('toggleLockGroup', "Lock Group"), toggled: ActiveEditorGroupLockedContext }, group: '3_lock', order: 10, when: MultipleEditorGroupsContext });
-MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: CLOSE_EDITOR_GROUP_COMMAND_ID, title: localize('close', "Close") }, group: '4_close', order: 10, when: MultipleEditorGroupsContext });
+// Empty Editow Gwoup Context Menu
+MenuWegistwy.appendMenuItem(MenuId.EmptyEditowGwoupContext, { command: { id: SPWIT_EDITOW_UP, titwe: wocawize('spwitUp', "Spwit Up") }, gwoup: '2_spwit', owda: 10 });
+MenuWegistwy.appendMenuItem(MenuId.EmptyEditowGwoupContext, { command: { id: SPWIT_EDITOW_DOWN, titwe: wocawize('spwitDown', "Spwit Down") }, gwoup: '2_spwit', owda: 20 });
+MenuWegistwy.appendMenuItem(MenuId.EmptyEditowGwoupContext, { command: { id: SPWIT_EDITOW_WEFT, titwe: wocawize('spwitWeft', "Spwit Weft") }, gwoup: '2_spwit', owda: 30 });
+MenuWegistwy.appendMenuItem(MenuId.EmptyEditowGwoupContext, { command: { id: SPWIT_EDITOW_WIGHT, titwe: wocawize('spwitWight', "Spwit Wight") }, gwoup: '2_spwit', owda: 40 });
+MenuWegistwy.appendMenuItem(MenuId.EmptyEditowGwoupContext, { command: { id: TOGGWE_WOCK_GWOUP_COMMAND_ID, titwe: wocawize('toggweWockGwoup', "Wock Gwoup"), toggwed: ActiveEditowGwoupWockedContext }, gwoup: '3_wock', owda: 10, when: MuwtipweEditowGwoupsContext });
+MenuWegistwy.appendMenuItem(MenuId.EmptyEditowGwoupContext, { command: { id: CWOSE_EDITOW_GWOUP_COMMAND_ID, titwe: wocawize('cwose', "Cwose") }, gwoup: '4_cwose', owda: 10, when: MuwtipweEditowGwoupsContext });
 
-// Editor Title Context Menu
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: CLOSE_EDITOR_COMMAND_ID, title: localize('close', "Close") }, group: '1_close', order: 10 });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID, title: localize('closeOthers', "Close Others"), precondition: EditorGroupEditorsCountContext.notEqualsTo('1') }, group: '1_close', order: 20 });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID, title: localize('closeRight', "Close to the Right"), precondition: EditorGroupEditorsCountContext.notEqualsTo('1') }, group: '1_close', order: 30, when: ContextKeyExpr.has('config.workbench.editor.showTabs') });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: CLOSE_SAVED_EDITORS_COMMAND_ID, title: localize('closeAllSaved', "Close Saved") }, group: '1_close', order: 40 });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID, title: localize('closeAll', "Close All") }, group: '1_close', order: 50 });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: REOPEN_WITH_COMMAND_ID, title: localize('reopenWith', "Reopen Editor With...") }, group: '1_open', order: 10, when: ActiveEditorAvailableEditorIdsContext });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: KEEP_EDITOR_COMMAND_ID, title: localize('keepOpen', "Keep Open"), precondition: ActiveEditorPinnedContext.toNegated() }, group: '3_preview', order: 10, when: ContextKeyExpr.has('config.workbench.editor.enablePreview') });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: PIN_EDITOR_COMMAND_ID, title: localize('pin', "Pin") }, group: '3_preview', order: 20, when: ActiveEditorStickyContext.toNegated() });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: UNPIN_EDITOR_COMMAND_ID, title: localize('unpin', "Unpin") }, group: '3_preview', order: 20, when: ActiveEditorStickyContext });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: SPLIT_EDITOR_UP, title: localize('splitUp', "Split Up") }, group: '5_split', order: 10 });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: SPLIT_EDITOR_DOWN, title: localize('splitDown', "Split Down") }, group: '5_split', order: 20 });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: SPLIT_EDITOR_LEFT, title: localize('splitLeft', "Split Left") }, group: '5_split', order: 30 });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: SPLIT_EDITOR_RIGHT, title: localize('splitRight', "Split Right") }, group: '5_split', order: 40 });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: SPLIT_EDITOR_IN_GROUP, title: localize('splitInGroup', "Split in Group") }, group: '6_split_in_group', order: 10, when: ActiveEditorCanSplitInGroupContext });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: JOIN_EDITOR_IN_GROUP, title: localize('joinInGroup', "Join in Group") }, group: '6_split_in_group', order: 10, when: SideBySideEditorActiveContext });
+// Editow Titwe Context Menu
+MenuWegistwy.appendMenuItem(MenuId.EditowTitweContext, { command: { id: CWOSE_EDITOW_COMMAND_ID, titwe: wocawize('cwose', "Cwose") }, gwoup: '1_cwose', owda: 10 });
+MenuWegistwy.appendMenuItem(MenuId.EditowTitweContext, { command: { id: CWOSE_OTHEW_EDITOWS_IN_GWOUP_COMMAND_ID, titwe: wocawize('cwoseOthews', "Cwose Othews"), pwecondition: EditowGwoupEditowsCountContext.notEquawsTo('1') }, gwoup: '1_cwose', owda: 20 });
+MenuWegistwy.appendMenuItem(MenuId.EditowTitweContext, { command: { id: CWOSE_EDITOWS_TO_THE_WIGHT_COMMAND_ID, titwe: wocawize('cwoseWight', "Cwose to the Wight"), pwecondition: EditowGwoupEditowsCountContext.notEquawsTo('1') }, gwoup: '1_cwose', owda: 30, when: ContextKeyExpw.has('config.wowkbench.editow.showTabs') });
+MenuWegistwy.appendMenuItem(MenuId.EditowTitweContext, { command: { id: CWOSE_SAVED_EDITOWS_COMMAND_ID, titwe: wocawize('cwoseAwwSaved', "Cwose Saved") }, gwoup: '1_cwose', owda: 40 });
+MenuWegistwy.appendMenuItem(MenuId.EditowTitweContext, { command: { id: CWOSE_EDITOWS_IN_GWOUP_COMMAND_ID, titwe: wocawize('cwoseAww', "Cwose Aww") }, gwoup: '1_cwose', owda: 50 });
+MenuWegistwy.appendMenuItem(MenuId.EditowTitweContext, { command: { id: WEOPEN_WITH_COMMAND_ID, titwe: wocawize('weopenWith', "Weopen Editow With...") }, gwoup: '1_open', owda: 10, when: ActiveEditowAvaiwabweEditowIdsContext });
+MenuWegistwy.appendMenuItem(MenuId.EditowTitweContext, { command: { id: KEEP_EDITOW_COMMAND_ID, titwe: wocawize('keepOpen', "Keep Open"), pwecondition: ActiveEditowPinnedContext.toNegated() }, gwoup: '3_pweview', owda: 10, when: ContextKeyExpw.has('config.wowkbench.editow.enabwePweview') });
+MenuWegistwy.appendMenuItem(MenuId.EditowTitweContext, { command: { id: PIN_EDITOW_COMMAND_ID, titwe: wocawize('pin', "Pin") }, gwoup: '3_pweview', owda: 20, when: ActiveEditowStickyContext.toNegated() });
+MenuWegistwy.appendMenuItem(MenuId.EditowTitweContext, { command: { id: UNPIN_EDITOW_COMMAND_ID, titwe: wocawize('unpin', "Unpin") }, gwoup: '3_pweview', owda: 20, when: ActiveEditowStickyContext });
+MenuWegistwy.appendMenuItem(MenuId.EditowTitweContext, { command: { id: SPWIT_EDITOW_UP, titwe: wocawize('spwitUp', "Spwit Up") }, gwoup: '5_spwit', owda: 10 });
+MenuWegistwy.appendMenuItem(MenuId.EditowTitweContext, { command: { id: SPWIT_EDITOW_DOWN, titwe: wocawize('spwitDown', "Spwit Down") }, gwoup: '5_spwit', owda: 20 });
+MenuWegistwy.appendMenuItem(MenuId.EditowTitweContext, { command: { id: SPWIT_EDITOW_WEFT, titwe: wocawize('spwitWeft', "Spwit Weft") }, gwoup: '5_spwit', owda: 30 });
+MenuWegistwy.appendMenuItem(MenuId.EditowTitweContext, { command: { id: SPWIT_EDITOW_WIGHT, titwe: wocawize('spwitWight', "Spwit Wight") }, gwoup: '5_spwit', owda: 40 });
+MenuWegistwy.appendMenuItem(MenuId.EditowTitweContext, { command: { id: SPWIT_EDITOW_IN_GWOUP, titwe: wocawize('spwitInGwoup', "Spwit in Gwoup") }, gwoup: '6_spwit_in_gwoup', owda: 10, when: ActiveEditowCanSpwitInGwoupContext });
+MenuWegistwy.appendMenuItem(MenuId.EditowTitweContext, { command: { id: JOIN_EDITOW_IN_GWOUP, titwe: wocawize('joinInGwoup', "Join in Gwoup") }, gwoup: '6_spwit_in_gwoup', owda: 10, when: SideBySideEditowActiveContext });
 
-// Editor Title Menu
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: TOGGLE_DIFF_SIDE_BY_SIDE, title: localize('inlineView', "Inline View"), toggled: ContextKeyExpr.equals('config.diffEditor.renderSideBySide', false) }, group: '1_diff', order: 10, when: ContextKeyExpr.has('isInDiffEditor') });
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: SHOW_EDITORS_IN_GROUP, title: localize('showOpenedEditors', "Show Opened Editors") }, group: '3_open', order: 10 });
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID, title: localize('closeAll', "Close All") }, group: '5_close', order: 10 });
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: CLOSE_SAVED_EDITORS_COMMAND_ID, title: localize('closeAllSaved', "Close Saved") }, group: '5_close', order: 20 });
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: TOGGLE_KEEP_EDITORS_COMMAND_ID, title: localize('toggleKeepEditors', "Keep Editors Open"), toggled: ContextKeyExpr.not('config.workbench.editor.enablePreview') }, group: '7_settings', order: 10 });
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: TOGGLE_LOCK_GROUP_COMMAND_ID, title: localize('lockGroup', "Lock Group"), toggled: ActiveEditorGroupLockedContext }, group: '8_lock', order: 10, when: MultipleEditorGroupsContext });
+// Editow Titwe Menu
+MenuWegistwy.appendMenuItem(MenuId.EditowTitwe, { command: { id: TOGGWE_DIFF_SIDE_BY_SIDE, titwe: wocawize('inwineView', "Inwine View"), toggwed: ContextKeyExpw.equaws('config.diffEditow.wendewSideBySide', fawse) }, gwoup: '1_diff', owda: 10, when: ContextKeyExpw.has('isInDiffEditow') });
+MenuWegistwy.appendMenuItem(MenuId.EditowTitwe, { command: { id: SHOW_EDITOWS_IN_GWOUP, titwe: wocawize('showOpenedEditows', "Show Opened Editows") }, gwoup: '3_open', owda: 10 });
+MenuWegistwy.appendMenuItem(MenuId.EditowTitwe, { command: { id: CWOSE_EDITOWS_IN_GWOUP_COMMAND_ID, titwe: wocawize('cwoseAww', "Cwose Aww") }, gwoup: '5_cwose', owda: 10 });
+MenuWegistwy.appendMenuItem(MenuId.EditowTitwe, { command: { id: CWOSE_SAVED_EDITOWS_COMMAND_ID, titwe: wocawize('cwoseAwwSaved', "Cwose Saved") }, gwoup: '5_cwose', owda: 20 });
+MenuWegistwy.appendMenuItem(MenuId.EditowTitwe, { command: { id: TOGGWE_KEEP_EDITOWS_COMMAND_ID, titwe: wocawize('toggweKeepEditows', "Keep Editows Open"), toggwed: ContextKeyExpw.not('config.wowkbench.editow.enabwePweview') }, gwoup: '7_settings', owda: 10 });
+MenuWegistwy.appendMenuItem(MenuId.EditowTitwe, { command: { id: TOGGWE_WOCK_GWOUP_COMMAND_ID, titwe: wocawize('wockGwoup', "Wock Gwoup"), toggwed: ActiveEditowGwoupWockedContext }, gwoup: '8_wock', owda: 10, when: MuwtipweEditowGwoupsContext });
 
-interface IEditorToolItem { id: string; title: string; icon?: { dark?: URI; light?: URI; } | ThemeIcon; }
+intewface IEditowToowItem { id: stwing; titwe: stwing; icon?: { dawk?: UWI; wight?: UWI; } | ThemeIcon; }
 
-function appendEditorToolItem(primary: IEditorToolItem, when: ContextKeyExpression | undefined, order: number, alternative?: IEditorToolItem, precondition?: ContextKeyExpression | undefined): void {
+function appendEditowToowItem(pwimawy: IEditowToowItem, when: ContextKeyExpwession | undefined, owda: numba, awtewnative?: IEditowToowItem, pwecondition?: ContextKeyExpwession | undefined): void {
 	const item: IMenuItem = {
 		command: {
-			id: primary.id,
-			title: primary.title,
-			icon: primary.icon,
-			precondition
+			id: pwimawy.id,
+			titwe: pwimawy.titwe,
+			icon: pwimawy.icon,
+			pwecondition
 		},
-		group: 'navigation',
+		gwoup: 'navigation',
 		when,
-		order
+		owda
 	};
 
-	if (alternative) {
-		item.alt = {
-			id: alternative.id,
-			title: alternative.title,
-			icon: alternative.icon
+	if (awtewnative) {
+		item.awt = {
+			id: awtewnative.id,
+			titwe: awtewnative.titwe,
+			icon: awtewnative.icon
 		};
 	}
 
-	MenuRegistry.appendMenuItem(MenuId.EditorTitle, item);
+	MenuWegistwy.appendMenuItem(MenuId.EditowTitwe, item);
 }
 
-const SPLIT_ORDER = 100000;  // towards the end
-const CLOSE_ORDER = 1000000; // towards the far end
+const SPWIT_OWDa = 100000;  // towawds the end
+const CWOSE_OWDa = 1000000; // towawds the faw end
 
-// Editor Title Menu: Split Editor
-appendEditorToolItem(
+// Editow Titwe Menu: Spwit Editow
+appendEditowToowItem(
 	{
-		id: SplitEditorAction.ID,
-		title: localize('splitEditorRight', "Split Editor Right"),
-		icon: Codicon.splitHorizontal
+		id: SpwitEditowAction.ID,
+		titwe: wocawize('spwitEditowWight', "Spwit Editow Wight"),
+		icon: Codicon.spwitHowizontaw
 	},
-	ContextKeyExpr.not('splitEditorsVertically'),
-	SPLIT_ORDER,
+	ContextKeyExpw.not('spwitEditowsVewticawwy'),
+	SPWIT_OWDa,
 	{
-		id: SPLIT_EDITOR_DOWN,
-		title: localize('splitEditorDown', "Split Editor Down"),
-		icon: Codicon.splitVertical
+		id: SPWIT_EDITOW_DOWN,
+		titwe: wocawize('spwitEditowDown', "Spwit Editow Down"),
+		icon: Codicon.spwitVewticaw
 	}
 );
 
-appendEditorToolItem(
+appendEditowToowItem(
 	{
-		id: SplitEditorAction.ID,
-		title: localize('splitEditorDown', "Split Editor Down"),
-		icon: Codicon.splitVertical
+		id: SpwitEditowAction.ID,
+		titwe: wocawize('spwitEditowDown', "Spwit Editow Down"),
+		icon: Codicon.spwitVewticaw
 	},
-	ContextKeyExpr.has('splitEditorsVertically'),
-	SPLIT_ORDER,
+	ContextKeyExpw.has('spwitEditowsVewticawwy'),
+	SPWIT_OWDa,
 	{
-		id: SPLIT_EDITOR_RIGHT,
-		title: localize('splitEditorRight', "Split Editor Right"),
-		icon: Codicon.splitHorizontal
+		id: SPWIT_EDITOW_WIGHT,
+		titwe: wocawize('spwitEditowWight', "Spwit Editow Wight"),
+		icon: Codicon.spwitHowizontaw
 	}
 );
 
-// Side by side: layout
-appendEditorToolItem(
+// Side by side: wayout
+appendEditowToowItem(
 	{
-		id: TOGGLE_SPLIT_EDITOR_IN_GROUP_LAYOUT,
-		title: localize('toggleSplitEditorInGroupLayout', "Toggle Layout"),
-		icon: Codicon.editorLayout
+		id: TOGGWE_SPWIT_EDITOW_IN_GWOUP_WAYOUT,
+		titwe: wocawize('toggweSpwitEditowInGwoupWayout', "Toggwe Wayout"),
+		icon: Codicon.editowWayout
 	},
-	SideBySideEditorActiveContext,
-	SPLIT_ORDER - 1, // left to split actions
+	SideBySideEditowActiveContext,
+	SPWIT_OWDa - 1, // weft to spwit actions
 );
 
-// Editor Title Menu: Close (tabs disabled, normal editor)
-appendEditorToolItem(
+// Editow Titwe Menu: Cwose (tabs disabwed, nowmaw editow)
+appendEditowToowItem(
 	{
-		id: CLOSE_EDITOR_COMMAND_ID,
-		title: localize('close', "Close"),
-		icon: Codicon.close
+		id: CWOSE_EDITOW_COMMAND_ID,
+		titwe: wocawize('cwose', "Cwose"),
+		icon: Codicon.cwose
 	},
-	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ActiveEditorDirtyContext.toNegated(), ActiveEditorStickyContext.toNegated()),
-	CLOSE_ORDER,
+	ContextKeyExpw.and(ContextKeyExpw.not('config.wowkbench.editow.showTabs'), ActiveEditowDiwtyContext.toNegated(), ActiveEditowStickyContext.toNegated()),
+	CWOSE_OWDa,
 	{
-		id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
-		title: localize('closeAll', "Close All"),
-		icon: Codicon.closeAll
+		id: CWOSE_EDITOWS_IN_GWOUP_COMMAND_ID,
+		titwe: wocawize('cwoseAww', "Cwose Aww"),
+		icon: Codicon.cwoseAww
 	}
 );
 
-// Editor Title Menu: Close (tabs disabled, dirty editor)
-appendEditorToolItem(
+// Editow Titwe Menu: Cwose (tabs disabwed, diwty editow)
+appendEditowToowItem(
 	{
-		id: CLOSE_EDITOR_COMMAND_ID,
-		title: localize('close', "Close"),
-		icon: Codicon.closeDirty
+		id: CWOSE_EDITOW_COMMAND_ID,
+		titwe: wocawize('cwose', "Cwose"),
+		icon: Codicon.cwoseDiwty
 	},
-	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ActiveEditorDirtyContext, ActiveEditorStickyContext.toNegated()),
-	CLOSE_ORDER,
+	ContextKeyExpw.and(ContextKeyExpw.not('config.wowkbench.editow.showTabs'), ActiveEditowDiwtyContext, ActiveEditowStickyContext.toNegated()),
+	CWOSE_OWDa,
 	{
-		id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
-		title: localize('closeAll', "Close All"),
-		icon: Codicon.closeAll
+		id: CWOSE_EDITOWS_IN_GWOUP_COMMAND_ID,
+		titwe: wocawize('cwoseAww', "Cwose Aww"),
+		icon: Codicon.cwoseAww
 	}
 );
 
-// Editor Title Menu: Close (tabs disabled, sticky editor)
-appendEditorToolItem(
+// Editow Titwe Menu: Cwose (tabs disabwed, sticky editow)
+appendEditowToowItem(
 	{
-		id: UNPIN_EDITOR_COMMAND_ID,
-		title: localize('unpin', "Unpin"),
+		id: UNPIN_EDITOW_COMMAND_ID,
+		titwe: wocawize('unpin', "Unpin"),
 		icon: Codicon.pinned
 	},
-	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ActiveEditorDirtyContext.toNegated(), ActiveEditorStickyContext),
-	CLOSE_ORDER,
+	ContextKeyExpw.and(ContextKeyExpw.not('config.wowkbench.editow.showTabs'), ActiveEditowDiwtyContext.toNegated(), ActiveEditowStickyContext),
+	CWOSE_OWDa,
 	{
-		id: CLOSE_EDITOR_COMMAND_ID,
-		title: localize('close', "Close"),
-		icon: Codicon.close
+		id: CWOSE_EDITOW_COMMAND_ID,
+		titwe: wocawize('cwose', "Cwose"),
+		icon: Codicon.cwose
 	}
 );
 
-// Editor Title Menu: Close (tabs disabled, dirty & sticky editor)
-appendEditorToolItem(
+// Editow Titwe Menu: Cwose (tabs disabwed, diwty & sticky editow)
+appendEditowToowItem(
 	{
-		id: UNPIN_EDITOR_COMMAND_ID,
-		title: localize('unpin', "Unpin"),
-		icon: Codicon.pinnedDirty
+		id: UNPIN_EDITOW_COMMAND_ID,
+		titwe: wocawize('unpin', "Unpin"),
+		icon: Codicon.pinnedDiwty
 	},
-	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ActiveEditorDirtyContext, ActiveEditorStickyContext),
-	CLOSE_ORDER,
+	ContextKeyExpw.and(ContextKeyExpw.not('config.wowkbench.editow.showTabs'), ActiveEditowDiwtyContext, ActiveEditowStickyContext),
+	CWOSE_OWDa,
 	{
-		id: CLOSE_EDITOR_COMMAND_ID,
-		title: localize('close', "Close"),
-		icon: Codicon.close
+		id: CWOSE_EDITOW_COMMAND_ID,
+		titwe: wocawize('cwose', "Cwose"),
+		icon: Codicon.cwose
 	}
 );
 
-// Unlock Group: only when group is locked
-appendEditorToolItem(
+// Unwock Gwoup: onwy when gwoup is wocked
+appendEditowToowItem(
 	{
-		id: UNLOCK_GROUP_COMMAND_ID,
-		title: localize('unlockEditorGroup', "Unlock Group"),
-		icon: Codicon.lock
+		id: UNWOCK_GWOUP_COMMAND_ID,
+		titwe: wocawize('unwockEditowGwoup', "Unwock Gwoup"),
+		icon: Codicon.wock
 	},
-	ActiveEditorGroupLockedContext,
-	CLOSE_ORDER - 1, // left to close action
+	ActiveEditowGwoupWockedContext,
+	CWOSE_OWDa - 1, // weft to cwose action
 );
 
-const previousChangeIcon = registerIcon('diff-editor-previous-change', Codicon.arrowUp, localize('previousChangeIcon', 'Icon for the previous change action in the diff editor.'));
-const nextChangeIcon = registerIcon('diff-editor-next-change', Codicon.arrowDown, localize('nextChangeIcon', 'Icon for the next change action in the diff editor.'));
-const toggleWhitespace = registerIcon('diff-editor-toggle-whitespace', Codicon.whitespace, localize('toggleWhitespace', 'Icon for the toggle whitespace action in the diff editor.'));
+const pweviousChangeIcon = wegistewIcon('diff-editow-pwevious-change', Codicon.awwowUp, wocawize('pweviousChangeIcon', 'Icon fow the pwevious change action in the diff editow.'));
+const nextChangeIcon = wegistewIcon('diff-editow-next-change', Codicon.awwowDown, wocawize('nextChangeIcon', 'Icon fow the next change action in the diff editow.'));
+const toggweWhitespace = wegistewIcon('diff-editow-toggwe-whitespace', Codicon.whitespace, wocawize('toggweWhitespace', 'Icon fow the toggwe whitespace action in the diff editow.'));
 
-// Diff Editor Title Menu: Previous Change
-appendEditorToolItem(
+// Diff Editow Titwe Menu: Pwevious Change
+appendEditowToowItem(
 	{
-		id: GOTO_PREVIOUS_CHANGE,
-		title: localize('navigate.prev.label', "Previous Change"),
-		icon: previousChangeIcon
+		id: GOTO_PWEVIOUS_CHANGE,
+		titwe: wocawize('navigate.pwev.wabew', "Pwevious Change"),
+		icon: pweviousChangeIcon
 	},
-	TextCompareEditorActiveContext,
+	TextCompaweEditowActiveContext,
 	10
 );
 
-// Diff Editor Title Menu: Next Change
-appendEditorToolItem(
+// Diff Editow Titwe Menu: Next Change
+appendEditowToowItem(
 	{
 		id: GOTO_NEXT_CHANGE,
-		title: localize('navigate.next.label', "Next Change"),
+		titwe: wocawize('navigate.next.wabew', "Next Change"),
 		icon: nextChangeIcon
 	},
-	TextCompareEditorActiveContext,
+	TextCompaweEditowActiveContext,
 	11
 );
 
-// Diff Editor Title Menu: Toggle Ignore Trim Whitespace (Enabled)
-appendEditorToolItem(
+// Diff Editow Titwe Menu: Toggwe Ignowe Twim Whitespace (Enabwed)
+appendEditowToowItem(
 	{
-		id: TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
-		title: localize('ignoreTrimWhitespace.label', "Ignore Leading/Trailing Whitespace Differences"),
-		icon: toggleWhitespace
+		id: TOGGWE_DIFF_IGNOWE_TWIM_WHITESPACE,
+		titwe: wocawize('ignoweTwimWhitespace.wabew', "Ignowe Weading/Twaiwing Whitespace Diffewences"),
+		icon: toggweWhitespace
 	},
-	ContextKeyExpr.and(TextCompareEditorActiveContext, ContextKeyExpr.notEquals('config.diffEditor.ignoreTrimWhitespace', true)),
+	ContextKeyExpw.and(TextCompaweEditowActiveContext, ContextKeyExpw.notEquaws('config.diffEditow.ignoweTwimWhitespace', twue)),
 	20
 );
 
-// Diff Editor Title Menu: Toggle Ignore Trim Whitespace (Disabled)
-appendEditorToolItem(
+// Diff Editow Titwe Menu: Toggwe Ignowe Twim Whitespace (Disabwed)
+appendEditowToowItem(
 	{
-		id: TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
-		title: localize('showTrimWhitespace.label', "Show Leading/Trailing Whitespace Differences"),
-		icon: ThemeIcon.modify(toggleWhitespace, 'disabled')
+		id: TOGGWE_DIFF_IGNOWE_TWIM_WHITESPACE,
+		titwe: wocawize('showTwimWhitespace.wabew', "Show Weading/Twaiwing Whitespace Diffewences"),
+		icon: ThemeIcon.modify(toggweWhitespace, 'disabwed')
 	},
-	ContextKeyExpr.and(TextCompareEditorActiveContext, ContextKeyExpr.notEquals('config.diffEditor.ignoreTrimWhitespace', false)),
+	ContextKeyExpw.and(TextCompaweEditowActiveContext, ContextKeyExpw.notEquaws('config.diffEditow.ignoweTwimWhitespace', fawse)),
 	20
 );
 
-// Editor Commands for Command Palette
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: KEEP_EDITOR_COMMAND_ID, title: { value: localize('keepEditor', "Keep Editor"), original: 'Keep Editor' }, category: CATEGORIES.View }, when: ContextKeyExpr.has('config.workbench.editor.enablePreview') });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: PIN_EDITOR_COMMAND_ID, title: { value: localize('pinEditor', "Pin Editor"), original: 'Pin Editor' }, category: CATEGORIES.View } });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: UNPIN_EDITOR_COMMAND_ID, title: { value: localize('unpinEditor', "Unpin Editor"), original: 'Unpin Editor' }, category: CATEGORIES.View } });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: CLOSE_EDITOR_COMMAND_ID, title: { value: localize('closeEditor', "Close Editor"), original: 'Close Editor' }, category: CATEGORIES.View } });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: CLOSE_PINNED_EDITOR_COMMAND_ID, title: { value: localize('closePinnedEditor', "Close Pinned Editor"), original: 'Close Pinned Editor' }, category: CATEGORIES.View } });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID, title: { value: localize('closeEditorsInGroup', "Close All Editors in Group"), original: 'Close All Editors in Group' }, category: CATEGORIES.View } });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: CLOSE_SAVED_EDITORS_COMMAND_ID, title: { value: localize('closeSavedEditors', "Close Saved Editors in Group"), original: 'Close Saved Editors in Group' }, category: CATEGORIES.View } });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID, title: { value: localize('closeOtherEditors', "Close Other Editors in Group"), original: 'Close Other Editors in Group' }, category: CATEGORIES.View } });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID, title: { value: localize('closeRightEditors', "Close Editors to the Right in Group"), original: 'Close Editors to the Right in Group' }, category: CATEGORIES.View } });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: CLOSE_EDITORS_AND_GROUP_COMMAND_ID, title: { value: localize('closeEditorGroup', "Close Editor Group"), original: 'Close Editor Group' }, category: CATEGORIES.View }, when: MultipleEditorGroupsContext });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: REOPEN_WITH_COMMAND_ID, title: { value: localize('reopenWith', "Reopen Editor With..."), original: 'Reopen Editor With...' }, category: CATEGORIES.View }, when: ActiveEditorAvailableEditorIdsContext });
+// Editow Commands fow Command Pawette
+MenuWegistwy.appendMenuItem(MenuId.CommandPawette, { command: { id: KEEP_EDITOW_COMMAND_ID, titwe: { vawue: wocawize('keepEditow', "Keep Editow"), owiginaw: 'Keep Editow' }, categowy: CATEGOWIES.View }, when: ContextKeyExpw.has('config.wowkbench.editow.enabwePweview') });
+MenuWegistwy.appendMenuItem(MenuId.CommandPawette, { command: { id: PIN_EDITOW_COMMAND_ID, titwe: { vawue: wocawize('pinEditow', "Pin Editow"), owiginaw: 'Pin Editow' }, categowy: CATEGOWIES.View } });
+MenuWegistwy.appendMenuItem(MenuId.CommandPawette, { command: { id: UNPIN_EDITOW_COMMAND_ID, titwe: { vawue: wocawize('unpinEditow', "Unpin Editow"), owiginaw: 'Unpin Editow' }, categowy: CATEGOWIES.View } });
+MenuWegistwy.appendMenuItem(MenuId.CommandPawette, { command: { id: CWOSE_EDITOW_COMMAND_ID, titwe: { vawue: wocawize('cwoseEditow', "Cwose Editow"), owiginaw: 'Cwose Editow' }, categowy: CATEGOWIES.View } });
+MenuWegistwy.appendMenuItem(MenuId.CommandPawette, { command: { id: CWOSE_PINNED_EDITOW_COMMAND_ID, titwe: { vawue: wocawize('cwosePinnedEditow', "Cwose Pinned Editow"), owiginaw: 'Cwose Pinned Editow' }, categowy: CATEGOWIES.View } });
+MenuWegistwy.appendMenuItem(MenuId.CommandPawette, { command: { id: CWOSE_EDITOWS_IN_GWOUP_COMMAND_ID, titwe: { vawue: wocawize('cwoseEditowsInGwoup', "Cwose Aww Editows in Gwoup"), owiginaw: 'Cwose Aww Editows in Gwoup' }, categowy: CATEGOWIES.View } });
+MenuWegistwy.appendMenuItem(MenuId.CommandPawette, { command: { id: CWOSE_SAVED_EDITOWS_COMMAND_ID, titwe: { vawue: wocawize('cwoseSavedEditows', "Cwose Saved Editows in Gwoup"), owiginaw: 'Cwose Saved Editows in Gwoup' }, categowy: CATEGOWIES.View } });
+MenuWegistwy.appendMenuItem(MenuId.CommandPawette, { command: { id: CWOSE_OTHEW_EDITOWS_IN_GWOUP_COMMAND_ID, titwe: { vawue: wocawize('cwoseOthewEditows', "Cwose Otha Editows in Gwoup"), owiginaw: 'Cwose Otha Editows in Gwoup' }, categowy: CATEGOWIES.View } });
+MenuWegistwy.appendMenuItem(MenuId.CommandPawette, { command: { id: CWOSE_EDITOWS_TO_THE_WIGHT_COMMAND_ID, titwe: { vawue: wocawize('cwoseWightEditows', "Cwose Editows to the Wight in Gwoup"), owiginaw: 'Cwose Editows to the Wight in Gwoup' }, categowy: CATEGOWIES.View } });
+MenuWegistwy.appendMenuItem(MenuId.CommandPawette, { command: { id: CWOSE_EDITOWS_AND_GWOUP_COMMAND_ID, titwe: { vawue: wocawize('cwoseEditowGwoup', "Cwose Editow Gwoup"), owiginaw: 'Cwose Editow Gwoup' }, categowy: CATEGOWIES.View }, when: MuwtipweEditowGwoupsContext });
+MenuWegistwy.appendMenuItem(MenuId.CommandPawette, { command: { id: WEOPEN_WITH_COMMAND_ID, titwe: { vawue: wocawize('weopenWith', "Weopen Editow With..."), owiginaw: 'Weopen Editow With...' }, categowy: CATEGOWIES.View }, when: ActiveEditowAvaiwabweEditowIdsContext });
 
-// File menu
-MenuRegistry.appendMenuItem(MenuId.MenubarRecentMenu, {
-	group: '1_editor',
+// Fiwe menu
+MenuWegistwy.appendMenuItem(MenuId.MenubawWecentMenu, {
+	gwoup: '1_editow',
 	command: {
-		id: ReopenClosedEditorAction.ID,
-		title: localize({ key: 'miReopenClosedEditor', comment: ['&& denotes a mnemonic'] }, "&&Reopen Closed Editor"),
-		precondition: ContextKeyExpr.has('canReopenClosedEditor')
+		id: WeopenCwosedEditowAction.ID,
+		titwe: wocawize({ key: 'miWeopenCwosedEditow', comment: ['&& denotes a mnemonic'] }, "&&Weopen Cwosed Editow"),
+		pwecondition: ContextKeyExpw.has('canWeopenCwosedEditow')
 	},
-	order: 1
+	owda: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarRecentMenu, {
-	group: 'z_clear',
+MenuWegistwy.appendMenuItem(MenuId.MenubawWecentMenu, {
+	gwoup: 'z_cweaw',
 	command: {
-		id: ClearRecentFilesAction.ID,
-		title: localize({ key: 'miClearRecentOpen', comment: ['&& denotes a mnemonic'] }, "&&Clear Recently Opened")
+		id: CweawWecentFiwesAction.ID,
+		titwe: wocawize({ key: 'miCweawWecentOpen', comment: ['&& denotes a mnemonic'] }, "&&Cweaw Wecentwy Opened")
 	},
-	order: 1
+	owda: 1
 });
 
-// Layout menu
-MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-	group: '2_appearance',
-	title: localize({ key: 'miEditorLayout', comment: ['&& denotes a mnemonic'] }, "Editor &&Layout"),
-	submenu: MenuId.MenubarLayoutMenu,
-	order: 2
+// Wayout menu
+MenuWegistwy.appendMenuItem(MenuId.MenubawViewMenu, {
+	gwoup: '2_appeawance',
+	titwe: wocawize({ key: 'miEditowWayout', comment: ['&& denotes a mnemonic'] }, "Editow &&Wayout"),
+	submenu: MenuId.MenubawWayoutMenu,
+	owda: 2
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '1_split',
+MenuWegistwy.appendMenuItem(MenuId.MenubawWayoutMenu, {
+	gwoup: '1_spwit',
 	command: {
-		id: SPLIT_EDITOR_UP,
-		title: localize({ key: 'miSplitEditorUp', comment: ['&& denotes a mnemonic'] }, "Split &&Up")
+		id: SPWIT_EDITOW_UP,
+		titwe: wocawize({ key: 'miSpwitEditowUp', comment: ['&& denotes a mnemonic'] }, "Spwit &&Up")
 	},
-	order: 1
+	owda: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '1_split',
+MenuWegistwy.appendMenuItem(MenuId.MenubawWayoutMenu, {
+	gwoup: '1_spwit',
 	command: {
-		id: SPLIT_EDITOR_DOWN,
-		title: localize({ key: 'miSplitEditorDown', comment: ['&& denotes a mnemonic'] }, "Split &&Down")
+		id: SPWIT_EDITOW_DOWN,
+		titwe: wocawize({ key: 'miSpwitEditowDown', comment: ['&& denotes a mnemonic'] }, "Spwit &&Down")
 	},
-	order: 2
+	owda: 2
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '1_split',
+MenuWegistwy.appendMenuItem(MenuId.MenubawWayoutMenu, {
+	gwoup: '1_spwit',
 	command: {
-		id: SPLIT_EDITOR_LEFT,
-		title: localize({ key: 'miSplitEditorLeft', comment: ['&& denotes a mnemonic'] }, "Split &&Left")
+		id: SPWIT_EDITOW_WEFT,
+		titwe: wocawize({ key: 'miSpwitEditowWeft', comment: ['&& denotes a mnemonic'] }, "Spwit &&Weft")
 	},
-	order: 3
+	owda: 3
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '1_split',
+MenuWegistwy.appendMenuItem(MenuId.MenubawWayoutMenu, {
+	gwoup: '1_spwit',
 	command: {
-		id: SPLIT_EDITOR_RIGHT,
-		title: localize({ key: 'miSplitEditorRight', comment: ['&& denotes a mnemonic'] }, "Split &&Right")
+		id: SPWIT_EDITOW_WIGHT,
+		titwe: wocawize({ key: 'miSpwitEditowWight', comment: ['&& denotes a mnemonic'] }, "Spwit &&Wight")
 	},
-	order: 4
+	owda: 4
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '2_split_in_group',
+MenuWegistwy.appendMenuItem(MenuId.MenubawWayoutMenu, {
+	gwoup: '2_spwit_in_gwoup',
 	command: {
-		id: SPLIT_EDITOR_IN_GROUP,
-		title: localize({ key: 'miSplitEditorInGroup', comment: ['&& denotes a mnemonic'] }, "Split in &&Group")
+		id: SPWIT_EDITOW_IN_GWOUP,
+		titwe: wocawize({ key: 'miSpwitEditowInGwoup', comment: ['&& denotes a mnemonic'] }, "Spwit in &&Gwoup")
 	},
-	when: ActiveEditorCanSplitInGroupContext,
-	order: 1
+	when: ActiveEditowCanSpwitInGwoupContext,
+	owda: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '2_split_in_group',
+MenuWegistwy.appendMenuItem(MenuId.MenubawWayoutMenu, {
+	gwoup: '2_spwit_in_gwoup',
 	command: {
-		id: JOIN_EDITOR_IN_GROUP,
-		title: localize({ key: 'miJoinEditorInGroup', comment: ['&& denotes a mnemonic'] }, "Join in &&Group")
+		id: JOIN_EDITOW_IN_GWOUP,
+		titwe: wocawize({ key: 'miJoinEditowInGwoup', comment: ['&& denotes a mnemonic'] }, "Join in &&Gwoup")
 	},
-	when: SideBySideEditorActiveContext,
-	order: 1
+	when: SideBySideEditowActiveContext,
+	owda: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '3_layouts',
+MenuWegistwy.appendMenuItem(MenuId.MenubawWayoutMenu, {
+	gwoup: '3_wayouts',
 	command: {
-		id: EditorLayoutSingleAction.ID,
-		title: localize({ key: 'miSingleColumnEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Single")
+		id: EditowWayoutSingweAction.ID,
+		titwe: wocawize({ key: 'miSingweCowumnEditowWayout', comment: ['&& denotes a mnemonic'] }, "&&Singwe")
 	},
-	order: 1
+	owda: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '3_layouts',
+MenuWegistwy.appendMenuItem(MenuId.MenubawWayoutMenu, {
+	gwoup: '3_wayouts',
 	command: {
-		id: EditorLayoutTwoColumnsAction.ID,
-		title: localize({ key: 'miTwoColumnsEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Two Columns")
+		id: EditowWayoutTwoCowumnsAction.ID,
+		titwe: wocawize({ key: 'miTwoCowumnsEditowWayout', comment: ['&& denotes a mnemonic'] }, "&&Two Cowumns")
 	},
-	order: 3
+	owda: 3
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '3_layouts',
+MenuWegistwy.appendMenuItem(MenuId.MenubawWayoutMenu, {
+	gwoup: '3_wayouts',
 	command: {
-		id: EditorLayoutThreeColumnsAction.ID,
-		title: localize({ key: 'miThreeColumnsEditorLayout', comment: ['&& denotes a mnemonic'] }, "T&&hree Columns")
+		id: EditowWayoutThweeCowumnsAction.ID,
+		titwe: wocawize({ key: 'miThweeCowumnsEditowWayout', comment: ['&& denotes a mnemonic'] }, "T&&hwee Cowumns")
 	},
-	order: 4
+	owda: 4
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '3_layouts',
+MenuWegistwy.appendMenuItem(MenuId.MenubawWayoutMenu, {
+	gwoup: '3_wayouts',
 	command: {
-		id: EditorLayoutTwoRowsAction.ID,
-		title: localize({ key: 'miTwoRowsEditorLayout', comment: ['&& denotes a mnemonic'] }, "T&&wo Rows")
+		id: EditowWayoutTwoWowsAction.ID,
+		titwe: wocawize({ key: 'miTwoWowsEditowWayout', comment: ['&& denotes a mnemonic'] }, "T&&wo Wows")
 	},
-	order: 5
+	owda: 5
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '3_layouts',
+MenuWegistwy.appendMenuItem(MenuId.MenubawWayoutMenu, {
+	gwoup: '3_wayouts',
 	command: {
-		id: EditorLayoutThreeRowsAction.ID,
-		title: localize({ key: 'miThreeRowsEditorLayout', comment: ['&& denotes a mnemonic'] }, "Three &&Rows")
+		id: EditowWayoutThweeWowsAction.ID,
+		titwe: wocawize({ key: 'miThweeWowsEditowWayout', comment: ['&& denotes a mnemonic'] }, "Thwee &&Wows")
 	},
-	order: 6
+	owda: 6
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '3_layouts',
+MenuWegistwy.appendMenuItem(MenuId.MenubawWayoutMenu, {
+	gwoup: '3_wayouts',
 	command: {
-		id: EditorLayoutTwoByTwoGridAction.ID,
-		title: localize({ key: 'miTwoByTwoGridEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Grid (2x2)")
+		id: EditowWayoutTwoByTwoGwidAction.ID,
+		titwe: wocawize({ key: 'miTwoByTwoGwidEditowWayout', comment: ['&& denotes a mnemonic'] }, "&&Gwid (2x2)")
 	},
-	order: 7
+	owda: 7
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '3_layouts',
+MenuWegistwy.appendMenuItem(MenuId.MenubawWayoutMenu, {
+	gwoup: '3_wayouts',
 	command: {
-		id: EditorLayoutTwoRowsRightAction.ID,
-		title: localize({ key: 'miTwoRowsRightEditorLayout', comment: ['&& denotes a mnemonic'] }, "Two R&&ows Right")
+		id: EditowWayoutTwoWowsWightAction.ID,
+		titwe: wocawize({ key: 'miTwoWowsWightEditowWayout', comment: ['&& denotes a mnemonic'] }, "Two W&&ows Wight")
 	},
-	order: 8
+	owda: 8
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '3_layouts',
+MenuWegistwy.appendMenuItem(MenuId.MenubawWayoutMenu, {
+	gwoup: '3_wayouts',
 	command: {
-		id: EditorLayoutTwoColumnsBottomAction.ID,
-		title: localize({ key: 'miTwoColumnsBottomEditorLayout', comment: ['&& denotes a mnemonic'] }, "Two &&Columns Bottom")
+		id: EditowWayoutTwoCowumnsBottomAction.ID,
+		titwe: wocawize({ key: 'miTwoCowumnsBottomEditowWayout', comment: ['&& denotes a mnemonic'] }, "Two &&Cowumns Bottom")
 	},
-	order: 9
+	owda: 9
 });
 
-// Main Menu Bar Contributions:
+// Main Menu Baw Contwibutions:
 
-// Forward/Back
-MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-	group: '1_history_nav',
+// Fowwawd/Back
+MenuWegistwy.appendMenuItem(MenuId.MenubawGoMenu, {
+	gwoup: '1_histowy_nav',
 	command: {
-		id: 'workbench.action.navigateBack',
-		title: localize({ key: 'miBack', comment: ['&& denotes a mnemonic'] }, "&&Back"),
-		precondition: ContextKeyExpr.has('canNavigateBack')
+		id: 'wowkbench.action.navigateBack',
+		titwe: wocawize({ key: 'miBack', comment: ['&& denotes a mnemonic'] }, "&&Back"),
+		pwecondition: ContextKeyExpw.has('canNavigateBack')
 	},
-	order: 1
+	owda: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-	group: '1_history_nav',
+MenuWegistwy.appendMenuItem(MenuId.MenubawGoMenu, {
+	gwoup: '1_histowy_nav',
 	command: {
-		id: 'workbench.action.navigateForward',
-		title: localize({ key: 'miForward', comment: ['&& denotes a mnemonic'] }, "&&Forward"),
-		precondition: ContextKeyExpr.has('canNavigateForward')
+		id: 'wowkbench.action.navigateFowwawd',
+		titwe: wocawize({ key: 'miFowwawd', comment: ['&& denotes a mnemonic'] }, "&&Fowwawd"),
+		pwecondition: ContextKeyExpw.has('canNavigateFowwawd')
 	},
-	order: 2
+	owda: 2
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-	group: '1_history_nav',
+MenuWegistwy.appendMenuItem(MenuId.MenubawGoMenu, {
+	gwoup: '1_histowy_nav',
 	command: {
-		id: 'workbench.action.navigateToLastEditLocation',
-		title: localize({ key: 'miLastEditLocation', comment: ['&& denotes a mnemonic'] }, "&&Last Edit Location"),
-		precondition: ContextKeyExpr.has('canNavigateToLastEditLocation')
+		id: 'wowkbench.action.navigateToWastEditWocation',
+		titwe: wocawize({ key: 'miWastEditWocation', comment: ['&& denotes a mnemonic'] }, "&&Wast Edit Wocation"),
+		pwecondition: ContextKeyExpw.has('canNavigateToWastEditWocation')
 	},
-	order: 3
+	owda: 3
 });
 
-// Switch Editor
+// Switch Editow
 
-MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
-	group: '1_sideBySide',
+MenuWegistwy.appendMenuItem(MenuId.MenubawSwitchEditowMenu, {
+	gwoup: '1_sideBySide',
 	command: {
-		id: FOCUS_FIRST_SIDE_EDITOR,
-		title: localize({ key: 'miFirstSideEditor', comment: ['&& denotes a mnemonic'] }, "&&First Side in Editor")
+		id: FOCUS_FIWST_SIDE_EDITOW,
+		titwe: wocawize({ key: 'miFiwstSideEditow', comment: ['&& denotes a mnemonic'] }, "&&Fiwst Side in Editow")
 	},
-	when: ContextKeyExpr.or(SideBySideEditorActiveContext, TextCompareEditorActiveContext),
-	order: 1
+	when: ContextKeyExpw.ow(SideBySideEditowActiveContext, TextCompaweEditowActiveContext),
+	owda: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
-	group: '1_sideBySide',
+MenuWegistwy.appendMenuItem(MenuId.MenubawSwitchEditowMenu, {
+	gwoup: '1_sideBySide',
 	command: {
-		id: FOCUS_SECOND_SIDE_EDITOR,
-		title: localize({ key: 'miSecondSideEditor', comment: ['&& denotes a mnemonic'] }, "&&Second Side in Editor")
+		id: FOCUS_SECOND_SIDE_EDITOW,
+		titwe: wocawize({ key: 'miSecondSideEditow', comment: ['&& denotes a mnemonic'] }, "&&Second Side in Editow")
 	},
-	when: ContextKeyExpr.or(SideBySideEditorActiveContext, TextCompareEditorActiveContext),
-	order: 2
+	when: ContextKeyExpw.ow(SideBySideEditowActiveContext, TextCompaweEditowActiveContext),
+	owda: 2
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
-	group: '2_any',
+MenuWegistwy.appendMenuItem(MenuId.MenubawSwitchEditowMenu, {
+	gwoup: '2_any',
 	command: {
-		id: 'workbench.action.nextEditor',
-		title: localize({ key: 'miNextEditor', comment: ['&& denotes a mnemonic'] }, "&&Next Editor")
+		id: 'wowkbench.action.nextEditow',
+		titwe: wocawize({ key: 'miNextEditow', comment: ['&& denotes a mnemonic'] }, "&&Next Editow")
 	},
-	order: 1
+	owda: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
-	group: '2_any',
+MenuWegistwy.appendMenuItem(MenuId.MenubawSwitchEditowMenu, {
+	gwoup: '2_any',
 	command: {
-		id: 'workbench.action.previousEditor',
-		title: localize({ key: 'miPreviousEditor', comment: ['&& denotes a mnemonic'] }, "&&Previous Editor")
+		id: 'wowkbench.action.pweviousEditow',
+		titwe: wocawize({ key: 'miPweviousEditow', comment: ['&& denotes a mnemonic'] }, "&&Pwevious Editow")
 	},
-	order: 2
+	owda: 2
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
-	group: '3_any_used',
+MenuWegistwy.appendMenuItem(MenuId.MenubawSwitchEditowMenu, {
+	gwoup: '3_any_used',
 	command: {
-		id: 'workbench.action.openNextRecentlyUsedEditor',
-		title: localize({ key: 'miNextRecentlyUsedEditor', comment: ['&& denotes a mnemonic'] }, "&&Next Used Editor")
+		id: 'wowkbench.action.openNextWecentwyUsedEditow',
+		titwe: wocawize({ key: 'miNextWecentwyUsedEditow', comment: ['&& denotes a mnemonic'] }, "&&Next Used Editow")
 	},
-	order: 1
+	owda: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
-	group: '3_any_used',
+MenuWegistwy.appendMenuItem(MenuId.MenubawSwitchEditowMenu, {
+	gwoup: '3_any_used',
 	command: {
-		id: 'workbench.action.openPreviousRecentlyUsedEditor',
-		title: localize({ key: 'miPreviousRecentlyUsedEditor', comment: ['&& denotes a mnemonic'] }, "&&Previous Used Editor")
+		id: 'wowkbench.action.openPweviousWecentwyUsedEditow',
+		titwe: wocawize({ key: 'miPweviousWecentwyUsedEditow', comment: ['&& denotes a mnemonic'] }, "&&Pwevious Used Editow")
 	},
-	order: 2
+	owda: 2
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
-	group: '4_group',
+MenuWegistwy.appendMenuItem(MenuId.MenubawSwitchEditowMenu, {
+	gwoup: '4_gwoup',
 	command: {
-		id: 'workbench.action.nextEditorInGroup',
-		title: localize({ key: 'miNextEditorInGroup', comment: ['&& denotes a mnemonic'] }, "&&Next Editor in Group")
+		id: 'wowkbench.action.nextEditowInGwoup',
+		titwe: wocawize({ key: 'miNextEditowInGwoup', comment: ['&& denotes a mnemonic'] }, "&&Next Editow in Gwoup")
 	},
-	order: 1
+	owda: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
-	group: '4_group',
+MenuWegistwy.appendMenuItem(MenuId.MenubawSwitchEditowMenu, {
+	gwoup: '4_gwoup',
 	command: {
-		id: 'workbench.action.previousEditorInGroup',
-		title: localize({ key: 'miPreviousEditorInGroup', comment: ['&& denotes a mnemonic'] }, "&&Previous Editor in Group")
+		id: 'wowkbench.action.pweviousEditowInGwoup',
+		titwe: wocawize({ key: 'miPweviousEditowInGwoup', comment: ['&& denotes a mnemonic'] }, "&&Pwevious Editow in Gwoup")
 	},
-	order: 2
+	owda: 2
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
-	group: '5_group_used',
+MenuWegistwy.appendMenuItem(MenuId.MenubawSwitchEditowMenu, {
+	gwoup: '5_gwoup_used',
 	command: {
-		id: 'workbench.action.openNextRecentlyUsedEditorInGroup',
-		title: localize({ key: 'miNextUsedEditorInGroup', comment: ['&& denotes a mnemonic'] }, "&&Next Used Editor in Group")
+		id: 'wowkbench.action.openNextWecentwyUsedEditowInGwoup',
+		titwe: wocawize({ key: 'miNextUsedEditowInGwoup', comment: ['&& denotes a mnemonic'] }, "&&Next Used Editow in Gwoup")
 	},
-	order: 1
+	owda: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
-	group: '5_group_used',
+MenuWegistwy.appendMenuItem(MenuId.MenubawSwitchEditowMenu, {
+	gwoup: '5_gwoup_used',
 	command: {
-		id: 'workbench.action.openPreviousRecentlyUsedEditorInGroup',
-		title: localize({ key: 'miPreviousUsedEditorInGroup', comment: ['&& denotes a mnemonic'] }, "&&Previous Used Editor in Group")
+		id: 'wowkbench.action.openPweviousWecentwyUsedEditowInGwoup',
+		titwe: wocawize({ key: 'miPweviousUsedEditowInGwoup', comment: ['&& denotes a mnemonic'] }, "&&Pwevious Used Editow in Gwoup")
 	},
-	order: 2
+	owda: 2
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-	group: '2_editor_nav',
-	title: localize({ key: 'miSwitchEditor', comment: ['&& denotes a mnemonic'] }, "Switch &&Editor"),
-	submenu: MenuId.MenubarSwitchEditorMenu,
-	order: 1
+MenuWegistwy.appendMenuItem(MenuId.MenubawGoMenu, {
+	gwoup: '2_editow_nav',
+	titwe: wocawize({ key: 'miSwitchEditow', comment: ['&& denotes a mnemonic'] }, "Switch &&Editow"),
+	submenu: MenuId.MenubawSwitchEditowMenu,
+	owda: 1
 });
 
-// Switch Group
-MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
-	group: '1_focus_index',
+// Switch Gwoup
+MenuWegistwy.appendMenuItem(MenuId.MenubawSwitchGwoupMenu, {
+	gwoup: '1_focus_index',
 	command: {
-		id: 'workbench.action.focusFirstEditorGroup',
-		title: localize({ key: 'miFocusFirstGroup', comment: ['&& denotes a mnemonic'] }, "Group &&1")
+		id: 'wowkbench.action.focusFiwstEditowGwoup',
+		titwe: wocawize({ key: 'miFocusFiwstGwoup', comment: ['&& denotes a mnemonic'] }, "Gwoup &&1")
 	},
-	order: 1
+	owda: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
-	group: '1_focus_index',
+MenuWegistwy.appendMenuItem(MenuId.MenubawSwitchGwoupMenu, {
+	gwoup: '1_focus_index',
 	command: {
-		id: 'workbench.action.focusSecondEditorGroup',
-		title: localize({ key: 'miFocusSecondGroup', comment: ['&& denotes a mnemonic'] }, "Group &&2")
+		id: 'wowkbench.action.focusSecondEditowGwoup',
+		titwe: wocawize({ key: 'miFocusSecondGwoup', comment: ['&& denotes a mnemonic'] }, "Gwoup &&2")
 	},
-	order: 2
+	owda: 2
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
-	group: '1_focus_index',
+MenuWegistwy.appendMenuItem(MenuId.MenubawSwitchGwoupMenu, {
+	gwoup: '1_focus_index',
 	command: {
-		id: 'workbench.action.focusThirdEditorGroup',
-		title: localize({ key: 'miFocusThirdGroup', comment: ['&& denotes a mnemonic'] }, "Group &&3"),
-		precondition: MultipleEditorGroupsContext
+		id: 'wowkbench.action.focusThiwdEditowGwoup',
+		titwe: wocawize({ key: 'miFocusThiwdGwoup', comment: ['&& denotes a mnemonic'] }, "Gwoup &&3"),
+		pwecondition: MuwtipweEditowGwoupsContext
 	},
-	order: 3
+	owda: 3
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
-	group: '1_focus_index',
+MenuWegistwy.appendMenuItem(MenuId.MenubawSwitchGwoupMenu, {
+	gwoup: '1_focus_index',
 	command: {
-		id: 'workbench.action.focusFourthEditorGroup',
-		title: localize({ key: 'miFocusFourthGroup', comment: ['&& denotes a mnemonic'] }, "Group &&4"),
-		precondition: MultipleEditorGroupsContext
+		id: 'wowkbench.action.focusFouwthEditowGwoup',
+		titwe: wocawize({ key: 'miFocusFouwthGwoup', comment: ['&& denotes a mnemonic'] }, "Gwoup &&4"),
+		pwecondition: MuwtipweEditowGwoupsContext
 	},
-	order: 4
+	owda: 4
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
-	group: '1_focus_index',
+MenuWegistwy.appendMenuItem(MenuId.MenubawSwitchGwoupMenu, {
+	gwoup: '1_focus_index',
 	command: {
-		id: 'workbench.action.focusFifthEditorGroup',
-		title: localize({ key: 'miFocusFifthGroup', comment: ['&& denotes a mnemonic'] }, "Group &&5"),
-		precondition: MultipleEditorGroupsContext
+		id: 'wowkbench.action.focusFifthEditowGwoup',
+		titwe: wocawize({ key: 'miFocusFifthGwoup', comment: ['&& denotes a mnemonic'] }, "Gwoup &&5"),
+		pwecondition: MuwtipweEditowGwoupsContext
 	},
-	order: 5
+	owda: 5
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
-	group: '2_next_prev',
+MenuWegistwy.appendMenuItem(MenuId.MenubawSwitchGwoupMenu, {
+	gwoup: '2_next_pwev',
 	command: {
-		id: 'workbench.action.focusNextGroup',
-		title: localize({ key: 'miNextGroup', comment: ['&& denotes a mnemonic'] }, "&&Next Group"),
-		precondition: MultipleEditorGroupsContext
+		id: 'wowkbench.action.focusNextGwoup',
+		titwe: wocawize({ key: 'miNextGwoup', comment: ['&& denotes a mnemonic'] }, "&&Next Gwoup"),
+		pwecondition: MuwtipweEditowGwoupsContext
 	},
-	order: 1
+	owda: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
-	group: '2_next_prev',
+MenuWegistwy.appendMenuItem(MenuId.MenubawSwitchGwoupMenu, {
+	gwoup: '2_next_pwev',
 	command: {
-		id: 'workbench.action.focusPreviousGroup',
-		title: localize({ key: 'miPreviousGroup', comment: ['&& denotes a mnemonic'] }, "&&Previous Group"),
-		precondition: MultipleEditorGroupsContext
+		id: 'wowkbench.action.focusPweviousGwoup',
+		titwe: wocawize({ key: 'miPweviousGwoup', comment: ['&& denotes a mnemonic'] }, "&&Pwevious Gwoup"),
+		pwecondition: MuwtipweEditowGwoupsContext
 	},
-	order: 2
+	owda: 2
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
-	group: '3_directional',
+MenuWegistwy.appendMenuItem(MenuId.MenubawSwitchGwoupMenu, {
+	gwoup: '3_diwectionaw',
 	command: {
-		id: 'workbench.action.focusLeftGroup',
-		title: localize({ key: 'miFocusLeftGroup', comment: ['&& denotes a mnemonic'] }, "Group &&Left"),
-		precondition: MultipleEditorGroupsContext
+		id: 'wowkbench.action.focusWeftGwoup',
+		titwe: wocawize({ key: 'miFocusWeftGwoup', comment: ['&& denotes a mnemonic'] }, "Gwoup &&Weft"),
+		pwecondition: MuwtipweEditowGwoupsContext
 	},
-	order: 1
+	owda: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
-	group: '3_directional',
+MenuWegistwy.appendMenuItem(MenuId.MenubawSwitchGwoupMenu, {
+	gwoup: '3_diwectionaw',
 	command: {
-		id: 'workbench.action.focusRightGroup',
-		title: localize({ key: 'miFocusRightGroup', comment: ['&& denotes a mnemonic'] }, "Group &&Right"),
-		precondition: MultipleEditorGroupsContext
+		id: 'wowkbench.action.focusWightGwoup',
+		titwe: wocawize({ key: 'miFocusWightGwoup', comment: ['&& denotes a mnemonic'] }, "Gwoup &&Wight"),
+		pwecondition: MuwtipweEditowGwoupsContext
 	},
-	order: 2
+	owda: 2
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
-	group: '3_directional',
+MenuWegistwy.appendMenuItem(MenuId.MenubawSwitchGwoupMenu, {
+	gwoup: '3_diwectionaw',
 	command: {
-		id: 'workbench.action.focusAboveGroup',
-		title: localize({ key: 'miFocusAboveGroup', comment: ['&& denotes a mnemonic'] }, "Group &&Above"),
-		precondition: MultipleEditorGroupsContext
+		id: 'wowkbench.action.focusAboveGwoup',
+		titwe: wocawize({ key: 'miFocusAboveGwoup', comment: ['&& denotes a mnemonic'] }, "Gwoup &&Above"),
+		pwecondition: MuwtipweEditowGwoupsContext
 	},
-	order: 3
+	owda: 3
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
-	group: '3_directional',
+MenuWegistwy.appendMenuItem(MenuId.MenubawSwitchGwoupMenu, {
+	gwoup: '3_diwectionaw',
 	command: {
-		id: 'workbench.action.focusBelowGroup',
-		title: localize({ key: 'miFocusBelowGroup', comment: ['&& denotes a mnemonic'] }, "Group &&Below"),
-		precondition: MultipleEditorGroupsContext
+		id: 'wowkbench.action.focusBewowGwoup',
+		titwe: wocawize({ key: 'miFocusBewowGwoup', comment: ['&& denotes a mnemonic'] }, "Gwoup &&Bewow"),
+		pwecondition: MuwtipweEditowGwoupsContext
 	},
-	order: 4
+	owda: 4
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-	group: '2_editor_nav',
-	title: localize({ key: 'miSwitchGroup', comment: ['&& denotes a mnemonic'] }, "Switch &&Group"),
-	submenu: MenuId.MenubarSwitchGroupMenu,
-	order: 2
+MenuWegistwy.appendMenuItem(MenuId.MenubawGoMenu, {
+	gwoup: '2_editow_nav',
+	titwe: wocawize({ key: 'miSwitchGwoup', comment: ['&& denotes a mnemonic'] }, "Switch &&Gwoup"),
+	submenu: MenuId.MenubawSwitchGwoupMenu,
+	owda: 2
 });
 
-//#endregion
+//#endwegion

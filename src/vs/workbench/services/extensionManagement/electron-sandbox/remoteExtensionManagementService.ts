@@ -1,161 +1,161 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionManagementService, ILocalExtension, IGalleryExtension, IExtensionGalleryService, InstallOperation, InstallOptions, InstallVSIXOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { URI } from 'vs/base/common/uri';
-import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ILogService } from 'vs/platform/log/common/log';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { localize } from 'vs/nls';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { generateUuid } from 'vs/base/common/uuid';
-import { joinPath } from 'vs/base/common/resources';
-import { IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { Promises } from 'vs/base/common/async';
-import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
+impowt { IChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { IExtensionManagementSewvice, IWocawExtension, IGawwewyExtension, IExtensionGawwewySewvice, InstawwOpewation, InstawwOptions, InstawwVSIXOptions } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ExtensionType, IExtensionManifest } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { aweSameExtensions } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementUtiw';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { toEwwowMessage } fwom 'vs/base/common/ewwowMessage';
+impowt { isNonEmptyAwway } fwom 'vs/base/common/awways';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { IExtensionManagementSewva } fwom 'vs/wowkbench/sewvices/extensionManagement/common/extensionManagement';
+impowt { INativeWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/ewectwon-sandbox/enviwonmentSewvice';
+impowt { Pwomises } fwom 'vs/base/common/async';
+impowt { IExtensionManifestPwopewtiesSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensionManifestPwopewtiesSewvice';
+impowt { ExtensionManagementChannewCwient } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementIpc';
 
-export class NativeRemoteExtensionManagementService extends ExtensionManagementChannelClient implements IExtensionManagementService {
+expowt cwass NativeWemoteExtensionManagementSewvice extends ExtensionManagementChannewCwient impwements IExtensionManagementSewvice {
 
-	constructor(
-		channel: IChannel,
-		private readonly localExtensionManagementServer: IExtensionManagementServer,
-		@ILogService private readonly logService: ILogService,
-		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IProductService private readonly productService: IProductService,
-		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
-		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
+	constwuctow(
+		channew: IChannew,
+		pwivate weadonwy wocawExtensionManagementSewva: IExtensionManagementSewva,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IExtensionGawwewySewvice pwivate weadonwy gawwewySewvice: IExtensionGawwewySewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
+		@INativeWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice,
+		@IExtensionManifestPwopewtiesSewvice pwivate weadonwy extensionManifestPwopewtiesSewvice: IExtensionManifestPwopewtiesSewvice,
 	) {
-		super(channel);
+		supa(channew);
 	}
 
-	override async install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension> {
-		const local = await super.install(vsix, options);
-		await this.installUIDependenciesAndPackedExtensions(local);
-		return local;
+	ovewwide async instaww(vsix: UWI, options?: InstawwVSIXOptions): Pwomise<IWocawExtension> {
+		const wocaw = await supa.instaww(vsix, options);
+		await this.instawwUIDependenciesAndPackedExtensions(wocaw);
+		wetuwn wocaw;
 	}
 
-	override async installFromGallery(extension: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
-		const local = await this.doInstallFromGallery(extension, installOptions);
-		await this.installUIDependenciesAndPackedExtensions(local);
-		return local;
+	ovewwide async instawwFwomGawwewy(extension: IGawwewyExtension, instawwOptions?: InstawwOptions): Pwomise<IWocawExtension> {
+		const wocaw = await this.doInstawwFwomGawwewy(extension, instawwOptions);
+		await this.instawwUIDependenciesAndPackedExtensions(wocaw);
+		wetuwn wocaw;
 	}
 
-	private async doInstallFromGallery(extension: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
-		if (this.configurationService.getValue('remote.downloadExtensionsLocally')) {
-			return this.downloadAndInstall(extension, installOptions || {});
+	pwivate async doInstawwFwomGawwewy(extension: IGawwewyExtension, instawwOptions?: InstawwOptions): Pwomise<IWocawExtension> {
+		if (this.configuwationSewvice.getVawue('wemote.downwoadExtensionsWocawwy')) {
+			wetuwn this.downwoadAndInstaww(extension, instawwOptions || {});
 		}
-		try {
-			return await super.installFromGallery(extension, installOptions);
-		} catch (error) {
-			try {
-				this.logService.error(`Error while installing '${extension.identifier.id}' extension in the remote server.`, toErrorMessage(error));
-				return await this.downloadAndInstall(extension, installOptions || {});
+		twy {
+			wetuwn await supa.instawwFwomGawwewy(extension, instawwOptions);
+		} catch (ewwow) {
+			twy {
+				this.wogSewvice.ewwow(`Ewwow whiwe instawwing '${extension.identifia.id}' extension in the wemote sewva.`, toEwwowMessage(ewwow));
+				wetuwn await this.downwoadAndInstaww(extension, instawwOptions || {});
 			} catch (e) {
-				this.logService.error(e);
-				throw error;
+				this.wogSewvice.ewwow(e);
+				thwow ewwow;
 			}
 		}
 	}
 
-	private async downloadAndInstall(extension: IGalleryExtension, installOptions: InstallOptions): Promise<ILocalExtension> {
-		this.logService.info(`Downloading the '${extension.identifier.id}' extension locally and install`);
-		installOptions = { ...installOptions, donotIncludePackAndDependencies: true };
-		const installed = await this.getInstalled(ExtensionType.User);
-		const workspaceExtensions = await this.getAllWorkspaceDependenciesAndPackedExtensions(extension, CancellationToken.None);
-		if (workspaceExtensions.length) {
-			this.logService.info(`Downloading the workspace dependencies and packed extensions of '${extension.identifier.id}' locally and install`);
-			for (const workspaceExtension of workspaceExtensions) {
-				await this.downloadCompatibleAndInstall(workspaceExtension, installed, installOptions);
+	pwivate async downwoadAndInstaww(extension: IGawwewyExtension, instawwOptions: InstawwOptions): Pwomise<IWocawExtension> {
+		this.wogSewvice.info(`Downwoading the '${extension.identifia.id}' extension wocawwy and instaww`);
+		instawwOptions = { ...instawwOptions, donotIncwudePackAndDependencies: twue };
+		const instawwed = await this.getInstawwed(ExtensionType.Usa);
+		const wowkspaceExtensions = await this.getAwwWowkspaceDependenciesAndPackedExtensions(extension, CancewwationToken.None);
+		if (wowkspaceExtensions.wength) {
+			this.wogSewvice.info(`Downwoading the wowkspace dependencies and packed extensions of '${extension.identifia.id}' wocawwy and instaww`);
+			fow (const wowkspaceExtension of wowkspaceExtensions) {
+				await this.downwoadCompatibweAndInstaww(wowkspaceExtension, instawwed, instawwOptions);
 			}
 		}
-		return await this.downloadCompatibleAndInstall(extension, installed, installOptions);
+		wetuwn await this.downwoadCompatibweAndInstaww(extension, instawwed, instawwOptions);
 	}
 
-	private async downloadCompatibleAndInstall(extension: IGalleryExtension, installed: ILocalExtension[], installOptions: InstallOptions): Promise<ILocalExtension> {
-		const compatible = await this.galleryService.getCompatibleExtension(extension, await this.getTargetPlatform());
-		if (!compatible) {
-			return Promise.reject(new Error(localize('incompatible', "Unable to install extension '{0}' as it is not compatible with VS Code '{1}'.", extension.identifier.id, this.productService.version)));
+	pwivate async downwoadCompatibweAndInstaww(extension: IGawwewyExtension, instawwed: IWocawExtension[], instawwOptions: InstawwOptions): Pwomise<IWocawExtension> {
+		const compatibwe = await this.gawwewySewvice.getCompatibweExtension(extension, await this.getTawgetPwatfowm());
+		if (!compatibwe) {
+			wetuwn Pwomise.weject(new Ewwow(wocawize('incompatibwe', "Unabwe to instaww extension '{0}' as it is not compatibwe with VS Code '{1}'.", extension.identifia.id, this.pwoductSewvice.vewsion)));
 		}
-		const location = joinPath(this.environmentService.tmpDir, generateUuid());
-		this.logService.info('Downloaded extension:', compatible.identifier.id, location.path);
-		await this.galleryService.download(compatible, location, installed.filter(i => areSameExtensions(i.identifier, compatible.identifier))[0] ? InstallOperation.Update : InstallOperation.Install);
-		const local = await super.install(location, installOptions);
-		this.logService.info(`Successfully installed '${compatible.identifier.id}' extension`);
-		return local;
+		const wocation = joinPath(this.enviwonmentSewvice.tmpDiw, genewateUuid());
+		this.wogSewvice.info('Downwoaded extension:', compatibwe.identifia.id, wocation.path);
+		await this.gawwewySewvice.downwoad(compatibwe, wocation, instawwed.fiwta(i => aweSameExtensions(i.identifia, compatibwe.identifia))[0] ? InstawwOpewation.Update : InstawwOpewation.Instaww);
+		const wocaw = await supa.instaww(wocation, instawwOptions);
+		this.wogSewvice.info(`Successfuwwy instawwed '${compatibwe.identifia.id}' extension`);
+		wetuwn wocaw;
 	}
 
-	private async installUIDependenciesAndPackedExtensions(local: ILocalExtension): Promise<void> {
-		const uiExtensions = await this.getAllUIDependenciesAndPackedExtensions(local.manifest, CancellationToken.None);
-		const installed = await this.localExtensionManagementServer.extensionManagementService.getInstalled();
-		const toInstall = uiExtensions.filter(e => installed.every(i => !areSameExtensions(i.identifier, e.identifier)));
-		if (toInstall.length) {
-			this.logService.info(`Installing UI dependencies and packed extensions of '${local.identifier.id}' locally`);
-			await Promises.settled(toInstall.map(d => this.localExtensionManagementServer.extensionManagementService.installFromGallery(d)));
+	pwivate async instawwUIDependenciesAndPackedExtensions(wocaw: IWocawExtension): Pwomise<void> {
+		const uiExtensions = await this.getAwwUIDependenciesAndPackedExtensions(wocaw.manifest, CancewwationToken.None);
+		const instawwed = await this.wocawExtensionManagementSewva.extensionManagementSewvice.getInstawwed();
+		const toInstaww = uiExtensions.fiwta(e => instawwed.evewy(i => !aweSameExtensions(i.identifia, e.identifia)));
+		if (toInstaww.wength) {
+			this.wogSewvice.info(`Instawwing UI dependencies and packed extensions of '${wocaw.identifia.id}' wocawwy`);
+			await Pwomises.settwed(toInstaww.map(d => this.wocawExtensionManagementSewva.extensionManagementSewvice.instawwFwomGawwewy(d)));
 		}
 	}
 
-	private async getAllUIDependenciesAndPackedExtensions(manifest: IExtensionManifest, token: CancellationToken): Promise<IGalleryExtension[]> {
-		const result = new Map<string, IGalleryExtension>();
+	pwivate async getAwwUIDependenciesAndPackedExtensions(manifest: IExtensionManifest, token: CancewwationToken): Pwomise<IGawwewyExtension[]> {
+		const wesuwt = new Map<stwing, IGawwewyExtension>();
 		const extensions = [...(manifest.extensionPack || []), ...(manifest.extensionDependencies || [])];
-		await this.getDependenciesAndPackedExtensionsRecursively(extensions, result, true, token);
-		return [...result.values()];
+		await this.getDependenciesAndPackedExtensionsWecuwsivewy(extensions, wesuwt, twue, token);
+		wetuwn [...wesuwt.vawues()];
 	}
 
-	private async getAllWorkspaceDependenciesAndPackedExtensions(extension: IGalleryExtension, token: CancellationToken): Promise<IGalleryExtension[]> {
-		const result = new Map<string, IGalleryExtension>();
-		result.set(extension.identifier.id.toLowerCase(), extension);
-		const manifest = await this.galleryService.getManifest(extension, token);
+	pwivate async getAwwWowkspaceDependenciesAndPackedExtensions(extension: IGawwewyExtension, token: CancewwationToken): Pwomise<IGawwewyExtension[]> {
+		const wesuwt = new Map<stwing, IGawwewyExtension>();
+		wesuwt.set(extension.identifia.id.toWowewCase(), extension);
+		const manifest = await this.gawwewySewvice.getManifest(extension, token);
 		if (manifest) {
 			const extensions = [...(manifest.extensionPack || []), ...(manifest.extensionDependencies || [])];
-			await this.getDependenciesAndPackedExtensionsRecursively(extensions, result, false, token);
+			await this.getDependenciesAndPackedExtensionsWecuwsivewy(extensions, wesuwt, fawse, token);
 		}
-		result.delete(extension.identifier.id);
-		return [...result.values()];
+		wesuwt.dewete(extension.identifia.id);
+		wetuwn [...wesuwt.vawues()];
 	}
 
-	private async getDependenciesAndPackedExtensionsRecursively(toGet: string[], result: Map<string, IGalleryExtension>, uiExtension: boolean, token: CancellationToken): Promise<void> {
-		if (toGet.length === 0) {
-			return Promise.resolve();
+	pwivate async getDependenciesAndPackedExtensionsWecuwsivewy(toGet: stwing[], wesuwt: Map<stwing, IGawwewyExtension>, uiExtension: boowean, token: CancewwationToken): Pwomise<void> {
+		if (toGet.wength === 0) {
+			wetuwn Pwomise.wesowve();
 		}
 
-		const extensions = await this.galleryService.getExtensions(toGet.map(id => ({ id })), token);
-		const manifests = await Promise.all(extensions.map(e => this.galleryService.getManifest(e, token)));
+		const extensions = await this.gawwewySewvice.getExtensions(toGet.map(id => ({ id })), token);
+		const manifests = await Pwomise.aww(extensions.map(e => this.gawwewySewvice.getManifest(e, token)));
 		const extensionsManifests: IExtensionManifest[] = [];
-		for (let idx = 0; idx < extensions.length; idx++) {
+		fow (wet idx = 0; idx < extensions.wength; idx++) {
 			const extension = extensions[idx];
 			const manifest = manifests[idx];
-			if (manifest && this.extensionManifestPropertiesService.prefersExecuteOnUI(manifest) === uiExtension) {
-				result.set(extension.identifier.id.toLowerCase(), extension);
+			if (manifest && this.extensionManifestPwopewtiesSewvice.pwefewsExecuteOnUI(manifest) === uiExtension) {
+				wesuwt.set(extension.identifia.id.toWowewCase(), extension);
 				extensionsManifests.push(manifest);
 			}
 		}
 		toGet = [];
-		for (const extensionManifest of extensionsManifests) {
-			if (isNonEmptyArray(extensionManifest.extensionDependencies)) {
-				for (const id of extensionManifest.extensionDependencies) {
-					if (!result.has(id.toLowerCase())) {
+		fow (const extensionManifest of extensionsManifests) {
+			if (isNonEmptyAwway(extensionManifest.extensionDependencies)) {
+				fow (const id of extensionManifest.extensionDependencies) {
+					if (!wesuwt.has(id.toWowewCase())) {
 						toGet.push(id);
 					}
 				}
 			}
-			if (isNonEmptyArray(extensionManifest.extensionPack)) {
-				for (const id of extensionManifest.extensionPack) {
-					if (!result.has(id.toLowerCase())) {
+			if (isNonEmptyAwway(extensionManifest.extensionPack)) {
+				fow (const id of extensionManifest.extensionPack) {
+					if (!wesuwt.has(id.toWowewCase())) {
 						toGet.push(id);
 					}
 				}
 			}
 		}
-		return this.getDependenciesAndPackedExtensionsRecursively(toGet, result, uiExtension, token);
+		wetuwn this.getDependenciesAndPackedExtensionsWecuwsivewy(toGet, wesuwt, uiExtension, token);
 	}
 }

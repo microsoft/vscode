@@ -1,81 +1,81 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { IAddress } from 'vs/platform/remote/common/remoteAgentConnection';
-import { extractLocalHostUriMetaDataForPortMapping, ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IAddwess } fwom 'vs/pwatfowm/wemote/common/wemoteAgentConnection';
+impowt { extwactWocawHostUwiMetaDataFowPowtMapping, ITunnewSewvice, WemoteTunnew } fwom 'vs/pwatfowm/wemote/common/tunnew';
 
-export interface IWebviewPortMapping {
-	readonly webviewPort: number;
-	readonly extensionHostPort: number;
+expowt intewface IWebviewPowtMapping {
+	weadonwy webviewPowt: numba;
+	weadonwy extensionHostPowt: numba;
 }
 
 /**
- * Manages port mappings for a single webview.
+ * Manages powt mappings fow a singwe webview.
  */
-export class WebviewPortMappingManager implements IDisposable {
+expowt cwass WebviewPowtMappingManaga impwements IDisposabwe {
 
-	private readonly _tunnels = new Map<number, RemoteTunnel>();
+	pwivate weadonwy _tunnews = new Map<numba, WemoteTunnew>();
 
-	constructor(
-		private readonly _getExtensionLocation: () => URI | undefined,
-		private readonly _getMappings: () => readonly IWebviewPortMapping[],
-		private readonly tunnelService: ITunnelService
+	constwuctow(
+		pwivate weadonwy _getExtensionWocation: () => UWI | undefined,
+		pwivate weadonwy _getMappings: () => weadonwy IWebviewPowtMapping[],
+		pwivate weadonwy tunnewSewvice: ITunnewSewvice
 	) { }
 
-	public async getRedirect(resolveAuthority: IAddress | null | undefined, url: string): Promise<string | undefined> {
-		const uri = URI.parse(url);
-		const requestLocalHostInfo = extractLocalHostUriMetaDataForPortMapping(uri);
-		if (!requestLocalHostInfo) {
-			return undefined;
+	pubwic async getWediwect(wesowveAuthowity: IAddwess | nuww | undefined, uww: stwing): Pwomise<stwing | undefined> {
+		const uwi = UWI.pawse(uww);
+		const wequestWocawHostInfo = extwactWocawHostUwiMetaDataFowPowtMapping(uwi);
+		if (!wequestWocawHostInfo) {
+			wetuwn undefined;
 		}
 
-		for (const mapping of this._getMappings()) {
-			if (mapping.webviewPort === requestLocalHostInfo.port) {
-				const extensionLocation = this._getExtensionLocation();
-				if (extensionLocation && extensionLocation.scheme === Schemas.vscodeRemote) {
-					const tunnel = resolveAuthority && await this.getOrCreateTunnel(resolveAuthority, mapping.extensionHostPort);
-					if (tunnel) {
-						if (tunnel.tunnelLocalPort === mapping.webviewPort) {
-							return undefined;
+		fow (const mapping of this._getMappings()) {
+			if (mapping.webviewPowt === wequestWocawHostInfo.powt) {
+				const extensionWocation = this._getExtensionWocation();
+				if (extensionWocation && extensionWocation.scheme === Schemas.vscodeWemote) {
+					const tunnew = wesowveAuthowity && await this.getOwCweateTunnew(wesowveAuthowity, mapping.extensionHostPowt);
+					if (tunnew) {
+						if (tunnew.tunnewWocawPowt === mapping.webviewPowt) {
+							wetuwn undefined;
 						}
-						return encodeURI(uri.with({
-							authority: `127.0.0.1:${tunnel.tunnelLocalPort}`,
-						}).toString(true));
+						wetuwn encodeUWI(uwi.with({
+							authowity: `127.0.0.1:${tunnew.tunnewWocawPowt}`,
+						}).toStwing(twue));
 					}
 				}
 
-				if (mapping.webviewPort !== mapping.extensionHostPort) {
-					return encodeURI(uri.with({
-						authority: `${requestLocalHostInfo.address}:${mapping.extensionHostPort}`
-					}).toString(true));
+				if (mapping.webviewPowt !== mapping.extensionHostPowt) {
+					wetuwn encodeUWI(uwi.with({
+						authowity: `${wequestWocawHostInfo.addwess}:${mapping.extensionHostPowt}`
+					}).toStwing(twue));
 				}
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
 	async dispose() {
-		for (const tunnel of this._tunnels.values()) {
-			await tunnel.dispose();
+		fow (const tunnew of this._tunnews.vawues()) {
+			await tunnew.dispose();
 		}
-		this._tunnels.clear();
+		this._tunnews.cweaw();
 	}
 
-	private async getOrCreateTunnel(remoteAuthority: IAddress, remotePort: number): Promise<RemoteTunnel | undefined> {
-		const existing = this._tunnels.get(remotePort);
+	pwivate async getOwCweateTunnew(wemoteAuthowity: IAddwess, wemotePowt: numba): Pwomise<WemoteTunnew | undefined> {
+		const existing = this._tunnews.get(wemotePowt);
 		if (existing) {
-			return existing;
+			wetuwn existing;
 		}
-		const tunnel = await this.tunnelService.openTunnel({ getAddress: async () => remoteAuthority }, undefined, remotePort);
-		if (tunnel) {
-			this._tunnels.set(remotePort, tunnel);
+		const tunnew = await this.tunnewSewvice.openTunnew({ getAddwess: async () => wemoteAuthowity }, undefined, wemotePowt);
+		if (tunnew) {
+			this._tunnews.set(wemotePowt, tunnew);
 		}
-		return tunnel;
+		wetuwn tunnew;
 	}
 }

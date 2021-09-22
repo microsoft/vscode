@@ -1,20 +1,20 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { MarkdownEngine } from '../markdownEngine';
-import { MarkdownContributionProvider, MarkdownContributions } from '../markdownExtensions';
-import { githubSlugifier } from '../slugify';
-import { Disposable } from '../util/dispose';
+impowt * as vscode fwom 'vscode';
+impowt { MawkdownEngine } fwom '../mawkdownEngine';
+impowt { MawkdownContwibutionPwovida, MawkdownContwibutions } fwom '../mawkdownExtensions';
+impowt { githubSwugifia } fwom '../swugify';
+impowt { Disposabwe } fwom '../utiw/dispose';
 
-const emptyContributions = new class extends Disposable implements MarkdownContributionProvider {
-	readonly extensionUri = vscode.Uri.file('/');
-	readonly contributions = MarkdownContributions.Empty;
-	readonly onContributionsChanged = this._register(new vscode.EventEmitter<this>()).event;
+const emptyContwibutions = new cwass extends Disposabwe impwements MawkdownContwibutionPwovida {
+	weadonwy extensionUwi = vscode.Uwi.fiwe('/');
+	weadonwy contwibutions = MawkdownContwibutions.Empty;
+	weadonwy onContwibutionsChanged = this._wegista(new vscode.EventEmitta<this>()).event;
 };
 
-export function createNewMarkdownEngine(): MarkdownEngine {
-	return new MarkdownEngine(emptyContributions, githubSlugifier);
+expowt function cweateNewMawkdownEngine(): MawkdownEngine {
+	wetuwn new MawkdownEngine(emptyContwibutions, githubSwugifia);
 }

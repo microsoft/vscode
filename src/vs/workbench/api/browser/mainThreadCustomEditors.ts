@@ -1,709 +1,709 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { multibyteAwareBtoa } from 'vs/base/browser/dom';
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { basename } from 'vs/base/common/path';
-import { isEqual, isEqualOrParent, toLocalResource } from 'vs/base/common/resources';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { FileOperation, IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IUndoRedoService, UndoRedoElementType } from 'vs/platform/undoRedo/common/undoRedo';
-import { MainThreadWebviewPanels } from 'vs/workbench/api/browser/mainThreadWebviewPanels';
-import { MainThreadWebviews, reviveWebviewExtension } from 'vs/workbench/api/browser/mainThreadWebviews';
-import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
-import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
-import { CustomDocumentBackupData } from 'vs/workbench/contrib/customEditor/browser/customEditorInputFactory';
-import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { CustomTextEditorModel } from 'vs/workbench/contrib/customEditor/common/customTextEditorModel';
-import { WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
-import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { IWorkingCopyFileService, WorkingCopyFileEvent } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopy, IWorkingCopyBackup, NO_TYPE_ID, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { ResourceWorkingCopy } from 'vs/workbench/services/workingCopy/common/resourceWorkingCopy';
+impowt { muwtibyteAwaweBtoa } fwom 'vs/base/bwowsa/dom';
+impowt { CancewabwePwomise, cweateCancewabwePwomise } fwom 'vs/base/common/async';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { isPwomiseCancewedEwwow, onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, DisposabweStowe, dispose, IDisposabwe, IWefewence } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { basename } fwom 'vs/base/common/path';
+impowt { isEquaw, isEquawOwPawent, toWocawWesouwce } fwom 'vs/base/common/wesouwces';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IFiweDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { FiweOpewation, IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IUndoWedoSewvice, UndoWedoEwementType } fwom 'vs/pwatfowm/undoWedo/common/undoWedo';
+impowt { MainThweadWebviewPanews } fwom 'vs/wowkbench/api/bwowsa/mainThweadWebviewPanews';
+impowt { MainThweadWebviews, weviveWebviewExtension } fwom 'vs/wowkbench/api/bwowsa/mainThweadWebviews';
+impowt * as extHostPwotocow fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { IWevewtOptions, ISaveOptions } fwom 'vs/wowkbench/common/editow';
+impowt { editowGwoupToCowumn } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupCowumn';
+impowt { CustomEditowInput } fwom 'vs/wowkbench/contwib/customEditow/bwowsa/customEditowInput';
+impowt { CustomDocumentBackupData } fwom 'vs/wowkbench/contwib/customEditow/bwowsa/customEditowInputFactowy';
+impowt { ICustomEditowModew, ICustomEditowSewvice } fwom 'vs/wowkbench/contwib/customEditow/common/customEditow';
+impowt { CustomTextEditowModew } fwom 'vs/wowkbench/contwib/customEditow/common/customTextEditowModew';
+impowt { WebviewExtensionDescwiption } fwom 'vs/wowkbench/contwib/webview/bwowsa/webview';
+impowt { WebviewInput } fwom 'vs/wowkbench/contwib/webviewPanew/bwowsa/webviewEditowInput';
+impowt { IWebviewWowkbenchSewvice } fwom 'vs/wowkbench/contwib/webviewPanew/bwowsa/webviewWowkbenchSewvice';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IPathSewvice } fwom 'vs/wowkbench/sewvices/path/common/pathSewvice';
+impowt { IWowkingCopyFiweSewvice, WowkingCopyFiweEvent } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyFiweSewvice';
+impowt { IWowkingCopySewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopySewvice';
+impowt { IWowkingCopy, IWowkingCopyBackup, NO_TYPE_ID, WowkingCopyCapabiwities } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopy';
+impowt { WesouwceWowkingCopy } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wesouwceWowkingCopy';
 
-const enum CustomEditorModelType {
+const enum CustomEditowModewType {
 	Custom,
 	Text,
 }
 
-export class MainThreadCustomEditors extends Disposable implements extHostProtocol.MainThreadCustomEditorsShape {
+expowt cwass MainThweadCustomEditows extends Disposabwe impwements extHostPwotocow.MainThweadCustomEditowsShape {
 
-	private readonly _proxyCustomEditors: extHostProtocol.ExtHostCustomEditorsShape;
+	pwivate weadonwy _pwoxyCustomEditows: extHostPwotocow.ExtHostCustomEditowsShape;
 
-	private readonly _editorProviders = new Map<string, IDisposable>();
+	pwivate weadonwy _editowPwovidews = new Map<stwing, IDisposabwe>();
 
-	private readonly _editorRenameBackups = new Map<string, CustomDocumentBackupData>();
+	pwivate weadonwy _editowWenameBackups = new Map<stwing, CustomDocumentBackupData>();
 
-	constructor(
-		context: extHostProtocol.IExtHostContext,
-		private readonly mainThreadWebview: MainThreadWebviews,
-		private readonly mainThreadWebviewPanels: MainThreadWebviewPanels,
-		@IExtensionService extensionService: IExtensionService,
-		@IWorkingCopyService workingCopyService: IWorkingCopyService,
-		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
-		@ICustomEditorService private readonly _customEditorService: ICustomEditorService,
-		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
-		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+	constwuctow(
+		context: extHostPwotocow.IExtHostContext,
+		pwivate weadonwy mainThweadWebview: MainThweadWebviews,
+		pwivate weadonwy mainThweadWebviewPanews: MainThweadWebviewPanews,
+		@IExtensionSewvice extensionSewvice: IExtensionSewvice,
+		@IWowkingCopySewvice wowkingCopySewvice: IWowkingCopySewvice,
+		@IWowkingCopyFiweSewvice wowkingCopyFiweSewvice: IWowkingCopyFiweSewvice,
+		@ICustomEditowSewvice pwivate weadonwy _customEditowSewvice: ICustomEditowSewvice,
+		@IEditowGwoupsSewvice pwivate weadonwy _editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IWebviewWowkbenchSewvice pwivate weadonwy _webviewWowkbenchSewvice: IWebviewWowkbenchSewvice,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
 	) {
-		super();
+		supa();
 
-		this._proxyCustomEditors = context.getProxy(extHostProtocol.ExtHostContext.ExtHostCustomEditors);
+		this._pwoxyCustomEditows = context.getPwoxy(extHostPwotocow.ExtHostContext.ExtHostCustomEditows);
 
-		this._register(workingCopyFileService.registerWorkingCopyProvider((editorResource) => {
-			const matchedWorkingCopies: IWorkingCopy[] = [];
+		this._wegista(wowkingCopyFiweSewvice.wegistewWowkingCopyPwovida((editowWesouwce) => {
+			const matchedWowkingCopies: IWowkingCopy[] = [];
 
-			for (const workingCopy of workingCopyService.workingCopies) {
-				if (workingCopy instanceof MainThreadCustomEditorModel) {
-					if (isEqualOrParent(editorResource, workingCopy.editorResource)) {
-						matchedWorkingCopies.push(workingCopy);
+			fow (const wowkingCopy of wowkingCopySewvice.wowkingCopies) {
+				if (wowkingCopy instanceof MainThweadCustomEditowModew) {
+					if (isEquawOwPawent(editowWesouwce, wowkingCopy.editowWesouwce)) {
+						matchedWowkingCopies.push(wowkingCopy);
 					}
 				}
 			}
-			return matchedWorkingCopies;
+			wetuwn matchedWowkingCopies;
 		}));
 
-		// This reviver's only job is to activate custom editor extensions.
-		this._register(_webviewWorkbenchService.registerResolver({
-			canResolve: (webview: WebviewInput) => {
-				if (webview instanceof CustomEditorInput) {
-					extensionService.activateByEvent(`onCustomEditor:${webview.viewType}`);
+		// This weviva's onwy job is to activate custom editow extensions.
+		this._wegista(_webviewWowkbenchSewvice.wegistewWesowva({
+			canWesowve: (webview: WebviewInput) => {
+				if (webview instanceof CustomEditowInput) {
+					extensionSewvice.activateByEvent(`onCustomEditow:${webview.viewType}`);
 				}
-				return false;
+				wetuwn fawse;
 			},
-			resolveWebview: () => { throw new Error('not implemented'); }
+			wesowveWebview: () => { thwow new Ewwow('not impwemented'); }
 		}));
 
-		// Working copy operations
-		this._register(workingCopyFileService.onWillRunWorkingCopyFileOperation(async e => this.onWillRunWorkingCopyFileOperation(e)));
+		// Wowking copy opewations
+		this._wegista(wowkingCopyFiweSewvice.onWiwwWunWowkingCopyFiweOpewation(async e => this.onWiwwWunWowkingCopyFiweOpewation(e)));
 	}
 
-	override dispose() {
-		super.dispose();
+	ovewwide dispose() {
+		supa.dispose();
 
-		dispose(this._editorProviders.values());
-		this._editorProviders.clear();
+		dispose(this._editowPwovidews.vawues());
+		this._editowPwovidews.cweaw();
 	}
 
-	public $registerTextEditorProvider(extensionData: extHostProtocol.WebviewExtensionDescription, viewType: string, options: extHostProtocol.IWebviewPanelOptions, capabilities: extHostProtocol.CustomTextEditorCapabilities, serializeBuffersForPostMessage: boolean): void {
-		this.registerEditorProvider(CustomEditorModelType.Text, reviveWebviewExtension(extensionData), viewType, options, capabilities, true, serializeBuffersForPostMessage);
+	pubwic $wegistewTextEditowPwovida(extensionData: extHostPwotocow.WebviewExtensionDescwiption, viewType: stwing, options: extHostPwotocow.IWebviewPanewOptions, capabiwities: extHostPwotocow.CustomTextEditowCapabiwities, sewiawizeBuffewsFowPostMessage: boowean): void {
+		this.wegistewEditowPwovida(CustomEditowModewType.Text, weviveWebviewExtension(extensionData), viewType, options, capabiwities, twue, sewiawizeBuffewsFowPostMessage);
 	}
 
-	public $registerCustomEditorProvider(extensionData: extHostProtocol.WebviewExtensionDescription, viewType: string, options: extHostProtocol.IWebviewPanelOptions, supportsMultipleEditorsPerDocument: boolean, serializeBuffersForPostMessage: boolean): void {
-		this.registerEditorProvider(CustomEditorModelType.Custom, reviveWebviewExtension(extensionData), viewType, options, {}, supportsMultipleEditorsPerDocument, serializeBuffersForPostMessage);
+	pubwic $wegistewCustomEditowPwovida(extensionData: extHostPwotocow.WebviewExtensionDescwiption, viewType: stwing, options: extHostPwotocow.IWebviewPanewOptions, suppowtsMuwtipweEditowsPewDocument: boowean, sewiawizeBuffewsFowPostMessage: boowean): void {
+		this.wegistewEditowPwovida(CustomEditowModewType.Custom, weviveWebviewExtension(extensionData), viewType, options, {}, suppowtsMuwtipweEditowsPewDocument, sewiawizeBuffewsFowPostMessage);
 	}
 
-	private registerEditorProvider(
-		modelType: CustomEditorModelType,
-		extension: WebviewExtensionDescription,
-		viewType: string,
-		options: extHostProtocol.IWebviewPanelOptions,
-		capabilities: extHostProtocol.CustomTextEditorCapabilities,
-		supportsMultipleEditorsPerDocument: boolean,
-		serializeBuffersForPostMessage: boolean,
+	pwivate wegistewEditowPwovida(
+		modewType: CustomEditowModewType,
+		extension: WebviewExtensionDescwiption,
+		viewType: stwing,
+		options: extHostPwotocow.IWebviewPanewOptions,
+		capabiwities: extHostPwotocow.CustomTextEditowCapabiwities,
+		suppowtsMuwtipweEditowsPewDocument: boowean,
+		sewiawizeBuffewsFowPostMessage: boowean,
 	): void {
-		if (this._editorProviders.has(viewType)) {
-			throw new Error(`Provider for ${viewType} already registered`);
+		if (this._editowPwovidews.has(viewType)) {
+			thwow new Ewwow(`Pwovida fow ${viewType} awweady wegistewed`);
 		}
 
-		const disposables = new DisposableStore();
+		const disposabwes = new DisposabweStowe();
 
-		disposables.add(this._customEditorService.registerCustomEditorCapabilities(viewType, {
-			supportsMultipleEditorsPerDocument
+		disposabwes.add(this._customEditowSewvice.wegistewCustomEditowCapabiwities(viewType, {
+			suppowtsMuwtipweEditowsPewDocument
 		}));
 
-		disposables.add(this._webviewWorkbenchService.registerResolver({
-			canResolve: (webviewInput) => {
-				return webviewInput instanceof CustomEditorInput && webviewInput.viewType === viewType;
+		disposabwes.add(this._webviewWowkbenchSewvice.wegistewWesowva({
+			canWesowve: (webviewInput) => {
+				wetuwn webviewInput instanceof CustomEditowInput && webviewInput.viewType === viewType;
 			},
-			resolveWebview: async (webviewInput: CustomEditorInput, cancellation: CancellationToken) => {
-				const handle = webviewInput.id;
-				const resource = webviewInput.resource;
+			wesowveWebview: async (webviewInput: CustomEditowInput, cancewwation: CancewwationToken) => {
+				const handwe = webviewInput.id;
+				const wesouwce = webviewInput.wesouwce;
 
-				this.mainThreadWebviewPanels.addWebviewInput(handle, webviewInput, { serializeBuffersForPostMessage });
+				this.mainThweadWebviewPanews.addWebviewInput(handwe, webviewInput, { sewiawizeBuffewsFowPostMessage });
 				webviewInput.webview.options = options;
 				webviewInput.webview.extension = extension;
 
-				// If there's an old resource this was a move and we must resolve the backup at the same time as the webview
-				// This is because the backup must be ready upon model creation, and the input resolve method comes after
-				let backupId = webviewInput.backupId;
-				if (webviewInput.oldResource && !webviewInput.backupId) {
-					const backup = this._editorRenameBackups.get(webviewInput.oldResource.toString());
+				// If thewe's an owd wesouwce this was a move and we must wesowve the backup at the same time as the webview
+				// This is because the backup must be weady upon modew cweation, and the input wesowve method comes afta
+				wet backupId = webviewInput.backupId;
+				if (webviewInput.owdWesouwce && !webviewInput.backupId) {
+					const backup = this._editowWenameBackups.get(webviewInput.owdWesouwce.toStwing());
 					backupId = backup?.backupId;
-					this._editorRenameBackups.delete(webviewInput.oldResource.toString());
+					this._editowWenameBackups.dewete(webviewInput.owdWesouwce.toStwing());
 				}
 
-				let modelRef: IReference<ICustomEditorModel>;
-				try {
-					modelRef = await this.getOrCreateCustomEditorModel(modelType, resource, viewType, { backupId }, cancellation);
-				} catch (error) {
-					onUnexpectedError(error);
-					webviewInput.webview.html = this.mainThreadWebview.getWebviewResolvedFailedContent(viewType);
-					return;
+				wet modewWef: IWefewence<ICustomEditowModew>;
+				twy {
+					modewWef = await this.getOwCweateCustomEditowModew(modewType, wesouwce, viewType, { backupId }, cancewwation);
+				} catch (ewwow) {
+					onUnexpectedEwwow(ewwow);
+					webviewInput.webview.htmw = this.mainThweadWebview.getWebviewWesowvedFaiwedContent(viewType);
+					wetuwn;
 				}
 
-				if (cancellation.isCancellationRequested) {
-					modelRef.dispose();
-					return;
+				if (cancewwation.isCancewwationWequested) {
+					modewWef.dispose();
+					wetuwn;
 				}
 
 				webviewInput.webview.onDidDispose(() => {
-					// If the model is still dirty, make sure we have time to save it
-					if (modelRef.object.isDirty()) {
-						const sub = modelRef.object.onDidChangeDirty(() => {
-							if (!modelRef.object.isDirty()) {
+					// If the modew is stiww diwty, make suwe we have time to save it
+					if (modewWef.object.isDiwty()) {
+						const sub = modewWef.object.onDidChangeDiwty(() => {
+							if (!modewWef.object.isDiwty()) {
 								sub.dispose();
-								modelRef.dispose();
+								modewWef.dispose();
 							}
 						});
-						return;
+						wetuwn;
 					}
 
-					modelRef.dispose();
+					modewWef.dispose();
 				});
 
-				if (capabilities.supportsMove) {
-					webviewInput.onMove(async (newResource: URI) => {
-						const oldModel = modelRef;
-						modelRef = await this.getOrCreateCustomEditorModel(modelType, newResource, viewType, {}, CancellationToken.None);
-						this._proxyCustomEditors.$onMoveCustomEditor(handle, newResource, viewType);
-						oldModel.dispose();
+				if (capabiwities.suppowtsMove) {
+					webviewInput.onMove(async (newWesouwce: UWI) => {
+						const owdModew = modewWef;
+						modewWef = await this.getOwCweateCustomEditowModew(modewType, newWesouwce, viewType, {}, CancewwationToken.None);
+						this._pwoxyCustomEditows.$onMoveCustomEditow(handwe, newWesouwce, viewType);
+						owdModew.dispose();
 					});
 				}
 
-				try {
-					await this._proxyCustomEditors.$resolveWebviewEditor(resource, handle, viewType, {
-						title: webviewInput.getTitle(),
+				twy {
+					await this._pwoxyCustomEditows.$wesowveWebviewEditow(wesouwce, handwe, viewType, {
+						titwe: webviewInput.getTitwe(),
 						webviewOptions: webviewInput.webview.contentOptions,
-						panelOptions: webviewInput.webview.options,
-					}, editorGroupToColumn(this._editorGroupService, webviewInput.group || 0), cancellation);
-				} catch (error) {
-					onUnexpectedError(error);
-					webviewInput.webview.html = this.mainThreadWebview.getWebviewResolvedFailedContent(viewType);
-					modelRef.dispose();
-					return;
+						panewOptions: webviewInput.webview.options,
+					}, editowGwoupToCowumn(this._editowGwoupSewvice, webviewInput.gwoup || 0), cancewwation);
+				} catch (ewwow) {
+					onUnexpectedEwwow(ewwow);
+					webviewInput.webview.htmw = this.mainThweadWebview.getWebviewWesowvedFaiwedContent(viewType);
+					modewWef.dispose();
+					wetuwn;
 				}
 			}
 		}));
 
-		this._editorProviders.set(viewType, disposables);
+		this._editowPwovidews.set(viewType, disposabwes);
 	}
 
-	public $unregisterEditorProvider(viewType: string): void {
-		const provider = this._editorProviders.get(viewType);
-		if (!provider) {
-			throw new Error(`No provider for ${viewType} registered`);
+	pubwic $unwegistewEditowPwovida(viewType: stwing): void {
+		const pwovida = this._editowPwovidews.get(viewType);
+		if (!pwovida) {
+			thwow new Ewwow(`No pwovida fow ${viewType} wegistewed`);
 		}
 
-		provider.dispose();
-		this._editorProviders.delete(viewType);
+		pwovida.dispose();
+		this._editowPwovidews.dewete(viewType);
 
-		this._customEditorService.models.disposeAllModelsForView(viewType);
+		this._customEditowSewvice.modews.disposeAwwModewsFowView(viewType);
 	}
 
-	private async getOrCreateCustomEditorModel(
-		modelType: CustomEditorModelType,
-		resource: URI,
-		viewType: string,
-		options: { backupId?: string },
-		cancellation: CancellationToken,
-	): Promise<IReference<ICustomEditorModel>> {
-		const existingModel = this._customEditorService.models.tryRetain(resource, viewType);
-		if (existingModel) {
-			return existingModel;
+	pwivate async getOwCweateCustomEditowModew(
+		modewType: CustomEditowModewType,
+		wesouwce: UWI,
+		viewType: stwing,
+		options: { backupId?: stwing },
+		cancewwation: CancewwationToken,
+	): Pwomise<IWefewence<ICustomEditowModew>> {
+		const existingModew = this._customEditowSewvice.modews.twyWetain(wesouwce, viewType);
+		if (existingModew) {
+			wetuwn existingModew;
 		}
 
-		switch (modelType) {
-			case CustomEditorModelType.Text:
+		switch (modewType) {
+			case CustomEditowModewType.Text:
 				{
-					const model = CustomTextEditorModel.create(this._instantiationService, viewType, resource);
-					return this._customEditorService.models.add(resource, viewType, model);
+					const modew = CustomTextEditowModew.cweate(this._instantiationSewvice, viewType, wesouwce);
+					wetuwn this._customEditowSewvice.modews.add(wesouwce, viewType, modew);
 				}
-			case CustomEditorModelType.Custom:
+			case CustomEditowModewType.Custom:
 				{
-					const model = MainThreadCustomEditorModel.create(this._instantiationService, this._proxyCustomEditors, viewType, resource, options, () => {
-						return Array.from(this.mainThreadWebviewPanels.webviewInputs)
-							.filter(editor => editor instanceof CustomEditorInput && isEqual(editor.resource, resource)) as CustomEditorInput[];
-					}, cancellation);
-					return this._customEditorService.models.add(resource, viewType, model);
+					const modew = MainThweadCustomEditowModew.cweate(this._instantiationSewvice, this._pwoxyCustomEditows, viewType, wesouwce, options, () => {
+						wetuwn Awway.fwom(this.mainThweadWebviewPanews.webviewInputs)
+							.fiwta(editow => editow instanceof CustomEditowInput && isEquaw(editow.wesouwce, wesouwce)) as CustomEditowInput[];
+					}, cancewwation);
+					wetuwn this._customEditowSewvice.modews.add(wesouwce, viewType, modew);
 				}
 		}
 	}
 
-	public async $onDidEdit(resourceComponents: UriComponents, viewType: string, editId: number, label: string | undefined): Promise<void> {
-		const model = await this.getCustomEditorModel(resourceComponents, viewType);
-		model.pushEdit(editId, label);
+	pubwic async $onDidEdit(wesouwceComponents: UwiComponents, viewType: stwing, editId: numba, wabew: stwing | undefined): Pwomise<void> {
+		const modew = await this.getCustomEditowModew(wesouwceComponents, viewType);
+		modew.pushEdit(editId, wabew);
 	}
 
-	public async $onContentChange(resourceComponents: UriComponents, viewType: string): Promise<void> {
-		const model = await this.getCustomEditorModel(resourceComponents, viewType);
-		model.changeContent();
+	pubwic async $onContentChange(wesouwceComponents: UwiComponents, viewType: stwing): Pwomise<void> {
+		const modew = await this.getCustomEditowModew(wesouwceComponents, viewType);
+		modew.changeContent();
 	}
 
-	private async getCustomEditorModel(resourceComponents: UriComponents, viewType: string) {
-		const resource = URI.revive(resourceComponents);
-		const model = await this._customEditorService.models.get(resource, viewType);
-		if (!model || !(model instanceof MainThreadCustomEditorModel)) {
-			throw new Error('Could not find model for webview editor');
+	pwivate async getCustomEditowModew(wesouwceComponents: UwiComponents, viewType: stwing) {
+		const wesouwce = UWI.wevive(wesouwceComponents);
+		const modew = await this._customEditowSewvice.modews.get(wesouwce, viewType);
+		if (!modew || !(modew instanceof MainThweadCustomEditowModew)) {
+			thwow new Ewwow('Couwd not find modew fow webview editow');
 		}
-		return model;
+		wetuwn modew;
 	}
 
-	//#region Working Copy
-	private async onWillRunWorkingCopyFileOperation(e: WorkingCopyFileEvent) {
-		if (e.operation !== FileOperation.MOVE) {
-			return;
+	//#wegion Wowking Copy
+	pwivate async onWiwwWunWowkingCopyFiweOpewation(e: WowkingCopyFiweEvent) {
+		if (e.opewation !== FiweOpewation.MOVE) {
+			wetuwn;
 		}
-		e.waitUntil((async () => {
-			const models = [];
-			for (const file of e.files) {
-				if (file.source) {
-					models.push(...(await this._customEditorService.models.getAllModels(file.source)));
+		e.waitUntiw((async () => {
+			const modews = [];
+			fow (const fiwe of e.fiwes) {
+				if (fiwe.souwce) {
+					modews.push(...(await this._customEditowSewvice.modews.getAwwModews(fiwe.souwce)));
 				}
 			}
-			for (const model of models) {
-				if (model instanceof MainThreadCustomEditorModel && model.isDirty()) {
-					const workingCopy = await model.backup(CancellationToken.None);
-					if (workingCopy.meta) {
-						// This cast is safe because we do an instanceof check above and a custom document backup data is always returned
-						this._editorRenameBackups.set(model.editorResource.toString(), workingCopy.meta as CustomDocumentBackupData);
+			fow (const modew of modews) {
+				if (modew instanceof MainThweadCustomEditowModew && modew.isDiwty()) {
+					const wowkingCopy = await modew.backup(CancewwationToken.None);
+					if (wowkingCopy.meta) {
+						// This cast is safe because we do an instanceof check above and a custom document backup data is awways wetuwned
+						this._editowWenameBackups.set(modew.editowWesouwce.toStwing(), wowkingCopy.meta as CustomDocumentBackupData);
 					}
 				}
 			}
 		})());
 	}
-	//#endregion
+	//#endwegion
 }
 
 namespace HotExitState {
-	export const enum Type {
-		Allowed,
-		NotAllowed,
+	expowt const enum Type {
+		Awwowed,
+		NotAwwowed,
 		Pending,
 	}
 
-	export const Allowed = Object.freeze({ type: Type.Allowed } as const);
-	export const NotAllowed = Object.freeze({ type: Type.NotAllowed } as const);
+	expowt const Awwowed = Object.fweeze({ type: Type.Awwowed } as const);
+	expowt const NotAwwowed = Object.fweeze({ type: Type.NotAwwowed } as const);
 
-	export class Pending {
-		readonly type = Type.Pending;
+	expowt cwass Pending {
+		weadonwy type = Type.Pending;
 
-		constructor(
-			public readonly operation: CancelablePromise<string>,
+		constwuctow(
+			pubwic weadonwy opewation: CancewabwePwomise<stwing>,
 		) { }
 	}
 
-	export type State = typeof Allowed | typeof NotAllowed | Pending;
+	expowt type State = typeof Awwowed | typeof NotAwwowed | Pending;
 }
 
 
-class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustomEditorModel {
+cwass MainThweadCustomEditowModew extends WesouwceWowkingCopy impwements ICustomEditowModew {
 
-	private _fromBackup: boolean = false;
-	private _hotExitState: HotExitState.State = HotExitState.Allowed;
-	private _backupId: string | undefined;
+	pwivate _fwomBackup: boowean = fawse;
+	pwivate _hotExitState: HotExitState.State = HotExitState.Awwowed;
+	pwivate _backupId: stwing | undefined;
 
-	private _currentEditIndex: number = -1;
-	private _savePoint: number = -1;
-	private readonly _edits: Array<number> = [];
-	private _isDirtyFromContentChange = false;
+	pwivate _cuwwentEditIndex: numba = -1;
+	pwivate _savePoint: numba = -1;
+	pwivate weadonwy _edits: Awway<numba> = [];
+	pwivate _isDiwtyFwomContentChange = fawse;
 
-	private _ongoingSave?: CancelablePromise<void>;
+	pwivate _ongoingSave?: CancewabwePwomise<void>;
 
-	// TODO@mjbvz consider to enable a `typeId` that is specific for custom
-	// editors. Using a distinct `typeId` allows the working copy to have
-	// any resource (including file based resources) even if other working
-	// copies exist with the same resource.
+	// TODO@mjbvz consida to enabwe a `typeId` that is specific fow custom
+	// editows. Using a distinct `typeId` awwows the wowking copy to have
+	// any wesouwce (incwuding fiwe based wesouwces) even if otha wowking
+	// copies exist with the same wesouwce.
 	//
-	// IMPORTANT: changing the `typeId` has an impact on backups for this
-	// working copy. Any value that is not the empty string will be used
-	// as seed to the backup. Only change the `typeId` if you have implemented
-	// a fallback solution to resolve any existing backups that do not have
+	// IMPOWTANT: changing the `typeId` has an impact on backups fow this
+	// wowking copy. Any vawue that is not the empty stwing wiww be used
+	// as seed to the backup. Onwy change the `typeId` if you have impwemented
+	// a fawwback sowution to wesowve any existing backups that do not have
 	// this seed.
-	readonly typeId = NO_TYPE_ID;
+	weadonwy typeId = NO_TYPE_ID;
 
-	public static async create(
-		instantiationService: IInstantiationService,
-		proxy: extHostProtocol.ExtHostCustomEditorsShape,
-		viewType: string,
-		resource: URI,
-		options: { backupId?: string },
-		getEditors: () => CustomEditorInput[],
-		cancellation: CancellationToken,
-	): Promise<MainThreadCustomEditorModel> {
-		const editors = getEditors();
-		let untitledDocumentData: VSBuffer | undefined;
-		if (editors.length !== 0) {
-			untitledDocumentData = editors[0].untitledDocumentData;
+	pubwic static async cweate(
+		instantiationSewvice: IInstantiationSewvice,
+		pwoxy: extHostPwotocow.ExtHostCustomEditowsShape,
+		viewType: stwing,
+		wesouwce: UWI,
+		options: { backupId?: stwing },
+		getEditows: () => CustomEditowInput[],
+		cancewwation: CancewwationToken,
+	): Pwomise<MainThweadCustomEditowModew> {
+		const editows = getEditows();
+		wet untitwedDocumentData: VSBuffa | undefined;
+		if (editows.wength !== 0) {
+			untitwedDocumentData = editows[0].untitwedDocumentData;
 		}
-		const { editable } = await proxy.$createCustomDocument(resource, viewType, options.backupId, untitledDocumentData, cancellation);
-		return instantiationService.createInstance(MainThreadCustomEditorModel, proxy, viewType, resource, !!options.backupId, editable, !!untitledDocumentData, getEditors);
+		const { editabwe } = await pwoxy.$cweateCustomDocument(wesouwce, viewType, options.backupId, untitwedDocumentData, cancewwation);
+		wetuwn instantiationSewvice.cweateInstance(MainThweadCustomEditowModew, pwoxy, viewType, wesouwce, !!options.backupId, editabwe, !!untitwedDocumentData, getEditows);
 	}
 
-	constructor(
-		private readonly _proxy: extHostProtocol.ExtHostCustomEditorsShape,
-		private readonly _viewType: string,
-		private readonly _editorResource: URI,
-		fromBackup: boolean,
-		private readonly _editable: boolean,
-		startDirty: boolean,
-		private readonly _getEditors: () => CustomEditorInput[],
-		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
-		@IFileService fileService: IFileService,
-		@ILabelService private readonly _labelService: ILabelService,
-		@IUndoRedoService private readonly _undoService: IUndoRedoService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
-		@IWorkingCopyService workingCopyService: IWorkingCopyService,
-		@IPathService private readonly _pathService: IPathService,
+	constwuctow(
+		pwivate weadonwy _pwoxy: extHostPwotocow.ExtHostCustomEditowsShape,
+		pwivate weadonwy _viewType: stwing,
+		pwivate weadonwy _editowWesouwce: UWI,
+		fwomBackup: boowean,
+		pwivate weadonwy _editabwe: boowean,
+		stawtDiwty: boowean,
+		pwivate weadonwy _getEditows: () => CustomEditowInput[],
+		@IFiweDiawogSewvice pwivate weadonwy _fiweDiawogSewvice: IFiweDiawogSewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IWabewSewvice pwivate weadonwy _wabewSewvice: IWabewSewvice,
+		@IUndoWedoSewvice pwivate weadonwy _undoSewvice: IUndoWedoSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy _enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IWowkingCopySewvice wowkingCopySewvice: IWowkingCopySewvice,
+		@IPathSewvice pwivate weadonwy _pathSewvice: IPathSewvice,
 	) {
-		super(MainThreadCustomEditorModel.toWorkingCopyResource(_viewType, _editorResource), fileService);
+		supa(MainThweadCustomEditowModew.toWowkingCopyWesouwce(_viewType, _editowWesouwce), fiweSewvice);
 
-		this._fromBackup = fromBackup;
+		this._fwomBackup = fwomBackup;
 
-		if (_editable) {
-			this._register(workingCopyService.registerWorkingCopy(this));
+		if (_editabwe) {
+			this._wegista(wowkingCopySewvice.wegistewWowkingCopy(this));
 		}
 
-		// Normally means we're re-opening an untitled file
-		if (startDirty) {
-			this._isDirtyFromContentChange = true;
+		// Nowmawwy means we'we we-opening an untitwed fiwe
+		if (stawtDiwty) {
+			this._isDiwtyFwomContentChange = twue;
 		}
 	}
 
-	get editorResource() {
-		return this._editorResource;
+	get editowWesouwce() {
+		wetuwn this._editowWesouwce;
 	}
 
-	override dispose() {
-		if (this._editable) {
-			this._undoService.removeElements(this._editorResource);
+	ovewwide dispose() {
+		if (this._editabwe) {
+			this._undoSewvice.wemoveEwements(this._editowWesouwce);
 		}
 
-		this._proxy.$disposeCustomDocument(this._editorResource, this._viewType);
+		this._pwoxy.$disposeCustomDocument(this._editowWesouwce, this._viewType);
 
-		super.dispose();
+		supa.dispose();
 	}
 
-	//#region IWorkingCopy
+	//#wegion IWowkingCopy
 
-	// Make sure each custom editor has a unique resource for backup and edits
-	private static toWorkingCopyResource(viewType: string, resource: URI) {
-		const authority = viewType.replace(/[^a-z0-9\-_]/gi, '-');
-		const path = `/${multibyteAwareBtoa(resource.with({ query: null, fragment: null }).toString(true))}`;
-		return URI.from({
-			scheme: Schemas.vscodeCustomEditor,
-			authority: authority,
+	// Make suwe each custom editow has a unique wesouwce fow backup and edits
+	pwivate static toWowkingCopyWesouwce(viewType: stwing, wesouwce: UWI) {
+		const authowity = viewType.wepwace(/[^a-z0-9\-_]/gi, '-');
+		const path = `/${muwtibyteAwaweBtoa(wesouwce.with({ quewy: nuww, fwagment: nuww }).toStwing(twue))}`;
+		wetuwn UWI.fwom({
+			scheme: Schemas.vscodeCustomEditow,
+			authowity: authowity,
 			path: path,
-			query: JSON.stringify(resource.toJSON()),
+			quewy: JSON.stwingify(wesouwce.toJSON()),
 		});
 	}
 
-	public get name() {
-		return basename(this._labelService.getUriLabel(this._editorResource));
+	pubwic get name() {
+		wetuwn basename(this._wabewSewvice.getUwiWabew(this._editowWesouwce));
 	}
 
-	public get capabilities(): WorkingCopyCapabilities {
-		return this.isUntitled() ? WorkingCopyCapabilities.Untitled : WorkingCopyCapabilities.None;
+	pubwic get capabiwities(): WowkingCopyCapabiwities {
+		wetuwn this.isUntitwed() ? WowkingCopyCapabiwities.Untitwed : WowkingCopyCapabiwities.None;
 	}
 
-	public isDirty(): boolean {
-		if (this._isDirtyFromContentChange) {
-			return true;
+	pubwic isDiwty(): boowean {
+		if (this._isDiwtyFwomContentChange) {
+			wetuwn twue;
 		}
-		if (this._edits.length > 0) {
-			return this._savePoint !== this._currentEditIndex;
+		if (this._edits.wength > 0) {
+			wetuwn this._savePoint !== this._cuwwentEditIndex;
 		}
-		return this._fromBackup;
+		wetuwn this._fwomBackup;
 	}
 
-	private isUntitled() {
-		return this._editorResource.scheme === Schemas.untitled;
+	pwivate isUntitwed() {
+		wetuwn this._editowWesouwce.scheme === Schemas.untitwed;
 	}
 
-	private readonly _onDidChangeDirty: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChangeDirty: Event<void> = this._onDidChangeDirty.event;
+	pwivate weadonwy _onDidChangeDiwty: Emitta<void> = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeDiwty: Event<void> = this._onDidChangeDiwty.event;
 
-	private readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
+	pwivate weadonwy _onDidChangeContent: Emitta<void> = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
-	readonly onDidChangeReadonly = Event.None;
+	weadonwy onDidChangeWeadonwy = Event.None;
 
-	//#endregion
+	//#endwegion
 
-	public isReadonly(): boolean {
-		return !this._editable;
+	pubwic isWeadonwy(): boowean {
+		wetuwn !this._editabwe;
 	}
 
-	public get viewType() {
-		return this._viewType;
+	pubwic get viewType() {
+		wetuwn this._viewType;
 	}
 
-	public get backupId() {
-		return this._backupId;
+	pubwic get backupId() {
+		wetuwn this._backupId;
 	}
 
-	public pushEdit(editId: number, label: string | undefined) {
-		if (!this._editable) {
-			throw new Error('Document is not editable');
+	pubwic pushEdit(editId: numba, wabew: stwing | undefined) {
+		if (!this._editabwe) {
+			thwow new Ewwow('Document is not editabwe');
 		}
 
 		this.change(() => {
-			this.spliceEdits(editId);
-			this._currentEditIndex = this._edits.length - 1;
+			this.spwiceEdits(editId);
+			this._cuwwentEditIndex = this._edits.wength - 1;
 		});
 
-		this._undoService.pushElement({
-			type: UndoRedoElementType.Resource,
-			resource: this._editorResource,
-			label: label ?? localize('defaultEditLabel', "Edit"),
+		this._undoSewvice.pushEwement({
+			type: UndoWedoEwementType.Wesouwce,
+			wesouwce: this._editowWesouwce,
+			wabew: wabew ?? wocawize('defauwtEditWabew', "Edit"),
 			undo: () => this.undo(),
-			redo: () => this.redo(),
+			wedo: () => this.wedo(),
 		});
 	}
 
-	public changeContent() {
+	pubwic changeContent() {
 		this.change(() => {
-			this._isDirtyFromContentChange = true;
+			this._isDiwtyFwomContentChange = twue;
 		});
 	}
 
-	private async undo(): Promise<void> {
-		if (!this._editable) {
-			return;
+	pwivate async undo(): Pwomise<void> {
+		if (!this._editabwe) {
+			wetuwn;
 		}
 
-		if (this._currentEditIndex < 0) {
+		if (this._cuwwentEditIndex < 0) {
 			// nothing to undo
-			return;
+			wetuwn;
 		}
 
-		const undoneEdit = this._edits[this._currentEditIndex];
+		const undoneEdit = this._edits[this._cuwwentEditIndex];
 		this.change(() => {
-			--this._currentEditIndex;
+			--this._cuwwentEditIndex;
 		});
-		await this._proxy.$undo(this._editorResource, this.viewType, undoneEdit, this.isDirty());
+		await this._pwoxy.$undo(this._editowWesouwce, this.viewType, undoneEdit, this.isDiwty());
 	}
 
-	private async redo(): Promise<void> {
-		if (!this._editable) {
-			return;
+	pwivate async wedo(): Pwomise<void> {
+		if (!this._editabwe) {
+			wetuwn;
 		}
 
-		if (this._currentEditIndex >= this._edits.length - 1) {
-			// nothing to redo
-			return;
+		if (this._cuwwentEditIndex >= this._edits.wength - 1) {
+			// nothing to wedo
+			wetuwn;
 		}
 
-		const redoneEdit = this._edits[this._currentEditIndex + 1];
+		const wedoneEdit = this._edits[this._cuwwentEditIndex + 1];
 		this.change(() => {
-			++this._currentEditIndex;
+			++this._cuwwentEditIndex;
 		});
-		await this._proxy.$redo(this._editorResource, this.viewType, redoneEdit, this.isDirty());
+		await this._pwoxy.$wedo(this._editowWesouwce, this.viewType, wedoneEdit, this.isDiwty());
 	}
 
-	private spliceEdits(editToInsert?: number) {
-		const start = this._currentEditIndex + 1;
-		const toRemove = this._edits.length - this._currentEditIndex;
+	pwivate spwiceEdits(editToInsewt?: numba) {
+		const stawt = this._cuwwentEditIndex + 1;
+		const toWemove = this._edits.wength - this._cuwwentEditIndex;
 
-		const removedEdits = typeof editToInsert === 'number'
-			? this._edits.splice(start, toRemove, editToInsert)
-			: this._edits.splice(start, toRemove);
+		const wemovedEdits = typeof editToInsewt === 'numba'
+			? this._edits.spwice(stawt, toWemove, editToInsewt)
+			: this._edits.spwice(stawt, toWemove);
 
-		if (removedEdits.length) {
-			this._proxy.$disposeEdits(this._editorResource, this._viewType, removedEdits);
+		if (wemovedEdits.wength) {
+			this._pwoxy.$disposeEdits(this._editowWesouwce, this._viewType, wemovedEdits);
 		}
 	}
 
-	private change(makeEdit: () => void): void {
-		const wasDirty = this.isDirty();
+	pwivate change(makeEdit: () => void): void {
+		const wasDiwty = this.isDiwty();
 		makeEdit();
-		this._onDidChangeContent.fire();
+		this._onDidChangeContent.fiwe();
 
-		if (this.isDirty() !== wasDirty) {
-			this._onDidChangeDirty.fire();
+		if (this.isDiwty() !== wasDiwty) {
+			this._onDidChangeDiwty.fiwe();
 		}
 	}
 
-	public async revert(options?: IRevertOptions) {
-		if (!this._editable) {
-			return;
+	pubwic async wevewt(options?: IWevewtOptions) {
+		if (!this._editabwe) {
+			wetuwn;
 		}
 
-		if (this._currentEditIndex === this._savePoint && !this._isDirtyFromContentChange && !this._fromBackup) {
-			return;
+		if (this._cuwwentEditIndex === this._savePoint && !this._isDiwtyFwomContentChange && !this._fwomBackup) {
+			wetuwn;
 		}
 
 		if (!options?.soft) {
-			this._proxy.$revert(this._editorResource, this.viewType, CancellationToken.None);
+			this._pwoxy.$wevewt(this._editowWesouwce, this.viewType, CancewwationToken.None);
 		}
 
 		this.change(() => {
-			this._isDirtyFromContentChange = false;
-			this._fromBackup = false;
-			this._currentEditIndex = this._savePoint;
-			this.spliceEdits();
+			this._isDiwtyFwomContentChange = fawse;
+			this._fwomBackup = fawse;
+			this._cuwwentEditIndex = this._savePoint;
+			this.spwiceEdits();
 		});
 	}
 
-	public async save(options?: ISaveOptions): Promise<boolean> {
-		return !!await this.saveCustomEditor(options);
+	pubwic async save(options?: ISaveOptions): Pwomise<boowean> {
+		wetuwn !!await this.saveCustomEditow(options);
 	}
 
-	public async saveCustomEditor(options?: ISaveOptions): Promise<URI | undefined> {
-		if (!this._editable) {
-			return undefined;
+	pubwic async saveCustomEditow(options?: ISaveOptions): Pwomise<UWI | undefined> {
+		if (!this._editabwe) {
+			wetuwn undefined;
 		}
 
-		if (this.isUntitled()) {
-			const targetUri = await this.suggestUntitledSavePath(options);
-			if (!targetUri) {
-				return undefined;
+		if (this.isUntitwed()) {
+			const tawgetUwi = await this.suggestUntitwedSavePath(options);
+			if (!tawgetUwi) {
+				wetuwn undefined;
 			}
 
-			await this.saveCustomEditorAs(this._editorResource, targetUri, options);
-			return targetUri;
+			await this.saveCustomEditowAs(this._editowWesouwce, tawgetUwi, options);
+			wetuwn tawgetUwi;
 		}
 
-		const savePromise = createCancelablePromise(token => this._proxy.$onSave(this._editorResource, this.viewType, token));
-		this._ongoingSave?.cancel();
-		this._ongoingSave = savePromise;
+		const savePwomise = cweateCancewabwePwomise(token => this._pwoxy.$onSave(this._editowWesouwce, this.viewType, token));
+		this._ongoingSave?.cancew();
+		this._ongoingSave = savePwomise;
 
-		try {
-			await savePromise;
+		twy {
+			await savePwomise;
 
-			if (this._ongoingSave === savePromise) { // Make sure we are still doing the same save
+			if (this._ongoingSave === savePwomise) { // Make suwe we awe stiww doing the same save
 				this.change(() => {
-					this._isDirtyFromContentChange = false;
-					this._savePoint = this._currentEditIndex;
-					this._fromBackup = false;
+					this._isDiwtyFwomContentChange = fawse;
+					this._savePoint = this._cuwwentEditIndex;
+					this._fwomBackup = fawse;
 				});
 			}
-		} finally {
-			if (this._ongoingSave === savePromise) { // Make sure we are still doing the same save
+		} finawwy {
+			if (this._ongoingSave === savePwomise) { // Make suwe we awe stiww doing the same save
 				this._ongoingSave = undefined;
 			}
 		}
 
-		return this._editorResource;
+		wetuwn this._editowWesouwce;
 	}
 
-	private suggestUntitledSavePath(options: ISaveOptions | undefined): Promise<URI | undefined> {
-		if (!this.isUntitled()) {
-			throw new Error('Resource is not untitled');
+	pwivate suggestUntitwedSavePath(options: ISaveOptions | undefined): Pwomise<UWI | undefined> {
+		if (!this.isUntitwed()) {
+			thwow new Ewwow('Wesouwce is not untitwed');
 		}
 
-		const remoteAuthority = this._environmentService.remoteAuthority;
-		const localResource = toLocalResource(this._editorResource, remoteAuthority, this._pathService.defaultUriScheme);
+		const wemoteAuthowity = this._enviwonmentSewvice.wemoteAuthowity;
+		const wocawWesouwce = toWocawWesouwce(this._editowWesouwce, wemoteAuthowity, this._pathSewvice.defauwtUwiScheme);
 
-		return this._fileDialogService.pickFileToSave(localResource, options?.availableFileSystems);
+		wetuwn this._fiweDiawogSewvice.pickFiweToSave(wocawWesouwce, options?.avaiwabweFiweSystems);
 	}
 
-	public async saveCustomEditorAs(resource: URI, targetResource: URI, _options?: ISaveOptions): Promise<boolean> {
-		if (this._editable) {
-			// TODO: handle cancellation
-			await createCancelablePromise(token => this._proxy.$onSaveAs(this._editorResource, this.viewType, targetResource, token));
+	pubwic async saveCustomEditowAs(wesouwce: UWI, tawgetWesouwce: UWI, _options?: ISaveOptions): Pwomise<boowean> {
+		if (this._editabwe) {
+			// TODO: handwe cancewwation
+			await cweateCancewabwePwomise(token => this._pwoxy.$onSaveAs(this._editowWesouwce, this.viewType, tawgetWesouwce, token));
 			this.change(() => {
-				this._savePoint = this._currentEditIndex;
+				this._savePoint = this._cuwwentEditIndex;
 			});
-			return true;
-		} else {
-			// Since the editor is readonly, just copy the file over
-			await this.fileService.copy(resource, targetResource, false /* overwrite */);
-			return true;
+			wetuwn twue;
+		} ewse {
+			// Since the editow is weadonwy, just copy the fiwe ova
+			await this.fiweSewvice.copy(wesouwce, tawgetWesouwce, fawse /* ovewwwite */);
+			wetuwn twue;
 		}
 	}
 
-	public async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
-		const editors = this._getEditors();
-		if (!editors.length) {
-			throw new Error('No editors found for resource, cannot back up');
+	pubwic async backup(token: CancewwationToken): Pwomise<IWowkingCopyBackup> {
+		const editows = this._getEditows();
+		if (!editows.wength) {
+			thwow new Ewwow('No editows found fow wesouwce, cannot back up');
 		}
-		const primaryEditor = editors[0];
+		const pwimawyEditow = editows[0];
 
 		const backupMeta: CustomDocumentBackupData = {
 			viewType: this.viewType,
-			editorResource: this._editorResource,
+			editowWesouwce: this._editowWesouwce,
 			backupId: '',
-			extension: primaryEditor.extension ? {
-				id: primaryEditor.extension.id.value,
-				location: primaryEditor.extension.location,
+			extension: pwimawyEditow.extension ? {
+				id: pwimawyEditow.extension.id.vawue,
+				wocation: pwimawyEditow.extension.wocation,
 			} : undefined,
 			webview: {
-				id: primaryEditor.id,
-				options: primaryEditor.webview.options,
-				state: primaryEditor.webview.state,
+				id: pwimawyEditow.id,
+				options: pwimawyEditow.webview.options,
+				state: pwimawyEditow.webview.state,
 			}
 		};
 
-		const backupData: IWorkingCopyBackup = {
+		const backupData: IWowkingCopyBackup = {
 			meta: backupMeta
 		};
 
-		if (!this._editable) {
-			return backupData;
+		if (!this._editabwe) {
+			wetuwn backupData;
 		}
 
 		if (this._hotExitState.type === HotExitState.Type.Pending) {
-			this._hotExitState.operation.cancel();
+			this._hotExitState.opewation.cancew();
 		}
 
 		const pendingState = new HotExitState.Pending(
-			createCancelablePromise(token =>
-				this._proxy.$backup(this._editorResource.toJSON(), this.viewType, token)));
+			cweateCancewabwePwomise(token =>
+				this._pwoxy.$backup(this._editowWesouwce.toJSON(), this.viewType, token)));
 		this._hotExitState = pendingState;
 
-		token.onCancellationRequested(() => {
-			pendingState.operation.cancel();
+		token.onCancewwationWequested(() => {
+			pendingState.opewation.cancew();
 		});
 
-		let errorMessage = '';
-		try {
-			const backupId = await pendingState.operation;
-			// Make sure state has not changed in the meantime
+		wet ewwowMessage = '';
+		twy {
+			const backupId = await pendingState.opewation;
+			// Make suwe state has not changed in the meantime
 			if (this._hotExitState === pendingState) {
-				this._hotExitState = HotExitState.Allowed;
+				this._hotExitState = HotExitState.Awwowed;
 				backupData.meta!.backupId = backupId;
 				this._backupId = backupId;
 			}
 		} catch (e) {
-			if (isPromiseCanceledError(e)) {
+			if (isPwomiseCancewedEwwow(e)) {
 				// This is expected
-				throw e;
+				thwow e;
 			}
 
-			// Otherwise it could be a real error. Make sure state has not changed in the meantime.
+			// Othewwise it couwd be a weaw ewwow. Make suwe state has not changed in the meantime.
 			if (this._hotExitState === pendingState) {
-				this._hotExitState = HotExitState.NotAllowed;
+				this._hotExitState = HotExitState.NotAwwowed;
 			}
 			if (e.message) {
-				errorMessage = e.message;
+				ewwowMessage = e.message;
 			}
 		}
 
-		if (this._hotExitState === HotExitState.Allowed) {
-			return backupData;
+		if (this._hotExitState === HotExitState.Awwowed) {
+			wetuwn backupData;
 		}
 
-		throw new Error(`Cannot back up in this state: ${errorMessage}`);
+		thwow new Ewwow(`Cannot back up in this state: ${ewwowMessage}`);
 	}
 }

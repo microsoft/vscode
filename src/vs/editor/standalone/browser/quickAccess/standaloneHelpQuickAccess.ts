@@ -1,15 +1,15 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';
-import { QuickHelpNLS } from 'vs/editor/common/standaloneStrings';
-import { HelpQuickAccessProvider } from 'vs/platform/quickinput/browser/helpQuickAccess';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IQuickAccessWegistwy, Extensions } fwom 'vs/pwatfowm/quickinput/common/quickAccess';
+impowt { QuickHewpNWS } fwom 'vs/editow/common/standawoneStwings';
+impowt { HewpQuickAccessPwovida } fwom 'vs/pwatfowm/quickinput/bwowsa/hewpQuickAccess';
 
-Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
-	ctor: HelpQuickAccessProvider,
-	prefix: '',
-	helpEntries: [{ description: QuickHelpNLS.helpQuickAccessActionLabel, needsEditor: true }]
+Wegistwy.as<IQuickAccessWegistwy>(Extensions.Quickaccess).wegistewQuickAccessPwovida({
+	ctow: HewpQuickAccessPwovida,
+	pwefix: '',
+	hewpEntwies: [{ descwiption: QuickHewpNWS.hewpQuickAccessActionWabew, needsEditow: twue }]
 });

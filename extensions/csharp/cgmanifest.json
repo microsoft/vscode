@@ -1,18 +1,18 @@
 {
-	"registrations": [
+	"wegistwations": [
 		{
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "dotnet/csharp-tmLanguage",
-					"repositoryUrl": "https://github.com/dotnet/csharp-tmLanguage",
+					"name": "dotnet/cshawp-tmWanguage",
+					"wepositowyUww": "https://github.com/dotnet/cshawp-tmWanguage",
 					"commitHash": "5426265f1be3f8056a984b709fadf56b9ce4c400"
 				}
 			},
-			"license": "MIT",
-			"version": "0.1.0",
-			"description": "The file syntaxes/csharp.tmLanguage.json was derived from https://github.com/dotnet/csharp-tmLanguage"
+			"wicense": "MIT",
+			"vewsion": "0.1.0",
+			"descwiption": "The fiwe syntaxes/cshawp.tmWanguage.json was dewived fwom https://github.com/dotnet/cshawp-tmWanguage"
 		}
 	],
-	"version": 1
+	"vewsion": 1
 }

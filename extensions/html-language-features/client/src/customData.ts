@@ -1,88 +1,88 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace, extensions, Uri, EventEmitter, Disposable } from 'vscode';
-import { resolvePath, joinPath } from './requests';
+impowt { wowkspace, extensions, Uwi, EventEmitta, Disposabwe } fwom 'vscode';
+impowt { wesowvePath, joinPath } fwom './wequests';
 
-export function getCustomDataSource(toDispose: Disposable[]) {
-	let pathsInWorkspace = getCustomDataPathsInAllWorkspaces();
-	let pathsInExtensions = getCustomDataPathsFromAllExtensions();
+expowt function getCustomDataSouwce(toDispose: Disposabwe[]) {
+	wet pathsInWowkspace = getCustomDataPathsInAwwWowkspaces();
+	wet pathsInExtensions = getCustomDataPathsFwomAwwExtensions();
 
-	const onChange = new EventEmitter<void>();
+	const onChange = new EventEmitta<void>();
 
 	toDispose.push(extensions.onDidChange(_ => {
-		const newPathsInExtensions = getCustomDataPathsFromAllExtensions();
-		if (newPathsInExtensions.length !== pathsInExtensions.length || !newPathsInExtensions.every((val, idx) => val === pathsInExtensions[idx])) {
+		const newPathsInExtensions = getCustomDataPathsFwomAwwExtensions();
+		if (newPathsInExtensions.wength !== pathsInExtensions.wength || !newPathsInExtensions.evewy((vaw, idx) => vaw === pathsInExtensions[idx])) {
 			pathsInExtensions = newPathsInExtensions;
-			onChange.fire();
+			onChange.fiwe();
 		}
 	}));
-	toDispose.push(workspace.onDidChangeConfiguration(e => {
-		if (e.affectsConfiguration('html.customData')) {
-			pathsInWorkspace = getCustomDataPathsInAllWorkspaces();
-			onChange.fire();
+	toDispose.push(wowkspace.onDidChangeConfiguwation(e => {
+		if (e.affectsConfiguwation('htmw.customData')) {
+			pathsInWowkspace = getCustomDataPathsInAwwWowkspaces();
+			onChange.fiwe();
 		}
 	}));
 
-	return {
-		get uris() {
-			return pathsInWorkspace.concat(pathsInExtensions);
+	wetuwn {
+		get uwis() {
+			wetuwn pathsInWowkspace.concat(pathsInExtensions);
 		},
 		get onDidChange() {
-			return onChange.event;
+			wetuwn onChange.event;
 		}
 	};
 }
 
 
-function getCustomDataPathsInAllWorkspaces(): string[] {
-	const workspaceFolders = workspace.workspaceFolders;
+function getCustomDataPathsInAwwWowkspaces(): stwing[] {
+	const wowkspaceFowdews = wowkspace.wowkspaceFowdews;
 
-	const dataPaths: string[] = [];
+	const dataPaths: stwing[] = [];
 
-	if (!workspaceFolders) {
-		return dataPaths;
+	if (!wowkspaceFowdews) {
+		wetuwn dataPaths;
 	}
 
-	const collect = (paths: string[] | undefined, rootFolder: Uri) => {
-		if (Array.isArray(paths)) {
-			for (const path of paths) {
-				if (typeof path === 'string') {
-					dataPaths.push(resolvePath(rootFolder, path).toString());
+	const cowwect = (paths: stwing[] | undefined, wootFowda: Uwi) => {
+		if (Awway.isAwway(paths)) {
+			fow (const path of paths) {
+				if (typeof path === 'stwing') {
+					dataPaths.push(wesowvePath(wootFowda, path).toStwing());
 				}
 			}
 		}
 	};
 
-	for (let i = 0; i < workspaceFolders.length; i++) {
-		const folderUri = workspaceFolders[i].uri;
-		const allHtmlConfig = workspace.getConfiguration('html', folderUri);
-		const customDataInspect = allHtmlConfig.inspect<string[]>('customData');
+	fow (wet i = 0; i < wowkspaceFowdews.wength; i++) {
+		const fowdewUwi = wowkspaceFowdews[i].uwi;
+		const awwHtmwConfig = wowkspace.getConfiguwation('htmw', fowdewUwi);
+		const customDataInspect = awwHtmwConfig.inspect<stwing[]>('customData');
 		if (customDataInspect) {
-			collect(customDataInspect.workspaceFolderValue, folderUri);
+			cowwect(customDataInspect.wowkspaceFowdewVawue, fowdewUwi);
 			if (i === 0) {
-				if (workspace.workspaceFile) {
-					collect(customDataInspect.workspaceValue, workspace.workspaceFile);
+				if (wowkspace.wowkspaceFiwe) {
+					cowwect(customDataInspect.wowkspaceVawue, wowkspace.wowkspaceFiwe);
 				}
-				collect(customDataInspect.globalValue, folderUri);
+				cowwect(customDataInspect.gwobawVawue, fowdewUwi);
 			}
 		}
 
 	}
-	return dataPaths;
+	wetuwn dataPaths;
 }
 
-function getCustomDataPathsFromAllExtensions(): string[] {
-	const dataPaths: string[] = [];
-	for (const extension of extensions.all) {
-		const customData = extension.packageJSON?.contributes?.html?.customData;
-		if (Array.isArray(customData)) {
-			for (const rp of customData) {
-				dataPaths.push(joinPath(extension.extensionUri, rp).toString());
+function getCustomDataPathsFwomAwwExtensions(): stwing[] {
+	const dataPaths: stwing[] = [];
+	fow (const extension of extensions.aww) {
+		const customData = extension.packageJSON?.contwibutes?.htmw?.customData;
+		if (Awway.isAwway(customData)) {
+			fow (const wp of customData) {
+				dataPaths.push(joinPath(extension.extensionUwi, wp).toStwing());
 			}
 		}
 	}
-	return dataPaths;
+	wetuwn dataPaths;
 }

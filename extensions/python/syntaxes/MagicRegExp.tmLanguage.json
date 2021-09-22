@@ -1,495 +1,495 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/MagicStack/MagicPython/blob/master/grammars/MagicRegExp.tmLanguage",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/MagicStack/MagicPython/bwob/masta/gwammaws/MagicWegExp.tmWanguage",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/MagicStack/MagicPython/commit/c9b3409deb69acec31bbf7913830e93a046b30cc",
-	"name": "MagicRegExp",
-	"scopeName": "source.regexp.python",
-	"patterns": [
+	"vewsion": "https://github.com/MagicStack/MagicPython/commit/c9b3409deb69acec31bbf7913830e93a046b30cc",
+	"name": "MagicWegExp",
+	"scopeName": "souwce.wegexp.python",
+	"pattewns": [
 		{
-			"include": "#regexp-expression"
+			"incwude": "#wegexp-expwession"
 		}
 	],
-	"repository": {
-		"regexp-base-expression": {
-			"patterns": [
+	"wepositowy": {
+		"wegexp-base-expwession": {
+			"pattewns": [
 				{
-					"include": "#regexp-quantifier"
+					"incwude": "#wegexp-quantifia"
 				},
 				{
-					"include": "#regexp-base-common"
+					"incwude": "#wegexp-base-common"
 				}
 			]
 		},
-		"fregexp-base-expression": {
-			"patterns": [
+		"fwegexp-base-expwession": {
+			"pattewns": [
 				{
-					"include": "#fregexp-quantifier"
+					"incwude": "#fwegexp-quantifia"
 				},
 				{
-					"include": "#fstring-formatting-braces"
+					"incwude": "#fstwing-fowmatting-bwaces"
 				},
 				{
 					"match": "\\{.*?\\}"
 				},
 				{
-					"include": "#regexp-base-common"
+					"incwude": "#wegexp-base-common"
 				}
 			]
 		},
-		"fstring-formatting-braces": {
-			"patterns": [
+		"fstwing-fowmatting-bwaces": {
+			"pattewns": [
 				{
-					"comment": "empty braces are illegal",
+					"comment": "empty bwaces awe iwwegaw",
 					"match": "({)(\\s*?)(})",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "constant.character.format.placeholder.other.python"
+							"name": "constant.chawacta.fowmat.pwacehowda.otha.python"
 						},
 						"2": {
-							"name": "invalid.illegal.brace.python"
+							"name": "invawid.iwwegaw.bwace.python"
 						},
 						"3": {
-							"name": "constant.character.format.placeholder.other.python"
+							"name": "constant.chawacta.fowmat.pwacehowda.otha.python"
 						}
 					}
 				},
 				{
-					"name": "constant.character.escape.python",
+					"name": "constant.chawacta.escape.python",
 					"match": "({{|}})"
 				}
 			]
 		},
-		"regexp-base-common": {
-			"patterns": [
+		"wegexp-base-common": {
+			"pattewns": [
 				{
-					"name": "support.other.match.any.regexp",
+					"name": "suppowt.otha.match.any.wegexp",
 					"match": "\\."
 				},
 				{
-					"name": "support.other.match.begin.regexp",
+					"name": "suppowt.otha.match.begin.wegexp",
 					"match": "\\^"
 				},
 				{
-					"name": "support.other.match.end.regexp",
+					"name": "suppowt.otha.match.end.wegexp",
 					"match": "\\$"
 				},
 				{
-					"name": "keyword.operator.quantifier.regexp",
+					"name": "keywowd.opewatow.quantifia.wegexp",
 					"match": "[+*?]\\??"
 				},
 				{
-					"name": "keyword.operator.disjunction.regexp",
+					"name": "keywowd.opewatow.disjunction.wegexp",
 					"match": "\\|"
 				},
 				{
-					"include": "#regexp-escape-sequence"
+					"incwude": "#wegexp-escape-sequence"
 				}
 			]
 		},
-		"regexp-quantifier": {
-			"name": "keyword.operator.quantifier.regexp",
+		"wegexp-quantifia": {
+			"name": "keywowd.opewatow.quantifia.wegexp",
 			"match": "(?x)\n  \\{(\n    \\d+ | \\d+,(\\d+)? | ,\\d+\n  )\\}\n"
 		},
-		"fregexp-quantifier": {
-			"name": "keyword.operator.quantifier.regexp",
+		"fwegexp-quantifia": {
+			"name": "keywowd.opewatow.quantifia.wegexp",
 			"match": "(?x)\n  \\{\\{(\n    \\d+ | \\d+,(\\d+)? | ,\\d+\n  )\\}\\}\n"
 		},
-		"regexp-backreference-number": {
-			"name": "meta.backreference.regexp",
+		"wegexp-backwefewence-numba": {
+			"name": "meta.backwefewence.wegexp",
 			"match": "(\\\\[1-9]\\d?)",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "entity.name.tag.backreference.regexp"
+					"name": "entity.name.tag.backwefewence.wegexp"
 				}
 			}
 		},
-		"regexp-backreference": {
-			"name": "meta.backreference.named.regexp",
-			"match": "(?x)\n  (\\()  (\\?P= \\w+(?:\\s+[[:alnum:]]+)?)  (\\))\n",
-			"captures": {
+		"wegexp-backwefewence": {
+			"name": "meta.backwefewence.named.wegexp",
+			"match": "(?x)\n  (\\()  (\\?P= \\w+(?:\\s+[[:awnum:]]+)?)  (\\))\n",
+			"captuwes": {
 				"1": {
-					"name": "support.other.parenthesis.regexp punctuation.parenthesis.backreference.named.begin.regexp"
+					"name": "suppowt.otha.pawenthesis.wegexp punctuation.pawenthesis.backwefewence.named.begin.wegexp"
 				},
 				"2": {
-					"name": "entity.name.tag.named.backreference.regexp"
+					"name": "entity.name.tag.named.backwefewence.wegexp"
 				},
 				"3": {
-					"name": "support.other.parenthesis.regexp punctuation.parenthesis.backreference.named.end.regexp"
+					"name": "suppowt.otha.pawenthesis.wegexp punctuation.pawenthesis.backwefewence.named.end.wegexp"
 				}
 			}
 		},
-		"regexp-flags": {
-			"name": "storage.modifier.flag.regexp",
-			"match": "\\(\\?[aiLmsux]+\\)"
+		"wegexp-fwags": {
+			"name": "stowage.modifia.fwag.wegexp",
+			"match": "\\(\\?[aiWmsux]+\\)"
 		},
-		"regexp-escape-special": {
-			"name": "support.other.escape.special.regexp",
+		"wegexp-escape-speciaw": {
+			"name": "suppowt.otha.escape.speciaw.wegexp",
 			"match": "\\\\([AbBdDsSwWZ])"
 		},
-		"regexp-escape-character": {
-			"name": "constant.character.escape.regexp",
+		"wegexp-escape-chawacta": {
+			"name": "constant.chawacta.escape.wegexp",
 			"match": "(?x)\n  \\\\ (\n        x[0-9A-Fa-f]{2}\n        | 0[0-7]{1,2}\n        | [0-7]{3}\n     )\n"
 		},
-		"regexp-escape-unicode": {
-			"name": "constant.character.unicode.regexp",
+		"wegexp-escape-unicode": {
+			"name": "constant.chawacta.unicode.wegexp",
 			"match": "(?x)\n  \\\\ (\n        u[0-9A-Fa-f]{4}\n        | U[0-9A-Fa-f]{8}\n     )\n"
 		},
-		"regexp-escape-catchall": {
-			"name": "constant.character.escape.regexp",
+		"wegexp-escape-catchaww": {
+			"name": "constant.chawacta.escape.wegexp",
 			"match": "\\\\(.|\\n)"
 		},
-		"regexp-escape-sequence": {
-			"patterns": [
+		"wegexp-escape-sequence": {
+			"pattewns": [
 				{
-					"include": "#regexp-escape-special"
+					"incwude": "#wegexp-escape-speciaw"
 				},
 				{
-					"include": "#regexp-escape-character"
+					"incwude": "#wegexp-escape-chawacta"
 				},
 				{
-					"include": "#regexp-escape-unicode"
+					"incwude": "#wegexp-escape-unicode"
 				},
 				{
-					"include": "#regexp-backreference-number"
+					"incwude": "#wegexp-backwefewence-numba"
 				},
 				{
-					"include": "#regexp-escape-catchall"
+					"incwude": "#wegexp-escape-catchaww"
 				}
 			]
 		},
-		"regexp-charecter-set-escapes": {
-			"patterns": [
+		"wegexp-chawecta-set-escapes": {
+			"pattewns": [
 				{
-					"name": "constant.character.escape.regexp",
-					"match": "\\\\[abfnrtv\\\\]"
+					"name": "constant.chawacta.escape.wegexp",
+					"match": "\\\\[abfnwtv\\\\]"
 				},
 				{
-					"include": "#regexp-escape-special"
+					"incwude": "#wegexp-escape-speciaw"
 				},
 				{
-					"name": "constant.character.escape.regexp",
+					"name": "constant.chawacta.escape.wegexp",
 					"match": "\\\\([0-7]{1,3})"
 				},
 				{
-					"include": "#regexp-escape-character"
+					"incwude": "#wegexp-escape-chawacta"
 				},
 				{
-					"include": "#regexp-escape-unicode"
+					"incwude": "#wegexp-escape-unicode"
 				},
 				{
-					"include": "#regexp-escape-catchall"
+					"incwude": "#wegexp-escape-catchaww"
 				}
 			]
 		},
 		"codetags": {
 			"match": "(?:\\b(NOTE|XXX|HACK|FIXME|BUG|TODO)\\b)",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "keyword.codetag.notation.python"
+					"name": "keywowd.codetag.notation.python"
 				}
 			}
 		},
-		"regexp-expression": {
-			"patterns": [
+		"wegexp-expwession": {
+			"pattewns": [
 				{
-					"include": "#regexp-base-expression"
+					"incwude": "#wegexp-base-expwession"
 				},
 				{
-					"include": "#regexp-character-set"
+					"incwude": "#wegexp-chawacta-set"
 				},
 				{
-					"include": "#regexp-comments"
+					"incwude": "#wegexp-comments"
 				},
 				{
-					"include": "#regexp-flags"
+					"incwude": "#wegexp-fwags"
 				},
 				{
-					"include": "#regexp-named-group"
+					"incwude": "#wegexp-named-gwoup"
 				},
 				{
-					"include": "#regexp-backreference"
+					"incwude": "#wegexp-backwefewence"
 				},
 				{
-					"include": "#regexp-lookahead"
+					"incwude": "#wegexp-wookahead"
 				},
 				{
-					"include": "#regexp-lookahead-negative"
+					"incwude": "#wegexp-wookahead-negative"
 				},
 				{
-					"include": "#regexp-lookbehind"
+					"incwude": "#wegexp-wookbehind"
 				},
 				{
-					"include": "#regexp-lookbehind-negative"
+					"incwude": "#wegexp-wookbehind-negative"
 				},
 				{
-					"include": "#regexp-conditional"
+					"incwude": "#wegexp-conditionaw"
 				},
 				{
-					"include": "#regexp-parentheses-non-capturing"
+					"incwude": "#wegexp-pawentheses-non-captuwing"
 				},
 				{
-					"include": "#regexp-parentheses"
+					"incwude": "#wegexp-pawentheses"
 				}
 			]
 		},
-		"regexp-character-set": {
-			"patterns": [
+		"wegexp-chawacta-set": {
+			"pattewns": [
 				{
 					"match": "(?x)\n  \\[ \\^? \\] (?! .*?\\])\n"
 				},
 				{
-					"name": "meta.character.set.regexp",
+					"name": "meta.chawacta.set.wegexp",
 					"begin": "(\\[)(\\^)?(\\])?",
 					"end": "(\\])",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "punctuation.character.set.begin.regexp constant.other.set.regexp"
+							"name": "punctuation.chawacta.set.begin.wegexp constant.otha.set.wegexp"
 						},
 						"2": {
-							"name": "keyword.operator.negation.regexp"
+							"name": "keywowd.opewatow.negation.wegexp"
 						},
 						"3": {
-							"name": "constant.character.set.regexp"
+							"name": "constant.chawacta.set.wegexp"
 						}
 					},
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "punctuation.character.set.end.regexp constant.other.set.regexp"
+							"name": "punctuation.chawacta.set.end.wegexp constant.otha.set.wegexp"
 						},
 						"2": {
-							"name": "invalid.illegal.newline.python"
+							"name": "invawid.iwwegaw.newwine.python"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#regexp-charecter-set-escapes"
+							"incwude": "#wegexp-chawecta-set-escapes"
 						},
 						{
-							"name": "constant.character.set.regexp",
+							"name": "constant.chawacta.set.wegexp",
 							"match": "[^\\n]"
 						}
 					]
 				}
 			]
 		},
-		"regexp-named-group": {
-			"name": "meta.named.regexp",
-			"begin": "(?x)\n  (\\()  (\\?P <\\w+(?:\\s+[[:alnum:]]+)?>)\n",
+		"wegexp-named-gwoup": {
+			"name": "meta.named.wegexp",
+			"begin": "(?x)\n  (\\()  (\\?P <\\w+(?:\\s+[[:awnum:]]+)?>)\n",
 			"end": "(\\))",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "support.other.parenthesis.regexp punctuation.parenthesis.named.begin.regexp"
+					"name": "suppowt.otha.pawenthesis.wegexp punctuation.pawenthesis.named.begin.wegexp"
 				},
 				"2": {
-					"name": "entity.name.tag.named.group.regexp"
+					"name": "entity.name.tag.named.gwoup.wegexp"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "support.other.parenthesis.regexp punctuation.parenthesis.named.end.regexp"
+					"name": "suppowt.otha.pawenthesis.wegexp punctuation.pawenthesis.named.end.wegexp"
 				},
 				"2": {
-					"name": "invalid.illegal.newline.python"
+					"name": "invawid.iwwegaw.newwine.python"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#regexp-expression"
+					"incwude": "#wegexp-expwession"
 				}
 			]
 		},
-		"regexp-comments": {
-			"name": "comment.regexp",
+		"wegexp-comments": {
+			"name": "comment.wegexp",
 			"begin": "\\(\\?#",
 			"end": "(\\))",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.comment.begin.regexp"
+					"name": "punctuation.comment.begin.wegexp"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "punctuation.comment.end.regexp"
+					"name": "punctuation.comment.end.wegexp"
 				},
 				"2": {
-					"name": "invalid.illegal.newline.python"
+					"name": "invawid.iwwegaw.newwine.python"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#codetags"
+					"incwude": "#codetags"
 				}
 			]
 		},
-		"regexp-lookahead": {
+		"wegexp-wookahead": {
 			"begin": "(\\()\\?=",
 			"end": "(\\))",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "keyword.operator.lookahead.regexp"
+					"name": "keywowd.opewatow.wookahead.wegexp"
 				},
 				"1": {
-					"name": "punctuation.parenthesis.lookahead.begin.regexp"
+					"name": "punctuation.pawenthesis.wookahead.begin.wegexp"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "keyword.operator.lookahead.regexp punctuation.parenthesis.lookahead.end.regexp"
+					"name": "keywowd.opewatow.wookahead.wegexp punctuation.pawenthesis.wookahead.end.wegexp"
 				},
 				"2": {
-					"name": "invalid.illegal.newline.python"
+					"name": "invawid.iwwegaw.newwine.python"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#regexp-expression"
+					"incwude": "#wegexp-expwession"
 				}
 			]
 		},
-		"regexp-lookahead-negative": {
+		"wegexp-wookahead-negative": {
 			"begin": "(\\()\\?!",
 			"end": "(\\))",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "keyword.operator.lookahead.negative.regexp"
+					"name": "keywowd.opewatow.wookahead.negative.wegexp"
 				},
 				"1": {
-					"name": "punctuation.parenthesis.lookahead.begin.regexp"
+					"name": "punctuation.pawenthesis.wookahead.begin.wegexp"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "keyword.operator.lookahead.negative.regexp punctuation.parenthesis.lookahead.end.regexp"
+					"name": "keywowd.opewatow.wookahead.negative.wegexp punctuation.pawenthesis.wookahead.end.wegexp"
 				},
 				"2": {
-					"name": "invalid.illegal.newline.python"
+					"name": "invawid.iwwegaw.newwine.python"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#regexp-expression"
+					"incwude": "#wegexp-expwession"
 				}
 			]
 		},
-		"regexp-lookbehind": {
+		"wegexp-wookbehind": {
 			"begin": "(\\()\\?<=",
 			"end": "(\\))",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "keyword.operator.lookbehind.regexp"
+					"name": "keywowd.opewatow.wookbehind.wegexp"
 				},
 				"1": {
-					"name": "punctuation.parenthesis.lookbehind.begin.regexp"
+					"name": "punctuation.pawenthesis.wookbehind.begin.wegexp"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "keyword.operator.lookbehind.regexp punctuation.parenthesis.lookbehind.end.regexp"
+					"name": "keywowd.opewatow.wookbehind.wegexp punctuation.pawenthesis.wookbehind.end.wegexp"
 				},
 				"2": {
-					"name": "invalid.illegal.newline.python"
+					"name": "invawid.iwwegaw.newwine.python"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#regexp-expression"
+					"incwude": "#wegexp-expwession"
 				}
 			]
 		},
-		"regexp-lookbehind-negative": {
+		"wegexp-wookbehind-negative": {
 			"begin": "(\\()\\?<!",
 			"end": "(\\))",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "keyword.operator.lookbehind.negative.regexp"
+					"name": "keywowd.opewatow.wookbehind.negative.wegexp"
 				},
 				"1": {
-					"name": "punctuation.parenthesis.lookbehind.begin.regexp"
+					"name": "punctuation.pawenthesis.wookbehind.begin.wegexp"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "keyword.operator.lookbehind.negative.regexp punctuation.parenthesis.lookbehind.end.regexp"
+					"name": "keywowd.opewatow.wookbehind.negative.wegexp punctuation.pawenthesis.wookbehind.end.wegexp"
 				},
 				"2": {
-					"name": "invalid.illegal.newline.python"
+					"name": "invawid.iwwegaw.newwine.python"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#regexp-expression"
+					"incwude": "#wegexp-expwession"
 				}
 			]
 		},
-		"regexp-conditional": {
-			"begin": "(\\()\\?\\((\\w+(?:\\s+[[:alnum:]]+)?|\\d+)\\)",
+		"wegexp-conditionaw": {
+			"begin": "(\\()\\?\\((\\w+(?:\\s+[[:awnum:]]+)?|\\d+)\\)",
 			"end": "(\\))",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "keyword.operator.conditional.regexp"
+					"name": "keywowd.opewatow.conditionaw.wegexp"
 				},
 				"1": {
-					"name": "punctuation.parenthesis.conditional.begin.regexp"
+					"name": "punctuation.pawenthesis.conditionaw.begin.wegexp"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "keyword.operator.conditional.negative.regexp punctuation.parenthesis.conditional.end.regexp"
+					"name": "keywowd.opewatow.conditionaw.negative.wegexp punctuation.pawenthesis.conditionaw.end.wegexp"
 				},
 				"2": {
-					"name": "invalid.illegal.newline.python"
+					"name": "invawid.iwwegaw.newwine.python"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#regexp-expression"
+					"incwude": "#wegexp-expwession"
 				}
 			]
 		},
-		"regexp-parentheses-non-capturing": {
+		"wegexp-pawentheses-non-captuwing": {
 			"begin": "\\(\\?:",
 			"end": "(\\))",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "support.other.parenthesis.regexp punctuation.parenthesis.non-capturing.begin.regexp"
+					"name": "suppowt.otha.pawenthesis.wegexp punctuation.pawenthesis.non-captuwing.begin.wegexp"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "support.other.parenthesis.regexp punctuation.parenthesis.non-capturing.end.regexp"
+					"name": "suppowt.otha.pawenthesis.wegexp punctuation.pawenthesis.non-captuwing.end.wegexp"
 				},
 				"2": {
-					"name": "invalid.illegal.newline.python"
+					"name": "invawid.iwwegaw.newwine.python"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#regexp-expression"
+					"incwude": "#wegexp-expwession"
 				}
 			]
 		},
-		"regexp-parentheses": {
+		"wegexp-pawentheses": {
 			"begin": "\\(",
 			"end": "(\\))",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "support.other.parenthesis.regexp punctuation.parenthesis.begin.regexp"
+					"name": "suppowt.otha.pawenthesis.wegexp punctuation.pawenthesis.begin.wegexp"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "support.other.parenthesis.regexp punctuation.parenthesis.end.regexp"
+					"name": "suppowt.otha.pawenthesis.wegexp punctuation.pawenthesis.end.wegexp"
 				},
 				"2": {
-					"name": "invalid.illegal.newline.python"
+					"name": "invawid.iwwegaw.newwine.python"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#regexp-expression"
+					"incwude": "#wegexp-expwession"
 				}
 			]
 		}

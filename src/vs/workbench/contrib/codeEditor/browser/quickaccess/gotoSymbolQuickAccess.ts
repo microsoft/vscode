@@ -1,280 +1,280 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IKeyMods, IQuickPickSeparator, IQuickInputService, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
-import { IEditor } from 'vs/editor/common/editorCommon';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IRange } from 'vs/editor/common/core/range';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IQuickAccessRegistry, Extensions as QuickaccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
-import { AbstractGotoSymbolQuickAccessProvider, IGotoSymbolQuickPickItem } from 'vs/editor/contrib/quickAccess/gotoSymbolQuickAccess';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
-import { ITextModel } from 'vs/editor/common/model';
-import { DisposableStore, IDisposable, toDisposable, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { timeout } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { prepareQuery } from 'vs/base/common/fuzzyScorer';
-import { SymbolKind } from 'vs/editor/common/modes';
-import { fuzzyScore, createMatches } from 'vs/base/common/filters';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IQuickAccessTextEditorContext } from 'vs/editor/contrib/quickAccess/editorNavigationQuickAccess';
-import { IOutlineService, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
-import { isCompositeEditor } from 'vs/editor/browser/editorBrowser';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IKeyMods, IQuickPickSepawatow, IQuickInputSewvice, IQuickPick } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { IEditow } fwom 'vs/editow/common/editowCommon';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IWange } fwom 'vs/editow/common/cowe/wange';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IQuickAccessWegistwy, Extensions as QuickaccessExtensions } fwom 'vs/pwatfowm/quickinput/common/quickAccess';
+impowt { AbstwactGotoSymbowQuickAccessPwovida, IGotoSymbowQuickPickItem } fwom 'vs/editow/contwib/quickAccess/gotoSymbowQuickAccess';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IWowkbenchEditowConfiguwation } fwom 'vs/wowkbench/common/editow';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { DisposabweStowe, IDisposabwe, toDisposabwe, Disposabwe, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { wegistewAction2, Action2, MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { KeyMod, KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { pwepaweQuewy } fwom 'vs/base/common/fuzzyScowa';
+impowt { SymbowKind } fwom 'vs/editow/common/modes';
+impowt { fuzzyScowe, cweateMatches } fwom 'vs/base/common/fiwtews';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { IQuickAccessTextEditowContext } fwom 'vs/editow/contwib/quickAccess/editowNavigationQuickAccess';
+impowt { IOutwineSewvice, OutwineTawget } fwom 'vs/wowkbench/sewvices/outwine/bwowsa/outwine';
+impowt { isCompositeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { ITextEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
 
-export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccessProvider {
+expowt cwass GotoSymbowQuickAccessPwovida extends AbstwactGotoSymbowQuickAccessPwovida {
 
-	protected readonly onDidActiveTextEditorControlChange = this.editorService.onDidActiveEditorChange;
+	pwotected weadonwy onDidActiveTextEditowContwowChange = this.editowSewvice.onDidActiveEditowChange;
 
-	constructor(
-		@IEditorService private readonly editorService: IEditorService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IOutlineService private readonly outlineService: IOutlineService,
+	constwuctow(
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IEditowGwoupsSewvice pwivate weadonwy editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IOutwineSewvice pwivate weadonwy outwineSewvice: IOutwineSewvice,
 	) {
-		super({
-			openSideBySideDirection: () => this.configuration.openSideBySideDirection
+		supa({
+			openSideBySideDiwection: () => this.configuwation.openSideBySideDiwection
 		});
 	}
 
-	//#region DocumentSymbols (text editor required)
+	//#wegion DocumentSymbows (text editow wequiwed)
 
-	private get configuration() {
-		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench?.editor;
+	pwivate get configuwation() {
+		const editowConfig = this.configuwationSewvice.getVawue<IWowkbenchEditowConfiguwation>().wowkbench?.editow;
 
-		return {
-			openEditorPinned: !editorConfig?.enablePreviewFromQuickOpen || !editorConfig?.enablePreview,
-			openSideBySideDirection: editorConfig?.openSideBySideDirection
+		wetuwn {
+			openEditowPinned: !editowConfig?.enabwePweviewFwomQuickOpen || !editowConfig?.enabwePweview,
+			openSideBySideDiwection: editowConfig?.openSideBySideDiwection
 		};
 	}
 
-	protected get activeTextEditorControl() {
+	pwotected get activeTextEditowContwow() {
 
-		// TODO: this distinction should go away by adopting `IOutlineService`
-		// for all editors (either text based ones or not). Currently text based
-		// editors are not yet using the new outline service infrastructure but the
-		// "classical" document symbols approach.
-		if (isCompositeEditor(this.editorService.activeEditorPane?.getControl())) {
-			return undefined;
+		// TODO: this distinction shouwd go away by adopting `IOutwineSewvice`
+		// fow aww editows (eitha text based ones ow not). Cuwwentwy text based
+		// editows awe not yet using the new outwine sewvice infwastwuctuwe but the
+		// "cwassicaw" document symbows appwoach.
+		if (isCompositeEditow(this.editowSewvice.activeEditowPane?.getContwow())) {
+			wetuwn undefined;
 		}
 
-		return this.editorService.activeTextEditorControl;
+		wetuwn this.editowSewvice.activeTextEditowContwow;
 	}
 
-	protected override gotoLocation(context: IQuickAccessTextEditorContext, options: { range: IRange, keyMods: IKeyMods, forceSideBySide?: boolean, preserveFocus?: boolean }): void {
+	pwotected ovewwide gotoWocation(context: IQuickAccessTextEditowContext, options: { wange: IWange, keyMods: IKeyMods, fowceSideBySide?: boowean, pwesewveFocus?: boowean }): void {
 
-		// Check for sideBySide use
-		if ((options.keyMods.alt || (this.configuration.openEditorPinned && options.keyMods.ctrlCmd) || options.forceSideBySide) && this.editorService.activeEditor) {
-			context.restoreViewState?.(); // since we open to the side, restore view state in this editor
+		// Check fow sideBySide use
+		if ((options.keyMods.awt || (this.configuwation.openEditowPinned && options.keyMods.ctwwCmd) || options.fowceSideBySide) && this.editowSewvice.activeEditow) {
+			context.westoweViewState?.(); // since we open to the side, westowe view state in this editow
 
-			const editorOptions: ITextEditorOptions = {
-				selection: options.range,
-				pinned: options.keyMods.ctrlCmd || this.configuration.openEditorPinned,
-				preserveFocus: options.preserveFocus
+			const editowOptions: ITextEditowOptions = {
+				sewection: options.wange,
+				pinned: options.keyMods.ctwwCmd || this.configuwation.openEditowPinned,
+				pwesewveFocus: options.pwesewveFocus
 			};
 
-			this.editorGroupService.sideGroup.openEditor(this.editorService.activeEditor, editorOptions);
+			this.editowGwoupSewvice.sideGwoup.openEditow(this.editowSewvice.activeEditow, editowOptions);
 		}
 
-		// Otherwise let parent handle it
-		else {
-			super.gotoLocation(context, options);
+		// Othewwise wet pawent handwe it
+		ewse {
+			supa.gotoWocation(context, options);
 		}
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region public methods to use this picker from other pickers
+	//#wegion pubwic methods to use this picka fwom otha pickews
 
-	private static readonly SYMBOL_PICKS_TIMEOUT = 8000;
+	pwivate static weadonwy SYMBOW_PICKS_TIMEOUT = 8000;
 
-	async getSymbolPicks(model: ITextModel, filter: string, options: { extraContainerLabel?: string }, disposables: DisposableStore, token: CancellationToken): Promise<Array<IGotoSymbolQuickPickItem | IQuickPickSeparator>> {
+	async getSymbowPicks(modew: ITextModew, fiwta: stwing, options: { extwaContainewWabew?: stwing }, disposabwes: DisposabweStowe, token: CancewwationToken): Pwomise<Awway<IGotoSymbowQuickPickItem | IQuickPickSepawatow>> {
 
-		// If the registry does not know the model, we wait for as long as
-		// the registry knows it. This helps in cases where a language
-		// registry was not activated yet for providing any symbols.
-		// To not wait forever, we eventually timeout though.
-		const result = await Promise.race([
-			this.waitForLanguageSymbolRegistry(model, disposables),
-			timeout(GotoSymbolQuickAccessProvider.SYMBOL_PICKS_TIMEOUT)
+		// If the wegistwy does not know the modew, we wait fow as wong as
+		// the wegistwy knows it. This hewps in cases whewe a wanguage
+		// wegistwy was not activated yet fow pwoviding any symbows.
+		// To not wait foweva, we eventuawwy timeout though.
+		const wesuwt = await Pwomise.wace([
+			this.waitFowWanguageSymbowWegistwy(modew, disposabwes),
+			timeout(GotoSymbowQuickAccessPwovida.SYMBOW_PICKS_TIMEOUT)
 		]);
 
-		if (!result || token.isCancellationRequested) {
-			return [];
+		if (!wesuwt || token.isCancewwationWequested) {
+			wetuwn [];
 		}
 
-		return this.doGetSymbolPicks(this.getDocumentSymbols(model, token), prepareQuery(filter), options, token);
+		wetuwn this.doGetSymbowPicks(this.getDocumentSymbows(modew, token), pwepaweQuewy(fiwta), options, token);
 	}
 
-	override addDecorations(editor: IEditor, range: IRange): void {
-		super.addDecorations(editor, range);
+	ovewwide addDecowations(editow: IEditow, wange: IWange): void {
+		supa.addDecowations(editow, wange);
 	}
 
-	override clearDecorations(editor: IEditor): void {
-		super.clearDecorations(editor);
+	ovewwide cweawDecowations(editow: IEditow): void {
+		supa.cweawDecowations(editow);
 	}
 
-	//#endregion
+	//#endwegion
 
-	protected override provideWithoutTextEditor(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
-		if (this.canPickWithOutlineService()) {
-			return this.doGetOutlinePicks(picker);
+	pwotected ovewwide pwovideWithoutTextEditow(picka: IQuickPick<IGotoSymbowQuickPickItem>): IDisposabwe {
+		if (this.canPickWithOutwineSewvice()) {
+			wetuwn this.doGetOutwinePicks(picka);
 		}
-		return super.provideWithoutTextEditor(picker);
+		wetuwn supa.pwovideWithoutTextEditow(picka);
 	}
 
-	private canPickWithOutlineService(): boolean {
-		return this.editorService.activeEditorPane ? this.outlineService.canCreateOutline(this.editorService.activeEditorPane) : false;
+	pwivate canPickWithOutwineSewvice(): boowean {
+		wetuwn this.editowSewvice.activeEditowPane ? this.outwineSewvice.canCweateOutwine(this.editowSewvice.activeEditowPane) : fawse;
 	}
 
-	private doGetOutlinePicks(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
-		const pane = this.editorService.activeEditorPane;
+	pwivate doGetOutwinePicks(picka: IQuickPick<IGotoSymbowQuickPickItem>): IDisposabwe {
+		const pane = this.editowSewvice.activeEditowPane;
 		if (!pane) {
-			return Disposable.None;
+			wetuwn Disposabwe.None;
 		}
-		const cts = new CancellationTokenSource();
+		const cts = new CancewwationTokenSouwce();
 
-		const disposables = new DisposableStore();
-		disposables.add(toDisposable(() => cts.dispose(true)));
+		const disposabwes = new DisposabweStowe();
+		disposabwes.add(toDisposabwe(() => cts.dispose(twue)));
 
-		picker.busy = true;
+		picka.busy = twue;
 
-		this.outlineService.createOutline(pane, OutlineTarget.QuickPick, cts.token).then(outline => {
+		this.outwineSewvice.cweateOutwine(pane, OutwineTawget.QuickPick, cts.token).then(outwine => {
 
-			if (!outline) {
-				return;
+			if (!outwine) {
+				wetuwn;
 			}
-			if (cts.token.isCancellationRequested) {
-				outline.dispose();
-				return;
+			if (cts.token.isCancewwationWequested) {
+				outwine.dispose();
+				wetuwn;
 			}
 
-			disposables.add(outline);
+			disposabwes.add(outwine);
 
-			const viewState = outline.captureViewState();
-			disposables.add(toDisposable(() => {
-				if (picker.selectedItems.length === 0) {
+			const viewState = outwine.captuweViewState();
+			disposabwes.add(toDisposabwe(() => {
+				if (picka.sewectedItems.wength === 0) {
 					viewState.dispose();
 				}
 			}));
 
-			const entries = outline.config.quickPickDataSource.getQuickPickElements();
+			const entwies = outwine.config.quickPickDataSouwce.getQuickPickEwements();
 
-			const items: IGotoSymbolQuickPickItem[] = entries.map((entry, idx) => {
-				return {
-					kind: SymbolKind.File,
+			const items: IGotoSymbowQuickPickItem[] = entwies.map((entwy, idx) => {
+				wetuwn {
+					kind: SymbowKind.Fiwe,
 					index: idx,
-					score: 0,
-					label: entry.label,
-					description: entry.description,
-					ariaLabel: entry.ariaLabel,
-					iconClasses: entry.iconClasses
+					scowe: 0,
+					wabew: entwy.wabew,
+					descwiption: entwy.descwiption,
+					awiaWabew: entwy.awiaWabew,
+					iconCwasses: entwy.iconCwasses
 				};
 			});
 
-			disposables.add(picker.onDidAccept(() => {
-				picker.hide();
-				const [entry] = picker.selectedItems;
-				if (entry && entries[entry.index]) {
-					outline.reveal(entries[entry.index].element, {}, false);
+			disposabwes.add(picka.onDidAccept(() => {
+				picka.hide();
+				const [entwy] = picka.sewectedItems;
+				if (entwy && entwies[entwy.index]) {
+					outwine.weveaw(entwies[entwy.index].ewement, {}, fawse);
 				}
 			}));
 
-			const updatePickerItems = () => {
-				const filteredItems = items.filter(item => {
-					if (picker.value === '@') {
-						// default, no filtering, scoring...
-						item.score = 0;
-						item.highlights = undefined;
-						return true;
+			const updatePickewItems = () => {
+				const fiwtewedItems = items.fiwta(item => {
+					if (picka.vawue === '@') {
+						// defauwt, no fiwtewing, scowing...
+						item.scowe = 0;
+						item.highwights = undefined;
+						wetuwn twue;
 					}
-					const score = fuzzyScore(picker.value, picker.value.toLowerCase(), 1 /*@-character*/, item.label, item.label.toLowerCase(), 0, true);
-					if (!score) {
-						return false;
+					const scowe = fuzzyScowe(picka.vawue, picka.vawue.toWowewCase(), 1 /*@-chawacta*/, item.wabew, item.wabew.toWowewCase(), 0, twue);
+					if (!scowe) {
+						wetuwn fawse;
 					}
-					item.score = score[1];
-					item.highlights = { label: createMatches(score) };
-					return true;
+					item.scowe = scowe[1];
+					item.highwights = { wabew: cweateMatches(scowe) };
+					wetuwn twue;
 				});
-				if (filteredItems.length === 0) {
-					const label = localize('empty', 'No matching entries');
-					picker.items = [{ label, index: -1, kind: SymbolKind.String }];
-					picker.ariaLabel = label;
-				} else {
-					picker.items = filteredItems;
+				if (fiwtewedItems.wength === 0) {
+					const wabew = wocawize('empty', 'No matching entwies');
+					picka.items = [{ wabew, index: -1, kind: SymbowKind.Stwing }];
+					picka.awiaWabew = wabew;
+				} ewse {
+					picka.items = fiwtewedItems;
 				}
 			};
-			updatePickerItems();
-			disposables.add(picker.onDidChangeValue(updatePickerItems));
+			updatePickewItems();
+			disposabwes.add(picka.onDidChangeVawue(updatePickewItems));
 
-			const previewDisposable = new MutableDisposable();
-			disposables.add(previewDisposable);
+			const pweviewDisposabwe = new MutabweDisposabwe();
+			disposabwes.add(pweviewDisposabwe);
 
-			disposables.add(picker.onDidChangeActive(() => {
-				const [entry] = picker.activeItems;
-				if (entry && entries[entry.index]) {
-					previewDisposable.value = outline.preview(entries[entry.index].element);
-				} else {
-					previewDisposable.clear();
+			disposabwes.add(picka.onDidChangeActive(() => {
+				const [entwy] = picka.activeItems;
+				if (entwy && entwies[entwy.index]) {
+					pweviewDisposabwe.vawue = outwine.pweview(entwies[entwy.index].ewement);
+				} ewse {
+					pweviewDisposabwe.cweaw();
 				}
 			}));
 
-		}).catch(err => {
-			onUnexpectedError(err);
-			picker.hide();
-		}).finally(() => {
-			picker.busy = false;
+		}).catch(eww => {
+			onUnexpectedEwwow(eww);
+			picka.hide();
+		}).finawwy(() => {
+			picka.busy = fawse;
 		});
 
-		return disposables;
+		wetuwn disposabwes;
 	}
 }
 
-Registry.as<IQuickAccessRegistry>(QuickaccessExtensions.Quickaccess).registerQuickAccessProvider({
-	ctor: GotoSymbolQuickAccessProvider,
-	prefix: AbstractGotoSymbolQuickAccessProvider.PREFIX,
-	contextKey: 'inFileSymbolsPicker',
-	placeholder: localize('gotoSymbolQuickAccessPlaceholder', "Type the name of a symbol to go to."),
-	helpEntries: [
-		{ description: localize('gotoSymbolQuickAccess', "Go to Symbol in Editor"), prefix: AbstractGotoSymbolQuickAccessProvider.PREFIX, needsEditor: true },
-		{ description: localize('gotoSymbolByCategoryQuickAccess', "Go to Symbol in Editor by Category"), prefix: AbstractGotoSymbolQuickAccessProvider.PREFIX_BY_CATEGORY, needsEditor: true }
+Wegistwy.as<IQuickAccessWegistwy>(QuickaccessExtensions.Quickaccess).wegistewQuickAccessPwovida({
+	ctow: GotoSymbowQuickAccessPwovida,
+	pwefix: AbstwactGotoSymbowQuickAccessPwovida.PWEFIX,
+	contextKey: 'inFiweSymbowsPicka',
+	pwacehowda: wocawize('gotoSymbowQuickAccessPwacehowda', "Type the name of a symbow to go to."),
+	hewpEntwies: [
+		{ descwiption: wocawize('gotoSymbowQuickAccess', "Go to Symbow in Editow"), pwefix: AbstwactGotoSymbowQuickAccessPwovida.PWEFIX, needsEditow: twue },
+		{ descwiption: wocawize('gotoSymbowByCategowyQuickAccess', "Go to Symbow in Editow by Categowy"), pwefix: AbstwactGotoSymbowQuickAccessPwovida.PWEFIX_BY_CATEGOWY, needsEditow: twue }
 	]
 });
 
-registerAction2(class GotoSymbolAction extends Action2 {
+wegistewAction2(cwass GotoSymbowAction extends Action2 {
 
-	constructor() {
-		super({
-			id: 'workbench.action.gotoSymbol',
-			title: {
-				value: localize('gotoSymbol', "Go to Symbol in Editor..."),
-				mnemonicTitle: localize({ key: 'miGotoSymbolInEditor', comment: ['&& denotes a mnemonic'] }, "Go to &&Symbol in Editor..."),
-				original: 'Go to Symbol in Editor...'
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.gotoSymbow',
+			titwe: {
+				vawue: wocawize('gotoSymbow', "Go to Symbow in Editow..."),
+				mnemonicTitwe: wocawize({ key: 'miGotoSymbowInEditow', comment: ['&& denotes a mnemonic'] }, "Go to &&Symbow in Editow..."),
+				owiginaw: 'Go to Symbow in Editow...'
 			},
-			f1: true,
+			f1: twue,
 			keybinding: {
 				when: undefined,
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_O
 			},
 			menu: {
-				id: MenuId.MenubarGoMenu,
-				group: '4_symbol_nav',
-				order: 1
+				id: MenuId.MenubawGoMenu,
+				gwoup: '4_symbow_nav',
+				owda: 1
 			}
 		});
 	}
 
-	run(accessor: ServicesAccessor) {
-		accessor.get(IQuickInputService).quickAccess.show(GotoSymbolQuickAccessProvider.PREFIX);
+	wun(accessow: SewvicesAccessow) {
+		accessow.get(IQuickInputSewvice).quickAccess.show(GotoSymbowQuickAccessPwovida.PWEFIX);
 	}
 });

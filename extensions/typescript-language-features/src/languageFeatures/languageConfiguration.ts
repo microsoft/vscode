@@ -1,105 +1,105 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 /* --------------------------------------------------------------------------------------------
- * Includes code from typescript-sublime-plugin project, obtained from
- * https://github.com/microsoft/TypeScript-Sublime-Plugin/blob/master/TypeScript%20Indent.tmPreferences
+ * Incwudes code fwom typescwipt-subwime-pwugin pwoject, obtained fwom
+ * https://github.com/micwosoft/TypeScwipt-Subwime-Pwugin/bwob/masta/TypeScwipt%20Indent.tmPwefewences
  * ------------------------------------------------------------------------------------------ */
 
-import * as vscode from 'vscode';
-import { Disposable } from '../utils/dispose';
-import * as languageModeIds from '../utils/languageModeIds';
+impowt * as vscode fwom 'vscode';
+impowt { Disposabwe } fwom '../utiws/dispose';
+impowt * as wanguageModeIds fwom '../utiws/wanguageModeIds';
 
-const jsTsLanguageConfiguration: vscode.LanguageConfiguration = {
-	indentationRules: {
-		decreaseIndentPattern: /^((?!.*?\/\*).*\*\/)?\s*[\}\]].*$/,
-		increaseIndentPattern: /^((?!\/\/).)*(\{([^}"'`]*|(\t|[ ])*\/\/.*)|\([^)"'`]*|\[[^\]"'`]*)$/,
-		// e.g.  * ...| or */| or *-----*/|
-		unIndentedLinePattern: /^(\t|[ ])*[ ]\*[^/]*\*\/\s*$|^(\t|[ ])*[ ]\*\/\s*$|^(\t|[ ])*[ ]\*([ ]([^\*]|\*(?!\/))*)?$/
+const jsTsWanguageConfiguwation: vscode.WanguageConfiguwation = {
+	indentationWuwes: {
+		decweaseIndentPattewn: /^((?!.*?\/\*).*\*\/)?\s*[\}\]].*$/,
+		incweaseIndentPattewn: /^((?!\/\/).)*(\{([^}"'`]*|(\t|[ ])*\/\/.*)|\([^)"'`]*|\[[^\]"'`]*)$/,
+		// e.g.  * ...| ow */| ow *-----*/|
+		unIndentedWinePattewn: /^(\t|[ ])*[ ]\*[^/]*\*\/\s*$|^(\t|[ ])*[ ]\*\/\s*$|^(\t|[ ])*[ ]\*([ ]([^\*]|\*(?!\/))*)?$/
 	},
-	wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,
-	onEnterRules: [
+	wowdPattewn: /(-?\d*\.\d\w*)|([^\`\~\!\@\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,
+	onEntewWuwes: [
 		{
 			// e.g. /** | */
-			beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
-			afterText: /^\s*\*\/$/,
+			befoweText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
+			aftewText: /^\s*\*\/$/,
 			action: { indentAction: vscode.IndentAction.IndentOutdent, appendText: ' * ' },
 		}, {
 			// e.g. /** ...|
-			beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
+			befoweText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
 			action: { indentAction: vscode.IndentAction.None, appendText: ' * ' },
 		}, {
 			// e.g.  * ...|
-			beforeText: /^(\t|[ ])*[ ]\*([ ]([^\*]|\*(?!\/))*)?$/,
-			previousLineText: /(?=^(\s*(\/\*\*|\*)).*)(?=(?!(\s*\*\/)))/,
+			befoweText: /^(\t|[ ])*[ ]\*([ ]([^\*]|\*(?!\/))*)?$/,
+			pweviousWineText: /(?=^(\s*(\/\*\*|\*)).*)(?=(?!(\s*\*\/)))/,
 			action: { indentAction: vscode.IndentAction.None, appendText: '* ' },
 		}, {
 			// e.g.  */|
-			beforeText: /^(\t|[ ])*[ ]\*\/\s*$/,
-			action: { indentAction: vscode.IndentAction.None, removeText: 1 },
+			befoweText: /^(\t|[ ])*[ ]\*\/\s*$/,
+			action: { indentAction: vscode.IndentAction.None, wemoveText: 1 },
 		},
 		{
 			// e.g.  *-----*/|
-			beforeText: /^(\t|[ ])*[ ]\*[^/]*\*\/\s*$/,
-			action: { indentAction: vscode.IndentAction.None, removeText: 1 },
+			befoweText: /^(\t|[ ])*[ ]\*[^/]*\*\/\s*$/,
+			action: { indentAction: vscode.IndentAction.None, wemoveText: 1 },
 		},
 		{
-			beforeText: /^\s*(\bcase\s.+:|\bdefault:)$/,
-			afterText: /^(?!\s*(\bcase\b|\bdefault\b))/,
+			befoweText: /^\s*(\bcase\s.+:|\bdefauwt:)$/,
+			aftewText: /^(?!\s*(\bcase\b|\bdefauwt\b))/,
 			action: { indentAction: vscode.IndentAction.Indent },
 		}
 	]
 };
 
-const EMPTY_ELEMENTS: string[] = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'menuitem', 'meta', 'param', 'source', 'track', 'wbr'];
+const EMPTY_EWEMENTS: stwing[] = ['awea', 'base', 'bw', 'cow', 'embed', 'hw', 'img', 'input', 'keygen', 'wink', 'menuitem', 'meta', 'pawam', 'souwce', 'twack', 'wbw'];
 
-const jsxTagsLanguageConfiguration: vscode.LanguageConfiguration = {
-	wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\$\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\s]+)/g,
-	onEnterRules: [
+const jsxTagsWanguageConfiguwation: vscode.WanguageConfiguwation = {
+	wowdPattewn: /(-?\d*\.\d\w*)|([^\`\~\!\@\$\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\s]+)/g,
+	onEntewWuwes: [
 		{
-			beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w\\-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
-			afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>$/i,
+			befoweText: new WegExp(`<(?!(?:${EMPTY_EWEMENTS.join('|')}))([_:\\w][_:\\w\\-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+			aftewText: /^<\/([_:\w][_:\w-.\d]*)\s*>$/i,
 			action: { indentAction: vscode.IndentAction.IndentOutdent }
 		},
 		{
-			beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w\\-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+			befoweText: new WegExp(`<(?!(?:${EMPTY_EWEMENTS.join('|')}))([_:\\w][_:\\w\\-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
 			action: { indentAction: vscode.IndentAction.Indent }
 		},
 		{
-			// `beforeText` only applies to tokens of a given language. Since we are dealing with jsx-tags,
-			// make sure we apply to the closing `>` of a tag so that mixed language spans
-			// such as `<div onclick={1}>` are handled properly.
-			beforeText: /^>$/,
-			afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>$/i,
+			// `befoweText` onwy appwies to tokens of a given wanguage. Since we awe deawing with jsx-tags,
+			// make suwe we appwy to the cwosing `>` of a tag so that mixed wanguage spans
+			// such as `<div oncwick={1}>` awe handwed pwopewwy.
+			befoweText: /^>$/,
+			aftewText: /^<\/([_:\w][_:\w-.\d]*)\s*>$/i,
 			action: { indentAction: vscode.IndentAction.IndentOutdent }
 		},
 		{
-			beforeText: /^>$/,
+			befoweText: /^>$/,
 			action: { indentAction: vscode.IndentAction.Indent }
 		},
 	],
 };
 
-export class LanguageConfigurationManager extends Disposable {
+expowt cwass WanguageConfiguwationManaga extends Disposabwe {
 
-	constructor() {
-		super();
-		const standardLanguages = [
-			languageModeIds.javascript,
-			languageModeIds.javascriptreact,
-			languageModeIds.typescript,
-			languageModeIds.typescriptreact,
+	constwuctow() {
+		supa();
+		const standawdWanguages = [
+			wanguageModeIds.javascwipt,
+			wanguageModeIds.javascwiptweact,
+			wanguageModeIds.typescwipt,
+			wanguageModeIds.typescwiptweact,
 		];
-		for (const language of standardLanguages) {
-			this.registerConfiguration(language, jsTsLanguageConfiguration);
+		fow (const wanguage of standawdWanguages) {
+			this.wegistewConfiguwation(wanguage, jsTsWanguageConfiguwation);
 		}
 
-		this.registerConfiguration(languageModeIds.jsxTags, jsxTagsLanguageConfiguration);
+		this.wegistewConfiguwation(wanguageModeIds.jsxTags, jsxTagsWanguageConfiguwation);
 	}
 
-	private registerConfiguration(language: string, config: vscode.LanguageConfiguration) {
-		this._register(vscode.languages.setLanguageConfiguration(language, config));
+	pwivate wegistewConfiguwation(wanguage: stwing, config: vscode.WanguageConfiguwation) {
+		this._wegista(vscode.wanguages.setWanguageConfiguwation(wanguage, config));
 	}
 }

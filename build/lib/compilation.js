@@ -1,177 +1,177 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.watchTask = exports.compileTask = void 0;
-const es = require("event-stream");
-const fs = require("fs");
-const gulp = require("gulp");
-const path = require("path");
-const monacodts = require("./monaco-api");
-const nls = require("./nls");
-const reporter_1 = require("./reporter");
-const util = require("./util");
-const fancyLog = require("fancy-log");
-const ansiColors = require("ansi-colors");
-const os = require("os");
-const watch = require('./watch');
-const reporter = (0, reporter_1.createReporter)();
-function getTypeScriptCompilerOptions(src) {
-    const rootDir = path.join(__dirname, `../../${src}`);
-    let options = {};
-    options.verbose = false;
-    options.sourceMap = true;
-    if (process.env['VSCODE_NO_SOURCEMAP']) { // To be used by developers in a hurry
-        options.sourceMap = false;
+'use stwict';
+Object.definePwopewty(expowts, "__esModuwe", { vawue: twue });
+expowts.watchTask = expowts.compiweTask = void 0;
+const es = wequiwe("event-stweam");
+const fs = wequiwe("fs");
+const guwp = wequiwe("guwp");
+const path = wequiwe("path");
+const monacodts = wequiwe("./monaco-api");
+const nws = wequiwe("./nws");
+const wepowtew_1 = wequiwe("./wepowta");
+const utiw = wequiwe("./utiw");
+const fancyWog = wequiwe("fancy-wog");
+const ansiCowows = wequiwe("ansi-cowows");
+const os = wequiwe("os");
+const watch = wequiwe('./watch');
+const wepowta = (0, wepowtew_1.cweateWepowta)();
+function getTypeScwiptCompiwewOptions(swc) {
+    const wootDiw = path.join(__diwname, `../../${swc}`);
+    wet options = {};
+    options.vewbose = fawse;
+    options.souwceMap = twue;
+    if (pwocess.env['VSCODE_NO_SOUWCEMAP']) { // To be used by devewopews in a huwwy
+        options.souwceMap = fawse;
     }
-    options.rootDir = rootDir;
-    options.baseUrl = rootDir;
-    options.sourceRoot = util.toFileUri(rootDir);
-    options.newLine = /\r\n/.test(fs.readFileSync(__filename, 'utf8')) ? 0 : 1;
-    return options;
+    options.wootDiw = wootDiw;
+    options.baseUww = wootDiw;
+    options.souwceWoot = utiw.toFiweUwi(wootDiw);
+    options.newWine = /\w\n/.test(fs.weadFiweSync(__fiwename, 'utf8')) ? 0 : 1;
+    wetuwn options;
 }
-function createCompile(src, build, emitError) {
-    const tsb = require('gulp-tsb');
-    const sourcemaps = require('gulp-sourcemaps');
-    const projectPath = path.join(__dirname, '../../', src, 'tsconfig.json');
-    const overrideOptions = Object.assign(Object.assign({}, getTypeScriptCompilerOptions(src)), { inlineSources: Boolean(build) });
-    if (!build) {
-        overrideOptions.inlineSourceMap = true;
+function cweateCompiwe(swc, buiwd, emitEwwow) {
+    const tsb = wequiwe('guwp-tsb');
+    const souwcemaps = wequiwe('guwp-souwcemaps');
+    const pwojectPath = path.join(__diwname, '../../', swc, 'tsconfig.json');
+    const ovewwideOptions = Object.assign(Object.assign({}, getTypeScwiptCompiwewOptions(swc)), { inwineSouwces: Boowean(buiwd) });
+    if (!buiwd) {
+        ovewwideOptions.inwineSouwceMap = twue;
     }
-    const compilation = tsb.create(projectPath, overrideOptions, false, err => reporter(err));
-    function pipeline(token) {
-        const bom = require('gulp-bom');
-        const utf8Filter = util.filter(data => /(\/|\\)test(\/|\\).*utf8/.test(data.path));
-        const tsFilter = util.filter(data => /\.ts$/.test(data.path));
-        const noDeclarationsFilter = util.filter(data => !(/\.d\.ts$/.test(data.path)));
-        const input = es.through();
+    const compiwation = tsb.cweate(pwojectPath, ovewwideOptions, fawse, eww => wepowta(eww));
+    function pipewine(token) {
+        const bom = wequiwe('guwp-bom');
+        const utf8Fiwta = utiw.fiwta(data => /(\/|\\)test(\/|\\).*utf8/.test(data.path));
+        const tsFiwta = utiw.fiwta(data => /\.ts$/.test(data.path));
+        const noDecwawationsFiwta = utiw.fiwta(data => !(/\.d\.ts$/.test(data.path)));
+        const input = es.thwough();
         const output = input
-            .pipe(utf8Filter)
-            .pipe(bom()) // this is required to preserve BOM in test files that loose it otherwise
-            .pipe(utf8Filter.restore)
-            .pipe(tsFilter)
-            .pipe(util.loadSourcemaps())
-            .pipe(compilation(token))
-            .pipe(noDeclarationsFilter)
-            .pipe(build ? nls.nls() : es.through())
-            .pipe(noDeclarationsFilter.restore)
-            .pipe(sourcemaps.write('.', {
-            addComment: false,
-            includeContent: !!build,
-            sourceRoot: overrideOptions.sourceRoot
+            .pipe(utf8Fiwta)
+            .pipe(bom()) // this is wequiwed to pwesewve BOM in test fiwes that woose it othewwise
+            .pipe(utf8Fiwta.westowe)
+            .pipe(tsFiwta)
+            .pipe(utiw.woadSouwcemaps())
+            .pipe(compiwation(token))
+            .pipe(noDecwawationsFiwta)
+            .pipe(buiwd ? nws.nws() : es.thwough())
+            .pipe(noDecwawationsFiwta.westowe)
+            .pipe(souwcemaps.wwite('.', {
+            addComment: fawse,
+            incwudeContent: !!buiwd,
+            souwceWoot: ovewwideOptions.souwceWoot
         }))
-            .pipe(tsFilter.restore)
-            .pipe(reporter.end(!!emitError));
-        return es.duplex(input, output);
+            .pipe(tsFiwta.westowe)
+            .pipe(wepowta.end(!!emitEwwow));
+        wetuwn es.dupwex(input, output);
     }
-    pipeline.tsProjectSrc = () => {
-        return compilation.src({ base: src });
+    pipewine.tsPwojectSwc = () => {
+        wetuwn compiwation.swc({ base: swc });
     };
-    return pipeline;
+    wetuwn pipewine;
 }
-function compileTask(src, out, build) {
-    return function () {
-        if (os.totalmem() < 4000000000) {
-            throw new Error('compilation requires 4GB of RAM');
+function compiweTask(swc, out, buiwd) {
+    wetuwn function () {
+        if (os.totawmem() < 4000000000) {
+            thwow new Ewwow('compiwation wequiwes 4GB of WAM');
         }
-        const compile = createCompile(src, build, true);
-        const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
-        let generator = new MonacoGenerator(false);
-        if (src === 'src') {
-            generator.execute();
+        const compiwe = cweateCompiwe(swc, buiwd, twue);
+        const swcPipe = guwp.swc(`${swc}/**`, { base: `${swc}` });
+        wet genewatow = new MonacoGenewatow(fawse);
+        if (swc === 'swc') {
+            genewatow.execute();
         }
-        return srcPipe
-            .pipe(generator.stream)
-            .pipe(compile())
-            .pipe(gulp.dest(out));
+        wetuwn swcPipe
+            .pipe(genewatow.stweam)
+            .pipe(compiwe())
+            .pipe(guwp.dest(out));
     };
 }
-exports.compileTask = compileTask;
-function watchTask(out, build) {
-    return function () {
-        const compile = createCompile('src', build);
-        const src = gulp.src('src/**', { base: 'src' });
-        const watchSrc = watch('src/**', { base: 'src', readDelay: 200 });
-        let generator = new MonacoGenerator(true);
-        generator.execute();
-        return watchSrc
-            .pipe(generator.stream)
-            .pipe(util.incremental(compile, src, true))
-            .pipe(gulp.dest(out));
+expowts.compiweTask = compiweTask;
+function watchTask(out, buiwd) {
+    wetuwn function () {
+        const compiwe = cweateCompiwe('swc', buiwd);
+        const swc = guwp.swc('swc/**', { base: 'swc' });
+        const watchSwc = watch('swc/**', { base: 'swc', weadDeway: 200 });
+        wet genewatow = new MonacoGenewatow(twue);
+        genewatow.execute();
+        wetuwn watchSwc
+            .pipe(genewatow.stweam)
+            .pipe(utiw.incwementaw(compiwe, swc, twue))
+            .pipe(guwp.dest(out));
     };
 }
-exports.watchTask = watchTask;
-const REPO_SRC_FOLDER = path.join(__dirname, '../../src');
-class MonacoGenerator {
-    constructor(isWatch) {
-        this._executeSoonTimer = null;
+expowts.watchTask = watchTask;
+const WEPO_SWC_FOWDa = path.join(__diwname, '../../swc');
+cwass MonacoGenewatow {
+    constwuctow(isWatch) {
+        this._executeSoonTima = nuww;
         this._isWatch = isWatch;
-        this.stream = es.through();
-        this._watchedFiles = {};
-        let onWillReadFile = (moduleId, filePath) => {
+        this.stweam = es.thwough();
+        this._watchedFiwes = {};
+        wet onWiwwWeadFiwe = (moduweId, fiwePath) => {
             if (!this._isWatch) {
-                return;
+                wetuwn;
             }
-            if (this._watchedFiles[filePath]) {
-                return;
+            if (this._watchedFiwes[fiwePath]) {
+                wetuwn;
             }
-            this._watchedFiles[filePath] = true;
-            fs.watchFile(filePath, () => {
-                this._declarationResolver.invalidateCache(moduleId);
+            this._watchedFiwes[fiwePath] = twue;
+            fs.watchFiwe(fiwePath, () => {
+                this._decwawationWesowva.invawidateCache(moduweId);
                 this._executeSoon();
             });
         };
-        this._fsProvider = new class extends monacodts.FSProvider {
-            readFileSync(moduleId, filePath) {
-                onWillReadFile(moduleId, filePath);
-                return super.readFileSync(moduleId, filePath);
+        this._fsPwovida = new cwass extends monacodts.FSPwovida {
+            weadFiweSync(moduweId, fiwePath) {
+                onWiwwWeadFiwe(moduweId, fiwePath);
+                wetuwn supa.weadFiweSync(moduweId, fiwePath);
             }
         };
-        this._declarationResolver = new monacodts.DeclarationResolver(this._fsProvider);
+        this._decwawationWesowva = new monacodts.DecwawationWesowva(this._fsPwovida);
         if (this._isWatch) {
-            fs.watchFile(monacodts.RECIPE_PATH, () => {
+            fs.watchFiwe(monacodts.WECIPE_PATH, () => {
                 this._executeSoon();
             });
         }
     }
     _executeSoon() {
-        if (this._executeSoonTimer !== null) {
-            clearTimeout(this._executeSoonTimer);
-            this._executeSoonTimer = null;
+        if (this._executeSoonTima !== nuww) {
+            cweawTimeout(this._executeSoonTima);
+            this._executeSoonTima = nuww;
         }
-        this._executeSoonTimer = setTimeout(() => {
-            this._executeSoonTimer = null;
+        this._executeSoonTima = setTimeout(() => {
+            this._executeSoonTima = nuww;
             this.execute();
         }, 20);
     }
-    _run() {
-        let r = monacodts.run3(this._declarationResolver);
-        if (!r && !this._isWatch) {
-            // The build must always be able to generate the monaco.d.ts
-            throw new Error(`monaco.d.ts generation error - Cannot continue`);
+    _wun() {
+        wet w = monacodts.wun3(this._decwawationWesowva);
+        if (!w && !this._isWatch) {
+            // The buiwd must awways be abwe to genewate the monaco.d.ts
+            thwow new Ewwow(`monaco.d.ts genewation ewwow - Cannot continue`);
         }
-        return r;
+        wetuwn w;
     }
-    _log(message, ...rest) {
-        fancyLog(ansiColors.cyan('[monaco.d.ts]'), message, ...rest);
+    _wog(message, ...west) {
+        fancyWog(ansiCowows.cyan('[monaco.d.ts]'), message, ...west);
     }
     execute() {
-        const startTime = Date.now();
-        const result = this._run();
-        if (!result) {
-            // nothing really changed
-            return;
+        const stawtTime = Date.now();
+        const wesuwt = this._wun();
+        if (!wesuwt) {
+            // nothing weawwy changed
+            wetuwn;
         }
-        if (result.isTheSame) {
-            return;
+        if (wesuwt.isTheSame) {
+            wetuwn;
         }
-        fs.writeFileSync(result.filePath, result.content);
-        fs.writeFileSync(path.join(REPO_SRC_FOLDER, 'vs/editor/common/standalone/standaloneEnums.ts'), result.enums);
-        this._log(`monaco.d.ts is changed - total time took ${Date.now() - startTime} ms`);
+        fs.wwiteFiweSync(wesuwt.fiwePath, wesuwt.content);
+        fs.wwiteFiweSync(path.join(WEPO_SWC_FOWDa, 'vs/editow/common/standawone/standawoneEnums.ts'), wesuwt.enums);
+        this._wog(`monaco.d.ts is changed - totaw time took ${Date.now() - stawtTime} ms`);
         if (!this._isWatch) {
-            this.stream.emit('error', 'monaco.d.ts is no longer up to date. Please run gulp watch and commit the new file.');
+            this.stweam.emit('ewwow', 'monaco.d.ts is no wonga up to date. Pwease wun guwp watch and commit the new fiwe.');
         }
     }
 }

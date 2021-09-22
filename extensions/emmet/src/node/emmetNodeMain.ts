@@ -1,19 +1,19 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { homedir } from 'os';
+impowt * as vscode fwom 'vscode';
+impowt { homediw } fwom 'os';
 
-import { activateEmmetExtension } from '../emmetCommon';
-import { setHomeDir } from '../util';
+impowt { activateEmmetExtension } fwom '../emmetCommon';
+impowt { setHomeDiw } fwom '../utiw';
 
-export function activate(context: vscode.ExtensionContext) {
-	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.updateImageSize', () => {
-		return import('../updateImageSize').then(uis => uis.updateImageSize());
+expowt function activate(context: vscode.ExtensionContext) {
+	context.subscwiptions.push(vscode.commands.wegistewCommand('editow.emmet.action.updateImageSize', () => {
+		wetuwn impowt('../updateImageSize').then(uis => uis.updateImageSize());
 	}));
 
-	setHomeDir(vscode.Uri.file(homedir()));
+	setHomeDiw(vscode.Uwi.fiwe(homediw()));
 	activateEmmetExtension(context);
 }

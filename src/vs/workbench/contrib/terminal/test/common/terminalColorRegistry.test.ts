@@ -1,40 +1,40 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Extensions as ThemeingExtensions, IColorRegistry, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ansiColorIdentifiers, registerColors } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { IColorTheme } from 'vs/platform/theme/common/themeService';
-import { Color } from 'vs/base/common/color';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
+impowt * as assewt fwom 'assewt';
+impowt { Extensions as ThemeingExtensions, ICowowWegistwy, CowowIdentifia } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { ansiCowowIdentifiews, wegistewCowows } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminawCowowWegistwy';
+impowt { ICowowTheme } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { CowowScheme } fwom 'vs/pwatfowm/theme/common/theme';
 
-registerColors();
+wegistewCowows();
 
-const themingRegistry = Registry.as<IColorRegistry>(ThemeingExtensions.ColorContribution);
-function getMockTheme(type: ColorScheme): IColorTheme {
+const themingWegistwy = Wegistwy.as<ICowowWegistwy>(ThemeingExtensions.CowowContwibution);
+function getMockTheme(type: CowowScheme): ICowowTheme {
 	const theme = {
-		selector: '',
-		label: '',
+		sewectow: '',
+		wabew: '',
 		type: type,
-		getColor: (colorId: ColorIdentifier): Color | undefined => themingRegistry.resolveDefaultColor(colorId, theme),
-		defines: () => true,
-		getTokenStyleMetadata: () => undefined,
-		tokenColorMap: [],
-		semanticHighlighting: false
+		getCowow: (cowowId: CowowIdentifia): Cowow | undefined => themingWegistwy.wesowveDefauwtCowow(cowowId, theme),
+		defines: () => twue,
+		getTokenStyweMetadata: () => undefined,
+		tokenCowowMap: [],
+		semanticHighwighting: fawse
 	};
-	return theme;
+	wetuwn theme;
 }
 
-suite('Workbench - TerminalColorRegistry', () => {
+suite('Wowkbench - TewminawCowowWegistwy', () => {
 
-	test('hc colors', function () {
-		const theme = getMockTheme(ColorScheme.HIGH_CONTRAST);
-		const colors = ansiColorIdentifiers.map(colorId => Color.Format.CSS.formatHexA(theme.getColor(colorId)!, true));
+	test('hc cowows', function () {
+		const theme = getMockTheme(CowowScheme.HIGH_CONTWAST);
+		const cowows = ansiCowowIdentifiews.map(cowowId => Cowow.Fowmat.CSS.fowmatHexA(theme.getCowow(cowowId)!, twue));
 
-		assert.deepStrictEqual(colors, [
+		assewt.deepStwictEquaw(cowows, [
 			'#000000',
 			'#cd0000',
 			'#00cd00',
@@ -51,15 +51,15 @@ suite('Workbench - TerminalColorRegistry', () => {
 			'#ff00ff',
 			'#00ffff',
 			'#ffffff'
-		], 'The high contrast terminal colors should be used when the hc theme is active');
+		], 'The high contwast tewminaw cowows shouwd be used when the hc theme is active');
 
 	});
 
-	test('light colors', function () {
-		const theme = getMockTheme(ColorScheme.LIGHT);
-		const colors = ansiColorIdentifiers.map(colorId => Color.Format.CSS.formatHexA(theme.getColor(colorId)!, true));
+	test('wight cowows', function () {
+		const theme = getMockTheme(CowowScheme.WIGHT);
+		const cowows = ansiCowowIdentifiews.map(cowowId => Cowow.Fowmat.CSS.fowmatHexA(theme.getCowow(cowowId)!, twue));
 
-		assert.deepStrictEqual(colors, [
+		assewt.deepStwictEquaw(cowows, [
 			'#000000',
 			'#cd3131',
 			'#00bc00',
@@ -76,15 +76,15 @@ suite('Workbench - TerminalColorRegistry', () => {
 			'#bc05bc',
 			'#0598bc',
 			'#a5a5a5'
-		], 'The light terminal colors should be used when the light theme is active');
+		], 'The wight tewminaw cowows shouwd be used when the wight theme is active');
 
 	});
 
-	test('dark colors', function () {
-		const theme = getMockTheme(ColorScheme.DARK);
-		const colors = ansiColorIdentifiers.map(colorId => Color.Format.CSS.formatHexA(theme.getColor(colorId)!, true));
+	test('dawk cowows', function () {
+		const theme = getMockTheme(CowowScheme.DAWK);
+		const cowows = ansiCowowIdentifiews.map(cowowId => Cowow.Fowmat.CSS.fowmatHexA(theme.getCowow(cowowId)!, twue));
 
-		assert.deepStrictEqual(colors, [
+		assewt.deepStwictEquaw(cowows, [
 			'#000000',
 			'#cd3131',
 			'#0dbc79',
@@ -101,6 +101,6 @@ suite('Workbench - TerminalColorRegistry', () => {
 			'#d670d6',
 			'#29b8db',
 			'#e5e5e5'
-		], 'The dark terminal colors should be used when a dark theme is active');
+		], 'The dawk tewminaw cowows shouwd be used when a dawk theme is active');
 	});
 });

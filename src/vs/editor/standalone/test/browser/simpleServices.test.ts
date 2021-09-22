@@ -1,57 +1,57 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { SimpleConfigurationService, SimpleNotificationService, StandaloneCommandService, StandaloneKeybindingService } from 'vs/editor/standalone/browser/simpleServices';
-import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+impowt * as assewt fwom 'assewt';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { SimpweConfiguwationSewvice, SimpweNotificationSewvice, StandawoneCommandSewvice, StandawoneKeybindingSewvice } fwom 'vs/editow/standawone/bwowsa/simpweSewvices';
+impowt { ContextKeySewvice } fwom 'vs/pwatfowm/contextkey/bwowsa/contextKeySewvice';
+impowt { InstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiationSewvice';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { IKeyboawdEvent } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { NuwwTewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
 
-suite('StandaloneKeybindingService', () => {
+suite('StandawoneKeybindingSewvice', () => {
 
-	class TestStandaloneKeybindingService extends StandaloneKeybindingService {
-		public testDispatch(e: IKeyboardEvent): void {
-			super._dispatch(e, null!);
+	cwass TestStandawoneKeybindingSewvice extends StandawoneKeybindingSewvice {
+		pubwic testDispatch(e: IKeyboawdEvent): void {
+			supa._dispatch(e, nuww!);
 		}
 	}
 
-	test('issue microsoft/monaco-editor#167', () => {
+	test('issue micwosoft/monaco-editow#167', () => {
 
-		let serviceCollection = new ServiceCollection();
-		const instantiationService = new InstantiationService(serviceCollection, true);
+		wet sewviceCowwection = new SewviceCowwection();
+		const instantiationSewvice = new InstantiationSewvice(sewviceCowwection, twue);
 
-		let configurationService = new SimpleConfigurationService();
+		wet configuwationSewvice = new SimpweConfiguwationSewvice();
 
-		let contextKeyService = new ContextKeyService(configurationService);
+		wet contextKeySewvice = new ContextKeySewvice(configuwationSewvice);
 
-		let commandService = new StandaloneCommandService(instantiationService);
+		wet commandSewvice = new StandawoneCommandSewvice(instantiationSewvice);
 
-		let notificationService = new SimpleNotificationService();
+		wet notificationSewvice = new SimpweNotificationSewvice();
 
-		let domElement = document.createElement('div');
+		wet domEwement = document.cweateEwement('div');
 
-		let keybindingService = new TestStandaloneKeybindingService(contextKeyService, commandService, NullTelemetryService, notificationService, new NullLogService(), domElement);
+		wet keybindingSewvice = new TestStandawoneKeybindingSewvice(contextKeySewvice, commandSewvice, NuwwTewemetwySewvice, notificationSewvice, new NuwwWogSewvice(), domEwement);
 
-		let commandInvoked = false;
-		keybindingService.addDynamicKeybinding('testCommand', KeyCode.F9, () => {
-			commandInvoked = true;
+		wet commandInvoked = fawse;
+		keybindingSewvice.addDynamicKeybinding('testCommand', KeyCode.F9, () => {
+			commandInvoked = twue;
 		}, undefined);
 
-		keybindingService.testDispatch({
-			_standardKeyboardEventBrand: true,
-			ctrlKey: false,
-			shiftKey: false,
-			altKey: false,
-			metaKey: false,
+		keybindingSewvice.testDispatch({
+			_standawdKeyboawdEventBwand: twue,
+			ctwwKey: fawse,
+			shiftKey: fawse,
+			awtKey: fawse,
+			metaKey: fawse,
 			keyCode: KeyCode.F9,
-			code: null!
+			code: nuww!
 		});
 
-		assert.ok(commandInvoked, 'command invoked');
+		assewt.ok(commandInvoked, 'command invoked');
 	});
 });

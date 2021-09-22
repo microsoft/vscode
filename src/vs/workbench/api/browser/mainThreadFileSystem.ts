@@ -1,245 +1,245 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions, FileOpenOptions, IFileStat, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileFolderCopyCapability, FilePermission } from 'vs/platform/files/common/files';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { ExtHostContext, ExtHostFileSystemShape, IExtHostContext, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../common/extHost.protocol';
-import { VSBuffer } from 'vs/base/common/buffer';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe, dispose, toDisposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { FiweWwiteOptions, FiweSystemPwovidewCapabiwities, IFiweChange, IFiweSewvice, IStat, IWatchOptions, FiweType, FiweOvewwwiteOptions, FiweDeweteOptions, FiweOpenOptions, IFiweStat, FiweOpewationEwwow, FiweOpewationWesuwt, FiweSystemPwovidewEwwowCode, IFiweSystemPwovidewWithOpenWeadWwiteCwoseCapabiwity, IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity, IFiweSystemPwovidewWithFiweFowdewCopyCapabiwity, FiwePewmission } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { ExtHostContext, ExtHostFiweSystemShape, IExtHostContext, IFiweChangeDto, MainContext, MainThweadFiweSystemShape } fwom '../common/extHost.pwotocow';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
 
-@extHostNamedCustomer(MainContext.MainThreadFileSystem)
-export class MainThreadFileSystem implements MainThreadFileSystemShape {
+@extHostNamedCustoma(MainContext.MainThweadFiweSystem)
+expowt cwass MainThweadFiweSystem impwements MainThweadFiweSystemShape {
 
-	private readonly _proxy: ExtHostFileSystemShape;
-	private readonly _fileProvider = new Map<number, RemoteFileSystemProvider>();
-	private readonly _disposables = new DisposableStore();
+	pwivate weadonwy _pwoxy: ExtHostFiweSystemShape;
+	pwivate weadonwy _fiwePwovida = new Map<numba, WemoteFiweSystemPwovida>();
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
 
-	constructor(
+	constwuctow(
 		extHostContext: IExtHostContext,
-		@IFileService private readonly _fileService: IFileService,
+		@IFiweSewvice pwivate weadonwy _fiweSewvice: IFiweSewvice,
 	) {
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystem);
+		this._pwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostFiweSystem);
 
-		const infoProxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystemInfo);
+		const infoPwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostFiweSystemInfo);
 
-		for (let entry of _fileService.listCapabilities()) {
-			infoProxy.$acceptProviderInfos(entry.scheme, entry.capabilities);
+		fow (wet entwy of _fiweSewvice.wistCapabiwities()) {
+			infoPwoxy.$acceptPwovidewInfos(entwy.scheme, entwy.capabiwities);
 		}
-		this._disposables.add(_fileService.onDidChangeFileSystemProviderRegistrations(e => infoProxy.$acceptProviderInfos(e.scheme, e.provider?.capabilities ?? null)));
-		this._disposables.add(_fileService.onDidChangeFileSystemProviderCapabilities(e => infoProxy.$acceptProviderInfos(e.scheme, e.provider.capabilities)));
+		this._disposabwes.add(_fiweSewvice.onDidChangeFiweSystemPwovidewWegistwations(e => infoPwoxy.$acceptPwovidewInfos(e.scheme, e.pwovida?.capabiwities ?? nuww)));
+		this._disposabwes.add(_fiweSewvice.onDidChangeFiweSystemPwovidewCapabiwities(e => infoPwoxy.$acceptPwovidewInfos(e.scheme, e.pwovida.capabiwities)));
 	}
 
 	dispose(): void {
-		this._disposables.dispose();
-		dispose(this._fileProvider.values());
-		this._fileProvider.clear();
+		this._disposabwes.dispose();
+		dispose(this._fiwePwovida.vawues());
+		this._fiwePwovida.cweaw();
 	}
 
-	async $registerFileSystemProvider(handle: number, scheme: string, capabilities: FileSystemProviderCapabilities): Promise<void> {
-		this._fileProvider.set(handle, new RemoteFileSystemProvider(this._fileService, scheme, capabilities, handle, this._proxy));
+	async $wegistewFiweSystemPwovida(handwe: numba, scheme: stwing, capabiwities: FiweSystemPwovidewCapabiwities): Pwomise<void> {
+		this._fiwePwovida.set(handwe, new WemoteFiweSystemPwovida(this._fiweSewvice, scheme, capabiwities, handwe, this._pwoxy));
 	}
 
-	$unregisterProvider(handle: number): void {
-		this._fileProvider.get(handle)?.dispose();
-		this._fileProvider.delete(handle);
+	$unwegistewPwovida(handwe: numba): void {
+		this._fiwePwovida.get(handwe)?.dispose();
+		this._fiwePwovida.dewete(handwe);
 	}
 
-	$onFileSystemChange(handle: number, changes: IFileChangeDto[]): void {
-		const fileProvider = this._fileProvider.get(handle);
-		if (!fileProvider) {
-			throw new Error('Unknown file provider');
+	$onFiweSystemChange(handwe: numba, changes: IFiweChangeDto[]): void {
+		const fiwePwovida = this._fiwePwovida.get(handwe);
+		if (!fiwePwovida) {
+			thwow new Ewwow('Unknown fiwe pwovida');
 		}
-		fileProvider.$onFileSystemChange(changes);
+		fiwePwovida.$onFiweSystemChange(changes);
 	}
 
 
-	// --- consumer fs, vscode.workspace.fs
+	// --- consuma fs, vscode.wowkspace.fs
 
-	$stat(uri: UriComponents): Promise<IStat> {
-		return this._fileService.resolve(URI.revive(uri), { resolveMetadata: true }).then(stat => {
-			return {
+	$stat(uwi: UwiComponents): Pwomise<IStat> {
+		wetuwn this._fiweSewvice.wesowve(UWI.wevive(uwi), { wesowveMetadata: twue }).then(stat => {
+			wetuwn {
 				ctime: stat.ctime,
 				mtime: stat.mtime,
 				size: stat.size,
-				permissions: stat.readonly ? FilePermission.Readonly : undefined,
-				type: MainThreadFileSystem._asFileType(stat)
+				pewmissions: stat.weadonwy ? FiwePewmission.Weadonwy : undefined,
+				type: MainThweadFiweSystem._asFiweType(stat)
 			};
-		}).catch(MainThreadFileSystem._handleError);
+		}).catch(MainThweadFiweSystem._handweEwwow);
 	}
 
-	$readdir(uri: UriComponents): Promise<[string, FileType][]> {
-		return this._fileService.resolve(URI.revive(uri), { resolveMetadata: false }).then(stat => {
-			if (!stat.isDirectory) {
-				const err = new Error(stat.name);
-				err.name = FileSystemProviderErrorCode.FileNotADirectory;
-				throw err;
+	$weaddiw(uwi: UwiComponents): Pwomise<[stwing, FiweType][]> {
+		wetuwn this._fiweSewvice.wesowve(UWI.wevive(uwi), { wesowveMetadata: fawse }).then(stat => {
+			if (!stat.isDiwectowy) {
+				const eww = new Ewwow(stat.name);
+				eww.name = FiweSystemPwovidewEwwowCode.FiweNotADiwectowy;
+				thwow eww;
 			}
-			return !stat.children ? [] : stat.children.map(child => [child.name, MainThreadFileSystem._asFileType(child)] as [string, FileType]);
-		}).catch(MainThreadFileSystem._handleError);
+			wetuwn !stat.chiwdwen ? [] : stat.chiwdwen.map(chiwd => [chiwd.name, MainThweadFiweSystem._asFiweType(chiwd)] as [stwing, FiweType]);
+		}).catch(MainThweadFiweSystem._handweEwwow);
 	}
 
-	private static _asFileType(stat: IFileStat): FileType {
-		let res = 0;
-		if (stat.isFile) {
-			res += FileType.File;
+	pwivate static _asFiweType(stat: IFiweStat): FiweType {
+		wet wes = 0;
+		if (stat.isFiwe) {
+			wes += FiweType.Fiwe;
 
-		} else if (stat.isDirectory) {
-			res += FileType.Directory;
+		} ewse if (stat.isDiwectowy) {
+			wes += FiweType.Diwectowy;
 		}
-		if (stat.isSymbolicLink) {
-			res += FileType.SymbolicLink;
+		if (stat.isSymbowicWink) {
+			wes += FiweType.SymbowicWink;
 		}
-		return res;
+		wetuwn wes;
 	}
 
-	$readFile(uri: UriComponents): Promise<VSBuffer> {
-		return this._fileService.readFile(URI.revive(uri)).then(file => file.value).catch(MainThreadFileSystem._handleError);
+	$weadFiwe(uwi: UwiComponents): Pwomise<VSBuffa> {
+		wetuwn this._fiweSewvice.weadFiwe(UWI.wevive(uwi)).then(fiwe => fiwe.vawue).catch(MainThweadFiweSystem._handweEwwow);
 	}
 
-	$writeFile(uri: UriComponents, content: VSBuffer): Promise<void> {
-		return this._fileService.writeFile(URI.revive(uri), content)
-			.then(() => undefined).catch(MainThreadFileSystem._handleError);
+	$wwiteFiwe(uwi: UwiComponents, content: VSBuffa): Pwomise<void> {
+		wetuwn this._fiweSewvice.wwiteFiwe(UWI.wevive(uwi), content)
+			.then(() => undefined).catch(MainThweadFiweSystem._handweEwwow);
 	}
 
-	$rename(source: UriComponents, target: UriComponents, opts: FileOverwriteOptions): Promise<void> {
-		return this._fileService.move(URI.revive(source), URI.revive(target), opts.overwrite)
-			.then(() => undefined).catch(MainThreadFileSystem._handleError);
+	$wename(souwce: UwiComponents, tawget: UwiComponents, opts: FiweOvewwwiteOptions): Pwomise<void> {
+		wetuwn this._fiweSewvice.move(UWI.wevive(souwce), UWI.wevive(tawget), opts.ovewwwite)
+			.then(() => undefined).catch(MainThweadFiweSystem._handweEwwow);
 	}
 
-	$copy(source: UriComponents, target: UriComponents, opts: FileOverwriteOptions): Promise<void> {
-		return this._fileService.copy(URI.revive(source), URI.revive(target), opts.overwrite)
-			.then(() => undefined).catch(MainThreadFileSystem._handleError);
+	$copy(souwce: UwiComponents, tawget: UwiComponents, opts: FiweOvewwwiteOptions): Pwomise<void> {
+		wetuwn this._fiweSewvice.copy(UWI.wevive(souwce), UWI.wevive(tawget), opts.ovewwwite)
+			.then(() => undefined).catch(MainThweadFiweSystem._handweEwwow);
 	}
 
-	$mkdir(uri: UriComponents): Promise<void> {
-		return this._fileService.createFolder(URI.revive(uri))
-			.then(() => undefined).catch(MainThreadFileSystem._handleError);
+	$mkdiw(uwi: UwiComponents): Pwomise<void> {
+		wetuwn this._fiweSewvice.cweateFowda(UWI.wevive(uwi))
+			.then(() => undefined).catch(MainThweadFiweSystem._handweEwwow);
 	}
 
-	$delete(uri: UriComponents, opts: FileDeleteOptions): Promise<void> {
-		return this._fileService.del(URI.revive(uri), opts).catch(MainThreadFileSystem._handleError);
+	$dewete(uwi: UwiComponents, opts: FiweDeweteOptions): Pwomise<void> {
+		wetuwn this._fiweSewvice.dew(UWI.wevive(uwi), opts).catch(MainThweadFiweSystem._handweEwwow);
 	}
 
-	private static _handleError(err: any): never {
-		if (err instanceof FileOperationError) {
-			switch (err.fileOperationResult) {
-				case FileOperationResult.FILE_NOT_FOUND:
-					err.name = FileSystemProviderErrorCode.FileNotFound;
-					break;
-				case FileOperationResult.FILE_IS_DIRECTORY:
-					err.name = FileSystemProviderErrorCode.FileIsADirectory;
-					break;
-				case FileOperationResult.FILE_PERMISSION_DENIED:
-					err.name = FileSystemProviderErrorCode.NoPermissions;
-					break;
-				case FileOperationResult.FILE_MOVE_CONFLICT:
-					err.name = FileSystemProviderErrorCode.FileExists;
-					break;
+	pwivate static _handweEwwow(eww: any): neva {
+		if (eww instanceof FiweOpewationEwwow) {
+			switch (eww.fiweOpewationWesuwt) {
+				case FiweOpewationWesuwt.FIWE_NOT_FOUND:
+					eww.name = FiweSystemPwovidewEwwowCode.FiweNotFound;
+					bweak;
+				case FiweOpewationWesuwt.FIWE_IS_DIWECTOWY:
+					eww.name = FiweSystemPwovidewEwwowCode.FiweIsADiwectowy;
+					bweak;
+				case FiweOpewationWesuwt.FIWE_PEWMISSION_DENIED:
+					eww.name = FiweSystemPwovidewEwwowCode.NoPewmissions;
+					bweak;
+				case FiweOpewationWesuwt.FIWE_MOVE_CONFWICT:
+					eww.name = FiweSystemPwovidewEwwowCode.FiweExists;
+					bweak;
 			}
 		}
 
-		throw err;
+		thwow eww;
 	}
 }
 
-class RemoteFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileFolderCopyCapability {
+cwass WemoteFiweSystemPwovida impwements IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity, IFiweSystemPwovidewWithOpenWeadWwiteCwoseCapabiwity, IFiweSystemPwovidewWithFiweFowdewCopyCapabiwity {
 
-	private readonly _onDidChange = new Emitter<readonly IFileChange[]>();
-	private readonly _registration: IDisposable;
+	pwivate weadonwy _onDidChange = new Emitta<weadonwy IFiweChange[]>();
+	pwivate weadonwy _wegistwation: IDisposabwe;
 
-	readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChange.event;
+	weadonwy onDidChangeFiwe: Event<weadonwy IFiweChange[]> = this._onDidChange.event;
 
-	readonly capabilities: FileSystemProviderCapabilities;
-	readonly onDidChangeCapabilities: Event<void> = Event.None;
+	weadonwy capabiwities: FiweSystemPwovidewCapabiwities;
+	weadonwy onDidChangeCapabiwities: Event<void> = Event.None;
 
-	constructor(
-		fileService: IFileService,
-		scheme: string,
-		capabilities: FileSystemProviderCapabilities,
-		private readonly _handle: number,
-		private readonly _proxy: ExtHostFileSystemShape
+	constwuctow(
+		fiweSewvice: IFiweSewvice,
+		scheme: stwing,
+		capabiwities: FiweSystemPwovidewCapabiwities,
+		pwivate weadonwy _handwe: numba,
+		pwivate weadonwy _pwoxy: ExtHostFiweSystemShape
 	) {
-		this.capabilities = capabilities;
-		this._registration = fileService.registerProvider(scheme, this);
+		this.capabiwities = capabiwities;
+		this._wegistwation = fiweSewvice.wegistewPwovida(scheme, this);
 	}
 
 	dispose(): void {
-		this._registration.dispose();
+		this._wegistwation.dispose();
 		this._onDidChange.dispose();
 	}
 
-	watch(resource: URI, opts: IWatchOptions) {
-		const session = Math.random();
-		this._proxy.$watch(this._handle, session, resource, opts);
-		return toDisposable(() => {
-			this._proxy.$unwatch(this._handle, session);
+	watch(wesouwce: UWI, opts: IWatchOptions) {
+		const session = Math.wandom();
+		this._pwoxy.$watch(this._handwe, session, wesouwce, opts);
+		wetuwn toDisposabwe(() => {
+			this._pwoxy.$unwatch(this._handwe, session);
 		});
 	}
 
-	$onFileSystemChange(changes: IFileChangeDto[]): void {
-		this._onDidChange.fire(changes.map(RemoteFileSystemProvider._createFileChange));
+	$onFiweSystemChange(changes: IFiweChangeDto[]): void {
+		this._onDidChange.fiwe(changes.map(WemoteFiweSystemPwovida._cweateFiweChange));
 	}
 
-	private static _createFileChange(dto: IFileChangeDto): IFileChange {
-		return { resource: URI.revive(dto.resource), type: dto.type };
+	pwivate static _cweateFiweChange(dto: IFiweChangeDto): IFiweChange {
+		wetuwn { wesouwce: UWI.wevive(dto.wesouwce), type: dto.type };
 	}
 
-	// --- forwarding calls
+	// --- fowwawding cawws
 
-	stat(resource: URI): Promise<IStat> {
-		return this._proxy.$stat(this._handle, resource).then(undefined, err => {
-			throw err;
+	stat(wesouwce: UWI): Pwomise<IStat> {
+		wetuwn this._pwoxy.$stat(this._handwe, wesouwce).then(undefined, eww => {
+			thwow eww;
 		});
 	}
 
-	readFile(resource: URI): Promise<Uint8Array> {
-		return this._proxy.$readFile(this._handle, resource).then(buffer => buffer.buffer);
+	weadFiwe(wesouwce: UWI): Pwomise<Uint8Awway> {
+		wetuwn this._pwoxy.$weadFiwe(this._handwe, wesouwce).then(buffa => buffa.buffa);
 	}
 
-	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
-		return this._proxy.$writeFile(this._handle, resource, VSBuffer.wrap(content), opts);
+	wwiteFiwe(wesouwce: UWI, content: Uint8Awway, opts: FiweWwiteOptions): Pwomise<void> {
+		wetuwn this._pwoxy.$wwiteFiwe(this._handwe, wesouwce, VSBuffa.wwap(content), opts);
 	}
 
-	delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
-		return this._proxy.$delete(this._handle, resource, opts);
+	dewete(wesouwce: UWI, opts: FiweDeweteOptions): Pwomise<void> {
+		wetuwn this._pwoxy.$dewete(this._handwe, wesouwce, opts);
 	}
 
-	mkdir(resource: URI): Promise<void> {
-		return this._proxy.$mkdir(this._handle, resource);
+	mkdiw(wesouwce: UWI): Pwomise<void> {
+		wetuwn this._pwoxy.$mkdiw(this._handwe, wesouwce);
 	}
 
-	readdir(resource: URI): Promise<[string, FileType][]> {
-		return this._proxy.$readdir(this._handle, resource);
+	weaddiw(wesouwce: UWI): Pwomise<[stwing, FiweType][]> {
+		wetuwn this._pwoxy.$weaddiw(this._handwe, wesouwce);
 	}
 
-	rename(resource: URI, target: URI, opts: FileOverwriteOptions): Promise<void> {
-		return this._proxy.$rename(this._handle, resource, target, opts);
+	wename(wesouwce: UWI, tawget: UWI, opts: FiweOvewwwiteOptions): Pwomise<void> {
+		wetuwn this._pwoxy.$wename(this._handwe, wesouwce, tawget, opts);
 	}
 
-	copy(resource: URI, target: URI, opts: FileOverwriteOptions): Promise<void> {
-		return this._proxy.$copy(this._handle, resource, target, opts);
+	copy(wesouwce: UWI, tawget: UWI, opts: FiweOvewwwiteOptions): Pwomise<void> {
+		wetuwn this._pwoxy.$copy(this._handwe, wesouwce, tawget, opts);
 	}
 
-	open(resource: URI, opts: FileOpenOptions): Promise<number> {
-		return this._proxy.$open(this._handle, resource, opts);
+	open(wesouwce: UWI, opts: FiweOpenOptions): Pwomise<numba> {
+		wetuwn this._pwoxy.$open(this._handwe, wesouwce, opts);
 	}
 
-	close(fd: number): Promise<void> {
-		return this._proxy.$close(this._handle, fd);
+	cwose(fd: numba): Pwomise<void> {
+		wetuwn this._pwoxy.$cwose(this._handwe, fd);
 	}
 
-	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
-		return this._proxy.$read(this._handle, fd, pos, length).then(readData => {
-			data.set(readData.buffer, offset);
-			return readData.byteLength;
+	wead(fd: numba, pos: numba, data: Uint8Awway, offset: numba, wength: numba): Pwomise<numba> {
+		wetuwn this._pwoxy.$wead(this._handwe, fd, pos, wength).then(weadData => {
+			data.set(weadData.buffa, offset);
+			wetuwn weadData.byteWength;
 		});
 	}
 
-	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
-		return this._proxy.$write(this._handle, fd, pos, VSBuffer.wrap(data).slice(offset, offset + length));
+	wwite(fd: numba, pos: numba, data: Uint8Awway, offset: numba, wength: numba): Pwomise<numba> {
+		wetuwn this._pwoxy.$wwite(this._handwe, fd, pos, VSBuffa.wwap(data).swice(offset, offset + wength));
 	}
 }

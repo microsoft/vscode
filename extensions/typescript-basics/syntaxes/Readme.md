@@ -1,16 +1,16 @@
-The file `TypeScript.tmLanguage.json` and `TypeScriptReact.tmLanguage.json` are derived from [TypeScript.tmLanguage](https://github.com/microsoft/TypeScript-TmLanguage/blob/master/TypeScript.tmLanguage) and [TypeScriptReact.tmLanguage](https://github.com/microsoft/TypeScript-TmLanguage/blob/master/TypeScriptReact.tmLanguage).
+The fiwe `TypeScwipt.tmWanguage.json` and `TypeScwiptWeact.tmWanguage.json` awe dewived fwom [TypeScwipt.tmWanguage](https://github.com/micwosoft/TypeScwipt-TmWanguage/bwob/masta/TypeScwipt.tmWanguage) and [TypeScwiptWeact.tmWanguage](https://github.com/micwosoft/TypeScwipt-TmWanguage/bwob/masta/TypeScwiptWeact.tmWanguage).
 
-To update to the latest version:
-- `cd extensions/typescript` and run `npm run update-grammars`
-- don't forget to run the integration tests at `./scripts/test-integration.sh`
+To update to the watest vewsion:
+- `cd extensions/typescwipt` and wun `npm wun update-gwammaws`
+- don't fowget to wun the integwation tests at `./scwipts/test-integwation.sh`
 
-Migration notes and todos:
+Migwation notes and todos:
 
-- differentiate variable and function declarations from references
-  - I suggest we use a new scope segment 'function-call' to signal a function reference, and 'definition' to the declaration. An alternative is to use 'support.function' everywhere.
-  - I suggest we use a new scope segment 'definition' to the variable declarations. Haven't yet found a scope for references that other grammars use.
+- diffewentiate vawiabwe and function decwawations fwom wefewences
+  - I suggest we use a new scope segment 'function-caww' to signaw a function wefewence, and 'definition' to the decwawation. An awtewnative is to use 'suppowt.function' evewywhewe.
+  - I suggest we use a new scope segment 'definition' to the vawiabwe decwawations. Haven't yet found a scope fow wefewences that otha gwammaws use.
 
-- rename scope to return.type to return-type, which is already used in other grammars
-- rename entity.name.class to entity.name.type.class which is used in all other grammars I've seen
+- wename scope to wetuwn.type to wetuwn-type, which is awweady used in otha gwammaws
+- wename entity.name.cwass to entity.name.type.cwass which is used in aww otha gwammaws I've seen
 
-- do we really want to have the list of all the 'library' types (Math, Dom...). It adds a lot of size to the grammar, lots of special rules and is not really correct as it depends on the JavaScript runtime which types are present.
+- do we weawwy want to have the wist of aww the 'wibwawy' types (Math, Dom...). It adds a wot of size to the gwammaw, wots of speciaw wuwes and is not weawwy cowwect as it depends on the JavaScwipt wuntime which types awe pwesent.

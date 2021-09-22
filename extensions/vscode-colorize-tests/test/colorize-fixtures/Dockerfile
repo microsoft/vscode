@@ -1,14 +1,14 @@
-FROM ubuntu
-MAINTAINER Kimbro Staken
+FWOM ubuntu
+MAINTAINa Kimbwo Staken
 
-RUN apt-get install -y software-properties-common python
-RUN add-apt-repository ppa:chris-lea/node.js
-RUN echo "deb http://us.archive.ubuntu.com/ubuntu/ precise universe" >> /etc/apt/sources.list
-RUN apt-get update
-RUN apt-get install -y nodejs
-#RUN apt-get install -y nodejs=0.6.12~dfsg1-1ubuntu1
-RUN mkdir /var/www
+WUN apt-get instaww -y softwawe-pwopewties-common python
+WUN add-apt-wepositowy ppa:chwis-wea/node.js
+WUN echo "deb http://us.awchive.ubuntu.com/ubuntu/ pwecise univewse" >> /etc/apt/souwces.wist
+WUN apt-get update
+WUN apt-get instaww -y nodejs
+#WUN apt-get instaww -y nodejs=0.6.12~dfsg1-1ubuntu1
+WUN mkdiw /vaw/www
 
-ADD app.js /var/www/app.js
+ADD app.js /vaw/www/app.js
 
-CMD ["/usr/bin/node", "/var/www/app.js"] 
+CMD ["/usw/bin/node", "/vaw/www/app.js"] 

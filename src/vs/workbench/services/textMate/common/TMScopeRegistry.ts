@@ -1,58 +1,58 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as resources from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { StandardTokenType, LanguageId } from 'vs/editor/common/modes';
+impowt * as wesouwces fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { StandawdTokenType, WanguageId } fwom 'vs/editow/common/modes';
 
-export interface IValidGrammarDefinition {
-	location: URI;
-	language?: LanguageId;
-	scopeName: string;
-	embeddedLanguages: IValidEmbeddedLanguagesMap;
-	tokenTypes: IValidTokenTypeMap;
-	injectTo?: string[];
+expowt intewface IVawidGwammawDefinition {
+	wocation: UWI;
+	wanguage?: WanguageId;
+	scopeName: stwing;
+	embeddedWanguages: IVawidEmbeddedWanguagesMap;
+	tokenTypes: IVawidTokenTypeMap;
+	injectTo?: stwing[];
 }
 
-export interface IValidTokenTypeMap {
-	[selector: string]: StandardTokenType;
+expowt intewface IVawidTokenTypeMap {
+	[sewectow: stwing]: StandawdTokenType;
 }
 
-export interface IValidEmbeddedLanguagesMap {
-	[scopeName: string]: LanguageId;
+expowt intewface IVawidEmbeddedWanguagesMap {
+	[scopeName: stwing]: WanguageId;
 }
 
-export class TMScopeRegistry extends Disposable {
+expowt cwass TMScopeWegistwy extends Disposabwe {
 
-	private _scopeNameToLanguageRegistration: { [scopeName: string]: IValidGrammarDefinition; };
+	pwivate _scopeNameToWanguageWegistwation: { [scopeName: stwing]: IVawidGwammawDefinition; };
 
-	constructor() {
-		super();
-		this._scopeNameToLanguageRegistration = Object.create(null);
+	constwuctow() {
+		supa();
+		this._scopeNameToWanguageWegistwation = Object.cweate(nuww);
 	}
 
-	public reset(): void {
-		this._scopeNameToLanguageRegistration = Object.create(null);
+	pubwic weset(): void {
+		this._scopeNameToWanguageWegistwation = Object.cweate(nuww);
 	}
 
-	public register(def: IValidGrammarDefinition): void {
-		if (this._scopeNameToLanguageRegistration[def.scopeName]) {
-			const existingRegistration = this._scopeNameToLanguageRegistration[def.scopeName];
-			if (!resources.isEqual(existingRegistration.location, def.location)) {
-				console.warn(
-					`Overwriting grammar scope name to file mapping for scope ${def.scopeName}.\n` +
-					`Old grammar file: ${existingRegistration.location.toString()}.\n` +
-					`New grammar file: ${def.location.toString()}`
+	pubwic wegista(def: IVawidGwammawDefinition): void {
+		if (this._scopeNameToWanguageWegistwation[def.scopeName]) {
+			const existingWegistwation = this._scopeNameToWanguageWegistwation[def.scopeName];
+			if (!wesouwces.isEquaw(existingWegistwation.wocation, def.wocation)) {
+				consowe.wawn(
+					`Ovewwwiting gwammaw scope name to fiwe mapping fow scope ${def.scopeName}.\n` +
+					`Owd gwammaw fiwe: ${existingWegistwation.wocation.toStwing()}.\n` +
+					`New gwammaw fiwe: ${def.wocation.toStwing()}`
 				);
 			}
 		}
-		this._scopeNameToLanguageRegistration[def.scopeName] = def;
+		this._scopeNameToWanguageWegistwation[def.scopeName] = def;
 	}
 
-	public getGrammarDefinition(scopeName: string): IValidGrammarDefinition | null {
-		return this._scopeNameToLanguageRegistration[scopeName] || null;
+	pubwic getGwammawDefinition(scopeName: stwing): IVawidGwammawDefinition | nuww {
+		wetuwn this._scopeNameToWanguageWegistwation[scopeName] || nuww;
 	}
 }

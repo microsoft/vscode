@@ -1,2433 +1,2433 @@
 [
 	{
 		"c": "//",
-		"t": "source.cpp comment.line.double-slash.cpp punctuation.definition.comment.cpp",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.cpp comment.wine.doubwe-swash.cpp punctuation.definition.comment.cpp",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
-		"c": " classes example",
-		"t": "source.cpp comment.line.double-slash.cpp",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"c": " cwasses exampwe",
+		"t": "souwce.cpp comment.wine.doubwe-swash.cpp",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "#",
-		"t": "source.cpp meta.preprocessor.include.cpp keyword.control.directive.include.cpp punctuation.definition.directive.cpp",
-		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+		"t": "souwce.cpp meta.pwepwocessow.incwude.cpp keywowd.contwow.diwective.incwude.cpp punctuation.definition.diwective.cpp",
+		"w": {
+			"dawk_pwus": "keywowd.contwow: #C586C0",
+			"wight_pwus": "keywowd.contwow: #AF00DB",
+			"dawk_vs": "keywowd.contwow: #569CD6",
+			"wight_vs": "keywowd.contwow: #0000FF",
+			"hc_bwack": "keywowd.contwow: #C586C0"
 		}
 	},
 	{
-		"c": "include",
-		"t": "source.cpp meta.preprocessor.include.cpp keyword.control.directive.include.cpp",
-		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+		"c": "incwude",
+		"t": "souwce.cpp meta.pwepwocessow.incwude.cpp keywowd.contwow.diwective.incwude.cpp",
+		"w": {
+			"dawk_pwus": "keywowd.contwow: #C586C0",
+			"wight_pwus": "keywowd.contwow: #AF00DB",
+			"dawk_vs": "keywowd.contwow: #569CD6",
+			"wight_vs": "keywowd.contwow: #0000FF",
+			"hc_bwack": "keywowd.contwow: #C586C0"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.preprocessor.include.cpp",
-		"r": {
-			"dark_plus": "meta.preprocessor: #569CD6",
-			"light_plus": "meta.preprocessor: #0000FF",
-			"dark_vs": "meta.preprocessor: #569CD6",
-			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+		"t": "souwce.cpp meta.pwepwocessow.incwude.cpp",
+		"w": {
+			"dawk_pwus": "meta.pwepwocessow: #569CD6",
+			"wight_pwus": "meta.pwepwocessow: #0000FF",
+			"dawk_vs": "meta.pwepwocessow: #569CD6",
+			"wight_vs": "meta.pwepwocessow: #0000FF",
+			"hc_bwack": "meta.pwepwocessow: #569CD6"
 		}
 	},
 	{
 		"c": "<",
-		"t": "source.cpp meta.preprocessor.include.cpp string.quoted.other.lt-gt.include.cpp punctuation.definition.string.begin.cpp",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.cpp meta.pwepwocessow.incwude.cpp stwing.quoted.otha.wt-gt.incwude.cpp punctuation.definition.stwing.begin.cpp",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
-		"c": "iostream",
-		"t": "source.cpp meta.preprocessor.include.cpp string.quoted.other.lt-gt.include.cpp",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"c": "iostweam",
+		"t": "souwce.cpp meta.pwepwocessow.incwude.cpp stwing.quoted.otha.wt-gt.incwude.cpp",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": ">",
-		"t": "source.cpp meta.preprocessor.include.cpp string.quoted.other.lt-gt.include.cpp punctuation.definition.string.end.cpp",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.cpp meta.pwepwocessow.incwude.cpp stwing.quoted.otha.wt-gt.incwude.cpp punctuation.definition.stwing.end.cpp",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": "using",
-		"t": "source.cpp meta.using-namespace.cpp keyword.other.using.directive.cpp",
-		"r": {
-			"dark_plus": "keyword.other.using: #C586C0",
-			"light_plus": "keyword.other.using: #AF00DB",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword.other.using: #C586C0"
+		"t": "souwce.cpp meta.using-namespace.cpp keywowd.otha.using.diwective.cpp",
+		"w": {
+			"dawk_pwus": "keywowd.otha.using: #C586C0",
+			"wight_pwus": "keywowd.otha.using: #AF00DB",
+			"dawk_vs": "keywowd: #569CD6",
+			"wight_vs": "keywowd: #0000FF",
+			"hc_bwack": "keywowd.otha.using: #C586C0"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.using-namespace.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.using-namespace.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "namespace",
-		"t": "source.cpp meta.using-namespace.cpp keyword.other.namespace.directive.cpp storage.type.namespace.directive.cpp",
-		"r": {
-			"dark_plus": "storage.type: #569CD6",
-			"light_plus": "storage.type: #0000FF",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+		"t": "souwce.cpp meta.using-namespace.cpp keywowd.otha.namespace.diwective.cpp stowage.type.namespace.diwective.cpp",
+		"w": {
+			"dawk_pwus": "stowage.type: #569CD6",
+			"wight_pwus": "stowage.type: #0000FF",
+			"dawk_vs": "stowage.type: #569CD6",
+			"wight_vs": "stowage.type: #0000FF",
+			"hc_bwack": "stowage.type: #569CD6"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.using-namespace.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.using-namespace.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "std",
-		"t": "source.cpp meta.using-namespace.cpp entity.name.namespace.cpp",
-		"r": {
-			"dark_plus": "entity.name.namespace: #4EC9B0",
-			"light_plus": "entity.name.namespace: #267F99",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "entity.name.namespace: #4EC9B0"
+		"t": "souwce.cpp meta.using-namespace.cpp entity.name.namespace.cpp",
+		"w": {
+			"dawk_pwus": "entity.name.namespace: #4EC9B0",
+			"wight_pwus": "entity.name.namespace: #267F99",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "entity.name.namespace: #4EC9B0"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.cpp meta.using-namespace.cpp punctuation.terminator.statement.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.using-namespace.cpp punctuation.tewminatow.statement.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "#",
-		"t": "source.cpp meta.preprocessor.macro.cpp keyword.control.directive.define.cpp punctuation.definition.directive.cpp",
-		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+		"t": "souwce.cpp meta.pwepwocessow.macwo.cpp keywowd.contwow.diwective.define.cpp punctuation.definition.diwective.cpp",
+		"w": {
+			"dawk_pwus": "keywowd.contwow: #C586C0",
+			"wight_pwus": "keywowd.contwow: #AF00DB",
+			"dawk_vs": "keywowd.contwow: #569CD6",
+			"wight_vs": "keywowd.contwow: #0000FF",
+			"hc_bwack": "keywowd.contwow: #C586C0"
 		}
 	},
 	{
 		"c": "define",
-		"t": "source.cpp meta.preprocessor.macro.cpp keyword.control.directive.define.cpp",
-		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+		"t": "souwce.cpp meta.pwepwocessow.macwo.cpp keywowd.contwow.diwective.define.cpp",
+		"w": {
+			"dawk_pwus": "keywowd.contwow: #C586C0",
+			"wight_pwus": "keywowd.contwow: #AF00DB",
+			"dawk_vs": "keywowd.contwow: #569CD6",
+			"wight_vs": "keywowd.contwow: #0000FF",
+			"hc_bwack": "keywowd.contwow: #C586C0"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.preprocessor.macro.cpp",
-		"r": {
-			"dark_plus": "meta.preprocessor: #569CD6",
-			"light_plus": "meta.preprocessor: #0000FF",
-			"dark_vs": "meta.preprocessor: #569CD6",
-			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+		"t": "souwce.cpp meta.pwepwocessow.macwo.cpp",
+		"w": {
+			"dawk_pwus": "meta.pwepwocessow: #569CD6",
+			"wight_pwus": "meta.pwepwocessow: #0000FF",
+			"dawk_vs": "meta.pwepwocessow: #569CD6",
+			"wight_vs": "meta.pwepwocessow: #0000FF",
+			"hc_bwack": "meta.pwepwocessow: #569CD6"
 		}
 	},
 	{
-		"c": "EXTERN_C",
-		"t": "source.cpp meta.preprocessor.macro.cpp entity.name.function.preprocessor.cpp",
-		"r": {
-			"dark_plus": "entity.name.function.preprocessor: #569CD6",
-			"light_plus": "entity.name.function.preprocessor: #0000FF",
-			"dark_vs": "entity.name.function.preprocessor: #569CD6",
-			"light_vs": "entity.name.function.preprocessor: #0000FF",
-			"hc_black": "entity.name.function: #DCDCAA"
-		}
-	},
-	{
-		"c": " ",
-		"t": "source.cpp meta.preprocessor.macro.cpp meta.block.extern.cpp",
-		"r": {
-			"dark_plus": "meta.preprocessor: #569CD6",
-			"light_plus": "meta.preprocessor: #0000FF",
-			"dark_vs": "meta.preprocessor: #569CD6",
-			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
-		}
-	},
-	{
-		"c": "extern",
-		"t": "source.cpp meta.preprocessor.macro.cpp meta.block.extern.cpp meta.head.extern.cpp storage.type.extern.cpp",
-		"r": {
-			"dark_plus": "storage.type: #569CD6",
-			"light_plus": "storage.type: #0000FF",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+		"c": "EXTEWN_C",
+		"t": "souwce.cpp meta.pwepwocessow.macwo.cpp entity.name.function.pwepwocessow.cpp",
+		"w": {
+			"dawk_pwus": "entity.name.function.pwepwocessow: #569CD6",
+			"wight_pwus": "entity.name.function.pwepwocessow: #0000FF",
+			"dawk_vs": "entity.name.function.pwepwocessow: #569CD6",
+			"wight_vs": "entity.name.function.pwepwocessow: #0000FF",
+			"hc_bwack": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.preprocessor.macro.cpp meta.block.extern.cpp meta.head.extern.cpp",
-		"r": {
-			"dark_plus": "meta.preprocessor: #569CD6",
-			"light_plus": "meta.preprocessor: #0000FF",
-			"dark_vs": "meta.preprocessor: #569CD6",
-			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+		"t": "souwce.cpp meta.pwepwocessow.macwo.cpp meta.bwock.extewn.cpp",
+		"w": {
+			"dawk_pwus": "meta.pwepwocessow: #569CD6",
+			"wight_pwus": "meta.pwepwocessow: #0000FF",
+			"dawk_vs": "meta.pwepwocessow: #569CD6",
+			"wight_vs": "meta.pwepwocessow: #0000FF",
+			"hc_bwack": "meta.pwepwocessow: #569CD6"
+		}
+	},
+	{
+		"c": "extewn",
+		"t": "souwce.cpp meta.pwepwocessow.macwo.cpp meta.bwock.extewn.cpp meta.head.extewn.cpp stowage.type.extewn.cpp",
+		"w": {
+			"dawk_pwus": "stowage.type: #569CD6",
+			"wight_pwus": "stowage.type: #0000FF",
+			"dawk_vs": "stowage.type: #569CD6",
+			"wight_vs": "stowage.type: #0000FF",
+			"hc_bwack": "stowage.type: #569CD6"
+		}
+	},
+	{
+		"c": " ",
+		"t": "souwce.cpp meta.pwepwocessow.macwo.cpp meta.bwock.extewn.cpp meta.head.extewn.cpp",
+		"w": {
+			"dawk_pwus": "meta.pwepwocessow: #569CD6",
+			"wight_pwus": "meta.pwepwocessow: #0000FF",
+			"dawk_vs": "meta.pwepwocessow: #569CD6",
+			"wight_vs": "meta.pwepwocessow: #0000FF",
+			"hc_bwack": "meta.pwepwocessow: #569CD6"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.cpp meta.preprocessor.macro.cpp meta.block.extern.cpp meta.head.extern.cpp string.quoted.double.cpp punctuation.definition.string.begin.cpp",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.cpp meta.pwepwocessow.macwo.cpp meta.bwock.extewn.cpp meta.head.extewn.cpp stwing.quoted.doubwe.cpp punctuation.definition.stwing.begin.cpp",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": "C",
-		"t": "source.cpp meta.preprocessor.macro.cpp meta.block.extern.cpp meta.head.extern.cpp string.quoted.double.cpp",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.cpp meta.pwepwocessow.macwo.cpp meta.bwock.extewn.cpp meta.head.extewn.cpp stwing.quoted.doubwe.cpp",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.cpp meta.preprocessor.macro.cpp meta.block.extern.cpp meta.head.extern.cpp string.quoted.double.cpp punctuation.definition.string.end.cpp",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.cpp meta.pwepwocessow.macwo.cpp meta.bwock.extewn.cpp meta.head.extewn.cpp stwing.quoted.doubwe.cpp punctuation.definition.stwing.end.cpp",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
-		"c": "class",
-		"t": "source.cpp meta.block.class.cpp meta.head.class.cpp storage.type.class.cpp",
-		"r": {
-			"dark_plus": "storage.type: #569CD6",
-			"light_plus": "storage.type: #0000FF",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
-		}
-	},
-	{
-		"c": " ",
-		"t": "source.cpp meta.block.class.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "Rectangle",
-		"t": "source.cpp meta.block.class.cpp entity.name.type.class.cpp",
-		"r": {
-			"dark_plus": "entity.name.type: #4EC9B0",
-			"light_plus": "entity.name.type: #267F99",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "entity.name.type: #4EC9B0"
+		"c": "cwass",
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.head.cwass.cpp stowage.type.cwass.cpp",
+		"w": {
+			"dawk_pwus": "stowage.type: #569CD6",
+			"wight_pwus": "stowage.type: #0000FF",
+			"dawk_vs": "stowage.type: #569CD6",
+			"wight_vs": "stowage.type: #0000FF",
+			"hc_bwack": "stowage.type: #569CD6"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.block.class.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.bwock.cwass.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
+		}
+	},
+	{
+		"c": "Wectangwe",
+		"t": "souwce.cpp meta.bwock.cwass.cpp entity.name.type.cwass.cpp",
+		"w": {
+			"dawk_pwus": "entity.name.type: #4EC9B0",
+			"wight_pwus": "entity.name.type: #267F99",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "entity.name.type: #4EC9B0"
+		}
+	},
+	{
+		"c": " ",
+		"t": "souwce.cpp meta.bwock.cwass.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "{",
-		"t": "source.cpp meta.block.class.cpp meta.head.class.cpp punctuation.section.block.begin.bracket.curly.class.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.head.cwass.cpp punctuation.section.bwock.begin.bwacket.cuwwy.cwass.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "int",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
-		"r": {
-			"dark_plus": "storage.type: #569CD6",
-			"light_plus": "storage.type: #0000FF",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp stowage.type.pwimitive.cpp stowage.type.buiwt-in.pwimitive.cpp",
+		"w": {
+			"dawk_pwus": "stowage.type: #569CD6",
+			"wight_pwus": "stowage.type: #0000FF",
+			"dawk_vs": "stowage.type: #569CD6",
+			"wight_vs": "stowage.type: #0000FF",
+			"hc_bwack": "stowage.type: #569CD6"
 		}
 	},
 	{
 		"c": " width",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ",",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp punctuation.separator.delimiter.comma.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp punctuation.sepawatow.dewimita.comma.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " height",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp punctuation.terminator.statement.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp punctuation.tewminatow.statement.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "  ",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "public",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp storage.type.modifier.access.control.public.cpp",
-		"r": {
-			"dark_plus": "storage.type: #569CD6",
-			"light_plus": "storage.type: #0000FF",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+		"c": "pubwic",
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp stowage.type.modifia.access.contwow.pubwic.cpp",
+		"w": {
+			"dawk_pwus": "stowage.type: #569CD6",
+			"wight_pwus": "stowage.type: #0000FF",
+			"dawk_vs": "stowage.type: #569CD6",
+			"wight_vs": "stowage.type: #0000FF",
+			"hc_bwack": "stowage.type: #569CD6"
 		}
 	},
 	{
 		"c": ":",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp storage.type.modifier.access.control.public.cpp punctuation.separator.colon.access.control.cpp",
-		"r": {
-			"dark_plus": "storage.type: #569CD6",
-			"light_plus": "storage.type: #0000FF",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp stowage.type.modifia.access.contwow.pubwic.cpp punctuation.sepawatow.cowon.access.contwow.cpp",
+		"w": {
+			"dawk_pwus": "stowage.type: #569CD6",
+			"wight_pwus": "stowage.type: #0000FF",
+			"dawk_vs": "stowage.type: #569CD6",
+			"wight_vs": "stowage.type: #0000FF",
+			"hc_bwack": "stowage.type: #569CD6"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp meta.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "void",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.qualified_type.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
-		"r": {
-			"dark_plus": "storage.type: #569CD6",
-			"light_plus": "storage.type: #0000FF",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp meta.function.definition.cpp meta.quawified_type.cpp stowage.type.pwimitive.cpp stowage.type.buiwt-in.pwimitive.cpp",
+		"w": {
+			"dawk_pwus": "stowage.type: #569CD6",
+			"wight_pwus": "stowage.type: #0000FF",
+			"dawk_vs": "stowage.type: #569CD6",
+			"wight_vs": "stowage.type: #0000FF",
+			"hc_bwack": "stowage.type: #569CD6"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp meta.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "set_values",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.head.function.definition.cpp entity.name.function.definition.cpp",
-		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "entity.name.function: #DCDCAA"
+		"c": "set_vawues",
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp meta.function.definition.cpp meta.head.function.definition.cpp entity.name.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "entity.name.function: #DCDCAA",
+			"wight_pwus": "entity.name.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp meta.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.head.function.definition.cpp punctuation.section.parameters.begin.bracket.round.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp meta.function.definition.cpp meta.head.function.definition.cpp punctuation.section.pawametews.begin.bwacket.wound.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "int",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters meta.parameter.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
-		"r": {
-			"dark_plus": "storage.type: #569CD6",
-			"light_plus": "storage.type: #0000FF",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.pawametews meta.pawameta.cpp stowage.type.pwimitive.cpp stowage.type.buiwt-in.pwimitive.cpp",
+		"w": {
+			"dawk_pwus": "stowage.type: #569CD6",
+			"wight_pwus": "stowage.type: #0000FF",
+			"dawk_vs": "stowage.type: #569CD6",
+			"wight_vs": "stowage.type: #0000FF",
+			"hc_bwack": "stowage.type: #569CD6"
 		}
 	},
 	{
 		"c": ",",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters meta.parameter.cpp punctuation.separator.delimiter.comma.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.pawametews meta.pawameta.cpp punctuation.sepawatow.dewimita.comma.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "int",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters meta.parameter.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
-		"r": {
-			"dark_plus": "storage.type: #569CD6",
-			"light_plus": "storage.type: #0000FF",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.pawametews meta.pawameta.cpp stowage.type.pwimitive.cpp stowage.type.buiwt-in.pwimitive.cpp",
+		"w": {
+			"dawk_pwus": "stowage.type: #569CD6",
+			"wight_pwus": "stowage.type: #0000FF",
+			"dawk_vs": "stowage.type: #569CD6",
+			"wight_vs": "stowage.type: #0000FF",
+			"hc_bwack": "stowage.type: #569CD6"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.head.function.definition.cpp punctuation.section.parameters.end.bracket.round.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp meta.function.definition.cpp meta.head.function.definition.cpp punctuation.section.pawametews.end.bwacket.wound.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp punctuation.terminator.statement.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp punctuation.tewminatow.statement.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp meta.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "int",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.qualified_type.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
-		"r": {
-			"dark_plus": "storage.type: #569CD6",
-			"light_plus": "storage.type: #0000FF",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp meta.function.definition.cpp meta.quawified_type.cpp stowage.type.pwimitive.cpp stowage.type.buiwt-in.pwimitive.cpp",
+		"w": {
+			"dawk_pwus": "stowage.type: #569CD6",
+			"wight_pwus": "stowage.type: #0000FF",
+			"dawk_vs": "stowage.type: #569CD6",
+			"wight_vs": "stowage.type: #0000FF",
+			"hc_bwack": "stowage.type: #569CD6"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp meta.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "area",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.head.function.definition.cpp entity.name.function.definition.cpp",
-		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "entity.name.function: #DCDCAA"
+		"c": "awea",
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp meta.function.definition.cpp meta.head.function.definition.cpp entity.name.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "entity.name.function: #DCDCAA",
+			"wight_pwus": "entity.name.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.head.function.definition.cpp punctuation.section.parameters.begin.bracket.round.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp meta.function.definition.cpp meta.head.function.definition.cpp punctuation.section.pawametews.begin.bwacket.wound.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.head.function.definition.cpp punctuation.section.parameters.end.bracket.round.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp meta.function.definition.cpp meta.head.function.definition.cpp punctuation.section.pawametews.end.bwacket.wound.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.head.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp meta.function.definition.cpp meta.head.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "{",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.head.function.definition.cpp punctuation.section.block.begin.bracket.curly.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp meta.function.definition.cpp meta.head.function.definition.cpp punctuation.section.bwock.begin.bwacket.cuwwy.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "return",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.body.function.definition.cpp keyword.control.return.cpp",
-		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+		"c": "wetuwn",
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp meta.function.definition.cpp meta.body.function.definition.cpp keywowd.contwow.wetuwn.cpp",
+		"w": {
+			"dawk_pwus": "keywowd.contwow: #C586C0",
+			"wight_pwus": "keywowd.contwow: #AF00DB",
+			"dawk_vs": "keywowd.contwow: #569CD6",
+			"wight_vs": "keywowd.contwow: #0000FF",
+			"hc_bwack": "keywowd.contwow: #C586C0"
 		}
 	},
 	{
 		"c": " width",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "*",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.body.function.definition.cpp keyword.operator.cpp",
-		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4"
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp meta.function.definition.cpp meta.body.function.definition.cpp keywowd.opewatow.cpp",
+		"w": {
+			"dawk_pwus": "keywowd.opewatow: #D4D4D4",
+			"wight_pwus": "keywowd.opewatow: #000000",
+			"dawk_vs": "keywowd.opewatow: #D4D4D4",
+			"wight_vs": "keywowd.opewatow: #000000",
+			"hc_bwack": "keywowd.opewatow: #D4D4D4"
 		}
 	},
 	{
 		"c": "height",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.terminator.statement.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.tewminatow.statement.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "}",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.section.block.end.bracket.curly.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.section.bwock.end.bwacket.cuwwy.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "}",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp punctuation.section.block.end.bracket.curly.class.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.bwock.cwass.cpp meta.body.cwass.cpp punctuation.section.bwock.end.bwacket.cuwwy.cwass.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.cpp meta.block.class.cpp punctuation.terminator.statement.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.bwock.cwass.cpp punctuation.tewminatow.statement.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "void",
-		"t": "source.cpp meta.function.definition.cpp meta.qualified_type.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
-		"r": {
-			"dark_plus": "storage.type: #569CD6",
-			"light_plus": "storage.type: #0000FF",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+		"t": "souwce.cpp meta.function.definition.cpp meta.quawified_type.cpp stowage.type.pwimitive.cpp stowage.type.buiwt-in.pwimitive.cpp",
+		"w": {
+			"dawk_pwus": "stowage.type: #569CD6",
+			"wight_pwus": "stowage.type: #0000FF",
+			"dawk_vs": "stowage.type: #569CD6",
+			"wight_vs": "stowage.type: #0000FF",
+			"hc_bwack": "stowage.type: #569CD6"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "Rectangle",
-		"t": "source.cpp meta.function.definition.cpp entity.name.scope-resolution.function.definition.cpp",
-		"r": {
-			"dark_plus": "entity.name.scope-resolution: #4EC9B0",
-			"light_plus": "entity.name.scope-resolution: #267F99",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "entity.name.scope-resolution: #4EC9B0"
+		"c": "Wectangwe",
+		"t": "souwce.cpp meta.function.definition.cpp entity.name.scope-wesowution.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "entity.name.scope-wesowution: #4EC9B0",
+			"wight_pwus": "entity.name.scope-wesowution: #267F99",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "entity.name.scope-wesowution: #4EC9B0"
 		}
 	},
 	{
 		"c": "::",
-		"t": "source.cpp meta.function.definition.cpp punctuation.separator.namespace.access.cpp punctuation.separator.scope-resolution.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp punctuation.sepawatow.namespace.access.cpp punctuation.sepawatow.scope-wesowution.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "set_values",
-		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp entity.name.function.definition.cpp",
-		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "entity.name.function: #DCDCAA"
+		"c": "set_vawues",
+		"t": "souwce.cpp meta.function.definition.cpp meta.head.function.definition.cpp entity.name.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "entity.name.function: #DCDCAA",
+			"wight_pwus": "entity.name.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp punctuation.section.parameters.begin.bracket.round.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.head.function.definition.cpp punctuation.section.pawametews.begin.bwacket.wound.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "int",
-		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters meta.parameter.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
-		"r": {
-			"dark_plus": "storage.type: #569CD6",
-			"light_plus": "storage.type: #0000FF",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+		"t": "souwce.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.pawametews meta.pawameta.cpp stowage.type.pwimitive.cpp stowage.type.buiwt-in.pwimitive.cpp",
+		"w": {
+			"dawk_pwus": "stowage.type: #569CD6",
+			"wight_pwus": "stowage.type: #0000FF",
+			"dawk_vs": "stowage.type: #569CD6",
+			"wight_vs": "stowage.type: #0000FF",
+			"hc_bwack": "stowage.type: #569CD6"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters meta.parameter.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.pawametews meta.pawameta.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "x",
-		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters meta.parameter.cpp variable.parameter.cpp",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.pawametews meta.pawameta.cpp vawiabwe.pawameta.cpp",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": ",",
-		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters meta.parameter.cpp punctuation.separator.delimiter.comma.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.pawametews meta.pawameta.cpp punctuation.sepawatow.dewimita.comma.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters meta.parameter.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.pawametews meta.pawameta.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "int",
-		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters meta.parameter.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
-		"r": {
-			"dark_plus": "storage.type: #569CD6",
-			"light_plus": "storage.type: #0000FF",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+		"t": "souwce.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.pawametews meta.pawameta.cpp stowage.type.pwimitive.cpp stowage.type.buiwt-in.pwimitive.cpp",
+		"w": {
+			"dawk_pwus": "stowage.type: #569CD6",
+			"wight_pwus": "stowage.type: #0000FF",
+			"dawk_vs": "stowage.type: #569CD6",
+			"wight_vs": "stowage.type: #0000FF",
+			"hc_bwack": "stowage.type: #569CD6"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters meta.parameter.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.pawametews meta.pawameta.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "y",
-		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters meta.parameter.cpp variable.parameter.cpp",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.pawametews meta.pawameta.cpp vawiabwe.pawameta.cpp",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp punctuation.section.parameters.end.bracket.round.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.head.function.definition.cpp punctuation.section.pawametews.end.bwacket.wound.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.head.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "{",
-		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp punctuation.section.block.begin.bracket.curly.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.head.function.definition.cpp punctuation.section.bwock.begin.bwacket.cuwwy.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "  width ",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "=",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp keyword.operator.assignment.cpp",
-		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp keywowd.opewatow.assignment.cpp",
+		"w": {
+			"dawk_pwus": "keywowd.opewatow: #D4D4D4",
+			"wight_pwus": "keywowd.opewatow: #000000",
+			"dawk_vs": "keywowd.opewatow: #D4D4D4",
+			"wight_vs": "keywowd.opewatow: #000000",
+			"hc_bwack": "keywowd.opewatow: #D4D4D4"
 		}
 	},
 	{
 		"c": " x",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.terminator.statement.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.tewminatow.statement.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "  height ",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "=",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp keyword.operator.assignment.cpp",
-		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp keywowd.opewatow.assignment.cpp",
+		"w": {
+			"dawk_pwus": "keywowd.opewatow: #D4D4D4",
+			"wight_pwus": "keywowd.opewatow: #000000",
+			"dawk_vs": "keywowd.opewatow: #D4D4D4",
+			"wight_vs": "keywowd.opewatow: #000000",
+			"hc_bwack": "keywowd.opewatow: #D4D4D4"
 		}
 	},
 	{
 		"c": " y",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.terminator.statement.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.tewminatow.statement.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "}",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.section.block.end.bracket.curly.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.section.bwock.end.bwacket.cuwwy.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "long",
-		"t": "source.cpp meta.function.definition.special.operator-overload.cpp meta.qualified_type.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
-		"r": {
-			"dark_plus": "storage.type: #569CD6",
-			"light_plus": "storage.type: #0000FF",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
-		}
-	},
-	{
-		"c": " ",
-		"t": "source.cpp meta.function.definition.special.operator-overload.cpp meta.qualified_type.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "double",
-		"t": "source.cpp meta.function.definition.special.operator-overload.cpp meta.qualified_type.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
-		"r": {
-			"dark_plus": "storage.type: #569CD6",
-			"light_plus": "storage.type: #0000FF",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+		"c": "wong",
+		"t": "souwce.cpp meta.function.definition.speciaw.opewatow-ovewwoad.cpp meta.quawified_type.cpp stowage.type.pwimitive.cpp stowage.type.buiwt-in.pwimitive.cpp",
+		"w": {
+			"dawk_pwus": "stowage.type: #569CD6",
+			"wight_pwus": "stowage.type: #0000FF",
+			"dawk_vs": "stowage.type: #569CD6",
+			"wight_vs": "stowage.type: #0000FF",
+			"hc_bwack": "stowage.type: #569CD6"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.function.definition.special.operator-overload.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.speciaw.opewatow-ovewwoad.cpp meta.quawified_type.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "operator",
-		"t": "source.cpp meta.function.definition.special.operator-overload.cpp meta.head.function.definition.special.operator-overload.cpp keyword.other.operator.overload.cpp",
-		"r": {
-			"dark_plus": "keyword.other.operator: #C586C0",
-			"light_plus": "keyword.other.operator: #AF00DB",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword.other.operator: #C586C0"
+		"c": "doubwe",
+		"t": "souwce.cpp meta.function.definition.speciaw.opewatow-ovewwoad.cpp meta.quawified_type.cpp stowage.type.pwimitive.cpp stowage.type.buiwt-in.pwimitive.cpp",
+		"w": {
+			"dawk_pwus": "stowage.type: #569CD6",
+			"wight_pwus": "stowage.type: #0000FF",
+			"dawk_vs": "stowage.type: #569CD6",
+			"wight_vs": "stowage.type: #0000FF",
+			"hc_bwack": "stowage.type: #569CD6"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.function.definition.special.operator-overload.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.speciaw.opewatow-ovewwoad.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
+		}
+	},
+	{
+		"c": "opewatow",
+		"t": "souwce.cpp meta.function.definition.speciaw.opewatow-ovewwoad.cpp meta.head.function.definition.speciaw.opewatow-ovewwoad.cpp keywowd.otha.opewatow.ovewwoad.cpp",
+		"w": {
+			"dawk_pwus": "keywowd.otha.opewatow: #C586C0",
+			"wight_pwus": "keywowd.otha.opewatow: #AF00DB",
+			"dawk_vs": "keywowd: #569CD6",
+			"wight_vs": "keywowd: #0000FF",
+			"hc_bwack": "keywowd.otha.opewatow: #C586C0"
+		}
+	},
+	{
+		"c": " ",
+		"t": "souwce.cpp meta.function.definition.speciaw.opewatow-ovewwoad.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "\"\"",
-		"t": "source.cpp meta.function.definition.special.operator-overload.cpp meta.head.function.definition.special.operator-overload.cpp entity.name.operator.custom-literal.cpp",
-		"r": {
-			"dark_plus": "entity.name.operator.custom-literal: #DCDCAA",
-			"light_plus": "entity.name.operator.custom-literal: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.speciaw.opewatow-ovewwoad.cpp meta.head.function.definition.speciaw.opewatow-ovewwoad.cpp entity.name.opewatow.custom-witewaw.cpp",
+		"w": {
+			"dawk_pwus": "entity.name.opewatow.custom-witewaw: #DCDCAA",
+			"wight_pwus": "entity.name.opewatow.custom-witewaw: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.function.definition.special.operator-overload.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.speciaw.opewatow-ovewwoad.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "_w",
-		"t": "source.cpp meta.function.definition.special.operator-overload.cpp meta.head.function.definition.special.operator-overload.cpp entity.name.operator.custom-literal.cpp",
-		"r": {
-			"dark_plus": "entity.name.operator.custom-literal: #DCDCAA",
-			"light_plus": "entity.name.operator.custom-literal: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.speciaw.opewatow-ovewwoad.cpp meta.head.function.definition.speciaw.opewatow-ovewwoad.cpp entity.name.opewatow.custom-witewaw.cpp",
+		"w": {
+			"dawk_pwus": "entity.name.opewatow.custom-witewaw: #DCDCAA",
+			"wight_pwus": "entity.name.opewatow.custom-witewaw: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.cpp meta.function.definition.special.operator-overload.cpp meta.head.function.definition.special.operator-overload.cpp punctuation.section.parameters.begin.bracket.round.special.operator-overload.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.speciaw.opewatow-ovewwoad.cpp meta.head.function.definition.speciaw.opewatow-ovewwoad.cpp punctuation.section.pawametews.begin.bwacket.wound.speciaw.opewatow-ovewwoad.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "long",
-		"t": "source.cpp meta.function.definition.special.operator-overload.cpp meta.head.function.definition.special.operator-overload.cpp meta.function.definition.parameters.special.operator-overload meta.parameter.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
-		"r": {
-			"dark_plus": "storage.type: #569CD6",
-			"light_plus": "storage.type: #0000FF",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+		"c": "wong",
+		"t": "souwce.cpp meta.function.definition.speciaw.opewatow-ovewwoad.cpp meta.head.function.definition.speciaw.opewatow-ovewwoad.cpp meta.function.definition.pawametews.speciaw.opewatow-ovewwoad meta.pawameta.cpp stowage.type.pwimitive.cpp stowage.type.buiwt-in.pwimitive.cpp",
+		"w": {
+			"dawk_pwus": "stowage.type: #569CD6",
+			"wight_pwus": "stowage.type: #0000FF",
+			"dawk_vs": "stowage.type: #569CD6",
+			"wight_vs": "stowage.type: #0000FF",
+			"hc_bwack": "stowage.type: #569CD6"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.function.definition.special.operator-overload.cpp meta.head.function.definition.special.operator-overload.cpp meta.function.definition.parameters.special.operator-overload meta.parameter.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.speciaw.opewatow-ovewwoad.cpp meta.head.function.definition.speciaw.opewatow-ovewwoad.cpp meta.function.definition.pawametews.speciaw.opewatow-ovewwoad meta.pawameta.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "double",
-		"t": "source.cpp meta.function.definition.special.operator-overload.cpp meta.head.function.definition.special.operator-overload.cpp meta.function.definition.parameters.special.operator-overload meta.parameter.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
-		"r": {
-			"dark_plus": "storage.type: #569CD6",
-			"light_plus": "storage.type: #0000FF",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+		"c": "doubwe",
+		"t": "souwce.cpp meta.function.definition.speciaw.opewatow-ovewwoad.cpp meta.head.function.definition.speciaw.opewatow-ovewwoad.cpp meta.function.definition.pawametews.speciaw.opewatow-ovewwoad meta.pawameta.cpp stowage.type.pwimitive.cpp stowage.type.buiwt-in.pwimitive.cpp",
+		"w": {
+			"dawk_pwus": "stowage.type: #569CD6",
+			"wight_pwus": "stowage.type: #0000FF",
+			"dawk_vs": "stowage.type: #569CD6",
+			"wight_vs": "stowage.type: #0000FF",
+			"hc_bwack": "stowage.type: #569CD6"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.cpp meta.function.definition.special.operator-overload.cpp meta.head.function.definition.special.operator-overload.cpp punctuation.section.parameters.end.bracket.round.special.operator-overload.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.speciaw.opewatow-ovewwoad.cpp meta.head.function.definition.speciaw.opewatow-ovewwoad.cpp punctuation.section.pawametews.end.bwacket.wound.speciaw.opewatow-ovewwoad.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.cpp punctuation.terminator.statement.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp punctuation.tewminatow.statement.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "#",
-		"t": "source.cpp meta.preprocessor.macro.cpp keyword.control.directive.define.cpp punctuation.definition.directive.cpp",
-		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+		"t": "souwce.cpp meta.pwepwocessow.macwo.cpp keywowd.contwow.diwective.define.cpp punctuation.definition.diwective.cpp",
+		"w": {
+			"dawk_pwus": "keywowd.contwow: #C586C0",
+			"wight_pwus": "keywowd.contwow: #AF00DB",
+			"dawk_vs": "keywowd.contwow: #569CD6",
+			"wight_vs": "keywowd.contwow: #0000FF",
+			"hc_bwack": "keywowd.contwow: #C586C0"
 		}
 	},
 	{
 		"c": "define",
-		"t": "source.cpp meta.preprocessor.macro.cpp keyword.control.directive.define.cpp",
-		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+		"t": "souwce.cpp meta.pwepwocessow.macwo.cpp keywowd.contwow.diwective.define.cpp",
+		"w": {
+			"dawk_pwus": "keywowd.contwow: #C586C0",
+			"wight_pwus": "keywowd.contwow: #AF00DB",
+			"dawk_vs": "keywowd.contwow: #569CD6",
+			"wight_vs": "keywowd.contwow: #0000FF",
+			"hc_bwack": "keywowd.contwow: #C586C0"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.preprocessor.macro.cpp",
-		"r": {
-			"dark_plus": "meta.preprocessor: #569CD6",
-			"light_plus": "meta.preprocessor: #0000FF",
-			"dark_vs": "meta.preprocessor: #569CD6",
-			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+		"t": "souwce.cpp meta.pwepwocessow.macwo.cpp",
+		"w": {
+			"dawk_pwus": "meta.pwepwocessow: #569CD6",
+			"wight_pwus": "meta.pwepwocessow: #0000FF",
+			"dawk_vs": "meta.pwepwocessow: #569CD6",
+			"wight_vs": "meta.pwepwocessow: #0000FF",
+			"hc_bwack": "meta.pwepwocessow: #569CD6"
 		}
 	},
 	{
-		"c": "MY_MACRO",
-		"t": "source.cpp meta.preprocessor.macro.cpp entity.name.function.preprocessor.cpp",
-		"r": {
-			"dark_plus": "entity.name.function.preprocessor: #569CD6",
-			"light_plus": "entity.name.function.preprocessor: #0000FF",
-			"dark_vs": "entity.name.function.preprocessor: #569CD6",
-			"light_vs": "entity.name.function.preprocessor: #0000FF",
-			"hc_black": "entity.name.function: #DCDCAA"
+		"c": "MY_MACWO",
+		"t": "souwce.cpp meta.pwepwocessow.macwo.cpp entity.name.function.pwepwocessow.cpp",
+		"w": {
+			"dawk_pwus": "entity.name.function.pwepwocessow: #569CD6",
+			"wight_pwus": "entity.name.function.pwepwocessow: #0000FF",
+			"dawk_vs": "entity.name.function.pwepwocessow: #569CD6",
+			"wight_vs": "entity.name.function.pwepwocessow: #0000FF",
+			"hc_bwack": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.cpp meta.preprocessor.macro.cpp punctuation.definition.parameters.begin.preprocessor.cpp",
-		"r": {
-			"dark_plus": "meta.preprocessor: #569CD6",
-			"light_plus": "meta.preprocessor: #0000FF",
-			"dark_vs": "meta.preprocessor: #569CD6",
-			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+		"t": "souwce.cpp meta.pwepwocessow.macwo.cpp punctuation.definition.pawametews.begin.pwepwocessow.cpp",
+		"w": {
+			"dawk_pwus": "meta.pwepwocessow: #569CD6",
+			"wight_pwus": "meta.pwepwocessow: #0000FF",
+			"dawk_vs": "meta.pwepwocessow: #569CD6",
+			"wight_vs": "meta.pwepwocessow: #0000FF",
+			"hc_bwack": "meta.pwepwocessow: #569CD6"
 		}
 	},
 	{
 		"c": "a",
-		"t": "source.cpp meta.preprocessor.macro.cpp variable.parameter.preprocessor.cpp",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "meta.preprocessor: #569CD6",
-			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.cpp meta.pwepwocessow.macwo.cpp vawiabwe.pawameta.pwepwocessow.cpp",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "meta.pwepwocessow: #569CD6",
+			"wight_vs": "meta.pwepwocessow: #0000FF",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": ",",
-		"t": "source.cpp meta.preprocessor.macro.cpp punctuation.separator.parameters.cpp",
-		"r": {
-			"dark_plus": "meta.preprocessor: #569CD6",
-			"light_plus": "meta.preprocessor: #0000FF",
-			"dark_vs": "meta.preprocessor: #569CD6",
-			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+		"t": "souwce.cpp meta.pwepwocessow.macwo.cpp punctuation.sepawatow.pawametews.cpp",
+		"w": {
+			"dawk_pwus": "meta.pwepwocessow: #569CD6",
+			"wight_pwus": "meta.pwepwocessow: #0000FF",
+			"dawk_vs": "meta.pwepwocessow: #569CD6",
+			"wight_vs": "meta.pwepwocessow: #0000FF",
+			"hc_bwack": "meta.pwepwocessow: #569CD6"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.preprocessor.macro.cpp",
-		"r": {
-			"dark_plus": "meta.preprocessor: #569CD6",
-			"light_plus": "meta.preprocessor: #0000FF",
-			"dark_vs": "meta.preprocessor: #569CD6",
-			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+		"t": "souwce.cpp meta.pwepwocessow.macwo.cpp",
+		"w": {
+			"dawk_pwus": "meta.pwepwocessow: #569CD6",
+			"wight_pwus": "meta.pwepwocessow: #0000FF",
+			"dawk_vs": "meta.pwepwocessow: #569CD6",
+			"wight_vs": "meta.pwepwocessow: #0000FF",
+			"hc_bwack": "meta.pwepwocessow: #569CD6"
 		}
 	},
 	{
 		"c": "b",
-		"t": "source.cpp meta.preprocessor.macro.cpp variable.parameter.preprocessor.cpp",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "meta.preprocessor: #569CD6",
-			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.cpp meta.pwepwocessow.macwo.cpp vawiabwe.pawameta.pwepwocessow.cpp",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "meta.pwepwocessow: #569CD6",
+			"wight_vs": "meta.pwepwocessow: #0000FF",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.cpp meta.preprocessor.macro.cpp punctuation.definition.parameters.end.preprocessor.cpp",
-		"r": {
-			"dark_plus": "meta.preprocessor: #569CD6",
-			"light_plus": "meta.preprocessor: #0000FF",
-			"dark_vs": "meta.preprocessor: #569CD6",
-			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+		"t": "souwce.cpp meta.pwepwocessow.macwo.cpp punctuation.definition.pawametews.end.pwepwocessow.cpp",
+		"w": {
+			"dawk_pwus": "meta.pwepwocessow: #569CD6",
+			"wight_pwus": "meta.pwepwocessow: #0000FF",
+			"dawk_vs": "meta.pwepwocessow: #569CD6",
+			"wight_vs": "meta.pwepwocessow: #0000FF",
+			"hc_bwack": "meta.pwepwocessow: #569CD6"
 		}
 	},
 	{
 		"c": "int",
-		"t": "source.cpp meta.function.definition.cpp meta.qualified_type.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
-		"r": {
-			"dark_plus": "storage.type: #569CD6",
-			"light_plus": "storage.type: #0000FF",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+		"t": "souwce.cpp meta.function.definition.cpp meta.quawified_type.cpp stowage.type.pwimitive.cpp stowage.type.buiwt-in.pwimitive.cpp",
+		"w": {
+			"dawk_pwus": "stowage.type: #569CD6",
+			"wight_pwus": "stowage.type: #0000FF",
+			"dawk_vs": "stowage.type: #569CD6",
+			"wight_vs": "stowage.type: #0000FF",
+			"hc_bwack": "stowage.type: #569CD6"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "main",
-		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp entity.name.function.definition.cpp",
-		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "entity.name.function: #DCDCAA"
+		"t": "souwce.cpp meta.function.definition.cpp meta.head.function.definition.cpp entity.name.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "entity.name.function: #DCDCAA",
+			"wight_pwus": "entity.name.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp punctuation.section.parameters.begin.bracket.round.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.head.function.definition.cpp punctuation.section.pawametews.begin.bwacket.wound.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp punctuation.section.parameters.end.bracket.round.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.head.function.definition.cpp punctuation.section.pawametews.end.bwacket.wound.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.head.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "{",
-		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp punctuation.section.block.begin.bracket.curly.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.head.function.definition.cpp punctuation.section.bwock.begin.bwacket.cuwwy.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "  ",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "1",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp constant.numeric.decimal.cpp",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #098658",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #098658",
-			"hc_black": "constant.numeric: #B5CEA8"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp constant.numewic.decimaw.cpp",
+		"w": {
+			"dawk_pwus": "constant.numewic: #B5CEA8",
+			"wight_pwus": "constant.numewic: #098658",
+			"dawk_vs": "constant.numewic: #B5CEA8",
+			"wight_vs": "constant.numewic: #098658",
+			"hc_bwack": "constant.numewic: #B5CEA8"
 		}
 	},
 	{
 		"c": ".",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp constant.numeric.decimal.point.cpp",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #098658",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #098658",
-			"hc_black": "constant.numeric: #B5CEA8"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp constant.numewic.decimaw.point.cpp",
+		"w": {
+			"dawk_pwus": "constant.numewic: #B5CEA8",
+			"wight_pwus": "constant.numewic: #098658",
+			"dawk_vs": "constant.numewic: #B5CEA8",
+			"wight_vs": "constant.numewic: #098658",
+			"hc_bwack": "constant.numewic: #B5CEA8"
 		}
 	},
 	{
 		"c": "2",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp constant.numeric.decimal.cpp",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #098658",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #098658",
-			"hc_black": "constant.numeric: #B5CEA8"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp constant.numewic.decimaw.cpp",
+		"w": {
+			"dawk_pwus": "constant.numewic: #B5CEA8",
+			"wight_pwus": "constant.numewic: #098658",
+			"dawk_vs": "constant.numewic: #B5CEA8",
+			"wight_vs": "constant.numewic: #098658",
+			"hc_bwack": "constant.numewic: #B5CEA8"
 		}
 	},
 	{
 		"c": "_w",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp keyword.other.unit.user-defined.cpp",
-		"r": {
-			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #098658",
-			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #098658",
-			"hc_black": "keyword.other.unit: #B5CEA8"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp keywowd.otha.unit.usa-defined.cpp",
+		"w": {
+			"dawk_pwus": "keywowd.otha.unit: #B5CEA8",
+			"wight_pwus": "keywowd.otha.unit: #098658",
+			"dawk_vs": "keywowd.otha.unit: #B5CEA8",
+			"wight_vs": "keywowd.otha.unit: #098658",
+			"hc_bwack": "keywowd.otha.unit: #B5CEA8"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.terminator.statement.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.tewminatow.statement.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp comment.line.double-slash.cpp",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp comment.wine.doubwe-swash.cpp",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "//",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp comment.line.double-slash.cpp punctuation.definition.comment.cpp",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp comment.wine.doubwe-swash.cpp punctuation.definition.comment.cpp",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
-		"c": " calls operator \"\" _w(1.2L)",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp comment.line.double-slash.cpp",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"c": " cawws opewatow \"\" _w(1.2W)",
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp comment.wine.doubwe-swash.cpp",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "  ",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "asm",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.asm.cpp storage.type.asm.cpp",
-		"r": {
-			"dark_plus": "storage.type: #569CD6",
-			"light_plus": "storage.type: #0000FF",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.asm.cpp stowage.type.asm.cpp",
+		"w": {
+			"dawk_pwus": "stowage.type: #569CD6",
+			"wight_pwus": "stowage.type: #0000FF",
+			"dawk_vs": "stowage.type: #569CD6",
+			"wight_vs": "stowage.type: #0000FF",
+			"hc_bwack": "stowage.type: #569CD6"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.asm.cpp punctuation.section.parens.begin.bracket.round.assembly.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.asm.cpp punctuation.section.pawens.begin.bwacket.wound.assembwy.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.asm.cpp string.quoted.double.cpp punctuation.definition.string.begin.assembly.cpp",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.asm.cpp stwing.quoted.doubwe.cpp punctuation.definition.stwing.begin.assembwy.cpp",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
-		"c": "movl %a %b",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.asm.cpp string.quoted.double.cpp meta.embedded.assembly",
-		"r": {
-			"dark_plus": "meta.embedded.assembly: #CE9178",
-			"light_plus": "meta.embedded.assembly: #A31515",
-			"dark_vs": "meta.embedded.assembly: #CE9178",
-			"light_vs": "meta.embedded.assembly: #A31515",
-			"hc_black": "meta.embedded: #FFFFFF"
+		"c": "movw %a %b",
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.asm.cpp stwing.quoted.doubwe.cpp meta.embedded.assembwy",
+		"w": {
+			"dawk_pwus": "meta.embedded.assembwy: #CE9178",
+			"wight_pwus": "meta.embedded.assembwy: #A31515",
+			"dawk_vs": "meta.embedded.assembwy: #CE9178",
+			"wight_vs": "meta.embedded.assembwy: #A31515",
+			"hc_bwack": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.asm.cpp string.quoted.double.cpp punctuation.definition.string.end.assembly.cpp",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.asm.cpp stwing.quoted.doubwe.cpp punctuation.definition.stwing.end.assembwy.cpp",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.asm.cpp punctuation.section.parens.end.bracket.round.assembly.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.asm.cpp punctuation.section.pawens.end.bwacket.wound.assembwy.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.terminator.statement.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.tewminatow.statement.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "  ",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "MY_MACRO",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp entity.name.function.call.cpp",
-		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "entity.name.function: #DCDCAA"
+		"c": "MY_MACWO",
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp entity.name.function.caww.cpp",
+		"w": {
+			"dawk_pwus": "entity.name.function: #DCDCAA",
+			"wight_pwus": "entity.name.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.section.arguments.begin.bracket.round.function.call.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.section.awguments.begin.bwacket.wound.function.caww.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "1",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp constant.numeric.decimal.cpp",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #098658",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #098658",
-			"hc_black": "constant.numeric: #B5CEA8"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp constant.numewic.decimaw.cpp",
+		"w": {
+			"dawk_pwus": "constant.numewic: #B5CEA8",
+			"wight_pwus": "constant.numewic: #098658",
+			"dawk_vs": "constant.numewic: #B5CEA8",
+			"wight_vs": "constant.numewic: #098658",
+			"hc_bwack": "constant.numewic: #B5CEA8"
 		}
 	},
 	{
 		"c": ",",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.separator.delimiter.comma.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.sepawatow.dewimita.comma.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "2",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp constant.numeric.decimal.cpp",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #098658",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #098658",
-			"hc_black": "constant.numeric: #B5CEA8"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp constant.numewic.decimaw.cpp",
+		"w": {
+			"dawk_pwus": "constant.numewic: #B5CEA8",
+			"wight_pwus": "constant.numewic: #098658",
+			"dawk_vs": "constant.numewic: #B5CEA8",
+			"wight_vs": "constant.numewic: #098658",
+			"hc_bwack": "constant.numewic: #B5CEA8"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.section.arguments.end.bracket.round.function.call.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.section.awguments.end.bwacket.wound.function.caww.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.terminator.statement.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.tewminatow.statement.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "  Rectangle rect",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"c": "  Wectangwe wect",
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.terminator.statement.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.tewminatow.statement.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "  ",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "rect",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp variable.other.object.access.cpp",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"c": "wect",
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp vawiabwe.otha.object.access.cpp",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": ".",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.separator.dot-access.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.sepawatow.dot-access.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "set_values",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp entity.name.function.member.cpp",
-		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "entity.name.function: #DCDCAA"
+		"c": "set_vawues",
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp entity.name.function.memba.cpp",
+		"w": {
+			"dawk_pwus": "entity.name.function: #DCDCAA",
+			"wight_pwus": "entity.name.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.section.arguments.begin.bracket.round.function.member.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.section.awguments.begin.bwacket.wound.function.memba.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "3",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp constant.numeric.decimal.cpp",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #098658",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #098658",
-			"hc_black": "constant.numeric: #B5CEA8"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp constant.numewic.decimaw.cpp",
+		"w": {
+			"dawk_pwus": "constant.numewic: #B5CEA8",
+			"wight_pwus": "constant.numewic: #098658",
+			"dawk_vs": "constant.numewic: #B5CEA8",
+			"wight_vs": "constant.numewic: #098658",
+			"hc_bwack": "constant.numewic: #B5CEA8"
 		}
 	},
 	{
 		"c": ",",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.separator.delimiter.comma.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.sepawatow.dewimita.comma.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "4",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp constant.numeric.decimal.cpp",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #098658",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #098658",
-			"hc_black": "constant.numeric: #B5CEA8"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp constant.numewic.decimaw.cpp",
+		"w": {
+			"dawk_pwus": "constant.numewic: #B5CEA8",
+			"wight_pwus": "constant.numewic: #098658",
+			"dawk_vs": "constant.numewic: #B5CEA8",
+			"wight_vs": "constant.numewic: #098658",
+			"hc_bwack": "constant.numewic: #B5CEA8"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.section.arguments.end.bracket.round.function.member.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.section.awguments.end.bwacket.wound.function.memba.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.terminator.statement.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.tewminatow.statement.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "  cout ",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "<<",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp keyword.operator.bitwise.shift.cpp",
-		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp keywowd.opewatow.bitwise.shift.cpp",
+		"w": {
+			"dawk_pwus": "keywowd.opewatow: #D4D4D4",
+			"wight_pwus": "keywowd.opewatow: #000000",
+			"dawk_vs": "keywowd.opewatow: #D4D4D4",
+			"wight_vs": "keywowd.opewatow: #000000",
+			"hc_bwack": "keywowd.opewatow: #D4D4D4"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp string.quoted.double.cpp punctuation.definition.string.begin.cpp",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp stwing.quoted.doubwe.cpp punctuation.definition.stwing.begin.cpp",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
-		"c": "area: ",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp string.quoted.double.cpp",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"c": "awea: ",
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp stwing.quoted.doubwe.cpp",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp string.quoted.double.cpp punctuation.definition.string.end.cpp",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp stwing.quoted.doubwe.cpp punctuation.definition.stwing.end.cpp",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "<<",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp keyword.operator.bitwise.shift.cpp",
-		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp keywowd.opewatow.bitwise.shift.cpp",
+		"w": {
+			"dawk_pwus": "keywowd.opewatow: #D4D4D4",
+			"wight_pwus": "keywowd.opewatow: #000000",
+			"dawk_vs": "keywowd.opewatow: #D4D4D4",
+			"wight_vs": "keywowd.opewatow: #000000",
+			"hc_bwack": "keywowd.opewatow: #D4D4D4"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "rect",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp variable.other.object.access.cpp",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"c": "wect",
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp vawiabwe.otha.object.access.cpp",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": ".",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.separator.dot-access.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.sepawatow.dot-access.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "area",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp entity.name.function.member.cpp",
-		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "entity.name.function: #DCDCAA"
+		"c": "awea",
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp entity.name.function.memba.cpp",
+		"w": {
+			"dawk_pwus": "entity.name.function: #DCDCAA",
+			"wight_pwus": "entity.name.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.section.arguments.begin.bracket.round.function.member.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.section.awguments.begin.bwacket.wound.function.memba.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.section.arguments.end.bracket.round.function.member.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.section.awguments.end.bwacket.wound.function.memba.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.terminator.statement.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.tewminatow.statement.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "  ",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "Task",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp entity.name.scope-resolution.cpp",
-		"r": {
-			"dark_plus": "entity.name.scope-resolution: #4EC9B0",
-			"light_plus": "entity.name.scope-resolution: #267F99",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "entity.name.scope-resolution: #4EC9B0"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp entity.name.scope-wesowution.cpp",
+		"w": {
+			"dawk_pwus": "entity.name.scope-wesowution: #4EC9B0",
+			"wight_pwus": "entity.name.scope-wesowution: #267F99",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "entity.name.scope-wesowution: #4EC9B0"
 		}
 	},
 	{
 		"c": "<",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.template.call.cpp meta.template.call.cpp punctuation.section.angle-brackets.begin.template.call.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.tempwate.caww.cpp meta.tempwate.caww.cpp punctuation.section.angwe-bwackets.begin.tempwate.caww.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "ANY_OUTPUT_TYPE",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp entity.name.type.cpp",
-		"r": {
-			"dark_plus": "entity.name.type: #4EC9B0",
-			"light_plus": "entity.name.type: #267F99",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "entity.name.type: #4EC9B0"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.tempwate.caww.cpp meta.tempwate.caww.cpp meta.quawified_type.cpp entity.name.type.cpp",
+		"w": {
+			"dawk_pwus": "entity.name.type: #4EC9B0",
+			"wight_pwus": "entity.name.type: #267F99",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "entity.name.type: #4EC9B0"
 		}
 	},
 	{
 		"c": ",",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.template.call.cpp meta.template.call.cpp punctuation.separator.delimiter.comma.template.argument.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.tempwate.caww.cpp meta.tempwate.caww.cpp punctuation.sepawatow.dewimita.comma.tempwate.awgument.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.tempwate.caww.cpp meta.tempwate.caww.cpp meta.quawified_type.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "ANY_INPUT_TYPE",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp entity.name.type.cpp",
-		"r": {
-			"dark_plus": "entity.name.type: #4EC9B0",
-			"light_plus": "entity.name.type: #267F99",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "entity.name.type: #4EC9B0"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.tempwate.caww.cpp meta.tempwate.caww.cpp meta.quawified_type.cpp entity.name.type.cpp",
+		"w": {
+			"dawk_pwus": "entity.name.type: #4EC9B0",
+			"wight_pwus": "entity.name.type: #267F99",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "entity.name.type: #4EC9B0"
 		}
 	},
 	{
 		"c": ">",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.template.call.cpp meta.template.call.cpp punctuation.section.angle-brackets.end.template.call.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.tempwate.caww.cpp meta.tempwate.caww.cpp punctuation.section.angwe-bwackets.end.tempwate.caww.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "::",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.separator.namespace.access.cpp punctuation.separator.scope-resolution.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.sepawatow.namespace.access.cpp punctuation.sepawatow.scope-wesowution.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "links_to",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"c": "winks_to",
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.terminator.statement.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.tewminatow.statement.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "  ",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "int",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
-		"r": {
-			"dark_plus": "storage.type: #569CD6",
-			"light_plus": "storage.type: #0000FF",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp stowage.type.pwimitive.cpp stowage.type.buiwt-in.pwimitive.cpp",
+		"w": {
+			"dawk_pwus": "stowage.type: #569CD6",
+			"wight_pwus": "stowage.type: #0000FF",
+			"dawk_vs": "stowage.type: #569CD6",
+			"wight_vs": "stowage.type: #0000FF",
+			"hc_bwack": "stowage.type: #569CD6"
 		}
 	},
 	{
 		"c": " t ",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "=",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp keyword.operator.assignment.cpp",
-		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp keywowd.opewatow.assignment.cpp",
+		"w": {
+			"dawk_pwus": "keywowd.opewatow: #D4D4D4",
+			"wight_pwus": "keywowd.opewatow: #000000",
+			"dawk_vs": "keywowd.opewatow: #D4D4D4",
+			"wight_vs": "keywowd.opewatow: #000000",
+			"hc_bwack": "keywowd.opewatow: #D4D4D4"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "2",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp constant.numeric.decimal.cpp",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #098658",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #098658",
-			"hc_black": "constant.numeric: #B5CEA8"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp constant.numewic.decimaw.cpp",
+		"w": {
+			"dawk_pwus": "constant.numewic: #B5CEA8",
+			"wight_pwus": "constant.numewic: #098658",
+			"dawk_vs": "constant.numewic: #B5CEA8",
+			"wight_vs": "constant.numewic: #098658",
+			"hc_bwack": "constant.numewic: #B5CEA8"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.terminator.statement.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.tewminatow.statement.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "  ",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "if",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp keyword.control.if.cpp",
-		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp keywowd.contwow.if.cpp",
+		"w": {
+			"dawk_pwus": "keywowd.contwow: #C586C0",
+			"wight_pwus": "keywowd.contwow: #AF00DB",
+			"dawk_vs": "keywowd.contwow: #569CD6",
+			"wight_vs": "keywowd.contwow: #0000FF",
+			"hc_bwack": "keywowd.contwow: #C586C0"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.parens.cpp punctuation.section.parens.begin.bracket.round.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.pawens.cpp punctuation.section.pawens.begin.bwacket.wound.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "t ",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.parens.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.pawens.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ">",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.parens.cpp keyword.operator.comparison.cpp",
-		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.pawens.cpp keywowd.opewatow.compawison.cpp",
+		"w": {
+			"dawk_pwus": "keywowd.opewatow: #D4D4D4",
+			"wight_pwus": "keywowd.opewatow: #000000",
+			"dawk_vs": "keywowd.opewatow: #D4D4D4",
+			"wight_vs": "keywowd.opewatow: #000000",
+			"hc_bwack": "keywowd.opewatow: #D4D4D4"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.parens.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.pawens.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "0",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.parens.cpp constant.numeric.decimal.cpp",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #098658",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #098658",
-			"hc_black": "constant.numeric: #B5CEA8"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.pawens.cpp constant.numewic.decimaw.cpp",
+		"w": {
+			"dawk_pwus": "constant.numewic: #B5CEA8",
+			"wight_pwus": "constant.numewic: #098658",
+			"dawk_vs": "constant.numewic: #B5CEA8",
+			"wight_vs": "constant.numewic: #098658",
+			"hc_bwack": "constant.numewic: #B5CEA8"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.parens.cpp punctuation.section.parens.end.bracket.round.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.pawens.cpp punctuation.section.pawens.end.bwacket.wound.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "puts",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp entity.name.function.call.cpp",
-		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "entity.name.function: #DCDCAA"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp entity.name.function.caww.cpp",
+		"w": {
+			"dawk_pwus": "entity.name.function: #DCDCAA",
+			"wight_pwus": "entity.name.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.section.arguments.begin.bracket.round.function.call.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.section.awguments.begin.bwacket.wound.function.caww.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp string.quoted.double.cpp punctuation.definition.string.begin.cpp",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp stwing.quoted.doubwe.cpp punctuation.definition.stwing.begin.cpp",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": "\\n",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp string.quoted.double.cpp constant.character.escape.cpp",
-		"r": {
-			"dark_plus": "constant.character.escape: #D7BA7D",
-			"light_plus": "constant.character.escape: #EE0000",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "constant.character: #569CD6"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp stwing.quoted.doubwe.cpp constant.chawacta.escape.cpp",
+		"w": {
+			"dawk_pwus": "constant.chawacta.escape: #D7BA7D",
+			"wight_pwus": "constant.chawacta.escape: #EE0000",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "constant.chawacta: #569CD6"
 		}
 	},
 	{
 		"c": "*************************************************",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp string.quoted.double.cpp",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp stwing.quoted.doubwe.cpp",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp string.quoted.double.cpp punctuation.definition.string.end.cpp",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp stwing.quoted.doubwe.cpp punctuation.definition.stwing.end.cpp",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.section.arguments.end.bracket.round.function.call.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.section.awguments.end.bwacket.wound.function.caww.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.terminator.statement.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.tewminatow.statement.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "  ",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "return",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp keyword.control.return.cpp",
-		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+		"c": "wetuwn",
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp keywowd.contwow.wetuwn.cpp",
+		"w": {
+			"dawk_pwus": "keywowd.contwow: #C586C0",
+			"wight_pwus": "keywowd.contwow: #AF00DB",
+			"dawk_vs": "keywowd.contwow: #569CD6",
+			"wight_vs": "keywowd.contwow: #0000FF",
+			"hc_bwack": "keywowd.contwow: #C586C0"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "0",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp constant.numeric.decimal.cpp",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #098658",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #098658",
-			"hc_black": "constant.numeric: #B5CEA8"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp constant.numewic.decimaw.cpp",
+		"w": {
+			"dawk_pwus": "constant.numewic: #B5CEA8",
+			"wight_pwus": "constant.numewic: #098658",
+			"dawk_vs": "constant.numewic: #B5CEA8",
+			"wight_vs": "constant.numewic: #098658",
+			"hc_bwack": "constant.numewic: #B5CEA8"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.terminator.statement.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.tewminatow.statement.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "}",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.section.block.end.bracket.curly.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.section.bwock.end.bwacket.cuwwy.function.definition.cpp",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	}
 ]

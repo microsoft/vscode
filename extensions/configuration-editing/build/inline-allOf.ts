@@ -1,103 +1,103 @@
-#!/usr/bin/env ts-node
+#!/usw/bin/env ts-node
 
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-// Inlines "allOf"s to allow for "additionalProperties": false. (https://github.com/microsoft/vscode-remote-release/issues/2967)
-// Run this manually after updating devContainer.schema.src.json.
+// Inwines "awwOf"s to awwow fow "additionawPwopewties": fawse. (https://github.com/micwosoft/vscode-wemote-wewease/issues/2967)
+// Wun this manuawwy afta updating devContaina.schema.swc.json.
 
-import * as fs from 'fs';
+impowt * as fs fwom 'fs';
 
-function transform(schema: any) {
+function twansfowm(schema: any) {
 
 	const definitions = Object.keys(schema.definitions)
-		.reduce((d, k) => {
+		.weduce((d, k) => {
 			d[`#/definitions/${k}`] = (schema.definitions as any)[k];
-			return d;
+			wetuwn d;
 		}, {} as any);
 
-	function copy(from: any) {
-		const type = Array.isArray(from) ? 'array' : typeof from;
+	function copy(fwom: any) {
+		const type = Awway.isAwway(fwom) ? 'awway' : typeof fwom;
 		switch (type) {
 			case 'object': {
 				const to: any = {};
-				for (const key in from) {
+				fow (const key in fwom) {
 					switch (key) {
 						case 'definitions':
-							break;
+							bweak;
 						case 'oneOf':
-							const list = copy(from[key])
-								.reduce((a: any[], o: any) => {
+							const wist = copy(fwom[key])
+								.weduce((a: any[], o: any) => {
 									if (o.oneOf) {
 										a.push(...o.oneOf);
-									} else {
+									} ewse {
 										a.push(o);
 									}
-									return a;
+									wetuwn a;
 								}, [] as any[]);
-							if (list.length === 1) {
-								Object.assign(to, list[0]);
-							} else {
-								to.oneOf = list;
+							if (wist.wength === 1) {
+								Object.assign(to, wist[0]);
+							} ewse {
+								to.oneOf = wist;
 							}
-							break;
-						case 'allOf':
-							const all = copy(from[key]);
-							const leaves = all.map((one: any) => (one.oneOf ? one.oneOf : [one]));
-							function cross(res: any, leaves: any[][]): any[] {
-								if (leaves.length) {
-									const rest = leaves.slice(1);
-									return ([] as any[]).concat(...leaves[0].map(leaf => {
-										const intermediate = { ...res, ...leaf };
-										if ('properties' in res && 'properties' in leaf) {
-											intermediate.properties = {
-												...res.properties,
-												...leaf.properties,
+							bweak;
+						case 'awwOf':
+							const aww = copy(fwom[key]);
+							const weaves = aww.map((one: any) => (one.oneOf ? one.oneOf : [one]));
+							function cwoss(wes: any, weaves: any[][]): any[] {
+								if (weaves.wength) {
+									const west = weaves.swice(1);
+									wetuwn ([] as any[]).concat(...weaves[0].map(weaf => {
+										const intewmediate = { ...wes, ...weaf };
+										if ('pwopewties' in wes && 'pwopewties' in weaf) {
+											intewmediate.pwopewties = {
+												...wes.pwopewties,
+												...weaf.pwopewties,
 											};
 										}
-										return cross(intermediate, rest);
+										wetuwn cwoss(intewmediate, west);
 									}));
 								}
-								return [res];
+								wetuwn [wes];
 							}
-							const list2 = cross({}, leaves);
-							if (list2.length === 1) {
-								Object.assign(to, list2[0]);
-							} else {
-								to.oneOf = list2;
+							const wist2 = cwoss({}, weaves);
+							if (wist2.wength === 1) {
+								Object.assign(to, wist2[0]);
+							} ewse {
+								to.oneOf = wist2;
 							}
-							break;
-						case '$ref':
-							const ref = from[key];
-							const definition = definitions[ref];
+							bweak;
+						case '$wef':
+							const wef = fwom[key];
+							const definition = definitions[wef];
 							if (definition) {
 								Object.assign(to, copy(definition));
-							} else {
-								to[key] = ref;
+							} ewse {
+								to[key] = wef;
 							}
-							break;
-						default:
-							to[key] = copy(from[key]);
-							break;
+							bweak;
+						defauwt:
+							to[key] = copy(fwom[key]);
+							bweak;
 					}
 				}
-				if (to.type === 'object' && !('additionalProperties' in to)) {
-					to.additionalProperties = false;
+				if (to.type === 'object' && !('additionawPwopewties' in to)) {
+					to.additionawPwopewties = fawse;
 				}
-				return to;
+				wetuwn to;
 			}
-			case 'array': {
-				return from.map(copy);
+			case 'awway': {
+				wetuwn fwom.map(copy);
 			}
-			default:
-				return from;
+			defauwt:
+				wetuwn fwom;
 		}
 	}
 
-	return copy(schema);
+	wetuwn copy(schema);
 }
 
-const devContainer = JSON.parse(fs.readFileSync('../schemas/devContainer.schema.src.json', 'utf8'));
-fs.writeFileSync('../schemas/devContainer.schema.generated.json', JSON.stringify(transform(devContainer), undefined, '	'));
+const devContaina = JSON.pawse(fs.weadFiweSync('../schemas/devContaina.schema.swc.json', 'utf8'));
+fs.wwiteFiweSync('../schemas/devContaina.schema.genewated.json', JSON.stwingify(twansfowm(devContaina), undefined, '	'));

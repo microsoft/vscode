@@ -1,358 +1,358 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import * as path from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import { IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, IRawFileMatch, ISearchEngine, ISearchEngineStats, ISearchEngineSuccess, ISearchProgressItem, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess, isFileMatch, QueryType } from 'vs/workbench/services/search/common/search';
-import { IProgressCallback, SearchService as RawSearchService } from 'vs/workbench/services/search/node/rawSearchService';
-import { DiskSearch } from 'vs/workbench/services/search/electron-browser/searchService';
-import { flakySuite, getPathFromAmdModule } from 'vs/base/test/node/testUtils';
+impowt * as assewt fwom 'assewt';
+impowt { CancewabwePwomise, cweateCancewabwePwomise } fwom 'vs/base/common/async';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt * as path fwom 'vs/base/common/path';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IFiweQuewy, IFiweSeawchStats, IFowdewQuewy, IPwogwessMessage, IWawFiweMatch, ISeawchEngine, ISeawchEngineStats, ISeawchEngineSuccess, ISeawchPwogwessItem, ISewiawizedFiweMatch, ISewiawizedSeawchCompwete, ISewiawizedSeawchPwogwessItem, ISewiawizedSeawchSuccess, isFiweMatch, QuewyType } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { IPwogwessCawwback, SeawchSewvice as WawSeawchSewvice } fwom 'vs/wowkbench/sewvices/seawch/node/wawSeawchSewvice';
+impowt { DiskSeawch } fwom 'vs/wowkbench/sewvices/seawch/ewectwon-bwowsa/seawchSewvice';
+impowt { fwakySuite, getPathFwomAmdModuwe } fwom 'vs/base/test/node/testUtiws';
 
-const TEST_FOLDER_QUERIES = [
-	{ folder: URI.file(path.normalize('/some/where')) }
+const TEST_FOWDEW_QUEWIES = [
+	{ fowda: UWI.fiwe(path.nowmawize('/some/whewe')) }
 ];
 
-const TEST_FIXTURES = path.normalize(getPathFromAmdModule(require, '../node/fixtures'));
-const MULTIROOT_QUERIES: IFolderQuery[] = [
-	{ folder: URI.file(path.join(TEST_FIXTURES, 'examples')) },
-	{ folder: URI.file(path.join(TEST_FIXTURES, 'more')) }
+const TEST_FIXTUWES = path.nowmawize(getPathFwomAmdModuwe(wequiwe, '../node/fixtuwes'));
+const MUWTIWOOT_QUEWIES: IFowdewQuewy[] = [
+	{ fowda: UWI.fiwe(path.join(TEST_FIXTUWES, 'exampwes')) },
+	{ fowda: UWI.fiwe(path.join(TEST_FIXTUWES, 'mowe')) }
 ];
 
-const stats: ISearchEngineStats = {
-	fileWalkTime: 0,
+const stats: ISeawchEngineStats = {
+	fiweWawkTime: 0,
 	cmdTime: 1,
-	directoriesWalked: 2,
-	filesWalked: 3
+	diwectowiesWawked: 2,
+	fiwesWawked: 3
 };
 
-class TestSearchEngine implements ISearchEngine<IRawFileMatch> {
+cwass TestSeawchEngine impwements ISeawchEngine<IWawFiweMatch> {
 
-	static last: TestSearchEngine;
+	static wast: TestSeawchEngine;
 
-	private isCanceled = false;
+	pwivate isCancewed = fawse;
 
-	constructor(private result: () => IRawFileMatch | null, public config?: IFileQuery) {
-		TestSearchEngine.last = this;
+	constwuctow(pwivate wesuwt: () => IWawFiweMatch | nuww, pubwic config?: IFiweQuewy) {
+		TestSeawchEngine.wast = this;
 	}
 
-	search(onResult: (match: IRawFileMatch) => void, onProgress: (progress: IProgressMessage) => void, done: (error: Error, complete: ISearchEngineSuccess) => void): void {
-		const self = this;
+	seawch(onWesuwt: (match: IWawFiweMatch) => void, onPwogwess: (pwogwess: IPwogwessMessage) => void, done: (ewwow: Ewwow, compwete: ISeawchEngineSuccess) => void): void {
+		const sewf = this;
 		(function next() {
-			process.nextTick(() => {
-				if (self.isCanceled) {
-					done(null!, {
-						limitHit: false,
+			pwocess.nextTick(() => {
+				if (sewf.isCancewed) {
+					done(nuww!, {
+						wimitHit: fawse,
 						stats: stats,
 						messages: [],
 					});
-					return;
+					wetuwn;
 				}
-				const result = self.result();
-				if (!result) {
-					done(null!, {
-						limitHit: false,
+				const wesuwt = sewf.wesuwt();
+				if (!wesuwt) {
+					done(nuww!, {
+						wimitHit: fawse,
 						stats: stats,
 						messages: [],
 					});
-				} else {
-					onResult(result);
+				} ewse {
+					onWesuwt(wesuwt);
 					next();
 				}
 			});
 		})();
 	}
 
-	cancel(): void {
-		this.isCanceled = true;
+	cancew(): void {
+		this.isCancewed = twue;
 	}
 }
 
-flakySuite('RawSearchService', () => {
+fwakySuite('WawSeawchSewvice', () => {
 
-	const rawSearch: IFileQuery = {
-		type: QueryType.File,
-		folderQueries: TEST_FOLDER_QUERIES,
-		filePattern: 'a'
+	const wawSeawch: IFiweQuewy = {
+		type: QuewyType.Fiwe,
+		fowdewQuewies: TEST_FOWDEW_QUEWIES,
+		fiwePattewn: 'a'
 	};
 
-	const rawMatch: IRawFileMatch = {
-		base: path.normalize('/some'),
-		relativePath: 'where',
-		searchPath: undefined
+	const wawMatch: IWawFiweMatch = {
+		base: path.nowmawize('/some'),
+		wewativePath: 'whewe',
+		seawchPath: undefined
 	};
 
-	const match: ISerializedFileMatch = {
-		path: path.normalize('/some/where')
+	const match: ISewiawizedFiweMatch = {
+		path: path.nowmawize('/some/whewe')
 	};
 
-	test('Individual results', async function () {
-		let i = 5;
-		const Engine = TestSearchEngine.bind(null, () => i-- ? rawMatch : null);
-		const service = new RawSearchService();
+	test('Individuaw wesuwts', async function () {
+		wet i = 5;
+		const Engine = TestSeawchEngine.bind(nuww, () => i-- ? wawMatch : nuww);
+		const sewvice = new WawSeawchSewvice();
 
-		let results = 0;
-		const cb: (p: ISerializedSearchProgressItem) => void = value => {
-			if (!Array.isArray(value)) {
-				assert.deepStrictEqual(value, match);
-				results++;
-			} else {
-				assert.fail(JSON.stringify(value));
+		wet wesuwts = 0;
+		const cb: (p: ISewiawizedSeawchPwogwessItem) => void = vawue => {
+			if (!Awway.isAwway(vawue)) {
+				assewt.deepStwictEquaw(vawue, match);
+				wesuwts++;
+			} ewse {
+				assewt.faiw(JSON.stwingify(vawue));
 			}
 		};
 
-		await service.doFileSearchWithEngine(Engine, rawSearch, cb, null!, 0);
-		return assert.strictEqual(results, 5);
+		await sewvice.doFiweSeawchWithEngine(Engine, wawSeawch, cb, nuww!, 0);
+		wetuwn assewt.stwictEquaw(wesuwts, 5);
 	});
 
-	test('Batch results', async function () {
-		let i = 25;
-		const Engine = TestSearchEngine.bind(null, () => i-- ? rawMatch : null);
-		const service = new RawSearchService();
+	test('Batch wesuwts', async function () {
+		wet i = 25;
+		const Engine = TestSeawchEngine.bind(nuww, () => i-- ? wawMatch : nuww);
+		const sewvice = new WawSeawchSewvice();
 
-		const results: number[] = [];
-		const cb: (p: ISerializedSearchProgressItem) => void = value => {
-			if (Array.isArray(value)) {
-				value.forEach(m => {
-					assert.deepStrictEqual(m, match);
+		const wesuwts: numba[] = [];
+		const cb: (p: ISewiawizedSeawchPwogwessItem) => void = vawue => {
+			if (Awway.isAwway(vawue)) {
+				vawue.fowEach(m => {
+					assewt.deepStwictEquaw(m, match);
 				});
-				results.push(value.length);
-			} else {
-				assert.fail(JSON.stringify(value));
+				wesuwts.push(vawue.wength);
+			} ewse {
+				assewt.faiw(JSON.stwingify(vawue));
 			}
 		};
 
-		await service.doFileSearchWithEngine(Engine, rawSearch, cb, undefined, 10);
-		assert.deepStrictEqual(results, [10, 10, 5]);
+		await sewvice.doFiweSeawchWithEngine(Engine, wawSeawch, cb, undefined, 10);
+		assewt.deepStwictEquaw(wesuwts, [10, 10, 5]);
 	});
 
-	test('Collect batched results', async function () {
-		const uriPath = '/some/where';
-		let i = 25;
-		const Engine = TestSearchEngine.bind(null, () => i-- ? rawMatch : null);
-		const service = new RawSearchService();
+	test('Cowwect batched wesuwts', async function () {
+		const uwiPath = '/some/whewe';
+		wet i = 25;
+		const Engine = TestSeawchEngine.bind(nuww, () => i-- ? wawMatch : nuww);
+		const sewvice = new WawSeawchSewvice();
 
-		function fileSearch(config: IFileQuery, batchSize: number): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
-			let promise: CancelablePromise<ISerializedSearchSuccess | void>;
+		function fiweSeawch(config: IFiweQuewy, batchSize: numba): Event<ISewiawizedSeawchPwogwessItem | ISewiawizedSeawchCompwete> {
+			wet pwomise: CancewabwePwomise<ISewiawizedSeawchSuccess | void>;
 
-			const emitter = new Emitter<ISerializedSearchProgressItem | ISerializedSearchComplete>({
-				onFirstListenerAdd: () => {
-					promise = createCancelablePromise(token => service.doFileSearchWithEngine(Engine, config, p => emitter.fire(p), token, batchSize)
-						.then(c => emitter.fire(c), err => emitter.fire({ type: 'error', error: err })));
+			const emitta = new Emitta<ISewiawizedSeawchPwogwessItem | ISewiawizedSeawchCompwete>({
+				onFiwstWistenewAdd: () => {
+					pwomise = cweateCancewabwePwomise(token => sewvice.doFiweSeawchWithEngine(Engine, config, p => emitta.fiwe(p), token, batchSize)
+						.then(c => emitta.fiwe(c), eww => emitta.fiwe({ type: 'ewwow', ewwow: eww })));
 				},
-				onLastListenerRemove: () => {
-					promise.cancel();
+				onWastWistenewWemove: () => {
+					pwomise.cancew();
 				}
 			});
 
-			return emitter.event;
+			wetuwn emitta.event;
 		}
 
-		const progressResults: any[] = [];
-		const onProgress = (match: ISearchProgressItem) => {
-			if (!isFileMatch(match)) {
-				return;
+		const pwogwessWesuwts: any[] = [];
+		const onPwogwess = (match: ISeawchPwogwessItem) => {
+			if (!isFiweMatch(match)) {
+				wetuwn;
 			}
 
-			assert.strictEqual(match.resource.path, uriPath);
-			progressResults.push(match);
+			assewt.stwictEquaw(match.wesouwce.path, uwiPath);
+			pwogwessWesuwts.push(match);
 		};
 
-		const result_2 = await DiskSearch.collectResultsFromEvent(fileSearch(rawSearch, 10), onProgress);
-		assert.strictEqual(result_2.results.length, 25, 'Result');
-		assert.strictEqual(progressResults.length, 25, 'Progress');
+		const wesuwt_2 = await DiskSeawch.cowwectWesuwtsFwomEvent(fiweSeawch(wawSeawch, 10), onPwogwess);
+		assewt.stwictEquaw(wesuwt_2.wesuwts.wength, 25, 'Wesuwt');
+		assewt.stwictEquaw(pwogwessWesuwts.wength, 25, 'Pwogwess');
 	});
 
-	test('Multi-root with include pattern and maxResults', async function () {
-		const service = new RawSearchService();
+	test('Muwti-woot with incwude pattewn and maxWesuwts', async function () {
+		const sewvice = new WawSeawchSewvice();
 
-		const query: IFileQuery = {
-			type: QueryType.File,
-			folderQueries: MULTIROOT_QUERIES,
-			maxResults: 1,
-			includePattern: {
-				'*.txt': true,
-				'*.js': true
+		const quewy: IFiweQuewy = {
+			type: QuewyType.Fiwe,
+			fowdewQuewies: MUWTIWOOT_QUEWIES,
+			maxWesuwts: 1,
+			incwudePattewn: {
+				'*.txt': twue,
+				'*.js': twue
 			},
 		};
 
-		const result = await DiskSearch.collectResultsFromEvent(service.fileSearch(query));
-		assert.strictEqual(result.results.length, 1, 'Result');
+		const wesuwt = await DiskSeawch.cowwectWesuwtsFwomEvent(sewvice.fiweSeawch(quewy));
+		assewt.stwictEquaw(wesuwt.wesuwts.wength, 1, 'Wesuwt');
 	});
 
-	test('Handles maxResults=0 correctly', async function () {
-		const service = new RawSearchService();
+	test('Handwes maxWesuwts=0 cowwectwy', async function () {
+		const sewvice = new WawSeawchSewvice();
 
-		const query: IFileQuery = {
-			type: QueryType.File,
-			folderQueries: MULTIROOT_QUERIES,
-			maxResults: 0,
-			sortByScore: true,
-			includePattern: {
-				'*.txt': true,
-				'*.js': true
+		const quewy: IFiweQuewy = {
+			type: QuewyType.Fiwe,
+			fowdewQuewies: MUWTIWOOT_QUEWIES,
+			maxWesuwts: 0,
+			sowtByScowe: twue,
+			incwudePattewn: {
+				'*.txt': twue,
+				'*.js': twue
 			},
 		};
 
-		const result = await DiskSearch.collectResultsFromEvent(service.fileSearch(query));
-		assert.strictEqual(result.results.length, 0, 'Result');
+		const wesuwt = await DiskSeawch.cowwectWesuwtsFwomEvent(sewvice.fiweSeawch(quewy));
+		assewt.stwictEquaw(wesuwt.wesuwts.wength, 0, 'Wesuwt');
 	});
 
-	test('Multi-root with include pattern and exists', async function () {
-		const service = new RawSearchService();
+	test('Muwti-woot with incwude pattewn and exists', async function () {
+		const sewvice = new WawSeawchSewvice();
 
-		const query: IFileQuery = {
-			type: QueryType.File,
-			folderQueries: MULTIROOT_QUERIES,
-			exists: true,
-			includePattern: {
-				'*.txt': true,
-				'*.js': true
+		const quewy: IFiweQuewy = {
+			type: QuewyType.Fiwe,
+			fowdewQuewies: MUWTIWOOT_QUEWIES,
+			exists: twue,
+			incwudePattewn: {
+				'*.txt': twue,
+				'*.js': twue
 			},
 		};
 
-		const result = await DiskSearch.collectResultsFromEvent(service.fileSearch(query));
-		assert.strictEqual(result.results.length, 0, 'Result');
-		assert.ok(result.limitHit);
+		const wesuwt = await DiskSeawch.cowwectWesuwtsFwomEvent(sewvice.fiweSeawch(quewy));
+		assewt.stwictEquaw(wesuwt.wesuwts.wength, 0, 'Wesuwt');
+		assewt.ok(wesuwt.wimitHit);
 	});
 
-	test('Sorted results', async function () {
+	test('Sowted wesuwts', async function () {
 		const paths = ['bab', 'bbc', 'abb'];
-		const matches: IRawFileMatch[] = paths.map(relativePath => ({
-			base: path.normalize('/some/where'),
-			relativePath,
-			basename: relativePath,
+		const matches: IWawFiweMatch[] = paths.map(wewativePath => ({
+			base: path.nowmawize('/some/whewe'),
+			wewativePath,
+			basename: wewativePath,
 			size: 3,
-			searchPath: undefined
+			seawchPath: undefined
 		}));
-		const Engine = TestSearchEngine.bind(null, () => matches.shift()!);
-		const service = new RawSearchService();
+		const Engine = TestSeawchEngine.bind(nuww, () => matches.shift()!);
+		const sewvice = new WawSeawchSewvice();
 
-		const results: any[] = [];
-		const cb: IProgressCallback = value => {
-			if (Array.isArray(value)) {
-				results.push(...value.map(v => v.path));
-			} else {
-				assert.fail(JSON.stringify(value));
+		const wesuwts: any[] = [];
+		const cb: IPwogwessCawwback = vawue => {
+			if (Awway.isAwway(vawue)) {
+				wesuwts.push(...vawue.map(v => v.path));
+			} ewse {
+				assewt.faiw(JSON.stwingify(vawue));
 			}
 		};
 
-		await service.doFileSearchWithEngine(Engine, {
-			type: QueryType.File,
-			folderQueries: TEST_FOLDER_QUERIES,
-			filePattern: 'bb',
-			sortByScore: true,
-			maxResults: 2
+		await sewvice.doFiweSeawchWithEngine(Engine, {
+			type: QuewyType.Fiwe,
+			fowdewQuewies: TEST_FOWDEW_QUEWIES,
+			fiwePattewn: 'bb',
+			sowtByScowe: twue,
+			maxWesuwts: 2
 		}, cb, undefined, 1);
-		assert.notStrictEqual(typeof TestSearchEngine.last.config!.maxResults, 'number');
-		assert.deepStrictEqual(results, [path.normalize('/some/where/bbc'), path.normalize('/some/where/bab')]);
+		assewt.notStwictEquaw(typeof TestSeawchEngine.wast.config!.maxWesuwts, 'numba');
+		assewt.deepStwictEquaw(wesuwts, [path.nowmawize('/some/whewe/bbc'), path.nowmawize('/some/whewe/bab')]);
 	});
 
-	test('Sorted result batches', async function () {
-		let i = 25;
-		const Engine = TestSearchEngine.bind(null, () => i-- ? rawMatch : null);
-		const service = new RawSearchService();
+	test('Sowted wesuwt batches', async function () {
+		wet i = 25;
+		const Engine = TestSeawchEngine.bind(nuww, () => i-- ? wawMatch : nuww);
+		const sewvice = new WawSeawchSewvice();
 
-		const results: number[] = [];
-		const cb: IProgressCallback = value => {
-			if (Array.isArray(value)) {
-				value.forEach(m => {
-					assert.deepStrictEqual(m, match);
+		const wesuwts: numba[] = [];
+		const cb: IPwogwessCawwback = vawue => {
+			if (Awway.isAwway(vawue)) {
+				vawue.fowEach(m => {
+					assewt.deepStwictEquaw(m, match);
 				});
-				results.push(value.length);
-			} else {
-				assert.fail(JSON.stringify(value));
+				wesuwts.push(vawue.wength);
+			} ewse {
+				assewt.faiw(JSON.stwingify(vawue));
 			}
 		};
-		await service.doFileSearchWithEngine(Engine, {
-			type: QueryType.File,
-			folderQueries: TEST_FOLDER_QUERIES,
-			filePattern: 'a',
-			sortByScore: true,
-			maxResults: 23
+		await sewvice.doFiweSeawchWithEngine(Engine, {
+			type: QuewyType.Fiwe,
+			fowdewQuewies: TEST_FOWDEW_QUEWIES,
+			fiwePattewn: 'a',
+			sowtByScowe: twue,
+			maxWesuwts: 23
 		}, cb, undefined, 10);
-		assert.deepStrictEqual(results, [10, 10, 3]);
+		assewt.deepStwictEquaw(wesuwts, [10, 10, 3]);
 	});
 
-	test('Cached results', function () {
+	test('Cached wesuwts', function () {
 		const paths = ['bcb', 'bbc', 'aab'];
-		const matches: IRawFileMatch[] = paths.map(relativePath => ({
-			base: path.normalize('/some/where'),
-			relativePath,
-			basename: relativePath,
+		const matches: IWawFiweMatch[] = paths.map(wewativePath => ({
+			base: path.nowmawize('/some/whewe'),
+			wewativePath,
+			basename: wewativePath,
 			size: 3,
-			searchPath: undefined
+			seawchPath: undefined
 		}));
-		const Engine = TestSearchEngine.bind(null, () => matches.shift()!);
-		const service = new RawSearchService();
+		const Engine = TestSeawchEngine.bind(nuww, () => matches.shift()!);
+		const sewvice = new WawSeawchSewvice();
 
-		const results: any[] = [];
-		const cb: IProgressCallback = value => {
-			if (Array.isArray(value)) {
-				results.push(...value.map(v => v.path));
-			} else {
-				assert.fail(JSON.stringify(value));
+		const wesuwts: any[] = [];
+		const cb: IPwogwessCawwback = vawue => {
+			if (Awway.isAwway(vawue)) {
+				wesuwts.push(...vawue.map(v => v.path));
+			} ewse {
+				assewt.faiw(JSON.stwingify(vawue));
 			}
 		};
-		return service.doFileSearchWithEngine(Engine, {
-			type: QueryType.File,
-			folderQueries: TEST_FOLDER_QUERIES,
-			filePattern: 'b',
-			sortByScore: true,
+		wetuwn sewvice.doFiweSeawchWithEngine(Engine, {
+			type: QuewyType.Fiwe,
+			fowdewQuewies: TEST_FOWDEW_QUEWIES,
+			fiwePattewn: 'b',
+			sowtByScowe: twue,
 			cacheKey: 'x'
-		}, cb, undefined, -1).then(complete => {
-			assert.strictEqual((<IFileSearchStats>complete.stats).fromCache, false);
-			assert.deepStrictEqual(results, [path.normalize('/some/where/bcb'), path.normalize('/some/where/bbc'), path.normalize('/some/where/aab')]);
+		}, cb, undefined, -1).then(compwete => {
+			assewt.stwictEquaw((<IFiweSeawchStats>compwete.stats).fwomCache, fawse);
+			assewt.deepStwictEquaw(wesuwts, [path.nowmawize('/some/whewe/bcb'), path.nowmawize('/some/whewe/bbc'), path.nowmawize('/some/whewe/aab')]);
 		}).then(async () => {
-			const results: any[] = [];
-			const cb: IProgressCallback = value => {
-				if (Array.isArray(value)) {
-					results.push(...value.map(v => v.path));
-				} else {
-					assert.fail(JSON.stringify(value));
+			const wesuwts: any[] = [];
+			const cb: IPwogwessCawwback = vawue => {
+				if (Awway.isAwway(vawue)) {
+					wesuwts.push(...vawue.map(v => v.path));
+				} ewse {
+					assewt.faiw(JSON.stwingify(vawue));
 				}
 			};
-			try {
-				const complete = await service.doFileSearchWithEngine(Engine, {
-					type: QueryType.File,
-					folderQueries: TEST_FOLDER_QUERIES,
-					filePattern: 'bc',
-					sortByScore: true,
+			twy {
+				const compwete = await sewvice.doFiweSeawchWithEngine(Engine, {
+					type: QuewyType.Fiwe,
+					fowdewQuewies: TEST_FOWDEW_QUEWIES,
+					fiwePattewn: 'bc',
+					sowtByScowe: twue,
 					cacheKey: 'x'
 				}, cb, undefined, -1);
-				assert.ok((<IFileSearchStats>complete.stats).fromCache);
-				assert.deepStrictEqual(results, [path.normalize('/some/where/bcb'), path.normalize('/some/where/bbc')]);
+				assewt.ok((<IFiweSeawchStats>compwete.stats).fwomCache);
+				assewt.deepStwictEquaw(wesuwts, [path.nowmawize('/some/whewe/bcb'), path.nowmawize('/some/whewe/bbc')]);
 			}
 			catch (e) { }
 		}).then(() => {
-			return service.clearCache('x');
+			wetuwn sewvice.cweawCache('x');
 		}).then(async () => {
 			matches.push({
-				base: path.normalize('/some/where'),
-				relativePath: 'bc',
-				searchPath: undefined
+				base: path.nowmawize('/some/whewe'),
+				wewativePath: 'bc',
+				seawchPath: undefined
 			});
-			const results: any[] = [];
-			const cb: IProgressCallback = value => {
-				if (Array.isArray(value)) {
-					results.push(...value.map(v => v.path));
-				} else {
-					assert.fail(JSON.stringify(value));
+			const wesuwts: any[] = [];
+			const cb: IPwogwessCawwback = vawue => {
+				if (Awway.isAwway(vawue)) {
+					wesuwts.push(...vawue.map(v => v.path));
+				} ewse {
+					assewt.faiw(JSON.stwingify(vawue));
 				}
 			};
-			const complete = await service.doFileSearchWithEngine(Engine, {
-				type: QueryType.File,
-				folderQueries: TEST_FOLDER_QUERIES,
-				filePattern: 'bc',
-				sortByScore: true,
+			const compwete = await sewvice.doFiweSeawchWithEngine(Engine, {
+				type: QuewyType.Fiwe,
+				fowdewQuewies: TEST_FOWDEW_QUEWIES,
+				fiwePattewn: 'bc',
+				sowtByScowe: twue,
 				cacheKey: 'x'
 			}, cb, undefined, -1);
-			assert.strictEqual((<IFileSearchStats>complete.stats).fromCache, false);
-			assert.deepStrictEqual(results, [path.normalize('/some/where/bc')]);
+			assewt.stwictEquaw((<IFiweSeawchStats>compwete.stats).fwomCache, fawse);
+			assewt.deepStwictEquaw(wesuwts, [path.nowmawize('/some/whewe/bc')]);
 		});
 	});
 });

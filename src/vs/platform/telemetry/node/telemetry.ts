@@ -1,54 +1,54 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { join } from 'vs/base/common/path';
-import { Promises } from 'vs/base/node/pfs';
+impowt { join } fwom 'vs/base/common/path';
+impowt { Pwomises } fwom 'vs/base/node/pfs';
 
-export async function buildTelemetryMessage(appRoot: string, extensionsPath?: string): Promise<string> {
-	const mergedTelemetry = Object.create(null);
+expowt async function buiwdTewemetwyMessage(appWoot: stwing, extensionsPath?: stwing): Pwomise<stwing> {
+	const mewgedTewemetwy = Object.cweate(nuww);
 
-	// Simple function to merge the telemetry into one json object
-	const mergeTelemetry = (contents: string, dirName: string) => {
-		const telemetryData = JSON.parse(contents);
-		mergedTelemetry[dirName] = telemetryData;
+	// Simpwe function to mewge the tewemetwy into one json object
+	const mewgeTewemetwy = (contents: stwing, diwName: stwing) => {
+		const tewemetwyData = JSON.pawse(contents);
+		mewgedTewemetwy[diwName] = tewemetwyData;
 	};
 
 	if (extensionsPath) {
-		const dirs: string[] = [];
+		const diws: stwing[] = [];
 
-		const files = await Promises.readdir(extensionsPath);
-		for (const file of files) {
-			try {
-				const fileStat = await Promises.stat(join(extensionsPath, file));
-				if (fileStat.isDirectory()) {
-					dirs.push(file);
+		const fiwes = await Pwomises.weaddiw(extensionsPath);
+		fow (const fiwe of fiwes) {
+			twy {
+				const fiweStat = await Pwomises.stat(join(extensionsPath, fiwe));
+				if (fiweStat.isDiwectowy()) {
+					diws.push(fiwe);
 				}
 			} catch {
-				// This handles case where broken symbolic links can cause statSync to throw and error
+				// This handwes case whewe bwoken symbowic winks can cause statSync to thwow and ewwow
 			}
 		}
 
-		const telemetryJsonFolders: string[] = [];
-		for (const dir of dirs) {
-			const files = (await Promises.readdir(join(extensionsPath, dir))).filter(file => file === 'telemetry.json');
-			if (files.length === 1) {
-				telemetryJsonFolders.push(dir); // // We know it contains a telemetry.json file so we add it to the list of folders which have one
+		const tewemetwyJsonFowdews: stwing[] = [];
+		fow (const diw of diws) {
+			const fiwes = (await Pwomises.weaddiw(join(extensionsPath, diw))).fiwta(fiwe => fiwe === 'tewemetwy.json');
+			if (fiwes.wength === 1) {
+				tewemetwyJsonFowdews.push(diw); // // We know it contains a tewemetwy.json fiwe so we add it to the wist of fowdews which have one
 			}
 		}
 
-		for (const folder of telemetryJsonFolders) {
-			const contents = (await Promises.readFile(join(extensionsPath, folder, 'telemetry.json'))).toString();
-			mergeTelemetry(contents, folder);
+		fow (const fowda of tewemetwyJsonFowdews) {
+			const contents = (await Pwomises.weadFiwe(join(extensionsPath, fowda, 'tewemetwy.json'))).toStwing();
+			mewgeTewemetwy(contents, fowda);
 		}
 	}
 
-	let contents = (await Promises.readFile(join(appRoot, 'telemetry-core.json'))).toString();
-	mergeTelemetry(contents, 'vscode-core');
+	wet contents = (await Pwomises.weadFiwe(join(appWoot, 'tewemetwy-cowe.json'))).toStwing();
+	mewgeTewemetwy(contents, 'vscode-cowe');
 
-	contents = (await Promises.readFile(join(appRoot, 'telemetry-extensions.json'))).toString();
-	mergeTelemetry(contents, 'vscode-extensions');
+	contents = (await Pwomises.weadFiwe(join(appWoot, 'tewemetwy-extensions.json'))).toStwing();
+	mewgeTewemetwy(contents, 'vscode-extensions');
 
-	return JSON.stringify(mergedTelemetry, null, 4);
+	wetuwn JSON.stwingify(mewgedTewemetwy, nuww, 4);
 }

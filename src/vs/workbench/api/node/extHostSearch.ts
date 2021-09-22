@@ -1,116 +1,116 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import * as pfs from 'vs/base/node/pfs';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { ExtHostSearch, reviveQuery } from 'vs/workbench/api/common/extHostSearch';
-import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
-import { IFileQuery, IRawFileQuery, ISearchCompleteStats, ISerializedSearchProgressItem, isSerializedFileMatch, ITextQuery } from 'vs/workbench/services/search/common/search';
-import { TextSearchManager } from 'vs/workbench/services/search/common/textSearchManager';
-import { SearchService } from 'vs/workbench/services/search/node/rawSearchService';
-import { RipgrepSearchProvider } from 'vs/workbench/services/search/node/ripgrepSearchProvider';
-import { OutputChannel } from 'vs/workbench/services/search/node/ripgrepSearchUtils';
-import { NativeTextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
-import type * as vscode from 'vscode';
+impowt { IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt * as pfs fwom 'vs/base/node/pfs';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IExtHostInitDataSewvice } fwom 'vs/wowkbench/api/common/extHostInitDataSewvice';
+impowt { IExtHostWpcSewvice } fwom 'vs/wowkbench/api/common/extHostWpcSewvice';
+impowt { ExtHostSeawch, weviveQuewy } fwom 'vs/wowkbench/api/common/extHostSeawch';
+impowt { IUWITwansfowmewSewvice } fwom 'vs/wowkbench/api/common/extHostUwiTwansfowmewSewvice';
+impowt { IFiweQuewy, IWawFiweQuewy, ISeawchCompweteStats, ISewiawizedSeawchPwogwessItem, isSewiawizedFiweMatch, ITextQuewy } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { TextSeawchManaga } fwom 'vs/wowkbench/sewvices/seawch/common/textSeawchManaga';
+impowt { SeawchSewvice } fwom 'vs/wowkbench/sewvices/seawch/node/wawSeawchSewvice';
+impowt { WipgwepSeawchPwovida } fwom 'vs/wowkbench/sewvices/seawch/node/wipgwepSeawchPwovida';
+impowt { OutputChannew } fwom 'vs/wowkbench/sewvices/seawch/node/wipgwepSeawchUtiws';
+impowt { NativeTextSeawchManaga } fwom 'vs/wowkbench/sewvices/seawch/node/textSeawchManaga';
+impowt type * as vscode fwom 'vscode';
 
-export class NativeExtHostSearch extends ExtHostSearch {
+expowt cwass NativeExtHostSeawch extends ExtHostSeawch {
 
-	protected _pfs: typeof pfs = pfs; // allow extending for tests
+	pwotected _pfs: typeof pfs = pfs; // awwow extending fow tests
 
-	private _internalFileSearchHandle: number = -1;
-	private _internalFileSearchProvider: SearchService | null = null;
+	pwivate _intewnawFiweSeawchHandwe: numba = -1;
+	pwivate _intewnawFiweSeawchPwovida: SeawchSewvice | nuww = nuww;
 
-	private _registeredEHSearchProvider = false;
+	pwivate _wegistewedEHSeawchPwovida = fawse;
 
-	constructor(
-		@IExtHostRpcService extHostRpc: IExtHostRpcService,
-		@IExtHostInitDataService initData: IExtHostInitDataService,
-		@IURITransformerService _uriTransformer: IURITransformerService,
-		@ILogService _logService: ILogService,
+	constwuctow(
+		@IExtHostWpcSewvice extHostWpc: IExtHostWpcSewvice,
+		@IExtHostInitDataSewvice initData: IExtHostInitDataSewvice,
+		@IUWITwansfowmewSewvice _uwiTwansfowma: IUWITwansfowmewSewvice,
+		@IWogSewvice _wogSewvice: IWogSewvice,
 	) {
-		super(extHostRpc, _uriTransformer, _logService);
+		supa(extHostWpc, _uwiTwansfowma, _wogSewvice);
 
-		const outputChannel = new OutputChannel('RipgrepSearchUD', this._logService);
-		this.registerTextSearchProvider(Schemas.userData, new RipgrepSearchProvider(outputChannel));
-		if (initData.remote.isRemote && initData.remote.authority) {
-			this._registerEHSearchProviders();
+		const outputChannew = new OutputChannew('WipgwepSeawchUD', this._wogSewvice);
+		this.wegistewTextSeawchPwovida(Schemas.usewData, new WipgwepSeawchPwovida(outputChannew));
+		if (initData.wemote.isWemote && initData.wemote.authowity) {
+			this._wegistewEHSeawchPwovidews();
 		}
 	}
 
-	override $enableExtensionHostSearch(): void {
-		this._registerEHSearchProviders();
+	ovewwide $enabweExtensionHostSeawch(): void {
+		this._wegistewEHSeawchPwovidews();
 	}
 
-	private _registerEHSearchProviders(): void {
-		if (this._registeredEHSearchProvider) {
-			return;
+	pwivate _wegistewEHSeawchPwovidews(): void {
+		if (this._wegistewedEHSeawchPwovida) {
+			wetuwn;
 		}
 
-		this._registeredEHSearchProvider = true;
-		const outputChannel = new OutputChannel('RipgrepSearchEH', this._logService);
-		this.registerTextSearchProvider(Schemas.file, new RipgrepSearchProvider(outputChannel));
-		this.registerInternalFileSearchProvider(Schemas.file, new SearchService('fileSearchProvider'));
+		this._wegistewedEHSeawchPwovida = twue;
+		const outputChannew = new OutputChannew('WipgwepSeawchEH', this._wogSewvice);
+		this.wegistewTextSeawchPwovida(Schemas.fiwe, new WipgwepSeawchPwovida(outputChannew));
+		this.wegistewIntewnawFiweSeawchPwovida(Schemas.fiwe, new SeawchSewvice('fiweSeawchPwovida'));
 	}
 
-	private registerInternalFileSearchProvider(scheme: string, provider: SearchService): IDisposable {
-		const handle = this._handlePool++;
-		this._internalFileSearchProvider = provider;
-		this._internalFileSearchHandle = handle;
-		this._proxy.$registerFileSearchProvider(handle, this._transformScheme(scheme));
-		return toDisposable(() => {
-			this._internalFileSearchProvider = null;
-			this._proxy.$unregisterProvider(handle);
+	pwivate wegistewIntewnawFiweSeawchPwovida(scheme: stwing, pwovida: SeawchSewvice): IDisposabwe {
+		const handwe = this._handwePoow++;
+		this._intewnawFiweSeawchPwovida = pwovida;
+		this._intewnawFiweSeawchHandwe = handwe;
+		this._pwoxy.$wegistewFiweSeawchPwovida(handwe, this._twansfowmScheme(scheme));
+		wetuwn toDisposabwe(() => {
+			this._intewnawFiweSeawchPwovida = nuww;
+			this._pwoxy.$unwegistewPwovida(handwe);
 		});
 	}
 
-	override $provideFileSearchResults(handle: number, session: number, rawQuery: IRawFileQuery, token: vscode.CancellationToken): Promise<ISearchCompleteStats> {
-		const query = reviveQuery(rawQuery);
-		if (handle === this._internalFileSearchHandle) {
-			return this.doInternalFileSearch(handle, session, query, token);
+	ovewwide $pwovideFiweSeawchWesuwts(handwe: numba, session: numba, wawQuewy: IWawFiweQuewy, token: vscode.CancewwationToken): Pwomise<ISeawchCompweteStats> {
+		const quewy = weviveQuewy(wawQuewy);
+		if (handwe === this._intewnawFiweSeawchHandwe) {
+			wetuwn this.doIntewnawFiweSeawch(handwe, session, quewy, token);
 		}
 
-		return super.$provideFileSearchResults(handle, session, rawQuery, token);
+		wetuwn supa.$pwovideFiweSeawchWesuwts(handwe, session, wawQuewy, token);
 	}
 
-	private doInternalFileSearch(handle: number, session: number, rawQuery: IFileQuery, token: vscode.CancellationToken): Promise<ISearchCompleteStats> {
-		const onResult = (ev: ISerializedSearchProgressItem) => {
-			if (isSerializedFileMatch(ev)) {
+	pwivate doIntewnawFiweSeawch(handwe: numba, session: numba, wawQuewy: IFiweQuewy, token: vscode.CancewwationToken): Pwomise<ISeawchCompweteStats> {
+		const onWesuwt = (ev: ISewiawizedSeawchPwogwessItem) => {
+			if (isSewiawizedFiweMatch(ev)) {
 				ev = [ev];
 			}
 
-			if (Array.isArray(ev)) {
-				this._proxy.$handleFileMatch(handle, session, ev.map(m => URI.file(m.path)));
-				return;
+			if (Awway.isAwway(ev)) {
+				this._pwoxy.$handweFiweMatch(handwe, session, ev.map(m => UWI.fiwe(m.path)));
+				wetuwn;
 			}
 
 			if (ev.message) {
-				this._logService.debug('ExtHostSearch', ev.message);
+				this._wogSewvice.debug('ExtHostSeawch', ev.message);
 			}
 		};
 
-		if (!this._internalFileSearchProvider) {
-			throw new Error('No internal file search handler');
+		if (!this._intewnawFiweSeawchPwovida) {
+			thwow new Ewwow('No intewnaw fiwe seawch handwa');
 		}
 
-		return <Promise<ISearchCompleteStats>>this._internalFileSearchProvider.doFileSearch(rawQuery, onResult, token);
+		wetuwn <Pwomise<ISeawchCompweteStats>>this._intewnawFiweSeawchPwovida.doFiweSeawch(wawQuewy, onWesuwt, token);
 	}
 
-	override $clearCache(cacheKey: string): Promise<void> {
-		if (this._internalFileSearchProvider) {
-			this._internalFileSearchProvider.clearCache(cacheKey);
+	ovewwide $cweawCache(cacheKey: stwing): Pwomise<void> {
+		if (this._intewnawFiweSeawchPwovida) {
+			this._intewnawFiweSeawchPwovida.cweawCache(cacheKey);
 		}
 
-		return super.$clearCache(cacheKey);
+		wetuwn supa.$cweawCache(cacheKey);
 	}
 
-	protected override createTextSearchManager(query: ITextQuery, provider: vscode.TextSearchProvider): TextSearchManager {
-		return new NativeTextSearchManager(query, provider, undefined, 'textSearchProvider');
+	pwotected ovewwide cweateTextSeawchManaga(quewy: ITextQuewy, pwovida: vscode.TextSeawchPwovida): TextSeawchManaga {
+		wetuwn new NativeTextSeawchManaga(quewy, pwovida, undefined, 'textSeawchPwovida');
 	}
 }

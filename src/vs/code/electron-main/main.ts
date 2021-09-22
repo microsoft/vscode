@@ -1,548 +1,548 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, dialog } from 'electron';
-import { unlinkSync } from 'fs';
-import { coalesce, distinct } from 'vs/base/common/arrays';
-import { Promises } from 'vs/base/common/async';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { ExpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { IPathWithLineAndColumn, isValidBasename, parseLineAndColumnAware, sanitizeFilePath } from 'vs/base/common/extpath';
-import { once } from 'vs/base/common/functional';
-import { getPathLabel, mnemonicButtonLabel } from 'vs/base/common/labels';
-import { Schemas } from 'vs/base/common/network';
-import { basename, join, resolve } from 'vs/base/common/path';
-import { mark } from 'vs/base/common/performance';
-import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { cwd } from 'vs/base/common/process';
-import { rtrim, trim } from 'vs/base/common/strings';
-import { Promises as FSPromises } from 'vs/base/node/pfs';
-import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Client as NodeIPCClient } from 'vs/base/parts/ipc/common/ipc.net';
-import { connect as nodeIPCConnect, serve as nodeIPCServe, Server as NodeIPCServer, XDG_RUNTIME_DIR } from 'vs/base/parts/ipc/node/ipc.net';
-import { CodeApplication } from 'vs/code/electron-main/app';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
-import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { EnvironmentMainService, IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { addArg, parseMainProcessArgv } from 'vs/platform/environment/node/argvHelper';
-import { createWaitMarkerFile } from 'vs/platform/environment/node/wait';
-import { IFileService } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
-import { ILifecycleMainService, LifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { BufferLogService } from 'vs/platform/log/common/bufferLog';
-import { ConsoleMainLogger, getLogLevel, ILoggerService, ILogService, MultiplexLogService } from 'vs/platform/log/common/log';
-import { LoggerService } from 'vs/platform/log/node/loggerService';
-import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
-import product from 'vs/platform/product/common/product';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
-import { ProtocolMainService } from 'vs/platform/protocol/electron-main/protocolMainService';
-import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { TunnelService } from 'vs/platform/remote/node/tunnelService';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { RequestMainService } from 'vs/platform/request/electron-main/requestMainService';
-import { ISignService } from 'vs/platform/sign/common/sign';
-import { SignService } from 'vs/platform/sign/node/signService';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
-import { StateMainService } from 'vs/platform/state/electron-main/stateMainService';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IThemeMainService, ThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import 'vs/platform/update/common/update.config.contribution';
+impowt { app, diawog } fwom 'ewectwon';
+impowt { unwinkSync } fwom 'fs';
+impowt { coawesce, distinct } fwom 'vs/base/common/awways';
+impowt { Pwomises } fwom 'vs/base/common/async';
+impowt { toEwwowMessage } fwom 'vs/base/common/ewwowMessage';
+impowt { ExpectedEwwow, setUnexpectedEwwowHandwa } fwom 'vs/base/common/ewwows';
+impowt { IPathWithWineAndCowumn, isVawidBasename, pawseWineAndCowumnAwawe, sanitizeFiwePath } fwom 'vs/base/common/extpath';
+impowt { once } fwom 'vs/base/common/functionaw';
+impowt { getPathWabew, mnemonicButtonWabew } fwom 'vs/base/common/wabews';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { basename, join, wesowve } fwom 'vs/base/common/path';
+impowt { mawk } fwom 'vs/base/common/pewfowmance';
+impowt { IPwocessEnviwonment, isMacintosh, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { cwd } fwom 'vs/base/common/pwocess';
+impowt { wtwim, twim } fwom 'vs/base/common/stwings';
+impowt { Pwomises as FSPwomises } fwom 'vs/base/node/pfs';
+impowt { PwoxyChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { Cwient as NodeIPCCwient } fwom 'vs/base/pawts/ipc/common/ipc.net';
+impowt { connect as nodeIPCConnect, sewve as nodeIPCSewve, Sewva as NodeIPCSewva, XDG_WUNTIME_DIW } fwom 'vs/base/pawts/ipc/node/ipc.net';
+impowt { CodeAppwication } fwom 'vs/code/ewectwon-main/app';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwationSewvice';
+impowt { DiagnosticsSewvice } fwom 'vs/pwatfowm/diagnostics/node/diagnosticsSewvice';
+impowt { NativePawsedAwgs } fwom 'vs/pwatfowm/enviwonment/common/awgv';
+impowt { EnviwonmentMainSewvice, IEnviwonmentMainSewvice } fwom 'vs/pwatfowm/enviwonment/ewectwon-main/enviwonmentMainSewvice';
+impowt { addAwg, pawseMainPwocessAwgv } fwom 'vs/pwatfowm/enviwonment/node/awgvHewpa';
+impowt { cweateWaitMawkewFiwe } fwom 'vs/pwatfowm/enviwonment/node/wait';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { FiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiweSewvice';
+impowt { DiskFiweSystemPwovida } fwom 'vs/pwatfowm/fiwes/node/diskFiweSystemPwovida';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { InstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiationSewvice';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { IWaunchMainSewvice } fwom 'vs/pwatfowm/waunch/ewectwon-main/waunchMainSewvice';
+impowt { IWifecycweMainSewvice, WifecycweMainSewvice } fwom 'vs/pwatfowm/wifecycwe/ewectwon-main/wifecycweMainSewvice';
+impowt { BuffewWogSewvice } fwom 'vs/pwatfowm/wog/common/buffewWog';
+impowt { ConsoweMainWogga, getWogWevew, IWoggewSewvice, IWogSewvice, MuwtipwexWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { WoggewSewvice } fwom 'vs/pwatfowm/wog/node/woggewSewvice';
+impowt { SpdWogWogga } fwom 'vs/pwatfowm/wog/node/spdwogWog';
+impowt pwoduct fwom 'vs/pwatfowm/pwoduct/common/pwoduct';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IPwotocowMainSewvice } fwom 'vs/pwatfowm/pwotocow/ewectwon-main/pwotocow';
+impowt { PwotocowMainSewvice } fwom 'vs/pwatfowm/pwotocow/ewectwon-main/pwotocowMainSewvice';
+impowt { ITunnewSewvice } fwom 'vs/pwatfowm/wemote/common/tunnew';
+impowt { TunnewSewvice } fwom 'vs/pwatfowm/wemote/node/tunnewSewvice';
+impowt { IWequestSewvice } fwom 'vs/pwatfowm/wequest/common/wequest';
+impowt { WequestMainSewvice } fwom 'vs/pwatfowm/wequest/ewectwon-main/wequestMainSewvice';
+impowt { ISignSewvice } fwom 'vs/pwatfowm/sign/common/sign';
+impowt { SignSewvice } fwom 'vs/pwatfowm/sign/node/signSewvice';
+impowt { IStateMainSewvice } fwom 'vs/pwatfowm/state/ewectwon-main/state';
+impowt { StateMainSewvice } fwom 'vs/pwatfowm/state/ewectwon-main/stateMainSewvice';
+impowt { NuwwTewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
+impowt { IThemeMainSewvice, ThemeMainSewvice } fwom 'vs/pwatfowm/theme/ewectwon-main/themeMainSewvice';
+impowt 'vs/pwatfowm/update/common/update.config.contwibution';
 
 /**
- * The main VS Code entry point.
+ * The main VS Code entwy point.
  *
- * Note: This class can exist more than once for example when VS Code is already
- * running and a second instance is started from the command line. It will always
- * try to communicate with an existing instance to prevent that 2 VS Code instances
- * are running at the same time.
+ * Note: This cwass can exist mowe than once fow exampwe when VS Code is awweady
+ * wunning and a second instance is stawted fwom the command wine. It wiww awways
+ * twy to communicate with an existing instance to pwevent that 2 VS Code instances
+ * awe wunning at the same time.
  */
-class CodeMain {
+cwass CodeMain {
 
 	main(): void {
-		try {
-			this.startup();
-		} catch (error) {
-			console.error(error.message);
+		twy {
+			this.stawtup();
+		} catch (ewwow) {
+			consowe.ewwow(ewwow.message);
 			app.exit(1);
 		}
 	}
 
-	private async startup(): Promise<void> {
+	pwivate async stawtup(): Pwomise<void> {
 
-		// Set the error handler early enough so that we are not getting the
-		// default electron error dialog popping up
-		setUnexpectedErrorHandler(err => console.error(err));
+		// Set the ewwow handwa eawwy enough so that we awe not getting the
+		// defauwt ewectwon ewwow diawog popping up
+		setUnexpectedEwwowHandwa(eww => consowe.ewwow(eww));
 
-		// Create services
-		const [instantiationService, instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogService, productService] = this.createServices();
+		// Cweate sewvices
+		const [instantiationSewvice, instanceEnviwonment, enviwonmentMainSewvice, configuwationSewvice, stateMainSewvice, buffewWogSewvice, pwoductSewvice] = this.cweateSewvices();
 
-		try {
+		twy {
 
-			// Init services
-			try {
-				await this.initServices(environmentMainService, configurationService, stateMainService);
-			} catch (error) {
+			// Init sewvices
+			twy {
+				await this.initSewvices(enviwonmentMainSewvice, configuwationSewvice, stateMainSewvice);
+			} catch (ewwow) {
 
-				// Show a dialog for errors that can be resolved by the user
-				this.handleStartupDataDirError(environmentMainService, productService.nameLong, error);
+				// Show a diawog fow ewwows that can be wesowved by the usa
+				this.handweStawtupDataDiwEwwow(enviwonmentMainSewvice, pwoductSewvice.nameWong, ewwow);
 
-				throw error;
+				thwow ewwow;
 			}
 
-			// Startup
-			await instantiationService.invokeFunction(async accessor => {
-				const logService = accessor.get(ILogService);
-				const lifecycleMainService = accessor.get(ILifecycleMainService);
-				const fileService = accessor.get(IFileService);
+			// Stawtup
+			await instantiationSewvice.invokeFunction(async accessow => {
+				const wogSewvice = accessow.get(IWogSewvice);
+				const wifecycweMainSewvice = accessow.get(IWifecycweMainSewvice);
+				const fiweSewvice = accessow.get(IFiweSewvice);
 
-				// Create the main IPC server by trying to be the server
-				// If this throws an error it means we are not the first
-				// instance of VS Code running and so we would quit.
-				const mainProcessNodeIpcServer = await this.claimInstance(logService, environmentMainService, lifecycleMainService, instantiationService, productService, true);
+				// Cweate the main IPC sewva by twying to be the sewva
+				// If this thwows an ewwow it means we awe not the fiwst
+				// instance of VS Code wunning and so we wouwd quit.
+				const mainPwocessNodeIpcSewva = await this.cwaimInstance(wogSewvice, enviwonmentMainSewvice, wifecycweMainSewvice, instantiationSewvice, pwoductSewvice, twue);
 
-				// Write a lockfile to indicate an instance is running (https://github.com/microsoft/vscode/issues/127861#issuecomment-877417451)
-				FSPromises.writeFile(environmentMainService.mainLockfile, String(process.pid)).catch(err => {
-					logService.warn(`Error writing main lockfile: ${err.stack}`);
+				// Wwite a wockfiwe to indicate an instance is wunning (https://github.com/micwosoft/vscode/issues/127861#issuecomment-877417451)
+				FSPwomises.wwiteFiwe(enviwonmentMainSewvice.mainWockfiwe, Stwing(pwocess.pid)).catch(eww => {
+					wogSewvice.wawn(`Ewwow wwiting main wockfiwe: ${eww.stack}`);
 				});
 
-				// Delay creation of spdlog for perf reasons (https://github.com/microsoft/vscode/issues/72906)
-				bufferLogService.logger = new SpdLogLogger('main', join(environmentMainService.logsPath, 'main.log'), true, bufferLogService.getLevel());
+				// Deway cweation of spdwog fow pewf weasons (https://github.com/micwosoft/vscode/issues/72906)
+				buffewWogSewvice.wogga = new SpdWogWogga('main', join(enviwonmentMainSewvice.wogsPath, 'main.wog'), twue, buffewWogSewvice.getWevew());
 
-				// Lifecycle
-				once(lifecycleMainService.onWillShutdown)(evt => {
-					fileService.dispose();
-					configurationService.dispose();
-					evt.join(FSPromises.unlink(environmentMainService.mainLockfile).catch(() => { /* ignored */ }));
+				// Wifecycwe
+				once(wifecycweMainSewvice.onWiwwShutdown)(evt => {
+					fiweSewvice.dispose();
+					configuwationSewvice.dispose();
+					evt.join(FSPwomises.unwink(enviwonmentMainSewvice.mainWockfiwe).catch(() => { /* ignowed */ }));
 				});
 
-				return instantiationService.createInstance(CodeApplication, mainProcessNodeIpcServer, instanceEnvironment).startup();
+				wetuwn instantiationSewvice.cweateInstance(CodeAppwication, mainPwocessNodeIpcSewva, instanceEnviwonment).stawtup();
 			});
-		} catch (error) {
-			instantiationService.invokeFunction(this.quit, error);
+		} catch (ewwow) {
+			instantiationSewvice.invokeFunction(this.quit, ewwow);
 		}
 	}
 
-	private createServices(): [IInstantiationService, IProcessEnvironment, IEnvironmentMainService, ConfigurationService, StateMainService, BufferLogService, IProductService] {
-		const services = new ServiceCollection();
+	pwivate cweateSewvices(): [IInstantiationSewvice, IPwocessEnviwonment, IEnviwonmentMainSewvice, ConfiguwationSewvice, StateMainSewvice, BuffewWogSewvice, IPwoductSewvice] {
+		const sewvices = new SewviceCowwection();
 
-		// Product
-		const productService = { _serviceBrand: undefined, ...product };
-		services.set(IProductService, productService);
+		// Pwoduct
+		const pwoductSewvice = { _sewviceBwand: undefined, ...pwoduct };
+		sewvices.set(IPwoductSewvice, pwoductSewvice);
 
-		// Environment
-		const environmentMainService = new EnvironmentMainService(this.resolveArgs(), productService);
-		const instanceEnvironment = this.patchEnvironment(environmentMainService); // Patch `process.env` with the instance's environment
-		services.set(IEnvironmentMainService, environmentMainService);
+		// Enviwonment
+		const enviwonmentMainSewvice = new EnviwonmentMainSewvice(this.wesowveAwgs(), pwoductSewvice);
+		const instanceEnviwonment = this.patchEnviwonment(enviwonmentMainSewvice); // Patch `pwocess.env` with the instance's enviwonment
+		sewvices.set(IEnviwonmentMainSewvice, enviwonmentMainSewvice);
 
-		// Log: We need to buffer the spdlog logs until we are sure
-		// we are the only instance running, otherwise we'll have concurrent
-		// log file access on Windows (https://github.com/microsoft/vscode/issues/41218)
-		const bufferLogService = new BufferLogService();
-		const logService = new MultiplexLogService([new ConsoleMainLogger(getLogLevel(environmentMainService)), bufferLogService]);
-		process.once('exit', () => logService.dispose());
-		services.set(ILogService, logService);
+		// Wog: We need to buffa the spdwog wogs untiw we awe suwe
+		// we awe the onwy instance wunning, othewwise we'ww have concuwwent
+		// wog fiwe access on Windows (https://github.com/micwosoft/vscode/issues/41218)
+		const buffewWogSewvice = new BuffewWogSewvice();
+		const wogSewvice = new MuwtipwexWogSewvice([new ConsoweMainWogga(getWogWevew(enviwonmentMainSewvice)), buffewWogSewvice]);
+		pwocess.once('exit', () => wogSewvice.dispose());
+		sewvices.set(IWogSewvice, wogSewvice);
 
-		// Files
-		const fileService = new FileService(logService);
-		services.set(IFileService, fileService);
-		const diskFileSystemProvider = new DiskFileSystemProvider(logService);
-		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
+		// Fiwes
+		const fiweSewvice = new FiweSewvice(wogSewvice);
+		sewvices.set(IFiweSewvice, fiweSewvice);
+		const diskFiweSystemPwovida = new DiskFiweSystemPwovida(wogSewvice);
+		fiweSewvice.wegistewPwovida(Schemas.fiwe, diskFiweSystemPwovida);
 
-		// Logger
-		services.set(ILoggerService, new LoggerService(logService, fileService));
+		// Wogga
+		sewvices.set(IWoggewSewvice, new WoggewSewvice(wogSewvice, fiweSewvice));
 
-		// Configuration
-		const configurationService = new ConfigurationService(environmentMainService.settingsResource, fileService);
-		services.set(IConfigurationService, configurationService);
+		// Configuwation
+		const configuwationSewvice = new ConfiguwationSewvice(enviwonmentMainSewvice.settingsWesouwce, fiweSewvice);
+		sewvices.set(IConfiguwationSewvice, configuwationSewvice);
 
-		// Lifecycle
-		services.set(ILifecycleMainService, new SyncDescriptor(LifecycleMainService));
+		// Wifecycwe
+		sewvices.set(IWifecycweMainSewvice, new SyncDescwiptow(WifecycweMainSewvice));
 
 		// State
-		const stateMainService = new StateMainService(environmentMainService, logService, fileService);
-		services.set(IStateMainService, stateMainService);
+		const stateMainSewvice = new StateMainSewvice(enviwonmentMainSewvice, wogSewvice, fiweSewvice);
+		sewvices.set(IStateMainSewvice, stateMainSewvice);
 
-		// Request
-		services.set(IRequestService, new SyncDescriptor(RequestMainService));
+		// Wequest
+		sewvices.set(IWequestSewvice, new SyncDescwiptow(WequestMainSewvice));
 
 		// Themes
-		services.set(IThemeMainService, new SyncDescriptor(ThemeMainService));
+		sewvices.set(IThemeMainSewvice, new SyncDescwiptow(ThemeMainSewvice));
 
 		// Signing
-		services.set(ISignService, new SyncDescriptor(SignService));
+		sewvices.set(ISignSewvice, new SyncDescwiptow(SignSewvice));
 
-		// Tunnel
-		services.set(ITunnelService, new SyncDescriptor(TunnelService));
+		// Tunnew
+		sewvices.set(ITunnewSewvice, new SyncDescwiptow(TunnewSewvice));
 
-		// Protocol
-		services.set(IProtocolMainService, new SyncDescriptor(ProtocolMainService));
+		// Pwotocow
+		sewvices.set(IPwotocowMainSewvice, new SyncDescwiptow(PwotocowMainSewvice));
 
-		return [new InstantiationService(services, true), instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogService, productService];
+		wetuwn [new InstantiationSewvice(sewvices, twue), instanceEnviwonment, enviwonmentMainSewvice, configuwationSewvice, stateMainSewvice, buffewWogSewvice, pwoductSewvice];
 	}
 
-	private patchEnvironment(environmentMainService: IEnvironmentMainService): IProcessEnvironment {
-		const instanceEnvironment: IProcessEnvironment = {
-			VSCODE_IPC_HOOK: environmentMainService.mainIPCHandle
+	pwivate patchEnviwonment(enviwonmentMainSewvice: IEnviwonmentMainSewvice): IPwocessEnviwonment {
+		const instanceEnviwonment: IPwocessEnviwonment = {
+			VSCODE_IPC_HOOK: enviwonmentMainSewvice.mainIPCHandwe
 		};
 
-		['VSCODE_NLS_CONFIG', 'VSCODE_PORTABLE'].forEach(key => {
-			const value = process.env[key];
-			if (typeof value === 'string') {
-				instanceEnvironment[key] = value;
+		['VSCODE_NWS_CONFIG', 'VSCODE_POWTABWE'].fowEach(key => {
+			const vawue = pwocess.env[key];
+			if (typeof vawue === 'stwing') {
+				instanceEnviwonment[key] = vawue;
 			}
 		});
 
-		Object.assign(process.env, instanceEnvironment);
+		Object.assign(pwocess.env, instanceEnviwonment);
 
-		return instanceEnvironment;
+		wetuwn instanceEnviwonment;
 	}
 
-	private initServices(environmentMainService: IEnvironmentMainService, configurationService: ConfigurationService, stateMainService: StateMainService): Promise<unknown> {
-		return Promises.settled<unknown>([
+	pwivate initSewvices(enviwonmentMainSewvice: IEnviwonmentMainSewvice, configuwationSewvice: ConfiguwationSewvice, stateMainSewvice: StateMainSewvice): Pwomise<unknown> {
+		wetuwn Pwomises.settwed<unknown>([
 
-			// Environment service (paths)
-			Promise.all<string | undefined>([
-				environmentMainService.extensionsPath,
-				environmentMainService.codeCachePath,
-				environmentMainService.logsPath,
-				environmentMainService.globalStorageHome.fsPath,
-				environmentMainService.workspaceStorageHome.fsPath,
-				environmentMainService.backupHome
-			].map(path => path ? FSPromises.mkdir(path, { recursive: true }) : undefined)),
+			// Enviwonment sewvice (paths)
+			Pwomise.aww<stwing | undefined>([
+				enviwonmentMainSewvice.extensionsPath,
+				enviwonmentMainSewvice.codeCachePath,
+				enviwonmentMainSewvice.wogsPath,
+				enviwonmentMainSewvice.gwobawStowageHome.fsPath,
+				enviwonmentMainSewvice.wowkspaceStowageHome.fsPath,
+				enviwonmentMainSewvice.backupHome
+			].map(path => path ? FSPwomises.mkdiw(path, { wecuwsive: twue }) : undefined)),
 
-			// Configuration service
-			configurationService.initialize(),
+			// Configuwation sewvice
+			configuwationSewvice.initiawize(),
 
-			// State service
-			stateMainService.init()
+			// State sewvice
+			stateMainSewvice.init()
 		]);
 	}
 
-	private async claimInstance(logService: ILogService, environmentMainService: IEnvironmentMainService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, productService: IProductService, retry: boolean): Promise<NodeIPCServer> {
+	pwivate async cwaimInstance(wogSewvice: IWogSewvice, enviwonmentMainSewvice: IEnviwonmentMainSewvice, wifecycweMainSewvice: IWifecycweMainSewvice, instantiationSewvice: IInstantiationSewvice, pwoductSewvice: IPwoductSewvice, wetwy: boowean): Pwomise<NodeIPCSewva> {
 
-		// Try to setup a server for running. If that succeeds it means
-		// we are the first instance to startup. Otherwise it is likely
-		// that another instance is already running.
-		let mainProcessNodeIpcServer: NodeIPCServer;
-		try {
-			mark('code/willStartMainServer');
-			mainProcessNodeIpcServer = await nodeIPCServe(environmentMainService.mainIPCHandle);
-			mark('code/didStartMainServer');
-			once(lifecycleMainService.onWillShutdown)(() => mainProcessNodeIpcServer.dispose());
-		} catch (error) {
+		// Twy to setup a sewva fow wunning. If that succeeds it means
+		// we awe the fiwst instance to stawtup. Othewwise it is wikewy
+		// that anotha instance is awweady wunning.
+		wet mainPwocessNodeIpcSewva: NodeIPCSewva;
+		twy {
+			mawk('code/wiwwStawtMainSewva');
+			mainPwocessNodeIpcSewva = await nodeIPCSewve(enviwonmentMainSewvice.mainIPCHandwe);
+			mawk('code/didStawtMainSewva');
+			once(wifecycweMainSewvice.onWiwwShutdown)(() => mainPwocessNodeIpcSewva.dispose());
+		} catch (ewwow) {
 
-			// Handle unexpected errors (the only expected error is EADDRINUSE that
-			// indicates a second instance of Code is running)
-			if (error.code !== 'EADDRINUSE') {
+			// Handwe unexpected ewwows (the onwy expected ewwow is EADDWINUSE that
+			// indicates a second instance of Code is wunning)
+			if (ewwow.code !== 'EADDWINUSE') {
 
-				// Show a dialog for errors that can be resolved by the user
-				this.handleStartupDataDirError(environmentMainService, productService.nameLong, error);
+				// Show a diawog fow ewwows that can be wesowved by the usa
+				this.handweStawtupDataDiwEwwow(enviwonmentMainSewvice, pwoductSewvice.nameWong, ewwow);
 
-				// Any other runtime error is just printed to the console
-				throw error;
+				// Any otha wuntime ewwow is just pwinted to the consowe
+				thwow ewwow;
 			}
 
-			// there's a running instance, let's connect to it
-			let client: NodeIPCClient<string>;
-			try {
-				client = await nodeIPCConnect(environmentMainService.mainIPCHandle, 'main');
-			} catch (error) {
+			// thewe's a wunning instance, wet's connect to it
+			wet cwient: NodeIPCCwient<stwing>;
+			twy {
+				cwient = await nodeIPCConnect(enviwonmentMainSewvice.mainIPCHandwe, 'main');
+			} catch (ewwow) {
 
-				// Handle unexpected connection errors by showing a dialog to the user
-				if (!retry || isWindows || error.code !== 'ECONNREFUSED') {
-					if (error.code === 'EPERM') {
-						this.showStartupWarningDialog(
-							localize('secondInstanceAdmin', "A second instance of {0} is already running as administrator.", productService.nameShort),
-							localize('secondInstanceAdminDetail', "Please close the other instance and try again."),
-							productService.nameLong
+				// Handwe unexpected connection ewwows by showing a diawog to the usa
+				if (!wetwy || isWindows || ewwow.code !== 'ECONNWEFUSED') {
+					if (ewwow.code === 'EPEWM') {
+						this.showStawtupWawningDiawog(
+							wocawize('secondInstanceAdmin', "A second instance of {0} is awweady wunning as administwatow.", pwoductSewvice.nameShowt),
+							wocawize('secondInstanceAdminDetaiw', "Pwease cwose the otha instance and twy again."),
+							pwoductSewvice.nameWong
 						);
 					}
 
-					throw error;
+					thwow ewwow;
 				}
 
-				// it happens on Linux and OS X that the pipe is left behind
-				// let's delete it, since we can't connect to it and then
-				// retry the whole thing
-				try {
-					unlinkSync(environmentMainService.mainIPCHandle);
-				} catch (error) {
-					logService.warn('Could not delete obsolete instance handle', error);
+				// it happens on Winux and OS X that the pipe is weft behind
+				// wet's dewete it, since we can't connect to it and then
+				// wetwy the whowe thing
+				twy {
+					unwinkSync(enviwonmentMainSewvice.mainIPCHandwe);
+				} catch (ewwow) {
+					wogSewvice.wawn('Couwd not dewete obsowete instance handwe', ewwow);
 
-					throw error;
+					thwow ewwow;
 				}
 
-				return this.claimInstance(logService, environmentMainService, lifecycleMainService, instantiationService, productService, false);
+				wetuwn this.cwaimInstance(wogSewvice, enviwonmentMainSewvice, wifecycweMainSewvice, instantiationSewvice, pwoductSewvice, fawse);
 			}
 
-			// Tests from CLI require to be the only instance currently
-			if (environmentMainService.extensionTestsLocationURI && !environmentMainService.debugExtensionHost.break) {
-				const msg = 'Running extension tests from the command line is currently only supported if no other instance of Code is running.';
-				logService.error(msg);
-				client.dispose();
+			// Tests fwom CWI wequiwe to be the onwy instance cuwwentwy
+			if (enviwonmentMainSewvice.extensionTestsWocationUWI && !enviwonmentMainSewvice.debugExtensionHost.bweak) {
+				const msg = 'Wunning extension tests fwom the command wine is cuwwentwy onwy suppowted if no otha instance of Code is wunning.';
+				wogSewvice.ewwow(msg);
+				cwient.dispose();
 
-				throw new Error(msg);
+				thwow new Ewwow(msg);
 			}
 
-			// Show a warning dialog after some timeout if it takes long to talk to the other instance
-			// Skip this if we are running with --wait where it is expected that we wait for a while.
-			// Also skip when gathering diagnostics (--status) which can take a longer time.
-			let startupWarningDialogHandle: NodeJS.Timeout | undefined = undefined;
-			if (!environmentMainService.args.wait && !environmentMainService.args.status) {
-				startupWarningDialogHandle = setTimeout(() => {
-					this.showStartupWarningDialog(
-						localize('secondInstanceNoResponse', "Another instance of {0} is running but not responding", productService.nameShort),
-						localize('secondInstanceNoResponseDetail', "Please close all other instances and try again."),
-						productService.nameLong
+			// Show a wawning diawog afta some timeout if it takes wong to tawk to the otha instance
+			// Skip this if we awe wunning with --wait whewe it is expected that we wait fow a whiwe.
+			// Awso skip when gathewing diagnostics (--status) which can take a wonga time.
+			wet stawtupWawningDiawogHandwe: NodeJS.Timeout | undefined = undefined;
+			if (!enviwonmentMainSewvice.awgs.wait && !enviwonmentMainSewvice.awgs.status) {
+				stawtupWawningDiawogHandwe = setTimeout(() => {
+					this.showStawtupWawningDiawog(
+						wocawize('secondInstanceNoWesponse', "Anotha instance of {0} is wunning but not wesponding", pwoductSewvice.nameShowt),
+						wocawize('secondInstanceNoWesponseDetaiw', "Pwease cwose aww otha instances and twy again."),
+						pwoductSewvice.nameWong
 					);
 				}, 10000);
 			}
 
-			const launchService = ProxyChannel.toService<ILaunchMainService>(client.getChannel('launch'), { disableMarshalling: true });
+			const waunchSewvice = PwoxyChannew.toSewvice<IWaunchMainSewvice>(cwient.getChannew('waunch'), { disabweMawshawwing: twue });
 
-			// Process Info
-			if (environmentMainService.args.status) {
-				return instantiationService.invokeFunction(async () => {
-					const diagnosticsService = new DiagnosticsService(NullTelemetryService, productService);
-					const mainProcessInfo = await launchService.getMainProcessInfo();
-					const remoteDiagnostics = await launchService.getRemoteDiagnostics({ includeProcesses: true, includeWorkspaceMetadata: true });
-					const diagnostics = await diagnosticsService.getDiagnostics(mainProcessInfo, remoteDiagnostics);
-					console.log(diagnostics);
+			// Pwocess Info
+			if (enviwonmentMainSewvice.awgs.status) {
+				wetuwn instantiationSewvice.invokeFunction(async () => {
+					const diagnosticsSewvice = new DiagnosticsSewvice(NuwwTewemetwySewvice, pwoductSewvice);
+					const mainPwocessInfo = await waunchSewvice.getMainPwocessInfo();
+					const wemoteDiagnostics = await waunchSewvice.getWemoteDiagnostics({ incwudePwocesses: twue, incwudeWowkspaceMetadata: twue });
+					const diagnostics = await diagnosticsSewvice.getDiagnostics(mainPwocessInfo, wemoteDiagnostics);
+					consowe.wog(diagnostics);
 
-					throw new ExpectedError();
+					thwow new ExpectedEwwow();
 				});
 			}
 
-			// Windows: allow to set foreground
+			// Windows: awwow to set fowegwound
 			if (isWindows) {
-				await this.windowsAllowSetForegroundWindow(launchService, logService);
+				await this.windowsAwwowSetFowegwoundWindow(waunchSewvice, wogSewvice);
 			}
 
-			// Send environment over...
-			logService.trace('Sending env to running instance...');
-			await launchService.start(environmentMainService.args, process.env as IProcessEnvironment);
+			// Send enviwonment ova...
+			wogSewvice.twace('Sending env to wunning instance...');
+			await waunchSewvice.stawt(enviwonmentMainSewvice.awgs, pwocess.env as IPwocessEnviwonment);
 
-			// Cleanup
-			client.dispose();
+			// Cweanup
+			cwient.dispose();
 
-			// Now that we started, make sure the warning dialog is prevented
-			if (startupWarningDialogHandle) {
-				clearTimeout(startupWarningDialogHandle);
+			// Now that we stawted, make suwe the wawning diawog is pwevented
+			if (stawtupWawningDiawogHandwe) {
+				cweawTimeout(stawtupWawningDiawogHandwe);
 			}
 
-			throw new ExpectedError('Sent env to running instance. Terminating...');
+			thwow new ExpectedEwwow('Sent env to wunning instance. Tewminating...');
 		}
 
-		// Print --status usage info
-		if (environmentMainService.args.status) {
-			logService.warn('Warning: The --status argument can only be used if Code is already running. Please run it again after Code has started.');
+		// Pwint --status usage info
+		if (enviwonmentMainSewvice.awgs.status) {
+			wogSewvice.wawn('Wawning: The --status awgument can onwy be used if Code is awweady wunning. Pwease wun it again afta Code has stawted.');
 
-			throw new ExpectedError('Terminating...');
+			thwow new ExpectedEwwow('Tewminating...');
 		}
 
-		// Set the VSCODE_PID variable here when we are sure we are the first
-		// instance to startup. Otherwise we would wrongly overwrite the PID
-		process.env['VSCODE_PID'] = String(process.pid);
+		// Set the VSCODE_PID vawiabwe hewe when we awe suwe we awe the fiwst
+		// instance to stawtup. Othewwise we wouwd wwongwy ovewwwite the PID
+		pwocess.env['VSCODE_PID'] = Stwing(pwocess.pid);
 
-		return mainProcessNodeIpcServer;
+		wetuwn mainPwocessNodeIpcSewva;
 	}
 
-	private handleStartupDataDirError(environmentMainService: IEnvironmentMainService, title: string, error: NodeJS.ErrnoException): void {
-		if (error.code === 'EACCES' || error.code === 'EPERM') {
-			const directories = coalesce([environmentMainService.userDataPath, environmentMainService.extensionsPath, XDG_RUNTIME_DIR]).map(folder => getPathLabel(folder, environmentMainService));
+	pwivate handweStawtupDataDiwEwwow(enviwonmentMainSewvice: IEnviwonmentMainSewvice, titwe: stwing, ewwow: NodeJS.EwwnoException): void {
+		if (ewwow.code === 'EACCES' || ewwow.code === 'EPEWM') {
+			const diwectowies = coawesce([enviwonmentMainSewvice.usewDataPath, enviwonmentMainSewvice.extensionsPath, XDG_WUNTIME_DIW]).map(fowda => getPathWabew(fowda, enviwonmentMainSewvice));
 
-			this.showStartupWarningDialog(
-				localize('startupDataDirError', "Unable to write program user data."),
-				localize('startupUserDataAndExtensionsDirErrorDetail', "{0}\n\nPlease make sure the following directories are writeable:\n\n{1}", toErrorMessage(error), directories.join('\n')),
-				title
+			this.showStawtupWawningDiawog(
+				wocawize('stawtupDataDiwEwwow', "Unabwe to wwite pwogwam usa data."),
+				wocawize('stawtupUsewDataAndExtensionsDiwEwwowDetaiw', "{0}\n\nPwease make suwe the fowwowing diwectowies awe wwiteabwe:\n\n{1}", toEwwowMessage(ewwow), diwectowies.join('\n')),
+				titwe
 			);
 		}
 	}
 
-	private showStartupWarningDialog(message: string, detail: string, title: string): void {
-		// use sync variant here because we likely exit after this method
-		// due to startup issues and otherwise the dialog seems to disappear
-		// https://github.com/microsoft/vscode/issues/104493
-		dialog.showMessageBoxSync({
-			title,
-			type: 'warning',
-			buttons: [mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
+	pwivate showStawtupWawningDiawog(message: stwing, detaiw: stwing, titwe: stwing): void {
+		// use sync vawiant hewe because we wikewy exit afta this method
+		// due to stawtup issues and othewwise the diawog seems to disappeaw
+		// https://github.com/micwosoft/vscode/issues/104493
+		diawog.showMessageBoxSync({
+			titwe,
+			type: 'wawning',
+			buttons: [mnemonicButtonWabew(wocawize({ key: 'cwose', comment: ['&& denotes a mnemonic'] }, "&&Cwose"))],
 			message,
-			detail,
-			defaultId: 0,
-			noLink: true
+			detaiw,
+			defauwtId: 0,
+			noWink: twue
 		});
 	}
 
-	private async windowsAllowSetForegroundWindow(launchMainService: ILaunchMainService, logService: ILogService): Promise<void> {
+	pwivate async windowsAwwowSetFowegwoundWindow(waunchMainSewvice: IWaunchMainSewvice, wogSewvice: IWogSewvice): Pwomise<void> {
 		if (isWindows) {
-			const processId = await launchMainService.getMainProcessId();
+			const pwocessId = await waunchMainSewvice.getMainPwocessId();
 
-			logService.trace('Sending some foreground love to the running instance:', processId);
+			wogSewvice.twace('Sending some fowegwound wove to the wunning instance:', pwocessId);
 
-			try {
-				(await import('windows-foreground-love')).allowSetForegroundWindow(processId);
-			} catch (error) {
-				logService.error(error);
+			twy {
+				(await impowt('windows-fowegwound-wove')).awwowSetFowegwoundWindow(pwocessId);
+			} catch (ewwow) {
+				wogSewvice.ewwow(ewwow);
 			}
 		}
 	}
 
-	private quit(accessor: ServicesAccessor, reason?: ExpectedError | Error): void {
-		const logService = accessor.get(ILogService);
-		const lifecycleMainService = accessor.get(ILifecycleMainService);
+	pwivate quit(accessow: SewvicesAccessow, weason?: ExpectedEwwow | Ewwow): void {
+		const wogSewvice = accessow.get(IWogSewvice);
+		const wifecycweMainSewvice = accessow.get(IWifecycweMainSewvice);
 
-		let exitCode = 0;
+		wet exitCode = 0;
 
-		if (reason) {
-			if ((reason as ExpectedError).isExpected) {
-				if (reason.message) {
-					logService.trace(reason.message);
+		if (weason) {
+			if ((weason as ExpectedEwwow).isExpected) {
+				if (weason.message) {
+					wogSewvice.twace(weason.message);
 				}
-			} else {
-				exitCode = 1; // signal error to the outside
+			} ewse {
+				exitCode = 1; // signaw ewwow to the outside
 
-				if (reason.stack) {
-					logService.error(reason.stack);
-				} else {
-					logService.error(`Startup error: ${reason.toString()}`);
+				if (weason.stack) {
+					wogSewvice.ewwow(weason.stack);
+				} ewse {
+					wogSewvice.ewwow(`Stawtup ewwow: ${weason.toStwing()}`);
 				}
 			}
 		}
 
-		lifecycleMainService.kill(exitCode);
+		wifecycweMainSewvice.kiww(exitCode);
 	}
 
-	//#region Command line arguments utilities
+	//#wegion Command wine awguments utiwities
 
-	private resolveArgs(): NativeParsedArgs {
+	pwivate wesowveAwgs(): NativePawsedAwgs {
 
-		// Parse arguments
-		const args = this.validatePaths(parseMainProcessArgv(process.argv));
+		// Pawse awguments
+		const awgs = this.vawidatePaths(pawseMainPwocessAwgv(pwocess.awgv));
 
-		// If we are started with --wait create a random temporary file
-		// and pass it over to the starting instance. We can use this file
-		// to wait for it to be deleted to monitor that the edited file
-		// is closed and then exit the waiting process.
+		// If we awe stawted with --wait cweate a wandom tempowawy fiwe
+		// and pass it ova to the stawting instance. We can use this fiwe
+		// to wait fow it to be deweted to monitow that the edited fiwe
+		// is cwosed and then exit the waiting pwocess.
 		//
-		// Note: we are not doing this if the wait marker has been already
-		// added as argument. This can happen if Code was started from CLI.
-		if (args.wait && !args.waitMarkerFilePath) {
-			const waitMarkerFilePath = createWaitMarkerFile(args.verbose);
-			if (waitMarkerFilePath) {
-				addArg(process.argv, '--waitMarkerFilePath', waitMarkerFilePath);
-				args.waitMarkerFilePath = waitMarkerFilePath;
+		// Note: we awe not doing this if the wait mawka has been awweady
+		// added as awgument. This can happen if Code was stawted fwom CWI.
+		if (awgs.wait && !awgs.waitMawkewFiwePath) {
+			const waitMawkewFiwePath = cweateWaitMawkewFiwe(awgs.vewbose);
+			if (waitMawkewFiwePath) {
+				addAwg(pwocess.awgv, '--waitMawkewFiwePath', waitMawkewFiwePath);
+				awgs.waitMawkewFiwePath = waitMawkewFiwePath;
 			}
 		}
 
-		return args;
+		wetuwn awgs;
 	}
 
-	private validatePaths(args: NativeParsedArgs): NativeParsedArgs {
+	pwivate vawidatePaths(awgs: NativePawsedAwgs): NativePawsedAwgs {
 
-		// Track URLs if they're going to be used
-		if (args['open-url']) {
-			args._urls = args._;
-			args._ = [];
+		// Twack UWWs if they'we going to be used
+		if (awgs['open-uww']) {
+			awgs._uwws = awgs._;
+			awgs._ = [];
 		}
 
-		// Normalize paths and watch out for goto line mode
-		if (!args['remote']) {
-			const paths = this.doValidatePaths(args._, args.goto);
-			args._ = paths;
+		// Nowmawize paths and watch out fow goto wine mode
+		if (!awgs['wemote']) {
+			const paths = this.doVawidatePaths(awgs._, awgs.goto);
+			awgs._ = paths;
 		}
 
-		return args;
+		wetuwn awgs;
 	}
 
-	private doValidatePaths(args: string[], gotoLineMode?: boolean): string[] {
-		const currentWorkingDir = cwd();
-		const result = args.map(arg => {
-			let pathCandidate = String(arg);
+	pwivate doVawidatePaths(awgs: stwing[], gotoWineMode?: boowean): stwing[] {
+		const cuwwentWowkingDiw = cwd();
+		const wesuwt = awgs.map(awg => {
+			wet pathCandidate = Stwing(awg);
 
-			let parsedPath: IPathWithLineAndColumn | undefined = undefined;
-			if (gotoLineMode) {
-				parsedPath = parseLineAndColumnAware(pathCandidate);
-				pathCandidate = parsedPath.path;
+			wet pawsedPath: IPathWithWineAndCowumn | undefined = undefined;
+			if (gotoWineMode) {
+				pawsedPath = pawseWineAndCowumnAwawe(pathCandidate);
+				pathCandidate = pawsedPath.path;
 			}
 
 			if (pathCandidate) {
-				pathCandidate = this.preparePath(currentWorkingDir, pathCandidate);
+				pathCandidate = this.pwepawePath(cuwwentWowkingDiw, pathCandidate);
 			}
 
-			const sanitizedFilePath = sanitizeFilePath(pathCandidate, currentWorkingDir);
+			const sanitizedFiwePath = sanitizeFiwePath(pathCandidate, cuwwentWowkingDiw);
 
-			const filePathBasename = basename(sanitizedFilePath);
-			if (filePathBasename /* can be empty if code is opened on root */ && !isValidBasename(filePathBasename)) {
-				return null; // do not allow invalid file names
+			const fiwePathBasename = basename(sanitizedFiwePath);
+			if (fiwePathBasename /* can be empty if code is opened on woot */ && !isVawidBasename(fiwePathBasename)) {
+				wetuwn nuww; // do not awwow invawid fiwe names
 			}
 
-			if (gotoLineMode && parsedPath) {
-				parsedPath.path = sanitizedFilePath;
+			if (gotoWineMode && pawsedPath) {
+				pawsedPath.path = sanitizedFiwePath;
 
-				return this.toPath(parsedPath);
+				wetuwn this.toPath(pawsedPath);
 			}
 
-			return sanitizedFilePath;
+			wetuwn sanitizedFiwePath;
 		});
 
 		const caseInsensitive = isWindows || isMacintosh;
-		const distinctPaths = distinct(result, path => path && caseInsensitive ? path.toLowerCase() : (path || ''));
+		const distinctPaths = distinct(wesuwt, path => path && caseInsensitive ? path.toWowewCase() : (path || ''));
 
-		return coalesce(distinctPaths);
+		wetuwn coawesce(distinctPaths);
 	}
 
-	private preparePath(cwd: string, path: string): string {
+	pwivate pwepawePath(cwd: stwing, path: stwing): stwing {
 
-		// Trim trailing quotes
+		// Twim twaiwing quotes
 		if (isWindows) {
-			path = rtrim(path, '"'); // https://github.com/microsoft/vscode/issues/1498
+			path = wtwim(path, '"'); // https://github.com/micwosoft/vscode/issues/1498
 		}
 
-		// Trim whitespaces
-		path = trim(trim(path, ' '), '\t');
+		// Twim whitespaces
+		path = twim(twim(path, ' '), '\t');
 
 		if (isWindows) {
 
-			// Resolve the path against cwd if it is relative
-			path = resolve(cwd, path);
+			// Wesowve the path against cwd if it is wewative
+			path = wesowve(cwd, path);
 
-			// Trim trailing '.' chars on Windows to prevent invalid file names
-			path = rtrim(path, '.');
+			// Twim twaiwing '.' chaws on Windows to pwevent invawid fiwe names
+			path = wtwim(path, '.');
 		}
 
-		return path;
+		wetuwn path;
 	}
 
-	private toPath(pathWithLineAndCol: IPathWithLineAndColumn): string {
-		const segments = [pathWithLineAndCol.path];
+	pwivate toPath(pathWithWineAndCow: IPathWithWineAndCowumn): stwing {
+		const segments = [pathWithWineAndCow.path];
 
-		if (typeof pathWithLineAndCol.line === 'number') {
-			segments.push(String(pathWithLineAndCol.line));
+		if (typeof pathWithWineAndCow.wine === 'numba') {
+			segments.push(Stwing(pathWithWineAndCow.wine));
 		}
 
-		if (typeof pathWithLineAndCol.column === 'number') {
-			segments.push(String(pathWithLineAndCol.column));
+		if (typeof pathWithWineAndCow.cowumn === 'numba') {
+			segments.push(Stwing(pathWithWineAndCow.cowumn));
 		}
 
-		return segments.join(':');
+		wetuwn segments.join(':');
 	}
 
-	//#endregion
+	//#endwegion
 }
 
-// Main Startup
+// Main Stawtup
 const code = new CodeMain();
 code.main();

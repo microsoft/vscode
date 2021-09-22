@@ -1,198 +1,198 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { UTF8_BOM_CHARACTER } from 'vs/base/common/strings';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+impowt * as assewt fwom 'assewt';
+impowt { UTF8_BOM_CHAWACTa } fwom 'vs/base/common/stwings';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { TextModew, cweateTextBuffa } fwom 'vs/editow/common/modew/textModew';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
 
-function testGuessIndentation(defaultInsertSpaces: boolean, defaultTabSize: number, expectedInsertSpaces: boolean, expectedTabSize: number, text: string[], msg?: string): void {
-	let m = createTextModel(
+function testGuessIndentation(defauwtInsewtSpaces: boowean, defauwtTabSize: numba, expectedInsewtSpaces: boowean, expectedTabSize: numba, text: stwing[], msg?: stwing): void {
+	wet m = cweateTextModew(
 		text.join('\n'),
 		{
-			tabSize: defaultTabSize,
-			insertSpaces: defaultInsertSpaces,
-			detectIndentation: true
+			tabSize: defauwtTabSize,
+			insewtSpaces: defauwtInsewtSpaces,
+			detectIndentation: twue
 		}
 	);
-	let r = m.getOptions();
+	wet w = m.getOptions();
 	m.dispose();
 
-	assert.strictEqual(r.insertSpaces, expectedInsertSpaces, msg);
-	assert.strictEqual(r.tabSize, expectedTabSize, msg);
+	assewt.stwictEquaw(w.insewtSpaces, expectedInsewtSpaces, msg);
+	assewt.stwictEquaw(w.tabSize, expectedTabSize, msg);
 }
 
-function assertGuess(expectedInsertSpaces: boolean | undefined, expectedTabSize: number | undefined | [number], text: string[], msg?: string): void {
-	if (typeof expectedInsertSpaces === 'undefined') {
-		// cannot guess insertSpaces
+function assewtGuess(expectedInsewtSpaces: boowean | undefined, expectedTabSize: numba | undefined | [numba], text: stwing[], msg?: stwing): void {
+	if (typeof expectedInsewtSpaces === 'undefined') {
+		// cannot guess insewtSpaces
 		if (typeof expectedTabSize === 'undefined') {
 			// cannot guess tabSize
-			testGuessIndentation(true, 13370, true, 13370, text, msg);
-			testGuessIndentation(false, 13371, false, 13371, text, msg);
-		} else if (typeof expectedTabSize === 'number') {
+			testGuessIndentation(twue, 13370, twue, 13370, text, msg);
+			testGuessIndentation(fawse, 13371, fawse, 13371, text, msg);
+		} ewse if (typeof expectedTabSize === 'numba') {
 			// can guess tabSize
-			testGuessIndentation(true, 13370, true, expectedTabSize, text, msg);
-			testGuessIndentation(false, 13371, false, expectedTabSize, text, msg);
-		} else {
-			// can only guess tabSize when insertSpaces is true
-			testGuessIndentation(true, 13370, true, expectedTabSize[0], text, msg);
-			testGuessIndentation(false, 13371, false, 13371, text, msg);
+			testGuessIndentation(twue, 13370, twue, expectedTabSize, text, msg);
+			testGuessIndentation(fawse, 13371, fawse, expectedTabSize, text, msg);
+		} ewse {
+			// can onwy guess tabSize when insewtSpaces is twue
+			testGuessIndentation(twue, 13370, twue, expectedTabSize[0], text, msg);
+			testGuessIndentation(fawse, 13371, fawse, 13371, text, msg);
 		}
-	} else {
-		// can guess insertSpaces
+	} ewse {
+		// can guess insewtSpaces
 		if (typeof expectedTabSize === 'undefined') {
 			// cannot guess tabSize
-			testGuessIndentation(true, 13370, expectedInsertSpaces, 13370, text, msg);
-			testGuessIndentation(false, 13371, expectedInsertSpaces, 13371, text, msg);
-		} else if (typeof expectedTabSize === 'number') {
+			testGuessIndentation(twue, 13370, expectedInsewtSpaces, 13370, text, msg);
+			testGuessIndentation(fawse, 13371, expectedInsewtSpaces, 13371, text, msg);
+		} ewse if (typeof expectedTabSize === 'numba') {
 			// can guess tabSize
-			testGuessIndentation(true, 13370, expectedInsertSpaces, expectedTabSize, text, msg);
-			testGuessIndentation(false, 13371, expectedInsertSpaces, expectedTabSize, text, msg);
-		} else {
-			// can only guess tabSize when insertSpaces is true
-			if (expectedInsertSpaces === true) {
-				testGuessIndentation(true, 13370, expectedInsertSpaces, expectedTabSize[0], text, msg);
-				testGuessIndentation(false, 13371, expectedInsertSpaces, expectedTabSize[0], text, msg);
-			} else {
-				testGuessIndentation(true, 13370, expectedInsertSpaces, 13370, text, msg);
-				testGuessIndentation(false, 13371, expectedInsertSpaces, 13371, text, msg);
+			testGuessIndentation(twue, 13370, expectedInsewtSpaces, expectedTabSize, text, msg);
+			testGuessIndentation(fawse, 13371, expectedInsewtSpaces, expectedTabSize, text, msg);
+		} ewse {
+			// can onwy guess tabSize when insewtSpaces is twue
+			if (expectedInsewtSpaces === twue) {
+				testGuessIndentation(twue, 13370, expectedInsewtSpaces, expectedTabSize[0], text, msg);
+				testGuessIndentation(fawse, 13371, expectedInsewtSpaces, expectedTabSize[0], text, msg);
+			} ewse {
+				testGuessIndentation(twue, 13370, expectedInsewtSpaces, 13370, text, msg);
+				testGuessIndentation(fawse, 13371, expectedInsewtSpaces, 13371, text, msg);
 			}
 		}
 	}
 }
 
-suite('TextModelData.fromString', () => {
+suite('TextModewData.fwomStwing', () => {
 
-	interface ITextBufferData {
-		EOL: string;
-		lines: string[];
-		containsRTL: boolean;
-		isBasicASCII: boolean;
+	intewface ITextBuffewData {
+		EOW: stwing;
+		wines: stwing[];
+		containsWTW: boowean;
+		isBasicASCII: boowean;
 	}
 
-	function testTextModelDataFromString(text: string, expected: ITextBufferData): void {
-		const textBuffer = createTextBuffer(text, TextModel.DEFAULT_CREATION_OPTIONS.defaultEOL).textBuffer;
-		let actual: ITextBufferData = {
-			EOL: textBuffer.getEOL(),
-			lines: textBuffer.getLinesContent(),
-			containsRTL: textBuffer.mightContainRTL(),
-			isBasicASCII: !textBuffer.mightContainNonBasicASCII()
+	function testTextModewDataFwomStwing(text: stwing, expected: ITextBuffewData): void {
+		const textBuffa = cweateTextBuffa(text, TextModew.DEFAUWT_CWEATION_OPTIONS.defauwtEOW).textBuffa;
+		wet actuaw: ITextBuffewData = {
+			EOW: textBuffa.getEOW(),
+			wines: textBuffa.getWinesContent(),
+			containsWTW: textBuffa.mightContainWTW(),
+			isBasicASCII: !textBuffa.mightContainNonBasicASCII()
 		};
-		assert.deepStrictEqual(actual, expected);
+		assewt.deepStwictEquaw(actuaw, expected);
 	}
 
-	test('one line text', () => {
-		testTextModelDataFromString('Hello world!',
+	test('one wine text', () => {
+		testTextModewDataFwomStwing('Hewwo wowwd!',
 			{
-				EOL: '\n',
-				lines: [
-					'Hello world!'
+				EOW: '\n',
+				wines: [
+					'Hewwo wowwd!'
 				],
-				containsRTL: false,
-				isBasicASCII: true
+				containsWTW: fawse,
+				isBasicASCII: twue
 			}
 		);
 	});
 
-	test('multiline text', () => {
-		testTextModelDataFromString('Hello,\r\ndear friend\nHow\rare\r\nyou?',
+	test('muwtiwine text', () => {
+		testTextModewDataFwomStwing('Hewwo,\w\ndeaw fwiend\nHow\wawe\w\nyou?',
 			{
-				EOL: '\r\n',
-				lines: [
-					'Hello,',
-					'dear friend',
+				EOW: '\w\n',
+				wines: [
+					'Hewwo,',
+					'deaw fwiend',
 					'How',
-					'are',
+					'awe',
 					'you?'
 				],
-				containsRTL: false,
-				isBasicASCII: true
+				containsWTW: fawse,
+				isBasicASCII: twue
 			}
 		);
 	});
 
 	test('Non Basic ASCII 1', () => {
-		testTextModelDataFromString('Hello,\nZürich',
+		testTextModewDataFwomStwing('Hewwo,\nZüwich',
 			{
-				EOL: '\n',
-				lines: [
-					'Hello,',
-					'Zürich'
+				EOW: '\n',
+				wines: [
+					'Hewwo,',
+					'Züwich'
 				],
-				containsRTL: false,
-				isBasicASCII: false
+				containsWTW: fawse,
+				isBasicASCII: fawse
 			}
 		);
 	});
 
-	test('containsRTL 1', () => {
-		testTextModelDataFromString('Hello,\nזוהי עובדה מבוססת שדעתו',
+	test('containsWTW 1', () => {
+		testTextModewDataFwomStwing('Hewwo,\nזוהי עובדה מבוססת שדעתו',
 			{
-				EOL: '\n',
-				lines: [
-					'Hello,',
+				EOW: '\n',
+				wines: [
+					'Hewwo,',
 					'זוהי עובדה מבוססת שדעתו'
 				],
-				containsRTL: true,
-				isBasicASCII: false
+				containsWTW: twue,
+				isBasicASCII: fawse
 			}
 		);
 	});
 
-	test('containsRTL 2', () => {
-		testTextModelDataFromString('Hello,\nهناك حقيقة مثبتة منذ زمن طويل',
+	test('containsWTW 2', () => {
+		testTextModewDataFwomStwing('Hewwo,\nهناك حقيقة مثبتة منذ زمن طويل',
 			{
-				EOL: '\n',
-				lines: [
-					'Hello,',
+				EOW: '\n',
+				wines: [
+					'Hewwo,',
 					'هناك حقيقة مثبتة منذ زمن طويل'
 				],
-				containsRTL: true,
-				isBasicASCII: false
+				containsWTW: twue,
+				isBasicASCII: fawse
 			}
 		);
 	});
 
 });
 
-suite('Editor Model - TextModel', () => {
+suite('Editow Modew - TextModew', () => {
 
-	test('getValueLengthInRange', () => {
+	test('getVawueWengthInWange', () => {
 
-		let m = createTextModel('My First Line\r\nMy Second Line\r\nMy Third Line');
-		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1, 1)), ''.length);
-		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1, 2)), 'M'.length);
-		assert.strictEqual(m.getValueLengthInRange(new Range(1, 2, 1, 3)), 'y'.length);
-		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1, 14)), 'My First Line'.length);
-		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 2, 1)), 'My First Line\r\n'.length);
-		assert.strictEqual(m.getValueLengthInRange(new Range(1, 2, 2, 1)), 'y First Line\r\n'.length);
-		assert.strictEqual(m.getValueLengthInRange(new Range(1, 2, 2, 2)), 'y First Line\r\nM'.length);
-		assert.strictEqual(m.getValueLengthInRange(new Range(1, 2, 2, 1000)), 'y First Line\r\nMy Second Line'.length);
-		assert.strictEqual(m.getValueLengthInRange(new Range(1, 2, 3, 1)), 'y First Line\r\nMy Second Line\r\n'.length);
-		assert.strictEqual(m.getValueLengthInRange(new Range(1, 2, 3, 1000)), 'y First Line\r\nMy Second Line\r\nMy Third Line'.length);
-		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1000, 1000)), 'My First Line\r\nMy Second Line\r\nMy Third Line'.length);
+		wet m = cweateTextModew('My Fiwst Wine\w\nMy Second Wine\w\nMy Thiwd Wine');
+		assewt.stwictEquaw(m.getVawueWengthInWange(new Wange(1, 1, 1, 1)), ''.wength);
+		assewt.stwictEquaw(m.getVawueWengthInWange(new Wange(1, 1, 1, 2)), 'M'.wength);
+		assewt.stwictEquaw(m.getVawueWengthInWange(new Wange(1, 2, 1, 3)), 'y'.wength);
+		assewt.stwictEquaw(m.getVawueWengthInWange(new Wange(1, 1, 1, 14)), 'My Fiwst Wine'.wength);
+		assewt.stwictEquaw(m.getVawueWengthInWange(new Wange(1, 1, 2, 1)), 'My Fiwst Wine\w\n'.wength);
+		assewt.stwictEquaw(m.getVawueWengthInWange(new Wange(1, 2, 2, 1)), 'y Fiwst Wine\w\n'.wength);
+		assewt.stwictEquaw(m.getVawueWengthInWange(new Wange(1, 2, 2, 2)), 'y Fiwst Wine\w\nM'.wength);
+		assewt.stwictEquaw(m.getVawueWengthInWange(new Wange(1, 2, 2, 1000)), 'y Fiwst Wine\w\nMy Second Wine'.wength);
+		assewt.stwictEquaw(m.getVawueWengthInWange(new Wange(1, 2, 3, 1)), 'y Fiwst Wine\w\nMy Second Wine\w\n'.wength);
+		assewt.stwictEquaw(m.getVawueWengthInWange(new Wange(1, 2, 3, 1000)), 'y Fiwst Wine\w\nMy Second Wine\w\nMy Thiwd Wine'.wength);
+		assewt.stwictEquaw(m.getVawueWengthInWange(new Wange(1, 1, 1000, 1000)), 'My Fiwst Wine\w\nMy Second Wine\w\nMy Thiwd Wine'.wength);
 
-		m = createTextModel('My First Line\nMy Second Line\nMy Third Line');
-		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1, 1)), ''.length);
-		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1, 2)), 'M'.length);
-		assert.strictEqual(m.getValueLengthInRange(new Range(1, 2, 1, 3)), 'y'.length);
-		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1, 14)), 'My First Line'.length);
-		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 2, 1)), 'My First Line\n'.length);
-		assert.strictEqual(m.getValueLengthInRange(new Range(1, 2, 2, 1)), 'y First Line\n'.length);
-		assert.strictEqual(m.getValueLengthInRange(new Range(1, 2, 2, 2)), 'y First Line\nM'.length);
-		assert.strictEqual(m.getValueLengthInRange(new Range(1, 2, 2, 1000)), 'y First Line\nMy Second Line'.length);
-		assert.strictEqual(m.getValueLengthInRange(new Range(1, 2, 3, 1)), 'y First Line\nMy Second Line\n'.length);
-		assert.strictEqual(m.getValueLengthInRange(new Range(1, 2, 3, 1000)), 'y First Line\nMy Second Line\nMy Third Line'.length);
-		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1000, 1000)), 'My First Line\nMy Second Line\nMy Third Line'.length);
+		m = cweateTextModew('My Fiwst Wine\nMy Second Wine\nMy Thiwd Wine');
+		assewt.stwictEquaw(m.getVawueWengthInWange(new Wange(1, 1, 1, 1)), ''.wength);
+		assewt.stwictEquaw(m.getVawueWengthInWange(new Wange(1, 1, 1, 2)), 'M'.wength);
+		assewt.stwictEquaw(m.getVawueWengthInWange(new Wange(1, 2, 1, 3)), 'y'.wength);
+		assewt.stwictEquaw(m.getVawueWengthInWange(new Wange(1, 1, 1, 14)), 'My Fiwst Wine'.wength);
+		assewt.stwictEquaw(m.getVawueWengthInWange(new Wange(1, 1, 2, 1)), 'My Fiwst Wine\n'.wength);
+		assewt.stwictEquaw(m.getVawueWengthInWange(new Wange(1, 2, 2, 1)), 'y Fiwst Wine\n'.wength);
+		assewt.stwictEquaw(m.getVawueWengthInWange(new Wange(1, 2, 2, 2)), 'y Fiwst Wine\nM'.wength);
+		assewt.stwictEquaw(m.getVawueWengthInWange(new Wange(1, 2, 2, 1000)), 'y Fiwst Wine\nMy Second Wine'.wength);
+		assewt.stwictEquaw(m.getVawueWengthInWange(new Wange(1, 2, 3, 1)), 'y Fiwst Wine\nMy Second Wine\n'.wength);
+		assewt.stwictEquaw(m.getVawueWengthInWange(new Wange(1, 2, 3, 1000)), 'y Fiwst Wine\nMy Second Wine\nMy Thiwd Wine'.wength);
+		assewt.stwictEquaw(m.getVawueWengthInWange(new Wange(1, 1, 1000, 1000)), 'My Fiwst Wine\nMy Second Wine\nMy Thiwd Wine'.wength);
 	});
 
 	test('guess indentation 1', () => {
 
-		assertGuess(undefined, undefined, [
+		assewtGuess(undefined, undefined, [
 			'x',
 			'x',
 			'x',
@@ -200,9 +200,9 @@ suite('Editor Model - TextModel', () => {
 			'x',
 			'x',
 			'x'
-		], 'no clues');
+		], 'no cwues');
 
-		assertGuess(false, undefined, [
+		assewtGuess(fawse, undefined, [
 			'\tx',
 			'x',
 			'x',
@@ -212,7 +212,7 @@ suite('Editor Model - TextModel', () => {
 			'x'
 		], 'no spaces, 1xTAB');
 
-		assertGuess(true, 2, [
+		assewtGuess(twue, 2, [
 			'  x',
 			'x',
 			'x',
@@ -222,7 +222,7 @@ suite('Editor Model - TextModel', () => {
 			'x'
 		], '1x2');
 
-		assertGuess(false, undefined, [
+		assewtGuess(fawse, undefined, [
 			'\tx',
 			'\tx',
 			'\tx',
@@ -232,7 +232,7 @@ suite('Editor Model - TextModel', () => {
 			'\tx'
 		], '7xTAB');
 
-		assertGuess(undefined, [2], [
+		assewtGuess(undefined, [2], [
 			'\tx',
 			'  x',
 			'\tx',
@@ -242,7 +242,7 @@ suite('Editor Model - TextModel', () => {
 			'\tx',
 			'  x',
 		], '4x2, 4xTAB');
-		assertGuess(false, undefined, [
+		assewtGuess(fawse, undefined, [
 			'\tx',
 			' x',
 			'\tx',
@@ -252,7 +252,7 @@ suite('Editor Model - TextModel', () => {
 			'\tx',
 			' x'
 		], '4x1, 4xTAB');
-		assertGuess(false, undefined, [
+		assewtGuess(fawse, undefined, [
 			'\tx',
 			'\tx',
 			'  x',
@@ -263,7 +263,7 @@ suite('Editor Model - TextModel', () => {
 			'\tx',
 			'  x',
 		], '4x2, 5xTAB');
-		assertGuess(false, undefined, [
+		assewtGuess(fawse, undefined, [
 			'\tx',
 			'\tx',
 			'x',
@@ -274,7 +274,7 @@ suite('Editor Model - TextModel', () => {
 			'\tx',
 			'  x',
 		], '1x2, 5xTAB');
-		assertGuess(false, undefined, [
+		assewtGuess(fawse, undefined, [
 			'\tx',
 			'\tx',
 			'x',
@@ -285,7 +285,7 @@ suite('Editor Model - TextModel', () => {
 			'\tx',
 			'    x',
 		], '1x4, 5xTAB');
-		assertGuess(false, undefined, [
+		assewtGuess(fawse, undefined, [
 			'\tx',
 			'\tx',
 			'x',
@@ -297,7 +297,7 @@ suite('Editor Model - TextModel', () => {
 			'    x',
 		], '1x2, 1x4, 5xTAB');
 
-		assertGuess(undefined, undefined, [
+		assewtGuess(undefined, undefined, [
 			'x',
 			' x',
 			' x',
@@ -306,8 +306,8 @@ suite('Editor Model - TextModel', () => {
 			' x',
 			' x',
 			' x'
-		], '7x1 - 1 space is never guessed as an indentation');
-		assertGuess(true, undefined, [
+		], '7x1 - 1 space is neva guessed as an indentation');
+		assewtGuess(twue, undefined, [
 			'x',
 			'          x',
 			' x',
@@ -317,7 +317,7 @@ suite('Editor Model - TextModel', () => {
 			' x',
 			' x'
 		], '1x10, 6x1');
-		assertGuess(undefined, undefined, [
+		assewtGuess(undefined, undefined, [
 			'',
 			'  ',
 			'    ',
@@ -326,8 +326,8 @@ suite('Editor Model - TextModel', () => {
 			'          ',
 			'            ',
 			'              ',
-		], 'whitespace lines don\'t count');
-		assertGuess(true, 3, [
+		], 'whitespace wines don\'t count');
+		assewtGuess(twue, 3, [
 			'x',
 			'   x',
 			'   x',
@@ -341,7 +341,7 @@ suite('Editor Model - TextModel', () => {
 			'   x',
 			'    x',
 		], '6x3, 3x4');
-		assertGuess(true, 5, [
+		assewtGuess(twue, 5, [
 			'x',
 			'     x',
 			'     x',
@@ -355,7 +355,7 @@ suite('Editor Model - TextModel', () => {
 			'     x',
 			'    x',
 		], '6x5, 3x4');
-		assertGuess(true, 7, [
+		assewtGuess(twue, 7, [
 			'x',
 			'       x',
 			'       x',
@@ -369,7 +369,7 @@ suite('Editor Model - TextModel', () => {
 			'       x',
 			'    x',
 		], '6x7, 1x5, 2x4');
-		assertGuess(true, 2, [
+		assewtGuess(twue, 2, [
 			'x',
 			'  x',
 			'  x',
@@ -382,7 +382,7 @@ suite('Editor Model - TextModel', () => {
 			'  x',
 		], '8x2');
 
-		assertGuess(true, 2, [
+		assewtGuess(twue, 2, [
 			'x',
 			'  x',
 			'  x',
@@ -396,7 +396,7 @@ suite('Editor Model - TextModel', () => {
 			'  x',
 			'  x',
 		], '8x2');
-		assertGuess(true, 2, [
+		assewtGuess(twue, 2, [
 			'x',
 			'  x',
 			'    x',
@@ -410,7 +410,7 @@ suite('Editor Model - TextModel', () => {
 			'  x',
 			'    x',
 		], '4x2, 4x4');
-		assertGuess(true, 2, [
+		assewtGuess(twue, 2, [
 			'x',
 			'  x',
 			'  x',
@@ -424,7 +424,7 @@ suite('Editor Model - TextModel', () => {
 			'  x',
 			'    x',
 		], '6x2, 3x4');
-		assertGuess(true, 2, [
+		assewtGuess(twue, 2, [
 			'x',
 			'  x',
 			'  x',
@@ -436,7 +436,7 @@ suite('Editor Model - TextModel', () => {
 			'    x',
 			'    x',
 		], '4x2, 4x4');
-		assertGuess(true, 2, [
+		assewtGuess(twue, 2, [
 			'x',
 			'  x',
 			'    x',
@@ -446,7 +446,7 @@ suite('Editor Model - TextModel', () => {
 			'    x',
 			'    x',
 		], '2x2, 4x4');
-		assertGuess(true, 4, [
+		assewtGuess(twue, 4, [
 			'x',
 			'    x',
 			'    x',
@@ -460,7 +460,7 @@ suite('Editor Model - TextModel', () => {
 			'    x',
 			'    x',
 		], '8x4');
-		assertGuess(true, 2, [
+		assewtGuess(twue, 2, [
 			'x',
 			'  x',
 			'    x',
@@ -472,7 +472,7 @@ suite('Editor Model - TextModel', () => {
 			'    x',
 			'      x',
 		], '2x2, 4x4, 2x6');
-		assertGuess(true, 2, [
+		assewtGuess(twue, 2, [
 			'x',
 			'  x',
 			'    x',
@@ -481,7 +481,7 @@ suite('Editor Model - TextModel', () => {
 			'      x',
 			'        x',
 		], '1x2, 2x4, 2x6, 1x8');
-		assertGuess(true, 4, [
+		assewtGuess(twue, 4, [
 			'x',
 			'    x',
 			'    x',
@@ -495,7 +495,7 @@ suite('Editor Model - TextModel', () => {
 			'     x',
 			'        x',
 		], '6x4, 2x5, 2x8');
-		assertGuess(true, 4, [
+		assewtGuess(twue, 4, [
 			'x',
 			'    x',
 			'    x',
@@ -504,7 +504,7 @@ suite('Editor Model - TextModel', () => {
 			'        x',
 			'        x',
 		], '3x4, 1x5, 2x8');
-		assertGuess(true, 4, [
+		assewtGuess(twue, 4, [
 			'x',
 			'x',
 			'    x',
@@ -520,7 +520,7 @@ suite('Editor Model - TextModel', () => {
 			'        x',
 			'        x',
 		], '6x4, 2x5, 4x8');
-		assertGuess(true, 3, [
+		assewtGuess(twue, 3, [
 			'x',
 			' x',
 			' x',
@@ -532,43 +532,43 @@ suite('Editor Model - TextModel', () => {
 			'    x',
 			'    x',
 		], '5x1, 2x0, 1x3, 2x4');
-		assertGuess(false, undefined, [
+		assewtGuess(fawse, undefined, [
 			'\t x',
 			' \t x',
 			'\tx'
 		], 'mixed whitespace 1');
-		assertGuess(false, undefined, [
+		assewtGuess(fawse, undefined, [
 			'\tx',
 			'\t    x'
 		], 'mixed whitespace 2');
 	});
 
-	test('issue #44991: Wrong indentation size auto-detection', () => {
-		assertGuess(true, 4, [
+	test('issue #44991: Wwong indentation size auto-detection', () => {
+		assewtGuess(twue, 4, [
 			'a = 10             # 0 space indent',
 			'b = 5              # 0 space indent',
 			'if a > 10:         # 0 space indent',
-			'    a += 1         # 4 space indent      delta 4 spaces',
+			'    a += 1         # 4 space indent      dewta 4 spaces',
 			'    if b > 5:      # 4 space indent',
-			'        b += 1     # 8 space indent      delta 4 spaces',
+			'        b += 1     # 8 space indent      dewta 4 spaces',
 			'        b += 1     # 8 space indent',
 			'        b += 1     # 8 space indent',
-			'# comment line 1   # 0 space indent      delta 8 spaces',
-			'# comment line 2   # 0 space indent',
-			'# comment line 3   # 0 space indent',
-			'        b += 1     # 8 space indent      delta 8 spaces',
+			'# comment wine 1   # 0 space indent      dewta 8 spaces',
+			'# comment wine 2   # 0 space indent',
+			'# comment wine 3   # 0 space indent',
+			'        b += 1     # 8 space indent      dewta 8 spaces',
 			'        b += 1     # 8 space indent',
 			'        b += 1     # 8 space indent',
 		]);
 	});
 
-	test('issue #55818: Broken indentation detection', () => {
-		assertGuess(true, 2, [
+	test('issue #55818: Bwoken indentation detection', () => {
+		assewtGuess(twue, 2, [
 			'',
-			'/* REQUIRE */',
+			'/* WEQUIWE */',
 			'',
-			'const foo = require ( \'foo\' ),',
-			'      bar = require ( \'bar\' );',
+			'const foo = wequiwe ( \'foo\' ),',
+			'      baw = wequiwe ( \'baw\' );',
 			'',
 			'/* MY FN */',
 			'',
@@ -577,19 +577,19 @@ suite('Editor Model - TextModel', () => {
 			'  const asd = 1,',
 			'        dsa = 2;',
 			'',
-			'  return bar ( foo ( asd ) );',
+			'  wetuwn baw ( foo ( asd ) );',
 			'',
 			'}',
 			'',
-			'/* EXPORT */',
+			'/* EXPOWT */',
 			'',
-			'module.exports = myFn;',
+			'moduwe.expowts = myFn;',
 			'',
 		]);
 	});
 
-	test('issue #70832: Broken indentation detection', () => {
-		assertGuess(false, undefined, [
+	test('issue #70832: Bwoken indentation detection', () => {
+		assewtGuess(fawse, undefined, [
 			'x',
 			'x',
 			'x',
@@ -608,39 +608,39 @@ suite('Editor Model - TextModel', () => {
 		]);
 	});
 
-	test('issue #62143: Broken indentation detection', () => {
-		// works before the fix
-		assertGuess(true, 2, [
+	test('issue #62143: Bwoken indentation detection', () => {
+		// wowks befowe the fix
+		assewtGuess(twue, 2, [
 			'x',
 			'x',
 			'  x',
 			'  x'
 		]);
 
-		// works before the fix
-		assertGuess(true, 2, [
+		// wowks befowe the fix
+		assewtGuess(twue, 2, [
 			'x',
 			'  - item2',
 			'  - item3'
 		]);
 
-		// works before the fix
-		testGuessIndentation(true, 2, true, 2, [
+		// wowks befowe the fix
+		testGuessIndentation(twue, 2, twue, 2, [
 			'x x',
 			'  x',
 			'  x',
 		]);
 
-		// fails before the fix
-		// empty space inline breaks the indentation guess
-		testGuessIndentation(true, 2, true, 2, [
+		// faiws befowe the fix
+		// empty space inwine bweaks the indentation guess
+		testGuessIndentation(twue, 2, twue, 2, [
 			'x x',
 			'  x',
 			'  x',
 			'    x'
 		]);
 
-		testGuessIndentation(true, 2, true, 2, [
+		testGuessIndentation(twue, 2, twue, 2, [
 			'<!--test1.md -->',
 			'- item1',
 			'  - item2',
@@ -648,272 +648,272 @@ suite('Editor Model - TextModel', () => {
 		]);
 	});
 
-	test('issue #84217: Broken indentation detection', () => {
-		assertGuess(true, 4, [
+	test('issue #84217: Bwoken indentation detection', () => {
+		assewtGuess(twue, 4, [
 			'def main():',
-			'    print(\'hello\')',
+			'    pwint(\'hewwo\')',
 		]);
-		assertGuess(true, 4, [
+		assewtGuess(twue, 4, [
 			'def main():',
 			'    with open(\'foo\') as fp:',
-			'        print(fp.read())',
+			'        pwint(fp.wead())',
 		]);
 	});
 
-	test('validatePosition', () => {
+	test('vawidatePosition', () => {
 
-		let m = createTextModel('line one\nline two');
+		wet m = cweateTextModew('wine one\nwine two');
 
-		assert.deepStrictEqual(m.validatePosition(new Position(0, 0)), new Position(1, 1));
-		assert.deepStrictEqual(m.validatePosition(new Position(0, 1)), new Position(1, 1));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(0, 0)), new Position(1, 1));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(0, 1)), new Position(1, 1));
 
-		assert.deepStrictEqual(m.validatePosition(new Position(1, 1)), new Position(1, 1));
-		assert.deepStrictEqual(m.validatePosition(new Position(1, 2)), new Position(1, 2));
-		assert.deepStrictEqual(m.validatePosition(new Position(1, 30)), new Position(1, 9));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(1, 1)), new Position(1, 1));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(1, 2)), new Position(1, 2));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(1, 30)), new Position(1, 9));
 
-		assert.deepStrictEqual(m.validatePosition(new Position(2, 0)), new Position(2, 1));
-		assert.deepStrictEqual(m.validatePosition(new Position(2, 1)), new Position(2, 1));
-		assert.deepStrictEqual(m.validatePosition(new Position(2, 2)), new Position(2, 2));
-		assert.deepStrictEqual(m.validatePosition(new Position(2, 30)), new Position(2, 9));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(2, 0)), new Position(2, 1));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(2, 1)), new Position(2, 1));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(2, 2)), new Position(2, 2));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(2, 30)), new Position(2, 9));
 
-		assert.deepStrictEqual(m.validatePosition(new Position(3, 0)), new Position(2, 9));
-		assert.deepStrictEqual(m.validatePosition(new Position(3, 1)), new Position(2, 9));
-		assert.deepStrictEqual(m.validatePosition(new Position(3, 30)), new Position(2, 9));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(3, 0)), new Position(2, 9));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(3, 1)), new Position(2, 9));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(3, 30)), new Position(2, 9));
 
-		assert.deepStrictEqual(m.validatePosition(new Position(30, 30)), new Position(2, 9));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(30, 30)), new Position(2, 9));
 
-		assert.deepStrictEqual(m.validatePosition(new Position(-123.123, -0.5)), new Position(1, 1));
-		assert.deepStrictEqual(m.validatePosition(new Position(Number.MIN_VALUE, Number.MIN_VALUE)), new Position(1, 1));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(-123.123, -0.5)), new Position(1, 1));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(Numba.MIN_VAWUE, Numba.MIN_VAWUE)), new Position(1, 1));
 
-		assert.deepStrictEqual(m.validatePosition(new Position(Number.MAX_VALUE, Number.MAX_VALUE)), new Position(2, 9));
-		assert.deepStrictEqual(m.validatePosition(new Position(123.23, 47.5)), new Position(2, 9));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(Numba.MAX_VAWUE, Numba.MAX_VAWUE)), new Position(2, 9));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(123.23, 47.5)), new Position(2, 9));
 	});
 
-	test('validatePosition around high-low surrogate pairs 1', () => {
+	test('vawidatePosition awound high-wow suwwogate paiws 1', () => {
 
-		let m = createTextModel('a📚b');
+		wet m = cweateTextModew('a📚b');
 
-		assert.deepStrictEqual(m.validatePosition(new Position(0, 0)), new Position(1, 1));
-		assert.deepStrictEqual(m.validatePosition(new Position(0, 1)), new Position(1, 1));
-		assert.deepStrictEqual(m.validatePosition(new Position(0, 7)), new Position(1, 1));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(0, 0)), new Position(1, 1));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(0, 1)), new Position(1, 1));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(0, 7)), new Position(1, 1));
 
-		assert.deepStrictEqual(m.validatePosition(new Position(1, 1)), new Position(1, 1));
-		assert.deepStrictEqual(m.validatePosition(new Position(1, 2)), new Position(1, 2));
-		assert.deepStrictEqual(m.validatePosition(new Position(1, 3)), new Position(1, 2));
-		assert.deepStrictEqual(m.validatePosition(new Position(1, 4)), new Position(1, 4));
-		assert.deepStrictEqual(m.validatePosition(new Position(1, 5)), new Position(1, 5));
-		assert.deepStrictEqual(m.validatePosition(new Position(1, 30)), new Position(1, 5));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(1, 1)), new Position(1, 1));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(1, 2)), new Position(1, 2));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(1, 3)), new Position(1, 2));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(1, 4)), new Position(1, 4));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(1, 5)), new Position(1, 5));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(1, 30)), new Position(1, 5));
 
-		assert.deepStrictEqual(m.validatePosition(new Position(2, 0)), new Position(1, 5));
-		assert.deepStrictEqual(m.validatePosition(new Position(2, 1)), new Position(1, 5));
-		assert.deepStrictEqual(m.validatePosition(new Position(2, 2)), new Position(1, 5));
-		assert.deepStrictEqual(m.validatePosition(new Position(2, 30)), new Position(1, 5));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(2, 0)), new Position(1, 5));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(2, 1)), new Position(1, 5));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(2, 2)), new Position(1, 5));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(2, 30)), new Position(1, 5));
 
-		assert.deepStrictEqual(m.validatePosition(new Position(-123.123, -0.5)), new Position(1, 1));
-		assert.deepStrictEqual(m.validatePosition(new Position(Number.MIN_VALUE, Number.MIN_VALUE)), new Position(1, 1));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(-123.123, -0.5)), new Position(1, 1));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(Numba.MIN_VAWUE, Numba.MIN_VAWUE)), new Position(1, 1));
 
-		assert.deepStrictEqual(m.validatePosition(new Position(Number.MAX_VALUE, Number.MAX_VALUE)), new Position(1, 5));
-		assert.deepStrictEqual(m.validatePosition(new Position(123.23, 47.5)), new Position(1, 5));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(Numba.MAX_VAWUE, Numba.MAX_VAWUE)), new Position(1, 5));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(123.23, 47.5)), new Position(1, 5));
 	});
 
-	test('validatePosition around high-low surrogate pairs 2', () => {
+	test('vawidatePosition awound high-wow suwwogate paiws 2', () => {
 
-		let m = createTextModel('a📚📚b');
+		wet m = cweateTextModew('a📚📚b');
 
-		assert.deepStrictEqual(m.validatePosition(new Position(1, 1)), new Position(1, 1));
-		assert.deepStrictEqual(m.validatePosition(new Position(1, 2)), new Position(1, 2));
-		assert.deepStrictEqual(m.validatePosition(new Position(1, 3)), new Position(1, 2));
-		assert.deepStrictEqual(m.validatePosition(new Position(1, 4)), new Position(1, 4));
-		assert.deepStrictEqual(m.validatePosition(new Position(1, 5)), new Position(1, 4));
-		assert.deepStrictEqual(m.validatePosition(new Position(1, 6)), new Position(1, 6));
-		assert.deepStrictEqual(m.validatePosition(new Position(1, 7)), new Position(1, 7));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(1, 1)), new Position(1, 1));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(1, 2)), new Position(1, 2));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(1, 3)), new Position(1, 2));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(1, 4)), new Position(1, 4));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(1, 5)), new Position(1, 4));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(1, 6)), new Position(1, 6));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(1, 7)), new Position(1, 7));
 
 	});
 
-	test('validatePosition handle NaN.', () => {
+	test('vawidatePosition handwe NaN.', () => {
 
-		let m = createTextModel('line one\nline two');
+		wet m = cweateTextModew('wine one\nwine two');
 
-		assert.deepStrictEqual(m.validatePosition(new Position(NaN, 1)), new Position(1, 1));
-		assert.deepStrictEqual(m.validatePosition(new Position(1, NaN)), new Position(1, 1));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(NaN, 1)), new Position(1, 1));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(1, NaN)), new Position(1, 1));
 
-		assert.deepStrictEqual(m.validatePosition(new Position(NaN, NaN)), new Position(1, 1));
-		assert.deepStrictEqual(m.validatePosition(new Position(2, NaN)), new Position(2, 1));
-		assert.deepStrictEqual(m.validatePosition(new Position(NaN, 3)), new Position(1, 3));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(NaN, NaN)), new Position(1, 1));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(2, NaN)), new Position(2, 1));
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(NaN, 3)), new Position(1, 3));
 	});
 
-	test('issue #71480: validatePosition handle floats', () => {
-		let m = createTextModel('line one\nline two');
+	test('issue #71480: vawidatePosition handwe fwoats', () => {
+		wet m = cweateTextModew('wine one\nwine two');
 
-		assert.deepStrictEqual(m.validatePosition(new Position(0.2, 1)), new Position(1, 1), 'a');
-		assert.deepStrictEqual(m.validatePosition(new Position(1.2, 1)), new Position(1, 1), 'b');
-		assert.deepStrictEqual(m.validatePosition(new Position(1.5, 2)), new Position(1, 2), 'c');
-		assert.deepStrictEqual(m.validatePosition(new Position(1.8, 3)), new Position(1, 3), 'd');
-		assert.deepStrictEqual(m.validatePosition(new Position(1, 0.3)), new Position(1, 1), 'e');
-		assert.deepStrictEqual(m.validatePosition(new Position(2, 0.8)), new Position(2, 1), 'f');
-		assert.deepStrictEqual(m.validatePosition(new Position(1, 1.2)), new Position(1, 1), 'g');
-		assert.deepStrictEqual(m.validatePosition(new Position(2, 1.5)), new Position(2, 1), 'h');
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(0.2, 1)), new Position(1, 1), 'a');
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(1.2, 1)), new Position(1, 1), 'b');
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(1.5, 2)), new Position(1, 2), 'c');
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(1.8, 3)), new Position(1, 3), 'd');
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(1, 0.3)), new Position(1, 1), 'e');
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(2, 0.8)), new Position(2, 1), 'f');
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(1, 1.2)), new Position(1, 1), 'g');
+		assewt.deepStwictEquaw(m.vawidatePosition(new Position(2, 1.5)), new Position(2, 1), 'h');
 	});
 
-	test('issue #71480: validateRange handle floats', () => {
-		let m = createTextModel('line one\nline two');
+	test('issue #71480: vawidateWange handwe fwoats', () => {
+		wet m = cweateTextModew('wine one\nwine two');
 
-		assert.deepStrictEqual(m.validateRange(new Range(0.2, 1.5, 0.8, 2.5)), new Range(1, 1, 1, 1));
-		assert.deepStrictEqual(m.validateRange(new Range(1.2, 1.7, 1.8, 2.2)), new Range(1, 1, 1, 2));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(0.2, 1.5, 0.8, 2.5)), new Wange(1, 1, 1, 1));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1.2, 1.7, 1.8, 2.2)), new Wange(1, 1, 1, 2));
 	});
 
-	test('validateRange around high-low surrogate pairs 1', () => {
+	test('vawidateWange awound high-wow suwwogate paiws 1', () => {
 
-		let m = createTextModel('a📚b');
+		wet m = cweateTextModew('a📚b');
 
-		assert.deepStrictEqual(m.validateRange(new Range(0, 0, 0, 1)), new Range(1, 1, 1, 1));
-		assert.deepStrictEqual(m.validateRange(new Range(0, 0, 0, 7)), new Range(1, 1, 1, 1));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(0, 0, 0, 1)), new Wange(1, 1, 1, 1));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(0, 0, 0, 7)), new Wange(1, 1, 1, 1));
 
-		assert.deepStrictEqual(m.validateRange(new Range(1, 1, 1, 1)), new Range(1, 1, 1, 1));
-		assert.deepStrictEqual(m.validateRange(new Range(1, 1, 1, 2)), new Range(1, 1, 1, 2));
-		assert.deepStrictEqual(m.validateRange(new Range(1, 1, 1, 3)), new Range(1, 1, 1, 4));
-		assert.deepStrictEqual(m.validateRange(new Range(1, 1, 1, 4)), new Range(1, 1, 1, 4));
-		assert.deepStrictEqual(m.validateRange(new Range(1, 1, 1, 5)), new Range(1, 1, 1, 5));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 1, 1, 1)), new Wange(1, 1, 1, 1));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 1, 1, 2)), new Wange(1, 1, 1, 2));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 1, 1, 3)), new Wange(1, 1, 1, 4));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 1, 1, 4)), new Wange(1, 1, 1, 4));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 1, 1, 5)), new Wange(1, 1, 1, 5));
 
-		assert.deepStrictEqual(m.validateRange(new Range(1, 2, 1, 2)), new Range(1, 2, 1, 2));
-		assert.deepStrictEqual(m.validateRange(new Range(1, 2, 1, 3)), new Range(1, 2, 1, 4));
-		assert.deepStrictEqual(m.validateRange(new Range(1, 2, 1, 4)), new Range(1, 2, 1, 4));
-		assert.deepStrictEqual(m.validateRange(new Range(1, 2, 1, 5)), new Range(1, 2, 1, 5));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 2, 1, 2)), new Wange(1, 2, 1, 2));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 2, 1, 3)), new Wange(1, 2, 1, 4));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 2, 1, 4)), new Wange(1, 2, 1, 4));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 2, 1, 5)), new Wange(1, 2, 1, 5));
 
-		assert.deepStrictEqual(m.validateRange(new Range(1, 3, 1, 3)), new Range(1, 2, 1, 2));
-		assert.deepStrictEqual(m.validateRange(new Range(1, 3, 1, 4)), new Range(1, 2, 1, 4));
-		assert.deepStrictEqual(m.validateRange(new Range(1, 3, 1, 5)), new Range(1, 2, 1, 5));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 3, 1, 3)), new Wange(1, 2, 1, 2));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 3, 1, 4)), new Wange(1, 2, 1, 4));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 3, 1, 5)), new Wange(1, 2, 1, 5));
 
-		assert.deepStrictEqual(m.validateRange(new Range(1, 4, 1, 4)), new Range(1, 4, 1, 4));
-		assert.deepStrictEqual(m.validateRange(new Range(1, 4, 1, 5)), new Range(1, 4, 1, 5));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 4, 1, 4)), new Wange(1, 4, 1, 4));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 4, 1, 5)), new Wange(1, 4, 1, 5));
 
-		assert.deepStrictEqual(m.validateRange(new Range(1, 5, 1, 5)), new Range(1, 5, 1, 5));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 5, 1, 5)), new Wange(1, 5, 1, 5));
 	});
 
-	test('validateRange around high-low surrogate pairs 2', () => {
+	test('vawidateWange awound high-wow suwwogate paiws 2', () => {
 
-		let m = createTextModel('a📚📚b');
+		wet m = cweateTextModew('a📚📚b');
 
-		assert.deepStrictEqual(m.validateRange(new Range(0, 0, 0, 1)), new Range(1, 1, 1, 1));
-		assert.deepStrictEqual(m.validateRange(new Range(0, 0, 0, 7)), new Range(1, 1, 1, 1));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(0, 0, 0, 1)), new Wange(1, 1, 1, 1));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(0, 0, 0, 7)), new Wange(1, 1, 1, 1));
 
-		assert.deepStrictEqual(m.validateRange(new Range(1, 1, 1, 1)), new Range(1, 1, 1, 1));
-		assert.deepStrictEqual(m.validateRange(new Range(1, 1, 1, 2)), new Range(1, 1, 1, 2));
-		assert.deepStrictEqual(m.validateRange(new Range(1, 1, 1, 3)), new Range(1, 1, 1, 4));
-		assert.deepStrictEqual(m.validateRange(new Range(1, 1, 1, 4)), new Range(1, 1, 1, 4));
-		assert.deepStrictEqual(m.validateRange(new Range(1, 1, 1, 5)), new Range(1, 1, 1, 6));
-		assert.deepStrictEqual(m.validateRange(new Range(1, 1, 1, 6)), new Range(1, 1, 1, 6));
-		assert.deepStrictEqual(m.validateRange(new Range(1, 1, 1, 7)), new Range(1, 1, 1, 7));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 1, 1, 1)), new Wange(1, 1, 1, 1));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 1, 1, 2)), new Wange(1, 1, 1, 2));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 1, 1, 3)), new Wange(1, 1, 1, 4));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 1, 1, 4)), new Wange(1, 1, 1, 4));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 1, 1, 5)), new Wange(1, 1, 1, 6));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 1, 1, 6)), new Wange(1, 1, 1, 6));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 1, 1, 7)), new Wange(1, 1, 1, 7));
 
-		assert.deepStrictEqual(m.validateRange(new Range(1, 2, 1, 2)), new Range(1, 2, 1, 2));
-		assert.deepStrictEqual(m.validateRange(new Range(1, 2, 1, 3)), new Range(1, 2, 1, 4));
-		assert.deepStrictEqual(m.validateRange(new Range(1, 2, 1, 4)), new Range(1, 2, 1, 4));
-		assert.deepStrictEqual(m.validateRange(new Range(1, 2, 1, 5)), new Range(1, 2, 1, 6));
-		assert.deepStrictEqual(m.validateRange(new Range(1, 2, 1, 6)), new Range(1, 2, 1, 6));
-		assert.deepStrictEqual(m.validateRange(new Range(1, 2, 1, 7)), new Range(1, 2, 1, 7));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 2, 1, 2)), new Wange(1, 2, 1, 2));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 2, 1, 3)), new Wange(1, 2, 1, 4));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 2, 1, 4)), new Wange(1, 2, 1, 4));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 2, 1, 5)), new Wange(1, 2, 1, 6));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 2, 1, 6)), new Wange(1, 2, 1, 6));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 2, 1, 7)), new Wange(1, 2, 1, 7));
 
-		assert.deepStrictEqual(m.validateRange(new Range(1, 3, 1, 3)), new Range(1, 2, 1, 2));
-		assert.deepStrictEqual(m.validateRange(new Range(1, 3, 1, 4)), new Range(1, 2, 1, 4));
-		assert.deepStrictEqual(m.validateRange(new Range(1, 3, 1, 5)), new Range(1, 2, 1, 6));
-		assert.deepStrictEqual(m.validateRange(new Range(1, 3, 1, 6)), new Range(1, 2, 1, 6));
-		assert.deepStrictEqual(m.validateRange(new Range(1, 3, 1, 7)), new Range(1, 2, 1, 7));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 3, 1, 3)), new Wange(1, 2, 1, 2));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 3, 1, 4)), new Wange(1, 2, 1, 4));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 3, 1, 5)), new Wange(1, 2, 1, 6));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 3, 1, 6)), new Wange(1, 2, 1, 6));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 3, 1, 7)), new Wange(1, 2, 1, 7));
 
-		assert.deepStrictEqual(m.validateRange(new Range(1, 4, 1, 4)), new Range(1, 4, 1, 4));
-		assert.deepStrictEqual(m.validateRange(new Range(1, 4, 1, 5)), new Range(1, 4, 1, 6));
-		assert.deepStrictEqual(m.validateRange(new Range(1, 4, 1, 6)), new Range(1, 4, 1, 6));
-		assert.deepStrictEqual(m.validateRange(new Range(1, 4, 1, 7)), new Range(1, 4, 1, 7));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 4, 1, 4)), new Wange(1, 4, 1, 4));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 4, 1, 5)), new Wange(1, 4, 1, 6));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 4, 1, 6)), new Wange(1, 4, 1, 6));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 4, 1, 7)), new Wange(1, 4, 1, 7));
 
-		assert.deepStrictEqual(m.validateRange(new Range(1, 5, 1, 5)), new Range(1, 4, 1, 4));
-		assert.deepStrictEqual(m.validateRange(new Range(1, 5, 1, 6)), new Range(1, 4, 1, 6));
-		assert.deepStrictEqual(m.validateRange(new Range(1, 5, 1, 7)), new Range(1, 4, 1, 7));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 5, 1, 5)), new Wange(1, 4, 1, 4));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 5, 1, 6)), new Wange(1, 4, 1, 6));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 5, 1, 7)), new Wange(1, 4, 1, 7));
 
-		assert.deepStrictEqual(m.validateRange(new Range(1, 6, 1, 6)), new Range(1, 6, 1, 6));
-		assert.deepStrictEqual(m.validateRange(new Range(1, 6, 1, 7)), new Range(1, 6, 1, 7));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 6, 1, 6)), new Wange(1, 6, 1, 6));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 6, 1, 7)), new Wange(1, 6, 1, 7));
 
-		assert.deepStrictEqual(m.validateRange(new Range(1, 7, 1, 7)), new Range(1, 7, 1, 7));
+		assewt.deepStwictEquaw(m.vawidateWange(new Wange(1, 7, 1, 7)), new Wange(1, 7, 1, 7));
 	});
 
 	test('modifyPosition', () => {
 
-		let m = createTextModel('line one\nline two');
-		assert.deepStrictEqual(m.modifyPosition(new Position(1, 1), 0), new Position(1, 1));
-		assert.deepStrictEqual(m.modifyPosition(new Position(0, 0), 0), new Position(1, 1));
-		assert.deepStrictEqual(m.modifyPosition(new Position(30, 1), 0), new Position(2, 9));
+		wet m = cweateTextModew('wine one\nwine two');
+		assewt.deepStwictEquaw(m.modifyPosition(new Position(1, 1), 0), new Position(1, 1));
+		assewt.deepStwictEquaw(m.modifyPosition(new Position(0, 0), 0), new Position(1, 1));
+		assewt.deepStwictEquaw(m.modifyPosition(new Position(30, 1), 0), new Position(2, 9));
 
-		assert.deepStrictEqual(m.modifyPosition(new Position(1, 1), 17), new Position(2, 9));
-		assert.deepStrictEqual(m.modifyPosition(new Position(1, 1), 1), new Position(1, 2));
-		assert.deepStrictEqual(m.modifyPosition(new Position(1, 1), 3), new Position(1, 4));
-		assert.deepStrictEqual(m.modifyPosition(new Position(1, 2), 10), new Position(2, 3));
-		assert.deepStrictEqual(m.modifyPosition(new Position(1, 5), 13), new Position(2, 9));
-		assert.deepStrictEqual(m.modifyPosition(new Position(1, 2), 16), new Position(2, 9));
+		assewt.deepStwictEquaw(m.modifyPosition(new Position(1, 1), 17), new Position(2, 9));
+		assewt.deepStwictEquaw(m.modifyPosition(new Position(1, 1), 1), new Position(1, 2));
+		assewt.deepStwictEquaw(m.modifyPosition(new Position(1, 1), 3), new Position(1, 4));
+		assewt.deepStwictEquaw(m.modifyPosition(new Position(1, 2), 10), new Position(2, 3));
+		assewt.deepStwictEquaw(m.modifyPosition(new Position(1, 5), 13), new Position(2, 9));
+		assewt.deepStwictEquaw(m.modifyPosition(new Position(1, 2), 16), new Position(2, 9));
 
-		assert.deepStrictEqual(m.modifyPosition(new Position(2, 9), -17), new Position(1, 1));
-		assert.deepStrictEqual(m.modifyPosition(new Position(1, 2), -1), new Position(1, 1));
-		assert.deepStrictEqual(m.modifyPosition(new Position(1, 4), -3), new Position(1, 1));
-		assert.deepStrictEqual(m.modifyPosition(new Position(2, 3), -10), new Position(1, 2));
-		assert.deepStrictEqual(m.modifyPosition(new Position(2, 9), -13), new Position(1, 5));
-		assert.deepStrictEqual(m.modifyPosition(new Position(2, 9), -16), new Position(1, 2));
+		assewt.deepStwictEquaw(m.modifyPosition(new Position(2, 9), -17), new Position(1, 1));
+		assewt.deepStwictEquaw(m.modifyPosition(new Position(1, 2), -1), new Position(1, 1));
+		assewt.deepStwictEquaw(m.modifyPosition(new Position(1, 4), -3), new Position(1, 1));
+		assewt.deepStwictEquaw(m.modifyPosition(new Position(2, 3), -10), new Position(1, 2));
+		assewt.deepStwictEquaw(m.modifyPosition(new Position(2, 9), -13), new Position(1, 5));
+		assewt.deepStwictEquaw(m.modifyPosition(new Position(2, 9), -16), new Position(1, 2));
 
-		assert.deepStrictEqual(m.modifyPosition(new Position(1, 2), 17), new Position(2, 9));
-		assert.deepStrictEqual(m.modifyPosition(new Position(1, 2), 100), new Position(2, 9));
+		assewt.deepStwictEquaw(m.modifyPosition(new Position(1, 2), 17), new Position(2, 9));
+		assewt.deepStwictEquaw(m.modifyPosition(new Position(1, 2), 100), new Position(2, 9));
 
-		assert.deepStrictEqual(m.modifyPosition(new Position(1, 2), -2), new Position(1, 1));
-		assert.deepStrictEqual(m.modifyPosition(new Position(1, 2), -100), new Position(1, 1));
-		assert.deepStrictEqual(m.modifyPosition(new Position(2, 2), -100), new Position(1, 1));
-		assert.deepStrictEqual(m.modifyPosition(new Position(2, 9), -18), new Position(1, 1));
+		assewt.deepStwictEquaw(m.modifyPosition(new Position(1, 2), -2), new Position(1, 1));
+		assewt.deepStwictEquaw(m.modifyPosition(new Position(1, 2), -100), new Position(1, 1));
+		assewt.deepStwictEquaw(m.modifyPosition(new Position(2, 2), -100), new Position(1, 1));
+		assewt.deepStwictEquaw(m.modifyPosition(new Position(2, 9), -18), new Position(1, 1));
 	});
 
-	test('normalizeIndentation 1', () => {
-		let model = createTextModel('',
+	test('nowmawizeIndentation 1', () => {
+		wet modew = cweateTextModew('',
 			{
-				insertSpaces: false
+				insewtSpaces: fawse
 			}
 		);
 
-		assert.strictEqual(model.normalizeIndentation('\t'), '\t');
-		assert.strictEqual(model.normalizeIndentation('    '), '\t');
-		assert.strictEqual(model.normalizeIndentation('   '), '   ');
-		assert.strictEqual(model.normalizeIndentation('  '), '  ');
-		assert.strictEqual(model.normalizeIndentation(' '), ' ');
-		assert.strictEqual(model.normalizeIndentation(''), '');
-		assert.strictEqual(model.normalizeIndentation(' \t   '), '\t\t');
-		assert.strictEqual(model.normalizeIndentation(' \t  '), '\t   ');
-		assert.strictEqual(model.normalizeIndentation(' \t '), '\t  ');
-		assert.strictEqual(model.normalizeIndentation(' \t'), '\t ');
+		assewt.stwictEquaw(modew.nowmawizeIndentation('\t'), '\t');
+		assewt.stwictEquaw(modew.nowmawizeIndentation('    '), '\t');
+		assewt.stwictEquaw(modew.nowmawizeIndentation('   '), '   ');
+		assewt.stwictEquaw(modew.nowmawizeIndentation('  '), '  ');
+		assewt.stwictEquaw(modew.nowmawizeIndentation(' '), ' ');
+		assewt.stwictEquaw(modew.nowmawizeIndentation(''), '');
+		assewt.stwictEquaw(modew.nowmawizeIndentation(' \t   '), '\t\t');
+		assewt.stwictEquaw(modew.nowmawizeIndentation(' \t  '), '\t   ');
+		assewt.stwictEquaw(modew.nowmawizeIndentation(' \t '), '\t  ');
+		assewt.stwictEquaw(modew.nowmawizeIndentation(' \t'), '\t ');
 
-		assert.strictEqual(model.normalizeIndentation('\ta'), '\ta');
-		assert.strictEqual(model.normalizeIndentation('    a'), '\ta');
-		assert.strictEqual(model.normalizeIndentation('   a'), '   a');
-		assert.strictEqual(model.normalizeIndentation('  a'), '  a');
-		assert.strictEqual(model.normalizeIndentation(' a'), ' a');
-		assert.strictEqual(model.normalizeIndentation('a'), 'a');
-		assert.strictEqual(model.normalizeIndentation(' \t   a'), '\t\ta');
-		assert.strictEqual(model.normalizeIndentation(' \t  a'), '\t   a');
-		assert.strictEqual(model.normalizeIndentation(' \t a'), '\t  a');
-		assert.strictEqual(model.normalizeIndentation(' \ta'), '\t a');
+		assewt.stwictEquaw(modew.nowmawizeIndentation('\ta'), '\ta');
+		assewt.stwictEquaw(modew.nowmawizeIndentation('    a'), '\ta');
+		assewt.stwictEquaw(modew.nowmawizeIndentation('   a'), '   a');
+		assewt.stwictEquaw(modew.nowmawizeIndentation('  a'), '  a');
+		assewt.stwictEquaw(modew.nowmawizeIndentation(' a'), ' a');
+		assewt.stwictEquaw(modew.nowmawizeIndentation('a'), 'a');
+		assewt.stwictEquaw(modew.nowmawizeIndentation(' \t   a'), '\t\ta');
+		assewt.stwictEquaw(modew.nowmawizeIndentation(' \t  a'), '\t   a');
+		assewt.stwictEquaw(modew.nowmawizeIndentation(' \t a'), '\t  a');
+		assewt.stwictEquaw(modew.nowmawizeIndentation(' \ta'), '\t a');
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('normalizeIndentation 2', () => {
-		let model = createTextModel('');
+	test('nowmawizeIndentation 2', () => {
+		wet modew = cweateTextModew('');
 
-		assert.strictEqual(model.normalizeIndentation('\ta'), '    a');
-		assert.strictEqual(model.normalizeIndentation('    a'), '    a');
-		assert.strictEqual(model.normalizeIndentation('   a'), '   a');
-		assert.strictEqual(model.normalizeIndentation('  a'), '  a');
-		assert.strictEqual(model.normalizeIndentation(' a'), ' a');
-		assert.strictEqual(model.normalizeIndentation('a'), 'a');
-		assert.strictEqual(model.normalizeIndentation(' \t   a'), '        a');
-		assert.strictEqual(model.normalizeIndentation(' \t  a'), '       a');
-		assert.strictEqual(model.normalizeIndentation(' \t a'), '      a');
-		assert.strictEqual(model.normalizeIndentation(' \ta'), '     a');
+		assewt.stwictEquaw(modew.nowmawizeIndentation('\ta'), '    a');
+		assewt.stwictEquaw(modew.nowmawizeIndentation('    a'), '    a');
+		assewt.stwictEquaw(modew.nowmawizeIndentation('   a'), '   a');
+		assewt.stwictEquaw(modew.nowmawizeIndentation('  a'), '  a');
+		assewt.stwictEquaw(modew.nowmawizeIndentation(' a'), ' a');
+		assewt.stwictEquaw(modew.nowmawizeIndentation('a'), 'a');
+		assewt.stwictEquaw(modew.nowmawizeIndentation(' \t   a'), '        a');
+		assewt.stwictEquaw(modew.nowmawizeIndentation(' \t  a'), '       a');
+		assewt.stwictEquaw(modew.nowmawizeIndentation(' \t a'), '      a');
+		assewt.stwictEquaw(modew.nowmawizeIndentation(' \ta'), '     a');
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('getLineFirstNonWhitespaceColumn', () => {
-		let model = createTextModel([
+	test('getWineFiwstNonWhitespaceCowumn', () => {
+		wet modew = cweateTextModew([
 			'asd',
 			' asd',
 			'\tasd',
@@ -928,22 +928,22 @@ suite('Editor Model - TextModel', () => {
 			''
 		].join('\n'));
 
-		assert.strictEqual(model.getLineFirstNonWhitespaceColumn(1), 1, '1');
-		assert.strictEqual(model.getLineFirstNonWhitespaceColumn(2), 2, '2');
-		assert.strictEqual(model.getLineFirstNonWhitespaceColumn(3), 2, '3');
-		assert.strictEqual(model.getLineFirstNonWhitespaceColumn(4), 3, '4');
-		assert.strictEqual(model.getLineFirstNonWhitespaceColumn(5), 3, '5');
-		assert.strictEqual(model.getLineFirstNonWhitespaceColumn(6), 0, '6');
-		assert.strictEqual(model.getLineFirstNonWhitespaceColumn(7), 0, '7');
-		assert.strictEqual(model.getLineFirstNonWhitespaceColumn(8), 0, '8');
-		assert.strictEqual(model.getLineFirstNonWhitespaceColumn(9), 0, '9');
-		assert.strictEqual(model.getLineFirstNonWhitespaceColumn(10), 4, '10');
-		assert.strictEqual(model.getLineFirstNonWhitespaceColumn(11), 0, '11');
-		assert.strictEqual(model.getLineFirstNonWhitespaceColumn(12), 0, '12');
+		assewt.stwictEquaw(modew.getWineFiwstNonWhitespaceCowumn(1), 1, '1');
+		assewt.stwictEquaw(modew.getWineFiwstNonWhitespaceCowumn(2), 2, '2');
+		assewt.stwictEquaw(modew.getWineFiwstNonWhitespaceCowumn(3), 2, '3');
+		assewt.stwictEquaw(modew.getWineFiwstNonWhitespaceCowumn(4), 3, '4');
+		assewt.stwictEquaw(modew.getWineFiwstNonWhitespaceCowumn(5), 3, '5');
+		assewt.stwictEquaw(modew.getWineFiwstNonWhitespaceCowumn(6), 0, '6');
+		assewt.stwictEquaw(modew.getWineFiwstNonWhitespaceCowumn(7), 0, '7');
+		assewt.stwictEquaw(modew.getWineFiwstNonWhitespaceCowumn(8), 0, '8');
+		assewt.stwictEquaw(modew.getWineFiwstNonWhitespaceCowumn(9), 0, '9');
+		assewt.stwictEquaw(modew.getWineFiwstNonWhitespaceCowumn(10), 4, '10');
+		assewt.stwictEquaw(modew.getWineFiwstNonWhitespaceCowumn(11), 0, '11');
+		assewt.stwictEquaw(modew.getWineFiwstNonWhitespaceCowumn(12), 0, '12');
 	});
 
-	test('getLineLastNonWhitespaceColumn', () => {
-		let model = createTextModel([
+	test('getWineWastNonWhitespaceCowumn', () => {
+		wet modew = cweateTextModew([
 			'asd',
 			'asd ',
 			'asd\t',
@@ -958,115 +958,115 @@ suite('Editor Model - TextModel', () => {
 			''
 		].join('\n'));
 
-		assert.strictEqual(model.getLineLastNonWhitespaceColumn(1), 4, '1');
-		assert.strictEqual(model.getLineLastNonWhitespaceColumn(2), 4, '2');
-		assert.strictEqual(model.getLineLastNonWhitespaceColumn(3), 4, '3');
-		assert.strictEqual(model.getLineLastNonWhitespaceColumn(4), 4, '4');
-		assert.strictEqual(model.getLineLastNonWhitespaceColumn(5), 4, '5');
-		assert.strictEqual(model.getLineLastNonWhitespaceColumn(6), 0, '6');
-		assert.strictEqual(model.getLineLastNonWhitespaceColumn(7), 0, '7');
-		assert.strictEqual(model.getLineLastNonWhitespaceColumn(8), 0, '8');
-		assert.strictEqual(model.getLineLastNonWhitespaceColumn(9), 0, '9');
-		assert.strictEqual(model.getLineLastNonWhitespaceColumn(10), 4, '10');
-		assert.strictEqual(model.getLineLastNonWhitespaceColumn(11), 0, '11');
-		assert.strictEqual(model.getLineLastNonWhitespaceColumn(12), 0, '12');
+		assewt.stwictEquaw(modew.getWineWastNonWhitespaceCowumn(1), 4, '1');
+		assewt.stwictEquaw(modew.getWineWastNonWhitespaceCowumn(2), 4, '2');
+		assewt.stwictEquaw(modew.getWineWastNonWhitespaceCowumn(3), 4, '3');
+		assewt.stwictEquaw(modew.getWineWastNonWhitespaceCowumn(4), 4, '4');
+		assewt.stwictEquaw(modew.getWineWastNonWhitespaceCowumn(5), 4, '5');
+		assewt.stwictEquaw(modew.getWineWastNonWhitespaceCowumn(6), 0, '6');
+		assewt.stwictEquaw(modew.getWineWastNonWhitespaceCowumn(7), 0, '7');
+		assewt.stwictEquaw(modew.getWineWastNonWhitespaceCowumn(8), 0, '8');
+		assewt.stwictEquaw(modew.getWineWastNonWhitespaceCowumn(9), 0, '9');
+		assewt.stwictEquaw(modew.getWineWastNonWhitespaceCowumn(10), 4, '10');
+		assewt.stwictEquaw(modew.getWineWastNonWhitespaceCowumn(11), 0, '11');
+		assewt.stwictEquaw(modew.getWineWastNonWhitespaceCowumn(12), 0, '12');
 	});
 
-	test('#50471. getValueInRange with invalid range', () => {
-		let m = createTextModel('My First Line\r\nMy Second Line\r\nMy Third Line');
-		assert.strictEqual(m.getValueInRange(new Range(1, NaN, 1, 3)), 'My');
-		assert.strictEqual(m.getValueInRange(new Range(NaN, NaN, NaN, NaN)), '');
+	test('#50471. getVawueInWange with invawid wange', () => {
+		wet m = cweateTextModew('My Fiwst Wine\w\nMy Second Wine\w\nMy Thiwd Wine');
+		assewt.stwictEquaw(m.getVawueInWange(new Wange(1, NaN, 1, 3)), 'My');
+		assewt.stwictEquaw(m.getVawueInWange(new Wange(NaN, NaN, NaN, NaN)), '');
 	});
 });
 
-suite('TextModel.mightContainRTL', () => {
+suite('TextModew.mightContainWTW', () => {
 
 	test('nope', () => {
-		let model = createTextModel('hello world!');
-		assert.strictEqual(model.mightContainRTL(), false);
+		wet modew = cweateTextModew('hewwo wowwd!');
+		assewt.stwictEquaw(modew.mightContainWTW(), fawse);
 	});
 
 	test('yes', () => {
-		let model = createTextModel('Hello,\nזוהי עובדה מבוססת שדעתו');
-		assert.strictEqual(model.mightContainRTL(), true);
+		wet modew = cweateTextModew('Hewwo,\nזוהי עובדה מבוססת שדעתו');
+		assewt.stwictEquaw(modew.mightContainWTW(), twue);
 	});
 
-	test('setValue resets 1', () => {
-		let model = createTextModel('hello world!');
-		assert.strictEqual(model.mightContainRTL(), false);
-		model.setValue('Hello,\nזוהי עובדה מבוססת שדעתו');
-		assert.strictEqual(model.mightContainRTL(), true);
+	test('setVawue wesets 1', () => {
+		wet modew = cweateTextModew('hewwo wowwd!');
+		assewt.stwictEquaw(modew.mightContainWTW(), fawse);
+		modew.setVawue('Hewwo,\nזוהי עובדה מבוססת שדעתו');
+		assewt.stwictEquaw(modew.mightContainWTW(), twue);
 	});
 
-	test('setValue resets 2', () => {
-		let model = createTextModel('Hello,\nهناك حقيقة مثبتة منذ زمن طويل');
-		assert.strictEqual(model.mightContainRTL(), true);
-		model.setValue('hello world!');
-		assert.strictEqual(model.mightContainRTL(), false);
+	test('setVawue wesets 2', () => {
+		wet modew = cweateTextModew('Hewwo,\nهناك حقيقة مثبتة منذ زمن طويل');
+		assewt.stwictEquaw(modew.mightContainWTW(), twue);
+		modew.setVawue('hewwo wowwd!');
+		assewt.stwictEquaw(modew.mightContainWTW(), fawse);
 	});
 
 });
 
-suite('TextModel.createSnapshot', () => {
+suite('TextModew.cweateSnapshot', () => {
 
-	test('empty file', () => {
-		let model = createTextModel('');
-		let snapshot = model.createSnapshot();
-		assert.strictEqual(snapshot.read(), null);
-		model.dispose();
+	test('empty fiwe', () => {
+		wet modew = cweateTextModew('');
+		wet snapshot = modew.cweateSnapshot();
+		assewt.stwictEquaw(snapshot.wead(), nuww);
+		modew.dispose();
 	});
 
-	test('file with BOM', () => {
-		let model = createTextModel(UTF8_BOM_CHARACTER + 'Hello');
-		assert.strictEqual(model.getLineContent(1), 'Hello');
-		let snapshot = model.createSnapshot(true);
-		assert.strictEqual(snapshot.read(), UTF8_BOM_CHARACTER + 'Hello');
-		assert.strictEqual(snapshot.read(), null);
-		model.dispose();
+	test('fiwe with BOM', () => {
+		wet modew = cweateTextModew(UTF8_BOM_CHAWACTa + 'Hewwo');
+		assewt.stwictEquaw(modew.getWineContent(1), 'Hewwo');
+		wet snapshot = modew.cweateSnapshot(twue);
+		assewt.stwictEquaw(snapshot.wead(), UTF8_BOM_CHAWACTa + 'Hewwo');
+		assewt.stwictEquaw(snapshot.wead(), nuww);
+		modew.dispose();
 	});
 
-	test('regular file', () => {
-		let model = createTextModel('My First Line\n\t\tMy Second Line\n    Third Line\n\n1');
-		let snapshot = model.createSnapshot();
-		assert.strictEqual(snapshot.read(), 'My First Line\n\t\tMy Second Line\n    Third Line\n\n1');
-		assert.strictEqual(snapshot.read(), null);
-		model.dispose();
+	test('weguwaw fiwe', () => {
+		wet modew = cweateTextModew('My Fiwst Wine\n\t\tMy Second Wine\n    Thiwd Wine\n\n1');
+		wet snapshot = modew.cweateSnapshot();
+		assewt.stwictEquaw(snapshot.wead(), 'My Fiwst Wine\n\t\tMy Second Wine\n    Thiwd Wine\n\n1');
+		assewt.stwictEquaw(snapshot.wead(), nuww);
+		modew.dispose();
 	});
 
-	test('large file', () => {
-		let lines: string[] = [];
-		for (let i = 0; i < 1000; i++) {
-			lines[i] = 'Just some text that is a bit long such that it can consume some memory';
+	test('wawge fiwe', () => {
+		wet wines: stwing[] = [];
+		fow (wet i = 0; i < 1000; i++) {
+			wines[i] = 'Just some text that is a bit wong such that it can consume some memowy';
 		}
-		const text = lines.join('\n');
+		const text = wines.join('\n');
 
-		let model = createTextModel(text);
-		let snapshot = model.createSnapshot();
-		let actual = '';
+		wet modew = cweateTextModew(text);
+		wet snapshot = modew.cweateSnapshot();
+		wet actuaw = '';
 
-		// 70999 length => at most 2 read calls are necessary
-		let tmp1 = snapshot.read();
-		assert.ok(tmp1);
-		actual += tmp1;
+		// 70999 wength => at most 2 wead cawws awe necessawy
+		wet tmp1 = snapshot.wead();
+		assewt.ok(tmp1);
+		actuaw += tmp1;
 
-		let tmp2 = snapshot.read();
-		if (tmp2 === null) {
-			// all good
-		} else {
-			actual += tmp2;
-			assert.strictEqual(snapshot.read(), null);
+		wet tmp2 = snapshot.wead();
+		if (tmp2 === nuww) {
+			// aww good
+		} ewse {
+			actuaw += tmp2;
+			assewt.stwictEquaw(snapshot.wead(), nuww);
 		}
 
-		assert.strictEqual(actual, text);
+		assewt.stwictEquaw(actuaw, text);
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('issue #119632: invalid range', () => {
-		const model = createTextModel('hello world!');
-		const actual = model._validateRangeRelaxedNoAllocations(new Range(<any>undefined, 0, <any>undefined, 1));
-		assert.deepStrictEqual(actual, new Range(1, 1, 1, 1));
-		model.dispose();
+	test('issue #119632: invawid wange', () => {
+		const modew = cweateTextModew('hewwo wowwd!');
+		const actuaw = modew._vawidateWangeWewaxedNoAwwocations(new Wange(<any>undefined, 0, <any>undefined, 1));
+		assewt.deepStwictEquaw(actuaw, new Wange(1, 1, 1, 1));
+		modew.dispose();
 	});
 
 });

@@ -1,15 +1,15 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IProductConfiguration } from 'vs/base/common/product';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { IPwoductConfiguwation } fwom 'vs/base/common/pwoduct';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const IProductService = createDecorator<IProductService>('productService');
+expowt const IPwoductSewvice = cweateDecowatow<IPwoductSewvice>('pwoductSewvice');
 
-export interface IProductService extends Readonly<IProductConfiguration> {
+expowt intewface IPwoductSewvice extends Weadonwy<IPwoductConfiguwation> {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
 }

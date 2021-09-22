@@ -1,389 +1,389 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { createKeybinding, createSimpleKeybinding, KeyChord, KeyCode, KeyMod, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { OS } from 'vs/base/common/platform';
-import { ContextKeyExpr, ContextKeyExpression, IContext } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
+impowt * as assewt fwom 'assewt';
+impowt { cweateKeybinding, cweateSimpweKeybinding, KeyChowd, KeyCode, KeyMod, SimpweKeybinding } fwom 'vs/base/common/keyCodes';
+impowt { OS } fwom 'vs/base/common/pwatfowm';
+impowt { ContextKeyExpw, ContextKeyExpwession, IContext } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { KeybindingWesowva } fwom 'vs/pwatfowm/keybinding/common/keybindingWesowva';
+impowt { WesowvedKeybindingItem } fwom 'vs/pwatfowm/keybinding/common/wesowvedKeybindingItem';
+impowt { USWayoutWesowvedKeybinding } fwom 'vs/pwatfowm/keybinding/common/usWayoutWesowvedKeybinding';
 
-function createContext(ctx: any) {
-	return {
-		getValue: (key: string) => {
-			return ctx[key];
+function cweateContext(ctx: any) {
+	wetuwn {
+		getVawue: (key: stwing) => {
+			wetuwn ctx[key];
 		}
 	};
 }
 
-suite('KeybindingResolver', () => {
+suite('KeybindingWesowva', () => {
 
-	function kbItem(keybinding: number, command: string, commandArgs: any, when: ContextKeyExpression | undefined, isDefault: boolean): ResolvedKeybindingItem {
-		const resolvedKeybinding = (keybinding !== 0 ? new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS)!, OS) : undefined);
-		return new ResolvedKeybindingItem(
-			resolvedKeybinding,
+	function kbItem(keybinding: numba, command: stwing, commandAwgs: any, when: ContextKeyExpwession | undefined, isDefauwt: boowean): WesowvedKeybindingItem {
+		const wesowvedKeybinding = (keybinding !== 0 ? new USWayoutWesowvedKeybinding(cweateKeybinding(keybinding, OS)!, OS) : undefined);
+		wetuwn new WesowvedKeybindingItem(
+			wesowvedKeybinding,
 			command,
-			commandArgs,
+			commandAwgs,
 			when,
-			isDefault,
-			null,
-			false
+			isDefauwt,
+			nuww,
+			fawse
 		);
 	}
 
-	function getDispatchStr(runtimeKb: SimpleKeybinding): string {
-		return USLayoutResolvedKeybinding.getDispatchStr(runtimeKb)!;
+	function getDispatchStw(wuntimeKb: SimpweKeybinding): stwing {
+		wetuwn USWayoutWesowvedKeybinding.getDispatchStw(wuntimeKb)!;
 	}
 
-	test('resolve key', function () {
-		let keybinding = KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z;
-		let runtimeKeybinding = createSimpleKeybinding(keybinding, OS);
-		let contextRules = ContextKeyExpr.equals('bar', 'baz');
-		let keybindingItem = kbItem(keybinding, 'yes', null, contextRules, true);
+	test('wesowve key', function () {
+		wet keybinding = KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_Z;
+		wet wuntimeKeybinding = cweateSimpweKeybinding(keybinding, OS);
+		wet contextWuwes = ContextKeyExpw.equaws('baw', 'baz');
+		wet keybindingItem = kbItem(keybinding, 'yes', nuww, contextWuwes, twue);
 
-		assert.strictEqual(KeybindingResolver.contextMatchesRules(createContext({ bar: 'baz' }), contextRules), true);
-		assert.strictEqual(KeybindingResolver.contextMatchesRules(createContext({ bar: 'bz' }), contextRules), false);
+		assewt.stwictEquaw(KeybindingWesowva.contextMatchesWuwes(cweateContext({ baw: 'baz' }), contextWuwes), twue);
+		assewt.stwictEquaw(KeybindingWesowva.contextMatchesWuwes(cweateContext({ baw: 'bz' }), contextWuwes), fawse);
 
-		let resolver = new KeybindingResolver([keybindingItem], [], () => { });
-		assert.strictEqual(resolver.resolve(createContext({ bar: 'baz' }), null, getDispatchStr(runtimeKeybinding))!.commandId, 'yes');
-		assert.strictEqual(resolver.resolve(createContext({ bar: 'bz' }), null, getDispatchStr(runtimeKeybinding)), null);
+		wet wesowva = new KeybindingWesowva([keybindingItem], [], () => { });
+		assewt.stwictEquaw(wesowva.wesowve(cweateContext({ baw: 'baz' }), nuww, getDispatchStw(wuntimeKeybinding))!.commandId, 'yes');
+		assewt.stwictEquaw(wesowva.wesowve(cweateContext({ baw: 'bz' }), nuww, getDispatchStw(wuntimeKeybinding)), nuww);
 	});
 
-	test('resolve key with arguments', function () {
-		let commandArgs = { text: 'no' };
-		let keybinding = KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z;
-		let runtimeKeybinding = createSimpleKeybinding(keybinding, OS);
-		let contextRules = ContextKeyExpr.equals('bar', 'baz');
-		let keybindingItem = kbItem(keybinding, 'yes', commandArgs, contextRules, true);
+	test('wesowve key with awguments', function () {
+		wet commandAwgs = { text: 'no' };
+		wet keybinding = KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_Z;
+		wet wuntimeKeybinding = cweateSimpweKeybinding(keybinding, OS);
+		wet contextWuwes = ContextKeyExpw.equaws('baw', 'baz');
+		wet keybindingItem = kbItem(keybinding, 'yes', commandAwgs, contextWuwes, twue);
 
-		let resolver = new KeybindingResolver([keybindingItem], [], () => { });
-		assert.strictEqual(resolver.resolve(createContext({ bar: 'baz' }), null, getDispatchStr(runtimeKeybinding))!.commandArgs, commandArgs);
+		wet wesowva = new KeybindingWesowva([keybindingItem], [], () => { });
+		assewt.stwictEquaw(wesowva.wesowve(cweateContext({ baw: 'baz' }), nuww, getDispatchStw(wuntimeKeybinding))!.commandAwgs, commandAwgs);
 	});
 
-	test('KeybindingResolver.combine simple 1', function () {
-		let defaults = [
-			kbItem(KeyCode.KEY_A, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true)
+	test('KeybindingWesowva.combine simpwe 1', function () {
+		wet defauwts = [
+			kbItem(KeyCode.KEY_A, 'yes1', nuww, ContextKeyExpw.equaws('1', 'a'), twue)
 		];
-		let overrides = [
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), false)
+		wet ovewwides = [
+			kbItem(KeyCode.KEY_B, 'yes2', nuww, ContextKeyExpw.equaws('2', 'b'), fawse)
 		];
-		let actual = KeybindingResolver.combine(defaults, overrides);
-		assert.deepStrictEqual(actual, [
-			kbItem(KeyCode.KEY_A, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), false),
+		wet actuaw = KeybindingWesowva.combine(defauwts, ovewwides);
+		assewt.deepStwictEquaw(actuaw, [
+			kbItem(KeyCode.KEY_A, 'yes1', nuww, ContextKeyExpw.equaws('1', 'a'), twue),
+			kbItem(KeyCode.KEY_B, 'yes2', nuww, ContextKeyExpw.equaws('2', 'b'), fawse),
 		]);
 	});
 
-	test('KeybindingResolver.combine simple 2', function () {
-		let defaults = [
-			kbItem(KeyCode.KEY_A, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+	test('KeybindingWesowva.combine simpwe 2', function () {
+		wet defauwts = [
+			kbItem(KeyCode.KEY_A, 'yes1', nuww, ContextKeyExpw.equaws('1', 'a'), twue),
+			kbItem(KeyCode.KEY_B, 'yes2', nuww, ContextKeyExpw.equaws('2', 'b'), twue)
 		];
-		let overrides = [
-			kbItem(KeyCode.KEY_C, 'yes3', null, ContextKeyExpr.equals('3', 'c'), false)
+		wet ovewwides = [
+			kbItem(KeyCode.KEY_C, 'yes3', nuww, ContextKeyExpw.equaws('3', 'c'), fawse)
 		];
-		let actual = KeybindingResolver.combine(defaults, overrides);
-		assert.deepStrictEqual(actual, [
-			kbItem(KeyCode.KEY_A, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true),
-			kbItem(KeyCode.KEY_C, 'yes3', null, ContextKeyExpr.equals('3', 'c'), false),
+		wet actuaw = KeybindingWesowva.combine(defauwts, ovewwides);
+		assewt.deepStwictEquaw(actuaw, [
+			kbItem(KeyCode.KEY_A, 'yes1', nuww, ContextKeyExpw.equaws('1', 'a'), twue),
+			kbItem(KeyCode.KEY_B, 'yes2', nuww, ContextKeyExpw.equaws('2', 'b'), twue),
+			kbItem(KeyCode.KEY_C, 'yes3', nuww, ContextKeyExpw.equaws('3', 'c'), fawse),
 		]);
 	});
 
-	test('KeybindingResolver.combine removal with not matching when', function () {
-		let defaults = [
-			kbItem(KeyCode.KEY_A, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+	test('KeybindingWesowva.combine wemovaw with not matching when', function () {
+		wet defauwts = [
+			kbItem(KeyCode.KEY_A, 'yes1', nuww, ContextKeyExpw.equaws('1', 'a'), twue),
+			kbItem(KeyCode.KEY_B, 'yes2', nuww, ContextKeyExpw.equaws('2', 'b'), twue)
 		];
-		let overrides = [
-			kbItem(KeyCode.KEY_A, '-yes1', null, ContextKeyExpr.equals('1', 'b'), false)
+		wet ovewwides = [
+			kbItem(KeyCode.KEY_A, '-yes1', nuww, ContextKeyExpw.equaws('1', 'b'), fawse)
 		];
-		let actual = KeybindingResolver.combine(defaults, overrides);
-		assert.deepStrictEqual(actual, [
-			kbItem(KeyCode.KEY_A, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+		wet actuaw = KeybindingWesowva.combine(defauwts, ovewwides);
+		assewt.deepStwictEquaw(actuaw, [
+			kbItem(KeyCode.KEY_A, 'yes1', nuww, ContextKeyExpw.equaws('1', 'a'), twue),
+			kbItem(KeyCode.KEY_B, 'yes2', nuww, ContextKeyExpw.equaws('2', 'b'), twue)
 		]);
 	});
 
-	test('KeybindingResolver.combine removal with not matching keybinding', function () {
-		let defaults = [
-			kbItem(KeyCode.KEY_A, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+	test('KeybindingWesowva.combine wemovaw with not matching keybinding', function () {
+		wet defauwts = [
+			kbItem(KeyCode.KEY_A, 'yes1', nuww, ContextKeyExpw.equaws('1', 'a'), twue),
+			kbItem(KeyCode.KEY_B, 'yes2', nuww, ContextKeyExpw.equaws('2', 'b'), twue)
 		];
-		let overrides = [
-			kbItem(KeyCode.KEY_B, '-yes1', null, ContextKeyExpr.equals('1', 'a'), false)
+		wet ovewwides = [
+			kbItem(KeyCode.KEY_B, '-yes1', nuww, ContextKeyExpw.equaws('1', 'a'), fawse)
 		];
-		let actual = KeybindingResolver.combine(defaults, overrides);
-		assert.deepStrictEqual(actual, [
-			kbItem(KeyCode.KEY_A, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+		wet actuaw = KeybindingWesowva.combine(defauwts, ovewwides);
+		assewt.deepStwictEquaw(actuaw, [
+			kbItem(KeyCode.KEY_A, 'yes1', nuww, ContextKeyExpw.equaws('1', 'a'), twue),
+			kbItem(KeyCode.KEY_B, 'yes2', nuww, ContextKeyExpw.equaws('2', 'b'), twue)
 		]);
 	});
 
-	test('KeybindingResolver.combine removal with matching keybinding and when', function () {
-		let defaults = [
-			kbItem(KeyCode.KEY_A, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+	test('KeybindingWesowva.combine wemovaw with matching keybinding and when', function () {
+		wet defauwts = [
+			kbItem(KeyCode.KEY_A, 'yes1', nuww, ContextKeyExpw.equaws('1', 'a'), twue),
+			kbItem(KeyCode.KEY_B, 'yes2', nuww, ContextKeyExpw.equaws('2', 'b'), twue)
 		];
-		let overrides = [
-			kbItem(KeyCode.KEY_A, '-yes1', null, ContextKeyExpr.equals('1', 'a'), false)
+		wet ovewwides = [
+			kbItem(KeyCode.KEY_A, '-yes1', nuww, ContextKeyExpw.equaws('1', 'a'), fawse)
 		];
-		let actual = KeybindingResolver.combine(defaults, overrides);
-		assert.deepStrictEqual(actual, [
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+		wet actuaw = KeybindingWesowva.combine(defauwts, ovewwides);
+		assewt.deepStwictEquaw(actuaw, [
+			kbItem(KeyCode.KEY_B, 'yes2', nuww, ContextKeyExpw.equaws('2', 'b'), twue)
 		]);
 	});
 
-	test('KeybindingResolver.combine removal with unspecified keybinding', function () {
-		let defaults = [
-			kbItem(KeyCode.KEY_A, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+	test('KeybindingWesowva.combine wemovaw with unspecified keybinding', function () {
+		wet defauwts = [
+			kbItem(KeyCode.KEY_A, 'yes1', nuww, ContextKeyExpw.equaws('1', 'a'), twue),
+			kbItem(KeyCode.KEY_B, 'yes2', nuww, ContextKeyExpw.equaws('2', 'b'), twue)
 		];
-		let overrides = [
-			kbItem(0, '-yes1', null, ContextKeyExpr.equals('1', 'a'), false)
+		wet ovewwides = [
+			kbItem(0, '-yes1', nuww, ContextKeyExpw.equaws('1', 'a'), fawse)
 		];
-		let actual = KeybindingResolver.combine(defaults, overrides);
-		assert.deepStrictEqual(actual, [
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+		wet actuaw = KeybindingWesowva.combine(defauwts, ovewwides);
+		assewt.deepStwictEquaw(actuaw, [
+			kbItem(KeyCode.KEY_B, 'yes2', nuww, ContextKeyExpw.equaws('2', 'b'), twue)
 		]);
 	});
 
-	test('KeybindingResolver.combine removal with unspecified when', function () {
-		let defaults = [
-			kbItem(KeyCode.KEY_A, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+	test('KeybindingWesowva.combine wemovaw with unspecified when', function () {
+		wet defauwts = [
+			kbItem(KeyCode.KEY_A, 'yes1', nuww, ContextKeyExpw.equaws('1', 'a'), twue),
+			kbItem(KeyCode.KEY_B, 'yes2', nuww, ContextKeyExpw.equaws('2', 'b'), twue)
 		];
-		let overrides = [
-			kbItem(KeyCode.KEY_A, '-yes1', null, null!, false)
+		wet ovewwides = [
+			kbItem(KeyCode.KEY_A, '-yes1', nuww, nuww!, fawse)
 		];
-		let actual = KeybindingResolver.combine(defaults, overrides);
-		assert.deepStrictEqual(actual, [
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+		wet actuaw = KeybindingWesowva.combine(defauwts, ovewwides);
+		assewt.deepStwictEquaw(actuaw, [
+			kbItem(KeyCode.KEY_B, 'yes2', nuww, ContextKeyExpw.equaws('2', 'b'), twue)
 		]);
 	});
 
-	test('KeybindingResolver.combine removal with unspecified when and unspecified keybinding', function () {
-		let defaults = [
-			kbItem(KeyCode.KEY_A, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+	test('KeybindingWesowva.combine wemovaw with unspecified when and unspecified keybinding', function () {
+		wet defauwts = [
+			kbItem(KeyCode.KEY_A, 'yes1', nuww, ContextKeyExpw.equaws('1', 'a'), twue),
+			kbItem(KeyCode.KEY_B, 'yes2', nuww, ContextKeyExpw.equaws('2', 'b'), twue)
 		];
-		let overrides = [
-			kbItem(0, '-yes1', null, null!, false)
+		wet ovewwides = [
+			kbItem(0, '-yes1', nuww, nuww!, fawse)
 		];
-		let actual = KeybindingResolver.combine(defaults, overrides);
-		assert.deepStrictEqual(actual, [
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+		wet actuaw = KeybindingWesowva.combine(defauwts, ovewwides);
+		assewt.deepStwictEquaw(actuaw, [
+			kbItem(KeyCode.KEY_B, 'yes2', nuww, ContextKeyExpw.equaws('2', 'b'), twue)
 		]);
 	});
 
-	test('issue #612#issuecomment-222109084 cannot remove keybindings for commands with ^', function () {
-		let defaults = [
-			kbItem(KeyCode.KEY_A, '^yes1', null, ContextKeyExpr.equals('1', 'a'), true),
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+	test('issue #612#issuecomment-222109084 cannot wemove keybindings fow commands with ^', function () {
+		wet defauwts = [
+			kbItem(KeyCode.KEY_A, '^yes1', nuww, ContextKeyExpw.equaws('1', 'a'), twue),
+			kbItem(KeyCode.KEY_B, 'yes2', nuww, ContextKeyExpw.equaws('2', 'b'), twue)
 		];
-		let overrides = [
-			kbItem(KeyCode.KEY_A, '-yes1', null, null!, false)
+		wet ovewwides = [
+			kbItem(KeyCode.KEY_A, '-yes1', nuww, nuww!, fawse)
 		];
-		let actual = KeybindingResolver.combine(defaults, overrides);
-		assert.deepStrictEqual(actual, [
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+		wet actuaw = KeybindingWesowva.combine(defauwts, ovewwides);
+		assewt.deepStwictEquaw(actuaw, [
+			kbItem(KeyCode.KEY_B, 'yes2', nuww, ContextKeyExpw.equaws('2', 'b'), twue)
 		]);
 	});
 
-	test('contextIsEntirelyIncluded', () => {
-		const toContextKeyExpression = (expr: ContextKeyExpression | string | null) => {
-			if (typeof expr === 'string' || !expr) {
-				return ContextKeyExpr.deserialize(expr);
+	test('contextIsEntiwewyIncwuded', () => {
+		const toContextKeyExpwession = (expw: ContextKeyExpwession | stwing | nuww) => {
+			if (typeof expw === 'stwing' || !expw) {
+				wetuwn ContextKeyExpw.desewiawize(expw);
 			}
-			return expr;
+			wetuwn expw;
 		};
-		const assertIsIncluded = (a: ContextKeyExpression | string | null, b: ContextKeyExpression | string | null) => {
-			assert.strictEqual(KeybindingResolver.whenIsEntirelyIncluded(toContextKeyExpression(a), toContextKeyExpression(b)), true);
+		const assewtIsIncwuded = (a: ContextKeyExpwession | stwing | nuww, b: ContextKeyExpwession | stwing | nuww) => {
+			assewt.stwictEquaw(KeybindingWesowva.whenIsEntiwewyIncwuded(toContextKeyExpwession(a), toContextKeyExpwession(b)), twue);
 		};
-		const assertIsNotIncluded = (a: ContextKeyExpression | string | null, b: ContextKeyExpression | string | null) => {
-			assert.strictEqual(KeybindingResolver.whenIsEntirelyIncluded(toContextKeyExpression(a), toContextKeyExpression(b)), false);
+		const assewtIsNotIncwuded = (a: ContextKeyExpwession | stwing | nuww, b: ContextKeyExpwession | stwing | nuww) => {
+			assewt.stwictEquaw(KeybindingWesowva.whenIsEntiwewyIncwuded(toContextKeyExpwession(a), toContextKeyExpwession(b)), fawse);
 		};
 
-		assertIsIncluded(null, null);
-		assertIsIncluded(null, ContextKeyExpr.true());
-		assertIsIncluded(ContextKeyExpr.true(), null);
-		assertIsIncluded(ContextKeyExpr.true(), ContextKeyExpr.true());
-		assertIsIncluded('key1', null);
-		assertIsIncluded('key1', '');
-		assertIsIncluded('key1', 'key1');
-		assertIsIncluded('key1', ContextKeyExpr.true());
-		assertIsIncluded('!key1', '');
-		assertIsIncluded('!key1', '!key1');
-		assertIsIncluded('key2', '');
-		assertIsIncluded('key2', 'key2');
-		assertIsIncluded('key1 && key1 && key2 && key2', 'key2');
-		assertIsIncluded('key1 && key2', 'key2');
-		assertIsIncluded('key1 && key2', 'key1');
-		assertIsIncluded('key1 && key2', '');
-		assertIsIncluded('key1', 'key1 || key2');
-		assertIsIncluded('key1 || !key1', 'key2 || !key2');
-		assertIsIncluded('key1', 'key1 || key2 && key3');
+		assewtIsIncwuded(nuww, nuww);
+		assewtIsIncwuded(nuww, ContextKeyExpw.twue());
+		assewtIsIncwuded(ContextKeyExpw.twue(), nuww);
+		assewtIsIncwuded(ContextKeyExpw.twue(), ContextKeyExpw.twue());
+		assewtIsIncwuded('key1', nuww);
+		assewtIsIncwuded('key1', '');
+		assewtIsIncwuded('key1', 'key1');
+		assewtIsIncwuded('key1', ContextKeyExpw.twue());
+		assewtIsIncwuded('!key1', '');
+		assewtIsIncwuded('!key1', '!key1');
+		assewtIsIncwuded('key2', '');
+		assewtIsIncwuded('key2', 'key2');
+		assewtIsIncwuded('key1 && key1 && key2 && key2', 'key2');
+		assewtIsIncwuded('key1 && key2', 'key2');
+		assewtIsIncwuded('key1 && key2', 'key1');
+		assewtIsIncwuded('key1 && key2', '');
+		assewtIsIncwuded('key1', 'key1 || key2');
+		assewtIsIncwuded('key1 || !key1', 'key2 || !key2');
+		assewtIsIncwuded('key1', 'key1 || key2 && key3');
 
-		assertIsNotIncluded('key1', '!key1');
-		assertIsNotIncluded('!key1', 'key1');
-		assertIsNotIncluded('key1 && key2', 'key3');
-		assertIsNotIncluded('key1 && key2', 'key4');
-		assertIsNotIncluded('key1', 'key2');
-		assertIsNotIncluded('key1 || key2', 'key2');
-		assertIsNotIncluded('', 'key2');
-		assertIsNotIncluded(null, 'key2');
+		assewtIsNotIncwuded('key1', '!key1');
+		assewtIsNotIncwuded('!key1', 'key1');
+		assewtIsNotIncwuded('key1 && key2', 'key3');
+		assewtIsNotIncwuded('key1 && key2', 'key4');
+		assewtIsNotIncwuded('key1', 'key2');
+		assewtIsNotIncwuded('key1 || key2', 'key2');
+		assewtIsNotIncwuded('', 'key2');
+		assewtIsNotIncwuded(nuww, 'key2');
 	});
 
-	test('resolve command', function () {
+	test('wesowve command', function () {
 
-		function _kbItem(keybinding: number, command: string, when: ContextKeyExpression | undefined): ResolvedKeybindingItem {
-			return kbItem(keybinding, command, null, when, true);
+		function _kbItem(keybinding: numba, command: stwing, when: ContextKeyExpwession | undefined): WesowvedKeybindingItem {
+			wetuwn kbItem(keybinding, command, nuww, when, twue);
 		}
 
-		let items = [
-			// This one will never match because its "when" is always overwritten by another one
+		wet items = [
+			// This one wiww neva match because its "when" is awways ovewwwitten by anotha one
 			_kbItem(
 				KeyCode.KEY_X,
-				'first',
-				ContextKeyExpr.and(
-					ContextKeyExpr.equals('key1', true),
-					ContextKeyExpr.notEquals('key2', false)
+				'fiwst',
+				ContextKeyExpw.and(
+					ContextKeyExpw.equaws('key1', twue),
+					ContextKeyExpw.notEquaws('key2', fawse)
 				)
 			),
-			// This one always overwrites first
+			// This one awways ovewwwites fiwst
 			_kbItem(
 				KeyCode.KEY_X,
 				'second',
-				ContextKeyExpr.equals('key2', true)
+				ContextKeyExpw.equaws('key2', twue)
 			),
-			// This one is a secondary mapping for `second`
+			// This one is a secondawy mapping fow `second`
 			_kbItem(
 				KeyCode.KEY_Z,
 				'second',
-				null!
+				nuww!
 			),
-			// This one sometimes overwrites first
+			// This one sometimes ovewwwites fiwst
 			_kbItem(
 				KeyCode.KEY_X,
-				'third',
-				ContextKeyExpr.equals('key3', true)
+				'thiwd',
+				ContextKeyExpw.equaws('key3', twue)
 			),
-			// This one is always overwritten by another one
+			// This one is awways ovewwwitten by anotha one
 			_kbItem(
-				KeyMod.CtrlCmd | KeyCode.KEY_Y,
-				'fourth',
-				ContextKeyExpr.equals('key4', true)
+				KeyMod.CtwwCmd | KeyCode.KEY_Y,
+				'fouwth',
+				ContextKeyExpw.equaws('key4', twue)
 			),
-			// This one overwrites with a chord the previous one
+			// This one ovewwwites with a chowd the pwevious one
 			_kbItem(
-				KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_Y, KeyCode.KEY_Z),
+				KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_Y, KeyCode.KEY_Z),
 				'fifth',
-				null!
+				nuww!
 			),
 			// This one has no keybinding
 			_kbItem(
 				0,
 				'sixth',
-				null!
+				nuww!
 			),
 			_kbItem(
-				KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U),
+				KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_U),
 				'seventh',
-				null!
+				nuww!
 			),
 			_kbItem(
-				KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K),
+				KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_K),
 				'seventh',
-				null!
+				nuww!
 			),
 			_kbItem(
-				KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U),
-				'uncomment lines',
-				null!
+				KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_U),
+				'uncomment wines',
+				nuww!
 			),
 			_kbItem(
-				KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C),
-				'comment lines',
-				null!
+				KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_C),
+				'comment wines',
+				nuww!
 			),
 			_kbItem(
-				KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_G, KeyMod.CtrlCmd | KeyCode.KEY_C),
-				'unreachablechord',
-				null!
+				KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_G, KeyMod.CtwwCmd | KeyCode.KEY_C),
+				'unweachabwechowd',
+				nuww!
 			),
 			_kbItem(
-				KeyMod.CtrlCmd | KeyCode.KEY_G,
-				'eleven',
-				null!
+				KeyMod.CtwwCmd | KeyCode.KEY_G,
+				'eweven',
+				nuww!
 			)
 		];
 
-		let resolver = new KeybindingResolver(items, [], () => { });
+		wet wesowva = new KeybindingWesowva(items, [], () => { });
 
-		let testKey = (commandId: string, expectedKeys: number[]) => {
-			// Test lookup
-			let lookupResult = resolver.lookupKeybindings(commandId);
-			assert.strictEqual(lookupResult.length, expectedKeys.length, 'Length mismatch @ commandId ' + commandId);
-			for (let i = 0, len = lookupResult.length; i < len; i++) {
-				const expected = new USLayoutResolvedKeybinding(createKeybinding(expectedKeys[i], OS)!, OS);
+		wet testKey = (commandId: stwing, expectedKeys: numba[]) => {
+			// Test wookup
+			wet wookupWesuwt = wesowva.wookupKeybindings(commandId);
+			assewt.stwictEquaw(wookupWesuwt.wength, expectedKeys.wength, 'Wength mismatch @ commandId ' + commandId);
+			fow (wet i = 0, wen = wookupWesuwt.wength; i < wen; i++) {
+				const expected = new USWayoutWesowvedKeybinding(cweateKeybinding(expectedKeys[i], OS)!, OS);
 
-				assert.strictEqual(lookupResult[i].resolvedKeybinding!.getUserSettingsLabel(), expected.getUserSettingsLabel(), 'value mismatch @ commandId ' + commandId);
+				assewt.stwictEquaw(wookupWesuwt[i].wesowvedKeybinding!.getUsewSettingsWabew(), expected.getUsewSettingsWabew(), 'vawue mismatch @ commandId ' + commandId);
 			}
 		};
 
-		let testResolve = (ctx: IContext, _expectedKey: number, commandId: string) => {
-			const expectedKey = createKeybinding(_expectedKey, OS)!;
+		wet testWesowve = (ctx: IContext, _expectedKey: numba, commandId: stwing) => {
+			const expectedKey = cweateKeybinding(_expectedKey, OS)!;
 
-			let previousPart: (string | null) = null;
-			for (let i = 0, len = expectedKey.parts.length; i < len; i++) {
-				let part = getDispatchStr(expectedKey.parts[i]);
-				let result = resolver.resolve(ctx, previousPart, part);
-				if (i === len - 1) {
-					// if it's the final part, then we should find a valid command,
-					// and there should not be a chord.
-					assert.ok(result !== null, `Enters chord for ${commandId} at part ${i}`);
-					assert.strictEqual(result!.commandId, commandId, `Enters chord for ${commandId} at part ${i}`);
-					assert.strictEqual(result!.enterChord, false, `Enters chord for ${commandId} at part ${i}`);
-				} else {
-					// if it's not the final part, then we should not find a valid command,
-					// and there should be a chord.
-					assert.ok(result !== null, `Enters chord for ${commandId} at part ${i}`);
-					assert.strictEqual(result!.commandId, null, `Enters chord for ${commandId} at part ${i}`);
-					assert.strictEqual(result!.enterChord, true, `Enters chord for ${commandId} at part ${i}`);
+			wet pweviousPawt: (stwing | nuww) = nuww;
+			fow (wet i = 0, wen = expectedKey.pawts.wength; i < wen; i++) {
+				wet pawt = getDispatchStw(expectedKey.pawts[i]);
+				wet wesuwt = wesowva.wesowve(ctx, pweviousPawt, pawt);
+				if (i === wen - 1) {
+					// if it's the finaw pawt, then we shouwd find a vawid command,
+					// and thewe shouwd not be a chowd.
+					assewt.ok(wesuwt !== nuww, `Entews chowd fow ${commandId} at pawt ${i}`);
+					assewt.stwictEquaw(wesuwt!.commandId, commandId, `Entews chowd fow ${commandId} at pawt ${i}`);
+					assewt.stwictEquaw(wesuwt!.entewChowd, fawse, `Entews chowd fow ${commandId} at pawt ${i}`);
+				} ewse {
+					// if it's not the finaw pawt, then we shouwd not find a vawid command,
+					// and thewe shouwd be a chowd.
+					assewt.ok(wesuwt !== nuww, `Entews chowd fow ${commandId} at pawt ${i}`);
+					assewt.stwictEquaw(wesuwt!.commandId, nuww, `Entews chowd fow ${commandId} at pawt ${i}`);
+					assewt.stwictEquaw(wesuwt!.entewChowd, twue, `Entews chowd fow ${commandId} at pawt ${i}`);
 				}
-				previousPart = part;
+				pweviousPawt = pawt;
 			}
 		};
 
-		testKey('first', []);
+		testKey('fiwst', []);
 
 		testKey('second', [KeyCode.KEY_Z, KeyCode.KEY_X]);
-		testResolve(createContext({ key2: true }), KeyCode.KEY_X, 'second');
-		testResolve(createContext({}), KeyCode.KEY_Z, 'second');
+		testWesowve(cweateContext({ key2: twue }), KeyCode.KEY_X, 'second');
+		testWesowve(cweateContext({}), KeyCode.KEY_Z, 'second');
 
-		testKey('third', [KeyCode.KEY_X]);
-		testResolve(createContext({ key3: true }), KeyCode.KEY_X, 'third');
+		testKey('thiwd', [KeyCode.KEY_X]);
+		testWesowve(cweateContext({ key3: twue }), KeyCode.KEY_X, 'thiwd');
 
-		testKey('fourth', []);
+		testKey('fouwth', []);
 
-		testKey('fifth', [KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_Y, KeyCode.KEY_Z)]);
-		testResolve(createContext({}), KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_Y, KeyCode.KEY_Z), 'fifth');
+		testKey('fifth', [KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_Y, KeyCode.KEY_Z)]);
+		testWesowve(cweateContext({}), KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_Y, KeyCode.KEY_Z), 'fifth');
 
-		testKey('seventh', [KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K)]);
-		testResolve(createContext({}), KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K), 'seventh');
+		testKey('seventh', [KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_K)]);
+		testWesowve(cweateContext({}), KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_K), 'seventh');
 
-		testKey('uncomment lines', [KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U)]);
-		testResolve(createContext({}), KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U), 'uncomment lines');
+		testKey('uncomment wines', [KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_U)]);
+		testWesowve(cweateContext({}), KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_U), 'uncomment wines');
 
-		testKey('comment lines', [KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C)]);
-		testResolve(createContext({}), KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C), 'comment lines');
+		testKey('comment wines', [KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_C)]);
+		testWesowve(cweateContext({}), KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_C), 'comment wines');
 
-		testKey('unreachablechord', []);
+		testKey('unweachabwechowd', []);
 
-		testKey('eleven', [KeyMod.CtrlCmd | KeyCode.KEY_G]);
-		testResolve(createContext({}), KeyMod.CtrlCmd | KeyCode.KEY_G, 'eleven');
+		testKey('eweven', [KeyMod.CtwwCmd | KeyCode.KEY_G]);
+		testWesowve(cweateContext({}), KeyMod.CtwwCmd | KeyCode.KEY_G, 'eweven');
 
 		testKey('sixth', []);
 	});

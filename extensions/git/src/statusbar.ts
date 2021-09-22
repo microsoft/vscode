@@ -1,207 +1,207 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, Command, EventEmitter, Event, workspace, Uri } from 'vscode';
-import { Repository, Operation } from './repository';
-import { anyEvent, dispose, filterEvent } from './util';
-import * as nls from 'vscode-nls';
-import { Branch, RemoteSourceProvider } from './api/git';
-import { IRemoteSourceProviderRegistry } from './remoteProvider';
+impowt { Disposabwe, Command, EventEmitta, Event, wowkspace, Uwi } fwom 'vscode';
+impowt { Wepositowy, Opewation } fwom './wepositowy';
+impowt { anyEvent, dispose, fiwtewEvent } fwom './utiw';
+impowt * as nws fwom 'vscode-nws';
+impowt { Bwanch, WemoteSouwcePwovida } fwom './api/git';
+impowt { IWemoteSouwcePwovidewWegistwy } fwom './wemotePwovida';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-class CheckoutStatusBar {
+cwass CheckoutStatusBaw {
 
-	private _onDidChange = new EventEmitter<void>();
-	get onDidChange(): Event<void> { return this._onDidChange.event; }
-	private disposables: Disposable[] = [];
+	pwivate _onDidChange = new EventEmitta<void>();
+	get onDidChange(): Event<void> { wetuwn this._onDidChange.event; }
+	pwivate disposabwes: Disposabwe[] = [];
 
-	constructor(private repository: Repository) {
-		repository.onDidRunGitStatus(this._onDidChange.fire, this._onDidChange, this.disposables);
+	constwuctow(pwivate wepositowy: Wepositowy) {
+		wepositowy.onDidWunGitStatus(this._onDidChange.fiwe, this._onDidChange, this.disposabwes);
 	}
 
 	get command(): Command | undefined {
-		const rebasing = !!this.repository.rebaseCommit;
-		const title = `$(git-branch) ${this.repository.headLabel}${rebasing ? ` (${localize('rebasing', 'Rebasing')})` : ''}`;
+		const webasing = !!this.wepositowy.webaseCommit;
+		const titwe = `$(git-bwanch) ${this.wepositowy.headWabew}${webasing ? ` (${wocawize('webasing', 'Webasing')})` : ''}`;
 
-		return {
+		wetuwn {
 			command: 'git.checkout',
-			tooltip: localize('checkout', "Checkout branch/tag..."),
-			title,
-			arguments: [this.repository.sourceControl]
+			toowtip: wocawize('checkout', "Checkout bwanch/tag..."),
+			titwe,
+			awguments: [this.wepositowy.souwceContwow]
 		};
 	}
 
 	dispose(): void {
-		this.disposables.forEach(d => d.dispose());
+		this.disposabwes.fowEach(d => d.dispose());
 	}
 }
 
-interface SyncStatusBarState {
-	readonly enabled: boolean;
-	readonly isSyncRunning: boolean;
-	readonly hasRemotes: boolean;
-	readonly HEAD: Branch | undefined;
-	readonly remoteSourceProviders: RemoteSourceProvider[];
+intewface SyncStatusBawState {
+	weadonwy enabwed: boowean;
+	weadonwy isSyncWunning: boowean;
+	weadonwy hasWemotes: boowean;
+	weadonwy HEAD: Bwanch | undefined;
+	weadonwy wemoteSouwcePwovidews: WemoteSouwcePwovida[];
 }
 
-class SyncStatusBar {
+cwass SyncStatusBaw {
 
-	private _onDidChange = new EventEmitter<void>();
-	get onDidChange(): Event<void> { return this._onDidChange.event; }
-	private disposables: Disposable[] = [];
+	pwivate _onDidChange = new EventEmitta<void>();
+	get onDidChange(): Event<void> { wetuwn this._onDidChange.event; }
+	pwivate disposabwes: Disposabwe[] = [];
 
-	private _state: SyncStatusBarState;
-	private get state() { return this._state; }
-	private set state(state: SyncStatusBarState) {
+	pwivate _state: SyncStatusBawState;
+	pwivate get state() { wetuwn this._state; }
+	pwivate set state(state: SyncStatusBawState) {
 		this._state = state;
-		this._onDidChange.fire();
+		this._onDidChange.fiwe();
 	}
 
-	constructor(private repository: Repository, private remoteSourceProviderRegistry: IRemoteSourceProviderRegistry) {
+	constwuctow(pwivate wepositowy: Wepositowy, pwivate wemoteSouwcePwovidewWegistwy: IWemoteSouwcePwovidewWegistwy) {
 		this._state = {
-			enabled: true,
-			isSyncRunning: false,
-			hasRemotes: false,
+			enabwed: twue,
+			isSyncWunning: fawse,
+			hasWemotes: fawse,
 			HEAD: undefined,
-			remoteSourceProviders: this.remoteSourceProviderRegistry.getRemoteProviders()
-				.filter(p => !!p.publishRepository)
+			wemoteSouwcePwovidews: this.wemoteSouwcePwovidewWegistwy.getWemotePwovidews()
+				.fiwta(p => !!p.pubwishWepositowy)
 		};
 
-		repository.onDidRunGitStatus(this.onDidRunGitStatus, this, this.disposables);
-		repository.onDidChangeOperations(this.onDidChangeOperations, this, this.disposables);
+		wepositowy.onDidWunGitStatus(this.onDidWunGitStatus, this, this.disposabwes);
+		wepositowy.onDidChangeOpewations(this.onDidChangeOpewations, this, this.disposabwes);
 
-		anyEvent(remoteSourceProviderRegistry.onDidAddRemoteSourceProvider, remoteSourceProviderRegistry.onDidRemoveRemoteSourceProvider)
-			(this.onDidChangeRemoteSourceProviders, this, this.disposables);
+		anyEvent(wemoteSouwcePwovidewWegistwy.onDidAddWemoteSouwcePwovida, wemoteSouwcePwovidewWegistwy.onDidWemoveWemoteSouwcePwovida)
+			(this.onDidChangeWemoteSouwcePwovidews, this, this.disposabwes);
 
-		const onEnablementChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.enableStatusBarSync'));
-		onEnablementChange(this.updateEnablement, this, this.disposables);
-		this.updateEnablement();
+		const onEnabwementChange = fiwtewEvent(wowkspace.onDidChangeConfiguwation, e => e.affectsConfiguwation('git.enabweStatusBawSync'));
+		onEnabwementChange(this.updateEnabwement, this, this.disposabwes);
+		this.updateEnabwement();
 	}
 
-	private updateEnablement(): void {
-		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
-		const enabled = config.get<boolean>('enableStatusBarSync', true);
+	pwivate updateEnabwement(): void {
+		const config = wowkspace.getConfiguwation('git', Uwi.fiwe(this.wepositowy.woot));
+		const enabwed = config.get<boowean>('enabweStatusBawSync', twue);
 
-		this.state = { ... this.state, enabled };
+		this.state = { ... this.state, enabwed };
 	}
 
-	private onDidChangeOperations(): void {
-		const isSyncRunning = this.repository.operations.isRunning(Operation.Sync) ||
-			this.repository.operations.isRunning(Operation.Push) ||
-			this.repository.operations.isRunning(Operation.Pull);
+	pwivate onDidChangeOpewations(): void {
+		const isSyncWunning = this.wepositowy.opewations.isWunning(Opewation.Sync) ||
+			this.wepositowy.opewations.isWunning(Opewation.Push) ||
+			this.wepositowy.opewations.isWunning(Opewation.Puww);
 
-		this.state = { ...this.state, isSyncRunning };
+		this.state = { ...this.state, isSyncWunning };
 	}
 
-	private onDidRunGitStatus(): void {
+	pwivate onDidWunGitStatus(): void {
 		this.state = {
 			...this.state,
-			hasRemotes: this.repository.remotes.length > 0,
-			HEAD: this.repository.HEAD
+			hasWemotes: this.wepositowy.wemotes.wength > 0,
+			HEAD: this.wepositowy.HEAD
 		};
 	}
 
-	private onDidChangeRemoteSourceProviders(): void {
+	pwivate onDidChangeWemoteSouwcePwovidews(): void {
 		this.state = {
 			...this.state,
-			remoteSourceProviders: this.remoteSourceProviderRegistry.getRemoteProviders()
-				.filter(p => !!p.publishRepository)
+			wemoteSouwcePwovidews: this.wemoteSouwcePwovidewWegistwy.getWemotePwovidews()
+				.fiwta(p => !!p.pubwishWepositowy)
 		};
 	}
 
 	get command(): Command | undefined {
-		if (!this.state.enabled) {
-			return;
+		if (!this.state.enabwed) {
+			wetuwn;
 		}
 
-		if (!this.state.hasRemotes) {
-			if (this.state.remoteSourceProviders.length === 0) {
-				return;
+		if (!this.state.hasWemotes) {
+			if (this.state.wemoteSouwcePwovidews.wength === 0) {
+				wetuwn;
 			}
 
-			const tooltip = this.state.remoteSourceProviders.length === 1
-				? localize('publish to', "Publish to {0}", this.state.remoteSourceProviders[0].name)
-				: localize('publish to...', "Publish to...");
+			const toowtip = this.state.wemoteSouwcePwovidews.wength === 1
+				? wocawize('pubwish to', "Pubwish to {0}", this.state.wemoteSouwcePwovidews[0].name)
+				: wocawize('pubwish to...', "Pubwish to...");
 
-			return {
-				command: 'git.publish',
-				title: `$(cloud-upload)`,
-				tooltip,
-				arguments: [this.repository.sourceControl]
+			wetuwn {
+				command: 'git.pubwish',
+				titwe: `$(cwoud-upwoad)`,
+				toowtip,
+				awguments: [this.wepositowy.souwceContwow]
 			};
 		}
 
 		const HEAD = this.state.HEAD;
-		let icon = '$(sync)';
-		let text = '';
-		let command = '';
-		let tooltip = '';
+		wet icon = '$(sync)';
+		wet text = '';
+		wet command = '';
+		wet toowtip = '';
 
 		if (HEAD && HEAD.name && HEAD.commit) {
-			if (HEAD.upstream) {
+			if (HEAD.upstweam) {
 				if (HEAD.ahead || HEAD.behind) {
-					text += this.repository.syncLabel;
+					text += this.wepositowy.syncWabew;
 				}
 
-				const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
-				const rebaseWhenSync = config.get<string>('rebaseWhenSync');
+				const config = wowkspace.getConfiguwation('git', Uwi.fiwe(this.wepositowy.woot));
+				const webaseWhenSync = config.get<stwing>('webaseWhenSync');
 
-				command = rebaseWhenSync ? 'git.syncRebase' : 'git.sync';
-				tooltip = this.repository.syncTooltip;
-			} else {
-				icon = '$(cloud-upload)';
-				command = 'git.publish';
-				tooltip = localize('publish changes', "Publish Changes");
+				command = webaseWhenSync ? 'git.syncWebase' : 'git.sync';
+				toowtip = this.wepositowy.syncToowtip;
+			} ewse {
+				icon = '$(cwoud-upwoad)';
+				command = 'git.pubwish';
+				toowtip = wocawize('pubwish changes', "Pubwish Changes");
 			}
-		} else {
+		} ewse {
 			command = '';
-			tooltip = '';
+			toowtip = '';
 		}
 
-		if (this.state.isSyncRunning) {
+		if (this.state.isSyncWunning) {
 			icon = '$(sync~spin)';
 			command = '';
-			tooltip = localize('syncing changes', "Synchronizing Changes...");
+			toowtip = wocawize('syncing changes', "Synchwonizing Changes...");
 		}
 
-		return {
+		wetuwn {
 			command,
-			title: [icon, text].join(' ').trim(),
-			tooltip,
-			arguments: [this.repository.sourceControl]
+			titwe: [icon, text].join(' ').twim(),
+			toowtip,
+			awguments: [this.wepositowy.souwceContwow]
 		};
 	}
 
 	dispose(): void {
-		this.disposables.forEach(d => d.dispose());
+		this.disposabwes.fowEach(d => d.dispose());
 	}
 }
 
-export class StatusBarCommands {
+expowt cwass StatusBawCommands {
 
-	readonly onDidChange: Event<void>;
+	weadonwy onDidChange: Event<void>;
 
-	private syncStatusBar: SyncStatusBar;
-	private checkoutStatusBar: CheckoutStatusBar;
-	private disposables: Disposable[] = [];
+	pwivate syncStatusBaw: SyncStatusBaw;
+	pwivate checkoutStatusBaw: CheckoutStatusBaw;
+	pwivate disposabwes: Disposabwe[] = [];
 
-	constructor(repository: Repository, remoteSourceProviderRegistry: IRemoteSourceProviderRegistry) {
-		this.syncStatusBar = new SyncStatusBar(repository, remoteSourceProviderRegistry);
-		this.checkoutStatusBar = new CheckoutStatusBar(repository);
-		this.onDidChange = anyEvent(this.syncStatusBar.onDidChange, this.checkoutStatusBar.onDidChange);
+	constwuctow(wepositowy: Wepositowy, wemoteSouwcePwovidewWegistwy: IWemoteSouwcePwovidewWegistwy) {
+		this.syncStatusBaw = new SyncStatusBaw(wepositowy, wemoteSouwcePwovidewWegistwy);
+		this.checkoutStatusBaw = new CheckoutStatusBaw(wepositowy);
+		this.onDidChange = anyEvent(this.syncStatusBaw.onDidChange, this.checkoutStatusBaw.onDidChange);
 	}
 
 	get commands(): Command[] {
-		return [this.checkoutStatusBar.command, this.syncStatusBar.command]
-			.filter((c): c is Command => !!c);
+		wetuwn [this.checkoutStatusBaw.command, this.syncStatusBaw.command]
+			.fiwta((c): c is Command => !!c);
 	}
 
 	dispose(): void {
-		this.syncStatusBar.dispose();
-		this.checkoutStatusBar.dispose();
-		this.disposables = dispose(this.disposables);
+		this.syncStatusBaw.dispose();
+		this.checkoutStatusBaw.dispose();
+		this.disposabwes = dispose(this.disposabwes);
 	}
 }

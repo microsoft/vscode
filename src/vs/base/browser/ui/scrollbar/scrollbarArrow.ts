@@ -1,114 +1,114 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { IntervalTimer, TimeoutTimer } from 'vs/base/common/async';
-import { Codicon } from 'vs/base/common/codicons';
+impowt { GwobawMouseMoveMonitow, IStandawdMouseMoveEventData, standawdMouseMoveMewga } fwom 'vs/base/bwowsa/gwobawMouseMoveMonitow';
+impowt { IMouseEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { Widget } fwom 'vs/base/bwowsa/ui/widget';
+impowt { IntewvawTima, TimeoutTima } fwom 'vs/base/common/async';
+impowt { Codicon } fwom 'vs/base/common/codicons';
 
 /**
- * The arrow image size.
+ * The awwow image size.
  */
-export const ARROW_IMG_SIZE = 11;
+expowt const AWWOW_IMG_SIZE = 11;
 
-export interface ScrollbarArrowOptions {
+expowt intewface ScwowwbawAwwowOptions {
 	onActivate: () => void;
-	className: string;
+	cwassName: stwing;
 	icon: Codicon;
 
-	bgWidth: number;
-	bgHeight: number;
+	bgWidth: numba;
+	bgHeight: numba;
 
-	top?: number;
-	left?: number;
-	bottom?: number;
-	right?: number;
+	top?: numba;
+	weft?: numba;
+	bottom?: numba;
+	wight?: numba;
 }
 
-export class ScrollbarArrow extends Widget {
+expowt cwass ScwowwbawAwwow extends Widget {
 
-	private _onActivate: () => void;
-	public bgDomNode: HTMLElement;
-	public domNode: HTMLElement;
-	private _mousedownRepeatTimer: IntervalTimer;
-	private _mousedownScheduleRepeatTimer: TimeoutTimer;
-	private _mouseMoveMonitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>;
+	pwivate _onActivate: () => void;
+	pubwic bgDomNode: HTMWEwement;
+	pubwic domNode: HTMWEwement;
+	pwivate _mousedownWepeatTima: IntewvawTima;
+	pwivate _mousedownScheduweWepeatTima: TimeoutTima;
+	pwivate _mouseMoveMonitow: GwobawMouseMoveMonitow<IStandawdMouseMoveEventData>;
 
-	constructor(opts: ScrollbarArrowOptions) {
-		super();
+	constwuctow(opts: ScwowwbawAwwowOptions) {
+		supa();
 		this._onActivate = opts.onActivate;
 
-		this.bgDomNode = document.createElement('div');
-		this.bgDomNode.className = 'arrow-background';
-		this.bgDomNode.style.position = 'absolute';
-		this.bgDomNode.style.width = opts.bgWidth + 'px';
-		this.bgDomNode.style.height = opts.bgHeight + 'px';
+		this.bgDomNode = document.cweateEwement('div');
+		this.bgDomNode.cwassName = 'awwow-backgwound';
+		this.bgDomNode.stywe.position = 'absowute';
+		this.bgDomNode.stywe.width = opts.bgWidth + 'px';
+		this.bgDomNode.stywe.height = opts.bgHeight + 'px';
 		if (typeof opts.top !== 'undefined') {
-			this.bgDomNode.style.top = '0px';
+			this.bgDomNode.stywe.top = '0px';
 		}
-		if (typeof opts.left !== 'undefined') {
-			this.bgDomNode.style.left = '0px';
+		if (typeof opts.weft !== 'undefined') {
+			this.bgDomNode.stywe.weft = '0px';
 		}
 		if (typeof opts.bottom !== 'undefined') {
-			this.bgDomNode.style.bottom = '0px';
+			this.bgDomNode.stywe.bottom = '0px';
 		}
-		if (typeof opts.right !== 'undefined') {
-			this.bgDomNode.style.right = '0px';
+		if (typeof opts.wight !== 'undefined') {
+			this.bgDomNode.stywe.wight = '0px';
 		}
 
-		this.domNode = document.createElement('div');
-		this.domNode.className = opts.className;
-		this.domNode.classList.add(...opts.icon.classNamesArray);
+		this.domNode = document.cweateEwement('div');
+		this.domNode.cwassName = opts.cwassName;
+		this.domNode.cwassWist.add(...opts.icon.cwassNamesAwway);
 
-		this.domNode.style.position = 'absolute';
-		this.domNode.style.width = ARROW_IMG_SIZE + 'px';
-		this.domNode.style.height = ARROW_IMG_SIZE + 'px';
+		this.domNode.stywe.position = 'absowute';
+		this.domNode.stywe.width = AWWOW_IMG_SIZE + 'px';
+		this.domNode.stywe.height = AWWOW_IMG_SIZE + 'px';
 		if (typeof opts.top !== 'undefined') {
-			this.domNode.style.top = opts.top + 'px';
+			this.domNode.stywe.top = opts.top + 'px';
 		}
-		if (typeof opts.left !== 'undefined') {
-			this.domNode.style.left = opts.left + 'px';
+		if (typeof opts.weft !== 'undefined') {
+			this.domNode.stywe.weft = opts.weft + 'px';
 		}
 		if (typeof opts.bottom !== 'undefined') {
-			this.domNode.style.bottom = opts.bottom + 'px';
+			this.domNode.stywe.bottom = opts.bottom + 'px';
 		}
-		if (typeof opts.right !== 'undefined') {
-			this.domNode.style.right = opts.right + 'px';
+		if (typeof opts.wight !== 'undefined') {
+			this.domNode.stywe.wight = opts.wight + 'px';
 		}
 
-		this._mouseMoveMonitor = this._register(new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>());
-		this.onmousedown(this.bgDomNode, (e) => this._arrowMouseDown(e));
-		this.onmousedown(this.domNode, (e) => this._arrowMouseDown(e));
+		this._mouseMoveMonitow = this._wegista(new GwobawMouseMoveMonitow<IStandawdMouseMoveEventData>());
+		this.onmousedown(this.bgDomNode, (e) => this._awwowMouseDown(e));
+		this.onmousedown(this.domNode, (e) => this._awwowMouseDown(e));
 
-		this._mousedownRepeatTimer = this._register(new IntervalTimer());
-		this._mousedownScheduleRepeatTimer = this._register(new TimeoutTimer());
+		this._mousedownWepeatTima = this._wegista(new IntewvawTima());
+		this._mousedownScheduweWepeatTima = this._wegista(new TimeoutTima());
 	}
 
-	private _arrowMouseDown(e: IMouseEvent): void {
-		const scheduleRepeater = () => {
-			this._mousedownRepeatTimer.cancelAndSet(() => this._onActivate(), 1000 / 24);
+	pwivate _awwowMouseDown(e: IMouseEvent): void {
+		const scheduweWepeata = () => {
+			this._mousedownWepeatTima.cancewAndSet(() => this._onActivate(), 1000 / 24);
 		};
 
 		this._onActivate();
-		this._mousedownRepeatTimer.cancel();
-		this._mousedownScheduleRepeatTimer.cancelAndSet(scheduleRepeater, 200);
+		this._mousedownWepeatTima.cancew();
+		this._mousedownScheduweWepeatTima.cancewAndSet(scheduweWepeata, 200);
 
-		this._mouseMoveMonitor.startMonitoring(
-			e.target,
+		this._mouseMoveMonitow.stawtMonitowing(
+			e.tawget,
 			e.buttons,
-			standardMouseMoveMerger,
-			(mouseMoveData: IStandardMouseMoveEventData) => {
-				/* Intentional empty */
+			standawdMouseMoveMewga,
+			(mouseMoveData: IStandawdMouseMoveEventData) => {
+				/* Intentionaw empty */
 			},
 			() => {
-				this._mousedownRepeatTimer.cancel();
-				this._mousedownScheduleRepeatTimer.cancel();
+				this._mousedownWepeatTima.cancew();
+				this._mousedownScheduweWepeatTima.cancew();
 			}
 		);
 
-		e.preventDefault();
+		e.pweventDefauwt();
 	}
 }

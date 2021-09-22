@@ -1,205 +1,205 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Range } from 'vs/editor/common/core/range';
-import { FindMatch, ITextModel } from 'vs/editor/common/model';
-import { ISearchRange, ITextQuery, ITextSearchContext, QueryType } from 'vs/workbench/services/search/common/search';
-import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
+impowt * as assewt fwom 'assewt';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { FindMatch, ITextModew } fwom 'vs/editow/common/modew';
+impowt { ISeawchWange, ITextQuewy, ITextSeawchContext, QuewyType } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { addContextToEditowMatches, editowMatchesToTextSeawchWesuwts } fwom 'vs/wowkbench/sewvices/seawch/common/seawchHewpews';
 
-suite('SearchHelpers', () => {
-	suite('editorMatchesToTextSearchResults', () => {
-		const mockTextModel: ITextModel = <ITextModel>{
-			getLineContent(lineNumber: number): string {
-				return '' + lineNumber;
+suite('SeawchHewpews', () => {
+	suite('editowMatchesToTextSeawchWesuwts', () => {
+		const mockTextModew: ITextModew = <ITextModew>{
+			getWineContent(wineNumba: numba): stwing {
+				wetuwn '' + wineNumba;
 			}
 		};
 
-		function assertRangesEqual(actual: ISearchRange | ISearchRange[], expected: ISearchRange[]) {
-			if (!Array.isArray(actual)) {
-				// All of these tests are for arrays...
-				throw new Error('Expected array of ranges');
+		function assewtWangesEquaw(actuaw: ISeawchWange | ISeawchWange[], expected: ISeawchWange[]) {
+			if (!Awway.isAwway(actuaw)) {
+				// Aww of these tests awe fow awways...
+				thwow new Ewwow('Expected awway of wanges');
 			}
 
-			assert.strictEqual(actual.length, expected.length);
+			assewt.stwictEquaw(actuaw.wength, expected.wength);
 
-			// These are sometimes Range, sometimes SearchRange
-			actual.forEach((r, i) => {
-				const expectedRange = expected[i];
-				assert.deepStrictEqual(
-					{ startLineNumber: r.startLineNumber, startColumn: r.startColumn, endLineNumber: r.endLineNumber, endColumn: r.endColumn },
-					{ startLineNumber: expectedRange.startLineNumber, startColumn: expectedRange.startColumn, endLineNumber: expectedRange.endLineNumber, endColumn: expectedRange.endColumn });
+			// These awe sometimes Wange, sometimes SeawchWange
+			actuaw.fowEach((w, i) => {
+				const expectedWange = expected[i];
+				assewt.deepStwictEquaw(
+					{ stawtWineNumba: w.stawtWineNumba, stawtCowumn: w.stawtCowumn, endWineNumba: w.endWineNumba, endCowumn: w.endCowumn },
+					{ stawtWineNumba: expectedWange.stawtWineNumba, stawtCowumn: expectedWange.stawtCowumn, endWineNumba: expectedWange.endWineNumba, endCowumn: expectedWange.endCowumn });
 			});
 		}
 
-		test('simple', () => {
-			const results = editorMatchesToTextSearchResults([new FindMatch(new Range(6, 1, 6, 2), null)], mockTextModel);
-			assert.strictEqual(results.length, 1);
-			assert.strictEqual(results[0].preview.text, '6\n');
-			assertRangesEqual(results[0].preview.matches, [new Range(0, 0, 0, 1)]);
-			assertRangesEqual(results[0].ranges, [new Range(5, 0, 5, 1)]);
+		test('simpwe', () => {
+			const wesuwts = editowMatchesToTextSeawchWesuwts([new FindMatch(new Wange(6, 1, 6, 2), nuww)], mockTextModew);
+			assewt.stwictEquaw(wesuwts.wength, 1);
+			assewt.stwictEquaw(wesuwts[0].pweview.text, '6\n');
+			assewtWangesEquaw(wesuwts[0].pweview.matches, [new Wange(0, 0, 0, 1)]);
+			assewtWangesEquaw(wesuwts[0].wanges, [new Wange(5, 0, 5, 1)]);
 		});
 
-		test('multiple', () => {
-			const results = editorMatchesToTextSearchResults(
+		test('muwtipwe', () => {
+			const wesuwts = editowMatchesToTextSeawchWesuwts(
 				[
-					new FindMatch(new Range(6, 1, 6, 2), null),
-					new FindMatch(new Range(6, 4, 8, 2), null),
-					new FindMatch(new Range(9, 1, 10, 3), null),
+					new FindMatch(new Wange(6, 1, 6, 2), nuww),
+					new FindMatch(new Wange(6, 4, 8, 2), nuww),
+					new FindMatch(new Wange(9, 1, 10, 3), nuww),
 				],
-				mockTextModel);
-			assert.strictEqual(results.length, 2);
-			assertRangesEqual(results[0].preview.matches, [
-				new Range(0, 0, 0, 1),
-				new Range(0, 3, 2, 1),
+				mockTextModew);
+			assewt.stwictEquaw(wesuwts.wength, 2);
+			assewtWangesEquaw(wesuwts[0].pweview.matches, [
+				new Wange(0, 0, 0, 1),
+				new Wange(0, 3, 2, 1),
 			]);
-			assertRangesEqual(results[0].ranges, [
-				new Range(5, 0, 5, 1),
-				new Range(5, 3, 7, 1),
+			assewtWangesEquaw(wesuwts[0].wanges, [
+				new Wange(5, 0, 5, 1),
+				new Wange(5, 3, 7, 1),
 			]);
-			assert.strictEqual(results[0].preview.text, '6\n7\n8\n');
+			assewt.stwictEquaw(wesuwts[0].pweview.text, '6\n7\n8\n');
 
-			assertRangesEqual(results[1].preview.matches, [
-				new Range(0, 0, 1, 2),
+			assewtWangesEquaw(wesuwts[1].pweview.matches, [
+				new Wange(0, 0, 1, 2),
 			]);
-			assertRangesEqual(results[1].ranges, [
-				new Range(8, 0, 9, 2),
+			assewtWangesEquaw(wesuwts[1].wanges, [
+				new Wange(8, 0, 9, 2),
 			]);
-			assert.strictEqual(results[1].preview.text, '9\n10\n');
+			assewt.stwictEquaw(wesuwts[1].pweview.text, '9\n10\n');
 		});
 	});
 
-	suite('addContextToEditorMatches', () => {
-		const MOCK_LINE_COUNT = 100;
+	suite('addContextToEditowMatches', () => {
+		const MOCK_WINE_COUNT = 100;
 
-		const mockTextModel: ITextModel = <ITextModel>{
-			getLineContent(lineNumber: number): string {
-				if (lineNumber < 1 || lineNumber > MOCK_LINE_COUNT) {
-					throw new Error(`invalid line count: ${lineNumber}`);
+		const mockTextModew: ITextModew = <ITextModew>{
+			getWineContent(wineNumba: numba): stwing {
+				if (wineNumba < 1 || wineNumba > MOCK_WINE_COUNT) {
+					thwow new Ewwow(`invawid wine count: ${wineNumba}`);
 				}
 
-				return '' + lineNumber;
+				wetuwn '' + wineNumba;
 			},
 
-			getLineCount(): number {
-				return MOCK_LINE_COUNT;
+			getWineCount(): numba {
+				wetuwn MOCK_WINE_COUNT;
 			}
 		};
 
-		function getQuery(beforeContext?: number, afterContext?: number): ITextQuery {
-			return {
-				folderQueries: [],
-				type: QueryType.Text,
-				contentPattern: { pattern: 'test' },
-				beforeContext,
-				afterContext
+		function getQuewy(befoweContext?: numba, aftewContext?: numba): ITextQuewy {
+			wetuwn {
+				fowdewQuewies: [],
+				type: QuewyType.Text,
+				contentPattewn: { pattewn: 'test' },
+				befoweContext,
+				aftewContext
 			};
 		}
 
 		test('no context', () => {
 			const matches = [{
-				preview: {
+				pweview: {
 					text: 'foo',
-					matches: new Range(0, 0, 0, 10)
+					matches: new Wange(0, 0, 0, 10)
 				},
-				ranges: new Range(0, 0, 0, 10)
+				wanges: new Wange(0, 0, 0, 10)
 			}];
 
-			assert.deepStrictEqual(addContextToEditorMatches(matches, mockTextModel, getQuery()), matches);
+			assewt.deepStwictEquaw(addContextToEditowMatches(matches, mockTextModew, getQuewy()), matches);
 		});
 
-		test('simple', () => {
+		test('simpwe', () => {
 			const matches = [{
-				preview: {
+				pweview: {
 					text: 'foo',
-					matches: new Range(0, 0, 0, 10)
+					matches: new Wange(0, 0, 0, 10)
 				},
-				ranges: new Range(1, 0, 1, 10)
+				wanges: new Wange(1, 0, 1, 10)
 			}];
 
-			assert.deepStrictEqual(addContextToEditorMatches(matches, mockTextModel, getQuery(1, 2)), [
-				<ITextSearchContext>{
+			assewt.deepStwictEquaw(addContextToEditowMatches(matches, mockTextModew, getQuewy(1, 2)), [
+				<ITextSeawchContext>{
 					text: '1',
-					lineNumber: 0
+					wineNumba: 0
 				},
 				...matches,
-				<ITextSearchContext>{
+				<ITextSeawchContext>{
 					text: '3',
-					lineNumber: 2
+					wineNumba: 2
 				},
-				<ITextSearchContext>{
+				<ITextSeawchContext>{
 					text: '4',
-					lineNumber: 3
+					wineNumba: 3
 				},
 			]);
 		});
 
-		test('multiple matches next to each other', () => {
+		test('muwtipwe matches next to each otha', () => {
 			const matches = [
 				{
-					preview: {
+					pweview: {
 						text: 'foo',
-						matches: new Range(0, 0, 0, 10)
+						matches: new Wange(0, 0, 0, 10)
 					},
-					ranges: new Range(1, 0, 1, 10)
+					wanges: new Wange(1, 0, 1, 10)
 				},
 				{
-					preview: {
-						text: 'bar',
-						matches: new Range(0, 0, 0, 10)
+					pweview: {
+						text: 'baw',
+						matches: new Wange(0, 0, 0, 10)
 					},
-					ranges: new Range(2, 0, 2, 10)
+					wanges: new Wange(2, 0, 2, 10)
 				}];
 
-			assert.deepStrictEqual(addContextToEditorMatches(matches, mockTextModel, getQuery(1, 2)), [
-				<ITextSearchContext>{
+			assewt.deepStwictEquaw(addContextToEditowMatches(matches, mockTextModew, getQuewy(1, 2)), [
+				<ITextSeawchContext>{
 					text: '1',
-					lineNumber: 0
+					wineNumba: 0
 				},
 				...matches,
-				<ITextSearchContext>{
+				<ITextSeawchContext>{
 					text: '4',
-					lineNumber: 3
+					wineNumba: 3
 				},
-				<ITextSearchContext>{
+				<ITextSeawchContext>{
 					text: '5',
-					lineNumber: 4
+					wineNumba: 4
 				},
 			]);
 		});
 
-		test('boundaries', () => {
+		test('boundawies', () => {
 			const matches = [
 				{
-					preview: {
+					pweview: {
 						text: 'foo',
-						matches: new Range(0, 0, 0, 10)
+						matches: new Wange(0, 0, 0, 10)
 					},
-					ranges: new Range(0, 0, 0, 10)
+					wanges: new Wange(0, 0, 0, 10)
 				},
 				{
-					preview: {
-						text: 'bar',
-						matches: new Range(0, 0, 0, 10)
+					pweview: {
+						text: 'baw',
+						matches: new Wange(0, 0, 0, 10)
 					},
-					ranges: new Range(MOCK_LINE_COUNT - 1, 0, MOCK_LINE_COUNT - 1, 10)
+					wanges: new Wange(MOCK_WINE_COUNT - 1, 0, MOCK_WINE_COUNT - 1, 10)
 				}];
 
-			assert.deepStrictEqual(addContextToEditorMatches(matches, mockTextModel, getQuery(1, 2)), [
+			assewt.deepStwictEquaw(addContextToEditowMatches(matches, mockTextModew, getQuewy(1, 2)), [
 				matches[0],
-				<ITextSearchContext>{
+				<ITextSeawchContext>{
 					text: '2',
-					lineNumber: 1
+					wineNumba: 1
 				},
-				<ITextSearchContext>{
+				<ITextSeawchContext>{
 					text: '3',
-					lineNumber: 2
+					wineNumba: 2
 				},
-				<ITextSearchContext>{
-					text: '' + (MOCK_LINE_COUNT - 1),
-					lineNumber: MOCK_LINE_COUNT - 2
+				<ITextSeawchContext>{
+					text: '' + (MOCK_WINE_COUNT - 1),
+					wineNumba: MOCK_WINE_COUNT - 2
 				},
 				matches[1]
 			]);

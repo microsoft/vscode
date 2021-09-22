@@ -1,33 +1,33 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IndentAction } from 'vs/editor/common/modes/languageConfiguration';
+impowt { IndentAction } fwom 'vs/editow/common/modes/wanguageConfiguwation';
 
-export const javascriptOnEnterRules = [
+expowt const javascwiptOnEntewWuwes = [
 	{
 		// e.g. /** | */
-		beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
-		afterText: /^\s*\*\/$/,
+		befoweText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
+		aftewText: /^\s*\*\/$/,
 		action: { indentAction: IndentAction.IndentOutdent, appendText: ' * ' }
 	}, {
 		// e.g. /** ...|
-		beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
+		befoweText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
 		action: { indentAction: IndentAction.None, appendText: ' * ' }
 	}, {
 		// e.g.  * ...|
-		beforeText: /^(\t|[ ])*[ ]\*([ ]([^\*]|\*(?!\/))*)?$/,
-		previousLineText: /(?=^(\s*(\/\*\*|\*)).*)(?=(?!(\s*\*\/)))/,
+		befoweText: /^(\t|[ ])*[ ]\*([ ]([^\*]|\*(?!\/))*)?$/,
+		pweviousWineText: /(?=^(\s*(\/\*\*|\*)).*)(?=(?!(\s*\*\/)))/,
 		action: { indentAction: IndentAction.None, appendText: '* ' }
 	}, {
 		// e.g.  */|
-		beforeText: /^(\t|[ ])*[ ]\*\/\s*$/,
-		action: { indentAction: IndentAction.None, removeText: 1 }
+		befoweText: /^(\t|[ ])*[ ]\*\/\s*$/,
+		action: { indentAction: IndentAction.None, wemoveText: 1 }
 	},
 	{
 		// e.g.  *-----*/|
-		beforeText: /^(\t|[ ])*[ ]\*[^/]*\*\/\s*$/,
-		action: { indentAction: IndentAction.None, removeText: 1 }
+		befoweText: /^(\t|[ ])*[ ]\*[^/]*\*\/\s*$/,
+		action: { indentAction: IndentAction.None, wemoveText: 1 }
 	}
 ];

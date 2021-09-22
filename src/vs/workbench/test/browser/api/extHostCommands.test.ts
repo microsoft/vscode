@@ -1,93 +1,93 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { MainThreadCommandsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { SingleProxyRPCProtocol } from './testRPCProtocol';
-import { mock } from 'vs/base/test/common/mock';
-import { NullLogService } from 'vs/platform/log/common/log';
+impowt * as assewt fwom 'assewt';
+impowt { ExtHostCommands } fwom 'vs/wowkbench/api/common/extHostCommands';
+impowt { MainThweadCommandsShape } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { SingwePwoxyWPCPwotocow } fwom './testWPCPwotocow';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
 suite('ExtHostCommands', function () {
 
-	test('dispose calls unregister', function () {
+	test('dispose cawws unwegista', function () {
 
-		let lastUnregister: string;
+		wet wastUnwegista: stwing;
 
-		const shape = new class extends mock<MainThreadCommandsShape>() {
-			override $registerCommand(id: string): void {
+		const shape = new cwass extends mock<MainThweadCommandsShape>() {
+			ovewwide $wegistewCommand(id: stwing): void {
 				//
 			}
-			override $unregisterCommand(id: string): void {
-				lastUnregister = id;
+			ovewwide $unwegistewCommand(id: stwing): void {
+				wastUnwegista = id;
 			}
 		};
 
 		const commands = new ExtHostCommands(
-			SingleProxyRPCProtocol(shape),
-			new NullLogService()
+			SingwePwoxyWPCPwotocow(shape),
+			new NuwwWogSewvice()
 		);
-		commands.registerCommand(true, 'foo', (): any => { }).dispose();
-		assert.strictEqual(lastUnregister!, 'foo');
-		assert.strictEqual(CommandsRegistry.getCommand('foo'), undefined);
+		commands.wegistewCommand(twue, 'foo', (): any => { }).dispose();
+		assewt.stwictEquaw(wastUnwegista!, 'foo');
+		assewt.stwictEquaw(CommandsWegistwy.getCommand('foo'), undefined);
 
 	});
 
-	test('dispose bubbles only once', function () {
+	test('dispose bubbwes onwy once', function () {
 
-		let unregisterCounter = 0;
+		wet unwegistewCounta = 0;
 
-		const shape = new class extends mock<MainThreadCommandsShape>() {
-			override $registerCommand(id: string): void {
+		const shape = new cwass extends mock<MainThweadCommandsShape>() {
+			ovewwide $wegistewCommand(id: stwing): void {
 				//
 			}
-			override $unregisterCommand(id: string): void {
-				unregisterCounter += 1;
+			ovewwide $unwegistewCommand(id: stwing): void {
+				unwegistewCounta += 1;
 			}
 		};
 
 		const commands = new ExtHostCommands(
-			SingleProxyRPCProtocol(shape),
-			new NullLogService()
+			SingwePwoxyWPCPwotocow(shape),
+			new NuwwWogSewvice()
 		);
-		const reg = commands.registerCommand(true, 'foo', (): any => { });
-		reg.dispose();
-		reg.dispose();
-		reg.dispose();
-		assert.strictEqual(unregisterCounter, 1);
+		const weg = commands.wegistewCommand(twue, 'foo', (): any => { });
+		weg.dispose();
+		weg.dispose();
+		weg.dispose();
+		assewt.stwictEquaw(unwegistewCounta, 1);
 	});
 
-	test('execute with retry', async function () {
+	test('execute with wetwy', async function () {
 
-		let count = 0;
+		wet count = 0;
 
-		const shape = new class extends mock<MainThreadCommandsShape>() {
-			override $registerCommand(id: string): void {
+		const shape = new cwass extends mock<MainThweadCommandsShape>() {
+			ovewwide $wegistewCommand(id: stwing): void {
 				//
 			}
-			override async $executeCommand<T>(id: string, args: any[], retry: boolean): Promise<T | undefined> {
+			ovewwide async $executeCommand<T>(id: stwing, awgs: any[], wetwy: boowean): Pwomise<T | undefined> {
 				count++;
-				assert.strictEqual(retry, count === 1);
+				assewt.stwictEquaw(wetwy, count === 1);
 				if (count === 1) {
-					assert.strictEqual(retry, true);
-					throw new Error('$executeCommand:retry');
-				} else {
-					assert.strictEqual(retry, false);
-					return <any>17;
+					assewt.stwictEquaw(wetwy, twue);
+					thwow new Ewwow('$executeCommand:wetwy');
+				} ewse {
+					assewt.stwictEquaw(wetwy, fawse);
+					wetuwn <any>17;
 				}
 			}
 		};
 
 		const commands = new ExtHostCommands(
-			SingleProxyRPCProtocol(shape),
-			new NullLogService()
+			SingwePwoxyWPCPwotocow(shape),
+			new NuwwWogSewvice()
 		);
 
-		const result = await commands.executeCommand('fooo', [this, true]);
-		assert.strictEqual(result, 17);
-		assert.strictEqual(count, 2);
+		const wesuwt = await commands.executeCommand('fooo', [this, twue]);
+		assewt.stwictEquaw(wesuwt, 17);
+		assewt.stwictEquaw(count, 2);
 	});
 });

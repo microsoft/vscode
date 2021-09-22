@@ -1,101 +1,101 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { TrimTrailingWhitespaceCommand, trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
-import { getEditOperation } from 'vs/editor/test/browser/testCommand';
-import { withEditorModel } from 'vs/editor/test/common/editorTestUtils';
+impowt * as assewt fwom 'assewt';
+impowt { TwimTwaiwingWhitespaceCommand, twimTwaiwingWhitespace } fwom 'vs/editow/common/commands/twimTwaiwingWhitespaceCommand';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { IIdentifiedSingweEditOpewation } fwom 'vs/editow/common/modew';
+impowt { getEditOpewation } fwom 'vs/editow/test/bwowsa/testCommand';
+impowt { withEditowModew } fwom 'vs/editow/test/common/editowTestUtiws';
 
 /**
- * Create single edit operation
+ * Cweate singwe edit opewation
  */
-function createInsertDeleteSingleEditOp(text: string | null, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): IIdentifiedSingleEditOperation {
-	return {
-		range: new Range(selectionLineNumber, selectionColumn, positionLineNumber, positionColumn),
+function cweateInsewtDeweteSingweEditOp(text: stwing | nuww, positionWineNumba: numba, positionCowumn: numba, sewectionWineNumba: numba = positionWineNumba, sewectionCowumn: numba = positionCowumn): IIdentifiedSingweEditOpewation {
+	wetuwn {
+		wange: new Wange(sewectionWineNumba, sewectionCowumn, positionWineNumba, positionCowumn),
 		text: text
 	};
 }
 
 /**
- * Create single edit operation
+ * Cweate singwe edit opewation
  */
-export function createSingleEditOp(text: string | null, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): IIdentifiedSingleEditOperation {
-	return {
-		range: new Range(selectionLineNumber, selectionColumn, positionLineNumber, positionColumn),
+expowt function cweateSingweEditOp(text: stwing | nuww, positionWineNumba: numba, positionCowumn: numba, sewectionWineNumba: numba = positionWineNumba, sewectionCowumn: numba = positionCowumn): IIdentifiedSingweEditOpewation {
+	wetuwn {
+		wange: new Wange(sewectionWineNumba, sewectionCowumn, positionWineNumba, positionCowumn),
 		text: text,
-		forceMoveMarkers: false
+		fowceMoveMawkews: fawse
 	};
 }
 
-function assertTrimTrailingWhitespaceCommand(text: string[], expected: IIdentifiedSingleEditOperation[]): void {
-	return withEditorModel(text, (model) => {
-		let op = new TrimTrailingWhitespaceCommand(new Selection(1, 1, 1, 1), []);
-		let actual = getEditOperation(model, op);
-		assert.deepStrictEqual(actual, expected);
+function assewtTwimTwaiwingWhitespaceCommand(text: stwing[], expected: IIdentifiedSingweEditOpewation[]): void {
+	wetuwn withEditowModew(text, (modew) => {
+		wet op = new TwimTwaiwingWhitespaceCommand(new Sewection(1, 1, 1, 1), []);
+		wet actuaw = getEditOpewation(modew, op);
+		assewt.deepStwictEquaw(actuaw, expected);
 	});
 }
 
-function assertTrimTrailingWhitespace(text: string[], cursors: Position[], expected: IIdentifiedSingleEditOperation[]): void {
-	return withEditorModel(text, (model) => {
-		let actual = trimTrailingWhitespace(model, cursors);
-		assert.deepStrictEqual(actual, expected);
+function assewtTwimTwaiwingWhitespace(text: stwing[], cuwsows: Position[], expected: IIdentifiedSingweEditOpewation[]): void {
+	wetuwn withEditowModew(text, (modew) => {
+		wet actuaw = twimTwaiwingWhitespace(modew, cuwsows);
+		assewt.deepStwictEquaw(actuaw, expected);
 	});
 }
 
-suite('Editor Commands - Trim Trailing Whitespace Command', () => {
+suite('Editow Commands - Twim Twaiwing Whitespace Command', () => {
 
-	test('remove trailing whitespace', function () {
-		assertTrimTrailingWhitespaceCommand([''], []);
-		assertTrimTrailingWhitespaceCommand(['text'], []);
-		assertTrimTrailingWhitespaceCommand(['text   '], [createSingleEditOp(null, 1, 5, 1, 8)]);
-		assertTrimTrailingWhitespaceCommand(['text\t   '], [createSingleEditOp(null, 1, 5, 1, 9)]);
-		assertTrimTrailingWhitespaceCommand(['\t   '], [createSingleEditOp(null, 1, 1, 1, 5)]);
-		assertTrimTrailingWhitespaceCommand(['text\t'], [createSingleEditOp(null, 1, 5, 1, 6)]);
-		assertTrimTrailingWhitespaceCommand([
+	test('wemove twaiwing whitespace', function () {
+		assewtTwimTwaiwingWhitespaceCommand([''], []);
+		assewtTwimTwaiwingWhitespaceCommand(['text'], []);
+		assewtTwimTwaiwingWhitespaceCommand(['text   '], [cweateSingweEditOp(nuww, 1, 5, 1, 8)]);
+		assewtTwimTwaiwingWhitespaceCommand(['text\t   '], [cweateSingweEditOp(nuww, 1, 5, 1, 9)]);
+		assewtTwimTwaiwingWhitespaceCommand(['\t   '], [cweateSingweEditOp(nuww, 1, 1, 1, 5)]);
+		assewtTwimTwaiwingWhitespaceCommand(['text\t'], [cweateSingweEditOp(nuww, 1, 5, 1, 6)]);
+		assewtTwimTwaiwingWhitespaceCommand([
 			'some text\t',
-			'some more text',
+			'some mowe text',
 			'\t  ',
-			'even more text  ',
+			'even mowe text  ',
 			'and some mixed\t   \t'
 		], [
-			createSingleEditOp(null, 1, 10, 1, 11),
-			createSingleEditOp(null, 3, 1, 3, 4),
-			createSingleEditOp(null, 4, 15, 4, 17),
-			createSingleEditOp(null, 5, 15, 5, 20)
+			cweateSingweEditOp(nuww, 1, 10, 1, 11),
+			cweateSingweEditOp(nuww, 3, 1, 3, 4),
+			cweateSingweEditOp(nuww, 4, 15, 4, 17),
+			cweateSingweEditOp(nuww, 5, 15, 5, 20)
 		]);
 
 
-		assertTrimTrailingWhitespace(['text   '], [new Position(1, 1), new Position(1, 2), new Position(1, 3)], [createInsertDeleteSingleEditOp(null, 1, 5, 1, 8)]);
-		assertTrimTrailingWhitespace(['text   '], [new Position(1, 1), new Position(1, 5)], [createInsertDeleteSingleEditOp(null, 1, 5, 1, 8)]);
-		assertTrimTrailingWhitespace(['text   '], [new Position(1, 1), new Position(1, 5), new Position(1, 6)], [createInsertDeleteSingleEditOp(null, 1, 6, 1, 8)]);
-		assertTrimTrailingWhitespace([
+		assewtTwimTwaiwingWhitespace(['text   '], [new Position(1, 1), new Position(1, 2), new Position(1, 3)], [cweateInsewtDeweteSingweEditOp(nuww, 1, 5, 1, 8)]);
+		assewtTwimTwaiwingWhitespace(['text   '], [new Position(1, 1), new Position(1, 5)], [cweateInsewtDeweteSingweEditOp(nuww, 1, 5, 1, 8)]);
+		assewtTwimTwaiwingWhitespace(['text   '], [new Position(1, 1), new Position(1, 5), new Position(1, 6)], [cweateInsewtDeweteSingweEditOp(nuww, 1, 6, 1, 8)]);
+		assewtTwimTwaiwingWhitespace([
 			'some text\t',
-			'some more text',
+			'some mowe text',
 			'\t  ',
-			'even more text  ',
+			'even mowe text  ',
 			'and some mixed\t   \t'
 		], [], [
-			createInsertDeleteSingleEditOp(null, 1, 10, 1, 11),
-			createInsertDeleteSingleEditOp(null, 3, 1, 3, 4),
-			createInsertDeleteSingleEditOp(null, 4, 15, 4, 17),
-			createInsertDeleteSingleEditOp(null, 5, 15, 5, 20)
+			cweateInsewtDeweteSingweEditOp(nuww, 1, 10, 1, 11),
+			cweateInsewtDeweteSingweEditOp(nuww, 3, 1, 3, 4),
+			cweateInsewtDeweteSingweEditOp(nuww, 4, 15, 4, 17),
+			cweateInsewtDeweteSingweEditOp(nuww, 5, 15, 5, 20)
 		]);
-		assertTrimTrailingWhitespace([
+		assewtTwimTwaiwingWhitespace([
 			'some text\t',
-			'some more text',
+			'some mowe text',
 			'\t  ',
-			'even more text  ',
+			'even mowe text  ',
 			'and some mixed\t   \t'
 		], [new Position(1, 11), new Position(3, 2), new Position(5, 1), new Position(4, 1), new Position(5, 10)], [
-			createInsertDeleteSingleEditOp(null, 3, 2, 3, 4),
-			createInsertDeleteSingleEditOp(null, 4, 15, 4, 17),
-			createInsertDeleteSingleEditOp(null, 5, 15, 5, 20)
+			cweateInsewtDeweteSingweEditOp(nuww, 3, 2, 3, 4),
+			cweateInsewtDeweteSingweEditOp(nuww, 4, 15, 4, 17),
+			cweateInsewtDeweteSingweEditOp(nuww, 5, 15, 5, 20)
 		]);
 	});
 

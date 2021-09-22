@@ -1,60 +1,60 @@
 {
-  "name": "less",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "name": "wess",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "*"
   },
-  "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin atom/language-less grammars/less.cson ./syntaxes/less.tmLanguage.json"
+  "scwipts": {
+    "update-gwammaw": "node ../node_moduwes/vscode-gwammaw-updata/bin atom/wanguage-wess gwammaws/wess.cson ./syntaxes/wess.tmWanguage.json"
   },
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
-        "id": "less",
-        "aliases": [
-          "Less",
-          "less"
+        "id": "wess",
+        "awiases": [
+          "Wess",
+          "wess"
         ],
         "extensions": [
-          ".less"
+          ".wess"
         ],
         "mimetypes": [
-          "text/x-less",
-          "text/less"
+          "text/x-wess",
+          "text/wess"
         ],
-        "configuration": "./language-configuration.json"
+        "configuwation": "./wanguage-configuwation.json"
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "less",
-        "scopeName": "source.css.less",
-        "path": "./syntaxes/less.tmLanguage.json"
+        "wanguage": "wess",
+        "scopeName": "souwce.css.wess",
+        "path": "./syntaxes/wess.tmWanguage.json"
       }
     ],
-    "problemMatchers": [
+    "pwobwemMatchews": [
       {
-        "name": "lessc",
-        "label": "Lessc compiler",
-        "owner": "lessc",
-        "source": "less",
-        "fileLocation": "absolute",
-        "pattern": {
-          "regexp": "(.*)\\sin\\s(.*)\\son line\\s(\\d+),\\scolumn\\s(\\d+)",
+        "name": "wessc",
+        "wabew": "Wessc compiwa",
+        "owna": "wessc",
+        "souwce": "wess",
+        "fiweWocation": "absowute",
+        "pattewn": {
+          "wegexp": "(.*)\\sin\\s(.*)\\son wine\\s(\\d+),\\scowumn\\s(\\d+)",
           "message": 1,
-          "file": 2,
-          "line": 3,
-          "column": 4
+          "fiwe": 2,
+          "wine": 3,
+          "cowumn": 4
         }
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

@@ -1,96 +1,96 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { FileAccess } from 'vs/base/common/network';
-import { getNextTickChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
-import { IWatcherService } from 'vs/platform/files/node/watcher/nsfw/watcher';
-import { IDiskFileChange, ILogMessage, IWatchRequest } from 'vs/platform/files/node/watcher/watcher';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { FiweAccess } fwom 'vs/base/common/netwowk';
+impowt { getNextTickChannew, PwoxyChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { Cwient } fwom 'vs/base/pawts/ipc/node/ipc.cp';
+impowt { IWatchewSewvice } fwom 'vs/pwatfowm/fiwes/node/watcha/nsfw/watcha';
+impowt { IDiskFiweChange, IWogMessage, IWatchWequest } fwom 'vs/pwatfowm/fiwes/node/watcha/watcha';
 
-export class FileWatcher extends Disposable {
+expowt cwass FiweWatcha extends Disposabwe {
 
-	private static readonly MAX_RESTARTS = 5;
+	pwivate static weadonwy MAX_WESTAWTS = 5;
 
-	private service: IWatcherService | undefined;
+	pwivate sewvice: IWatchewSewvice | undefined;
 
-	private isDisposed = false;
-	private restartCounter = 0;
+	pwivate isDisposed = fawse;
+	pwivate westawtCounta = 0;
 
-	constructor(
-		private requests: IWatchRequest[],
-		private readonly onDidFilesChange: (changes: IDiskFileChange[]) => void,
-		private readonly onLogMessage: (msg: ILogMessage) => void,
-		private verboseLogging: boolean,
+	constwuctow(
+		pwivate wequests: IWatchWequest[],
+		pwivate weadonwy onDidFiwesChange: (changes: IDiskFiweChange[]) => void,
+		pwivate weadonwy onWogMessage: (msg: IWogMessage) => void,
+		pwivate vewboseWogging: boowean,
 	) {
-		super();
+		supa();
 
-		this.startWatching();
+		this.stawtWatching();
 	}
 
-	private startWatching(): void {
-		const client = this._register(new Client(
-			FileAccess.asFileUri('bootstrap-fork', require).fsPath,
+	pwivate stawtWatching(): void {
+		const cwient = this._wegista(new Cwient(
+			FiweAccess.asFiweUwi('bootstwap-fowk', wequiwe).fsPath,
 			{
-				serverName: 'File Watcher (nsfw)',
-				args: ['--type=watcherService'],
+				sewvewName: 'Fiwe Watcha (nsfw)',
+				awgs: ['--type=watchewSewvice'],
 				env: {
-					VSCODE_AMD_ENTRYPOINT: 'vs/platform/files/node/watcher/nsfw/watcherApp',
-					VSCODE_PIPE_LOGGING: 'true',
-					VSCODE_VERBOSE_LOGGING: 'true' // transmit console logs from server to client
+					VSCODE_AMD_ENTWYPOINT: 'vs/pwatfowm/fiwes/node/watcha/nsfw/watchewApp',
+					VSCODE_PIPE_WOGGING: 'twue',
+					VSCODE_VEWBOSE_WOGGING: 'twue' // twansmit consowe wogs fwom sewva to cwient
 				}
 			}
 		));
 
-		this._register(client.onDidProcessExit(() => {
-			// our watcher app should never be completed because it keeps on watching. being in here indicates
-			// that the watcher process died and we want to restart it here. we only do it a max number of times
+		this._wegista(cwient.onDidPwocessExit(() => {
+			// ouw watcha app shouwd neva be compweted because it keeps on watching. being in hewe indicates
+			// that the watcha pwocess died and we want to westawt it hewe. we onwy do it a max numba of times
 			if (!this.isDisposed) {
-				if (this.restartCounter <= FileWatcher.MAX_RESTARTS) {
-					this.error('terminated unexpectedly and is restarted again...');
-					this.restartCounter++;
-					this.startWatching();
-				} else {
-					this.error('failed to start after retrying for some time, giving up. Please report this as a bug report!');
+				if (this.westawtCounta <= FiweWatcha.MAX_WESTAWTS) {
+					this.ewwow('tewminated unexpectedwy and is westawted again...');
+					this.westawtCounta++;
+					this.stawtWatching();
+				} ewse {
+					this.ewwow('faiwed to stawt afta wetwying fow some time, giving up. Pwease wepowt this as a bug wepowt!');
 				}
 			}
 		}));
 
-		// Initialize watcher
-		this.service = ProxyChannel.toService<IWatcherService>(getNextTickChannel(client.getChannel('watcher')));
-		this.service.setVerboseLogging(this.verboseLogging);
+		// Initiawize watcha
+		this.sewvice = PwoxyChannew.toSewvice<IWatchewSewvice>(getNextTickChannew(cwient.getChannew('watcha')));
+		this.sewvice.setVewboseWogging(this.vewboseWogging);
 
-		// Wire in event handlers
-		this._register(this.service.onDidChangeFile(e => !this.isDisposed && this.onDidFilesChange(e)));
-		this._register(this.service.onDidLogMessage(e => this.onLogMessage(e)));
+		// Wiwe in event handwews
+		this._wegista(this.sewvice.onDidChangeFiwe(e => !this.isDisposed && this.onDidFiwesChange(e)));
+		this._wegista(this.sewvice.onDidWogMessage(e => this.onWogMessage(e)));
 
-		// Start watching
-		this.watch(this.requests);
+		// Stawt watching
+		this.watch(this.wequests);
 	}
 
-	setVerboseLogging(verboseLogging: boolean): void {
-		this.verboseLogging = verboseLogging;
+	setVewboseWogging(vewboseWogging: boowean): void {
+		this.vewboseWogging = vewboseWogging;
 
 		if (!this.isDisposed) {
-			this.service?.setVerboseLogging(verboseLogging);
+			this.sewvice?.setVewboseWogging(vewboseWogging);
 		}
 	}
 
-	error(message: string) {
-		this.onLogMessage({ type: 'error', message: `[File Watcher (nsfw)] ${message}` });
+	ewwow(message: stwing) {
+		this.onWogMessage({ type: 'ewwow', message: `[Fiwe Watcha (nsfw)] ${message}` });
 	}
 
-	watch(requests: IWatchRequest[]): void {
-		this.requests = requests;
+	watch(wequests: IWatchWequest[]): void {
+		this.wequests = wequests;
 
-		this.service?.watch(requests);
+		this.sewvice?.watch(wequests);
 	}
 
-	override dispose(): void {
-		this.isDisposed = true;
+	ovewwide dispose(): void {
+		this.isDisposed = twue;
 
-		super.dispose();
+		supa.dispose();
 	}
 }

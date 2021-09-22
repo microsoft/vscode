@@ -1,101 +1,101 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/moby/moby/blob/master/contrib/syntax/textmate/Docker.tmbundle/Syntaxes/Dockerfile.tmLanguage",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/moby/moby/bwob/masta/contwib/syntax/textmate/Docka.tmbundwe/Syntaxes/Dockewfiwe.tmWanguage",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/moby/moby/commit/abd39744c6f3ed854500e423f5fabf952165161f",
-	"name": "Dockerfile",
-	"scopeName": "source.dockerfile",
-	"patterns": [
+	"vewsion": "https://github.com/moby/moby/commit/abd39744c6f3ed854500e423f5fabf952165161f",
+	"name": "Dockewfiwe",
+	"scopeName": "souwce.dockewfiwe",
+	"pattewns": [
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "keyword.other.special-method.dockerfile"
+					"name": "keywowd.otha.speciaw-method.dockewfiwe"
 				},
 				"2": {
-					"name": "keyword.other.special-method.dockerfile"
+					"name": "keywowd.otha.speciaw-method.dockewfiwe"
 				}
 			},
-			"match": "^\\s*\\b(?i:(FROM))\\b.*?\\b(?i:(AS))\\b"
+			"match": "^\\s*\\b(?i:(FWOM))\\b.*?\\b(?i:(AS))\\b"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "keyword.control.dockerfile"
+					"name": "keywowd.contwow.dockewfiwe"
 				},
 				"2": {
-					"name": "keyword.other.special-method.dockerfile"
+					"name": "keywowd.otha.speciaw-method.dockewfiwe"
 				}
 			},
-			"match": "^\\s*(?i:(ONBUILD)\\s+)?(?i:(ADD|ARG|CMD|COPY|ENTRYPOINT|ENV|EXPOSE|FROM|HEALTHCHECK|LABEL|MAINTAINER|RUN|SHELL|STOPSIGNAL|USER|VOLUME|WORKDIR))\\s"
+			"match": "^\\s*(?i:(ONBUIWD)\\s+)?(?i:(ADD|AWG|CMD|COPY|ENTWYPOINT|ENV|EXPOSE|FWOM|HEAWTHCHECK|WABEW|MAINTAINa|WUN|SHEWW|STOPSIGNAW|USa|VOWUME|WOWKDIW))\\s"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "keyword.operator.dockerfile"
+					"name": "keywowd.opewatow.dockewfiwe"
 				},
 				"2": {
-					"name": "keyword.other.special-method.dockerfile"
+					"name": "keywowd.otha.speciaw-method.dockewfiwe"
 				}
 			},
-			"match": "^\\s*(?i:(ONBUILD)\\s+)?(?i:(CMD|ENTRYPOINT))\\s"
+			"match": "^\\s*(?i:(ONBUIWD)\\s+)?(?i:(CMD|ENTWYPOINT))\\s"
 		},
 		{
 			"begin": "\"",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "punctuation.definition.string.begin.dockerfile"
+					"name": "punctuation.definition.stwing.begin.dockewfiwe"
 				}
 			},
 			"end": "\"",
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "punctuation.definition.string.end.dockerfile"
+					"name": "punctuation.definition.stwing.end.dockewfiwe"
 				}
 			},
-			"name": "string.quoted.double.dockerfile",
-			"patterns": [
+			"name": "stwing.quoted.doubwe.dockewfiwe",
+			"pattewns": [
 				{
 					"match": "\\\\.",
-					"name": "constant.character.escaped.dockerfile"
+					"name": "constant.chawacta.escaped.dockewfiwe"
 				}
 			]
 		},
 		{
 			"begin": "'",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "punctuation.definition.string.begin.dockerfile"
+					"name": "punctuation.definition.stwing.begin.dockewfiwe"
 				}
 			},
 			"end": "'",
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "punctuation.definition.string.end.dockerfile"
+					"name": "punctuation.definition.stwing.end.dockewfiwe"
 				}
 			},
-			"name": "string.quoted.single.dockerfile",
-			"patterns": [
+			"name": "stwing.quoted.singwe.dockewfiwe",
+			"pattewns": [
 				{
 					"match": "\\\\.",
-					"name": "constant.character.escaped.dockerfile"
+					"name": "constant.chawacta.escaped.dockewfiwe"
 				}
 			]
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.whitespace.comment.leading.dockerfile"
+					"name": "punctuation.whitespace.comment.weading.dockewfiwe"
 				},
 				"2": {
-					"name": "comment.line.number-sign.dockerfile"
+					"name": "comment.wine.numba-sign.dockewfiwe"
 				},
 				"3": {
-					"name": "punctuation.definition.comment.dockerfile"
+					"name": "punctuation.definition.comment.dockewfiwe"
 				}
 			},
-			"comment": "comment.line",
+			"comment": "comment.wine",
 			"match": "^(\\s*)((#).*$\\n?)"
 		}
 	]

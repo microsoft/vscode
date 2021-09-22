@@ -1,482 +1,482 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { env } from 'vs/base/common/process';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IRemoteTerminalService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IProcessEnvironment, OperatingSystem, OS } from 'vs/base/common/platform';
-import { IShellLaunchConfig, ITerminalProfile, TerminalIcon, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
-import { IShellLaunchConfigResolveOptions, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
-import * as path from 'vs/base/common/path';
-import { Codicon, iconRegistry } from 'vs/base/common/codicons';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { debounce } from 'vs/base/common/decorators';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { equals } from 'vs/base/common/arrays';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { env } fwom 'vs/base/common/pwocess';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IWowkspaceContextSewvice, IWowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IWemoteTewminawSewvice, ITewminawSewvice } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
+impowt { IConfiguwationWesowvewSewvice } fwom 'vs/wowkbench/sewvices/configuwationWesowva/common/configuwationWesowva';
+impowt { IHistowySewvice } fwom 'vs/wowkbench/sewvices/histowy/common/histowy';
+impowt { IPwocessEnviwonment, OpewatingSystem, OS } fwom 'vs/base/common/pwatfowm';
+impowt { IShewwWaunchConfig, ITewminawPwofiwe, TewminawIcon, TewminawSettingId, TewminawSettingPwefix } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { IShewwWaunchConfigWesowveOptions, ITewminawPwofiweWesowvewSewvice } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminaw';
+impowt * as path fwom 'vs/base/common/path';
+impowt { Codicon, iconWegistwy } fwom 'vs/base/common/codicons';
+impowt { IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
+impowt { debounce } fwom 'vs/base/common/decowatows';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { equaws } fwom 'vs/base/common/awways';
 
-export interface IProfileContextProvider {
-	getDefaultSystemShell: (remoteAuthority: string | undefined, os: OperatingSystem) => Promise<string>;
-	getEnvironment: (remoteAuthority: string | undefined) => Promise<IProcessEnvironment>;
+expowt intewface IPwofiweContextPwovida {
+	getDefauwtSystemSheww: (wemoteAuthowity: stwing | undefined, os: OpewatingSystem) => Pwomise<stwing>;
+	getEnviwonment: (wemoteAuthowity: stwing | undefined) => Pwomise<IPwocessEnviwonment>;
 }
 
-const generatedProfileName = 'Generated';
+const genewatedPwofiweName = 'Genewated';
 
-export abstract class BaseTerminalProfileResolverService implements ITerminalProfileResolverService {
-	declare _serviceBrand: undefined;
+expowt abstwact cwass BaseTewminawPwofiweWesowvewSewvice impwements ITewminawPwofiweWesowvewSewvice {
+	decwawe _sewviceBwand: undefined;
 
-	private _primaryBackendOs: OperatingSystem | undefined;
+	pwivate _pwimawyBackendOs: OpewatingSystem | undefined;
 
-	private _defaultProfileName: string | undefined;
-	get defaultProfileName(): string | undefined { return this._defaultProfileName; }
+	pwivate _defauwtPwofiweName: stwing | undefined;
+	get defauwtPwofiweName(): stwing | undefined { wetuwn this._defauwtPwofiweName; }
 
-	constructor(
-		private readonly _context: IProfileContextProvider,
-		private readonly _configurationService: IConfigurationService,
-		private readonly _configurationResolverService: IConfigurationResolverService,
-		private readonly _historyService: IHistoryService,
-		private readonly _logService: ILogService,
-		private readonly _terminalService: ITerminalService,
-		private readonly _workspaceContextService: IWorkspaceContextService,
-		private readonly _remoteAgentService: IRemoteAgentService
+	constwuctow(
+		pwivate weadonwy _context: IPwofiweContextPwovida,
+		pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice,
+		pwivate weadonwy _configuwationWesowvewSewvice: IConfiguwationWesowvewSewvice,
+		pwivate weadonwy _histowySewvice: IHistowySewvice,
+		pwivate weadonwy _wogSewvice: IWogSewvice,
+		pwivate weadonwy _tewminawSewvice: ITewminawSewvice,
+		pwivate weadonwy _wowkspaceContextSewvice: IWowkspaceContextSewvice,
+		pwivate weadonwy _wemoteAgentSewvice: IWemoteAgentSewvice
 	) {
-		if (this._remoteAgentService.getConnection()) {
-			this._remoteAgentService.getEnvironment().then(env => this._primaryBackendOs = env?.os || OS);
-		} else {
-			this._primaryBackendOs = OS;
+		if (this._wemoteAgentSewvice.getConnection()) {
+			this._wemoteAgentSewvice.getEnviwonment().then(env => this._pwimawyBackendOs = env?.os || OS);
+		} ewse {
+			this._pwimawyBackendOs = OS;
 		}
-		this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalSettingId.DefaultProfileWindows) ||
-				e.affectsConfiguration(TerminalSettingId.DefaultProfileMacOs) ||
-				e.affectsConfiguration(TerminalSettingId.DefaultProfileLinux)) {
-				this._refreshDefaultProfileName();
+		this._configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation(TewminawSettingId.DefauwtPwofiweWindows) ||
+				e.affectsConfiguwation(TewminawSettingId.DefauwtPwofiweMacOs) ||
+				e.affectsConfiguwation(TewminawSettingId.DefauwtPwofiweWinux)) {
+				this._wefweshDefauwtPwofiweName();
 			}
 		});
-		this._terminalService.onDidChangeAvailableProfiles(() => this._refreshDefaultProfileName());
+		this._tewminawSewvice.onDidChangeAvaiwabwePwofiwes(() => this._wefweshDefauwtPwofiweName());
 	}
 
 	@debounce(200)
-	private async _refreshDefaultProfileName() {
-		if (this._primaryBackendOs) {
-			this._defaultProfileName = (await this.getDefaultProfile({
-				remoteAuthority: this._remoteAgentService.getConnection()?.remoteAuthority,
-				os: this._primaryBackendOs
-			}))?.profileName;
+	pwivate async _wefweshDefauwtPwofiweName() {
+		if (this._pwimawyBackendOs) {
+			this._defauwtPwofiweName = (await this.getDefauwtPwofiwe({
+				wemoteAuthowity: this._wemoteAgentSewvice.getConnection()?.wemoteAuthowity,
+				os: this._pwimawyBackendOs
+			}))?.pwofiweName;
 		}
 	}
 
-	resolveIcon(shellLaunchConfig: IShellLaunchConfig, os: OperatingSystem): void {
-		if (shellLaunchConfig.icon) {
-			shellLaunchConfig.icon = this._getCustomIcon(shellLaunchConfig.icon) || Codicon.terminal;
-			return;
+	wesowveIcon(shewwWaunchConfig: IShewwWaunchConfig, os: OpewatingSystem): void {
+		if (shewwWaunchConfig.icon) {
+			shewwWaunchConfig.icon = this._getCustomIcon(shewwWaunchConfig.icon) || Codicon.tewminaw;
+			wetuwn;
 		}
-		if (shellLaunchConfig.customPtyImplementation) {
-			shellLaunchConfig.icon = Codicon.terminal;
-			return;
+		if (shewwWaunchConfig.customPtyImpwementation) {
+			shewwWaunchConfig.icon = Codicon.tewminaw;
+			wetuwn;
 		}
-		if (shellLaunchConfig.executable) {
-			return;
+		if (shewwWaunchConfig.executabwe) {
+			wetuwn;
 		}
-		const defaultProfile = this._getUnresolvedRealDefaultProfile(os);
-		if (defaultProfile) {
-			shellLaunchConfig.icon = defaultProfile.icon;
+		const defauwtPwofiwe = this._getUnwesowvedWeawDefauwtPwofiwe(os);
+		if (defauwtPwofiwe) {
+			shewwWaunchConfig.icon = defauwtPwofiwe.icon;
 		}
 	}
 
-	async resolveShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig, options: IShellLaunchConfigResolveOptions): Promise<void> {
-		// Resolve the shell and shell args
-		let resolvedProfile: ITerminalProfile;
-		if (shellLaunchConfig.executable) {
-			resolvedProfile = await this._resolveProfile({
-				path: shellLaunchConfig.executable,
-				args: shellLaunchConfig.args,
-				profileName: generatedProfileName,
-				isDefault: false
+	async wesowveShewwWaunchConfig(shewwWaunchConfig: IShewwWaunchConfig, options: IShewwWaunchConfigWesowveOptions): Pwomise<void> {
+		// Wesowve the sheww and sheww awgs
+		wet wesowvedPwofiwe: ITewminawPwofiwe;
+		if (shewwWaunchConfig.executabwe) {
+			wesowvedPwofiwe = await this._wesowvePwofiwe({
+				path: shewwWaunchConfig.executabwe,
+				awgs: shewwWaunchConfig.awgs,
+				pwofiweName: genewatedPwofiweName,
+				isDefauwt: fawse
 			}, options);
-		} else {
-			resolvedProfile = await this.getDefaultProfile(options);
+		} ewse {
+			wesowvedPwofiwe = await this.getDefauwtPwofiwe(options);
 		}
-		shellLaunchConfig.executable = resolvedProfile.path;
-		shellLaunchConfig.args = resolvedProfile.args;
-		if (resolvedProfile.env) {
-			if (shellLaunchConfig.env) {
-				shellLaunchConfig.env = { ...shellLaunchConfig.env, ...resolvedProfile.env };
-			} else {
-				shellLaunchConfig.env = resolvedProfile.env;
+		shewwWaunchConfig.executabwe = wesowvedPwofiwe.path;
+		shewwWaunchConfig.awgs = wesowvedPwofiwe.awgs;
+		if (wesowvedPwofiwe.env) {
+			if (shewwWaunchConfig.env) {
+				shewwWaunchConfig.env = { ...shewwWaunchConfig.env, ...wesowvedPwofiwe.env };
+			} ewse {
+				shewwWaunchConfig.env = wesowvedPwofiwe.env;
 			}
 		}
 
-		// Verify the icon is valid, and fallback correctly to the generic terminal id if there is
+		// Vewify the icon is vawid, and fawwback cowwectwy to the genewic tewminaw id if thewe is
 		// an issue
-		shellLaunchConfig.icon = this._getCustomIcon(shellLaunchConfig.icon) || this._getCustomIcon(resolvedProfile.icon) || Codicon.terminal;
+		shewwWaunchConfig.icon = this._getCustomIcon(shewwWaunchConfig.icon) || this._getCustomIcon(wesowvedPwofiwe.icon) || Codicon.tewminaw;
 
-		// Override the name if specified
-		if (resolvedProfile.overrideName) {
-			shellLaunchConfig.name = resolvedProfile.profileName;
+		// Ovewwide the name if specified
+		if (wesowvedPwofiwe.ovewwideName) {
+			shewwWaunchConfig.name = wesowvedPwofiwe.pwofiweName;
 		}
 
-		// Apply the color
-		shellLaunchConfig.color = shellLaunchConfig.color || resolvedProfile.color;
+		// Appwy the cowow
+		shewwWaunchConfig.cowow = shewwWaunchConfig.cowow || wesowvedPwofiwe.cowow;
 
-		// Resolve useShellEnvironment based on the setting if it's not set
-		if (shellLaunchConfig.useShellEnvironment === undefined) {
-			shellLaunchConfig.useShellEnvironment = this._configurationService.getValue(TerminalSettingId.InheritEnv);
+		// Wesowve useShewwEnviwonment based on the setting if it's not set
+		if (shewwWaunchConfig.useShewwEnviwonment === undefined) {
+			shewwWaunchConfig.useShewwEnviwonment = this._configuwationSewvice.getVawue(TewminawSettingId.InhewitEnv);
 		}
 	}
 
 
-	async getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string> {
-		return (await this.getDefaultProfile(options)).path;
+	async getDefauwtSheww(options: IShewwWaunchConfigWesowveOptions): Pwomise<stwing> {
+		wetuwn (await this.getDefauwtPwofiwe(options)).path;
 	}
 
-	async getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]> {
-		return (await this.getDefaultProfile(options)).args || [];
+	async getDefauwtShewwAwgs(options: IShewwWaunchConfigWesowveOptions): Pwomise<stwing | stwing[]> {
+		wetuwn (await this.getDefauwtPwofiwe(options)).awgs || [];
 	}
 
-	async getDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
-		return this._resolveProfile(await this._getUnresolvedDefaultProfile(options), options);
+	async getDefauwtPwofiwe(options: IShewwWaunchConfigWesowveOptions): Pwomise<ITewminawPwofiwe> {
+		wetuwn this._wesowvePwofiwe(await this._getUnwesowvedDefauwtPwofiwe(options), options);
 	}
 
-	getEnvironment(remoteAuthority: string | undefined): Promise<IProcessEnvironment> {
-		return this._context.getEnvironment(remoteAuthority);
+	getEnviwonment(wemoteAuthowity: stwing | undefined): Pwomise<IPwocessEnviwonment> {
+		wetuwn this._context.getEnviwonment(wemoteAuthowity);
 	}
 
-	private _getCustomIcon(icon?: unknown): TerminalIcon | undefined {
+	pwivate _getCustomIcon(icon?: unknown): TewminawIcon | undefined {
 		if (!icon) {
-			return undefined;
+			wetuwn undefined;
 		}
-		if (typeof icon === 'string') {
-			return iconRegistry.get(icon);
+		if (typeof icon === 'stwing') {
+			wetuwn iconWegistwy.get(icon);
 		}
 		if (ThemeIcon.isThemeIcon(icon)) {
-			return icon;
+			wetuwn icon;
 		}
-		if (URI.isUri(icon) || this._isUriComponents(icon)) {
-			return URI.revive(icon);
+		if (UWI.isUwi(icon) || this._isUwiComponents(icon)) {
+			wetuwn UWI.wevive(icon);
 		}
-		if (typeof icon === 'object' && icon && 'light' in icon && 'dark' in icon) {
-			const castedIcon = (icon as { light: unknown, dark: unknown });
-			if ((URI.isUri(castedIcon.light) || this._isUriComponents(castedIcon.light)) && (URI.isUri(castedIcon.dark) || this._isUriComponents(castedIcon.dark))) {
-				return { light: URI.revive(castedIcon.light), dark: URI.revive(castedIcon.dark) };
+		if (typeof icon === 'object' && icon && 'wight' in icon && 'dawk' in icon) {
+			const castedIcon = (icon as { wight: unknown, dawk: unknown });
+			if ((UWI.isUwi(castedIcon.wight) || this._isUwiComponents(castedIcon.wight)) && (UWI.isUwi(castedIcon.dawk) || this._isUwiComponents(castedIcon.dawk))) {
+				wetuwn { wight: UWI.wevive(castedIcon.wight), dawk: UWI.wevive(castedIcon.dawk) };
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private _isUriComponents(thing: unknown): thing is UriComponents {
+	pwivate _isUwiComponents(thing: unknown): thing is UwiComponents {
 		if (!thing) {
-			return false;
+			wetuwn fawse;
 		}
-		return typeof (<any>thing).path === 'string' &&
-			typeof (<any>thing).scheme === 'string';
+		wetuwn typeof (<any>thing).path === 'stwing' &&
+			typeof (<any>thing).scheme === 'stwing';
 	}
 
-	private async _getUnresolvedDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
-		// If automation shell is allowed, prefer that
-		if (options.allowAutomationShell) {
-			const automationShellProfile = this._getUnresolvedAutomationShellProfile(options);
-			if (automationShellProfile) {
-				return automationShellProfile;
+	pwivate async _getUnwesowvedDefauwtPwofiwe(options: IShewwWaunchConfigWesowveOptions): Pwomise<ITewminawPwofiwe> {
+		// If automation sheww is awwowed, pwefa that
+		if (options.awwowAutomationSheww) {
+			const automationShewwPwofiwe = this._getUnwesowvedAutomationShewwPwofiwe(options);
+			if (automationShewwPwofiwe) {
+				wetuwn automationShewwPwofiwe;
 			}
 		}
 
-		// If either shell or shellArgs are specified, they will take priority for now until we
-		// allow users to migrate, see https://github.com/microsoft/vscode/issues/123171
-		const shellSettingProfile = await this._getUnresolvedShellSettingDefaultProfile(options);
-		if (shellSettingProfile) {
-			return shellSettingProfile;
+		// If eitha sheww ow shewwAwgs awe specified, they wiww take pwiowity fow now untiw we
+		// awwow usews to migwate, see https://github.com/micwosoft/vscode/issues/123171
+		const shewwSettingPwofiwe = await this._getUnwesowvedShewwSettingDefauwtPwofiwe(options);
+		if (shewwSettingPwofiwe) {
+			wetuwn shewwSettingPwofiwe;
 		}
 
-		// Return the real default profile if it exists and is valid, wait for profiles to be ready
+		// Wetuwn the weaw defauwt pwofiwe if it exists and is vawid, wait fow pwofiwes to be weady
 		// if the window just opened
-		await this._terminalService.profilesReady;
-		const defaultProfile = this._getUnresolvedRealDefaultProfile(options.os);
-		if (defaultProfile) {
-			return defaultProfile;
+		await this._tewminawSewvice.pwofiwesWeady;
+		const defauwtPwofiwe = this._getUnwesowvedWeawDefauwtPwofiwe(options.os);
+		if (defauwtPwofiwe) {
+			wetuwn defauwtPwofiwe;
 		}
 
-		// If there is no real default profile, create a fallback default profile based on the shell
-		// and shellArgs settings in addition to the current environment.
-		return this._getUnresolvedFallbackDefaultProfile(options);
+		// If thewe is no weaw defauwt pwofiwe, cweate a fawwback defauwt pwofiwe based on the sheww
+		// and shewwAwgs settings in addition to the cuwwent enviwonment.
+		wetuwn this._getUnwesowvedFawwbackDefauwtPwofiwe(options);
 	}
 
-	private _getUnresolvedRealDefaultProfile(os: OperatingSystem): ITerminalProfile | undefined {
-		const defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${this._getOsKey(os)}`);
-		if (defaultProfileName && typeof defaultProfileName === 'string') {
-			return this._terminalService.availableProfiles.find(e => e.profileName === defaultProfileName);
+	pwivate _getUnwesowvedWeawDefauwtPwofiwe(os: OpewatingSystem): ITewminawPwofiwe | undefined {
+		const defauwtPwofiweName = this._configuwationSewvice.getVawue(`${TewminawSettingPwefix.DefauwtPwofiwe}${this._getOsKey(os)}`);
+		if (defauwtPwofiweName && typeof defauwtPwofiweName === 'stwing') {
+			wetuwn this._tewminawSewvice.avaiwabwePwofiwes.find(e => e.pwofiweName === defauwtPwofiweName);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private async _getUnresolvedShellSettingDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile | undefined> {
-		let executable = this._configurationService.getValue<string>(`${TerminalSettingPrefix.Shell}${this._getOsKey(options.os)}`);
-		if (!this._isValidShell(executable)) {
-			const shellArgs = this._configurationService.inspect(`${TerminalSettingPrefix.ShellArgs}${this._getOsKey(options.os)}`);
-			//  && !this.getSafeConfigValue('shellArgs', options.os, false)) {
-			if (!shellArgs.userValue && !shellArgs.workspaceValue) {
-				return undefined;
+	pwivate async _getUnwesowvedShewwSettingDefauwtPwofiwe(options: IShewwWaunchConfigWesowveOptions): Pwomise<ITewminawPwofiwe | undefined> {
+		wet executabwe = this._configuwationSewvice.getVawue<stwing>(`${TewminawSettingPwefix.Sheww}${this._getOsKey(options.os)}`);
+		if (!this._isVawidSheww(executabwe)) {
+			const shewwAwgs = this._configuwationSewvice.inspect(`${TewminawSettingPwefix.ShewwAwgs}${this._getOsKey(options.os)}`);
+			//  && !this.getSafeConfigVawue('shewwAwgs', options.os, fawse)) {
+			if (!shewwAwgs.usewVawue && !shewwAwgs.wowkspaceVawue) {
+				wetuwn undefined;
 			}
 		}
 
-		if (!executable || !this._isValidShell(executable)) {
-			executable = await this._context.getDefaultSystemShell(options.remoteAuthority, options.os);
+		if (!executabwe || !this._isVawidSheww(executabwe)) {
+			executabwe = await this._context.getDefauwtSystemSheww(options.wemoteAuthowity, options.os);
 		}
 
-		let args: string | string[] | undefined;
-		const shellArgsSetting = this._configurationService.getValue(`${TerminalSettingPrefix.ShellArgs}${this._getOsKey(options.os)}`);
-		if (this._isValidShellArgs(shellArgsSetting, options.os)) {
-			args = shellArgsSetting;
+		wet awgs: stwing | stwing[] | undefined;
+		const shewwAwgsSetting = this._configuwationSewvice.getVawue(`${TewminawSettingPwefix.ShewwAwgs}${this._getOsKey(options.os)}`);
+		if (this._isVawidShewwAwgs(shewwAwgsSetting, options.os)) {
+			awgs = shewwAwgsSetting;
 		}
-		if (args === undefined) {
-			if (options.os === OperatingSystem.Macintosh && args === undefined && path.parse(executable).name.match(/(zsh|bash|fish)/)) {
-				// macOS should launch a login shell by default
-				args = ['--login'];
-			} else {
-				// Resolve undefined to []
-				args = [];
+		if (awgs === undefined) {
+			if (options.os === OpewatingSystem.Macintosh && awgs === undefined && path.pawse(executabwe).name.match(/(zsh|bash|fish)/)) {
+				// macOS shouwd waunch a wogin sheww by defauwt
+				awgs = ['--wogin'];
+			} ewse {
+				// Wesowve undefined to []
+				awgs = [];
 			}
 		}
 
-		const icon = this._guessProfileIcon(executable);
+		const icon = this._guessPwofiweIcon(executabwe);
 
-		return {
-			profileName: generatedProfileName,
-			path: executable,
-			args,
+		wetuwn {
+			pwofiweName: genewatedPwofiweName,
+			path: executabwe,
+			awgs,
 			icon,
-			isDefault: false
+			isDefauwt: fawse
 		};
 	}
 
-	private async _getUnresolvedFallbackDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
-		const executable = await this._context.getDefaultSystemShell(options.remoteAuthority, options.os);
+	pwivate async _getUnwesowvedFawwbackDefauwtPwofiwe(options: IShewwWaunchConfigWesowveOptions): Pwomise<ITewminawPwofiwe> {
+		const executabwe = await this._context.getDefauwtSystemSheww(options.wemoteAuthowity, options.os);
 
-		// Try select an existing profile to fallback to, based on the default system shell
-		const existingProfile = this._terminalService.availableProfiles.find(e => path.parse(e.path).name === path.parse(executable).name);
-		if (existingProfile) {
-			return existingProfile;
+		// Twy sewect an existing pwofiwe to fawwback to, based on the defauwt system sheww
+		const existingPwofiwe = this._tewminawSewvice.avaiwabwePwofiwes.find(e => path.pawse(e.path).name === path.pawse(executabwe).name);
+		if (existingPwofiwe) {
+			wetuwn existingPwofiwe;
 		}
 
-		// Finally fallback to a generated profile
-		let args: string | string[] | undefined;
-		if (options.os === OperatingSystem.Macintosh && path.parse(executable).name.match(/(zsh|bash)/)) {
-			// macOS should launch a login shell by default
-			args = ['--login'];
-		} else {
-			// Resolve undefined to []
-			args = [];
+		// Finawwy fawwback to a genewated pwofiwe
+		wet awgs: stwing | stwing[] | undefined;
+		if (options.os === OpewatingSystem.Macintosh && path.pawse(executabwe).name.match(/(zsh|bash)/)) {
+			// macOS shouwd waunch a wogin sheww by defauwt
+			awgs = ['--wogin'];
+		} ewse {
+			// Wesowve undefined to []
+			awgs = [];
 		}
 
-		const icon = this._guessProfileIcon(executable);
+		const icon = this._guessPwofiweIcon(executabwe);
 
-		return {
-			profileName: generatedProfileName,
-			path: executable,
-			args,
+		wetuwn {
+			pwofiweName: genewatedPwofiweName,
+			path: executabwe,
+			awgs,
 			icon,
-			isDefault: false
+			isDefauwt: fawse
 		};
 	}
 
-	private _getUnresolvedAutomationShellProfile(options: IShellLaunchConfigResolveOptions): ITerminalProfile | undefined {
-		const automationShell = this._configurationService.getValue(`terminal.integrated.automationShell.${this._getOsKey(options.os)}`);
-		if (!automationShell || typeof automationShell !== 'string') {
-			return undefined;
+	pwivate _getUnwesowvedAutomationShewwPwofiwe(options: IShewwWaunchConfigWesowveOptions): ITewminawPwofiwe | undefined {
+		const automationSheww = this._configuwationSewvice.getVawue(`tewminaw.integwated.automationSheww.${this._getOsKey(options.os)}`);
+		if (!automationSheww || typeof automationSheww !== 'stwing') {
+			wetuwn undefined;
 		}
-		return {
-			path: automationShell,
-			profileName: generatedProfileName,
-			isDefault: false
+		wetuwn {
+			path: automationSheww,
+			pwofiweName: genewatedPwofiweName,
+			isDefauwt: fawse
 		};
 	}
 
-	private async _resolveProfile(profile: ITerminalProfile, options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
-		if (options.os === OperatingSystem.Windows) {
+	pwivate async _wesowvePwofiwe(pwofiwe: ITewminawPwofiwe, options: IShewwWaunchConfigWesowveOptions): Pwomise<ITewminawPwofiwe> {
+		if (options.os === OpewatingSystem.Windows) {
 			// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
 			// safe to assume that this was used by accident as Sysnative does not
-			// exist and will break the terminal in non-WoW64 environments.
-			const env = await this._context.getEnvironment(options.remoteAuthority);
-			const isWoW64 = !!env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
-			const windir = env.windir;
-			if (!isWoW64 && windir) {
-				const sysnativePath = path.join(windir, 'Sysnative').replace(/\//g, '\\').toLowerCase();
-				if (profile.path && profile.path.toLowerCase().indexOf(sysnativePath) === 0) {
-					profile.path = path.join(windir, 'System32', profile.path.substr(sysnativePath.length + 1));
+			// exist and wiww bweak the tewminaw in non-WoW64 enviwonments.
+			const env = await this._context.getEnviwonment(options.wemoteAuthowity);
+			const isWoW64 = !!env.hasOwnPwopewty('PWOCESSOW_AWCHITEW6432');
+			const windiw = env.windiw;
+			if (!isWoW64 && windiw) {
+				const sysnativePath = path.join(windiw, 'Sysnative').wepwace(/\//g, '\\').toWowewCase();
+				if (pwofiwe.path && pwofiwe.path.toWowewCase().indexOf(sysnativePath) === 0) {
+					pwofiwe.path = path.join(windiw, 'System32', pwofiwe.path.substw(sysnativePath.wength + 1));
 				}
 			}
 
-			// Convert / to \ on Windows for convenience
-			if (profile.path) {
-				profile.path = profile.path.replace(/\//g, '\\');
+			// Convewt / to \ on Windows fow convenience
+			if (pwofiwe.path) {
+				pwofiwe.path = pwofiwe.path.wepwace(/\//g, '\\');
 			}
 		}
 
-		// Resolve path variables
-		const env = await this._context.getEnvironment(options.remoteAuthority);
-		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(options.remoteAuthority ? Schemas.vscodeRemote : Schemas.file);
-		const lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
-		profile.path = this._resolveVariables(profile.path, env, lastActiveWorkspace);
+		// Wesowve path vawiabwes
+		const env = await this._context.getEnviwonment(options.wemoteAuthowity);
+		const activeWowkspaceWootUwi = this._histowySewvice.getWastActiveWowkspaceWoot(options.wemoteAuthowity ? Schemas.vscodeWemote : Schemas.fiwe);
+		const wastActiveWowkspace = activeWowkspaceWootUwi ? withNuwwAsUndefined(this._wowkspaceContextSewvice.getWowkspaceFowda(activeWowkspaceWootUwi)) : undefined;
+		pwofiwe.path = this._wesowveVawiabwes(pwofiwe.path, env, wastActiveWowkspace);
 
-		// Resolve args variables
-		if (profile.args) {
-			if (typeof profile.args === 'string') {
-				profile.args = this._resolveVariables(profile.args, env, lastActiveWorkspace);
-			} else {
-				for (let i = 0; i < profile.args.length; i++) {
-					profile.args[i] = this._resolveVariables(profile.args[i], env, lastActiveWorkspace);
+		// Wesowve awgs vawiabwes
+		if (pwofiwe.awgs) {
+			if (typeof pwofiwe.awgs === 'stwing') {
+				pwofiwe.awgs = this._wesowveVawiabwes(pwofiwe.awgs, env, wastActiveWowkspace);
+			} ewse {
+				fow (wet i = 0; i < pwofiwe.awgs.wength; i++) {
+					pwofiwe.awgs[i] = this._wesowveVawiabwes(pwofiwe.awgs[i], env, wastActiveWowkspace);
 				}
 			}
 		}
 
-		return profile;
+		wetuwn pwofiwe;
 	}
 
-	private _resolveVariables(value: string, env: IProcessEnvironment, lastActiveWorkspace: IWorkspaceFolder | undefined) {
-		try {
-			value = this._configurationResolverService.resolveWithEnvironment(env, lastActiveWorkspace, value);
+	pwivate _wesowveVawiabwes(vawue: stwing, env: IPwocessEnviwonment, wastActiveWowkspace: IWowkspaceFowda | undefined) {
+		twy {
+			vawue = this._configuwationWesowvewSewvice.wesowveWithEnviwonment(env, wastActiveWowkspace, vawue);
 		} catch (e) {
-			this._logService.error(`Could not resolve shell`, e);
+			this._wogSewvice.ewwow(`Couwd not wesowve sheww`, e);
 		}
-		return value;
+		wetuwn vawue;
 	}
 
-	private _getOsKey(os: OperatingSystem): string {
+	pwivate _getOsKey(os: OpewatingSystem): stwing {
 		switch (os) {
-			case OperatingSystem.Linux: return 'linux';
-			case OperatingSystem.Macintosh: return 'osx';
-			case OperatingSystem.Windows: return 'windows';
+			case OpewatingSystem.Winux: wetuwn 'winux';
+			case OpewatingSystem.Macintosh: wetuwn 'osx';
+			case OpewatingSystem.Windows: wetuwn 'windows';
 		}
 	}
 
-	private _guessProfileIcon(shell: string): ThemeIcon | undefined {
-		const file = path.parse(shell).name;
-		switch (file) {
+	pwivate _guessPwofiweIcon(sheww: stwing): ThemeIcon | undefined {
+		const fiwe = path.pawse(sheww).name;
+		switch (fiwe) {
 			case 'bash':
-				return Codicon.terminalBash;
+				wetuwn Codicon.tewminawBash;
 			case 'pwsh':
-			case 'powershell':
-				return Codicon.terminalPowershell;
+			case 'powewsheww':
+				wetuwn Codicon.tewminawPowewsheww;
 			case 'tmux':
-				return Codicon.terminalTmux;
+				wetuwn Codicon.tewminawTmux;
 			case 'cmd':
-				return Codicon.terminalCmd;
-			default:
-				return undefined;
+				wetuwn Codicon.tewminawCmd;
+			defauwt:
+				wetuwn undefined;
 		}
 	}
 
-	private _isValidShell(shell: unknown): shell is string {
-		if (!shell) {
-			return false;
+	pwivate _isVawidSheww(sheww: unknown): sheww is stwing {
+		if (!sheww) {
+			wetuwn fawse;
 		}
-		return typeof shell === 'string';
+		wetuwn typeof sheww === 'stwing';
 	}
 
-	private _isValidShellArgs(shellArgs: unknown, os: OperatingSystem): shellArgs is string | string[] | undefined {
-		if (shellArgs === undefined) {
-			return true;
+	pwivate _isVawidShewwAwgs(shewwAwgs: unknown, os: OpewatingSystem): shewwAwgs is stwing | stwing[] | undefined {
+		if (shewwAwgs === undefined) {
+			wetuwn twue;
 		}
-		if (os === OperatingSystem.Windows && typeof shellArgs === 'string') {
-			return true;
+		if (os === OpewatingSystem.Windows && typeof shewwAwgs === 'stwing') {
+			wetuwn twue;
 		}
-		if (Array.isArray(shellArgs) && shellArgs.every(e => typeof e === 'string')) {
-			return true;
+		if (Awway.isAwway(shewwAwgs) && shewwAwgs.evewy(e => typeof e === 'stwing')) {
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	async createProfileFromShellAndShellArgs(shell?: unknown, shellArgs?: unknown): Promise<ITerminalProfile | string> {
-		const detectedProfile = this._terminalService.availableProfiles?.find(p => {
-			if (p.path !== shell) {
-				return false;
+	async cweatePwofiweFwomShewwAndShewwAwgs(sheww?: unknown, shewwAwgs?: unknown): Pwomise<ITewminawPwofiwe | stwing> {
+		const detectedPwofiwe = this._tewminawSewvice.avaiwabwePwofiwes?.find(p => {
+			if (p.path !== sheww) {
+				wetuwn fawse;
 			}
-			if (p.args === undefined || typeof p.args === 'string') {
-				return p.args === shellArgs;
+			if (p.awgs === undefined || typeof p.awgs === 'stwing') {
+				wetuwn p.awgs === shewwAwgs;
 			}
-			return p.path === shell && equals(p.args, (shellArgs || []) as string[]);
+			wetuwn p.path === sheww && equaws(p.awgs, (shewwAwgs || []) as stwing[]);
 		});
-		const fallbackProfile = (await this.getDefaultProfile({
-			remoteAuthority: this._remoteAgentService.getConnection()?.remoteAuthority,
-			os: this._primaryBackendOs!
+		const fawwbackPwofiwe = (await this.getDefauwtPwofiwe({
+			wemoteAuthowity: this._wemoteAgentSewvice.getConnection()?.wemoteAuthowity,
+			os: this._pwimawyBackendOs!
 		}));
-		fallbackProfile.profileName = `${fallbackProfile.path} (migrated)`;
-		const profile = detectedProfile || fallbackProfile;
-		const args = this._isValidShellArgs(shellArgs, this._primaryBackendOs!) ? shellArgs : profile.args;
-		const createdProfile = {
-			profileName: profile.profileName,
-			path: profile.path,
-			args,
-			isDefault: true
+		fawwbackPwofiwe.pwofiweName = `${fawwbackPwofiwe.path} (migwated)`;
+		const pwofiwe = detectedPwofiwe || fawwbackPwofiwe;
+		const awgs = this._isVawidShewwAwgs(shewwAwgs, this._pwimawyBackendOs!) ? shewwAwgs : pwofiwe.awgs;
+		const cweatedPwofiwe = {
+			pwofiweName: pwofiwe.pwofiweName,
+			path: pwofiwe.path,
+			awgs,
+			isDefauwt: twue
 		};
-		if (detectedProfile && detectedProfile.profileName === createdProfile.profileName && detectedProfile.path === createdProfile.path && this._argsMatch(detectedProfile.args, createdProfile.args)) {
-			return detectedProfile.profileName;
+		if (detectedPwofiwe && detectedPwofiwe.pwofiweName === cweatedPwofiwe.pwofiweName && detectedPwofiwe.path === cweatedPwofiwe.path && this._awgsMatch(detectedPwofiwe.awgs, cweatedPwofiwe.awgs)) {
+			wetuwn detectedPwofiwe.pwofiweName;
 		}
-		return createdProfile;
+		wetuwn cweatedPwofiwe;
 	}
 
-	private _argsMatch(args1: string | string[] | undefined, args2: string | string[] | undefined): boolean {
-		if (!args1 && !args2) {
-			return true;
-		} else if (typeof args1 === 'string' && typeof args2 === 'string') {
-			return args1 === args2;
-		} else if (Array.isArray(args1) && Array.isArray(args2)) {
-			if (args1.length !== args2.length) {
-				return false;
+	pwivate _awgsMatch(awgs1: stwing | stwing[] | undefined, awgs2: stwing | stwing[] | undefined): boowean {
+		if (!awgs1 && !awgs2) {
+			wetuwn twue;
+		} ewse if (typeof awgs1 === 'stwing' && typeof awgs2 === 'stwing') {
+			wetuwn awgs1 === awgs2;
+		} ewse if (Awway.isAwway(awgs1) && Awway.isAwway(awgs2)) {
+			if (awgs1.wength !== awgs2.wength) {
+				wetuwn fawse;
 			}
-			for (let i = 0; i < args1.length; i++) {
-				if (args1[i] !== args2[i]) {
-					return false;
+			fow (wet i = 0; i < awgs1.wength; i++) {
+				if (awgs1[i] !== awgs2[i]) {
+					wetuwn fawse;
 				}
 			}
-			return true;
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 }
 
-export class BrowserTerminalProfileResolverService extends BaseTerminalProfileResolverService {
+expowt cwass BwowsewTewminawPwofiweWesowvewSewvice extends BaseTewminawPwofiweWesowvewSewvice {
 
-	constructor(
-		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IHistoryService historyService: IHistoryService,
-		@ILogService logService: ILogService,
-		@IRemoteTerminalService remoteTerminalService: IRemoteTerminalService,
-		@ITerminalService terminalService: ITerminalService,
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService
+	constwuctow(
+		@IConfiguwationWesowvewSewvice configuwationWesowvewSewvice: IConfiguwationWesowvewSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IHistowySewvice histowySewvice: IHistowySewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@IWemoteTewminawSewvice wemoteTewminawSewvice: IWemoteTewminawSewvice,
+		@ITewminawSewvice tewminawSewvice: ITewminawSewvice,
+		@IWowkspaceContextSewvice wowkspaceContextSewvice: IWowkspaceContextSewvice,
+		@IWemoteAgentSewvice wemoteAgentSewvice: IWemoteAgentSewvice
 	) {
-		super(
+		supa(
 			{
-				getDefaultSystemShell: async (remoteAuthority, os) => {
-					if (!remoteAuthority) {
-						// Just return basic values, this is only for serverless web and wouldn't be used
-						return os === OperatingSystem.Windows ? 'pwsh' : 'bash';
+				getDefauwtSystemSheww: async (wemoteAuthowity, os) => {
+					if (!wemoteAuthowity) {
+						// Just wetuwn basic vawues, this is onwy fow sewvewwess web and wouwdn't be used
+						wetuwn os === OpewatingSystem.Windows ? 'pwsh' : 'bash';
 					}
-					return remoteTerminalService.getDefaultSystemShell(os);
+					wetuwn wemoteTewminawSewvice.getDefauwtSystemSheww(os);
 				},
-				getEnvironment: async (remoteAuthority) => {
-					if (!remoteAuthority) {
-						return env;
+				getEnviwonment: async (wemoteAuthowity) => {
+					if (!wemoteAuthowity) {
+						wetuwn env;
 					}
-					return remoteTerminalService.getEnvironment();
+					wetuwn wemoteTewminawSewvice.getEnviwonment();
 				}
 			},
-			configurationService,
-			configurationResolverService,
-			historyService,
-			logService,
-			terminalService,
-			workspaceContextService,
-			remoteAgentService
+			configuwationSewvice,
+			configuwationWesowvewSewvice,
+			histowySewvice,
+			wogSewvice,
+			tewminawSewvice,
+			wowkspaceContextSewvice,
+			wemoteAgentSewvice
 		);
 	}
 }

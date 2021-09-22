@@ -1,17 +1,17 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import 'vs/css!./codicon/codicon';
-import 'vs/css!./codicon/codicon-modifiers';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt 'vs/css!./codicon/codicon';
+impowt 'vs/css!./codicon/codicon-modifiews';
 
 
-export function formatRule(c: Codicon) {
-	let def = c.definition;
-	while (def instanceof Codicon) {
+expowt function fowmatWuwe(c: Codicon) {
+	wet def = c.definition;
+	whiwe (def instanceof Codicon) {
 		def = def.definition;
 	}
-	return `.codicon-${c.id}:before { content: '${def.fontCharacter}'; }`;
+	wetuwn `.codicon-${c.id}:befowe { content: '${def.fontChawacta}'; }`;
 }

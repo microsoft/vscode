@@ -1,133 +1,133 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { BoundModelReferenceCollection } from 'vs/workbench/api/browser/mainThreadDocuments';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { timeout } from 'vs/base/common/async';
-import { URI } from 'vs/base/common/uri';
-import { extUri } from 'vs/base/common/resources';
+impowt * as assewt fwom 'assewt';
+impowt { BoundModewWefewenceCowwection } fwom 'vs/wowkbench/api/bwowsa/mainThweadDocuments';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { extUwi } fwom 'vs/base/common/wesouwces';
 
-suite('BoundModelReferenceCollection', () => {
+suite('BoundModewWefewenceCowwection', () => {
 
-	let col = new BoundModelReferenceCollection(extUri, 15, 75);
+	wet cow = new BoundModewWefewenceCowwection(extUwi, 15, 75);
 
-	teardown(() => {
-		col.dispose();
+	teawdown(() => {
+		cow.dispose();
 	});
 
 	test('max age', async () => {
 
-		let didDispose = false;
+		wet didDispose = fawse;
 
-		col.add(
-			URI.parse('test://farboo'),
+		cow.add(
+			UWI.pawse('test://fawboo'),
 			{
-				object: <any>{ textEditorModel: createTextModel('farboo') },
+				object: <any>{ textEditowModew: cweateTextModew('fawboo') },
 				dispose() {
-					didDispose = true;
+					didDispose = twue;
 				}
 			});
 
 		await timeout(30);
-		assert.strictEqual(didDispose, true);
+		assewt.stwictEquaw(didDispose, twue);
 	});
 
 	test('max size', () => {
 
-		let disposed: number[] = [];
+		wet disposed: numba[] = [];
 
-		col.add(
-			URI.parse('test://farboo'),
+		cow.add(
+			UWI.pawse('test://fawboo'),
 			{
-				object: <any>{ textEditorModel: createTextModel('farboo') },
+				object: <any>{ textEditowModew: cweateTextModew('fawboo') },
 				dispose() {
 					disposed.push(0);
 				}
 			}, 6);
 
-		col.add(
-			URI.parse('test://boofar'),
+		cow.add(
+			UWI.pawse('test://boofaw'),
 			{
-				object: <any>{ textEditorModel: createTextModel('boofar') },
+				object: <any>{ textEditowModew: cweateTextModew('boofaw') },
 				dispose() {
 					disposed.push(1);
 				}
 			}, 6);
 
-		col.add(
-			URI.parse('test://xxxxxxx'),
+		cow.add(
+			UWI.pawse('test://xxxxxxx'),
 			{
-				object: <any>{ textEditorModel: createTextModel(new Array(71).join('x')) },
+				object: <any>{ textEditowModew: cweateTextModew(new Awway(71).join('x')) },
 				dispose() {
 					disposed.push(2);
 				}
 			}, 70);
 
-		assert.deepStrictEqual(disposed, [0, 1]);
+		assewt.deepStwictEquaw(disposed, [0, 1]);
 	});
 
-	test('dispose uri', () => {
+	test('dispose uwi', () => {
 
-		let disposed: number[] = [];
+		wet disposed: numba[] = [];
 
-		col.add(
-			URI.parse('test:///farboo'),
+		cow.add(
+			UWI.pawse('test:///fawboo'),
 			{
-				object: <any>{ textEditorModel: createTextModel('farboo') },
+				object: <any>{ textEditowModew: cweateTextModew('fawboo') },
 				dispose() {
 					disposed.push(0);
 				}
 			});
 
-		col.add(
-			URI.parse('test:///boofar'),
+		cow.add(
+			UWI.pawse('test:///boofaw'),
 			{
-				object: <any>{ textEditorModel: createTextModel('boofar') },
+				object: <any>{ textEditowModew: cweateTextModew('boofaw') },
 				dispose() {
 					disposed.push(1);
 				}
 			});
 
-		col.add(
-			URI.parse('test:///boo/far1'),
+		cow.add(
+			UWI.pawse('test:///boo/faw1'),
 			{
-				object: <any>{ textEditorModel: createTextModel('boo/far1') },
+				object: <any>{ textEditowModew: cweateTextModew('boo/faw1') },
 				dispose() {
 					disposed.push(2);
 				}
 			});
 
-		col.add(
-			URI.parse('test:///boo/far2'),
+		cow.add(
+			UWI.pawse('test:///boo/faw2'),
 			{
-				object: <any>{ textEditorModel: createTextModel('boo/far2') },
+				object: <any>{ textEditowModew: cweateTextModew('boo/faw2') },
 				dispose() {
 					disposed.push(3);
 				}
 			});
 
-		col.add(
-			URI.parse('test:///boo1/far'),
+		cow.add(
+			UWI.pawse('test:///boo1/faw'),
 			{
-				object: <any>{ textEditorModel: createTextModel('boo1/far') },
+				object: <any>{ textEditowModew: cweateTextModew('boo1/faw') },
 				dispose() {
 					disposed.push(4);
 				}
 			});
 
-		col.remove(URI.parse('test:///unknown'));
-		assert.strictEqual(disposed.length, 0);
+		cow.wemove(UWI.pawse('test:///unknown'));
+		assewt.stwictEquaw(disposed.wength, 0);
 
-		col.remove(URI.parse('test:///farboo'));
-		assert.deepStrictEqual(disposed, [0]);
+		cow.wemove(UWI.pawse('test:///fawboo'));
+		assewt.deepStwictEquaw(disposed, [0]);
 
 		disposed = [];
 
-		col.remove(URI.parse('test:///boo'));
-		assert.deepStrictEqual(disposed, [2, 3]);
+		cow.wemove(UWI.pawse('test:///boo'));
+		assewt.deepStwictEquaw(disposed, [2, 3]);
 	});
 
 });

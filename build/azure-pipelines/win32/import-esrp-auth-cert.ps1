@@ -1,14 +1,14 @@
-param ($CertBase64)
-$ErrorActionPreference = "Stop"
+pawam ($CewtBase64)
+$EwwowActionPwefewence = "Stop"
 
-$CertBytes = [System.Convert]::FromBase64String($CertBase64)
-$CertCollection = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2Collection
-$CertCollection.Import($CertBytes, $null, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable -bxor [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::PersistKeySet)
+$CewtBytes = [System.Convewt]::FwomBase64Stwing($CewtBase64)
+$CewtCowwection = New-Object System.Secuwity.Cwyptogwaphy.X509Cewtificates.X509Cewtificate2Cowwection
+$CewtCowwection.Impowt($CewtBytes, $nuww, [System.Secuwity.Cwyptogwaphy.X509Cewtificates.X509KeyStowageFwags]::Expowtabwe -bxow [System.Secuwity.Cwyptogwaphy.X509Cewtificates.X509KeyStowageFwags]::PewsistKeySet)
 
-$CertStore = New-Object System.Security.Cryptography.X509Certificates.X509Store("My","LocalMachine")
-$CertStore.Open("ReadWrite")
-$CertStore.AddRange($CertCollection)
-$CertStore.Close()
+$CewtStowe = New-Object System.Secuwity.Cwyptogwaphy.X509Cewtificates.X509Stowe("My","WocawMachine")
+$CewtStowe.Open("WeadWwite")
+$CewtStowe.AddWange($CewtCowwection)
+$CewtStowe.Cwose()
 
-$ESRPAuthCertificateSubjectName = $CertCollection[0].Subject
-Write-Output ("##vso[task.setvariable variable=ESRPAuthCertificateSubjectName;]$ESRPAuthCertificateSubjectName")
+$ESWPAuthCewtificateSubjectName = $CewtCowwection[0].Subject
+Wwite-Output ("##vso[task.setvawiabwe vawiabwe=ESWPAuthCewtificateSubjectName;]$ESWPAuthCewtificateSubjectName")

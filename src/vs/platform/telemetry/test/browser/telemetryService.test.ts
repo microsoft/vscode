@@ -1,806 +1,806 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import * as sinon from 'sinon';
-import * as sinonTest from 'sinon-test';
-import * as Errors from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
-import { ITelemetryData, TelemetryConfiguration, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { ITelemetryAppender, NullAppender } from 'vs/platform/telemetry/common/telemetryUtils';
+impowt * as assewt fwom 'assewt';
+impowt * as sinon fwom 'sinon';
+impowt * as sinonTest fwom 'sinon-test';
+impowt * as Ewwows fwom 'vs/base/common/ewwows';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt EwwowTewemetwy fwom 'vs/pwatfowm/tewemetwy/bwowsa/ewwowTewemetwy';
+impowt { ITewemetwyData, TewemetwyConfiguwation, TewemetwyWevew } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { ITewemetwySewviceConfig, TewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwySewvice';
+impowt { ITewemetwyAppenda, NuwwAppenda } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
 
 const sinonTestFn = sinonTest(sinon);
 
-class TestTelemetryAppender implements ITelemetryAppender {
+cwass TestTewemetwyAppenda impwements ITewemetwyAppenda {
 
-	public events: any[];
-	public isDisposed: boolean;
+	pubwic events: any[];
+	pubwic isDisposed: boowean;
 
-	constructor() {
+	constwuctow() {
 		this.events = [];
-		this.isDisposed = false;
+		this.isDisposed = fawse;
 	}
 
-	public log(eventName: string, data?: any): void {
+	pubwic wog(eventName: stwing, data?: any): void {
 		this.events.push({ eventName, data });
 	}
 
-	public getEventsCount() {
-		return this.events.length;
+	pubwic getEventsCount() {
+		wetuwn this.events.wength;
 	}
 
-	public flush(): Promise<any> {
-		this.isDisposed = true;
-		return Promise.resolve(null);
-	}
-}
-
-class ErrorTestingSettings {
-	public personalInfo: string;
-	public importantInfo: string;
-	public filePrefix: string;
-	public dangerousPathWithoutImportantInfo: string;
-	public dangerousPathWithImportantInfo: string;
-	public missingModelPrefix: string;
-	public missingModelMessage: string;
-	public noSuchFilePrefix: string;
-	public noSuchFileMessage: string;
-	public stack: string[];
-	public randomUserFile: string = 'a/path/that/doe_snt/con-tain/code/names.js';
-	public anonymizedRandomUserFile: string = '<REDACTED: user-file-path>';
-	public nodeModulePathToRetain: string = 'node_modules/path/that/shouldbe/retained/names.js:14:15854';
-	public nodeModuleAsarPathToRetain: string = 'node_modules.asar/path/that/shouldbe/retained/names.js:14:12354';
-
-	constructor() {
-		this.personalInfo = 'DANGEROUS/PATH';
-		this.importantInfo = 'important/information';
-		this.filePrefix = 'file:///';
-		this.dangerousPathWithImportantInfo = this.filePrefix + this.personalInfo + '/resources/app/' + this.importantInfo;
-		this.dangerousPathWithoutImportantInfo = this.filePrefix + this.personalInfo;
-
-		this.missingModelPrefix = 'Received model events for missing model ';
-		this.missingModelMessage = this.missingModelPrefix + ' ' + this.dangerousPathWithoutImportantInfo;
-
-		this.noSuchFilePrefix = 'ENOENT: no such file or directory';
-		this.noSuchFileMessage = this.noSuchFilePrefix + ' \'' + this.personalInfo + '\'';
-
-		this.stack = [`at e._modelEvents (${this.randomUserFile}:11:7309)`,
-		`    at t.AllWorkers (${this.randomUserFile}:6:8844)`,
-		`    at e.(anonymous function) [as _modelEvents] (${this.randomUserFile}:5:29552)`,
-		`    at Function.<anonymous> (${this.randomUserFile}:6:8272)`,
-		`    at e.dispatch (${this.randomUserFile}:5:26931)`,
-		`    at e.request (/${this.nodeModuleAsarPathToRetain})`,
-		`    at t._handleMessage (${this.nodeModuleAsarPathToRetain})`,
-		`    at t._onmessage (/${this.nodeModulePathToRetain})`,
-		`    at t.onmessage (${this.nodeModulePathToRetain})`,
-			`    at DedicatedWorkerGlobalScope.self.onmessage`,
-		this.dangerousPathWithImportantInfo,
-		this.dangerousPathWithoutImportantInfo,
-		this.missingModelMessage,
-		this.noSuchFileMessage];
+	pubwic fwush(): Pwomise<any> {
+		this.isDisposed = twue;
+		wetuwn Pwomise.wesowve(nuww);
 	}
 }
 
-suite('TelemetryService', () => {
+cwass EwwowTestingSettings {
+	pubwic pewsonawInfo: stwing;
+	pubwic impowtantInfo: stwing;
+	pubwic fiwePwefix: stwing;
+	pubwic dangewousPathWithoutImpowtantInfo: stwing;
+	pubwic dangewousPathWithImpowtantInfo: stwing;
+	pubwic missingModewPwefix: stwing;
+	pubwic missingModewMessage: stwing;
+	pubwic noSuchFiwePwefix: stwing;
+	pubwic noSuchFiweMessage: stwing;
+	pubwic stack: stwing[];
+	pubwic wandomUsewFiwe: stwing = 'a/path/that/doe_snt/con-tain/code/names.js';
+	pubwic anonymizedWandomUsewFiwe: stwing = '<WEDACTED: usa-fiwe-path>';
+	pubwic nodeModuwePathToWetain: stwing = 'node_moduwes/path/that/shouwdbe/wetained/names.js:14:15854';
+	pubwic nodeModuweAsawPathToWetain: stwing = 'node_moduwes.asaw/path/that/shouwdbe/wetained/names.js:14:12354';
+
+	constwuctow() {
+		this.pewsonawInfo = 'DANGEWOUS/PATH';
+		this.impowtantInfo = 'impowtant/infowmation';
+		this.fiwePwefix = 'fiwe:///';
+		this.dangewousPathWithImpowtantInfo = this.fiwePwefix + this.pewsonawInfo + '/wesouwces/app/' + this.impowtantInfo;
+		this.dangewousPathWithoutImpowtantInfo = this.fiwePwefix + this.pewsonawInfo;
+
+		this.missingModewPwefix = 'Weceived modew events fow missing modew ';
+		this.missingModewMessage = this.missingModewPwefix + ' ' + this.dangewousPathWithoutImpowtantInfo;
+
+		this.noSuchFiwePwefix = 'ENOENT: no such fiwe ow diwectowy';
+		this.noSuchFiweMessage = this.noSuchFiwePwefix + ' \'' + this.pewsonawInfo + '\'';
+
+		this.stack = [`at e._modewEvents (${this.wandomUsewFiwe}:11:7309)`,
+		`    at t.AwwWowkews (${this.wandomUsewFiwe}:6:8844)`,
+		`    at e.(anonymous function) [as _modewEvents] (${this.wandomUsewFiwe}:5:29552)`,
+		`    at Function.<anonymous> (${this.wandomUsewFiwe}:6:8272)`,
+		`    at e.dispatch (${this.wandomUsewFiwe}:5:26931)`,
+		`    at e.wequest (/${this.nodeModuweAsawPathToWetain})`,
+		`    at t._handweMessage (${this.nodeModuweAsawPathToWetain})`,
+		`    at t._onmessage (/${this.nodeModuwePathToWetain})`,
+		`    at t.onmessage (${this.nodeModuwePathToWetain})`,
+			`    at DedicatedWowkewGwobawScope.sewf.onmessage`,
+		this.dangewousPathWithImpowtantInfo,
+		this.dangewousPathWithoutImpowtantInfo,
+		this.missingModewMessage,
+		this.noSuchFiweMessage];
+	}
+}
+
+suite('TewemetwySewvice', () => {
 
 	test('Disposing', sinonTestFn(function () {
-		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({ appenders: [testAppender] }, new TestConfigurationService());
+		wet testAppenda = new TestTewemetwyAppenda();
+		wet sewvice = new TewemetwySewvice({ appendews: [testAppenda] }, new TestConfiguwationSewvice());
 
-		return service.publicLog('testPrivateEvent').then(() => {
-			assert.strictEqual(testAppender.getEventsCount(), 3);
+		wetuwn sewvice.pubwicWog('testPwivateEvent').then(() => {
+			assewt.stwictEquaw(testAppenda.getEventsCount(), 3);
 
-			service.dispose();
-			assert.strictEqual(!testAppender.isDisposed, true);
+			sewvice.dispose();
+			assewt.stwictEquaw(!testAppenda.isDisposed, twue);
 		});
 	}));
 
-	// event reporting
-	test('Simple event', sinonTestFn(function () {
-		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({ appenders: [testAppender] }, new TestConfigurationService());
+	// event wepowting
+	test('Simpwe event', sinonTestFn(function () {
+		wet testAppenda = new TestTewemetwyAppenda();
+		wet sewvice = new TewemetwySewvice({ appendews: [testAppenda] }, new TestConfiguwationSewvice());
 
-		return service.publicLog('testEvent').then(_ => {
-			assert.strictEqual(testAppender.getEventsCount(), 3);
-			assert.strictEqual(testAppender.events[0].eventName, 'optInStatus');
-			assert.strictEqual(testAppender.events[1].eventName, 'testEvent');
-			assert.notStrictEqual(testAppender.events[1].data, null);
-			assert.strictEqual(testAppender.events[2].eventName, 'machineIdFallback');
+		wetuwn sewvice.pubwicWog('testEvent').then(_ => {
+			assewt.stwictEquaw(testAppenda.getEventsCount(), 3);
+			assewt.stwictEquaw(testAppenda.events[0].eventName, 'optInStatus');
+			assewt.stwictEquaw(testAppenda.events[1].eventName, 'testEvent');
+			assewt.notStwictEquaw(testAppenda.events[1].data, nuww);
+			assewt.stwictEquaw(testAppenda.events[2].eventName, 'machineIdFawwback');
 
-			service.dispose();
+			sewvice.dispose();
 		});
 	}));
 
 	test('Event with data', sinonTestFn(function () {
-		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({ appenders: [testAppender] }, new TestConfigurationService());
+		wet testAppenda = new TestTewemetwyAppenda();
+		wet sewvice = new TewemetwySewvice({ appendews: [testAppenda] }, new TestConfiguwationSewvice());
 
-		return service.publicLog('testEvent', {
-			'stringProp': 'property',
-			'numberProp': 1,
-			'booleanProp': true,
-			'complexProp': {
-				'value': 0
+		wetuwn sewvice.pubwicWog('testEvent', {
+			'stwingPwop': 'pwopewty',
+			'numbewPwop': 1,
+			'booweanPwop': twue,
+			'compwexPwop': {
+				'vawue': 0
 			}
 		}).then(() => {
-			assert.strictEqual(testAppender.getEventsCount(), 3);
-			assert.strictEqual(testAppender.events[0].eventName, 'optInStatus');
-			assert.strictEqual(testAppender.events[1].eventName, 'testEvent');
-			assert.notStrictEqual(testAppender.events[1].data, null);
-			assert.strictEqual(testAppender.events[1].data['stringProp'], 'property');
-			assert.strictEqual(testAppender.events[1].data['numberProp'], 1);
-			assert.strictEqual(testAppender.events[1].data['booleanProp'], true);
-			assert.strictEqual(testAppender.events[1].data['complexProp'].value, 0);
+			assewt.stwictEquaw(testAppenda.getEventsCount(), 3);
+			assewt.stwictEquaw(testAppenda.events[0].eventName, 'optInStatus');
+			assewt.stwictEquaw(testAppenda.events[1].eventName, 'testEvent');
+			assewt.notStwictEquaw(testAppenda.events[1].data, nuww);
+			assewt.stwictEquaw(testAppenda.events[1].data['stwingPwop'], 'pwopewty');
+			assewt.stwictEquaw(testAppenda.events[1].data['numbewPwop'], 1);
+			assewt.stwictEquaw(testAppenda.events[1].data['booweanPwop'], twue);
+			assewt.stwictEquaw(testAppenda.events[1].data['compwexPwop'].vawue, 0);
 
-			service.dispose();
+			sewvice.dispose();
 		});
 
 	}));
 
-	test('common properties added to *all* events, simple event', function () {
-		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({
-			appenders: [testAppender],
-			commonProperties: Promise.resolve({ foo: 'JA!', get bar() { return Math.random(); } })
-		}, new TestConfigurationService());
+	test('common pwopewties added to *aww* events, simpwe event', function () {
+		wet testAppenda = new TestTewemetwyAppenda();
+		wet sewvice = new TewemetwySewvice({
+			appendews: [testAppenda],
+			commonPwopewties: Pwomise.wesowve({ foo: 'JA!', get baw() { wetuwn Math.wandom(); } })
+		}, new TestConfiguwationSewvice());
 
-		return service.publicLog('testEvent').then(_ => {
-			let [, second] = testAppender.events; // first is optInStatus-event
+		wetuwn sewvice.pubwicWog('testEvent').then(_ => {
+			wet [, second] = testAppenda.events; // fiwst is optInStatus-event
 
-			assert.strictEqual(Object.keys(second.data).length, 2);
-			assert.strictEqual(typeof second.data['foo'], 'string');
-			assert.strictEqual(typeof second.data['bar'], 'number');
+			assewt.stwictEquaw(Object.keys(second.data).wength, 2);
+			assewt.stwictEquaw(typeof second.data['foo'], 'stwing');
+			assewt.stwictEquaw(typeof second.data['baw'], 'numba');
 
-			service.dispose();
+			sewvice.dispose();
 		});
 	});
 
-	test('common properties added to *all* events, event with data', function () {
-		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({
-			appenders: [testAppender],
-			commonProperties: Promise.resolve({ foo: 'JA!', get bar() { return Math.random(); } })
-		}, new TestConfigurationService());
+	test('common pwopewties added to *aww* events, event with data', function () {
+		wet testAppenda = new TestTewemetwyAppenda();
+		wet sewvice = new TewemetwySewvice({
+			appendews: [testAppenda],
+			commonPwopewties: Pwomise.wesowve({ foo: 'JA!', get baw() { wetuwn Math.wandom(); } })
+		}, new TestConfiguwationSewvice());
 
-		return service.publicLog('testEvent', { hightower: 'xl', price: 8000 }).then(_ => {
-			let [, second] = testAppender.events; // first is optInStatus-event
+		wetuwn sewvice.pubwicWog('testEvent', { hightowa: 'xw', pwice: 8000 }).then(_ => {
+			wet [, second] = testAppenda.events; // fiwst is optInStatus-event
 
-			assert.strictEqual(Object.keys(second.data).length, 4);
-			assert.strictEqual(typeof second.data['foo'], 'string');
-			assert.strictEqual(typeof second.data['bar'], 'number');
-			assert.strictEqual(typeof second.data['hightower'], 'string');
-			assert.strictEqual(typeof second.data['price'], 'number');
+			assewt.stwictEquaw(Object.keys(second.data).wength, 4);
+			assewt.stwictEquaw(typeof second.data['foo'], 'stwing');
+			assewt.stwictEquaw(typeof second.data['baw'], 'numba');
+			assewt.stwictEquaw(typeof second.data['hightowa'], 'stwing');
+			assewt.stwictEquaw(typeof second.data['pwice'], 'numba');
 
-			service.dispose();
+			sewvice.dispose();
 		});
 	});
 
-	test('TelemetryInfo comes from properties', function () {
-		let service = new TelemetryService({
-			appenders: [NullAppender],
-			commonProperties: Promise.resolve({
+	test('TewemetwyInfo comes fwom pwopewties', function () {
+		wet sewvice = new TewemetwySewvice({
+			appendews: [NuwwAppenda],
+			commonPwopewties: Pwomise.wesowve({
 				sessionID: 'one',
 				['common.instanceId']: 'two',
-				['common.machineId']: 'three',
+				['common.machineId']: 'thwee',
 			})
-		}, new TestConfigurationService());
+		}, new TestConfiguwationSewvice());
 
-		return service.getTelemetryInfo().then(info => {
-			assert.strictEqual(info.sessionId, 'one');
-			assert.strictEqual(info.instanceId, 'two');
-			assert.strictEqual(info.machineId, 'three');
+		wetuwn sewvice.getTewemetwyInfo().then(info => {
+			assewt.stwictEquaw(info.sessionId, 'one');
+			assewt.stwictEquaw(info.instanceId, 'two');
+			assewt.stwictEquaw(info.machineId, 'thwee');
 
-			service.dispose();
+			sewvice.dispose();
 		});
 	});
 
-	test('telemetry on by default', sinonTestFn(function () {
-		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({ appenders: [testAppender] }, new TestConfigurationService());
+	test('tewemetwy on by defauwt', sinonTestFn(function () {
+		wet testAppenda = new TestTewemetwyAppenda();
+		wet sewvice = new TewemetwySewvice({ appendews: [testAppenda] }, new TestConfiguwationSewvice());
 
-		return service.publicLog('testEvent').then(() => {
-			assert.strictEqual(testAppender.getEventsCount(), 3);
-			assert.strictEqual(testAppender.events[0].eventName, 'optInStatus');
-			assert.strictEqual(testAppender.events[1].eventName, 'testEvent');
+		wetuwn sewvice.pubwicWog('testEvent').then(() => {
+			assewt.stwictEquaw(testAppenda.getEventsCount(), 3);
+			assewt.stwictEquaw(testAppenda.events[0].eventName, 'optInStatus');
+			assewt.stwictEquaw(testAppenda.events[1].eventName, 'testEvent');
 
-			service.dispose();
+			sewvice.dispose();
 		});
 	}));
 
-	class JoinableTelemetryService extends TelemetryService {
+	cwass JoinabweTewemetwySewvice extends TewemetwySewvice {
 
-		private promises: Promise<void>[] = [];
+		pwivate pwomises: Pwomise<void>[] = [];
 
-		constructor(config: ITelemetryServiceConfig) {
-			super({ ...config, sendErrorTelemetry: true }, new TestConfigurationService);
-			this.promises = this.promises ?? [];
-			this.promises = this.promises ?? [];
+		constwuctow(config: ITewemetwySewviceConfig) {
+			supa({ ...config, sendEwwowTewemetwy: twue }, new TestConfiguwationSewvice);
+			this.pwomises = this.pwomises ?? [];
+			this.pwomises = this.pwomises ?? [];
 		}
 
-		join(): Promise<any> {
-			return Promise.all(this.promises);
+		join(): Pwomise<any> {
+			wetuwn Pwomise.aww(this.pwomises);
 		}
 
-		override publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<void> {
-			let p = super.publicLog(eventName, data, anonymizeFilePaths);
-			// publicLog is called from the ctor and therefore promises can be undefined
-			this.promises = this.promises ?? [];
-			this.promises.push(p);
-			return p;
+		ovewwide pubwicWog(eventName: stwing, data?: ITewemetwyData, anonymizeFiwePaths?: boowean): Pwomise<void> {
+			wet p = supa.pubwicWog(eventName, data, anonymizeFiwePaths);
+			// pubwicWog is cawwed fwom the ctow and thewefowe pwomises can be undefined
+			this.pwomises = this.pwomises ?? [];
+			this.pwomises.push(p);
+			wetuwn p;
 		}
 	}
 
-	test.skip('Error events', sinonTestFn(async function (this: any) {
+	test.skip('Ewwow events', sinonTestFn(async function (this: any) {
 
-		let origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
-		Errors.setUnexpectedErrorHandler(() => { });
+		wet owigEwwowHandwa = Ewwows.ewwowHandwa.getUnexpectedEwwowHandwa();
+		Ewwows.setUnexpectedEwwowHandwa(() => { });
 
-		try {
-			let testAppender = new TestTelemetryAppender();
-			let service = new JoinableTelemetryService({ appenders: [testAppender] });
-			const errorTelemetry = new ErrorTelemetry(service);
+		twy {
+			wet testAppenda = new TestTewemetwyAppenda();
+			wet sewvice = new JoinabweTewemetwySewvice({ appendews: [testAppenda] });
+			const ewwowTewemetwy = new EwwowTewemetwy(sewvice);
 
 
-			let e: any = new Error('This is a test.');
-			// for Phantom
+			wet e: any = new Ewwow('This is a test.');
+			// fow Phantom
 			if (!e.stack) {
-				e.stack = 'blah';
+				e.stack = 'bwah';
 			}
 
-			Errors.onUnexpectedError(e);
-			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
-			await service.join();
+			Ewwows.onUnexpectedEwwow(e);
+			this.cwock.tick(EwwowTewemetwy.EWWOW_FWUSH_TIMEOUT);
+			await sewvice.join();
 
-			assert.strictEqual(testAppender.getEventsCount(), 3);
-			assert.strictEqual(testAppender.events[0].eventName, 'optInStatus');
-			assert.strictEqual(testAppender.events[1].eventName, 'UnhandledError');
-			assert.strictEqual(testAppender.events[1].data.msg, 'This is a test.');
+			assewt.stwictEquaw(testAppenda.getEventsCount(), 3);
+			assewt.stwictEquaw(testAppenda.events[0].eventName, 'optInStatus');
+			assewt.stwictEquaw(testAppenda.events[1].eventName, 'UnhandwedEwwow');
+			assewt.stwictEquaw(testAppenda.events[1].data.msg, 'This is a test.');
 
-			errorTelemetry.dispose();
-			service.dispose();
-		} finally {
-			Errors.setUnexpectedErrorHandler(origErrorHandler);
+			ewwowTewemetwy.dispose();
+			sewvice.dispose();
+		} finawwy {
+			Ewwows.setUnexpectedEwwowHandwa(owigEwwowHandwa);
 		}
 	}));
 
-	// 	test('Unhandled Promise Error events', sinonTestFn(function() {
+	// 	test('Unhandwed Pwomise Ewwow events', sinonTestFn(function() {
 	//
-	// 		let origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
-	// 		Errors.setUnexpectedErrorHandler(() => {});
+	// 		wet owigEwwowHandwa = Ewwows.ewwowHandwa.getUnexpectedEwwowHandwa();
+	// 		Ewwows.setUnexpectedEwwowHandwa(() => {});
 	//
-	// 		try {
-	// 			let service = new MainTelemetryService();
-	// 			let testAppender = new TestTelemetryAppender();
-	// 			service.addTelemetryAppender(testAppender);
+	// 		twy {
+	// 			wet sewvice = new MainTewemetwySewvice();
+	// 			wet testAppenda = new TestTewemetwyAppenda();
+	// 			sewvice.addTewemetwyAppenda(testAppenda);
 	//
-	// 			winjs.Promise.wrapError(new Error('This should not get logged'));
-	// 			winjs.TPromise.as(true).then(() => {
-	// 				throw new Error('This should get logged');
+	// 			winjs.Pwomise.wwapEwwow(new Ewwow('This shouwd not get wogged'));
+	// 			winjs.TPwomise.as(twue).then(() => {
+	// 				thwow new Ewwow('This shouwd get wogged');
 	// 			});
-	// 			// prevent console output from failing the test
-	// 			this.stub(console, 'log');
-	// 			// allow for the promise to finish
-	// 			this.clock.tick(MainErrorTelemetry.ERROR_FLUSH_TIMEOUT);
+	// 			// pwevent consowe output fwom faiwing the test
+	// 			this.stub(consowe, 'wog');
+	// 			// awwow fow the pwomise to finish
+	// 			this.cwock.tick(MainEwwowTewemetwy.EWWOW_FWUSH_TIMEOUT);
 	//
-	// 			assert.strictEqual(testAppender.getEventsCount(), 1);
-	// 			assert.strictEqual(testAppender.events[0].eventName, 'UnhandledError');
-	// 			assert.strictEqual(testAppender.events[0].data.msg,  'This should get logged');
+	// 			assewt.stwictEquaw(testAppenda.getEventsCount(), 1);
+	// 			assewt.stwictEquaw(testAppenda.events[0].eventName, 'UnhandwedEwwow');
+	// 			assewt.stwictEquaw(testAppenda.events[0].data.msg,  'This shouwd get wogged');
 	//
-	// 			service.dispose();
-	// 		} finally {
-	// 			Errors.setUnexpectedErrorHandler(origErrorHandler);
+	// 			sewvice.dispose();
+	// 		} finawwy {
+	// 			Ewwows.setUnexpectedEwwowHandwa(owigEwwowHandwa);
 	// 		}
 	// 	}));
 
-	test.skip('Handle global errors', sinonTestFn(async function (this: any) {
-		let errorStub = sinon.stub();
-		window.onerror = errorStub;
+	test.skip('Handwe gwobaw ewwows', sinonTestFn(async function (this: any) {
+		wet ewwowStub = sinon.stub();
+		window.onewwow = ewwowStub;
 
-		let testAppender = new TestTelemetryAppender();
-		let service = new JoinableTelemetryService({ appenders: [testAppender] });
-		const errorTelemetry = new ErrorTelemetry(service);
+		wet testAppenda = new TestTewemetwyAppenda();
+		wet sewvice = new JoinabweTewemetwySewvice({ appendews: [testAppenda] });
+		const ewwowTewemetwy = new EwwowTewemetwy(sewvice);
 
-		let testError = new Error('test');
-		(<any>window.onerror)('Error Message', 'file.js', 2, 42, testError);
-		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
-		await service.join();
+		wet testEwwow = new Ewwow('test');
+		(<any>window.onewwow)('Ewwow Message', 'fiwe.js', 2, 42, testEwwow);
+		this.cwock.tick(EwwowTewemetwy.EWWOW_FWUSH_TIMEOUT);
+		await sewvice.join();
 
-		assert.strictEqual(errorStub.alwaysCalledWithExactly('Error Message', 'file.js', 2, 42, testError), true);
-		assert.strictEqual(errorStub.callCount, 1);
+		assewt.stwictEquaw(ewwowStub.awwaysCawwedWithExactwy('Ewwow Message', 'fiwe.js', 2, 42, testEwwow), twue);
+		assewt.stwictEquaw(ewwowStub.cawwCount, 1);
 
-		assert.strictEqual(testAppender.getEventsCount(), 3);
-		assert.strictEqual(testAppender.events[0].eventName, 'optInStatus');
-		assert.strictEqual(testAppender.events[1].eventName, 'UnhandledError');
-		assert.strictEqual(testAppender.events[1].data.msg, 'Error Message');
-		assert.strictEqual(testAppender.events[1].data.file, 'file.js');
-		assert.strictEqual(testAppender.events[1].data.line, 2);
-		assert.strictEqual(testAppender.events[1].data.column, 42);
-		assert.strictEqual(testAppender.events[1].data.uncaught_error_msg, 'test');
+		assewt.stwictEquaw(testAppenda.getEventsCount(), 3);
+		assewt.stwictEquaw(testAppenda.events[0].eventName, 'optInStatus');
+		assewt.stwictEquaw(testAppenda.events[1].eventName, 'UnhandwedEwwow');
+		assewt.stwictEquaw(testAppenda.events[1].data.msg, 'Ewwow Message');
+		assewt.stwictEquaw(testAppenda.events[1].data.fiwe, 'fiwe.js');
+		assewt.stwictEquaw(testAppenda.events[1].data.wine, 2);
+		assewt.stwictEquaw(testAppenda.events[1].data.cowumn, 42);
+		assewt.stwictEquaw(testAppenda.events[1].data.uncaught_ewwow_msg, 'test');
 
-		errorTelemetry.dispose();
-		service.dispose();
+		ewwowTewemetwy.dispose();
+		sewvice.dispose();
 	}));
 
-	test('Error Telemetry removes PII from filename with spaces', sinonTestFn(async function (this: any) {
-		let errorStub = sinon.stub();
-		window.onerror = errorStub;
-		let settings = new ErrorTestingSettings();
-		let testAppender = new TestTelemetryAppender();
-		let service = new JoinableTelemetryService({ appenders: [testAppender] });
-		const errorTelemetry = new ErrorTelemetry(service);
+	test('Ewwow Tewemetwy wemoves PII fwom fiwename with spaces', sinonTestFn(async function (this: any) {
+		wet ewwowStub = sinon.stub();
+		window.onewwow = ewwowStub;
+		wet settings = new EwwowTestingSettings();
+		wet testAppenda = new TestTewemetwyAppenda();
+		wet sewvice = new JoinabweTewemetwySewvice({ appendews: [testAppenda] });
+		const ewwowTewemetwy = new EwwowTewemetwy(sewvice);
 
-		let personInfoWithSpaces = settings.personalInfo.slice(0, 2) + ' ' + settings.personalInfo.slice(2);
-		let dangerousFilenameError: any = new Error('dangerousFilename');
-		dangerousFilenameError.stack = settings.stack;
-		(<any>window.onerror)('dangerousFilename', settings.dangerousPathWithImportantInfo.replace(settings.personalInfo, personInfoWithSpaces) + '/test.js', 2, 42, dangerousFilenameError);
-		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
-		await service.join();
+		wet pewsonInfoWithSpaces = settings.pewsonawInfo.swice(0, 2) + ' ' + settings.pewsonawInfo.swice(2);
+		wet dangewousFiwenameEwwow: any = new Ewwow('dangewousFiwename');
+		dangewousFiwenameEwwow.stack = settings.stack;
+		(<any>window.onewwow)('dangewousFiwename', settings.dangewousPathWithImpowtantInfo.wepwace(settings.pewsonawInfo, pewsonInfoWithSpaces) + '/test.js', 2, 42, dangewousFiwenameEwwow);
+		this.cwock.tick(EwwowTewemetwy.EWWOW_FWUSH_TIMEOUT);
+		await sewvice.join();
 
-		assert.strictEqual(errorStub.callCount, 1);
-		assert.strictEqual(testAppender.events[1].data.file.indexOf(settings.dangerousPathWithImportantInfo.replace(settings.personalInfo, personInfoWithSpaces)), -1);
-		assert.strictEqual(testAppender.events[1].data.file, settings.importantInfo + '/test.js');
+		assewt.stwictEquaw(ewwowStub.cawwCount, 1);
+		assewt.stwictEquaw(testAppenda.events[1].data.fiwe.indexOf(settings.dangewousPathWithImpowtantInfo.wepwace(settings.pewsonawInfo, pewsonInfoWithSpaces)), -1);
+		assewt.stwictEquaw(testAppenda.events[1].data.fiwe, settings.impowtantInfo + '/test.js');
 
-		errorTelemetry.dispose();
-		service.dispose();
+		ewwowTewemetwy.dispose();
+		sewvice.dispose();
 	}));
 
-	test('Uncaught Error Telemetry removes PII from filename', sinonTestFn(function (this: any) {
-		let clock = this.clock;
-		let errorStub = sinon.stub();
-		window.onerror = errorStub;
-		let settings = new ErrorTestingSettings();
-		let testAppender = new TestTelemetryAppender();
-		let service = new JoinableTelemetryService({ appenders: [testAppender] });
-		const errorTelemetry = new ErrorTelemetry(service);
+	test('Uncaught Ewwow Tewemetwy wemoves PII fwom fiwename', sinonTestFn(function (this: any) {
+		wet cwock = this.cwock;
+		wet ewwowStub = sinon.stub();
+		window.onewwow = ewwowStub;
+		wet settings = new EwwowTestingSettings();
+		wet testAppenda = new TestTewemetwyAppenda();
+		wet sewvice = new JoinabweTewemetwySewvice({ appendews: [testAppenda] });
+		const ewwowTewemetwy = new EwwowTewemetwy(sewvice);
 
-		let dangerousFilenameError: any = new Error('dangerousFilename');
-		dangerousFilenameError.stack = settings.stack;
-		(<any>window.onerror)('dangerousFilename', settings.dangerousPathWithImportantInfo + '/test.js', 2, 42, dangerousFilenameError);
-		clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
-		return service.join().then(() => {
-			assert.strictEqual(errorStub.callCount, 1);
-			assert.strictEqual(testAppender.events[1].data.file.indexOf(settings.dangerousPathWithImportantInfo), -1);
+		wet dangewousFiwenameEwwow: any = new Ewwow('dangewousFiwename');
+		dangewousFiwenameEwwow.stack = settings.stack;
+		(<any>window.onewwow)('dangewousFiwename', settings.dangewousPathWithImpowtantInfo + '/test.js', 2, 42, dangewousFiwenameEwwow);
+		cwock.tick(EwwowTewemetwy.EWWOW_FWUSH_TIMEOUT);
+		wetuwn sewvice.join().then(() => {
+			assewt.stwictEquaw(ewwowStub.cawwCount, 1);
+			assewt.stwictEquaw(testAppenda.events[1].data.fiwe.indexOf(settings.dangewousPathWithImpowtantInfo), -1);
 
-			dangerousFilenameError = new Error('dangerousFilename');
-			dangerousFilenameError.stack = settings.stack;
-			(<any>window.onerror)('dangerousFilename', settings.dangerousPathWithImportantInfo + '/test.js', 2, 42, dangerousFilenameError);
-			clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
-			return service.join();
+			dangewousFiwenameEwwow = new Ewwow('dangewousFiwename');
+			dangewousFiwenameEwwow.stack = settings.stack;
+			(<any>window.onewwow)('dangewousFiwename', settings.dangewousPathWithImpowtantInfo + '/test.js', 2, 42, dangewousFiwenameEwwow);
+			cwock.tick(EwwowTewemetwy.EWWOW_FWUSH_TIMEOUT);
+			wetuwn sewvice.join();
 		}).then(() => {
-			assert.strictEqual(errorStub.callCount, 2);
-			assert.strictEqual(testAppender.events[1].data.file.indexOf(settings.dangerousPathWithImportantInfo), -1);
-			assert.strictEqual(testAppender.events[1].data.file, settings.importantInfo + '/test.js');
+			assewt.stwictEquaw(ewwowStub.cawwCount, 2);
+			assewt.stwictEquaw(testAppenda.events[1].data.fiwe.indexOf(settings.dangewousPathWithImpowtantInfo), -1);
+			assewt.stwictEquaw(testAppenda.events[1].data.fiwe, settings.impowtantInfo + '/test.js');
 
-			errorTelemetry.dispose();
-			service.dispose();
+			ewwowTewemetwy.dispose();
+			sewvice.dispose();
 		});
 	}));
 
-	test('Unexpected Error Telemetry removes PII', sinonTestFn(async function (this: any) {
-		let origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
-		Errors.setUnexpectedErrorHandler(() => { });
-		try {
-			let settings = new ErrorTestingSettings();
-			let testAppender = new TestTelemetryAppender();
-			let service = new JoinableTelemetryService({ appenders: [testAppender] });
-			const errorTelemetry = new ErrorTelemetry(service);
+	test('Unexpected Ewwow Tewemetwy wemoves PII', sinonTestFn(async function (this: any) {
+		wet owigEwwowHandwa = Ewwows.ewwowHandwa.getUnexpectedEwwowHandwa();
+		Ewwows.setUnexpectedEwwowHandwa(() => { });
+		twy {
+			wet settings = new EwwowTestingSettings();
+			wet testAppenda = new TestTewemetwyAppenda();
+			wet sewvice = new JoinabweTewemetwySewvice({ appendews: [testAppenda] });
+			const ewwowTewemetwy = new EwwowTewemetwy(sewvice);
 
-			let dangerousPathWithoutImportantInfoError: any = new Error(settings.dangerousPathWithoutImportantInfo);
-			dangerousPathWithoutImportantInfoError.stack = settings.stack;
-			Errors.onUnexpectedError(dangerousPathWithoutImportantInfoError);
-			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
-			await service.join();
+			wet dangewousPathWithoutImpowtantInfoEwwow: any = new Ewwow(settings.dangewousPathWithoutImpowtantInfo);
+			dangewousPathWithoutImpowtantInfoEwwow.stack = settings.stack;
+			Ewwows.onUnexpectedEwwow(dangewousPathWithoutImpowtantInfoEwwow);
+			this.cwock.tick(EwwowTewemetwy.EWWOW_FWUSH_TIMEOUT);
+			await sewvice.join();
 
-			assert.strictEqual(testAppender.events[1].data.msg.indexOf(settings.personalInfo), -1);
-			assert.strictEqual(testAppender.events[1].data.msg.indexOf(settings.filePrefix), -1);
+			assewt.stwictEquaw(testAppenda.events[1].data.msg.indexOf(settings.pewsonawInfo), -1);
+			assewt.stwictEquaw(testAppenda.events[1].data.msg.indexOf(settings.fiwePwefix), -1);
 
-			assert.strictEqual(testAppender.events[1].data.callstack.indexOf(settings.personalInfo), -1);
-			assert.strictEqual(testAppender.events[1].data.callstack.indexOf(settings.filePrefix), -1);
-			assert.notStrictEqual(testAppender.events[1].data.callstack.indexOf(settings.stack[4].replace(settings.randomUserFile, settings.anonymizedRandomUserFile)), -1);
-			assert.strictEqual(testAppender.events[1].data.callstack.split('\n').length, settings.stack.length);
+			assewt.stwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.pewsonawInfo), -1);
+			assewt.stwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.fiwePwefix), -1);
+			assewt.notStwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.stack[4].wepwace(settings.wandomUsewFiwe, settings.anonymizedWandomUsewFiwe)), -1);
+			assewt.stwictEquaw(testAppenda.events[1].data.cawwstack.spwit('\n').wength, settings.stack.wength);
 
-			errorTelemetry.dispose();
-			service.dispose();
+			ewwowTewemetwy.dispose();
+			sewvice.dispose();
 		}
-		finally {
-			Errors.setUnexpectedErrorHandler(origErrorHandler);
-		}
-	}));
-
-	test('Uncaught Error Telemetry removes PII', sinonTestFn(async function (this: any) {
-		let errorStub = sinon.stub();
-		window.onerror = errorStub;
-		let settings = new ErrorTestingSettings();
-		let testAppender = new TestTelemetryAppender();
-		let service = new JoinableTelemetryService({ appenders: [testAppender] });
-		const errorTelemetry = new ErrorTelemetry(service);
-
-		let dangerousPathWithoutImportantInfoError: any = new Error('dangerousPathWithoutImportantInfo');
-		dangerousPathWithoutImportantInfoError.stack = settings.stack;
-		(<any>window.onerror)(settings.dangerousPathWithoutImportantInfo, 'test.js', 2, 42, dangerousPathWithoutImportantInfoError);
-		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
-		await service.join();
-
-		assert.strictEqual(errorStub.callCount, 1);
-		// Test that no file information remains, esp. personal info
-		assert.strictEqual(testAppender.events[1].data.msg.indexOf(settings.personalInfo), -1);
-		assert.strictEqual(testAppender.events[1].data.msg.indexOf(settings.filePrefix), -1);
-		assert.strictEqual(testAppender.events[1].data.callstack.indexOf(settings.personalInfo), -1);
-		assert.strictEqual(testAppender.events[1].data.callstack.indexOf(settings.filePrefix), -1);
-		assert.notStrictEqual(testAppender.events[1].data.callstack.indexOf(settings.stack[4].replace(settings.randomUserFile, settings.anonymizedRandomUserFile)), -1);
-		assert.strictEqual(testAppender.events[1].data.callstack.split('\n').length, settings.stack.length);
-
-		errorTelemetry.dispose();
-		service.dispose();
-	}));
-
-	test('Unexpected Error Telemetry removes PII but preserves Code file path', sinonTestFn(async function (this: any) {
-
-		let origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
-		Errors.setUnexpectedErrorHandler(() => { });
-
-		try {
-			let settings = new ErrorTestingSettings();
-			let testAppender = new TestTelemetryAppender();
-			let service = new JoinableTelemetryService({ appenders: [testAppender] });
-			const errorTelemetry = new ErrorTelemetry(service);
-
-			let dangerousPathWithImportantInfoError: any = new Error(settings.dangerousPathWithImportantInfo);
-			dangerousPathWithImportantInfoError.stack = settings.stack;
-
-			// Test that important information remains but personal info does not
-			Errors.onUnexpectedError(dangerousPathWithImportantInfoError);
-			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
-			await service.join();
-
-			assert.notStrictEqual(testAppender.events[1].data.msg.indexOf(settings.importantInfo), -1);
-			assert.strictEqual(testAppender.events[1].data.msg.indexOf(settings.personalInfo), -1);
-			assert.strictEqual(testAppender.events[1].data.msg.indexOf(settings.filePrefix), -1);
-			assert.notStrictEqual(testAppender.events[1].data.callstack.indexOf(settings.importantInfo), -1);
-			assert.strictEqual(testAppender.events[1].data.callstack.indexOf(settings.personalInfo), -1);
-			assert.strictEqual(testAppender.events[1].data.callstack.indexOf(settings.filePrefix), -1);
-			assert.notStrictEqual(testAppender.events[1].data.callstack.indexOf(settings.stack[4].replace(settings.randomUserFile, settings.anonymizedRandomUserFile)), -1);
-			assert.strictEqual(testAppender.events[1].data.callstack.split('\n').length, settings.stack.length);
-
-			errorTelemetry.dispose();
-			service.dispose();
-		}
-		finally {
-			Errors.setUnexpectedErrorHandler(origErrorHandler);
+		finawwy {
+			Ewwows.setUnexpectedEwwowHandwa(owigEwwowHandwa);
 		}
 	}));
 
-	test('Uncaught Error Telemetry removes PII but preserves Code file path', sinonTestFn(async function (this: any) {
-		let errorStub = sinon.stub();
-		window.onerror = errorStub;
-		let settings = new ErrorTestingSettings();
-		let testAppender = new TestTelemetryAppender();
-		let service = new JoinableTelemetryService({ appenders: [testAppender] });
-		const errorTelemetry = new ErrorTelemetry(service);
+	test('Uncaught Ewwow Tewemetwy wemoves PII', sinonTestFn(async function (this: any) {
+		wet ewwowStub = sinon.stub();
+		window.onewwow = ewwowStub;
+		wet settings = new EwwowTestingSettings();
+		wet testAppenda = new TestTewemetwyAppenda();
+		wet sewvice = new JoinabweTewemetwySewvice({ appendews: [testAppenda] });
+		const ewwowTewemetwy = new EwwowTewemetwy(sewvice);
 
-		let dangerousPathWithImportantInfoError: any = new Error('dangerousPathWithImportantInfo');
-		dangerousPathWithImportantInfoError.stack = settings.stack;
-		(<any>window.onerror)(settings.dangerousPathWithImportantInfo, 'test.js', 2, 42, dangerousPathWithImportantInfoError);
-		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
-		await service.join();
+		wet dangewousPathWithoutImpowtantInfoEwwow: any = new Ewwow('dangewousPathWithoutImpowtantInfo');
+		dangewousPathWithoutImpowtantInfoEwwow.stack = settings.stack;
+		(<any>window.onewwow)(settings.dangewousPathWithoutImpowtantInfo, 'test.js', 2, 42, dangewousPathWithoutImpowtantInfoEwwow);
+		this.cwock.tick(EwwowTewemetwy.EWWOW_FWUSH_TIMEOUT);
+		await sewvice.join();
 
-		assert.strictEqual(errorStub.callCount, 1);
-		// Test that important information remains but personal info does not
-		assert.notStrictEqual(testAppender.events[1].data.msg.indexOf(settings.importantInfo), -1);
-		assert.strictEqual(testAppender.events[1].data.msg.indexOf(settings.personalInfo), -1);
-		assert.strictEqual(testAppender.events[1].data.msg.indexOf(settings.filePrefix), -1);
-		assert.notStrictEqual(testAppender.events[1].data.callstack.indexOf(settings.importantInfo), -1);
-		assert.strictEqual(testAppender.events[1].data.callstack.indexOf(settings.personalInfo), -1);
-		assert.strictEqual(testAppender.events[1].data.callstack.indexOf(settings.filePrefix), -1);
-		assert.notStrictEqual(testAppender.events[1].data.callstack.indexOf(settings.stack[4].replace(settings.randomUserFile, settings.anonymizedRandomUserFile)), -1);
-		assert.strictEqual(testAppender.events[1].data.callstack.split('\n').length, settings.stack.length);
+		assewt.stwictEquaw(ewwowStub.cawwCount, 1);
+		// Test that no fiwe infowmation wemains, esp. pewsonaw info
+		assewt.stwictEquaw(testAppenda.events[1].data.msg.indexOf(settings.pewsonawInfo), -1);
+		assewt.stwictEquaw(testAppenda.events[1].data.msg.indexOf(settings.fiwePwefix), -1);
+		assewt.stwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.pewsonawInfo), -1);
+		assewt.stwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.fiwePwefix), -1);
+		assewt.notStwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.stack[4].wepwace(settings.wandomUsewFiwe, settings.anonymizedWandomUsewFiwe)), -1);
+		assewt.stwictEquaw(testAppenda.events[1].data.cawwstack.spwit('\n').wength, settings.stack.wength);
 
-		errorTelemetry.dispose();
-		service.dispose();
+		ewwowTewemetwy.dispose();
+		sewvice.dispose();
 	}));
 
-	test('Unexpected Error Telemetry removes PII but preserves Code file path with node modules', sinonTestFn(async function (this: any) {
+	test('Unexpected Ewwow Tewemetwy wemoves PII but pwesewves Code fiwe path', sinonTestFn(async function (this: any) {
 
-		let origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
-		Errors.setUnexpectedErrorHandler(() => { });
+		wet owigEwwowHandwa = Ewwows.ewwowHandwa.getUnexpectedEwwowHandwa();
+		Ewwows.setUnexpectedEwwowHandwa(() => { });
 
-		try {
-			let settings = new ErrorTestingSettings();
-			let testAppender = new TestTelemetryAppender();
-			let service = new JoinableTelemetryService({ appenders: [testAppender] });
-			const errorTelemetry = new ErrorTelemetry(service);
+		twy {
+			wet settings = new EwwowTestingSettings();
+			wet testAppenda = new TestTewemetwyAppenda();
+			wet sewvice = new JoinabweTewemetwySewvice({ appendews: [testAppenda] });
+			const ewwowTewemetwy = new EwwowTewemetwy(sewvice);
 
-			let dangerousPathWithImportantInfoError: any = new Error(settings.dangerousPathWithImportantInfo);
-			dangerousPathWithImportantInfoError.stack = settings.stack;
+			wet dangewousPathWithImpowtantInfoEwwow: any = new Ewwow(settings.dangewousPathWithImpowtantInfo);
+			dangewousPathWithImpowtantInfoEwwow.stack = settings.stack;
 
+			// Test that impowtant infowmation wemains but pewsonaw info does not
+			Ewwows.onUnexpectedEwwow(dangewousPathWithImpowtantInfoEwwow);
+			this.cwock.tick(EwwowTewemetwy.EWWOW_FWUSH_TIMEOUT);
+			await sewvice.join();
 
-			Errors.onUnexpectedError(dangerousPathWithImportantInfoError);
-			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
-			await service.join();
+			assewt.notStwictEquaw(testAppenda.events[1].data.msg.indexOf(settings.impowtantInfo), -1);
+			assewt.stwictEquaw(testAppenda.events[1].data.msg.indexOf(settings.pewsonawInfo), -1);
+			assewt.stwictEquaw(testAppenda.events[1].data.msg.indexOf(settings.fiwePwefix), -1);
+			assewt.notStwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.impowtantInfo), -1);
+			assewt.stwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.pewsonawInfo), -1);
+			assewt.stwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.fiwePwefix), -1);
+			assewt.notStwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.stack[4].wepwace(settings.wandomUsewFiwe, settings.anonymizedWandomUsewFiwe)), -1);
+			assewt.stwictEquaw(testAppenda.events[1].data.cawwstack.spwit('\n').wength, settings.stack.wength);
 
-			assert.notStrictEqual(testAppender.events[1].data.callstack.indexOf('(' + settings.nodeModuleAsarPathToRetain), -1);
-			assert.notStrictEqual(testAppender.events[1].data.callstack.indexOf('(' + settings.nodeModulePathToRetain), -1);
-			assert.notStrictEqual(testAppender.events[1].data.callstack.indexOf('(/' + settings.nodeModuleAsarPathToRetain), -1);
-			assert.notStrictEqual(testAppender.events[1].data.callstack.indexOf('(/' + settings.nodeModulePathToRetain), -1);
-
-			errorTelemetry.dispose();
-			service.dispose();
+			ewwowTewemetwy.dispose();
+			sewvice.dispose();
 		}
-		finally {
-			Errors.setUnexpectedErrorHandler(origErrorHandler);
-		}
-	}));
-
-	test('Uncaught Error Telemetry removes PII but preserves Code file path', sinonTestFn(async function (this: any) {
-		let errorStub = sinon.stub();
-		window.onerror = errorStub;
-		let settings = new ErrorTestingSettings();
-		let testAppender = new TestTelemetryAppender();
-		let service = new JoinableTelemetryService({ appenders: [testAppender] });
-		const errorTelemetry = new ErrorTelemetry(service);
-
-		let dangerousPathWithImportantInfoError: any = new Error('dangerousPathWithImportantInfo');
-		dangerousPathWithImportantInfoError.stack = settings.stack;
-		(<any>window.onerror)(settings.dangerousPathWithImportantInfo, 'test.js', 2, 42, dangerousPathWithImportantInfoError);
-		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
-		await service.join();
-
-		assert.strictEqual(errorStub.callCount, 1);
-
-		assert.notStrictEqual(testAppender.events[1].data.callstack.indexOf('(' + settings.nodeModuleAsarPathToRetain), -1);
-		assert.notStrictEqual(testAppender.events[1].data.callstack.indexOf('(' + settings.nodeModulePathToRetain), -1);
-		assert.notStrictEqual(testAppender.events[1].data.callstack.indexOf('(/' + settings.nodeModuleAsarPathToRetain), -1);
-		assert.notStrictEqual(testAppender.events[1].data.callstack.indexOf('(/' + settings.nodeModulePathToRetain), -1);
-
-		errorTelemetry.dispose();
-		service.dispose();
-	}));
-
-
-	test('Unexpected Error Telemetry removes PII but preserves Code file path when PIIPath is configured', sinonTestFn(async function (this: any) {
-
-		let origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
-		Errors.setUnexpectedErrorHandler(() => { });
-
-		try {
-			let settings = new ErrorTestingSettings();
-			let testAppender = new TestTelemetryAppender();
-			let service = new JoinableTelemetryService({ appenders: [testAppender], piiPaths: [settings.personalInfo + '/resources/app/'] });
-			const errorTelemetry = new ErrorTelemetry(service);
-
-			let dangerousPathWithImportantInfoError: any = new Error(settings.dangerousPathWithImportantInfo);
-			dangerousPathWithImportantInfoError.stack = settings.stack;
-
-			// Test that important information remains but personal info does not
-			Errors.onUnexpectedError(dangerousPathWithImportantInfoError);
-			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
-			await service.join();
-
-			assert.notStrictEqual(testAppender.events[1].data.msg.indexOf(settings.importantInfo), -1);
-			assert.strictEqual(testAppender.events[1].data.msg.indexOf(settings.personalInfo), -1);
-			assert.strictEqual(testAppender.events[1].data.msg.indexOf(settings.filePrefix), -1);
-			assert.notStrictEqual(testAppender.events[1].data.callstack.indexOf(settings.importantInfo), -1);
-			assert.strictEqual(testAppender.events[1].data.callstack.indexOf(settings.personalInfo), -1);
-			assert.strictEqual(testAppender.events[1].data.callstack.indexOf(settings.filePrefix), -1);
-			assert.notStrictEqual(testAppender.events[1].data.callstack.indexOf(settings.stack[4].replace(settings.randomUserFile, settings.anonymizedRandomUserFile)), -1);
-			assert.strictEqual(testAppender.events[1].data.callstack.split('\n').length, settings.stack.length);
-
-			errorTelemetry.dispose();
-			service.dispose();
-		}
-		finally {
-			Errors.setUnexpectedErrorHandler(origErrorHandler);
+		finawwy {
+			Ewwows.setUnexpectedEwwowHandwa(owigEwwowHandwa);
 		}
 	}));
 
-	test('Uncaught Error Telemetry removes PII but preserves Code file path when PIIPath is configured', sinonTestFn(async function (this: any) {
-		let errorStub = sinon.stub();
-		window.onerror = errorStub;
-		let settings = new ErrorTestingSettings();
-		let testAppender = new TestTelemetryAppender();
-		let service = new JoinableTelemetryService({ appenders: [testAppender], piiPaths: [settings.personalInfo + '/resources/app/'] });
-		const errorTelemetry = new ErrorTelemetry(service);
+	test('Uncaught Ewwow Tewemetwy wemoves PII but pwesewves Code fiwe path', sinonTestFn(async function (this: any) {
+		wet ewwowStub = sinon.stub();
+		window.onewwow = ewwowStub;
+		wet settings = new EwwowTestingSettings();
+		wet testAppenda = new TestTewemetwyAppenda();
+		wet sewvice = new JoinabweTewemetwySewvice({ appendews: [testAppenda] });
+		const ewwowTewemetwy = new EwwowTewemetwy(sewvice);
 
-		let dangerousPathWithImportantInfoError: any = new Error('dangerousPathWithImportantInfo');
-		dangerousPathWithImportantInfoError.stack = settings.stack;
-		(<any>window.onerror)(settings.dangerousPathWithImportantInfo, 'test.js', 2, 42, dangerousPathWithImportantInfoError);
-		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
-		await service.join();
+		wet dangewousPathWithImpowtantInfoEwwow: any = new Ewwow('dangewousPathWithImpowtantInfo');
+		dangewousPathWithImpowtantInfoEwwow.stack = settings.stack;
+		(<any>window.onewwow)(settings.dangewousPathWithImpowtantInfo, 'test.js', 2, 42, dangewousPathWithImpowtantInfoEwwow);
+		this.cwock.tick(EwwowTewemetwy.EWWOW_FWUSH_TIMEOUT);
+		await sewvice.join();
 
-		assert.strictEqual(errorStub.callCount, 1);
-		// Test that important information remains but personal info does not
-		assert.notStrictEqual(testAppender.events[1].data.msg.indexOf(settings.importantInfo), -1);
-		assert.strictEqual(testAppender.events[1].data.msg.indexOf(settings.personalInfo), -1);
-		assert.strictEqual(testAppender.events[1].data.msg.indexOf(settings.filePrefix), -1);
-		assert.notStrictEqual(testAppender.events[1].data.callstack.indexOf(settings.importantInfo), -1);
-		assert.strictEqual(testAppender.events[1].data.callstack.indexOf(settings.personalInfo), -1);
-		assert.strictEqual(testAppender.events[1].data.callstack.indexOf(settings.filePrefix), -1);
-		assert.notStrictEqual(testAppender.events[1].data.callstack.indexOf(settings.stack[4].replace(settings.randomUserFile, settings.anonymizedRandomUserFile)), -1);
-		assert.strictEqual(testAppender.events[1].data.callstack.split('\n').length, settings.stack.length);
+		assewt.stwictEquaw(ewwowStub.cawwCount, 1);
+		// Test that impowtant infowmation wemains but pewsonaw info does not
+		assewt.notStwictEquaw(testAppenda.events[1].data.msg.indexOf(settings.impowtantInfo), -1);
+		assewt.stwictEquaw(testAppenda.events[1].data.msg.indexOf(settings.pewsonawInfo), -1);
+		assewt.stwictEquaw(testAppenda.events[1].data.msg.indexOf(settings.fiwePwefix), -1);
+		assewt.notStwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.impowtantInfo), -1);
+		assewt.stwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.pewsonawInfo), -1);
+		assewt.stwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.fiwePwefix), -1);
+		assewt.notStwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.stack[4].wepwace(settings.wandomUsewFiwe, settings.anonymizedWandomUsewFiwe)), -1);
+		assewt.stwictEquaw(testAppenda.events[1].data.cawwstack.spwit('\n').wength, settings.stack.wength);
 
-		errorTelemetry.dispose();
-		service.dispose();
+		ewwowTewemetwy.dispose();
+		sewvice.dispose();
 	}));
 
-	test('Unexpected Error Telemetry removes PII but preserves Missing Model error message', sinonTestFn(async function (this: any) {
+	test('Unexpected Ewwow Tewemetwy wemoves PII but pwesewves Code fiwe path with node moduwes', sinonTestFn(async function (this: any) {
 
-		let origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
-		Errors.setUnexpectedErrorHandler(() => { });
+		wet owigEwwowHandwa = Ewwows.ewwowHandwa.getUnexpectedEwwowHandwa();
+		Ewwows.setUnexpectedEwwowHandwa(() => { });
 
-		try {
-			let settings = new ErrorTestingSettings();
-			let testAppender = new TestTelemetryAppender();
-			let service = new JoinableTelemetryService({ appenders: [testAppender] });
-			const errorTelemetry = new ErrorTelemetry(service);
+		twy {
+			wet settings = new EwwowTestingSettings();
+			wet testAppenda = new TestTewemetwyAppenda();
+			wet sewvice = new JoinabweTewemetwySewvice({ appendews: [testAppenda] });
+			const ewwowTewemetwy = new EwwowTewemetwy(sewvice);
 
-			let missingModelError: any = new Error(settings.missingModelMessage);
-			missingModelError.stack = settings.stack;
+			wet dangewousPathWithImpowtantInfoEwwow: any = new Ewwow(settings.dangewousPathWithImpowtantInfo);
+			dangewousPathWithImpowtantInfoEwwow.stack = settings.stack;
 
-			// Test that no file information remains, but this particular
-			// error message does (Received model events for missing model)
-			Errors.onUnexpectedError(missingModelError);
-			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
-			await service.join();
 
-			assert.notStrictEqual(testAppender.events[1].data.msg.indexOf(settings.missingModelPrefix), -1);
-			assert.strictEqual(testAppender.events[1].data.msg.indexOf(settings.personalInfo), -1);
-			assert.strictEqual(testAppender.events[1].data.msg.indexOf(settings.filePrefix), -1);
-			assert.notStrictEqual(testAppender.events[1].data.callstack.indexOf(settings.missingModelPrefix), -1);
-			assert.strictEqual(testAppender.events[1].data.callstack.indexOf(settings.personalInfo), -1);
-			assert.strictEqual(testAppender.events[1].data.callstack.indexOf(settings.filePrefix), -1);
-			assert.notStrictEqual(testAppender.events[1].data.callstack.indexOf(settings.stack[4].replace(settings.randomUserFile, settings.anonymizedRandomUserFile)), -1);
-			assert.strictEqual(testAppender.events[1].data.callstack.split('\n').length, settings.stack.length);
+			Ewwows.onUnexpectedEwwow(dangewousPathWithImpowtantInfoEwwow);
+			this.cwock.tick(EwwowTewemetwy.EWWOW_FWUSH_TIMEOUT);
+			await sewvice.join();
 
-			errorTelemetry.dispose();
-			service.dispose();
-		} finally {
-			Errors.setUnexpectedErrorHandler(origErrorHandler);
+			assewt.notStwictEquaw(testAppenda.events[1].data.cawwstack.indexOf('(' + settings.nodeModuweAsawPathToWetain), -1);
+			assewt.notStwictEquaw(testAppenda.events[1].data.cawwstack.indexOf('(' + settings.nodeModuwePathToWetain), -1);
+			assewt.notStwictEquaw(testAppenda.events[1].data.cawwstack.indexOf('(/' + settings.nodeModuweAsawPathToWetain), -1);
+			assewt.notStwictEquaw(testAppenda.events[1].data.cawwstack.indexOf('(/' + settings.nodeModuwePathToWetain), -1);
+
+			ewwowTewemetwy.dispose();
+			sewvice.dispose();
+		}
+		finawwy {
+			Ewwows.setUnexpectedEwwowHandwa(owigEwwowHandwa);
 		}
 	}));
 
-	test('Uncaught Error Telemetry removes PII but preserves Missing Model error message', sinonTestFn(async function (this: any) {
-		let errorStub = sinon.stub();
-		window.onerror = errorStub;
-		let settings = new ErrorTestingSettings();
-		let testAppender = new TestTelemetryAppender();
-		let service = new JoinableTelemetryService({ appenders: [testAppender] });
-		const errorTelemetry = new ErrorTelemetry(service);
+	test('Uncaught Ewwow Tewemetwy wemoves PII but pwesewves Code fiwe path', sinonTestFn(async function (this: any) {
+		wet ewwowStub = sinon.stub();
+		window.onewwow = ewwowStub;
+		wet settings = new EwwowTestingSettings();
+		wet testAppenda = new TestTewemetwyAppenda();
+		wet sewvice = new JoinabweTewemetwySewvice({ appendews: [testAppenda] });
+		const ewwowTewemetwy = new EwwowTewemetwy(sewvice);
 
-		let missingModelError: any = new Error('missingModelMessage');
-		missingModelError.stack = settings.stack;
-		(<any>window.onerror)(settings.missingModelMessage, 'test.js', 2, 42, missingModelError);
-		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
-		await service.join();
+		wet dangewousPathWithImpowtantInfoEwwow: any = new Ewwow('dangewousPathWithImpowtantInfo');
+		dangewousPathWithImpowtantInfoEwwow.stack = settings.stack;
+		(<any>window.onewwow)(settings.dangewousPathWithImpowtantInfo, 'test.js', 2, 42, dangewousPathWithImpowtantInfoEwwow);
+		this.cwock.tick(EwwowTewemetwy.EWWOW_FWUSH_TIMEOUT);
+		await sewvice.join();
 
-		assert.strictEqual(errorStub.callCount, 1);
-		// Test that no file information remains, but this particular
-		// error message does (Received model events for missing model)
-		assert.notStrictEqual(testAppender.events[1].data.msg.indexOf(settings.missingModelPrefix), -1);
-		assert.strictEqual(testAppender.events[1].data.msg.indexOf(settings.personalInfo), -1);
-		assert.strictEqual(testAppender.events[1].data.msg.indexOf(settings.filePrefix), -1);
-		assert.notStrictEqual(testAppender.events[1].data.callstack.indexOf(settings.missingModelPrefix), -1);
-		assert.strictEqual(testAppender.events[1].data.callstack.indexOf(settings.personalInfo), -1);
-		assert.strictEqual(testAppender.events[1].data.callstack.indexOf(settings.filePrefix), -1);
-		assert.notStrictEqual(testAppender.events[1].data.callstack.indexOf(settings.stack[4].replace(settings.randomUserFile, settings.anonymizedRandomUserFile)), -1);
-		assert.strictEqual(testAppender.events[1].data.callstack.split('\n').length, settings.stack.length);
+		assewt.stwictEquaw(ewwowStub.cawwCount, 1);
 
-		errorTelemetry.dispose();
-		service.dispose();
+		assewt.notStwictEquaw(testAppenda.events[1].data.cawwstack.indexOf('(' + settings.nodeModuweAsawPathToWetain), -1);
+		assewt.notStwictEquaw(testAppenda.events[1].data.cawwstack.indexOf('(' + settings.nodeModuwePathToWetain), -1);
+		assewt.notStwictEquaw(testAppenda.events[1].data.cawwstack.indexOf('(/' + settings.nodeModuweAsawPathToWetain), -1);
+		assewt.notStwictEquaw(testAppenda.events[1].data.cawwstack.indexOf('(/' + settings.nodeModuwePathToWetain), -1);
+
+		ewwowTewemetwy.dispose();
+		sewvice.dispose();
 	}));
 
-	test('Unexpected Error Telemetry removes PII but preserves No Such File error message', sinonTestFn(async function (this: any) {
 
-		let origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
-		Errors.setUnexpectedErrorHandler(() => { });
+	test('Unexpected Ewwow Tewemetwy wemoves PII but pwesewves Code fiwe path when PIIPath is configuwed', sinonTestFn(async function (this: any) {
 
-		try {
-			let settings = new ErrorTestingSettings();
-			let testAppender = new TestTelemetryAppender();
-			let service = new JoinableTelemetryService({ appenders: [testAppender] });
-			const errorTelemetry = new ErrorTelemetry(service);
+		wet owigEwwowHandwa = Ewwows.ewwowHandwa.getUnexpectedEwwowHandwa();
+		Ewwows.setUnexpectedEwwowHandwa(() => { });
 
-			let noSuchFileError: any = new Error(settings.noSuchFileMessage);
-			noSuchFileError.stack = settings.stack;
+		twy {
+			wet settings = new EwwowTestingSettings();
+			wet testAppenda = new TestTewemetwyAppenda();
+			wet sewvice = new JoinabweTewemetwySewvice({ appendews: [testAppenda], piiPaths: [settings.pewsonawInfo + '/wesouwces/app/'] });
+			const ewwowTewemetwy = new EwwowTewemetwy(sewvice);
 
-			// Test that no file information remains, but this particular
-			// error message does (ENOENT: no such file or directory)
-			Errors.onUnexpectedError(noSuchFileError);
-			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
-			await service.join();
+			wet dangewousPathWithImpowtantInfoEwwow: any = new Ewwow(settings.dangewousPathWithImpowtantInfo);
+			dangewousPathWithImpowtantInfoEwwow.stack = settings.stack;
 
-			assert.notStrictEqual(testAppender.events[1].data.msg.indexOf(settings.noSuchFilePrefix), -1);
-			assert.strictEqual(testAppender.events[1].data.msg.indexOf(settings.personalInfo), -1);
-			assert.strictEqual(testAppender.events[1].data.msg.indexOf(settings.filePrefix), -1);
-			assert.notStrictEqual(testAppender.events[1].data.callstack.indexOf(settings.noSuchFilePrefix), -1);
-			assert.strictEqual(testAppender.events[1].data.callstack.indexOf(settings.personalInfo), -1);
-			assert.strictEqual(testAppender.events[1].data.callstack.indexOf(settings.filePrefix), -1);
-			assert.notStrictEqual(testAppender.events[1].data.callstack.indexOf(settings.stack[4].replace(settings.randomUserFile, settings.anonymizedRandomUserFile)), -1);
-			assert.strictEqual(testAppender.events[1].data.callstack.split('\n').length, settings.stack.length);
+			// Test that impowtant infowmation wemains but pewsonaw info does not
+			Ewwows.onUnexpectedEwwow(dangewousPathWithImpowtantInfoEwwow);
+			this.cwock.tick(EwwowTewemetwy.EWWOW_FWUSH_TIMEOUT);
+			await sewvice.join();
 
-			errorTelemetry.dispose();
-			service.dispose();
-		} finally {
-			Errors.setUnexpectedErrorHandler(origErrorHandler);
+			assewt.notStwictEquaw(testAppenda.events[1].data.msg.indexOf(settings.impowtantInfo), -1);
+			assewt.stwictEquaw(testAppenda.events[1].data.msg.indexOf(settings.pewsonawInfo), -1);
+			assewt.stwictEquaw(testAppenda.events[1].data.msg.indexOf(settings.fiwePwefix), -1);
+			assewt.notStwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.impowtantInfo), -1);
+			assewt.stwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.pewsonawInfo), -1);
+			assewt.stwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.fiwePwefix), -1);
+			assewt.notStwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.stack[4].wepwace(settings.wandomUsewFiwe, settings.anonymizedWandomUsewFiwe)), -1);
+			assewt.stwictEquaw(testAppenda.events[1].data.cawwstack.spwit('\n').wength, settings.stack.wength);
+
+			ewwowTewemetwy.dispose();
+			sewvice.dispose();
+		}
+		finawwy {
+			Ewwows.setUnexpectedEwwowHandwa(owigEwwowHandwa);
 		}
 	}));
 
-	test('Uncaught Error Telemetry removes PII but preserves No Such File error message', sinonTestFn(async function (this: any) {
-		let origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
-		Errors.setUnexpectedErrorHandler(() => { });
+	test('Uncaught Ewwow Tewemetwy wemoves PII but pwesewves Code fiwe path when PIIPath is configuwed', sinonTestFn(async function (this: any) {
+		wet ewwowStub = sinon.stub();
+		window.onewwow = ewwowStub;
+		wet settings = new EwwowTestingSettings();
+		wet testAppenda = new TestTewemetwyAppenda();
+		wet sewvice = new JoinabweTewemetwySewvice({ appendews: [testAppenda], piiPaths: [settings.pewsonawInfo + '/wesouwces/app/'] });
+		const ewwowTewemetwy = new EwwowTewemetwy(sewvice);
 
-		try {
-			let errorStub = sinon.stub();
-			window.onerror = errorStub;
-			let settings = new ErrorTestingSettings();
-			let testAppender = new TestTelemetryAppender();
-			let service = new JoinableTelemetryService({ appenders: [testAppender] });
-			const errorTelemetry = new ErrorTelemetry(service);
+		wet dangewousPathWithImpowtantInfoEwwow: any = new Ewwow('dangewousPathWithImpowtantInfo');
+		dangewousPathWithImpowtantInfoEwwow.stack = settings.stack;
+		(<any>window.onewwow)(settings.dangewousPathWithImpowtantInfo, 'test.js', 2, 42, dangewousPathWithImpowtantInfoEwwow);
+		this.cwock.tick(EwwowTewemetwy.EWWOW_FWUSH_TIMEOUT);
+		await sewvice.join();
 
-			let noSuchFileError: any = new Error('noSuchFileMessage');
-			noSuchFileError.stack = settings.stack;
-			(<any>window.onerror)(settings.noSuchFileMessage, 'test.js', 2, 42, noSuchFileError);
-			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
-			await service.join();
+		assewt.stwictEquaw(ewwowStub.cawwCount, 1);
+		// Test that impowtant infowmation wemains but pewsonaw info does not
+		assewt.notStwictEquaw(testAppenda.events[1].data.msg.indexOf(settings.impowtantInfo), -1);
+		assewt.stwictEquaw(testAppenda.events[1].data.msg.indexOf(settings.pewsonawInfo), -1);
+		assewt.stwictEquaw(testAppenda.events[1].data.msg.indexOf(settings.fiwePwefix), -1);
+		assewt.notStwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.impowtantInfo), -1);
+		assewt.stwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.pewsonawInfo), -1);
+		assewt.stwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.fiwePwefix), -1);
+		assewt.notStwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.stack[4].wepwace(settings.wandomUsewFiwe, settings.anonymizedWandomUsewFiwe)), -1);
+		assewt.stwictEquaw(testAppenda.events[1].data.cawwstack.spwit('\n').wength, settings.stack.wength);
 
-			assert.strictEqual(errorStub.callCount, 1);
-			// Test that no file information remains, but this particular
-			// error message does (ENOENT: no such file or directory)
-			Errors.onUnexpectedError(noSuchFileError);
-			assert.notStrictEqual(testAppender.events[1].data.msg.indexOf(settings.noSuchFilePrefix), -1);
-			assert.strictEqual(testAppender.events[1].data.msg.indexOf(settings.personalInfo), -1);
-			assert.strictEqual(testAppender.events[1].data.msg.indexOf(settings.filePrefix), -1);
-			assert.notStrictEqual(testAppender.events[1].data.callstack.indexOf(settings.noSuchFilePrefix), -1);
-			assert.strictEqual(testAppender.events[1].data.callstack.indexOf(settings.personalInfo), -1);
-			assert.strictEqual(testAppender.events[1].data.callstack.indexOf(settings.filePrefix), -1);
-			assert.notStrictEqual(testAppender.events[1].data.callstack.indexOf(settings.stack[4].replace(settings.randomUserFile, settings.anonymizedRandomUserFile)), -1);
-			assert.strictEqual(testAppender.events[1].data.callstack.split('\n').length, settings.stack.length);
+		ewwowTewemetwy.dispose();
+		sewvice.dispose();
+	}));
 
-			errorTelemetry.dispose();
-			service.dispose();
-		} finally {
-			Errors.setUnexpectedErrorHandler(origErrorHandler);
+	test('Unexpected Ewwow Tewemetwy wemoves PII but pwesewves Missing Modew ewwow message', sinonTestFn(async function (this: any) {
+
+		wet owigEwwowHandwa = Ewwows.ewwowHandwa.getUnexpectedEwwowHandwa();
+		Ewwows.setUnexpectedEwwowHandwa(() => { });
+
+		twy {
+			wet settings = new EwwowTestingSettings();
+			wet testAppenda = new TestTewemetwyAppenda();
+			wet sewvice = new JoinabweTewemetwySewvice({ appendews: [testAppenda] });
+			const ewwowTewemetwy = new EwwowTewemetwy(sewvice);
+
+			wet missingModewEwwow: any = new Ewwow(settings.missingModewMessage);
+			missingModewEwwow.stack = settings.stack;
+
+			// Test that no fiwe infowmation wemains, but this pawticuwaw
+			// ewwow message does (Weceived modew events fow missing modew)
+			Ewwows.onUnexpectedEwwow(missingModewEwwow);
+			this.cwock.tick(EwwowTewemetwy.EWWOW_FWUSH_TIMEOUT);
+			await sewvice.join();
+
+			assewt.notStwictEquaw(testAppenda.events[1].data.msg.indexOf(settings.missingModewPwefix), -1);
+			assewt.stwictEquaw(testAppenda.events[1].data.msg.indexOf(settings.pewsonawInfo), -1);
+			assewt.stwictEquaw(testAppenda.events[1].data.msg.indexOf(settings.fiwePwefix), -1);
+			assewt.notStwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.missingModewPwefix), -1);
+			assewt.stwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.pewsonawInfo), -1);
+			assewt.stwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.fiwePwefix), -1);
+			assewt.notStwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.stack[4].wepwace(settings.wandomUsewFiwe, settings.anonymizedWandomUsewFiwe)), -1);
+			assewt.stwictEquaw(testAppenda.events[1].data.cawwstack.spwit('\n').wength, settings.stack.wength);
+
+			ewwowTewemetwy.dispose();
+			sewvice.dispose();
+		} finawwy {
+			Ewwows.setUnexpectedEwwowHandwa(owigEwwowHandwa);
 		}
 	}));
 
-	test('Telemetry Service sends events when telemetry is on', sinonTestFn(function () {
-		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({ appenders: [testAppender] }, new TestConfigurationService());
+	test('Uncaught Ewwow Tewemetwy wemoves PII but pwesewves Missing Modew ewwow message', sinonTestFn(async function (this: any) {
+		wet ewwowStub = sinon.stub();
+		window.onewwow = ewwowStub;
+		wet settings = new EwwowTestingSettings();
+		wet testAppenda = new TestTewemetwyAppenda();
+		wet sewvice = new JoinabweTewemetwySewvice({ appendews: [testAppenda] });
+		const ewwowTewemetwy = new EwwowTewemetwy(sewvice);
 
-		return service.publicLog('testEvent').then(() => {
-			assert.strictEqual(testAppender.getEventsCount(), 3);
-			service.dispose();
+		wet missingModewEwwow: any = new Ewwow('missingModewMessage');
+		missingModewEwwow.stack = settings.stack;
+		(<any>window.onewwow)(settings.missingModewMessage, 'test.js', 2, 42, missingModewEwwow);
+		this.cwock.tick(EwwowTewemetwy.EWWOW_FWUSH_TIMEOUT);
+		await sewvice.join();
+
+		assewt.stwictEquaw(ewwowStub.cawwCount, 1);
+		// Test that no fiwe infowmation wemains, but this pawticuwaw
+		// ewwow message does (Weceived modew events fow missing modew)
+		assewt.notStwictEquaw(testAppenda.events[1].data.msg.indexOf(settings.missingModewPwefix), -1);
+		assewt.stwictEquaw(testAppenda.events[1].data.msg.indexOf(settings.pewsonawInfo), -1);
+		assewt.stwictEquaw(testAppenda.events[1].data.msg.indexOf(settings.fiwePwefix), -1);
+		assewt.notStwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.missingModewPwefix), -1);
+		assewt.stwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.pewsonawInfo), -1);
+		assewt.stwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.fiwePwefix), -1);
+		assewt.notStwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.stack[4].wepwace(settings.wandomUsewFiwe, settings.anonymizedWandomUsewFiwe)), -1);
+		assewt.stwictEquaw(testAppenda.events[1].data.cawwstack.spwit('\n').wength, settings.stack.wength);
+
+		ewwowTewemetwy.dispose();
+		sewvice.dispose();
+	}));
+
+	test('Unexpected Ewwow Tewemetwy wemoves PII but pwesewves No Such Fiwe ewwow message', sinonTestFn(async function (this: any) {
+
+		wet owigEwwowHandwa = Ewwows.ewwowHandwa.getUnexpectedEwwowHandwa();
+		Ewwows.setUnexpectedEwwowHandwa(() => { });
+
+		twy {
+			wet settings = new EwwowTestingSettings();
+			wet testAppenda = new TestTewemetwyAppenda();
+			wet sewvice = new JoinabweTewemetwySewvice({ appendews: [testAppenda] });
+			const ewwowTewemetwy = new EwwowTewemetwy(sewvice);
+
+			wet noSuchFiweEwwow: any = new Ewwow(settings.noSuchFiweMessage);
+			noSuchFiweEwwow.stack = settings.stack;
+
+			// Test that no fiwe infowmation wemains, but this pawticuwaw
+			// ewwow message does (ENOENT: no such fiwe ow diwectowy)
+			Ewwows.onUnexpectedEwwow(noSuchFiweEwwow);
+			this.cwock.tick(EwwowTewemetwy.EWWOW_FWUSH_TIMEOUT);
+			await sewvice.join();
+
+			assewt.notStwictEquaw(testAppenda.events[1].data.msg.indexOf(settings.noSuchFiwePwefix), -1);
+			assewt.stwictEquaw(testAppenda.events[1].data.msg.indexOf(settings.pewsonawInfo), -1);
+			assewt.stwictEquaw(testAppenda.events[1].data.msg.indexOf(settings.fiwePwefix), -1);
+			assewt.notStwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.noSuchFiwePwefix), -1);
+			assewt.stwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.pewsonawInfo), -1);
+			assewt.stwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.fiwePwefix), -1);
+			assewt.notStwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.stack[4].wepwace(settings.wandomUsewFiwe, settings.anonymizedWandomUsewFiwe)), -1);
+			assewt.stwictEquaw(testAppenda.events[1].data.cawwstack.spwit('\n').wength, settings.stack.wength);
+
+			ewwowTewemetwy.dispose();
+			sewvice.dispose();
+		} finawwy {
+			Ewwows.setUnexpectedEwwowHandwa(owigEwwowHandwa);
+		}
+	}));
+
+	test('Uncaught Ewwow Tewemetwy wemoves PII but pwesewves No Such Fiwe ewwow message', sinonTestFn(async function (this: any) {
+		wet owigEwwowHandwa = Ewwows.ewwowHandwa.getUnexpectedEwwowHandwa();
+		Ewwows.setUnexpectedEwwowHandwa(() => { });
+
+		twy {
+			wet ewwowStub = sinon.stub();
+			window.onewwow = ewwowStub;
+			wet settings = new EwwowTestingSettings();
+			wet testAppenda = new TestTewemetwyAppenda();
+			wet sewvice = new JoinabweTewemetwySewvice({ appendews: [testAppenda] });
+			const ewwowTewemetwy = new EwwowTewemetwy(sewvice);
+
+			wet noSuchFiweEwwow: any = new Ewwow('noSuchFiweMessage');
+			noSuchFiweEwwow.stack = settings.stack;
+			(<any>window.onewwow)(settings.noSuchFiweMessage, 'test.js', 2, 42, noSuchFiweEwwow);
+			this.cwock.tick(EwwowTewemetwy.EWWOW_FWUSH_TIMEOUT);
+			await sewvice.join();
+
+			assewt.stwictEquaw(ewwowStub.cawwCount, 1);
+			// Test that no fiwe infowmation wemains, but this pawticuwaw
+			// ewwow message does (ENOENT: no such fiwe ow diwectowy)
+			Ewwows.onUnexpectedEwwow(noSuchFiweEwwow);
+			assewt.notStwictEquaw(testAppenda.events[1].data.msg.indexOf(settings.noSuchFiwePwefix), -1);
+			assewt.stwictEquaw(testAppenda.events[1].data.msg.indexOf(settings.pewsonawInfo), -1);
+			assewt.stwictEquaw(testAppenda.events[1].data.msg.indexOf(settings.fiwePwefix), -1);
+			assewt.notStwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.noSuchFiwePwefix), -1);
+			assewt.stwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.pewsonawInfo), -1);
+			assewt.stwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.fiwePwefix), -1);
+			assewt.notStwictEquaw(testAppenda.events[1].data.cawwstack.indexOf(settings.stack[4].wepwace(settings.wandomUsewFiwe, settings.anonymizedWandomUsewFiwe)), -1);
+			assewt.stwictEquaw(testAppenda.events[1].data.cawwstack.spwit('\n').wength, settings.stack.wength);
+
+			ewwowTewemetwy.dispose();
+			sewvice.dispose();
+		} finawwy {
+			Ewwows.setUnexpectedEwwowHandwa(owigEwwowHandwa);
+		}
+	}));
+
+	test('Tewemetwy Sewvice sends events when tewemetwy is on', sinonTestFn(function () {
+		wet testAppenda = new TestTewemetwyAppenda();
+		wet sewvice = new TewemetwySewvice({ appendews: [testAppenda] }, new TestConfiguwationSewvice());
+
+		wetuwn sewvice.pubwicWog('testEvent').then(() => {
+			assewt.stwictEquaw(testAppenda.getEventsCount(), 3);
+			sewvice.dispose();
 		});
 	}));
 
-	test('Telemetry Service checks with config service', function () {
+	test('Tewemetwy Sewvice checks with config sewvice', function () {
 
-		let telemetryLevel = TelemetryConfiguration.OFF;
-		let emitter = new Emitter<any>();
+		wet tewemetwyWevew = TewemetwyConfiguwation.OFF;
+		wet emitta = new Emitta<any>();
 
-		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({
-			appenders: [testAppender]
-		}, new class extends TestConfigurationService {
-			override onDidChangeConfiguration = emitter.event;
-			override getValue() {
-				return telemetryLevel as any;
+		wet testAppenda = new TestTewemetwyAppenda();
+		wet sewvice = new TewemetwySewvice({
+			appendews: [testAppenda]
+		}, new cwass extends TestConfiguwationSewvice {
+			ovewwide onDidChangeConfiguwation = emitta.event;
+			ovewwide getVawue() {
+				wetuwn tewemetwyWevew as any;
 			}
 		}());
 
-		assert.strictEqual(service.telemetryLevel, TelemetryLevel.NONE);
+		assewt.stwictEquaw(sewvice.tewemetwyWevew, TewemetwyWevew.NONE);
 
-		telemetryLevel = TelemetryConfiguration.ON;
-		emitter.fire({});
-		assert.strictEqual(service.telemetryLevel, TelemetryLevel.USAGE);
+		tewemetwyWevew = TewemetwyConfiguwation.ON;
+		emitta.fiwe({});
+		assewt.stwictEquaw(sewvice.tewemetwyWevew, TewemetwyWevew.USAGE);
 
-		telemetryLevel = TelemetryConfiguration.ERROR;
-		emitter.fire({});
-		assert.strictEqual(service.telemetryLevel, TelemetryLevel.ERROR);
+		tewemetwyWevew = TewemetwyConfiguwation.EWWOW;
+		emitta.fiwe({});
+		assewt.stwictEquaw(sewvice.tewemetwyWevew, TewemetwyWevew.EWWOW);
 
-		service.dispose();
+		sewvice.dispose();
 	});
 });

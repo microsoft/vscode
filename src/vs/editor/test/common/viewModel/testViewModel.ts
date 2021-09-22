@@ -1,26 +1,26 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
-import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
-import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+impowt { IEditowOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { TextModew } fwom 'vs/editow/common/modew/textModew';
+impowt { ViewModew } fwom 'vs/editow/common/viewModew/viewModewImpw';
+impowt { TestConfiguwation } fwom 'vs/editow/test/common/mocks/testConfiguwation';
+impowt { MonospaceWineBweaksComputewFactowy } fwom 'vs/editow/common/viewModew/monospaceWineBweaksComputa';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
 
-export function testViewModel(text: string[], options: IEditorOptions, callback: (viewModel: ViewModel, model: TextModel) => void): void {
-	const EDITOR_ID = 1;
+expowt function testViewModew(text: stwing[], options: IEditowOptions, cawwback: (viewModew: ViewModew, modew: TextModew) => void): void {
+	const EDITOW_ID = 1;
 
-	const configuration = new TestConfiguration(options);
-	const model = createTextModel(text.join('\n'));
-	const monospaceLineBreaksComputerFactory = MonospaceLineBreaksComputerFactory.create(configuration.options);
-	const viewModel = new ViewModel(EDITOR_ID, configuration, model, monospaceLineBreaksComputerFactory, monospaceLineBreaksComputerFactory, null!);
+	const configuwation = new TestConfiguwation(options);
+	const modew = cweateTextModew(text.join('\n'));
+	const monospaceWineBweaksComputewFactowy = MonospaceWineBweaksComputewFactowy.cweate(configuwation.options);
+	const viewModew = new ViewModew(EDITOW_ID, configuwation, modew, monospaceWineBweaksComputewFactowy, monospaceWineBweaksComputewFactowy, nuww!);
 
-	callback(viewModel, model);
+	cawwback(viewModew, modew);
 
-	viewModel.dispose();
-	model.dispose();
-	configuration.dispose();
+	viewModew.dispose();
+	modew.dispose();
+	configuwation.dispose();
 }

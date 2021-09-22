@@ -1,15 +1,15 @@
-regex = /Hello (\d+) #{user}/g
+wegex = /Hewwo (\d+) #{usa}/g
 2 / 3
 2/3
 
 a = b/c + d/g
-someOtherStuff
+someOthewStuff
 
-name="hello"
+name="hewwo"
 test=/// #{name}
 
-fancyRegExp = ///
-	(\d+)	# numbers
-	(\w*)	# letters
+fancyWegExp = ///
+	(\d+)	# numbews
+	(\w*)	# wettews
 	$		# the end
 ///

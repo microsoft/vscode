@@ -1,602 +1,602 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
-import { CSSIcon } from 'vs/base/common/codicons';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { UriDto } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { CommandsRegistry, ICommandHandlerDescription, ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { SyncDescriptor, SyncDescriptor0 } from 'vs/platform/instantiation/common/descriptors';
-import { BrandedService, createDecorator, IConstructorSignature2, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingRule, IKeybindings, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+impowt { Action, IAction, Sepawatow, SubmenuAction } fwom 'vs/base/common/actions';
+impowt { CSSIcon } fwom 'vs/base/common/codicons';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
+impowt { DisposabweStowe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { WinkedWist } fwom 'vs/base/common/winkedWist';
+impowt { UwiDto } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { CommandsWegistwy, ICommandHandwewDescwiption, ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ContextKeyExpw, ContextKeyExpwession, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { SyncDescwiptow, SyncDescwiptow0 } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { BwandedSewvice, cweateDecowatow, IConstwuctowSignatuwe2, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindingWuwe, IKeybindings, KeybindingsWegistwy } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-export interface ILocalizedString {
+expowt intewface IWocawizedStwing {
 	/**
-	 * The localized value of the string.
+	 * The wocawized vawue of the stwing.
 	 */
-	value: string;
+	vawue: stwing;
 	/**
-	 * The original (non localized value of the string)
+	 * The owiginaw (non wocawized vawue of the stwing)
 	 */
-	original: string;
+	owiginaw: stwing;
 }
 
-export interface ICommandActionTitle extends ILocalizedString {
+expowt intewface ICommandActionTitwe extends IWocawizedStwing {
 	/**
-	 * The title with a mnemonic designation. && precedes the mnemonic.
+	 * The titwe with a mnemonic designation. && pwecedes the mnemonic.
 	 */
-	mnemonicTitle?: string;
+	mnemonicTitwe?: stwing;
 }
 
-export type Icon = { dark?: URI; light?: URI; } | ThemeIcon;
+expowt type Icon = { dawk?: UWI; wight?: UWI; } | ThemeIcon;
 
-export interface ICommandAction {
-	id: string;
-	title: string | ICommandActionTitle;
-	shortTitle?: string | ICommandActionTitle;
-	category?: string | ILocalizedString;
-	tooltip?: string | ILocalizedString;
+expowt intewface ICommandAction {
+	id: stwing;
+	titwe: stwing | ICommandActionTitwe;
+	showtTitwe?: stwing | ICommandActionTitwe;
+	categowy?: stwing | IWocawizedStwing;
+	toowtip?: stwing | IWocawizedStwing;
 	icon?: Icon;
-	source?: string;
-	precondition?: ContextKeyExpression;
-	toggled?: ContextKeyExpression | { condition: ContextKeyExpression, icon?: Icon, tooltip?: string, title?: string | ILocalizedString };
+	souwce?: stwing;
+	pwecondition?: ContextKeyExpwession;
+	toggwed?: ContextKeyExpwession | { condition: ContextKeyExpwession, icon?: Icon, toowtip?: stwing, titwe?: stwing | IWocawizedStwing };
 }
 
-export type ISerializableCommandAction = UriDto<ICommandAction>;
+expowt type ISewiawizabweCommandAction = UwiDto<ICommandAction>;
 
-export interface IMenuItem {
+expowt intewface IMenuItem {
 	command: ICommandAction;
-	alt?: ICommandAction;
-	when?: ContextKeyExpression;
-	group?: 'navigation' | string;
-	order?: number;
+	awt?: ICommandAction;
+	when?: ContextKeyExpwession;
+	gwoup?: 'navigation' | stwing;
+	owda?: numba;
 }
 
-export interface ISubmenuItem {
-	title: string | ICommandActionTitle;
+expowt intewface ISubmenuItem {
+	titwe: stwing | ICommandActionTitwe;
 	submenu: MenuId;
 	icon?: Icon;
-	when?: ContextKeyExpression;
-	group?: 'navigation' | string;
-	order?: number;
-	rememberDefaultAction?: boolean;	// for dropdown menu: if true the last executed action is remembered as the default action
+	when?: ContextKeyExpwession;
+	gwoup?: 'navigation' | stwing;
+	owda?: numba;
+	wemembewDefauwtAction?: boowean;	// fow dwopdown menu: if twue the wast executed action is wemembewed as the defauwt action
 }
 
-export function isIMenuItem(item: IMenuItem | ISubmenuItem): item is IMenuItem {
-	return (item as IMenuItem).command !== undefined;
+expowt function isIMenuItem(item: IMenuItem | ISubmenuItem): item is IMenuItem {
+	wetuwn (item as IMenuItem).command !== undefined;
 }
 
-export function isISubmenuItem(item: IMenuItem | ISubmenuItem): item is ISubmenuItem {
-	return (item as ISubmenuItem).submenu !== undefined;
+expowt function isISubmenuItem(item: IMenuItem | ISubmenuItem): item is ISubmenuItem {
+	wetuwn (item as ISubmenuItem).submenu !== undefined;
 }
 
-export class MenuId {
+expowt cwass MenuId {
 
-	private static _idPool = 0;
+	pwivate static _idPoow = 0;
 
-	static readonly CommandPalette = new MenuId('CommandPalette');
-	static readonly DebugBreakpointsContext = new MenuId('DebugBreakpointsContext');
-	static readonly DebugCallStackContext = new MenuId('DebugCallStackContext');
-	static readonly DebugConsoleContext = new MenuId('DebugConsoleContext');
-	static readonly DebugVariablesContext = new MenuId('DebugVariablesContext');
-	static readonly DebugWatchContext = new MenuId('DebugWatchContext');
-	static readonly DebugToolBar = new MenuId('DebugToolBar');
-	static readonly EditorContext = new MenuId('EditorContext');
-	static readonly SimpleEditorContext = new MenuId('SimpleEditorContext');
-	static readonly EditorContextCopy = new MenuId('EditorContextCopy');
-	static readonly EditorContextPeek = new MenuId('EditorContextPeek');
-	static readonly EditorTitle = new MenuId('EditorTitle');
-	static readonly EditorTitleRun = new MenuId('EditorTitleRun');
-	static readonly EditorTitleContext = new MenuId('EditorTitleContext');
-	static readonly EmptyEditorGroup = new MenuId('EmptyEditorGroup');
-	static readonly EmptyEditorGroupContext = new MenuId('EmptyEditorGroupContext');
-	static readonly ExplorerContext = new MenuId('ExplorerContext');
-	static readonly ExtensionContext = new MenuId('ExtensionContext');
-	static readonly GlobalActivity = new MenuId('GlobalActivity');
-	static readonly MenubarMainMenu = new MenuId('MenubarMainMenu');
-	static readonly MenubarAppearanceMenu = new MenuId('MenubarAppearanceMenu');
-	static readonly MenubarDebugMenu = new MenuId('MenubarDebugMenu');
-	static readonly MenubarEditMenu = new MenuId('MenubarEditMenu');
-	static readonly MenubarCopy = new MenuId('MenubarCopy');
-	static readonly MenubarFileMenu = new MenuId('MenubarFileMenu');
-	static readonly MenubarGoMenu = new MenuId('MenubarGoMenu');
-	static readonly MenubarHelpMenu = new MenuId('MenubarHelpMenu');
-	static readonly MenubarLayoutMenu = new MenuId('MenubarLayoutMenu');
-	static readonly MenubarNewBreakpointMenu = new MenuId('MenubarNewBreakpointMenu');
-	static readonly MenubarPreferencesMenu = new MenuId('MenubarPreferencesMenu');
-	static readonly MenubarRecentMenu = new MenuId('MenubarRecentMenu');
-	static readonly MenubarSelectionMenu = new MenuId('MenubarSelectionMenu');
-	static readonly MenubarSwitchEditorMenu = new MenuId('MenubarSwitchEditorMenu');
-	static readonly MenubarSwitchGroupMenu = new MenuId('MenubarSwitchGroupMenu');
-	static readonly MenubarTerminalMenu = new MenuId('MenubarTerminalMenu');
-	static readonly MenubarViewMenu = new MenuId('MenubarViewMenu');
-	static readonly MenubarHomeMenu = new MenuId('MenubarHomeMenu');
-	static readonly OpenEditorsContext = new MenuId('OpenEditorsContext');
-	static readonly ProblemsPanelContext = new MenuId('ProblemsPanelContext');
-	static readonly SCMChangeContext = new MenuId('SCMChangeContext');
-	static readonly SCMResourceContext = new MenuId('SCMResourceContext');
-	static readonly SCMResourceFolderContext = new MenuId('SCMResourceFolderContext');
-	static readonly SCMResourceGroupContext = new MenuId('SCMResourceGroupContext');
-	static readonly SCMSourceControl = new MenuId('SCMSourceControl');
-	static readonly SCMTitle = new MenuId('SCMTitle');
-	static readonly SearchContext = new MenuId('SearchContext');
-	static readonly StatusBarWindowIndicatorMenu = new MenuId('StatusBarWindowIndicatorMenu');
-	static readonly StatusBarRemoteIndicatorMenu = new MenuId('StatusBarRemoteIndicatorMenu');
-	static readonly TestItem = new MenuId('TestItem');
-	static readonly TestItemGutter = new MenuId('TestItemGutter');
-	static readonly TestPeekElement = new MenuId('TestPeekElement');
-	static readonly TestPeekTitle = new MenuId('TestPeekTitle');
-	static readonly TouchBarContext = new MenuId('TouchBarContext');
-	static readonly TitleBarContext = new MenuId('TitleBarContext');
-	static readonly TunnelContext = new MenuId('TunnelContext');
-	static readonly TunnelProtocol = new MenuId('TunnelProtocol');
-	static readonly TunnelPortInline = new MenuId('TunnelInline');
-	static readonly TunnelTitle = new MenuId('TunnelTitle');
-	static readonly TunnelLocalAddressInline = new MenuId('TunnelLocalAddressInline');
-	static readonly TunnelOriginInline = new MenuId('TunnelOriginInline');
-	static readonly ViewItemContext = new MenuId('ViewItemContext');
-	static readonly ViewContainerTitle = new MenuId('ViewContainerTitle');
-	static readonly ViewContainerTitleContext = new MenuId('ViewContainerTitleContext');
-	static readonly ViewTitle = new MenuId('ViewTitle');
-	static readonly ViewTitleContext = new MenuId('ViewTitleContext');
-	static readonly CommentThreadTitle = new MenuId('CommentThreadTitle');
-	static readonly CommentThreadActions = new MenuId('CommentThreadActions');
-	static readonly CommentTitle = new MenuId('CommentTitle');
-	static readonly CommentActions = new MenuId('CommentActions');
-	static readonly InteractiveToolbar = new MenuId('InteractiveToolbar');
-	static readonly InteractiveCellTitle = new MenuId('InteractiveCellTitle');
-	static readonly InteractiveCellExecute = new MenuId('InteractiveCellExecute');
-	static readonly InteractiveInputExecute = new MenuId('InteractiveInputExecute');
-	static readonly NotebookToolbar = new MenuId('NotebookToolbar');
-	static readonly NotebookCellTitle = new MenuId('NotebookCellTitle');
-	static readonly NotebookCellInsert = new MenuId('NotebookCellInsert');
-	static readonly NotebookCellBetween = new MenuId('NotebookCellBetween');
-	static readonly NotebookCellListTop = new MenuId('NotebookCellTop');
-	static readonly NotebookCellExecute = new MenuId('NotebookCellExecute');
-	static readonly NotebookDiffCellInputTitle = new MenuId('NotebookDiffCellInputTitle');
-	static readonly NotebookDiffCellMetadataTitle = new MenuId('NotebookDiffCellMetadataTitle');
-	static readonly NotebookDiffCellOutputsTitle = new MenuId('NotebookDiffCellOutputsTitle');
-	static readonly NotebookOutputToolbar = new MenuId('NotebookOutputToolbar');
-	static readonly NotebookEditorLayoutConfigure = new MenuId('NotebookEditorLayoutConfigure');
-	static readonly BulkEditTitle = new MenuId('BulkEditTitle');
-	static readonly BulkEditContext = new MenuId('BulkEditContext');
-	static readonly TimelineItemContext = new MenuId('TimelineItemContext');
-	static readonly TimelineTitle = new MenuId('TimelineTitle');
-	static readonly TimelineTitleContext = new MenuId('TimelineTitleContext');
-	static readonly AccountsContext = new MenuId('AccountsContext');
-	static readonly PanelTitle = new MenuId('PanelTitle');
-	static readonly TerminalInstanceContext = new MenuId('TerminalInstanceContext');
-	static readonly TerminalNewDropdownContext = new MenuId('TerminalNewDropdownContext');
-	static readonly TerminalTabContext = new MenuId('TerminalTabContext');
-	static readonly TerminalTabEmptyAreaContext = new MenuId('TerminalTabEmptyAreaContext');
-	static readonly TerminalInlineTabContext = new MenuId('TerminalInlineTabContext');
-	static readonly WebviewContext = new MenuId('WebviewContext');
-	static readonly InlineCompletionsActions = new MenuId('InlineCompletionsActions');
-	static readonly NewFile = new MenuId('NewFile');
+	static weadonwy CommandPawette = new MenuId('CommandPawette');
+	static weadonwy DebugBweakpointsContext = new MenuId('DebugBweakpointsContext');
+	static weadonwy DebugCawwStackContext = new MenuId('DebugCawwStackContext');
+	static weadonwy DebugConsoweContext = new MenuId('DebugConsoweContext');
+	static weadonwy DebugVawiabwesContext = new MenuId('DebugVawiabwesContext');
+	static weadonwy DebugWatchContext = new MenuId('DebugWatchContext');
+	static weadonwy DebugToowBaw = new MenuId('DebugToowBaw');
+	static weadonwy EditowContext = new MenuId('EditowContext');
+	static weadonwy SimpweEditowContext = new MenuId('SimpweEditowContext');
+	static weadonwy EditowContextCopy = new MenuId('EditowContextCopy');
+	static weadonwy EditowContextPeek = new MenuId('EditowContextPeek');
+	static weadonwy EditowTitwe = new MenuId('EditowTitwe');
+	static weadonwy EditowTitweWun = new MenuId('EditowTitweWun');
+	static weadonwy EditowTitweContext = new MenuId('EditowTitweContext');
+	static weadonwy EmptyEditowGwoup = new MenuId('EmptyEditowGwoup');
+	static weadonwy EmptyEditowGwoupContext = new MenuId('EmptyEditowGwoupContext');
+	static weadonwy ExpwowewContext = new MenuId('ExpwowewContext');
+	static weadonwy ExtensionContext = new MenuId('ExtensionContext');
+	static weadonwy GwobawActivity = new MenuId('GwobawActivity');
+	static weadonwy MenubawMainMenu = new MenuId('MenubawMainMenu');
+	static weadonwy MenubawAppeawanceMenu = new MenuId('MenubawAppeawanceMenu');
+	static weadonwy MenubawDebugMenu = new MenuId('MenubawDebugMenu');
+	static weadonwy MenubawEditMenu = new MenuId('MenubawEditMenu');
+	static weadonwy MenubawCopy = new MenuId('MenubawCopy');
+	static weadonwy MenubawFiweMenu = new MenuId('MenubawFiweMenu');
+	static weadonwy MenubawGoMenu = new MenuId('MenubawGoMenu');
+	static weadonwy MenubawHewpMenu = new MenuId('MenubawHewpMenu');
+	static weadonwy MenubawWayoutMenu = new MenuId('MenubawWayoutMenu');
+	static weadonwy MenubawNewBweakpointMenu = new MenuId('MenubawNewBweakpointMenu');
+	static weadonwy MenubawPwefewencesMenu = new MenuId('MenubawPwefewencesMenu');
+	static weadonwy MenubawWecentMenu = new MenuId('MenubawWecentMenu');
+	static weadonwy MenubawSewectionMenu = new MenuId('MenubawSewectionMenu');
+	static weadonwy MenubawSwitchEditowMenu = new MenuId('MenubawSwitchEditowMenu');
+	static weadonwy MenubawSwitchGwoupMenu = new MenuId('MenubawSwitchGwoupMenu');
+	static weadonwy MenubawTewminawMenu = new MenuId('MenubawTewminawMenu');
+	static weadonwy MenubawViewMenu = new MenuId('MenubawViewMenu');
+	static weadonwy MenubawHomeMenu = new MenuId('MenubawHomeMenu');
+	static weadonwy OpenEditowsContext = new MenuId('OpenEditowsContext');
+	static weadonwy PwobwemsPanewContext = new MenuId('PwobwemsPanewContext');
+	static weadonwy SCMChangeContext = new MenuId('SCMChangeContext');
+	static weadonwy SCMWesouwceContext = new MenuId('SCMWesouwceContext');
+	static weadonwy SCMWesouwceFowdewContext = new MenuId('SCMWesouwceFowdewContext');
+	static weadonwy SCMWesouwceGwoupContext = new MenuId('SCMWesouwceGwoupContext');
+	static weadonwy SCMSouwceContwow = new MenuId('SCMSouwceContwow');
+	static weadonwy SCMTitwe = new MenuId('SCMTitwe');
+	static weadonwy SeawchContext = new MenuId('SeawchContext');
+	static weadonwy StatusBawWindowIndicatowMenu = new MenuId('StatusBawWindowIndicatowMenu');
+	static weadonwy StatusBawWemoteIndicatowMenu = new MenuId('StatusBawWemoteIndicatowMenu');
+	static weadonwy TestItem = new MenuId('TestItem');
+	static weadonwy TestItemGutta = new MenuId('TestItemGutta');
+	static weadonwy TestPeekEwement = new MenuId('TestPeekEwement');
+	static weadonwy TestPeekTitwe = new MenuId('TestPeekTitwe');
+	static weadonwy TouchBawContext = new MenuId('TouchBawContext');
+	static weadonwy TitweBawContext = new MenuId('TitweBawContext');
+	static weadonwy TunnewContext = new MenuId('TunnewContext');
+	static weadonwy TunnewPwotocow = new MenuId('TunnewPwotocow');
+	static weadonwy TunnewPowtInwine = new MenuId('TunnewInwine');
+	static weadonwy TunnewTitwe = new MenuId('TunnewTitwe');
+	static weadonwy TunnewWocawAddwessInwine = new MenuId('TunnewWocawAddwessInwine');
+	static weadonwy TunnewOwiginInwine = new MenuId('TunnewOwiginInwine');
+	static weadonwy ViewItemContext = new MenuId('ViewItemContext');
+	static weadonwy ViewContainewTitwe = new MenuId('ViewContainewTitwe');
+	static weadonwy ViewContainewTitweContext = new MenuId('ViewContainewTitweContext');
+	static weadonwy ViewTitwe = new MenuId('ViewTitwe');
+	static weadonwy ViewTitweContext = new MenuId('ViewTitweContext');
+	static weadonwy CommentThweadTitwe = new MenuId('CommentThweadTitwe');
+	static weadonwy CommentThweadActions = new MenuId('CommentThweadActions');
+	static weadonwy CommentTitwe = new MenuId('CommentTitwe');
+	static weadonwy CommentActions = new MenuId('CommentActions');
+	static weadonwy IntewactiveToowbaw = new MenuId('IntewactiveToowbaw');
+	static weadonwy IntewactiveCewwTitwe = new MenuId('IntewactiveCewwTitwe');
+	static weadonwy IntewactiveCewwExecute = new MenuId('IntewactiveCewwExecute');
+	static weadonwy IntewactiveInputExecute = new MenuId('IntewactiveInputExecute');
+	static weadonwy NotebookToowbaw = new MenuId('NotebookToowbaw');
+	static weadonwy NotebookCewwTitwe = new MenuId('NotebookCewwTitwe');
+	static weadonwy NotebookCewwInsewt = new MenuId('NotebookCewwInsewt');
+	static weadonwy NotebookCewwBetween = new MenuId('NotebookCewwBetween');
+	static weadonwy NotebookCewwWistTop = new MenuId('NotebookCewwTop');
+	static weadonwy NotebookCewwExecute = new MenuId('NotebookCewwExecute');
+	static weadonwy NotebookDiffCewwInputTitwe = new MenuId('NotebookDiffCewwInputTitwe');
+	static weadonwy NotebookDiffCewwMetadataTitwe = new MenuId('NotebookDiffCewwMetadataTitwe');
+	static weadonwy NotebookDiffCewwOutputsTitwe = new MenuId('NotebookDiffCewwOutputsTitwe');
+	static weadonwy NotebookOutputToowbaw = new MenuId('NotebookOutputToowbaw');
+	static weadonwy NotebookEditowWayoutConfiguwe = new MenuId('NotebookEditowWayoutConfiguwe');
+	static weadonwy BuwkEditTitwe = new MenuId('BuwkEditTitwe');
+	static weadonwy BuwkEditContext = new MenuId('BuwkEditContext');
+	static weadonwy TimewineItemContext = new MenuId('TimewineItemContext');
+	static weadonwy TimewineTitwe = new MenuId('TimewineTitwe');
+	static weadonwy TimewineTitweContext = new MenuId('TimewineTitweContext');
+	static weadonwy AccountsContext = new MenuId('AccountsContext');
+	static weadonwy PanewTitwe = new MenuId('PanewTitwe');
+	static weadonwy TewminawInstanceContext = new MenuId('TewminawInstanceContext');
+	static weadonwy TewminawNewDwopdownContext = new MenuId('TewminawNewDwopdownContext');
+	static weadonwy TewminawTabContext = new MenuId('TewminawTabContext');
+	static weadonwy TewminawTabEmptyAweaContext = new MenuId('TewminawTabEmptyAweaContext');
+	static weadonwy TewminawInwineTabContext = new MenuId('TewminawInwineTabContext');
+	static weadonwy WebviewContext = new MenuId('WebviewContext');
+	static weadonwy InwineCompwetionsActions = new MenuId('InwineCompwetionsActions');
+	static weadonwy NewFiwe = new MenuId('NewFiwe');
 
-	readonly id: number;
-	readonly _debugName: string;
+	weadonwy id: numba;
+	weadonwy _debugName: stwing;
 
-	constructor(debugName: string) {
-		this.id = MenuId._idPool++;
+	constwuctow(debugName: stwing) {
+		this.id = MenuId._idPoow++;
 		this._debugName = debugName;
 	}
 }
 
-export interface IMenuActionOptions {
-	arg?: any;
-	shouldForwardArgs?: boolean;
-	renderShortTitle?: boolean;
+expowt intewface IMenuActionOptions {
+	awg?: any;
+	shouwdFowwawdAwgs?: boowean;
+	wendewShowtTitwe?: boowean;
 }
 
-export interface IMenu extends IDisposable {
-	readonly onDidChange: Event<IMenu>;
-	getActions(options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][];
+expowt intewface IMenu extends IDisposabwe {
+	weadonwy onDidChange: Event<IMenu>;
+	getActions(options?: IMenuActionOptions): [stwing, Awway<MenuItemAction | SubmenuItemAction>][];
 }
 
-export const IMenuService = createDecorator<IMenuService>('menuService');
+expowt const IMenuSewvice = cweateDecowatow<IMenuSewvice>('menuSewvice');
 
-export interface IMenuCreateOptions {
-	emitEventsForSubmenuChanges?: boolean;
-	eventDebounceDelay?: number;
+expowt intewface IMenuCweateOptions {
+	emitEventsFowSubmenuChanges?: boowean;
+	eventDebounceDeway?: numba;
 }
 
-export interface IMenuService {
+expowt intewface IMenuSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	createMenu(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuCreateOptions): IMenu;
+	cweateMenu(id: MenuId, contextKeySewvice: IContextKeySewvice, options?: IMenuCweateOptions): IMenu;
 }
 
-export type ICommandsMap = Map<string, ICommandAction>;
+expowt type ICommandsMap = Map<stwing, ICommandAction>;
 
-export interface IMenuRegistryChangeEvent {
-	has(id: MenuId): boolean;
+expowt intewface IMenuWegistwyChangeEvent {
+	has(id: MenuId): boowean;
 }
 
-export interface IMenuRegistry {
-	readonly onDidChangeMenu: Event<IMenuRegistryChangeEvent>;
-	addCommands(newCommands: Iterable<ICommandAction>): IDisposable;
-	addCommand(userCommand: ICommandAction): IDisposable;
-	getCommand(id: string): ICommandAction | undefined;
+expowt intewface IMenuWegistwy {
+	weadonwy onDidChangeMenu: Event<IMenuWegistwyChangeEvent>;
+	addCommands(newCommands: Itewabwe<ICommandAction>): IDisposabwe;
+	addCommand(usewCommand: ICommandAction): IDisposabwe;
+	getCommand(id: stwing): ICommandAction | undefined;
 	getCommands(): ICommandsMap;
-	appendMenuItems(items: Iterable<{ id: MenuId, item: IMenuItem | ISubmenuItem }>): IDisposable;
-	appendMenuItem(menu: MenuId, item: IMenuItem | ISubmenuItem): IDisposable;
-	getMenuItems(loc: MenuId): Array<IMenuItem | ISubmenuItem>;
+	appendMenuItems(items: Itewabwe<{ id: MenuId, item: IMenuItem | ISubmenuItem }>): IDisposabwe;
+	appendMenuItem(menu: MenuId, item: IMenuItem | ISubmenuItem): IDisposabwe;
+	getMenuItems(woc: MenuId): Awway<IMenuItem | ISubmenuItem>;
 }
 
-export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
+expowt const MenuWegistwy: IMenuWegistwy = new cwass impwements IMenuWegistwy {
 
-	private readonly _commands = new Map<string, ICommandAction>();
-	private readonly _menuItems = new Map<MenuId, LinkedList<IMenuItem | ISubmenuItem>>();
-	private readonly _onDidChangeMenu = new Emitter<IMenuRegistryChangeEvent>();
+	pwivate weadonwy _commands = new Map<stwing, ICommandAction>();
+	pwivate weadonwy _menuItems = new Map<MenuId, WinkedWist<IMenuItem | ISubmenuItem>>();
+	pwivate weadonwy _onDidChangeMenu = new Emitta<IMenuWegistwyChangeEvent>();
 
-	readonly onDidChangeMenu: Event<IMenuRegistryChangeEvent> = this._onDidChangeMenu.event;
+	weadonwy onDidChangeMenu: Event<IMenuWegistwyChangeEvent> = this._onDidChangeMenu.event;
 
-	addCommand(command: ICommandAction): IDisposable {
-		return this.addCommands(Iterable.single(command));
+	addCommand(command: ICommandAction): IDisposabwe {
+		wetuwn this.addCommands(Itewabwe.singwe(command));
 	}
 
-	private readonly _commandPaletteChangeEvent: IMenuRegistryChangeEvent = {
-		has: id => id === MenuId.CommandPalette
+	pwivate weadonwy _commandPawetteChangeEvent: IMenuWegistwyChangeEvent = {
+		has: id => id === MenuId.CommandPawette
 	};
 
-	addCommands(commands: Iterable<ICommandAction>): IDisposable {
-		for (const command of commands) {
+	addCommands(commands: Itewabwe<ICommandAction>): IDisposabwe {
+		fow (const command of commands) {
 			this._commands.set(command.id, command);
 		}
-		this._onDidChangeMenu.fire(this._commandPaletteChangeEvent);
-		return toDisposable(() => {
-			let didChange = false;
-			for (const command of commands) {
-				didChange = this._commands.delete(command.id) || didChange;
+		this._onDidChangeMenu.fiwe(this._commandPawetteChangeEvent);
+		wetuwn toDisposabwe(() => {
+			wet didChange = fawse;
+			fow (const command of commands) {
+				didChange = this._commands.dewete(command.id) || didChange;
 			}
 			if (didChange) {
-				this._onDidChangeMenu.fire(this._commandPaletteChangeEvent);
+				this._onDidChangeMenu.fiwe(this._commandPawetteChangeEvent);
 			}
 		});
 	}
 
-	getCommand(id: string): ICommandAction | undefined {
-		return this._commands.get(id);
+	getCommand(id: stwing): ICommandAction | undefined {
+		wetuwn this._commands.get(id);
 	}
 
 	getCommands(): ICommandsMap {
-		const map = new Map<string, ICommandAction>();
-		this._commands.forEach((value, key) => map.set(key, value));
-		return map;
+		const map = new Map<stwing, ICommandAction>();
+		this._commands.fowEach((vawue, key) => map.set(key, vawue));
+		wetuwn map;
 	}
 
-	appendMenuItem(id: MenuId, item: IMenuItem | ISubmenuItem): IDisposable {
-		return this.appendMenuItems(Iterable.single({ id, item }));
+	appendMenuItem(id: MenuId, item: IMenuItem | ISubmenuItem): IDisposabwe {
+		wetuwn this.appendMenuItems(Itewabwe.singwe({ id, item }));
 	}
 
-	appendMenuItems(items: Iterable<{ id: MenuId, item: IMenuItem | ISubmenuItem }>): IDisposable {
+	appendMenuItems(items: Itewabwe<{ id: MenuId, item: IMenuItem | ISubmenuItem }>): IDisposabwe {
 
 		const changedIds = new Set<MenuId>();
-		const toRemove = new LinkedList<Function>();
+		const toWemove = new WinkedWist<Function>();
 
-		for (const { id, item } of items) {
-			let list = this._menuItems.get(id);
-			if (!list) {
-				list = new LinkedList();
-				this._menuItems.set(id, list);
+		fow (const { id, item } of items) {
+			wet wist = this._menuItems.get(id);
+			if (!wist) {
+				wist = new WinkedWist();
+				this._menuItems.set(id, wist);
 			}
-			toRemove.push(list.push(item));
+			toWemove.push(wist.push(item));
 			changedIds.add(id);
 		}
 
-		this._onDidChangeMenu.fire(changedIds);
+		this._onDidChangeMenu.fiwe(changedIds);
 
-		return toDisposable(() => {
-			if (toRemove.size > 0) {
-				for (let fn of toRemove) {
+		wetuwn toDisposabwe(() => {
+			if (toWemove.size > 0) {
+				fow (wet fn of toWemove) {
 					fn();
 				}
-				this._onDidChangeMenu.fire(changedIds);
-				toRemove.clear();
+				this._onDidChangeMenu.fiwe(changedIds);
+				toWemove.cweaw();
 			}
 		});
 	}
 
-	getMenuItems(id: MenuId): Array<IMenuItem | ISubmenuItem> {
-		let result: Array<IMenuItem | ISubmenuItem>;
+	getMenuItems(id: MenuId): Awway<IMenuItem | ISubmenuItem> {
+		wet wesuwt: Awway<IMenuItem | ISubmenuItem>;
 		if (this._menuItems.has(id)) {
-			result = [...this._menuItems.get(id)!];
-		} else {
-			result = [];
+			wesuwt = [...this._menuItems.get(id)!];
+		} ewse {
+			wesuwt = [];
 		}
-		if (id === MenuId.CommandPalette) {
-			// CommandPalette is special because it shows
-			// all commands by default
-			this._appendImplicitItems(result);
+		if (id === MenuId.CommandPawette) {
+			// CommandPawette is speciaw because it shows
+			// aww commands by defauwt
+			this._appendImpwicitItems(wesuwt);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private _appendImplicitItems(result: Array<IMenuItem | ISubmenuItem>) {
-		const set = new Set<string>();
+	pwivate _appendImpwicitItems(wesuwt: Awway<IMenuItem | ISubmenuItem>) {
+		const set = new Set<stwing>();
 
-		for (const item of result) {
+		fow (const item of wesuwt) {
 			if (isIMenuItem(item)) {
 				set.add(item.command.id);
-				if (item.alt) {
-					set.add(item.alt.id);
+				if (item.awt) {
+					set.add(item.awt.id);
 				}
 			}
 		}
-		this._commands.forEach((command, id) => {
+		this._commands.fowEach((command, id) => {
 			if (!set.has(id)) {
-				result.push({ command });
+				wesuwt.push({ command });
 			}
 		});
 	}
 };
 
-export class ExecuteCommandAction extends Action {
+expowt cwass ExecuteCommandAction extends Action {
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService private readonly _commandService: ICommandService) {
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice pwivate weadonwy _commandSewvice: ICommandSewvice) {
 
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override run(...args: any[]): Promise<void> {
-		return this._commandService.executeCommand(this.id, ...args);
+	ovewwide wun(...awgs: any[]): Pwomise<void> {
+		wetuwn this._commandSewvice.executeCommand(this.id, ...awgs);
 	}
 }
 
-export class SubmenuItemAction extends SubmenuAction {
+expowt cwass SubmenuItemAction extends SubmenuAction {
 
-	constructor(
-		readonly item: ISubmenuItem,
-		private readonly _menuService: IMenuService,
-		private readonly _contextKeyService: IContextKeyService,
-		private readonly _options?: IMenuActionOptions
+	constwuctow(
+		weadonwy item: ISubmenuItem,
+		pwivate weadonwy _menuSewvice: IMenuSewvice,
+		pwivate weadonwy _contextKeySewvice: IContextKeySewvice,
+		pwivate weadonwy _options?: IMenuActionOptions
 	) {
-		super(`submenuitem.${item.submenu.id}`, typeof item.title === 'string' ? item.title : item.title.value, [], 'submenu');
+		supa(`submenuitem.${item.submenu.id}`, typeof item.titwe === 'stwing' ? item.titwe : item.titwe.vawue, [], 'submenu');
 	}
 
-	override get actions(): readonly IAction[] {
-		const result: IAction[] = [];
-		const menu = this._menuService.createMenu(this.item.submenu, this._contextKeyService);
-		const groups = menu.getActions(this._options);
+	ovewwide get actions(): weadonwy IAction[] {
+		const wesuwt: IAction[] = [];
+		const menu = this._menuSewvice.cweateMenu(this.item.submenu, this._contextKeySewvice);
+		const gwoups = menu.getActions(this._options);
 		menu.dispose();
-		for (const [, actions] of groups) {
-			if (actions.length > 0) {
-				result.push(...actions);
-				result.push(new Separator());
+		fow (const [, actions] of gwoups) {
+			if (actions.wength > 0) {
+				wesuwt.push(...actions);
+				wesuwt.push(new Sepawatow());
 			}
 		}
-		if (result.length) {
-			result.pop(); // remove last separator
+		if (wesuwt.wength) {
+			wesuwt.pop(); // wemove wast sepawatow
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 }
 
-// implements IAction, does NOT extend Action, so that no one
-// subscribes to events of Action or modified properties
-export class MenuItemAction implements IAction {
+// impwements IAction, does NOT extend Action, so that no one
+// subscwibes to events of Action ow modified pwopewties
+expowt cwass MenuItemAction impwements IAction {
 
-	readonly item: ICommandAction;
-	readonly alt: MenuItemAction | undefined;
+	weadonwy item: ICommandAction;
+	weadonwy awt: MenuItemAction | undefined;
 
-	private readonly _options: IMenuActionOptions | undefined;
+	pwivate weadonwy _options: IMenuActionOptions | undefined;
 
-	readonly id: string;
-	readonly label: string;
-	readonly tooltip: string;
-	readonly class: string | undefined;
-	readonly enabled: boolean;
-	readonly checked: boolean;
+	weadonwy id: stwing;
+	weadonwy wabew: stwing;
+	weadonwy toowtip: stwing;
+	weadonwy cwass: stwing | undefined;
+	weadonwy enabwed: boowean;
+	weadonwy checked: boowean;
 
-	constructor(
+	constwuctow(
 		item: ICommandAction,
-		alt: ICommandAction | undefined,
+		awt: ICommandAction | undefined,
 		options: IMenuActionOptions | undefined,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@ICommandService private _commandService: ICommandService
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@ICommandSewvice pwivate _commandSewvice: ICommandSewvice
 	) {
 		this.id = item.id;
-		this.label = options?.renderShortTitle && item.shortTitle
-			? (typeof item.shortTitle === 'string' ? item.shortTitle : item.shortTitle.value)
-			: (typeof item.title === 'string' ? item.title : item.title.value);
-		this.tooltip = (typeof item.tooltip === 'string' ? item.tooltip : item.tooltip?.value) ?? '';
-		this.enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
-		this.checked = false;
+		this.wabew = options?.wendewShowtTitwe && item.showtTitwe
+			? (typeof item.showtTitwe === 'stwing' ? item.showtTitwe : item.showtTitwe.vawue)
+			: (typeof item.titwe === 'stwing' ? item.titwe : item.titwe.vawue);
+		this.toowtip = (typeof item.toowtip === 'stwing' ? item.toowtip : item.toowtip?.vawue) ?? '';
+		this.enabwed = !item.pwecondition || contextKeySewvice.contextMatchesWuwes(item.pwecondition);
+		this.checked = fawse;
 
-		if (item.toggled) {
-			const toggled = ((item.toggled as { condition: ContextKeyExpression }).condition ? item.toggled : { condition: item.toggled }) as {
-				condition: ContextKeyExpression, icon?: Icon, tooltip?: string | ILocalizedString, title?: string | ILocalizedString
+		if (item.toggwed) {
+			const toggwed = ((item.toggwed as { condition: ContextKeyExpwession }).condition ? item.toggwed : { condition: item.toggwed }) as {
+				condition: ContextKeyExpwession, icon?: Icon, toowtip?: stwing | IWocawizedStwing, titwe?: stwing | IWocawizedStwing
 			};
-			this.checked = contextKeyService.contextMatchesRules(toggled.condition);
-			if (this.checked && toggled.tooltip) {
-				this.tooltip = typeof toggled.tooltip === 'string' ? toggled.tooltip : toggled.tooltip.value;
+			this.checked = contextKeySewvice.contextMatchesWuwes(toggwed.condition);
+			if (this.checked && toggwed.toowtip) {
+				this.toowtip = typeof toggwed.toowtip === 'stwing' ? toggwed.toowtip : toggwed.toowtip.vawue;
 			}
 
-			if (toggled.title) {
-				this.label = typeof toggled.title === 'string' ? toggled.title : toggled.title.value;
+			if (toggwed.titwe) {
+				this.wabew = typeof toggwed.titwe === 'stwing' ? toggwed.titwe : toggwed.titwe.vawue;
 			}
 		}
 
 		this.item = item;
-		this.alt = alt ? new MenuItemAction(alt, undefined, options, contextKeyService, _commandService) : undefined;
+		this.awt = awt ? new MenuItemAction(awt, undefined, options, contextKeySewvice, _commandSewvice) : undefined;
 		this._options = options;
 		if (ThemeIcon.isThemeIcon(item.icon)) {
-			this.class = CSSIcon.asClassName(item.icon);
+			this.cwass = CSSIcon.asCwassName(item.icon);
 		}
 	}
 
 	dispose(): void {
-		// there is NOTHING to dispose and the MenuItemAction should
-		// never have anything to dispose as it is a convenience type
-		// to bridge into the rendering world.
+		// thewe is NOTHING to dispose and the MenuItemAction shouwd
+		// neva have anything to dispose as it is a convenience type
+		// to bwidge into the wendewing wowwd.
 	}
 
-	run(...args: any[]): Promise<void> {
-		let runArgs: any[] = [];
+	wun(...awgs: any[]): Pwomise<void> {
+		wet wunAwgs: any[] = [];
 
-		if (this._options?.arg) {
-			runArgs = [...runArgs, this._options.arg];
+		if (this._options?.awg) {
+			wunAwgs = [...wunAwgs, this._options.awg];
 		}
 
-		if (this._options?.shouldForwardArgs) {
-			runArgs = [...runArgs, ...args];
+		if (this._options?.shouwdFowwawdAwgs) {
+			wunAwgs = [...wunAwgs, ...awgs];
 		}
 
-		return this._commandService.executeCommand(this.id, ...runArgs);
+		wetuwn this._commandSewvice.executeCommand(this.id, ...wunAwgs);
 	}
 }
 
-export class SyncActionDescriptor {
+expowt cwass SyncActionDescwiptow {
 
-	private readonly _descriptor: SyncDescriptor0<Action>;
+	pwivate weadonwy _descwiptow: SyncDescwiptow0<Action>;
 
-	private readonly _id: string;
-	private readonly _label?: string;
-	private readonly _keybindings: IKeybindings | undefined;
-	private readonly _keybindingContext: ContextKeyExpression | undefined;
-	private readonly _keybindingWeight: number | undefined;
+	pwivate weadonwy _id: stwing;
+	pwivate weadonwy _wabew?: stwing;
+	pwivate weadonwy _keybindings: IKeybindings | undefined;
+	pwivate weadonwy _keybindingContext: ContextKeyExpwession | undefined;
+	pwivate weadonwy _keybindingWeight: numba | undefined;
 
-	public static create<Services extends BrandedService[]>(ctor: { new(id: string, label: string, ...services: Services): Action },
-		id: string, label: string | undefined, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpression, keybindingWeight?: number
-	): SyncActionDescriptor {
-		return new SyncActionDescriptor(ctor as IConstructorSignature2<string, string | undefined, Action>, id, label, keybindings, keybindingContext, keybindingWeight);
+	pubwic static cweate<Sewvices extends BwandedSewvice[]>(ctow: { new(id: stwing, wabew: stwing, ...sewvices: Sewvices): Action },
+		id: stwing, wabew: stwing | undefined, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpwession, keybindingWeight?: numba
+	): SyncActionDescwiptow {
+		wetuwn new SyncActionDescwiptow(ctow as IConstwuctowSignatuwe2<stwing, stwing | undefined, Action>, id, wabew, keybindings, keybindingContext, keybindingWeight);
 	}
 
-	public static from<Services extends BrandedService[]>(
-		ctor: {
-			new(id: string, label: string, ...services: Services): Action;
-			readonly ID: string;
-			readonly LABEL: string;
+	pubwic static fwom<Sewvices extends BwandedSewvice[]>(
+		ctow: {
+			new(id: stwing, wabew: stwing, ...sewvices: Sewvices): Action;
+			weadonwy ID: stwing;
+			weadonwy WABEW: stwing;
 		},
-		keybindings?: IKeybindings, keybindingContext?: ContextKeyExpression, keybindingWeight?: number
-	): SyncActionDescriptor {
-		return SyncActionDescriptor.create(ctor, ctor.ID, ctor.LABEL, keybindings, keybindingContext, keybindingWeight);
+		keybindings?: IKeybindings, keybindingContext?: ContextKeyExpwession, keybindingWeight?: numba
+	): SyncActionDescwiptow {
+		wetuwn SyncActionDescwiptow.cweate(ctow, ctow.ID, ctow.WABEW, keybindings, keybindingContext, keybindingWeight);
 	}
 
-	private constructor(ctor: IConstructorSignature2<string, string | undefined, Action>,
-		id: string, label: string | undefined, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpression, keybindingWeight?: number
+	pwivate constwuctow(ctow: IConstwuctowSignatuwe2<stwing, stwing | undefined, Action>,
+		id: stwing, wabew: stwing | undefined, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpwession, keybindingWeight?: numba
 	) {
 		this._id = id;
-		this._label = label;
+		this._wabew = wabew;
 		this._keybindings = keybindings;
 		this._keybindingContext = keybindingContext;
 		this._keybindingWeight = keybindingWeight;
-		this._descriptor = new SyncDescriptor(ctor, [this._id, this._label]) as unknown as SyncDescriptor0<Action>;
+		this._descwiptow = new SyncDescwiptow(ctow, [this._id, this._wabew]) as unknown as SyncDescwiptow0<Action>;
 	}
 
-	public get syncDescriptor(): SyncDescriptor0<Action> {
-		return this._descriptor;
+	pubwic get syncDescwiptow(): SyncDescwiptow0<Action> {
+		wetuwn this._descwiptow;
 	}
 
-	public get id(): string {
-		return this._id;
+	pubwic get id(): stwing {
+		wetuwn this._id;
 	}
 
-	public get label(): string | undefined {
-		return this._label;
+	pubwic get wabew(): stwing | undefined {
+		wetuwn this._wabew;
 	}
 
-	public get keybindings(): IKeybindings | undefined {
-		return this._keybindings;
+	pubwic get keybindings(): IKeybindings | undefined {
+		wetuwn this._keybindings;
 	}
 
-	public get keybindingContext(): ContextKeyExpression | undefined {
-		return this._keybindingContext;
+	pubwic get keybindingContext(): ContextKeyExpwession | undefined {
+		wetuwn this._keybindingContext;
 	}
 
-	public get keybindingWeight(): number | undefined {
-		return this._keybindingWeight;
+	pubwic get keybindingWeight(): numba | undefined {
+		wetuwn this._keybindingWeight;
 	}
 }
 
-//#region --- IAction2
+//#wegion --- IAction2
 
-type OneOrN<T> = T | T[];
+type OneOwN<T> = T | T[];
 
-export interface IAction2Options extends ICommandAction {
-
-	/**
-	 * Shorthand to add this command to the command palette
-	 */
-	f1?: boolean;
+expowt intewface IAction2Options extends ICommandAction {
 
 	/**
-	 * One or many menu items.
+	 * Showthand to add this command to the command pawette
 	 */
-	menu?: OneOrN<{ id: MenuId } & Omit<IMenuItem, 'command'>>;
+	f1?: boowean;
+
+	/**
+	 * One ow many menu items.
+	 */
+	menu?: OneOwN<{ id: MenuId } & Omit<IMenuItem, 'command'>>;
 
 	/**
 	 * One keybinding.
 	 */
-	keybinding?: OneOrN<Omit<IKeybindingRule, 'id'>>;
+	keybinding?: OneOwN<Omit<IKeybindingWuwe, 'id'>>;
 
 	/**
-	 * Metadata about this command, used for API commands or when
-	 * showing keybindings that have no other UX.
+	 * Metadata about this command, used fow API commands ow when
+	 * showing keybindings that have no otha UX.
 	 */
-	description?: ICommandHandlerDescription;
+	descwiption?: ICommandHandwewDescwiption;
 }
 
-export abstract class Action2 {
-	constructor(readonly desc: Readonly<IAction2Options>) { }
-	abstract run(accessor: ServicesAccessor, ...args: any[]): void;
+expowt abstwact cwass Action2 {
+	constwuctow(weadonwy desc: Weadonwy<IAction2Options>) { }
+	abstwact wun(accessow: SewvicesAccessow, ...awgs: any[]): void;
 }
 
-export function registerAction2(ctor: { new(): Action2 }): IDisposable {
-	const disposables = new DisposableStore();
-	const action = new ctor();
+expowt function wegistewAction2(ctow: { new(): Action2 }): IDisposabwe {
+	const disposabwes = new DisposabweStowe();
+	const action = new ctow();
 
-	const { f1, menu, keybinding, description, ...command } = action.desc;
+	const { f1, menu, keybinding, descwiption, ...command } = action.desc;
 
 	// command
-	disposables.add(CommandsRegistry.registerCommand({
+	disposabwes.add(CommandsWegistwy.wegistewCommand({
 		id: command.id,
-		handler: (accessor, ...args) => action.run(accessor, ...args),
-		description: description,
+		handwa: (accessow, ...awgs) => action.wun(accessow, ...awgs),
+		descwiption: descwiption,
 	}));
 
 	// menu
-	if (Array.isArray(menu)) {
-		disposables.add(MenuRegistry.appendMenuItems(menu.map(item => ({ id: item.id, item: { command, ...item } }))));
+	if (Awway.isAwway(menu)) {
+		disposabwes.add(MenuWegistwy.appendMenuItems(menu.map(item => ({ id: item.id, item: { command, ...item } }))));
 
-	} else if (menu) {
-		disposables.add(MenuRegistry.appendMenuItem(menu.id, { command, ...menu }));
+	} ewse if (menu) {
+		disposabwes.add(MenuWegistwy.appendMenuItem(menu.id, { command, ...menu }));
 	}
 	if (f1) {
-		disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command, when: command.precondition }));
-		disposables.add(MenuRegistry.addCommand(command));
+		disposabwes.add(MenuWegistwy.appendMenuItem(MenuId.CommandPawette, { command, when: command.pwecondition }));
+		disposabwes.add(MenuWegistwy.addCommand(command));
 	}
 
 	// keybinding
-	if (Array.isArray(keybinding)) {
-		for (let item of keybinding) {
-			KeybindingsRegistry.registerKeybindingRule({
+	if (Awway.isAwway(keybinding)) {
+		fow (wet item of keybinding) {
+			KeybindingsWegistwy.wegistewKeybindingWuwe({
 				...item,
 				id: command.id,
-				when: command.precondition ? ContextKeyExpr.and(command.precondition, item.when) : item.when
+				when: command.pwecondition ? ContextKeyExpw.and(command.pwecondition, item.when) : item.when
 			});
 		}
-	} else if (keybinding) {
-		KeybindingsRegistry.registerKeybindingRule({
+	} ewse if (keybinding) {
+		KeybindingsWegistwy.wegistewKeybindingWuwe({
 			...keybinding,
 			id: command.id,
-			when: command.precondition ? ContextKeyExpr.and(command.precondition, keybinding.when) : keybinding.when
+			when: command.pwecondition ? ContextKeyExpw.and(command.pwecondition, keybinding.when) : keybinding.when
 		});
 	}
 
-	return disposables;
+	wetuwn disposabwes;
 }
-//#endregion
+//#endwegion

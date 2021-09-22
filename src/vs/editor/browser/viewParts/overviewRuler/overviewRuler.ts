@@ -1,166 +1,166 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { IOverviewRuler } from 'vs/editor/browser/editorBrowser';
-import { OverviewRulerPosition, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ColorZone, OverviewRulerZone, OverviewZoneManager } from 'vs/editor/common/view/overviewZoneManager';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
+impowt { FastDomNode, cweateFastDomNode } fwom 'vs/base/bwowsa/fastDomNode';
+impowt { IOvewviewWuwa } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { OvewviewWuwewPosition, EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { CowowZone, OvewviewWuwewZone, OvewviewZoneManaga } fwom 'vs/editow/common/view/ovewviewZoneManaga';
+impowt { ViewContext } fwom 'vs/editow/common/view/viewContext';
+impowt * as viewEvents fwom 'vs/editow/common/view/viewEvents';
+impowt { ViewEventHandwa } fwom 'vs/editow/common/viewModew/viewEventHandwa';
 
-export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
+expowt cwass OvewviewWuwa extends ViewEventHandwa impwements IOvewviewWuwa {
 
-	private readonly _context: ViewContext;
-	private readonly _domNode: FastDomNode<HTMLCanvasElement>;
-	private readonly _zoneManager: OverviewZoneManager;
+	pwivate weadonwy _context: ViewContext;
+	pwivate weadonwy _domNode: FastDomNode<HTMWCanvasEwement>;
+	pwivate weadonwy _zoneManaga: OvewviewZoneManaga;
 
-	constructor(context: ViewContext, cssClassName: string) {
-		super();
+	constwuctow(context: ViewContext, cssCwassName: stwing) {
+		supa();
 		this._context = context;
-		const options = this._context.configuration.options;
+		const options = this._context.configuwation.options;
 
-		this._domNode = createFastDomNode(document.createElement('canvas'));
-		this._domNode.setClassName(cssClassName);
-		this._domNode.setPosition('absolute');
-		this._domNode.setLayerHinting(true);
-		this._domNode.setContain('strict');
+		this._domNode = cweateFastDomNode(document.cweateEwement('canvas'));
+		this._domNode.setCwassName(cssCwassName);
+		this._domNode.setPosition('absowute');
+		this._domNode.setWayewHinting(twue);
+		this._domNode.setContain('stwict');
 
-		this._zoneManager = new OverviewZoneManager((lineNumber: number) => this._context.viewLayout.getVerticalOffsetForLineNumber(lineNumber));
-		this._zoneManager.setDOMWidth(0);
-		this._zoneManager.setDOMHeight(0);
-		this._zoneManager.setOuterHeight(this._context.viewLayout.getScrollHeight());
-		this._zoneManager.setLineHeight(options.get(EditorOption.lineHeight));
+		this._zoneManaga = new OvewviewZoneManaga((wineNumba: numba) => this._context.viewWayout.getVewticawOffsetFowWineNumba(wineNumba));
+		this._zoneManaga.setDOMWidth(0);
+		this._zoneManaga.setDOMHeight(0);
+		this._zoneManaga.setOutewHeight(this._context.viewWayout.getScwowwHeight());
+		this._zoneManaga.setWineHeight(options.get(EditowOption.wineHeight));
 
-		this._zoneManager.setPixelRatio(options.get(EditorOption.pixelRatio));
+		this._zoneManaga.setPixewWatio(options.get(EditowOption.pixewWatio));
 
-		this._context.addEventHandler(this);
+		this._context.addEventHandwa(this);
 	}
 
-	public override dispose(): void {
-		this._context.removeEventHandler(this);
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		this._context.wemoveEventHandwa(this);
+		supa.dispose();
 	}
 
-	// ---- begin view event handlers
+	// ---- begin view event handwews
 
-	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		const options = this._context.configuration.options;
+	pubwic ovewwide onConfiguwationChanged(e: viewEvents.ViewConfiguwationChangedEvent): boowean {
+		const options = this._context.configuwation.options;
 
-		if (e.hasChanged(EditorOption.lineHeight)) {
-			this._zoneManager.setLineHeight(options.get(EditorOption.lineHeight));
-			this._render();
+		if (e.hasChanged(EditowOption.wineHeight)) {
+			this._zoneManaga.setWineHeight(options.get(EditowOption.wineHeight));
+			this._wenda();
 		}
 
-		if (e.hasChanged(EditorOption.pixelRatio)) {
-			this._zoneManager.setPixelRatio(options.get(EditorOption.pixelRatio));
-			this._domNode.setWidth(this._zoneManager.getDOMWidth());
-			this._domNode.setHeight(this._zoneManager.getDOMHeight());
-			this._domNode.domNode.width = this._zoneManager.getCanvasWidth();
-			this._domNode.domNode.height = this._zoneManager.getCanvasHeight();
-			this._render();
+		if (e.hasChanged(EditowOption.pixewWatio)) {
+			this._zoneManaga.setPixewWatio(options.get(EditowOption.pixewWatio));
+			this._domNode.setWidth(this._zoneManaga.getDOMWidth());
+			this._domNode.setHeight(this._zoneManaga.getDOMHeight());
+			this._domNode.domNode.width = this._zoneManaga.getCanvasWidth();
+			this._domNode.domNode.height = this._zoneManaga.getCanvasHeight();
+			this._wenda();
 		}
 
-		return true;
+		wetuwn twue;
 	}
-	public override onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
-		this._render();
-		return true;
+	pubwic ovewwide onFwushed(e: viewEvents.ViewFwushedEvent): boowean {
+		this._wenda();
+		wetuwn twue;
 	}
-	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		if (e.scrollHeightChanged) {
-			this._zoneManager.setOuterHeight(e.scrollHeight);
-			this._render();
+	pubwic ovewwide onScwowwChanged(e: viewEvents.ViewScwowwChangedEvent): boowean {
+		if (e.scwowwHeightChanged) {
+			this._zoneManaga.setOutewHeight(e.scwowwHeight);
+			this._wenda();
 		}
-		return true;
+		wetuwn twue;
 	}
-	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
-		this._render();
-		return true;
-	}
-
-	// ---- end view event handlers
-
-	public getDomNode(): HTMLElement {
-		return this._domNode.domNode;
+	pubwic ovewwide onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boowean {
+		this._wenda();
+		wetuwn twue;
 	}
 
-	public setLayout(position: OverviewRulerPosition): void {
+	// ---- end view event handwews
+
+	pubwic getDomNode(): HTMWEwement {
+		wetuwn this._domNode.domNode;
+	}
+
+	pubwic setWayout(position: OvewviewWuwewPosition): void {
 		this._domNode.setTop(position.top);
-		this._domNode.setRight(position.right);
+		this._domNode.setWight(position.wight);
 
-		let hasChanged = false;
-		hasChanged = this._zoneManager.setDOMWidth(position.width) || hasChanged;
-		hasChanged = this._zoneManager.setDOMHeight(position.height) || hasChanged;
+		wet hasChanged = fawse;
+		hasChanged = this._zoneManaga.setDOMWidth(position.width) || hasChanged;
+		hasChanged = this._zoneManaga.setDOMHeight(position.height) || hasChanged;
 
 		if (hasChanged) {
-			this._domNode.setWidth(this._zoneManager.getDOMWidth());
-			this._domNode.setHeight(this._zoneManager.getDOMHeight());
-			this._domNode.domNode.width = this._zoneManager.getCanvasWidth();
-			this._domNode.domNode.height = this._zoneManager.getCanvasHeight();
+			this._domNode.setWidth(this._zoneManaga.getDOMWidth());
+			this._domNode.setHeight(this._zoneManaga.getDOMHeight());
+			this._domNode.domNode.width = this._zoneManaga.getCanvasWidth();
+			this._domNode.domNode.height = this._zoneManaga.getCanvasHeight();
 
-			this._render();
+			this._wenda();
 		}
 	}
 
-	public setZones(zones: OverviewRulerZone[]): void {
-		this._zoneManager.setZones(zones);
-		this._render();
+	pubwic setZones(zones: OvewviewWuwewZone[]): void {
+		this._zoneManaga.setZones(zones);
+		this._wenda();
 	}
 
-	private _render(): boolean {
-		if (this._zoneManager.getOuterHeight() === 0) {
-			return false;
+	pwivate _wenda(): boowean {
+		if (this._zoneManaga.getOutewHeight() === 0) {
+			wetuwn fawse;
 		}
 
-		const width = this._zoneManager.getCanvasWidth();
-		const height = this._zoneManager.getCanvasHeight();
+		const width = this._zoneManaga.getCanvasWidth();
+		const height = this._zoneManaga.getCanvasHeight();
 
-		const colorZones = this._zoneManager.resolveColorZones();
-		const id2Color = this._zoneManager.getId2Color();
+		const cowowZones = this._zoneManaga.wesowveCowowZones();
+		const id2Cowow = this._zoneManaga.getId2Cowow();
 
 		const ctx = this._domNode.domNode.getContext('2d')!;
-		ctx.clearRect(0, 0, width, height);
-		if (colorZones.length > 0) {
-			this._renderOneLane(ctx, colorZones, id2Color, width);
+		ctx.cweawWect(0, 0, width, height);
+		if (cowowZones.wength > 0) {
+			this._wendewOneWane(ctx, cowowZones, id2Cowow, width);
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	private _renderOneLane(ctx: CanvasRenderingContext2D, colorZones: ColorZone[], id2Color: string[], width: number): void {
+	pwivate _wendewOneWane(ctx: CanvasWendewingContext2D, cowowZones: CowowZone[], id2Cowow: stwing[], width: numba): void {
 
-		let currentColorId = 0;
-		let currentFrom = 0;
-		let currentTo = 0;
+		wet cuwwentCowowId = 0;
+		wet cuwwentFwom = 0;
+		wet cuwwentTo = 0;
 
-		for (const zone of colorZones) {
+		fow (const zone of cowowZones) {
 
-			const zoneColorId = zone.colorId;
-			const zoneFrom = zone.from;
+			const zoneCowowId = zone.cowowId;
+			const zoneFwom = zone.fwom;
 			const zoneTo = zone.to;
 
-			if (zoneColorId !== currentColorId) {
-				ctx.fillRect(0, currentFrom, width, currentTo - currentFrom);
+			if (zoneCowowId !== cuwwentCowowId) {
+				ctx.fiwwWect(0, cuwwentFwom, width, cuwwentTo - cuwwentFwom);
 
-				currentColorId = zoneColorId;
-				ctx.fillStyle = id2Color[currentColorId];
-				currentFrom = zoneFrom;
-				currentTo = zoneTo;
-			} else {
-				if (currentTo >= zoneFrom) {
-					currentTo = Math.max(currentTo, zoneTo);
-				} else {
-					ctx.fillRect(0, currentFrom, width, currentTo - currentFrom);
-					currentFrom = zoneFrom;
-					currentTo = zoneTo;
+				cuwwentCowowId = zoneCowowId;
+				ctx.fiwwStywe = id2Cowow[cuwwentCowowId];
+				cuwwentFwom = zoneFwom;
+				cuwwentTo = zoneTo;
+			} ewse {
+				if (cuwwentTo >= zoneFwom) {
+					cuwwentTo = Math.max(cuwwentTo, zoneTo);
+				} ewse {
+					ctx.fiwwWect(0, cuwwentFwom, width, cuwwentTo - cuwwentFwom);
+					cuwwentFwom = zoneFwom;
+					cuwwentTo = zoneTo;
 				}
 			}
 		}
 
-		ctx.fillRect(0, currentFrom, width, currentTo - currentFrom);
+		ctx.fiwwWect(0, cuwwentFwom, width, cuwwentTo - cuwwentFwom);
 
 	}
 }

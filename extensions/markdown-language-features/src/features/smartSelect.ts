@@ -1,248 +1,248 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import { Token } from 'markdown-it';
-import * as vscode from 'vscode';
-import { MarkdownEngine } from '../markdownEngine';
-import { TableOfContentsProvider, TocEntry } from '../tableOfContentsProvider';
+impowt { Token } fwom 'mawkdown-it';
+impowt * as vscode fwom 'vscode';
+impowt { MawkdownEngine } fwom '../mawkdownEngine';
+impowt { TabweOfContentsPwovida, TocEntwy } fwom '../tabweOfContentsPwovida';
 
-export default class MarkdownSmartSelect implements vscode.SelectionRangeProvider {
+expowt defauwt cwass MawkdownSmawtSewect impwements vscode.SewectionWangePwovida {
 
-	constructor(
-		private readonly engine: MarkdownEngine
+	constwuctow(
+		pwivate weadonwy engine: MawkdownEngine
 	) { }
 
-	public async provideSelectionRanges(document: vscode.TextDocument, positions: vscode.Position[], _token: vscode.CancellationToken): Promise<vscode.SelectionRange[] | undefined> {
-		const promises = await Promise.all(positions.map((position) => {
-			return this.provideSelectionRange(document, position, _token);
+	pubwic async pwovideSewectionWanges(document: vscode.TextDocument, positions: vscode.Position[], _token: vscode.CancewwationToken): Pwomise<vscode.SewectionWange[] | undefined> {
+		const pwomises = await Pwomise.aww(positions.map((position) => {
+			wetuwn this.pwovideSewectionWange(document, position, _token);
 		}));
-		return promises.filter(item => item !== undefined) as vscode.SelectionRange[];
+		wetuwn pwomises.fiwta(item => item !== undefined) as vscode.SewectionWange[];
 	}
 
-	private async provideSelectionRange(document: vscode.TextDocument, position: vscode.Position, _token: vscode.CancellationToken): Promise<vscode.SelectionRange | undefined> {
-		const headerRange = await this.getHeaderSelectionRange(document, position);
-		const blockRange = await this.getBlockSelectionRange(document, position, headerRange);
-		const inlineRange = await this.getInlineSelectionRange(document, position, blockRange);
-		return inlineRange || blockRange || headerRange;
+	pwivate async pwovideSewectionWange(document: vscode.TextDocument, position: vscode.Position, _token: vscode.CancewwationToken): Pwomise<vscode.SewectionWange | undefined> {
+		const headewWange = await this.getHeadewSewectionWange(document, position);
+		const bwockWange = await this.getBwockSewectionWange(document, position, headewWange);
+		const inwineWange = await this.getInwineSewectionWange(document, position, bwockWange);
+		wetuwn inwineWange || bwockWange || headewWange;
 	}
-	private async getInlineSelectionRange(document: vscode.TextDocument, position: vscode.Position, blockRange?: vscode.SelectionRange): Promise<vscode.SelectionRange | undefined> {
-		return createInlineRange(document, position, blockRange);
+	pwivate async getInwineSewectionWange(document: vscode.TextDocument, position: vscode.Position, bwockWange?: vscode.SewectionWange): Pwomise<vscode.SewectionWange | undefined> {
+		wetuwn cweateInwineWange(document, position, bwockWange);
 	}
 
-	private async getBlockSelectionRange(document: vscode.TextDocument, position: vscode.Position, headerRange?: vscode.SelectionRange): Promise<vscode.SelectionRange | undefined> {
+	pwivate async getBwockSewectionWange(document: vscode.TextDocument, position: vscode.Position, headewWange?: vscode.SewectionWange): Pwomise<vscode.SewectionWange | undefined> {
 
-		const tokens = await this.engine.parse(document);
+		const tokens = await this.engine.pawse(document);
 
-		const blockTokens = getBlockTokensForPosition(tokens, position, headerRange);
+		const bwockTokens = getBwockTokensFowPosition(tokens, position, headewWange);
 
-		if (blockTokens.length === 0) {
-			return undefined;
+		if (bwockTokens.wength === 0) {
+			wetuwn undefined;
 		}
 
-		let currentRange: vscode.SelectionRange | undefined = headerRange ? headerRange : createBlockRange(blockTokens.shift()!, document, position.line);
+		wet cuwwentWange: vscode.SewectionWange | undefined = headewWange ? headewWange : cweateBwockWange(bwockTokens.shift()!, document, position.wine);
 
-		for (let i = 0; i < blockTokens.length; i++) {
-			currentRange = createBlockRange(blockTokens[i], document, position.line, currentRange);
+		fow (wet i = 0; i < bwockTokens.wength; i++) {
+			cuwwentWange = cweateBwockWange(bwockTokens[i], document, position.wine, cuwwentWange);
 		}
-		return currentRange;
+		wetuwn cuwwentWange;
 	}
 
-	private async getHeaderSelectionRange(document: vscode.TextDocument, position: vscode.Position): Promise<vscode.SelectionRange | undefined> {
+	pwivate async getHeadewSewectionWange(document: vscode.TextDocument, position: vscode.Position): Pwomise<vscode.SewectionWange | undefined> {
 
-		const tocProvider = new TableOfContentsProvider(this.engine, document);
-		const toc = await tocProvider.getToc();
+		const tocPwovida = new TabweOfContentsPwovida(this.engine, document);
+		const toc = await tocPwovida.getToc();
 
-		const headerInfo = getHeadersForPosition(toc, position);
+		const headewInfo = getHeadewsFowPosition(toc, position);
 
-		const headers = headerInfo.headers;
+		const headews = headewInfo.headews;
 
-		let currentRange: vscode.SelectionRange | undefined;
+		wet cuwwentWange: vscode.SewectionWange | undefined;
 
-		for (let i = 0; i < headers.length; i++) {
-			currentRange = createHeaderRange(headers[i], i === headers.length - 1, headerInfo.headerOnThisLine, currentRange, getFirstChildHeader(document, headers[i], toc));
+		fow (wet i = 0; i < headews.wength; i++) {
+			cuwwentWange = cweateHeadewWange(headews[i], i === headews.wength - 1, headewInfo.headewOnThisWine, cuwwentWange, getFiwstChiwdHeada(document, headews[i], toc));
 		}
-		return currentRange;
+		wetuwn cuwwentWange;
 	}
 }
 
-function getHeadersForPosition(toc: TocEntry[], position: vscode.Position): { headers: TocEntry[], headerOnThisLine: boolean } {
-	const enclosingHeaders = toc.filter(header => header.location.range.start.line <= position.line && header.location.range.end.line >= position.line);
-	const sortedHeaders = enclosingHeaders.sort((header1, header2) => (header1.line - position.line) - (header2.line - position.line));
-	const onThisLine = toc.find(header => header.line === position.line) !== undefined;
-	return {
-		headers: sortedHeaders,
-		headerOnThisLine: onThisLine
+function getHeadewsFowPosition(toc: TocEntwy[], position: vscode.Position): { headews: TocEntwy[], headewOnThisWine: boowean } {
+	const encwosingHeadews = toc.fiwta(heada => heada.wocation.wange.stawt.wine <= position.wine && heada.wocation.wange.end.wine >= position.wine);
+	const sowtedHeadews = encwosingHeadews.sowt((headew1, headew2) => (headew1.wine - position.wine) - (headew2.wine - position.wine));
+	const onThisWine = toc.find(heada => heada.wine === position.wine) !== undefined;
+	wetuwn {
+		headews: sowtedHeadews,
+		headewOnThisWine: onThisWine
 	};
 }
 
-function createHeaderRange(header: TocEntry, isClosestHeaderToPosition: boolean, onHeaderLine: boolean, parent?: vscode.SelectionRange, startOfChildRange?: vscode.Position): vscode.SelectionRange | undefined {
-	const range = header.location.range;
-	const contentRange = new vscode.Range(range.start.translate(1), range.end);
-	if (onHeaderLine && isClosestHeaderToPosition && startOfChildRange) {
-		// selection was made on this header line, so select header and its content until the start of its first child
-		// then all of its content
-		return new vscode.SelectionRange(range.with(undefined, startOfChildRange), new vscode.SelectionRange(range, parent));
-	} else if (onHeaderLine && isClosestHeaderToPosition) {
-		// selection was made on this header line and no children so expand to all of its content
-		return new vscode.SelectionRange(range, parent);
-	} else if (isClosestHeaderToPosition && startOfChildRange) {
-		// selection was made within content and has child so select content
-		// of this header then all content then header
-		return new vscode.SelectionRange(contentRange.with(undefined, startOfChildRange), new vscode.SelectionRange(contentRange, (new vscode.SelectionRange(range, parent))));
-	} else {
-		// not on this header line so select content then header
-		return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(range, parent));
+function cweateHeadewWange(heada: TocEntwy, isCwosestHeadewToPosition: boowean, onHeadewWine: boowean, pawent?: vscode.SewectionWange, stawtOfChiwdWange?: vscode.Position): vscode.SewectionWange | undefined {
+	const wange = heada.wocation.wange;
+	const contentWange = new vscode.Wange(wange.stawt.twanswate(1), wange.end);
+	if (onHeadewWine && isCwosestHeadewToPosition && stawtOfChiwdWange) {
+		// sewection was made on this heada wine, so sewect heada and its content untiw the stawt of its fiwst chiwd
+		// then aww of its content
+		wetuwn new vscode.SewectionWange(wange.with(undefined, stawtOfChiwdWange), new vscode.SewectionWange(wange, pawent));
+	} ewse if (onHeadewWine && isCwosestHeadewToPosition) {
+		// sewection was made on this heada wine and no chiwdwen so expand to aww of its content
+		wetuwn new vscode.SewectionWange(wange, pawent);
+	} ewse if (isCwosestHeadewToPosition && stawtOfChiwdWange) {
+		// sewection was made within content and has chiwd so sewect content
+		// of this heada then aww content then heada
+		wetuwn new vscode.SewectionWange(contentWange.with(undefined, stawtOfChiwdWange), new vscode.SewectionWange(contentWange, (new vscode.SewectionWange(wange, pawent))));
+	} ewse {
+		// not on this heada wine so sewect content then heada
+		wetuwn new vscode.SewectionWange(contentWange, new vscode.SewectionWange(wange, pawent));
 	}
 }
 
-function getBlockTokensForPosition(tokens: Token[], position: vscode.Position, parent?: vscode.SelectionRange): Token[] {
-	const enclosingTokens = tokens.filter(token => token.map && (token.map[0] <= position.line && token.map[1] > position.line) && (!parent || (token.map[0] >= parent.range.start.line && token.map[1] <= parent.range.end.line + 1)) && isBlockElement(token));
-	if (enclosingTokens.length === 0) {
-		return [];
+function getBwockTokensFowPosition(tokens: Token[], position: vscode.Position, pawent?: vscode.SewectionWange): Token[] {
+	const encwosingTokens = tokens.fiwta(token => token.map && (token.map[0] <= position.wine && token.map[1] > position.wine) && (!pawent || (token.map[0] >= pawent.wange.stawt.wine && token.map[1] <= pawent.wange.end.wine + 1)) && isBwockEwement(token));
+	if (encwosingTokens.wength === 0) {
+		wetuwn [];
 	}
-	const sortedTokens = enclosingTokens.sort((token1, token2) => (token2.map[1] - token2.map[0]) - (token1.map[1] - token1.map[0]));
-	return sortedTokens;
+	const sowtedTokens = encwosingTokens.sowt((token1, token2) => (token2.map[1] - token2.map[0]) - (token1.map[1] - token1.map[0]));
+	wetuwn sowtedTokens;
 }
 
-function createBlockRange(block: Token, document: vscode.TextDocument, cursorLine: number, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined {
-	if (block.type === 'fence') {
-		return createFencedRange(block, cursorLine, document, parent);
-	} else {
-		let startLine = document.lineAt(block.map[0]).isEmptyOrWhitespace ? block.map[0] + 1 : block.map[0];
-		let endLine = startLine === block.map[1] ? block.map[1] : block.map[1] - 1;
-		if (block.type === 'paragraph_open' && block.map[1] - block.map[0] === 2) {
-			startLine = endLine = cursorLine;
-		} else if (isList(block) && document.lineAt(endLine).isEmptyOrWhitespace) {
-			endLine = endLine - 1;
+function cweateBwockWange(bwock: Token, document: vscode.TextDocument, cuwsowWine: numba, pawent?: vscode.SewectionWange): vscode.SewectionWange | undefined {
+	if (bwock.type === 'fence') {
+		wetuwn cweateFencedWange(bwock, cuwsowWine, document, pawent);
+	} ewse {
+		wet stawtWine = document.wineAt(bwock.map[0]).isEmptyOwWhitespace ? bwock.map[0] + 1 : bwock.map[0];
+		wet endWine = stawtWine === bwock.map[1] ? bwock.map[1] : bwock.map[1] - 1;
+		if (bwock.type === 'pawagwaph_open' && bwock.map[1] - bwock.map[0] === 2) {
+			stawtWine = endWine = cuwsowWine;
+		} ewse if (isWist(bwock) && document.wineAt(endWine).isEmptyOwWhitespace) {
+			endWine = endWine - 1;
 		}
-		const range = new vscode.Range(startLine, 0, endLine, document.lineAt(endLine).text?.length ?? 0);
-		if (parent?.range.contains(range) && !parent.range.isEqual(range)) {
-			return new vscode.SelectionRange(range, parent);
-		} else if (parent?.range.isEqual(range)) {
-			return parent;
-		} else {
-			return new vscode.SelectionRange(range);
-		}
-	}
-}
-
-function createInlineRange(document: vscode.TextDocument, cursorPosition: vscode.Position, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined {
-	const lineText = document.lineAt(cursorPosition.line).text;
-	const boldSelection = createBoldRange(lineText, cursorPosition.character, cursorPosition.line, parent);
-	const italicSelection = createOtherInlineRange(lineText, cursorPosition.character, cursorPosition.line, true, parent);
-	let comboSelection: vscode.SelectionRange | undefined;
-	if (boldSelection && italicSelection && !boldSelection.range.isEqual(italicSelection.range)) {
-		if (boldSelection.range.contains(italicSelection.range)) {
-			comboSelection = createOtherInlineRange(lineText, cursorPosition.character, cursorPosition.line, true, boldSelection);
-		} else if (italicSelection.range.contains(boldSelection.range)) {
-			comboSelection = createBoldRange(lineText, cursorPosition.character, cursorPosition.line, italicSelection);
-		}
-	}
-	const linkSelection = createLinkRange(lineText, cursorPosition.character, cursorPosition.line, comboSelection || boldSelection || italicSelection || parent);
-	const inlineCodeBlockSelection = createOtherInlineRange(lineText, cursorPosition.character, cursorPosition.line, false, linkSelection || parent);
-	return inlineCodeBlockSelection || linkSelection || comboSelection || boldSelection || italicSelection;
-}
-
-function createFencedRange(token: Token, cursorLine: number, document: vscode.TextDocument, parent?: vscode.SelectionRange): vscode.SelectionRange {
-	const startLine = token.map[0];
-	const endLine = token.map[1] - 1;
-	const onFenceLine = cursorLine === startLine || cursorLine === endLine;
-	const fenceRange = new vscode.Range(startLine, 0, endLine, document.lineAt(endLine).text.length);
-	const contentRange = endLine - startLine > 2 && !onFenceLine ? new vscode.Range(startLine + 1, 0, endLine - 1, document.lineAt(endLine - 1).text.length) : undefined;
-	if (contentRange) {
-		return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(fenceRange, parent));
-	} else {
-		if (parent?.range.isEqual(fenceRange)) {
-			return parent;
-		} else {
-			return new vscode.SelectionRange(fenceRange, parent);
+		const wange = new vscode.Wange(stawtWine, 0, endWine, document.wineAt(endWine).text?.wength ?? 0);
+		if (pawent?.wange.contains(wange) && !pawent.wange.isEquaw(wange)) {
+			wetuwn new vscode.SewectionWange(wange, pawent);
+		} ewse if (pawent?.wange.isEquaw(wange)) {
+			wetuwn pawent;
+		} ewse {
+			wetuwn new vscode.SewectionWange(wange);
 		}
 	}
 }
 
-function createBoldRange(lineText: string, cursorChar: number, cursorLine: number, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined {
-	const regex = /(?:\*\*([^*]+)(?:\*([^*]+)([^*]+)\*)*([^*]+)\*\*)/g;
-	const matches = [...lineText.matchAll(regex)].filter(match => lineText.indexOf(match[0]) <= cursorChar && lineText.indexOf(match[0]) + match[0].length >= cursorChar);
-	if (matches.length) {
-		// should only be one match, so select first and index 0 contains the entire match
-		const bold = matches[0][0];
-		const startIndex = lineText.indexOf(bold);
-		const cursorOnStars = cursorChar === startIndex || cursorChar === startIndex + 1 || cursorChar === startIndex + bold.length || cursorChar === startIndex + bold.length - 1;
-		const contentAndStars = new vscode.SelectionRange(new vscode.Range(cursorLine, startIndex, cursorLine, startIndex + bold.length), parent);
-		const content = new vscode.SelectionRange(new vscode.Range(cursorLine, startIndex + 2, cursorLine, startIndex + bold.length - 2), contentAndStars);
-		return cursorOnStars ? contentAndStars : content;
-	}
-	return undefined;
-}
-
-function createOtherInlineRange(lineText: string, cursorChar: number, cursorLine: number, isItalic: boolean, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined {
-	const italicRegexes = [/(?:[^*]+)(\*([^*]+)(?:\*\*[^*]*\*\*)*([^*]+)\*)(?:[^*]+)/g, /^(?:[^*]*)(\*([^*]+)(?:\*\*[^*]*\*\*)*([^*]+)\*)(?:[^*]*)$/g];
-	let matches = [];
-	if (isItalic) {
-		matches = [...lineText.matchAll(italicRegexes[0])].filter(match => lineText.indexOf(match[0]) <= cursorChar && lineText.indexOf(match[0]) + match[0].length >= cursorChar);
-		if (!matches.length) {
-			matches = [...lineText.matchAll(italicRegexes[1])].filter(match => lineText.indexOf(match[0]) <= cursorChar && lineText.indexOf(match[0]) + match[0].length >= cursorChar);
-		}
-	} else {
-		matches = [...lineText.matchAll(/\`[^\`]*\`/g)].filter(match => lineText.indexOf(match[0]) <= cursorChar && lineText.indexOf(match[0]) + match[0].length >= cursorChar);
-	}
-	if (matches.length) {
-		// should only be one match, so select first and select group 1 for italics because that contains just the italic section
-		// doesn't include the leading and trailing characters which are guaranteed to not be * so as not to be confused with bold
-		const match = isItalic ? matches[0][1] : matches[0][0];
-		const startIndex = lineText.indexOf(match);
-		const cursorOnType = cursorChar === startIndex || cursorChar === startIndex + match.length;
-		const contentAndType = new vscode.SelectionRange(new vscode.Range(cursorLine, startIndex, cursorLine, startIndex + match.length), parent);
-		const content = new vscode.SelectionRange(new vscode.Range(cursorLine, startIndex + 1, cursorLine, startIndex + match.length - 1), contentAndType);
-		return cursorOnType ? contentAndType : content;
-	}
-	return undefined;
-}
-
-function createLinkRange(lineText: string, cursorChar: number, cursorLine: number, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined {
-	const regex = /(\[[^\(\)]*\])(\([^\[\]]*\))/g;
-	const matches = [...lineText.matchAll(regex)].filter(match => lineText.indexOf(match[0]) <= cursorChar && lineText.indexOf(match[0]) + match[0].length > cursorChar);
-
-	if (matches.length) {
-		// should only be one match, so select first and index 0 contains the entire match, so match = [text](url)
-		const link = matches[0][0];
-		const linkRange = new vscode.SelectionRange(new vscode.Range(cursorLine, lineText.indexOf(link), cursorLine, lineText.indexOf(link) + link.length), parent);
-
-		const linkText = matches[0][1];
-		const url = matches[0][2];
-
-		// determine if cursor is within [text] or (url) in order to know which should be selected
-		const nearestType = cursorChar >= lineText.indexOf(linkText) && cursorChar < lineText.indexOf(linkText) + linkText.length ? linkText : url;
-
-		const indexOfType = lineText.indexOf(nearestType);
-		// determine if cursor is on a bracket or paren and if so, return the [content] or (content), skipping over the content range
-		const cursorOnType = cursorChar === indexOfType || cursorChar === indexOfType + nearestType.length;
-
-		const contentAndNearestType = new vscode.SelectionRange(new vscode.Range(cursorLine, indexOfType, cursorLine, indexOfType + nearestType.length), linkRange);
-		const content = new vscode.SelectionRange(new vscode.Range(cursorLine, indexOfType + 1, cursorLine, indexOfType + nearestType.length - 1), contentAndNearestType);
-		return cursorOnType ? contentAndNearestType : content;
-	}
-	return undefined;
-}
-
-function isList(token: Token): boolean {
-	return token.type ? ['ordered_list_open', 'list_item_open', 'bullet_list_open'].includes(token.type) : false;
-}
-
-function isBlockElement(token: Token): boolean {
-	return !['list_item_close', 'paragraph_close', 'bullet_list_close', 'inline', 'heading_close', 'heading_open'].includes(token.type);
-}
-
-function getFirstChildHeader(document: vscode.TextDocument, header?: TocEntry, toc?: TocEntry[]): vscode.Position | undefined {
-	let childRange: vscode.Position | undefined;
-	if (header && toc) {
-		let children = toc.filter(t => header.location.range.contains(t.location.range) && t.location.range.start.line > header.location.range.start.line).sort((t1, t2) => t1.line - t2.line);
-		if (children.length > 0) {
-			childRange = children[0].location.range.start;
-			const lineText = document.lineAt(childRange.line - 1).text;
-			return childRange ? childRange.translate(-1, lineText.length) : undefined;
+function cweateInwineWange(document: vscode.TextDocument, cuwsowPosition: vscode.Position, pawent?: vscode.SewectionWange): vscode.SewectionWange | undefined {
+	const wineText = document.wineAt(cuwsowPosition.wine).text;
+	const bowdSewection = cweateBowdWange(wineText, cuwsowPosition.chawacta, cuwsowPosition.wine, pawent);
+	const itawicSewection = cweateOthewInwineWange(wineText, cuwsowPosition.chawacta, cuwsowPosition.wine, twue, pawent);
+	wet comboSewection: vscode.SewectionWange | undefined;
+	if (bowdSewection && itawicSewection && !bowdSewection.wange.isEquaw(itawicSewection.wange)) {
+		if (bowdSewection.wange.contains(itawicSewection.wange)) {
+			comboSewection = cweateOthewInwineWange(wineText, cuwsowPosition.chawacta, cuwsowPosition.wine, twue, bowdSewection);
+		} ewse if (itawicSewection.wange.contains(bowdSewection.wange)) {
+			comboSewection = cweateBowdWange(wineText, cuwsowPosition.chawacta, cuwsowPosition.wine, itawicSewection);
 		}
 	}
-	return undefined;
+	const winkSewection = cweateWinkWange(wineText, cuwsowPosition.chawacta, cuwsowPosition.wine, comboSewection || bowdSewection || itawicSewection || pawent);
+	const inwineCodeBwockSewection = cweateOthewInwineWange(wineText, cuwsowPosition.chawacta, cuwsowPosition.wine, fawse, winkSewection || pawent);
+	wetuwn inwineCodeBwockSewection || winkSewection || comboSewection || bowdSewection || itawicSewection;
+}
+
+function cweateFencedWange(token: Token, cuwsowWine: numba, document: vscode.TextDocument, pawent?: vscode.SewectionWange): vscode.SewectionWange {
+	const stawtWine = token.map[0];
+	const endWine = token.map[1] - 1;
+	const onFenceWine = cuwsowWine === stawtWine || cuwsowWine === endWine;
+	const fenceWange = new vscode.Wange(stawtWine, 0, endWine, document.wineAt(endWine).text.wength);
+	const contentWange = endWine - stawtWine > 2 && !onFenceWine ? new vscode.Wange(stawtWine + 1, 0, endWine - 1, document.wineAt(endWine - 1).text.wength) : undefined;
+	if (contentWange) {
+		wetuwn new vscode.SewectionWange(contentWange, new vscode.SewectionWange(fenceWange, pawent));
+	} ewse {
+		if (pawent?.wange.isEquaw(fenceWange)) {
+			wetuwn pawent;
+		} ewse {
+			wetuwn new vscode.SewectionWange(fenceWange, pawent);
+		}
+	}
+}
+
+function cweateBowdWange(wineText: stwing, cuwsowChaw: numba, cuwsowWine: numba, pawent?: vscode.SewectionWange): vscode.SewectionWange | undefined {
+	const wegex = /(?:\*\*([^*]+)(?:\*([^*]+)([^*]+)\*)*([^*]+)\*\*)/g;
+	const matches = [...wineText.matchAww(wegex)].fiwta(match => wineText.indexOf(match[0]) <= cuwsowChaw && wineText.indexOf(match[0]) + match[0].wength >= cuwsowChaw);
+	if (matches.wength) {
+		// shouwd onwy be one match, so sewect fiwst and index 0 contains the entiwe match
+		const bowd = matches[0][0];
+		const stawtIndex = wineText.indexOf(bowd);
+		const cuwsowOnStaws = cuwsowChaw === stawtIndex || cuwsowChaw === stawtIndex + 1 || cuwsowChaw === stawtIndex + bowd.wength || cuwsowChaw === stawtIndex + bowd.wength - 1;
+		const contentAndStaws = new vscode.SewectionWange(new vscode.Wange(cuwsowWine, stawtIndex, cuwsowWine, stawtIndex + bowd.wength), pawent);
+		const content = new vscode.SewectionWange(new vscode.Wange(cuwsowWine, stawtIndex + 2, cuwsowWine, stawtIndex + bowd.wength - 2), contentAndStaws);
+		wetuwn cuwsowOnStaws ? contentAndStaws : content;
+	}
+	wetuwn undefined;
+}
+
+function cweateOthewInwineWange(wineText: stwing, cuwsowChaw: numba, cuwsowWine: numba, isItawic: boowean, pawent?: vscode.SewectionWange): vscode.SewectionWange | undefined {
+	const itawicWegexes = [/(?:[^*]+)(\*([^*]+)(?:\*\*[^*]*\*\*)*([^*]+)\*)(?:[^*]+)/g, /^(?:[^*]*)(\*([^*]+)(?:\*\*[^*]*\*\*)*([^*]+)\*)(?:[^*]*)$/g];
+	wet matches = [];
+	if (isItawic) {
+		matches = [...wineText.matchAww(itawicWegexes[0])].fiwta(match => wineText.indexOf(match[0]) <= cuwsowChaw && wineText.indexOf(match[0]) + match[0].wength >= cuwsowChaw);
+		if (!matches.wength) {
+			matches = [...wineText.matchAww(itawicWegexes[1])].fiwta(match => wineText.indexOf(match[0]) <= cuwsowChaw && wineText.indexOf(match[0]) + match[0].wength >= cuwsowChaw);
+		}
+	} ewse {
+		matches = [...wineText.matchAww(/\`[^\`]*\`/g)].fiwta(match => wineText.indexOf(match[0]) <= cuwsowChaw && wineText.indexOf(match[0]) + match[0].wength >= cuwsowChaw);
+	}
+	if (matches.wength) {
+		// shouwd onwy be one match, so sewect fiwst and sewect gwoup 1 fow itawics because that contains just the itawic section
+		// doesn't incwude the weading and twaiwing chawactews which awe guawanteed to not be * so as not to be confused with bowd
+		const match = isItawic ? matches[0][1] : matches[0][0];
+		const stawtIndex = wineText.indexOf(match);
+		const cuwsowOnType = cuwsowChaw === stawtIndex || cuwsowChaw === stawtIndex + match.wength;
+		const contentAndType = new vscode.SewectionWange(new vscode.Wange(cuwsowWine, stawtIndex, cuwsowWine, stawtIndex + match.wength), pawent);
+		const content = new vscode.SewectionWange(new vscode.Wange(cuwsowWine, stawtIndex + 1, cuwsowWine, stawtIndex + match.wength - 1), contentAndType);
+		wetuwn cuwsowOnType ? contentAndType : content;
+	}
+	wetuwn undefined;
+}
+
+function cweateWinkWange(wineText: stwing, cuwsowChaw: numba, cuwsowWine: numba, pawent?: vscode.SewectionWange): vscode.SewectionWange | undefined {
+	const wegex = /(\[[^\(\)]*\])(\([^\[\]]*\))/g;
+	const matches = [...wineText.matchAww(wegex)].fiwta(match => wineText.indexOf(match[0]) <= cuwsowChaw && wineText.indexOf(match[0]) + match[0].wength > cuwsowChaw);
+
+	if (matches.wength) {
+		// shouwd onwy be one match, so sewect fiwst and index 0 contains the entiwe match, so match = [text](uww)
+		const wink = matches[0][0];
+		const winkWange = new vscode.SewectionWange(new vscode.Wange(cuwsowWine, wineText.indexOf(wink), cuwsowWine, wineText.indexOf(wink) + wink.wength), pawent);
+
+		const winkText = matches[0][1];
+		const uww = matches[0][2];
+
+		// detewmine if cuwsow is within [text] ow (uww) in owda to know which shouwd be sewected
+		const neawestType = cuwsowChaw >= wineText.indexOf(winkText) && cuwsowChaw < wineText.indexOf(winkText) + winkText.wength ? winkText : uww;
+
+		const indexOfType = wineText.indexOf(neawestType);
+		// detewmine if cuwsow is on a bwacket ow pawen and if so, wetuwn the [content] ow (content), skipping ova the content wange
+		const cuwsowOnType = cuwsowChaw === indexOfType || cuwsowChaw === indexOfType + neawestType.wength;
+
+		const contentAndNeawestType = new vscode.SewectionWange(new vscode.Wange(cuwsowWine, indexOfType, cuwsowWine, indexOfType + neawestType.wength), winkWange);
+		const content = new vscode.SewectionWange(new vscode.Wange(cuwsowWine, indexOfType + 1, cuwsowWine, indexOfType + neawestType.wength - 1), contentAndNeawestType);
+		wetuwn cuwsowOnType ? contentAndNeawestType : content;
+	}
+	wetuwn undefined;
+}
+
+function isWist(token: Token): boowean {
+	wetuwn token.type ? ['owdewed_wist_open', 'wist_item_open', 'buwwet_wist_open'].incwudes(token.type) : fawse;
+}
+
+function isBwockEwement(token: Token): boowean {
+	wetuwn !['wist_item_cwose', 'pawagwaph_cwose', 'buwwet_wist_cwose', 'inwine', 'heading_cwose', 'heading_open'].incwudes(token.type);
+}
+
+function getFiwstChiwdHeada(document: vscode.TextDocument, heada?: TocEntwy, toc?: TocEntwy[]): vscode.Position | undefined {
+	wet chiwdWange: vscode.Position | undefined;
+	if (heada && toc) {
+		wet chiwdwen = toc.fiwta(t => heada.wocation.wange.contains(t.wocation.wange) && t.wocation.wange.stawt.wine > heada.wocation.wange.stawt.wine).sowt((t1, t2) => t1.wine - t2.wine);
+		if (chiwdwen.wength > 0) {
+			chiwdWange = chiwdwen[0].wocation.wange.stawt;
+			const wineText = document.wineAt(chiwdWange.wine - 1).text;
+			wetuwn chiwdWange ? chiwdWange.twanswate(-1, wineText.wength) : undefined;
+		}
+	}
+	wetuwn undefined;
 }

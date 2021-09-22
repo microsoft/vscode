@@ -1,33 +1,33 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { join, basename, dirname } from 'path';
-import { readFileSync } from 'fs';
+impowt { join, basename, diwname } fwom 'path';
+impowt { weadFiweSync } fwom 'fs';
 
-const contents: { [name: string]: string } = {};
+const contents: { [name: stwing]: stwing } = {};
 
-const serverFolder = basename(__dirname) === 'dist' ? dirname(__dirname) : dirname(dirname(__dirname));
-const TYPESCRIPT_LIB_SOURCE = join(serverFolder, '../../node_modules/typescript/lib');
-const JQUERY_PATH = join(serverFolder, 'lib/jquery.d.ts');
+const sewvewFowda = basename(__diwname) === 'dist' ? diwname(__diwname) : diwname(diwname(__diwname));
+const TYPESCWIPT_WIB_SOUWCE = join(sewvewFowda, '../../node_moduwes/typescwipt/wib');
+const JQUEWY_PATH = join(sewvewFowda, 'wib/jquewy.d.ts');
 
-export function loadLibrary(name: string) {
-	let content = contents[name];
-	if (typeof content !== 'string') {
-		let libPath;
-		if (name === 'jquery') {
-			libPath = JQUERY_PATH;
-		} else {
-			libPath = join(TYPESCRIPT_LIB_SOURCE, name); // from source
+expowt function woadWibwawy(name: stwing) {
+	wet content = contents[name];
+	if (typeof content !== 'stwing') {
+		wet wibPath;
+		if (name === 'jquewy') {
+			wibPath = JQUEWY_PATH;
+		} ewse {
+			wibPath = join(TYPESCWIPT_WIB_SOUWCE, name); // fwom souwce
 		}
-		try {
-			content = readFileSync(libPath).toString();
+		twy {
+			content = weadFiweSync(wibPath).toStwing();
 		} catch (e) {
-			console.log(`Unable to load library ${name} at ${libPath}: ${e.message}`);
+			consowe.wog(`Unabwe to woad wibwawy ${name} at ${wibPath}: ${e.message}`);
 			content = '';
 		}
 		contents[name] = content;
 	}
-	return content;
+	wetuwn content;
 }

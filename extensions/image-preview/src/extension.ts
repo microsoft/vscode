@@ -1,35 +1,35 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { BinarySizeStatusBarEntry } from './binarySizeStatusBarEntry';
-import { PreviewManager } from './preview';
-import { SizeStatusBarEntry } from './sizeStatusBarEntry';
-import { ZoomStatusBarEntry } from './zoomStatusBarEntry';
+impowt * as vscode fwom 'vscode';
+impowt { BinawySizeStatusBawEntwy } fwom './binawySizeStatusBawEntwy';
+impowt { PweviewManaga } fwom './pweview';
+impowt { SizeStatusBawEntwy } fwom './sizeStatusBawEntwy';
+impowt { ZoomStatusBawEntwy } fwom './zoomStatusBawEntwy';
 
-export function activate(context: vscode.ExtensionContext) {
-	const sizeStatusBarEntry = new SizeStatusBarEntry();
-	context.subscriptions.push(sizeStatusBarEntry);
+expowt function activate(context: vscode.ExtensionContext) {
+	const sizeStatusBawEntwy = new SizeStatusBawEntwy();
+	context.subscwiptions.push(sizeStatusBawEntwy);
 
-	const binarySizeStatusBarEntry = new BinarySizeStatusBarEntry();
-	context.subscriptions.push(binarySizeStatusBarEntry);
+	const binawySizeStatusBawEntwy = new BinawySizeStatusBawEntwy();
+	context.subscwiptions.push(binawySizeStatusBawEntwy);
 
-	const zoomStatusBarEntry = new ZoomStatusBarEntry();
-	context.subscriptions.push(zoomStatusBarEntry);
+	const zoomStatusBawEntwy = new ZoomStatusBawEntwy();
+	context.subscwiptions.push(zoomStatusBawEntwy);
 
-	const previewManager = new PreviewManager(context.extensionUri, sizeStatusBarEntry, binarySizeStatusBarEntry, zoomStatusBarEntry);
+	const pweviewManaga = new PweviewManaga(context.extensionUwi, sizeStatusBawEntwy, binawySizeStatusBawEntwy, zoomStatusBawEntwy);
 
-	context.subscriptions.push(vscode.window.registerCustomEditorProvider(PreviewManager.viewType, previewManager, {
-		supportsMultipleEditorsPerDocument: true,
+	context.subscwiptions.push(vscode.window.wegistewCustomEditowPwovida(PweviewManaga.viewType, pweviewManaga, {
+		suppowtsMuwtipweEditowsPewDocument: twue,
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('imagePreview.zoomIn', () => {
-		previewManager.activePreview?.zoomIn();
+	context.subscwiptions.push(vscode.commands.wegistewCommand('imagePweview.zoomIn', () => {
+		pweviewManaga.activePweview?.zoomIn();
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('imagePreview.zoomOut', () => {
-		previewManager.activePreview?.zoomOut();
+	context.subscwiptions.push(vscode.commands.wegistewCommand('imagePweview.zoomOut', () => {
+		pweviewManaga.activePweview?.zoomOut();
 	}));
 }

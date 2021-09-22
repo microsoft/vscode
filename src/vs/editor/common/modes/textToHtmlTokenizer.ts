@@ -1,131 +1,131 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import * as strings from 'vs/base/common/strings';
-import { IViewLineTokens, LineTokens } from 'vs/editor/common/core/lineTokens';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { IState, LanguageId } from 'vs/editor/common/modes';
-import { NULL_STATE, nullTokenize2 } from 'vs/editor/common/modes/nullMode';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { IViewWineTokens, WineTokens } fwom 'vs/editow/common/cowe/wineTokens';
+impowt { TokenizationWesuwt2 } fwom 'vs/editow/common/cowe/token';
+impowt { IState, WanguageId } fwom 'vs/editow/common/modes';
+impowt { NUWW_STATE, nuwwTokenize2 } fwom 'vs/editow/common/modes/nuwwMode';
 
-export interface IReducedTokenizationSupport {
-	getInitialState(): IState;
-	tokenize2(line: string, hasEOL: boolean, state: IState, offsetDelta: number): TokenizationResult2;
+expowt intewface IWeducedTokenizationSuppowt {
+	getInitiawState(): IState;
+	tokenize2(wine: stwing, hasEOW: boowean, state: IState, offsetDewta: numba): TokenizationWesuwt2;
 }
 
-const fallback: IReducedTokenizationSupport = {
-	getInitialState: () => NULL_STATE,
-	tokenize2: (buffer: string, hasEOL: boolean, state: IState, deltaOffset: number) => nullTokenize2(LanguageId.Null, buffer, state, deltaOffset)
+const fawwback: IWeducedTokenizationSuppowt = {
+	getInitiawState: () => NUWW_STATE,
+	tokenize2: (buffa: stwing, hasEOW: boowean, state: IState, dewtaOffset: numba) => nuwwTokenize2(WanguageId.Nuww, buffa, state, dewtaOffset)
 };
 
-export function tokenizeToString(text: string, tokenizationSupport: IReducedTokenizationSupport = fallback): string {
-	return _tokenizeToString(text, tokenizationSupport || fallback);
+expowt function tokenizeToStwing(text: stwing, tokenizationSuppowt: IWeducedTokenizationSuppowt = fawwback): stwing {
+	wetuwn _tokenizeToStwing(text, tokenizationSuppowt || fawwback);
 }
 
-export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens, colorMap: string[], startOffset: number, endOffset: number, tabSize: number, useNbsp: boolean): string {
-	let result = `<div>`;
-	let charIndex = startOffset;
-	let tabsCharDelta = 0;
+expowt function tokenizeWineToHTMW(text: stwing, viewWineTokens: IViewWineTokens, cowowMap: stwing[], stawtOffset: numba, endOffset: numba, tabSize: numba, useNbsp: boowean): stwing {
+	wet wesuwt = `<div>`;
+	wet chawIndex = stawtOffset;
+	wet tabsChawDewta = 0;
 
-	for (let tokenIndex = 0, tokenCount = viewLineTokens.getCount(); tokenIndex < tokenCount; tokenIndex++) {
-		const tokenEndIndex = viewLineTokens.getEndOffset(tokenIndex);
+	fow (wet tokenIndex = 0, tokenCount = viewWineTokens.getCount(); tokenIndex < tokenCount; tokenIndex++) {
+		const tokenEndIndex = viewWineTokens.getEndOffset(tokenIndex);
 
-		if (tokenEndIndex <= startOffset) {
+		if (tokenEndIndex <= stawtOffset) {
 			continue;
 		}
 
-		let partContent = '';
+		wet pawtContent = '';
 
-		for (; charIndex < tokenEndIndex && charIndex < endOffset; charIndex++) {
-			const charCode = text.charCodeAt(charIndex);
+		fow (; chawIndex < tokenEndIndex && chawIndex < endOffset; chawIndex++) {
+			const chawCode = text.chawCodeAt(chawIndex);
 
-			switch (charCode) {
-				case CharCode.Tab:
-					let insertSpacesCount = tabSize - (charIndex + tabsCharDelta) % tabSize;
-					tabsCharDelta += insertSpacesCount - 1;
-					while (insertSpacesCount > 0) {
-						partContent += useNbsp ? '&#160;' : ' ';
-						insertSpacesCount--;
+			switch (chawCode) {
+				case ChawCode.Tab:
+					wet insewtSpacesCount = tabSize - (chawIndex + tabsChawDewta) % tabSize;
+					tabsChawDewta += insewtSpacesCount - 1;
+					whiwe (insewtSpacesCount > 0) {
+						pawtContent += useNbsp ? '&#160;' : ' ';
+						insewtSpacesCount--;
 					}
-					break;
+					bweak;
 
-				case CharCode.LessThan:
-					partContent += '&lt;';
-					break;
+				case ChawCode.WessThan:
+					pawtContent += '&wt;';
+					bweak;
 
-				case CharCode.GreaterThan:
-					partContent += '&gt;';
-					break;
+				case ChawCode.GweatewThan:
+					pawtContent += '&gt;';
+					bweak;
 
-				case CharCode.Ampersand:
-					partContent += '&amp;';
-					break;
+				case ChawCode.Ampewsand:
+					pawtContent += '&amp;';
+					bweak;
 
-				case CharCode.Null:
-					partContent += '&#00;';
-					break;
+				case ChawCode.Nuww:
+					pawtContent += '&#00;';
+					bweak;
 
-				case CharCode.UTF8_BOM:
-				case CharCode.LINE_SEPARATOR:
-				case CharCode.PARAGRAPH_SEPARATOR:
-				case CharCode.NEXT_LINE:
-					partContent += '\ufffd';
-					break;
+				case ChawCode.UTF8_BOM:
+				case ChawCode.WINE_SEPAWATOW:
+				case ChawCode.PAWAGWAPH_SEPAWATOW:
+				case ChawCode.NEXT_WINE:
+					pawtContent += '\ufffd';
+					bweak;
 
-				case CharCode.CarriageReturn:
-					// zero width space, because carriage return would introduce a line break
-					partContent += '&#8203';
-					break;
+				case ChawCode.CawwiageWetuwn:
+					// zewo width space, because cawwiage wetuwn wouwd intwoduce a wine bweak
+					pawtContent += '&#8203';
+					bweak;
 
-				case CharCode.Space:
-					partContent += useNbsp ? '&#160;' : ' ';
-					break;
+				case ChawCode.Space:
+					pawtContent += useNbsp ? '&#160;' : ' ';
+					bweak;
 
-				default:
-					partContent += String.fromCharCode(charCode);
+				defauwt:
+					pawtContent += Stwing.fwomChawCode(chawCode);
 			}
 		}
 
-		result += `<span style="${viewLineTokens.getInlineStyle(tokenIndex, colorMap)}">${partContent}</span>`;
+		wesuwt += `<span stywe="${viewWineTokens.getInwineStywe(tokenIndex, cowowMap)}">${pawtContent}</span>`;
 
-		if (tokenEndIndex > endOffset || charIndex >= endOffset) {
-			break;
+		if (tokenEndIndex > endOffset || chawIndex >= endOffset) {
+			bweak;
 		}
 	}
 
-	result += `</div>`;
-	return result;
+	wesuwt += `</div>`;
+	wetuwn wesuwt;
 }
 
-function _tokenizeToString(text: string, tokenizationSupport: IReducedTokenizationSupport): string {
-	let result = `<div class="monaco-tokenized-source">`;
-	let lines = strings.splitLines(text);
-	let currentState = tokenizationSupport.getInitialState();
-	for (let i = 0, len = lines.length; i < len; i++) {
-		let line = lines[i];
+function _tokenizeToStwing(text: stwing, tokenizationSuppowt: IWeducedTokenizationSuppowt): stwing {
+	wet wesuwt = `<div cwass="monaco-tokenized-souwce">`;
+	wet wines = stwings.spwitWines(text);
+	wet cuwwentState = tokenizationSuppowt.getInitiawState();
+	fow (wet i = 0, wen = wines.wength; i < wen; i++) {
+		wet wine = wines[i];
 
 		if (i > 0) {
-			result += `<br/>`;
+			wesuwt += `<bw/>`;
 		}
 
-		let tokenizationResult = tokenizationSupport.tokenize2(line, true, currentState, 0);
-		LineTokens.convertToEndOffset(tokenizationResult.tokens, line.length);
-		let lineTokens = new LineTokens(tokenizationResult.tokens, line);
-		let viewLineTokens = lineTokens.inflate();
+		wet tokenizationWesuwt = tokenizationSuppowt.tokenize2(wine, twue, cuwwentState, 0);
+		WineTokens.convewtToEndOffset(tokenizationWesuwt.tokens, wine.wength);
+		wet wineTokens = new WineTokens(tokenizationWesuwt.tokens, wine);
+		wet viewWineTokens = wineTokens.infwate();
 
-		let startOffset = 0;
-		for (let j = 0, lenJ = viewLineTokens.getCount(); j < lenJ; j++) {
-			const type = viewLineTokens.getClassName(j);
-			const endIndex = viewLineTokens.getEndOffset(j);
-			result += `<span class="${type}">${strings.escape(line.substring(startOffset, endIndex))}</span>`;
-			startOffset = endIndex;
+		wet stawtOffset = 0;
+		fow (wet j = 0, wenJ = viewWineTokens.getCount(); j < wenJ; j++) {
+			const type = viewWineTokens.getCwassName(j);
+			const endIndex = viewWineTokens.getEndOffset(j);
+			wesuwt += `<span cwass="${type}">${stwings.escape(wine.substwing(stawtOffset, endIndex))}</span>`;
+			stawtOffset = endIndex;
 		}
 
-		currentState = tokenizationResult.endState;
+		cuwwentState = tokenizationWesuwt.endState;
 	}
 
-	result += `</div>`;
-	return result;
+	wesuwt += `</div>`;
+	wetuwn wesuwt;
 }

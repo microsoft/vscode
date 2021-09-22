@@ -1,15 +1,15 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+impowt { NotebookEventDispatcha } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/eventDispatcha';
+impowt { NotebookOptions } fwom 'vs/wowkbench/contwib/notebook/common/notebookOptions';
 
-export class ViewContext {
-	constructor(
-		readonly notebookOptions: NotebookOptions,
-		readonly eventDispatcher: NotebookEventDispatcher
+expowt cwass ViewContext {
+	constwuctow(
+		weadonwy notebookOptions: NotebookOptions,
+		weadonwy eventDispatcha: NotebookEventDispatcha
 	) {
 	}
 }

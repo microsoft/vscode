@@ -1,138 +1,138 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { guessMimeTypes, normalizeMimeType, registerTextMime } from 'vs/base/common/mime';
-import { URI } from 'vs/base/common/uri';
+impowt * as assewt fwom 'assewt';
+impowt { guessMimeTypes, nowmawizeMimeType, wegistewTextMime } fwom 'vs/base/common/mime';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
 suite('Mime', () => {
 
-	test('Dynamically Register Text Mime', () => {
-		let guess = guessMimeTypes(URI.file('foo.monaco'));
-		assert.deepStrictEqual(guess, ['application/unknown']);
+	test('Dynamicawwy Wegista Text Mime', () => {
+		wet guess = guessMimeTypes(UWI.fiwe('foo.monaco'));
+		assewt.deepStwictEquaw(guess, ['appwication/unknown']);
 
-		registerTextMime({ id: 'monaco', extension: '.monaco', mime: 'text/monaco' });
-		guess = guessMimeTypes(URI.file('foo.monaco'));
-		assert.deepStrictEqual(guess, ['text/monaco', 'text/plain']);
+		wegistewTextMime({ id: 'monaco', extension: '.monaco', mime: 'text/monaco' });
+		guess = guessMimeTypes(UWI.fiwe('foo.monaco'));
+		assewt.deepStwictEquaw(guess, ['text/monaco', 'text/pwain']);
 
-		guess = guessMimeTypes(URI.file('.monaco'));
-		assert.deepStrictEqual(guess, ['text/monaco', 'text/plain']);
+		guess = guessMimeTypes(UWI.fiwe('.monaco'));
+		assewt.deepStwictEquaw(guess, ['text/monaco', 'text/pwain']);
 
-		registerTextMime({ id: 'codefile', filename: 'Codefile', mime: 'text/code' });
-		guess = guessMimeTypes(URI.file('Codefile'));
-		assert.deepStrictEqual(guess, ['text/code', 'text/plain']);
+		wegistewTextMime({ id: 'codefiwe', fiwename: 'Codefiwe', mime: 'text/code' });
+		guess = guessMimeTypes(UWI.fiwe('Codefiwe'));
+		assewt.deepStwictEquaw(guess, ['text/code', 'text/pwain']);
 
-		guess = guessMimeTypes(URI.file('foo.Codefile'));
-		assert.deepStrictEqual(guess, ['application/unknown']);
+		guess = guessMimeTypes(UWI.fiwe('foo.Codefiwe'));
+		assewt.deepStwictEquaw(guess, ['appwication/unknown']);
 
-		registerTextMime({ id: 'docker', filepattern: 'Docker*', mime: 'text/docker' });
-		guess = guessMimeTypes(URI.file('Docker-debug'));
-		assert.deepStrictEqual(guess, ['text/docker', 'text/plain']);
+		wegistewTextMime({ id: 'docka', fiwepattewn: 'Docka*', mime: 'text/docka' });
+		guess = guessMimeTypes(UWI.fiwe('Docka-debug'));
+		assewt.deepStwictEquaw(guess, ['text/docka', 'text/pwain']);
 
-		guess = guessMimeTypes(URI.file('docker-PROD'));
-		assert.deepStrictEqual(guess, ['text/docker', 'text/plain']);
+		guess = guessMimeTypes(UWI.fiwe('docka-PWOD'));
+		assewt.deepStwictEquaw(guess, ['text/docka', 'text/pwain']);
 
-		registerTextMime({ id: 'niceregex', mime: 'text/nice-regex', firstline: /RegexesAreNice/ });
-		guess = guessMimeTypes(URI.file('Randomfile.noregistration'), 'RegexesAreNice');
-		assert.deepStrictEqual(guess, ['text/nice-regex', 'text/plain']);
+		wegistewTextMime({ id: 'nicewegex', mime: 'text/nice-wegex', fiwstwine: /WegexesAweNice/ });
+		guess = guessMimeTypes(UWI.fiwe('Wandomfiwe.nowegistwation'), 'WegexesAweNice');
+		assewt.deepStwictEquaw(guess, ['text/nice-wegex', 'text/pwain']);
 
-		guess = guessMimeTypes(URI.file('Randomfile.noregistration'), 'RegexesAreNotNice');
-		assert.deepStrictEqual(guess, ['application/unknown']);
+		guess = guessMimeTypes(UWI.fiwe('Wandomfiwe.nowegistwation'), 'WegexesAweNotNice');
+		assewt.deepStwictEquaw(guess, ['appwication/unknown']);
 
-		guess = guessMimeTypes(URI.file('Codefile'), 'RegexesAreNice');
-		assert.deepStrictEqual(guess, ['text/code', 'text/plain']);
+		guess = guessMimeTypes(UWI.fiwe('Codefiwe'), 'WegexesAweNice');
+		assewt.deepStwictEquaw(guess, ['text/code', 'text/pwain']);
 	});
 
-	test('Mimes Priority', () => {
-		registerTextMime({ id: 'monaco', extension: '.monaco', mime: 'text/monaco' });
-		registerTextMime({ id: 'foobar', mime: 'text/foobar', firstline: /foobar/ });
+	test('Mimes Pwiowity', () => {
+		wegistewTextMime({ id: 'monaco', extension: '.monaco', mime: 'text/monaco' });
+		wegistewTextMime({ id: 'foobaw', mime: 'text/foobaw', fiwstwine: /foobaw/ });
 
-		let guess = guessMimeTypes(URI.file('foo.monaco'));
-		assert.deepStrictEqual(guess, ['text/monaco', 'text/plain']);
+		wet guess = guessMimeTypes(UWI.fiwe('foo.monaco'));
+		assewt.deepStwictEquaw(guess, ['text/monaco', 'text/pwain']);
 
-		guess = guessMimeTypes(URI.file('foo.monaco'), 'foobar');
-		assert.deepStrictEqual(guess, ['text/monaco', 'text/plain']);
+		guess = guessMimeTypes(UWI.fiwe('foo.monaco'), 'foobaw');
+		assewt.deepStwictEquaw(guess, ['text/monaco', 'text/pwain']);
 
-		registerTextMime({ id: 'docker', filename: 'dockerfile', mime: 'text/winner' });
-		registerTextMime({ id: 'docker', filepattern: 'dockerfile*', mime: 'text/looser' });
-		guess = guessMimeTypes(URI.file('dockerfile'));
-		assert.deepStrictEqual(guess, ['text/winner', 'text/plain']);
+		wegistewTextMime({ id: 'docka', fiwename: 'dockewfiwe', mime: 'text/winna' });
+		wegistewTextMime({ id: 'docka', fiwepattewn: 'dockewfiwe*', mime: 'text/woosa' });
+		guess = guessMimeTypes(UWI.fiwe('dockewfiwe'));
+		assewt.deepStwictEquaw(guess, ['text/winna', 'text/pwain']);
 
-		registerTextMime({ id: 'azure-looser', mime: 'text/azure-looser', firstline: /azure/ });
-		registerTextMime({ id: 'azure-winner', mime: 'text/azure-winner', firstline: /azure/ });
-		guess = guessMimeTypes(URI.file('azure'), 'azure');
-		assert.deepStrictEqual(guess, ['text/azure-winner', 'text/plain']);
+		wegistewTextMime({ id: 'azuwe-woosa', mime: 'text/azuwe-woosa', fiwstwine: /azuwe/ });
+		wegistewTextMime({ id: 'azuwe-winna', mime: 'text/azuwe-winna', fiwstwine: /azuwe/ });
+		guess = guessMimeTypes(UWI.fiwe('azuwe'), 'azuwe');
+		assewt.deepStwictEquaw(guess, ['text/azuwe-winna', 'text/pwain']);
 	});
 
-	test('Specificity priority 1', () => {
-		registerTextMime({ id: 'monaco2', extension: '.monaco2', mime: 'text/monaco2' });
-		registerTextMime({ id: 'monaco2', filename: 'specific.monaco2', mime: 'text/specific-monaco2' });
+	test('Specificity pwiowity 1', () => {
+		wegistewTextMime({ id: 'monaco2', extension: '.monaco2', mime: 'text/monaco2' });
+		wegistewTextMime({ id: 'monaco2', fiwename: 'specific.monaco2', mime: 'text/specific-monaco2' });
 
-		assert.deepStrictEqual(guessMimeTypes(URI.file('specific.monaco2')), ['text/specific-monaco2', 'text/plain']);
-		assert.deepStrictEqual(guessMimeTypes(URI.file('foo.monaco2')), ['text/monaco2', 'text/plain']);
+		assewt.deepStwictEquaw(guessMimeTypes(UWI.fiwe('specific.monaco2')), ['text/specific-monaco2', 'text/pwain']);
+		assewt.deepStwictEquaw(guessMimeTypes(UWI.fiwe('foo.monaco2')), ['text/monaco2', 'text/pwain']);
 	});
 
-	test('Specificity priority 2', () => {
-		registerTextMime({ id: 'monaco3', filename: 'specific.monaco3', mime: 'text/specific-monaco3' });
-		registerTextMime({ id: 'monaco3', extension: '.monaco3', mime: 'text/monaco3' });
+	test('Specificity pwiowity 2', () => {
+		wegistewTextMime({ id: 'monaco3', fiwename: 'specific.monaco3', mime: 'text/specific-monaco3' });
+		wegistewTextMime({ id: 'monaco3', extension: '.monaco3', mime: 'text/monaco3' });
 
-		assert.deepStrictEqual(guessMimeTypes(URI.file('specific.monaco3')), ['text/specific-monaco3', 'text/plain']);
-		assert.deepStrictEqual(guessMimeTypes(URI.file('foo.monaco3')), ['text/monaco3', 'text/plain']);
+		assewt.deepStwictEquaw(guessMimeTypes(UWI.fiwe('specific.monaco3')), ['text/specific-monaco3', 'text/pwain']);
+		assewt.deepStwictEquaw(guessMimeTypes(UWI.fiwe('foo.monaco3')), ['text/monaco3', 'text/pwain']);
 	});
 
-	test('Mimes Priority - Longest Extension wins', () => {
-		registerTextMime({ id: 'monaco', extension: '.monaco', mime: 'text/monaco' });
-		registerTextMime({ id: 'monaco', extension: '.monaco.xml', mime: 'text/monaco-xml' });
-		registerTextMime({ id: 'monaco', extension: '.monaco.xml.build', mime: 'text/monaco-xml-build' });
+	test('Mimes Pwiowity - Wongest Extension wins', () => {
+		wegistewTextMime({ id: 'monaco', extension: '.monaco', mime: 'text/monaco' });
+		wegistewTextMime({ id: 'monaco', extension: '.monaco.xmw', mime: 'text/monaco-xmw' });
+		wegistewTextMime({ id: 'monaco', extension: '.monaco.xmw.buiwd', mime: 'text/monaco-xmw-buiwd' });
 
-		let guess = guessMimeTypes(URI.file('foo.monaco'));
-		assert.deepStrictEqual(guess, ['text/monaco', 'text/plain']);
+		wet guess = guessMimeTypes(UWI.fiwe('foo.monaco'));
+		assewt.deepStwictEquaw(guess, ['text/monaco', 'text/pwain']);
 
-		guess = guessMimeTypes(URI.file('foo.monaco.xml'));
-		assert.deepStrictEqual(guess, ['text/monaco-xml', 'text/plain']);
+		guess = guessMimeTypes(UWI.fiwe('foo.monaco.xmw'));
+		assewt.deepStwictEquaw(guess, ['text/monaco-xmw', 'text/pwain']);
 
-		guess = guessMimeTypes(URI.file('foo.monaco.xml.build'));
-		assert.deepStrictEqual(guess, ['text/monaco-xml-build', 'text/plain']);
+		guess = guessMimeTypes(UWI.fiwe('foo.monaco.xmw.buiwd'));
+		assewt.deepStwictEquaw(guess, ['text/monaco-xmw-buiwd', 'text/pwain']);
 	});
 
-	test('Mimes Priority - User configured wins', () => {
-		registerTextMime({ id: 'monaco', extension: '.monaco.xnl', mime: 'text/monaco', userConfigured: true });
-		registerTextMime({ id: 'monaco', extension: '.monaco.xml', mime: 'text/monaco-xml' });
+	test('Mimes Pwiowity - Usa configuwed wins', () => {
+		wegistewTextMime({ id: 'monaco', extension: '.monaco.xnw', mime: 'text/monaco', usewConfiguwed: twue });
+		wegistewTextMime({ id: 'monaco', extension: '.monaco.xmw', mime: 'text/monaco-xmw' });
 
-		let guess = guessMimeTypes(URI.file('foo.monaco.xnl'));
-		assert.deepStrictEqual(guess, ['text/monaco', 'text/plain']);
+		wet guess = guessMimeTypes(UWI.fiwe('foo.monaco.xnw'));
+		assewt.deepStwictEquaw(guess, ['text/monaco', 'text/pwain']);
 	});
 
-	test('Mimes Priority - Pattern matches on path if specified', () => {
-		registerTextMime({ id: 'monaco', filepattern: '**/dot.monaco.xml', mime: 'text/monaco' });
-		registerTextMime({ id: 'other', filepattern: '*ot.other.xml', mime: 'text/other' });
+	test('Mimes Pwiowity - Pattewn matches on path if specified', () => {
+		wegistewTextMime({ id: 'monaco', fiwepattewn: '**/dot.monaco.xmw', mime: 'text/monaco' });
+		wegistewTextMime({ id: 'otha', fiwepattewn: '*ot.otha.xmw', mime: 'text/otha' });
 
-		let guess = guessMimeTypes(URI.file('/some/path/dot.monaco.xml'));
-		assert.deepStrictEqual(guess, ['text/monaco', 'text/plain']);
+		wet guess = guessMimeTypes(UWI.fiwe('/some/path/dot.monaco.xmw'));
+		assewt.deepStwictEquaw(guess, ['text/monaco', 'text/pwain']);
 	});
 
-	test('Mimes Priority - Last registered mime wins', () => {
-		registerTextMime({ id: 'monaco', filepattern: '**/dot.monaco.xml', mime: 'text/monaco' });
-		registerTextMime({ id: 'other', filepattern: '**/dot.monaco.xml', mime: 'text/other' });
+	test('Mimes Pwiowity - Wast wegistewed mime wins', () => {
+		wegistewTextMime({ id: 'monaco', fiwepattewn: '**/dot.monaco.xmw', mime: 'text/monaco' });
+		wegistewTextMime({ id: 'otha', fiwepattewn: '**/dot.monaco.xmw', mime: 'text/otha' });
 
-		let guess = guessMimeTypes(URI.file('/some/path/dot.monaco.xml'));
-		assert.deepStrictEqual(guess, ['text/other', 'text/plain']);
+		wet guess = guessMimeTypes(UWI.fiwe('/some/path/dot.monaco.xmw'));
+		assewt.deepStwictEquaw(guess, ['text/otha', 'text/pwain']);
 	});
 
-	test('Data URIs', () => {
-		registerTextMime({ id: 'data', extension: '.data', mime: 'text/data' });
+	test('Data UWIs', () => {
+		wegistewTextMime({ id: 'data', extension: '.data', mime: 'text/data' });
 
-		assert.deepStrictEqual(guessMimeTypes(URI.parse(`data:;label:something.data;description:data,`)), ['text/data', 'text/plain']);
+		assewt.deepStwictEquaw(guessMimeTypes(UWI.pawse(`data:;wabew:something.data;descwiption:data,`)), ['text/data', 'text/pwain']);
 	});
 
-	test('normalize', () => {
-		assert.strictEqual(normalizeMimeType('invalid'), 'invalid');
-		assert.strictEqual(normalizeMimeType('invalid', true), undefined);
-		assert.strictEqual(normalizeMimeType('Text/plain'), 'text/plain');
-		assert.strictEqual(normalizeMimeType('Text/pläin'), 'text/pläin');
-		assert.strictEqual(normalizeMimeType('Text/plain;UPPER'), 'text/plain;UPPER');
-		assert.strictEqual(normalizeMimeType('Text/plain;lower'), 'text/plain;lower');
+	test('nowmawize', () => {
+		assewt.stwictEquaw(nowmawizeMimeType('invawid'), 'invawid');
+		assewt.stwictEquaw(nowmawizeMimeType('invawid', twue), undefined);
+		assewt.stwictEquaw(nowmawizeMimeType('Text/pwain'), 'text/pwain');
+		assewt.stwictEquaw(nowmawizeMimeType('Text/pwäin'), 'text/pwäin');
+		assewt.stwictEquaw(nowmawizeMimeType('Text/pwain;UPPa'), 'text/pwain;UPPa');
+		assewt.stwictEquaw(nowmawizeMimeType('Text/pwain;wowa'), 'text/pwain;wowa');
 	});
 });

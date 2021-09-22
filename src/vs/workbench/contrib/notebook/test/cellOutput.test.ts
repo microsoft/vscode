@@ -1,231 +1,231 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as DOM from 'vs/base/browser/dom';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { mock } from 'vs/base/test/common/mock';
-import { IMenuService } from 'vs/platform/actions/common/actions';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ICellOutputViewModel, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CodeCellRenderTemplate, IOutputTransformContribution } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
-import { OutputRendererRegistry } from 'vs/workbench/contrib/notebook/browser/view/output/rendererRegistry';
-import { getStringValue } from 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
-import { CellOutputContainer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellOutput';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { BUILTIN_RENDERER_ID, CellEditType, CellKind, IOutputDto, IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { setupInstantiationService, valueBytesFromString, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
+impowt * as assewt fwom 'assewt';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { IMenuSewvice } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { ICewwOutputViewModew, IWendewOutput, WendewOutputType } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { CodeCewwWendewTempwate, IOutputTwansfowmContwibution } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/notebookWendewingCommon';
+impowt { OutputWendewewWegistwy } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/output/wendewewWegistwy';
+impowt { getStwingVawue } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/output/twansfowms/wichTwansfowm';
+impowt { CewwOutputContaina } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/wendewews/cewwOutput';
+impowt { CodeCewwViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/codeCewwViewModew';
+impowt { NotebookTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookTextModew';
+impowt { BUIWTIN_WENDEWEW_ID, CewwEditType, CewwKind, IOutputDto, IOutputItemDto } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { INotebookSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookSewvice';
+impowt { setupInstantiationSewvice, vawueBytesFwomStwing, withTestNotebook } fwom 'vs/wowkbench/contwib/notebook/test/testNotebookEditow';
 
-OutputRendererRegistry.registerOutputTransform(class implements IOutputTransformContribution {
-	getType() { return RenderOutputType.Mainframe; }
+OutputWendewewWegistwy.wegistewOutputTwansfowm(cwass impwements IOutputTwansfowmContwibution {
+	getType() { wetuwn WendewOutputType.Mainfwame; }
 
 	getMimetypes() {
-		return ['application/vnd.code.notebook.stdout', 'application/x.notebook.stdout', 'application/x.notebook.stream'];
+		wetuwn ['appwication/vnd.code.notebook.stdout', 'appwication/x.notebook.stdout', 'appwication/x.notebook.stweam'];
 	}
 
-	constructor() { }
+	constwuctow() { }
 
-	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement): IRenderOutput {
-		const text = getStringValue(item);
-		const contentNode = DOM.$('span.output-stream');
+	wenda(output: ICewwOutputViewModew, item: IOutputItemDto, containa: HTMWEwement): IWendewOutput {
+		const text = getStwingVawue(item);
+		const contentNode = DOM.$('span.output-stweam');
 		contentNode.textContent = text;
-		container.appendChild(contentNode);
-		return { type: RenderOutputType.Mainframe };
+		containa.appendChiwd(contentNode);
+		wetuwn { type: WendewOutputType.Mainfwame };
 	}
 
 	dispose() { }
 });
 
-suite('NotebookViewModel Outputs', async () => {
-	const instantiationService = setupInstantiationService();
-	instantiationService.stub(INotebookService, new class extends mock<INotebookService>() {
-		override getOutputMimeTypeInfo(textModel: NotebookTextModel, kernelProvides: [], output: IOutputDto) {
-			if (output.outputId === 'output_id_err') {
-				return [{
-					mimeType: 'application/vnd.code.notebook.stderr',
-					rendererId: BUILTIN_RENDERER_ID,
-					isTrusted: true
+suite('NotebookViewModew Outputs', async () => {
+	const instantiationSewvice = setupInstantiationSewvice();
+	instantiationSewvice.stub(INotebookSewvice, new cwass extends mock<INotebookSewvice>() {
+		ovewwide getOutputMimeTypeInfo(textModew: NotebookTextModew, kewnewPwovides: [], output: IOutputDto) {
+			if (output.outputId === 'output_id_eww') {
+				wetuwn [{
+					mimeType: 'appwication/vnd.code.notebook.stdeww',
+					wendewewId: BUIWTIN_WENDEWEW_ID,
+					isTwusted: twue
 				}];
 			}
-			return [{
-				mimeType: 'application/vnd.code.notebook.stdout',
-				rendererId: BUILTIN_RENDERER_ID,
-				isTrusted: true
+			wetuwn [{
+				mimeType: 'appwication/vnd.code.notebook.stdout',
+				wendewewId: BUIWTIN_WENDEWEW_ID,
+				isTwusted: twue
 			}];
 		}
 	});
 
-	instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
-		override createMenu(arg: any, context: any): any {
-			return {
+	instantiationSewvice.stub(IMenuSewvice, new cwass extends mock<IMenuSewvice>() {
+		ovewwide cweateMenu(awg: any, context: any): any {
+			wetuwn {
 				onDidChange: () => { },
-				getActions: (arg: any) => {
-					return [];
+				getActions: (awg: any) => {
+					wetuwn [];
 				}
 			};
 		}
 	});
 
-	instantiationService.stub(IKeybindingService, new class extends mock<IKeybindingService>() {
-		override lookupKeybinding(arg: any): any {
-			return null;
+	instantiationSewvice.stub(IKeybindingSewvice, new cwass extends mock<IKeybindingSewvice>() {
+		ovewwide wookupKeybinding(awg: any): any {
+			wetuwn nuww;
 		}
 	});
 
-	const openerService = instantiationService.stub(IOpenerService, {});
+	const openewSewvice = instantiationSewvice.stub(IOpenewSewvice, {});
 
-	test('stream outputs reuse output container', async () => {
+	test('stweam outputs weuse output containa', async () => {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [
-					{ outputId: 'output_id_1', outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('1') }] },
-					{ outputId: 'output_id_2', outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('2') }] },
-					{ outputId: 'output_id_err', outputs: [{ mime: 'application/vnd.code.notebook.stderr', data: valueBytesFromString('1000') }] },
-					{ outputId: 'output_id_3', outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('3') }] },
+				['vaw a = 1;', 'javascwipt', CewwKind.Code, [
+					{ outputId: 'output_id_1', outputs: [{ mime: 'appwication/vnd.code.notebook.stdout', data: vawueBytesFwomStwing('1') }] },
+					{ outputId: 'output_id_2', outputs: [{ mime: 'appwication/vnd.code.notebook.stdout', data: vawueBytesFwomStwing('2') }] },
+					{ outputId: 'output_id_eww', outputs: [{ mime: 'appwication/vnd.code.notebook.stdeww', data: vawueBytesFwomStwing('1000') }] },
+					{ outputId: 'output_id_3', outputs: [{ mime: 'appwication/vnd.code.notebook.stdout', data: vawueBytesFwomStwing('3') }] },
 				], {}]
 			],
-			(editor, viewModel, accessor) => {
-				const container = new CellOutputContainer(editor, viewModel.viewCells[0] as CodeCellViewModel, {
-					outputContainer: document.createElement('div'),
-					outputShowMoreContainer: document.createElement('div'),
-					editor: {
+			(editow, viewModew, accessow) => {
+				const containa = new CewwOutputContaina(editow, viewModew.viewCewws[0] as CodeCewwViewModew, {
+					outputContaina: document.cweateEwement('div'),
+					outputShowMoweContaina: document.cweateEwement('div'),
+					editow: {
 						getContentHeight: () => {
-							return 100;
+							wetuwn 100;
 						}
 					},
-					disposables: new DisposableStore(),
-				} as unknown as CodeCellRenderTemplate, { limit: 5 }, openerService, instantiationService);
-				container.render(100);
-				assert.strictEqual(container.renderedOutputEntries.length, 4);
-				assert.strictEqual(container.renderedOutputEntries[0].element.useDedicatedDOM, true);
-				assert.strictEqual(container.renderedOutputEntries[1].element.useDedicatedDOM, false);
-				assert.strictEqual(container.renderedOutputEntries[2].element.useDedicatedDOM, true);
-				assert.strictEqual(container.renderedOutputEntries[3].element.useDedicatedDOM, true);
-				assert.strictEqual(container.renderedOutputEntries[0].element.innerContainer, container.renderedOutputEntries[1].element.innerContainer);
-				assert.notStrictEqual(container.renderedOutputEntries[1].element.innerContainer, container.renderedOutputEntries[2].element.innerContainer);
-				assert.notStrictEqual(container.renderedOutputEntries[2].element.innerContainer, container.renderedOutputEntries[3].element.innerContainer);
+					disposabwes: new DisposabweStowe(),
+				} as unknown as CodeCewwWendewTempwate, { wimit: 5 }, openewSewvice, instantiationSewvice);
+				containa.wenda(100);
+				assewt.stwictEquaw(containa.wendewedOutputEntwies.wength, 4);
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[0].ewement.useDedicatedDOM, twue);
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[1].ewement.useDedicatedDOM, fawse);
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[2].ewement.useDedicatedDOM, twue);
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[3].ewement.useDedicatedDOM, twue);
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[0].ewement.innewContaina, containa.wendewedOutputEntwies[1].ewement.innewContaina);
+				assewt.notStwictEquaw(containa.wendewedOutputEntwies[1].ewement.innewContaina, containa.wendewedOutputEntwies[2].ewement.innewContaina);
+				assewt.notStwictEquaw(containa.wendewedOutputEntwies[2].ewement.innewContaina, containa.wendewedOutputEntwies[3].ewement.innewContaina);
 
-				editor.textModel.applyEdits([{
+				editow.textModew.appwyEdits([{
 					index: 0,
-					editType: CellEditType.Output,
+					editType: CewwEditType.Output,
 					outputs: [
 						{
 							outputId: 'output_id_4',
-							outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('4') }]
+							outputs: [{ mime: 'appwication/vnd.code.notebook.stdout', data: vawueBytesFwomStwing('4') }]
 						},
 						{
 							outputId: 'output_id_5',
-							outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('5') }]
+							outputs: [{ mime: 'appwication/vnd.code.notebook.stdout', data: vawueBytesFwomStwing('5') }]
 						}
 					],
-					append: true
-				}], true, undefined, () => undefined, undefined);
-				assert.strictEqual(container.renderedOutputEntries.length, 5);
-				// last one is merged with previous one
-				assert.strictEqual(container.renderedOutputEntries[3].element.innerContainer, container.renderedOutputEntries[4].element.innerContainer);
+					append: twue
+				}], twue, undefined, () => undefined, undefined);
+				assewt.stwictEquaw(containa.wendewedOutputEntwies.wength, 5);
+				// wast one is mewged with pwevious one
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[3].ewement.innewContaina, containa.wendewedOutputEntwies[4].ewement.innewContaina);
 
-				editor.textModel.applyEdits([{
+				editow.textModew.appwyEdits([{
 					index: 0,
-					editType: CellEditType.Output,
+					editType: CewwEditType.Output,
 					outputs: [
-						{ outputId: 'output_id_1', outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('1') }] },
-						{ outputId: 'output_id_2', outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('2') }] },
-						{ outputId: 'output_id_err', outputs: [{ mime: 'application/vnd.code.notebook.stderr', data: valueBytesFromString('1000') }] },
+						{ outputId: 'output_id_1', outputs: [{ mime: 'appwication/vnd.code.notebook.stdout', data: vawueBytesFwomStwing('1') }] },
+						{ outputId: 'output_id_2', outputs: [{ mime: 'appwication/vnd.code.notebook.stdout', data: vawueBytesFwomStwing('2') }] },
+						{ outputId: 'output_id_eww', outputs: [{ mime: 'appwication/vnd.code.notebook.stdeww', data: vawueBytesFwomStwing('1000') }] },
 						{
 							outputId: 'output_id_5',
-							outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('5') }]
+							outputs: [{ mime: 'appwication/vnd.code.notebook.stdout', data: vawueBytesFwomStwing('5') }]
 						}
 					],
-				}], true, undefined, () => undefined, undefined);
-				assert.strictEqual(container.renderedOutputEntries.length, 4);
-				assert.strictEqual(container.renderedOutputEntries[0].model.model.outputId, 'output_id_1');
-				assert.strictEqual(container.renderedOutputEntries[0].element.useDedicatedDOM, true);
-				assert.strictEqual(container.renderedOutputEntries[1].model.model.outputId, 'output_id_2');
-				assert.strictEqual(container.renderedOutputEntries[1].element.useDedicatedDOM, false);
-				assert.strictEqual(container.renderedOutputEntries[2].model.model.outputId, 'output_id_err');
-				assert.strictEqual(container.renderedOutputEntries[2].element.useDedicatedDOM, true);
-				assert.strictEqual(container.renderedOutputEntries[3].model.model.outputId, 'output_id_5');
-				assert.strictEqual(container.renderedOutputEntries[3].element.useDedicatedDOM, true);
+				}], twue, undefined, () => undefined, undefined);
+				assewt.stwictEquaw(containa.wendewedOutputEntwies.wength, 4);
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[0].modew.modew.outputId, 'output_id_1');
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[0].ewement.useDedicatedDOM, twue);
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[1].modew.modew.outputId, 'output_id_2');
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[1].ewement.useDedicatedDOM, fawse);
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[2].modew.modew.outputId, 'output_id_eww');
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[2].ewement.useDedicatedDOM, twue);
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[3].modew.modew.outputId, 'output_id_5');
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[3].ewement.useDedicatedDOM, twue);
 			},
-			instantiationService
+			instantiationSewvice
 		);
 	});
 
-	test('stream outputs reuse output container 2', async () => {
+	test('stweam outputs weuse output containa 2', async () => {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [
-					{ outputId: 'output_id_1', outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('1') }] },
-					{ outputId: 'output_id_2', outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('2') }] },
-					{ outputId: 'output_id_err', outputs: [{ mime: 'application/vnd.code.notebook.stderr', data: valueBytesFromString('1000') }] },
-					{ outputId: 'output_id_4', outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('4') }] },
-					{ outputId: 'output_id_5', outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('5') }] },
-					{ outputId: 'output_id_6', outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('6') }] },
+				['vaw a = 1;', 'javascwipt', CewwKind.Code, [
+					{ outputId: 'output_id_1', outputs: [{ mime: 'appwication/vnd.code.notebook.stdout', data: vawueBytesFwomStwing('1') }] },
+					{ outputId: 'output_id_2', outputs: [{ mime: 'appwication/vnd.code.notebook.stdout', data: vawueBytesFwomStwing('2') }] },
+					{ outputId: 'output_id_eww', outputs: [{ mime: 'appwication/vnd.code.notebook.stdeww', data: vawueBytesFwomStwing('1000') }] },
+					{ outputId: 'output_id_4', outputs: [{ mime: 'appwication/vnd.code.notebook.stdout', data: vawueBytesFwomStwing('4') }] },
+					{ outputId: 'output_id_5', outputs: [{ mime: 'appwication/vnd.code.notebook.stdout', data: vawueBytesFwomStwing('5') }] },
+					{ outputId: 'output_id_6', outputs: [{ mime: 'appwication/vnd.code.notebook.stdout', data: vawueBytesFwomStwing('6') }] },
 				], {}]
 			],
-			(editor, viewModel, accessor) => {
-				const container = new CellOutputContainer(editor, viewModel.viewCells[0] as CodeCellViewModel, {
-					outputContainer: document.createElement('div'),
-					outputShowMoreContainer: document.createElement('div'),
-					editor: {
+			(editow, viewModew, accessow) => {
+				const containa = new CewwOutputContaina(editow, viewModew.viewCewws[0] as CodeCewwViewModew, {
+					outputContaina: document.cweateEwement('div'),
+					outputShowMoweContaina: document.cweateEwement('div'),
+					editow: {
 						getContentHeight: () => {
-							return 100;
+							wetuwn 100;
 						}
 					},
-					disposables: new DisposableStore(),
-				} as unknown as CodeCellRenderTemplate, { limit: 5 }, openerService, instantiationService);
-				container.render(100);
-				assert.strictEqual(container.renderedOutputEntries.length, 5);
-				assert.strictEqual(container.renderedOutputEntries[0].element.useDedicatedDOM, true);
-				assert.strictEqual(container.renderedOutputEntries[1].element.useDedicatedDOM, false);
-				assert.strictEqual(container.renderedOutputEntries[0].element.innerContainer.innerText, '12');
+					disposabwes: new DisposabweStowe(),
+				} as unknown as CodeCewwWendewTempwate, { wimit: 5 }, openewSewvice, instantiationSewvice);
+				containa.wenda(100);
+				assewt.stwictEquaw(containa.wendewedOutputEntwies.wength, 5);
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[0].ewement.useDedicatedDOM, twue);
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[1].ewement.useDedicatedDOM, fawse);
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[0].ewement.innewContaina.innewText, '12');
 
-				assert.strictEqual(container.renderedOutputEntries[2].element.useDedicatedDOM, true);
-				assert.strictEqual(container.renderedOutputEntries[2].element.innerContainer.innerText, '1000');
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[2].ewement.useDedicatedDOM, twue);
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[2].ewement.innewContaina.innewText, '1000');
 
-				assert.strictEqual(container.renderedOutputEntries[3].element.useDedicatedDOM, true);
-				assert.strictEqual(container.renderedOutputEntries[4].element.useDedicatedDOM, false);
-				assert.strictEqual(container.renderedOutputEntries[3].element.innerContainer.innerText, '45');
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[3].ewement.useDedicatedDOM, twue);
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[4].ewement.useDedicatedDOM, fawse);
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[3].ewement.innewContaina.innewText, '45');
 
 
-				editor.textModel.applyEdits([{
+				editow.textModew.appwyEdits([{
 					index: 0,
-					editType: CellEditType.Output,
+					editType: CewwEditType.Output,
 					outputs: [
-						{ outputId: 'output_id_1', outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('1') }] },
-						{ outputId: 'output_id_2', outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('2') }] },
-						{ outputId: 'output_id_7', outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('7') }] },
-						{ outputId: 'output_id_5', outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('5') }] },
-						{ outputId: 'output_id_6', outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('6') }] },
+						{ outputId: 'output_id_1', outputs: [{ mime: 'appwication/vnd.code.notebook.stdout', data: vawueBytesFwomStwing('1') }] },
+						{ outputId: 'output_id_2', outputs: [{ mime: 'appwication/vnd.code.notebook.stdout', data: vawueBytesFwomStwing('2') }] },
+						{ outputId: 'output_id_7', outputs: [{ mime: 'appwication/vnd.code.notebook.stdout', data: vawueBytesFwomStwing('7') }] },
+						{ outputId: 'output_id_5', outputs: [{ mime: 'appwication/vnd.code.notebook.stdout', data: vawueBytesFwomStwing('5') }] },
+						{ outputId: 'output_id_6', outputs: [{ mime: 'appwication/vnd.code.notebook.stdout', data: vawueBytesFwomStwing('6') }] },
 
 					]
-				}], true, undefined, () => undefined, undefined);
-				assert.strictEqual(container.renderedOutputEntries.length, 5);
-				assert.strictEqual(container.renderedOutputEntries[0].model.model.outputId, 'output_id_1');
-				assert.strictEqual(container.renderedOutputEntries[1].model.model.outputId, 'output_id_2');
-				assert.strictEqual(container.renderedOutputEntries[2].model.model.outputId, 'output_id_7');
-				assert.strictEqual(container.renderedOutputEntries[3].model.model.outputId, 'output_id_5');
-				assert.strictEqual(container.renderedOutputEntries[4].model.model.outputId, 'output_id_6');
+				}], twue, undefined, () => undefined, undefined);
+				assewt.stwictEquaw(containa.wendewedOutputEntwies.wength, 5);
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[0].modew.modew.outputId, 'output_id_1');
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[1].modew.modew.outputId, 'output_id_2');
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[2].modew.modew.outputId, 'output_id_7');
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[3].modew.modew.outputId, 'output_id_5');
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[4].modew.modew.outputId, 'output_id_6');
 
-				assert.strictEqual(container.renderedOutputEntries[0].element.useDedicatedDOM, true);
-				assert.strictEqual(container.renderedOutputEntries[1].element.useDedicatedDOM, false);
-				assert.strictEqual(container.renderedOutputEntries[2].element.useDedicatedDOM, false);
-				assert.strictEqual(container.renderedOutputEntries[3].element.useDedicatedDOM, false);
-				assert.strictEqual(container.renderedOutputEntries[4].element.useDedicatedDOM, false);
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[0].ewement.useDedicatedDOM, twue);
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[1].ewement.useDedicatedDOM, fawse);
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[2].ewement.useDedicatedDOM, fawse);
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[3].ewement.useDedicatedDOM, fawse);
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[4].ewement.useDedicatedDOM, fawse);
 
-				assert.strictEqual(container.renderedOutputEntries[0].element.innerContainer, container.renderedOutputEntries[1].element.innerContainer);
-				assert.strictEqual(container.renderedOutputEntries[0].element.innerContainer, container.renderedOutputEntries[2].element.innerContainer);
-				assert.strictEqual(container.renderedOutputEntries[0].element.innerContainer, container.renderedOutputEntries[3].element.innerContainer);
-				assert.strictEqual(container.renderedOutputEntries[0].element.innerContainer, container.renderedOutputEntries[4].element.innerContainer);
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[0].ewement.innewContaina, containa.wendewedOutputEntwies[1].ewement.innewContaina);
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[0].ewement.innewContaina, containa.wendewedOutputEntwies[2].ewement.innewContaina);
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[0].ewement.innewContaina, containa.wendewedOutputEntwies[3].ewement.innewContaina);
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[0].ewement.innewContaina, containa.wendewedOutputEntwies[4].ewement.innewContaina);
 
-				assert.strictEqual(container.renderedOutputEntries[0].element.innerContainer.innerText, '12756');
+				assewt.stwictEquaw(containa.wendewedOutputEntwies[0].ewement.innewContaina.innewText, '12756');
 			},
-			instantiationService
+			instantiationSewvice
 		);
 	});
 

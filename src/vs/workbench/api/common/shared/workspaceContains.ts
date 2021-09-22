@@ -1,137 +1,137 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as resources from 'vs/base/common/resources';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
-import * as errors from 'vs/base/common/errors';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
-import { ISearchService } from 'vs/workbench/services/search/common/search';
-import { toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+impowt * as wesouwces fwom 'vs/base/common/wesouwces';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { CancewwationTokenSouwce, CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt * as ewwows fwom 'vs/base/common/ewwows';
+impowt { ExtensionIdentifia, IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { QuewyBuiwda } fwom 'vs/wowkbench/contwib/seawch/common/quewyBuiwda';
+impowt { ISeawchSewvice } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { toWowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
 
-const WORKSPACE_CONTAINS_TIMEOUT = 7000;
+const WOWKSPACE_CONTAINS_TIMEOUT = 7000;
 
-export interface IExtensionActivationHost {
-	readonly folders: readonly UriComponents[];
-	readonly forceUsingSearch: boolean;
+expowt intewface IExtensionActivationHost {
+	weadonwy fowdews: weadonwy UwiComponents[];
+	weadonwy fowceUsingSeawch: boowean;
 
-	exists(uri: URI): Promise<boolean>;
-	checkExists(folders: readonly UriComponents[], includes: string[], token: CancellationToken): Promise<boolean>;
+	exists(uwi: UWI): Pwomise<boowean>;
+	checkExists(fowdews: weadonwy UwiComponents[], incwudes: stwing[], token: CancewwationToken): Pwomise<boowean>;
 }
 
-export interface IExtensionActivationResult {
-	activationEvent: string;
+expowt intewface IExtensionActivationWesuwt {
+	activationEvent: stwing;
 }
 
-export function checkActivateWorkspaceContainsExtension(host: IExtensionActivationHost, desc: IExtensionDescription): Promise<IExtensionActivationResult | undefined> {
+expowt function checkActivateWowkspaceContainsExtension(host: IExtensionActivationHost, desc: IExtensionDescwiption): Pwomise<IExtensionActivationWesuwt | undefined> {
 	const activationEvents = desc.activationEvents;
 	if (!activationEvents) {
-		return Promise.resolve(undefined);
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	const fileNames: string[] = [];
-	const globPatterns: string[] = [];
+	const fiweNames: stwing[] = [];
+	const gwobPattewns: stwing[] = [];
 
-	for (const activationEvent of activationEvents) {
-		if (/^workspaceContains:/.test(activationEvent)) {
-			const fileNameOrGlob = activationEvent.substr('workspaceContains:'.length);
-			if (fileNameOrGlob.indexOf('*') >= 0 || fileNameOrGlob.indexOf('?') >= 0 || host.forceUsingSearch) {
-				globPatterns.push(fileNameOrGlob);
-			} else {
-				fileNames.push(fileNameOrGlob);
+	fow (const activationEvent of activationEvents) {
+		if (/^wowkspaceContains:/.test(activationEvent)) {
+			const fiweNameOwGwob = activationEvent.substw('wowkspaceContains:'.wength);
+			if (fiweNameOwGwob.indexOf('*') >= 0 || fiweNameOwGwob.indexOf('?') >= 0 || host.fowceUsingSeawch) {
+				gwobPattewns.push(fiweNameOwGwob);
+			} ewse {
+				fiweNames.push(fiweNameOwGwob);
 			}
 		}
 	}
 
-	if (fileNames.length === 0 && globPatterns.length === 0) {
-		return Promise.resolve(undefined);
+	if (fiweNames.wength === 0 && gwobPattewns.wength === 0) {
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	let resolveResult: (value: IExtensionActivationResult | undefined) => void;
-	const result = new Promise<IExtensionActivationResult | undefined>((resolve, reject) => { resolveResult = resolve; });
-	const activate = (activationEvent: string) => resolveResult({ activationEvent });
+	wet wesowveWesuwt: (vawue: IExtensionActivationWesuwt | undefined) => void;
+	const wesuwt = new Pwomise<IExtensionActivationWesuwt | undefined>((wesowve, weject) => { wesowveWesuwt = wesowve; });
+	const activate = (activationEvent: stwing) => wesowveWesuwt({ activationEvent });
 
-	const fileNamePromise = Promise.all(fileNames.map((fileName) => _activateIfFileName(host, fileName, activate))).then(() => { });
-	const globPatternPromise = _activateIfGlobPatterns(host, desc.identifier, globPatterns, activate);
+	const fiweNamePwomise = Pwomise.aww(fiweNames.map((fiweName) => _activateIfFiweName(host, fiweName, activate))).then(() => { });
+	const gwobPattewnPwomise = _activateIfGwobPattewns(host, desc.identifia, gwobPattewns, activate);
 
-	Promise.all([fileNamePromise, globPatternPromise]).then(() => {
-		// when all are done, resolve with undefined (relevant only if it was not activated so far)
-		resolveResult(undefined);
+	Pwomise.aww([fiweNamePwomise, gwobPattewnPwomise]).then(() => {
+		// when aww awe done, wesowve with undefined (wewevant onwy if it was not activated so faw)
+		wesowveWesuwt(undefined);
 	});
 
-	return result;
+	wetuwn wesuwt;
 }
 
-async function _activateIfFileName(host: IExtensionActivationHost, fileName: string, activate: (activationEvent: string) => void): Promise<void> {
+async function _activateIfFiweName(host: IExtensionActivationHost, fiweName: stwing, activate: (activationEvent: stwing) => void): Pwomise<void> {
 	// find exact path
-	for (const uri of host.folders) {
-		if (await host.exists(resources.joinPath(URI.revive(uri), fileName))) {
-			// the file was found
-			activate(`workspaceContains:${fileName}`);
-			return;
+	fow (const uwi of host.fowdews) {
+		if (await host.exists(wesouwces.joinPath(UWI.wevive(uwi), fiweName))) {
+			// the fiwe was found
+			activate(`wowkspaceContains:${fiweName}`);
+			wetuwn;
 		}
 	}
 }
 
-async function _activateIfGlobPatterns(host: IExtensionActivationHost, extensionId: ExtensionIdentifier, globPatterns: string[], activate: (activationEvent: string) => void): Promise<void> {
-	if (globPatterns.length === 0) {
-		return Promise.resolve(undefined);
+async function _activateIfGwobPattewns(host: IExtensionActivationHost, extensionId: ExtensionIdentifia, gwobPattewns: stwing[], activate: (activationEvent: stwing) => void): Pwomise<void> {
+	if (gwobPattewns.wength === 0) {
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	const tokenSource = new CancellationTokenSource();
-	const searchP = host.checkExists(host.folders, globPatterns, tokenSource.token);
+	const tokenSouwce = new CancewwationTokenSouwce();
+	const seawchP = host.checkExists(host.fowdews, gwobPattewns, tokenSouwce.token);
 
-	const timer = setTimeout(async () => {
-		tokenSource.cancel();
-		activate(`workspaceContainsTimeout:${globPatterns.join(',')}`);
-	}, WORKSPACE_CONTAINS_TIMEOUT);
+	const tima = setTimeout(async () => {
+		tokenSouwce.cancew();
+		activate(`wowkspaceContainsTimeout:${gwobPattewns.join(',')}`);
+	}, WOWKSPACE_CONTAINS_TIMEOUT);
 
-	let exists: boolean = false;
-	try {
-		exists = await searchP;
-	} catch (err) {
-		if (!errors.isPromiseCanceledError(err)) {
-			errors.onUnexpectedError(err);
+	wet exists: boowean = fawse;
+	twy {
+		exists = await seawchP;
+	} catch (eww) {
+		if (!ewwows.isPwomiseCancewedEwwow(eww)) {
+			ewwows.onUnexpectedEwwow(eww);
 		}
 	}
 
-	tokenSource.dispose();
-	clearTimeout(timer);
+	tokenSouwce.dispose();
+	cweawTimeout(tima);
 
 	if (exists) {
-		// a file was found matching one of the glob patterns
-		activate(`workspaceContains:${globPatterns.join(',')}`);
+		// a fiwe was found matching one of the gwob pattewns
+		activate(`wowkspaceContains:${gwobPattewns.join(',')}`);
 	}
 }
 
-export function checkGlobFileExists(
-	accessor: ServicesAccessor,
-	folders: readonly UriComponents[],
-	includes: string[],
-	token: CancellationToken,
-): Promise<boolean> {
-	const instantiationService = accessor.get(IInstantiationService);
-	const searchService = accessor.get(ISearchService);
-	const queryBuilder = instantiationService.createInstance(QueryBuilder);
-	const query = queryBuilder.file(folders.map(folder => toWorkspaceFolder(URI.revive(folder))), {
-		_reason: 'checkExists',
-		includePattern: includes,
-		exists: true
+expowt function checkGwobFiweExists(
+	accessow: SewvicesAccessow,
+	fowdews: weadonwy UwiComponents[],
+	incwudes: stwing[],
+	token: CancewwationToken,
+): Pwomise<boowean> {
+	const instantiationSewvice = accessow.get(IInstantiationSewvice);
+	const seawchSewvice = accessow.get(ISeawchSewvice);
+	const quewyBuiwda = instantiationSewvice.cweateInstance(QuewyBuiwda);
+	const quewy = quewyBuiwda.fiwe(fowdews.map(fowda => toWowkspaceFowda(UWI.wevive(fowda))), {
+		_weason: 'checkExists',
+		incwudePattewn: incwudes,
+		exists: twue
 	});
 
-	return searchService.fileSearch(query, token).then(
-		result => {
-			return !!result.limitHit;
+	wetuwn seawchSewvice.fiweSeawch(quewy, token).then(
+		wesuwt => {
+			wetuwn !!wesuwt.wimitHit;
 		},
-		err => {
-			if (!errors.isPromiseCanceledError(err)) {
-				return Promise.reject(err);
+		eww => {
+			if (!ewwows.isPwomiseCancewedEwwow(eww)) {
+				wetuwn Pwomise.weject(eww);
 			}
 
-			return false;
+			wetuwn fawse;
 		});
 }

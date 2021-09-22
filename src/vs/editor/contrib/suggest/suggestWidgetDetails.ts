@@ -1,446 +1,446 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { Codicon } from 'vs/base/common/codicons';
-import { Emitter, Event } from 'vs/base/common/event';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
-import { ICodeEditor, IOverlayWidget } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ResizableHTMLElement } from 'vs/editor/contrib/suggest/resizable';
-import * as nls from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CompletionItem } from './suggest';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { DomScwowwabweEwement } fwom 'vs/base/bwowsa/ui/scwowwbaw/scwowwabweEwement';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { MawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { MawkdownWendewa } fwom 'vs/editow/bwowsa/cowe/mawkdownWendewa';
+impowt { ICodeEditow, IOvewwayWidget } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { WesizabweHTMWEwement } fwom 'vs/editow/contwib/suggest/wesizabwe';
+impowt * as nws fwom 'vs/nws';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { CompwetionItem } fwom './suggest';
 
-export function canExpandCompletionItem(item: CompletionItem | undefined): boolean {
-	return !!item && Boolean(item.completion.documentation || item.completion.detail && item.completion.detail !== item.completion.label);
+expowt function canExpandCompwetionItem(item: CompwetionItem | undefined): boowean {
+	wetuwn !!item && Boowean(item.compwetion.documentation || item.compwetion.detaiw && item.compwetion.detaiw !== item.compwetion.wabew);
 }
 
-export class SuggestDetailsWidget {
+expowt cwass SuggestDetaiwsWidget {
 
-	readonly domNode: HTMLDivElement;
+	weadonwy domNode: HTMWDivEwement;
 
-	private readonly _onDidClose = new Emitter<void>();
-	readonly onDidClose: Event<void> = this._onDidClose.event;
+	pwivate weadonwy _onDidCwose = new Emitta<void>();
+	weadonwy onDidCwose: Event<void> = this._onDidCwose.event;
 
-	private readonly _onDidChangeContents = new Emitter<this>();
-	readonly onDidChangeContents: Event<this> = this._onDidChangeContents.event;
+	pwivate weadonwy _onDidChangeContents = new Emitta<this>();
+	weadonwy onDidChangeContents: Event<this> = this._onDidChangeContents.event;
 
-	private readonly _close: HTMLElement;
-	private readonly _scrollbar: DomScrollableElement;
-	private readonly _body: HTMLElement;
-	private readonly _header: HTMLElement;
-	private readonly _type: HTMLElement;
-	private readonly _docs: HTMLElement;
-	private readonly _disposables = new DisposableStore();
+	pwivate weadonwy _cwose: HTMWEwement;
+	pwivate weadonwy _scwowwbaw: DomScwowwabweEwement;
+	pwivate weadonwy _body: HTMWEwement;
+	pwivate weadonwy _heada: HTMWEwement;
+	pwivate weadonwy _type: HTMWEwement;
+	pwivate weadonwy _docs: HTMWEwement;
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
 
-	private readonly _markdownRenderer: MarkdownRenderer;
-	private readonly _renderDisposeable = new DisposableStore();
-	private _borderWidth: number = 1;
-	private _size = new dom.Dimension(330, 0);
+	pwivate weadonwy _mawkdownWendewa: MawkdownWendewa;
+	pwivate weadonwy _wendewDisposeabwe = new DisposabweStowe();
+	pwivate _bowdewWidth: numba = 1;
+	pwivate _size = new dom.Dimension(330, 0);
 
-	constructor(
-		private readonly _editor: ICodeEditor,
-		@IInstantiationService instaService: IInstantiationService,
+	constwuctow(
+		pwivate weadonwy _editow: ICodeEditow,
+		@IInstantiationSewvice instaSewvice: IInstantiationSewvice,
 	) {
-		this.domNode = dom.$('.suggest-details');
-		this.domNode.classList.add('no-docs');
+		this.domNode = dom.$('.suggest-detaiws');
+		this.domNode.cwassWist.add('no-docs');
 
-		this._markdownRenderer = instaService.createInstance(MarkdownRenderer, { editor: _editor });
+		this._mawkdownWendewa = instaSewvice.cweateInstance(MawkdownWendewa, { editow: _editow });
 
 		this._body = dom.$('.body');
 
-		this._scrollbar = new DomScrollableElement(this._body, {});
-		dom.append(this.domNode, this._scrollbar.getDomNode());
-		this._disposables.add(this._scrollbar);
+		this._scwowwbaw = new DomScwowwabweEwement(this._body, {});
+		dom.append(this.domNode, this._scwowwbaw.getDomNode());
+		this._disposabwes.add(this._scwowwbaw);
 
-		this._header = dom.append(this._body, dom.$('.header'));
-		this._close = dom.append(this._header, dom.$('span' + Codicon.close.cssSelector));
-		this._close.title = nls.localize('details.close', "Close");
-		this._type = dom.append(this._header, dom.$('p.type'));
+		this._heada = dom.append(this._body, dom.$('.heada'));
+		this._cwose = dom.append(this._heada, dom.$('span' + Codicon.cwose.cssSewectow));
+		this._cwose.titwe = nws.wocawize('detaiws.cwose', "Cwose");
+		this._type = dom.append(this._heada, dom.$('p.type'));
 
 		this._docs = dom.append(this._body, dom.$('p.docs'));
 
-		this._configureFont();
+		this._configuweFont();
 
-		this._disposables.add(this._editor.onDidChangeConfiguration(e => {
-			if (e.hasChanged(EditorOption.fontInfo)) {
-				this._configureFont();
+		this._disposabwes.add(this._editow.onDidChangeConfiguwation(e => {
+			if (e.hasChanged(EditowOption.fontInfo)) {
+				this._configuweFont();
 			}
 		}));
 	}
 
 	dispose(): void {
-		this._disposables.dispose();
-		this._renderDisposeable.dispose();
+		this._disposabwes.dispose();
+		this._wendewDisposeabwe.dispose();
 	}
 
-	private _configureFont(): void {
-		const options = this._editor.getOptions();
-		const fontInfo = options.get(EditorOption.fontInfo);
-		const fontFamily = fontInfo.fontFamily;
-		const fontSize = options.get(EditorOption.suggestFontSize) || fontInfo.fontSize;
-		const lineHeight = options.get(EditorOption.suggestLineHeight) || fontInfo.lineHeight;
+	pwivate _configuweFont(): void {
+		const options = this._editow.getOptions();
+		const fontInfo = options.get(EditowOption.fontInfo);
+		const fontFamiwy = fontInfo.fontFamiwy;
+		const fontSize = options.get(EditowOption.suggestFontSize) || fontInfo.fontSize;
+		const wineHeight = options.get(EditowOption.suggestWineHeight) || fontInfo.wineHeight;
 		const fontWeight = fontInfo.fontWeight;
 		const fontSizePx = `${fontSize}px`;
-		const lineHeightPx = `${lineHeight}px`;
+		const wineHeightPx = `${wineHeight}px`;
 
-		this.domNode.style.fontSize = fontSizePx;
-		this.domNode.style.lineHeight = lineHeightPx;
-		this.domNode.style.fontWeight = fontWeight;
-		this.domNode.style.fontFeatureSettings = fontInfo.fontFeatureSettings;
-		this._type.style.fontFamily = fontFamily;
-		this._close.style.height = lineHeightPx;
-		this._close.style.width = lineHeightPx;
+		this.domNode.stywe.fontSize = fontSizePx;
+		this.domNode.stywe.wineHeight = wineHeightPx;
+		this.domNode.stywe.fontWeight = fontWeight;
+		this.domNode.stywe.fontFeatuweSettings = fontInfo.fontFeatuweSettings;
+		this._type.stywe.fontFamiwy = fontFamiwy;
+		this._cwose.stywe.height = wineHeightPx;
+		this._cwose.stywe.width = wineHeightPx;
 	}
 
-	getLayoutInfo() {
-		const lineHeight = this._editor.getOption(EditorOption.suggestLineHeight) || this._editor.getOption(EditorOption.fontInfo).lineHeight;
-		const borderWidth = this._borderWidth;
-		const borderHeight = borderWidth * 2;
-		return {
-			lineHeight,
-			borderWidth,
-			borderHeight,
-			verticalPadding: 22,
-			horizontalPadding: 14
+	getWayoutInfo() {
+		const wineHeight = this._editow.getOption(EditowOption.suggestWineHeight) || this._editow.getOption(EditowOption.fontInfo).wineHeight;
+		const bowdewWidth = this._bowdewWidth;
+		const bowdewHeight = bowdewWidth * 2;
+		wetuwn {
+			wineHeight,
+			bowdewWidth,
+			bowdewHeight,
+			vewticawPadding: 22,
+			howizontawPadding: 14
 		};
 	}
 
 
-	renderLoading(): void {
-		this._type.textContent = nls.localize('loading', "Loading...");
+	wendewWoading(): void {
+		this._type.textContent = nws.wocawize('woading', "Woading...");
 		this._docs.textContent = '';
-		this.domNode.classList.remove('no-docs', 'no-type');
-		this.layout(this.size.width, this.getLayoutInfo().lineHeight * 2);
-		this._onDidChangeContents.fire(this);
+		this.domNode.cwassWist.wemove('no-docs', 'no-type');
+		this.wayout(this.size.width, this.getWayoutInfo().wineHeight * 2);
+		this._onDidChangeContents.fiwe(this);
 	}
 
-	renderItem(item: CompletionItem, explainMode: boolean): void {
-		this._renderDisposeable.clear();
+	wendewItem(item: CompwetionItem, expwainMode: boowean): void {
+		this._wendewDisposeabwe.cweaw();
 
-		let { detail, documentation } = item.completion;
+		wet { detaiw, documentation } = item.compwetion;
 
-		if (explainMode) {
-			let md = '';
-			md += `score: ${item.score[0]}\n`;
-			md += `prefix: ${item.word ?? '(no prefix)'}\n`;
-			md += `word: ${item.completion.filterText ? item.completion.filterText + ' (filterText)' : item.textLabel}\n`;
-			md += `distance: ${item.distance} (localityBonus-setting)\n`;
-			md += `index: ${item.idx}, based on ${item.completion.sortText && `sortText: "${item.completion.sortText}"` || 'label'}\n`;
-			md += `commit_chars: ${item.completion.commitCharacters?.join('')}\n`;
-			documentation = new MarkdownString().appendCodeblock('empty', md);
-			detail = `Provider: ${item.provider._debugDisplayName}`;
+		if (expwainMode) {
+			wet md = '';
+			md += `scowe: ${item.scowe[0]}\n`;
+			md += `pwefix: ${item.wowd ?? '(no pwefix)'}\n`;
+			md += `wowd: ${item.compwetion.fiwtewText ? item.compwetion.fiwtewText + ' (fiwtewText)' : item.textWabew}\n`;
+			md += `distance: ${item.distance} (wocawityBonus-setting)\n`;
+			md += `index: ${item.idx}, based on ${item.compwetion.sowtText && `sowtText: "${item.compwetion.sowtText}"` || 'wabew'}\n`;
+			md += `commit_chaws: ${item.compwetion.commitChawactews?.join('')}\n`;
+			documentation = new MawkdownStwing().appendCodebwock('empty', md);
+			detaiw = `Pwovida: ${item.pwovida._debugDispwayName}`;
 		}
 
-		if (!explainMode && !canExpandCompletionItem(item)) {
-			this.clearContents();
-			return;
+		if (!expwainMode && !canExpandCompwetionItem(item)) {
+			this.cweawContents();
+			wetuwn;
 		}
 
-		this.domNode.classList.remove('no-docs', 'no-type');
+		this.domNode.cwassWist.wemove('no-docs', 'no-type');
 
-		// --- details
+		// --- detaiws
 
-		if (detail) {
-			const cappedDetail = detail.length > 100000 ? `${detail.substr(0, 100000)}…` : detail;
-			this._type.textContent = cappedDetail;
-			this._type.title = cappedDetail;
+		if (detaiw) {
+			const cappedDetaiw = detaiw.wength > 100000 ? `${detaiw.substw(0, 100000)}…` : detaiw;
+			this._type.textContent = cappedDetaiw;
+			this._type.titwe = cappedDetaiw;
 			dom.show(this._type);
-			this._type.classList.toggle('auto-wrap', !/\r?\n^\s+/gmi.test(cappedDetail));
-		} else {
-			dom.clearNode(this._type);
-			this._type.title = '';
+			this._type.cwassWist.toggwe('auto-wwap', !/\w?\n^\s+/gmi.test(cappedDetaiw));
+		} ewse {
+			dom.cweawNode(this._type);
+			this._type.titwe = '';
 			dom.hide(this._type);
-			this.domNode.classList.add('no-type');
+			this.domNode.cwassWist.add('no-type');
 		}
 
 		// --- documentation
-		dom.clearNode(this._docs);
-		if (typeof documentation === 'string') {
-			this._docs.classList.remove('markdown-docs');
+		dom.cweawNode(this._docs);
+		if (typeof documentation === 'stwing') {
+			this._docs.cwassWist.wemove('mawkdown-docs');
 			this._docs.textContent = documentation;
 
-		} else if (documentation) {
-			this._docs.classList.add('markdown-docs');
-			dom.clearNode(this._docs);
-			const renderedContents = this._markdownRenderer.render(documentation);
-			this._docs.appendChild(renderedContents.element);
-			this._renderDisposeable.add(renderedContents);
-			this._renderDisposeable.add(this._markdownRenderer.onDidRenderAsync(() => {
-				this.layout(this._size.width, this._type.clientHeight + this._docs.clientHeight);
-				this._onDidChangeContents.fire(this);
+		} ewse if (documentation) {
+			this._docs.cwassWist.add('mawkdown-docs');
+			dom.cweawNode(this._docs);
+			const wendewedContents = this._mawkdownWendewa.wenda(documentation);
+			this._docs.appendChiwd(wendewedContents.ewement);
+			this._wendewDisposeabwe.add(wendewedContents);
+			this._wendewDisposeabwe.add(this._mawkdownWendewa.onDidWendewAsync(() => {
+				this.wayout(this._size.width, this._type.cwientHeight + this._docs.cwientHeight);
+				this._onDidChangeContents.fiwe(this);
 			}));
 		}
 
-		this.domNode.style.userSelect = 'text';
+		this.domNode.stywe.usewSewect = 'text';
 		this.domNode.tabIndex = -1;
 
-		this._close.onmousedown = e => {
-			e.preventDefault();
-			e.stopPropagation();
+		this._cwose.onmousedown = e => {
+			e.pweventDefauwt();
+			e.stopPwopagation();
 		};
-		this._close.onclick = e => {
-			e.preventDefault();
-			e.stopPropagation();
-			this._onDidClose.fire();
+		this._cwose.oncwick = e => {
+			e.pweventDefauwt();
+			e.stopPwopagation();
+			this._onDidCwose.fiwe();
 		};
 
-		this._body.scrollTop = 0;
+		this._body.scwowwTop = 0;
 
-		this.layout(this._size.width, this._type.clientHeight + this._docs.clientHeight);
-		this._onDidChangeContents.fire(this);
+		this.wayout(this._size.width, this._type.cwientHeight + this._docs.cwientHeight);
+		this._onDidChangeContents.fiwe(this);
 	}
 
-	clearContents() {
-		this.domNode.classList.add('no-docs');
+	cweawContents() {
+		this.domNode.cwassWist.add('no-docs');
 		this._type.textContent = '';
 		this._docs.textContent = '';
 	}
 
 	get size() {
-		return this._size;
+		wetuwn this._size;
 	}
 
-	layout(width: number, height: number): void {
+	wayout(width: numba, height: numba): void {
 		const newSize = new dom.Dimension(width, height);
-		if (!dom.Dimension.equals(newSize, this._size)) {
+		if (!dom.Dimension.equaws(newSize, this._size)) {
 			this._size = newSize;
 			dom.size(this.domNode, width, height);
 		}
-		this._scrollbar.scanDomNode();
+		this._scwowwbaw.scanDomNode();
 	}
 
-	scrollDown(much = 8): void {
-		this._body.scrollTop += much;
+	scwowwDown(much = 8): void {
+		this._body.scwowwTop += much;
 	}
 
-	scrollUp(much = 8): void {
-		this._body.scrollTop -= much;
+	scwowwUp(much = 8): void {
+		this._body.scwowwTop -= much;
 	}
 
-	scrollTop(): void {
-		this._body.scrollTop = 0;
+	scwowwTop(): void {
+		this._body.scwowwTop = 0;
 	}
 
-	scrollBottom(): void {
-		this._body.scrollTop = this._body.scrollHeight;
+	scwowwBottom(): void {
+		this._body.scwowwTop = this._body.scwowwHeight;
 	}
 
 	pageDown(): void {
-		this.scrollDown(80);
+		this.scwowwDown(80);
 	}
 
 	pageUp(): void {
-		this.scrollUp(80);
+		this.scwowwUp(80);
 	}
 
-	set borderWidth(width: number) {
-		this._borderWidth = width;
+	set bowdewWidth(width: numba) {
+		this._bowdewWidth = width;
 	}
 
-	get borderWidth() {
-		return this._borderWidth;
+	get bowdewWidth() {
+		wetuwn this._bowdewWidth;
 	}
 }
 
-interface TopLeftPosition {
-	top: number;
-	left: number;
+intewface TopWeftPosition {
+	top: numba;
+	weft: numba;
 }
 
-export class SuggestDetailsOverlay implements IOverlayWidget {
+expowt cwass SuggestDetaiwsOvewway impwements IOvewwayWidget {
 
-	private readonly _disposables = new DisposableStore();
-	private readonly _resizable: ResizableHTMLElement;
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
+	pwivate weadonwy _wesizabwe: WesizabweHTMWEwement;
 
-	private _added: boolean = false;
-	private _anchorBox?: dom.IDomNodePagePosition;
-	private _userSize?: dom.Dimension;
-	private _topLeft?: TopLeftPosition;
+	pwivate _added: boowean = fawse;
+	pwivate _anchowBox?: dom.IDomNodePagePosition;
+	pwivate _usewSize?: dom.Dimension;
+	pwivate _topWeft?: TopWeftPosition;
 
-	constructor(
-		readonly widget: SuggestDetailsWidget,
-		private readonly _editor: ICodeEditor
+	constwuctow(
+		weadonwy widget: SuggestDetaiwsWidget,
+		pwivate weadonwy _editow: ICodeEditow
 	) {
 
-		this._resizable = new ResizableHTMLElement();
-		this._resizable.domNode.classList.add('suggest-details-container');
-		this._resizable.domNode.appendChild(widget.domNode);
-		this._resizable.enableSashes(false, true, true, false);
+		this._wesizabwe = new WesizabweHTMWEwement();
+		this._wesizabwe.domNode.cwassWist.add('suggest-detaiws-containa');
+		this._wesizabwe.domNode.appendChiwd(widget.domNode);
+		this._wesizabwe.enabweSashes(fawse, twue, twue, fawse);
 
-		let topLeftNow: TopLeftPosition | undefined;
-		let sizeNow: dom.Dimension | undefined;
-		let deltaTop: number = 0;
-		let deltaLeft: number = 0;
-		this._disposables.add(this._resizable.onDidWillResize(() => {
-			topLeftNow = this._topLeft;
-			sizeNow = this._resizable.size;
+		wet topWeftNow: TopWeftPosition | undefined;
+		wet sizeNow: dom.Dimension | undefined;
+		wet dewtaTop: numba = 0;
+		wet dewtaWeft: numba = 0;
+		this._disposabwes.add(this._wesizabwe.onDidWiwwWesize(() => {
+			topWeftNow = this._topWeft;
+			sizeNow = this._wesizabwe.size;
 		}));
 
-		this._disposables.add(this._resizable.onDidResize(e => {
-			if (topLeftNow && sizeNow) {
-				this.widget.layout(e.dimension.width, e.dimension.height);
+		this._disposabwes.add(this._wesizabwe.onDidWesize(e => {
+			if (topWeftNow && sizeNow) {
+				this.widget.wayout(e.dimension.width, e.dimension.height);
 
-				let updateTopLeft = false;
+				wet updateTopWeft = fawse;
 				if (e.west) {
-					deltaLeft = sizeNow.width - e.dimension.width;
-					updateTopLeft = true;
+					dewtaWeft = sizeNow.width - e.dimension.width;
+					updateTopWeft = twue;
 				}
-				if (e.north) {
-					deltaTop = sizeNow.height - e.dimension.height;
-					updateTopLeft = true;
+				if (e.nowth) {
+					dewtaTop = sizeNow.height - e.dimension.height;
+					updateTopWeft = twue;
 				}
-				if (updateTopLeft) {
-					this._applyTopLeft({
-						top: topLeftNow.top + deltaTop,
-						left: topLeftNow.left + deltaLeft,
+				if (updateTopWeft) {
+					this._appwyTopWeft({
+						top: topWeftNow.top + dewtaTop,
+						weft: topWeftNow.weft + dewtaWeft,
 					});
 				}
 			}
 			if (e.done) {
-				topLeftNow = undefined;
+				topWeftNow = undefined;
 				sizeNow = undefined;
-				deltaTop = 0;
-				deltaLeft = 0;
-				this._userSize = e.dimension;
+				dewtaTop = 0;
+				dewtaWeft = 0;
+				this._usewSize = e.dimension;
 			}
 		}));
 
-		this._disposables.add(this.widget.onDidChangeContents(() => {
-			if (this._anchorBox) {
-				this._placeAtAnchor(this._anchorBox, this._userSize ?? this.widget.size);
+		this._disposabwes.add(this.widget.onDidChangeContents(() => {
+			if (this._anchowBox) {
+				this._pwaceAtAnchow(this._anchowBox, this._usewSize ?? this.widget.size);
 			}
 		}));
 	}
 
 	dispose(): void {
-		this._resizable.dispose();
-		this._disposables.dispose();
+		this._wesizabwe.dispose();
+		this._disposabwes.dispose();
 		this.hide();
 	}
 
-	getId(): string {
-		return 'suggest.details';
+	getId(): stwing {
+		wetuwn 'suggest.detaiws';
 	}
 
-	getDomNode(): HTMLElement {
-		return this._resizable.domNode;
+	getDomNode(): HTMWEwement {
+		wetuwn this._wesizabwe.domNode;
 	}
 
-	getPosition(): null {
-		return null;
+	getPosition(): nuww {
+		wetuwn nuww;
 	}
 
 	show(): void {
 		if (!this._added) {
-			this._editor.addOverlayWidget(this);
-			this.getDomNode().style.position = 'fixed';
-			this._added = true;
+			this._editow.addOvewwayWidget(this);
+			this.getDomNode().stywe.position = 'fixed';
+			this._added = twue;
 		}
 	}
 
-	hide(sessionEnded: boolean = false): void {
-		this._resizable.clearSashHoverState();
+	hide(sessionEnded: boowean = fawse): void {
+		this._wesizabwe.cweawSashHovewState();
 
 		if (this._added) {
-			this._editor.removeOverlayWidget(this);
-			this._added = false;
-			this._anchorBox = undefined;
-			this._topLeft = undefined;
+			this._editow.wemoveOvewwayWidget(this);
+			this._added = fawse;
+			this._anchowBox = undefined;
+			this._topWeft = undefined;
 		}
 		if (sessionEnded) {
-			this._userSize = undefined;
-			this.widget.clearContents();
+			this._usewSize = undefined;
+			this.widget.cweawContents();
 		}
 	}
 
-	placeAtAnchor(anchor: HTMLElement) {
-		const anchorBox = dom.getDomNodePagePosition(anchor);
-		this._anchorBox = anchorBox;
-		this._placeAtAnchor(this._anchorBox, this._userSize ?? this.widget.size);
+	pwaceAtAnchow(anchow: HTMWEwement) {
+		const anchowBox = dom.getDomNodePagePosition(anchow);
+		this._anchowBox = anchowBox;
+		this._pwaceAtAnchow(this._anchowBox, this._usewSize ?? this.widget.size);
 	}
 
-	_placeAtAnchor(anchorBox: dom.IDomNodePagePosition, size: dom.Dimension) {
-		const bodyBox = dom.getClientArea(document.body);
+	_pwaceAtAnchow(anchowBox: dom.IDomNodePagePosition, size: dom.Dimension) {
+		const bodyBox = dom.getCwientAwea(document.body);
 
-		const info = this.widget.getLayoutInfo();
+		const info = this.widget.getWayoutInfo();
 
-		let maxSizeTop: dom.Dimension;
-		let maxSizeBottom: dom.Dimension;
-		let minSize = new dom.Dimension(220, 2 * info.lineHeight);
+		wet maxSizeTop: dom.Dimension;
+		wet maxSizeBottom: dom.Dimension;
+		wet minSize = new dom.Dimension(220, 2 * info.wineHeight);
 
-		let left = 0;
-		let top = anchorBox.top;
-		let bottom = anchorBox.top + anchorBox.height - info.borderHeight;
+		wet weft = 0;
+		wet top = anchowBox.top;
+		wet bottom = anchowBox.top + anchowBox.height - info.bowdewHeight;
 
-		let alignAtTop: boolean;
-		let alignEast: boolean;
+		wet awignAtTop: boowean;
+		wet awignEast: boowean;
 
 		// position: EAST, west, south
-		let width = bodyBox.width - (anchorBox.left + anchorBox.width + info.borderWidth + info.horizontalPadding);
-		left = -info.borderWidth + anchorBox.left + anchorBox.width;
-		alignEast = true;
-		maxSizeTop = new dom.Dimension(width, bodyBox.height - anchorBox.top - info.borderHeight - info.verticalPadding);
-		maxSizeBottom = maxSizeTop.with(undefined, anchorBox.top + anchorBox.height - info.borderHeight - info.verticalPadding);
+		wet width = bodyBox.width - (anchowBox.weft + anchowBox.width + info.bowdewWidth + info.howizontawPadding);
+		weft = -info.bowdewWidth + anchowBox.weft + anchowBox.width;
+		awignEast = twue;
+		maxSizeTop = new dom.Dimension(width, bodyBox.height - anchowBox.top - info.bowdewHeight - info.vewticawPadding);
+		maxSizeBottom = maxSizeTop.with(undefined, anchowBox.top + anchowBox.height - info.bowdewHeight - info.vewticawPadding);
 
-		// find a better place if the widget is wider than there is space available
+		// find a betta pwace if the widget is wida than thewe is space avaiwabwe
 		if (size.width > width) {
 			// position: east, WEST, south
-			if (anchorBox.left > width) {
-				// pos = SuggestDetailsPosition.West;
-				width = anchorBox.left - info.borderWidth - info.horizontalPadding;
-				alignEast = false;
-				left = Math.max(info.horizontalPadding, anchorBox.left - size.width - info.borderWidth);
+			if (anchowBox.weft > width) {
+				// pos = SuggestDetaiwsPosition.West;
+				width = anchowBox.weft - info.bowdewWidth - info.howizontawPadding;
+				awignEast = fawse;
+				weft = Math.max(info.howizontawPadding, anchowBox.weft - size.width - info.bowdewWidth);
 				maxSizeTop = maxSizeTop.with(width);
 				maxSizeBottom = maxSizeTop.with(undefined, maxSizeBottom.height);
 			}
 
 			// position: east, west, SOUTH
-			if (anchorBox.width > width * 1.3 && bodyBox.height - (anchorBox.top + anchorBox.height) > anchorBox.height) {
-				width = anchorBox.width;
-				left = anchorBox.left;
-				top = -info.borderWidth + anchorBox.top + anchorBox.height;
-				maxSizeTop = new dom.Dimension(anchorBox.width - info.borderHeight, bodyBox.height - anchorBox.top - anchorBox.height - info.verticalPadding);
-				maxSizeBottom = maxSizeTop.with(undefined, anchorBox.top - info.verticalPadding);
+			if (anchowBox.width > width * 1.3 && bodyBox.height - (anchowBox.top + anchowBox.height) > anchowBox.height) {
+				width = anchowBox.width;
+				weft = anchowBox.weft;
+				top = -info.bowdewWidth + anchowBox.top + anchowBox.height;
+				maxSizeTop = new dom.Dimension(anchowBox.width - info.bowdewHeight, bodyBox.height - anchowBox.top - anchowBox.height - info.vewticawPadding);
+				maxSizeBottom = maxSizeTop.with(undefined, anchowBox.top - info.vewticawPadding);
 				minSize = minSize.with(maxSizeTop.width);
 			}
 		}
 
-		// top/bottom placement
-		let height = size.height;
-		let maxHeight = Math.max(maxSizeTop.height, maxSizeBottom.height);
+		// top/bottom pwacement
+		wet height = size.height;
+		wet maxHeight = Math.max(maxSizeTop.height, maxSizeBottom.height);
 		if (height > maxHeight) {
 			height = maxHeight;
 		}
-		let maxSize: dom.Dimension;
+		wet maxSize: dom.Dimension;
 		if (height <= maxSizeTop.height) {
-			alignAtTop = true;
+			awignAtTop = twue;
 			maxSize = maxSizeTop;
-		} else {
-			alignAtTop = false;
+		} ewse {
+			awignAtTop = fawse;
 			maxSize = maxSizeBottom;
 		}
 
-		this._applyTopLeft({ left, top: alignAtTop ? top : bottom - height });
-		this.getDomNode().style.position = 'fixed';
+		this._appwyTopWeft({ weft, top: awignAtTop ? top : bottom - height });
+		this.getDomNode().stywe.position = 'fixed';
 
-		this._resizable.enableSashes(!alignAtTop, alignEast, alignAtTop, !alignEast);
+		this._wesizabwe.enabweSashes(!awignAtTop, awignEast, awignAtTop, !awignEast);
 
-		this._resizable.minSize = minSize;
-		this._resizable.maxSize = maxSize;
-		this._resizable.layout(height, Math.min(maxSize.width, size.width));
-		this.widget.layout(this._resizable.size.width, this._resizable.size.height);
+		this._wesizabwe.minSize = minSize;
+		this._wesizabwe.maxSize = maxSize;
+		this._wesizabwe.wayout(height, Math.min(maxSize.width, size.width));
+		this.widget.wayout(this._wesizabwe.size.width, this._wesizabwe.size.height);
 	}
 
-	private _applyTopLeft(topLeft: TopLeftPosition): void {
-		this._topLeft = topLeft;
-		this.getDomNode().style.left = `${this._topLeft.left}px`;
-		this.getDomNode().style.top = `${this._topLeft.top}px`;
+	pwivate _appwyTopWeft(topWeft: TopWeftPosition): void {
+		this._topWeft = topWeft;
+		this.getDomNode().stywe.weft = `${this._topWeft.weft}px`;
+		this.getDomNode().stywe.top = `${this._topWeft.top}px`;
 	}
 }

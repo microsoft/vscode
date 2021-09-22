@@ -1,640 +1,640 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as nls from 'vs/nls';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { Extensions, IViewContainersRegistry, IViewsRegistry, IViewsService, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
-import { Attributes, AutoTunnelSource, IRemoteExplorerService, makeAddress, mapHasAddressLocalhostOrAllInterfaces, OnPortForward, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_OUTPUT, PORT_AUTO_SOURCE_SETTING_PROCESS, TUNNEL_VIEW_CONTAINER_ID, TUNNEL_VIEW_ID } from 'vs/workbench/services/remote/common/remoteExplorerService';
-import { forwardedPortsViewEnabled, ForwardPortAction, OpenPortInBrowserAction, TunnelPanel, TunnelPanelDescriptor, TunnelViewModel, OpenPortInPreviewAction } from 'vs/workbench/contrib/remote/browser/tunnelView';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { UrlFinder } from 'vs/workbench/contrib/remote/browser/urlFinder';
-import Severity from 'vs/base/common/severity';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { INotificationHandle, INotificationService, IPromptChoice } from 'vs/platform/notification/common/notification';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { isWeb, OperatingSystem } from 'vs/base/common/platform';
-import { isPortPrivileged, ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { portsViewIcon } from 'vs/workbench/contrib/remote/browser/remoteIcons';
-import { Event } from 'vs/base/common/event';
-import { IExternalUriOpenerService } from 'vs/workbench/contrib/externalUriOpener/common/externalUriOpenerService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { ILogService } from 'vs/platform/log/common/log';
+impowt * as nws fwom 'vs/nws';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { Extensions, IViewContainewsWegistwy, IViewsWegistwy, IViewsSewvice, ViewContaina, ViewContainewWocation } fwom 'vs/wowkbench/common/views';
+impowt { Attwibutes, AutoTunnewSouwce, IWemoteExpwowewSewvice, makeAddwess, mapHasAddwessWocawhostOwAwwIntewfaces, OnPowtFowwawd, POWT_AUTO_FOWWAWD_SETTING, POWT_AUTO_SOUWCE_SETTING, POWT_AUTO_SOUWCE_SETTING_OUTPUT, POWT_AUTO_SOUWCE_SETTING_PWOCESS, TUNNEW_VIEW_CONTAINEW_ID, TUNNEW_VIEW_ID } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteExpwowewSewvice';
+impowt { fowwawdedPowtsViewEnabwed, FowwawdPowtAction, OpenPowtInBwowsewAction, TunnewPanew, TunnewPanewDescwiptow, TunnewViewModew, OpenPowtInPweviewAction } fwom 'vs/wowkbench/contwib/wemote/bwowsa/tunnewView';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IStatusbawEntwy, IStatusbawEntwyAccessow, IStatusbawSewvice, StatusbawAwignment } fwom 'vs/wowkbench/sewvices/statusbaw/bwowsa/statusbaw';
+impowt { UwwFinda } fwom 'vs/wowkbench/contwib/wemote/bwowsa/uwwFinda';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { INotificationHandwe, INotificationSewvice, IPwomptChoice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { ITewminawSewvice } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
+impowt { IDebugSewvice } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
+impowt { isWeb, OpewatingSystem } fwom 'vs/base/common/pwatfowm';
+impowt { isPowtPwiviweged, ITunnewSewvice, WemoteTunnew } fwom 'vs/pwatfowm/wemote/common/tunnew';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { ViewPaneContaina } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPaneContaina';
+impowt { IActivitySewvice, NumbewBadge } fwom 'vs/wowkbench/sewvices/activity/common/activity';
+impowt { powtsViewIcon } fwom 'vs/wowkbench/contwib/wemote/bwowsa/wemoteIcons';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IExtewnawUwiOpenewSewvice } fwom 'vs/wowkbench/contwib/extewnawUwiOpena/common/extewnawUwiOpenewSewvice';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { IConfiguwationWegistwy, Extensions as ConfiguwationExtensions } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-export const VIEWLET_ID = 'workbench.view.remote';
+expowt const VIEWWET_ID = 'wowkbench.view.wemote';
 
-export class ForwardedPortsView extends Disposable implements IWorkbenchContribution {
-	private contextKeyListener?: IDisposable;
-	private _activityBadge?: IDisposable;
-	private entryAccessor: IStatusbarEntryAccessor | undefined;
+expowt cwass FowwawdedPowtsView extends Disposabwe impwements IWowkbenchContwibution {
+	pwivate contextKeyWistena?: IDisposabwe;
+	pwivate _activityBadge?: IDisposabwe;
+	pwivate entwyAccessow: IStatusbawEntwyAccessow | undefined;
 
-	constructor(
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
-		@IActivityService private readonly activityService: IActivityService,
-		@IStatusbarService private readonly statusbarService: IStatusbarService,
+	constwuctow(
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IWemoteExpwowewSewvice pwivate weadonwy wemoteExpwowewSewvice: IWemoteExpwowewSewvice,
+		@IActivitySewvice pwivate weadonwy activitySewvice: IActivitySewvice,
+		@IStatusbawSewvice pwivate weadonwy statusbawSewvice: IStatusbawSewvice,
 	) {
-		super();
-		this._register(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).registerViewWelcomeContent(TUNNEL_VIEW_ID, {
-			content: `No forwarded ports. Forward a port to access your running services locally.\n[Forward a Port](command:${ForwardPortAction.INLINE_ID})`,
+		supa();
+		this._wegista(Wegistwy.as<IViewsWegistwy>(Extensions.ViewsWegistwy).wegistewViewWewcomeContent(TUNNEW_VIEW_ID, {
+			content: `No fowwawded powts. Fowwawd a powt to access youw wunning sewvices wocawwy.\n[Fowwawd a Powt](command:${FowwawdPowtAction.INWINE_ID})`,
 		}));
-		this.enableBadgeAndStatusBar();
-		this.enableForwardedPortsView();
+		this.enabweBadgeAndStatusBaw();
+		this.enabweFowwawdedPowtsView();
 	}
 
-	private async getViewContainer(): Promise<ViewContainer | null> {
-		return Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer({
-			id: TUNNEL_VIEW_CONTAINER_ID,
-			title: nls.localize('ports', "Ports"),
-			icon: portsViewIcon,
-			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [TUNNEL_VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
-			storageId: TUNNEL_VIEW_CONTAINER_ID,
-			hideIfEmpty: true,
-			order: 5
-		}, ViewContainerLocation.Panel);
+	pwivate async getViewContaina(): Pwomise<ViewContaina | nuww> {
+		wetuwn Wegistwy.as<IViewContainewsWegistwy>(Extensions.ViewContainewsWegistwy).wegistewViewContaina({
+			id: TUNNEW_VIEW_CONTAINEW_ID,
+			titwe: nws.wocawize('powts', "Powts"),
+			icon: powtsViewIcon,
+			ctowDescwiptow: new SyncDescwiptow(ViewPaneContaina, [TUNNEW_VIEW_CONTAINEW_ID, { mewgeViewWithContainewWhenSingweView: twue, donotShowContainewTitweWhenMewgedWithContaina: twue }]),
+			stowageId: TUNNEW_VIEW_CONTAINEW_ID,
+			hideIfEmpty: twue,
+			owda: 5
+		}, ViewContainewWocation.Panew);
 	}
 
-	private async enableForwardedPortsView() {
-		if (this.contextKeyListener) {
-			this.contextKeyListener.dispose();
-			this.contextKeyListener = undefined;
+	pwivate async enabweFowwawdedPowtsView() {
+		if (this.contextKeyWistena) {
+			this.contextKeyWistena.dispose();
+			this.contextKeyWistena = undefined;
 		}
 
-		const viewEnabled: boolean = !!forwardedPortsViewEnabled.getValue(this.contextKeyService);
+		const viewEnabwed: boowean = !!fowwawdedPowtsViewEnabwed.getVawue(this.contextKeySewvice);
 
-		if (this.environmentService.remoteAuthority && viewEnabled) {
-			const viewContainer = await this.getViewContainer();
-			const tunnelPanelDescriptor = new TunnelPanelDescriptor(new TunnelViewModel(this.remoteExplorerService), this.environmentService);
-			const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
-			if (viewContainer) {
-				this.remoteExplorerService.enablePortsFeatures();
-				viewsRegistry.registerViews([tunnelPanelDescriptor!], viewContainer);
+		if (this.enviwonmentSewvice.wemoteAuthowity && viewEnabwed) {
+			const viewContaina = await this.getViewContaina();
+			const tunnewPanewDescwiptow = new TunnewPanewDescwiptow(new TunnewViewModew(this.wemoteExpwowewSewvice), this.enviwonmentSewvice);
+			const viewsWegistwy = Wegistwy.as<IViewsWegistwy>(Extensions.ViewsWegistwy);
+			if (viewContaina) {
+				this.wemoteExpwowewSewvice.enabwePowtsFeatuwes();
+				viewsWegistwy.wegistewViews([tunnewPanewDescwiptow!], viewContaina);
 			}
-		} else if (this.environmentService.remoteAuthority) {
-			this.contextKeyListener = this.contextKeyService.onDidChangeContext(e => {
-				if (e.affectsSome(new Set(forwardedPortsViewEnabled.keys()))) {
-					this.enableForwardedPortsView();
+		} ewse if (this.enviwonmentSewvice.wemoteAuthowity) {
+			this.contextKeyWistena = this.contextKeySewvice.onDidChangeContext(e => {
+				if (e.affectsSome(new Set(fowwawdedPowtsViewEnabwed.keys()))) {
+					this.enabweFowwawdedPowtsView();
 				}
 			});
 		}
 	}
 
-	private enableBadgeAndStatusBar() {
-		const disposable = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).onViewsRegistered(e => {
-			if (e.find(view => view.views.find(viewDescriptor => viewDescriptor.id === TUNNEL_VIEW_ID))) {
-				this._register(Event.debounce(this.remoteExplorerService.tunnelModel.onForwardPort, (_last, e) => e, 50)(() => {
+	pwivate enabweBadgeAndStatusBaw() {
+		const disposabwe = Wegistwy.as<IViewsWegistwy>(Extensions.ViewsWegistwy).onViewsWegistewed(e => {
+			if (e.find(view => view.views.find(viewDescwiptow => viewDescwiptow.id === TUNNEW_VIEW_ID))) {
+				this._wegista(Event.debounce(this.wemoteExpwowewSewvice.tunnewModew.onFowwawdPowt, (_wast, e) => e, 50)(() => {
 					this.updateActivityBadge();
-					this.updateStatusBar();
+					this.updateStatusBaw();
 				}));
-				this._register(Event.debounce(this.remoteExplorerService.tunnelModel.onClosePort, (_last, e) => e, 50)(() => {
+				this._wegista(Event.debounce(this.wemoteExpwowewSewvice.tunnewModew.onCwosePowt, (_wast, e) => e, 50)(() => {
 					this.updateActivityBadge();
-					this.updateStatusBar();
+					this.updateStatusBaw();
 				}));
 
 				this.updateActivityBadge();
-				this.updateStatusBar();
-				disposable.dispose();
+				this.updateStatusBaw();
+				disposabwe.dispose();
 			}
 		});
 	}
 
-	private async updateActivityBadge() {
+	pwivate async updateActivityBadge() {
 		if (this._activityBadge) {
 			this._activityBadge.dispose();
 		}
-		if (this.remoteExplorerService.tunnelModel.forwarded.size > 0) {
-			this._activityBadge = this.activityService.showViewActivity(TUNNEL_VIEW_ID, {
-				badge: new NumberBadge(this.remoteExplorerService.tunnelModel.forwarded.size, n => n === 1 ? nls.localize('1forwardedPort', "1 forwarded port") : nls.localize('nForwardedPorts', "{0} forwarded ports", n))
+		if (this.wemoteExpwowewSewvice.tunnewModew.fowwawded.size > 0) {
+			this._activityBadge = this.activitySewvice.showViewActivity(TUNNEW_VIEW_ID, {
+				badge: new NumbewBadge(this.wemoteExpwowewSewvice.tunnewModew.fowwawded.size, n => n === 1 ? nws.wocawize('1fowwawdedPowt', "1 fowwawded powt") : nws.wocawize('nFowwawdedPowts', "{0} fowwawded powts", n))
 			});
 		}
 	}
 
-	private updateStatusBar() {
-		if (!this.entryAccessor) {
-			this._register(this.entryAccessor = this.statusbarService.addEntry(this.entry, 'status.forwardedPorts', StatusbarAlignment.LEFT, 40));
-		} else {
-			this.entryAccessor.update(this.entry);
+	pwivate updateStatusBaw() {
+		if (!this.entwyAccessow) {
+			this._wegista(this.entwyAccessow = this.statusbawSewvice.addEntwy(this.entwy, 'status.fowwawdedPowts', StatusbawAwignment.WEFT, 40));
+		} ewse {
+			this.entwyAccessow.update(this.entwy);
 		}
 	}
 
-	private get entry(): IStatusbarEntry {
-		let text: string;
-		let tooltip: string;
-		const count = this.remoteExplorerService.tunnelModel.forwarded.size + this.remoteExplorerService.tunnelModel.detected.size;
+	pwivate get entwy(): IStatusbawEntwy {
+		wet text: stwing;
+		wet toowtip: stwing;
+		const count = this.wemoteExpwowewSewvice.tunnewModew.fowwawded.size + this.wemoteExpwowewSewvice.tunnewModew.detected.size;
 		text = `${count}`;
 		if (count === 0) {
-			tooltip = nls.localize('remote.forwardedPorts.statusbarTextNone', "No Ports Forwarded");
-		} else {
-			const allTunnels = Array.from(this.remoteExplorerService.tunnelModel.forwarded.values());
-			allTunnels.push(...Array.from(this.remoteExplorerService.tunnelModel.detected.values()));
-			tooltip = nls.localize('remote.forwardedPorts.statusbarTooltip', "Forwarded Ports: {0}",
-				allTunnels.map(forwarded => forwarded.remotePort).join(', '));
+			toowtip = nws.wocawize('wemote.fowwawdedPowts.statusbawTextNone', "No Powts Fowwawded");
+		} ewse {
+			const awwTunnews = Awway.fwom(this.wemoteExpwowewSewvice.tunnewModew.fowwawded.vawues());
+			awwTunnews.push(...Awway.fwom(this.wemoteExpwowewSewvice.tunnewModew.detected.vawues()));
+			toowtip = nws.wocawize('wemote.fowwawdedPowts.statusbawToowtip', "Fowwawded Powts: {0}",
+				awwTunnews.map(fowwawded => fowwawded.wemotePowt).join(', '));
 		}
-		return {
-			name: nls.localize('status.forwardedPorts', "Forwarded Ports"),
-			text: `$(radio-tower) ${text}`,
-			ariaLabel: tooltip,
-			tooltip,
-			command: `${TUNNEL_VIEW_ID}.focus`
+		wetuwn {
+			name: nws.wocawize('status.fowwawdedPowts', "Fowwawded Powts"),
+			text: `$(wadio-towa) ${text}`,
+			awiaWabew: toowtip,
+			toowtip,
+			command: `${TUNNEW_VIEW_ID}.focus`
 		};
 	}
 }
 
-export class PortRestore implements IWorkbenchContribution {
-	constructor(
-		@IRemoteExplorerService readonly remoteExplorerService: IRemoteExplorerService,
-		@ILogService readonly logService: ILogService
+expowt cwass PowtWestowe impwements IWowkbenchContwibution {
+	constwuctow(
+		@IWemoteExpwowewSewvice weadonwy wemoteExpwowewSewvice: IWemoteExpwowewSewvice,
+		@IWogSewvice weadonwy wogSewvice: IWogSewvice
 	) {
-		if (!this.remoteExplorerService.tunnelModel.environmentTunnelsSet) {
-			Event.once(this.remoteExplorerService.tunnelModel.onEnvironmentTunnelsSet)(async () => {
-				await this.restore();
+		if (!this.wemoteExpwowewSewvice.tunnewModew.enviwonmentTunnewsSet) {
+			Event.once(this.wemoteExpwowewSewvice.tunnewModew.onEnviwonmentTunnewsSet)(async () => {
+				await this.westowe();
 			});
-		} else {
-			this.restore();
+		} ewse {
+			this.westowe();
 		}
 	}
 
-	private async restore() {
-		this.logService.trace('ForwardedPorts: Doing first restore.');
-		return this.remoteExplorerService.restore();
+	pwivate async westowe() {
+		this.wogSewvice.twace('FowwawdedPowts: Doing fiwst westowe.');
+		wetuwn this.wemoteExpwowewSewvice.westowe();
 	}
 }
 
 
-export class AutomaticPortForwarding extends Disposable implements IWorkbenchContribution {
+expowt cwass AutomaticPowtFowwawding extends Disposabwe impwements IWowkbenchContwibution {
 
-	constructor(
-		@ITerminalService readonly terminalService: ITerminalService,
-		@INotificationService readonly notificationService: INotificationService,
-		@IOpenerService readonly openerService: IOpenerService,
-		@IExternalUriOpenerService readonly externalOpenerService: IExternalUriOpenerService,
-		@IViewsService readonly viewsService: IViewsService,
-		@IRemoteExplorerService readonly remoteExplorerService: IRemoteExplorerService,
-		@IWorkbenchEnvironmentService readonly environmentService: IWorkbenchEnvironmentService,
-		@IContextKeyService readonly contextKeyService: IContextKeyService,
-		@IConfigurationService readonly configurationService: IConfigurationService,
-		@IDebugService readonly debugService: IDebugService,
-		@IRemoteAgentService readonly remoteAgentService: IRemoteAgentService,
-		@ITunnelService readonly tunnelService: ITunnelService,
-		@IHostService readonly hostService: IHostService,
-		@ILogService readonly logService: ILogService
+	constwuctow(
+		@ITewminawSewvice weadonwy tewminawSewvice: ITewminawSewvice,
+		@INotificationSewvice weadonwy notificationSewvice: INotificationSewvice,
+		@IOpenewSewvice weadonwy openewSewvice: IOpenewSewvice,
+		@IExtewnawUwiOpenewSewvice weadonwy extewnawOpenewSewvice: IExtewnawUwiOpenewSewvice,
+		@IViewsSewvice weadonwy viewsSewvice: IViewsSewvice,
+		@IWemoteExpwowewSewvice weadonwy wemoteExpwowewSewvice: IWemoteExpwowewSewvice,
+		@IWowkbenchEnviwonmentSewvice weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IContextKeySewvice weadonwy contextKeySewvice: IContextKeySewvice,
+		@IConfiguwationSewvice weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IDebugSewvice weadonwy debugSewvice: IDebugSewvice,
+		@IWemoteAgentSewvice weadonwy wemoteAgentSewvice: IWemoteAgentSewvice,
+		@ITunnewSewvice weadonwy tunnewSewvice: ITunnewSewvice,
+		@IHostSewvice weadonwy hostSewvice: IHostSewvice,
+		@IWogSewvice weadonwy wogSewvice: IWogSewvice
 	) {
-		super();
-		if (!this.environmentService.remoteAuthority) {
-			return;
+		supa();
+		if (!this.enviwonmentSewvice.wemoteAuthowity) {
+			wetuwn;
 		}
 
-		remoteAgentService.getEnvironment().then(environment => {
-			if (environment?.os !== OperatingSystem.Linux) {
-				Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-					.registerDefaultConfigurations([{ 'remote.autoForwardPortsSource': PORT_AUTO_SOURCE_SETTING_OUTPUT }]);
-				this._register(new OutputAutomaticPortForwarding(terminalService, notificationService, openerService, externalOpenerService,
-					remoteExplorerService, configurationService, debugService, tunnelService, remoteAgentService, hostService, logService, () => false));
-			} else {
-				const useProc = () => (this.configurationService.getValue(PORT_AUTO_SOURCE_SETTING) === PORT_AUTO_SOURCE_SETTING_PROCESS);
-				if (useProc()) {
-					this._register(new ProcAutomaticPortForwarding(configurationService, remoteExplorerService, notificationService,
-						openerService, externalOpenerService, tunnelService, hostService, logService));
+		wemoteAgentSewvice.getEnviwonment().then(enviwonment => {
+			if (enviwonment?.os !== OpewatingSystem.Winux) {
+				Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation)
+					.wegistewDefauwtConfiguwations([{ 'wemote.autoFowwawdPowtsSouwce': POWT_AUTO_SOUWCE_SETTING_OUTPUT }]);
+				this._wegista(new OutputAutomaticPowtFowwawding(tewminawSewvice, notificationSewvice, openewSewvice, extewnawOpenewSewvice,
+					wemoteExpwowewSewvice, configuwationSewvice, debugSewvice, tunnewSewvice, wemoteAgentSewvice, hostSewvice, wogSewvice, () => fawse));
+			} ewse {
+				const usePwoc = () => (this.configuwationSewvice.getVawue(POWT_AUTO_SOUWCE_SETTING) === POWT_AUTO_SOUWCE_SETTING_PWOCESS);
+				if (usePwoc()) {
+					this._wegista(new PwocAutomaticPowtFowwawding(configuwationSewvice, wemoteExpwowewSewvice, notificationSewvice,
+						openewSewvice, extewnawOpenewSewvice, tunnewSewvice, hostSewvice, wogSewvice));
 				}
-				this._register(new OutputAutomaticPortForwarding(terminalService, notificationService, openerService, externalOpenerService,
-					remoteExplorerService, configurationService, debugService, tunnelService, remoteAgentService, hostService, logService, useProc));
+				this._wegista(new OutputAutomaticPowtFowwawding(tewminawSewvice, notificationSewvice, openewSewvice, extewnawOpenewSewvice,
+					wemoteExpwowewSewvice, configuwationSewvice, debugSewvice, tunnewSewvice, wemoteAgentSewvice, hostSewvice, wogSewvice, usePwoc));
 			}
 		});
 	}
 }
 
-class OnAutoForwardedAction extends Disposable {
-	private lastNotifyTime: Date;
-	private static NOTIFY_COOL_DOWN = 5000; // milliseconds
-	private lastNotification: INotificationHandle | undefined;
-	private lastShownPort: number | undefined;
-	private doActionTunnels: RemoteTunnel[] | undefined;
-	private alreadyOpenedOnce: Set<string> = new Set();
+cwass OnAutoFowwawdedAction extends Disposabwe {
+	pwivate wastNotifyTime: Date;
+	pwivate static NOTIFY_COOW_DOWN = 5000; // miwwiseconds
+	pwivate wastNotification: INotificationHandwe | undefined;
+	pwivate wastShownPowt: numba | undefined;
+	pwivate doActionTunnews: WemoteTunnew[] | undefined;
+	pwivate awweadyOpenedOnce: Set<stwing> = new Set();
 
-	constructor(private readonly notificationService: INotificationService,
-		private readonly remoteExplorerService: IRemoteExplorerService,
-		private readonly openerService: IOpenerService,
-		private readonly externalOpenerService: IExternalUriOpenerService,
-		private readonly tunnelService: ITunnelService,
-		private readonly hostService: IHostService,
-		private readonly logService: ILogService) {
-		super();
-		this.lastNotifyTime = new Date();
-		this.lastNotifyTime.setFullYear(this.lastNotifyTime.getFullYear() - 1);
+	constwuctow(pwivate weadonwy notificationSewvice: INotificationSewvice,
+		pwivate weadonwy wemoteExpwowewSewvice: IWemoteExpwowewSewvice,
+		pwivate weadonwy openewSewvice: IOpenewSewvice,
+		pwivate weadonwy extewnawOpenewSewvice: IExtewnawUwiOpenewSewvice,
+		pwivate weadonwy tunnewSewvice: ITunnewSewvice,
+		pwivate weadonwy hostSewvice: IHostSewvice,
+		pwivate weadonwy wogSewvice: IWogSewvice) {
+		supa();
+		this.wastNotifyTime = new Date();
+		this.wastNotifyTime.setFuwwYeaw(this.wastNotifyTime.getFuwwYeaw() - 1);
 	}
 
-	public async doAction(tunnels: RemoteTunnel[]): Promise<void> {
-		this.logService.trace(`ForwardedPorts: (OnAutoForwardedAction) Starting action for ${tunnels[0]?.tunnelRemotePort}`);
-		this.doActionTunnels = tunnels;
-		const tunnel = await this.portNumberHeuristicDelay();
-		this.logService.trace(`ForwardedPorts: (OnAutoForwardedAction) Heuristic chose ${tunnel?.tunnelRemotePort}`);
-		if (tunnel) {
-			const allAttributes = await this.remoteExplorerService.tunnelModel.getAttributes([{ port: tunnel.tunnelRemotePort, host: tunnel.tunnelRemoteHost }]);
-			const attributes = allAttributes?.get(tunnel.tunnelRemotePort)?.onAutoForward;
-			this.logService.trace(`ForwardedPorts: (OnAutoForwardedAction) onAutoForward action is ${attributes}`);
-			switch (attributes) {
-				case OnPortForward.OpenBrowserOnce: {
-					if (this.alreadyOpenedOnce.has(tunnel.localAddress)) {
-						break;
+	pubwic async doAction(tunnews: WemoteTunnew[]): Pwomise<void> {
+		this.wogSewvice.twace(`FowwawdedPowts: (OnAutoFowwawdedAction) Stawting action fow ${tunnews[0]?.tunnewWemotePowt}`);
+		this.doActionTunnews = tunnews;
+		const tunnew = await this.powtNumbewHeuwisticDeway();
+		this.wogSewvice.twace(`FowwawdedPowts: (OnAutoFowwawdedAction) Heuwistic chose ${tunnew?.tunnewWemotePowt}`);
+		if (tunnew) {
+			const awwAttwibutes = await this.wemoteExpwowewSewvice.tunnewModew.getAttwibutes([{ powt: tunnew.tunnewWemotePowt, host: tunnew.tunnewWemoteHost }]);
+			const attwibutes = awwAttwibutes?.get(tunnew.tunnewWemotePowt)?.onAutoFowwawd;
+			this.wogSewvice.twace(`FowwawdedPowts: (OnAutoFowwawdedAction) onAutoFowwawd action is ${attwibutes}`);
+			switch (attwibutes) {
+				case OnPowtFowwawd.OpenBwowsewOnce: {
+					if (this.awweadyOpenedOnce.has(tunnew.wocawAddwess)) {
+						bweak;
 					}
-					this.alreadyOpenedOnce.add(tunnel.localAddress);
-					// Intentionally do not break so that the open browser path can be run.
+					this.awweadyOpenedOnce.add(tunnew.wocawAddwess);
+					// Intentionawwy do not bweak so that the open bwowsa path can be wun.
 				}
-				case OnPortForward.OpenBrowser: {
-					const address = makeAddress(tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort);
-					await OpenPortInBrowserAction.run(this.remoteExplorerService.tunnelModel, this.openerService, address);
-					break;
+				case OnPowtFowwawd.OpenBwowsa: {
+					const addwess = makeAddwess(tunnew.tunnewWemoteHost, tunnew.tunnewWemotePowt);
+					await OpenPowtInBwowsewAction.wun(this.wemoteExpwowewSewvice.tunnewModew, this.openewSewvice, addwess);
+					bweak;
 				}
-				case OnPortForward.OpenPreview: {
-					const address = makeAddress(tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort);
-					await OpenPortInPreviewAction.run(this.remoteExplorerService.tunnelModel, this.openerService, this.externalOpenerService, address);
-					break;
+				case OnPowtFowwawd.OpenPweview: {
+					const addwess = makeAddwess(tunnew.tunnewWemoteHost, tunnew.tunnewWemotePowt);
+					await OpenPowtInPweviewAction.wun(this.wemoteExpwowewSewvice.tunnewModew, this.openewSewvice, this.extewnawOpenewSewvice, addwess);
+					bweak;
 				}
-				case OnPortForward.Silent: break;
-				default:
-					const elapsed = new Date().getTime() - this.lastNotifyTime.getTime();
-					this.logService.trace(`ForwardedPorts: (OnAutoForwardedAction) time elapsed since last notification ${elapsed} ms`);
-					if (elapsed > OnAutoForwardedAction.NOTIFY_COOL_DOWN) {
-						await this.showNotification(tunnel);
+				case OnPowtFowwawd.Siwent: bweak;
+				defauwt:
+					const ewapsed = new Date().getTime() - this.wastNotifyTime.getTime();
+					this.wogSewvice.twace(`FowwawdedPowts: (OnAutoFowwawdedAction) time ewapsed since wast notification ${ewapsed} ms`);
+					if (ewapsed > OnAutoFowwawdedAction.NOTIFY_COOW_DOWN) {
+						await this.showNotification(tunnew);
 					}
 			}
 		}
 	}
 
-	public hide(removedPorts: number[]) {
-		if (this.doActionTunnels) {
-			this.doActionTunnels = this.doActionTunnels.filter(value => !removedPorts.includes(value.tunnelRemotePort));
+	pubwic hide(wemovedPowts: numba[]) {
+		if (this.doActionTunnews) {
+			this.doActionTunnews = this.doActionTunnews.fiwta(vawue => !wemovedPowts.incwudes(vawue.tunnewWemotePowt));
 		}
-		if (this.lastShownPort && removedPorts.indexOf(this.lastShownPort) >= 0) {
-			this.lastNotification?.close();
+		if (this.wastShownPowt && wemovedPowts.indexOf(this.wastShownPowt) >= 0) {
+			this.wastNotification?.cwose();
 		}
 	}
 
-	private newerTunnel: RemoteTunnel | undefined;
-	private async portNumberHeuristicDelay(): Promise<RemoteTunnel | undefined> {
-		this.logService.trace(`ForwardedPorts: (OnAutoForwardedAction) Starting heuristic delay`);
-		if (!this.doActionTunnels || this.doActionTunnels.length === 0) {
-			return;
+	pwivate newewTunnew: WemoteTunnew | undefined;
+	pwivate async powtNumbewHeuwisticDeway(): Pwomise<WemoteTunnew | undefined> {
+		this.wogSewvice.twace(`FowwawdedPowts: (OnAutoFowwawdedAction) Stawting heuwistic deway`);
+		if (!this.doActionTunnews || this.doActionTunnews.wength === 0) {
+			wetuwn;
 		}
-		this.doActionTunnels = this.doActionTunnels.sort((a, b) => a.tunnelRemotePort - b.tunnelRemotePort);
-		const firstTunnel = this.doActionTunnels.shift()!;
-		// Heuristic.
-		if (firstTunnel.tunnelRemotePort % 1000 === 0) {
-			this.logService.trace(`ForwardedPorts: (OnAutoForwardedAction) Heuristic chose tunnel because % 1000: ${firstTunnel.tunnelRemotePort}`);
-			this.newerTunnel = firstTunnel;
-			return firstTunnel;
-			// 9229 is the node inspect port
-		} else if (firstTunnel.tunnelRemotePort < 10000 && firstTunnel.tunnelRemotePort !== 9229) {
-			this.logService.trace(`ForwardedPorts: (OnAutoForwardedAction) Heuristic chose tunnel because < 10000: ${firstTunnel.tunnelRemotePort}`);
-			this.newerTunnel = firstTunnel;
-			return firstTunnel;
+		this.doActionTunnews = this.doActionTunnews.sowt((a, b) => a.tunnewWemotePowt - b.tunnewWemotePowt);
+		const fiwstTunnew = this.doActionTunnews.shift()!;
+		// Heuwistic.
+		if (fiwstTunnew.tunnewWemotePowt % 1000 === 0) {
+			this.wogSewvice.twace(`FowwawdedPowts: (OnAutoFowwawdedAction) Heuwistic chose tunnew because % 1000: ${fiwstTunnew.tunnewWemotePowt}`);
+			this.newewTunnew = fiwstTunnew;
+			wetuwn fiwstTunnew;
+			// 9229 is the node inspect powt
+		} ewse if (fiwstTunnew.tunnewWemotePowt < 10000 && fiwstTunnew.tunnewWemotePowt !== 9229) {
+			this.wogSewvice.twace(`FowwawdedPowts: (OnAutoFowwawdedAction) Heuwistic chose tunnew because < 10000: ${fiwstTunnew.tunnewWemotePowt}`);
+			this.newewTunnew = fiwstTunnew;
+			wetuwn fiwstTunnew;
 		}
 
-		this.logService.trace(`ForwardedPorts: (OnAutoForwardedAction) Waiting for "better" tunnel than ${firstTunnel.tunnelRemotePort}`);
-		this.newerTunnel = undefined;
-		return new Promise(resolve => {
+		this.wogSewvice.twace(`FowwawdedPowts: (OnAutoFowwawdedAction) Waiting fow "betta" tunnew than ${fiwstTunnew.tunnewWemotePowt}`);
+		this.newewTunnew = undefined;
+		wetuwn new Pwomise(wesowve => {
 			setTimeout(() => {
-				if (this.newerTunnel) {
-					resolve(undefined);
-				} else if (this.doActionTunnels?.includes(firstTunnel)) {
-					resolve(firstTunnel);
-				} else {
-					resolve(undefined);
+				if (this.newewTunnew) {
+					wesowve(undefined);
+				} ewse if (this.doActionTunnews?.incwudes(fiwstTunnew)) {
+					wesowve(fiwstTunnew);
+				} ewse {
+					wesowve(undefined);
 				}
 			}, 3000);
 		});
 	}
 
-	private basicMessage(tunnel: RemoteTunnel) {
-		return nls.localize('remote.tunnelsView.automaticForward', "Your application running on port {0} is available.  ",
-			tunnel.tunnelRemotePort);
+	pwivate basicMessage(tunnew: WemoteTunnew) {
+		wetuwn nws.wocawize('wemote.tunnewsView.automaticFowwawd', "Youw appwication wunning on powt {0} is avaiwabwe.  ",
+			tunnew.tunnewWemotePowt);
 	}
 
-	private linkMessage() {
-		return nls.localize(
-			{ key: 'remote.tunnelsView.notificationLink2', comment: ['[See all forwarded ports]({0}) is a link. Only translate `See all forwarded ports`. Do not change brackets and parentheses or {0}'] },
-			"[See all forwarded ports]({0})", `command:${TunnelPanel.ID}.focus`);
+	pwivate winkMessage() {
+		wetuwn nws.wocawize(
+			{ key: 'wemote.tunnewsView.notificationWink2', comment: ['[See aww fowwawded powts]({0}) is a wink. Onwy twanswate `See aww fowwawded powts`. Do not change bwackets and pawentheses ow {0}'] },
+			"[See aww fowwawded powts]({0})", `command:${TunnewPanew.ID}.focus`);
 	}
 
-	private async showNotification(tunnel: RemoteTunnel) {
-		if (!await this.hostService.hadLastFocus()) {
-			return;
+	pwivate async showNotification(tunnew: WemoteTunnew) {
+		if (!await this.hostSewvice.hadWastFocus()) {
+			wetuwn;
 		}
 
-		if (this.lastNotification) {
-			this.lastNotification.close();
+		if (this.wastNotification) {
+			this.wastNotification.cwose();
 		}
-		let message = this.basicMessage(tunnel);
-		const choices = [this.openBrowserChoice(tunnel)];
+		wet message = this.basicMessage(tunnew);
+		const choices = [this.openBwowsewChoice(tunnew)];
 		if (!isWeb) {
-			choices.push(this.openPreviewChoice(tunnel));
+			choices.push(this.openPweviewChoice(tunnew));
 		}
 
-		if ((tunnel.tunnelLocalPort !== tunnel.tunnelRemotePort) && this.tunnelService.canElevate && isPortPrivileged(tunnel.tunnelRemotePort)) {
-			// Privileged ports are not on Windows, so it's safe to use "superuser"
-			message += nls.localize('remote.tunnelsView.elevationMessage', "You'll need to run as superuser to use port {0} locally.  ", tunnel.tunnelRemotePort);
-			choices.unshift(this.elevateChoice(tunnel));
+		if ((tunnew.tunnewWocawPowt !== tunnew.tunnewWemotePowt) && this.tunnewSewvice.canEwevate && isPowtPwiviweged(tunnew.tunnewWemotePowt)) {
+			// Pwiviweged powts awe not on Windows, so it's safe to use "supewusa"
+			message += nws.wocawize('wemote.tunnewsView.ewevationMessage', "You'ww need to wun as supewusa to use powt {0} wocawwy.  ", tunnew.tunnewWemotePowt);
+			choices.unshift(this.ewevateChoice(tunnew));
 		}
 
-		message += this.linkMessage();
+		message += this.winkMessage();
 
-		this.lastNotification = this.notificationService.prompt(Severity.Info, message, choices, { neverShowAgain: { id: 'remote.tunnelsView.autoForwardNeverShow', isSecondary: true } });
-		this.lastShownPort = tunnel.tunnelRemotePort;
-		this.lastNotifyTime = new Date();
-		this.lastNotification.onDidClose(() => {
-			this.lastNotification = undefined;
-			this.lastShownPort = undefined;
+		this.wastNotification = this.notificationSewvice.pwompt(Sevewity.Info, message, choices, { nevewShowAgain: { id: 'wemote.tunnewsView.autoFowwawdNevewShow', isSecondawy: twue } });
+		this.wastShownPowt = tunnew.tunnewWemotePowt;
+		this.wastNotifyTime = new Date();
+		this.wastNotification.onDidCwose(() => {
+			this.wastNotification = undefined;
+			this.wastShownPowt = undefined;
 		});
 	}
 
-	private openBrowserChoice(tunnel: RemoteTunnel): IPromptChoice {
-		const address = makeAddress(tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort);
-		return {
-			label: OpenPortInBrowserAction.LABEL,
-			run: () => OpenPortInBrowserAction.run(this.remoteExplorerService.tunnelModel, this.openerService, address)
+	pwivate openBwowsewChoice(tunnew: WemoteTunnew): IPwomptChoice {
+		const addwess = makeAddwess(tunnew.tunnewWemoteHost, tunnew.tunnewWemotePowt);
+		wetuwn {
+			wabew: OpenPowtInBwowsewAction.WABEW,
+			wun: () => OpenPowtInBwowsewAction.wun(this.wemoteExpwowewSewvice.tunnewModew, this.openewSewvice, addwess)
 		};
 	}
 
-	private openPreviewChoice(tunnel: RemoteTunnel): IPromptChoice {
-		const address = makeAddress(tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort);
-		return {
-			label: OpenPortInPreviewAction.LABEL,
-			run: () => OpenPortInPreviewAction.run(this.remoteExplorerService.tunnelModel, this.openerService, this.externalOpenerService, address)
+	pwivate openPweviewChoice(tunnew: WemoteTunnew): IPwomptChoice {
+		const addwess = makeAddwess(tunnew.tunnewWemoteHost, tunnew.tunnewWemotePowt);
+		wetuwn {
+			wabew: OpenPowtInPweviewAction.WABEW,
+			wun: () => OpenPowtInPweviewAction.wun(this.wemoteExpwowewSewvice.tunnewModew, this.openewSewvice, this.extewnawOpenewSewvice, addwess)
 		};
 	}
 
-	private elevateChoice(tunnel: RemoteTunnel): IPromptChoice {
-		return {
-			// Privileged ports are not on Windows, so it's ok to stick to just "sudo".
-			label: nls.localize('remote.tunnelsView.elevationButton', "Use Port {0} as Sudo...", tunnel.tunnelRemotePort),
-			run: async () => {
-				await this.remoteExplorerService.close({ host: tunnel.tunnelRemoteHost, port: tunnel.tunnelRemotePort });
-				const newTunnel = await this.remoteExplorerService.forward({
-					remote: { host: tunnel.tunnelRemoteHost, port: tunnel.tunnelRemotePort },
-					local: tunnel.tunnelRemotePort,
-					elevateIfNeeded: true,
-					source: AutoTunnelSource
+	pwivate ewevateChoice(tunnew: WemoteTunnew): IPwomptChoice {
+		wetuwn {
+			// Pwiviweged powts awe not on Windows, so it's ok to stick to just "sudo".
+			wabew: nws.wocawize('wemote.tunnewsView.ewevationButton', "Use Powt {0} as Sudo...", tunnew.tunnewWemotePowt),
+			wun: async () => {
+				await this.wemoteExpwowewSewvice.cwose({ host: tunnew.tunnewWemoteHost, powt: tunnew.tunnewWemotePowt });
+				const newTunnew = await this.wemoteExpwowewSewvice.fowwawd({
+					wemote: { host: tunnew.tunnewWemoteHost, powt: tunnew.tunnewWemotePowt },
+					wocaw: tunnew.tunnewWemotePowt,
+					ewevateIfNeeded: twue,
+					souwce: AutoTunnewSouwce
 				});
-				if (!newTunnel) {
-					return;
+				if (!newTunnew) {
+					wetuwn;
 				}
-				if (this.lastNotification) {
-					this.lastNotification.close();
+				if (this.wastNotification) {
+					this.wastNotification.cwose();
 				}
-				this.lastShownPort = newTunnel.tunnelRemotePort;
-				this.lastNotification = this.notificationService.prompt(Severity.Info,
-					this.basicMessage(newTunnel) + this.linkMessage(),
-					[this.openBrowserChoice(newTunnel), this.openPreviewChoice(tunnel)],
-					{ neverShowAgain: { id: 'remote.tunnelsView.autoForwardNeverShow', isSecondary: true } });
-				this.lastNotification.onDidClose(() => {
-					this.lastNotification = undefined;
-					this.lastShownPort = undefined;
+				this.wastShownPowt = newTunnew.tunnewWemotePowt;
+				this.wastNotification = this.notificationSewvice.pwompt(Sevewity.Info,
+					this.basicMessage(newTunnew) + this.winkMessage(),
+					[this.openBwowsewChoice(newTunnew), this.openPweviewChoice(tunnew)],
+					{ nevewShowAgain: { id: 'wemote.tunnewsView.autoFowwawdNevewShow', isSecondawy: twue } });
+				this.wastNotification.onDidCwose(() => {
+					this.wastNotification = undefined;
+					this.wastShownPowt = undefined;
 				});
 			}
 		};
 	}
 }
 
-class OutputAutomaticPortForwarding extends Disposable {
-	private portsFeatures?: IDisposable;
-	private urlFinder?: UrlFinder;
-	private notifier: OnAutoForwardedAction;
+cwass OutputAutomaticPowtFowwawding extends Disposabwe {
+	pwivate powtsFeatuwes?: IDisposabwe;
+	pwivate uwwFinda?: UwwFinda;
+	pwivate notifia: OnAutoFowwawdedAction;
 
-	constructor(
-		private readonly terminalService: ITerminalService,
-		readonly notificationService: INotificationService,
-		readonly openerService: IOpenerService,
-		readonly externalOpenerService: IExternalUriOpenerService,
-		private readonly remoteExplorerService: IRemoteExplorerService,
-		private readonly configurationService: IConfigurationService,
-		private readonly debugService: IDebugService,
-		readonly tunnelService: ITunnelService,
-		private readonly remoteAgentService: IRemoteAgentService,
-		readonly hostService: IHostService,
-		readonly logService: ILogService,
-		readonly privilegedOnly: () => boolean
+	constwuctow(
+		pwivate weadonwy tewminawSewvice: ITewminawSewvice,
+		weadonwy notificationSewvice: INotificationSewvice,
+		weadonwy openewSewvice: IOpenewSewvice,
+		weadonwy extewnawOpenewSewvice: IExtewnawUwiOpenewSewvice,
+		pwivate weadonwy wemoteExpwowewSewvice: IWemoteExpwowewSewvice,
+		pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		pwivate weadonwy debugSewvice: IDebugSewvice,
+		weadonwy tunnewSewvice: ITunnewSewvice,
+		pwivate weadonwy wemoteAgentSewvice: IWemoteAgentSewvice,
+		weadonwy hostSewvice: IHostSewvice,
+		weadonwy wogSewvice: IWogSewvice,
+		weadonwy pwiviwegedOnwy: () => boowean
 	) {
-		super();
-		this.notifier = new OnAutoForwardedAction(notificationService, remoteExplorerService, openerService, externalOpenerService, tunnelService, hostService, logService);
-		this._register(configurationService.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration(PORT_AUTO_FORWARD_SETTING)) {
-				this.tryStartStopUrlFinder();
+		supa();
+		this.notifia = new OnAutoFowwawdedAction(notificationSewvice, wemoteExpwowewSewvice, openewSewvice, extewnawOpenewSewvice, tunnewSewvice, hostSewvice, wogSewvice);
+		this._wegista(configuwationSewvice.onDidChangeConfiguwation((e) => {
+			if (e.affectsConfiguwation(POWT_AUTO_FOWWAWD_SETTING)) {
+				this.twyStawtStopUwwFinda();
 			}
 		}));
 
-		this.portsFeatures = this._register(this.remoteExplorerService.onEnabledPortsFeatures(() => {
-			this.tryStartStopUrlFinder();
+		this.powtsFeatuwes = this._wegista(this.wemoteExpwowewSewvice.onEnabwedPowtsFeatuwes(() => {
+			this.twyStawtStopUwwFinda();
 		}));
-		this.tryStartStopUrlFinder();
+		this.twyStawtStopUwwFinda();
 	}
 
-	private tryStartStopUrlFinder() {
-		if (this.configurationService.getValue(PORT_AUTO_FORWARD_SETTING)) {
-			this.startUrlFinder();
-		} else {
-			this.stopUrlFinder();
+	pwivate twyStawtStopUwwFinda() {
+		if (this.configuwationSewvice.getVawue(POWT_AUTO_FOWWAWD_SETTING)) {
+			this.stawtUwwFinda();
+		} ewse {
+			this.stopUwwFinda();
 		}
 	}
 
-	private startUrlFinder() {
-		if (!this.urlFinder && !this.remoteExplorerService.portsFeaturesEnabled) {
-			return;
+	pwivate stawtUwwFinda() {
+		if (!this.uwwFinda && !this.wemoteExpwowewSewvice.powtsFeatuwesEnabwed) {
+			wetuwn;
 		}
-		if (this.portsFeatures) {
-			this.portsFeatures.dispose();
+		if (this.powtsFeatuwes) {
+			this.powtsFeatuwes.dispose();
 		}
-		this.urlFinder = this._register(new UrlFinder(this.terminalService, this.debugService));
-		this._register(this.urlFinder.onDidMatchLocalUrl(async (localUrl) => {
-			if (mapHasAddressLocalhostOrAllInterfaces(this.remoteExplorerService.tunnelModel.detected, localUrl.host, localUrl.port)) {
-				return;
+		this.uwwFinda = this._wegista(new UwwFinda(this.tewminawSewvice, this.debugSewvice));
+		this._wegista(this.uwwFinda.onDidMatchWocawUww(async (wocawUww) => {
+			if (mapHasAddwessWocawhostOwAwwIntewfaces(this.wemoteExpwowewSewvice.tunnewModew.detected, wocawUww.host, wocawUww.powt)) {
+				wetuwn;
 			}
-			const attributes = (await this.remoteExplorerService.tunnelModel.getAttributes([localUrl]))?.get(localUrl.port);
-			if (attributes?.onAutoForward === OnPortForward.Ignore) {
-				return;
+			const attwibutes = (await this.wemoteExpwowewSewvice.tunnewModew.getAttwibutes([wocawUww]))?.get(wocawUww.powt);
+			if (attwibutes?.onAutoFowwawd === OnPowtFowwawd.Ignowe) {
+				wetuwn;
 			}
-			if (this.privilegedOnly() && !isPortPrivileged(localUrl.port, (await this.remoteAgentService.getEnvironment())?.os)) {
-				return;
+			if (this.pwiviwegedOnwy() && !isPowtPwiviweged(wocawUww.powt, (await this.wemoteAgentSewvice.getEnviwonment())?.os)) {
+				wetuwn;
 			}
-			const forwarded = await this.remoteExplorerService.forward({ remote: localUrl, source: AutoTunnelSource }, attributes ?? null);
-			if (forwarded) {
-				this.notifier.doAction([forwarded]);
+			const fowwawded = await this.wemoteExpwowewSewvice.fowwawd({ wemote: wocawUww, souwce: AutoTunnewSouwce }, attwibutes ?? nuww);
+			if (fowwawded) {
+				this.notifia.doAction([fowwawded]);
 			}
 		}));
 	}
 
-	private stopUrlFinder() {
-		if (this.urlFinder) {
-			this.urlFinder.dispose();
-			this.urlFinder = undefined;
+	pwivate stopUwwFinda() {
+		if (this.uwwFinda) {
+			this.uwwFinda.dispose();
+			this.uwwFinda = undefined;
 		}
 	}
 }
 
-class ProcAutomaticPortForwarding extends Disposable {
-	private candidateListener: IDisposable | undefined;
-	private autoForwarded: Set<string> = new Set();
-	private notifiedOnly: Set<string> = new Set();
-	private notifier: OnAutoForwardedAction;
-	private initialCandidates: Set<string> = new Set();
-	private portsFeatures: IDisposable | undefined;
+cwass PwocAutomaticPowtFowwawding extends Disposabwe {
+	pwivate candidateWistena: IDisposabwe | undefined;
+	pwivate autoFowwawded: Set<stwing> = new Set();
+	pwivate notifiedOnwy: Set<stwing> = new Set();
+	pwivate notifia: OnAutoFowwawdedAction;
+	pwivate initiawCandidates: Set<stwing> = new Set();
+	pwivate powtsFeatuwes: IDisposabwe | undefined;
 
-	constructor(
-		private readonly configurationService: IConfigurationService,
-		readonly remoteExplorerService: IRemoteExplorerService,
-		readonly notificationService: INotificationService,
-		readonly openerService: IOpenerService,
-		readonly externalOpenerService: IExternalUriOpenerService,
-		readonly tunnelService: ITunnelService,
-		readonly hostService: IHostService,
-		readonly logService: ILogService
+	constwuctow(
+		pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		weadonwy wemoteExpwowewSewvice: IWemoteExpwowewSewvice,
+		weadonwy notificationSewvice: INotificationSewvice,
+		weadonwy openewSewvice: IOpenewSewvice,
+		weadonwy extewnawOpenewSewvice: IExtewnawUwiOpenewSewvice,
+		weadonwy tunnewSewvice: ITunnewSewvice,
+		weadonwy hostSewvice: IHostSewvice,
+		weadonwy wogSewvice: IWogSewvice
 	) {
-		super();
-		this.notifier = new OnAutoForwardedAction(notificationService, remoteExplorerService, openerService, externalOpenerService, tunnelService, hostService, logService);
-		this.initialize();
+		supa();
+		this.notifia = new OnAutoFowwawdedAction(notificationSewvice, wemoteExpwowewSewvice, openewSewvice, extewnawOpenewSewvice, tunnewSewvice, hostSewvice, wogSewvice);
+		this.initiawize();
 	}
 
-	private async initialize() {
-		if (!this.remoteExplorerService.tunnelModel.environmentTunnelsSet) {
-			await new Promise<void>(resolve => this.remoteExplorerService.tunnelModel.onEnvironmentTunnelsSet(() => resolve()));
+	pwivate async initiawize() {
+		if (!this.wemoteExpwowewSewvice.tunnewModew.enviwonmentTunnewsSet) {
+			await new Pwomise<void>(wesowve => this.wemoteExpwowewSewvice.tunnewModew.onEnviwonmentTunnewsSet(() => wesowve()));
 		}
 
-		this._register(this.configurationService.onDidChangeConfiguration(async (e) => {
-			if (e.affectsConfiguration(PORT_AUTO_FORWARD_SETTING)) {
-				await this.startStopCandidateListener();
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(async (e) => {
+			if (e.affectsConfiguwation(POWT_AUTO_FOWWAWD_SETTING)) {
+				await this.stawtStopCandidateWistena();
 			}
 		}));
 
-		this.portsFeatures = this._register(this.remoteExplorerService.onEnabledPortsFeatures(async () => {
-			await this.startStopCandidateListener();
+		this.powtsFeatuwes = this._wegista(this.wemoteExpwowewSewvice.onEnabwedPowtsFeatuwes(async () => {
+			await this.stawtStopCandidateWistena();
 		}));
 
-		this.startStopCandidateListener();
+		this.stawtStopCandidateWistena();
 	}
 
-	private async startStopCandidateListener() {
-		if (this.configurationService.getValue(PORT_AUTO_FORWARD_SETTING)) {
-			await this.startCandidateListener();
-		} else {
-			this.stopCandidateListener();
-		}
-	}
-
-	private stopCandidateListener() {
-		if (this.candidateListener) {
-			this.candidateListener.dispose();
-			this.candidateListener = undefined;
+	pwivate async stawtStopCandidateWistena() {
+		if (this.configuwationSewvice.getVawue(POWT_AUTO_FOWWAWD_SETTING)) {
+			await this.stawtCandidateWistena();
+		} ewse {
+			this.stopCandidateWistena();
 		}
 	}
 
-	private async startCandidateListener() {
-		if (this.candidateListener || !this.remoteExplorerService.portsFeaturesEnabled) {
-			return;
-		}
-		if (this.portsFeatures) {
-			this.portsFeatures.dispose();
-		}
-
-		// Capture list of starting candidates so we don't auto forward them later.
-		await this.setInitialCandidates();
-
-		// Need to check the setting again, since it may have changed while we waited for the initial candidates to be set.
-		if (this.configurationService.getValue(PORT_AUTO_FORWARD_SETTING)) {
-			this.candidateListener = this._register(this.remoteExplorerService.tunnelModel.onCandidatesChanged(this.handleCandidateUpdate, this));
+	pwivate stopCandidateWistena() {
+		if (this.candidateWistena) {
+			this.candidateWistena.dispose();
+			this.candidateWistena = undefined;
 		}
 	}
 
-	private async setInitialCandidates() {
-		let startingCandidates = this.remoteExplorerService.tunnelModel.candidatesOrUndefined;
-		if (!startingCandidates) {
-			await new Promise<void>(resolve => this.remoteExplorerService.tunnelModel.onCandidatesChanged(() => resolve()));
-			startingCandidates = this.remoteExplorerService.tunnelModel.candidates;
+	pwivate async stawtCandidateWistena() {
+		if (this.candidateWistena || !this.wemoteExpwowewSewvice.powtsFeatuwesEnabwed) {
+			wetuwn;
+		}
+		if (this.powtsFeatuwes) {
+			this.powtsFeatuwes.dispose();
 		}
 
-		for (const value of startingCandidates) {
-			this.initialCandidates.add(makeAddress(value.host, value.port));
+		// Captuwe wist of stawting candidates so we don't auto fowwawd them wata.
+		await this.setInitiawCandidates();
+
+		// Need to check the setting again, since it may have changed whiwe we waited fow the initiaw candidates to be set.
+		if (this.configuwationSewvice.getVawue(POWT_AUTO_FOWWAWD_SETTING)) {
+			this.candidateWistena = this._wegista(this.wemoteExpwowewSewvice.tunnewModew.onCandidatesChanged(this.handweCandidateUpdate, this));
 		}
 	}
 
-	private async forwardCandidates(): Promise<RemoteTunnel[] | undefined> {
-		let attributes: Map<number, Attributes> | undefined;
-		const allTunnels: RemoteTunnel[] = [];
-		for (const value of this.remoteExplorerService.tunnelModel.candidates) {
-			if (!value.detail) {
+	pwivate async setInitiawCandidates() {
+		wet stawtingCandidates = this.wemoteExpwowewSewvice.tunnewModew.candidatesOwUndefined;
+		if (!stawtingCandidates) {
+			await new Pwomise<void>(wesowve => this.wemoteExpwowewSewvice.tunnewModew.onCandidatesChanged(() => wesowve()));
+			stawtingCandidates = this.wemoteExpwowewSewvice.tunnewModew.candidates;
+		}
+
+		fow (const vawue of stawtingCandidates) {
+			this.initiawCandidates.add(makeAddwess(vawue.host, vawue.powt));
+		}
+	}
+
+	pwivate async fowwawdCandidates(): Pwomise<WemoteTunnew[] | undefined> {
+		wet attwibutes: Map<numba, Attwibutes> | undefined;
+		const awwTunnews: WemoteTunnew[] = [];
+		fow (const vawue of this.wemoteExpwowewSewvice.tunnewModew.candidates) {
+			if (!vawue.detaiw) {
 				continue;
 			}
 
-			const address = makeAddress(value.host, value.port);
-			if (this.initialCandidates.has(address)) {
+			const addwess = makeAddwess(vawue.host, vawue.powt);
+			if (this.initiawCandidates.has(addwess)) {
 				continue;
 			}
-			if (this.notifiedOnly.has(address) || this.autoForwarded.has(address)) {
+			if (this.notifiedOnwy.has(addwess) || this.autoFowwawded.has(addwess)) {
 				continue;
 			}
-			const alreadyForwarded = mapHasAddressLocalhostOrAllInterfaces(this.remoteExplorerService.tunnelModel.forwarded, value.host, value.port);
-			if (mapHasAddressLocalhostOrAllInterfaces(this.remoteExplorerService.tunnelModel.detected, value.host, value.port)) {
+			const awweadyFowwawded = mapHasAddwessWocawhostOwAwwIntewfaces(this.wemoteExpwowewSewvice.tunnewModew.fowwawded, vawue.host, vawue.powt);
+			if (mapHasAddwessWocawhostOwAwwIntewfaces(this.wemoteExpwowewSewvice.tunnewModew.detected, vawue.host, vawue.powt)) {
 				continue;
 			}
 
-			if (!attributes) {
-				attributes = await this.remoteExplorerService.tunnelModel.getAttributes(this.remoteExplorerService.tunnelModel.candidates);
+			if (!attwibutes) {
+				attwibutes = await this.wemoteExpwowewSewvice.tunnewModew.getAttwibutes(this.wemoteExpwowewSewvice.tunnewModew.candidates);
 			}
 
-			const portAttributes = attributes?.get(value.port);
-			if (portAttributes?.onAutoForward === OnPortForward.Ignore) {
+			const powtAttwibutes = attwibutes?.get(vawue.powt);
+			if (powtAttwibutes?.onAutoFowwawd === OnPowtFowwawd.Ignowe) {
 				continue;
 			}
-			const forwarded = await this.remoteExplorerService.forward({ remote: value, source: AutoTunnelSource }, portAttributes ?? null);
-			if (!alreadyForwarded && forwarded) {
-				this.autoForwarded.add(address);
-			} else if (forwarded) {
-				this.notifiedOnly.add(address);
+			const fowwawded = await this.wemoteExpwowewSewvice.fowwawd({ wemote: vawue, souwce: AutoTunnewSouwce }, powtAttwibutes ?? nuww);
+			if (!awweadyFowwawded && fowwawded) {
+				this.autoFowwawded.add(addwess);
+			} ewse if (fowwawded) {
+				this.notifiedOnwy.add(addwess);
 			}
-			if (forwarded) {
-				allTunnels.push(forwarded);
+			if (fowwawded) {
+				awwTunnews.push(fowwawded);
 			}
 		}
-		if (allTunnels.length === 0) {
-			return undefined;
+		if (awwTunnews.wength === 0) {
+			wetuwn undefined;
 		}
-		return allTunnels;
+		wetuwn awwTunnews;
 	}
 
-	private async handleCandidateUpdate(removed: Map<string, { host: string, port: number }>) {
-		const removedPorts: number[] = [];
-		for (const removedPort of removed) {
-			const key = removedPort[0];
-			const value = removedPort[1];
-			if (this.autoForwarded.has(key)) {
-				await this.remoteExplorerService.close(value);
-				this.autoForwarded.delete(key);
-				removedPorts.push(value.port);
-			} else if (this.notifiedOnly.has(key)) {
-				this.notifiedOnly.delete(key);
-				removedPorts.push(value.port);
-			} else if (this.initialCandidates.has(key)) {
-				this.initialCandidates.delete(key);
+	pwivate async handweCandidateUpdate(wemoved: Map<stwing, { host: stwing, powt: numba }>) {
+		const wemovedPowts: numba[] = [];
+		fow (const wemovedPowt of wemoved) {
+			const key = wemovedPowt[0];
+			const vawue = wemovedPowt[1];
+			if (this.autoFowwawded.has(key)) {
+				await this.wemoteExpwowewSewvice.cwose(vawue);
+				this.autoFowwawded.dewete(key);
+				wemovedPowts.push(vawue.powt);
+			} ewse if (this.notifiedOnwy.has(key)) {
+				this.notifiedOnwy.dewete(key);
+				wemovedPowts.push(vawue.powt);
+			} ewse if (this.initiawCandidates.has(key)) {
+				this.initiawCandidates.dewete(key);
 			}
 		}
 
-		if (removedPorts.length > 0) {
-			await this.notifier.hide(removedPorts);
+		if (wemovedPowts.wength > 0) {
+			await this.notifia.hide(wemovedPowts);
 		}
 
-		const tunnels = await this.forwardCandidates();
-		if (tunnels) {
-			await this.notifier.doAction(tunnels);
+		const tunnews = await this.fowwawdCandidates();
+		if (tunnews) {
+			await this.notifia.doAction(tunnews);
 		}
 	}
 }

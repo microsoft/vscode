@@ -1,31 +1,31 @@
 {
 	"extends": "./tsconfig.base.json",
-	"compilerOptions": {
-		"noEmit": true,
-		"types": ["trusted-types"],
+	"compiwewOptions": {
+		"noEmit": twue,
+		"types": ["twusted-types"],
 		"paths": {},
-		"module": "amd",
-		"moduleResolution": "classic",
-		"removeComments": false,
-		"preserveConstEnums": true,
-		"target": "es6",
-		"sourceMap": false,
-		"declaration": true
+		"moduwe": "amd",
+		"moduweWesowution": "cwassic",
+		"wemoveComments": fawse,
+		"pwesewveConstEnums": twue,
+		"tawget": "es6",
+		"souwceMap": fawse,
+		"decwawation": twue
 	},
-	"include": [
-		"typings/require.d.ts",
-		"typings/thenable.d.ts",
+	"incwude": [
+		"typings/wequiwe.d.ts",
+		"typings/thenabwe.d.ts",
 		"vs/css.d.ts",
 		"vs/monaco.d.ts",
-		"vs/nls.d.ts",
-		"vs/editor/*",
+		"vs/nws.d.ts",
+		"vs/editow/*",
 		"vs/base/common/*",
-		"vs/base/browser/*",
-		"vs/platform/*/common/*",
-		"vs/platform/*/browser/*"
+		"vs/base/bwowsa/*",
+		"vs/pwatfowm/*/common/*",
+		"vs/pwatfowm/*/bwowsa/*"
 	],
-	"exclude": [
-		"node_modules/*",
-		"vs/platform/files/browser/htmlFileSystemProvider.ts"
+	"excwude": [
+		"node_moduwes/*",
+		"vs/pwatfowm/fiwes/bwowsa/htmwFiweSystemPwovida.ts"
 	]
 }

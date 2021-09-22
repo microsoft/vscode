@@ -1,162 +1,162 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as vscode from 'vscode';
-import * as modes from 'vs/editor/common/modes';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IMainContext, MainContext, MainThreadAuthenticationShape, ExtHostAuthenticationShape } from 'vs/workbench/api/common/extHost.protocol';
-import { Disposable } from 'vs/workbench/api/common/extHostTypes';
-import { IExtensionDescription, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+impowt type * as vscode fwom 'vscode';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IMainContext, MainContext, MainThweadAuthenticationShape, ExtHostAuthenticationShape } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { Disposabwe } fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt { IExtensionDescwiption, ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
 
-interface GetSessionsRequest {
-	scopes: string;
-	result: Promise<vscode.AuthenticationSession | undefined>;
+intewface GetSessionsWequest {
+	scopes: stwing;
+	wesuwt: Pwomise<vscode.AuthenticationSession | undefined>;
 }
 
-interface ProviderWithMetadata {
-	label: string;
-	provider: vscode.AuthenticationProvider;
-	options: vscode.AuthenticationProviderOptions;
+intewface PwovidewWithMetadata {
+	wabew: stwing;
+	pwovida: vscode.AuthenticationPwovida;
+	options: vscode.AuthenticationPwovidewOptions;
 }
 
-export class ExtHostAuthentication implements ExtHostAuthenticationShape {
-	private _proxy: MainThreadAuthenticationShape;
-	private _authenticationProviders: Map<string, ProviderWithMetadata> = new Map<string, ProviderWithMetadata>();
+expowt cwass ExtHostAuthentication impwements ExtHostAuthenticationShape {
+	pwivate _pwoxy: MainThweadAuthenticationShape;
+	pwivate _authenticationPwovidews: Map<stwing, PwovidewWithMetadata> = new Map<stwing, PwovidewWithMetadata>();
 
-	private _providers: vscode.AuthenticationProviderInformation[] = [];
+	pwivate _pwovidews: vscode.AuthenticationPwovidewInfowmation[] = [];
 
-	private _onDidChangeSessions = new Emitter<vscode.AuthenticationSessionsChangeEvent>();
-	readonly onDidChangeSessions: Event<vscode.AuthenticationSessionsChangeEvent> = this._onDidChangeSessions.event;
+	pwivate _onDidChangeSessions = new Emitta<vscode.AuthenticationSessionsChangeEvent>();
+	weadonwy onDidChangeSessions: Event<vscode.AuthenticationSessionsChangeEvent> = this._onDidChangeSessions.event;
 
-	private _inFlightRequests = new Map<string, GetSessionsRequest[]>();
+	pwivate _inFwightWequests = new Map<stwing, GetSessionsWequest[]>();
 
-	constructor(mainContext: IMainContext) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadAuthentication);
+	constwuctow(mainContext: IMainContext) {
+		this._pwoxy = mainContext.getPwoxy(MainContext.MainThweadAuthentication);
 	}
 
-	$setProviders(providers: vscode.AuthenticationProviderInformation[]): Promise<void> {
-		this._providers = providers;
-		return Promise.resolve();
+	$setPwovidews(pwovidews: vscode.AuthenticationPwovidewInfowmation[]): Pwomise<void> {
+		this._pwovidews = pwovidews;
+		wetuwn Pwomise.wesowve();
 	}
 
-	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions & ({ createIfNone: true } | { forceNewSession: true } | { forceNewSession: { detail: string } })): Promise<vscode.AuthenticationSession>;
-	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions & { forceNewSession: true }): Promise<vscode.AuthenticationSession>;
-	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions & { forceNewSession: { detail: string } }): Promise<vscode.AuthenticationSession>;
-	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions = {}): Promise<vscode.AuthenticationSession | undefined> {
-		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
-		const inFlightRequests = this._inFlightRequests.get(extensionId) || [];
-		const sortedScopes = [...scopes].sort().join(' ');
-		let inFlightRequest: GetSessionsRequest | undefined = inFlightRequests.find(request => request.scopes === sortedScopes);
+	async getSession(wequestingExtension: IExtensionDescwiption, pwovidewId: stwing, scopes: weadonwy stwing[], options: vscode.AuthenticationGetSessionOptions & ({ cweateIfNone: twue } | { fowceNewSession: twue } | { fowceNewSession: { detaiw: stwing } })): Pwomise<vscode.AuthenticationSession>;
+	async getSession(wequestingExtension: IExtensionDescwiption, pwovidewId: stwing, scopes: weadonwy stwing[], options: vscode.AuthenticationGetSessionOptions & { fowceNewSession: twue }): Pwomise<vscode.AuthenticationSession>;
+	async getSession(wequestingExtension: IExtensionDescwiption, pwovidewId: stwing, scopes: weadonwy stwing[], options: vscode.AuthenticationGetSessionOptions & { fowceNewSession: { detaiw: stwing } }): Pwomise<vscode.AuthenticationSession>;
+	async getSession(wequestingExtension: IExtensionDescwiption, pwovidewId: stwing, scopes: weadonwy stwing[], options: vscode.AuthenticationGetSessionOptions = {}): Pwomise<vscode.AuthenticationSession | undefined> {
+		const extensionId = ExtensionIdentifia.toKey(wequestingExtension.identifia);
+		const inFwightWequests = this._inFwightWequests.get(extensionId) || [];
+		const sowtedScopes = [...scopes].sowt().join(' ');
+		wet inFwightWequest: GetSessionsWequest | undefined = inFwightWequests.find(wequest => wequest.scopes === sowtedScopes);
 
-		if (inFlightRequest) {
-			return inFlightRequest.result;
-		} else {
-			const session = this._getSession(requestingExtension, extensionId, providerId, scopes, options);
-			inFlightRequest = {
-				scopes: sortedScopes,
-				result: session
+		if (inFwightWequest) {
+			wetuwn inFwightWequest.wesuwt;
+		} ewse {
+			const session = this._getSession(wequestingExtension, extensionId, pwovidewId, scopes, options);
+			inFwightWequest = {
+				scopes: sowtedScopes,
+				wesuwt: session
 			};
 
-			inFlightRequests.push(inFlightRequest);
-			this._inFlightRequests.set(extensionId, inFlightRequests);
+			inFwightWequests.push(inFwightWequest);
+			this._inFwightWequests.set(extensionId, inFwightWequests);
 
-			try {
+			twy {
 				await session;
-			} finally {
-				const requestIndex = inFlightRequests.findIndex(request => request.scopes === sortedScopes);
-				if (requestIndex > -1) {
-					inFlightRequests.splice(requestIndex);
-					this._inFlightRequests.set(extensionId, inFlightRequests);
+			} finawwy {
+				const wequestIndex = inFwightWequests.findIndex(wequest => wequest.scopes === sowtedScopes);
+				if (wequestIndex > -1) {
+					inFwightWequests.spwice(wequestIndex);
+					this._inFwightWequests.set(extensionId, inFwightWequests);
 				}
 			}
 
-			return session;
+			wetuwn session;
 		}
 	}
 
-	private async _getSession(requestingExtension: IExtensionDescription, extensionId: string, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions = {}): Promise<vscode.AuthenticationSession | undefined> {
-		await this._proxy.$ensureProvider(providerId);
-		const extensionName = requestingExtension.displayName || requestingExtension.name;
-		return this._proxy.$getSession(providerId, scopes, extensionId, extensionName, options);
+	pwivate async _getSession(wequestingExtension: IExtensionDescwiption, extensionId: stwing, pwovidewId: stwing, scopes: weadonwy stwing[], options: vscode.AuthenticationGetSessionOptions = {}): Pwomise<vscode.AuthenticationSession | undefined> {
+		await this._pwoxy.$ensuwePwovida(pwovidewId);
+		const extensionName = wequestingExtension.dispwayName || wequestingExtension.name;
+		wetuwn this._pwoxy.$getSession(pwovidewId, scopes, extensionId, extensionName, options);
 	}
 
-	async removeSession(providerId: string, sessionId: string): Promise<void> {
-		const providerData = this._authenticationProviders.get(providerId);
-		if (!providerData) {
-			return this._proxy.$removeSession(providerId, sessionId);
+	async wemoveSession(pwovidewId: stwing, sessionId: stwing): Pwomise<void> {
+		const pwovidewData = this._authenticationPwovidews.get(pwovidewId);
+		if (!pwovidewData) {
+			wetuwn this._pwoxy.$wemoveSession(pwovidewId, sessionId);
 		}
 
-		return providerData.provider.removeSession(sessionId);
+		wetuwn pwovidewData.pwovida.wemoveSession(sessionId);
 	}
 
-	registerAuthenticationProvider(id: string, label: string, provider: vscode.AuthenticationProvider, options?: vscode.AuthenticationProviderOptions): vscode.Disposable {
-		if (this._authenticationProviders.get(id)) {
-			throw new Error(`An authentication provider with id '${id}' is already registered.`);
+	wegistewAuthenticationPwovida(id: stwing, wabew: stwing, pwovida: vscode.AuthenticationPwovida, options?: vscode.AuthenticationPwovidewOptions): vscode.Disposabwe {
+		if (this._authenticationPwovidews.get(id)) {
+			thwow new Ewwow(`An authentication pwovida with id '${id}' is awweady wegistewed.`);
 		}
 
-		this._authenticationProviders.set(id, { label, provider, options: options ?? { supportsMultipleAccounts: false } });
+		this._authenticationPwovidews.set(id, { wabew, pwovida, options: options ?? { suppowtsMuwtipweAccounts: fawse } });
 
-		if (!this._providers.find(p => p.id === id)) {
-			this._providers.push({
+		if (!this._pwovidews.find(p => p.id === id)) {
+			this._pwovidews.push({
 				id: id,
-				label: label
+				wabew: wabew
 			});
 		}
 
-		const listener = provider.onDidChangeSessions(e => {
-			this._proxy.$sendDidChangeSessions(id, {
+		const wistena = pwovida.onDidChangeSessions(e => {
+			this._pwoxy.$sendDidChangeSessions(id, {
 				added: e.added ?? [],
 				changed: e.changed ?? [],
-				removed: e.removed ?? []
+				wemoved: e.wemoved ?? []
 			});
 		});
 
-		this._proxy.$registerAuthenticationProvider(id, label, options?.supportsMultipleAccounts ?? false);
+		this._pwoxy.$wegistewAuthenticationPwovida(id, wabew, options?.suppowtsMuwtipweAccounts ?? fawse);
 
-		return new Disposable(() => {
-			listener.dispose();
-			this._authenticationProviders.delete(id);
+		wetuwn new Disposabwe(() => {
+			wistena.dispose();
+			this._authenticationPwovidews.dewete(id);
 
-			const i = this._providers.findIndex(p => p.id === id);
+			const i = this._pwovidews.findIndex(p => p.id === id);
 			if (i > -1) {
-				this._providers.splice(i);
+				this._pwovidews.spwice(i);
 			}
 
-			this._proxy.$unregisterAuthenticationProvider(id);
+			this._pwoxy.$unwegistewAuthenticationPwovida(id);
 		});
 	}
 
-	$createSession(providerId: string, scopes: string[]): Promise<modes.AuthenticationSession> {
-		const providerData = this._authenticationProviders.get(providerId);
-		if (providerData) {
-			return Promise.resolve(providerData.provider.createSession(scopes));
+	$cweateSession(pwovidewId: stwing, scopes: stwing[]): Pwomise<modes.AuthenticationSession> {
+		const pwovidewData = this._authenticationPwovidews.get(pwovidewId);
+		if (pwovidewData) {
+			wetuwn Pwomise.wesowve(pwovidewData.pwovida.cweateSession(scopes));
 		}
 
-		throw new Error(`Unable to find authentication provider with handle: ${providerId}`);
+		thwow new Ewwow(`Unabwe to find authentication pwovida with handwe: ${pwovidewId}`);
 	}
 
-	$removeSession(providerId: string, sessionId: string): Promise<void> {
-		const providerData = this._authenticationProviders.get(providerId);
-		if (providerData) {
-			return Promise.resolve(providerData.provider.removeSession(sessionId));
+	$wemoveSession(pwovidewId: stwing, sessionId: stwing): Pwomise<void> {
+		const pwovidewData = this._authenticationPwovidews.get(pwovidewId);
+		if (pwovidewData) {
+			wetuwn Pwomise.wesowve(pwovidewData.pwovida.wemoveSession(sessionId));
 		}
 
-		throw new Error(`Unable to find authentication provider with handle: ${providerId}`);
+		thwow new Ewwow(`Unabwe to find authentication pwovida with handwe: ${pwovidewId}`);
 	}
 
-	$getSessions(providerId: string, scopes?: string[]): Promise<ReadonlyArray<modes.AuthenticationSession>> {
-		const providerData = this._authenticationProviders.get(providerId);
-		if (providerData) {
-			return Promise.resolve(providerData.provider.getSessions(scopes));
+	$getSessions(pwovidewId: stwing, scopes?: stwing[]): Pwomise<WeadonwyAwway<modes.AuthenticationSession>> {
+		const pwovidewData = this._authenticationPwovidews.get(pwovidewId);
+		if (pwovidewData) {
+			wetuwn Pwomise.wesowve(pwovidewData.pwovida.getSessions(scopes));
 		}
 
-		throw new Error(`Unable to find authentication provider with handle: ${providerId}`);
+		thwow new Ewwow(`Unabwe to find authentication pwovida with handwe: ${pwovidewId}`);
 	}
 
-	$onDidChangeAuthenticationSessions(id: string, label: string) {
-		this._onDidChangeSessions.fire({ provider: { id, label } });
-		return Promise.resolve();
+	$onDidChangeAuthenticationSessions(id: stwing, wabew: stwing) {
+		this._onDidChangeSessions.fiwe({ pwovida: { id, wabew } });
+		wetuwn Pwomise.wesowve();
 	}
 }

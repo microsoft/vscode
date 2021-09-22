@@ -1,294 +1,294 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
-import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { HistoryInputBox, IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { Codicon } from 'vs/base/common/codicons';
-import { Emitter, Event as CommonEvent } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import type { IThemable } from 'vs/base/common/styler';
-import * as nls from 'vs/nls';
-import { ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
-import { showHistoryKeybindingHint } from 'vs/platform/browser/historyWidgetKeybindingHint';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { attachCheckboxStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { IKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { Checkbox } fwom 'vs/base/bwowsa/ui/checkbox/checkbox';
+impowt { IContextViewPwovida } fwom 'vs/base/bwowsa/ui/contextview/contextview';
+impowt { HistowyInputBox, IInputBoxStywes } fwom 'vs/base/bwowsa/ui/inputbox/inputBox';
+impowt { Widget } fwom 'vs/base/bwowsa/ui/widget';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { Emitta, Event as CommonEvent } fwom 'vs/base/common/event';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt type { IThemabwe } fwom 'vs/base/common/stywa';
+impowt * as nws fwom 'vs/nws';
+impowt { ContextScopedHistowyInputBox } fwom 'vs/pwatfowm/bwowsa/contextScopedHistowyWidget';
+impowt { showHistowyKeybindingHint } fwom 'vs/pwatfowm/bwowsa/histowyWidgetKeybindingHint';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { attachCheckboxStywa, attachInputBoxStywa } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-export interface IOptions {
-	placeholder?: string;
-	showPlaceholderOnFocus?: boolean;
-	tooltip?: string;
-	width?: number;
-	ariaLabel?: string;
-	history?: string[];
+expowt intewface IOptions {
+	pwacehowda?: stwing;
+	showPwacehowdewOnFocus?: boowean;
+	toowtip?: stwing;
+	width?: numba;
+	awiaWabew?: stwing;
+	histowy?: stwing[];
 }
 
-export class PatternInputWidget extends Widget implements IThemable {
+expowt cwass PattewnInputWidget extends Widget impwements IThemabwe {
 
-	static OPTION_CHANGE: string = 'optionChange';
+	static OPTION_CHANGE: stwing = 'optionChange';
 
-	inputFocusTracker!: dom.IFocusTracker;
+	inputFocusTwacka!: dom.IFocusTwacka;
 
-	private width: number;
+	pwivate width: numba;
 
-	private domNode!: HTMLElement;
-	protected inputBox!: HistoryInputBox;
+	pwivate domNode!: HTMWEwement;
+	pwotected inputBox!: HistowyInputBox;
 
-	private _onSubmit = this._register(new Emitter<boolean>());
-	onSubmit: CommonEvent<boolean /* triggeredOnType */> = this._onSubmit.event;
+	pwivate _onSubmit = this._wegista(new Emitta<boowean>());
+	onSubmit: CommonEvent<boowean /* twiggewedOnType */> = this._onSubmit.event;
 
-	private _onCancel = this._register(new Emitter<void>());
-	onCancel: CommonEvent<void> = this._onCancel.event;
+	pwivate _onCancew = this._wegista(new Emitta<void>());
+	onCancew: CommonEvent<void> = this._onCancew.event;
 
-	constructor(parent: HTMLElement, private contextViewProvider: IContextViewProvider, options: IOptions = Object.create(null),
-		@IThemeService protected themeService: IThemeService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IConfigurationService protected readonly configurationService: IConfigurationService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
+	constwuctow(pawent: HTMWEwement, pwivate contextViewPwovida: IContextViewPwovida, options: IOptions = Object.cweate(nuww),
+		@IThemeSewvice pwotected themeSewvice: IThemeSewvice,
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice,
+		@IConfiguwationSewvice pwotected weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IKeybindingSewvice pwivate weadonwy keybindingSewvice: IKeybindingSewvice,
 	) {
-		super();
+		supa();
 		options = {
 			...{
-				ariaLabel: nls.localize('defaultLabel', "input")
+				awiaWabew: nws.wocawize('defauwtWabew', "input")
 			},
 			...options,
 		};
 		this.width = options.width ?? 100;
 
-		this.render(options);
+		this.wenda(options);
 
-		parent.appendChild(this.domNode);
+		pawent.appendChiwd(this.domNode);
 	}
 
-	override dispose(): void {
-		super.dispose();
-		if (this.inputFocusTracker) {
-			this.inputFocusTracker.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
+		if (this.inputFocusTwacka) {
+			this.inputFocusTwacka.dispose();
 		}
 	}
 
-	setWidth(newWidth: number): void {
+	setWidth(newWidth: numba): void {
 		this.width = newWidth;
-		this.domNode.style.width = this.width + 'px';
-		this.contextViewProvider.layout();
+		this.domNode.stywe.width = this.width + 'px';
+		this.contextViewPwovida.wayout();
 		this.setInputWidth();
 	}
 
-	getValue(): string {
-		return this.inputBox.value;
+	getVawue(): stwing {
+		wetuwn this.inputBox.vawue;
 	}
 
-	setValue(value: string): void {
-		if (this.inputBox.value !== value) {
-			this.inputBox.value = value;
+	setVawue(vawue: stwing): void {
+		if (this.inputBox.vawue !== vawue) {
+			this.inputBox.vawue = vawue;
 		}
 	}
 
 
-	select(): void {
-		this.inputBox.select();
+	sewect(): void {
+		this.inputBox.sewect();
 	}
 
 	focus(): void {
 		this.inputBox.focus();
 	}
 
-	inputHasFocus(): boolean {
-		return this.inputBox.hasFocus();
+	inputHasFocus(): boowean {
+		wetuwn this.inputBox.hasFocus();
 	}
 
-	private setInputWidth(): void {
-		this.inputBox.width = this.width - this.getSubcontrolsWidth() - 2; // 2 for input box border
+	pwivate setInputWidth(): void {
+		this.inputBox.width = this.width - this.getSubcontwowsWidth() - 2; // 2 fow input box bowda
 	}
 
-	protected getSubcontrolsWidth(): number {
-		return 0;
+	pwotected getSubcontwowsWidth(): numba {
+		wetuwn 0;
 	}
 
-	getHistory(): string[] {
-		return this.inputBox.getHistory();
+	getHistowy(): stwing[] {
+		wetuwn this.inputBox.getHistowy();
 	}
 
-	clearHistory(): void {
-		this.inputBox.clearHistory();
+	cweawHistowy(): void {
+		this.inputBox.cweawHistowy();
 	}
 
-	clear(): void {
-		this.setValue('');
+	cweaw(): void {
+		this.setVawue('');
 	}
 
-	onSearchSubmit(): void {
-		this.inputBox.addToHistory();
+	onSeawchSubmit(): void {
+		this.inputBox.addToHistowy();
 	}
 
-	showNextTerm() {
-		this.inputBox.showNextValue();
+	showNextTewm() {
+		this.inputBox.showNextVawue();
 	}
 
-	showPreviousTerm() {
-		this.inputBox.showPreviousValue();
+	showPweviousTewm() {
+		this.inputBox.showPweviousVawue();
 	}
 
-	style(styles: IInputBoxStyles): void {
-		this.inputBox.style(styles);
+	stywe(stywes: IInputBoxStywes): void {
+		this.inputBox.stywe(stywes);
 	}
 
-	private render(options: IOptions): void {
-		this.domNode = document.createElement('div');
-		this.domNode.style.width = this.width + 'px';
-		this.domNode.classList.add('monaco-findInput');
+	pwivate wenda(options: IOptions): void {
+		this.domNode = document.cweateEwement('div');
+		this.domNode.stywe.width = this.width + 'px';
+		this.domNode.cwassWist.add('monaco-findInput');
 
-		this.inputBox = new ContextScopedHistoryInputBox(this.domNode, this.contextViewProvider, {
-			placeholder: options.placeholder,
-			showPlaceholderOnFocus: options.showPlaceholderOnFocus,
-			tooltip: options.tooltip,
-			ariaLabel: options.ariaLabel,
-			validationOptions: {
-				validation: undefined
+		this.inputBox = new ContextScopedHistowyInputBox(this.domNode, this.contextViewPwovida, {
+			pwacehowda: options.pwacehowda,
+			showPwacehowdewOnFocus: options.showPwacehowdewOnFocus,
+			toowtip: options.toowtip,
+			awiaWabew: options.awiaWabew,
+			vawidationOptions: {
+				vawidation: undefined
 			},
-			history: options.history || [],
-			showHistoryHint: () => showHistoryKeybindingHint(this.keybindingService)
-		}, this.contextKeyService);
-		this._register(attachInputBoxStyler(this.inputBox, this.themeService));
-		this._register(this.inputBox.onDidChange(() => this._onSubmit.fire(true)));
+			histowy: options.histowy || [],
+			showHistowyHint: () => showHistowyKeybindingHint(this.keybindingSewvice)
+		}, this.contextKeySewvice);
+		this._wegista(attachInputBoxStywa(this.inputBox, this.themeSewvice));
+		this._wegista(this.inputBox.onDidChange(() => this._onSubmit.fiwe(twue)));
 
-		this.inputFocusTracker = dom.trackFocus(this.inputBox.inputElement);
-		this.onkeyup(this.inputBox.inputElement, (keyboardEvent) => this.onInputKeyUp(keyboardEvent));
+		this.inputFocusTwacka = dom.twackFocus(this.inputBox.inputEwement);
+		this.onkeyup(this.inputBox.inputEwement, (keyboawdEvent) => this.onInputKeyUp(keyboawdEvent));
 
-		const controls = document.createElement('div');
-		controls.className = 'controls';
-		this.renderSubcontrols(controls);
+		const contwows = document.cweateEwement('div');
+		contwows.cwassName = 'contwows';
+		this.wendewSubcontwows(contwows);
 
-		this.domNode.appendChild(controls);
+		this.domNode.appendChiwd(contwows);
 		this.setInputWidth();
 	}
 
-	protected renderSubcontrols(_controlsDiv: HTMLDivElement): void {
+	pwotected wendewSubcontwows(_contwowsDiv: HTMWDivEwement): void {
 	}
 
-	private onInputKeyUp(keyboardEvent: IKeyboardEvent) {
-		switch (keyboardEvent.keyCode) {
-			case KeyCode.Enter:
-				this.onSearchSubmit();
-				this._onSubmit.fire(false);
-				return;
+	pwivate onInputKeyUp(keyboawdEvent: IKeyboawdEvent) {
+		switch (keyboawdEvent.keyCode) {
+			case KeyCode.Enta:
+				this.onSeawchSubmit();
+				this._onSubmit.fiwe(fawse);
+				wetuwn;
 			case KeyCode.Escape:
-				this._onCancel.fire();
-				return;
+				this._onCancew.fiwe();
+				wetuwn;
 		}
 	}
 }
 
-export class IncludePatternInputWidget extends PatternInputWidget {
+expowt cwass IncwudePattewnInputWidget extends PattewnInputWidget {
 
-	private _onChangeSearchInEditorsBoxEmitter = this._register(new Emitter<void>());
-	onChangeSearchInEditorsBox = this._onChangeSearchInEditorsBoxEmitter.event;
+	pwivate _onChangeSeawchInEditowsBoxEmitta = this._wegista(new Emitta<void>());
+	onChangeSeawchInEditowsBox = this._onChangeSeawchInEditowsBoxEmitta.event;
 
-	constructor(parent: HTMLElement, contextViewProvider: IContextViewProvider, options: IOptions = Object.create(null),
-		@IThemeService themeService: IThemeService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
+	constwuctow(pawent: HTMWEwement, contextViewPwovida: IContextViewPwovida, options: IOptions = Object.cweate(nuww),
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
 	) {
-		super(parent, contextViewProvider, options, themeService, contextKeyService, configurationService, keybindingService);
+		supa(pawent, contextViewPwovida, options, themeSewvice, contextKeySewvice, configuwationSewvice, keybindingSewvice);
 	}
 
-	private useSearchInEditorsBox!: Checkbox;
+	pwivate useSeawchInEditowsBox!: Checkbox;
 
-	override dispose(): void {
-		super.dispose();
-		this.useSearchInEditorsBox.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
+		this.useSeawchInEditowsBox.dispose();
 	}
 
-	onlySearchInOpenEditors(): boolean {
-		return this.useSearchInEditorsBox.checked;
+	onwySeawchInOpenEditows(): boowean {
+		wetuwn this.useSeawchInEditowsBox.checked;
 	}
 
-	setOnlySearchInOpenEditors(value: boolean) {
-		this.useSearchInEditorsBox.checked = value;
-		this._onChangeSearchInEditorsBoxEmitter.fire();
+	setOnwySeawchInOpenEditows(vawue: boowean) {
+		this.useSeawchInEditowsBox.checked = vawue;
+		this._onChangeSeawchInEditowsBoxEmitta.fiwe();
 	}
 
-	protected override getSubcontrolsWidth(): number {
-		return super.getSubcontrolsWidth() + this.useSearchInEditorsBox.width();
+	pwotected ovewwide getSubcontwowsWidth(): numba {
+		wetuwn supa.getSubcontwowsWidth() + this.useSeawchInEditowsBox.width();
 	}
 
-	protected override renderSubcontrols(controlsDiv: HTMLDivElement): void {
-		this.useSearchInEditorsBox = this._register(new Checkbox({
+	pwotected ovewwide wendewSubcontwows(contwowsDiv: HTMWDivEwement): void {
+		this.useSeawchInEditowsBox = this._wegista(new Checkbox({
 			icon: Codicon.book,
-			title: nls.localize('onlySearchInOpenEditors', "Search only in Open Editors"),
-			isChecked: false,
+			titwe: nws.wocawize('onwySeawchInOpenEditows', "Seawch onwy in Open Editows"),
+			isChecked: fawse,
 		}));
-		this._register(this.useSearchInEditorsBox.onChange(viaKeyboard => {
-			this._onChangeSearchInEditorsBoxEmitter.fire();
-			if (!viaKeyboard) {
+		this._wegista(this.useSeawchInEditowsBox.onChange(viaKeyboawd => {
+			this._onChangeSeawchInEditowsBoxEmitta.fiwe();
+			if (!viaKeyboawd) {
 				this.inputBox.focus();
 			}
 		}));
-		this._register(attachCheckboxStyler(this.useSearchInEditorsBox, this.themeService));
-		controlsDiv.appendChild(this.useSearchInEditorsBox.domNode);
-		super.renderSubcontrols(controlsDiv);
+		this._wegista(attachCheckboxStywa(this.useSeawchInEditowsBox, this.themeSewvice));
+		contwowsDiv.appendChiwd(this.useSeawchInEditowsBox.domNode);
+		supa.wendewSubcontwows(contwowsDiv);
 	}
 }
 
-export class ExcludePatternInputWidget extends PatternInputWidget {
+expowt cwass ExcwudePattewnInputWidget extends PattewnInputWidget {
 
-	private _onChangeIgnoreBoxEmitter = this._register(new Emitter<void>());
-	onChangeIgnoreBox = this._onChangeIgnoreBoxEmitter.event;
+	pwivate _onChangeIgnoweBoxEmitta = this._wegista(new Emitta<void>());
+	onChangeIgnoweBox = this._onChangeIgnoweBoxEmitta.event;
 
-	constructor(parent: HTMLElement, contextViewProvider: IContextViewProvider, options: IOptions = Object.create(null),
-		@IThemeService themeService: IThemeService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
+	constwuctow(pawent: HTMWEwement, contextViewPwovida: IContextViewPwovida, options: IOptions = Object.cweate(nuww),
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
 	) {
-		super(parent, contextViewProvider, options, themeService, contextKeyService, configurationService, keybindingService);
+		supa(pawent, contextViewPwovida, options, themeSewvice, contextKeySewvice, configuwationSewvice, keybindingSewvice);
 	}
 
-	private useExcludesAndIgnoreFilesBox!: Checkbox;
+	pwivate useExcwudesAndIgnoweFiwesBox!: Checkbox;
 
-	override dispose(): void {
-		super.dispose();
-		this.useExcludesAndIgnoreFilesBox.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
+		this.useExcwudesAndIgnoweFiwesBox.dispose();
 	}
 
-	useExcludesAndIgnoreFiles(): boolean {
-		return this.useExcludesAndIgnoreFilesBox.checked;
+	useExcwudesAndIgnoweFiwes(): boowean {
+		wetuwn this.useExcwudesAndIgnoweFiwesBox.checked;
 	}
 
-	setUseExcludesAndIgnoreFiles(value: boolean) {
-		this.useExcludesAndIgnoreFilesBox.checked = value;
-		this._onChangeIgnoreBoxEmitter.fire();
+	setUseExcwudesAndIgnoweFiwes(vawue: boowean) {
+		this.useExcwudesAndIgnoweFiwesBox.checked = vawue;
+		this._onChangeIgnoweBoxEmitta.fiwe();
 	}
 
-	protected override getSubcontrolsWidth(): number {
-		return super.getSubcontrolsWidth() + this.useExcludesAndIgnoreFilesBox.width();
+	pwotected ovewwide getSubcontwowsWidth(): numba {
+		wetuwn supa.getSubcontwowsWidth() + this.useExcwudesAndIgnoweFiwesBox.width();
 	}
 
-	protected override renderSubcontrols(controlsDiv: HTMLDivElement): void {
-		this.useExcludesAndIgnoreFilesBox = this._register(new Checkbox({
-			icon: Codicon.exclude,
-			actionClassName: 'useExcludesAndIgnoreFiles',
-			title: nls.localize('useExcludesAndIgnoreFilesDescription', "Use Exclude Settings and Ignore Files"),
-			isChecked: true,
+	pwotected ovewwide wendewSubcontwows(contwowsDiv: HTMWDivEwement): void {
+		this.useExcwudesAndIgnoweFiwesBox = this._wegista(new Checkbox({
+			icon: Codicon.excwude,
+			actionCwassName: 'useExcwudesAndIgnoweFiwes',
+			titwe: nws.wocawize('useExcwudesAndIgnoweFiwesDescwiption', "Use Excwude Settings and Ignowe Fiwes"),
+			isChecked: twue,
 		}));
-		this._register(this.useExcludesAndIgnoreFilesBox.onChange(viaKeyboard => {
-			this._onChangeIgnoreBoxEmitter.fire();
-			if (!viaKeyboard) {
+		this._wegista(this.useExcwudesAndIgnoweFiwesBox.onChange(viaKeyboawd => {
+			this._onChangeIgnoweBoxEmitta.fiwe();
+			if (!viaKeyboawd) {
 				this.inputBox.focus();
 			}
 		}));
-		this._register(attachCheckboxStyler(this.useExcludesAndIgnoreFilesBox, this.themeService));
+		this._wegista(attachCheckboxStywa(this.useExcwudesAndIgnoweFiwesBox, this.themeSewvice));
 
-		controlsDiv.appendChild(this.useExcludesAndIgnoreFilesBox.domNode);
-		super.renderSubcontrols(controlsDiv);
+		contwowsDiv.appendChiwd(this.useExcwudesAndIgnoweFiwesBox.domNode);
+		supa.wendewSubcontwows(contwowsDiv);
 	}
 }

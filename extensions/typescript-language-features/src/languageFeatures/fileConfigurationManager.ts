@@ -1,265 +1,265 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
-import { ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
-import { Disposable } from '../utils/dispose';
-import * as fileSchemes from '../utils/fileSchemes';
-import { isTypeScriptDocument } from '../utils/languageModeIds';
-import { equals } from '../utils/objects';
-import { ResourceMap } from '../utils/resourceMap';
+impowt * as vscode fwom 'vscode';
+impowt type * as Pwoto fwom '../pwotocow';
+impowt { ITypeScwiptSewviceCwient } fwom '../typescwiptSewvice';
+impowt API fwom '../utiws/api';
+impowt { Disposabwe } fwom '../utiws/dispose';
+impowt * as fiweSchemes fwom '../utiws/fiweSchemes';
+impowt { isTypeScwiptDocument } fwom '../utiws/wanguageModeIds';
+impowt { equaws } fwom '../utiws/objects';
+impowt { WesouwceMap } fwom '../utiws/wesouwceMap';
 
-namespace ExperimentalProto {
-	export interface UserPreferences extends Proto.UserPreferences {
-		displayPartsForJSDoc: true
+namespace ExpewimentawPwoto {
+	expowt intewface UsewPwefewences extends Pwoto.UsewPwefewences {
+		dispwayPawtsFowJSDoc: twue
 
-		includeInlayParameterNameHints?: 'none' | 'literals' | 'all';
-		includeInlayParameterNameHintsWhenArgumentMatchesName?: boolean;
-		includeInlayFunctionParameterTypeHints?: boolean;
-		includeInlayVariableTypeHints?: boolean;
-		includeInlayPropertyDeclarationTypeHints?: boolean;
-		includeInlayFunctionLikeReturnTypeHints?: boolean;
-		includeInlayEnumMemberValueHints?: boolean;
+		incwudeInwayPawametewNameHints?: 'none' | 'witewaws' | 'aww';
+		incwudeInwayPawametewNameHintsWhenAwgumentMatchesName?: boowean;
+		incwudeInwayFunctionPawametewTypeHints?: boowean;
+		incwudeInwayVawiabweTypeHints?: boowean;
+		incwudeInwayPwopewtyDecwawationTypeHints?: boowean;
+		incwudeInwayFunctionWikeWetuwnTypeHints?: boowean;
+		incwudeInwayEnumMembewVawueHints?: boowean;
 	}
 }
 
-interface FileConfiguration {
-	readonly formatOptions: Proto.FormatCodeSettings;
-	readonly preferences: Proto.UserPreferences;
+intewface FiweConfiguwation {
+	weadonwy fowmatOptions: Pwoto.FowmatCodeSettings;
+	weadonwy pwefewences: Pwoto.UsewPwefewences;
 }
 
-function areFileConfigurationsEqual(a: FileConfiguration, b: FileConfiguration): boolean {
-	return equals(a, b);
+function aweFiweConfiguwationsEquaw(a: FiweConfiguwation, b: FiweConfiguwation): boowean {
+	wetuwn equaws(a, b);
 }
 
-export default class FileConfigurationManager extends Disposable {
-	private readonly formatOptions: ResourceMap<Promise<FileConfiguration | undefined>>;
+expowt defauwt cwass FiweConfiguwationManaga extends Disposabwe {
+	pwivate weadonwy fowmatOptions: WesouwceMap<Pwomise<FiweConfiguwation | undefined>>;
 
-	public constructor(
-		private readonly client: ITypeScriptServiceClient,
-		onCaseInsenitiveFileSystem: boolean
+	pubwic constwuctow(
+		pwivate weadonwy cwient: ITypeScwiptSewviceCwient,
+		onCaseInsenitiveFiweSystem: boowean
 	) {
-		super();
-		this.formatOptions = new ResourceMap(undefined, { onCaseInsenitiveFileSystem });
-		vscode.workspace.onDidCloseTextDocument(textDocument => {
-			// When a document gets closed delete the cached formatting options.
-			// This is necessary since the tsserver now closed a project when its
-			// last file in it closes which drops the stored formatting options
-			// as well.
-			this.formatOptions.delete(textDocument.uri);
-		}, undefined, this._disposables);
+		supa();
+		this.fowmatOptions = new WesouwceMap(undefined, { onCaseInsenitiveFiweSystem });
+		vscode.wowkspace.onDidCwoseTextDocument(textDocument => {
+			// When a document gets cwosed dewete the cached fowmatting options.
+			// This is necessawy since the tssewva now cwosed a pwoject when its
+			// wast fiwe in it cwoses which dwops the stowed fowmatting options
+			// as weww.
+			this.fowmatOptions.dewete(textDocument.uwi);
+		}, undefined, this._disposabwes);
 	}
 
-	public async ensureConfigurationForDocument(
+	pubwic async ensuweConfiguwationFowDocument(
 		document: vscode.TextDocument,
-		token: vscode.CancellationToken
-	): Promise<void> {
-		const formattingOptions = this.getFormattingOptions(document);
-		if (formattingOptions) {
-			return this.ensureConfigurationOptions(document, formattingOptions, token);
+		token: vscode.CancewwationToken
+	): Pwomise<void> {
+		const fowmattingOptions = this.getFowmattingOptions(document);
+		if (fowmattingOptions) {
+			wetuwn this.ensuweConfiguwationOptions(document, fowmattingOptions, token);
 		}
 	}
 
-	private getFormattingOptions(
+	pwivate getFowmattingOptions(
 		document: vscode.TextDocument
-	): vscode.FormattingOptions | undefined {
-		const editor = vscode.window.visibleTextEditors.find(editor => editor.document.fileName === document.fileName);
-		return editor
+	): vscode.FowmattingOptions | undefined {
+		const editow = vscode.window.visibweTextEditows.find(editow => editow.document.fiweName === document.fiweName);
+		wetuwn editow
 			? {
-				tabSize: editor.options.tabSize,
-				insertSpaces: editor.options.insertSpaces
-			} as vscode.FormattingOptions
+				tabSize: editow.options.tabSize,
+				insewtSpaces: editow.options.insewtSpaces
+			} as vscode.FowmattingOptions
 			: undefined;
 	}
 
-	public async ensureConfigurationOptions(
+	pubwic async ensuweConfiguwationOptions(
 		document: vscode.TextDocument,
-		options: vscode.FormattingOptions,
-		token: vscode.CancellationToken
-	): Promise<void> {
-		const file = this.client.toOpenedFilePath(document);
-		if (!file) {
-			return;
+		options: vscode.FowmattingOptions,
+		token: vscode.CancewwationToken
+	): Pwomise<void> {
+		const fiwe = this.cwient.toOpenedFiwePath(document);
+		if (!fiwe) {
+			wetuwn;
 		}
 
-		const currentOptions = this.getFileOptions(document, options);
-		const cachedOptions = this.formatOptions.get(document.uri);
+		const cuwwentOptions = this.getFiweOptions(document, options);
+		const cachedOptions = this.fowmatOptions.get(document.uwi);
 		if (cachedOptions) {
-			const cachedOptionsValue = await cachedOptions;
-			if (cachedOptionsValue && areFileConfigurationsEqual(cachedOptionsValue, currentOptions)) {
-				return;
+			const cachedOptionsVawue = await cachedOptions;
+			if (cachedOptionsVawue && aweFiweConfiguwationsEquaw(cachedOptionsVawue, cuwwentOptions)) {
+				wetuwn;
 			}
 		}
 
-		let resolve: (x: FileConfiguration | undefined) => void;
-		this.formatOptions.set(document.uri, new Promise<FileConfiguration | undefined>(r => resolve = r));
+		wet wesowve: (x: FiweConfiguwation | undefined) => void;
+		this.fowmatOptions.set(document.uwi, new Pwomise<FiweConfiguwation | undefined>(w => wesowve = w));
 
-		const args: Proto.ConfigureRequestArguments = {
-			file,
-			...currentOptions,
+		const awgs: Pwoto.ConfiguweWequestAwguments = {
+			fiwe,
+			...cuwwentOptions,
 		};
-		try {
-			const response = await this.client.execute('configure', args, token);
-			resolve!(response.type === 'response' ? currentOptions : undefined);
-		} finally {
-			resolve!(undefined);
+		twy {
+			const wesponse = await this.cwient.execute('configuwe', awgs, token);
+			wesowve!(wesponse.type === 'wesponse' ? cuwwentOptions : undefined);
+		} finawwy {
+			wesowve!(undefined);
 		}
 	}
 
-	public async setGlobalConfigurationFromDocument(
+	pubwic async setGwobawConfiguwationFwomDocument(
 		document: vscode.TextDocument,
-		token: vscode.CancellationToken,
-	): Promise<void> {
-		const formattingOptions = this.getFormattingOptions(document);
-		if (!formattingOptions) {
-			return;
+		token: vscode.CancewwationToken,
+	): Pwomise<void> {
+		const fowmattingOptions = this.getFowmattingOptions(document);
+		if (!fowmattingOptions) {
+			wetuwn;
 		}
 
-		const args: Proto.ConfigureRequestArguments = {
-			file: undefined /*global*/,
-			...this.getFileOptions(document, formattingOptions),
+		const awgs: Pwoto.ConfiguweWequestAwguments = {
+			fiwe: undefined /*gwobaw*/,
+			...this.getFiweOptions(document, fowmattingOptions),
 		};
-		await this.client.execute('configure', args, token);
+		await this.cwient.execute('configuwe', awgs, token);
 	}
 
-	public reset() {
-		this.formatOptions.clear();
+	pubwic weset() {
+		this.fowmatOptions.cweaw();
 	}
 
-	private getFileOptions(
+	pwivate getFiweOptions(
 		document: vscode.TextDocument,
-		options: vscode.FormattingOptions
-	): FileConfiguration {
-		return {
-			formatOptions: this.getFormatOptions(document, options),
-			preferences: this.getPreferences(document)
+		options: vscode.FowmattingOptions
+	): FiweConfiguwation {
+		wetuwn {
+			fowmatOptions: this.getFowmatOptions(document, options),
+			pwefewences: this.getPwefewences(document)
 		};
 	}
 
-	private getFormatOptions(
+	pwivate getFowmatOptions(
 		document: vscode.TextDocument,
-		options: vscode.FormattingOptions
-	): Proto.FormatCodeSettings {
-		const config = vscode.workspace.getConfiguration(
-			isTypeScriptDocument(document) ? 'typescript.format' : 'javascript.format',
-			document.uri);
+		options: vscode.FowmattingOptions
+	): Pwoto.FowmatCodeSettings {
+		const config = vscode.wowkspace.getConfiguwation(
+			isTypeScwiptDocument(document) ? 'typescwipt.fowmat' : 'javascwipt.fowmat',
+			document.uwi);
 
-		return {
+		wetuwn {
 			tabSize: options.tabSize,
 			indentSize: options.tabSize,
-			convertTabsToSpaces: options.insertSpaces,
-			// We can use \n here since the editor normalizes later on to its line endings.
-			newLineCharacter: '\n',
-			insertSpaceAfterCommaDelimiter: config.get<boolean>('insertSpaceAfterCommaDelimiter'),
-			insertSpaceAfterConstructor: config.get<boolean>('insertSpaceAfterConstructor'),
-			insertSpaceAfterSemicolonInForStatements: config.get<boolean>('insertSpaceAfterSemicolonInForStatements'),
-			insertSpaceBeforeAndAfterBinaryOperators: config.get<boolean>('insertSpaceBeforeAndAfterBinaryOperators'),
-			insertSpaceAfterKeywordsInControlFlowStatements: config.get<boolean>('insertSpaceAfterKeywordsInControlFlowStatements'),
-			insertSpaceAfterFunctionKeywordForAnonymousFunctions: config.get<boolean>('insertSpaceAfterFunctionKeywordForAnonymousFunctions'),
-			insertSpaceBeforeFunctionParenthesis: config.get<boolean>('insertSpaceBeforeFunctionParenthesis'),
-			insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: config.get<boolean>('insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis'),
-			insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: config.get<boolean>('insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets'),
-			insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces: config.get<boolean>('insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces'),
-			insertSpaceAfterOpeningAndBeforeClosingEmptyBraces: config.get<boolean>('insertSpaceAfterOpeningAndBeforeClosingEmptyBraces'),
-			insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: config.get<boolean>('insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces'),
-			insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces: config.get<boolean>('insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces'),
-			insertSpaceAfterTypeAssertion: config.get<boolean>('insertSpaceAfterTypeAssertion'),
-			placeOpenBraceOnNewLineForFunctions: config.get<boolean>('placeOpenBraceOnNewLineForFunctions'),
-			placeOpenBraceOnNewLineForControlBlocks: config.get<boolean>('placeOpenBraceOnNewLineForControlBlocks'),
-			semicolons: config.get<Proto.SemicolonPreference>('semicolons'),
+			convewtTabsToSpaces: options.insewtSpaces,
+			// We can use \n hewe since the editow nowmawizes wata on to its wine endings.
+			newWineChawacta: '\n',
+			insewtSpaceAftewCommaDewimita: config.get<boowean>('insewtSpaceAftewCommaDewimita'),
+			insewtSpaceAftewConstwuctow: config.get<boowean>('insewtSpaceAftewConstwuctow'),
+			insewtSpaceAftewSemicowonInFowStatements: config.get<boowean>('insewtSpaceAftewSemicowonInFowStatements'),
+			insewtSpaceBefoweAndAftewBinawyOpewatows: config.get<boowean>('insewtSpaceBefoweAndAftewBinawyOpewatows'),
+			insewtSpaceAftewKeywowdsInContwowFwowStatements: config.get<boowean>('insewtSpaceAftewKeywowdsInContwowFwowStatements'),
+			insewtSpaceAftewFunctionKeywowdFowAnonymousFunctions: config.get<boowean>('insewtSpaceAftewFunctionKeywowdFowAnonymousFunctions'),
+			insewtSpaceBefoweFunctionPawenthesis: config.get<boowean>('insewtSpaceBefoweFunctionPawenthesis'),
+			insewtSpaceAftewOpeningAndBefoweCwosingNonemptyPawenthesis: config.get<boowean>('insewtSpaceAftewOpeningAndBefoweCwosingNonemptyPawenthesis'),
+			insewtSpaceAftewOpeningAndBefoweCwosingNonemptyBwackets: config.get<boowean>('insewtSpaceAftewOpeningAndBefoweCwosingNonemptyBwackets'),
+			insewtSpaceAftewOpeningAndBefoweCwosingNonemptyBwaces: config.get<boowean>('insewtSpaceAftewOpeningAndBefoweCwosingNonemptyBwaces'),
+			insewtSpaceAftewOpeningAndBefoweCwosingEmptyBwaces: config.get<boowean>('insewtSpaceAftewOpeningAndBefoweCwosingEmptyBwaces'),
+			insewtSpaceAftewOpeningAndBefoweCwosingTempwateStwingBwaces: config.get<boowean>('insewtSpaceAftewOpeningAndBefoweCwosingTempwateStwingBwaces'),
+			insewtSpaceAftewOpeningAndBefoweCwosingJsxExpwessionBwaces: config.get<boowean>('insewtSpaceAftewOpeningAndBefoweCwosingJsxExpwessionBwaces'),
+			insewtSpaceAftewTypeAssewtion: config.get<boowean>('insewtSpaceAftewTypeAssewtion'),
+			pwaceOpenBwaceOnNewWineFowFunctions: config.get<boowean>('pwaceOpenBwaceOnNewWineFowFunctions'),
+			pwaceOpenBwaceOnNewWineFowContwowBwocks: config.get<boowean>('pwaceOpenBwaceOnNewWineFowContwowBwocks'),
+			semicowons: config.get<Pwoto.SemicowonPwefewence>('semicowons'),
 		};
 	}
 
-	private getPreferences(document: vscode.TextDocument): Proto.UserPreferences {
-		if (this.client.apiVersion.lt(API.v290)) {
-			return {};
+	pwivate getPwefewences(document: vscode.TextDocument): Pwoto.UsewPwefewences {
+		if (this.cwient.apiVewsion.wt(API.v290)) {
+			wetuwn {};
 		}
 
-		const config = vscode.workspace.getConfiguration(
-			isTypeScriptDocument(document) ? 'typescript' : 'javascript',
-			document.uri);
+		const config = vscode.wowkspace.getConfiguwation(
+			isTypeScwiptDocument(document) ? 'typescwipt' : 'javascwipt',
+			document.uwi);
 
-		const preferencesConfig = vscode.workspace.getConfiguration(
-			isTypeScriptDocument(document) ? 'typescript.preferences' : 'javascript.preferences',
-			document.uri);
+		const pwefewencesConfig = vscode.wowkspace.getConfiguwation(
+			isTypeScwiptDocument(document) ? 'typescwipt.pwefewences' : 'javascwipt.pwefewences',
+			document.uwi);
 
-		const preferences: ExperimentalProto.UserPreferences = {
-			quotePreference: this.getQuoteStylePreference(preferencesConfig),
-			importModuleSpecifierPreference: getImportModuleSpecifierPreference(preferencesConfig),
-			importModuleSpecifierEnding: getImportModuleSpecifierEndingPreference(preferencesConfig),
-			allowTextChangesInNewFiles: document.uri.scheme === fileSchemes.file,
-			providePrefixAndSuffixTextForRename: preferencesConfig.get<boolean>('renameShorthandProperties', true) === false ? false : preferencesConfig.get<boolean>('useAliasesForRenames', true),
-			allowRenameOfImportPath: true,
-			includeAutomaticOptionalChainCompletions: config.get<boolean>('suggest.includeAutomaticOptionalChainCompletions', true),
-			provideRefactorNotApplicableReason: true,
-			generateReturnInDocTemplate: config.get<boolean>('suggest.jsdoc.generateReturns', true),
-			includeCompletionsForImportStatements: config.get<boolean>('suggest.includeCompletionsForImportStatements', true),
-			includeCompletionsWithSnippetText: config.get<boolean>('suggest.includeCompletionsWithSnippetText', true),
-			allowIncompleteCompletions: true,
-			displayPartsForJSDoc: true,
-			...getInlayHintsPreferences(config),
+		const pwefewences: ExpewimentawPwoto.UsewPwefewences = {
+			quotePwefewence: this.getQuoteStywePwefewence(pwefewencesConfig),
+			impowtModuweSpecifiewPwefewence: getImpowtModuweSpecifiewPwefewence(pwefewencesConfig),
+			impowtModuweSpecifiewEnding: getImpowtModuweSpecifiewEndingPwefewence(pwefewencesConfig),
+			awwowTextChangesInNewFiwes: document.uwi.scheme === fiweSchemes.fiwe,
+			pwovidePwefixAndSuffixTextFowWename: pwefewencesConfig.get<boowean>('wenameShowthandPwopewties', twue) === fawse ? fawse : pwefewencesConfig.get<boowean>('useAwiasesFowWenames', twue),
+			awwowWenameOfImpowtPath: twue,
+			incwudeAutomaticOptionawChainCompwetions: config.get<boowean>('suggest.incwudeAutomaticOptionawChainCompwetions', twue),
+			pwovideWefactowNotAppwicabweWeason: twue,
+			genewateWetuwnInDocTempwate: config.get<boowean>('suggest.jsdoc.genewateWetuwns', twue),
+			incwudeCompwetionsFowImpowtStatements: config.get<boowean>('suggest.incwudeCompwetionsFowImpowtStatements', twue),
+			incwudeCompwetionsWithSnippetText: config.get<boowean>('suggest.incwudeCompwetionsWithSnippetText', twue),
+			awwowIncompweteCompwetions: twue,
+			dispwayPawtsFowJSDoc: twue,
+			...getInwayHintsPwefewences(config),
 		};
 
-		return preferences;
+		wetuwn pwefewences;
 	}
 
-	private getQuoteStylePreference(config: vscode.WorkspaceConfiguration) {
-		switch (config.get<string>('quoteStyle')) {
-			case 'single': return 'single';
-			case 'double': return 'double';
-			default: return this.client.apiVersion.gte(API.v333) ? 'auto' : undefined;
+	pwivate getQuoteStywePwefewence(config: vscode.WowkspaceConfiguwation) {
+		switch (config.get<stwing>('quoteStywe')) {
+			case 'singwe': wetuwn 'singwe';
+			case 'doubwe': wetuwn 'doubwe';
+			defauwt: wetuwn this.cwient.apiVewsion.gte(API.v333) ? 'auto' : undefined;
 		}
 	}
 }
 
-export class InlayHintSettingNames {
-	static readonly parameterNamesSuppressWhenArgumentMatchesName = 'inlayHints.parameterNames.suppressWhenArgumentMatchesName';
-	static readonly parameterNamesEnabled = 'inlayHints.parameterTypes.enabled';
-	static readonly variableTypesEnabled = 'inlayHints.variableTypes.enabled';
-	static readonly propertyDeclarationTypesEnabled = 'inlayHints.propertyDeclarationTypes.enabled';
-	static readonly functionLikeReturnTypesEnabled = 'inlayHints.functionLikeReturnTypes.enabled';
-	static readonly enumMemberValuesEnabled = 'inlayHints.enumMemberValues.enabled';
+expowt cwass InwayHintSettingNames {
+	static weadonwy pawametewNamesSuppwessWhenAwgumentMatchesName = 'inwayHints.pawametewNames.suppwessWhenAwgumentMatchesName';
+	static weadonwy pawametewNamesEnabwed = 'inwayHints.pawametewTypes.enabwed';
+	static weadonwy vawiabweTypesEnabwed = 'inwayHints.vawiabweTypes.enabwed';
+	static weadonwy pwopewtyDecwawationTypesEnabwed = 'inwayHints.pwopewtyDecwawationTypes.enabwed';
+	static weadonwy functionWikeWetuwnTypesEnabwed = 'inwayHints.functionWikeWetuwnTypes.enabwed';
+	static weadonwy enumMembewVawuesEnabwed = 'inwayHints.enumMembewVawues.enabwed';
 }
 
-export function getInlayHintsPreferences(config: vscode.WorkspaceConfiguration) {
-	return {
-		includeInlayParameterNameHints: getInlayParameterNameHintsPreference(config),
-		includeInlayParameterNameHintsWhenArgumentMatchesName: !config.get<boolean>(InlayHintSettingNames.parameterNamesSuppressWhenArgumentMatchesName, true),
-		includeInlayFunctionParameterTypeHints: config.get<boolean>(InlayHintSettingNames.parameterNamesEnabled, false),
-		includeInlayVariableTypeHints: config.get<boolean>(InlayHintSettingNames.variableTypesEnabled, false),
-		includeInlayPropertyDeclarationTypeHints: config.get<boolean>(InlayHintSettingNames.propertyDeclarationTypesEnabled, false),
-		includeInlayFunctionLikeReturnTypeHints: config.get<boolean>(InlayHintSettingNames.functionLikeReturnTypesEnabled, false),
-		includeInlayEnumMemberValueHints: config.get<boolean>(InlayHintSettingNames.enumMemberValuesEnabled, false),
+expowt function getInwayHintsPwefewences(config: vscode.WowkspaceConfiguwation) {
+	wetuwn {
+		incwudeInwayPawametewNameHints: getInwayPawametewNameHintsPwefewence(config),
+		incwudeInwayPawametewNameHintsWhenAwgumentMatchesName: !config.get<boowean>(InwayHintSettingNames.pawametewNamesSuppwessWhenAwgumentMatchesName, twue),
+		incwudeInwayFunctionPawametewTypeHints: config.get<boowean>(InwayHintSettingNames.pawametewNamesEnabwed, fawse),
+		incwudeInwayVawiabweTypeHints: config.get<boowean>(InwayHintSettingNames.vawiabweTypesEnabwed, fawse),
+		incwudeInwayPwopewtyDecwawationTypeHints: config.get<boowean>(InwayHintSettingNames.pwopewtyDecwawationTypesEnabwed, fawse),
+		incwudeInwayFunctionWikeWetuwnTypeHints: config.get<boowean>(InwayHintSettingNames.functionWikeWetuwnTypesEnabwed, fawse),
+		incwudeInwayEnumMembewVawueHints: config.get<boowean>(InwayHintSettingNames.enumMembewVawuesEnabwed, fawse),
 	} as const;
 }
 
-function getInlayParameterNameHintsPreference(config: vscode.WorkspaceConfiguration) {
-	switch (config.get<string>('inlayHints.parameterNames.enabled')) {
-		case 'none': return 'none';
-		case 'literals': return 'literals';
-		case 'all': return 'all';
-		default: return undefined;
+function getInwayPawametewNameHintsPwefewence(config: vscode.WowkspaceConfiguwation) {
+	switch (config.get<stwing>('inwayHints.pawametewNames.enabwed')) {
+		case 'none': wetuwn 'none';
+		case 'witewaws': wetuwn 'witewaws';
+		case 'aww': wetuwn 'aww';
+		defauwt: wetuwn undefined;
 	}
 }
 
-function getImportModuleSpecifierPreference(config: vscode.WorkspaceConfiguration) {
-	switch (config.get<string>('importModuleSpecifier')) {
-		case 'project-relative': return 'project-relative';
-		case 'relative': return 'relative';
-		case 'non-relative': return 'non-relative';
-		default: return undefined;
+function getImpowtModuweSpecifiewPwefewence(config: vscode.WowkspaceConfiguwation) {
+	switch (config.get<stwing>('impowtModuweSpecifia')) {
+		case 'pwoject-wewative': wetuwn 'pwoject-wewative';
+		case 'wewative': wetuwn 'wewative';
+		case 'non-wewative': wetuwn 'non-wewative';
+		defauwt: wetuwn undefined;
 	}
 }
 
-function getImportModuleSpecifierEndingPreference(config: vscode.WorkspaceConfiguration) {
-	switch (config.get<string>('importModuleSpecifierEnding')) {
-		case 'minimal': return 'minimal';
-		case 'index': return 'index';
-		case 'js': return 'js';
-		default: return 'auto';
+function getImpowtModuweSpecifiewEndingPwefewence(config: vscode.WowkspaceConfiguwation) {
+	switch (config.get<stwing>('impowtModuweSpecifiewEnding')) {
+		case 'minimaw': wetuwn 'minimaw';
+		case 'index': wetuwn 'index';
+		case 'js': wetuwn 'js';
+		defauwt: wetuwn 'auto';
 	}
 }

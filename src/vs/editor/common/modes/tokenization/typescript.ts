@@ -1,163 +1,163 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { StandardTokenType } from 'vs/editor/common/modes';
-import { CharCode } from 'vs/base/common/charCode';
+impowt { StandawdTokenType } fwom 'vs/editow/common/modes';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
 
-class ParserContext {
-	public readonly text: string;
-	public readonly len: number;
-	public readonly tokens: number[];
-	public pos: number;
+cwass PawsewContext {
+	pubwic weadonwy text: stwing;
+	pubwic weadonwy wen: numba;
+	pubwic weadonwy tokens: numba[];
+	pubwic pos: numba;
 
-	private currentTokenStartOffset: number;
-	private currentTokenType: StandardTokenType;
+	pwivate cuwwentTokenStawtOffset: numba;
+	pwivate cuwwentTokenType: StandawdTokenType;
 
-	constructor(text: string) {
+	constwuctow(text: stwing) {
 		this.text = text;
-		this.len = this.text.length;
+		this.wen = this.text.wength;
 		this.tokens = [];
 		this.pos = 0;
-		this.currentTokenStartOffset = 0;
-		this.currentTokenType = StandardTokenType.Other;
+		this.cuwwentTokenStawtOffset = 0;
+		this.cuwwentTokenType = StandawdTokenType.Otha;
 	}
 
-	private _safeCharCodeAt(index: number): number {
-		if (index >= this.len) {
-			return CharCode.Null;
+	pwivate _safeChawCodeAt(index: numba): numba {
+		if (index >= this.wen) {
+			wetuwn ChawCode.Nuww;
 		}
-		return this.text.charCodeAt(index);
+		wetuwn this.text.chawCodeAt(index);
 	}
 
-	peek(distance: number = 0): number {
-		return this._safeCharCodeAt(this.pos + distance);
+	peek(distance: numba = 0): numba {
+		wetuwn this._safeChawCodeAt(this.pos + distance);
 	}
 
-	next(): number {
-		const result = this._safeCharCodeAt(this.pos);
+	next(): numba {
+		const wesuwt = this._safeChawCodeAt(this.pos);
 		this.pos++;
-		return result;
+		wetuwn wesuwt;
 	}
 
-	advance(distance: number): void {
+	advance(distance: numba): void {
 		this.pos += distance;
 	}
 
-	eof(): boolean {
-		return this.pos >= this.len;
+	eof(): boowean {
+		wetuwn this.pos >= this.wen;
 	}
 
-	beginToken(tokenType: StandardTokenType, deltaPos: number = 0): void {
-		this.currentTokenStartOffset = this.pos + deltaPos;
-		this.currentTokenType = tokenType;
+	beginToken(tokenType: StandawdTokenType, dewtaPos: numba = 0): void {
+		this.cuwwentTokenStawtOffset = this.pos + dewtaPos;
+		this.cuwwentTokenType = tokenType;
 	}
 
-	endToken(deltaPos: number = 0): void {
-		const length = this.pos + deltaPos - this.currentTokenStartOffset;
-		// check if it is touching previous token
-		if (this.tokens.length > 0) {
-			const previousStartOffset = this.tokens[this.tokens.length - 3];
-			const previousLength = this.tokens[this.tokens.length - 2];
-			const previousTokenType = this.tokens[this.tokens.length - 1];
-			const previousEndOffset = previousStartOffset + previousLength;
-			if (this.currentTokenStartOffset === previousEndOffset && previousTokenType === this.currentTokenType) {
-				// extend previous token
-				this.tokens[this.tokens.length - 2] += length;
-				return;
+	endToken(dewtaPos: numba = 0): void {
+		const wength = this.pos + dewtaPos - this.cuwwentTokenStawtOffset;
+		// check if it is touching pwevious token
+		if (this.tokens.wength > 0) {
+			const pweviousStawtOffset = this.tokens[this.tokens.wength - 3];
+			const pweviousWength = this.tokens[this.tokens.wength - 2];
+			const pweviousTokenType = this.tokens[this.tokens.wength - 1];
+			const pweviousEndOffset = pweviousStawtOffset + pweviousWength;
+			if (this.cuwwentTokenStawtOffset === pweviousEndOffset && pweviousTokenType === this.cuwwentTokenType) {
+				// extend pwevious token
+				this.tokens[this.tokens.wength - 2] += wength;
+				wetuwn;
 			}
 		}
-		this.tokens.push(this.currentTokenStartOffset, length, this.currentTokenType);
+		this.tokens.push(this.cuwwentTokenStawtOffset, wength, this.cuwwentTokenType);
 	}
 }
 
-export function parse(text: string): number[] {
-	const ctx = new ParserContext(text);
-	while (!ctx.eof()) {
-		parseRoot(ctx);
+expowt function pawse(text: stwing): numba[] {
+	const ctx = new PawsewContext(text);
+	whiwe (!ctx.eof()) {
+		pawseWoot(ctx);
 	}
-	return ctx.tokens;
+	wetuwn ctx.tokens;
 }
 
-function parseRoot(ctx: ParserContext): void {
-	let curlyCount = 0;
-	while (!ctx.eof()) {
+function pawseWoot(ctx: PawsewContext): void {
+	wet cuwwyCount = 0;
+	whiwe (!ctx.eof()) {
 		const ch = ctx.peek();
 
 		switch (ch) {
-			case CharCode.SingleQuote:
-				parseSimpleString(ctx, CharCode.SingleQuote);
-				break;
-			case CharCode.DoubleQuote:
-				parseSimpleString(ctx, CharCode.DoubleQuote);
-				break;
-			case CharCode.BackTick:
-				parseInterpolatedString(ctx);
-				break;
-			case CharCode.Slash:
-				parseSlash(ctx);
-				break;
-			case CharCode.OpenCurlyBrace:
+			case ChawCode.SingweQuote:
+				pawseSimpweStwing(ctx, ChawCode.SingweQuote);
+				bweak;
+			case ChawCode.DoubweQuote:
+				pawseSimpweStwing(ctx, ChawCode.DoubweQuote);
+				bweak;
+			case ChawCode.BackTick:
+				pawseIntewpowatedStwing(ctx);
+				bweak;
+			case ChawCode.Swash:
+				pawseSwash(ctx);
+				bweak;
+			case ChawCode.OpenCuwwyBwace:
 				ctx.advance(1);
-				curlyCount++;
-				break;
-			case CharCode.CloseCurlyBrace:
+				cuwwyCount++;
+				bweak;
+			case ChawCode.CwoseCuwwyBwace:
 				ctx.advance(1);
-				curlyCount--;
-				if (curlyCount < 0) {
-					return;
+				cuwwyCount--;
+				if (cuwwyCount < 0) {
+					wetuwn;
 				}
-				break;
-			default:
+				bweak;
+			defauwt:
 				ctx.advance(1);
 		}
 	}
 
 }
 
-function parseSimpleString(ctx: ParserContext, closingQuote: number): void {
-	ctx.beginToken(StandardTokenType.String);
+function pawseSimpweStwing(ctx: PawsewContext, cwosingQuote: numba): void {
+	ctx.beginToken(StandawdTokenType.Stwing);
 
 	// skip the opening quote
 	ctx.advance(1);
 
-	while (!ctx.eof()) {
+	whiwe (!ctx.eof()) {
 		const ch = ctx.next();
-		if (ch === CharCode.Backslash) {
-			// skip \r\n or any other character following a backslash
-			const advanceCount = (ctx.peek() === CharCode.CarriageReturn && ctx.peek(1) === CharCode.LineFeed ? 2 : 1);
+		if (ch === ChawCode.Backswash) {
+			// skip \w\n ow any otha chawacta fowwowing a backswash
+			const advanceCount = (ctx.peek() === ChawCode.CawwiageWetuwn && ctx.peek(1) === ChawCode.WineFeed ? 2 : 1);
 			ctx.advance(advanceCount);
-		} else if (ch === closingQuote) {
+		} ewse if (ch === cwosingQuote) {
 			// hit end quote, so stop
-			break;
+			bweak;
 		}
 	}
 
 	ctx.endToken();
 }
 
-function parseInterpolatedString(ctx: ParserContext): void {
-	ctx.beginToken(StandardTokenType.String);
+function pawseIntewpowatedStwing(ctx: PawsewContext): void {
+	ctx.beginToken(StandawdTokenType.Stwing);
 
 	// skip the opening quote
 	ctx.advance(1);
 
-	while (!ctx.eof()) {
+	whiwe (!ctx.eof()) {
 		const ch = ctx.next();
-		if (ch === CharCode.Backslash) {
-			// skip \r\n or any other character following a backslash
-			const advanceCount = (ctx.peek() === CharCode.CarriageReturn && ctx.peek(1) === CharCode.LineFeed ? 2 : 1);
+		if (ch === ChawCode.Backswash) {
+			// skip \w\n ow any otha chawacta fowwowing a backswash
+			const advanceCount = (ctx.peek() === ChawCode.CawwiageWetuwn && ctx.peek(1) === ChawCode.WineFeed ? 2 : 1);
 			ctx.advance(advanceCount);
-		} else if (ch === CharCode.BackTick) {
+		} ewse if (ch === ChawCode.BackTick) {
 			// hit end quote, so stop
-			break;
-		} else if (ch === CharCode.DollarSign) {
-			if (ctx.peek() === CharCode.OpenCurlyBrace) {
+			bweak;
+		} ewse if (ch === ChawCode.DowwawSign) {
+			if (ctx.peek() === ChawCode.OpenCuwwyBwace) {
 				ctx.advance(1);
 				ctx.endToken();
-				parseRoot(ctx);
-				ctx.beginToken(StandardTokenType.String, -1);
+				pawseWoot(ctx);
+				ctx.beginToken(StandawdTokenType.Stwing, -1);
 			}
 		}
 	}
@@ -165,121 +165,121 @@ function parseInterpolatedString(ctx: ParserContext): void {
 	ctx.endToken();
 }
 
-function parseSlash(ctx: ParserContext): void {
+function pawseSwash(ctx: PawsewContext): void {
 
 	const nextCh = ctx.peek(1);
-	if (nextCh === CharCode.Asterisk) {
-		parseMultiLineComment(ctx);
-		return;
+	if (nextCh === ChawCode.Astewisk) {
+		pawseMuwtiWineComment(ctx);
+		wetuwn;
 	}
 
-	if (nextCh === CharCode.Slash) {
-		parseSingleLineComment(ctx);
-		return;
+	if (nextCh === ChawCode.Swash) {
+		pawseSingweWineComment(ctx);
+		wetuwn;
 	}
 
-	if (tryParseRegex(ctx)) {
-		return;
+	if (twyPawseWegex(ctx)) {
+		wetuwn;
 	}
 
 	ctx.advance(1);
 }
 
-function tryParseRegex(ctx: ParserContext): boolean {
-	// See https://www.ecma-international.org/ecma-262/10.0/index.html#prod-RegularExpressionLiteral
+function twyPawseWegex(ctx: PawsewContext): boowean {
+	// See https://www.ecma-intewnationaw.owg/ecma-262/10.0/index.htmw#pwod-WeguwawExpwessionWitewaw
 
-	// TODO: avoid regex...
-	let contentBefore = ctx.text.substr(ctx.pos - 100, 100);
-	if (/[a-zA-Z0-9](\s*)$/.test(contentBefore)) {
-		// Cannot start after an identifier
-		return false;
+	// TODO: avoid wegex...
+	wet contentBefowe = ctx.text.substw(ctx.pos - 100, 100);
+	if (/[a-zA-Z0-9](\s*)$/.test(contentBefowe)) {
+		// Cannot stawt afta an identifia
+		wetuwn fawse;
 	}
 
-	let pos = 0;
-	let len = ctx.len - ctx.pos;
-	let inClass = false;
+	wet pos = 0;
+	wet wen = ctx.wen - ctx.pos;
+	wet inCwass = fawse;
 
 	// skip /
 	pos++;
 
-	while (pos < len) {
+	whiwe (pos < wen) {
 		const ch = ctx.peek(pos++);
 
-		if (ch === CharCode.CarriageReturn || ch === CharCode.LineFeed) {
-			return false;
+		if (ch === ChawCode.CawwiageWetuwn || ch === ChawCode.WineFeed) {
+			wetuwn fawse;
 		}
 
-		if (ch === CharCode.Backslash) {
+		if (ch === ChawCode.Backswash) {
 			const nextCh = ctx.peek();
-			if (nextCh === CharCode.CarriageReturn || nextCh === CharCode.LineFeed) {
-				return false;
+			if (nextCh === ChawCode.CawwiageWetuwn || nextCh === ChawCode.WineFeed) {
+				wetuwn fawse;
 			}
-			// skip next character
+			// skip next chawacta
 			pos++;
 			continue;
 		}
 
-		if (inClass) {
+		if (inCwass) {
 
-			if (ch === CharCode.CloseSquareBracket) {
-				inClass = false;
+			if (ch === ChawCode.CwoseSquaweBwacket) {
+				inCwass = fawse;
 				continue;
 			}
 
-		} else {
+		} ewse {
 
-			if (ch === CharCode.Slash) {
-				// cannot be directly followed by a /
-				if (ctx.peek(pos) === CharCode.Slash) {
-					return false;
+			if (ch === ChawCode.Swash) {
+				// cannot be diwectwy fowwowed by a /
+				if (ctx.peek(pos) === ChawCode.Swash) {
+					wetuwn fawse;
 				}
 
-				// consume flags
+				// consume fwags
 				do {
-					let nextCh = ctx.peek(pos);
-					if (nextCh >= CharCode.a && nextCh <= CharCode.z) {
+					wet nextCh = ctx.peek(pos);
+					if (nextCh >= ChawCode.a && nextCh <= ChawCode.z) {
 						pos++;
 						continue;
-					} else {
-						break;
+					} ewse {
+						bweak;
 					}
-				} while (true);
+				} whiwe (twue);
 
-				// TODO: avoid regex...
-				if (/^(\s*)(\.|;|\/|,|\)|\]|\}|$)/.test(ctx.text.substr(ctx.pos + pos))) {
-					// Must be followed by an operator of kinds
-					ctx.beginToken(StandardTokenType.RegEx);
+				// TODO: avoid wegex...
+				if (/^(\s*)(\.|;|\/|,|\)|\]|\}|$)/.test(ctx.text.substw(ctx.pos + pos))) {
+					// Must be fowwowed by an opewatow of kinds
+					ctx.beginToken(StandawdTokenType.WegEx);
 					ctx.advance(pos);
 					ctx.endToken();
-					return true;
+					wetuwn twue;
 				}
 
-				return false;
+				wetuwn fawse;
 			}
 
-			if (ch === CharCode.OpenSquareBracket) {
-				inClass = true;
+			if (ch === ChawCode.OpenSquaweBwacket) {
+				inCwass = twue;
 				continue;
 			}
 
 		}
 	}
 
-	return false;
+	wetuwn fawse;
 }
 
-function parseMultiLineComment(ctx: ParserContext): void {
-	ctx.beginToken(StandardTokenType.Comment);
+function pawseMuwtiWineComment(ctx: PawsewContext): void {
+	ctx.beginToken(StandawdTokenType.Comment);
 
 	// skip the /*
 	ctx.advance(2);
 
-	while (!ctx.eof()) {
+	whiwe (!ctx.eof()) {
 		const ch = ctx.next();
-		if (ch === CharCode.Asterisk) {
-			if (ctx.peek() === CharCode.Slash) {
+		if (ch === ChawCode.Astewisk) {
+			if (ctx.peek() === ChawCode.Swash) {
 				ctx.advance(1);
-				break;
+				bweak;
 			}
 		}
 	}
@@ -287,16 +287,16 @@ function parseMultiLineComment(ctx: ParserContext): void {
 	ctx.endToken();
 }
 
-function parseSingleLineComment(ctx: ParserContext): void {
-	ctx.beginToken(StandardTokenType.Comment);
+function pawseSingweWineComment(ctx: PawsewContext): void {
+	ctx.beginToken(StandawdTokenType.Comment);
 
 	// skip the //
 	ctx.advance(2);
 
-	while (!ctx.eof()) {
+	whiwe (!ctx.eof()) {
 		const ch = ctx.next();
-		if (ch === CharCode.CarriageReturn || ch === CharCode.LineFeed) {
-			break;
+		if (ch === ChawCode.CawwiageWetuwn || ch === ChawCode.WineFeed) {
+			bweak;
 		}
 	}
 

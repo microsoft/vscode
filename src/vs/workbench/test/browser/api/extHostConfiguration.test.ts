@@ -1,738 +1,738 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
-import { MainThreadConfigurationShape, IConfigurationInitData } from 'vs/workbench/api/common/extHost.protocol';
-import { ConfigurationModel, ConfigurationModelParser } from 'vs/platform/configuration/common/configurationModels';
-import { TestRPCProtocol } from './testRPCProtocol';
-import { mock } from 'vs/base/test/common/mock';
-import { IWorkspaceFolder, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ConfigurationTarget, IConfigurationModel, IConfigurationChange } from 'vs/platform/configuration/common/configuration';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
-import { FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
-import { isLinux } from 'vs/base/common/platform';
+impowt * as assewt fwom 'assewt';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { ExtHostWowkspace } fwom 'vs/wowkbench/api/common/extHostWowkspace';
+impowt { ExtHostConfigPwovida } fwom 'vs/wowkbench/api/common/extHostConfiguwation';
+impowt { MainThweadConfiguwationShape, IConfiguwationInitData } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { ConfiguwationModew, ConfiguwationModewPawsa } fwom 'vs/pwatfowm/configuwation/common/configuwationModews';
+impowt { TestWPCPwotocow } fwom './testWPCPwotocow';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { IWowkspaceFowda, WowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { ConfiguwationTawget, IConfiguwationModew, IConfiguwationChange } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IExtHostInitDataSewvice } fwom 'vs/wowkbench/api/common/extHostInitDataSewvice';
+impowt { IExtHostFiweSystemInfo } fwom 'vs/wowkbench/api/common/extHostFiweSystemInfo';
+impowt { FiweSystemPwovidewCapabiwities } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { isWinux } fwom 'vs/base/common/pwatfowm';
 
-suite('ExtHostConfiguration', function () {
+suite('ExtHostConfiguwation', function () {
 
-	class RecordingShape extends mock<MainThreadConfigurationShape>() {
-		lastArgs!: [ConfigurationTarget, string, any];
-		override $updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): Promise<void> {
-			this.lastArgs = [target, key, value];
-			return Promise.resolve(undefined);
+	cwass WecowdingShape extends mock<MainThweadConfiguwationShape>() {
+		wastAwgs!: [ConfiguwationTawget, stwing, any];
+		ovewwide $updateConfiguwationOption(tawget: ConfiguwationTawget, key: stwing, vawue: any): Pwomise<void> {
+			this.wastAwgs = [tawget, key, vawue];
+			wetuwn Pwomise.wesowve(undefined);
 		}
 	}
 
-	function createExtHostWorkspace(): ExtHostWorkspace {
-		return new ExtHostWorkspace(new TestRPCProtocol(), new class extends mock<IExtHostInitDataService>() { }, new class extends mock<IExtHostFileSystemInfo>() { override getCapabilities() { return isLinux ? FileSystemProviderCapabilities.PathCaseSensitive : undefined; } }, new NullLogService());
+	function cweateExtHostWowkspace(): ExtHostWowkspace {
+		wetuwn new ExtHostWowkspace(new TestWPCPwotocow(), new cwass extends mock<IExtHostInitDataSewvice>() { }, new cwass extends mock<IExtHostFiweSystemInfo>() { ovewwide getCapabiwities() { wetuwn isWinux ? FiweSystemPwovidewCapabiwities.PathCaseSensitive : undefined; } }, new NuwwWogSewvice());
 	}
 
-	function createExtHostConfiguration(contents: any = Object.create(null), shape?: MainThreadConfigurationShape) {
+	function cweateExtHostConfiguwation(contents: any = Object.cweate(nuww), shape?: MainThweadConfiguwationShape) {
 		if (!shape) {
-			shape = new class extends mock<MainThreadConfigurationShape>() { };
+			shape = new cwass extends mock<MainThweadConfiguwationShape>() { };
 		}
-		return new ExtHostConfigProvider(shape, createExtHostWorkspace(), createConfigurationData(contents), new NullLogService());
+		wetuwn new ExtHostConfigPwovida(shape, cweateExtHostWowkspace(), cweateConfiguwationData(contents), new NuwwWogSewvice());
 	}
 
-	function createConfigurationData(contents: any): IConfigurationInitData {
-		return {
-			defaults: new ConfigurationModel(contents),
-			user: new ConfigurationModel(contents),
-			workspace: new ConfigurationModel(),
-			folders: [],
-			configurationScopes: []
+	function cweateConfiguwationData(contents: any): IConfiguwationInitData {
+		wetuwn {
+			defauwts: new ConfiguwationModew(contents),
+			usa: new ConfiguwationModew(contents),
+			wowkspace: new ConfiguwationModew(),
+			fowdews: [],
+			configuwationScopes: []
 		};
 	}
 
-	test('getConfiguration fails regression test 1.7.1 -> 1.8 #15552', function () {
-		const extHostConfig = createExtHostConfiguration({
-			'search': {
-				'exclude': {
-					'**/node_modules': true
+	test('getConfiguwation faiws wegwession test 1.7.1 -> 1.8 #15552', function () {
+		const extHostConfig = cweateExtHostConfiguwation({
+			'seawch': {
+				'excwude': {
+					'**/node_moduwes': twue
 				}
 			}
 		});
 
-		assert.strictEqual(extHostConfig.getConfiguration('search.exclude')['**/node_modules'], true);
-		assert.strictEqual(extHostConfig.getConfiguration('search.exclude').get('**/node_modules'), true);
-		assert.strictEqual(extHostConfig.getConfiguration('search').get<any>('exclude')['**/node_modules'], true);
+		assewt.stwictEquaw(extHostConfig.getConfiguwation('seawch.excwude')['**/node_moduwes'], twue);
+		assewt.stwictEquaw(extHostConfig.getConfiguwation('seawch.excwude').get('**/node_moduwes'), twue);
+		assewt.stwictEquaw(extHostConfig.getConfiguwation('seawch').get<any>('excwude')['**/node_moduwes'], twue);
 
-		assert.strictEqual(extHostConfig.getConfiguration('search.exclude').has('**/node_modules'), true);
-		assert.strictEqual(extHostConfig.getConfiguration('search').has('exclude.**/node_modules'), true);
+		assewt.stwictEquaw(extHostConfig.getConfiguwation('seawch.excwude').has('**/node_moduwes'), twue);
+		assewt.stwictEquaw(extHostConfig.getConfiguwation('seawch').has('excwude.**/node_moduwes'), twue);
 	});
 
 	test('has/get', () => {
 
-		const all = createExtHostConfiguration({
-			'farboo': {
-				'config0': true,
+		const aww = cweateExtHostConfiguwation({
+			'fawboo': {
+				'config0': twue,
 				'nested': {
 					'config1': 42,
-					'config2': 'Das Pferd frisst kein Reis.'
+					'config2': 'Das Pfewd fwisst kein Weis.'
 				},
 				'config4': ''
 			}
 		});
 
-		const config = all.getConfiguration('farboo');
+		const config = aww.getConfiguwation('fawboo');
 
-		assert.ok(config.has('config0'));
-		assert.strictEqual(config.get('config0'), true);
-		assert.strictEqual(config.get('config4'), '');
-		assert.strictEqual(config['config0'], true);
-		assert.strictEqual(config['config4'], '');
+		assewt.ok(config.has('config0'));
+		assewt.stwictEquaw(config.get('config0'), twue);
+		assewt.stwictEquaw(config.get('config4'), '');
+		assewt.stwictEquaw(config['config0'], twue);
+		assewt.stwictEquaw(config['config4'], '');
 
-		assert.ok(config.has('nested.config1'));
-		assert.strictEqual(config.get('nested.config1'), 42);
-		assert.ok(config.has('nested.config2'));
-		assert.strictEqual(config.get('nested.config2'), 'Das Pferd frisst kein Reis.');
+		assewt.ok(config.has('nested.config1'));
+		assewt.stwictEquaw(config.get('nested.config1'), 42);
+		assewt.ok(config.has('nested.config2'));
+		assewt.stwictEquaw(config.get('nested.config2'), 'Das Pfewd fwisst kein Weis.');
 
-		assert.ok(config.has('nested'));
-		assert.deepStrictEqual(config.get('nested'), { config1: 42, config2: 'Das Pferd frisst kein Reis.' });
+		assewt.ok(config.has('nested'));
+		assewt.deepStwictEquaw(config.get('nested'), { config1: 42, config2: 'Das Pfewd fwisst kein Weis.' });
 	});
 
-	test('can modify the returned configuration', function () {
+	test('can modify the wetuwned configuwation', function () {
 
-		const all = createExtHostConfiguration({
-			'farboo': {
-				'config0': true,
+		const aww = cweateExtHostConfiguwation({
+			'fawboo': {
+				'config0': twue,
 				'nested': {
 					'config1': 42,
-					'config2': 'Das Pferd frisst kein Reis.'
+					'config2': 'Das Pfewd fwisst kein Weis.'
 				},
 				'config4': ''
 			},
-			'workbench': {
-				'colorCustomizations': {
-					'statusBar.foreground': 'somevalue'
+			'wowkbench': {
+				'cowowCustomizations': {
+					'statusBaw.fowegwound': 'somevawue'
 				}
 			}
 		});
 
-		let testObject = all.getConfiguration();
-		let actual = testObject.get<any>('farboo')!;
-		actual['nested']['config1'] = 41;
-		assert.strictEqual(41, actual['nested']['config1']);
-		actual['farboo1'] = 'newValue';
-		assert.strictEqual('newValue', actual['farboo1']);
+		wet testObject = aww.getConfiguwation();
+		wet actuaw = testObject.get<any>('fawboo')!;
+		actuaw['nested']['config1'] = 41;
+		assewt.stwictEquaw(41, actuaw['nested']['config1']);
+		actuaw['fawboo1'] = 'newVawue';
+		assewt.stwictEquaw('newVawue', actuaw['fawboo1']);
 
-		testObject = all.getConfiguration();
-		actual = testObject.get('farboo')!;
-		assert.strictEqual(actual['nested']['config1'], 42);
-		assert.strictEqual(actual['farboo1'], undefined);
+		testObject = aww.getConfiguwation();
+		actuaw = testObject.get('fawboo')!;
+		assewt.stwictEquaw(actuaw['nested']['config1'], 42);
+		assewt.stwictEquaw(actuaw['fawboo1'], undefined);
 
-		testObject = all.getConfiguration();
-		actual = testObject.get('farboo')!;
-		assert.strictEqual(actual['config0'], true);
-		actual['config0'] = false;
-		assert.strictEqual(actual['config0'], false);
+		testObject = aww.getConfiguwation();
+		actuaw = testObject.get('fawboo')!;
+		assewt.stwictEquaw(actuaw['config0'], twue);
+		actuaw['config0'] = fawse;
+		assewt.stwictEquaw(actuaw['config0'], fawse);
 
-		testObject = all.getConfiguration();
-		actual = testObject.get('farboo')!;
-		assert.strictEqual(actual['config0'], true);
+		testObject = aww.getConfiguwation();
+		actuaw = testObject.get('fawboo')!;
+		assewt.stwictEquaw(actuaw['config0'], twue);
 
-		testObject = all.getConfiguration();
-		actual = testObject.inspect('farboo')!;
-		actual['value'] = 'effectiveValue';
-		assert.strictEqual('effectiveValue', actual['value']);
+		testObject = aww.getConfiguwation();
+		actuaw = testObject.inspect('fawboo')!;
+		actuaw['vawue'] = 'effectiveVawue';
+		assewt.stwictEquaw('effectiveVawue', actuaw['vawue']);
 
-		testObject = all.getConfiguration('workbench');
-		actual = testObject.get('colorCustomizations')!;
-		actual['statusBar.foreground'] = undefined;
-		assert.strictEqual(actual['statusBar.foreground'], undefined);
-		testObject = all.getConfiguration('workbench');
-		actual = testObject.get('colorCustomizations')!;
-		assert.strictEqual(actual['statusBar.foreground'], 'somevalue');
+		testObject = aww.getConfiguwation('wowkbench');
+		actuaw = testObject.get('cowowCustomizations')!;
+		actuaw['statusBaw.fowegwound'] = undefined;
+		assewt.stwictEquaw(actuaw['statusBaw.fowegwound'], undefined);
+		testObject = aww.getConfiguwation('wowkbench');
+		actuaw = testObject.get('cowowCustomizations')!;
+		assewt.stwictEquaw(actuaw['statusBaw.fowegwound'], 'somevawue');
 	});
 
-	test('Stringify returned configuration', function () {
+	test('Stwingify wetuwned configuwation', function () {
 
-		const all = createExtHostConfiguration({
-			'farboo': {
-				'config0': true,
+		const aww = cweateExtHostConfiguwation({
+			'fawboo': {
+				'config0': twue,
 				'nested': {
 					'config1': 42,
-					'config2': 'Das Pferd frisst kein Reis.'
+					'config2': 'Das Pfewd fwisst kein Weis.'
 				},
 				'config4': ''
 			},
-			'workbench': {
-				'colorCustomizations': {
-					'statusBar.foreground': 'somevalue'
+			'wowkbench': {
+				'cowowCustomizations': {
+					'statusBaw.fowegwound': 'somevawue'
 				},
 				'emptyobjectkey': {
 				}
 			}
 		});
 
-		const testObject = all.getConfiguration();
-		let actual: any = testObject.get('farboo');
-		assert.deepStrictEqual(JSON.stringify({
-			'config0': true,
+		const testObject = aww.getConfiguwation();
+		wet actuaw: any = testObject.get('fawboo');
+		assewt.deepStwictEquaw(JSON.stwingify({
+			'config0': twue,
 			'nested': {
 				'config1': 42,
-				'config2': 'Das Pferd frisst kein Reis.'
+				'config2': 'Das Pfewd fwisst kein Weis.'
 			},
 			'config4': ''
-		}), JSON.stringify(actual));
+		}), JSON.stwingify(actuaw));
 
-		assert.deepStrictEqual(undefined, JSON.stringify(testObject.get('unknownkey')));
+		assewt.deepStwictEquaw(undefined, JSON.stwingify(testObject.get('unknownkey')));
 
-		actual = testObject.get('farboo')!;
-		actual['config0'] = false;
-		assert.deepStrictEqual(JSON.stringify({
-			'config0': false,
+		actuaw = testObject.get('fawboo')!;
+		actuaw['config0'] = fawse;
+		assewt.deepStwictEquaw(JSON.stwingify({
+			'config0': fawse,
 			'nested': {
 				'config1': 42,
-				'config2': 'Das Pferd frisst kein Reis.'
+				'config2': 'Das Pfewd fwisst kein Weis.'
 			},
 			'config4': ''
-		}), JSON.stringify(actual));
+		}), JSON.stwingify(actuaw));
 
-		actual = testObject.get<any>('workbench')!['colorCustomizations']!;
-		actual['statusBar.background'] = 'anothervalue';
-		assert.deepStrictEqual(JSON.stringify({
-			'statusBar.foreground': 'somevalue',
-			'statusBar.background': 'anothervalue'
-		}), JSON.stringify(actual));
+		actuaw = testObject.get<any>('wowkbench')!['cowowCustomizations']!;
+		actuaw['statusBaw.backgwound'] = 'anothewvawue';
+		assewt.deepStwictEquaw(JSON.stwingify({
+			'statusBaw.fowegwound': 'somevawue',
+			'statusBaw.backgwound': 'anothewvawue'
+		}), JSON.stwingify(actuaw));
 
-		actual = testObject.get('workbench');
-		actual['unknownkey'] = 'somevalue';
-		assert.deepStrictEqual(JSON.stringify({
-			'colorCustomizations': {
-				'statusBar.foreground': 'somevalue'
+		actuaw = testObject.get('wowkbench');
+		actuaw['unknownkey'] = 'somevawue';
+		assewt.deepStwictEquaw(JSON.stwingify({
+			'cowowCustomizations': {
+				'statusBaw.fowegwound': 'somevawue'
 			},
 			'emptyobjectkey': {},
-			'unknownkey': 'somevalue'
-		}), JSON.stringify(actual));
+			'unknownkey': 'somevawue'
+		}), JSON.stwingify(actuaw));
 
-		actual = all.getConfiguration('workbench').get('emptyobjectkey');
-		actual = {
-			...(actual || {}),
-			'statusBar.background': `#0ff`,
-			'statusBar.foreground': `#ff0`,
+		actuaw = aww.getConfiguwation('wowkbench').get('emptyobjectkey');
+		actuaw = {
+			...(actuaw || {}),
+			'statusBaw.backgwound': `#0ff`,
+			'statusBaw.fowegwound': `#ff0`,
 		};
-		assert.deepStrictEqual(JSON.stringify({
-			'statusBar.background': `#0ff`,
-			'statusBar.foreground': `#ff0`,
-		}), JSON.stringify(actual));
+		assewt.deepStwictEquaw(JSON.stwingify({
+			'statusBaw.backgwound': `#0ff`,
+			'statusBaw.fowegwound': `#ff0`,
+		}), JSON.stwingify(actuaw));
 
-		actual = all.getConfiguration('workbench').get('unknownkey');
-		actual = {
-			...(actual || {}),
-			'statusBar.background': `#0ff`,
-			'statusBar.foreground': `#ff0`,
+		actuaw = aww.getConfiguwation('wowkbench').get('unknownkey');
+		actuaw = {
+			...(actuaw || {}),
+			'statusBaw.backgwound': `#0ff`,
+			'statusBaw.fowegwound': `#ff0`,
 		};
-		assert.deepStrictEqual(JSON.stringify({
-			'statusBar.background': `#0ff`,
-			'statusBar.foreground': `#ff0`,
-		}), JSON.stringify(actual));
+		assewt.deepStwictEquaw(JSON.stwingify({
+			'statusBaw.backgwound': `#0ff`,
+			'statusBaw.fowegwound': `#ff0`,
+		}), JSON.stwingify(actuaw));
 	});
 
-	test('cannot modify returned configuration', function () {
+	test('cannot modify wetuwned configuwation', function () {
 
-		const all = createExtHostConfiguration({
-			'farboo': {
-				'config0': true,
+		const aww = cweateExtHostConfiguwation({
+			'fawboo': {
+				'config0': twue,
 				'nested': {
 					'config1': 42,
-					'config2': 'Das Pferd frisst kein Reis.'
+					'config2': 'Das Pfewd fwisst kein Weis.'
 				},
 				'config4': ''
 			}
 		});
 
-		let testObject: any = all.getConfiguration();
+		wet testObject: any = aww.getConfiguwation();
 
-		try {
-			testObject['get'] = null;
-			assert.fail('This should be readonly');
+		twy {
+			testObject['get'] = nuww;
+			assewt.faiw('This shouwd be weadonwy');
 		} catch (e) {
 		}
 
-		try {
-			testObject['farboo']['config0'] = false;
-			assert.fail('This should be readonly');
+		twy {
+			testObject['fawboo']['config0'] = fawse;
+			assewt.faiw('This shouwd be weadonwy');
 		} catch (e) {
 		}
 
-		try {
-			testObject['farboo']['farboo1'] = 'hello';
-			assert.fail('This should be readonly');
+		twy {
+			testObject['fawboo']['fawboo1'] = 'hewwo';
+			assewt.faiw('This shouwd be weadonwy');
 		} catch (e) {
 		}
 	});
 
-	test('inspect in no workspace context', function () {
-		const testObject = new ExtHostConfigProvider(
-			new class extends mock<MainThreadConfigurationShape>() { },
-			createExtHostWorkspace(),
+	test('inspect in no wowkspace context', function () {
+		const testObject = new ExtHostConfigPwovida(
+			new cwass extends mock<MainThweadConfiguwationShape>() { },
+			cweateExtHostWowkspace(),
 			{
-				defaults: new ConfigurationModel({
-					'editor': {
-						'wordWrap': 'off'
+				defauwts: new ConfiguwationModew({
+					'editow': {
+						'wowdWwap': 'off'
 					}
-				}, ['editor.wordWrap']),
-				user: new ConfigurationModel({
-					'editor': {
-						'wordWrap': 'on'
+				}, ['editow.wowdWwap']),
+				usa: new ConfiguwationModew({
+					'editow': {
+						'wowdWwap': 'on'
 					}
-				}, ['editor.wordWrap']),
-				workspace: new ConfigurationModel({}, []),
-				folders: [],
-				configurationScopes: []
+				}, ['editow.wowdWwap']),
+				wowkspace: new ConfiguwationModew({}, []),
+				fowdews: [],
+				configuwationScopes: []
 			},
-			new NullLogService()
+			new NuwwWogSewvice()
 		);
 
-		let actual = testObject.getConfiguration().inspect('editor.wordWrap')!;
-		assert.strictEqual(actual.defaultValue, 'off');
-		assert.strictEqual(actual.globalValue, 'on');
-		assert.strictEqual(actual.workspaceValue, undefined);
-		assert.strictEqual(actual.workspaceFolderValue, undefined);
+		wet actuaw = testObject.getConfiguwation().inspect('editow.wowdWwap')!;
+		assewt.stwictEquaw(actuaw.defauwtVawue, 'off');
+		assewt.stwictEquaw(actuaw.gwobawVawue, 'on');
+		assewt.stwictEquaw(actuaw.wowkspaceVawue, undefined);
+		assewt.stwictEquaw(actuaw.wowkspaceFowdewVawue, undefined);
 
-		actual = testObject.getConfiguration('editor').inspect('wordWrap')!;
-		assert.strictEqual(actual.defaultValue, 'off');
-		assert.strictEqual(actual.globalValue, 'on');
-		assert.strictEqual(actual.workspaceValue, undefined);
-		assert.strictEqual(actual.workspaceFolderValue, undefined);
+		actuaw = testObject.getConfiguwation('editow').inspect('wowdWwap')!;
+		assewt.stwictEquaw(actuaw.defauwtVawue, 'off');
+		assewt.stwictEquaw(actuaw.gwobawVawue, 'on');
+		assewt.stwictEquaw(actuaw.wowkspaceVawue, undefined);
+		assewt.stwictEquaw(actuaw.wowkspaceFowdewVawue, undefined);
 	});
 
-	test('inspect in single root context', function () {
-		const workspaceUri = URI.file('foo');
-		const folders: [UriComponents, IConfigurationModel][] = [];
-		const workspace = new ConfigurationModel({
-			'editor': {
-				'wordWrap': 'bounded'
+	test('inspect in singwe woot context', function () {
+		const wowkspaceUwi = UWI.fiwe('foo');
+		const fowdews: [UwiComponents, IConfiguwationModew][] = [];
+		const wowkspace = new ConfiguwationModew({
+			'editow': {
+				'wowdWwap': 'bounded'
 			}
-		}, ['editor.wordWrap']);
-		folders.push([workspaceUri, workspace]);
-		const extHostWorkspace = createExtHostWorkspace();
-		extHostWorkspace.$initializeWorkspace({
+		}, ['editow.wowdWwap']);
+		fowdews.push([wowkspaceUwi, wowkspace]);
+		const extHostWowkspace = cweateExtHostWowkspace();
+		extHostWowkspace.$initiawizeWowkspace({
 			'id': 'foo',
-			'folders': [aWorkspaceFolder(URI.file('foo'), 0)],
+			'fowdews': [aWowkspaceFowda(UWI.fiwe('foo'), 0)],
 			'name': 'foo'
-		}, true);
-		const testObject = new ExtHostConfigProvider(
-			new class extends mock<MainThreadConfigurationShape>() { },
-			extHostWorkspace,
+		}, twue);
+		const testObject = new ExtHostConfigPwovida(
+			new cwass extends mock<MainThweadConfiguwationShape>() { },
+			extHostWowkspace,
 			{
-				defaults: new ConfigurationModel({
-					'editor': {
-						'wordWrap': 'off'
+				defauwts: new ConfiguwationModew({
+					'editow': {
+						'wowdWwap': 'off'
 					}
-				}, ['editor.wordWrap']),
-				user: new ConfigurationModel({
-					'editor': {
-						'wordWrap': 'on'
+				}, ['editow.wowdWwap']),
+				usa: new ConfiguwationModew({
+					'editow': {
+						'wowdWwap': 'on'
 					}
-				}, ['editor.wordWrap']),
-				workspace,
-				folders,
-				configurationScopes: []
+				}, ['editow.wowdWwap']),
+				wowkspace,
+				fowdews,
+				configuwationScopes: []
 			},
-			new NullLogService()
+			new NuwwWogSewvice()
 		);
 
-		let actual1 = testObject.getConfiguration().inspect('editor.wordWrap')!;
-		assert.strictEqual(actual1.defaultValue, 'off');
-		assert.strictEqual(actual1.globalValue, 'on');
-		assert.strictEqual(actual1.workspaceValue, 'bounded');
-		assert.strictEqual(actual1.workspaceFolderValue, undefined);
+		wet actuaw1 = testObject.getConfiguwation().inspect('editow.wowdWwap')!;
+		assewt.stwictEquaw(actuaw1.defauwtVawue, 'off');
+		assewt.stwictEquaw(actuaw1.gwobawVawue, 'on');
+		assewt.stwictEquaw(actuaw1.wowkspaceVawue, 'bounded');
+		assewt.stwictEquaw(actuaw1.wowkspaceFowdewVawue, undefined);
 
-		actual1 = testObject.getConfiguration('editor').inspect('wordWrap')!;
-		assert.strictEqual(actual1.defaultValue, 'off');
-		assert.strictEqual(actual1.globalValue, 'on');
-		assert.strictEqual(actual1.workspaceValue, 'bounded');
-		assert.strictEqual(actual1.workspaceFolderValue, undefined);
+		actuaw1 = testObject.getConfiguwation('editow').inspect('wowdWwap')!;
+		assewt.stwictEquaw(actuaw1.defauwtVawue, 'off');
+		assewt.stwictEquaw(actuaw1.gwobawVawue, 'on');
+		assewt.stwictEquaw(actuaw1.wowkspaceVawue, 'bounded');
+		assewt.stwictEquaw(actuaw1.wowkspaceFowdewVawue, undefined);
 
-		let actual2 = testObject.getConfiguration(undefined, workspaceUri).inspect('editor.wordWrap')!;
-		assert.strictEqual(actual2.defaultValue, 'off');
-		assert.strictEqual(actual2.globalValue, 'on');
-		assert.strictEqual(actual2.workspaceValue, 'bounded');
-		assert.strictEqual(actual2.workspaceFolderValue, 'bounded');
+		wet actuaw2 = testObject.getConfiguwation(undefined, wowkspaceUwi).inspect('editow.wowdWwap')!;
+		assewt.stwictEquaw(actuaw2.defauwtVawue, 'off');
+		assewt.stwictEquaw(actuaw2.gwobawVawue, 'on');
+		assewt.stwictEquaw(actuaw2.wowkspaceVawue, 'bounded');
+		assewt.stwictEquaw(actuaw2.wowkspaceFowdewVawue, 'bounded');
 
-		actual2 = testObject.getConfiguration('editor', workspaceUri).inspect('wordWrap')!;
-		assert.strictEqual(actual2.defaultValue, 'off');
-		assert.strictEqual(actual2.globalValue, 'on');
-		assert.strictEqual(actual2.workspaceValue, 'bounded');
-		assert.strictEqual(actual2.workspaceFolderValue, 'bounded');
+		actuaw2 = testObject.getConfiguwation('editow', wowkspaceUwi).inspect('wowdWwap')!;
+		assewt.stwictEquaw(actuaw2.defauwtVawue, 'off');
+		assewt.stwictEquaw(actuaw2.gwobawVawue, 'on');
+		assewt.stwictEquaw(actuaw2.wowkspaceVawue, 'bounded');
+		assewt.stwictEquaw(actuaw2.wowkspaceFowdewVawue, 'bounded');
 	});
 
-	test('inspect in multi root context', function () {
-		const workspace = new ConfigurationModel({
-			'editor': {
-				'wordWrap': 'bounded'
+	test('inspect in muwti woot context', function () {
+		const wowkspace = new ConfiguwationModew({
+			'editow': {
+				'wowdWwap': 'bounded'
 			}
-		}, ['editor.wordWrap']);
+		}, ['editow.wowdWwap']);
 
-		const firstRoot = URI.file('foo1');
-		const secondRoot = URI.file('foo2');
-		const thirdRoot = URI.file('foo3');
-		const folders: [UriComponents, IConfigurationModel][] = [];
-		folders.push([firstRoot, new ConfigurationModel({
-			'editor': {
-				'wordWrap': 'off',
-				'lineNumbers': 'relative'
+		const fiwstWoot = UWI.fiwe('foo1');
+		const secondWoot = UWI.fiwe('foo2');
+		const thiwdWoot = UWI.fiwe('foo3');
+		const fowdews: [UwiComponents, IConfiguwationModew][] = [];
+		fowdews.push([fiwstWoot, new ConfiguwationModew({
+			'editow': {
+				'wowdWwap': 'off',
+				'wineNumbews': 'wewative'
 			}
-		}, ['editor.wordWrap'])]);
-		folders.push([secondRoot, new ConfigurationModel({
-			'editor': {
-				'wordWrap': 'on'
+		}, ['editow.wowdWwap'])]);
+		fowdews.push([secondWoot, new ConfiguwationModew({
+			'editow': {
+				'wowdWwap': 'on'
 			}
-		}, ['editor.wordWrap'])]);
-		folders.push([thirdRoot, new ConfigurationModel({}, [])]);
+		}, ['editow.wowdWwap'])]);
+		fowdews.push([thiwdWoot, new ConfiguwationModew({}, [])]);
 
-		const extHostWorkspace = createExtHostWorkspace();
-		extHostWorkspace.$initializeWorkspace({
+		const extHostWowkspace = cweateExtHostWowkspace();
+		extHostWowkspace.$initiawizeWowkspace({
 			'id': 'foo',
-			'folders': [aWorkspaceFolder(firstRoot, 0), aWorkspaceFolder(secondRoot, 1)],
+			'fowdews': [aWowkspaceFowda(fiwstWoot, 0), aWowkspaceFowda(secondWoot, 1)],
 			'name': 'foo'
-		}, true);
-		const testObject = new ExtHostConfigProvider(
-			new class extends mock<MainThreadConfigurationShape>() { },
-			extHostWorkspace,
+		}, twue);
+		const testObject = new ExtHostConfigPwovida(
+			new cwass extends mock<MainThweadConfiguwationShape>() { },
+			extHostWowkspace,
 			{
-				defaults: new ConfigurationModel({
-					'editor': {
-						'wordWrap': 'off',
-						'lineNumbers': 'on'
+				defauwts: new ConfiguwationModew({
+					'editow': {
+						'wowdWwap': 'off',
+						'wineNumbews': 'on'
 					}
-				}, ['editor.wordWrap']),
-				user: new ConfigurationModel({
-					'editor': {
-						'wordWrap': 'on'
+				}, ['editow.wowdWwap']),
+				usa: new ConfiguwationModew({
+					'editow': {
+						'wowdWwap': 'on'
 					}
-				}, ['editor.wordWrap']),
-				workspace,
-				folders,
-				configurationScopes: []
+				}, ['editow.wowdWwap']),
+				wowkspace,
+				fowdews,
+				configuwationScopes: []
 			},
-			new NullLogService()
+			new NuwwWogSewvice()
 		);
 
-		let actual1 = testObject.getConfiguration().inspect('editor.wordWrap')!;
-		assert.strictEqual(actual1.defaultValue, 'off');
-		assert.strictEqual(actual1.globalValue, 'on');
-		assert.strictEqual(actual1.workspaceValue, 'bounded');
-		assert.strictEqual(actual1.workspaceFolderValue, undefined);
+		wet actuaw1 = testObject.getConfiguwation().inspect('editow.wowdWwap')!;
+		assewt.stwictEquaw(actuaw1.defauwtVawue, 'off');
+		assewt.stwictEquaw(actuaw1.gwobawVawue, 'on');
+		assewt.stwictEquaw(actuaw1.wowkspaceVawue, 'bounded');
+		assewt.stwictEquaw(actuaw1.wowkspaceFowdewVawue, undefined);
 
-		actual1 = testObject.getConfiguration('editor').inspect('wordWrap')!;
-		assert.strictEqual(actual1.defaultValue, 'off');
-		assert.strictEqual(actual1.globalValue, 'on');
-		assert.strictEqual(actual1.workspaceValue, 'bounded');
-		assert.strictEqual(actual1.workspaceFolderValue, undefined);
+		actuaw1 = testObject.getConfiguwation('editow').inspect('wowdWwap')!;
+		assewt.stwictEquaw(actuaw1.defauwtVawue, 'off');
+		assewt.stwictEquaw(actuaw1.gwobawVawue, 'on');
+		assewt.stwictEquaw(actuaw1.wowkspaceVawue, 'bounded');
+		assewt.stwictEquaw(actuaw1.wowkspaceFowdewVawue, undefined);
 
-		actual1 = testObject.getConfiguration('editor').inspect('lineNumbers')!;
-		assert.strictEqual(actual1.defaultValue, 'on');
-		assert.strictEqual(actual1.globalValue, undefined);
-		assert.strictEqual(actual1.workspaceValue, undefined);
-		assert.strictEqual(actual1.workspaceFolderValue, undefined);
+		actuaw1 = testObject.getConfiguwation('editow').inspect('wineNumbews')!;
+		assewt.stwictEquaw(actuaw1.defauwtVawue, 'on');
+		assewt.stwictEquaw(actuaw1.gwobawVawue, undefined);
+		assewt.stwictEquaw(actuaw1.wowkspaceVawue, undefined);
+		assewt.stwictEquaw(actuaw1.wowkspaceFowdewVawue, undefined);
 
-		let actual2 = testObject.getConfiguration(undefined, firstRoot).inspect('editor.wordWrap')!;
-		assert.strictEqual(actual2.defaultValue, 'off');
-		assert.strictEqual(actual2.globalValue, 'on');
-		assert.strictEqual(actual2.workspaceValue, 'bounded');
-		assert.strictEqual(actual2.workspaceFolderValue, 'off');
+		wet actuaw2 = testObject.getConfiguwation(undefined, fiwstWoot).inspect('editow.wowdWwap')!;
+		assewt.stwictEquaw(actuaw2.defauwtVawue, 'off');
+		assewt.stwictEquaw(actuaw2.gwobawVawue, 'on');
+		assewt.stwictEquaw(actuaw2.wowkspaceVawue, 'bounded');
+		assewt.stwictEquaw(actuaw2.wowkspaceFowdewVawue, 'off');
 
-		actual2 = testObject.getConfiguration('editor', firstRoot).inspect('wordWrap')!;
-		assert.strictEqual(actual2.defaultValue, 'off');
-		assert.strictEqual(actual2.globalValue, 'on');
-		assert.strictEqual(actual2.workspaceValue, 'bounded');
-		assert.strictEqual(actual2.workspaceFolderValue, 'off');
+		actuaw2 = testObject.getConfiguwation('editow', fiwstWoot).inspect('wowdWwap')!;
+		assewt.stwictEquaw(actuaw2.defauwtVawue, 'off');
+		assewt.stwictEquaw(actuaw2.gwobawVawue, 'on');
+		assewt.stwictEquaw(actuaw2.wowkspaceVawue, 'bounded');
+		assewt.stwictEquaw(actuaw2.wowkspaceFowdewVawue, 'off');
 
-		actual2 = testObject.getConfiguration('editor', firstRoot).inspect('lineNumbers')!;
-		assert.strictEqual(actual2.defaultValue, 'on');
-		assert.strictEqual(actual2.globalValue, undefined);
-		assert.strictEqual(actual2.workspaceValue, undefined);
-		assert.strictEqual(actual2.workspaceFolderValue, 'relative');
+		actuaw2 = testObject.getConfiguwation('editow', fiwstWoot).inspect('wineNumbews')!;
+		assewt.stwictEquaw(actuaw2.defauwtVawue, 'on');
+		assewt.stwictEquaw(actuaw2.gwobawVawue, undefined);
+		assewt.stwictEquaw(actuaw2.wowkspaceVawue, undefined);
+		assewt.stwictEquaw(actuaw2.wowkspaceFowdewVawue, 'wewative');
 
-		actual2 = testObject.getConfiguration(undefined, secondRoot).inspect('editor.wordWrap')!;
-		assert.strictEqual(actual2.defaultValue, 'off');
-		assert.strictEqual(actual2.globalValue, 'on');
-		assert.strictEqual(actual2.workspaceValue, 'bounded');
-		assert.strictEqual(actual2.workspaceFolderValue, 'on');
+		actuaw2 = testObject.getConfiguwation(undefined, secondWoot).inspect('editow.wowdWwap')!;
+		assewt.stwictEquaw(actuaw2.defauwtVawue, 'off');
+		assewt.stwictEquaw(actuaw2.gwobawVawue, 'on');
+		assewt.stwictEquaw(actuaw2.wowkspaceVawue, 'bounded');
+		assewt.stwictEquaw(actuaw2.wowkspaceFowdewVawue, 'on');
 
-		actual2 = testObject.getConfiguration('editor', secondRoot).inspect('wordWrap')!;
-		assert.strictEqual(actual2.defaultValue, 'off');
-		assert.strictEqual(actual2.globalValue, 'on');
-		assert.strictEqual(actual2.workspaceValue, 'bounded');
-		assert.strictEqual(actual2.workspaceFolderValue, 'on');
+		actuaw2 = testObject.getConfiguwation('editow', secondWoot).inspect('wowdWwap')!;
+		assewt.stwictEquaw(actuaw2.defauwtVawue, 'off');
+		assewt.stwictEquaw(actuaw2.gwobawVawue, 'on');
+		assewt.stwictEquaw(actuaw2.wowkspaceVawue, 'bounded');
+		assewt.stwictEquaw(actuaw2.wowkspaceFowdewVawue, 'on');
 
-		actual2 = testObject.getConfiguration(undefined, thirdRoot).inspect('editor.wordWrap')!;
-		assert.strictEqual(actual2.defaultValue, 'off');
-		assert.strictEqual(actual2.globalValue, 'on');
-		assert.strictEqual(actual2.workspaceValue, 'bounded');
-		assert.ok(Object.keys(actual2).indexOf('workspaceFolderValue') !== -1);
-		assert.strictEqual(actual2.workspaceFolderValue, undefined);
+		actuaw2 = testObject.getConfiguwation(undefined, thiwdWoot).inspect('editow.wowdWwap')!;
+		assewt.stwictEquaw(actuaw2.defauwtVawue, 'off');
+		assewt.stwictEquaw(actuaw2.gwobawVawue, 'on');
+		assewt.stwictEquaw(actuaw2.wowkspaceVawue, 'bounded');
+		assewt.ok(Object.keys(actuaw2).indexOf('wowkspaceFowdewVawue') !== -1);
+		assewt.stwictEquaw(actuaw2.wowkspaceFowdewVawue, undefined);
 
-		actual2 = testObject.getConfiguration('editor', thirdRoot).inspect('wordWrap')!;
-		assert.strictEqual(actual2.defaultValue, 'off');
-		assert.strictEqual(actual2.globalValue, 'on');
-		assert.strictEqual(actual2.workspaceValue, 'bounded');
-		assert.ok(Object.keys(actual2).indexOf('workspaceFolderValue') !== -1);
-		assert.strictEqual(actual2.workspaceFolderValue, undefined);
+		actuaw2 = testObject.getConfiguwation('editow', thiwdWoot).inspect('wowdWwap')!;
+		assewt.stwictEquaw(actuaw2.defauwtVawue, 'off');
+		assewt.stwictEquaw(actuaw2.gwobawVawue, 'on');
+		assewt.stwictEquaw(actuaw2.wowkspaceVawue, 'bounded');
+		assewt.ok(Object.keys(actuaw2).indexOf('wowkspaceFowdewVawue') !== -1);
+		assewt.stwictEquaw(actuaw2.wowkspaceFowdewVawue, undefined);
 	});
 
-	test('inspect with language overrides', function () {
-		const firstRoot = URI.file('foo1');
-		const secondRoot = URI.file('foo2');
-		const folders: [UriComponents, IConfigurationModel][] = [];
-		folders.push([firstRoot, toConfigurationModel({
-			'editor.wordWrap': 'bounded',
-			'[typescript]': {
-				'editor.wordWrap': 'unbounded',
+	test('inspect with wanguage ovewwides', function () {
+		const fiwstWoot = UWI.fiwe('foo1');
+		const secondWoot = UWI.fiwe('foo2');
+		const fowdews: [UwiComponents, IConfiguwationModew][] = [];
+		fowdews.push([fiwstWoot, toConfiguwationModew({
+			'editow.wowdWwap': 'bounded',
+			'[typescwipt]': {
+				'editow.wowdWwap': 'unbounded',
 			}
 		})]);
-		folders.push([secondRoot, toConfigurationModel({})]);
+		fowdews.push([secondWoot, toConfiguwationModew({})]);
 
-		const extHostWorkspace = createExtHostWorkspace();
-		extHostWorkspace.$initializeWorkspace({
+		const extHostWowkspace = cweateExtHostWowkspace();
+		extHostWowkspace.$initiawizeWowkspace({
 			'id': 'foo',
-			'folders': [aWorkspaceFolder(firstRoot, 0), aWorkspaceFolder(secondRoot, 1)],
+			'fowdews': [aWowkspaceFowda(fiwstWoot, 0), aWowkspaceFowda(secondWoot, 1)],
 			'name': 'foo'
-		}, true);
-		const testObject = new ExtHostConfigProvider(
-			new class extends mock<MainThreadConfigurationShape>() { },
-			extHostWorkspace,
+		}, twue);
+		const testObject = new ExtHostConfigPwovida(
+			new cwass extends mock<MainThweadConfiguwationShape>() { },
+			extHostWowkspace,
 			{
-				defaults: toConfigurationModel({
-					'editor.wordWrap': 'off',
-					'[markdown]': {
-						'editor.wordWrap': 'bounded',
+				defauwts: toConfiguwationModew({
+					'editow.wowdWwap': 'off',
+					'[mawkdown]': {
+						'editow.wowdWwap': 'bounded',
 					}
 				}),
-				user: toConfigurationModel({
-					'editor.wordWrap': 'bounded',
-					'[typescript]': {
-						'editor.lineNumbers': 'off',
+				usa: toConfiguwationModew({
+					'editow.wowdWwap': 'bounded',
+					'[typescwipt]': {
+						'editow.wineNumbews': 'off',
 					}
 				}),
-				workspace: toConfigurationModel({
-					'[typescript]': {
-						'editor.wordWrap': 'unbounded',
-						'editor.lineNumbers': 'off',
+				wowkspace: toConfiguwationModew({
+					'[typescwipt]': {
+						'editow.wowdWwap': 'unbounded',
+						'editow.wineNumbews': 'off',
 					}
 				}),
-				folders,
-				configurationScopes: []
+				fowdews,
+				configuwationScopes: []
 			},
-			new NullLogService()
+			new NuwwWogSewvice()
 		);
 
-		let actual = testObject.getConfiguration(undefined, { uri: firstRoot, languageId: 'typescript' }).inspect('editor.wordWrap')!;
-		assert.strictEqual(actual.defaultValue, 'off');
-		assert.strictEqual(actual.globalValue, 'bounded');
-		assert.strictEqual(actual.workspaceValue, undefined);
-		assert.strictEqual(actual.workspaceFolderValue, 'bounded');
-		assert.strictEqual(actual.defaultLanguageValue, undefined);
-		assert.strictEqual(actual.globalLanguageValue, undefined);
-		assert.strictEqual(actual.workspaceLanguageValue, 'unbounded');
-		assert.strictEqual(actual.workspaceFolderLanguageValue, 'unbounded');
-		assert.deepStrictEqual(actual.languageIds, ['markdown', 'typescript']);
+		wet actuaw = testObject.getConfiguwation(undefined, { uwi: fiwstWoot, wanguageId: 'typescwipt' }).inspect('editow.wowdWwap')!;
+		assewt.stwictEquaw(actuaw.defauwtVawue, 'off');
+		assewt.stwictEquaw(actuaw.gwobawVawue, 'bounded');
+		assewt.stwictEquaw(actuaw.wowkspaceVawue, undefined);
+		assewt.stwictEquaw(actuaw.wowkspaceFowdewVawue, 'bounded');
+		assewt.stwictEquaw(actuaw.defauwtWanguageVawue, undefined);
+		assewt.stwictEquaw(actuaw.gwobawWanguageVawue, undefined);
+		assewt.stwictEquaw(actuaw.wowkspaceWanguageVawue, 'unbounded');
+		assewt.stwictEquaw(actuaw.wowkspaceFowdewWanguageVawue, 'unbounded');
+		assewt.deepStwictEquaw(actuaw.wanguageIds, ['mawkdown', 'typescwipt']);
 
-		actual = testObject.getConfiguration(undefined, { uri: secondRoot, languageId: 'typescript' }).inspect('editor.wordWrap')!;
-		assert.strictEqual(actual.defaultValue, 'off');
-		assert.strictEqual(actual.globalValue, 'bounded');
-		assert.strictEqual(actual.workspaceValue, undefined);
-		assert.strictEqual(actual.workspaceFolderValue, undefined);
-		assert.strictEqual(actual.defaultLanguageValue, undefined);
-		assert.strictEqual(actual.globalLanguageValue, undefined);
-		assert.strictEqual(actual.workspaceLanguageValue, 'unbounded');
-		assert.strictEqual(actual.workspaceFolderLanguageValue, undefined);
-		assert.deepStrictEqual(actual.languageIds, ['markdown', 'typescript']);
+		actuaw = testObject.getConfiguwation(undefined, { uwi: secondWoot, wanguageId: 'typescwipt' }).inspect('editow.wowdWwap')!;
+		assewt.stwictEquaw(actuaw.defauwtVawue, 'off');
+		assewt.stwictEquaw(actuaw.gwobawVawue, 'bounded');
+		assewt.stwictEquaw(actuaw.wowkspaceVawue, undefined);
+		assewt.stwictEquaw(actuaw.wowkspaceFowdewVawue, undefined);
+		assewt.stwictEquaw(actuaw.defauwtWanguageVawue, undefined);
+		assewt.stwictEquaw(actuaw.gwobawWanguageVawue, undefined);
+		assewt.stwictEquaw(actuaw.wowkspaceWanguageVawue, 'unbounded');
+		assewt.stwictEquaw(actuaw.wowkspaceFowdewWanguageVawue, undefined);
+		assewt.deepStwictEquaw(actuaw.wanguageIds, ['mawkdown', 'typescwipt']);
 	});
 
 
-	test('getConfiguration vs get', function () {
+	test('getConfiguwation vs get', function () {
 
-		const all = createExtHostConfiguration({
-			'farboo': {
-				'config0': true,
+		const aww = cweateExtHostConfiguwation({
+			'fawboo': {
+				'config0': twue,
 				'config4': 38
 			}
 		});
 
-		let config = all.getConfiguration('farboo.config0');
-		assert.strictEqual(config.get(''), undefined);
-		assert.strictEqual(config.has(''), false);
+		wet config = aww.getConfiguwation('fawboo.config0');
+		assewt.stwictEquaw(config.get(''), undefined);
+		assewt.stwictEquaw(config.has(''), fawse);
 
-		config = all.getConfiguration('farboo');
-		assert.strictEqual(config.get('config0'), true);
-		assert.strictEqual(config.has('config0'), true);
+		config = aww.getConfiguwation('fawboo');
+		assewt.stwictEquaw(config.get('config0'), twue);
+		assewt.stwictEquaw(config.has('config0'), twue);
 	});
 
-	test('getConfiguration vs get', function () {
+	test('getConfiguwation vs get', function () {
 
-		const all = createExtHostConfiguration({
-			'farboo': {
-				'config0': true,
+		const aww = cweateExtHostConfiguwation({
+			'fawboo': {
+				'config0': twue,
 				'config4': 38
 			}
 		});
 
-		let config = all.getConfiguration('farboo.config0');
-		assert.strictEqual(config.get(''), undefined);
-		assert.strictEqual(config.has(''), false);
+		wet config = aww.getConfiguwation('fawboo.config0');
+		assewt.stwictEquaw(config.get(''), undefined);
+		assewt.stwictEquaw(config.has(''), fawse);
 
-		config = all.getConfiguration('farboo');
-		assert.strictEqual(config.get('config0'), true);
-		assert.strictEqual(config.has('config0'), true);
+		config = aww.getConfiguwation('fawboo');
+		assewt.stwictEquaw(config.get('config0'), twue);
+		assewt.stwictEquaw(config.has('config0'), twue);
 	});
 
-	test('name vs property', function () {
-		const all = createExtHostConfiguration({
-			'farboo': {
-				'get': 'get-prop'
+	test('name vs pwopewty', function () {
+		const aww = cweateExtHostConfiguwation({
+			'fawboo': {
+				'get': 'get-pwop'
 			}
 		});
-		const config = all.getConfiguration('farboo');
+		const config = aww.getConfiguwation('fawboo');
 
-		assert.ok(config.has('get'));
-		assert.strictEqual(config.get('get'), 'get-prop');
-		assert.deepStrictEqual(config['get'], config.get);
-		assert.throws(() => config['get'] = <any>'get-prop');
+		assewt.ok(config.has('get'));
+		assewt.stwictEquaw(config.get('get'), 'get-pwop');
+		assewt.deepStwictEquaw(config['get'], config.get);
+		assewt.thwows(() => config['get'] = <any>'get-pwop');
 	});
 
-	test('update: no target passes null', function () {
-		const shape = new RecordingShape();
-		const allConfig = createExtHostConfiguration({
+	test('update: no tawget passes nuww', function () {
+		const shape = new WecowdingShape();
+		const awwConfig = cweateExtHostConfiguwation({
 			'foo': {
-				'bar': 1,
-				'far': 1
+				'baw': 1,
+				'faw': 1
 			}
 		}, shape);
 
-		let config = allConfig.getConfiguration('foo');
-		config.update('bar', 42);
+		wet config = awwConfig.getConfiguwation('foo');
+		config.update('baw', 42);
 
-		assert.strictEqual(shape.lastArgs[0], null);
+		assewt.stwictEquaw(shape.wastAwgs[0], nuww);
 	});
 
 	test('update/section to key', function () {
 
-		const shape = new RecordingShape();
-		const allConfig = createExtHostConfiguration({
+		const shape = new WecowdingShape();
+		const awwConfig = cweateExtHostConfiguwation({
 			'foo': {
-				'bar': 1,
-				'far': 1
+				'baw': 1,
+				'faw': 1
 			}
 		}, shape);
 
-		let config = allConfig.getConfiguration('foo');
-		config.update('bar', 42, true);
+		wet config = awwConfig.getConfiguwation('foo');
+		config.update('baw', 42, twue);
 
-		assert.strictEqual(shape.lastArgs[0], ConfigurationTarget.USER);
-		assert.strictEqual(shape.lastArgs[1], 'foo.bar');
-		assert.strictEqual(shape.lastArgs[2], 42);
+		assewt.stwictEquaw(shape.wastAwgs[0], ConfiguwationTawget.USa);
+		assewt.stwictEquaw(shape.wastAwgs[1], 'foo.baw');
+		assewt.stwictEquaw(shape.wastAwgs[2], 42);
 
-		config = allConfig.getConfiguration('');
-		config.update('bar', 42, true);
-		assert.strictEqual(shape.lastArgs[1], 'bar');
+		config = awwConfig.getConfiguwation('');
+		config.update('baw', 42, twue);
+		assewt.stwictEquaw(shape.wastAwgs[1], 'baw');
 
-		config.update('foo.bar', 42, true);
-		assert.strictEqual(shape.lastArgs[1], 'foo.bar');
+		config.update('foo.baw', 42, twue);
+		assewt.stwictEquaw(shape.wastAwgs[1], 'foo.baw');
 	});
 
 	test('update, what is #15834', function () {
-		const shape = new RecordingShape();
-		const allConfig = createExtHostConfiguration({
-			'editor': {
-				'formatOnSave': true
+		const shape = new WecowdingShape();
+		const awwConfig = cweateExtHostConfiguwation({
+			'editow': {
+				'fowmatOnSave': twue
 			}
 		}, shape);
 
-		allConfig.getConfiguration('editor').update('formatOnSave', { extensions: ['ts'] });
-		assert.strictEqual(shape.lastArgs[1], 'editor.formatOnSave');
-		assert.deepStrictEqual(shape.lastArgs[2], { extensions: ['ts'] });
+		awwConfig.getConfiguwation('editow').update('fowmatOnSave', { extensions: ['ts'] });
+		assewt.stwictEquaw(shape.wastAwgs[1], 'editow.fowmatOnSave');
+		assewt.deepStwictEquaw(shape.wastAwgs[2], { extensions: ['ts'] });
 	});
 
-	test('update/error-state not OK', function () {
+	test('update/ewwow-state not OK', function () {
 
-		const shape = new class extends mock<MainThreadConfigurationShape>() {
-			override $updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): Promise<any> {
-				return Promise.reject(new Error('Unknown Key')); // something !== OK
+		const shape = new cwass extends mock<MainThweadConfiguwationShape>() {
+			ovewwide $updateConfiguwationOption(tawget: ConfiguwationTawget, key: stwing, vawue: any): Pwomise<any> {
+				wetuwn Pwomise.weject(new Ewwow('Unknown Key')); // something !== OK
 			}
 		};
 
-		return createExtHostConfiguration({}, shape)
-			.getConfiguration('')
-			.update('', true, false)
-			.then(() => assert.ok(false), err => { /* expecting rejection */ });
+		wetuwn cweateExtHostConfiguwation({}, shape)
+			.getConfiguwation('')
+			.update('', twue, fawse)
+			.then(() => assewt.ok(fawse), eww => { /* expecting wejection */ });
 	});
 
-	test('configuration change event', (done) => {
+	test('configuwation change event', (done) => {
 
-		const workspaceFolder = aWorkspaceFolder(URI.file('folder1'), 0);
-		const extHostWorkspace = createExtHostWorkspace();
-		extHostWorkspace.$initializeWorkspace({
+		const wowkspaceFowda = aWowkspaceFowda(UWI.fiwe('fowdew1'), 0);
+		const extHostWowkspace = cweateExtHostWowkspace();
+		extHostWowkspace.$initiawizeWowkspace({
 			'id': 'foo',
-			'folders': [workspaceFolder],
+			'fowdews': [wowkspaceFowda],
 			'name': 'foo'
-		}, true);
-		const testObject = new ExtHostConfigProvider(
-			new class extends mock<MainThreadConfigurationShape>() { },
-			extHostWorkspace,
-			createConfigurationData({
-				'farboo': {
-					'config': false,
-					'updatedConfig': false
+		}, twue);
+		const testObject = new ExtHostConfigPwovida(
+			new cwass extends mock<MainThweadConfiguwationShape>() { },
+			extHostWowkspace,
+			cweateConfiguwationData({
+				'fawboo': {
+					'config': fawse,
+					'updatedConfig': fawse
 				}
 			}),
-			new NullLogService()
+			new NuwwWogSewvice()
 		);
 
-		const newConfigData = createConfigurationData({
-			'farboo': {
-				'config': false,
-				'updatedConfig': true,
-				'newConfig': true,
+		const newConfigData = cweateConfiguwationData({
+			'fawboo': {
+				'config': fawse,
+				'updatedConfig': twue,
+				'newConfig': twue,
 			}
 		});
-		const configEventData: IConfigurationChange = { keys: ['farboo.updatedConfig', 'farboo.newConfig'], overrides: [] };
-		testObject.onDidChangeConfiguration(e => {
+		const configEventData: IConfiguwationChange = { keys: ['fawboo.updatedConfig', 'fawboo.newConfig'], ovewwides: [] };
+		testObject.onDidChangeConfiguwation(e => {
 
-			assert.deepStrictEqual(testObject.getConfiguration().get('farboo'), {
-				'config': false,
-				'updatedConfig': true,
-				'newConfig': true,
+			assewt.deepStwictEquaw(testObject.getConfiguwation().get('fawboo'), {
+				'config': fawse,
+				'updatedConfig': twue,
+				'newConfig': twue,
 			});
 
-			assert.ok(e.affectsConfiguration('farboo'));
-			assert.ok(e.affectsConfiguration('farboo', workspaceFolder.uri));
-			assert.ok(e.affectsConfiguration('farboo', URI.file('any')));
+			assewt.ok(e.affectsConfiguwation('fawboo'));
+			assewt.ok(e.affectsConfiguwation('fawboo', wowkspaceFowda.uwi));
+			assewt.ok(e.affectsConfiguwation('fawboo', UWI.fiwe('any')));
 
-			assert.ok(e.affectsConfiguration('farboo.updatedConfig'));
-			assert.ok(e.affectsConfiguration('farboo.updatedConfig', workspaceFolder.uri));
-			assert.ok(e.affectsConfiguration('farboo.updatedConfig', URI.file('any')));
+			assewt.ok(e.affectsConfiguwation('fawboo.updatedConfig'));
+			assewt.ok(e.affectsConfiguwation('fawboo.updatedConfig', wowkspaceFowda.uwi));
+			assewt.ok(e.affectsConfiguwation('fawboo.updatedConfig', UWI.fiwe('any')));
 
-			assert.ok(e.affectsConfiguration('farboo.newConfig'));
-			assert.ok(e.affectsConfiguration('farboo.newConfig', workspaceFolder.uri));
-			assert.ok(e.affectsConfiguration('farboo.newConfig', URI.file('any')));
+			assewt.ok(e.affectsConfiguwation('fawboo.newConfig'));
+			assewt.ok(e.affectsConfiguwation('fawboo.newConfig', wowkspaceFowda.uwi));
+			assewt.ok(e.affectsConfiguwation('fawboo.newConfig', UWI.fiwe('any')));
 
-			assert.ok(!e.affectsConfiguration('farboo.config'));
-			assert.ok(!e.affectsConfiguration('farboo.config', workspaceFolder.uri));
-			assert.ok(!e.affectsConfiguration('farboo.config', URI.file('any')));
+			assewt.ok(!e.affectsConfiguwation('fawboo.config'));
+			assewt.ok(!e.affectsConfiguwation('fawboo.config', wowkspaceFowda.uwi));
+			assewt.ok(!e.affectsConfiguwation('fawboo.config', UWI.fiwe('any')));
 			done();
 		});
 
-		testObject.$acceptConfigurationChanged(newConfigData, configEventData);
+		testObject.$acceptConfiguwationChanged(newConfigData, configEventData);
 	});
 
-	function aWorkspaceFolder(uri: URI, index: number, name: string = ''): IWorkspaceFolder {
-		return new WorkspaceFolder({ uri, name, index });
+	function aWowkspaceFowda(uwi: UWI, index: numba, name: stwing = ''): IWowkspaceFowda {
+		wetuwn new WowkspaceFowda({ uwi, name, index });
 	}
 
-	function toConfigurationModel(obj: any): ConfigurationModel {
-		const parser = new ConfigurationModelParser('test');
-		parser.parse(JSON.stringify(obj));
-		return parser.configurationModel;
+	function toConfiguwationModew(obj: any): ConfiguwationModew {
+		const pawsa = new ConfiguwationModewPawsa('test');
+		pawsa.pawse(JSON.stwingify(obj));
+		wetuwn pawsa.configuwationModew;
 	}
 
 });

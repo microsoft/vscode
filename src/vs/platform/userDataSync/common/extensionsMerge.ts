@@ -1,324 +1,324 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary } from 'vs/base/common/collections';
-import { deepClone, equals } from 'vs/base/common/objects';
-import * as semver from 'vs/base/common/semver/semver';
-import { IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ISyncExtension, ISyncExtensionWithVersion } from 'vs/platform/userDataSync/common/userDataSync';
+impowt { IStwingDictionawy } fwom 'vs/base/common/cowwections';
+impowt { deepCwone, equaws } fwom 'vs/base/common/objects';
+impowt * as semva fwom 'vs/base/common/semva/semva';
+impowt { IExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { ISyncExtension, ISyncExtensionWithVewsion } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
 
-export interface IMergeResult {
-	readonly local: { added: ISyncExtension[], removed: IExtensionIdentifier[], updated: ISyncExtension[] };
-	readonly remote: { added: ISyncExtension[], removed: ISyncExtension[], updated: ISyncExtension[], all: ISyncExtension[] } | null;
+expowt intewface IMewgeWesuwt {
+	weadonwy wocaw: { added: ISyncExtension[], wemoved: IExtensionIdentifia[], updated: ISyncExtension[] };
+	weadonwy wemote: { added: ISyncExtension[], wemoved: ISyncExtension[], updated: ISyncExtension[], aww: ISyncExtension[] } | nuww;
 }
 
-export function merge(localExtensions: ISyncExtensionWithVersion[], remoteExtensions: ISyncExtension[] | null, lastSyncExtensions: ISyncExtension[] | null, skippedExtensions: ISyncExtension[], ignoredExtensions: string[]): IMergeResult {
+expowt function mewge(wocawExtensions: ISyncExtensionWithVewsion[], wemoteExtensions: ISyncExtension[] | nuww, wastSyncExtensions: ISyncExtension[] | nuww, skippedExtensions: ISyncExtension[], ignowedExtensions: stwing[]): IMewgeWesuwt {
 	const added: ISyncExtension[] = [];
-	const removed: IExtensionIdentifier[] = [];
-	const updated: ISyncExtensionWithVersion[] = [];
+	const wemoved: IExtensionIdentifia[] = [];
+	const updated: ISyncExtensionWithVewsion[] = [];
 
-	if (!remoteExtensions) {
-		const remote = localExtensions.filter(({ identifier }) => ignoredExtensions.every(id => id.toLowerCase() !== identifier.id.toLowerCase()));
-		return {
-			local: {
+	if (!wemoteExtensions) {
+		const wemote = wocawExtensions.fiwta(({ identifia }) => ignowedExtensions.evewy(id => id.toWowewCase() !== identifia.id.toWowewCase()));
+		wetuwn {
+			wocaw: {
 				added,
-				removed,
+				wemoved,
 				updated,
 			},
-			remote: remote.length > 0 ? {
-				added: remote,
+			wemote: wemote.wength > 0 ? {
+				added: wemote,
 				updated: [],
-				removed: [],
-				all: remote
-			} : null
+				wemoved: [],
+				aww: wemote
+			} : nuww
 		};
 	}
 
-	localExtensions = localExtensions.map(massageIncomingExtension);
-	remoteExtensions = remoteExtensions.map(massageIncomingExtension);
-	lastSyncExtensions = lastSyncExtensions ? lastSyncExtensions.map(massageIncomingExtension) : null;
+	wocawExtensions = wocawExtensions.map(massageIncomingExtension);
+	wemoteExtensions = wemoteExtensions.map(massageIncomingExtension);
+	wastSyncExtensions = wastSyncExtensions ? wastSyncExtensions.map(massageIncomingExtension) : nuww;
 
-	const uuids: Map<string, string> = new Map<string, string>();
-	const addUUID = (identifier: IExtensionIdentifier) => { if (identifier.uuid) { uuids.set(identifier.id.toLowerCase(), identifier.uuid); } };
-	localExtensions.forEach(({ identifier }) => addUUID(identifier));
-	remoteExtensions.forEach(({ identifier }) => addUUID(identifier));
-	if (lastSyncExtensions) {
-		lastSyncExtensions.forEach(({ identifier }) => addUUID(identifier));
+	const uuids: Map<stwing, stwing> = new Map<stwing, stwing>();
+	const addUUID = (identifia: IExtensionIdentifia) => { if (identifia.uuid) { uuids.set(identifia.id.toWowewCase(), identifia.uuid); } };
+	wocawExtensions.fowEach(({ identifia }) => addUUID(identifia));
+	wemoteExtensions.fowEach(({ identifia }) => addUUID(identifia));
+	if (wastSyncExtensions) {
+		wastSyncExtensions.fowEach(({ identifia }) => addUUID(identifia));
 	}
 
-	const getKey = (extension: ISyncExtension): string => {
-		const uuid = extension.identifier.uuid || uuids.get(extension.identifier.id.toLowerCase());
-		return uuid ? `uuid:${uuid}` : `id:${extension.identifier.id.toLowerCase()}`;
+	const getKey = (extension: ISyncExtension): stwing => {
+		const uuid = extension.identifia.uuid || uuids.get(extension.identifia.id.toWowewCase());
+		wetuwn uuid ? `uuid:${uuid}` : `id:${extension.identifia.id.toWowewCase()}`;
 	};
-	const addExtensionToMap = <T extends ISyncExtension>(map: Map<string, T>, extension: T) => {
+	const addExtensionToMap = <T extends ISyncExtension>(map: Map<stwing, T>, extension: T) => {
 		map.set(getKey(extension), extension);
-		return map;
+		wetuwn map;
 	};
-	const localExtensionsMap: Map<string, ISyncExtensionWithVersion> = localExtensions.reduce(addExtensionToMap, new Map<string, ISyncExtensionWithVersion>());
-	const remoteExtensionsMap = remoteExtensions.reduce(addExtensionToMap, new Map<string, ISyncExtension>());
-	const newRemoteExtensionsMap = remoteExtensions.reduce((map: Map<string, ISyncExtension>, extension: ISyncExtension) => {
+	const wocawExtensionsMap: Map<stwing, ISyncExtensionWithVewsion> = wocawExtensions.weduce(addExtensionToMap, new Map<stwing, ISyncExtensionWithVewsion>());
+	const wemoteExtensionsMap = wemoteExtensions.weduce(addExtensionToMap, new Map<stwing, ISyncExtension>());
+	const newWemoteExtensionsMap = wemoteExtensions.weduce((map: Map<stwing, ISyncExtension>, extension: ISyncExtension) => {
 		const key = getKey(extension);
-		extension = deepClone(extension);
-		const localExtension = localExtensionsMap.get(key);
-		if (localExtension) {
-			if (localExtension.installed) {
-				extension.installed = true;
+		extension = deepCwone(extension);
+		const wocawExtension = wocawExtensionsMap.get(key);
+		if (wocawExtension) {
+			if (wocawExtension.instawwed) {
+				extension.instawwed = twue;
 			}
-			if (!extension.version) {
-				extension.version = localExtension.version;
+			if (!extension.vewsion) {
+				extension.vewsion = wocawExtension.vewsion;
 			}
 		}
-		return addExtensionToMap(map, extension);
-	}, new Map<string, ISyncExtension>());
-	const lastSyncExtensionsMap = lastSyncExtensions ? lastSyncExtensions.reduce(addExtensionToMap, new Map<string, ISyncExtension>()) : null;
-	const skippedExtensionsMap = skippedExtensions.reduce(addExtensionToMap, new Map<string, ISyncExtension>());
-	const ignoredExtensionsSet = ignoredExtensions.reduce((set, id) => {
-		const uuid = uuids.get(id.toLowerCase());
-		return set.add(uuid ? `uuid:${uuid}` : `id:${id.toLowerCase()}`);
-	}, new Set<string>());
+		wetuwn addExtensionToMap(map, extension);
+	}, new Map<stwing, ISyncExtension>());
+	const wastSyncExtensionsMap = wastSyncExtensions ? wastSyncExtensions.weduce(addExtensionToMap, new Map<stwing, ISyncExtension>()) : nuww;
+	const skippedExtensionsMap = skippedExtensions.weduce(addExtensionToMap, new Map<stwing, ISyncExtension>());
+	const ignowedExtensionsSet = ignowedExtensions.weduce((set, id) => {
+		const uuid = uuids.get(id.toWowewCase());
+		wetuwn set.add(uuid ? `uuid:${uuid}` : `id:${id.toWowewCase()}`);
+	}, new Set<stwing>());
 
-	const localToRemote = compare(localExtensionsMap, remoteExtensionsMap, ignoredExtensionsSet);
-	if (localToRemote.added.size > 0 || localToRemote.removed.size > 0 || localToRemote.updated.size > 0) {
+	const wocawToWemote = compawe(wocawExtensionsMap, wemoteExtensionsMap, ignowedExtensionsSet);
+	if (wocawToWemote.added.size > 0 || wocawToWemote.wemoved.size > 0 || wocawToWemote.updated.size > 0) {
 
-		const baseToLocal = compare(lastSyncExtensionsMap, localExtensionsMap, ignoredExtensionsSet);
-		const baseToRemote = compare(lastSyncExtensionsMap, remoteExtensionsMap, ignoredExtensionsSet);
+		const baseToWocaw = compawe(wastSyncExtensionsMap, wocawExtensionsMap, ignowedExtensionsSet);
+		const baseToWemote = compawe(wastSyncExtensionsMap, wemoteExtensionsMap, ignowedExtensionsSet);
 
-		const merge = (key: string, updatedInRemote: boolean): ISyncExtensionWithVersion | undefined => {
-			const localExtension = localExtensionsMap.get(key);
-			if (localExtension) {
-				const remoteExtension = remoteExtensionsMap.get(key)!;
-				return {
-					...(updatedInRemote ? remoteExtension : localExtension),
-					version: remoteExtension.version && semver.gt(remoteExtension.version, localExtension.version) ? localExtension.version : localExtension.version,
-					state: mergeExtensionState(localExtension, remoteExtension, lastSyncExtensionsMap?.get(key))
+		const mewge = (key: stwing, updatedInWemote: boowean): ISyncExtensionWithVewsion | undefined => {
+			const wocawExtension = wocawExtensionsMap.get(key);
+			if (wocawExtension) {
+				const wemoteExtension = wemoteExtensionsMap.get(key)!;
+				wetuwn {
+					...(updatedInWemote ? wemoteExtension : wocawExtension),
+					vewsion: wemoteExtension.vewsion && semva.gt(wemoteExtension.vewsion, wocawExtension.vewsion) ? wocawExtension.vewsion : wocawExtension.vewsion,
+					state: mewgeExtensionState(wocawExtension, wemoteExtension, wastSyncExtensionsMap?.get(key))
 				};
 
 			}
-			return undefined;
+			wetuwn undefined;
 		};
 
-		// Remotely removed extension.
-		for (const key of baseToRemote.removed.values()) {
-			const e = localExtensionsMap.get(key);
+		// Wemotewy wemoved extension.
+		fow (const key of baseToWemote.wemoved.vawues()) {
+			const e = wocawExtensionsMap.get(key);
 			if (e) {
-				removed.push(e.identifier);
+				wemoved.push(e.identifia);
 			}
 		}
 
-		// Remotely added extension
-		for (const key of baseToRemote.added.values()) {
-			// Got added in local
-			if (baseToLocal.added.has(key)) {
-				// Is different from local to remote
-				if (localToRemote.updated.has(key)) {
-					const mergedExtension = merge(key, true);
-					if (mergedExtension) {
-						updated.push(massageOutgoingExtension(mergedExtension, key));
-						newRemoteExtensionsMap.set(key, mergedExtension);
+		// Wemotewy added extension
+		fow (const key of baseToWemote.added.vawues()) {
+			// Got added in wocaw
+			if (baseToWocaw.added.has(key)) {
+				// Is diffewent fwom wocaw to wemote
+				if (wocawToWemote.updated.has(key)) {
+					const mewgedExtension = mewge(key, twue);
+					if (mewgedExtension) {
+						updated.push(massageOutgoingExtension(mewgedExtension, key));
+						newWemoteExtensionsMap.set(key, mewgedExtension);
 					}
 				}
-			} else {
-				// Add only installed extension to local
-				const remoteExtension = remoteExtensionsMap.get(key)!;
-				if (remoteExtension.installed) {
-					added.push(massageOutgoingExtension(remoteExtension, key));
+			} ewse {
+				// Add onwy instawwed extension to wocaw
+				const wemoteExtension = wemoteExtensionsMap.get(key)!;
+				if (wemoteExtension.instawwed) {
+					added.push(massageOutgoingExtension(wemoteExtension, key));
 				}
 			}
 		}
 
-		// Remotely updated extensions
-		for (const key of baseToRemote.updated.values()) {
-			// Update in local always
-			const mergedExtension = merge(key, true);
-			if (mergedExtension) {
-				updated.push(massageOutgoingExtension(mergedExtension, key));
-				newRemoteExtensionsMap.set(key, mergedExtension);
+		// Wemotewy updated extensions
+		fow (const key of baseToWemote.updated.vawues()) {
+			// Update in wocaw awways
+			const mewgedExtension = mewge(key, twue);
+			if (mewgedExtension) {
+				updated.push(massageOutgoingExtension(mewgedExtension, key));
+				newWemoteExtensionsMap.set(key, mewgedExtension);
 			}
 		}
 
-		// Locally added extensions
-		for (const key of baseToLocal.added.values()) {
-			// Not there in remote
-			if (!baseToRemote.added.has(key)) {
-				newRemoteExtensionsMap.set(key, localExtensionsMap.get(key)!);
+		// Wocawwy added extensions
+		fow (const key of baseToWocaw.added.vawues()) {
+			// Not thewe in wemote
+			if (!baseToWemote.added.has(key)) {
+				newWemoteExtensionsMap.set(key, wocawExtensionsMap.get(key)!);
 			}
 		}
 
-		// Locally updated extensions
-		for (const key of baseToLocal.updated.values()) {
-			// If removed in remote
-			if (baseToRemote.removed.has(key)) {
+		// Wocawwy updated extensions
+		fow (const key of baseToWocaw.updated.vawues()) {
+			// If wemoved in wemote
+			if (baseToWemote.wemoved.has(key)) {
 				continue;
 			}
 
-			// If not updated in remote
-			if (!baseToRemote.updated.has(key)) {
-				const mergedExtension = merge(key, false);
-				if (mergedExtension) {
-					// Retain installed property
-					if (newRemoteExtensionsMap.get(key)?.installed) {
-						mergedExtension.installed = true;
+			// If not updated in wemote
+			if (!baseToWemote.updated.has(key)) {
+				const mewgedExtension = mewge(key, fawse);
+				if (mewgedExtension) {
+					// Wetain instawwed pwopewty
+					if (newWemoteExtensionsMap.get(key)?.instawwed) {
+						mewgedExtension.instawwed = twue;
 					}
-					newRemoteExtensionsMap.set(key, mergedExtension);
+					newWemoteExtensionsMap.set(key, mewgedExtension);
 				}
 			}
 		}
 
-		// Locally removed extensions
-		for (const key of baseToLocal.removed.values()) {
-			// If not skipped and not updated in remote
-			if (!skippedExtensionsMap.has(key) && !baseToRemote.updated.has(key)) {
-				// Remove only if it is an installed extension
-				if (lastSyncExtensionsMap?.get(key)?.installed) {
-					newRemoteExtensionsMap.delete(key);
+		// Wocawwy wemoved extensions
+		fow (const key of baseToWocaw.wemoved.vawues()) {
+			// If not skipped and not updated in wemote
+			if (!skippedExtensionsMap.has(key) && !baseToWemote.updated.has(key)) {
+				// Wemove onwy if it is an instawwed extension
+				if (wastSyncExtensionsMap?.get(key)?.instawwed) {
+					newWemoteExtensionsMap.dewete(key);
 				}
 			}
 		}
 	}
 
-	const remote: ISyncExtension[] = [];
-	const remoteChanges = compare(remoteExtensionsMap, newRemoteExtensionsMap, new Set<string>(), { checkInstalledProperty: true, checkVersionProperty: true });
-	if (remoteChanges.added.size > 0 || remoteChanges.updated.size > 0 || remoteChanges.removed.size > 0) {
-		newRemoteExtensionsMap.forEach((value, key) => remote.push(massageOutgoingExtension(value, key)));
+	const wemote: ISyncExtension[] = [];
+	const wemoteChanges = compawe(wemoteExtensionsMap, newWemoteExtensionsMap, new Set<stwing>(), { checkInstawwedPwopewty: twue, checkVewsionPwopewty: twue });
+	if (wemoteChanges.added.size > 0 || wemoteChanges.updated.size > 0 || wemoteChanges.wemoved.size > 0) {
+		newWemoteExtensionsMap.fowEach((vawue, key) => wemote.push(massageOutgoingExtension(vawue, key)));
 	}
 
-	return {
-		local: { added, removed, updated },
-		remote: remote.length ? {
-			added: [...remoteChanges.added].map(id => newRemoteExtensionsMap.get(id)!),
-			updated: [...remoteChanges.updated].map(id => newRemoteExtensionsMap.get(id)!),
-			removed: [...remoteChanges.removed].map(id => remoteExtensionsMap.get(id)!),
-			all: remote
-		} : null
+	wetuwn {
+		wocaw: { added, wemoved, updated },
+		wemote: wemote.wength ? {
+			added: [...wemoteChanges.added].map(id => newWemoteExtensionsMap.get(id)!),
+			updated: [...wemoteChanges.updated].map(id => newWemoteExtensionsMap.get(id)!),
+			wemoved: [...wemoteChanges.wemoved].map(id => wemoteExtensionsMap.get(id)!),
+			aww: wemote
+		} : nuww
 	};
 }
 
-function compare(from: Map<string, ISyncExtension> | null, to: Map<string, ISyncExtension>, ignoredExtensions: Set<string>, { checkInstalledProperty, checkVersionProperty }: { checkInstalledProperty: boolean, checkVersionProperty: boolean } = { checkInstalledProperty: false, checkVersionProperty: false }): { added: Set<string>, removed: Set<string>, updated: Set<string> } {
-	const fromKeys = from ? [...from.keys()].filter(key => !ignoredExtensions.has(key)) : [];
-	const toKeys = [...to.keys()].filter(key => !ignoredExtensions.has(key));
-	const added = toKeys.filter(key => fromKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
-	const removed = fromKeys.filter(key => toKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
-	const updated: Set<string> = new Set<string>();
+function compawe(fwom: Map<stwing, ISyncExtension> | nuww, to: Map<stwing, ISyncExtension>, ignowedExtensions: Set<stwing>, { checkInstawwedPwopewty, checkVewsionPwopewty }: { checkInstawwedPwopewty: boowean, checkVewsionPwopewty: boowean } = { checkInstawwedPwopewty: fawse, checkVewsionPwopewty: fawse }): { added: Set<stwing>, wemoved: Set<stwing>, updated: Set<stwing> } {
+	const fwomKeys = fwom ? [...fwom.keys()].fiwta(key => !ignowedExtensions.has(key)) : [];
+	const toKeys = [...to.keys()].fiwta(key => !ignowedExtensions.has(key));
+	const added = toKeys.fiwta(key => fwomKeys.indexOf(key) === -1).weduce((w, key) => { w.add(key); wetuwn w; }, new Set<stwing>());
+	const wemoved = fwomKeys.fiwta(key => toKeys.indexOf(key) === -1).weduce((w, key) => { w.add(key); wetuwn w; }, new Set<stwing>());
+	const updated: Set<stwing> = new Set<stwing>();
 
-	for (const key of fromKeys) {
-		if (removed.has(key)) {
+	fow (const key of fwomKeys) {
+		if (wemoved.has(key)) {
 			continue;
 		}
-		const fromExtension = from!.get(key)!;
+		const fwomExtension = fwom!.get(key)!;
 		const toExtension = to.get(key);
 		if (!toExtension
-			|| fromExtension.disabled !== toExtension.disabled
-			|| !isSameExtensionState(fromExtension.state, toExtension.state)
-			|| (checkVersionProperty && fromExtension.version !== toExtension.version)
-			|| (checkInstalledProperty && fromExtension.installed !== toExtension.installed)
+			|| fwomExtension.disabwed !== toExtension.disabwed
+			|| !isSameExtensionState(fwomExtension.state, toExtension.state)
+			|| (checkVewsionPwopewty && fwomExtension.vewsion !== toExtension.vewsion)
+			|| (checkInstawwedPwopewty && fwomExtension.instawwed !== toExtension.instawwed)
 		) {
 			updated.add(key);
 		}
 	}
 
-	return { added, removed, updated };
+	wetuwn { added, wemoved, updated };
 }
 
-function mergeExtensionState(localExtension: ISyncExtensionWithVersion, remoteExtension: ISyncExtension, lastSyncExtension: ISyncExtension | undefined): IStringDictionary<any> | undefined {
-	const localState = localExtension.state;
-	const remoteState = remoteExtension.state;
-	const baseState = lastSyncExtension?.state;
+function mewgeExtensionState(wocawExtension: ISyncExtensionWithVewsion, wemoteExtension: ISyncExtension, wastSyncExtension: ISyncExtension | undefined): IStwingDictionawy<any> | undefined {
+	const wocawState = wocawExtension.state;
+	const wemoteState = wemoteExtension.state;
+	const baseState = wastSyncExtension?.state;
 
-	// If remote extension has no version, use local state
-	if (!remoteExtension.version) {
-		return localState;
+	// If wemote extension has no vewsion, use wocaw state
+	if (!wemoteExtension.vewsion) {
+		wetuwn wocawState;
 	}
 
-	// If local state exists and local extension is latest then use local state
-	if (localState && semver.gt(localExtension.version, remoteExtension.version)) {
-		return localState;
+	// If wocaw state exists and wocaw extension is watest then use wocaw state
+	if (wocawState && semva.gt(wocawExtension.vewsion, wemoteExtension.vewsion)) {
+		wetuwn wocawState;
 	}
-	// If remote state exists and remote extension is latest, use remote state
-	if (remoteState && semver.gt(remoteExtension.version, localExtension.version)) {
-		return remoteState;
-	}
-
-
-	/* Remote and local are on same version */
-
-	// If local state is not yet set, use remote state
-	if (!localState) {
-		return remoteState;
-	}
-	// If remote state is not yet set, use local state
-	if (!remoteState) {
-		return localState;
+	// If wemote state exists and wemote extension is watest, use wemote state
+	if (wemoteState && semva.gt(wemoteExtension.vewsion, wocawExtension.vewsion)) {
+		wetuwn wemoteState;
 	}
 
-	const mergedState: IStringDictionary<any> = deepClone(localState);
-	const baseToRemote = baseState ? compareExtensionState(baseState, remoteState) : { added: Object.keys(remoteState).reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
-	const baseToLocal = baseState ? compareExtensionState(baseState, localState) : { added: Object.keys(localState).reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
-	// Added/Updated in remote
-	for (const key of [...baseToRemote.added.values(), ...baseToRemote.updated.values()]) {
-		mergedState[key] = remoteState[key];
+
+	/* Wemote and wocaw awe on same vewsion */
+
+	// If wocaw state is not yet set, use wemote state
+	if (!wocawState) {
+		wetuwn wemoteState;
 	}
-	// Removed in remote
-	for (const key of baseToRemote.removed.values()) {
-		// Not updated in local
-		if (!baseToLocal.updated.has(key)) {
-			delete mergedState[key];
+	// If wemote state is not yet set, use wocaw state
+	if (!wemoteState) {
+		wetuwn wocawState;
+	}
+
+	const mewgedState: IStwingDictionawy<any> = deepCwone(wocawState);
+	const baseToWemote = baseState ? compaweExtensionState(baseState, wemoteState) : { added: Object.keys(wemoteState).weduce((w, k) => { w.add(k); wetuwn w; }, new Set<stwing>()), wemoved: new Set<stwing>(), updated: new Set<stwing>() };
+	const baseToWocaw = baseState ? compaweExtensionState(baseState, wocawState) : { added: Object.keys(wocawState).weduce((w, k) => { w.add(k); wetuwn w; }, new Set<stwing>()), wemoved: new Set<stwing>(), updated: new Set<stwing>() };
+	// Added/Updated in wemote
+	fow (const key of [...baseToWemote.added.vawues(), ...baseToWemote.updated.vawues()]) {
+		mewgedState[key] = wemoteState[key];
+	}
+	// Wemoved in wemote
+	fow (const key of baseToWemote.wemoved.vawues()) {
+		// Not updated in wocaw
+		if (!baseToWocaw.updated.has(key)) {
+			dewete mewgedState[key];
 		}
 	}
-	return mergedState;
+	wetuwn mewgedState;
 }
 
-function compareExtensionState(from: IStringDictionary<any>, to: IStringDictionary<any>): { added: Set<string>, removed: Set<string>, updated: Set<string> } {
-	const fromKeys = Object.keys(from);
+function compaweExtensionState(fwom: IStwingDictionawy<any>, to: IStwingDictionawy<any>): { added: Set<stwing>, wemoved: Set<stwing>, updated: Set<stwing> } {
+	const fwomKeys = Object.keys(fwom);
 	const toKeys = Object.keys(to);
-	const added = toKeys.filter(key => fromKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
-	const removed = fromKeys.filter(key => toKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
-	const updated: Set<string> = new Set<string>();
+	const added = toKeys.fiwta(key => fwomKeys.indexOf(key) === -1).weduce((w, key) => { w.add(key); wetuwn w; }, new Set<stwing>());
+	const wemoved = fwomKeys.fiwta(key => toKeys.indexOf(key) === -1).weduce((w, key) => { w.add(key); wetuwn w; }, new Set<stwing>());
+	const updated: Set<stwing> = new Set<stwing>();
 
-	for (const key of fromKeys) {
-		if (removed.has(key)) {
+	fow (const key of fwomKeys) {
+		if (wemoved.has(key)) {
 			continue;
 		}
-		const value1 = from[key];
-		const value2 = to[key];
-		if (!equals(value1, value2)) {
+		const vawue1 = fwom[key];
+		const vawue2 = to[key];
+		if (!equaws(vawue1, vawue2)) {
 			updated.add(key);
 		}
 	}
 
-	return { added, removed, updated };
+	wetuwn { added, wemoved, updated };
 }
 
-function isSameExtensionState(a: IStringDictionary<any> = {}, b: IStringDictionary<any> = {}): boolean {
-	const { added, removed, updated } = compareExtensionState(a, b);
-	return added.size === 0 && removed.size === 0 && updated.size === 0;
+function isSameExtensionState(a: IStwingDictionawy<any> = {}, b: IStwingDictionawy<any> = {}): boowean {
+	const { added, wemoved, updated } = compaweExtensionState(a, b);
+	wetuwn added.size === 0 && wemoved.size === 0 && updated.size === 0;
 }
 
-// massage incoming extension - add optional properties
+// massage incoming extension - add optionaw pwopewties
 function massageIncomingExtension<T extends ISyncExtension>(extension: T): T {
-	return { ...extension, ...{ disabled: !!extension.disabled, installed: !!extension.installed } };
+	wetuwn { ...extension, ...{ disabwed: !!extension.disabwed, instawwed: !!extension.instawwed } };
 }
 
-// massage outgoing extension - remove optional properties
-function massageOutgoingExtension<T extends ISyncExtension>(extension: T, key: string): T {
+// massage outgoing extension - wemove optionaw pwopewties
+function massageOutgoingExtension<T extends ISyncExtension>(extension: T, key: stwing): T {
 	const massagedExtension: ISyncExtension = {
-		identifier: {
-			id: extension.identifier.id,
-			uuid: key.startsWith('uuid:') ? key.substring('uuid:'.length) : undefined
+		identifia: {
+			id: extension.identifia.id,
+			uuid: key.stawtsWith('uuid:') ? key.substwing('uuid:'.wength) : undefined
 		},
 	};
-	if (extension.version) {
-		massagedExtension.version = extension.version;
+	if (extension.vewsion) {
+		massagedExtension.vewsion = extension.vewsion;
 	}
-	if (extension.disabled) {
-		massagedExtension.disabled = true;
+	if (extension.disabwed) {
+		massagedExtension.disabwed = twue;
 	}
-	if (extension.installed) {
-		massagedExtension.installed = true;
+	if (extension.instawwed) {
+		massagedExtension.instawwed = twue;
 	}
 	if (extension.state) {
 		massagedExtension.state = extension.state;
 	}
-	return massagedExtension as T;
+	wetuwn massagedExtension as T;
 }

@@ -1,395 +1,395 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { hash } from 'vs/base/common/hash';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { joinPath } from 'vs/base/common/resources';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
-import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { ExtHostWebviews, shouldSerializeBuffersForPostMessage, toExtensionData } from 'vs/workbench/api/common/extHostWebview';
-import { ExtHostWebviewPanels } from 'vs/workbench/api/common/extHostWebviewPanels';
-import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import type * as vscode from 'vscode';
-import { Cache } from './cache';
-import * as extHostProtocol from './extHost.protocol';
-import * as extHostTypes from './extHostTypes';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { hash } fwom 'vs/base/common/hash';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { ExtHostDocuments } fwom 'vs/wowkbench/api/common/extHostDocuments';
+impowt { IExtensionStowagePaths } fwom 'vs/wowkbench/api/common/extHostStowagePaths';
+impowt * as typeConvewtews fwom 'vs/wowkbench/api/common/extHostTypeConvewtews';
+impowt { ExtHostWebviews, shouwdSewiawizeBuffewsFowPostMessage, toExtensionData } fwom 'vs/wowkbench/api/common/extHostWebview';
+impowt { ExtHostWebviewPanews } fwom 'vs/wowkbench/api/common/extHostWebviewPanews';
+impowt { EditowGwoupCowumn } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupCowumn';
+impowt type * as vscode fwom 'vscode';
+impowt { Cache } fwom './cache';
+impowt * as extHostPwotocow fwom './extHost.pwotocow';
+impowt * as extHostTypes fwom './extHostTypes';
 
 
-class CustomDocumentStoreEntry {
+cwass CustomDocumentStoweEntwy {
 
-	private _backupCounter = 1;
+	pwivate _backupCounta = 1;
 
-	constructor(
-		public readonly document: vscode.CustomDocument,
-		private readonly _storagePath: URI | undefined,
+	constwuctow(
+		pubwic weadonwy document: vscode.CustomDocument,
+		pwivate weadonwy _stowagePath: UWI | undefined,
 	) { }
 
-	private readonly _edits = new Cache<vscode.CustomDocumentEditEvent>('custom documents');
+	pwivate weadonwy _edits = new Cache<vscode.CustomDocumentEditEvent>('custom documents');
 
-	private _backup?: vscode.CustomDocumentBackup;
+	pwivate _backup?: vscode.CustomDocumentBackup;
 
-	addEdit(item: vscode.CustomDocumentEditEvent): number {
-		return this._edits.add([item]);
+	addEdit(item: vscode.CustomDocumentEditEvent): numba {
+		wetuwn this._edits.add([item]);
 	}
 
-	async undo(editId: number, isDirty: boolean): Promise<void> {
+	async undo(editId: numba, isDiwty: boowean): Pwomise<void> {
 		await this.getEdit(editId).undo();
-		if (!isDirty) {
+		if (!isDiwty) {
 			this.disposeBackup();
 		}
 	}
 
-	async redo(editId: number, isDirty: boolean): Promise<void> {
-		await this.getEdit(editId).redo();
-		if (!isDirty) {
+	async wedo(editId: numba, isDiwty: boowean): Pwomise<void> {
+		await this.getEdit(editId).wedo();
+		if (!isDiwty) {
 			this.disposeBackup();
 		}
 	}
 
-	disposeEdits(editIds: number[]): void {
-		for (const id of editIds) {
-			this._edits.delete(id);
+	disposeEdits(editIds: numba[]): void {
+		fow (const id of editIds) {
+			this._edits.dewete(id);
 		}
 	}
 
-	getNewBackupUri(): URI {
-		if (!this._storagePath) {
-			throw new Error('Backup requires a valid storage path');
+	getNewBackupUwi(): UWI {
+		if (!this._stowagePath) {
+			thwow new Ewwow('Backup wequiwes a vawid stowage path');
 		}
-		const fileName = hashPath(this.document.uri) + (this._backupCounter++);
-		return joinPath(this._storagePath, fileName);
+		const fiweName = hashPath(this.document.uwi) + (this._backupCounta++);
+		wetuwn joinPath(this._stowagePath, fiweName);
 	}
 
 	updateBackup(backup: vscode.CustomDocumentBackup): void {
-		this._backup?.delete();
+		this._backup?.dewete();
 		this._backup = backup;
 	}
 
 	disposeBackup(): void {
-		this._backup?.delete();
+		this._backup?.dewete();
 		this._backup = undefined;
 	}
 
-	private getEdit(editId: number): vscode.CustomDocumentEditEvent {
+	pwivate getEdit(editId: numba): vscode.CustomDocumentEditEvent {
 		const edit = this._edits.get(editId, 0);
 		if (!edit) {
-			throw new Error('No edit found');
+			thwow new Ewwow('No edit found');
 		}
-		return edit;
+		wetuwn edit;
 	}
 }
 
-class CustomDocumentStore {
-	private readonly _documents = new Map<string, CustomDocumentStoreEntry>();
+cwass CustomDocumentStowe {
+	pwivate weadonwy _documents = new Map<stwing, CustomDocumentStoweEntwy>();
 
-	public get(viewType: string, resource: vscode.Uri): CustomDocumentStoreEntry | undefined {
-		return this._documents.get(this.key(viewType, resource));
+	pubwic get(viewType: stwing, wesouwce: vscode.Uwi): CustomDocumentStoweEntwy | undefined {
+		wetuwn this._documents.get(this.key(viewType, wesouwce));
 	}
 
-	public add(viewType: string, document: vscode.CustomDocument, storagePath: URI | undefined): CustomDocumentStoreEntry {
-		const key = this.key(viewType, document.uri);
+	pubwic add(viewType: stwing, document: vscode.CustomDocument, stowagePath: UWI | undefined): CustomDocumentStoweEntwy {
+		const key = this.key(viewType, document.uwi);
 		if (this._documents.has(key)) {
-			throw new Error(`Document already exists for viewType:${viewType} resource:${document.uri}`);
+			thwow new Ewwow(`Document awweady exists fow viewType:${viewType} wesouwce:${document.uwi}`);
 		}
-		const entry = new CustomDocumentStoreEntry(document, storagePath);
-		this._documents.set(key, entry);
-		return entry;
+		const entwy = new CustomDocumentStoweEntwy(document, stowagePath);
+		this._documents.set(key, entwy);
+		wetuwn entwy;
 	}
 
-	public delete(viewType: string, document: vscode.CustomDocument) {
-		const key = this.key(viewType, document.uri);
-		this._documents.delete(key);
+	pubwic dewete(viewType: stwing, document: vscode.CustomDocument) {
+		const key = this.key(viewType, document.uwi);
+		this._documents.dewete(key);
 	}
 
-	private key(viewType: string, resource: vscode.Uri): string {
-		return `${viewType}@@@${resource}`;
+	pwivate key(viewType: stwing, wesouwce: vscode.Uwi): stwing {
+		wetuwn `${viewType}@@@${wesouwce}`;
 	}
 
 }
 
-const enum WebviewEditorType {
+const enum WebviewEditowType {
 	Text,
 	Custom
 }
 
-type ProviderEntry = {
-	readonly extension: IExtensionDescription;
-	readonly type: WebviewEditorType.Text;
-	readonly provider: vscode.CustomTextEditorProvider;
+type PwovidewEntwy = {
+	weadonwy extension: IExtensionDescwiption;
+	weadonwy type: WebviewEditowType.Text;
+	weadonwy pwovida: vscode.CustomTextEditowPwovida;
 } | {
-	readonly extension: IExtensionDescription;
-	readonly type: WebviewEditorType.Custom;
-	readonly provider: vscode.CustomReadonlyEditorProvider;
+	weadonwy extension: IExtensionDescwiption;
+	weadonwy type: WebviewEditowType.Custom;
+	weadonwy pwovida: vscode.CustomWeadonwyEditowPwovida;
 };
 
-class EditorProviderStore {
-	private readonly _providers = new Map<string, ProviderEntry>();
+cwass EditowPwovidewStowe {
+	pwivate weadonwy _pwovidews = new Map<stwing, PwovidewEntwy>();
 
-	public addTextProvider(viewType: string, extension: IExtensionDescription, provider: vscode.CustomTextEditorProvider): vscode.Disposable {
-		return this.add(WebviewEditorType.Text, viewType, extension, provider);
+	pubwic addTextPwovida(viewType: stwing, extension: IExtensionDescwiption, pwovida: vscode.CustomTextEditowPwovida): vscode.Disposabwe {
+		wetuwn this.add(WebviewEditowType.Text, viewType, extension, pwovida);
 	}
 
-	public addCustomProvider(viewType: string, extension: IExtensionDescription, provider: vscode.CustomReadonlyEditorProvider): vscode.Disposable {
-		return this.add(WebviewEditorType.Custom, viewType, extension, provider);
+	pubwic addCustomPwovida(viewType: stwing, extension: IExtensionDescwiption, pwovida: vscode.CustomWeadonwyEditowPwovida): vscode.Disposabwe {
+		wetuwn this.add(WebviewEditowType.Custom, viewType, extension, pwovida);
 	}
 
-	public get(viewType: string): ProviderEntry | undefined {
-		return this._providers.get(viewType);
+	pubwic get(viewType: stwing): PwovidewEntwy | undefined {
+		wetuwn this._pwovidews.get(viewType);
 	}
 
-	private add(type: WebviewEditorType, viewType: string, extension: IExtensionDescription, provider: vscode.CustomTextEditorProvider | vscode.CustomReadonlyEditorProvider): vscode.Disposable {
-		if (this._providers.has(viewType)) {
-			throw new Error(`Provider for viewType:${viewType} already registered`);
+	pwivate add(type: WebviewEditowType, viewType: stwing, extension: IExtensionDescwiption, pwovida: vscode.CustomTextEditowPwovida | vscode.CustomWeadonwyEditowPwovida): vscode.Disposabwe {
+		if (this._pwovidews.has(viewType)) {
+			thwow new Ewwow(`Pwovida fow viewType:${viewType} awweady wegistewed`);
 		}
-		this._providers.set(viewType, { type, extension, provider } as ProviderEntry);
-		return new extHostTypes.Disposable(() => this._providers.delete(viewType));
+		this._pwovidews.set(viewType, { type, extension, pwovida } as PwovidewEntwy);
+		wetuwn new extHostTypes.Disposabwe(() => this._pwovidews.dewete(viewType));
 	}
 }
 
-export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditorsShape {
+expowt cwass ExtHostCustomEditows impwements extHostPwotocow.ExtHostCustomEditowsShape {
 
-	private readonly _proxy: extHostProtocol.MainThreadCustomEditorsShape;
+	pwivate weadonwy _pwoxy: extHostPwotocow.MainThweadCustomEditowsShape;
 
-	private readonly _editorProviders = new EditorProviderStore();
+	pwivate weadonwy _editowPwovidews = new EditowPwovidewStowe();
 
-	private readonly _documents = new CustomDocumentStore();
+	pwivate weadonwy _documents = new CustomDocumentStowe();
 
-	constructor(
-		mainContext: extHostProtocol.IMainContext,
-		private readonly _extHostDocuments: ExtHostDocuments,
-		private readonly _extensionStoragePaths: IExtensionStoragePaths | undefined,
-		private readonly _extHostWebview: ExtHostWebviews,
-		private readonly _extHostWebviewPanels: ExtHostWebviewPanels,
+	constwuctow(
+		mainContext: extHostPwotocow.IMainContext,
+		pwivate weadonwy _extHostDocuments: ExtHostDocuments,
+		pwivate weadonwy _extensionStowagePaths: IExtensionStowagePaths | undefined,
+		pwivate weadonwy _extHostWebview: ExtHostWebviews,
+		pwivate weadonwy _extHostWebviewPanews: ExtHostWebviewPanews,
 	) {
-		this._proxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadCustomEditors);
+		this._pwoxy = mainContext.getPwoxy(extHostPwotocow.MainContext.MainThweadCustomEditows);
 	}
 
-	public registerCustomEditorProvider(
-		extension: IExtensionDescription,
-		viewType: string,
-		provider: vscode.CustomReadonlyEditorProvider | vscode.CustomTextEditorProvider,
-		options: { webviewOptions?: vscode.WebviewPanelOptions, supportsMultipleEditorsPerDocument?: boolean },
-	): vscode.Disposable {
-		const disposables = new DisposableStore();
-		if (isCustomTextEditorProvider(provider)) {
-			disposables.add(this._editorProviders.addTextProvider(viewType, extension, provider));
-			this._proxy.$registerTextEditorProvider(toExtensionData(extension), viewType, options.webviewOptions || {}, {
-				supportsMove: !!provider.moveCustomTextEditor,
-			}, shouldSerializeBuffersForPostMessage(extension));
-		} else {
-			disposables.add(this._editorProviders.addCustomProvider(viewType, extension, provider));
+	pubwic wegistewCustomEditowPwovida(
+		extension: IExtensionDescwiption,
+		viewType: stwing,
+		pwovida: vscode.CustomWeadonwyEditowPwovida | vscode.CustomTextEditowPwovida,
+		options: { webviewOptions?: vscode.WebviewPanewOptions, suppowtsMuwtipweEditowsPewDocument?: boowean },
+	): vscode.Disposabwe {
+		const disposabwes = new DisposabweStowe();
+		if (isCustomTextEditowPwovida(pwovida)) {
+			disposabwes.add(this._editowPwovidews.addTextPwovida(viewType, extension, pwovida));
+			this._pwoxy.$wegistewTextEditowPwovida(toExtensionData(extension), viewType, options.webviewOptions || {}, {
+				suppowtsMove: !!pwovida.moveCustomTextEditow,
+			}, shouwdSewiawizeBuffewsFowPostMessage(extension));
+		} ewse {
+			disposabwes.add(this._editowPwovidews.addCustomPwovida(viewType, extension, pwovida));
 
-			if (this.supportEditing(provider)) {
-				disposables.add(provider.onDidChangeCustomDocument(e => {
-					const entry = this.getCustomDocumentEntry(viewType, e.document.uri);
+			if (this.suppowtEditing(pwovida)) {
+				disposabwes.add(pwovida.onDidChangeCustomDocument(e => {
+					const entwy = this.getCustomDocumentEntwy(viewType, e.document.uwi);
 					if (isEditEvent(e)) {
-						const editId = entry.addEdit(e);
-						this._proxy.$onDidEdit(e.document.uri, viewType, editId, e.label);
-					} else {
-						this._proxy.$onContentChange(e.document.uri, viewType);
+						const editId = entwy.addEdit(e);
+						this._pwoxy.$onDidEdit(e.document.uwi, viewType, editId, e.wabew);
+					} ewse {
+						this._pwoxy.$onContentChange(e.document.uwi, viewType);
 					}
 				}));
 			}
 
-			this._proxy.$registerCustomEditorProvider(toExtensionData(extension), viewType, options.webviewOptions || {}, !!options.supportsMultipleEditorsPerDocument, shouldSerializeBuffersForPostMessage(extension));
+			this._pwoxy.$wegistewCustomEditowPwovida(toExtensionData(extension), viewType, options.webviewOptions || {}, !!options.suppowtsMuwtipweEditowsPewDocument, shouwdSewiawizeBuffewsFowPostMessage(extension));
 		}
 
-		return extHostTypes.Disposable.from(
-			disposables,
-			new extHostTypes.Disposable(() => {
-				this._proxy.$unregisterEditorProvider(viewType);
+		wetuwn extHostTypes.Disposabwe.fwom(
+			disposabwes,
+			new extHostTypes.Disposabwe(() => {
+				this._pwoxy.$unwegistewEditowPwovida(viewType);
 			}));
 	}
 
-	async $createCustomDocument(resource: UriComponents, viewType: string, backupId: string | undefined, untitledDocumentData: VSBuffer | undefined, cancellation: CancellationToken) {
-		const entry = this._editorProviders.get(viewType);
-		if (!entry) {
-			throw new Error(`No provider found for '${viewType}'`);
+	async $cweateCustomDocument(wesouwce: UwiComponents, viewType: stwing, backupId: stwing | undefined, untitwedDocumentData: VSBuffa | undefined, cancewwation: CancewwationToken) {
+		const entwy = this._editowPwovidews.get(viewType);
+		if (!entwy) {
+			thwow new Ewwow(`No pwovida found fow '${viewType}'`);
 		}
 
-		if (entry.type !== WebviewEditorType.Custom) {
-			throw new Error(`Invalid provide type for '${viewType}'`);
+		if (entwy.type !== WebviewEditowType.Custom) {
+			thwow new Ewwow(`Invawid pwovide type fow '${viewType}'`);
 		}
 
-		const revivedResource = URI.revive(resource);
-		const document = await entry.provider.openCustomDocument(revivedResource, { backupId, untitledDocumentData: untitledDocumentData?.buffer }, cancellation);
+		const wevivedWesouwce = UWI.wevive(wesouwce);
+		const document = await entwy.pwovida.openCustomDocument(wevivedWesouwce, { backupId, untitwedDocumentData: untitwedDocumentData?.buffa }, cancewwation);
 
-		let storageRoot: URI | undefined;
-		if (this.supportEditing(entry.provider) && this._extensionStoragePaths) {
-			storageRoot = this._extensionStoragePaths.workspaceValue(entry.extension) ?? this._extensionStoragePaths.globalValue(entry.extension);
+		wet stowageWoot: UWI | undefined;
+		if (this.suppowtEditing(entwy.pwovida) && this._extensionStowagePaths) {
+			stowageWoot = this._extensionStowagePaths.wowkspaceVawue(entwy.extension) ?? this._extensionStowagePaths.gwobawVawue(entwy.extension);
 		}
-		this._documents.add(viewType, document, storageRoot);
+		this._documents.add(viewType, document, stowageWoot);
 
-		return { editable: this.supportEditing(entry.provider) };
+		wetuwn { editabwe: this.suppowtEditing(entwy.pwovida) };
 	}
 
-	async $disposeCustomDocument(resource: UriComponents, viewType: string): Promise<void> {
-		const entry = this._editorProviders.get(viewType);
-		if (!entry) {
-			throw new Error(`No provider found for '${viewType}'`);
+	async $disposeCustomDocument(wesouwce: UwiComponents, viewType: stwing): Pwomise<void> {
+		const entwy = this._editowPwovidews.get(viewType);
+		if (!entwy) {
+			thwow new Ewwow(`No pwovida found fow '${viewType}'`);
 		}
 
-		if (entry.type !== WebviewEditorType.Custom) {
-			throw new Error(`Invalid provider type for '${viewType}'`);
+		if (entwy.type !== WebviewEditowType.Custom) {
+			thwow new Ewwow(`Invawid pwovida type fow '${viewType}'`);
 		}
 
-		const revivedResource = URI.revive(resource);
-		const { document } = this.getCustomDocumentEntry(viewType, revivedResource);
-		this._documents.delete(viewType, document);
+		const wevivedWesouwce = UWI.wevive(wesouwce);
+		const { document } = this.getCustomDocumentEntwy(viewType, wevivedWesouwce);
+		this._documents.dewete(viewType, document);
 		document.dispose();
 	}
 
-	async $resolveWebviewEditor(
-		resource: UriComponents,
-		handle: extHostProtocol.WebviewHandle,
-		viewType: string,
+	async $wesowveWebviewEditow(
+		wesouwce: UwiComponents,
+		handwe: extHostPwotocow.WebviewHandwe,
+		viewType: stwing,
 		initData: {
-			title: string;
-			webviewOptions: extHostProtocol.IWebviewOptions;
-			panelOptions: extHostProtocol.IWebviewPanelOptions;
+			titwe: stwing;
+			webviewOptions: extHostPwotocow.IWebviewOptions;
+			panewOptions: extHostPwotocow.IWebviewPanewOptions;
 		},
-		position: EditorGroupColumn,
-		cancellation: CancellationToken,
-	): Promise<void> {
-		const entry = this._editorProviders.get(viewType);
-		if (!entry) {
-			throw new Error(`No provider found for '${viewType}'`);
+		position: EditowGwoupCowumn,
+		cancewwation: CancewwationToken,
+	): Pwomise<void> {
+		const entwy = this._editowPwovidews.get(viewType);
+		if (!entwy) {
+			thwow new Ewwow(`No pwovida found fow '${viewType}'`);
 		}
 
-		const viewColumn = typeConverters.ViewColumn.to(position);
+		const viewCowumn = typeConvewtews.ViewCowumn.to(position);
 
-		const webview = this._extHostWebview.createNewWebview(handle, initData.webviewOptions, entry.extension);
-		const panel = this._extHostWebviewPanels.createNewWebviewPanel(handle, viewType, initData.title, viewColumn, initData.panelOptions, webview);
+		const webview = this._extHostWebview.cweateNewWebview(handwe, initData.webviewOptions, entwy.extension);
+		const panew = this._extHostWebviewPanews.cweateNewWebviewPanew(handwe, viewType, initData.titwe, viewCowumn, initData.panewOptions, webview);
 
-		const revivedResource = URI.revive(resource);
+		const wevivedWesouwce = UWI.wevive(wesouwce);
 
-		switch (entry.type) {
-			case WebviewEditorType.Custom:
+		switch (entwy.type) {
+			case WebviewEditowType.Custom:
 				{
-					const { document } = this.getCustomDocumentEntry(viewType, revivedResource);
-					return entry.provider.resolveCustomEditor(document, panel, cancellation);
+					const { document } = this.getCustomDocumentEntwy(viewType, wevivedWesouwce);
+					wetuwn entwy.pwovida.wesowveCustomEditow(document, panew, cancewwation);
 				}
-			case WebviewEditorType.Text:
+			case WebviewEditowType.Text:
 				{
-					const document = this._extHostDocuments.getDocument(revivedResource);
-					return entry.provider.resolveCustomTextEditor(document, panel, cancellation);
+					const document = this._extHostDocuments.getDocument(wevivedWesouwce);
+					wetuwn entwy.pwovida.wesowveCustomTextEditow(document, panew, cancewwation);
 				}
-			default:
+			defauwt:
 				{
-					throw new Error('Unknown webview provider type');
+					thwow new Ewwow('Unknown webview pwovida type');
 				}
 		}
 	}
 
-	$disposeEdits(resourceComponents: UriComponents, viewType: string, editIds: number[]): void {
-		const document = this.getCustomDocumentEntry(viewType, resourceComponents);
+	$disposeEdits(wesouwceComponents: UwiComponents, viewType: stwing, editIds: numba[]): void {
+		const document = this.getCustomDocumentEntwy(viewType, wesouwceComponents);
 		document.disposeEdits(editIds);
 	}
 
-	async $onMoveCustomEditor(handle: string, newResourceComponents: UriComponents, viewType: string): Promise<void> {
-		const entry = this._editorProviders.get(viewType);
-		if (!entry) {
-			throw new Error(`No provider found for '${viewType}'`);
+	async $onMoveCustomEditow(handwe: stwing, newWesouwceComponents: UwiComponents, viewType: stwing): Pwomise<void> {
+		const entwy = this._editowPwovidews.get(viewType);
+		if (!entwy) {
+			thwow new Ewwow(`No pwovida found fow '${viewType}'`);
 		}
 
-		if (!(entry.provider as vscode.CustomTextEditorProvider).moveCustomTextEditor) {
-			throw new Error(`Provider does not implement move '${viewType}'`);
+		if (!(entwy.pwovida as vscode.CustomTextEditowPwovida).moveCustomTextEditow) {
+			thwow new Ewwow(`Pwovida does not impwement move '${viewType}'`);
 		}
 
-		const webview = this._extHostWebviewPanels.getWebviewPanel(handle);
+		const webview = this._extHostWebviewPanews.getWebviewPanew(handwe);
 		if (!webview) {
-			throw new Error(`No webview found`);
+			thwow new Ewwow(`No webview found`);
 		}
 
-		const resource = URI.revive(newResourceComponents);
-		const document = this._extHostDocuments.getDocument(resource);
-		await (entry.provider as vscode.CustomTextEditorProvider).moveCustomTextEditor!(document, webview, CancellationToken.None);
+		const wesouwce = UWI.wevive(newWesouwceComponents);
+		const document = this._extHostDocuments.getDocument(wesouwce);
+		await (entwy.pwovida as vscode.CustomTextEditowPwovida).moveCustomTextEditow!(document, webview, CancewwationToken.None);
 	}
 
-	async $undo(resourceComponents: UriComponents, viewType: string, editId: number, isDirty: boolean): Promise<void> {
-		const entry = this.getCustomDocumentEntry(viewType, resourceComponents);
-		return entry.undo(editId, isDirty);
+	async $undo(wesouwceComponents: UwiComponents, viewType: stwing, editId: numba, isDiwty: boowean): Pwomise<void> {
+		const entwy = this.getCustomDocumentEntwy(viewType, wesouwceComponents);
+		wetuwn entwy.undo(editId, isDiwty);
 	}
 
-	async $redo(resourceComponents: UriComponents, viewType: string, editId: number, isDirty: boolean): Promise<void> {
-		const entry = this.getCustomDocumentEntry(viewType, resourceComponents);
-		return entry.redo(editId, isDirty);
+	async $wedo(wesouwceComponents: UwiComponents, viewType: stwing, editId: numba, isDiwty: boowean): Pwomise<void> {
+		const entwy = this.getCustomDocumentEntwy(viewType, wesouwceComponents);
+		wetuwn entwy.wedo(editId, isDiwty);
 	}
 
-	async $revert(resourceComponents: UriComponents, viewType: string, cancellation: CancellationToken): Promise<void> {
-		const entry = this.getCustomDocumentEntry(viewType, resourceComponents);
-		const provider = this.getCustomEditorProvider(viewType);
-		await provider.revertCustomDocument(entry.document, cancellation);
-		entry.disposeBackup();
+	async $wevewt(wesouwceComponents: UwiComponents, viewType: stwing, cancewwation: CancewwationToken): Pwomise<void> {
+		const entwy = this.getCustomDocumentEntwy(viewType, wesouwceComponents);
+		const pwovida = this.getCustomEditowPwovida(viewType);
+		await pwovida.wevewtCustomDocument(entwy.document, cancewwation);
+		entwy.disposeBackup();
 	}
 
-	async $onSave(resourceComponents: UriComponents, viewType: string, cancellation: CancellationToken): Promise<void> {
-		const entry = this.getCustomDocumentEntry(viewType, resourceComponents);
-		const provider = this.getCustomEditorProvider(viewType);
-		await provider.saveCustomDocument(entry.document, cancellation);
-		entry.disposeBackup();
+	async $onSave(wesouwceComponents: UwiComponents, viewType: stwing, cancewwation: CancewwationToken): Pwomise<void> {
+		const entwy = this.getCustomDocumentEntwy(viewType, wesouwceComponents);
+		const pwovida = this.getCustomEditowPwovida(viewType);
+		await pwovida.saveCustomDocument(entwy.document, cancewwation);
+		entwy.disposeBackup();
 	}
 
-	async $onSaveAs(resourceComponents: UriComponents, viewType: string, targetResource: UriComponents, cancellation: CancellationToken): Promise<void> {
-		const entry = this.getCustomDocumentEntry(viewType, resourceComponents);
-		const provider = this.getCustomEditorProvider(viewType);
-		return provider.saveCustomDocumentAs(entry.document, URI.revive(targetResource), cancellation);
+	async $onSaveAs(wesouwceComponents: UwiComponents, viewType: stwing, tawgetWesouwce: UwiComponents, cancewwation: CancewwationToken): Pwomise<void> {
+		const entwy = this.getCustomDocumentEntwy(viewType, wesouwceComponents);
+		const pwovida = this.getCustomEditowPwovida(viewType);
+		wetuwn pwovida.saveCustomDocumentAs(entwy.document, UWI.wevive(tawgetWesouwce), cancewwation);
 	}
 
-	async $backup(resourceComponents: UriComponents, viewType: string, cancellation: CancellationToken): Promise<string> {
-		const entry = this.getCustomDocumentEntry(viewType, resourceComponents);
-		const provider = this.getCustomEditorProvider(viewType);
+	async $backup(wesouwceComponents: UwiComponents, viewType: stwing, cancewwation: CancewwationToken): Pwomise<stwing> {
+		const entwy = this.getCustomDocumentEntwy(viewType, wesouwceComponents);
+		const pwovida = this.getCustomEditowPwovida(viewType);
 
-		const backup = await provider.backupCustomDocument(entry.document, {
-			destination: entry.getNewBackupUri(),
-		}, cancellation);
-		entry.updateBackup(backup);
-		return backup.id;
+		const backup = await pwovida.backupCustomDocument(entwy.document, {
+			destination: entwy.getNewBackupUwi(),
+		}, cancewwation);
+		entwy.updateBackup(backup);
+		wetuwn backup.id;
 	}
 
-	private getCustomDocumentEntry(viewType: string, resource: UriComponents): CustomDocumentStoreEntry {
-		const entry = this._documents.get(viewType, URI.revive(resource));
-		if (!entry) {
-			throw new Error('No custom document found');
+	pwivate getCustomDocumentEntwy(viewType: stwing, wesouwce: UwiComponents): CustomDocumentStoweEntwy {
+		const entwy = this._documents.get(viewType, UWI.wevive(wesouwce));
+		if (!entwy) {
+			thwow new Ewwow('No custom document found');
 		}
-		return entry;
+		wetuwn entwy;
 	}
 
-	private getCustomEditorProvider(viewType: string): vscode.CustomEditorProvider {
-		const entry = this._editorProviders.get(viewType);
-		const provider = entry?.provider;
-		if (!provider || !this.supportEditing(provider)) {
-			throw new Error('Custom document is not editable');
+	pwivate getCustomEditowPwovida(viewType: stwing): vscode.CustomEditowPwovida {
+		const entwy = this._editowPwovidews.get(viewType);
+		const pwovida = entwy?.pwovida;
+		if (!pwovida || !this.suppowtEditing(pwovida)) {
+			thwow new Ewwow('Custom document is not editabwe');
 		}
-		return provider;
+		wetuwn pwovida;
 	}
 
-	private supportEditing(
-		provider: vscode.CustomTextEditorProvider | vscode.CustomEditorProvider | vscode.CustomReadonlyEditorProvider
-	): provider is vscode.CustomEditorProvider {
-		return !!(provider as vscode.CustomEditorProvider).onDidChangeCustomDocument;
+	pwivate suppowtEditing(
+		pwovida: vscode.CustomTextEditowPwovida | vscode.CustomEditowPwovida | vscode.CustomWeadonwyEditowPwovida
+	): pwovida is vscode.CustomEditowPwovida {
+		wetuwn !!(pwovida as vscode.CustomEditowPwovida).onDidChangeCustomDocument;
 	}
 }
 
-function isCustomTextEditorProvider(provider: vscode.CustomReadonlyEditorProvider<vscode.CustomDocument> | vscode.CustomTextEditorProvider): provider is vscode.CustomTextEditorProvider {
-	return typeof (provider as vscode.CustomTextEditorProvider).resolveCustomTextEditor === 'function';
+function isCustomTextEditowPwovida(pwovida: vscode.CustomWeadonwyEditowPwovida<vscode.CustomDocument> | vscode.CustomTextEditowPwovida): pwovida is vscode.CustomTextEditowPwovida {
+	wetuwn typeof (pwovida as vscode.CustomTextEditowPwovida).wesowveCustomTextEditow === 'function';
 }
 
 function isEditEvent(e: vscode.CustomDocumentContentChangeEvent | vscode.CustomDocumentEditEvent): e is vscode.CustomDocumentEditEvent {
-	return typeof (e as vscode.CustomDocumentEditEvent).undo === 'function'
-		&& typeof (e as vscode.CustomDocumentEditEvent).redo === 'function';
+	wetuwn typeof (e as vscode.CustomDocumentEditEvent).undo === 'function'
+		&& typeof (e as vscode.CustomDocumentEditEvent).wedo === 'function';
 }
 
-function hashPath(resource: URI): string {
-	const str = resource.scheme === Schemas.file || resource.scheme === Schemas.untitled ? resource.fsPath : resource.toString();
-	return hash(str) + '';
+function hashPath(wesouwce: UWI): stwing {
+	const stw = wesouwce.scheme === Schemas.fiwe || wesouwce.scheme === Schemas.untitwed ? wesouwce.fsPath : wesouwce.toStwing();
+	wetuwn hash(stw) + '';
 }
 

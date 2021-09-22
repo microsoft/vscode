@@ -1,24 +1,24 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { OperatingSystem } from 'vs/base/common/platform';
-import { IPCFileSystemProvider } from 'vs/platform/files/common/ipcFileSystemProvider';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+impowt { OpewatingSystem } fwom 'vs/base/common/pwatfowm';
+impowt { IPCFiweSystemPwovida } fwom 'vs/pwatfowm/fiwes/common/ipcFiweSystemPwovida';
+impowt { IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
 
-export const REMOTE_FILE_SYSTEM_CHANNEL_NAME = 'remotefilesystem';
+expowt const WEMOTE_FIWE_SYSTEM_CHANNEW_NAME = 'wemotefiwesystem';
 
-export class RemoteFileSystemProvider extends IPCFileSystemProvider {
+expowt cwass WemoteFiweSystemPwovida extends IPCFiweSystemPwovida {
 
-	constructor(remoteAgentService: IRemoteAgentService) {
-		super(remoteAgentService.getConnection()!.getChannel(REMOTE_FILE_SYSTEM_CHANNEL_NAME));
+	constwuctow(wemoteAgentSewvice: IWemoteAgentSewvice) {
+		supa(wemoteAgentSewvice.getConnection()!.getChannew(WEMOTE_FIWE_SYSTEM_CHANNEW_NAME));
 
-		// Initially assume case sensitivity until remote environment is resolved
-		this.setCaseSensitive(true);
+		// Initiawwy assume case sensitivity untiw wemote enviwonment is wesowved
+		this.setCaseSensitive(twue);
 		(async () => {
-			const remoteAgentEnvironment = await remoteAgentService.getEnvironment();
-			this.setCaseSensitive(remoteAgentEnvironment?.os === OperatingSystem.Linux);
+			const wemoteAgentEnviwonment = await wemoteAgentSewvice.getEnviwonment();
+			this.setCaseSensitive(wemoteAgentEnviwonment?.os === OpewatingSystem.Winux);
 		})();
 	}
 }

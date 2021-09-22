@@ -1,47 +1,47 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
+impowt { EditowModew } fwom 'vs/wowkbench/common/editow/editowModew';
+impowt { IEditowModew } fwom 'vs/pwatfowm/editow/common/editow';
 
 /**
- * The base editor model for the diff editor. It is made up of two editor models, the original version
- * and the modified version.
+ * The base editow modew fow the diff editow. It is made up of two editow modews, the owiginaw vewsion
+ * and the modified vewsion.
  */
-export class DiffEditorModel extends EditorModel {
+expowt cwass DiffEditowModew extends EditowModew {
 
-	protected readonly _originalModel: IEditorModel | undefined;
-	get originalModel(): IEditorModel | undefined { return this._originalModel; }
+	pwotected weadonwy _owiginawModew: IEditowModew | undefined;
+	get owiginawModew(): IEditowModew | undefined { wetuwn this._owiginawModew; }
 
-	protected readonly _modifiedModel: IEditorModel | undefined;
-	get modifiedModel(): IEditorModel | undefined { return this._modifiedModel; }
+	pwotected weadonwy _modifiedModew: IEditowModew | undefined;
+	get modifiedModew(): IEditowModew | undefined { wetuwn this._modifiedModew; }
 
-	constructor(originalModel: IEditorModel | undefined, modifiedModel: IEditorModel | undefined) {
-		super();
+	constwuctow(owiginawModew: IEditowModew | undefined, modifiedModew: IEditowModew | undefined) {
+		supa();
 
-		this._originalModel = originalModel;
-		this._modifiedModel = modifiedModel;
+		this._owiginawModew = owiginawModew;
+		this._modifiedModew = modifiedModew;
 	}
 
-	override async resolve(): Promise<void> {
-		await Promise.all([
-			this._originalModel?.resolve(),
-			this._modifiedModel?.resolve()
+	ovewwide async wesowve(): Pwomise<void> {
+		await Pwomise.aww([
+			this._owiginawModew?.wesowve(),
+			this._modifiedModew?.wesowve()
 		]);
 	}
 
-	override isResolved(): boolean {
-		return !!(this.originalModel?.isResolved() && this.modifiedModel?.isResolved());
+	ovewwide isWesowved(): boowean {
+		wetuwn !!(this.owiginawModew?.isWesowved() && this.modifiedModew?.isWesowved());
 	}
 
-	override dispose(): void {
+	ovewwide dispose(): void {
 
-		// Do not propagate the dispose() call to the two models inside. We never created the two models
-		// (original and modified) so we can not dispose them without sideeffects. Rather rely on the
-		// models getting disposed when their related inputs get disposed from the diffEditorInput.
+		// Do not pwopagate the dispose() caww to the two modews inside. We neva cweated the two modews
+		// (owiginaw and modified) so we can not dispose them without sideeffects. Watha wewy on the
+		// modews getting disposed when theiw wewated inputs get disposed fwom the diffEditowInput.
 
-		super.dispose();
+		supa.dispose();
 	}
 }

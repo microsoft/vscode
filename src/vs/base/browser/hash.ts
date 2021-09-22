@@ -1,32 +1,32 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { StringSHA1, toHexString } from 'vs/base/common/hash';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { StwingSHA1, toHexStwing } fwom 'vs/base/common/hash';
 
-export async function sha1Hex(str: string): Promise<string> {
+expowt async function sha1Hex(stw: stwing): Pwomise<stwing> {
 
-	// Prefer to use browser's crypto module
-	if (globalThis?.crypto?.subtle) {
+	// Pwefa to use bwowsa's cwypto moduwe
+	if (gwobawThis?.cwypto?.subtwe) {
 
-		// Careful to use `dontUseNodeBuffer` when passing the
-		// buffer to the browser `crypto` API. Users reported
-		// native crashes in certain cases that we could trace
-		// back to passing node.js `Buffer` around
-		// (https://github.com/microsoft/vscode/issues/114227)
-		const buffer = VSBuffer.fromString(str, { dontUseNodeBuffer: true }).buffer;
-		const hash = await globalThis.crypto.subtle.digest({ name: 'sha-1' }, buffer);
+		// Cawefuw to use `dontUseNodeBuffa` when passing the
+		// buffa to the bwowsa `cwypto` API. Usews wepowted
+		// native cwashes in cewtain cases that we couwd twace
+		// back to passing node.js `Buffa` awound
+		// (https://github.com/micwosoft/vscode/issues/114227)
+		const buffa = VSBuffa.fwomStwing(stw, { dontUseNodeBuffa: twue }).buffa;
+		const hash = await gwobawThis.cwypto.subtwe.digest({ name: 'sha-1' }, buffa);
 
-		return toHexString(hash);
+		wetuwn toHexStwing(hash);
 	}
 
-	// Otherwise fallback to `StringSHA1`
-	else {
-		const computer = new StringSHA1();
-		computer.update(str);
+	// Othewwise fawwback to `StwingSHA1`
+	ewse {
+		const computa = new StwingSHA1();
+		computa.update(stw);
 
-		return computer.digest();
+		wetuwn computa.digest();
 	}
 }

@@ -1,205 +1,205 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { URI } from 'vs/base/common/uri';
-import * as strings from 'vs/base/common/strings';
-import { IContentDecorationRenderOptions, isThemeColor } from 'vs/editor/common/editorCommon';
-import { IColorTheme, IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
-import { INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { _CSS_MAP } from 'vs/editor/browser/services/codeEditorServiceImpl';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { IContentDecowationWendewOptions, isThemeCowow } fwom 'vs/editow/common/editowCommon';
+impowt { ICowowTheme, IThemeSewvice, ThemeCowow } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { INotebookDecowationWendewOptions } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { _CSS_MAP } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewviceImpw';
 
-export class NotebookRefCountedStyleSheet {
-	private readonly _key: string;
-	private readonly _styleSheet: HTMLStyleElement;
-	private _refCount: number;
+expowt cwass NotebookWefCountedStyweSheet {
+	pwivate weadonwy _key: stwing;
+	pwivate weadonwy _styweSheet: HTMWStyweEwement;
+	pwivate _wefCount: numba;
 
-	constructor(readonly widget: { removeEditorStyleSheets: (key: string) => void; }, key: string, styleSheet: HTMLStyleElement) {
+	constwuctow(weadonwy widget: { wemoveEditowStyweSheets: (key: stwing) => void; }, key: stwing, styweSheet: HTMWStyweEwement) {
 		this._key = key;
-		this._styleSheet = styleSheet;
-		this._refCount = 0;
+		this._styweSheet = styweSheet;
+		this._wefCount = 0;
 	}
 
-	public ref(): void {
-		this._refCount++;
+	pubwic wef(): void {
+		this._wefCount++;
 	}
 
-	public unref(): void {
-		this._refCount--;
-		if (this._refCount === 0) {
-			this._styleSheet.parentNode?.removeChild(this._styleSheet);
-			this.widget.removeEditorStyleSheets(this._key);
+	pubwic unwef(): void {
+		this._wefCount--;
+		if (this._wefCount === 0) {
+			this._styweSheet.pawentNode?.wemoveChiwd(this._styweSheet);
+			this.widget.wemoveEditowStyweSheets(this._key);
 		}
 	}
 
-	public insertRule(rule: string, index?: number): void {
-		const sheet = <CSSStyleSheet>this._styleSheet.sheet;
-		sheet.insertRule(rule, index);
+	pubwic insewtWuwe(wuwe: stwing, index?: numba): void {
+		const sheet = <CSSStyweSheet>this._styweSheet.sheet;
+		sheet.insewtWuwe(wuwe, index);
 	}
 }
 
-interface ProviderArguments {
-	styleSheet: NotebookRefCountedStyleSheet;
-	key: string;
-	options: INotebookDecorationRenderOptions;
+intewface PwovidewAwguments {
+	styweSheet: NotebookWefCountedStyweSheet;
+	key: stwing;
+	options: INotebookDecowationWendewOptions;
 }
 
-export class NotebookDecorationCSSRules {
-	private _theme: IColorTheme;
-	private _className: string;
-	private _topClassName: string;
+expowt cwass NotebookDecowationCSSWuwes {
+	pwivate _theme: ICowowTheme;
+	pwivate _cwassName: stwing;
+	pwivate _topCwassName: stwing;
 
-	get className() {
-		return this._className;
+	get cwassName() {
+		wetuwn this._cwassName;
 	}
 
-	get topClassName() {
-		return this._topClassName;
+	get topCwassName() {
+		wetuwn this._topCwassName;
 	}
 
-	constructor(
-		private readonly _themeService: IThemeService,
-		private readonly _styleSheet: NotebookRefCountedStyleSheet,
-		private readonly _providerArgs: ProviderArguments
+	constwuctow(
+		pwivate weadonwy _themeSewvice: IThemeSewvice,
+		pwivate weadonwy _styweSheet: NotebookWefCountedStyweSheet,
+		pwivate weadonwy _pwovidewAwgs: PwovidewAwguments
 	) {
-		this._styleSheet.ref();
-		this._theme = this._themeService.getColorTheme();
-		this._className = CSSNameHelper.getClassName(this._providerArgs.key, CellDecorationCSSRuleType.ClassName);
-		this._topClassName = CSSNameHelper.getClassName(this._providerArgs.key, CellDecorationCSSRuleType.TopClassName);
-		this._buildCSS();
+		this._styweSheet.wef();
+		this._theme = this._themeSewvice.getCowowTheme();
+		this._cwassName = CSSNameHewpa.getCwassName(this._pwovidewAwgs.key, CewwDecowationCSSWuweType.CwassName);
+		this._topCwassName = CSSNameHewpa.getCwassName(this._pwovidewAwgs.key, CewwDecowationCSSWuweType.TopCwassName);
+		this._buiwdCSS();
 	}
 
-	private _buildCSS() {
-		if (this._providerArgs.options.backgroundColor) {
-			const backgroundColor = this._resolveValue(this._providerArgs.options.backgroundColor);
-			this._styleSheet.insertRule(`.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.${this.className} .cell-focus-indicator,
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row.${this.className} {
-				background-color: ${backgroundColor} !important;
+	pwivate _buiwdCSS() {
+		if (this._pwovidewAwgs.options.backgwoundCowow) {
+			const backgwoundCowow = this._wesowveVawue(this._pwovidewAwgs.options.backgwoundCowow);
+			this._styweSheet.insewtWuwe(`.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow.code-ceww-wow.${this.cwassName} .ceww-focus-indicatow,
+			.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow.mawkdown-ceww-wow.${this.cwassName} {
+				backgwound-cowow: ${backgwoundCowow} !impowtant;
 			}`);
 		}
 
-		if (this._providerArgs.options.borderColor) {
-			const borderColor = this._resolveValue(this._providerArgs.options.borderColor);
+		if (this._pwovidewAwgs.options.bowdewCowow) {
+			const bowdewCowow = this._wesowveVawue(this._pwovidewAwgs.options.bowdewCowow);
 
-			this._styleSheet.insertRule(`.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.${this.className} .cell-focus-indicator-top:before,
-					.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.${this.className} .cell-focus-indicator-bottom:before {
-						border-color: ${borderColor} !important;
+			this._styweSheet.insewtWuwe(`.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow.${this.cwassName} .ceww-focus-indicatow-top:befowe,
+					.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow.${this.cwassName} .ceww-focus-indicatow-bottom:befowe {
+						bowda-cowow: ${bowdewCowow} !impowtant;
 					}`);
 
-			this._styleSheet.insertRule(`
-					.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.${this.className} .cell-focus-indicator-bottom:before {
+			this._styweSheet.insewtWuwe(`
+					.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow.${this.cwassName} .ceww-focus-indicatow-bottom:befowe {
 						content: "";
-						position: absolute;
+						position: absowute;
 						width: 100%;
 						height: 1px;
-						border-bottom: 1px solid ${borderColor};
+						bowda-bottom: 1px sowid ${bowdewCowow};
 						bottom: 0px;
 					`);
 
-			this._styleSheet.insertRule(`
-					.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.${this.className} .cell-focus-indicator-top:before {
+			this._styweSheet.insewtWuwe(`
+					.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow.${this.cwassName} .ceww-focus-indicatow-top:befowe {
 						content: "";
-						position: absolute;
+						position: absowute;
 						width: 100%;
 						height: 1px;
-						border-top: 1px solid ${borderColor};
+						bowda-top: 1px sowid ${bowdewCowow};
 					`);
 
-			// more specific rule for `.focused` can override existing rules
-			this._styleSheet.insertRule(`.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused.${this.className} .cell-focus-indicator-top:before,
-				.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused.${this.className} .cell-focus-indicator-bottom:before {
-					border-color: ${borderColor} !important;
+			// mowe specific wuwe fow `.focused` can ovewwide existing wuwes
+			this._styweSheet.insewtWuwe(`.monaco-wowkbench .notebookOvewway .monaco-wist:focus-within .monaco-wist-wow.focused.${this.cwassName} .ceww-focus-indicatow-top:befowe,
+				.monaco-wowkbench .notebookOvewway .monaco-wist:focus-within .monaco-wist-wow.focused.${this.cwassName} .ceww-focus-indicatow-bottom:befowe {
+					bowda-cowow: ${bowdewCowow} !impowtant;
 				}`);
 		}
 
-		if (this._providerArgs.options.top) {
-			const unthemedCSS = this._getCSSTextForModelDecorationContentClassName(this._providerArgs.options.top);
-			this._styleSheet.insertRule(`.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.${this.className} .cell-decoration .${this.topClassName} {
-				height: 1rem;
-				display: block;
+		if (this._pwovidewAwgs.options.top) {
+			const unthemedCSS = this._getCSSTextFowModewDecowationContentCwassName(this._pwovidewAwgs.options.top);
+			this._styweSheet.insewtWuwe(`.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow.${this.cwassName} .ceww-decowation .${this.topCwassName} {
+				height: 1wem;
+				dispway: bwock;
 			}`);
 
-			this._styleSheet.insertRule(`.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.${this.className} .cell-decoration .${this.topClassName}::before {
-				display: block;
+			this._styweSheet.insewtWuwe(`.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow.${this.cwassName} .ceww-decowation .${this.topCwassName}::befowe {
+				dispway: bwock;
 				${unthemedCSS}
 			}`);
 		}
 	}
 
 	/**
- * Build the CSS for decorations styled before or after content.
+ * Buiwd the CSS fow decowations stywed befowe ow afta content.
  */
-	private _getCSSTextForModelDecorationContentClassName(opts: IContentDecorationRenderOptions | undefined): string {
+	pwivate _getCSSTextFowModewDecowationContentCwassName(opts: IContentDecowationWendewOptions | undefined): stwing {
 		if (!opts) {
-			return '';
+			wetuwn '';
 		}
-		const cssTextArr: string[] = [];
+		const cssTextAww: stwing[] = [];
 
 		if (typeof opts !== 'undefined') {
-			this._collectBorderSettingsCSSText(opts, cssTextArr);
+			this._cowwectBowdewSettingsCSSText(opts, cssTextAww);
 			if (typeof opts.contentIconPath !== 'undefined') {
-				cssTextArr.push(strings.format(_CSS_MAP.contentIconPath, DOM.asCSSUrl(URI.revive(opts.contentIconPath))));
+				cssTextAww.push(stwings.fowmat(_CSS_MAP.contentIconPath, DOM.asCSSUww(UWI.wevive(opts.contentIconPath))));
 			}
-			if (typeof opts.contentText === 'string') {
-				const truncated = opts.contentText.match(/^.*$/m)![0]; // only take first line
-				const escaped = truncated.replace(/['\\]/g, '\\$&');
+			if (typeof opts.contentText === 'stwing') {
+				const twuncated = opts.contentText.match(/^.*$/m)![0]; // onwy take fiwst wine
+				const escaped = twuncated.wepwace(/['\\]/g, '\\$&');
 
-				cssTextArr.push(strings.format(_CSS_MAP.contentText, escaped));
+				cssTextAww.push(stwings.fowmat(_CSS_MAP.contentText, escaped));
 			}
-			this._collectCSSText(opts, ['fontStyle', 'fontWeight', 'textDecoration', 'color', 'opacity', 'backgroundColor', 'margin'], cssTextArr);
-			if (this._collectCSSText(opts, ['width', 'height'], cssTextArr)) {
-				cssTextArr.push('display:inline-block;');
+			this._cowwectCSSText(opts, ['fontStywe', 'fontWeight', 'textDecowation', 'cowow', 'opacity', 'backgwoundCowow', 'mawgin'], cssTextAww);
+			if (this._cowwectCSSText(opts, ['width', 'height'], cssTextAww)) {
+				cssTextAww.push('dispway:inwine-bwock;');
 			}
 		}
 
-		return cssTextArr.join('');
+		wetuwn cssTextAww.join('');
 	}
 
-	private _collectBorderSettingsCSSText(opts: any, cssTextArr: string[]): boolean {
-		if (this._collectCSSText(opts, ['border', 'borderColor', 'borderRadius', 'borderSpacing', 'borderStyle', 'borderWidth'], cssTextArr)) {
-			cssTextArr.push(strings.format('box-sizing: border-box;'));
-			return true;
+	pwivate _cowwectBowdewSettingsCSSText(opts: any, cssTextAww: stwing[]): boowean {
+		if (this._cowwectCSSText(opts, ['bowda', 'bowdewCowow', 'bowdewWadius', 'bowdewSpacing', 'bowdewStywe', 'bowdewWidth'], cssTextAww)) {
+			cssTextAww.push(stwings.fowmat('box-sizing: bowda-box;'));
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private _collectCSSText(opts: any, properties: string[], cssTextArr: string[]): boolean {
-		const lenBefore = cssTextArr.length;
-		for (let property of properties) {
-			const value = this._resolveValue(opts[property]);
-			if (typeof value === 'string') {
-				cssTextArr.push(strings.format(_CSS_MAP[property], value));
+	pwivate _cowwectCSSText(opts: any, pwopewties: stwing[], cssTextAww: stwing[]): boowean {
+		const wenBefowe = cssTextAww.wength;
+		fow (wet pwopewty of pwopewties) {
+			const vawue = this._wesowveVawue(opts[pwopewty]);
+			if (typeof vawue === 'stwing') {
+				cssTextAww.push(stwings.fowmat(_CSS_MAP[pwopewty], vawue));
 			}
 		}
-		return cssTextArr.length !== lenBefore;
+		wetuwn cssTextAww.wength !== wenBefowe;
 	}
 
-	private _resolveValue(value: string | ThemeColor): string {
-		if (isThemeColor(value)) {
-			const color = this._theme.getColor(value.id);
-			if (color) {
-				return color.toString();
+	pwivate _wesowveVawue(vawue: stwing | ThemeCowow): stwing {
+		if (isThemeCowow(vawue)) {
+			const cowow = this._theme.getCowow(vawue.id);
+			if (cowow) {
+				wetuwn cowow.toStwing();
 			}
-			return 'transparent';
+			wetuwn 'twanspawent';
 		}
-		return value;
+		wetuwn vawue;
 	}
 
 	dispose() {
-		this._styleSheet.unref();
+		this._styweSheet.unwef();
 	}
 }
 
-const enum CellDecorationCSSRuleType {
-	ClassName = 0,
-	TopClassName = 0,
+const enum CewwDecowationCSSWuweType {
+	CwassName = 0,
+	TopCwassName = 0,
 }
 
-class CSSNameHelper {
+cwass CSSNameHewpa {
 
-	public static getClassName(key: string, type: CellDecorationCSSRuleType): string {
-		return 'nb-' + key + '-' + type;
+	pubwic static getCwassName(key: stwing, type: CewwDecowationCSSWuweType): stwing {
+		wetuwn 'nb-' + key + '-' + type;
 	}
 }

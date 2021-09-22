@@ -1,18 +1,18 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IView, IViewPaneContainer } from 'vs/workbench/common/views';
-import { IComposite } from 'vs/workbench/common/composite';
+impowt { IView, IViewPaneContaina } fwom 'vs/wowkbench/common/views';
+impowt { IComposite } fwom 'vs/wowkbench/common/composite';
 
-export interface IPaneComposite extends IComposite {
+expowt intewface IPaneComposite extends IComposite {
 	/**
-	 * Returns the minimal width needed to avoid any content horizontal truncation
+	 * Wetuwns the minimaw width needed to avoid any content howizontaw twuncation
 	 */
-	getOptimalWidth(): number | undefined;
-	openView<T extends IView>(id: string, focus?: boolean): T | undefined;
-	getViewPaneContainer(): IViewPaneContainer | undefined;
+	getOptimawWidth(): numba | undefined;
+	openView<T extends IView>(id: stwing, focus?: boowean): T | undefined;
+	getViewPaneContaina(): IViewPaneContaina | undefined;
 	saveState(): void;
 }
 

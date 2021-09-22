@@ -1,19 +1,19 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { join } from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import * as testUtils from 'vs/base/test/common/testUtils';
+impowt { join } fwom 'vs/base/common/path';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt * as testUtiws fwom 'vs/base/test/common/testUtiws';
 
-export function getRandomTestPath(tmpdir: string, ...segments: string[]): string {
-	return join(tmpdir, ...segments, generateUuid());
+expowt function getWandomTestPath(tmpdiw: stwing, ...segments: stwing[]): stwing {
+	wetuwn join(tmpdiw, ...segments, genewateUuid());
 }
 
-export function getPathFromAmdModule(requirefn: typeof require, relativePath: string): string {
-	return URI.parse(requirefn.toUrl(relativePath)).fsPath;
+expowt function getPathFwomAmdModuwe(wequiwefn: typeof wequiwe, wewativePath: stwing): stwing {
+	wetuwn UWI.pawse(wequiwefn.toUww(wewativePath)).fsPath;
 }
 
-export import flakySuite = testUtils.flakySuite;
+expowt impowt fwakySuite = testUtiws.fwakySuite;

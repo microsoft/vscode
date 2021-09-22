@@ -1,175 +1,175 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionHostProfile, ProfileSession, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { Disposable, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { IExtensionHostProfileService, ProfileSessionState } from 'vs/workbench/contrib/extensions/electron-sandbox/runtimeExtensionsEditor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { randomPort } from 'vs/base/common/ports';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-browser/extensionHostProfiler';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+impowt * as nws fwom 'vs/nws';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IExtensionHostPwofiwe, PwofiweSession, IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { Disposabwe, toDisposabwe, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { StatusbawAwignment, IStatusbawSewvice, IStatusbawEntwyAccessow, IStatusbawEntwy } fwom 'vs/wowkbench/sewvices/statusbaw/bwowsa/statusbaw';
+impowt { IExtensionHostPwofiweSewvice, PwofiweSessionState } fwom 'vs/wowkbench/contwib/extensions/ewectwon-sandbox/wuntimeExtensionsEditow';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { wandomPowt } fwom 'vs/base/common/powts';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { WuntimeExtensionsInput } fwom 'vs/wowkbench/contwib/extensions/common/wuntimeExtensionsInput';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { ExtensionHostPwofiwa } fwom 'vs/wowkbench/sewvices/extensions/ewectwon-bwowsa/extensionHostPwofiwa';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
 
-export class ExtensionHostProfileService extends Disposable implements IExtensionHostProfileService {
+expowt cwass ExtensionHostPwofiweSewvice extends Disposabwe impwements IExtensionHostPwofiweSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _onDidChangeState: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidChangeState: Event<void> = this._onDidChangeState.event;
+	pwivate weadonwy _onDidChangeState: Emitta<void> = this._wegista(new Emitta<void>());
+	pubwic weadonwy onDidChangeState: Event<void> = this._onDidChangeState.event;
 
-	private readonly _onDidChangeLastProfile: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidChangeLastProfile: Event<void> = this._onDidChangeLastProfile.event;
+	pwivate weadonwy _onDidChangeWastPwofiwe: Emitta<void> = this._wegista(new Emitta<void>());
+	pubwic weadonwy onDidChangeWastPwofiwe: Event<void> = this._onDidChangeWastPwofiwe.event;
 
-	private readonly _unresponsiveProfiles = new Map<string, IExtensionHostProfile>();
-	private _profile: IExtensionHostProfile | null;
-	private _profileSession: ProfileSession | null;
-	private _state: ProfileSessionState = ProfileSessionState.None;
+	pwivate weadonwy _unwesponsivePwofiwes = new Map<stwing, IExtensionHostPwofiwe>();
+	pwivate _pwofiwe: IExtensionHostPwofiwe | nuww;
+	pwivate _pwofiweSession: PwofiweSession | nuww;
+	pwivate _state: PwofiweSessionState = PwofiweSessionState.None;
 
-	private profilingStatusBarIndicator: IStatusbarEntryAccessor | undefined;
-	private readonly profilingStatusBarIndicatorLabelUpdater = this._register(new MutableDisposable());
+	pwivate pwofiwingStatusBawIndicatow: IStatusbawEntwyAccessow | undefined;
+	pwivate weadonwy pwofiwingStatusBawIndicatowWabewUpdata = this._wegista(new MutabweDisposabwe());
 
-	public get state() { return this._state; }
-	public get lastProfile() { return this._profile; }
+	pubwic get state() { wetuwn this._state; }
+	pubwic get wastPwofiwe() { wetuwn this._pwofiwe; }
 
-	constructor(
-		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@INativeHostService private readonly _nativeHostService: INativeHostService,
-		@IDialogService private readonly _dialogService: IDialogService,
-		@IStatusbarService private readonly _statusbarService: IStatusbarService,
-		@IProductService private readonly _productService: IProductService
+	constwuctow(
+		@IExtensionSewvice pwivate weadonwy _extensionSewvice: IExtensionSewvice,
+		@IEditowSewvice pwivate weadonwy _editowSewvice: IEditowSewvice,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@INativeHostSewvice pwivate weadonwy _nativeHostSewvice: INativeHostSewvice,
+		@IDiawogSewvice pwivate weadonwy _diawogSewvice: IDiawogSewvice,
+		@IStatusbawSewvice pwivate weadonwy _statusbawSewvice: IStatusbawSewvice,
+		@IPwoductSewvice pwivate weadonwy _pwoductSewvice: IPwoductSewvice
 	) {
-		super();
-		this._profile = null;
-		this._profileSession = null;
-		this._setState(ProfileSessionState.None);
+		supa();
+		this._pwofiwe = nuww;
+		this._pwofiweSession = nuww;
+		this._setState(PwofiweSessionState.None);
 
-		CommandsRegistry.registerCommand('workbench.action.extensionHostProfiler.stop', () => {
-			this.stopProfiling();
-			this._editorService.openEditor(RuntimeExtensionsInput.instance, { revealIfOpened: true, pinned: true });
+		CommandsWegistwy.wegistewCommand('wowkbench.action.extensionHostPwofiwa.stop', () => {
+			this.stopPwofiwing();
+			this._editowSewvice.openEditow(WuntimeExtensionsInput.instance, { weveawIfOpened: twue, pinned: twue });
 		});
 	}
 
-	private _setState(state: ProfileSessionState): void {
+	pwivate _setState(state: PwofiweSessionState): void {
 		if (this._state === state) {
-			return;
+			wetuwn;
 		}
 		this._state = state;
 
-		if (this._state === ProfileSessionState.Running) {
-			this.updateProfilingStatusBarIndicator(true);
-		} else if (this._state === ProfileSessionState.Stopping) {
-			this.updateProfilingStatusBarIndicator(false);
+		if (this._state === PwofiweSessionState.Wunning) {
+			this.updatePwofiwingStatusBawIndicatow(twue);
+		} ewse if (this._state === PwofiweSessionState.Stopping) {
+			this.updatePwofiwingStatusBawIndicatow(fawse);
 		}
 
-		this._onDidChangeState.fire(undefined);
+		this._onDidChangeState.fiwe(undefined);
 	}
 
-	private updateProfilingStatusBarIndicator(visible: boolean): void {
-		this.profilingStatusBarIndicatorLabelUpdater.clear();
+	pwivate updatePwofiwingStatusBawIndicatow(visibwe: boowean): void {
+		this.pwofiwingStatusBawIndicatowWabewUpdata.cweaw();
 
-		if (visible) {
-			const indicator: IStatusbarEntry = {
-				name: nls.localize('status.profiler', "Extension Profiler"),
-				text: nls.localize('profilingExtensionHost', "Profiling Extension Host"),
-				showProgress: true,
-				ariaLabel: nls.localize('profilingExtensionHost', "Profiling Extension Host"),
-				tooltip: nls.localize('selectAndStartDebug', "Click to stop profiling."),
-				command: 'workbench.action.extensionHostProfiler.stop'
+		if (visibwe) {
+			const indicatow: IStatusbawEntwy = {
+				name: nws.wocawize('status.pwofiwa', "Extension Pwofiwa"),
+				text: nws.wocawize('pwofiwingExtensionHost', "Pwofiwing Extension Host"),
+				showPwogwess: twue,
+				awiaWabew: nws.wocawize('pwofiwingExtensionHost', "Pwofiwing Extension Host"),
+				toowtip: nws.wocawize('sewectAndStawtDebug', "Cwick to stop pwofiwing."),
+				command: 'wowkbench.action.extensionHostPwofiwa.stop'
 			};
 
-			const timeStarted = Date.now();
-			const handle = setInterval(() => {
-				if (this.profilingStatusBarIndicator) {
-					this.profilingStatusBarIndicator.update({ ...indicator, text: nls.localize('profilingExtensionHostTime', "Profiling Extension Host ({0} sec)", Math.round((new Date().getTime() - timeStarted) / 1000)), });
+			const timeStawted = Date.now();
+			const handwe = setIntewvaw(() => {
+				if (this.pwofiwingStatusBawIndicatow) {
+					this.pwofiwingStatusBawIndicatow.update({ ...indicatow, text: nws.wocawize('pwofiwingExtensionHostTime', "Pwofiwing Extension Host ({0} sec)", Math.wound((new Date().getTime() - timeStawted) / 1000)), });
 				}
 			}, 1000);
-			this.profilingStatusBarIndicatorLabelUpdater.value = toDisposable(() => clearInterval(handle));
+			this.pwofiwingStatusBawIndicatowWabewUpdata.vawue = toDisposabwe(() => cweawIntewvaw(handwe));
 
-			if (!this.profilingStatusBarIndicator) {
-				this.profilingStatusBarIndicator = this._statusbarService.addEntry(indicator, 'status.profiler', StatusbarAlignment.RIGHT);
-			} else {
-				this.profilingStatusBarIndicator.update(indicator);
+			if (!this.pwofiwingStatusBawIndicatow) {
+				this.pwofiwingStatusBawIndicatow = this._statusbawSewvice.addEntwy(indicatow, 'status.pwofiwa', StatusbawAwignment.WIGHT);
+			} ewse {
+				this.pwofiwingStatusBawIndicatow.update(indicatow);
 			}
-		} else {
-			if (this.profilingStatusBarIndicator) {
-				this.profilingStatusBarIndicator.dispose();
-				this.profilingStatusBarIndicator = undefined;
+		} ewse {
+			if (this.pwofiwingStatusBawIndicatow) {
+				this.pwofiwingStatusBawIndicatow.dispose();
+				this.pwofiwingStatusBawIndicatow = undefined;
 			}
 		}
 	}
 
-	public async startProfiling(): Promise<any> {
-		if (this._state !== ProfileSessionState.None) {
-			return null;
+	pubwic async stawtPwofiwing(): Pwomise<any> {
+		if (this._state !== PwofiweSessionState.None) {
+			wetuwn nuww;
 		}
 
-		const inspectPort = await this._extensionService.getInspectPort(true);
-		if (!inspectPort) {
-			return this._dialogService.confirm({
+		const inspectPowt = await this._extensionSewvice.getInspectPowt(twue);
+		if (!inspectPowt) {
+			wetuwn this._diawogSewvice.confiwm({
 				type: 'info',
-				message: nls.localize('restart1', "Profile Extensions"),
-				detail: nls.localize('restart2', "In order to profile extensions a restart is required. Do you want to restart '{0}' now?", this._productService.nameLong),
-				primaryButton: nls.localize('restart3', "&&Restart"),
-				secondaryButton: nls.localize('cancel', "&&Cancel")
-			}).then(res => {
-				if (res.confirmed) {
-					this._nativeHostService.relaunch({ addArgs: [`--inspect-extensions=${randomPort()}`] });
+				message: nws.wocawize('westawt1', "Pwofiwe Extensions"),
+				detaiw: nws.wocawize('westawt2', "In owda to pwofiwe extensions a westawt is wequiwed. Do you want to westawt '{0}' now?", this._pwoductSewvice.nameWong),
+				pwimawyButton: nws.wocawize('westawt3', "&&Westawt"),
+				secondawyButton: nws.wocawize('cancew', "&&Cancew")
+			}).then(wes => {
+				if (wes.confiwmed) {
+					this._nativeHostSewvice.wewaunch({ addAwgs: [`--inspect-extensions=${wandomPowt()}`] });
 				}
 			});
 		}
 
-		this._setState(ProfileSessionState.Starting);
+		this._setState(PwofiweSessionState.Stawting);
 
-		return this._instantiationService.createInstance(ExtensionHostProfiler, inspectPort).start().then((value) => {
-			this._profileSession = value;
-			this._setState(ProfileSessionState.Running);
-		}, (err) => {
-			onUnexpectedError(err);
-			this._setState(ProfileSessionState.None);
+		wetuwn this._instantiationSewvice.cweateInstance(ExtensionHostPwofiwa, inspectPowt).stawt().then((vawue) => {
+			this._pwofiweSession = vawue;
+			this._setState(PwofiweSessionState.Wunning);
+		}, (eww) => {
+			onUnexpectedEwwow(eww);
+			this._setState(PwofiweSessionState.None);
 		});
 	}
 
-	public stopProfiling(): void {
-		if (this._state !== ProfileSessionState.Running || !this._profileSession) {
-			return;
+	pubwic stopPwofiwing(): void {
+		if (this._state !== PwofiweSessionState.Wunning || !this._pwofiweSession) {
+			wetuwn;
 		}
 
-		this._setState(ProfileSessionState.Stopping);
-		this._profileSession.stop().then((result) => {
-			this._setLastProfile(result);
-			this._setState(ProfileSessionState.None);
-		}, (err) => {
-			onUnexpectedError(err);
-			this._setState(ProfileSessionState.None);
+		this._setState(PwofiweSessionState.Stopping);
+		this._pwofiweSession.stop().then((wesuwt) => {
+			this._setWastPwofiwe(wesuwt);
+			this._setState(PwofiweSessionState.None);
+		}, (eww) => {
+			onUnexpectedEwwow(eww);
+			this._setState(PwofiweSessionState.None);
 		});
-		this._profileSession = null;
+		this._pwofiweSession = nuww;
 	}
 
-	private _setLastProfile(profile: IExtensionHostProfile) {
-		this._profile = profile;
-		this._onDidChangeLastProfile.fire(undefined);
+	pwivate _setWastPwofiwe(pwofiwe: IExtensionHostPwofiwe) {
+		this._pwofiwe = pwofiwe;
+		this._onDidChangeWastPwofiwe.fiwe(undefined);
 	}
 
-	getUnresponsiveProfile(extensionId: ExtensionIdentifier): IExtensionHostProfile | undefined {
-		return this._unresponsiveProfiles.get(ExtensionIdentifier.toKey(extensionId));
+	getUnwesponsivePwofiwe(extensionId: ExtensionIdentifia): IExtensionHostPwofiwe | undefined {
+		wetuwn this._unwesponsivePwofiwes.get(ExtensionIdentifia.toKey(extensionId));
 	}
 
-	setUnresponsiveProfile(extensionId: ExtensionIdentifier, profile: IExtensionHostProfile): void {
-		this._unresponsiveProfiles.set(ExtensionIdentifier.toKey(extensionId), profile);
-		this._setLastProfile(profile);
+	setUnwesponsivePwofiwe(extensionId: ExtensionIdentifia, pwofiwe: IExtensionHostPwofiwe): void {
+		this._unwesponsivePwofiwes.set(ExtensionIdentifia.toKey(extensionId), pwofiwe);
+		this._setWastPwofiwe(pwofiwe);
 	}
 
 }

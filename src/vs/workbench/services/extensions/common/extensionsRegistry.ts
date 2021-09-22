@@ -1,547 +1,547 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import Severity from 'vs/base/common/severity';
-import { EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IMessage } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionIdentifier, IExtensionDescription, EXTENSION_CATEGORIES, ExtensionKind } from 'vs/platform/extensions/common/extensions';
+impowt * as nws fwom 'vs/nws';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { IJSONSchema } fwom 'vs/base/common/jsonSchema';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { EXTENSION_IDENTIFIEW_PATTEWN } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { Extensions, IJSONContwibutionWegistwy } fwom 'vs/pwatfowm/jsonschemas/common/jsonContwibutionWegistwy';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IMessage } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { ExtensionIdentifia, IExtensionDescwiption, EXTENSION_CATEGOWIES, ExtensionKind } fwom 'vs/pwatfowm/extensions/common/extensions';
 
-const schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
+const schemaWegistwy = Wegistwy.as<IJSONContwibutionWegistwy>(Extensions.JSONContwibution);
 
-export class ExtensionMessageCollector {
+expowt cwass ExtensionMessageCowwectow {
 
-	private readonly _messageHandler: (msg: IMessage) => void;
-	private readonly _extension: IExtensionDescription;
-	private readonly _extensionPointId: string;
+	pwivate weadonwy _messageHandwa: (msg: IMessage) => void;
+	pwivate weadonwy _extension: IExtensionDescwiption;
+	pwivate weadonwy _extensionPointId: stwing;
 
-	constructor(
-		messageHandler: (msg: IMessage) => void,
-		extension: IExtensionDescription,
-		extensionPointId: string
+	constwuctow(
+		messageHandwa: (msg: IMessage) => void,
+		extension: IExtensionDescwiption,
+		extensionPointId: stwing
 	) {
-		this._messageHandler = messageHandler;
+		this._messageHandwa = messageHandwa;
 		this._extension = extension;
 		this._extensionPointId = extensionPointId;
 	}
 
-	private _msg(type: Severity, message: string): void {
-		this._messageHandler({
+	pwivate _msg(type: Sevewity, message: stwing): void {
+		this._messageHandwa({
 			type: type,
 			message: message,
-			extensionId: this._extension.identifier,
+			extensionId: this._extension.identifia,
 			extensionPointId: this._extensionPointId
 		});
 	}
 
-	public error(message: string): void {
-		this._msg(Severity.Error, message);
+	pubwic ewwow(message: stwing): void {
+		this._msg(Sevewity.Ewwow, message);
 	}
 
-	public warn(message: string): void {
-		this._msg(Severity.Warning, message);
+	pubwic wawn(message: stwing): void {
+		this._msg(Sevewity.Wawning, message);
 	}
 
-	public info(message: string): void {
-		this._msg(Severity.Info, message);
+	pubwic info(message: stwing): void {
+		this._msg(Sevewity.Info, message);
 	}
 }
 
-export interface IExtensionPointUser<T> {
-	description: IExtensionDescription;
-	value: T;
-	collector: ExtensionMessageCollector;
+expowt intewface IExtensionPointUsa<T> {
+	descwiption: IExtensionDescwiption;
+	vawue: T;
+	cowwectow: ExtensionMessageCowwectow;
 }
 
-export type IExtensionPointHandler<T> = (extensions: readonly IExtensionPointUser<T>[], delta: ExtensionPointUserDelta<T>) => void;
+expowt type IExtensionPointHandwa<T> = (extensions: weadonwy IExtensionPointUsa<T>[], dewta: ExtensionPointUsewDewta<T>) => void;
 
-export interface IExtensionPoint<T> {
-	readonly name: string;
-	setHandler(handler: IExtensionPointHandler<T>): void;
-	readonly defaultExtensionKind: ExtensionKind[] | undefined;
+expowt intewface IExtensionPoint<T> {
+	weadonwy name: stwing;
+	setHandwa(handwa: IExtensionPointHandwa<T>): void;
+	weadonwy defauwtExtensionKind: ExtensionKind[] | undefined;
 }
 
-export class ExtensionPointUserDelta<T> {
+expowt cwass ExtensionPointUsewDewta<T> {
 
-	private static _toSet<T>(arr: readonly IExtensionPointUser<T>[]): Set<string> {
-		const result = new Set<string>();
-		for (let i = 0, len = arr.length; i < len; i++) {
-			result.add(ExtensionIdentifier.toKey(arr[i].description.identifier));
+	pwivate static _toSet<T>(aww: weadonwy IExtensionPointUsa<T>[]): Set<stwing> {
+		const wesuwt = new Set<stwing>();
+		fow (wet i = 0, wen = aww.wength; i < wen; i++) {
+			wesuwt.add(ExtensionIdentifia.toKey(aww[i].descwiption.identifia));
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public static compute<T>(previous: readonly IExtensionPointUser<T>[] | null, current: readonly IExtensionPointUser<T>[]): ExtensionPointUserDelta<T> {
-		if (!previous || !previous.length) {
-			return new ExtensionPointUserDelta<T>(current, []);
+	pubwic static compute<T>(pwevious: weadonwy IExtensionPointUsa<T>[] | nuww, cuwwent: weadonwy IExtensionPointUsa<T>[]): ExtensionPointUsewDewta<T> {
+		if (!pwevious || !pwevious.wength) {
+			wetuwn new ExtensionPointUsewDewta<T>(cuwwent, []);
 		}
-		if (!current || !current.length) {
-			return new ExtensionPointUserDelta<T>([], previous);
+		if (!cuwwent || !cuwwent.wength) {
+			wetuwn new ExtensionPointUsewDewta<T>([], pwevious);
 		}
 
-		const previousSet = this._toSet(previous);
-		const currentSet = this._toSet(current);
+		const pweviousSet = this._toSet(pwevious);
+		const cuwwentSet = this._toSet(cuwwent);
 
-		let added = current.filter(user => !previousSet.has(ExtensionIdentifier.toKey(user.description.identifier)));
-		let removed = previous.filter(user => !currentSet.has(ExtensionIdentifier.toKey(user.description.identifier)));
+		wet added = cuwwent.fiwta(usa => !pweviousSet.has(ExtensionIdentifia.toKey(usa.descwiption.identifia)));
+		wet wemoved = pwevious.fiwta(usa => !cuwwentSet.has(ExtensionIdentifia.toKey(usa.descwiption.identifia)));
 
-		return new ExtensionPointUserDelta<T>(added, removed);
+		wetuwn new ExtensionPointUsewDewta<T>(added, wemoved);
 	}
 
-	constructor(
-		public readonly added: readonly IExtensionPointUser<T>[],
-		public readonly removed: readonly IExtensionPointUser<T>[],
+	constwuctow(
+		pubwic weadonwy added: weadonwy IExtensionPointUsa<T>[],
+		pubwic weadonwy wemoved: weadonwy IExtensionPointUsa<T>[],
 	) { }
 }
 
-export class ExtensionPoint<T> implements IExtensionPoint<T> {
+expowt cwass ExtensionPoint<T> impwements IExtensionPoint<T> {
 
-	public readonly name: string;
-	public readonly defaultExtensionKind: ExtensionKind[] | undefined;
+	pubwic weadonwy name: stwing;
+	pubwic weadonwy defauwtExtensionKind: ExtensionKind[] | undefined;
 
-	private _handler: IExtensionPointHandler<T> | null;
-	private _users: IExtensionPointUser<T>[] | null;
-	private _delta: ExtensionPointUserDelta<T> | null;
+	pwivate _handwa: IExtensionPointHandwa<T> | nuww;
+	pwivate _usews: IExtensionPointUsa<T>[] | nuww;
+	pwivate _dewta: ExtensionPointUsewDewta<T> | nuww;
 
-	constructor(name: string, defaultExtensionKind: ExtensionKind[] | undefined) {
+	constwuctow(name: stwing, defauwtExtensionKind: ExtensionKind[] | undefined) {
 		this.name = name;
-		this.defaultExtensionKind = defaultExtensionKind;
-		this._handler = null;
-		this._users = null;
-		this._delta = null;
+		this.defauwtExtensionKind = defauwtExtensionKind;
+		this._handwa = nuww;
+		this._usews = nuww;
+		this._dewta = nuww;
 	}
 
-	setHandler(handler: IExtensionPointHandler<T>): void {
-		if (this._handler !== null) {
-			throw new Error('Handler already set!');
+	setHandwa(handwa: IExtensionPointHandwa<T>): void {
+		if (this._handwa !== nuww) {
+			thwow new Ewwow('Handwa awweady set!');
 		}
-		this._handler = handler;
-		this._handle();
+		this._handwa = handwa;
+		this._handwe();
 	}
 
-	acceptUsers(users: IExtensionPointUser<T>[]): void {
-		this._delta = ExtensionPointUserDelta.compute(this._users, users);
-		this._users = users;
-		this._handle();
+	acceptUsews(usews: IExtensionPointUsa<T>[]): void {
+		this._dewta = ExtensionPointUsewDewta.compute(this._usews, usews);
+		this._usews = usews;
+		this._handwe();
 	}
 
-	private _handle(): void {
-		if (this._handler === null || this._users === null || this._delta === null) {
-			return;
+	pwivate _handwe(): void {
+		if (this._handwa === nuww || this._usews === nuww || this._dewta === nuww) {
+			wetuwn;
 		}
 
-		try {
-			this._handler(this._users, this._delta);
-		} catch (err) {
-			onUnexpectedError(err);
+		twy {
+			this._handwa(this._usews, this._dewta);
+		} catch (eww) {
+			onUnexpectedEwwow(eww);
 		}
 	}
 }
 
 const extensionKindSchema: IJSONSchema = {
-	type: 'string',
+	type: 'stwing',
 	enum: [
 		'ui',
-		'workspace'
+		'wowkspace'
 	],
-	enumDescriptions: [
-		nls.localize('ui', "UI extension kind. In a remote window, such extensions are enabled only when available on the local machine."),
-		nls.localize('workspace', "Workspace extension kind. In a remote window, such extensions are enabled only when available on the remote."),
+	enumDescwiptions: [
+		nws.wocawize('ui', "UI extension kind. In a wemote window, such extensions awe enabwed onwy when avaiwabwe on the wocaw machine."),
+		nws.wocawize('wowkspace', "Wowkspace extension kind. In a wemote window, such extensions awe enabwed onwy when avaiwabwe on the wemote."),
 	],
 };
 
 const schemaId = 'vscode://schemas/vscode-extensions';
-export const schema: IJSONSchema = {
-	properties: {
+expowt const schema: IJSONSchema = {
+	pwopewties: {
 		engines: {
 			type: 'object',
-			description: nls.localize('vscode.extension.engines', "Engine compatibility."),
-			properties: {
+			descwiption: nws.wocawize('vscode.extension.engines', "Engine compatibiwity."),
+			pwopewties: {
 				'vscode': {
-					type: 'string',
-					description: nls.localize('vscode.extension.engines.vscode', 'For VS Code extensions, specifies the VS Code version that the extension is compatible with. Cannot be *. For example: ^0.10.5 indicates compatibility with a minimum VS Code version of 0.10.5.'),
-					default: '^1.22.0',
+					type: 'stwing',
+					descwiption: nws.wocawize('vscode.extension.engines.vscode', 'Fow VS Code extensions, specifies the VS Code vewsion that the extension is compatibwe with. Cannot be *. Fow exampwe: ^0.10.5 indicates compatibiwity with a minimum VS Code vewsion of 0.10.5.'),
+					defauwt: '^1.22.0',
 				}
 			}
 		},
-		publisher: {
-			description: nls.localize('vscode.extension.publisher', 'The publisher of the VS Code extension.'),
-			type: 'string'
+		pubwisha: {
+			descwiption: nws.wocawize('vscode.extension.pubwisha', 'The pubwisha of the VS Code extension.'),
+			type: 'stwing'
 		},
-		displayName: {
-			description: nls.localize('vscode.extension.displayName', 'The display name for the extension used in the VS Code gallery.'),
-			type: 'string'
+		dispwayName: {
+			descwiption: nws.wocawize('vscode.extension.dispwayName', 'The dispway name fow the extension used in the VS Code gawwewy.'),
+			type: 'stwing'
 		},
-		categories: {
-			description: nls.localize('vscode.extension.categories', 'The categories used by the VS Code gallery to categorize the extension.'),
-			type: 'array',
-			uniqueItems: true,
+		categowies: {
+			descwiption: nws.wocawize('vscode.extension.categowies', 'The categowies used by the VS Code gawwewy to categowize the extension.'),
+			type: 'awway',
+			uniqueItems: twue,
 			items: {
 				oneOf: [{
-					type: 'string',
-					enum: EXTENSION_CATEGORIES,
+					type: 'stwing',
+					enum: EXTENSION_CATEGOWIES,
 				},
 				{
-					type: 'string',
-					const: 'Languages',
-					deprecationMessage: nls.localize('vscode.extension.category.languages.deprecated', 'Use \'Programming  Languages\' instead'),
+					type: 'stwing',
+					const: 'Wanguages',
+					depwecationMessage: nws.wocawize('vscode.extension.categowy.wanguages.depwecated', 'Use \'Pwogwamming  Wanguages\' instead'),
 				}]
 			}
 		},
-		galleryBanner: {
+		gawwewyBanna: {
 			type: 'object',
-			description: nls.localize('vscode.extension.galleryBanner', 'Banner used in the VS Code marketplace.'),
-			properties: {
-				color: {
-					description: nls.localize('vscode.extension.galleryBanner.color', 'The banner color on the VS Code marketplace page header.'),
-					type: 'string'
+			descwiption: nws.wocawize('vscode.extension.gawwewyBanna', 'Banna used in the VS Code mawketpwace.'),
+			pwopewties: {
+				cowow: {
+					descwiption: nws.wocawize('vscode.extension.gawwewyBanna.cowow', 'The banna cowow on the VS Code mawketpwace page heada.'),
+					type: 'stwing'
 				},
 				theme: {
-					description: nls.localize('vscode.extension.galleryBanner.theme', 'The color theme for the font used in the banner.'),
-					type: 'string',
-					enum: ['dark', 'light']
+					descwiption: nws.wocawize('vscode.extension.gawwewyBanna.theme', 'The cowow theme fow the font used in the banna.'),
+					type: 'stwing',
+					enum: ['dawk', 'wight']
 				}
 			}
 		},
-		contributes: {
-			description: nls.localize('vscode.extension.contributes', 'All contributions of the VS Code extension represented by this package.'),
+		contwibutes: {
+			descwiption: nws.wocawize('vscode.extension.contwibutes', 'Aww contwibutions of the VS Code extension wepwesented by this package.'),
 			type: 'object',
-			properties: {
-				// extensions will fill in
-			} as { [key: string]: any },
-			default: {}
+			pwopewties: {
+				// extensions wiww fiww in
+			} as { [key: stwing]: any },
+			defauwt: {}
 		},
-		preview: {
-			type: 'boolean',
-			description: nls.localize('vscode.extension.preview', 'Sets the extension to be flagged as a Preview in the Marketplace.'),
+		pweview: {
+			type: 'boowean',
+			descwiption: nws.wocawize('vscode.extension.pweview', 'Sets the extension to be fwagged as a Pweview in the Mawketpwace.'),
 		},
 		activationEvents: {
-			description: nls.localize('vscode.extension.activationEvents', 'Activation events for the VS Code extension.'),
-			type: 'array',
+			descwiption: nws.wocawize('vscode.extension.activationEvents', 'Activation events fow the VS Code extension.'),
+			type: 'awway',
 			items: {
-				type: 'string',
-				defaultSnippets: [
+				type: 'stwing',
+				defauwtSnippets: [
 					{
-						label: 'onLanguage',
-						description: nls.localize('vscode.extension.activationEvents.onLanguage', 'An activation event emitted whenever a file that resolves to the specified language gets opened.'),
-						body: 'onLanguage:${1:languageId}'
+						wabew: 'onWanguage',
+						descwiption: nws.wocawize('vscode.extension.activationEvents.onWanguage', 'An activation event emitted wheneva a fiwe that wesowves to the specified wanguage gets opened.'),
+						body: 'onWanguage:${1:wanguageId}'
 					},
 					{
-						label: 'onCommand',
-						description: nls.localize('vscode.extension.activationEvents.onCommand', 'An activation event emitted whenever the specified command gets invoked.'),
+						wabew: 'onCommand',
+						descwiption: nws.wocawize('vscode.extension.activationEvents.onCommand', 'An activation event emitted wheneva the specified command gets invoked.'),
 						body: 'onCommand:${2:commandId}'
 					},
 					{
-						label: 'onDebug',
-						description: nls.localize('vscode.extension.activationEvents.onDebug', 'An activation event emitted whenever a user is about to start debugging or about to setup debug configurations.'),
+						wabew: 'onDebug',
+						descwiption: nws.wocawize('vscode.extension.activationEvents.onDebug', 'An activation event emitted wheneva a usa is about to stawt debugging ow about to setup debug configuwations.'),
 						body: 'onDebug'
 					},
 					{
-						label: 'onDebugInitialConfigurations',
-						description: nls.localize('vscode.extension.activationEvents.onDebugInitialConfigurations', 'An activation event emitted whenever a "launch.json" needs to be created (and all provideDebugConfigurations methods need to be called).'),
-						body: 'onDebugInitialConfigurations'
+						wabew: 'onDebugInitiawConfiguwations',
+						descwiption: nws.wocawize('vscode.extension.activationEvents.onDebugInitiawConfiguwations', 'An activation event emitted wheneva a "waunch.json" needs to be cweated (and aww pwovideDebugConfiguwations methods need to be cawwed).'),
+						body: 'onDebugInitiawConfiguwations'
 					},
 					{
-						label: 'onDebugDynamicConfigurations',
-						description: nls.localize('vscode.extension.activationEvents.onDebugDynamicConfigurations', 'An activation event emitted whenever a list of all debug configurations needs to be created (and all provideDebugConfigurations methods for the "dynamic" scope need to be called).'),
-						body: 'onDebugDynamicConfigurations'
+						wabew: 'onDebugDynamicConfiguwations',
+						descwiption: nws.wocawize('vscode.extension.activationEvents.onDebugDynamicConfiguwations', 'An activation event emitted wheneva a wist of aww debug configuwations needs to be cweated (and aww pwovideDebugConfiguwations methods fow the "dynamic" scope need to be cawwed).'),
+						body: 'onDebugDynamicConfiguwations'
 					},
 					{
-						label: 'onDebugResolve',
-						description: nls.localize('vscode.extension.activationEvents.onDebugResolve', 'An activation event emitted whenever a debug session with the specific type is about to be launched (and a corresponding resolveDebugConfiguration method needs to be called).'),
-						body: 'onDebugResolve:${6:type}'
+						wabew: 'onDebugWesowve',
+						descwiption: nws.wocawize('vscode.extension.activationEvents.onDebugWesowve', 'An activation event emitted wheneva a debug session with the specific type is about to be waunched (and a cowwesponding wesowveDebugConfiguwation method needs to be cawwed).'),
+						body: 'onDebugWesowve:${6:type}'
 					},
 					{
-						label: 'onDebugAdapterProtocolTracker',
-						description: nls.localize('vscode.extension.activationEvents.onDebugAdapterProtocolTracker', 'An activation event emitted whenever a debug session with the specific type is about to be launched and a debug protocol tracker might be needed.'),
-						body: 'onDebugAdapterProtocolTracker:${6:type}'
+						wabew: 'onDebugAdaptewPwotocowTwacka',
+						descwiption: nws.wocawize('vscode.extension.activationEvents.onDebugAdaptewPwotocowTwacka', 'An activation event emitted wheneva a debug session with the specific type is about to be waunched and a debug pwotocow twacka might be needed.'),
+						body: 'onDebugAdaptewPwotocowTwacka:${6:type}'
 					},
 					{
-						label: 'workspaceContains',
-						description: nls.localize('vscode.extension.activationEvents.workspaceContains', 'An activation event emitted whenever a folder is opened that contains at least a file matching the specified glob pattern.'),
-						body: 'workspaceContains:${4:filePattern}'
+						wabew: 'wowkspaceContains',
+						descwiption: nws.wocawize('vscode.extension.activationEvents.wowkspaceContains', 'An activation event emitted wheneva a fowda is opened that contains at weast a fiwe matching the specified gwob pattewn.'),
+						body: 'wowkspaceContains:${4:fiwePattewn}'
 					},
 					{
-						label: 'onStartupFinished',
-						description: nls.localize('vscode.extension.activationEvents.onStartupFinished', 'An activation event emitted after the start-up finished (after all `*` activated extensions have finished activating).'),
-						body: 'onStartupFinished'
+						wabew: 'onStawtupFinished',
+						descwiption: nws.wocawize('vscode.extension.activationEvents.onStawtupFinished', 'An activation event emitted afta the stawt-up finished (afta aww `*` activated extensions have finished activating).'),
+						body: 'onStawtupFinished'
 					},
 					{
-						label: 'onFileSystem',
-						description: nls.localize('vscode.extension.activationEvents.onFileSystem', 'An activation event emitted whenever a file or folder is accessed with the given scheme.'),
-						body: 'onFileSystem:${1:scheme}'
+						wabew: 'onFiweSystem',
+						descwiption: nws.wocawize('vscode.extension.activationEvents.onFiweSystem', 'An activation event emitted wheneva a fiwe ow fowda is accessed with the given scheme.'),
+						body: 'onFiweSystem:${1:scheme}'
 					},
 					{
-						label: 'onSearch',
-						description: nls.localize('vscode.extension.activationEvents.onSearch', 'An activation event emitted whenever a search is started in the folder with the given scheme.'),
-						body: 'onSearch:${7:scheme}'
+						wabew: 'onSeawch',
+						descwiption: nws.wocawize('vscode.extension.activationEvents.onSeawch', 'An activation event emitted wheneva a seawch is stawted in the fowda with the given scheme.'),
+						body: 'onSeawch:${7:scheme}'
 					},
 					{
-						label: 'onView',
+						wabew: 'onView',
 						body: 'onView:${5:viewId}',
-						description: nls.localize('vscode.extension.activationEvents.onView', 'An activation event emitted whenever the specified view is expanded.'),
+						descwiption: nws.wocawize('vscode.extension.activationEvents.onView', 'An activation event emitted wheneva the specified view is expanded.'),
 					},
 					{
-						label: 'onIdentity',
+						wabew: 'onIdentity',
 						body: 'onIdentity:${8:identity}',
-						description: nls.localize('vscode.extension.activationEvents.onIdentity', 'An activation event emitted whenever the specified user identity.'),
+						descwiption: nws.wocawize('vscode.extension.activationEvents.onIdentity', 'An activation event emitted wheneva the specified usa identity.'),
 					},
 					{
-						label: 'onUri',
-						body: 'onUri',
-						description: nls.localize('vscode.extension.activationEvents.onUri', 'An activation event emitted whenever a system-wide Uri directed towards this extension is open.'),
+						wabew: 'onUwi',
+						body: 'onUwi',
+						descwiption: nws.wocawize('vscode.extension.activationEvents.onUwi', 'An activation event emitted wheneva a system-wide Uwi diwected towawds this extension is open.'),
 					},
 					{
-						label: 'onOpenExternalUri',
-						body: 'onOpenExternalUri',
-						description: nls.localize('vscode.extension.activationEvents.onOpenExternalUri', 'An activation event emitted whenever a external uri (such as an http or https link) is being opened.'),
+						wabew: 'onOpenExtewnawUwi',
+						body: 'onOpenExtewnawUwi',
+						descwiption: nws.wocawize('vscode.extension.activationEvents.onOpenExtewnawUwi', 'An activation event emitted wheneva a extewnaw uwi (such as an http ow https wink) is being opened.'),
 					},
 					{
-						label: 'onCustomEditor',
-						body: 'onCustomEditor:${9:viewType}',
-						description: nls.localize('vscode.extension.activationEvents.onCustomEditor', 'An activation event emitted whenever the specified custom editor becomes visible.'),
+						wabew: 'onCustomEditow',
+						body: 'onCustomEditow:${9:viewType}',
+						descwiption: nws.wocawize('vscode.extension.activationEvents.onCustomEditow', 'An activation event emitted wheneva the specified custom editow becomes visibwe.'),
 					},
 					{
-						label: 'onNotebook',
+						wabew: 'onNotebook',
 						body: 'onNotebook:${1:type}',
-						description: nls.localize('vscode.extension.activationEvents.onNotebook', 'An activation event emitted whenever the specified notebook document is opened.'),
+						descwiption: nws.wocawize('vscode.extension.activationEvents.onNotebook', 'An activation event emitted wheneva the specified notebook document is opened.'),
 					},
 					{
-						label: 'onAuthenticationRequest',
-						body: 'onAuthenticationRequest:${11:authenticationProviderId}',
-						description: nls.localize('vscode.extension.activationEvents.onAuthenticationRequest', 'An activation event emitted whenever sessions are requested from the specified authentication provider.')
+						wabew: 'onAuthenticationWequest',
+						body: 'onAuthenticationWequest:${11:authenticationPwovidewId}',
+						descwiption: nws.wocawize('vscode.extension.activationEvents.onAuthenticationWequest', 'An activation event emitted wheneva sessions awe wequested fwom the specified authentication pwovida.')
 					},
 					{
-						label: 'onRenderer',
-						description: nls.localize('vscode.extension.activationEvents.onRenderer', 'An activation event emitted whenever a notebook output renderer is used.'),
-						body: 'onRenderer:${11:rendererId}'
+						wabew: 'onWendewa',
+						descwiption: nws.wocawize('vscode.extension.activationEvents.onWendewa', 'An activation event emitted wheneva a notebook output wendewa is used.'),
+						body: 'onWendewa:${11:wendewewId}'
 					},
 					{
-						label: 'onTerminalProfile',
-						body: 'onTerminalProfile:${1:terminalId}',
-						description: nls.localize('vscode.extension.activationEvents.onTerminalProfile', 'An activation event emitted when a specific terminal profile is launched.'),
+						wabew: 'onTewminawPwofiwe',
+						body: 'onTewminawPwofiwe:${1:tewminawId}',
+						descwiption: nws.wocawize('vscode.extension.activationEvents.onTewminawPwofiwe', 'An activation event emitted when a specific tewminaw pwofiwe is waunched.'),
 					},
 					{
-						label: 'onWalkthrough',
-						body: 'onWalkthrough:${1:walkthroughID}',
-						description: nls.localize('vscode.extension.activationEvents.onWalkthrough', 'An activation event emitted when a specified walkthrough is opened.'),
+						wabew: 'onWawkthwough',
+						body: 'onWawkthwough:${1:wawkthwoughID}',
+						descwiption: nws.wocawize('vscode.extension.activationEvents.onWawkthwough', 'An activation event emitted when a specified wawkthwough is opened.'),
 					},
 					{
-						label: '*',
-						description: nls.localize('vscode.extension.activationEvents.star', 'An activation event emitted on VS Code startup. To ensure a great end user experience, please use this activation event in your extension only when no other activation events combination works in your use-case.'),
+						wabew: '*',
+						descwiption: nws.wocawize('vscode.extension.activationEvents.staw', 'An activation event emitted on VS Code stawtup. To ensuwe a gweat end usa expewience, pwease use this activation event in youw extension onwy when no otha activation events combination wowks in youw use-case.'),
 						body: '*'
 					}
 				],
 			}
 		},
 		badges: {
-			type: 'array',
-			description: nls.localize('vscode.extension.badges', 'Array of badges to display in the sidebar of the Marketplace\'s extension page.'),
+			type: 'awway',
+			descwiption: nws.wocawize('vscode.extension.badges', 'Awway of badges to dispway in the sidebaw of the Mawketpwace\'s extension page.'),
 			items: {
 				type: 'object',
-				required: ['url', 'href', 'description'],
-				properties: {
-					url: {
-						type: 'string',
-						description: nls.localize('vscode.extension.badges.url', 'Badge image URL.')
+				wequiwed: ['uww', 'hwef', 'descwiption'],
+				pwopewties: {
+					uww: {
+						type: 'stwing',
+						descwiption: nws.wocawize('vscode.extension.badges.uww', 'Badge image UWW.')
 					},
-					href: {
-						type: 'string',
-						description: nls.localize('vscode.extension.badges.href', 'Badge link.')
+					hwef: {
+						type: 'stwing',
+						descwiption: nws.wocawize('vscode.extension.badges.hwef', 'Badge wink.')
 					},
-					description: {
-						type: 'string',
-						description: nls.localize('vscode.extension.badges.description', 'Badge description.')
+					descwiption: {
+						type: 'stwing',
+						descwiption: nws.wocawize('vscode.extension.badges.descwiption', 'Badge descwiption.')
 					}
 				}
 			}
 		},
-		markdown: {
-			type: 'string',
-			description: nls.localize('vscode.extension.markdown', "Controls the Markdown rendering engine used in the Marketplace. Either github (default) or standard."),
-			enum: ['github', 'standard'],
-			default: 'github'
+		mawkdown: {
+			type: 'stwing',
+			descwiption: nws.wocawize('vscode.extension.mawkdown', "Contwows the Mawkdown wendewing engine used in the Mawketpwace. Eitha github (defauwt) ow standawd."),
+			enum: ['github', 'standawd'],
+			defauwt: 'github'
 		},
 		qna: {
-			default: 'marketplace',
-			description: nls.localize('vscode.extension.qna', "Controls the Q&A link in the Marketplace. Set to marketplace to enable the default Marketplace Q & A site. Set to a string to provide the URL of a custom Q & A site. Set to false to disable Q & A altogether."),
+			defauwt: 'mawketpwace',
+			descwiption: nws.wocawize('vscode.extension.qna', "Contwows the Q&A wink in the Mawketpwace. Set to mawketpwace to enabwe the defauwt Mawketpwace Q & A site. Set to a stwing to pwovide the UWW of a custom Q & A site. Set to fawse to disabwe Q & A awtogetha."),
 			anyOf: [
 				{
-					type: ['string', 'boolean'],
-					enum: ['marketplace', false]
+					type: ['stwing', 'boowean'],
+					enum: ['mawketpwace', fawse]
 				},
 				{
-					type: 'string'
+					type: 'stwing'
 				}
 			]
 		},
 		extensionDependencies: {
-			description: nls.localize('vscode.extension.extensionDependencies', 'Dependencies to other extensions. The identifier of an extension is always ${publisher}.${name}. For example: vscode.csharp.'),
-			type: 'array',
-			uniqueItems: true,
+			descwiption: nws.wocawize('vscode.extension.extensionDependencies', 'Dependencies to otha extensions. The identifia of an extension is awways ${pubwisha}.${name}. Fow exampwe: vscode.cshawp.'),
+			type: 'awway',
+			uniqueItems: twue,
 			items: {
-				type: 'string',
-				pattern: EXTENSION_IDENTIFIER_PATTERN
+				type: 'stwing',
+				pattewn: EXTENSION_IDENTIFIEW_PATTEWN
 			}
 		},
 		extensionPack: {
-			description: nls.localize('vscode.extension.contributes.extensionPack', "A set of extensions that can be installed together. The identifier of an extension is always ${publisher}.${name}. For example: vscode.csharp."),
-			type: 'array',
-			uniqueItems: true,
+			descwiption: nws.wocawize('vscode.extension.contwibutes.extensionPack', "A set of extensions that can be instawwed togetha. The identifia of an extension is awways ${pubwisha}.${name}. Fow exampwe: vscode.cshawp."),
+			type: 'awway',
+			uniqueItems: twue,
 			items: {
-				type: 'string',
-				pattern: EXTENSION_IDENTIFIER_PATTERN
+				type: 'stwing',
+				pattewn: EXTENSION_IDENTIFIEW_PATTEWN
 			}
 		},
 		extensionKind: {
-			description: nls.localize('extensionKind', "Define the kind of an extension. `ui` extensions are installed and run on the local machine while `workspace` extensions run on the remote."),
-			type: 'array',
+			descwiption: nws.wocawize('extensionKind', "Define the kind of an extension. `ui` extensions awe instawwed and wun on the wocaw machine whiwe `wowkspace` extensions wun on the wemote."),
+			type: 'awway',
 			items: extensionKindSchema,
-			default: ['workspace'],
-			defaultSnippets: [
+			defauwt: ['wowkspace'],
+			defauwtSnippets: [
 				{
 					body: ['ui'],
-					description: nls.localize('extensionKind.ui', "Define an extension which can run only on the local machine when connected to remote window.")
+					descwiption: nws.wocawize('extensionKind.ui', "Define an extension which can wun onwy on the wocaw machine when connected to wemote window.")
 				},
 				{
-					body: ['workspace'],
-					description: nls.localize('extensionKind.workspace', "Define an extension which can run only on the remote machine when connected remote window.")
+					body: ['wowkspace'],
+					descwiption: nws.wocawize('extensionKind.wowkspace', "Define an extension which can wun onwy on the wemote machine when connected wemote window.")
 				},
 				{
-					body: ['ui', 'workspace'],
-					description: nls.localize('extensionKind.ui-workspace', "Define an extension which can run on either side, with a preference towards running on the local machine.")
+					body: ['ui', 'wowkspace'],
+					descwiption: nws.wocawize('extensionKind.ui-wowkspace', "Define an extension which can wun on eitha side, with a pwefewence towawds wunning on the wocaw machine.")
 				},
 				{
-					body: ['workspace', 'ui'],
-					description: nls.localize('extensionKind.workspace-ui', "Define an extension which can run on either side, with a preference towards running on the remote machine.")
+					body: ['wowkspace', 'ui'],
+					descwiption: nws.wocawize('extensionKind.wowkspace-ui', "Define an extension which can wun on eitha side, with a pwefewence towawds wunning on the wemote machine.")
 				},
 				{
 					body: [],
-					description: nls.localize('extensionKind.empty', "Define an extension which cannot run in a remote context, neither on the local, nor on the remote machine.")
+					descwiption: nws.wocawize('extensionKind.empty', "Define an extension which cannot wun in a wemote context, neitha on the wocaw, now on the wemote machine.")
 				}
 			]
 		},
-		capabilities: {
-			description: nls.localize('vscode.extension.capabilities', "Declare the set of supported capabilities by the extension."),
+		capabiwities: {
+			descwiption: nws.wocawize('vscode.extension.capabiwities', "Decwawe the set of suppowted capabiwities by the extension."),
 			type: 'object',
-			properties: {
-				virtualWorkspaces: {
-					description: nls.localize('vscode.extension.capabilities.virtualWorkspaces', "Declares whether the extension should be enabled in virtual workspaces. A virtual workspace is a workspace which is not backed by any on-disk resources. When false, this extension will be automatically disabled in virtual workspaces. Default is true."),
-					type: ['boolean', 'object'],
-					defaultSnippets: [
-						{ label: 'limited', body: { supported: '${1:limited}', description: '${2}' } },
-						{ label: 'false', body: { supported: false, description: '${2}' } },
+			pwopewties: {
+				viwtuawWowkspaces: {
+					descwiption: nws.wocawize('vscode.extension.capabiwities.viwtuawWowkspaces', "Decwawes whetha the extension shouwd be enabwed in viwtuaw wowkspaces. A viwtuaw wowkspace is a wowkspace which is not backed by any on-disk wesouwces. When fawse, this extension wiww be automaticawwy disabwed in viwtuaw wowkspaces. Defauwt is twue."),
+					type: ['boowean', 'object'],
+					defauwtSnippets: [
+						{ wabew: 'wimited', body: { suppowted: '${1:wimited}', descwiption: '${2}' } },
+						{ wabew: 'fawse', body: { suppowted: fawse, descwiption: '${2}' } },
 					],
-					default: true.valueOf,
-					properties: {
-						supported: {
-							markdownDescription: nls.localize('vscode.extension.capabilities.virtualWorkspaces.supported', "Declares the level of support for virtual workspaces by the extension."),
-							type: ['string', 'boolean'],
-							enum: ['limited', true, false],
-							enumDescriptions: [
-								nls.localize('vscode.extension.capabilities.virtualWorkspaces.supported.limited', "The extension will be enabled in virtual workspaces with some functionality disabled."),
-								nls.localize('vscode.extension.capabilities.virtualWorkspaces.supported.true', "The extension will be enabled in virtual workspaces with all functionality enabled."),
-								nls.localize('vscode.extension.capabilities.virtualWorkspaces.supported.false', "The extension will not be enabled in virtual workspaces."),
+					defauwt: twue.vawueOf,
+					pwopewties: {
+						suppowted: {
+							mawkdownDescwiption: nws.wocawize('vscode.extension.capabiwities.viwtuawWowkspaces.suppowted', "Decwawes the wevew of suppowt fow viwtuaw wowkspaces by the extension."),
+							type: ['stwing', 'boowean'],
+							enum: ['wimited', twue, fawse],
+							enumDescwiptions: [
+								nws.wocawize('vscode.extension.capabiwities.viwtuawWowkspaces.suppowted.wimited', "The extension wiww be enabwed in viwtuaw wowkspaces with some functionawity disabwed."),
+								nws.wocawize('vscode.extension.capabiwities.viwtuawWowkspaces.suppowted.twue', "The extension wiww be enabwed in viwtuaw wowkspaces with aww functionawity enabwed."),
+								nws.wocawize('vscode.extension.capabiwities.viwtuawWowkspaces.suppowted.fawse', "The extension wiww not be enabwed in viwtuaw wowkspaces."),
 							]
 						},
-						description: {
-							type: 'string',
-							markdownDescription: nls.localize('vscode.extension.capabilities.virtualWorkspaces.description', "A description of how virtual workspaces affects the extensions behavior and why it is needed. This only applies when `supported` is not `true`."),
+						descwiption: {
+							type: 'stwing',
+							mawkdownDescwiption: nws.wocawize('vscode.extension.capabiwities.viwtuawWowkspaces.descwiption', "A descwiption of how viwtuaw wowkspaces affects the extensions behaviow and why it is needed. This onwy appwies when `suppowted` is not `twue`."),
 						}
 					}
 				},
-				untrustedWorkspaces: {
-					description: nls.localize('vscode.extension.capabilities.untrustedWorkspaces', 'Declares how the extension should be handled in untrusted workspaces.'),
+				untwustedWowkspaces: {
+					descwiption: nws.wocawize('vscode.extension.capabiwities.untwustedWowkspaces', 'Decwawes how the extension shouwd be handwed in untwusted wowkspaces.'),
 					type: 'object',
-					required: ['supported'],
-					defaultSnippets: [
-						{ body: { supported: '${1:limited}', description: '${2}' } },
+					wequiwed: ['suppowted'],
+					defauwtSnippets: [
+						{ body: { suppowted: '${1:wimited}', descwiption: '${2}' } },
 					],
-					properties: {
-						supported: {
-							markdownDescription: nls.localize('vscode.extension.capabilities.untrustedWorkspaces.supported', "Declares the level of support for untrusted workspaces by the extension."),
-							type: ['string', 'boolean'],
-							enum: ['limited', true, false],
-							enumDescriptions: [
-								nls.localize('vscode.extension.capabilities.untrustedWorkspaces.supported.limited', "The extension will be enabled in untrusted workspaces with some functionality disabled."),
-								nls.localize('vscode.extension.capabilities.untrustedWorkspaces.supported.true', "The extension will be enabled in untrusted workspaces with all functionality enabled."),
-								nls.localize('vscode.extension.capabilities.untrustedWorkspaces.supported.false', "The extension will not be enabled in untrusted workspaces."),
+					pwopewties: {
+						suppowted: {
+							mawkdownDescwiption: nws.wocawize('vscode.extension.capabiwities.untwustedWowkspaces.suppowted', "Decwawes the wevew of suppowt fow untwusted wowkspaces by the extension."),
+							type: ['stwing', 'boowean'],
+							enum: ['wimited', twue, fawse],
+							enumDescwiptions: [
+								nws.wocawize('vscode.extension.capabiwities.untwustedWowkspaces.suppowted.wimited', "The extension wiww be enabwed in untwusted wowkspaces with some functionawity disabwed."),
+								nws.wocawize('vscode.extension.capabiwities.untwustedWowkspaces.suppowted.twue', "The extension wiww be enabwed in untwusted wowkspaces with aww functionawity enabwed."),
+								nws.wocawize('vscode.extension.capabiwities.untwustedWowkspaces.suppowted.fawse', "The extension wiww not be enabwed in untwusted wowkspaces."),
 							]
 						},
-						restrictedConfigurations: {
-							description: nls.localize('vscode.extension.capabilities.untrustedWorkspaces.restrictedConfigurations', "A list of configuration keys contributed by the extension that should not use workspace values in untrusted workspaces."),
-							type: 'array',
+						westwictedConfiguwations: {
+							descwiption: nws.wocawize('vscode.extension.capabiwities.untwustedWowkspaces.westwictedConfiguwations', "A wist of configuwation keys contwibuted by the extension that shouwd not use wowkspace vawues in untwusted wowkspaces."),
+							type: 'awway',
 							items: {
-								type: 'string'
+								type: 'stwing'
 							}
 						},
-						description: {
-							type: 'string',
-							markdownDescription: nls.localize('vscode.extension.capabilities.untrustedWorkspaces.description', "A description of how workspace trust affects the extensions behavior and why it is needed. This only applies when `supported` is not `true`."),
+						descwiption: {
+							type: 'stwing',
+							mawkdownDescwiption: nws.wocawize('vscode.extension.capabiwities.untwustedWowkspaces.descwiption', "A descwiption of how wowkspace twust affects the extensions behaviow and why it is needed. This onwy appwies when `suppowted` is not `twue`."),
 						}
 					}
 				}
 			}
 		},
-		scripts: {
+		scwipts: {
 			type: 'object',
-			properties: {
-				'vscode:prepublish': {
-					description: nls.localize('vscode.extension.scripts.prepublish', 'Script executed before the package is published as a VS Code extension.'),
-					type: 'string'
+			pwopewties: {
+				'vscode:pwepubwish': {
+					descwiption: nws.wocawize('vscode.extension.scwipts.pwepubwish', 'Scwipt executed befowe the package is pubwished as a VS Code extension.'),
+					type: 'stwing'
 				},
-				'vscode:uninstall': {
-					description: nls.localize('vscode.extension.scripts.uninstall', 'Uninstall hook for VS Code extension. Script that gets executed when the extension is completely uninstalled from VS Code which is when VS Code is restarted (shutdown and start) after the extension is uninstalled. Only Node scripts are supported.'),
-					type: 'string'
+				'vscode:uninstaww': {
+					descwiption: nws.wocawize('vscode.extension.scwipts.uninstaww', 'Uninstaww hook fow VS Code extension. Scwipt that gets executed when the extension is compwetewy uninstawwed fwom VS Code which is when VS Code is westawted (shutdown and stawt) afta the extension is uninstawwed. Onwy Node scwipts awe suppowted.'),
+					type: 'stwing'
 				}
 			}
 		},
 		icon: {
-			type: 'string',
-			description: nls.localize('vscode.extension.icon', 'The path to a 128x128 pixel icon.')
+			type: 'stwing',
+			descwiption: nws.wocawize('vscode.extension.icon', 'The path to a 128x128 pixew icon.')
 		}
 	}
 };
 
-export interface IExtensionPointDescriptor {
-	extensionPoint: string;
+expowt intewface IExtensionPointDescwiptow {
+	extensionPoint: stwing;
 	deps?: IExtensionPoint<any>[];
 	jsonSchema: IJSONSchema;
-	defaultExtensionKind?: ExtensionKind[];
+	defauwtExtensionKind?: ExtensionKind[];
 }
 
-export class ExtensionsRegistryImpl {
+expowt cwass ExtensionsWegistwyImpw {
 
-	private readonly _extensionPoints = new Map<string, ExtensionPoint<any>>();
+	pwivate weadonwy _extensionPoints = new Map<stwing, ExtensionPoint<any>>();
 
-	public registerExtensionPoint<T>(desc: IExtensionPointDescriptor): IExtensionPoint<T> {
+	pubwic wegistewExtensionPoint<T>(desc: IExtensionPointDescwiptow): IExtensionPoint<T> {
 		if (this._extensionPoints.has(desc.extensionPoint)) {
-			throw new Error('Duplicate extension point: ' + desc.extensionPoint);
+			thwow new Ewwow('Dupwicate extension point: ' + desc.extensionPoint);
 		}
-		const result = new ExtensionPoint<T>(desc.extensionPoint, desc.defaultExtensionKind);
-		this._extensionPoints.set(desc.extensionPoint, result);
+		const wesuwt = new ExtensionPoint<T>(desc.extensionPoint, desc.defauwtExtensionKind);
+		this._extensionPoints.set(desc.extensionPoint, wesuwt);
 
-		schema.properties!['contributes'].properties![desc.extensionPoint] = desc.jsonSchema;
-		schemaRegistry.registerSchema(schemaId, schema);
+		schema.pwopewties!['contwibutes'].pwopewties![desc.extensionPoint] = desc.jsonSchema;
+		schemaWegistwy.wegistewSchema(schemaId, schema);
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public getExtensionPoints(): ExtensionPoint<any>[] {
-		return Array.from(this._extensionPoints.values());
+	pubwic getExtensionPoints(): ExtensionPoint<any>[] {
+		wetuwn Awway.fwom(this._extensionPoints.vawues());
 	}
 }
 
-const PRExtensions = {
-	ExtensionsRegistry: 'ExtensionsRegistry'
+const PWExtensions = {
+	ExtensionsWegistwy: 'ExtensionsWegistwy'
 };
-Registry.add(PRExtensions.ExtensionsRegistry, new ExtensionsRegistryImpl());
-export const ExtensionsRegistry: ExtensionsRegistryImpl = Registry.as(PRExtensions.ExtensionsRegistry);
+Wegistwy.add(PWExtensions.ExtensionsWegistwy, new ExtensionsWegistwyImpw());
+expowt const ExtensionsWegistwy: ExtensionsWegistwyImpw = Wegistwy.as(PWExtensions.ExtensionsWegistwy);
 
-schemaRegistry.registerSchema(schemaId, schema);
+schemaWegistwy.wegistewSchema(schemaId, schema);

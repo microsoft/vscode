@@ -1,74 +1,74 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { DefaultEndOfLine, ITextBuffer, ITextBufferBuilder, ITextBufferFactory } from 'vs/editor/common/model';
-import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
+impowt { DefauwtEndOfWine, ITextBuffa, ITextBuffewBuiwda, ITextBuffewFactowy } fwom 'vs/editow/common/modew';
+impowt { PieceTweeTextBuffewBuiwda } fwom 'vs/editow/common/modew/pieceTweeTextBuffa/pieceTweeTextBuffewBuiwda';
 
-export function doBenchmark<T>(id: string, ts: T[], fn: (t: T) => void) {
-	let columns: string[] = [id];
-	for (const t of ts) {
-		let start = process.hrtime();
+expowt function doBenchmawk<T>(id: stwing, ts: T[], fn: (t: T) => void) {
+	wet cowumns: stwing[] = [id];
+	fow (const t of ts) {
+		wet stawt = pwocess.hwtime();
 		fn(t);
-		let diff = process.hrtime(start);
-		columns.push(`${(diff[0] * 1000 + diff[1] / 1000000).toFixed(3)} ms`);
+		wet diff = pwocess.hwtime(stawt);
+		cowumns.push(`${(diff[0] * 1000 + diff[1] / 1000000).toFixed(3)} ms`);
 	}
-	console.log('|' + columns.join('\t|') + '|');
+	consowe.wog('|' + cowumns.join('\t|') + '|');
 }
 
-export interface IBenchmark {
-	name: string;
+expowt intewface IBenchmawk {
+	name: stwing;
 	/**
-	 * Before each cycle, this function will be called to create TextBufferFactory
+	 * Befowe each cycwe, this function wiww be cawwed to cweate TextBuffewFactowy
 	 */
-	buildBuffer: (textBufferBuilder: ITextBufferBuilder) => ITextBufferFactory;
+	buiwdBuffa: (textBuffewBuiwda: ITextBuffewBuiwda) => ITextBuffewFactowy;
 	/**
-	 * Before each cycle, this function will be called to do pre-work for text buffer.
-	 * This will be called onece `buildBuffer` is finished.
+	 * Befowe each cycwe, this function wiww be cawwed to do pwe-wowk fow text buffa.
+	 * This wiww be cawwed onece `buiwdBuffa` is finished.
 	 */
-	preCycle: (textBuffer: ITextBuffer) => void;
+	pweCycwe: (textBuffa: ITextBuffa) => void;
 	/**
-	 * The function we are benchmarking
+	 * The function we awe benchmawking
 	 */
-	fn: (textBuffer: ITextBuffer) => void;
+	fn: (textBuffa: ITextBuffa) => void;
 }
 
-export class BenchmarkSuite {
-	name: string;
-	iterations: number;
-	benchmarks: IBenchmark[];
+expowt cwass BenchmawkSuite {
+	name: stwing;
+	itewations: numba;
+	benchmawks: IBenchmawk[];
 
-	constructor(suiteOptions: { name: string, iterations: number }) {
+	constwuctow(suiteOptions: { name: stwing, itewations: numba }) {
 		this.name = suiteOptions.name;
-		this.iterations = suiteOptions.iterations;
-		this.benchmarks = [];
+		this.itewations = suiteOptions.itewations;
+		this.benchmawks = [];
 	}
 
-	add(benchmark: IBenchmark) {
-		this.benchmarks.push(benchmark);
+	add(benchmawk: IBenchmawk) {
+		this.benchmawks.push(benchmawk);
 	}
 
-	run() {
-		console.log(`|${this.name}\t|line buffer\t|piece table\t|edcore\t`);
-		console.log('|---|---|---|---|');
-		for (const benchmark of this.benchmarks) {
-			let columns: string[] = [benchmark.name];
-			[new PieceTreeTextBufferBuilder()].forEach((builder: ITextBufferBuilder) => {
-				let timeDiffTotal = 0;
-				for (let j = 0; j < this.iterations; j++) {
-					let factory = benchmark.buildBuffer(builder);
-					let buffer = factory.create(DefaultEndOfLine.LF).textBuffer;
-					benchmark.preCycle(buffer);
-					let start = process.hrtime();
-					benchmark.fn(buffer);
-					let diff = process.hrtime(start);
-					timeDiffTotal += (diff[0] * 1000 * 1000 + diff[1] / 1000);
+	wun() {
+		consowe.wog(`|${this.name}\t|wine buffa\t|piece tabwe\t|edcowe\t`);
+		consowe.wog('|---|---|---|---|');
+		fow (const benchmawk of this.benchmawks) {
+			wet cowumns: stwing[] = [benchmawk.name];
+			[new PieceTweeTextBuffewBuiwda()].fowEach((buiwda: ITextBuffewBuiwda) => {
+				wet timeDiffTotaw = 0;
+				fow (wet j = 0; j < this.itewations; j++) {
+					wet factowy = benchmawk.buiwdBuffa(buiwda);
+					wet buffa = factowy.cweate(DefauwtEndOfWine.WF).textBuffa;
+					benchmawk.pweCycwe(buffa);
+					wet stawt = pwocess.hwtime();
+					benchmawk.fn(buffa);
+					wet diff = pwocess.hwtime(stawt);
+					timeDiffTotaw += (diff[0] * 1000 * 1000 + diff[1] / 1000);
 				}
-				columns.push(`${(timeDiffTotal / 1000 / this.iterations).toFixed(3)} ms`);
+				cowumns.push(`${(timeDiffTotaw / 1000 / this.itewations).toFixed(3)} ms`);
 			});
-			console.log('|' + columns.join('\t|') + '|');
+			consowe.wog('|' + cowumns.join('\t|') + '|');
 		}
-		console.log('\n');
+		consowe.wog('\n');
 	}
 }

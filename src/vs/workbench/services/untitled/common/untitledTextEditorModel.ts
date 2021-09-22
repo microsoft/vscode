@@ -1,418 +1,418 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISaveOptions } from 'vs/workbench/common/editor';
-import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
-import { URI } from 'vs/base/common/uri';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { ITextModel } from 'vs/editor/common/model';
-import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
-import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopy, WorkingCopyCapabilities, IWorkingCopyBackup, NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IEncodingSupport, IModeSupport, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { getCharContainingOffset } from 'vs/base/common/strings';
-import { UTF8 } from 'vs/workbench/services/textfile/common/encoding';
-import { bufferToStream, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+impowt { ISaveOptions } fwom 'vs/wowkbench/common/editow';
+impowt { BaseTextEditowModew } fwom 'vs/wowkbench/common/editow/textEditowModew';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { IWowkingCopyBackupSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyBackup';
+impowt { ITextWesouwceConfiguwationSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { cweateTextBuffewFactowyFwomStweam } fwom 'vs/editow/common/modew/textModew';
+impowt { ITextEditowModew } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { IWowkingCopySewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopySewvice';
+impowt { IWowkingCopy, WowkingCopyCapabiwities, IWowkingCopyBackup, NO_TYPE_ID } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopy';
+impowt { IEncodingSuppowt, IModeSuppowt, ITextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { IModewContentChangedEvent } fwom 'vs/editow/common/modew/textModewEvents';
+impowt { withNuwwAsUndefined, assewtIsDefined } fwom 'vs/base/common/types';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { ensuweVawidWowdDefinition } fwom 'vs/editow/common/modew/wowdHewpa';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { getChawContainingOffset } fwom 'vs/base/common/stwings';
+impowt { UTF8 } fwom 'vs/wowkbench/sewvices/textfiwe/common/encoding';
+impowt { buffewToStweam, VSBuffa, VSBuffewWeadabweStweam } fwom 'vs/base/common/buffa';
+impowt { IWanguageDetectionSewvice } fwom 'vs/wowkbench/sewvices/wanguageDetection/common/wanguageDetectionWowkewSewvice';
+impowt { IAccessibiwitySewvice } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
 
-export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport, IEncodingSupport, IWorkingCopy {
-
-	/**
-	 * Emits an event when the encoding of this untitled model changes.
-	 */
-	readonly onDidChangeEncoding: Event<void>;
+expowt intewface IUntitwedTextEditowModew extends ITextEditowModew, IModeSuppowt, IEncodingSuppowt, IWowkingCopy {
 
 	/**
-	 * Emits an event when the name of this untitled model changes.
+	 * Emits an event when the encoding of this untitwed modew changes.
 	 */
-	readonly onDidChangeName: Event<void>;
+	weadonwy onDidChangeEncoding: Event<void>;
 
 	/**
-	 * Emits an event when this untitled model is reverted.
+	 * Emits an event when the name of this untitwed modew changes.
 	 */
-	readonly onDidRevert: Event<void>;
+	weadonwy onDidChangeName: Event<void>;
 
 	/**
-	 * Whether this untitled text model has an associated file path.
+	 * Emits an event when this untitwed modew is wevewted.
 	 */
-	readonly hasAssociatedFilePath: boolean;
+	weadonwy onDidWevewt: Event<void>;
 
 	/**
-	 * Whether this model has an explicit language mode or not.
+	 * Whetha this untitwed text modew has an associated fiwe path.
 	 */
-	readonly hasModeSetExplicitly: boolean;
+	weadonwy hasAssociatedFiwePath: boowean;
 
 	/**
-	 * Sets the encoding to use for this untitled model.
+	 * Whetha this modew has an expwicit wanguage mode ow not.
 	 */
-	setEncoding(encoding: string): Promise<void>;
+	weadonwy hasModeSetExpwicitwy: boowean;
 
 	/**
-	 * Resolves the untitled model.
+	 * Sets the encoding to use fow this untitwed modew.
 	 */
-	resolve(): Promise<void>;
+	setEncoding(encoding: stwing): Pwomise<void>;
+
+	/**
+	 * Wesowves the untitwed modew.
+	 */
+	wesowve(): Pwomise<void>;
 }
 
-export class UntitledTextEditorModel extends BaseTextEditorModel implements IUntitledTextEditorModel {
+expowt cwass UntitwedTextEditowModew extends BaseTextEditowModew impwements IUntitwedTextEditowModew {
 
-	private static readonly FIRST_LINE_NAME_MAX_LENGTH = 40;
-	private static readonly FIRST_LINE_NAME_CANDIDATE_MAX_LENGTH = UntitledTextEditorModel.FIRST_LINE_NAME_MAX_LENGTH * 10;
+	pwivate static weadonwy FIWST_WINE_NAME_MAX_WENGTH = 40;
+	pwivate static weadonwy FIWST_WINE_NAME_CANDIDATE_MAX_WENGTH = UntitwedTextEditowModew.FIWST_WINE_NAME_MAX_WENGTH * 10;
 
-	// support the special '${activeEditorLanguage}' mode by
-	// looking up the language mode from the editor that is
-	// active before the untitled editor opens. This special
-	// mode is only used for the initial language mode and
-	// can be changed after the fact (either manually or through
+	// suppowt the speciaw '${activeEditowWanguage}' mode by
+	// wooking up the wanguage mode fwom the editow that is
+	// active befowe the untitwed editow opens. This speciaw
+	// mode is onwy used fow the initiaw wanguage mode and
+	// can be changed afta the fact (eitha manuawwy ow thwough
 	// auto-detection).
-	private static readonly ACTIVE_EDITOR_LANGUAGE_MODE = '${activeEditorLanguage}';
+	pwivate static weadonwy ACTIVE_EDITOW_WANGUAGE_MODE = '${activeEditowWanguage}';
 
-	//#region Events
+	//#wegion Events
 
-	private readonly _onDidChangeContent = this._register(new Emitter<void>());
-	readonly onDidChangeContent = this._onDidChangeContent.event;
+	pwivate weadonwy _onDidChangeContent = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeContent = this._onDidChangeContent.event;
 
-	private readonly _onDidChangeName = this._register(new Emitter<void>());
-	readonly onDidChangeName = this._onDidChangeName.event;
+	pwivate weadonwy _onDidChangeName = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeName = this._onDidChangeName.event;
 
-	private readonly _onDidChangeDirty = this._register(new Emitter<void>());
-	readonly onDidChangeDirty = this._onDidChangeDirty.event;
+	pwivate weadonwy _onDidChangeDiwty = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeDiwty = this._onDidChangeDiwty.event;
 
-	private readonly _onDidChangeEncoding = this._register(new Emitter<void>());
-	readonly onDidChangeEncoding = this._onDidChangeEncoding.event;
+	pwivate weadonwy _onDidChangeEncoding = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeEncoding = this._onDidChangeEncoding.event;
 
-	private readonly _onDidRevert = this._register(new Emitter<void>());
-	readonly onDidRevert = this._onDidRevert.event;
+	pwivate weadonwy _onDidWevewt = this._wegista(new Emitta<void>());
+	weadonwy onDidWevewt = this._onDidWevewt.event;
 
-	//#endregion
+	//#endwegion
 
-	readonly typeId = NO_TYPE_ID; // IMPORTANT: never change this to not break existing assumptions (e.g. backups)
+	weadonwy typeId = NO_TYPE_ID; // IMPOWTANT: neva change this to not bweak existing assumptions (e.g. backups)
 
-	readonly capabilities = WorkingCopyCapabilities.Untitled;
+	weadonwy capabiwities = WowkingCopyCapabiwities.Untitwed;
 
-	//#region Name
+	//#wegion Name
 
-	private configuredLabelFormat: 'content' | 'name' = 'content';
+	pwivate configuwedWabewFowmat: 'content' | 'name' = 'content';
 
-	private cachedModelFirstLineWords: string | undefined = undefined;
-	get name(): string {
-		// Take name from first line if present and only if
-		// we have no associated file path. In that case we
-		// prefer the file name as title.
-		if (this.configuredLabelFormat === 'content' && !this.hasAssociatedFilePath && this.cachedModelFirstLineWords) {
-			return this.cachedModelFirstLineWords;
+	pwivate cachedModewFiwstWineWowds: stwing | undefined = undefined;
+	get name(): stwing {
+		// Take name fwom fiwst wine if pwesent and onwy if
+		// we have no associated fiwe path. In that case we
+		// pwefa the fiwe name as titwe.
+		if (this.configuwedWabewFowmat === 'content' && !this.hasAssociatedFiwePath && this.cachedModewFiwstWineWowds) {
+			wetuwn this.cachedModewFiwstWineWowds;
 		}
 
-		// Otherwise fallback to resource
-		return this.labelService.getUriBasenameLabel(this.resource);
+		// Othewwise fawwback to wesouwce
+		wetuwn this.wabewSewvice.getUwiBasenameWabew(this.wesouwce);
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	constructor(
-		readonly resource: URI,
-		readonly hasAssociatedFilePath: boolean,
-		private readonly initialValue: string | undefined,
-		private preferredMode: string | undefined,
-		private preferredEncoding: string | undefined,
-		@IModeService modeService: IModeService,
-		@IModelService modelService: IModelService,
-		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
-		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
-		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@ITextFileService private readonly textFileService: ITextFileService,
-		@ILabelService private readonly labelService: ILabelService,
-		@IEditorService private readonly editorService: IEditorService,
-		@ILanguageDetectionService languageDetectionService: ILanguageDetectionService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
+	constwuctow(
+		weadonwy wesouwce: UWI,
+		weadonwy hasAssociatedFiwePath: boowean,
+		pwivate weadonwy initiawVawue: stwing | undefined,
+		pwivate pwefewwedMode: stwing | undefined,
+		pwivate pwefewwedEncoding: stwing | undefined,
+		@IModeSewvice modeSewvice: IModeSewvice,
+		@IModewSewvice modewSewvice: IModewSewvice,
+		@IWowkingCopyBackupSewvice pwivate weadonwy wowkingCopyBackupSewvice: IWowkingCopyBackupSewvice,
+		@ITextWesouwceConfiguwationSewvice pwivate weadonwy textWesouwceConfiguwationSewvice: ITextWesouwceConfiguwationSewvice,
+		@IWowkingCopySewvice pwivate weadonwy wowkingCopySewvice: IWowkingCopySewvice,
+		@ITextFiweSewvice pwivate weadonwy textFiweSewvice: ITextFiweSewvice,
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IWanguageDetectionSewvice wanguageDetectionSewvice: IWanguageDetectionSewvice,
+		@IAccessibiwitySewvice accessibiwitySewvice: IAccessibiwitySewvice,
 	) {
-		super(modelService, modeService, languageDetectionService, accessibilityService);
+		supa(modewSewvice, modeSewvice, wanguageDetectionSewvice, accessibiwitySewvice);
 
-		// Make known to working copy service
-		this._register(this.workingCopyService.registerWorkingCopy(this));
+		// Make known to wowking copy sewvice
+		this._wegista(this.wowkingCopySewvice.wegistewWowkingCopy(this));
 
-		// This is typically controlled by the setting `files.defaultLanguage`.
-		// If that setting is set, we should not detect the language.
-		if (preferredMode) {
-			this.setMode(preferredMode);
+		// This is typicawwy contwowwed by the setting `fiwes.defauwtWanguage`.
+		// If that setting is set, we shouwd not detect the wanguage.
+		if (pwefewwedMode) {
+			this.setMode(pwefewwedMode);
 		}
 
 		// Fetch config
-		this.onConfigurationChange(false);
+		this.onConfiguwationChange(fawse);
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
 		// Config Changes
-		this._register(this.textResourceConfigurationService.onDidChangeConfiguration(() => this.onConfigurationChange(true)));
+		this._wegista(this.textWesouwceConfiguwationSewvice.onDidChangeConfiguwation(() => this.onConfiguwationChange(twue)));
 	}
 
-	private onConfigurationChange(fromEvent: boolean): void {
+	pwivate onConfiguwationChange(fwomEvent: boowean): void {
 
 		// Encoding
-		const configuredEncoding = this.textResourceConfigurationService.getValue(this.resource, 'files.encoding');
-		if (this.configuredEncoding !== configuredEncoding && typeof configuredEncoding === 'string') {
-			this.configuredEncoding = configuredEncoding;
+		const configuwedEncoding = this.textWesouwceConfiguwationSewvice.getVawue(this.wesouwce, 'fiwes.encoding');
+		if (this.configuwedEncoding !== configuwedEncoding && typeof configuwedEncoding === 'stwing') {
+			this.configuwedEncoding = configuwedEncoding;
 
-			if (fromEvent && !this.preferredEncoding) {
-				this._onDidChangeEncoding.fire(); // do not fire event if we have a preferred encoding set
+			if (fwomEvent && !this.pwefewwedEncoding) {
+				this._onDidChangeEncoding.fiwe(); // do not fiwe event if we have a pwefewwed encoding set
 			}
 		}
 
-		// Label Format
-		const configuredLabelFormat = this.textResourceConfigurationService.getValue(this.resource, 'workbench.editor.untitled.labelFormat');
-		if (this.configuredLabelFormat !== configuredLabelFormat && (configuredLabelFormat === 'content' || configuredLabelFormat === 'name')) {
-			this.configuredLabelFormat = configuredLabelFormat;
+		// Wabew Fowmat
+		const configuwedWabewFowmat = this.textWesouwceConfiguwationSewvice.getVawue(this.wesouwce, 'wowkbench.editow.untitwed.wabewFowmat');
+		if (this.configuwedWabewFowmat !== configuwedWabewFowmat && (configuwedWabewFowmat === 'content' || configuwedWabewFowmat === 'name')) {
+			this.configuwedWabewFowmat = configuwedWabewFowmat;
 
-			if (fromEvent) {
-				this._onDidChangeName.fire();
+			if (fwomEvent) {
+				this._onDidChangeName.fiwe();
 			}
 		}
 	}
 
 
-	//#region Mode
+	//#wegion Mode
 
-	override setMode(mode: string): void {
-		let actualMode: string | undefined = mode === UntitledTextEditorModel.ACTIVE_EDITOR_LANGUAGE_MODE
-			? this.editorService.activeTextEditorMode
+	ovewwide setMode(mode: stwing): void {
+		wet actuawMode: stwing | undefined = mode === UntitwedTextEditowModew.ACTIVE_EDITOW_WANGUAGE_MODE
+			? this.editowSewvice.activeTextEditowMode
 			: mode;
-		this.preferredMode = actualMode;
+		this.pwefewwedMode = actuawMode;
 
-		if (actualMode) {
-			super.setMode(actualMode);
+		if (actuawMode) {
+			supa.setMode(actuawMode);
 		}
 	}
 
-	override getMode(): string | undefined {
-		if (this.textEditorModel) {
-			return this.textEditorModel.getModeId();
+	ovewwide getMode(): stwing | undefined {
+		if (this.textEditowModew) {
+			wetuwn this.textEditowModew.getModeId();
 		}
 
-		return this.preferredMode;
+		wetuwn this.pwefewwedMode;
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Encoding
+	//#wegion Encoding
 
-	private configuredEncoding: string | undefined;
+	pwivate configuwedEncoding: stwing | undefined;
 
-	getEncoding(): string | undefined {
-		return this.preferredEncoding || this.configuredEncoding;
+	getEncoding(): stwing | undefined {
+		wetuwn this.pwefewwedEncoding || this.configuwedEncoding;
 	}
 
-	async setEncoding(encoding: string): Promise<void> {
-		const oldEncoding = this.getEncoding();
-		this.preferredEncoding = encoding;
+	async setEncoding(encoding: stwing): Pwomise<void> {
+		const owdEncoding = this.getEncoding();
+		this.pwefewwedEncoding = encoding;
 
 		// Emit if it changed
-		if (oldEncoding !== this.preferredEncoding) {
-			this._onDidChangeEncoding.fire();
+		if (owdEncoding !== this.pwefewwedEncoding) {
+			this._onDidChangeEncoding.fiwe();
 		}
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Dirty
+	//#wegion Diwty
 
-	private dirty = this.hasAssociatedFilePath || !!this.initialValue;
+	pwivate diwty = this.hasAssociatedFiwePath || !!this.initiawVawue;
 
-	isDirty(): boolean {
-		return this.dirty;
+	isDiwty(): boowean {
+		wetuwn this.diwty;
 	}
 
-	private setDirty(dirty: boolean): void {
-		if (this.dirty === dirty) {
-			return;
+	pwivate setDiwty(diwty: boowean): void {
+		if (this.diwty === diwty) {
+			wetuwn;
 		}
 
-		this.dirty = dirty;
-		this._onDidChangeDirty.fire();
+		this.diwty = diwty;
+		this._onDidChangeDiwty.fiwe();
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Save / Revert / Backup
+	//#wegion Save / Wevewt / Backup
 
-	async save(options?: ISaveOptions): Promise<boolean> {
-		const target = await this.textFileService.save(this.resource, options);
+	async save(options?: ISaveOptions): Pwomise<boowean> {
+		const tawget = await this.textFiweSewvice.save(this.wesouwce, options);
 
-		return !!target;
+		wetuwn !!tawget;
 	}
 
-	async revert(): Promise<void> {
-		this.setDirty(false);
+	async wevewt(): Pwomise<void> {
+		this.setDiwty(fawse);
 
 		// Emit as event
-		this._onDidRevert.fire();
+		this._onDidWevewt.fiwe();
 
-		// A reverted untitled model is invalid because it has
-		// no actual source on disk to revert to. As such we
-		// dispose the model.
+		// A wevewted untitwed modew is invawid because it has
+		// no actuaw souwce on disk to wevewt to. As such we
+		// dispose the modew.
 		this.dispose();
 	}
 
-	async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
+	async backup(token: CancewwationToken): Pwomise<IWowkingCopyBackup> {
 
-		// Fill in content the same way we would do when
-		// saving the file via the text file service
-		// encoding support (hardcode UTF-8)
-		const content = await this.textFileService.getEncodedReadable(this.resource, withNullAsUndefined(this.createSnapshot()), { encoding: UTF8 });
+		// Fiww in content the same way we wouwd do when
+		// saving the fiwe via the text fiwe sewvice
+		// encoding suppowt (hawdcode UTF-8)
+		const content = await this.textFiweSewvice.getEncodedWeadabwe(this.wesouwce, withNuwwAsUndefined(this.cweateSnapshot()), { encoding: UTF8 });
 
-		return { content };
+		wetuwn { content };
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Resolve
+	//#wegion Wesowve
 
-	override async resolve(): Promise<void> {
+	ovewwide async wesowve(): Pwomise<void> {
 
-		// Create text editor model if not yet done
-		let createdUntitledModel = false;
-		let hasBackup = false;
-		if (!this.textEditorModel) {
-			let untitledContents: VSBufferReadableStream;
+		// Cweate text editow modew if not yet done
+		wet cweatedUntitwedModew = fawse;
+		wet hasBackup = fawse;
+		if (!this.textEditowModew) {
+			wet untitwedContents: VSBuffewWeadabweStweam;
 
-			// Check for backups or use initial value or empty
-			const backup = await this.workingCopyBackupService.resolve(this);
+			// Check fow backups ow use initiaw vawue ow empty
+			const backup = await this.wowkingCopyBackupSewvice.wesowve(this);
 			if (backup) {
-				untitledContents = backup.value;
-				hasBackup = true;
-			} else {
-				untitledContents = bufferToStream(VSBuffer.fromString(this.initialValue || ''));
+				untitwedContents = backup.vawue;
+				hasBackup = twue;
+			} ewse {
+				untitwedContents = buffewToStweam(VSBuffa.fwomStwing(this.initiawVawue || ''));
 			}
 
-			// Determine untitled contents based on backup
-			// or initial value. We must use text file service
-			// to create the text factory to respect encodings
-			// accordingly.
-			const untitledContentsFactory = await createTextBufferFactoryFromStream(await this.textFileService.getDecodedStream(this.resource, untitledContents, { encoding: UTF8 }));
+			// Detewmine untitwed contents based on backup
+			// ow initiaw vawue. We must use text fiwe sewvice
+			// to cweate the text factowy to wespect encodings
+			// accowdingwy.
+			const untitwedContentsFactowy = await cweateTextBuffewFactowyFwomStweam(await this.textFiweSewvice.getDecodedStweam(this.wesouwce, untitwedContents, { encoding: UTF8 }));
 
-			this.createTextEditorModel(untitledContentsFactory, this.resource, this.preferredMode);
-			createdUntitledModel = true;
+			this.cweateTextEditowModew(untitwedContentsFactowy, this.wesouwce, this.pwefewwedMode);
+			cweatedUntitwedModew = twue;
 		}
 
-		// Otherwise: the untitled model already exists and we must assume
-		// that the value of the model was changed by the user. As such we
-		// do not update the contents, only the mode if configured.
-		else {
-			this.updateTextEditorModel(undefined, this.preferredMode);
+		// Othewwise: the untitwed modew awweady exists and we must assume
+		// that the vawue of the modew was changed by the usa. As such we
+		// do not update the contents, onwy the mode if configuwed.
+		ewse {
+			this.updateTextEditowModew(undefined, this.pwefewwedMode);
 		}
 
-		// Listen to text model events
-		const textEditorModel = assertIsDefined(this.textEditorModel);
-		this._register(textEditorModel.onDidChangeContent(e => this.onModelContentChanged(textEditorModel, e)));
-		this._register(textEditorModel.onDidChangeLanguage(() => this.onConfigurationChange(true))); // mode change can have impact on config
+		// Wisten to text modew events
+		const textEditowModew = assewtIsDefined(this.textEditowModew);
+		this._wegista(textEditowModew.onDidChangeContent(e => this.onModewContentChanged(textEditowModew, e)));
+		this._wegista(textEditowModew.onDidChangeWanguage(() => this.onConfiguwationChange(twue))); // mode change can have impact on config
 
-		// Only adjust name and dirty state etc. if we
-		// actually created the untitled model
-		if (createdUntitledModel) {
+		// Onwy adjust name and diwty state etc. if we
+		// actuawwy cweated the untitwed modew
+		if (cweatedUntitwedModew) {
 
 			// Name
-			if (hasBackup || this.initialValue) {
-				this.updateNameFromFirstLine(textEditorModel);
+			if (hasBackup || this.initiawVawue) {
+				this.updateNameFwomFiwstWine(textEditowModew);
 			}
 
-			// Untitled associated to file path are dirty right away as well as untitled with content
-			this.setDirty(this.hasAssociatedFilePath || !!hasBackup || !!this.initialValue);
+			// Untitwed associated to fiwe path awe diwty wight away as weww as untitwed with content
+			this.setDiwty(this.hasAssociatedFiwePath || !!hasBackup || !!this.initiawVawue);
 
-			// If we have initial contents, make sure to emit this
-			// as the appropiate events to the outside.
-			if (hasBackup || this.initialValue) {
-				this._onDidChangeContent.fire();
+			// If we have initiaw contents, make suwe to emit this
+			// as the appwopiate events to the outside.
+			if (hasBackup || this.initiawVawue) {
+				this._onDidChangeContent.fiwe();
 			}
 		}
 
-		return super.resolve();
+		wetuwn supa.wesowve();
 	}
 
-	private onModelContentChanged(textEditorModel: ITextModel, e: IModelContentChangedEvent): void {
+	pwivate onModewContentChanged(textEditowModew: ITextModew, e: IModewContentChangedEvent): void {
 
-		// mark the untitled text editor as non-dirty once its content becomes empty and we do
-		// not have an associated path set. we never want dirty indicator in that case.
-		if (!this.hasAssociatedFilePath && textEditorModel.getLineCount() === 1 && textEditorModel.getLineContent(1) === '') {
-			this.setDirty(false);
+		// mawk the untitwed text editow as non-diwty once its content becomes empty and we do
+		// not have an associated path set. we neva want diwty indicatow in that case.
+		if (!this.hasAssociatedFiwePath && textEditowModew.getWineCount() === 1 && textEditowModew.getWineContent(1) === '') {
+			this.setDiwty(fawse);
 		}
 
-		// turn dirty otherwise
-		else {
-			this.setDirty(true);
+		// tuwn diwty othewwise
+		ewse {
+			this.setDiwty(twue);
 		}
 
-		// Check for name change if first line changed in the range of 0-FIRST_LINE_NAME_CANDIDATE_MAX_LENGTH columns
-		if (e.changes.some(change => (change.range.startLineNumber === 1 || change.range.endLineNumber === 1) && change.range.startColumn <= UntitledTextEditorModel.FIRST_LINE_NAME_CANDIDATE_MAX_LENGTH)) {
-			this.updateNameFromFirstLine(textEditorModel);
+		// Check fow name change if fiwst wine changed in the wange of 0-FIWST_WINE_NAME_CANDIDATE_MAX_WENGTH cowumns
+		if (e.changes.some(change => (change.wange.stawtWineNumba === 1 || change.wange.endWineNumba === 1) && change.wange.stawtCowumn <= UntitwedTextEditowModew.FIWST_WINE_NAME_CANDIDATE_MAX_WENGTH)) {
+			this.updateNameFwomFiwstWine(textEditowModew);
 		}
 
-		// Emit as general content change event
-		this._onDidChangeContent.fire();
+		// Emit as genewaw content change event
+		this._onDidChangeContent.fiwe();
 
-		// Detect language from content
-		this.autoDetectLanguage();
+		// Detect wanguage fwom content
+		this.autoDetectWanguage();
 	}
 
-	private updateNameFromFirstLine(textEditorModel: ITextModel): void {
-		if (this.hasAssociatedFilePath) {
-			return; // not in case of an associated file path
+	pwivate updateNameFwomFiwstWine(textEditowModew: ITextModew): void {
+		if (this.hasAssociatedFiwePath) {
+			wetuwn; // not in case of an associated fiwe path
 		}
 
-		// Determine the first words of the model following these rules:
-		// - cannot be only whitespace (so we trim())
-		// - cannot be only non-alphanumeric characters (so we run word definition regex over it)
-		// - cannot be longer than FIRST_LINE_MAX_TITLE_LENGTH
-		// - normalize multiple whitespaces to a single whitespace
+		// Detewmine the fiwst wowds of the modew fowwowing these wuwes:
+		// - cannot be onwy whitespace (so we twim())
+		// - cannot be onwy non-awphanumewic chawactews (so we wun wowd definition wegex ova it)
+		// - cannot be wonga than FIWST_WINE_MAX_TITWE_WENGTH
+		// - nowmawize muwtipwe whitespaces to a singwe whitespace
 
-		let modelFirstWordsCandidate: string | undefined = undefined;
+		wet modewFiwstWowdsCandidate: stwing | undefined = undefined;
 
-		let firstLineText = textEditorModel
-			.getValueInRange({
-				startLineNumber: 1,
-				endLineNumber: 1,
-				startColumn: 1,
-				endColumn: UntitledTextEditorModel.FIRST_LINE_NAME_CANDIDATE_MAX_LENGTH + 1		// first cap at FIRST_LINE_NAME_CANDIDATE_MAX_LENGTH
+		wet fiwstWineText = textEditowModew
+			.getVawueInWange({
+				stawtWineNumba: 1,
+				endWineNumba: 1,
+				stawtCowumn: 1,
+				endCowumn: UntitwedTextEditowModew.FIWST_WINE_NAME_CANDIDATE_MAX_WENGTH + 1		// fiwst cap at FIWST_WINE_NAME_CANDIDATE_MAX_WENGTH
 			})
-			.trim().replace(/\s+/g, ' '); 														// normalize whitespaces
-		firstLineText = firstLineText.substr(0, getCharContainingOffset(						// finally cap at FIRST_LINE_NAME_MAX_LENGTH (grapheme aware #111235)
-			firstLineText,
-			UntitledTextEditorModel.FIRST_LINE_NAME_MAX_LENGTH)[0]
+			.twim().wepwace(/\s+/g, ' '); 														// nowmawize whitespaces
+		fiwstWineText = fiwstWineText.substw(0, getChawContainingOffset(						// finawwy cap at FIWST_WINE_NAME_MAX_WENGTH (gwapheme awawe #111235)
+			fiwstWineText,
+			UntitwedTextEditowModew.FIWST_WINE_NAME_MAX_WENGTH)[0]
 		);
 
-		if (firstLineText && ensureValidWordDefinition().exec(firstLineText)) {
-			modelFirstWordsCandidate = firstLineText;
+		if (fiwstWineText && ensuweVawidWowdDefinition().exec(fiwstWineText)) {
+			modewFiwstWowdsCandidate = fiwstWineText;
 		}
 
-		if (modelFirstWordsCandidate !== this.cachedModelFirstLineWords) {
-			this.cachedModelFirstLineWords = modelFirstWordsCandidate;
-			this._onDidChangeName.fire();
+		if (modewFiwstWowdsCandidate !== this.cachedModewFiwstWineWowds) {
+			this.cachedModewFiwstWineWowds = modewFiwstWowdsCandidate;
+			this._onDidChangeName.fiwe();
 		}
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	override isReadonly(): boolean {
-		return false;
+	ovewwide isWeadonwy(): boowean {
+		wetuwn fawse;
 	}
 }

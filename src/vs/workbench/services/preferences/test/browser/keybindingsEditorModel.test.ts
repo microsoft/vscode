@@ -1,719 +1,719 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as uuid from 'vs/base/common/uuid';
-import { OS, OperatingSystem } from 'vs/base/common/platform';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Action } from 'vs/base/common/actions';
-import { KeyCode, SimpleKeybinding, ChordKeybinding } from 'vs/base/common/keyCodes';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingsEditorModel } from 'vs/workbench/services/preferences/browser/keybindingsEditorModel';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
+impowt * as assewt fwom 'assewt';
+impowt * as uuid fwom 'vs/base/common/uuid';
+impowt { OS, OpewatingSystem } fwom 'vs/base/common/pwatfowm';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { KeyCode, SimpweKeybinding, ChowdKeybinding } fwom 'vs/base/common/keyCodes';
+impowt { SyncActionDescwiptow } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IWowkbenchActionWegistwy, Extensions as ActionExtensions } fwom 'vs/wowkbench/common/actions';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { KeybindingsEditowModew } fwom 'vs/wowkbench/sewvices/pwefewences/bwowsa/keybindingsEditowModew';
+impowt { WesowvedKeybindingItem } fwom 'vs/pwatfowm/keybinding/common/wesowvedKeybindingItem';
+impowt { USWayoutWesowvedKeybinding } fwom 'vs/pwatfowm/keybinding/common/usWayoutWesowvedKeybinding';
 
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IKeybindingItemEntry } from 'vs/workbench/services/preferences/common/preferences';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { IKeybindingItemEntwy } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewences';
 
-interface Modifiers {
-	metaKey?: boolean;
-	ctrlKey?: boolean;
-	altKey?: boolean;
-	shiftKey?: boolean;
+intewface Modifiews {
+	metaKey?: boowean;
+	ctwwKey?: boowean;
+	awtKey?: boowean;
+	shiftKey?: boowean;
 }
 
-class AnAction extends Action {
-	constructor(id: string) {
-		super(id);
+cwass AnAction extends Action {
+	constwuctow(id: stwing) {
+		supa(id);
 	}
 }
 
-suite('KeybindingsEditorModel', () => {
+suite('KeybindingsEditowModew', () => {
 
-	let instantiationService: TestInstantiationService;
-	let testObject: KeybindingsEditorModel;
+	wet instantiationSewvice: TestInstantiationSewvice;
+	wet testObject: KeybindingsEditowModew;
 
 	setup(() => {
-		instantiationService = new TestInstantiationService();
+		instantiationSewvice = new TestInstantiationSewvice();
 
-		instantiationService.stub(IKeybindingService, {});
-		instantiationService.stub(IExtensionService, {}, 'whenInstalledExtensionsRegistered', () => Promise.resolve(null));
+		instantiationSewvice.stub(IKeybindingSewvice, {});
+		instantiationSewvice.stub(IExtensionSewvice, {}, 'whenInstawwedExtensionsWegistewed', () => Pwomise.wesowve(nuww));
 
-		testObject = instantiationService.createInstance(KeybindingsEditorModel, OS);
+		testObject = instantiationSewvice.cweateInstance(KeybindingsEditowModew, OS);
 
-		CommandsRegistry.registerCommand('command_without_keybinding', () => { });
+		CommandsWegistwy.wegistewCommand('command_without_keybinding', () => { });
 	});
 
-	test('fetch returns default keybindings', async () => {
-		const expected = prepareKeybindingService(
-			aResolvedKeybindingItem({ command: 'a' + uuid.generateUuid(), firstPart: { keyCode: KeyCode.Escape } }),
-			aResolvedKeybindingItem({ command: 'b' + uuid.generateUuid(), firstPart: { keyCode: KeyCode.Escape }, chordPart: { keyCode: KeyCode.Escape } })
+	test('fetch wetuwns defauwt keybindings', async () => {
+		const expected = pwepaweKeybindingSewvice(
+			aWesowvedKeybindingItem({ command: 'a' + uuid.genewateUuid(), fiwstPawt: { keyCode: KeyCode.Escape } }),
+			aWesowvedKeybindingItem({ command: 'b' + uuid.genewateUuid(), fiwstPawt: { keyCode: KeyCode.Escape }, chowdPawt: { keyCode: KeyCode.Escape } })
 		);
 
-		await testObject.resolve(new Map<string, string>());
-		const actuals = asResolvedKeybindingItems(testObject.fetch(''));
-		assertKeybindingItems(actuals, expected);
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaws = asWesowvedKeybindingItems(testObject.fetch(''));
+		assewtKeybindingItems(actuaws, expected);
 	});
 
-	test('fetch returns default keybindings at the top', async () => {
-		const expected = prepareKeybindingService(
-			aResolvedKeybindingItem({ command: 'a' + uuid.generateUuid(), firstPart: { keyCode: KeyCode.Escape } }),
-			aResolvedKeybindingItem({ command: 'b' + uuid.generateUuid(), firstPart: { keyCode: KeyCode.Escape }, chordPart: { keyCode: KeyCode.Escape } })
+	test('fetch wetuwns defauwt keybindings at the top', async () => {
+		const expected = pwepaweKeybindingSewvice(
+			aWesowvedKeybindingItem({ command: 'a' + uuid.genewateUuid(), fiwstPawt: { keyCode: KeyCode.Escape } }),
+			aWesowvedKeybindingItem({ command: 'b' + uuid.genewateUuid(), fiwstPawt: { keyCode: KeyCode.Escape }, chowdPawt: { keyCode: KeyCode.Escape } })
 		);
 
-		await testObject.resolve(new Map<string, string>());
-		const actuals = asResolvedKeybindingItems(testObject.fetch('').slice(0, 2), true);
-		assertKeybindingItems(actuals, expected);
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaws = asWesowvedKeybindingItems(testObject.fetch('').swice(0, 2), twue);
+		assewtKeybindingItems(actuaws, expected);
 	});
 
-	test('fetch returns default keybindings sorted by command id', async () => {
-		const keybindings = prepareKeybindingService(
-			aResolvedKeybindingItem({ command: 'b' + uuid.generateUuid(), firstPart: { keyCode: KeyCode.Escape } }),
-			aResolvedKeybindingItem({ command: 'c' + uuid.generateUuid(), firstPart: { keyCode: KeyCode.Escape }, chordPart: { keyCode: KeyCode.Escape } }),
-			aResolvedKeybindingItem({ command: 'a' + uuid.generateUuid(), firstPart: { keyCode: KeyCode.Backspace } })
+	test('fetch wetuwns defauwt keybindings sowted by command id', async () => {
+		const keybindings = pwepaweKeybindingSewvice(
+			aWesowvedKeybindingItem({ command: 'b' + uuid.genewateUuid(), fiwstPawt: { keyCode: KeyCode.Escape } }),
+			aWesowvedKeybindingItem({ command: 'c' + uuid.genewateUuid(), fiwstPawt: { keyCode: KeyCode.Escape }, chowdPawt: { keyCode: KeyCode.Escape } }),
+			aWesowvedKeybindingItem({ command: 'a' + uuid.genewateUuid(), fiwstPawt: { keyCode: KeyCode.Backspace } })
 		);
 		const expected = [keybindings[2], keybindings[0], keybindings[1]];
 
-		await testObject.resolve(new Map<string, string>());
-		const actuals = asResolvedKeybindingItems(testObject.fetch(''));
-		assertKeybindingItems(actuals, expected);
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaws = asWesowvedKeybindingItems(testObject.fetch(''));
+		assewtKeybindingItems(actuaws, expected);
 	});
 
-	test('fetch returns user keybinding first if default and user has same id', async () => {
-		const sameId = 'b' + uuid.generateUuid();
-		const keybindings = prepareKeybindingService(
-			aResolvedKeybindingItem({ command: sameId, firstPart: { keyCode: KeyCode.Escape } }),
-			aResolvedKeybindingItem({ command: sameId, firstPart: { keyCode: KeyCode.Escape }, chordPart: { keyCode: KeyCode.Escape }, isDefault: false })
+	test('fetch wetuwns usa keybinding fiwst if defauwt and usa has same id', async () => {
+		const sameId = 'b' + uuid.genewateUuid();
+		const keybindings = pwepaweKeybindingSewvice(
+			aWesowvedKeybindingItem({ command: sameId, fiwstPawt: { keyCode: KeyCode.Escape } }),
+			aWesowvedKeybindingItem({ command: sameId, fiwstPawt: { keyCode: KeyCode.Escape }, chowdPawt: { keyCode: KeyCode.Escape }, isDefauwt: fawse })
 		);
 		const expected = [keybindings[1], keybindings[0]];
 
-		await testObject.resolve(new Map<string, string>());
-		const actuals = asResolvedKeybindingItems(testObject.fetch(''));
-		assertKeybindingItems(actuals, expected);
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaws = asWesowvedKeybindingItems(testObject.fetch(''));
+		assewtKeybindingItems(actuaws, expected);
 	});
 
-	test('fetch returns keybinding with titles first', async () => {
-		const keybindings = prepareKeybindingService(
-			aResolvedKeybindingItem({ command: 'a' + uuid.generateUuid(), firstPart: { keyCode: KeyCode.Escape } }),
-			aResolvedKeybindingItem({ command: 'b' + uuid.generateUuid(), firstPart: { keyCode: KeyCode.Escape }, chordPart: { keyCode: KeyCode.Escape } }),
-			aResolvedKeybindingItem({ command: 'c' + uuid.generateUuid(), firstPart: { keyCode: KeyCode.Escape }, chordPart: { keyCode: KeyCode.Escape } }),
-			aResolvedKeybindingItem({ command: 'd' + uuid.generateUuid(), firstPart: { keyCode: KeyCode.Escape }, chordPart: { keyCode: KeyCode.Escape } })
+	test('fetch wetuwns keybinding with titwes fiwst', async () => {
+		const keybindings = pwepaweKeybindingSewvice(
+			aWesowvedKeybindingItem({ command: 'a' + uuid.genewateUuid(), fiwstPawt: { keyCode: KeyCode.Escape } }),
+			aWesowvedKeybindingItem({ command: 'b' + uuid.genewateUuid(), fiwstPawt: { keyCode: KeyCode.Escape }, chowdPawt: { keyCode: KeyCode.Escape } }),
+			aWesowvedKeybindingItem({ command: 'c' + uuid.genewateUuid(), fiwstPawt: { keyCode: KeyCode.Escape }, chowdPawt: { keyCode: KeyCode.Escape } }),
+			aWesowvedKeybindingItem({ command: 'd' + uuid.genewateUuid(), fiwstPawt: { keyCode: KeyCode.Escape }, chowdPawt: { keyCode: KeyCode.Escape } })
 		);
 
-		registerCommandWithTitle(keybindings[1].command!, 'B Title');
-		registerCommandWithTitle(keybindings[3].command!, 'A Title');
+		wegistewCommandWithTitwe(keybindings[1].command!, 'B Titwe');
+		wegistewCommandWithTitwe(keybindings[3].command!, 'A Titwe');
 
 		const expected = [keybindings[3], keybindings[1], keybindings[0], keybindings[2]];
-		instantiationService.stub(IKeybindingService, 'getKeybindings', () => keybindings);
-		instantiationService.stub(IKeybindingService, 'getDefaultKeybindings', () => keybindings);
+		instantiationSewvice.stub(IKeybindingSewvice, 'getKeybindings', () => keybindings);
+		instantiationSewvice.stub(IKeybindingSewvice, 'getDefauwtKeybindings', () => keybindings);
 
-		await testObject.resolve(new Map<string, string>());
-		const actuals = asResolvedKeybindingItems(testObject.fetch(''));
-		assertKeybindingItems(actuals, expected);
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaws = asWesowvedKeybindingItems(testObject.fetch(''));
+		assewtKeybindingItems(actuaws, expected);
 	});
 
-	test('fetch returns keybinding with user first if title and id matches', async () => {
-		const sameId = 'b' + uuid.generateUuid();
-		const keybindings = prepareKeybindingService(
-			aResolvedKeybindingItem({ command: 'a' + uuid.generateUuid(), firstPart: { keyCode: KeyCode.Escape } }),
-			aResolvedKeybindingItem({ command: sameId, firstPart: { keyCode: KeyCode.Escape }, chordPart: { keyCode: KeyCode.Escape } }),
-			aResolvedKeybindingItem({ command: 'c' + uuid.generateUuid(), firstPart: { keyCode: KeyCode.Escape }, chordPart: { keyCode: KeyCode.Escape } }),
-			aResolvedKeybindingItem({ command: sameId, firstPart: { keyCode: KeyCode.Escape }, isDefault: false })
+	test('fetch wetuwns keybinding with usa fiwst if titwe and id matches', async () => {
+		const sameId = 'b' + uuid.genewateUuid();
+		const keybindings = pwepaweKeybindingSewvice(
+			aWesowvedKeybindingItem({ command: 'a' + uuid.genewateUuid(), fiwstPawt: { keyCode: KeyCode.Escape } }),
+			aWesowvedKeybindingItem({ command: sameId, fiwstPawt: { keyCode: KeyCode.Escape }, chowdPawt: { keyCode: KeyCode.Escape } }),
+			aWesowvedKeybindingItem({ command: 'c' + uuid.genewateUuid(), fiwstPawt: { keyCode: KeyCode.Escape }, chowdPawt: { keyCode: KeyCode.Escape } }),
+			aWesowvedKeybindingItem({ command: sameId, fiwstPawt: { keyCode: KeyCode.Escape }, isDefauwt: fawse })
 		);
 
-		registerCommandWithTitle(keybindings[1].command!, 'Same Title');
-		registerCommandWithTitle(keybindings[3].command!, 'Same Title');
+		wegistewCommandWithTitwe(keybindings[1].command!, 'Same Titwe');
+		wegistewCommandWithTitwe(keybindings[3].command!, 'Same Titwe');
 		const expected = [keybindings[3], keybindings[1], keybindings[0], keybindings[2]];
 
-		await testObject.resolve(new Map<string, string>());
-		const actuals = asResolvedKeybindingItems(testObject.fetch(''));
-		assertKeybindingItems(actuals, expected);
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaws = asWesowvedKeybindingItems(testObject.fetch(''));
+		assewtKeybindingItems(actuaws, expected);
 	});
 
-	test('fetch returns default keybindings sorted by precedence', async () => {
-		const expected = prepareKeybindingService(
-			aResolvedKeybindingItem({ command: 'b' + uuid.generateUuid(), firstPart: { keyCode: KeyCode.Escape } }),
-			aResolvedKeybindingItem({ command: 'c' + uuid.generateUuid(), firstPart: { keyCode: KeyCode.Escape }, chordPart: { keyCode: KeyCode.Escape } }),
-			aResolvedKeybindingItem({ command: 'a' + uuid.generateUuid(), firstPart: { keyCode: KeyCode.Backspace } })
+	test('fetch wetuwns defauwt keybindings sowted by pwecedence', async () => {
+		const expected = pwepaweKeybindingSewvice(
+			aWesowvedKeybindingItem({ command: 'b' + uuid.genewateUuid(), fiwstPawt: { keyCode: KeyCode.Escape } }),
+			aWesowvedKeybindingItem({ command: 'c' + uuid.genewateUuid(), fiwstPawt: { keyCode: KeyCode.Escape }, chowdPawt: { keyCode: KeyCode.Escape } }),
+			aWesowvedKeybindingItem({ command: 'a' + uuid.genewateUuid(), fiwstPawt: { keyCode: KeyCode.Backspace } })
 		);
 
-		await testObject.resolve(new Map<string, string>());
-		const actuals = asResolvedKeybindingItems(testObject.fetch('', true));
-		assertKeybindingItems(actuals, expected);
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaws = asWesowvedKeybindingItems(testObject.fetch('', twue));
+		assewtKeybindingItems(actuaws, expected);
 	});
 
-	test('convert keybinding without title to entry', async () => {
-		const expected = aResolvedKeybindingItem({ command: 'a' + uuid.generateUuid(), firstPart: { keyCode: KeyCode.Escape }, when: 'context1 && context2' });
-		prepareKeybindingService(expected);
+	test('convewt keybinding without titwe to entwy', async () => {
+		const expected = aWesowvedKeybindingItem({ command: 'a' + uuid.genewateUuid(), fiwstPawt: { keyCode: KeyCode.Escape }, when: 'context1 && context2' });
+		pwepaweKeybindingSewvice(expected);
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('')[0];
-		assert.strictEqual(actual.keybindingItem.command, expected.command);
-		assert.strictEqual(actual.keybindingItem.commandLabel, '');
-		assert.strictEqual(actual.keybindingItem.commandDefaultLabel, null);
-		assert.strictEqual(actual.keybindingItem.keybinding.getAriaLabel(), expected.resolvedKeybinding!.getAriaLabel());
-		assert.strictEqual(actual.keybindingItem.when, expected.when!.serialize());
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('')[0];
+		assewt.stwictEquaw(actuaw.keybindingItem.command, expected.command);
+		assewt.stwictEquaw(actuaw.keybindingItem.commandWabew, '');
+		assewt.stwictEquaw(actuaw.keybindingItem.commandDefauwtWabew, nuww);
+		assewt.stwictEquaw(actuaw.keybindingItem.keybinding.getAwiaWabew(), expected.wesowvedKeybinding!.getAwiaWabew());
+		assewt.stwictEquaw(actuaw.keybindingItem.when, expected.when!.sewiawize());
 	});
 
-	test('convert keybinding with title to entry', async () => {
-		const expected = aResolvedKeybindingItem({ command: 'a' + uuid.generateUuid(), firstPart: { keyCode: KeyCode.Escape }, when: 'context1 && context2' });
-		prepareKeybindingService(expected);
-		registerCommandWithTitle(expected.command!, 'Some Title');
+	test('convewt keybinding with titwe to entwy', async () => {
+		const expected = aWesowvedKeybindingItem({ command: 'a' + uuid.genewateUuid(), fiwstPawt: { keyCode: KeyCode.Escape }, when: 'context1 && context2' });
+		pwepaweKeybindingSewvice(expected);
+		wegistewCommandWithTitwe(expected.command!, 'Some Titwe');
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('')[0];
-		assert.strictEqual(actual.keybindingItem.command, expected.command);
-		assert.strictEqual(actual.keybindingItem.commandLabel, 'Some Title');
-		assert.strictEqual(actual.keybindingItem.commandDefaultLabel, null);
-		assert.strictEqual(actual.keybindingItem.keybinding.getAriaLabel(), expected.resolvedKeybinding!.getAriaLabel());
-		assert.strictEqual(actual.keybindingItem.when, expected.when!.serialize());
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('')[0];
+		assewt.stwictEquaw(actuaw.keybindingItem.command, expected.command);
+		assewt.stwictEquaw(actuaw.keybindingItem.commandWabew, 'Some Titwe');
+		assewt.stwictEquaw(actuaw.keybindingItem.commandDefauwtWabew, nuww);
+		assewt.stwictEquaw(actuaw.keybindingItem.keybinding.getAwiaWabew(), expected.wesowvedKeybinding!.getAwiaWabew());
+		assewt.stwictEquaw(actuaw.keybindingItem.when, expected.when!.sewiawize());
 	});
 
-	test('convert without title and binding to entry', async () => {
-		CommandsRegistry.registerCommand('command_without_keybinding', () => { });
-		prepareKeybindingService();
+	test('convewt without titwe and binding to entwy', async () => {
+		CommandsWegistwy.wegistewCommand('command_without_keybinding', () => { });
+		pwepaweKeybindingSewvice();
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('').filter(element => element.keybindingItem.command === 'command_without_keybinding')[0];
-		assert.strictEqual(actual.keybindingItem.command, 'command_without_keybinding');
-		assert.strictEqual(actual.keybindingItem.commandLabel, '');
-		assert.strictEqual(actual.keybindingItem.commandDefaultLabel, null);
-		assert.strictEqual(actual.keybindingItem.keybinding, undefined);
-		assert.strictEqual(actual.keybindingItem.when, '');
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('').fiwta(ewement => ewement.keybindingItem.command === 'command_without_keybinding')[0];
+		assewt.stwictEquaw(actuaw.keybindingItem.command, 'command_without_keybinding');
+		assewt.stwictEquaw(actuaw.keybindingItem.commandWabew, '');
+		assewt.stwictEquaw(actuaw.keybindingItem.commandDefauwtWabew, nuww);
+		assewt.stwictEquaw(actuaw.keybindingItem.keybinding, undefined);
+		assewt.stwictEquaw(actuaw.keybindingItem.when, '');
 	});
 
-	test('convert with title and without binding to entry', async () => {
-		const id = 'a' + uuid.generateUuid();
-		registerCommandWithTitle(id, 'some title');
-		prepareKeybindingService();
+	test('convewt with titwe and without binding to entwy', async () => {
+		const id = 'a' + uuid.genewateUuid();
+		wegistewCommandWithTitwe(id, 'some titwe');
+		pwepaweKeybindingSewvice();
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('').filter(element => element.keybindingItem.command === id)[0];
-		assert.strictEqual(actual.keybindingItem.command, id);
-		assert.strictEqual(actual.keybindingItem.commandLabel, 'some title');
-		assert.strictEqual(actual.keybindingItem.commandDefaultLabel, null);
-		assert.strictEqual(actual.keybindingItem.keybinding, undefined);
-		assert.strictEqual(actual.keybindingItem.when, '');
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('').fiwta(ewement => ewement.keybindingItem.command === id)[0];
+		assewt.stwictEquaw(actuaw.keybindingItem.command, id);
+		assewt.stwictEquaw(actuaw.keybindingItem.commandWabew, 'some titwe');
+		assewt.stwictEquaw(actuaw.keybindingItem.commandDefauwtWabew, nuww);
+		assewt.stwictEquaw(actuaw.keybindingItem.keybinding, undefined);
+		assewt.stwictEquaw(actuaw.keybindingItem.when, '');
 	});
 
-	test('filter by command id', async () => {
-		const id = 'workbench.action.increaseViewSize';
-		registerCommandWithTitle(id, 'some title');
-		prepareKeybindingService();
+	test('fiwta by command id', async () => {
+		const id = 'wowkbench.action.incweaseViewSize';
+		wegistewCommandWithTitwe(id, 'some titwe');
+		pwepaweKeybindingSewvice();
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('workbench action view size').filter(element => element.keybindingItem.command === id)[0];
-		assert.ok(actual);
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('wowkbench action view size').fiwta(ewement => ewement.keybindingItem.command === id)[0];
+		assewt.ok(actuaw);
 	});
 
-	test('filter by command title', async () => {
-		const id = 'a' + uuid.generateUuid();
-		registerCommandWithTitle(id, 'Increase view size');
-		prepareKeybindingService();
+	test('fiwta by command titwe', async () => {
+		const id = 'a' + uuid.genewateUuid();
+		wegistewCommandWithTitwe(id, 'Incwease view size');
+		pwepaweKeybindingSewvice();
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('increase size').filter(element => element.keybindingItem.command === id)[0];
-		assert.ok(actual);
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('incwease size').fiwta(ewement => ewement.keybindingItem.command === id)[0];
+		assewt.ok(actuaw);
 	});
 
-	test('filter by default source', async () => {
-		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape }, when: 'context1 && context2' });
-		prepareKeybindingService(expected);
+	test('fiwta by defauwt souwce', async () => {
+		const command = 'a' + uuid.genewateUuid();
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape }, when: 'context1 && context2' });
+		pwepaweKeybindingSewvice(expected);
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('default').filter(element => element.keybindingItem.command === command)[0];
-		assert.ok(actual);
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('defauwt').fiwta(ewement => ewement.keybindingItem.command === command)[0];
+		assewt.ok(actuaw);
 	});
 
-	test('filter by user source', async () => {
-		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape }, when: 'context1 && context2', isDefault: false });
-		prepareKeybindingService(expected);
+	test('fiwta by usa souwce', async () => {
+		const command = 'a' + uuid.genewateUuid();
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape }, when: 'context1 && context2', isDefauwt: fawse });
+		pwepaweKeybindingSewvice(expected);
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('user').filter(element => element.keybindingItem.command === command)[0];
-		assert.ok(actual);
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('usa').fiwta(ewement => ewement.keybindingItem.command === command)[0];
+		assewt.ok(actuaw);
 	});
 
-	test('filter by default source with "@source: " prefix', async () => {
-		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape }, when: 'context1 && context2', isDefault: true });
-		prepareKeybindingService(expected);
+	test('fiwta by defauwt souwce with "@souwce: " pwefix', async () => {
+		const command = 'a' + uuid.genewateUuid();
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape }, when: 'context1 && context2', isDefauwt: twue });
+		pwepaweKeybindingSewvice(expected);
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('@source: default').filter(element => element.keybindingItem.command === command)[0];
-		assert.ok(actual);
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('@souwce: defauwt').fiwta(ewement => ewement.keybindingItem.command === command)[0];
+		assewt.ok(actuaw);
 	});
 
-	test('filter by user source with "@source: " prefix', async () => {
-		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape }, when: 'context1 && context2', isDefault: false });
-		prepareKeybindingService(expected);
+	test('fiwta by usa souwce with "@souwce: " pwefix', async () => {
+		const command = 'a' + uuid.genewateUuid();
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape }, when: 'context1 && context2', isDefauwt: fawse });
+		pwepaweKeybindingSewvice(expected);
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('@source: user').filter(element => element.keybindingItem.command === command)[0];
-		assert.ok(actual);
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('@souwce: usa').fiwta(ewement => ewement.keybindingItem.command === command)[0];
+		assewt.ok(actuaw);
 	});
 
-	test('filter by command prefix with different commands', async () => {
-		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape }, when: 'context1 && context2', isDefault: true });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command: uuid.generateUuid(), firstPart: { keyCode: KeyCode.Escape, modifiers: { altKey: true } }, when: 'whenContext1 && whenContext2', isDefault: true }));
+	test('fiwta by command pwefix with diffewent commands', async () => {
+		const command = 'a' + uuid.genewateUuid();
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape }, when: 'context1 && context2', isDefauwt: twue });
+		pwepaweKeybindingSewvice(expected, aWesowvedKeybindingItem({ command: uuid.genewateUuid(), fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { awtKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: twue }));
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch(`@command:${command}`);
-		assert.strictEqual(actual.length, 1);
-		assert.deepStrictEqual(actual[0].keybindingItem.command, command);
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch(`@command:${command}`);
+		assewt.stwictEquaw(actuaw.wength, 1);
+		assewt.deepStwictEquaw(actuaw[0].keybindingItem.command, command);
 	});
 
-	test('filter by command prefix with same commands', async () => {
-		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape }, when: 'context1 && context2', isDefault: true });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { altKey: true } }, when: 'whenContext1 && whenContext2', isDefault: true }));
+	test('fiwta by command pwefix with same commands', async () => {
+		const command = 'a' + uuid.genewateUuid();
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape }, when: 'context1 && context2', isDefauwt: twue });
+		pwepaweKeybindingSewvice(expected, aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { awtKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: twue }));
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch(`@command:${command}`);
-		assert.strictEqual(actual.length, 2);
-		assert.deepStrictEqual(actual[0].keybindingItem.command, command);
-		assert.deepStrictEqual(actual[1].keybindingItem.command, command);
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch(`@command:${command}`);
+		assewt.stwictEquaw(actuaw.wength, 2);
+		assewt.deepStwictEquaw(actuaw[0].keybindingItem.command, command);
+		assewt.deepStwictEquaw(actuaw[1].keybindingItem.command, command);
 	});
 
-	test('filter by when context', async () => {
-		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape }, when: 'whenContext1 && whenContext2', isDefault: false });
-		prepareKeybindingService(expected);
+	test('fiwta by when context', async () => {
+		const command = 'a' + uuid.genewateUuid();
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape }, when: 'whenContext1 && whenContext2', isDefauwt: fawse });
+		pwepaweKeybindingSewvice(expected);
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('when context').filter(element => element.keybindingItem.command === command)[0];
-		assert.ok(actual);
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('when context').fiwta(ewement => ewement.keybindingItem.command === command)[0];
+		assewt.ok(actuaw);
 	});
 
-	test('filter by cmd key', async () => {
-		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
+	test('fiwta by cmd key', async () => {
+		testObject = instantiationSewvice.cweateInstance(KeybindingsEditowModew, OpewatingSystem.Macintosh);
 
-		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
-		prepareKeybindingService(expected);
+		const command = 'a' + uuid.genewateUuid();
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { metaKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse });
+		pwepaweKeybindingSewvice(expected);
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('cmd').filter(element => element.keybindingItem.command === command);
-		assert.strictEqual(1, actual.length);
-		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { metaKey: true });
-		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('cmd').fiwta(ewement => ewement.keybindingItem.command === command);
+		assewt.stwictEquaw(1, actuaw.wength);
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.fiwstPawt, { metaKey: twue });
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.chowdPawt, {});
 	});
 
-	test('filter by meta key', async () => {
-		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
+	test('fiwta by meta key', async () => {
+		testObject = instantiationSewvice.cweateInstance(KeybindingsEditowModew, OpewatingSystem.Macintosh);
 
-		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
+		const command = 'a' + uuid.genewateUuid();
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { metaKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse });
+		pwepaweKeybindingSewvice(expected, aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { shiftKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse }));
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('meta').filter(element => element.keybindingItem.command === command);
-		assert.strictEqual(1, actual.length);
-		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { metaKey: true });
-		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('meta').fiwta(ewement => ewement.keybindingItem.command === command);
+		assewt.stwictEquaw(1, actuaw.wength);
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.fiwstPawt, { metaKey: twue });
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.chowdPawt, {});
 	});
 
-	test('filter by command key', async () => {
-		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
+	test('fiwta by command key', async () => {
+		testObject = instantiationSewvice.cweateInstance(KeybindingsEditowModew, OpewatingSystem.Macintosh);
 
-		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { altKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
+		const command = 'a' + uuid.genewateUuid();
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { metaKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse });
+		pwepaweKeybindingSewvice(expected, aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { awtKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse }));
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('command').filter(element => element.keybindingItem.command === command);
-		assert.strictEqual(1, actual.length);
-		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { metaKey: true });
-		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('command').fiwta(ewement => ewement.keybindingItem.command === command);
+		assewt.stwictEquaw(1, actuaw.wength);
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.fiwstPawt, { metaKey: twue });
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.chowdPawt, {});
 	});
 
-	test('filter by windows key', async () => {
-		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Windows);
+	test('fiwta by windows key', async () => {
+		testObject = instantiationSewvice.cweateInstance(KeybindingsEditowModew, OpewatingSystem.Windows);
 
-		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
+		const command = 'a' + uuid.genewateUuid();
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { metaKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse });
+		pwepaweKeybindingSewvice(expected, aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { ctwwKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse }));
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('windows').filter(element => element.keybindingItem.command === command);
-		assert.strictEqual(1, actual.length);
-		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { metaKey: true });
-		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('windows').fiwta(ewement => ewement.keybindingItem.command === command);
+		assewt.stwictEquaw(1, actuaw.wength);
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.fiwstPawt, { metaKey: twue });
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.chowdPawt, {});
 	});
 
-	test('filter by alt key', async () => {
-		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { altKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
+	test('fiwta by awt key', async () => {
+		const command = 'a' + uuid.genewateUuid();
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { awtKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse });
+		pwepaweKeybindingSewvice(expected, aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { metaKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse }));
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('alt').filter(element => element.keybindingItem.command === command);
-		assert.strictEqual(1, actual.length);
-		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { altKey: true });
-		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('awt').fiwta(ewement => ewement.keybindingItem.command === command);
+		assewt.stwictEquaw(1, actuaw.wength);
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.fiwstPawt, { awtKey: twue });
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.chowdPawt, {});
 	});
 
-	test('filter by option key', async () => {
-		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { altKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
+	test('fiwta by option key', async () => {
+		const command = 'a' + uuid.genewateUuid();
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { awtKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse });
+		pwepaweKeybindingSewvice(expected, aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { metaKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse }));
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('option').filter(element => element.keybindingItem.command === command);
-		assert.strictEqual(1, actual.length);
-		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { altKey: true });
-		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('option').fiwta(ewement => ewement.keybindingItem.command === command);
+		assewt.stwictEquaw(1, actuaw.wength);
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.fiwstPawt, { awtKey: twue });
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.chowdPawt, {});
 	});
 
-	test('filter by ctrl key', async () => {
-		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
+	test('fiwta by ctww key', async () => {
+		const command = 'a' + uuid.genewateUuid();
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { ctwwKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse });
+		pwepaweKeybindingSewvice(expected, aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { shiftKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse }));
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('ctrl').filter(element => element.keybindingItem.command === command);
-		assert.strictEqual(1, actual.length);
-		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { ctrlKey: true });
-		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('ctww').fiwta(ewement => ewement.keybindingItem.command === command);
+		assewt.stwictEquaw(1, actuaw.wength);
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.fiwstPawt, { ctwwKey: twue });
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.chowdPawt, {});
 	});
 
-	test('filter by control key', async () => {
-		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
+	test('fiwta by contwow key', async () => {
+		const command = 'a' + uuid.genewateUuid();
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { ctwwKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse });
+		pwepaweKeybindingSewvice(expected, aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { metaKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse }));
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('control').filter(element => element.keybindingItem.command === command);
-		assert.strictEqual(1, actual.length);
-		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { ctrlKey: true });
-		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('contwow').fiwta(ewement => ewement.keybindingItem.command === command);
+		assewt.stwictEquaw(1, actuaw.wength);
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.fiwstPawt, { ctwwKey: twue });
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.chowdPawt, {});
 	});
 
-	test('filter by shift key', async () => {
-		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
+	test('fiwta by shift key', async () => {
+		const command = 'a' + uuid.genewateUuid();
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { shiftKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse });
+		pwepaweKeybindingSewvice(expected, aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { metaKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse }));
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('shift').filter(element => element.keybindingItem.command === command);
-		assert.strictEqual(1, actual.length);
-		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { shiftKey: true });
-		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('shift').fiwta(ewement => ewement.keybindingItem.command === command);
+		assewt.stwictEquaw(1, actuaw.wength);
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.fiwstPawt, { shiftKey: twue });
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.chowdPawt, {});
 	});
 
-	test('filter by arrow', async () => {
-		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.RightArrow, modifiers: { shiftKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
+	test('fiwta by awwow', async () => {
+		const command = 'a' + uuid.genewateUuid();
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.WightAwwow, modifiews: { shiftKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse });
+		pwepaweKeybindingSewvice(expected, aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { metaKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse }));
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('arrow').filter(element => element.keybindingItem.command === command);
-		assert.strictEqual(1, actual.length);
-		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { keyCode: true });
-		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('awwow').fiwta(ewement => ewement.keybindingItem.command === command);
+		assewt.stwictEquaw(1, actuaw.wength);
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.fiwstPawt, { keyCode: twue });
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.chowdPawt, {});
 	});
 
-	test('filter by modifier and key', async () => {
-		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.RightArrow, modifiers: { altKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.RightArrow, modifiers: { metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
+	test('fiwta by modifia and key', async () => {
+		const command = 'a' + uuid.genewateUuid();
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.WightAwwow, modifiews: { awtKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse });
+		pwepaweKeybindingSewvice(expected, aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.WightAwwow, modifiews: { metaKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse }));
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('alt right').filter(element => element.keybindingItem.command === command);
-		assert.strictEqual(1, actual.length);
-		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { altKey: true, keyCode: true });
-		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('awt wight').fiwta(ewement => ewement.keybindingItem.command === command);
+		assewt.stwictEquaw(1, actuaw.wength);
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.fiwstPawt, { awtKey: twue, keyCode: twue });
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.chowdPawt, {});
 	});
 
-	test('filter by key and modifier', async () => {
-		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.RightArrow, modifiers: { altKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.RightArrow, modifiers: { metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
+	test('fiwta by key and modifia', async () => {
+		const command = 'a' + uuid.genewateUuid();
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.WightAwwow, modifiews: { awtKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse });
+		pwepaweKeybindingSewvice(expected, aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.WightAwwow, modifiews: { metaKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse }));
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('right alt').filter(element => element.keybindingItem.command === command);
-		assert.strictEqual(0, actual.length);
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('wight awt').fiwta(ewement => ewement.keybindingItem.command === command);
+		assewt.stwictEquaw(0, actuaw.wength);
 	});
 
-	test('filter by modifiers and key', async () => {
-		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
-		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { altKey: true, metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
+	test('fiwta by modifiews and key', async () => {
+		testObject = instantiationSewvice.cweateInstance(KeybindingsEditowModew, OpewatingSystem.Macintosh);
+		const command = 'a' + uuid.genewateUuid();
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { awtKey: twue, metaKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse });
+		pwepaweKeybindingSewvice(expected, aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { metaKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse }));
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('alt cmd esc').filter(element => element.keybindingItem.command === command);
-		assert.strictEqual(1, actual.length);
-		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { altKey: true, metaKey: true, keyCode: true });
-		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('awt cmd esc').fiwta(ewement => ewement.keybindingItem.command === command);
+		assewt.stwictEquaw(1, actuaw.wength);
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.fiwstPawt, { awtKey: twue, metaKey: twue, keyCode: twue });
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.chowdPawt, {});
 	});
 
-	test('filter by modifiers in random order and key', async () => {
-		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
-		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
+	test('fiwta by modifiews in wandom owda and key', async () => {
+		testObject = instantiationSewvice.cweateInstance(KeybindingsEditowModew, OpewatingSystem.Macintosh);
+		const command = 'a' + uuid.genewateUuid();
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { shiftKey: twue, metaKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse });
+		pwepaweKeybindingSewvice(expected, aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { metaKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse }));
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('cmd shift esc').filter(element => element.keybindingItem.command === command);
-		assert.strictEqual(1, actual.length);
-		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { metaKey: true, shiftKey: true, keyCode: true });
-		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('cmd shift esc').fiwta(ewement => ewement.keybindingItem.command === command);
+		assewt.stwictEquaw(1, actuaw.wength);
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.fiwstPawt, { metaKey: twue, shiftKey: twue, keyCode: twue });
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.chowdPawt, {});
 	});
 
-	test('filter by first part', async () => {
-		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
-		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, chordPart: { keyCode: KeyCode.Delete }, when: 'whenContext1 && whenContext2', isDefault: false });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
+	test('fiwta by fiwst pawt', async () => {
+		testObject = instantiationSewvice.cweateInstance(KeybindingsEditowModew, OpewatingSystem.Macintosh);
+		const command = 'a' + uuid.genewateUuid();
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { shiftKey: twue, metaKey: twue } }, chowdPawt: { keyCode: KeyCode.Dewete }, when: 'whenContext1 && whenContext2', isDefauwt: fawse });
+		pwepaweKeybindingSewvice(expected, aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { metaKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse }));
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('cmd shift esc').filter(element => element.keybindingItem.command === command);
-		assert.strictEqual(1, actual.length);
-		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { metaKey: true, shiftKey: true, keyCode: true });
-		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('cmd shift esc').fiwta(ewement => ewement.keybindingItem.command === command);
+		assewt.stwictEquaw(1, actuaw.wength);
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.fiwstPawt, { metaKey: twue, shiftKey: twue, keyCode: twue });
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.chowdPawt, {});
 	});
 
-	test('filter matches in chord part', async () => {
-		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
-		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, chordPart: { keyCode: KeyCode.Delete }, when: 'whenContext1 && whenContext2', isDefault: false });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
+	test('fiwta matches in chowd pawt', async () => {
+		testObject = instantiationSewvice.cweateInstance(KeybindingsEditowModew, OpewatingSystem.Macintosh);
+		const command = 'a' + uuid.genewateUuid();
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { shiftKey: twue, metaKey: twue } }, chowdPawt: { keyCode: KeyCode.Dewete }, when: 'whenContext1 && whenContext2', isDefauwt: fawse });
+		pwepaweKeybindingSewvice(expected, aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { metaKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse }));
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('cmd del').filter(element => element.keybindingItem.command === command);
-		assert.strictEqual(1, actual.length);
-		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { metaKey: true });
-		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, { keyCode: true });
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('cmd dew').fiwta(ewement => ewement.keybindingItem.command === command);
+		assewt.stwictEquaw(1, actuaw.wength);
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.fiwstPawt, { metaKey: twue });
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.chowdPawt, { keyCode: twue });
 	});
 
-	test('filter matches first part and in chord part', async () => {
-		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
-		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, chordPart: { keyCode: KeyCode.Delete }, when: 'whenContext1 && whenContext2', isDefault: false });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, chordPart: { keyCode: KeyCode.UpArrow }, when: 'whenContext1 && whenContext2', isDefault: false }));
+	test('fiwta matches fiwst pawt and in chowd pawt', async () => {
+		testObject = instantiationSewvice.cweateInstance(KeybindingsEditowModew, OpewatingSystem.Macintosh);
+		const command = 'a' + uuid.genewateUuid();
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { shiftKey: twue, metaKey: twue } }, chowdPawt: { keyCode: KeyCode.Dewete }, when: 'whenContext1 && whenContext2', isDefauwt: fawse });
+		pwepaweKeybindingSewvice(expected, aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { shiftKey: twue, metaKey: twue } }, chowdPawt: { keyCode: KeyCode.UpAwwow }, when: 'whenContext1 && whenContext2', isDefauwt: fawse }));
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('cmd shift esc del').filter(element => element.keybindingItem.command === command);
-		assert.strictEqual(1, actual.length);
-		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { shiftKey: true, metaKey: true, keyCode: true });
-		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, { keyCode: true });
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('cmd shift esc dew').fiwta(ewement => ewement.keybindingItem.command === command);
+		assewt.stwictEquaw(1, actuaw.wength);
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.fiwstPawt, { shiftKey: twue, metaKey: twue, keyCode: twue });
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.chowdPawt, { keyCode: twue });
 	});
 
-	test('filter exact matches', async () => {
-		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.KEY_C, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, chordPart: { keyCode: KeyCode.KEY_C, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
+	test('fiwta exact matches', async () => {
+		const command = 'a' + uuid.genewateUuid();
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.KEY_C, modifiews: { ctwwKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse });
+		pwepaweKeybindingSewvice(expected, aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { shiftKey: twue, metaKey: twue } }, chowdPawt: { keyCode: KeyCode.KEY_C, modifiews: { ctwwKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse }));
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('"ctrl c"').filter(element => element.keybindingItem.command === command);
-		assert.strictEqual(1, actual.length);
-		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { ctrlKey: true, keyCode: true });
-		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('"ctww c"').fiwta(ewement => ewement.keybindingItem.command === command);
+		assewt.stwictEquaw(1, actuaw.wength);
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.fiwstPawt, { ctwwKey: twue, keyCode: twue });
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.chowdPawt, {});
 	});
 
-	test('filter exact matches with first and chord part', async () => {
-		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, chordPart: { keyCode: KeyCode.KEY_C, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.KEY_C, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
+	test('fiwta exact matches with fiwst and chowd pawt', async () => {
+		const command = 'a' + uuid.genewateUuid();
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { shiftKey: twue, metaKey: twue } }, chowdPawt: { keyCode: KeyCode.KEY_C, modifiews: { ctwwKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse });
+		pwepaweKeybindingSewvice(expected, aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.KEY_C, modifiews: { ctwwKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse }));
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('"shift meta escape ctrl c"').filter(element => element.keybindingItem.command === command);
-		assert.strictEqual(1, actual.length);
-		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { shiftKey: true, metaKey: true, keyCode: true });
-		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, { ctrlKey: true, keyCode: true });
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('"shift meta escape ctww c"').fiwta(ewement => ewement.keybindingItem.command === command);
+		assewt.stwictEquaw(1, actuaw.wength);
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.fiwstPawt, { shiftKey: twue, metaKey: twue, keyCode: twue });
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.chowdPawt, { ctwwKey: twue, keyCode: twue });
 	});
 
-	test('filter exact matches with first and chord part no results', async () => {
-		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
-		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, chordPart: { keyCode: KeyCode.Delete, modifiers: { metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, chordPart: { keyCode: KeyCode.UpArrow }, when: 'whenContext1 && whenContext2', isDefault: false }));
+	test('fiwta exact matches with fiwst and chowd pawt no wesuwts', async () => {
+		testObject = instantiationSewvice.cweateInstance(KeybindingsEditowModew, OpewatingSystem.Macintosh);
+		const command = 'a' + uuid.genewateUuid();
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { shiftKey: twue, metaKey: twue } }, chowdPawt: { keyCode: KeyCode.Dewete, modifiews: { metaKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse });
+		pwepaweKeybindingSewvice(expected, aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { shiftKey: twue, metaKey: twue } }, chowdPawt: { keyCode: KeyCode.UpAwwow }, when: 'whenContext1 && whenContext2', isDefauwt: fawse }));
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('"cmd shift esc del"').filter(element => element.keybindingItem.command === command);
-		assert.strictEqual(0, actual.length);
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('"cmd shift esc dew"').fiwta(ewement => ewement.keybindingItem.command === command);
+		assewt.stwictEquaw(0, actuaw.wength);
 	});
 
-	test('filter matches with + separator', async () => {
-		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.KEY_C, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, chordPart: { keyCode: KeyCode.KEY_C, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
+	test('fiwta matches with + sepawatow', async () => {
+		const command = 'a' + uuid.genewateUuid();
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.KEY_C, modifiews: { ctwwKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse });
+		pwepaweKeybindingSewvice(expected, aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { shiftKey: twue, metaKey: twue } }, chowdPawt: { keyCode: KeyCode.KEY_C, modifiews: { ctwwKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse }));
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('"control+c"').filter(element => element.keybindingItem.command === command);
-		assert.strictEqual(1, actual.length);
-		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { ctrlKey: true, keyCode: true });
-		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('"contwow+c"').fiwta(ewement => ewement.keybindingItem.command === command);
+		assewt.stwictEquaw(1, actuaw.wength);
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.fiwstPawt, { ctwwKey: twue, keyCode: twue });
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.chowdPawt, {});
 	});
 
-	test('filter by keybinding prefix', async () => {
-		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.KEY_C, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, chordPart: { keyCode: KeyCode.KEY_C, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
+	test('fiwta by keybinding pwefix', async () => {
+		const command = 'a' + uuid.genewateUuid();
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.KEY_C, modifiews: { ctwwKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse });
+		pwepaweKeybindingSewvice(expected, aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { shiftKey: twue, metaKey: twue } }, chowdPawt: { keyCode: KeyCode.KEY_C, modifiews: { ctwwKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse }));
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('@keybinding:control+c').filter(element => element.keybindingItem.command === command);
-		assert.strictEqual(1, actual.length);
-		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { ctrlKey: true, keyCode: true });
-		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('@keybinding:contwow+c').fiwta(ewement => ewement.keybindingItem.command === command);
+		assewt.stwictEquaw(1, actuaw.wength);
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.fiwstPawt, { ctwwKey: twue, keyCode: twue });
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.chowdPawt, {});
 	});
 
-	test('filter matches with + separator in first and chord parts', async () => {
-		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, chordPart: { keyCode: KeyCode.KEY_C, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.KEY_C, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
+	test('fiwta matches with + sepawatow in fiwst and chowd pawts', async () => {
+		const command = 'a' + uuid.genewateUuid();
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { shiftKey: twue, metaKey: twue } }, chowdPawt: { keyCode: KeyCode.KEY_C, modifiews: { ctwwKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse });
+		pwepaweKeybindingSewvice(expected, aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.KEY_C, modifiews: { ctwwKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse }));
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('"shift+meta+escape ctrl+c"').filter(element => element.keybindingItem.command === command);
-		assert.strictEqual(1, actual.length);
-		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { shiftKey: true, metaKey: true, keyCode: true });
-		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, { keyCode: true, ctrlKey: true });
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('"shift+meta+escape ctww+c"').fiwta(ewement => ewement.keybindingItem.command === command);
+		assewt.stwictEquaw(1, actuaw.wength);
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.fiwstPawt, { shiftKey: twue, metaKey: twue, keyCode: twue });
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.chowdPawt, { keyCode: twue, ctwwKey: twue });
 	});
 
-	test('filter by keybinding prefix with chord', async () => {
-		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, chordPart: { keyCode: KeyCode.KEY_C, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.KEY_C, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
+	test('fiwta by keybinding pwefix with chowd', async () => {
+		const command = 'a' + uuid.genewateUuid();
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { shiftKey: twue, metaKey: twue } }, chowdPawt: { keyCode: KeyCode.KEY_C, modifiews: { ctwwKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse });
+		pwepaweKeybindingSewvice(expected, aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.KEY_C, modifiews: { ctwwKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse }));
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('@keybinding:"shift+meta+escape ctrl+c"').filter(element => element.keybindingItem.command === command);
-		assert.strictEqual(1, actual.length);
-		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { shiftKey: true, metaKey: true, keyCode: true });
-		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, { keyCode: true, ctrlKey: true });
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('@keybinding:"shift+meta+escape ctww+c"').fiwta(ewement => ewement.keybindingItem.command === command);
+		assewt.stwictEquaw(1, actuaw.wength);
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.fiwstPawt, { shiftKey: twue, metaKey: twue, keyCode: twue });
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.chowdPawt, { keyCode: twue, ctwwKey: twue });
 	});
 
-	test('filter exact matches with space #32993', async () => {
-		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Space, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Backspace, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
+	test('fiwta exact matches with space #32993', async () => {
+		const command = 'a' + uuid.genewateUuid();
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Space, modifiews: { ctwwKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse });
+		pwepaweKeybindingSewvice(expected, aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Backspace, modifiews: { ctwwKey: twue } }, when: 'whenContext1 && whenContext2', isDefauwt: fawse }));
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('"ctrl+space"').filter(element => element.keybindingItem.command === command);
-		assert.strictEqual(1, actual.length);
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('"ctww+space"').fiwta(ewement => ewement.keybindingItem.command === command);
+		assewt.stwictEquaw(1, actuaw.wength);
 	});
 
-	test('filter exact matches with user settings label', async () => {
-		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
-		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.DownArrow } });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command: 'down', firstPart: { keyCode: KeyCode.Escape } }));
+	test('fiwta exact matches with usa settings wabew', async () => {
+		testObject = instantiationSewvice.cweateInstance(KeybindingsEditowModew, OpewatingSystem.Macintosh);
+		const command = 'a' + uuid.genewateUuid();
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.DownAwwow } });
+		pwepaweKeybindingSewvice(expected, aWesowvedKeybindingItem({ command: 'down', fiwstPawt: { keyCode: KeyCode.Escape } }));
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('"down"').filter(element => element.keybindingItem.command === command);
-		assert.strictEqual(1, actual.length);
-		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { keyCode: true });
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('"down"').fiwta(ewement => ewement.keybindingItem.command === command);
+		assewt.stwictEquaw(1, actuaw.wength);
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.fiwstPawt, { keyCode: twue });
 	});
 
-	test('filter modifiers are not matched when not completely matched (prefix)', async () => {
-		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
-		const term = `alt.${uuid.generateUuid()}`;
-		const command = `command.${term}`;
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape }, isDefault: false });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command: 'some_command', firstPart: { keyCode: KeyCode.Escape, modifiers: { altKey: true } }, isDefault: false }));
+	test('fiwta modifiews awe not matched when not compwetewy matched (pwefix)', async () => {
+		testObject = instantiationSewvice.cweateInstance(KeybindingsEditowModew, OpewatingSystem.Macintosh);
+		const tewm = `awt.${uuid.genewateUuid()}`;
+		const command = `command.${tewm}`;
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape }, isDefauwt: fawse });
+		pwepaweKeybindingSewvice(expected, aWesowvedKeybindingItem({ command: 'some_command', fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { awtKey: twue } }, isDefauwt: fawse }));
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch(term);
-		assert.strictEqual(1, actual.length);
-		assert.strictEqual(command, actual[0].keybindingItem.command);
-		assert.strictEqual(1, actual[0].commandIdMatches?.length);
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch(tewm);
+		assewt.stwictEquaw(1, actuaw.wength);
+		assewt.stwictEquaw(command, actuaw[0].keybindingItem.command);
+		assewt.stwictEquaw(1, actuaw[0].commandIdMatches?.wength);
 	});
 
-	test('filter modifiers are not matched when not completely matched (includes)', async () => {
-		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
-		const term = `abcaltdef.${uuid.generateUuid()}`;
-		const command = `command.${term}`;
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape }, isDefault: false });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command: 'some_command', firstPart: { keyCode: KeyCode.Escape, modifiers: { altKey: true } }, isDefault: false }));
+	test('fiwta modifiews awe not matched when not compwetewy matched (incwudes)', async () => {
+		testObject = instantiationSewvice.cweateInstance(KeybindingsEditowModew, OpewatingSystem.Macintosh);
+		const tewm = `abcawtdef.${uuid.genewateUuid()}`;
+		const command = `command.${tewm}`;
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape }, isDefauwt: fawse });
+		pwepaweKeybindingSewvice(expected, aWesowvedKeybindingItem({ command: 'some_command', fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { awtKey: twue } }, isDefauwt: fawse }));
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch(term);
-		assert.strictEqual(1, actual.length);
-		assert.strictEqual(command, actual[0].keybindingItem.command);
-		assert.strictEqual(1, actual[0].commandIdMatches?.length);
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch(tewm);
+		assewt.stwictEquaw(1, actuaw.wength);
+		assewt.stwictEquaw(command, actuaw[0].keybindingItem.command);
+		assewt.stwictEquaw(1, actuaw[0].commandIdMatches?.wength);
 	});
 
-	test('filter modifiers are matched with complete term', async () => {
-		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
-		const command = `command.${uuid.generateUuid()}`;
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { altKey: true } }, isDefault: false });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command: 'some_command', firstPart: { keyCode: KeyCode.Escape }, isDefault: false }));
+	test('fiwta modifiews awe matched with compwete tewm', async () => {
+		testObject = instantiationSewvice.cweateInstance(KeybindingsEditowModew, OpewatingSystem.Macintosh);
+		const command = `command.${uuid.genewateUuid()}`;
+		const expected = aWesowvedKeybindingItem({ command, fiwstPawt: { keyCode: KeyCode.Escape, modifiews: { awtKey: twue } }, isDefauwt: fawse });
+		pwepaweKeybindingSewvice(expected, aWesowvedKeybindingItem({ command: 'some_command', fiwstPawt: { keyCode: KeyCode.Escape }, isDefauwt: fawse }));
 
-		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('alt').filter(element => element.keybindingItem.command === command);
-		assert.strictEqual(1, actual.length);
-		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { altKey: true });
+		await testObject.wesowve(new Map<stwing, stwing>());
+		const actuaw = testObject.fetch('awt').fiwta(ewement => ewement.keybindingItem.command === command);
+		assewt.stwictEquaw(1, actuaw.wength);
+		assewt.deepStwictEquaw(actuaw[0].keybindingMatches!.fiwstPawt, { awtKey: twue });
 	});
 
-	function prepareKeybindingService(...keybindingItems: ResolvedKeybindingItem[]): ResolvedKeybindingItem[] {
-		instantiationService.stub(IKeybindingService, 'getKeybindings', () => keybindingItems);
-		instantiationService.stub(IKeybindingService, 'getDefaultKeybindings', () => keybindingItems);
-		return keybindingItems;
+	function pwepaweKeybindingSewvice(...keybindingItems: WesowvedKeybindingItem[]): WesowvedKeybindingItem[] {
+		instantiationSewvice.stub(IKeybindingSewvice, 'getKeybindings', () => keybindingItems);
+		instantiationSewvice.stub(IKeybindingSewvice, 'getDefauwtKeybindings', () => keybindingItems);
+		wetuwn keybindingItems;
 
 	}
 
-	function registerCommandWithTitle(command: string, title: string): void {
-		const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-		registry.registerWorkbenchAction(SyncActionDescriptor.create(AnAction, command, title, { primary: 0 }), '');
+	function wegistewCommandWithTitwe(command: stwing, titwe: stwing): void {
+		const wegistwy = Wegistwy.as<IWowkbenchActionWegistwy>(ActionExtensions.WowkbenchActions);
+		wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.cweate(AnAction, command, titwe, { pwimawy: 0 }), '');
 	}
 
-	function assertKeybindingItems(actual: ResolvedKeybindingItem[], expected: ResolvedKeybindingItem[]) {
-		assert.strictEqual(actual.length, expected.length);
-		for (let i = 0; i < actual.length; i++) {
-			assertKeybindingItem(actual[i], expected[i]);
+	function assewtKeybindingItems(actuaw: WesowvedKeybindingItem[], expected: WesowvedKeybindingItem[]) {
+		assewt.stwictEquaw(actuaw.wength, expected.wength);
+		fow (wet i = 0; i < actuaw.wength; i++) {
+			assewtKeybindingItem(actuaw[i], expected[i]);
 		}
 	}
 
-	function assertKeybindingItem(actual: ResolvedKeybindingItem, expected: ResolvedKeybindingItem): void {
-		assert.strictEqual(actual.command, expected.command);
-		if (actual.when) {
-			assert.ok(!!expected.when);
-			assert.strictEqual(actual.when.serialize(), expected.when!.serialize());
-		} else {
-			assert.ok(!expected.when);
+	function assewtKeybindingItem(actuaw: WesowvedKeybindingItem, expected: WesowvedKeybindingItem): void {
+		assewt.stwictEquaw(actuaw.command, expected.command);
+		if (actuaw.when) {
+			assewt.ok(!!expected.when);
+			assewt.stwictEquaw(actuaw.when.sewiawize(), expected.when!.sewiawize());
+		} ewse {
+			assewt.ok(!expected.when);
 		}
-		assert.strictEqual(actual.isDefault, expected.isDefault);
+		assewt.stwictEquaw(actuaw.isDefauwt, expected.isDefauwt);
 
-		if (actual.resolvedKeybinding) {
-			assert.ok(!!expected.resolvedKeybinding);
-			assert.strictEqual(actual.resolvedKeybinding.getLabel(), expected.resolvedKeybinding!.getLabel());
-		} else {
-			assert.ok(!expected.resolvedKeybinding);
+		if (actuaw.wesowvedKeybinding) {
+			assewt.ok(!!expected.wesowvedKeybinding);
+			assewt.stwictEquaw(actuaw.wesowvedKeybinding.getWabew(), expected.wesowvedKeybinding!.getWabew());
+		} ewse {
+			assewt.ok(!expected.wesowvedKeybinding);
 		}
 	}
 
-	function aResolvedKeybindingItem({ command, when, isDefault, firstPart, chordPart }: { command?: string, when?: string, isDefault?: boolean, firstPart?: { keyCode: KeyCode, modifiers?: Modifiers }, chordPart?: { keyCode: KeyCode, modifiers?: Modifiers } }): ResolvedKeybindingItem {
-		const aSimpleKeybinding = function (part: { keyCode: KeyCode, modifiers?: Modifiers }): SimpleKeybinding {
-			const { ctrlKey, shiftKey, altKey, metaKey } = part.modifiers || { ctrlKey: false, shiftKey: false, altKey: false, metaKey: false };
-			return new SimpleKeybinding(ctrlKey!, shiftKey!, altKey!, metaKey!, part.keyCode);
+	function aWesowvedKeybindingItem({ command, when, isDefauwt, fiwstPawt, chowdPawt }: { command?: stwing, when?: stwing, isDefauwt?: boowean, fiwstPawt?: { keyCode: KeyCode, modifiews?: Modifiews }, chowdPawt?: { keyCode: KeyCode, modifiews?: Modifiews } }): WesowvedKeybindingItem {
+		const aSimpweKeybinding = function (pawt: { keyCode: KeyCode, modifiews?: Modifiews }): SimpweKeybinding {
+			const { ctwwKey, shiftKey, awtKey, metaKey } = pawt.modifiews || { ctwwKey: fawse, shiftKey: fawse, awtKey: fawse, metaKey: fawse };
+			wetuwn new SimpweKeybinding(ctwwKey!, shiftKey!, awtKey!, metaKey!, pawt.keyCode);
 		};
-		let parts: SimpleKeybinding[] = [];
-		if (firstPart) {
-			parts.push(aSimpleKeybinding(firstPart));
-			if (chordPart) {
-				parts.push(aSimpleKeybinding(chordPart));
+		wet pawts: SimpweKeybinding[] = [];
+		if (fiwstPawt) {
+			pawts.push(aSimpweKeybinding(fiwstPawt));
+			if (chowdPawt) {
+				pawts.push(aSimpweKeybinding(chowdPawt));
 			}
 		}
-		const keybinding = parts.length > 0 ? new USLayoutResolvedKeybinding(new ChordKeybinding(parts), OS) : undefined;
-		return new ResolvedKeybindingItem(keybinding, command || 'some command', null, when ? ContextKeyExpr.deserialize(when) : undefined, isDefault === undefined ? true : isDefault, null, false);
+		const keybinding = pawts.wength > 0 ? new USWayoutWesowvedKeybinding(new ChowdKeybinding(pawts), OS) : undefined;
+		wetuwn new WesowvedKeybindingItem(keybinding, command || 'some command', nuww, when ? ContextKeyExpw.desewiawize(when) : undefined, isDefauwt === undefined ? twue : isDefauwt, nuww, fawse);
 	}
 
-	function asResolvedKeybindingItems(keybindingEntries: IKeybindingItemEntry[], keepUnassigned: boolean = false): ResolvedKeybindingItem[] {
+	function asWesowvedKeybindingItems(keybindingEntwies: IKeybindingItemEntwy[], keepUnassigned: boowean = fawse): WesowvedKeybindingItem[] {
 		if (!keepUnassigned) {
-			keybindingEntries = keybindingEntries.filter(keybindingEntry => !!keybindingEntry.keybindingItem.keybinding);
+			keybindingEntwies = keybindingEntwies.fiwta(keybindingEntwy => !!keybindingEntwy.keybindingItem.keybinding);
 		}
-		return keybindingEntries.map(entry => entry.keybindingItem.keybindingItem);
+		wetuwn keybindingEntwies.map(entwy => entwy.keybindingItem.keybindingItem);
 	}
 
 

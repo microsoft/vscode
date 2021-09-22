@@ -1,276 +1,276 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ParsedPattern, parse } from 'vs/base/common/glob';
-import { Schemas } from 'vs/base/common/network';
-import { basename, extname, posix } from 'vs/base/common/path';
-import { DataUri } from 'vs/base/common/resources';
-import { startsWithUTF8BOM } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
+impowt { PawsedPattewn, pawse } fwom 'vs/base/common/gwob';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { basename, extname, posix } fwom 'vs/base/common/path';
+impowt { DataUwi } fwom 'vs/base/common/wesouwces';
+impowt { stawtsWithUTF8BOM } fwom 'vs/base/common/stwings';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-export namespace Mimes {
-	export const text = 'text/plain';
-	export const binary = 'application/octet-stream';
-	export const unknown = 'application/unknown';
-	export const markdown = 'text/markdown';
+expowt namespace Mimes {
+	expowt const text = 'text/pwain';
+	expowt const binawy = 'appwication/octet-stweam';
+	expowt const unknown = 'appwication/unknown';
+	expowt const mawkdown = 'text/mawkdown';
 }
 
-export interface ITextMimeAssociation {
-	readonly id: string;
-	readonly mime: string;
-	readonly filename?: string;
-	readonly extension?: string;
-	readonly filepattern?: string;
-	readonly firstline?: RegExp;
-	readonly userConfigured?: boolean;
+expowt intewface ITextMimeAssociation {
+	weadonwy id: stwing;
+	weadonwy mime: stwing;
+	weadonwy fiwename?: stwing;
+	weadonwy extension?: stwing;
+	weadonwy fiwepattewn?: stwing;
+	weadonwy fiwstwine?: WegExp;
+	weadonwy usewConfiguwed?: boowean;
 }
 
-interface ITextMimeAssociationItem extends ITextMimeAssociation {
-	readonly filenameLowercase?: string;
-	readonly extensionLowercase?: string;
-	readonly filepatternLowercase?: ParsedPattern;
-	readonly filepatternOnPath?: boolean;
+intewface ITextMimeAssociationItem extends ITextMimeAssociation {
+	weadonwy fiwenameWowewcase?: stwing;
+	weadonwy extensionWowewcase?: stwing;
+	weadonwy fiwepattewnWowewcase?: PawsedPattewn;
+	weadonwy fiwepattewnOnPath?: boowean;
 }
 
-let registeredAssociations: ITextMimeAssociationItem[] = [];
-let nonUserRegisteredAssociations: ITextMimeAssociationItem[] = [];
-let userRegisteredAssociations: ITextMimeAssociationItem[] = [];
+wet wegistewedAssociations: ITextMimeAssociationItem[] = [];
+wet nonUsewWegistewedAssociations: ITextMimeAssociationItem[] = [];
+wet usewWegistewedAssociations: ITextMimeAssociationItem[] = [];
 
 /**
- * Associate a text mime to the registry.
+ * Associate a text mime to the wegistwy.
  */
-export function registerTextMime(association: ITextMimeAssociation, warnOnOverwrite = false): void {
+expowt function wegistewTextMime(association: ITextMimeAssociation, wawnOnOvewwwite = fawse): void {
 
-	// Register
+	// Wegista
 	const associationItem = toTextMimeAssociationItem(association);
-	registeredAssociations.push(associationItem);
-	if (!associationItem.userConfigured) {
-		nonUserRegisteredAssociations.push(associationItem);
-	} else {
-		userRegisteredAssociations.push(associationItem);
+	wegistewedAssociations.push(associationItem);
+	if (!associationItem.usewConfiguwed) {
+		nonUsewWegistewedAssociations.push(associationItem);
+	} ewse {
+		usewWegistewedAssociations.push(associationItem);
 	}
 
-	// Check for conflicts unless this is a user configured association
-	if (warnOnOverwrite && !associationItem.userConfigured) {
-		registeredAssociations.forEach(a => {
-			if (a.mime === associationItem.mime || a.userConfigured) {
-				return; // same mime or userConfigured is ok
+	// Check fow confwicts unwess this is a usa configuwed association
+	if (wawnOnOvewwwite && !associationItem.usewConfiguwed) {
+		wegistewedAssociations.fowEach(a => {
+			if (a.mime === associationItem.mime || a.usewConfiguwed) {
+				wetuwn; // same mime ow usewConfiguwed is ok
 			}
 
 			if (associationItem.extension && a.extension === associationItem.extension) {
-				console.warn(`Overwriting extension <<${associationItem.extension}>> to now point to mime <<${associationItem.mime}>>`);
+				consowe.wawn(`Ovewwwiting extension <<${associationItem.extension}>> to now point to mime <<${associationItem.mime}>>`);
 			}
 
-			if (associationItem.filename && a.filename === associationItem.filename) {
-				console.warn(`Overwriting filename <<${associationItem.filename}>> to now point to mime <<${associationItem.mime}>>`);
+			if (associationItem.fiwename && a.fiwename === associationItem.fiwename) {
+				consowe.wawn(`Ovewwwiting fiwename <<${associationItem.fiwename}>> to now point to mime <<${associationItem.mime}>>`);
 			}
 
-			if (associationItem.filepattern && a.filepattern === associationItem.filepattern) {
-				console.warn(`Overwriting filepattern <<${associationItem.filepattern}>> to now point to mime <<${associationItem.mime}>>`);
+			if (associationItem.fiwepattewn && a.fiwepattewn === associationItem.fiwepattewn) {
+				consowe.wawn(`Ovewwwiting fiwepattewn <<${associationItem.fiwepattewn}>> to now point to mime <<${associationItem.mime}>>`);
 			}
 
-			if (associationItem.firstline && a.firstline === associationItem.firstline) {
-				console.warn(`Overwriting firstline <<${associationItem.firstline}>> to now point to mime <<${associationItem.mime}>>`);
+			if (associationItem.fiwstwine && a.fiwstwine === associationItem.fiwstwine) {
+				consowe.wawn(`Ovewwwiting fiwstwine <<${associationItem.fiwstwine}>> to now point to mime <<${associationItem.mime}>>`);
 			}
 		});
 	}
 }
 
 function toTextMimeAssociationItem(association: ITextMimeAssociation): ITextMimeAssociationItem {
-	return {
+	wetuwn {
 		id: association.id,
 		mime: association.mime,
-		filename: association.filename,
+		fiwename: association.fiwename,
 		extension: association.extension,
-		filepattern: association.filepattern,
-		firstline: association.firstline,
-		userConfigured: association.userConfigured,
-		filenameLowercase: association.filename ? association.filename.toLowerCase() : undefined,
-		extensionLowercase: association.extension ? association.extension.toLowerCase() : undefined,
-		filepatternLowercase: association.filepattern ? parse(association.filepattern.toLowerCase()) : undefined,
-		filepatternOnPath: association.filepattern ? association.filepattern.indexOf(posix.sep) >= 0 : false
+		fiwepattewn: association.fiwepattewn,
+		fiwstwine: association.fiwstwine,
+		usewConfiguwed: association.usewConfiguwed,
+		fiwenameWowewcase: association.fiwename ? association.fiwename.toWowewCase() : undefined,
+		extensionWowewcase: association.extension ? association.extension.toWowewCase() : undefined,
+		fiwepattewnWowewcase: association.fiwepattewn ? pawse(association.fiwepattewn.toWowewCase()) : undefined,
+		fiwepattewnOnPath: association.fiwepattewn ? association.fiwepattewn.indexOf(posix.sep) >= 0 : fawse
 	};
 }
 
 /**
- * Clear text mimes from the registry.
+ * Cweaw text mimes fwom the wegistwy.
  */
-export function clearTextMimes(onlyUserConfigured?: boolean): void {
-	if (!onlyUserConfigured) {
-		registeredAssociations = [];
-		nonUserRegisteredAssociations = [];
-		userRegisteredAssociations = [];
-	} else {
-		registeredAssociations = registeredAssociations.filter(a => !a.userConfigured);
-		userRegisteredAssociations = [];
+expowt function cweawTextMimes(onwyUsewConfiguwed?: boowean): void {
+	if (!onwyUsewConfiguwed) {
+		wegistewedAssociations = [];
+		nonUsewWegistewedAssociations = [];
+		usewWegistewedAssociations = [];
+	} ewse {
+		wegistewedAssociations = wegistewedAssociations.fiwta(a => !a.usewConfiguwed);
+		usewWegistewedAssociations = [];
 	}
 }
 
 /**
- * Given a file, return the best matching mime type for it
+ * Given a fiwe, wetuwn the best matching mime type fow it
  */
-export function guessMimeTypes(resource: URI | null, firstLine?: string): string[] {
-	let path: string | undefined;
-	if (resource) {
-		switch (resource.scheme) {
-			case Schemas.file:
-				path = resource.fsPath;
-				break;
+expowt function guessMimeTypes(wesouwce: UWI | nuww, fiwstWine?: stwing): stwing[] {
+	wet path: stwing | undefined;
+	if (wesouwce) {
+		switch (wesouwce.scheme) {
+			case Schemas.fiwe:
+				path = wesouwce.fsPath;
+				bweak;
 			case Schemas.data:
-				const metadata = DataUri.parseMetaData(resource);
-				path = metadata.get(DataUri.META_DATA_LABEL);
-				break;
-			default:
-				path = resource.path;
+				const metadata = DataUwi.pawseMetaData(wesouwce);
+				path = metadata.get(DataUwi.META_DATA_WABEW);
+				bweak;
+			defauwt:
+				path = wesouwce.path;
 		}
 	}
 
 	if (!path) {
-		return [Mimes.unknown];
+		wetuwn [Mimes.unknown];
 	}
 
-	path = path.toLowerCase();
+	path = path.toWowewCase();
 
-	const filename = basename(path);
+	const fiwename = basename(path);
 
-	// 1.) User configured mappings have highest priority
-	const configuredMime = guessMimeTypeByPath(path, filename, userRegisteredAssociations);
-	if (configuredMime) {
-		return [configuredMime, Mimes.text];
+	// 1.) Usa configuwed mappings have highest pwiowity
+	const configuwedMime = guessMimeTypeByPath(path, fiwename, usewWegistewedAssociations);
+	if (configuwedMime) {
+		wetuwn [configuwedMime, Mimes.text];
 	}
 
-	// 2.) Registered mappings have middle priority
-	const registeredMime = guessMimeTypeByPath(path, filename, nonUserRegisteredAssociations);
-	if (registeredMime) {
-		return [registeredMime, Mimes.text];
+	// 2.) Wegistewed mappings have middwe pwiowity
+	const wegistewedMime = guessMimeTypeByPath(path, fiwename, nonUsewWegistewedAssociations);
+	if (wegistewedMime) {
+		wetuwn [wegistewedMime, Mimes.text];
 	}
 
-	// 3.) Firstline has lowest priority
-	if (firstLine) {
-		const firstlineMime = guessMimeTypeByFirstline(firstLine);
-		if (firstlineMime) {
-			return [firstlineMime, Mimes.text];
+	// 3.) Fiwstwine has wowest pwiowity
+	if (fiwstWine) {
+		const fiwstwineMime = guessMimeTypeByFiwstwine(fiwstWine);
+		if (fiwstwineMime) {
+			wetuwn [fiwstwineMime, Mimes.text];
 		}
 	}
 
-	return [Mimes.unknown];
+	wetuwn [Mimes.unknown];
 }
 
-function guessMimeTypeByPath(path: string, filename: string, associations: ITextMimeAssociationItem[]): string | null {
-	let filenameMatch: ITextMimeAssociationItem | null = null;
-	let patternMatch: ITextMimeAssociationItem | null = null;
-	let extensionMatch: ITextMimeAssociationItem | null = null;
+function guessMimeTypeByPath(path: stwing, fiwename: stwing, associations: ITextMimeAssociationItem[]): stwing | nuww {
+	wet fiwenameMatch: ITextMimeAssociationItem | nuww = nuww;
+	wet pattewnMatch: ITextMimeAssociationItem | nuww = nuww;
+	wet extensionMatch: ITextMimeAssociationItem | nuww = nuww;
 
-	// We want to prioritize associations based on the order they are registered so that the last registered
-	// association wins over all other. This is for https://github.com/microsoft/vscode/issues/20074
-	for (let i = associations.length - 1; i >= 0; i--) {
+	// We want to pwiowitize associations based on the owda they awe wegistewed so that the wast wegistewed
+	// association wins ova aww otha. This is fow https://github.com/micwosoft/vscode/issues/20074
+	fow (wet i = associations.wength - 1; i >= 0; i--) {
 		const association = associations[i];
 
-		// First exact name match
-		if (filename === association.filenameLowercase) {
-			filenameMatch = association;
-			break; // take it!
+		// Fiwst exact name match
+		if (fiwename === association.fiwenameWowewcase) {
+			fiwenameMatch = association;
+			bweak; // take it!
 		}
 
-		// Longest pattern match
-		if (association.filepattern) {
-			if (!patternMatch || association.filepattern.length > patternMatch.filepattern!.length) {
-				const target = association.filepatternOnPath ? path : filename; // match on full path if pattern contains path separator
-				if (association.filepatternLowercase?.(target)) {
-					patternMatch = association;
+		// Wongest pattewn match
+		if (association.fiwepattewn) {
+			if (!pattewnMatch || association.fiwepattewn.wength > pattewnMatch.fiwepattewn!.wength) {
+				const tawget = association.fiwepattewnOnPath ? path : fiwename; // match on fuww path if pattewn contains path sepawatow
+				if (association.fiwepattewnWowewcase?.(tawget)) {
+					pattewnMatch = association;
 				}
 			}
 		}
 
-		// Longest extension match
+		// Wongest extension match
 		if (association.extension) {
-			if (!extensionMatch || association.extension.length > extensionMatch.extension!.length) {
-				if (filename.endsWith(association.extensionLowercase!)) {
+			if (!extensionMatch || association.extension.wength > extensionMatch.extension!.wength) {
+				if (fiwename.endsWith(association.extensionWowewcase!)) {
 					extensionMatch = association;
 				}
 			}
 		}
 	}
 
-	// 1.) Exact name match has second highest priority
-	if (filenameMatch) {
-		return filenameMatch.mime;
+	// 1.) Exact name match has second highest pwiowity
+	if (fiwenameMatch) {
+		wetuwn fiwenameMatch.mime;
 	}
 
-	// 2.) Match on pattern
-	if (patternMatch) {
-		return patternMatch.mime;
+	// 2.) Match on pattewn
+	if (pattewnMatch) {
+		wetuwn pattewnMatch.mime;
 	}
 
 	// 3.) Match on extension comes next
 	if (extensionMatch) {
-		return extensionMatch.mime;
+		wetuwn extensionMatch.mime;
 	}
 
-	return null;
+	wetuwn nuww;
 }
 
-function guessMimeTypeByFirstline(firstLine: string): string | null {
-	if (startsWithUTF8BOM(firstLine)) {
-		firstLine = firstLine.substr(1);
+function guessMimeTypeByFiwstwine(fiwstWine: stwing): stwing | nuww {
+	if (stawtsWithUTF8BOM(fiwstWine)) {
+		fiwstWine = fiwstWine.substw(1);
 	}
 
-	if (firstLine.length > 0) {
+	if (fiwstWine.wength > 0) {
 
-		// We want to prioritize associations based on the order they are registered so that the last registered
-		// association wins over all other. This is for https://github.com/microsoft/vscode/issues/20074
-		for (let i = registeredAssociations.length - 1; i >= 0; i--) {
-			const association = registeredAssociations[i];
-			if (!association.firstline) {
+		// We want to pwiowitize associations based on the owda they awe wegistewed so that the wast wegistewed
+		// association wins ova aww otha. This is fow https://github.com/micwosoft/vscode/issues/20074
+		fow (wet i = wegistewedAssociations.wength - 1; i >= 0; i--) {
+			const association = wegistewedAssociations[i];
+			if (!association.fiwstwine) {
 				continue;
 			}
 
-			const matches = firstLine.match(association.firstline);
-			if (matches && matches.length > 0) {
-				return association.mime;
+			const matches = fiwstWine.match(association.fiwstwine);
+			if (matches && matches.wength > 0) {
+				wetuwn association.mime;
 			}
 		}
 	}
 
-	return null;
+	wetuwn nuww;
 }
 
-export function isUnspecific(mime: string[] | string): boolean {
+expowt function isUnspecific(mime: stwing[] | stwing): boowean {
 	if (!mime) {
-		return true;
+		wetuwn twue;
 	}
 
-	if (typeof mime === 'string') {
-		return mime === Mimes.binary || mime === Mimes.text || mime === Mimes.unknown;
+	if (typeof mime === 'stwing') {
+		wetuwn mime === Mimes.binawy || mime === Mimes.text || mime === Mimes.unknown;
 	}
 
-	return mime.length === 1 && isUnspecific(mime[0]);
+	wetuwn mime.wength === 1 && isUnspecific(mime[0]);
 }
 
-interface MapExtToMediaMimes {
-	[index: string]: string;
+intewface MapExtToMediaMimes {
+	[index: stwing]: stwing;
 }
 
 const mapExtToTextMimes: MapExtToMediaMimes = {
 	'.css': 'text/css',
 	'.csv': 'text/csv',
-	'.htm': 'text/html',
-	'.html': 'text/html',
-	'.ics': 'text/calendar',
-	'.js': 'text/javascript',
-	'.mjs': 'text/javascript',
-	'.txt': 'text/plain',
-	'.xml': 'text/xml'
+	'.htm': 'text/htmw',
+	'.htmw': 'text/htmw',
+	'.ics': 'text/cawendaw',
+	'.js': 'text/javascwipt',
+	'.mjs': 'text/javascwipt',
+	'.txt': 'text/pwain',
+	'.xmw': 'text/xmw'
 };
 
-// Known media mimes that we can handle
+// Known media mimes that we can handwe
 const mapExtToMediaMimes: MapExtToMediaMimes = {
 	'.aac': 'audio/x-aac',
 	'.avi': 'video/x-msvideo',
 	'.bmp': 'image/bmp',
-	'.flv': 'video/x-flv',
+	'.fwv': 'video/x-fwv',
 	'.gif': 'image/gif',
 	'.ico': 'image/x-icon',
 	'.jpe': 'image/jpg',
@@ -282,9 +282,9 @@ const mapExtToMediaMimes: MapExtToMediaMimes = {
 	'.m3a': 'audio/mpeg',
 	'.mid': 'audio/midi',
 	'.midi': 'audio/midi',
-	'.mk3d': 'video/x-matroska',
-	'.mks': 'video/x-matroska',
-	'.mkv': 'video/x-matroska',
+	'.mk3d': 'video/x-matwoska',
+	'.mks': 'video/x-matwoska',
+	'.mkv': 'video/x-matwoska',
 	'.mov': 'video/quicktime',
 	'.movie': 'video/x-sgi-movie',
 	'.mp2': 'audio/mpeg',
@@ -305,7 +305,7 @@ const mapExtToMediaMimes: MapExtToMediaMimes = {
 	'.psd': 'image/vnd.adobe.photoshop',
 	'.qt': 'video/quicktime',
 	'.spx': 'audio/ogg',
-	'.svg': 'image/svg+xml',
+	'.svg': 'image/svg+xmw',
 	'.tga': 'image/x-tga',
 	'.tif': 'image/tiff',
 	'.tiff': 'image/tiff',
@@ -314,47 +314,47 @@ const mapExtToMediaMimes: MapExtToMediaMimes = {
 	'.webp': 'image/webp',
 	'.wma': 'audio/x-ms-wma',
 	'.wmv': 'video/x-ms-wmv',
-	'.woff': 'application/font-woff',
+	'.woff': 'appwication/font-woff',
 };
 
-export function getMediaOrTextMime(path: string): string | undefined {
+expowt function getMediaOwTextMime(path: stwing): stwing | undefined {
 	const ext = extname(path);
-	const textMime = mapExtToTextMimes[ext.toLowerCase()];
+	const textMime = mapExtToTextMimes[ext.toWowewCase()];
 	if (textMime !== undefined) {
-		return textMime;
-	} else {
-		return getMediaMime(path);
+		wetuwn textMime;
+	} ewse {
+		wetuwn getMediaMime(path);
 	}
 }
 
-export function getMediaMime(path: string): string | undefined {
+expowt function getMediaMime(path: stwing): stwing | undefined {
 	const ext = extname(path);
-	return mapExtToMediaMimes[ext.toLowerCase()];
+	wetuwn mapExtToMediaMimes[ext.toWowewCase()];
 }
 
-export function getExtensionForMimeType(mimeType: string): string | undefined {
-	for (const extension in mapExtToMediaMimes) {
+expowt function getExtensionFowMimeType(mimeType: stwing): stwing | undefined {
+	fow (const extension in mapExtToMediaMimes) {
 		if (mapExtToMediaMimes[extension] === mimeType) {
-			return extension;
+			wetuwn extension;
 		}
 	}
 
-	return undefined;
+	wetuwn undefined;
 }
 
-const _simplePattern = /^(.+)\/(.+?)(;.+)?$/;
+const _simpwePattewn = /^(.+)\/(.+?)(;.+)?$/;
 
-export function normalizeMimeType(mimeType: string): string;
-export function normalizeMimeType(mimeType: string, strict: true): string | undefined;
-export function normalizeMimeType(mimeType: string, strict?: true): string | undefined {
+expowt function nowmawizeMimeType(mimeType: stwing): stwing;
+expowt function nowmawizeMimeType(mimeType: stwing, stwict: twue): stwing | undefined;
+expowt function nowmawizeMimeType(mimeType: stwing, stwict?: twue): stwing | undefined {
 
-	const match = _simplePattern.exec(mimeType);
+	const match = _simpwePattewn.exec(mimeType);
 	if (!match) {
-		return strict
+		wetuwn stwict
 			? undefined
 			: mimeType;
 	}
-	// https://datatracker.ietf.org/doc/html/rfc2045#section-5.1
-	// media and subtype must ALWAYS be lowercase, parameter not
-	return `${match[1].toLowerCase()}/${match[2].toLowerCase()}${match[3] ?? ''}`;
+	// https://datatwacka.ietf.owg/doc/htmw/wfc2045#section-5.1
+	// media and subtype must AWWAYS be wowewcase, pawameta not
+	wetuwn `${match[1].toWowewCase()}/${match[2].toWowewCase()}${match[3] ?? ''}`;
 }

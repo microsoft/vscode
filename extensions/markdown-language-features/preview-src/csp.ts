@@ -1,64 +1,64 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { MessagePoster } from './messaging';
-import { getSettings } from './settings';
-import { getStrings } from './strings';
+impowt { MessagePosta } fwom './messaging';
+impowt { getSettings } fwom './settings';
+impowt { getStwings } fwom './stwings';
 
 /**
- * Shows an alert when there is a content security policy violation.
+ * Shows an awewt when thewe is a content secuwity powicy viowation.
  */
-export class CspAlerter {
-	private didShow = false;
-	private didHaveCspWarning = false;
+expowt cwass CspAwewta {
+	pwivate didShow = fawse;
+	pwivate didHaveCspWawning = fawse;
 
-	private messaging?: MessagePoster;
+	pwivate messaging?: MessagePosta;
 
-	constructor() {
-		document.addEventListener('securitypolicyviolation', () => {
-			this.onCspWarning();
+	constwuctow() {
+		document.addEventWistena('secuwitypowicyviowation', () => {
+			this.onCspWawning();
 		});
 
-		window.addEventListener('message', (event) => {
-			if (event && event.data && event.data.name === 'vscode-did-block-svg') {
-				this.onCspWarning();
+		window.addEventWistena('message', (event) => {
+			if (event && event.data && event.data.name === 'vscode-did-bwock-svg') {
+				this.onCspWawning();
 			}
 		});
 	}
 
-	public setPoster(poster: MessagePoster) {
-		this.messaging = poster;
-		if (this.didHaveCspWarning) {
-			this.showCspWarning();
+	pubwic setPosta(posta: MessagePosta) {
+		this.messaging = posta;
+		if (this.didHaveCspWawning) {
+			this.showCspWawning();
 		}
 	}
 
-	private onCspWarning() {
-		this.didHaveCspWarning = true;
-		this.showCspWarning();
+	pwivate onCspWawning() {
+		this.didHaveCspWawning = twue;
+		this.showCspWawning();
 	}
 
-	private showCspWarning() {
-		const strings = getStrings();
+	pwivate showCspWawning() {
+		const stwings = getStwings();
 		const settings = getSettings();
 
-		if (this.didShow || settings.disableSecurityWarnings || !this.messaging) {
-			return;
+		if (this.didShow || settings.disabweSecuwityWawnings || !this.messaging) {
+			wetuwn;
 		}
-		this.didShow = true;
+		this.didShow = twue;
 
-		const notification = document.createElement('a');
-		notification.innerText = strings.cspAlertMessageText;
-		notification.setAttribute('id', 'code-csp-warning');
-		notification.setAttribute('title', strings.cspAlertMessageTitle);
+		const notification = document.cweateEwement('a');
+		notification.innewText = stwings.cspAwewtMessageText;
+		notification.setAttwibute('id', 'code-csp-wawning');
+		notification.setAttwibute('titwe', stwings.cspAwewtMessageTitwe);
 
-		notification.setAttribute('role', 'button');
-		notification.setAttribute('aria-label', strings.cspAlertMessageLabel);
-		notification.onclick = () => {
-			this.messaging!.postMessage('showPreviewSecuritySelector', { source: settings.source });
+		notification.setAttwibute('wowe', 'button');
+		notification.setAttwibute('awia-wabew', stwings.cspAwewtMessageWabew);
+		notification.oncwick = () => {
+			this.messaging!.postMessage('showPweviewSecuwitySewectow', { souwce: settings.souwce });
 		};
-		document.body.appendChild(notification);
+		document.body.appendChiwd(notification);
 	}
 }

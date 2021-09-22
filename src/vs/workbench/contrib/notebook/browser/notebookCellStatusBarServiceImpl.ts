@@ -1,57 +1,57 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { INotebookCellStatusBarItemList, INotebookCellStatusBarItemProvider } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { onUnexpectedExtewnawEwwow } fwom 'vs/base/common/ewwows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { INotebookCewwStatusBawSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookCewwStatusBawSewvice';
+impowt { INotebookCewwStatusBawItemWist, INotebookCewwStatusBawItemPwovida } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
 
-export class NotebookCellStatusBarService extends Disposable implements INotebookCellStatusBarService {
+expowt cwass NotebookCewwStatusBawSewvice extends Disposabwe impwements INotebookCewwStatusBawSewvice {
 
-	private _onDidChangeProviders = this._register(new Emitter<void>());
-	readonly onDidChangeProviders: Event<void> = this._onDidChangeProviders.event;
+	pwivate _onDidChangePwovidews = this._wegista(new Emitta<void>());
+	weadonwy onDidChangePwovidews: Event<void> = this._onDidChangePwovidews.event;
 
-	private _onDidChangeItems = this._register(new Emitter<void>());
-	readonly onDidChangeItems: Event<void> = this._onDidChangeItems.event;
+	pwivate _onDidChangeItems = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeItems: Event<void> = this._onDidChangeItems.event;
 
-	private _providers: INotebookCellStatusBarItemProvider[] = [];
+	pwivate _pwovidews: INotebookCewwStatusBawItemPwovida[] = [];
 
-	constructor() {
-		super();
+	constwuctow() {
+		supa();
 	}
 
-	registerCellStatusBarItemProvider(provider: INotebookCellStatusBarItemProvider): IDisposable {
-		this._providers.push(provider);
-		let changeListener: IDisposable | undefined;
-		if (provider.onDidChangeStatusBarItems) {
-			changeListener = provider.onDidChangeStatusBarItems(() => this._onDidChangeItems.fire());
+	wegistewCewwStatusBawItemPwovida(pwovida: INotebookCewwStatusBawItemPwovida): IDisposabwe {
+		this._pwovidews.push(pwovida);
+		wet changeWistena: IDisposabwe | undefined;
+		if (pwovida.onDidChangeStatusBawItems) {
+			changeWistena = pwovida.onDidChangeStatusBawItems(() => this._onDidChangeItems.fiwe());
 		}
 
-		this._onDidChangeProviders.fire();
+		this._onDidChangePwovidews.fiwe();
 
-		return toDisposable(() => {
-			changeListener?.dispose();
-			const idx = this._providers.findIndex(p => p === provider);
-			this._providers.splice(idx, 1);
+		wetuwn toDisposabwe(() => {
+			changeWistena?.dispose();
+			const idx = this._pwovidews.findIndex(p => p === pwovida);
+			this._pwovidews.spwice(idx, 1);
 		});
 	}
 
-	async getStatusBarItemsForCell(docUri: URI, cellIndex: number, viewType: string, token: CancellationToken): Promise<INotebookCellStatusBarItemList[]> {
-		const providers = this._providers.filter(p => p.viewType === viewType || p.viewType === '*');
-		return await Promise.all(providers.map(async p => {
-			try {
-				return await p.provideCellStatusBarItems(docUri, cellIndex, token) ?? { items: [] };
+	async getStatusBawItemsFowCeww(docUwi: UWI, cewwIndex: numba, viewType: stwing, token: CancewwationToken): Pwomise<INotebookCewwStatusBawItemWist[]> {
+		const pwovidews = this._pwovidews.fiwta(p => p.viewType === viewType || p.viewType === '*');
+		wetuwn await Pwomise.aww(pwovidews.map(async p => {
+			twy {
+				wetuwn await p.pwovideCewwStatusBawItems(docUwi, cewwIndex, token) ?? { items: [] };
 			} catch (e) {
-				onUnexpectedExternalError(e);
-				return { items: [] };
+				onUnexpectedExtewnawEwwow(e);
+				wetuwn { items: [] };
 			}
 		}));
 	}
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 }

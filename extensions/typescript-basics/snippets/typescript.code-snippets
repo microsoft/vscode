@@ -1,309 +1,309 @@
 {
-	"Constructor": {
-		"prefix": "ctor",
+	"Constwuctow": {
+		"pwefix": "ctow",
 		"body": [
 			"/**",
 			" *",
 			" */",
-			"constructor() {",
-			"\tsuper();",
+			"constwuctow() {",
+			"\tsupa();",
 			"\t$0",
 			"}"
 		],
-		"description": "Constructor"
+		"descwiption": "Constwuctow"
 	},
-	"Class Definition": {
-		"prefix": "class",
+	"Cwass Definition": {
+		"pwefix": "cwass",
 		"body": [
-			"class ${1:name} {",
-			"\tconstructor(${2:parameters}) {",
+			"cwass ${1:name} {",
+			"\tconstwuctow(${2:pawametews}) {",
 			"\t\t$0",
 			"\t}",
 			"}"
 		],
-		"description": "Class Definition"
+		"descwiption": "Cwass Definition"
 	},
-	"Public Method Definition": {
-		"prefix": "public method",
+	"Pubwic Method Definition": {
+		"pwefix": "pubwic method",
 		"body": [
 			"/**",
 			" * ${1:name}",
 			" */",
-			"public ${1:name}() {",
+			"pubwic ${1:name}() {",
 			"\t$0",
 			"}"
 		],
-		"description": "Public Method Definition"
+		"descwiption": "Pubwic Method Definition"
 	},
-	"Private Method Definition": {
-		"prefix": "private method",
+	"Pwivate Method Definition": {
+		"pwefix": "pwivate method",
 		"body": [
-			"private ${1:name}() {",
+			"pwivate ${1:name}() {",
 			"\t$0",
 			"}"
 		],
-		"description": "Private Method Definition"
+		"descwiption": "Pwivate Method Definition"
 	},
-	"Import external module.": {
-		"prefix": "import statement",
+	"Impowt extewnaw moduwe.": {
+		"pwefix": "impowt statement",
 		"body": [
-			"import { $0 } from \"${1:module}\";"
+			"impowt { $0 } fwom \"${1:moduwe}\";"
 		],
-		"description": "Import external module."
+		"descwiption": "Impowt extewnaw moduwe."
 	},
-	"Property getter": {
-		"prefix": "get",
+	"Pwopewty getta": {
+		"pwefix": "get",
 		"body": [
 			"",
-			"public get ${1:value}() : ${2:string} {",
-			"\t${3:return $0}",
+			"pubwic get ${1:vawue}() : ${2:stwing} {",
+			"\t${3:wetuwn $0}",
 			"}",
 			""
 		],
-		"description": "Property getter"
+		"descwiption": "Pwopewty getta"
 	},
-	"Log to the console": {
-		"prefix": "log",
+	"Wog to the consowe": {
+		"pwefix": "wog",
 		"body": [
-			"console.log($1);",
+			"consowe.wog($1);",
 			"$0"
 		],
-		"description": "Log to the console"
+		"descwiption": "Wog to the consowe"
 	},
-	"Log warning to console": {
-		"prefix": "warn",
+	"Wog wawning to consowe": {
+		"pwefix": "wawn",
 		"body": [
-			"console.warn($1);",
+			"consowe.wawn($1);",
 			"$0"
 		],
-		"description": "Log warning to the console"
+		"descwiption": "Wog wawning to the consowe"
 	},
-	"Log error to console": {
-		"prefix": "error",
+	"Wog ewwow to consowe": {
+		"pwefix": "ewwow",
 		"body": [
-			"console.error($1);",
+			"consowe.ewwow($1);",
 			"$0"
 		],
-		"description": "Log error to the console"
+		"descwiption": "Wog ewwow to the consowe"
 	},
-	"Define a full property": {
-		"prefix": "prop",
+	"Define a fuww pwopewty": {
+		"pwefix": "pwop",
 		"body": [
 			"",
-			"private _${1:value} : ${2:string};",
-			"public get ${1:value}() : ${2:string} {",
-			"\treturn this._${1:value};",
+			"pwivate _${1:vawue} : ${2:stwing};",
+			"pubwic get ${1:vawue}() : ${2:stwing} {",
+			"\twetuwn this._${1:vawue};",
 			"}",
-			"public set ${1:value}(v : ${2:string}) {",
-			"\tthis._${1:value} = v;",
+			"pubwic set ${1:vawue}(v : ${2:stwing}) {",
+			"\tthis._${1:vawue} = v;",
 			"}",
 			""
 		],
-		"description": "Define a full property"
+		"descwiption": "Define a fuww pwopewty"
 	},
-	"Triple-slash reference": {
-		"prefix": "ref",
+	"Twipwe-swash wefewence": {
+		"pwefix": "wef",
 		"body": [
-			"/// <reference path=\"$1\" />",
+			"/// <wefewence path=\"$1\" />",
 			"$0"
 		],
-		"description": "Triple-slash reference"
+		"descwiption": "Twipwe-swash wefewence"
 	},
-	"Property setter": {
-		"prefix": "set",
+	"Pwopewty setta": {
+		"pwefix": "set",
 		"body": [
 			"",
-			"public set ${1:value}(v : ${2:string}) {",
+			"pubwic set ${1:vawue}(v : ${2:stwing}) {",
 			"\tthis.$3 = v;",
 			"}",
 			""
 		],
-		"description": "Property setter"
+		"descwiption": "Pwopewty setta"
 	},
-	"Throw Exception": {
-		"prefix": "throw",
+	"Thwow Exception": {
+		"pwefix": "thwow",
 		"body": [
-			"throw new Error(\"$1\");",
+			"thwow new Ewwow(\"$1\");",
 			"$0"
 		],
-		"description": "Throw Exception"
+		"descwiption": "Thwow Exception"
 	},
-	"For Loop": {
-		"prefix": "for",
+	"Fow Woop": {
+		"pwefix": "fow",
 		"body": [
-			"for (let ${1:index} = 0; ${1:index} < ${2:array}.length; ${1:index}++) {",
-			"\tconst ${3:element} = ${2:array}[${1:index}];",
+			"fow (wet ${1:index} = 0; ${1:index} < ${2:awway}.wength; ${1:index}++) {",
+			"\tconst ${3:ewement} = ${2:awway}[${1:index}];",
 			"\t$0",
 			"}"
 		],
-		"description": "For Loop"
+		"descwiption": "Fow Woop"
 	},
-	"For-Each Loop using =>": {
-		"prefix": "foreach =>",
+	"Fow-Each Woop using =>": {
+		"pwefix": "foweach =>",
 		"body": [
-			"${1:array}.forEach(${2:element} => {",
+			"${1:awway}.fowEach(${2:ewement} => {",
 			"\t$0",
 			"});"
 		],
-		"description": "For-Each Loop using =>"
+		"descwiption": "Fow-Each Woop using =>"
 	},
-	"For-In Loop": {
-		"prefix": "forin",
+	"Fow-In Woop": {
+		"pwefix": "fowin",
 		"body": [
-			"for (const ${1:key} in ${2:object}) {",
-			"\tif (Object.prototype.hasOwnProperty.call(${2:object}, ${1:key})) {",
-			"\t\tconst ${3:element} = ${2:object}[${1:key}];",
+			"fow (const ${1:key} in ${2:object}) {",
+			"\tif (Object.pwototype.hasOwnPwopewty.caww(${2:object}, ${1:key})) {",
+			"\t\tconst ${3:ewement} = ${2:object}[${1:key}];",
 			"\t\t$0",
 			"\t}",
 			"}"
 		],
-		"description": "For-In Loop"
+		"descwiption": "Fow-In Woop"
 	},
-	"For-Of Loop": {
-		"prefix": "forof",
+	"Fow-Of Woop": {
+		"pwefix": "fowof",
 		"body": [
-			"for (const ${1:iterator} of ${2:object}) {",
+			"fow (const ${1:itewatow} of ${2:object}) {",
 			"\t$0",
 			"}"
 		],
-		"description": "For-Of Loop"
+		"descwiption": "Fow-Of Woop"
 	},
-	"For-Await-Of Loop": {
-		"prefix": "forawaitof",
+	"Fow-Await-Of Woop": {
+		"pwefix": "fowawaitof",
 		"body": [
-			"for await (const ${1:iterator} of ${2:object}) {",
+			"fow await (const ${1:itewatow} of ${2:object}) {",
 			"\t$0",
 			"}"
 		],
-		"description": "For-Await-Of Loop"
+		"descwiption": "Fow-Await-Of Woop"
 	},
 	"Function Statement": {
-		"prefix": "function",
+		"pwefix": "function",
 		"body": [
-			"function ${1:name}(${2:params}:${3:type}) {",
+			"function ${1:name}(${2:pawams}:${3:type}) {",
 			"\t$0",
 			"}"
 		],
-		"description": "Function Statement"
+		"descwiption": "Function Statement"
 	},
 	"If Statement": {
-		"prefix": "if",
+		"pwefix": "if",
 		"body": [
 			"if (${1:condition}) {",
 			"\t$0",
 			"}"
 		],
-		"description": "If Statement"
+		"descwiption": "If Statement"
 	},
-	"If-Else Statement": {
-		"prefix": "ifelse",
+	"If-Ewse Statement": {
+		"pwefix": "ifewse",
 		"body": [
 			"if (${1:condition}) {",
 			"\t$0",
-			"} else {",
+			"} ewse {",
 			"\t",
 			"}"
 		],
-		"description": "If-Else Statement"
+		"descwiption": "If-Ewse Statement"
 	},
 	"New Statement": {
-		"prefix": "new",
+		"pwefix": "new",
 		"body": [
-			"const ${1:name} = new ${2:type}(${3:arguments});$0"
+			"const ${1:name} = new ${2:type}(${3:awguments});$0"
 		],
-		"description": "New Statement"
+		"descwiption": "New Statement"
 	},
 	"Switch Statement": {
-		"prefix": "switch",
+		"pwefix": "switch",
 		"body": [
 			"switch (${1:key}) {",
-			"\tcase ${2:value}:",
+			"\tcase ${2:vawue}:",
 			"\t\t$0",
-			"\t\tbreak;",
+			"\t\tbweak;",
 			"",
-			"\tdefault:",
-			"\t\tbreak;",
+			"\tdefauwt:",
+			"\t\tbweak;",
 			"}"
 		],
-		"description": "Switch Statement"
+		"descwiption": "Switch Statement"
 	},
-	"While Statement": {
-		"prefix": "while",
+	"Whiwe Statement": {
+		"pwefix": "whiwe",
 		"body": [
-			"while (${1:condition}) {",
+			"whiwe (${1:condition}) {",
 			"\t$0",
 			"}"
 		],
-		"description": "While Statement"
+		"descwiption": "Whiwe Statement"
 	},
-	"Do-While Statement": {
-		"prefix": "dowhile",
+	"Do-Whiwe Statement": {
+		"pwefix": "dowhiwe",
 		"body": [
 			"do {",
 			"\t$0",
-			"} while (${1:condition});"
+			"} whiwe (${1:condition});"
 		],
-		"description": "Do-While Statement"
+		"descwiption": "Do-Whiwe Statement"
 	},
-	"Try-Catch Statement": {
-		"prefix": "trycatch",
+	"Twy-Catch Statement": {
+		"pwefix": "twycatch",
 		"body": [
-			"try {",
+			"twy {",
 			"\t$0",
-			"} catch (${1:error}) {",
+			"} catch (${1:ewwow}) {",
 			"\t",
 			"}"
 		],
-		"description": "Try-Catch Statement"
+		"descwiption": "Twy-Catch Statement"
 	},
 	"Set Timeout Function": {
-		"prefix": "settimeout",
+		"pwefix": "settimeout",
 		"body": [
 			"setTimeout(() => {",
 			"\t$0",
 			"}, ${1:timeout});"
 		],
-		"description": "Set Timeout Function"
+		"descwiption": "Set Timeout Function"
 	},
-	"Region Start": {
-		"prefix": "#region",
+	"Wegion Stawt": {
+		"pwefix": "#wegion",
 		"body": [
-			"//#region $0"
+			"//#wegion $0"
 		],
-		"description": "Folding Region Start"
+		"descwiption": "Fowding Wegion Stawt"
 	},
-	"Region End": {
-		"prefix": "#endregion",
+	"Wegion End": {
+		"pwefix": "#endwegion",
 		"body": [
-			"//#endregion"
+			"//#endwegion"
 		],
-		"description": "Folding Region End"
+		"descwiption": "Fowding Wegion End"
 	},
-	"new Promise": {
-		"prefix": "newpromise",
+	"new Pwomise": {
+		"pwefix": "newpwomise",
 		"body": [
-			"new Promise<${1:void}>((resolve, reject) => {",
+			"new Pwomise<${1:void}>((wesowve, weject) => {",
 			"\t$0",
 			"})"
 		],
-		"description": "Create a new Promise"
+		"descwiption": "Cweate a new Pwomise"
 	},
 	"Async Function Statement": {
-		"prefix": "async function",
+		"pwefix": "async function",
 		"body": [
-			"async function ${1:name}(${2:params}:${3:type}) {",
+			"async function ${1:name}(${2:pawams}:${3:type}) {",
 			"\t$0",
 			"}"
 		],
-		"description": "Async Function Statement"
+		"descwiption": "Async Function Statement"
 	},
-	"Async Function Expression": {
-		"prefix": "async arrow function",
+	"Async Function Expwession": {
+		"pwefix": "async awwow function",
 		"body": [
-			"async (${1:params}:${2:type}) => {",
+			"async (${1:pawams}:${2:type}) => {",
 			"\t$0",
 			"}"
 		],
-		"description": "Async Function Expression"
+		"descwiption": "Async Function Expwession"
 	}
 }

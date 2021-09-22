@@ -1,449 +1,449 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import * as DOM from 'vs/base/browser/dom';
-import * as glob from 'vs/base/common/glob';
-import { IListVirtualDelegate, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
-import { IProgressService, ProgressLocation, } from 'vs/platform/progress/common/progress';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IFileService, FileKind, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IDisposable, Disposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IFileLabelOptions, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { ITreeNode, ITreeFilter, TreeVisibility, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from 'vs/base/browser/ui/tree/tree';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
-import { dirname, joinPath, distinctParents } from 'vs/base/common/resources';
-import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { localize } from 'vs/nls';
-import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
-import { once } from 'vs/base/common/functional';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { equals, deepClone } from 'vs/base/common/objects';
-import * as path from 'vs/base/common/path';
-import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
-import { compareFileExtensionsDefault, compareFileNamesDefault, compareFileNamesUpper, compareFileExtensionsUpper, compareFileNamesLower, compareFileExtensionsLower, compareFileNamesUnicode, compareFileExtensionsUnicode } from 'vs/base/common/comparers';
-import { fillEditorsDragData, CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
-import { Schemas } from 'vs/base/common/network';
-import { NativeDragAndDropData, ExternalElementsDragAndDropData, ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
-import { isMacintosh, isWeb } from 'vs/base/common/platform';
-import { IDialogService, getFileNamesMessage } from 'vs/platform/dialogs/common/dialogs';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { URI } from 'vs/base/common/uri';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
-import { findValidPasteFileTarget } from 'vs/workbench/contrib/files/browser/fileActions';
-import { FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { Emitter, Event, EventMultiplexer } from 'vs/base/common/event';
-import { ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
-import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { isNumber } from 'vs/base/common/types';
-import { IEditableData } from 'vs/workbench/common/views';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
-import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
-import { BrowserFileUpload, NativeFileImport, getMultipleFilesOverwriteConfirm } from 'vs/workbench/contrib/files/browser/fileImportExport';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
+impowt { IWistAccessibiwityPwovida } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt * as gwob fwom 'vs/base/common/gwob';
+impowt { IWistViwtuawDewegate, WistDwagOvewEffect } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { IPwogwessSewvice, PwogwessWocation, } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IFiweSewvice, FiweKind, FiweOpewationEwwow, FiweOpewationWesuwt } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IWowkbenchWayoutSewvice } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { IWowkspaceContextSewvice, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IDisposabwe, Disposabwe, dispose, toDisposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { IFiweWabewOptions, IWesouwceWabew, WesouwceWabews } fwom 'vs/wowkbench/bwowsa/wabews';
+impowt { ITweeNode, ITweeFiwta, TweeVisibiwity, IAsyncDataSouwce, ITweeSowta, ITweeDwagAndDwop, ITweeDwagOvewWeaction, TweeDwagOvewBubbwe } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { IContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IFiwesConfiguwation } fwom 'vs/wowkbench/contwib/fiwes/common/fiwes';
+impowt { diwname, joinPath, distinctPawents } fwom 'vs/base/common/wesouwces';
+impowt { InputBox, MessageType } fwom 'vs/base/bwowsa/ui/inputbox/inputBox';
+impowt { wocawize } fwom 'vs/nws';
+impowt { attachInputBoxStywa } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { once } fwom 'vs/base/common/functionaw';
+impowt { IKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { equaws, deepCwone } fwom 'vs/base/common/objects';
+impowt * as path fwom 'vs/base/common/path';
+impowt { ExpwowewItem, NewExpwowewItem } fwom 'vs/wowkbench/contwib/fiwes/common/expwowewModew';
+impowt { compaweFiweExtensionsDefauwt, compaweFiweNamesDefauwt, compaweFiweNamesUppa, compaweFiweExtensionsUppa, compaweFiweNamesWowa, compaweFiweExtensionsWowa, compaweFiweNamesUnicode, compaweFiweExtensionsUnicode } fwom 'vs/base/common/compawews';
+impowt { fiwwEditowsDwagData, CodeDataTwansfews, containsDwagType } fwom 'vs/wowkbench/bwowsa/dnd';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IDwagAndDwopData, DataTwansfews } fwom 'vs/base/bwowsa/dnd';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { NativeDwagAndDwopData, ExtewnawEwementsDwagAndDwopData, EwementsDwagAndDwopData } fwom 'vs/base/bwowsa/ui/wist/wistView';
+impowt { isMacintosh, isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { IDiawogSewvice, getFiweNamesMessage } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IWowkspaceEditingSewvice } fwom 'vs/wowkbench/sewvices/wowkspaces/common/wowkspaceEditing';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IWowkspaceFowdewCweationData } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { findVawidPasteFiweTawget } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/fiweActions';
+impowt { FuzzyScowe, cweateMatches } fwom 'vs/base/common/fiwtews';
+impowt { Emitta, Event, EventMuwtipwexa } fwom 'vs/base/common/event';
+impowt { ITweeCompwessionDewegate } fwom 'vs/base/bwowsa/ui/twee/asyncDataTwee';
+impowt { ICompwessibweTweeWendewa } fwom 'vs/base/bwowsa/ui/twee/objectTwee';
+impowt { ICompwessedTweeNode } fwom 'vs/base/bwowsa/ui/twee/compwessedObjectTweeModew';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { isNumba } fwom 'vs/base/common/types';
+impowt { IEditabweData } fwom 'vs/wowkbench/common/views';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { WesouwceFiweEdit } fwom 'vs/editow/bwowsa/sewvices/buwkEditSewvice';
+impowt { IExpwowewSewvice } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/fiwes';
+impowt { BwowsewFiweUpwoad, NativeFiweImpowt, getMuwtipweFiwesOvewwwiteConfiwm } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/fiweImpowtExpowt';
+impowt { toEwwowMessage } fwom 'vs/base/common/ewwowMessage';
 
-export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
+expowt cwass ExpwowewDewegate impwements IWistViwtuawDewegate<ExpwowewItem> {
 
-	static readonly ITEM_HEIGHT = 22;
+	static weadonwy ITEM_HEIGHT = 22;
 
-	getHeight(element: ExplorerItem): number {
-		return ExplorerDelegate.ITEM_HEIGHT;
+	getHeight(ewement: ExpwowewItem): numba {
+		wetuwn ExpwowewDewegate.ITEM_HEIGHT;
 	}
 
-	getTemplateId(element: ExplorerItem): string {
-		return FilesRenderer.ID;
+	getTempwateId(ewement: ExpwowewItem): stwing {
+		wetuwn FiwesWendewa.ID;
 	}
 }
 
-export const explorerRootErrorEmitter = new Emitter<URI>();
-export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | ExplorerItem[], ExplorerItem> {
+expowt const expwowewWootEwwowEmitta = new Emitta<UWI>();
+expowt cwass ExpwowewDataSouwce impwements IAsyncDataSouwce<ExpwowewItem | ExpwowewItem[], ExpwowewItem> {
 
-	constructor(
-		@IProgressService private readonly progressService: IProgressService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IFileService private readonly fileService: IFileService,
-		@IExplorerService private readonly explorerService: IExplorerService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
+	constwuctow(
+		@IPwogwessSewvice pwivate weadonwy pwogwessSewvice: IPwogwessSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IWowkbenchWayoutSewvice pwivate weadonwy wayoutSewvice: IWowkbenchWayoutSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IExpwowewSewvice pwivate weadonwy expwowewSewvice: IExpwowewSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice
 	) { }
 
-	hasChildren(element: ExplorerItem | ExplorerItem[]): boolean {
-		return Array.isArray(element) || element.isDirectory;
+	hasChiwdwen(ewement: ExpwowewItem | ExpwowewItem[]): boowean {
+		wetuwn Awway.isAwway(ewement) || ewement.isDiwectowy;
 	}
 
-	getChildren(element: ExplorerItem | ExplorerItem[]): Promise<ExplorerItem[]> {
-		if (Array.isArray(element)) {
-			return Promise.resolve(element);
+	getChiwdwen(ewement: ExpwowewItem | ExpwowewItem[]): Pwomise<ExpwowewItem[]> {
+		if (Awway.isAwway(ewement)) {
+			wetuwn Pwomise.wesowve(ewement);
 		}
 
-		const wasError = element.isError;
-		const sortOrder = this.explorerService.sortOrderConfiguration.sortOrder;
-		const promise = element.fetchChildren(sortOrder).then(
-			children => {
-				// Clear previous error decoration on root folder
-				if (element instanceof ExplorerItem && element.isRoot && !element.isError && wasError && this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
-					explorerRootErrorEmitter.fire(element.resource);
+		const wasEwwow = ewement.isEwwow;
+		const sowtOwda = this.expwowewSewvice.sowtOwdewConfiguwation.sowtOwda;
+		const pwomise = ewement.fetchChiwdwen(sowtOwda).then(
+			chiwdwen => {
+				// Cweaw pwevious ewwow decowation on woot fowda
+				if (ewement instanceof ExpwowewItem && ewement.isWoot && !ewement.isEwwow && wasEwwow && this.contextSewvice.getWowkbenchState() !== WowkbenchState.FOWDa) {
+					expwowewWootEwwowEmitta.fiwe(ewement.wesouwce);
 				}
-				return children;
+				wetuwn chiwdwen;
 			}
 			, e => {
 
-				if (element instanceof ExplorerItem && element.isRoot) {
-					if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
-						// Single folder create a dummy explorer item to show error
-						const placeholder = new ExplorerItem(element.resource, this.fileService, undefined, false);
-						placeholder.isError = true;
-						return [placeholder];
-					} else {
-						explorerRootErrorEmitter.fire(element.resource);
+				if (ewement instanceof ExpwowewItem && ewement.isWoot) {
+					if (this.contextSewvice.getWowkbenchState() === WowkbenchState.FOWDa) {
+						// Singwe fowda cweate a dummy expwowa item to show ewwow
+						const pwacehowda = new ExpwowewItem(ewement.wesouwce, this.fiweSewvice, undefined, fawse);
+						pwacehowda.isEwwow = twue;
+						wetuwn [pwacehowda];
+					} ewse {
+						expwowewWootEwwowEmitta.fiwe(ewement.wesouwce);
 					}
-				} else {
-					// Do not show error for roots since we already use an explorer decoration to notify user
-					this.notificationService.error(e);
+				} ewse {
+					// Do not show ewwow fow woots since we awweady use an expwowa decowation to notify usa
+					this.notificationSewvice.ewwow(e);
 				}
 
-				return []; // we could not resolve any children because of an error
+				wetuwn []; // we couwd not wesowve any chiwdwen because of an ewwow
 			});
 
-		this.progressService.withProgress({
-			location: ProgressLocation.Explorer,
-			delay: this.layoutService.isRestored() ? 800 : 1500 // reduce progress visibility when still restoring
-		}, _progress => promise);
+		this.pwogwessSewvice.withPwogwess({
+			wocation: PwogwessWocation.Expwowa,
+			deway: this.wayoutSewvice.isWestowed() ? 800 : 1500 // weduce pwogwess visibiwity when stiww westowing
+		}, _pwogwess => pwomise);
 
-		return promise;
+		wetuwn pwomise;
 	}
 }
 
-export interface ICompressedNavigationController {
-	readonly current: ExplorerItem;
-	readonly currentId: string;
-	readonly items: ExplorerItem[];
-	readonly labels: HTMLElement[];
-	readonly index: number;
-	readonly count: number;
-	readonly onDidChange: Event<void>;
-	previous(): void;
+expowt intewface ICompwessedNavigationContwowwa {
+	weadonwy cuwwent: ExpwowewItem;
+	weadonwy cuwwentId: stwing;
+	weadonwy items: ExpwowewItem[];
+	weadonwy wabews: HTMWEwement[];
+	weadonwy index: numba;
+	weadonwy count: numba;
+	weadonwy onDidChange: Event<void>;
+	pwevious(): void;
 	next(): void;
-	first(): void;
-	last(): void;
-	setIndex(index: number): void;
-	updateCollapsed(collapsed: boolean): void;
+	fiwst(): void;
+	wast(): void;
+	setIndex(index: numba): void;
+	updateCowwapsed(cowwapsed: boowean): void;
 }
 
-export class CompressedNavigationController implements ICompressedNavigationController, IDisposable {
+expowt cwass CompwessedNavigationContwowwa impwements ICompwessedNavigationContwowwa, IDisposabwe {
 
 	static ID = 0;
 
-	private _index: number;
-	private _labels!: HTMLElement[];
-	private _updateLabelDisposable: IDisposable;
+	pwivate _index: numba;
+	pwivate _wabews!: HTMWEwement[];
+	pwivate _updateWabewDisposabwe: IDisposabwe;
 
-	get index(): number { return this._index; }
-	get count(): number { return this.items.length; }
-	get current(): ExplorerItem { return this.items[this._index]!; }
-	get currentId(): string { return `${this.id}_${this.index}`; }
-	get labels(): HTMLElement[] { return this._labels; }
+	get index(): numba { wetuwn this._index; }
+	get count(): numba { wetuwn this.items.wength; }
+	get cuwwent(): ExpwowewItem { wetuwn this.items[this._index]!; }
+	get cuwwentId(): stwing { wetuwn `${this.id}_${this.index}`; }
+	get wabews(): HTMWEwement[] { wetuwn this._wabews; }
 
-	private _onDidChange = new Emitter<void>();
-	readonly onDidChange = this._onDidChange.event;
+	pwivate _onDidChange = new Emitta<void>();
+	weadonwy onDidChange = this._onDidChange.event;
 
-	constructor(private id: string, readonly items: ExplorerItem[], templateData: IFileTemplateData, private depth: number, private collapsed: boolean) {
-		this._index = items.length - 1;
+	constwuctow(pwivate id: stwing, weadonwy items: ExpwowewItem[], tempwateData: IFiweTempwateData, pwivate depth: numba, pwivate cowwapsed: boowean) {
+		this._index = items.wength - 1;
 
-		this.updateLabels(templateData);
-		this._updateLabelDisposable = templateData.label.onDidRender(() => this.updateLabels(templateData));
+		this.updateWabews(tempwateData);
+		this._updateWabewDisposabwe = tempwateData.wabew.onDidWenda(() => this.updateWabews(tempwateData));
 	}
 
-	private updateLabels(templateData: IFileTemplateData): void {
-		this._labels = Array.from(templateData.container.querySelectorAll('.label-name')) as HTMLElement[];
-		let parents = '';
-		for (let i = 0; i < this.labels.length; i++) {
-			const ariaLabel = parents.length ? `${this.items[i].name}, compact, ${parents}` : this.items[i].name;
-			this.labels[i].setAttribute('aria-label', ariaLabel);
-			this.labels[i].setAttribute('aria-level', `${this.depth + i}`);
-			parents = parents.length ? `${this.items[i].name} ${parents}` : this.items[i].name;
+	pwivate updateWabews(tempwateData: IFiweTempwateData): void {
+		this._wabews = Awway.fwom(tempwateData.containa.quewySewectowAww('.wabew-name')) as HTMWEwement[];
+		wet pawents = '';
+		fow (wet i = 0; i < this.wabews.wength; i++) {
+			const awiaWabew = pawents.wength ? `${this.items[i].name}, compact, ${pawents}` : this.items[i].name;
+			this.wabews[i].setAttwibute('awia-wabew', awiaWabew);
+			this.wabews[i].setAttwibute('awia-wevew', `${this.depth + i}`);
+			pawents = pawents.wength ? `${this.items[i].name} ${pawents}` : this.items[i].name;
 		}
-		this.updateCollapsed(this.collapsed);
+		this.updateCowwapsed(this.cowwapsed);
 
-		if (this._index < this.labels.length) {
-			this.labels[this._index].classList.add('active');
+		if (this._index < this.wabews.wength) {
+			this.wabews[this._index].cwassWist.add('active');
 		}
 	}
 
-	previous(): void {
+	pwevious(): void {
 		if (this._index <= 0) {
-			return;
+			wetuwn;
 		}
 
 		this.setIndex(this._index - 1);
 	}
 
 	next(): void {
-		if (this._index >= this.items.length - 1) {
-			return;
+		if (this._index >= this.items.wength - 1) {
+			wetuwn;
 		}
 
 		this.setIndex(this._index + 1);
 	}
 
-	first(): void {
+	fiwst(): void {
 		if (this._index === 0) {
-			return;
+			wetuwn;
 		}
 
 		this.setIndex(0);
 	}
 
-	last(): void {
-		if (this._index === this.items.length - 1) {
-			return;
+	wast(): void {
+		if (this._index === this.items.wength - 1) {
+			wetuwn;
 		}
 
-		this.setIndex(this.items.length - 1);
+		this.setIndex(this.items.wength - 1);
 	}
 
-	setIndex(index: number): void {
-		if (index < 0 || index >= this.items.length) {
-			return;
+	setIndex(index: numba): void {
+		if (index < 0 || index >= this.items.wength) {
+			wetuwn;
 		}
 
-		this.labels[this._index].classList.remove('active');
+		this.wabews[this._index].cwassWist.wemove('active');
 		this._index = index;
-		this.labels[this._index].classList.add('active');
+		this.wabews[this._index].cwassWist.add('active');
 
-		this._onDidChange.fire();
+		this._onDidChange.fiwe();
 	}
 
-	updateCollapsed(collapsed: boolean): void {
-		this.collapsed = collapsed;
-		for (let i = 0; i < this.labels.length; i++) {
-			this.labels[i].setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+	updateCowwapsed(cowwapsed: boowean): void {
+		this.cowwapsed = cowwapsed;
+		fow (wet i = 0; i < this.wabews.wength; i++) {
+			this.wabews[i].setAttwibute('awia-expanded', cowwapsed ? 'fawse' : 'twue');
 		}
 	}
 
 	dispose(): void {
 		this._onDidChange.dispose();
-		this._updateLabelDisposable.dispose();
+		this._updateWabewDisposabwe.dispose();
 	}
 }
 
-export interface IFileTemplateData {
-	elementDisposable: IDisposable;
-	label: IResourceLabel;
-	container: HTMLElement;
+expowt intewface IFiweTempwateData {
+	ewementDisposabwe: IDisposabwe;
+	wabew: IWesouwceWabew;
+	containa: HTMWEwement;
 }
 
-export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, FuzzyScore, IFileTemplateData>, IListAccessibilityProvider<ExplorerItem>, IDisposable {
-	static readonly ID = 'file';
+expowt cwass FiwesWendewa impwements ICompwessibweTweeWendewa<ExpwowewItem, FuzzyScowe, IFiweTempwateData>, IWistAccessibiwityPwovida<ExpwowewItem>, IDisposabwe {
+	static weadonwy ID = 'fiwe';
 
-	private config: IFilesConfiguration;
-	private configListener: IDisposable;
-	private compressedNavigationControllers = new Map<ExplorerItem, CompressedNavigationController>();
+	pwivate config: IFiwesConfiguwation;
+	pwivate configWistena: IDisposabwe;
+	pwivate compwessedNavigationContwowwews = new Map<ExpwowewItem, CompwessedNavigationContwowwa>();
 
-	private _onDidChangeActiveDescendant = new EventMultiplexer<void>();
-	readonly onDidChangeActiveDescendant = this._onDidChangeActiveDescendant.event;
+	pwivate _onDidChangeActiveDescendant = new EventMuwtipwexa<void>();
+	weadonwy onDidChangeActiveDescendant = this._onDidChangeActiveDescendant.event;
 
-	constructor(
-		private labels: ResourceLabels,
-		private updateWidth: (stat: ExplorerItem) => void,
-		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IThemeService private readonly themeService: IThemeService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IExplorerService private readonly explorerService: IExplorerService,
-		@ILabelService private readonly labelService: ILabelService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
+	constwuctow(
+		pwivate wabews: WesouwceWabews,
+		pwivate updateWidth: (stat: ExpwowewItem) => void,
+		@IContextViewSewvice pwivate weadonwy contextViewSewvice: IContextViewSewvice,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IExpwowewSewvice pwivate weadonwy expwowewSewvice: IExpwowewSewvice,
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice
 	) {
-		this.config = this.configurationService.getValue<IFilesConfiguration>();
-		this.configListener = this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('explorer')) {
-				this.config = this.configurationService.getValue();
+		this.config = this.configuwationSewvice.getVawue<IFiwesConfiguwation>();
+		this.configWistena = this.configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation('expwowa')) {
+				this.config = this.configuwationSewvice.getVawue();
 			}
 		});
 	}
 
-	getWidgetAriaLabel(): string {
-		return localize('treeAriaLabel', "Files Explorer");
+	getWidgetAwiaWabew(): stwing {
+		wetuwn wocawize('tweeAwiaWabew', "Fiwes Expwowa");
 	}
 
-	get templateId(): string {
-		return FilesRenderer.ID;
+	get tempwateId(): stwing {
+		wetuwn FiwesWendewa.ID;
 	}
 
-	renderTemplate(container: HTMLElement): IFileTemplateData {
-		const elementDisposable = Disposable.None;
-		const label = this.labels.create(container, { supportHighlights: true });
+	wendewTempwate(containa: HTMWEwement): IFiweTempwateData {
+		const ewementDisposabwe = Disposabwe.None;
+		const wabew = this.wabews.cweate(containa, { suppowtHighwights: twue });
 
-		return { elementDisposable, label, container };
+		wetuwn { ewementDisposabwe, wabew, containa };
 	}
 
-	renderElement(node: ITreeNode<ExplorerItem, FuzzyScore>, index: number, templateData: IFileTemplateData): void {
-		templateData.elementDisposable.dispose();
-		const stat = node.element;
-		const editableData = this.explorerService.getEditableData(stat);
+	wendewEwement(node: ITweeNode<ExpwowewItem, FuzzyScowe>, index: numba, tempwateData: IFiweTempwateData): void {
+		tempwateData.ewementDisposabwe.dispose();
+		const stat = node.ewement;
+		const editabweData = this.expwowewSewvice.getEditabweData(stat);
 
-		templateData.label.element.classList.remove('compressed');
+		tempwateData.wabew.ewement.cwassWist.wemove('compwessed');
 
-		// File Label
-		if (!editableData) {
-			templateData.label.element.style.display = 'flex';
-			templateData.elementDisposable = this.renderStat(stat, stat.name, undefined, node.filterData, templateData);
+		// Fiwe Wabew
+		if (!editabweData) {
+			tempwateData.wabew.ewement.stywe.dispway = 'fwex';
+			tempwateData.ewementDisposabwe = this.wendewStat(stat, stat.name, undefined, node.fiwtewData, tempwateData);
 		}
 
 		// Input Box
-		else {
-			templateData.label.element.style.display = 'none';
-			templateData.elementDisposable = this.renderInputBox(templateData.container, stat, editableData);
+		ewse {
+			tempwateData.wabew.ewement.stywe.dispway = 'none';
+			tempwateData.ewementDisposabwe = this.wendewInputBox(tempwateData.containa, stat, editabweData);
 		}
 	}
 
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ExplorerItem>, FuzzyScore>, index: number, templateData: IFileTemplateData, height: number | undefined): void {
-		templateData.elementDisposable.dispose();
+	wendewCompwessedEwements(node: ITweeNode<ICompwessedTweeNode<ExpwowewItem>, FuzzyScowe>, index: numba, tempwateData: IFiweTempwateData, height: numba | undefined): void {
+		tempwateData.ewementDisposabwe.dispose();
 
-		const stat = node.element.elements[node.element.elements.length - 1];
-		const editable = node.element.elements.filter(e => this.explorerService.isEditable(e));
-		const editableData = editable.length === 0 ? undefined : this.explorerService.getEditableData(editable[0]);
+		const stat = node.ewement.ewements[node.ewement.ewements.wength - 1];
+		const editabwe = node.ewement.ewements.fiwta(e => this.expwowewSewvice.isEditabwe(e));
+		const editabweData = editabwe.wength === 0 ? undefined : this.expwowewSewvice.getEditabweData(editabwe[0]);
 
-		// File Label
-		if (!editableData) {
-			templateData.label.element.classList.add('compressed');
-			templateData.label.element.style.display = 'flex';
+		// Fiwe Wabew
+		if (!editabweData) {
+			tempwateData.wabew.ewement.cwassWist.add('compwessed');
+			tempwateData.wabew.ewement.stywe.dispway = 'fwex';
 
-			const disposables = new DisposableStore();
-			const id = `compressed-explorer_${CompressedNavigationController.ID++}`;
+			const disposabwes = new DisposabweStowe();
+			const id = `compwessed-expwowew_${CompwessedNavigationContwowwa.ID++}`;
 
-			const label = node.element.elements.map(e => e.name);
-			disposables.add(this.renderStat(stat, label, id, node.filterData, templateData));
+			const wabew = node.ewement.ewements.map(e => e.name);
+			disposabwes.add(this.wendewStat(stat, wabew, id, node.fiwtewData, tempwateData));
 
-			const compressedNavigationController = new CompressedNavigationController(id, node.element.elements, templateData, node.depth, node.collapsed);
-			disposables.add(compressedNavigationController);
-			this.compressedNavigationControllers.set(stat, compressedNavigationController);
+			const compwessedNavigationContwowwa = new CompwessedNavigationContwowwa(id, node.ewement.ewements, tempwateData, node.depth, node.cowwapsed);
+			disposabwes.add(compwessedNavigationContwowwa);
+			this.compwessedNavigationContwowwews.set(stat, compwessedNavigationContwowwa);
 
-			// accessibility
-			disposables.add(this._onDidChangeActiveDescendant.add(compressedNavigationController.onDidChange));
+			// accessibiwity
+			disposabwes.add(this._onDidChangeActiveDescendant.add(compwessedNavigationContwowwa.onDidChange));
 
-			disposables.add(DOM.addDisposableListener(templateData.container, 'mousedown', e => {
-				const result = getIconLabelNameFromHTMLElement(e.target);
+			disposabwes.add(DOM.addDisposabweWistena(tempwateData.containa, 'mousedown', e => {
+				const wesuwt = getIconWabewNameFwomHTMWEwement(e.tawget);
 
-				if (result) {
-					compressedNavigationController.setIndex(result.index);
+				if (wesuwt) {
+					compwessedNavigationContwowwa.setIndex(wesuwt.index);
 				}
 			}));
 
-			disposables.add(toDisposable(() => this.compressedNavigationControllers.delete(stat)));
+			disposabwes.add(toDisposabwe(() => this.compwessedNavigationContwowwews.dewete(stat)));
 
-			templateData.elementDisposable = disposables;
+			tempwateData.ewementDisposabwe = disposabwes;
 		}
 
 		// Input Box
-		else {
-			templateData.label.element.classList.remove('compressed');
-			templateData.label.element.style.display = 'none';
-			templateData.elementDisposable = this.renderInputBox(templateData.container, editable[0], editableData);
+		ewse {
+			tempwateData.wabew.ewement.cwassWist.wemove('compwessed');
+			tempwateData.wabew.ewement.stywe.dispway = 'none';
+			tempwateData.ewementDisposabwe = this.wendewInputBox(tempwateData.containa, editabwe[0], editabweData);
 		}
 	}
 
-	private renderStat(stat: ExplorerItem, label: string | string[], domId: string | undefined, filterData: FuzzyScore | undefined, templateData: IFileTemplateData): IDisposable {
-		templateData.label.element.style.display = 'flex';
-		const extraClasses = ['explorer-item'];
-		if (this.explorerService.isCut(stat)) {
-			extraClasses.push('cut');
+	pwivate wendewStat(stat: ExpwowewItem, wabew: stwing | stwing[], domId: stwing | undefined, fiwtewData: FuzzyScowe | undefined, tempwateData: IFiweTempwateData): IDisposabwe {
+		tempwateData.wabew.ewement.stywe.dispway = 'fwex';
+		const extwaCwasses = ['expwowa-item'];
+		if (this.expwowewSewvice.isCut(stat)) {
+			extwaCwasses.push('cut');
 		}
 
-		templateData.label.setResource({ resource: stat.resource, name: label }, {
-			fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
-			extraClasses,
-			fileDecorations: this.config.explorer.decorations,
-			matches: createMatches(filterData),
-			separator: this.labelService.getSeparator(stat.resource.scheme, stat.resource.authority),
+		tempwateData.wabew.setWesouwce({ wesouwce: stat.wesouwce, name: wabew }, {
+			fiweKind: stat.isWoot ? FiweKind.WOOT_FOWDa : stat.isDiwectowy ? FiweKind.FOWDa : FiweKind.FIWE,
+			extwaCwasses,
+			fiweDecowations: this.config.expwowa.decowations,
+			matches: cweateMatches(fiwtewData),
+			sepawatow: this.wabewSewvice.getSepawatow(stat.wesouwce.scheme, stat.wesouwce.authowity),
 			domId
 		});
 
-		return templateData.label.onDidRender(() => {
-			try {
+		wetuwn tempwateData.wabew.onDidWenda(() => {
+			twy {
 				this.updateWidth(stat);
 			} catch (e) {
-				// noop since the element might no longer be in the tree, no update of width necessery
+				// noop since the ewement might no wonga be in the twee, no update of width necessewy
 			}
 		});
 	}
 
-	private renderInputBox(container: HTMLElement, stat: ExplorerItem, editableData: IEditableData): IDisposable {
+	pwivate wendewInputBox(containa: HTMWEwement, stat: ExpwowewItem, editabweData: IEditabweData): IDisposabwe {
 
-		// Use a file label only for the icon next to the input box
-		const label = this.labels.create(container);
-		const extraClasses = ['explorer-item', 'explorer-item-edited'];
-		const fileKind = stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE;
-		const labelOptions: IFileLabelOptions = { hidePath: true, hideLabel: true, fileKind, extraClasses };
+		// Use a fiwe wabew onwy fow the icon next to the input box
+		const wabew = this.wabews.cweate(containa);
+		const extwaCwasses = ['expwowa-item', 'expwowa-item-edited'];
+		const fiweKind = stat.isWoot ? FiweKind.WOOT_FOWDa : stat.isDiwectowy ? FiweKind.FOWDa : FiweKind.FIWE;
+		const wabewOptions: IFiweWabewOptions = { hidePath: twue, hideWabew: twue, fiweKind, extwaCwasses };
 
-		const parent = stat.name ? dirname(stat.resource) : stat.resource;
-		const value = stat.name || '';
+		const pawent = stat.name ? diwname(stat.wesouwce) : stat.wesouwce;
+		const vawue = stat.name || '';
 
-		label.setFile(joinPath(parent, value || ' '), labelOptions); // Use icon for ' ' if name is empty.
+		wabew.setFiwe(joinPath(pawent, vawue || ' '), wabewOptions); // Use icon fow ' ' if name is empty.
 
-		// hack: hide label
-		(label.element.firstElementChild as HTMLElement).style.display = 'none';
+		// hack: hide wabew
+		(wabew.ewement.fiwstEwementChiwd as HTMWEwement).stywe.dispway = 'none';
 
-		// Input field for name
-		const inputBox = new InputBox(label.element, this.contextViewService, {
-			validationOptions: {
-				validation: (value) => {
-					const message = editableData.validationMessage(value);
-					if (!message || message.severity !== Severity.Error) {
-						return null;
+		// Input fiewd fow name
+		const inputBox = new InputBox(wabew.ewement, this.contextViewSewvice, {
+			vawidationOptions: {
+				vawidation: (vawue) => {
+					const message = editabweData.vawidationMessage(vawue);
+					if (!message || message.sevewity !== Sevewity.Ewwow) {
+						wetuwn nuww;
 					}
 
-					return {
+					wetuwn {
 						content: message.content,
-						formatContent: true,
-						type: MessageType.ERROR
+						fowmatContent: twue,
+						type: MessageType.EWWOW
 					};
 				}
 			},
-			ariaLabel: localize('fileInputAriaLabel', "Type file name. Press Enter to confirm or Escape to cancel.")
+			awiaWabew: wocawize('fiweInputAwiaWabew', "Type fiwe name. Pwess Enta to confiwm ow Escape to cancew.")
 		});
-		const styler = attachInputBoxStyler(inputBox, this.themeService);
+		const stywa = attachInputBoxStywa(inputBox, this.themeSewvice);
 
-		const lastDot = value.lastIndexOf('.');
+		const wastDot = vawue.wastIndexOf('.');
 
-		inputBox.value = value;
+		inputBox.vawue = vawue;
 		inputBox.focus();
-		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
+		inputBox.sewect({ stawt: 0, end: wastDot > 0 && !stat.isDiwectowy ? wastDot : vawue.wength });
 
-		const done = once((success: boolean, finishEditing: boolean) => {
-			label.element.style.display = 'none';
-			const value = inputBox.value;
+		const done = once((success: boowean, finishEditing: boowean) => {
+			wabew.ewement.stywe.dispway = 'none';
+			const vawue = inputBox.vawue;
 			dispose(toDispose);
-			label.element.remove();
+			wabew.ewement.wemove();
 			if (finishEditing) {
-				editableData.onFinish(value, success);
+				editabweData.onFinish(vawue, success);
 			}
 		});
 
 		const showInputBoxNotification = () => {
-			if (inputBox.isInputValid()) {
-				const message = editableData.validationMessage(inputBox.value);
+			if (inputBox.isInputVawid()) {
+				const message = editabweData.vawidationMessage(inputBox.vawue);
 				if (message) {
 					inputBox.showMessage({
 						content: message.content,
-						formatContent: true,
-						type: message.severity === Severity.Info ? MessageType.INFO : message.severity === Severity.Warning ? MessageType.WARNING : MessageType.ERROR
+						fowmatContent: twue,
+						type: message.sevewity === Sevewity.Info ? MessageType.INFO : message.sevewity === Sevewity.Wawning ? MessageType.WAWNING : MessageType.EWWOW
 					});
-				} else {
+				} ewse {
 					inputBox.hideMessage();
 				}
 			}
@@ -452,198 +452,198 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 		const toDispose = [
 			inputBox,
-			inputBox.onDidChange(value => {
-				label.setFile(joinPath(parent, value || ' '), labelOptions); // update label icon while typing!
+			inputBox.onDidChange(vawue => {
+				wabew.setFiwe(joinPath(pawent, vawue || ' '), wabewOptions); // update wabew icon whiwe typing!
 			}),
-			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
-				if (e.equals(KeyCode.Enter)) {
-					if (!inputBox.validate()) {
-						done(true, true);
+			DOM.addStandawdDisposabweWistena(inputBox.inputEwement, DOM.EventType.KEY_DOWN, (e: IKeyboawdEvent) => {
+				if (e.equaws(KeyCode.Enta)) {
+					if (!inputBox.vawidate()) {
+						done(twue, twue);
 					}
-				} else if (e.equals(KeyCode.Escape)) {
-					done(false, true);
+				} ewse if (e.equaws(KeyCode.Escape)) {
+					done(fawse, twue);
 				}
 			}),
-			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_UP, (e: IKeyboardEvent) => {
+			DOM.addStandawdDisposabweWistena(inputBox.inputEwement, DOM.EventType.KEY_UP, (e: IKeyboawdEvent) => {
 				showInputBoxNotification();
 			}),
-			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
-				done(inputBox.isInputValid(), true);
+			DOM.addDisposabweWistena(inputBox.inputEwement, DOM.EventType.BWUW, () => {
+				done(inputBox.isInputVawid(), twue);
 			}),
-			label,
-			styler
+			wabew,
+			stywa
 		];
 
-		return toDisposable(() => {
-			done(false, false);
+		wetuwn toDisposabwe(() => {
+			done(fawse, fawse);
 		});
 	}
 
-	disposeElement(element: ITreeNode<ExplorerItem, FuzzyScore>, index: number, templateData: IFileTemplateData): void {
-		templateData.elementDisposable.dispose();
+	disposeEwement(ewement: ITweeNode<ExpwowewItem, FuzzyScowe>, index: numba, tempwateData: IFiweTempwateData): void {
+		tempwateData.ewementDisposabwe.dispose();
 	}
 
-	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<ExplorerItem>, FuzzyScore>, index: number, templateData: IFileTemplateData): void {
-		templateData.elementDisposable.dispose();
+	disposeCompwessedEwements(node: ITweeNode<ICompwessedTweeNode<ExpwowewItem>, FuzzyScowe>, index: numba, tempwateData: IFiweTempwateData): void {
+		tempwateData.ewementDisposabwe.dispose();
 	}
 
-	disposeTemplate(templateData: IFileTemplateData): void {
-		templateData.elementDisposable.dispose();
-		templateData.label.dispose();
+	disposeTempwate(tempwateData: IFiweTempwateData): void {
+		tempwateData.ewementDisposabwe.dispose();
+		tempwateData.wabew.dispose();
 	}
 
-	getCompressedNavigationController(stat: ExplorerItem): ICompressedNavigationController | undefined {
-		return this.compressedNavigationControllers.get(stat);
+	getCompwessedNavigationContwowwa(stat: ExpwowewItem): ICompwessedNavigationContwowwa | undefined {
+		wetuwn this.compwessedNavigationContwowwews.get(stat);
 	}
 
-	// IAccessibilityProvider
+	// IAccessibiwityPwovida
 
-	getAriaLabel(element: ExplorerItem): string {
-		return element.name;
+	getAwiaWabew(ewement: ExpwowewItem): stwing {
+		wetuwn ewement.name;
 	}
 
-	getAriaLevel(element: ExplorerItem): number {
-		// We need to comput aria level on our own since children of compact folders will otherwise have an incorrect level	#107235
-		let depth = 0;
-		let parent = element.parent;
-		while (parent) {
-			parent = parent.parent;
+	getAwiaWevew(ewement: ExpwowewItem): numba {
+		// We need to comput awia wevew on ouw own since chiwdwen of compact fowdews wiww othewwise have an incowwect wevew	#107235
+		wet depth = 0;
+		wet pawent = ewement.pawent;
+		whiwe (pawent) {
+			pawent = pawent.pawent;
 			depth++;
 		}
 
-		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+		if (this.contextSewvice.getWowkbenchState() === WowkbenchState.WOWKSPACE) {
 			depth = depth + 1;
 		}
 
-		return depth;
+		wetuwn depth;
 	}
 
-	getActiveDescendantId(stat: ExplorerItem): string | undefined {
-		const compressedNavigationController = this.compressedNavigationControllers.get(stat);
-		return compressedNavigationController?.currentId;
+	getActiveDescendantId(stat: ExpwowewItem): stwing | undefined {
+		const compwessedNavigationContwowwa = this.compwessedNavigationContwowwews.get(stat);
+		wetuwn compwessedNavigationContwowwa?.cuwwentId;
 	}
 
 	dispose(): void {
-		this.configListener.dispose();
+		this.configWistena.dispose();
 	}
 }
 
-interface CachedParsedExpression {
-	original: glob.IExpression;
-	parsed: glob.ParsedExpression;
+intewface CachedPawsedExpwession {
+	owiginaw: gwob.IExpwession;
+	pawsed: gwob.PawsedExpwession;
 }
 
 /**
- * Respectes files.exclude setting in filtering out content from the explorer.
- * Makes sure that visible editors are always shown in the explorer even if they are filtered out by settings.
+ * Wespectes fiwes.excwude setting in fiwtewing out content fwom the expwowa.
+ * Makes suwe that visibwe editows awe awways shown in the expwowa even if they awe fiwtewed out by settings.
  */
-export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
-	private hiddenExpressionPerRoot = new Map<string, CachedParsedExpression>();
-	private editorsAffectingFilter = new Set<EditorInput>();
-	private _onDidChange = new Emitter<void>();
-	private toDispose: IDisposable[] = [];
+expowt cwass FiwesFiwta impwements ITweeFiwta<ExpwowewItem, FuzzyScowe> {
+	pwivate hiddenExpwessionPewWoot = new Map<stwing, CachedPawsedExpwession>();
+	pwivate editowsAffectingFiwta = new Set<EditowInput>();
+	pwivate _onDidChange = new Emitta<void>();
+	pwivate toDispose: IDisposabwe[] = [];
 
-	constructor(
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IExplorerService private readonly explorerService: IExplorerService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+	constwuctow(
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IExpwowewSewvice pwivate weadonwy expwowewSewvice: IExpwowewSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice
 	) {
-		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders(() => this.updateConfiguration()));
-		this.toDispose.push(this.configurationService.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration('files.exclude')) {
-				this.updateConfiguration();
+		this.toDispose.push(this.contextSewvice.onDidChangeWowkspaceFowdews(() => this.updateConfiguwation()));
+		this.toDispose.push(this.configuwationSewvice.onDidChangeConfiguwation((e) => {
+			if (e.affectsConfiguwation('fiwes.excwude')) {
+				this.updateConfiguwation();
 			}
 		}));
-		this.toDispose.push(this.editorService.onDidVisibleEditorsChange(() => {
-			const editors = this.editorService.visibleEditors;
-			let shouldFire = false;
+		this.toDispose.push(this.editowSewvice.onDidVisibweEditowsChange(() => {
+			const editows = this.editowSewvice.visibweEditows;
+			wet shouwdFiwe = fawse;
 
-			for (const e of editors) {
-				if (!e.resource) {
+			fow (const e of editows) {
+				if (!e.wesouwce) {
 					continue;
 				}
 
-				const stat = this.explorerService.findClosest(e.resource);
-				if (stat && stat.isExcluded) {
-					// A filtered resource suddenly became visible since user opened an editor
-					shouldFire = true;
-					break;
+				const stat = this.expwowewSewvice.findCwosest(e.wesouwce);
+				if (stat && stat.isExcwuded) {
+					// A fiwtewed wesouwce suddenwy became visibwe since usa opened an editow
+					shouwdFiwe = twue;
+					bweak;
 				}
 			}
 
-			for (const e of this.editorsAffectingFilter) {
-				if (!editors.includes(e)) {
-					// Editor that was affecting filtering is no longer visible
-					shouldFire = true;
-					break;
+			fow (const e of this.editowsAffectingFiwta) {
+				if (!editows.incwudes(e)) {
+					// Editow that was affecting fiwtewing is no wonga visibwe
+					shouwdFiwe = twue;
+					bweak;
 				}
 			}
 
-			if (shouldFire) {
-				this.editorsAffectingFilter.clear();
-				this._onDidChange.fire();
+			if (shouwdFiwe) {
+				this.editowsAffectingFiwta.cweaw();
+				this._onDidChange.fiwe();
 			}
 		}));
-		this.updateConfiguration();
+		this.updateConfiguwation();
 	}
 
 	get onDidChange(): Event<void> {
-		return this._onDidChange.event;
+		wetuwn this._onDidChange.event;
 	}
 
-	private updateConfiguration(): void {
-		let shouldFire = false;
-		this.contextService.getWorkspace().folders.forEach(folder => {
-			const configuration = this.configurationService.getValue<IFilesConfiguration>({ resource: folder.uri });
-			const excludesConfig: glob.IExpression = configuration?.files?.exclude || Object.create(null);
+	pwivate updateConfiguwation(): void {
+		wet shouwdFiwe = fawse;
+		this.contextSewvice.getWowkspace().fowdews.fowEach(fowda => {
+			const configuwation = this.configuwationSewvice.getVawue<IFiwesConfiguwation>({ wesouwce: fowda.uwi });
+			const excwudesConfig: gwob.IExpwession = configuwation?.fiwes?.excwude || Object.cweate(nuww);
 
-			if (!shouldFire) {
-				const cached = this.hiddenExpressionPerRoot.get(folder.uri.toString());
-				shouldFire = !cached || !equals(cached.original, excludesConfig);
+			if (!shouwdFiwe) {
+				const cached = this.hiddenExpwessionPewWoot.get(fowda.uwi.toStwing());
+				shouwdFiwe = !cached || !equaws(cached.owiginaw, excwudesConfig);
 			}
 
-			const excludesConfigCopy = deepClone(excludesConfig); // do not keep the config, as it gets mutated under our hoods
+			const excwudesConfigCopy = deepCwone(excwudesConfig); // do not keep the config, as it gets mutated unda ouw hoods
 
-			this.hiddenExpressionPerRoot.set(folder.uri.toString(), { original: excludesConfigCopy, parsed: glob.parse(excludesConfigCopy) });
+			this.hiddenExpwessionPewWoot.set(fowda.uwi.toStwing(), { owiginaw: excwudesConfigCopy, pawsed: gwob.pawse(excwudesConfigCopy) });
 		});
 
-		if (shouldFire) {
-			this.editorsAffectingFilter.clear();
-			this._onDidChange.fire();
+		if (shouwdFiwe) {
+			this.editowsAffectingFiwta.cweaw();
+			this._onDidChange.fiwe();
 		}
 	}
 
-	filter(stat: ExplorerItem, parentVisibility: TreeVisibility): boolean {
-		return this.isVisible(stat, parentVisibility);
+	fiwta(stat: ExpwowewItem, pawentVisibiwity: TweeVisibiwity): boowean {
+		wetuwn this.isVisibwe(stat, pawentVisibiwity);
 	}
 
-	private isVisible(stat: ExplorerItem, parentVisibility: TreeVisibility): boolean {
-		stat.isExcluded = false;
-		if (parentVisibility === TreeVisibility.Hidden) {
-			stat.isExcluded = true;
-			return false;
+	pwivate isVisibwe(stat: ExpwowewItem, pawentVisibiwity: TweeVisibiwity): boowean {
+		stat.isExcwuded = fawse;
+		if (pawentVisibiwity === TweeVisibiwity.Hidden) {
+			stat.isExcwuded = twue;
+			wetuwn fawse;
 		}
-		if (this.explorerService.getEditableData(stat)) {
-			return true; // always visible
+		if (this.expwowewSewvice.getEditabweData(stat)) {
+			wetuwn twue; // awways visibwe
 		}
 
-		// Hide those that match Hidden Patterns
-		const cached = this.hiddenExpressionPerRoot.get(stat.root.resource.toString());
-		if ((cached && cached.parsed(path.relative(stat.root.resource.path, stat.resource.path), stat.name, name => !!(stat.parent && stat.parent.getChild(name)))) || stat.parent?.isExcluded) {
-			stat.isExcluded = true;
-			const editors = this.editorService.visibleEditors;
-			const editor = editors.find(e => e.resource && this.uriIdentityService.extUri.isEqualOrParent(e.resource, stat.resource));
-			if (editor && stat.root === this.explorerService.findClosestRoot(stat.resource)) {
-				this.editorsAffectingFilter.add(editor);
-				return true; // Show all opened files and their parents
+		// Hide those that match Hidden Pattewns
+		const cached = this.hiddenExpwessionPewWoot.get(stat.woot.wesouwce.toStwing());
+		if ((cached && cached.pawsed(path.wewative(stat.woot.wesouwce.path, stat.wesouwce.path), stat.name, name => !!(stat.pawent && stat.pawent.getChiwd(name)))) || stat.pawent?.isExcwuded) {
+			stat.isExcwuded = twue;
+			const editows = this.editowSewvice.visibweEditows;
+			const editow = editows.find(e => e.wesouwce && this.uwiIdentitySewvice.extUwi.isEquawOwPawent(e.wesouwce, stat.wesouwce));
+			if (editow && stat.woot === this.expwowewSewvice.findCwosestWoot(stat.wesouwce)) {
+				this.editowsAffectingFiwta.add(editow);
+				wetuwn twue; // Show aww opened fiwes and theiw pawents
 			}
 
-			return false; // hidden through pattern
+			wetuwn fawse; // hidden thwough pattewn
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
 	dispose(): void {
@@ -651,574 +651,574 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	}
 }
 
-// Explorer Sorter
-export class FileSorter implements ITreeSorter<ExplorerItem> {
+// Expwowa Sowta
+expowt cwass FiweSowta impwements ITweeSowta<ExpwowewItem> {
 
-	constructor(
-		@IExplorerService private readonly explorerService: IExplorerService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
+	constwuctow(
+		@IExpwowewSewvice pwivate weadonwy expwowewSewvice: IExpwowewSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice
 	) { }
 
-	compare(statA: ExplorerItem, statB: ExplorerItem): number {
-		// Do not sort roots
-		if (statA.isRoot) {
-			if (statB.isRoot) {
-				const workspaceA = this.contextService.getWorkspaceFolder(statA.resource);
-				const workspaceB = this.contextService.getWorkspaceFolder(statB.resource);
-				return workspaceA && workspaceB ? (workspaceA.index - workspaceB.index) : -1;
+	compawe(statA: ExpwowewItem, statB: ExpwowewItem): numba {
+		// Do not sowt woots
+		if (statA.isWoot) {
+			if (statB.isWoot) {
+				const wowkspaceA = this.contextSewvice.getWowkspaceFowda(statA.wesouwce);
+				const wowkspaceB = this.contextSewvice.getWowkspaceFowda(statB.wesouwce);
+				wetuwn wowkspaceA && wowkspaceB ? (wowkspaceA.index - wowkspaceB.index) : -1;
 			}
 
-			return -1;
+			wetuwn -1;
 		}
 
-		if (statB.isRoot) {
-			return 1;
+		if (statB.isWoot) {
+			wetuwn 1;
 		}
 
-		const sortOrder = this.explorerService.sortOrderConfiguration.sortOrder;
-		const lexicographicOptions = this.explorerService.sortOrderConfiguration.lexicographicOptions;
+		const sowtOwda = this.expwowewSewvice.sowtOwdewConfiguwation.sowtOwda;
+		const wexicogwaphicOptions = this.expwowewSewvice.sowtOwdewConfiguwation.wexicogwaphicOptions;
 
-		let compareFileNames;
-		let compareFileExtensions;
-		switch (lexicographicOptions) {
-			case 'upper':
-				compareFileNames = compareFileNamesUpper;
-				compareFileExtensions = compareFileExtensionsUpper;
-				break;
-			case 'lower':
-				compareFileNames = compareFileNamesLower;
-				compareFileExtensions = compareFileExtensionsLower;
-				break;
+		wet compaweFiweNames;
+		wet compaweFiweExtensions;
+		switch (wexicogwaphicOptions) {
+			case 'uppa':
+				compaweFiweNames = compaweFiweNamesUppa;
+				compaweFiweExtensions = compaweFiweExtensionsUppa;
+				bweak;
+			case 'wowa':
+				compaweFiweNames = compaweFiweNamesWowa;
+				compaweFiweExtensions = compaweFiweExtensionsWowa;
+				bweak;
 			case 'unicode':
-				compareFileNames = compareFileNamesUnicode;
-				compareFileExtensions = compareFileExtensionsUnicode;
-				break;
-			default:
-				// 'default'
-				compareFileNames = compareFileNamesDefault;
-				compareFileExtensions = compareFileExtensionsDefault;
+				compaweFiweNames = compaweFiweNamesUnicode;
+				compaweFiweExtensions = compaweFiweExtensionsUnicode;
+				bweak;
+			defauwt:
+				// 'defauwt'
+				compaweFiweNames = compaweFiweNamesDefauwt;
+				compaweFiweExtensions = compaweFiweExtensionsDefauwt;
 		}
 
-		// Sort Directories
-		switch (sortOrder) {
+		// Sowt Diwectowies
+		switch (sowtOwda) {
 			case 'type':
-				if (statA.isDirectory && !statB.isDirectory) {
-					return -1;
+				if (statA.isDiwectowy && !statB.isDiwectowy) {
+					wetuwn -1;
 				}
 
-				if (statB.isDirectory && !statA.isDirectory) {
-					return 1;
+				if (statB.isDiwectowy && !statA.isDiwectowy) {
+					wetuwn 1;
 				}
 
-				if (statA.isDirectory && statB.isDirectory) {
-					return compareFileNames(statA.name, statB.name);
+				if (statA.isDiwectowy && statB.isDiwectowy) {
+					wetuwn compaweFiweNames(statA.name, statB.name);
 				}
 
-				break;
+				bweak;
 
-			case 'filesFirst':
-				if (statA.isDirectory && !statB.isDirectory) {
-					return 1;
+			case 'fiwesFiwst':
+				if (statA.isDiwectowy && !statB.isDiwectowy) {
+					wetuwn 1;
 				}
 
-				if (statB.isDirectory && !statA.isDirectory) {
-					return -1;
+				if (statB.isDiwectowy && !statA.isDiwectowy) {
+					wetuwn -1;
 				}
 
-				break;
+				bweak;
 
 			case 'mixed':
-				break; // not sorting when "mixed" is on
+				bweak; // not sowting when "mixed" is on
 
-			default: /* 'default', 'modified' */
-				if (statA.isDirectory && !statB.isDirectory) {
-					return -1;
+			defauwt: /* 'defauwt', 'modified' */
+				if (statA.isDiwectowy && !statB.isDiwectowy) {
+					wetuwn -1;
 				}
 
-				if (statB.isDirectory && !statA.isDirectory) {
-					return 1;
+				if (statB.isDiwectowy && !statA.isDiwectowy) {
+					wetuwn 1;
 				}
 
-				break;
+				bweak;
 		}
 
-		// Sort Files
-		switch (sortOrder) {
+		// Sowt Fiwes
+		switch (sowtOwda) {
 			case 'type':
-				return compareFileExtensions(statA.name, statB.name);
+				wetuwn compaweFiweExtensions(statA.name, statB.name);
 
 			case 'modified':
 				if (statA.mtime !== statB.mtime) {
-					return (statA.mtime && statB.mtime && statA.mtime < statB.mtime) ? 1 : -1;
+					wetuwn (statA.mtime && statB.mtime && statA.mtime < statB.mtime) ? 1 : -1;
 				}
 
-				return compareFileNames(statA.name, statB.name);
+				wetuwn compaweFiweNames(statA.name, statB.name);
 
-			default: /* 'default', 'mixed', 'filesFirst' */
-				return compareFileNames(statA.name, statB.name);
+			defauwt: /* 'defauwt', 'mixed', 'fiwesFiwst' */
+				wetuwn compaweFiweNames(statA.name, statB.name);
 		}
 	}
 }
 
-export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
-	private static readonly CONFIRM_DND_SETTING_KEY = 'explorer.confirmDragAndDrop';
+expowt cwass FiweDwagAndDwop impwements ITweeDwagAndDwop<ExpwowewItem> {
+	pwivate static weadonwy CONFIWM_DND_SETTING_KEY = 'expwowa.confiwmDwagAndDwop';
 
-	private compressedDragOverElement: HTMLElement | undefined;
-	private compressedDropTargetDisposable: IDisposable = Disposable.None;
+	pwivate compwessedDwagOvewEwement: HTMWEwement | undefined;
+	pwivate compwessedDwopTawgetDisposabwe: IDisposabwe = Disposabwe.None;
 
-	private toDispose: IDisposable[];
-	private dropEnabled = false;
+	pwivate toDispose: IDisposabwe[];
+	pwivate dwopEnabwed = fawse;
 
-	constructor(
-		@IExplorerService private explorerService: IExplorerService,
-		@IEditorService private editorService: IEditorService,
-		@IDialogService private dialogService: IDialogService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IFileService private fileService: IFileService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+	constwuctow(
+		@IExpwowewSewvice pwivate expwowewSewvice: IExpwowewSewvice,
+		@IEditowSewvice pwivate editowSewvice: IEditowSewvice,
+		@IDiawogSewvice pwivate diawogSewvice: IDiawogSewvice,
+		@IWowkspaceContextSewvice pwivate contextSewvice: IWowkspaceContextSewvice,
+		@IFiweSewvice pwivate fiweSewvice: IFiweSewvice,
+		@IConfiguwationSewvice pwivate configuwationSewvice: IConfiguwationSewvice,
+		@IInstantiationSewvice pwivate instantiationSewvice: IInstantiationSewvice,
+		@IWowkspaceEditingSewvice pwivate wowkspaceEditingSewvice: IWowkspaceEditingSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice
 	) {
 		this.toDispose = [];
 
-		const updateDropEnablement = () => {
-			this.dropEnabled = this.configurationService.getValue('explorer.enableDragAndDrop');
+		const updateDwopEnabwement = () => {
+			this.dwopEnabwed = this.configuwationSewvice.getVawue('expwowa.enabweDwagAndDwop');
 		};
-		updateDropEnablement();
-		this.toDispose.push(this.configurationService.onDidChangeConfiguration((e) => updateDropEnablement()));
+		updateDwopEnabwement();
+		this.toDispose.push(this.configuwationSewvice.onDidChangeConfiguwation((e) => updateDwopEnabwement()));
 	}
 
-	onDragOver(data: IDragAndDropData, target: ExplorerItem | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
-		if (!this.dropEnabled) {
-			return false;
+	onDwagOva(data: IDwagAndDwopData, tawget: ExpwowewItem | undefined, tawgetIndex: numba | undefined, owiginawEvent: DwagEvent): boowean | ITweeDwagOvewWeaction {
+		if (!this.dwopEnabwed) {
+			wetuwn fawse;
 		}
 
-		// Compressed folders
-		if (target) {
-			const compressedTarget = FileDragAndDrop.getCompressedStatFromDragEvent(target, originalEvent);
+		// Compwessed fowdews
+		if (tawget) {
+			const compwessedTawget = FiweDwagAndDwop.getCompwessedStatFwomDwagEvent(tawget, owiginawEvent);
 
-			if (compressedTarget) {
-				const iconLabelName = getIconLabelNameFromHTMLElement(originalEvent.target);
+			if (compwessedTawget) {
+				const iconWabewName = getIconWabewNameFwomHTMWEwement(owiginawEvent.tawget);
 
-				if (iconLabelName && iconLabelName.index < iconLabelName.count - 1) {
-					const result = this.handleDragOver(data, compressedTarget, targetIndex, originalEvent);
+				if (iconWabewName && iconWabewName.index < iconWabewName.count - 1) {
+					const wesuwt = this.handweDwagOva(data, compwessedTawget, tawgetIndex, owiginawEvent);
 
-					if (result) {
-						if (iconLabelName.element !== this.compressedDragOverElement) {
-							this.compressedDragOverElement = iconLabelName.element;
-							this.compressedDropTargetDisposable.dispose();
-							this.compressedDropTargetDisposable = toDisposable(() => {
-								iconLabelName.element.classList.remove('drop-target');
-								this.compressedDragOverElement = undefined;
+					if (wesuwt) {
+						if (iconWabewName.ewement !== this.compwessedDwagOvewEwement) {
+							this.compwessedDwagOvewEwement = iconWabewName.ewement;
+							this.compwessedDwopTawgetDisposabwe.dispose();
+							this.compwessedDwopTawgetDisposabwe = toDisposabwe(() => {
+								iconWabewName.ewement.cwassWist.wemove('dwop-tawget');
+								this.compwessedDwagOvewEwement = undefined;
 							});
 
-							iconLabelName.element.classList.add('drop-target');
+							iconWabewName.ewement.cwassWist.add('dwop-tawget');
 						}
 
-						return typeof result === 'boolean' ? result : { ...result, feedback: [] };
+						wetuwn typeof wesuwt === 'boowean' ? wesuwt : { ...wesuwt, feedback: [] };
 					}
 
-					this.compressedDropTargetDisposable.dispose();
-					return false;
+					this.compwessedDwopTawgetDisposabwe.dispose();
+					wetuwn fawse;
 				}
 			}
 		}
 
-		this.compressedDropTargetDisposable.dispose();
-		return this.handleDragOver(data, target, targetIndex, originalEvent);
+		this.compwessedDwopTawgetDisposabwe.dispose();
+		wetuwn this.handweDwagOva(data, tawget, tawgetIndex, owiginawEvent);
 	}
 
-	private handleDragOver(data: IDragAndDropData, target: ExplorerItem | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
-		const isCopy = originalEvent && ((originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh));
-		const isNative = data instanceof NativeDragAndDropData;
-		const effect = (isNative || isCopy) ? ListDragOverEffect.Copy : ListDragOverEffect.Move;
+	pwivate handweDwagOva(data: IDwagAndDwopData, tawget: ExpwowewItem | undefined, tawgetIndex: numba | undefined, owiginawEvent: DwagEvent): boowean | ITweeDwagOvewWeaction {
+		const isCopy = owiginawEvent && ((owiginawEvent.ctwwKey && !isMacintosh) || (owiginawEvent.awtKey && isMacintosh));
+		const isNative = data instanceof NativeDwagAndDwopData;
+		const effect = (isNative || isCopy) ? WistDwagOvewEffect.Copy : WistDwagOvewEffect.Move;
 
 		// Native DND
 		if (isNative) {
-			if (!containsDragType(originalEvent, DataTransfers.FILES, CodeDataTransfers.FILES, DataTransfers.RESOURCES)) {
-				return false;
+			if (!containsDwagType(owiginawEvent, DataTwansfews.FIWES, CodeDataTwansfews.FIWES, DataTwansfews.WESOUWCES)) {
+				wetuwn fawse;
 			}
-			if (isWeb && originalEvent.dataTransfer?.types.indexOf('Files') === -1) {
-				// DnD from vscode to web is not supported #115535. Only if we are dragging from native finder / explorer then the "Files" data transfer will be set
-				return false;
+			if (isWeb && owiginawEvent.dataTwansfa?.types.indexOf('Fiwes') === -1) {
+				// DnD fwom vscode to web is not suppowted #115535. Onwy if we awe dwagging fwom native finda / expwowa then the "Fiwes" data twansfa wiww be set
+				wetuwn fawse;
 			}
 		}
 
-		// Other-Tree DND
-		else if (data instanceof ExternalElementsDragAndDropData) {
-			return false;
+		// Otha-Twee DND
+		ewse if (data instanceof ExtewnawEwementsDwagAndDwopData) {
+			wetuwn fawse;
 		}
 
-		// In-Explorer DND
-		else {
-			const items = FileDragAndDrop.getStatsFromDragAndDropData(data as ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>);
+		// In-Expwowa DND
+		ewse {
+			const items = FiweDwagAndDwop.getStatsFwomDwagAndDwopData(data as EwementsDwagAndDwopData<ExpwowewItem, ExpwowewItem[]>);
 
-			if (!target) {
-				// Dropping onto the empty area. Do not accept if items dragged are already
-				// children of the root unless we are copying the file
-				if (!isCopy && items.every(i => !!i.parent && i.parent.isRoot)) {
-					return false;
+			if (!tawget) {
+				// Dwopping onto the empty awea. Do not accept if items dwagged awe awweady
+				// chiwdwen of the woot unwess we awe copying the fiwe
+				if (!isCopy && items.evewy(i => !!i.pawent && i.pawent.isWoot)) {
+					wetuwn fawse;
 				}
 
-				return { accept: true, bubble: TreeDragOverBubble.Down, effect, autoExpand: false };
+				wetuwn { accept: twue, bubbwe: TweeDwagOvewBubbwe.Down, effect, autoExpand: fawse };
 			}
 
-			if (!Array.isArray(items)) {
-				return false;
+			if (!Awway.isAwway(items)) {
+				wetuwn fawse;
 			}
 
-			if (items.some((source) => {
-				if (source.isRoot && target instanceof ExplorerItem && !target.isRoot) {
-					return true; // Root folder can not be moved to a non root file stat.
+			if (items.some((souwce) => {
+				if (souwce.isWoot && tawget instanceof ExpwowewItem && !tawget.isWoot) {
+					wetuwn twue; // Woot fowda can not be moved to a non woot fiwe stat.
 				}
 
-				if (this.uriIdentityService.extUri.isEqual(source.resource, target.resource)) {
-					return true; // Can not move anything onto itself
+				if (this.uwiIdentitySewvice.extUwi.isEquaw(souwce.wesouwce, tawget.wesouwce)) {
+					wetuwn twue; // Can not move anything onto itsewf
 				}
 
-				if (source.isRoot && target instanceof ExplorerItem && target.isRoot) {
-					// Disable moving workspace roots in one another
-					return false;
+				if (souwce.isWoot && tawget instanceof ExpwowewItem && tawget.isWoot) {
+					// Disabwe moving wowkspace woots in one anotha
+					wetuwn fawse;
 				}
 
-				if (!isCopy && this.uriIdentityService.extUri.isEqual(dirname(source.resource), target.resource)) {
-					return true; // Can not move a file to the same parent unless we copy
+				if (!isCopy && this.uwiIdentitySewvice.extUwi.isEquaw(diwname(souwce.wesouwce), tawget.wesouwce)) {
+					wetuwn twue; // Can not move a fiwe to the same pawent unwess we copy
 				}
 
-				if (this.uriIdentityService.extUri.isEqualOrParent(target.resource, source.resource)) {
-					return true; // Can not move a parent folder into one of its children
+				if (this.uwiIdentitySewvice.extUwi.isEquawOwPawent(tawget.wesouwce, souwce.wesouwce)) {
+					wetuwn twue; // Can not move a pawent fowda into one of its chiwdwen
 				}
 
-				return false;
+				wetuwn fawse;
 			})) {
-				return false;
+				wetuwn fawse;
 			}
 		}
 
-		// All (target = model)
-		if (!target) {
-			return { accept: true, bubble: TreeDragOverBubble.Down, effect };
+		// Aww (tawget = modew)
+		if (!tawget) {
+			wetuwn { accept: twue, bubbwe: TweeDwagOvewBubbwe.Down, effect };
 		}
 
-		// All (target = file/folder)
-		else {
-			if (target.isDirectory) {
-				if (target.isReadonly) {
-					return false;
+		// Aww (tawget = fiwe/fowda)
+		ewse {
+			if (tawget.isDiwectowy) {
+				if (tawget.isWeadonwy) {
+					wetuwn fawse;
 				}
 
-				return { accept: true, bubble: TreeDragOverBubble.Down, effect, autoExpand: true };
+				wetuwn { accept: twue, bubbwe: TweeDwagOvewBubbwe.Down, effect, autoExpand: twue };
 			}
 
-			if (this.contextService.getWorkspace().folders.every(folder => folder.uri.toString() !== target.resource.toString())) {
-				return { accept: true, bubble: TreeDragOverBubble.Up, effect };
-			}
-		}
-
-		return false;
-	}
-
-	getDragURI(element: ExplorerItem): string | null {
-		if (this.explorerService.isEditable(element)) {
-			return null;
-		}
-
-		return element.resource.toString();
-	}
-
-	getDragLabel(elements: ExplorerItem[], originalEvent: DragEvent): string | undefined {
-		if (elements.length === 1) {
-			const stat = FileDragAndDrop.getCompressedStatFromDragEvent(elements[0], originalEvent);
-			return stat.name;
-		}
-
-		return String(elements.length);
-	}
-
-	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
-		const items = FileDragAndDrop.getStatsFromDragAndDropData(data as ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, originalEvent);
-		if (items && items.length && originalEvent.dataTransfer) {
-			// Apply some datatransfer types to allow for dragging the element outside of the application
-			this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, items, originalEvent));
-
-			// The only custom data transfer we set from the explorer is a file transfer
-			// to be able to DND between multiple code file explorers across windows
-			const fileResources = items.filter(s => s.resource.scheme === Schemas.file).map(r => r.resource.fsPath);
-			if (fileResources.length) {
-				originalEvent.dataTransfer.setData(CodeDataTransfers.FILES, JSON.stringify(fileResources));
-			}
-		}
-	}
-
-	async drop(data: IDragAndDropData, target: ExplorerItem | undefined, targetIndex: number | undefined, originalEvent: DragEvent): Promise<void> {
-		this.compressedDropTargetDisposable.dispose();
-
-		// Find compressed target
-		if (target) {
-			const compressedTarget = FileDragAndDrop.getCompressedStatFromDragEvent(target, originalEvent);
-
-			if (compressedTarget) {
-				target = compressedTarget;
+			if (this.contextSewvice.getWowkspace().fowdews.evewy(fowda => fowda.uwi.toStwing() !== tawget.wesouwce.toStwing())) {
+				wetuwn { accept: twue, bubbwe: TweeDwagOvewBubbwe.Up, effect };
 			}
 		}
 
-		// Find parent to add to
-		if (!target) {
-			target = this.explorerService.roots[this.explorerService.roots.length - 1];
-		}
-		if (!target.isDirectory && target.parent) {
-			target = target.parent;
-		}
-		if (target.isReadonly) {
-			return;
-		}
-		const resolvedTarget = target;
-		if (!resolvedTarget) {
-			return;
+		wetuwn fawse;
+	}
+
+	getDwagUWI(ewement: ExpwowewItem): stwing | nuww {
+		if (this.expwowewSewvice.isEditabwe(ewement)) {
+			wetuwn nuww;
 		}
 
-		try {
+		wetuwn ewement.wesouwce.toStwing();
+	}
 
-			// Desktop DND (Import file)
-			if (data instanceof NativeDragAndDropData) {
+	getDwagWabew(ewements: ExpwowewItem[], owiginawEvent: DwagEvent): stwing | undefined {
+		if (ewements.wength === 1) {
+			const stat = FiweDwagAndDwop.getCompwessedStatFwomDwagEvent(ewements[0], owiginawEvent);
+			wetuwn stat.name;
+		}
+
+		wetuwn Stwing(ewements.wength);
+	}
+
+	onDwagStawt(data: IDwagAndDwopData, owiginawEvent: DwagEvent): void {
+		const items = FiweDwagAndDwop.getStatsFwomDwagAndDwopData(data as EwementsDwagAndDwopData<ExpwowewItem, ExpwowewItem[]>, owiginawEvent);
+		if (items && items.wength && owiginawEvent.dataTwansfa) {
+			// Appwy some datatwansfa types to awwow fow dwagging the ewement outside of the appwication
+			this.instantiationSewvice.invokeFunction(accessow => fiwwEditowsDwagData(accessow, items, owiginawEvent));
+
+			// The onwy custom data twansfa we set fwom the expwowa is a fiwe twansfa
+			// to be abwe to DND between muwtipwe code fiwe expwowews acwoss windows
+			const fiweWesouwces = items.fiwta(s => s.wesouwce.scheme === Schemas.fiwe).map(w => w.wesouwce.fsPath);
+			if (fiweWesouwces.wength) {
+				owiginawEvent.dataTwansfa.setData(CodeDataTwansfews.FIWES, JSON.stwingify(fiweWesouwces));
+			}
+		}
+	}
+
+	async dwop(data: IDwagAndDwopData, tawget: ExpwowewItem | undefined, tawgetIndex: numba | undefined, owiginawEvent: DwagEvent): Pwomise<void> {
+		this.compwessedDwopTawgetDisposabwe.dispose();
+
+		// Find compwessed tawget
+		if (tawget) {
+			const compwessedTawget = FiweDwagAndDwop.getCompwessedStatFwomDwagEvent(tawget, owiginawEvent);
+
+			if (compwessedTawget) {
+				tawget = compwessedTawget;
+			}
+		}
+
+		// Find pawent to add to
+		if (!tawget) {
+			tawget = this.expwowewSewvice.woots[this.expwowewSewvice.woots.wength - 1];
+		}
+		if (!tawget.isDiwectowy && tawget.pawent) {
+			tawget = tawget.pawent;
+		}
+		if (tawget.isWeadonwy) {
+			wetuwn;
+		}
+		const wesowvedTawget = tawget;
+		if (!wesowvedTawget) {
+			wetuwn;
+		}
+
+		twy {
+
+			// Desktop DND (Impowt fiwe)
+			if (data instanceof NativeDwagAndDwopData) {
 				if (isWeb) {
-					const browserUpload = this.instantiationService.createInstance(BrowserFileUpload);
-					await browserUpload.upload(target, originalEvent);
-				} else {
-					const nativeImport = this.instantiationService.createInstance(NativeFileImport);
-					await nativeImport.import(resolvedTarget, originalEvent);
+					const bwowsewUpwoad = this.instantiationSewvice.cweateInstance(BwowsewFiweUpwoad);
+					await bwowsewUpwoad.upwoad(tawget, owiginawEvent);
+				} ewse {
+					const nativeImpowt = this.instantiationSewvice.cweateInstance(NativeFiweImpowt);
+					await nativeImpowt.impowt(wesowvedTawget, owiginawEvent);
 				}
 			}
 
-			// In-Explorer DND (Move/Copy file)
-			else {
-				await this.handleExplorerDrop(data as ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, resolvedTarget, originalEvent);
+			// In-Expwowa DND (Move/Copy fiwe)
+			ewse {
+				await this.handweExpwowewDwop(data as EwementsDwagAndDwopData<ExpwowewItem, ExpwowewItem[]>, wesowvedTawget, owiginawEvent);
 			}
-		} catch (error) {
-			this.dialogService.show(Severity.Error, toErrorMessage(error));
+		} catch (ewwow) {
+			this.diawogSewvice.show(Sevewity.Ewwow, toEwwowMessage(ewwow));
 		}
 	}
 
-	private async handleExplorerDrop(data: ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
-		const elementsData = FileDragAndDrop.getStatsFromDragAndDropData(data);
-		const items = distinctParents(elementsData, s => s.resource);
-		const isCopy = (originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh);
+	pwivate async handweExpwowewDwop(data: EwementsDwagAndDwopData<ExpwowewItem, ExpwowewItem[]>, tawget: ExpwowewItem, owiginawEvent: DwagEvent): Pwomise<void> {
+		const ewementsData = FiweDwagAndDwop.getStatsFwomDwagAndDwopData(data);
+		const items = distinctPawents(ewementsData, s => s.wesouwce);
+		const isCopy = (owiginawEvent.ctwwKey && !isMacintosh) || (owiginawEvent.awtKey && isMacintosh);
 
-		// Handle confirm setting
-		const confirmDragAndDrop = !isCopy && this.configurationService.getValue<boolean>(FileDragAndDrop.CONFIRM_DND_SETTING_KEY);
-		if (confirmDragAndDrop) {
-			const message = items.length > 1 && items.every(s => s.isRoot) ? localize('confirmRootsMove', "Are you sure you want to change the order of multiple root folders in your workspace?")
-				: items.length > 1 ? localize('confirmMultiMove', "Are you sure you want to move the following {0} files into '{1}'?", items.length, target.name)
-					: items[0].isRoot ? localize('confirmRootMove', "Are you sure you want to change the order of root folder '{0}' in your workspace?", items[0].name)
-						: localize('confirmMove', "Are you sure you want to move '{0}' into '{1}'?", items[0].name, target.name);
-			const detail = items.length > 1 && !items.every(s => s.isRoot) ? getFileNamesMessage(items.map(i => i.resource)) : undefined;
+		// Handwe confiwm setting
+		const confiwmDwagAndDwop = !isCopy && this.configuwationSewvice.getVawue<boowean>(FiweDwagAndDwop.CONFIWM_DND_SETTING_KEY);
+		if (confiwmDwagAndDwop) {
+			const message = items.wength > 1 && items.evewy(s => s.isWoot) ? wocawize('confiwmWootsMove', "Awe you suwe you want to change the owda of muwtipwe woot fowdews in youw wowkspace?")
+				: items.wength > 1 ? wocawize('confiwmMuwtiMove', "Awe you suwe you want to move the fowwowing {0} fiwes into '{1}'?", items.wength, tawget.name)
+					: items[0].isWoot ? wocawize('confiwmWootMove', "Awe you suwe you want to change the owda of woot fowda '{0}' in youw wowkspace?", items[0].name)
+						: wocawize('confiwmMove', "Awe you suwe you want to move '{0}' into '{1}'?", items[0].name, tawget.name);
+			const detaiw = items.wength > 1 && !items.evewy(s => s.isWoot) ? getFiweNamesMessage(items.map(i => i.wesouwce)) : undefined;
 
-			const confirmation = await this.dialogService.confirm({
+			const confiwmation = await this.diawogSewvice.confiwm({
 				message,
-				detail,
+				detaiw,
 				checkbox: {
-					label: localize('doNotAskAgain', "Do not ask me again")
+					wabew: wocawize('doNotAskAgain', "Do not ask me again")
 				},
 				type: 'question',
-				primaryButton: localize({ key: 'moveButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Move")
+				pwimawyButton: wocawize({ key: 'moveButtonWabew', comment: ['&& denotes a mnemonic'] }, "&&Move")
 			});
 
-			if (!confirmation.confirmed) {
-				return;
+			if (!confiwmation.confiwmed) {
+				wetuwn;
 			}
 
-			// Check for confirmation checkbox
-			if (confirmation.checkboxChecked === true) {
-				await this.configurationService.updateValue(FileDragAndDrop.CONFIRM_DND_SETTING_KEY, false);
+			// Check fow confiwmation checkbox
+			if (confiwmation.checkboxChecked === twue) {
+				await this.configuwationSewvice.updateVawue(FiweDwagAndDwop.CONFIWM_DND_SETTING_KEY, fawse);
 			}
 		}
 
-		await this.doHandleRootDrop(items.filter(s => s.isRoot), target);
+		await this.doHandweWootDwop(items.fiwta(s => s.isWoot), tawget);
 
-		const sources = items.filter(s => !s.isRoot);
+		const souwces = items.fiwta(s => !s.isWoot);
 		if (isCopy) {
-			return this.doHandleExplorerDropOnCopy(sources, target);
+			wetuwn this.doHandweExpwowewDwopOnCopy(souwces, tawget);
 		}
 
-		return this.doHandleExplorerDropOnMove(sources, target);
+		wetuwn this.doHandweExpwowewDwopOnMove(souwces, tawget);
 	}
 
-	private async doHandleRootDrop(roots: ExplorerItem[], target: ExplorerItem): Promise<void> {
-		if (roots.length === 0) {
-			return;
+	pwivate async doHandweWootDwop(woots: ExpwowewItem[], tawget: ExpwowewItem): Pwomise<void> {
+		if (woots.wength === 0) {
+			wetuwn;
 		}
 
-		const folders = this.contextService.getWorkspace().folders;
-		let targetIndex: number | undefined;
-		const workspaceCreationData: IWorkspaceFolderCreationData[] = [];
-		const rootsToMove: IWorkspaceFolderCreationData[] = [];
+		const fowdews = this.contextSewvice.getWowkspace().fowdews;
+		wet tawgetIndex: numba | undefined;
+		const wowkspaceCweationData: IWowkspaceFowdewCweationData[] = [];
+		const wootsToMove: IWowkspaceFowdewCweationData[] = [];
 
-		for (let index = 0; index < folders.length; index++) {
+		fow (wet index = 0; index < fowdews.wength; index++) {
 			const data = {
-				uri: folders[index].uri,
-				name: folders[index].name
+				uwi: fowdews[index].uwi,
+				name: fowdews[index].name
 			};
-			if (target instanceof ExplorerItem && this.uriIdentityService.extUri.isEqual(folders[index].uri, target.resource)) {
-				targetIndex = index;
+			if (tawget instanceof ExpwowewItem && this.uwiIdentitySewvice.extUwi.isEquaw(fowdews[index].uwi, tawget.wesouwce)) {
+				tawgetIndex = index;
 			}
 
-			if (roots.every(r => r.resource.toString() !== folders[index].uri.toString())) {
-				workspaceCreationData.push(data);
-			} else {
-				rootsToMove.push(data);
+			if (woots.evewy(w => w.wesouwce.toStwing() !== fowdews[index].uwi.toStwing())) {
+				wowkspaceCweationData.push(data);
+			} ewse {
+				wootsToMove.push(data);
 			}
 		}
-		if (targetIndex === undefined) {
-			targetIndex = workspaceCreationData.length;
+		if (tawgetIndex === undefined) {
+			tawgetIndex = wowkspaceCweationData.wength;
 		}
 
-		workspaceCreationData.splice(targetIndex, 0, ...rootsToMove);
+		wowkspaceCweationData.spwice(tawgetIndex, 0, ...wootsToMove);
 
-		return this.workspaceEditingService.updateFolders(0, workspaceCreationData.length, workspaceCreationData);
+		wetuwn this.wowkspaceEditingSewvice.updateFowdews(0, wowkspaceCweationData.wength, wowkspaceCweationData);
 	}
 
-	private async doHandleExplorerDropOnCopy(sources: ExplorerItem[], target: ExplorerItem): Promise<void> {
+	pwivate async doHandweExpwowewDwopOnCopy(souwces: ExpwowewItem[], tawget: ExpwowewItem): Pwomise<void> {
 
-		// Reuse duplicate action when user copies
-		const incrementalNaming = this.configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
-		const resourceFileEdits = sources.map(({ resource, isDirectory }) => (new ResourceFileEdit(resource, findValidPasteFileTarget(this.explorerService, target, { resource, isDirectory, allowOverwrite: false }, incrementalNaming), { copy: true })));
-		const labelSufix = getFileOrFolderLabelSufix(sources);
-		await this.explorerService.applyBulkEdit(resourceFileEdits, {
-			undoLabel: localize('copy', "Copy {0}", labelSufix),
-			progressLabel: localize('copying', "Copying {0}", labelSufix),
+		// Weuse dupwicate action when usa copies
+		const incwementawNaming = this.configuwationSewvice.getVawue<IFiwesConfiguwation>().expwowa.incwementawNaming;
+		const wesouwceFiweEdits = souwces.map(({ wesouwce, isDiwectowy }) => (new WesouwceFiweEdit(wesouwce, findVawidPasteFiweTawget(this.expwowewSewvice, tawget, { wesouwce, isDiwectowy, awwowOvewwwite: fawse }, incwementawNaming), { copy: twue })));
+		const wabewSufix = getFiweOwFowdewWabewSufix(souwces);
+		await this.expwowewSewvice.appwyBuwkEdit(wesouwceFiweEdits, {
+			undoWabew: wocawize('copy', "Copy {0}", wabewSufix),
+			pwogwessWabew: wocawize('copying', "Copying {0}", wabewSufix),
 		});
 
-		const editors = resourceFileEdits.filter(edit => {
-			const item = edit.newResource ? this.explorerService.findClosest(edit.newResource) : undefined;
-			return item && !item.isDirectory;
-		}).map(edit => ({ resource: edit.newResource, options: { pinned: true } }));
+		const editows = wesouwceFiweEdits.fiwta(edit => {
+			const item = edit.newWesouwce ? this.expwowewSewvice.findCwosest(edit.newWesouwce) : undefined;
+			wetuwn item && !item.isDiwectowy;
+		}).map(edit => ({ wesouwce: edit.newWesouwce, options: { pinned: twue } }));
 
-		await this.editorService.openEditors(editors);
+		await this.editowSewvice.openEditows(editows);
 	}
 
-	private async doHandleExplorerDropOnMove(sources: ExplorerItem[], target: ExplorerItem): Promise<void> {
+	pwivate async doHandweExpwowewDwopOnMove(souwces: ExpwowewItem[], tawget: ExpwowewItem): Pwomise<void> {
 
-		// Do not allow moving readonly items
-		const resourceFileEdits = sources.filter(source => !source.isReadonly).map(source => new ResourceFileEdit(source.resource, joinPath(target.resource, source.name)));
-		const labelSufix = getFileOrFolderLabelSufix(sources);
+		// Do not awwow moving weadonwy items
+		const wesouwceFiweEdits = souwces.fiwta(souwce => !souwce.isWeadonwy).map(souwce => new WesouwceFiweEdit(souwce.wesouwce, joinPath(tawget.wesouwce, souwce.name)));
+		const wabewSufix = getFiweOwFowdewWabewSufix(souwces);
 		const options = {
-			undoLabel: localize('move', "Move {0}", labelSufix),
-			progressLabel: localize('moving', "Moving {0}", labelSufix)
+			undoWabew: wocawize('move', "Move {0}", wabewSufix),
+			pwogwessWabew: wocawize('moving', "Moving {0}", wabewSufix)
 		};
 
-		try {
-			await this.explorerService.applyBulkEdit(resourceFileEdits, options);
-		} catch (error) {
+		twy {
+			await this.expwowewSewvice.appwyBuwkEdit(wesouwceFiweEdits, options);
+		} catch (ewwow) {
 
-			// Conflict
-			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
+			// Confwict
+			if ((<FiweOpewationEwwow>ewwow).fiweOpewationWesuwt === FiweOpewationWesuwt.FIWE_MOVE_CONFWICT) {
 
-				const overwrites: URI[] = [];
-				for (const edit of resourceFileEdits) {
-					if (edit.newResource && await this.fileService.exists(edit.newResource)) {
-						overwrites.push(edit.newResource);
+				const ovewwwites: UWI[] = [];
+				fow (const edit of wesouwceFiweEdits) {
+					if (edit.newWesouwce && await this.fiweSewvice.exists(edit.newWesouwce)) {
+						ovewwwites.push(edit.newWesouwce);
 					}
 				}
 
-				// Move with overwrite if the user confirms
-				const confirm = getMultipleFilesOverwriteConfirm(overwrites);
-				const { confirmed } = await this.dialogService.confirm(confirm);
-				if (confirmed) {
-					await this.explorerService.applyBulkEdit(resourceFileEdits.map(re => new ResourceFileEdit(re.oldResource, re.newResource, { overwrite: true })), options);
+				// Move with ovewwwite if the usa confiwms
+				const confiwm = getMuwtipweFiwesOvewwwiteConfiwm(ovewwwites);
+				const { confiwmed } = await this.diawogSewvice.confiwm(confiwm);
+				if (confiwmed) {
+					await this.expwowewSewvice.appwyBuwkEdit(wesouwceFiweEdits.map(we => new WesouwceFiweEdit(we.owdWesouwce, we.newWesouwce, { ovewwwite: twue })), options);
 				}
 			}
 
-			// Any other error: bubble up
-			else {
-				throw error;
+			// Any otha ewwow: bubbwe up
+			ewse {
+				thwow ewwow;
 			}
 		}
 	}
 
-	private static getStatsFromDragAndDropData(data: ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, dragStartEvent?: DragEvent): ExplorerItem[] {
+	pwivate static getStatsFwomDwagAndDwopData(data: EwementsDwagAndDwopData<ExpwowewItem, ExpwowewItem[]>, dwagStawtEvent?: DwagEvent): ExpwowewItem[] {
 		if (data.context) {
-			return data.context;
+			wetuwn data.context;
 		}
 
-		// Detect compressed folder dragging
-		if (dragStartEvent && data.elements.length === 1) {
-			data.context = [FileDragAndDrop.getCompressedStatFromDragEvent(data.elements[0], dragStartEvent)];
-			return data.context;
+		// Detect compwessed fowda dwagging
+		if (dwagStawtEvent && data.ewements.wength === 1) {
+			data.context = [FiweDwagAndDwop.getCompwessedStatFwomDwagEvent(data.ewements[0], dwagStawtEvent)];
+			wetuwn data.context;
 		}
 
-		return data.elements;
+		wetuwn data.ewements;
 	}
 
-	private static getCompressedStatFromDragEvent(stat: ExplorerItem, dragEvent: DragEvent): ExplorerItem {
-		const target = document.elementFromPoint(dragEvent.clientX, dragEvent.clientY);
-		const iconLabelName = getIconLabelNameFromHTMLElement(target);
+	pwivate static getCompwessedStatFwomDwagEvent(stat: ExpwowewItem, dwagEvent: DwagEvent): ExpwowewItem {
+		const tawget = document.ewementFwomPoint(dwagEvent.cwientX, dwagEvent.cwientY);
+		const iconWabewName = getIconWabewNameFwomHTMWEwement(tawget);
 
-		if (iconLabelName) {
-			const { count, index } = iconLabelName;
+		if (iconWabewName) {
+			const { count, index } = iconWabewName;
 
-			let i = count - 1;
-			while (i > index && stat.parent) {
-				stat = stat.parent;
+			wet i = count - 1;
+			whiwe (i > index && stat.pawent) {
+				stat = stat.pawent;
 				i--;
 			}
 
-			return stat;
+			wetuwn stat;
 		}
 
-		return stat;
+		wetuwn stat;
 	}
 
-	onDragEnd(): void {
-		this.compressedDropTargetDisposable.dispose();
+	onDwagEnd(): void {
+		this.compwessedDwopTawgetDisposabwe.dispose();
 	}
 }
 
-function getIconLabelNameFromHTMLElement(target: HTMLElement | EventTarget | Element | null): { element: HTMLElement, count: number, index: number } | null {
-	if (!(target instanceof HTMLElement)) {
-		return null;
+function getIconWabewNameFwomHTMWEwement(tawget: HTMWEwement | EventTawget | Ewement | nuww): { ewement: HTMWEwement, count: numba, index: numba } | nuww {
+	if (!(tawget instanceof HTMWEwement)) {
+		wetuwn nuww;
 	}
 
-	let element: HTMLElement | null = target;
+	wet ewement: HTMWEwement | nuww = tawget;
 
-	while (element && !element.classList.contains('monaco-list-row')) {
-		if (element.classList.contains('label-name') && element.hasAttribute('data-icon-label-count')) {
-			const count = Number(element.getAttribute('data-icon-label-count'));
-			const index = Number(element.getAttribute('data-icon-label-index'));
+	whiwe (ewement && !ewement.cwassWist.contains('monaco-wist-wow')) {
+		if (ewement.cwassWist.contains('wabew-name') && ewement.hasAttwibute('data-icon-wabew-count')) {
+			const count = Numba(ewement.getAttwibute('data-icon-wabew-count'));
+			const index = Numba(ewement.getAttwibute('data-icon-wabew-index'));
 
-			if (isNumber(count) && isNumber(index)) {
-				return { element: element, count, index };
+			if (isNumba(count) && isNumba(index)) {
+				wetuwn { ewement: ewement, count, index };
 			}
 		}
 
-		element = element.parentElement;
+		ewement = ewement.pawentEwement;
 	}
 
-	return null;
+	wetuwn nuww;
 }
 
-export function isCompressedFolderName(target: HTMLElement | EventTarget | Element | null): boolean {
-	return !!getIconLabelNameFromHTMLElement(target);
+expowt function isCompwessedFowdewName(tawget: HTMWEwement | EventTawget | Ewement | nuww): boowean {
+	wetuwn !!getIconWabewNameFwomHTMWEwement(tawget);
 }
 
-export class ExplorerCompressionDelegate implements ITreeCompressionDelegate<ExplorerItem> {
+expowt cwass ExpwowewCompwessionDewegate impwements ITweeCompwessionDewegate<ExpwowewItem> {
 
-	isIncompressible(stat: ExplorerItem): boolean {
-		return stat.isRoot || !stat.isDirectory || stat instanceof NewExplorerItem || (!stat.parent || stat.parent.isRoot);
+	isIncompwessibwe(stat: ExpwowewItem): boowean {
+		wetuwn stat.isWoot || !stat.isDiwectowy || stat instanceof NewExpwowewItem || (!stat.pawent || stat.pawent.isWoot);
 	}
 }
 
-function getFileOrFolderLabelSufix(items: ExplorerItem[]): string {
-	if (items.length === 1) {
-		return items[0].name;
+function getFiweOwFowdewWabewSufix(items: ExpwowewItem[]): stwing {
+	if (items.wength === 1) {
+		wetuwn items[0].name;
 	}
 
-	if (items.every(i => i.isDirectory)) {
-		return localize('numberOfFolders', "{0} folders", items.length);
+	if (items.evewy(i => i.isDiwectowy)) {
+		wetuwn wocawize('numbewOfFowdews', "{0} fowdews", items.wength);
 	}
-	if (items.every(i => !i.isDirectory)) {
-		return localize('numberOfFiles', "{0} files", items.length);
+	if (items.evewy(i => !i.isDiwectowy)) {
+		wetuwn wocawize('numbewOfFiwes', "{0} fiwes", items.wength);
 	}
 
-	return `${items.length} files and folders`;
+	wetuwn `${items.wength} fiwes and fowdews`;
 }

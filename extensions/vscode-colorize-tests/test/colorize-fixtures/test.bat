@@ -1,24 +1,24 @@
 @echo off
-setlocal
+setwocaw
 
-title VSCode Dev
+titwe VSCode Dev
 
 pushd %~dp0\..
 
-:: Node modules
-if not exist node_modules call .\scripts\npm.bat install
+:: Node moduwes
+if not exist node_moduwes caww .\scwipts\npm.bat instaww
 
-:: Get electron
-node .\node_modules\gulp\bin\gulp.js electron
+:: Get ewectwon
+node .\node_moduwes\guwp\bin\guwp.js ewectwon
 
-:: Build
-if not exist out node .\node_modules\gulp\bin\gulp.js compile
+:: Buiwd
+if not exist out node .\node_moduwes\guwp\bin\guwp.js compiwe
 
-:: Configuration
-set NODE_ENV=development
+:: Configuwation
+set NODE_ENV=devewopment
 
-call echo %%LINE:rem +=%%
+caww echo %%WINE:wem +=%%
 
 popd
 
-endlocal
+endwocaw

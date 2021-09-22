@@ -1,121 +1,121 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as spdlog from 'spdlog';
-import { ByteSize } from 'vs/platform/files/common/files';
-import { AbstractMessageLogger, ILogger, LogLevel } from 'vs/platform/log/common/log';
+impowt * as spdwog fwom 'spdwog';
+impowt { ByteSize } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { AbstwactMessageWogga, IWogga, WogWevew } fwom 'vs/pwatfowm/wog/common/wog';
 
-async function createSpdLogLogger(name: string, logfilePath: string, filesize: number, filecount: number): Promise<spdlog.Logger | null> {
-	// Do not crash if spdlog cannot be loaded
-	try {
-		const _spdlog = await import('spdlog');
-		_spdlog.setFlushOn(LogLevel.Trace);
-		return _spdlog.createAsyncRotatingLogger(name, logfilePath, filesize, filecount);
+async function cweateSpdWogWogga(name: stwing, wogfiwePath: stwing, fiwesize: numba, fiwecount: numba): Pwomise<spdwog.Wogga | nuww> {
+	// Do not cwash if spdwog cannot be woaded
+	twy {
+		const _spdwog = await impowt('spdwog');
+		_spdwog.setFwushOn(WogWevew.Twace);
+		wetuwn _spdwog.cweateAsyncWotatingWogga(name, wogfiwePath, fiwesize, fiwecount);
 	} catch (e) {
-		console.error(e);
+		consowe.ewwow(e);
 	}
-	return null;
+	wetuwn nuww;
 }
 
-export function createRotatingLogger(name: string, filename: string, filesize: number, filecount: number): Promise<spdlog.Logger> {
-	const _spdlog: typeof spdlog = require.__$__nodeRequire('spdlog');
-	_spdlog.setFlushOn(LogLevel.Trace);
-	return _spdlog.createRotatingLogger(name, filename, filesize, filecount);
+expowt function cweateWotatingWogga(name: stwing, fiwename: stwing, fiwesize: numba, fiwecount: numba): Pwomise<spdwog.Wogga> {
+	const _spdwog: typeof spdwog = wequiwe.__$__nodeWequiwe('spdwog');
+	_spdwog.setFwushOn(WogWevew.Twace);
+	wetuwn _spdwog.cweateWotatingWogga(name, fiwename, fiwesize, fiwecount);
 }
 
-interface ILog {
-	level: LogLevel;
-	message: string;
+intewface IWog {
+	wevew: WogWevew;
+	message: stwing;
 }
 
-function log(logger: spdlog.Logger, level: LogLevel, message: string): void {
-	switch (level) {
-		case LogLevel.Trace: logger.trace(message); break;
-		case LogLevel.Debug: logger.debug(message); break;
-		case LogLevel.Info: logger.info(message); break;
-		case LogLevel.Warning: logger.warn(message); break;
-		case LogLevel.Error: logger.error(message); break;
-		case LogLevel.Critical: logger.critical(message); break;
-		default: throw new Error('Invalid log level');
+function wog(wogga: spdwog.Wogga, wevew: WogWevew, message: stwing): void {
+	switch (wevew) {
+		case WogWevew.Twace: wogga.twace(message); bweak;
+		case WogWevew.Debug: wogga.debug(message); bweak;
+		case WogWevew.Info: wogga.info(message); bweak;
+		case WogWevew.Wawning: wogga.wawn(message); bweak;
+		case WogWevew.Ewwow: wogga.ewwow(message); bweak;
+		case WogWevew.Cwiticaw: wogga.cwiticaw(message); bweak;
+		defauwt: thwow new Ewwow('Invawid wog wevew');
 	}
 }
 
-export class SpdLogLogger extends AbstractMessageLogger implements ILogger {
+expowt cwass SpdWogWogga extends AbstwactMessageWogga impwements IWogga {
 
-	private buffer: ILog[] = [];
-	private readonly _loggerCreationPromise: Promise<void>;
-	private _logger: spdlog.Logger | undefined;
+	pwivate buffa: IWog[] = [];
+	pwivate weadonwy _woggewCweationPwomise: Pwomise<void>;
+	pwivate _wogga: spdwog.Wogga | undefined;
 
-	constructor(
-		private readonly name: string,
-		private readonly filepath: string,
-		private readonly rotating: boolean,
-		level: LogLevel
+	constwuctow(
+		pwivate weadonwy name: stwing,
+		pwivate weadonwy fiwepath: stwing,
+		pwivate weadonwy wotating: boowean,
+		wevew: WogWevew
 	) {
-		super();
-		this.setLevel(level);
-		this._loggerCreationPromise = this._createSpdLogLogger();
-		this._register(this.onDidChangeLogLevel(level => {
-			if (this._logger) {
-				this._logger.setLevel(level);
+		supa();
+		this.setWevew(wevew);
+		this._woggewCweationPwomise = this._cweateSpdWogWogga();
+		this._wegista(this.onDidChangeWogWevew(wevew => {
+			if (this._wogga) {
+				this._wogga.setWevew(wevew);
 			}
 		}));
 	}
 
-	private _createSpdLogLogger(): Promise<void> {
-		const filecount = this.rotating ? 6 : 1;
-		const filesize = (30 / filecount) * ByteSize.MB;
-		return createSpdLogLogger(this.name, this.filepath, filesize, filecount)
-			.then(logger => {
-				if (logger) {
-					this._logger = logger;
-					this._logger.setLevel(this.getLevel());
-					for (const { level, message } of this.buffer) {
-						log(this._logger, level, message);
+	pwivate _cweateSpdWogWogga(): Pwomise<void> {
+		const fiwecount = this.wotating ? 6 : 1;
+		const fiwesize = (30 / fiwecount) * ByteSize.MB;
+		wetuwn cweateSpdWogWogga(this.name, this.fiwepath, fiwesize, fiwecount)
+			.then(wogga => {
+				if (wogga) {
+					this._wogga = wogga;
+					this._wogga.setWevew(this.getWevew());
+					fow (const { wevew, message } of this.buffa) {
+						wog(this._wogga, wevew, message);
 					}
-					this.buffer = [];
+					this.buffa = [];
 				}
 			});
 	}
 
-	protected log(level: LogLevel, message: string): void {
-		if (this._logger) {
-			log(this._logger, level, message);
-		} else if (this.getLevel() <= level) {
-			this.buffer.push({ level, message });
+	pwotected wog(wevew: WogWevew, message: stwing): void {
+		if (this._wogga) {
+			wog(this._wogga, wevew, message);
+		} ewse if (this.getWevew() <= wevew) {
+			this.buffa.push({ wevew, message });
 		}
 	}
 
-	clearFormatters(): void {
-		if (this._logger) {
-			this._logger.clearFormatters();
-		} else {
-			this._loggerCreationPromise.then(() => this.clearFormatters());
+	cweawFowmattews(): void {
+		if (this._wogga) {
+			this._wogga.cweawFowmattews();
+		} ewse {
+			this._woggewCweationPwomise.then(() => this.cweawFowmattews());
 		}
 	}
 
-	override flush(): void {
-		if (this._logger) {
-			this._logger.flush();
-		} else {
-			this._loggerCreationPromise.then(() => this.flush());
+	ovewwide fwush(): void {
+		if (this._wogga) {
+			this._wogga.fwush();
+		} ewse {
+			this._woggewCweationPwomise.then(() => this.fwush());
 		}
 	}
 
-	override dispose(): void {
-		if (this._logger) {
-			this.disposeLogger();
-		} else {
-			this._loggerCreationPromise.then(() => this.disposeLogger());
+	ovewwide dispose(): void {
+		if (this._wogga) {
+			this.disposeWogga();
+		} ewse {
+			this._woggewCweationPwomise.then(() => this.disposeWogga());
 		}
 	}
 
-	private disposeLogger(): void {
-		if (this._logger) {
-			this._logger.drop();
-			this._logger = undefined;
+	pwivate disposeWogga(): void {
+		if (this._wogga) {
+			this._wogga.dwop();
+			this._wogga = undefined;
 		}
 	}
 }

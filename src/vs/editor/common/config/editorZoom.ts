@@ -1,34 +1,34 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
 
-export interface IEditorZoom {
-	onDidChangeZoomLevel: Event<number>;
-	getZoomLevel(): number;
-	setZoomLevel(zoomLevel: number): void;
+expowt intewface IEditowZoom {
+	onDidChangeZoomWevew: Event<numba>;
+	getZoomWevew(): numba;
+	setZoomWevew(zoomWevew: numba): void;
 }
 
-export const EditorZoom: IEditorZoom = new class implements IEditorZoom {
+expowt const EditowZoom: IEditowZoom = new cwass impwements IEditowZoom {
 
-	private _zoomLevel: number = 0;
+	pwivate _zoomWevew: numba = 0;
 
-	private readonly _onDidChangeZoomLevel = new Emitter<number>();
-	public readonly onDidChangeZoomLevel: Event<number> = this._onDidChangeZoomLevel.event;
+	pwivate weadonwy _onDidChangeZoomWevew = new Emitta<numba>();
+	pubwic weadonwy onDidChangeZoomWevew: Event<numba> = this._onDidChangeZoomWevew.event;
 
-	public getZoomLevel(): number {
-		return this._zoomLevel;
+	pubwic getZoomWevew(): numba {
+		wetuwn this._zoomWevew;
 	}
 
-	public setZoomLevel(zoomLevel: number): void {
-		zoomLevel = Math.min(Math.max(-5, zoomLevel), 20);
-		if (this._zoomLevel === zoomLevel) {
-			return;
+	pubwic setZoomWevew(zoomWevew: numba): void {
+		zoomWevew = Math.min(Math.max(-5, zoomWevew), 20);
+		if (this._zoomWevew === zoomWevew) {
+			wetuwn;
 		}
 
-		this._zoomLevel = zoomLevel;
-		this._onDidChangeZoomLevel.fire(this._zoomLevel);
+		this._zoomWevew = zoomWevew;
+		this._onDidChangeZoomWevew.fiwe(this._zoomWevew);
 	}
 };

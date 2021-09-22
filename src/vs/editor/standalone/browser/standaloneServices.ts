@@ -1,248 +1,248 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { SimpleBulkEditService, SimpleConfigurationService, SimpleDialogService, SimpleNotificationService, SimpleEditorProgressService, SimpleResourceConfigurationService, SimpleResourcePropertiesService, SimpleUriLabelService, SimpleWorkspaceContextService, StandaloneCommandService, StandaloneKeybindingService, StandaloneTelemetryService, SimpleLayoutService } from 'vs/editor/standalone/browser/simpleServices';
-import { StandaloneCodeEditorServiceImpl } from 'vs/editor/standalone/browser/standaloneCodeServiceImpl';
-import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standaloneThemeServiceImpl';
-import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
-import { IMenuService } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService, ServiceIdentifier, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IListService, ListService } from 'vs/platform/list/browser/listService';
-import { ConsoleLogger, ILogService, LogService } from 'vs/platform/log/common/log';
-import { MarkerService } from 'vs/platform/markers/common/markerService';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IEditorProgressService } from 'vs/platform/progress/common/progress';
-import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { MenuService } from 'vs/platform/actions/common/menuService';
-import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
-import { MarkerDecorationsService } from 'vs/editor/common/services/markerDecorationsServiceImpl';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
-import { AccessibilityService } from 'vs/platform/accessibility/browser/accessibilityService';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
-import { StandaloneQuickInputServiceImpl } from 'vs/editor/standalone/browser/quickInput/standaloneQuickInputServiceImpl';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IBuwkEditSewvice } fwom 'vs/editow/bwowsa/sewvices/buwkEditSewvice';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { IEditowWowkewSewvice } fwom 'vs/editow/common/sewvices/editowWowkewSewvice';
+impowt { EditowWowkewSewviceImpw } fwom 'vs/editow/common/sewvices/editowWowkewSewviceImpw';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { ModeSewviceImpw } fwom 'vs/editow/common/sewvices/modeSewviceImpw';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { ModewSewviceImpw } fwom 'vs/editow/common/sewvices/modewSewviceImpw';
+impowt { ITextWesouwceConfiguwationSewvice, ITextWesouwcePwopewtiesSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { SimpweBuwkEditSewvice, SimpweConfiguwationSewvice, SimpweDiawogSewvice, SimpweNotificationSewvice, SimpweEditowPwogwessSewvice, SimpweWesouwceConfiguwationSewvice, SimpweWesouwcePwopewtiesSewvice, SimpweUwiWabewSewvice, SimpweWowkspaceContextSewvice, StandawoneCommandSewvice, StandawoneKeybindingSewvice, StandawoneTewemetwySewvice, SimpweWayoutSewvice } fwom 'vs/editow/standawone/bwowsa/simpweSewvices';
+impowt { StandawoneCodeEditowSewviceImpw } fwom 'vs/editow/standawone/bwowsa/standawoneCodeSewviceImpw';
+impowt { StandawoneThemeSewviceImpw } fwom 'vs/editow/standawone/bwowsa/standawoneThemeSewviceImpw';
+impowt { IStandawoneThemeSewvice } fwom 'vs/editow/standawone/common/standawoneThemeSewvice';
+impowt { IMenuSewvice } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ContextKeySewvice } fwom 'vs/pwatfowm/contextkey/bwowsa/contextKeySewvice';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { ContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextMenuSewvice';
+impowt { IContextMenuSewvice, IContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { ContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextViewSewvice';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IInstantiationSewvice, SewviceIdentifia, cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { InstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiationSewvice';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IWistSewvice, WistSewvice } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { ConsoweWogga, IWogSewvice, WogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { MawkewSewvice } fwom 'vs/pwatfowm/mawkews/common/mawkewSewvice';
+impowt { IMawkewSewvice } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IEditowPwogwessSewvice } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { IStowageSewvice, InMemowyStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { MenuSewvice } fwom 'vs/pwatfowm/actions/common/menuSewvice';
+impowt { IMawkewDecowationsSewvice } fwom 'vs/editow/common/sewvices/mawkewsDecowationSewvice';
+impowt { MawkewDecowationsSewvice } fwom 'vs/editow/common/sewvices/mawkewDecowationsSewviceImpw';
+impowt { IAccessibiwitySewvice } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { IWayoutSewvice } fwom 'vs/pwatfowm/wayout/bwowsa/wayoutSewvice';
+impowt { getSingwetonSewviceDescwiptows } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { AccessibiwitySewvice } fwom 'vs/pwatfowm/accessibiwity/bwowsa/accessibiwitySewvice';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { BwowsewCwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/bwowsa/cwipboawdSewvice';
+impowt { IUndoWedoSewvice } fwom 'vs/pwatfowm/undoWedo/common/undoWedo';
+impowt { UndoWedoSewvice } fwom 'vs/pwatfowm/undoWedo/common/undoWedoSewvice';
+impowt { StandawoneQuickInputSewviceImpw } fwom 'vs/editow/standawone/bwowsa/quickInput/standawoneQuickInputSewviceImpw';
+impowt { IQuickInputSewvice } fwom 'vs/pwatfowm/quickinput/common/quickInput';
 
-export interface IEditorOverrideServices {
-	[index: string]: any;
+expowt intewface IEditowOvewwideSewvices {
+	[index: stwing]: any;
 }
 
-export module StaticServices {
+expowt moduwe StaticSewvices {
 
-	const _serviceCollection = new ServiceCollection();
+	const _sewviceCowwection = new SewviceCowwection();
 
-	export class LazyStaticService<T> {
-		private readonly _serviceId: ServiceIdentifier<T>;
-		private readonly _factory: (overrides?: IEditorOverrideServices) => T;
-		private _value: T | null;
+	expowt cwass WazyStaticSewvice<T> {
+		pwivate weadonwy _sewviceId: SewviceIdentifia<T>;
+		pwivate weadonwy _factowy: (ovewwides?: IEditowOvewwideSewvices) => T;
+		pwivate _vawue: T | nuww;
 
-		public get id() { return this._serviceId; }
+		pubwic get id() { wetuwn this._sewviceId; }
 
-		constructor(serviceId: ServiceIdentifier<T>, factory: (overrides?: IEditorOverrideServices) => T) {
-			this._serviceId = serviceId;
-			this._factory = factory;
-			this._value = null;
+		constwuctow(sewviceId: SewviceIdentifia<T>, factowy: (ovewwides?: IEditowOvewwideSewvices) => T) {
+			this._sewviceId = sewviceId;
+			this._factowy = factowy;
+			this._vawue = nuww;
 		}
 
-		public get(overrides?: IEditorOverrideServices): T {
-			if (!this._value) {
-				if (overrides) {
-					this._value = overrides[this._serviceId.toString()];
+		pubwic get(ovewwides?: IEditowOvewwideSewvices): T {
+			if (!this._vawue) {
+				if (ovewwides) {
+					this._vawue = ovewwides[this._sewviceId.toStwing()];
 				}
-				if (!this._value) {
-					this._value = this._factory(overrides);
+				if (!this._vawue) {
+					this._vawue = this._factowy(ovewwides);
 				}
-				if (!this._value) {
-					throw new Error('Service ' + this._serviceId + ' is missing!');
+				if (!this._vawue) {
+					thwow new Ewwow('Sewvice ' + this._sewviceId + ' is missing!');
 				}
-				_serviceCollection.set(this._serviceId, this._value);
+				_sewviceCowwection.set(this._sewviceId, this._vawue);
 			}
-			return this._value;
+			wetuwn this._vawue;
 		}
 	}
 
-	let _all: LazyStaticService<any>[] = [];
+	wet _aww: WazyStaticSewvice<any>[] = [];
 
-	function define<T>(serviceId: ServiceIdentifier<T>, factory: (overrides: IEditorOverrideServices | undefined) => T): LazyStaticService<T> {
-		let r = new LazyStaticService(serviceId, factory);
-		_all.push(r);
-		return r;
+	function define<T>(sewviceId: SewviceIdentifia<T>, factowy: (ovewwides: IEditowOvewwideSewvices | undefined) => T): WazyStaticSewvice<T> {
+		wet w = new WazyStaticSewvice(sewviceId, factowy);
+		_aww.push(w);
+		wetuwn w;
 	}
 
-	export function init(overrides: IEditorOverrideServices): [ServiceCollection, IInstantiationService] {
-		// Create a fresh service collection
-		let result = new ServiceCollection();
+	expowt function init(ovewwides: IEditowOvewwideSewvices): [SewviceCowwection, IInstantiationSewvice] {
+		// Cweate a fwesh sewvice cowwection
+		wet wesuwt = new SewviceCowwection();
 
-		// make sure to add all services that use `registerSingleton`
-		for (const [id, descriptor] of getSingletonServiceDescriptors()) {
-			result.set(id, descriptor);
+		// make suwe to add aww sewvices that use `wegistewSingweton`
+		fow (const [id, descwiptow] of getSingwetonSewviceDescwiptows()) {
+			wesuwt.set(id, descwiptow);
 		}
 
-		// Initialize the service collection with the overrides
-		for (let serviceId in overrides) {
-			if (overrides.hasOwnProperty(serviceId)) {
-				result.set(createDecorator(serviceId), overrides[serviceId]);
+		// Initiawize the sewvice cowwection with the ovewwides
+		fow (wet sewviceId in ovewwides) {
+			if (ovewwides.hasOwnPwopewty(sewviceId)) {
+				wesuwt.set(cweateDecowatow(sewviceId), ovewwides[sewviceId]);
 			}
 		}
 
-		// Make sure the same static services are present in all service collections
-		_all.forEach(service => result.set(service.id, service.get(overrides)));
+		// Make suwe the same static sewvices awe pwesent in aww sewvice cowwections
+		_aww.fowEach(sewvice => wesuwt.set(sewvice.id, sewvice.get(ovewwides)));
 
-		// Ensure the collection gets the correct instantiation service
-		let instantiationService = new InstantiationService(result, true);
-		result.set(IInstantiationService, instantiationService);
+		// Ensuwe the cowwection gets the cowwect instantiation sewvice
+		wet instantiationSewvice = new InstantiationSewvice(wesuwt, twue);
+		wesuwt.set(IInstantiationSewvice, instantiationSewvice);
 
-		return [result, instantiationService];
+		wetuwn [wesuwt, instantiationSewvice];
 	}
 
-	export const instantiationService = define<IInstantiationService>(IInstantiationService, () => new InstantiationService(_serviceCollection, true));
+	expowt const instantiationSewvice = define<IInstantiationSewvice>(IInstantiationSewvice, () => new InstantiationSewvice(_sewviceCowwection, twue));
 
-	const configurationServiceImpl = new SimpleConfigurationService();
-	export const configurationService = define(IConfigurationService, () => configurationServiceImpl);
+	const configuwationSewviceImpw = new SimpweConfiguwationSewvice();
+	expowt const configuwationSewvice = define(IConfiguwationSewvice, () => configuwationSewviceImpw);
 
-	export const resourceConfigurationService = define(ITextResourceConfigurationService, () => new SimpleResourceConfigurationService(configurationServiceImpl));
+	expowt const wesouwceConfiguwationSewvice = define(ITextWesouwceConfiguwationSewvice, () => new SimpweWesouwceConfiguwationSewvice(configuwationSewviceImpw));
 
-	export const resourcePropertiesService = define(ITextResourcePropertiesService, () => new SimpleResourcePropertiesService(configurationServiceImpl));
+	expowt const wesouwcePwopewtiesSewvice = define(ITextWesouwcePwopewtiesSewvice, () => new SimpweWesouwcePwopewtiesSewvice(configuwationSewviceImpw));
 
-	export const contextService = define(IWorkspaceContextService, () => new SimpleWorkspaceContextService());
+	expowt const contextSewvice = define(IWowkspaceContextSewvice, () => new SimpweWowkspaceContextSewvice());
 
-	export const labelService = define(ILabelService, () => new SimpleUriLabelService());
+	expowt const wabewSewvice = define(IWabewSewvice, () => new SimpweUwiWabewSewvice());
 
-	export const telemetryService = define(ITelemetryService, () => new StandaloneTelemetryService());
+	expowt const tewemetwySewvice = define(ITewemetwySewvice, () => new StandawoneTewemetwySewvice());
 
-	export const dialogService = define(IDialogService, () => new SimpleDialogService());
+	expowt const diawogSewvice = define(IDiawogSewvice, () => new SimpweDiawogSewvice());
 
-	export const notificationService = define(INotificationService, () => new SimpleNotificationService());
+	expowt const notificationSewvice = define(INotificationSewvice, () => new SimpweNotificationSewvice());
 
-	export const markerService = define(IMarkerService, () => new MarkerService());
+	expowt const mawkewSewvice = define(IMawkewSewvice, () => new MawkewSewvice());
 
-	export const modeService = define(IModeService, (o) => new ModeServiceImpl());
+	expowt const modeSewvice = define(IModeSewvice, (o) => new ModeSewviceImpw());
 
-	export const standaloneThemeService = define(IStandaloneThemeService, () => new StandaloneThemeServiceImpl());
+	expowt const standawoneThemeSewvice = define(IStandawoneThemeSewvice, () => new StandawoneThemeSewviceImpw());
 
-	export const logService = define(ILogService, () => new LogService(new ConsoleLogger()));
+	expowt const wogSewvice = define(IWogSewvice, () => new WogSewvice(new ConsoweWogga()));
 
-	export const undoRedoService = define(IUndoRedoService, (o) => new UndoRedoService(dialogService.get(o), notificationService.get(o)));
+	expowt const undoWedoSewvice = define(IUndoWedoSewvice, (o) => new UndoWedoSewvice(diawogSewvice.get(o), notificationSewvice.get(o)));
 
-	export const modelService = define(IModelService, (o) => new ModelServiceImpl(configurationService.get(o), resourcePropertiesService.get(o), standaloneThemeService.get(o), logService.get(o), undoRedoService.get(o)));
+	expowt const modewSewvice = define(IModewSewvice, (o) => new ModewSewviceImpw(configuwationSewvice.get(o), wesouwcePwopewtiesSewvice.get(o), standawoneThemeSewvice.get(o), wogSewvice.get(o), undoWedoSewvice.get(o)));
 
-	export const markerDecorationsService = define(IMarkerDecorationsService, (o) => new MarkerDecorationsService(modelService.get(o), markerService.get(o)));
+	expowt const mawkewDecowationsSewvice = define(IMawkewDecowationsSewvice, (o) => new MawkewDecowationsSewvice(modewSewvice.get(o), mawkewSewvice.get(o)));
 
-	export const contextKeyService = define(IContextKeyService, (o) => new ContextKeyService(configurationService.get(o)));
+	expowt const contextKeySewvice = define(IContextKeySewvice, (o) => new ContextKeySewvice(configuwationSewvice.get(o)));
 
-	export const codeEditorService = define(ICodeEditorService, (o) => new StandaloneCodeEditorServiceImpl(null, contextKeyService.get(o), standaloneThemeService.get(o)));
+	expowt const codeEditowSewvice = define(ICodeEditowSewvice, (o) => new StandawoneCodeEditowSewviceImpw(nuww, contextKeySewvice.get(o), standawoneThemeSewvice.get(o)));
 
-	export const editorProgressService = define(IEditorProgressService, () => new SimpleEditorProgressService());
+	expowt const editowPwogwessSewvice = define(IEditowPwogwessSewvice, () => new SimpweEditowPwogwessSewvice());
 
-	export const storageService = define(IStorageService, () => new InMemoryStorageService());
+	expowt const stowageSewvice = define(IStowageSewvice, () => new InMemowyStowageSewvice());
 
-	export const editorWorkerService = define(IEditorWorkerService, (o) => new EditorWorkerServiceImpl(modelService.get(o), resourceConfigurationService.get(o), logService.get(o)));
+	expowt const editowWowkewSewvice = define(IEditowWowkewSewvice, (o) => new EditowWowkewSewviceImpw(modewSewvice.get(o), wesouwceConfiguwationSewvice.get(o), wogSewvice.get(o)));
 }
 
-export class DynamicStandaloneServices extends Disposable {
+expowt cwass DynamicStandawoneSewvices extends Disposabwe {
 
-	private readonly _serviceCollection: ServiceCollection;
-	private readonly _instantiationService: IInstantiationService;
+	pwivate weadonwy _sewviceCowwection: SewviceCowwection;
+	pwivate weadonwy _instantiationSewvice: IInstantiationSewvice;
 
-	constructor(domElement: HTMLElement, overrides: IEditorOverrideServices) {
-		super();
+	constwuctow(domEwement: HTMWEwement, ovewwides: IEditowOvewwideSewvices) {
+		supa();
 
-		const [_serviceCollection, _instantiationService] = StaticServices.init(overrides);
-		this._serviceCollection = _serviceCollection;
-		this._instantiationService = _instantiationService;
+		const [_sewviceCowwection, _instantiationSewvice] = StaticSewvices.init(ovewwides);
+		this._sewviceCowwection = _sewviceCowwection;
+		this._instantiationSewvice = _instantiationSewvice;
 
-		const configurationService = this.get(IConfigurationService);
-		const notificationService = this.get(INotificationService);
-		const telemetryService = this.get(ITelemetryService);
-		const themeService = this.get(IThemeService);
-		const logService = this.get(ILogService);
-		const contextKeyService = this.get(IContextKeyService);
+		const configuwationSewvice = this.get(IConfiguwationSewvice);
+		const notificationSewvice = this.get(INotificationSewvice);
+		const tewemetwySewvice = this.get(ITewemetwySewvice);
+		const themeSewvice = this.get(IThemeSewvice);
+		const wogSewvice = this.get(IWogSewvice);
+		const contextKeySewvice = this.get(IContextKeySewvice);
 
-		let ensure = <T>(serviceId: ServiceIdentifier<T>, factory: () => T): T => {
-			let value: T | null = null;
-			if (overrides) {
-				value = overrides[serviceId.toString()];
+		wet ensuwe = <T>(sewviceId: SewviceIdentifia<T>, factowy: () => T): T => {
+			wet vawue: T | nuww = nuww;
+			if (ovewwides) {
+				vawue = ovewwides[sewviceId.toStwing()];
 			}
-			if (!value) {
-				value = factory();
+			if (!vawue) {
+				vawue = factowy();
 			}
-			this._serviceCollection.set(serviceId, value);
-			return value;
+			this._sewviceCowwection.set(sewviceId, vawue);
+			wetuwn vawue;
 		};
 
-		ensure(IAccessibilityService, () => new AccessibilityService(contextKeyService, configurationService));
+		ensuwe(IAccessibiwitySewvice, () => new AccessibiwitySewvice(contextKeySewvice, configuwationSewvice));
 
-		ensure(IListService, () => new ListService(themeService));
+		ensuwe(IWistSewvice, () => new WistSewvice(themeSewvice));
 
-		let commandService = ensure(ICommandService, () => new StandaloneCommandService(this._instantiationService));
+		wet commandSewvice = ensuwe(ICommandSewvice, () => new StandawoneCommandSewvice(this._instantiationSewvice));
 
-		let keybindingService = ensure(IKeybindingService, () => this._register(new StandaloneKeybindingService(contextKeyService, commandService, telemetryService, notificationService, logService, domElement)));
+		wet keybindingSewvice = ensuwe(IKeybindingSewvice, () => this._wegista(new StandawoneKeybindingSewvice(contextKeySewvice, commandSewvice, tewemetwySewvice, notificationSewvice, wogSewvice, domEwement)));
 
-		let layoutService = ensure(ILayoutService, () => new SimpleLayoutService(StaticServices.codeEditorService.get(ICodeEditorService), domElement));
+		wet wayoutSewvice = ensuwe(IWayoutSewvice, () => new SimpweWayoutSewvice(StaticSewvices.codeEditowSewvice.get(ICodeEditowSewvice), domEwement));
 
-		ensure(IQuickInputService, () => new StandaloneQuickInputServiceImpl(_instantiationService, StaticServices.codeEditorService.get(ICodeEditorService)));
+		ensuwe(IQuickInputSewvice, () => new StandawoneQuickInputSewviceImpw(_instantiationSewvice, StaticSewvices.codeEditowSewvice.get(ICodeEditowSewvice)));
 
-		let contextViewService = ensure(IContextViewService, () => this._register(new ContextViewService(layoutService)));
+		wet contextViewSewvice = ensuwe(IContextViewSewvice, () => this._wegista(new ContextViewSewvice(wayoutSewvice)));
 
-		ensure(IClipboardService, () => new BrowserClipboardService());
+		ensuwe(ICwipboawdSewvice, () => new BwowsewCwipboawdSewvice());
 
-		ensure(IContextMenuService, () => {
-			const contextMenuService = new ContextMenuService(telemetryService, notificationService, contextViewService, keybindingService, themeService);
-			contextMenuService.configure({ blockMouse: false }); // we do not want that in the standalone editor
+		ensuwe(IContextMenuSewvice, () => {
+			const contextMenuSewvice = new ContextMenuSewvice(tewemetwySewvice, notificationSewvice, contextViewSewvice, keybindingSewvice, themeSewvice);
+			contextMenuSewvice.configuwe({ bwockMouse: fawse }); // we do not want that in the standawone editow
 
-			return this._register(contextMenuService);
+			wetuwn this._wegista(contextMenuSewvice);
 		});
 
-		ensure(IMenuService, () => new MenuService(commandService));
+		ensuwe(IMenuSewvice, () => new MenuSewvice(commandSewvice));
 
-		ensure(IBulkEditService, () => new SimpleBulkEditService(StaticServices.modelService.get(IModelService)));
+		ensuwe(IBuwkEditSewvice, () => new SimpweBuwkEditSewvice(StaticSewvices.modewSewvice.get(IModewSewvice)));
 	}
 
-	public get<T>(serviceId: ServiceIdentifier<T>): T {
-		let r = <T>this._serviceCollection.get(serviceId);
-		if (!r) {
-			throw new Error('Missing service ' + serviceId);
+	pubwic get<T>(sewviceId: SewviceIdentifia<T>): T {
+		wet w = <T>this._sewviceCowwection.get(sewviceId);
+		if (!w) {
+			thwow new Ewwow('Missing sewvice ' + sewviceId);
 		}
-		return r;
+		wetuwn w;
 	}
 
-	public set<T>(serviceId: ServiceIdentifier<T>, instance: T): void {
-		this._serviceCollection.set(serviceId, instance);
+	pubwic set<T>(sewviceId: SewviceIdentifia<T>, instance: T): void {
+		this._sewviceCowwection.set(sewviceId, instance);
 	}
 
-	public has<T>(serviceId: ServiceIdentifier<T>): boolean {
-		return this._serviceCollection.has(serviceId);
+	pubwic has<T>(sewviceId: SewviceIdentifia<T>): boowean {
+		wetuwn this._sewviceCowwection.has(sewviceId);
 	}
 }

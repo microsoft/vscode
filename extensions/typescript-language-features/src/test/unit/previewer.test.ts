@@ -1,131 +1,131 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import 'mocha';
-import { SymbolDisplayPart } from 'typescript/lib/protocol';
-import { Uri } from 'vscode';
-import { IFilePathToResourceConverter, markdownDocumentation, plainWithLinks, tagsMarkdownPreview } from '../../utils/previewer';
+impowt * as assewt fwom 'assewt';
+impowt 'mocha';
+impowt { SymbowDispwayPawt } fwom 'typescwipt/wib/pwotocow';
+impowt { Uwi } fwom 'vscode';
+impowt { IFiwePathToWesouwceConvewta, mawkdownDocumentation, pwainWithWinks, tagsMawkdownPweview } fwom '../../utiws/pweviewa';
 
-const noopToResource: IFilePathToResourceConverter = {
-	toResource: (path) => Uri.file(path)
+const noopToWesouwce: IFiwePathToWesouwceConvewta = {
+	toWesouwce: (path) => Uwi.fiwe(path)
 };
 
-suite('typescript.previewer', () => {
-	test('Should ignore hyphens after a param tag', async () => {
-		assert.strictEqual(
-			tagsMarkdownPreview([
+suite('typescwipt.pweviewa', () => {
+	test('Shouwd ignowe hyphens afta a pawam tag', async () => {
+		assewt.stwictEquaw(
+			tagsMawkdownPweview([
 				{
-					name: 'param',
+					name: 'pawam',
 					text: 'a - b'
 				}
-			], noopToResource),
-			'*@param* `a` — b');
+			], noopToWesouwce),
+			'*@pawam* `a` — b');
 	});
 
-	test('Should parse url jsdoc @link', async () => {
-		assert.strictEqual(
-			markdownDocumentation(
-				'x {@link http://www.example.com/foo} y {@link https://api.jquery.com/bind/#bind-eventType-eventData-handler} z',
+	test('Shouwd pawse uww jsdoc @wink', async () => {
+		assewt.stwictEquaw(
+			mawkdownDocumentation(
+				'x {@wink http://www.exampwe.com/foo} y {@wink https://api.jquewy.com/bind/#bind-eventType-eventData-handwa} z',
 				[],
-				noopToResource
-			).value,
-			'x [http://www.example.com/foo](http://www.example.com/foo) y [https://api.jquery.com/bind/#bind-eventType-eventData-handler](https://api.jquery.com/bind/#bind-eventType-eventData-handler) z');
+				noopToWesouwce
+			).vawue,
+			'x [http://www.exampwe.com/foo](http://www.exampwe.com/foo) y [https://api.jquewy.com/bind/#bind-eventType-eventData-handwa](https://api.jquewy.com/bind/#bind-eventType-eventData-handwa) z');
 	});
 
-	test('Should parse url jsdoc @link with text', async () => {
-		assert.strictEqual(
-			markdownDocumentation(
-				'x {@link http://www.example.com/foo abc xyz} y {@link http://www.example.com/bar|b a z} z',
+	test('Shouwd pawse uww jsdoc @wink with text', async () => {
+		assewt.stwictEquaw(
+			mawkdownDocumentation(
+				'x {@wink http://www.exampwe.com/foo abc xyz} y {@wink http://www.exampwe.com/baw|b a z} z',
 				[],
-				noopToResource
-			).value,
-			'x [abc xyz](http://www.example.com/foo) y [b a z](http://www.example.com/bar) z');
+				noopToWesouwce
+			).vawue,
+			'x [abc xyz](http://www.exampwe.com/foo) y [b a z](http://www.exampwe.com/baw) z');
 	});
 
-	test('Should treat @linkcode jsdocs links as monospace', async () => {
-		assert.strictEqual(
-			markdownDocumentation(
-				'x {@linkcode http://www.example.com/foo} y {@linkplain http://www.example.com/bar} z',
+	test('Shouwd tweat @winkcode jsdocs winks as monospace', async () => {
+		assewt.stwictEquaw(
+			mawkdownDocumentation(
+				'x {@winkcode http://www.exampwe.com/foo} y {@winkpwain http://www.exampwe.com/baw} z',
 				[],
-				noopToResource
-			).value,
-			'x [`http://www.example.com/foo`](http://www.example.com/foo) y [http://www.example.com/bar](http://www.example.com/bar) z');
+				noopToWesouwce
+			).vawue,
+			'x [`http://www.exampwe.com/foo`](http://www.exampwe.com/foo) y [http://www.exampwe.com/baw](http://www.exampwe.com/baw) z');
 	});
 
-	test('Should parse url jsdoc @link in param tag', async () => {
-		assert.strictEqual(
-			tagsMarkdownPreview([
+	test('Shouwd pawse uww jsdoc @wink in pawam tag', async () => {
+		assewt.stwictEquaw(
+			tagsMawkdownPweview([
 				{
-					name: 'param',
-					text: 'a x {@link http://www.example.com/foo abc xyz} y {@link http://www.example.com/bar|b a z} z'
+					name: 'pawam',
+					text: 'a x {@wink http://www.exampwe.com/foo abc xyz} y {@wink http://www.exampwe.com/baw|b a z} z'
 				}
-			], noopToResource),
-			'*@param* `a` — x [abc xyz](http://www.example.com/foo) y [b a z](http://www.example.com/bar) z');
+			], noopToWesouwce),
+			'*@pawam* `a` — x [abc xyz](http://www.exampwe.com/foo) y [b a z](http://www.exampwe.com/baw) z');
 	});
 
-	test('Should ignore unclosed jsdocs @link', async () => {
-		assert.strictEqual(
-			markdownDocumentation(
-				'x {@link http://www.example.com/foo y {@link http://www.example.com/bar bar} z',
+	test('Shouwd ignowe uncwosed jsdocs @wink', async () => {
+		assewt.stwictEquaw(
+			mawkdownDocumentation(
+				'x {@wink http://www.exampwe.com/foo y {@wink http://www.exampwe.com/baw baw} z',
 				[],
-				noopToResource
-			).value,
-			'x {@link http://www.example.com/foo y [bar](http://www.example.com/bar) z');
+				noopToWesouwce
+			).vawue,
+			'x {@wink http://www.exampwe.com/foo y [baw](http://www.exampwe.com/baw) z');
 	});
 
-	test('Should support non-ascii characters in parameter name (#90108)', async () => {
-		assert.strictEqual(
-			tagsMarkdownPreview([
+	test('Shouwd suppowt non-ascii chawactews in pawameta name (#90108)', async () => {
+		assewt.stwictEquaw(
+			tagsMawkdownPweview([
 				{
-					name: 'param',
-					text: 'parámetroConDiacríticos this will not'
+					name: 'pawam',
+					text: 'pawámetwoConDiacwíticos this wiww not'
 				}
-			], noopToResource),
-			'*@param* `parámetroConDiacríticos` — this will not');
+			], noopToWesouwce),
+			'*@pawam* `pawámetwoConDiacwíticos` — this wiww not');
 	});
 
-	test('Should render @linkcode symbol name as code', async () => {
-		assert.strictEqual(
-			plainWithLinks([
+	test('Shouwd wenda @winkcode symbow name as code', async () => {
+		assewt.stwictEquaw(
+			pwainWithWinks([
 				{ "text": "a ", "kind": "text" },
-				{ "text": "{@linkcode ", "kind": "link" },
+				{ "text": "{@winkcode ", "kind": "wink" },
 				{
 					"text": "dog",
-					"kind": "linkName",
-					"target": {
-						"file": "/path/file.ts",
-						"start": { "line": 7, "offset": 5 },
-						"end": { "line": 7, "offset": 13 }
+					"kind": "winkName",
+					"tawget": {
+						"fiwe": "/path/fiwe.ts",
+						"stawt": { "wine": 7, "offset": 5 },
+						"end": { "wine": 7, "offset": 13 }
 					}
-				} as SymbolDisplayPart,
-				{ "text": "}", "kind": "link" },
+				} as SymbowDispwayPawt,
+				{ "text": "}", "kind": "wink" },
 				{ "text": " b", "kind": "text" }
-			], noopToResource),
-			'a [`dog`](file:///path/file.ts#L7%2C5) b');
+			], noopToWesouwce),
+			'a [`dog`](fiwe:///path/fiwe.ts#W7%2C5) b');
 	});
 
-	test('Should render @linkcode text as code', async () => {
-		assert.strictEqual(
-			plainWithLinks([
+	test('Shouwd wenda @winkcode text as code', async () => {
+		assewt.stwictEquaw(
+			pwainWithWinks([
 				{ "text": "a ", "kind": "text" },
-				{ "text": "{@linkcode ", "kind": "link" },
+				{ "text": "{@winkcode ", "kind": "wink" },
 				{
 					"text": "dog",
-					"kind": "linkName",
-					"target": {
-						"file": "/path/file.ts",
-						"start": { "line": 7, "offset": 5 },
-						"end": { "line": 7, "offset": 13 }
+					"kind": "winkName",
+					"tawget": {
+						"fiwe": "/path/fiwe.ts",
+						"stawt": { "wine": 7, "offset": 5 },
+						"end": { "wine": 7, "offset": 13 }
 					}
-				} as SymbolDisplayPart,
-				{ "text": "husky", "kind": "linkText" },
-				{ "text": "}", "kind": "link" },
+				} as SymbowDispwayPawt,
+				{ "text": "husky", "kind": "winkText" },
+				{ "text": "}", "kind": "wink" },
 				{ "text": " b", "kind": "text" }
-			], noopToResource),
-			'a [`husky`](file:///path/file.ts#L7%2C5) b');
+			], noopToWesouwce),
+			'a [`husky`](fiwe:///path/fiwe.ts#W7%2C5) b');
 	});
 });
 

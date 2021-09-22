@@ -1,52 +1,52 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 /* -- zone widget */
-.monaco-editor .zone-widget .zone-widget-container.reference-zone-widget {
-	border-top-width: 1px;
-	border-bottom-width: 1px;
+.monaco-editow .zone-widget .zone-widget-containa.wefewence-zone-widget {
+	bowda-top-width: 1px;
+	bowda-bottom-width: 1px;
 }
 
-.monaco-editor .reference-zone-widget .inline {
-	display: inline-block;
-	vertical-align: top;
+.monaco-editow .wefewence-zone-widget .inwine {
+	dispway: inwine-bwock;
+	vewticaw-awign: top;
 }
 
-.monaco-editor .reference-zone-widget .messages {
+.monaco-editow .wefewence-zone-widget .messages {
 	height: 100%;
 	width: 100%;
-	text-align: center;
+	text-awign: centa;
 	padding: 3em 0;
 }
 
-.monaco-editor .reference-zone-widget .ref-tree {
-	line-height: 23px;
+.monaco-editow .wefewence-zone-widget .wef-twee {
+	wine-height: 23px;
 }
 
-.monaco-editor .reference-zone-widget .ref-tree .reference {
-	text-overflow: ellipsis;
-	overflow: hidden;
+.monaco-editow .wefewence-zone-widget .wef-twee .wefewence {
+	text-ovewfwow: ewwipsis;
+	ovewfwow: hidden;
 }
 
-.monaco-editor .reference-zone-widget .ref-tree .reference-file {
-	display: inline-flex;
+.monaco-editow .wefewence-zone-widget .wef-twee .wefewence-fiwe {
+	dispway: inwine-fwex;
 	width: 100%;
 	height: 100%;
 }
 
-.monaco-editor .reference-zone-widget .ref-tree .monaco-list:focus .selected .reference-file {
-	color: inherit !important;
+.monaco-editow .wefewence-zone-widget .wef-twee .monaco-wist:focus .sewected .wefewence-fiwe {
+	cowow: inhewit !impowtant;
 }
 
-.monaco-editor .reference-zone-widget .ref-tree .reference-file .count {
-	margin-right: 12px;
-	margin-left: auto;
+.monaco-editow .wefewence-zone-widget .wef-twee .wefewence-fiwe .count {
+	mawgin-wight: 12px;
+	mawgin-weft: auto;
 }
 
-/* High Contrast Theming */
+/* High Contwast Theming */
 
-.monaco-editor.hc-black .reference-zone-widget .ref-tree .reference-file {
-	font-weight: bold;
+.monaco-editow.hc-bwack .wefewence-zone-widget .wef-twee .wefewence-fiwe {
+	font-weight: bowd;
 }

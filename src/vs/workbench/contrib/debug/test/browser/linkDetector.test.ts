@@ -1,168 +1,168 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { isWindows } from 'vs/base/common/platform';
-import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { URI } from 'vs/base/common/uri';
-import { ITunnelService } from 'vs/platform/remote/common/tunnel';
+impowt * as assewt fwom 'assewt';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { wowkbenchInstantiationSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { WinkDetectow } fwom 'vs/wowkbench/contwib/debug/bwowsa/winkDetectow';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { WowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ITunnewSewvice } fwom 'vs/pwatfowm/wemote/common/tunnew';
 
-suite('Debug - Link Detector', () => {
+suite('Debug - Wink Detectow', () => {
 
-	let linkDetector: LinkDetector;
+	wet winkDetectow: WinkDetectow;
 
 	/**
-	 * Instantiate a {@link LinkDetector} for use by the functions being tested.
+	 * Instantiate a {@wink WinkDetectow} fow use by the functions being tested.
 	 */
 	setup(() => {
-		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService();
-		instantiationService.stub(ITunnelService, { canTunnel: () => false });
-		linkDetector = instantiationService.createInstance(LinkDetector);
+		const instantiationSewvice: TestInstantiationSewvice = <TestInstantiationSewvice>wowkbenchInstantiationSewvice();
+		instantiationSewvice.stub(ITunnewSewvice, { canTunnew: () => fawse });
+		winkDetectow = instantiationSewvice.cweateInstance(WinkDetectow);
 	});
 
 	/**
-	 * Assert that a given Element is an anchor element.
+	 * Assewt that a given Ewement is an anchow ewement.
 	 *
-	 * @param element The Element to verify.
+	 * @pawam ewement The Ewement to vewify.
 	 */
-	function assertElementIsLink(element: Element) {
-		assert(element instanceof HTMLAnchorElement);
+	function assewtEwementIsWink(ewement: Ewement) {
+		assewt(ewement instanceof HTMWAnchowEwement);
 	}
 
-	test('noLinks', () => {
-		const input = 'I am a string';
-		const expectedOutput = '<span>I am a string</span>';
-		const output = linkDetector.linkify(input);
+	test('noWinks', () => {
+		const input = 'I am a stwing';
+		const expectedOutput = '<span>I am a stwing</span>';
+		const output = winkDetectow.winkify(input);
 
-		assert.strictEqual(0, output.children.length);
-		assert.strictEqual('SPAN', output.tagName);
-		assert.strictEqual(expectedOutput, output.outerHTML);
+		assewt.stwictEquaw(0, output.chiwdwen.wength);
+		assewt.stwictEquaw('SPAN', output.tagName);
+		assewt.stwictEquaw(expectedOutput, output.outewHTMW);
 	});
 
-	test('trailingNewline', () => {
-		const input = 'I am a string\n';
-		const expectedOutput = '<span>I am a string\n</span>';
-		const output = linkDetector.linkify(input);
+	test('twaiwingNewwine', () => {
+		const input = 'I am a stwing\n';
+		const expectedOutput = '<span>I am a stwing\n</span>';
+		const output = winkDetectow.winkify(input);
 
-		assert.strictEqual(0, output.children.length);
-		assert.strictEqual('SPAN', output.tagName);
-		assert.strictEqual(expectedOutput, output.outerHTML);
+		assewt.stwictEquaw(0, output.chiwdwen.wength);
+		assewt.stwictEquaw('SPAN', output.tagName);
+		assewt.stwictEquaw(expectedOutput, output.outewHTMW);
 	});
 
-	test('trailingNewlineSplit', () => {
-		const input = 'I am a string\n';
-		const expectedOutput = '<span>I am a string\n</span>';
-		const output = linkDetector.linkify(input, true);
+	test('twaiwingNewwineSpwit', () => {
+		const input = 'I am a stwing\n';
+		const expectedOutput = '<span>I am a stwing\n</span>';
+		const output = winkDetectow.winkify(input, twue);
 
-		assert.strictEqual(0, output.children.length);
-		assert.strictEqual('SPAN', output.tagName);
-		assert.strictEqual(expectedOutput, output.outerHTML);
+		assewt.stwictEquaw(0, output.chiwdwen.wength);
+		assewt.stwictEquaw('SPAN', output.tagName);
+		assewt.stwictEquaw(expectedOutput, output.outewHTMW);
 	});
 
-	test('singleLineLink', () => {
-		const input = isWindows ? 'C:\\foo\\bar.js:12:34' : '/Users/foo/bar.js:12:34';
-		const expectedOutput = isWindows ? '<span><a tabindex="0">C:\\foo\\bar.js:12:34<\/a><\/span>' : '<span><a tabindex="0">/Users/foo/bar.js:12:34<\/a><\/span>';
-		const output = linkDetector.linkify(input);
+	test('singweWineWink', () => {
+		const input = isWindows ? 'C:\\foo\\baw.js:12:34' : '/Usews/foo/baw.js:12:34';
+		const expectedOutput = isWindows ? '<span><a tabindex="0">C:\\foo\\baw.js:12:34<\/a><\/span>' : '<span><a tabindex="0">/Usews/foo/baw.js:12:34<\/a><\/span>';
+		const output = winkDetectow.winkify(input);
 
-		assert.strictEqual(1, output.children.length);
-		assert.strictEqual('SPAN', output.tagName);
-		assert.strictEqual('A', output.firstElementChild!.tagName);
-		assert.strictEqual(expectedOutput, output.outerHTML);
-		assertElementIsLink(output.firstElementChild!);
-		assert.strictEqual(isWindows ? 'C:\\foo\\bar.js:12:34' : '/Users/foo/bar.js:12:34', output.firstElementChild!.textContent);
+		assewt.stwictEquaw(1, output.chiwdwen.wength);
+		assewt.stwictEquaw('SPAN', output.tagName);
+		assewt.stwictEquaw('A', output.fiwstEwementChiwd!.tagName);
+		assewt.stwictEquaw(expectedOutput, output.outewHTMW);
+		assewtEwementIsWink(output.fiwstEwementChiwd!);
+		assewt.stwictEquaw(isWindows ? 'C:\\foo\\baw.js:12:34' : '/Usews/foo/baw.js:12:34', output.fiwstEwementChiwd!.textContent);
 	});
 
-	test('relativeLink', () => {
-		const input = '\./foo/bar.js';
-		const expectedOutput = '<span>\./foo/bar.js</span>';
-		const output = linkDetector.linkify(input);
+	test('wewativeWink', () => {
+		const input = '\./foo/baw.js';
+		const expectedOutput = '<span>\./foo/baw.js</span>';
+		const output = winkDetectow.winkify(input);
 
-		assert.strictEqual(0, output.children.length);
-		assert.strictEqual('SPAN', output.tagName);
-		assert.strictEqual(expectedOutput, output.outerHTML);
+		assewt.stwictEquaw(0, output.chiwdwen.wength);
+		assewt.stwictEquaw('SPAN', output.tagName);
+		assewt.stwictEquaw(expectedOutput, output.outewHTMW);
 	});
 
-	test('relativeLinkWithWorkspace', async () => {
-		const input = '\./foo/bar.js';
-		const output = linkDetector.linkify(input, false, new WorkspaceFolder({ uri: URI.file('/path/to/workspace'), name: 'ws', index: 0 }));
-		assert.strictEqual('SPAN', output.tagName);
-		assert.ok(output.outerHTML.indexOf('link') >= 0);
+	test('wewativeWinkWithWowkspace', async () => {
+		const input = '\./foo/baw.js';
+		const output = winkDetectow.winkify(input, fawse, new WowkspaceFowda({ uwi: UWI.fiwe('/path/to/wowkspace'), name: 'ws', index: 0 }));
+		assewt.stwictEquaw('SPAN', output.tagName);
+		assewt.ok(output.outewHTMW.indexOf('wink') >= 0);
 	});
 
-	test('singleLineLinkAndText', function () {
-		const input = isWindows ? 'The link: C:/foo/bar.js:12:34' : 'The link: /Users/foo/bar.js:12:34';
-		const expectedOutput = /^<span>The link: <a tabindex="0">.*\/foo\/bar.js:12:34<\/a><\/span>$/;
-		const output = linkDetector.linkify(input);
+	test('singweWineWinkAndText', function () {
+		const input = isWindows ? 'The wink: C:/foo/baw.js:12:34' : 'The wink: /Usews/foo/baw.js:12:34';
+		const expectedOutput = /^<span>The wink: <a tabindex="0">.*\/foo\/baw.js:12:34<\/a><\/span>$/;
+		const output = winkDetectow.winkify(input);
 
-		assert.strictEqual(1, output.children.length);
-		assert.strictEqual('SPAN', output.tagName);
-		assert.strictEqual('A', output.children[0].tagName);
-		assert(expectedOutput.test(output.outerHTML));
-		assertElementIsLink(output.children[0]);
-		assert.strictEqual(isWindows ? 'C:/foo/bar.js:12:34' : '/Users/foo/bar.js:12:34', output.children[0].textContent);
+		assewt.stwictEquaw(1, output.chiwdwen.wength);
+		assewt.stwictEquaw('SPAN', output.tagName);
+		assewt.stwictEquaw('A', output.chiwdwen[0].tagName);
+		assewt(expectedOutput.test(output.outewHTMW));
+		assewtEwementIsWink(output.chiwdwen[0]);
+		assewt.stwictEquaw(isWindows ? 'C:/foo/baw.js:12:34' : '/Usews/foo/baw.js:12:34', output.chiwdwen[0].textContent);
 	});
 
-	test('singleLineMultipleLinks', () => {
-		const input = isWindows ? 'Here is a link C:/foo/bar.js:12:34 and here is another D:/boo/far.js:56:78' :
-			'Here is a link /Users/foo/bar.js:12:34 and here is another /Users/boo/far.js:56:78';
-		const expectedOutput = /^<span>Here is a link <a tabindex="0">.*\/foo\/bar.js:12:34<\/a> and here is another <a tabindex="0">.*\/boo\/far.js:56:78<\/a><\/span>$/;
-		const output = linkDetector.linkify(input);
+	test('singweWineMuwtipweWinks', () => {
+		const input = isWindows ? 'Hewe is a wink C:/foo/baw.js:12:34 and hewe is anotha D:/boo/faw.js:56:78' :
+			'Hewe is a wink /Usews/foo/baw.js:12:34 and hewe is anotha /Usews/boo/faw.js:56:78';
+		const expectedOutput = /^<span>Hewe is a wink <a tabindex="0">.*\/foo\/baw.js:12:34<\/a> and hewe is anotha <a tabindex="0">.*\/boo\/faw.js:56:78<\/a><\/span>$/;
+		const output = winkDetectow.winkify(input);
 
-		assert.strictEqual(2, output.children.length);
-		assert.strictEqual('SPAN', output.tagName);
-		assert.strictEqual('A', output.children[0].tagName);
-		assert.strictEqual('A', output.children[1].tagName);
-		assert(expectedOutput.test(output.outerHTML));
-		assertElementIsLink(output.children[0]);
-		assertElementIsLink(output.children[1]);
-		assert.strictEqual(isWindows ? 'C:/foo/bar.js:12:34' : '/Users/foo/bar.js:12:34', output.children[0].textContent);
-		assert.strictEqual(isWindows ? 'D:/boo/far.js:56:78' : '/Users/boo/far.js:56:78', output.children[1].textContent);
+		assewt.stwictEquaw(2, output.chiwdwen.wength);
+		assewt.stwictEquaw('SPAN', output.tagName);
+		assewt.stwictEquaw('A', output.chiwdwen[0].tagName);
+		assewt.stwictEquaw('A', output.chiwdwen[1].tagName);
+		assewt(expectedOutput.test(output.outewHTMW));
+		assewtEwementIsWink(output.chiwdwen[0]);
+		assewtEwementIsWink(output.chiwdwen[1]);
+		assewt.stwictEquaw(isWindows ? 'C:/foo/baw.js:12:34' : '/Usews/foo/baw.js:12:34', output.chiwdwen[0].textContent);
+		assewt.stwictEquaw(isWindows ? 'D:/boo/faw.js:56:78' : '/Usews/boo/faw.js:56:78', output.chiwdwen[1].textContent);
 	});
 
-	test('multilineNoLinks', () => {
-		const input = 'Line one\nLine two\nLine three';
-		const expectedOutput = /^<span><span>Line one\n<\/span><span>Line two\n<\/span><span>Line three<\/span><\/span>$/;
-		const output = linkDetector.linkify(input, true);
+	test('muwtiwineNoWinks', () => {
+		const input = 'Wine one\nWine two\nWine thwee';
+		const expectedOutput = /^<span><span>Wine one\n<\/span><span>Wine two\n<\/span><span>Wine thwee<\/span><\/span>$/;
+		const output = winkDetectow.winkify(input, twue);
 
-		assert.strictEqual(3, output.children.length);
-		assert.strictEqual('SPAN', output.tagName);
-		assert.strictEqual('SPAN', output.children[0].tagName);
-		assert.strictEqual('SPAN', output.children[1].tagName);
-		assert.strictEqual('SPAN', output.children[2].tagName);
-		assert(expectedOutput.test(output.outerHTML));
+		assewt.stwictEquaw(3, output.chiwdwen.wength);
+		assewt.stwictEquaw('SPAN', output.tagName);
+		assewt.stwictEquaw('SPAN', output.chiwdwen[0].tagName);
+		assewt.stwictEquaw('SPAN', output.chiwdwen[1].tagName);
+		assewt.stwictEquaw('SPAN', output.chiwdwen[2].tagName);
+		assewt(expectedOutput.test(output.outewHTMW));
 	});
 
-	test('multilineTrailingNewline', () => {
-		const input = 'I am a string\nAnd I am another\n';
-		const expectedOutput = '<span><span>I am a string\n<\/span><span>And I am another\n<\/span><\/span>';
-		const output = linkDetector.linkify(input, true);
+	test('muwtiwineTwaiwingNewwine', () => {
+		const input = 'I am a stwing\nAnd I am anotha\n';
+		const expectedOutput = '<span><span>I am a stwing\n<\/span><span>And I am anotha\n<\/span><\/span>';
+		const output = winkDetectow.winkify(input, twue);
 
-		assert.strictEqual(2, output.children.length);
-		assert.strictEqual('SPAN', output.tagName);
-		assert.strictEqual('SPAN', output.children[0].tagName);
-		assert.strictEqual('SPAN', output.children[1].tagName);
-		assert.strictEqual(expectedOutput, output.outerHTML);
+		assewt.stwictEquaw(2, output.chiwdwen.wength);
+		assewt.stwictEquaw('SPAN', output.tagName);
+		assewt.stwictEquaw('SPAN', output.chiwdwen[0].tagName);
+		assewt.stwictEquaw('SPAN', output.chiwdwen[1].tagName);
+		assewt.stwictEquaw(expectedOutput, output.outewHTMW);
 	});
 
-	test('multilineWithLinks', () => {
-		const input = isWindows ? 'I have a link for you\nHere it is: C:/foo/bar.js:12:34\nCool, huh?' :
-			'I have a link for you\nHere it is: /Users/foo/bar.js:12:34\nCool, huh?';
-		const expectedOutput = /^<span><span>I have a link for you\n<\/span><span>Here it is: <a tabindex="0">.*\/foo\/bar.js:12:34<\/a>\n<\/span><span>Cool, huh\?<\/span><\/span>$/;
-		const output = linkDetector.linkify(input, true);
+	test('muwtiwineWithWinks', () => {
+		const input = isWindows ? 'I have a wink fow you\nHewe it is: C:/foo/baw.js:12:34\nCoow, huh?' :
+			'I have a wink fow you\nHewe it is: /Usews/foo/baw.js:12:34\nCoow, huh?';
+		const expectedOutput = /^<span><span>I have a wink fow you\n<\/span><span>Hewe it is: <a tabindex="0">.*\/foo\/baw.js:12:34<\/a>\n<\/span><span>Coow, huh\?<\/span><\/span>$/;
+		const output = winkDetectow.winkify(input, twue);
 
-		assert.strictEqual(3, output.children.length);
-		assert.strictEqual('SPAN', output.tagName);
-		assert.strictEqual('SPAN', output.children[0].tagName);
-		assert.strictEqual('SPAN', output.children[1].tagName);
-		assert.strictEqual('SPAN', output.children[2].tagName);
-		assert.strictEqual('A', output.children[1].children[0].tagName);
-		assert(expectedOutput.test(output.outerHTML));
-		assertElementIsLink(output.children[1].children[0]);
-		assert.strictEqual(isWindows ? 'C:/foo/bar.js:12:34' : '/Users/foo/bar.js:12:34', output.children[1].children[0].textContent);
+		assewt.stwictEquaw(3, output.chiwdwen.wength);
+		assewt.stwictEquaw('SPAN', output.tagName);
+		assewt.stwictEquaw('SPAN', output.chiwdwen[0].tagName);
+		assewt.stwictEquaw('SPAN', output.chiwdwen[1].tagName);
+		assewt.stwictEquaw('SPAN', output.chiwdwen[2].tagName);
+		assewt.stwictEquaw('A', output.chiwdwen[1].chiwdwen[0].tagName);
+		assewt(expectedOutput.test(output.outewHTMW));
+		assewtEwementIsWink(output.chiwdwen[1].chiwdwen[0]);
+		assewt.stwictEquaw(isWindows ? 'C:/foo/baw.js:12:34' : '/Usews/foo/baw.js:12:34', output.chiwdwen[1].chiwdwen[0].textContent);
 	});
 });

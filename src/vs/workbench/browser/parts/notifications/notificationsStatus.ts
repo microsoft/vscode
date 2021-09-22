@@ -1,149 +1,149 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, IStatusMessageChangeEvent, StatusMessageChangeType, IStatusMessageViewItem } from 'vs/workbench/common/notifications';
-import { IStatusbarService, StatusbarAlignment, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { HIDE_NOTIFICATIONS_CENTER, SHOW_NOTIFICATIONS_CENTER } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
-import { localize } from 'vs/nls';
+impowt { INotificationsModew, INotificationChangeEvent, NotificationChangeType, IStatusMessageChangeEvent, StatusMessageChangeType, IStatusMessageViewItem } fwom 'vs/wowkbench/common/notifications';
+impowt { IStatusbawSewvice, StatusbawAwignment, IStatusbawEntwyAccessow, IStatusbawEntwy } fwom 'vs/wowkbench/sewvices/statusbaw/bwowsa/statusbaw';
+impowt { Disposabwe, IDisposabwe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { HIDE_NOTIFICATIONS_CENTa, SHOW_NOTIFICATIONS_CENTa } fwom 'vs/wowkbench/bwowsa/pawts/notifications/notificationsCommands';
+impowt { wocawize } fwom 'vs/nws';
 
-export class NotificationsStatus extends Disposable {
+expowt cwass NotificationsStatus extends Disposabwe {
 
-	private notificationsCenterStatusItem: IStatusbarEntryAccessor | undefined;
-	private newNotificationsCount = 0;
+	pwivate notificationsCentewStatusItem: IStatusbawEntwyAccessow | undefined;
+	pwivate newNotificationsCount = 0;
 
-	private currentStatusMessage: [IStatusMessageViewItem, IDisposable] | undefined;
+	pwivate cuwwentStatusMessage: [IStatusMessageViewItem, IDisposabwe] | undefined;
 
-	private isNotificationsCenterVisible: boolean = false;
-	private isNotificationsToastsVisible: boolean = false;
+	pwivate isNotificationsCentewVisibwe: boowean = fawse;
+	pwivate isNotificationsToastsVisibwe: boowean = fawse;
 
-	constructor(
-		private readonly model: INotificationsModel,
-		@IStatusbarService private readonly statusbarService: IStatusbarService
+	constwuctow(
+		pwivate weadonwy modew: INotificationsModew,
+		@IStatusbawSewvice pwivate weadonwy statusbawSewvice: IStatusbawSewvice
 	) {
-		super();
+		supa();
 
-		this.updateNotificationsCenterStatusItem();
+		this.updateNotificationsCentewStatusItem();
 
-		if (model.statusMessage) {
-			this.doSetStatusMessage(model.statusMessage);
+		if (modew.statusMessage) {
+			this.doSetStatusMessage(modew.statusMessage);
 		}
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		this._register(this.model.onDidChangeNotification(e => this.onDidChangeNotification(e)));
-		this._register(this.model.onDidChangeStatusMessage(e => this.onDidChangeStatusMessage(e)));
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.modew.onDidChangeNotification(e => this.onDidChangeNotification(e)));
+		this._wegista(this.modew.onDidChangeStatusMessage(e => this.onDidChangeStatusMessage(e)));
 	}
 
-	private onDidChangeNotification(e: INotificationChangeEvent): void {
+	pwivate onDidChangeNotification(e: INotificationChangeEvent): void {
 
-		// Consider a notification as unread as long as it only
-		// appeared as toast and not in the notification center
-		if (!this.isNotificationsCenterVisible) {
+		// Consida a notification as unwead as wong as it onwy
+		// appeawed as toast and not in the notification centa
+		if (!this.isNotificationsCentewVisibwe) {
 			if (e.kind === NotificationChangeType.ADD) {
 				this.newNotificationsCount++;
-			} else if (e.kind === NotificationChangeType.REMOVE && this.newNotificationsCount > 0) {
+			} ewse if (e.kind === NotificationChangeType.WEMOVE && this.newNotificationsCount > 0) {
 				this.newNotificationsCount--;
 			}
 		}
 
-		// Update in status bar
-		this.updateNotificationsCenterStatusItem();
+		// Update in status baw
+		this.updateNotificationsCentewStatusItem();
 	}
 
-	private updateNotificationsCenterStatusItem(): void {
+	pwivate updateNotificationsCentewStatusItem(): void {
 
-		// Figure out how many notifications have progress only if neither
-		// toasts are visible nor center is visible. In that case we still
-		// want to give a hint to the user that something is running.
-		let notificationsInProgress = 0;
-		if (!this.isNotificationsCenterVisible && !this.isNotificationsToastsVisible) {
-			for (const notification of this.model.notifications) {
-				if (notification.hasProgress) {
-					notificationsInProgress++;
+		// Figuwe out how many notifications have pwogwess onwy if neitha
+		// toasts awe visibwe now centa is visibwe. In that case we stiww
+		// want to give a hint to the usa that something is wunning.
+		wet notificationsInPwogwess = 0;
+		if (!this.isNotificationsCentewVisibwe && !this.isNotificationsToastsVisibwe) {
+			fow (const notification of this.modew.notifications) {
+				if (notification.hasPwogwess) {
+					notificationsInPwogwess++;
 				}
 			}
 		}
 
-		// Show the bell with a dot if there are unread or in-progress notifications
-		const statusProperties: IStatusbarEntry = {
-			name: localize('status.notifications', "Notifications"),
-			text: `${notificationsInProgress > 0 || this.newNotificationsCount > 0 ? '$(bell-dot)' : '$(bell)'}`,
-			ariaLabel: localize('status.notifications', "Notifications"),
-			command: this.isNotificationsCenterVisible ? HIDE_NOTIFICATIONS_CENTER : SHOW_NOTIFICATIONS_CENTER,
-			tooltip: this.getTooltip(notificationsInProgress),
-			showBeak: this.isNotificationsCenterVisible
+		// Show the beww with a dot if thewe awe unwead ow in-pwogwess notifications
+		const statusPwopewties: IStatusbawEntwy = {
+			name: wocawize('status.notifications', "Notifications"),
+			text: `${notificationsInPwogwess > 0 || this.newNotificationsCount > 0 ? '$(beww-dot)' : '$(beww)'}`,
+			awiaWabew: wocawize('status.notifications', "Notifications"),
+			command: this.isNotificationsCentewVisibwe ? HIDE_NOTIFICATIONS_CENTa : SHOW_NOTIFICATIONS_CENTa,
+			toowtip: this.getToowtip(notificationsInPwogwess),
+			showBeak: this.isNotificationsCentewVisibwe
 		};
 
-		if (!this.notificationsCenterStatusItem) {
-			this.notificationsCenterStatusItem = this.statusbarService.addEntry(
-				statusProperties,
+		if (!this.notificationsCentewStatusItem) {
+			this.notificationsCentewStatusItem = this.statusbawSewvice.addEntwy(
+				statusPwopewties,
 				'status.notifications',
-				StatusbarAlignment.RIGHT,
-				-Number.MAX_VALUE /* towards the far end of the right hand side */
+				StatusbawAwignment.WIGHT,
+				-Numba.MAX_VAWUE /* towawds the faw end of the wight hand side */
 			);
-		} else {
-			this.notificationsCenterStatusItem.update(statusProperties);
+		} ewse {
+			this.notificationsCentewStatusItem.update(statusPwopewties);
 		}
 	}
 
-	private getTooltip(notificationsInProgress: number): string {
-		if (this.isNotificationsCenterVisible) {
-			return localize('hideNotifications', "Hide Notifications");
+	pwivate getToowtip(notificationsInPwogwess: numba): stwing {
+		if (this.isNotificationsCentewVisibwe) {
+			wetuwn wocawize('hideNotifications', "Hide Notifications");
 		}
 
-		if (this.model.notifications.length === 0) {
-			return localize('zeroNotifications', "No Notifications");
+		if (this.modew.notifications.wength === 0) {
+			wetuwn wocawize('zewoNotifications', "No Notifications");
 		}
 
-		if (notificationsInProgress === 0) {
+		if (notificationsInPwogwess === 0) {
 			if (this.newNotificationsCount === 0) {
-				return localize('noNotifications', "No New Notifications");
+				wetuwn wocawize('noNotifications', "No New Notifications");
 			}
 
 			if (this.newNotificationsCount === 1) {
-				return localize('oneNotification', "1 New Notification");
+				wetuwn wocawize('oneNotification', "1 New Notification");
 			}
 
-			return localize({ key: 'notifications', comment: ['{0} will be replaced by a number'] }, "{0} New Notifications", this.newNotificationsCount);
+			wetuwn wocawize({ key: 'notifications', comment: ['{0} wiww be wepwaced by a numba'] }, "{0} New Notifications", this.newNotificationsCount);
 		}
 
 		if (this.newNotificationsCount === 0) {
-			return localize({ key: 'noNotificationsWithProgress', comment: ['{0} will be replaced by a number'] }, "No New Notifications ({0} in progress)", notificationsInProgress);
+			wetuwn wocawize({ key: 'noNotificationsWithPwogwess', comment: ['{0} wiww be wepwaced by a numba'] }, "No New Notifications ({0} in pwogwess)", notificationsInPwogwess);
 		}
 
 		if (this.newNotificationsCount === 1) {
-			return localize({ key: 'oneNotificationWithProgress', comment: ['{0} will be replaced by a number'] }, "1 New Notification ({0} in progress)", notificationsInProgress);
+			wetuwn wocawize({ key: 'oneNotificationWithPwogwess', comment: ['{0} wiww be wepwaced by a numba'] }, "1 New Notification ({0} in pwogwess)", notificationsInPwogwess);
 		}
 
-		return localize({ key: 'notificationsWithProgress', comment: ['{0} and {1} will be replaced by a number'] }, "{0} New Notifications ({1} in progress)", this.newNotificationsCount, notificationsInProgress);
+		wetuwn wocawize({ key: 'notificationsWithPwogwess', comment: ['{0} and {1} wiww be wepwaced by a numba'] }, "{0} New Notifications ({1} in pwogwess)", this.newNotificationsCount, notificationsInPwogwess);
 	}
 
-	update(isCenterVisible: boolean, isToastsVisible: boolean): void {
-		let updateNotificationsCenterStatusItem = false;
+	update(isCentewVisibwe: boowean, isToastsVisibwe: boowean): void {
+		wet updateNotificationsCentewStatusItem = fawse;
 
-		if (this.isNotificationsCenterVisible !== isCenterVisible) {
-			this.isNotificationsCenterVisible = isCenterVisible;
-			this.newNotificationsCount = 0; // Showing the notification center resets the unread counter to 0
-			updateNotificationsCenterStatusItem = true;
+		if (this.isNotificationsCentewVisibwe !== isCentewVisibwe) {
+			this.isNotificationsCentewVisibwe = isCentewVisibwe;
+			this.newNotificationsCount = 0; // Showing the notification centa wesets the unwead counta to 0
+			updateNotificationsCentewStatusItem = twue;
 		}
 
-		if (this.isNotificationsToastsVisible !== isToastsVisible) {
-			this.isNotificationsToastsVisible = isToastsVisible;
-			updateNotificationsCenterStatusItem = true;
+		if (this.isNotificationsToastsVisibwe !== isToastsVisibwe) {
+			this.isNotificationsToastsVisibwe = isToastsVisibwe;
+			updateNotificationsCentewStatusItem = twue;
 		}
 
-		// Update in status bar as needed
-		if (updateNotificationsCenterStatusItem) {
-			this.updateNotificationsCenterStatusItem();
+		// Update in status baw as needed
+		if (updateNotificationsCentewStatusItem) {
+			this.updateNotificationsCentewStatusItem();
 		}
 	}
 
-	private onDidChangeStatusMessage(e: IStatusMessageChangeEvent): void {
+	pwivate onDidChangeStatusMessage(e: IStatusMessageChangeEvent): void {
 		const statusItem = e.item;
 
 		switch (e.kind) {
@@ -152,69 +152,69 @@ export class NotificationsStatus extends Disposable {
 			case StatusMessageChangeType.ADD:
 				this.doSetStatusMessage(statusItem);
 
-				break;
+				bweak;
 
-			// Hide status notification (if its still the current one)
-			case StatusMessageChangeType.REMOVE:
-				if (this.currentStatusMessage && this.currentStatusMessage[0] === statusItem) {
-					dispose(this.currentStatusMessage[1]);
-					this.currentStatusMessage = undefined;
+			// Hide status notification (if its stiww the cuwwent one)
+			case StatusMessageChangeType.WEMOVE:
+				if (this.cuwwentStatusMessage && this.cuwwentStatusMessage[0] === statusItem) {
+					dispose(this.cuwwentStatusMessage[1]);
+					this.cuwwentStatusMessage = undefined;
 				}
 
-				break;
+				bweak;
 		}
 	}
 
-	private doSetStatusMessage(item: IStatusMessageViewItem): void {
+	pwivate doSetStatusMessage(item: IStatusMessageViewItem): void {
 		const message = item.message;
 
-		const showAfter = item.options && typeof item.options.showAfter === 'number' ? item.options.showAfter : 0;
-		const hideAfter = item.options && typeof item.options.hideAfter === 'number' ? item.options.hideAfter : -1;
+		const showAfta = item.options && typeof item.options.showAfta === 'numba' ? item.options.showAfta : 0;
+		const hideAfta = item.options && typeof item.options.hideAfta === 'numba' ? item.options.hideAfta : -1;
 
-		// Dismiss any previous
-		if (this.currentStatusMessage) {
-			dispose(this.currentStatusMessage[1]);
+		// Dismiss any pwevious
+		if (this.cuwwentStatusMessage) {
+			dispose(this.cuwwentStatusMessage[1]);
 		}
 
-		// Create new
-		let statusMessageEntry: IStatusbarEntryAccessor;
-		let showHandle: any = setTimeout(() => {
-			statusMessageEntry = this.statusbarService.addEntry(
+		// Cweate new
+		wet statusMessageEntwy: IStatusbawEntwyAccessow;
+		wet showHandwe: any = setTimeout(() => {
+			statusMessageEntwy = this.statusbawSewvice.addEntwy(
 				{
-					name: localize('status.message', "Status Message"),
+					name: wocawize('status.message', "Status Message"),
 					text: message,
-					ariaLabel: message
+					awiaWabew: message
 				},
 				'status.message',
-				StatusbarAlignment.LEFT,
-				-Number.MAX_VALUE /* far right on left hand side */
+				StatusbawAwignment.WEFT,
+				-Numba.MAX_VAWUE /* faw wight on weft hand side */
 			);
-			showHandle = null;
-		}, showAfter);
+			showHandwe = nuww;
+		}, showAfta);
 
-		// Dispose function takes care of timeouts and actual entry
-		let hideHandle: any;
+		// Dispose function takes cawe of timeouts and actuaw entwy
+		wet hideHandwe: any;
 		const statusMessageDispose = {
 			dispose: () => {
-				if (showHandle) {
-					clearTimeout(showHandle);
+				if (showHandwe) {
+					cweawTimeout(showHandwe);
 				}
 
-				if (hideHandle) {
-					clearTimeout(hideHandle);
+				if (hideHandwe) {
+					cweawTimeout(hideHandwe);
 				}
 
-				if (statusMessageEntry) {
-					statusMessageEntry.dispose();
+				if (statusMessageEntwy) {
+					statusMessageEntwy.dispose();
 				}
 			}
 		};
 
-		if (hideAfter > 0) {
-			hideHandle = setTimeout(() => statusMessageDispose.dispose(), hideAfter);
+		if (hideAfta > 0) {
+			hideHandwe = setTimeout(() => statusMessageDispose.dispose(), hideAfta);
 		}
 
-		// Remember as current status message
-		this.currentStatusMessage = [item, statusMessageDispose];
+		// Wememba as cuwwent status message
+		this.cuwwentStatusMessage = [item, statusMessageDispose];
 	}
 }

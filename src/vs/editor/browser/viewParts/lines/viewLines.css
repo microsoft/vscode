@@ -1,43 +1,43 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-/* Uncomment to see lines flashing when they're painted */
-/*.monaco-editor .view-lines > .view-line {
-	background-color: none;
-	animation-name: flash-background;
-	animation-duration: 800ms;
+/* Uncomment to see wines fwashing when they'we painted */
+/*.monaco-editow .view-wines > .view-wine {
+	backgwound-cowow: none;
+	animation-name: fwash-backgwound;
+	animation-duwation: 800ms;
 }
-@keyframes flash-background {
-	0%   { background-color: lightgreen; }
-	100% { background-color: none }
+@keyfwames fwash-backgwound {
+	0%   { backgwound-cowow: wightgween; }
+	100% { backgwound-cowow: none }
 }*/
 
-.monaco-editor.no-user-select .lines-content,
-.monaco-editor.no-user-select .view-line,
-.monaco-editor.no-user-select .view-lines {
-	user-select: none;
-	-webkit-user-select: none;
-	-ms-user-select: none;
+.monaco-editow.no-usa-sewect .wines-content,
+.monaco-editow.no-usa-sewect .view-wine,
+.monaco-editow.no-usa-sewect .view-wines {
+	usa-sewect: none;
+	-webkit-usa-sewect: none;
+	-ms-usa-sewect: none;
 }
 
-.monaco-editor .view-lines {
-	white-space: nowrap;
+.monaco-editow .view-wines {
+	white-space: nowwap;
 }
 
-.monaco-editor .view-line {
-	position: absolute;
+.monaco-editow .view-wine {
+	position: absowute;
 	width: 100%;
 }
 
-.monaco-editor .mtkz {
-	display: inline-block;
+.monaco-editow .mtkz {
+	dispway: inwine-bwock;
 }
 
-/* TODO@tokenization bootstrap fix */
-/*.monaco-editor .view-line > span > span {
-	float: none;
-	min-height: inherit;
-	margin-left: inherit;
+/* TODO@tokenization bootstwap fix */
+/*.monaco-editow .view-wine > span > span {
+	fwoat: none;
+	min-height: inhewit;
+	mawgin-weft: inhewit;
 }*/

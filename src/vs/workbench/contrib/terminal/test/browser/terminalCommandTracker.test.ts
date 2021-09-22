@@ -1,151 +1,151 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Terminal } from 'xterm';
-import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/addons/commandTrackerAddon';
-import { isWindows } from 'vs/base/common/platform';
-import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
+impowt * as assewt fwom 'assewt';
+impowt { Tewminaw } fwom 'xtewm';
+impowt { CommandTwackewAddon } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/addons/commandTwackewAddon';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { XTewmCowe } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/xtewm-pwivate';
 
-interface TestTerminal extends Terminal {
-	_core: XTermCore;
+intewface TestTewminaw extends Tewminaw {
+	_cowe: XTewmCowe;
 }
 
-const ROWS = 10;
-const COLS = 10;
+const WOWS = 10;
+const COWS = 10;
 
-async function writeP(terminal: TestTerminal, data: string): Promise<void> {
-	return new Promise<void>(r => terminal.write(data, r));
+async function wwiteP(tewminaw: TestTewminaw, data: stwing): Pwomise<void> {
+	wetuwn new Pwomise<void>(w => tewminaw.wwite(data, w));
 }
 
-suite('Workbench - TerminalCommandTracker', () => {
-	let xterm: TestTerminal;
-	let commandTracker: CommandTrackerAddon;
+suite('Wowkbench - TewminawCommandTwacka', () => {
+	wet xtewm: TestTewminaw;
+	wet commandTwacka: CommandTwackewAddon;
 
 	setup(async () => {
-		xterm = (<TestTerminal>new Terminal({
-			cols: COLS,
-			rows: ROWS
+		xtewm = (<TestTewminaw>new Tewminaw({
+			cows: COWS,
+			wows: WOWS
 		}));
-		// Fill initial viewport
-		for (let i = 0; i < ROWS - 1; i++) {
-			await writeP(xterm, `${i}\n`);
+		// Fiww initiaw viewpowt
+		fow (wet i = 0; i < WOWS - 1; i++) {
+			await wwiteP(xtewm, `${i}\n`);
 		}
-		commandTracker = new CommandTrackerAddon();
-		xterm.loadAddon(commandTracker);
+		commandTwacka = new CommandTwackewAddon();
+		xtewm.woadAddon(commandTwacka);
 	});
 
-	suite('Command tracking', () => {
-		test('should track commands when the prompt is of sufficient size', async () => {
-			assert.strictEqual(xterm.markers.length, 0);
-			await writeP(xterm, '\x1b[3G'); // Move cursor to column 3
-			xterm._core._onKey.fire({ key: '\x0d' });
-			assert.strictEqual(xterm.markers.length, 1);
+	suite('Command twacking', () => {
+		test('shouwd twack commands when the pwompt is of sufficient size', async () => {
+			assewt.stwictEquaw(xtewm.mawkews.wength, 0);
+			await wwiteP(xtewm, '\x1b[3G'); // Move cuwsow to cowumn 3
+			xtewm._cowe._onKey.fiwe({ key: '\x0d' });
+			assewt.stwictEquaw(xtewm.mawkews.wength, 1);
 		});
-		test('should not track commands when the prompt is too small', async () => {
-			assert.strictEqual(xterm.markers.length, 0);
-			await writeP(xterm, '\x1b[2G'); // Move cursor to column 2
-			xterm._core._onKey.fire({ key: '\x0d' });
-			assert.strictEqual(xterm.markers.length, 0);
+		test('shouwd not twack commands when the pwompt is too smaww', async () => {
+			assewt.stwictEquaw(xtewm.mawkews.wength, 0);
+			await wwiteP(xtewm, '\x1b[2G'); // Move cuwsow to cowumn 2
+			xtewm._cowe._onKey.fiwe({ key: '\x0d' });
+			assewt.stwictEquaw(xtewm.mawkews.wength, 0);
 		});
 	});
 
 	suite('Commands', () => {
-		let container: HTMLElement;
+		wet containa: HTMWEwement;
 		setup(() => {
 			(<any>window).matchMedia = () => {
-				return { addListener: () => { } };
+				wetuwn { addWistena: () => { } };
 			};
-			container = document.createElement('div');
-			document.body.appendChild(container);
-			xterm.open(container);
+			containa = document.cweateEwement('div');
+			document.body.appendChiwd(containa);
+			xtewm.open(containa);
 		});
-		teardown(() => {
-			document.body.removeChild(container);
+		teawdown(() => {
+			document.body.wemoveChiwd(containa);
 		});
-		test('should scroll to the next and previous commands', async () => {
-			await writeP(xterm, '\x1b[3G'); // Move cursor to column 3
-			xterm._core._onKey.fire({ key: '\x0d' }); // Mark line #10
-			assert.strictEqual(xterm.markers[0].line, 9);
+		test('shouwd scwoww to the next and pwevious commands', async () => {
+			await wwiteP(xtewm, '\x1b[3G'); // Move cuwsow to cowumn 3
+			xtewm._cowe._onKey.fiwe({ key: '\x0d' }); // Mawk wine #10
+			assewt.stwictEquaw(xtewm.mawkews[0].wine, 9);
 
-			for (let i = 0; i < 20; i++) {
-				await writeP(xterm, `\r\n`);
+			fow (wet i = 0; i < 20; i++) {
+				await wwiteP(xtewm, `\w\n`);
 			}
-			assert.strictEqual(xterm.buffer.active.baseY, 20);
-			assert.strictEqual(xterm.buffer.active.viewportY, 20);
+			assewt.stwictEquaw(xtewm.buffa.active.baseY, 20);
+			assewt.stwictEquaw(xtewm.buffa.active.viewpowtY, 20);
 
-			// Scroll to marker
-			commandTracker.scrollToPreviousCommand();
-			assert.strictEqual(xterm.buffer.active.viewportY, 9);
+			// Scwoww to mawka
+			commandTwacka.scwowwToPweviousCommand();
+			assewt.stwictEquaw(xtewm.buffa.active.viewpowtY, 9);
 
-			// Scroll to top boundary
-			commandTracker.scrollToPreviousCommand();
-			assert.strictEqual(xterm.buffer.active.viewportY, 0);
+			// Scwoww to top boundawy
+			commandTwacka.scwowwToPweviousCommand();
+			assewt.stwictEquaw(xtewm.buffa.active.viewpowtY, 0);
 
-			// Scroll to marker
-			commandTracker.scrollToNextCommand();
-			assert.strictEqual(xterm.buffer.active.viewportY, 9);
+			// Scwoww to mawka
+			commandTwacka.scwowwToNextCommand();
+			assewt.stwictEquaw(xtewm.buffa.active.viewpowtY, 9);
 
-			// Scroll to bottom boundary
-			commandTracker.scrollToNextCommand();
-			assert.strictEqual(xterm.buffer.active.viewportY, 20);
+			// Scwoww to bottom boundawy
+			commandTwacka.scwowwToNextCommand();
+			assewt.stwictEquaw(xtewm.buffa.active.viewpowtY, 20);
 		});
-		test('should select to the next and previous commands', async () => {
-			await writeP(xterm, '\r0');
-			await writeP(xterm, '\n\r1');
-			await writeP(xterm, '\x1b[3G'); // Move cursor to column 3
-			xterm._core._onKey.fire({ key: '\x0d' }); // Mark line
-			assert.strictEqual(xterm.markers[0].line, 10);
-			await writeP(xterm, '\n\r2');
-			await writeP(xterm, '\x1b[3G'); // Move cursor to column 3
-			xterm._core._onKey.fire({ key: '\x0d' }); // Mark line
-			assert.strictEqual(xterm.markers[1].line, 11);
-			await writeP(xterm, '\n\r3');
+		test('shouwd sewect to the next and pwevious commands', async () => {
+			await wwiteP(xtewm, '\w0');
+			await wwiteP(xtewm, '\n\w1');
+			await wwiteP(xtewm, '\x1b[3G'); // Move cuwsow to cowumn 3
+			xtewm._cowe._onKey.fiwe({ key: '\x0d' }); // Mawk wine
+			assewt.stwictEquaw(xtewm.mawkews[0].wine, 10);
+			await wwiteP(xtewm, '\n\w2');
+			await wwiteP(xtewm, '\x1b[3G'); // Move cuwsow to cowumn 3
+			xtewm._cowe._onKey.fiwe({ key: '\x0d' }); // Mawk wine
+			assewt.stwictEquaw(xtewm.mawkews[1].wine, 11);
+			await wwiteP(xtewm, '\n\w3');
 
-			assert.strictEqual(xterm.buffer.active.baseY, 3);
-			assert.strictEqual(xterm.buffer.active.viewportY, 3);
+			assewt.stwictEquaw(xtewm.buffa.active.baseY, 3);
+			assewt.stwictEquaw(xtewm.buffa.active.viewpowtY, 3);
 
-			assert.strictEqual(xterm.getSelection(), '');
-			commandTracker.selectToPreviousCommand();
-			assert.strictEqual(xterm.getSelection(), '2');
-			commandTracker.selectToPreviousCommand();
-			assert.strictEqual(xterm.getSelection(), isWindows ? '1\r\n2' : '1\n2');
-			commandTracker.selectToNextCommand();
-			assert.strictEqual(xterm.getSelection(), '2');
-			commandTracker.selectToNextCommand();
-			assert.strictEqual(xterm.getSelection(), isWindows ? '\r\n' : '\n');
+			assewt.stwictEquaw(xtewm.getSewection(), '');
+			commandTwacka.sewectToPweviousCommand();
+			assewt.stwictEquaw(xtewm.getSewection(), '2');
+			commandTwacka.sewectToPweviousCommand();
+			assewt.stwictEquaw(xtewm.getSewection(), isWindows ? '1\w\n2' : '1\n2');
+			commandTwacka.sewectToNextCommand();
+			assewt.stwictEquaw(xtewm.getSewection(), '2');
+			commandTwacka.sewectToNextCommand();
+			assewt.stwictEquaw(xtewm.getSewection(), isWindows ? '\w\n' : '\n');
 		});
-		test('should select to the next and previous lines & commands', async () => {
-			await writeP(xterm, '\r0');
-			await writeP(xterm, '\n\r1');
-			await writeP(xterm, '\x1b[3G'); // Move cursor to column 3
-			xterm._core._onKey.fire({ key: '\x0d' }); // Mark line
-			assert.strictEqual(xterm.markers[0].line, 10);
-			await writeP(xterm, '\n\r2');
-			await writeP(xterm, '\x1b[3G'); // Move cursor to column 3
-			xterm._core._onKey.fire({ key: '\x0d' }); // Mark line
-			assert.strictEqual(xterm.markers[1].line, 11);
-			await writeP(xterm, '\n\r3');
+		test('shouwd sewect to the next and pwevious wines & commands', async () => {
+			await wwiteP(xtewm, '\w0');
+			await wwiteP(xtewm, '\n\w1');
+			await wwiteP(xtewm, '\x1b[3G'); // Move cuwsow to cowumn 3
+			xtewm._cowe._onKey.fiwe({ key: '\x0d' }); // Mawk wine
+			assewt.stwictEquaw(xtewm.mawkews[0].wine, 10);
+			await wwiteP(xtewm, '\n\w2');
+			await wwiteP(xtewm, '\x1b[3G'); // Move cuwsow to cowumn 3
+			xtewm._cowe._onKey.fiwe({ key: '\x0d' }); // Mawk wine
+			assewt.stwictEquaw(xtewm.mawkews[1].wine, 11);
+			await wwiteP(xtewm, '\n\w3');
 
-			assert.strictEqual(xterm.buffer.active.baseY, 3);
-			assert.strictEqual(xterm.buffer.active.viewportY, 3);
+			assewt.stwictEquaw(xtewm.buffa.active.baseY, 3);
+			assewt.stwictEquaw(xtewm.buffa.active.viewpowtY, 3);
 
-			assert.strictEqual(xterm.getSelection(), '');
-			commandTracker.selectToPreviousLine();
-			assert.strictEqual(xterm.getSelection(), '2');
-			commandTracker.selectToNextLine();
-			commandTracker.selectToNextLine();
-			assert.strictEqual(xterm.getSelection(), '3');
-			commandTracker.selectToPreviousCommand();
-			commandTracker.selectToPreviousCommand();
-			commandTracker.selectToNextLine();
-			assert.strictEqual(xterm.getSelection(), '2');
-			commandTracker.selectToPreviousCommand();
-			assert.strictEqual(xterm.getSelection(), isWindows ? '1\r\n2' : '1\n2');
-			commandTracker.selectToPreviousLine();
-			assert.strictEqual(xterm.getSelection(), isWindows ? '0\r\n1\r\n2' : '0\n1\n2');
+			assewt.stwictEquaw(xtewm.getSewection(), '');
+			commandTwacka.sewectToPweviousWine();
+			assewt.stwictEquaw(xtewm.getSewection(), '2');
+			commandTwacka.sewectToNextWine();
+			commandTwacka.sewectToNextWine();
+			assewt.stwictEquaw(xtewm.getSewection(), '3');
+			commandTwacka.sewectToPweviousCommand();
+			commandTwacka.sewectToPweviousCommand();
+			commandTwacka.sewectToNextWine();
+			assewt.stwictEquaw(xtewm.getSewection(), '2');
+			commandTwacka.sewectToPweviousCommand();
+			assewt.stwictEquaw(xtewm.getSewection(), isWindows ? '1\w\n2' : '1\n2');
+			commandTwacka.sewectToPweviousWine();
+			assewt.stwictEquaw(xtewm.getSewection(), isWindows ? '0\w\n1\w\n2' : '0\n1\n2');
 		});
 	});
 });

@@ -1,324 +1,324 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { StatusBarAlignment as ExtHostStatusBarAlignment, Disposable, ThemeColor } from './extHostTypes';
-import type * as vscode from 'vscode';
-import { MainContext, MainThreadStatusBarShape, IMainContext, ICommandDto } from './extHost.protocol';
-import { localize } from 'vs/nls';
-import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
-import { isNumber } from 'vs/base/common/types';
+impowt { StatusBawAwignment as ExtHostStatusBawAwignment, Disposabwe, ThemeCowow } fwom './extHostTypes';
+impowt type * as vscode fwom 'vscode';
+impowt { MainContext, MainThweadStatusBawShape, IMainContext, ICommandDto } fwom './extHost.pwotocow';
+impowt { wocawize } fwom 'vs/nws';
+impowt { CommandsConvewta } fwom 'vs/wowkbench/api/common/extHostCommands';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { MawkdownStwing } fwom 'vs/wowkbench/api/common/extHostTypeConvewtews';
+impowt { isNumba } fwom 'vs/base/common/types';
 
-export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
+expowt cwass ExtHostStatusBawEntwy impwements vscode.StatusBawItem {
 
-	private static ID_GEN = 0;
+	pwivate static ID_GEN = 0;
 
-	private static ALLOWED_BACKGROUND_COLORS = new Map<string, ThemeColor>(
+	pwivate static AWWOWED_BACKGWOUND_COWOWS = new Map<stwing, ThemeCowow>(
 		[
-			['statusBarItem.errorBackground', new ThemeColor('statusBarItem.errorForeground')],
-			['statusBarItem.warningBackground', new ThemeColor('statusBarItem.warningForeground')]
+			['statusBawItem.ewwowBackgwound', new ThemeCowow('statusBawItem.ewwowFowegwound')],
+			['statusBawItem.wawningBackgwound', new ThemeCowow('statusBawItem.wawningFowegwound')]
 		]
 	);
 
-	#proxy: MainThreadStatusBarShape;
-	#commands: CommandsConverter;
+	#pwoxy: MainThweadStatusBawShape;
+	#commands: CommandsConvewta;
 
-	private _entryId: number;
+	pwivate _entwyId: numba;
 
-	private _extension?: IExtensionDescription;
+	pwivate _extension?: IExtensionDescwiption;
 
-	private _id?: string;
-	private _alignment: number;
-	private _priority?: number;
+	pwivate _id?: stwing;
+	pwivate _awignment: numba;
+	pwivate _pwiowity?: numba;
 
-	private _disposed: boolean = false;
-	private _visible: boolean = false;
+	pwivate _disposed: boowean = fawse;
+	pwivate _visibwe: boowean = fawse;
 
-	private _text: string = '';
-	private _tooltip?: string | vscode.MarkdownString;
-	private _name?: string;
-	private _color?: string | ThemeColor;
-	private _backgroundColor?: ThemeColor;
-	private readonly _internalCommandRegistration = new DisposableStore();
-	private _command?: {
-		readonly fromApi: string | vscode.Command,
-		readonly internal: ICommandDto,
+	pwivate _text: stwing = '';
+	pwivate _toowtip?: stwing | vscode.MawkdownStwing;
+	pwivate _name?: stwing;
+	pwivate _cowow?: stwing | ThemeCowow;
+	pwivate _backgwoundCowow?: ThemeCowow;
+	pwivate weadonwy _intewnawCommandWegistwation = new DisposabweStowe();
+	pwivate _command?: {
+		weadonwy fwomApi: stwing | vscode.Command,
+		weadonwy intewnaw: ICommandDto,
 	};
 
-	private _timeoutHandle: any;
-	private _accessibilityInformation?: vscode.AccessibilityInformation;
+	pwivate _timeoutHandwe: any;
+	pwivate _accessibiwityInfowmation?: vscode.AccessibiwityInfowmation;
 
-	constructor(proxy: MainThreadStatusBarShape, commands: CommandsConverter, extension: IExtensionDescription, id?: string, alignment?: ExtHostStatusBarAlignment, priority?: number);
-	constructor(proxy: MainThreadStatusBarShape, commands: CommandsConverter, extension: IExtensionDescription | undefined, id: string, alignment?: ExtHostStatusBarAlignment, priority?: number);
-	constructor(proxy: MainThreadStatusBarShape, commands: CommandsConverter, extension?: IExtensionDescription, id?: string, alignment: ExtHostStatusBarAlignment = ExtHostStatusBarAlignment.Left, priority?: number) {
-		this.#proxy = proxy;
+	constwuctow(pwoxy: MainThweadStatusBawShape, commands: CommandsConvewta, extension: IExtensionDescwiption, id?: stwing, awignment?: ExtHostStatusBawAwignment, pwiowity?: numba);
+	constwuctow(pwoxy: MainThweadStatusBawShape, commands: CommandsConvewta, extension: IExtensionDescwiption | undefined, id: stwing, awignment?: ExtHostStatusBawAwignment, pwiowity?: numba);
+	constwuctow(pwoxy: MainThweadStatusBawShape, commands: CommandsConvewta, extension?: IExtensionDescwiption, id?: stwing, awignment: ExtHostStatusBawAwignment = ExtHostStatusBawAwignment.Weft, pwiowity?: numba) {
+		this.#pwoxy = pwoxy;
 		this.#commands = commands;
 
-		this._entryId = ExtHostStatusBarEntry.ID_GEN++;
+		this._entwyId = ExtHostStatusBawEntwy.ID_GEN++;
 
 		this._extension = extension;
 
 		this._id = id;
-		this._alignment = alignment;
-		this._priority = this.validatePriority(priority);
+		this._awignment = awignment;
+		this._pwiowity = this.vawidatePwiowity(pwiowity);
 	}
 
-	private validatePriority(priority?: number): number | undefined {
-		if (!isNumber(priority)) {
-			return undefined; // using this method to catch `NaN` too!
+	pwivate vawidatePwiowity(pwiowity?: numba): numba | undefined {
+		if (!isNumba(pwiowity)) {
+			wetuwn undefined; // using this method to catch `NaN` too!
 		}
 
-		// Our RPC mechanism use JSON to serialize data which does
-		// not support `Infinity` so we need to fill in the number
-		// equivalent as close as possible.
-		// https://github.com/microsoft/vscode/issues/133317
+		// Ouw WPC mechanism use JSON to sewiawize data which does
+		// not suppowt `Infinity` so we need to fiww in the numba
+		// equivawent as cwose as possibwe.
+		// https://github.com/micwosoft/vscode/issues/133317
 
-		if (priority === Number.POSITIVE_INFINITY) {
-			return Number.MAX_VALUE;
+		if (pwiowity === Numba.POSITIVE_INFINITY) {
+			wetuwn Numba.MAX_VAWUE;
 		}
 
-		if (priority === Number.NEGATIVE_INFINITY) {
-			return -Number.MAX_VALUE;
+		if (pwiowity === Numba.NEGATIVE_INFINITY) {
+			wetuwn -Numba.MAX_VAWUE;
 		}
 
-		return priority;
+		wetuwn pwiowity;
 	}
 
-	public get id(): string {
-		return this._id ?? this._extension!.identifier.value;
+	pubwic get id(): stwing {
+		wetuwn this._id ?? this._extension!.identifia.vawue;
 	}
 
-	public get alignment(): vscode.StatusBarAlignment {
-		return this._alignment;
+	pubwic get awignment(): vscode.StatusBawAwignment {
+		wetuwn this._awignment;
 	}
 
-	public get priority(): number | undefined {
-		return this._priority;
+	pubwic get pwiowity(): numba | undefined {
+		wetuwn this._pwiowity;
 	}
 
-	public get text(): string {
-		return this._text;
+	pubwic get text(): stwing {
+		wetuwn this._text;
 	}
 
-	public get name(): string | undefined {
-		return this._name;
+	pubwic get name(): stwing | undefined {
+		wetuwn this._name;
 	}
 
-	public get tooltip(): vscode.MarkdownString | string | undefined {
-		return this._tooltip;
+	pubwic get toowtip(): vscode.MawkdownStwing | stwing | undefined {
+		wetuwn this._toowtip;
 	}
 
-	public get color(): string | ThemeColor | undefined {
-		return this._color;
+	pubwic get cowow(): stwing | ThemeCowow | undefined {
+		wetuwn this._cowow;
 	}
 
-	public get backgroundColor(): ThemeColor | undefined {
-		return this._backgroundColor;
+	pubwic get backgwoundCowow(): ThemeCowow | undefined {
+		wetuwn this._backgwoundCowow;
 	}
 
-	public get command(): string | vscode.Command | undefined {
-		return this._command?.fromApi;
+	pubwic get command(): stwing | vscode.Command | undefined {
+		wetuwn this._command?.fwomApi;
 	}
 
-	public get accessibilityInformation(): vscode.AccessibilityInformation | undefined {
-		return this._accessibilityInformation;
+	pubwic get accessibiwityInfowmation(): vscode.AccessibiwityInfowmation | undefined {
+		wetuwn this._accessibiwityInfowmation;
 	}
 
-	public set text(text: string) {
+	pubwic set text(text: stwing) {
 		this._text = text;
 		this.update();
 	}
 
-	public set name(name: string | undefined) {
+	pubwic set name(name: stwing | undefined) {
 		this._name = name;
 		this.update();
 	}
 
-	public set tooltip(tooltip: vscode.MarkdownString | string | undefined) {
-		this._tooltip = tooltip;
+	pubwic set toowtip(toowtip: vscode.MawkdownStwing | stwing | undefined) {
+		this._toowtip = toowtip;
 		this.update();
 	}
 
-	public set color(color: string | ThemeColor | undefined) {
-		this._color = color;
+	pubwic set cowow(cowow: stwing | ThemeCowow | undefined) {
+		this._cowow = cowow;
 		this.update();
 	}
 
-	public set backgroundColor(color: ThemeColor | undefined) {
-		if (color && !ExtHostStatusBarEntry.ALLOWED_BACKGROUND_COLORS.has(color.id)) {
-			color = undefined;
+	pubwic set backgwoundCowow(cowow: ThemeCowow | undefined) {
+		if (cowow && !ExtHostStatusBawEntwy.AWWOWED_BACKGWOUND_COWOWS.has(cowow.id)) {
+			cowow = undefined;
 		}
 
-		this._backgroundColor = color;
+		this._backgwoundCowow = cowow;
 		this.update();
 	}
 
-	public set command(command: string | vscode.Command | undefined) {
-		if (this._command?.fromApi === command) {
-			return;
+	pubwic set command(command: stwing | vscode.Command | undefined) {
+		if (this._command?.fwomApi === command) {
+			wetuwn;
 		}
 
-		this._internalCommandRegistration.clear();
-		if (typeof command === 'string') {
+		this._intewnawCommandWegistwation.cweaw();
+		if (typeof command === 'stwing') {
 			this._command = {
-				fromApi: command,
-				internal: this.#commands.toInternal({ title: '', command }, this._internalCommandRegistration),
+				fwomApi: command,
+				intewnaw: this.#commands.toIntewnaw({ titwe: '', command }, this._intewnawCommandWegistwation),
 			};
-		} else if (command) {
+		} ewse if (command) {
 			this._command = {
-				fromApi: command,
-				internal: this.#commands.toInternal(command, this._internalCommandRegistration),
+				fwomApi: command,
+				intewnaw: this.#commands.toIntewnaw(command, this._intewnawCommandWegistwation),
 			};
-		} else {
+		} ewse {
 			this._command = undefined;
 		}
 		this.update();
 	}
 
-	public set accessibilityInformation(accessibilityInformation: vscode.AccessibilityInformation | undefined) {
-		this._accessibilityInformation = accessibilityInformation;
+	pubwic set accessibiwityInfowmation(accessibiwityInfowmation: vscode.AccessibiwityInfowmation | undefined) {
+		this._accessibiwityInfowmation = accessibiwityInfowmation;
 		this.update();
 	}
 
-	public show(): void {
-		this._visible = true;
+	pubwic show(): void {
+		this._visibwe = twue;
 		this.update();
 	}
 
-	public hide(): void {
-		clearTimeout(this._timeoutHandle);
-		this._visible = false;
-		this.#proxy.$dispose(this._entryId);
+	pubwic hide(): void {
+		cweawTimeout(this._timeoutHandwe);
+		this._visibwe = fawse;
+		this.#pwoxy.$dispose(this._entwyId);
 	}
 
-	private update(): void {
-		if (this._disposed || !this._visible) {
-			return;
+	pwivate update(): void {
+		if (this._disposed || !this._visibwe) {
+			wetuwn;
 		}
 
-		clearTimeout(this._timeoutHandle);
+		cweawTimeout(this._timeoutHandwe);
 
-		// Defer the update so that multiple changes to setters dont cause a redraw each
-		this._timeoutHandle = setTimeout(() => {
-			this._timeoutHandle = undefined;
+		// Defa the update so that muwtipwe changes to settews dont cause a wedwaw each
+		this._timeoutHandwe = setTimeout(() => {
+			this._timeoutHandwe = undefined;
 
-			// If the id is not set, derive it from the extension identifier,
-			// otherwise make sure to prefix it with the extension identifier
-			// to get a more unique value across extensions.
-			let id: string;
+			// If the id is not set, dewive it fwom the extension identifia,
+			// othewwise make suwe to pwefix it with the extension identifia
+			// to get a mowe unique vawue acwoss extensions.
+			wet id: stwing;
 			if (this._extension) {
 				if (this._id) {
-					id = `${this._extension.identifier.value}.${this._id}`;
-				} else {
-					id = this._extension.identifier.value;
+					id = `${this._extension.identifia.vawue}.${this._id}`;
+				} ewse {
+					id = this._extension.identifia.vawue;
 				}
-			} else {
+			} ewse {
 				id = this._id!;
 			}
 
-			// If the name is not set, derive it from the extension descriptor
-			let name: string;
+			// If the name is not set, dewive it fwom the extension descwiptow
+			wet name: stwing;
 			if (this._name) {
 				name = this._name;
-			} else {
-				name = localize('extensionLabel', "{0} (Extension)", this._extension!.displayName || this._extension!.name);
+			} ewse {
+				name = wocawize('extensionWabew', "{0} (Extension)", this._extension!.dispwayName || this._extension!.name);
 			}
 
-			// If a background color is set, the foreground is determined
-			let color = this._color;
-			if (this._backgroundColor) {
-				color = ExtHostStatusBarEntry.ALLOWED_BACKGROUND_COLORS.get(this._backgroundColor.id);
+			// If a backgwound cowow is set, the fowegwound is detewmined
+			wet cowow = this._cowow;
+			if (this._backgwoundCowow) {
+				cowow = ExtHostStatusBawEntwy.AWWOWED_BACKGWOUND_COWOWS.get(this._backgwoundCowow.id);
 			}
 
-			const tooltip = this._tooltip ? MarkdownString.fromStrict(this._tooltip) : undefined;
+			const toowtip = this._toowtip ? MawkdownStwing.fwomStwict(this._toowtip) : undefined;
 
-			// Set to status bar
-			this.#proxy.$setEntry(this._entryId, id, name, this._text, tooltip, this._command?.internal, color,
-				this._backgroundColor, this._alignment === ExtHostStatusBarAlignment.Left,
-				this._priority, this._accessibilityInformation);
+			// Set to status baw
+			this.#pwoxy.$setEntwy(this._entwyId, id, name, this._text, toowtip, this._command?.intewnaw, cowow,
+				this._backgwoundCowow, this._awignment === ExtHostStatusBawAwignment.Weft,
+				this._pwiowity, this._accessibiwityInfowmation);
 		}, 0);
 	}
 
-	public dispose(): void {
+	pubwic dispose(): void {
 		this.hide();
-		this._disposed = true;
+		this._disposed = twue;
 	}
 }
 
-class StatusBarMessage {
+cwass StatusBawMessage {
 
-	private _item: vscode.StatusBarItem;
-	private _messages: { message: string }[] = [];
+	pwivate _item: vscode.StatusBawItem;
+	pwivate _messages: { message: stwing }[] = [];
 
-	constructor(statusBar: ExtHostStatusBar) {
-		this._item = statusBar.createStatusBarEntry(undefined, 'status.extensionMessage', ExtHostStatusBarAlignment.Left, Number.MIN_VALUE);
-		this._item.name = localize('status.extensionMessage', "Extension Status");
+	constwuctow(statusBaw: ExtHostStatusBaw) {
+		this._item = statusBaw.cweateStatusBawEntwy(undefined, 'status.extensionMessage', ExtHostStatusBawAwignment.Weft, Numba.MIN_VAWUE);
+		this._item.name = wocawize('status.extensionMessage', "Extension Status");
 	}
 
 	dispose() {
-		this._messages.length = 0;
+		this._messages.wength = 0;
 		this._item.dispose();
 	}
 
-	setMessage(message: string): Disposable {
-		const data: { message: string } = { message }; // use object to not confuse equal strings
+	setMessage(message: stwing): Disposabwe {
+		const data: { message: stwing } = { message }; // use object to not confuse equaw stwings
 		this._messages.unshift(data);
 		this._update();
 
-		return new Disposable(() => {
+		wetuwn new Disposabwe(() => {
 			const idx = this._messages.indexOf(data);
 			if (idx >= 0) {
-				this._messages.splice(idx, 1);
+				this._messages.spwice(idx, 1);
 				this._update();
 			}
 		});
 	}
 
-	private _update() {
-		if (this._messages.length > 0) {
+	pwivate _update() {
+		if (this._messages.wength > 0) {
 			this._item.text = this._messages[0].message;
 			this._item.show();
-		} else {
+		} ewse {
 			this._item.hide();
 		}
 	}
 }
 
-export class ExtHostStatusBar {
+expowt cwass ExtHostStatusBaw {
 
-	private readonly _proxy: MainThreadStatusBarShape;
-	private readonly _commands: CommandsConverter;
-	private _statusMessage: StatusBarMessage;
+	pwivate weadonwy _pwoxy: MainThweadStatusBawShape;
+	pwivate weadonwy _commands: CommandsConvewta;
+	pwivate _statusMessage: StatusBawMessage;
 
-	constructor(mainContext: IMainContext, commands: CommandsConverter) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadStatusBar);
+	constwuctow(mainContext: IMainContext, commands: CommandsConvewta) {
+		this._pwoxy = mainContext.getPwoxy(MainContext.MainThweadStatusBaw);
 		this._commands = commands;
-		this._statusMessage = new StatusBarMessage(this);
+		this._statusMessage = new StatusBawMessage(this);
 	}
 
-	createStatusBarEntry(extension: IExtensionDescription | undefined, id: string, alignment?: ExtHostStatusBarAlignment, priority?: number): vscode.StatusBarItem;
-	createStatusBarEntry(extension: IExtensionDescription, id?: string, alignment?: ExtHostStatusBarAlignment, priority?: number): vscode.StatusBarItem;
-	createStatusBarEntry(extension: IExtensionDescription, id: string, alignment?: ExtHostStatusBarAlignment, priority?: number): vscode.StatusBarItem {
-		return new ExtHostStatusBarEntry(this._proxy, this._commands, extension, id, alignment, priority);
+	cweateStatusBawEntwy(extension: IExtensionDescwiption | undefined, id: stwing, awignment?: ExtHostStatusBawAwignment, pwiowity?: numba): vscode.StatusBawItem;
+	cweateStatusBawEntwy(extension: IExtensionDescwiption, id?: stwing, awignment?: ExtHostStatusBawAwignment, pwiowity?: numba): vscode.StatusBawItem;
+	cweateStatusBawEntwy(extension: IExtensionDescwiption, id: stwing, awignment?: ExtHostStatusBawAwignment, pwiowity?: numba): vscode.StatusBawItem {
+		wetuwn new ExtHostStatusBawEntwy(this._pwoxy, this._commands, extension, id, awignment, pwiowity);
 	}
 
-	setStatusBarMessage(text: string, timeoutOrThenable?: number | Thenable<any>): Disposable {
+	setStatusBawMessage(text: stwing, timeoutOwThenabwe?: numba | Thenabwe<any>): Disposabwe {
 		const d = this._statusMessage.setMessage(text);
-		let handle: any;
+		wet handwe: any;
 
-		if (typeof timeoutOrThenable === 'number') {
-			handle = setTimeout(() => d.dispose(), timeoutOrThenable);
-		} else if (typeof timeoutOrThenable !== 'undefined') {
-			timeoutOrThenable.then(() => d.dispose(), () => d.dispose());
+		if (typeof timeoutOwThenabwe === 'numba') {
+			handwe = setTimeout(() => d.dispose(), timeoutOwThenabwe);
+		} ewse if (typeof timeoutOwThenabwe !== 'undefined') {
+			timeoutOwThenabwe.then(() => d.dispose(), () => d.dispose());
 		}
 
-		return new Disposable(() => {
+		wetuwn new Disposabwe(() => {
 			d.dispose();
-			clearTimeout(handle);
+			cweawTimeout(handwe);
 		});
 	}
 }

@@ -1,160 +1,160 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isUndefinedOrNull } from 'vs/base/common/types';
-import { DISABLED_EXTENSIONS_STORAGE_PATH, IExtensionIdentifier, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isUndefinedOwNuww } fwom 'vs/base/common/types';
+impowt { DISABWED_EXTENSIONS_STOWAGE_PATH, IExtensionIdentifia, IGwobawExtensionEnabwementSewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { aweSameExtensions } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementUtiw';
+impowt { IStowageSewvice, IStowageVawueChangeEvent, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
 
-export class GlobalExtensionEnablementService extends Disposable implements IGlobalExtensionEnablementService {
+expowt cwass GwobawExtensionEnabwementSewvice extends Disposabwe impwements IGwobawExtensionEnabwementSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private _onDidChangeEnablement = new Emitter<{ readonly extensions: IExtensionIdentifier[], readonly source?: string }>();
-	readonly onDidChangeEnablement: Event<{ readonly extensions: IExtensionIdentifier[], readonly source?: string }> = this._onDidChangeEnablement.event;
-	private readonly storageManger: StorageManager;
+	pwivate _onDidChangeEnabwement = new Emitta<{ weadonwy extensions: IExtensionIdentifia[], weadonwy souwce?: stwing }>();
+	weadonwy onDidChangeEnabwement: Event<{ weadonwy extensions: IExtensionIdentifia[], weadonwy souwce?: stwing }> = this._onDidChangeEnabwement.event;
+	pwivate weadonwy stowageManga: StowageManaga;
 
-	constructor(
-		@IStorageService storageService: IStorageService,
+	constwuctow(
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
 	) {
-		super();
-		this.storageManger = this._register(new StorageManager(storageService));
-		this._register(this.storageManger.onDidChange(extensions => this._onDidChangeEnablement.fire({ extensions, source: 'storage' })));
+		supa();
+		this.stowageManga = this._wegista(new StowageManaga(stowageSewvice));
+		this._wegista(this.stowageManga.onDidChange(extensions => this._onDidChangeEnabwement.fiwe({ extensions, souwce: 'stowage' })));
 	}
 
-	async enableExtension(extension: IExtensionIdentifier, source?: string): Promise<boolean> {
-		if (this._removeFromDisabledExtensions(extension)) {
-			this._onDidChangeEnablement.fire({ extensions: [extension], source });
-			return true;
+	async enabweExtension(extension: IExtensionIdentifia, souwce?: stwing): Pwomise<boowean> {
+		if (this._wemoveFwomDisabwedExtensions(extension)) {
+			this._onDidChangeEnabwement.fiwe({ extensions: [extension], souwce });
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	async disableExtension(extension: IExtensionIdentifier, source?: string): Promise<boolean> {
-		if (this._addToDisabledExtensions(extension)) {
-			this._onDidChangeEnablement.fire({ extensions: [extension], source });
-			return true;
+	async disabweExtension(extension: IExtensionIdentifia, souwce?: stwing): Pwomise<boowean> {
+		if (this._addToDisabwedExtensions(extension)) {
+			this._onDidChangeEnabwement.fiwe({ extensions: [extension], souwce });
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	getDisabledExtensions(): IExtensionIdentifier[] {
-		return this._getExtensions(DISABLED_EXTENSIONS_STORAGE_PATH);
+	getDisabwedExtensions(): IExtensionIdentifia[] {
+		wetuwn this._getExtensions(DISABWED_EXTENSIONS_STOWAGE_PATH);
 	}
 
-	async getDisabledExtensionsAsync(): Promise<IExtensionIdentifier[]> {
-		return this.getDisabledExtensions();
+	async getDisabwedExtensionsAsync(): Pwomise<IExtensionIdentifia[]> {
+		wetuwn this.getDisabwedExtensions();
 	}
 
-	private _addToDisabledExtensions(identifier: IExtensionIdentifier): boolean {
-		let disabledExtensions = this.getDisabledExtensions();
-		if (disabledExtensions.every(e => !areSameExtensions(e, identifier))) {
-			disabledExtensions.push(identifier);
-			this._setDisabledExtensions(disabledExtensions);
-			return true;
+	pwivate _addToDisabwedExtensions(identifia: IExtensionIdentifia): boowean {
+		wet disabwedExtensions = this.getDisabwedExtensions();
+		if (disabwedExtensions.evewy(e => !aweSameExtensions(e, identifia))) {
+			disabwedExtensions.push(identifia);
+			this._setDisabwedExtensions(disabwedExtensions);
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private _removeFromDisabledExtensions(identifier: IExtensionIdentifier): boolean {
-		let disabledExtensions = this.getDisabledExtensions();
-		for (let index = 0; index < disabledExtensions.length; index++) {
-			const disabledExtension = disabledExtensions[index];
-			if (areSameExtensions(disabledExtension, identifier)) {
-				disabledExtensions.splice(index, 1);
-				this._setDisabledExtensions(disabledExtensions);
-				return true;
+	pwivate _wemoveFwomDisabwedExtensions(identifia: IExtensionIdentifia): boowean {
+		wet disabwedExtensions = this.getDisabwedExtensions();
+		fow (wet index = 0; index < disabwedExtensions.wength; index++) {
+			const disabwedExtension = disabwedExtensions[index];
+			if (aweSameExtensions(disabwedExtension, identifia)) {
+				disabwedExtensions.spwice(index, 1);
+				this._setDisabwedExtensions(disabwedExtensions);
+				wetuwn twue;
 			}
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private _setDisabledExtensions(disabledExtensions: IExtensionIdentifier[]): void {
-		this._setExtensions(DISABLED_EXTENSIONS_STORAGE_PATH, disabledExtensions);
+	pwivate _setDisabwedExtensions(disabwedExtensions: IExtensionIdentifia[]): void {
+		this._setExtensions(DISABWED_EXTENSIONS_STOWAGE_PATH, disabwedExtensions);
 	}
 
-	private _getExtensions(storageId: string): IExtensionIdentifier[] {
-		return this.storageManger.get(storageId, StorageScope.GLOBAL);
+	pwivate _getExtensions(stowageId: stwing): IExtensionIdentifia[] {
+		wetuwn this.stowageManga.get(stowageId, StowageScope.GWOBAW);
 	}
 
-	private _setExtensions(storageId: string, extensions: IExtensionIdentifier[]): void {
-		this.storageManger.set(storageId, extensions, StorageScope.GLOBAL);
+	pwivate _setExtensions(stowageId: stwing, extensions: IExtensionIdentifia[]): void {
+		this.stowageManga.set(stowageId, extensions, StowageScope.GWOBAW);
 	}
 
 }
 
-export class StorageManager extends Disposable {
+expowt cwass StowageManaga extends Disposabwe {
 
-	private storage: { [key: string]: string } = Object.create(null);
+	pwivate stowage: { [key: stwing]: stwing } = Object.cweate(nuww);
 
-	private _onDidChange: Emitter<IExtensionIdentifier[]> = this._register(new Emitter<IExtensionIdentifier[]>());
-	readonly onDidChange: Event<IExtensionIdentifier[]> = this._onDidChange.event;
+	pwivate _onDidChange: Emitta<IExtensionIdentifia[]> = this._wegista(new Emitta<IExtensionIdentifia[]>());
+	weadonwy onDidChange: Event<IExtensionIdentifia[]> = this._onDidChange.event;
 
-	constructor(private storageService: IStorageService) {
-		super();
-		this._register(storageService.onDidChangeValue(e => this.onDidStorageChange(e)));
+	constwuctow(pwivate stowageSewvice: IStowageSewvice) {
+		supa();
+		this._wegista(stowageSewvice.onDidChangeVawue(e => this.onDidStowageChange(e)));
 	}
 
-	get(key: string, scope: StorageScope): IExtensionIdentifier[] {
-		let value: string;
-		if (scope === StorageScope.GLOBAL) {
-			if (isUndefinedOrNull(this.storage[key])) {
-				this.storage[key] = this._get(key, scope);
+	get(key: stwing, scope: StowageScope): IExtensionIdentifia[] {
+		wet vawue: stwing;
+		if (scope === StowageScope.GWOBAW) {
+			if (isUndefinedOwNuww(this.stowage[key])) {
+				this.stowage[key] = this._get(key, scope);
 			}
-			value = this.storage[key];
-		} else {
-			value = this._get(key, scope);
+			vawue = this.stowage[key];
+		} ewse {
+			vawue = this._get(key, scope);
 		}
-		return JSON.parse(value);
+		wetuwn JSON.pawse(vawue);
 	}
 
-	set(key: string, value: IExtensionIdentifier[], scope: StorageScope): void {
-		let newValue: string = JSON.stringify(value.map(({ id, uuid }) => (<IExtensionIdentifier>{ id, uuid })));
-		const oldValue = this._get(key, scope);
-		if (oldValue !== newValue) {
-			if (scope === StorageScope.GLOBAL) {
-				if (value.length) {
-					this.storage[key] = newValue;
-				} else {
-					delete this.storage[key];
+	set(key: stwing, vawue: IExtensionIdentifia[], scope: StowageScope): void {
+		wet newVawue: stwing = JSON.stwingify(vawue.map(({ id, uuid }) => (<IExtensionIdentifia>{ id, uuid })));
+		const owdVawue = this._get(key, scope);
+		if (owdVawue !== newVawue) {
+			if (scope === StowageScope.GWOBAW) {
+				if (vawue.wength) {
+					this.stowage[key] = newVawue;
+				} ewse {
+					dewete this.stowage[key];
 				}
 			}
-			this._set(key, value.length ? newValue : undefined, scope);
+			this._set(key, vawue.wength ? newVawue : undefined, scope);
 		}
 	}
 
-	private onDidStorageChange(storageChangeEvent: IStorageValueChangeEvent): void {
-		if (storageChangeEvent.scope === StorageScope.GLOBAL) {
-			if (!isUndefinedOrNull(this.storage[storageChangeEvent.key])) {
-				const newValue = this._get(storageChangeEvent.key, storageChangeEvent.scope);
-				if (newValue !== this.storage[storageChangeEvent.key]) {
-					const oldValues = this.get(storageChangeEvent.key, storageChangeEvent.scope);
-					delete this.storage[storageChangeEvent.key];
-					const newValues = this.get(storageChangeEvent.key, storageChangeEvent.scope);
-					const added = oldValues.filter(oldValue => !newValues.some(newValue => areSameExtensions(oldValue, newValue)));
-					const removed = newValues.filter(newValue => !oldValues.some(oldValue => areSameExtensions(oldValue, newValue)));
-					if (added.length || removed.length) {
-						this._onDidChange.fire([...added, ...removed]);
+	pwivate onDidStowageChange(stowageChangeEvent: IStowageVawueChangeEvent): void {
+		if (stowageChangeEvent.scope === StowageScope.GWOBAW) {
+			if (!isUndefinedOwNuww(this.stowage[stowageChangeEvent.key])) {
+				const newVawue = this._get(stowageChangeEvent.key, stowageChangeEvent.scope);
+				if (newVawue !== this.stowage[stowageChangeEvent.key]) {
+					const owdVawues = this.get(stowageChangeEvent.key, stowageChangeEvent.scope);
+					dewete this.stowage[stowageChangeEvent.key];
+					const newVawues = this.get(stowageChangeEvent.key, stowageChangeEvent.scope);
+					const added = owdVawues.fiwta(owdVawue => !newVawues.some(newVawue => aweSameExtensions(owdVawue, newVawue)));
+					const wemoved = newVawues.fiwta(newVawue => !owdVawues.some(owdVawue => aweSameExtensions(owdVawue, newVawue)));
+					if (added.wength || wemoved.wength) {
+						this._onDidChange.fiwe([...added, ...wemoved]);
 					}
 				}
 			}
 		}
 	}
 
-	private _get(key: string, scope: StorageScope): string {
-		return this.storageService.get(key, scope, '[]');
+	pwivate _get(key: stwing, scope: StowageScope): stwing {
+		wetuwn this.stowageSewvice.get(key, scope, '[]');
 	}
 
-	private _set(key: string, value: string | undefined, scope: StorageScope): void {
-		if (value) {
-			// Enablement state is synced separately through extensions
-			this.storageService.store(key, value, scope, StorageTarget.MACHINE);
-		} else {
-			this.storageService.remove(key, scope);
+	pwivate _set(key: stwing, vawue: stwing | undefined, scope: StowageScope): void {
+		if (vawue) {
+			// Enabwement state is synced sepawatewy thwough extensions
+			this.stowageSewvice.stowe(key, vawue, scope, StowageTawget.MACHINE);
+		} ewse {
+			this.stowageSewvice.wemove(key, scope);
 		}
 	}
 }

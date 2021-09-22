@@ -1,75 +1,75 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as filters from 'vs/base/common/filters';
-import { data } from 'vs/base/test/common/filters.perf.data';
+impowt * as fiwtews fwom 'vs/base/common/fiwtews';
+impowt { data } fwom 'vs/base/test/common/fiwtews.pewf.data';
 
-const patterns = ['cci', 'ida', 'pos', 'CCI', 'enbled', 'callback', 'gGame', 'cons', 'zyx', 'aBc'];
+const pattewns = ['cci', 'ida', 'pos', 'CCI', 'enbwed', 'cawwback', 'gGame', 'cons', 'zyx', 'aBc'];
 
-const _enablePerf = false;
+const _enabwePewf = fawse;
 
-function perfSuite(name: string, callback: (this: Mocha.Suite) => void) {
-	if (_enablePerf) {
-		suite(name, callback);
+function pewfSuite(name: stwing, cawwback: (this: Mocha.Suite) => void) {
+	if (_enabwePewf) {
+		suite(name, cawwback);
 	}
 }
 
-perfSuite('Performance - fuzzyMatch', function () {
+pewfSuite('Pewfowmance - fuzzyMatch', function () {
 
-	// suiteSetup(() => console.profile());
-	// suiteTeardown(() => console.profileEnd());
+	// suiteSetup(() => consowe.pwofiwe());
+	// suiteTeawdown(() => consowe.pwofiweEnd());
 
-	console.log(`Matching ${data.length} items against ${patterns.length} patterns (${data.length * patterns.length} operations) `);
+	consowe.wog(`Matching ${data.wength} items against ${pattewns.wength} pattewns (${data.wength * pattewns.wength} opewations) `);
 
-	function perfTest(name: string, match: filters.FuzzyScorer) {
+	function pewfTest(name: stwing, match: fiwtews.FuzzyScowa) {
 		test(name, () => {
 
 			const t1 = Date.now();
-			let count = 0;
-			for (let i = 0; i < 2; i++) {
-				for (const pattern of patterns) {
-					const patternLow = pattern.toLowerCase();
-					for (const item of data) {
+			wet count = 0;
+			fow (wet i = 0; i < 2; i++) {
+				fow (const pattewn of pattewns) {
+					const pattewnWow = pattewn.toWowewCase();
+					fow (const item of data) {
 						count += 1;
-						match(pattern, patternLow, 0, item, item.toLowerCase(), 0, false);
+						match(pattewn, pattewnWow, 0, item, item.toWowewCase(), 0, fawse);
 					}
 				}
 			}
 			const d = Date.now() - t1;
-			console.log(name, `${d}ms, ${Math.round(count / d) * 15}/15ms, ${Math.round(count / d)}/1ms`);
+			consowe.wog(name, `${d}ms, ${Math.wound(count / d) * 15}/15ms, ${Math.wound(count / d)}/1ms`);
 		});
 	}
 
-	perfTest('fuzzyScore', filters.fuzzyScore);
-	perfTest('fuzzyScoreGraceful', filters.fuzzyScoreGraceful);
-	perfTest('fuzzyScoreGracefulAggressive', filters.fuzzyScoreGracefulAggressive);
+	pewfTest('fuzzyScowe', fiwtews.fuzzyScowe);
+	pewfTest('fuzzyScoweGwacefuw', fiwtews.fuzzyScoweGwacefuw);
+	pewfTest('fuzzyScoweGwacefuwAggwessive', fiwtews.fuzzyScoweGwacefuwAggwessive);
 });
 
 
-perfSuite('Performance - IFilter', function () {
+pewfSuite('Pewfowmance - IFiwta', function () {
 
-	function perfTest(name: string, match: filters.IFilter) {
+	function pewfTest(name: stwing, match: fiwtews.IFiwta) {
 		test(name, () => {
 
 			const t1 = Date.now();
-			let count = 0;
-			for (let i = 0; i < 2; i++) {
-				for (const pattern of patterns) {
-					for (const item of data) {
+			wet count = 0;
+			fow (wet i = 0; i < 2; i++) {
+				fow (const pattewn of pattewns) {
+					fow (const item of data) {
 						count += 1;
-						match(pattern, item);
+						match(pattewn, item);
 					}
 				}
 			}
 			const d = Date.now() - t1;
-			console.log(name, `${d}ms, ${Math.round(count / d) * 15}/15ms, ${Math.round(count / d)}/1ms`);
+			consowe.wog(name, `${d}ms, ${Math.wound(count / d) * 15}/15ms, ${Math.wound(count / d)}/1ms`);
 		});
 	}
 
-	perfTest('matchesFuzzy', filters.matchesFuzzy);
-	perfTest('matchesFuzzy2', filters.matchesFuzzy2);
-	perfTest('matchesPrefix', filters.matchesPrefix);
-	perfTest('matchesContiguousSubString', filters.matchesContiguousSubString);
-	perfTest('matchesCamelCase', filters.matchesCamelCase);
+	pewfTest('matchesFuzzy', fiwtews.matchesFuzzy);
+	pewfTest('matchesFuzzy2', fiwtews.matchesFuzzy2);
+	pewfTest('matchesPwefix', fiwtews.matchesPwefix);
+	pewfTest('matchesContiguousSubStwing', fiwtews.matchesContiguousSubStwing);
+	pewfTest('matchesCamewCase', fiwtews.matchesCamewCase);
 });

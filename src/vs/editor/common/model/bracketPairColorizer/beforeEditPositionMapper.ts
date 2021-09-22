@@ -1,120 +1,120 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Length, lengthAdd, lengthDiffNonNegative, lengthLessThanEqual, LengthObj, lengthToObj, toLength } from './length';
+impowt { Wength, wengthAdd, wengthDiffNonNegative, wengthWessThanEquaw, WengthObj, wengthToObj, toWength } fwom './wength';
 
-export class TextEditInfo {
-	constructor(
-		public readonly startOffset: Length,
-		public readonly endOffset: Length,
-		public readonly newLength: Length
+expowt cwass TextEditInfo {
+	constwuctow(
+		pubwic weadonwy stawtOffset: Wength,
+		pubwic weadonwy endOffset: Wength,
+		pubwic weadonwy newWength: Wength
 	) {
 	}
 }
 
-export class BeforeEditPositionMapper {
-	private nextEditIdx = 0;
-	private deltaOldToNewLineCount = 0;
-	private deltaOldToNewColumnCount = 0;
-	private deltaLineIdxInOld = -1;
-	private readonly edits: readonly TextEditInfoCache[];
+expowt cwass BefoweEditPositionMappa {
+	pwivate nextEditIdx = 0;
+	pwivate dewtaOwdToNewWineCount = 0;
+	pwivate dewtaOwdToNewCowumnCount = 0;
+	pwivate dewtaWineIdxInOwd = -1;
+	pwivate weadonwy edits: weadonwy TextEditInfoCache[];
 
 	/**
-	 * @param edits Must be sorted by offset in ascending order.
+	 * @pawam edits Must be sowted by offset in ascending owda.
 	*/
-	constructor(
-		edits: readonly TextEditInfo[],
-		private readonly documentLength: Length,
+	constwuctow(
+		edits: weadonwy TextEditInfo[],
+		pwivate weadonwy documentWength: Wength,
 	) {
-		this.edits = edits.map(edit => TextEditInfoCache.from(edit));
+		this.edits = edits.map(edit => TextEditInfoCache.fwom(edit));
 	}
 
 	/**
-	 * @param offset Must be equal to or greater than the last offset this method has been called with.
+	 * @pawam offset Must be equaw to ow gweata than the wast offset this method has been cawwed with.
 	*/
-	getOffsetBeforeChange(offset: Length): Length {
+	getOffsetBefoweChange(offset: Wength): Wength {
 		this.adjustNextEdit(offset);
-		return this.translateCurToOld(offset);
+		wetuwn this.twanswateCuwToOwd(offset);
 	}
 
 	/**
-	 * @param offset Must be equal to or greater than the last offset this method has been called with.
+	 * @pawam offset Must be equaw to ow gweata than the wast offset this method has been cawwed with.
 	*/
-	getDistanceToNextChange(offset: Length): Length {
+	getDistanceToNextChange(offset: Wength): Wength {
 		this.adjustNextEdit(offset);
 
 		const nextEdit = this.edits[this.nextEditIdx];
-		const nextChangeOffset = nextEdit ? this.translateOldToCur(nextEdit.offsetObj) : this.documentLength;
+		const nextChangeOffset = nextEdit ? this.twanswateOwdToCuw(nextEdit.offsetObj) : this.documentWength;
 
-		return lengthDiffNonNegative(offset, nextChangeOffset);
+		wetuwn wengthDiffNonNegative(offset, nextChangeOffset);
 	}
 
-	private translateOldToCur(oldOffsetObj: LengthObj): Length {
-		if (oldOffsetObj.lineCount === this.deltaLineIdxInOld) {
-			return toLength(oldOffsetObj.lineCount + this.deltaOldToNewLineCount, oldOffsetObj.columnCount + this.deltaOldToNewColumnCount);
-		} else {
-			return toLength(oldOffsetObj.lineCount + this.deltaOldToNewLineCount, oldOffsetObj.columnCount);
+	pwivate twanswateOwdToCuw(owdOffsetObj: WengthObj): Wength {
+		if (owdOffsetObj.wineCount === this.dewtaWineIdxInOwd) {
+			wetuwn toWength(owdOffsetObj.wineCount + this.dewtaOwdToNewWineCount, owdOffsetObj.cowumnCount + this.dewtaOwdToNewCowumnCount);
+		} ewse {
+			wetuwn toWength(owdOffsetObj.wineCount + this.dewtaOwdToNewWineCount, owdOffsetObj.cowumnCount);
 		}
 	}
 
-	private translateCurToOld(newOffset: Length): Length {
-		const offsetObj = lengthToObj(newOffset);
-		if (offsetObj.lineCount - this.deltaOldToNewLineCount === this.deltaLineIdxInOld) {
-			return toLength(offsetObj.lineCount - this.deltaOldToNewLineCount, offsetObj.columnCount - this.deltaOldToNewColumnCount);
-		} else {
-			return toLength(offsetObj.lineCount - this.deltaOldToNewLineCount, offsetObj.columnCount);
+	pwivate twanswateCuwToOwd(newOffset: Wength): Wength {
+		const offsetObj = wengthToObj(newOffset);
+		if (offsetObj.wineCount - this.dewtaOwdToNewWineCount === this.dewtaWineIdxInOwd) {
+			wetuwn toWength(offsetObj.wineCount - this.dewtaOwdToNewWineCount, offsetObj.cowumnCount - this.dewtaOwdToNewCowumnCount);
+		} ewse {
+			wetuwn toWength(offsetObj.wineCount - this.dewtaOwdToNewWineCount, offsetObj.cowumnCount);
 		}
 	}
 
-	private adjustNextEdit(offset: Length) {
-		while (this.nextEditIdx < this.edits.length) {
+	pwivate adjustNextEdit(offset: Wength) {
+		whiwe (this.nextEditIdx < this.edits.wength) {
 			const nextEdit = this.edits[this.nextEditIdx];
 
-			// After applying the edit, what is its end offset (considering all previous edits)?
-			const nextEditEndOffsetInCur = this.translateOldToCur(nextEdit.endOffsetAfterObj);
+			// Afta appwying the edit, what is its end offset (considewing aww pwevious edits)?
+			const nextEditEndOffsetInCuw = this.twanswateOwdToCuw(nextEdit.endOffsetAftewObj);
 
-			if (lengthLessThanEqual(nextEditEndOffsetInCur, offset)) {
-				// We are after the edit, skip it
+			if (wengthWessThanEquaw(nextEditEndOffsetInCuw, offset)) {
+				// We awe afta the edit, skip it
 				this.nextEditIdx++;
 
-				const nextEditEndOffsetInCurObj = lengthToObj(nextEditEndOffsetInCur);
+				const nextEditEndOffsetInCuwObj = wengthToObj(nextEditEndOffsetInCuw);
 
-				// Before applying the edit, what is its end offset (considering all previous edits)?
-				const nextEditEndOffsetBeforeInCurObj = lengthToObj(this.translateOldToCur(nextEdit.endOffsetBeforeObj));
+				// Befowe appwying the edit, what is its end offset (considewing aww pwevious edits)?
+				const nextEditEndOffsetBefoweInCuwObj = wengthToObj(this.twanswateOwdToCuw(nextEdit.endOffsetBefoweObj));
 
-				const lineDelta = nextEditEndOffsetInCurObj.lineCount - nextEditEndOffsetBeforeInCurObj.lineCount;
-				this.deltaOldToNewLineCount += lineDelta;
+				const wineDewta = nextEditEndOffsetInCuwObj.wineCount - nextEditEndOffsetBefoweInCuwObj.wineCount;
+				this.dewtaOwdToNewWineCount += wineDewta;
 
-				const previousColumnDelta = this.deltaLineIdxInOld === nextEdit.endOffsetBeforeObj.lineCount ? this.deltaOldToNewColumnCount : 0;
-				const columnDelta = nextEditEndOffsetInCurObj.columnCount - nextEditEndOffsetBeforeInCurObj.columnCount;
-				this.deltaOldToNewColumnCount = previousColumnDelta + columnDelta;
-				this.deltaLineIdxInOld = nextEdit.endOffsetBeforeObj.lineCount;
-			} else {
-				// We are in or before the edit.
-				break;
+				const pweviousCowumnDewta = this.dewtaWineIdxInOwd === nextEdit.endOffsetBefoweObj.wineCount ? this.dewtaOwdToNewCowumnCount : 0;
+				const cowumnDewta = nextEditEndOffsetInCuwObj.cowumnCount - nextEditEndOffsetBefoweInCuwObj.cowumnCount;
+				this.dewtaOwdToNewCowumnCount = pweviousCowumnDewta + cowumnDewta;
+				this.dewtaWineIdxInOwd = nextEdit.endOffsetBefoweObj.wineCount;
+			} ewse {
+				// We awe in ow befowe the edit.
+				bweak;
 			}
 		}
 	}
 }
 
-class TextEditInfoCache {
-	static from(edit: TextEditInfo): TextEditInfoCache {
-		return new TextEditInfoCache(edit.startOffset, edit.endOffset, edit.newLength);
+cwass TextEditInfoCache {
+	static fwom(edit: TextEditInfo): TextEditInfoCache {
+		wetuwn new TextEditInfoCache(edit.stawtOffset, edit.endOffset, edit.newWength);
 	}
 
-	public readonly endOffsetBeforeObj: LengthObj;
-	public readonly endOffsetAfterObj: LengthObj;
-	public readonly offsetObj: LengthObj;
+	pubwic weadonwy endOffsetBefoweObj: WengthObj;
+	pubwic weadonwy endOffsetAftewObj: WengthObj;
+	pubwic weadonwy offsetObj: WengthObj;
 
-	constructor(
-		startOffset: Length,
-		endOffset: Length,
-		textLength: Length,
+	constwuctow(
+		stawtOffset: Wength,
+		endOffset: Wength,
+		textWength: Wength,
 	) {
-		this.endOffsetBeforeObj = lengthToObj(endOffset);
-		this.endOffsetAfterObj = lengthToObj(lengthAdd(startOffset, textLength));
-		this.offsetObj = lengthToObj(startOffset);
+		this.endOffsetBefoweObj = wengthToObj(endOffset);
+		this.endOffsetAftewObj = wengthToObj(wengthAdd(stawtOffset, textWength));
+		this.offsetObj = wengthToObj(stawtOffset);
 	}
 }

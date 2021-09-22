@@ -1,2299 +1,2299 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IRemoteConsoleLog } from 'vs/base/common/console';
-import { SerializedError } from 'vs/base/common/errors';
-import { IRelativePattern } from 'vs/base/common/glob';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { revive } from 'vs/base/common/marshalling';
-import * as performance from 'vs/base/common/performance';
-import Severity from 'vs/base/common/severity';
-import { Dto } from 'vs/base/common/types';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { RenderLineNumbersType, TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
-import { IPosition } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
-import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { EndOfLineSequence, ISingleEditOperation } from 'vs/editor/common/model';
-import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
-import * as modes from 'vs/editor/common/modes';
-import { CharacterPair, CommentRule, EnterAction } from 'vs/editor/common/modes/languageConfiguration';
-import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
-import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { ConfigurationTarget, IConfigurationChange, IConfigurationData, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import * as files from 'vs/platform/files/common/files';
-import { ResourceLabelFormatter } from 'vs/platform/label/common/label';
-import { LogLevel } from 'vs/platform/log/common/log';
-import { IMarkerData } from 'vs/platform/markers/common/markers';
-import { IProgressOptions, IProgressStep } from 'vs/platform/progress/common/progress';
-import * as quickInput from 'vs/platform/quickinput/common/quickInput';
-import { IRemoteConnectionData, RemoteAuthorityResolverErrorCode, ResolverResult, TunnelDescription } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ProvidedPortAttributes, TunnelCreationOptions, TunnelOptions, TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
-import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
-import { ICreateContributedTerminalProfileOptions, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensions, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, TerminalLocation } from 'vs/platform/terminal/common/terminal';
-import { ThemeColor, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IExtensionIdWithVersion } from 'vs/platform/userDataSync/common/extensionsStorageSync';
-import { WorkspaceTrustRequestOptions } from 'vs/platform/workspace/common/workspaceTrust';
-import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
-import { ExtHostInteractive } from 'vs/workbench/api/common/extHostInteractive';
-import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
-import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
-import * as tasks from 'vs/workbench/api/common/shared/tasks';
-import { TreeDataTransferDTO } from 'vs/workbench/api/common/shared/treeDataTransfer';
-import { SaveReason } from 'vs/workbench/common/editor';
-import { IRevealOptions, ITreeItem } from 'vs/workbench/common/views';
-import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
-import { IAdapterDescriptor, IConfig, IDebugSessionReplMode } from 'vs/workbench/contrib/debug/common/debug';
-import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CellExecutionUpdateType, ICellExecutionComplete, ICellExecutionStateUpdate } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
-import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
-import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { CoverageDetails, ExtensionRunTestsRequest, IFileCoverage, ISerializedTestResults, ITestItem, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, RunTestForControllerRequest, SerializedTestMessage, TestResultState, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
-import { InternalTimelineOptions, Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor } from 'vs/workbench/contrib/timeline/common/timeline';
-import { TypeHierarchyItem } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
-import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { ActivationKind, ExtensionHostKind, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
-import { createExtHostContextProxyIdentifier as createExtId, createMainContextProxyIdentifier as createMainId, IRPCProtocol, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { ILanguageStatus } from 'vs/workbench/services/languageStatus/common/languageStatusService';
-import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
-import * as search from 'vs/workbench/services/search/common/search';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IWemoteConsoweWog } fwom 'vs/base/common/consowe';
+impowt { SewiawizedEwwow } fwom 'vs/base/common/ewwows';
+impowt { IWewativePattewn } fwom 'vs/base/common/gwob';
+impowt { IMawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { wevive } fwom 'vs/base/common/mawshawwing';
+impowt * as pewfowmance fwom 'vs/base/common/pewfowmance';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { Dto } fwom 'vs/base/common/types';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { WendewWineNumbewsType, TextEditowCuwsowStywe } fwom 'vs/editow/common/config/editowOptions';
+impowt { IPosition } fwom 'vs/editow/common/cowe/position';
+impowt { IWange } fwom 'vs/editow/common/cowe/wange';
+impowt { ISewection, Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt * as editowCommon fwom 'vs/editow/common/editowCommon';
+impowt { EndOfWineSequence, ISingweEditOpewation } fwom 'vs/editow/common/modew';
+impowt { IModewChangedEvent } fwom 'vs/editow/common/modew/miwwowTextModew';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt { ChawactewPaiw, CommentWuwe, EntewAction } fwom 'vs/editow/common/modes/wanguageConfiguwation';
+impowt { IAccessibiwityInfowmation } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { ICommandHandwewDescwiption } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ConfiguwationTawget, IConfiguwationChange, IConfiguwationData, IConfiguwationOvewwides } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ConfiguwationScope } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { ExtensionIdentifia, IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt * as fiwes fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { WesouwceWabewFowmatta } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { WogWevew } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IMawkewData } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { IPwogwessOptions, IPwogwessStep } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt * as quickInput fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { IWemoteConnectionData, WemoteAuthowityWesowvewEwwowCode, WesowvewWesuwt, TunnewDescwiption } fwom 'vs/pwatfowm/wemote/common/wemoteAuthowityWesowva';
+impowt { PwovidedPowtAttwibutes, TunnewCweationOptions, TunnewOptions, TunnewPwovidewFeatuwes } fwom 'vs/pwatfowm/wemote/common/tunnew';
+impowt { CwassifiedEvent, GDPWCwassification, StwictPwopewtyCheck } fwom 'vs/pwatfowm/tewemetwy/common/gdpwTypings';
+impowt { ITewemetwyInfo } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { ICweateContwibutedTewminawPwofiweOptions, IShewwWaunchConfig, IShewwWaunchConfigDto, ITewminawDimensions, ITewminawEnviwonment, ITewminawWaunchEwwow, ITewminawPwofiwe, TewminawWocation } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { ThemeCowow, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IExtensionIdWithVewsion } fwom 'vs/pwatfowm/usewDataSync/common/extensionsStowageSync';
+impowt { WowkspaceTwustWequestOptions } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { ExtensionActivationWeason } fwom 'vs/wowkbench/api/common/extHostExtensionActivatow';
+impowt { ExtHostIntewactive } fwom 'vs/wowkbench/api/common/extHostIntewactive';
+impowt { TunnewDto } fwom 'vs/wowkbench/api/common/extHostTunnewSewvice';
+impowt { DebugConfiguwationPwovidewTwiggewKind } fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt * as tasks fwom 'vs/wowkbench/api/common/shawed/tasks';
+impowt { TweeDataTwansfewDTO } fwom 'vs/wowkbench/api/common/shawed/tweeDataTwansfa';
+impowt { SaveWeason } fwom 'vs/wowkbench/common/editow';
+impowt { IWeveawOptions, ITweeItem } fwom 'vs/wowkbench/common/views';
+impowt { CawwHiewawchyItem } fwom 'vs/wowkbench/contwib/cawwHiewawchy/common/cawwHiewawchy';
+impowt { IAdaptewDescwiptow, IConfig, IDebugSessionWepwMode } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt * as notebookCommon fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { CewwExecutionUpdateType, ICewwExecutionCompwete, ICewwExecutionStateUpdate } fwom 'vs/wowkbench/contwib/notebook/common/notebookExecutionSewvice';
+impowt { ICewwWange } fwom 'vs/wowkbench/contwib/notebook/common/notebookWange';
+impowt { InputVawidationType } fwom 'vs/wowkbench/contwib/scm/common/scm';
+impowt { ITextQuewyBuiwdewOptions } fwom 'vs/wowkbench/contwib/seawch/common/quewyBuiwda';
+impowt { ISewiawizabweEnviwonmentVawiabweCowwection } fwom 'vs/wowkbench/contwib/tewminaw/common/enviwonmentVawiabwe';
+impowt { CovewageDetaiws, ExtensionWunTestsWequest, IFiweCovewage, ISewiawizedTestWesuwts, ITestItem, ITestWunPwofiwe, ITestWunTask, WesowvedTestWunWequest, WunTestFowContwowwewWequest, SewiawizedTestMessage, TestWesuwtState, TestsDiff } fwom 'vs/wowkbench/contwib/testing/common/testCowwection';
+impowt { IntewnawTimewineOptions, Timewine, TimewineChangeEvent, TimewineOptions, TimewinePwovidewDescwiptow } fwom 'vs/wowkbench/contwib/timewine/common/timewine';
+impowt { TypeHiewawchyItem } fwom 'vs/wowkbench/contwib/typeHiewawchy/common/typeHiewawchy';
+impowt { EditowGwoupCowumn } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupCowumn';
+impowt { ActivationKind, ExtensionHostKind, MissingExtensionDependency } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { cweateExtHostContextPwoxyIdentifia as cweateExtId, cweateMainContextPwoxyIdentifia as cweateMainId, IWPCPwotocow, SewiawizabweObjectWithBuffews } fwom 'vs/wowkbench/sewvices/extensions/common/pwoxyIdentifia';
+impowt { IWanguageStatus } fwom 'vs/wowkbench/sewvices/wanguageStatus/common/wanguageStatusSewvice';
+impowt { CandidatePowt } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteExpwowewSewvice';
+impowt * as seawch fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
 
-export interface IEnvironment {
-	isExtensionDevelopmentDebug: boolean;
-	appName: string;
-	appHost: string;
-	appRoot?: URI;
-	appLanguage: string;
-	appUriScheme: string;
-	extensionDevelopmentLocationURI?: URI[];
-	extensionTestsLocationURI?: URI;
-	globalStorageHome: URI;
-	workspaceStorageHome: URI;
-	useHostProxy?: boolean;
-	skipWorkspaceStorageLock?: boolean;
+expowt intewface IEnviwonment {
+	isExtensionDevewopmentDebug: boowean;
+	appName: stwing;
+	appHost: stwing;
+	appWoot?: UWI;
+	appWanguage: stwing;
+	appUwiScheme: stwing;
+	extensionDevewopmentWocationUWI?: UWI[];
+	extensionTestsWocationUWI?: UWI;
+	gwobawStowageHome: UWI;
+	wowkspaceStowageHome: UWI;
+	useHostPwoxy?: boowean;
+	skipWowkspaceStowageWock?: boowean;
 }
 
-export interface IStaticWorkspaceData {
-	id: string;
-	name: string;
-	configuration?: UriComponents | null;
-	isUntitled?: boolean | null;
+expowt intewface IStaticWowkspaceData {
+	id: stwing;
+	name: stwing;
+	configuwation?: UwiComponents | nuww;
+	isUntitwed?: boowean | nuww;
 }
 
-export interface IWorkspaceData extends IStaticWorkspaceData {
-	folders: { uri: UriComponents, name: string, index: number; }[];
+expowt intewface IWowkspaceData extends IStaticWowkspaceData {
+	fowdews: { uwi: UwiComponents, name: stwing, index: numba; }[];
 }
 
-export interface IInitData {
-	version: string;
-	commit?: string;
-	parentPid: number;
-	environment: IEnvironment;
-	workspace?: IStaticWorkspaceData | null;
-	resolvedExtensions: ExtensionIdentifier[];
-	hostExtensions: ExtensionIdentifier[];
-	extensions: IExtensionDescription[];
-	telemetryInfo: ITelemetryInfo;
-	logLevel: LogLevel;
-	logsLocation: URI;
-	logFile: URI;
-	autoStart: boolean;
-	remote: { isRemote: boolean; authority: string | undefined; connectionData: IRemoteConnectionData | null; };
+expowt intewface IInitData {
+	vewsion: stwing;
+	commit?: stwing;
+	pawentPid: numba;
+	enviwonment: IEnviwonment;
+	wowkspace?: IStaticWowkspaceData | nuww;
+	wesowvedExtensions: ExtensionIdentifia[];
+	hostExtensions: ExtensionIdentifia[];
+	extensions: IExtensionDescwiption[];
+	tewemetwyInfo: ITewemetwyInfo;
+	wogWevew: WogWevew;
+	wogsWocation: UWI;
+	wogFiwe: UWI;
+	autoStawt: boowean;
+	wemote: { isWemote: boowean; authowity: stwing | undefined; connectionData: IWemoteConnectionData | nuww; };
 	uiKind: UIKind;
 }
 
-export interface IConfigurationInitData extends IConfigurationData {
-	configurationScopes: [string, ConfigurationScope | undefined][];
+expowt intewface IConfiguwationInitData extends IConfiguwationData {
+	configuwationScopes: [stwing, ConfiguwationScope | undefined][];
 }
 
-export interface IExtHostContext extends IRPCProtocol {
-	readonly remoteAuthority: string | null;
-	readonly extensionHostKind: ExtensionHostKind;
+expowt intewface IExtHostContext extends IWPCPwotocow {
+	weadonwy wemoteAuthowity: stwing | nuww;
+	weadonwy extensionHostKind: ExtensionHostKind;
 }
 
-export interface IMainContext extends IRPCProtocol {
+expowt intewface IMainContext extends IWPCPwotocow {
 }
 
-export enum UIKind {
+expowt enum UIKind {
 	Desktop = 1,
 	Web = 2
 }
 
-// --- main thread
+// --- main thwead
 
-export interface MainThreadClipboardShape extends IDisposable {
-	$readText(): Promise<string>;
-	$writeText(value: string): Promise<void>;
+expowt intewface MainThweadCwipboawdShape extends IDisposabwe {
+	$weadText(): Pwomise<stwing>;
+	$wwiteText(vawue: stwing): Pwomise<void>;
 }
 
-export interface MainThreadCommandsShape extends IDisposable {
-	$registerCommand(id: string): void;
-	$unregisterCommand(id: string): void;
-	$executeCommand<T>(id: string, args: any[] | SerializableObjectWithBuffers<any[]>, retry: boolean): Promise<T | undefined>;
-	$getCommands(): Promise<string[]>;
+expowt intewface MainThweadCommandsShape extends IDisposabwe {
+	$wegistewCommand(id: stwing): void;
+	$unwegistewCommand(id: stwing): void;
+	$executeCommand<T>(id: stwing, awgs: any[] | SewiawizabweObjectWithBuffews<any[]>, wetwy: boowean): Pwomise<T | undefined>;
+	$getCommands(): Pwomise<stwing[]>;
 }
 
-export interface CommentProviderFeatures {
-	reactionGroup?: modes.CommentReaction[];
-	reactionHandler?: boolean;
+expowt intewface CommentPwovidewFeatuwes {
+	weactionGwoup?: modes.CommentWeaction[];
+	weactionHandwa?: boowean;
 	options?: modes.CommentOptions;
 }
 
-export type CommentThreadChanges = Partial<{
-	range: IRange,
-	label: string,
-	contextValue: string,
+expowt type CommentThweadChanges = Pawtiaw<{
+	wange: IWange,
+	wabew: stwing,
+	contextVawue: stwing,
 	comments: modes.Comment[],
-	collapseState: modes.CommentThreadCollapsibleState;
-	canReply: boolean;
+	cowwapseState: modes.CommentThweadCowwapsibweState;
+	canWepwy: boowean;
 }>;
 
-export interface MainThreadCommentsShape extends IDisposable {
-	$registerCommentController(handle: number, id: string, label: string): void;
-	$unregisterCommentController(handle: number): void;
-	$updateCommentControllerFeatures(handle: number, features: CommentProviderFeatures): void;
-	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange, extensionId: ExtensionIdentifier): modes.CommentThread | undefined;
-	$updateCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, changes: CommentThreadChanges): void;
-	$deleteCommentThread(handle: number, commentThreadHandle: number): void;
-	$onDidCommentThreadsChange(handle: number, event: modes.CommentThreadChangedEvent): void;
+expowt intewface MainThweadCommentsShape extends IDisposabwe {
+	$wegistewCommentContwowwa(handwe: numba, id: stwing, wabew: stwing): void;
+	$unwegistewCommentContwowwa(handwe: numba): void;
+	$updateCommentContwowwewFeatuwes(handwe: numba, featuwes: CommentPwovidewFeatuwes): void;
+	$cweateCommentThwead(handwe: numba, commentThweadHandwe: numba, thweadId: stwing, wesouwce: UwiComponents, wange: IWange, extensionId: ExtensionIdentifia): modes.CommentThwead | undefined;
+	$updateCommentThwead(handwe: numba, commentThweadHandwe: numba, thweadId: stwing, wesouwce: UwiComponents, changes: CommentThweadChanges): void;
+	$deweteCommentThwead(handwe: numba, commentThweadHandwe: numba): void;
+	$onDidCommentThweadsChange(handwe: numba, event: modes.CommentThweadChangedEvent): void;
 }
 
-export interface MainThreadAuthenticationShape extends IDisposable {
-	$registerAuthenticationProvider(id: string, label: string, supportsMultipleAccounts: boolean): void;
-	$unregisterAuthenticationProvider(id: string): void;
-	$ensureProvider(id: string): Promise<void>;
-	$sendDidChangeSessions(providerId: string, event: modes.AuthenticationSessionsChangeEvent): void;
-	$getSession(providerId: string, scopes: readonly string[], extensionId: string, extensionName: string, options: { createIfNone?: boolean, forceNewSession?: boolean | { detail: string }, clearSessionPreference?: boolean }): Promise<modes.AuthenticationSession | undefined>;
-	$removeSession(providerId: string, sessionId: string): Promise<void>;
+expowt intewface MainThweadAuthenticationShape extends IDisposabwe {
+	$wegistewAuthenticationPwovida(id: stwing, wabew: stwing, suppowtsMuwtipweAccounts: boowean): void;
+	$unwegistewAuthenticationPwovida(id: stwing): void;
+	$ensuwePwovida(id: stwing): Pwomise<void>;
+	$sendDidChangeSessions(pwovidewId: stwing, event: modes.AuthenticationSessionsChangeEvent): void;
+	$getSession(pwovidewId: stwing, scopes: weadonwy stwing[], extensionId: stwing, extensionName: stwing, options: { cweateIfNone?: boowean, fowceNewSession?: boowean | { detaiw: stwing }, cweawSessionPwefewence?: boowean }): Pwomise<modes.AuthenticationSession | undefined>;
+	$wemoveSession(pwovidewId: stwing, sessionId: stwing): Pwomise<void>;
 }
 
-export interface MainThreadSecretStateShape extends IDisposable {
-	$getPassword(extensionId: string, key: string): Promise<string | undefined>;
-	$setPassword(extensionId: string, key: string, value: string): Promise<void>;
-	$deletePassword(extensionId: string, key: string): Promise<void>;
+expowt intewface MainThweadSecwetStateShape extends IDisposabwe {
+	$getPasswowd(extensionId: stwing, key: stwing): Pwomise<stwing | undefined>;
+	$setPasswowd(extensionId: stwing, key: stwing, vawue: stwing): Pwomise<void>;
+	$dewetePasswowd(extensionId: stwing, key: stwing): Pwomise<void>;
 }
 
-export interface MainThreadConfigurationShape extends IDisposable {
-	$updateConfigurationOption(target: ConfigurationTarget | null, key: string, value: any, overrides: IConfigurationOverrides | undefined, scopeToLanguage: boolean | undefined): Promise<void>;
-	$removeConfigurationOption(target: ConfigurationTarget | null, key: string, overrides: IConfigurationOverrides | undefined, scopeToLanguage: boolean | undefined): Promise<void>;
+expowt intewface MainThweadConfiguwationShape extends IDisposabwe {
+	$updateConfiguwationOption(tawget: ConfiguwationTawget | nuww, key: stwing, vawue: any, ovewwides: IConfiguwationOvewwides | undefined, scopeToWanguage: boowean | undefined): Pwomise<void>;
+	$wemoveConfiguwationOption(tawget: ConfiguwationTawget | nuww, key: stwing, ovewwides: IConfiguwationOvewwides | undefined, scopeToWanguage: boowean | undefined): Pwomise<void>;
 }
 
-export interface MainThreadDiagnosticsShape extends IDisposable {
-	$changeMany(owner: string, entries: [UriComponents, IMarkerData[] | undefined][]): void;
-	$clear(owner: string): void;
+expowt intewface MainThweadDiagnosticsShape extends IDisposabwe {
+	$changeMany(owna: stwing, entwies: [UwiComponents, IMawkewData[] | undefined][]): void;
+	$cweaw(owna: stwing): void;
 }
 
-export interface MainThreadDialogOpenOptions {
-	defaultUri?: UriComponents;
-	openLabel?: string;
-	canSelectFiles?: boolean;
-	canSelectFolders?: boolean;
-	canSelectMany?: boolean;
-	filters?: { [name: string]: string[]; };
-	title?: string;
+expowt intewface MainThweadDiawogOpenOptions {
+	defauwtUwi?: UwiComponents;
+	openWabew?: stwing;
+	canSewectFiwes?: boowean;
+	canSewectFowdews?: boowean;
+	canSewectMany?: boowean;
+	fiwtews?: { [name: stwing]: stwing[]; };
+	titwe?: stwing;
 }
 
-export interface MainThreadDialogSaveOptions {
-	defaultUri?: UriComponents;
-	saveLabel?: string;
-	filters?: { [name: string]: string[]; };
-	title?: string;
+expowt intewface MainThweadDiawogSaveOptions {
+	defauwtUwi?: UwiComponents;
+	saveWabew?: stwing;
+	fiwtews?: { [name: stwing]: stwing[]; };
+	titwe?: stwing;
 }
 
-export interface MainThreadDiaglogsShape extends IDisposable {
-	$showOpenDialog(options?: MainThreadDialogOpenOptions): Promise<UriComponents[] | undefined>;
-	$showSaveDialog(options?: MainThreadDialogSaveOptions): Promise<UriComponents | undefined>;
+expowt intewface MainThweadDiagwogsShape extends IDisposabwe {
+	$showOpenDiawog(options?: MainThweadDiawogOpenOptions): Pwomise<UwiComponents[] | undefined>;
+	$showSaveDiawog(options?: MainThweadDiawogSaveOptions): Pwomise<UwiComponents | undefined>;
 }
 
-export interface MainThreadDecorationsShape extends IDisposable {
-	$registerDecorationProvider(handle: number, label: string): void;
-	$unregisterDecorationProvider(handle: number): void;
-	$onDidChange(handle: number, resources: UriComponents[] | null): void;
+expowt intewface MainThweadDecowationsShape extends IDisposabwe {
+	$wegistewDecowationPwovida(handwe: numba, wabew: stwing): void;
+	$unwegistewDecowationPwovida(handwe: numba): void;
+	$onDidChange(handwe: numba, wesouwces: UwiComponents[] | nuww): void;
 }
 
-export interface MainThreadDocumentContentProvidersShape extends IDisposable {
-	$registerTextContentProvider(handle: number, scheme: string): void;
-	$unregisterTextContentProvider(handle: number): void;
-	$onVirtualDocumentChange(uri: UriComponents, value: string): void;
+expowt intewface MainThweadDocumentContentPwovidewsShape extends IDisposabwe {
+	$wegistewTextContentPwovida(handwe: numba, scheme: stwing): void;
+	$unwegistewTextContentPwovida(handwe: numba): void;
+	$onViwtuawDocumentChange(uwi: UwiComponents, vawue: stwing): void;
 }
 
-export interface MainThreadDocumentsShape extends IDisposable {
-	$tryCreateDocument(options?: { language?: string; content?: string; }): Promise<UriComponents>;
-	$tryOpenDocument(uri: UriComponents): Promise<UriComponents>;
-	$trySaveDocument(uri: UriComponents): Promise<boolean>;
+expowt intewface MainThweadDocumentsShape extends IDisposabwe {
+	$twyCweateDocument(options?: { wanguage?: stwing; content?: stwing; }): Pwomise<UwiComponents>;
+	$twyOpenDocument(uwi: UwiComponents): Pwomise<UwiComponents>;
+	$twySaveDocument(uwi: UwiComponents): Pwomise<boowean>;
 }
 
-export interface ITextEditorConfigurationUpdate {
-	tabSize?: number | 'auto';
-	insertSpaces?: boolean | 'auto';
-	cursorStyle?: TextEditorCursorStyle;
-	lineNumbers?: RenderLineNumbersType;
+expowt intewface ITextEditowConfiguwationUpdate {
+	tabSize?: numba | 'auto';
+	insewtSpaces?: boowean | 'auto';
+	cuwsowStywe?: TextEditowCuwsowStywe;
+	wineNumbews?: WendewWineNumbewsType;
 }
 
-export interface IResolvedTextEditorConfiguration {
-	tabSize: number;
-	insertSpaces: boolean;
-	cursorStyle: TextEditorCursorStyle;
-	lineNumbers: RenderLineNumbersType;
+expowt intewface IWesowvedTextEditowConfiguwation {
+	tabSize: numba;
+	insewtSpaces: boowean;
+	cuwsowStywe: TextEditowCuwsowStywe;
+	wineNumbews: WendewWineNumbewsType;
 }
 
-export enum TextEditorRevealType {
-	Default = 0,
-	InCenter = 1,
-	InCenterIfOutsideViewport = 2,
+expowt enum TextEditowWeveawType {
+	Defauwt = 0,
+	InCenta = 1,
+	InCentewIfOutsideViewpowt = 2,
 	AtTop = 3
 }
 
-export interface IUndoStopOptions {
-	undoStopBefore: boolean;
-	undoStopAfter: boolean;
+expowt intewface IUndoStopOptions {
+	undoStopBefowe: boowean;
+	undoStopAfta: boowean;
 }
 
-export interface IApplyEditsOptions extends IUndoStopOptions {
-	setEndOfLine?: EndOfLineSequence;
+expowt intewface IAppwyEditsOptions extends IUndoStopOptions {
+	setEndOfWine?: EndOfWineSequence;
 }
 
-export interface ITextDocumentShowOptions {
-	position?: EditorGroupColumn;
-	preserveFocus?: boolean;
-	pinned?: boolean;
-	selection?: IRange;
+expowt intewface ITextDocumentShowOptions {
+	position?: EditowGwoupCowumn;
+	pwesewveFocus?: boowean;
+	pinned?: boowean;
+	sewection?: IWange;
 }
 
-export interface MainThreadBulkEditsShape extends IDisposable {
-	$tryApplyWorkspaceEdit(workspaceEditDto: IWorkspaceEditDto, undoRedoGroupId?: number): Promise<boolean>;
+expowt intewface MainThweadBuwkEditsShape extends IDisposabwe {
+	$twyAppwyWowkspaceEdit(wowkspaceEditDto: IWowkspaceEditDto, undoWedoGwoupId?: numba): Pwomise<boowean>;
 }
 
-export interface MainThreadTextEditorsShape extends IDisposable {
-	$tryShowTextDocument(resource: UriComponents, options: ITextDocumentShowOptions): Promise<string | undefined>;
-	$registerTextEditorDecorationType(extensionId: ExtensionIdentifier, key: string, options: editorCommon.IDecorationRenderOptions): void;
-	$removeTextEditorDecorationType(key: string): void;
-	$tryShowEditor(id: string, position: EditorGroupColumn): Promise<void>;
-	$tryHideEditor(id: string): Promise<void>;
-	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): Promise<void>;
-	$trySetDecorations(id: string, key: string, ranges: editorCommon.IDecorationOptions[]): Promise<void>;
-	$trySetDecorationsFast(id: string, key: string, ranges: number[]): Promise<void>;
-	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): Promise<void>;
-	$trySetSelections(id: string, selections: ISelection[]): Promise<void>;
-	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): Promise<boolean>;
-	$tryInsertSnippet(id: string, template: string, selections: readonly IRange[], opts: IUndoStopOptions): Promise<boolean>;
-	$getDiffInformation(id: string): Promise<editorCommon.ILineChange[]>;
+expowt intewface MainThweadTextEditowsShape extends IDisposabwe {
+	$twyShowTextDocument(wesouwce: UwiComponents, options: ITextDocumentShowOptions): Pwomise<stwing | undefined>;
+	$wegistewTextEditowDecowationType(extensionId: ExtensionIdentifia, key: stwing, options: editowCommon.IDecowationWendewOptions): void;
+	$wemoveTextEditowDecowationType(key: stwing): void;
+	$twyShowEditow(id: stwing, position: EditowGwoupCowumn): Pwomise<void>;
+	$twyHideEditow(id: stwing): Pwomise<void>;
+	$twySetOptions(id: stwing, options: ITextEditowConfiguwationUpdate): Pwomise<void>;
+	$twySetDecowations(id: stwing, key: stwing, wanges: editowCommon.IDecowationOptions[]): Pwomise<void>;
+	$twySetDecowationsFast(id: stwing, key: stwing, wanges: numba[]): Pwomise<void>;
+	$twyWeveawWange(id: stwing, wange: IWange, weveawType: TextEditowWeveawType): Pwomise<void>;
+	$twySetSewections(id: stwing, sewections: ISewection[]): Pwomise<void>;
+	$twyAppwyEdits(id: stwing, modewVewsionId: numba, edits: ISingweEditOpewation[], opts: IAppwyEditsOptions): Pwomise<boowean>;
+	$twyInsewtSnippet(id: stwing, tempwate: stwing, sewections: weadonwy IWange[], opts: IUndoStopOptions): Pwomise<boowean>;
+	$getDiffInfowmation(id: stwing): Pwomise<editowCommon.IWineChange[]>;
 }
 
-export interface MainThreadTreeViewsShape extends IDisposable {
-	$registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean, canSelectMany: boolean, canDragAndDrop: boolean; }): Promise<void>;
-	$refresh(treeViewId: string, itemsToRefresh?: { [treeItemHandle: string]: ITreeItem; }): Promise<void>;
-	$reveal(treeViewId: string, itemInfo: { item: ITreeItem, parentChain: ITreeItem[] } | undefined, options: IRevealOptions): Promise<void>;
-	$setMessage(treeViewId: string, message: string): void;
-	$setTitle(treeViewId: string, title: string, description: string | undefined): void;
+expowt intewface MainThweadTweeViewsShape extends IDisposabwe {
+	$wegistewTweeViewDataPwovida(tweeViewId: stwing, options: { showCowwapseAww: boowean, canSewectMany: boowean, canDwagAndDwop: boowean; }): Pwomise<void>;
+	$wefwesh(tweeViewId: stwing, itemsToWefwesh?: { [tweeItemHandwe: stwing]: ITweeItem; }): Pwomise<void>;
+	$weveaw(tweeViewId: stwing, itemInfo: { item: ITweeItem, pawentChain: ITweeItem[] } | undefined, options: IWeveawOptions): Pwomise<void>;
+	$setMessage(tweeViewId: stwing, message: stwing): void;
+	$setTitwe(tweeViewId: stwing, titwe: stwing, descwiption: stwing | undefined): void;
 }
 
-export interface MainThreadDownloadServiceShape extends IDisposable {
-	$download(uri: UriComponents, to: UriComponents): Promise<void>;
+expowt intewface MainThweadDownwoadSewviceShape extends IDisposabwe {
+	$downwoad(uwi: UwiComponents, to: UwiComponents): Pwomise<void>;
 }
 
-export interface MainThreadErrorsShape extends IDisposable {
-	$onUnexpectedError(err: any | SerializedError): void;
+expowt intewface MainThweadEwwowsShape extends IDisposabwe {
+	$onUnexpectedEwwow(eww: any | SewiawizedEwwow): void;
 }
 
-export interface MainThreadConsoleShape extends IDisposable {
-	$logExtensionHostMessage(msg: IRemoteConsoleLog): void;
+expowt intewface MainThweadConsoweShape extends IDisposabwe {
+	$wogExtensionHostMessage(msg: IWemoteConsoweWog): void;
 }
 
-export interface MainThreadKeytarShape extends IDisposable {
-	$getPassword(service: string, account: string): Promise<string | null>;
-	$setPassword(service: string, account: string, password: string): Promise<void>;
-	$deletePassword(service: string, account: string): Promise<boolean>;
-	$findPassword(service: string): Promise<string | null>;
-	$findCredentials(service: string): Promise<Array<{ account: string, password: string; }>>;
+expowt intewface MainThweadKeytawShape extends IDisposabwe {
+	$getPasswowd(sewvice: stwing, account: stwing): Pwomise<stwing | nuww>;
+	$setPasswowd(sewvice: stwing, account: stwing, passwowd: stwing): Pwomise<void>;
+	$dewetePasswowd(sewvice: stwing, account: stwing): Pwomise<boowean>;
+	$findPasswowd(sewvice: stwing): Pwomise<stwing | nuww>;
+	$findCwedentiaws(sewvice: stwing): Pwomise<Awway<{ account: stwing, passwowd: stwing; }>>;
 }
 
-export interface IRegExpDto {
-	pattern: string;
-	flags?: string;
+expowt intewface IWegExpDto {
+	pattewn: stwing;
+	fwags?: stwing;
 }
-export interface IIndentationRuleDto {
-	decreaseIndentPattern: IRegExpDto;
-	increaseIndentPattern: IRegExpDto;
-	indentNextLinePattern?: IRegExpDto;
-	unIndentedLinePattern?: IRegExpDto;
+expowt intewface IIndentationWuweDto {
+	decweaseIndentPattewn: IWegExpDto;
+	incweaseIndentPattewn: IWegExpDto;
+	indentNextWinePattewn?: IWegExpDto;
+	unIndentedWinePattewn?: IWegExpDto;
 }
-export interface IOnEnterRuleDto {
-	beforeText: IRegExpDto;
-	afterText?: IRegExpDto;
-	previousLineText?: IRegExpDto;
-	action: EnterAction;
+expowt intewface IOnEntewWuweDto {
+	befoweText: IWegExpDto;
+	aftewText?: IWegExpDto;
+	pweviousWineText?: IWegExpDto;
+	action: EntewAction;
 }
-export interface ILanguageConfigurationDto {
-	comments?: CommentRule;
-	brackets?: CharacterPair[];
-	wordPattern?: IRegExpDto;
-	indentationRules?: IIndentationRuleDto;
-	onEnterRules?: IOnEnterRuleDto[];
-	__electricCharacterSupport?: {
-		brackets?: any;
+expowt intewface IWanguageConfiguwationDto {
+	comments?: CommentWuwe;
+	bwackets?: ChawactewPaiw[];
+	wowdPattewn?: IWegExpDto;
+	indentationWuwes?: IIndentationWuweDto;
+	onEntewWuwes?: IOnEntewWuweDto[];
+	__ewectwicChawactewSuppowt?: {
+		bwackets?: any;
 		docComment?: {
-			scope: string;
-			open: string;
-			lineStart: string;
-			close?: string;
+			scope: stwing;
+			open: stwing;
+			wineStawt: stwing;
+			cwose?: stwing;
 		};
 	};
-	__characterPairSupport?: {
-		autoClosingPairs: {
-			open: string;
-			close: string;
-			notIn?: string[];
+	__chawactewPaiwSuppowt?: {
+		autoCwosingPaiws: {
+			open: stwing;
+			cwose: stwing;
+			notIn?: stwing[];
 		}[];
 	};
 }
 
-export type GlobPattern = string | { base: string; pattern: string; };
+expowt type GwobPattewn = stwing | { base: stwing; pattewn: stwing; };
 
-export interface IDocumentFilterDto {
-	$serialized: true;
-	language?: string;
-	scheme?: string;
-	pattern?: string | IRelativePattern;
-	exclusive?: boolean;
+expowt intewface IDocumentFiwtewDto {
+	$sewiawized: twue;
+	wanguage?: stwing;
+	scheme?: stwing;
+	pattewn?: stwing | IWewativePattewn;
+	excwusive?: boowean;
 }
 
-export interface ISignatureHelpProviderMetadataDto {
-	readonly triggerCharacters: readonly string[];
-	readonly retriggerCharacters: readonly string[];
+expowt intewface ISignatuweHewpPwovidewMetadataDto {
+	weadonwy twiggewChawactews: weadonwy stwing[];
+	weadonwy wetwiggewChawactews: weadonwy stwing[];
 }
 
-export interface IdentifiableInlineCompletions extends modes.InlineCompletions<IdentifiableInlineCompletion> {
-	pid: number;
+expowt intewface IdentifiabweInwineCompwetions extends modes.InwineCompwetions<IdentifiabweInwineCompwetion> {
+	pid: numba;
 }
 
-export interface IdentifiableInlineCompletion extends modes.InlineCompletion {
-	idx: number;
+expowt intewface IdentifiabweInwineCompwetion extends modes.InwineCompwetion {
+	idx: numba;
 }
 
-export interface MainThreadLanguageFeaturesShape extends IDisposable {
-	$unregister(handle: number): void;
-	$registerDocumentSymbolProvider(handle: number, selector: IDocumentFilterDto[], label: string): void;
-	$registerCodeLensSupport(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void;
-	$emitCodeLensEvent(eventHandle: number, event?: any): void;
-	$registerDefinitionSupport(handle: number, selector: IDocumentFilterDto[]): void;
-	$registerDeclarationSupport(handle: number, selector: IDocumentFilterDto[]): void;
-	$registerImplementationSupport(handle: number, selector: IDocumentFilterDto[]): void;
-	$registerTypeDefinitionSupport(handle: number, selector: IDocumentFilterDto[]): void;
-	$registerHoverProvider(handle: number, selector: IDocumentFilterDto[]): void;
-	$registerEvaluatableExpressionProvider(handle: number, selector: IDocumentFilterDto[]): void;
-	$registerInlineValuesProvider(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void;
-	$emitInlineValuesEvent(eventHandle: number, event?: any): void;
-	$registerDocumentHighlightProvider(handle: number, selector: IDocumentFilterDto[]): void;
-	$registerLinkedEditingRangeProvider(handle: number, selector: IDocumentFilterDto[]): void;
-	$registerReferenceSupport(handle: number, selector: IDocumentFilterDto[]): void;
-	$registerQuickFixSupport(handle: number, selector: IDocumentFilterDto[], metadata: ICodeActionProviderMetadataDto, displayName: string, supportsResolve: boolean): void;
-	$registerDocumentFormattingSupport(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string): void;
-	$registerRangeFormattingSupport(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string): void;
-	$registerOnTypeFormattingSupport(handle: number, selector: IDocumentFilterDto[], autoFormatTriggerCharacters: string[], extensionId: ExtensionIdentifier): void;
-	$registerNavigateTypeSupport(handle: number): void;
-	$registerRenameSupport(handle: number, selector: IDocumentFilterDto[], supportsResolveInitialValues: boolean): void;
-	$registerDocumentSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: modes.SemanticTokensLegend, eventHandle: number | undefined): void;
-	$emitDocumentSemanticTokensEvent(eventHandle: number): void;
-	$registerDocumentRangeSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: modes.SemanticTokensLegend): void;
-	$registerSuggestSupport(handle: number, selector: IDocumentFilterDto[], triggerCharacters: string[], supportsResolveDetails: boolean, displayName: string): void;
-	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[]): void;
-	$registerSignatureHelpProvider(handle: number, selector: IDocumentFilterDto[], metadata: ISignatureHelpProviderMetadataDto): void;
-	$registerInlayHintsProvider(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void;
-	$emitInlayHintsEvent(eventHandle: number, event?: any): void;
-	$registerDocumentLinkProvider(handle: number, selector: IDocumentFilterDto[], supportsResolve: boolean): void;
-	$registerDocumentColorProvider(handle: number, selector: IDocumentFilterDto[]): void;
-	$registerFoldingRangeProvider(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void;
-	$emitFoldingRangeEvent(eventHandle: number, event?: any): void;
-	$registerSelectionRangeProvider(handle: number, selector: IDocumentFilterDto[]): void;
-	$registerCallHierarchyProvider(handle: number, selector: IDocumentFilterDto[]): void;
-	$registerTypeHierarchyProvider(handle: number, selector: IDocumentFilterDto[]): void;
-	$setLanguageConfiguration(handle: number, languageId: string, configuration: ILanguageConfigurationDto): void;
+expowt intewface MainThweadWanguageFeatuwesShape extends IDisposabwe {
+	$unwegista(handwe: numba): void;
+	$wegistewDocumentSymbowPwovida(handwe: numba, sewectow: IDocumentFiwtewDto[], wabew: stwing): void;
+	$wegistewCodeWensSuppowt(handwe: numba, sewectow: IDocumentFiwtewDto[], eventHandwe: numba | undefined): void;
+	$emitCodeWensEvent(eventHandwe: numba, event?: any): void;
+	$wegistewDefinitionSuppowt(handwe: numba, sewectow: IDocumentFiwtewDto[]): void;
+	$wegistewDecwawationSuppowt(handwe: numba, sewectow: IDocumentFiwtewDto[]): void;
+	$wegistewImpwementationSuppowt(handwe: numba, sewectow: IDocumentFiwtewDto[]): void;
+	$wegistewTypeDefinitionSuppowt(handwe: numba, sewectow: IDocumentFiwtewDto[]): void;
+	$wegistewHovewPwovida(handwe: numba, sewectow: IDocumentFiwtewDto[]): void;
+	$wegistewEvawuatabweExpwessionPwovida(handwe: numba, sewectow: IDocumentFiwtewDto[]): void;
+	$wegistewInwineVawuesPwovida(handwe: numba, sewectow: IDocumentFiwtewDto[], eventHandwe: numba | undefined): void;
+	$emitInwineVawuesEvent(eventHandwe: numba, event?: any): void;
+	$wegistewDocumentHighwightPwovida(handwe: numba, sewectow: IDocumentFiwtewDto[]): void;
+	$wegistewWinkedEditingWangePwovida(handwe: numba, sewectow: IDocumentFiwtewDto[]): void;
+	$wegistewWefewenceSuppowt(handwe: numba, sewectow: IDocumentFiwtewDto[]): void;
+	$wegistewQuickFixSuppowt(handwe: numba, sewectow: IDocumentFiwtewDto[], metadata: ICodeActionPwovidewMetadataDto, dispwayName: stwing, suppowtsWesowve: boowean): void;
+	$wegistewDocumentFowmattingSuppowt(handwe: numba, sewectow: IDocumentFiwtewDto[], extensionId: ExtensionIdentifia, dispwayName: stwing): void;
+	$wegistewWangeFowmattingSuppowt(handwe: numba, sewectow: IDocumentFiwtewDto[], extensionId: ExtensionIdentifia, dispwayName: stwing): void;
+	$wegistewOnTypeFowmattingSuppowt(handwe: numba, sewectow: IDocumentFiwtewDto[], autoFowmatTwiggewChawactews: stwing[], extensionId: ExtensionIdentifia): void;
+	$wegistewNavigateTypeSuppowt(handwe: numba): void;
+	$wegistewWenameSuppowt(handwe: numba, sewectow: IDocumentFiwtewDto[], suppowtsWesowveInitiawVawues: boowean): void;
+	$wegistewDocumentSemanticTokensPwovida(handwe: numba, sewectow: IDocumentFiwtewDto[], wegend: modes.SemanticTokensWegend, eventHandwe: numba | undefined): void;
+	$emitDocumentSemanticTokensEvent(eventHandwe: numba): void;
+	$wegistewDocumentWangeSemanticTokensPwovida(handwe: numba, sewectow: IDocumentFiwtewDto[], wegend: modes.SemanticTokensWegend): void;
+	$wegistewSuggestSuppowt(handwe: numba, sewectow: IDocumentFiwtewDto[], twiggewChawactews: stwing[], suppowtsWesowveDetaiws: boowean, dispwayName: stwing): void;
+	$wegistewInwineCompwetionsSuppowt(handwe: numba, sewectow: IDocumentFiwtewDto[]): void;
+	$wegistewSignatuweHewpPwovida(handwe: numba, sewectow: IDocumentFiwtewDto[], metadata: ISignatuweHewpPwovidewMetadataDto): void;
+	$wegistewInwayHintsPwovida(handwe: numba, sewectow: IDocumentFiwtewDto[], eventHandwe: numba | undefined): void;
+	$emitInwayHintsEvent(eventHandwe: numba, event?: any): void;
+	$wegistewDocumentWinkPwovida(handwe: numba, sewectow: IDocumentFiwtewDto[], suppowtsWesowve: boowean): void;
+	$wegistewDocumentCowowPwovida(handwe: numba, sewectow: IDocumentFiwtewDto[]): void;
+	$wegistewFowdingWangePwovida(handwe: numba, sewectow: IDocumentFiwtewDto[], eventHandwe: numba | undefined): void;
+	$emitFowdingWangeEvent(eventHandwe: numba, event?: any): void;
+	$wegistewSewectionWangePwovida(handwe: numba, sewectow: IDocumentFiwtewDto[]): void;
+	$wegistewCawwHiewawchyPwovida(handwe: numba, sewectow: IDocumentFiwtewDto[]): void;
+	$wegistewTypeHiewawchyPwovida(handwe: numba, sewectow: IDocumentFiwtewDto[]): void;
+	$setWanguageConfiguwation(handwe: numba, wanguageId: stwing, configuwation: IWanguageConfiguwationDto): void;
 }
 
-export interface MainThreadLanguagesShape extends IDisposable {
-	$changeLanguage(resource: UriComponents, languageId: string): Promise<void>;
-	$tokensAtPosition(resource: UriComponents, position: IPosition): Promise<undefined | { type: modes.StandardTokenType, range: IRange }>;
-	$setLanguageStatus(handle: number, status: ILanguageStatus): void;
-	$removeLanguageStatus(handle: number): void;
+expowt intewface MainThweadWanguagesShape extends IDisposabwe {
+	$changeWanguage(wesouwce: UwiComponents, wanguageId: stwing): Pwomise<void>;
+	$tokensAtPosition(wesouwce: UwiComponents, position: IPosition): Pwomise<undefined | { type: modes.StandawdTokenType, wange: IWange }>;
+	$setWanguageStatus(handwe: numba, status: IWanguageStatus): void;
+	$wemoveWanguageStatus(handwe: numba): void;
 }
 
-export interface MainThreadMessageOptions {
-	extension?: IExtensionDescription;
-	modal?: boolean;
-	detail?: string;
-	useCustom?: boolean;
+expowt intewface MainThweadMessageOptions {
+	extension?: IExtensionDescwiption;
+	modaw?: boowean;
+	detaiw?: stwing;
+	useCustom?: boowean;
 }
 
-export interface MainThreadMessageServiceShape extends IDisposable {
-	$showMessage(severity: Severity, message: string, options: MainThreadMessageOptions, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Promise<number | undefined>;
+expowt intewface MainThweadMessageSewviceShape extends IDisposabwe {
+	$showMessage(sevewity: Sevewity, message: stwing, options: MainThweadMessageOptions, commands: { titwe: stwing; isCwoseAffowdance: boowean; handwe: numba; }[]): Pwomise<numba | undefined>;
 }
 
-export interface MainThreadOutputServiceShape extends IDisposable {
-	$register(label: string, log: boolean, file?: UriComponents, extensionId?: string): Promise<string>;
-	$append(channelId: string, value: string): Promise<void> | undefined;
-	$update(channelId: string): Promise<void> | undefined;
-	$clear(channelId: string, till: number): Promise<void> | undefined;
-	$reveal(channelId: string, preserveFocus: boolean): Promise<void> | undefined;
-	$close(channelId: string): Promise<void> | undefined;
-	$dispose(channelId: string): Promise<void> | undefined;
+expowt intewface MainThweadOutputSewviceShape extends IDisposabwe {
+	$wegista(wabew: stwing, wog: boowean, fiwe?: UwiComponents, extensionId?: stwing): Pwomise<stwing>;
+	$append(channewId: stwing, vawue: stwing): Pwomise<void> | undefined;
+	$update(channewId: stwing): Pwomise<void> | undefined;
+	$cweaw(channewId: stwing, tiww: numba): Pwomise<void> | undefined;
+	$weveaw(channewId: stwing, pwesewveFocus: boowean): Pwomise<void> | undefined;
+	$cwose(channewId: stwing): Pwomise<void> | undefined;
+	$dispose(channewId: stwing): Pwomise<void> | undefined;
 }
 
-export interface MainThreadProgressShape extends IDisposable {
+expowt intewface MainThweadPwogwessShape extends IDisposabwe {
 
-	$startProgress(handle: number, options: IProgressOptions, extension?: IExtensionDescription): void;
-	$progressReport(handle: number, message: IProgressStep): void;
-	$progressEnd(handle: number): void;
+	$stawtPwogwess(handwe: numba, options: IPwogwessOptions, extension?: IExtensionDescwiption): void;
+	$pwogwessWepowt(handwe: numba, message: IPwogwessStep): void;
+	$pwogwessEnd(handwe: numba): void;
 }
 
 /**
- * A terminal that is created on the extension host side is temporarily assigned
- * a UUID by the extension host that created it. Once the renderer side has assigned
- * a real numeric id, the numeric id will be used.
+ * A tewminaw that is cweated on the extension host side is tempowawiwy assigned
+ * a UUID by the extension host that cweated it. Once the wendewa side has assigned
+ * a weaw numewic id, the numewic id wiww be used.
  *
- * All other terminals (that are not created on the extension host side) always
- * use the numeric id.
+ * Aww otha tewminaws (that awe not cweated on the extension host side) awways
+ * use the numewic id.
  */
-export type ExtHostTerminalIdentifier = number | string;
+expowt type ExtHostTewminawIdentifia = numba | stwing;
 
-export interface TerminalLaunchConfig {
-	name?: string;
-	shellPath?: string;
-	shellArgs?: string[] | string;
-	cwd?: string | UriComponents;
-	env?: ITerminalEnvironment;
-	icon?: URI | { light: URI; dark: URI } | ThemeIcon;
-	color?: string;
-	initialText?: string;
-	waitOnExit?: boolean;
-	strictEnv?: boolean;
-	hideFromUser?: boolean;
-	isExtensionCustomPtyTerminal?: boolean;
-	isFeatureTerminal?: boolean;
-	isExtensionOwnedTerminal?: boolean;
-	useShellEnvironment?: boolean;
-	location?: TerminalLocation | { viewColumn: number, preserveFocus?: boolean } | { parentTerminal: ExtHostTerminalIdentifier } | { splitActiveTerminal: boolean };
+expowt intewface TewminawWaunchConfig {
+	name?: stwing;
+	shewwPath?: stwing;
+	shewwAwgs?: stwing[] | stwing;
+	cwd?: stwing | UwiComponents;
+	env?: ITewminawEnviwonment;
+	icon?: UWI | { wight: UWI; dawk: UWI } | ThemeIcon;
+	cowow?: stwing;
+	initiawText?: stwing;
+	waitOnExit?: boowean;
+	stwictEnv?: boowean;
+	hideFwomUsa?: boowean;
+	isExtensionCustomPtyTewminaw?: boowean;
+	isFeatuweTewminaw?: boowean;
+	isExtensionOwnedTewminaw?: boowean;
+	useShewwEnviwonment?: boowean;
+	wocation?: TewminawWocation | { viewCowumn: numba, pwesewveFocus?: boowean } | { pawentTewminaw: ExtHostTewminawIdentifia } | { spwitActiveTewminaw: boowean };
 }
 
-export interface MainThreadTerminalServiceShape extends IDisposable {
-	$createTerminal(extHostTerminalId: string, config: TerminalLaunchConfig): Promise<void>;
-	$dispose(id: ExtHostTerminalIdentifier): void;
-	$hide(id: ExtHostTerminalIdentifier): void;
-	$sendText(id: ExtHostTerminalIdentifier, text: string, addNewLine: boolean): void;
-	$show(id: ExtHostTerminalIdentifier, preserveFocus: boolean): void;
-	$startSendingDataEvents(): void;
+expowt intewface MainThweadTewminawSewviceShape extends IDisposabwe {
+	$cweateTewminaw(extHostTewminawId: stwing, config: TewminawWaunchConfig): Pwomise<void>;
+	$dispose(id: ExtHostTewminawIdentifia): void;
+	$hide(id: ExtHostTewminawIdentifia): void;
+	$sendText(id: ExtHostTewminawIdentifia, text: stwing, addNewWine: boowean): void;
+	$show(id: ExtHostTewminawIdentifia, pwesewveFocus: boowean): void;
+	$stawtSendingDataEvents(): void;
 	$stopSendingDataEvents(): void;
-	$startLinkProvider(): void;
-	$stopLinkProvider(): void;
-	$registerProcessSupport(isSupported: boolean): void;
-	$registerProfileProvider(id: string, extensionIdentifier: string): void;
-	$unregisterProfileProvider(id: string): void;
-	$setEnvironmentVariableCollection(extensionIdentifier: string, persistent: boolean, collection: ISerializableEnvironmentVariableCollection | undefined): void;
+	$stawtWinkPwovida(): void;
+	$stopWinkPwovida(): void;
+	$wegistewPwocessSuppowt(isSuppowted: boowean): void;
+	$wegistewPwofiwePwovida(id: stwing, extensionIdentifia: stwing): void;
+	$unwegistewPwofiwePwovida(id: stwing): void;
+	$setEnviwonmentVawiabweCowwection(extensionIdentifia: stwing, pewsistent: boowean, cowwection: ISewiawizabweEnviwonmentVawiabweCowwection | undefined): void;
 
-	// Process
-	$sendProcessTitle(terminalId: number, title: string): void;
-	$sendProcessData(terminalId: number, data: string): void;
-	$sendProcessReady(terminalId: number, pid: number, cwd: string): void;
-	$sendProcessExit(terminalId: number, exitCode: number | undefined): void;
-	$sendProcessInitialCwd(terminalId: number, cwd: string): void;
-	$sendProcessCwd(terminalId: number, initialCwd: string): void;
-	$sendOverrideDimensions(terminalId: number, dimensions: ITerminalDimensions | undefined): void;
-	$sendResolvedLaunchConfig(terminalId: number, shellLaunchConfig: IShellLaunchConfig): void;
+	// Pwocess
+	$sendPwocessTitwe(tewminawId: numba, titwe: stwing): void;
+	$sendPwocessData(tewminawId: numba, data: stwing): void;
+	$sendPwocessWeady(tewminawId: numba, pid: numba, cwd: stwing): void;
+	$sendPwocessExit(tewminawId: numba, exitCode: numba | undefined): void;
+	$sendPwocessInitiawCwd(tewminawId: numba, cwd: stwing): void;
+	$sendPwocessCwd(tewminawId: numba, initiawCwd: stwing): void;
+	$sendOvewwideDimensions(tewminawId: numba, dimensions: ITewminawDimensions | undefined): void;
+	$sendWesowvedWaunchConfig(tewminawId: numba, shewwWaunchConfig: IShewwWaunchConfig): void;
 }
 
-export interface TransferQuickPickItems extends quickInput.IQuickPickItem {
-	handle: number;
-	buttons?: TransferQuickInputButton[];
+expowt intewface TwansfewQuickPickItems extends quickInput.IQuickPickItem {
+	handwe: numba;
+	buttons?: TwansfewQuickInputButton[];
 }
 
-export interface TransferQuickInputButton extends quickInput.IQuickInputButton {
-	handle: number;
+expowt intewface TwansfewQuickInputButton extends quickInput.IQuickInputButton {
+	handwe: numba;
 }
 
-export type TransferQuickInput = TransferQuickPick | TransferInputBox;
+expowt type TwansfewQuickInput = TwansfewQuickPick | TwansfewInputBox;
 
-export interface BaseTransferQuickInput {
+expowt intewface BaseTwansfewQuickInput {
 
-	[key: string]: any;
+	[key: stwing]: any;
 
-	id: number;
+	id: numba;
 
-	title?: string;
+	titwe?: stwing;
 
 	type?: 'quickPick' | 'inputBox';
 
-	enabled?: boolean;
+	enabwed?: boowean;
 
-	busy?: boolean;
+	busy?: boowean;
 
-	visible?: boolean;
+	visibwe?: boowean;
 }
 
-export interface TransferQuickPick extends BaseTransferQuickInput {
+expowt intewface TwansfewQuickPick extends BaseTwansfewQuickInput {
 
 	type?: 'quickPick';
 
-	value?: string;
+	vawue?: stwing;
 
-	placeholder?: string;
+	pwacehowda?: stwing;
 
-	buttons?: TransferQuickInputButton[];
+	buttons?: TwansfewQuickInputButton[];
 
-	items?: TransferQuickPickItems[];
+	items?: TwansfewQuickPickItems[];
 
-	activeItems?: number[];
+	activeItems?: numba[];
 
-	selectedItems?: number[];
+	sewectedItems?: numba[];
 
-	canSelectMany?: boolean;
+	canSewectMany?: boowean;
 
-	ignoreFocusOut?: boolean;
+	ignoweFocusOut?: boowean;
 
-	matchOnDescription?: boolean;
+	matchOnDescwiption?: boowean;
 
-	matchOnDetail?: boolean;
+	matchOnDetaiw?: boowean;
 
-	sortByLabel?: boolean;
+	sowtByWabew?: boowean;
 }
 
-export interface TransferInputBox extends BaseTransferQuickInput {
+expowt intewface TwansfewInputBox extends BaseTwansfewQuickInput {
 
 	type?: 'inputBox';
 
-	value?: string;
+	vawue?: stwing;
 
-	placeholder?: string;
+	pwacehowda?: stwing;
 
-	password?: boolean;
+	passwowd?: boowean;
 
-	buttons?: TransferQuickInputButton[];
+	buttons?: TwansfewQuickInputButton[];
 
-	prompt?: string;
+	pwompt?: stwing;
 
-	validationMessage?: string;
+	vawidationMessage?: stwing;
 }
 
-export interface IInputBoxOptions {
-	title?: string;
-	value?: string;
-	valueSelection?: [number, number];
-	prompt?: string;
-	placeHolder?: string;
-	password?: boolean;
-	ignoreFocusOut?: boolean;
+expowt intewface IInputBoxOptions {
+	titwe?: stwing;
+	vawue?: stwing;
+	vawueSewection?: [numba, numba];
+	pwompt?: stwing;
+	pwaceHowda?: stwing;
+	passwowd?: boowean;
+	ignoweFocusOut?: boowean;
 }
 
-export interface MainThreadQuickOpenShape extends IDisposable {
-	$show(instance: number, options: quickInput.IPickOptions<TransferQuickPickItems>, token: CancellationToken): Promise<number | number[] | undefined>;
-	$setItems(instance: number, items: TransferQuickPickItems[]): Promise<void>;
-	$setError(instance: number, error: Error): Promise<void>;
-	$input(options: IInputBoxOptions | undefined, validateInput: boolean, token: CancellationToken): Promise<string | undefined>;
-	$createOrUpdate(params: TransferQuickInput): Promise<void>;
-	$dispose(id: number): Promise<void>;
+expowt intewface MainThweadQuickOpenShape extends IDisposabwe {
+	$show(instance: numba, options: quickInput.IPickOptions<TwansfewQuickPickItems>, token: CancewwationToken): Pwomise<numba | numba[] | undefined>;
+	$setItems(instance: numba, items: TwansfewQuickPickItems[]): Pwomise<void>;
+	$setEwwow(instance: numba, ewwow: Ewwow): Pwomise<void>;
+	$input(options: IInputBoxOptions | undefined, vawidateInput: boowean, token: CancewwationToken): Pwomise<stwing | undefined>;
+	$cweateOwUpdate(pawams: TwansfewQuickInput): Pwomise<void>;
+	$dispose(id: numba): Pwomise<void>;
 }
 
-export interface MainThreadStatusBarShape extends IDisposable {
-	$setEntry(id: number, statusId: string, statusName: string, text: string, tooltip: IMarkdownString | string | undefined, command: ICommandDto | undefined, color: string | ThemeColor | undefined, backgroundColor: string | ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined): void;
-	$dispose(id: number): void;
+expowt intewface MainThweadStatusBawShape extends IDisposabwe {
+	$setEntwy(id: numba, statusId: stwing, statusName: stwing, text: stwing, toowtip: IMawkdownStwing | stwing | undefined, command: ICommandDto | undefined, cowow: stwing | ThemeCowow | undefined, backgwoundCowow: stwing | ThemeCowow | undefined, awignWeft: boowean, pwiowity: numba | undefined, accessibiwityInfowmation: IAccessibiwityInfowmation | undefined): void;
+	$dispose(id: numba): void;
 }
 
-export interface MainThreadStorageShape extends IDisposable {
-	$getValue<T>(shared: boolean, key: string): Promise<T | undefined>;
-	$setValue(shared: boolean, key: string, value: object): Promise<void>;
-	$registerExtensionStorageKeysToSync(extension: IExtensionIdWithVersion, keys: string[]): void;
+expowt intewface MainThweadStowageShape extends IDisposabwe {
+	$getVawue<T>(shawed: boowean, key: stwing): Pwomise<T | undefined>;
+	$setVawue(shawed: boowean, key: stwing, vawue: object): Pwomise<void>;
+	$wegistewExtensionStowageKeysToSync(extension: IExtensionIdWithVewsion, keys: stwing[]): void;
 }
 
-export interface MainThreadTelemetryShape extends IDisposable {
-	$publicLog(eventName: string, data?: any): void;
-	$publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void;
+expowt intewface MainThweadTewemetwyShape extends IDisposabwe {
+	$pubwicWog(eventName: stwing, data?: any): void;
+	$pubwicWog2<E extends CwassifiedEvent<T> = neva, T extends GDPWCwassification<T> = neva>(eventName: stwing, data?: StwictPwopewtyCheck<T, E>): void;
 }
 
-export interface MainThreadEditorInsetsShape extends IDisposable {
-	$createEditorInset(handle: number, id: string, uri: UriComponents, line: number, height: number, options: IWebviewOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): Promise<void>;
-	$disposeEditorInset(handle: number): void;
+expowt intewface MainThweadEditowInsetsShape extends IDisposabwe {
+	$cweateEditowInset(handwe: numba, id: stwing, uwi: UwiComponents, wine: numba, height: numba, options: IWebviewOptions, extensionId: ExtensionIdentifia, extensionWocation: UwiComponents): Pwomise<void>;
+	$disposeEditowInset(handwe: numba): void;
 
-	$setHtml(handle: number, value: string): void;
-	$setOptions(handle: number, options: IWebviewOptions): void;
-	$postMessage(handle: number, value: any): Promise<boolean>;
+	$setHtmw(handwe: numba, vawue: stwing): void;
+	$setOptions(handwe: numba, options: IWebviewOptions): void;
+	$postMessage(handwe: numba, vawue: any): Pwomise<boowean>;
 }
 
-export interface ExtHostEditorInsetsShape {
-	$onDidDispose(handle: number): void;
-	$onDidReceiveMessage(handle: number, message: any): void;
+expowt intewface ExtHostEditowInsetsShape {
+	$onDidDispose(handwe: numba): void;
+	$onDidWeceiveMessage(handwe: numba, message: any): void;
 }
 
-//#region --- open editors model
+//#wegion --- open editows modew
 
-export interface MainThreadEditorTabsShape extends IDisposable {
-	// manage tabs: move, close, rearrange etc
+expowt intewface MainThweadEditowTabsShape extends IDisposabwe {
+	// manage tabs: move, cwose, weawwange etc
 }
 
-export interface IEditorTabDto {
-	viewColumn: EditorGroupColumn;
-	label: string;
-	resource?: UriComponents;
-	editorId?: string;
-	isActive: boolean;
-	additionalResourcesAndViewIds: { resource?: UriComponents, viewId?: string }[]
+expowt intewface IEditowTabDto {
+	viewCowumn: EditowGwoupCowumn;
+	wabew: stwing;
+	wesouwce?: UwiComponents;
+	editowId?: stwing;
+	isActive: boowean;
+	additionawWesouwcesAndViewIds: { wesouwce?: UwiComponents, viewId?: stwing }[]
 }
 
-export interface IExtHostEditorTabsShape {
-	$acceptEditorTabs(tabs: IEditorTabDto[]): void;
+expowt intewface IExtHostEditowTabsShape {
+	$acceptEditowTabs(tabs: IEditowTabDto[]): void;
 }
 
-//#endregion
+//#endwegion
 
-export type WebviewHandle = string;
+expowt type WebviewHandwe = stwing;
 
-export interface WebviewPanelShowOptions {
-	readonly viewColumn?: EditorGroupColumn;
-	readonly preserveFocus?: boolean;
+expowt intewface WebviewPanewShowOptions {
+	weadonwy viewCowumn?: EditowGwoupCowumn;
+	weadonwy pwesewveFocus?: boowean;
 }
 
-export interface WebviewExtensionDescription {
-	readonly id: ExtensionIdentifier;
-	readonly location: UriComponents;
+expowt intewface WebviewExtensionDescwiption {
+	weadonwy id: ExtensionIdentifia;
+	weadonwy wocation: UwiComponents;
 }
 
-export interface NotebookExtensionDescription {
-	readonly id: ExtensionIdentifier;
-	readonly location: UriComponents | undefined;
+expowt intewface NotebookExtensionDescwiption {
+	weadonwy id: ExtensionIdentifia;
+	weadonwy wocation: UwiComponents | undefined;
 }
 
-export enum WebviewEditorCapabilities {
-	Editable,
-	SupportsHotExit,
+expowt enum WebviewEditowCapabiwities {
+	Editabwe,
+	SuppowtsHotExit,
 }
 
-export interface IWebviewPortMapping {
-	readonly webviewPort: number;
-	readonly extensionHostPort: number;
+expowt intewface IWebviewPowtMapping {
+	weadonwy webviewPowt: numba;
+	weadonwy extensionHostPowt: numba;
 }
 
-export interface IWebviewOptions {
-	readonly enableScripts?: boolean;
-	readonly enableForms?: boolean;
-	readonly enableCommandUris?: boolean;
-	readonly localResourceRoots?: ReadonlyArray<UriComponents>;
-	readonly portMapping?: ReadonlyArray<IWebviewPortMapping>;
+expowt intewface IWebviewOptions {
+	weadonwy enabweScwipts?: boowean;
+	weadonwy enabweFowms?: boowean;
+	weadonwy enabweCommandUwis?: boowean;
+	weadonwy wocawWesouwceWoots?: WeadonwyAwway<UwiComponents>;
+	weadonwy powtMapping?: WeadonwyAwway<IWebviewPowtMapping>;
 }
 
-export interface IWebviewPanelOptions {
-	readonly enableFindWidget?: boolean;
-	readonly retainContextWhenHidden?: boolean;
+expowt intewface IWebviewPanewOptions {
+	weadonwy enabweFindWidget?: boowean;
+	weadonwy wetainContextWhenHidden?: boowean;
 }
 
-export interface CustomTextEditorCapabilities {
-	readonly supportsMove?: boolean;
+expowt intewface CustomTextEditowCapabiwities {
+	weadonwy suppowtsMove?: boowean;
 }
 
-export const enum WebviewMessageArrayBufferViewType {
-	Int8Array = 1,
-	Uint8Array = 2,
-	Uint8ClampedArray = 3,
-	Int16Array = 4,
-	Uint16Array = 5,
-	Int32Array = 6,
-	Uint32Array = 7,
-	Float32Array = 8,
-	Float64Array = 9,
-	BigInt64Array = 10,
-	BigUint64Array = 11,
+expowt const enum WebviewMessageAwwayBuffewViewType {
+	Int8Awway = 1,
+	Uint8Awway = 2,
+	Uint8CwampedAwway = 3,
+	Int16Awway = 4,
+	Uint16Awway = 5,
+	Int32Awway = 6,
+	Uint32Awway = 7,
+	Fwoat32Awway = 8,
+	Fwoat64Awway = 9,
+	BigInt64Awway = 10,
+	BigUint64Awway = 11,
 }
 
-export interface WebviewMessageArrayBufferReference {
-	readonly $$vscode_array_buffer_reference$$: true,
+expowt intewface WebviewMessageAwwayBuffewWefewence {
+	weadonwy $$vscode_awway_buffew_wefewence$$: twue,
 
-	readonly index: number;
+	weadonwy index: numba;
 
 	/**
-	 * Tracks if the reference is to a view instead of directly to an ArrayBuffer.
+	 * Twacks if the wefewence is to a view instead of diwectwy to an AwwayBuffa.
 	 */
-	readonly view?: {
-		readonly type: WebviewMessageArrayBufferViewType;
-		readonly byteLength: number;
-		readonly byteOffset: number;
+	weadonwy view?: {
+		weadonwy type: WebviewMessageAwwayBuffewViewType;
+		weadonwy byteWength: numba;
+		weadonwy byteOffset: numba;
 	};
 }
 
-export interface MainThreadWebviewsShape extends IDisposable {
-	$setHtml(handle: WebviewHandle, value: string): void;
-	$setOptions(handle: WebviewHandle, options: IWebviewOptions): void;
-	$postMessage(handle: WebviewHandle, value: string, ...buffers: VSBuffer[]): Promise<boolean>
+expowt intewface MainThweadWebviewsShape extends IDisposabwe {
+	$setHtmw(handwe: WebviewHandwe, vawue: stwing): void;
+	$setOptions(handwe: WebviewHandwe, options: IWebviewOptions): void;
+	$postMessage(handwe: WebviewHandwe, vawue: stwing, ...buffews: VSBuffa[]): Pwomise<boowean>
 }
 
-export interface MainThreadWebviewPanelsShape extends IDisposable {
-	$createWebviewPanel(
-		extension: WebviewExtensionDescription,
-		handle: WebviewHandle,
-		viewType: string,
+expowt intewface MainThweadWebviewPanewsShape extends IDisposabwe {
+	$cweateWebviewPanew(
+		extension: WebviewExtensionDescwiption,
+		handwe: WebviewHandwe,
+		viewType: stwing,
 		initData: {
-			title: string;
+			titwe: stwing;
 			webviewOptions: IWebviewOptions;
-			panelOptions: IWebviewPanelOptions;
-			serializeBuffersForPostMessage: boolean;
+			panewOptions: IWebviewPanewOptions;
+			sewiawizeBuffewsFowPostMessage: boowean;
 		},
-		showOptions: WebviewPanelShowOptions,
+		showOptions: WebviewPanewShowOptions,
 	): void;
-	$disposeWebview(handle: WebviewHandle): void;
-	$reveal(handle: WebviewHandle, showOptions: WebviewPanelShowOptions): void;
-	$setTitle(handle: WebviewHandle, value: string): void;
-	$setIconPath(handle: WebviewHandle, value: { light: UriComponents, dark: UriComponents; } | undefined): void;
+	$disposeWebview(handwe: WebviewHandwe): void;
+	$weveaw(handwe: WebviewHandwe, showOptions: WebviewPanewShowOptions): void;
+	$setTitwe(handwe: WebviewHandwe, vawue: stwing): void;
+	$setIconPath(handwe: WebviewHandwe, vawue: { wight: UwiComponents, dawk: UwiComponents; } | undefined): void;
 
-	$registerSerializer(viewType: string, options: { serializeBuffersForPostMessage: boolean }): void;
-	$unregisterSerializer(viewType: string): void;
+	$wegistewSewiawiza(viewType: stwing, options: { sewiawizeBuffewsFowPostMessage: boowean }): void;
+	$unwegistewSewiawiza(viewType: stwing): void;
 }
 
-export interface MainThreadCustomEditorsShape extends IDisposable {
-	$registerTextEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: IWebviewPanelOptions, capabilities: CustomTextEditorCapabilities, serializeBuffersForPostMessage: boolean): void;
-	$registerCustomEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: IWebviewPanelOptions, supportsMultipleEditorsPerDocument: boolean, serializeBuffersForPostMessage: boolean): void;
-	$unregisterEditorProvider(viewType: string): void;
+expowt intewface MainThweadCustomEditowsShape extends IDisposabwe {
+	$wegistewTextEditowPwovida(extension: WebviewExtensionDescwiption, viewType: stwing, options: IWebviewPanewOptions, capabiwities: CustomTextEditowCapabiwities, sewiawizeBuffewsFowPostMessage: boowean): void;
+	$wegistewCustomEditowPwovida(extension: WebviewExtensionDescwiption, viewType: stwing, options: IWebviewPanewOptions, suppowtsMuwtipweEditowsPewDocument: boowean, sewiawizeBuffewsFowPostMessage: boowean): void;
+	$unwegistewEditowPwovida(viewType: stwing): void;
 
-	$onDidEdit(resource: UriComponents, viewType: string, editId: number, label: string | undefined): void;
-	$onContentChange(resource: UriComponents, viewType: string): void;
+	$onDidEdit(wesouwce: UwiComponents, viewType: stwing, editId: numba, wabew: stwing | undefined): void;
+	$onContentChange(wesouwce: UwiComponents, viewType: stwing): void;
 }
 
-export interface MainThreadWebviewViewsShape extends IDisposable {
-	$registerWebviewViewProvider(extension: WebviewExtensionDescription, viewType: string, options: { retainContextWhenHidden?: boolean, serializeBuffersForPostMessage: boolean }): void;
-	$unregisterWebviewViewProvider(viewType: string): void;
+expowt intewface MainThweadWebviewViewsShape extends IDisposabwe {
+	$wegistewWebviewViewPwovida(extension: WebviewExtensionDescwiption, viewType: stwing, options: { wetainContextWhenHidden?: boowean, sewiawizeBuffewsFowPostMessage: boowean }): void;
+	$unwegistewWebviewViewPwovida(viewType: stwing): void;
 
-	$setWebviewViewTitle(handle: WebviewHandle, value: string | undefined): void;
-	$setWebviewViewDescription(handle: WebviewHandle, value: string | undefined): void;
+	$setWebviewViewTitwe(handwe: WebviewHandwe, vawue: stwing | undefined): void;
+	$setWebviewViewDescwiption(handwe: WebviewHandwe, vawue: stwing | undefined): void;
 
-	$show(handle: WebviewHandle, preserveFocus: boolean): void;
+	$show(handwe: WebviewHandwe, pwesewveFocus: boowean): void;
 }
 
-export interface WebviewPanelViewStateData {
-	[handle: string]: {
-		readonly active: boolean;
-		readonly visible: boolean;
-		readonly position: EditorGroupColumn;
+expowt intewface WebviewPanewViewStateData {
+	[handwe: stwing]: {
+		weadonwy active: boowean;
+		weadonwy visibwe: boowean;
+		weadonwy position: EditowGwoupCowumn;
 	};
 }
 
-export interface ExtHostWebviewsShape {
-	$onMessage(handle: WebviewHandle, jsonSerializedMessage: string, ...buffers: VSBuffer[]): void;
-	$onMissingCsp(handle: WebviewHandle, extensionId: string): void;
+expowt intewface ExtHostWebviewsShape {
+	$onMessage(handwe: WebviewHandwe, jsonSewiawizedMessage: stwing, ...buffews: VSBuffa[]): void;
+	$onMissingCsp(handwe: WebviewHandwe, extensionId: stwing): void;
 }
 
-export interface ExtHostWebviewPanelsShape {
-	$onDidChangeWebviewPanelViewStates(newState: WebviewPanelViewStateData): void;
-	$onDidDisposeWebviewPanel(handle: WebviewHandle): Promise<void>;
-	$deserializeWebviewPanel(
-		newWebviewHandle: WebviewHandle,
-		viewType: string,
+expowt intewface ExtHostWebviewPanewsShape {
+	$onDidChangeWebviewPanewViewStates(newState: WebviewPanewViewStateData): void;
+	$onDidDisposeWebviewPanew(handwe: WebviewHandwe): Pwomise<void>;
+	$desewiawizeWebviewPanew(
+		newWebviewHandwe: WebviewHandwe,
+		viewType: stwing,
 		initData: {
-			title: string;
+			titwe: stwing;
 			state: any;
 			webviewOptions: IWebviewOptions;
-			panelOptions: IWebviewPanelOptions;
+			panewOptions: IWebviewPanewOptions;
 		},
-		position: EditorGroupColumn,
-	): Promise<void>;
+		position: EditowGwoupCowumn,
+	): Pwomise<void>;
 }
 
-export interface ExtHostCustomEditorsShape {
-	$resolveWebviewEditor(
-		resource: UriComponents,
-		newWebviewHandle: WebviewHandle,
-		viewType: string,
+expowt intewface ExtHostCustomEditowsShape {
+	$wesowveWebviewEditow(
+		wesouwce: UwiComponents,
+		newWebviewHandwe: WebviewHandwe,
+		viewType: stwing,
 		initData: {
-			title: string;
+			titwe: stwing;
 			webviewOptions: IWebviewOptions;
-			panelOptions: IWebviewPanelOptions;
+			panewOptions: IWebviewPanewOptions;
 		},
-		position: EditorGroupColumn,
-		cancellation: CancellationToken
-	): Promise<void>;
-	$createCustomDocument(resource: UriComponents, viewType: string, backupId: string | undefined, untitledDocumentData: VSBuffer | undefined, cancellation: CancellationToken): Promise<{ editable: boolean }>;
-	$disposeCustomDocument(resource: UriComponents, viewType: string): Promise<void>;
+		position: EditowGwoupCowumn,
+		cancewwation: CancewwationToken
+	): Pwomise<void>;
+	$cweateCustomDocument(wesouwce: UwiComponents, viewType: stwing, backupId: stwing | undefined, untitwedDocumentData: VSBuffa | undefined, cancewwation: CancewwationToken): Pwomise<{ editabwe: boowean }>;
+	$disposeCustomDocument(wesouwce: UwiComponents, viewType: stwing): Pwomise<void>;
 
-	$undo(resource: UriComponents, viewType: string, editId: number, isDirty: boolean): Promise<void>;
-	$redo(resource: UriComponents, viewType: string, editId: number, isDirty: boolean): Promise<void>;
-	$revert(resource: UriComponents, viewType: string, cancellation: CancellationToken): Promise<void>;
-	$disposeEdits(resourceComponents: UriComponents, viewType: string, editIds: number[]): void;
+	$undo(wesouwce: UwiComponents, viewType: stwing, editId: numba, isDiwty: boowean): Pwomise<void>;
+	$wedo(wesouwce: UwiComponents, viewType: stwing, editId: numba, isDiwty: boowean): Pwomise<void>;
+	$wevewt(wesouwce: UwiComponents, viewType: stwing, cancewwation: CancewwationToken): Pwomise<void>;
+	$disposeEdits(wesouwceComponents: UwiComponents, viewType: stwing, editIds: numba[]): void;
 
-	$onSave(resource: UriComponents, viewType: string, cancellation: CancellationToken): Promise<void>;
-	$onSaveAs(resource: UriComponents, viewType: string, targetResource: UriComponents, cancellation: CancellationToken): Promise<void>;
+	$onSave(wesouwce: UwiComponents, viewType: stwing, cancewwation: CancewwationToken): Pwomise<void>;
+	$onSaveAs(wesouwce: UwiComponents, viewType: stwing, tawgetWesouwce: UwiComponents, cancewwation: CancewwationToken): Pwomise<void>;
 
-	$backup(resource: UriComponents, viewType: string, cancellation: CancellationToken): Promise<string>;
+	$backup(wesouwce: UwiComponents, viewType: stwing, cancewwation: CancewwationToken): Pwomise<stwing>;
 
-	$onMoveCustomEditor(handle: WebviewHandle, newResource: UriComponents, viewType: string): Promise<void>;
+	$onMoveCustomEditow(handwe: WebviewHandwe, newWesouwce: UwiComponents, viewType: stwing): Pwomise<void>;
 }
 
-export interface ExtHostWebviewViewsShape {
-	$resolveWebviewView(webviewHandle: WebviewHandle, viewType: string, title: string | undefined, state: any, cancellation: CancellationToken): Promise<void>;
+expowt intewface ExtHostWebviewViewsShape {
+	$wesowveWebviewView(webviewHandwe: WebviewHandwe, viewType: stwing, titwe: stwing | undefined, state: any, cancewwation: CancewwationToken): Pwomise<void>;
 
-	$onDidChangeWebviewViewVisibility(webviewHandle: WebviewHandle, visible: boolean): void;
+	$onDidChangeWebviewViewVisibiwity(webviewHandwe: WebviewHandwe, visibwe: boowean): void;
 
-	$disposeWebviewView(webviewHandle: WebviewHandle): void;
+	$disposeWebviewView(webviewHandwe: WebviewHandwe): void;
 }
 
-export enum CellOutputKind {
+expowt enum CewwOutputKind {
 	Text = 1,
-	Error = 2,
-	Rich = 3
+	Ewwow = 2,
+	Wich = 3
 }
 
-export enum NotebookEditorRevealType {
-	Default = 0,
-	InCenter = 1,
-	InCenterIfOutsideViewport = 2,
+expowt enum NotebookEditowWeveawType {
+	Defauwt = 0,
+	InCenta = 1,
+	InCentewIfOutsideViewpowt = 2,
 	AtTop = 3
 }
 
-export interface INotebookDocumentShowOptions {
-	position?: EditorGroupColumn;
-	preserveFocus?: boolean;
-	pinned?: boolean;
-	selections?: ICellRange[];
+expowt intewface INotebookDocumentShowOptions {
+	position?: EditowGwoupCowumn;
+	pwesewveFocus?: boowean;
+	pinned?: boowean;
+	sewections?: ICewwWange[];
 }
 
-export type INotebookCellStatusBarEntryDto = Dto<notebookCommon.INotebookCellStatusBarItem>;
+expowt type INotebookCewwStatusBawEntwyDto = Dto<notebookCommon.INotebookCewwStatusBawItem>;
 
-export interface INotebookCellStatusBarListDto {
-	items: INotebookCellStatusBarEntryDto[];
-	cacheId: number;
+expowt intewface INotebookCewwStatusBawWistDto {
+	items: INotebookCewwStatusBawEntwyDto[];
+	cacheId: numba;
 }
 
-export interface MainThreadNotebookShape extends IDisposable {
-	$registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, options: notebookCommon.TransientOptions, registration: notebookCommon.INotebookContributionData | undefined): Promise<void>;
-	$updateNotebookProviderOptions(viewType: string, options?: { transientOutputs: boolean; transientCellMetadata: notebookCommon.TransientCellMetadata; transientDocumentMetadata: notebookCommon.TransientDocumentMetadata; }): Promise<void>;
-	$unregisterNotebookProvider(viewType: string): Promise<void>;
+expowt intewface MainThweadNotebookShape extends IDisposabwe {
+	$wegistewNotebookPwovida(extension: NotebookExtensionDescwiption, viewType: stwing, options: notebookCommon.TwansientOptions, wegistwation: notebookCommon.INotebookContwibutionData | undefined): Pwomise<void>;
+	$updateNotebookPwovidewOptions(viewType: stwing, options?: { twansientOutputs: boowean; twansientCewwMetadata: notebookCommon.TwansientCewwMetadata; twansientDocumentMetadata: notebookCommon.TwansientDocumentMetadata; }): Pwomise<void>;
+	$unwegistewNotebookPwovida(viewType: stwing): Pwomise<void>;
 
-	$registerNotebookSerializer(handle: number, extension: NotebookExtensionDescription, viewType: string, options: notebookCommon.TransientOptions, registration: notebookCommon.INotebookContributionData | undefined): void;
-	$unregisterNotebookSerializer(handle: number): void;
+	$wegistewNotebookSewiawiza(handwe: numba, extension: NotebookExtensionDescwiption, viewType: stwing, options: notebookCommon.TwansientOptions, wegistwation: notebookCommon.INotebookContwibutionData | undefined): void;
+	$unwegistewNotebookSewiawiza(handwe: numba): void;
 
-	$registerNotebookCellStatusBarItemProvider(handle: number, eventHandle: number | undefined, viewType: string): Promise<void>;
-	$unregisterNotebookCellStatusBarItemProvider(handle: number, eventHandle: number | undefined): Promise<void>;
-	$emitCellStatusBarEvent(eventHandle: number): void;
+	$wegistewNotebookCewwStatusBawItemPwovida(handwe: numba, eventHandwe: numba | undefined, viewType: stwing): Pwomise<void>;
+	$unwegistewNotebookCewwStatusBawItemPwovida(handwe: numba, eventHandwe: numba | undefined): Pwomise<void>;
+	$emitCewwStatusBawEvent(eventHandwe: numba): void;
 }
 
-export interface MainThreadNotebookEditorsShape extends IDisposable {
-	$tryShowNotebookDocument(uriComponents: UriComponents, viewType: string, options: INotebookDocumentShowOptions): Promise<string>;
-	$tryRevealRange(id: string, range: ICellRange, revealType: NotebookEditorRevealType): Promise<void>;
-	$registerNotebookEditorDecorationType(key: string, options: notebookCommon.INotebookDecorationRenderOptions): void;
-	$removeNotebookEditorDecorationType(key: string): void;
-	$trySetSelections(id: string, range: ICellRange[]): void;
-	$trySetDecorations(id: string, range: ICellRange, decorationKey: string): void;
-	$tryApplyEdits(editorId: string, modelVersionId: number, cellEdits: ICellEditOperationDto[]): Promise<boolean>
+expowt intewface MainThweadNotebookEditowsShape extends IDisposabwe {
+	$twyShowNotebookDocument(uwiComponents: UwiComponents, viewType: stwing, options: INotebookDocumentShowOptions): Pwomise<stwing>;
+	$twyWeveawWange(id: stwing, wange: ICewwWange, weveawType: NotebookEditowWeveawType): Pwomise<void>;
+	$wegistewNotebookEditowDecowationType(key: stwing, options: notebookCommon.INotebookDecowationWendewOptions): void;
+	$wemoveNotebookEditowDecowationType(key: stwing): void;
+	$twySetSewections(id: stwing, wange: ICewwWange[]): void;
+	$twySetDecowations(id: stwing, wange: ICewwWange, decowationKey: stwing): void;
+	$twyAppwyEdits(editowId: stwing, modewVewsionId: numba, cewwEdits: ICewwEditOpewationDto[]): Pwomise<boowean>
 }
 
-export interface MainThreadNotebookDocumentsShape extends IDisposable {
-	$tryCreateNotebook(options: { viewType: string, content?: NotebookDataDto }): Promise<UriComponents>;
-	$tryOpenNotebook(uriComponents: UriComponents): Promise<UriComponents>;
-	$trySaveNotebook(uri: UriComponents): Promise<boolean>;
+expowt intewface MainThweadNotebookDocumentsShape extends IDisposabwe {
+	$twyCweateNotebook(options: { viewType: stwing, content?: NotebookDataDto }): Pwomise<UwiComponents>;
+	$twyOpenNotebook(uwiComponents: UwiComponents): Pwomise<UwiComponents>;
+	$twySaveNotebook(uwi: UwiComponents): Pwomise<boowean>;
 }
 
-export interface INotebookKernelDto2 {
-	id: string;
-	notebookType: string;
-	extensionId: ExtensionIdentifier;
-	extensionLocation: UriComponents;
-	label: string;
-	detail?: string;
-	description?: string;
-	supportedLanguages?: string[];
-	supportsInterrupt?: boolean;
-	supportsExecutionOrder?: boolean;
-	preloads?: { uri: UriComponents; provides: string[] }[];
+expowt intewface INotebookKewnewDto2 {
+	id: stwing;
+	notebookType: stwing;
+	extensionId: ExtensionIdentifia;
+	extensionWocation: UwiComponents;
+	wabew: stwing;
+	detaiw?: stwing;
+	descwiption?: stwing;
+	suppowtedWanguages?: stwing[];
+	suppowtsIntewwupt?: boowean;
+	suppowtsExecutionOwda?: boowean;
+	pwewoads?: { uwi: UwiComponents; pwovides: stwing[] }[];
 }
 
-export interface ICellExecuteOutputEditDto {
-	editType: CellExecutionUpdateType.Output;
-	executionHandle: number;
-	cellHandle: number;
-	append?: boolean;
+expowt intewface ICewwExecuteOutputEditDto {
+	editType: CewwExecutionUpdateType.Output;
+	executionHandwe: numba;
+	cewwHandwe: numba;
+	append?: boowean;
 	outputs: NotebookOutputDto[]
 }
 
-export interface ICellExecuteOutputItemEditDto {
-	editType: CellExecutionUpdateType.OutputItems;
-	executionHandle: number;
-	append?: boolean;
-	outputId: string;
+expowt intewface ICewwExecuteOutputItemEditDto {
+	editType: CewwExecutionUpdateType.OutputItems;
+	executionHandwe: numba;
+	append?: boowean;
+	outputId: stwing;
 	items: NotebookOutputItemDto[]
 }
 
-export interface ICellExecutionStateUpdateDto extends ICellExecutionStateUpdate {
-	executionHandle: number;
+expowt intewface ICewwExecutionStateUpdateDto extends ICewwExecutionStateUpdate {
+	executionHandwe: numba;
 }
 
-export interface ICellExecutionCompleteDto extends ICellExecutionComplete {
-	executionHandle: number;
+expowt intewface ICewwExecutionCompweteDto extends ICewwExecutionCompwete {
+	executionHandwe: numba;
 }
 
-export type ICellExecuteUpdateDto = ICellExecuteOutputEditDto | ICellExecuteOutputItemEditDto | ICellExecutionStateUpdateDto | ICellExecutionCompleteDto;
+expowt type ICewwExecuteUpdateDto = ICewwExecuteOutputEditDto | ICewwExecuteOutputItemEditDto | ICewwExecutionStateUpdateDto | ICewwExecutionCompweteDto;
 
-export interface MainThreadNotebookKernelsShape extends IDisposable {
-	$postMessage(handle: number, editorId: string | undefined, message: any): Promise<boolean>;
-	$addKernel(handle: number, data: INotebookKernelDto2): Promise<void>;
-	$updateKernel(handle: number, data: Partial<INotebookKernelDto2>): void;
-	$removeKernel(handle: number): void;
-	$updateNotebookPriority(handle: number, uri: UriComponents, value: number | undefined): void;
+expowt intewface MainThweadNotebookKewnewsShape extends IDisposabwe {
+	$postMessage(handwe: numba, editowId: stwing | undefined, message: any): Pwomise<boowean>;
+	$addKewnew(handwe: numba, data: INotebookKewnewDto2): Pwomise<void>;
+	$updateKewnew(handwe: numba, data: Pawtiaw<INotebookKewnewDto2>): void;
+	$wemoveKewnew(handwe: numba): void;
+	$updateNotebookPwiowity(handwe: numba, uwi: UwiComponents, vawue: numba | undefined): void;
 
-	$addExecution(handle: number, uri: UriComponents, cellHandle: number): void;
-	$updateExecutions(data: SerializableObjectWithBuffers<ICellExecuteUpdateDto[]>): void;
-	$removeExecution(handle: number): void;
+	$addExecution(handwe: numba, uwi: UwiComponents, cewwHandwe: numba): void;
+	$updateExecutions(data: SewiawizabweObjectWithBuffews<ICewwExecuteUpdateDto[]>): void;
+	$wemoveExecution(handwe: numba): void;
 }
 
-export interface MainThreadNotebookRenderersShape extends IDisposable {
-	$postMessage(editorId: string | undefined, rendererId: string, message: unknown): Promise<boolean>;
+expowt intewface MainThweadNotebookWendewewsShape extends IDisposabwe {
+	$postMessage(editowId: stwing | undefined, wendewewId: stwing, message: unknown): Pwomise<boowean>;
 }
 
-export interface MainThreadInteractiveShape extends IDisposable {
+expowt intewface MainThweadIntewactiveShape extends IDisposabwe {
 }
 
-export interface MainThreadUrlsShape extends IDisposable {
-	$registerUriHandler(handle: number, extensionId: ExtensionIdentifier): Promise<void>;
-	$unregisterUriHandler(handle: number): Promise<void>;
-	$createAppUri(uri: UriComponents): Promise<UriComponents>;
+expowt intewface MainThweadUwwsShape extends IDisposabwe {
+	$wegistewUwiHandwa(handwe: numba, extensionId: ExtensionIdentifia): Pwomise<void>;
+	$unwegistewUwiHandwa(handwe: numba): Pwomise<void>;
+	$cweateAppUwi(uwi: UwiComponents): Pwomise<UwiComponents>;
 }
 
-export interface ExtHostUrlsShape {
-	$handleExternalUri(handle: number, uri: UriComponents): Promise<void>;
+expowt intewface ExtHostUwwsShape {
+	$handweExtewnawUwi(handwe: numba, uwi: UwiComponents): Pwomise<void>;
 }
 
-export interface MainThreadUriOpenersShape extends IDisposable {
-	$registerUriOpener(id: string, schemes: readonly string[], extensionId: ExtensionIdentifier, label: string): Promise<void>;
-	$unregisterUriOpener(id: string): Promise<void>;
+expowt intewface MainThweadUwiOpenewsShape extends IDisposabwe {
+	$wegistewUwiOpena(id: stwing, schemes: weadonwy stwing[], extensionId: ExtensionIdentifia, wabew: stwing): Pwomise<void>;
+	$unwegistewUwiOpena(id: stwing): Pwomise<void>;
 }
 
-export interface ExtHostUriOpenersShape {
-	$canOpenUri(id: string, uri: UriComponents, token: CancellationToken): Promise<modes.ExternalUriOpenerPriority>;
-	$openUri(id: string, context: { resolvedUri: UriComponents, sourceUri: UriComponents }, token: CancellationToken): Promise<void>;
+expowt intewface ExtHostUwiOpenewsShape {
+	$canOpenUwi(id: stwing, uwi: UwiComponents, token: CancewwationToken): Pwomise<modes.ExtewnawUwiOpenewPwiowity>;
+	$openUwi(id: stwing, context: { wesowvedUwi: UwiComponents, souwceUwi: UwiComponents }, token: CancewwationToken): Pwomise<void>;
 }
 
-export interface ITextSearchComplete {
-	limitHit?: boolean;
+expowt intewface ITextSeawchCompwete {
+	wimitHit?: boowean;
 }
 
-export interface MainThreadWorkspaceShape extends IDisposable {
-	$startFileSearch(includePattern: string | null, includeFolder: UriComponents | null, excludePatternOrDisregardExcludes: string | false | null, maxResults: number | null, token: CancellationToken): Promise<UriComponents[] | null>;
-	$startTextSearch(query: search.IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null>;
-	$checkExists(folders: readonly UriComponents[], includes: string[], token: CancellationToken): Promise<boolean>;
-	$saveAll(includeUntitled?: boolean): Promise<boolean>;
-	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, workspaceFoldersToAdd: { uri: UriComponents, name?: string; }[]): Promise<void>;
-	$resolveProxy(url: string): Promise<string | undefined>;
-	$requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined>;
+expowt intewface MainThweadWowkspaceShape extends IDisposabwe {
+	$stawtFiweSeawch(incwudePattewn: stwing | nuww, incwudeFowda: UwiComponents | nuww, excwudePattewnOwDiswegawdExcwudes: stwing | fawse | nuww, maxWesuwts: numba | nuww, token: CancewwationToken): Pwomise<UwiComponents[] | nuww>;
+	$stawtTextSeawch(quewy: seawch.IPattewnInfo, fowda: UwiComponents | nuww, options: ITextQuewyBuiwdewOptions, wequestId: numba, token: CancewwationToken): Pwomise<ITextSeawchCompwete | nuww>;
+	$checkExists(fowdews: weadonwy UwiComponents[], incwudes: stwing[], token: CancewwationToken): Pwomise<boowean>;
+	$saveAww(incwudeUntitwed?: boowean): Pwomise<boowean>;
+	$updateWowkspaceFowdews(extensionName: stwing, index: numba, deweteCount: numba, wowkspaceFowdewsToAdd: { uwi: UwiComponents, name?: stwing; }[]): Pwomise<void>;
+	$wesowvePwoxy(uww: stwing): Pwomise<stwing | undefined>;
+	$wequestWowkspaceTwust(options?: WowkspaceTwustWequestOptions): Pwomise<boowean | undefined>;
 }
 
-export interface IFileChangeDto {
-	resource: UriComponents;
-	type: files.FileChangeType;
+expowt intewface IFiweChangeDto {
+	wesouwce: UwiComponents;
+	type: fiwes.FiweChangeType;
 }
 
-export interface MainThreadFileSystemShape extends IDisposable {
-	$registerFileSystemProvider(handle: number, scheme: string, capabilities: files.FileSystemProviderCapabilities): Promise<void>;
-	$unregisterProvider(handle: number): void;
-	$onFileSystemChange(handle: number, resource: IFileChangeDto[]): void;
+expowt intewface MainThweadFiweSystemShape extends IDisposabwe {
+	$wegistewFiweSystemPwovida(handwe: numba, scheme: stwing, capabiwities: fiwes.FiweSystemPwovidewCapabiwities): Pwomise<void>;
+	$unwegistewPwovida(handwe: numba): void;
+	$onFiweSystemChange(handwe: numba, wesouwce: IFiweChangeDto[]): void;
 
-	$stat(uri: UriComponents): Promise<files.IStat>;
-	$readdir(resource: UriComponents): Promise<[string, files.FileType][]>;
-	$readFile(resource: UriComponents): Promise<VSBuffer>;
-	$writeFile(resource: UriComponents, content: VSBuffer): Promise<void>;
-	$rename(resource: UriComponents, target: UriComponents, opts: files.FileOverwriteOptions): Promise<void>;
-	$copy(resource: UriComponents, target: UriComponents, opts: files.FileOverwriteOptions): Promise<void>;
-	$mkdir(resource: UriComponents): Promise<void>;
-	$delete(resource: UriComponents, opts: files.FileDeleteOptions): Promise<void>;
+	$stat(uwi: UwiComponents): Pwomise<fiwes.IStat>;
+	$weaddiw(wesouwce: UwiComponents): Pwomise<[stwing, fiwes.FiweType][]>;
+	$weadFiwe(wesouwce: UwiComponents): Pwomise<VSBuffa>;
+	$wwiteFiwe(wesouwce: UwiComponents, content: VSBuffa): Pwomise<void>;
+	$wename(wesouwce: UwiComponents, tawget: UwiComponents, opts: fiwes.FiweOvewwwiteOptions): Pwomise<void>;
+	$copy(wesouwce: UwiComponents, tawget: UwiComponents, opts: fiwes.FiweOvewwwiteOptions): Pwomise<void>;
+	$mkdiw(wesouwce: UwiComponents): Pwomise<void>;
+	$dewete(wesouwce: UwiComponents, opts: fiwes.FiweDeweteOptions): Pwomise<void>;
 }
 
-export interface MainThreadLabelServiceShape extends IDisposable {
-	$registerResourceLabelFormatter(handle: number, formatter: ResourceLabelFormatter): void;
-	$unregisterResourceLabelFormatter(handle: number): void;
+expowt intewface MainThweadWabewSewviceShape extends IDisposabwe {
+	$wegistewWesouwceWabewFowmatta(handwe: numba, fowmatta: WesouwceWabewFowmatta): void;
+	$unwegistewWesouwceWabewFowmatta(handwe: numba): void;
 }
 
-export interface MainThreadSearchShape extends IDisposable {
-	$registerFileSearchProvider(handle: number, scheme: string): void;
-	$registerTextSearchProvider(handle: number, scheme: string): void;
-	$unregisterProvider(handle: number): void;
-	$handleFileMatch(handle: number, session: number, data: UriComponents[]): void;
-	$handleTextMatch(handle: number, session: number, data: search.IRawFileMatch2[]): void;
-	$handleTelemetry(eventName: string, data: any): void;
+expowt intewface MainThweadSeawchShape extends IDisposabwe {
+	$wegistewFiweSeawchPwovida(handwe: numba, scheme: stwing): void;
+	$wegistewTextSeawchPwovida(handwe: numba, scheme: stwing): void;
+	$unwegistewPwovida(handwe: numba): void;
+	$handweFiweMatch(handwe: numba, session: numba, data: UwiComponents[]): void;
+	$handweTextMatch(handwe: numba, session: numba, data: seawch.IWawFiweMatch2[]): void;
+	$handweTewemetwy(eventName: stwing, data: any): void;
 }
 
-export interface MainThreadTaskShape extends IDisposable {
-	$createTaskId(task: tasks.TaskDTO): Promise<string>;
-	$registerTaskProvider(handle: number, type: string): Promise<void>;
-	$unregisterTaskProvider(handle: number): Promise<void>;
-	$fetchTasks(filter?: tasks.TaskFilterDTO): Promise<tasks.TaskDTO[]>;
-	$getTaskExecution(value: tasks.TaskHandleDTO | tasks.TaskDTO): Promise<tasks.TaskExecutionDTO>;
-	$executeTask(task: tasks.TaskHandleDTO | tasks.TaskDTO): Promise<tasks.TaskExecutionDTO>;
-	$terminateTask(id: string): Promise<void>;
-	$registerTaskSystem(scheme: string, info: tasks.TaskSystemInfoDTO): void;
-	$customExecutionComplete(id: string, result?: number): Promise<void>;
-	$registerSupportedExecutions(custom?: boolean, shell?: boolean, process?: boolean): Promise<void>;
+expowt intewface MainThweadTaskShape extends IDisposabwe {
+	$cweateTaskId(task: tasks.TaskDTO): Pwomise<stwing>;
+	$wegistewTaskPwovida(handwe: numba, type: stwing): Pwomise<void>;
+	$unwegistewTaskPwovida(handwe: numba): Pwomise<void>;
+	$fetchTasks(fiwta?: tasks.TaskFiwtewDTO): Pwomise<tasks.TaskDTO[]>;
+	$getTaskExecution(vawue: tasks.TaskHandweDTO | tasks.TaskDTO): Pwomise<tasks.TaskExecutionDTO>;
+	$executeTask(task: tasks.TaskHandweDTO | tasks.TaskDTO): Pwomise<tasks.TaskExecutionDTO>;
+	$tewminateTask(id: stwing): Pwomise<void>;
+	$wegistewTaskSystem(scheme: stwing, info: tasks.TaskSystemInfoDTO): void;
+	$customExecutionCompwete(id: stwing, wesuwt?: numba): Pwomise<void>;
+	$wegistewSuppowtedExecutions(custom?: boowean, sheww?: boowean, pwocess?: boowean): Pwomise<void>;
 }
 
-export interface MainThreadExtensionServiceShape extends IDisposable {
-	$activateExtension(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void>;
-	$onWillActivateExtension(extensionId: ExtensionIdentifier): Promise<void>;
-	$onDidActivateExtension(extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void;
-	$onExtensionActivationError(extensionId: ExtensionIdentifier, error: SerializedError, missingExtensionDependency: MissingExtensionDependency | null): Promise<void>;
-	$onExtensionRuntimeError(extensionId: ExtensionIdentifier, error: SerializedError): void;
-	$setPerformanceMarks(marks: performance.PerformanceMark[]): Promise<void>;
+expowt intewface MainThweadExtensionSewviceShape extends IDisposabwe {
+	$activateExtension(extensionId: ExtensionIdentifia, weason: ExtensionActivationWeason): Pwomise<void>;
+	$onWiwwActivateExtension(extensionId: ExtensionIdentifia): Pwomise<void>;
+	$onDidActivateExtension(extensionId: ExtensionIdentifia, codeWoadingTime: numba, activateCawwTime: numba, activateWesowvedTime: numba, activationWeason: ExtensionActivationWeason): void;
+	$onExtensionActivationEwwow(extensionId: ExtensionIdentifia, ewwow: SewiawizedEwwow, missingExtensionDependency: MissingExtensionDependency | nuww): Pwomise<void>;
+	$onExtensionWuntimeEwwow(extensionId: ExtensionIdentifia, ewwow: SewiawizedEwwow): void;
+	$setPewfowmanceMawks(mawks: pewfowmance.PewfowmanceMawk[]): Pwomise<void>;
 }
 
-export interface SCMProviderFeatures {
-	hasQuickDiffProvider?: boolean;
-	count?: number;
-	commitTemplate?: string;
+expowt intewface SCMPwovidewFeatuwes {
+	hasQuickDiffPwovida?: boowean;
+	count?: numba;
+	commitTempwate?: stwing;
 	acceptInputCommand?: modes.Command;
-	statusBarCommands?: ICommandDto[];
+	statusBawCommands?: ICommandDto[];
 }
 
-export interface SCMGroupFeatures {
-	hideWhenEmpty?: boolean;
+expowt intewface SCMGwoupFeatuwes {
+	hideWhenEmpty?: boowean;
 }
 
-export type SCMRawResource = [
-	number /*handle*/,
-	UriComponents /*resourceUri*/,
-	[UriComponents | ThemeIcon | undefined, UriComponents | ThemeIcon | undefined] /*icons: light, dark*/,
-	string /*tooltip*/,
-	boolean /*strike through*/,
-	boolean /*faded*/,
-	string /*context value*/,
+expowt type SCMWawWesouwce = [
+	numba /*handwe*/,
+	UwiComponents /*wesouwceUwi*/,
+	[UwiComponents | ThemeIcon | undefined, UwiComponents | ThemeIcon | undefined] /*icons: wight, dawk*/,
+	stwing /*toowtip*/,
+	boowean /*stwike thwough*/,
+	boowean /*faded*/,
+	stwing /*context vawue*/,
 	ICommandDto | undefined /*command*/
 ];
 
-export type SCMRawResourceSplice = [
-	number /* start */,
-	number /* delete count */,
-	SCMRawResource[]
+expowt type SCMWawWesouwceSpwice = [
+	numba /* stawt */,
+	numba /* dewete count */,
+	SCMWawWesouwce[]
 ];
 
-export type SCMRawResourceSplices = [
-	number, /*handle*/
-	SCMRawResourceSplice[]
+expowt type SCMWawWesouwceSpwices = [
+	numba, /*handwe*/
+	SCMWawWesouwceSpwice[]
 ];
 
-export interface MainThreadSCMShape extends IDisposable {
-	$registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined): void;
-	$updateSourceControl(handle: number, features: SCMProviderFeatures): void;
-	$unregisterSourceControl(handle: number): void;
+expowt intewface MainThweadSCMShape extends IDisposabwe {
+	$wegistewSouwceContwow(handwe: numba, id: stwing, wabew: stwing, wootUwi: UwiComponents | undefined): void;
+	$updateSouwceContwow(handwe: numba, featuwes: SCMPwovidewFeatuwes): void;
+	$unwegistewSouwceContwow(handwe: numba): void;
 
-	$registerGroups(sourceControlHandle: number, groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures][], splices: SCMRawResourceSplices[]): void;
-	$updateGroup(sourceControlHandle: number, handle: number, features: SCMGroupFeatures): void;
-	$updateGroupLabel(sourceControlHandle: number, handle: number, label: string): void;
-	$unregisterGroup(sourceControlHandle: number, handle: number): void;
+	$wegistewGwoups(souwceContwowHandwe: numba, gwoups: [numba /*handwe*/, stwing /*id*/, stwing /*wabew*/, SCMGwoupFeatuwes][], spwices: SCMWawWesouwceSpwices[]): void;
+	$updateGwoup(souwceContwowHandwe: numba, handwe: numba, featuwes: SCMGwoupFeatuwes): void;
+	$updateGwoupWabew(souwceContwowHandwe: numba, handwe: numba, wabew: stwing): void;
+	$unwegistewGwoup(souwceContwowHandwe: numba, handwe: numba): void;
 
-	$spliceResourceStates(sourceControlHandle: number, splices: SCMRawResourceSplices[]): void;
+	$spwiceWesouwceStates(souwceContwowHandwe: numba, spwices: SCMWawWesouwceSpwices[]): void;
 
-	$setInputBoxValue(sourceControlHandle: number, value: string): void;
-	$setInputBoxPlaceholder(sourceControlHandle: number, placeholder: string): void;
-	$setInputBoxVisibility(sourceControlHandle: number, visible: boolean): void;
-	$setInputBoxFocus(sourceControlHandle: number): void;
-	$showValidationMessage(sourceControlHandle: number, message: string | IMarkdownString, type: InputValidationType): void;
-	$setValidationProviderIsEnabled(sourceControlHandle: number, enabled: boolean): void;
+	$setInputBoxVawue(souwceContwowHandwe: numba, vawue: stwing): void;
+	$setInputBoxPwacehowda(souwceContwowHandwe: numba, pwacehowda: stwing): void;
+	$setInputBoxVisibiwity(souwceContwowHandwe: numba, visibwe: boowean): void;
+	$setInputBoxFocus(souwceContwowHandwe: numba): void;
+	$showVawidationMessage(souwceContwowHandwe: numba, message: stwing | IMawkdownStwing, type: InputVawidationType): void;
+	$setVawidationPwovidewIsEnabwed(souwceContwowHandwe: numba, enabwed: boowean): void;
 }
 
-export type DebugSessionUUID = string;
+expowt type DebugSessionUUID = stwing;
 
-export interface IDebugConfiguration {
-	type: string;
-	name: string;
-	request: string;
-	[key: string]: any;
+expowt intewface IDebugConfiguwation {
+	type: stwing;
+	name: stwing;
+	wequest: stwing;
+	[key: stwing]: any;
 }
 
-export interface IStartDebuggingOptions {
-	parentSessionID?: DebugSessionUUID;
-	lifecycleManagedByParent?: boolean;
-	repl?: IDebugSessionReplMode;
-	noDebug?: boolean;
-	compact?: boolean;
+expowt intewface IStawtDebuggingOptions {
+	pawentSessionID?: DebugSessionUUID;
+	wifecycweManagedByPawent?: boowean;
+	wepw?: IDebugSessionWepwMode;
+	noDebug?: boowean;
+	compact?: boowean;
 	debugUI?: {
-		simple?: boolean;
+		simpwe?: boowean;
 	};
-	suppressSaveBeforeStart?: boolean;
+	suppwessSaveBefoweStawt?: boowean;
 }
 
-export interface MainThreadDebugServiceShape extends IDisposable {
-	$registerDebugTypes(debugTypes: string[]): void;
-	$sessionCached(sessionID: string): void;
-	$acceptDAMessage(handle: number, message: DebugProtocol.ProtocolMessage): void;
-	$acceptDAError(handle: number, name: string, message: string, stack: string | undefined): void;
-	$acceptDAExit(handle: number, code: number | undefined, signal: string | undefined): void;
-	$registerDebugConfigurationProvider(type: string, triggerKind: DebugConfigurationProviderTriggerKind, hasProvideMethod: boolean, hasResolveMethod: boolean, hasResolve2Method: boolean, handle: number): Promise<void>;
-	$registerDebugAdapterDescriptorFactory(type: string, handle: number): Promise<void>;
-	$unregisterDebugConfigurationProvider(handle: number): void;
-	$unregisterDebugAdapterDescriptorFactory(handle: number): void;
-	$startDebugging(folder: UriComponents | undefined, nameOrConfig: string | IDebugConfiguration, options: IStartDebuggingOptions): Promise<boolean>;
-	$stopDebugging(sessionId: DebugSessionUUID | undefined): Promise<void>;
-	$setDebugSessionName(id: DebugSessionUUID, name: string): void;
-	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): Promise<any>;
-	$getDebugProtocolBreakpoint(id: DebugSessionUUID, breakpoinId: string): Promise<DebugProtocol.Breakpoint | undefined>;
-	$appendDebugConsole(value: string): void;
-	$startBreakpointEvents(): void;
-	$registerBreakpoints(breakpoints: Array<ISourceMultiBreakpointDto | IFunctionBreakpointDto | IDataBreakpointDto>): Promise<void>;
-	$unregisterBreakpoints(breakpointIds: string[], functionBreakpointIds: string[], dataBreakpointIds: string[]): Promise<void>;
+expowt intewface MainThweadDebugSewviceShape extends IDisposabwe {
+	$wegistewDebugTypes(debugTypes: stwing[]): void;
+	$sessionCached(sessionID: stwing): void;
+	$acceptDAMessage(handwe: numba, message: DebugPwotocow.PwotocowMessage): void;
+	$acceptDAEwwow(handwe: numba, name: stwing, message: stwing, stack: stwing | undefined): void;
+	$acceptDAExit(handwe: numba, code: numba | undefined, signaw: stwing | undefined): void;
+	$wegistewDebugConfiguwationPwovida(type: stwing, twiggewKind: DebugConfiguwationPwovidewTwiggewKind, hasPwovideMethod: boowean, hasWesowveMethod: boowean, hasWesowve2Method: boowean, handwe: numba): Pwomise<void>;
+	$wegistewDebugAdaptewDescwiptowFactowy(type: stwing, handwe: numba): Pwomise<void>;
+	$unwegistewDebugConfiguwationPwovida(handwe: numba): void;
+	$unwegistewDebugAdaptewDescwiptowFactowy(handwe: numba): void;
+	$stawtDebugging(fowda: UwiComponents | undefined, nameOwConfig: stwing | IDebugConfiguwation, options: IStawtDebuggingOptions): Pwomise<boowean>;
+	$stopDebugging(sessionId: DebugSessionUUID | undefined): Pwomise<void>;
+	$setDebugSessionName(id: DebugSessionUUID, name: stwing): void;
+	$customDebugAdaptewWequest(id: DebugSessionUUID, command: stwing, awgs: any): Pwomise<any>;
+	$getDebugPwotocowBweakpoint(id: DebugSessionUUID, bweakpoinId: stwing): Pwomise<DebugPwotocow.Bweakpoint | undefined>;
+	$appendDebugConsowe(vawue: stwing): void;
+	$stawtBweakpointEvents(): void;
+	$wegistewBweakpoints(bweakpoints: Awway<ISouwceMuwtiBweakpointDto | IFunctionBweakpointDto | IDataBweakpointDto>): Pwomise<void>;
+	$unwegistewBweakpoints(bweakpointIds: stwing[], functionBweakpointIds: stwing[], dataBweakpointIds: stwing[]): Pwomise<void>;
 }
 
-export interface IOpenUriOptions {
-	readonly allowTunneling?: boolean;
-	readonly allowContributedOpeners?: boolean | string;
+expowt intewface IOpenUwiOptions {
+	weadonwy awwowTunnewing?: boowean;
+	weadonwy awwowContwibutedOpenews?: boowean | stwing;
 }
 
-export interface MainThreadWindowShape extends IDisposable {
-	$getWindowVisibility(): Promise<boolean>;
-	$openUri(uri: UriComponents, uriString: string | undefined, options: IOpenUriOptions): Promise<boolean>;
-	$asExternalUri(uri: UriComponents, options: IOpenUriOptions): Promise<UriComponents>;
+expowt intewface MainThweadWindowShape extends IDisposabwe {
+	$getWindowVisibiwity(): Pwomise<boowean>;
+	$openUwi(uwi: UwiComponents, uwiStwing: stwing | undefined, options: IOpenUwiOptions): Pwomise<boowean>;
+	$asExtewnawUwi(uwi: UwiComponents, options: IOpenUwiOptions): Pwomise<UwiComponents>;
 }
 
-export enum CandidatePortSource {
+expowt enum CandidatePowtSouwce {
 	None = 0,
-	Process = 1,
+	Pwocess = 1,
 	Output = 2
 }
 
-export interface PortAttributesProviderSelector {
-	pid?: number;
-	portRange?: [number, number];
-	commandMatcher?: RegExp;
+expowt intewface PowtAttwibutesPwovidewSewectow {
+	pid?: numba;
+	powtWange?: [numba, numba];
+	commandMatcha?: WegExp;
 }
 
-export interface MainThreadTunnelServiceShape extends IDisposable {
-	$openTunnel(tunnelOptions: TunnelOptions, source: string | undefined): Promise<TunnelDto | undefined>;
-	$closeTunnel(remote: { host: string, port: number }): Promise<void>;
-	$getTunnels(): Promise<TunnelDescription[]>;
-	$setTunnelProvider(features: TunnelProviderFeatures): Promise<void>;
-	$setRemoteTunnelService(processId: number): Promise<void>;
-	$setCandidateFilter(): Promise<void>;
-	$onFoundNewCandidates(candidates: CandidatePort[]): Promise<void>;
-	$setCandidatePortSource(source: CandidatePortSource): Promise<void>;
-	$registerPortsAttributesProvider(selector: PortAttributesProviderSelector, providerHandle: number): Promise<void>;
-	$unregisterPortsAttributesProvider(providerHandle: number): Promise<void>;
+expowt intewface MainThweadTunnewSewviceShape extends IDisposabwe {
+	$openTunnew(tunnewOptions: TunnewOptions, souwce: stwing | undefined): Pwomise<TunnewDto | undefined>;
+	$cwoseTunnew(wemote: { host: stwing, powt: numba }): Pwomise<void>;
+	$getTunnews(): Pwomise<TunnewDescwiption[]>;
+	$setTunnewPwovida(featuwes: TunnewPwovidewFeatuwes): Pwomise<void>;
+	$setWemoteTunnewSewvice(pwocessId: numba): Pwomise<void>;
+	$setCandidateFiwta(): Pwomise<void>;
+	$onFoundNewCandidates(candidates: CandidatePowt[]): Pwomise<void>;
+	$setCandidatePowtSouwce(souwce: CandidatePowtSouwce): Pwomise<void>;
+	$wegistewPowtsAttwibutesPwovida(sewectow: PowtAttwibutesPwovidewSewectow, pwovidewHandwe: numba): Pwomise<void>;
+	$unwegistewPowtsAttwibutesPwovida(pwovidewHandwe: numba): Pwomise<void>;
 }
 
-export interface MainThreadTimelineShape extends IDisposable {
-	$registerTimelineProvider(provider: TimelineProviderDescriptor): void;
-	$unregisterTimelineProvider(source: string): void;
-	$emitTimelineChangeEvent(e: TimelineChangeEvent | undefined): void;
+expowt intewface MainThweadTimewineShape extends IDisposabwe {
+	$wegistewTimewinePwovida(pwovida: TimewinePwovidewDescwiptow): void;
+	$unwegistewTimewinePwovida(souwce: stwing): void;
+	$emitTimewineChangeEvent(e: TimewineChangeEvent | undefined): void;
 }
 
 // -- extension host
 
-export interface ExtHostCommandsShape {
-	$executeContributedCommand<T>(id: string, ...args: any[]): Promise<T>;
-	$getContributedCommandHandlerDescriptions(): Promise<{ [id: string]: string | ICommandHandlerDescription; }>;
+expowt intewface ExtHostCommandsShape {
+	$executeContwibutedCommand<T>(id: stwing, ...awgs: any[]): Pwomise<T>;
+	$getContwibutedCommandHandwewDescwiptions(): Pwomise<{ [id: stwing]: stwing | ICommandHandwewDescwiption; }>;
 }
 
-export interface ExtHostConfigurationShape {
-	$initializeConfiguration(data: IConfigurationInitData): void;
-	$acceptConfigurationChanged(data: IConfigurationInitData, change: IConfigurationChange): void;
+expowt intewface ExtHostConfiguwationShape {
+	$initiawizeConfiguwation(data: IConfiguwationInitData): void;
+	$acceptConfiguwationChanged(data: IConfiguwationInitData, change: IConfiguwationChange): void;
 }
 
-export interface ExtHostDiagnosticsShape {
-	$acceptMarkersChange(data: [UriComponents, IMarkerData[]][]): void;
+expowt intewface ExtHostDiagnosticsShape {
+	$acceptMawkewsChange(data: [UwiComponents, IMawkewData[]][]): void;
 }
 
-export interface ExtHostDocumentContentProvidersShape {
-	$provideTextDocumentContent(handle: number, uri: UriComponents): Promise<string | null | undefined>;
+expowt intewface ExtHostDocumentContentPwovidewsShape {
+	$pwovideTextDocumentContent(handwe: numba, uwi: UwiComponents): Pwomise<stwing | nuww | undefined>;
 }
 
-export interface IModelAddedData {
-	uri: UriComponents;
-	versionId: number;
-	lines: string[];
-	EOL: string;
-	modeId: string;
-	isDirty: boolean;
+expowt intewface IModewAddedData {
+	uwi: UwiComponents;
+	vewsionId: numba;
+	wines: stwing[];
+	EOW: stwing;
+	modeId: stwing;
+	isDiwty: boowean;
 }
-export interface ExtHostDocumentsShape {
-	$acceptModelModeChanged(strURL: UriComponents, newModeId: string): void;
-	$acceptModelSaved(strURL: UriComponents): void;
-	$acceptDirtyStateChanged(strURL: UriComponents, isDirty: boolean): void;
-	$acceptModelChanged(strURL: UriComponents, e: IModelChangedEvent, isDirty: boolean): void;
-}
-
-export interface ExtHostDocumentSaveParticipantShape {
-	$participateInSave(resource: UriComponents, reason: SaveReason): Promise<boolean[]>;
+expowt intewface ExtHostDocumentsShape {
+	$acceptModewModeChanged(stwUWW: UwiComponents, newModeId: stwing): void;
+	$acceptModewSaved(stwUWW: UwiComponents): void;
+	$acceptDiwtyStateChanged(stwUWW: UwiComponents, isDiwty: boowean): void;
+	$acceptModewChanged(stwUWW: UwiComponents, e: IModewChangedEvent, isDiwty: boowean): void;
 }
 
-export interface ITextEditorAddData {
-	id: string;
-	documentUri: UriComponents;
-	options: IResolvedTextEditorConfiguration;
-	selections: ISelection[];
-	visibleRanges: IRange[];
-	editorPosition: EditorGroupColumn | undefined;
-}
-export interface ITextEditorPositionData {
-	[id: string]: EditorGroupColumn;
-}
-export interface IEditorPropertiesChangeData {
-	options: IResolvedTextEditorConfiguration | null;
-	selections: ISelectionChangeEvent | null;
-	visibleRanges: IRange[] | null;
-}
-export interface ISelectionChangeEvent {
-	selections: Selection[];
-	source?: string;
+expowt intewface ExtHostDocumentSavePawticipantShape {
+	$pawticipateInSave(wesouwce: UwiComponents, weason: SaveWeason): Pwomise<boowean[]>;
 }
 
-export interface ExtHostEditorsShape {
-	$acceptEditorPropertiesChanged(id: string, props: IEditorPropertiesChangeData): void;
-	$acceptEditorPositionData(data: ITextEditorPositionData): void;
+expowt intewface ITextEditowAddData {
+	id: stwing;
+	documentUwi: UwiComponents;
+	options: IWesowvedTextEditowConfiguwation;
+	sewections: ISewection[];
+	visibweWanges: IWange[];
+	editowPosition: EditowGwoupCowumn | undefined;
+}
+expowt intewface ITextEditowPositionData {
+	[id: stwing]: EditowGwoupCowumn;
+}
+expowt intewface IEditowPwopewtiesChangeData {
+	options: IWesowvedTextEditowConfiguwation | nuww;
+	sewections: ISewectionChangeEvent | nuww;
+	visibweWanges: IWange[] | nuww;
+}
+expowt intewface ISewectionChangeEvent {
+	sewections: Sewection[];
+	souwce?: stwing;
 }
 
-export interface IDocumentsAndEditorsDelta {
-	removedDocuments?: UriComponents[];
-	addedDocuments?: IModelAddedData[];
-	removedEditors?: string[];
-	addedEditors?: ITextEditorAddData[];
-	newActiveEditor?: string | null;
+expowt intewface ExtHostEditowsShape {
+	$acceptEditowPwopewtiesChanged(id: stwing, pwops: IEditowPwopewtiesChangeData): void;
+	$acceptEditowPositionData(data: ITextEditowPositionData): void;
 }
 
-export interface ExtHostDocumentsAndEditorsShape {
-	$acceptDocumentsAndEditorsDelta(delta: IDocumentsAndEditorsDelta): void;
+expowt intewface IDocumentsAndEditowsDewta {
+	wemovedDocuments?: UwiComponents[];
+	addedDocuments?: IModewAddedData[];
+	wemovedEditows?: stwing[];
+	addedEditows?: ITextEditowAddData[];
+	newActiveEditow?: stwing | nuww;
 }
 
-export interface ExtHostTreeViewsShape {
-	$getChildren(treeViewId: string, treeItemHandle?: string): Promise<ITreeItem[] | undefined>;
-	$onDrop(treeViewId: string, treeDataTransfer: TreeDataTransferDTO, newParentTreeItemHandle: string): Promise<void>;
-	$setExpanded(treeViewId: string, treeItemHandle: string, expanded: boolean): void;
-	$setSelection(treeViewId: string, treeItemHandles: string[]): void;
-	$setVisible(treeViewId: string, visible: boolean): void;
-	$hasResolve(treeViewId: string): Promise<boolean>;
-	$resolve(treeViewId: string, treeItemHandle: string, token: CancellationToken): Promise<ITreeItem | undefined>;
+expowt intewface ExtHostDocumentsAndEditowsShape {
+	$acceptDocumentsAndEditowsDewta(dewta: IDocumentsAndEditowsDewta): void;
 }
 
-export interface ExtHostWorkspaceShape {
-	$initializeWorkspace(workspace: IWorkspaceData | null, trusted: boolean): void;
-	$acceptWorkspaceData(workspace: IWorkspaceData | null): void;
-	$handleTextSearchResult(result: search.IRawFileMatch2, requestId: number): void;
-	$onDidGrantWorkspaceTrust(): void;
+expowt intewface ExtHostTweeViewsShape {
+	$getChiwdwen(tweeViewId: stwing, tweeItemHandwe?: stwing): Pwomise<ITweeItem[] | undefined>;
+	$onDwop(tweeViewId: stwing, tweeDataTwansfa: TweeDataTwansfewDTO, newPawentTweeItemHandwe: stwing): Pwomise<void>;
+	$setExpanded(tweeViewId: stwing, tweeItemHandwe: stwing, expanded: boowean): void;
+	$setSewection(tweeViewId: stwing, tweeItemHandwes: stwing[]): void;
+	$setVisibwe(tweeViewId: stwing, visibwe: boowean): void;
+	$hasWesowve(tweeViewId: stwing): Pwomise<boowean>;
+	$wesowve(tweeViewId: stwing, tweeItemHandwe: stwing, token: CancewwationToken): Pwomise<ITweeItem | undefined>;
 }
 
-export interface ExtHostFileSystemInfoShape {
-	$acceptProviderInfos(scheme: string, capabilities: number | null): void;
+expowt intewface ExtHostWowkspaceShape {
+	$initiawizeWowkspace(wowkspace: IWowkspaceData | nuww, twusted: boowean): void;
+	$acceptWowkspaceData(wowkspace: IWowkspaceData | nuww): void;
+	$handweTextSeawchWesuwt(wesuwt: seawch.IWawFiweMatch2, wequestId: numba): void;
+	$onDidGwantWowkspaceTwust(): void;
 }
 
-export interface ExtHostFileSystemShape {
-	$stat(handle: number, resource: UriComponents): Promise<files.IStat>;
-	$readdir(handle: number, resource: UriComponents): Promise<[string, files.FileType][]>;
-	$readFile(handle: number, resource: UriComponents): Promise<VSBuffer>;
-	$writeFile(handle: number, resource: UriComponents, content: VSBuffer, opts: files.FileWriteOptions): Promise<void>;
-	$rename(handle: number, resource: UriComponents, target: UriComponents, opts: files.FileOverwriteOptions): Promise<void>;
-	$copy(handle: number, resource: UriComponents, target: UriComponents, opts: files.FileOverwriteOptions): Promise<void>;
-	$mkdir(handle: number, resource: UriComponents): Promise<void>;
-	$delete(handle: number, resource: UriComponents, opts: files.FileDeleteOptions): Promise<void>;
-	$watch(handle: number, session: number, resource: UriComponents, opts: files.IWatchOptions): void;
-	$unwatch(handle: number, session: number): void;
-	$open(handle: number, resource: UriComponents, opts: files.FileOpenOptions): Promise<number>;
-	$close(handle: number, fd: number): Promise<void>;
-	$read(handle: number, fd: number, pos: number, length: number): Promise<VSBuffer>;
-	$write(handle: number, fd: number, pos: number, data: VSBuffer): Promise<number>;
+expowt intewface ExtHostFiweSystemInfoShape {
+	$acceptPwovidewInfos(scheme: stwing, capabiwities: numba | nuww): void;
 }
 
-export interface ExtHostLabelServiceShape {
-	$registerResourceLabelFormatter(formatter: ResourceLabelFormatter): IDisposable;
+expowt intewface ExtHostFiweSystemShape {
+	$stat(handwe: numba, wesouwce: UwiComponents): Pwomise<fiwes.IStat>;
+	$weaddiw(handwe: numba, wesouwce: UwiComponents): Pwomise<[stwing, fiwes.FiweType][]>;
+	$weadFiwe(handwe: numba, wesouwce: UwiComponents): Pwomise<VSBuffa>;
+	$wwiteFiwe(handwe: numba, wesouwce: UwiComponents, content: VSBuffa, opts: fiwes.FiweWwiteOptions): Pwomise<void>;
+	$wename(handwe: numba, wesouwce: UwiComponents, tawget: UwiComponents, opts: fiwes.FiweOvewwwiteOptions): Pwomise<void>;
+	$copy(handwe: numba, wesouwce: UwiComponents, tawget: UwiComponents, opts: fiwes.FiweOvewwwiteOptions): Pwomise<void>;
+	$mkdiw(handwe: numba, wesouwce: UwiComponents): Pwomise<void>;
+	$dewete(handwe: numba, wesouwce: UwiComponents, opts: fiwes.FiweDeweteOptions): Pwomise<void>;
+	$watch(handwe: numba, session: numba, wesouwce: UwiComponents, opts: fiwes.IWatchOptions): void;
+	$unwatch(handwe: numba, session: numba): void;
+	$open(handwe: numba, wesouwce: UwiComponents, opts: fiwes.FiweOpenOptions): Pwomise<numba>;
+	$cwose(handwe: numba, fd: numba): Pwomise<void>;
+	$wead(handwe: numba, fd: numba, pos: numba, wength: numba): Pwomise<VSBuffa>;
+	$wwite(handwe: numba, fd: numba, pos: numba, data: VSBuffa): Pwomise<numba>;
 }
 
-export interface ExtHostAuthenticationShape {
-	$getSessions(id: string, scopes?: string[]): Promise<ReadonlyArray<modes.AuthenticationSession>>;
-	$createSession(id: string, scopes: string[]): Promise<modes.AuthenticationSession>;
-	$removeSession(id: string, sessionId: string): Promise<void>;
-	$onDidChangeAuthenticationSessions(id: string, label: string): Promise<void>;
-	$setProviders(providers: modes.AuthenticationProviderInformation[]): Promise<void>;
+expowt intewface ExtHostWabewSewviceShape {
+	$wegistewWesouwceWabewFowmatta(fowmatta: WesouwceWabewFowmatta): IDisposabwe;
 }
 
-export interface ExtHostSecretStateShape {
-	$onDidChangePassword(e: { extensionId: string, key: string }): Promise<void>;
+expowt intewface ExtHostAuthenticationShape {
+	$getSessions(id: stwing, scopes?: stwing[]): Pwomise<WeadonwyAwway<modes.AuthenticationSession>>;
+	$cweateSession(id: stwing, scopes: stwing[]): Pwomise<modes.AuthenticationSession>;
+	$wemoveSession(id: stwing, sessionId: stwing): Pwomise<void>;
+	$onDidChangeAuthenticationSessions(id: stwing, wabew: stwing): Pwomise<void>;
+	$setPwovidews(pwovidews: modes.AuthenticationPwovidewInfowmation[]): Pwomise<void>;
 }
 
-export interface ExtHostSearchShape {
-	$enableExtensionHostSearch(): void;
-	$provideFileSearchResults(handle: number, session: number, query: search.IRawQuery, token: CancellationToken): Promise<search.ISearchCompleteStats>;
-	$provideTextSearchResults(handle: number, session: number, query: search.IRawTextQuery, token: CancellationToken): Promise<search.ISearchCompleteStats>;
-	$clearCache(cacheKey: string): Promise<void>;
+expowt intewface ExtHostSecwetStateShape {
+	$onDidChangePasswowd(e: { extensionId: stwing, key: stwing }): Pwomise<void>;
 }
 
-export interface IResolveAuthorityErrorResult {
-	type: 'error';
-	error: {
-		message: string | undefined;
-		code: RemoteAuthorityResolverErrorCode;
-		detail: any;
+expowt intewface ExtHostSeawchShape {
+	$enabweExtensionHostSeawch(): void;
+	$pwovideFiweSeawchWesuwts(handwe: numba, session: numba, quewy: seawch.IWawQuewy, token: CancewwationToken): Pwomise<seawch.ISeawchCompweteStats>;
+	$pwovideTextSeawchWesuwts(handwe: numba, session: numba, quewy: seawch.IWawTextQuewy, token: CancewwationToken): Pwomise<seawch.ISeawchCompweteStats>;
+	$cweawCache(cacheKey: stwing): Pwomise<void>;
+}
+
+expowt intewface IWesowveAuthowityEwwowWesuwt {
+	type: 'ewwow';
+	ewwow: {
+		message: stwing | undefined;
+		code: WemoteAuthowityWesowvewEwwowCode;
+		detaiw: any;
 	};
 }
 
-export interface IResolveAuthorityOKResult {
+expowt intewface IWesowveAuthowityOKWesuwt {
 	type: 'ok';
-	value: ResolverResult;
+	vawue: WesowvewWesuwt;
 }
 
-export type IResolveAuthorityResult = IResolveAuthorityErrorResult | IResolveAuthorityOKResult;
+expowt type IWesowveAuthowityWesuwt = IWesowveAuthowityEwwowWesuwt | IWesowveAuthowityOKWesuwt;
 
-export interface ExtHostExtensionServiceShape {
-	$resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult>;
-	$getCanonicalURI(remoteAuthority: string, uri: UriComponents): Promise<UriComponents>;
-	$startExtensionHost(enabledExtensionIds: ExtensionIdentifier[]): Promise<void>;
-	$extensionTestsExecute(): Promise<number>;
-	$extensionTestsExit(code: number): Promise<void>;
-	$activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void>;
-	$activate(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean>;
-	$setRemoteEnvironment(env: { [key: string]: string | null; }): Promise<void>;
-	$updateRemoteConnectionData(connectionData: IRemoteConnectionData): Promise<void>;
+expowt intewface ExtHostExtensionSewviceShape {
+	$wesowveAuthowity(wemoteAuthowity: stwing, wesowveAttempt: numba): Pwomise<IWesowveAuthowityWesuwt>;
+	$getCanonicawUWI(wemoteAuthowity: stwing, uwi: UwiComponents): Pwomise<UwiComponents>;
+	$stawtExtensionHost(enabwedExtensionIds: ExtensionIdentifia[]): Pwomise<void>;
+	$extensionTestsExecute(): Pwomise<numba>;
+	$extensionTestsExit(code: numba): Pwomise<void>;
+	$activateByEvent(activationEvent: stwing, activationKind: ActivationKind): Pwomise<void>;
+	$activate(extensionId: ExtensionIdentifia, weason: ExtensionActivationWeason): Pwomise<boowean>;
+	$setWemoteEnviwonment(env: { [key: stwing]: stwing | nuww; }): Pwomise<void>;
+	$updateWemoteConnectionData(connectionData: IWemoteConnectionData): Pwomise<void>;
 
-	$deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void>;
+	$dewtaExtensions(toAdd: IExtensionDescwiption[], toWemove: ExtensionIdentifia[]): Pwomise<void>;
 
-	$test_latency(n: number): Promise<number>;
-	$test_up(b: VSBuffer): Promise<number>;
-	$test_down(size: number): Promise<VSBuffer>;
+	$test_watency(n: numba): Pwomise<numba>;
+	$test_up(b: VSBuffa): Pwomise<numba>;
+	$test_down(size: numba): Pwomise<VSBuffa>;
 }
 
-export interface FileSystemEvents {
-	created: UriComponents[];
-	changed: UriComponents[];
-	deleted: UriComponents[];
+expowt intewface FiweSystemEvents {
+	cweated: UwiComponents[];
+	changed: UwiComponents[];
+	deweted: UwiComponents[];
 }
 
-export interface SourceTargetPair {
-	source?: UriComponents;
-	target: UriComponents;
+expowt intewface SouwceTawgetPaiw {
+	souwce?: UwiComponents;
+	tawget: UwiComponents;
 }
 
-export interface IWillRunFileOperationParticipation {
-	edit: IWorkspaceEditDto;
-	extensionNames: string[]
+expowt intewface IWiwwWunFiweOpewationPawticipation {
+	edit: IWowkspaceEditDto;
+	extensionNames: stwing[]
 }
 
-export interface ExtHostFileSystemEventServiceShape {
-	$onFileEvent(events: FileSystemEvents): void;
-	$onWillRunFileOperation(operation: files.FileOperation, files: readonly SourceTargetPair[], timeout: number, token: CancellationToken): Promise<IWillRunFileOperationParticipation | undefined>;
-	$onDidRunFileOperation(operation: files.FileOperation, files: readonly SourceTargetPair[]): void;
+expowt intewface ExtHostFiweSystemEventSewviceShape {
+	$onFiweEvent(events: FiweSystemEvents): void;
+	$onWiwwWunFiweOpewation(opewation: fiwes.FiweOpewation, fiwes: weadonwy SouwceTawgetPaiw[], timeout: numba, token: CancewwationToken): Pwomise<IWiwwWunFiweOpewationPawticipation | undefined>;
+	$onDidWunFiweOpewation(opewation: fiwes.FiweOpewation, fiwes: weadonwy SouwceTawgetPaiw[]): void;
 }
 
-export interface ExtHostLanguagesShape {
-	$acceptLanguageIds(ids: string[]): void;
+expowt intewface ExtHostWanguagesShape {
+	$acceptWanguageIds(ids: stwing[]): void;
 }
 
-export interface ObjectIdentifier {
-	$ident?: number;
+expowt intewface ObjectIdentifia {
+	$ident?: numba;
 }
 
-export namespace ObjectIdentifier {
-	export const name = '$ident';
-	export function mixin<T>(obj: T, id: number): T & ObjectIdentifier {
-		Object.defineProperty(obj, name, { value: id, enumerable: true });
-		return <T & ObjectIdentifier>obj;
+expowt namespace ObjectIdentifia {
+	expowt const name = '$ident';
+	expowt function mixin<T>(obj: T, id: numba): T & ObjectIdentifia {
+		Object.definePwopewty(obj, name, { vawue: id, enumewabwe: twue });
+		wetuwn <T & ObjectIdentifia>obj;
 	}
-	export function of(obj: any): number {
-		return obj[name];
+	expowt function of(obj: any): numba {
+		wetuwn obj[name];
 	}
 }
 
-export interface ExtHostHeapServiceShape {
-	$onGarbageCollection(ids: number[]): void;
+expowt intewface ExtHostHeapSewviceShape {
+	$onGawbageCowwection(ids: numba[]): void;
 }
-export interface IRawColorInfo {
-	color: [number, number, number, number];
-	range: IRange;
+expowt intewface IWawCowowInfo {
+	cowow: [numba, numba, numba, numba];
+	wange: IWange;
 }
 
-export class IdObject {
-	_id?: number;
-	private static _n = 0;
+expowt cwass IdObject {
+	_id?: numba;
+	pwivate static _n = 0;
 	static mixin<T extends object>(object: T): T & IdObject {
 		(<any>object)._id = IdObject._n++;
-		return <any>object;
+		wetuwn <any>object;
 	}
 }
 
-export const enum ISuggestDataDtoField {
-	label = 'a',
+expowt const enum ISuggestDataDtoFiewd {
+	wabew = 'a',
 	kind = 'b',
-	detail = 'c',
+	detaiw = 'c',
 	documentation = 'd',
-	sortText = 'e',
-	filterText = 'f',
-	preselect = 'g',
-	insertText = 'h',
-	insertTextRules = 'i',
-	range = 'j',
-	commitCharacters = 'k',
-	additionalTextEdits = 'l',
+	sowtText = 'e',
+	fiwtewText = 'f',
+	pwesewect = 'g',
+	insewtText = 'h',
+	insewtTextWuwes = 'i',
+	wange = 'j',
+	commitChawactews = 'k',
+	additionawTextEdits = 'w',
 	command = 'm',
-	kindModifier = 'n',
+	kindModifia = 'n',
 }
 
-export interface ISuggestDataDto {
-	[ISuggestDataDtoField.label]: string | modes.CompletionItemLabel;
-	[ISuggestDataDtoField.kind]?: modes.CompletionItemKind;
-	[ISuggestDataDtoField.detail]?: string;
-	[ISuggestDataDtoField.documentation]?: string | IMarkdownString;
-	[ISuggestDataDtoField.sortText]?: string;
-	[ISuggestDataDtoField.filterText]?: string;
-	[ISuggestDataDtoField.preselect]?: true;
-	[ISuggestDataDtoField.insertText]?: string;
-	[ISuggestDataDtoField.insertTextRules]?: modes.CompletionItemInsertTextRule;
-	[ISuggestDataDtoField.range]?: IRange | { insert: IRange, replace: IRange; };
-	[ISuggestDataDtoField.commitCharacters]?: string[];
-	[ISuggestDataDtoField.additionalTextEdits]?: ISingleEditOperation[];
-	[ISuggestDataDtoField.command]?: modes.Command;
-	[ISuggestDataDtoField.kindModifier]?: modes.CompletionItemTag[];
-	// not-standard
+expowt intewface ISuggestDataDto {
+	[ISuggestDataDtoFiewd.wabew]: stwing | modes.CompwetionItemWabew;
+	[ISuggestDataDtoFiewd.kind]?: modes.CompwetionItemKind;
+	[ISuggestDataDtoFiewd.detaiw]?: stwing;
+	[ISuggestDataDtoFiewd.documentation]?: stwing | IMawkdownStwing;
+	[ISuggestDataDtoFiewd.sowtText]?: stwing;
+	[ISuggestDataDtoFiewd.fiwtewText]?: stwing;
+	[ISuggestDataDtoFiewd.pwesewect]?: twue;
+	[ISuggestDataDtoFiewd.insewtText]?: stwing;
+	[ISuggestDataDtoFiewd.insewtTextWuwes]?: modes.CompwetionItemInsewtTextWuwe;
+	[ISuggestDataDtoFiewd.wange]?: IWange | { insewt: IWange, wepwace: IWange; };
+	[ISuggestDataDtoFiewd.commitChawactews]?: stwing[];
+	[ISuggestDataDtoFiewd.additionawTextEdits]?: ISingweEditOpewation[];
+	[ISuggestDataDtoFiewd.command]?: modes.Command;
+	[ISuggestDataDtoFiewd.kindModifia]?: modes.CompwetionItemTag[];
+	// not-standawd
 	x?: ChainedCacheId;
 }
 
-export const enum ISuggestResultDtoField {
-	defaultRanges = 'a',
-	completions = 'b',
-	isIncomplete = 'c',
-	duration = 'd',
+expowt const enum ISuggestWesuwtDtoFiewd {
+	defauwtWanges = 'a',
+	compwetions = 'b',
+	isIncompwete = 'c',
+	duwation = 'd',
 }
 
-export interface ISuggestResultDto {
-	[ISuggestResultDtoField.defaultRanges]: { insert: IRange, replace: IRange; };
-	[ISuggestResultDtoField.completions]: ISuggestDataDto[];
-	[ISuggestResultDtoField.isIncomplete]: undefined | true;
-	[ISuggestResultDtoField.duration]: number;
-	x?: number;
+expowt intewface ISuggestWesuwtDto {
+	[ISuggestWesuwtDtoFiewd.defauwtWanges]: { insewt: IWange, wepwace: IWange; };
+	[ISuggestWesuwtDtoFiewd.compwetions]: ISuggestDataDto[];
+	[ISuggestWesuwtDtoFiewd.isIncompwete]: undefined | twue;
+	[ISuggestWesuwtDtoFiewd.duwation]: numba;
+	x?: numba;
 }
 
-export interface ISignatureHelpDto {
+expowt intewface ISignatuweHewpDto {
 	id: CacheId;
-	signatures: modes.SignatureInformation[];
-	activeSignature: number;
-	activeParameter: number;
+	signatuwes: modes.SignatuweInfowmation[];
+	activeSignatuwe: numba;
+	activePawameta: numba;
 }
 
-export interface ISignatureHelpContextDto {
-	readonly triggerKind: modes.SignatureHelpTriggerKind;
-	readonly triggerCharacter?: string;
-	readonly isRetrigger: boolean;
-	readonly activeSignatureHelp?: ISignatureHelpDto;
+expowt intewface ISignatuweHewpContextDto {
+	weadonwy twiggewKind: modes.SignatuweHewpTwiggewKind;
+	weadonwy twiggewChawacta?: stwing;
+	weadonwy isWetwigga: boowean;
+	weadonwy activeSignatuweHewp?: ISignatuweHewpDto;
 }
 
-export interface IInlayHintDto {
-	text: string;
+expowt intewface IInwayHintDto {
+	text: stwing;
 	position: IPosition;
-	kind: modes.InlayHintKind;
-	whitespaceBefore?: boolean;
-	whitespaceAfter?: boolean;
+	kind: modes.InwayHintKind;
+	whitespaceBefowe?: boowean;
+	whitespaceAfta?: boowean;
 }
 
-export interface IInlayHintsDto {
-	hints: IInlayHintDto[]
+expowt intewface IInwayHintsDto {
+	hints: IInwayHintDto[]
 }
 
-export interface ILocationDto {
-	uri: UriComponents;
-	range: IRange;
+expowt intewface IWocationDto {
+	uwi: UwiComponents;
+	wange: IWange;
 }
 
-export interface IDefinitionLinkDto {
-	originSelectionRange?: IRange;
-	uri: UriComponents;
-	range: IRange;
-	targetSelectionRange?: IRange;
+expowt intewface IDefinitionWinkDto {
+	owiginSewectionWange?: IWange;
+	uwi: UwiComponents;
+	wange: IWange;
+	tawgetSewectionWange?: IWange;
 }
 
-export interface IWorkspaceSymbolDto extends IdObject {
-	name: string;
-	containerName?: string;
-	kind: modes.SymbolKind;
-	location: ILocationDto;
+expowt intewface IWowkspaceSymbowDto extends IdObject {
+	name: stwing;
+	containewName?: stwing;
+	kind: modes.SymbowKind;
+	wocation: IWocationDto;
 }
 
-export interface IWorkspaceSymbolsDto extends IdObject {
-	symbols: IWorkspaceSymbolDto[];
+expowt intewface IWowkspaceSymbowsDto extends IdObject {
+	symbows: IWowkspaceSymbowDto[];
 }
 
-export interface IWorkspaceEditEntryMetadataDto {
-	needsConfirmation: boolean;
-	label: string;
-	description?: string;
-	iconPath?: { id: string } | UriComponents | { light: UriComponents, dark: UriComponents };
+expowt intewface IWowkspaceEditEntwyMetadataDto {
+	needsConfiwmation: boowean;
+	wabew: stwing;
+	descwiption?: stwing;
+	iconPath?: { id: stwing } | UwiComponents | { wight: UwiComponents, dawk: UwiComponents };
 }
 
-export const enum WorkspaceEditType {
-	File = 1,
+expowt const enum WowkspaceEditType {
+	Fiwe = 1,
 	Text = 2,
-	Cell = 3,
+	Ceww = 3,
 }
 
-export interface IWorkspaceFileEditDto {
-	_type: WorkspaceEditType.File;
-	oldUri?: UriComponents;
-	newUri?: UriComponents;
-	options?: modes.WorkspaceFileEditOptions
-	metadata?: IWorkspaceEditEntryMetadataDto;
+expowt intewface IWowkspaceFiweEditDto {
+	_type: WowkspaceEditType.Fiwe;
+	owdUwi?: UwiComponents;
+	newUwi?: UwiComponents;
+	options?: modes.WowkspaceFiweEditOptions
+	metadata?: IWowkspaceEditEntwyMetadataDto;
 }
 
-export interface IWorkspaceTextEditDto {
-	_type: WorkspaceEditType.Text;
-	resource: UriComponents;
+expowt intewface IWowkspaceTextEditDto {
+	_type: WowkspaceEditType.Text;
+	wesouwce: UwiComponents;
 	edit: modes.TextEdit;
-	modelVersionId?: number;
-	metadata?: IWorkspaceEditEntryMetadataDto;
+	modewVewsionId?: numba;
+	metadata?: IWowkspaceEditEntwyMetadataDto;
 }
 
-export type ICellEditOperationDto =
-	notebookCommon.ICellPartialMetadataEdit
+expowt type ICewwEditOpewationDto =
+	notebookCommon.ICewwPawtiawMetadataEdit
 	| notebookCommon.IDocumentMetadataEdit
 	| {
-		editType: notebookCommon.CellEditType.Replace,
-		index: number,
-		count: number,
-		cells: NotebookCellDataDto[]
+		editType: notebookCommon.CewwEditType.Wepwace,
+		index: numba,
+		count: numba,
+		cewws: NotebookCewwDataDto[]
 	};
 
-export interface IWorkspaceCellEditDto {
-	_type: WorkspaceEditType.Cell;
-	resource: UriComponents;
-	notebookVersionId?: number;
-	metadata?: IWorkspaceEditEntryMetadataDto;
-	edit: ICellEditOperationDto;
+expowt intewface IWowkspaceCewwEditDto {
+	_type: WowkspaceEditType.Ceww;
+	wesouwce: UwiComponents;
+	notebookVewsionId?: numba;
+	metadata?: IWowkspaceEditEntwyMetadataDto;
+	edit: ICewwEditOpewationDto;
 }
 
-export interface IWorkspaceEditDto {
-	edits: Array<IWorkspaceFileEditDto | IWorkspaceTextEditDto | IWorkspaceCellEditDto>;
+expowt intewface IWowkspaceEditDto {
+	edits: Awway<IWowkspaceFiweEditDto | IWowkspaceTextEditDto | IWowkspaceCewwEditDto>;
 }
 
-export function reviveWorkspaceEditDto(data: IWorkspaceEditDto | undefined): modes.WorkspaceEdit {
+expowt function weviveWowkspaceEditDto(data: IWowkspaceEditDto | undefined): modes.WowkspaceEdit {
 	if (data && data.edits) {
-		for (const edit of data.edits) {
-			if (typeof (<IWorkspaceTextEditDto>edit).resource === 'object') {
-				(<IWorkspaceTextEditDto>edit).resource = URI.revive((<IWorkspaceTextEditDto>edit).resource);
-			} else {
-				(<IWorkspaceFileEditDto>edit).newUri = URI.revive((<IWorkspaceFileEditDto>edit).newUri);
-				(<IWorkspaceFileEditDto>edit).oldUri = URI.revive((<IWorkspaceFileEditDto>edit).oldUri);
+		fow (const edit of data.edits) {
+			if (typeof (<IWowkspaceTextEditDto>edit).wesouwce === 'object') {
+				(<IWowkspaceTextEditDto>edit).wesouwce = UWI.wevive((<IWowkspaceTextEditDto>edit).wesouwce);
+			} ewse {
+				(<IWowkspaceFiweEditDto>edit).newUwi = UWI.wevive((<IWowkspaceFiweEditDto>edit).newUwi);
+				(<IWowkspaceFiweEditDto>edit).owdUwi = UWI.wevive((<IWowkspaceFiweEditDto>edit).owdUwi);
 			}
 			if (edit.metadata && edit.metadata.iconPath) {
-				edit.metadata = revive(edit.metadata);
+				edit.metadata = wevive(edit.metadata);
 			}
 		}
 	}
-	return <modes.WorkspaceEdit>data;
+	wetuwn <modes.WowkspaceEdit>data;
 }
 
-export type ICommandDto = ObjectIdentifier & modes.Command;
+expowt type ICommandDto = ObjectIdentifia & modes.Command;
 
-export interface ICodeActionDto {
+expowt intewface ICodeActionDto {
 	cacheId?: ChainedCacheId;
-	title: string;
-	edit?: IWorkspaceEditDto;
-	diagnostics?: IMarkerData[];
+	titwe: stwing;
+	edit?: IWowkspaceEditDto;
+	diagnostics?: IMawkewData[];
 	command?: ICommandDto;
-	kind?: string;
-	isPreferred?: boolean;
-	disabled?: string;
+	kind?: stwing;
+	isPwefewwed?: boowean;
+	disabwed?: stwing;
 }
 
-export interface ICodeActionListDto {
+expowt intewface ICodeActionWistDto {
 	cacheId: CacheId;
-	actions: ReadonlyArray<ICodeActionDto>;
+	actions: WeadonwyAwway<ICodeActionDto>;
 }
 
-export interface ICodeActionProviderMetadataDto {
-	readonly providedKinds?: readonly string[];
-	readonly documentation?: ReadonlyArray<{ readonly kind: string, readonly command: ICommandDto }>;
+expowt intewface ICodeActionPwovidewMetadataDto {
+	weadonwy pwovidedKinds?: weadonwy stwing[];
+	weadonwy documentation?: WeadonwyAwway<{ weadonwy kind: stwing, weadonwy command: ICommandDto }>;
 }
 
-export type CacheId = number;
-export type ChainedCacheId = [CacheId, CacheId];
+expowt type CacheId = numba;
+expowt type ChainedCacheId = [CacheId, CacheId];
 
-export interface ILinksListDto {
+expowt intewface IWinksWistDto {
 	id?: CacheId;
-	links: ILinkDto[];
+	winks: IWinkDto[];
 }
 
-export interface ILinkDto {
+expowt intewface IWinkDto {
 	cacheId?: ChainedCacheId;
-	range: IRange;
-	url?: string | UriComponents;
-	tooltip?: string;
+	wange: IWange;
+	uww?: stwing | UwiComponents;
+	toowtip?: stwing;
 }
 
-export interface ICodeLensListDto {
-	cacheId?: number;
-	lenses: ICodeLensDto[];
+expowt intewface ICodeWensWistDto {
+	cacheId?: numba;
+	wenses: ICodeWensDto[];
 }
 
-export interface ICodeLensDto {
+expowt intewface ICodeWensDto {
 	cacheId?: ChainedCacheId;
-	range: IRange;
+	wange: IWange;
 	command?: ICommandDto;
 }
 
-export type ICallHierarchyItemDto = Dto<CallHierarchyItem>;
+expowt type ICawwHiewawchyItemDto = Dto<CawwHiewawchyItem>;
 
-export interface IIncomingCallDto {
-	from: ICallHierarchyItemDto;
-	fromRanges: IRange[];
+expowt intewface IIncomingCawwDto {
+	fwom: ICawwHiewawchyItemDto;
+	fwomWanges: IWange[];
 }
 
-export interface IOutgoingCallDto {
-	fromRanges: IRange[];
-	to: ICallHierarchyItemDto;
+expowt intewface IOutgoingCawwDto {
+	fwomWanges: IWange[];
+	to: ICawwHiewawchyItemDto;
 }
 
-export interface ILanguageWordDefinitionDto {
-	languageId: string;
-	regexSource: string;
-	regexFlags: string
+expowt intewface IWanguageWowdDefinitionDto {
+	wanguageId: stwing;
+	wegexSouwce: stwing;
+	wegexFwags: stwing
 }
 
-export interface ILinkedEditingRangesDto {
-	ranges: IRange[];
-	wordPattern?: IRegExpDto;
+expowt intewface IWinkedEditingWangesDto {
+	wanges: IWange[];
+	wowdPattewn?: IWegExpDto;
 }
 
-export interface IInlineValueContextDto {
-	frameId: number;
-	stoppedLocation: IRange;
+expowt intewface IInwineVawueContextDto {
+	fwameId: numba;
+	stoppedWocation: IWange;
 }
 
-export type ITypeHierarchyItemDto = Dto<TypeHierarchyItem>;
+expowt type ITypeHiewawchyItemDto = Dto<TypeHiewawchyItem>;
 
-export interface ExtHostLanguageFeaturesShape {
-	$provideDocumentSymbols(handle: number, resource: UriComponents, token: CancellationToken): Promise<modes.DocumentSymbol[] | undefined>;
-	$provideCodeLenses(handle: number, resource: UriComponents, token: CancellationToken): Promise<ICodeLensListDto | undefined>;
-	$resolveCodeLens(handle: number, symbol: ICodeLensDto, token: CancellationToken): Promise<ICodeLensDto | undefined>;
-	$releaseCodeLenses(handle: number, id: number): void;
-	$provideDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<IDefinitionLinkDto[]>;
-	$provideDeclaration(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<IDefinitionLinkDto[]>;
-	$provideImplementation(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<IDefinitionLinkDto[]>;
-	$provideTypeDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<IDefinitionLinkDto[]>;
-	$provideHover(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.Hover | undefined>;
-	$provideEvaluatableExpression(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.EvaluatableExpression | undefined>;
-	$provideInlineValues(handle: number, resource: UriComponents, range: IRange, context: modes.InlineValueContext, token: CancellationToken): Promise<modes.InlineValue[] | undefined>;
-	$provideDocumentHighlights(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.DocumentHighlight[] | undefined>;
-	$provideLinkedEditingRanges(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<ILinkedEditingRangesDto | undefined>;
-	$provideReferences(handle: number, resource: UriComponents, position: IPosition, context: modes.ReferenceContext, token: CancellationToken): Promise<ILocationDto[] | undefined>;
-	$provideCodeActions(handle: number, resource: UriComponents, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext, token: CancellationToken): Promise<ICodeActionListDto | undefined>;
-	$resolveCodeAction(handle: number, id: ChainedCacheId, token: CancellationToken): Promise<IWorkspaceEditDto | undefined>;
-	$releaseCodeActions(handle: number, cacheId: number): void;
-	$provideDocumentFormattingEdits(handle: number, resource: UriComponents, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined>;
-	$provideDocumentRangeFormattingEdits(handle: number, resource: UriComponents, range: IRange, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined>;
-	$provideOnTypeFormattingEdits(handle: number, resource: UriComponents, position: IPosition, ch: string, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined>;
-	$provideWorkspaceSymbols(handle: number, search: string, token: CancellationToken): Promise<IWorkspaceSymbolsDto>;
-	$resolveWorkspaceSymbol(handle: number, symbol: IWorkspaceSymbolDto, token: CancellationToken): Promise<IWorkspaceSymbolDto | undefined>;
-	$releaseWorkspaceSymbols(handle: number, id: number): void;
-	$provideRenameEdits(handle: number, resource: UriComponents, position: IPosition, newName: string, token: CancellationToken): Promise<IWorkspaceEditDto & { rejectReason?: string } | undefined>;
-	$resolveRenameLocation(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.RenameLocation | undefined>;
-	$provideDocumentSemanticTokens(handle: number, resource: UriComponents, previousResultId: number, token: CancellationToken): Promise<VSBuffer | null>;
-	$releaseDocumentSemanticTokens(handle: number, semanticColoringResultId: number): void;
-	$provideDocumentRangeSemanticTokens(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<VSBuffer | null>;
-	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Promise<ISuggestResultDto | undefined>;
-	$resolveCompletionItem(handle: number, id: ChainedCacheId, token: CancellationToken): Promise<ISuggestDataDto | undefined>;
-	$releaseCompletionItems(handle: number, id: number): void;
-	$provideInlineCompletions(handle: number, resource: UriComponents, position: IPosition, context: modes.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined>;
-	$handleInlineCompletionDidShow(handle: number, pid: number, idx: number): void;
-	$freeInlineCompletionsList(handle: number, pid: number): void;
-	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, context: modes.SignatureHelpContext, token: CancellationToken): Promise<ISignatureHelpDto | undefined>;
-	$releaseSignatureHelp(handle: number, id: number): void;
-	$provideInlayHints(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<IInlayHintsDto | undefined>
-	$provideDocumentLinks(handle: number, resource: UriComponents, token: CancellationToken): Promise<ILinksListDto | undefined>;
-	$resolveDocumentLink(handle: number, id: ChainedCacheId, token: CancellationToken): Promise<ILinkDto | undefined>;
-	$releaseDocumentLinks(handle: number, id: number): void;
-	$provideDocumentColors(handle: number, resource: UriComponents, token: CancellationToken): Promise<IRawColorInfo[]>;
-	$provideColorPresentations(handle: number, resource: UriComponents, colorInfo: IRawColorInfo, token: CancellationToken): Promise<modes.IColorPresentation[] | undefined>;
-	$provideFoldingRanges(handle: number, resource: UriComponents, context: modes.FoldingContext, token: CancellationToken): Promise<modes.FoldingRange[] | undefined>;
-	$provideSelectionRanges(handle: number, resource: UriComponents, positions: IPosition[], token: CancellationToken): Promise<modes.SelectionRange[][]>;
-	$prepareCallHierarchy(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<ICallHierarchyItemDto[] | undefined>;
-	$provideCallHierarchyIncomingCalls(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<IIncomingCallDto[] | undefined>;
-	$provideCallHierarchyOutgoingCalls(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<IOutgoingCallDto[] | undefined>;
-	$releaseCallHierarchy(handle: number, sessionId: string): void;
-	$setWordDefinitions(wordDefinitions: ILanguageWordDefinitionDto[]): void;
-	$prepareTypeHierarchy(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<ITypeHierarchyItemDto[] | undefined>;
-	$provideTypeHierarchySupertypes(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<ITypeHierarchyItemDto[] | undefined>;
-	$provideTypeHierarchySubtypes(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<ITypeHierarchyItemDto[] | undefined>;
-	$releaseTypeHierarchy(handle: number, sessionId: string): void;
+expowt intewface ExtHostWanguageFeatuwesShape {
+	$pwovideDocumentSymbows(handwe: numba, wesouwce: UwiComponents, token: CancewwationToken): Pwomise<modes.DocumentSymbow[] | undefined>;
+	$pwovideCodeWenses(handwe: numba, wesouwce: UwiComponents, token: CancewwationToken): Pwomise<ICodeWensWistDto | undefined>;
+	$wesowveCodeWens(handwe: numba, symbow: ICodeWensDto, token: CancewwationToken): Pwomise<ICodeWensDto | undefined>;
+	$weweaseCodeWenses(handwe: numba, id: numba): void;
+	$pwovideDefinition(handwe: numba, wesouwce: UwiComponents, position: IPosition, token: CancewwationToken): Pwomise<IDefinitionWinkDto[]>;
+	$pwovideDecwawation(handwe: numba, wesouwce: UwiComponents, position: IPosition, token: CancewwationToken): Pwomise<IDefinitionWinkDto[]>;
+	$pwovideImpwementation(handwe: numba, wesouwce: UwiComponents, position: IPosition, token: CancewwationToken): Pwomise<IDefinitionWinkDto[]>;
+	$pwovideTypeDefinition(handwe: numba, wesouwce: UwiComponents, position: IPosition, token: CancewwationToken): Pwomise<IDefinitionWinkDto[]>;
+	$pwovideHova(handwe: numba, wesouwce: UwiComponents, position: IPosition, token: CancewwationToken): Pwomise<modes.Hova | undefined>;
+	$pwovideEvawuatabweExpwession(handwe: numba, wesouwce: UwiComponents, position: IPosition, token: CancewwationToken): Pwomise<modes.EvawuatabweExpwession | undefined>;
+	$pwovideInwineVawues(handwe: numba, wesouwce: UwiComponents, wange: IWange, context: modes.InwineVawueContext, token: CancewwationToken): Pwomise<modes.InwineVawue[] | undefined>;
+	$pwovideDocumentHighwights(handwe: numba, wesouwce: UwiComponents, position: IPosition, token: CancewwationToken): Pwomise<modes.DocumentHighwight[] | undefined>;
+	$pwovideWinkedEditingWanges(handwe: numba, wesouwce: UwiComponents, position: IPosition, token: CancewwationToken): Pwomise<IWinkedEditingWangesDto | undefined>;
+	$pwovideWefewences(handwe: numba, wesouwce: UwiComponents, position: IPosition, context: modes.WefewenceContext, token: CancewwationToken): Pwomise<IWocationDto[] | undefined>;
+	$pwovideCodeActions(handwe: numba, wesouwce: UwiComponents, wangeOwSewection: IWange | ISewection, context: modes.CodeActionContext, token: CancewwationToken): Pwomise<ICodeActionWistDto | undefined>;
+	$wesowveCodeAction(handwe: numba, id: ChainedCacheId, token: CancewwationToken): Pwomise<IWowkspaceEditDto | undefined>;
+	$weweaseCodeActions(handwe: numba, cacheId: numba): void;
+	$pwovideDocumentFowmattingEdits(handwe: numba, wesouwce: UwiComponents, options: modes.FowmattingOptions, token: CancewwationToken): Pwomise<ISingweEditOpewation[] | undefined>;
+	$pwovideDocumentWangeFowmattingEdits(handwe: numba, wesouwce: UwiComponents, wange: IWange, options: modes.FowmattingOptions, token: CancewwationToken): Pwomise<ISingweEditOpewation[] | undefined>;
+	$pwovideOnTypeFowmattingEdits(handwe: numba, wesouwce: UwiComponents, position: IPosition, ch: stwing, options: modes.FowmattingOptions, token: CancewwationToken): Pwomise<ISingweEditOpewation[] | undefined>;
+	$pwovideWowkspaceSymbows(handwe: numba, seawch: stwing, token: CancewwationToken): Pwomise<IWowkspaceSymbowsDto>;
+	$wesowveWowkspaceSymbow(handwe: numba, symbow: IWowkspaceSymbowDto, token: CancewwationToken): Pwomise<IWowkspaceSymbowDto | undefined>;
+	$weweaseWowkspaceSymbows(handwe: numba, id: numba): void;
+	$pwovideWenameEdits(handwe: numba, wesouwce: UwiComponents, position: IPosition, newName: stwing, token: CancewwationToken): Pwomise<IWowkspaceEditDto & { wejectWeason?: stwing } | undefined>;
+	$wesowveWenameWocation(handwe: numba, wesouwce: UwiComponents, position: IPosition, token: CancewwationToken): Pwomise<modes.WenameWocation | undefined>;
+	$pwovideDocumentSemanticTokens(handwe: numba, wesouwce: UwiComponents, pweviousWesuwtId: numba, token: CancewwationToken): Pwomise<VSBuffa | nuww>;
+	$weweaseDocumentSemanticTokens(handwe: numba, semanticCowowingWesuwtId: numba): void;
+	$pwovideDocumentWangeSemanticTokens(handwe: numba, wesouwce: UwiComponents, wange: IWange, token: CancewwationToken): Pwomise<VSBuffa | nuww>;
+	$pwovideCompwetionItems(handwe: numba, wesouwce: UwiComponents, position: IPosition, context: modes.CompwetionContext, token: CancewwationToken): Pwomise<ISuggestWesuwtDto | undefined>;
+	$wesowveCompwetionItem(handwe: numba, id: ChainedCacheId, token: CancewwationToken): Pwomise<ISuggestDataDto | undefined>;
+	$weweaseCompwetionItems(handwe: numba, id: numba): void;
+	$pwovideInwineCompwetions(handwe: numba, wesouwce: UwiComponents, position: IPosition, context: modes.InwineCompwetionContext, token: CancewwationToken): Pwomise<IdentifiabweInwineCompwetions | undefined>;
+	$handweInwineCompwetionDidShow(handwe: numba, pid: numba, idx: numba): void;
+	$fweeInwineCompwetionsWist(handwe: numba, pid: numba): void;
+	$pwovideSignatuweHewp(handwe: numba, wesouwce: UwiComponents, position: IPosition, context: modes.SignatuweHewpContext, token: CancewwationToken): Pwomise<ISignatuweHewpDto | undefined>;
+	$weweaseSignatuweHewp(handwe: numba, id: numba): void;
+	$pwovideInwayHints(handwe: numba, wesouwce: UwiComponents, wange: IWange, token: CancewwationToken): Pwomise<IInwayHintsDto | undefined>
+	$pwovideDocumentWinks(handwe: numba, wesouwce: UwiComponents, token: CancewwationToken): Pwomise<IWinksWistDto | undefined>;
+	$wesowveDocumentWink(handwe: numba, id: ChainedCacheId, token: CancewwationToken): Pwomise<IWinkDto | undefined>;
+	$weweaseDocumentWinks(handwe: numba, id: numba): void;
+	$pwovideDocumentCowows(handwe: numba, wesouwce: UwiComponents, token: CancewwationToken): Pwomise<IWawCowowInfo[]>;
+	$pwovideCowowPwesentations(handwe: numba, wesouwce: UwiComponents, cowowInfo: IWawCowowInfo, token: CancewwationToken): Pwomise<modes.ICowowPwesentation[] | undefined>;
+	$pwovideFowdingWanges(handwe: numba, wesouwce: UwiComponents, context: modes.FowdingContext, token: CancewwationToken): Pwomise<modes.FowdingWange[] | undefined>;
+	$pwovideSewectionWanges(handwe: numba, wesouwce: UwiComponents, positions: IPosition[], token: CancewwationToken): Pwomise<modes.SewectionWange[][]>;
+	$pwepaweCawwHiewawchy(handwe: numba, wesouwce: UwiComponents, position: IPosition, token: CancewwationToken): Pwomise<ICawwHiewawchyItemDto[] | undefined>;
+	$pwovideCawwHiewawchyIncomingCawws(handwe: numba, sessionId: stwing, itemId: stwing, token: CancewwationToken): Pwomise<IIncomingCawwDto[] | undefined>;
+	$pwovideCawwHiewawchyOutgoingCawws(handwe: numba, sessionId: stwing, itemId: stwing, token: CancewwationToken): Pwomise<IOutgoingCawwDto[] | undefined>;
+	$weweaseCawwHiewawchy(handwe: numba, sessionId: stwing): void;
+	$setWowdDefinitions(wowdDefinitions: IWanguageWowdDefinitionDto[]): void;
+	$pwepaweTypeHiewawchy(handwe: numba, wesouwce: UwiComponents, position: IPosition, token: CancewwationToken): Pwomise<ITypeHiewawchyItemDto[] | undefined>;
+	$pwovideTypeHiewawchySupewtypes(handwe: numba, sessionId: stwing, itemId: stwing, token: CancewwationToken): Pwomise<ITypeHiewawchyItemDto[] | undefined>;
+	$pwovideTypeHiewawchySubtypes(handwe: numba, sessionId: stwing, itemId: stwing, token: CancewwationToken): Pwomise<ITypeHiewawchyItemDto[] | undefined>;
+	$weweaseTypeHiewawchy(handwe: numba, sessionId: stwing): void;
 }
 
-export interface ExtHostQuickOpenShape {
-	$onItemSelected(handle: number): void;
-	$validateInput(input: string): Promise<string | null | undefined>;
-	$onDidChangeActive(sessionId: number, handles: number[]): void;
-	$onDidChangeSelection(sessionId: number, handles: number[]): void;
-	$onDidAccept(sessionId: number): void;
-	$onDidChangeValue(sessionId: number, value: string): void;
-	$onDidTriggerButton(sessionId: number, handle: number): void;
-	$onDidTriggerItemButton(sessionId: number, itemHandle: number, buttonHandle: number): void;
-	$onDidHide(sessionId: number): void;
+expowt intewface ExtHostQuickOpenShape {
+	$onItemSewected(handwe: numba): void;
+	$vawidateInput(input: stwing): Pwomise<stwing | nuww | undefined>;
+	$onDidChangeActive(sessionId: numba, handwes: numba[]): void;
+	$onDidChangeSewection(sessionId: numba, handwes: numba[]): void;
+	$onDidAccept(sessionId: numba): void;
+	$onDidChangeVawue(sessionId: numba, vawue: stwing): void;
+	$onDidTwiggewButton(sessionId: numba, handwe: numba): void;
+	$onDidTwiggewItemButton(sessionId: numba, itemHandwe: numba, buttonHandwe: numba): void;
+	$onDidHide(sessionId: numba): void;
 }
 
-export interface ExtHostTelemetryShape {
-	$initializeTelemetryEnabled(enabled: boolean): void;
-	$onDidChangeTelemetryEnabled(enabled: boolean): void;
+expowt intewface ExtHostTewemetwyShape {
+	$initiawizeTewemetwyEnabwed(enabwed: boowean): void;
+	$onDidChangeTewemetwyEnabwed(enabwed: boowean): void;
 }
 
-export interface ITerminalLinkDto {
-	/** The ID of the link to enable activation and disposal. */
-	id: number;
-	/** The startIndex of the link in the line. */
-	startIndex: number;
-	/** The length of the link in the line. */
-	length: number;
-	/** The descriptive label for what the link does when activated. */
-	label?: string;
+expowt intewface ITewminawWinkDto {
+	/** The ID of the wink to enabwe activation and disposaw. */
+	id: numba;
+	/** The stawtIndex of the wink in the wine. */
+	stawtIndex: numba;
+	/** The wength of the wink in the wine. */
+	wength: numba;
+	/** The descwiptive wabew fow what the wink does when activated. */
+	wabew?: stwing;
 }
 
-export interface ITerminalDimensionsDto {
-	columns: number;
-	rows: number;
+expowt intewface ITewminawDimensionsDto {
+	cowumns: numba;
+	wows: numba;
 }
 
-export interface ExtHostTerminalServiceShape {
-	$acceptTerminalClosed(id: number, exitCode: number | undefined): void;
-	$acceptTerminalOpened(id: number, extHostTerminalId: string | undefined, name: string, shellLaunchConfig: IShellLaunchConfigDto): void;
-	$acceptActiveTerminalChanged(id: number | null): void;
-	$acceptTerminalProcessId(id: number, processId: number): void;
-	$acceptTerminalProcessData(id: number, data: string): void;
-	$acceptTerminalTitleChange(id: number, name: string): void;
-	$acceptTerminalDimensions(id: number, cols: number, rows: number): void;
-	$acceptTerminalMaximumDimensions(id: number, cols: number, rows: number): void;
-	$acceptTerminalInteraction(id: number): void;
-	$startExtensionTerminal(id: number, initialDimensions: ITerminalDimensionsDto | undefined): Promise<ITerminalLaunchError | undefined>;
-	$acceptProcessAckDataEvent(id: number, charCount: number): void;
-	$acceptProcessInput(id: number, data: string): void;
-	$acceptProcessResize(id: number, cols: number, rows: number): void;
-	$acceptProcessShutdown(id: number, immediate: boolean): void;
-	$acceptProcessRequestInitialCwd(id: number): void;
-	$acceptProcessRequestCwd(id: number): void;
-	$acceptProcessRequestLatency(id: number): number;
-	$provideLinks(id: number, line: string): Promise<ITerminalLinkDto[]>;
-	$activateLink(id: number, linkId: number): void;
-	$initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void;
-	$acceptDefaultProfile(profile: ITerminalProfile, automationProfile: ITerminalProfile): void;
-	$createContributedProfileTerminal(id: string, options: ICreateContributedTerminalProfileOptions): Promise<void>;
+expowt intewface ExtHostTewminawSewviceShape {
+	$acceptTewminawCwosed(id: numba, exitCode: numba | undefined): void;
+	$acceptTewminawOpened(id: numba, extHostTewminawId: stwing | undefined, name: stwing, shewwWaunchConfig: IShewwWaunchConfigDto): void;
+	$acceptActiveTewminawChanged(id: numba | nuww): void;
+	$acceptTewminawPwocessId(id: numba, pwocessId: numba): void;
+	$acceptTewminawPwocessData(id: numba, data: stwing): void;
+	$acceptTewminawTitweChange(id: numba, name: stwing): void;
+	$acceptTewminawDimensions(id: numba, cows: numba, wows: numba): void;
+	$acceptTewminawMaximumDimensions(id: numba, cows: numba, wows: numba): void;
+	$acceptTewminawIntewaction(id: numba): void;
+	$stawtExtensionTewminaw(id: numba, initiawDimensions: ITewminawDimensionsDto | undefined): Pwomise<ITewminawWaunchEwwow | undefined>;
+	$acceptPwocessAckDataEvent(id: numba, chawCount: numba): void;
+	$acceptPwocessInput(id: numba, data: stwing): void;
+	$acceptPwocessWesize(id: numba, cows: numba, wows: numba): void;
+	$acceptPwocessShutdown(id: numba, immediate: boowean): void;
+	$acceptPwocessWequestInitiawCwd(id: numba): void;
+	$acceptPwocessWequestCwd(id: numba): void;
+	$acceptPwocessWequestWatency(id: numba): numba;
+	$pwovideWinks(id: numba, wine: stwing): Pwomise<ITewminawWinkDto[]>;
+	$activateWink(id: numba, winkId: numba): void;
+	$initEnviwonmentVawiabweCowwections(cowwections: [stwing, ISewiawizabweEnviwonmentVawiabweCowwection][]): void;
+	$acceptDefauwtPwofiwe(pwofiwe: ITewminawPwofiwe, automationPwofiwe: ITewminawPwofiwe): void;
+	$cweateContwibutedPwofiweTewminaw(id: stwing, options: ICweateContwibutedTewminawPwofiweOptions): Pwomise<void>;
 }
 
-export interface ExtHostSCMShape {
-	$provideOriginalResource(sourceControlHandle: number, uri: UriComponents, token: CancellationToken): Promise<UriComponents | null>;
-	$onInputBoxValueChange(sourceControlHandle: number, value: string): void;
-	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number, preserveFocus: boolean): Promise<void>;
-	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): Promise<[string | IMarkdownString, number] | undefined>;
-	$setSelectedSourceControl(selectedSourceControlHandle: number | undefined): Promise<void>;
+expowt intewface ExtHostSCMShape {
+	$pwovideOwiginawWesouwce(souwceContwowHandwe: numba, uwi: UwiComponents, token: CancewwationToken): Pwomise<UwiComponents | nuww>;
+	$onInputBoxVawueChange(souwceContwowHandwe: numba, vawue: stwing): void;
+	$executeWesouwceCommand(souwceContwowHandwe: numba, gwoupHandwe: numba, handwe: numba, pwesewveFocus: boowean): Pwomise<void>;
+	$vawidateInput(souwceContwowHandwe: numba, vawue: stwing, cuwsowPosition: numba): Pwomise<[stwing | IMawkdownStwing, numba] | undefined>;
+	$setSewectedSouwceContwow(sewectedSouwceContwowHandwe: numba | undefined): Pwomise<void>;
 }
 
-export interface ExtHostTaskShape {
-	$provideTasks(handle: number, validTypes: { [key: string]: boolean; }): Thenable<tasks.TaskSetDTO>;
-	$resolveTask(handle: number, taskDTO: tasks.TaskDTO): Thenable<tasks.TaskDTO | undefined>;
-	$onDidStartTask(execution: tasks.TaskExecutionDTO, terminalId: number, resolvedDefinition: tasks.TaskDefinitionDTO): void;
-	$onDidStartTaskProcess(value: tasks.TaskProcessStartedDTO): void;
-	$onDidEndTaskProcess(value: tasks.TaskProcessEndedDTO): void;
+expowt intewface ExtHostTaskShape {
+	$pwovideTasks(handwe: numba, vawidTypes: { [key: stwing]: boowean; }): Thenabwe<tasks.TaskSetDTO>;
+	$wesowveTask(handwe: numba, taskDTO: tasks.TaskDTO): Thenabwe<tasks.TaskDTO | undefined>;
+	$onDidStawtTask(execution: tasks.TaskExecutionDTO, tewminawId: numba, wesowvedDefinition: tasks.TaskDefinitionDTO): void;
+	$onDidStawtTaskPwocess(vawue: tasks.TaskPwocessStawtedDTO): void;
+	$onDidEndTaskPwocess(vawue: tasks.TaskPwocessEndedDTO): void;
 	$OnDidEndTask(execution: tasks.TaskExecutionDTO): void;
-	$resolveVariables(workspaceFolder: UriComponents, toResolve: { process?: { name: string; cwd?: string; }, variables: string[]; }): Promise<{ process?: string; variables: { [key: string]: string; }; }>;
-	$jsonTasksSupported(): Thenable<boolean>;
-	$findExecutable(command: string, cwd?: string, paths?: string[]): Promise<string | undefined>;
+	$wesowveVawiabwes(wowkspaceFowda: UwiComponents, toWesowve: { pwocess?: { name: stwing; cwd?: stwing; }, vawiabwes: stwing[]; }): Pwomise<{ pwocess?: stwing; vawiabwes: { [key: stwing]: stwing; }; }>;
+	$jsonTasksSuppowted(): Thenabwe<boowean>;
+	$findExecutabwe(command: stwing, cwd?: stwing, paths?: stwing[]): Pwomise<stwing | undefined>;
 }
 
-export interface IBreakpointDto {
-	type: string;
-	id?: string;
-	enabled: boolean;
-	condition?: string;
-	hitCondition?: string;
-	logMessage?: string;
+expowt intewface IBweakpointDto {
+	type: stwing;
+	id?: stwing;
+	enabwed: boowean;
+	condition?: stwing;
+	hitCondition?: stwing;
+	wogMessage?: stwing;
 }
 
-export interface IFunctionBreakpointDto extends IBreakpointDto {
+expowt intewface IFunctionBweakpointDto extends IBweakpointDto {
 	type: 'function';
-	functionName: string;
+	functionName: stwing;
 }
 
-export interface IDataBreakpointDto extends IBreakpointDto {
+expowt intewface IDataBweakpointDto extends IBweakpointDto {
 	type: 'data';
-	dataId: string;
-	canPersist: boolean;
-	label: string;
-	accessTypes?: DebugProtocol.DataBreakpointAccessType[];
-	accessType: DebugProtocol.DataBreakpointAccessType;
+	dataId: stwing;
+	canPewsist: boowean;
+	wabew: stwing;
+	accessTypes?: DebugPwotocow.DataBweakpointAccessType[];
+	accessType: DebugPwotocow.DataBweakpointAccessType;
 }
 
-export interface ISourceBreakpointDto extends IBreakpointDto {
-	type: 'source';
-	uri: UriComponents;
-	line: number;
-	character: number;
+expowt intewface ISouwceBweakpointDto extends IBweakpointDto {
+	type: 'souwce';
+	uwi: UwiComponents;
+	wine: numba;
+	chawacta: numba;
 }
 
-export interface IBreakpointsDeltaDto {
-	added?: Array<ISourceBreakpointDto | IFunctionBreakpointDto | IDataBreakpointDto>;
-	removed?: string[];
-	changed?: Array<ISourceBreakpointDto | IFunctionBreakpointDto | IDataBreakpointDto>;
+expowt intewface IBweakpointsDewtaDto {
+	added?: Awway<ISouwceBweakpointDto | IFunctionBweakpointDto | IDataBweakpointDto>;
+	wemoved?: stwing[];
+	changed?: Awway<ISouwceBweakpointDto | IFunctionBweakpointDto | IDataBweakpointDto>;
 }
 
-export interface ISourceMultiBreakpointDto {
-	type: 'sourceMulti';
-	uri: UriComponents;
-	lines: {
-		id: string;
-		enabled: boolean;
-		condition?: string;
-		hitCondition?: string;
-		logMessage?: string;
-		line: number;
-		character: number;
+expowt intewface ISouwceMuwtiBweakpointDto {
+	type: 'souwceMuwti';
+	uwi: UwiComponents;
+	wines: {
+		id: stwing;
+		enabwed: boowean;
+		condition?: stwing;
+		hitCondition?: stwing;
+		wogMessage?: stwing;
+		wine: numba;
+		chawacta: numba;
 	}[];
 }
 
-export interface IDebugSessionFullDto {
+expowt intewface IDebugSessionFuwwDto {
 	id: DebugSessionUUID;
-	type: string;
-	name: string;
-	parent: DebugSessionUUID | undefined;
-	folderUri: UriComponents | undefined;
-	configuration: IConfig;
+	type: stwing;
+	name: stwing;
+	pawent: DebugSessionUUID | undefined;
+	fowdewUwi: UwiComponents | undefined;
+	configuwation: IConfig;
 }
 
-export type IDebugSessionDto = IDebugSessionFullDto | DebugSessionUUID;
+expowt type IDebugSessionDto = IDebugSessionFuwwDto | DebugSessionUUID;
 
-export interface ExtHostDebugServiceShape {
-	$substituteVariables(folder: UriComponents | undefined, config: IConfig): Promise<IConfig>;
-	$runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined>;
-	$startDASession(handle: number, session: IDebugSessionDto): Promise<void>;
-	$stopDASession(handle: number): Promise<void>;
-	$sendDAMessage(handle: number, message: DebugProtocol.ProtocolMessage): void;
-	$resolveDebugConfiguration(handle: number, folder: UriComponents | undefined, debugConfiguration: IConfig, token: CancellationToken): Promise<IConfig | null | undefined>;
-	$resolveDebugConfigurationWithSubstitutedVariables(handle: number, folder: UriComponents | undefined, debugConfiguration: IConfig, token: CancellationToken): Promise<IConfig | null | undefined>;
-	$provideDebugConfigurations(handle: number, folder: UriComponents | undefined, token: CancellationToken): Promise<IConfig[]>;
-	$provideDebugAdapter(handle: number, session: IDebugSessionDto): Promise<IAdapterDescriptor>;
-	$acceptDebugSessionStarted(session: IDebugSessionDto): void;
-	$acceptDebugSessionTerminated(session: IDebugSessionDto): void;
+expowt intewface ExtHostDebugSewviceShape {
+	$substituteVawiabwes(fowda: UwiComponents | undefined, config: IConfig): Pwomise<IConfig>;
+	$wunInTewminaw(awgs: DebugPwotocow.WunInTewminawWequestAwguments, sessionId: stwing): Pwomise<numba | undefined>;
+	$stawtDASession(handwe: numba, session: IDebugSessionDto): Pwomise<void>;
+	$stopDASession(handwe: numba): Pwomise<void>;
+	$sendDAMessage(handwe: numba, message: DebugPwotocow.PwotocowMessage): void;
+	$wesowveDebugConfiguwation(handwe: numba, fowda: UwiComponents | undefined, debugConfiguwation: IConfig, token: CancewwationToken): Pwomise<IConfig | nuww | undefined>;
+	$wesowveDebugConfiguwationWithSubstitutedVawiabwes(handwe: numba, fowda: UwiComponents | undefined, debugConfiguwation: IConfig, token: CancewwationToken): Pwomise<IConfig | nuww | undefined>;
+	$pwovideDebugConfiguwations(handwe: numba, fowda: UwiComponents | undefined, token: CancewwationToken): Pwomise<IConfig[]>;
+	$pwovideDebugAdapta(handwe: numba, session: IDebugSessionDto): Pwomise<IAdaptewDescwiptow>;
+	$acceptDebugSessionStawted(session: IDebugSessionDto): void;
+	$acceptDebugSessionTewminated(session: IDebugSessionDto): void;
 	$acceptDebugSessionActiveChanged(session: IDebugSessionDto | undefined): void;
 	$acceptDebugSessionCustomEvent(session: IDebugSessionDto, event: any): void;
-	$acceptBreakpointsDelta(delta: IBreakpointsDeltaDto): void;
-	$acceptDebugSessionNameChanged(session: IDebugSessionDto, name: string): void;
+	$acceptBweakpointsDewta(dewta: IBweakpointsDewtaDto): void;
+	$acceptDebugSessionNameChanged(session: IDebugSessionDto, name: stwing): void;
 }
 
 
-export interface DecorationRequest {
-	readonly id: number;
-	readonly uri: UriComponents;
+expowt intewface DecowationWequest {
+	weadonwy id: numba;
+	weadonwy uwi: UwiComponents;
 }
 
-export type DecorationData = [boolean, string, string, ThemeColor];
-export type DecorationReply = { [id: number]: DecorationData; };
+expowt type DecowationData = [boowean, stwing, stwing, ThemeCowow];
+expowt type DecowationWepwy = { [id: numba]: DecowationData; };
 
-export interface ExtHostDecorationsShape {
-	$provideDecorations(handle: number, requests: DecorationRequest[], token: CancellationToken): Promise<DecorationReply>;
+expowt intewface ExtHostDecowationsShape {
+	$pwovideDecowations(handwe: numba, wequests: DecowationWequest[], token: CancewwationToken): Pwomise<DecowationWepwy>;
 }
 
-export interface ExtHostWindowShape {
-	$onDidChangeWindowFocus(value: boolean): void;
+expowt intewface ExtHostWindowShape {
+	$onDidChangeWindowFocus(vawue: boowean): void;
 }
 
-export interface ExtHostLogServiceShape {
-	$setLevel(level: LogLevel): void;
+expowt intewface ExtHostWogSewviceShape {
+	$setWevew(wevew: WogWevew): void;
 }
 
-export interface MainThreadLogShape {
-	$log(file: UriComponents, level: LogLevel, args: any[]): void;
+expowt intewface MainThweadWogShape {
+	$wog(fiwe: UwiComponents, wevew: WogWevew, awgs: any[]): void;
 }
 
-export interface ExtHostOutputServiceShape {
-	$setVisibleChannel(channelId: string | null): void;
+expowt intewface ExtHostOutputSewviceShape {
+	$setVisibweChannew(channewId: stwing | nuww): void;
 }
 
-export interface ExtHostProgressShape {
-	$acceptProgressCanceled(handle: number): void;
+expowt intewface ExtHostPwogwessShape {
+	$acceptPwogwessCancewed(handwe: numba): void;
 }
 
-export interface ExtHostCommentsShape {
-	$createCommentThreadTemplate(commentControllerHandle: number, uriComponents: UriComponents, range: IRange): void;
-	$updateCommentThreadTemplate(commentControllerHandle: number, threadHandle: number, range: IRange): Promise<void>;
-	$deleteCommentThread(commentControllerHandle: number, commentThreadHandle: number): void;
-	$provideCommentingRanges(commentControllerHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<IRange[] | undefined>;
-	$toggleReaction(commentControllerHandle: number, threadHandle: number, uri: UriComponents, comment: modes.Comment, reaction: modes.CommentReaction): Promise<void>;
+expowt intewface ExtHostCommentsShape {
+	$cweateCommentThweadTempwate(commentContwowwewHandwe: numba, uwiComponents: UwiComponents, wange: IWange): void;
+	$updateCommentThweadTempwate(commentContwowwewHandwe: numba, thweadHandwe: numba, wange: IWange): Pwomise<void>;
+	$deweteCommentThwead(commentContwowwewHandwe: numba, commentThweadHandwe: numba): void;
+	$pwovideCommentingWanges(commentContwowwewHandwe: numba, uwiComponents: UwiComponents, token: CancewwationToken): Pwomise<IWange[] | undefined>;
+	$toggweWeaction(commentContwowwewHandwe: numba, thweadHandwe: numba, uwi: UwiComponents, comment: modes.Comment, weaction: modes.CommentWeaction): Pwomise<void>;
 }
 
-export interface INotebookSelectionChangeEvent {
-	selections: ICellRange[];
+expowt intewface INotebookSewectionChangeEvent {
+	sewections: ICewwWange[];
 }
 
-export interface INotebookVisibleRangesEvent {
-	ranges: ICellRange[];
+expowt intewface INotebookVisibweWangesEvent {
+	wanges: ICewwWange[];
 }
 
-export interface INotebookEditorPropertiesChangeData {
-	visibleRanges?: INotebookVisibleRangesEvent;
-	selections?: INotebookSelectionChangeEvent;
+expowt intewface INotebookEditowPwopewtiesChangeData {
+	visibweWanges?: INotebookVisibweWangesEvent;
+	sewections?: INotebookSewectionChangeEvent;
 }
 
-export interface INotebookDocumentPropertiesChangeData {
+expowt intewface INotebookDocumentPwopewtiesChangeData {
 	metadata?: notebookCommon.NotebookDocumentMetadata;
 }
 
-export interface INotebookModelAddedData {
-	uri: UriComponents;
-	versionId: number;
-	cells: NotebookCellDto[],
-	viewType: string;
+expowt intewface INotebookModewAddedData {
+	uwi: UwiComponents;
+	vewsionId: numba;
+	cewws: NotebookCewwDto[],
+	viewType: stwing;
 	metadata?: notebookCommon.NotebookDocumentMetadata;
 }
 
-export interface INotebookEditorAddData {
-	id: string;
-	documentUri: UriComponents;
-	selections: ICellRange[];
-	visibleRanges: ICellRange[];
-	viewColumn?: number
+expowt intewface INotebookEditowAddData {
+	id: stwing;
+	documentUwi: UwiComponents;
+	sewections: ICewwWange[];
+	visibweWanges: ICewwWange[];
+	viewCowumn?: numba
 }
 
-export interface INotebookDocumentsAndEditorsDelta {
-	removedDocuments?: UriComponents[];
-	addedDocuments?: INotebookModelAddedData[];
-	removedEditors?: string[];
-	addedEditors?: INotebookEditorAddData[];
-	newActiveEditor?: string | null;
-	visibleEditors?: string[];
+expowt intewface INotebookDocumentsAndEditowsDewta {
+	wemovedDocuments?: UwiComponents[];
+	addedDocuments?: INotebookModewAddedData[];
+	wemovedEditows?: stwing[];
+	addedEditows?: INotebookEditowAddData[];
+	newActiveEditow?: stwing | nuww;
+	visibweEditows?: stwing[];
 }
 
-export interface NotebookOutputItemDto {
-	readonly mime: string;
-	readonly valueBytes: VSBuffer;
+expowt intewface NotebookOutputItemDto {
+	weadonwy mime: stwing;
+	weadonwy vawueBytes: VSBuffa;
 }
 
-export interface NotebookOutputDto {
+expowt intewface NotebookOutputDto {
 	items: NotebookOutputItemDto[];
-	outputId: string;
-	metadata?: Record<string, any>;
+	outputId: stwing;
+	metadata?: Wecowd<stwing, any>;
 }
 
-export interface NotebookCellDataDto {
-	source: string;
-	language: string;
-	mime: string | undefined;
-	cellKind: notebookCommon.CellKind;
+expowt intewface NotebookCewwDataDto {
+	souwce: stwing;
+	wanguage: stwing;
+	mime: stwing | undefined;
+	cewwKind: notebookCommon.CewwKind;
 	outputs: NotebookOutputDto[];
-	metadata?: notebookCommon.NotebookCellMetadata;
-	internalMetadata?: notebookCommon.NotebookCellInternalMetadata;
+	metadata?: notebookCommon.NotebookCewwMetadata;
+	intewnawMetadata?: notebookCommon.NotebookCewwIntewnawMetadata;
 }
 
-export interface NotebookDataDto {
-	readonly cells: NotebookCellDataDto[];
-	readonly metadata: notebookCommon.NotebookDocumentMetadata;
+expowt intewface NotebookDataDto {
+	weadonwy cewws: NotebookCewwDataDto[];
+	weadonwy metadata: notebookCommon.NotebookDocumentMetadata;
 }
 
-export interface NotebookCellDto {
-	handle: number;
-	uri: UriComponents;
-	eol: string;
-	source: string[];
-	language: string;
-	mime?: string;
-	cellKind: notebookCommon.CellKind;
+expowt intewface NotebookCewwDto {
+	handwe: numba;
+	uwi: UwiComponents;
+	eow: stwing;
+	souwce: stwing[];
+	wanguage: stwing;
+	mime?: stwing;
+	cewwKind: notebookCommon.CewwKind;
 	outputs: NotebookOutputDto[];
-	metadata?: notebookCommon.NotebookCellMetadata;
-	internalMetadata?: notebookCommon.NotebookCellInternalMetadata;
+	metadata?: notebookCommon.NotebookCewwMetadata;
+	intewnawMetadata?: notebookCommon.NotebookCewwIntewnawMetadata;
 }
 
-export interface ExtHostNotebookShape extends ExtHostNotebookDocumentsAndEditorsShape {
-	$provideNotebookCellStatusBarItems(handle: number, uri: UriComponents, index: number, token: CancellationToken): Promise<INotebookCellStatusBarListDto | undefined>;
-	$releaseNotebookCellStatusBarItems(id: number): void;
+expowt intewface ExtHostNotebookShape extends ExtHostNotebookDocumentsAndEditowsShape {
+	$pwovideNotebookCewwStatusBawItems(handwe: numba, uwi: UwiComponents, index: numba, token: CancewwationToken): Pwomise<INotebookCewwStatusBawWistDto | undefined>;
+	$weweaseNotebookCewwStatusBawItems(id: numba): void;
 
-	$openNotebook(viewType: string, uri: UriComponents, backupId: string | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken): Promise<SerializableObjectWithBuffers<NotebookDataDto>>;
-	$saveNotebook(viewType: string, uri: UriComponents, token: CancellationToken): Promise<boolean>;
-	$saveNotebookAs(viewType: string, uri: UriComponents, target: UriComponents, token: CancellationToken): Promise<boolean>;
-	$backupNotebook(viewType: string, uri: UriComponents, cancellation: CancellationToken): Promise<string>;
+	$openNotebook(viewType: stwing, uwi: UwiComponents, backupId: stwing | undefined, untitwedDocumentData: VSBuffa | undefined, token: CancewwationToken): Pwomise<SewiawizabweObjectWithBuffews<NotebookDataDto>>;
+	$saveNotebook(viewType: stwing, uwi: UwiComponents, token: CancewwationToken): Pwomise<boowean>;
+	$saveNotebookAs(viewType: stwing, uwi: UwiComponents, tawget: UwiComponents, token: CancewwationToken): Pwomise<boowean>;
+	$backupNotebook(viewType: stwing, uwi: UwiComponents, cancewwation: CancewwationToken): Pwomise<stwing>;
 
-	$dataToNotebook(handle: number, data: VSBuffer, token: CancellationToken): Promise<SerializableObjectWithBuffers<NotebookDataDto>>;
-	$notebookToData(handle: number, data: SerializableObjectWithBuffers<NotebookDataDto>, token: CancellationToken): Promise<VSBuffer>;
+	$dataToNotebook(handwe: numba, data: VSBuffa, token: CancewwationToken): Pwomise<SewiawizabweObjectWithBuffews<NotebookDataDto>>;
+	$notebookToData(handwe: numba, data: SewiawizabweObjectWithBuffews<NotebookDataDto>, token: CancewwationToken): Pwomise<VSBuffa>;
 }
 
-export interface ExtHostNotebookRenderersShape {
-	$postRendererMessage(editorId: string, rendererId: string, message: unknown): void;
+expowt intewface ExtHostNotebookWendewewsShape {
+	$postWendewewMessage(editowId: stwing, wendewewId: stwing, message: unknown): void;
 }
 
-export interface ExtHostNotebookDocumentsAndEditorsShape {
-	$acceptDocumentAndEditorsDelta(delta: SerializableObjectWithBuffers<INotebookDocumentsAndEditorsDelta>): void;
+expowt intewface ExtHostNotebookDocumentsAndEditowsShape {
+	$acceptDocumentAndEditowsDewta(dewta: SewiawizabweObjectWithBuffews<INotebookDocumentsAndEditowsDewta>): void;
 }
 
-export type NotebookRawContentEventDto =
-	// notebookCommon.NotebookCellsInitializeEvent<NotebookCellDto>
+expowt type NotebookWawContentEventDto =
+	// notebookCommon.NotebookCewwsInitiawizeEvent<NotebookCewwDto>
 	| {
 
-		readonly kind: notebookCommon.NotebookCellsChangeType.ModelChange;
-		readonly changes: notebookCommon.NotebookCellTextModelSplice<NotebookCellDto>[];
+		weadonwy kind: notebookCommon.NotebookCewwsChangeType.ModewChange;
+		weadonwy changes: notebookCommon.NotebookCewwTextModewSpwice<NotebookCewwDto>[];
 	}
 	| {
-		readonly kind: notebookCommon.NotebookCellsChangeType.Move;
-		readonly index: number;
-		readonly length: number;
-		readonly newIdx: number;
+		weadonwy kind: notebookCommon.NotebookCewwsChangeType.Move;
+		weadonwy index: numba;
+		weadonwy wength: numba;
+		weadonwy newIdx: numba;
 	}
 	| {
-		readonly kind: notebookCommon.NotebookCellsChangeType.Output;
-		readonly index: number;
-		readonly outputs: NotebookOutputDto[];
+		weadonwy kind: notebookCommon.NotebookCewwsChangeType.Output;
+		weadonwy index: numba;
+		weadonwy outputs: NotebookOutputDto[];
 	}
 	| {
-		readonly kind: notebookCommon.NotebookCellsChangeType.OutputItem;
-		readonly index: number;
-		readonly outputId: string;
-		readonly outputItems: NotebookOutputItemDto[];
-		readonly append: boolean;
+		weadonwy kind: notebookCommon.NotebookCewwsChangeType.OutputItem;
+		weadonwy index: numba;
+		weadonwy outputId: stwing;
+		weadonwy outputItems: NotebookOutputItemDto[];
+		weadonwy append: boowean;
 	}
-	| notebookCommon.NotebookCellsChangeLanguageEvent
-	| notebookCommon.NotebookCellsChangeMimeEvent
-	| notebookCommon.NotebookCellsChangeMetadataEvent
-	| notebookCommon.NotebookCellsChangeInternalMetadataEvent
+	| notebookCommon.NotebookCewwsChangeWanguageEvent
+	| notebookCommon.NotebookCewwsChangeMimeEvent
+	| notebookCommon.NotebookCewwsChangeMetadataEvent
+	| notebookCommon.NotebookCewwsChangeIntewnawMetadataEvent
 	// | notebookCommon.NotebookDocumentChangeMetadataEvent
-	// | notebookCommon.NotebookCellContentChangeEvent
+	// | notebookCommon.NotebookCewwContentChangeEvent
 	// | notebookCommon.NotebookDocumentUnknownChangeEvent
 	;
 
-export type NotebookCellsChangedEventDto = {
-	readonly rawEvents: NotebookRawContentEventDto[];
-	readonly versionId: number;
+expowt type NotebookCewwsChangedEventDto = {
+	weadonwy wawEvents: NotebookWawContentEventDto[];
+	weadonwy vewsionId: numba;
 };
 
-export interface ExtHostNotebookDocumentsShape {
-	$acceptModelChanged(uriComponents: UriComponents, event: SerializableObjectWithBuffers<NotebookCellsChangedEventDto>, isDirty: boolean): void;
-	$acceptDirtyStateChanged(uriComponents: UriComponents, isDirty: boolean): void;
-	$acceptModelSaved(uriComponents: UriComponents): void;
-	$acceptDocumentPropertiesChanged(uriComponents: UriComponents, data: INotebookDocumentPropertiesChangeData): void;
+expowt intewface ExtHostNotebookDocumentsShape {
+	$acceptModewChanged(uwiComponents: UwiComponents, event: SewiawizabweObjectWithBuffews<NotebookCewwsChangedEventDto>, isDiwty: boowean): void;
+	$acceptDiwtyStateChanged(uwiComponents: UwiComponents, isDiwty: boowean): void;
+	$acceptModewSaved(uwiComponents: UwiComponents): void;
+	$acceptDocumentPwopewtiesChanged(uwiComponents: UwiComponents, data: INotebookDocumentPwopewtiesChangeData): void;
 }
 
-export type INotebookEditorViewColumnInfo = Record<string, number>;
+expowt type INotebookEditowViewCowumnInfo = Wecowd<stwing, numba>;
 
-export interface ExtHostNotebookEditorsShape {
-	$acceptEditorPropertiesChanged(id: string, data: INotebookEditorPropertiesChangeData): void;
-	$acceptEditorViewColumns(data: INotebookEditorViewColumnInfo): void;
+expowt intewface ExtHostNotebookEditowsShape {
+	$acceptEditowPwopewtiesChanged(id: stwing, data: INotebookEditowPwopewtiesChangeData): void;
+	$acceptEditowViewCowumns(data: INotebookEditowViewCowumnInfo): void;
 }
 
-export interface ExtHostNotebookKernelsShape {
-	$acceptNotebookAssociation(handle: number, uri: UriComponents, value: boolean): void;
-	$executeCells(handle: number, uri: UriComponents, handles: number[]): Promise<void>;
-	$cancelCells(handle: number, uri: UriComponents, handles: number[]): Promise<void>;
-	$acceptKernelMessageFromRenderer(handle: number, editorId: string, message: any): void;
+expowt intewface ExtHostNotebookKewnewsShape {
+	$acceptNotebookAssociation(handwe: numba, uwi: UwiComponents, vawue: boowean): void;
+	$executeCewws(handwe: numba, uwi: UwiComponents, handwes: numba[]): Pwomise<void>;
+	$cancewCewws(handwe: numba, uwi: UwiComponents, handwes: numba[]): Pwomise<void>;
+	$acceptKewnewMessageFwomWendewa(handwe: numba, editowId: stwing, message: any): void;
 }
 
-export interface ExtHostInteractiveShape {
-	$willAddInteractiveDocument(uri: UriComponents, eol: string, modeId: string, notebookUri: UriComponents): void;
-	$willRemoveInteractiveDocument(uri: UriComponents, notebookUri: UriComponents): void;
+expowt intewface ExtHostIntewactiveShape {
+	$wiwwAddIntewactiveDocument(uwi: UwiComponents, eow: stwing, modeId: stwing, notebookUwi: UwiComponents): void;
+	$wiwwWemoveIntewactiveDocument(uwi: UwiComponents, notebookUwi: UwiComponents): void;
 }
 
-export interface ExtHostStorageShape {
-	$acceptValue(shared: boolean, key: string, value: object | undefined): void;
+expowt intewface ExtHostStowageShape {
+	$acceptVawue(shawed: boowean, key: stwing, vawue: object | undefined): void;
 }
 
-export interface ExtHostThemingShape {
-	$onColorThemeChange(themeType: string): void;
+expowt intewface ExtHostThemingShape {
+	$onCowowThemeChange(themeType: stwing): void;
 }
 
-export interface MainThreadThemingShape extends IDisposable {
+expowt intewface MainThweadThemingShape extends IDisposabwe {
 }
 
-export interface ExtHostTunnelServiceShape {
-	$forwardPort(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<TunnelDto | undefined>;
-	$closeTunnel(remote: { host: string, port: number }, silent?: boolean): Promise<void>;
-	$onDidTunnelsChange(): Promise<void>;
-	$registerCandidateFinder(enable: boolean): Promise<void>;
-	$applyCandidateFilter(candidates: CandidatePort[]): Promise<CandidatePort[]>;
-	$providePortAttributes(handles: number[], ports: number[], pid: number | undefined, commandline: string | undefined, cancellationToken: CancellationToken): Promise<ProvidedPortAttributes[]>;
+expowt intewface ExtHostTunnewSewviceShape {
+	$fowwawdPowt(tunnewOptions: TunnewOptions, tunnewCweationOptions: TunnewCweationOptions): Pwomise<TunnewDto | undefined>;
+	$cwoseTunnew(wemote: { host: stwing, powt: numba }, siwent?: boowean): Pwomise<void>;
+	$onDidTunnewsChange(): Pwomise<void>;
+	$wegistewCandidateFinda(enabwe: boowean): Pwomise<void>;
+	$appwyCandidateFiwta(candidates: CandidatePowt[]): Pwomise<CandidatePowt[]>;
+	$pwovidePowtAttwibutes(handwes: numba[], powts: numba[], pid: numba | undefined, commandwine: stwing | undefined, cancewwationToken: CancewwationToken): Pwomise<PwovidedPowtAttwibutes[]>;
 }
 
-export interface ExtHostTimelineShape {
-	$getTimeline(source: string, uri: UriComponents, options: TimelineOptions, token: CancellationToken, internalOptions?: InternalTimelineOptions): Promise<Timeline | undefined>;
+expowt intewface ExtHostTimewineShape {
+	$getTimewine(souwce: stwing, uwi: UwiComponents, options: TimewineOptions, token: CancewwationToken, intewnawOptions?: IntewnawTimewineOptions): Pwomise<Timewine | undefined>;
 }
 
-export const enum ExtHostTestingResource {
-	Workspace,
+expowt const enum ExtHostTestingWesouwce {
+	Wowkspace,
 	TextDocument
 }
 
-export interface ExtHostTestingShape {
-	$runControllerTests(req: RunTestForControllerRequest, token: CancellationToken): Promise<void>;
-	$cancelExtensionTestRun(runId: string | undefined): void;
-	/** Handles a diff of tests, as a result of a subscribeToDiffs() call */
+expowt intewface ExtHostTestingShape {
+	$wunContwowwewTests(weq: WunTestFowContwowwewWequest, token: CancewwationToken): Pwomise<void>;
+	$cancewExtensionTestWun(wunId: stwing | undefined): void;
+	/** Handwes a diff of tests, as a wesuwt of a subscwibeToDiffs() caww */
 	$acceptDiff(diff: TestsDiff): void;
-	/** Publishes that a test run finished. */
-	$publishTestResults(results: ISerializedTestResults[]): void;
-	/** Expands a test item's children, by the given number of levels. */
-	$expandTest(testId: string, levels: number): Promise<void>;
-	/** Requests file coverage for a test run. Errors if not available. */
-	$provideFileCoverage(runId: string, taskId: string, token: CancellationToken): Promise<IFileCoverage[]>;
+	/** Pubwishes that a test wun finished. */
+	$pubwishTestWesuwts(wesuwts: ISewiawizedTestWesuwts[]): void;
+	/** Expands a test item's chiwdwen, by the given numba of wevews. */
+	$expandTest(testId: stwing, wevews: numba): Pwomise<void>;
+	/** Wequests fiwe covewage fow a test wun. Ewwows if not avaiwabwe. */
+	$pwovideFiweCovewage(wunId: stwing, taskId: stwing, token: CancewwationToken): Pwomise<IFiweCovewage[]>;
 	/**
-	 * Requests coverage details for the file index in coverage data for the run.
-	 * Requires file coverage to have been previously requested via $provideFileCoverage.
+	 * Wequests covewage detaiws fow the fiwe index in covewage data fow the wun.
+	 * Wequiwes fiwe covewage to have been pweviouswy wequested via $pwovideFiweCovewage.
 	 */
-	$resolveFileCoverage(runId: string, taskId: string, fileIndex: number, token: CancellationToken): Promise<CoverageDetails[]>;
-	/** Configures a test run config. */
-	$configureRunProfile(controllerId: string, configId: number): void;
+	$wesowveFiweCovewage(wunId: stwing, taskId: stwing, fiweIndex: numba, token: CancewwationToken): Pwomise<CovewageDetaiws[]>;
+	/** Configuwes a test wun config. */
+	$configuweWunPwofiwe(contwowwewId: stwing, configId: numba): void;
 }
 
-export interface MainThreadTestingShape {
-	// --- test lifecycle:
+expowt intewface MainThweadTestingShape {
+	// --- test wifecycwe:
 
-	/** Registers that there's a test controller with the given ID */
-	$registerTestController(controllerId: string, label: string): void;
-	/** Updates the label of an existing test controller. */
-	$updateControllerLabel(controllerId: string, label: string): void;
-	/** Diposes of the test controller with the given ID */
-	$unregisterTestController(controllerId: string): void;
-	/** Requests tests published to VS Code. */
-	$subscribeToDiffs(): void;
-	/** Stops requesting tests published to VS Code. */
-	$unsubscribeFromDiffs(): void;
-	/** Publishes that new tests were available on the given source. */
-	$publishDiff(controllerId: string, diff: TestsDiff): void;
+	/** Wegistews that thewe's a test contwowwa with the given ID */
+	$wegistewTestContwowwa(contwowwewId: stwing, wabew: stwing): void;
+	/** Updates the wabew of an existing test contwowwa. */
+	$updateContwowwewWabew(contwowwewId: stwing, wabew: stwing): void;
+	/** Diposes of the test contwowwa with the given ID */
+	$unwegistewTestContwowwa(contwowwewId: stwing): void;
+	/** Wequests tests pubwished to VS Code. */
+	$subscwibeToDiffs(): void;
+	/** Stops wequesting tests pubwished to VS Code. */
+	$unsubscwibeFwomDiffs(): void;
+	/** Pubwishes that new tests wewe avaiwabwe on the given souwce. */
+	$pubwishDiff(contwowwewId: stwing, diff: TestsDiff): void;
 
-	// --- test run configurations:
+	// --- test wun configuwations:
 
-	/** Called when a new test run configuration is available */
-	$publishTestRunProfile(config: ITestRunProfile): void;
-	/** Updates an existing test run configuration */
-	$updateTestRunConfig(controllerId: string, configId: number, update: Partial<ITestRunProfile>): void;
-	/** Removes a previously-published test run config */
-	$removeTestProfile(controllerId: string, configId: number): void;
+	/** Cawwed when a new test wun configuwation is avaiwabwe */
+	$pubwishTestWunPwofiwe(config: ITestWunPwofiwe): void;
+	/** Updates an existing test wun configuwation */
+	$updateTestWunConfig(contwowwewId: stwing, configId: numba, update: Pawtiaw<ITestWunPwofiwe>): void;
+	/** Wemoves a pweviouswy-pubwished test wun config */
+	$wemoveTestPwofiwe(contwowwewId: stwing, configId: numba): void;
 
 
-	// --- test run handling:
+	// --- test wun handwing:
 
-	/** Request by an extension to run tests. */
-	$runTests(req: ResolvedTestRunRequest, token: CancellationToken): Promise<string>;
+	/** Wequest by an extension to wun tests. */
+	$wunTests(weq: WesowvedTestWunWequest, token: CancewwationToken): Pwomise<stwing>;
 	/**
-	 * Adds tests to the run. The tests are given in descending depth. The first
-	 * item will be a previously-known test, or a test root.
+	 * Adds tests to the wun. The tests awe given in descending depth. The fiwst
+	 * item wiww be a pweviouswy-known test, ow a test woot.
 	 */
-	$addTestsToRun(controllerId: string, runId: string, tests: ITestItem[]): void;
-	/** Updates the state of a test run in the given run. */
-	$updateTestStateInRun(runId: string, taskId: string, testId: string, state: TestResultState, duration?: number): void;
-	/** Appends a message to a test in the run. */
-	$appendTestMessagesInRun(runId: string, taskId: string, testId: string, messages: SerializedTestMessage[]): void;
-	/** Appends raw output to the test run.. */
-	$appendOutputToRun(runId: string, taskId: string, output: VSBuffer, location?: ILocationDto, testId?: string): void;
-	/** Triggered when coverage is added to test results. */
-	$signalCoverageAvailable(runId: string, taskId: string): void;
-	/** Signals a task in a test run started. */
-	$startedTestRunTask(runId: string, task: ITestRunTask): void;
-	/** Signals a task in a test run ended. */
-	$finishedTestRunTask(runId: string, taskId: string): void;
-	/** Start a new extension-provided test run. */
-	$startedExtensionTestRun(req: ExtensionRunTestsRequest): void;
-	/** Signals that an extension-provided test run finished. */
-	$finishedExtensionTestRun(runId: string): void;
+	$addTestsToWun(contwowwewId: stwing, wunId: stwing, tests: ITestItem[]): void;
+	/** Updates the state of a test wun in the given wun. */
+	$updateTestStateInWun(wunId: stwing, taskId: stwing, testId: stwing, state: TestWesuwtState, duwation?: numba): void;
+	/** Appends a message to a test in the wun. */
+	$appendTestMessagesInWun(wunId: stwing, taskId: stwing, testId: stwing, messages: SewiawizedTestMessage[]): void;
+	/** Appends waw output to the test wun.. */
+	$appendOutputToWun(wunId: stwing, taskId: stwing, output: VSBuffa, wocation?: IWocationDto, testId?: stwing): void;
+	/** Twiggewed when covewage is added to test wesuwts. */
+	$signawCovewageAvaiwabwe(wunId: stwing, taskId: stwing): void;
+	/** Signaws a task in a test wun stawted. */
+	$stawtedTestWunTask(wunId: stwing, task: ITestWunTask): void;
+	/** Signaws a task in a test wun ended. */
+	$finishedTestWunTask(wunId: stwing, taskId: stwing): void;
+	/** Stawt a new extension-pwovided test wun. */
+	$stawtedExtensionTestWun(weq: ExtensionWunTestsWequest): void;
+	/** Signaws that an extension-pwovided test wun finished. */
+	$finishedExtensionTestWun(wunId: stwing): void;
 }
 
-// --- proxy identifiers
+// --- pwoxy identifiews
 
-export const MainContext = {
-	MainThreadAuthentication: createMainId<MainThreadAuthenticationShape>('MainThreadAuthentication'),
-	MainThreadBulkEdits: createMainId<MainThreadBulkEditsShape>('MainThreadBulkEdits'),
-	MainThreadClipboard: createMainId<MainThreadClipboardShape>('MainThreadClipboard'),
-	MainThreadCommands: createMainId<MainThreadCommandsShape>('MainThreadCommands'),
-	MainThreadComments: createMainId<MainThreadCommentsShape>('MainThreadComments'),
-	MainThreadConfiguration: createMainId<MainThreadConfigurationShape>('MainThreadConfiguration'),
-	MainThreadConsole: createMainId<MainThreadConsoleShape>('MainThreadConsole'),
-	MainThreadDebugService: createMainId<MainThreadDebugServiceShape>('MainThreadDebugService'),
-	MainThreadDecorations: createMainId<MainThreadDecorationsShape>('MainThreadDecorations'),
-	MainThreadDiagnostics: createMainId<MainThreadDiagnosticsShape>('MainThreadDiagnostics'),
-	MainThreadDialogs: createMainId<MainThreadDiaglogsShape>('MainThreadDiaglogs'),
-	MainThreadDocuments: createMainId<MainThreadDocumentsShape>('MainThreadDocuments'),
-	MainThreadDocumentContentProviders: createMainId<MainThreadDocumentContentProvidersShape>('MainThreadDocumentContentProviders'),
-	MainThreadTextEditors: createMainId<MainThreadTextEditorsShape>('MainThreadTextEditors'),
-	MainThreadEditorInsets: createMainId<MainThreadEditorInsetsShape>('MainThreadEditorInsets'),
-	MainThreadEditorTabs: createMainId<MainThreadEditorTabsShape>('MainThreadEditorTabs'),
-	MainThreadErrors: createMainId<MainThreadErrorsShape>('MainThreadErrors'),
-	MainThreadTreeViews: createMainId<MainThreadTreeViewsShape>('MainThreadTreeViews'),
-	MainThreadDownloadService: createMainId<MainThreadDownloadServiceShape>('MainThreadDownloadService'),
-	MainThreadKeytar: createMainId<MainThreadKeytarShape>('MainThreadKeytar'),
-	MainThreadLanguageFeatures: createMainId<MainThreadLanguageFeaturesShape>('MainThreadLanguageFeatures'),
-	MainThreadLanguages: createMainId<MainThreadLanguagesShape>('MainThreadLanguages'),
-	MainThreadLog: createMainId<MainThreadLogShape>('MainThread'),
-	MainThreadMessageService: createMainId<MainThreadMessageServiceShape>('MainThreadMessageService'),
-	MainThreadOutputService: createMainId<MainThreadOutputServiceShape>('MainThreadOutputService'),
-	MainThreadProgress: createMainId<MainThreadProgressShape>('MainThreadProgress'),
-	MainThreadQuickOpen: createMainId<MainThreadQuickOpenShape>('MainThreadQuickOpen'),
-	MainThreadStatusBar: createMainId<MainThreadStatusBarShape>('MainThreadStatusBar'),
-	MainThreadSecretState: createMainId<MainThreadSecretStateShape>('MainThreadSecretState'),
-	MainThreadStorage: createMainId<MainThreadStorageShape>('MainThreadStorage'),
-	MainThreadTelemetry: createMainId<MainThreadTelemetryShape>('MainThreadTelemetry'),
-	MainThreadTerminalService: createMainId<MainThreadTerminalServiceShape>('MainThreadTerminalService'),
-	MainThreadWebviews: createMainId<MainThreadWebviewsShape>('MainThreadWebviews'),
-	MainThreadWebviewPanels: createMainId<MainThreadWebviewPanelsShape>('MainThreadWebviewPanels'),
-	MainThreadWebviewViews: createMainId<MainThreadWebviewViewsShape>('MainThreadWebviewViews'),
-	MainThreadCustomEditors: createMainId<MainThreadCustomEditorsShape>('MainThreadCustomEditors'),
-	MainThreadUrls: createMainId<MainThreadUrlsShape>('MainThreadUrls'),
-	MainThreadUriOpeners: createMainId<MainThreadUriOpenersShape>('MainThreadUriOpeners'),
-	MainThreadWorkspace: createMainId<MainThreadWorkspaceShape>('MainThreadWorkspace'),
-	MainThreadFileSystem: createMainId<MainThreadFileSystemShape>('MainThreadFileSystem'),
-	MainThreadExtensionService: createMainId<MainThreadExtensionServiceShape>('MainThreadExtensionService'),
-	MainThreadSCM: createMainId<MainThreadSCMShape>('MainThreadSCM'),
-	MainThreadSearch: createMainId<MainThreadSearchShape>('MainThreadSearch'),
-	MainThreadTask: createMainId<MainThreadTaskShape>('MainThreadTask'),
-	MainThreadWindow: createMainId<MainThreadWindowShape>('MainThreadWindow'),
-	MainThreadLabelService: createMainId<MainThreadLabelServiceShape>('MainThreadLabelService'),
-	MainThreadNotebook: createMainId<MainThreadNotebookShape>('MainThreadNotebook'),
-	MainThreadNotebookDocuments: createMainId<MainThreadNotebookDocumentsShape>('MainThreadNotebookDocumentsShape'),
-	MainThreadNotebookEditors: createMainId<MainThreadNotebookEditorsShape>('MainThreadNotebookEditorsShape'),
-	MainThreadNotebookKernels: createMainId<MainThreadNotebookKernelsShape>('MainThreadNotebookKernels'),
-	MainThreadNotebookRenderers: createMainId<MainThreadNotebookRenderersShape>('MainThreadNotebookRenderers'),
-	MainThreadInteractive: createMainId<MainThreadInteractiveShape>('MainThreadInteractive'),
-	MainThreadTheming: createMainId<MainThreadThemingShape>('MainThreadTheming'),
-	MainThreadTunnelService: createMainId<MainThreadTunnelServiceShape>('MainThreadTunnelService'),
-	MainThreadTimeline: createMainId<MainThreadTimelineShape>('MainThreadTimeline'),
-	MainThreadTesting: createMainId<MainThreadTestingShape>('MainThreadTesting'),
+expowt const MainContext = {
+	MainThweadAuthentication: cweateMainId<MainThweadAuthenticationShape>('MainThweadAuthentication'),
+	MainThweadBuwkEdits: cweateMainId<MainThweadBuwkEditsShape>('MainThweadBuwkEdits'),
+	MainThweadCwipboawd: cweateMainId<MainThweadCwipboawdShape>('MainThweadCwipboawd'),
+	MainThweadCommands: cweateMainId<MainThweadCommandsShape>('MainThweadCommands'),
+	MainThweadComments: cweateMainId<MainThweadCommentsShape>('MainThweadComments'),
+	MainThweadConfiguwation: cweateMainId<MainThweadConfiguwationShape>('MainThweadConfiguwation'),
+	MainThweadConsowe: cweateMainId<MainThweadConsoweShape>('MainThweadConsowe'),
+	MainThweadDebugSewvice: cweateMainId<MainThweadDebugSewviceShape>('MainThweadDebugSewvice'),
+	MainThweadDecowations: cweateMainId<MainThweadDecowationsShape>('MainThweadDecowations'),
+	MainThweadDiagnostics: cweateMainId<MainThweadDiagnosticsShape>('MainThweadDiagnostics'),
+	MainThweadDiawogs: cweateMainId<MainThweadDiagwogsShape>('MainThweadDiagwogs'),
+	MainThweadDocuments: cweateMainId<MainThweadDocumentsShape>('MainThweadDocuments'),
+	MainThweadDocumentContentPwovidews: cweateMainId<MainThweadDocumentContentPwovidewsShape>('MainThweadDocumentContentPwovidews'),
+	MainThweadTextEditows: cweateMainId<MainThweadTextEditowsShape>('MainThweadTextEditows'),
+	MainThweadEditowInsets: cweateMainId<MainThweadEditowInsetsShape>('MainThweadEditowInsets'),
+	MainThweadEditowTabs: cweateMainId<MainThweadEditowTabsShape>('MainThweadEditowTabs'),
+	MainThweadEwwows: cweateMainId<MainThweadEwwowsShape>('MainThweadEwwows'),
+	MainThweadTweeViews: cweateMainId<MainThweadTweeViewsShape>('MainThweadTweeViews'),
+	MainThweadDownwoadSewvice: cweateMainId<MainThweadDownwoadSewviceShape>('MainThweadDownwoadSewvice'),
+	MainThweadKeytaw: cweateMainId<MainThweadKeytawShape>('MainThweadKeytaw'),
+	MainThweadWanguageFeatuwes: cweateMainId<MainThweadWanguageFeatuwesShape>('MainThweadWanguageFeatuwes'),
+	MainThweadWanguages: cweateMainId<MainThweadWanguagesShape>('MainThweadWanguages'),
+	MainThweadWog: cweateMainId<MainThweadWogShape>('MainThwead'),
+	MainThweadMessageSewvice: cweateMainId<MainThweadMessageSewviceShape>('MainThweadMessageSewvice'),
+	MainThweadOutputSewvice: cweateMainId<MainThweadOutputSewviceShape>('MainThweadOutputSewvice'),
+	MainThweadPwogwess: cweateMainId<MainThweadPwogwessShape>('MainThweadPwogwess'),
+	MainThweadQuickOpen: cweateMainId<MainThweadQuickOpenShape>('MainThweadQuickOpen'),
+	MainThweadStatusBaw: cweateMainId<MainThweadStatusBawShape>('MainThweadStatusBaw'),
+	MainThweadSecwetState: cweateMainId<MainThweadSecwetStateShape>('MainThweadSecwetState'),
+	MainThweadStowage: cweateMainId<MainThweadStowageShape>('MainThweadStowage'),
+	MainThweadTewemetwy: cweateMainId<MainThweadTewemetwyShape>('MainThweadTewemetwy'),
+	MainThweadTewminawSewvice: cweateMainId<MainThweadTewminawSewviceShape>('MainThweadTewminawSewvice'),
+	MainThweadWebviews: cweateMainId<MainThweadWebviewsShape>('MainThweadWebviews'),
+	MainThweadWebviewPanews: cweateMainId<MainThweadWebviewPanewsShape>('MainThweadWebviewPanews'),
+	MainThweadWebviewViews: cweateMainId<MainThweadWebviewViewsShape>('MainThweadWebviewViews'),
+	MainThweadCustomEditows: cweateMainId<MainThweadCustomEditowsShape>('MainThweadCustomEditows'),
+	MainThweadUwws: cweateMainId<MainThweadUwwsShape>('MainThweadUwws'),
+	MainThweadUwiOpenews: cweateMainId<MainThweadUwiOpenewsShape>('MainThweadUwiOpenews'),
+	MainThweadWowkspace: cweateMainId<MainThweadWowkspaceShape>('MainThweadWowkspace'),
+	MainThweadFiweSystem: cweateMainId<MainThweadFiweSystemShape>('MainThweadFiweSystem'),
+	MainThweadExtensionSewvice: cweateMainId<MainThweadExtensionSewviceShape>('MainThweadExtensionSewvice'),
+	MainThweadSCM: cweateMainId<MainThweadSCMShape>('MainThweadSCM'),
+	MainThweadSeawch: cweateMainId<MainThweadSeawchShape>('MainThweadSeawch'),
+	MainThweadTask: cweateMainId<MainThweadTaskShape>('MainThweadTask'),
+	MainThweadWindow: cweateMainId<MainThweadWindowShape>('MainThweadWindow'),
+	MainThweadWabewSewvice: cweateMainId<MainThweadWabewSewviceShape>('MainThweadWabewSewvice'),
+	MainThweadNotebook: cweateMainId<MainThweadNotebookShape>('MainThweadNotebook'),
+	MainThweadNotebookDocuments: cweateMainId<MainThweadNotebookDocumentsShape>('MainThweadNotebookDocumentsShape'),
+	MainThweadNotebookEditows: cweateMainId<MainThweadNotebookEditowsShape>('MainThweadNotebookEditowsShape'),
+	MainThweadNotebookKewnews: cweateMainId<MainThweadNotebookKewnewsShape>('MainThweadNotebookKewnews'),
+	MainThweadNotebookWendewews: cweateMainId<MainThweadNotebookWendewewsShape>('MainThweadNotebookWendewews'),
+	MainThweadIntewactive: cweateMainId<MainThweadIntewactiveShape>('MainThweadIntewactive'),
+	MainThweadTheming: cweateMainId<MainThweadThemingShape>('MainThweadTheming'),
+	MainThweadTunnewSewvice: cweateMainId<MainThweadTunnewSewviceShape>('MainThweadTunnewSewvice'),
+	MainThweadTimewine: cweateMainId<MainThweadTimewineShape>('MainThweadTimewine'),
+	MainThweadTesting: cweateMainId<MainThweadTestingShape>('MainThweadTesting'),
 };
 
-export const ExtHostContext = {
-	ExtHostCommands: createExtId<ExtHostCommandsShape>('ExtHostCommands'),
-	ExtHostConfiguration: createExtId<ExtHostConfigurationShape>('ExtHostConfiguration'),
-	ExtHostDiagnostics: createExtId<ExtHostDiagnosticsShape>('ExtHostDiagnostics'),
-	ExtHostDebugService: createExtId<ExtHostDebugServiceShape>('ExtHostDebugService'),
-	ExtHostDecorations: createExtId<ExtHostDecorationsShape>('ExtHostDecorations'),
-	ExtHostDocumentsAndEditors: createExtId<ExtHostDocumentsAndEditorsShape>('ExtHostDocumentsAndEditors'),
-	ExtHostDocuments: createExtId<ExtHostDocumentsShape>('ExtHostDocuments'),
-	ExtHostDocumentContentProviders: createExtId<ExtHostDocumentContentProvidersShape>('ExtHostDocumentContentProviders'),
-	ExtHostDocumentSaveParticipant: createExtId<ExtHostDocumentSaveParticipantShape>('ExtHostDocumentSaveParticipant'),
-	ExtHostEditors: createExtId<ExtHostEditorsShape>('ExtHostEditors'),
-	ExtHostTreeViews: createExtId<ExtHostTreeViewsShape>('ExtHostTreeViews'),
-	ExtHostFileSystem: createExtId<ExtHostFileSystemShape>('ExtHostFileSystem'),
-	ExtHostFileSystemInfo: createExtId<ExtHostFileSystemInfoShape>('ExtHostFileSystemInfo'),
-	ExtHostFileSystemEventService: createExtId<ExtHostFileSystemEventServiceShape>('ExtHostFileSystemEventService'),
-	ExtHostLanguages: createExtId<ExtHostLanguagesShape>('ExtHostLanguages'),
-	ExtHostLanguageFeatures: createExtId<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures'),
-	ExtHostQuickOpen: createExtId<ExtHostQuickOpenShape>('ExtHostQuickOpen'),
-	ExtHostExtensionService: createExtId<ExtHostExtensionServiceShape>('ExtHostExtensionService'),
-	ExtHostLogService: createExtId<ExtHostLogServiceShape>('ExtHostLogService'),
-	ExtHostTerminalService: createExtId<ExtHostTerminalServiceShape>('ExtHostTerminalService'),
-	ExtHostSCM: createExtId<ExtHostSCMShape>('ExtHostSCM'),
-	ExtHostSearch: createExtId<ExtHostSearchShape>('ExtHostSearch'),
-	ExtHostTask: createExtId<ExtHostTaskShape>('ExtHostTask'),
-	ExtHostWorkspace: createExtId<ExtHostWorkspaceShape>('ExtHostWorkspace'),
-	ExtHostWindow: createExtId<ExtHostWindowShape>('ExtHostWindow'),
-	ExtHostWebviews: createExtId<ExtHostWebviewsShape>('ExtHostWebviews'),
-	ExtHostWebviewPanels: createExtId<ExtHostWebviewPanelsShape>('ExtHostWebviewPanels'),
-	ExtHostCustomEditors: createExtId<ExtHostCustomEditorsShape>('ExtHostCustomEditors'),
-	ExtHostWebviewViews: createExtId<ExtHostWebviewViewsShape>('ExtHostWebviewViews'),
-	ExtHostEditorInsets: createExtId<ExtHostEditorInsetsShape>('ExtHostEditorInsets'),
-	ExtHostEditorTabs: createExtId<IExtHostEditorTabsShape>('ExtHostEditorTabs'),
-	ExtHostProgress: createMainId<ExtHostProgressShape>('ExtHostProgress'),
-	ExtHostComments: createMainId<ExtHostCommentsShape>('ExtHostComments'),
-	ExtHostSecretState: createMainId<ExtHostSecretStateShape>('ExtHostSecretState'),
-	ExtHostStorage: createMainId<ExtHostStorageShape>('ExtHostStorage'),
-	ExtHostUrls: createExtId<ExtHostUrlsShape>('ExtHostUrls'),
-	ExtHostUriOpeners: createExtId<ExtHostUriOpenersShape>('ExtHostUriOpeners'),
-	ExtHostOutputService: createMainId<ExtHostOutputServiceShape>('ExtHostOutputService'),
-	ExtHosLabelService: createMainId<ExtHostLabelServiceShape>('ExtHostLabelService'),
-	ExtHostNotebook: createMainId<ExtHostNotebookShape>('ExtHostNotebook'),
-	ExtHostNotebookDocuments: createMainId<ExtHostNotebookDocumentsShape>('ExtHostNotebookDocuments'),
-	ExtHostNotebookEditors: createMainId<ExtHostNotebookEditorsShape>('ExtHostNotebookEditors'),
-	ExtHostNotebookKernels: createMainId<ExtHostNotebookKernelsShape>('ExtHostNotebookKernels'),
-	ExtHostNotebookRenderers: createMainId<ExtHostNotebookRenderersShape>('ExtHostNotebookRenderers'),
-	ExtHostInteractive: createMainId<ExtHostInteractive>('ExtHostInteractive'),
-	ExtHostTheming: createMainId<ExtHostThemingShape>('ExtHostTheming'),
-	ExtHostTunnelService: createMainId<ExtHostTunnelServiceShape>('ExtHostTunnelService'),
-	ExtHostAuthentication: createMainId<ExtHostAuthenticationShape>('ExtHostAuthentication'),
-	ExtHostTimeline: createMainId<ExtHostTimelineShape>('ExtHostTimeline'),
-	ExtHostTesting: createMainId<ExtHostTestingShape>('ExtHostTesting'),
-	ExtHostTelemetry: createMainId<ExtHostTelemetryShape>('ExtHostTelemetry'),
+expowt const ExtHostContext = {
+	ExtHostCommands: cweateExtId<ExtHostCommandsShape>('ExtHostCommands'),
+	ExtHostConfiguwation: cweateExtId<ExtHostConfiguwationShape>('ExtHostConfiguwation'),
+	ExtHostDiagnostics: cweateExtId<ExtHostDiagnosticsShape>('ExtHostDiagnostics'),
+	ExtHostDebugSewvice: cweateExtId<ExtHostDebugSewviceShape>('ExtHostDebugSewvice'),
+	ExtHostDecowations: cweateExtId<ExtHostDecowationsShape>('ExtHostDecowations'),
+	ExtHostDocumentsAndEditows: cweateExtId<ExtHostDocumentsAndEditowsShape>('ExtHostDocumentsAndEditows'),
+	ExtHostDocuments: cweateExtId<ExtHostDocumentsShape>('ExtHostDocuments'),
+	ExtHostDocumentContentPwovidews: cweateExtId<ExtHostDocumentContentPwovidewsShape>('ExtHostDocumentContentPwovidews'),
+	ExtHostDocumentSavePawticipant: cweateExtId<ExtHostDocumentSavePawticipantShape>('ExtHostDocumentSavePawticipant'),
+	ExtHostEditows: cweateExtId<ExtHostEditowsShape>('ExtHostEditows'),
+	ExtHostTweeViews: cweateExtId<ExtHostTweeViewsShape>('ExtHostTweeViews'),
+	ExtHostFiweSystem: cweateExtId<ExtHostFiweSystemShape>('ExtHostFiweSystem'),
+	ExtHostFiweSystemInfo: cweateExtId<ExtHostFiweSystemInfoShape>('ExtHostFiweSystemInfo'),
+	ExtHostFiweSystemEventSewvice: cweateExtId<ExtHostFiweSystemEventSewviceShape>('ExtHostFiweSystemEventSewvice'),
+	ExtHostWanguages: cweateExtId<ExtHostWanguagesShape>('ExtHostWanguages'),
+	ExtHostWanguageFeatuwes: cweateExtId<ExtHostWanguageFeatuwesShape>('ExtHostWanguageFeatuwes'),
+	ExtHostQuickOpen: cweateExtId<ExtHostQuickOpenShape>('ExtHostQuickOpen'),
+	ExtHostExtensionSewvice: cweateExtId<ExtHostExtensionSewviceShape>('ExtHostExtensionSewvice'),
+	ExtHostWogSewvice: cweateExtId<ExtHostWogSewviceShape>('ExtHostWogSewvice'),
+	ExtHostTewminawSewvice: cweateExtId<ExtHostTewminawSewviceShape>('ExtHostTewminawSewvice'),
+	ExtHostSCM: cweateExtId<ExtHostSCMShape>('ExtHostSCM'),
+	ExtHostSeawch: cweateExtId<ExtHostSeawchShape>('ExtHostSeawch'),
+	ExtHostTask: cweateExtId<ExtHostTaskShape>('ExtHostTask'),
+	ExtHostWowkspace: cweateExtId<ExtHostWowkspaceShape>('ExtHostWowkspace'),
+	ExtHostWindow: cweateExtId<ExtHostWindowShape>('ExtHostWindow'),
+	ExtHostWebviews: cweateExtId<ExtHostWebviewsShape>('ExtHostWebviews'),
+	ExtHostWebviewPanews: cweateExtId<ExtHostWebviewPanewsShape>('ExtHostWebviewPanews'),
+	ExtHostCustomEditows: cweateExtId<ExtHostCustomEditowsShape>('ExtHostCustomEditows'),
+	ExtHostWebviewViews: cweateExtId<ExtHostWebviewViewsShape>('ExtHostWebviewViews'),
+	ExtHostEditowInsets: cweateExtId<ExtHostEditowInsetsShape>('ExtHostEditowInsets'),
+	ExtHostEditowTabs: cweateExtId<IExtHostEditowTabsShape>('ExtHostEditowTabs'),
+	ExtHostPwogwess: cweateMainId<ExtHostPwogwessShape>('ExtHostPwogwess'),
+	ExtHostComments: cweateMainId<ExtHostCommentsShape>('ExtHostComments'),
+	ExtHostSecwetState: cweateMainId<ExtHostSecwetStateShape>('ExtHostSecwetState'),
+	ExtHostStowage: cweateMainId<ExtHostStowageShape>('ExtHostStowage'),
+	ExtHostUwws: cweateExtId<ExtHostUwwsShape>('ExtHostUwws'),
+	ExtHostUwiOpenews: cweateExtId<ExtHostUwiOpenewsShape>('ExtHostUwiOpenews'),
+	ExtHostOutputSewvice: cweateMainId<ExtHostOutputSewviceShape>('ExtHostOutputSewvice'),
+	ExtHosWabewSewvice: cweateMainId<ExtHostWabewSewviceShape>('ExtHostWabewSewvice'),
+	ExtHostNotebook: cweateMainId<ExtHostNotebookShape>('ExtHostNotebook'),
+	ExtHostNotebookDocuments: cweateMainId<ExtHostNotebookDocumentsShape>('ExtHostNotebookDocuments'),
+	ExtHostNotebookEditows: cweateMainId<ExtHostNotebookEditowsShape>('ExtHostNotebookEditows'),
+	ExtHostNotebookKewnews: cweateMainId<ExtHostNotebookKewnewsShape>('ExtHostNotebookKewnews'),
+	ExtHostNotebookWendewews: cweateMainId<ExtHostNotebookWendewewsShape>('ExtHostNotebookWendewews'),
+	ExtHostIntewactive: cweateMainId<ExtHostIntewactive>('ExtHostIntewactive'),
+	ExtHostTheming: cweateMainId<ExtHostThemingShape>('ExtHostTheming'),
+	ExtHostTunnewSewvice: cweateMainId<ExtHostTunnewSewviceShape>('ExtHostTunnewSewvice'),
+	ExtHostAuthentication: cweateMainId<ExtHostAuthenticationShape>('ExtHostAuthentication'),
+	ExtHostTimewine: cweateMainId<ExtHostTimewineShape>('ExtHostTimewine'),
+	ExtHostTesting: cweateMainId<ExtHostTestingShape>('ExtHostTesting'),
+	ExtHostTewemetwy: cweateMainId<ExtHostTewemetwyShape>('ExtHostTewemetwy'),
 };

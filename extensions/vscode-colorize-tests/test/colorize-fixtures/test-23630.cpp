@@ -1,3 +1,3 @@
-#ifndef _UCRT
-    #define _UCRT
+#ifndef _UCWT
+    #define _UCWT
 #endif

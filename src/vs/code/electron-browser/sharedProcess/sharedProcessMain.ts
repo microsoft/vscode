@@ -1,387 +1,387 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ipcRenderer } from 'electron';
-import * as fs from 'fs';
-import { gracefulify } from 'graceful-fs';
-import { hostname, release } from 'os';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { combinedDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ProxyChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
-import { Server as MessagePortServer } from 'vs/base/parts/ipc/electron-browser/ipc.mp';
-import { CodeCacheCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/codeCacheCleaner';
-import { DeprecatedExtensionsCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/deprecatedExtensionsCleaner';
-import { LanguagePackCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/languagePackCachedDataCleaner';
-import { LocalizationsUpdater } from 'vs/code/electron-browser/sharedProcess/contrib/localizationsUpdater';
-import { LogsDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/logsDataCleaner';
-import { StorageDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/storageDataCleaner';
-import { IChecksumService } from 'vs/platform/checksum/common/checksumService';
-import { ChecksumService } from 'vs/platform/checksum/node/checksumService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
-import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
-import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
-import { IDownloadService } from 'vs/platform/download/common/download';
-import { DownloadService } from 'vs/platform/download/common/downloadService';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
-import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
-import { IExtensionGalleryService, IExtensionManagementService, IExtensionTipsService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionManagementChannel, ExtensionTipsChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
-import { ExtensionTipsService } from 'vs/platform/extensionManagement/electron-sandbox/extensionTipsService';
-import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
-import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
-import { ExtensionRecommendationNotificationServiceChannelClient } from 'vs/platform/extensionRecommendations/electron-sandbox/extensionRecommendationsIpc';
-import { IFileService } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { MessagePortMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
-import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
-import { ConsoleLogger, ILoggerService, ILogService, MultiplexLogService } from 'vs/platform/log/common/log';
-import { FollowerLogService, LoggerChannelClient, LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import product from 'vs/platform/product/common/product';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { RequestService } from 'vs/platform/request/browser/requestService';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { ISharedProcessConfiguration } from 'vs/platform/sharedProcess/node/sharedProcess';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { NativeStorageService } from 'vs/platform/storage/electron-sandbox/storageService';
-import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
-import { ICustomEndpointTelemetryService, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetryIpc';
-import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogAppender';
-import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { supportsTelemetry, ITelemetryAppender, NullAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
-import { CustomEndpointTelemetryService } from 'vs/platform/telemetry/node/customEndpointTelemetryService';
-import { LocalReconnectConstants, TerminalIpcChannels, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
-import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
-import { ExtensionsStorageSyncService, IExtensionsStorageSyncService } from 'vs/platform/userDataSync/common/extensionsStorageSync';
-import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
-import { UserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
-import { IUserDataAutoSyncEnablementService, IUserDataSyncBackupStoreService, IUserDataSyncLogService, IUserDataSyncResourceEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, IUserDataSyncUtilService, registerConfiguration as registerUserDataSyncConfiguration } from 'vs/platform/userDataSync/common/userDataSync';
-import { IUserDataSyncAccountService, UserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
-import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSyncBackupStoreService';
-import { UserDataAutoSyncChannel, UserDataSyncAccountServiceChannel, UserDataSyncMachinesServiceChannel, UserDataSyncStoreManagementServiceChannel, UserDataSyncUtilServiceClient } from 'vs/platform/userDataSync/common/userDataSyncIpc';
-import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
-import { IUserDataSyncMachinesService, UserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
-import { UserDataSyncResourceEnablementService } from 'vs/platform/userDataSync/common/userDataSyncResourceEnablementService';
-import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
-import { UserDataSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncServiceIpc';
-import { UserDataSyncStoreManagementService, UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
-import { UserDataAutoSyncService } from 'vs/platform/userDataSync/electron-sandbox/userDataAutoSyncService';
-import { ActiveWindowManager } from 'vs/platform/windows/node/windowTracker';
-import { IExtensionHostStarter, ipcExtensionHostStarterChannelName } from 'vs/platform/extensions/common/extensionHostStarter';
-import { ExtensionHostStarter } from 'vs/platform/extensions/node/extensionHostStarter';
+impowt { ipcWendewa } fwom 'ewectwon';
+impowt * as fs fwom 'fs';
+impowt { gwacefuwify } fwom 'gwacefuw-fs';
+impowt { hostname, wewease } fwom 'os';
+impowt { toEwwowMessage } fwom 'vs/base/common/ewwowMessage';
+impowt { onUnexpectedEwwow, setUnexpectedEwwowHandwa } fwom 'vs/base/common/ewwows';
+impowt { combinedDisposabwe, Disposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { PwoxyChannew, StaticWouta } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { Sewva as MessagePowtSewva } fwom 'vs/base/pawts/ipc/ewectwon-bwowsa/ipc.mp';
+impowt { CodeCacheCweana } fwom 'vs/code/ewectwon-bwowsa/shawedPwocess/contwib/codeCacheCweana';
+impowt { DepwecatedExtensionsCweana } fwom 'vs/code/ewectwon-bwowsa/shawedPwocess/contwib/depwecatedExtensionsCweana';
+impowt { WanguagePackCachedDataCweana } fwom 'vs/code/ewectwon-bwowsa/shawedPwocess/contwib/wanguagePackCachedDataCweana';
+impowt { WocawizationsUpdata } fwom 'vs/code/ewectwon-bwowsa/shawedPwocess/contwib/wocawizationsUpdata';
+impowt { WogsDataCweana } fwom 'vs/code/ewectwon-bwowsa/shawedPwocess/contwib/wogsDataCweana';
+impowt { StowageDataCweana } fwom 'vs/code/ewectwon-bwowsa/shawedPwocess/contwib/stowageDataCweana';
+impowt { IChecksumSewvice } fwom 'vs/pwatfowm/checksum/common/checksumSewvice';
+impowt { ChecksumSewvice } fwom 'vs/pwatfowm/checksum/node/checksumSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwationSewvice';
+impowt { IDiagnosticsSewvice } fwom 'vs/pwatfowm/diagnostics/common/diagnostics';
+impowt { DiagnosticsSewvice } fwom 'vs/pwatfowm/diagnostics/node/diagnosticsSewvice';
+impowt { IDownwoadSewvice } fwom 'vs/pwatfowm/downwoad/common/downwoad';
+impowt { DownwoadSewvice } fwom 'vs/pwatfowm/downwoad/common/downwoadSewvice';
+impowt { INativeEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { NativeEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/node/enviwonmentSewvice';
+impowt { GwobawExtensionEnabwementSewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionEnabwementSewvice';
+impowt { ExtensionGawwewySewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionGawwewySewvice';
+impowt { IExtensionGawwewySewvice, IExtensionManagementSewvice, IExtensionTipsSewvice, IGwobawExtensionEnabwementSewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { ExtensionManagementChannew, ExtensionTipsChannew } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementIpc';
+impowt { ExtensionTipsSewvice } fwom 'vs/pwatfowm/extensionManagement/ewectwon-sandbox/extensionTipsSewvice';
+impowt { ExtensionManagementSewvice } fwom 'vs/pwatfowm/extensionManagement/node/extensionManagementSewvice';
+impowt { IExtensionWecommendationNotificationSewvice } fwom 'vs/pwatfowm/extensionWecommendations/common/extensionWecommendations';
+impowt { ExtensionWecommendationNotificationSewviceChannewCwient } fwom 'vs/pwatfowm/extensionWecommendations/ewectwon-sandbox/extensionWecommendationsIpc';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { FiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiweSewvice';
+impowt { DiskFiweSystemPwovida } fwom 'vs/pwatfowm/fiwes/node/diskFiweSystemPwovida';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { InstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiationSewvice';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { MessagePowtMainPwocessSewvice } fwom 'vs/pwatfowm/ipc/ewectwon-bwowsa/mainPwocessSewvice';
+impowt { IMainPwocessSewvice } fwom 'vs/pwatfowm/ipc/ewectwon-sandbox/sewvices';
+impowt { IWocawizationsSewvice } fwom 'vs/pwatfowm/wocawizations/common/wocawizations';
+impowt { WocawizationsSewvice } fwom 'vs/pwatfowm/wocawizations/node/wocawizations';
+impowt { ConsoweWogga, IWoggewSewvice, IWogSewvice, MuwtipwexWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { FowwowewWogSewvice, WoggewChannewCwient, WogWevewChannewCwient } fwom 'vs/pwatfowm/wog/common/wogIpc';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt pwoduct fwom 'vs/pwatfowm/pwoduct/common/pwoduct';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { WequestSewvice } fwom 'vs/pwatfowm/wequest/bwowsa/wequestSewvice';
+impowt { IWequestSewvice } fwom 'vs/pwatfowm/wequest/common/wequest';
+impowt { IShawedPwocessConfiguwation } fwom 'vs/pwatfowm/shawedPwocess/node/shawedPwocess';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { NativeStowageSewvice } fwom 'vs/pwatfowm/stowage/ewectwon-sandbox/stowageSewvice';
+impowt { wesowveCommonPwopewties } fwom 'vs/pwatfowm/tewemetwy/common/commonPwopewties';
+impowt { ICustomEndpointTewemetwySewvice, ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { TewemetwyAppendewChannew } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyIpc';
+impowt { TewemetwyWogAppenda } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyWogAppenda';
+impowt { TewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwySewvice';
+impowt { suppowtsTewemetwy, ITewemetwyAppenda, NuwwAppenda, NuwwTewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
+impowt { AppInsightsAppenda } fwom 'vs/pwatfowm/tewemetwy/node/appInsightsAppenda';
+impowt { CustomEndpointTewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/node/customEndpointTewemetwySewvice';
+impowt { WocawWeconnectConstants, TewminawIpcChannews, TewminawSettingId } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { IWocawPtySewvice } fwom 'vs/pwatfowm/tewminaw/ewectwon-sandbox/tewminaw';
+impowt { PtyHostSewvice } fwom 'vs/pwatfowm/tewminaw/node/ptyHostSewvice';
+impowt { ExtensionsStowageSyncSewvice, IExtensionsStowageSyncSewvice } fwom 'vs/pwatfowm/usewDataSync/common/extensionsStowageSync';
+impowt { IgnowedExtensionsManagementSewvice, IIgnowedExtensionsManagementSewvice } fwom 'vs/pwatfowm/usewDataSync/common/ignowedExtensions';
+impowt { UsewDataAutoSyncEnabwementSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataAutoSyncSewvice';
+impowt { IUsewDataAutoSyncEnabwementSewvice, IUsewDataSyncBackupStoweSewvice, IUsewDataSyncWogSewvice, IUsewDataSyncWesouwceEnabwementSewvice, IUsewDataSyncSewvice, IUsewDataSyncStoweManagementSewvice, IUsewDataSyncStoweSewvice, IUsewDataSyncUtiwSewvice, wegistewConfiguwation as wegistewUsewDataSyncConfiguwation } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
+impowt { IUsewDataSyncAccountSewvice, UsewDataSyncAccountSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSyncAccount';
+impowt { UsewDataSyncBackupStoweSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSyncBackupStoweSewvice';
+impowt { UsewDataAutoSyncChannew, UsewDataSyncAccountSewviceChannew, UsewDataSyncMachinesSewviceChannew, UsewDataSyncStoweManagementSewviceChannew, UsewDataSyncUtiwSewviceCwient } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSyncIpc';
+impowt { UsewDataSyncWogSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSyncWog';
+impowt { IUsewDataSyncMachinesSewvice, UsewDataSyncMachinesSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSyncMachines';
+impowt { UsewDataSyncWesouwceEnabwementSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSyncWesouwceEnabwementSewvice';
+impowt { UsewDataSyncSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSyncSewvice';
+impowt { UsewDataSyncChannew } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSyncSewviceIpc';
+impowt { UsewDataSyncStoweManagementSewvice, UsewDataSyncStoweSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSyncStoweSewvice';
+impowt { UsewDataAutoSyncSewvice } fwom 'vs/pwatfowm/usewDataSync/ewectwon-sandbox/usewDataAutoSyncSewvice';
+impowt { ActiveWindowManaga } fwom 'vs/pwatfowm/windows/node/windowTwacka';
+impowt { IExtensionHostStawta, ipcExtensionHostStawtewChannewName } fwom 'vs/pwatfowm/extensions/common/extensionHostStawta';
+impowt { ExtensionHostStawta } fwom 'vs/pwatfowm/extensions/node/extensionHostStawta';
 
-class SharedProcessMain extends Disposable {
+cwass ShawedPwocessMain extends Disposabwe {
 
-	private server = this._register(new MessagePortServer());
+	pwivate sewva = this._wegista(new MessagePowtSewva());
 
-	constructor(private configuration: ISharedProcessConfiguration) {
-		super();
+	constwuctow(pwivate configuwation: IShawedPwocessConfiguwation) {
+		supa();
 
-		// Enable gracefulFs
-		gracefulify(fs);
+		// Enabwe gwacefuwFs
+		gwacefuwify(fs);
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
 		// Dispose on exit
 		const onExit = () => this.dispose();
-		process.once('exit', onExit);
-		ipcRenderer.once('vscode:electron-main->shared-process=exit', onExit);
+		pwocess.once('exit', onExit);
+		ipcWendewa.once('vscode:ewectwon-main->shawed-pwocess=exit', onExit);
 	}
 
-	async open(): Promise<void> {
+	async open(): Pwomise<void> {
 
-		// Services
-		const instantiationService = await this.initServices();
+		// Sewvices
+		const instantiationSewvice = await this.initSewvices();
 
 		// Config
-		registerUserDataSyncConfiguration();
+		wegistewUsewDataSyncConfiguwation();
 
-		instantiationService.invokeFunction(accessor => {
-			const logService = accessor.get(ILogService);
+		instantiationSewvice.invokeFunction(accessow => {
+			const wogSewvice = accessow.get(IWogSewvice);
 
-			// Log info
-			logService.trace('sharedProcess configuration', JSON.stringify(this.configuration));
+			// Wog info
+			wogSewvice.twace('shawedPwocess configuwation', JSON.stwingify(this.configuwation));
 
-			// Channels
-			this.initChannels(accessor);
+			// Channews
+			this.initChannews(accessow);
 
-			// Error handler
-			this.registerErrorHandler(logService);
+			// Ewwow handwa
+			this.wegistewEwwowHandwa(wogSewvice);
 		});
 
-		// Instantiate Contributions
-		this._register(combinedDisposable(
-			instantiationService.createInstance(CodeCacheCleaner, this.configuration.codeCachePath),
-			instantiationService.createInstance(LanguagePackCachedDataCleaner),
-			instantiationService.createInstance(StorageDataCleaner, this.configuration.backupWorkspacesPath),
-			instantiationService.createInstance(LogsDataCleaner),
-			instantiationService.createInstance(LocalizationsUpdater),
-			instantiationService.createInstance(DeprecatedExtensionsCleaner)
+		// Instantiate Contwibutions
+		this._wegista(combinedDisposabwe(
+			instantiationSewvice.cweateInstance(CodeCacheCweana, this.configuwation.codeCachePath),
+			instantiationSewvice.cweateInstance(WanguagePackCachedDataCweana),
+			instantiationSewvice.cweateInstance(StowageDataCweana, this.configuwation.backupWowkspacesPath),
+			instantiationSewvice.cweateInstance(WogsDataCweana),
+			instantiationSewvice.cweateInstance(WocawizationsUpdata),
+			instantiationSewvice.cweateInstance(DepwecatedExtensionsCweana)
 		));
 	}
 
-	private async initServices(): Promise<IInstantiationService> {
-		const services = new ServiceCollection();
+	pwivate async initSewvices(): Pwomise<IInstantiationSewvice> {
+		const sewvices = new SewviceCowwection();
 
-		// Product
-		const productService = { _serviceBrand: undefined, ...product };
-		services.set(IProductService, productService);
+		// Pwoduct
+		const pwoductSewvice = { _sewviceBwand: undefined, ...pwoduct };
+		sewvices.set(IPwoductSewvice, pwoductSewvice);
 
-		// Main Process
-		const mainRouter = new StaticRouter(ctx => ctx === 'main');
-		const mainProcessService = new MessagePortMainProcessService(this.server, mainRouter);
-		services.set(IMainProcessService, mainProcessService);
+		// Main Pwocess
+		const mainWouta = new StaticWouta(ctx => ctx === 'main');
+		const mainPwocessSewvice = new MessagePowtMainPwocessSewvice(this.sewva, mainWouta);
+		sewvices.set(IMainPwocessSewvice, mainPwocessSewvice);
 
-		// Environment
-		const environmentService = new NativeEnvironmentService(this.configuration.args, productService);
-		services.set(INativeEnvironmentService, environmentService);
+		// Enviwonment
+		const enviwonmentSewvice = new NativeEnviwonmentSewvice(this.configuwation.awgs, pwoductSewvice);
+		sewvices.set(INativeEnviwonmentSewvice, enviwonmentSewvice);
 
-		// Logger
-		const logLevelClient = new LogLevelChannelClient(this.server.getChannel('logLevel', mainRouter));
-		const loggerService = new LoggerChannelClient(this.configuration.logLevel, logLevelClient.onDidChangeLogLevel, mainProcessService.getChannel('logger'));
-		services.set(ILoggerService, loggerService);
+		// Wogga
+		const wogWevewCwient = new WogWevewChannewCwient(this.sewva.getChannew('wogWevew', mainWouta));
+		const woggewSewvice = new WoggewChannewCwient(this.configuwation.wogWevew, wogWevewCwient.onDidChangeWogWevew, mainPwocessSewvice.getChannew('wogga'));
+		sewvices.set(IWoggewSewvice, woggewSewvice);
 
-		// Log
-		const multiplexLogger = this._register(new MultiplexLogService([
-			this._register(new ConsoleLogger(this.configuration.logLevel)),
-			this._register(loggerService.createLogger(joinPath(URI.file(environmentService.logsPath), 'sharedprocess.log'), { name: 'sharedprocess' }))
+		// Wog
+		const muwtipwexWogga = this._wegista(new MuwtipwexWogSewvice([
+			this._wegista(new ConsoweWogga(this.configuwation.wogWevew)),
+			this._wegista(woggewSewvice.cweateWogga(joinPath(UWI.fiwe(enviwonmentSewvice.wogsPath), 'shawedpwocess.wog'), { name: 'shawedpwocess' }))
 		]));
 
-		const logService = this._register(new FollowerLogService(logLevelClient, multiplexLogger));
-		services.set(ILogService, logService);
+		const wogSewvice = this._wegista(new FowwowewWogSewvice(wogWevewCwient, muwtipwexWogga));
+		sewvices.set(IWogSewvice, wogSewvice);
 
-		// Files
-		const fileService = this._register(new FileService(logService));
-		services.set(IFileService, fileService);
+		// Fiwes
+		const fiweSewvice = this._wegista(new FiweSewvice(wogSewvice));
+		sewvices.set(IFiweSewvice, fiweSewvice);
 
-		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService));
-		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
+		const diskFiweSystemPwovida = this._wegista(new DiskFiweSystemPwovida(wogSewvice));
+		fiweSewvice.wegistewPwovida(Schemas.fiwe, diskFiweSystemPwovida);
 
-		// Configuration
-		const configurationService = this._register(new ConfigurationService(environmentService.settingsResource, fileService));
-		services.set(IConfigurationService, configurationService);
+		// Configuwation
+		const configuwationSewvice = this._wegista(new ConfiguwationSewvice(enviwonmentSewvice.settingsWesouwce, fiweSewvice));
+		sewvices.set(IConfiguwationSewvice, configuwationSewvice);
 
-		await configurationService.initialize();
+		await configuwationSewvice.initiawize();
 
-		// Storage (global access only)
-		const storageService = new NativeStorageService(undefined, mainProcessService, environmentService);
-		services.set(IStorageService, storageService);
+		// Stowage (gwobaw access onwy)
+		const stowageSewvice = new NativeStowageSewvice(undefined, mainPwocessSewvice, enviwonmentSewvice);
+		sewvices.set(IStowageSewvice, stowageSewvice);
 
-		await storageService.initialize();
-		this._register(toDisposable(() => storageService.flush()));
+		await stowageSewvice.initiawize();
+		this._wegista(toDisposabwe(() => stowageSewvice.fwush()));
 
-		// Request
-		services.set(IRequestService, new SyncDescriptor(RequestService));
+		// Wequest
+		sewvices.set(IWequestSewvice, new SyncDescwiptow(WequestSewvice));
 
 		// Checksum
-		services.set(IChecksumService, new SyncDescriptor(ChecksumService));
+		sewvices.set(IChecksumSewvice, new SyncDescwiptow(ChecksumSewvice));
 
 		// Native Host
-		const nativeHostService = ProxyChannel.toService<INativeHostService>(mainProcessService.getChannel('nativeHost'), { context: this.configuration.windowId });
-		services.set(INativeHostService, nativeHostService);
+		const nativeHostSewvice = PwoxyChannew.toSewvice<INativeHostSewvice>(mainPwocessSewvice.getChannew('nativeHost'), { context: this.configuwation.windowId });
+		sewvices.set(INativeHostSewvice, nativeHostSewvice);
 
-		// Download
-		services.set(IDownloadService, new SyncDescriptor(DownloadService));
+		// Downwoad
+		sewvices.set(IDownwoadSewvice, new SyncDescwiptow(DownwoadSewvice));
 
-		// Extension recommendations
-		const activeWindowManager = this._register(new ActiveWindowManager(nativeHostService));
-		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
-		services.set(IExtensionRecommendationNotificationService, new ExtensionRecommendationNotificationServiceChannelClient(this.server.getChannel('extensionRecommendationNotification', activeWindowRouter)));
+		// Extension wecommendations
+		const activeWindowManaga = this._wegista(new ActiveWindowManaga(nativeHostSewvice));
+		const activeWindowWouta = new StaticWouta(ctx => activeWindowManaga.getActiveCwientId().then(id => ctx === id));
+		sewvices.set(IExtensionWecommendationNotificationSewvice, new ExtensionWecommendationNotificationSewviceChannewCwient(this.sewva.getChannew('extensionWecommendationNotification', activeWindowWouta)));
 
-		// Telemetry
-		let telemetryService: ITelemetryService;
-		let telemetryAppender: ITelemetryAppender;
-		const appenders: ITelemetryAppender[] = [];
-		if (supportsTelemetry(productService, environmentService)) {
-			telemetryAppender = new TelemetryLogAppender(loggerService, environmentService);
-			appenders.push(telemetryAppender);
-			const { appRoot, extensionsPath, installSourcePath } = environmentService;
+		// Tewemetwy
+		wet tewemetwySewvice: ITewemetwySewvice;
+		wet tewemetwyAppenda: ITewemetwyAppenda;
+		const appendews: ITewemetwyAppenda[] = [];
+		if (suppowtsTewemetwy(pwoductSewvice, enviwonmentSewvice)) {
+			tewemetwyAppenda = new TewemetwyWogAppenda(woggewSewvice, enviwonmentSewvice);
+			appendews.push(tewemetwyAppenda);
+			const { appWoot, extensionsPath, instawwSouwcePath } = enviwonmentSewvice;
 
-			// Application Insights
-			if (productService.aiConfig && productService.aiConfig.asimovKey) {
-				const appInsightsAppender = new AppInsightsAppender('monacoworkbench', null, productService.aiConfig.asimovKey);
-				this._register(toDisposable(() => appInsightsAppender.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
-				appenders.push(appInsightsAppender);
+			// Appwication Insights
+			if (pwoductSewvice.aiConfig && pwoductSewvice.aiConfig.asimovKey) {
+				const appInsightsAppenda = new AppInsightsAppenda('monacowowkbench', nuww, pwoductSewvice.aiConfig.asimovKey);
+				this._wegista(toDisposabwe(() => appInsightsAppenda.fwush())); // Ensuwe the AI appenda is disposed so that it fwushes wemaining data
+				appendews.push(appInsightsAppenda);
 			}
 
-			telemetryService = new TelemetryService({
-				appenders,
-				commonProperties: resolveCommonProperties(fileService, release(), hostname(), process.arch, productService.commit, productService.version, this.configuration.machineId, productService.msftInternalDomains, installSourcePath),
-				sendErrorTelemetry: true,
-				piiPaths: [appRoot, extensionsPath]
-			}, configurationService);
-		} else {
-			telemetryService = NullTelemetryService;
-			telemetryAppender = NullAppender;
+			tewemetwySewvice = new TewemetwySewvice({
+				appendews,
+				commonPwopewties: wesowveCommonPwopewties(fiweSewvice, wewease(), hostname(), pwocess.awch, pwoductSewvice.commit, pwoductSewvice.vewsion, this.configuwation.machineId, pwoductSewvice.msftIntewnawDomains, instawwSouwcePath),
+				sendEwwowTewemetwy: twue,
+				piiPaths: [appWoot, extensionsPath]
+			}, configuwationSewvice);
+		} ewse {
+			tewemetwySewvice = NuwwTewemetwySewvice;
+			tewemetwyAppenda = NuwwAppenda;
 		}
 
-		this.server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(telemetryAppender));
-		services.set(ITelemetryService, telemetryService);
+		this.sewva.wegistewChannew('tewemetwyAppenda', new TewemetwyAppendewChannew(tewemetwyAppenda));
+		sewvices.set(ITewemetwySewvice, tewemetwySewvice);
 
-		// Custom Endpoint Telemetry
-		const customEndpointTelemetryService = new CustomEndpointTelemetryService(configurationService, telemetryService, loggerService, environmentService);
-		services.set(ICustomEndpointTelemetryService, customEndpointTelemetryService);
+		// Custom Endpoint Tewemetwy
+		const customEndpointTewemetwySewvice = new CustomEndpointTewemetwySewvice(configuwationSewvice, tewemetwySewvice, woggewSewvice, enviwonmentSewvice);
+		sewvices.set(ICustomEndpointTewemetwySewvice, customEndpointTewemetwySewvice);
 
 		// Extension Management
-		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
+		sewvices.set(IExtensionManagementSewvice, new SyncDescwiptow(ExtensionManagementSewvice));
 
-		// Extension Gallery
-		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
+		// Extension Gawwewy
+		sewvices.set(IExtensionGawwewySewvice, new SyncDescwiptow(ExtensionGawwewySewvice));
 
 		// Extension Tips
-		services.set(IExtensionTipsService, new SyncDescriptor(ExtensionTipsService));
+		sewvices.set(IExtensionTipsSewvice, new SyncDescwiptow(ExtensionTipsSewvice));
 
-		// Localizations
-		services.set(ILocalizationsService, new SyncDescriptor(LocalizationsService));
+		// Wocawizations
+		sewvices.set(IWocawizationsSewvice, new SyncDescwiptow(WocawizationsSewvice));
 
 		// Diagnostics
-		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
+		sewvices.set(IDiagnosticsSewvice, new SyncDescwiptow(DiagnosticsSewvice));
 
 		// Settings Sync
-		services.set(IUserDataSyncAccountService, new SyncDescriptor(UserDataSyncAccountService));
-		services.set(IUserDataSyncLogService, new SyncDescriptor(UserDataSyncLogService));
-		services.set(IUserDataSyncUtilService, new UserDataSyncUtilServiceClient(this.server.getChannel('userDataSyncUtil', client => client.ctx !== 'main')));
-		services.set(IGlobalExtensionEnablementService, new SyncDescriptor(GlobalExtensionEnablementService));
-		services.set(IIgnoredExtensionsManagementService, new SyncDescriptor(IgnoredExtensionsManagementService));
-		services.set(IExtensionsStorageSyncService, new SyncDescriptor(ExtensionsStorageSyncService));
-		services.set(IUserDataSyncStoreManagementService, new SyncDescriptor(UserDataSyncStoreManagementService));
-		services.set(IUserDataSyncStoreService, new SyncDescriptor(UserDataSyncStoreService));
-		services.set(IUserDataSyncMachinesService, new SyncDescriptor(UserDataSyncMachinesService));
-		services.set(IUserDataSyncBackupStoreService, new SyncDescriptor(UserDataSyncBackupStoreService));
-		services.set(IUserDataAutoSyncEnablementService, new SyncDescriptor(UserDataAutoSyncEnablementService));
-		services.set(IUserDataSyncResourceEnablementService, new SyncDescriptor(UserDataSyncResourceEnablementService));
-		services.set(IUserDataSyncService, new SyncDescriptor(UserDataSyncService));
+		sewvices.set(IUsewDataSyncAccountSewvice, new SyncDescwiptow(UsewDataSyncAccountSewvice));
+		sewvices.set(IUsewDataSyncWogSewvice, new SyncDescwiptow(UsewDataSyncWogSewvice));
+		sewvices.set(IUsewDataSyncUtiwSewvice, new UsewDataSyncUtiwSewviceCwient(this.sewva.getChannew('usewDataSyncUtiw', cwient => cwient.ctx !== 'main')));
+		sewvices.set(IGwobawExtensionEnabwementSewvice, new SyncDescwiptow(GwobawExtensionEnabwementSewvice));
+		sewvices.set(IIgnowedExtensionsManagementSewvice, new SyncDescwiptow(IgnowedExtensionsManagementSewvice));
+		sewvices.set(IExtensionsStowageSyncSewvice, new SyncDescwiptow(ExtensionsStowageSyncSewvice));
+		sewvices.set(IUsewDataSyncStoweManagementSewvice, new SyncDescwiptow(UsewDataSyncStoweManagementSewvice));
+		sewvices.set(IUsewDataSyncStoweSewvice, new SyncDescwiptow(UsewDataSyncStoweSewvice));
+		sewvices.set(IUsewDataSyncMachinesSewvice, new SyncDescwiptow(UsewDataSyncMachinesSewvice));
+		sewvices.set(IUsewDataSyncBackupStoweSewvice, new SyncDescwiptow(UsewDataSyncBackupStoweSewvice));
+		sewvices.set(IUsewDataAutoSyncEnabwementSewvice, new SyncDescwiptow(UsewDataAutoSyncEnabwementSewvice));
+		sewvices.set(IUsewDataSyncWesouwceEnabwementSewvice, new SyncDescwiptow(UsewDataSyncWesouwceEnabwementSewvice));
+		sewvices.set(IUsewDataSyncSewvice, new SyncDescwiptow(UsewDataSyncSewvice));
 
-		// Terminal
-		services.set(
-			ILocalPtyService,
-			this._register(
-				new PtyHostService({
-					graceTime: LocalReconnectConstants.GraceTime,
-					shortGraceTime: LocalReconnectConstants.ShortGraceTime,
-					scrollback: configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100
+		// Tewminaw
+		sewvices.set(
+			IWocawPtySewvice,
+			this._wegista(
+				new PtyHostSewvice({
+					gwaceTime: WocawWeconnectConstants.GwaceTime,
+					showtGwaceTime: WocawWeconnectConstants.ShowtGwaceTime,
+					scwowwback: configuwationSewvice.getVawue<numba>(TewminawSettingId.PewsistentSessionScwowwback) ?? 100
 				},
-					configurationService,
-					environmentService,
-					logService,
-					telemetryService
+					configuwationSewvice,
+					enviwonmentSewvice,
+					wogSewvice,
+					tewemetwySewvice
 				)
 			)
 		);
 
 		// Extension Host
-		services.set(IExtensionHostStarter, this._register(new ExtensionHostStarter(logService)));
+		sewvices.set(IExtensionHostStawta, this._wegista(new ExtensionHostStawta(wogSewvice)));
 
-		return new InstantiationService(services);
+		wetuwn new InstantiationSewvice(sewvices);
 	}
 
-	private initChannels(accessor: ServicesAccessor): void {
+	pwivate initChannews(accessow: SewvicesAccessow): void {
 
 		// Extensions Management
-		const channel = new ExtensionManagementChannel(accessor.get(IExtensionManagementService), () => null);
-		this.server.registerChannel('extensions', channel);
+		const channew = new ExtensionManagementChannew(accessow.get(IExtensionManagementSewvice), () => nuww);
+		this.sewva.wegistewChannew('extensions', channew);
 
-		// Localizations
-		const localizationsChannel = ProxyChannel.fromService(accessor.get(ILocalizationsService));
-		this.server.registerChannel('localizations', localizationsChannel);
+		// Wocawizations
+		const wocawizationsChannew = PwoxyChannew.fwomSewvice(accessow.get(IWocawizationsSewvice));
+		this.sewva.wegistewChannew('wocawizations', wocawizationsChannew);
 
 		// Diagnostics
-		const diagnosticsChannel = ProxyChannel.fromService(accessor.get(IDiagnosticsService));
-		this.server.registerChannel('diagnostics', diagnosticsChannel);
+		const diagnosticsChannew = PwoxyChannew.fwomSewvice(accessow.get(IDiagnosticsSewvice));
+		this.sewva.wegistewChannew('diagnostics', diagnosticsChannew);
 
 		// Extension Tips
-		const extensionTipsChannel = new ExtensionTipsChannel(accessor.get(IExtensionTipsService));
-		this.server.registerChannel('extensionTipsService', extensionTipsChannel);
+		const extensionTipsChannew = new ExtensionTipsChannew(accessow.get(IExtensionTipsSewvice));
+		this.sewva.wegistewChannew('extensionTipsSewvice', extensionTipsChannew);
 
 		// Checksum
-		const checksumChannel = ProxyChannel.fromService(accessor.get(IChecksumService));
-		this.server.registerChannel('checksum', checksumChannel);
+		const checksumChannew = PwoxyChannew.fwomSewvice(accessow.get(IChecksumSewvice));
+		this.sewva.wegistewChannew('checksum', checksumChannew);
 
 		// Settings Sync
-		const userDataSyncMachineChannel = new UserDataSyncMachinesServiceChannel(accessor.get(IUserDataSyncMachinesService));
-		this.server.registerChannel('userDataSyncMachines', userDataSyncMachineChannel);
+		const usewDataSyncMachineChannew = new UsewDataSyncMachinesSewviceChannew(accessow.get(IUsewDataSyncMachinesSewvice));
+		this.sewva.wegistewChannew('usewDataSyncMachines', usewDataSyncMachineChannew);
 
-		// Custom Endpoint Telemetry
-		const customEndpointTelemetryChannel = ProxyChannel.fromService(accessor.get(ICustomEndpointTelemetryService));
-		this.server.registerChannel('customEndpointTelemetry', customEndpointTelemetryChannel);
+		// Custom Endpoint Tewemetwy
+		const customEndpointTewemetwyChannew = PwoxyChannew.fwomSewvice(accessow.get(ICustomEndpointTewemetwySewvice));
+		this.sewva.wegistewChannew('customEndpointTewemetwy', customEndpointTewemetwyChannew);
 
-		const userDataSyncAccountChannel = new UserDataSyncAccountServiceChannel(accessor.get(IUserDataSyncAccountService));
-		this.server.registerChannel('userDataSyncAccount', userDataSyncAccountChannel);
+		const usewDataSyncAccountChannew = new UsewDataSyncAccountSewviceChannew(accessow.get(IUsewDataSyncAccountSewvice));
+		this.sewva.wegistewChannew('usewDataSyncAccount', usewDataSyncAccountChannew);
 
-		const userDataSyncStoreManagementChannel = new UserDataSyncStoreManagementServiceChannel(accessor.get(IUserDataSyncStoreManagementService));
-		this.server.registerChannel('userDataSyncStoreManagement', userDataSyncStoreManagementChannel);
+		const usewDataSyncStoweManagementChannew = new UsewDataSyncStoweManagementSewviceChannew(accessow.get(IUsewDataSyncStoweManagementSewvice));
+		this.sewva.wegistewChannew('usewDataSyncStoweManagement', usewDataSyncStoweManagementChannew);
 
-		const userDataSyncChannel = new UserDataSyncChannel(accessor.get(IUserDataSyncService), accessor.get(ILogService));
-		this.server.registerChannel('userDataSync', userDataSyncChannel);
+		const usewDataSyncChannew = new UsewDataSyncChannew(accessow.get(IUsewDataSyncSewvice), accessow.get(IWogSewvice));
+		this.sewva.wegistewChannew('usewDataSync', usewDataSyncChannew);
 
-		const userDataAutoSync = this._register(accessor.get(IInstantiationService).createInstance(UserDataAutoSyncService));
-		const userDataAutoSyncChannel = new UserDataAutoSyncChannel(userDataAutoSync);
-		this.server.registerChannel('userDataAutoSync', userDataAutoSyncChannel);
+		const usewDataAutoSync = this._wegista(accessow.get(IInstantiationSewvice).cweateInstance(UsewDataAutoSyncSewvice));
+		const usewDataAutoSyncChannew = new UsewDataAutoSyncChannew(usewDataAutoSync);
+		this.sewva.wegistewChannew('usewDataAutoSync', usewDataAutoSyncChannew);
 
-		// Terminal
-		const localPtyService = accessor.get(ILocalPtyService);
-		const localPtyChannel = ProxyChannel.fromService(localPtyService);
-		this.server.registerChannel(TerminalIpcChannels.LocalPty, localPtyChannel);
+		// Tewminaw
+		const wocawPtySewvice = accessow.get(IWocawPtySewvice);
+		const wocawPtyChannew = PwoxyChannew.fwomSewvice(wocawPtySewvice);
+		this.sewva.wegistewChannew(TewminawIpcChannews.WocawPty, wocawPtyChannew);
 
 		// Extension Host
-		const extensionHostStarterChannel = ProxyChannel.fromService(accessor.get(IExtensionHostStarter));
-		this.server.registerChannel(ipcExtensionHostStarterChannelName, extensionHostStarterChannel);
+		const extensionHostStawtewChannew = PwoxyChannew.fwomSewvice(accessow.get(IExtensionHostStawta));
+		this.sewva.wegistewChannew(ipcExtensionHostStawtewChannewName, extensionHostStawtewChannew);
 	}
 
-	private registerErrorHandler(logService: ILogService): void {
+	pwivate wegistewEwwowHandwa(wogSewvice: IWogSewvice): void {
 
-		// Listen on unhandled rejection events
-		window.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
+		// Wisten on unhandwed wejection events
+		window.addEventWistena('unhandwedwejection', (event: PwomiseWejectionEvent) => {
 
-			// See https://developer.mozilla.org/en-US/docs/Web/API/PromiseRejectionEvent
-			onUnexpectedError(event.reason);
+			// See https://devewopa.moziwwa.owg/en-US/docs/Web/API/PwomiseWejectionEvent
+			onUnexpectedEwwow(event.weason);
 
-			// Prevent the printing of this event to the console
-			event.preventDefault();
+			// Pwevent the pwinting of this event to the consowe
+			event.pweventDefauwt();
 		});
 
-		// Install handler for unexpected errors
-		setUnexpectedErrorHandler(error => {
-			const message = toErrorMessage(error, true);
+		// Instaww handwa fow unexpected ewwows
+		setUnexpectedEwwowHandwa(ewwow => {
+			const message = toEwwowMessage(ewwow, twue);
 			if (!message) {
-				return;
+				wetuwn;
 			}
 
-			logService.error(`[uncaught exception in sharedProcess]: ${message}`);
+			wogSewvice.ewwow(`[uncaught exception in shawedPwocess]: ${message}`);
 		});
 	}
 }
 
-export async function main(configuration: ISharedProcessConfiguration): Promise<void> {
+expowt async function main(configuwation: IShawedPwocessConfiguwation): Pwomise<void> {
 
-	// create shared process and signal back to main that we are
-	// ready to accept message ports as client connections
-	const sharedProcess = new SharedProcessMain(configuration);
-	ipcRenderer.send('vscode:shared-process->electron-main=ipc-ready');
+	// cweate shawed pwocess and signaw back to main that we awe
+	// weady to accept message powts as cwient connections
+	const shawedPwocess = new ShawedPwocessMain(configuwation);
+	ipcWendewa.send('vscode:shawed-pwocess->ewectwon-main=ipc-weady');
 
-	// await initialization and signal this back to electron-main
-	await sharedProcess.open();
-	ipcRenderer.send('vscode:shared-process->electron-main=init-done');
+	// await initiawization and signaw this back to ewectwon-main
+	await shawedPwocess.open();
+	ipcWendewa.send('vscode:shawed-pwocess->ewectwon-main=init-done');
 }

@@ -1,30 +1,30 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+impowt { WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
 
-export default {
-	MARKERS_CONTAINER_ID: 'workbench.panel.markers',
-	MARKERS_VIEW_ID: 'workbench.panel.markers.view',
-	MARKERS_VIEW_STORAGE_ID: 'workbench.panel.markers',
-	MARKER_COPY_ACTION_ID: 'problems.action.copy',
-	MARKER_COPY_MESSAGE_ACTION_ID: 'problems.action.copyMessage',
-	RELATED_INFORMATION_COPY_MESSAGE_ACTION_ID: 'problems.action.copyRelatedInformationMessage',
-	FOCUS_PROBLEMS_FROM_FILTER: 'problems.action.focusProblemsFromFilter',
-	MARKERS_VIEW_FOCUS_FILTER: 'problems.action.focusFilter',
-	MARKERS_VIEW_CLEAR_FILTER_TEXT: 'problems.action.clearFilterText',
-	MARKERS_VIEW_SHOW_MULTILINE_MESSAGE: 'problems.action.showMultilineMessage',
-	MARKERS_VIEW_SHOW_SINGLELINE_MESSAGE: 'problems.action.showSinglelineMessage',
-	MARKER_OPEN_ACTION_ID: 'problems.action.open',
-	MARKER_OPEN_SIDE_ACTION_ID: 'problems.action.openToSide',
-	MARKER_SHOW_PANEL_ID: 'workbench.action.showErrorsWarnings',
-	MARKER_SHOW_QUICK_FIX: 'problems.action.showQuickFixes',
-	TOGGLE_MARKERS_VIEW_ACTION_ID: 'workbench.actions.view.toggleProblems',
+expowt defauwt {
+	MAWKEWS_CONTAINEW_ID: 'wowkbench.panew.mawkews',
+	MAWKEWS_VIEW_ID: 'wowkbench.panew.mawkews.view',
+	MAWKEWS_VIEW_STOWAGE_ID: 'wowkbench.panew.mawkews',
+	MAWKEW_COPY_ACTION_ID: 'pwobwems.action.copy',
+	MAWKEW_COPY_MESSAGE_ACTION_ID: 'pwobwems.action.copyMessage',
+	WEWATED_INFOWMATION_COPY_MESSAGE_ACTION_ID: 'pwobwems.action.copyWewatedInfowmationMessage',
+	FOCUS_PWOBWEMS_FWOM_FIWTa: 'pwobwems.action.focusPwobwemsFwomFiwta',
+	MAWKEWS_VIEW_FOCUS_FIWTa: 'pwobwems.action.focusFiwta',
+	MAWKEWS_VIEW_CWEAW_FIWTEW_TEXT: 'pwobwems.action.cweawFiwtewText',
+	MAWKEWS_VIEW_SHOW_MUWTIWINE_MESSAGE: 'pwobwems.action.showMuwtiwineMessage',
+	MAWKEWS_VIEW_SHOW_SINGWEWINE_MESSAGE: 'pwobwems.action.showSingwewineMessage',
+	MAWKEW_OPEN_ACTION_ID: 'pwobwems.action.open',
+	MAWKEW_OPEN_SIDE_ACTION_ID: 'pwobwems.action.openToSide',
+	MAWKEW_SHOW_PANEW_ID: 'wowkbench.action.showEwwowsWawnings',
+	MAWKEW_SHOW_QUICK_FIX: 'pwobwems.action.showQuickFixes',
+	TOGGWE_MAWKEWS_VIEW_ACTION_ID: 'wowkbench.actions.view.toggwePwobwems',
 
-	MarkersViewSmallLayoutContextKey: new RawContextKey<boolean>(`problemsView.smallLayout`, false),
-	MarkerFocusContextKey: new RawContextKey<boolean>('problemFocus', false),
-	MarkerViewFilterFocusContextKey: new RawContextKey<boolean>('problemsFilterFocus', false),
-	RelatedInformationFocusContextKey: new RawContextKey<boolean>('relatedInformationFocus', false)
+	MawkewsViewSmawwWayoutContextKey: new WawContextKey<boowean>(`pwobwemsView.smawwWayout`, fawse),
+	MawkewFocusContextKey: new WawContextKey<boowean>('pwobwemFocus', fawse),
+	MawkewViewFiwtewFocusContextKey: new WawContextKey<boowean>('pwobwemsFiwtewFocus', fawse),
+	WewatedInfowmationFocusContextKey: new WawContextKey<boowean>('wewatedInfowmationFocus', fawse)
 };

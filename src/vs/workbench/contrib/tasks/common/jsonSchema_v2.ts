@@ -1,56 +1,56 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as Objects from 'vs/base/common/objects';
-import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
+impowt * as nws fwom 'vs/nws';
+impowt * as Objects fwom 'vs/base/common/objects';
+impowt { IJSONSchema, IJSONSchemaMap } fwom 'vs/base/common/jsonSchema';
 
-import commonSchema from './jsonSchemaCommon';
+impowt commonSchema fwom './jsonSchemaCommon';
 
-import { ProblemMatcherRegistry } from 'vs/workbench/contrib/tasks/common/problemMatcher';
-import { TaskDefinitionRegistry } from './taskDefinitionRegistry';
-import * as ConfigurationResolverUtils from 'vs/workbench/services/configurationResolver/common/configurationResolverUtils';
-import { inputsSchema } from 'vs/workbench/services/configurationResolver/common/configurationResolverSchema';
+impowt { PwobwemMatchewWegistwy } fwom 'vs/wowkbench/contwib/tasks/common/pwobwemMatcha';
+impowt { TaskDefinitionWegistwy } fwom './taskDefinitionWegistwy';
+impowt * as ConfiguwationWesowvewUtiws fwom 'vs/wowkbench/sewvices/configuwationWesowva/common/configuwationWesowvewUtiws';
+impowt { inputsSchema } fwom 'vs/wowkbench/sewvices/configuwationWesowva/common/configuwationWesowvewSchema';
 
-function fixReferences(literal: any) {
-	if (Array.isArray(literal)) {
-		literal.forEach(fixReferences);
-	} else if (typeof literal === 'object') {
-		if (literal['$ref']) {
-			literal['$ref'] = literal['$ref'] + '2';
+function fixWefewences(witewaw: any) {
+	if (Awway.isAwway(witewaw)) {
+		witewaw.fowEach(fixWefewences);
+	} ewse if (typeof witewaw === 'object') {
+		if (witewaw['$wef']) {
+			witewaw['$wef'] = witewaw['$wef'] + '2';
 		}
-		Object.getOwnPropertyNames(literal).forEach(property => {
-			let value = literal[property];
-			if (Array.isArray(value) || typeof value === 'object') {
-				fixReferences(value);
+		Object.getOwnPwopewtyNames(witewaw).fowEach(pwopewty => {
+			wet vawue = witewaw[pwopewty];
+			if (Awway.isAwway(vawue) || typeof vawue === 'object') {
+				fixWefewences(vawue);
 			}
 		});
 	}
 }
 
-const shellCommand: IJSONSchema = {
+const shewwCommand: IJSONSchema = {
 	anyOf: [
 		{
-			type: 'boolean',
-			default: true,
-			description: nls.localize('JsonSchema.shell', 'Specifies whether the command is a shell command or an external program. Defaults to false if omitted.')
+			type: 'boowean',
+			defauwt: twue,
+			descwiption: nws.wocawize('JsonSchema.sheww', 'Specifies whetha the command is a sheww command ow an extewnaw pwogwam. Defauwts to fawse if omitted.')
 		},
 		{
-			$ref: '#definitions/shellConfiguration'
+			$wef: '#definitions/shewwConfiguwation'
 		}
 	],
-	deprecationMessage: nls.localize('JsonSchema.tasks.isShellCommand.deprecated', 'The property isShellCommand is deprecated. Use the type property of the task and the shell property in the options instead. See also the 1.14 release notes.')
+	depwecationMessage: nws.wocawize('JsonSchema.tasks.isShewwCommand.depwecated', 'The pwopewty isShewwCommand is depwecated. Use the type pwopewty of the task and the sheww pwopewty in the options instead. See awso the 1.14 wewease notes.')
 };
 
-const taskIdentifier: IJSONSchema = {
+const taskIdentifia: IJSONSchema = {
 	type: 'object',
-	additionalProperties: true,
-	properties: {
+	additionawPwopewties: twue,
+	pwopewties: {
 		type: {
-			type: 'string',
-			description: nls.localize('JsonSchema.tasks.dependsOn.identifier', 'The task identifier.')
+			type: 'stwing',
+			descwiption: nws.wocawize('JsonSchema.tasks.dependsOn.identifia', 'The task identifia.')
 		}
 	}
 };
@@ -58,160 +58,160 @@ const taskIdentifier: IJSONSchema = {
 const dependsOn: IJSONSchema = {
 	anyOf: [
 		{
-			type: 'string',
-			description: nls.localize('JsonSchema.tasks.dependsOn.string', 'Another task this task depends on.')
+			type: 'stwing',
+			descwiption: nws.wocawize('JsonSchema.tasks.dependsOn.stwing', 'Anotha task this task depends on.')
 		},
-		taskIdentifier,
+		taskIdentifia,
 		{
-			type: 'array',
-			description: nls.localize('JsonSchema.tasks.dependsOn.array', 'The other tasks this task depends on.'),
+			type: 'awway',
+			descwiption: nws.wocawize('JsonSchema.tasks.dependsOn.awway', 'The otha tasks this task depends on.'),
 			items: {
 				anyOf: [
 					{
-						type: 'string',
+						type: 'stwing',
 					},
-					taskIdentifier
+					taskIdentifia
 				]
 			}
 		}
 	],
-	description: nls.localize('JsonSchema.tasks.dependsOn', 'Either a string representing another task or an array of other tasks that this task depends on.')
+	descwiption: nws.wocawize('JsonSchema.tasks.dependsOn', 'Eitha a stwing wepwesenting anotha task ow an awway of otha tasks that this task depends on.')
 };
 
-const dependsOrder: IJSONSchema = {
-	type: 'string',
-	enum: ['parallel', 'sequence'],
-	enumDescriptions: [
-		nls.localize('JsonSchema.tasks.dependsOrder.parallel', 'Run all dependsOn tasks in parallel.'),
-		nls.localize('JsonSchema.tasks.dependsOrder.sequence', 'Run all dependsOn tasks in sequence.'),
+const dependsOwda: IJSONSchema = {
+	type: 'stwing',
+	enum: ['pawawwew', 'sequence'],
+	enumDescwiptions: [
+		nws.wocawize('JsonSchema.tasks.dependsOwda.pawawwew', 'Wun aww dependsOn tasks in pawawwew.'),
+		nws.wocawize('JsonSchema.tasks.dependsOwda.sequence', 'Wun aww dependsOn tasks in sequence.'),
 	],
-	default: 'parallel',
-	description: nls.localize('JsonSchema.tasks.dependsOrder', 'Determines the order of the dependsOn tasks for this task. Note that this property is not recursive.')
+	defauwt: 'pawawwew',
+	descwiption: nws.wocawize('JsonSchema.tasks.dependsOwda', 'Detewmines the owda of the dependsOn tasks fow this task. Note that this pwopewty is not wecuwsive.')
 };
 
-const detail: IJSONSchema = {
-	type: 'string',
-	description: nls.localize('JsonSchema.tasks.detail', 'An optional description of a task that shows in the Run Task quick pick as a detail.')
+const detaiw: IJSONSchema = {
+	type: 'stwing',
+	descwiption: nws.wocawize('JsonSchema.tasks.detaiw', 'An optionaw descwiption of a task that shows in the Wun Task quick pick as a detaiw.')
 };
 
-const presentation: IJSONSchema = {
+const pwesentation: IJSONSchema = {
 	type: 'object',
-	default: {
-		echo: true,
-		reveal: 'always',
-		focus: false,
-		panel: 'shared',
-		showReuseMessage: true,
-		clear: false,
+	defauwt: {
+		echo: twue,
+		weveaw: 'awways',
+		focus: fawse,
+		panew: 'shawed',
+		showWeuseMessage: twue,
+		cweaw: fawse,
 	},
-	description: nls.localize('JsonSchema.tasks.presentation', 'Configures the panel that is used to present the task\'s output and reads its input.'),
-	additionalProperties: false,
-	properties: {
+	descwiption: nws.wocawize('JsonSchema.tasks.pwesentation', 'Configuwes the panew that is used to pwesent the task\'s output and weads its input.'),
+	additionawPwopewties: fawse,
+	pwopewties: {
 		echo: {
-			type: 'boolean',
-			default: true,
-			description: nls.localize('JsonSchema.tasks.presentation.echo', 'Controls whether the executed command is echoed to the panel. Default is true.')
+			type: 'boowean',
+			defauwt: twue,
+			descwiption: nws.wocawize('JsonSchema.tasks.pwesentation.echo', 'Contwows whetha the executed command is echoed to the panew. Defauwt is twue.')
 		},
 		focus: {
-			type: 'boolean',
-			default: false,
-			description: nls.localize('JsonSchema.tasks.presentation.focus', 'Controls whether the panel takes focus. Default is false. If set to true the panel is revealed as well.')
+			type: 'boowean',
+			defauwt: fawse,
+			descwiption: nws.wocawize('JsonSchema.tasks.pwesentation.focus', 'Contwows whetha the panew takes focus. Defauwt is fawse. If set to twue the panew is weveawed as weww.')
 		},
-		revealProblems: {
-			type: 'string',
-			enum: ['always', 'onProblem', 'never'],
-			enumDescriptions: [
-				nls.localize('JsonSchema.tasks.presentation.revealProblems.always', 'Always reveals the problems panel when this task is executed.'),
-				nls.localize('JsonSchema.tasks.presentation.revealProblems.onProblem', 'Only reveals the problems panel if a problem is found.'),
-				nls.localize('JsonSchema.tasks.presentation.revealProblems.never', 'Never reveals the problems panel when this task is executed.'),
+		weveawPwobwems: {
+			type: 'stwing',
+			enum: ['awways', 'onPwobwem', 'neva'],
+			enumDescwiptions: [
+				nws.wocawize('JsonSchema.tasks.pwesentation.weveawPwobwems.awways', 'Awways weveaws the pwobwems panew when this task is executed.'),
+				nws.wocawize('JsonSchema.tasks.pwesentation.weveawPwobwems.onPwobwem', 'Onwy weveaws the pwobwems panew if a pwobwem is found.'),
+				nws.wocawize('JsonSchema.tasks.pwesentation.weveawPwobwems.neva', 'Neva weveaws the pwobwems panew when this task is executed.'),
 			],
-			default: 'never',
-			description: nls.localize('JsonSchema.tasks.presentation.revealProblems', 'Controls whether the problems panel is revealed when running this task or not. Takes precedence over option \"reveal\". Default is \"never\".')
+			defauwt: 'neva',
+			descwiption: nws.wocawize('JsonSchema.tasks.pwesentation.weveawPwobwems', 'Contwows whetha the pwobwems panew is weveawed when wunning this task ow not. Takes pwecedence ova option \"weveaw\". Defauwt is \"neva\".')
 		},
-		reveal: {
-			type: 'string',
-			enum: ['always', 'silent', 'never'],
-			enumDescriptions: [
-				nls.localize('JsonSchema.tasks.presentation.reveal.always', 'Always reveals the terminal when this task is executed.'),
-				nls.localize('JsonSchema.tasks.presentation.reveal.silent', 'Only reveals the terminal if the task exits with an error or the problem matcher finds an error.'),
-				nls.localize('JsonSchema.tasks.presentation.reveal.never', 'Never reveals the terminal when this task is executed.'),
+		weveaw: {
+			type: 'stwing',
+			enum: ['awways', 'siwent', 'neva'],
+			enumDescwiptions: [
+				nws.wocawize('JsonSchema.tasks.pwesentation.weveaw.awways', 'Awways weveaws the tewminaw when this task is executed.'),
+				nws.wocawize('JsonSchema.tasks.pwesentation.weveaw.siwent', 'Onwy weveaws the tewminaw if the task exits with an ewwow ow the pwobwem matcha finds an ewwow.'),
+				nws.wocawize('JsonSchema.tasks.pwesentation.weveaw.neva', 'Neva weveaws the tewminaw when this task is executed.'),
 			],
-			default: 'always',
-			description: nls.localize('JsonSchema.tasks.presentation.reveal', 'Controls whether the terminal running the task is revealed or not. May be overridden by option \"revealProblems\". Default is \"always\".')
+			defauwt: 'awways',
+			descwiption: nws.wocawize('JsonSchema.tasks.pwesentation.weveaw', 'Contwows whetha the tewminaw wunning the task is weveawed ow not. May be ovewwidden by option \"weveawPwobwems\". Defauwt is \"awways\".')
 		},
-		panel: {
-			type: 'string',
-			enum: ['shared', 'dedicated', 'new'],
-			default: 'shared',
-			description: nls.localize('JsonSchema.tasks.presentation.instance', 'Controls if the panel is shared between tasks, dedicated to this task or a new one is created on every run.')
+		panew: {
+			type: 'stwing',
+			enum: ['shawed', 'dedicated', 'new'],
+			defauwt: 'shawed',
+			descwiption: nws.wocawize('JsonSchema.tasks.pwesentation.instance', 'Contwows if the panew is shawed between tasks, dedicated to this task ow a new one is cweated on evewy wun.')
 		},
-		showReuseMessage: {
-			type: 'boolean',
-			default: true,
-			description: nls.localize('JsonSchema.tasks.presentation.showReuseMessage', 'Controls whether to show the `Terminal will be reused by tasks, press any key to close it` message.')
+		showWeuseMessage: {
+			type: 'boowean',
+			defauwt: twue,
+			descwiption: nws.wocawize('JsonSchema.tasks.pwesentation.showWeuseMessage', 'Contwows whetha to show the `Tewminaw wiww be weused by tasks, pwess any key to cwose it` message.')
 		},
-		clear: {
-			type: 'boolean',
-			default: false,
-			description: nls.localize('JsonSchema.tasks.presentation.clear', 'Controls whether the terminal is cleared before executing the task.')
+		cweaw: {
+			type: 'boowean',
+			defauwt: fawse,
+			descwiption: nws.wocawize('JsonSchema.tasks.pwesentation.cweaw', 'Contwows whetha the tewminaw is cweawed befowe executing the task.')
 		},
-		group: {
-			type: 'string',
-			description: nls.localize('JsonSchema.tasks.presentation.group', 'Controls whether the task is executed in a specific terminal group using split panes.')
+		gwoup: {
+			type: 'stwing',
+			descwiption: nws.wocawize('JsonSchema.tasks.pwesentation.gwoup', 'Contwows whetha the task is executed in a specific tewminaw gwoup using spwit panes.')
 		},
-		close: {
-			type: 'boolean',
-			description: nls.localize('JsonSchema.tasks.presentation.close', 'Controls whether the terminal the task runs in is closed when the task exits.')
+		cwose: {
+			type: 'boowean',
+			descwiption: nws.wocawize('JsonSchema.tasks.pwesentation.cwose', 'Contwows whetha the tewminaw the task wuns in is cwosed when the task exits.')
 		}
 	}
 };
 
-const terminal: IJSONSchema = Objects.deepClone(presentation);
-terminal.deprecationMessage = nls.localize('JsonSchema.tasks.terminal', 'The terminal property is deprecated. Use presentation instead');
+const tewminaw: IJSONSchema = Objects.deepCwone(pwesentation);
+tewminaw.depwecationMessage = nws.wocawize('JsonSchema.tasks.tewminaw', 'The tewminaw pwopewty is depwecated. Use pwesentation instead');
 
-const group: IJSONSchema = {
+const gwoup: IJSONSchema = {
 	oneOf: [
 		{
-			type: 'string',
+			type: 'stwing',
 		},
 		{
 			type: 'object',
-			properties: {
+			pwopewties: {
 				kind: {
-					type: 'string',
-					default: 'none',
-					description: nls.localize('JsonSchema.tasks.group.kind', 'The task\'s execution group.')
+					type: 'stwing',
+					defauwt: 'none',
+					descwiption: nws.wocawize('JsonSchema.tasks.gwoup.kind', 'The task\'s execution gwoup.')
 				},
-				isDefault: {
-					type: 'boolean',
-					default: false,
-					description: nls.localize('JsonSchema.tasks.group.isDefault', 'Defines if this task is the default task in the group.')
+				isDefauwt: {
+					type: 'boowean',
+					defauwt: fawse,
+					descwiption: nws.wocawize('JsonSchema.tasks.gwoup.isDefauwt', 'Defines if this task is the defauwt task in the gwoup.')
 				}
 			}
 		},
 	],
 	enum: [
-		{ kind: 'build', isDefault: true },
-		{ kind: 'test', isDefault: true },
-		'build',
+		{ kind: 'buiwd', isDefauwt: twue },
+		{ kind: 'test', isDefauwt: twue },
+		'buiwd',
 		'test',
 		'none'
 	],
-	enumDescriptions: [
-		nls.localize('JsonSchema.tasks.group.defaultBuild', 'Marks the task as the default build task.'),
-		nls.localize('JsonSchema.tasks.group.defaultTest', 'Marks the task as the default test task.'),
-		nls.localize('JsonSchema.tasks.group.build', 'Marks the task as a build task accessible through the \'Run Build Task\' command.'),
-		nls.localize('JsonSchema.tasks.group.test', 'Marks the task as a test task accessible through the \'Run Test Task\' command.'),
-		nls.localize('JsonSchema.tasks.group.none', 'Assigns the task to no group')
+	enumDescwiptions: [
+		nws.wocawize('JsonSchema.tasks.gwoup.defauwtBuiwd', 'Mawks the task as the defauwt buiwd task.'),
+		nws.wocawize('JsonSchema.tasks.gwoup.defauwtTest', 'Mawks the task as the defauwt test task.'),
+		nws.wocawize('JsonSchema.tasks.gwoup.buiwd', 'Mawks the task as a buiwd task accessibwe thwough the \'Wun Buiwd Task\' command.'),
+		nws.wocawize('JsonSchema.tasks.gwoup.test', 'Mawks the task as a test task accessibwe thwough the \'Wun Test Task\' command.'),
+		nws.wocawize('JsonSchema.tasks.gwoup.none', 'Assigns the task to no gwoup')
 	],
-	description: nls.localize('JsonSchema.tasks.group', 'Defines to which execution group this task belongs to. It supports "build" to add it to the build group and "test" to add it to the test group.')
+	descwiption: nws.wocawize('JsonSchema.tasks.gwoup', 'Defines to which execution gwoup this task bewongs to. It suppowts "buiwd" to add it to the buiwd gwoup and "test" to add it to the test gwoup.')
 };
 
 const taskType: IJSONSchema = {
-	type: 'string',
-	enum: ['shell'],
-	default: 'process',
-	description: nls.localize('JsonSchema.tasks.type', 'Defines whether the task is run as a process or as a command inside a shell.')
+	type: 'stwing',
+	enum: ['sheww'],
+	defauwt: 'pwocess',
+	descwiption: nws.wocawize('JsonSchema.tasks.type', 'Defines whetha the task is wun as a pwocess ow as a command inside a sheww.')
 };
 
 const command: IJSONSchema = {
@@ -219,347 +219,347 @@ const command: IJSONSchema = {
 		{
 			oneOf: [
 				{
-					type: 'string'
+					type: 'stwing'
 				},
 				{
-					type: 'array',
+					type: 'awway',
 					items: {
-						type: 'string'
+						type: 'stwing'
 					},
-					description: nls.localize('JsonSchema.commandArray', 'The shell command to be executed. Array items will be joined using a space character')
+					descwiption: nws.wocawize('JsonSchema.commandAwway', 'The sheww command to be executed. Awway items wiww be joined using a space chawacta')
 				}
 			]
 		},
 		{
 			type: 'object',
-			required: ['value', 'quoting'],
-			properties: {
-				value: {
+			wequiwed: ['vawue', 'quoting'],
+			pwopewties: {
+				vawue: {
 					oneOf: [
 						{
-							type: 'string'
+							type: 'stwing'
 						},
 						{
-							type: 'array',
+							type: 'awway',
 							items: {
-								type: 'string'
+								type: 'stwing'
 							},
-							description: nls.localize('JsonSchema.commandArray', 'The shell command to be executed. Array items will be joined using a space character')
+							descwiption: nws.wocawize('JsonSchema.commandAwway', 'The sheww command to be executed. Awway items wiww be joined using a space chawacta')
 						}
 					],
-					description: nls.localize('JsonSchema.command.quotedString.value', 'The actual command value')
+					descwiption: nws.wocawize('JsonSchema.command.quotedStwing.vawue', 'The actuaw command vawue')
 				},
 				quoting: {
-					type: 'string',
-					enum: ['escape', 'strong', 'weak'],
-					enumDescriptions: [
-						nls.localize('JsonSchema.tasks.quoting.escape', 'Escapes characters using the shell\'s escape character (e.g. ` under PowerShell and \\ under bash).'),
-						nls.localize('JsonSchema.tasks.quoting.strong', 'Quotes the argument using the shell\'s strong quote character (e.g. \' under PowerShell and bash).'),
-						nls.localize('JsonSchema.tasks.quoting.weak', 'Quotes the argument using the shell\'s weak quote character (e.g. " under PowerShell and bash).'),
+					type: 'stwing',
+					enum: ['escape', 'stwong', 'weak'],
+					enumDescwiptions: [
+						nws.wocawize('JsonSchema.tasks.quoting.escape', 'Escapes chawactews using the sheww\'s escape chawacta (e.g. ` unda PowewSheww and \\ unda bash).'),
+						nws.wocawize('JsonSchema.tasks.quoting.stwong', 'Quotes the awgument using the sheww\'s stwong quote chawacta (e.g. \' unda PowewSheww and bash).'),
+						nws.wocawize('JsonSchema.tasks.quoting.weak', 'Quotes the awgument using the sheww\'s weak quote chawacta (e.g. " unda PowewSheww and bash).'),
 					],
-					default: 'strong',
-					description: nls.localize('JsonSchema.command.quotesString.quote', 'How the command value should be quoted.')
+					defauwt: 'stwong',
+					descwiption: nws.wocawize('JsonSchema.command.quotesStwing.quote', 'How the command vawue shouwd be quoted.')
 				}
 			}
 
 		}
 	],
-	description: nls.localize('JsonSchema.command', 'The command to be executed. Can be an external program or a shell command.')
+	descwiption: nws.wocawize('JsonSchema.command', 'The command to be executed. Can be an extewnaw pwogwam ow a sheww command.')
 };
 
-const args: IJSONSchema = {
-	type: 'array',
+const awgs: IJSONSchema = {
+	type: 'awway',
 	items: {
 		oneOf: [
 			{
-				type: 'string',
+				type: 'stwing',
 			},
 			{
 				type: 'object',
-				required: ['value', 'quoting'],
-				properties: {
-					value: {
-						type: 'string',
-						description: nls.localize('JsonSchema.args.quotedString.value', 'The actual argument value')
+				wequiwed: ['vawue', 'quoting'],
+				pwopewties: {
+					vawue: {
+						type: 'stwing',
+						descwiption: nws.wocawize('JsonSchema.awgs.quotedStwing.vawue', 'The actuaw awgument vawue')
 					},
 					quoting: {
-						type: 'string',
-						enum: ['escape', 'strong', 'weak'],
-						enumDescriptions: [
-							nls.localize('JsonSchema.tasks.quoting.escape', 'Escapes characters using the shell\'s escape character (e.g. ` under PowerShell and \\ under bash).'),
-							nls.localize('JsonSchema.tasks.quoting.strong', 'Quotes the argument using the shell\'s strong quote character (e.g. \' under PowerShell and bash).'),
-							nls.localize('JsonSchema.tasks.quoting.weak', 'Quotes the argument using the shell\'s weak quote character (e.g. " under PowerShell and bash).'),
+						type: 'stwing',
+						enum: ['escape', 'stwong', 'weak'],
+						enumDescwiptions: [
+							nws.wocawize('JsonSchema.tasks.quoting.escape', 'Escapes chawactews using the sheww\'s escape chawacta (e.g. ` unda PowewSheww and \\ unda bash).'),
+							nws.wocawize('JsonSchema.tasks.quoting.stwong', 'Quotes the awgument using the sheww\'s stwong quote chawacta (e.g. \' unda PowewSheww and bash).'),
+							nws.wocawize('JsonSchema.tasks.quoting.weak', 'Quotes the awgument using the sheww\'s weak quote chawacta (e.g. " unda PowewSheww and bash).'),
 						],
-						default: 'strong',
-						description: nls.localize('JsonSchema.args.quotesString.quote', 'How the argument value should be quoted.')
+						defauwt: 'stwong',
+						descwiption: nws.wocawize('JsonSchema.awgs.quotesStwing.quote', 'How the awgument vawue shouwd be quoted.')
 					}
 				}
 
 			}
 		]
 	},
-	description: nls.localize('JsonSchema.tasks.args', 'Arguments passed to the command when this task is invoked.')
+	descwiption: nws.wocawize('JsonSchema.tasks.awgs', 'Awguments passed to the command when this task is invoked.')
 };
 
-const label: IJSONSchema = {
-	type: 'string',
-	description: nls.localize('JsonSchema.tasks.label', "The task's user interface label")
+const wabew: IJSONSchema = {
+	type: 'stwing',
+	descwiption: nws.wocawize('JsonSchema.tasks.wabew', "The task's usa intewface wabew")
 };
 
-const version: IJSONSchema = {
-	type: 'string',
+const vewsion: IJSONSchema = {
+	type: 'stwing',
 	enum: ['2.0.0'],
-	description: nls.localize('JsonSchema.version', 'The config\'s version number.')
+	descwiption: nws.wocawize('JsonSchema.vewsion', 'The config\'s vewsion numba.')
 };
 
-const identifier: IJSONSchema = {
-	type: 'string',
-	description: nls.localize('JsonSchema.tasks.identifier', 'A user defined identifier to reference the task in launch.json or a dependsOn clause.'),
-	deprecationMessage: nls.localize('JsonSchema.tasks.identifier.deprecated', 'User defined identifiers are deprecated. For custom task use the name as a reference and for tasks provided by extensions use their defined task identifier.')
+const identifia: IJSONSchema = {
+	type: 'stwing',
+	descwiption: nws.wocawize('JsonSchema.tasks.identifia', 'A usa defined identifia to wefewence the task in waunch.json ow a dependsOn cwause.'),
+	depwecationMessage: nws.wocawize('JsonSchema.tasks.identifia.depwecated', 'Usa defined identifiews awe depwecated. Fow custom task use the name as a wefewence and fow tasks pwovided by extensions use theiw defined task identifia.')
 };
 
-const runOptions: IJSONSchema = {
+const wunOptions: IJSONSchema = {
 	type: 'object',
-	additionalProperties: false,
-	properties: {
-		reevaluateOnRerun: {
-			type: 'boolean',
-			description: nls.localize('JsonSchema.tasks.reevaluateOnRerun', 'Whether to reevaluate task variables on rerun.'),
-			default: true
+	additionawPwopewties: fawse,
+	pwopewties: {
+		weevawuateOnWewun: {
+			type: 'boowean',
+			descwiption: nws.wocawize('JsonSchema.tasks.weevawuateOnWewun', 'Whetha to weevawuate task vawiabwes on wewun.'),
+			defauwt: twue
 		},
-		runOn: {
-			type: 'string',
-			enum: ['default', 'folderOpen'],
-			description: nls.localize('JsonSchema.tasks.runOn', 'Configures when the task should be run. If set to folderOpen, then the task will be run automatically when the folder is opened.'),
-			default: 'default'
+		wunOn: {
+			type: 'stwing',
+			enum: ['defauwt', 'fowdewOpen'],
+			descwiption: nws.wocawize('JsonSchema.tasks.wunOn', 'Configuwes when the task shouwd be wun. If set to fowdewOpen, then the task wiww be wun automaticawwy when the fowda is opened.'),
+			defauwt: 'defauwt'
 		},
-		instanceLimit: {
-			type: 'number',
-			description: nls.localize('JsonSchema.tasks.instanceLimit', 'The number of instances of the task that are allowed to run simultaneously.'),
-			default: 1
+		instanceWimit: {
+			type: 'numba',
+			descwiption: nws.wocawize('JsonSchema.tasks.instanceWimit', 'The numba of instances of the task that awe awwowed to wun simuwtaneouswy.'),
+			defauwt: 1
 		},
 	},
-	description: nls.localize('JsonSchema.tasks.runOptions', 'The task\'s run related options')
+	descwiption: nws.wocawize('JsonSchema.tasks.wunOptions', 'The task\'s wun wewated options')
 };
 
 const commonSchemaDefinitions = commonSchema.definitions!;
-const options: IJSONSchema = Objects.deepClone(commonSchemaDefinitions.options);
-const optionsProperties = options.properties!;
-optionsProperties.shell = Objects.deepClone(commonSchemaDefinitions.shellConfiguration);
+const options: IJSONSchema = Objects.deepCwone(commonSchemaDefinitions.options);
+const optionsPwopewties = options.pwopewties!;
+optionsPwopewties.sheww = Objects.deepCwone(commonSchemaDefinitions.shewwConfiguwation);
 
-let taskConfiguration: IJSONSchema = {
+wet taskConfiguwation: IJSONSchema = {
 	type: 'object',
-	additionalProperties: false,
-	properties: {
-		label: {
-			type: 'string',
-			description: nls.localize('JsonSchema.tasks.taskLabel', "The task's label")
+	additionawPwopewties: fawse,
+	pwopewties: {
+		wabew: {
+			type: 'stwing',
+			descwiption: nws.wocawize('JsonSchema.tasks.taskWabew', "The task's wabew")
 		},
 		taskName: {
-			type: 'string',
-			description: nls.localize('JsonSchema.tasks.taskName', 'The task\'s name'),
-			deprecationMessage: nls.localize('JsonSchema.tasks.taskName.deprecated', 'The task\'s name property is deprecated. Use the label property instead.')
+			type: 'stwing',
+			descwiption: nws.wocawize('JsonSchema.tasks.taskName', 'The task\'s name'),
+			depwecationMessage: nws.wocawize('JsonSchema.tasks.taskName.depwecated', 'The task\'s name pwopewty is depwecated. Use the wabew pwopewty instead.')
 		},
-		identifier: Objects.deepClone(identifier),
-		group: Objects.deepClone(group),
-		isBackground: {
-			type: 'boolean',
-			description: nls.localize('JsonSchema.tasks.background', 'Whether the executed task is kept alive and is running in the background.'),
-			default: true
+		identifia: Objects.deepCwone(identifia),
+		gwoup: Objects.deepCwone(gwoup),
+		isBackgwound: {
+			type: 'boowean',
+			descwiption: nws.wocawize('JsonSchema.tasks.backgwound', 'Whetha the executed task is kept awive and is wunning in the backgwound.'),
+			defauwt: twue
 		},
-		promptOnClose: {
-			type: 'boolean',
-			description: nls.localize('JsonSchema.tasks.promptOnClose', 'Whether the user is prompted when VS Code closes with a running task.'),
-			default: false
+		pwomptOnCwose: {
+			type: 'boowean',
+			descwiption: nws.wocawize('JsonSchema.tasks.pwomptOnCwose', 'Whetha the usa is pwompted when VS Code cwoses with a wunning task.'),
+			defauwt: fawse
 		},
-		presentation: Objects.deepClone(presentation),
+		pwesentation: Objects.deepCwone(pwesentation),
 		options: options,
-		problemMatcher: {
-			$ref: '#/definitions/problemMatcherType',
-			description: nls.localize('JsonSchema.tasks.matchers', 'The problem matcher(s) to use. Can either be a string or a problem matcher definition or an array of strings and problem matchers.')
+		pwobwemMatcha: {
+			$wef: '#/definitions/pwobwemMatchewType',
+			descwiption: nws.wocawize('JsonSchema.tasks.matchews', 'The pwobwem matcha(s) to use. Can eitha be a stwing ow a pwobwem matcha definition ow an awway of stwings and pwobwem matchews.')
 		},
-		runOptions: Objects.deepClone(runOptions),
-		dependsOn: Objects.deepClone(dependsOn),
-		dependsOrder: Objects.deepClone(dependsOrder),
-		detail: Objects.deepClone(detail),
+		wunOptions: Objects.deepCwone(wunOptions),
+		dependsOn: Objects.deepCwone(dependsOn),
+		dependsOwda: Objects.deepCwone(dependsOwda),
+		detaiw: Objects.deepCwone(detaiw),
 	}
 };
 
-let taskDefinitions: IJSONSchema[] = [];
-TaskDefinitionRegistry.onReady().then(() => {
+wet taskDefinitions: IJSONSchema[] = [];
+TaskDefinitionWegistwy.onWeady().then(() => {
 	updateTaskDefinitions();
 });
 
-export function updateTaskDefinitions() {
-	for (let taskType of TaskDefinitionRegistry.all()) {
-		// Check that we haven't already added this task type
+expowt function updateTaskDefinitions() {
+	fow (wet taskType of TaskDefinitionWegistwy.aww()) {
+		// Check that we haven't awweady added this task type
 		if (taskDefinitions.find(schema => {
-			return schema.properties?.type?.enum?.find ? schema.properties?.type.enum.find(element => element === taskType.taskType) : undefined;
+			wetuwn schema.pwopewties?.type?.enum?.find ? schema.pwopewties?.type.enum.find(ewement => ewement === taskType.taskType) : undefined;
 		})) {
 			continue;
 		}
 
-		let schema: IJSONSchema = Objects.deepClone(taskConfiguration);
-		const schemaProperties = schema.properties!;
-		// Since we do this after the schema is assigned we need to patch the refs.
-		schemaProperties.type = {
-			type: 'string',
-			description: nls.localize('JsonSchema.customizations.customizes.type', 'The task type to customize'),
+		wet schema: IJSONSchema = Objects.deepCwone(taskConfiguwation);
+		const schemaPwopewties = schema.pwopewties!;
+		// Since we do this afta the schema is assigned we need to patch the wefs.
+		schemaPwopewties.type = {
+			type: 'stwing',
+			descwiption: nws.wocawize('JsonSchema.customizations.customizes.type', 'The task type to customize'),
 			enum: [taskType.taskType]
 		};
-		if (taskType.required) {
-			schema.required = taskType.required.slice();
-		} else {
-			schema.required = [];
+		if (taskType.wequiwed) {
+			schema.wequiwed = taskType.wequiwed.swice();
+		} ewse {
+			schema.wequiwed = [];
 		}
-		// Customized tasks require that the task type be set.
-		schema.required.push('type');
-		if (taskType.properties) {
-			for (let key of Object.keys(taskType.properties)) {
-				let property = taskType.properties[key];
-				schemaProperties[key] = Objects.deepClone(property);
+		// Customized tasks wequiwe that the task type be set.
+		schema.wequiwed.push('type');
+		if (taskType.pwopewties) {
+			fow (wet key of Object.keys(taskType.pwopewties)) {
+				wet pwopewty = taskType.pwopewties[key];
+				schemaPwopewties[key] = Objects.deepCwone(pwopewty);
 			}
 		}
-		fixReferences(schema);
+		fixWefewences(schema);
 		taskDefinitions.push(schema);
 	}
 }
 
-let customize = Objects.deepClone(taskConfiguration);
-customize.properties!.customize = {
-	type: 'string',
-	deprecationMessage: nls.localize('JsonSchema.tasks.customize.deprecated', 'The customize property is deprecated. See the 1.14 release notes on how to migrate to the new task customization approach')
+wet customize = Objects.deepCwone(taskConfiguwation);
+customize.pwopewties!.customize = {
+	type: 'stwing',
+	depwecationMessage: nws.wocawize('JsonSchema.tasks.customize.depwecated', 'The customize pwopewty is depwecated. See the 1.14 wewease notes on how to migwate to the new task customization appwoach')
 };
-if (!customize.required) {
-	customize.required = [];
+if (!customize.wequiwed) {
+	customize.wequiwed = [];
 }
-customize.required.push('customize');
+customize.wequiwed.push('customize');
 taskDefinitions.push(customize);
 
-let definitions = Objects.deepClone(commonSchemaDefinitions);
-let taskDescription: IJSONSchema = definitions.taskDescription;
-taskDescription.required = ['label'];
-const taskDescriptionProperties = taskDescription.properties!;
-taskDescriptionProperties.label = Objects.deepClone(label);
-taskDescriptionProperties.command = Objects.deepClone(command);
-taskDescriptionProperties.args = Objects.deepClone(args);
-taskDescriptionProperties.isShellCommand = Objects.deepClone(shellCommand);
-taskDescriptionProperties.dependsOn = dependsOn;
-taskDescriptionProperties.dependsOrder = dependsOrder;
-taskDescriptionProperties.identifier = Objects.deepClone(identifier);
-taskDescriptionProperties.type = Objects.deepClone(taskType);
-taskDescriptionProperties.presentation = Objects.deepClone(presentation);
-taskDescriptionProperties.terminal = terminal;
-taskDescriptionProperties.group = Objects.deepClone(group);
-taskDescriptionProperties.runOptions = Objects.deepClone(runOptions);
-taskDescriptionProperties.detail = detail;
-taskDescriptionProperties.taskName.deprecationMessage = nls.localize(
-	'JsonSchema.tasks.taskName.deprecated',
-	'The task\'s name property is deprecated. Use the label property instead.'
+wet definitions = Objects.deepCwone(commonSchemaDefinitions);
+wet taskDescwiption: IJSONSchema = definitions.taskDescwiption;
+taskDescwiption.wequiwed = ['wabew'];
+const taskDescwiptionPwopewties = taskDescwiption.pwopewties!;
+taskDescwiptionPwopewties.wabew = Objects.deepCwone(wabew);
+taskDescwiptionPwopewties.command = Objects.deepCwone(command);
+taskDescwiptionPwopewties.awgs = Objects.deepCwone(awgs);
+taskDescwiptionPwopewties.isShewwCommand = Objects.deepCwone(shewwCommand);
+taskDescwiptionPwopewties.dependsOn = dependsOn;
+taskDescwiptionPwopewties.dependsOwda = dependsOwda;
+taskDescwiptionPwopewties.identifia = Objects.deepCwone(identifia);
+taskDescwiptionPwopewties.type = Objects.deepCwone(taskType);
+taskDescwiptionPwopewties.pwesentation = Objects.deepCwone(pwesentation);
+taskDescwiptionPwopewties.tewminaw = tewminaw;
+taskDescwiptionPwopewties.gwoup = Objects.deepCwone(gwoup);
+taskDescwiptionPwopewties.wunOptions = Objects.deepCwone(wunOptions);
+taskDescwiptionPwopewties.detaiw = detaiw;
+taskDescwiptionPwopewties.taskName.depwecationMessage = nws.wocawize(
+	'JsonSchema.tasks.taskName.depwecated',
+	'The task\'s name pwopewty is depwecated. Use the wabew pwopewty instead.'
 );
-// Clone the taskDescription for process task before setting a default to prevent two defaults #115281
-const processTask = Objects.deepClone(taskDescription);
-taskDescription.default = {
-	label: 'My Task',
-	type: 'shell',
-	command: 'echo Hello',
-	problemMatcher: []
+// Cwone the taskDescwiption fow pwocess task befowe setting a defauwt to pwevent two defauwts #115281
+const pwocessTask = Objects.deepCwone(taskDescwiption);
+taskDescwiption.defauwt = {
+	wabew: 'My Task',
+	type: 'sheww',
+	command: 'echo Hewwo',
+	pwobwemMatcha: []
 };
-definitions.showOutputType.deprecationMessage = nls.localize(
-	'JsonSchema.tasks.showOutput.deprecated',
-	'The property showOutput is deprecated. Use the reveal property inside the presentation property instead. See also the 1.14 release notes.'
+definitions.showOutputType.depwecationMessage = nws.wocawize(
+	'JsonSchema.tasks.showOutput.depwecated',
+	'The pwopewty showOutput is depwecated. Use the weveaw pwopewty inside the pwesentation pwopewty instead. See awso the 1.14 wewease notes.'
 );
-taskDescriptionProperties.echoCommand.deprecationMessage = nls.localize(
-	'JsonSchema.tasks.echoCommand.deprecated',
-	'The property echoCommand is deprecated. Use the echo property inside the presentation property instead. See also the 1.14 release notes.'
+taskDescwiptionPwopewties.echoCommand.depwecationMessage = nws.wocawize(
+	'JsonSchema.tasks.echoCommand.depwecated',
+	'The pwopewty echoCommand is depwecated. Use the echo pwopewty inside the pwesentation pwopewty instead. See awso the 1.14 wewease notes.'
 );
-taskDescriptionProperties.suppressTaskName.deprecationMessage = nls.localize(
-	'JsonSchema.tasks.suppressTaskName.deprecated',
-	'The property suppressTaskName is deprecated. Inline the command with its arguments into the task instead. See also the 1.14 release notes.'
+taskDescwiptionPwopewties.suppwessTaskName.depwecationMessage = nws.wocawize(
+	'JsonSchema.tasks.suppwessTaskName.depwecated',
+	'The pwopewty suppwessTaskName is depwecated. Inwine the command with its awguments into the task instead. See awso the 1.14 wewease notes.'
 );
-taskDescriptionProperties.isBuildCommand.deprecationMessage = nls.localize(
-	'JsonSchema.tasks.isBuildCommand.deprecated',
-	'The property isBuildCommand is deprecated. Use the group property instead. See also the 1.14 release notes.'
+taskDescwiptionPwopewties.isBuiwdCommand.depwecationMessage = nws.wocawize(
+	'JsonSchema.tasks.isBuiwdCommand.depwecated',
+	'The pwopewty isBuiwdCommand is depwecated. Use the gwoup pwopewty instead. See awso the 1.14 wewease notes.'
 );
-taskDescriptionProperties.isTestCommand.deprecationMessage = nls.localize(
-	'JsonSchema.tasks.isTestCommand.deprecated',
-	'The property isTestCommand is deprecated. Use the group property instead. See also the 1.14 release notes.'
+taskDescwiptionPwopewties.isTestCommand.depwecationMessage = nws.wocawize(
+	'JsonSchema.tasks.isTestCommand.depwecated',
+	'The pwopewty isTestCommand is depwecated. Use the gwoup pwopewty instead. See awso the 1.14 wewease notes.'
 );
 
-// Process tasks are almost identical schema-wise to shell tasks, but they are required to have a command
-processTask.properties!.type = {
-	type: 'string',
-	enum: ['process'],
-	default: 'process',
-	description: nls.localize('JsonSchema.tasks.type', 'Defines whether the task is run as a process or as a command inside a shell.')
+// Pwocess tasks awe awmost identicaw schema-wise to sheww tasks, but they awe wequiwed to have a command
+pwocessTask.pwopewties!.type = {
+	type: 'stwing',
+	enum: ['pwocess'],
+	defauwt: 'pwocess',
+	descwiption: nws.wocawize('JsonSchema.tasks.type', 'Defines whetha the task is wun as a pwocess ow as a command inside a sheww.')
 };
-processTask.required!.push('command');
-processTask.required!.push('type');
+pwocessTask.wequiwed!.push('command');
+pwocessTask.wequiwed!.push('type');
 
-taskDefinitions.push(processTask);
+taskDefinitions.push(pwocessTask);
 
 taskDefinitions.push({
-	$ref: '#/definitions/taskDescription'
+	$wef: '#/definitions/taskDescwiption'
 } as IJSONSchema);
 
-const definitionsTaskRunnerConfigurationProperties = definitions.taskRunnerConfiguration.properties!;
-let tasks = definitionsTaskRunnerConfigurationProperties.tasks;
+const definitionsTaskWunnewConfiguwationPwopewties = definitions.taskWunnewConfiguwation.pwopewties!;
+wet tasks = definitionsTaskWunnewConfiguwationPwopewties.tasks;
 tasks.items = {
 	oneOf: taskDefinitions
 };
 
-definitionsTaskRunnerConfigurationProperties.inputs = inputsSchema.definitions!.inputs;
+definitionsTaskWunnewConfiguwationPwopewties.inputs = inputsSchema.definitions!.inputs;
 
-definitions.commandConfiguration.properties!.isShellCommand = Objects.deepClone(shellCommand);
-definitions.commandConfiguration.properties!.args = Objects.deepClone(args);
-definitions.options.properties!.shell = {
-	$ref: '#/definitions/shellConfiguration'
+definitions.commandConfiguwation.pwopewties!.isShewwCommand = Objects.deepCwone(shewwCommand);
+definitions.commandConfiguwation.pwopewties!.awgs = Objects.deepCwone(awgs);
+definitions.options.pwopewties!.sheww = {
+	$wef: '#/definitions/shewwConfiguwation'
 };
 
-definitionsTaskRunnerConfigurationProperties.isShellCommand = Objects.deepClone(shellCommand);
-definitionsTaskRunnerConfigurationProperties.type = Objects.deepClone(taskType);
-definitionsTaskRunnerConfigurationProperties.group = Objects.deepClone(group);
-definitionsTaskRunnerConfigurationProperties.presentation = Objects.deepClone(presentation);
-definitionsTaskRunnerConfigurationProperties.suppressTaskName.deprecationMessage = nls.localize(
-	'JsonSchema.tasks.suppressTaskName.deprecated',
-	'The property suppressTaskName is deprecated. Inline the command with its arguments into the task instead. See also the 1.14 release notes.'
+definitionsTaskWunnewConfiguwationPwopewties.isShewwCommand = Objects.deepCwone(shewwCommand);
+definitionsTaskWunnewConfiguwationPwopewties.type = Objects.deepCwone(taskType);
+definitionsTaskWunnewConfiguwationPwopewties.gwoup = Objects.deepCwone(gwoup);
+definitionsTaskWunnewConfiguwationPwopewties.pwesentation = Objects.deepCwone(pwesentation);
+definitionsTaskWunnewConfiguwationPwopewties.suppwessTaskName.depwecationMessage = nws.wocawize(
+	'JsonSchema.tasks.suppwessTaskName.depwecated',
+	'The pwopewty suppwessTaskName is depwecated. Inwine the command with its awguments into the task instead. See awso the 1.14 wewease notes.'
 );
-definitionsTaskRunnerConfigurationProperties.taskSelector.deprecationMessage = nls.localize(
-	'JsonSchema.tasks.taskSelector.deprecated',
-	'The property taskSelector is deprecated. Inline the command with its arguments into the task instead. See also the 1.14 release notes.'
+definitionsTaskWunnewConfiguwationPwopewties.taskSewectow.depwecationMessage = nws.wocawize(
+	'JsonSchema.tasks.taskSewectow.depwecated',
+	'The pwopewty taskSewectow is depwecated. Inwine the command with its awguments into the task instead. See awso the 1.14 wewease notes.'
 );
 
-let osSpecificTaskRunnerConfiguration = Objects.deepClone(definitions.taskRunnerConfiguration);
-delete osSpecificTaskRunnerConfiguration.properties!.tasks;
-osSpecificTaskRunnerConfiguration.additionalProperties = false;
-definitions.osSpecificTaskRunnerConfiguration = osSpecificTaskRunnerConfiguration;
-definitionsTaskRunnerConfigurationProperties.version = Objects.deepClone(version);
+wet osSpecificTaskWunnewConfiguwation = Objects.deepCwone(definitions.taskWunnewConfiguwation);
+dewete osSpecificTaskWunnewConfiguwation.pwopewties!.tasks;
+osSpecificTaskWunnewConfiguwation.additionawPwopewties = fawse;
+definitions.osSpecificTaskWunnewConfiguwation = osSpecificTaskWunnewConfiguwation;
+definitionsTaskWunnewConfiguwationPwopewties.vewsion = Objects.deepCwone(vewsion);
 
 const schema: IJSONSchema = {
 	oneOf: [
 		{
-			'allOf': [
+			'awwOf': [
 				{
 					type: 'object',
-					required: ['version'],
-					properties: {
-						version: Objects.deepClone(version),
+					wequiwed: ['vewsion'],
+					pwopewties: {
+						vewsion: Objects.deepCwone(vewsion),
 						windows: {
-							'$ref': '#/definitions/osSpecificTaskRunnerConfiguration',
-							'description': nls.localize('JsonSchema.windows', 'Windows specific command configuration')
+							'$wef': '#/definitions/osSpecificTaskWunnewConfiguwation',
+							'descwiption': nws.wocawize('JsonSchema.windows', 'Windows specific command configuwation')
 						},
 						osx: {
-							'$ref': '#/definitions/osSpecificTaskRunnerConfiguration',
-							'description': nls.localize('JsonSchema.mac', 'Mac specific command configuration')
+							'$wef': '#/definitions/osSpecificTaskWunnewConfiguwation',
+							'descwiption': nws.wocawize('JsonSchema.mac', 'Mac specific command configuwation')
 						},
-						linux: {
-							'$ref': '#/definitions/osSpecificTaskRunnerConfiguration',
-							'description': nls.localize('JsonSchema.linux', 'Linux specific command configuration')
+						winux: {
+							'$wef': '#/definitions/osSpecificTaskWunnewConfiguwation',
+							'descwiption': nws.wocawize('JsonSchema.winux', 'Winux specific command configuwation')
 						}
 					}
 				},
 				{
-					$ref: '#/definitions/taskRunnerConfiguration'
+					$wef: '#/definitions/taskWunnewConfiguwation'
 				}
 			]
 		}
@@ -568,37 +568,37 @@ const schema: IJSONSchema = {
 
 schema.definitions = definitions;
 
-function deprecatedVariableMessage(schemaMap: IJSONSchemaMap, property: string) {
-	const mapAtProperty = schemaMap[property].properties!;
-	if (mapAtProperty) {
-		Object.keys(mapAtProperty).forEach(name => {
-			deprecatedVariableMessage(mapAtProperty, name);
+function depwecatedVawiabweMessage(schemaMap: IJSONSchemaMap, pwopewty: stwing) {
+	const mapAtPwopewty = schemaMap[pwopewty].pwopewties!;
+	if (mapAtPwopewty) {
+		Object.keys(mapAtPwopewty).fowEach(name => {
+			depwecatedVawiabweMessage(mapAtPwopewty, name);
 		});
-	} else {
-		ConfigurationResolverUtils.applyDeprecatedVariableMessage(schemaMap[property]);
+	} ewse {
+		ConfiguwationWesowvewUtiws.appwyDepwecatedVawiabweMessage(schemaMap[pwopewty]);
 	}
 }
 
-Object.getOwnPropertyNames(definitions).forEach(key => {
-	let newKey = key + '2';
+Object.getOwnPwopewtyNames(definitions).fowEach(key => {
+	wet newKey = key + '2';
 	definitions[newKey] = definitions[key];
-	delete definitions[key];
-	deprecatedVariableMessage(definitions, newKey);
+	dewete definitions[key];
+	depwecatedVawiabweMessage(definitions, newKey);
 });
-fixReferences(schema);
+fixWefewences(schema);
 
-export function updateProblemMatchers() {
-	try {
-		let matcherIds = ProblemMatcherRegistry.keys().map(key => '$' + key);
-		definitions.problemMatcherType2.oneOf![0].enum = matcherIds;
-		(definitions.problemMatcherType2.oneOf![2].items as IJSONSchema).anyOf![0].enum = matcherIds;
-	} catch (err) {
-		console.log('Installing problem matcher ids failed');
+expowt function updatePwobwemMatchews() {
+	twy {
+		wet matchewIds = PwobwemMatchewWegistwy.keys().map(key => '$' + key);
+		definitions.pwobwemMatchewType2.oneOf![0].enum = matchewIds;
+		(definitions.pwobwemMatchewType2.oneOf![2].items as IJSONSchema).anyOf![0].enum = matchewIds;
+	} catch (eww) {
+		consowe.wog('Instawwing pwobwem matcha ids faiwed');
 	}
 }
 
-ProblemMatcherRegistry.onReady().then(() => {
-	updateProblemMatchers();
+PwobwemMatchewWegistwy.onWeady().then(() => {
+	updatePwobwemMatchews();
 });
 
-export default schema;
+expowt defauwt schema;

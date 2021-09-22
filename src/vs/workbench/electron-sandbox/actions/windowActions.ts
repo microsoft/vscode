@@ -1,299 +1,299 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/actions';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { applyZoom } from 'vs/platform/windows/electron-sandbox/window';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { getZoomLevel } from 'vs/base/browser/browser';
-import { FileKind } from 'vs/platform/files/common/files';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IQuickInputService, IQuickInputButton } from 'vs/platform/quickinput/common/quickInput';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { ICommandHandler } from 'vs/platform/commands/common/commands';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { Codicon } from 'vs/base/common/codicons';
-import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+impowt 'vs/css!./media/actions';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { appwyZoom } fwom 'vs/pwatfowm/windows/ewectwon-sandbox/window';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { getZoomWevew } fwom 'vs/base/bwowsa/bwowsa';
+impowt { FiweKind } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IQuickInputSewvice, IQuickInputButton } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { getIconCwasses } fwom 'vs/editow/common/sewvices/getIconCwasses';
+impowt { ICommandHandwa } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { isSingweFowdewWowkspaceIdentifia, isWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { Action2, IAction2Options, MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
 
-export class CloseWindowAction extends Action2 {
+expowt cwass CwoseWindowAction extends Action2 {
 
-	static readonly ID = 'workbench.action.closeWindow';
+	static weadonwy ID = 'wowkbench.action.cwoseWindow';
 
-	constructor() {
-		super({
-			id: CloseWindowAction.ID,
-			title: {
-				value: localize('closeWindow', "Close Window"),
-				mnemonicTitle: localize({ key: 'miCloseWindow', comment: ['&& denotes a mnemonic'] }, "Clos&&e Window"),
-				original: 'Close Window'
+	constwuctow() {
+		supa({
+			id: CwoseWindowAction.ID,
+			titwe: {
+				vawue: wocawize('cwoseWindow', "Cwose Window"),
+				mnemonicTitwe: wocawize({ key: 'miCwoseWindow', comment: ['&& denotes a mnemonic'] }, "Cwos&&e Window"),
+				owiginaw: 'Cwose Window'
 			},
-			f1: true,
+			f1: twue,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_W },
-				linux: { primary: KeyMod.Alt | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_W] },
-				win: { primary: KeyMod.Alt | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_W] }
+				weight: KeybindingWeight.WowkbenchContwib,
+				mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_W },
+				winux: { pwimawy: KeyMod.Awt | KeyCode.F4, secondawy: [KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_W] },
+				win: { pwimawy: KeyMod.Awt | KeyCode.F4, secondawy: [KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_W] }
 			},
 			menu: {
-				id: MenuId.MenubarFileMenu,
-				group: '6_close',
-				order: 4
+				id: MenuId.MenubawFiweMenu,
+				gwoup: '6_cwose',
+				owda: 4
 			}
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const nativeHostService = accessor.get(INativeHostService);
+	ovewwide async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const nativeHostSewvice = accessow.get(INativeHostSewvice);
 
-		return nativeHostService.closeWindow();
+		wetuwn nativeHostSewvice.cwoseWindow();
 	}
 }
 
-abstract class BaseZoomAction extends Action2 {
+abstwact cwass BaseZoomAction extends Action2 {
 
-	private static readonly SETTING_KEY = 'window.zoomLevel';
+	pwivate static weadonwy SETTING_KEY = 'window.zoomWevew';
 
-	private static readonly MAX_ZOOM_LEVEL = 8;
-	private static readonly MIN_ZOOM_LEVEL = -8;
+	pwivate static weadonwy MAX_ZOOM_WEVEW = 8;
+	pwivate static weadonwy MIN_ZOOM_WEVEW = -8;
 
-	constructor(desc: Readonly<IAction2Options>) {
-		super(desc);
+	constwuctow(desc: Weadonwy<IAction2Options>) {
+		supa(desc);
 	}
 
-	protected async setConfiguredZoomLevel(accessor: ServicesAccessor, level: number): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
+	pwotected async setConfiguwedZoomWevew(accessow: SewvicesAccessow, wevew: numba): Pwomise<void> {
+		const configuwationSewvice = accessow.get(IConfiguwationSewvice);
 
-		level = Math.round(level); // when reaching smallest zoom, prevent fractional zoom levels
+		wevew = Math.wound(wevew); // when weaching smawwest zoom, pwevent fwactionaw zoom wevews
 
-		if (level > BaseZoomAction.MAX_ZOOM_LEVEL || level < BaseZoomAction.MIN_ZOOM_LEVEL) {
-			return; // https://github.com/microsoft/vscode/issues/48357
+		if (wevew > BaseZoomAction.MAX_ZOOM_WEVEW || wevew < BaseZoomAction.MIN_ZOOM_WEVEW) {
+			wetuwn; // https://github.com/micwosoft/vscode/issues/48357
 		}
 
-		await configurationService.updateValue(BaseZoomAction.SETTING_KEY, level);
+		await configuwationSewvice.updateVawue(BaseZoomAction.SETTING_KEY, wevew);
 
-		applyZoom(level);
+		appwyZoom(wevew);
 	}
 }
 
-export class ZoomInAction extends BaseZoomAction {
+expowt cwass ZoomInAction extends BaseZoomAction {
 
-	constructor() {
-		super({
-			id: 'workbench.action.zoomIn',
-			title: {
-				value: localize('zoomIn', "Zoom In"),
-				mnemonicTitle: localize({ key: 'miZoomIn', comment: ['&& denotes a mnemonic'] }, "&&Zoom In"),
-				original: 'Zoom In'
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.zoomIn',
+			titwe: {
+				vawue: wocawize('zoomIn', "Zoom In"),
+				mnemonicTitwe: wocawize({ key: 'miZoomIn', comment: ['&& denotes a mnemonic'] }, "&&Zoom In"),
+				owiginaw: 'Zoom In'
 			},
-			category: CATEGORIES.View.value,
-			f1: true,
+			categowy: CATEGOWIES.View.vawue,
+			f1: twue,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.US_EQUAL,
-				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_EQUAL, KeyMod.CtrlCmd | KeyCode.NUMPAD_ADD]
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: KeyMod.CtwwCmd | KeyCode.US_EQUAW,
+				secondawy: [KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.US_EQUAW, KeyMod.CtwwCmd | KeyCode.NUMPAD_ADD]
 			},
 			menu: {
-				id: MenuId.MenubarAppearanceMenu,
-				group: '3_zoom',
-				order: 1
+				id: MenuId.MenubawAppeawanceMenu,
+				gwoup: '3_zoom',
+				owda: 1
 			}
 		});
 	}
 
-	override run(accessor: ServicesAccessor): Promise<void> {
-		return super.setConfiguredZoomLevel(accessor, getZoomLevel() + 1);
+	ovewwide wun(accessow: SewvicesAccessow): Pwomise<void> {
+		wetuwn supa.setConfiguwedZoomWevew(accessow, getZoomWevew() + 1);
 	}
 }
 
-export class ZoomOutAction extends BaseZoomAction {
+expowt cwass ZoomOutAction extends BaseZoomAction {
 
-	constructor() {
-		super({
-			id: 'workbench.action.zoomOut',
-			title: {
-				value: localize('zoomOut', "Zoom Out"),
-				mnemonicTitle: localize({ key: 'miZoomOut', comment: ['&& denotes a mnemonic'] }, "&&Zoom Out"),
-				original: 'Zoom Out'
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.zoomOut',
+			titwe: {
+				vawue: wocawize('zoomOut', "Zoom Out"),
+				mnemonicTitwe: wocawize({ key: 'miZoomOut', comment: ['&& denotes a mnemonic'] }, "&&Zoom Out"),
+				owiginaw: 'Zoom Out'
 			},
-			category: CATEGORIES.View.value,
-			f1: true,
+			categowy: CATEGOWIES.View.vawue,
+			f1: twue,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.US_MINUS,
-				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_MINUS, KeyMod.CtrlCmd | KeyCode.NUMPAD_SUBTRACT],
-				linux: {
-					primary: KeyMod.CtrlCmd | KeyCode.US_MINUS,
-					secondary: [KeyMod.CtrlCmd | KeyCode.NUMPAD_SUBTRACT]
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: KeyMod.CtwwCmd | KeyCode.US_MINUS,
+				secondawy: [KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.US_MINUS, KeyMod.CtwwCmd | KeyCode.NUMPAD_SUBTWACT],
+				winux: {
+					pwimawy: KeyMod.CtwwCmd | KeyCode.US_MINUS,
+					secondawy: [KeyMod.CtwwCmd | KeyCode.NUMPAD_SUBTWACT]
 				}
 			},
 			menu: {
-				id: MenuId.MenubarAppearanceMenu,
-				group: '3_zoom',
-				order: 2
+				id: MenuId.MenubawAppeawanceMenu,
+				gwoup: '3_zoom',
+				owda: 2
 			}
 		});
 	}
 
-	override run(accessor: ServicesAccessor): Promise<void> {
-		return super.setConfiguredZoomLevel(accessor, getZoomLevel() - 1);
+	ovewwide wun(accessow: SewvicesAccessow): Pwomise<void> {
+		wetuwn supa.setConfiguwedZoomWevew(accessow, getZoomWevew() - 1);
 	}
 }
 
-export class ZoomResetAction extends BaseZoomAction {
+expowt cwass ZoomWesetAction extends BaseZoomAction {
 
-	constructor() {
-		super({
-			id: 'workbench.action.zoomReset',
-			title: {
-				value: localize('zoomReset', "Reset Zoom"),
-				mnemonicTitle: localize({ key: 'miZoomReset', comment: ['&& denotes a mnemonic'] }, "&&Reset Zoom"),
-				original: 'Reset Zoom'
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.zoomWeset',
+			titwe: {
+				vawue: wocawize('zoomWeset', "Weset Zoom"),
+				mnemonicTitwe: wocawize({ key: 'miZoomWeset', comment: ['&& denotes a mnemonic'] }, "&&Weset Zoom"),
+				owiginaw: 'Weset Zoom'
 			},
-			category: CATEGORIES.View.value,
-			f1: true,
+			categowy: CATEGOWIES.View.vawue,
+			f1: twue,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.NUMPAD_0
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: KeyMod.CtwwCmd | KeyCode.NUMPAD_0
 			},
 			menu: {
-				id: MenuId.MenubarAppearanceMenu,
-				group: '3_zoom',
-				order: 3
+				id: MenuId.MenubawAppeawanceMenu,
+				gwoup: '3_zoom',
+				owda: 3
 			}
 		});
 	}
 
-	override run(accessor: ServicesAccessor): Promise<void> {
-		return super.setConfiguredZoomLevel(accessor, 0);
+	ovewwide wun(accessow: SewvicesAccessow): Pwomise<void> {
+		wetuwn supa.setConfiguwedZoomWevew(accessow, 0);
 	}
 }
 
-abstract class BaseSwitchWindow extends Action2 {
+abstwact cwass BaseSwitchWindow extends Action2 {
 
-	private readonly closeWindowAction: IQuickInputButton = {
-		iconClass: Codicon.removeClose.classNames,
-		tooltip: localize('close', "Close Window")
+	pwivate weadonwy cwoseWindowAction: IQuickInputButton = {
+		iconCwass: Codicon.wemoveCwose.cwassNames,
+		toowtip: wocawize('cwose', "Cwose Window")
 	};
 
-	private readonly closeDirtyWindowAction: IQuickInputButton = {
-		iconClass: 'dirty-window ' + Codicon.closeDirty,
-		tooltip: localize('close', "Close Window"),
-		alwaysVisible: true
+	pwivate weadonwy cwoseDiwtyWindowAction: IQuickInputButton = {
+		iconCwass: 'diwty-window ' + Codicon.cwoseDiwty,
+		toowtip: wocawize('cwose', "Cwose Window"),
+		awwaysVisibwe: twue
 	};
 
-	constructor(desc: Readonly<IAction2Options>) {
-		super(desc);
+	constwuctow(desc: Weadonwy<IAction2Options>) {
+		supa(desc);
 	}
 
-	protected abstract isQuickNavigate(): boolean;
+	pwotected abstwact isQuickNavigate(): boowean;
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const quickInputService = accessor.get(IQuickInputService);
-		const keybindingService = accessor.get(IKeybindingService);
-		const modelService = accessor.get(IModelService);
-		const modeService = accessor.get(IModeService);
-		const nativeHostService = accessor.get(INativeHostService);
+	ovewwide async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const quickInputSewvice = accessow.get(IQuickInputSewvice);
+		const keybindingSewvice = accessow.get(IKeybindingSewvice);
+		const modewSewvice = accessow.get(IModewSewvice);
+		const modeSewvice = accessow.get(IModeSewvice);
+		const nativeHostSewvice = accessow.get(INativeHostSewvice);
 
-		const currentWindowId = nativeHostService.windowId;
+		const cuwwentWindowId = nativeHostSewvice.windowId;
 
-		const windows = await nativeHostService.getWindows();
-		const placeHolder = localize('switchWindowPlaceHolder', "Select a window to switch to");
+		const windows = await nativeHostSewvice.getWindows();
+		const pwaceHowda = wocawize('switchWindowPwaceHowda', "Sewect a window to switch to");
 		const picks = windows.map(window => {
-			const resource = window.filename ? URI.file(window.filename) : isSingleFolderWorkspaceIdentifier(window.workspace) ? window.workspace.uri : isWorkspaceIdentifier(window.workspace) ? window.workspace.configPath : undefined;
-			const fileKind = window.filename ? FileKind.FILE : isSingleFolderWorkspaceIdentifier(window.workspace) ? FileKind.FOLDER : isWorkspaceIdentifier(window.workspace) ? FileKind.ROOT_FOLDER : FileKind.FILE;
-			return {
-				payload: window.id,
-				label: window.title,
-				ariaLabel: window.dirty ? localize('windowDirtyAriaLabel', "{0}, dirty window", window.title) : window.title,
-				iconClasses: getIconClasses(modelService, modeService, resource, fileKind),
-				description: (currentWindowId === window.id) ? localize('current', "Current Window") : undefined,
-				buttons: currentWindowId !== window.id ? window.dirty ? [this.closeDirtyWindowAction] : [this.closeWindowAction] : undefined
+			const wesouwce = window.fiwename ? UWI.fiwe(window.fiwename) : isSingweFowdewWowkspaceIdentifia(window.wowkspace) ? window.wowkspace.uwi : isWowkspaceIdentifia(window.wowkspace) ? window.wowkspace.configPath : undefined;
+			const fiweKind = window.fiwename ? FiweKind.FIWE : isSingweFowdewWowkspaceIdentifia(window.wowkspace) ? FiweKind.FOWDa : isWowkspaceIdentifia(window.wowkspace) ? FiweKind.WOOT_FOWDa : FiweKind.FIWE;
+			wetuwn {
+				paywoad: window.id,
+				wabew: window.titwe,
+				awiaWabew: window.diwty ? wocawize('windowDiwtyAwiaWabew', "{0}, diwty window", window.titwe) : window.titwe,
+				iconCwasses: getIconCwasses(modewSewvice, modeSewvice, wesouwce, fiweKind),
+				descwiption: (cuwwentWindowId === window.id) ? wocawize('cuwwent', "Cuwwent Window") : undefined,
+				buttons: cuwwentWindowId !== window.id ? window.diwty ? [this.cwoseDiwtyWindowAction] : [this.cwoseWindowAction] : undefined
 			};
 		});
-		const autoFocusIndex = (picks.indexOf(picks.filter(pick => pick.payload === currentWindowId)[0]) + 1) % picks.length;
+		const autoFocusIndex = (picks.indexOf(picks.fiwta(pick => pick.paywoad === cuwwentWindowId)[0]) + 1) % picks.wength;
 
-		const pick = await quickInputService.pick(picks, {
-			contextKey: 'inWindowsPicker',
+		const pick = await quickInputSewvice.pick(picks, {
+			contextKey: 'inWindowsPicka',
 			activeItem: picks[autoFocusIndex],
-			placeHolder,
-			quickNavigate: this.isQuickNavigate() ? { keybindings: keybindingService.lookupKeybindings(this.desc.id) } : undefined,
-			onDidTriggerItemButton: async context => {
-				await nativeHostService.closeWindowById(context.item.payload);
-				context.removeItem();
+			pwaceHowda,
+			quickNavigate: this.isQuickNavigate() ? { keybindings: keybindingSewvice.wookupKeybindings(this.desc.id) } : undefined,
+			onDidTwiggewItemButton: async context => {
+				await nativeHostSewvice.cwoseWindowById(context.item.paywoad);
+				context.wemoveItem();
 			}
 		});
 
 		if (pick) {
-			nativeHostService.focusWindow({ windowId: pick.payload });
+			nativeHostSewvice.focusWindow({ windowId: pick.paywoad });
 		}
 	}
 }
 
-export class SwitchWindowAction extends BaseSwitchWindow {
+expowt cwass SwitchWindowAction extends BaseSwitchWindow {
 
-	constructor() {
-		super({
-			id: 'workbench.action.switchWindow',
-			title: { value: localize('switchWindow', "Switch Window..."), original: 'Switch Window...' },
-			f1: true,
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.switchWindow',
+			titwe: { vawue: wocawize('switchWindow', "Switch Window..."), owiginaw: 'Switch Window...' },
+			f1: twue,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: 0,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_W }
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: 0,
+				mac: { pwimawy: KeyMod.WinCtww | KeyCode.KEY_W }
 			}
 		});
 	}
 
-	protected isQuickNavigate(): boolean {
-		return false;
+	pwotected isQuickNavigate(): boowean {
+		wetuwn fawse;
 	}
 }
 
-export class QuickSwitchWindowAction extends BaseSwitchWindow {
+expowt cwass QuickSwitchWindowAction extends BaseSwitchWindow {
 
-	constructor() {
-		super({
-			id: 'workbench.action.quickSwitchWindow',
-			title: { value: localize('quickSwitchWindow', "Quick Switch Window..."), original: 'Quick Switch Window...' },
-			f1: true
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.quickSwitchWindow',
+			titwe: { vawue: wocawize('quickSwitchWindow', "Quick Switch Window..."), owiginaw: 'Quick Switch Window...' },
+			f1: twue
 		});
 	}
 
-	protected isQuickNavigate(): boolean {
-		return true;
+	pwotected isQuickNavigate(): boowean {
+		wetuwn twue;
 	}
 }
 
-export const NewWindowTabHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(INativeHostService).newWindowTab();
+expowt const NewWindowTabHandwa: ICommandHandwa = function (accessow: SewvicesAccessow) {
+	wetuwn accessow.get(INativeHostSewvice).newWindowTab();
 };
 
-export const ShowPreviousWindowTabHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(INativeHostService).showPreviousWindowTab();
+expowt const ShowPweviousWindowTabHandwa: ICommandHandwa = function (accessow: SewvicesAccessow) {
+	wetuwn accessow.get(INativeHostSewvice).showPweviousWindowTab();
 };
 
-export const ShowNextWindowTabHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(INativeHostService).showNextWindowTab();
+expowt const ShowNextWindowTabHandwa: ICommandHandwa = function (accessow: SewvicesAccessow) {
+	wetuwn accessow.get(INativeHostSewvice).showNextWindowTab();
 };
 
-export const MoveWindowTabToNewWindowHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(INativeHostService).moveWindowTabToNewWindow();
+expowt const MoveWindowTabToNewWindowHandwa: ICommandHandwa = function (accessow: SewvicesAccessow) {
+	wetuwn accessow.get(INativeHostSewvice).moveWindowTabToNewWindow();
 };
 
-export const MergeWindowTabsHandlerHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(INativeHostService).mergeAllWindowTabs();
+expowt const MewgeWindowTabsHandwewHandwa: ICommandHandwa = function (accessow: SewvicesAccessow) {
+	wetuwn accessow.get(INativeHostSewvice).mewgeAwwWindowTabs();
 };
 
-export const ToggleWindowTabsBarHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(INativeHostService).toggleWindowTabsBar();
+expowt const ToggweWindowTabsBawHandwa: ICommandHandwa = function (accessow: SewvicesAccessow) {
+	wetuwn accessow.get(INativeHostSewvice).toggweWindowTabsBaw();
 };

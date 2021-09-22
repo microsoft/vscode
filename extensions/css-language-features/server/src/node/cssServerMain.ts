@@ -1,35 +1,35 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createConnection, Connection, Disposable } from 'vscode-languageserver/node';
-import { formatError } from '../utils/runner';
-import { RuntimeEnvironment, startServer } from '../cssServer';
-import { getNodeFSRequestService } from './nodeFs';
+impowt { cweateConnection, Connection, Disposabwe } fwom 'vscode-wanguagesewva/node';
+impowt { fowmatEwwow } fwom '../utiws/wunna';
+impowt { WuntimeEnviwonment, stawtSewva } fwom '../cssSewva';
+impowt { getNodeFSWequestSewvice } fwom './nodeFs';
 
-// Create a connection for the server.
-const connection: Connection = createConnection();
+// Cweate a connection fow the sewva.
+const connection: Connection = cweateConnection();
 
-console.log = connection.console.log.bind(connection.console);
-console.error = connection.console.error.bind(connection.console);
+consowe.wog = connection.consowe.wog.bind(connection.consowe);
+consowe.ewwow = connection.consowe.ewwow.bind(connection.consowe);
 
-process.on('unhandledRejection', (e: any) => {
-	connection.console.error(formatError(`Unhandled exception`, e));
+pwocess.on('unhandwedWejection', (e: any) => {
+	connection.consowe.ewwow(fowmatEwwow(`Unhandwed exception`, e));
 });
 
-const runtime: RuntimeEnvironment = {
-	timer: {
-		setImmediate(callback: (...args: any[]) => void, ...args: any[]): Disposable {
-			const handle = setImmediate(callback, ...args);
-			return { dispose: () => clearImmediate(handle) };
+const wuntime: WuntimeEnviwonment = {
+	tima: {
+		setImmediate(cawwback: (...awgs: any[]) => void, ...awgs: any[]): Disposabwe {
+			const handwe = setImmediate(cawwback, ...awgs);
+			wetuwn { dispose: () => cweawImmediate(handwe) };
 		},
-		setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): Disposable {
-			const handle = setTimeout(callback, ms, ...args);
-			return { dispose: () => clearTimeout(handle) };
+		setTimeout(cawwback: (...awgs: any[]) => void, ms: numba, ...awgs: any[]): Disposabwe {
+			const handwe = setTimeout(cawwback, ms, ...awgs);
+			wetuwn { dispose: () => cweawTimeout(handwe) };
 		}
 	},
-	file: getNodeFSRequestService()
+	fiwe: getNodeFSWequestSewvice()
 };
 
-startServer(connection, runtime);
+stawtSewva(connection, wuntime);

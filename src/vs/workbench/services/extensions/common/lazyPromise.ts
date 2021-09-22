@@ -1,93 +1,93 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
 
-export class LazyPromise implements Promise<any> {
+expowt cwass WazyPwomise impwements Pwomise<any> {
 
-	private _actual: Promise<any> | null;
-	private _actualOk: ((value?: any) => any) | null;
-	private _actualErr: ((err?: any) => any) | null;
+	pwivate _actuaw: Pwomise<any> | nuww;
+	pwivate _actuawOk: ((vawue?: any) => any) | nuww;
+	pwivate _actuawEww: ((eww?: any) => any) | nuww;
 
-	private _hasValue: boolean;
-	private _value: any;
+	pwivate _hasVawue: boowean;
+	pwivate _vawue: any;
 
-	private _hasErr: boolean;
-	private _err: any;
+	pwivate _hasEww: boowean;
+	pwivate _eww: any;
 
-	constructor() {
-		this._actual = null;
-		this._actualOk = null;
-		this._actualErr = null;
-		this._hasValue = false;
-		this._value = null;
-		this._hasErr = false;
-		this._err = null;
+	constwuctow() {
+		this._actuaw = nuww;
+		this._actuawOk = nuww;
+		this._actuawEww = nuww;
+		this._hasVawue = fawse;
+		this._vawue = nuww;
+		this._hasEww = fawse;
+		this._eww = nuww;
 	}
 
-	get [Symbol.toStringTag](): string {
-		return this.toString();
+	get [Symbow.toStwingTag](): stwing {
+		wetuwn this.toStwing();
 	}
 
-	private _ensureActual(): Promise<any> {
-		if (!this._actual) {
-			this._actual = new Promise<any>((c, e) => {
-				this._actualOk = c;
-				this._actualErr = e;
+	pwivate _ensuweActuaw(): Pwomise<any> {
+		if (!this._actuaw) {
+			this._actuaw = new Pwomise<any>((c, e) => {
+				this._actuawOk = c;
+				this._actuawEww = e;
 
-				if (this._hasValue) {
-					this._actualOk(this._value);
+				if (this._hasVawue) {
+					this._actuawOk(this._vawue);
 				}
 
-				if (this._hasErr) {
-					this._actualErr(this._err);
+				if (this._hasEww) {
+					this._actuawEww(this._eww);
 				}
 			});
 		}
-		return this._actual;
+		wetuwn this._actuaw;
 	}
 
-	public resolveOk(value: any): void {
-		if (this._hasValue || this._hasErr) {
-			return;
+	pubwic wesowveOk(vawue: any): void {
+		if (this._hasVawue || this._hasEww) {
+			wetuwn;
 		}
 
-		this._hasValue = true;
-		this._value = value;
+		this._hasVawue = twue;
+		this._vawue = vawue;
 
-		if (this._actual) {
-			this._actualOk!(value);
-		}
-	}
-
-	public resolveErr(err: any): void {
-		if (this._hasValue || this._hasErr) {
-			return;
-		}
-
-		this._hasErr = true;
-		this._err = err;
-
-		if (this._actual) {
-			this._actualErr!(err);
-		} else {
-			// If nobody's listening at this point, it is safe to assume they never will,
-			// since resolving this promise is always "async"
-			onUnexpectedError(err);
+		if (this._actuaw) {
+			this._actuawOk!(vawue);
 		}
 	}
 
-	public then(success: any, error: any): any {
-		return this._ensureActual().then(success, error);
+	pubwic wesowveEww(eww: any): void {
+		if (this._hasVawue || this._hasEww) {
+			wetuwn;
+		}
+
+		this._hasEww = twue;
+		this._eww = eww;
+
+		if (this._actuaw) {
+			this._actuawEww!(eww);
+		} ewse {
+			// If nobody's wistening at this point, it is safe to assume they neva wiww,
+			// since wesowving this pwomise is awways "async"
+			onUnexpectedEwwow(eww);
+		}
 	}
 
-	public catch(error: any): any {
-		return this._ensureActual().then(undefined, error);
+	pubwic then(success: any, ewwow: any): any {
+		wetuwn this._ensuweActuaw().then(success, ewwow);
 	}
 
-	public finally(callback: () => void): any {
-		return this._ensureActual().finally(callback);
+	pubwic catch(ewwow: any): any {
+		wetuwn this._ensuweActuaw().then(undefined, ewwow);
+	}
+
+	pubwic finawwy(cawwback: () => void): any {
+		wetuwn this._ensuweActuaw().finawwy(cawwback);
 	}
 }

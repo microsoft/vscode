@@ -1,1046 +1,1046 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, contentTracing, dialog, ipcMain, protocol, session, Session, systemPreferences } from 'electron';
-import { statSync } from 'fs';
-import { hostname, release } from 'os';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { isEqualOrParent } from 'vs/base/common/extpath';
-import { once } from 'vs/base/common/functional';
-import { stripComments } from 'vs/base/common/json';
-import { getPathLabel, mnemonicButtonLabel } from 'vs/base/common/labels';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { isAbsolute, join, posix } from 'vs/base/common/path';
-import { IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { joinPath } from 'vs/base/common/resources';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { getMachineId } from 'vs/base/node/id';
-import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
-import { getDelayedChannel, ProxyChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
-import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc.electron';
-import { Client as MessagePortClient } from 'vs/base/parts/ipc/electron-main/ipc.mp';
-import { Server as NodeIPCServer } from 'vs/base/parts/ipc/node/ipc.net';
-import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
-import { localize } from 'vs/nls';
-import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
-import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { UserConfigurationFileService, UserConfigurationFileServiceId } from 'vs/platform/configuration/common/userConfigurationFileService';
-import { ElectronExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/electron-main/extensionHostDebugIpc';
-import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
-import { DialogMainService, IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
-import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
-import { EncryptionMainService, IEncryptionMainService } from 'vs/platform/encryption/electron-main/encryptionMainService';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
-import { resolveShellEnv } from 'vs/platform/environment/node/shellEnv';
-import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
-import { ExtensionUrlTrustService } from 'vs/platform/extensionManagement/node/extensionUrlTrustService';
-import { IExternalTerminalMainService } from 'vs/platform/externalTerminal/common/externalTerminal';
-import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/platform/externalTerminal/node/externalTerminalService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IIssueMainService, IssueMainService } from 'vs/platform/issue/electron-main/issueMainService';
-import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platform/keyboardLayout/electron-main/keyboardLayoutMainService';
-import { ILaunchMainService, LaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
-import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
-import { LoggerChannel, LogLevelChannel } from 'vs/platform/log/common/logIpc';
-import { IMenubarMainService, MenubarMainService } from 'vs/platform/menubar/electron-main/menubarMainService';
-import { INativeHostMainService, NativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
-import { SharedProcess } from 'vs/platform/sharedProcess/electron-main/sharedProcess';
-import { ISignService } from 'vs/platform/sign/common/sign';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
-import { StorageDatabaseChannel } from 'vs/platform/storage/electron-main/storageIpc';
-import { IStorageMainService, StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
-import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
-import { ITelemetryService, machineIdKey, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
-import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { getTelemetryLevel, NullTelemetryService, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IUpdateService } from 'vs/platform/update/common/update';
-import { UpdateChannel } from 'vs/platform/update/common/updateIpc';
-import { DarwinUpdateService } from 'vs/platform/update/electron-main/updateService.darwin';
-import { LinuxUpdateService } from 'vs/platform/update/electron-main/updateService.linux';
-import { SnapUpdateService } from 'vs/platform/update/electron-main/updateService.snap';
-import { Win32UpdateService } from 'vs/platform/update/electron-main/updateService.win32';
-import { IOpenURLOptions, IURLService } from 'vs/platform/url/common/url';
-import { URLHandlerChannelClient, URLHandlerRouter } from 'vs/platform/url/common/urlIpc';
-import { NativeURLService } from 'vs/platform/url/common/urlService';
-import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
-import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
-import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMainService';
-import { IWindowOpenable } from 'vs/platform/windows/common/windows';
-import { ICodeWindow, IWindowsMainService, OpenContext, WindowError } from 'vs/platform/windows/electron-main/windows';
-import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
-import { ActiveWindowManager } from 'vs/platform/windows/node/windowTracker';
-import { hasWorkspaceFileExtension, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspacesHistoryMainService, WorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
-import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
-import { IWorkspacesManagementMainService, WorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
+impowt { app, BwowsewWindow, contentTwacing, diawog, ipcMain, pwotocow, session, Session, systemPwefewences } fwom 'ewectwon';
+impowt { statSync } fwom 'fs';
+impowt { hostname, wewease } fwom 'os';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { onUnexpectedEwwow, setUnexpectedEwwowHandwa } fwom 'vs/base/common/ewwows';
+impowt { isEquawOwPawent } fwom 'vs/base/common/extpath';
+impowt { once } fwom 'vs/base/common/functionaw';
+impowt { stwipComments } fwom 'vs/base/common/json';
+impowt { getPathWabew, mnemonicButtonWabew } fwom 'vs/base/common/wabews';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { isAbsowute, join, posix } fwom 'vs/base/common/path';
+impowt { IPwocessEnviwonment, isWinux, isWinuxSnap, isMacintosh, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { getMachineId } fwom 'vs/base/node/id';
+impowt { wegistewContextMenuWistena } fwom 'vs/base/pawts/contextmenu/ewectwon-main/contextmenu';
+impowt { getDewayedChannew, PwoxyChannew, StaticWouta } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { Sewva as EwectwonIPCSewva } fwom 'vs/base/pawts/ipc/ewectwon-main/ipc.ewectwon';
+impowt { Cwient as MessagePowtCwient } fwom 'vs/base/pawts/ipc/ewectwon-main/ipc.mp';
+impowt { Sewva as NodeIPCSewva } fwom 'vs/base/pawts/ipc/node/ipc.net';
+impowt { PwoxyAuthHandwa } fwom 'vs/code/ewectwon-main/auth';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IBackupMainSewvice } fwom 'vs/pwatfowm/backup/ewectwon-main/backup';
+impowt { BackupMainSewvice } fwom 'vs/pwatfowm/backup/ewectwon-main/backupMainSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { UsewConfiguwationFiweSewvice, UsewConfiguwationFiweSewviceId } fwom 'vs/pwatfowm/configuwation/common/usewConfiguwationFiweSewvice';
+impowt { EwectwonExtensionHostDebugBwoadcastChannew } fwom 'vs/pwatfowm/debug/ewectwon-main/extensionHostDebugIpc';
+impowt { IDiagnosticsSewvice } fwom 'vs/pwatfowm/diagnostics/common/diagnostics';
+impowt { DiawogMainSewvice, IDiawogMainSewvice } fwom 'vs/pwatfowm/diawogs/ewectwon-main/diawogMainSewvice';
+impowt { sewve as sewveDwiva } fwom 'vs/pwatfowm/dwiva/ewectwon-main/dwiva';
+impowt { EncwyptionMainSewvice, IEncwyptionMainSewvice } fwom 'vs/pwatfowm/encwyption/ewectwon-main/encwyptionMainSewvice';
+impowt { NativePawsedAwgs } fwom 'vs/pwatfowm/enviwonment/common/awgv';
+impowt { IEnviwonmentMainSewvice } fwom 'vs/pwatfowm/enviwonment/ewectwon-main/enviwonmentMainSewvice';
+impowt { isWaunchedFwomCwi } fwom 'vs/pwatfowm/enviwonment/node/awgvHewpa';
+impowt { wesowveShewwEnv } fwom 'vs/pwatfowm/enviwonment/node/shewwEnv';
+impowt { IExtensionUwwTwustSewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionUwwTwust';
+impowt { ExtensionUwwTwustSewvice } fwom 'vs/pwatfowm/extensionManagement/node/extensionUwwTwustSewvice';
+impowt { IExtewnawTewminawMainSewvice } fwom 'vs/pwatfowm/extewnawTewminaw/common/extewnawTewminaw';
+impowt { WinuxExtewnawTewminawSewvice, MacExtewnawTewminawSewvice, WindowsExtewnawTewminawSewvice } fwom 'vs/pwatfowm/extewnawTewminaw/node/extewnawTewminawSewvice';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { IIssueMainSewvice, IssueMainSewvice } fwom 'vs/pwatfowm/issue/ewectwon-main/issueMainSewvice';
+impowt { IKeyboawdWayoutMainSewvice, KeyboawdWayoutMainSewvice } fwom 'vs/pwatfowm/keyboawdWayout/ewectwon-main/keyboawdWayoutMainSewvice';
+impowt { IWaunchMainSewvice, WaunchMainSewvice } fwom 'vs/pwatfowm/waunch/ewectwon-main/waunchMainSewvice';
+impowt { IWifecycweMainSewvice, WifecycweMainPhase } fwom 'vs/pwatfowm/wifecycwe/ewectwon-main/wifecycweMainSewvice';
+impowt { IWoggewSewvice, IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { WoggewChannew, WogWevewChannew } fwom 'vs/pwatfowm/wog/common/wogIpc';
+impowt { IMenubawMainSewvice, MenubawMainSewvice } fwom 'vs/pwatfowm/menubaw/ewectwon-main/menubawMainSewvice';
+impowt { INativeHostMainSewvice, NativeHostMainSewvice } fwom 'vs/pwatfowm/native/ewectwon-main/nativeHostMainSewvice';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { getWemoteAuthowity } fwom 'vs/pwatfowm/wemote/common/wemoteHosts';
+impowt { ShawedPwocess } fwom 'vs/pwatfowm/shawedPwocess/ewectwon-main/shawedPwocess';
+impowt { ISignSewvice } fwom 'vs/pwatfowm/sign/common/sign';
+impowt { IStateMainSewvice } fwom 'vs/pwatfowm/state/ewectwon-main/state';
+impowt { StowageDatabaseChannew } fwom 'vs/pwatfowm/stowage/ewectwon-main/stowageIpc';
+impowt { IStowageMainSewvice, StowageMainSewvice } fwom 'vs/pwatfowm/stowage/ewectwon-main/stowageMainSewvice';
+impowt { wesowveCommonPwopewties } fwom 'vs/pwatfowm/tewemetwy/common/commonPwopewties';
+impowt { ITewemetwySewvice, machineIdKey, TewemetwyWevew } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { TewemetwyAppendewCwient } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyIpc';
+impowt { ITewemetwySewviceConfig, TewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwySewvice';
+impowt { getTewemetwyWevew, NuwwTewemetwySewvice, suppowtsTewemetwy } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
+impowt { IUpdateSewvice } fwom 'vs/pwatfowm/update/common/update';
+impowt { UpdateChannew } fwom 'vs/pwatfowm/update/common/updateIpc';
+impowt { DawwinUpdateSewvice } fwom 'vs/pwatfowm/update/ewectwon-main/updateSewvice.dawwin';
+impowt { WinuxUpdateSewvice } fwom 'vs/pwatfowm/update/ewectwon-main/updateSewvice.winux';
+impowt { SnapUpdateSewvice } fwom 'vs/pwatfowm/update/ewectwon-main/updateSewvice.snap';
+impowt { Win32UpdateSewvice } fwom 'vs/pwatfowm/update/ewectwon-main/updateSewvice.win32';
+impowt { IOpenUWWOptions, IUWWSewvice } fwom 'vs/pwatfowm/uww/common/uww';
+impowt { UWWHandwewChannewCwient, UWWHandwewWouta } fwom 'vs/pwatfowm/uww/common/uwwIpc';
+impowt { NativeUWWSewvice } fwom 'vs/pwatfowm/uww/common/uwwSewvice';
+impowt { EwectwonUWWWistena } fwom 'vs/pwatfowm/uww/ewectwon-main/ewectwonUwwWistena';
+impowt { IWebviewManagewSewvice } fwom 'vs/pwatfowm/webview/common/webviewManagewSewvice';
+impowt { WebviewMainSewvice } fwom 'vs/pwatfowm/webview/ewectwon-main/webviewMainSewvice';
+impowt { IWindowOpenabwe } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { ICodeWindow, IWindowsMainSewvice, OpenContext, WindowEwwow } fwom 'vs/pwatfowm/windows/ewectwon-main/windows';
+impowt { WindowsMainSewvice } fwom 'vs/pwatfowm/windows/ewectwon-main/windowsMainSewvice';
+impowt { ActiveWindowManaga } fwom 'vs/pwatfowm/windows/node/windowTwacka';
+impowt { hasWowkspaceFiweExtension, IWowkspacesSewvice } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { IWowkspacesHistowyMainSewvice, WowkspacesHistowyMainSewvice } fwom 'vs/pwatfowm/wowkspaces/ewectwon-main/wowkspacesHistowyMainSewvice';
+impowt { WowkspacesMainSewvice } fwom 'vs/pwatfowm/wowkspaces/ewectwon-main/wowkspacesMainSewvice';
+impowt { IWowkspacesManagementMainSewvice, WowkspacesManagementMainSewvice } fwom 'vs/pwatfowm/wowkspaces/ewectwon-main/wowkspacesManagementMainSewvice';
 
 /**
- * The main VS Code application. There will only ever be one instance,
- * even if the user starts many instances (e.g. from the command line).
+ * The main VS Code appwication. Thewe wiww onwy eva be one instance,
+ * even if the usa stawts many instances (e.g. fwom the command wine).
  */
-export class CodeApplication extends Disposable {
+expowt cwass CodeAppwication extends Disposabwe {
 
-	private windowsMainService: IWindowsMainService | undefined;
-	private nativeHostMainService: INativeHostMainService | undefined;
+	pwivate windowsMainSewvice: IWindowsMainSewvice | undefined;
+	pwivate nativeHostMainSewvice: INativeHostMainSewvice | undefined;
 
-	constructor(
-		private readonly mainProcessNodeIpcServer: NodeIPCServer,
-		private readonly userEnv: IProcessEnvironment,
-		@IInstantiationService private readonly mainInstantiationService: IInstantiationService,
-		@ILogService private readonly logService: ILogService,
-		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
-		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IStateMainService private readonly stateMainService: IStateMainService,
-		@IFileService private readonly fileService: IFileService,
-		@IProductService private readonly productService: IProductService
+	constwuctow(
+		pwivate weadonwy mainPwocessNodeIpcSewva: NodeIPCSewva,
+		pwivate weadonwy usewEnv: IPwocessEnviwonment,
+		@IInstantiationSewvice pwivate weadonwy mainInstantiationSewvice: IInstantiationSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IEnviwonmentMainSewvice pwivate weadonwy enviwonmentMainSewvice: IEnviwonmentMainSewvice,
+		@IWifecycweMainSewvice pwivate weadonwy wifecycweMainSewvice: IWifecycweMainSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IStateMainSewvice pwivate weadonwy stateMainSewvice: IStateMainSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice
 	) {
-		super();
+		supa();
 
-		this.configureSession();
-		this.registerListeners();
+		this.configuweSession();
+		this.wegistewWistenews();
 	}
 
-	private configureSession(): void {
+	pwivate configuweSession(): void {
 
-		//#region Security related measures (https://electronjs.org/docs/tutorial/security)
+		//#wegion Secuwity wewated measuwes (https://ewectwonjs.owg/docs/tutowiaw/secuwity)
 		//
-		// !!! DO NOT CHANGE without consulting the documentation !!!
+		// !!! DO NOT CHANGE without consuwting the documentation !!!
 		//
 
-		const isUrlFromWebview = (requestingUrl: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeWebview}://`);
+		const isUwwFwomWebview = (wequestingUww: stwing | undefined) => wequestingUww?.stawtsWith(`${Schemas.vscodeWebview}://`);
 
-		const allowedPermissionsInWebview = new Set([
-			'clipboard-read',
-			'clipboard-sanitized-write',
+		const awwowedPewmissionsInWebview = new Set([
+			'cwipboawd-wead',
+			'cwipboawd-sanitized-wwite',
 		]);
 
-		session.defaultSession.setPermissionRequestHandler((_webContents, permission /* 'media' | 'geolocation' | 'notifications' | 'midiSysex' | 'pointerLock' | 'fullscreen' | 'openExternal' */, callback, details) => {
-			if (isUrlFromWebview(details.requestingUrl)) {
-				return callback(allowedPermissionsInWebview.has(permission));
+		session.defauwtSession.setPewmissionWequestHandwa((_webContents, pewmission /* 'media' | 'geowocation' | 'notifications' | 'midiSysex' | 'pointewWock' | 'fuwwscween' | 'openExtewnaw' */, cawwback, detaiws) => {
+			if (isUwwFwomWebview(detaiws.wequestingUww)) {
+				wetuwn cawwback(awwowedPewmissionsInWebview.has(pewmission));
 			}
 
-			return callback(false);
+			wetuwn cawwback(fawse);
 		});
 
-		session.defaultSession.setPermissionCheckHandler((_webContents, permission /* 'media' */, _origin, details) => {
-			if (isUrlFromWebview(details.requestingUrl)) {
-				return allowedPermissionsInWebview.has(permission);
+		session.defauwtSession.setPewmissionCheckHandwa((_webContents, pewmission /* 'media' */, _owigin, detaiws) => {
+			if (isUwwFwomWebview(detaiws.wequestingUww)) {
+				wetuwn awwowedPewmissionsInWebview.has(pewmission);
 			}
 
-			return false;
+			wetuwn fawse;
 		});
 
-		//#endregion
+		//#endwegion
 
 
-		//#region Code Cache
+		//#wegion Code Cache
 
-		type SessionWithCodeCachePathSupport = typeof Session & {
+		type SessionWithCodeCachePathSuppowt = typeof Session & {
 			/**
-			 * Sets code cache directory. By default, the directory will be `Code Cache` under
-			 * the respective user data folder.
+			 * Sets code cache diwectowy. By defauwt, the diwectowy wiww be `Code Cache` unda
+			 * the wespective usa data fowda.
 			 */
-			setCodeCachePath?(path: string): void;
+			setCodeCachePath?(path: stwing): void;
 		};
 
-		const defaultSession = session.defaultSession as unknown as SessionWithCodeCachePathSupport;
-		if (typeof defaultSession.setCodeCachePath === 'function' && this.environmentMainService.codeCachePath) {
-			// Make sure to partition Chrome's code cache folder
-			// in the same way as our code cache path to help
-			// invalidate caches that we know are invalid
-			// (https://github.com/microsoft/vscode/issues/120655)
-			defaultSession.setCodeCachePath(join(this.environmentMainService.codeCachePath, 'chrome'));
+		const defauwtSession = session.defauwtSession as unknown as SessionWithCodeCachePathSuppowt;
+		if (typeof defauwtSession.setCodeCachePath === 'function' && this.enviwonmentMainSewvice.codeCachePath) {
+			// Make suwe to pawtition Chwome's code cache fowda
+			// in the same way as ouw code cache path to hewp
+			// invawidate caches that we know awe invawid
+			// (https://github.com/micwosoft/vscode/issues/120655)
+			defauwtSession.setCodeCachePath(join(this.enviwonmentMainSewvice.codeCachePath, 'chwome'));
 		}
 
-		//#endregion
+		//#endwegion
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// We handle uncaught exceptions here to prevent electron from opening a dialog to the user
-		setUnexpectedErrorHandler(error => this.onUnexpectedError(error));
-		process.on('uncaughtException', error => onUnexpectedError(error));
-		process.on('unhandledRejection', (reason: unknown) => onUnexpectedError(reason));
+		// We handwe uncaught exceptions hewe to pwevent ewectwon fwom opening a diawog to the usa
+		setUnexpectedEwwowHandwa(ewwow => this.onUnexpectedEwwow(ewwow));
+		pwocess.on('uncaughtException', ewwow => onUnexpectedEwwow(ewwow));
+		pwocess.on('unhandwedWejection', (weason: unknown) => onUnexpectedEwwow(weason));
 
 		// Dispose on shutdown
-		this.lifecycleMainService.onWillShutdown(() => this.dispose());
+		this.wifecycweMainSewvice.onWiwwShutdown(() => this.dispose());
 
-		// Contextmenu via IPC support
-		registerContextMenuListener();
+		// Contextmenu via IPC suppowt
+		wegistewContextMenuWistena();
 
-		// Accessibility change event
-		app.on('accessibility-support-changed', (event, accessibilitySupportEnabled) => {
-			this.windowsMainService?.sendToAll('vscode:accessibilitySupportChanged', accessibilitySupportEnabled);
+		// Accessibiwity change event
+		app.on('accessibiwity-suppowt-changed', (event, accessibiwitySuppowtEnabwed) => {
+			this.windowsMainSewvice?.sendToAww('vscode:accessibiwitySuppowtChanged', accessibiwitySuppowtEnabwed);
 		});
 
 		// macOS dock activate
-		app.on('activate', (event, hasVisibleWindows) => {
-			this.logService.trace('app#activate');
+		app.on('activate', (event, hasVisibweWindows) => {
+			this.wogSewvice.twace('app#activate');
 
-			// Mac only event: open new window when we get activated
-			if (!hasVisibleWindows) {
-				this.windowsMainService?.openEmptyWindow({ context: OpenContext.DOCK });
+			// Mac onwy event: open new window when we get activated
+			if (!hasVisibweWindows) {
+				this.windowsMainSewvice?.openEmptyWindow({ context: OpenContext.DOCK });
 			}
 		});
 
-		//#region Security related measures (https://electronjs.org/docs/tutorial/security)
+		//#wegion Secuwity wewated measuwes (https://ewectwonjs.owg/docs/tutowiaw/secuwity)
 		//
-		// !!! DO NOT CHANGE without consulting the documentation !!!
+		// !!! DO NOT CHANGE without consuwting the documentation !!!
 		//
-		app.on('web-contents-created', (event, contents) => {
+		app.on('web-contents-cweated', (event, contents) => {
 
-			contents.on('will-navigate', event => {
-				this.logService.error('webContents#will-navigate: Prevented webcontent navigation');
+			contents.on('wiww-navigate', event => {
+				this.wogSewvice.ewwow('webContents#wiww-navigate: Pwevented webcontent navigation');
 
-				event.preventDefault();
+				event.pweventDefauwt();
 			});
 
-			contents.setWindowOpenHandler(({ url }) => {
-				this.nativeHostMainService?.openExternal(undefined, url);
+			contents.setWindowOpenHandwa(({ uww }) => {
+				this.nativeHostMainSewvice?.openExtewnaw(undefined, uww);
 
-				return { action: 'deny' };
+				wetuwn { action: 'deny' };
 			});
 		});
 
-		//#endregion
+		//#endwegion
 
-		let macOpenFileURIs: IWindowOpenable[] = [];
-		let runningTimeout: NodeJS.Timeout | undefined = undefined;
-		app.on('open-file', (event, path) => {
-			this.logService.trace('app#open-file: ', path);
-			event.preventDefault();
+		wet macOpenFiweUWIs: IWindowOpenabwe[] = [];
+		wet wunningTimeout: NodeJS.Timeout | undefined = undefined;
+		app.on('open-fiwe', (event, path) => {
+			this.wogSewvice.twace('app#open-fiwe: ', path);
+			event.pweventDefauwt();
 
-			// Keep in array because more might come!
-			macOpenFileURIs.push(this.getWindowOpenableFromPathSync(path));
+			// Keep in awway because mowe might come!
+			macOpenFiweUWIs.push(this.getWindowOpenabweFwomPathSync(path));
 
-			// Clear previous handler if any
-			if (runningTimeout !== undefined) {
-				clearTimeout(runningTimeout);
-				runningTimeout = undefined;
+			// Cweaw pwevious handwa if any
+			if (wunningTimeout !== undefined) {
+				cweawTimeout(wunningTimeout);
+				wunningTimeout = undefined;
 			}
 
-			// Handle paths delayed in case more are coming!
-			runningTimeout = setTimeout(() => {
-				this.windowsMainService?.open({
-					context: OpenContext.DOCK /* can also be opening from finder while app is running */,
-					cli: this.environmentMainService.args,
-					urisToOpen: macOpenFileURIs,
-					gotoLineMode: false,
-					preferNewWindow: true /* dropping on the dock or opening from finder prefers to open in a new window */
+			// Handwe paths dewayed in case mowe awe coming!
+			wunningTimeout = setTimeout(() => {
+				this.windowsMainSewvice?.open({
+					context: OpenContext.DOCK /* can awso be opening fwom finda whiwe app is wunning */,
+					cwi: this.enviwonmentMainSewvice.awgs,
+					uwisToOpen: macOpenFiweUWIs,
+					gotoWineMode: fawse,
+					pwefewNewWindow: twue /* dwopping on the dock ow opening fwom finda pwefews to open in a new window */
 				});
 
-				macOpenFileURIs = [];
-				runningTimeout = undefined;
+				macOpenFiweUWIs = [];
+				wunningTimeout = undefined;
 			}, 100);
 		});
 
-		app.on('new-window-for-tab', () => {
-			this.windowsMainService?.openEmptyWindow({ context: OpenContext.DESKTOP }); //macOS native tab "+" button
+		app.on('new-window-fow-tab', () => {
+			this.windowsMainSewvice?.openEmptyWindow({ context: OpenContext.DESKTOP }); //macOS native tab "+" button
 		});
 
-		//#region Bootstrap IPC Handlers
+		//#wegion Bootstwap IPC Handwews
 
-		ipcMain.handle('vscode:fetchShellEnv', event => {
+		ipcMain.handwe('vscode:fetchShewwEnv', event => {
 
-			// Prefer to use the args and env from the target window
-			// when resolving the shell env. It is possible that
-			// a first window was opened from the UI but a second
-			// from the CLI and that has implications for whether to
-			// resolve the shell environment or not.
+			// Pwefa to use the awgs and env fwom the tawget window
+			// when wesowving the sheww env. It is possibwe that
+			// a fiwst window was opened fwom the UI but a second
+			// fwom the CWI and that has impwications fow whetha to
+			// wesowve the sheww enviwonment ow not.
 			//
-			// Window can be undefined for e.g. the shared process
-			// that is not part of our windows registry!
-			const window = this.windowsMainService?.getWindowByWebContents(event.sender); // Note: this can be `undefined` for the shared process
-			let args: NativeParsedArgs;
-			let env: IProcessEnvironment;
+			// Window can be undefined fow e.g. the shawed pwocess
+			// that is not pawt of ouw windows wegistwy!
+			const window = this.windowsMainSewvice?.getWindowByWebContents(event.senda); // Note: this can be `undefined` fow the shawed pwocess
+			wet awgs: NativePawsedAwgs;
+			wet env: IPwocessEnviwonment;
 			if (window?.config) {
-				args = window.config;
-				env = { ...process.env, ...window.config.userEnv };
-			} else {
-				args = this.environmentMainService.args;
-				env = process.env;
+				awgs = window.config;
+				env = { ...pwocess.env, ...window.config.usewEnv };
+			} ewse {
+				awgs = this.enviwonmentMainSewvice.awgs;
+				env = pwocess.env;
 			}
 
-			// Resolve shell env
-			return resolveShellEnv(this.logService, args, env);
+			// Wesowve sheww env
+			wetuwn wesowveShewwEnv(this.wogSewvice, awgs, env);
 		});
 
-		ipcMain.handle('vscode:writeNlsFile', (event, path: unknown, data: unknown) => {
-			const uri = this.validateNlsPath([path]);
-			if (!uri || typeof data !== 'string') {
-				throw new Error('Invalid operation (vscode:writeNlsFile)');
+		ipcMain.handwe('vscode:wwiteNwsFiwe', (event, path: unknown, data: unknown) => {
+			const uwi = this.vawidateNwsPath([path]);
+			if (!uwi || typeof data !== 'stwing') {
+				thwow new Ewwow('Invawid opewation (vscode:wwiteNwsFiwe)');
 			}
 
-			return this.fileService.writeFile(uri, VSBuffer.fromString(data));
+			wetuwn this.fiweSewvice.wwiteFiwe(uwi, VSBuffa.fwomStwing(data));
 		});
 
-		ipcMain.handle('vscode:readNlsFile', async (event, ...paths: unknown[]) => {
-			const uri = this.validateNlsPath(paths);
-			if (!uri) {
-				throw new Error('Invalid operation (vscode:readNlsFile)');
+		ipcMain.handwe('vscode:weadNwsFiwe', async (event, ...paths: unknown[]) => {
+			const uwi = this.vawidateNwsPath(paths);
+			if (!uwi) {
+				thwow new Ewwow('Invawid opewation (vscode:weadNwsFiwe)');
 			}
 
-			return (await this.fileService.readFile(uri)).value.toString();
+			wetuwn (await this.fiweSewvice.weadFiwe(uwi)).vawue.toStwing();
 		});
 
-		ipcMain.on('vscode:toggleDevTools', event => event.sender.toggleDevTools());
-		ipcMain.on('vscode:openDevTools', event => event.sender.openDevTools());
+		ipcMain.on('vscode:toggweDevToows', event => event.senda.toggweDevToows());
+		ipcMain.on('vscode:openDevToows', event => event.senda.openDevToows());
 
-		ipcMain.on('vscode:reloadWindow', event => event.sender.reload());
+		ipcMain.on('vscode:wewoadWindow', event => event.senda.wewoad());
 
-		//#endregion
+		//#endwegion
 	}
 
-	private validateNlsPath(pathSegments: unknown[]): URI | undefined {
-		let path: string | undefined = undefined;
+	pwivate vawidateNwsPath(pathSegments: unknown[]): UWI | undefined {
+		wet path: stwing | undefined = undefined;
 
-		for (const pathSegment of pathSegments) {
-			if (typeof pathSegment === 'string') {
-				if (typeof path !== 'string') {
+		fow (const pathSegment of pathSegments) {
+			if (typeof pathSegment === 'stwing') {
+				if (typeof path !== 'stwing') {
 					path = pathSegment;
-				} else {
+				} ewse {
 					path = join(path, pathSegment);
 				}
 			}
 		}
 
-		if (typeof path !== 'string' || !isAbsolute(path) || !isEqualOrParent(path, this.environmentMainService.cachedLanguagesPath, !isLinux)) {
-			return undefined;
+		if (typeof path !== 'stwing' || !isAbsowute(path) || !isEquawOwPawent(path, this.enviwonmentMainSewvice.cachedWanguagesPath, !isWinux)) {
+			wetuwn undefined;
 		}
 
-		return URI.file(path);
+		wetuwn UWI.fiwe(path);
 	}
 
-	private onUnexpectedError(error: Error): void {
-		if (error) {
+	pwivate onUnexpectedEwwow(ewwow: Ewwow): void {
+		if (ewwow) {
 
-			// take only the message and stack property
-			const friendlyError = {
-				message: `[uncaught exception in main]: ${error.message}`,
-				stack: error.stack
+			// take onwy the message and stack pwopewty
+			const fwiendwyEwwow = {
+				message: `[uncaught exception in main]: ${ewwow.message}`,
+				stack: ewwow.stack
 			};
 
-			// handle on client side
-			this.windowsMainService?.sendToFocused('vscode:reportError', JSON.stringify(friendlyError));
+			// handwe on cwient side
+			this.windowsMainSewvice?.sendToFocused('vscode:wepowtEwwow', JSON.stwingify(fwiendwyEwwow));
 		}
 
-		this.logService.error(`[uncaught exception in main]: ${error}`);
-		if (error.stack) {
-			this.logService.error(error.stack);
+		this.wogSewvice.ewwow(`[uncaught exception in main]: ${ewwow}`);
+		if (ewwow.stack) {
+			this.wogSewvice.ewwow(ewwow.stack);
 		}
 	}
 
-	async startup(): Promise<void> {
-		this.logService.debug('Starting VS Code');
-		this.logService.debug(`from: ${this.environmentMainService.appRoot}`);
-		this.logService.debug('args:', this.environmentMainService.args);
+	async stawtup(): Pwomise<void> {
+		this.wogSewvice.debug('Stawting VS Code');
+		this.wogSewvice.debug(`fwom: ${this.enviwonmentMainSewvice.appWoot}`);
+		this.wogSewvice.debug('awgs:', this.enviwonmentMainSewvice.awgs);
 
-		// Make sure we associate the program with the app user model id
-		// This will help Windows to associate the running program with
-		// any shortcut that is pinned to the taskbar and prevent showing
-		// two icons in the taskbar for the same app.
-		const win32AppUserModelId = this.productService.win32AppUserModelId;
-		if (isWindows && win32AppUserModelId) {
-			app.setAppUserModelId(win32AppUserModelId);
+		// Make suwe we associate the pwogwam with the app usa modew id
+		// This wiww hewp Windows to associate the wunning pwogwam with
+		// any showtcut that is pinned to the taskbaw and pwevent showing
+		// two icons in the taskbaw fow the same app.
+		const win32AppUsewModewId = this.pwoductSewvice.win32AppUsewModewId;
+		if (isWindows && win32AppUsewModewId) {
+			app.setAppUsewModewId(win32AppUsewModewId);
 		}
 
 		// Fix native tabs on macOS 10.13
-		// macOS enables a compatibility patch for any bundle ID beginning with
-		// "com.microsoft.", which breaks native tabs for VS Code when using this
-		// identifier (from the official build).
-		// Explicitly opt out of the patch here before creating any windows.
-		// See: https://github.com/microsoft/vscode/issues/35361#issuecomment-399794085
-		try {
-			if (isMacintosh && this.configurationService.getValue('window.nativeTabs') === true && !systemPreferences.getUserDefault('NSUseImprovedLayoutPass', 'boolean')) {
-				systemPreferences.setUserDefault('NSUseImprovedLayoutPass', 'boolean', true as any);
+		// macOS enabwes a compatibiwity patch fow any bundwe ID beginning with
+		// "com.micwosoft.", which bweaks native tabs fow VS Code when using this
+		// identifia (fwom the officiaw buiwd).
+		// Expwicitwy opt out of the patch hewe befowe cweating any windows.
+		// See: https://github.com/micwosoft/vscode/issues/35361#issuecomment-399794085
+		twy {
+			if (isMacintosh && this.configuwationSewvice.getVawue('window.nativeTabs') === twue && !systemPwefewences.getUsewDefauwt('NSUseImpwovedWayoutPass', 'boowean')) {
+				systemPwefewences.setUsewDefauwt('NSUseImpwovedWayoutPass', 'boowean', twue as any);
 			}
-		} catch (error) {
-			this.logService.error(error);
+		} catch (ewwow) {
+			this.wogSewvice.ewwow(ewwow);
 		}
 
-		// Main process server (electron IPC based)
-		const mainProcessElectronServer = new ElectronIPCServer();
+		// Main pwocess sewva (ewectwon IPC based)
+		const mainPwocessEwectwonSewva = new EwectwonIPCSewva();
 
-		// Resolve unique machine ID
-		this.logService.trace('Resolving machine identifier...');
-		const machineId = await this.resolveMachineId();
-		this.logService.trace(`Resolved machine identifier: ${machineId}`);
+		// Wesowve unique machine ID
+		this.wogSewvice.twace('Wesowving machine identifia...');
+		const machineId = await this.wesowveMachineId();
+		this.wogSewvice.twace(`Wesowved machine identifia: ${machineId}`);
 
-		// Shared process
-		const { sharedProcess, sharedProcessReady, sharedProcessClient } = this.setupSharedProcess(machineId);
+		// Shawed pwocess
+		const { shawedPwocess, shawedPwocessWeady, shawedPwocessCwient } = this.setupShawedPwocess(machineId);
 
-		// Services
-		const appInstantiationService = await this.initServices(machineId, sharedProcess, sharedProcessReady);
+		// Sewvices
+		const appInstantiationSewvice = await this.initSewvices(machineId, shawedPwocess, shawedPwocessWeady);
 
-		// Create driver
-		if (this.environmentMainService.driverHandle) {
-			const server = await serveDriver(mainProcessElectronServer, this.environmentMainService.driverHandle, this.environmentMainService, appInstantiationService);
+		// Cweate dwiva
+		if (this.enviwonmentMainSewvice.dwivewHandwe) {
+			const sewva = await sewveDwiva(mainPwocessEwectwonSewva, this.enviwonmentMainSewvice.dwivewHandwe, this.enviwonmentMainSewvice, appInstantiationSewvice);
 
-			this.logService.info('Driver started at:', this.environmentMainService.driverHandle);
-			this._register(server);
+			this.wogSewvice.info('Dwiva stawted at:', this.enviwonmentMainSewvice.dwivewHandwe);
+			this._wegista(sewva);
 		}
 
-		// Setup Auth Handler
-		this._register(appInstantiationService.createInstance(ProxyAuthHandler));
+		// Setup Auth Handwa
+		this._wegista(appInstantiationSewvice.cweateInstance(PwoxyAuthHandwa));
 
-		// Init Channels
-		appInstantiationService.invokeFunction(accessor => this.initChannels(accessor, mainProcessElectronServer, sharedProcessClient));
+		// Init Channews
+		appInstantiationSewvice.invokeFunction(accessow => this.initChannews(accessow, mainPwocessEwectwonSewva, shawedPwocessCwient));
 
 		// Open Windows
-		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, mainProcessElectronServer));
+		const windows = appInstantiationSewvice.invokeFunction(accessow => this.openFiwstWindow(accessow, mainPwocessEwectwonSewva));
 
 		// Post Open Windows Tasks
-		appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor, sharedProcess));
+		appInstantiationSewvice.invokeFunction(accessow => this.aftewWindowOpen(accessow, shawedPwocess));
 
-		// Tracing: Stop tracing after windows are ready if enabled
-		if (this.environmentMainService.args.trace) {
-			appInstantiationService.invokeFunction(accessor => this.stopTracingEventually(accessor, windows));
+		// Twacing: Stop twacing afta windows awe weady if enabwed
+		if (this.enviwonmentMainSewvice.awgs.twace) {
+			appInstantiationSewvice.invokeFunction(accessow => this.stopTwacingEventuawwy(accessow, windows));
 		}
 	}
 
-	private async resolveMachineId(): Promise<string> {
+	pwivate async wesowveMachineId(): Pwomise<stwing> {
 
-		// We cache the machineId for faster lookups on startup
-		// and resolve it only once initially if not cached or we need to replace the macOS iBridge device
-		let machineId = this.stateMainService.getItem<string>(machineIdKey);
+		// We cache the machineId fow fasta wookups on stawtup
+		// and wesowve it onwy once initiawwy if not cached ow we need to wepwace the macOS iBwidge device
+		wet machineId = this.stateMainSewvice.getItem<stwing>(machineIdKey);
 		if (!machineId || (isMacintosh && machineId === '6c9d2bc8f91b89624add29c0abeae7fb42bf539fa1cdb2e3e57cd668fa9bcead')) {
 			machineId = await getMachineId();
 
-			this.stateMainService.setItem(machineIdKey, machineId);
+			this.stateMainSewvice.setItem(machineIdKey, machineId);
 		}
 
-		return machineId;
+		wetuwn machineId;
 	}
 
-	private setupSharedProcess(machineId: string): { sharedProcess: SharedProcess, sharedProcessReady: Promise<MessagePortClient>, sharedProcessClient: Promise<MessagePortClient> } {
-		const sharedProcess = this._register(this.mainInstantiationService.createInstance(SharedProcess, machineId, this.userEnv));
+	pwivate setupShawedPwocess(machineId: stwing): { shawedPwocess: ShawedPwocess, shawedPwocessWeady: Pwomise<MessagePowtCwient>, shawedPwocessCwient: Pwomise<MessagePowtCwient> } {
+		const shawedPwocess = this._wegista(this.mainInstantiationSewvice.cweateInstance(ShawedPwocess, machineId, this.usewEnv));
 
-		const sharedProcessClient = (async () => {
-			this.logService.trace('Main->SharedProcess#connect');
+		const shawedPwocessCwient = (async () => {
+			this.wogSewvice.twace('Main->ShawedPwocess#connect');
 
-			const port = await sharedProcess.connect();
+			const powt = await shawedPwocess.connect();
 
-			this.logService.trace('Main->SharedProcess#connect: connection established');
+			this.wogSewvice.twace('Main->ShawedPwocess#connect: connection estabwished');
 
-			return new MessagePortClient(port, 'main');
+			wetuwn new MessagePowtCwient(powt, 'main');
 		})();
 
-		const sharedProcessReady = (async () => {
-			await sharedProcess.whenReady();
+		const shawedPwocessWeady = (async () => {
+			await shawedPwocess.whenWeady();
 
-			return sharedProcessClient;
+			wetuwn shawedPwocessCwient;
 		})();
 
-		return { sharedProcess, sharedProcessReady, sharedProcessClient };
+		wetuwn { shawedPwocess, shawedPwocessWeady, shawedPwocessCwient };
 	}
 
-	private async initServices(machineId: string, sharedProcess: SharedProcess, sharedProcessReady: Promise<MessagePortClient>): Promise<IInstantiationService> {
-		const services = new ServiceCollection();
+	pwivate async initSewvices(machineId: stwing, shawedPwocess: ShawedPwocess, shawedPwocessWeady: Pwomise<MessagePowtCwient>): Pwomise<IInstantiationSewvice> {
+		const sewvices = new SewviceCowwection();
 
 		// Update
-		switch (process.platform) {
+		switch (pwocess.pwatfowm) {
 			case 'win32':
-				services.set(IUpdateService, new SyncDescriptor(Win32UpdateService));
-				break;
+				sewvices.set(IUpdateSewvice, new SyncDescwiptow(Win32UpdateSewvice));
+				bweak;
 
-			case 'linux':
-				if (isLinuxSnap) {
-					services.set(IUpdateService, new SyncDescriptor(SnapUpdateService, [process.env['SNAP'], process.env['SNAP_REVISION']]));
-				} else {
-					services.set(IUpdateService, new SyncDescriptor(LinuxUpdateService));
+			case 'winux':
+				if (isWinuxSnap) {
+					sewvices.set(IUpdateSewvice, new SyncDescwiptow(SnapUpdateSewvice, [pwocess.env['SNAP'], pwocess.env['SNAP_WEVISION']]));
+				} ewse {
+					sewvices.set(IUpdateSewvice, new SyncDescwiptow(WinuxUpdateSewvice));
 				}
-				break;
+				bweak;
 
-			case 'darwin':
-				services.set(IUpdateService, new SyncDescriptor(DarwinUpdateService));
-				break;
+			case 'dawwin':
+				sewvices.set(IUpdateSewvice, new SyncDescwiptow(DawwinUpdateSewvice));
+				bweak;
 		}
 
 		// Windows
-		services.set(IWindowsMainService, new SyncDescriptor(WindowsMainService, [machineId, this.userEnv]));
+		sewvices.set(IWindowsMainSewvice, new SyncDescwiptow(WindowsMainSewvice, [machineId, this.usewEnv]));
 
-		// Dialogs
-		services.set(IDialogMainService, new SyncDescriptor(DialogMainService));
+		// Diawogs
+		sewvices.set(IDiawogMainSewvice, new SyncDescwiptow(DiawogMainSewvice));
 
-		// Launch
-		services.set(ILaunchMainService, new SyncDescriptor(LaunchMainService));
+		// Waunch
+		sewvices.set(IWaunchMainSewvice, new SyncDescwiptow(WaunchMainSewvice));
 
 		// Diagnostics
-		services.set(IDiagnosticsService, ProxyChannel.toService(getDelayedChannel(sharedProcessReady.then(client => client.getChannel('diagnostics')))));
+		sewvices.set(IDiagnosticsSewvice, PwoxyChannew.toSewvice(getDewayedChannew(shawedPwocessWeady.then(cwient => cwient.getChannew('diagnostics')))));
 
 		// Issues
-		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [this.userEnv]));
+		sewvices.set(IIssueMainSewvice, new SyncDescwiptow(IssueMainSewvice, [this.usewEnv]));
 
-		// Encryption
-		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService, [machineId]));
+		// Encwyption
+		sewvices.set(IEncwyptionMainSewvice, new SyncDescwiptow(EncwyptionMainSewvice, [machineId]));
 
-		// Keyboard Layout
-		services.set(IKeyboardLayoutMainService, new SyncDescriptor(KeyboardLayoutMainService));
+		// Keyboawd Wayout
+		sewvices.set(IKeyboawdWayoutMainSewvice, new SyncDescwiptow(KeyboawdWayoutMainSewvice));
 
 		// Native Host
-		services.set(INativeHostMainService, new SyncDescriptor(NativeHostMainService, [sharedProcess]));
+		sewvices.set(INativeHostMainSewvice, new SyncDescwiptow(NativeHostMainSewvice, [shawedPwocess]));
 
-		// Webview Manager
-		services.set(IWebviewManagerService, new SyncDescriptor(WebviewMainService));
+		// Webview Managa
+		sewvices.set(IWebviewManagewSewvice, new SyncDescwiptow(WebviewMainSewvice));
 
-		// Workspaces
-		services.set(IWorkspacesService, new SyncDescriptor(WorkspacesMainService));
-		services.set(IWorkspacesManagementMainService, new SyncDescriptor(WorkspacesManagementMainService));
-		services.set(IWorkspacesHistoryMainService, new SyncDescriptor(WorkspacesHistoryMainService));
+		// Wowkspaces
+		sewvices.set(IWowkspacesSewvice, new SyncDescwiptow(WowkspacesMainSewvice));
+		sewvices.set(IWowkspacesManagementMainSewvice, new SyncDescwiptow(WowkspacesManagementMainSewvice));
+		sewvices.set(IWowkspacesHistowyMainSewvice, new SyncDescwiptow(WowkspacesHistowyMainSewvice));
 
-		// Menubar
-		services.set(IMenubarMainService, new SyncDescriptor(MenubarMainService));
+		// Menubaw
+		sewvices.set(IMenubawMainSewvice, new SyncDescwiptow(MenubawMainSewvice));
 
-		// Extension URL Trust
-		services.set(IExtensionUrlTrustService, new SyncDescriptor(ExtensionUrlTrustService));
+		// Extension UWW Twust
+		sewvices.set(IExtensionUwwTwustSewvice, new SyncDescwiptow(ExtensionUwwTwustSewvice));
 
-		// Storage
-		services.set(IStorageMainService, new SyncDescriptor(StorageMainService));
+		// Stowage
+		sewvices.set(IStowageMainSewvice, new SyncDescwiptow(StowageMainSewvice));
 
-		// External terminal
+		// Extewnaw tewminaw
 		if (isWindows) {
-			services.set(IExternalTerminalMainService, new SyncDescriptor(WindowsExternalTerminalService));
-		} else if (isMacintosh) {
-			services.set(IExternalTerminalMainService, new SyncDescriptor(MacExternalTerminalService));
-		} else if (isLinux) {
-			services.set(IExternalTerminalMainService, new SyncDescriptor(LinuxExternalTerminalService));
+			sewvices.set(IExtewnawTewminawMainSewvice, new SyncDescwiptow(WindowsExtewnawTewminawSewvice));
+		} ewse if (isMacintosh) {
+			sewvices.set(IExtewnawTewminawMainSewvice, new SyncDescwiptow(MacExtewnawTewminawSewvice));
+		} ewse if (isWinux) {
+			sewvices.set(IExtewnawTewminawMainSewvice, new SyncDescwiptow(WinuxExtewnawTewminawSewvice));
 		}
 
 		// Backups
-		const backupMainService = new BackupMainService(this.environmentMainService, this.configurationService, this.logService);
-		services.set(IBackupMainService, backupMainService);
+		const backupMainSewvice = new BackupMainSewvice(this.enviwonmentMainSewvice, this.configuwationSewvice, this.wogSewvice);
+		sewvices.set(IBackupMainSewvice, backupMainSewvice);
 
-		// URL handling
-		services.set(IURLService, new SyncDescriptor(NativeURLService));
+		// UWW handwing
+		sewvices.set(IUWWSewvice, new SyncDescwiptow(NativeUWWSewvice));
 
-		// Telemetry
-		if (supportsTelemetry(this.productService, this.environmentMainService)) {
-			const channel = getDelayedChannel(sharedProcessReady.then(client => client.getChannel('telemetryAppender')));
-			const appender = new TelemetryAppenderClient(channel);
-			const commonProperties = resolveCommonProperties(this.fileService, release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, this.productService.msftInternalDomains, this.environmentMainService.installSourcePath);
-			const piiPaths = [this.environmentMainService.appRoot, this.environmentMainService.extensionsPath];
-			const config: ITelemetryServiceConfig = { appenders: [appender], commonProperties, piiPaths, sendErrorTelemetry: true };
+		// Tewemetwy
+		if (suppowtsTewemetwy(this.pwoductSewvice, this.enviwonmentMainSewvice)) {
+			const channew = getDewayedChannew(shawedPwocessWeady.then(cwient => cwient.getChannew('tewemetwyAppenda')));
+			const appenda = new TewemetwyAppendewCwient(channew);
+			const commonPwopewties = wesowveCommonPwopewties(this.fiweSewvice, wewease(), hostname(), pwocess.awch, this.pwoductSewvice.commit, this.pwoductSewvice.vewsion, machineId, this.pwoductSewvice.msftIntewnawDomains, this.enviwonmentMainSewvice.instawwSouwcePath);
+			const piiPaths = [this.enviwonmentMainSewvice.appWoot, this.enviwonmentMainSewvice.extensionsPath];
+			const config: ITewemetwySewviceConfig = { appendews: [appenda], commonPwopewties, piiPaths, sendEwwowTewemetwy: twue };
 
-			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));
-		} else {
-			services.set(ITelemetryService, NullTelemetryService);
+			sewvices.set(ITewemetwySewvice, new SyncDescwiptow(TewemetwySewvice, [config]));
+		} ewse {
+			sewvices.set(ITewemetwySewvice, NuwwTewemetwySewvice);
 		}
 
-		// Init services that require it
-		await backupMainService.initialize();
+		// Init sewvices that wequiwe it
+		await backupMainSewvice.initiawize();
 
-		return this.mainInstantiationService.createChild(services);
+		wetuwn this.mainInstantiationSewvice.cweateChiwd(sewvices);
 	}
 
-	private initChannels(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer, sharedProcessClient: Promise<MessagePortClient>): void {
+	pwivate initChannews(accessow: SewvicesAccessow, mainPwocessEwectwonSewva: EwectwonIPCSewva, shawedPwocessCwient: Pwomise<MessagePowtCwient>): void {
 
-		// Launch: this one is explicitly registered to the node.js
-		// server because when a second instance starts up, that is
-		// the only possible connection between the first and the
-		// second instance. Electron IPC does not work across apps.
-		const launchChannel = ProxyChannel.fromService(accessor.get(ILaunchMainService), { disableMarshalling: true });
-		this.mainProcessNodeIpcServer.registerChannel('launch', launchChannel);
+		// Waunch: this one is expwicitwy wegistewed to the node.js
+		// sewva because when a second instance stawts up, that is
+		// the onwy possibwe connection between the fiwst and the
+		// second instance. Ewectwon IPC does not wowk acwoss apps.
+		const waunchChannew = PwoxyChannew.fwomSewvice(accessow.get(IWaunchMainSewvice), { disabweMawshawwing: twue });
+		this.mainPwocessNodeIpcSewva.wegistewChannew('waunch', waunchChannew);
 
-		// Configuration
-		mainProcessElectronServer.registerChannel(UserConfigurationFileServiceId, ProxyChannel.fromService(new UserConfigurationFileService(this.environmentMainService, this.fileService, this.logService)));
+		// Configuwation
+		mainPwocessEwectwonSewva.wegistewChannew(UsewConfiguwationFiweSewviceId, PwoxyChannew.fwomSewvice(new UsewConfiguwationFiweSewvice(this.enviwonmentMainSewvice, this.fiweSewvice, this.wogSewvice)));
 
 		// Update
-		const updateChannel = new UpdateChannel(accessor.get(IUpdateService));
-		mainProcessElectronServer.registerChannel('update', updateChannel);
+		const updateChannew = new UpdateChannew(accessow.get(IUpdateSewvice));
+		mainPwocessEwectwonSewva.wegistewChannew('update', updateChannew);
 
 		// Issues
-		const issueChannel = ProxyChannel.fromService(accessor.get(IIssueMainService));
-		mainProcessElectronServer.registerChannel('issue', issueChannel);
+		const issueChannew = PwoxyChannew.fwomSewvice(accessow.get(IIssueMainSewvice));
+		mainPwocessEwectwonSewva.wegistewChannew('issue', issueChannew);
 
-		// Encryption
-		const encryptionChannel = ProxyChannel.fromService(accessor.get(IEncryptionMainService));
-		mainProcessElectronServer.registerChannel('encryption', encryptionChannel);
+		// Encwyption
+		const encwyptionChannew = PwoxyChannew.fwomSewvice(accessow.get(IEncwyptionMainSewvice));
+		mainPwocessEwectwonSewva.wegistewChannew('encwyption', encwyptionChannew);
 
 		// Signing
-		const signChannel = ProxyChannel.fromService(accessor.get(ISignService));
-		mainProcessElectronServer.registerChannel('sign', signChannel);
+		const signChannew = PwoxyChannew.fwomSewvice(accessow.get(ISignSewvice));
+		mainPwocessEwectwonSewva.wegistewChannew('sign', signChannew);
 
-		// Keyboard Layout
-		const keyboardLayoutChannel = ProxyChannel.fromService(accessor.get(IKeyboardLayoutMainService));
-		mainProcessElectronServer.registerChannel('keyboardLayout', keyboardLayoutChannel);
+		// Keyboawd Wayout
+		const keyboawdWayoutChannew = PwoxyChannew.fwomSewvice(accessow.get(IKeyboawdWayoutMainSewvice));
+		mainPwocessEwectwonSewva.wegistewChannew('keyboawdWayout', keyboawdWayoutChannew);
 
-		// Native host (main & shared process)
-		this.nativeHostMainService = accessor.get(INativeHostMainService);
-		const nativeHostChannel = ProxyChannel.fromService(this.nativeHostMainService);
-		mainProcessElectronServer.registerChannel('nativeHost', nativeHostChannel);
-		sharedProcessClient.then(client => client.registerChannel('nativeHost', nativeHostChannel));
+		// Native host (main & shawed pwocess)
+		this.nativeHostMainSewvice = accessow.get(INativeHostMainSewvice);
+		const nativeHostChannew = PwoxyChannew.fwomSewvice(this.nativeHostMainSewvice);
+		mainPwocessEwectwonSewva.wegistewChannew('nativeHost', nativeHostChannew);
+		shawedPwocessCwient.then(cwient => cwient.wegistewChannew('nativeHost', nativeHostChannew));
 
-		// Workspaces
-		const workspacesChannel = ProxyChannel.fromService(accessor.get(IWorkspacesService));
-		mainProcessElectronServer.registerChannel('workspaces', workspacesChannel);
+		// Wowkspaces
+		const wowkspacesChannew = PwoxyChannew.fwomSewvice(accessow.get(IWowkspacesSewvice));
+		mainPwocessEwectwonSewva.wegistewChannew('wowkspaces', wowkspacesChannew);
 
-		// Menubar
-		const menubarChannel = ProxyChannel.fromService(accessor.get(IMenubarMainService));
-		mainProcessElectronServer.registerChannel('menubar', menubarChannel);
+		// Menubaw
+		const menubawChannew = PwoxyChannew.fwomSewvice(accessow.get(IMenubawMainSewvice));
+		mainPwocessEwectwonSewva.wegistewChannew('menubaw', menubawChannew);
 
-		// URL handling
-		const urlChannel = ProxyChannel.fromService(accessor.get(IURLService));
-		mainProcessElectronServer.registerChannel('url', urlChannel);
+		// UWW handwing
+		const uwwChannew = PwoxyChannew.fwomSewvice(accessow.get(IUWWSewvice));
+		mainPwocessEwectwonSewva.wegistewChannew('uww', uwwChannew);
 
-		// Extension URL Trust
-		const extensionUrlTrustChannel = ProxyChannel.fromService(accessor.get(IExtensionUrlTrustService));
-		mainProcessElectronServer.registerChannel('extensionUrlTrust', extensionUrlTrustChannel);
+		// Extension UWW Twust
+		const extensionUwwTwustChannew = PwoxyChannew.fwomSewvice(accessow.get(IExtensionUwwTwustSewvice));
+		mainPwocessEwectwonSewva.wegistewChannew('extensionUwwTwust', extensionUwwTwustChannew);
 
-		// Webview Manager
-		const webviewChannel = ProxyChannel.fromService(accessor.get(IWebviewManagerService));
-		mainProcessElectronServer.registerChannel('webview', webviewChannel);
+		// Webview Managa
+		const webviewChannew = PwoxyChannew.fwomSewvice(accessow.get(IWebviewManagewSewvice));
+		mainPwocessEwectwonSewva.wegistewChannew('webview', webviewChannew);
 
-		// Storage (main & shared process)
-		const storageChannel = this._register(new StorageDatabaseChannel(this.logService, accessor.get(IStorageMainService)));
-		mainProcessElectronServer.registerChannel('storage', storageChannel);
-		sharedProcessClient.then(client => client.registerChannel('storage', storageChannel));
+		// Stowage (main & shawed pwocess)
+		const stowageChannew = this._wegista(new StowageDatabaseChannew(this.wogSewvice, accessow.get(IStowageMainSewvice)));
+		mainPwocessEwectwonSewva.wegistewChannew('stowage', stowageChannew);
+		shawedPwocessCwient.then(cwient => cwient.wegistewChannew('stowage', stowageChannew));
 
-		// External Terminal
-		const externalTerminalChannel = ProxyChannel.fromService(accessor.get(IExternalTerminalMainService));
-		mainProcessElectronServer.registerChannel('externalTerminal', externalTerminalChannel);
+		// Extewnaw Tewminaw
+		const extewnawTewminawChannew = PwoxyChannew.fwomSewvice(accessow.get(IExtewnawTewminawMainSewvice));
+		mainPwocessEwectwonSewva.wegistewChannew('extewnawTewminaw', extewnawTewminawChannew);
 
-		// Log Level (main & shared process)
-		const logLevelChannel = new LogLevelChannel(accessor.get(ILogService));
-		mainProcessElectronServer.registerChannel('logLevel', logLevelChannel);
-		sharedProcessClient.then(client => client.registerChannel('logLevel', logLevelChannel));
+		// Wog Wevew (main & shawed pwocess)
+		const wogWevewChannew = new WogWevewChannew(accessow.get(IWogSewvice));
+		mainPwocessEwectwonSewva.wegistewChannew('wogWevew', wogWevewChannew);
+		shawedPwocessCwient.then(cwient => cwient.wegistewChannew('wogWevew', wogWevewChannew));
 
-		// Logger
-		const loggerChannel = new LoggerChannel(accessor.get(ILoggerService),);
-		mainProcessElectronServer.registerChannel('logger', loggerChannel);
-		sharedProcessClient.then(client => client.registerChannel('logger', loggerChannel));
+		// Wogga
+		const woggewChannew = new WoggewChannew(accessow.get(IWoggewSewvice),);
+		mainPwocessEwectwonSewva.wegistewChannew('wogga', woggewChannew);
+		shawedPwocessCwient.then(cwient => cwient.wegistewChannew('wogga', woggewChannew));
 
-		// Extension Host Debug Broadcasting
-		const electronExtensionHostDebugBroadcastChannel = new ElectronExtensionHostDebugBroadcastChannel(accessor.get(IWindowsMainService));
-		mainProcessElectronServer.registerChannel('extensionhostdebugservice', electronExtensionHostDebugBroadcastChannel);
+		// Extension Host Debug Bwoadcasting
+		const ewectwonExtensionHostDebugBwoadcastChannew = new EwectwonExtensionHostDebugBwoadcastChannew(accessow.get(IWindowsMainSewvice));
+		mainPwocessEwectwonSewva.wegistewChannew('extensionhostdebugsewvice', ewectwonExtensionHostDebugBwoadcastChannew);
 	}
 
-	private openFirstWindow(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer): ICodeWindow[] {
-		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
-		const urlService = accessor.get(IURLService);
-		const nativeHostMainService = accessor.get(INativeHostMainService);
+	pwivate openFiwstWindow(accessow: SewvicesAccessow, mainPwocessEwectwonSewva: EwectwonIPCSewva): ICodeWindow[] {
+		const windowsMainSewvice = this.windowsMainSewvice = accessow.get(IWindowsMainSewvice);
+		const uwwSewvice = accessow.get(IUWWSewvice);
+		const nativeHostMainSewvice = accessow.get(INativeHostMainSewvice);
 
-		// Signal phase: ready (services set)
-		this.lifecycleMainService.phase = LifecycleMainPhase.Ready;
+		// Signaw phase: weady (sewvices set)
+		this.wifecycweMainSewvice.phase = WifecycweMainPhase.Weady;
 
-		// Check for initial URLs to handle from protocol link invocations
-		const pendingWindowOpenablesFromProtocolLinks: IWindowOpenable[] = [];
-		const pendingProtocolLinksToHandle = [
+		// Check fow initiaw UWWs to handwe fwom pwotocow wink invocations
+		const pendingWindowOpenabwesFwomPwotocowWinks: IWindowOpenabwe[] = [];
+		const pendingPwotocowWinksToHandwe = [
 
-			// Windows/Linux: protocol handler invokes CLI with --open-url
-			...this.environmentMainService.args['open-url'] ? this.environmentMainService.args._urls || [] : [],
+			// Windows/Winux: pwotocow handwa invokes CWI with --open-uww
+			...this.enviwonmentMainSewvice.awgs['open-uww'] ? this.enviwonmentMainSewvice.awgs._uwws || [] : [],
 
-			// macOS: open-url events
-			...((<any>global).getOpenUrls() || []) as string[]
+			// macOS: open-uww events
+			...((<any>gwobaw).getOpenUwws() || []) as stwing[]
 
-		].map(url => {
-			try {
-				return { uri: URI.parse(url), url };
+		].map(uww => {
+			twy {
+				wetuwn { uwi: UWI.pawse(uww), uww };
 			} catch {
-				return undefined;
+				wetuwn undefined;
 			}
-		}).filter((obj): obj is { uri: URI, url: string } => {
+		}).fiwta((obj): obj is { uwi: UWI, uww: stwing } => {
 			if (!obj) {
-				return false;
+				wetuwn fawse;
 			}
 
-			// If URI should be blocked, filter it out
-			if (this.shouldBlockURI(obj.uri)) {
-				return false;
+			// If UWI shouwd be bwocked, fiwta it out
+			if (this.shouwdBwockUWI(obj.uwi)) {
+				wetuwn fawse;
 			}
 
-			// Filter out any protocol link that wants to open as window so that
-			// we open the right set of windows on startup and not restore the
-			// previous workspace too.
-			const windowOpenable = this.getWindowOpenableFromProtocolLink(obj.uri);
-			if (windowOpenable) {
-				pendingWindowOpenablesFromProtocolLinks.push(windowOpenable);
+			// Fiwta out any pwotocow wink that wants to open as window so that
+			// we open the wight set of windows on stawtup and not westowe the
+			// pwevious wowkspace too.
+			const windowOpenabwe = this.getWindowOpenabweFwomPwotocowWink(obj.uwi);
+			if (windowOpenabwe) {
+				pendingWindowOpenabwesFwomPwotocowWinks.push(windowOpenabwe);
 
-				return false;
+				wetuwn fawse;
 			}
 
-			return true;
+			wetuwn twue;
 		});
 
-		// Create a URL handler to open file URIs in the active window
-		// or open new windows. The URL handler will be invoked from
-		// protocol invocations outside of VSCode.
+		// Cweate a UWW handwa to open fiwe UWIs in the active window
+		// ow open new windows. The UWW handwa wiww be invoked fwom
+		// pwotocow invocations outside of VSCode.
 		const app = this;
-		const environmentService = this.environmentMainService;
-		const productService = this.productService;
-		urlService.registerHandler({
-			async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
-				if (uri.scheme === productService.urlProtocol && uri.path === 'workspace') {
-					uri = uri.with({
-						authority: 'file',
-						path: URI.parse(uri.query).path,
-						query: ''
+		const enviwonmentSewvice = this.enviwonmentMainSewvice;
+		const pwoductSewvice = this.pwoductSewvice;
+		uwwSewvice.wegistewHandwa({
+			async handweUWW(uwi: UWI, options?: IOpenUWWOptions): Pwomise<boowean> {
+				if (uwi.scheme === pwoductSewvice.uwwPwotocow && uwi.path === 'wowkspace') {
+					uwi = uwi.with({
+						authowity: 'fiwe',
+						path: UWI.pawse(uwi.quewy).path,
+						quewy: ''
 					});
 				}
 
-				// If URI should be blocked, behave as if it's handled
-				if (app.shouldBlockURI(uri)) {
-					return true;
+				// If UWI shouwd be bwocked, behave as if it's handwed
+				if (app.shouwdBwockUWI(uwi)) {
+					wetuwn twue;
 				}
 
-				// Check for URIs to open in window
-				const windowOpenableFromProtocolLink = app.getWindowOpenableFromProtocolLink(uri);
-				if (windowOpenableFromProtocolLink) {
-					const [window] = windowsMainService.open({
+				// Check fow UWIs to open in window
+				const windowOpenabweFwomPwotocowWink = app.getWindowOpenabweFwomPwotocowWink(uwi);
+				if (windowOpenabweFwomPwotocowWink) {
+					const [window] = windowsMainSewvice.open({
 						context: OpenContext.API,
-						cli: { ...environmentService.args },
-						urisToOpen: [windowOpenableFromProtocolLink],
-						gotoLineMode: true
-						// remoteAuthority: will be determined based on windowOpenableFromProtocolLink
+						cwi: { ...enviwonmentSewvice.awgs },
+						uwisToOpen: [windowOpenabweFwomPwotocowWink],
+						gotoWineMode: twue
+						// wemoteAuthowity: wiww be detewmined based on windowOpenabweFwomPwotocowWink
 					});
 
-					window.focus(); // this should help ensuring that the right window gets focus when multiple are opened
+					window.focus(); // this shouwd hewp ensuwing that the wight window gets focus when muwtipwe awe opened
 
-					return true;
+					wetuwn twue;
 				}
 
-				// If we have not yet handled the URI and we have no window opened (macOS only)
-				// we first open a window and then try to open that URI within that window
-				if (isMacintosh && windowsMainService.getWindowCount() === 0) {
-					const [window] = windowsMainService.open({
+				// If we have not yet handwed the UWI and we have no window opened (macOS onwy)
+				// we fiwst open a window and then twy to open that UWI within that window
+				if (isMacintosh && windowsMainSewvice.getWindowCount() === 0) {
+					const [window] = windowsMainSewvice.open({
 						context: OpenContext.API,
-						cli: { ...environmentService.args },
-						forceEmpty: true,
-						gotoLineMode: true,
-						remoteAuthority: getRemoteAuthority(uri)
+						cwi: { ...enviwonmentSewvice.awgs },
+						fowceEmpty: twue,
+						gotoWineMode: twue,
+						wemoteAuthowity: getWemoteAuthowity(uwi)
 					});
 
-					await window.ready();
+					await window.weady();
 
-					return urlService.open(uri, options);
+					wetuwn uwwSewvice.open(uwi, options);
 				}
 
-				return false;
+				wetuwn fawse;
 			}
 		});
 
-		// Create a URL handler which forwards to the last active window
-		const activeWindowManager = this._register(new ActiveWindowManager({
-			onDidOpenWindow: nativeHostMainService.onDidOpenWindow,
-			onDidFocusWindow: nativeHostMainService.onDidFocusWindow,
-			getActiveWindowId: () => nativeHostMainService.getActiveWindowId(-1)
+		// Cweate a UWW handwa which fowwawds to the wast active window
+		const activeWindowManaga = this._wegista(new ActiveWindowManaga({
+			onDidOpenWindow: nativeHostMainSewvice.onDidOpenWindow,
+			onDidFocusWindow: nativeHostMainSewvice.onDidFocusWindow,
+			getActiveWindowId: () => nativeHostMainSewvice.getActiveWindowId(-1)
 		}));
-		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
-		const urlHandlerRouter = new URLHandlerRouter(activeWindowRouter);
-		const urlHandlerChannel = mainProcessElectronServer.getChannel('urlHandler', urlHandlerRouter);
-		urlService.registerHandler(new URLHandlerChannelClient(urlHandlerChannel));
+		const activeWindowWouta = new StaticWouta(ctx => activeWindowManaga.getActiveCwientId().then(id => ctx === id));
+		const uwwHandwewWouta = new UWWHandwewWouta(activeWindowWouta);
+		const uwwHandwewChannew = mainPwocessEwectwonSewva.getChannew('uwwHandwa', uwwHandwewWouta);
+		uwwSewvice.wegistewHandwa(new UWWHandwewChannewCwient(uwwHandwewChannew));
 
-		// Watch Electron URLs and forward them to the UrlService
-		this._register(new ElectronURLListener(pendingProtocolLinksToHandle, urlService, windowsMainService, this.environmentMainService, this.productService));
+		// Watch Ewectwon UWWs and fowwawd them to the UwwSewvice
+		this._wegista(new EwectwonUWWWistena(pendingPwotocowWinksToHandwe, uwwSewvice, windowsMainSewvice, this.enviwonmentMainSewvice, this.pwoductSewvice));
 
-		// Open our first window
-		const args = this.environmentMainService.args;
-		const macOpenFiles: string[] = (<any>global).macOpenFiles;
-		const context = isLaunchedFromCli(process.env) ? OpenContext.CLI : OpenContext.DESKTOP;
-		const hasCliArgs = args._.length;
-		const hasFolderURIs = !!args['folder-uri'];
-		const hasFileURIs = !!args['file-uri'];
-		const noRecentEntry = args['skip-add-to-recently-opened'] === true;
-		const waitMarkerFileURI = args.wait && args.waitMarkerFilePath ? URI.file(args.waitMarkerFilePath) : undefined;
-		const remoteAuthority = args.remote || undefined;
+		// Open ouw fiwst window
+		const awgs = this.enviwonmentMainSewvice.awgs;
+		const macOpenFiwes: stwing[] = (<any>gwobaw).macOpenFiwes;
+		const context = isWaunchedFwomCwi(pwocess.env) ? OpenContext.CWI : OpenContext.DESKTOP;
+		const hasCwiAwgs = awgs._.wength;
+		const hasFowdewUWIs = !!awgs['fowda-uwi'];
+		const hasFiweUWIs = !!awgs['fiwe-uwi'];
+		const noWecentEntwy = awgs['skip-add-to-wecentwy-opened'] === twue;
+		const waitMawkewFiweUWI = awgs.wait && awgs.waitMawkewFiwePath ? UWI.fiwe(awgs.waitMawkewFiwePath) : undefined;
+		const wemoteAuthowity = awgs.wemote || undefined;
 
-		// check for a pending window to open from URI
-		// e.g. when running code with --open-uri from
-		// a protocol handler
-		if (pendingWindowOpenablesFromProtocolLinks.length > 0) {
-			return windowsMainService.open({
+		// check fow a pending window to open fwom UWI
+		// e.g. when wunning code with --open-uwi fwom
+		// a pwotocow handwa
+		if (pendingWindowOpenabwesFwomPwotocowWinks.wength > 0) {
+			wetuwn windowsMainSewvice.open({
 				context,
-				cli: args,
-				urisToOpen: pendingWindowOpenablesFromProtocolLinks,
-				gotoLineMode: true,
-				initialStartup: true
-				// remoteAuthority: will be determined based on pendingWindowOpenablesFromProtocolLinks
+				cwi: awgs,
+				uwisToOpen: pendingWindowOpenabwesFwomPwotocowWinks,
+				gotoWineMode: twue,
+				initiawStawtup: twue
+				// wemoteAuthowity: wiww be detewmined based on pendingWindowOpenabwesFwomPwotocowWinks
 			});
 		}
 
 		// new window if "-n"
-		if (args['new-window'] && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
-			return windowsMainService.open({
+		if (awgs['new-window'] && !hasCwiAwgs && !hasFowdewUWIs && !hasFiweUWIs) {
+			wetuwn windowsMainSewvice.open({
 				context,
-				cli: args,
-				forceNewWindow: true,
-				forceEmpty: true,
-				noRecentEntry,
-				waitMarkerFileURI,
-				initialStartup: true,
-				remoteAuthority
+				cwi: awgs,
+				fowceNewWindow: twue,
+				fowceEmpty: twue,
+				noWecentEntwy,
+				waitMawkewFiweUWI,
+				initiawStawtup: twue,
+				wemoteAuthowity
 			});
 		}
 
-		// mac: open-file event received on startup
-		if (macOpenFiles.length && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
-			return windowsMainService.open({
+		// mac: open-fiwe event weceived on stawtup
+		if (macOpenFiwes.wength && !hasCwiAwgs && !hasFowdewUWIs && !hasFiweUWIs) {
+			wetuwn windowsMainSewvice.open({
 				context: OpenContext.DOCK,
-				cli: args,
-				urisToOpen: macOpenFiles.map(file => this.getWindowOpenableFromPathSync(file)),
-				noRecentEntry,
-				waitMarkerFileURI,
-				initialStartup: true,
-				// remoteAuthority: will be determined based on macOpenFiles
+				cwi: awgs,
+				uwisToOpen: macOpenFiwes.map(fiwe => this.getWindowOpenabweFwomPathSync(fiwe)),
+				noWecentEntwy,
+				waitMawkewFiweUWI,
+				initiawStawtup: twue,
+				// wemoteAuthowity: wiww be detewmined based on macOpenFiwes
 			});
 		}
 
-		// default: read paths from cli
-		return windowsMainService.open({
+		// defauwt: wead paths fwom cwi
+		wetuwn windowsMainSewvice.open({
 			context,
-			cli: args,
-			forceNewWindow: args['new-window'] || (!hasCliArgs && args['unity-launch']),
-			diffMode: args.diff,
-			noRecentEntry,
-			waitMarkerFileURI,
-			gotoLineMode: args.goto,
-			initialStartup: true,
-			remoteAuthority
+			cwi: awgs,
+			fowceNewWindow: awgs['new-window'] || (!hasCwiAwgs && awgs['unity-waunch']),
+			diffMode: awgs.diff,
+			noWecentEntwy,
+			waitMawkewFiweUWI,
+			gotoWineMode: awgs.goto,
+			initiawStawtup: twue,
+			wemoteAuthowity
 		});
 	}
 
-	private shouldBlockURI(uri: URI): boolean {
-		if (uri.authority === Schemas.file && isWindows) {
-			const res = dialog.showMessageBoxSync({
-				title: this.productService.nameLong,
+	pwivate shouwdBwockUWI(uwi: UWI): boowean {
+		if (uwi.authowity === Schemas.fiwe && isWindows) {
+			const wes = diawog.showMessageBoxSync({
+				titwe: this.pwoductSewvice.nameWong,
 				type: 'question',
 				buttons: [
-					mnemonicButtonLabel(localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Yes")),
-					mnemonicButtonLabel(localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&No")),
+					mnemonicButtonWabew(wocawize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Yes")),
+					mnemonicButtonWabew(wocawize({ key: 'cancew', comment: ['&& denotes a mnemonic'] }, "&&No")),
 				],
-				defaultId: 0,
-				cancelId: 1,
-				message: localize('confirmOpenMessage', "An external application wants to open '{0}' in {1}. Do you want to open this file or folder?", getPathLabel(uri.fsPath, this.environmentMainService), this.productService.nameShort),
-				detail: localize('confirmOpenDetail', "If you did not initiate this request, it may represent an attempted attack on your system. Unless you took an explicit action to initiate this request, you should press 'No'"),
-				noLink: true
+				defauwtId: 0,
+				cancewId: 1,
+				message: wocawize('confiwmOpenMessage', "An extewnaw appwication wants to open '{0}' in {1}. Do you want to open this fiwe ow fowda?", getPathWabew(uwi.fsPath, this.enviwonmentMainSewvice), this.pwoductSewvice.nameShowt),
+				detaiw: wocawize('confiwmOpenDetaiw', "If you did not initiate this wequest, it may wepwesent an attempted attack on youw system. Unwess you took an expwicit action to initiate this wequest, you shouwd pwess 'No'"),
+				noWink: twue
 			});
 
-			if (res === 1) {
-				return true;
+			if (wes === 1) {
+				wetuwn twue;
 			}
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	private getWindowOpenableFromProtocolLink(uri: URI): IWindowOpenable | undefined {
-		if (!uri.path) {
-			return undefined;
+	pwivate getWindowOpenabweFwomPwotocowWink(uwi: UWI): IWindowOpenabwe | undefined {
+		if (!uwi.path) {
+			wetuwn undefined;
 		}
 
-		// File path
-		if (uri.authority === Schemas.file) {
-			// we configure as fileUri, but later validation will
-			// make sure to open as folder or workspace if possible
-			return { fileUri: URI.file(uri.fsPath) };
+		// Fiwe path
+		if (uwi.authowity === Schemas.fiwe) {
+			// we configuwe as fiweUwi, but wata vawidation wiww
+			// make suwe to open as fowda ow wowkspace if possibwe
+			wetuwn { fiweUwi: UWI.fiwe(uwi.fsPath) };
 		}
 
-		// Remote path
-		else if (uri.authority === Schemas.vscodeRemote) {
-			// Example conversion:
-			// From: vscode://vscode-remote/wsl+ubuntu/mnt/c/GitDevelopment/monaco
-			//   To: vscode-remote://wsl+ubuntu/mnt/c/GitDevelopment/monaco
-			const secondSlash = uri.path.indexOf(posix.sep, 1 /* skip over the leading slash */);
-			if (secondSlash !== -1) {
-				const authority = uri.path.substring(1, secondSlash);
-				const path = uri.path.substring(secondSlash);
-				const remoteUri = URI.from({ scheme: Schemas.vscodeRemote, authority, path, query: uri.query, fragment: uri.fragment });
+		// Wemote path
+		ewse if (uwi.authowity === Schemas.vscodeWemote) {
+			// Exampwe convewsion:
+			// Fwom: vscode://vscode-wemote/wsw+ubuntu/mnt/c/GitDevewopment/monaco
+			//   To: vscode-wemote://wsw+ubuntu/mnt/c/GitDevewopment/monaco
+			const secondSwash = uwi.path.indexOf(posix.sep, 1 /* skip ova the weading swash */);
+			if (secondSwash !== -1) {
+				const authowity = uwi.path.substwing(1, secondSwash);
+				const path = uwi.path.substwing(secondSwash);
+				const wemoteUwi = UWI.fwom({ scheme: Schemas.vscodeWemote, authowity, path, quewy: uwi.quewy, fwagment: uwi.fwagment });
 
-				if (hasWorkspaceFileExtension(path)) {
-					return { workspaceUri: remoteUri };
-				} else if (/:[\d]+$/.test(path)) { // path with :line:column syntax
-					return { fileUri: remoteUri };
-				} else {
-					return { folderUri: remoteUri };
+				if (hasWowkspaceFiweExtension(path)) {
+					wetuwn { wowkspaceUwi: wemoteUwi };
+				} ewse if (/:[\d]+$/.test(path)) { // path with :wine:cowumn syntax
+					wetuwn { fiweUwi: wemoteUwi };
+				} ewse {
+					wetuwn { fowdewUwi: wemoteUwi };
 				}
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private getWindowOpenableFromPathSync(path: string): IWindowOpenable {
-		try {
-			const fileStat = statSync(path);
-			if (fileStat.isDirectory()) {
-				return { folderUri: URI.file(path) };
+	pwivate getWindowOpenabweFwomPathSync(path: stwing): IWindowOpenabwe {
+		twy {
+			const fiweStat = statSync(path);
+			if (fiweStat.isDiwectowy()) {
+				wetuwn { fowdewUwi: UWI.fiwe(path) };
 			}
 
-			if (hasWorkspaceFileExtension(path)) {
-				return { workspaceUri: URI.file(path) };
+			if (hasWowkspaceFiweExtension(path)) {
+				wetuwn { wowkspaceUwi: UWI.fiwe(path) };
 			}
-		} catch (error) {
-			// ignore errors
+		} catch (ewwow) {
+			// ignowe ewwows
 		}
 
-		return { fileUri: URI.file(path) };
+		wetuwn { fiweUwi: UWI.fiwe(path) };
 	}
 
-	private async afterWindowOpen(accessor: ServicesAccessor, sharedProcess: SharedProcess): Promise<void> {
+	pwivate async aftewWindowOpen(accessow: SewvicesAccessow, shawedPwocess: ShawedPwocess): Pwomise<void> {
 
-		// Signal phase: after window open
-		this.lifecycleMainService.phase = LifecycleMainPhase.AfterWindowOpen;
+		// Signaw phase: afta window open
+		this.wifecycweMainSewvice.phase = WifecycweMainPhase.AftewWindowOpen;
 
-		// Observe shared process for errors
-		let willShutdown = false;
-		once(this.lifecycleMainService.onWillShutdown)(() => willShutdown = true);
-		const telemetryService = accessor.get(ITelemetryService);
-		this._register(sharedProcess.onDidError(({ type, details }) => {
+		// Obsewve shawed pwocess fow ewwows
+		wet wiwwShutdown = fawse;
+		once(this.wifecycweMainSewvice.onWiwwShutdown)(() => wiwwShutdown = twue);
+		const tewemetwySewvice = accessow.get(ITewemetwySewvice);
+		this._wegista(shawedPwocess.onDidEwwow(({ type, detaiws }) => {
 
-			// Logging
-			let message: string;
+			// Wogging
+			wet message: stwing;
 			switch (type) {
-				case WindowError.UNRESPONSIVE:
-					message = 'SharedProcess: detected unresponsive window';
-					break;
-				case WindowError.CRASHED:
-					message = `SharedProcess: crashed (detail: ${details?.reason ?? '<unknown>'}, code: ${details?.exitCode ?? '<unknown>'})`;
-					break;
-				case WindowError.LOAD:
-					message = `SharedProcess: failed to load (detail: ${details?.reason ?? '<unknown>'}, code: ${details?.exitCode ?? '<unknown>'})`;
-					break;
+				case WindowEwwow.UNWESPONSIVE:
+					message = 'ShawedPwocess: detected unwesponsive window';
+					bweak;
+				case WindowEwwow.CWASHED:
+					message = `ShawedPwocess: cwashed (detaiw: ${detaiws?.weason ?? '<unknown>'}, code: ${detaiws?.exitCode ?? '<unknown>'})`;
+					bweak;
+				case WindowEwwow.WOAD:
+					message = `ShawedPwocess: faiwed to woad (detaiw: ${detaiws?.weason ?? '<unknown>'}, code: ${detaiws?.exitCode ?? '<unknown>'})`;
+					bweak;
 			}
-			onUnexpectedError(new Error(message));
+			onUnexpectedEwwow(new Ewwow(message));
 
-			// Telemetry
-			type SharedProcessErrorClassification = {
-				type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-				reason: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-				code: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-				visible: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-				shuttingdown: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+			// Tewemetwy
+			type ShawedPwocessEwwowCwassification = {
+				type: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth', isMeasuwement: twue };
+				weason: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth', isMeasuwement: twue };
+				code: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth', isMeasuwement: twue };
+				visibwe: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth', isMeasuwement: twue };
+				shuttingdown: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth', isMeasuwement: twue };
 			};
-			type SharedProcessErrorEvent = {
-				type: WindowError;
-				reason: string | undefined;
-				code: number | undefined;
-				visible: boolean;
-				shuttingdown: boolean;
+			type ShawedPwocessEwwowEvent = {
+				type: WindowEwwow;
+				weason: stwing | undefined;
+				code: numba | undefined;
+				visibwe: boowean;
+				shuttingdown: boowean;
 			};
-			telemetryService.publicLog2<SharedProcessErrorEvent, SharedProcessErrorClassification>('sharedprocesserror', {
+			tewemetwySewvice.pubwicWog2<ShawedPwocessEwwowEvent, ShawedPwocessEwwowCwassification>('shawedpwocessewwow', {
 				type,
-				reason: details?.reason,
-				code: details?.exitCode,
-				visible: sharedProcess.isVisible(),
-				shuttingdown: willShutdown
+				weason: detaiws?.weason,
+				code: detaiws?.exitCode,
+				visibwe: shawedPwocess.isVisibwe(),
+				shuttingdown: wiwwShutdown
 			});
 		}));
 
-		// Windows: install mutex
-		const win32MutexName = this.productService.win32MutexName;
+		// Windows: instaww mutex
+		const win32MutexName = this.pwoductSewvice.win32MutexName;
 		if (isWindows && win32MutexName) {
-			try {
-				const WindowsMutex = (require.__$__nodeRequire('windows-mutex') as typeof import('windows-mutex')).Mutex;
+			twy {
+				const WindowsMutex = (wequiwe.__$__nodeWequiwe('windows-mutex') as typeof impowt('windows-mutex')).Mutex;
 				const mutex = new WindowsMutex(win32MutexName);
-				once(this.lifecycleMainService.onWillShutdown)(() => mutex.release());
-			} catch (error) {
-				this.logService.error(error);
+				once(this.wifecycweMainSewvice.onWiwwShutdown)(() => mutex.wewease());
+			} catch (ewwow) {
+				this.wogSewvice.ewwow(ewwow);
 			}
 		}
 
-		// Remote Authorities
-		protocol.registerHttpProtocol(Schemas.vscodeRemoteResource, (request, callback) => {
-			callback({
-				url: request.url.replace(/^vscode-remote-resource:/, 'http:'),
-				method: request.method
+		// Wemote Authowities
+		pwotocow.wegistewHttpPwotocow(Schemas.vscodeWemoteWesouwce, (wequest, cawwback) => {
+			cawwback({
+				uww: wequest.uww.wepwace(/^vscode-wemote-wesouwce:/, 'http:'),
+				method: wequest.method
 			});
 		});
 
-		// Initialize update service
-		const updateService = accessor.get(IUpdateService);
-		if (updateService instanceof Win32UpdateService || updateService instanceof LinuxUpdateService || updateService instanceof DarwinUpdateService) {
-			updateService.initialize();
+		// Initiawize update sewvice
+		const updateSewvice = accessow.get(IUpdateSewvice);
+		if (updateSewvice instanceof Win32UpdateSewvice || updateSewvice instanceof WinuxUpdateSewvice || updateSewvice instanceof DawwinUpdateSewvice) {
+			updateSewvice.initiawize();
 		}
 
-		// Start to fetch shell environment (if needed) after window has opened
-		// Since this operation can take a long time, we want to warm it up while
+		// Stawt to fetch sheww enviwonment (if needed) afta window has opened
+		// Since this opewation can take a wong time, we want to wawm it up whiwe
 		// the window is opening.
-		resolveShellEnv(this.logService, this.environmentMainService.args, process.env);
+		wesowveShewwEnv(this.wogSewvice, this.enviwonmentMainSewvice.awgs, pwocess.env);
 
-		// If enable-crash-reporter argv is undefined then this is a fresh start,
-		// based on telemetry.enableCrashreporter settings, generate a UUID which
-		// will be used as crash reporter id and also update the json file.
-		try {
-			const argvContent = await this.fileService.readFile(this.environmentMainService.argvResource);
-			const argvString = argvContent.value.toString();
-			const argvJSON = JSON.parse(stripComments(argvString));
-			if (argvJSON['enable-crash-reporter'] === undefined) {
-				const telemetryConfig = getTelemetryLevel(this.configurationService);
-				const enableCrashReporterSetting = telemetryConfig >= TelemetryLevel.ERROR;
-				const enableCrashReporter = typeof enableCrashReporterSetting === 'boolean' ? enableCrashReporterSetting : true;
-				const additionalArgvContent = [
+		// If enabwe-cwash-wepowta awgv is undefined then this is a fwesh stawt,
+		// based on tewemetwy.enabweCwashwepowta settings, genewate a UUID which
+		// wiww be used as cwash wepowta id and awso update the json fiwe.
+		twy {
+			const awgvContent = await this.fiweSewvice.weadFiwe(this.enviwonmentMainSewvice.awgvWesouwce);
+			const awgvStwing = awgvContent.vawue.toStwing();
+			const awgvJSON = JSON.pawse(stwipComments(awgvStwing));
+			if (awgvJSON['enabwe-cwash-wepowta'] === undefined) {
+				const tewemetwyConfig = getTewemetwyWevew(this.configuwationSewvice);
+				const enabweCwashWepowtewSetting = tewemetwyConfig >= TewemetwyWevew.EWWOW;
+				const enabweCwashWepowta = typeof enabweCwashWepowtewSetting === 'boowean' ? enabweCwashWepowtewSetting : twue;
+				const additionawAwgvContent = [
 					'',
-					'	// Allows to disable crash reporting.',
-					'	// Should restart the app if the value is changed.',
-					`	"enable-crash-reporter": ${enableCrashReporter},`,
+					'	// Awwows to disabwe cwash wepowting.',
+					'	// Shouwd westawt the app if the vawue is changed.',
+					`	"enabwe-cwash-wepowta": ${enabweCwashWepowta},`,
 					'',
-					'	// Unique id used for correlating crash reports sent from this instance.',
-					'	// Do not edit this value.',
-					`	"crash-reporter-id": "${generateUuid()}"`,
+					'	// Unique id used fow cowwewating cwash wepowts sent fwom this instance.',
+					'	// Do not edit this vawue.',
+					`	"cwash-wepowta-id": "${genewateUuid()}"`,
 					'}'
 				];
-				const newArgvString = argvString.substring(0, argvString.length - 2).concat(',\n', additionalArgvContent.join('\n'));
+				const newAwgvStwing = awgvStwing.substwing(0, awgvStwing.wength - 2).concat(',\n', additionawAwgvContent.join('\n'));
 
-				await this.fileService.writeFile(this.environmentMainService.argvResource, VSBuffer.fromString(newArgvString));
+				await this.fiweSewvice.wwiteFiwe(this.enviwonmentMainSewvice.awgvWesouwce, VSBuffa.fwomStwing(newAwgvStwing));
 			}
-		} catch (error) {
-			this.logService.error(error);
+		} catch (ewwow) {
+			this.wogSewvice.ewwow(ewwow);
 		}
 	}
 
-	private stopTracingEventually(accessor: ServicesAccessor, windows: ICodeWindow[]): void {
-		this.logService.info(`Tracing: waiting for windows to get ready...`);
+	pwivate stopTwacingEventuawwy(accessow: SewvicesAccessow, windows: ICodeWindow[]): void {
+		this.wogSewvice.info(`Twacing: waiting fow windows to get weady...`);
 
-		const dialogMainService = accessor.get(IDialogMainService);
+		const diawogMainSewvice = accessow.get(IDiawogMainSewvice);
 
-		let recordingStopped = false;
-		const stopRecording = async (timeout: boolean) => {
-			if (recordingStopped) {
-				return;
+		wet wecowdingStopped = fawse;
+		const stopWecowding = async (timeout: boowean) => {
+			if (wecowdingStopped) {
+				wetuwn;
 			}
 
-			recordingStopped = true; // only once
+			wecowdingStopped = twue; // onwy once
 
-			const path = await contentTracing.stopRecording(joinPath(this.environmentMainService.userHome, `${this.productService.applicationName}-${Math.random().toString(16).slice(-4)}.trace.txt`).fsPath);
+			const path = await contentTwacing.stopWecowding(joinPath(this.enviwonmentMainSewvice.usewHome, `${this.pwoductSewvice.appwicationName}-${Math.wandom().toStwing(16).swice(-4)}.twace.txt`).fsPath);
 
 			if (!timeout) {
-				dialogMainService.showMessageBox({
-					title: this.productService.nameLong,
+				diawogMainSewvice.showMessageBox({
+					titwe: this.pwoductSewvice.nameWong,
 					type: 'info',
-					message: localize('trace.message', "Successfully created trace."),
-					detail: localize('trace.detail', "Please create an issue and manually attach the following file:\n{0}", path),
-					buttons: [mnemonicButtonLabel(localize({ key: 'trace.ok', comment: ['&& denotes a mnemonic'] }, "&&OK"))],
-					defaultId: 0,
-					noLink: true
-				}, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
-			} else {
-				this.logService.info(`Tracing: data recorded (after 30s timeout) to ${path}`);
+					message: wocawize('twace.message', "Successfuwwy cweated twace."),
+					detaiw: wocawize('twace.detaiw', "Pwease cweate an issue and manuawwy attach the fowwowing fiwe:\n{0}", path),
+					buttons: [mnemonicButtonWabew(wocawize({ key: 'twace.ok', comment: ['&& denotes a mnemonic'] }, "&&OK"))],
+					defauwtId: 0,
+					noWink: twue
+				}, withNuwwAsUndefined(BwowsewWindow.getFocusedWindow()));
+			} ewse {
+				this.wogSewvice.info(`Twacing: data wecowded (afta 30s timeout) to ${path}`);
 			}
 		};
 
-		// Wait up to 30s before creating the trace anyways
-		const timeoutHandle = setTimeout(() => stopRecording(true), 30000);
+		// Wait up to 30s befowe cweating the twace anyways
+		const timeoutHandwe = setTimeout(() => stopWecowding(twue), 30000);
 
-		// Wait for all windows to get ready and stop tracing then
-		Promise.all(windows.map(window => window.ready())).then(() => {
-			clearTimeout(timeoutHandle);
-			stopRecording(false);
+		// Wait fow aww windows to get weady and stop twacing then
+		Pwomise.aww(windows.map(window => window.weady())).then(() => {
+			cweawTimeout(timeoutHandwe);
+			stopWecowding(fawse);
 		});
 	}
 }

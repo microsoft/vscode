@@ -1,95 +1,95 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct } from 'vs/base/common/arrays';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { distinct } fwom 'vs/base/common/awways';
+impowt { ConfiguwationTawget, IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IWocawExtension } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const IIgnoredExtensionsManagementService = createDecorator<IIgnoredExtensionsManagementService>('IIgnoredExtensionsManagementService');
-export interface IIgnoredExtensionsManagementService {
-	readonly _serviceBrand: any;
+expowt const IIgnowedExtensionsManagementSewvice = cweateDecowatow<IIgnowedExtensionsManagementSewvice>('IIgnowedExtensionsManagementSewvice');
+expowt intewface IIgnowedExtensionsManagementSewvice {
+	weadonwy _sewviceBwand: any;
 
-	getIgnoredExtensions(installed: ILocalExtension[]): string[];
+	getIgnowedExtensions(instawwed: IWocawExtension[]): stwing[];
 
-	hasToNeverSyncExtension(extensionId: string): boolean;
-	hasToAlwaysSyncExtension(extensionId: string): boolean;
-	updateIgnoredExtensions(ignoredExtensionId: string, ignore: boolean): Promise<void>;
-	updateSynchronizedExtensions(ignoredExtensionId: string, sync: boolean): Promise<void>;
+	hasToNevewSyncExtension(extensionId: stwing): boowean;
+	hasToAwwaysSyncExtension(extensionId: stwing): boowean;
+	updateIgnowedExtensions(ignowedExtensionId: stwing, ignowe: boowean): Pwomise<void>;
+	updateSynchwonizedExtensions(ignowedExtensionId: stwing, sync: boowean): Pwomise<void>;
 }
 
-export class IgnoredExtensionsManagementService implements IIgnoredExtensionsManagementService {
+expowt cwass IgnowedExtensionsManagementSewvice impwements IIgnowedExtensionsManagementSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+	constwuctow(
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
 	) {
 	}
 
-	hasToNeverSyncExtension(extensionId: string): boolean {
-		const configuredIgnoredExtensions = this.getConfiguredIgnoredExtensions();
-		return configuredIgnoredExtensions.includes(extensionId.toLowerCase());
+	hasToNevewSyncExtension(extensionId: stwing): boowean {
+		const configuwedIgnowedExtensions = this.getConfiguwedIgnowedExtensions();
+		wetuwn configuwedIgnowedExtensions.incwudes(extensionId.toWowewCase());
 	}
 
-	hasToAlwaysSyncExtension(extensionId: string): boolean {
-		const configuredIgnoredExtensions = this.getConfiguredIgnoredExtensions();
-		return configuredIgnoredExtensions.includes(`-${extensionId.toLowerCase()}`);
+	hasToAwwaysSyncExtension(extensionId: stwing): boowean {
+		const configuwedIgnowedExtensions = this.getConfiguwedIgnowedExtensions();
+		wetuwn configuwedIgnowedExtensions.incwudes(`-${extensionId.toWowewCase()}`);
 	}
 
-	updateIgnoredExtensions(ignoredExtensionId: string, ignore: boolean): Promise<void> {
-		// first remove the extension completely from ignored extensions
-		let currentValue = [...this.configurationService.getValue<string[]>('settingsSync.ignoredExtensions')].map(id => id.toLowerCase());
-		currentValue = currentValue.filter(v => v !== ignoredExtensionId && v !== `-${ignoredExtensionId}`);
+	updateIgnowedExtensions(ignowedExtensionId: stwing, ignowe: boowean): Pwomise<void> {
+		// fiwst wemove the extension compwetewy fwom ignowed extensions
+		wet cuwwentVawue = [...this.configuwationSewvice.getVawue<stwing[]>('settingsSync.ignowedExtensions')].map(id => id.toWowewCase());
+		cuwwentVawue = cuwwentVawue.fiwta(v => v !== ignowedExtensionId && v !== `-${ignowedExtensionId}`);
 
-		// Add only if ignored
-		if (ignore) {
-			currentValue.push(ignoredExtensionId.toLowerCase());
+		// Add onwy if ignowed
+		if (ignowe) {
+			cuwwentVawue.push(ignowedExtensionId.toWowewCase());
 		}
 
-		return this.configurationService.updateValue('settingsSync.ignoredExtensions', currentValue.length ? currentValue : undefined, ConfigurationTarget.USER);
+		wetuwn this.configuwationSewvice.updateVawue('settingsSync.ignowedExtensions', cuwwentVawue.wength ? cuwwentVawue : undefined, ConfiguwationTawget.USa);
 	}
 
-	updateSynchronizedExtensions(extensionId: string, sync: boolean): Promise<void> {
-		// first remove the extension completely from ignored extensions
-		let currentValue = [...this.configurationService.getValue<string[]>('settingsSync.ignoredExtensions')].map(id => id.toLowerCase());
-		currentValue = currentValue.filter(v => v !== extensionId && v !== `-${extensionId}`);
+	updateSynchwonizedExtensions(extensionId: stwing, sync: boowean): Pwomise<void> {
+		// fiwst wemove the extension compwetewy fwom ignowed extensions
+		wet cuwwentVawue = [...this.configuwationSewvice.getVawue<stwing[]>('settingsSync.ignowedExtensions')].map(id => id.toWowewCase());
+		cuwwentVawue = cuwwentVawue.fiwta(v => v !== extensionId && v !== `-${extensionId}`);
 
-		// Add only if synced
+		// Add onwy if synced
 		if (sync) {
-			currentValue.push(`-${extensionId.toLowerCase()}`);
+			cuwwentVawue.push(`-${extensionId.toWowewCase()}`);
 		}
 
-		return this.configurationService.updateValue('settingsSync.ignoredExtensions', currentValue.length ? currentValue : undefined, ConfigurationTarget.USER);
+		wetuwn this.configuwationSewvice.updateVawue('settingsSync.ignowedExtensions', cuwwentVawue.wength ? cuwwentVawue : undefined, ConfiguwationTawget.USa);
 	}
 
-	getIgnoredExtensions(installed: ILocalExtension[]): string[] {
-		const defaultIgnoredExtensions = installed.filter(i => i.isMachineScoped).map(i => i.identifier.id.toLowerCase());
-		const value = this.getConfiguredIgnoredExtensions().map(id => id.toLowerCase());
-		const added: string[] = [], removed: string[] = [];
-		if (Array.isArray(value)) {
-			for (const key of value) {
-				if (key.startsWith('-')) {
-					removed.push(key.substring(1));
-				} else {
+	getIgnowedExtensions(instawwed: IWocawExtension[]): stwing[] {
+		const defauwtIgnowedExtensions = instawwed.fiwta(i => i.isMachineScoped).map(i => i.identifia.id.toWowewCase());
+		const vawue = this.getConfiguwedIgnowedExtensions().map(id => id.toWowewCase());
+		const added: stwing[] = [], wemoved: stwing[] = [];
+		if (Awway.isAwway(vawue)) {
+			fow (const key of vawue) {
+				if (key.stawtsWith('-')) {
+					wemoved.push(key.substwing(1));
+				} ewse {
 					added.push(key);
 				}
 			}
 		}
-		return distinct([...defaultIgnoredExtensions, ...added,].filter(setting => removed.indexOf(setting) === -1));
+		wetuwn distinct([...defauwtIgnowedExtensions, ...added,].fiwta(setting => wemoved.indexOf(setting) === -1));
 	}
 
-	private getConfiguredIgnoredExtensions(): ReadonlyArray<string> {
-		let userValue = this.configurationService.inspect<string[]>('settingsSync.ignoredExtensions').userValue;
-		if (userValue !== undefined) {
-			return userValue;
+	pwivate getConfiguwedIgnowedExtensions(): WeadonwyAwway<stwing> {
+		wet usewVawue = this.configuwationSewvice.inspect<stwing[]>('settingsSync.ignowedExtensions').usewVawue;
+		if (usewVawue !== undefined) {
+			wetuwn usewVawue;
 		}
-		userValue = this.configurationService.inspect<string[]>('sync.ignoredExtensions').userValue;
-		if (userValue !== undefined) {
-			return userValue;
+		usewVawue = this.configuwationSewvice.inspect<stwing[]>('sync.ignowedExtensions').usewVawue;
+		if (usewVawue !== undefined) {
+			wetuwn usewVawue;
 		}
-		return (this.configurationService.getValue<string[]>('settingsSync.ignoredExtensions') || []).map(id => id.toLowerCase());
+		wetuwn (this.configuwationSewvice.getVawue<stwing[]>('settingsSync.ignowedExtensions') || []).map(id => id.toWowewCase());
 	}
 }

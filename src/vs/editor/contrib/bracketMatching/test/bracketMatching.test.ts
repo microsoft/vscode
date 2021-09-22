@@ -1,26 +1,26 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
-import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { BracketMatchingController } from 'vs/editor/contrib/bracketMatching/bracketMatching';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+impowt * as assewt fwom 'assewt';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { WanguageIdentifia } fwom 'vs/editow/common/modes';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
+impowt { BwacketMatchingContwowwa } fwom 'vs/editow/contwib/bwacketMatching/bwacketMatching';
+impowt { withTestCodeEditow } fwom 'vs/editow/test/bwowsa/testCodeEditow';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
+impowt { MockMode } fwom 'vs/editow/test/common/mocks/mockMode';
 
-suite('bracket matching', () => {
-	class BracketMode extends MockMode {
+suite('bwacket matching', () => {
+	cwass BwacketMode extends MockMode {
 
-		private static readonly _id = new LanguageIdentifier('bracketMode', 3);
+		pwivate static weadonwy _id = new WanguageIdentifia('bwacketMode', 3);
 
-		constructor() {
-			super(BracketMode._id);
-			this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
-				brackets: [
+		constwuctow() {
+			supa(BwacketMode._id);
+			this._wegista(WanguageConfiguwationWegistwy.wegista(this.getWanguageIdentifia(), {
+				bwackets: [
 					['{', '}'],
 					['[', ']'],
 					['(', ')'],
@@ -29,220 +29,220 @@ suite('bracket matching', () => {
 		}
 	}
 
-	test('issue #183: jump to matching bracket position', () => {
-		let mode = new BracketMode();
-		let model = createTextModel('var x = (3 + (5-7)) + ((5+3)+5);', undefined, mode.getLanguageIdentifier());
+	test('issue #183: jump to matching bwacket position', () => {
+		wet mode = new BwacketMode();
+		wet modew = cweateTextModew('vaw x = (3 + (5-7)) + ((5+3)+5);', undefined, mode.getWanguageIdentifia());
 
-		withTestCodeEditor(null, { model: model }, (editor) => {
-			let bracketMatchingController = editor.registerAndInstantiateContribution(BracketMatchingController.ID, BracketMatchingController);
+		withTestCodeEditow(nuww, { modew: modew }, (editow) => {
+			wet bwacketMatchingContwowwa = editow.wegistewAndInstantiateContwibution(BwacketMatchingContwowwa.ID, BwacketMatchingContwowwa);
 
-			// start on closing bracket
-			editor.setPosition(new Position(1, 20));
-			bracketMatchingController.jumpToBracket();
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 9));
-			bracketMatchingController.jumpToBracket();
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 19));
-			bracketMatchingController.jumpToBracket();
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 9));
+			// stawt on cwosing bwacket
+			editow.setPosition(new Position(1, 20));
+			bwacketMatchingContwowwa.jumpToBwacket();
+			assewt.deepStwictEquaw(editow.getPosition(), new Position(1, 9));
+			bwacketMatchingContwowwa.jumpToBwacket();
+			assewt.deepStwictEquaw(editow.getPosition(), new Position(1, 19));
+			bwacketMatchingContwowwa.jumpToBwacket();
+			assewt.deepStwictEquaw(editow.getPosition(), new Position(1, 9));
 
-			// start on opening bracket
-			editor.setPosition(new Position(1, 23));
-			bracketMatchingController.jumpToBracket();
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 31));
-			bracketMatchingController.jumpToBracket();
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 23));
-			bracketMatchingController.jumpToBracket();
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 31));
+			// stawt on opening bwacket
+			editow.setPosition(new Position(1, 23));
+			bwacketMatchingContwowwa.jumpToBwacket();
+			assewt.deepStwictEquaw(editow.getPosition(), new Position(1, 31));
+			bwacketMatchingContwowwa.jumpToBwacket();
+			assewt.deepStwictEquaw(editow.getPosition(), new Position(1, 23));
+			bwacketMatchingContwowwa.jumpToBwacket();
+			assewt.deepStwictEquaw(editow.getPosition(), new Position(1, 31));
 
-			bracketMatchingController.dispose();
+			bwacketMatchingContwowwa.dispose();
 		});
 
-		model.dispose();
+		modew.dispose();
 		mode.dispose();
 	});
 
-	test('Jump to next bracket', () => {
-		let mode = new BracketMode();
-		let model = createTextModel('var x = (3 + (5-7)); y();', undefined, mode.getLanguageIdentifier());
+	test('Jump to next bwacket', () => {
+		wet mode = new BwacketMode();
+		wet modew = cweateTextModew('vaw x = (3 + (5-7)); y();', undefined, mode.getWanguageIdentifia());
 
-		withTestCodeEditor(null, { model: model }, (editor) => {
-			let bracketMatchingController = editor.registerAndInstantiateContribution(BracketMatchingController.ID, BracketMatchingController);
+		withTestCodeEditow(nuww, { modew: modew }, (editow) => {
+			wet bwacketMatchingContwowwa = editow.wegistewAndInstantiateContwibution(BwacketMatchingContwowwa.ID, BwacketMatchingContwowwa);
 
-			// start position between brackets
-			editor.setPosition(new Position(1, 16));
-			bracketMatchingController.jumpToBracket();
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 18));
-			bracketMatchingController.jumpToBracket();
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 14));
-			bracketMatchingController.jumpToBracket();
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 18));
+			// stawt position between bwackets
+			editow.setPosition(new Position(1, 16));
+			bwacketMatchingContwowwa.jumpToBwacket();
+			assewt.deepStwictEquaw(editow.getPosition(), new Position(1, 18));
+			bwacketMatchingContwowwa.jumpToBwacket();
+			assewt.deepStwictEquaw(editow.getPosition(), new Position(1, 14));
+			bwacketMatchingContwowwa.jumpToBwacket();
+			assewt.deepStwictEquaw(editow.getPosition(), new Position(1, 18));
 
-			// skip brackets in comments
-			editor.setPosition(new Position(1, 21));
-			bracketMatchingController.jumpToBracket();
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 23));
-			bracketMatchingController.jumpToBracket();
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 24));
-			bracketMatchingController.jumpToBracket();
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 23));
+			// skip bwackets in comments
+			editow.setPosition(new Position(1, 21));
+			bwacketMatchingContwowwa.jumpToBwacket();
+			assewt.deepStwictEquaw(editow.getPosition(), new Position(1, 23));
+			bwacketMatchingContwowwa.jumpToBwacket();
+			assewt.deepStwictEquaw(editow.getPosition(), new Position(1, 24));
+			bwacketMatchingContwowwa.jumpToBwacket();
+			assewt.deepStwictEquaw(editow.getPosition(), new Position(1, 23));
 
-			// do not break if no brackets are available
-			editor.setPosition(new Position(1, 26));
-			bracketMatchingController.jumpToBracket();
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 26));
+			// do not bweak if no bwackets awe avaiwabwe
+			editow.setPosition(new Position(1, 26));
+			bwacketMatchingContwowwa.jumpToBwacket();
+			assewt.deepStwictEquaw(editow.getPosition(), new Position(1, 26));
 
-			bracketMatchingController.dispose();
+			bwacketMatchingContwowwa.dispose();
 		});
 
-		model.dispose();
+		modew.dispose();
 		mode.dispose();
 	});
 
-	test('Select to next bracket', () => {
-		let mode = new BracketMode();
-		let model = createTextModel('var x = (3 + (5-7)); y();', undefined, mode.getLanguageIdentifier());
+	test('Sewect to next bwacket', () => {
+		wet mode = new BwacketMode();
+		wet modew = cweateTextModew('vaw x = (3 + (5-7)); y();', undefined, mode.getWanguageIdentifia());
 
-		withTestCodeEditor(null, { model: model }, (editor) => {
-			let bracketMatchingController = editor.registerAndInstantiateContribution(BracketMatchingController.ID, BracketMatchingController);
+		withTestCodeEditow(nuww, { modew: modew }, (editow) => {
+			wet bwacketMatchingContwowwa = editow.wegistewAndInstantiateContwibution(BwacketMatchingContwowwa.ID, BwacketMatchingContwowwa);
 
 
-			// start position in open brackets
-			editor.setPosition(new Position(1, 9));
-			bracketMatchingController.selectToBracket(true);
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 20));
-			assert.deepStrictEqual(editor.getSelection(), new Selection(1, 9, 1, 20));
+			// stawt position in open bwackets
+			editow.setPosition(new Position(1, 9));
+			bwacketMatchingContwowwa.sewectToBwacket(twue);
+			assewt.deepStwictEquaw(editow.getPosition(), new Position(1, 20));
+			assewt.deepStwictEquaw(editow.getSewection(), new Sewection(1, 9, 1, 20));
 
-			// start position in close brackets (should select backwards)
-			editor.setPosition(new Position(1, 20));
-			bracketMatchingController.selectToBracket(true);
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 9));
-			assert.deepStrictEqual(editor.getSelection(), new Selection(1, 20, 1, 9));
+			// stawt position in cwose bwackets (shouwd sewect backwawds)
+			editow.setPosition(new Position(1, 20));
+			bwacketMatchingContwowwa.sewectToBwacket(twue);
+			assewt.deepStwictEquaw(editow.getPosition(), new Position(1, 9));
+			assewt.deepStwictEquaw(editow.getSewection(), new Sewection(1, 20, 1, 9));
 
-			// start position between brackets
-			editor.setPosition(new Position(1, 16));
-			bracketMatchingController.selectToBracket(true);
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 19));
-			assert.deepStrictEqual(editor.getSelection(), new Selection(1, 14, 1, 19));
+			// stawt position between bwackets
+			editow.setPosition(new Position(1, 16));
+			bwacketMatchingContwowwa.sewectToBwacket(twue);
+			assewt.deepStwictEquaw(editow.getPosition(), new Position(1, 19));
+			assewt.deepStwictEquaw(editow.getSewection(), new Sewection(1, 14, 1, 19));
 
-			// start position outside brackets
-			editor.setPosition(new Position(1, 21));
-			bracketMatchingController.selectToBracket(true);
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 25));
-			assert.deepStrictEqual(editor.getSelection(), new Selection(1, 23, 1, 25));
+			// stawt position outside bwackets
+			editow.setPosition(new Position(1, 21));
+			bwacketMatchingContwowwa.sewectToBwacket(twue);
+			assewt.deepStwictEquaw(editow.getPosition(), new Position(1, 25));
+			assewt.deepStwictEquaw(editow.getSewection(), new Sewection(1, 23, 1, 25));
 
-			// do not break if no brackets are available
-			editor.setPosition(new Position(1, 26));
-			bracketMatchingController.selectToBracket(true);
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 26));
-			assert.deepStrictEqual(editor.getSelection(), new Selection(1, 26, 1, 26));
+			// do not bweak if no bwackets awe avaiwabwe
+			editow.setPosition(new Position(1, 26));
+			bwacketMatchingContwowwa.sewectToBwacket(twue);
+			assewt.deepStwictEquaw(editow.getPosition(), new Position(1, 26));
+			assewt.deepStwictEquaw(editow.getSewection(), new Sewection(1, 26, 1, 26));
 
-			bracketMatchingController.dispose();
+			bwacketMatchingContwowwa.dispose();
 		});
 
-		model.dispose();
+		modew.dispose();
 		mode.dispose();
 	});
 
-	test('issue #1772: jump to enclosing brackets', () => {
+	test('issue #1772: jump to encwosing bwackets', () => {
 		const text = [
 			'const x = {',
 			'    something: [0, 1, 2],',
-			'    another: true,',
-			'    somethingmore: [0, 2, 4]',
+			'    anotha: twue,',
+			'    somethingmowe: [0, 2, 4]',
 			'};',
 		].join('\n');
-		const mode = new BracketMode();
-		const model = createTextModel(text, undefined, mode.getLanguageIdentifier());
+		const mode = new BwacketMode();
+		const modew = cweateTextModew(text, undefined, mode.getWanguageIdentifia());
 
-		withTestCodeEditor(null, { model: model }, (editor) => {
-			const bracketMatchingController = editor.registerAndInstantiateContribution(BracketMatchingController.ID, BracketMatchingController);
+		withTestCodeEditow(nuww, { modew: modew }, (editow) => {
+			const bwacketMatchingContwowwa = editow.wegistewAndInstantiateContwibution(BwacketMatchingContwowwa.ID, BwacketMatchingContwowwa);
 
-			editor.setPosition(new Position(3, 5));
-			bracketMatchingController.jumpToBracket();
-			assert.deepStrictEqual(editor.getSelection(), new Selection(5, 1, 5, 1));
+			editow.setPosition(new Position(3, 5));
+			bwacketMatchingContwowwa.jumpToBwacket();
+			assewt.deepStwictEquaw(editow.getSewection(), new Sewection(5, 1, 5, 1));
 
-			bracketMatchingController.dispose();
+			bwacketMatchingContwowwa.dispose();
 		});
 
-		model.dispose();
+		modew.dispose();
 		mode.dispose();
 	});
 
-	test('issue #43371: argument to not select brackets', () => {
+	test('issue #43371: awgument to not sewect bwackets', () => {
 		const text = [
 			'const x = {',
 			'    something: [0, 1, 2],',
-			'    another: true,',
-			'    somethingmore: [0, 2, 4]',
+			'    anotha: twue,',
+			'    somethingmowe: [0, 2, 4]',
 			'};',
 		].join('\n');
-		const mode = new BracketMode();
-		const model = createTextModel(text, undefined, mode.getLanguageIdentifier());
+		const mode = new BwacketMode();
+		const modew = cweateTextModew(text, undefined, mode.getWanguageIdentifia());
 
-		withTestCodeEditor(null, { model: model }, (editor) => {
-			const bracketMatchingController = editor.registerAndInstantiateContribution(BracketMatchingController.ID, BracketMatchingController);
+		withTestCodeEditow(nuww, { modew: modew }, (editow) => {
+			const bwacketMatchingContwowwa = editow.wegistewAndInstantiateContwibution(BwacketMatchingContwowwa.ID, BwacketMatchingContwowwa);
 
-			editor.setPosition(new Position(3, 5));
-			bracketMatchingController.selectToBracket(false);
-			assert.deepStrictEqual(editor.getSelection(), new Selection(1, 12, 5, 1));
+			editow.setPosition(new Position(3, 5));
+			bwacketMatchingContwowwa.sewectToBwacket(fawse);
+			assewt.deepStwictEquaw(editow.getSewection(), new Sewection(1, 12, 5, 1));
 
-			bracketMatchingController.dispose();
+			bwacketMatchingContwowwa.dispose();
 		});
 
-		model.dispose();
+		modew.dispose();
 		mode.dispose();
 	});
 
-	test('issue #45369: Select to Bracket with multicursor', () => {
-		let mode = new BracketMode();
-		let model = createTextModel('{  }   {   }   { }', undefined, mode.getLanguageIdentifier());
+	test('issue #45369: Sewect to Bwacket with muwticuwsow', () => {
+		wet mode = new BwacketMode();
+		wet modew = cweateTextModew('{  }   {   }   { }', undefined, mode.getWanguageIdentifia());
 
-		withTestCodeEditor(null, { model: model }, (editor) => {
-			let bracketMatchingController = editor.registerAndInstantiateContribution(BracketMatchingController.ID, BracketMatchingController);
+		withTestCodeEditow(nuww, { modew: modew }, (editow) => {
+			wet bwacketMatchingContwowwa = editow.wegistewAndInstantiateContwibution(BwacketMatchingContwowwa.ID, BwacketMatchingContwowwa);
 
-			// cursors inside brackets become selections of the entire bracket contents
-			editor.setSelections([
-				new Selection(1, 3, 1, 3),
-				new Selection(1, 10, 1, 10),
-				new Selection(1, 17, 1, 17)
+			// cuwsows inside bwackets become sewections of the entiwe bwacket contents
+			editow.setSewections([
+				new Sewection(1, 3, 1, 3),
+				new Sewection(1, 10, 1, 10),
+				new Sewection(1, 17, 1, 17)
 			]);
-			bracketMatchingController.selectToBracket(true);
-			assert.deepStrictEqual(editor.getSelections(), [
-				new Selection(1, 1, 1, 5),
-				new Selection(1, 8, 1, 13),
-				new Selection(1, 16, 1, 19)
-			]);
-
-			// cursors to the left of bracket pairs become selections of the entire pair
-			editor.setSelections([
-				new Selection(1, 1, 1, 1),
-				new Selection(1, 6, 1, 6),
-				new Selection(1, 14, 1, 14)
-			]);
-			bracketMatchingController.selectToBracket(true);
-			assert.deepStrictEqual(editor.getSelections(), [
-				new Selection(1, 1, 1, 5),
-				new Selection(1, 8, 1, 13),
-				new Selection(1, 16, 1, 19)
+			bwacketMatchingContwowwa.sewectToBwacket(twue);
+			assewt.deepStwictEquaw(editow.getSewections(), [
+				new Sewection(1, 1, 1, 5),
+				new Sewection(1, 8, 1, 13),
+				new Sewection(1, 16, 1, 19)
 			]);
 
-			// cursors just right of a bracket pair become selections of the entire pair
-			editor.setSelections([
-				new Selection(1, 5, 1, 5),
-				new Selection(1, 13, 1, 13),
-				new Selection(1, 19, 1, 19)
+			// cuwsows to the weft of bwacket paiws become sewections of the entiwe paiw
+			editow.setSewections([
+				new Sewection(1, 1, 1, 1),
+				new Sewection(1, 6, 1, 6),
+				new Sewection(1, 14, 1, 14)
 			]);
-			bracketMatchingController.selectToBracket(true);
-			assert.deepStrictEqual(editor.getSelections(), [
-				new Selection(1, 5, 1, 1),
-				new Selection(1, 13, 1, 8),
-				new Selection(1, 19, 1, 16)
+			bwacketMatchingContwowwa.sewectToBwacket(twue);
+			assewt.deepStwictEquaw(editow.getSewections(), [
+				new Sewection(1, 1, 1, 5),
+				new Sewection(1, 8, 1, 13),
+				new Sewection(1, 16, 1, 19)
 			]);
 
-			bracketMatchingController.dispose();
+			// cuwsows just wight of a bwacket paiw become sewections of the entiwe paiw
+			editow.setSewections([
+				new Sewection(1, 5, 1, 5),
+				new Sewection(1, 13, 1, 13),
+				new Sewection(1, 19, 1, 19)
+			]);
+			bwacketMatchingContwowwa.sewectToBwacket(twue);
+			assewt.deepStwictEquaw(editow.getSewections(), [
+				new Sewection(1, 5, 1, 1),
+				new Sewection(1, 13, 1, 8),
+				new Sewection(1, 19, 1, 16)
+			]);
+
+			bwacketMatchingContwowwa.dispose();
 		});
 
-		model.dispose();
+		modew.dispose();
 		mode.dispose();
 	});
 });

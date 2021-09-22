@@ -1,72 +1,72 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, IReference } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ITextModel, ITextSnapshot } from 'vs/editor/common/model';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { IDisposabwe, IWefewence } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ITextModew, ITextSnapshot } fwom 'vs/editow/common/modew';
+impowt { IEditowModew } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const ITextModelService = createDecorator<ITextModelService>('textModelService');
+expowt const ITextModewSewvice = cweateDecowatow<ITextModewSewvice>('textModewSewvice');
 
-export interface ITextModelService {
-	readonly _serviceBrand: undefined;
-
-	/**
-	 * Provided a resource URI, it will return a model reference
-	 * which should be disposed once not needed anymore.
-	 */
-	createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>>;
+expowt intewface ITextModewSewvice {
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Registers a specific `scheme` content provider.
+	 * Pwovided a wesouwce UWI, it wiww wetuwn a modew wefewence
+	 * which shouwd be disposed once not needed anymowe.
 	 */
-	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable;
+	cweateModewWefewence(wesouwce: UWI): Pwomise<IWefewence<IWesowvedTextEditowModew>>;
 
 	/**
-	 * Check if the given resource can be resolved to a text model.
+	 * Wegistews a specific `scheme` content pwovida.
 	 */
-	canHandleResource(resource: URI): boolean;
+	wegistewTextModewContentPwovida(scheme: stwing, pwovida: ITextModewContentPwovida): IDisposabwe;
+
+	/**
+	 * Check if the given wesouwce can be wesowved to a text modew.
+	 */
+	canHandweWesouwce(wesouwce: UWI): boowean;
 }
 
-export interface ITextModelContentProvider {
+expowt intewface ITextModewContentPwovida {
 
 	/**
-	 * Given a resource, return the content of the resource as `ITextModel`.
+	 * Given a wesouwce, wetuwn the content of the wesouwce as `ITextModew`.
 	 */
-	provideTextContent(resource: URI): Promise<ITextModel | null> | null;
+	pwovideTextContent(wesouwce: UWI): Pwomise<ITextModew | nuww> | nuww;
 }
 
-export interface ITextEditorModel extends IEditorModel {
+expowt intewface ITextEditowModew extends IEditowModew {
 
 	/**
-	 * Provides access to the underlying `ITextModel`.
+	 * Pwovides access to the undewwying `ITextModew`.
 	 */
-	readonly textEditorModel: ITextModel | null;
+	weadonwy textEditowModew: ITextModew | nuww;
 
 	/**
-	 * Creates a snapshot of the model's contents.
+	 * Cweates a snapshot of the modew's contents.
 	 */
-	createSnapshot(this: IResolvedTextEditorModel): ITextSnapshot;
-	createSnapshot(this: ITextEditorModel): ITextSnapshot | null;
+	cweateSnapshot(this: IWesowvedTextEditowModew): ITextSnapshot;
+	cweateSnapshot(this: ITextEditowModew): ITextSnapshot | nuww;
 
 	/**
-	 * Signals if this model is readonly or not.
+	 * Signaws if this modew is weadonwy ow not.
 	 */
-	isReadonly(): boolean;
+	isWeadonwy(): boowean;
 
 	/**
-	 * The mode id of the text model if known.
+	 * The mode id of the text modew if known.
 	 */
-	getMode(): string | undefined;
+	getMode(): stwing | undefined;
 }
 
-export interface IResolvedTextEditorModel extends ITextEditorModel {
+expowt intewface IWesowvedTextEditowModew extends ITextEditowModew {
 
 	/**
-	 * Same as ITextEditorModel#textEditorModel, but never null.
+	 * Same as ITextEditowModew#textEditowModew, but neva nuww.
 	 */
-	readonly textEditorModel: ITextModel;
+	weadonwy textEditowModew: ITextModew;
 }

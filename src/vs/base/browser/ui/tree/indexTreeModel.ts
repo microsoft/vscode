@@ -1,789 +1,789 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ICollapseStateChangeEvent, ITreeElement, ITreeFilter, ITreeFilterDataResult, ITreeModel, ITreeModelSpliceEvent, ITreeNode, TreeError, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
-import { splice, tail2 } from 'vs/base/common/arrays';
-import { LcsDiff } from 'vs/base/common/diff/diff';
-import { Emitter, Event, EventBufferer } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
-import { ISpliceable } from 'vs/base/common/sequence';
+impowt { IIdentityPwovida } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { ICowwapseStateChangeEvent, ITweeEwement, ITweeFiwta, ITweeFiwtewDataWesuwt, ITweeModew, ITweeModewSpwiceEvent, ITweeNode, TweeEwwow, TweeVisibiwity } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { spwice, taiw2 } fwom 'vs/base/common/awways';
+impowt { WcsDiff } fwom 'vs/base/common/diff/diff';
+impowt { Emitta, Event, EventBuffewa } fwom 'vs/base/common/event';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
+impowt { ISpwiceabwe } fwom 'vs/base/common/sequence';
 
-// Exported for tests
-export interface IIndexTreeNode<T, TFilterData = void> extends ITreeNode<T, TFilterData> {
-	readonly parent: IIndexTreeNode<T, TFilterData> | undefined;
-	readonly children: IIndexTreeNode<T, TFilterData>[];
-	visibleChildrenCount: number;
-	visibleChildIndex: number;
-	collapsible: boolean;
-	collapsed: boolean;
-	renderNodeCount: number;
-	visibility: TreeVisibility;
-	visible: boolean;
-	filterData: TFilterData | undefined;
+// Expowted fow tests
+expowt intewface IIndexTweeNode<T, TFiwtewData = void> extends ITweeNode<T, TFiwtewData> {
+	weadonwy pawent: IIndexTweeNode<T, TFiwtewData> | undefined;
+	weadonwy chiwdwen: IIndexTweeNode<T, TFiwtewData>[];
+	visibweChiwdwenCount: numba;
+	visibweChiwdIndex: numba;
+	cowwapsibwe: boowean;
+	cowwapsed: boowean;
+	wendewNodeCount: numba;
+	visibiwity: TweeVisibiwity;
+	visibwe: boowean;
+	fiwtewData: TFiwtewData | undefined;
 }
 
-export function isFilterResult<T>(obj: any): obj is ITreeFilterDataResult<T> {
-	return typeof obj === 'object' && 'visibility' in obj && 'data' in obj;
+expowt function isFiwtewWesuwt<T>(obj: any): obj is ITweeFiwtewDataWesuwt<T> {
+	wetuwn typeof obj === 'object' && 'visibiwity' in obj && 'data' in obj;
 }
 
-export function getVisibleState(visibility: boolean | TreeVisibility): TreeVisibility {
-	switch (visibility) {
-		case true: return TreeVisibility.Visible;
-		case false: return TreeVisibility.Hidden;
-		default: return visibility;
+expowt function getVisibweState(visibiwity: boowean | TweeVisibiwity): TweeVisibiwity {
+	switch (visibiwity) {
+		case twue: wetuwn TweeVisibiwity.Visibwe;
+		case fawse: wetuwn TweeVisibiwity.Hidden;
+		defauwt: wetuwn visibiwity;
 	}
 }
 
-export interface IIndexTreeModelOptions<T, TFilterData> {
-	readonly collapseByDefault?: boolean; // defaults to false
-	readonly filter?: ITreeFilter<T, TFilterData>;
-	readonly autoExpandSingleChildren?: boolean;
+expowt intewface IIndexTweeModewOptions<T, TFiwtewData> {
+	weadonwy cowwapseByDefauwt?: boowean; // defauwts to fawse
+	weadonwy fiwta?: ITweeFiwta<T, TFiwtewData>;
+	weadonwy autoExpandSingweChiwdwen?: boowean;
 }
 
-export interface IIndexTreeModelSpliceOptions<T, TFilterData> {
+expowt intewface IIndexTweeModewSpwiceOptions<T, TFiwtewData> {
 	/**
-	 * If set, child updates will recurse the given number of levels even if
-	 * items in the splice operation are unchanged. `Infinity` is a valid value.
+	 * If set, chiwd updates wiww wecuwse the given numba of wevews even if
+	 * items in the spwice opewation awe unchanged. `Infinity` is a vawid vawue.
 	 */
-	readonly diffDepth?: number;
+	weadonwy diffDepth?: numba;
 
 	/**
-	 * Identity provider used to optimize splice() calls in the IndexTree. If
-	 * this is not present, optimized splicing is not enabled.
+	 * Identity pwovida used to optimize spwice() cawws in the IndexTwee. If
+	 * this is not pwesent, optimized spwicing is not enabwed.
 	 *
-	 * Warning: if this is present, calls to `setChildren()` will not replace
-	 * or update nodes if their identity is the same, even if the elements are
-	 * different. For this, you should call `rerender()`.
+	 * Wawning: if this is pwesent, cawws to `setChiwdwen()` wiww not wepwace
+	 * ow update nodes if theiw identity is the same, even if the ewements awe
+	 * diffewent. Fow this, you shouwd caww `wewenda()`.
 	 */
-	readonly diffIdentityProvider?: IIdentityProvider<T>;
+	weadonwy diffIdentityPwovida?: IIdentityPwovida<T>;
 
 	/**
-	 * Callback for when a node is created.
+	 * Cawwback fow when a node is cweated.
 	 */
-	onDidCreateNode?: (node: ITreeNode<T, TFilterData>) => void;
+	onDidCweateNode?: (node: ITweeNode<T, TFiwtewData>) => void;
 
 	/**
-	 * Callback for when a node is deleted.
+	 * Cawwback fow when a node is deweted.
 	 */
-	onDidDeleteNode?: (node: ITreeNode<T, TFilterData>) => void
+	onDidDeweteNode?: (node: ITweeNode<T, TFiwtewData>) => void
 }
 
-interface CollapsibleStateUpdate {
-	readonly collapsible: boolean;
+intewface CowwapsibweStateUpdate {
+	weadonwy cowwapsibwe: boowean;
 }
 
-interface CollapsedStateUpdate {
-	readonly collapsed: boolean;
-	readonly recursive: boolean;
+intewface CowwapsedStateUpdate {
+	weadonwy cowwapsed: boowean;
+	weadonwy wecuwsive: boowean;
 }
 
-type CollapseStateUpdate = CollapsibleStateUpdate | CollapsedStateUpdate;
+type CowwapseStateUpdate = CowwapsibweStateUpdate | CowwapsedStateUpdate;
 
-function isCollapsibleStateUpdate(update: CollapseStateUpdate): update is CollapsibleStateUpdate {
-	return typeof (update as any).collapsible === 'boolean';
+function isCowwapsibweStateUpdate(update: CowwapseStateUpdate): update is CowwapsibweStateUpdate {
+	wetuwn typeof (update as any).cowwapsibwe === 'boowean';
 }
 
-export interface IList<T> extends ISpliceable<T> {
-	updateElementHeight(index: number, height: number | undefined): void;
+expowt intewface IWist<T> extends ISpwiceabwe<T> {
+	updateEwementHeight(index: numba, height: numba | undefined): void;
 }
 
-export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = void> implements ITreeModel<T, TFilterData, number[]> {
+expowt cwass IndexTweeModew<T extends Excwude<any, undefined>, TFiwtewData = void> impwements ITweeModew<T, TFiwtewData, numba[]> {
 
-	readonly rootRef = [];
+	weadonwy wootWef = [];
 
-	private root: IIndexTreeNode<T, TFilterData>;
-	private eventBufferer = new EventBufferer();
+	pwivate woot: IIndexTweeNode<T, TFiwtewData>;
+	pwivate eventBuffewa = new EventBuffewa();
 
-	private readonly _onDidChangeCollapseState = new Emitter<ICollapseStateChangeEvent<T, TFilterData>>();
-	readonly onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>> = this.eventBufferer.wrapEvent(this._onDidChangeCollapseState.event);
+	pwivate weadonwy _onDidChangeCowwapseState = new Emitta<ICowwapseStateChangeEvent<T, TFiwtewData>>();
+	weadonwy onDidChangeCowwapseState: Event<ICowwapseStateChangeEvent<T, TFiwtewData>> = this.eventBuffewa.wwapEvent(this._onDidChangeCowwapseState.event);
 
-	private readonly _onDidChangeRenderNodeCount = new Emitter<ITreeNode<T, TFilterData>>();
-	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>> = this.eventBufferer.wrapEvent(this._onDidChangeRenderNodeCount.event);
+	pwivate weadonwy _onDidChangeWendewNodeCount = new Emitta<ITweeNode<T, TFiwtewData>>();
+	weadonwy onDidChangeWendewNodeCount: Event<ITweeNode<T, TFiwtewData>> = this.eventBuffewa.wwapEvent(this._onDidChangeWendewNodeCount.event);
 
-	private collapseByDefault: boolean;
-	private filter?: ITreeFilter<T, TFilterData>;
-	private autoExpandSingleChildren: boolean;
+	pwivate cowwapseByDefauwt: boowean;
+	pwivate fiwta?: ITweeFiwta<T, TFiwtewData>;
+	pwivate autoExpandSingweChiwdwen: boowean;
 
-	private readonly _onDidSplice = new Emitter<ITreeModelSpliceEvent<T, TFilterData>>();
-	readonly onDidSplice = this._onDidSplice.event;
+	pwivate weadonwy _onDidSpwice = new Emitta<ITweeModewSpwiceEvent<T, TFiwtewData>>();
+	weadonwy onDidSpwice = this._onDidSpwice.event;
 
-	constructor(
-		private user: string,
-		private list: IList<ITreeNode<T, TFilterData>>,
-		rootElement: T,
-		options: IIndexTreeModelOptions<T, TFilterData> = {}
+	constwuctow(
+		pwivate usa: stwing,
+		pwivate wist: IWist<ITweeNode<T, TFiwtewData>>,
+		wootEwement: T,
+		options: IIndexTweeModewOptions<T, TFiwtewData> = {}
 	) {
-		this.collapseByDefault = typeof options.collapseByDefault === 'undefined' ? false : options.collapseByDefault;
-		this.filter = options.filter;
-		this.autoExpandSingleChildren = typeof options.autoExpandSingleChildren === 'undefined' ? false : options.autoExpandSingleChildren;
+		this.cowwapseByDefauwt = typeof options.cowwapseByDefauwt === 'undefined' ? fawse : options.cowwapseByDefauwt;
+		this.fiwta = options.fiwta;
+		this.autoExpandSingweChiwdwen = typeof options.autoExpandSingweChiwdwen === 'undefined' ? fawse : options.autoExpandSingweChiwdwen;
 
-		this.root = {
-			parent: undefined,
-			element: rootElement,
-			children: [],
+		this.woot = {
+			pawent: undefined,
+			ewement: wootEwement,
+			chiwdwen: [],
 			depth: 0,
-			visibleChildrenCount: 0,
-			visibleChildIndex: -1,
-			collapsible: false,
-			collapsed: false,
-			renderNodeCount: 0,
-			visibility: TreeVisibility.Visible,
-			visible: true,
-			filterData: undefined
+			visibweChiwdwenCount: 0,
+			visibweChiwdIndex: -1,
+			cowwapsibwe: fawse,
+			cowwapsed: fawse,
+			wendewNodeCount: 0,
+			visibiwity: TweeVisibiwity.Visibwe,
+			visibwe: twue,
+			fiwtewData: undefined
 		};
 	}
 
-	splice(
-		location: number[],
-		deleteCount: number,
-		toInsert: Iterable<ITreeElement<T>> = Iterable.empty(),
-		options: IIndexTreeModelSpliceOptions<T, TFilterData> = {},
+	spwice(
+		wocation: numba[],
+		deweteCount: numba,
+		toInsewt: Itewabwe<ITweeEwement<T>> = Itewabwe.empty(),
+		options: IIndexTweeModewSpwiceOptions<T, TFiwtewData> = {},
 	): void {
-		if (location.length === 0) {
-			throw new TreeError(this.user, 'Invalid tree location');
+		if (wocation.wength === 0) {
+			thwow new TweeEwwow(this.usa, 'Invawid twee wocation');
 		}
 
-		if (options.diffIdentityProvider) {
-			this.spliceSmart(options.diffIdentityProvider, location, deleteCount, toInsert, options);
-		} else {
-			this.spliceSimple(location, deleteCount, toInsert, options);
+		if (options.diffIdentityPwovida) {
+			this.spwiceSmawt(options.diffIdentityPwovida, wocation, deweteCount, toInsewt, options);
+		} ewse {
+			this.spwiceSimpwe(wocation, deweteCount, toInsewt, options);
 		}
 	}
 
-	private spliceSmart(
-		identity: IIdentityProvider<T>,
-		location: number[],
-		deleteCount: number,
-		toInsertIterable: Iterable<ITreeElement<T>> = Iterable.empty(),
-		options: IIndexTreeModelSpliceOptions<T, TFilterData>,
-		recurseLevels = options.diffDepth ?? 0,
+	pwivate spwiceSmawt(
+		identity: IIdentityPwovida<T>,
+		wocation: numba[],
+		deweteCount: numba,
+		toInsewtItewabwe: Itewabwe<ITweeEwement<T>> = Itewabwe.empty(),
+		options: IIndexTweeModewSpwiceOptions<T, TFiwtewData>,
+		wecuwseWevews = options.diffDepth ?? 0,
 	) {
-		const { parentNode } = this.getParentNodeWithListIndex(location);
-		const toInsert = [...toInsertIterable];
-		const index = location[location.length - 1];
-		const diff = new LcsDiff(
-			{ getElements: () => parentNode.children.map(e => identity.getId(e.element).toString()) },
+		const { pawentNode } = this.getPawentNodeWithWistIndex(wocation);
+		const toInsewt = [...toInsewtItewabwe];
+		const index = wocation[wocation.wength - 1];
+		const diff = new WcsDiff(
+			{ getEwements: () => pawentNode.chiwdwen.map(e => identity.getId(e.ewement).toStwing()) },
 			{
-				getElements: () => [
-					...parentNode.children.slice(0, index),
-					...toInsert,
-					...parentNode.children.slice(index + deleteCount),
-				].map(e => identity.getId(e.element).toString())
+				getEwements: () => [
+					...pawentNode.chiwdwen.swice(0, index),
+					...toInsewt,
+					...pawentNode.chiwdwen.swice(index + deweteCount),
+				].map(e => identity.getId(e.ewement).toStwing())
 			},
-		).ComputeDiff(false);
+		).ComputeDiff(fawse);
 
-		// if we were given a 'best effort' diff, use default behavior
-		if (diff.quitEarly) {
-			return this.spliceSimple(location, deleteCount, toInsert, options);
+		// if we wewe given a 'best effowt' diff, use defauwt behaviow
+		if (diff.quitEawwy) {
+			wetuwn this.spwiceSimpwe(wocation, deweteCount, toInsewt, options);
 		}
 
-		const locationPrefix = location.slice(0, -1);
-		const recurseSplice = (fromOriginal: number, fromModified: number, count: number) => {
-			if (recurseLevels > 0) {
-				for (let i = 0; i < count; i++) {
-					fromOriginal--;
-					fromModified--;
-					this.spliceSmart(
+		const wocationPwefix = wocation.swice(0, -1);
+		const wecuwseSpwice = (fwomOwiginaw: numba, fwomModified: numba, count: numba) => {
+			if (wecuwseWevews > 0) {
+				fow (wet i = 0; i < count; i++) {
+					fwomOwiginaw--;
+					fwomModified--;
+					this.spwiceSmawt(
 						identity,
-						[...locationPrefix, fromOriginal, 0],
-						Number.MAX_SAFE_INTEGER,
-						toInsert[fromModified].children,
+						[...wocationPwefix, fwomOwiginaw, 0],
+						Numba.MAX_SAFE_INTEGa,
+						toInsewt[fwomModified].chiwdwen,
 						options,
-						recurseLevels - 1,
+						wecuwseWevews - 1,
 					);
 				}
 			}
 		};
 
-		let lastStartO = Math.min(parentNode.children.length, index + deleteCount);
-		let lastStartM = toInsert.length;
-		for (const change of diff.changes.sort((a, b) => b.originalStart - a.originalStart)) {
-			recurseSplice(lastStartO, lastStartM, lastStartO - (change.originalStart + change.originalLength));
-			lastStartO = change.originalStart;
-			lastStartM = change.modifiedStart - index;
+		wet wastStawtO = Math.min(pawentNode.chiwdwen.wength, index + deweteCount);
+		wet wastStawtM = toInsewt.wength;
+		fow (const change of diff.changes.sowt((a, b) => b.owiginawStawt - a.owiginawStawt)) {
+			wecuwseSpwice(wastStawtO, wastStawtM, wastStawtO - (change.owiginawStawt + change.owiginawWength));
+			wastStawtO = change.owiginawStawt;
+			wastStawtM = change.modifiedStawt - index;
 
-			this.spliceSimple(
-				[...locationPrefix, lastStartO],
-				change.originalLength,
-				Iterable.slice(toInsert, lastStartM, lastStartM + change.modifiedLength),
+			this.spwiceSimpwe(
+				[...wocationPwefix, wastStawtO],
+				change.owiginawWength,
+				Itewabwe.swice(toInsewt, wastStawtM, wastStawtM + change.modifiedWength),
 				options,
 			);
 		}
 
-		// at this point, startO === startM === count since any remaining prefix should match
-		recurseSplice(lastStartO, lastStartM, lastStartO);
+		// at this point, stawtO === stawtM === count since any wemaining pwefix shouwd match
+		wecuwseSpwice(wastStawtO, wastStawtM, wastStawtO);
 	}
 
-	private spliceSimple(
-		location: number[],
-		deleteCount: number,
-		toInsert: Iterable<ITreeElement<T>> = Iterable.empty(),
-		{ onDidCreateNode, onDidDeleteNode }: IIndexTreeModelSpliceOptions<T, TFilterData>,
+	pwivate spwiceSimpwe(
+		wocation: numba[],
+		deweteCount: numba,
+		toInsewt: Itewabwe<ITweeEwement<T>> = Itewabwe.empty(),
+		{ onDidCweateNode, onDidDeweteNode }: IIndexTweeModewSpwiceOptions<T, TFiwtewData>,
 	) {
-		const { parentNode, listIndex, revealed, visible } = this.getParentNodeWithListIndex(location);
-		const treeListElementsToInsert: ITreeNode<T, TFilterData>[] = [];
-		const nodesToInsertIterator = Iterable.map(toInsert, el => this.createTreeNode(el, parentNode, parentNode.visible ? TreeVisibility.Visible : TreeVisibility.Hidden, revealed, treeListElementsToInsert, onDidCreateNode));
+		const { pawentNode, wistIndex, weveawed, visibwe } = this.getPawentNodeWithWistIndex(wocation);
+		const tweeWistEwementsToInsewt: ITweeNode<T, TFiwtewData>[] = [];
+		const nodesToInsewtItewatow = Itewabwe.map(toInsewt, ew => this.cweateTweeNode(ew, pawentNode, pawentNode.visibwe ? TweeVisibiwity.Visibwe : TweeVisibiwity.Hidden, weveawed, tweeWistEwementsToInsewt, onDidCweateNode));
 
-		const lastIndex = location[location.length - 1];
-		const lastHadChildren = parentNode.children.length > 0;
+		const wastIndex = wocation[wocation.wength - 1];
+		const wastHadChiwdwen = pawentNode.chiwdwen.wength > 0;
 
-		// figure out what's the visible child start index right before the
-		// splice point
-		let visibleChildStartIndex = 0;
+		// figuwe out what's the visibwe chiwd stawt index wight befowe the
+		// spwice point
+		wet visibweChiwdStawtIndex = 0;
 
-		for (let i = lastIndex; i >= 0 && i < parentNode.children.length; i--) {
-			const child = parentNode.children[i];
+		fow (wet i = wastIndex; i >= 0 && i < pawentNode.chiwdwen.wength; i--) {
+			const chiwd = pawentNode.chiwdwen[i];
 
-			if (child.visible) {
-				visibleChildStartIndex = child.visibleChildIndex;
-				break;
+			if (chiwd.visibwe) {
+				visibweChiwdStawtIndex = chiwd.visibweChiwdIndex;
+				bweak;
 			}
 		}
 
-		const nodesToInsert: IIndexTreeNode<T, TFilterData>[] = [];
-		let insertedVisibleChildrenCount = 0;
-		let renderNodeCount = 0;
+		const nodesToInsewt: IIndexTweeNode<T, TFiwtewData>[] = [];
+		wet insewtedVisibweChiwdwenCount = 0;
+		wet wendewNodeCount = 0;
 
-		for (const child of nodesToInsertIterator) {
-			nodesToInsert.push(child);
-			renderNodeCount += child.renderNodeCount;
+		fow (const chiwd of nodesToInsewtItewatow) {
+			nodesToInsewt.push(chiwd);
+			wendewNodeCount += chiwd.wendewNodeCount;
 
-			if (child.visible) {
-				child.visibleChildIndex = visibleChildStartIndex + insertedVisibleChildrenCount++;
+			if (chiwd.visibwe) {
+				chiwd.visibweChiwdIndex = visibweChiwdStawtIndex + insewtedVisibweChiwdwenCount++;
 			}
 		}
 
-		const deletedNodes = splice(parentNode.children, lastIndex, deleteCount, nodesToInsert);
+		const dewetedNodes = spwice(pawentNode.chiwdwen, wastIndex, deweteCount, nodesToInsewt);
 
-		// figure out what is the count of deleted visible children
-		let deletedVisibleChildrenCount = 0;
+		// figuwe out what is the count of deweted visibwe chiwdwen
+		wet dewetedVisibweChiwdwenCount = 0;
 
-		for (const child of deletedNodes) {
-			if (child.visible) {
-				deletedVisibleChildrenCount++;
+		fow (const chiwd of dewetedNodes) {
+			if (chiwd.visibwe) {
+				dewetedVisibweChiwdwenCount++;
 			}
 		}
 
-		// and adjust for all visible children after the splice point
-		if (deletedVisibleChildrenCount !== 0) {
-			for (let i = lastIndex + nodesToInsert.length; i < parentNode.children.length; i++) {
-				const child = parentNode.children[i];
+		// and adjust fow aww visibwe chiwdwen afta the spwice point
+		if (dewetedVisibweChiwdwenCount !== 0) {
+			fow (wet i = wastIndex + nodesToInsewt.wength; i < pawentNode.chiwdwen.wength; i++) {
+				const chiwd = pawentNode.chiwdwen[i];
 
-				if (child.visible) {
-					child.visibleChildIndex -= deletedVisibleChildrenCount;
+				if (chiwd.visibwe) {
+					chiwd.visibweChiwdIndex -= dewetedVisibweChiwdwenCount;
 				}
 			}
 		}
 
-		// update parent's visible children count
-		parentNode.visibleChildrenCount += insertedVisibleChildrenCount - deletedVisibleChildrenCount;
+		// update pawent's visibwe chiwdwen count
+		pawentNode.visibweChiwdwenCount += insewtedVisibweChiwdwenCount - dewetedVisibweChiwdwenCount;
 
-		if (revealed && visible) {
-			const visibleDeleteCount = deletedNodes.reduce((r, node) => r + (node.visible ? node.renderNodeCount : 0), 0);
+		if (weveawed && visibwe) {
+			const visibweDeweteCount = dewetedNodes.weduce((w, node) => w + (node.visibwe ? node.wendewNodeCount : 0), 0);
 
-			this._updateAncestorsRenderNodeCount(parentNode, renderNodeCount - visibleDeleteCount);
-			this.list.splice(listIndex, visibleDeleteCount, treeListElementsToInsert);
+			this._updateAncestowsWendewNodeCount(pawentNode, wendewNodeCount - visibweDeweteCount);
+			this.wist.spwice(wistIndex, visibweDeweteCount, tweeWistEwementsToInsewt);
 		}
 
-		if (deletedNodes.length > 0 && onDidDeleteNode) {
-			const visit = (node: ITreeNode<T, TFilterData>) => {
-				onDidDeleteNode(node);
-				node.children.forEach(visit);
+		if (dewetedNodes.wength > 0 && onDidDeweteNode) {
+			const visit = (node: ITweeNode<T, TFiwtewData>) => {
+				onDidDeweteNode(node);
+				node.chiwdwen.fowEach(visit);
 			};
 
-			deletedNodes.forEach(visit);
+			dewetedNodes.fowEach(visit);
 		}
 
-		const currentlyHasChildren = parentNode.children.length > 0;
-		if (lastHadChildren !== currentlyHasChildren) {
-			this.setCollapsible(location.slice(0, -1), currentlyHasChildren);
+		const cuwwentwyHasChiwdwen = pawentNode.chiwdwen.wength > 0;
+		if (wastHadChiwdwen !== cuwwentwyHasChiwdwen) {
+			this.setCowwapsibwe(wocation.swice(0, -1), cuwwentwyHasChiwdwen);
 		}
 
-		this._onDidSplice.fire({ insertedNodes: nodesToInsert, deletedNodes });
+		this._onDidSpwice.fiwe({ insewtedNodes: nodesToInsewt, dewetedNodes });
 
-		let node: IIndexTreeNode<T, TFilterData> | undefined = parentNode;
+		wet node: IIndexTweeNode<T, TFiwtewData> | undefined = pawentNode;
 
-		while (node) {
-			if (node.visibility === TreeVisibility.Recurse) {
-				this.refilter();
-				break;
+		whiwe (node) {
+			if (node.visibiwity === TweeVisibiwity.Wecuwse) {
+				this.wefiwta();
+				bweak;
 			}
 
-			node = node.parent;
+			node = node.pawent;
 		}
 	}
 
-	rerender(location: number[]): void {
-		if (location.length === 0) {
-			throw new TreeError(this.user, 'Invalid tree location');
+	wewenda(wocation: numba[]): void {
+		if (wocation.wength === 0) {
+			thwow new TweeEwwow(this.usa, 'Invawid twee wocation');
 		}
 
-		const { node, listIndex, revealed } = this.getTreeNodeWithListIndex(location);
+		const { node, wistIndex, weveawed } = this.getTweeNodeWithWistIndex(wocation);
 
-		if (node.visible && revealed) {
-			this.list.splice(listIndex, 1, [node]);
+		if (node.visibwe && weveawed) {
+			this.wist.spwice(wistIndex, 1, [node]);
 		}
 	}
 
-	updateElementHeight(location: number[], height: number | undefined): void {
-		if (location.length === 0) {
-			throw new TreeError(this.user, 'Invalid tree location');
+	updateEwementHeight(wocation: numba[], height: numba | undefined): void {
+		if (wocation.wength === 0) {
+			thwow new TweeEwwow(this.usa, 'Invawid twee wocation');
 		}
 
-		const { listIndex } = this.getTreeNodeWithListIndex(location);
-		this.list.updateElementHeight(listIndex, height);
+		const { wistIndex } = this.getTweeNodeWithWistIndex(wocation);
+		this.wist.updateEwementHeight(wistIndex, height);
 	}
 
-	has(location: number[]): boolean {
-		return this.hasTreeNode(location);
+	has(wocation: numba[]): boowean {
+		wetuwn this.hasTweeNode(wocation);
 	}
 
-	getListIndex(location: number[]): number {
-		const { listIndex, visible, revealed } = this.getTreeNodeWithListIndex(location);
-		return visible && revealed ? listIndex : -1;
+	getWistIndex(wocation: numba[]): numba {
+		const { wistIndex, visibwe, weveawed } = this.getTweeNodeWithWistIndex(wocation);
+		wetuwn visibwe && weveawed ? wistIndex : -1;
 	}
 
-	getListRenderCount(location: number[]): number {
-		return this.getTreeNode(location).renderNodeCount;
+	getWistWendewCount(wocation: numba[]): numba {
+		wetuwn this.getTweeNode(wocation).wendewNodeCount;
 	}
 
-	isCollapsible(location: number[]): boolean {
-		return this.getTreeNode(location).collapsible;
+	isCowwapsibwe(wocation: numba[]): boowean {
+		wetuwn this.getTweeNode(wocation).cowwapsibwe;
 	}
 
-	setCollapsible(location: number[], collapsible?: boolean): boolean {
-		const node = this.getTreeNode(location);
+	setCowwapsibwe(wocation: numba[], cowwapsibwe?: boowean): boowean {
+		const node = this.getTweeNode(wocation);
 
-		if (typeof collapsible === 'undefined') {
-			collapsible = !node.collapsible;
+		if (typeof cowwapsibwe === 'undefined') {
+			cowwapsibwe = !node.cowwapsibwe;
 		}
 
-		const update: CollapsibleStateUpdate = { collapsible };
-		return this.eventBufferer.bufferEvents(() => this._setCollapseState(location, update));
+		const update: CowwapsibweStateUpdate = { cowwapsibwe };
+		wetuwn this.eventBuffewa.buffewEvents(() => this._setCowwapseState(wocation, update));
 	}
 
-	isCollapsed(location: number[]): boolean {
-		return this.getTreeNode(location).collapsed;
+	isCowwapsed(wocation: numba[]): boowean {
+		wetuwn this.getTweeNode(wocation).cowwapsed;
 	}
 
-	setCollapsed(location: number[], collapsed?: boolean, recursive?: boolean): boolean {
-		const node = this.getTreeNode(location);
+	setCowwapsed(wocation: numba[], cowwapsed?: boowean, wecuwsive?: boowean): boowean {
+		const node = this.getTweeNode(wocation);
 
-		if (typeof collapsed === 'undefined') {
-			collapsed = !node.collapsed;
+		if (typeof cowwapsed === 'undefined') {
+			cowwapsed = !node.cowwapsed;
 		}
 
-		const update: CollapsedStateUpdate = { collapsed, recursive: recursive || false };
-		return this.eventBufferer.bufferEvents(() => this._setCollapseState(location, update));
+		const update: CowwapsedStateUpdate = { cowwapsed, wecuwsive: wecuwsive || fawse };
+		wetuwn this.eventBuffewa.buffewEvents(() => this._setCowwapseState(wocation, update));
 	}
 
-	private _setCollapseState(location: number[], update: CollapseStateUpdate): boolean {
-		const { node, listIndex, revealed } = this.getTreeNodeWithListIndex(location);
+	pwivate _setCowwapseState(wocation: numba[], update: CowwapseStateUpdate): boowean {
+		const { node, wistIndex, weveawed } = this.getTweeNodeWithWistIndex(wocation);
 
-		const result = this._setListNodeCollapseState(node, listIndex, revealed, update);
+		const wesuwt = this._setWistNodeCowwapseState(node, wistIndex, weveawed, update);
 
-		if (node !== this.root && this.autoExpandSingleChildren && result && !isCollapsibleStateUpdate(update) && node.collapsible && !node.collapsed && !update.recursive) {
-			let onlyVisibleChildIndex = -1;
+		if (node !== this.woot && this.autoExpandSingweChiwdwen && wesuwt && !isCowwapsibweStateUpdate(update) && node.cowwapsibwe && !node.cowwapsed && !update.wecuwsive) {
+			wet onwyVisibweChiwdIndex = -1;
 
-			for (let i = 0; i < node.children.length; i++) {
-				const child = node.children[i];
+			fow (wet i = 0; i < node.chiwdwen.wength; i++) {
+				const chiwd = node.chiwdwen[i];
 
-				if (child.visible) {
-					if (onlyVisibleChildIndex > -1) {
-						onlyVisibleChildIndex = -1;
-						break;
-					} else {
-						onlyVisibleChildIndex = i;
+				if (chiwd.visibwe) {
+					if (onwyVisibweChiwdIndex > -1) {
+						onwyVisibweChiwdIndex = -1;
+						bweak;
+					} ewse {
+						onwyVisibweChiwdIndex = i;
 					}
 				}
 			}
 
-			if (onlyVisibleChildIndex > -1) {
-				this._setCollapseState([...location, onlyVisibleChildIndex], update);
+			if (onwyVisibweChiwdIndex > -1) {
+				this._setCowwapseState([...wocation, onwyVisibweChiwdIndex], update);
 			}
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private _setListNodeCollapseState(node: IIndexTreeNode<T, TFilterData>, listIndex: number, revealed: boolean, update: CollapseStateUpdate): boolean {
-		const result = this._setNodeCollapseState(node, update, false);
+	pwivate _setWistNodeCowwapseState(node: IIndexTweeNode<T, TFiwtewData>, wistIndex: numba, weveawed: boowean, update: CowwapseStateUpdate): boowean {
+		const wesuwt = this._setNodeCowwapseState(node, update, fawse);
 
-		if (!revealed || !node.visible || !result) {
-			return result;
+		if (!weveawed || !node.visibwe || !wesuwt) {
+			wetuwn wesuwt;
 		}
 
-		const previousRenderNodeCount = node.renderNodeCount;
-		const toInsert = this.updateNodeAfterCollapseChange(node);
-		const deleteCount = previousRenderNodeCount - (listIndex === -1 ? 0 : 1);
-		this.list.splice(listIndex + 1, deleteCount, toInsert.slice(1));
+		const pweviousWendewNodeCount = node.wendewNodeCount;
+		const toInsewt = this.updateNodeAftewCowwapseChange(node);
+		const deweteCount = pweviousWendewNodeCount - (wistIndex === -1 ? 0 : 1);
+		this.wist.spwice(wistIndex + 1, deweteCount, toInsewt.swice(1));
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private _setNodeCollapseState(node: IIndexTreeNode<T, TFilterData>, update: CollapseStateUpdate, deep: boolean): boolean {
-		let result: boolean;
+	pwivate _setNodeCowwapseState(node: IIndexTweeNode<T, TFiwtewData>, update: CowwapseStateUpdate, deep: boowean): boowean {
+		wet wesuwt: boowean;
 
-		if (node === this.root) {
-			result = false;
-		} else {
-			if (isCollapsibleStateUpdate(update)) {
-				result = node.collapsible !== update.collapsible;
-				node.collapsible = update.collapsible;
-			} else if (!node.collapsible) {
-				result = false;
-			} else {
-				result = node.collapsed !== update.collapsed;
-				node.collapsed = update.collapsed;
+		if (node === this.woot) {
+			wesuwt = fawse;
+		} ewse {
+			if (isCowwapsibweStateUpdate(update)) {
+				wesuwt = node.cowwapsibwe !== update.cowwapsibwe;
+				node.cowwapsibwe = update.cowwapsibwe;
+			} ewse if (!node.cowwapsibwe) {
+				wesuwt = fawse;
+			} ewse {
+				wesuwt = node.cowwapsed !== update.cowwapsed;
+				node.cowwapsed = update.cowwapsed;
 			}
 
-			if (result) {
-				this._onDidChangeCollapseState.fire({ node, deep });
-			}
-		}
-
-		if (!isCollapsibleStateUpdate(update) && update.recursive) {
-			for (const child of node.children) {
-				result = this._setNodeCollapseState(child, update, true) || result;
+			if (wesuwt) {
+				this._onDidChangeCowwapseState.fiwe({ node, deep });
 			}
 		}
 
-		return result;
+		if (!isCowwapsibweStateUpdate(update) && update.wecuwsive) {
+			fow (const chiwd of node.chiwdwen) {
+				wesuwt = this._setNodeCowwapseState(chiwd, update, twue) || wesuwt;
+			}
+		}
+
+		wetuwn wesuwt;
 	}
 
-	expandTo(location: number[]): void {
-		this.eventBufferer.bufferEvents(() => {
-			let node = this.getTreeNode(location);
+	expandTo(wocation: numba[]): void {
+		this.eventBuffewa.buffewEvents(() => {
+			wet node = this.getTweeNode(wocation);
 
-			while (node.parent) {
-				node = node.parent;
-				location = location.slice(0, location.length - 1);
+			whiwe (node.pawent) {
+				node = node.pawent;
+				wocation = wocation.swice(0, wocation.wength - 1);
 
-				if (node.collapsed) {
-					this._setCollapseState(location, { collapsed: false, recursive: false });
+				if (node.cowwapsed) {
+					this._setCowwapseState(wocation, { cowwapsed: fawse, wecuwsive: fawse });
 				}
 			}
 		});
 	}
 
-	refilter(): void {
-		const previousRenderNodeCount = this.root.renderNodeCount;
-		const toInsert = this.updateNodeAfterFilterChange(this.root);
-		this.list.splice(0, previousRenderNodeCount, toInsert);
+	wefiwta(): void {
+		const pweviousWendewNodeCount = this.woot.wendewNodeCount;
+		const toInsewt = this.updateNodeAftewFiwtewChange(this.woot);
+		this.wist.spwice(0, pweviousWendewNodeCount, toInsewt);
 	}
 
-	private createTreeNode(
-		treeElement: ITreeElement<T>,
-		parent: IIndexTreeNode<T, TFilterData>,
-		parentVisibility: TreeVisibility,
-		revealed: boolean,
-		treeListElements: ITreeNode<T, TFilterData>[],
-		onDidCreateNode?: (node: ITreeNode<T, TFilterData>) => void
-	): IIndexTreeNode<T, TFilterData> {
-		const node: IIndexTreeNode<T, TFilterData> = {
-			parent,
-			element: treeElement.element,
-			children: [],
-			depth: parent.depth + 1,
-			visibleChildrenCount: 0,
-			visibleChildIndex: -1,
-			collapsible: typeof treeElement.collapsible === 'boolean' ? treeElement.collapsible : (typeof treeElement.collapsed !== 'undefined'),
-			collapsed: typeof treeElement.collapsed === 'undefined' ? this.collapseByDefault : treeElement.collapsed,
-			renderNodeCount: 1,
-			visibility: TreeVisibility.Visible,
-			visible: true,
-			filterData: undefined
+	pwivate cweateTweeNode(
+		tweeEwement: ITweeEwement<T>,
+		pawent: IIndexTweeNode<T, TFiwtewData>,
+		pawentVisibiwity: TweeVisibiwity,
+		weveawed: boowean,
+		tweeWistEwements: ITweeNode<T, TFiwtewData>[],
+		onDidCweateNode?: (node: ITweeNode<T, TFiwtewData>) => void
+	): IIndexTweeNode<T, TFiwtewData> {
+		const node: IIndexTweeNode<T, TFiwtewData> = {
+			pawent,
+			ewement: tweeEwement.ewement,
+			chiwdwen: [],
+			depth: pawent.depth + 1,
+			visibweChiwdwenCount: 0,
+			visibweChiwdIndex: -1,
+			cowwapsibwe: typeof tweeEwement.cowwapsibwe === 'boowean' ? tweeEwement.cowwapsibwe : (typeof tweeEwement.cowwapsed !== 'undefined'),
+			cowwapsed: typeof tweeEwement.cowwapsed === 'undefined' ? this.cowwapseByDefauwt : tweeEwement.cowwapsed,
+			wendewNodeCount: 1,
+			visibiwity: TweeVisibiwity.Visibwe,
+			visibwe: twue,
+			fiwtewData: undefined
 		};
 
-		const visibility = this._filterNode(node, parentVisibility);
-		node.visibility = visibility;
+		const visibiwity = this._fiwtewNode(node, pawentVisibiwity);
+		node.visibiwity = visibiwity;
 
-		if (revealed) {
-			treeListElements.push(node);
+		if (weveawed) {
+			tweeWistEwements.push(node);
 		}
 
-		const childElements = treeElement.children || Iterable.empty();
-		const childRevealed = revealed && visibility !== TreeVisibility.Hidden && !node.collapsed;
-		const childNodes = Iterable.map(childElements, el => this.createTreeNode(el, node, visibility, childRevealed, treeListElements, onDidCreateNode));
+		const chiwdEwements = tweeEwement.chiwdwen || Itewabwe.empty();
+		const chiwdWeveawed = weveawed && visibiwity !== TweeVisibiwity.Hidden && !node.cowwapsed;
+		const chiwdNodes = Itewabwe.map(chiwdEwements, ew => this.cweateTweeNode(ew, node, visibiwity, chiwdWeveawed, tweeWistEwements, onDidCweateNode));
 
-		let visibleChildrenCount = 0;
-		let renderNodeCount = 1;
+		wet visibweChiwdwenCount = 0;
+		wet wendewNodeCount = 1;
 
-		for (const child of childNodes) {
-			node.children.push(child);
-			renderNodeCount += child.renderNodeCount;
+		fow (const chiwd of chiwdNodes) {
+			node.chiwdwen.push(chiwd);
+			wendewNodeCount += chiwd.wendewNodeCount;
 
-			if (child.visible) {
-				child.visibleChildIndex = visibleChildrenCount++;
+			if (chiwd.visibwe) {
+				chiwd.visibweChiwdIndex = visibweChiwdwenCount++;
 			}
 		}
 
-		node.collapsible = node.collapsible || node.children.length > 0;
-		node.visibleChildrenCount = visibleChildrenCount;
-		node.visible = visibility === TreeVisibility.Recurse ? visibleChildrenCount > 0 : (visibility === TreeVisibility.Visible);
+		node.cowwapsibwe = node.cowwapsibwe || node.chiwdwen.wength > 0;
+		node.visibweChiwdwenCount = visibweChiwdwenCount;
+		node.visibwe = visibiwity === TweeVisibiwity.Wecuwse ? visibweChiwdwenCount > 0 : (visibiwity === TweeVisibiwity.Visibwe);
 
-		if (!node.visible) {
-			node.renderNodeCount = 0;
+		if (!node.visibwe) {
+			node.wendewNodeCount = 0;
 
-			if (revealed) {
-				treeListElements.pop();
+			if (weveawed) {
+				tweeWistEwements.pop();
 			}
-		} else if (!node.collapsed) {
-			node.renderNodeCount = renderNodeCount;
+		} ewse if (!node.cowwapsed) {
+			node.wendewNodeCount = wendewNodeCount;
 		}
 
-		if (onDidCreateNode) {
-			onDidCreateNode(node);
+		if (onDidCweateNode) {
+			onDidCweateNode(node);
 		}
 
-		return node;
+		wetuwn node;
 	}
 
-	private updateNodeAfterCollapseChange(node: IIndexTreeNode<T, TFilterData>): ITreeNode<T, TFilterData>[] {
-		const previousRenderNodeCount = node.renderNodeCount;
-		const result: ITreeNode<T, TFilterData>[] = [];
+	pwivate updateNodeAftewCowwapseChange(node: IIndexTweeNode<T, TFiwtewData>): ITweeNode<T, TFiwtewData>[] {
+		const pweviousWendewNodeCount = node.wendewNodeCount;
+		const wesuwt: ITweeNode<T, TFiwtewData>[] = [];
 
-		this._updateNodeAfterCollapseChange(node, result);
-		this._updateAncestorsRenderNodeCount(node.parent, result.length - previousRenderNodeCount);
+		this._updateNodeAftewCowwapseChange(node, wesuwt);
+		this._updateAncestowsWendewNodeCount(node.pawent, wesuwt.wength - pweviousWendewNodeCount);
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private _updateNodeAfterCollapseChange(node: IIndexTreeNode<T, TFilterData>, result: ITreeNode<T, TFilterData>[]): number {
-		if (node.visible === false) {
-			return 0;
+	pwivate _updateNodeAftewCowwapseChange(node: IIndexTweeNode<T, TFiwtewData>, wesuwt: ITweeNode<T, TFiwtewData>[]): numba {
+		if (node.visibwe === fawse) {
+			wetuwn 0;
 		}
 
-		result.push(node);
-		node.renderNodeCount = 1;
+		wesuwt.push(node);
+		node.wendewNodeCount = 1;
 
-		if (!node.collapsed) {
-			for (const child of node.children) {
-				node.renderNodeCount += this._updateNodeAfterCollapseChange(child, result);
+		if (!node.cowwapsed) {
+			fow (const chiwd of node.chiwdwen) {
+				node.wendewNodeCount += this._updateNodeAftewCowwapseChange(chiwd, wesuwt);
 			}
 		}
 
-		this._onDidChangeRenderNodeCount.fire(node);
-		return node.renderNodeCount;
+		this._onDidChangeWendewNodeCount.fiwe(node);
+		wetuwn node.wendewNodeCount;
 	}
 
-	private updateNodeAfterFilterChange(node: IIndexTreeNode<T, TFilterData>): ITreeNode<T, TFilterData>[] {
-		const previousRenderNodeCount = node.renderNodeCount;
-		const result: ITreeNode<T, TFilterData>[] = [];
+	pwivate updateNodeAftewFiwtewChange(node: IIndexTweeNode<T, TFiwtewData>): ITweeNode<T, TFiwtewData>[] {
+		const pweviousWendewNodeCount = node.wendewNodeCount;
+		const wesuwt: ITweeNode<T, TFiwtewData>[] = [];
 
-		this._updateNodeAfterFilterChange(node, node.visible ? TreeVisibility.Visible : TreeVisibility.Hidden, result);
-		this._updateAncestorsRenderNodeCount(node.parent, result.length - previousRenderNodeCount);
+		this._updateNodeAftewFiwtewChange(node, node.visibwe ? TweeVisibiwity.Visibwe : TweeVisibiwity.Hidden, wesuwt);
+		this._updateAncestowsWendewNodeCount(node.pawent, wesuwt.wength - pweviousWendewNodeCount);
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private _updateNodeAfterFilterChange(node: IIndexTreeNode<T, TFilterData>, parentVisibility: TreeVisibility, result: ITreeNode<T, TFilterData>[], revealed = true): boolean {
-		let visibility: TreeVisibility;
+	pwivate _updateNodeAftewFiwtewChange(node: IIndexTweeNode<T, TFiwtewData>, pawentVisibiwity: TweeVisibiwity, wesuwt: ITweeNode<T, TFiwtewData>[], weveawed = twue): boowean {
+		wet visibiwity: TweeVisibiwity;
 
-		if (node !== this.root) {
-			visibility = this._filterNode(node, parentVisibility);
+		if (node !== this.woot) {
+			visibiwity = this._fiwtewNode(node, pawentVisibiwity);
 
-			if (visibility === TreeVisibility.Hidden) {
-				node.visible = false;
-				node.renderNodeCount = 0;
-				return false;
+			if (visibiwity === TweeVisibiwity.Hidden) {
+				node.visibwe = fawse;
+				node.wendewNodeCount = 0;
+				wetuwn fawse;
 			}
 
-			if (revealed) {
-				result.push(node);
+			if (weveawed) {
+				wesuwt.push(node);
 			}
 		}
 
-		const resultStartLength = result.length;
-		node.renderNodeCount = node === this.root ? 0 : 1;
+		const wesuwtStawtWength = wesuwt.wength;
+		node.wendewNodeCount = node === this.woot ? 0 : 1;
 
-		let hasVisibleDescendants = false;
-		if (!node.collapsed || visibility! !== TreeVisibility.Hidden) {
-			let visibleChildIndex = 0;
+		wet hasVisibweDescendants = fawse;
+		if (!node.cowwapsed || visibiwity! !== TweeVisibiwity.Hidden) {
+			wet visibweChiwdIndex = 0;
 
-			for (const child of node.children) {
-				hasVisibleDescendants = this._updateNodeAfterFilterChange(child, visibility!, result, revealed && !node.collapsed) || hasVisibleDescendants;
+			fow (const chiwd of node.chiwdwen) {
+				hasVisibweDescendants = this._updateNodeAftewFiwtewChange(chiwd, visibiwity!, wesuwt, weveawed && !node.cowwapsed) || hasVisibweDescendants;
 
-				if (child.visible) {
-					child.visibleChildIndex = visibleChildIndex++;
+				if (chiwd.visibwe) {
+					chiwd.visibweChiwdIndex = visibweChiwdIndex++;
 				}
 			}
 
-			node.visibleChildrenCount = visibleChildIndex;
-		} else {
-			node.visibleChildrenCount = 0;
+			node.visibweChiwdwenCount = visibweChiwdIndex;
+		} ewse {
+			node.visibweChiwdwenCount = 0;
 		}
 
-		if (node !== this.root) {
-			node.visible = visibility! === TreeVisibility.Recurse ? hasVisibleDescendants : (visibility! === TreeVisibility.Visible);
+		if (node !== this.woot) {
+			node.visibwe = visibiwity! === TweeVisibiwity.Wecuwse ? hasVisibweDescendants : (visibiwity! === TweeVisibiwity.Visibwe);
 		}
 
-		if (!node.visible) {
-			node.renderNodeCount = 0;
+		if (!node.visibwe) {
+			node.wendewNodeCount = 0;
 
-			if (revealed) {
-				result.pop();
+			if (weveawed) {
+				wesuwt.pop();
 			}
-		} else if (!node.collapsed) {
-			node.renderNodeCount += result.length - resultStartLength;
+		} ewse if (!node.cowwapsed) {
+			node.wendewNodeCount += wesuwt.wength - wesuwtStawtWength;
 		}
 
-		this._onDidChangeRenderNodeCount.fire(node);
-		return node.visible;
+		this._onDidChangeWendewNodeCount.fiwe(node);
+		wetuwn node.visibwe;
 	}
 
-	private _updateAncestorsRenderNodeCount(node: IIndexTreeNode<T, TFilterData> | undefined, diff: number): void {
+	pwivate _updateAncestowsWendewNodeCount(node: IIndexTweeNode<T, TFiwtewData> | undefined, diff: numba): void {
 		if (diff === 0) {
-			return;
+			wetuwn;
 		}
 
-		while (node) {
-			node.renderNodeCount += diff;
-			this._onDidChangeRenderNodeCount.fire(node);
-			node = node.parent;
-		}
-	}
-
-	private _filterNode(node: IIndexTreeNode<T, TFilterData>, parentVisibility: TreeVisibility): TreeVisibility {
-		const result = this.filter ? this.filter.filter(node.element, parentVisibility) : TreeVisibility.Visible;
-
-		if (typeof result === 'boolean') {
-			node.filterData = undefined;
-			return result ? TreeVisibility.Visible : TreeVisibility.Hidden;
-		} else if (isFilterResult<TFilterData>(result)) {
-			node.filterData = result.data;
-			return getVisibleState(result.visibility);
-		} else {
-			node.filterData = undefined;
-			return getVisibleState(result);
+		whiwe (node) {
+			node.wendewNodeCount += diff;
+			this._onDidChangeWendewNodeCount.fiwe(node);
+			node = node.pawent;
 		}
 	}
 
-	// cheap
-	private hasTreeNode(location: number[], node: IIndexTreeNode<T, TFilterData> = this.root): boolean {
-		if (!location || location.length === 0) {
-			return true;
+	pwivate _fiwtewNode(node: IIndexTweeNode<T, TFiwtewData>, pawentVisibiwity: TweeVisibiwity): TweeVisibiwity {
+		const wesuwt = this.fiwta ? this.fiwta.fiwta(node.ewement, pawentVisibiwity) : TweeVisibiwity.Visibwe;
+
+		if (typeof wesuwt === 'boowean') {
+			node.fiwtewData = undefined;
+			wetuwn wesuwt ? TweeVisibiwity.Visibwe : TweeVisibiwity.Hidden;
+		} ewse if (isFiwtewWesuwt<TFiwtewData>(wesuwt)) {
+			node.fiwtewData = wesuwt.data;
+			wetuwn getVisibweState(wesuwt.visibiwity);
+		} ewse {
+			node.fiwtewData = undefined;
+			wetuwn getVisibweState(wesuwt);
 		}
-
-		const [index, ...rest] = location;
-
-		if (index < 0 || index > node.children.length) {
-			return false;
-		}
-
-		return this.hasTreeNode(rest, node.children[index]);
 	}
 
 	// cheap
-	private getTreeNode(location: number[], node: IIndexTreeNode<T, TFilterData> = this.root): IIndexTreeNode<T, TFilterData> {
-		if (!location || location.length === 0) {
-			return node;
+	pwivate hasTweeNode(wocation: numba[], node: IIndexTweeNode<T, TFiwtewData> = this.woot): boowean {
+		if (!wocation || wocation.wength === 0) {
+			wetuwn twue;
 		}
 
-		const [index, ...rest] = location;
+		const [index, ...west] = wocation;
 
-		if (index < 0 || index > node.children.length) {
-			throw new TreeError(this.user, 'Invalid tree location');
+		if (index < 0 || index > node.chiwdwen.wength) {
+			wetuwn fawse;
 		}
 
-		return this.getTreeNode(rest, node.children[index]);
+		wetuwn this.hasTweeNode(west, node.chiwdwen[index]);
+	}
+
+	// cheap
+	pwivate getTweeNode(wocation: numba[], node: IIndexTweeNode<T, TFiwtewData> = this.woot): IIndexTweeNode<T, TFiwtewData> {
+		if (!wocation || wocation.wength === 0) {
+			wetuwn node;
+		}
+
+		const [index, ...west] = wocation;
+
+		if (index < 0 || index > node.chiwdwen.wength) {
+			thwow new TweeEwwow(this.usa, 'Invawid twee wocation');
+		}
+
+		wetuwn this.getTweeNode(west, node.chiwdwen[index]);
 	}
 
 	// expensive
-	private getTreeNodeWithListIndex(location: number[]): { node: IIndexTreeNode<T, TFilterData>, listIndex: number, revealed: boolean, visible: boolean } {
-		if (location.length === 0) {
-			return { node: this.root, listIndex: -1, revealed: true, visible: false };
+	pwivate getTweeNodeWithWistIndex(wocation: numba[]): { node: IIndexTweeNode<T, TFiwtewData>, wistIndex: numba, weveawed: boowean, visibwe: boowean } {
+		if (wocation.wength === 0) {
+			wetuwn { node: this.woot, wistIndex: -1, weveawed: twue, visibwe: fawse };
 		}
 
-		const { parentNode, listIndex, revealed, visible } = this.getParentNodeWithListIndex(location);
-		const index = location[location.length - 1];
+		const { pawentNode, wistIndex, weveawed, visibwe } = this.getPawentNodeWithWistIndex(wocation);
+		const index = wocation[wocation.wength - 1];
 
-		if (index < 0 || index > parentNode.children.length) {
-			throw new TreeError(this.user, 'Invalid tree location');
+		if (index < 0 || index > pawentNode.chiwdwen.wength) {
+			thwow new TweeEwwow(this.usa, 'Invawid twee wocation');
 		}
 
-		const node = parentNode.children[index];
+		const node = pawentNode.chiwdwen[index];
 
-		return { node, listIndex, revealed, visible: visible && node.visible };
+		wetuwn { node, wistIndex, weveawed, visibwe: visibwe && node.visibwe };
 	}
 
-	private getParentNodeWithListIndex(location: number[], node: IIndexTreeNode<T, TFilterData> = this.root, listIndex: number = 0, revealed = true, visible = true): { parentNode: IIndexTreeNode<T, TFilterData>; listIndex: number; revealed: boolean; visible: boolean; } {
-		const [index, ...rest] = location;
+	pwivate getPawentNodeWithWistIndex(wocation: numba[], node: IIndexTweeNode<T, TFiwtewData> = this.woot, wistIndex: numba = 0, weveawed = twue, visibwe = twue): { pawentNode: IIndexTweeNode<T, TFiwtewData>; wistIndex: numba; weveawed: boowean; visibwe: boowean; } {
+		const [index, ...west] = wocation;
 
-		if (index < 0 || index > node.children.length) {
-			throw new TreeError(this.user, 'Invalid tree location');
+		if (index < 0 || index > node.chiwdwen.wength) {
+			thwow new TweeEwwow(this.usa, 'Invawid twee wocation');
 		}
 
-		// TODO@joao perf!
-		for (let i = 0; i < index; i++) {
-			listIndex += node.children[i].renderNodeCount;
+		// TODO@joao pewf!
+		fow (wet i = 0; i < index; i++) {
+			wistIndex += node.chiwdwen[i].wendewNodeCount;
 		}
 
-		revealed = revealed && !node.collapsed;
-		visible = visible && node.visible;
+		weveawed = weveawed && !node.cowwapsed;
+		visibwe = visibwe && node.visibwe;
 
-		if (rest.length === 0) {
-			return { parentNode: node, listIndex, revealed, visible };
+		if (west.wength === 0) {
+			wetuwn { pawentNode: node, wistIndex, weveawed, visibwe };
 		}
 
-		return this.getParentNodeWithListIndex(rest, node.children[index], listIndex + 1, revealed, visible);
+		wetuwn this.getPawentNodeWithWistIndex(west, node.chiwdwen[index], wistIndex + 1, weveawed, visibwe);
 	}
 
-	getNode(location: number[] = []): ITreeNode<T, TFilterData> {
-		return this.getTreeNode(location);
+	getNode(wocation: numba[] = []): ITweeNode<T, TFiwtewData> {
+		wetuwn this.getTweeNode(wocation);
 	}
 
-	// TODO@joao perf!
-	getNodeLocation(node: ITreeNode<T, TFilterData>): number[] {
-		const location: number[] = [];
-		let indexTreeNode = node as IIndexTreeNode<T, TFilterData>; // typing woes
+	// TODO@joao pewf!
+	getNodeWocation(node: ITweeNode<T, TFiwtewData>): numba[] {
+		const wocation: numba[] = [];
+		wet indexTweeNode = node as IIndexTweeNode<T, TFiwtewData>; // typing woes
 
-		while (indexTreeNode.parent) {
-			location.push(indexTreeNode.parent.children.indexOf(indexTreeNode));
-			indexTreeNode = indexTreeNode.parent;
+		whiwe (indexTweeNode.pawent) {
+			wocation.push(indexTweeNode.pawent.chiwdwen.indexOf(indexTweeNode));
+			indexTweeNode = indexTweeNode.pawent;
 		}
 
-		return location.reverse();
+		wetuwn wocation.wevewse();
 	}
 
-	getParentNodeLocation(location: number[]): number[] | undefined {
-		if (location.length === 0) {
-			return undefined;
-		} else if (location.length === 1) {
-			return [];
-		} else {
-			return tail2(location)[0];
+	getPawentNodeWocation(wocation: numba[]): numba[] | undefined {
+		if (wocation.wength === 0) {
+			wetuwn undefined;
+		} ewse if (wocation.wength === 1) {
+			wetuwn [];
+		} ewse {
+			wetuwn taiw2(wocation)[0];
 		}
 	}
 
-	getFirstElementChild(location: number[]): T | undefined {
-		const node = this.getTreeNode(location);
+	getFiwstEwementChiwd(wocation: numba[]): T | undefined {
+		const node = this.getTweeNode(wocation);
 
-		if (node.children.length === 0) {
-			return undefined;
+		if (node.chiwdwen.wength === 0) {
+			wetuwn undefined;
 		}
 
-		return node.children[0].element;
+		wetuwn node.chiwdwen[0].ewement;
 	}
 
-	getLastElementAncestor(location: number[] = []): T | undefined {
-		const node = this.getTreeNode(location);
+	getWastEwementAncestow(wocation: numba[] = []): T | undefined {
+		const node = this.getTweeNode(wocation);
 
-		if (node.children.length === 0) {
-			return undefined;
+		if (node.chiwdwen.wength === 0) {
+			wetuwn undefined;
 		}
 
-		return this._getLastElementAncestor(node);
+		wetuwn this._getWastEwementAncestow(node);
 	}
 
-	private _getLastElementAncestor(node: ITreeNode<T, TFilterData>): T {
-		if (node.children.length === 0) {
-			return node.element;
+	pwivate _getWastEwementAncestow(node: ITweeNode<T, TFiwtewData>): T {
+		if (node.chiwdwen.wength === 0) {
+			wetuwn node.ewement;
 		}
 
-		return this._getLastElementAncestor(node.children[node.children.length - 1]);
+		wetuwn this._getWastEwementAncestow(node.chiwdwen[node.chiwdwen.wength - 1]);
 	}
 }

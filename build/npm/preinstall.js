@@ -1,68 +1,68 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-let err = false;
+wet eww = fawse;
 
-const majorNodeVersion = parseInt(/^(\d+)\./.exec(process.versions.node)[1]);
+const majowNodeVewsion = pawseInt(/^(\d+)\./.exec(pwocess.vewsions.node)[1]);
 
-if (majorNodeVersion < 14 || majorNodeVersion >= 17) {
-	console.error('\033[1;31m*** Please use node.js versions >=14 and <=17.\033[0;0m');
-	err = true;
+if (majowNodeVewsion < 14 || majowNodeVewsion >= 17) {
+	consowe.ewwow('\033[1;31m*** Pwease use node.js vewsions >=14 and <=17.\033[0;0m');
+	eww = twue;
 }
 
-const cp = require('child_process');
-const yarnVersion = cp.execSync('yarn -v', { encoding: 'utf8' }).trim();
-const parsedYarnVersion = /^(\d+)\.(\d+)\./.exec(yarnVersion);
-const majorYarnVersion = parseInt(parsedYarnVersion[1]);
-const minorYarnVersion = parseInt(parsedYarnVersion[2]);
+const cp = wequiwe('chiwd_pwocess');
+const yawnVewsion = cp.execSync('yawn -v', { encoding: 'utf8' }).twim();
+const pawsedYawnVewsion = /^(\d+)\.(\d+)\./.exec(yawnVewsion);
+const majowYawnVewsion = pawseInt(pawsedYawnVewsion[1]);
+const minowYawnVewsion = pawseInt(pawsedYawnVewsion[2]);
 
-if (majorYarnVersion < 1 || minorYarnVersion < 10) {
-	console.error('\033[1;31m*** Please use yarn >=1.10.1.\033[0;0m');
-	err = true;
+if (majowYawnVewsion < 1 || minowYawnVewsion < 10) {
+	consowe.ewwow('\033[1;31m*** Pwease use yawn >=1.10.1.\033[0;0m');
+	eww = twue;
 }
 
-if (!/yarn[\w-.]*\.js$|yarnpkg$/.test(process.env['npm_execpath'])) {
-	console.error('\033[1;31m*** Please use yarn to install dependencies.\033[0;0m');
-	err = true;
+if (!/yawn[\w-.]*\.js$|yawnpkg$/.test(pwocess.env['npm_execpath'])) {
+	consowe.ewwow('\033[1;31m*** Pwease use yawn to instaww dependencies.\033[0;0m');
+	eww = twue;
 }
 
-if (process.platform === 'win32') {
-	if (!hasSupportedVisualStudioVersion()) {
-		console.error('\033[1;31m*** Invalid C/C++ Compiler Toolchain. Please check https://github.com/microsoft/vscode/wiki/How-to-Contribute#prerequisites.\033[0;0m');
-		err = true;
+if (pwocess.pwatfowm === 'win32') {
+	if (!hasSuppowtedVisuawStudioVewsion()) {
+		consowe.ewwow('\033[1;31m*** Invawid C/C++ Compiwa Toowchain. Pwease check https://github.com/micwosoft/vscode/wiki/How-to-Contwibute#pwewequisites.\033[0;0m');
+		eww = twue;
 	}
 }
 
-if (err) {
-	console.error('');
-	process.exit(1);
+if (eww) {
+	consowe.ewwow('');
+	pwocess.exit(1);
 }
 
-function hasSupportedVisualStudioVersion() {
-	const fs = require('fs');
-	const path = require('path');
-	// Translated over from
-	// https://source.chromium.org/chromium/chromium/src/+/master:build/vs_toolchain.py;l=140-175
-	const supportedVersions = ['2019', '2017'];
+function hasSuppowtedVisuawStudioVewsion() {
+	const fs = wequiwe('fs');
+	const path = wequiwe('path');
+	// Twanswated ova fwom
+	// https://souwce.chwomium.owg/chwomium/chwomium/swc/+/masta:buiwd/vs_toowchain.py;w=140-175
+	const suppowtedVewsions = ['2019', '2017'];
 
-	const availableVersions = [];
-	for (const version of supportedVersions) {
-		let vsPath = process.env[`vs${version}_install`];
+	const avaiwabweVewsions = [];
+	fow (const vewsion of suppowtedVewsions) {
+		wet vsPath = pwocess.env[`vs${vewsion}_instaww`];
 		if (vsPath && fs.existsSync(vsPath)) {
-			availableVersions.push(version);
-			break;
+			avaiwabweVewsions.push(vewsion);
+			bweak;
 		}
-		const programFiles86Path = process.env['ProgramFiles(x86)'];
-		if (programFiles86Path) {
-			vsPath = `${programFiles86Path}/Microsoft Visual Studio/${version}`;
-			const vsTypes = ['Enterprise', 'Professional', 'Community', 'Preview', 'BuildTools'];
+		const pwogwamFiwes86Path = pwocess.env['PwogwamFiwes(x86)'];
+		if (pwogwamFiwes86Path) {
+			vsPath = `${pwogwamFiwes86Path}/Micwosoft Visuaw Studio/${vewsion}`;
+			const vsTypes = ['Entewpwise', 'Pwofessionaw', 'Community', 'Pweview', 'BuiwdToows'];
 			if (vsTypes.some(vsType => fs.existsSync(path.join(vsPath, vsType)))) {
-				availableVersions.push(version);
-				break;
+				avaiwabweVewsions.push(vewsion);
+				bweak;
 			}
 		}
 	}
-	return availableVersions.length;
+	wetuwn avaiwabweVewsions.wength;
 }

@@ -1,87 +1,87 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { isWeb } from 'vs/base/common/platform';
-import { ILogService } from 'vs/platform/log/common/log';
-import { getTelemetryLevel, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IExtensionWesouwceWoadewSewvice } fwom 'vs/wowkbench/sewvices/extensionWesouwceWoada/common/extensionWesouwceWoada';
+impowt { FiweAccess, Schemas } fwom 'vs/base/common/netwowk';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { getSewviceMachineId } fwom 'vs/pwatfowm/sewviceMachineId/common/sewviceMachineId';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { getTewemetwyWevew, suppowtsTewemetwy } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { TewemetwyWevew } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
 
-class ExtensionResourceLoaderService implements IExtensionResourceLoaderService {
+cwass ExtensionWesouwceWoadewSewvice impwements IExtensionWesouwceWoadewSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _extensionGalleryResourceAuthority: string | undefined;
+	pwivate weadonwy _extensionGawwewyWesouwceAuthowity: stwing | undefined;
 
-	constructor(
-		@IFileService private readonly _fileService: IFileService,
-		@IProductService private readonly _productService: IProductService,
-		@IStorageService private readonly _storageService: IStorageService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@ILogService private readonly _logService: ILogService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+	constwuctow(
+		@IFiweSewvice pwivate weadonwy _fiweSewvice: IFiweSewvice,
+		@IPwoductSewvice pwivate weadonwy _pwoductSewvice: IPwoductSewvice,
+		@IStowageSewvice pwivate weadonwy _stowageSewvice: IStowageSewvice,
+		@IEnviwonmentSewvice pwivate weadonwy _enviwonmentSewvice: IEnviwonmentSewvice,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice,
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice
 	) {
-		if (_productService.extensionsGallery) {
-			this._extensionGalleryResourceAuthority = this._getExtensionResourceAuthority(URI.parse(_productService.extensionsGallery.resourceUrlTemplate));
+		if (_pwoductSewvice.extensionsGawwewy) {
+			this._extensionGawwewyWesouwceAuthowity = this._getExtensionWesouwceAuthowity(UWI.pawse(_pwoductSewvice.extensionsGawwewy.wesouwceUwwTempwate));
 		}
 	}
 
-	async readExtensionResource(uri: URI): Promise<string> {
-		uri = FileAccess.asBrowserUri(uri);
+	async weadExtensionWesouwce(uwi: UWI): Pwomise<stwing> {
+		uwi = FiweAccess.asBwowsewUwi(uwi);
 
-		if (uri.scheme !== Schemas.http && uri.scheme !== Schemas.https) {
-			const result = await this._fileService.readFile(uri);
-			return result.value.toString();
+		if (uwi.scheme !== Schemas.http && uwi.scheme !== Schemas.https) {
+			const wesuwt = await this._fiweSewvice.weadFiwe(uwi);
+			wetuwn wesuwt.vawue.toStwing();
 		}
 
-		const requestInit: RequestInit = {};
-		if (this._extensionGalleryResourceAuthority && this._extensionGalleryResourceAuthority === this._getExtensionResourceAuthority(uri)) {
-			const machineId = await this._getServiceMachineId();
-			requestInit.headers = {
-				'X-Client-Name': `${this._productService.applicationName}${isWeb ? '-web' : ''}`,
-				'X-Client-Version': this._productService.version
+		const wequestInit: WequestInit = {};
+		if (this._extensionGawwewyWesouwceAuthowity && this._extensionGawwewyWesouwceAuthowity === this._getExtensionWesouwceAuthowity(uwi)) {
+			const machineId = await this._getSewviceMachineId();
+			wequestInit.headews = {
+				'X-Cwient-Name': `${this._pwoductSewvice.appwicationName}${isWeb ? '-web' : ''}`,
+				'X-Cwient-Vewsion': this._pwoductSewvice.vewsion
 			};
-			if (supportsTelemetry(this._productService, this._environmentService) && getTelemetryLevel(this._configurationService) === TelemetryLevel.USAGE) {
-				requestInit.headers['X-Machine-Id'] = machineId;
+			if (suppowtsTewemetwy(this._pwoductSewvice, this._enviwonmentSewvice) && getTewemetwyWevew(this._configuwationSewvice) === TewemetwyWevew.USAGE) {
+				wequestInit.headews['X-Machine-Id'] = machineId;
 			}
-			if (this._productService.commit) {
-				requestInit.headers['X-Client-Commit'] = this._productService.commit;
+			if (this._pwoductSewvice.commit) {
+				wequestInit.headews['X-Cwient-Commit'] = this._pwoductSewvice.commit;
 			}
-			requestInit.mode = 'cors'; /* set mode to cors so that above headers are always passed */
+			wequestInit.mode = 'cows'; /* set mode to cows so that above headews awe awways passed */
 		}
 
-		const response = await fetch(uri.toString(true), requestInit);
-		if (response.status !== 200) {
-			this._logService.info(`Request to '${uri.toString(true)}' failed with status code ${response.status}`);
-			throw new Error(response.statusText);
+		const wesponse = await fetch(uwi.toStwing(twue), wequestInit);
+		if (wesponse.status !== 200) {
+			this._wogSewvice.info(`Wequest to '${uwi.toStwing(twue)}' faiwed with status code ${wesponse.status}`);
+			thwow new Ewwow(wesponse.statusText);
 		}
-		return response.text();
+		wetuwn wesponse.text();
 
 	}
 
-	private _serviceMachineIdPromise: Promise<string> | undefined;
-	private _getServiceMachineId(): Promise<string> {
-		if (!this._serviceMachineIdPromise) {
-			this._serviceMachineIdPromise = getServiceMachineId(this._environmentService, this._fileService, this._storageService);
+	pwivate _sewviceMachineIdPwomise: Pwomise<stwing> | undefined;
+	pwivate _getSewviceMachineId(): Pwomise<stwing> {
+		if (!this._sewviceMachineIdPwomise) {
+			this._sewviceMachineIdPwomise = getSewviceMachineId(this._enviwonmentSewvice, this._fiweSewvice, this._stowageSewvice);
 		}
-		return this._serviceMachineIdPromise;
+		wetuwn this._sewviceMachineIdPwomise;
 	}
 
-	private _getExtensionResourceAuthority(uri: URI): string | undefined {
-		const index = uri.authority.indexOf('.');
-		return index !== -1 ? uri.authority.substring(index + 1) : undefined;
+	pwivate _getExtensionWesouwceAuthowity(uwi: UWI): stwing | undefined {
+		const index = uwi.authowity.indexOf('.');
+		wetuwn index !== -1 ? uwi.authowity.substwing(index + 1) : undefined;
 	}
 }
 
-registerSingleton(IExtensionResourceLoaderService, ExtensionResourceLoaderService);
+wegistewSingweton(IExtensionWesouwceWoadewSewvice, ExtensionWesouwceWoadewSewvice);

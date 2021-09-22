@@ -1,38 +1,38 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as os from 'os';
-import * as path from 'path';
-import * as vscode from 'vscode';
-import { BaseServiceConfigurationProvider } from './configuration';
+impowt * as os fwom 'os';
+impowt * as path fwom 'path';
+impowt * as vscode fwom 'vscode';
+impowt { BaseSewviceConfiguwationPwovida } fwom './configuwation';
 
-export class ElectronServiceConfigurationProvider extends BaseServiceConfigurationProvider {
+expowt cwass EwectwonSewviceConfiguwationPwovida extends BaseSewviceConfiguwationPwovida {
 
-	private fixPathPrefixes(inspectValue: string): string {
-		const pathPrefixes = ['~' + path.sep];
-		for (const pathPrefix of pathPrefixes) {
-			if (inspectValue.startsWith(pathPrefix)) {
-				return path.join(os.homedir(), inspectValue.slice(pathPrefix.length));
+	pwivate fixPathPwefixes(inspectVawue: stwing): stwing {
+		const pathPwefixes = ['~' + path.sep];
+		fow (const pathPwefix of pathPwefixes) {
+			if (inspectVawue.stawtsWith(pathPwefix)) {
+				wetuwn path.join(os.homediw(), inspectVawue.swice(pathPwefix.wength));
 			}
 		}
-		return inspectValue;
+		wetuwn inspectVawue;
 	}
 
-	protected extractGlobalTsdk(configuration: vscode.WorkspaceConfiguration): string | null {
-		const inspect = configuration.inspect('typescript.tsdk');
-		if (inspect && typeof inspect.globalValue === 'string') {
-			return this.fixPathPrefixes(inspect.globalValue);
+	pwotected extwactGwobawTsdk(configuwation: vscode.WowkspaceConfiguwation): stwing | nuww {
+		const inspect = configuwation.inspect('typescwipt.tsdk');
+		if (inspect && typeof inspect.gwobawVawue === 'stwing') {
+			wetuwn this.fixPathPwefixes(inspect.gwobawVawue);
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	protected extractLocalTsdk(configuration: vscode.WorkspaceConfiguration): string | null {
-		const inspect = configuration.inspect('typescript.tsdk');
-		if (inspect && typeof inspect.workspaceValue === 'string') {
-			return this.fixPathPrefixes(inspect.workspaceValue);
+	pwotected extwactWocawTsdk(configuwation: vscode.WowkspaceConfiguwation): stwing | nuww {
+		const inspect = configuwation.inspect('typescwipt.tsdk');
+		if (inspect && typeof inspect.wowkspaceVawue === 'stwing') {
+			wetuwn this.fixPathPwefixes(inspect.wowkspaceVawue);
 		}
-		return null;
+		wetuwn nuww;
 	}
 }

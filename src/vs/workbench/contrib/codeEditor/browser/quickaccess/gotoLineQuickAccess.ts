@@ -1,97 +1,97 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IKeyMods, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IRange } from 'vs/editor/common/core/range';
-import { AbstractGotoLineQuickAccessProvider } from 'vs/editor/contrib/quickAccess/gotoLineQuickAccess';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IQuickAccessRegistry, Extensions as QuickaccesExtensions } from 'vs/platform/quickinput/common/quickAccess';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IQuickAccessTextEditorContext } from 'vs/editor/contrib/quickAccess/editorNavigationQuickAccess';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IKeyMods, IQuickInputSewvice } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IWange } fwom 'vs/editow/common/cowe/wange';
+impowt { AbstwactGotoWineQuickAccessPwovida } fwom 'vs/editow/contwib/quickAccess/gotoWineQuickAccess';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IQuickAccessWegistwy, Extensions as QuickaccesExtensions } fwom 'vs/pwatfowm/quickinput/common/quickAccess';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IWowkbenchEditowConfiguwation } fwom 'vs/wowkbench/common/editow';
+impowt { Action2, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { KeyMod, KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { IQuickAccessTextEditowContext } fwom 'vs/editow/contwib/quickAccess/editowNavigationQuickAccess';
+impowt { ITextEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
 
-export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProvider {
+expowt cwass GotoWineQuickAccessPwovida extends AbstwactGotoWineQuickAccessPwovida {
 
-	protected readonly onDidActiveTextEditorControlChange = this.editorService.onDidActiveEditorChange;
+	pwotected weadonwy onDidActiveTextEditowContwowChange = this.editowSewvice.onDidActiveEditowChange;
 
-	constructor(
-		@IEditorService private readonly editorService: IEditorService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+	constwuctow(
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IEditowGwoupsSewvice pwivate weadonwy editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice
 	) {
-		super();
+		supa();
 	}
 
-	private get configuration() {
-		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench?.editor;
+	pwivate get configuwation() {
+		const editowConfig = this.configuwationSewvice.getVawue<IWowkbenchEditowConfiguwation>().wowkbench?.editow;
 
-		return {
-			openEditorPinned: !editorConfig?.enablePreviewFromQuickOpen || !editorConfig?.enablePreview
+		wetuwn {
+			openEditowPinned: !editowConfig?.enabwePweviewFwomQuickOpen || !editowConfig?.enabwePweview
 		};
 	}
 
-	protected get activeTextEditorControl() {
-		return this.editorService.activeTextEditorControl;
+	pwotected get activeTextEditowContwow() {
+		wetuwn this.editowSewvice.activeTextEditowContwow;
 	}
 
-	protected override gotoLocation(context: IQuickAccessTextEditorContext, options: { range: IRange, keyMods: IKeyMods, forceSideBySide?: boolean, preserveFocus?: boolean }): void {
+	pwotected ovewwide gotoWocation(context: IQuickAccessTextEditowContext, options: { wange: IWange, keyMods: IKeyMods, fowceSideBySide?: boowean, pwesewveFocus?: boowean }): void {
 
-		// Check for sideBySide use
-		if ((options.keyMods.alt || (this.configuration.openEditorPinned && options.keyMods.ctrlCmd) || options.forceSideBySide) && this.editorService.activeEditor) {
-			context.restoreViewState?.(); // since we open to the side, restore view state in this editor
+		// Check fow sideBySide use
+		if ((options.keyMods.awt || (this.configuwation.openEditowPinned && options.keyMods.ctwwCmd) || options.fowceSideBySide) && this.editowSewvice.activeEditow) {
+			context.westoweViewState?.(); // since we open to the side, westowe view state in this editow
 
-			const editorOptions: ITextEditorOptions = {
-				selection: options.range,
-				pinned: options.keyMods.ctrlCmd || this.configuration.openEditorPinned,
-				preserveFocus: options.preserveFocus
+			const editowOptions: ITextEditowOptions = {
+				sewection: options.wange,
+				pinned: options.keyMods.ctwwCmd || this.configuwation.openEditowPinned,
+				pwesewveFocus: options.pwesewveFocus
 			};
 
-			this.editorGroupService.sideGroup.openEditor(this.editorService.activeEditor, editorOptions);
+			this.editowGwoupSewvice.sideGwoup.openEditow(this.editowSewvice.activeEditow, editowOptions);
 		}
 
-		// Otherwise let parent handle it
-		else {
-			super.gotoLocation(context, options);
+		// Othewwise wet pawent handwe it
+		ewse {
+			supa.gotoWocation(context, options);
 		}
 	}
 }
 
-Registry.as<IQuickAccessRegistry>(QuickaccesExtensions.Quickaccess).registerQuickAccessProvider({
-	ctor: GotoLineQuickAccessProvider,
-	prefix: AbstractGotoLineQuickAccessProvider.PREFIX,
-	placeholder: localize('gotoLineQuickAccessPlaceholder', "Type the line number and optional column to go to (e.g. 42:5 for line 42 and column 5)."),
-	helpEntries: [{ description: localize('gotoLineQuickAccess', "Go to Line/Column"), needsEditor: true }]
+Wegistwy.as<IQuickAccessWegistwy>(QuickaccesExtensions.Quickaccess).wegistewQuickAccessPwovida({
+	ctow: GotoWineQuickAccessPwovida,
+	pwefix: AbstwactGotoWineQuickAccessPwovida.PWEFIX,
+	pwacehowda: wocawize('gotoWineQuickAccessPwacehowda', "Type the wine numba and optionaw cowumn to go to (e.g. 42:5 fow wine 42 and cowumn 5)."),
+	hewpEntwies: [{ descwiption: wocawize('gotoWineQuickAccess', "Go to Wine/Cowumn"), needsEditow: twue }]
 });
 
-class GotoLineAction extends Action2 {
+cwass GotoWineAction extends Action2 {
 
-	constructor() {
-		super({
-			id: 'workbench.action.gotoLine',
-			title: { value: localize('gotoLine', "Go to Line/Column..."), original: 'Go to Line/Column...' },
-			f1: true,
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.gotoWine',
+			titwe: { vawue: wocawize('gotoWine', "Go to Wine/Cowumn..."), owiginaw: 'Go to Wine/Cowumn...' },
+			f1: twue,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				when: null,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_G,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_G }
+				weight: KeybindingWeight.WowkbenchContwib,
+				when: nuww,
+				pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_G,
+				mac: { pwimawy: KeyMod.WinCtww | KeyCode.KEY_G }
 			}
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		accessor.get(IQuickInputService).quickAccess.show(GotoLineQuickAccessProvider.PREFIX);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		accessow.get(IQuickInputSewvice).quickAccess.show(GotoWineQuickAccessPwovida.PWEFIX);
 	}
 }
 
-registerAction2(GotoLineAction);
+wegistewAction2(GotoWineAction);

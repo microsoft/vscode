@@ -1,555 +1,555 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as sinon from 'sinon';
-import * as assert from 'assert';
-import * as uuid from 'vs/base/common/uuid';
-import {
-	IExtensionGalleryService, IGalleryExtensionAssets, IGalleryExtension, IExtensionManagementService,
-	DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, IExtensionTipsService, InstallExtensionResult, getTargetPlatform
-} from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { Emitter, Event } from 'vs/base/common/event';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestContextService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { TestSharedProcessService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { URI } from 'vs/base/common/uri';
-import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IPager } from 'vs/base/common/paging';
-import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ConfigurationKey, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
-import { IURLService } from 'vs/platform/url/common/url';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { INotificationService, Severity, IPromptChoice, IPromptOptions } from 'vs/platform/notification/common/notification';
-import { NativeURLService } from 'vs/platform/url/common/urlService';
-import { IExperimentService } from 'vs/workbench/contrib/experiments/common/experimentService';
-import { TestExperimentService } from 'vs/workbench/contrib/experiments/test/electron-browser/experimentService.test';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { NullLogService, ILogService } from 'vs/platform/log/common/log';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ExtensionTipsService } from 'vs/platform/extensionManagement/electron-sandbox/extensionTipsService';
-import { ExtensionRecommendationsService } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationsService';
-import { NoOpWorkspaceTagsService } from 'vs/workbench/contrib/tags/browser/workspaceTagsService';
-import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
-import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkpsaceExtensionsConfigService, WorkspaceExtensionsConfigService } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
-import { IExtensionIgnoredRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { ExtensionIgnoredRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionIgnoredRecommendationsService';
-import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
-import { ExtensionRecommendationNotificationService } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationNotificationService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { joinPath } from 'vs/base/common/resources';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { platform } from 'vs/base/common/platform';
-import { arch } from 'vs/base/common/process';
+impowt * as sinon fwom 'sinon';
+impowt * as assewt fwom 'assewt';
+impowt * as uuid fwom 'vs/base/common/uuid';
+impowt {
+	IExtensionGawwewySewvice, IGawwewyExtensionAssets, IGawwewyExtension, IExtensionManagementSewvice,
+	DidUninstawwExtensionEvent, InstawwExtensionEvent, IExtensionIdentifia, IExtensionTipsSewvice, InstawwExtensionWesuwt, getTawgetPwatfowm
+} fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { IWowkbenchExtensionEnabwementSewvice } fwom 'vs/wowkbench/sewvices/extensionManagement/common/extensionManagement';
+impowt { ExtensionGawwewySewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionGawwewySewvice';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { NuwwTewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { TestWifecycweSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { TestContextSewvice, TestStowageSewvice } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
+impowt { TestShawedPwocessSewvice } fwom 'vs/wowkbench/test/ewectwon-bwowsa/wowkbenchTestSewvices';
+impowt { TestNotificationSewvice } fwom 'vs/pwatfowm/notification/test/common/testNotificationSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { testWowkspace } fwom 'vs/pwatfowm/wowkspace/test/common/testWowkspace';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { IPaga } fwom 'vs/base/common/paging';
+impowt { getGawwewyExtensionId } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementUtiw';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { ConfiguwationKey, IExtensionsWowkbenchSewvice } fwom 'vs/wowkbench/contwib/extensions/common/extensions';
+impowt { TestExtensionEnabwementSewvice } fwom 'vs/wowkbench/sewvices/extensionManagement/test/bwowsa/extensionEnabwementSewvice.test';
+impowt { IUWWSewvice } fwom 'vs/pwatfowm/uww/common/uww';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { INotificationSewvice, Sevewity, IPwomptChoice, IPwomptOptions } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { NativeUWWSewvice } fwom 'vs/pwatfowm/uww/common/uwwSewvice';
+impowt { IExpewimentSewvice } fwom 'vs/wowkbench/contwib/expewiments/common/expewimentSewvice';
+impowt { TestExpewimentSewvice } fwom 'vs/wowkbench/contwib/expewiments/test/ewectwon-bwowsa/expewimentSewvice.test';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ExtensionType } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { IShawedPwocessSewvice } fwom 'vs/pwatfowm/ipc/ewectwon-sandbox/sewvices';
+impowt { FiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiweSewvice';
+impowt { NuwwWogSewvice, IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { ExtensionTipsSewvice } fwom 'vs/pwatfowm/extensionManagement/ewectwon-sandbox/extensionTipsSewvice';
+impowt { ExtensionWecommendationsSewvice } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionWecommendationsSewvice';
+impowt { NoOpWowkspaceTagsSewvice } fwom 'vs/wowkbench/contwib/tags/bwowsa/wowkspaceTagsSewvice';
+impowt { IWowkspaceTagsSewvice } fwom 'vs/wowkbench/contwib/tags/common/wowkspaceTags';
+impowt { ExtensionsWowkbenchSewvice } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionsWowkbenchSewvice';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IWowkpsaceExtensionsConfigSewvice, WowkspaceExtensionsConfigSewvice } fwom 'vs/wowkbench/sewvices/extensionWecommendations/common/wowkspaceExtensionsConfig';
+impowt { IExtensionIgnowedWecommendationsSewvice } fwom 'vs/wowkbench/sewvices/extensionWecommendations/common/extensionWecommendations';
+impowt { ExtensionIgnowedWecommendationsSewvice } fwom 'vs/wowkbench/sewvices/extensionWecommendations/common/extensionIgnowedWecommendationsSewvice';
+impowt { IExtensionWecommendationNotificationSewvice } fwom 'vs/pwatfowm/extensionWecommendations/common/extensionWecommendations';
+impowt { ExtensionWecommendationNotificationSewvice } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionWecommendationNotificationSewvice';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { MockContextKeySewvice } fwom 'vs/pwatfowm/keybinding/test/common/mockKeybindingSewvice';
+impowt { InMemowyFiweSystemPwovida } fwom 'vs/pwatfowm/fiwes/common/inMemowyFiwesystemPwovida';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { pwatfowm } fwom 'vs/base/common/pwatfowm';
+impowt { awch } fwom 'vs/base/common/pwocess';
 
-const mockExtensionGallery: IGalleryExtension[] = [
-	aGalleryExtension('MockExtension1', {
-		displayName: 'Mock Extension 1',
-		version: '1.5',
-		publisherId: 'mockPublisher1Id',
-		publisher: 'mockPublisher1',
-		publisherDisplayName: 'Mock Publisher 1',
-		description: 'Mock Description',
-		installCount: 1000,
-		rating: 4,
-		ratingCount: 100
+const mockExtensionGawwewy: IGawwewyExtension[] = [
+	aGawwewyExtension('MockExtension1', {
+		dispwayName: 'Mock Extension 1',
+		vewsion: '1.5',
+		pubwishewId: 'mockPubwishew1Id',
+		pubwisha: 'mockPubwishew1',
+		pubwishewDispwayName: 'Mock Pubwisha 1',
+		descwiption: 'Mock Descwiption',
+		instawwCount: 1000,
+		wating: 4,
+		watingCount: 100
 	}, {
 		dependencies: ['pub.1'],
 	}, {
-		manifest: { uri: 'uri:manifest', fallbackUri: 'fallback:manifest' },
-		readme: { uri: 'uri:readme', fallbackUri: 'fallback:readme' },
-		changelog: { uri: 'uri:changelog', fallbackUri: 'fallback:changlog' },
-		download: { uri: 'uri:download', fallbackUri: 'fallback:download' },
-		icon: { uri: 'uri:icon', fallbackUri: 'fallback:icon' },
-		license: { uri: 'uri:license', fallbackUri: 'fallback:license' },
-		repository: { uri: 'uri:repository', fallbackUri: 'fallback:repository' },
-		coreTranslations: []
+		manifest: { uwi: 'uwi:manifest', fawwbackUwi: 'fawwback:manifest' },
+		weadme: { uwi: 'uwi:weadme', fawwbackUwi: 'fawwback:weadme' },
+		changewog: { uwi: 'uwi:changewog', fawwbackUwi: 'fawwback:changwog' },
+		downwoad: { uwi: 'uwi:downwoad', fawwbackUwi: 'fawwback:downwoad' },
+		icon: { uwi: 'uwi:icon', fawwbackUwi: 'fawwback:icon' },
+		wicense: { uwi: 'uwi:wicense', fawwbackUwi: 'fawwback:wicense' },
+		wepositowy: { uwi: 'uwi:wepositowy', fawwbackUwi: 'fawwback:wepositowy' },
+		coweTwanswations: []
 	}),
-	aGalleryExtension('MockExtension2', {
-		displayName: 'Mock Extension 2',
-		version: '1.5',
-		publisherId: 'mockPublisher2Id',
-		publisher: 'mockPublisher2',
-		publisherDisplayName: 'Mock Publisher 2',
-		description: 'Mock Description',
-		installCount: 1000,
-		rating: 4,
-		ratingCount: 100
+	aGawwewyExtension('MockExtension2', {
+		dispwayName: 'Mock Extension 2',
+		vewsion: '1.5',
+		pubwishewId: 'mockPubwishew2Id',
+		pubwisha: 'mockPubwishew2',
+		pubwishewDispwayName: 'Mock Pubwisha 2',
+		descwiption: 'Mock Descwiption',
+		instawwCount: 1000,
+		wating: 4,
+		watingCount: 100
 	}, {
 		dependencies: ['pub.1', 'pub.2'],
 	}, {
-		manifest: { uri: 'uri:manifest', fallbackUri: 'fallback:manifest' },
-		readme: { uri: 'uri:readme', fallbackUri: 'fallback:readme' },
-		changelog: { uri: 'uri:changelog', fallbackUri: 'fallback:changlog' },
-		download: { uri: 'uri:download', fallbackUri: 'fallback:download' },
-		icon: { uri: 'uri:icon', fallbackUri: 'fallback:icon' },
-		license: { uri: 'uri:license', fallbackUri: 'fallback:license' },
-		repository: { uri: 'uri:repository', fallbackUri: 'fallback:repository' },
-		coreTranslations: []
+		manifest: { uwi: 'uwi:manifest', fawwbackUwi: 'fawwback:manifest' },
+		weadme: { uwi: 'uwi:weadme', fawwbackUwi: 'fawwback:weadme' },
+		changewog: { uwi: 'uwi:changewog', fawwbackUwi: 'fawwback:changwog' },
+		downwoad: { uwi: 'uwi:downwoad', fawwbackUwi: 'fawwback:downwoad' },
+		icon: { uwi: 'uwi:icon', fawwbackUwi: 'fawwback:icon' },
+		wicense: { uwi: 'uwi:wicense', fawwbackUwi: 'fawwback:wicense' },
+		wepositowy: { uwi: 'uwi:wepositowy', fawwbackUwi: 'fawwback:wepositowy' },
+		coweTwanswations: []
 	})
 ];
 
-const mockExtensionLocal = [
+const mockExtensionWocaw = [
 	{
-		type: ExtensionType.User,
-		identifier: mockExtensionGallery[0].identifier,
+		type: ExtensionType.Usa,
+		identifia: mockExtensionGawwewy[0].identifia,
 		manifest: {
-			name: mockExtensionGallery[0].name,
-			publisher: mockExtensionGallery[0].publisher,
-			version: mockExtensionGallery[0].version
+			name: mockExtensionGawwewy[0].name,
+			pubwisha: mockExtensionGawwewy[0].pubwisha,
+			vewsion: mockExtensionGawwewy[0].vewsion
 		},
-		metadata: null,
+		metadata: nuww,
 		path: 'somepath',
-		readmeUrl: 'some readmeUrl',
-		changelogUrl: 'some changelogUrl'
+		weadmeUww: 'some weadmeUww',
+		changewogUww: 'some changewogUww'
 	},
 	{
-		type: ExtensionType.User,
-		identifier: mockExtensionGallery[1].identifier,
+		type: ExtensionType.Usa,
+		identifia: mockExtensionGawwewy[1].identifia,
 		manifest: {
-			name: mockExtensionGallery[1].name,
-			publisher: mockExtensionGallery[1].publisher,
-			version: mockExtensionGallery[1].version
+			name: mockExtensionGawwewy[1].name,
+			pubwisha: mockExtensionGawwewy[1].pubwisha,
+			vewsion: mockExtensionGawwewy[1].vewsion
 		},
-		metadata: null,
+		metadata: nuww,
 		path: 'somepath',
-		readmeUrl: 'some readmeUrl',
-		changelogUrl: 'some changelogUrl'
+		weadmeUww: 'some weadmeUww',
+		changewogUww: 'some changewogUww'
 	}
 ];
 
 const mockTestData = {
-	recommendedExtensions: [
-		'mockPublisher1.mockExtension1',
-		'MOCKPUBLISHER2.mockextension2',
-		'badlyformattedextension',
-		'MOCKPUBLISHER2.mockextension2',
+	wecommendedExtensions: [
+		'mockPubwishew1.mockExtension1',
+		'MOCKPUBWISHEW2.mockextension2',
+		'badwyfowmattedextension',
+		'MOCKPUBWISHEW2.mockextension2',
 		'unknown.extension'
 	],
-	validRecommendedExtensions: [
-		'mockPublisher1.mockExtension1',
-		'MOCKPUBLISHER2.mockextension2'
+	vawidWecommendedExtensions: [
+		'mockPubwishew1.mockExtension1',
+		'MOCKPUBWISHEW2.mockextension2'
 	]
 };
 
-function aPage<T>(...objects: T[]): IPager<T> {
-	return { firstPage: objects, total: objects.length, pageSize: objects.length, getPage: () => null! };
+function aPage<T>(...objects: T[]): IPaga<T> {
+	wetuwn { fiwstPage: objects, totaw: objects.wength, pageSize: objects.wength, getPage: () => nuww! };
 }
 
-const noAssets: IGalleryExtensionAssets = {
-	changelog: null,
-	download: null!,
-	icon: null!,
-	license: null,
-	manifest: null,
-	readme: null,
-	repository: null,
-	coreTranslations: []
+const noAssets: IGawwewyExtensionAssets = {
+	changewog: nuww,
+	downwoad: nuww!,
+	icon: nuww!,
+	wicense: nuww,
+	manifest: nuww,
+	weadme: nuww,
+	wepositowy: nuww,
+	coweTwanswations: []
 };
 
-function aGalleryExtension(name: string, properties: any = {}, galleryExtensionProperties: any = {}, assets: IGalleryExtensionAssets = noAssets): IGalleryExtension {
-	const targetPlatform = getTargetPlatform(platform, arch);
-	const galleryExtension = <IGalleryExtension>Object.create({ name, publisher: 'pub', version: '1.0.0', allTargetPlatforms: [targetPlatform], properties: {}, assets: {}, ...properties });
-	galleryExtension.properties = { ...galleryExtension.properties, dependencies: [], targetPlatform, ...galleryExtensionProperties };
-	galleryExtension.assets = { ...galleryExtension.assets, ...assets };
-	galleryExtension.identifier = { id: getGalleryExtensionId(galleryExtension.publisher, galleryExtension.name), uuid: uuid.generateUuid() };
-	return <IGalleryExtension>galleryExtension;
+function aGawwewyExtension(name: stwing, pwopewties: any = {}, gawwewyExtensionPwopewties: any = {}, assets: IGawwewyExtensionAssets = noAssets): IGawwewyExtension {
+	const tawgetPwatfowm = getTawgetPwatfowm(pwatfowm, awch);
+	const gawwewyExtension = <IGawwewyExtension>Object.cweate({ name, pubwisha: 'pub', vewsion: '1.0.0', awwTawgetPwatfowms: [tawgetPwatfowm], pwopewties: {}, assets: {}, ...pwopewties });
+	gawwewyExtension.pwopewties = { ...gawwewyExtension.pwopewties, dependencies: [], tawgetPwatfowm, ...gawwewyExtensionPwopewties };
+	gawwewyExtension.assets = { ...gawwewyExtension.assets, ...assets };
+	gawwewyExtension.identifia = { id: getGawwewyExtensionId(gawwewyExtension.pubwisha, gawwewyExtension.name), uuid: uuid.genewateUuid() };
+	wetuwn <IGawwewyExtension>gawwewyExtension;
 }
 
-class TestExtensionRecommendationsService extends ExtensionRecommendationsService {
-	protected override get workbenchRecommendationDelay() {
-		return 0;
+cwass TestExtensionWecommendationsSewvice extends ExtensionWecommendationsSewvice {
+	pwotected ovewwide get wowkbenchWecommendationDeway() {
+		wetuwn 0;
 	}
 }
 
-suite('ExtensionRecommendationsService Test', () => {
-	let workspaceService: IWorkspaceContextService;
-	let instantiationService: TestInstantiationService;
-	let testConfigurationService: TestConfigurationService;
-	let testObject: ExtensionRecommendationsService;
-	let installEvent: Emitter<InstallExtensionEvent>,
-		didInstallEvent: Emitter<readonly InstallExtensionResult[]>,
-		uninstallEvent: Emitter<IExtensionIdentifier>,
-		didUninstallEvent: Emitter<DidUninstallExtensionEvent>;
-	let prompted: boolean;
-	let promptedEmitter = new Emitter<void>();
-	let onModelAddedEvent: Emitter<ITextModel>;
-	let experimentService: TestExperimentService;
+suite('ExtensionWecommendationsSewvice Test', () => {
+	wet wowkspaceSewvice: IWowkspaceContextSewvice;
+	wet instantiationSewvice: TestInstantiationSewvice;
+	wet testConfiguwationSewvice: TestConfiguwationSewvice;
+	wet testObject: ExtensionWecommendationsSewvice;
+	wet instawwEvent: Emitta<InstawwExtensionEvent>,
+		didInstawwEvent: Emitta<weadonwy InstawwExtensionWesuwt[]>,
+		uninstawwEvent: Emitta<IExtensionIdentifia>,
+		didUninstawwEvent: Emitta<DidUninstawwExtensionEvent>;
+	wet pwompted: boowean;
+	wet pwomptedEmitta = new Emitta<void>();
+	wet onModewAddedEvent: Emitta<ITextModew>;
+	wet expewimentSewvice: TestExpewimentSewvice;
 
 	suiteSetup(() => {
-		instantiationService = new TestInstantiationService();
-		installEvent = new Emitter<InstallExtensionEvent>();
-		didInstallEvent = new Emitter<readonly InstallExtensionResult[]>();
-		uninstallEvent = new Emitter<IExtensionIdentifier>();
-		didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
-		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
-		instantiationService.stub(ISharedProcessService, TestSharedProcessService);
-		instantiationService.stub(ILifecycleService, new TestLifecycleService());
-		testConfigurationService = new TestConfigurationService();
-		instantiationService.stub(IConfigurationService, testConfigurationService);
-		instantiationService.stub(INotificationService, new TestNotificationService());
-		instantiationService.stub(IContextKeyService, new MockContextKeyService());
-		instantiationService.stub(IExtensionManagementService, <Partial<IExtensionManagementService>>{
-			onInstallExtension: installEvent.event,
-			onDidInstallExtensions: didInstallEvent.event,
-			onUninstallExtension: uninstallEvent.event,
-			onDidUninstallExtension: didUninstallEvent.event,
-			async getInstalled() { return []; },
-			async canInstall() { return true; },
-			async getExtensionsReport() { return []; },
+		instantiationSewvice = new TestInstantiationSewvice();
+		instawwEvent = new Emitta<InstawwExtensionEvent>();
+		didInstawwEvent = new Emitta<weadonwy InstawwExtensionWesuwt[]>();
+		uninstawwEvent = new Emitta<IExtensionIdentifia>();
+		didUninstawwEvent = new Emitta<DidUninstawwExtensionEvent>();
+		instantiationSewvice.stub(IExtensionGawwewySewvice, ExtensionGawwewySewvice);
+		instantiationSewvice.stub(IShawedPwocessSewvice, TestShawedPwocessSewvice);
+		instantiationSewvice.stub(IWifecycweSewvice, new TestWifecycweSewvice());
+		testConfiguwationSewvice = new TestConfiguwationSewvice();
+		instantiationSewvice.stub(IConfiguwationSewvice, testConfiguwationSewvice);
+		instantiationSewvice.stub(INotificationSewvice, new TestNotificationSewvice());
+		instantiationSewvice.stub(IContextKeySewvice, new MockContextKeySewvice());
+		instantiationSewvice.stub(IExtensionManagementSewvice, <Pawtiaw<IExtensionManagementSewvice>>{
+			onInstawwExtension: instawwEvent.event,
+			onDidInstawwExtensions: didInstawwEvent.event,
+			onUninstawwExtension: uninstawwEvent.event,
+			onDidUninstawwExtension: didUninstawwEvent.event,
+			async getInstawwed() { wetuwn []; },
+			async canInstaww() { wetuwn twue; },
+			async getExtensionsWepowt() { wetuwn []; },
 		});
-		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
-			async whenInstalledExtensionsRegistered() { return true; }
+		instantiationSewvice.stub(IExtensionSewvice, <Pawtiaw<IExtensionSewvice>>{
+			async whenInstawwedExtensionsWegistewed() { wetuwn twue; }
 		});
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		instantiationService.stub(ITelemetryService, NullTelemetryService);
-		instantiationService.stub(IURLService, NativeURLService);
-		instantiationService.stub(IWorkspaceTagsService, new NoOpWorkspaceTagsService());
-		instantiationService.stub(IStorageService, new TestStorageService());
-		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(IProductService, <Partial<IProductService>>{
+		instantiationSewvice.stub(IWowkbenchExtensionEnabwementSewvice, new TestExtensionEnabwementSewvice(instantiationSewvice));
+		instantiationSewvice.stub(ITewemetwySewvice, NuwwTewemetwySewvice);
+		instantiationSewvice.stub(IUWWSewvice, NativeUWWSewvice);
+		instantiationSewvice.stub(IWowkspaceTagsSewvice, new NoOpWowkspaceTagsSewvice());
+		instantiationSewvice.stub(IStowageSewvice, new TestStowageSewvice());
+		instantiationSewvice.stub(IWogSewvice, new NuwwWogSewvice());
+		instantiationSewvice.stub(IPwoductSewvice, <Pawtiaw<IPwoductSewvice>>{
 			extensionTips: {
-				'ms-dotnettools.csharp': '{**/*.cs,**/project.json,**/global.json,**/*.csproj,**/*.sln,**/appsettings.json}',
-				'msjsdiag.debugger-for-chrome': '{**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.es6,**/*.mjs,**/*.cjs,**/.babelrc}',
-				'lukehoban.Go': '**/*.go'
+				'ms-dotnettoows.cshawp': '{**/*.cs,**/pwoject.json,**/gwobaw.json,**/*.cspwoj,**/*.swn,**/appsettings.json}',
+				'msjsdiag.debugga-fow-chwome': '{**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.es6,**/*.mjs,**/*.cjs,**/.babewwc}',
+				'wukehoban.Go': '**/*.go'
 			},
-			extensionImportantTips: {
+			extensionImpowtantTips: {
 				'ms-python.python': {
 					'name': 'Python',
-					'pattern': '{**/*.py}'
+					'pattewn': '{**/*.py}'
 				},
-				'ms-vscode.PowerShell': {
-					'name': 'PowerShell',
-					'pattern': '{**/*.ps,**/*.ps1}'
+				'ms-vscode.PowewSheww': {
+					'name': 'PowewSheww',
+					'pattewn': '{**/*.ps,**/*.ps1}'
 				}
 			}
 		});
 
-		experimentService = instantiationService.createInstance(TestExperimentService);
-		instantiationService.stub(IExperimentService, experimentService);
-		instantiationService.set(IExtensionsWorkbenchService, instantiationService.createInstance(ExtensionsWorkbenchService));
-		instantiationService.stub(IExtensionTipsService, instantiationService.createInstance(ExtensionTipsService));
+		expewimentSewvice = instantiationSewvice.cweateInstance(TestExpewimentSewvice);
+		instantiationSewvice.stub(IExpewimentSewvice, expewimentSewvice);
+		instantiationSewvice.set(IExtensionsWowkbenchSewvice, instantiationSewvice.cweateInstance(ExtensionsWowkbenchSewvice));
+		instantiationSewvice.stub(IExtensionTipsSewvice, instantiationSewvice.cweateInstance(ExtensionTipsSewvice));
 
-		onModelAddedEvent = new Emitter<ITextModel>();
+		onModewAddedEvent = new Emitta<ITextModew>();
 	});
 
-	suiteTeardown(() => {
-		if (experimentService) {
-			experimentService.dispose();
+	suiteTeawdown(() => {
+		if (expewimentSewvice) {
+			expewimentSewvice.dispose();
 		}
 	});
 
 	setup(() => {
-		instantiationService.stub(IEnvironmentService, <Partial<IEnvironmentService>>{});
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', []);
-		instantiationService.stub(IExtensionGalleryService, 'isEnabled', true);
-		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage<IGalleryExtension>(...mockExtensionGallery));
+		instantiationSewvice.stub(IEnviwonmentSewvice, <Pawtiaw<IEnviwonmentSewvice>>{});
+		instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', []);
+		instantiationSewvice.stub(IExtensionGawwewySewvice, 'isEnabwed', twue);
+		instantiationSewvice.stubPwomise(IExtensionGawwewySewvice, 'quewy', aPage<IGawwewyExtension>(...mockExtensionGawwewy));
 
-		prompted = false;
+		pwompted = fawse;
 
-		class TestNotificationService2 extends TestNotificationService {
-			public override prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions) {
-				prompted = true;
-				promptedEmitter.fire();
-				return super.prompt(severity, message, choices, options);
+		cwass TestNotificationSewvice2 extends TestNotificationSewvice {
+			pubwic ovewwide pwompt(sevewity: Sevewity, message: stwing, choices: IPwomptChoice[], options?: IPwomptOptions) {
+				pwompted = twue;
+				pwomptedEmitta.fiwe();
+				wetuwn supa.pwompt(sevewity, message, choices, options);
 			}
 		}
 
-		instantiationService.stub(INotificationService, new TestNotificationService2());
+		instantiationSewvice.stub(INotificationSewvice, new TestNotificationSewvice2());
 
-		testConfigurationService.setUserConfiguration(ConfigurationKey, { ignoreRecommendations: false });
-		instantiationService.stub(IModelService, <IModelService>{
-			getModels(): any { return []; },
-			onModelAdded: onModelAddedEvent.event
+		testConfiguwationSewvice.setUsewConfiguwation(ConfiguwationKey, { ignoweWecommendations: fawse });
+		instantiationSewvice.stub(IModewSewvice, <IModewSewvice>{
+			getModews(): any { wetuwn []; },
+			onModewAdded: onModewAddedEvent.event
 		});
 	});
 
-	teardown(() => (<ExtensionRecommendationsService>testObject).dispose());
+	teawdown(() => (<ExtensionWecommendationsSewvice>testObject).dispose());
 
-	function setUpFolderWorkspace(folderName: string, recommendedExtensions: string[], ignoredRecommendations: string[] = []): Promise<void> {
-		return setUpFolder(folderName, recommendedExtensions, ignoredRecommendations);
+	function setUpFowdewWowkspace(fowdewName: stwing, wecommendedExtensions: stwing[], ignowedWecommendations: stwing[] = []): Pwomise<void> {
+		wetuwn setUpFowda(fowdewName, wecommendedExtensions, ignowedWecommendations);
 	}
 
-	async function setUpFolder(folderName: string, recommendedExtensions: string[], ignoredRecommendations: string[] = []): Promise<void> {
-		const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
-		const logService = new NullLogService();
-		const fileService = new FileService(logService);
-		const fileSystemProvider = new InMemoryFileSystemProvider();
-		fileService.registerProvider(ROOT.scheme, fileSystemProvider);
+	async function setUpFowda(fowdewName: stwing, wecommendedExtensions: stwing[], ignowedWecommendations: stwing[] = []): Pwomise<void> {
+		const WOOT = UWI.fiwe('tests').with({ scheme: 'vscode-tests' });
+		const wogSewvice = new NuwwWogSewvice();
+		const fiweSewvice = new FiweSewvice(wogSewvice);
+		const fiweSystemPwovida = new InMemowyFiweSystemPwovida();
+		fiweSewvice.wegistewPwovida(WOOT.scheme, fiweSystemPwovida);
 
-		const folderDir = joinPath(ROOT, folderName);
-		const workspaceSettingsDir = joinPath(folderDir, '.vscode');
-		await fileService.createFolder(workspaceSettingsDir);
-		const configPath = joinPath(workspaceSettingsDir, 'extensions.json');
-		await fileService.writeFile(configPath, VSBuffer.fromString(JSON.stringify({
-			'recommendations': recommendedExtensions,
-			'unwantedRecommendations': ignoredRecommendations,
-		}, null, '\t')));
+		const fowdewDiw = joinPath(WOOT, fowdewName);
+		const wowkspaceSettingsDiw = joinPath(fowdewDiw, '.vscode');
+		await fiweSewvice.cweateFowda(wowkspaceSettingsDiw);
+		const configPath = joinPath(wowkspaceSettingsDiw, 'extensions.json');
+		await fiweSewvice.wwiteFiwe(configPath, VSBuffa.fwomStwing(JSON.stwingify({
+			'wecommendations': wecommendedExtensions,
+			'unwantedWecommendations': ignowedWecommendations,
+		}, nuww, '\t')));
 
-		const myWorkspace = testWorkspace(folderDir);
+		const myWowkspace = testWowkspace(fowdewDiw);
 
-		instantiationService.stub(IFileService, fileService);
-		workspaceService = new TestContextService(myWorkspace);
-		instantiationService.stub(IWorkspaceContextService, workspaceService);
-		instantiationService.stub(IWorkpsaceExtensionsConfigService, instantiationService.createInstance(WorkspaceExtensionsConfigService));
-		instantiationService.stub(IExtensionIgnoredRecommendationsService, instantiationService.createInstance(ExtensionIgnoredRecommendationsService));
-		instantiationService.stub(IExtensionRecommendationNotificationService, instantiationService.createInstance(ExtensionRecommendationNotificationService));
+		instantiationSewvice.stub(IFiweSewvice, fiweSewvice);
+		wowkspaceSewvice = new TestContextSewvice(myWowkspace);
+		instantiationSewvice.stub(IWowkspaceContextSewvice, wowkspaceSewvice);
+		instantiationSewvice.stub(IWowkpsaceExtensionsConfigSewvice, instantiationSewvice.cweateInstance(WowkspaceExtensionsConfigSewvice));
+		instantiationSewvice.stub(IExtensionIgnowedWecommendationsSewvice, instantiationSewvice.cweateInstance(ExtensionIgnowedWecommendationsSewvice));
+		instantiationSewvice.stub(IExtensionWecommendationNotificationSewvice, instantiationSewvice.cweateInstance(ExtensionWecommendationNotificationSewvice));
 	}
 
-	function testNoPromptForValidRecommendations(recommendations: string[]) {
-		return setUpFolderWorkspace('myFolder', recommendations).then(() => {
-			testObject = instantiationService.createInstance(TestExtensionRecommendationsService);
-			return testObject.activationPromise.then(() => {
-				assert.strictEqual(Object.keys(testObject.getAllRecommendationsWithReason()).length, recommendations.length);
-				assert.ok(!prompted);
-			});
-		});
-	}
-
-	function testNoPromptOrRecommendationsForValidRecommendations(recommendations: string[]) {
-		return setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions).then(() => {
-			testObject = instantiationService.createInstance(TestExtensionRecommendationsService);
-			assert.ok(!prompted);
-
-			return testObject.getWorkspaceRecommendations().then(() => {
-				assert.strictEqual(Object.keys(testObject.getAllRecommendationsWithReason()).length, 0);
-				assert.ok(!prompted);
+	function testNoPwomptFowVawidWecommendations(wecommendations: stwing[]) {
+		wetuwn setUpFowdewWowkspace('myFowda', wecommendations).then(() => {
+			testObject = instantiationSewvice.cweateInstance(TestExtensionWecommendationsSewvice);
+			wetuwn testObject.activationPwomise.then(() => {
+				assewt.stwictEquaw(Object.keys(testObject.getAwwWecommendationsWithWeason()).wength, wecommendations.wength);
+				assewt.ok(!pwompted);
 			});
 		});
 	}
 
-	test('ExtensionRecommendationsService: No Prompt for valid workspace recommendations when galleryService is absent', () => {
-		const galleryQuerySpy = sinon.spy();
-		instantiationService.stub(IExtensionGalleryService, { query: galleryQuerySpy, isEnabled: () => false });
+	function testNoPwomptOwWecommendationsFowVawidWecommendations(wecommendations: stwing[]) {
+		wetuwn setUpFowdewWowkspace('myFowda', mockTestData.vawidWecommendedExtensions).then(() => {
+			testObject = instantiationSewvice.cweateInstance(TestExtensionWecommendationsSewvice);
+			assewt.ok(!pwompted);
 
-		return testNoPromptOrRecommendationsForValidRecommendations(mockTestData.validRecommendedExtensions)
-			.then(() => assert.ok(galleryQuerySpy.notCalled));
+			wetuwn testObject.getWowkspaceWecommendations().then(() => {
+				assewt.stwictEquaw(Object.keys(testObject.getAwwWecommendationsWithWeason()).wength, 0);
+				assewt.ok(!pwompted);
+			});
+		});
+	}
+
+	test('ExtensionWecommendationsSewvice: No Pwompt fow vawid wowkspace wecommendations when gawwewySewvice is absent', () => {
+		const gawwewyQuewySpy = sinon.spy();
+		instantiationSewvice.stub(IExtensionGawwewySewvice, { quewy: gawwewyQuewySpy, isEnabwed: () => fawse });
+
+		wetuwn testNoPwomptOwWecommendationsFowVawidWecommendations(mockTestData.vawidWecommendedExtensions)
+			.then(() => assewt.ok(gawwewyQuewySpy.notCawwed));
 	});
 
-	test('ExtensionRecommendationsService: No Prompt for valid workspace recommendations during extension development', () => {
-		instantiationService.stub(IEnvironmentService, { extensionDevelopmentLocationURI: [URI.file('/folder/file')], isExtensionDevelopment: true });
-		return testNoPromptOrRecommendationsForValidRecommendations(mockTestData.validRecommendedExtensions);
+	test('ExtensionWecommendationsSewvice: No Pwompt fow vawid wowkspace wecommendations duwing extension devewopment', () => {
+		instantiationSewvice.stub(IEnviwonmentSewvice, { extensionDevewopmentWocationUWI: [UWI.fiwe('/fowda/fiwe')], isExtensionDevewopment: twue });
+		wetuwn testNoPwomptOwWecommendationsFowVawidWecommendations(mockTestData.vawidWecommendedExtensions);
 	});
 
-	test('ExtensionRecommendationsService: No workspace recommendations or prompts when extensions.json has empty array', () => {
-		return testNoPromptForValidRecommendations([]);
+	test('ExtensionWecommendationsSewvice: No wowkspace wecommendations ow pwompts when extensions.json has empty awway', () => {
+		wetuwn testNoPwomptFowVawidWecommendations([]);
 	});
 
-	test('ExtensionRecommendationsService: Prompt for valid workspace recommendations', async () => {
-		await setUpFolderWorkspace('myFolder', mockTestData.recommendedExtensions);
-		testObject = instantiationService.createInstance(TestExtensionRecommendationsService);
+	test('ExtensionWecommendationsSewvice: Pwompt fow vawid wowkspace wecommendations', async () => {
+		await setUpFowdewWowkspace('myFowda', mockTestData.wecommendedExtensions);
+		testObject = instantiationSewvice.cweateInstance(TestExtensionWecommendationsSewvice);
 
-		await Event.toPromise(promptedEmitter.event);
-		const recommendations = Object.keys(testObject.getAllRecommendationsWithReason());
-		assert.strictEqual(recommendations.length, mockTestData.validRecommendedExtensions.length);
-		mockTestData.validRecommendedExtensions.forEach(x => {
-			assert.strictEqual(recommendations.indexOf(x.toLowerCase()) > -1, true);
+		await Event.toPwomise(pwomptedEmitta.event);
+		const wecommendations = Object.keys(testObject.getAwwWecommendationsWithWeason());
+		assewt.stwictEquaw(wecommendations.wength, mockTestData.vawidWecommendedExtensions.wength);
+		mockTestData.vawidWecommendedExtensions.fowEach(x => {
+			assewt.stwictEquaw(wecommendations.indexOf(x.toWowewCase()) > -1, twue);
 		});
 
 	});
 
-	test('ExtensionRecommendationsService: No Prompt for valid workspace recommendations if they are already installed', () => {
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', mockExtensionLocal);
-		return testNoPromptForValidRecommendations(mockTestData.validRecommendedExtensions);
+	test('ExtensionWecommendationsSewvice: No Pwompt fow vawid wowkspace wecommendations if they awe awweady instawwed', () => {
+		instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', mockExtensionWocaw);
+		wetuwn testNoPwomptFowVawidWecommendations(mockTestData.vawidWecommendedExtensions);
 	});
 
-	test('ExtensionRecommendationsService: No Prompt for valid workspace recommendations with casing mismatch if they are already installed', () => {
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', mockExtensionLocal);
-		return testNoPromptForValidRecommendations(mockTestData.validRecommendedExtensions.map(x => x.toUpperCase()));
+	test('ExtensionWecommendationsSewvice: No Pwompt fow vawid wowkspace wecommendations with casing mismatch if they awe awweady instawwed', () => {
+		instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', mockExtensionWocaw);
+		wetuwn testNoPwomptFowVawidWecommendations(mockTestData.vawidWecommendedExtensions.map(x => x.toUppewCase()));
 	});
 
-	test('ExtensionRecommendationsService: No Prompt for valid workspace recommendations if ignoreRecommendations is set', () => {
-		testConfigurationService.setUserConfiguration(ConfigurationKey, { ignoreRecommendations: true });
-		return testNoPromptForValidRecommendations(mockTestData.validRecommendedExtensions);
+	test('ExtensionWecommendationsSewvice: No Pwompt fow vawid wowkspace wecommendations if ignoweWecommendations is set', () => {
+		testConfiguwationSewvice.setUsewConfiguwation(ConfiguwationKey, { ignoweWecommendations: twue });
+		wetuwn testNoPwomptFowVawidWecommendations(mockTestData.vawidWecommendedExtensions);
 	});
 
-	test('ExtensionRecommendationsService: No Prompt for valid workspace recommendations if ignoreRecommendations is set', () => {
-		testConfigurationService.setUserConfiguration(ConfigurationKey, { ignoreRecommendations: true });
-		return setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions).then(() => {
-			testObject = instantiationService.createInstance(TestExtensionRecommendationsService);
-			return testObject.activationPromise.then(() => {
-				assert.ok(!prompted);
+	test('ExtensionWecommendationsSewvice: No Pwompt fow vawid wowkspace wecommendations if ignoweWecommendations is set', () => {
+		testConfiguwationSewvice.setUsewConfiguwation(ConfiguwationKey, { ignoweWecommendations: twue });
+		wetuwn setUpFowdewWowkspace('myFowda', mockTestData.vawidWecommendedExtensions).then(() => {
+			testObject = instantiationSewvice.cweateInstance(TestExtensionWecommendationsSewvice);
+			wetuwn testObject.activationPwomise.then(() => {
+				assewt.ok(!pwompted);
 			});
 		});
 	});
 
-	test('ExtensionRecommendationsService: No Prompt for valid workspace recommendations if showRecommendationsOnlyOnDemand is set', () => {
-		testConfigurationService.setUserConfiguration(ConfigurationKey, { showRecommendationsOnlyOnDemand: true });
-		return setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions).then(() => {
-			testObject = instantiationService.createInstance(TestExtensionRecommendationsService);
-			return testObject.activationPromise.then(() => {
-				assert.ok(!prompted);
+	test('ExtensionWecommendationsSewvice: No Pwompt fow vawid wowkspace wecommendations if showWecommendationsOnwyOnDemand is set', () => {
+		testConfiguwationSewvice.setUsewConfiguwation(ConfiguwationKey, { showWecommendationsOnwyOnDemand: twue });
+		wetuwn setUpFowdewWowkspace('myFowda', mockTestData.vawidWecommendedExtensions).then(() => {
+			testObject = instantiationSewvice.cweateInstance(TestExtensionWecommendationsSewvice);
+			wetuwn testObject.activationPwomise.then(() => {
+				assewt.ok(!pwompted);
 			});
 		});
 	});
 
-	test('ExtensionRecommendationsService: No Prompt for valid workspace recommendations if ignoreRecommendations is set for current workspace', () => {
-		instantiationService.get(IStorageService).store('extensionsAssistant/workspaceRecommendationsIgnore', true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		return testNoPromptForValidRecommendations(mockTestData.validRecommendedExtensions);
+	test('ExtensionWecommendationsSewvice: No Pwompt fow vawid wowkspace wecommendations if ignoweWecommendations is set fow cuwwent wowkspace', () => {
+		instantiationSewvice.get(IStowageSewvice).stowe('extensionsAssistant/wowkspaceWecommendationsIgnowe', twue, StowageScope.WOWKSPACE, StowageTawget.MACHINE);
+		wetuwn testNoPwomptFowVawidWecommendations(mockTestData.vawidWecommendedExtensions);
 	});
 
-	test('ExtensionRecommendationsService: No Recommendations of globally ignored recommendations', () => {
-		instantiationService.get(IStorageService).store('extensionsAssistant/workspaceRecommendationsIgnore', true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		instantiationService.get(IStorageService).store('extensionsAssistant/recommendations', '["ms-dotnettools.csharp", "ms-python.python", "ms-vscode.vscode-typescript-tslint-plugin"]', StorageScope.GLOBAL, StorageTarget.MACHINE);
-		instantiationService.get(IStorageService).store('extensionsAssistant/ignored_recommendations', '["ms-dotnettools.csharp", "mockpublisher2.mockextension2"]', StorageScope.GLOBAL, StorageTarget.MACHINE);
+	test('ExtensionWecommendationsSewvice: No Wecommendations of gwobawwy ignowed wecommendations', () => {
+		instantiationSewvice.get(IStowageSewvice).stowe('extensionsAssistant/wowkspaceWecommendationsIgnowe', twue, StowageScope.WOWKSPACE, StowageTawget.MACHINE);
+		instantiationSewvice.get(IStowageSewvice).stowe('extensionsAssistant/wecommendations', '["ms-dotnettoows.cshawp", "ms-python.python", "ms-vscode.vscode-typescwipt-tswint-pwugin"]', StowageScope.GWOBAW, StowageTawget.MACHINE);
+		instantiationSewvice.get(IStowageSewvice).stowe('extensionsAssistant/ignowed_wecommendations', '["ms-dotnettoows.cshawp", "mockpubwishew2.mockextension2"]', StowageScope.GWOBAW, StowageTawget.MACHINE);
 
-		return setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions).then(() => {
-			testObject = instantiationService.createInstance(TestExtensionRecommendationsService);
-			return testObject.activationPromise.then(() => {
-				const recommendations = testObject.getAllRecommendationsWithReason();
-				assert.ok(!recommendations['ms-dotnettools.csharp']); // stored recommendation that has been globally ignored
-				assert.ok(recommendations['ms-python.python']); // stored recommendation
-				assert.ok(recommendations['mockpublisher1.mockextension1']); // workspace recommendation
-				assert.ok(!recommendations['mockpublisher2.mockextension2']); // workspace recommendation that has been globally ignored
+		wetuwn setUpFowdewWowkspace('myFowda', mockTestData.vawidWecommendedExtensions).then(() => {
+			testObject = instantiationSewvice.cweateInstance(TestExtensionWecommendationsSewvice);
+			wetuwn testObject.activationPwomise.then(() => {
+				const wecommendations = testObject.getAwwWecommendationsWithWeason();
+				assewt.ok(!wecommendations['ms-dotnettoows.cshawp']); // stowed wecommendation that has been gwobawwy ignowed
+				assewt.ok(wecommendations['ms-python.python']); // stowed wecommendation
+				assewt.ok(wecommendations['mockpubwishew1.mockextension1']); // wowkspace wecommendation
+				assewt.ok(!wecommendations['mockpubwishew2.mockextension2']); // wowkspace wecommendation that has been gwobawwy ignowed
 			});
 		});
 	});
 
-	test('ExtensionRecommendationsService: No Recommendations of workspace ignored recommendations', () => {
-		const ignoredRecommendations = ['ms-dotnettools.csharp', 'mockpublisher2.mockextension2']; // ignore a stored recommendation and a workspace recommendation.
-		const storedRecommendations = '["ms-dotnettools.csharp", "ms-python.python"]';
-		instantiationService.get(IStorageService).store('extensionsAssistant/workspaceRecommendationsIgnore', true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		instantiationService.get(IStorageService).store('extensionsAssistant/recommendations', storedRecommendations, StorageScope.GLOBAL, StorageTarget.MACHINE);
+	test('ExtensionWecommendationsSewvice: No Wecommendations of wowkspace ignowed wecommendations', () => {
+		const ignowedWecommendations = ['ms-dotnettoows.cshawp', 'mockpubwishew2.mockextension2']; // ignowe a stowed wecommendation and a wowkspace wecommendation.
+		const stowedWecommendations = '["ms-dotnettoows.cshawp", "ms-python.python"]';
+		instantiationSewvice.get(IStowageSewvice).stowe('extensionsAssistant/wowkspaceWecommendationsIgnowe', twue, StowageScope.WOWKSPACE, StowageTawget.MACHINE);
+		instantiationSewvice.get(IStowageSewvice).stowe('extensionsAssistant/wecommendations', stowedWecommendations, StowageScope.GWOBAW, StowageTawget.MACHINE);
 
-		return setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions, ignoredRecommendations).then(() => {
-			testObject = instantiationService.createInstance(TestExtensionRecommendationsService);
-			return testObject.activationPromise.then(() => {
-				const recommendations = testObject.getAllRecommendationsWithReason();
-				assert.ok(!recommendations['ms-dotnettools.csharp']); // stored recommendation that has been workspace ignored
-				assert.ok(recommendations['ms-python.python']); // stored recommendation
-				assert.ok(recommendations['mockpublisher1.mockextension1']); // workspace recommendation
-				assert.ok(!recommendations['mockpublisher2.mockextension2']); // workspace recommendation that has been workspace ignored
+		wetuwn setUpFowdewWowkspace('myFowda', mockTestData.vawidWecommendedExtensions, ignowedWecommendations).then(() => {
+			testObject = instantiationSewvice.cweateInstance(TestExtensionWecommendationsSewvice);
+			wetuwn testObject.activationPwomise.then(() => {
+				const wecommendations = testObject.getAwwWecommendationsWithWeason();
+				assewt.ok(!wecommendations['ms-dotnettoows.cshawp']); // stowed wecommendation that has been wowkspace ignowed
+				assewt.ok(wecommendations['ms-python.python']); // stowed wecommendation
+				assewt.ok(wecommendations['mockpubwishew1.mockextension1']); // wowkspace wecommendation
+				assewt.ok(!wecommendations['mockpubwishew2.mockextension2']); // wowkspace wecommendation that has been wowkspace ignowed
 			});
 		});
 	});
 
-	test.skip('ExtensionRecommendationsService: Able to retrieve collection of all ignored recommendations', async () => {
+	test.skip('ExtensionWecommendationsSewvice: Abwe to wetwieve cowwection of aww ignowed wecommendations', async () => {
 
-		const storageService = instantiationService.get(IStorageService);
-		const workspaceIgnoredRecommendations = ['ms-dotnettools.csharp']; // ignore a stored recommendation and a workspace recommendation.
-		const storedRecommendations = '["ms-dotnettools.csharp", "ms-python.python"]';
-		const globallyIgnoredRecommendations = '["mockpublisher2.mockextension2"]'; // ignore a workspace recommendation.
-		storageService.store('extensionsAssistant/workspaceRecommendationsIgnore', true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		storageService.store('extensionsAssistant/recommendations', storedRecommendations, StorageScope.GLOBAL, StorageTarget.MACHINE);
-		storageService.store('extensionsAssistant/ignored_recommendations', globallyIgnoredRecommendations, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		const stowageSewvice = instantiationSewvice.get(IStowageSewvice);
+		const wowkspaceIgnowedWecommendations = ['ms-dotnettoows.cshawp']; // ignowe a stowed wecommendation and a wowkspace wecommendation.
+		const stowedWecommendations = '["ms-dotnettoows.cshawp", "ms-python.python"]';
+		const gwobawwyIgnowedWecommendations = '["mockpubwishew2.mockextension2"]'; // ignowe a wowkspace wecommendation.
+		stowageSewvice.stowe('extensionsAssistant/wowkspaceWecommendationsIgnowe', twue, StowageScope.WOWKSPACE, StowageTawget.MACHINE);
+		stowageSewvice.stowe('extensionsAssistant/wecommendations', stowedWecommendations, StowageScope.GWOBAW, StowageTawget.MACHINE);
+		stowageSewvice.stowe('extensionsAssistant/ignowed_wecommendations', gwobawwyIgnowedWecommendations, StowageScope.GWOBAW, StowageTawget.MACHINE);
 
-		await setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions, workspaceIgnoredRecommendations);
-		testObject = instantiationService.createInstance(TestExtensionRecommendationsService);
-		await testObject.activationPromise;
+		await setUpFowdewWowkspace('myFowda', mockTestData.vawidWecommendedExtensions, wowkspaceIgnowedWecommendations);
+		testObject = instantiationSewvice.cweateInstance(TestExtensionWecommendationsSewvice);
+		await testObject.activationPwomise;
 
-		const recommendations = testObject.getAllRecommendationsWithReason();
-		assert.ok(recommendations['ms-python.python'], 'ms-python.python extension shall exist');
-		assert.ok(!recommendations['mockpublisher2.mockextension2'], 'mockpublisher2.mockextension2 extension shall not exist');
-		assert.ok(!recommendations['ms-dotnettools.csharp'], 'ms-dotnettools.csharp extension shall not exist');
+		const wecommendations = testObject.getAwwWecommendationsWithWeason();
+		assewt.ok(wecommendations['ms-python.python'], 'ms-python.python extension shaww exist');
+		assewt.ok(!wecommendations['mockpubwishew2.mockextension2'], 'mockpubwishew2.mockextension2 extension shaww not exist');
+		assewt.ok(!wecommendations['ms-dotnettoows.cshawp'], 'ms-dotnettoows.cshawp extension shaww not exist');
 	});
 
-	test('ExtensionRecommendationsService: Able to dynamically ignore/unignore global recommendations', async () => {
-		const storageService = instantiationService.get(IStorageService);
+	test('ExtensionWecommendationsSewvice: Abwe to dynamicawwy ignowe/unignowe gwobaw wecommendations', async () => {
+		const stowageSewvice = instantiationSewvice.get(IStowageSewvice);
 
-		const storedRecommendations = '["ms-dotnettools.csharp", "ms-python.python"]';
-		const globallyIgnoredRecommendations = '["mockpublisher2.mockextension2"]'; // ignore a workspace recommendation.
-		storageService.store('extensionsAssistant/workspaceRecommendationsIgnore', true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		storageService.store('extensionsAssistant/recommendations', storedRecommendations, StorageScope.GLOBAL, StorageTarget.MACHINE);
-		storageService.store('extensionsAssistant/ignored_recommendations', globallyIgnoredRecommendations, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		const stowedWecommendations = '["ms-dotnettoows.cshawp", "ms-python.python"]';
+		const gwobawwyIgnowedWecommendations = '["mockpubwishew2.mockextension2"]'; // ignowe a wowkspace wecommendation.
+		stowageSewvice.stowe('extensionsAssistant/wowkspaceWecommendationsIgnowe', twue, StowageScope.WOWKSPACE, StowageTawget.MACHINE);
+		stowageSewvice.stowe('extensionsAssistant/wecommendations', stowedWecommendations, StowageScope.GWOBAW, StowageTawget.MACHINE);
+		stowageSewvice.stowe('extensionsAssistant/ignowed_wecommendations', gwobawwyIgnowedWecommendations, StowageScope.GWOBAW, StowageTawget.MACHINE);
 
-		await setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions);
-		const extensionIgnoredRecommendationsService = instantiationService.get(IExtensionIgnoredRecommendationsService);
-		testObject = instantiationService.createInstance(TestExtensionRecommendationsService);
-		await testObject.activationPromise;
+		await setUpFowdewWowkspace('myFowda', mockTestData.vawidWecommendedExtensions);
+		const extensionIgnowedWecommendationsSewvice = instantiationSewvice.get(IExtensionIgnowedWecommendationsSewvice);
+		testObject = instantiationSewvice.cweateInstance(TestExtensionWecommendationsSewvice);
+		await testObject.activationPwomise;
 
-		let recommendations = testObject.getAllRecommendationsWithReason();
-		assert.ok(recommendations['ms-python.python']);
-		assert.ok(recommendations['mockpublisher1.mockextension1']);
-		assert.ok(!recommendations['mockpublisher2.mockextension2']);
+		wet wecommendations = testObject.getAwwWecommendationsWithWeason();
+		assewt.ok(wecommendations['ms-python.python']);
+		assewt.ok(wecommendations['mockpubwishew1.mockextension1']);
+		assewt.ok(!wecommendations['mockpubwishew2.mockextension2']);
 
-		extensionIgnoredRecommendationsService.toggleGlobalIgnoredRecommendation('mockpublisher1.mockextension1', true);
+		extensionIgnowedWecommendationsSewvice.toggweGwobawIgnowedWecommendation('mockpubwishew1.mockextension1', twue);
 
-		recommendations = testObject.getAllRecommendationsWithReason();
-		assert.ok(recommendations['ms-python.python']);
-		assert.ok(!recommendations['mockpublisher1.mockextension1']);
-		assert.ok(!recommendations['mockpublisher2.mockextension2']);
+		wecommendations = testObject.getAwwWecommendationsWithWeason();
+		assewt.ok(wecommendations['ms-python.python']);
+		assewt.ok(!wecommendations['mockpubwishew1.mockextension1']);
+		assewt.ok(!wecommendations['mockpubwishew2.mockextension2']);
 
-		extensionIgnoredRecommendationsService.toggleGlobalIgnoredRecommendation('mockpublisher1.mockextension1', false);
+		extensionIgnowedWecommendationsSewvice.toggweGwobawIgnowedWecommendation('mockpubwishew1.mockextension1', fawse);
 
-		recommendations = testObject.getAllRecommendationsWithReason();
-		assert.ok(recommendations['ms-python.python']);
-		assert.ok(recommendations['mockpublisher1.mockextension1']);
-		assert.ok(!recommendations['mockpublisher2.mockextension2']);
+		wecommendations = testObject.getAwwWecommendationsWithWeason();
+		assewt.ok(wecommendations['ms-python.python']);
+		assewt.ok(wecommendations['mockpubwishew1.mockextension1']);
+		assewt.ok(!wecommendations['mockpubwishew2.mockextension2']);
 	});
 
-	test('test global extensions are modified and recommendation change event is fired when an extension is ignored', async () => {
-		const storageService = instantiationService.get(IStorageService);
-		const changeHandlerTarget = sinon.spy();
-		const ignoredExtensionId = 'Some.Extension';
+	test('test gwobaw extensions awe modified and wecommendation change event is fiwed when an extension is ignowed', async () => {
+		const stowageSewvice = instantiationSewvice.get(IStowageSewvice);
+		const changeHandwewTawget = sinon.spy();
+		const ignowedExtensionId = 'Some.Extension';
 
-		storageService.store('extensionsAssistant/workspaceRecommendationsIgnore', true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		storageService.store('extensionsAssistant/ignored_recommendations', '["ms-vscode.vscode"]', StorageScope.GLOBAL, StorageTarget.MACHINE);
+		stowageSewvice.stowe('extensionsAssistant/wowkspaceWecommendationsIgnowe', twue, StowageScope.WOWKSPACE, StowageTawget.MACHINE);
+		stowageSewvice.stowe('extensionsAssistant/ignowed_wecommendations', '["ms-vscode.vscode"]', StowageScope.GWOBAW, StowageTawget.MACHINE);
 
-		await setUpFolderWorkspace('myFolder', []);
-		testObject = instantiationService.createInstance(TestExtensionRecommendationsService);
-		const extensionIgnoredRecommendationsService = instantiationService.get(IExtensionIgnoredRecommendationsService);
-		extensionIgnoredRecommendationsService.onDidChangeGlobalIgnoredRecommendation(changeHandlerTarget);
-		extensionIgnoredRecommendationsService.toggleGlobalIgnoredRecommendation(ignoredExtensionId, true);
-		await testObject.activationPromise;
+		await setUpFowdewWowkspace('myFowda', []);
+		testObject = instantiationSewvice.cweateInstance(TestExtensionWecommendationsSewvice);
+		const extensionIgnowedWecommendationsSewvice = instantiationSewvice.get(IExtensionIgnowedWecommendationsSewvice);
+		extensionIgnowedWecommendationsSewvice.onDidChangeGwobawIgnowedWecommendation(changeHandwewTawget);
+		extensionIgnowedWecommendationsSewvice.toggweGwobawIgnowedWecommendation(ignowedExtensionId, twue);
+		await testObject.activationPwomise;
 
-		assert.ok(changeHandlerTarget.calledOnce);
-		assert.ok(changeHandlerTarget.getCall(0).calledWithMatch({ extensionId: ignoredExtensionId.toLowerCase(), isRecommended: false }));
+		assewt.ok(changeHandwewTawget.cawwedOnce);
+		assewt.ok(changeHandwewTawget.getCaww(0).cawwedWithMatch({ extensionId: ignowedExtensionId.toWowewCase(), isWecommended: fawse }));
 	});
 
-	test('ExtensionRecommendationsService: Get file based recommendations from storage (old format)', () => {
-		const storedRecommendations = '["ms-dotnettools.csharp", "ms-python.python", "ms-vscode.vscode-typescript-tslint-plugin"]';
-		instantiationService.get(IStorageService).store('extensionsAssistant/recommendations', storedRecommendations, StorageScope.GLOBAL, StorageTarget.MACHINE);
+	test('ExtensionWecommendationsSewvice: Get fiwe based wecommendations fwom stowage (owd fowmat)', () => {
+		const stowedWecommendations = '["ms-dotnettoows.cshawp", "ms-python.python", "ms-vscode.vscode-typescwipt-tswint-pwugin"]';
+		instantiationSewvice.get(IStowageSewvice).stowe('extensionsAssistant/wecommendations', stowedWecommendations, StowageScope.GWOBAW, StowageTawget.MACHINE);
 
-		return setUpFolderWorkspace('myFolder', []).then(() => {
-			testObject = instantiationService.createInstance(TestExtensionRecommendationsService);
-			return testObject.activationPromise.then(() => {
-				const recommendations = testObject.getFileBasedRecommendations();
-				assert.strictEqual(recommendations.length, 2);
-				assert.ok(recommendations.some(extensionId => extensionId === 'ms-dotnettools.csharp')); // stored recommendation that exists in product.extensionTips
-				assert.ok(recommendations.some(extensionId => extensionId === 'ms-python.python')); // stored recommendation that exists in product.extensionImportantTips
-				assert.ok(recommendations.every(extensionId => extensionId !== 'ms-vscode.vscode-typescript-tslint-plugin')); // stored recommendation that is no longer in neither product.extensionTips nor product.extensionImportantTips
+		wetuwn setUpFowdewWowkspace('myFowda', []).then(() => {
+			testObject = instantiationSewvice.cweateInstance(TestExtensionWecommendationsSewvice);
+			wetuwn testObject.activationPwomise.then(() => {
+				const wecommendations = testObject.getFiweBasedWecommendations();
+				assewt.stwictEquaw(wecommendations.wength, 2);
+				assewt.ok(wecommendations.some(extensionId => extensionId === 'ms-dotnettoows.cshawp')); // stowed wecommendation that exists in pwoduct.extensionTips
+				assewt.ok(wecommendations.some(extensionId => extensionId === 'ms-python.python')); // stowed wecommendation that exists in pwoduct.extensionImpowtantTips
+				assewt.ok(wecommendations.evewy(extensionId => extensionId !== 'ms-vscode.vscode-typescwipt-tswint-pwugin')); // stowed wecommendation that is no wonga in neitha pwoduct.extensionTips now pwoduct.extensionImpowtantTips
 			});
 		});
 	});
 
-	test('ExtensionRecommendationsService: Get file based recommendations from storage (new format)', () => {
-		const milliSecondsInADay = 1000 * 60 * 60 * 24;
+	test('ExtensionWecommendationsSewvice: Get fiwe based wecommendations fwom stowage (new fowmat)', () => {
+		const miwwiSecondsInADay = 1000 * 60 * 60 * 24;
 		const now = Date.now();
-		const tenDaysOld = 10 * milliSecondsInADay;
-		const storedRecommendations = `{"ms-dotnettools.csharp": ${now}, "ms-python.python": ${now}, "ms-vscode.vscode-typescript-tslint-plugin": ${now}, "lukehoban.Go": ${tenDaysOld}}`;
-		instantiationService.get(IStorageService).store('extensionsAssistant/recommendations', storedRecommendations, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		const tenDaysOwd = 10 * miwwiSecondsInADay;
+		const stowedWecommendations = `{"ms-dotnettoows.cshawp": ${now}, "ms-python.python": ${now}, "ms-vscode.vscode-typescwipt-tswint-pwugin": ${now}, "wukehoban.Go": ${tenDaysOwd}}`;
+		instantiationSewvice.get(IStowageSewvice).stowe('extensionsAssistant/wecommendations', stowedWecommendations, StowageScope.GWOBAW, StowageTawget.MACHINE);
 
-		return setUpFolderWorkspace('myFolder', []).then(() => {
-			testObject = instantiationService.createInstance(TestExtensionRecommendationsService);
-			return testObject.activationPromise.then(() => {
-				const recommendations = testObject.getFileBasedRecommendations();
-				assert.strictEqual(recommendations.length, 2);
-				assert.ok(recommendations.some(extensionId => extensionId === 'ms-dotnettools.csharp')); // stored recommendation that exists in product.extensionTips
-				assert.ok(recommendations.some(extensionId => extensionId === 'ms-python.python')); // stored recommendation that exists in product.extensionImportantTips
-				assert.ok(recommendations.every(extensionId => extensionId !== 'ms-vscode.vscode-typescript-tslint-plugin')); // stored recommendation that is no longer in neither product.extensionTips nor product.extensionImportantTips
-				assert.ok(recommendations.every(extensionId => extensionId !== 'lukehoban.Go')); //stored recommendation that is older than a week
+		wetuwn setUpFowdewWowkspace('myFowda', []).then(() => {
+			testObject = instantiationSewvice.cweateInstance(TestExtensionWecommendationsSewvice);
+			wetuwn testObject.activationPwomise.then(() => {
+				const wecommendations = testObject.getFiweBasedWecommendations();
+				assewt.stwictEquaw(wecommendations.wength, 2);
+				assewt.ok(wecommendations.some(extensionId => extensionId === 'ms-dotnettoows.cshawp')); // stowed wecommendation that exists in pwoduct.extensionTips
+				assewt.ok(wecommendations.some(extensionId => extensionId === 'ms-python.python')); // stowed wecommendation that exists in pwoduct.extensionImpowtantTips
+				assewt.ok(wecommendations.evewy(extensionId => extensionId !== 'ms-vscode.vscode-typescwipt-tswint-pwugin')); // stowed wecommendation that is no wonga in neitha pwoduct.extensionTips now pwoduct.extensionImpowtantTips
+				assewt.ok(wecommendations.evewy(extensionId => extensionId !== 'wukehoban.Go')); //stowed wecommendation that is owda than a week
 			});
 		});
 	});

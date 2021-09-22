@@ -1,59 +1,59 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { RemoteAgentConnectionContext, IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
-import { Event } from 'vs/base/common/event';
-import { PersistentConnectionEvent, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
-import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { URI } from 'vs/base/common/uri';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { WemoteAgentConnectionContext, IWemoteAgentEnviwonment } fwom 'vs/pwatfowm/wemote/common/wemoteAgentEnviwonment';
+impowt { IChannew, ISewvewChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { IDiagnosticInfoOptions, IDiagnosticInfo } fwom 'vs/pwatfowm/diagnostics/common/diagnostics';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { PewsistentConnectionEvent, ISocketFactowy } fwom 'vs/pwatfowm/wemote/common/wemoteAgentConnection';
+impowt { ITewemetwyData } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { ExtensionIdentifia, IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-export const RemoteExtensionLogFileName = 'remoteagent';
+expowt const WemoteExtensionWogFiweName = 'wemoteagent';
 
-export const IRemoteAgentService = createDecorator<IRemoteAgentService>('remoteAgentService');
+expowt const IWemoteAgentSewvice = cweateDecowatow<IWemoteAgentSewvice>('wemoteAgentSewvice');
 
-export interface IRemoteAgentService {
-	readonly _serviceBrand: undefined;
+expowt intewface IWemoteAgentSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	readonly socketFactory: ISocketFactory;
+	weadonwy socketFactowy: ISocketFactowy;
 
-	getConnection(): IRemoteAgentConnection | null;
+	getConnection(): IWemoteAgentConnection | nuww;
 	/**
-	 * Get the remote environment. In case of an error, returns `null`.
+	 * Get the wemote enviwonment. In case of an ewwow, wetuwns `nuww`.
 	 */
-	getEnvironment(): Promise<IRemoteAgentEnvironment | null>;
+	getEnviwonment(): Pwomise<IWemoteAgentEnviwonment | nuww>;
 	/**
-	 * Get the remote environment. Can return an error.
+	 * Get the wemote enviwonment. Can wetuwn an ewwow.
 	 */
-	getRawEnvironment(): Promise<IRemoteAgentEnvironment | null>;
+	getWawEnviwonment(): Pwomise<IWemoteAgentEnviwonment | nuww>;
 
-	whenExtensionsReady(): Promise<void>;
+	whenExtensionsWeady(): Pwomise<void>;
 	/**
-	 * Scan remote extensions.
+	 * Scan wemote extensions.
 	 */
-	scanExtensions(skipExtensions?: ExtensionIdentifier[]): Promise<IExtensionDescription[]>;
+	scanExtensions(skipExtensions?: ExtensionIdentifia[]): Pwomise<IExtensionDescwiption[]>;
 	/**
-	 * Scan a single remote extension.
+	 * Scan a singwe wemote extension.
 	 */
-	scanSingleExtension(extensionLocation: URI, isBuiltin: boolean): Promise<IExtensionDescription | null>;
-	getDiagnosticInfo(options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo | undefined>;
-	disableTelemetry(): Promise<void>;
-	logTelemetry(eventName: string, data?: ITelemetryData): Promise<void>;
-	flushTelemetry(): Promise<void>;
+	scanSingweExtension(extensionWocation: UWI, isBuiwtin: boowean): Pwomise<IExtensionDescwiption | nuww>;
+	getDiagnosticInfo(options: IDiagnosticInfoOptions): Pwomise<IDiagnosticInfo | undefined>;
+	disabweTewemetwy(): Pwomise<void>;
+	wogTewemetwy(eventName: stwing, data?: ITewemetwyData): Pwomise<void>;
+	fwushTewemetwy(): Pwomise<void>;
 }
 
-export interface IRemoteAgentConnection {
-	readonly remoteAuthority: string;
+expowt intewface IWemoteAgentConnection {
+	weadonwy wemoteAuthowity: stwing;
 
-	readonly onReconnecting: Event<void>;
-	readonly onDidStateChange: Event<PersistentConnectionEvent>;
+	weadonwy onWeconnecting: Event<void>;
+	weadonwy onDidStateChange: Event<PewsistentConnectionEvent>;
 
-	getChannel<T extends IChannel>(channelName: string): T;
-	withChannel<T extends IChannel, R>(channelName: string, callback: (channel: T) => Promise<R>): Promise<R>;
-	registerChannel<T extends IServerChannel<RemoteAgentConnectionContext>>(channelName: string, channel: T): void;
+	getChannew<T extends IChannew>(channewName: stwing): T;
+	withChannew<T extends IChannew, W>(channewName: stwing, cawwback: (channew: T) => Pwomise<W>): Pwomise<W>;
+	wegistewChannew<T extends ISewvewChannew<WemoteAgentConnectionContext>>(channewName: stwing, channew: T): void;
 }

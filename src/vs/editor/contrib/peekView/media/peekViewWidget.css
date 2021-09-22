@@ -1,73 +1,73 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .peekview-widget .head {
-	box-sizing: border-box;
-	display: flex;
+.monaco-editow .peekview-widget .head {
+	box-sizing: bowda-box;
+	dispway: fwex;
 }
 
-.monaco-editor .peekview-widget .head .peekview-title {
-	display: flex;
-	align-items: center;
+.monaco-editow .peekview-widget .head .peekview-titwe {
+	dispway: fwex;
+	awign-items: centa;
 	font-size: 13px;
-	margin-left: 20px;
+	mawgin-weft: 20px;
 	min-width: 0;
 }
 
-.monaco-editor .peekview-widget .head .peekview-title.clickable {
-	cursor: pointer;
+.monaco-editow .peekview-widget .head .peekview-titwe.cwickabwe {
+	cuwsow: pointa;
 }
 
-.monaco-editor .peekview-widget .head .peekview-title .dirname:not(:empty) {
+.monaco-editow .peekview-widget .head .peekview-titwe .diwname:not(:empty) {
 	font-size: 0.9em;
-	margin-left: 0.5em;
+	mawgin-weft: 0.5em;
 }
 
-.monaco-editor .peekview-widget .head .peekview-title .meta {
-	white-space: nowrap;
+.monaco-editow .peekview-widget .head .peekview-titwe .meta {
+	white-space: nowwap;
 }
 
-.monaco-editor .peekview-widget .head .peekview-title .dirname {
-	white-space: nowrap;
+.monaco-editow .peekview-widget .head .peekview-titwe .diwname {
+	white-space: nowwap;
 }
 
-.monaco-editor .peekview-widget .head .peekview-title .filename {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+.monaco-editow .peekview-widget .head .peekview-titwe .fiwename {
+	ovewfwow: hidden;
+	text-ovewfwow: ewwipsis;
+	white-space: nowwap;
 }
 
-.monaco-editor .peekview-widget .head .peekview-title .meta:not(:empty)::before {
+.monaco-editow .peekview-widget .head .peekview-titwe .meta:not(:empty)::befowe {
 	content: '-';
 	padding: 0 0.3em;
 }
 
-.monaco-editor .peekview-widget .head .peekview-actions {
-	flex: 1;
-	text-align: right;
-	padding-right: 2px;
+.monaco-editow .peekview-widget .head .peekview-actions {
+	fwex: 1;
+	text-awign: wight;
+	padding-wight: 2px;
 }
 
-.monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar {
-	display: inline-block;
+.monaco-editow .peekview-widget .head .peekview-actions > .monaco-action-baw {
+	dispway: inwine-bwock;
 }
 
-.monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar,
-.monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar > .actions-container {
+.monaco-editow .peekview-widget .head .peekview-actions > .monaco-action-baw,
+.monaco-editow .peekview-widget .head .peekview-actions > .monaco-action-baw > .actions-containa {
 	height: 100%;
 }
 
-.monaco-editor .peekview-widget > .body {
-	border-top: 1px solid;
-	position: relative;
+.monaco-editow .peekview-widget > .body {
+	bowda-top: 1px sowid;
+	position: wewative;
 }
 
-.monaco-editor .peekview-widget .head .peekview-title .codicon {
-	margin-right: 4px;
+.monaco-editow .peekview-widget .head .peekview-titwe .codicon {
+	mawgin-wight: 4px;
 }
 
-.monaco-editor .peekview-widget .monaco-list .monaco-list-row.focused .codicon {
-	color: inherit !important;
+.monaco-editow .peekview-widget .monaco-wist .monaco-wist-wow.focused .codicon {
+	cowow: inhewit !impowtant;
 }

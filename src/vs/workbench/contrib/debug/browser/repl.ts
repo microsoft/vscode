@@ -1,1000 +1,1000 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IHistoryNavigationWidget } from 'vs/base/browser/history';
-import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import * as aria from 'vs/base/browser/ui/aria/aria';
-import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
-import { IAsyncDataSource, ITreeContextMenuEvent, ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { IAction } from 'vs/base/common/actions';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { memoize } from 'vs/base/common/decorators';
-import { FuzzyScore } from 'vs/base/common/filters';
-import { HistoryNavigator } from 'vs/base/common/history';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
-import { URI as uri } from 'vs/base/common/uri';
-import 'vs/css!./media/repl';
-import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IDecorationOptions } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ITextModel } from 'vs/editor/common/model';
-import { CompletionContext, CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, completionKindFromString, CompletionList, CompletionProviderRegistry } from 'vs/editor/common/modes';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
-import { localize } from 'vs/nls';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { createAndBindHistoryNavigationWidgetScopedContextKeyService } from 'vs/platform/browser/contextScopedHistoryWidget';
-import { showHistoryKeybindingHint } from 'vs/platform/browser/historyWidgetKeybindingHint';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { editorForeground, resolveColorValue } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IViewPaneOptions, ViewAction, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
-import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
-import { debugConsoleClearAll, debugConsoleEvaluationPrompt } from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { ReplFilter, ReplFilterActionViewItem, ReplFilterState } from 'vs/workbench/contrib/debug/browser/replFilter';
-import { ReplAccessibilityProvider, ReplDataSource, ReplDelegate, ReplEvaluationInputsRenderer, ReplEvaluationResultsRenderer, ReplGroupRenderer, ReplRawObjectsRenderer, ReplSimpleElementsRenderer, ReplVariablesRenderer } from 'vs/workbench/contrib/debug/browser/replViewer';
-import { CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_REPL, CONTEXT_MULTI_SESSION_REPL, DEBUG_SCHEME, getStateLabel, IDebugConfiguration, IDebugService, IDebugSession, IReplElement, REPL_VIEW_ID, State } from 'vs/workbench/contrib/debug/common/debug';
-import { ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { IHistowyNavigationWidget } fwom 'vs/base/bwowsa/histowy';
+impowt { IActionViewItem } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt * as awia fwom 'vs/base/bwowsa/ui/awia/awia';
+impowt { MOUSE_CUWSOW_TEXT_CSS_CWASS_NAME } fwom 'vs/base/bwowsa/ui/mouseCuwsow/mouseCuwsow';
+impowt { IAsyncDataSouwce, ITweeContextMenuEvent, ITweeNode } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { memoize } fwom 'vs/base/common/decowatows';
+impowt { FuzzyScowe } fwom 'vs/base/common/fiwtews';
+impowt { HistowyNavigatow } fwom 'vs/base/common/histowy';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe, dispose, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { wemoveAnsiEscapeCodes } fwom 'vs/base/common/stwings';
+impowt { UWI as uwi } fwom 'vs/base/common/uwi';
+impowt 'vs/css!./media/wepw';
+impowt { ICodeEditow, isCodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, wegistewEditowAction } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { CodeEditowWidget } fwom 'vs/editow/bwowsa/widget/codeEditowWidget';
+impowt { EditowOption, EDITOW_FONT_DEFAUWTS } fwom 'vs/editow/common/config/editowOptions';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IDecowationOptions } fwom 'vs/editow/common/editowCommon';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { CompwetionContext, CompwetionItem, CompwetionItemInsewtTextWuwe, CompwetionItemKind, compwetionKindFwomStwing, CompwetionWist, CompwetionPwovidewWegistwy } fwom 'vs/editow/common/modes';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { ITextWesouwcePwopewtiesSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { SuggestContwowwa } fwom 'vs/editow/contwib/suggest/suggestContwowwa';
+impowt { wocawize } fwom 'vs/nws';
+impowt { cweateAndFiwwInContextMenuActions } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { Action2, IMenu, IMenuSewvice, MenuId, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { cweateAndBindHistowyNavigationWidgetScopedContextKeySewvice } fwom 'vs/pwatfowm/bwowsa/contextScopedHistowyWidget';
+impowt { showHistowyKeybindingHint } fwom 'vs/pwatfowm/bwowsa/histowyWidgetKeybindingHint';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ContextKeyExpw, IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { WowkbenchAsyncDataTwee } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { editowFowegwound, wesowveCowowVawue } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { IThemeSewvice, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IViewPaneOptions, ViewAction, ViewPane } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPane';
+impowt { IViewDescwiptowSewvice, IViewsSewvice } fwom 'vs/wowkbench/common/views';
+impowt { getSimpweCodeEditowWidgetOptions, getSimpweEditowOptions } fwom 'vs/wowkbench/contwib/codeEditow/bwowsa/simpweEditowOptions';
+impowt { FocusSessionActionViewItem } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugActionViewItems';
+impowt { debugConsoweCweawAww, debugConsoweEvawuationPwompt } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugIcons';
+impowt { WinkDetectow } fwom 'vs/wowkbench/contwib/debug/bwowsa/winkDetectow';
+impowt { WepwFiwta, WepwFiwtewActionViewItem, WepwFiwtewState } fwom 'vs/wowkbench/contwib/debug/bwowsa/wepwFiwta';
+impowt { WepwAccessibiwityPwovida, WepwDataSouwce, WepwDewegate, WepwEvawuationInputsWendewa, WepwEvawuationWesuwtsWendewa, WepwGwoupWendewa, WepwWawObjectsWendewa, WepwSimpweEwementsWendewa, WepwVawiabwesWendewa } fwom 'vs/wowkbench/contwib/debug/bwowsa/wepwViewa';
+impowt { CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_WEPW, CONTEXT_MUWTI_SESSION_WEPW, DEBUG_SCHEME, getStateWabew, IDebugConfiguwation, IDebugSewvice, IDebugSession, IWepwEwement, WEPW_VIEW_ID, State } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { WepwGwoup } fwom 'vs/wowkbench/contwib/debug/common/wepwModew';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
 
 const $ = dom.$;
 
-const HISTORY_STORAGE_KEY = 'debug.repl.history';
-const FILTER_HISTORY_STORAGE_KEY = 'debug.repl.filterHistory';
-const FILTER_VALUE_STORAGE_KEY = 'debug.repl.filterValue';
-const DECORATION_KEY = 'replinputdecoration';
-const FILTER_ACTION_ID = `workbench.actions.treeView.repl.filter`;
+const HISTOWY_STOWAGE_KEY = 'debug.wepw.histowy';
+const FIWTEW_HISTOWY_STOWAGE_KEY = 'debug.wepw.fiwtewHistowy';
+const FIWTEW_VAWUE_STOWAGE_KEY = 'debug.wepw.fiwtewVawue';
+const DECOWATION_KEY = 'wepwinputdecowation';
+const FIWTEW_ACTION_ID = `wowkbench.actions.tweeView.wepw.fiwta`;
 
-function revealLastElement(tree: WorkbenchAsyncDataTree<any, any, any>) {
-	tree.scrollTop = tree.scrollHeight - tree.renderHeight;
+function weveawWastEwement(twee: WowkbenchAsyncDataTwee<any, any, any>) {
+	twee.scwowwTop = twee.scwowwHeight - twee.wendewHeight;
 }
 
-const sessionsToIgnore = new Set<IDebugSession>();
-const identityProvider = { getId: (element: IReplElement) => element.getId() };
+const sessionsToIgnowe = new Set<IDebugSession>();
+const identityPwovida = { getId: (ewement: IWepwEwement) => ewement.getId() };
 
-export class Repl extends ViewPane implements IHistoryNavigationWidget {
-	declare readonly _serviceBrand: undefined;
+expowt cwass Wepw extends ViewPane impwements IHistowyNavigationWidget {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private static readonly REFRESH_DELAY = 50; // delay in ms to refresh the repl for new elements to show
-	private static readonly URI = uri.parse(`${DEBUG_SCHEME}:replinput`);
+	pwivate static weadonwy WEFWESH_DEWAY = 50; // deway in ms to wefwesh the wepw fow new ewements to show
+	pwivate static weadonwy UWI = uwi.pawse(`${DEBUG_SCHEME}:wepwinput`);
 
-	private history: HistoryNavigator<string>;
-	private tree!: WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>;
-	private replDelegate!: ReplDelegate;
-	private container!: HTMLElement;
-	private treeContainer!: HTMLElement;
-	private replInput!: CodeEditorWidget;
-	private replInputContainer!: HTMLElement;
-	private dimension!: dom.Dimension;
-	private replInputLineCount = 1;
-	private model: ITextModel | undefined;
-	private setHistoryNavigationEnablement!: (enabled: boolean) => void;
-	private scopedInstantiationService!: IInstantiationService;
-	private replElementsChangeListener: IDisposable | undefined;
-	private styleElement: HTMLStyleElement | undefined;
-	private completionItemProvider: IDisposable | undefined;
-	private modelChangeListener: IDisposable = Disposable.None;
-	private filter: ReplFilter;
-	private filterState: ReplFilterState;
-	private filterActionViewItem: ReplFilterActionViewItem | undefined;
-	private multiSessionRepl: IContextKey<boolean>;
-	private menu: IMenu;
+	pwivate histowy: HistowyNavigatow<stwing>;
+	pwivate twee!: WowkbenchAsyncDataTwee<IDebugSession, IWepwEwement, FuzzyScowe>;
+	pwivate wepwDewegate!: WepwDewegate;
+	pwivate containa!: HTMWEwement;
+	pwivate tweeContaina!: HTMWEwement;
+	pwivate wepwInput!: CodeEditowWidget;
+	pwivate wepwInputContaina!: HTMWEwement;
+	pwivate dimension!: dom.Dimension;
+	pwivate wepwInputWineCount = 1;
+	pwivate modew: ITextModew | undefined;
+	pwivate setHistowyNavigationEnabwement!: (enabwed: boowean) => void;
+	pwivate scopedInstantiationSewvice!: IInstantiationSewvice;
+	pwivate wepwEwementsChangeWistena: IDisposabwe | undefined;
+	pwivate styweEwement: HTMWStyweEwement | undefined;
+	pwivate compwetionItemPwovida: IDisposabwe | undefined;
+	pwivate modewChangeWistena: IDisposabwe = Disposabwe.None;
+	pwivate fiwta: WepwFiwta;
+	pwivate fiwtewState: WepwFiwtewState;
+	pwivate fiwtewActionViewItem: WepwFiwtewActionViewItem | undefined;
+	pwivate muwtiSessionWepw: IContextKey<boowean>;
+	pwivate menu: IMenu;
 
-	constructor(
+	constwuctow(
 		options: IViewPaneOptions,
-		@IDebugService private readonly debugService: IDebugService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IThemeService themeService: IThemeService,
-		@IModelService private readonly modelService: IModelService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@ITextResourcePropertiesService private readonly textResourcePropertiesService: ITextResourcePropertiesService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IOpenerService openerService: IOpenerService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IMenuService menuService: IMenuService
+		@IDebugSewvice pwivate weadonwy debugSewvice: IDebugSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IModewSewvice pwivate weadonwy modewSewvice: IModewSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@ICodeEditowSewvice codeEditowSewvice: ICodeEditowSewvice,
+		@IViewDescwiptowSewvice viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@ITextWesouwcePwopewtiesSewvice pwivate weadonwy textWesouwcePwopewtiesSewvice: ITextWesouwcePwopewtiesSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IOpenewSewvice openewSewvice: IOpenewSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IMenuSewvice menuSewvice: IMenuSewvice
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		supa(options, keybindingSewvice, contextMenuSewvice, configuwationSewvice, contextKeySewvice, viewDescwiptowSewvice, instantiationSewvice, openewSewvice, themeSewvice, tewemetwySewvice);
 
-		this.menu = menuService.createMenu(MenuId.DebugConsoleContext, contextKeyService);
-		this._register(this.menu);
-		this.history = new HistoryNavigator(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')), 50);
-		this.filter = new ReplFilter();
-		this.filterState = new ReplFilterState(this);
-		this.filter.filterQuery = this.filterState.filterText = this.storageService.get(FILTER_VALUE_STORAGE_KEY, StorageScope.WORKSPACE, '');
-		this.multiSessionRepl = CONTEXT_MULTI_SESSION_REPL.bindTo(contextKeyService);
+		this.menu = menuSewvice.cweateMenu(MenuId.DebugConsoweContext, contextKeySewvice);
+		this._wegista(this.menu);
+		this.histowy = new HistowyNavigatow(JSON.pawse(this.stowageSewvice.get(HISTOWY_STOWAGE_KEY, StowageScope.WOWKSPACE, '[]')), 50);
+		this.fiwta = new WepwFiwta();
+		this.fiwtewState = new WepwFiwtewState(this);
+		this.fiwta.fiwtewQuewy = this.fiwtewState.fiwtewText = this.stowageSewvice.get(FIWTEW_VAWUE_STOWAGE_KEY, StowageScope.WOWKSPACE, '');
+		this.muwtiSessionWepw = CONTEXT_MUWTI_SESSION_WEPW.bindTo(contextKeySewvice);
 
-		codeEditorService.registerDecorationType('repl-decoration', DECORATION_KEY, {});
-		this.multiSessionRepl.set(this.isMultiSessionView);
-		this.registerListeners();
+		codeEditowSewvice.wegistewDecowationType('wepw-decowation', DECOWATION_KEY, {});
+		this.muwtiSessionWepw.set(this.isMuwtiSessionView);
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		this._register(this.debugService.getViewModel().onDidFocusSession(async session => {
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.debugSewvice.getViewModew().onDidFocusSession(async session => {
 			if (session) {
-				sessionsToIgnore.delete(session);
-				if (this.completionItemProvider) {
-					this.completionItemProvider.dispose();
+				sessionsToIgnowe.dewete(session);
+				if (this.compwetionItemPwovida) {
+					this.compwetionItemPwovida.dispose();
 				}
-				if (session.capabilities.supportsCompletionsRequest) {
-					this.completionItemProvider = CompletionProviderRegistry.register({ scheme: DEBUG_SCHEME, pattern: '**/replinput', hasAccessToAllModels: true }, {
-						triggerCharacters: session.capabilities.completionTriggerCharacters || ['.'],
-						provideCompletionItems: async (_: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Promise<CompletionList> => {
-							// Disable history navigation because up and down are used to navigate through the suggest widget
-							this.setHistoryNavigationEnablement(false);
+				if (session.capabiwities.suppowtsCompwetionsWequest) {
+					this.compwetionItemPwovida = CompwetionPwovidewWegistwy.wegista({ scheme: DEBUG_SCHEME, pattewn: '**/wepwinput', hasAccessToAwwModews: twue }, {
+						twiggewChawactews: session.capabiwities.compwetionTwiggewChawactews || ['.'],
+						pwovideCompwetionItems: async (_: ITextModew, position: Position, _context: CompwetionContext, token: CancewwationToken): Pwomise<CompwetionWist> => {
+							// Disabwe histowy navigation because up and down awe used to navigate thwough the suggest widget
+							this.setHistowyNavigationEnabwement(fawse);
 
-							const model = this.replInput.getModel();
-							if (model) {
-								const word = model.getWordAtPosition(position);
-								const overwriteBefore = word ? word.word.length : 0;
-								const text = model.getValue();
-								const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-								const frameId = focusedStackFrame ? focusedStackFrame.frameId : undefined;
-								const response = await session.completions(frameId, focusedStackFrame?.thread.threadId || 0, text, position, overwriteBefore, token);
+							const modew = this.wepwInput.getModew();
+							if (modew) {
+								const wowd = modew.getWowdAtPosition(position);
+								const ovewwwiteBefowe = wowd ? wowd.wowd.wength : 0;
+								const text = modew.getVawue();
+								const focusedStackFwame = this.debugSewvice.getViewModew().focusedStackFwame;
+								const fwameId = focusedStackFwame ? focusedStackFwame.fwameId : undefined;
+								const wesponse = await session.compwetions(fwameId, focusedStackFwame?.thwead.thweadId || 0, text, position, ovewwwiteBefowe, token);
 
-								const suggestions: CompletionItem[] = [];
-								const computeRange = (length: number) => Range.fromPositions(position.delta(0, -length), position);
-								if (response && response.body && response.body.targets) {
-									response.body.targets.forEach(item => {
-										if (item && item.label) {
-											let insertTextRules: CompletionItemInsertTextRule | undefined = undefined;
-											let insertText = item.text || item.label;
-											if (typeof item.selectionStart === 'number') {
-												// If a debug completion item sets a selection we need to use snippets to make sure the selection is selected #90974
-												insertTextRules = CompletionItemInsertTextRule.InsertAsSnippet;
-												const selectionLength = typeof item.selectionLength === 'number' ? item.selectionLength : 0;
-												const placeholder = selectionLength > 0 ? '${1:' + insertText.substr(item.selectionStart, selectionLength) + '}$0' : '$0';
-												insertText = insertText.substr(0, item.selectionStart) + placeholder + insertText.substr(item.selectionStart + selectionLength);
+								const suggestions: CompwetionItem[] = [];
+								const computeWange = (wength: numba) => Wange.fwomPositions(position.dewta(0, -wength), position);
+								if (wesponse && wesponse.body && wesponse.body.tawgets) {
+									wesponse.body.tawgets.fowEach(item => {
+										if (item && item.wabew) {
+											wet insewtTextWuwes: CompwetionItemInsewtTextWuwe | undefined = undefined;
+											wet insewtText = item.text || item.wabew;
+											if (typeof item.sewectionStawt === 'numba') {
+												// If a debug compwetion item sets a sewection we need to use snippets to make suwe the sewection is sewected #90974
+												insewtTextWuwes = CompwetionItemInsewtTextWuwe.InsewtAsSnippet;
+												const sewectionWength = typeof item.sewectionWength === 'numba' ? item.sewectionWength : 0;
+												const pwacehowda = sewectionWength > 0 ? '${1:' + insewtText.substw(item.sewectionStawt, sewectionWength) + '}$0' : '$0';
+												insewtText = insewtText.substw(0, item.sewectionStawt) + pwacehowda + insewtText.substw(item.sewectionStawt + sewectionWength);
 											}
 
 											suggestions.push({
-												label: item.label,
-												insertText,
-												kind: completionKindFromString(item.type || 'property'),
-												filterText: (item.start && item.length) ? text.substr(item.start, item.length).concat(item.label) : undefined,
-												range: computeRange(item.length || overwriteBefore),
-												sortText: item.sortText,
-												insertTextRules
+												wabew: item.wabew,
+												insewtText,
+												kind: compwetionKindFwomStwing(item.type || 'pwopewty'),
+												fiwtewText: (item.stawt && item.wength) ? text.substw(item.stawt, item.wength).concat(item.wabew) : undefined,
+												wange: computeWange(item.wength || ovewwwiteBefowe),
+												sowtText: item.sowtText,
+												insewtTextWuwes
 											});
 										}
 									});
 								}
 
-								if (this.configurationService.getValue<IDebugConfiguration>('debug').console.historySuggestions) {
-									const history = this.history.getHistory();
-									history.forEach(h => suggestions.push({
-										label: h,
-										insertText: h,
-										kind: CompletionItemKind.Text,
-										range: computeRange(h.length),
-										sortText: 'ZZZ'
+								if (this.configuwationSewvice.getVawue<IDebugConfiguwation>('debug').consowe.histowySuggestions) {
+									const histowy = this.histowy.getHistowy();
+									histowy.fowEach(h => suggestions.push({
+										wabew: h,
+										insewtText: h,
+										kind: CompwetionItemKind.Text,
+										wange: computeWange(h.wength),
+										sowtText: 'ZZZ'
 									}));
 								}
 
-								return { suggestions };
+								wetuwn { suggestions };
 							}
 
-							return Promise.resolve({ suggestions: [] });
+							wetuwn Pwomise.wesowve({ suggestions: [] });
 						}
 					});
 				}
 			}
 
-			await this.selectSession();
+			await this.sewectSession();
 		}));
-		this._register(this.debugService.onWillNewSession(async newSession => {
-			// Need to listen to output events for sessions which are not yet fully initialised
-			const input = this.tree.getInput();
+		this._wegista(this.debugSewvice.onWiwwNewSession(async newSession => {
+			// Need to wisten to output events fow sessions which awe not yet fuwwy initiawised
+			const input = this.twee.getInput();
 			if (!input || input.state === State.Inactive) {
-				await this.selectSession(newSession);
+				await this.sewectSession(newSession);
 			}
-			this.multiSessionRepl.set(this.isMultiSessionView);
+			this.muwtiSessionWepw.set(this.isMuwtiSessionView);
 		}));
-		this._register(this.themeService.onDidColorThemeChange(() => {
-			this.refreshReplElements(false);
-			if (this.isVisible()) {
-				this.updateInputDecoration();
+		this._wegista(this.themeSewvice.onDidCowowThemeChange(() => {
+			this.wefweshWepwEwements(fawse);
+			if (this.isVisibwe()) {
+				this.updateInputDecowation();
 			}
 		}));
-		this._register(this.onDidChangeBodyVisibility(visible => {
-			if (visible) {
-				if (!this.model) {
-					this.model = this.modelService.getModel(Repl.URI) || this.modelService.createModel('', null, Repl.URI, true);
+		this._wegista(this.onDidChangeBodyVisibiwity(visibwe => {
+			if (visibwe) {
+				if (!this.modew) {
+					this.modew = this.modewSewvice.getModew(Wepw.UWI) || this.modewSewvice.cweateModew('', nuww, Wepw.UWI, twue);
 				}
 				this.setMode();
-				this.replInput.setModel(this.model);
-				this.updateInputDecoration();
-				this.refreshReplElements(true);
-				this.layoutBody(this.dimension.height, this.dimension.width);
+				this.wepwInput.setModew(this.modew);
+				this.updateInputDecowation();
+				this.wefweshWepwEwements(twue);
+				this.wayoutBody(this.dimension.height, this.dimension.width);
 			}
 		}));
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('debug.console.wordWrap')) {
-				this.tree.dispose();
-				this.treeContainer.innerText = '';
-				dom.clearNode(this.treeContainer);
-				this.createReplTree();
-			} else if (e.affectsConfiguration('debug.console.lineHeight') || e.affectsConfiguration('debug.console.fontSize') || e.affectsConfiguration('debug.console.fontFamily')) {
-				this.onDidStyleChange();
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation('debug.consowe.wowdWwap')) {
+				this.twee.dispose();
+				this.tweeContaina.innewText = '';
+				dom.cweawNode(this.tweeContaina);
+				this.cweateWepwTwee();
+			} ewse if (e.affectsConfiguwation('debug.consowe.wineHeight') || e.affectsConfiguwation('debug.consowe.fontSize') || e.affectsConfiguwation('debug.consowe.fontFamiwy')) {
+				this.onDidStyweChange();
 			}
-			if (e.affectsConfiguration('debug.console.acceptSuggestionOnEnter')) {
-				const config = this.configurationService.getValue<IDebugConfiguration>('debug');
-				this.replInput.updateOptions({
-					acceptSuggestionOnEnter: config.console.acceptSuggestionOnEnter === 'on' ? 'on' : 'off'
+			if (e.affectsConfiguwation('debug.consowe.acceptSuggestionOnEnta')) {
+				const config = this.configuwationSewvice.getVawue<IDebugConfiguwation>('debug');
+				this.wepwInput.updateOptions({
+					acceptSuggestionOnEnta: config.consowe.acceptSuggestionOnEnta === 'on' ? 'on' : 'off'
 				});
 			}
 		}));
 
-		this._register(this.themeService.onDidColorThemeChange(e => {
-			this.onDidStyleChange();
+		this._wegista(this.themeSewvice.onDidCowowThemeChange(e => {
+			this.onDidStyweChange();
 		}));
 
-		this._register(this.viewDescriptorService.onDidChangeLocation(e => {
+		this._wegista(this.viewDescwiptowSewvice.onDidChangeWocation(e => {
 			if (e.views.some(v => v.id === this.id)) {
-				this.onDidStyleChange();
+				this.onDidStyweChange();
 			}
 		}));
 
-		this._register(this.editorService.onDidActiveEditorChange(() => {
+		this._wegista(this.editowSewvice.onDidActiveEditowChange(() => {
 			this.setMode();
 		}));
 
-		this._register(this.filterState.onDidChange(() => {
-			this.filter.filterQuery = this.filterState.filterText;
-			this.tree.refilter();
-			revealLastElement(this.tree);
+		this._wegista(this.fiwtewState.onDidChange(() => {
+			this.fiwta.fiwtewQuewy = this.fiwtewState.fiwtewText;
+			this.twee.wefiwta();
+			weveawWastEwement(this.twee);
 		}));
 	}
 
-	getFilterStats(): { total: number, filtered: number } {
-		// This could be called before the tree is created when setting this.filterState.filterText value
-		return {
-			total: this.tree?.getNode().children.length ?? 0,
-			filtered: this.tree?.getNode().children.filter(c => c.visible).length ?? 0
+	getFiwtewStats(): { totaw: numba, fiwtewed: numba } {
+		// This couwd be cawwed befowe the twee is cweated when setting this.fiwtewState.fiwtewText vawue
+		wetuwn {
+			totaw: this.twee?.getNode().chiwdwen.wength ?? 0,
+			fiwtewed: this.twee?.getNode().chiwdwen.fiwta(c => c.visibwe).wength ?? 0
 		};
 	}
 
-	get isReadonly(): boolean {
-		// Do not allow to edit inactive sessions
-		const session = this.tree.getInput();
+	get isWeadonwy(): boowean {
+		// Do not awwow to edit inactive sessions
+		const session = this.twee.getInput();
 		if (session && session.state !== State.Inactive) {
-			return false;
+			wetuwn fawse;
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	showPreviousValue(): void {
-		if (!this.isReadonly) {
-			this.navigateHistory(true);
-		}
-	}
-
-	showNextValue(): void {
-		if (!this.isReadonly) {
-			this.navigateHistory(false);
+	showPweviousVawue(): void {
+		if (!this.isWeadonwy) {
+			this.navigateHistowy(twue);
 		}
 	}
 
-	focusFilter(): void {
-		this.filterActionViewItem?.focus();
+	showNextVawue(): void {
+		if (!this.isWeadonwy) {
+			this.navigateHistowy(fawse);
+		}
 	}
 
-	private setMode(): void {
-		if (!this.isVisible()) {
-			return;
+	focusFiwta(): void {
+		this.fiwtewActionViewItem?.focus();
+	}
+
+	pwivate setMode(): void {
+		if (!this.isVisibwe()) {
+			wetuwn;
 		}
 
-		const activeEditorControl = this.editorService.activeTextEditorControl;
-		if (isCodeEditor(activeEditorControl)) {
-			this.modelChangeListener.dispose();
-			this.modelChangeListener = activeEditorControl.onDidChangeModelLanguage(() => this.setMode());
-			if (this.model && activeEditorControl.hasModel()) {
-				this.model.setMode(activeEditorControl.getModel().getLanguageIdentifier());
+		const activeEditowContwow = this.editowSewvice.activeTextEditowContwow;
+		if (isCodeEditow(activeEditowContwow)) {
+			this.modewChangeWistena.dispose();
+			this.modewChangeWistena = activeEditowContwow.onDidChangeModewWanguage(() => this.setMode());
+			if (this.modew && activeEditowContwow.hasModew()) {
+				this.modew.setMode(activeEditowContwow.getModew().getWanguageIdentifia());
 			}
 		}
 	}
 
-	private onDidStyleChange(): void {
-		if (this.styleElement) {
-			const debugConsole = this.configurationService.getValue<IDebugConfiguration>('debug').console;
-			const fontSize = debugConsole.fontSize;
-			const fontFamily = debugConsole.fontFamily === 'default' ? 'var(--monaco-monospace-font)' : `${debugConsole.fontFamily}`;
-			const lineHeight = debugConsole.lineHeight ? `${debugConsole.lineHeight}px` : '1.4em';
-			const backgroundColor = this.themeService.getColorTheme().getColor(this.getBackgroundColor());
+	pwivate onDidStyweChange(): void {
+		if (this.styweEwement) {
+			const debugConsowe = this.configuwationSewvice.getVawue<IDebugConfiguwation>('debug').consowe;
+			const fontSize = debugConsowe.fontSize;
+			const fontFamiwy = debugConsowe.fontFamiwy === 'defauwt' ? 'vaw(--monaco-monospace-font)' : `${debugConsowe.fontFamiwy}`;
+			const wineHeight = debugConsowe.wineHeight ? `${debugConsowe.wineHeight}px` : '1.4em';
+			const backgwoundCowow = this.themeSewvice.getCowowTheme().getCowow(this.getBackgwoundCowow());
 
-			this.replInput.updateOptions({
+			this.wepwInput.updateOptions({
 				fontSize,
-				lineHeight: debugConsole.lineHeight,
-				fontFamily: debugConsole.fontFamily === 'default' ? EDITOR_FONT_DEFAULTS.fontFamily : debugConsole.fontFamily
+				wineHeight: debugConsowe.wineHeight,
+				fontFamiwy: debugConsowe.fontFamiwy === 'defauwt' ? EDITOW_FONT_DEFAUWTS.fontFamiwy : debugConsowe.fontFamiwy
 			});
 
-			const replInputLineHeight = this.replInput.getOption(EditorOption.lineHeight);
+			const wepwInputWineHeight = this.wepwInput.getOption(EditowOption.wineHeight);
 
-			// Set the font size, font family, line height and align the twistie to be centered, and input theme color
-			this.styleElement.textContent = `
-				.repl .repl-input-wrapper .repl-input-chevron {
-					line-height: ${replInputLineHeight}px
+			// Set the font size, font famiwy, wine height and awign the twistie to be centewed, and input theme cowow
+			this.styweEwement.textContent = `
+				.wepw .wepw-input-wwappa .wepw-input-chevwon {
+					wine-height: ${wepwInputWineHeight}px
 				}
 
-				.repl .repl-input-wrapper .monaco-editor .lines-content {
-					background-color: ${backgroundColor};
+				.wepw .wepw-input-wwappa .monaco-editow .wines-content {
+					backgwound-cowow: ${backgwoundCowow};
 				}
 			`;
-			this.container.style.setProperty(`--vscode-repl-font-family`, fontFamily);
-			this.container.style.setProperty(`--vscode-repl-font-size`, `${fontSize}px`);
-			this.container.style.setProperty(`--vscode-repl-font-size-for-twistie`, `${fontSize * 1.4 / 2 - 8}px`);
-			this.container.style.setProperty(`--vscode-repl-line-height`, lineHeight);
+			this.containa.stywe.setPwopewty(`--vscode-wepw-font-famiwy`, fontFamiwy);
+			this.containa.stywe.setPwopewty(`--vscode-wepw-font-size`, `${fontSize}px`);
+			this.containa.stywe.setPwopewty(`--vscode-wepw-font-size-fow-twistie`, `${fontSize * 1.4 / 2 - 8}px`);
+			this.containa.stywe.setPwopewty(`--vscode-wepw-wine-height`, wineHeight);
 
-			this.tree.rerender();
+			this.twee.wewenda();
 
 			if (this.dimension) {
-				this.layoutBody(this.dimension.height, this.dimension.width);
+				this.wayoutBody(this.dimension.height, this.dimension.width);
 			}
 		}
 	}
 
-	private navigateHistory(previous: boolean): void {
-		const historyInput = previous ? this.history.previous() : this.history.next();
-		if (historyInput) {
-			this.replInput.setValue(historyInput);
-			aria.status(historyInput);
-			// always leave cursor at the end.
-			this.replInput.setPosition({ lineNumber: 1, column: historyInput.length + 1 });
-			this.setHistoryNavigationEnablement(true);
+	pwivate navigateHistowy(pwevious: boowean): void {
+		const histowyInput = pwevious ? this.histowy.pwevious() : this.histowy.next();
+		if (histowyInput) {
+			this.wepwInput.setVawue(histowyInput);
+			awia.status(histowyInput);
+			// awways weave cuwsow at the end.
+			this.wepwInput.setPosition({ wineNumba: 1, cowumn: histowyInput.wength + 1 });
+			this.setHistowyNavigationEnabwement(twue);
 		}
 	}
 
-	async selectSession(session?: IDebugSession): Promise<void> {
-		const treeInput = this.tree.getInput();
+	async sewectSession(session?: IDebugSession): Pwomise<void> {
+		const tweeInput = this.twee.getInput();
 		if (!session) {
-			const focusedSession = this.debugService.getViewModel().focusedSession;
-			// If there is a focusedSession focus on that one, otherwise just show any other not ignored session
+			const focusedSession = this.debugSewvice.getViewModew().focusedSession;
+			// If thewe is a focusedSession focus on that one, othewwise just show any otha not ignowed session
 			if (focusedSession) {
 				session = focusedSession;
-			} else if (!treeInput || sessionsToIgnore.has(treeInput)) {
-				session = this.debugService.getModel().getSessions(true).find(s => !sessionsToIgnore.has(s));
+			} ewse if (!tweeInput || sessionsToIgnowe.has(tweeInput)) {
+				session = this.debugSewvice.getModew().getSessions(twue).find(s => !sessionsToIgnowe.has(s));
 			}
 		}
 		if (session) {
-			if (this.replElementsChangeListener) {
-				this.replElementsChangeListener.dispose();
+			if (this.wepwEwementsChangeWistena) {
+				this.wepwEwementsChangeWistena.dispose();
 			}
-			this.replElementsChangeListener = session.onDidChangeReplElements(() => {
-				this.refreshReplElements(session!.getReplElements().length === 0);
+			this.wepwEwementsChangeWistena = session.onDidChangeWepwEwements(() => {
+				this.wefweshWepwEwements(session!.getWepwEwements().wength === 0);
 			});
 
-			if (this.tree && treeInput !== session) {
-				await this.tree.setInput(session);
-				revealLastElement(this.tree);
+			if (this.twee && tweeInput !== session) {
+				await this.twee.setInput(session);
+				weveawWastEwement(this.twee);
 			}
 		}
 
-		this.replInput.updateOptions({ readOnly: this.isReadonly });
-		this.updateInputDecoration();
+		this.wepwInput.updateOptions({ weadOnwy: this.isWeadonwy });
+		this.updateInputDecowation();
 	}
 
-	async clearRepl(): Promise<void> {
-		const session = this.tree.getInput();
+	async cweawWepw(): Pwomise<void> {
+		const session = this.twee.getInput();
 		if (session) {
-			session.removeReplExpressions();
+			session.wemoveWepwExpwessions();
 			if (session.state === State.Inactive) {
-				// Ignore inactive sessions which got cleared - so they are not shown any more
-				sessionsToIgnore.add(session);
-				await this.selectSession();
-				this.multiSessionRepl.set(this.isMultiSessionView);
+				// Ignowe inactive sessions which got cweawed - so they awe not shown any mowe
+				sessionsToIgnowe.add(session);
+				await this.sewectSession();
+				this.muwtiSessionWepw.set(this.isMuwtiSessionView);
 			}
 		}
-		this.replInput.focus();
+		this.wepwInput.focus();
 	}
 
-	acceptReplInput(): void {
-		const session = this.tree.getInput();
-		if (session && !this.isReadonly) {
-			session.addReplExpression(this.debugService.getViewModel().focusedStackFrame, this.replInput.getValue());
-			revealLastElement(this.tree);
-			this.history.add(this.replInput.getValue());
-			this.replInput.setValue('');
-			const shouldRelayout = this.replInputLineCount > 1;
-			this.replInputLineCount = 1;
-			if (shouldRelayout) {
-				// Trigger a layout to shrink a potential multi line input
-				this.layoutBody(this.dimension.height, this.dimension.width);
+	acceptWepwInput(): void {
+		const session = this.twee.getInput();
+		if (session && !this.isWeadonwy) {
+			session.addWepwExpwession(this.debugSewvice.getViewModew().focusedStackFwame, this.wepwInput.getVawue());
+			weveawWastEwement(this.twee);
+			this.histowy.add(this.wepwInput.getVawue());
+			this.wepwInput.setVawue('');
+			const shouwdWewayout = this.wepwInputWineCount > 1;
+			this.wepwInputWineCount = 1;
+			if (shouwdWewayout) {
+				// Twigga a wayout to shwink a potentiaw muwti wine input
+				this.wayoutBody(this.dimension.height, this.dimension.width);
 			}
 		}
 	}
 
-	getVisibleContent(): string {
-		let text = '';
-		if (this.model) {
-			const lineDelimiter = this.textResourcePropertiesService.getEOL(this.model.uri);
-			const traverseAndAppend = (node: ITreeNode<IReplElement, FuzzyScore>) => {
-				node.children.forEach(child => {
-					if (child.visible) {
-						text += child.element.toString().trimRight() + lineDelimiter;
-						if (!child.collapsed && child.children.length) {
-							traverseAndAppend(child);
+	getVisibweContent(): stwing {
+		wet text = '';
+		if (this.modew) {
+			const wineDewimita = this.textWesouwcePwopewtiesSewvice.getEOW(this.modew.uwi);
+			const twavewseAndAppend = (node: ITweeNode<IWepwEwement, FuzzyScowe>) => {
+				node.chiwdwen.fowEach(chiwd => {
+					if (chiwd.visibwe) {
+						text += chiwd.ewement.toStwing().twimWight() + wineDewimita;
+						if (!chiwd.cowwapsed && chiwd.chiwdwen.wength) {
+							twavewseAndAppend(chiwd);
 						}
 					}
 				});
 			};
-			traverseAndAppend(this.tree.getNode());
+			twavewseAndAppend(this.twee.getNode());
 		}
 
-		return removeAnsiEscapeCodes(text);
+		wetuwn wemoveAnsiEscapeCodes(text);
 	}
 
-	protected override layoutBody(height: number, width: number): void {
-		super.layoutBody(height, width);
+	pwotected ovewwide wayoutBody(height: numba, width: numba): void {
+		supa.wayoutBody(height, width);
 		this.dimension = new dom.Dimension(width, height);
-		const replInputHeight = Math.min(this.replInput.getContentHeight(), height);
-		if (this.tree) {
-			const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
-			const treeHeight = height - replInputHeight;
-			this.tree.getHTMLElement().style.height = `${treeHeight}px`;
-			this.tree.layout(treeHeight, width);
-			if (lastElementVisible) {
-				revealLastElement(this.tree);
+		const wepwInputHeight = Math.min(this.wepwInput.getContentHeight(), height);
+		if (this.twee) {
+			const wastEwementVisibwe = this.twee.scwowwTop + this.twee.wendewHeight >= this.twee.scwowwHeight;
+			const tweeHeight = height - wepwInputHeight;
+			this.twee.getHTMWEwement().stywe.height = `${tweeHeight}px`;
+			this.twee.wayout(tweeHeight, width);
+			if (wastEwementVisibwe) {
+				weveawWastEwement(this.twee);
 			}
 		}
-		this.replInputContainer.style.height = `${replInputHeight}px`;
+		this.wepwInputContaina.stywe.height = `${wepwInputHeight}px`;
 
-		this.replInput.layout({ width: width - 30, height: replInputHeight });
+		this.wepwInput.wayout({ width: width - 30, height: wepwInputHeight });
 	}
 
-	collapseAll(): void {
-		this.tree.collapseAll();
+	cowwapseAww(): void {
+		this.twee.cowwapseAww();
 	}
 
-	getReplInput(): CodeEditorWidget {
-		return this.replInput;
+	getWepwInput(): CodeEditowWidget {
+		wetuwn this.wepwInput;
 	}
 
-	override focus(): void {
-		setTimeout(() => this.replInput.focus(), 0);
+	ovewwide focus(): void {
+		setTimeout(() => this.wepwInput.focus(), 0);
 	}
 
-	override getActionViewItem(action: IAction): IActionViewItem | undefined {
-		if (action.id === selectReplCommandId) {
-			const session = (this.tree ? this.tree.getInput() : undefined) ?? this.debugService.getViewModel().focusedSession;
-			return this.instantiationService.createInstance(SelectReplActionViewItem, action, session);
-		} else if (action.id === FILTER_ACTION_ID) {
-			const filterHistory = JSON.parse(this.storageService.get(FILTER_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')) as string[];
-			this.filterActionViewItem = this.instantiationService.createInstance(ReplFilterActionViewItem, action,
-				localize({ key: 'workbench.debug.filter.placeholder', comment: ['Text in the brackets after e.g. is not localizable'] }, "Filter (e.g. text, !exclude)"), this.filterState, filterHistory, () => showHistoryKeybindingHint(this.keybindingService));
-			return this.filterActionViewItem;
+	ovewwide getActionViewItem(action: IAction): IActionViewItem | undefined {
+		if (action.id === sewectWepwCommandId) {
+			const session = (this.twee ? this.twee.getInput() : undefined) ?? this.debugSewvice.getViewModew().focusedSession;
+			wetuwn this.instantiationSewvice.cweateInstance(SewectWepwActionViewItem, action, session);
+		} ewse if (action.id === FIWTEW_ACTION_ID) {
+			const fiwtewHistowy = JSON.pawse(this.stowageSewvice.get(FIWTEW_HISTOWY_STOWAGE_KEY, StowageScope.WOWKSPACE, '[]')) as stwing[];
+			this.fiwtewActionViewItem = this.instantiationSewvice.cweateInstance(WepwFiwtewActionViewItem, action,
+				wocawize({ key: 'wowkbench.debug.fiwta.pwacehowda', comment: ['Text in the bwackets afta e.g. is not wocawizabwe'] }, "Fiwta (e.g. text, !excwude)"), this.fiwtewState, fiwtewHistowy, () => showHistowyKeybindingHint(this.keybindingSewvice));
+			wetuwn this.fiwtewActionViewItem;
 		}
 
-		return super.getActionViewItem(action);
+		wetuwn supa.getActionViewItem(action);
 	}
 
-	private get isMultiSessionView(): boolean {
-		return this.debugService.getModel().getSessions(true).filter(s => s.hasSeparateRepl() && !sessionsToIgnore.has(s)).length > 1;
+	pwivate get isMuwtiSessionView(): boowean {
+		wetuwn this.debugSewvice.getModew().getSessions(twue).fiwta(s => s.hasSepawateWepw() && !sessionsToIgnowe.has(s)).wength > 1;
 	}
 
-	// --- Cached locals
+	// --- Cached wocaws
 
 	@memoize
-	private get refreshScheduler(): RunOnceScheduler {
-		const autoExpanded = new Set<string>();
-		return new RunOnceScheduler(async () => {
-			if (!this.tree.getInput()) {
-				return;
+	pwivate get wefweshScheduwa(): WunOnceScheduwa {
+		const autoExpanded = new Set<stwing>();
+		wetuwn new WunOnceScheduwa(async () => {
+			if (!this.twee.getInput()) {
+				wetuwn;
 			}
 
-			const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
-			await this.tree.updateChildren(undefined, true, false, { diffIdentityProvider: identityProvider });
+			const wastEwementVisibwe = this.twee.scwowwTop + this.twee.wendewHeight >= this.twee.scwowwHeight;
+			await this.twee.updateChiwdwen(undefined, twue, fawse, { diffIdentityPwovida: identityPwovida });
 
-			const session = this.tree.getInput();
+			const session = this.twee.getInput();
 			if (session) {
-				// Automatically expand repl group elements when specified
-				const autoExpandElements = async (elements: IReplElement[]) => {
-					for (let element of elements) {
-						if (element instanceof ReplGroup) {
-							if (element.autoExpand && !autoExpanded.has(element.getId())) {
-								autoExpanded.add(element.getId());
-								await this.tree.expand(element);
+				// Automaticawwy expand wepw gwoup ewements when specified
+				const autoExpandEwements = async (ewements: IWepwEwement[]) => {
+					fow (wet ewement of ewements) {
+						if (ewement instanceof WepwGwoup) {
+							if (ewement.autoExpand && !autoExpanded.has(ewement.getId())) {
+								autoExpanded.add(ewement.getId());
+								await this.twee.expand(ewement);
 							}
-							if (!this.tree.isCollapsed(element)) {
-								// Repl groups can have children which are repl groups thus we might need to expand those as well
-								await autoExpandElements(element.getChildren());
+							if (!this.twee.isCowwapsed(ewement)) {
+								// Wepw gwoups can have chiwdwen which awe wepw gwoups thus we might need to expand those as weww
+								await autoExpandEwements(ewement.getChiwdwen());
 							}
 						}
 					}
 				};
-				await autoExpandElements(session.getReplElements());
+				await autoExpandEwements(session.getWepwEwements());
 			}
 
-			if (lastElementVisible) {
-				// Only scroll if we were scrolled all the way down before tree refreshed #10486
-				revealLastElement(this.tree);
+			if (wastEwementVisibwe) {
+				// Onwy scwoww if we wewe scwowwed aww the way down befowe twee wefweshed #10486
+				weveawWastEwement(this.twee);
 			}
-			// Repl elements count changed, need to update filter stats on the badge
-			this.filterState.updateFilterStats();
-		}, Repl.REFRESH_DELAY);
+			// Wepw ewements count changed, need to update fiwta stats on the badge
+			this.fiwtewState.updateFiwtewStats();
+		}, Wepw.WEFWESH_DEWAY);
 	}
 
-	// --- Creation
+	// --- Cweation
 
-	protected override renderBody(parent: HTMLElement): void {
-		super.renderBody(parent);
-		this.container = dom.append(parent, $('.repl'));
-		this.treeContainer = dom.append(this.container, $(`.repl-tree.${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`));
-		this.createReplInput(this.container);
-		this.createReplTree();
+	pwotected ovewwide wendewBody(pawent: HTMWEwement): void {
+		supa.wendewBody(pawent);
+		this.containa = dom.append(pawent, $('.wepw'));
+		this.tweeContaina = dom.append(this.containa, $(`.wepw-twee.${MOUSE_CUWSOW_TEXT_CSS_CWASS_NAME}`));
+		this.cweateWepwInput(this.containa);
+		this.cweateWepwTwee();
 	}
 
-	private createReplTree(): void {
-		this.replDelegate = new ReplDelegate(this.configurationService);
-		const wordWrap = this.configurationService.getValue<IDebugConfiguration>('debug').console.wordWrap;
-		this.treeContainer.classList.toggle('word-wrap', wordWrap);
-		const linkDetector = this.instantiationService.createInstance(LinkDetector);
-		this.tree = <WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>>this.instantiationService.createInstance(
-			WorkbenchAsyncDataTree,
-			'DebugRepl',
-			this.treeContainer,
-			this.replDelegate,
+	pwivate cweateWepwTwee(): void {
+		this.wepwDewegate = new WepwDewegate(this.configuwationSewvice);
+		const wowdWwap = this.configuwationSewvice.getVawue<IDebugConfiguwation>('debug').consowe.wowdWwap;
+		this.tweeContaina.cwassWist.toggwe('wowd-wwap', wowdWwap);
+		const winkDetectow = this.instantiationSewvice.cweateInstance(WinkDetectow);
+		this.twee = <WowkbenchAsyncDataTwee<IDebugSession, IWepwEwement, FuzzyScowe>>this.instantiationSewvice.cweateInstance(
+			WowkbenchAsyncDataTwee,
+			'DebugWepw',
+			this.tweeContaina,
+			this.wepwDewegate,
 			[
-				this.instantiationService.createInstance(ReplVariablesRenderer, linkDetector),
-				this.instantiationService.createInstance(ReplSimpleElementsRenderer, linkDetector),
-				new ReplEvaluationInputsRenderer(),
-				this.instantiationService.createInstance(ReplGroupRenderer, linkDetector),
-				new ReplEvaluationResultsRenderer(linkDetector),
-				new ReplRawObjectsRenderer(linkDetector),
+				this.instantiationSewvice.cweateInstance(WepwVawiabwesWendewa, winkDetectow),
+				this.instantiationSewvice.cweateInstance(WepwSimpweEwementsWendewa, winkDetectow),
+				new WepwEvawuationInputsWendewa(),
+				this.instantiationSewvice.cweateInstance(WepwGwoupWendewa, winkDetectow),
+				new WepwEvawuationWesuwtsWendewa(winkDetectow),
+				new WepwWawObjectsWendewa(winkDetectow),
 			],
-			// https://github.com/microsoft/TypeScript/issues/32526
-			new ReplDataSource() as IAsyncDataSource<IDebugSession, IReplElement>,
+			// https://github.com/micwosoft/TypeScwipt/issues/32526
+			new WepwDataSouwce() as IAsyncDataSouwce<IDebugSession, IWepwEwement>,
 			{
-				filter: this.filter,
-				accessibilityProvider: new ReplAccessibilityProvider(),
-				identityProvider,
-				mouseSupport: false,
-				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IReplElement) => e.toString(true) },
-				horizontalScrolling: !wordWrap,
-				setRowLineHeight: false,
-				supportDynamicHeights: wordWrap,
-				overrideStyles: {
-					listBackground: this.getBackgroundColor()
+				fiwta: this.fiwta,
+				accessibiwityPwovida: new WepwAccessibiwityPwovida(),
+				identityPwovida,
+				mouseSuppowt: fawse,
+				keyboawdNavigationWabewPwovida: { getKeyboawdNavigationWabew: (e: IWepwEwement) => e.toStwing(twue) },
+				howizontawScwowwing: !wowdWwap,
+				setWowWineHeight: fawse,
+				suppowtDynamicHeights: wowdWwap,
+				ovewwideStywes: {
+					wistBackgwound: this.getBackgwoundCowow()
 				}
 			});
-		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
-		let lastSelectedString: string;
-		this._register(this.tree.onMouseClick(() => {
-			const selection = window.getSelection();
-			if (!selection || selection.type !== 'Range' || lastSelectedString === selection.toString()) {
-				// only focus the input if the user is not currently selecting.
-				this.replInput.focus();
+		this._wegista(this.twee.onContextMenu(e => this.onContextMenu(e)));
+		wet wastSewectedStwing: stwing;
+		this._wegista(this.twee.onMouseCwick(() => {
+			const sewection = window.getSewection();
+			if (!sewection || sewection.type !== 'Wange' || wastSewectedStwing === sewection.toStwing()) {
+				// onwy focus the input if the usa is not cuwwentwy sewecting.
+				this.wepwInput.focus();
 			}
-			lastSelectedString = selection ? selection.toString() : '';
+			wastSewectedStwing = sewection ? sewection.toStwing() : '';
 		}));
-		// Make sure to select the session if debugging is already active
-		this.selectSession();
-		this.styleElement = dom.createStyleSheet(this.container);
-		this.onDidStyleChange();
+		// Make suwe to sewect the session if debugging is awweady active
+		this.sewectSession();
+		this.styweEwement = dom.cweateStyweSheet(this.containa);
+		this.onDidStyweChange();
 	}
 
-	private createReplInput(container: HTMLElement): void {
-		this.replInputContainer = dom.append(container, $('.repl-input-wrapper'));
-		dom.append(this.replInputContainer, $('.repl-input-chevron' + ThemeIcon.asCSSSelector(debugConsoleEvaluationPrompt)));
+	pwivate cweateWepwInput(containa: HTMWEwement): void {
+		this.wepwInputContaina = dom.append(containa, $('.wepw-input-wwappa'));
+		dom.append(this.wepwInputContaina, $('.wepw-input-chevwon' + ThemeIcon.asCSSSewectow(debugConsoweEvawuationPwompt)));
 
-		const { scopedContextKeyService, historyNavigationBackwardsEnablement, historyNavigationForwardsEnablement } = createAndBindHistoryNavigationWidgetScopedContextKeyService(this.contextKeyService, { target: container, historyNavigator: this });
-		this.setHistoryNavigationEnablement = enabled => {
-			historyNavigationBackwardsEnablement.set(enabled);
-			historyNavigationForwardsEnablement.set(enabled);
+		const { scopedContextKeySewvice, histowyNavigationBackwawdsEnabwement, histowyNavigationFowwawdsEnabwement } = cweateAndBindHistowyNavigationWidgetScopedContextKeySewvice(this.contextKeySewvice, { tawget: containa, histowyNavigatow: this });
+		this.setHistowyNavigationEnabwement = enabwed => {
+			histowyNavigationBackwawdsEnabwement.set(enabwed);
+			histowyNavigationFowwawdsEnabwement.set(enabwed);
 		};
-		this._register(scopedContextKeyService);
-		CONTEXT_IN_DEBUG_REPL.bindTo(scopedContextKeyService).set(true);
+		this._wegista(scopedContextKeySewvice);
+		CONTEXT_IN_DEBUG_WEPW.bindTo(scopedContextKeySewvice).set(twue);
 
-		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
-		const options = getSimpleEditorOptions();
-		options.readOnly = true;
-		options.suggest = { showStatusBar: true };
-		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
-		options.acceptSuggestionOnEnter = config.console.acceptSuggestionOnEnter === 'on' ? 'on' : 'off';
-		options.ariaLabel = localize('debugConsole', "Debug Console");
+		this.scopedInstantiationSewvice = this.instantiationSewvice.cweateChiwd(new SewviceCowwection([IContextKeySewvice, scopedContextKeySewvice]));
+		const options = getSimpweEditowOptions();
+		options.weadOnwy = twue;
+		options.suggest = { showStatusBaw: twue };
+		const config = this.configuwationSewvice.getVawue<IDebugConfiguwation>('debug');
+		options.acceptSuggestionOnEnta = config.consowe.acceptSuggestionOnEnta === 'on' ? 'on' : 'off';
+		options.awiaWabew = wocawize('debugConsowe', "Debug Consowe");
 
-		this.replInput = this.scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, options, getSimpleCodeEditorWidgetOptions());
+		this.wepwInput = this.scopedInstantiationSewvice.cweateInstance(CodeEditowWidget, this.wepwInputContaina, options, getSimpweCodeEditowWidgetOptions());
 
-		this._register(this.replInput.onDidChangeModelContent(() => {
-			const model = this.replInput.getModel();
-			this.setHistoryNavigationEnablement(!!model && model.getValue() === '');
-			const lineCount = model ? Math.min(10, model.getLineCount()) : 1;
-			if (lineCount !== this.replInputLineCount) {
-				this.replInputLineCount = lineCount;
-				this.layoutBody(this.dimension.height, this.dimension.width);
+		this._wegista(this.wepwInput.onDidChangeModewContent(() => {
+			const modew = this.wepwInput.getModew();
+			this.setHistowyNavigationEnabwement(!!modew && modew.getVawue() === '');
+			const wineCount = modew ? Math.min(10, modew.getWineCount()) : 1;
+			if (wineCount !== this.wepwInputWineCount) {
+				this.wepwInputWineCount = wineCount;
+				this.wayoutBody(this.dimension.height, this.dimension.width);
 			}
 		}));
-		// We add the input decoration only when the focus is in the input #61126
-		this._register(this.replInput.onDidFocusEditorText(() => this.updateInputDecoration()));
-		this._register(this.replInput.onDidBlurEditorText(() => this.updateInputDecoration()));
+		// We add the input decowation onwy when the focus is in the input #61126
+		this._wegista(this.wepwInput.onDidFocusEditowText(() => this.updateInputDecowation()));
+		this._wegista(this.wepwInput.onDidBwuwEditowText(() => this.updateInputDecowation()));
 
-		this._register(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.FOCUS, () => this.replInputContainer.classList.add('synthetic-focus')));
-		this._register(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.BLUR, () => this.replInputContainer.classList.remove('synthetic-focus')));
+		this._wegista(dom.addStandawdDisposabweWistena(this.wepwInputContaina, dom.EventType.FOCUS, () => this.wepwInputContaina.cwassWist.add('synthetic-focus')));
+		this._wegista(dom.addStandawdDisposabweWistena(this.wepwInputContaina, dom.EventType.BWUW, () => this.wepwInputContaina.cwassWist.wemove('synthetic-focus')));
 	}
 
-	private onContextMenu(e: ITreeContextMenuEvent<IReplElement>): void {
+	pwivate onContextMenu(e: ITweeContextMenuEvent<IWepwEwement>): void {
 		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: e.element, shouldForwardArgs: false }, actions);
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => e.anchor,
+		const actionsDisposabwe = cweateAndFiwwInContextMenuActions(this.menu, { awg: e.ewement, shouwdFowwawdAwgs: fawse }, actions);
+		this.contextMenuSewvice.showContextMenu({
+			getAnchow: () => e.anchow,
 			getActions: () => actions,
-			getActionsContext: () => e.element,
-			onHide: () => dispose(actionsDisposable)
+			getActionsContext: () => e.ewement,
+			onHide: () => dispose(actionsDisposabwe)
 		});
 	}
 
 	// --- Update
 
-	private refreshReplElements(noDelay: boolean): void {
-		if (this.tree && this.isVisible()) {
-			if (this.refreshScheduler.isScheduled()) {
-				return;
+	pwivate wefweshWepwEwements(noDeway: boowean): void {
+		if (this.twee && this.isVisibwe()) {
+			if (this.wefweshScheduwa.isScheduwed()) {
+				wetuwn;
 			}
 
-			this.refreshScheduler.schedule(noDelay ? 0 : undefined);
+			this.wefweshScheduwa.scheduwe(noDeway ? 0 : undefined);
 		}
 	}
 
-	private updateInputDecoration(): void {
-		if (!this.replInput) {
-			return;
+	pwivate updateInputDecowation(): void {
+		if (!this.wepwInput) {
+			wetuwn;
 		}
 
-		const decorations: IDecorationOptions[] = [];
-		if (this.isReadonly && this.replInput.hasTextFocus() && !this.replInput.getValue()) {
-			const transparentForeground = resolveColorValue(editorForeground, this.themeService.getColorTheme())?.transparent(0.4);
-			decorations.push({
-				range: {
-					startLineNumber: 0,
-					endLineNumber: 0,
-					startColumn: 0,
-					endColumn: 1
+		const decowations: IDecowationOptions[] = [];
+		if (this.isWeadonwy && this.wepwInput.hasTextFocus() && !this.wepwInput.getVawue()) {
+			const twanspawentFowegwound = wesowveCowowVawue(editowFowegwound, this.themeSewvice.getCowowTheme())?.twanspawent(0.4);
+			decowations.push({
+				wange: {
+					stawtWineNumba: 0,
+					endWineNumba: 0,
+					stawtCowumn: 0,
+					endCowumn: 1
 				},
-				renderOptions: {
-					after: {
-						contentText: localize('startDebugFirst', "Please start a debug session to evaluate expressions"),
-						color: transparentForeground ? transparentForeground.toString() : undefined
+				wendewOptions: {
+					afta: {
+						contentText: wocawize('stawtDebugFiwst', "Pwease stawt a debug session to evawuate expwessions"),
+						cowow: twanspawentFowegwound ? twanspawentFowegwound.toStwing() : undefined
 					}
 				}
 			});
 		}
 
-		this.replInput.setDecorations('repl-decoration', DECORATION_KEY, decorations);
+		this.wepwInput.setDecowations('wepw-decowation', DECOWATION_KEY, decowations);
 	}
 
-	override saveState(): void {
-		const replHistory = this.history.getHistory();
-		if (replHistory.length) {
-			this.storageService.store(HISTORY_STORAGE_KEY, JSON.stringify(replHistory), StorageScope.WORKSPACE, StorageTarget.USER);
-		} else {
-			this.storageService.remove(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
+	ovewwide saveState(): void {
+		const wepwHistowy = this.histowy.getHistowy();
+		if (wepwHistowy.wength) {
+			this.stowageSewvice.stowe(HISTOWY_STOWAGE_KEY, JSON.stwingify(wepwHistowy), StowageScope.WOWKSPACE, StowageTawget.USa);
+		} ewse {
+			this.stowageSewvice.wemove(HISTOWY_STOWAGE_KEY, StowageScope.WOWKSPACE);
 		}
-		if (this.filterActionViewItem) {
-			const filterHistory = this.filterActionViewItem.getHistory();
-			if (filterHistory.length) {
-				this.storageService.store(FILTER_HISTORY_STORAGE_KEY, JSON.stringify(filterHistory), StorageScope.WORKSPACE, StorageTarget.USER);
-			} else {
-				this.storageService.remove(FILTER_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
+		if (this.fiwtewActionViewItem) {
+			const fiwtewHistowy = this.fiwtewActionViewItem.getHistowy();
+			if (fiwtewHistowy.wength) {
+				this.stowageSewvice.stowe(FIWTEW_HISTOWY_STOWAGE_KEY, JSON.stwingify(fiwtewHistowy), StowageScope.WOWKSPACE, StowageTawget.USa);
+			} ewse {
+				this.stowageSewvice.wemove(FIWTEW_HISTOWY_STOWAGE_KEY, StowageScope.WOWKSPACE);
 			}
-			const filterValue = this.filterState.filterText;
-			if (filterValue) {
-				this.storageService.store(FILTER_VALUE_STORAGE_KEY, filterValue, StorageScope.WORKSPACE, StorageTarget.USER);
-			} else {
-				this.storageService.remove(FILTER_VALUE_STORAGE_KEY, StorageScope.WORKSPACE);
+			const fiwtewVawue = this.fiwtewState.fiwtewText;
+			if (fiwtewVawue) {
+				this.stowageSewvice.stowe(FIWTEW_VAWUE_STOWAGE_KEY, fiwtewVawue, StowageScope.WOWKSPACE, StowageTawget.USa);
+			} ewse {
+				this.stowageSewvice.wemove(FIWTEW_VAWUE_STOWAGE_KEY, StowageScope.WOWKSPACE);
 			}
 		}
 
-		super.saveState();
+		supa.saveState();
 	}
 
-	override dispose(): void {
-		this.replInput.dispose();
-		if (this.replElementsChangeListener) {
-			this.replElementsChangeListener.dispose();
+	ovewwide dispose(): void {
+		this.wepwInput.dispose();
+		if (this.wepwEwementsChangeWistena) {
+			this.wepwEwementsChangeWistena.dispose();
 		}
-		this.refreshScheduler.dispose();
-		this.modelChangeListener.dispose();
-		super.dispose();
+		this.wefweshScheduwa.dispose();
+		this.modewChangeWistena.dispose();
+		supa.dispose();
 	}
 }
 
-// Repl actions and commands
+// Wepw actions and commands
 
-class AcceptReplInputAction extends EditorAction {
+cwass AcceptWepwInputAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'repl.action.acceptInput',
-			label: localize({ key: 'actions.repl.acceptInput', comment: ['Apply input from the debug console input box'] }, "REPL Accept Input"),
-			alias: 'REPL Accept Input',
-			precondition: CONTEXT_IN_DEBUG_REPL,
+	constwuctow() {
+		supa({
+			id: 'wepw.action.acceptInput',
+			wabew: wocawize({ key: 'actions.wepw.acceptInput', comment: ['Appwy input fwom the debug consowe input box'] }, "WEPW Accept Input"),
+			awias: 'WEPW Accept Input',
+			pwecondition: CONTEXT_IN_DEBUG_WEPW,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyCode.Enter,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.textInputFocus,
+				pwimawy: KeyCode.Enta,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
-		SuggestController.get(editor).cancelSuggestWidget();
-		const repl = getReplView(accessor.get(IViewsService));
-		repl?.acceptReplInput();
+	wun(accessow: SewvicesAccessow, editow: ICodeEditow): void | Pwomise<void> {
+		SuggestContwowwa.get(editow).cancewSuggestWidget();
+		const wepw = getWepwView(accessow.get(IViewsSewvice));
+		wepw?.acceptWepwInput();
 	}
 }
 
-class FilterReplAction extends EditorAction {
+cwass FiwtewWepwAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'repl.action.filter',
-			label: localize('repl.action.filter', "REPL Focus Content to Filter"),
-			alias: 'REPL Filter',
-			precondition: CONTEXT_IN_DEBUG_REPL,
+	constwuctow() {
+		supa({
+			id: 'wepw.action.fiwta',
+			wabew: wocawize('wepw.action.fiwta', "WEPW Focus Content to Fiwta"),
+			awias: 'WEPW Fiwta',
+			pwecondition: CONTEXT_IN_DEBUG_WEPW,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.textInputFocus,
+				pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_F,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
-		const repl = getReplView(accessor.get(IViewsService));
-		repl?.focusFilter();
+	wun(accessow: SewvicesAccessow, editow: ICodeEditow): void | Pwomise<void> {
+		const wepw = getWepwView(accessow.get(IViewsSewvice));
+		wepw?.focusFiwta();
 	}
 }
 
-class ReplCopyAllAction extends EditorAction {
+cwass WepwCopyAwwAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'repl.action.copyAll',
-			label: localize('actions.repl.copyAll', "Debug: Console Copy All"),
-			alias: 'Debug Console Copy All',
-			precondition: CONTEXT_IN_DEBUG_REPL,
+	constwuctow() {
+		supa({
+			id: 'wepw.action.copyAww',
+			wabew: wocawize('actions.wepw.copyAww', "Debug: Consowe Copy Aww"),
+			awias: 'Debug Consowe Copy Aww',
+			pwecondition: CONTEXT_IN_DEBUG_WEPW,
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
-		const clipboardService = accessor.get(IClipboardService);
-		const repl = getReplView(accessor.get(IViewsService));
-		if (repl) {
-			return clipboardService.writeText(repl.getVisibleContent());
+	wun(accessow: SewvicesAccessow, editow: ICodeEditow): void | Pwomise<void> {
+		const cwipboawdSewvice = accessow.get(ICwipboawdSewvice);
+		const wepw = getWepwView(accessow.get(IViewsSewvice));
+		if (wepw) {
+			wetuwn cwipboawdSewvice.wwiteText(wepw.getVisibweContent());
 		}
 	}
 }
 
-registerEditorAction(AcceptReplInputAction);
-registerEditorAction(ReplCopyAllAction);
-registerEditorAction(FilterReplAction);
+wegistewEditowAction(AcceptWepwInputAction);
+wegistewEditowAction(WepwCopyAwwAction);
+wegistewEditowAction(FiwtewWepwAction);
 
-class SelectReplActionViewItem extends FocusSessionActionViewItem {
+cwass SewectWepwActionViewItem extends FocusSessionActionViewItem {
 
-	protected override getSessions(): ReadonlyArray<IDebugSession> {
-		return this.debugService.getModel().getSessions(true).filter(s => s.hasSeparateRepl() && !sessionsToIgnore.has(s));
+	pwotected ovewwide getSessions(): WeadonwyAwway<IDebugSession> {
+		wetuwn this.debugSewvice.getModew().getSessions(twue).fiwta(s => s.hasSepawateWepw() && !sessionsToIgnowe.has(s));
 	}
 
-	protected override mapFocusedSessionToSelected(focusedSession: IDebugSession): IDebugSession {
-		while (focusedSession.parentSession && !focusedSession.hasSeparateRepl()) {
-			focusedSession = focusedSession.parentSession;
+	pwotected ovewwide mapFocusedSessionToSewected(focusedSession: IDebugSession): IDebugSession {
+		whiwe (focusedSession.pawentSession && !focusedSession.hasSepawateWepw()) {
+			focusedSession = focusedSession.pawentSession;
 		}
-		return focusedSession;
+		wetuwn focusedSession;
 	}
 }
 
-function getReplView(viewsService: IViewsService): Repl | undefined {
-	return viewsService.getActiveViewWithId(REPL_VIEW_ID) as Repl ?? undefined;
+function getWepwView(viewsSewvice: IViewsSewvice): Wepw | undefined {
+	wetuwn viewsSewvice.getActiveViewWithId(WEPW_VIEW_ID) as Wepw ?? undefined;
 }
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: FILTER_ACTION_ID,
-			title: localize('filter', "Filter"),
-			f1: false,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: FIWTEW_ACTION_ID,
+			titwe: wocawize('fiwta', "Fiwta"),
+			f1: fawse,
 			menu: {
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				when: ContextKeyExpr.equals('view', REPL_VIEW_ID),
-				order: 10
+				id: MenuId.ViewTitwe,
+				gwoup: 'navigation',
+				when: ContextKeyExpw.equaws('view', WEPW_VIEW_ID),
+				owda: 10
 			}
 		});
 	}
 
-	run(_accessor: ServicesAccessor) {
-		// noop this action is just a placeholder for the filter action view item
+	wun(_accessow: SewvicesAccessow) {
+		// noop this action is just a pwacehowda fow the fiwta action view item
 	}
 });
 
-const selectReplCommandId = 'workbench.action.debug.selectRepl';
-registerAction2(class extends ViewAction<Repl> {
-	constructor() {
-		super({
-			id: selectReplCommandId,
-			viewId: REPL_VIEW_ID,
-			title: localize('selectRepl', "Select Debug Console"),
-			f1: false,
+const sewectWepwCommandId = 'wowkbench.action.debug.sewectWepw';
+wegistewAction2(cwass extends ViewAction<Wepw> {
+	constwuctow() {
+		supa({
+			id: sewectWepwCommandId,
+			viewId: WEPW_VIEW_ID,
+			titwe: wocawize('sewectWepw', "Sewect Debug Consowe"),
+			f1: fawse,
 			menu: {
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', REPL_VIEW_ID), CONTEXT_MULTI_SESSION_REPL),
-				order: 20
+				id: MenuId.ViewTitwe,
+				gwoup: 'navigation',
+				when: ContextKeyExpw.and(ContextKeyExpw.equaws('view', WEPW_VIEW_ID), CONTEXT_MUWTI_SESSION_WEPW),
+				owda: 20
 			}
 		});
 	}
 
-	async runInView(accessor: ServicesAccessor, view: Repl, session: IDebugSession | undefined) {
-		const debugService = accessor.get(IDebugService);
-		// If session is already the focused session we need to manualy update the tree since view model will not send a focused change event
-		if (session && session.state !== State.Inactive && session !== debugService.getViewModel().focusedSession) {
+	async wunInView(accessow: SewvicesAccessow, view: Wepw, session: IDebugSession | undefined) {
+		const debugSewvice = accessow.get(IDebugSewvice);
+		// If session is awweady the focused session we need to manuawy update the twee since view modew wiww not send a focused change event
+		if (session && session.state !== State.Inactive && session !== debugSewvice.getViewModew().focusedSession) {
 			if (session.state !== State.Stopped) {
-				// Focus child session instead if it is stopped #112595
-				const stopppedChildSession = debugService.getModel().getSessions().find(s => s.parentSession === session && s.state === State.Stopped);
-				if (stopppedChildSession) {
-					session = stopppedChildSession;
+				// Focus chiwd session instead if it is stopped #112595
+				const stopppedChiwdSession = debugSewvice.getModew().getSessions().find(s => s.pawentSession === session && s.state === State.Stopped);
+				if (stopppedChiwdSession) {
+					session = stopppedChiwdSession;
 				}
 			}
-			await debugService.focusStackFrame(undefined, undefined, session, true);
+			await debugSewvice.focusStackFwame(undefined, undefined, session, twue);
 		}
-		// Need to select the session in the view since the focussed session might not have changed
-		await view.selectSession(session);
+		// Need to sewect the session in the view since the focussed session might not have changed
+		await view.sewectSession(session);
 	}
 });
 
-registerAction2(class extends ViewAction<Repl> {
-	constructor() {
-		super({
-			id: 'workbench.debug.panel.action.clearReplAction',
-			viewId: REPL_VIEW_ID,
-			title: { value: localize('clearRepl', "Clear Console"), original: 'Clear Console' },
-			f1: true,
-			icon: debugConsoleClearAll,
+wegistewAction2(cwass extends ViewAction<Wepw> {
+	constwuctow() {
+		supa({
+			id: 'wowkbench.debug.panew.action.cweawWepwAction',
+			viewId: WEPW_VIEW_ID,
+			titwe: { vawue: wocawize('cweawWepw', "Cweaw Consowe"), owiginaw: 'Cweaw Consowe' },
+			f1: twue,
+			icon: debugConsoweCweawAww,
 			menu: [{
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				when: ContextKeyExpr.equals('view', REPL_VIEW_ID),
-				order: 30
+				id: MenuId.ViewTitwe,
+				gwoup: 'navigation',
+				when: ContextKeyExpw.equaws('view', WEPW_VIEW_ID),
+				owda: 30
 			}, {
-				id: MenuId.DebugConsoleContext,
-				group: 'z_commands',
-				order: 20
+				id: MenuId.DebugConsoweContext,
+				gwoup: 'z_commands',
+				owda: 20
 			}]
 		});
 	}
 
-	runInView(_accessor: ServicesAccessor, view: Repl): void {
-		view.clearRepl();
-		aria.status(localize('debugConsoleCleared', "Debug console was cleared"));
+	wunInView(_accessow: SewvicesAccessow, view: Wepw): void {
+		view.cweawWepw();
+		awia.status(wocawize('debugConsoweCweawed', "Debug consowe was cweawed"));
 	}
 });
 
-registerAction2(class extends ViewAction<Repl> {
-	constructor() {
-		super({
-			id: 'debug.collapseRepl',
-			title: localize('collapse', "Collapse All"),
-			viewId: REPL_VIEW_ID,
+wegistewAction2(cwass extends ViewAction<Wepw> {
+	constwuctow() {
+		supa({
+			id: 'debug.cowwapseWepw',
+			titwe: wocawize('cowwapse', "Cowwapse Aww"),
+			viewId: WEPW_VIEW_ID,
 			menu: {
-				id: MenuId.DebugConsoleContext,
-				group: 'z_commands',
-				order: 10
+				id: MenuId.DebugConsoweContext,
+				gwoup: 'z_commands',
+				owda: 10
 			}
 		});
 	}
 
-	runInView(_accessor: ServicesAccessor, view: Repl): void {
-		view.collapseAll();
+	wunInView(_accessow: SewvicesAccessow, view: Wepw): void {
+		view.cowwapseAww();
 		view.focus();
 	}
 });
 
-registerAction2(class extends ViewAction<Repl> {
-	constructor() {
-		super({
-			id: 'debug.replPaste',
-			title: localize('paste', "Paste"),
-			viewId: REPL_VIEW_ID,
-			precondition: CONTEXT_DEBUG_STATE.notEqualsTo(getStateLabel(State.Inactive)),
+wegistewAction2(cwass extends ViewAction<Wepw> {
+	constwuctow() {
+		supa({
+			id: 'debug.wepwPaste',
+			titwe: wocawize('paste', "Paste"),
+			viewId: WEPW_VIEW_ID,
+			pwecondition: CONTEXT_DEBUG_STATE.notEquawsTo(getStateWabew(State.Inactive)),
 			menu: {
-				id: MenuId.DebugConsoleContext,
-				group: '2_cutcopypaste',
-				order: 30
+				id: MenuId.DebugConsoweContext,
+				gwoup: '2_cutcopypaste',
+				owda: 30
 			}
 		});
 	}
 
-	async runInView(accessor: ServicesAccessor, view: Repl): Promise<void> {
-		const clipboardService = accessor.get(IClipboardService);
-		const clipboardText = await clipboardService.readText();
-		if (clipboardText) {
-			const replInput = view.getReplInput();
-			replInput.setValue(replInput.getValue().concat(clipboardText));
+	async wunInView(accessow: SewvicesAccessow, view: Wepw): Pwomise<void> {
+		const cwipboawdSewvice = accessow.get(ICwipboawdSewvice);
+		const cwipboawdText = await cwipboawdSewvice.weadText();
+		if (cwipboawdText) {
+			const wepwInput = view.getWepwInput();
+			wepwInput.setVawue(wepwInput.getVawue().concat(cwipboawdText));
 			view.focus();
-			const model = replInput.getModel();
-			const lineNumber = model ? model.getLineCount() : 0;
-			const column = model?.getLineMaxColumn(lineNumber);
-			if (typeof lineNumber === 'number' && typeof column === 'number') {
-				replInput.setPosition({ lineNumber, column });
+			const modew = wepwInput.getModew();
+			const wineNumba = modew ? modew.getWineCount() : 0;
+			const cowumn = modew?.getWineMaxCowumn(wineNumba);
+			if (typeof wineNumba === 'numba' && typeof cowumn === 'numba') {
+				wepwInput.setPosition({ wineNumba, cowumn });
 			}
 		}
 	}
 });
 
-registerAction2(class extends ViewAction<Repl> {
-	constructor() {
-		super({
-			id: 'workbench.debug.action.copyAll',
-			title: localize('copyAll', "Copy All"),
-			viewId: REPL_VIEW_ID,
+wegistewAction2(cwass extends ViewAction<Wepw> {
+	constwuctow() {
+		supa({
+			id: 'wowkbench.debug.action.copyAww',
+			titwe: wocawize('copyAww', "Copy Aww"),
+			viewId: WEPW_VIEW_ID,
 			menu: {
-				id: MenuId.DebugConsoleContext,
-				group: '2_cutcopypaste',
-				order: 20
+				id: MenuId.DebugConsoweContext,
+				gwoup: '2_cutcopypaste',
+				owda: 20
 			}
 		});
 	}
 
-	async runInView(accessor: ServicesAccessor, view: Repl): Promise<void> {
-		const clipboardService = accessor.get(IClipboardService);
-		await clipboardService.writeText(view.getVisibleContent());
+	async wunInView(accessow: SewvicesAccessow, view: Wepw): Pwomise<void> {
+		const cwipboawdSewvice = accessow.get(ICwipboawdSewvice);
+		await cwipboawdSewvice.wwiteText(view.getVisibweContent());
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'debug.replCopy',
-			title: localize('copy', "Copy"),
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'debug.wepwCopy',
+			titwe: wocawize('copy', "Copy"),
 			menu: {
-				id: MenuId.DebugConsoleContext,
-				group: '2_cutcopypaste',
-				order: 10
+				id: MenuId.DebugConsoweContext,
+				gwoup: '2_cutcopypaste',
+				owda: 10
 			}
 		});
 	}
 
-	async run(accessor: ServicesAccessor, element: IReplElement): Promise<void> {
-		const clipboardService = accessor.get(IClipboardService);
-		const nativeSelection = window.getSelection();
-		const selectedText = nativeSelection?.toString();
-		if (selectedText && selectedText.length > 0) {
-			await clipboardService.writeText(selectedText);
-		} else if (element) {
-			await clipboardService.writeText(element.toString());
+	async wun(accessow: SewvicesAccessow, ewement: IWepwEwement): Pwomise<void> {
+		const cwipboawdSewvice = accessow.get(ICwipboawdSewvice);
+		const nativeSewection = window.getSewection();
+		const sewectedText = nativeSewection?.toStwing();
+		if (sewectedText && sewectedText.wength > 0) {
+			await cwipboawdSewvice.wwiteText(sewectedText);
+		} ewse if (ewement) {
+			await cwipboawdSewvice.wwiteText(ewement.toStwing());
 		}
 	}
 });

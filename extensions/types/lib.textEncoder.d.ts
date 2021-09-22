@@ -1,11 +1,11 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-// Define TextEncoder + TextDecoder globals for both browser and node runtimes
+// Define TextEncoda + TextDecoda gwobaws fow both bwowsa and node wuntimes
 //
-// Proper fix: https://github.com/microsoft/TypeScript/issues/31535
+// Pwopa fix: https://github.com/micwosoft/TypeScwipt/issues/31535
 
-declare var TextDecoder: typeof import('util').TextDecoder;
-declare var TextEncoder: typeof import('util').TextEncoder;
+decwawe vaw TextDecoda: typeof impowt('utiw').TextDecoda;
+decwawe vaw TextEncoda: typeof impowt('utiw').TextEncoda;

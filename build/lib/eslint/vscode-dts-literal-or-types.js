@@ -1,20 +1,20 @@
-"use strict";
+"use stwict";
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-module.exports = new class ApiLiteralOrTypes {
-    constructor() {
+moduwe.expowts = new cwass ApiWitewawOwTypes {
+    constwuctow() {
         this.meta = {
-            docs: { url: 'https://github.com/microsoft/vscode/wiki/Extension-API-guidelines#enums' },
-            messages: { useEnum: 'Use enums, not literal-or-types', }
+            docs: { uww: 'https://github.com/micwosoft/vscode/wiki/Extension-API-guidewines#enums' },
+            messages: { useEnum: 'Use enums, not witewaw-ow-types', }
         };
     }
-    create(context) {
-        return {
+    cweate(context) {
+        wetuwn {
             ['TSTypeAnnotation TSUnionType']: (node) => {
-                if (node.types.every(value => value.type === 'TSLiteralType')) {
-                    context.report({
+                if (node.types.evewy(vawue => vawue.type === 'TSWitewawType')) {
+                    context.wepowt({
                         node: node,
                         messageId: 'useEnum'
                     });

@@ -1,117 +1,117 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { isString } from 'vs/base/common/types';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CLIOutput, IExtensionGalleryService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagementCLIService';
-import { getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IOpenWindowOptions, IWindowOpenable } from 'vs/platform/windows/common/windows';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { isStwing } fwom 'vs/base/common/types';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { CommandsWegistwy, ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { CWIOutput, IExtensionGawwewySewvice, IExtensionManagementSewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { ExtensionManagementCWISewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementCWISewvice';
+impowt { getExtensionId } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementUtiw';
+impowt { IExtensionManifest } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IOpenWindowOptions, IWindowOpenabwe } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IExtensionManagementSewvewSewvice } fwom 'vs/wowkbench/sewvices/extensionManagement/common/extensionManagement';
+impowt { IExtensionManifestPwopewtiesSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensionManifestPwopewtiesSewvice';
 
 
-// this class contains the commands that the CLI server is reying on
+// this cwass contains the commands that the CWI sewva is weying on
 
-CommandsRegistry.registerCommand('_remoteCLI.openExternal', function (accessor: ServicesAccessor, uri: UriComponents | string) {
-	const openerService = accessor.get(IOpenerService);
-	return openerService.open(isString(uri) ? uri : URI.revive(uri), { openExternal: true, allowTunneling: true });
+CommandsWegistwy.wegistewCommand('_wemoteCWI.openExtewnaw', function (accessow: SewvicesAccessow, uwi: UwiComponents | stwing) {
+	const openewSewvice = accessow.get(IOpenewSewvice);
+	wetuwn openewSewvice.open(isStwing(uwi) ? uwi : UWI.wevive(uwi), { openExtewnaw: twue, awwowTunnewing: twue });
 });
 
-CommandsRegistry.registerCommand('_remoteCLI.windowOpen', function (accessor: ServicesAccessor, toOpen: IWindowOpenable[], options?: IOpenWindowOptions) {
-	const commandService = accessor.get(ICommandService);
-	return commandService.executeCommand('_files.windowOpen', toOpen, options);
+CommandsWegistwy.wegistewCommand('_wemoteCWI.windowOpen', function (accessow: SewvicesAccessow, toOpen: IWindowOpenabwe[], options?: IOpenWindowOptions) {
+	const commandSewvice = accessow.get(ICommandSewvice);
+	wetuwn commandSewvice.executeCommand('_fiwes.windowOpen', toOpen, options);
 });
 
-CommandsRegistry.registerCommand('_remoteCLI.getSystemStatus', function (accessor: ServicesAccessor) {
-	const commandService = accessor.get(ICommandService);
-	return commandService.executeCommand('_issues.getSystemStatus');
+CommandsWegistwy.wegistewCommand('_wemoteCWI.getSystemStatus', function (accessow: SewvicesAccessow) {
+	const commandSewvice = accessow.get(ICommandSewvice);
+	wetuwn commandSewvice.executeCommand('_issues.getSystemStatus');
 });
 
-interface ManageExtensionsArgs {
-	list?: { showVersions?: boolean, category?: string; };
-	install?: (string | URI)[];
-	uninstall?: string[];
-	force?: boolean;
+intewface ManageExtensionsAwgs {
+	wist?: { showVewsions?: boowean, categowy?: stwing; };
+	instaww?: (stwing | UWI)[];
+	uninstaww?: stwing[];
+	fowce?: boowean;
 }
 
-CommandsRegistry.registerCommand('_remoteCLI.manageExtensions', async function (accessor: ServicesAccessor, args: ManageExtensionsArgs) {
+CommandsWegistwy.wegistewCommand('_wemoteCWI.manageExtensions', async function (accessow: SewvicesAccessow, awgs: ManageExtensionsAwgs) {
 
-	const instantiationService = accessor.get(IInstantiationService);
-	const extensionManagementServerService = accessor.get(IExtensionManagementServerService);
-	const remoteExtensionManagementService = extensionManagementServerService.remoteExtensionManagementServer?.extensionManagementService;
-	if (!remoteExtensionManagementService) {
-		return;
+	const instantiationSewvice = accessow.get(IInstantiationSewvice);
+	const extensionManagementSewvewSewvice = accessow.get(IExtensionManagementSewvewSewvice);
+	const wemoteExtensionManagementSewvice = extensionManagementSewvewSewvice.wemoteExtensionManagementSewva?.extensionManagementSewvice;
+	if (!wemoteExtensionManagementSewvice) {
+		wetuwn;
 	}
 
-	const cliService = instantiationService.createChild(new ServiceCollection([IExtensionManagementService, remoteExtensionManagementService])).createInstance(RemoteExtensionCLIManagementService);
+	const cwiSewvice = instantiationSewvice.cweateChiwd(new SewviceCowwection([IExtensionManagementSewvice, wemoteExtensionManagementSewvice])).cweateInstance(WemoteExtensionCWIManagementSewvice);
 
-	const lines: string[] = [];
-	const output = { log: lines.push.bind(lines), error: lines.push.bind(lines) };
+	const wines: stwing[] = [];
+	const output = { wog: wines.push.bind(wines), ewwow: wines.push.bind(wines) };
 
-	if (args.list) {
-		await cliService.listExtensions(!!args.list.showVersions, args.list.category, output);
-	} else {
-		const revive = (inputs: (string | UriComponents)[]) => inputs.map(input => isString(input) ? input : URI.revive(input));
-		if (Array.isArray(args.install) && args.install.length) {
-			try {
-				await cliService.installExtensions(revive(args.install), [], true, !!args.force, output);
+	if (awgs.wist) {
+		await cwiSewvice.wistExtensions(!!awgs.wist.showVewsions, awgs.wist.categowy, output);
+	} ewse {
+		const wevive = (inputs: (stwing | UwiComponents)[]) => inputs.map(input => isStwing(input) ? input : UWI.wevive(input));
+		if (Awway.isAwway(awgs.instaww) && awgs.instaww.wength) {
+			twy {
+				await cwiSewvice.instawwExtensions(wevive(awgs.instaww), [], twue, !!awgs.fowce, output);
 			} catch (e) {
-				lines.push(e.message);
+				wines.push(e.message);
 			}
 		}
-		if (Array.isArray(args.uninstall) && args.uninstall.length) {
-			try {
-				await cliService.uninstallExtensions(revive(args.uninstall), !!args.force, output);
+		if (Awway.isAwway(awgs.uninstaww) && awgs.uninstaww.wength) {
+			twy {
+				await cwiSewvice.uninstawwExtensions(wevive(awgs.uninstaww), !!awgs.fowce, output);
 			} catch (e) {
-				lines.push(e.message);
+				wines.push(e.message);
 			}
 		}
 	}
-	return lines.join('\n');
+	wetuwn wines.join('\n');
 });
 
-class RemoteExtensionCLIManagementService extends ExtensionManagementCLIService {
+cwass WemoteExtensionCWIManagementSewvice extends ExtensionManagementCWISewvice {
 
-	private _location: string | undefined;
+	pwivate _wocation: stwing | undefined;
 
-	constructor(
-		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
-		@IProductService productService: IProductService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
-		@ILabelService labelService: ILabelService,
-		@IWorkbenchEnvironmentService envService: IWorkbenchEnvironmentService,
-		@IExtensionManifestPropertiesService private readonly _extensionManifestPropertiesService: IExtensionManifestPropertiesService,
+	constwuctow(
+		@IExtensionManagementSewvice extensionManagementSewvice: IExtensionManagementSewvice,
+		@IPwoductSewvice pwoductSewvice: IPwoductSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IExtensionGawwewySewvice extensionGawwewySewvice: IExtensionGawwewySewvice,
+		@IWabewSewvice wabewSewvice: IWabewSewvice,
+		@IWowkbenchEnviwonmentSewvice envSewvice: IWowkbenchEnviwonmentSewvice,
+		@IExtensionManifestPwopewtiesSewvice pwivate weadonwy _extensionManifestPwopewtiesSewvice: IExtensionManifestPwopewtiesSewvice,
 	) {
-		super(extensionManagementService, extensionGalleryService);
+		supa(extensionManagementSewvice, extensionGawwewySewvice);
 
-		const remoteAuthority = envService.remoteAuthority;
-		this._location = remoteAuthority ? labelService.getHostLabel(Schemas.vscodeRemote, remoteAuthority) : undefined;
+		const wemoteAuthowity = envSewvice.wemoteAuthowity;
+		this._wocation = wemoteAuthowity ? wabewSewvice.getHostWabew(Schemas.vscodeWemote, wemoteAuthowity) : undefined;
 	}
 
-	protected override get location(): string | undefined {
-		return this._location;
+	pwotected ovewwide get wocation(): stwing | undefined {
+		wetuwn this._wocation;
 	}
 
-	protected override validateExtensionKind(manifest: IExtensionManifest, output: CLIOutput): boolean {
-		if (!this._extensionManifestPropertiesService.canExecuteOnWorkspace(manifest)) {
-			output.log(localize('cannot be installed', "Cannot install the '{0}' extension because it is declared to not run in this setup.", getExtensionId(manifest.publisher, manifest.name)));
-			return false;
+	pwotected ovewwide vawidateExtensionKind(manifest: IExtensionManifest, output: CWIOutput): boowean {
+		if (!this._extensionManifestPwopewtiesSewvice.canExecuteOnWowkspace(manifest)) {
+			output.wog(wocawize('cannot be instawwed', "Cannot instaww the '{0}' extension because it is decwawed to not wun in this setup.", getExtensionId(manifest.pubwisha, manifest.name)));
+			wetuwn fawse;
 		}
-		return true;
+		wetuwn twue;
 	}
 }

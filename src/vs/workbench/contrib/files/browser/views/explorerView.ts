@@ -1,933 +1,933 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import * as perf from 'vs/base/common/performance';
-import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
-import { memoize } from 'vs/base/common/decorators';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, VIEWLET_ID, ExplorerResourceNotReadonlyContext } from 'vs/workbench/contrib/files/common/files';
-import { FileCopiedContext, NEW_FILE_COMMAND_ID, NEW_FOLDER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileActions';
-import * as DOM from 'vs/base/browser/dom';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { ExplorerDecorationsProvider } from 'vs/workbench/contrib/files/browser/views/explorerDecorationsProvider';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
-import { WorkbenchCompressibleAsyncDataTree } from 'vs/platform/list/browser/listService';
-import { DelayedDragHandler } from 'vs/base/browser/dnd';
-import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ExplorerDelegate, ExplorerDataSource, FilesRenderer, ICompressedNavigationController, FilesFilter, FileSorter, FileDragAndDrop, ExplorerCompressionDelegate, isCompressedFolderName } from 'vs/workbench/contrib/files/browser/views/explorerViewer';
-import { IThemeService, IFileIconTheme } from 'vs/platform/theme/common/themeService';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { ITreeContextMenuEvent, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
-import { IMenuService, MenuId, IMenu, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
-import { ResourceLabels } from 'vs/workbench/browser/labels';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { FuzzyScore } from 'vs/base/common/filters';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
-import { attachStyler, IColorMapping } from 'vs/platform/theme/common/styler';
-import { ColorValue, listDropBackground } from 'vs/platform/theme/common/colorRegistry';
-import { Color } from 'vs/base/common/color';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
-import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
-import { Codicon } from 'vs/base/common/codicons';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+impowt * as nws fwom 'vs/nws';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt * as pewf fwom 'vs/base/common/pewfowmance';
+impowt { IAction, WowkbenchActionExecutedEvent, WowkbenchActionExecutedCwassification } fwom 'vs/base/common/actions';
+impowt { memoize } fwom 'vs/base/common/decowatows';
+impowt { IFiwesConfiguwation, ExpwowewFowdewContext, FiwesExpwowewFocusedContext, ExpwowewFocusedContext, ExpwowewWootContext, ExpwowewWesouwceWeadonwyContext, ExpwowewWesouwceCut, ExpwowewWesouwceMoveabweToTwash, ExpwowewCompwessedFocusContext, ExpwowewCompwessedFiwstFocusContext, ExpwowewCompwessedWastFocusContext, ExpwowewWesouwceAvaiwabweEditowIdsContext, VIEW_ID, VIEWWET_ID, ExpwowewWesouwceNotWeadonwyContext } fwom 'vs/wowkbench/contwib/fiwes/common/fiwes';
+impowt { FiweCopiedContext, NEW_FIWE_COMMAND_ID, NEW_FOWDEW_COMMAND_ID } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/fiweActions';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { IWowkbenchWayoutSewvice } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { ExpwowewDecowationsPwovida } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/views/expwowewDecowationsPwovida';
+impowt { IWowkspaceContextSewvice, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IConfiguwationSewvice, IConfiguwationChangeEvent } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IPwogwessSewvice, PwogwessWocation } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IContextKeySewvice, IContextKey, ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { WesouwceContextKey } fwom 'vs/wowkbench/common/wesouwces';
+impowt { IDecowationsSewvice } fwom 'vs/wowkbench/sewvices/decowations/common/decowations';
+impowt { WowkbenchCompwessibweAsyncDataTwee } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { DewayedDwagHandwa } fwom 'vs/base/bwowsa/dnd';
+impowt { IEditowSewvice, SIDE_GWOUP, ACTIVE_GWOUP } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IViewPaneOptions, ViewPane } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPane';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { ExpwowewDewegate, ExpwowewDataSouwce, FiwesWendewa, ICompwessedNavigationContwowwa, FiwesFiwta, FiweSowta, FiweDwagAndDwop, ExpwowewCompwessionDewegate, isCompwessedFowdewName } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/views/expwowewViewa';
+impowt { IThemeSewvice, IFiweIconTheme } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IWowkbenchThemeSewvice } fwom 'vs/wowkbench/sewvices/themes/common/wowkbenchThemeSewvice';
+impowt { ITweeContextMenuEvent, TweeVisibiwity } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { IMenuSewvice, MenuId, IMenu, Action2, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { cweateAndFiwwInContextMenuActions } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { ExpwowewItem, NewExpwowewItem } fwom 'vs/wowkbench/contwib/fiwes/common/expwowewModew';
+impowt { WesouwceWabews } fwom 'vs/wowkbench/bwowsa/wabews';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IAsyncDataTweeViewState } fwom 'vs/base/bwowsa/ui/twee/asyncDataTwee';
+impowt { FuzzyScowe } fwom 'vs/base/common/fiwtews';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { IFiweSewvice, FiweSystemPwovidewCapabiwities } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { DisposabweStowe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { attachStywa, ICowowMapping } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { CowowVawue, wistDwopBackgwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { SIDE_BAW_BACKGWOUND } fwom 'vs/wowkbench/common/theme';
+impowt { IViewDescwiptowSewvice, IViewsSewvice, ViewContainewWocation } fwom 'vs/wowkbench/common/views';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { EditowWesouwceAccessow, SideBySideEditow } fwom 'vs/wowkbench/common/editow';
+impowt { IExpwowewSewvice } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/fiwes';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IEditowWesowvewSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowWesowvewSewvice';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
 
-interface IExplorerViewColors extends IColorMapping {
-	listDropBackground?: ColorValue | undefined;
+intewface IExpwowewViewCowows extends ICowowMapping {
+	wistDwopBackgwound?: CowowVawue | undefined;
 }
 
-interface IExplorerViewStyles {
-	listDropBackground?: Color;
+intewface IExpwowewViewStywes {
+	wistDwopBackgwound?: Cowow;
 }
 
-function hasExpandedRootChild(tree: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>, treeInput: ExplorerItem[]): boolean {
-	for (const folder of treeInput) {
-		if (tree.hasNode(folder) && !tree.isCollapsed(folder)) {
-			for (const [, child] of folder.children.entries()) {
-				if (tree.hasNode(child) && tree.isCollapsible(child) && !tree.isCollapsed(child)) {
-					return true;
+function hasExpandedWootChiwd(twee: WowkbenchCompwessibweAsyncDataTwee<ExpwowewItem | ExpwowewItem[], ExpwowewItem, FuzzyScowe>, tweeInput: ExpwowewItem[]): boowean {
+	fow (const fowda of tweeInput) {
+		if (twee.hasNode(fowda) && !twee.isCowwapsed(fowda)) {
+			fow (const [, chiwd] of fowda.chiwdwen.entwies()) {
+				if (twee.hasNode(chiwd) && twee.isCowwapsibwe(chiwd) && !twee.isCowwapsed(chiwd)) {
+					wetuwn twue;
 				}
 			}
 		}
 	}
 
-	return false;
+	wetuwn fawse;
 }
 
-const identityProvider = {
-	getId: (stat: ExplorerItem) => {
-		if (stat instanceof NewExplorerItem) {
-			return `new:${stat.resource}`;
+const identityPwovida = {
+	getId: (stat: ExpwowewItem) => {
+		if (stat instanceof NewExpwowewItem) {
+			wetuwn `new:${stat.wesouwce}`;
 		}
 
-		return stat.resource;
+		wetuwn stat.wesouwce;
 	}
 };
 
-export function getContext(focus: ExplorerItem[], selection: ExplorerItem[], respectMultiSelection: boolean,
-	compressedNavigationControllerProvider: { getCompressedNavigationController(stat: ExplorerItem): ICompressedNavigationController | undefined }): ExplorerItem[] {
+expowt function getContext(focus: ExpwowewItem[], sewection: ExpwowewItem[], wespectMuwtiSewection: boowean,
+	compwessedNavigationContwowwewPwovida: { getCompwessedNavigationContwowwa(stat: ExpwowewItem): ICompwessedNavigationContwowwa | undefined }): ExpwowewItem[] {
 
-	let focusedStat: ExplorerItem | undefined;
-	focusedStat = focus.length ? focus[0] : undefined;
+	wet focusedStat: ExpwowewItem | undefined;
+	focusedStat = focus.wength ? focus[0] : undefined;
 
-	const compressedNavigationController = focusedStat && compressedNavigationControllerProvider.getCompressedNavigationController(focusedStat);
-	focusedStat = compressedNavigationController ? compressedNavigationController.current : focusedStat;
+	const compwessedNavigationContwowwa = focusedStat && compwessedNavigationContwowwewPwovida.getCompwessedNavigationContwowwa(focusedStat);
+	focusedStat = compwessedNavigationContwowwa ? compwessedNavigationContwowwa.cuwwent : focusedStat;
 
-	const selectedStats: ExplorerItem[] = [];
+	const sewectedStats: ExpwowewItem[] = [];
 
-	for (const stat of selection) {
-		const controller = compressedNavigationControllerProvider.getCompressedNavigationController(stat);
-		if (controller && focusedStat && controller === compressedNavigationController) {
+	fow (const stat of sewection) {
+		const contwowwa = compwessedNavigationContwowwewPwovida.getCompwessedNavigationContwowwa(stat);
+		if (contwowwa && focusedStat && contwowwa === compwessedNavigationContwowwa) {
 			if (stat === focusedStat) {
-				selectedStats.push(stat);
+				sewectedStats.push(stat);
 			}
-			// Ignore stats which are selected but are part of the same compact node as the focused stat
+			// Ignowe stats which awe sewected but awe pawt of the same compact node as the focused stat
 			continue;
 		}
 
-		if (controller) {
-			selectedStats.push(...controller.items);
-		} else {
-			selectedStats.push(stat);
+		if (contwowwa) {
+			sewectedStats.push(...contwowwa.items);
+		} ewse {
+			sewectedStats.push(stat);
 		}
 	}
 	if (!focusedStat) {
-		if (respectMultiSelection) {
-			return selectedStats;
-		} else {
-			return [];
+		if (wespectMuwtiSewection) {
+			wetuwn sewectedStats;
+		} ewse {
+			wetuwn [];
 		}
 	}
 
-	if (respectMultiSelection && selectedStats.indexOf(focusedStat) >= 0) {
-		return selectedStats;
+	if (wespectMuwtiSewection && sewectedStats.indexOf(focusedStat) >= 0) {
+		wetuwn sewectedStats;
 	}
 
-	return [focusedStat];
+	wetuwn [focusedStat];
 }
 
-export interface IExplorerViewContainerDelegate {
-	willOpenElement(event?: UIEvent): void;
-	didOpenElement(event?: UIEvent): void;
+expowt intewface IExpwowewViewContainewDewegate {
+	wiwwOpenEwement(event?: UIEvent): void;
+	didOpenEwement(event?: UIEvent): void;
 }
 
-export class ExplorerView extends ViewPane {
-	static readonly TREE_VIEW_STATE_STORAGE_KEY: string = 'workbench.explorer.treeViewState';
+expowt cwass ExpwowewView extends ViewPane {
+	static weadonwy TWEE_VIEW_STATE_STOWAGE_KEY: stwing = 'wowkbench.expwowa.tweeViewState';
 
-	private tree!: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>;
-	private filter!: FilesFilter;
+	pwivate twee!: WowkbenchCompwessibweAsyncDataTwee<ExpwowewItem | ExpwowewItem[], ExpwowewItem, FuzzyScowe>;
+	pwivate fiwta!: FiwesFiwta;
 
-	private resourceContext: ResourceContextKey;
-	private folderContext: IContextKey<boolean>;
-	private readonlyContext: IContextKey<boolean>;
-	private availableEditorIdsContext: IContextKey<string>;
+	pwivate wesouwceContext: WesouwceContextKey;
+	pwivate fowdewContext: IContextKey<boowean>;
+	pwivate weadonwyContext: IContextKey<boowean>;
+	pwivate avaiwabweEditowIdsContext: IContextKey<stwing>;
 
-	private rootContext: IContextKey<boolean>;
-	private resourceMoveableToTrash: IContextKey<boolean>;
+	pwivate wootContext: IContextKey<boowean>;
+	pwivate wesouwceMoveabweToTwash: IContextKey<boowean>;
 
-	private renderer!: FilesRenderer;
+	pwivate wendewa!: FiwesWendewa;
 
-	private styleElement!: HTMLStyleElement;
-	private treeContainer!: HTMLElement;
-	private container!: HTMLElement;
-	private compressedFocusContext: IContextKey<boolean>;
-	private compressedFocusFirstContext: IContextKey<boolean>;
-	private compressedFocusLastContext: IContextKey<boolean>;
+	pwivate styweEwement!: HTMWStyweEwement;
+	pwivate tweeContaina!: HTMWEwement;
+	pwivate containa!: HTMWEwement;
+	pwivate compwessedFocusContext: IContextKey<boowean>;
+	pwivate compwessedFocusFiwstContext: IContextKey<boowean>;
+	pwivate compwessedFocusWastContext: IContextKey<boowean>;
 
-	private horizontalScrolling: boolean | undefined;
+	pwivate howizontawScwowwing: boowean | undefined;
 
-	private dragHandler!: DelayedDragHandler;
-	private autoReveal: boolean | 'focusNoScroll' = false;
-	private decorationsProvider: ExplorerDecorationsProvider | undefined;
+	pwivate dwagHandwa!: DewayedDwagHandwa;
+	pwivate autoWeveaw: boowean | 'focusNoScwoww' = fawse;
+	pwivate decowationsPwovida: ExpwowewDecowationsPwovida | undefined;
 
-	constructor(
+	constwuctow(
 		options: IViewPaneOptions,
-		private readonly delegate: IExplorerViewContainerDelegate,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IProgressService private readonly progressService: IProgressService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IDecorationsService private readonly decorationService: IDecorationsService,
-		@ILabelService private readonly labelService: ILabelService,
-		@IThemeService themeService: IWorkbenchThemeService,
-		@IMenuService private readonly menuService: IMenuService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IExplorerService private readonly explorerService: IExplorerService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IClipboardService private clipboardService: IClipboardService,
-		@IFileService private readonly fileService: IFileService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IOpenerService openerService: IOpenerService
+		pwivate weadonwy dewegate: IExpwowewViewContainewDewegate,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IViewDescwiptowSewvice viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@IPwogwessSewvice pwivate weadonwy pwogwessSewvice: IPwogwessSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IEditowWesowvewSewvice pwivate weadonwy editowWesowvewSewvice: IEditowWesowvewSewvice,
+		@IWowkbenchWayoutSewvice pwivate weadonwy wayoutSewvice: IWowkbenchWayoutSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IDecowationsSewvice pwivate weadonwy decowationSewvice: IDecowationsSewvice,
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice,
+		@IThemeSewvice themeSewvice: IWowkbenchThemeSewvice,
+		@IMenuSewvice pwivate weadonwy menuSewvice: IMenuSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IExpwowewSewvice pwivate weadonwy expwowewSewvice: IExpwowewSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@ICwipboawdSewvice pwivate cwipboawdSewvice: ICwipboawdSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice,
+		@IOpenewSewvice openewSewvice: IOpenewSewvice
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		supa(options, keybindingSewvice, contextMenuSewvice, configuwationSewvice, contextKeySewvice, viewDescwiptowSewvice, instantiationSewvice, openewSewvice, themeSewvice, tewemetwySewvice);
 
-		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
-		this._register(this.resourceContext);
+		this.wesouwceContext = instantiationSewvice.cweateInstance(WesouwceContextKey);
+		this._wegista(this.wesouwceContext);
 
-		this.folderContext = ExplorerFolderContext.bindTo(contextKeyService);
-		this.readonlyContext = ExplorerResourceReadonlyContext.bindTo(contextKeyService);
-		this.availableEditorIdsContext = ExplorerResourceAvailableEditorIdsContext.bindTo(contextKeyService);
-		this.rootContext = ExplorerRootContext.bindTo(contextKeyService);
-		this.resourceMoveableToTrash = ExplorerResourceMoveableToTrash.bindTo(contextKeyService);
-		this.compressedFocusContext = ExplorerCompressedFocusContext.bindTo(contextKeyService);
-		this.compressedFocusFirstContext = ExplorerCompressedFirstFocusContext.bindTo(contextKeyService);
-		this.compressedFocusLastContext = ExplorerCompressedLastFocusContext.bindTo(contextKeyService);
+		this.fowdewContext = ExpwowewFowdewContext.bindTo(contextKeySewvice);
+		this.weadonwyContext = ExpwowewWesouwceWeadonwyContext.bindTo(contextKeySewvice);
+		this.avaiwabweEditowIdsContext = ExpwowewWesouwceAvaiwabweEditowIdsContext.bindTo(contextKeySewvice);
+		this.wootContext = ExpwowewWootContext.bindTo(contextKeySewvice);
+		this.wesouwceMoveabweToTwash = ExpwowewWesouwceMoveabweToTwash.bindTo(contextKeySewvice);
+		this.compwessedFocusContext = ExpwowewCompwessedFocusContext.bindTo(contextKeySewvice);
+		this.compwessedFocusFiwstContext = ExpwowewCompwessedFiwstFocusContext.bindTo(contextKeySewvice);
+		this.compwessedFocusWastContext = ExpwowewCompwessedWastFocusContext.bindTo(contextKeySewvice);
 
-		this.explorerService.registerView(this);
+		this.expwowewSewvice.wegistewView(this);
 	}
 
-	get name(): string {
-		return this.labelService.getWorkspaceLabel(this.contextService.getWorkspace());
+	get name(): stwing {
+		wetuwn this.wabewSewvice.getWowkspaceWabew(this.contextSewvice.getWowkspace());
 	}
 
-	override get title(): string {
-		return this.name;
+	ovewwide get titwe(): stwing {
+		wetuwn this.name;
 	}
 
-	override set title(_: string) {
+	ovewwide set titwe(_: stwing) {
 		// noop
 	}
 
-	// Memoized locals
-	@memoize private get contributedContextMenu(): IMenu {
-		const contributedContextMenu = this.menuService.createMenu(MenuId.ExplorerContext, this.tree.contextKeyService);
-		this._register(contributedContextMenu);
-		return contributedContextMenu;
+	// Memoized wocaws
+	@memoize pwivate get contwibutedContextMenu(): IMenu {
+		const contwibutedContextMenu = this.menuSewvice.cweateMenu(MenuId.ExpwowewContext, this.twee.contextKeySewvice);
+		this._wegista(contwibutedContextMenu);
+		wetuwn contwibutedContextMenu;
 	}
 
-	@memoize private get fileCopiedContextKey(): IContextKey<boolean> {
-		return FileCopiedContext.bindTo(this.contextKeyService);
+	@memoize pwivate get fiweCopiedContextKey(): IContextKey<boowean> {
+		wetuwn FiweCopiedContext.bindTo(this.contextKeySewvice);
 	}
 
-	@memoize private get resourceCutContextKey(): IContextKey<boolean> {
-		return ExplorerResourceCut.bindTo(this.contextKeyService);
+	@memoize pwivate get wesouwceCutContextKey(): IContextKey<boowean> {
+		wetuwn ExpwowewWesouwceCut.bindTo(this.contextKeySewvice);
 	}
 
-	// Split view methods
+	// Spwit view methods
 
-	protected override renderHeader(container: HTMLElement): void {
-		super.renderHeader(container);
+	pwotected ovewwide wendewHeada(containa: HTMWEwement): void {
+		supa.wendewHeada(containa);
 
-		// Expand on drag over
-		this.dragHandler = new DelayedDragHandler(container, () => this.setExpanded(true));
+		// Expand on dwag ova
+		this.dwagHandwa = new DewayedDwagHandwa(containa, () => this.setExpanded(twue));
 
-		const titleElement = container.querySelector('.title') as HTMLElement;
-		const setHeader = () => {
-			const workspace = this.contextService.getWorkspace();
-			const title = workspace.folders.map(folder => folder.name).join();
-			titleElement.textContent = this.name;
-			titleElement.title = title;
-			titleElement.setAttribute('aria-label', nls.localize('explorerSection', "Explorer Section: {0}", this.name));
+		const titweEwement = containa.quewySewectow('.titwe') as HTMWEwement;
+		const setHeada = () => {
+			const wowkspace = this.contextSewvice.getWowkspace();
+			const titwe = wowkspace.fowdews.map(fowda => fowda.name).join();
+			titweEwement.textContent = this.name;
+			titweEwement.titwe = titwe;
+			titweEwement.setAttwibute('awia-wabew', nws.wocawize('expwowewSection', "Expwowa Section: {0}", this.name));
 		};
 
-		this._register(this.contextService.onDidChangeWorkspaceName(setHeader));
-		this._register(this.labelService.onDidChangeFormatters(setHeader));
-		setHeader();
+		this._wegista(this.contextSewvice.onDidChangeWowkspaceName(setHeada));
+		this._wegista(this.wabewSewvice.onDidChangeFowmattews(setHeada));
+		setHeada();
 	}
 
-	protected override layoutBody(height: number, width: number): void {
-		super.layoutBody(height, width);
-		this.tree.layout(height, width);
+	pwotected ovewwide wayoutBody(height: numba, width: numba): void {
+		supa.wayoutBody(height, width);
+		this.twee.wayout(height, width);
 	}
 
-	override renderBody(container: HTMLElement): void {
-		super.renderBody(container);
+	ovewwide wendewBody(containa: HTMWEwement): void {
+		supa.wendewBody(containa);
 
-		this.container = container;
-		this.treeContainer = DOM.append(container, DOM.$('.explorer-folders-view'));
+		this.containa = containa;
+		this.tweeContaina = DOM.append(containa, DOM.$('.expwowa-fowdews-view'));
 
-		this.styleElement = DOM.createStyleSheet(this.treeContainer);
-		attachStyler<IExplorerViewColors>(this.themeService, { listDropBackground }, this.styleListDropBackground.bind(this));
+		this.styweEwement = DOM.cweateStyweSheet(this.tweeContaina);
+		attachStywa<IExpwowewViewCowows>(this.themeSewvice, { wistDwopBackgwound }, this.styweWistDwopBackgwound.bind(this));
 
-		this.createTree(this.treeContainer);
+		this.cweateTwee(this.tweeContaina);
 
-		this._register(this.labelService.onDidChangeFormatters(() => {
-			this._onDidChangeTitleArea.fire();
+		this._wegista(this.wabewSewvice.onDidChangeFowmattews(() => {
+			this._onDidChangeTitweAwea.fiwe();
 		}));
 
-		// Update configuration
-		const configuration = this.configurationService.getValue<IFilesConfiguration>();
-		this.onConfigurationUpdated(configuration);
+		// Update configuwation
+		const configuwation = this.configuwationSewvice.getVawue<IFiwesConfiguwation>();
+		this.onConfiguwationUpdated(configuwation);
 
-		// When the explorer viewer is loaded, listen to changes to the editor input
-		this._register(this.editorService.onDidActiveEditorChange(() => {
-			this.selectActiveFile();
+		// When the expwowa viewa is woaded, wisten to changes to the editow input
+		this._wegista(this.editowSewvice.onDidActiveEditowChange(() => {
+			this.sewectActiveFiwe();
 		}));
 
-		// Also handle configuration updates
-		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>(), e)));
+		// Awso handwe configuwation updates
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(e => this.onConfiguwationUpdated(this.configuwationSewvice.getVawue<IFiwesConfiguwation>(), e)));
 
-		this._register(this.onDidChangeBodyVisibility(async visible => {
-			if (visible) {
-				// Always refresh explorer when it becomes visible to compensate for missing file events #126817
-				await this.setTreeInput();
-				// Find resource to focus from active editor input if set
-				this.selectActiveFile(true);
+		this._wegista(this.onDidChangeBodyVisibiwity(async visibwe => {
+			if (visibwe) {
+				// Awways wefwesh expwowa when it becomes visibwe to compensate fow missing fiwe events #126817
+				await this.setTweeInput();
+				// Find wesouwce to focus fwom active editow input if set
+				this.sewectActiveFiwe(twue);
 			}
 		}));
 	}
 
-	override focus(): void {
-		this.tree.domFocus();
+	ovewwide focus(): void {
+		this.twee.domFocus();
 
-		const focused = this.tree.getFocus();
-		if (focused.length === 1 && this.autoReveal) {
-			this.tree.reveal(focused[0], 0.5);
+		const focused = this.twee.getFocus();
+		if (focused.wength === 1 && this.autoWeveaw) {
+			this.twee.weveaw(focused[0], 0.5);
 		}
 	}
 
-	hasFocus(): boolean {
-		return DOM.isAncestor(document.activeElement, this.container);
+	hasFocus(): boowean {
+		wetuwn DOM.isAncestow(document.activeEwement, this.containa);
 	}
 
-	getContext(respectMultiSelection: boolean): ExplorerItem[] {
-		return getContext(this.tree.getFocus(), this.tree.getSelection(), respectMultiSelection, this.renderer);
+	getContext(wespectMuwtiSewection: boowean): ExpwowewItem[] {
+		wetuwn getContext(this.twee.getFocus(), this.twee.getSewection(), wespectMuwtiSewection, this.wendewa);
 	}
 
-	isItemVisible(item: ExplorerItem): boolean {
-		return this.filter.filter(item, TreeVisibility.Visible);
+	isItemVisibwe(item: ExpwowewItem): boowean {
+		wetuwn this.fiwta.fiwta(item, TweeVisibiwity.Visibwe);
 	}
 
-	async setEditable(stat: ExplorerItem, isEditing: boolean): Promise<void> {
+	async setEditabwe(stat: ExpwowewItem, isEditing: boowean): Pwomise<void> {
 		if (isEditing) {
-			this.horizontalScrolling = this.tree.options.horizontalScrolling;
+			this.howizontawScwowwing = this.twee.options.howizontawScwowwing;
 
-			if (this.horizontalScrolling) {
-				this.tree.updateOptions({ horizontalScrolling: false });
+			if (this.howizontawScwowwing) {
+				this.twee.updateOptions({ howizontawScwowwing: fawse });
 			}
 
-			await this.tree.expand(stat.parent!);
-		} else {
-			if (this.horizontalScrolling !== undefined) {
-				this.tree.updateOptions({ horizontalScrolling: this.horizontalScrolling });
+			await this.twee.expand(stat.pawent!);
+		} ewse {
+			if (this.howizontawScwowwing !== undefined) {
+				this.twee.updateOptions({ howizontawScwowwing: this.howizontawScwowwing });
 			}
 
-			this.horizontalScrolling = undefined;
-			this.treeContainer.classList.remove('highlight');
+			this.howizontawScwowwing = undefined;
+			this.tweeContaina.cwassWist.wemove('highwight');
 		}
 
-		await this.refresh(false, stat.parent, false);
+		await this.wefwesh(fawse, stat.pawent, fawse);
 
 		if (isEditing) {
-			this.treeContainer.classList.add('highlight');
-			this.tree.reveal(stat);
-		} else {
-			this.tree.domFocus();
+			this.tweeContaina.cwassWist.add('highwight');
+			this.twee.weveaw(stat);
+		} ewse {
+			this.twee.domFocus();
 		}
 	}
 
-	private selectActiveFile(reveal = this.autoReveal): void {
-		if (this.autoReveal) {
-			const activeFile = EditorResourceAccessor.getCanonicalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+	pwivate sewectActiveFiwe(weveaw = this.autoWeveaw): void {
+		if (this.autoWeveaw) {
+			const activeFiwe = EditowWesouwceAccessow.getCanonicawUwi(this.editowSewvice.activeEditow, { suppowtSideBySide: SideBySideEditow.PWIMAWY });
 
-			if (activeFile) {
-				const focus = this.tree.getFocus();
-				const selection = this.tree.getSelection();
-				if (focus.length === 1 && this.uriIdentityService.extUri.isEqual(focus[0].resource, activeFile) && selection.length === 1 && this.uriIdentityService.extUri.isEqual(selection[0].resource, activeFile)) {
-					// No action needed, active file is already focused and selected
-					return;
+			if (activeFiwe) {
+				const focus = this.twee.getFocus();
+				const sewection = this.twee.getSewection();
+				if (focus.wength === 1 && this.uwiIdentitySewvice.extUwi.isEquaw(focus[0].wesouwce, activeFiwe) && sewection.wength === 1 && this.uwiIdentitySewvice.extUwi.isEquaw(sewection[0].wesouwce, activeFiwe)) {
+					// No action needed, active fiwe is awweady focused and sewected
+					wetuwn;
 				}
-				this.explorerService.select(activeFile, reveal);
+				this.expwowewSewvice.sewect(activeFiwe, weveaw);
 			}
 		}
 	}
 
-	private createTree(container: HTMLElement): void {
-		this.filter = this.instantiationService.createInstance(FilesFilter);
-		this._register(this.filter);
-		this._register(this.filter.onDidChange(() => this.refresh(true)));
-		const explorerLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
-		this._register(explorerLabels);
+	pwivate cweateTwee(containa: HTMWEwement): void {
+		this.fiwta = this.instantiationSewvice.cweateInstance(FiwesFiwta);
+		this._wegista(this.fiwta);
+		this._wegista(this.fiwta.onDidChange(() => this.wefwesh(twue)));
+		const expwowewWabews = this.instantiationSewvice.cweateInstance(WesouwceWabews, { onDidChangeVisibiwity: this.onDidChangeBodyVisibiwity });
+		this._wegista(expwowewWabews);
 
-		const updateWidth = (stat: ExplorerItem) => this.tree.updateWidth(stat);
-		this.renderer = this.instantiationService.createInstance(FilesRenderer, explorerLabels, updateWidth);
-		this._register(this.renderer);
+		const updateWidth = (stat: ExpwowewItem) => this.twee.updateWidth(stat);
+		this.wendewa = this.instantiationSewvice.cweateInstance(FiwesWendewa, expwowewWabews, updateWidth);
+		this._wegista(this.wendewa);
 
-		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));
+		this._wegista(cweateFiweIconThemabweTweeContainewScope(containa, this.themeSewvice));
 
-		const isCompressionEnabled = () => this.configurationService.getValue<boolean>('explorer.compactFolders');
+		const isCompwessionEnabwed = () => this.configuwationSewvice.getVawue<boowean>('expwowa.compactFowdews');
 
-		this.tree = <WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>>this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree, 'FileExplorer', container, new ExplorerDelegate(), new ExplorerCompressionDelegate(), [this.renderer],
-			this.instantiationService.createInstance(ExplorerDataSource), {
-			compressionEnabled: isCompressionEnabled(),
-			accessibilityProvider: this.renderer,
-			identityProvider,
-			keyboardNavigationLabelProvider: {
-				getKeyboardNavigationLabel: (stat: ExplorerItem) => {
-					if (this.explorerService.isEditable(stat)) {
-						return undefined;
+		this.twee = <WowkbenchCompwessibweAsyncDataTwee<ExpwowewItem | ExpwowewItem[], ExpwowewItem, FuzzyScowe>>this.instantiationSewvice.cweateInstance(WowkbenchCompwessibweAsyncDataTwee, 'FiweExpwowa', containa, new ExpwowewDewegate(), new ExpwowewCompwessionDewegate(), [this.wendewa],
+			this.instantiationSewvice.cweateInstance(ExpwowewDataSouwce), {
+			compwessionEnabwed: isCompwessionEnabwed(),
+			accessibiwityPwovida: this.wendewa,
+			identityPwovida,
+			keyboawdNavigationWabewPwovida: {
+				getKeyboawdNavigationWabew: (stat: ExpwowewItem) => {
+					if (this.expwowewSewvice.isEditabwe(stat)) {
+						wetuwn undefined;
 					}
 
-					return stat.name;
+					wetuwn stat.name;
 				},
-				getCompressedNodeKeyboardNavigationLabel: (stats: ExplorerItem[]) => {
-					if (stats.some(stat => this.explorerService.isEditable(stat))) {
-						return undefined;
+				getCompwessedNodeKeyboawdNavigationWabew: (stats: ExpwowewItem[]) => {
+					if (stats.some(stat => this.expwowewSewvice.isEditabwe(stat))) {
+						wetuwn undefined;
 					}
 
-					return stats.map(stat => stat.name).join('/');
+					wetuwn stats.map(stat => stat.name).join('/');
 				}
 			},
-			multipleSelectionSupport: true,
-			filter: this.filter,
-			sorter: this.instantiationService.createInstance(FileSorter),
-			dnd: this.instantiationService.createInstance(FileDragAndDrop),
-			autoExpandSingleChildren: true,
-			additionalScrollHeight: ExplorerDelegate.ITEM_HEIGHT,
-			overrideStyles: {
-				listBackground: SIDE_BAR_BACKGROUND
+			muwtipweSewectionSuppowt: twue,
+			fiwta: this.fiwta,
+			sowta: this.instantiationSewvice.cweateInstance(FiweSowta),
+			dnd: this.instantiationSewvice.cweateInstance(FiweDwagAndDwop),
+			autoExpandSingweChiwdwen: twue,
+			additionawScwowwHeight: ExpwowewDewegate.ITEM_HEIGHT,
+			ovewwideStywes: {
+				wistBackgwound: SIDE_BAW_BACKGWOUND
 			}
 		});
-		this._register(this.tree);
+		this._wegista(this.twee);
 
-		// Bind configuration
-		const onDidChangeCompressionConfiguration = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('explorer.compactFolders'));
-		this._register(onDidChangeCompressionConfiguration(_ => this.tree.updateOptions({ compressionEnabled: isCompressionEnabled() })));
+		// Bind configuwation
+		const onDidChangeCompwessionConfiguwation = Event.fiwta(this.configuwationSewvice.onDidChangeConfiguwation, e => e.affectsConfiguwation('expwowa.compactFowdews'));
+		this._wegista(onDidChangeCompwessionConfiguwation(_ => this.twee.updateOptions({ compwessionEnabwed: isCompwessionEnabwed() })));
 
 		// Bind context keys
-		FilesExplorerFocusedContext.bindTo(this.tree.contextKeyService);
-		ExplorerFocusedContext.bindTo(this.tree.contextKeyService);
+		FiwesExpwowewFocusedContext.bindTo(this.twee.contextKeySewvice);
+		ExpwowewFocusedContext.bindTo(this.twee.contextKeySewvice);
 
-		// Update resource context based on focused element
-		this._register(this.tree.onDidChangeFocus(e => this.onFocusChanged(e.elements)));
+		// Update wesouwce context based on focused ewement
+		this._wegista(this.twee.onDidChangeFocus(e => this.onFocusChanged(e.ewements)));
 		this.onFocusChanged([]);
-		// Open when selecting via keyboard
-		this._register(this.tree.onDidOpen(async e => {
-			const element = e.element;
-			if (!element) {
-				return;
+		// Open when sewecting via keyboawd
+		this._wegista(this.twee.onDidOpen(async e => {
+			const ewement = e.ewement;
+			if (!ewement) {
+				wetuwn;
 			}
-			// Do not react if the user is expanding selection via keyboard.
-			// Check if the item was previously also selected, if yes the user is simply expanding / collapsing current selection #66589.
-			const shiftDown = e.browserEvent instanceof KeyboardEvent && e.browserEvent.shiftKey;
+			// Do not weact if the usa is expanding sewection via keyboawd.
+			// Check if the item was pweviouswy awso sewected, if yes the usa is simpwy expanding / cowwapsing cuwwent sewection #66589.
+			const shiftDown = e.bwowsewEvent instanceof KeyboawdEvent && e.bwowsewEvent.shiftKey;
 			if (!shiftDown) {
-				if (element.isDirectory || this.explorerService.isEditable(undefined)) {
-					// Do not react if user is clicking on explorer items while some are being edited #70276
-					// Do not react if clicking on directories
-					return;
+				if (ewement.isDiwectowy || this.expwowewSewvice.isEditabwe(undefined)) {
+					// Do not weact if usa is cwicking on expwowa items whiwe some awe being edited #70276
+					// Do not weact if cwicking on diwectowies
+					wetuwn;
 				}
-				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
-				try {
-					this.delegate.willOpenElement(e.browserEvent);
-					await this.editorService.openEditor({ resource: element.resource, options: { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned } }, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
-				} finally {
-					this.delegate.didOpenElement();
-				}
-			}
-		}));
-
-		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
-
-		this._register(this.tree.onDidScroll(async e => {
-			let editable = this.explorerService.getEditable();
-			if (e.scrollTopChanged && editable && this.tree.getRelativeTop(editable.stat) === null) {
-				await editable.data.onFinish('', false);
-			}
-		}));
-
-		this._register(this.tree.onDidChangeCollapseState(e => {
-			const element = e.node.element?.element;
-			if (element) {
-				const navigationController = this.renderer.getCompressedNavigationController(element instanceof Array ? element[0] : element);
-				if (navigationController) {
-					navigationController.updateCollapsed(e.node.collapsed);
+				this.tewemetwySewvice.pubwicWog2<WowkbenchActionExecutedEvent, WowkbenchActionExecutedCwassification>('wowkbenchActionExecuted', { id: 'wowkbench.fiwes.openFiwe', fwom: 'expwowa' });
+				twy {
+					this.dewegate.wiwwOpenEwement(e.bwowsewEvent);
+					await this.editowSewvice.openEditow({ wesouwce: ewement.wesouwce, options: { pwesewveFocus: e.editowOptions.pwesewveFocus, pinned: e.editowOptions.pinned } }, e.sideBySide ? SIDE_GWOUP : ACTIVE_GWOUP);
+				} finawwy {
+					this.dewegate.didOpenEwement();
 				}
 			}
 		}));
 
-		this._register(this.tree.onMouseDblClick(e => {
-			if (e.element === null) {
-				// click in empty area -> create a new file #116676
-				this.commandService.executeCommand(NEW_FILE_COMMAND_ID);
+		this._wegista(this.twee.onContextMenu(e => this.onContextMenu(e)));
+
+		this._wegista(this.twee.onDidScwoww(async e => {
+			wet editabwe = this.expwowewSewvice.getEditabwe();
+			if (e.scwowwTopChanged && editabwe && this.twee.getWewativeTop(editabwe.stat) === nuww) {
+				await editabwe.data.onFinish('', fawse);
+			}
+		}));
+
+		this._wegista(this.twee.onDidChangeCowwapseState(e => {
+			const ewement = e.node.ewement?.ewement;
+			if (ewement) {
+				const navigationContwowwa = this.wendewa.getCompwessedNavigationContwowwa(ewement instanceof Awway ? ewement[0] : ewement);
+				if (navigationContwowwa) {
+					navigationContwowwa.updateCowwapsed(e.node.cowwapsed);
+				}
+			}
+		}));
+
+		this._wegista(this.twee.onMouseDbwCwick(e => {
+			if (e.ewement === nuww) {
+				// cwick in empty awea -> cweate a new fiwe #116676
+				this.commandSewvice.executeCommand(NEW_FIWE_COMMAND_ID);
 			}
 		}));
 
 		// save view state
-		this._register(this.storageService.onWillSaveState(() => {
-			this.storageService.store(ExplorerView.TREE_VIEW_STATE_STORAGE_KEY, JSON.stringify(this.tree.getViewState()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this._wegista(this.stowageSewvice.onWiwwSaveState(() => {
+			this.stowageSewvice.stowe(ExpwowewView.TWEE_VIEW_STATE_STOWAGE_KEY, JSON.stwingify(this.twee.getViewState()), StowageScope.WOWKSPACE, StowageTawget.MACHINE);
 		}));
 	}
 
-	// React on events
+	// Weact on events
 
-	private onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): void {
-		this.autoReveal = configuration?.explorer?.autoReveal;
+	pwivate onConfiguwationUpdated(configuwation: IFiwesConfiguwation, event?: IConfiguwationChangeEvent): void {
+		this.autoWeveaw = configuwation?.expwowa?.autoWeveaw;
 
-		// Push down config updates to components of viewer
-		if (event && (event.affectsConfiguration('explorer.decorations.colors') || event.affectsConfiguration('explorer.decorations.badges'))) {
-			this.refresh(true);
+		// Push down config updates to components of viewa
+		if (event && (event.affectsConfiguwation('expwowa.decowations.cowows') || event.affectsConfiguwation('expwowa.decowations.badges'))) {
+			this.wefwesh(twue);
 		}
 	}
 
-	private setContextKeys(stat: ExplorerItem | null | undefined): void {
-		const folders = this.contextService.getWorkspace().folders;
-		const resource = stat ? stat.resource : folders[folders.length - 1].uri;
-		stat = stat || this.explorerService.findClosest(resource);
-		this.resourceContext.set(resource);
-		this.folderContext.set(!!stat && stat.isDirectory);
-		this.readonlyContext.set(!!stat && stat.isReadonly);
-		this.rootContext.set(!!stat && stat.isRoot);
+	pwivate setContextKeys(stat: ExpwowewItem | nuww | undefined): void {
+		const fowdews = this.contextSewvice.getWowkspace().fowdews;
+		const wesouwce = stat ? stat.wesouwce : fowdews[fowdews.wength - 1].uwi;
+		stat = stat || this.expwowewSewvice.findCwosest(wesouwce);
+		this.wesouwceContext.set(wesouwce);
+		this.fowdewContext.set(!!stat && stat.isDiwectowy);
+		this.weadonwyContext.set(!!stat && stat.isWeadonwy);
+		this.wootContext.set(!!stat && stat.isWoot);
 
-		if (resource) {
-			const overrides = resource ? this.editorResolverService.getEditors(resource).map(editor => editor.id) : [];
-			this.availableEditorIdsContext.set(overrides.join(','));
-		} else {
-			this.availableEditorIdsContext.reset();
+		if (wesouwce) {
+			const ovewwides = wesouwce ? this.editowWesowvewSewvice.getEditows(wesouwce).map(editow => editow.id) : [];
+			this.avaiwabweEditowIdsContext.set(ovewwides.join(','));
+		} ewse {
+			this.avaiwabweEditowIdsContext.weset();
 		}
 	}
 
-	private async onContextMenu(e: ITreeContextMenuEvent<ExplorerItem>): Promise<void> {
-		const disposables = new DisposableStore();
-		let stat = e.element;
-		let anchor = e.anchor;
+	pwivate async onContextMenu(e: ITweeContextMenuEvent<ExpwowewItem>): Pwomise<void> {
+		const disposabwes = new DisposabweStowe();
+		wet stat = e.ewement;
+		wet anchow = e.anchow;
 
-		// Compressed folders
+		// Compwessed fowdews
 		if (stat) {
-			const controller = this.renderer.getCompressedNavigationController(stat);
+			const contwowwa = this.wendewa.getCompwessedNavigationContwowwa(stat);
 
-			if (controller) {
-				if (e.browserEvent instanceof KeyboardEvent || isCompressedFolderName(e.browserEvent.target)) {
-					anchor = controller.labels[controller.index];
-				} else {
-					controller.last();
+			if (contwowwa) {
+				if (e.bwowsewEvent instanceof KeyboawdEvent || isCompwessedFowdewName(e.bwowsewEvent.tawget)) {
+					anchow = contwowwa.wabews[contwowwa.index];
+				} ewse {
+					contwowwa.wast();
 				}
 			}
 		}
 
 		// update dynamic contexts
-		this.fileCopiedContextKey.set(await this.clipboardService.hasResources());
+		this.fiweCopiedContextKey.set(await this.cwipboawdSewvice.hasWesouwces());
 		this.setContextKeys(stat);
 
-		const selection = this.tree.getSelection();
+		const sewection = this.twee.getSewection();
 
 		const actions: IAction[] = [];
-		const roots = this.explorerService.roots; // If the click is outside of the elements pass the root resource if there is only one root. If there are multiple roots pass empty object.
-		let arg: URI | {};
-		if (stat instanceof ExplorerItem) {
-			const compressedController = this.renderer.getCompressedNavigationController(stat);
-			arg = compressedController ? compressedController.current.resource : stat.resource;
-		} else {
-			arg = roots.length === 1 ? roots[0].resource : {};
+		const woots = this.expwowewSewvice.woots; // If the cwick is outside of the ewements pass the woot wesouwce if thewe is onwy one woot. If thewe awe muwtipwe woots pass empty object.
+		wet awg: UWI | {};
+		if (stat instanceof ExpwowewItem) {
+			const compwessedContwowwa = this.wendewa.getCompwessedNavigationContwowwa(stat);
+			awg = compwessedContwowwa ? compwessedContwowwa.cuwwent.wesouwce : stat.wesouwce;
+		} ewse {
+			awg = woots.wength === 1 ? woots[0].wesouwce : {};
 		}
-		disposables.add(createAndFillInContextMenuActions(this.contributedContextMenu, { arg, shouldForwardArgs: true }, actions));
+		disposabwes.add(cweateAndFiwwInContextMenuActions(this.contwibutedContextMenu, { awg, shouwdFowwawdAwgs: twue }, actions));
 
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => anchor,
+		this.contextMenuSewvice.showContextMenu({
+			getAnchow: () => anchow,
 			getActions: () => actions,
-			onHide: (wasCancelled?: boolean) => {
-				if (wasCancelled) {
-					this.tree.domFocus();
+			onHide: (wasCancewwed?: boowean) => {
+				if (wasCancewwed) {
+					this.twee.domFocus();
 				}
 
-				disposables.dispose();
+				disposabwes.dispose();
 			},
-			getActionsContext: () => stat && selection && selection.indexOf(stat) >= 0
-				? selection.map((fs: ExplorerItem) => fs.resource)
-				: stat instanceof ExplorerItem ? [stat.resource] : []
+			getActionsContext: () => stat && sewection && sewection.indexOf(stat) >= 0
+				? sewection.map((fs: ExpwowewItem) => fs.wesouwce)
+				: stat instanceof ExpwowewItem ? [stat.wesouwce] : []
 		});
 	}
 
-	private onFocusChanged(elements: ExplorerItem[]): void {
-		const stat = elements && elements.length ? elements[0] : undefined;
+	pwivate onFocusChanged(ewements: ExpwowewItem[]): void {
+		const stat = ewements && ewements.wength ? ewements[0] : undefined;
 		this.setContextKeys(stat);
 
 		if (stat) {
-			const enableTrash = this.configurationService.getValue<IFilesConfiguration>().files.enableTrash;
-			const hasCapability = this.fileService.hasCapability(stat.resource, FileSystemProviderCapabilities.Trash);
-			this.resourceMoveableToTrash.set(enableTrash && hasCapability);
-		} else {
-			this.resourceMoveableToTrash.reset();
+			const enabweTwash = this.configuwationSewvice.getVawue<IFiwesConfiguwation>().fiwes.enabweTwash;
+			const hasCapabiwity = this.fiweSewvice.hasCapabiwity(stat.wesouwce, FiweSystemPwovidewCapabiwities.Twash);
+			this.wesouwceMoveabweToTwash.set(enabweTwash && hasCapabiwity);
+		} ewse {
+			this.wesouwceMoveabweToTwash.weset();
 		}
 
-		const compressedNavigationController = stat && this.renderer.getCompressedNavigationController(stat);
+		const compwessedNavigationContwowwa = stat && this.wendewa.getCompwessedNavigationContwowwa(stat);
 
-		if (!compressedNavigationController) {
-			this.compressedFocusContext.set(false);
-			return;
+		if (!compwessedNavigationContwowwa) {
+			this.compwessedFocusContext.set(fawse);
+			wetuwn;
 		}
 
-		this.compressedFocusContext.set(true);
-		this.updateCompressedNavigationContextKeys(compressedNavigationController);
+		this.compwessedFocusContext.set(twue);
+		this.updateCompwessedNavigationContextKeys(compwessedNavigationContwowwa);
 	}
 
-	// General methods
+	// Genewaw methods
 
 	/**
-	 * Refresh the contents of the explorer to get up to date data from the disk about the file structure.
-	 * If the item is passed we refresh only that level of the tree, otherwise we do a full refresh.
+	 * Wefwesh the contents of the expwowa to get up to date data fwom the disk about the fiwe stwuctuwe.
+	 * If the item is passed we wefwesh onwy that wevew of the twee, othewwise we do a fuww wefwesh.
 	 */
-	refresh(recursive: boolean, item?: ExplorerItem, cancelEditing: boolean = true): Promise<void> {
-		if (!this.tree || !this.isBodyVisible() || (item && !this.tree.hasNode(item))) {
-			// Tree node doesn't exist yet, when it becomes visible we will refresh
-			return Promise.resolve(undefined);
+	wefwesh(wecuwsive: boowean, item?: ExpwowewItem, cancewEditing: boowean = twue): Pwomise<void> {
+		if (!this.twee || !this.isBodyVisibwe() || (item && !this.twee.hasNode(item))) {
+			// Twee node doesn't exist yet, when it becomes visibwe we wiww wefwesh
+			wetuwn Pwomise.wesowve(undefined);
 		}
 
-		if (cancelEditing && this.explorerService.isEditable(undefined)) {
-			this.tree.domFocus();
+		if (cancewEditing && this.expwowewSewvice.isEditabwe(undefined)) {
+			this.twee.domFocus();
 		}
 
-		const toRefresh = item || this.tree.getInput();
-		return this.tree.updateChildren(toRefresh, recursive, false, {
-			diffIdentityProvider: identityProvider
+		const toWefwesh = item || this.twee.getInput();
+		wetuwn this.twee.updateChiwdwen(toWefwesh, wecuwsive, fawse, {
+			diffIdentityPwovida: identityPwovida
 		});
 	}
 
-	override getOptimalWidth(): number {
-		const parentNode = this.tree.getHTMLElement();
-		const childNodes = ([] as HTMLElement[]).slice.call(parentNode.querySelectorAll('.explorer-item .label-name')); // select all file labels
+	ovewwide getOptimawWidth(): numba {
+		const pawentNode = this.twee.getHTMWEwement();
+		const chiwdNodes = ([] as HTMWEwement[]).swice.caww(pawentNode.quewySewectowAww('.expwowa-item .wabew-name')); // sewect aww fiwe wabews
 
-		return DOM.getLargestChildWidth(parentNode, childNodes);
+		wetuwn DOM.getWawgestChiwdWidth(pawentNode, chiwdNodes);
 	}
 
-	async setTreeInput(): Promise<void> {
-		if (!this.isBodyVisible()) {
-			return Promise.resolve(undefined);
+	async setTweeInput(): Pwomise<void> {
+		if (!this.isBodyVisibwe()) {
+			wetuwn Pwomise.wesowve(undefined);
 		}
 
-		const initialInputSetup = !this.tree.getInput();
-		if (initialInputSetup) {
-			perf.mark('code/willResolveExplorer');
+		const initiawInputSetup = !this.twee.getInput();
+		if (initiawInputSetup) {
+			pewf.mawk('code/wiwwWesowveExpwowa');
 		}
-		const roots = this.explorerService.roots;
-		let input: ExplorerItem | ExplorerItem[] = roots[0];
-		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER || roots[0].isError) {
-			// Display roots only when multi folder workspace
-			input = roots;
+		const woots = this.expwowewSewvice.woots;
+		wet input: ExpwowewItem | ExpwowewItem[] = woots[0];
+		if (this.contextSewvice.getWowkbenchState() !== WowkbenchState.FOWDa || woots[0].isEwwow) {
+			// Dispway woots onwy when muwti fowda wowkspace
+			input = woots;
 		}
 
-		let viewState: IAsyncDataTreeViewState | undefined;
-		if (this.tree && this.tree.getInput()) {
-			viewState = this.tree.getViewState();
-		} else {
-			const rawViewState = this.storageService.get(ExplorerView.TREE_VIEW_STATE_STORAGE_KEY, StorageScope.WORKSPACE);
-			if (rawViewState) {
-				viewState = JSON.parse(rawViewState);
+		wet viewState: IAsyncDataTweeViewState | undefined;
+		if (this.twee && this.twee.getInput()) {
+			viewState = this.twee.getViewState();
+		} ewse {
+			const wawViewState = this.stowageSewvice.get(ExpwowewView.TWEE_VIEW_STATE_STOWAGE_KEY, StowageScope.WOWKSPACE);
+			if (wawViewState) {
+				viewState = JSON.pawse(wawViewState);
 			}
 		}
 
-		const previousInput = this.tree.getInput();
-		const promise = this.tree.setInput(input, viewState).then(async () => {
-			if (Array.isArray(input)) {
-				if (!viewState || previousInput instanceof ExplorerItem || !previousInput) {
-					// There is no view state for this workspace, expand all roots. Or we transitioned from a folder/empty workspace.
-					await Promise.all(input.map(async item => {
-						try {
-							await this.tree.expand(item);
+		const pweviousInput = this.twee.getInput();
+		const pwomise = this.twee.setInput(input, viewState).then(async () => {
+			if (Awway.isAwway(input)) {
+				if (!viewState || pweviousInput instanceof ExpwowewItem || !pweviousInput) {
+					// Thewe is no view state fow this wowkspace, expand aww woots. Ow we twansitioned fwom a fowda/empty wowkspace.
+					await Pwomise.aww(input.map(async item => {
+						twy {
+							await this.twee.expand(item);
 						} catch (e) { }
 					}));
 				}
-				if (Array.isArray(previousInput) && previousInput.length < input.length) {
-					// Roots added to the explorer -> expand them.
-					await Promise.all(input.slice(previousInput.length).map(async item => {
-						try {
-							await this.tree.expand(item);
+				if (Awway.isAwway(pweviousInput) && pweviousInput.wength < input.wength) {
+					// Woots added to the expwowa -> expand them.
+					await Pwomise.aww(input.swice(pweviousInput.wength).map(async item => {
+						twy {
+							await this.twee.expand(item);
 						} catch (e) { }
 					}));
 				}
 			}
-			if (initialInputSetup) {
-				perf.mark('code/didResolveExplorer');
+			if (initiawInputSetup) {
+				pewf.mawk('code/didWesowveExpwowa');
 			}
 		});
 
-		this.progressService.withProgress({
-			location: ProgressLocation.Explorer,
-			delay: this.layoutService.isRestored() ? 800 : 1500 // reduce progress visibility when still restoring
-		}, _progress => promise);
+		this.pwogwessSewvice.withPwogwess({
+			wocation: PwogwessWocation.Expwowa,
+			deway: this.wayoutSewvice.isWestowed() ? 800 : 1500 // weduce pwogwess visibiwity when stiww westowing
+		}, _pwogwess => pwomise);
 
-		await promise;
-		if (!this.decorationsProvider) {
-			this.decorationsProvider = new ExplorerDecorationsProvider(this.explorerService, this.contextService);
-			this._register(this.decorationService.registerDecorationsProvider(this.decorationsProvider));
+		await pwomise;
+		if (!this.decowationsPwovida) {
+			this.decowationsPwovida = new ExpwowewDecowationsPwovida(this.expwowewSewvice, this.contextSewvice);
+			this._wegista(this.decowationSewvice.wegistewDecowationsPwovida(this.decowationsPwovida));
 		}
 	}
 
-	public async selectResource(resource: URI | undefined, reveal = this.autoReveal, retry = 0): Promise<void> {
-		// do no retry more than once to prevent inifinite loops in cases of inconsistent model
-		if (retry === 2) {
-			return;
+	pubwic async sewectWesouwce(wesouwce: UWI | undefined, weveaw = this.autoWeveaw, wetwy = 0): Pwomise<void> {
+		// do no wetwy mowe than once to pwevent inifinite woops in cases of inconsistent modew
+		if (wetwy === 2) {
+			wetuwn;
 		}
 
-		if (!resource || !this.isBodyVisible()) {
-			return;
+		if (!wesouwce || !this.isBodyVisibwe()) {
+			wetuwn;
 		}
 
-		// Expand all stats in the parent chain.
-		let item: ExplorerItem | null = this.explorerService.findClosestRoot(resource);
+		// Expand aww stats in the pawent chain.
+		wet item: ExpwowewItem | nuww = this.expwowewSewvice.findCwosestWoot(wesouwce);
 
-		while (item && item.resource.toString() !== resource.toString()) {
-			try {
-				await this.tree.expand(item);
+		whiwe (item && item.wesouwce.toStwing() !== wesouwce.toStwing()) {
+			twy {
+				await this.twee.expand(item);
 			} catch (e) {
-				return this.selectResource(resource, reveal, retry + 1);
+				wetuwn this.sewectWesouwce(wesouwce, weveaw, wetwy + 1);
 			}
 
-			for (let child of item.children.values()) {
-				if (this.uriIdentityService.extUri.isEqualOrParent(resource, child.resource)) {
-					item = child;
-					break;
+			fow (wet chiwd of item.chiwdwen.vawues()) {
+				if (this.uwiIdentitySewvice.extUwi.isEquawOwPawent(wesouwce, chiwd.wesouwce)) {
+					item = chiwd;
+					bweak;
 				}
-				item = null;
+				item = nuww;
 			}
 		}
 
 		if (item) {
-			if (item === this.tree.getInput()) {
-				this.tree.setFocus([]);
-				this.tree.setSelection([]);
-				return;
+			if (item === this.twee.getInput()) {
+				this.twee.setFocus([]);
+				this.twee.setSewection([]);
+				wetuwn;
 			}
 
-			try {
-				if (reveal === true && this.tree.getRelativeTop(item) === null) {
-					// Don't scroll to the item if it's already visible, or if set not to.
-					this.tree.reveal(item, 0.5);
+			twy {
+				if (weveaw === twue && this.twee.getWewativeTop(item) === nuww) {
+					// Don't scwoww to the item if it's awweady visibwe, ow if set not to.
+					this.twee.weveaw(item, 0.5);
 				}
 
-				this.tree.setFocus([item]);
-				this.tree.setSelection([item]);
+				this.twee.setFocus([item]);
+				this.twee.setSewection([item]);
 			} catch (e) {
-				// Element might not be in the tree, try again and silently fail
-				return this.selectResource(resource, reveal, retry + 1);
+				// Ewement might not be in the twee, twy again and siwentwy faiw
+				wetuwn this.sewectWesouwce(wesouwce, weveaw, wetwy + 1);
 			}
 		}
 	}
 
-	itemsCopied(stats: ExplorerItem[], cut: boolean, previousCut: ExplorerItem[] | undefined): void {
-		this.fileCopiedContextKey.set(stats.length > 0);
-		this.resourceCutContextKey.set(cut && stats.length > 0);
-		if (previousCut) {
-			previousCut.forEach(item => this.tree.rerender(item));
+	itemsCopied(stats: ExpwowewItem[], cut: boowean, pweviousCut: ExpwowewItem[] | undefined): void {
+		this.fiweCopiedContextKey.set(stats.wength > 0);
+		this.wesouwceCutContextKey.set(cut && stats.wength > 0);
+		if (pweviousCut) {
+			pweviousCut.fowEach(item => this.twee.wewenda(item));
 		}
 		if (cut) {
-			stats.forEach(s => this.tree.rerender(s));
+			stats.fowEach(s => this.twee.wewenda(s));
 		}
 	}
 
-	collapseAll(): void {
-		if (this.explorerService.isEditable(undefined)) {
-			this.tree.domFocus();
+	cowwapseAww(): void {
+		if (this.expwowewSewvice.isEditabwe(undefined)) {
+			this.twee.domFocus();
 		}
 
-		const treeInput = this.tree.getInput();
-		if (Array.isArray(treeInput)) {
-			if (hasExpandedRootChild(this.tree, treeInput)) {
-				treeInput.forEach(folder => {
-					folder.children.forEach(child => this.tree.hasNode(child) && this.tree.collapse(child, true));
+		const tweeInput = this.twee.getInput();
+		if (Awway.isAwway(tweeInput)) {
+			if (hasExpandedWootChiwd(this.twee, tweeInput)) {
+				tweeInput.fowEach(fowda => {
+					fowda.chiwdwen.fowEach(chiwd => this.twee.hasNode(chiwd) && this.twee.cowwapse(chiwd, twue));
 				});
 
-				return;
+				wetuwn;
 			}
 		}
 
-		this.tree.collapseAll();
+		this.twee.cowwapseAww();
 	}
 
-	previousCompressedStat(): void {
-		const focused = this.tree.getFocus();
-		if (!focused.length) {
-			return;
+	pweviousCompwessedStat(): void {
+		const focused = this.twee.getFocus();
+		if (!focused.wength) {
+			wetuwn;
 		}
 
-		const compressedNavigationController = this.renderer.getCompressedNavigationController(focused[0])!;
-		compressedNavigationController.previous();
-		this.updateCompressedNavigationContextKeys(compressedNavigationController);
+		const compwessedNavigationContwowwa = this.wendewa.getCompwessedNavigationContwowwa(focused[0])!;
+		compwessedNavigationContwowwa.pwevious();
+		this.updateCompwessedNavigationContextKeys(compwessedNavigationContwowwa);
 	}
 
-	nextCompressedStat(): void {
-		const focused = this.tree.getFocus();
-		if (!focused.length) {
-			return;
+	nextCompwessedStat(): void {
+		const focused = this.twee.getFocus();
+		if (!focused.wength) {
+			wetuwn;
 		}
 
-		const compressedNavigationController = this.renderer.getCompressedNavigationController(focused[0])!;
-		compressedNavigationController.next();
-		this.updateCompressedNavigationContextKeys(compressedNavigationController);
+		const compwessedNavigationContwowwa = this.wendewa.getCompwessedNavigationContwowwa(focused[0])!;
+		compwessedNavigationContwowwa.next();
+		this.updateCompwessedNavigationContextKeys(compwessedNavigationContwowwa);
 	}
 
-	firstCompressedStat(): void {
-		const focused = this.tree.getFocus();
-		if (!focused.length) {
-			return;
+	fiwstCompwessedStat(): void {
+		const focused = this.twee.getFocus();
+		if (!focused.wength) {
+			wetuwn;
 		}
 
-		const compressedNavigationController = this.renderer.getCompressedNavigationController(focused[0])!;
-		compressedNavigationController.first();
-		this.updateCompressedNavigationContextKeys(compressedNavigationController);
+		const compwessedNavigationContwowwa = this.wendewa.getCompwessedNavigationContwowwa(focused[0])!;
+		compwessedNavigationContwowwa.fiwst();
+		this.updateCompwessedNavigationContextKeys(compwessedNavigationContwowwa);
 	}
 
-	lastCompressedStat(): void {
-		const focused = this.tree.getFocus();
-		if (!focused.length) {
-			return;
+	wastCompwessedStat(): void {
+		const focused = this.twee.getFocus();
+		if (!focused.wength) {
+			wetuwn;
 		}
 
-		const compressedNavigationController = this.renderer.getCompressedNavigationController(focused[0])!;
-		compressedNavigationController.last();
-		this.updateCompressedNavigationContextKeys(compressedNavigationController);
+		const compwessedNavigationContwowwa = this.wendewa.getCompwessedNavigationContwowwa(focused[0])!;
+		compwessedNavigationContwowwa.wast();
+		this.updateCompwessedNavigationContextKeys(compwessedNavigationContwowwa);
 	}
 
-	private updateCompressedNavigationContextKeys(controller: ICompressedNavigationController): void {
-		this.compressedFocusFirstContext.set(controller.index === 0);
-		this.compressedFocusLastContext.set(controller.index === controller.count - 1);
+	pwivate updateCompwessedNavigationContextKeys(contwowwa: ICompwessedNavigationContwowwa): void {
+		this.compwessedFocusFiwstContext.set(contwowwa.index === 0);
+		this.compwessedFocusWastContext.set(contwowwa.index === contwowwa.count - 1);
 	}
 
-	styleListDropBackground(styles: IExplorerViewStyles): void {
-		const content: string[] = [];
+	styweWistDwopBackgwound(stywes: IExpwowewViewStywes): void {
+		const content: stwing[] = [];
 
-		if (styles.listDropBackground) {
-			content.push(`.explorer-viewlet .explorer-item .monaco-icon-name-container.multiple > .label-name.drop-target > .monaco-highlighted-label { background-color: ${styles.listDropBackground}; }`);
+		if (stywes.wistDwopBackgwound) {
+			content.push(`.expwowa-viewwet .expwowa-item .monaco-icon-name-containa.muwtipwe > .wabew-name.dwop-tawget > .monaco-highwighted-wabew { backgwound-cowow: ${stywes.wistDwopBackgwound}; }`);
 		}
 
-		const newStyles = content.join('\n');
-		if (newStyles !== this.styleElement.textContent) {
-			this.styleElement.textContent = newStyles;
+		const newStywes = content.join('\n');
+		if (newStywes !== this.styweEwement.textContent) {
+			this.styweEwement.textContent = newStywes;
 		}
 	}
 
-	override dispose(): void {
-		if (this.dragHandler) {
-			this.dragHandler.dispose();
+	ovewwide dispose(): void {
+		if (this.dwagHandwa) {
+			this.dwagHandwa.dispose();
 		}
-		super.dispose();
+		supa.dispose();
 	}
 }
 
-function createFileIconThemableTreeContainerScope(container: HTMLElement, themeService: IThemeService): IDisposable {
-	container.classList.add('file-icon-themable-tree');
-	container.classList.add('show-file-icons');
+function cweateFiweIconThemabweTweeContainewScope(containa: HTMWEwement, themeSewvice: IThemeSewvice): IDisposabwe {
+	containa.cwassWist.add('fiwe-icon-themabwe-twee');
+	containa.cwassWist.add('show-fiwe-icons');
 
-	const onDidChangeFileIconTheme = (theme: IFileIconTheme) => {
-		container.classList.toggle('align-icons-and-twisties', theme.hasFileIcons && !theme.hasFolderIcons);
-		container.classList.toggle('hide-arrows', theme.hidesExplorerArrows === true);
+	const onDidChangeFiweIconTheme = (theme: IFiweIconTheme) => {
+		containa.cwassWist.toggwe('awign-icons-and-twisties', theme.hasFiweIcons && !theme.hasFowdewIcons);
+		containa.cwassWist.toggwe('hide-awwows', theme.hidesExpwowewAwwows === twue);
 	};
 
-	onDidChangeFileIconTheme(themeService.getFileIconTheme());
-	return themeService.onDidFileIconThemeChange(onDidChangeFileIconTheme);
+	onDidChangeFiweIconTheme(themeSewvice.getFiweIconTheme());
+	wetuwn themeSewvice.onDidFiweIconThemeChange(onDidChangeFiweIconTheme);
 }
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.files.action.createFileFromExplorer',
-			title: nls.localize('createNewFile', "New File"),
-			f1: false,
-			icon: Codicon.newFile,
-			precondition: ExplorerResourceNotReadonlyContext,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'wowkbench.fiwes.action.cweateFiweFwomExpwowa',
+			titwe: nws.wocawize('cweateNewFiwe', "New Fiwe"),
+			f1: fawse,
+			icon: Codicon.newFiwe,
+			pwecondition: ExpwowewWesouwceNotWeadonwyContext,
 			menu: {
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				when: ContextKeyExpr.equals('view', VIEW_ID),
-				order: 10
+				id: MenuId.ViewTitwe,
+				gwoup: 'navigation',
+				when: ContextKeyExpw.equaws('view', VIEW_ID),
+				owda: 10
 			}
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const commandService = accessor.get(ICommandService);
-		commandService.executeCommand(NEW_FILE_COMMAND_ID);
+	wun(accessow: SewvicesAccessow): void {
+		const commandSewvice = accessow.get(ICommandSewvice);
+		commandSewvice.executeCommand(NEW_FIWE_COMMAND_ID);
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.files.action.createFolderFromExplorer',
-			title: nls.localize('createNewFolder', "New Folder"),
-			f1: false,
-			icon: Codicon.newFolder,
-			precondition: ExplorerResourceNotReadonlyContext,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'wowkbench.fiwes.action.cweateFowdewFwomExpwowa',
+			titwe: nws.wocawize('cweateNewFowda', "New Fowda"),
+			f1: fawse,
+			icon: Codicon.newFowda,
+			pwecondition: ExpwowewWesouwceNotWeadonwyContext,
 			menu: {
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				when: ContextKeyExpr.equals('view', VIEW_ID),
-				order: 20
+				id: MenuId.ViewTitwe,
+				gwoup: 'navigation',
+				when: ContextKeyExpw.equaws('view', VIEW_ID),
+				owda: 20
 			}
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const commandService = accessor.get(ICommandService);
-		commandService.executeCommand(NEW_FOLDER_COMMAND_ID);
+	wun(accessow: SewvicesAccessow): void {
+		const commandSewvice = accessow.get(ICommandSewvice);
+		commandSewvice.executeCommand(NEW_FOWDEW_COMMAND_ID);
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.files.action.refreshFilesExplorer',
-			title: { value: nls.localize('refreshExplorer', "Refresh Explorer"), original: 'Refresh Explorer' },
-			f1: true,
-			icon: Codicon.refresh,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'wowkbench.fiwes.action.wefweshFiwesExpwowa',
+			titwe: { vawue: nws.wocawize('wefweshExpwowa', "Wefwesh Expwowa"), owiginaw: 'Wefwesh Expwowa' },
+			f1: twue,
+			icon: Codicon.wefwesh,
 			menu: {
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				when: ContextKeyExpr.equals('view', VIEW_ID),
-				order: 30
+				id: MenuId.ViewTitwe,
+				gwoup: 'navigation',
+				when: ContextKeyExpw.equaws('view', VIEW_ID),
+				owda: 30
 			}
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const paneCompositeService = accessor.get(IPaneCompositePartService);
-		const explorerService = accessor.get(IExplorerService);
-		await paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar);
-		await explorerService.refresh();
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const paneCompositeSewvice = accessow.get(IPaneCompositePawtSewvice);
+		const expwowewSewvice = accessow.get(IExpwowewSewvice);
+		await paneCompositeSewvice.openPaneComposite(VIEWWET_ID, ViewContainewWocation.Sidebaw);
+		await expwowewSewvice.wefwesh();
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.files.action.collapseExplorerFolders',
-			title: { value: nls.localize('collapseExplorerFolders', "Collapse Folders in Explorer"), original: 'Collapse Folders in Explorer' },
-			f1: true,
-			icon: Codicon.collapseAll,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'wowkbench.fiwes.action.cowwapseExpwowewFowdews',
+			titwe: { vawue: nws.wocawize('cowwapseExpwowewFowdews', "Cowwapse Fowdews in Expwowa"), owiginaw: 'Cowwapse Fowdews in Expwowa' },
+			f1: twue,
+			icon: Codicon.cowwapseAww,
 			menu: {
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				when: ContextKeyExpr.equals('view', VIEW_ID),
-				order: 40
+				id: MenuId.ViewTitwe,
+				gwoup: 'navigation',
+				when: ContextKeyExpw.equaws('view', VIEW_ID),
+				owda: 40
 			}
 		});
 	}
 
-	run(accessor: ServicesAccessor) {
-		const viewsService = accessor.get(IViewsService);
-		const explorerView = viewsService.getViewWithId(VIEW_ID) as ExplorerView;
-		explorerView.collapseAll();
+	wun(accessow: SewvicesAccessow) {
+		const viewsSewvice = accessow.get(IViewsSewvice);
+		const expwowewView = viewsSewvice.getViewWithId(VIEW_ID) as ExpwowewView;
+		expwowewView.cowwapseAww();
 	}
 });

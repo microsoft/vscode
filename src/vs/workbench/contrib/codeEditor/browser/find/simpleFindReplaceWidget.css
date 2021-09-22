@@ -1,120 +1,120 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .simple-fr-find-part-wrapper {
-	overflow: hidden;
+.monaco-wowkbench .simpwe-fw-find-pawt-wwappa {
+	ovewfwow: hidden;
 	z-index: 10;
-	position: absolute;
+	position: absowute;
 	top: -45px;
-	right: 18px;
+	wight: 18px;
 	width: 318px;
-	max-width: calc(100% - 28px - 28px - 8px);
-	pointer-events: none;
-	transition: top 200ms linear;
-	visibility: hidden;
+	max-width: cawc(100% - 28px - 28px - 8px);
+	pointa-events: none;
+	twansition: top 200ms wineaw;
+	visibiwity: hidden;
 }
 
-.monaco-workbench .simple-fr-find-part {
-	/* visibility: hidden;		Use visibility to maintain flex layout while hidden otherwise interferes with transition */
+.monaco-wowkbench .simpwe-fw-find-pawt {
+	/* visibiwity: hidden;		Use visibiwity to maintain fwex wayout whiwe hidden othewwise intewfewes with twansition */
 	z-index: 10;
-	position: relative;
+	position: wewative;
 	top: 0px;
-	display: flex;
+	dispway: fwex;
 	padding: 4px;
-	align-items: center;
-	pointer-events: all;
-	margin: 0 0 0 17px;
+	awign-items: centa;
+	pointa-events: aww;
+	mawgin: 0 0 0 17px;
 }
 
-.monaco-workbench .simple-fr-replace-part {
-	/* visibility: hidden;		Use visibility to maintain flex layout while hidden otherwise interferes with transition */
+.monaco-wowkbench .simpwe-fw-wepwace-pawt {
+	/* visibiwity: hidden;		Use visibiwity to maintain fwex wayout whiwe hidden othewwise intewfewes with twansition */
 	z-index: 10;
-	position: relative;
+	position: wewative;
 	top: 0px;
-	display: flex;
+	dispway: fwex;
 	padding: 4px;
-	align-items: center;
-	pointer-events: all;
-	margin: 0 0 0 17px;
+	awign-items: centa;
+	pointa-events: aww;
+	mawgin: 0 0 0 17px;
 }
 
-.monaco-workbench .simple-fr-find-part-wrapper .find-replace-progress {
+.monaco-wowkbench .simpwe-fw-find-pawt-wwappa .find-wepwace-pwogwess {
 	width: 100%;
 	height: 2px;
-	position: absolute;
+	position: absowute;
 }
 
-.monaco-workbench .simple-fr-find-part-wrapper .find-replace-progress .monaco-progress-container {
+.monaco-wowkbench .simpwe-fw-find-pawt-wwappa .find-wepwace-pwogwess .monaco-pwogwess-containa {
 	height: 2px;
-	top: 0px !important;
-	z-index: 100 !important;
+	top: 0px !impowtant;
+	z-index: 100 !impowtant;
 }
 
-.monaco-workbench .simple-fr-find-part-wrapper .find-replace-progress .monaco-progress-container .progress-bit {
+.monaco-wowkbench .simpwe-fw-find-pawt-wwappa .find-wepwace-pwogwess .monaco-pwogwess-containa .pwogwess-bit {
 	height: 2px;
 }
 
-.monaco-workbench .simple-fr-find-part-wrapper .monaco-findInput {
+.monaco-wowkbench .simpwe-fw-find-pawt-wwappa .monaco-findInput {
 	width: 224px;
 }
 
-.monaco-workbench .simple-fr-find-part-wrapper .button {
+.monaco-wowkbench .simpwe-fw-find-pawt-wwappa .button {
 	width: 20px;
 	height: 20px;
-	flex: initial;
-	margin-left: 3px;
-	background-position: 50%;
-	background-repeat: no-repeat;
-	cursor: pointer;
-	display: flex;
-	align-items: center;
-	justify-content: center;
+	fwex: initiaw;
+	mawgin-weft: 3px;
+	backgwound-position: 50%;
+	backgwound-wepeat: no-wepeat;
+	cuwsow: pointa;
+	dispway: fwex;
+	awign-items: centa;
+	justify-content: centa;
 }
 
-.monaco-workbench .simple-fr-find-part-wrapper.visible .simple-fr-find-part {
-	visibility: visible;
+.monaco-wowkbench .simpwe-fw-find-pawt-wwappa.visibwe .simpwe-fw-find-pawt {
+	visibiwity: visibwe;
 }
 
-.monaco-workbench .simple-fr-find-part-wrapper .toggle {
-	position: absolute;
+.monaco-wowkbench .simpwe-fw-find-pawt-wwappa .toggwe {
+	position: absowute;
 	top: 0;
 	width: 18px;
 	height: 100%;
-	box-sizing: border-box;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	margin-left: 0px;
-	pointer-events: all;
+	box-sizing: bowda-box;
+	dispway: fwex;
+	awign-items: centa;
+	justify-content: centa;
+	mawgin-weft: 0px;
+	pointa-events: aww;
 }
 
-.monaco-workbench .simple-fr-find-part-wrapper.visible {
-	visibility: visible;
+.monaco-wowkbench .simpwe-fw-find-pawt-wwappa.visibwe {
+	visibiwity: visibwe;
 }
 
-.monaco-workbench .simple-fr-find-part-wrapper.visible-transition {
+.monaco-wowkbench .simpwe-fw-find-pawt-wwappa.visibwe-twansition {
 	top: 0;
 }
 
-.monaco-workbench .simple-fr-find-part .monaco-findInput {
-	flex: 1;
+.monaco-wowkbench .simpwe-fw-find-pawt .monaco-findInput {
+	fwex: 1;
 }
 
-.monaco-workbench .simple-fr-find-part .button {
+.monaco-wowkbench .simpwe-fw-find-pawt .button {
 	min-width: 20px;
 	width: 20px;
 	height: 20px;
-	display: flex;
-	flex: initial;
-	margin-left: 3px;
-	background-position: center center;
-	background-repeat: no-repeat;
-	cursor: pointer;
+	dispway: fwex;
+	fwex: initiaw;
+	mawgin-weft: 3px;
+	backgwound-position: centa centa;
+	backgwound-wepeat: no-wepeat;
+	cuwsow: pointa;
 }
 
-.monaco-workbench .simple-fr-find-part .button.disabled {
+.monaco-wowkbench .simpwe-fw-find-pawt .button.disabwed {
 	opacity: 0.3;
-	cursor: default;
+	cuwsow: defauwt;
 }

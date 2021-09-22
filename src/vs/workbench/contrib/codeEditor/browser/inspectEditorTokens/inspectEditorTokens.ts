@@ -1,668 +1,668 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./inspectEditorTokens';
-import * as nls from 'vs/nls';
-import * as dom from 'vs/base/browser/dom';
-import { CharCode } from 'vs/base/common/charCode';
-import { Color } from 'vs/base/common/color';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { FontStyle, LanguageIdentifier, StandardTokenType, TokenMetadata, DocumentSemanticTokensProviderRegistry, SemanticTokensLegend, SemanticTokens, LanguageId, ColorId, DocumentRangeSemanticTokensProviderRegistry } from 'vs/editor/common/modes';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { findMatchingThemeRule } from 'vs/workbench/services/textMate/common/TMHelper';
-import { ITextMateService, IGrammar, IToken, StackElement } from 'vs/workbench/services/textMate/common/textMateService';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ColorThemeData, TokenStyleDefinitions, TokenStyleDefinition, TextMateThemingRuleDefinitions } from 'vs/workbench/services/themes/common/colorThemeData';
-import { SemanticTokenRule, TokenStyleData, TokenStyle } from 'vs/platform/theme/common/tokenClassificationRegistry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { SEMANTIC_HIGHLIGHTING_SETTING_ID, IEditorSemanticHighlightingOptions } from 'vs/editor/common/services/modelServiceImpl';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
+impowt 'vs/css!./inspectEditowTokens';
+impowt * as nws fwom 'vs/nws';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ContentWidgetPositionPwefewence, IActiveCodeEditow, ICodeEditow, IContentWidget, IContentWidgetPosition } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, SewvicesAccessow, wegistewEditowAction, wegistewEditowContwibution } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { FontStywe, WanguageIdentifia, StandawdTokenType, TokenMetadata, DocumentSemanticTokensPwovidewWegistwy, SemanticTokensWegend, SemanticTokens, WanguageId, CowowId, DocumentWangeSemanticTokensPwovidewWegistwy } fwom 'vs/editow/common/modes';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { editowHovewBackgwound, editowHovewBowda } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { findMatchingThemeWuwe } fwom 'vs/wowkbench/sewvices/textMate/common/TMHewpa';
+impowt { ITextMateSewvice, IGwammaw, IToken, StackEwement } fwom 'vs/wowkbench/sewvices/textMate/common/textMateSewvice';
+impowt { IWowkbenchThemeSewvice } fwom 'vs/wowkbench/sewvices/themes/common/wowkbenchThemeSewvice';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { CowowThemeData, TokenStyweDefinitions, TokenStyweDefinition, TextMateThemingWuweDefinitions } fwom 'vs/wowkbench/sewvices/themes/common/cowowThemeData';
+impowt { SemanticTokenWuwe, TokenStyweData, TokenStywe } fwom 'vs/pwatfowm/theme/common/tokenCwassificationWegistwy';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { SEMANTIC_HIGHWIGHTING_SETTING_ID, IEditowSemanticHighwightingOptions } fwom 'vs/editow/common/sewvices/modewSewviceImpw';
+impowt { CowowScheme } fwom 'vs/pwatfowm/theme/common/theme';
 
 const $ = dom.$;
 
-class InspectEditorTokensController extends Disposable implements IEditorContribution {
+cwass InspectEditowTokensContwowwa extends Disposabwe impwements IEditowContwibution {
 
-	public static readonly ID = 'editor.contrib.inspectEditorTokens';
+	pubwic static weadonwy ID = 'editow.contwib.inspectEditowTokens';
 
-	public static get(editor: ICodeEditor): InspectEditorTokensController {
-		return editor.getContribution<InspectEditorTokensController>(InspectEditorTokensController.ID);
+	pubwic static get(editow: ICodeEditow): InspectEditowTokensContwowwa {
+		wetuwn editow.getContwibution<InspectEditowTokensContwowwa>(InspectEditowTokensContwowwa.ID);
 	}
 
-	private _editor: ICodeEditor;
-	private _textMateService: ITextMateService;
-	private _themeService: IWorkbenchThemeService;
-	private _modeService: IModeService;
-	private _notificationService: INotificationService;
-	private _configurationService: IConfigurationService;
-	private _widget: InspectEditorTokensWidget | null;
+	pwivate _editow: ICodeEditow;
+	pwivate _textMateSewvice: ITextMateSewvice;
+	pwivate _themeSewvice: IWowkbenchThemeSewvice;
+	pwivate _modeSewvice: IModeSewvice;
+	pwivate _notificationSewvice: INotificationSewvice;
+	pwivate _configuwationSewvice: IConfiguwationSewvice;
+	pwivate _widget: InspectEditowTokensWidget | nuww;
 
-	constructor(
-		editor: ICodeEditor,
-		@ITextMateService textMateService: ITextMateService,
-		@IModeService modeService: IModeService,
-		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
-		@INotificationService notificationService: INotificationService,
-		@IConfigurationService configurationService: IConfigurationService
+	constwuctow(
+		editow: ICodeEditow,
+		@ITextMateSewvice textMateSewvice: ITextMateSewvice,
+		@IModeSewvice modeSewvice: IModeSewvice,
+		@IWowkbenchThemeSewvice themeSewvice: IWowkbenchThemeSewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice
 	) {
-		super();
-		this._editor = editor;
-		this._textMateService = textMateService;
-		this._themeService = themeService;
-		this._modeService = modeService;
-		this._notificationService = notificationService;
-		this._configurationService = configurationService;
-		this._widget = null;
+		supa();
+		this._editow = editow;
+		this._textMateSewvice = textMateSewvice;
+		this._themeSewvice = themeSewvice;
+		this._modeSewvice = modeSewvice;
+		this._notificationSewvice = notificationSewvice;
+		this._configuwationSewvice = configuwationSewvice;
+		this._widget = nuww;
 
-		this._register(this._editor.onDidChangeModel((e) => this.stop()));
-		this._register(this._editor.onDidChangeModelLanguage((e) => this.stop()));
-		this._register(this._editor.onKeyUp((e) => e.keyCode === KeyCode.Escape && this.stop()));
+		this._wegista(this._editow.onDidChangeModew((e) => this.stop()));
+		this._wegista(this._editow.onDidChangeModewWanguage((e) => this.stop()));
+		this._wegista(this._editow.onKeyUp((e) => e.keyCode === KeyCode.Escape && this.stop()));
 	}
 
-	public override dispose(): void {
+	pubwic ovewwide dispose(): void {
 		this.stop();
-		super.dispose();
+		supa.dispose();
 	}
 
-	public launch(): void {
+	pubwic waunch(): void {
 		if (this._widget) {
-			return;
+			wetuwn;
 		}
-		if (!this._editor.hasModel()) {
-			return;
+		if (!this._editow.hasModew()) {
+			wetuwn;
 		}
-		this._widget = new InspectEditorTokensWidget(this._editor, this._textMateService, this._modeService, this._themeService, this._notificationService, this._configurationService);
+		this._widget = new InspectEditowTokensWidget(this._editow, this._textMateSewvice, this._modeSewvice, this._themeSewvice, this._notificationSewvice, this._configuwationSewvice);
 	}
 
-	public stop(): void {
+	pubwic stop(): void {
 		if (this._widget) {
 			this._widget.dispose();
-			this._widget = null;
+			this._widget = nuww;
 		}
 	}
 
-	public toggle(): void {
+	pubwic toggwe(): void {
 		if (!this._widget) {
-			this.launch();
-		} else {
+			this.waunch();
+		} ewse {
 			this.stop();
 		}
 	}
 }
 
-class InspectEditorTokens extends EditorAction {
+cwass InspectEditowTokens extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.inspectTMScopes',
-			label: nls.localize('inspectEditorTokens', "Developer: Inspect Editor Tokens and Scopes"),
-			alias: 'Developer: Inspect Editor Tokens and Scopes',
-			precondition: undefined
+	constwuctow() {
+		supa({
+			id: 'editow.action.inspectTMScopes',
+			wabew: nws.wocawize('inspectEditowTokens', "Devewopa: Inspect Editow Tokens and Scopes"),
+			awias: 'Devewopa: Inspect Editow Tokens and Scopes',
+			pwecondition: undefined
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let controller = InspectEditorTokensController.get(editor);
-		if (controller) {
-			controller.toggle();
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		wet contwowwa = InspectEditowTokensContwowwa.get(editow);
+		if (contwowwa) {
+			contwowwa.toggwe();
 		}
 	}
 }
 
-interface ITextMateTokenInfo {
+intewface ITextMateTokenInfo {
 	token: IToken;
 	metadata: IDecodedMetadata;
 }
 
-interface ISemanticTokenInfo {
-	type: string;
-	modifiers: string[];
-	range: Range;
+intewface ISemanticTokenInfo {
+	type: stwing;
+	modifiews: stwing[];
+	wange: Wange;
 	metadata?: IDecodedMetadata,
-	definitions: TokenStyleDefinitions
+	definitions: TokenStyweDefinitions
 }
 
-interface IDecodedMetadata {
-	languageIdentifier: LanguageIdentifier;
-	tokenType: StandardTokenType;
-	bold?: boolean;
-	italic?: boolean;
-	underline?: boolean;
-	foreground?: string;
-	background?: string;
+intewface IDecodedMetadata {
+	wanguageIdentifia: WanguageIdentifia;
+	tokenType: StandawdTokenType;
+	bowd?: boowean;
+	itawic?: boowean;
+	undewwine?: boowean;
+	fowegwound?: stwing;
+	backgwound?: stwing;
 }
 
-function renderTokenText(tokenText: string): string {
-	if (tokenText.length > 40) {
-		tokenText = tokenText.substr(0, 20) + '…' + tokenText.substr(tokenText.length - 20);
+function wendewTokenText(tokenText: stwing): stwing {
+	if (tokenText.wength > 40) {
+		tokenText = tokenText.substw(0, 20) + '…' + tokenText.substw(tokenText.wength - 20);
 	}
-	let result: string = '';
-	for (let charIndex = 0, len = tokenText.length; charIndex < len; charIndex++) {
-		let charCode = tokenText.charCodeAt(charIndex);
-		switch (charCode) {
-			case CharCode.Tab:
-				result += '\u2192'; // &rarr;
-				break;
+	wet wesuwt: stwing = '';
+	fow (wet chawIndex = 0, wen = tokenText.wength; chawIndex < wen; chawIndex++) {
+		wet chawCode = tokenText.chawCodeAt(chawIndex);
+		switch (chawCode) {
+			case ChawCode.Tab:
+				wesuwt += '\u2192'; // &waww;
+				bweak;
 
-			case CharCode.Space:
-				result += '\u00B7'; // &middot;
-				break;
+			case ChawCode.Space:
+				wesuwt += '\u00B7'; // &middot;
+				bweak;
 
-			default:
-				result += String.fromCharCode(charCode);
+			defauwt:
+				wesuwt += Stwing.fwomChawCode(chawCode);
 		}
 	}
-	return result;
+	wetuwn wesuwt;
 }
 
-type SemanticTokensResult = { tokens: SemanticTokens, legend: SemanticTokensLegend };
+type SemanticTokensWesuwt = { tokens: SemanticTokens, wegend: SemanticTokensWegend };
 
-class InspectEditorTokensWidget extends Disposable implements IContentWidget {
+cwass InspectEditowTokensWidget extends Disposabwe impwements IContentWidget {
 
-	private static readonly _ID = 'editor.contrib.inspectEditorTokensWidget';
+	pwivate static weadonwy _ID = 'editow.contwib.inspectEditowTokensWidget';
 
-	// Editor.IContentWidget.allowEditorOverflow
-	public readonly allowEditorOverflow = true;
+	// Editow.IContentWidget.awwowEditowOvewfwow
+	pubwic weadonwy awwowEditowOvewfwow = twue;
 
-	private _isDisposed: boolean;
-	private readonly _editor: IActiveCodeEditor;
-	private readonly _modeService: IModeService;
-	private readonly _themeService: IWorkbenchThemeService;
-	private readonly _textMateService: ITextMateService;
-	private readonly _notificationService: INotificationService;
-	private readonly _configurationService: IConfigurationService;
-	private readonly _model: ITextModel;
-	private readonly _domNode: HTMLElement;
-	private readonly _currentRequestCancellationTokenSource: CancellationTokenSource;
+	pwivate _isDisposed: boowean;
+	pwivate weadonwy _editow: IActiveCodeEditow;
+	pwivate weadonwy _modeSewvice: IModeSewvice;
+	pwivate weadonwy _themeSewvice: IWowkbenchThemeSewvice;
+	pwivate weadonwy _textMateSewvice: ITextMateSewvice;
+	pwivate weadonwy _notificationSewvice: INotificationSewvice;
+	pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice;
+	pwivate weadonwy _modew: ITextModew;
+	pwivate weadonwy _domNode: HTMWEwement;
+	pwivate weadonwy _cuwwentWequestCancewwationTokenSouwce: CancewwationTokenSouwce;
 
-	constructor(
-		editor: IActiveCodeEditor,
-		textMateService: ITextMateService,
-		modeService: IModeService,
-		themeService: IWorkbenchThemeService,
-		notificationService: INotificationService,
-		configurationService: IConfigurationService
+	constwuctow(
+		editow: IActiveCodeEditow,
+		textMateSewvice: ITextMateSewvice,
+		modeSewvice: IModeSewvice,
+		themeSewvice: IWowkbenchThemeSewvice,
+		notificationSewvice: INotificationSewvice,
+		configuwationSewvice: IConfiguwationSewvice
 	) {
-		super();
-		this._isDisposed = false;
-		this._editor = editor;
-		this._modeService = modeService;
-		this._themeService = themeService;
-		this._textMateService = textMateService;
-		this._notificationService = notificationService;
-		this._configurationService = configurationService;
-		this._model = this._editor.getModel();
-		this._domNode = document.createElement('div');
-		this._domNode.className = 'token-inspect-widget';
-		this._currentRequestCancellationTokenSource = new CancellationTokenSource();
-		this._beginCompute(this._editor.getPosition());
-		this._register(this._editor.onDidChangeCursorPosition((e) => this._beginCompute(this._editor.getPosition())));
-		this._register(themeService.onDidColorThemeChange(_ => this._beginCompute(this._editor.getPosition())));
-		this._register(configurationService.onDidChangeConfiguration(e => e.affectsConfiguration('editor.semanticHighlighting.enabled') && this._beginCompute(this._editor.getPosition())));
-		this._editor.addContentWidget(this);
+		supa();
+		this._isDisposed = fawse;
+		this._editow = editow;
+		this._modeSewvice = modeSewvice;
+		this._themeSewvice = themeSewvice;
+		this._textMateSewvice = textMateSewvice;
+		this._notificationSewvice = notificationSewvice;
+		this._configuwationSewvice = configuwationSewvice;
+		this._modew = this._editow.getModew();
+		this._domNode = document.cweateEwement('div');
+		this._domNode.cwassName = 'token-inspect-widget';
+		this._cuwwentWequestCancewwationTokenSouwce = new CancewwationTokenSouwce();
+		this._beginCompute(this._editow.getPosition());
+		this._wegista(this._editow.onDidChangeCuwsowPosition((e) => this._beginCompute(this._editow.getPosition())));
+		this._wegista(themeSewvice.onDidCowowThemeChange(_ => this._beginCompute(this._editow.getPosition())));
+		this._wegista(configuwationSewvice.onDidChangeConfiguwation(e => e.affectsConfiguwation('editow.semanticHighwighting.enabwed') && this._beginCompute(this._editow.getPosition())));
+		this._editow.addContentWidget(this);
 	}
 
-	public override dispose(): void {
-		this._isDisposed = true;
-		this._editor.removeContentWidget(this);
-		this._currentRequestCancellationTokenSource.cancel();
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		this._isDisposed = twue;
+		this._editow.wemoveContentWidget(this);
+		this._cuwwentWequestCancewwationTokenSouwce.cancew();
+		supa.dispose();
 	}
 
-	public getId(): string {
-		return InspectEditorTokensWidget._ID;
+	pubwic getId(): stwing {
+		wetuwn InspectEditowTokensWidget._ID;
 	}
 
-	private _beginCompute(position: Position): void {
-		const grammar = this._textMateService.createGrammar(this._model.getLanguageIdentifier().language);
+	pwivate _beginCompute(position: Position): void {
+		const gwammaw = this._textMateSewvice.cweateGwammaw(this._modew.getWanguageIdentifia().wanguage);
 		const semanticTokens = this._computeSemanticTokens(position);
 
-		dom.clearNode(this._domNode);
-		this._domNode.appendChild(document.createTextNode(nls.localize('inspectTMScopesWidget.loading', "Loading...")));
+		dom.cweawNode(this._domNode);
+		this._domNode.appendChiwd(document.cweateTextNode(nws.wocawize('inspectTMScopesWidget.woading', "Woading...")));
 
-		Promise.all([grammar, semanticTokens]).then(([grammar, semanticTokens]) => {
+		Pwomise.aww([gwammaw, semanticTokens]).then(([gwammaw, semanticTokens]) => {
 			if (this._isDisposed) {
-				return;
+				wetuwn;
 			}
-			this._compute(grammar, semanticTokens, position);
-			this._domNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
-			this._editor.layoutContentWidget(this);
-		}, (err) => {
-			this._notificationService.warn(err);
+			this._compute(gwammaw, semanticTokens, position);
+			this._domNode.stywe.maxWidth = `${Math.max(this._editow.getWayoutInfo().width * 0.66, 500)}px`;
+			this._editow.wayoutContentWidget(this);
+		}, (eww) => {
+			this._notificationSewvice.wawn(eww);
 
 			setTimeout(() => {
-				InspectEditorTokensController.get(this._editor).stop();
+				InspectEditowTokensContwowwa.get(this._editow).stop();
 			});
 		});
 
 	}
 
-	private _isSemanticColoringEnabled() {
-		const setting = this._configurationService.getValue<IEditorSemanticHighlightingOptions>(SEMANTIC_HIGHLIGHTING_SETTING_ID, { overrideIdentifier: this._model.getLanguageIdentifier().language, resource: this._model.uri })?.enabled;
-		if (typeof setting === 'boolean') {
-			return setting;
+	pwivate _isSemanticCowowingEnabwed() {
+		const setting = this._configuwationSewvice.getVawue<IEditowSemanticHighwightingOptions>(SEMANTIC_HIGHWIGHTING_SETTING_ID, { ovewwideIdentifia: this._modew.getWanguageIdentifia().wanguage, wesouwce: this._modew.uwi })?.enabwed;
+		if (typeof setting === 'boowean') {
+			wetuwn setting;
 		}
-		return this._themeService.getColorTheme().semanticHighlighting;
+		wetuwn this._themeSewvice.getCowowTheme().semanticHighwighting;
 	}
 
-	private _compute(grammar: IGrammar | null, semanticTokens: SemanticTokensResult | null, position: Position) {
-		const textMateTokenInfo = grammar && this._getTokensAtPosition(grammar, position);
+	pwivate _compute(gwammaw: IGwammaw | nuww, semanticTokens: SemanticTokensWesuwt | nuww, position: Position) {
+		const textMateTokenInfo = gwammaw && this._getTokensAtPosition(gwammaw, position);
 		const semanticTokenInfo = semanticTokens && this._getSemanticTokenAtPosition(semanticTokens, position);
 		if (!textMateTokenInfo && !semanticTokenInfo) {
-			dom.reset(this._domNode, 'No grammar or semantic tokens available.');
-			return;
+			dom.weset(this._domNode, 'No gwammaw ow semantic tokens avaiwabwe.');
+			wetuwn;
 		}
 
-		let tmMetadata = textMateTokenInfo?.metadata;
-		let semMetadata = semanticTokenInfo?.metadata;
+		wet tmMetadata = textMateTokenInfo?.metadata;
+		wet semMetadata = semanticTokenInfo?.metadata;
 
-		const semTokenText = semanticTokenInfo && renderTokenText(this._model.getValueInRange(semanticTokenInfo.range));
-		const tmTokenText = textMateTokenInfo && renderTokenText(this._model.getLineContent(position.lineNumber).substring(textMateTokenInfo.token.startIndex, textMateTokenInfo.token.endIndex));
+		const semTokenText = semanticTokenInfo && wendewTokenText(this._modew.getVawueInWange(semanticTokenInfo.wange));
+		const tmTokenText = textMateTokenInfo && wendewTokenText(this._modew.getWineContent(position.wineNumba).substwing(textMateTokenInfo.token.stawtIndex, textMateTokenInfo.token.endIndex));
 
 		const tokenText = semTokenText || tmTokenText || '';
 
-		dom.reset(this._domNode,
+		dom.weset(this._domNode,
 			$('h2.tiw-token', undefined,
 				tokenText,
-				$('span.tiw-token-length', undefined, `${tokenText.length} ${tokenText.length === 1 ? 'char' : 'chars'}`)));
-		dom.append(this._domNode, $('hr.tiw-metadata-separator', { 'style': 'clear:both' }));
-		dom.append(this._domNode, $('table.tiw-metadata-table', undefined,
+				$('span.tiw-token-wength', undefined, `${tokenText.wength} ${tokenText.wength === 1 ? 'chaw' : 'chaws'}`)));
+		dom.append(this._domNode, $('hw.tiw-metadata-sepawatow', { 'stywe': 'cweaw:both' }));
+		dom.append(this._domNode, $('tabwe.tiw-metadata-tabwe', undefined,
 			$('tbody', undefined,
-				$('tr', undefined,
-					$('td.tiw-metadata-key', undefined, 'language'),
-					$('td.tiw-metadata-value', undefined, tmMetadata?.languageIdentifier.language || '')
+				$('tw', undefined,
+					$('td.tiw-metadata-key', undefined, 'wanguage'),
+					$('td.tiw-metadata-vawue', undefined, tmMetadata?.wanguageIdentifia.wanguage || '')
 				),
-				$('tr', undefined,
-					$('td.tiw-metadata-key', undefined, 'standard token type' as string),
-					$('td.tiw-metadata-value', undefined, this._tokenTypeToString(tmMetadata?.tokenType || StandardTokenType.Other))
+				$('tw', undefined,
+					$('td.tiw-metadata-key', undefined, 'standawd token type' as stwing),
+					$('td.tiw-metadata-vawue', undefined, this._tokenTypeToStwing(tmMetadata?.tokenType || StandawdTokenType.Otha))
 				),
-				...this._formatMetadata(semMetadata, tmMetadata)
+				...this._fowmatMetadata(semMetadata, tmMetadata)
 			)
 		));
 
 		if (semanticTokenInfo) {
-			dom.append(this._domNode, $('hr.tiw-metadata-separator'));
-			const table = dom.append(this._domNode, $('table.tiw-metadata-table', undefined));
-			const tbody = dom.append(table, $('tbody', undefined,
-				$('tr', undefined,
-					$('td.tiw-metadata-key', undefined, 'semantic token type' as string),
-					$('td.tiw-metadata-value', undefined, semanticTokenInfo.type)
+			dom.append(this._domNode, $('hw.tiw-metadata-sepawatow'));
+			const tabwe = dom.append(this._domNode, $('tabwe.tiw-metadata-tabwe', undefined));
+			const tbody = dom.append(tabwe, $('tbody', undefined,
+				$('tw', undefined,
+					$('td.tiw-metadata-key', undefined, 'semantic token type' as stwing),
+					$('td.tiw-metadata-vawue', undefined, semanticTokenInfo.type)
 				)
 			));
-			if (semanticTokenInfo.modifiers.length) {
-				dom.append(tbody, $('tr', undefined,
-					$('td.tiw-metadata-key', undefined, 'modifiers'),
-					$('td.tiw-metadata-value', undefined, semanticTokenInfo.modifiers.join(' ')),
+			if (semanticTokenInfo.modifiews.wength) {
+				dom.append(tbody, $('tw', undefined,
+					$('td.tiw-metadata-key', undefined, 'modifiews'),
+					$('td.tiw-metadata-vawue', undefined, semanticTokenInfo.modifiews.join(' ')),
 				));
 			}
 			if (semanticTokenInfo.metadata) {
-				const properties: (keyof TokenStyleData)[] = ['foreground', 'bold', 'italic', 'underline'];
-				const propertiesByDefValue: { [rule: string]: string[] } = {};
-				const allDefValues = new Array<[Array<HTMLElement | string>, string]>(); // remember the order
-				// first collect to detect when the same rule is used for multiple properties
-				for (let property of properties) {
-					if (semanticTokenInfo.metadata[property] !== undefined) {
-						const definition = semanticTokenInfo.definitions[property];
-						const defValue = this._renderTokenStyleDefinition(definition, property);
-						const defValueStr = defValue.map(el => el instanceof HTMLElement ? el.outerHTML : el).join();
-						let properties = propertiesByDefValue[defValueStr];
-						if (!properties) {
-							propertiesByDefValue[defValueStr] = properties = [];
-							allDefValues.push([defValue, defValueStr]);
+				const pwopewties: (keyof TokenStyweData)[] = ['fowegwound', 'bowd', 'itawic', 'undewwine'];
+				const pwopewtiesByDefVawue: { [wuwe: stwing]: stwing[] } = {};
+				const awwDefVawues = new Awway<[Awway<HTMWEwement | stwing>, stwing]>(); // wememba the owda
+				// fiwst cowwect to detect when the same wuwe is used fow muwtipwe pwopewties
+				fow (wet pwopewty of pwopewties) {
+					if (semanticTokenInfo.metadata[pwopewty] !== undefined) {
+						const definition = semanticTokenInfo.definitions[pwopewty];
+						const defVawue = this._wendewTokenStyweDefinition(definition, pwopewty);
+						const defVawueStw = defVawue.map(ew => ew instanceof HTMWEwement ? ew.outewHTMW : ew).join();
+						wet pwopewties = pwopewtiesByDefVawue[defVawueStw];
+						if (!pwopewties) {
+							pwopewtiesByDefVawue[defVawueStw] = pwopewties = [];
+							awwDefVawues.push([defVawue, defVawueStw]);
 						}
-						properties.push(property);
+						pwopewties.push(pwopewty);
 					}
 				}
-				for (const [defValue, defValueStr] of allDefValues) {
-					dom.append(tbody, $('tr', undefined,
-						$('td.tiw-metadata-key', undefined, propertiesByDefValue[defValueStr].join(', ')),
-						$('td.tiw-metadata-value', undefined, ...defValue)
+				fow (const [defVawue, defVawueStw] of awwDefVawues) {
+					dom.append(tbody, $('tw', undefined,
+						$('td.tiw-metadata-key', undefined, pwopewtiesByDefVawue[defVawueStw].join(', ')),
+						$('td.tiw-metadata-vawue', undefined, ...defVawue)
 					));
 				}
 			}
 		}
 
 		if (textMateTokenInfo) {
-			let theme = this._themeService.getColorTheme();
-			dom.append(this._domNode, $('hr.tiw-metadata-separator'));
-			const table = dom.append(this._domNode, $('table.tiw-metadata-table'));
-			const tbody = dom.append(table, $('tbody'));
+			wet theme = this._themeSewvice.getCowowTheme();
+			dom.append(this._domNode, $('hw.tiw-metadata-sepawatow'));
+			const tabwe = dom.append(this._domNode, $('tabwe.tiw-metadata-tabwe'));
+			const tbody = dom.append(tabwe, $('tbody'));
 
 			if (tmTokenText && tmTokenText !== tokenText) {
-				dom.append(tbody, $('tr', undefined,
-					$('td.tiw-metadata-key', undefined, 'textmate token' as string),
-					$('td.tiw-metadata-value', undefined, `${tmTokenText} (${tmTokenText.length})`)
+				dom.append(tbody, $('tw', undefined,
+					$('td.tiw-metadata-key', undefined, 'textmate token' as stwing),
+					$('td.tiw-metadata-vawue', undefined, `${tmTokenText} (${tmTokenText.wength})`)
 				));
 			}
-			const scopes = new Array<HTMLElement | string>();
-			for (let i = textMateTokenInfo.token.scopes.length - 1; i >= 0; i--) {
+			const scopes = new Awway<HTMWEwement | stwing>();
+			fow (wet i = textMateTokenInfo.token.scopes.wength - 1; i >= 0; i--) {
 				scopes.push(textMateTokenInfo.token.scopes[i]);
 				if (i > 0) {
-					scopes.push($('br'));
+					scopes.push($('bw'));
 				}
 			}
-			dom.append(tbody, $('tr', undefined,
-				$('td.tiw-metadata-key', undefined, 'textmate scopes' as string),
-				$('td.tiw-metadata-value.tiw-metadata-scopes', undefined, ...scopes),
+			dom.append(tbody, $('tw', undefined,
+				$('td.tiw-metadata-key', undefined, 'textmate scopes' as stwing),
+				$('td.tiw-metadata-vawue.tiw-metadata-scopes', undefined, ...scopes),
 			));
 
-			let matchingRule = findMatchingThemeRule(theme, textMateTokenInfo.token.scopes, false);
-			const semForeground = semanticTokenInfo?.metadata?.foreground;
-			if (matchingRule) {
-				if (semForeground !== textMateTokenInfo.metadata.foreground) {
-					let defValue = $('code.tiw-theme-selector', undefined,
-						matchingRule.rawSelector, $('br'), JSON.stringify(matchingRule.settings, null, '\t'));
-					if (semForeground) {
-						defValue = $('s', undefined, defValue);
+			wet matchingWuwe = findMatchingThemeWuwe(theme, textMateTokenInfo.token.scopes, fawse);
+			const semFowegwound = semanticTokenInfo?.metadata?.fowegwound;
+			if (matchingWuwe) {
+				if (semFowegwound !== textMateTokenInfo.metadata.fowegwound) {
+					wet defVawue = $('code.tiw-theme-sewectow', undefined,
+						matchingWuwe.wawSewectow, $('bw'), JSON.stwingify(matchingWuwe.settings, nuww, '\t'));
+					if (semFowegwound) {
+						defVawue = $('s', undefined, defVawue);
 					}
-					dom.append(tbody, $('tr', undefined,
-						$('td.tiw-metadata-key', undefined, 'foreground'),
-						$('td.tiw-metadata-value', undefined, defValue),
+					dom.append(tbody, $('tw', undefined,
+						$('td.tiw-metadata-key', undefined, 'fowegwound'),
+						$('td.tiw-metadata-vawue', undefined, defVawue),
 					));
 				}
-			} else if (!semForeground) {
-				dom.append(tbody, $('tr', undefined,
-					$('td.tiw-metadata-key', undefined, 'foreground'),
-					$('td.tiw-metadata-value', undefined, 'No theme selector' as string),
+			} ewse if (!semFowegwound) {
+				dom.append(tbody, $('tw', undefined,
+					$('td.tiw-metadata-key', undefined, 'fowegwound'),
+					$('td.tiw-metadata-vawue', undefined, 'No theme sewectow' as stwing),
 				));
 			}
 		}
 	}
 
-	private _formatMetadata(semantic?: IDecodedMetadata, tm?: IDecodedMetadata): Array<HTMLElement | string> {
-		const elements = new Array<HTMLElement | string>();
+	pwivate _fowmatMetadata(semantic?: IDecodedMetadata, tm?: IDecodedMetadata): Awway<HTMWEwement | stwing> {
+		const ewements = new Awway<HTMWEwement | stwing>();
 
-		function render(property: 'foreground' | 'background') {
-			let value = semantic?.[property] || tm?.[property];
-			if (value !== undefined) {
-				const semanticStyle = semantic?.[property] ? 'tiw-metadata-semantic' : '';
-				elements.push($('tr', undefined,
-					$('td.tiw-metadata-key', undefined, property),
-					$(`td.tiw-metadata-value.${semanticStyle}`, undefined, value)
+		function wenda(pwopewty: 'fowegwound' | 'backgwound') {
+			wet vawue = semantic?.[pwopewty] || tm?.[pwopewty];
+			if (vawue !== undefined) {
+				const semanticStywe = semantic?.[pwopewty] ? 'tiw-metadata-semantic' : '';
+				ewements.push($('tw', undefined,
+					$('td.tiw-metadata-key', undefined, pwopewty),
+					$(`td.tiw-metadata-vawue.${semanticStywe}`, undefined, vawue)
 				));
 			}
-			return value;
+			wetuwn vawue;
 		}
 
-		const foreground = render('foreground');
-		const background = render('background');
-		if (foreground && background) {
-			const backgroundColor = Color.fromHex(background), foregroundColor = Color.fromHex(foreground);
-			if (backgroundColor.isOpaque()) {
-				elements.push($('tr', undefined,
-					$('td.tiw-metadata-key', undefined, 'contrast ratio' as string),
-					$('td.tiw-metadata-value', undefined, backgroundColor.getContrastRatio(foregroundColor.makeOpaque(backgroundColor)).toFixed(2))
+		const fowegwound = wenda('fowegwound');
+		const backgwound = wenda('backgwound');
+		if (fowegwound && backgwound) {
+			const backgwoundCowow = Cowow.fwomHex(backgwound), fowegwoundCowow = Cowow.fwomHex(fowegwound);
+			if (backgwoundCowow.isOpaque()) {
+				ewements.push($('tw', undefined,
+					$('td.tiw-metadata-key', undefined, 'contwast watio' as stwing),
+					$('td.tiw-metadata-vawue', undefined, backgwoundCowow.getContwastWatio(fowegwoundCowow.makeOpaque(backgwoundCowow)).toFixed(2))
 				));
-			} else {
-				elements.push($('tr', undefined,
-					$('td.tiw-metadata-key', undefined, 'Contrast ratio cannot be precise for background colors that use transparency' as string),
-					$('td.tiw-metadata-value')
+			} ewse {
+				ewements.push($('tw', undefined,
+					$('td.tiw-metadata-key', undefined, 'Contwast watio cannot be pwecise fow backgwound cowows that use twanspawency' as stwing),
+					$('td.tiw-metadata-vawue')
 				));
 			}
 		}
 
-		const fontStyleLabels = new Array<HTMLElement | string>();
+		const fontStyweWabews = new Awway<HTMWEwement | stwing>();
 
-		function addStyle(key: 'bold' | 'italic' | 'underline') {
-			let label: HTMLElement | string | undefined;
+		function addStywe(key: 'bowd' | 'itawic' | 'undewwine') {
+			wet wabew: HTMWEwement | stwing | undefined;
 			if (semantic && semantic[key]) {
-				label = $('span.tiw-metadata-semantic', undefined, key);
-			} else if (tm && tm[key]) {
-				label = key;
+				wabew = $('span.tiw-metadata-semantic', undefined, key);
+			} ewse if (tm && tm[key]) {
+				wabew = key;
 			}
-			if (label) {
-				if (fontStyleLabels.length) {
-					fontStyleLabels.push(' ');
+			if (wabew) {
+				if (fontStyweWabews.wength) {
+					fontStyweWabews.push(' ');
 				}
-				fontStyleLabels.push(label);
+				fontStyweWabews.push(wabew);
 			}
 		}
-		addStyle('bold');
-		addStyle('italic');
-		addStyle('underline');
-		if (fontStyleLabels.length) {
-			elements.push($('tr', undefined,
-				$('td.tiw-metadata-key', undefined, 'font style' as string),
-				$('td.tiw-metadata-value', undefined, ...fontStyleLabels)
+		addStywe('bowd');
+		addStywe('itawic');
+		addStywe('undewwine');
+		if (fontStyweWabews.wength) {
+			ewements.push($('tw', undefined,
+				$('td.tiw-metadata-key', undefined, 'font stywe' as stwing),
+				$('td.tiw-metadata-vawue', undefined, ...fontStyweWabews)
 			));
 		}
-		return elements;
+		wetuwn ewements;
 	}
 
-	private _decodeMetadata(metadata: number): IDecodedMetadata {
-		let colorMap = this._themeService.getColorTheme().tokenColorMap;
-		let languageId = TokenMetadata.getLanguageId(metadata);
-		let tokenType = TokenMetadata.getTokenType(metadata);
-		let fontStyle = TokenMetadata.getFontStyle(metadata);
-		let foreground = TokenMetadata.getForeground(metadata);
-		let background = TokenMetadata.getBackground(metadata);
-		return {
-			languageIdentifier: this._modeService.getLanguageIdentifier(languageId)!,
+	pwivate _decodeMetadata(metadata: numba): IDecodedMetadata {
+		wet cowowMap = this._themeSewvice.getCowowTheme().tokenCowowMap;
+		wet wanguageId = TokenMetadata.getWanguageId(metadata);
+		wet tokenType = TokenMetadata.getTokenType(metadata);
+		wet fontStywe = TokenMetadata.getFontStywe(metadata);
+		wet fowegwound = TokenMetadata.getFowegwound(metadata);
+		wet backgwound = TokenMetadata.getBackgwound(metadata);
+		wetuwn {
+			wanguageIdentifia: this._modeSewvice.getWanguageIdentifia(wanguageId)!,
 			tokenType: tokenType,
-			bold: (fontStyle & FontStyle.Bold) ? true : undefined,
-			italic: (fontStyle & FontStyle.Italic) ? true : undefined,
-			underline: (fontStyle & FontStyle.Underline) ? true : undefined,
-			foreground: colorMap[foreground],
-			background: colorMap[background]
+			bowd: (fontStywe & FontStywe.Bowd) ? twue : undefined,
+			itawic: (fontStywe & FontStywe.Itawic) ? twue : undefined,
+			undewwine: (fontStywe & FontStywe.Undewwine) ? twue : undefined,
+			fowegwound: cowowMap[fowegwound],
+			backgwound: cowowMap[backgwound]
 		};
 	}
 
-	private _tokenTypeToString(tokenType: StandardTokenType): string {
+	pwivate _tokenTypeToStwing(tokenType: StandawdTokenType): stwing {
 		switch (tokenType) {
-			case StandardTokenType.Other: return 'Other';
-			case StandardTokenType.Comment: return 'Comment';
-			case StandardTokenType.String: return 'String';
-			case StandardTokenType.RegEx: return 'RegEx';
-			default: return '??';
+			case StandawdTokenType.Otha: wetuwn 'Otha';
+			case StandawdTokenType.Comment: wetuwn 'Comment';
+			case StandawdTokenType.Stwing: wetuwn 'Stwing';
+			case StandawdTokenType.WegEx: wetuwn 'WegEx';
+			defauwt: wetuwn '??';
 		}
 	}
 
-	private _getTokensAtPosition(grammar: IGrammar, position: Position): ITextMateTokenInfo {
-		const lineNumber = position.lineNumber;
-		let stateBeforeLine = this._getStateBeforeLine(grammar, lineNumber);
+	pwivate _getTokensAtPosition(gwammaw: IGwammaw, position: Position): ITextMateTokenInfo {
+		const wineNumba = position.wineNumba;
+		wet stateBefoweWine = this._getStateBefoweWine(gwammaw, wineNumba);
 
-		let tokenizationResult1 = grammar.tokenizeLine(this._model.getLineContent(lineNumber), stateBeforeLine);
-		let tokenizationResult2 = grammar.tokenizeLine2(this._model.getLineContent(lineNumber), stateBeforeLine);
+		wet tokenizationWesuwt1 = gwammaw.tokenizeWine(this._modew.getWineContent(wineNumba), stateBefoweWine);
+		wet tokenizationWesuwt2 = gwammaw.tokenizeWine2(this._modew.getWineContent(wineNumba), stateBefoweWine);
 
-		let token1Index = 0;
-		for (let i = tokenizationResult1.tokens.length - 1; i >= 0; i--) {
-			let t = tokenizationResult1.tokens[i];
-			if (position.column - 1 >= t.startIndex) {
+		wet token1Index = 0;
+		fow (wet i = tokenizationWesuwt1.tokens.wength - 1; i >= 0; i--) {
+			wet t = tokenizationWesuwt1.tokens[i];
+			if (position.cowumn - 1 >= t.stawtIndex) {
 				token1Index = i;
-				break;
+				bweak;
 			}
 		}
 
-		let token2Index = 0;
-		for (let i = (tokenizationResult2.tokens.length >>> 1); i >= 0; i--) {
-			if (position.column - 1 >= tokenizationResult2.tokens[(i << 1)]) {
+		wet token2Index = 0;
+		fow (wet i = (tokenizationWesuwt2.tokens.wength >>> 1); i >= 0; i--) {
+			if (position.cowumn - 1 >= tokenizationWesuwt2.tokens[(i << 1)]) {
 				token2Index = i;
-				break;
+				bweak;
 			}
 		}
 
-		return {
-			token: tokenizationResult1.tokens[token1Index],
-			metadata: this._decodeMetadata(tokenizationResult2.tokens[(token2Index << 1) + 1])
+		wetuwn {
+			token: tokenizationWesuwt1.tokens[token1Index],
+			metadata: this._decodeMetadata(tokenizationWesuwt2.tokens[(token2Index << 1) + 1])
 		};
 	}
 
-	private _getStateBeforeLine(grammar: IGrammar, lineNumber: number): StackElement | null {
-		let state: StackElement | null = null;
+	pwivate _getStateBefoweWine(gwammaw: IGwammaw, wineNumba: numba): StackEwement | nuww {
+		wet state: StackEwement | nuww = nuww;
 
-		for (let i = 1; i < lineNumber; i++) {
-			let tokenizationResult = grammar.tokenizeLine(this._model.getLineContent(i), state);
-			state = tokenizationResult.ruleStack;
+		fow (wet i = 1; i < wineNumba; i++) {
+			wet tokenizationWesuwt = gwammaw.tokenizeWine(this._modew.getWineContent(i), state);
+			state = tokenizationWesuwt.wuweStack;
 		}
 
-		return state;
+		wetuwn state;
 	}
 
-	private isSemanticTokens(token: any): token is SemanticTokens {
-		return token && token.data;
+	pwivate isSemanticTokens(token: any): token is SemanticTokens {
+		wetuwn token && token.data;
 	}
 
-	private async _computeSemanticTokens(position: Position): Promise<SemanticTokensResult | null> {
-		if (!this._isSemanticColoringEnabled()) {
-			return null;
+	pwivate async _computeSemanticTokens(position: Position): Pwomise<SemanticTokensWesuwt | nuww> {
+		if (!this._isSemanticCowowingEnabwed()) {
+			wetuwn nuww;
 		}
 
-		const tokenProviders = DocumentSemanticTokensProviderRegistry.ordered(this._model);
-		if (tokenProviders.length) {
-			const provider = tokenProviders[0];
-			const tokens = await Promise.resolve(provider.provideDocumentSemanticTokens(this._model, null, this._currentRequestCancellationTokenSource.token));
+		const tokenPwovidews = DocumentSemanticTokensPwovidewWegistwy.owdewed(this._modew);
+		if (tokenPwovidews.wength) {
+			const pwovida = tokenPwovidews[0];
+			const tokens = await Pwomise.wesowve(pwovida.pwovideDocumentSemanticTokens(this._modew, nuww, this._cuwwentWequestCancewwationTokenSouwce.token));
 			if (this.isSemanticTokens(tokens)) {
-				return { tokens, legend: provider.getLegend() };
+				wetuwn { tokens, wegend: pwovida.getWegend() };
 			}
 		}
-		const rangeTokenProviders = DocumentRangeSemanticTokensProviderRegistry.ordered(this._model);
-		if (rangeTokenProviders.length) {
-			const provider = rangeTokenProviders[0];
-			const lineNumber = position.lineNumber;
-			const range = new Range(lineNumber, 1, lineNumber, this._model.getLineMaxColumn(lineNumber));
-			const tokens = await Promise.resolve(provider.provideDocumentRangeSemanticTokens(this._model, range, this._currentRequestCancellationTokenSource.token));
+		const wangeTokenPwovidews = DocumentWangeSemanticTokensPwovidewWegistwy.owdewed(this._modew);
+		if (wangeTokenPwovidews.wength) {
+			const pwovida = wangeTokenPwovidews[0];
+			const wineNumba = position.wineNumba;
+			const wange = new Wange(wineNumba, 1, wineNumba, this._modew.getWineMaxCowumn(wineNumba));
+			const tokens = await Pwomise.wesowve(pwovida.pwovideDocumentWangeSemanticTokens(this._modew, wange, this._cuwwentWequestCancewwationTokenSouwce.token));
 			if (this.isSemanticTokens(tokens)) {
-				return { tokens, legend: provider.getLegend() };
+				wetuwn { tokens, wegend: pwovida.getWegend() };
 			}
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	private _getSemanticTokenAtPosition(semanticTokens: SemanticTokensResult, pos: Position): ISemanticTokenInfo | null {
+	pwivate _getSemanticTokenAtPosition(semanticTokens: SemanticTokensWesuwt, pos: Position): ISemanticTokenInfo | nuww {
 		const tokenData = semanticTokens.tokens.data;
-		const defaultLanguage = this._model.getLanguageIdentifier().language;
-		let lastLine = 0;
-		let lastCharacter = 0;
-		const posLine = pos.lineNumber - 1, posCharacter = pos.column - 1; // to 0-based position
-		for (let i = 0; i < tokenData.length; i += 5) {
-			const lineDelta = tokenData[i], charDelta = tokenData[i + 1], len = tokenData[i + 2], typeIdx = tokenData[i + 3], modSet = tokenData[i + 4];
-			const line = lastLine + lineDelta; // 0-based
-			const character = lineDelta === 0 ? lastCharacter + charDelta : charDelta; // 0-based
-			if (posLine === line && character <= posCharacter && posCharacter < character + len) {
-				const type = semanticTokens.legend.tokenTypes[typeIdx] || 'not in legend (ignored)';
-				const modifiers = [];
-				let modifierSet = modSet;
-				for (let modifierIndex = 0; modifierSet > 0 && modifierIndex < semanticTokens.legend.tokenModifiers.length; modifierIndex++) {
-					if (modifierSet & 1) {
-						modifiers.push(semanticTokens.legend.tokenModifiers[modifierIndex]);
+		const defauwtWanguage = this._modew.getWanguageIdentifia().wanguage;
+		wet wastWine = 0;
+		wet wastChawacta = 0;
+		const posWine = pos.wineNumba - 1, posChawacta = pos.cowumn - 1; // to 0-based position
+		fow (wet i = 0; i < tokenData.wength; i += 5) {
+			const wineDewta = tokenData[i], chawDewta = tokenData[i + 1], wen = tokenData[i + 2], typeIdx = tokenData[i + 3], modSet = tokenData[i + 4];
+			const wine = wastWine + wineDewta; // 0-based
+			const chawacta = wineDewta === 0 ? wastChawacta + chawDewta : chawDewta; // 0-based
+			if (posWine === wine && chawacta <= posChawacta && posChawacta < chawacta + wen) {
+				const type = semanticTokens.wegend.tokenTypes[typeIdx] || 'not in wegend (ignowed)';
+				const modifiews = [];
+				wet modifiewSet = modSet;
+				fow (wet modifiewIndex = 0; modifiewSet > 0 && modifiewIndex < semanticTokens.wegend.tokenModifiews.wength; modifiewIndex++) {
+					if (modifiewSet & 1) {
+						modifiews.push(semanticTokens.wegend.tokenModifiews[modifiewIndex]);
 					}
-					modifierSet = modifierSet >> 1;
+					modifiewSet = modifiewSet >> 1;
 				}
-				if (modifierSet > 0) {
-					modifiers.push('not in legend (ignored)');
+				if (modifiewSet > 0) {
+					modifiews.push('not in wegend (ignowed)');
 				}
-				const range = new Range(line + 1, character + 1, line + 1, character + 1 + len);
+				const wange = new Wange(wine + 1, chawacta + 1, wine + 1, chawacta + 1 + wen);
 				const definitions = {};
-				const colorMap = this._themeService.getColorTheme().tokenColorMap;
-				const theme = this._themeService.getColorTheme() as ColorThemeData;
-				const tokenStyle = theme.getTokenStyleMetadata(type, modifiers, defaultLanguage, true, definitions);
+				const cowowMap = this._themeSewvice.getCowowTheme().tokenCowowMap;
+				const theme = this._themeSewvice.getCowowTheme() as CowowThemeData;
+				const tokenStywe = theme.getTokenStyweMetadata(type, modifiews, defauwtWanguage, twue, definitions);
 
-				let metadata: IDecodedMetadata | undefined = undefined;
-				if (tokenStyle) {
+				wet metadata: IDecodedMetadata | undefined = undefined;
+				if (tokenStywe) {
 					metadata = {
-						languageIdentifier: this._modeService.getLanguageIdentifier(LanguageId.Null)!,
-						tokenType: StandardTokenType.Other,
-						bold: tokenStyle?.bold,
-						italic: tokenStyle?.italic,
-						underline: tokenStyle?.underline,
-						foreground: colorMap[tokenStyle?.foreground || ColorId.None]
+						wanguageIdentifia: this._modeSewvice.getWanguageIdentifia(WanguageId.Nuww)!,
+						tokenType: StandawdTokenType.Otha,
+						bowd: tokenStywe?.bowd,
+						itawic: tokenStywe?.itawic,
+						undewwine: tokenStywe?.undewwine,
+						fowegwound: cowowMap[tokenStywe?.fowegwound || CowowId.None]
 					};
 				}
 
-				return { type, modifiers, range, metadata, definitions };
+				wetuwn { type, modifiews, wange, metadata, definitions };
 			}
-			lastLine = line;
-			lastCharacter = character;
+			wastWine = wine;
+			wastChawacta = chawacta;
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	private _renderTokenStyleDefinition(definition: TokenStyleDefinition | undefined, property: keyof TokenStyleData): Array<HTMLElement | string> {
-		const elements = new Array<HTMLElement | string>();
+	pwivate _wendewTokenStyweDefinition(definition: TokenStyweDefinition | undefined, pwopewty: keyof TokenStyweData): Awway<HTMWEwement | stwing> {
+		const ewements = new Awway<HTMWEwement | stwing>();
 		if (definition === undefined) {
-			return elements;
+			wetuwn ewements;
 		}
-		const theme = this._themeService.getColorTheme() as ColorThemeData;
+		const theme = this._themeSewvice.getCowowTheme() as CowowThemeData;
 
-		if (Array.isArray(definition)) {
-			const scopesDefinition: TextMateThemingRuleDefinitions = {};
-			theme.resolveScopes(definition, scopesDefinition);
-			const matchingRule = scopesDefinition[property];
-			if (matchingRule && scopesDefinition.scope) {
-				const scopes = $('ul.tiw-metadata-values');
-				const strScopes = Array.isArray(matchingRule.scope) ? matchingRule.scope : [String(matchingRule.scope)];
+		if (Awway.isAwway(definition)) {
+			const scopesDefinition: TextMateThemingWuweDefinitions = {};
+			theme.wesowveScopes(definition, scopesDefinition);
+			const matchingWuwe = scopesDefinition[pwopewty];
+			if (matchingWuwe && scopesDefinition.scope) {
+				const scopes = $('uw.tiw-metadata-vawues');
+				const stwScopes = Awway.isAwway(matchingWuwe.scope) ? matchingWuwe.scope : [Stwing(matchingWuwe.scope)];
 
-				for (let strScope of strScopes) {
-					scopes.appendChild($('li.tiw-metadata-value.tiw-metadata-scopes', undefined, strScope));
+				fow (wet stwScope of stwScopes) {
+					scopes.appendChiwd($('wi.tiw-metadata-vawue.tiw-metadata-scopes', undefined, stwScope));
 				}
 
-				elements.push(
+				ewements.push(
 					scopesDefinition.scope.join(' '),
 					scopes,
-					$('code.tiw-theme-selector', undefined, JSON.stringify(matchingRule.settings, null, '\t')));
-				return elements;
+					$('code.tiw-theme-sewectow', undefined, JSON.stwingify(matchingWuwe.settings, nuww, '\t')));
+				wetuwn ewements;
 			}
-			return elements;
-		} else if (SemanticTokenRule.is(definition)) {
-			const scope = theme.getTokenStylingRuleScope(definition);
+			wetuwn ewements;
+		} ewse if (SemanticTokenWuwe.is(definition)) {
+			const scope = theme.getTokenStywingWuweScope(definition);
 			if (scope === 'setting') {
-				elements.push(`User settings: ${definition.selector.id} - ${this._renderStyleProperty(definition.style, property)}`);
-				return elements;
-			} else if (scope === 'theme') {
-				elements.push(`Color theme: ${definition.selector.id} - ${this._renderStyleProperty(definition.style, property)}`);
-				return elements;
+				ewements.push(`Usa settings: ${definition.sewectow.id} - ${this._wendewStywePwopewty(definition.stywe, pwopewty)}`);
+				wetuwn ewements;
+			} ewse if (scope === 'theme') {
+				ewements.push(`Cowow theme: ${definition.sewectow.id} - ${this._wendewStywePwopewty(definition.stywe, pwopewty)}`);
+				wetuwn ewements;
 			}
-			return elements;
-		} else {
-			const style = theme.resolveTokenStyleValue(definition);
-			elements.push(`Default: ${style ? this._renderStyleProperty(style, property) : ''}`);
-			return elements;
+			wetuwn ewements;
+		} ewse {
+			const stywe = theme.wesowveTokenStyweVawue(definition);
+			ewements.push(`Defauwt: ${stywe ? this._wendewStywePwopewty(stywe, pwopewty) : ''}`);
+			wetuwn ewements;
 		}
 	}
 
-	private _renderStyleProperty(style: TokenStyle, property: keyof TokenStyleData) {
-		switch (property) {
-			case 'foreground': return style.foreground ? Color.Format.CSS.formatHexA(style.foreground, true) : '';
-			default: return style[property] !== undefined ? String(style[property]) : '';
+	pwivate _wendewStywePwopewty(stywe: TokenStywe, pwopewty: keyof TokenStyweData) {
+		switch (pwopewty) {
+			case 'fowegwound': wetuwn stywe.fowegwound ? Cowow.Fowmat.CSS.fowmatHexA(stywe.fowegwound, twue) : '';
+			defauwt: wetuwn stywe[pwopewty] !== undefined ? Stwing(stywe[pwopewty]) : '';
 		}
 	}
 
-	public getDomNode(): HTMLElement {
-		return this._domNode;
+	pubwic getDomNode(): HTMWEwement {
+		wetuwn this._domNode;
 	}
 
-	public getPosition(): IContentWidgetPosition {
-		return {
-			position: this._editor.getPosition(),
-			preference: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE]
+	pubwic getPosition(): IContentWidgetPosition {
+		wetuwn {
+			position: this._editow.getPosition(),
+			pwefewence: [ContentWidgetPositionPwefewence.BEWOW, ContentWidgetPositionPwefewence.ABOVE]
 		};
 	}
 }
 
-registerEditorContribution(InspectEditorTokensController.ID, InspectEditorTokensController);
-registerEditorAction(InspectEditorTokens);
+wegistewEditowContwibution(InspectEditowTokensContwowwa.ID, InspectEditowTokensContwowwa);
+wegistewEditowAction(InspectEditowTokens);
 
-registerThemingParticipant((theme, collector) => {
-	const border = theme.getColor(editorHoverBorder);
-	if (border) {
-		let borderWidth = theme.type === ColorScheme.HIGH_CONTRAST ? 2 : 1;
-		collector.addRule(`.monaco-editor .token-inspect-widget { border: ${borderWidth}px solid ${border}; }`);
-		collector.addRule(`.monaco-editor .token-inspect-widget .tiw-metadata-separator { background-color: ${border}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const bowda = theme.getCowow(editowHovewBowda);
+	if (bowda) {
+		wet bowdewWidth = theme.type === CowowScheme.HIGH_CONTWAST ? 2 : 1;
+		cowwectow.addWuwe(`.monaco-editow .token-inspect-widget { bowda: ${bowdewWidth}px sowid ${bowda}; }`);
+		cowwectow.addWuwe(`.monaco-editow .token-inspect-widget .tiw-metadata-sepawatow { backgwound-cowow: ${bowda}; }`);
 	}
-	const background = theme.getColor(editorHoverBackground);
-	if (background) {
-		collector.addRule(`.monaco-editor .token-inspect-widget { background-color: ${background}; }`);
+	const backgwound = theme.getCowow(editowHovewBackgwound);
+	if (backgwound) {
+		cowwectow.addWuwe(`.monaco-editow .token-inspect-widget { backgwound-cowow: ${backgwound}; }`);
 	}
 });

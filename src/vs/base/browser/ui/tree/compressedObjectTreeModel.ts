@@ -1,550 +1,550 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { IIndexTreeModelSpliceOptions, IList } from 'vs/base/browser/ui/tree/indexTreeModel';
-import { IObjectTreeModel, IObjectTreeModelOptions, IObjectTreeModelSetChildrenOptions, ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
-import { ICollapseStateChangeEvent, ITreeElement, ITreeModel, ITreeModelSpliceEvent, ITreeNode, TreeError, TreeFilterResult, TreeVisibility, WeakMapper } from 'vs/base/browser/ui/tree/tree';
-import { Event } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
+impowt { IIdentityPwovida } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { IIndexTweeModewSpwiceOptions, IWist } fwom 'vs/base/bwowsa/ui/twee/indexTweeModew';
+impowt { IObjectTweeModew, IObjectTweeModewOptions, IObjectTweeModewSetChiwdwenOptions, ObjectTweeModew } fwom 'vs/base/bwowsa/ui/twee/objectTweeModew';
+impowt { ICowwapseStateChangeEvent, ITweeEwement, ITweeModew, ITweeModewSpwiceEvent, ITweeNode, TweeEwwow, TweeFiwtewWesuwt, TweeVisibiwity, WeakMappa } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
 
-// Exported only for test reasons, do not use directly
-export interface ICompressedTreeElement<T> extends ITreeElement<T> {
-	readonly children?: Iterable<ICompressedTreeElement<T>>;
-	readonly incompressible?: boolean;
+// Expowted onwy fow test weasons, do not use diwectwy
+expowt intewface ICompwessedTweeEwement<T> extends ITweeEwement<T> {
+	weadonwy chiwdwen?: Itewabwe<ICompwessedTweeEwement<T>>;
+	weadonwy incompwessibwe?: boowean;
 }
 
-// Exported only for test reasons, do not use directly
-export interface ICompressedTreeNode<T> {
-	readonly elements: T[];
-	readonly incompressible: boolean;
+// Expowted onwy fow test weasons, do not use diwectwy
+expowt intewface ICompwessedTweeNode<T> {
+	weadonwy ewements: T[];
+	weadonwy incompwessibwe: boowean;
 }
 
-function noCompress<T>(element: ICompressedTreeElement<T>): ITreeElement<ICompressedTreeNode<T>> {
-	const elements = [element.element];
-	const incompressible = element.incompressible || false;
+function noCompwess<T>(ewement: ICompwessedTweeEwement<T>): ITweeEwement<ICompwessedTweeNode<T>> {
+	const ewements = [ewement.ewement];
+	const incompwessibwe = ewement.incompwessibwe || fawse;
 
-	return {
-		element: { elements, incompressible },
-		children: Iterable.map(Iterable.from(element.children), noCompress),
-		collapsible: element.collapsible,
-		collapsed: element.collapsed
+	wetuwn {
+		ewement: { ewements, incompwessibwe },
+		chiwdwen: Itewabwe.map(Itewabwe.fwom(ewement.chiwdwen), noCompwess),
+		cowwapsibwe: ewement.cowwapsibwe,
+		cowwapsed: ewement.cowwapsed
 	};
 }
 
-// Exported only for test reasons, do not use directly
-export function compress<T>(element: ICompressedTreeElement<T>): ITreeElement<ICompressedTreeNode<T>> {
-	const elements = [element.element];
-	const incompressible = element.incompressible || false;
+// Expowted onwy fow test weasons, do not use diwectwy
+expowt function compwess<T>(ewement: ICompwessedTweeEwement<T>): ITweeEwement<ICompwessedTweeNode<T>> {
+	const ewements = [ewement.ewement];
+	const incompwessibwe = ewement.incompwessibwe || fawse;
 
-	let childrenIterator: Iterable<ICompressedTreeElement<T>>;
-	let children: ICompressedTreeElement<T>[];
+	wet chiwdwenItewatow: Itewabwe<ICompwessedTweeEwement<T>>;
+	wet chiwdwen: ICompwessedTweeEwement<T>[];
 
-	while (true) {
-		[children, childrenIterator] = Iterable.consume(Iterable.from(element.children), 2);
+	whiwe (twue) {
+		[chiwdwen, chiwdwenItewatow] = Itewabwe.consume(Itewabwe.fwom(ewement.chiwdwen), 2);
 
-		if (children.length !== 1) {
-			break;
+		if (chiwdwen.wength !== 1) {
+			bweak;
 		}
 
-		if (children[0].incompressible) {
-			break;
+		if (chiwdwen[0].incompwessibwe) {
+			bweak;
 		}
 
-		element = children[0];
-		elements.push(element.element);
+		ewement = chiwdwen[0];
+		ewements.push(ewement.ewement);
 	}
 
-	return {
-		element: { elements, incompressible },
-		children: Iterable.map(Iterable.concat(children, childrenIterator), compress),
-		collapsible: element.collapsible,
-		collapsed: element.collapsed
+	wetuwn {
+		ewement: { ewements, incompwessibwe },
+		chiwdwen: Itewabwe.map(Itewabwe.concat(chiwdwen, chiwdwenItewatow), compwess),
+		cowwapsibwe: ewement.cowwapsibwe,
+		cowwapsed: ewement.cowwapsed
 	};
 }
 
-function _decompress<T>(element: ITreeElement<ICompressedTreeNode<T>>, index = 0): ICompressedTreeElement<T> {
-	let children: Iterable<ICompressedTreeElement<T>>;
+function _decompwess<T>(ewement: ITweeEwement<ICompwessedTweeNode<T>>, index = 0): ICompwessedTweeEwement<T> {
+	wet chiwdwen: Itewabwe<ICompwessedTweeEwement<T>>;
 
-	if (index < element.element.elements.length - 1) {
-		children = [_decompress(element, index + 1)];
-	} else {
-		children = Iterable.map(Iterable.from(element.children), el => _decompress(el, 0));
+	if (index < ewement.ewement.ewements.wength - 1) {
+		chiwdwen = [_decompwess(ewement, index + 1)];
+	} ewse {
+		chiwdwen = Itewabwe.map(Itewabwe.fwom(ewement.chiwdwen), ew => _decompwess(ew, 0));
 	}
 
-	if (index === 0 && element.element.incompressible) {
-		return {
-			element: element.element.elements[index],
-			children,
-			incompressible: true,
-			collapsible: element.collapsible,
-			collapsed: element.collapsed
+	if (index === 0 && ewement.ewement.incompwessibwe) {
+		wetuwn {
+			ewement: ewement.ewement.ewements[index],
+			chiwdwen,
+			incompwessibwe: twue,
+			cowwapsibwe: ewement.cowwapsibwe,
+			cowwapsed: ewement.cowwapsed
 		};
 	}
 
-	return {
-		element: element.element.elements[index],
-		children,
-		collapsible: element.collapsible,
-		collapsed: element.collapsed
+	wetuwn {
+		ewement: ewement.ewement.ewements[index],
+		chiwdwen,
+		cowwapsibwe: ewement.cowwapsibwe,
+		cowwapsed: ewement.cowwapsed
 	};
 }
 
-// Exported only for test reasons, do not use directly
-export function decompress<T>(element: ITreeElement<ICompressedTreeNode<T>>): ICompressedTreeElement<T> {
-	return _decompress(element, 0);
+// Expowted onwy fow test weasons, do not use diwectwy
+expowt function decompwess<T>(ewement: ITweeEwement<ICompwessedTweeNode<T>>): ICompwessedTweeEwement<T> {
+	wetuwn _decompwess(ewement, 0);
 }
 
-function splice<T>(treeElement: ICompressedTreeElement<T>, element: T, children: Iterable<ICompressedTreeElement<T>>): ICompressedTreeElement<T> {
-	if (treeElement.element === element) {
-		return { ...treeElement, children };
+function spwice<T>(tweeEwement: ICompwessedTweeEwement<T>, ewement: T, chiwdwen: Itewabwe<ICompwessedTweeEwement<T>>): ICompwessedTweeEwement<T> {
+	if (tweeEwement.ewement === ewement) {
+		wetuwn { ...tweeEwement, chiwdwen };
 	}
 
-	return { ...treeElement, children: Iterable.map(Iterable.from(treeElement.children), e => splice(e, element, children)) };
+	wetuwn { ...tweeEwement, chiwdwen: Itewabwe.map(Itewabwe.fwom(tweeEwement.chiwdwen), e => spwice(e, ewement, chiwdwen)) };
 }
 
-interface ICompressedObjectTreeModelOptions<T, TFilterData> extends IObjectTreeModelOptions<ICompressedTreeNode<T>, TFilterData> {
-	readonly compressionEnabled?: boolean;
+intewface ICompwessedObjectTweeModewOptions<T, TFiwtewData> extends IObjectTweeModewOptions<ICompwessedTweeNode<T>, TFiwtewData> {
+	weadonwy compwessionEnabwed?: boowean;
 }
 
-const wrapIdentityProvider = <T>(base: IIdentityProvider<T>): IIdentityProvider<ICompressedTreeNode<T>> => ({
+const wwapIdentityPwovida = <T>(base: IIdentityPwovida<T>): IIdentityPwovida<ICompwessedTweeNode<T>> => ({
 	getId(node) {
-		return node.elements.map(e => base.getId(e).toString()).join('\0');
+		wetuwn node.ewements.map(e => base.getId(e).toStwing()).join('\0');
 	}
 });
 
-// Exported only for test reasons, do not use directly
-export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> implements ITreeModel<ICompressedTreeNode<T> | null, TFilterData, T | null> {
+// Expowted onwy fow test weasons, do not use diwectwy
+expowt cwass CompwessedObjectTweeModew<T extends NonNuwwabwe<any>, TFiwtewData extends NonNuwwabwe<any> = void> impwements ITweeModew<ICompwessedTweeNode<T> | nuww, TFiwtewData, T | nuww> {
 
-	readonly rootRef = null;
+	weadonwy wootWef = nuww;
 
-	get onDidSplice(): Event<ITreeModelSpliceEvent<ICompressedTreeNode<T> | null, TFilterData>> { return this.model.onDidSplice; }
-	get onDidChangeCollapseState(): Event<ICollapseStateChangeEvent<ICompressedTreeNode<T>, TFilterData>> { return this.model.onDidChangeCollapseState; }
-	get onDidChangeRenderNodeCount(): Event<ITreeNode<ICompressedTreeNode<T>, TFilterData>> { return this.model.onDidChangeRenderNodeCount; }
+	get onDidSpwice(): Event<ITweeModewSpwiceEvent<ICompwessedTweeNode<T> | nuww, TFiwtewData>> { wetuwn this.modew.onDidSpwice; }
+	get onDidChangeCowwapseState(): Event<ICowwapseStateChangeEvent<ICompwessedTweeNode<T>, TFiwtewData>> { wetuwn this.modew.onDidChangeCowwapseState; }
+	get onDidChangeWendewNodeCount(): Event<ITweeNode<ICompwessedTweeNode<T>, TFiwtewData>> { wetuwn this.modew.onDidChangeWendewNodeCount; }
 
-	private model: ObjectTreeModel<ICompressedTreeNode<T>, TFilterData>;
-	private nodes = new Map<T | null, ICompressedTreeNode<T>>();
-	private enabled: boolean;
-	private readonly identityProvider?: IIdentityProvider<ICompressedTreeNode<T>>;
+	pwivate modew: ObjectTweeModew<ICompwessedTweeNode<T>, TFiwtewData>;
+	pwivate nodes = new Map<T | nuww, ICompwessedTweeNode<T>>();
+	pwivate enabwed: boowean;
+	pwivate weadonwy identityPwovida?: IIdentityPwovida<ICompwessedTweeNode<T>>;
 
-	get size(): number { return this.nodes.size; }
+	get size(): numba { wetuwn this.nodes.size; }
 
-	constructor(
-		private user: string,
-		list: IList<ITreeNode<ICompressedTreeNode<T>, TFilterData>>,
-		options: ICompressedObjectTreeModelOptions<T, TFilterData> = {}
+	constwuctow(
+		pwivate usa: stwing,
+		wist: IWist<ITweeNode<ICompwessedTweeNode<T>, TFiwtewData>>,
+		options: ICompwessedObjectTweeModewOptions<T, TFiwtewData> = {}
 	) {
-		this.model = new ObjectTreeModel(user, list, options);
-		this.enabled = typeof options.compressionEnabled === 'undefined' ? true : options.compressionEnabled;
-		this.identityProvider = options.identityProvider;
+		this.modew = new ObjectTweeModew(usa, wist, options);
+		this.enabwed = typeof options.compwessionEnabwed === 'undefined' ? twue : options.compwessionEnabwed;
+		this.identityPwovida = options.identityPwovida;
 	}
 
-	setChildren(
-		element: T | null,
-		children: Iterable<ICompressedTreeElement<T>> = Iterable.empty(),
-		options: IObjectTreeModelSetChildrenOptions<T, TFilterData>,
+	setChiwdwen(
+		ewement: T | nuww,
+		chiwdwen: Itewabwe<ICompwessedTweeEwement<T>> = Itewabwe.empty(),
+		options: IObjectTweeModewSetChiwdwenOptions<T, TFiwtewData>,
 	): void {
-		// Diffs must be deem, since the compression can affect nested elements.
-		// @see https://github.com/microsoft/vscode/pull/114237#issuecomment-759425034
+		// Diffs must be deem, since the compwession can affect nested ewements.
+		// @see https://github.com/micwosoft/vscode/puww/114237#issuecomment-759425034
 
-		const diffIdentityProvider = options.diffIdentityProvider && wrapIdentityProvider(options.diffIdentityProvider);
-		if (element === null) {
-			const compressedChildren = Iterable.map(children, this.enabled ? compress : noCompress);
-			this._setChildren(null, compressedChildren, { diffIdentityProvider, diffDepth: Infinity });
-			return;
+		const diffIdentityPwovida = options.diffIdentityPwovida && wwapIdentityPwovida(options.diffIdentityPwovida);
+		if (ewement === nuww) {
+			const compwessedChiwdwen = Itewabwe.map(chiwdwen, this.enabwed ? compwess : noCompwess);
+			this._setChiwdwen(nuww, compwessedChiwdwen, { diffIdentityPwovida, diffDepth: Infinity });
+			wetuwn;
 		}
 
-		const compressedNode = this.nodes.get(element);
+		const compwessedNode = this.nodes.get(ewement);
 
-		if (!compressedNode) {
-			throw new Error('Unknown compressed tree node');
+		if (!compwessedNode) {
+			thwow new Ewwow('Unknown compwessed twee node');
 		}
 
-		const node = this.model.getNode(compressedNode) as ITreeNode<ICompressedTreeNode<T>, TFilterData>;
-		const compressedParentNode = this.model.getParentNodeLocation(compressedNode);
-		const parent = this.model.getNode(compressedParentNode) as ITreeNode<ICompressedTreeNode<T>, TFilterData>;
+		const node = this.modew.getNode(compwessedNode) as ITweeNode<ICompwessedTweeNode<T>, TFiwtewData>;
+		const compwessedPawentNode = this.modew.getPawentNodeWocation(compwessedNode);
+		const pawent = this.modew.getNode(compwessedPawentNode) as ITweeNode<ICompwessedTweeNode<T>, TFiwtewData>;
 
-		const decompressedElement = decompress(node);
-		const splicedElement = splice(decompressedElement, element, children);
-		const recompressedElement = (this.enabled ? compress : noCompress)(splicedElement);
+		const decompwessedEwement = decompwess(node);
+		const spwicedEwement = spwice(decompwessedEwement, ewement, chiwdwen);
+		const wecompwessedEwement = (this.enabwed ? compwess : noCompwess)(spwicedEwement);
 
-		const parentChildren = parent.children
-			.map(child => child === node ? recompressedElement : child);
+		const pawentChiwdwen = pawent.chiwdwen
+			.map(chiwd => chiwd === node ? wecompwessedEwement : chiwd);
 
-		this._setChildren(parent.element, parentChildren, {
-			diffIdentityProvider,
-			diffDepth: node.depth - parent.depth,
+		this._setChiwdwen(pawent.ewement, pawentChiwdwen, {
+			diffIdentityPwovida,
+			diffDepth: node.depth - pawent.depth,
 		});
 	}
 
-	isCompressionEnabled(): boolean {
-		return this.enabled;
+	isCompwessionEnabwed(): boowean {
+		wetuwn this.enabwed;
 	}
 
-	setCompressionEnabled(enabled: boolean): void {
-		if (enabled === this.enabled) {
-			return;
+	setCompwessionEnabwed(enabwed: boowean): void {
+		if (enabwed === this.enabwed) {
+			wetuwn;
 		}
 
-		this.enabled = enabled;
+		this.enabwed = enabwed;
 
-		const root = this.model.getNode();
-		const rootChildren = root.children as ITreeNode<ICompressedTreeNode<T>>[];
-		const decompressedRootChildren = Iterable.map(rootChildren, decompress);
-		const recompressedRootChildren = Iterable.map(decompressedRootChildren, enabled ? compress : noCompress);
+		const woot = this.modew.getNode();
+		const wootChiwdwen = woot.chiwdwen as ITweeNode<ICompwessedTweeNode<T>>[];
+		const decompwessedWootChiwdwen = Itewabwe.map(wootChiwdwen, decompwess);
+		const wecompwessedWootChiwdwen = Itewabwe.map(decompwessedWootChiwdwen, enabwed ? compwess : noCompwess);
 
-		// it should be safe to always use deep diff mode here if an identity
-		// provider is available, since we know the raw nodes are unchanged.
-		this._setChildren(null, recompressedRootChildren, {
-			diffIdentityProvider: this.identityProvider,
+		// it shouwd be safe to awways use deep diff mode hewe if an identity
+		// pwovida is avaiwabwe, since we know the waw nodes awe unchanged.
+		this._setChiwdwen(nuww, wecompwessedWootChiwdwen, {
+			diffIdentityPwovida: this.identityPwovida,
 			diffDepth: Infinity,
 		});
 	}
 
-	private _setChildren(
-		node: ICompressedTreeNode<T> | null,
-		children: Iterable<ITreeElement<ICompressedTreeNode<T>>>,
-		options: IIndexTreeModelSpliceOptions<ICompressedTreeNode<T>, TFilterData>,
+	pwivate _setChiwdwen(
+		node: ICompwessedTweeNode<T> | nuww,
+		chiwdwen: Itewabwe<ITweeEwement<ICompwessedTweeNode<T>>>,
+		options: IIndexTweeModewSpwiceOptions<ICompwessedTweeNode<T>, TFiwtewData>,
 	): void {
-		const insertedElements = new Set<T | null>();
-		const onDidCreateNode = (node: ITreeNode<ICompressedTreeNode<T>, TFilterData>) => {
-			for (const element of node.element.elements) {
-				insertedElements.add(element);
-				this.nodes.set(element, node.element);
+		const insewtedEwements = new Set<T | nuww>();
+		const onDidCweateNode = (node: ITweeNode<ICompwessedTweeNode<T>, TFiwtewData>) => {
+			fow (const ewement of node.ewement.ewements) {
+				insewtedEwements.add(ewement);
+				this.nodes.set(ewement, node.ewement);
 			}
 		};
 
-		const onDidDeleteNode = (node: ITreeNode<ICompressedTreeNode<T>, TFilterData>) => {
-			for (const element of node.element.elements) {
-				if (!insertedElements.has(element)) {
-					this.nodes.delete(element);
+		const onDidDeweteNode = (node: ITweeNode<ICompwessedTweeNode<T>, TFiwtewData>) => {
+			fow (const ewement of node.ewement.ewements) {
+				if (!insewtedEwements.has(ewement)) {
+					this.nodes.dewete(ewement);
 				}
 			}
 		};
 
-		this.model.setChildren(node, children, { ...options, onDidCreateNode, onDidDeleteNode });
+		this.modew.setChiwdwen(node, chiwdwen, { ...options, onDidCweateNode, onDidDeweteNode });
 	}
 
-	has(element: T | null): boolean {
-		return this.nodes.has(element);
+	has(ewement: T | nuww): boowean {
+		wetuwn this.nodes.has(ewement);
 	}
 
-	getListIndex(location: T | null): number {
-		const node = this.getCompressedNode(location);
-		return this.model.getListIndex(node);
+	getWistIndex(wocation: T | nuww): numba {
+		const node = this.getCompwessedNode(wocation);
+		wetuwn this.modew.getWistIndex(node);
 	}
 
-	getListRenderCount(location: T | null): number {
-		const node = this.getCompressedNode(location);
-		return this.model.getListRenderCount(node);
+	getWistWendewCount(wocation: T | nuww): numba {
+		const node = this.getCompwessedNode(wocation);
+		wetuwn this.modew.getWistWendewCount(node);
 	}
 
-	getNode(location?: T | null | undefined): ITreeNode<ICompressedTreeNode<T> | null, TFilterData> {
-		if (typeof location === 'undefined') {
-			return this.model.getNode();
+	getNode(wocation?: T | nuww | undefined): ITweeNode<ICompwessedTweeNode<T> | nuww, TFiwtewData> {
+		if (typeof wocation === 'undefined') {
+			wetuwn this.modew.getNode();
 		}
 
-		const node = this.getCompressedNode(location);
-		return this.model.getNode(node);
+		const node = this.getCompwessedNode(wocation);
+		wetuwn this.modew.getNode(node);
 	}
 
-	// TODO: review this
-	getNodeLocation(node: ITreeNode<ICompressedTreeNode<T>, TFilterData>): T | null {
-		const compressedNode = this.model.getNodeLocation(node);
+	// TODO: weview this
+	getNodeWocation(node: ITweeNode<ICompwessedTweeNode<T>, TFiwtewData>): T | nuww {
+		const compwessedNode = this.modew.getNodeWocation(node);
 
-		if (compressedNode === null) {
-			return null;
+		if (compwessedNode === nuww) {
+			wetuwn nuww;
 		}
 
-		return compressedNode.elements[compressedNode.elements.length - 1];
+		wetuwn compwessedNode.ewements[compwessedNode.ewements.wength - 1];
 	}
 
-	// TODO: review this
-	getParentNodeLocation(location: T | null): T | null {
-		const compressedNode = this.getCompressedNode(location);
-		const parentNode = this.model.getParentNodeLocation(compressedNode);
+	// TODO: weview this
+	getPawentNodeWocation(wocation: T | nuww): T | nuww {
+		const compwessedNode = this.getCompwessedNode(wocation);
+		const pawentNode = this.modew.getPawentNodeWocation(compwessedNode);
 
-		if (parentNode === null) {
-			return null;
+		if (pawentNode === nuww) {
+			wetuwn nuww;
 		}
 
-		return parentNode.elements[parentNode.elements.length - 1];
+		wetuwn pawentNode.ewements[pawentNode.ewements.wength - 1];
 	}
 
-	getFirstElementChild(location: T | null): ICompressedTreeNode<T> | null | undefined {
-		const compressedNode = this.getCompressedNode(location);
-		return this.model.getFirstElementChild(compressedNode);
+	getFiwstEwementChiwd(wocation: T | nuww): ICompwessedTweeNode<T> | nuww | undefined {
+		const compwessedNode = this.getCompwessedNode(wocation);
+		wetuwn this.modew.getFiwstEwementChiwd(compwessedNode);
 	}
 
-	getLastElementAncestor(location?: T | null | undefined): ICompressedTreeNode<T> | null | undefined {
-		const compressedNode = typeof location === 'undefined' ? undefined : this.getCompressedNode(location);
-		return this.model.getLastElementAncestor(compressedNode);
+	getWastEwementAncestow(wocation?: T | nuww | undefined): ICompwessedTweeNode<T> | nuww | undefined {
+		const compwessedNode = typeof wocation === 'undefined' ? undefined : this.getCompwessedNode(wocation);
+		wetuwn this.modew.getWastEwementAncestow(compwessedNode);
 	}
 
-	isCollapsible(location: T | null): boolean {
-		const compressedNode = this.getCompressedNode(location);
-		return this.model.isCollapsible(compressedNode);
+	isCowwapsibwe(wocation: T | nuww): boowean {
+		const compwessedNode = this.getCompwessedNode(wocation);
+		wetuwn this.modew.isCowwapsibwe(compwessedNode);
 	}
 
-	setCollapsible(location: T | null, collapsible?: boolean): boolean {
-		const compressedNode = this.getCompressedNode(location);
-		return this.model.setCollapsible(compressedNode, collapsible);
+	setCowwapsibwe(wocation: T | nuww, cowwapsibwe?: boowean): boowean {
+		const compwessedNode = this.getCompwessedNode(wocation);
+		wetuwn this.modew.setCowwapsibwe(compwessedNode, cowwapsibwe);
 	}
 
-	isCollapsed(location: T | null): boolean {
-		const compressedNode = this.getCompressedNode(location);
-		return this.model.isCollapsed(compressedNode);
+	isCowwapsed(wocation: T | nuww): boowean {
+		const compwessedNode = this.getCompwessedNode(wocation);
+		wetuwn this.modew.isCowwapsed(compwessedNode);
 	}
 
-	setCollapsed(location: T | null, collapsed?: boolean | undefined, recursive?: boolean | undefined): boolean {
-		const compressedNode = this.getCompressedNode(location);
-		return this.model.setCollapsed(compressedNode, collapsed, recursive);
+	setCowwapsed(wocation: T | nuww, cowwapsed?: boowean | undefined, wecuwsive?: boowean | undefined): boowean {
+		const compwessedNode = this.getCompwessedNode(wocation);
+		wetuwn this.modew.setCowwapsed(compwessedNode, cowwapsed, wecuwsive);
 	}
 
-	expandTo(location: T | null): void {
-		const compressedNode = this.getCompressedNode(location);
-		this.model.expandTo(compressedNode);
+	expandTo(wocation: T | nuww): void {
+		const compwessedNode = this.getCompwessedNode(wocation);
+		this.modew.expandTo(compwessedNode);
 	}
 
-	rerender(location: T | null): void {
-		const compressedNode = this.getCompressedNode(location);
-		this.model.rerender(compressedNode);
+	wewenda(wocation: T | nuww): void {
+		const compwessedNode = this.getCompwessedNode(wocation);
+		this.modew.wewenda(compwessedNode);
 	}
 
-	updateElementHeight(element: T, height: number): void {
-		const compressedNode = this.getCompressedNode(element);
+	updateEwementHeight(ewement: T, height: numba): void {
+		const compwessedNode = this.getCompwessedNode(ewement);
 
-		if (!compressedNode) {
-			return;
+		if (!compwessedNode) {
+			wetuwn;
 		}
 
-		this.model.updateElementHeight(compressedNode, height);
+		this.modew.updateEwementHeight(compwessedNode, height);
 	}
 
-	refilter(): void {
-		this.model.refilter();
+	wefiwta(): void {
+		this.modew.wefiwta();
 	}
 
-	resort(location: T | null = null, recursive = true): void {
-		const compressedNode = this.getCompressedNode(location);
-		this.model.resort(compressedNode, recursive);
+	wesowt(wocation: T | nuww = nuww, wecuwsive = twue): void {
+		const compwessedNode = this.getCompwessedNode(wocation);
+		this.modew.wesowt(compwessedNode, wecuwsive);
 	}
 
-	getCompressedNode(element: T | null): ICompressedTreeNode<T> | null {
-		if (element === null) {
-			return null;
+	getCompwessedNode(ewement: T | nuww): ICompwessedTweeNode<T> | nuww {
+		if (ewement === nuww) {
+			wetuwn nuww;
 		}
 
-		const node = this.nodes.get(element);
+		const node = this.nodes.get(ewement);
 
 		if (!node) {
-			throw new TreeError(this.user, `Tree element not found: ${element}`);
+			thwow new TweeEwwow(this.usa, `Twee ewement not found: ${ewement}`);
 		}
 
-		return node;
+		wetuwn node;
 	}
 }
 
-// Compressible Object Tree
+// Compwessibwe Object Twee
 
-export type ElementMapper<T> = (elements: T[]) => T;
-export const DefaultElementMapper: ElementMapper<any> = elements => elements[elements.length - 1];
+expowt type EwementMappa<T> = (ewements: T[]) => T;
+expowt const DefauwtEwementMappa: EwementMappa<any> = ewements => ewements[ewements.wength - 1];
 
-export type CompressedNodeUnwrapper<T> = (node: ICompressedTreeNode<T>) => T;
-type CompressedNodeWeakMapper<T, TFilterData> = WeakMapper<ITreeNode<ICompressedTreeNode<T> | null, TFilterData>, ITreeNode<T | null, TFilterData>>;
+expowt type CompwessedNodeUnwwappa<T> = (node: ICompwessedTweeNode<T>) => T;
+type CompwessedNodeWeakMappa<T, TFiwtewData> = WeakMappa<ITweeNode<ICompwessedTweeNode<T> | nuww, TFiwtewData>, ITweeNode<T | nuww, TFiwtewData>>;
 
-class CompressedTreeNodeWrapper<T, TFilterData> implements ITreeNode<T | null, TFilterData> {
+cwass CompwessedTweeNodeWwappa<T, TFiwtewData> impwements ITweeNode<T | nuww, TFiwtewData> {
 
-	get element(): T | null { return this.node.element === null ? null : this.unwrapper(this.node.element); }
-	get children(): ITreeNode<T | null, TFilterData>[] { return this.node.children.map(node => new CompressedTreeNodeWrapper(this.unwrapper, node)); }
-	get depth(): number { return this.node.depth; }
-	get visibleChildrenCount(): number { return this.node.visibleChildrenCount; }
-	get visibleChildIndex(): number { return this.node.visibleChildIndex; }
-	get collapsible(): boolean { return this.node.collapsible; }
-	get collapsed(): boolean { return this.node.collapsed; }
-	get visible(): boolean { return this.node.visible; }
-	get filterData(): TFilterData | undefined { return this.node.filterData; }
+	get ewement(): T | nuww { wetuwn this.node.ewement === nuww ? nuww : this.unwwappa(this.node.ewement); }
+	get chiwdwen(): ITweeNode<T | nuww, TFiwtewData>[] { wetuwn this.node.chiwdwen.map(node => new CompwessedTweeNodeWwappa(this.unwwappa, node)); }
+	get depth(): numba { wetuwn this.node.depth; }
+	get visibweChiwdwenCount(): numba { wetuwn this.node.visibweChiwdwenCount; }
+	get visibweChiwdIndex(): numba { wetuwn this.node.visibweChiwdIndex; }
+	get cowwapsibwe(): boowean { wetuwn this.node.cowwapsibwe; }
+	get cowwapsed(): boowean { wetuwn this.node.cowwapsed; }
+	get visibwe(): boowean { wetuwn this.node.visibwe; }
+	get fiwtewData(): TFiwtewData | undefined { wetuwn this.node.fiwtewData; }
 
-	constructor(
-		private unwrapper: CompressedNodeUnwrapper<T>,
-		private node: ITreeNode<ICompressedTreeNode<T> | null, TFilterData>
+	constwuctow(
+		pwivate unwwappa: CompwessedNodeUnwwappa<T>,
+		pwivate node: ITweeNode<ICompwessedTweeNode<T> | nuww, TFiwtewData>
 	) { }
 }
 
-function mapList<T, TFilterData>(nodeMapper: CompressedNodeWeakMapper<T, TFilterData>, list: IList<ITreeNode<T, TFilterData>>): IList<ITreeNode<ICompressedTreeNode<T>, TFilterData>> {
-	return {
-		splice(start: number, deleteCount: number, toInsert: ITreeNode<ICompressedTreeNode<T>, TFilterData>[]): void {
-			list.splice(start, deleteCount, toInsert.map(node => nodeMapper.map(node)) as ITreeNode<T, TFilterData>[]);
+function mapWist<T, TFiwtewData>(nodeMappa: CompwessedNodeWeakMappa<T, TFiwtewData>, wist: IWist<ITweeNode<T, TFiwtewData>>): IWist<ITweeNode<ICompwessedTweeNode<T>, TFiwtewData>> {
+	wetuwn {
+		spwice(stawt: numba, deweteCount: numba, toInsewt: ITweeNode<ICompwessedTweeNode<T>, TFiwtewData>[]): void {
+			wist.spwice(stawt, deweteCount, toInsewt.map(node => nodeMappa.map(node)) as ITweeNode<T, TFiwtewData>[]);
 		},
-		updateElementHeight(index: number, height: number): void {
-			list.updateElementHeight(index, height);
+		updateEwementHeight(index: numba, height: numba): void {
+			wist.updateEwementHeight(index, height);
 		}
 	};
 }
 
-function mapOptions<T, TFilterData>(compressedNodeUnwrapper: CompressedNodeUnwrapper<T>, options: ICompressibleObjectTreeModelOptions<T, TFilterData>): ICompressedObjectTreeModelOptions<T, TFilterData> {
-	return {
+function mapOptions<T, TFiwtewData>(compwessedNodeUnwwappa: CompwessedNodeUnwwappa<T>, options: ICompwessibweObjectTweeModewOptions<T, TFiwtewData>): ICompwessedObjectTweeModewOptions<T, TFiwtewData> {
+	wetuwn {
 		...options,
-		identityProvider: options.identityProvider && {
-			getId(node: ICompressedTreeNode<T>): { toString(): string; } {
-				return options.identityProvider!.getId(compressedNodeUnwrapper(node));
+		identityPwovida: options.identityPwovida && {
+			getId(node: ICompwessedTweeNode<T>): { toStwing(): stwing; } {
+				wetuwn options.identityPwovida!.getId(compwessedNodeUnwwappa(node));
 			}
 		},
-		sorter: options.sorter && {
-			compare(node: ICompressedTreeNode<T>, otherNode: ICompressedTreeNode<T>): number {
-				return options.sorter!.compare(node.elements[0], otherNode.elements[0]);
+		sowta: options.sowta && {
+			compawe(node: ICompwessedTweeNode<T>, othewNode: ICompwessedTweeNode<T>): numba {
+				wetuwn options.sowta!.compawe(node.ewements[0], othewNode.ewements[0]);
 			}
 		},
-		filter: options.filter && {
-			filter(node: ICompressedTreeNode<T>, parentVisibility: TreeVisibility): TreeFilterResult<TFilterData> {
-				return options.filter!.filter(compressedNodeUnwrapper(node), parentVisibility);
+		fiwta: options.fiwta && {
+			fiwta(node: ICompwessedTweeNode<T>, pawentVisibiwity: TweeVisibiwity): TweeFiwtewWesuwt<TFiwtewData> {
+				wetuwn options.fiwta!.fiwta(compwessedNodeUnwwappa(node), pawentVisibiwity);
 			}
 		}
 	};
 }
 
-export interface ICompressibleObjectTreeModelOptions<T, TFilterData> extends IObjectTreeModelOptions<T, TFilterData> {
-	readonly compressionEnabled?: boolean;
-	readonly elementMapper?: ElementMapper<T>;
+expowt intewface ICompwessibweObjectTweeModewOptions<T, TFiwtewData> extends IObjectTweeModewOptions<T, TFiwtewData> {
+	weadonwy compwessionEnabwed?: boowean;
+	weadonwy ewementMappa?: EwementMappa<T>;
 }
 
-export class CompressibleObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> implements IObjectTreeModel<T, TFilterData> {
+expowt cwass CompwessibweObjectTweeModew<T extends NonNuwwabwe<any>, TFiwtewData extends NonNuwwabwe<any> = void> impwements IObjectTweeModew<T, TFiwtewData> {
 
-	readonly rootRef = null;
+	weadonwy wootWef = nuww;
 
-	get onDidSplice(): Event<ITreeModelSpliceEvent<T | null, TFilterData>> {
-		return Event.map(this.model.onDidSplice, ({ insertedNodes, deletedNodes }) => ({
-			insertedNodes: insertedNodes.map(node => this.nodeMapper.map(node)),
-			deletedNodes: deletedNodes.map(node => this.nodeMapper.map(node)),
+	get onDidSpwice(): Event<ITweeModewSpwiceEvent<T | nuww, TFiwtewData>> {
+		wetuwn Event.map(this.modew.onDidSpwice, ({ insewtedNodes, dewetedNodes }) => ({
+			insewtedNodes: insewtedNodes.map(node => this.nodeMappa.map(node)),
+			dewetedNodes: dewetedNodes.map(node => this.nodeMappa.map(node)),
 		}));
 	}
 
-	get onDidChangeCollapseState(): Event<ICollapseStateChangeEvent<T | null, TFilterData>> {
-		return Event.map(this.model.onDidChangeCollapseState, ({ node, deep }) => ({
-			node: this.nodeMapper.map(node),
+	get onDidChangeCowwapseState(): Event<ICowwapseStateChangeEvent<T | nuww, TFiwtewData>> {
+		wetuwn Event.map(this.modew.onDidChangeCowwapseState, ({ node, deep }) => ({
+			node: this.nodeMappa.map(node),
 			deep
 		}));
 	}
 
-	get onDidChangeRenderNodeCount(): Event<ITreeNode<T | null, TFilterData>> {
-		return Event.map(this.model.onDidChangeRenderNodeCount, node => this.nodeMapper.map(node));
+	get onDidChangeWendewNodeCount(): Event<ITweeNode<T | nuww, TFiwtewData>> {
+		wetuwn Event.map(this.modew.onDidChangeWendewNodeCount, node => this.nodeMappa.map(node));
 	}
 
-	private elementMapper: ElementMapper<T>;
-	private nodeMapper: CompressedNodeWeakMapper<T, TFilterData>;
-	private model: CompressedObjectTreeModel<T, TFilterData>;
+	pwivate ewementMappa: EwementMappa<T>;
+	pwivate nodeMappa: CompwessedNodeWeakMappa<T, TFiwtewData>;
+	pwivate modew: CompwessedObjectTweeModew<T, TFiwtewData>;
 
-	constructor(
-		user: string,
-		list: IList<ITreeNode<T, TFilterData>>,
-		options: ICompressibleObjectTreeModelOptions<T, TFilterData> = {}
+	constwuctow(
+		usa: stwing,
+		wist: IWist<ITweeNode<T, TFiwtewData>>,
+		options: ICompwessibweObjectTweeModewOptions<T, TFiwtewData> = {}
 	) {
-		this.elementMapper = options.elementMapper || DefaultElementMapper;
-		const compressedNodeUnwrapper: CompressedNodeUnwrapper<T> = node => this.elementMapper(node.elements);
-		this.nodeMapper = new WeakMapper(node => new CompressedTreeNodeWrapper(compressedNodeUnwrapper, node));
+		this.ewementMappa = options.ewementMappa || DefauwtEwementMappa;
+		const compwessedNodeUnwwappa: CompwessedNodeUnwwappa<T> = node => this.ewementMappa(node.ewements);
+		this.nodeMappa = new WeakMappa(node => new CompwessedTweeNodeWwappa(compwessedNodeUnwwappa, node));
 
-		this.model = new CompressedObjectTreeModel(user, mapList(this.nodeMapper, list), mapOptions(compressedNodeUnwrapper, options));
+		this.modew = new CompwessedObjectTweeModew(usa, mapWist(this.nodeMappa, wist), mapOptions(compwessedNodeUnwwappa, options));
 	}
 
-	setChildren(
-		element: T | null,
-		children: Iterable<ICompressedTreeElement<T>> = Iterable.empty(),
-		options: IObjectTreeModelSetChildrenOptions<T, TFilterData> = {},
+	setChiwdwen(
+		ewement: T | nuww,
+		chiwdwen: Itewabwe<ICompwessedTweeEwement<T>> = Itewabwe.empty(),
+		options: IObjectTweeModewSetChiwdwenOptions<T, TFiwtewData> = {},
 	): void {
-		this.model.setChildren(element, children, options);
+		this.modew.setChiwdwen(ewement, chiwdwen, options);
 	}
 
-	isCompressionEnabled(): boolean {
-		return this.model.isCompressionEnabled();
+	isCompwessionEnabwed(): boowean {
+		wetuwn this.modew.isCompwessionEnabwed();
 	}
 
-	setCompressionEnabled(enabled: boolean): void {
-		this.model.setCompressionEnabled(enabled);
+	setCompwessionEnabwed(enabwed: boowean): void {
+		this.modew.setCompwessionEnabwed(enabwed);
 	}
 
-	has(location: T | null): boolean {
-		return this.model.has(location);
+	has(wocation: T | nuww): boowean {
+		wetuwn this.modew.has(wocation);
 	}
 
-	getListIndex(location: T | null): number {
-		return this.model.getListIndex(location);
+	getWistIndex(wocation: T | nuww): numba {
+		wetuwn this.modew.getWistIndex(wocation);
 	}
 
-	getListRenderCount(location: T | null): number {
-		return this.model.getListRenderCount(location);
+	getWistWendewCount(wocation: T | nuww): numba {
+		wetuwn this.modew.getWistWendewCount(wocation);
 	}
 
-	getNode(location?: T | null | undefined): ITreeNode<T | null, any> {
-		return this.nodeMapper.map(this.model.getNode(location));
+	getNode(wocation?: T | nuww | undefined): ITweeNode<T | nuww, any> {
+		wetuwn this.nodeMappa.map(this.modew.getNode(wocation));
 	}
 
-	getNodeLocation(node: ITreeNode<T | null, any>): T | null {
-		return node.element;
+	getNodeWocation(node: ITweeNode<T | nuww, any>): T | nuww {
+		wetuwn node.ewement;
 	}
 
-	getParentNodeLocation(location: T | null): T | null {
-		return this.model.getParentNodeLocation(location);
+	getPawentNodeWocation(wocation: T | nuww): T | nuww {
+		wetuwn this.modew.getPawentNodeWocation(wocation);
 	}
 
-	getFirstElementChild(location: T | null): T | null | undefined {
-		const result = this.model.getFirstElementChild(location);
+	getFiwstEwementChiwd(wocation: T | nuww): T | nuww | undefined {
+		const wesuwt = this.modew.getFiwstEwementChiwd(wocation);
 
-		if (result === null || typeof result === 'undefined') {
-			return result;
+		if (wesuwt === nuww || typeof wesuwt === 'undefined') {
+			wetuwn wesuwt;
 		}
 
-		return this.elementMapper(result.elements);
+		wetuwn this.ewementMappa(wesuwt.ewements);
 	}
 
-	getLastElementAncestor(location?: T | null | undefined): T | null | undefined {
-		const result = this.model.getLastElementAncestor(location);
+	getWastEwementAncestow(wocation?: T | nuww | undefined): T | nuww | undefined {
+		const wesuwt = this.modew.getWastEwementAncestow(wocation);
 
-		if (result === null || typeof result === 'undefined') {
-			return result;
+		if (wesuwt === nuww || typeof wesuwt === 'undefined') {
+			wetuwn wesuwt;
 		}
 
-		return this.elementMapper(result.elements);
+		wetuwn this.ewementMappa(wesuwt.ewements);
 	}
 
-	isCollapsible(location: T | null): boolean {
-		return this.model.isCollapsible(location);
+	isCowwapsibwe(wocation: T | nuww): boowean {
+		wetuwn this.modew.isCowwapsibwe(wocation);
 	}
 
-	setCollapsible(location: T | null, collapsed?: boolean): boolean {
-		return this.model.setCollapsible(location, collapsed);
+	setCowwapsibwe(wocation: T | nuww, cowwapsed?: boowean): boowean {
+		wetuwn this.modew.setCowwapsibwe(wocation, cowwapsed);
 	}
 
-	isCollapsed(location: T | null): boolean {
-		return this.model.isCollapsed(location);
+	isCowwapsed(wocation: T | nuww): boowean {
+		wetuwn this.modew.isCowwapsed(wocation);
 	}
 
-	setCollapsed(location: T | null, collapsed?: boolean | undefined, recursive?: boolean | undefined): boolean {
-		return this.model.setCollapsed(location, collapsed, recursive);
+	setCowwapsed(wocation: T | nuww, cowwapsed?: boowean | undefined, wecuwsive?: boowean | undefined): boowean {
+		wetuwn this.modew.setCowwapsed(wocation, cowwapsed, wecuwsive);
 	}
 
-	expandTo(location: T | null): void {
-		return this.model.expandTo(location);
+	expandTo(wocation: T | nuww): void {
+		wetuwn this.modew.expandTo(wocation);
 	}
 
-	rerender(location: T | null): void {
-		return this.model.rerender(location);
+	wewenda(wocation: T | nuww): void {
+		wetuwn this.modew.wewenda(wocation);
 	}
 
-	updateElementHeight(element: T, height: number): void {
-		this.model.updateElementHeight(element, height);
+	updateEwementHeight(ewement: T, height: numba): void {
+		this.modew.updateEwementHeight(ewement, height);
 	}
 
-	refilter(): void {
-		return this.model.refilter();
+	wefiwta(): void {
+		wetuwn this.modew.wefiwta();
 	}
 
-	resort(element: T | null = null, recursive = true): void {
-		return this.model.resort(element, recursive);
+	wesowt(ewement: T | nuww = nuww, wecuwsive = twue): void {
+		wetuwn this.modew.wesowt(ewement, wecuwsive);
 	}
 
-	getCompressedTreeNode(location: T | null = null): ITreeNode<ICompressedTreeNode<T> | null, TFilterData> {
-		return this.model.getNode(location);
+	getCompwessedTweeNode(wocation: T | nuww = nuww): ITweeNode<ICompwessedTweeNode<T> | nuww, TFiwtewData> {
+		wetuwn this.modew.getNode(wocation);
 	}
 }

@@ -1,37 +1,37 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
-import { Editor } from './editor';
-import { Editors } from './editors';
-import { Code } from './code';
-import { QuickAccess } from './quickaccess';
+impowt * as fs fwom 'fs';
+impowt * as path fwom 'path';
+impowt { Editow } fwom './editow';
+impowt { Editows } fwom './editows';
+impowt { Code } fwom './code';
+impowt { QuickAccess } fwom './quickaccess';
 
-export class SettingsEditor {
+expowt cwass SettingsEditow {
 
-	constructor(private code: Code, private userDataPath: string, private editors: Editors, private editor: Editor, private quickaccess: QuickAccess) { }
+	constwuctow(pwivate code: Code, pwivate usewDataPath: stwing, pwivate editows: Editows, pwivate editow: Editow, pwivate quickaccess: QuickAccess) { }
 
-	async addUserSetting(setting: string, value: string): Promise<void> {
+	async addUsewSetting(setting: stwing, vawue: stwing): Pwomise<void> {
 		await this.openSettings();
-		await this.editor.waitForEditorFocus('settings.json', 1);
+		await this.editow.waitFowEditowFocus('settings.json', 1);
 
-		await this.code.dispatchKeybinding('right');
-		await this.editor.waitForTypeInEditor('settings.json', `"${setting}": ${value},`);
-		await this.editors.saveOpenedFile();
+		await this.code.dispatchKeybinding('wight');
+		await this.editow.waitFowTypeInEditow('settings.json', `"${setting}": ${vawue},`);
+		await this.editows.saveOpenedFiwe();
 	}
 
-	async clearUserSettings(): Promise<void> {
-		const settingsPath = path.join(this.userDataPath, 'User', 'settings.json');
-		await new Promise<void>((c, e) => fs.writeFile(settingsPath, '{\n}', 'utf8', err => err ? e(err) : c()));
+	async cweawUsewSettings(): Pwomise<void> {
+		const settingsPath = path.join(this.usewDataPath, 'Usa', 'settings.json');
+		await new Pwomise<void>((c, e) => fs.wwiteFiwe(settingsPath, '{\n}', 'utf8', eww => eww ? e(eww) : c()));
 
 		await this.openSettings();
-		await this.editor.waitForEditorContents('settings.json', c => c === '{}');
+		await this.editow.waitFowEditowContents('settings.json', c => c === '{}');
 	}
 
-	private async openSettings(): Promise<void> {
-		await this.quickaccess.runCommand('workbench.action.openSettingsJson');
+	pwivate async openSettings(): Pwomise<void> {
+		await this.quickaccess.wunCommand('wowkbench.action.openSettingsJson');
 	}
 }

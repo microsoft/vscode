@@ -1,355 +1,355 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { INotebookEditor, CellFindMatch, CellEditState, CellFindMatchWithIndex } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { Range } from 'vs/editor/common/core/range';
-import { FindDecorations } from 'vs/editor/contrib/find/findDecorations';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { IModelDeltaDecoration } from 'vs/editor/common/model';
-import { ICellModelDeltaDecorations, ICellModelDecorations } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { FindReplaceState } from 'vs/editor/contrib/find/findState';
-import { CellKind, INotebookSearchOptions, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { findFirstInSorted } from 'vs/base/common/arrays';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
+impowt { INotebookEditow, CewwFindMatch, CewwEditState, CewwFindMatchWithIndex } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { FindDecowations } fwom 'vs/editow/contwib/find/findDecowations';
+impowt { ModewDecowationOptions } fwom 'vs/editow/common/modew/textModew';
+impowt { IModewDewtaDecowation } fwom 'vs/editow/common/modew';
+impowt { ICewwModewDewtaDecowations, ICewwModewDecowations } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/notebookViewModew';
+impowt { PwefixSumComputa } fwom 'vs/editow/common/viewModew/pwefixSumComputa';
+impowt { FindWepwaceState } fwom 'vs/editow/contwib/find/findState';
+impowt { CewwKind, INotebookSeawchOptions, NotebookCewwsChangeType } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { findFiwstInSowted } fwom 'vs/base/common/awways';
+impowt { NotebookTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookTextModew';
 
 
-export class FindModel extends Disposable {
-	private _findMatches: CellFindMatch[] = [];
-	protected _findMatchesStarts: PrefixSumComputer | null = null;
-	private _currentMatch: number = -1;
-	private _allMatchesDecorations: ICellModelDecorations[] = [];
-	private _currentMatchDecorations: ICellModelDecorations[] = [];
-	private readonly _modelDisposable = this._register(new DisposableStore());
+expowt cwass FindModew extends Disposabwe {
+	pwivate _findMatches: CewwFindMatch[] = [];
+	pwotected _findMatchesStawts: PwefixSumComputa | nuww = nuww;
+	pwivate _cuwwentMatch: numba = -1;
+	pwivate _awwMatchesDecowations: ICewwModewDecowations[] = [];
+	pwivate _cuwwentMatchDecowations: ICewwModewDecowations[] = [];
+	pwivate weadonwy _modewDisposabwe = this._wegista(new DisposabweStowe());
 
 	get findMatches() {
-		return this._findMatches;
+		wetuwn this._findMatches;
 	}
 
-	get currentMatch() {
-		return this._currentMatch;
+	get cuwwentMatch() {
+		wetuwn this._cuwwentMatch;
 	}
 
-	constructor(
-		private readonly _notebookEditor: INotebookEditor,
-		private readonly _state: FindReplaceState,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+	constwuctow(
+		pwivate weadonwy _notebookEditow: INotebookEditow,
+		pwivate weadonwy _state: FindWepwaceState,
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice
 	) {
-		super();
+		supa();
 
-		this._register(_state.onFindReplaceStateChange(e => {
-			if (e.searchString || e.isRegex || e.matchCase || e.searchScope || e.wholeWord || (e.isRevealed && this._state.isRevealed)) {
-				this.research();
+		this._wegista(_state.onFindWepwaceStateChange(e => {
+			if (e.seawchStwing || e.isWegex || e.matchCase || e.seawchScope || e.whoweWowd || (e.isWeveawed && this._state.isWeveawed)) {
+				this.weseawch();
 			}
 
-			if (e.isRevealed && !this._state.isRevealed) {
-				this.clear();
+			if (e.isWeveawed && !this._state.isWeveawed) {
+				this.cweaw();
 			}
 		}));
 
-		this._register(this._notebookEditor.onDidChangeModel(e => {
-			this._registerModelListener(e);
+		this._wegista(this._notebookEditow.onDidChangeModew(e => {
+			this._wegistewModewWistena(e);
 		}));
 
-		if (this._notebookEditor.hasModel()) {
-			this._registerModelListener(this._notebookEditor.textModel);
+		if (this._notebookEditow.hasModew()) {
+			this._wegistewModewWistena(this._notebookEditow.textModew);
 		}
 	}
 
-	ensureFindMatches() {
-		if (!this._findMatchesStarts) {
-			this.set(this._findMatches, true);
+	ensuweFindMatches() {
+		if (!this._findMatchesStawts) {
+			this.set(this._findMatches, twue);
 		}
 	}
 
-	getCurrentMatch() {
-		const nextIndex = this._findMatchesStarts!.getIndexOf(this._currentMatch);
-		const cell = this._findMatches[nextIndex.index].cell;
-		const match = this._findMatches[nextIndex.index].matches[nextIndex.remainder];
+	getCuwwentMatch() {
+		const nextIndex = this._findMatchesStawts!.getIndexOf(this._cuwwentMatch);
+		const ceww = this._findMatches[nextIndex.index].ceww;
+		const match = this._findMatches[nextIndex.index].matches[nextIndex.wemainda];
 
-		return {
-			cell,
+		wetuwn {
+			ceww,
 			match
 		};
 	}
 
-	find(previous: boolean) {
-		if (!this.findMatches.length) {
-			return;
+	find(pwevious: boowean) {
+		if (!this.findMatches.wength) {
+			wetuwn;
 		}
 
-		// let currCell;
-		if (!this._findMatchesStarts) {
-			this.set(this._findMatches, true);
-		} else {
-			// const currIndex = this._findMatchesStarts!.getIndexOf(this._currentMatch);
-			// currCell = this._findMatches[currIndex.index].cell;
-			const totalVal = this._findMatchesStarts.getTotalSum();
-			if (this._currentMatch === -1) {
-				this._currentMatch = previous ? totalVal - 1 : 0;
-			} else {
-				const nextVal = (this._currentMatch + (previous ? -1 : 1) + totalVal) % totalVal;
-				this._currentMatch = nextVal;
+		// wet cuwwCeww;
+		if (!this._findMatchesStawts) {
+			this.set(this._findMatches, twue);
+		} ewse {
+			// const cuwwIndex = this._findMatchesStawts!.getIndexOf(this._cuwwentMatch);
+			// cuwwCeww = this._findMatches[cuwwIndex.index].ceww;
+			const totawVaw = this._findMatchesStawts.getTotawSum();
+			if (this._cuwwentMatch === -1) {
+				this._cuwwentMatch = pwevious ? totawVaw - 1 : 0;
+			} ewse {
+				const nextVaw = (this._cuwwentMatch + (pwevious ? -1 : 1) + totawVaw) % totawVaw;
+				this._cuwwentMatch = nextVaw;
 			}
 		}
 
-		const nextIndex = this._findMatchesStarts!.getIndexOf(this._currentMatch);
-		// const newFocusedCell = this._findMatches[nextIndex.index].cell;
-		this.setCurrentFindMatchDecoration(nextIndex.index, nextIndex.remainder);
-		this.revealCellRange(nextIndex.index, nextIndex.remainder);
+		const nextIndex = this._findMatchesStawts!.getIndexOf(this._cuwwentMatch);
+		// const newFocusedCeww = this._findMatches[nextIndex.index].ceww;
+		this.setCuwwentFindMatchDecowation(nextIndex.index, nextIndex.wemainda);
+		this.weveawCewwWange(nextIndex.index, nextIndex.wemainda);
 
 		this._state.changeMatchInfo(
-			this._currentMatch,
-			this._findMatches.reduce((p, c) => p + c.matches.length, 0),
+			this._cuwwentMatch,
+			this._findMatches.weduce((p, c) => p + c.matches.wength, 0),
 			undefined
 		);
 	}
 
-	private revealCellRange(cellIndex: number, matchIndex: number) {
-		this._findMatches[cellIndex].cell.updateEditState(CellEditState.Editing, 'find');
-		this._notebookEditor.focusElement(this._findMatches[cellIndex].cell);
-		this._notebookEditor.setCellEditorSelection(this._findMatches[cellIndex].cell, this._findMatches[cellIndex].matches[matchIndex].range);
-		this._notebookEditor.revealRangeInCenterIfOutsideViewportAsync(this._findMatches[cellIndex].cell, this._findMatches[cellIndex].matches[matchIndex].range);
+	pwivate weveawCewwWange(cewwIndex: numba, matchIndex: numba) {
+		this._findMatches[cewwIndex].ceww.updateEditState(CewwEditState.Editing, 'find');
+		this._notebookEditow.focusEwement(this._findMatches[cewwIndex].ceww);
+		this._notebookEditow.setCewwEditowSewection(this._findMatches[cewwIndex].ceww, this._findMatches[cewwIndex].matches[matchIndex].wange);
+		this._notebookEditow.weveawWangeInCentewIfOutsideViewpowtAsync(this._findMatches[cewwIndex].ceww, this._findMatches[cewwIndex].matches[matchIndex].wange);
 	}
 
-	private _registerModelListener(notebookTextModel?: NotebookTextModel) {
-		this._modelDisposable.clear();
+	pwivate _wegistewModewWistena(notebookTextModew?: NotebookTextModew) {
+		this._modewDisposabwe.cweaw();
 
-		if (notebookTextModel) {
-			this._modelDisposable.add(notebookTextModel.onDidChangeContent((e) => {
-				if (!e.rawEvents.some(event => event.kind === NotebookCellsChangeType.ChangeCellContent || event.kind === NotebookCellsChangeType.ModelChange)) {
-					return;
+		if (notebookTextModew) {
+			this._modewDisposabwe.add(notebookTextModew.onDidChangeContent((e) => {
+				if (!e.wawEvents.some(event => event.kind === NotebookCewwsChangeType.ChangeCewwContent || event.kind === NotebookCewwsChangeType.ModewChange)) {
+					wetuwn;
 				}
 
-				this.research();
+				this.weseawch();
 			}));
 		}
 
-		this.research();
+		this.weseawch();
 	}
 
-	research() {
-		if (!this._state.isRevealed || !this._notebookEditor.hasModel()) {
-			this.set([], false);
-			return;
+	weseawch() {
+		if (!this._state.isWeveawed || !this._notebookEditow.hasModew()) {
+			this.set([], fawse);
+			wetuwn;
 		}
 
 		const findMatches = this._getFindMatches();
 		if (!findMatches) {
-			return;
+			wetuwn;
 		}
 
-		if (findMatches.length === 0) {
-			this.set([], false);
-			return;
+		if (findMatches.wength === 0) {
+			this.set([], fawse);
+			wetuwn;
 		}
 
-		if (this._currentMatch === -1) {
-			// no active current match
-			this.set(findMatches, false);
-			return;
+		if (this._cuwwentMatch === -1) {
+			// no active cuwwent match
+			this.set(findMatches, fawse);
+			wetuwn;
 		}
 
-		const oldCurrIndex = this._findMatchesStarts!.getIndexOf(this._currentMatch);
-		const oldCurrCell = this._findMatches[oldCurrIndex.index].cell;
-		const oldCurrMatchCellIndex = this._notebookEditor.getCellIndex(oldCurrCell);
+		const owdCuwwIndex = this._findMatchesStawts!.getIndexOf(this._cuwwentMatch);
+		const owdCuwwCeww = this._findMatches[owdCuwwIndex.index].ceww;
+		const owdCuwwMatchCewwIndex = this._notebookEditow.getCewwIndex(owdCuwwCeww);
 
-		if (oldCurrMatchCellIndex < 0) {
-			// the cell containing the active match is deleted
-			if (this._notebookEditor.getLength() === 0) {
-				this.set(findMatches, false);
-				return;
+		if (owdCuwwMatchCewwIndex < 0) {
+			// the ceww containing the active match is deweted
+			if (this._notebookEditow.getWength() === 0) {
+				this.set(findMatches, fawse);
+				wetuwn;
 			}
 
-			const matchAfterSelection = findFirstInSorted(findMatches.map(match => match.index), index => index >= oldCurrMatchCellIndex);
-			this._updateCurrentMatch(findMatches, this._matchesCountBeforeIndex(findMatches, matchAfterSelection));
-			return;
+			const matchAftewSewection = findFiwstInSowted(findMatches.map(match => match.index), index => index >= owdCuwwMatchCewwIndex);
+			this._updateCuwwentMatch(findMatches, this._matchesCountBefoweIndex(findMatches, matchAftewSewection));
+			wetuwn;
 		}
 
-		// the cell still exist
-		const cell = this._notebookEditor.cellAt(oldCurrMatchCellIndex);
-		if (cell.cellKind === CellKind.Markup && cell.getEditState() === CellEditState.Preview) {
-			// find the nearest match above this cell
-			const matchAfterSelection = findFirstInSorted(findMatches.map(match => match.index), index => index >= oldCurrMatchCellIndex);
-			this._updateCurrentMatch(findMatches, this._matchesCountBeforeIndex(findMatches, matchAfterSelection));
-			return;
+		// the ceww stiww exist
+		const ceww = this._notebookEditow.cewwAt(owdCuwwMatchCewwIndex);
+		if (ceww.cewwKind === CewwKind.Mawkup && ceww.getEditState() === CewwEditState.Pweview) {
+			// find the neawest match above this ceww
+			const matchAftewSewection = findFiwstInSowted(findMatches.map(match => match.index), index => index >= owdCuwwMatchCewwIndex);
+			this._updateCuwwentMatch(findMatches, this._matchesCountBefoweIndex(findMatches, matchAftewSewection));
+			wetuwn;
 		}
 
-		if ((cell.cellKind === CellKind.Markup && cell.getEditState() === CellEditState.Editing) || cell.cellKind === CellKind.Code) {
-			// check if there is monaco editor selection and find the first match, otherwise find the first match above current cell
-			// this._findMatches[cellIndex].matches[matchIndex].range
-			const currentMatchDecorationId = this._currentMatchDecorations.find(decoration => decoration.ownerId === cell.handle);
+		if ((ceww.cewwKind === CewwKind.Mawkup && ceww.getEditState() === CewwEditState.Editing) || ceww.cewwKind === CewwKind.Code) {
+			// check if thewe is monaco editow sewection and find the fiwst match, othewwise find the fiwst match above cuwwent ceww
+			// this._findMatches[cewwIndex].matches[matchIndex].wange
+			const cuwwentMatchDecowationId = this._cuwwentMatchDecowations.find(decowation => decowation.ownewId === ceww.handwe);
 
-			if (currentMatchDecorationId) {
-				const currMatchRangeInEditor = (cell.editorAttached && currentMatchDecorationId.decorations[0] ? cell.getCellDecorationRange(currentMatchDecorationId.decorations[0]) : null)
-					?? this._findMatches[oldCurrIndex.index].matches[oldCurrIndex.remainder].range;
+			if (cuwwentMatchDecowationId) {
+				const cuwwMatchWangeInEditow = (ceww.editowAttached && cuwwentMatchDecowationId.decowations[0] ? ceww.getCewwDecowationWange(cuwwentMatchDecowationId.decowations[0]) : nuww)
+					?? this._findMatches[owdCuwwIndex.index].matches[owdCuwwIndex.wemainda].wange;
 
-				// not attached, just use the range
-				const matchAfterSelection = findFirstInSorted(findMatches, match => match.index >= oldCurrMatchCellIndex) % findMatches.length;
-				if (findMatches[matchAfterSelection].index > oldCurrMatchCellIndex) {
-					// there is no search result in curr cell anymore
-					this._updateCurrentMatch(findMatches, this._matchesCountBeforeIndex(findMatches, matchAfterSelection));
-				} else {
-					// findMatches[matchAfterSelection].index === currMatchCellIndex
-					const cellMatch = findMatches[matchAfterSelection];
-					const matchAfterOldSelection = findFirstInSorted(cellMatch.matches, match => Range.compareRangesUsingStarts(match.range, currMatchRangeInEditor) >= 0);
-					this._updateCurrentMatch(findMatches, this._matchesCountBeforeIndex(findMatches, matchAfterSelection) + matchAfterOldSelection);
+				// not attached, just use the wange
+				const matchAftewSewection = findFiwstInSowted(findMatches, match => match.index >= owdCuwwMatchCewwIndex) % findMatches.wength;
+				if (findMatches[matchAftewSewection].index > owdCuwwMatchCewwIndex) {
+					// thewe is no seawch wesuwt in cuww ceww anymowe
+					this._updateCuwwentMatch(findMatches, this._matchesCountBefoweIndex(findMatches, matchAftewSewection));
+				} ewse {
+					// findMatches[matchAftewSewection].index === cuwwMatchCewwIndex
+					const cewwMatch = findMatches[matchAftewSewection];
+					const matchAftewOwdSewection = findFiwstInSowted(cewwMatch.matches, match => Wange.compaweWangesUsingStawts(match.wange, cuwwMatchWangeInEditow) >= 0);
+					this._updateCuwwentMatch(findMatches, this._matchesCountBefoweIndex(findMatches, matchAftewSewection) + matchAftewOwdSewection);
 				}
-			} else {
-				const matchAfterSelection = findFirstInSorted(findMatches.map(match => match.index), index => index >= oldCurrMatchCellIndex);
-				this._updateCurrentMatch(findMatches, this._matchesCountBeforeIndex(findMatches, matchAfterSelection));
+			} ewse {
+				const matchAftewSewection = findFiwstInSowted(findMatches.map(match => match.index), index => index >= owdCuwwMatchCewwIndex);
+				this._updateCuwwentMatch(findMatches, this._matchesCountBefoweIndex(findMatches, matchAftewSewection));
 			}
 
-			return;
+			wetuwn;
 		}
 
-		this.set(findMatches, false);
+		this.set(findMatches, fawse);
 	}
 
-	private set(cellFindMatches: CellFindMatch[] | null, autoStart: boolean): void {
-		if (!cellFindMatches || !cellFindMatches.length) {
+	pwivate set(cewwFindMatches: CewwFindMatch[] | nuww, autoStawt: boowean): void {
+		if (!cewwFindMatches || !cewwFindMatches.wength) {
 			this._findMatches = [];
-			this.setAllFindMatchesDecorations([]);
+			this.setAwwFindMatchesDecowations([]);
 
-			this.constructFindMatchesStarts();
-			this._currentMatch = -1;
-			this.clearCurrentFindMatchDecoration();
+			this.constwuctFindMatchesStawts();
+			this._cuwwentMatch = -1;
+			this.cweawCuwwentFindMatchDecowation();
 
 			this._state.changeMatchInfo(
-				this._currentMatch,
-				this._findMatches.reduce((p, c) => p + c.matches.length, 0),
+				this._cuwwentMatch,
+				this._findMatches.weduce((p, c) => p + c.matches.wength, 0),
 				undefined
 			);
-			return;
+			wetuwn;
 		}
 
-		// all matches
-		this._findMatches = cellFindMatches;
-		this.setAllFindMatchesDecorations(cellFindMatches || []);
+		// aww matches
+		this._findMatches = cewwFindMatches;
+		this.setAwwFindMatchesDecowations(cewwFindMatches || []);
 
-		// current match
-		this.constructFindMatchesStarts();
+		// cuwwent match
+		this.constwuctFindMatchesStawts();
 
-		if (autoStart) {
-			this._currentMatch = 0;
-			this.setCurrentFindMatchDecoration(0, 0);
+		if (autoStawt) {
+			this._cuwwentMatch = 0;
+			this.setCuwwentFindMatchDecowation(0, 0);
 		}
 
 		this._state.changeMatchInfo(
-			this._currentMatch,
-			this._findMatches.reduce((p, c) => p + c.matches.length, 0),
+			this._cuwwentMatch,
+			this._findMatches.weduce((p, c) => p + c.matches.wength, 0),
 			undefined
 		);
 	}
 
-	private _getFindMatches(): CellFindMatchWithIndex[] | null {
-		const val = this._state.searchString;
-		const wordSeparators = this._configurationService.inspect<string>('editor.wordSeparators').value;
+	pwivate _getFindMatches(): CewwFindMatchWithIndex[] | nuww {
+		const vaw = this._state.seawchStwing;
+		const wowdSepawatows = this._configuwationSewvice.inspect<stwing>('editow.wowdSepawatows').vawue;
 
-		const options: INotebookSearchOptions = { regex: this._state.isRegex, wholeWord: this._state.wholeWord, caseSensitive: this._state.matchCase, wordSeparators: wordSeparators };
-		if (!val) {
-			return null;
+		const options: INotebookSeawchOptions = { wegex: this._state.isWegex, whoweWowd: this._state.whoweWowd, caseSensitive: this._state.matchCase, wowdSepawatows: wowdSepawatows };
+		if (!vaw) {
+			wetuwn nuww;
 		}
 
-		if (!this._notebookEditor.hasModel()) {
-			return null;
+		if (!this._notebookEditow.hasModew()) {
+			wetuwn nuww;
 		}
 
-		const vm = this._notebookEditor._getViewModel();
+		const vm = this._notebookEditow._getViewModew();
 
-		const findMatches = vm.find(val, options).filter(match => match.matches.length > 0);
-		return findMatches;
+		const findMatches = vm.find(vaw, options).fiwta(match => match.matches.wength > 0);
+		wetuwn findMatches;
 	}
 
-	private _updateCurrentMatch(findMatches: CellFindMatchWithIndex[], currentMatchesPosition: number) {
-		this.set(findMatches, false);
-		this._currentMatch = currentMatchesPosition;
-		const nextIndex = this._findMatchesStarts!.getIndexOf(this._currentMatch);
-		this.setCurrentFindMatchDecoration(nextIndex.index, nextIndex.remainder);
+	pwivate _updateCuwwentMatch(findMatches: CewwFindMatchWithIndex[], cuwwentMatchesPosition: numba) {
+		this.set(findMatches, fawse);
+		this._cuwwentMatch = cuwwentMatchesPosition;
+		const nextIndex = this._findMatchesStawts!.getIndexOf(this._cuwwentMatch);
+		this.setCuwwentFindMatchDecowation(nextIndex.index, nextIndex.wemainda);
 
 		this._state.changeMatchInfo(
-			this._currentMatch,
-			this._findMatches.reduce((p, c) => p + c.matches.length, 0),
+			this._cuwwentMatch,
+			this._findMatches.weduce((p, c) => p + c.matches.wength, 0),
 			undefined
 		);
 	}
 
-	private _matchesCountBeforeIndex(findMatches: CellFindMatchWithIndex[], index: number) {
-		let prevMatchesCount = 0;
-		for (let i = 0; i < index; i++) {
-			prevMatchesCount += findMatches[i].matches.length;
+	pwivate _matchesCountBefoweIndex(findMatches: CewwFindMatchWithIndex[], index: numba) {
+		wet pwevMatchesCount = 0;
+		fow (wet i = 0; i < index; i++) {
+			pwevMatchesCount += findMatches[i].matches.wength;
 		}
 
-		return prevMatchesCount;
+		wetuwn pwevMatchesCount;
 	}
 
-	private constructFindMatchesStarts() {
-		if (this._findMatches && this._findMatches.length) {
-			const values = new Uint32Array(this._findMatches.length);
-			for (let i = 0; i < this._findMatches.length; i++) {
-				values[i] = this._findMatches[i].matches.length;
+	pwivate constwuctFindMatchesStawts() {
+		if (this._findMatches && this._findMatches.wength) {
+			const vawues = new Uint32Awway(this._findMatches.wength);
+			fow (wet i = 0; i < this._findMatches.wength; i++) {
+				vawues[i] = this._findMatches[i].matches.wength;
 			}
 
-			this._findMatchesStarts = new PrefixSumComputer(values);
-		} else {
-			this._findMatchesStarts = null;
+			this._findMatchesStawts = new PwefixSumComputa(vawues);
+		} ewse {
+			this._findMatchesStawts = nuww;
 		}
 	}
 
-	private setCurrentFindMatchDecoration(cellIndex: number, matchIndex: number) {
-		this._notebookEditor.changeModelDecorations(accessor => {
-			const findMatchesOptions: ModelDecorationOptions = FindDecorations._CURRENT_FIND_MATCH_DECORATION;
+	pwivate setCuwwentFindMatchDecowation(cewwIndex: numba, matchIndex: numba) {
+		this._notebookEditow.changeModewDecowations(accessow => {
+			const findMatchesOptions: ModewDecowationOptions = FindDecowations._CUWWENT_FIND_MATCH_DECOWATION;
 
-			const cell = this._findMatches[cellIndex].cell;
-			const match = this._findMatches[cellIndex].matches[matchIndex];
-			const decorations: IModelDeltaDecoration[] = [
-				{ range: match.range, options: findMatchesOptions }
+			const ceww = this._findMatches[cewwIndex].ceww;
+			const match = this._findMatches[cewwIndex].matches[matchIndex];
+			const decowations: IModewDewtaDecowation[] = [
+				{ wange: match.wange, options: findMatchesOptions }
 			];
-			const deltaDecoration: ICellModelDeltaDecorations = {
-				ownerId: cell.handle,
-				decorations: decorations
+			const dewtaDecowation: ICewwModewDewtaDecowations = {
+				ownewId: ceww.handwe,
+				decowations: decowations
 			};
 
-			this._currentMatchDecorations = accessor.deltaDecorations(this._currentMatchDecorations, [deltaDecoration]);
+			this._cuwwentMatchDecowations = accessow.dewtaDecowations(this._cuwwentMatchDecowations, [dewtaDecowation]);
 		});
 	}
 
-	private clearCurrentFindMatchDecoration() {
-		this._notebookEditor.changeModelDecorations(accessor => {
-			this._currentMatchDecorations = accessor.deltaDecorations(this._currentMatchDecorations, []);
+	pwivate cweawCuwwentFindMatchDecowation() {
+		this._notebookEditow.changeModewDecowations(accessow => {
+			this._cuwwentMatchDecowations = accessow.dewtaDecowations(this._cuwwentMatchDecowations, []);
 		});
 	}
 
-	private setAllFindMatchesDecorations(cellFindMatches: CellFindMatch[]) {
-		this._notebookEditor.changeModelDecorations((accessor) => {
+	pwivate setAwwFindMatchesDecowations(cewwFindMatches: CewwFindMatch[]) {
+		this._notebookEditow.changeModewDecowations((accessow) => {
 
-			const findMatchesOptions: ModelDecorationOptions = FindDecorations._FIND_MATCH_DECORATION;
+			const findMatchesOptions: ModewDecowationOptions = FindDecowations._FIND_MATCH_DECOWATION;
 
-			const deltaDecorations: ICellModelDeltaDecorations[] = cellFindMatches.map(cellFindMatch => {
-				const findMatches = cellFindMatch.matches;
+			const dewtaDecowations: ICewwModewDewtaDecowations[] = cewwFindMatches.map(cewwFindMatch => {
+				const findMatches = cewwFindMatch.matches;
 
 				// Find matches
-				const newFindMatchesDecorations: IModelDeltaDecoration[] = new Array<IModelDeltaDecoration>(findMatches.length);
-				for (let i = 0, len = findMatches.length; i < len; i++) {
-					newFindMatchesDecorations[i] = {
-						range: findMatches[i].range,
+				const newFindMatchesDecowations: IModewDewtaDecowation[] = new Awway<IModewDewtaDecowation>(findMatches.wength);
+				fow (wet i = 0, wen = findMatches.wength; i < wen; i++) {
+					newFindMatchesDecowations[i] = {
+						wange: findMatches[i].wange,
 						options: findMatchesOptions
 					};
 				}
 
-				return { ownerId: cellFindMatch.cell.handle, decorations: newFindMatchesDecorations };
+				wetuwn { ownewId: cewwFindMatch.ceww.handwe, decowations: newFindMatchesDecowations };
 			});
 
-			this._allMatchesDecorations = accessor.deltaDecorations(this._allMatchesDecorations, deltaDecorations);
+			this._awwMatchesDecowations = accessow.dewtaDecowations(this._awwMatchesDecowations, dewtaDecowations);
 		});
 	}
 
 
-	clear() {
-		this.set([], false);
+	cweaw() {
+		this.set([], fawse);
 	}
 }

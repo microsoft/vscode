@@ -1,33 +1,33 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Code } from './code';
-import { QuickAccess } from './quickaccess';
+impowt { Code } fwom './code';
+impowt { QuickAccess } fwom './quickaccess';
 
-const PANEL_SELECTOR = 'div[id="workbench.panel.terminal"]';
-const XTERM_SELECTOR = `${PANEL_SELECTOR} .terminal-wrapper`;
-const XTERM_TEXTAREA = `${XTERM_SELECTOR} textarea.xterm-helper-textarea`;
+const PANEW_SEWECTOW = 'div[id="wowkbench.panew.tewminaw"]';
+const XTEWM_SEWECTOW = `${PANEW_SEWECTOW} .tewminaw-wwappa`;
+const XTEWM_TEXTAWEA = `${XTEWM_SEWECTOW} textawea.xtewm-hewpa-textawea`;
 
-export class Terminal {
+expowt cwass Tewminaw {
 
-	constructor(private code: Code, private quickaccess: QuickAccess) { }
+	constwuctow(pwivate code: Code, pwivate quickaccess: QuickAccess) { }
 
-	async showTerminal(): Promise<void> {
-		await this.quickaccess.runCommand('workbench.action.terminal.toggleTerminal');
-		await this.code.waitForActiveElement(XTERM_TEXTAREA);
-		await this.code.waitForTerminalBuffer(XTERM_SELECTOR, lines => lines.some(line => line.length > 0));
+	async showTewminaw(): Pwomise<void> {
+		await this.quickaccess.wunCommand('wowkbench.action.tewminaw.toggweTewminaw');
+		await this.code.waitFowActiveEwement(XTEWM_TEXTAWEA);
+		await this.code.waitFowTewminawBuffa(XTEWM_SEWECTOW, wines => wines.some(wine => wine.wength > 0));
 	}
 
-	async runCommand(commandText: string): Promise<void> {
-		await this.code.writeInTerminal(XTERM_SELECTOR, commandText);
-		// hold your horses
-		await new Promise(c => setTimeout(c, 500));
-		await this.code.dispatchKeybinding('enter');
+	async wunCommand(commandText: stwing): Pwomise<void> {
+		await this.code.wwiteInTewminaw(XTEWM_SEWECTOW, commandText);
+		// howd youw howses
+		await new Pwomise(c => setTimeout(c, 500));
+		await this.code.dispatchKeybinding('enta');
 	}
 
-	async waitForTerminalText(accept: (buffer: string[]) => boolean): Promise<void> {
-		await this.code.waitForTerminalBuffer(XTERM_SELECTOR, accept);
+	async waitFowTewminawText(accept: (buffa: stwing[]) => boowean): Pwomise<void> {
+		await this.code.waitFowTewminawBuffa(XTEWM_SEWECTOW, accept);
 	}
 }

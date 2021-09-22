@@ -1,301 +1,301 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Widget } from 'vs/base/browser/ui/widget';
-import { IOverlayWidget, ICodeEditor, IOverlayWidgetPosition, OverlayWidgetPositionPreference, isCodeEditor, isCompositeEditor } from 'vs/editor/browser/editorBrowser';
-import { Emitter } from 'vs/base/common/event';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { $, append, clearNode } from 'vs/base/browser/dom';
-import { attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { buttonBackground, buttonForeground, editorBackground, editorForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
-import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { isEqual } from 'vs/base/common/resources';
-import { IFileService } from 'vs/platform/files/common/files';
-import { URI } from 'vs/base/common/uri';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IRange } from 'vs/editor/common/core/range';
-import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { TrackedRangeStickiness, IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+impowt { Widget } fwom 'vs/base/bwowsa/ui/widget';
+impowt { IOvewwayWidget, ICodeEditow, IOvewwayWidgetPosition, OvewwayWidgetPositionPwefewence, isCodeEditow, isCompositeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { $, append, cweawNode } fwom 'vs/base/bwowsa/dom';
+impowt { attachStywewCawwback } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { buttonBackgwound, buttonFowegwound, editowBackgwound, editowFowegwound, contwastBowda } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { IWowkspaceContextSewvice, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { hasWowkspaceFiweExtension } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { Disposabwe, DisposabweStowe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IWange } fwom 'vs/editow/common/cowe/wange';
+impowt { CuwsowChangeWeason, ICuwsowPositionChangedEvent } fwom 'vs/editow/common/contwowwa/cuwsowEvents';
+impowt { ModewDecowationOptions } fwom 'vs/editow/common/modew/textModew';
+impowt { TwackedWangeStickiness, IModewDecowationsChangeAccessow } fwom 'vs/editow/common/modew';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
 
-export interface IRangeHighlightDecoration {
-	resource: URI;
-	range: IRange;
-	isWholeLine?: boolean;
+expowt intewface IWangeHighwightDecowation {
+	wesouwce: UWI;
+	wange: IWange;
+	isWhoweWine?: boowean;
 }
 
-export class RangeHighlightDecorations extends Disposable {
+expowt cwass WangeHighwightDecowations extends Disposabwe {
 
-	private readonly _onHighlightRemoved = this._register(new Emitter<void>());
-	readonly onHighlightRemoved = this._onHighlightRemoved.event;
+	pwivate weadonwy _onHighwightWemoved = this._wegista(new Emitta<void>());
+	weadonwy onHighwightWemoved = this._onHighwightWemoved.event;
 
-	private rangeHighlightDecorationId: string | null = null;
-	private editor: ICodeEditor | null = null;
-	private readonly editorDisposables = this._register(new DisposableStore());
+	pwivate wangeHighwightDecowationId: stwing | nuww = nuww;
+	pwivate editow: ICodeEditow | nuww = nuww;
+	pwivate weadonwy editowDisposabwes = this._wegista(new DisposabweStowe());
 
-	constructor(@IEditorService private readonly editorService: IEditorService) {
-		super();
+	constwuctow(@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice) {
+		supa();
 	}
 
-	removeHighlightRange() {
-		if (this.editor?.getModel() && this.rangeHighlightDecorationId) {
-			this.editor.deltaDecorations([this.rangeHighlightDecorationId], []);
-			this._onHighlightRemoved.fire();
+	wemoveHighwightWange() {
+		if (this.editow?.getModew() && this.wangeHighwightDecowationId) {
+			this.editow.dewtaDecowations([this.wangeHighwightDecowationId], []);
+			this._onHighwightWemoved.fiwe();
 		}
 
-		this.rangeHighlightDecorationId = null;
+		this.wangeHighwightDecowationId = nuww;
 	}
 
-	highlightRange(range: IRangeHighlightDecoration, editor?: any) {
-		editor = editor ?? this.getEditor(range);
-		if (isCodeEditor(editor)) {
-			this.doHighlightRange(editor, range);
-		} else if (isCompositeEditor(editor) && isCodeEditor(editor.activeCodeEditor)) {
-			this.doHighlightRange(editor.activeCodeEditor, range);
+	highwightWange(wange: IWangeHighwightDecowation, editow?: any) {
+		editow = editow ?? this.getEditow(wange);
+		if (isCodeEditow(editow)) {
+			this.doHighwightWange(editow, wange);
+		} ewse if (isCompositeEditow(editow) && isCodeEditow(editow.activeCodeEditow)) {
+			this.doHighwightWange(editow.activeCodeEditow, wange);
 		}
 	}
 
-	private doHighlightRange(editor: ICodeEditor, selectionRange: IRangeHighlightDecoration) {
-		this.removeHighlightRange();
+	pwivate doHighwightWange(editow: ICodeEditow, sewectionWange: IWangeHighwightDecowation) {
+		this.wemoveHighwightWange();
 
-		editor.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
-			this.rangeHighlightDecorationId = changeAccessor.addDecoration(selectionRange.range, this.createRangeHighlightDecoration(selectionRange.isWholeLine));
+		editow.changeDecowations((changeAccessow: IModewDecowationsChangeAccessow) => {
+			this.wangeHighwightDecowationId = changeAccessow.addDecowation(sewectionWange.wange, this.cweateWangeHighwightDecowation(sewectionWange.isWhoweWine));
 		});
 
-		this.setEditor(editor);
+		this.setEditow(editow);
 	}
 
-	private getEditor(resourceRange: IRangeHighlightDecoration): ICodeEditor | undefined {
-		const resource = this.editorService.activeEditor?.resource;
-		if (resource && isEqual(resource, resourceRange.resource) && isCodeEditor(this.editorService.activeTextEditorControl)) {
-			return this.editorService.activeTextEditorControl;
+	pwivate getEditow(wesouwceWange: IWangeHighwightDecowation): ICodeEditow | undefined {
+		const wesouwce = this.editowSewvice.activeEditow?.wesouwce;
+		if (wesouwce && isEquaw(wesouwce, wesouwceWange.wesouwce) && isCodeEditow(this.editowSewvice.activeTextEditowContwow)) {
+			wetuwn this.editowSewvice.activeTextEditowContwow;
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private setEditor(editor: ICodeEditor) {
-		if (this.editor !== editor) {
-			this.editorDisposables.clear();
-			this.editor = editor;
-			this.editorDisposables.add(this.editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
+	pwivate setEditow(editow: ICodeEditow) {
+		if (this.editow !== editow) {
+			this.editowDisposabwes.cweaw();
+			this.editow = editow;
+			this.editowDisposabwes.add(this.editow.onDidChangeCuwsowPosition((e: ICuwsowPositionChangedEvent) => {
 				if (
-					e.reason === CursorChangeReason.NotSet
-					|| e.reason === CursorChangeReason.Explicit
-					|| e.reason === CursorChangeReason.Undo
-					|| e.reason === CursorChangeReason.Redo
+					e.weason === CuwsowChangeWeason.NotSet
+					|| e.weason === CuwsowChangeWeason.Expwicit
+					|| e.weason === CuwsowChangeWeason.Undo
+					|| e.weason === CuwsowChangeWeason.Wedo
 				) {
-					this.removeHighlightRange();
+					this.wemoveHighwightWange();
 				}
 			}));
-			this.editorDisposables.add(this.editor.onDidChangeModel(() => { this.removeHighlightRange(); }));
-			this.editorDisposables.add(this.editor.onDidDispose(() => {
-				this.removeHighlightRange();
-				this.editor = null;
+			this.editowDisposabwes.add(this.editow.onDidChangeModew(() => { this.wemoveHighwightWange(); }));
+			this.editowDisposabwes.add(this.editow.onDidDispose(() => {
+				this.wemoveHighwightWange();
+				this.editow = nuww;
 			}));
 		}
 	}
 
-	private static readonly _WHOLE_LINE_RANGE_HIGHLIGHT = ModelDecorationOptions.register({
-		description: 'codeeditor-range-highlight-whole',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		className: 'rangeHighlight',
-		isWholeLine: true
+	pwivate static weadonwy _WHOWE_WINE_WANGE_HIGHWIGHT = ModewDecowationOptions.wegista({
+		descwiption: 'codeeditow-wange-highwight-whowe',
+		stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges,
+		cwassName: 'wangeHighwight',
+		isWhoweWine: twue
 	});
 
-	private static readonly _RANGE_HIGHLIGHT = ModelDecorationOptions.register({
-		description: 'codeeditor-range-highlight',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		className: 'rangeHighlight'
+	pwivate static weadonwy _WANGE_HIGHWIGHT = ModewDecowationOptions.wegista({
+		descwiption: 'codeeditow-wange-highwight',
+		stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges,
+		cwassName: 'wangeHighwight'
 	});
 
-	private createRangeHighlightDecoration(isWholeLine: boolean = true): ModelDecorationOptions {
-		return (isWholeLine ? RangeHighlightDecorations._WHOLE_LINE_RANGE_HIGHLIGHT : RangeHighlightDecorations._RANGE_HIGHLIGHT);
+	pwivate cweateWangeHighwightDecowation(isWhoweWine: boowean = twue): ModewDecowationOptions {
+		wetuwn (isWhoweWine ? WangeHighwightDecowations._WHOWE_WINE_WANGE_HIGHWIGHT : WangeHighwightDecowations._WANGE_HIGHWIGHT);
 	}
 
-	override dispose() {
-		super.dispose();
+	ovewwide dispose() {
+		supa.dispose();
 
-		if (this.editor?.getModel()) {
-			this.removeHighlightRange();
-			this.editor = null;
+		if (this.editow?.getModew()) {
+			this.wemoveHighwightWange();
+			this.editow = nuww;
 		}
 	}
 }
 
-export class FloatingClickWidget extends Widget implements IOverlayWidget {
+expowt cwass FwoatingCwickWidget extends Widget impwements IOvewwayWidget {
 
-	private readonly _onClick = this._register(new Emitter<void>());
-	readonly onClick = this._onClick.event;
+	pwivate weadonwy _onCwick = this._wegista(new Emitta<void>());
+	weadonwy onCwick = this._onCwick.event;
 
-	private _domNode: HTMLElement;
+	pwivate _domNode: HTMWEwement;
 
-	constructor(
-		private editor: ICodeEditor,
-		private label: string,
-		keyBindingAction: string | null,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IThemeService private readonly themeService: IThemeService
+	constwuctow(
+		pwivate editow: ICodeEditow,
+		pwivate wabew: stwing,
+		keyBindingAction: stwing | nuww,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice
 	) {
-		super();
+		supa();
 
-		this._domNode = $('.floating-click-widget');
-		this._domNode.style.padding = '10px';
-		this._domNode.style.cursor = 'pointer';
+		this._domNode = $('.fwoating-cwick-widget');
+		this._domNode.stywe.padding = '10px';
+		this._domNode.stywe.cuwsow = 'pointa';
 
 		if (keyBindingAction) {
-			const keybinding = keybindingService.lookupKeybinding(keyBindingAction);
+			const keybinding = keybindingSewvice.wookupKeybinding(keyBindingAction);
 			if (keybinding) {
-				this.label += ` (${keybinding.getLabel()})`;
+				this.wabew += ` (${keybinding.getWabew()})`;
 			}
 		}
 	}
 
-	getId(): string {
-		return 'editor.overlayWidget.floatingClickWidget';
+	getId(): stwing {
+		wetuwn 'editow.ovewwayWidget.fwoatingCwickWidget';
 	}
 
-	getDomNode(): HTMLElement {
-		return this._domNode;
+	getDomNode(): HTMWEwement {
+		wetuwn this._domNode;
 	}
 
-	getPosition(): IOverlayWidgetPosition {
-		return {
-			preference: OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER
+	getPosition(): IOvewwayWidgetPosition {
+		wetuwn {
+			pwefewence: OvewwayWidgetPositionPwefewence.BOTTOM_WIGHT_COWNa
 		};
 	}
 
-	render() {
-		clearNode(this._domNode);
+	wenda() {
+		cweawNode(this._domNode);
 
-		this._register(attachStylerCallback(this.themeService, { buttonBackground, buttonForeground, editorBackground, editorForeground, contrastBorder }, colors => {
-			const backgroundColor = colors.buttonBackground ? colors.buttonBackground : colors.editorBackground;
-			if (backgroundColor) {
-				this._domNode.style.backgroundColor = backgroundColor.toString();
+		this._wegista(attachStywewCawwback(this.themeSewvice, { buttonBackgwound, buttonFowegwound, editowBackgwound, editowFowegwound, contwastBowda }, cowows => {
+			const backgwoundCowow = cowows.buttonBackgwound ? cowows.buttonBackgwound : cowows.editowBackgwound;
+			if (backgwoundCowow) {
+				this._domNode.stywe.backgwoundCowow = backgwoundCowow.toStwing();
 			}
 
-			const foregroundColor = colors.buttonForeground ? colors.buttonForeground : colors.editorForeground;
-			if (foregroundColor) {
-				this._domNode.style.color = foregroundColor.toString();
+			const fowegwoundCowow = cowows.buttonFowegwound ? cowows.buttonFowegwound : cowows.editowFowegwound;
+			if (fowegwoundCowow) {
+				this._domNode.stywe.cowow = fowegwoundCowow.toStwing();
 			}
 
-			const borderColor = colors.contrastBorder ? colors.contrastBorder.toString() : '';
-			this._domNode.style.borderWidth = borderColor ? '1px' : '';
-			this._domNode.style.borderStyle = borderColor ? 'solid' : '';
-			this._domNode.style.borderColor = borderColor;
+			const bowdewCowow = cowows.contwastBowda ? cowows.contwastBowda.toStwing() : '';
+			this._domNode.stywe.bowdewWidth = bowdewCowow ? '1px' : '';
+			this._domNode.stywe.bowdewStywe = bowdewCowow ? 'sowid' : '';
+			this._domNode.stywe.bowdewCowow = bowdewCowow;
 		}));
 
-		append(this._domNode, $('')).textContent = this.label;
+		append(this._domNode, $('')).textContent = this.wabew;
 
-		this.onclick(this._domNode, e => this._onClick.fire());
+		this.oncwick(this._domNode, e => this._onCwick.fiwe());
 
-		this.editor.addOverlayWidget(this);
+		this.editow.addOvewwayWidget(this);
 	}
 
-	override dispose(): void {
-		this.editor.removeOverlayWidget(this);
+	ovewwide dispose(): void {
+		this.editow.wemoveOvewwayWidget(this);
 
-		super.dispose();
+		supa.dispose();
 	}
 }
 
-export class OpenWorkspaceButtonContribution extends Disposable implements IEditorContribution {
+expowt cwass OpenWowkspaceButtonContwibution extends Disposabwe impwements IEditowContwibution {
 
-	static get(editor: ICodeEditor): OpenWorkspaceButtonContribution {
-		return editor.getContribution<OpenWorkspaceButtonContribution>(OpenWorkspaceButtonContribution.ID);
+	static get(editow: ICodeEditow): OpenWowkspaceButtonContwibution {
+		wetuwn editow.getContwibution<OpenWowkspaceButtonContwibution>(OpenWowkspaceButtonContwibution.ID);
 	}
 
-	public static readonly ID = 'editor.contrib.openWorkspaceButton';
+	pubwic static weadonwy ID = 'editow.contwib.openWowkspaceButton';
 
-	private openWorkspaceButton: FloatingClickWidget | undefined;
+	pwivate openWowkspaceButton: FwoatingCwickWidget | undefined;
 
-	constructor(
-		private editor: ICodeEditor,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IHostService private readonly hostService: IHostService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IFileService private readonly fileService: IFileService
+	constwuctow(
+		pwivate editow: ICodeEditow,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IHostSewvice pwivate weadonwy hostSewvice: IHostSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice
 	) {
-		super();
+		supa();
 
 		this.update();
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		this._register(this.editor.onDidChangeModel(e => this.update()));
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.editow.onDidChangeModew(e => this.update()));
 	}
 
-	private update(): void {
-		if (!this.shouldShowButton(this.editor)) {
-			this.disposeOpenWorkspaceWidgetRenderer();
-			return;
+	pwivate update(): void {
+		if (!this.shouwdShowButton(this.editow)) {
+			this.disposeOpenWowkspaceWidgetWendewa();
+			wetuwn;
 		}
 
-		this.createOpenWorkspaceWidgetRenderer();
+		this.cweateOpenWowkspaceWidgetWendewa();
 	}
 
-	private shouldShowButton(editor: ICodeEditor): boolean {
-		const model = editor.getModel();
-		if (!model) {
-			return false; // we need a model
+	pwivate shouwdShowButton(editow: ICodeEditow): boowean {
+		const modew = editow.getModew();
+		if (!modew) {
+			wetuwn fawse; // we need a modew
 		}
 
-		if (!hasWorkspaceFileExtension(model.uri)) {
-			return false; // we need a workspace file
+		if (!hasWowkspaceFiweExtension(modew.uwi)) {
+			wetuwn fawse; // we need a wowkspace fiwe
 		}
 
-		if (!this.fileService.canHandleResource(model.uri)) {
-			return false; // needs to be backed by a file service
+		if (!this.fiweSewvice.canHandweWesouwce(modew.uwi)) {
+			wetuwn fawse; // needs to be backed by a fiwe sewvice
 		}
 
-		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-			const workspaceConfiguration = this.contextService.getWorkspace().configuration;
-			if (workspaceConfiguration && isEqual(workspaceConfiguration, model.uri)) {
-				return false; // already inside workspace
+		if (this.contextSewvice.getWowkbenchState() === WowkbenchState.WOWKSPACE) {
+			const wowkspaceConfiguwation = this.contextSewvice.getWowkspace().configuwation;
+			if (wowkspaceConfiguwation && isEquaw(wowkspaceConfiguwation, modew.uwi)) {
+				wetuwn fawse; // awweady inside wowkspace
 			}
 		}
 
-		if (editor.getOption(EditorOption.inDiffEditor)) {
-			// in diff editor
-			return false;
+		if (editow.getOption(EditowOption.inDiffEditow)) {
+			// in diff editow
+			wetuwn fawse;
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	private createOpenWorkspaceWidgetRenderer(): void {
-		if (!this.openWorkspaceButton) {
-			this.openWorkspaceButton = this.instantiationService.createInstance(FloatingClickWidget, this.editor, localize('openWorkspace', "Open Workspace"), null);
-			this._register(this.openWorkspaceButton.onClick(() => {
-				const model = this.editor.getModel();
-				if (model) {
-					this.hostService.openWindow([{ workspaceUri: model.uri }]);
+	pwivate cweateOpenWowkspaceWidgetWendewa(): void {
+		if (!this.openWowkspaceButton) {
+			this.openWowkspaceButton = this.instantiationSewvice.cweateInstance(FwoatingCwickWidget, this.editow, wocawize('openWowkspace', "Open Wowkspace"), nuww);
+			this._wegista(this.openWowkspaceButton.onCwick(() => {
+				const modew = this.editow.getModew();
+				if (modew) {
+					this.hostSewvice.openWindow([{ wowkspaceUwi: modew.uwi }]);
 				}
 			}));
 
-			this.openWorkspaceButton.render();
+			this.openWowkspaceButton.wenda();
 		}
 	}
 
-	private disposeOpenWorkspaceWidgetRenderer(): void {
-		dispose(this.openWorkspaceButton);
-		this.openWorkspaceButton = undefined;
+	pwivate disposeOpenWowkspaceWidgetWendewa(): void {
+		dispose(this.openWowkspaceButton);
+		this.openWowkspaceButton = undefined;
 	}
 
-	override dispose(): void {
-		this.disposeOpenWorkspaceWidgetRenderer();
+	ovewwide dispose(): void {
+		this.disposeOpenWowkspaceWidgetWendewa();
 
-		super.dispose();
+		supa.dispose();
 	}
 }

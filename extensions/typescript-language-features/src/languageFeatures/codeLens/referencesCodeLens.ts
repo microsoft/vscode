@@ -1,139 +1,139 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import type * as Proto from '../../protocol';
-import * as PConst from '../../protocol.const';
-import { CachedResponse } from '../../tsServer/cachedResponse';
-import { ExecutionTarget } from '../../tsServer/server';
-import { ClientCapability, ITypeScriptServiceClient } from '../../typescriptService';
-import { conditionalRegistration, requireConfiguration, requireSomeCapability } from '../../utils/dependentRegistration';
-import { DocumentSelector } from '../../utils/documentSelector';
-import * as typeConverters from '../../utils/typeConverters';
-import { getSymbolRange, ReferencesCodeLens, TypeScriptBaseCodeLensProvider } from './baseCodeLensProvider';
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt type * as Pwoto fwom '../../pwotocow';
+impowt * as PConst fwom '../../pwotocow.const';
+impowt { CachedWesponse } fwom '../../tsSewva/cachedWesponse';
+impowt { ExecutionTawget } fwom '../../tsSewva/sewva';
+impowt { CwientCapabiwity, ITypeScwiptSewviceCwient } fwom '../../typescwiptSewvice';
+impowt { conditionawWegistwation, wequiweConfiguwation, wequiweSomeCapabiwity } fwom '../../utiws/dependentWegistwation';
+impowt { DocumentSewectow } fwom '../../utiws/documentSewectow';
+impowt * as typeConvewtews fwom '../../utiws/typeConvewtews';
+impowt { getSymbowWange, WefewencesCodeWens, TypeScwiptBaseCodeWensPwovida } fwom './baseCodeWensPwovida';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvider {
-	public constructor(
-		client: ITypeScriptServiceClient,
-		protected _cachedResponse: CachedResponse<Proto.NavTreeResponse>,
-		private modeId: string
+expowt cwass TypeScwiptWefewencesCodeWensPwovida extends TypeScwiptBaseCodeWensPwovida {
+	pubwic constwuctow(
+		cwient: ITypeScwiptSewviceCwient,
+		pwotected _cachedWesponse: CachedWesponse<Pwoto.NavTweeWesponse>,
+		pwivate modeId: stwing
 	) {
-		super(client, _cachedResponse);
+		supa(cwient, _cachedWesponse);
 	}
 
-	public async resolveCodeLens(codeLens: ReferencesCodeLens, token: vscode.CancellationToken): Promise<vscode.CodeLens> {
-		const args = typeConverters.Position.toFileLocationRequestArgs(codeLens.file, codeLens.range.start);
-		const response = await this.client.execute('references', args, token, {
-			lowPriority: true,
-			executionTarget: ExecutionTarget.Semantic,
-			cancelOnResourceChange: codeLens.document,
+	pubwic async wesowveCodeWens(codeWens: WefewencesCodeWens, token: vscode.CancewwationToken): Pwomise<vscode.CodeWens> {
+		const awgs = typeConvewtews.Position.toFiweWocationWequestAwgs(codeWens.fiwe, codeWens.wange.stawt);
+		const wesponse = await this.cwient.execute('wefewences', awgs, token, {
+			wowPwiowity: twue,
+			executionTawget: ExecutionTawget.Semantic,
+			cancewOnWesouwceChange: codeWens.document,
 		});
-		if (response.type !== 'response' || !response.body) {
-			codeLens.command = response.type === 'cancelled'
-				? TypeScriptBaseCodeLensProvider.cancelledCommand
-				: TypeScriptBaseCodeLensProvider.errorCommand;
-			return codeLens;
+		if (wesponse.type !== 'wesponse' || !wesponse.body) {
+			codeWens.command = wesponse.type === 'cancewwed'
+				? TypeScwiptBaseCodeWensPwovida.cancewwedCommand
+				: TypeScwiptBaseCodeWensPwovida.ewwowCommand;
+			wetuwn codeWens;
 		}
 
-		const locations = response.body.refs
-			.filter(reference => !reference.isDefinition)
-			.map(reference =>
-				typeConverters.Location.fromTextSpan(this.client.toResource(reference.file), reference));
+		const wocations = wesponse.body.wefs
+			.fiwta(wefewence => !wefewence.isDefinition)
+			.map(wefewence =>
+				typeConvewtews.Wocation.fwomTextSpan(this.cwient.toWesouwce(wefewence.fiwe), wefewence));
 
-		codeLens.command = {
-			title: this.getCodeLensLabel(locations),
-			command: locations.length ? 'editor.action.showReferences' : '',
-			arguments: [codeLens.document, codeLens.range.start, locations]
+		codeWens.command = {
+			titwe: this.getCodeWensWabew(wocations),
+			command: wocations.wength ? 'editow.action.showWefewences' : '',
+			awguments: [codeWens.document, codeWens.wange.stawt, wocations]
 		};
-		return codeLens;
+		wetuwn codeWens;
 	}
 
-	private getCodeLensLabel(locations: ReadonlyArray<vscode.Location>): string {
-		return locations.length === 1
-			? localize('oneReferenceLabel', '1 reference')
-			: localize('manyReferenceLabel', '{0} references', locations.length);
+	pwivate getCodeWensWabew(wocations: WeadonwyAwway<vscode.Wocation>): stwing {
+		wetuwn wocations.wength === 1
+			? wocawize('oneWefewenceWabew', '1 wefewence')
+			: wocawize('manyWefewenceWabew', '{0} wefewences', wocations.wength);
 	}
 
-	protected extractSymbol(
+	pwotected extwactSymbow(
 		document: vscode.TextDocument,
-		item: Proto.NavigationTree,
-		parent: Proto.NavigationTree | null
-	): vscode.Range | null {
-		if (parent && parent.kind === PConst.Kind.enum) {
-			return getSymbolRange(document, item);
+		item: Pwoto.NavigationTwee,
+		pawent: Pwoto.NavigationTwee | nuww
+	): vscode.Wange | nuww {
+		if (pawent && pawent.kind === PConst.Kind.enum) {
+			wetuwn getSymbowWange(document, item);
 		}
 
 		switch (item.kind) {
 			case PConst.Kind.function:
-				const showOnAllFunctions = vscode.workspace.getConfiguration(this.modeId).get<boolean>('referencesCodeLens.showOnAllFunctions');
-				if (showOnAllFunctions) {
-					return getSymbolRange(document, item);
+				const showOnAwwFunctions = vscode.wowkspace.getConfiguwation(this.modeId).get<boowean>('wefewencesCodeWens.showOnAwwFunctions');
+				if (showOnAwwFunctions) {
+					wetuwn getSymbowWange(document, item);
 				}
-			// fallthrough
+			// fawwthwough
 
 			case PConst.Kind.const:
-			case PConst.Kind.let:
-			case PConst.Kind.variable:
-				// Only show references for exported variables
-				if (/\bexport\b/.test(item.kindModifiers)) {
-					return getSymbolRange(document, item);
+			case PConst.Kind.wet:
+			case PConst.Kind.vawiabwe:
+				// Onwy show wefewences fow expowted vawiabwes
+				if (/\bexpowt\b/.test(item.kindModifiews)) {
+					wetuwn getSymbowWange(document, item);
 				}
-				break;
+				bweak;
 
-			case PConst.Kind.class:
-				if (item.text === '<class>') {
-					break;
+			case PConst.Kind.cwass:
+				if (item.text === '<cwass>') {
+					bweak;
 				}
-				return getSymbolRange(document, item);
+				wetuwn getSymbowWange(document, item);
 
-			case PConst.Kind.interface:
+			case PConst.Kind.intewface:
 			case PConst.Kind.type:
 			case PConst.Kind.enum:
-				return getSymbolRange(document, item);
+				wetuwn getSymbowWange(document, item);
 
 			case PConst.Kind.method:
-			case PConst.Kind.memberGetAccessor:
-			case PConst.Kind.memberSetAccessor:
-			case PConst.Kind.constructorImplementation:
-			case PConst.Kind.memberVariable:
-				// Don't show if child and parent have same start
-				// For https://github.com/microsoft/vscode/issues/90396
-				if (parent &&
-					typeConverters.Position.fromLocation(parent.spans[0].start).isEqual(typeConverters.Position.fromLocation(item.spans[0].start))
+			case PConst.Kind.membewGetAccessow:
+			case PConst.Kind.membewSetAccessow:
+			case PConst.Kind.constwuctowImpwementation:
+			case PConst.Kind.membewVawiabwe:
+				// Don't show if chiwd and pawent have same stawt
+				// Fow https://github.com/micwosoft/vscode/issues/90396
+				if (pawent &&
+					typeConvewtews.Position.fwomWocation(pawent.spans[0].stawt).isEquaw(typeConvewtews.Position.fwomWocation(item.spans[0].stawt))
 				) {
-					return null;
+					wetuwn nuww;
 				}
 
-				// Only show if parent is a class type object (not a literal)
-				switch (parent?.kind) {
-					case PConst.Kind.class:
-					case PConst.Kind.interface:
+				// Onwy show if pawent is a cwass type object (not a witewaw)
+				switch (pawent?.kind) {
+					case PConst.Kind.cwass:
+					case PConst.Kind.intewface:
 					case PConst.Kind.type:
-						return getSymbolRange(document, item);
+						wetuwn getSymbowWange(document, item);
 				}
-				break;
+				bweak;
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 }
 
-export function register(
-	selector: DocumentSelector,
-	modeId: string,
-	client: ITypeScriptServiceClient,
-	cachedResponse: CachedResponse<Proto.NavTreeResponse>,
+expowt function wegista(
+	sewectow: DocumentSewectow,
+	modeId: stwing,
+	cwient: ITypeScwiptSewviceCwient,
+	cachedWesponse: CachedWesponse<Pwoto.NavTweeWesponse>,
 ) {
-	return conditionalRegistration([
-		requireConfiguration(modeId, 'referencesCodeLens.enabled'),
-		requireSomeCapability(client, ClientCapability.Semantic),
+	wetuwn conditionawWegistwation([
+		wequiweConfiguwation(modeId, 'wefewencesCodeWens.enabwed'),
+		wequiweSomeCapabiwity(cwient, CwientCapabiwity.Semantic),
 	], () => {
-		return vscode.languages.registerCodeLensProvider(selector.semantic,
-			new TypeScriptReferencesCodeLensProvider(client, cachedResponse, modeId));
+		wetuwn vscode.wanguages.wegistewCodeWensPwovida(sewectow.semantic,
+			new TypeScwiptWefewencesCodeWensPwovida(cwient, cachedWesponse, modeId));
 	});
 }

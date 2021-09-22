@@ -1,50 +1,50 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
-import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IDiagnosticInfoOptions, IDiagnosticInfo } fwom 'vs/pwatfowm/diagnostics/common/diagnostics';
+impowt { ExtensionIdentifia, IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { ISocketFactowy } fwom 'vs/pwatfowm/wemote/common/wemoteAgentConnection';
+impowt { IWemoteAgentEnviwonment } fwom 'vs/pwatfowm/wemote/common/wemoteAgentEnviwonment';
+impowt { ITewemetwyData } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IWemoteAgentConnection, IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
 
-export class TestRemoteAgentService implements IRemoteAgentService {
-	_serviceBrand: undefined;
-	socketFactory: ISocketFactory = {
+expowt cwass TestWemoteAgentSewvice impwements IWemoteAgentSewvice {
+	_sewviceBwand: undefined;
+	socketFactowy: ISocketFactowy = {
 		connect() { }
 	};
-	getConnection(): IRemoteAgentConnection | null {
-		throw new Error('Method not implemented.');
+	getConnection(): IWemoteAgentConnection | nuww {
+		thwow new Ewwow('Method not impwemented.');
 	}
-	getEnvironment(): Promise<IRemoteAgentEnvironment | null> {
-		throw new Error('Method not implemented.');
+	getEnviwonment(): Pwomise<IWemoteAgentEnviwonment | nuww> {
+		thwow new Ewwow('Method not impwemented.');
 	}
-	getRawEnvironment(): Promise<IRemoteAgentEnvironment | null> {
-		throw new Error('Method not implemented.');
+	getWawEnviwonment(): Pwomise<IWemoteAgentEnviwonment | nuww> {
+		thwow new Ewwow('Method not impwemented.');
 	}
-	whenExtensionsReady(): Promise<void> {
-		throw new Error('Method not implemented.');
+	whenExtensionsWeady(): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
 	}
-	scanExtensions(skipExtensions?: ExtensionIdentifier[]): Promise<IExtensionDescription[]> {
-		throw new Error('Method not implemented.');
+	scanExtensions(skipExtensions?: ExtensionIdentifia[]): Pwomise<IExtensionDescwiption[]> {
+		thwow new Ewwow('Method not impwemented.');
 	}
-	scanSingleExtension(extensionLocation: URI, isBuiltin: boolean): Promise<IExtensionDescription | null> {
-		throw new Error('Method not implemented.');
+	scanSingweExtension(extensionWocation: UWI, isBuiwtin: boowean): Pwomise<IExtensionDescwiption | nuww> {
+		thwow new Ewwow('Method not impwemented.');
 	}
-	getDiagnosticInfo(options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo | undefined> {
-		throw new Error('Method not implemented.');
+	getDiagnosticInfo(options: IDiagnosticInfoOptions): Pwomise<IDiagnosticInfo | undefined> {
+		thwow new Ewwow('Method not impwemented.');
 	}
-	disableTelemetry(): Promise<void> {
-		throw new Error('Method not implemented.');
+	disabweTewemetwy(): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
 	}
-	logTelemetry(eventName: string, data?: ITelemetryData): Promise<void> {
-		throw new Error('Method not implemented.');
+	wogTewemetwy(eventName: stwing, data?: ITewemetwyData): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
 	}
-	flushTelemetry(): Promise<void> {
-		throw new Error('Method not implemented.');
+	fwushTewemetwy(): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
 }

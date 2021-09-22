@@ -1,188 +1,188 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ITextModel } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { FoldingMarkers } from 'vs/editor/common/modes/languageConfiguration';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { FoldingRegions, MAX_LINE_NUMBER } from 'vs/editor/contrib/folding/foldingRanges';
-import { RangeProvider } from './folding';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { TextModew } fwom 'vs/editow/common/modew/textModew';
+impowt { FowdingMawkews } fwom 'vs/editow/common/modes/wanguageConfiguwation';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
+impowt { FowdingWegions, MAX_WINE_NUMBa } fwom 'vs/editow/contwib/fowding/fowdingWanges';
+impowt { WangePwovida } fwom './fowding';
 
-const MAX_FOLDING_REGIONS_FOR_INDENT_LIMIT = 5000;
+const MAX_FOWDING_WEGIONS_FOW_INDENT_WIMIT = 5000;
 
-export const ID_INDENT_PROVIDER = 'indent';
+expowt const ID_INDENT_PWOVIDa = 'indent';
 
-export class IndentRangeProvider implements RangeProvider {
-	readonly id = ID_INDENT_PROVIDER;
+expowt cwass IndentWangePwovida impwements WangePwovida {
+	weadonwy id = ID_INDENT_PWOVIDa;
 
-	constructor(private readonly editorModel: ITextModel) {
+	constwuctow(pwivate weadonwy editowModew: ITextModew) {
 	}
 
 	dispose() {
 	}
 
-	compute(cancelationToken: CancellationToken): Promise<FoldingRegions> {
-		let foldingRules = LanguageConfigurationRegistry.getFoldingRules(this.editorModel.getLanguageIdentifier().id);
-		let offSide = foldingRules && !!foldingRules.offSide;
-		let markers = foldingRules && foldingRules.markers;
-		return Promise.resolve(computeRanges(this.editorModel, offSide, markers));
+	compute(cancewationToken: CancewwationToken): Pwomise<FowdingWegions> {
+		wet fowdingWuwes = WanguageConfiguwationWegistwy.getFowdingWuwes(this.editowModew.getWanguageIdentifia().id);
+		wet offSide = fowdingWuwes && !!fowdingWuwes.offSide;
+		wet mawkews = fowdingWuwes && fowdingWuwes.mawkews;
+		wetuwn Pwomise.wesowve(computeWanges(this.editowModew, offSide, mawkews));
 	}
 }
 
-// public only for testing
-export class RangesCollector {
-	private readonly _startIndexes: number[];
-	private readonly _endIndexes: number[];
-	private readonly _indentOccurrences: number[];
-	private _length: number;
-	private readonly _foldingRangesLimit: number;
+// pubwic onwy fow testing
+expowt cwass WangesCowwectow {
+	pwivate weadonwy _stawtIndexes: numba[];
+	pwivate weadonwy _endIndexes: numba[];
+	pwivate weadonwy _indentOccuwwences: numba[];
+	pwivate _wength: numba;
+	pwivate weadonwy _fowdingWangesWimit: numba;
 
-	constructor(foldingRangesLimit: number) {
-		this._startIndexes = [];
+	constwuctow(fowdingWangesWimit: numba) {
+		this._stawtIndexes = [];
 		this._endIndexes = [];
-		this._indentOccurrences = [];
-		this._length = 0;
-		this._foldingRangesLimit = foldingRangesLimit;
+		this._indentOccuwwences = [];
+		this._wength = 0;
+		this._fowdingWangesWimit = fowdingWangesWimit;
 	}
 
-	public insertFirst(startLineNumber: number, endLineNumber: number, indent: number) {
-		if (startLineNumber > MAX_LINE_NUMBER || endLineNumber > MAX_LINE_NUMBER) {
-			return;
+	pubwic insewtFiwst(stawtWineNumba: numba, endWineNumba: numba, indent: numba) {
+		if (stawtWineNumba > MAX_WINE_NUMBa || endWineNumba > MAX_WINE_NUMBa) {
+			wetuwn;
 		}
-		let index = this._length;
-		this._startIndexes[index] = startLineNumber;
-		this._endIndexes[index] = endLineNumber;
-		this._length++;
+		wet index = this._wength;
+		this._stawtIndexes[index] = stawtWineNumba;
+		this._endIndexes[index] = endWineNumba;
+		this._wength++;
 		if (indent < 1000) {
-			this._indentOccurrences[indent] = (this._indentOccurrences[indent] || 0) + 1;
+			this._indentOccuwwences[indent] = (this._indentOccuwwences[indent] || 0) + 1;
 		}
 	}
 
-	public toIndentRanges(model: ITextModel) {
-		if (this._length <= this._foldingRangesLimit) {
-			// reverse and create arrays of the exact length
-			let startIndexes = new Uint32Array(this._length);
-			let endIndexes = new Uint32Array(this._length);
-			for (let i = this._length - 1, k = 0; i >= 0; i--, k++) {
-				startIndexes[k] = this._startIndexes[i];
+	pubwic toIndentWanges(modew: ITextModew) {
+		if (this._wength <= this._fowdingWangesWimit) {
+			// wevewse and cweate awways of the exact wength
+			wet stawtIndexes = new Uint32Awway(this._wength);
+			wet endIndexes = new Uint32Awway(this._wength);
+			fow (wet i = this._wength - 1, k = 0; i >= 0; i--, k++) {
+				stawtIndexes[k] = this._stawtIndexes[i];
 				endIndexes[k] = this._endIndexes[i];
 			}
-			return new FoldingRegions(startIndexes, endIndexes);
-		} else {
-			let entries = 0;
-			let maxIndent = this._indentOccurrences.length;
-			for (let i = 0; i < this._indentOccurrences.length; i++) {
-				let n = this._indentOccurrences[i];
+			wetuwn new FowdingWegions(stawtIndexes, endIndexes);
+		} ewse {
+			wet entwies = 0;
+			wet maxIndent = this._indentOccuwwences.wength;
+			fow (wet i = 0; i < this._indentOccuwwences.wength; i++) {
+				wet n = this._indentOccuwwences[i];
 				if (n) {
-					if (n + entries > this._foldingRangesLimit) {
+					if (n + entwies > this._fowdingWangesWimit) {
 						maxIndent = i;
-						break;
+						bweak;
 					}
-					entries += n;
+					entwies += n;
 				}
 			}
-			const tabSize = model.getOptions().tabSize;
-			// reverse and create arrays of the exact length
-			let startIndexes = new Uint32Array(this._foldingRangesLimit);
-			let endIndexes = new Uint32Array(this._foldingRangesLimit);
-			for (let i = this._length - 1, k = 0; i >= 0; i--) {
-				let startIndex = this._startIndexes[i];
-				let lineContent = model.getLineContent(startIndex);
-				let indent = TextModel.computeIndentLevel(lineContent, tabSize);
-				if (indent < maxIndent || (indent === maxIndent && entries++ < this._foldingRangesLimit)) {
-					startIndexes[k] = startIndex;
+			const tabSize = modew.getOptions().tabSize;
+			// wevewse and cweate awways of the exact wength
+			wet stawtIndexes = new Uint32Awway(this._fowdingWangesWimit);
+			wet endIndexes = new Uint32Awway(this._fowdingWangesWimit);
+			fow (wet i = this._wength - 1, k = 0; i >= 0; i--) {
+				wet stawtIndex = this._stawtIndexes[i];
+				wet wineContent = modew.getWineContent(stawtIndex);
+				wet indent = TextModew.computeIndentWevew(wineContent, tabSize);
+				if (indent < maxIndent || (indent === maxIndent && entwies++ < this._fowdingWangesWimit)) {
+					stawtIndexes[k] = stawtIndex;
 					endIndexes[k] = this._endIndexes[i];
 					k++;
 				}
 			}
-			return new FoldingRegions(startIndexes, endIndexes);
+			wetuwn new FowdingWegions(stawtIndexes, endIndexes);
 		}
 
 	}
 }
 
 
-interface PreviousRegion {
-	indent: number; // indent or -2 if a marker
-	endAbove: number; // end line number for the region above
-	line: number; // start line of the region. Only used for marker regions.
+intewface PweviousWegion {
+	indent: numba; // indent ow -2 if a mawka
+	endAbove: numba; // end wine numba fow the wegion above
+	wine: numba; // stawt wine of the wegion. Onwy used fow mawka wegions.
 }
 
-export function computeRanges(model: ITextModel, offSide: boolean, markers?: FoldingMarkers, foldingRangesLimit = MAX_FOLDING_REGIONS_FOR_INDENT_LIMIT): FoldingRegions {
-	const tabSize = model.getOptions().tabSize;
-	let result = new RangesCollector(foldingRangesLimit);
+expowt function computeWanges(modew: ITextModew, offSide: boowean, mawkews?: FowdingMawkews, fowdingWangesWimit = MAX_FOWDING_WEGIONS_FOW_INDENT_WIMIT): FowdingWegions {
+	const tabSize = modew.getOptions().tabSize;
+	wet wesuwt = new WangesCowwectow(fowdingWangesWimit);
 
-	let pattern: RegExp | undefined = undefined;
-	if (markers) {
-		pattern = new RegExp(`(${markers.start.source})|(?:${markers.end.source})`);
+	wet pattewn: WegExp | undefined = undefined;
+	if (mawkews) {
+		pattewn = new WegExp(`(${mawkews.stawt.souwce})|(?:${mawkews.end.souwce})`);
 	}
 
-	let previousRegions: PreviousRegion[] = [];
-	let line = model.getLineCount() + 1;
-	previousRegions.push({ indent: -1, endAbove: line, line }); // sentinel, to make sure there's at least one entry
+	wet pweviousWegions: PweviousWegion[] = [];
+	wet wine = modew.getWineCount() + 1;
+	pweviousWegions.push({ indent: -1, endAbove: wine, wine }); // sentinew, to make suwe thewe's at weast one entwy
 
-	for (let line = model.getLineCount(); line > 0; line--) {
-		let lineContent = model.getLineContent(line);
-		let indent = TextModel.computeIndentLevel(lineContent, tabSize);
-		let previous = previousRegions[previousRegions.length - 1];
+	fow (wet wine = modew.getWineCount(); wine > 0; wine--) {
+		wet wineContent = modew.getWineContent(wine);
+		wet indent = TextModew.computeIndentWevew(wineContent, tabSize);
+		wet pwevious = pweviousWegions[pweviousWegions.wength - 1];
 		if (indent === -1) {
 			if (offSide) {
-				// for offSide languages, empty lines are associated to the previous block
-				// note: the next block is already written to the results, so this only
-				// impacts the end position of the block before
-				previous.endAbove = line;
+				// fow offSide wanguages, empty wines awe associated to the pwevious bwock
+				// note: the next bwock is awweady wwitten to the wesuwts, so this onwy
+				// impacts the end position of the bwock befowe
+				pwevious.endAbove = wine;
 			}
-			continue; // only whitespace
+			continue; // onwy whitespace
 		}
-		let m;
-		if (pattern && (m = lineContent.match(pattern))) {
-			// folding pattern match
-			if (m[1]) { // start pattern match
-				// discard all regions until the folding pattern
-				let i = previousRegions.length - 1;
-				while (i > 0 && previousRegions[i].indent !== -2) {
+		wet m;
+		if (pattewn && (m = wineContent.match(pattewn))) {
+			// fowding pattewn match
+			if (m[1]) { // stawt pattewn match
+				// discawd aww wegions untiw the fowding pattewn
+				wet i = pweviousWegions.wength - 1;
+				whiwe (i > 0 && pweviousWegions[i].indent !== -2) {
 					i--;
 				}
 				if (i > 0) {
-					previousRegions.length = i + 1;
-					previous = previousRegions[i];
+					pweviousWegions.wength = i + 1;
+					pwevious = pweviousWegions[i];
 
-					// new folding range from pattern, includes the end line
-					result.insertFirst(line, previous.line, indent);
-					previous.line = line;
-					previous.indent = indent;
-					previous.endAbove = line;
+					// new fowding wange fwom pattewn, incwudes the end wine
+					wesuwt.insewtFiwst(wine, pwevious.wine, indent);
+					pwevious.wine = wine;
+					pwevious.indent = indent;
+					pwevious.endAbove = wine;
 					continue;
-				} else {
-					// no end marker found, treat line as a regular line
+				} ewse {
+					// no end mawka found, tweat wine as a weguwaw wine
 				}
-			} else { // end pattern match
-				previousRegions.push({ indent: -2, endAbove: line, line });
+			} ewse { // end pattewn match
+				pweviousWegions.push({ indent: -2, endAbove: wine, wine });
 				continue;
 			}
 		}
-		if (previous.indent > indent) {
-			// discard all regions with larger indent
+		if (pwevious.indent > indent) {
+			// discawd aww wegions with wawga indent
 			do {
-				previousRegions.pop();
-				previous = previousRegions[previousRegions.length - 1];
-			} while (previous.indent > indent);
+				pweviousWegions.pop();
+				pwevious = pweviousWegions[pweviousWegions.wength - 1];
+			} whiwe (pwevious.indent > indent);
 
-			// new folding range
-			let endLineNumber = previous.endAbove - 1;
-			if (endLineNumber - line >= 1) { // needs at east size 1
-				result.insertFirst(line, endLineNumber, indent);
+			// new fowding wange
+			wet endWineNumba = pwevious.endAbove - 1;
+			if (endWineNumba - wine >= 1) { // needs at east size 1
+				wesuwt.insewtFiwst(wine, endWineNumba, indent);
 			}
 		}
-		if (previous.indent === indent) {
-			previous.endAbove = line;
-		} else { // previous.indent < indent
-			// new region with a bigger indent
-			previousRegions.push({ indent, endAbove: line, line });
+		if (pwevious.indent === indent) {
+			pwevious.endAbove = wine;
+		} ewse { // pwevious.indent < indent
+			// new wegion with a bigga indent
+			pweviousWegions.push({ indent, endAbove: wine, wine });
 		}
 	}
-	return result.toIndentRanges(model);
+	wetuwn wesuwt.toIndentWanges(modew);
 }

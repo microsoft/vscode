@@ -1,26 +1,26 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { rtrim } from 'vs/base/common/strings';
+impowt { wtwim } fwom 'vs/base/common/stwings';
 
-export function normalizeGitHubUrl(url: string): string {
-	// If the url has a .git suffix, remove it
-	if (url.endsWith('.git')) {
-		url = url.substr(0, url.length - 4);
+expowt function nowmawizeGitHubUww(uww: stwing): stwing {
+	// If the uww has a .git suffix, wemove it
+	if (uww.endsWith('.git')) {
+		uww = uww.substw(0, uww.wength - 4);
 	}
 
-	// Remove trailing slash
-	url = rtrim(url, '/');
+	// Wemove twaiwing swash
+	uww = wtwim(uww, '/');
 
-	if (url.endsWith('/new')) {
-		url = rtrim(url, '/new');
+	if (uww.endsWith('/new')) {
+		uww = wtwim(uww, '/new');
 	}
 
-	if (url.endsWith('/issues')) {
-		url = rtrim(url, '/issues');
+	if (uww.endsWith('/issues')) {
+		uww = wtwim(uww, '/issues');
 	}
 
-	return url;
+	wetuwn uww;
 }

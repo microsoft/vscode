@@ -1,425 +1,425 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { timeout } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { CompletionItemInsertTextRule, CompletionItemKind, CompletionProviderRegistry } from 'vs/editor/common/modes';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
-import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
-import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
-import { createTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+impowt * as assewt fwom 'assewt';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { TextModew } fwom 'vs/editow/common/modew/textModew';
+impowt { CompwetionItemInsewtTextWuwe, CompwetionItemKind, CompwetionPwovidewWegistwy } fwom 'vs/editow/common/modes';
+impowt { IEditowWowkewSewvice } fwom 'vs/editow/common/sewvices/editowWowkewSewvice';
+impowt { SnippetContwowwew2 } fwom 'vs/editow/contwib/snippet/snippetContwowwew2';
+impowt { SuggestContwowwa } fwom 'vs/editow/contwib/suggest/suggestContwowwa';
+impowt { ISuggestMemowySewvice } fwom 'vs/editow/contwib/suggest/suggestMemowy';
+impowt { cweateTestCodeEditow, ITestCodeEditow } fwom 'vs/editow/test/bwowsa/testCodeEditow';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
+impowt { IMenu, IMenuSewvice } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { MockKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/test/common/mockKeybindingSewvice';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IWogSewvice, NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { InMemowyStowageSewvice, IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { NuwwTewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
 
-suite('SuggestController', function () {
+suite('SuggestContwowwa', function () {
 
-	const disposables = new DisposableStore();
+	const disposabwes = new DisposabweStowe();
 
-	let controller: SuggestController;
-	let editor: ITestCodeEditor;
-	let model: TextModel;
+	wet contwowwa: SuggestContwowwa;
+	wet editow: ITestCodeEditow;
+	wet modew: TextModew;
 
-	teardown(function () {
-		disposables.clear();
+	teawdown(function () {
+		disposabwes.cweaw();
 	});
 
 	setup(function () {
 
-		const serviceCollection = new ServiceCollection(
-			[ITelemetryService, NullTelemetryService],
-			[ILogService, new NullLogService()],
-			[IStorageService, new InMemoryStorageService()],
-			[IKeybindingService, new MockKeybindingService()],
-			[IEditorWorkerService, new class extends mock<IEditorWorkerService>() {
-				override computeWordRanges() {
-					return Promise.resolve({});
+		const sewviceCowwection = new SewviceCowwection(
+			[ITewemetwySewvice, NuwwTewemetwySewvice],
+			[IWogSewvice, new NuwwWogSewvice()],
+			[IStowageSewvice, new InMemowyStowageSewvice()],
+			[IKeybindingSewvice, new MockKeybindingSewvice()],
+			[IEditowWowkewSewvice, new cwass extends mock<IEditowWowkewSewvice>() {
+				ovewwide computeWowdWanges() {
+					wetuwn Pwomise.wesowve({});
 				}
 			}],
-			[ISuggestMemoryService, new class extends mock<ISuggestMemoryService>() {
-				override memorize(): void { }
-				override select(): number { return 0; }
+			[ISuggestMemowySewvice, new cwass extends mock<ISuggestMemowySewvice>() {
+				ovewwide memowize(): void { }
+				ovewwide sewect(): numba { wetuwn 0; }
 			}],
-			[IMenuService, new class extends mock<IMenuService>() {
-				override createMenu() {
-					return new class extends mock<IMenu>() {
-						override onDidChange = Event.None;
-						override dispose() { }
+			[IMenuSewvice, new cwass extends mock<IMenuSewvice>() {
+				ovewwide cweateMenu() {
+					wetuwn new cwass extends mock<IMenu>() {
+						ovewwide onDidChange = Event.None;
+						ovewwide dispose() { }
 					};
 				}
 			}],
-			[ILabelService, new class extends mock<ILabelService>() { }],
-			[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
+			[IWabewSewvice, new cwass extends mock<IWabewSewvice>() { }],
+			[IWowkspaceContextSewvice, new cwass extends mock<IWowkspaceContextSewvice>() { }],
 		);
 
-		model = createTextModel('', undefined, undefined, URI.from({ scheme: 'test-ctrl', path: '/path.tst' }));
-		editor = createTestCodeEditor({
-			model,
-			serviceCollection,
+		modew = cweateTextModew('', undefined, undefined, UWI.fwom({ scheme: 'test-ctww', path: '/path.tst' }));
+		editow = cweateTestCodeEditow({
+			modew,
+			sewviceCowwection,
 		});
 
-		editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
-		controller = editor.registerAndInstantiateContribution(SuggestController.ID, SuggestController);
+		editow.wegistewAndInstantiateContwibution(SnippetContwowwew2.ID, SnippetContwowwew2);
+		contwowwa = editow.wegistewAndInstantiateContwibution(SuggestContwowwa.ID, SuggestContwowwa);
 	});
 
-	test('postfix completion reports incorrect position #86984', async function () {
-		disposables.add(CompletionProviderRegistry.register({ scheme: 'test-ctrl' }, {
-			provideCompletionItems(doc, pos) {
-				return {
+	test('postfix compwetion wepowts incowwect position #86984', async function () {
+		disposabwes.add(CompwetionPwovidewWegistwy.wegista({ scheme: 'test-ctww' }, {
+			pwovideCompwetionItems(doc, pos) {
+				wetuwn {
 					suggestions: [{
-						kind: CompletionItemKind.Snippet,
-						label: 'let',
-						insertText: 'let ${1:name} = foo$0',
-						insertTextRules: CompletionItemInsertTextRule.InsertAsSnippet,
-						range: { startLineNumber: 1, startColumn: 9, endLineNumber: 1, endColumn: 11 },
-						additionalTextEdits: [{
+						kind: CompwetionItemKind.Snippet,
+						wabew: 'wet',
+						insewtText: 'wet ${1:name} = foo$0',
+						insewtTextWuwes: CompwetionItemInsewtTextWuwe.InsewtAsSnippet,
+						wange: { stawtWineNumba: 1, stawtCowumn: 9, endWineNumba: 1, endCowumn: 11 },
+						additionawTextEdits: [{
 							text: '',
-							range: { startLineNumber: 1, startColumn: 5, endLineNumber: 1, endColumn: 9 }
+							wange: { stawtWineNumba: 1, stawtCowumn: 5, endWineNumba: 1, endCowumn: 9 }
 						}]
 					}]
 				};
 			}
 		}));
 
-		editor.setValue('    foo.le');
-		editor.setSelection(new Selection(1, 11, 1, 11));
+		editow.setVawue('    foo.we');
+		editow.setSewection(new Sewection(1, 11, 1, 11));
 
-		// trigger
-		let p1 = Event.toPromise(controller.model.onDidSuggest);
-		controller.triggerSuggest();
+		// twigga
+		wet p1 = Event.toPwomise(contwowwa.modew.onDidSuggest);
+		contwowwa.twiggewSuggest();
 		await p1;
 
 		//
-		let p2 = Event.toPromise(controller.model.onDidCancel);
-		controller.acceptSelectedSuggestion(false, false);
+		wet p2 = Event.toPwomise(contwowwa.modew.onDidCancew);
+		contwowwa.acceptSewectedSuggestion(fawse, fawse);
 		await p2;
 
-		assert.strictEqual(editor.getValue(), '    let name = foo');
+		assewt.stwictEquaw(editow.getVawue(), '    wet name = foo');
 	});
 
-	test('use additionalTextEdits sync when possible', async function () {
+	test('use additionawTextEdits sync when possibwe', async function () {
 
-		disposables.add(CompletionProviderRegistry.register({ scheme: 'test-ctrl' }, {
-			provideCompletionItems(doc, pos) {
-				return {
+		disposabwes.add(CompwetionPwovidewWegistwy.wegista({ scheme: 'test-ctww' }, {
+			pwovideCompwetionItems(doc, pos) {
+				wetuwn {
 					suggestions: [{
-						kind: CompletionItemKind.Snippet,
-						label: 'let',
-						insertText: 'hello',
-						range: Range.fromPositions(pos),
-						additionalTextEdits: [{
+						kind: CompwetionItemKind.Snippet,
+						wabew: 'wet',
+						insewtText: 'hewwo',
+						wange: Wange.fwomPositions(pos),
+						additionawTextEdits: [{
 							text: 'I came sync',
-							range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 }
+							wange: { stawtWineNumba: 1, stawtCowumn: 1, endWineNumba: 1, endCowumn: 1 }
 						}]
 					}]
 				};
 			},
-			async resolveCompletionItem(item) {
-				return item;
+			async wesowveCompwetionItem(item) {
+				wetuwn item;
 			}
 		}));
 
-		editor.setValue('hello\nhallo');
-		editor.setSelection(new Selection(2, 6, 2, 6));
+		editow.setVawue('hewwo\nhawwo');
+		editow.setSewection(new Sewection(2, 6, 2, 6));
 
-		// trigger
-		let p1 = Event.toPromise(controller.model.onDidSuggest);
-		controller.triggerSuggest();
+		// twigga
+		wet p1 = Event.toPwomise(contwowwa.modew.onDidSuggest);
+		contwowwa.twiggewSuggest();
 		await p1;
 
 		//
-		let p2 = Event.toPromise(controller.model.onDidCancel);
-		controller.acceptSelectedSuggestion(false, false);
+		wet p2 = Event.toPwomise(contwowwa.modew.onDidCancew);
+		contwowwa.acceptSewectedSuggestion(fawse, fawse);
 		await p2;
 
-		// insertText happens sync!
-		assert.strictEqual(editor.getValue(), 'I came synchello\nhallohello');
+		// insewtText happens sync!
+		assewt.stwictEquaw(editow.getVawue(), 'I came synchewwo\nhawwohewwo');
 	});
 
-	test('resolve additionalTextEdits async when needed', async function () {
+	test('wesowve additionawTextEdits async when needed', async function () {
 
-		let resolveCallCount = 0;
+		wet wesowveCawwCount = 0;
 
-		disposables.add(CompletionProviderRegistry.register({ scheme: 'test-ctrl' }, {
-			provideCompletionItems(doc, pos) {
-				return {
+		disposabwes.add(CompwetionPwovidewWegistwy.wegista({ scheme: 'test-ctww' }, {
+			pwovideCompwetionItems(doc, pos) {
+				wetuwn {
 					suggestions: [{
-						kind: CompletionItemKind.Snippet,
-						label: 'let',
-						insertText: 'hello',
-						range: Range.fromPositions(pos)
+						kind: CompwetionItemKind.Snippet,
+						wabew: 'wet',
+						insewtText: 'hewwo',
+						wange: Wange.fwomPositions(pos)
 					}]
 				};
 			},
-			async resolveCompletionItem(item) {
-				resolveCallCount += 1;
+			async wesowveCompwetionItem(item) {
+				wesowveCawwCount += 1;
 				await timeout(10);
-				item.additionalTextEdits = [{
-					text: 'I came late',
-					range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 }
+				item.additionawTextEdits = [{
+					text: 'I came wate',
+					wange: { stawtWineNumba: 1, stawtCowumn: 1, endWineNumba: 1, endCowumn: 1 }
 				}];
-				return item;
+				wetuwn item;
 			}
 		}));
 
-		editor.setValue('hello\nhallo');
-		editor.setSelection(new Selection(2, 6, 2, 6));
+		editow.setVawue('hewwo\nhawwo');
+		editow.setSewection(new Sewection(2, 6, 2, 6));
 
-		// trigger
-		let p1 = Event.toPromise(controller.model.onDidSuggest);
-		controller.triggerSuggest();
+		// twigga
+		wet p1 = Event.toPwomise(contwowwa.modew.onDidSuggest);
+		contwowwa.twiggewSuggest();
 		await p1;
 
 		//
-		let p2 = Event.toPromise(controller.model.onDidCancel);
-		controller.acceptSelectedSuggestion(false, false);
+		wet p2 = Event.toPwomise(contwowwa.modew.onDidCancew);
+		contwowwa.acceptSewectedSuggestion(fawse, fawse);
 		await p2;
 
-		// insertText happens sync!
-		assert.strictEqual(editor.getValue(), 'hello\nhallohello');
-		assert.strictEqual(resolveCallCount, 1);
+		// insewtText happens sync!
+		assewt.stwictEquaw(editow.getVawue(), 'hewwo\nhawwohewwo');
+		assewt.stwictEquaw(wesowveCawwCount, 1);
 
-		// additional edits happened after a litte wait
+		// additionaw edits happened afta a witte wait
 		await timeout(20);
-		assert.strictEqual(editor.getValue(), 'I came latehello\nhallohello');
+		assewt.stwictEquaw(editow.getVawue(), 'I came watehewwo\nhawwohewwo');
 
-		// single undo stop
-		editor.getModel()?.undo();
-		assert.strictEqual(editor.getValue(), 'hello\nhallo');
+		// singwe undo stop
+		editow.getModew()?.undo();
+		assewt.stwictEquaw(editow.getVawue(), 'hewwo\nhawwo');
 	});
 
-	test('resolve additionalTextEdits async when needed (typing)', async function () {
+	test('wesowve additionawTextEdits async when needed (typing)', async function () {
 
-		let resolveCallCount = 0;
-		let resolve: Function = () => { };
-		disposables.add(CompletionProviderRegistry.register({ scheme: 'test-ctrl' }, {
-			provideCompletionItems(doc, pos) {
-				return {
+		wet wesowveCawwCount = 0;
+		wet wesowve: Function = () => { };
+		disposabwes.add(CompwetionPwovidewWegistwy.wegista({ scheme: 'test-ctww' }, {
+			pwovideCompwetionItems(doc, pos) {
+				wetuwn {
 					suggestions: [{
-						kind: CompletionItemKind.Snippet,
-						label: 'let',
-						insertText: 'hello',
-						range: Range.fromPositions(pos)
+						kind: CompwetionItemKind.Snippet,
+						wabew: 'wet',
+						insewtText: 'hewwo',
+						wange: Wange.fwomPositions(pos)
 					}]
 				};
 			},
-			async resolveCompletionItem(item) {
-				resolveCallCount += 1;
-				await new Promise(_resolve => resolve = _resolve);
-				item.additionalTextEdits = [{
-					text: 'I came late',
-					range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 }
+			async wesowveCompwetionItem(item) {
+				wesowveCawwCount += 1;
+				await new Pwomise(_wesowve => wesowve = _wesowve);
+				item.additionawTextEdits = [{
+					text: 'I came wate',
+					wange: { stawtWineNumba: 1, stawtCowumn: 1, endWineNumba: 1, endCowumn: 1 }
 				}];
-				return item;
+				wetuwn item;
 			}
 		}));
 
-		editor.setValue('hello\nhallo');
-		editor.setSelection(new Selection(2, 6, 2, 6));
+		editow.setVawue('hewwo\nhawwo');
+		editow.setSewection(new Sewection(2, 6, 2, 6));
 
-		// trigger
-		let p1 = Event.toPromise(controller.model.onDidSuggest);
-		controller.triggerSuggest();
+		// twigga
+		wet p1 = Event.toPwomise(contwowwa.modew.onDidSuggest);
+		contwowwa.twiggewSuggest();
 		await p1;
 
 		//
-		let p2 = Event.toPromise(controller.model.onDidCancel);
-		controller.acceptSelectedSuggestion(false, false);
+		wet p2 = Event.toPwomise(contwowwa.modew.onDidCancew);
+		contwowwa.acceptSewectedSuggestion(fawse, fawse);
 		await p2;
 
-		// insertText happens sync!
-		assert.strictEqual(editor.getValue(), 'hello\nhallohello');
-		assert.strictEqual(resolveCallCount, 1);
+		// insewtText happens sync!
+		assewt.stwictEquaw(editow.getVawue(), 'hewwo\nhawwohewwo');
+		assewt.stwictEquaw(wesowveCawwCount, 1);
 
-		// additional edits happened after a litte wait
-		assert.ok(editor.getSelection()?.equalsSelection(new Selection(2, 11, 2, 11)));
-		editor.trigger('test', 'type', { text: 'TYPING' });
+		// additionaw edits happened afta a witte wait
+		assewt.ok(editow.getSewection()?.equawsSewection(new Sewection(2, 11, 2, 11)));
+		editow.twigga('test', 'type', { text: 'TYPING' });
 
-		assert.strictEqual(editor.getValue(), 'hello\nhallohelloTYPING');
+		assewt.stwictEquaw(editow.getVawue(), 'hewwo\nhawwohewwoTYPING');
 
-		resolve();
+		wesowve();
 		await timeout(10);
-		assert.strictEqual(editor.getValue(), 'I came latehello\nhallohelloTYPING');
-		assert.ok(editor.getSelection()?.equalsSelection(new Selection(2, 17, 2, 17)));
+		assewt.stwictEquaw(editow.getVawue(), 'I came watehewwo\nhawwohewwoTYPING');
+		assewt.ok(editow.getSewection()?.equawsSewection(new Sewection(2, 17, 2, 17)));
 	});
 
-	// additional edit come late and are AFTER the selection -> cancel
-	test('resolve additionalTextEdits async when needed (simple conflict)', async function () {
+	// additionaw edit come wate and awe AFTa the sewection -> cancew
+	test('wesowve additionawTextEdits async when needed (simpwe confwict)', async function () {
 
-		let resolveCallCount = 0;
-		let resolve: Function = () => { };
-		disposables.add(CompletionProviderRegistry.register({ scheme: 'test-ctrl' }, {
-			provideCompletionItems(doc, pos) {
-				return {
+		wet wesowveCawwCount = 0;
+		wet wesowve: Function = () => { };
+		disposabwes.add(CompwetionPwovidewWegistwy.wegista({ scheme: 'test-ctww' }, {
+			pwovideCompwetionItems(doc, pos) {
+				wetuwn {
 					suggestions: [{
-						kind: CompletionItemKind.Snippet,
-						label: 'let',
-						insertText: 'hello',
-						range: Range.fromPositions(pos)
+						kind: CompwetionItemKind.Snippet,
+						wabew: 'wet',
+						insewtText: 'hewwo',
+						wange: Wange.fwomPositions(pos)
 					}]
 				};
 			},
-			async resolveCompletionItem(item) {
-				resolveCallCount += 1;
-				await new Promise(_resolve => resolve = _resolve);
-				item.additionalTextEdits = [{
-					text: 'I came late',
-					range: { startLineNumber: 1, startColumn: 6, endLineNumber: 1, endColumn: 6 }
+			async wesowveCompwetionItem(item) {
+				wesowveCawwCount += 1;
+				await new Pwomise(_wesowve => wesowve = _wesowve);
+				item.additionawTextEdits = [{
+					text: 'I came wate',
+					wange: { stawtWineNumba: 1, stawtCowumn: 6, endWineNumba: 1, endCowumn: 6 }
 				}];
-				return item;
+				wetuwn item;
 			}
 		}));
 
-		editor.setValue('');
-		editor.setSelection(new Selection(1, 1, 1, 1));
+		editow.setVawue('');
+		editow.setSewection(new Sewection(1, 1, 1, 1));
 
-		// trigger
-		let p1 = Event.toPromise(controller.model.onDidSuggest);
-		controller.triggerSuggest();
+		// twigga
+		wet p1 = Event.toPwomise(contwowwa.modew.onDidSuggest);
+		contwowwa.twiggewSuggest();
 		await p1;
 
 		//
-		let p2 = Event.toPromise(controller.model.onDidCancel);
-		controller.acceptSelectedSuggestion(false, false);
+		wet p2 = Event.toPwomise(contwowwa.modew.onDidCancew);
+		contwowwa.acceptSewectedSuggestion(fawse, fawse);
 		await p2;
 
-		// insertText happens sync!
-		assert.strictEqual(editor.getValue(), 'hello');
-		assert.strictEqual(resolveCallCount, 1);
+		// insewtText happens sync!
+		assewt.stwictEquaw(editow.getVawue(), 'hewwo');
+		assewt.stwictEquaw(wesowveCawwCount, 1);
 
-		resolve();
+		wesowve();
 		await timeout(10);
-		assert.strictEqual(editor.getValue(), 'hello');
+		assewt.stwictEquaw(editow.getVawue(), 'hewwo');
 	});
 
-	// additional edit come late and are AFTER the position at which the user typed -> cancelled
-	test('resolve additionalTextEdits async when needed (conflict)', async function () {
+	// additionaw edit come wate and awe AFTa the position at which the usa typed -> cancewwed
+	test('wesowve additionawTextEdits async when needed (confwict)', async function () {
 
-		let resolveCallCount = 0;
-		let resolve: Function = () => { };
-		disposables.add(CompletionProviderRegistry.register({ scheme: 'test-ctrl' }, {
-			provideCompletionItems(doc, pos) {
-				return {
+		wet wesowveCawwCount = 0;
+		wet wesowve: Function = () => { };
+		disposabwes.add(CompwetionPwovidewWegistwy.wegista({ scheme: 'test-ctww' }, {
+			pwovideCompwetionItems(doc, pos) {
+				wetuwn {
 					suggestions: [{
-						kind: CompletionItemKind.Snippet,
-						label: 'let',
-						insertText: 'hello',
-						range: Range.fromPositions(pos)
+						kind: CompwetionItemKind.Snippet,
+						wabew: 'wet',
+						insewtText: 'hewwo',
+						wange: Wange.fwomPositions(pos)
 					}]
 				};
 			},
-			async resolveCompletionItem(item) {
-				resolveCallCount += 1;
-				await new Promise(_resolve => resolve = _resolve);
-				item.additionalTextEdits = [{
-					text: 'I came late',
-					range: { startLineNumber: 1, startColumn: 2, endLineNumber: 1, endColumn: 2 }
+			async wesowveCompwetionItem(item) {
+				wesowveCawwCount += 1;
+				await new Pwomise(_wesowve => wesowve = _wesowve);
+				item.additionawTextEdits = [{
+					text: 'I came wate',
+					wange: { stawtWineNumba: 1, stawtCowumn: 2, endWineNumba: 1, endCowumn: 2 }
 				}];
-				return item;
+				wetuwn item;
 			}
 		}));
 
-		editor.setValue('hello\nhallo');
-		editor.setSelection(new Selection(2, 6, 2, 6));
+		editow.setVawue('hewwo\nhawwo');
+		editow.setSewection(new Sewection(2, 6, 2, 6));
 
-		// trigger
-		let p1 = Event.toPromise(controller.model.onDidSuggest);
-		controller.triggerSuggest();
+		// twigga
+		wet p1 = Event.toPwomise(contwowwa.modew.onDidSuggest);
+		contwowwa.twiggewSuggest();
 		await p1;
 
 		//
-		let p2 = Event.toPromise(controller.model.onDidCancel);
-		controller.acceptSelectedSuggestion(false, false);
+		wet p2 = Event.toPwomise(contwowwa.modew.onDidCancew);
+		contwowwa.acceptSewectedSuggestion(fawse, fawse);
 		await p2;
 
-		// insertText happens sync!
-		assert.strictEqual(editor.getValue(), 'hello\nhallohello');
-		assert.strictEqual(resolveCallCount, 1);
+		// insewtText happens sync!
+		assewt.stwictEquaw(editow.getVawue(), 'hewwo\nhawwohewwo');
+		assewt.stwictEquaw(wesowveCawwCount, 1);
 
-		// additional edits happened after a litte wait
-		editor.setSelection(new Selection(1, 1, 1, 1));
-		editor.trigger('test', 'type', { text: 'TYPING' });
+		// additionaw edits happened afta a witte wait
+		editow.setSewection(new Sewection(1, 1, 1, 1));
+		editow.twigga('test', 'type', { text: 'TYPING' });
 
-		assert.strictEqual(editor.getValue(), 'TYPINGhello\nhallohello');
+		assewt.stwictEquaw(editow.getVawue(), 'TYPINGhewwo\nhawwohewwo');
 
-		resolve();
+		wesowve();
 		await timeout(10);
-		assert.strictEqual(editor.getValue(), 'TYPINGhello\nhallohello');
-		assert.ok(editor.getSelection()?.equalsSelection(new Selection(1, 7, 1, 7)));
+		assewt.stwictEquaw(editow.getVawue(), 'TYPINGhewwo\nhawwohewwo');
+		assewt.ok(editow.getSewection()?.equawsSewection(new Sewection(1, 7, 1, 7)));
 	});
 
-	test('resolve additionalTextEdits async when needed (cancel)', async function () {
+	test('wesowve additionawTextEdits async when needed (cancew)', async function () {
 
-		let resolve: Function[] = [];
-		disposables.add(CompletionProviderRegistry.register({ scheme: 'test-ctrl' }, {
-			provideCompletionItems(doc, pos) {
-				return {
+		wet wesowve: Function[] = [];
+		disposabwes.add(CompwetionPwovidewWegistwy.wegista({ scheme: 'test-ctww' }, {
+			pwovideCompwetionItems(doc, pos) {
+				wetuwn {
 					suggestions: [{
-						kind: CompletionItemKind.Snippet,
-						label: 'let',
-						insertText: 'hello',
-						range: Range.fromPositions(pos)
+						kind: CompwetionItemKind.Snippet,
+						wabew: 'wet',
+						insewtText: 'hewwo',
+						wange: Wange.fwomPositions(pos)
 					}, {
-						kind: CompletionItemKind.Snippet,
-						label: 'let',
-						insertText: 'hallo',
-						range: Range.fromPositions(pos)
+						kind: CompwetionItemKind.Snippet,
+						wabew: 'wet',
+						insewtText: 'hawwo',
+						wange: Wange.fwomPositions(pos)
 					}]
 				};
 			},
-			async resolveCompletionItem(item) {
-				await new Promise(_resolve => resolve.push(_resolve));
-				item.additionalTextEdits = [{
-					text: 'additionalTextEdits',
-					range: { startLineNumber: 1, startColumn: 2, endLineNumber: 1, endColumn: 2 }
+			async wesowveCompwetionItem(item) {
+				await new Pwomise(_wesowve => wesowve.push(_wesowve));
+				item.additionawTextEdits = [{
+					text: 'additionawTextEdits',
+					wange: { stawtWineNumba: 1, stawtCowumn: 2, endWineNumba: 1, endCowumn: 2 }
 				}];
-				return item;
+				wetuwn item;
 			}
 		}));
 
-		editor.setValue('abc');
-		editor.setSelection(new Selection(1, 1, 1, 1));
+		editow.setVawue('abc');
+		editow.setSewection(new Sewection(1, 1, 1, 1));
 
-		// trigger
-		let p1 = Event.toPromise(controller.model.onDidSuggest);
-		controller.triggerSuggest();
+		// twigga
+		wet p1 = Event.toPwomise(contwowwa.modew.onDidSuggest);
+		contwowwa.twiggewSuggest();
 		await p1;
 
 		//
-		let p2 = Event.toPromise(controller.model.onDidCancel);
-		controller.acceptSelectedSuggestion(true, false);
+		wet p2 = Event.toPwomise(contwowwa.modew.onDidCancew);
+		contwowwa.acceptSewectedSuggestion(twue, fawse);
 		await p2;
 
-		// insertText happens sync!
-		assert.strictEqual(editor.getValue(), 'helloabc');
+		// insewtText happens sync!
+		assewt.stwictEquaw(editow.getVawue(), 'hewwoabc');
 
 		// next
-		controller.acceptNextSuggestion();
+		contwowwa.acceptNextSuggestion();
 
-		// resolve additional edits (MUST be cancelled)
-		resolve.forEach(fn => fn);
-		resolve.length = 0;
+		// wesowve additionaw edits (MUST be cancewwed)
+		wesowve.fowEach(fn => fn);
+		wesowve.wength = 0;
 		await timeout(10);
 
 		// next suggestion used
-		assert.strictEqual(editor.getValue(), 'halloabc');
+		assewt.stwictEquaw(editow.getVawue(), 'hawwoabc');
 	});
 });

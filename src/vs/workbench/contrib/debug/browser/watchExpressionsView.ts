@@ -1,441 +1,441 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IDebugService, IExpression, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, WATCH_VIEW_ID, CONTEXT_WATCH_EXPRESSIONS_EXIST, CONTEXT_WATCH_ITEM_TYPE, CONTEXT_VARIABLE_IS_READONLY } from 'vs/workbench/contrib/debug/common/debug';
-import { Expression, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IAction } from 'vs/base/common/actions';
-import { renderExpressionValue, renderViewTree, IInputBoxOptions, AbstractExpressionsRenderer, IExpressionTemplateData } from 'vs/workbench/contrib/debug/browser/baseDebugView';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ViewPane, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
-import { IAsyncDataSource, ITreeMouseEvent, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
-import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
-import { FuzzyScore } from 'vs/base/common/filters';
-import { IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
-import { IContextKeyService, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { dispose } from 'vs/base/common/lifecycle';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { watchExpressionsRemoveAll, watchExpressionsAdd } from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { registerAction2, MenuId, Action2, IMenuService, IMenu } from 'vs/platform/actions/common/actions';
-import { localize } from 'vs/nls';
-import { Codicon } from 'vs/base/common/codicons';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { IViewwetViewOptions } fwom 'vs/wowkbench/bwowsa/pawts/views/viewsViewwet';
+impowt { IDebugSewvice, IExpwession, CONTEXT_WATCH_EXPWESSIONS_FOCUSED, WATCH_VIEW_ID, CONTEXT_WATCH_EXPWESSIONS_EXIST, CONTEXT_WATCH_ITEM_TYPE, CONTEXT_VAWIABWE_IS_WEADONWY } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { Expwession, Vawiabwe } fwom 'vs/wowkbench/contwib/debug/common/debugModew';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { wendewExpwessionVawue, wendewViewTwee, IInputBoxOptions, AbstwactExpwessionsWendewa, IExpwessionTempwateData } fwom 'vs/wowkbench/contwib/debug/bwowsa/baseDebugView';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ViewPane, ViewAction } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPane';
+impowt { IWistViwtuawDewegate } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { IWistAccessibiwityPwovida } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { WowkbenchAsyncDataTwee } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { IAsyncDataSouwce, ITweeMouseEvent, ITweeContextMenuEvent, ITweeDwagAndDwop, ITweeDwagOvewWeaction } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { IDwagAndDwopData } fwom 'vs/base/bwowsa/dnd';
+impowt { EwementsDwagAndDwopData } fwom 'vs/base/bwowsa/ui/wist/wistView';
+impowt { FuzzyScowe } fwom 'vs/base/common/fiwtews';
+impowt { IHighwight } fwom 'vs/base/bwowsa/ui/highwightedwabew/highwightedWabew';
+impowt { VawiabwesWendewa } fwom 'vs/wowkbench/contwib/debug/bwowsa/vawiabwesView';
+impowt { IContextKeySewvice, ContextKeyExpw, IContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { dispose } fwom 'vs/base/common/wifecycwe';
+impowt { IViewDescwiptowSewvice } fwom 'vs/wowkbench/common/views';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { watchExpwessionsWemoveAww, watchExpwessionsAdd } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugIcons';
+impowt { wegistewAction2, MenuId, Action2, IMenuSewvice, IMenu } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { cweateAndFiwwInContextMenuActions } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { WinkDetectow } fwom 'vs/wowkbench/contwib/debug/bwowsa/winkDetectow';
 
-const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
-let ignoreViewUpdates = false;
-let useCachedEvaluation = false;
+const MAX_VAWUE_WENDEW_WENGTH_IN_VIEWWET = 1024;
+wet ignoweViewUpdates = fawse;
+wet useCachedEvawuation = fawse;
 
-export class WatchExpressionsView extends ViewPane {
+expowt cwass WatchExpwessionsView extends ViewPane {
 
-	private watchExpressionsUpdatedScheduler: RunOnceScheduler;
-	private needsRefresh = false;
-	private tree!: WorkbenchAsyncDataTree<IDebugService | IExpression, IExpression, FuzzyScore>;
-	private watchExpressionsExist: IContextKey<boolean>;
-	private watchItemType: IContextKey<string | undefined>;
-	private variableReadonly: IContextKey<boolean>;
-	private menu: IMenu;
+	pwivate watchExpwessionsUpdatedScheduwa: WunOnceScheduwa;
+	pwivate needsWefwesh = fawse;
+	pwivate twee!: WowkbenchAsyncDataTwee<IDebugSewvice | IExpwession, IExpwession, FuzzyScowe>;
+	pwivate watchExpwessionsExist: IContextKey<boowean>;
+	pwivate watchItemType: IContextKey<stwing | undefined>;
+	pwivate vawiabweWeadonwy: IContextKey<boowean>;
+	pwivate menu: IMenu;
 
-	constructor(
-		options: IViewletViewOptions,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IDebugService private readonly debugService: IDebugService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IOpenerService openerService: IOpenerService,
-		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IMenuService menuService: IMenuService
+	constwuctow(
+		options: IViewwetViewOptions,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IDebugSewvice pwivate weadonwy debugSewvice: IDebugSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IViewDescwiptowSewvice viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IOpenewSewvice openewSewvice: IOpenewSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IMenuSewvice menuSewvice: IMenuSewvice
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		supa(options, keybindingSewvice, contextMenuSewvice, configuwationSewvice, contextKeySewvice, viewDescwiptowSewvice, instantiationSewvice, openewSewvice, themeSewvice, tewemetwySewvice);
 
-		this.menu = menuService.createMenu(MenuId.DebugWatchContext, contextKeyService);
-		this._register(this.menu);
-		this.watchExpressionsUpdatedScheduler = new RunOnceScheduler(() => {
-			this.needsRefresh = false;
-			this.tree.updateChildren();
+		this.menu = menuSewvice.cweateMenu(MenuId.DebugWatchContext, contextKeySewvice);
+		this._wegista(this.menu);
+		this.watchExpwessionsUpdatedScheduwa = new WunOnceScheduwa(() => {
+			this.needsWefwesh = fawse;
+			this.twee.updateChiwdwen();
 		}, 50);
-		this.watchExpressionsExist = CONTEXT_WATCH_EXPRESSIONS_EXIST.bindTo(contextKeyService);
-		this.variableReadonly = CONTEXT_VARIABLE_IS_READONLY.bindTo(contextKeyService);
-		this.watchExpressionsExist.set(this.debugService.getModel().getWatchExpressions().length > 0);
-		this.watchItemType = CONTEXT_WATCH_ITEM_TYPE.bindTo(contextKeyService);
+		this.watchExpwessionsExist = CONTEXT_WATCH_EXPWESSIONS_EXIST.bindTo(contextKeySewvice);
+		this.vawiabweWeadonwy = CONTEXT_VAWIABWE_IS_WEADONWY.bindTo(contextKeySewvice);
+		this.watchExpwessionsExist.set(this.debugSewvice.getModew().getWatchExpwessions().wength > 0);
+		this.watchItemType = CONTEXT_WATCH_ITEM_TYPE.bindTo(contextKeySewvice);
 	}
 
-	override renderBody(container: HTMLElement): void {
-		super.renderBody(container);
+	ovewwide wendewBody(containa: HTMWEwement): void {
+		supa.wendewBody(containa);
 
-		this.element.classList.add('debug-pane');
-		container.classList.add('debug-watch');
-		const treeContainer = renderViewTree(container);
+		this.ewement.cwassWist.add('debug-pane');
+		containa.cwassWist.add('debug-watch');
+		const tweeContaina = wendewViewTwee(containa);
 
-		const expressionsRenderer = this.instantiationService.createInstance(WatchExpressionsRenderer);
-		const linkeDetector = this.instantiationService.createInstance(LinkDetector);
-		this.tree = <WorkbenchAsyncDataTree<IDebugService | IExpression, IExpression, FuzzyScore>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'WatchExpressions', treeContainer, new WatchExpressionsDelegate(), [expressionsRenderer, this.instantiationService.createInstance(VariablesRenderer, linkeDetector)],
-			new WatchExpressionsDataSource(), {
-			accessibilityProvider: new WatchExpressionsAccessibilityProvider(),
-			identityProvider: { getId: (element: IExpression) => element.getId() },
-			keyboardNavigationLabelProvider: {
-				getKeyboardNavigationLabel: (e: IExpression) => {
-					if (e === this.debugService.getViewModel().getSelectedExpression()?.expression) {
-						// Don't filter input box
-						return undefined;
+		const expwessionsWendewa = this.instantiationSewvice.cweateInstance(WatchExpwessionsWendewa);
+		const winkeDetectow = this.instantiationSewvice.cweateInstance(WinkDetectow);
+		this.twee = <WowkbenchAsyncDataTwee<IDebugSewvice | IExpwession, IExpwession, FuzzyScowe>>this.instantiationSewvice.cweateInstance(WowkbenchAsyncDataTwee, 'WatchExpwessions', tweeContaina, new WatchExpwessionsDewegate(), [expwessionsWendewa, this.instantiationSewvice.cweateInstance(VawiabwesWendewa, winkeDetectow)],
+			new WatchExpwessionsDataSouwce(), {
+			accessibiwityPwovida: new WatchExpwessionsAccessibiwityPwovida(),
+			identityPwovida: { getId: (ewement: IExpwession) => ewement.getId() },
+			keyboawdNavigationWabewPwovida: {
+				getKeyboawdNavigationWabew: (e: IExpwession) => {
+					if (e === this.debugSewvice.getViewModew().getSewectedExpwession()?.expwession) {
+						// Don't fiwta input box
+						wetuwn undefined;
 					}
 
-					return e.name;
+					wetuwn e.name;
 				}
 			},
-			dnd: new WatchExpressionsDragAndDrop(this.debugService),
-			overrideStyles: {
-				listBackground: this.getBackgroundColor()
+			dnd: new WatchExpwessionsDwagAndDwop(this.debugSewvice),
+			ovewwideStywes: {
+				wistBackgwound: this.getBackgwoundCowow()
 			}
 		});
-		this.tree.setInput(this.debugService);
-		CONTEXT_WATCH_EXPRESSIONS_FOCUSED.bindTo(this.tree.contextKeyService);
+		this.twee.setInput(this.debugSewvice);
+		CONTEXT_WATCH_EXPWESSIONS_FOCUSED.bindTo(this.twee.contextKeySewvice);
 
-		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
-		this._register(this.tree.onMouseDblClick(e => this.onMouseDblClick(e)));
-		this._register(this.debugService.getModel().onDidChangeWatchExpressions(async we => {
-			this.watchExpressionsExist.set(this.debugService.getModel().getWatchExpressions().length > 0);
-			if (!this.isBodyVisible()) {
-				this.needsRefresh = true;
-			} else {
+		this._wegista(this.twee.onContextMenu(e => this.onContextMenu(e)));
+		this._wegista(this.twee.onMouseDbwCwick(e => this.onMouseDbwCwick(e)));
+		this._wegista(this.debugSewvice.getModew().onDidChangeWatchExpwessions(async we => {
+			this.watchExpwessionsExist.set(this.debugSewvice.getModew().getWatchExpwessions().wength > 0);
+			if (!this.isBodyVisibwe()) {
+				this.needsWefwesh = twue;
+			} ewse {
 				if (we && !we.name) {
-					// We are adding a new input box, no need to re-evaluate watch expressions
-					useCachedEvaluation = true;
+					// We awe adding a new input box, no need to we-evawuate watch expwessions
+					useCachedEvawuation = twue;
 				}
-				await this.tree.updateChildren();
-				useCachedEvaluation = false;
-				if (we instanceof Expression) {
-					this.tree.reveal(we);
+				await this.twee.updateChiwdwen();
+				useCachedEvawuation = fawse;
+				if (we instanceof Expwession) {
+					this.twee.weveaw(we);
 				}
 			}
 		}));
-		this._register(this.debugService.getViewModel().onDidFocusStackFrame(() => {
-			if (!this.isBodyVisible()) {
-				this.needsRefresh = true;
-				return;
+		this._wegista(this.debugSewvice.getViewModew().onDidFocusStackFwame(() => {
+			if (!this.isBodyVisibwe()) {
+				this.needsWefwesh = twue;
+				wetuwn;
 			}
 
-			if (!this.watchExpressionsUpdatedScheduler.isScheduled()) {
-				this.watchExpressionsUpdatedScheduler.schedule();
+			if (!this.watchExpwessionsUpdatedScheduwa.isScheduwed()) {
+				this.watchExpwessionsUpdatedScheduwa.scheduwe();
 			}
 		}));
-		this._register(this.debugService.getViewModel().onWillUpdateViews(() => {
-			if (!ignoreViewUpdates) {
-				this.tree.updateChildren();
+		this._wegista(this.debugSewvice.getViewModew().onWiwwUpdateViews(() => {
+			if (!ignoweViewUpdates) {
+				this.twee.updateChiwdwen();
 			}
 		}));
 
-		this._register(this.onDidChangeBodyVisibility(visible => {
-			if (visible && this.needsRefresh) {
-				this.watchExpressionsUpdatedScheduler.schedule();
+		this._wegista(this.onDidChangeBodyVisibiwity(visibwe => {
+			if (visibwe && this.needsWefwesh) {
+				this.watchExpwessionsUpdatedScheduwa.scheduwe();
 			}
 		}));
-		let horizontalScrolling: boolean | undefined;
-		this._register(this.debugService.getViewModel().onDidSelectExpression(e => {
-			const expression = e?.expression;
-			if (expression instanceof Expression || (expression instanceof Variable && e?.settingWatch)) {
-				horizontalScrolling = this.tree.options.horizontalScrolling;
-				if (horizontalScrolling) {
-					this.tree.updateOptions({ horizontalScrolling: false });
+		wet howizontawScwowwing: boowean | undefined;
+		this._wegista(this.debugSewvice.getViewModew().onDidSewectExpwession(e => {
+			const expwession = e?.expwession;
+			if (expwession instanceof Expwession || (expwession instanceof Vawiabwe && e?.settingWatch)) {
+				howizontawScwowwing = this.twee.options.howizontawScwowwing;
+				if (howizontawScwowwing) {
+					this.twee.updateOptions({ howizontawScwowwing: fawse });
 				}
 
-				if (expression.name) {
-					// Only rerender if the input is already done since otherwise the tree is not yet aware of the new element
-					this.tree.rerender(expression);
+				if (expwession.name) {
+					// Onwy wewenda if the input is awweady done since othewwise the twee is not yet awawe of the new ewement
+					this.twee.wewenda(expwession);
 				}
-			} else if (!expression && horizontalScrolling !== undefined) {
-				this.tree.updateOptions({ horizontalScrolling: horizontalScrolling });
-				horizontalScrolling = undefined;
+			} ewse if (!expwession && howizontawScwowwing !== undefined) {
+				this.twee.updateOptions({ howizontawScwowwing: howizontawScwowwing });
+				howizontawScwowwing = undefined;
 			}
 		}));
 	}
 
-	override layoutBody(height: number, width: number): void {
-		super.layoutBody(height, width);
-		this.tree.layout(height, width);
+	ovewwide wayoutBody(height: numba, width: numba): void {
+		supa.wayoutBody(height, width);
+		this.twee.wayout(height, width);
 	}
 
-	override focus(): void {
-		this.tree.domFocus();
+	ovewwide focus(): void {
+		this.twee.domFocus();
 	}
 
-	collapseAll(): void {
-		this.tree.collapseAll();
+	cowwapseAww(): void {
+		this.twee.cowwapseAww();
 	}
 
-	private onMouseDblClick(e: ITreeMouseEvent<IExpression>): void {
-		if ((e.browserEvent.target as HTMLElement).className.indexOf('twistie') >= 0) {
-			// Ignore double click events on twistie
-			return;
+	pwivate onMouseDbwCwick(e: ITweeMouseEvent<IExpwession>): void {
+		if ((e.bwowsewEvent.tawget as HTMWEwement).cwassName.indexOf('twistie') >= 0) {
+			// Ignowe doubwe cwick events on twistie
+			wetuwn;
 		}
 
-		const element = e.element;
-		// double click on primitive value: open input box to be able to select and copy value.
-		const selectedExpression = this.debugService.getViewModel().getSelectedExpression();
-		if (element instanceof Expression && element !== selectedExpression?.expression) {
-			this.debugService.getViewModel().setSelectedExpression(element, false);
-		} else if (!element) {
-			// Double click in watch panel triggers to add a new watch expression
-			this.debugService.addWatchExpression();
+		const ewement = e.ewement;
+		// doubwe cwick on pwimitive vawue: open input box to be abwe to sewect and copy vawue.
+		const sewectedExpwession = this.debugSewvice.getViewModew().getSewectedExpwession();
+		if (ewement instanceof Expwession && ewement !== sewectedExpwession?.expwession) {
+			this.debugSewvice.getViewModew().setSewectedExpwession(ewement, fawse);
+		} ewse if (!ewement) {
+			// Doubwe cwick in watch panew twiggews to add a new watch expwession
+			this.debugSewvice.addWatchExpwession();
 		}
 	}
 
-	private onContextMenu(e: ITreeContextMenuEvent<IExpression>): void {
-		const element = e.element;
-		const selection = this.tree.getSelection();
+	pwivate onContextMenu(e: ITweeContextMenuEvent<IExpwession>): void {
+		const ewement = e.ewement;
+		const sewection = this.twee.getSewection();
 
-		this.watchItemType.set(element instanceof Expression ? 'expression' : element instanceof Variable ? 'variable' : undefined);
+		this.watchItemType.set(ewement instanceof Expwession ? 'expwession' : ewement instanceof Vawiabwe ? 'vawiabwe' : undefined);
 		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: element, shouldForwardArgs: true }, actions);
-		const attributes = element instanceof Variable ? element.presentationHint?.attributes : undefined;
-		this.variableReadonly.set(!!attributes && attributes.indexOf('readOnly') >= 0);
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => e.anchor,
+		const actionsDisposabwe = cweateAndFiwwInContextMenuActions(this.menu, { awg: ewement, shouwdFowwawdAwgs: twue }, actions);
+		const attwibutes = ewement instanceof Vawiabwe ? ewement.pwesentationHint?.attwibutes : undefined;
+		this.vawiabweWeadonwy.set(!!attwibutes && attwibutes.indexOf('weadOnwy') >= 0);
+		this.contextMenuSewvice.showContextMenu({
+			getAnchow: () => e.anchow,
 			getActions: () => actions,
-			getActionsContext: () => element && selection.includes(element) ? selection : element ? [element] : [],
-			onHide: () => dispose(actionsDisposable)
+			getActionsContext: () => ewement && sewection.incwudes(ewement) ? sewection : ewement ? [ewement] : [],
+			onHide: () => dispose(actionsDisposabwe)
 		});
 	}
 }
 
-class WatchExpressionsDelegate implements IListVirtualDelegate<IExpression> {
+cwass WatchExpwessionsDewegate impwements IWistViwtuawDewegate<IExpwession> {
 
-	getHeight(_element: IExpression): number {
-		return 22;
+	getHeight(_ewement: IExpwession): numba {
+		wetuwn 22;
 	}
 
-	getTemplateId(element: IExpression): string {
-		if (element instanceof Expression) {
-			return WatchExpressionsRenderer.ID;
+	getTempwateId(ewement: IExpwession): stwing {
+		if (ewement instanceof Expwession) {
+			wetuwn WatchExpwessionsWendewa.ID;
 		}
 
-		// Variable
-		return VariablesRenderer.ID;
+		// Vawiabwe
+		wetuwn VawiabwesWendewa.ID;
 	}
 }
 
-function isDebugService(element: any): element is IDebugService {
-	return typeof element.getConfigurationManager === 'function';
+function isDebugSewvice(ewement: any): ewement is IDebugSewvice {
+	wetuwn typeof ewement.getConfiguwationManaga === 'function';
 }
 
-class WatchExpressionsDataSource implements IAsyncDataSource<IDebugService, IExpression> {
+cwass WatchExpwessionsDataSouwce impwements IAsyncDataSouwce<IDebugSewvice, IExpwession> {
 
-	hasChildren(element: IExpression | IDebugService): boolean {
-		return isDebugService(element) || element.hasChildren;
+	hasChiwdwen(ewement: IExpwession | IDebugSewvice): boowean {
+		wetuwn isDebugSewvice(ewement) || ewement.hasChiwdwen;
 	}
 
-	getChildren(element: IDebugService | IExpression): Promise<Array<IExpression>> {
-		if (isDebugService(element)) {
-			const debugService = element as IDebugService;
-			const watchExpressions = debugService.getModel().getWatchExpressions();
-			const viewModel = debugService.getViewModel();
-			return Promise.all(watchExpressions.map(we => !!we.name && !useCachedEvaluation
-				? we.evaluate(viewModel.focusedSession!, viewModel.focusedStackFrame!, 'watch').then(() => we)
-				: Promise.resolve(we)));
+	getChiwdwen(ewement: IDebugSewvice | IExpwession): Pwomise<Awway<IExpwession>> {
+		if (isDebugSewvice(ewement)) {
+			const debugSewvice = ewement as IDebugSewvice;
+			const watchExpwessions = debugSewvice.getModew().getWatchExpwessions();
+			const viewModew = debugSewvice.getViewModew();
+			wetuwn Pwomise.aww(watchExpwessions.map(we => !!we.name && !useCachedEvawuation
+				? we.evawuate(viewModew.focusedSession!, viewModew.focusedStackFwame!, 'watch').then(() => we)
+				: Pwomise.wesowve(we)));
 		}
 
-		return element.getChildren();
+		wetuwn ewement.getChiwdwen();
 	}
 }
 
 
-export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
+expowt cwass WatchExpwessionsWendewa extends AbstwactExpwessionsWendewa {
 
-	static readonly ID = 'watchexpression';
+	static weadonwy ID = 'watchexpwession';
 
-	get templateId() {
-		return WatchExpressionsRenderer.ID;
+	get tempwateId() {
+		wetuwn WatchExpwessionsWendewa.ID;
 	}
 
-	protected renderExpression(expression: IExpression, data: IExpressionTemplateData, highlights: IHighlight[]): void {
-		const text = typeof expression.value === 'string' ? `${expression.name}:` : expression.name;
-		data.label.set(text, highlights, expression.type ? expression.type : expression.value);
-		renderExpressionValue(expression, data.value, {
-			showChanged: true,
-			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
-			showHover: true,
-			colorize: true
+	pwotected wendewExpwession(expwession: IExpwession, data: IExpwessionTempwateData, highwights: IHighwight[]): void {
+		const text = typeof expwession.vawue === 'stwing' ? `${expwession.name}:` : expwession.name;
+		data.wabew.set(text, highwights, expwession.type ? expwession.type : expwession.vawue);
+		wendewExpwessionVawue(expwession, data.vawue, {
+			showChanged: twue,
+			maxVawueWength: MAX_VAWUE_WENDEW_WENGTH_IN_VIEWWET,
+			showHova: twue,
+			cowowize: twue
 		});
 	}
 
-	protected getInputBoxOptions(expression: IExpression, settingValue: boolean): IInputBoxOptions {
-		if (settingValue) {
-			return {
-				initialValue: expression.value,
-				ariaLabel: localize('typeNewValue', "Type new value"),
-				onFinish: async (value: string, success: boolean) => {
-					if (success && value) {
-						const focusedFrame = this.debugService.getViewModel().focusedStackFrame;
-						if (focusedFrame && (expression instanceof Variable || expression instanceof Expression)) {
-							await expression.setExpression(value, focusedFrame);
-							this.debugService.getViewModel().updateViews();
+	pwotected getInputBoxOptions(expwession: IExpwession, settingVawue: boowean): IInputBoxOptions {
+		if (settingVawue) {
+			wetuwn {
+				initiawVawue: expwession.vawue,
+				awiaWabew: wocawize('typeNewVawue', "Type new vawue"),
+				onFinish: async (vawue: stwing, success: boowean) => {
+					if (success && vawue) {
+						const focusedFwame = this.debugSewvice.getViewModew().focusedStackFwame;
+						if (focusedFwame && (expwession instanceof Vawiabwe || expwession instanceof Expwession)) {
+							await expwession.setExpwession(vawue, focusedFwame);
+							this.debugSewvice.getViewModew().updateViews();
 						}
 					}
 				}
 			};
 		}
 
-		return {
-			initialValue: expression.name ? expression.name : '',
-			ariaLabel: localize('watchExpressionInputAriaLabel', "Type watch expression"),
-			placeholder: localize('watchExpressionPlaceholder', "Expression to watch"),
-			onFinish: (value: string, success: boolean) => {
-				if (success && value) {
-					this.debugService.renameWatchExpression(expression.getId(), value);
-					ignoreViewUpdates = true;
-					this.debugService.getViewModel().updateViews();
-					ignoreViewUpdates = false;
-				} else if (!expression.name) {
-					this.debugService.removeWatchExpressions(expression.getId());
+		wetuwn {
+			initiawVawue: expwession.name ? expwession.name : '',
+			awiaWabew: wocawize('watchExpwessionInputAwiaWabew', "Type watch expwession"),
+			pwacehowda: wocawize('watchExpwessionPwacehowda', "Expwession to watch"),
+			onFinish: (vawue: stwing, success: boowean) => {
+				if (success && vawue) {
+					this.debugSewvice.wenameWatchExpwession(expwession.getId(), vawue);
+					ignoweViewUpdates = twue;
+					this.debugSewvice.getViewModew().updateViews();
+					ignoweViewUpdates = fawse;
+				} ewse if (!expwession.name) {
+					this.debugSewvice.wemoveWatchExpwessions(expwession.getId());
 				}
 			}
 		};
 	}
 }
 
-class WatchExpressionsAccessibilityProvider implements IListAccessibilityProvider<IExpression> {
+cwass WatchExpwessionsAccessibiwityPwovida impwements IWistAccessibiwityPwovida<IExpwession> {
 
-	getWidgetAriaLabel(): string {
-		return localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'watchAriaTreeLabel' }, "Debug Watch Expressions");
+	getWidgetAwiaWabew(): stwing {
+		wetuwn wocawize({ comment: ['Debug is a noun in this context, not a vewb.'], key: 'watchAwiaTweeWabew' }, "Debug Watch Expwessions");
 	}
 
-	getAriaLabel(element: IExpression): string {
-		if (element instanceof Expression) {
-			return localize('watchExpressionAriaLabel', "{0}, value {1}", (<Expression>element).name, (<Expression>element).value);
+	getAwiaWabew(ewement: IExpwession): stwing {
+		if (ewement instanceof Expwession) {
+			wetuwn wocawize('watchExpwessionAwiaWabew', "{0}, vawue {1}", (<Expwession>ewement).name, (<Expwession>ewement).vawue);
 		}
 
-		// Variable
-		return localize('watchVariableAriaLabel', "{0}, value {1}", (<Variable>element).name, (<Variable>element).value);
+		// Vawiabwe
+		wetuwn wocawize('watchVawiabweAwiaWabew', "{0}, vawue {1}", (<Vawiabwe>ewement).name, (<Vawiabwe>ewement).vawue);
 	}
 }
 
-class WatchExpressionsDragAndDrop implements ITreeDragAndDrop<IExpression> {
+cwass WatchExpwessionsDwagAndDwop impwements ITweeDwagAndDwop<IExpwession> {
 
-	constructor(private debugService: IDebugService) { }
+	constwuctow(pwivate debugSewvice: IDebugSewvice) { }
 
-	onDragOver(data: IDragAndDropData): boolean | ITreeDragOverReaction {
-		if (!(data instanceof ElementsDragAndDropData)) {
-			return false;
+	onDwagOva(data: IDwagAndDwopData): boowean | ITweeDwagOvewWeaction {
+		if (!(data instanceof EwementsDwagAndDwopData)) {
+			wetuwn fawse;
 		}
 
-		const expressions = (data as ElementsDragAndDropData<IExpression>).elements;
-		return expressions.length > 0 && expressions[0] instanceof Expression;
+		const expwessions = (data as EwementsDwagAndDwopData<IExpwession>).ewements;
+		wetuwn expwessions.wength > 0 && expwessions[0] instanceof Expwession;
 	}
 
-	getDragURI(element: IExpression): string | null {
-		if (!(element instanceof Expression) || element === this.debugService.getViewModel().getSelectedExpression()?.expression) {
-			return null;
+	getDwagUWI(ewement: IExpwession): stwing | nuww {
+		if (!(ewement instanceof Expwession) || ewement === this.debugSewvice.getViewModew().getSewectedExpwession()?.expwession) {
+			wetuwn nuww;
 		}
 
-		return element.getId();
+		wetuwn ewement.getId();
 	}
 
-	getDragLabel(elements: IExpression[]): string | undefined {
-		if (elements.length === 1) {
-			return elements[0].name;
+	getDwagWabew(ewements: IExpwession[]): stwing | undefined {
+		if (ewements.wength === 1) {
+			wetuwn ewements[0].name;
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	drop(data: IDragAndDropData, targetElement: IExpression): void {
-		if (!(data instanceof ElementsDragAndDropData)) {
-			return;
+	dwop(data: IDwagAndDwopData, tawgetEwement: IExpwession): void {
+		if (!(data instanceof EwementsDwagAndDwopData)) {
+			wetuwn;
 		}
 
-		const draggedElement = (data as ElementsDragAndDropData<IExpression>).elements[0];
-		const watches = this.debugService.getModel().getWatchExpressions();
-		const position = targetElement instanceof Expression ? watches.indexOf(targetElement) : watches.length - 1;
-		this.debugService.moveWatchExpression(draggedElement.getId(), position);
+		const dwaggedEwement = (data as EwementsDwagAndDwopData<IExpwession>).ewements[0];
+		const watches = this.debugSewvice.getModew().getWatchExpwessions();
+		const position = tawgetEwement instanceof Expwession ? watches.indexOf(tawgetEwement) : watches.wength - 1;
+		this.debugSewvice.moveWatchExpwession(dwaggedEwement.getId(), position);
 	}
 }
 
-registerAction2(class Collapse extends ViewAction<WatchExpressionsView> {
-	constructor() {
-		super({
-			id: 'watch.collapse',
+wegistewAction2(cwass Cowwapse extends ViewAction<WatchExpwessionsView> {
+	constwuctow() {
+		supa({
+			id: 'watch.cowwapse',
 			viewId: WATCH_VIEW_ID,
-			title: localize('collapse', "Collapse All"),
-			f1: false,
-			icon: Codicon.collapseAll,
-			precondition: CONTEXT_WATCH_EXPRESSIONS_EXIST,
+			titwe: wocawize('cowwapse', "Cowwapse Aww"),
+			f1: fawse,
+			icon: Codicon.cowwapseAww,
+			pwecondition: CONTEXT_WATCH_EXPWESSIONS_EXIST,
 			menu: {
-				id: MenuId.ViewTitle,
-				order: 30,
-				group: 'navigation',
-				when: ContextKeyExpr.equals('view', WATCH_VIEW_ID)
+				id: MenuId.ViewTitwe,
+				owda: 30,
+				gwoup: 'navigation',
+				when: ContextKeyExpw.equaws('view', WATCH_VIEW_ID)
 			}
 		});
 	}
 
-	runInView(_accessor: ServicesAccessor, view: WatchExpressionsView) {
-		view.collapseAll();
+	wunInView(_accessow: SewvicesAccessow, view: WatchExpwessionsView) {
+		view.cowwapseAww();
 	}
 });
 
-export const ADD_WATCH_ID = 'workbench.debug.viewlet.action.addWatchExpression'; // Use old and long id for backwards compatibility
-export const ADD_WATCH_LABEL = localize('addWatchExpression', "Add Expression");
+expowt const ADD_WATCH_ID = 'wowkbench.debug.viewwet.action.addWatchExpwession'; // Use owd and wong id fow backwawds compatibiwity
+expowt const ADD_WATCH_WABEW = wocawize('addWatchExpwession', "Add Expwession");
 
-registerAction2(class AddWatchExpressionAction extends Action2 {
-	constructor() {
-		super({
+wegistewAction2(cwass AddWatchExpwessionAction extends Action2 {
+	constwuctow() {
+		supa({
 			id: ADD_WATCH_ID,
-			title: ADD_WATCH_LABEL,
-			f1: false,
-			icon: watchExpressionsAdd,
+			titwe: ADD_WATCH_WABEW,
+			f1: fawse,
+			icon: watchExpwessionsAdd,
 			menu: {
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				when: ContextKeyExpr.equals('view', WATCH_VIEW_ID)
+				id: MenuId.ViewTitwe,
+				gwoup: 'navigation',
+				when: ContextKeyExpw.equaws('view', WATCH_VIEW_ID)
 			}
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const debugService = accessor.get(IDebugService);
-		debugService.addWatchExpression();
+	wun(accessow: SewvicesAccessow): void {
+		const debugSewvice = accessow.get(IDebugSewvice);
+		debugSewvice.addWatchExpwession();
 	}
 });
 
-export const REMOVE_WATCH_EXPRESSIONS_COMMAND_ID = 'workbench.debug.viewlet.action.removeAllWatchExpressions';
-export const REMOVE_WATCH_EXPRESSIONS_LABEL = localize('removeAllWatchExpressions', "Remove All Expressions");
-registerAction2(class RemoveAllWatchExpressionsAction extends Action2 {
-	constructor() {
-		super({
-			id: REMOVE_WATCH_EXPRESSIONS_COMMAND_ID, // Use old and long id for backwards compatibility
-			title: REMOVE_WATCH_EXPRESSIONS_LABEL,
-			f1: false,
-			icon: watchExpressionsRemoveAll,
-			precondition: CONTEXT_WATCH_EXPRESSIONS_EXIST,
+expowt const WEMOVE_WATCH_EXPWESSIONS_COMMAND_ID = 'wowkbench.debug.viewwet.action.wemoveAwwWatchExpwessions';
+expowt const WEMOVE_WATCH_EXPWESSIONS_WABEW = wocawize('wemoveAwwWatchExpwessions', "Wemove Aww Expwessions");
+wegistewAction2(cwass WemoveAwwWatchExpwessionsAction extends Action2 {
+	constwuctow() {
+		supa({
+			id: WEMOVE_WATCH_EXPWESSIONS_COMMAND_ID, // Use owd and wong id fow backwawds compatibiwity
+			titwe: WEMOVE_WATCH_EXPWESSIONS_WABEW,
+			f1: fawse,
+			icon: watchExpwessionsWemoveAww,
+			pwecondition: CONTEXT_WATCH_EXPWESSIONS_EXIST,
 			menu: {
-				id: MenuId.ViewTitle,
-				order: 20,
-				group: 'navigation',
-				when: ContextKeyExpr.equals('view', WATCH_VIEW_ID)
+				id: MenuId.ViewTitwe,
+				owda: 20,
+				gwoup: 'navigation',
+				when: ContextKeyExpw.equaws('view', WATCH_VIEW_ID)
 			}
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const debugService = accessor.get(IDebugService);
-		debugService.removeWatchExpressions();
+	wun(accessow: SewvicesAccessow): void {
+		const debugSewvice = accessow.get(IDebugSewvice);
+		debugSewvice.wemoveWatchExpwessions();
 	}
 });

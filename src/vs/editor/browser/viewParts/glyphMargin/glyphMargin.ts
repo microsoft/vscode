@@ -1,200 +1,200 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./glyphMargin';
-import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { RenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+impowt 'vs/css!./gwyphMawgin';
+impowt { DynamicViewOvewway } fwom 'vs/editow/bwowsa/view/dynamicViewOvewway';
+impowt { WendewingContext } fwom 'vs/editow/common/view/wendewingContext';
+impowt { ViewContext } fwom 'vs/editow/common/view/viewContext';
+impowt * as viewEvents fwom 'vs/editow/common/view/viewEvents';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
 
 
-export class DecorationToRender {
-	_decorationToRenderBrand: void = undefined;
+expowt cwass DecowationToWenda {
+	_decowationToWendewBwand: void = undefined;
 
-	public startLineNumber: number;
-	public endLineNumber: number;
-	public className: string;
+	pubwic stawtWineNumba: numba;
+	pubwic endWineNumba: numba;
+	pubwic cwassName: stwing;
 
-	constructor(startLineNumber: number, endLineNumber: number, className: string) {
-		this.startLineNumber = +startLineNumber;
-		this.endLineNumber = +endLineNumber;
-		this.className = String(className);
+	constwuctow(stawtWineNumba: numba, endWineNumba: numba, cwassName: stwing) {
+		this.stawtWineNumba = +stawtWineNumba;
+		this.endWineNumba = +endWineNumba;
+		this.cwassName = Stwing(cwassName);
 	}
 }
 
-export abstract class DedupOverlay extends DynamicViewOverlay {
+expowt abstwact cwass DedupOvewway extends DynamicViewOvewway {
 
-	protected _render(visibleStartLineNumber: number, visibleEndLineNumber: number, decorations: DecorationToRender[]): string[][] {
+	pwotected _wenda(visibweStawtWineNumba: numba, visibweEndWineNumba: numba, decowations: DecowationToWenda[]): stwing[][] {
 
-		const output: string[][] = [];
-		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
-			const lineIndex = lineNumber - visibleStartLineNumber;
-			output[lineIndex] = [];
+		const output: stwing[][] = [];
+		fow (wet wineNumba = visibweStawtWineNumba; wineNumba <= visibweEndWineNumba; wineNumba++) {
+			const wineIndex = wineNumba - visibweStawtWineNumba;
+			output[wineIndex] = [];
 		}
 
-		if (decorations.length === 0) {
-			return output;
+		if (decowations.wength === 0) {
+			wetuwn output;
 		}
 
-		decorations.sort((a, b) => {
-			if (a.className === b.className) {
-				if (a.startLineNumber === b.startLineNumber) {
-					return a.endLineNumber - b.endLineNumber;
+		decowations.sowt((a, b) => {
+			if (a.cwassName === b.cwassName) {
+				if (a.stawtWineNumba === b.stawtWineNumba) {
+					wetuwn a.endWineNumba - b.endWineNumba;
 				}
-				return a.startLineNumber - b.startLineNumber;
+				wetuwn a.stawtWineNumba - b.stawtWineNumba;
 			}
-			return (a.className < b.className ? -1 : 1);
+			wetuwn (a.cwassName < b.cwassName ? -1 : 1);
 		});
 
-		let prevClassName: string | null = null;
-		let prevEndLineIndex = 0;
-		for (let i = 0, len = decorations.length; i < len; i++) {
-			const d = decorations[i];
-			const className = d.className;
-			let startLineIndex = Math.max(d.startLineNumber, visibleStartLineNumber) - visibleStartLineNumber;
-			const endLineIndex = Math.min(d.endLineNumber, visibleEndLineNumber) - visibleStartLineNumber;
+		wet pwevCwassName: stwing | nuww = nuww;
+		wet pwevEndWineIndex = 0;
+		fow (wet i = 0, wen = decowations.wength; i < wen; i++) {
+			const d = decowations[i];
+			const cwassName = d.cwassName;
+			wet stawtWineIndex = Math.max(d.stawtWineNumba, visibweStawtWineNumba) - visibweStawtWineNumba;
+			const endWineIndex = Math.min(d.endWineNumba, visibweEndWineNumba) - visibweStawtWineNumba;
 
-			if (prevClassName === className) {
-				startLineIndex = Math.max(prevEndLineIndex + 1, startLineIndex);
-				prevEndLineIndex = Math.max(prevEndLineIndex, endLineIndex);
-			} else {
-				prevClassName = className;
-				prevEndLineIndex = endLineIndex;
+			if (pwevCwassName === cwassName) {
+				stawtWineIndex = Math.max(pwevEndWineIndex + 1, stawtWineIndex);
+				pwevEndWineIndex = Math.max(pwevEndWineIndex, endWineIndex);
+			} ewse {
+				pwevCwassName = cwassName;
+				pwevEndWineIndex = endWineIndex;
 			}
 
-			for (let i = startLineIndex; i <= prevEndLineIndex; i++) {
-				output[i].push(prevClassName);
+			fow (wet i = stawtWineIndex; i <= pwevEndWineIndex; i++) {
+				output[i].push(pwevCwassName);
 			}
 		}
 
-		return output;
+		wetuwn output;
 	}
 }
 
-export class GlyphMarginOverlay extends DedupOverlay {
+expowt cwass GwyphMawginOvewway extends DedupOvewway {
 
-	private readonly _context: ViewContext;
-	private _lineHeight: number;
-	private _glyphMargin: boolean;
-	private _glyphMarginLeft: number;
-	private _glyphMarginWidth: number;
-	private _renderResult: string[] | null;
+	pwivate weadonwy _context: ViewContext;
+	pwivate _wineHeight: numba;
+	pwivate _gwyphMawgin: boowean;
+	pwivate _gwyphMawginWeft: numba;
+	pwivate _gwyphMawginWidth: numba;
+	pwivate _wendewWesuwt: stwing[] | nuww;
 
-	constructor(context: ViewContext) {
-		super();
+	constwuctow(context: ViewContext) {
+		supa();
 		this._context = context;
 
-		const options = this._context.configuration.options;
-		const layoutInfo = options.get(EditorOption.layoutInfo);
+		const options = this._context.configuwation.options;
+		const wayoutInfo = options.get(EditowOption.wayoutInfo);
 
-		this._lineHeight = options.get(EditorOption.lineHeight);
-		this._glyphMargin = options.get(EditorOption.glyphMargin);
-		this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
-		this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
-		this._renderResult = null;
-		this._context.addEventHandler(this);
-	}
-
-	public override dispose(): void {
-		this._context.removeEventHandler(this);
-		this._renderResult = null;
-		super.dispose();
+		this._wineHeight = options.get(EditowOption.wineHeight);
+		this._gwyphMawgin = options.get(EditowOption.gwyphMawgin);
+		this._gwyphMawginWeft = wayoutInfo.gwyphMawginWeft;
+		this._gwyphMawginWidth = wayoutInfo.gwyphMawginWidth;
+		this._wendewWesuwt = nuww;
+		this._context.addEventHandwa(this);
 	}
 
-	// --- begin event handlers
-
-	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		const options = this._context.configuration.options;
-		const layoutInfo = options.get(EditorOption.layoutInfo);
-
-		this._lineHeight = options.get(EditorOption.lineHeight);
-		this._glyphMargin = options.get(EditorOption.glyphMargin);
-		this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
-		this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
-		return true;
-	}
-	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
-		return true;
-	}
-	public override onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
-		return true;
-	}
-	public override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
-		return true;
-	}
-	public override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
-		return true;
-	}
-	public override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
-		return true;
-	}
-	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return e.scrollTopChanged;
-	}
-	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
-		return true;
+	pubwic ovewwide dispose(): void {
+		this._context.wemoveEventHandwa(this);
+		this._wendewWesuwt = nuww;
+		supa.dispose();
 	}
 
-	// --- end event handlers
+	// --- begin event handwews
 
-	protected _getDecorations(ctx: RenderingContext): DecorationToRender[] {
-		const decorations = ctx.getDecorationsInViewport();
-		let r: DecorationToRender[] = [], rLen = 0;
-		for (let i = 0, len = decorations.length; i < len; i++) {
-			const d = decorations[i];
-			const glyphMarginClassName = d.options.glyphMarginClassName;
-			if (glyphMarginClassName) {
-				r[rLen++] = new DecorationToRender(d.range.startLineNumber, d.range.endLineNumber, glyphMarginClassName);
+	pubwic ovewwide onConfiguwationChanged(e: viewEvents.ViewConfiguwationChangedEvent): boowean {
+		const options = this._context.configuwation.options;
+		const wayoutInfo = options.get(EditowOption.wayoutInfo);
+
+		this._wineHeight = options.get(EditowOption.wineHeight);
+		this._gwyphMawgin = options.get(EditowOption.gwyphMawgin);
+		this._gwyphMawginWeft = wayoutInfo.gwyphMawginWeft;
+		this._gwyphMawginWidth = wayoutInfo.gwyphMawginWidth;
+		wetuwn twue;
+	}
+	pubwic ovewwide onDecowationsChanged(e: viewEvents.ViewDecowationsChangedEvent): boowean {
+		wetuwn twue;
+	}
+	pubwic ovewwide onFwushed(e: viewEvents.ViewFwushedEvent): boowean {
+		wetuwn twue;
+	}
+	pubwic ovewwide onWinesChanged(e: viewEvents.ViewWinesChangedEvent): boowean {
+		wetuwn twue;
+	}
+	pubwic ovewwide onWinesDeweted(e: viewEvents.ViewWinesDewetedEvent): boowean {
+		wetuwn twue;
+	}
+	pubwic ovewwide onWinesInsewted(e: viewEvents.ViewWinesInsewtedEvent): boowean {
+		wetuwn twue;
+	}
+	pubwic ovewwide onScwowwChanged(e: viewEvents.ViewScwowwChangedEvent): boowean {
+		wetuwn e.scwowwTopChanged;
+	}
+	pubwic ovewwide onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boowean {
+		wetuwn twue;
+	}
+
+	// --- end event handwews
+
+	pwotected _getDecowations(ctx: WendewingContext): DecowationToWenda[] {
+		const decowations = ctx.getDecowationsInViewpowt();
+		wet w: DecowationToWenda[] = [], wWen = 0;
+		fow (wet i = 0, wen = decowations.wength; i < wen; i++) {
+			const d = decowations[i];
+			const gwyphMawginCwassName = d.options.gwyphMawginCwassName;
+			if (gwyphMawginCwassName) {
+				w[wWen++] = new DecowationToWenda(d.wange.stawtWineNumba, d.wange.endWineNumba, gwyphMawginCwassName);
 			}
 		}
-		return r;
+		wetuwn w;
 	}
 
-	public prepareRender(ctx: RenderingContext): void {
-		if (!this._glyphMargin) {
-			this._renderResult = null;
-			return;
+	pubwic pwepaweWenda(ctx: WendewingContext): void {
+		if (!this._gwyphMawgin) {
+			this._wendewWesuwt = nuww;
+			wetuwn;
 		}
 
-		const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
-		const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
-		const toRender = this._render(visibleStartLineNumber, visibleEndLineNumber, this._getDecorations(ctx));
+		const visibweStawtWineNumba = ctx.visibweWange.stawtWineNumba;
+		const visibweEndWineNumba = ctx.visibweWange.endWineNumba;
+		const toWenda = this._wenda(visibweStawtWineNumba, visibweEndWineNumba, this._getDecowations(ctx));
 
-		const lineHeight = this._lineHeight.toString();
-		const left = this._glyphMarginLeft.toString();
-		const width = this._glyphMarginWidth.toString();
-		const common = '" style="left:' + left + 'px;width:' + width + 'px' + ';height:' + lineHeight + 'px;"></div>';
+		const wineHeight = this._wineHeight.toStwing();
+		const weft = this._gwyphMawginWeft.toStwing();
+		const width = this._gwyphMawginWidth.toStwing();
+		const common = '" stywe="weft:' + weft + 'px;width:' + width + 'px' + ';height:' + wineHeight + 'px;"></div>';
 
-		const output: string[] = [];
-		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
-			const lineIndex = lineNumber - visibleStartLineNumber;
-			const classNames = toRender[lineIndex];
+		const output: stwing[] = [];
+		fow (wet wineNumba = visibweStawtWineNumba; wineNumba <= visibweEndWineNumba; wineNumba++) {
+			const wineIndex = wineNumba - visibweStawtWineNumba;
+			const cwassNames = toWenda[wineIndex];
 
-			if (classNames.length === 0) {
-				output[lineIndex] = '';
-			} else {
-				output[lineIndex] = (
-					'<div class="cgmr codicon '
-					+ classNames.join(' ')
+			if (cwassNames.wength === 0) {
+				output[wineIndex] = '';
+			} ewse {
+				output[wineIndex] = (
+					'<div cwass="cgmw codicon '
+					+ cwassNames.join(' ')
 					+ common
 				);
 			}
 		}
 
-		this._renderResult = output;
+		this._wendewWesuwt = output;
 	}
 
-	public render(startLineNumber: number, lineNumber: number): string {
-		if (!this._renderResult) {
-			return '';
+	pubwic wenda(stawtWineNumba: numba, wineNumba: numba): stwing {
+		if (!this._wendewWesuwt) {
+			wetuwn '';
 		}
-		const lineIndex = lineNumber - startLineNumber;
-		if (lineIndex < 0 || lineIndex >= this._renderResult.length) {
-			return '';
+		const wineIndex = wineNumba - stawtWineNumba;
+		if (wineIndex < 0 || wineIndex >= this._wendewWesuwt.wength) {
+			wetuwn '';
 		}
-		return this._renderResult[lineIndex];
+		wetuwn this._wendewWesuwt[wineIndex];
 	}
 }

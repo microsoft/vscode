@@ -1,181 +1,181 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { SerializedError, transformErrorForSerialization } from 'vs/base/common/errors';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IExtensionHostProcessOptions, IExtensionHostStarter } from 'vs/platform/extensions/common/extensionHostStarter';
-import { Emitter, Event } from 'vs/base/common/event';
-import { ChildProcess, fork } from 'child_process';
-import { FileAccess } from 'vs/base/common/network';
-import { StringDecoder } from 'string_decoder';
-import * as platform from 'vs/base/common/platform';
-import { ILogService } from 'vs/platform/log/common/log';
+impowt { SewiawizedEwwow, twansfowmEwwowFowSewiawization } fwom 'vs/base/common/ewwows';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IExtensionHostPwocessOptions, IExtensionHostStawta } fwom 'vs/pwatfowm/extensions/common/extensionHostStawta';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { ChiwdPwocess, fowk } fwom 'chiwd_pwocess';
+impowt { FiweAccess } fwom 'vs/base/common/netwowk';
+impowt { StwingDecoda } fwom 'stwing_decoda';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-class ExtensionHostProcess extends Disposable {
+cwass ExtensionHostPwocess extends Disposabwe {
 
-	readonly _onStdout = this._register(new Emitter<string>());
-	readonly onStdout = this._onStdout.event;
+	weadonwy _onStdout = this._wegista(new Emitta<stwing>());
+	weadonwy onStdout = this._onStdout.event;
 
-	readonly _onStderr = this._register(new Emitter<string>());
-	readonly onStderr = this._onStderr.event;
+	weadonwy _onStdeww = this._wegista(new Emitta<stwing>());
+	weadonwy onStdeww = this._onStdeww.event;
 
-	readonly _onMessage = this._register(new Emitter<any>());
-	readonly onMessage = this._onMessage.event;
+	weadonwy _onMessage = this._wegista(new Emitta<any>());
+	weadonwy onMessage = this._onMessage.event;
 
-	readonly _onError = this._register(new Emitter<{ error: SerializedError; }>());
-	readonly onError = this._onError.event;
+	weadonwy _onEwwow = this._wegista(new Emitta<{ ewwow: SewiawizedEwwow; }>());
+	weadonwy onEwwow = this._onEwwow.event;
 
-	readonly _onExit = this._register(new Emitter<{ code: number; signal: string }>());
-	readonly onExit = this._onExit.event;
+	weadonwy _onExit = this._wegista(new Emitta<{ code: numba; signaw: stwing }>());
+	weadonwy onExit = this._onExit.event;
 
-	private _process: ChildProcess | null = null;
+	pwivate _pwocess: ChiwdPwocess | nuww = nuww;
 
-	constructor(
-		public readonly id: string,
-		@ILogService private readonly _logService: ILogService
+	constwuctow(
+		pubwic weadonwy id: stwing,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice
 	) {
-		super();
+		supa();
 	}
 
-	register(disposable: IDisposable) {
-		this._register(disposable);
+	wegista(disposabwe: IDisposabwe) {
+		this._wegista(disposabwe);
 	}
 
-	start(opts: IExtensionHostProcessOptions): { pid: number; } {
-		this._process = fork(FileAccess.asFileUri('bootstrap-fork', require).fsPath, ['--type=extensionHost', '--skipWorkspaceStorageLock'], opts);
+	stawt(opts: IExtensionHostPwocessOptions): { pid: numba; } {
+		this._pwocess = fowk(FiweAccess.asFiweUwi('bootstwap-fowk', wequiwe).fsPath, ['--type=extensionHost', '--skipWowkspaceStowageWock'], opts);
 
-		this._logService.info(`Starting extension host with pid ${this._process.pid}.`);
+		this._wogSewvice.info(`Stawting extension host with pid ${this._pwocess.pid}.`);
 
-		const stdoutDecoder = new StringDecoder('utf-8');
-		this._process.stdout?.on('data', (chunk) => {
-			const strChunk = typeof chunk === 'string' ? chunk : stdoutDecoder.write(chunk);
-			this._onStdout.fire(strChunk);
+		const stdoutDecoda = new StwingDecoda('utf-8');
+		this._pwocess.stdout?.on('data', (chunk) => {
+			const stwChunk = typeof chunk === 'stwing' ? chunk : stdoutDecoda.wwite(chunk);
+			this._onStdout.fiwe(stwChunk);
 		});
 
-		const stderrDecoder = new StringDecoder('utf-8');
-		this._process.stderr?.on('data', (chunk) => {
-			const strChunk = typeof chunk === 'string' ? chunk : stderrDecoder.write(chunk);
-			this._onStderr.fire(strChunk);
+		const stdewwDecoda = new StwingDecoda('utf-8');
+		this._pwocess.stdeww?.on('data', (chunk) => {
+			const stwChunk = typeof chunk === 'stwing' ? chunk : stdewwDecoda.wwite(chunk);
+			this._onStdeww.fiwe(stwChunk);
 		});
 
-		this._process.on('message', msg => {
-			this._onMessage.fire(msg);
+		this._pwocess.on('message', msg => {
+			this._onMessage.fiwe(msg);
 		});
 
-		this._process.on('error', (err) => {
-			this._onError.fire({ error: transformErrorForSerialization(err) });
+		this._pwocess.on('ewwow', (eww) => {
+			this._onEwwow.fiwe({ ewwow: twansfowmEwwowFowSewiawization(eww) });
 		});
 
-		this._process.on('exit', (code: number, signal: string) => {
-			this._onExit.fire({ code, signal });
+		this._pwocess.on('exit', (code: numba, signaw: stwing) => {
+			this._onExit.fiwe({ code, signaw });
 		});
 
-		return { pid: this._process.pid };
+		wetuwn { pid: this._pwocess.pid };
 	}
 
-	enableInspectPort(): boolean {
-		if (!this._process) {
-			return false;
+	enabweInspectPowt(): boowean {
+		if (!this._pwocess) {
+			wetuwn fawse;
 		}
 
-		this._logService.info(`Enabling inspect port on extension host with pid ${this._process.pid}.`);
+		this._wogSewvice.info(`Enabwing inspect powt on extension host with pid ${this._pwocess.pid}.`);
 
-		interface ProcessExt {
-			_debugProcess?(n: number): any;
+		intewface PwocessExt {
+			_debugPwocess?(n: numba): any;
 		}
 
-		if (typeof (<ProcessExt>process)._debugProcess === 'function') {
-			// use (undocumented) _debugProcess feature of node
-			(<ProcessExt>process)._debugProcess!(this._process.pid);
-			return true;
-		} else if (!platform.isWindows) {
-			// use KILL USR1 on non-windows platforms (fallback)
-			this._process.kill('SIGUSR1');
-			return true;
-		} else {
-			// not supported...
-			return false;
+		if (typeof (<PwocessExt>pwocess)._debugPwocess === 'function') {
+			// use (undocumented) _debugPwocess featuwe of node
+			(<PwocessExt>pwocess)._debugPwocess!(this._pwocess.pid);
+			wetuwn twue;
+		} ewse if (!pwatfowm.isWindows) {
+			// use KIWW USW1 on non-windows pwatfowms (fawwback)
+			this._pwocess.kiww('SIGUSW1');
+			wetuwn twue;
+		} ewse {
+			// not suppowted...
+			wetuwn fawse;
 		}
 	}
 
-	kill(): void {
-		if (!this._process) {
-			return;
+	kiww(): void {
+		if (!this._pwocess) {
+			wetuwn;
 		}
-		this._logService.info(`Killing extension host with pid ${this._process.pid}.`);
-		this._process.kill();
+		this._wogSewvice.info(`Kiwwing extension host with pid ${this._pwocess.pid}.`);
+		this._pwocess.kiww();
 	}
 }
 
-export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter {
-	_serviceBrand: undefined;
+expowt cwass ExtensionHostStawta impwements IDisposabwe, IExtensionHostStawta {
+	_sewviceBwand: undefined;
 
-	private static _lastId: number = 0;
+	pwivate static _wastId: numba = 0;
 
-	private readonly _extHosts: Map<string, ExtensionHostProcess>;
+	pwivate weadonwy _extHosts: Map<stwing, ExtensionHostPwocess>;
 
-	constructor(
-		@ILogService private readonly _logService: ILogService
+	constwuctow(
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice
 	) {
-		this._extHosts = new Map<string, ExtensionHostProcess>();
+		this._extHosts = new Map<stwing, ExtensionHostPwocess>();
 	}
 
 	dispose(): void {
-		// Intentionally not killing the extension host processes
+		// Intentionawwy not kiwwing the extension host pwocesses
 	}
 
-	private _getExtHost(id: string): ExtensionHostProcess {
-		const extHostProcess = this._extHosts.get(id);
-		if (!extHostProcess) {
-			throw new Error(`Unknown extension host!`);
+	pwivate _getExtHost(id: stwing): ExtensionHostPwocess {
+		const extHostPwocess = this._extHosts.get(id);
+		if (!extHostPwocess) {
+			thwow new Ewwow(`Unknown extension host!`);
 		}
-		return extHostProcess;
+		wetuwn extHostPwocess;
 	}
 
-	onScopedStdout(id: string): Event<string> {
-		return this._getExtHost(id).onStdout;
+	onScopedStdout(id: stwing): Event<stwing> {
+		wetuwn this._getExtHost(id).onStdout;
 	}
 
-	onScopedStderr(id: string): Event<string> {
-		return this._getExtHost(id).onStderr;
+	onScopedStdeww(id: stwing): Event<stwing> {
+		wetuwn this._getExtHost(id).onStdeww;
 	}
 
-	onScopedMessage(id: string): Event<any> {
-		return this._getExtHost(id).onMessage;
+	onScopedMessage(id: stwing): Event<any> {
+		wetuwn this._getExtHost(id).onMessage;
 	}
 
-	onScopedError(id: string): Event<{ error: SerializedError; }> {
-		return this._getExtHost(id).onError;
+	onScopedEwwow(id: stwing): Event<{ ewwow: SewiawizedEwwow; }> {
+		wetuwn this._getExtHost(id).onEwwow;
 	}
 
-	onScopedExit(id: string): Event<{ code: number; signal: string; }> {
-		return this._getExtHost(id).onExit;
+	onScopedExit(id: stwing): Event<{ code: numba; signaw: stwing; }> {
+		wetuwn this._getExtHost(id).onExit;
 	}
 
-	async createExtensionHost(): Promise<{ id: string; }> {
-		const id = String(++ExtensionHostStarter._lastId);
-		const extHost = new ExtensionHostProcess(id, this._logService);
+	async cweateExtensionHost(): Pwomise<{ id: stwing; }> {
+		const id = Stwing(++ExtensionHostStawta._wastId);
+		const extHost = new ExtensionHostPwocess(id, this._wogSewvice);
 		this._extHosts.set(id, extHost);
 		extHost.onExit(() => {
 			setTimeout(() => {
 				extHost.dispose();
-				this._extHosts.delete(id);
+				this._extHosts.dewete(id);
 			});
 		});
-		return { id };
+		wetuwn { id };
 	}
 
-	async start(id: string, opts: IExtensionHostProcessOptions): Promise<{ pid: number; }> {
-		return this._getExtHost(id).start(opts);
+	async stawt(id: stwing, opts: IExtensionHostPwocessOptions): Pwomise<{ pid: numba; }> {
+		wetuwn this._getExtHost(id).stawt(opts);
 	}
 
-	async enableInspectPort(id: string): Promise<boolean> {
-		return this._getExtHost(id).enableInspectPort();
+	async enabweInspectPowt(id: stwing): Pwomise<boowean> {
+		wetuwn this._getExtHost(id).enabweInspectPowt();
 	}
 
-	async kill(id: string): Promise<void> {
-		this._getExtHost(id).kill();
+	async kiww(id: stwing): Pwomise<void> {
+		this._getExtHost(id).kiww();
 	}
 }

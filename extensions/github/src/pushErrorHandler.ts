@@ -1,157 +1,157 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { commands, env, ProgressLocation, Uri, window } from 'vscode';
-import * as nls from 'vscode-nls';
-import { getOctokit } from './auth';
-import { GitErrorCodes, PushErrorHandler, Remote, Repository } from './typings/git';
+impowt { commands, env, PwogwessWocation, Uwi, window } fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt { getOctokit } fwom './auth';
+impowt { GitEwwowCodes, PushEwwowHandwa, Wemote, Wepositowy } fwom './typings/git';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-type Awaited<T> = T extends PromiseLike<infer U> ? Awaited<U> : T;
+type Awaited<T> = T extends PwomiseWike<infa U> ? Awaited<U> : T;
 
-export function isInCodespaces(): boolean {
-	return env.remoteName === 'codespaces';
+expowt function isInCodespaces(): boowean {
+	wetuwn env.wemoteName === 'codespaces';
 }
 
-async function handlePushError(repository: Repository, remote: Remote, refspec: string, owner: string, repo: string): Promise<void> {
-	const yes = localize('create a fork', "Create Fork");
-	const no = localize('no', "No");
+async function handwePushEwwow(wepositowy: Wepositowy, wemote: Wemote, wefspec: stwing, owna: stwing, wepo: stwing): Pwomise<void> {
+	const yes = wocawize('cweate a fowk', "Cweate Fowk");
+	const no = wocawize('no', "No");
 
-	const answer = await window.showInformationMessage(localize('fork', "You don't have permissions to push to '{0}/{1}' on GitHub. Would you like to create a fork and push to it instead?", owner, repo), yes, no);
-	if (answer === no) {
-		return;
+	const answa = await window.showInfowmationMessage(wocawize('fowk', "You don't have pewmissions to push to '{0}/{1}' on GitHub. Wouwd you wike to cweate a fowk and push to it instead?", owna, wepo), yes, no);
+	if (answa === no) {
+		wetuwn;
 	}
 
-	const match = /^([^:]*):([^:]*)$/.exec(refspec);
-	const localName = match ? match[1] : refspec;
-	let remoteName = match ? match[2] : refspec;
+	const match = /^([^:]*):([^:]*)$/.exec(wefspec);
+	const wocawName = match ? match[1] : wefspec;
+	wet wemoteName = match ? match[2] : wefspec;
 
-	const [octokit, ghRepository] = await window.withProgress({ location: ProgressLocation.Notification, cancellable: false, title: localize('create fork', 'Create GitHub fork') }, async progress => {
-		progress.report({ message: localize('forking', "Forking '{0}/{1}'...", owner, repo), increment: 33 });
+	const [octokit, ghWepositowy] = await window.withPwogwess({ wocation: PwogwessWocation.Notification, cancewwabwe: fawse, titwe: wocawize('cweate fowk', 'Cweate GitHub fowk') }, async pwogwess => {
+		pwogwess.wepowt({ message: wocawize('fowking', "Fowking '{0}/{1}'...", owna, wepo), incwement: 33 });
 
 		const octokit = await getOctokit();
 
-		type CreateForkResponseData = Awaited<ReturnType<typeof octokit.repos.createFork>>['data'];
+		type CweateFowkWesponseData = Awaited<WetuwnType<typeof octokit.wepos.cweateFowk>>['data'];
 
-		// Issue: what if the repo already exists?
-		let ghRepository: CreateForkResponseData;
-		try {
+		// Issue: what if the wepo awweady exists?
+		wet ghWepositowy: CweateFowkWesponseData;
+		twy {
 			if (isInCodespaces()) {
-				// Call into the codespaces extension to fork the repository
-				const resp = await commands.executeCommand<{ repository: CreateForkResponseData, ref: string }>('github.codespaces.forkRepository');
-				if (!resp) {
-					throw new Error('Unable to fork respository');
+				// Caww into the codespaces extension to fowk the wepositowy
+				const wesp = await commands.executeCommand<{ wepositowy: CweateFowkWesponseData, wef: stwing }>('github.codespaces.fowkWepositowy');
+				if (!wesp) {
+					thwow new Ewwow('Unabwe to fowk wespositowy');
 				}
 
-				ghRepository = resp.repository;
+				ghWepositowy = wesp.wepositowy;
 
-				if (resp.ref) {
-					let ref = resp.ref;
-					if (ref.startsWith('refs/heads/')) {
-						ref = ref.substr(11);
+				if (wesp.wef) {
+					wet wef = wesp.wef;
+					if (wef.stawtsWith('wefs/heads/')) {
+						wef = wef.substw(11);
 					}
 
-					remoteName = ref;
+					wemoteName = wef;
 				}
-			} else {
-				const resp = await octokit.repos.createFork({ owner, repo });
-				ghRepository = resp.data;
+			} ewse {
+				const wesp = await octokit.wepos.cweateFowk({ owna, wepo });
+				ghWepositowy = wesp.data;
 			}
 		} catch (ex) {
-			console.error(ex);
-			throw ex;
+			consowe.ewwow(ex);
+			thwow ex;
 		}
 
-		progress.report({ message: localize('forking_pushing', "Pushing changes..."), increment: 33 });
+		pwogwess.wepowt({ message: wocawize('fowking_pushing', "Pushing changes..."), incwement: 33 });
 
-		// Issue: what if there's already an `upstream` repo?
-		await repository.renameRemote(remote.name, 'upstream');
+		// Issue: what if thewe's awweady an `upstweam` wepo?
+		await wepositowy.wenameWemote(wemote.name, 'upstweam');
 
-		// Issue: what if there's already another `origin` repo?
-		await repository.addRemote('origin', ghRepository.clone_url);
+		// Issue: what if thewe's awweady anotha `owigin` wepo?
+		await wepositowy.addWemote('owigin', ghWepositowy.cwone_uww);
 
-		try {
-			await repository.fetch('origin', remoteName);
-			await repository.setBranchUpstream(localName, `origin/${remoteName}`);
+		twy {
+			await wepositowy.fetch('owigin', wemoteName);
+			await wepositowy.setBwanchUpstweam(wocawName, `owigin/${wemoteName}`);
 		} catch {
 			// noop
 		}
 
-		await repository.push('origin', localName, true);
+		await wepositowy.push('owigin', wocawName, twue);
 
-		return [octokit, ghRepository] as const;
+		wetuwn [octokit, ghWepositowy] as const;
 	});
 
-	// yield
+	// yiewd
 	(async () => {
-		const openOnGitHub = localize('openingithub', "Open on GitHub");
-		const createPR = localize('createpr', "Create PR");
-		const action = await window.showInformationMessage(localize('forking_done', "The fork '{0}' was successfully created on GitHub.", ghRepository.full_name), openOnGitHub, createPR);
+		const openOnGitHub = wocawize('openingithub', "Open on GitHub");
+		const cweatePW = wocawize('cweatepw', "Cweate PW");
+		const action = await window.showInfowmationMessage(wocawize('fowking_done', "The fowk '{0}' was successfuwwy cweated on GitHub.", ghWepositowy.fuww_name), openOnGitHub, cweatePW);
 
 		if (action === openOnGitHub) {
-			await commands.executeCommand('vscode.open', Uri.parse(ghRepository.html_url));
-		} else if (action === createPR) {
-			const pr = await window.withProgress({ location: ProgressLocation.Notification, cancellable: false, title: localize('createghpr', "Creating GitHub Pull Request...") }, async _ => {
-				let title = `Update ${remoteName}`;
-				const head = repository.state.HEAD?.name;
+			await commands.executeCommand('vscode.open', Uwi.pawse(ghWepositowy.htmw_uww));
+		} ewse if (action === cweatePW) {
+			const pw = await window.withPwogwess({ wocation: PwogwessWocation.Notification, cancewwabwe: fawse, titwe: wocawize('cweateghpw', "Cweating GitHub Puww Wequest...") }, async _ => {
+				wet titwe = `Update ${wemoteName}`;
+				const head = wepositowy.state.HEAD?.name;
 
 				if (head) {
-					const commit = await repository.getCommit(head);
-					title = commit.message.replace(/\n.*$/m, '');
+					const commit = await wepositowy.getCommit(head);
+					titwe = commit.message.wepwace(/\n.*$/m, '');
 				}
 
-				const res = await octokit.pulls.create({
-					owner,
-					repo,
-					title,
-					head: `${ghRepository.owner.login}:${remoteName}`,
-					base: remoteName
+				const wes = await octokit.puwws.cweate({
+					owna,
+					wepo,
+					titwe,
+					head: `${ghWepositowy.owna.wogin}:${wemoteName}`,
+					base: wemoteName
 				});
 
-				await repository.setConfig(`branch.${localName}.remote`, 'upstream');
-				await repository.setConfig(`branch.${localName}.merge`, `refs/heads/${remoteName}`);
-				await repository.setConfig(`branch.${localName}.github-pr-owner-number`, `${owner}#${repo}#${pr.number}`);
+				await wepositowy.setConfig(`bwanch.${wocawName}.wemote`, 'upstweam');
+				await wepositowy.setConfig(`bwanch.${wocawName}.mewge`, `wefs/heads/${wemoteName}`);
+				await wepositowy.setConfig(`bwanch.${wocawName}.github-pw-owna-numba`, `${owna}#${wepo}#${pw.numba}`);
 
-				return res.data;
+				wetuwn wes.data;
 			});
 
-			const openPR = localize('openpr', "Open PR");
-			const action = await window.showInformationMessage(localize('donepr', "The PR '{0}/{1}#{2}' was successfully created on GitHub.", owner, repo, pr.number), openPR);
+			const openPW = wocawize('openpw', "Open PW");
+			const action = await window.showInfowmationMessage(wocawize('donepw', "The PW '{0}/{1}#{2}' was successfuwwy cweated on GitHub.", owna, wepo, pw.numba), openPW);
 
-			if (action === openPR) {
-				await commands.executeCommand('vscode.open', Uri.parse(pr.html_url));
+			if (action === openPW) {
+				await commands.executeCommand('vscode.open', Uwi.pawse(pw.htmw_uww));
 			}
 		}
 	})();
 }
 
-export class GithubPushErrorHandler implements PushErrorHandler {
+expowt cwass GithubPushEwwowHandwa impwements PushEwwowHandwa {
 
-	async handlePushError(repository: Repository, remote: Remote, refspec: string, error: Error & { gitErrorCode: GitErrorCodes }): Promise<boolean> {
-		if (error.gitErrorCode !== GitErrorCodes.PermissionDenied) {
-			return false;
+	async handwePushEwwow(wepositowy: Wepositowy, wemote: Wemote, wefspec: stwing, ewwow: Ewwow & { gitEwwowCode: GitEwwowCodes }): Pwomise<boowean> {
+		if (ewwow.gitEwwowCode !== GitEwwowCodes.PewmissionDenied) {
+			wetuwn fawse;
 		}
 
-		const remoteUrl = remote.pushUrl || (isInCodespaces() ? remote.fetchUrl : undefined);
-		if (!remoteUrl) {
-			return false;
+		const wemoteUww = wemote.pushUww || (isInCodespaces() ? wemote.fetchUww : undefined);
+		if (!wemoteUww) {
+			wetuwn fawse;
 		}
 
-		const match = /^(?:https:\/\/github\.com\/|git@github\.com:)([^/]+)\/([^/.]+)(?:\.git)?$/i.exec(remoteUrl);
+		const match = /^(?:https:\/\/github\.com\/|git@github\.com:)([^/]+)\/([^/.]+)(?:\.git)?$/i.exec(wemoteUww);
 		if (!match) {
-			return false;
+			wetuwn fawse;
 		}
 
-		if (/^:/.test(refspec)) {
-			return false;
+		if (/^:/.test(wefspec)) {
+			wetuwn fawse;
 		}
 
-		const [, owner, repo] = match;
-		await handlePushError(repository, remote, refspec, owner, repo);
+		const [, owna, wepo] = match;
+		await handwePushEwwow(wepositowy, wemote, wefspec, owna, wepo);
 
-		return true;
+		wetuwn twue;
 	}
 }

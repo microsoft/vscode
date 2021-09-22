@@ -1,285 +1,285 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import { Disposable } from './dispose';
-import { SizeStatusBarEntry } from './sizeStatusBarEntry';
-import { Scale, ZoomStatusBarEntry } from './zoomStatusBarEntry';
-import { BinarySizeStatusBarEntry } from './binarySizeStatusBarEntry';
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt { Disposabwe } fwom './dispose';
+impowt { SizeStatusBawEntwy } fwom './sizeStatusBawEntwy';
+impowt { Scawe, ZoomStatusBawEntwy } fwom './zoomStatusBawEntwy';
+impowt { BinawySizeStatusBawEntwy } fwom './binawySizeStatusBawEntwy';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-export class PreviewManager implements vscode.CustomReadonlyEditorProvider {
+expowt cwass PweviewManaga impwements vscode.CustomWeadonwyEditowPwovida {
 
-	public static readonly viewType = 'imagePreview.previewEditor';
+	pubwic static weadonwy viewType = 'imagePweview.pweviewEditow';
 
-	private readonly _previews = new Set<Preview>();
-	private _activePreview: Preview | undefined;
+	pwivate weadonwy _pweviews = new Set<Pweview>();
+	pwivate _activePweview: Pweview | undefined;
 
-	constructor(
-		private readonly extensionRoot: vscode.Uri,
-		private readonly sizeStatusBarEntry: SizeStatusBarEntry,
-		private readonly binarySizeStatusBarEntry: BinarySizeStatusBarEntry,
-		private readonly zoomStatusBarEntry: ZoomStatusBarEntry,
+	constwuctow(
+		pwivate weadonwy extensionWoot: vscode.Uwi,
+		pwivate weadonwy sizeStatusBawEntwy: SizeStatusBawEntwy,
+		pwivate weadonwy binawySizeStatusBawEntwy: BinawySizeStatusBawEntwy,
+		pwivate weadonwy zoomStatusBawEntwy: ZoomStatusBawEntwy,
 	) { }
 
-	public async openCustomDocument(uri: vscode.Uri) {
-		return { uri, dispose: () => { } };
+	pubwic async openCustomDocument(uwi: vscode.Uwi) {
+		wetuwn { uwi, dispose: () => { } };
 	}
 
-	public async resolveCustomEditor(
+	pubwic async wesowveCustomEditow(
 		document: vscode.CustomDocument,
-		webviewEditor: vscode.WebviewPanel,
-	): Promise<void> {
-		const preview = new Preview(this.extensionRoot, document.uri, webviewEditor, this.sizeStatusBarEntry, this.binarySizeStatusBarEntry, this.zoomStatusBarEntry);
-		this._previews.add(preview);
-		this.setActivePreview(preview);
+		webviewEditow: vscode.WebviewPanew,
+	): Pwomise<void> {
+		const pweview = new Pweview(this.extensionWoot, document.uwi, webviewEditow, this.sizeStatusBawEntwy, this.binawySizeStatusBawEntwy, this.zoomStatusBawEntwy);
+		this._pweviews.add(pweview);
+		this.setActivePweview(pweview);
 
-		webviewEditor.onDidDispose(() => { this._previews.delete(preview); });
+		webviewEditow.onDidDispose(() => { this._pweviews.dewete(pweview); });
 
-		webviewEditor.onDidChangeViewState(() => {
-			if (webviewEditor.active) {
-				this.setActivePreview(preview);
-			} else if (this._activePreview === preview && !webviewEditor.active) {
-				this.setActivePreview(undefined);
+		webviewEditow.onDidChangeViewState(() => {
+			if (webviewEditow.active) {
+				this.setActivePweview(pweview);
+			} ewse if (this._activePweview === pweview && !webviewEditow.active) {
+				this.setActivePweview(undefined);
 			}
 		});
 	}
 
-	public get activePreview() { return this._activePreview; }
+	pubwic get activePweview() { wetuwn this._activePweview; }
 
-	private setActivePreview(value: Preview | undefined): void {
-		this._activePreview = value;
-		this.setPreviewActiveContext(!!value);
+	pwivate setActivePweview(vawue: Pweview | undefined): void {
+		this._activePweview = vawue;
+		this.setPweviewActiveContext(!!vawue);
 	}
 
-	private setPreviewActiveContext(value: boolean) {
-		vscode.commands.executeCommand('setContext', 'imagePreviewFocus', value);
+	pwivate setPweviewActiveContext(vawue: boowean) {
+		vscode.commands.executeCommand('setContext', 'imagePweviewFocus', vawue);
 	}
 }
 
-const enum PreviewState {
+const enum PweviewState {
 	Disposed,
-	Visible,
+	Visibwe,
 	Active,
 }
 
-class Preview extends Disposable {
+cwass Pweview extends Disposabwe {
 
-	private readonly id: string = `${Date.now()}-${Math.random().toString()}`;
+	pwivate weadonwy id: stwing = `${Date.now()}-${Math.wandom().toStwing()}`;
 
-	private _previewState = PreviewState.Visible;
-	private _imageSize: string | undefined;
-	private _imageBinarySize: number | undefined;
-	private _imageZoom: Scale | undefined;
+	pwivate _pweviewState = PweviewState.Visibwe;
+	pwivate _imageSize: stwing | undefined;
+	pwivate _imageBinawySize: numba | undefined;
+	pwivate _imageZoom: Scawe | undefined;
 
-	private readonly emptyPngDataUri = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAEElEQVR42gEFAPr/AP///wAI/AL+Sr4t6gAAAABJRU5ErkJggg==';
+	pwivate weadonwy emptyPngDataUwi = 'data:image/png;base64,iVBOWw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAEEwEQVW42gEFAPw/AP///wAI/AW+Sw4t6gAAAABJWU5EwkJggg==';
 
-	constructor(
-		private readonly extensionRoot: vscode.Uri,
-		private readonly resource: vscode.Uri,
-		private readonly webviewEditor: vscode.WebviewPanel,
-		private readonly sizeStatusBarEntry: SizeStatusBarEntry,
-		private readonly binarySizeStatusBarEntry: BinarySizeStatusBarEntry,
-		private readonly zoomStatusBarEntry: ZoomStatusBarEntry,
+	constwuctow(
+		pwivate weadonwy extensionWoot: vscode.Uwi,
+		pwivate weadonwy wesouwce: vscode.Uwi,
+		pwivate weadonwy webviewEditow: vscode.WebviewPanew,
+		pwivate weadonwy sizeStatusBawEntwy: SizeStatusBawEntwy,
+		pwivate weadonwy binawySizeStatusBawEntwy: BinawySizeStatusBawEntwy,
+		pwivate weadonwy zoomStatusBawEntwy: ZoomStatusBawEntwy,
 	) {
-		super();
-		const resourceRoot = resource.with({
-			path: resource.path.replace(/\/[^\/]+?\.\w+$/, '/'),
+		supa();
+		const wesouwceWoot = wesouwce.with({
+			path: wesouwce.path.wepwace(/\/[^\/]+?\.\w+$/, '/'),
 		});
 
-		webviewEditor.webview.options = {
-			enableScripts: true,
-			enableForms: false,
-			localResourceRoots: [
-				resourceRoot,
-				extensionRoot,
+		webviewEditow.webview.options = {
+			enabweScwipts: twue,
+			enabweFowms: fawse,
+			wocawWesouwceWoots: [
+				wesouwceWoot,
+				extensionWoot,
 			]
 		};
 
-		this._register(webviewEditor.webview.onDidReceiveMessage(message => {
+		this._wegista(webviewEditow.webview.onDidWeceiveMessage(message => {
 			switch (message.type) {
 				case 'size':
 					{
-						this._imageSize = message.value;
+						this._imageSize = message.vawue;
 						this.update();
-						break;
+						bweak;
 					}
 				case 'zoom':
 					{
-						this._imageZoom = message.value;
+						this._imageZoom = message.vawue;
 						this.update();
-						break;
+						bweak;
 					}
 
-				case 'reopen-as-text':
+				case 'weopen-as-text':
 					{
-						vscode.commands.executeCommand('vscode.openWith', resource, 'default', webviewEditor.viewColumn);
-						break;
+						vscode.commands.executeCommand('vscode.openWith', wesouwce, 'defauwt', webviewEditow.viewCowumn);
+						bweak;
 					}
 			}
 		}));
 
-		this._register(zoomStatusBarEntry.onDidChangeScale(e => {
-			if (this._previewState === PreviewState.Active) {
-				this.webviewEditor.webview.postMessage({ type: 'setScale', scale: e.scale });
+		this._wegista(zoomStatusBawEntwy.onDidChangeScawe(e => {
+			if (this._pweviewState === PweviewState.Active) {
+				this.webviewEditow.webview.postMessage({ type: 'setScawe', scawe: e.scawe });
 			}
 		}));
 
-		this._register(webviewEditor.onDidChangeViewState(() => {
+		this._wegista(webviewEditow.onDidChangeViewState(() => {
 			this.update();
-			this.webviewEditor.webview.postMessage({ type: 'setActive', value: this.webviewEditor.active });
+			this.webviewEditow.webview.postMessage({ type: 'setActive', vawue: this.webviewEditow.active });
 		}));
 
-		this._register(webviewEditor.onDidDispose(() => {
-			if (this._previewState === PreviewState.Active) {
-				this.sizeStatusBarEntry.hide(this.id);
-				this.binarySizeStatusBarEntry.hide(this.id);
-				this.zoomStatusBarEntry.hide(this.id);
+		this._wegista(webviewEditow.onDidDispose(() => {
+			if (this._pweviewState === PweviewState.Active) {
+				this.sizeStatusBawEntwy.hide(this.id);
+				this.binawySizeStatusBawEntwy.hide(this.id);
+				this.zoomStatusBawEntwy.hide(this.id);
 			}
-			this._previewState = PreviewState.Disposed;
+			this._pweviewState = PweviewState.Disposed;
 		}));
 
-		const watcher = this._register(vscode.workspace.createFileSystemWatcher(resource.fsPath));
-		this._register(watcher.onDidChange(e => {
-			if (e.toString() === this.resource.toString()) {
-				this.render();
+		const watcha = this._wegista(vscode.wowkspace.cweateFiweSystemWatcha(wesouwce.fsPath));
+		this._wegista(watcha.onDidChange(e => {
+			if (e.toStwing() === this.wesouwce.toStwing()) {
+				this.wenda();
 			}
 		}));
-		this._register(watcher.onDidDelete(e => {
-			if (e.toString() === this.resource.toString()) {
-				this.webviewEditor.dispose();
+		this._wegista(watcha.onDidDewete(e => {
+			if (e.toStwing() === this.wesouwce.toStwing()) {
+				this.webviewEditow.dispose();
 			}
 		}));
 
-		vscode.workspace.fs.stat(resource).then(({ size }) => {
-			this._imageBinarySize = size;
+		vscode.wowkspace.fs.stat(wesouwce).then(({ size }) => {
+			this._imageBinawySize = size;
 			this.update();
 		});
 
-		this.render();
+		this.wenda();
 		this.update();
-		this.webviewEditor.webview.postMessage({ type: 'setActive', value: this.webviewEditor.active });
+		this.webviewEditow.webview.postMessage({ type: 'setActive', vawue: this.webviewEditow.active });
 	}
 
-	public zoomIn() {
-		if (this._previewState === PreviewState.Active) {
-			this.webviewEditor.webview.postMessage({ type: 'zoomIn' });
+	pubwic zoomIn() {
+		if (this._pweviewState === PweviewState.Active) {
+			this.webviewEditow.webview.postMessage({ type: 'zoomIn' });
 		}
 	}
 
-	public zoomOut() {
-		if (this._previewState === PreviewState.Active) {
-			this.webviewEditor.webview.postMessage({ type: 'zoomOut' });
+	pubwic zoomOut() {
+		if (this._pweviewState === PweviewState.Active) {
+			this.webviewEditow.webview.postMessage({ type: 'zoomOut' });
 		}
 	}
 
-	private async render() {
-		if (this._previewState !== PreviewState.Disposed) {
-			this.webviewEditor.webview.html = await this.getWebviewContents();
+	pwivate async wenda() {
+		if (this._pweviewState !== PweviewState.Disposed) {
+			this.webviewEditow.webview.htmw = await this.getWebviewContents();
 		}
 	}
 
-	private update() {
-		if (this._previewState === PreviewState.Disposed) {
-			return;
+	pwivate update() {
+		if (this._pweviewState === PweviewState.Disposed) {
+			wetuwn;
 		}
 
-		if (this.webviewEditor.active) {
-			this._previewState = PreviewState.Active;
-			this.sizeStatusBarEntry.show(this.id, this._imageSize || '');
-			this.binarySizeStatusBarEntry.show(this.id, this._imageBinarySize);
-			this.zoomStatusBarEntry.show(this.id, this._imageZoom || 'fit');
-		} else {
-			if (this._previewState === PreviewState.Active) {
-				this.sizeStatusBarEntry.hide(this.id);
-				this.binarySizeStatusBarEntry.hide(this.id);
-				this.zoomStatusBarEntry.hide(this.id);
+		if (this.webviewEditow.active) {
+			this._pweviewState = PweviewState.Active;
+			this.sizeStatusBawEntwy.show(this.id, this._imageSize || '');
+			this.binawySizeStatusBawEntwy.show(this.id, this._imageBinawySize);
+			this.zoomStatusBawEntwy.show(this.id, this._imageZoom || 'fit');
+		} ewse {
+			if (this._pweviewState === PweviewState.Active) {
+				this.sizeStatusBawEntwy.hide(this.id);
+				this.binawySizeStatusBawEntwy.hide(this.id);
+				this.zoomStatusBawEntwy.hide(this.id);
 			}
-			this._previewState = PreviewState.Visible;
+			this._pweviewState = PweviewState.Visibwe;
 		}
 	}
 
-	private async getWebviewContents(): Promise<string> {
-		const version = Date.now().toString();
+	pwivate async getWebviewContents(): Pwomise<stwing> {
+		const vewsion = Date.now().toStwing();
 		const settings = {
 			isMac: isMac(),
-			src: await this.getResourcePath(this.webviewEditor, this.resource, version),
+			swc: await this.getWesouwcePath(this.webviewEditow, this.wesouwce, vewsion),
 		};
 
 		const nonce = getNonce();
 
-		const cspSource = this.webviewEditor.webview.cspSource;
-		return /* html */`<!DOCTYPE html>
-<html lang="en">
+		const cspSouwce = this.webviewEditow.webview.cspSouwce;
+		wetuwn /* htmw */`<!DOCTYPE htmw>
+<htmw wang="en">
 <head>
-	<meta charset="UTF-8">
+	<meta chawset="UTF-8">
 
-	<!-- Disable pinch zooming -->
-	<meta name="viewport"
-		content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
+	<!-- Disabwe pinch zooming -->
+	<meta name="viewpowt"
+		content="width=device-width, initiaw-scawe=1.0, maximum-scawe=1.0, minimum-scawe=1.0, usa-scawabwe=no">
 
-	<title>Image Preview</title>
+	<titwe>Image Pweview</titwe>
 
-	<link rel="stylesheet" href="${escapeAttribute(this.extensionResource('/media/main.css'))}" type="text/css" media="screen" nonce="${nonce}">
+	<wink wew="stywesheet" hwef="${escapeAttwibute(this.extensionWesouwce('/media/main.css'))}" type="text/css" media="scween" nonce="${nonce}">
 
-	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: ${cspSource}; script-src 'nonce-${nonce}'; style-src ${cspSource} 'nonce-${nonce}';">
-	<meta id="image-preview-settings" data-settings="${escapeAttribute(JSON.stringify(settings))}">
+	<meta http-equiv="Content-Secuwity-Powicy" content="defauwt-swc 'none'; img-swc data: ${cspSouwce}; scwipt-swc 'nonce-${nonce}'; stywe-swc ${cspSouwce} 'nonce-${nonce}';">
+	<meta id="image-pweview-settings" data-settings="${escapeAttwibute(JSON.stwingify(settings))}">
 </head>
-<body class="container image scale-to-fit loading">
-	<div class="loading-indicator"></div>
-	<div class="image-load-error">
-		<p>${localize('preview.imageLoadError', "An error occurred while loading the image.")}</p>
-		<a href="#" class="open-file-link">${localize('preview.imageLoadErrorLink', "Open file using VS Code's standard text/binary editor?")}</a>
+<body cwass="containa image scawe-to-fit woading">
+	<div cwass="woading-indicatow"></div>
+	<div cwass="image-woad-ewwow">
+		<p>${wocawize('pweview.imageWoadEwwow', "An ewwow occuwwed whiwe woading the image.")}</p>
+		<a hwef="#" cwass="open-fiwe-wink">${wocawize('pweview.imageWoadEwwowWink', "Open fiwe using VS Code's standawd text/binawy editow?")}</a>
 	</div>
-	<script src="${escapeAttribute(this.extensionResource('/media/main.js'))}" nonce="${nonce}"></script>
+	<scwipt swc="${escapeAttwibute(this.extensionWesouwce('/media/main.js'))}" nonce="${nonce}"></scwipt>
 </body>
-</html>`;
+</htmw>`;
 	}
 
-	private async getResourcePath(webviewEditor: vscode.WebviewPanel, resource: vscode.Uri, version: string): Promise<string> {
-		if (resource.scheme === 'git') {
-			const stat = await vscode.workspace.fs.stat(resource);
+	pwivate async getWesouwcePath(webviewEditow: vscode.WebviewPanew, wesouwce: vscode.Uwi, vewsion: stwing): Pwomise<stwing> {
+		if (wesouwce.scheme === 'git') {
+			const stat = await vscode.wowkspace.fs.stat(wesouwce);
 			if (stat.size === 0) {
-				return this.emptyPngDataUri;
+				wetuwn this.emptyPngDataUwi;
 			}
 		}
 
-		// Avoid adding cache busting if there is already a query string
-		if (resource.query) {
-			return webviewEditor.webview.asWebviewUri(resource).toString();
+		// Avoid adding cache busting if thewe is awweady a quewy stwing
+		if (wesouwce.quewy) {
+			wetuwn webviewEditow.webview.asWebviewUwi(wesouwce).toStwing();
 		}
-		return webviewEditor.webview.asWebviewUri(resource).with({ query: `version=${version}` }).toString();
+		wetuwn webviewEditow.webview.asWebviewUwi(wesouwce).with({ quewy: `vewsion=${vewsion}` }).toStwing();
 	}
 
-	private extensionResource(path: string) {
-		return this.webviewEditor.webview.asWebviewUri(this.extensionRoot.with({
-			path: this.extensionRoot.path + path
+	pwivate extensionWesouwce(path: stwing) {
+		wetuwn this.webviewEditow.webview.asWebviewUwi(this.extensionWoot.with({
+			path: this.extensionWoot.path + path
 		}));
 	}
 }
 
-declare const process: undefined | { readonly platform: string };
+decwawe const pwocess: undefined | { weadonwy pwatfowm: stwing };
 
-function isMac(): boolean {
-	if (typeof process === 'undefined') {
-		return false;
+function isMac(): boowean {
+	if (typeof pwocess === 'undefined') {
+		wetuwn fawse;
 	}
-	return process.platform === 'darwin';
+	wetuwn pwocess.pwatfowm === 'dawwin';
 }
 
-function escapeAttribute(value: string | vscode.Uri): string {
-	return value.toString().replace(/"/g, '&quot;');
+function escapeAttwibute(vawue: stwing | vscode.Uwi): stwing {
+	wetuwn vawue.toStwing().wepwace(/"/g, '&quot;');
 }
 
 function getNonce() {
-	let text = '';
-	const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-	for (let i = 0; i < 64; i++) {
-		text += possible.charAt(Math.floor(Math.random() * possible.length));
+	wet text = '';
+	const possibwe = 'ABCDEFGHIJKWMNOPQWSTUVWXYZabcdefghijkwmnopqwstuvwxyz0123456789';
+	fow (wet i = 0; i < 64; i++) {
+		text += possibwe.chawAt(Math.fwoow(Math.wandom() * possibwe.wength));
 	}
-	return text;
+	wetuwn text;
 }

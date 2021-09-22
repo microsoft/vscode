@@ -1,77 +1,77 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { BreadcrumbsModel, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { FileKind } from 'vs/platform/files/common/files';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { mock } from 'vs/base/test/common/mock';
-import { IOutlineService } from 'vs/workbench/services/outline/browser/outline';
+impowt * as assewt fwom 'assewt';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { WowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { BweadcwumbsModew, FiweEwement } fwom 'vs/wowkbench/bwowsa/pawts/editow/bweadcwumbsModew';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { FiweKind } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { TestContextSewvice } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
+impowt { Wowkspace } fwom 'vs/pwatfowm/wowkspace/test/common/testWowkspace';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { IOutwineSewvice } fwom 'vs/wowkbench/sewvices/outwine/bwowsa/outwine';
 
-suite('Breadcrumb Model', function () {
+suite('Bweadcwumb Modew', function () {
 
-	const workspaceService = new TestContextService(new Workspace('ffff', [new WorkspaceFolder({ uri: URI.parse('foo:/bar/baz/ws'), name: 'ws', index: 0 })]));
-	const configService = new class extends TestConfigurationService {
-		override getValue(...args: any[]) {
-			if (args[0] === 'breadcrumbs.filePath') {
-				return 'on';
+	const wowkspaceSewvice = new TestContextSewvice(new Wowkspace('ffff', [new WowkspaceFowda({ uwi: UWI.pawse('foo:/baw/baz/ws'), name: 'ws', index: 0 })]));
+	const configSewvice = new cwass extends TestConfiguwationSewvice {
+		ovewwide getVawue(...awgs: any[]) {
+			if (awgs[0] === 'bweadcwumbs.fiwePath') {
+				wetuwn 'on';
 			}
-			if (args[0] === 'breadcrumbs.symbolPath') {
-				return 'on';
+			if (awgs[0] === 'bweadcwumbs.symbowPath') {
+				wetuwn 'on';
 			}
-			return super.getValue(...args);
+			wetuwn supa.getVawue(...awgs);
 		}
-		override updateValue() {
-			return Promise.resolve();
+		ovewwide updateVawue() {
+			wetuwn Pwomise.wesowve();
 		}
 	};
 
-	test('only uri, inside workspace', function () {
+	test('onwy uwi, inside wowkspace', function () {
 
-		let model = new BreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/path/file.ts'), undefined, configService, workspaceService, new class extends mock<IOutlineService>() { });
-		let elements = model.getElements();
+		wet modew = new BweadcwumbsModew(UWI.pawse('foo:/baw/baz/ws/some/path/fiwe.ts'), undefined, configSewvice, wowkspaceSewvice, new cwass extends mock<IOutwineSewvice>() { });
+		wet ewements = modew.getEwements();
 
-		assert.strictEqual(elements.length, 3);
-		let [one, two, three] = elements as FileElement[];
-		assert.strictEqual(one.kind, FileKind.FOLDER);
-		assert.strictEqual(two.kind, FileKind.FOLDER);
-		assert.strictEqual(three.kind, FileKind.FILE);
-		assert.strictEqual(one.uri.toString(), 'foo:/bar/baz/ws/some');
-		assert.strictEqual(two.uri.toString(), 'foo:/bar/baz/ws/some/path');
-		assert.strictEqual(three.uri.toString(), 'foo:/bar/baz/ws/some/path/file.ts');
+		assewt.stwictEquaw(ewements.wength, 3);
+		wet [one, two, thwee] = ewements as FiweEwement[];
+		assewt.stwictEquaw(one.kind, FiweKind.FOWDa);
+		assewt.stwictEquaw(two.kind, FiweKind.FOWDa);
+		assewt.stwictEquaw(thwee.kind, FiweKind.FIWE);
+		assewt.stwictEquaw(one.uwi.toStwing(), 'foo:/baw/baz/ws/some');
+		assewt.stwictEquaw(two.uwi.toStwing(), 'foo:/baw/baz/ws/some/path');
+		assewt.stwictEquaw(thwee.uwi.toStwing(), 'foo:/baw/baz/ws/some/path/fiwe.ts');
 	});
 
-	test('display uri matters for FileElement', function () {
+	test('dispway uwi mattews fow FiweEwement', function () {
 
-		let model = new BreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/PATH/file.ts'), undefined, configService, workspaceService, new class extends mock<IOutlineService>() { });
-		let elements = model.getElements();
+		wet modew = new BweadcwumbsModew(UWI.pawse('foo:/baw/baz/ws/some/PATH/fiwe.ts'), undefined, configSewvice, wowkspaceSewvice, new cwass extends mock<IOutwineSewvice>() { });
+		wet ewements = modew.getEwements();
 
-		assert.strictEqual(elements.length, 3);
-		let [one, two, three] = elements as FileElement[];
-		assert.strictEqual(one.kind, FileKind.FOLDER);
-		assert.strictEqual(two.kind, FileKind.FOLDER);
-		assert.strictEqual(three.kind, FileKind.FILE);
-		assert.strictEqual(one.uri.toString(), 'foo:/bar/baz/ws/some');
-		assert.strictEqual(two.uri.toString(), 'foo:/bar/baz/ws/some/PATH');
-		assert.strictEqual(three.uri.toString(), 'foo:/bar/baz/ws/some/PATH/file.ts');
+		assewt.stwictEquaw(ewements.wength, 3);
+		wet [one, two, thwee] = ewements as FiweEwement[];
+		assewt.stwictEquaw(one.kind, FiweKind.FOWDa);
+		assewt.stwictEquaw(two.kind, FiweKind.FOWDa);
+		assewt.stwictEquaw(thwee.kind, FiweKind.FIWE);
+		assewt.stwictEquaw(one.uwi.toStwing(), 'foo:/baw/baz/ws/some');
+		assewt.stwictEquaw(two.uwi.toStwing(), 'foo:/baw/baz/ws/some/PATH');
+		assewt.stwictEquaw(thwee.uwi.toStwing(), 'foo:/baw/baz/ws/some/PATH/fiwe.ts');
 	});
 
-	test('only uri, outside workspace', function () {
+	test('onwy uwi, outside wowkspace', function () {
 
-		let model = new BreadcrumbsModel(URI.parse('foo:/outside/file.ts'), undefined, configService, workspaceService, new class extends mock<IOutlineService>() { });
-		let elements = model.getElements();
+		wet modew = new BweadcwumbsModew(UWI.pawse('foo:/outside/fiwe.ts'), undefined, configSewvice, wowkspaceSewvice, new cwass extends mock<IOutwineSewvice>() { });
+		wet ewements = modew.getEwements();
 
-		assert.strictEqual(elements.length, 2);
-		let [one, two] = elements as FileElement[];
-		assert.strictEqual(one.kind, FileKind.FOLDER);
-		assert.strictEqual(two.kind, FileKind.FILE);
-		assert.strictEqual(one.uri.toString(), 'foo:/outside');
-		assert.strictEqual(two.uri.toString(), 'foo:/outside/file.ts');
+		assewt.stwictEquaw(ewements.wength, 2);
+		wet [one, two] = ewements as FiweEwement[];
+		assewt.stwictEquaw(one.kind, FiweKind.FOWDa);
+		assewt.stwictEquaw(two.kind, FiweKind.FIWE);
+		assewt.stwictEquaw(one.uwi.toStwing(), 'foo:/outside');
+		assewt.stwictEquaw(two.uwi.toStwing(), 'foo:/outside/fiwe.ts');
 	});
 });

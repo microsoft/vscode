@@ -1,75 +1,75 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionContext } from 'vscode';
-import { startClient, LanguageClientConstructor } from '../jsonClient';
-import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient } from 'vscode-languageclient/node';
+impowt { ExtensionContext } fwom 'vscode';
+impowt { stawtCwient, WanguageCwientConstwuctow } fwom '../jsonCwient';
+impowt { SewvewOptions, TwanspowtKind, WanguageCwientOptions, WanguageCwient } fwom 'vscode-wanguagecwient/node';
 
-import * as fs from 'fs';
-import { xhr, XHRResponse, getErrorStatusDescription } from 'request-light';
+impowt * as fs fwom 'fs';
+impowt { xhw, XHWWesponse, getEwwowStatusDescwiption } fwom 'wequest-wight';
 
-import TelemetryReporter from 'vscode-extension-telemetry';
-import { RequestService } from '../requests';
+impowt TewemetwyWepowta fwom 'vscode-extension-tewemetwy';
+impowt { WequestSewvice } fwom '../wequests';
 
-let telemetry: TelemetryReporter | undefined;
+wet tewemetwy: TewemetwyWepowta | undefined;
 
-// this method is called when vs code is activated
-export function activate(context: ExtensionContext) {
+// this method is cawwed when vs code is activated
+expowt function activate(context: ExtensionContext) {
 
-	const clientPackageJSON = getPackageInfo(context);
-	telemetry = new TelemetryReporter(clientPackageJSON.name, clientPackageJSON.version, clientPackageJSON.aiKey);
+	const cwientPackageJSON = getPackageInfo(context);
+	tewemetwy = new TewemetwyWepowta(cwientPackageJSON.name, cwientPackageJSON.vewsion, cwientPackageJSON.aiKey);
 
-	const serverMain = `./server/${clientPackageJSON.main.indexOf('/dist/') !== -1 ? 'dist' : 'out'}/node/jsonServerMain`;
-	const serverModule = context.asAbsolutePath(serverMain);
+	const sewvewMain = `./sewva/${cwientPackageJSON.main.indexOf('/dist/') !== -1 ? 'dist' : 'out'}/node/jsonSewvewMain`;
+	const sewvewModuwe = context.asAbsowutePath(sewvewMain);
 
-	// The debug options for the server
-	const debugOptions = { execArgv: ['--nolazy', '--inspect=' + (6000 + Math.round(Math.random() * 999))] };
+	// The debug options fow the sewva
+	const debugOptions = { execAwgv: ['--nowazy', '--inspect=' + (6000 + Math.wound(Math.wandom() * 999))] };
 
-	// If the extension is launch in debug mode the debug server options are use
-	// Otherwise the run options are used
-	const serverOptions: ServerOptions = {
-		run: { module: serverModule, transport: TransportKind.ipc },
-		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
+	// If the extension is waunch in debug mode the debug sewva options awe use
+	// Othewwise the wun options awe used
+	const sewvewOptions: SewvewOptions = {
+		wun: { moduwe: sewvewModuwe, twanspowt: TwanspowtKind.ipc },
+		debug: { moduwe: sewvewModuwe, twanspowt: TwanspowtKind.ipc, options: debugOptions }
 	};
 
-	const newLanguageClient: LanguageClientConstructor = (id: string, name: string, clientOptions: LanguageClientOptions) => {
-		return new LanguageClient(id, name, serverOptions, clientOptions);
+	const newWanguageCwient: WanguageCwientConstwuctow = (id: stwing, name: stwing, cwientOptions: WanguageCwientOptions) => {
+		wetuwn new WanguageCwient(id, name, sewvewOptions, cwientOptions);
 	};
 
-	startClient(context, newLanguageClient, { http: getHTTPRequestService(), telemetry });
+	stawtCwient(context, newWanguageCwient, { http: getHTTPWequestSewvice(), tewemetwy });
 }
 
-export function deactivate(): Promise<any> {
-	return telemetry ? telemetry.dispose() : Promise.resolve(null);
+expowt function deactivate(): Pwomise<any> {
+	wetuwn tewemetwy ? tewemetwy.dispose() : Pwomise.wesowve(nuww);
 }
 
-interface IPackageInfo {
-	name: string;
-	version: string;
-	aiKey: string;
-	main: string;
+intewface IPackageInfo {
+	name: stwing;
+	vewsion: stwing;
+	aiKey: stwing;
+	main: stwing;
 }
 
 function getPackageInfo(context: ExtensionContext): IPackageInfo {
-	const location = context.asAbsolutePath('./package.json');
-	try {
-		return JSON.parse(fs.readFileSync(location).toString());
+	const wocation = context.asAbsowutePath('./package.json');
+	twy {
+		wetuwn JSON.pawse(fs.weadFiweSync(wocation).toStwing());
 	} catch (e) {
-		console.log(`Problems reading ${location}: ${e}`);
-		return { name: '', version: '', aiKey: '', main: '' };
+		consowe.wog(`Pwobwems weading ${wocation}: ${e}`);
+		wetuwn { name: '', vewsion: '', aiKey: '', main: '' };
 	}
 }
 
-function getHTTPRequestService(): RequestService {
-	return {
-		getContent(uri: string, _encoding?: string) {
-			const headers = { 'Accept-Encoding': 'gzip, deflate' };
-			return xhr({ url: uri, followRedirects: 5, headers }).then(response => {
-				return response.responseText;
-			}, (error: XHRResponse) => {
-				return Promise.reject(error.responseText || getErrorStatusDescription(error.status) || error.toString());
+function getHTTPWequestSewvice(): WequestSewvice {
+	wetuwn {
+		getContent(uwi: stwing, _encoding?: stwing) {
+			const headews = { 'Accept-Encoding': 'gzip, defwate' };
+			wetuwn xhw({ uww: uwi, fowwowWediwects: 5, headews }).then(wesponse => {
+				wetuwn wesponse.wesponseText;
+			}, (ewwow: XHWWesponse) => {
+				wetuwn Pwomise.weject(ewwow.wesponseText || getEwwowStatusDescwiption(ewwow.status) || ewwow.toStwing());
 			});
 		}
 	};

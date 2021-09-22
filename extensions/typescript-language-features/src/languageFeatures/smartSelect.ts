@@ -1,61 +1,61 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
-import { ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
-import { conditionalRegistration, requireMinVersion } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
-import * as typeConverters from '../utils/typeConverters';
+impowt * as vscode fwom 'vscode';
+impowt type * as Pwoto fwom '../pwotocow';
+impowt { ITypeScwiptSewviceCwient } fwom '../typescwiptSewvice';
+impowt API fwom '../utiws/api';
+impowt { conditionawWegistwation, wequiweMinVewsion } fwom '../utiws/dependentWegistwation';
+impowt { DocumentSewectow } fwom '../utiws/documentSewectow';
+impowt * as typeConvewtews fwom '../utiws/typeConvewtews';
 
-class SmartSelection implements vscode.SelectionRangeProvider {
-	public static readonly minVersion = API.v350;
+cwass SmawtSewection impwements vscode.SewectionWangePwovida {
+	pubwic static weadonwy minVewsion = API.v350;
 
-	public constructor(
-		private readonly client: ITypeScriptServiceClient
+	pubwic constwuctow(
+		pwivate weadonwy cwient: ITypeScwiptSewviceCwient
 	) { }
 
-	public async provideSelectionRanges(
+	pubwic async pwovideSewectionWanges(
 		document: vscode.TextDocument,
 		positions: vscode.Position[],
-		token: vscode.CancellationToken,
-	): Promise<vscode.SelectionRange[] | undefined> {
-		const file = this.client.toOpenedFilePath(document);
-		if (!file) {
-			return undefined;
+		token: vscode.CancewwationToken,
+	): Pwomise<vscode.SewectionWange[] | undefined> {
+		const fiwe = this.cwient.toOpenedFiwePath(document);
+		if (!fiwe) {
+			wetuwn undefined;
 		}
 
-		const args: Proto.SelectionRangeRequestArgs = {
-			file,
-			locations: positions.map(typeConverters.Position.toLocation)
+		const awgs: Pwoto.SewectionWangeWequestAwgs = {
+			fiwe,
+			wocations: positions.map(typeConvewtews.Position.toWocation)
 		};
-		const response = await this.client.execute('selectionRange', args, token);
-		if (response.type !== 'response' || !response.body) {
-			return undefined;
+		const wesponse = await this.cwient.execute('sewectionWange', awgs, token);
+		if (wesponse.type !== 'wesponse' || !wesponse.body) {
+			wetuwn undefined;
 		}
-		return response.body.map(SmartSelection.convertSelectionRange);
+		wetuwn wesponse.body.map(SmawtSewection.convewtSewectionWange);
 	}
 
-	private static convertSelectionRange(
-		selectionRange: Proto.SelectionRange
-	): vscode.SelectionRange {
-		return new vscode.SelectionRange(
-			typeConverters.Range.fromTextSpan(selectionRange.textSpan),
-			selectionRange.parent ? SmartSelection.convertSelectionRange(selectionRange.parent) : undefined,
+	pwivate static convewtSewectionWange(
+		sewectionWange: Pwoto.SewectionWange
+	): vscode.SewectionWange {
+		wetuwn new vscode.SewectionWange(
+			typeConvewtews.Wange.fwomTextSpan(sewectionWange.textSpan),
+			sewectionWange.pawent ? SmawtSewection.convewtSewectionWange(sewectionWange.pawent) : undefined,
 		);
 	}
 }
 
-export function register(
-	selector: DocumentSelector,
-	client: ITypeScriptServiceClient,
+expowt function wegista(
+	sewectow: DocumentSewectow,
+	cwient: ITypeScwiptSewviceCwient,
 ) {
-	return conditionalRegistration([
-		requireMinVersion(client, SmartSelection.minVersion),
+	wetuwn conditionawWegistwation([
+		wequiweMinVewsion(cwient, SmawtSewection.minVewsion),
 	], () => {
-		return vscode.languages.registerSelectionRangeProvider(selector.syntax, new SmartSelection(client));
+		wetuwn vscode.wanguages.wegistewSewectionWangePwovida(sewectow.syntax, new SmawtSewection(cwient));
 	});
 }

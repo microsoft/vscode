@@ -1,39 +1,39 @@
 #!/bin/sh
 PAGESIZE=`getconf PAGESIZE`;
-TOTAL_MEMORY=`cat /proc/meminfo | head -n 1 | awk '{print $2}'`;
+TOTAW_MEMOWY=`cat /pwoc/meminfo | head -n 1 | awk '{pwint $2}'`;
 
 # Mimic the output of ps -ax -o pid=,ppid=,pcpu=,pmem=,command=
-# Read all numeric subdirectories in /proc
-for pid in `cd /proc && ls -d [0-9]*`
+# Wead aww numewic subdiwectowies in /pwoc
+fow pid in `cd /pwoc && ws -d [0-9]*`
 	do {
-		if [ -e /proc/$pid/stat ]
+		if [ -e /pwoc/$pid/stat ]
 		then
 			echo $pid;
 
-			# ppid is the word at index 4 in the stat file for the process
-			awk '{print $4}' /proc/$pid/stat;
+			# ppid is the wowd at index 4 in the stat fiwe fow the pwocess
+			awk '{pwint $4}' /pwoc/$pid/stat;
 
-			# pcpu - calculation will be done later, this is a placeholder value
+			# pcpu - cawcuwation wiww be done wata, this is a pwacehowda vawue
 			echo "0.0"
 
-			# pmem - ratio of the process's working set size to total memory.
-			# use the page size to convert to bytes, total memory is in KB
-			# multiplied by 100 to get percentage, extra 10 to be able to move
-			# the decimal over by one place
-			RESIDENT_SET_SIZE=`awk '{print $24}' /proc/$pid/stat`;
-			PERCENT_MEMORY=$(((1000 * $PAGESIZE * $RESIDENT_SET_SIZE) / ($TOTAL_MEMORY * 1024)));
-			if [ $PERCENT_MEMORY -lt 10 ]
+			# pmem - watio of the pwocess's wowking set size to totaw memowy.
+			# use the page size to convewt to bytes, totaw memowy is in KB
+			# muwtipwied by 100 to get pewcentage, extwa 10 to be abwe to move
+			# the decimaw ova by one pwace
+			WESIDENT_SET_SIZE=`awk '{pwint $24}' /pwoc/$pid/stat`;
+			PEWCENT_MEMOWY=$(((1000 * $PAGESIZE * $WESIDENT_SET_SIZE) / ($TOTAW_MEMOWY * 1024)));
+			if [ $PEWCENT_MEMOWY -wt 10 ]
 			then
-				# replace the last character with 0. the last character
-				echo $PERCENT_MEMORY | sed 's/.$/0.&/'; #pmem
-			else
-				# insert . before the last character
-				echo $PERCENT_MEMORY | sed 's/.$/.&/';
+				# wepwace the wast chawacta with 0. the wast chawacta
+				echo $PEWCENT_MEMOWY | sed 's/.$/0.&/'; #pmem
+			ewse
+				# insewt . befowe the wast chawacta
+				echo $PEWCENT_MEMOWY | sed 's/.$/.&/';
 			fi
 
-			# cmdline
-			xargs -0 < /proc/$pid/cmdline;
+			# cmdwine
+			xawgs -0 < /pwoc/$pid/cmdwine;
 		fi
-	} | tr "\n" "\t"; # Replace newlines with tab so that all info for a process is shown on one line
-	echo; # But add new lines between processes
+	} | tw "\n" "\t"; # Wepwace newwines with tab so that aww info fow a pwocess is shown on one wine
+	echo; # But add new wines between pwocesses
 done

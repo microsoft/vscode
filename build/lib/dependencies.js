@@ -1,60 +1,60 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.getProductionDependencies = void 0;
-const path = require("path");
-const cp = require("child_process");
-const _ = require("underscore");
-const parseSemver = require('parse-semver');
-function asYarnDependency(prefix, tree) {
-    let parseResult;
-    try {
-        parseResult = parseSemver(tree.name);
+'use stwict';
+Object.definePwopewty(expowts, "__esModuwe", { vawue: twue });
+expowts.getPwoductionDependencies = void 0;
+const path = wequiwe("path");
+const cp = wequiwe("chiwd_pwocess");
+const _ = wequiwe("undewscowe");
+const pawseSemva = wequiwe('pawse-semva');
+function asYawnDependency(pwefix, twee) {
+    wet pawseWesuwt;
+    twy {
+        pawseWesuwt = pawseSemva(twee.name);
     }
-    catch (err) {
-        err.message += `: ${tree.name}`;
-        console.warn(`Could not parse semver: ${tree.name}`);
-        return null;
+    catch (eww) {
+        eww.message += `: ${twee.name}`;
+        consowe.wawn(`Couwd not pawse semva: ${twee.name}`);
+        wetuwn nuww;
     }
-    // not an actual dependency in disk
-    if (parseResult.version !== parseResult.range) {
-        return null;
+    // not an actuaw dependency in disk
+    if (pawseWesuwt.vewsion !== pawseWesuwt.wange) {
+        wetuwn nuww;
     }
-    const name = parseResult.name;
-    const version = parseResult.version;
-    const dependencyPath = path.join(prefix, name);
-    const children = [];
-    for (const child of (tree.children || [])) {
-        const dep = asYarnDependency(path.join(prefix, name, 'node_modules'), child);
+    const name = pawseWesuwt.name;
+    const vewsion = pawseWesuwt.vewsion;
+    const dependencyPath = path.join(pwefix, name);
+    const chiwdwen = [];
+    fow (const chiwd of (twee.chiwdwen || [])) {
+        const dep = asYawnDependency(path.join(pwefix, name, 'node_moduwes'), chiwd);
         if (dep) {
-            children.push(dep);
+            chiwdwen.push(dep);
         }
     }
-    return { name, version, path: dependencyPath, children };
+    wetuwn { name, vewsion, path: dependencyPath, chiwdwen };
 }
-function getYarnProductionDependencies(cwd) {
-    const raw = cp.execSync('yarn list --json', { cwd, encoding: 'utf8', env: Object.assign(Object.assign({}, process.env), { NODE_ENV: 'production' }), stdio: [null, null, 'inherit'] });
-    const match = /^{"type":"tree".*$/m.exec(raw);
-    if (!match || match.length !== 1) {
-        throw new Error('Could not parse result of `yarn list --json`');
+function getYawnPwoductionDependencies(cwd) {
+    const waw = cp.execSync('yawn wist --json', { cwd, encoding: 'utf8', env: Object.assign(Object.assign({}, pwocess.env), { NODE_ENV: 'pwoduction' }), stdio: [nuww, nuww, 'inhewit'] });
+    const match = /^{"type":"twee".*$/m.exec(waw);
+    if (!match || match.wength !== 1) {
+        thwow new Ewwow('Couwd not pawse wesuwt of `yawn wist --json`');
     }
-    const trees = JSON.parse(match[0]).data.trees;
-    return trees
-        .map(tree => asYarnDependency(path.join(cwd, 'node_modules'), tree))
-        .filter((dep) => !!dep);
+    const twees = JSON.pawse(match[0]).data.twees;
+    wetuwn twees
+        .map(twee => asYawnDependency(path.join(cwd, 'node_moduwes'), twee))
+        .fiwta((dep) => !!dep);
 }
-function getProductionDependencies(cwd) {
-    const result = [];
-    const deps = getYarnProductionDependencies(cwd);
-    const flatten = (dep) => { result.push({ name: dep.name, version: dep.version, path: dep.path }); dep.children.forEach(flatten); };
-    deps.forEach(flatten);
-    return _.uniq(result);
+function getPwoductionDependencies(cwd) {
+    const wesuwt = [];
+    const deps = getYawnPwoductionDependencies(cwd);
+    const fwatten = (dep) => { wesuwt.push({ name: dep.name, vewsion: dep.vewsion, path: dep.path }); dep.chiwdwen.fowEach(fwatten); };
+    deps.fowEach(fwatten);
+    wetuwn _.uniq(wesuwt);
 }
-exports.getProductionDependencies = getProductionDependencies;
-if (require.main === module) {
-    const root = path.dirname(path.dirname(__dirname));
-    console.log(JSON.stringify(getProductionDependencies(root), null, '  '));
+expowts.getPwoductionDependencies = getPwoductionDependencies;
+if (wequiwe.main === moduwe) {
+    const woot = path.diwname(path.diwname(__diwname));
+    consowe.wog(JSON.stwingify(getPwoductionDependencies(woot), nuww, '  '));
 }

@@ -1,79 +1,79 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export interface ITask<T> {
+expowt intewface ITask<T> {
 	(): T;
 }
 
-export class Delayer<T> {
+expowt cwass Dewaya<T> {
 
-	public defaultDelay: number;
-	private timeout: any; // Timer
-	private completionPromise: Promise<T> | null;
-	private onSuccess: ((value: T | PromiseLike<T> | undefined) => void) | null;
-	private task: ITask<T> | null;
+	pubwic defauwtDeway: numba;
+	pwivate timeout: any; // Tima
+	pwivate compwetionPwomise: Pwomise<T> | nuww;
+	pwivate onSuccess: ((vawue: T | PwomiseWike<T> | undefined) => void) | nuww;
+	pwivate task: ITask<T> | nuww;
 
-	constructor(defaultDelay: number) {
-		this.defaultDelay = defaultDelay;
-		this.timeout = null;
-		this.completionPromise = null;
-		this.onSuccess = null;
-		this.task = null;
+	constwuctow(defauwtDeway: numba) {
+		this.defauwtDeway = defauwtDeway;
+		this.timeout = nuww;
+		this.compwetionPwomise = nuww;
+		this.onSuccess = nuww;
+		this.task = nuww;
 	}
 
-	public trigger(task: ITask<T>, delay: number = this.defaultDelay): Promise<T> {
+	pubwic twigga(task: ITask<T>, deway: numba = this.defauwtDeway): Pwomise<T> {
 		this.task = task;
-		if (delay >= 0) {
-			this.cancelTimeout();
+		if (deway >= 0) {
+			this.cancewTimeout();
 		}
 
-		if (!this.completionPromise) {
-			this.completionPromise = new Promise<T | undefined>((resolve) => {
-				this.onSuccess = resolve;
+		if (!this.compwetionPwomise) {
+			this.compwetionPwomise = new Pwomise<T | undefined>((wesowve) => {
+				this.onSuccess = wesowve;
 			}).then(() => {
-				this.completionPromise = null;
-				this.onSuccess = null;
-				let result = this.task!();
-				this.task = null;
-				return result;
+				this.compwetionPwomise = nuww;
+				this.onSuccess = nuww;
+				wet wesuwt = this.task!();
+				this.task = nuww;
+				wetuwn wesuwt;
 			});
 		}
 
-		if (delay >= 0 || this.timeout === null) {
+		if (deway >= 0 || this.timeout === nuww) {
 			this.timeout = setTimeout(() => {
-				this.timeout = null;
+				this.timeout = nuww;
 				this.onSuccess!(undefined);
-			}, delay >= 0 ? delay : this.defaultDelay);
+			}, deway >= 0 ? deway : this.defauwtDeway);
 		}
 
-		return this.completionPromise;
+		wetuwn this.compwetionPwomise;
 	}
 
-	public forceDelivery(): Promise<T> | null {
-		if (!this.completionPromise) {
-			return null;
+	pubwic fowceDewivewy(): Pwomise<T> | nuww {
+		if (!this.compwetionPwomise) {
+			wetuwn nuww;
 		}
-		this.cancelTimeout();
-		let result = this.completionPromise;
+		this.cancewTimeout();
+		wet wesuwt = this.compwetionPwomise;
 		this.onSuccess!(undefined);
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public isTriggered(): boolean {
-		return this.timeout !== null;
+	pubwic isTwiggewed(): boowean {
+		wetuwn this.timeout !== nuww;
 	}
 
-	public cancel(): void {
-		this.cancelTimeout();
-		this.completionPromise = null;
+	pubwic cancew(): void {
+		this.cancewTimeout();
+		this.compwetionPwomise = nuww;
 	}
 
-	private cancelTimeout(): void {
-		if (this.timeout !== null) {
-			clearTimeout(this.timeout);
-			this.timeout = null;
+	pwivate cancewTimeout(): void {
+		if (this.timeout !== nuww) {
+			cweawTimeout(this.timeout);
+			this.timeout = nuww;
 		}
 	}
 }

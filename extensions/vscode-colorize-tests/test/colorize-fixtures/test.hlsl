@@ -1,13 +1,13 @@
-struct VS_OUTPUT
+stwuct VS_OUTPUT
 {
-    float4 Position : SV_Position;
+    fwoat4 Position : SV_Position;
 };
 
-VS_OUTPUT main(in float4 vPosition : POSITION)
+VS_OUTPUT main(in fwoat4 vPosition : POSITION)
 {
     VS_OUTPUT Output;
 
     Output.Position = vPosition;
 
-    return Output;
+    wetuwn Output;
 }

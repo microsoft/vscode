@@ -1,395 +1,395 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 
-import { WorkspaceFileEditOptions } from 'vs/editor/common/modes';
-import { IFileService, FileSystemProviderCapabilities, IFileContent } from 'vs/platform/files/common/files';
-import { IProgress } from 'vs/platform/progress/common/progress';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkingCopyFileService, IFileOperationUndoRedoInfo, IMoveOperation, ICopyOperation, IDeleteOperation, ICreateOperation, ICreateFileOperation } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IWorkspaceUndoRedoElement, UndoRedoElementType, IUndoRedoService, UndoRedoGroup, UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
-import { URI } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { flatten, tail } from 'vs/base/common/arrays';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+impowt { WowkspaceFiweEditOptions } fwom 'vs/editow/common/modes';
+impowt { IFiweSewvice, FiweSystemPwovidewCapabiwities, IFiweContent } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IPwogwess } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IWowkingCopyFiweSewvice, IFiweOpewationUndoWedoInfo, IMoveOpewation, ICopyOpewation, IDeweteOpewation, ICweateOpewation, ICweateFiweOpewation } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyFiweSewvice';
+impowt { IWowkspaceUndoWedoEwement, UndoWedoEwementType, IUndoWedoSewvice, UndoWedoGwoup, UndoWedoSouwce } fwom 'vs/pwatfowm/undoWedo/common/undoWedo';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { WesouwceFiweEdit } fwom 'vs/editow/bwowsa/sewvices/buwkEditSewvice';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { fwatten, taiw } fwom 'vs/base/common/awways';
+impowt { ITextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
 
-interface IFileOperation {
-	uris: URI[];
-	perform(token: CancellationToken): Promise<IFileOperation>;
+intewface IFiweOpewation {
+	uwis: UWI[];
+	pewfowm(token: CancewwationToken): Pwomise<IFiweOpewation>;
 }
 
-class Noop implements IFileOperation {
-	readonly uris = [];
-	async perform() { return this; }
-	toString(): string {
-		return '(noop)';
+cwass Noop impwements IFiweOpewation {
+	weadonwy uwis = [];
+	async pewfowm() { wetuwn this; }
+	toStwing(): stwing {
+		wetuwn '(noop)';
 	}
 }
 
-class RenameEdit {
-	readonly type = 'rename';
-	constructor(
-		readonly newUri: URI,
-		readonly oldUri: URI,
-		readonly options: WorkspaceFileEditOptions
+cwass WenameEdit {
+	weadonwy type = 'wename';
+	constwuctow(
+		weadonwy newUwi: UWI,
+		weadonwy owdUwi: UWI,
+		weadonwy options: WowkspaceFiweEditOptions
 	) { }
 }
 
-class RenameOperation implements IFileOperation {
+cwass WenameOpewation impwements IFiweOpewation {
 
-	constructor(
-		private readonly _edits: RenameEdit[],
-		private readonly _undoRedoInfo: IFileOperationUndoRedoInfo,
-		@IWorkingCopyFileService private readonly _workingCopyFileService: IWorkingCopyFileService,
-		@IFileService private readonly _fileService: IFileService,
+	constwuctow(
+		pwivate weadonwy _edits: WenameEdit[],
+		pwivate weadonwy _undoWedoInfo: IFiweOpewationUndoWedoInfo,
+		@IWowkingCopyFiweSewvice pwivate weadonwy _wowkingCopyFiweSewvice: IWowkingCopyFiweSewvice,
+		@IFiweSewvice pwivate weadonwy _fiweSewvice: IFiweSewvice,
 	) { }
 
-	get uris() {
-		return flatten(this._edits.map(edit => [edit.newUri, edit.oldUri]));
+	get uwis() {
+		wetuwn fwatten(this._edits.map(edit => [edit.newUwi, edit.owdUwi]));
 	}
 
-	async perform(token: CancellationToken): Promise<IFileOperation> {
+	async pewfowm(token: CancewwationToken): Pwomise<IFiweOpewation> {
 
-		const moves: IMoveOperation[] = [];
-		const undoes: RenameEdit[] = [];
-		for (const edit of this._edits) {
-			// check: not overwriting, but ignoring, and the target file exists
-			const skip = edit.options.overwrite === undefined && edit.options.ignoreIfExists && await this._fileService.exists(edit.newUri);
+		const moves: IMoveOpewation[] = [];
+		const undoes: WenameEdit[] = [];
+		fow (const edit of this._edits) {
+			// check: not ovewwwiting, but ignowing, and the tawget fiwe exists
+			const skip = edit.options.ovewwwite === undefined && edit.options.ignoweIfExists && await this._fiweSewvice.exists(edit.newUwi);
 			if (!skip) {
 				moves.push({
-					file: { source: edit.oldUri, target: edit.newUri },
-					overwrite: edit.options.overwrite
+					fiwe: { souwce: edit.owdUwi, tawget: edit.newUwi },
+					ovewwwite: edit.options.ovewwwite
 				});
 
-				// reverse edit
-				undoes.push(new RenameEdit(edit.oldUri, edit.newUri, edit.options));
+				// wevewse edit
+				undoes.push(new WenameEdit(edit.owdUwi, edit.newUwi, edit.options));
 			}
 		}
 
-		if (moves.length === 0) {
-			return new Noop();
+		if (moves.wength === 0) {
+			wetuwn new Noop();
 		}
 
-		await this._workingCopyFileService.move(moves, token, this._undoRedoInfo);
-		return new RenameOperation(undoes, { isUndoing: true }, this._workingCopyFileService, this._fileService);
+		await this._wowkingCopyFiweSewvice.move(moves, token, this._undoWedoInfo);
+		wetuwn new WenameOpewation(undoes, { isUndoing: twue }, this._wowkingCopyFiweSewvice, this._fiweSewvice);
 	}
 
-	toString(): string {
-		return `(rename ${this._edits.map(edit => `${edit.oldUri} to ${edit.newUri}`).join(', ')})`;
+	toStwing(): stwing {
+		wetuwn `(wename ${this._edits.map(edit => `${edit.owdUwi} to ${edit.newUwi}`).join(', ')})`;
 	}
 }
 
-class CopyEdit {
-	readonly type = 'copy';
-	constructor(
-		readonly newUri: URI,
-		readonly oldUri: URI,
-		readonly options: WorkspaceFileEditOptions
+cwass CopyEdit {
+	weadonwy type = 'copy';
+	constwuctow(
+		weadonwy newUwi: UWI,
+		weadonwy owdUwi: UWI,
+		weadonwy options: WowkspaceFiweEditOptions
 	) { }
 }
 
-class CopyOperation implements IFileOperation {
+cwass CopyOpewation impwements IFiweOpewation {
 
-	constructor(
-		private readonly _edits: CopyEdit[],
-		private readonly _undoRedoInfo: IFileOperationUndoRedoInfo,
-		@IWorkingCopyFileService private readonly _workingCopyFileService: IWorkingCopyFileService,
-		@IFileService private readonly _fileService: IFileService,
-		@IInstantiationService private readonly _instaService: IInstantiationService
+	constwuctow(
+		pwivate weadonwy _edits: CopyEdit[],
+		pwivate weadonwy _undoWedoInfo: IFiweOpewationUndoWedoInfo,
+		@IWowkingCopyFiweSewvice pwivate weadonwy _wowkingCopyFiweSewvice: IWowkingCopyFiweSewvice,
+		@IFiweSewvice pwivate weadonwy _fiweSewvice: IFiweSewvice,
+		@IInstantiationSewvice pwivate weadonwy _instaSewvice: IInstantiationSewvice
 	) { }
 
-	get uris() {
-		return flatten(this._edits.map(edit => [edit.newUri, edit.oldUri]));
+	get uwis() {
+		wetuwn fwatten(this._edits.map(edit => [edit.newUwi, edit.owdUwi]));
 	}
 
-	async perform(token: CancellationToken): Promise<IFileOperation> {
+	async pewfowm(token: CancewwationToken): Pwomise<IFiweOpewation> {
 
-		// (1) create copy operations, remove noops
-		const copies: ICopyOperation[] = [];
-		for (const edit of this._edits) {
-			//check: not overwriting, but ignoring, and the target file exists
-			const skip = edit.options.overwrite === undefined && edit.options.ignoreIfExists && await this._fileService.exists(edit.newUri);
+		// (1) cweate copy opewations, wemove noops
+		const copies: ICopyOpewation[] = [];
+		fow (const edit of this._edits) {
+			//check: not ovewwwiting, but ignowing, and the tawget fiwe exists
+			const skip = edit.options.ovewwwite === undefined && edit.options.ignoweIfExists && await this._fiweSewvice.exists(edit.newUwi);
 			if (!skip) {
-				copies.push({ file: { source: edit.oldUri, target: edit.newUri }, overwrite: edit.options.overwrite });
+				copies.push({ fiwe: { souwce: edit.owdUwi, tawget: edit.newUwi }, ovewwwite: edit.options.ovewwwite });
 			}
 		}
 
-		if (copies.length === 0) {
-			return new Noop();
+		if (copies.wength === 0) {
+			wetuwn new Noop();
 		}
 
-		// (2) perform the actual copy and use the return stats to build undo edits
-		const stats = await this._workingCopyFileService.copy(copies, token, this._undoRedoInfo);
-		const undoes: DeleteEdit[] = [];
+		// (2) pewfowm the actuaw copy and use the wetuwn stats to buiwd undo edits
+		const stats = await this._wowkingCopyFiweSewvice.copy(copies, token, this._undoWedoInfo);
+		const undoes: DeweteEdit[] = [];
 
-		for (let i = 0; i < stats.length; i++) {
+		fow (wet i = 0; i < stats.wength; i++) {
 			const stat = stats[i];
 			const edit = this._edits[i];
-			undoes.push(new DeleteEdit(stat.resource, { recursive: true, folder: this._edits[i].options.folder || stat.isDirectory, ...edit.options }, false));
+			undoes.push(new DeweteEdit(stat.wesouwce, { wecuwsive: twue, fowda: this._edits[i].options.fowda || stat.isDiwectowy, ...edit.options }, fawse));
 		}
 
-		return this._instaService.createInstance(DeleteOperation, undoes, { isUndoing: true });
+		wetuwn this._instaSewvice.cweateInstance(DeweteOpewation, undoes, { isUndoing: twue });
 	}
 
-	toString(): string {
-		return `(copy ${this._edits.map(edit => `${edit.oldUri} to ${edit.newUri}`).join(', ')})`;
+	toStwing(): stwing {
+		wetuwn `(copy ${this._edits.map(edit => `${edit.owdUwi} to ${edit.newUwi}`).join(', ')})`;
 	}
 }
 
-class CreateEdit {
-	readonly type = 'create';
-	constructor(
-		readonly newUri: URI,
-		readonly options: WorkspaceFileEditOptions,
-		readonly contents: VSBuffer | undefined,
+cwass CweateEdit {
+	weadonwy type = 'cweate';
+	constwuctow(
+		weadonwy newUwi: UWI,
+		weadonwy options: WowkspaceFiweEditOptions,
+		weadonwy contents: VSBuffa | undefined,
 	) { }
 }
 
-class CreateOperation implements IFileOperation {
+cwass CweateOpewation impwements IFiweOpewation {
 
-	constructor(
-		private readonly _edits: CreateEdit[],
-		private readonly _undoRedoInfo: IFileOperationUndoRedoInfo,
-		@IFileService private readonly _fileService: IFileService,
-		@IWorkingCopyFileService private readonly _workingCopyFileService: IWorkingCopyFileService,
-		@IInstantiationService private readonly _instaService: IInstantiationService,
-		@ITextFileService private readonly _textFileService: ITextFileService
+	constwuctow(
+		pwivate weadonwy _edits: CweateEdit[],
+		pwivate weadonwy _undoWedoInfo: IFiweOpewationUndoWedoInfo,
+		@IFiweSewvice pwivate weadonwy _fiweSewvice: IFiweSewvice,
+		@IWowkingCopyFiweSewvice pwivate weadonwy _wowkingCopyFiweSewvice: IWowkingCopyFiweSewvice,
+		@IInstantiationSewvice pwivate weadonwy _instaSewvice: IInstantiationSewvice,
+		@ITextFiweSewvice pwivate weadonwy _textFiweSewvice: ITextFiweSewvice
 	) { }
 
-	get uris() {
-		return this._edits.map(edit => edit.newUri);
+	get uwis() {
+		wetuwn this._edits.map(edit => edit.newUwi);
 	}
 
-	async perform(token: CancellationToken): Promise<IFileOperation> {
+	async pewfowm(token: CancewwationToken): Pwomise<IFiweOpewation> {
 
-		const folderCreates: ICreateOperation[] = [];
-		const fileCreates: ICreateFileOperation[] = [];
-		const undoes: DeleteEdit[] = [];
+		const fowdewCweates: ICweateOpewation[] = [];
+		const fiweCweates: ICweateFiweOpewation[] = [];
+		const undoes: DeweteEdit[] = [];
 
-		for (const edit of this._edits) {
-			if (edit.options.overwrite === undefined && edit.options.ignoreIfExists && await this._fileService.exists(edit.newUri)) {
-				continue; // not overwriting, but ignoring, and the target file exists
+		fow (const edit of this._edits) {
+			if (edit.options.ovewwwite === undefined && edit.options.ignoweIfExists && await this._fiweSewvice.exists(edit.newUwi)) {
+				continue; // not ovewwwiting, but ignowing, and the tawget fiwe exists
 			}
-			if (edit.options.folder) {
-				folderCreates.push({ resource: edit.newUri });
-			} else {
-				// If the contents are part of the edit they include the encoding, thus use them. Otherwise get the encoding for a new empty file.
-				const encodedReadable = typeof edit.contents !== 'undefined' ? edit.contents : await this._textFileService.getEncodedReadable(edit.newUri);
-				fileCreates.push({ resource: edit.newUri, contents: encodedReadable, overwrite: edit.options.overwrite });
+			if (edit.options.fowda) {
+				fowdewCweates.push({ wesouwce: edit.newUwi });
+			} ewse {
+				// If the contents awe pawt of the edit they incwude the encoding, thus use them. Othewwise get the encoding fow a new empty fiwe.
+				const encodedWeadabwe = typeof edit.contents !== 'undefined' ? edit.contents : await this._textFiweSewvice.getEncodedWeadabwe(edit.newUwi);
+				fiweCweates.push({ wesouwce: edit.newUwi, contents: encodedWeadabwe, ovewwwite: edit.options.ovewwwite });
 			}
-			undoes.push(new DeleteEdit(edit.newUri, edit.options, !edit.options.folder && !edit.contents));
+			undoes.push(new DeweteEdit(edit.newUwi, edit.options, !edit.options.fowda && !edit.contents));
 		}
 
-		if (folderCreates.length === 0 && fileCreates.length === 0) {
-			return new Noop();
+		if (fowdewCweates.wength === 0 && fiweCweates.wength === 0) {
+			wetuwn new Noop();
 		}
 
-		await this._workingCopyFileService.createFolder(folderCreates, token, this._undoRedoInfo);
-		await this._workingCopyFileService.create(fileCreates, token, this._undoRedoInfo);
+		await this._wowkingCopyFiweSewvice.cweateFowda(fowdewCweates, token, this._undoWedoInfo);
+		await this._wowkingCopyFiweSewvice.cweate(fiweCweates, token, this._undoWedoInfo);
 
-		return this._instaService.createInstance(DeleteOperation, undoes, { isUndoing: true });
+		wetuwn this._instaSewvice.cweateInstance(DeweteOpewation, undoes, { isUndoing: twue });
 	}
 
-	toString(): string {
-		return `(create ${this._edits.map(edit => edit.options.folder ? `folder ${edit.newUri}` : `file ${edit.newUri} with ${edit.contents?.byteLength || 0} bytes`).join(', ')})`;
+	toStwing(): stwing {
+		wetuwn `(cweate ${this._edits.map(edit => edit.options.fowda ? `fowda ${edit.newUwi}` : `fiwe ${edit.newUwi} with ${edit.contents?.byteWength || 0} bytes`).join(', ')})`;
 	}
 }
 
-class DeleteEdit {
-	readonly type = 'delete';
-	constructor(
-		readonly oldUri: URI,
-		readonly options: WorkspaceFileEditOptions,
-		readonly undoesCreate: boolean,
+cwass DeweteEdit {
+	weadonwy type = 'dewete';
+	constwuctow(
+		weadonwy owdUwi: UWI,
+		weadonwy options: WowkspaceFiweEditOptions,
+		weadonwy undoesCweate: boowean,
 	) { }
 }
 
-class DeleteOperation implements IFileOperation {
+cwass DeweteOpewation impwements IFiweOpewation {
 
-	constructor(
-		private _edits: DeleteEdit[],
-		private readonly _undoRedoInfo: IFileOperationUndoRedoInfo,
-		@IWorkingCopyFileService private readonly _workingCopyFileService: IWorkingCopyFileService,
-		@IFileService private readonly _fileService: IFileService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IInstantiationService private readonly _instaService: IInstantiationService,
-		@ILogService private readonly _logService: ILogService
+	constwuctow(
+		pwivate _edits: DeweteEdit[],
+		pwivate weadonwy _undoWedoInfo: IFiweOpewationUndoWedoInfo,
+		@IWowkingCopyFiweSewvice pwivate weadonwy _wowkingCopyFiweSewvice: IWowkingCopyFiweSewvice,
+		@IFiweSewvice pwivate weadonwy _fiweSewvice: IFiweSewvice,
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice,
+		@IInstantiationSewvice pwivate weadonwy _instaSewvice: IInstantiationSewvice,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice
 	) { }
 
-	get uris() {
-		return this._edits.map(edit => edit.oldUri);
+	get uwis() {
+		wetuwn this._edits.map(edit => edit.owdUwi);
 	}
 
-	async perform(token: CancellationToken): Promise<IFileOperation> {
-		// delete file
+	async pewfowm(token: CancewwationToken): Pwomise<IFiweOpewation> {
+		// dewete fiwe
 
-		const deletes: IDeleteOperation[] = [];
-		const undoes: CreateEdit[] = [];
+		const dewetes: IDeweteOpewation[] = [];
+		const undoes: CweateEdit[] = [];
 
-		for (const edit of this._edits) {
-			if (!await this._fileService.exists(edit.oldUri)) {
-				if (!edit.options.ignoreIfNotExists) {
-					throw new Error(`${edit.oldUri} does not exist and can not be deleted`);
+		fow (const edit of this._edits) {
+			if (!await this._fiweSewvice.exists(edit.owdUwi)) {
+				if (!edit.options.ignoweIfNotExists) {
+					thwow new Ewwow(`${edit.owdUwi} does not exist and can not be deweted`);
 				}
 				continue;
 			}
 
-			deletes.push({
-				resource: edit.oldUri,
-				recursive: edit.options.recursive,
-				useTrash: !edit.options.skipTrashBin && this._fileService.hasCapability(edit.oldUri, FileSystemProviderCapabilities.Trash) && this._configurationService.getValue<boolean>('files.enableTrash')
+			dewetes.push({
+				wesouwce: edit.owdUwi,
+				wecuwsive: edit.options.wecuwsive,
+				useTwash: !edit.options.skipTwashBin && this._fiweSewvice.hasCapabiwity(edit.owdUwi, FiweSystemPwovidewCapabiwities.Twash) && this._configuwationSewvice.getVawue<boowean>('fiwes.enabweTwash')
 			});
 
 
-			// read file contents for undo operation. when a file is too large it won't be restored
-			let fileContent: IFileContent | undefined;
-			if (!edit.undoesCreate && !edit.options.folder) {
-				try {
-					fileContent = await this._fileService.readFile(edit.oldUri);
-				} catch (err) {
-					this._logService.critical(err);
+			// wead fiwe contents fow undo opewation. when a fiwe is too wawge it won't be westowed
+			wet fiweContent: IFiweContent | undefined;
+			if (!edit.undoesCweate && !edit.options.fowda) {
+				twy {
+					fiweContent = await this._fiweSewvice.weadFiwe(edit.owdUwi);
+				} catch (eww) {
+					this._wogSewvice.cwiticaw(eww);
 				}
 			}
-			if (!(typeof edit.options.maxSize === 'number' && fileContent && (fileContent?.size > edit.options.maxSize))) {
-				undoes.push(new CreateEdit(edit.oldUri, edit.options, fileContent?.value));
+			if (!(typeof edit.options.maxSize === 'numba' && fiweContent && (fiweContent?.size > edit.options.maxSize))) {
+				undoes.push(new CweateEdit(edit.owdUwi, edit.options, fiweContent?.vawue));
 			}
 		}
 
-		if (deletes.length === 0) {
-			return new Noop();
+		if (dewetes.wength === 0) {
+			wetuwn new Noop();
 		}
 
-		await this._workingCopyFileService.delete(deletes, token, this._undoRedoInfo);
+		await this._wowkingCopyFiweSewvice.dewete(dewetes, token, this._undoWedoInfo);
 
-		if (undoes.length === 0) {
-			return new Noop();
+		if (undoes.wength === 0) {
+			wetuwn new Noop();
 		}
-		return this._instaService.createInstance(CreateOperation, undoes, { isUndoing: true });
+		wetuwn this._instaSewvice.cweateInstance(CweateOpewation, undoes, { isUndoing: twue });
 	}
 
-	toString(): string {
-		return `(delete ${this._edits.map(edit => edit.oldUri).join(', ')})`;
+	toStwing(): stwing {
+		wetuwn `(dewete ${this._edits.map(edit => edit.owdUwi).join(', ')})`;
 	}
 }
 
-class FileUndoRedoElement implements IWorkspaceUndoRedoElement {
+cwass FiweUndoWedoEwement impwements IWowkspaceUndoWedoEwement {
 
-	readonly type = UndoRedoElementType.Workspace;
+	weadonwy type = UndoWedoEwementType.Wowkspace;
 
-	readonly resources: readonly URI[];
+	weadonwy wesouwces: weadonwy UWI[];
 
-	constructor(
-		readonly label: string,
-		readonly operations: IFileOperation[],
-		readonly confirmBeforeUndo: boolean
+	constwuctow(
+		weadonwy wabew: stwing,
+		weadonwy opewations: IFiweOpewation[],
+		weadonwy confiwmBefoweUndo: boowean
 	) {
-		this.resources = (<URI[]>[]).concat(...operations.map(op => op.uris));
+		this.wesouwces = (<UWI[]>[]).concat(...opewations.map(op => op.uwis));
 	}
 
-	async undo(): Promise<void> {
-		await this._reverse();
+	async undo(): Pwomise<void> {
+		await this._wevewse();
 	}
 
-	async redo(): Promise<void> {
-		await this._reverse();
+	async wedo(): Pwomise<void> {
+		await this._wevewse();
 	}
 
-	private async _reverse() {
-		for (let i = 0; i < this.operations.length; i++) {
-			const op = this.operations[i];
-			const undo = await op.perform(CancellationToken.None);
-			this.operations[i] = undo;
+	pwivate async _wevewse() {
+		fow (wet i = 0; i < this.opewations.wength; i++) {
+			const op = this.opewations[i];
+			const undo = await op.pewfowm(CancewwationToken.None);
+			this.opewations[i] = undo;
 		}
 	}
 
-	toString(): string {
-		return this.operations.map(op => String(op)).join(', ');
+	toStwing(): stwing {
+		wetuwn this.opewations.map(op => Stwing(op)).join(', ');
 	}
 }
 
-export class BulkFileEdits {
+expowt cwass BuwkFiweEdits {
 
-	constructor(
-		private readonly _label: string,
-		private readonly _undoRedoGroup: UndoRedoGroup,
-		private readonly _undoRedoSource: UndoRedoSource | undefined,
-		private readonly _confirmBeforeUndo: boolean,
-		private readonly _progress: IProgress<void>,
-		private readonly _token: CancellationToken,
-		private readonly _edits: ResourceFileEdit[],
-		@IInstantiationService private readonly _instaService: IInstantiationService,
-		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
+	constwuctow(
+		pwivate weadonwy _wabew: stwing,
+		pwivate weadonwy _undoWedoGwoup: UndoWedoGwoup,
+		pwivate weadonwy _undoWedoSouwce: UndoWedoSouwce | undefined,
+		pwivate weadonwy _confiwmBefoweUndo: boowean,
+		pwivate weadonwy _pwogwess: IPwogwess<void>,
+		pwivate weadonwy _token: CancewwationToken,
+		pwivate weadonwy _edits: WesouwceFiweEdit[],
+		@IInstantiationSewvice pwivate weadonwy _instaSewvice: IInstantiationSewvice,
+		@IUndoWedoSewvice pwivate weadonwy _undoWedoSewvice: IUndoWedoSewvice,
 	) { }
 
-	async apply(): Promise<void> {
-		const undoOperations: IFileOperation[] = [];
-		const undoRedoInfo = { undoRedoGroupId: this._undoRedoGroup.id };
+	async appwy(): Pwomise<void> {
+		const undoOpewations: IFiweOpewation[] = [];
+		const undoWedoInfo = { undoWedoGwoupId: this._undoWedoGwoup.id };
 
-		const edits: Array<RenameEdit | CopyEdit | DeleteEdit | CreateEdit> = [];
-		for (const edit of this._edits) {
-			if (edit.newResource && edit.oldResource && !edit.options?.copy) {
-				edits.push(new RenameEdit(edit.newResource, edit.oldResource, edit.options ?? {}));
-			} else if (edit.newResource && edit.oldResource && edit.options?.copy) {
-				edits.push(new CopyEdit(edit.newResource, edit.oldResource, edit.options ?? {}));
-			} else if (!edit.newResource && edit.oldResource) {
-				edits.push(new DeleteEdit(edit.oldResource, edit.options ?? {}, false));
-			} else if (edit.newResource && !edit.oldResource) {
-				edits.push(new CreateEdit(edit.newResource, edit.options ?? {}, undefined));
+		const edits: Awway<WenameEdit | CopyEdit | DeweteEdit | CweateEdit> = [];
+		fow (const edit of this._edits) {
+			if (edit.newWesouwce && edit.owdWesouwce && !edit.options?.copy) {
+				edits.push(new WenameEdit(edit.newWesouwce, edit.owdWesouwce, edit.options ?? {}));
+			} ewse if (edit.newWesouwce && edit.owdWesouwce && edit.options?.copy) {
+				edits.push(new CopyEdit(edit.newWesouwce, edit.owdWesouwce, edit.options ?? {}));
+			} ewse if (!edit.newWesouwce && edit.owdWesouwce) {
+				edits.push(new DeweteEdit(edit.owdWesouwce, edit.options ?? {}, fawse));
+			} ewse if (edit.newWesouwce && !edit.owdWesouwce) {
+				edits.push(new CweateEdit(edit.newWesouwce, edit.options ?? {}, undefined));
 			}
 		}
 
-		if (edits.length === 0) {
-			return;
+		if (edits.wength === 0) {
+			wetuwn;
 		}
 
-		const groups: Array<RenameEdit | CopyEdit | DeleteEdit | CreateEdit>[] = [];
-		groups[0] = [edits[0]];
+		const gwoups: Awway<WenameEdit | CopyEdit | DeweteEdit | CweateEdit>[] = [];
+		gwoups[0] = [edits[0]];
 
-		for (let i = 1; i < edits.length; i++) {
+		fow (wet i = 1; i < edits.wength; i++) {
 			const edit = edits[i];
-			const lastGroup = tail(groups);
-			if (lastGroup[0].type === edit.type) {
-				lastGroup.push(edit);
-			} else {
-				groups.push([edit]);
+			const wastGwoup = taiw(gwoups);
+			if (wastGwoup[0].type === edit.type) {
+				wastGwoup.push(edit);
+			} ewse {
+				gwoups.push([edit]);
 			}
 		}
 
-		for (let group of groups) {
+		fow (wet gwoup of gwoups) {
 
-			if (this._token.isCancellationRequested) {
-				break;
+			if (this._token.isCancewwationWequested) {
+				bweak;
 			}
 
-			let op: IFileOperation | undefined;
-			switch (group[0].type) {
-				case 'rename':
-					op = this._instaService.createInstance(RenameOperation, <RenameEdit[]>group, undoRedoInfo);
-					break;
+			wet op: IFiweOpewation | undefined;
+			switch (gwoup[0].type) {
+				case 'wename':
+					op = this._instaSewvice.cweateInstance(WenameOpewation, <WenameEdit[]>gwoup, undoWedoInfo);
+					bweak;
 				case 'copy':
-					op = this._instaService.createInstance(CopyOperation, <CopyEdit[]>group, undoRedoInfo);
-					break;
-				case 'delete':
-					op = this._instaService.createInstance(DeleteOperation, <DeleteEdit[]>group, undoRedoInfo);
-					break;
-				case 'create':
-					op = this._instaService.createInstance(CreateOperation, <CreateEdit[]>group, undoRedoInfo);
-					break;
+					op = this._instaSewvice.cweateInstance(CopyOpewation, <CopyEdit[]>gwoup, undoWedoInfo);
+					bweak;
+				case 'dewete':
+					op = this._instaSewvice.cweateInstance(DeweteOpewation, <DeweteEdit[]>gwoup, undoWedoInfo);
+					bweak;
+				case 'cweate':
+					op = this._instaSewvice.cweateInstance(CweateOpewation, <CweateEdit[]>gwoup, undoWedoInfo);
+					bweak;
 			}
 
 			if (op) {
-				const undoOp = await op.perform(this._token);
-				undoOperations.push(undoOp);
+				const undoOp = await op.pewfowm(this._token);
+				undoOpewations.push(undoOp);
 			}
-			this._progress.report(undefined);
+			this._pwogwess.wepowt(undefined);
 		}
 
-		this._undoRedoService.pushElement(new FileUndoRedoElement(this._label, undoOperations, this._confirmBeforeUndo), this._undoRedoGroup, this._undoRedoSource);
+		this._undoWedoSewvice.pushEwement(new FiweUndoWedoEwement(this._wabew, undoOpewations, this._confiwmBefoweUndo), this._undoWedoGwoup, this._undoWedoSouwce);
 	}
 }

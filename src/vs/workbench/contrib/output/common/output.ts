@@ -1,134 +1,134 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IOutputChannelDescriptor } from 'vs/workbench/services/output/common/output';
-import { URI } from 'vs/base/common/uri';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IOutputChannewDescwiptow } fwom 'vs/wowkbench/sewvices/output/common/output';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
 /**
- * Mime type used by the output editor.
+ * Mime type used by the output editow.
  */
-export const OUTPUT_MIME = 'text/x-code-output';
+expowt const OUTPUT_MIME = 'text/x-code-output';
 
 /**
- * Output resource scheme.
+ * Output wesouwce scheme.
  */
-export const OUTPUT_SCHEME = 'output';
+expowt const OUTPUT_SCHEME = 'output';
 
 /**
- * Id used by the output editor.
+ * Id used by the output editow.
  */
-export const OUTPUT_MODE_ID = 'Log';
+expowt const OUTPUT_MODE_ID = 'Wog';
 
 /**
- * Mime type used by the log output editor.
+ * Mime type used by the wog output editow.
  */
-export const LOG_MIME = 'text/x-code-log-output';
+expowt const WOG_MIME = 'text/x-code-wog-output';
 
 /**
- * Log resource scheme.
+ * Wog wesouwce scheme.
  */
-export const LOG_SCHEME = 'log';
+expowt const WOG_SCHEME = 'wog';
 
 /**
- * Id used by the log output editor.
+ * Id used by the wog output editow.
  */
-export const LOG_MODE_ID = 'log';
+expowt const WOG_MODE_ID = 'wog';
 
 /**
  * Output view id
  */
-export const OUTPUT_VIEW_ID = 'workbench.panel.output';
+expowt const OUTPUT_VIEW_ID = 'wowkbench.panew.output';
 
-export const OUTPUT_SERVICE_ID = 'outputService';
+expowt const OUTPUT_SEWVICE_ID = 'outputSewvice';
 
-export const MAX_OUTPUT_LENGTH = 10000 /* Max. number of output lines to show in output */ * 100 /* Guestimated chars per line */;
+expowt const MAX_OUTPUT_WENGTH = 10000 /* Max. numba of output wines to show in output */ * 100 /* Guestimated chaws pew wine */;
 
-export const CONTEXT_IN_OUTPUT = new RawContextKey<boolean>('inOutput', false);
+expowt const CONTEXT_IN_OUTPUT = new WawContextKey<boowean>('inOutput', fawse);
 
-export const CONTEXT_ACTIVE_LOG_OUTPUT = new RawContextKey<boolean>('activeLogOutput', false);
+expowt const CONTEXT_ACTIVE_WOG_OUTPUT = new WawContextKey<boowean>('activeWogOutput', fawse);
 
-export const CONTEXT_OUTPUT_SCROLL_LOCK = new RawContextKey<boolean>(`outputView.scrollLock`, false);
+expowt const CONTEXT_OUTPUT_SCWOWW_WOCK = new WawContextKey<boowean>(`outputView.scwowwWock`, fawse);
 
-export const IOutputService = createDecorator<IOutputService>(OUTPUT_SERVICE_ID);
+expowt const IOutputSewvice = cweateDecowatow<IOutputSewvice>(OUTPUT_SEWVICE_ID);
 
 /**
- * The output service to manage output from the various processes running.
+ * The output sewvice to manage output fwom the vawious pwocesses wunning.
  */
-export interface IOutputService {
-	readonly _serviceBrand: undefined;
+expowt intewface IOutputSewvice {
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Given the channel id returns the output channel instance.
-	 * Channel should be first registered via OutputChannelRegistry.
+	 * Given the channew id wetuwns the output channew instance.
+	 * Channew shouwd be fiwst wegistewed via OutputChannewWegistwy.
 	 */
-	getChannel(id: string): IOutputChannel | undefined;
+	getChannew(id: stwing): IOutputChannew | undefined;
 
 	/**
-	 * Given the channel id returns the registered output channel descriptor.
+	 * Given the channew id wetuwns the wegistewed output channew descwiptow.
 	 */
-	getChannelDescriptor(id: string): IOutputChannelDescriptor | undefined;
+	getChannewDescwiptow(id: stwing): IOutputChannewDescwiptow | undefined;
 
 	/**
-	 * Returns an array of all known output channels descriptors.
+	 * Wetuwns an awway of aww known output channews descwiptows.
 	 */
-	getChannelDescriptors(): IOutputChannelDescriptor[];
+	getChannewDescwiptows(): IOutputChannewDescwiptow[];
 
 	/**
-	 * Returns the currently active channel.
-	 * Only one channel can be active at a given moment.
+	 * Wetuwns the cuwwentwy active channew.
+	 * Onwy one channew can be active at a given moment.
 	 */
-	getActiveChannel(): IOutputChannel | undefined;
+	getActiveChannew(): IOutputChannew | undefined;
 
 	/**
-	 * Show the channel with the passed id.
+	 * Show the channew with the passed id.
 	 */
-	showChannel(id: string, preserveFocus?: boolean): Promise<void>;
+	showChannew(id: stwing, pwesewveFocus?: boowean): Pwomise<void>;
 
 	/**
-	 * Allows to register on active output channel change.
+	 * Awwows to wegista on active output channew change.
 	 */
-	onActiveOutputChannel: Event<string>;
+	onActiveOutputChannew: Event<stwing>;
 }
 
-export interface IOutputChannel {
+expowt intewface IOutputChannew {
 
 	/**
-	 * Identifier of the output channel.
+	 * Identifia of the output channew.
 	 */
-	id: string;
+	id: stwing;
 
 	/**
-	 * Label of the output channel to be displayed to the user.
+	 * Wabew of the output channew to be dispwayed to the usa.
 	 */
-	label: string;
+	wabew: stwing;
 
 	/**
-	 * URI of the output channel.
+	 * UWI of the output channew.
 	 */
-	uri: URI;
+	uwi: UWI;
 
 	/**
-	 * Appends output to the channel.
+	 * Appends output to the channew.
 	 */
-	append(output: string): void;
+	append(output: stwing): void;
 
 	/**
-	 * Update the channel.
+	 * Update the channew.
 	 */
 	update(): void;
 
 	/**
-	 * Clears all received output for this channel.
+	 * Cweaws aww weceived output fow this channew.
 	 */
-	clear(till?: number): void;
+	cweaw(tiww?: numba): void;
 
 	/**
-	 * Disposes the output channel.
+	 * Disposes the output channew.
 	 */
 	dispose(): void;
 }

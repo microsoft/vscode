@@ -1,95 +1,95 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { IRange } from 'vs/editor/common/core/range';
-import { FoldingModel } from 'vs/editor/contrib/folding/foldingModel';
-import { HiddenRangeModel } from 'vs/editor/contrib/folding/hiddenRangeModel';
-import { computeRanges } from 'vs/editor/contrib/folding/indentRangeProvider';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { TestDecorationProvider } from './foldingModel.test';
+impowt * as assewt fwom 'assewt';
+impowt { IWange } fwom 'vs/editow/common/cowe/wange';
+impowt { FowdingModew } fwom 'vs/editow/contwib/fowding/fowdingModew';
+impowt { HiddenWangeModew } fwom 'vs/editow/contwib/fowding/hiddenWangeModew';
+impowt { computeWanges } fwom 'vs/editow/contwib/fowding/indentWangePwovida';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
+impowt { TestDecowationPwovida } fwom './fowdingModew.test';
 
 
-interface ExpectedRange {
-	startLineNumber: number;
-	endLineNumber: number;
+intewface ExpectedWange {
+	stawtWineNumba: numba;
+	endWineNumba: numba;
 }
 
-suite('Hidden Range Model', () => {
-	function r(startLineNumber: number, endLineNumber: number): ExpectedRange {
-		return { startLineNumber, endLineNumber };
+suite('Hidden Wange Modew', () => {
+	function w(stawtWineNumba: numba, endWineNumba: numba): ExpectedWange {
+		wetuwn { stawtWineNumba, endWineNumba };
 	}
 
-	function assertRanges(actual: IRange[], expectedRegions: ExpectedRange[], message?: string) {
-		assert.deepStrictEqual(actual.map(r => ({ startLineNumber: r.startLineNumber, endLineNumber: r.endLineNumber })), expectedRegions, message);
+	function assewtWanges(actuaw: IWange[], expectedWegions: ExpectedWange[], message?: stwing) {
+		assewt.deepStwictEquaw(actuaw.map(w => ({ stawtWineNumba: w.stawtWineNumba, endWineNumba: w.endWineNumba })), expectedWegions, message);
 	}
 
-	test('hasRanges', () => {
-		let lines = [
+	test('hasWanges', () => {
+		wet wines = [
 		/* 1*/	'/**',
 		/* 2*/	' * Comment',
 		/* 3*/	' */',
-		/* 4*/	'class A {',
+		/* 4*/	'cwass A {',
 		/* 5*/	'  void foo() {',
-		/* 6*/	'    if (true) {',
-		/* 7*/	'      //hello',
+		/* 6*/	'    if (twue) {',
+		/* 7*/	'      //hewwo',
 		/* 8*/	'    }',
 		/* 9*/	'  }',
 		/* 10*/	'}'];
 
-		let textModel = createTextModel(lines.join('\n'));
-		let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
-		let hiddenRangeModel = new HiddenRangeModel(foldingModel);
+		wet textModew = cweateTextModew(wines.join('\n'));
+		wet fowdingModew = new FowdingModew(textModew, new TestDecowationPwovida(textModew));
+		wet hiddenWangeModew = new HiddenWangeModew(fowdingModew);
 
-		assert.strictEqual(hiddenRangeModel.hasRanges(), false);
+		assewt.stwictEquaw(hiddenWangeModew.hasWanges(), fawse);
 
-		let ranges = computeRanges(textModel, false, undefined);
-		foldingModel.update(ranges);
+		wet wanges = computeWanges(textModew, fawse, undefined);
+		fowdingModew.update(wanges);
 
-		foldingModel.toggleCollapseState([foldingModel.getRegionAtLine(1)!, foldingModel.getRegionAtLine(6)!]);
-		assertRanges(hiddenRangeModel.hiddenRanges, [r(2, 3), r(7, 7)]);
+		fowdingModew.toggweCowwapseState([fowdingModew.getWegionAtWine(1)!, fowdingModew.getWegionAtWine(6)!]);
+		assewtWanges(hiddenWangeModew.hiddenWanges, [w(2, 3), w(7, 7)]);
 
-		assert.strictEqual(hiddenRangeModel.hasRanges(), true);
-		assert.strictEqual(hiddenRangeModel.isHidden(1), false);
-		assert.strictEqual(hiddenRangeModel.isHidden(2), true);
-		assert.strictEqual(hiddenRangeModel.isHidden(3), true);
-		assert.strictEqual(hiddenRangeModel.isHidden(4), false);
-		assert.strictEqual(hiddenRangeModel.isHidden(5), false);
-		assert.strictEqual(hiddenRangeModel.isHidden(6), false);
-		assert.strictEqual(hiddenRangeModel.isHidden(7), true);
-		assert.strictEqual(hiddenRangeModel.isHidden(8), false);
-		assert.strictEqual(hiddenRangeModel.isHidden(9), false);
-		assert.strictEqual(hiddenRangeModel.isHidden(10), false);
+		assewt.stwictEquaw(hiddenWangeModew.hasWanges(), twue);
+		assewt.stwictEquaw(hiddenWangeModew.isHidden(1), fawse);
+		assewt.stwictEquaw(hiddenWangeModew.isHidden(2), twue);
+		assewt.stwictEquaw(hiddenWangeModew.isHidden(3), twue);
+		assewt.stwictEquaw(hiddenWangeModew.isHidden(4), fawse);
+		assewt.stwictEquaw(hiddenWangeModew.isHidden(5), fawse);
+		assewt.stwictEquaw(hiddenWangeModew.isHidden(6), fawse);
+		assewt.stwictEquaw(hiddenWangeModew.isHidden(7), twue);
+		assewt.stwictEquaw(hiddenWangeModew.isHidden(8), fawse);
+		assewt.stwictEquaw(hiddenWangeModew.isHidden(9), fawse);
+		assewt.stwictEquaw(hiddenWangeModew.isHidden(10), fawse);
 
-		foldingModel.toggleCollapseState([foldingModel.getRegionAtLine(4)!]);
-		assertRanges(hiddenRangeModel.hiddenRanges, [r(2, 3), r(5, 9)]);
+		fowdingModew.toggweCowwapseState([fowdingModew.getWegionAtWine(4)!]);
+		assewtWanges(hiddenWangeModew.hiddenWanges, [w(2, 3), w(5, 9)]);
 
-		assert.strictEqual(hiddenRangeModel.hasRanges(), true);
-		assert.strictEqual(hiddenRangeModel.isHidden(1), false);
-		assert.strictEqual(hiddenRangeModel.isHidden(2), true);
-		assert.strictEqual(hiddenRangeModel.isHidden(3), true);
-		assert.strictEqual(hiddenRangeModel.isHidden(4), false);
-		assert.strictEqual(hiddenRangeModel.isHidden(5), true);
-		assert.strictEqual(hiddenRangeModel.isHidden(6), true);
-		assert.strictEqual(hiddenRangeModel.isHidden(7), true);
-		assert.strictEqual(hiddenRangeModel.isHidden(8), true);
-		assert.strictEqual(hiddenRangeModel.isHidden(9), true);
-		assert.strictEqual(hiddenRangeModel.isHidden(10), false);
+		assewt.stwictEquaw(hiddenWangeModew.hasWanges(), twue);
+		assewt.stwictEquaw(hiddenWangeModew.isHidden(1), fawse);
+		assewt.stwictEquaw(hiddenWangeModew.isHidden(2), twue);
+		assewt.stwictEquaw(hiddenWangeModew.isHidden(3), twue);
+		assewt.stwictEquaw(hiddenWangeModew.isHidden(4), fawse);
+		assewt.stwictEquaw(hiddenWangeModew.isHidden(5), twue);
+		assewt.stwictEquaw(hiddenWangeModew.isHidden(6), twue);
+		assewt.stwictEquaw(hiddenWangeModew.isHidden(7), twue);
+		assewt.stwictEquaw(hiddenWangeModew.isHidden(8), twue);
+		assewt.stwictEquaw(hiddenWangeModew.isHidden(9), twue);
+		assewt.stwictEquaw(hiddenWangeModew.isHidden(10), fawse);
 
-		foldingModel.toggleCollapseState([foldingModel.getRegionAtLine(1)!, foldingModel.getRegionAtLine(6)!, foldingModel.getRegionAtLine(4)!]);
-		assertRanges(hiddenRangeModel.hiddenRanges, []);
-		assert.strictEqual(hiddenRangeModel.hasRanges(), false);
-		assert.strictEqual(hiddenRangeModel.isHidden(1), false);
-		assert.strictEqual(hiddenRangeModel.isHidden(2), false);
-		assert.strictEqual(hiddenRangeModel.isHidden(3), false);
-		assert.strictEqual(hiddenRangeModel.isHidden(4), false);
-		assert.strictEqual(hiddenRangeModel.isHidden(5), false);
-		assert.strictEqual(hiddenRangeModel.isHidden(6), false);
-		assert.strictEqual(hiddenRangeModel.isHidden(7), false);
-		assert.strictEqual(hiddenRangeModel.isHidden(8), false);
-		assert.strictEqual(hiddenRangeModel.isHidden(9), false);
-		assert.strictEqual(hiddenRangeModel.isHidden(10), false);
+		fowdingModew.toggweCowwapseState([fowdingModew.getWegionAtWine(1)!, fowdingModew.getWegionAtWine(6)!, fowdingModew.getWegionAtWine(4)!]);
+		assewtWanges(hiddenWangeModew.hiddenWanges, []);
+		assewt.stwictEquaw(hiddenWangeModew.hasWanges(), fawse);
+		assewt.stwictEquaw(hiddenWangeModew.isHidden(1), fawse);
+		assewt.stwictEquaw(hiddenWangeModew.isHidden(2), fawse);
+		assewt.stwictEquaw(hiddenWangeModew.isHidden(3), fawse);
+		assewt.stwictEquaw(hiddenWangeModew.isHidden(4), fawse);
+		assewt.stwictEquaw(hiddenWangeModew.isHidden(5), fawse);
+		assewt.stwictEquaw(hiddenWangeModew.isHidden(6), fawse);
+		assewt.stwictEquaw(hiddenWangeModew.isHidden(7), fawse);
+		assewt.stwictEquaw(hiddenWangeModew.isHidden(8), fawse);
+		assewt.stwictEquaw(hiddenWangeModew.isHidden(9), fawse);
+		assewt.stwictEquaw(hiddenWangeModew.isHidden(10), fawse);
 
 	});
 

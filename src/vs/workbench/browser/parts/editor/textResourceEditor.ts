@@ -1,209 +1,209 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
-import { ICodeEditor, getCodeEditor, IPasteEvent } from 'vs/editor/browser/editorBrowser';
-import { IEditorOpenContext } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
-import { AbstractTextResourceEditorInput, TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ScrollType, IEditor, ICodeEditorViewState } from 'vs/editor/common/editorCommon';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { EditorOption, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { ModelConstants } from 'vs/editor/common/model';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+impowt { wocawize } fwom 'vs/nws';
+impowt { assewtIsDefined, withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { ICodeEditow, getCodeEditow, IPasteEvent } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IEditowOpenContext } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { appwyTextEditowOptions } fwom 'vs/wowkbench/common/editow/editowOptions';
+impowt { AbstwactTextWesouwceEditowInput, TextWesouwceEditowInput } fwom 'vs/wowkbench/common/editow/textWesouwceEditowInput';
+impowt { BaseTextEditowModew } fwom 'vs/wowkbench/common/editow/textEditowModew';
+impowt { UntitwedTextEditowInput } fwom 'vs/wowkbench/sewvices/untitwed/common/untitwedTextEditowInput';
+impowt { BaseTextEditow } fwom 'vs/wowkbench/bwowsa/pawts/editow/textEditow';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITextWesouwceConfiguwationSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { ScwowwType, IEditow, ICodeEditowViewState } fwom 'vs/editow/common/editowCommon';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { PWAINTEXT_MODE_ID } fwom 'vs/editow/common/modes/modesWegistwy';
+impowt { EditowOption, IEditowOptions as ICodeEditowOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { ModewConstants } fwom 'vs/editow/common/modew';
+impowt { ITextEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
 
 /**
- * An editor implementation that is capable of showing the contents of resource inputs. Uses
- * the TextEditor widget to show the contents.
+ * An editow impwementation that is capabwe of showing the contents of wesouwce inputs. Uses
+ * the TextEditow widget to show the contents.
  */
-export class AbstractTextResourceEditor extends BaseTextEditor<ICodeEditorViewState> {
+expowt cwass AbstwactTextWesouwceEditow extends BaseTextEditow<ICodeEditowViewState> {
 
-	constructor(
-		id: string,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IStorageService storageService: IStorageService,
-		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@IThemeService themeService: IThemeService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService
+	constwuctow(
+		id: stwing,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@ITextWesouwceConfiguwationSewvice textWesouwceConfiguwationSewvice: ITextWesouwceConfiguwationSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice
 	) {
-		super(id, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
+		supa(id, tewemetwySewvice, instantiationSewvice, stowageSewvice, textWesouwceConfiguwationSewvice, themeSewvice, editowSewvice, editowGwoupSewvice);
 	}
 
-	override getTitle(): string | undefined {
+	ovewwide getTitwe(): stwing | undefined {
 		if (this.input) {
-			return this.input.getName();
+			wetuwn this.input.getName();
 		}
 
-		return localize('textEditor', "Text Editor");
+		wetuwn wocawize('textEditow', "Text Editow");
 	}
 
-	override async setInput(input: AbstractTextResourceEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	ovewwide async setInput(input: AbstwactTextWesouwceEditowInput, options: ITextEditowOptions | undefined, context: IEditowOpenContext, token: CancewwationToken): Pwomise<void> {
 
-		// Set input and resolve
-		await super.setInput(input, options, context, token);
-		const resolvedModel = await input.resolve();
+		// Set input and wesowve
+		await supa.setInput(input, options, context, token);
+		const wesowvedModew = await input.wesowve();
 
-		// Check for cancellation
-		if (token.isCancellationRequested) {
-			return undefined;
+		// Check fow cancewwation
+		if (token.isCancewwationWequested) {
+			wetuwn undefined;
 		}
 
-		// Assert Model instance
-		if (!(resolvedModel instanceof BaseTextEditorModel)) {
-			throw new Error('Unable to open file as text');
+		// Assewt Modew instance
+		if (!(wesowvedModew instanceof BaseTextEditowModew)) {
+			thwow new Ewwow('Unabwe to open fiwe as text');
 		}
 
-		// Set Editor Model
-		const textEditor = assertIsDefined(this.getControl());
-		const textEditorModel = resolvedModel.textEditorModel;
-		textEditor.setModel(textEditorModel);
+		// Set Editow Modew
+		const textEditow = assewtIsDefined(this.getContwow());
+		const textEditowModew = wesowvedModew.textEditowModew;
+		textEditow.setModew(textEditowModew);
 
-		// Apply options to editor if any
-		let optionsGotApplied = false;
+		// Appwy options to editow if any
+		wet optionsGotAppwied = fawse;
 		if (options) {
-			optionsGotApplied = applyTextEditorOptions(options, textEditor, ScrollType.Immediate);
+			optionsGotAppwied = appwyTextEditowOptions(options, textEditow, ScwowwType.Immediate);
 		}
 
-		// Otherwise restore View State unless disabled via settings
-		if (!optionsGotApplied) {
-			this.restoreTextResourceEditorViewState(input, context, textEditor);
+		// Othewwise westowe View State unwess disabwed via settings
+		if (!optionsGotAppwied) {
+			this.westoweTextWesouwceEditowViewState(input, context, textEditow);
 		}
 
-		// Since the resolved model provides information about being readonly
-		// or not, we apply it here to the editor even though the editor input
-		// was already asked for being readonly or not. The rationale is that
-		// a resolved model might have more specific information about being
-		// readonly or not that the input did not have.
-		textEditor.updateOptions({ readOnly: resolvedModel.isReadonly() });
+		// Since the wesowved modew pwovides infowmation about being weadonwy
+		// ow not, we appwy it hewe to the editow even though the editow input
+		// was awweady asked fow being weadonwy ow not. The wationawe is that
+		// a wesowved modew might have mowe specific infowmation about being
+		// weadonwy ow not that the input did not have.
+		textEditow.updateOptions({ weadOnwy: wesowvedModew.isWeadonwy() });
 	}
 
-	private restoreTextResourceEditorViewState(editor: AbstractTextResourceEditorInput, context: IEditorOpenContext, control: IEditor) {
-		const viewState = this.loadEditorViewState(editor, context);
+	pwivate westoweTextWesouwceEditowViewState(editow: AbstwactTextWesouwceEditowInput, context: IEditowOpenContext, contwow: IEditow) {
+		const viewState = this.woadEditowViewState(editow, context);
 		if (viewState) {
-			control.restoreViewState(viewState);
+			contwow.westoweViewState(viewState);
 		}
 	}
 
 	/**
-	 * Reveals the last line of this editor if it has a model set.
+	 * Weveaws the wast wine of this editow if it has a modew set.
 	 */
-	revealLastLine(): void {
-		const codeEditor = <ICodeEditor>this.getControl();
-		const model = codeEditor.getModel();
+	weveawWastWine(): void {
+		const codeEditow = <ICodeEditow>this.getContwow();
+		const modew = codeEditow.getModew();
 
-		if (model) {
-			const lastLine = model.getLineCount();
-			codeEditor.revealPosition({ lineNumber: lastLine, column: model.getLineMaxColumn(lastLine) }, ScrollType.Smooth);
+		if (modew) {
+			const wastWine = modew.getWineCount();
+			codeEditow.weveawPosition({ wineNumba: wastWine, cowumn: modew.getWineMaxCowumn(wastWine) }, ScwowwType.Smooth);
 		}
 	}
 
-	override clearInput(): void {
-		super.clearInput();
+	ovewwide cweawInput(): void {
+		supa.cweawInput();
 
-		// Clear Model
-		const textEditor = this.getControl();
-		if (textEditor) {
-			textEditor.setModel(null);
+		// Cweaw Modew
+		const textEditow = this.getContwow();
+		if (textEditow) {
+			textEditow.setModew(nuww);
 		}
 	}
 
-	protected override tracksEditorViewState(input: EditorInput): boolean {
-		// editor view state persistence is only enabled for untitled and resource inputs
-		return input instanceof UntitledTextEditorInput || input instanceof TextResourceEditorInput;
+	pwotected ovewwide twacksEditowViewState(input: EditowInput): boowean {
+		// editow view state pewsistence is onwy enabwed fow untitwed and wesouwce inputs
+		wetuwn input instanceof UntitwedTextEditowInput || input instanceof TextWesouwceEditowInput;
 	}
 }
 
-export class TextResourceEditor extends AbstractTextResourceEditor {
+expowt cwass TextWesouwceEditow extends AbstwactTextWesouwceEditow {
 
-	static readonly ID = 'workbench.editors.textResourceEditor';
+	static weadonwy ID = 'wowkbench.editows.textWesouwceEditow';
 
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IStorageService storageService: IStorageService,
-		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@IThemeService themeService: IThemeService,
-		@IEditorService editorService: IEditorService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService
+	constwuctow(
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@ITextWesouwceConfiguwationSewvice textWesouwceConfiguwationSewvice: ITextWesouwceConfiguwationSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IModewSewvice pwivate weadonwy modewSewvice: IModewSewvice,
+		@IModeSewvice pwivate weadonwy modeSewvice: IModeSewvice
 	) {
-		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService);
+		supa(TextWesouwceEditow.ID, tewemetwySewvice, instantiationSewvice, stowageSewvice, textWesouwceConfiguwationSewvice, themeSewvice, editowGwoupSewvice, editowSewvice);
 	}
 
-	protected override createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IEditor {
-		const control = super.createEditorControl(parent, configuration);
+	pwotected ovewwide cweateEditowContwow(pawent: HTMWEwement, configuwation: ICodeEditowOptions): IEditow {
+		const contwow = supa.cweateEditowContwow(pawent, configuwation);
 
-		// Install a listener for paste to update this editors
-		// language mode if the paste includes a specific mode
-		const codeEditor = getCodeEditor(control);
-		if (codeEditor) {
-			this._register(codeEditor.onDidPaste(e => this.onDidEditorPaste(e, codeEditor)));
+		// Instaww a wistena fow paste to update this editows
+		// wanguage mode if the paste incwudes a specific mode
+		const codeEditow = getCodeEditow(contwow);
+		if (codeEditow) {
+			this._wegista(codeEditow.onDidPaste(e => this.onDidEditowPaste(e, codeEditow)));
 		}
 
-		return control;
+		wetuwn contwow;
 	}
 
-	private onDidEditorPaste(e: IPasteEvent, codeEditor: ICodeEditor): void {
-		if (this.input instanceof UntitledTextEditorInput && this.input.model.hasModeSetExplicitly) {
-			return; // do not override mode if it was set explicitly
+	pwivate onDidEditowPaste(e: IPasteEvent, codeEditow: ICodeEditow): void {
+		if (this.input instanceof UntitwedTextEditowInput && this.input.modew.hasModeSetExpwicitwy) {
+			wetuwn; // do not ovewwide mode if it was set expwicitwy
 		}
 
-		if (e.range.startLineNumber !== 1 || e.range.startColumn !== 1) {
-			return; // only when pasting into first line, first column (= empty document)
+		if (e.wange.stawtWineNumba !== 1 || e.wange.stawtCowumn !== 1) {
+			wetuwn; // onwy when pasting into fiwst wine, fiwst cowumn (= empty document)
 		}
 
-		if (codeEditor.getOption(EditorOption.readOnly)) {
-			return; // not for readonly editors
+		if (codeEditow.getOption(EditowOption.weadOnwy)) {
+			wetuwn; // not fow weadonwy editows
 		}
 
-		const textModel = codeEditor.getModel();
-		if (!textModel) {
-			return; // require a live model
+		const textModew = codeEditow.getModew();
+		if (!textModew) {
+			wetuwn; // wequiwe a wive modew
 		}
 
-		const currentMode = textModel.getModeId();
-		if (currentMode !== PLAINTEXT_MODE_ID) {
-			return; // require current mode to be unspecific
+		const cuwwentMode = textModew.getModeId();
+		if (cuwwentMode !== PWAINTEXT_MODE_ID) {
+			wetuwn; // wequiwe cuwwent mode to be unspecific
 		}
 
-		let candidateMode: string | undefined = undefined;
+		wet candidateMode: stwing | undefined = undefined;
 
-		// A mode is provided via the paste event so text was copied using
-		// VSCode. As such we trust this mode and use it if specific
+		// A mode is pwovided via the paste event so text was copied using
+		// VSCode. As such we twust this mode and use it if specific
 		if (e.mode) {
 			candidateMode = e.mode;
 		}
 
-		// A mode was not provided, so the data comes from outside VSCode
-		// We can still try to guess a good mode from the first line if
-		// the paste changed the first line
-		else {
-			candidateMode = withNullAsUndefined(this.modeService.getModeIdByFilepathOrFirstLine(textModel.uri, textModel.getLineContent(1).substr(0, ModelConstants.FIRST_LINE_DETECTION_LENGTH_LIMIT)));
+		// A mode was not pwovided, so the data comes fwom outside VSCode
+		// We can stiww twy to guess a good mode fwom the fiwst wine if
+		// the paste changed the fiwst wine
+		ewse {
+			candidateMode = withNuwwAsUndefined(this.modeSewvice.getModeIdByFiwepathOwFiwstWine(textModew.uwi, textModew.getWineContent(1).substw(0, ModewConstants.FIWST_WINE_DETECTION_WENGTH_WIMIT)));
 		}
 
-		// Finally apply mode to model if specified
-		if (candidateMode !== PLAINTEXT_MODE_ID) {
-			this.modelService.setMode(textModel, this.modeService.create(candidateMode));
+		// Finawwy appwy mode to modew if specified
+		if (candidateMode !== PWAINTEXT_MODE_ID) {
+			this.modewSewvice.setMode(textModew, this.modeSewvice.cweate(candidateMode));
 		}
 	}
 }

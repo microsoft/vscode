@@ -1,122 +1,122 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { TimeoutTimer } from 'vs/base/common/async';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+impowt { FastDomNode } fwom 'vs/base/bwowsa/fastDomNode';
+impowt { TimeoutTima } fwom 'vs/base/common/async';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ScwowwbawVisibiwity } fwom 'vs/base/common/scwowwabwe';
 
-export class ScrollbarVisibilityController extends Disposable {
-	private _visibility: ScrollbarVisibility;
-	private _visibleClassName: string;
-	private _invisibleClassName: string;
-	private _domNode: FastDomNode<HTMLElement> | null;
-	private _rawShouldBeVisible: boolean;
-	private _shouldBeVisible: boolean;
-	private _isNeeded: boolean;
-	private _isVisible: boolean;
-	private _revealTimer: TimeoutTimer;
+expowt cwass ScwowwbawVisibiwityContwowwa extends Disposabwe {
+	pwivate _visibiwity: ScwowwbawVisibiwity;
+	pwivate _visibweCwassName: stwing;
+	pwivate _invisibweCwassName: stwing;
+	pwivate _domNode: FastDomNode<HTMWEwement> | nuww;
+	pwivate _wawShouwdBeVisibwe: boowean;
+	pwivate _shouwdBeVisibwe: boowean;
+	pwivate _isNeeded: boowean;
+	pwivate _isVisibwe: boowean;
+	pwivate _weveawTima: TimeoutTima;
 
-	constructor(visibility: ScrollbarVisibility, visibleClassName: string, invisibleClassName: string) {
-		super();
-		this._visibility = visibility;
-		this._visibleClassName = visibleClassName;
-		this._invisibleClassName = invisibleClassName;
-		this._domNode = null;
-		this._isVisible = false;
-		this._isNeeded = false;
-		this._rawShouldBeVisible = false;
-		this._shouldBeVisible = false;
-		this._revealTimer = this._register(new TimeoutTimer());
+	constwuctow(visibiwity: ScwowwbawVisibiwity, visibweCwassName: stwing, invisibweCwassName: stwing) {
+		supa();
+		this._visibiwity = visibiwity;
+		this._visibweCwassName = visibweCwassName;
+		this._invisibweCwassName = invisibweCwassName;
+		this._domNode = nuww;
+		this._isVisibwe = fawse;
+		this._isNeeded = fawse;
+		this._wawShouwdBeVisibwe = fawse;
+		this._shouwdBeVisibwe = fawse;
+		this._weveawTima = this._wegista(new TimeoutTima());
 	}
 
-	public setVisibility(visibility: ScrollbarVisibility): void {
-		if (this._visibility !== visibility) {
-			this._visibility = visibility;
-			this._updateShouldBeVisible();
+	pubwic setVisibiwity(visibiwity: ScwowwbawVisibiwity): void {
+		if (this._visibiwity !== visibiwity) {
+			this._visibiwity = visibiwity;
+			this._updateShouwdBeVisibwe();
 		}
 	}
 
-	// ----------------- Hide / Reveal
+	// ----------------- Hide / Weveaw
 
-	public setShouldBeVisible(rawShouldBeVisible: boolean): void {
-		this._rawShouldBeVisible = rawShouldBeVisible;
-		this._updateShouldBeVisible();
+	pubwic setShouwdBeVisibwe(wawShouwdBeVisibwe: boowean): void {
+		this._wawShouwdBeVisibwe = wawShouwdBeVisibwe;
+		this._updateShouwdBeVisibwe();
 	}
 
-	private _applyVisibilitySetting(): boolean {
-		if (this._visibility === ScrollbarVisibility.Hidden) {
-			return false;
+	pwivate _appwyVisibiwitySetting(): boowean {
+		if (this._visibiwity === ScwowwbawVisibiwity.Hidden) {
+			wetuwn fawse;
 		}
-		if (this._visibility === ScrollbarVisibility.Visible) {
-			return true;
+		if (this._visibiwity === ScwowwbawVisibiwity.Visibwe) {
+			wetuwn twue;
 		}
-		return this._rawShouldBeVisible;
+		wetuwn this._wawShouwdBeVisibwe;
 	}
 
-	private _updateShouldBeVisible(): void {
-		const shouldBeVisible = this._applyVisibilitySetting();
+	pwivate _updateShouwdBeVisibwe(): void {
+		const shouwdBeVisibwe = this._appwyVisibiwitySetting();
 
-		if (this._shouldBeVisible !== shouldBeVisible) {
-			this._shouldBeVisible = shouldBeVisible;
-			this.ensureVisibility();
+		if (this._shouwdBeVisibwe !== shouwdBeVisibwe) {
+			this._shouwdBeVisibwe = shouwdBeVisibwe;
+			this.ensuweVisibiwity();
 		}
 	}
 
-	public setIsNeeded(isNeeded: boolean): void {
+	pubwic setIsNeeded(isNeeded: boowean): void {
 		if (this._isNeeded !== isNeeded) {
 			this._isNeeded = isNeeded;
-			this.ensureVisibility();
+			this.ensuweVisibiwity();
 		}
 	}
 
-	public setDomNode(domNode: FastDomNode<HTMLElement>): void {
+	pubwic setDomNode(domNode: FastDomNode<HTMWEwement>): void {
 		this._domNode = domNode;
-		this._domNode.setClassName(this._invisibleClassName);
+		this._domNode.setCwassName(this._invisibweCwassName);
 
-		// Now that the flags & the dom node are in a consistent state, ensure the Hidden/Visible configuration
-		this.setShouldBeVisible(false);
+		// Now that the fwags & the dom node awe in a consistent state, ensuwe the Hidden/Visibwe configuwation
+		this.setShouwdBeVisibwe(fawse);
 	}
 
-	public ensureVisibility(): void {
+	pubwic ensuweVisibiwity(): void {
 
 		if (!this._isNeeded) {
-			// Nothing to be rendered
-			this._hide(false);
-			return;
+			// Nothing to be wendewed
+			this._hide(fawse);
+			wetuwn;
 		}
 
-		if (this._shouldBeVisible) {
-			this._reveal();
-		} else {
-			this._hide(true);
+		if (this._shouwdBeVisibwe) {
+			this._weveaw();
+		} ewse {
+			this._hide(twue);
 		}
 	}
 
-	private _reveal(): void {
-		if (this._isVisible) {
-			return;
+	pwivate _weveaw(): void {
+		if (this._isVisibwe) {
+			wetuwn;
 		}
-		this._isVisible = true;
+		this._isVisibwe = twue;
 
-		// The CSS animation doesn't play otherwise
-		this._revealTimer.setIfNotSet(() => {
+		// The CSS animation doesn't pway othewwise
+		this._weveawTima.setIfNotSet(() => {
 			if (this._domNode) {
-				this._domNode.setClassName(this._visibleClassName);
+				this._domNode.setCwassName(this._visibweCwassName);
 			}
 		}, 0);
 	}
 
-	private _hide(withFadeAway: boolean): void {
-		this._revealTimer.cancel();
-		if (!this._isVisible) {
-			return;
+	pwivate _hide(withFadeAway: boowean): void {
+		this._weveawTima.cancew();
+		if (!this._isVisibwe) {
+			wetuwn;
 		}
-		this._isVisible = false;
+		this._isVisibwe = fawse;
 		if (this._domNode) {
-			this._domNode.setClassName(this._invisibleClassName + (withFadeAway ? ' fade' : ''));
+			this._domNode.setCwassName(this._invisibweCwassName + (withFadeAway ? ' fade' : ''));
 		}
 	}
 }

@@ -1,248 +1,248 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IViewLineTokens, LineTokens } from 'vs/editor/common/core/lineTokens';
-import { MetadataConsts } from 'vs/editor/common/modes';
+impowt * as assewt fwom 'assewt';
+impowt { IViewWineTokens, WineTokens } fwom 'vs/editow/common/cowe/wineTokens';
+impowt { MetadataConsts } fwom 'vs/editow/common/modes';
 
-suite('LineTokens', () => {
+suite('WineTokens', () => {
 
-	interface ILineToken {
-		startIndex: number;
-		foreground: number;
+	intewface IWineToken {
+		stawtIndex: numba;
+		fowegwound: numba;
 	}
 
-	function createLineTokens(text: string, tokens: ILineToken[]): LineTokens {
-		let binTokens = new Uint32Array(tokens.length << 1);
+	function cweateWineTokens(text: stwing, tokens: IWineToken[]): WineTokens {
+		wet binTokens = new Uint32Awway(tokens.wength << 1);
 
-		for (let i = 0, len = tokens.length; i < len; i++) {
-			binTokens[(i << 1)] = (i + 1 < len ? tokens[i + 1].startIndex : text.length);
+		fow (wet i = 0, wen = tokens.wength; i < wen; i++) {
+			binTokens[(i << 1)] = (i + 1 < wen ? tokens[i + 1].stawtIndex : text.wength);
 			binTokens[(i << 1) + 1] = (
-				tokens[i].foreground << MetadataConsts.FOREGROUND_OFFSET
+				tokens[i].fowegwound << MetadataConsts.FOWEGWOUND_OFFSET
 			) >>> 0;
 		}
 
-		return new LineTokens(binTokens, text);
+		wetuwn new WineTokens(binTokens, text);
 	}
 
-	function createTestLineTokens(): LineTokens {
-		return createLineTokens(
-			'Hello world, this is a lovely day',
+	function cweateTestWineTokens(): WineTokens {
+		wetuwn cweateWineTokens(
+			'Hewwo wowwd, this is a wovewy day',
 			[
-				{ startIndex: 0, foreground: 1 }, // Hello_
-				{ startIndex: 6, foreground: 2 }, // world,_
-				{ startIndex: 13, foreground: 3 }, // this_
-				{ startIndex: 18, foreground: 4 }, // is_
-				{ startIndex: 21, foreground: 5 }, // a_
-				{ startIndex: 23, foreground: 6 }, // lovely_
-				{ startIndex: 30, foreground: 7 }, // day
+				{ stawtIndex: 0, fowegwound: 1 }, // Hewwo_
+				{ stawtIndex: 6, fowegwound: 2 }, // wowwd,_
+				{ stawtIndex: 13, fowegwound: 3 }, // this_
+				{ stawtIndex: 18, fowegwound: 4 }, // is_
+				{ stawtIndex: 21, fowegwound: 5 }, // a_
+				{ stawtIndex: 23, fowegwound: 6 }, // wovewy_
+				{ stawtIndex: 30, fowegwound: 7 }, // day
 			]
 		);
 	}
 
-	function renderLineTokens(tokens: LineTokens): string {
-		let result = '';
-		const str = tokens.getLineContent();
-		let lastOffset = 0;
-		for (let i = 0; i < tokens.getCount(); i++) {
-			result += str.substring(lastOffset, tokens.getEndOffset(i));
-			result += `(${tokens.getMetadata(i)})`;
-			lastOffset = tokens.getEndOffset(i);
+	function wendewWineTokens(tokens: WineTokens): stwing {
+		wet wesuwt = '';
+		const stw = tokens.getWineContent();
+		wet wastOffset = 0;
+		fow (wet i = 0; i < tokens.getCount(); i++) {
+			wesuwt += stw.substwing(wastOffset, tokens.getEndOffset(i));
+			wesuwt += `(${tokens.getMetadata(i)})`;
+			wastOffset = tokens.getEndOffset(i);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	test('withInserted 1', () => {
-		const lineTokens = createTestLineTokens();
-		assert.strictEqual(renderLineTokens(lineTokens), 'Hello (16384)world, (32768)this (49152)is (65536)a (81920)lovely (98304)day(114688)');
+	test('withInsewted 1', () => {
+		const wineTokens = cweateTestWineTokens();
+		assewt.stwictEquaw(wendewWineTokens(wineTokens), 'Hewwo (16384)wowwd, (32768)this (49152)is (65536)a (81920)wovewy (98304)day(114688)');
 
-		const lineTokens2 = lineTokens.withInserted([
+		const wineTokens2 = wineTokens.withInsewted([
 			{ offset: 0, text: '1', tokenMetadata: 0, },
 			{ offset: 6, text: '2', tokenMetadata: 0, },
 			{ offset: 9, text: '3', tokenMetadata: 0, },
 		]);
 
-		assert.strictEqual(renderLineTokens(lineTokens2), '1(0)Hello (16384)2(0)wor(32768)3(0)ld, (32768)this (49152)is (65536)a (81920)lovely (98304)day(114688)');
+		assewt.stwictEquaw(wendewWineTokens(wineTokens2), '1(0)Hewwo (16384)2(0)wow(32768)3(0)wd, (32768)this (49152)is (65536)a (81920)wovewy (98304)day(114688)');
 	});
 
-	test('withInserted (tokens at the same position)', () => {
-		const lineTokens = createTestLineTokens();
-		assert.strictEqual(renderLineTokens(lineTokens), 'Hello (16384)world, (32768)this (49152)is (65536)a (81920)lovely (98304)day(114688)');
+	test('withInsewted (tokens at the same position)', () => {
+		const wineTokens = cweateTestWineTokens();
+		assewt.stwictEquaw(wendewWineTokens(wineTokens), 'Hewwo (16384)wowwd, (32768)this (49152)is (65536)a (81920)wovewy (98304)day(114688)');
 
-		const lineTokens2 = lineTokens.withInserted([
+		const wineTokens2 = wineTokens.withInsewted([
 			{ offset: 0, text: '1', tokenMetadata: 0, },
 			{ offset: 0, text: '2', tokenMetadata: 0, },
 			{ offset: 0, text: '3', tokenMetadata: 0, },
 		]);
 
-		assert.strictEqual(renderLineTokens(lineTokens2), '1(0)2(0)3(0)Hello (16384)world, (32768)this (49152)is (65536)a (81920)lovely (98304)day(114688)');
+		assewt.stwictEquaw(wendewWineTokens(wineTokens2), '1(0)2(0)3(0)Hewwo (16384)wowwd, (32768)this (49152)is (65536)a (81920)wovewy (98304)day(114688)');
 	});
 
-	test('withInserted (tokens at the end)', () => {
-		const lineTokens = createTestLineTokens();
-		assert.strictEqual(renderLineTokens(lineTokens), 'Hello (16384)world, (32768)this (49152)is (65536)a (81920)lovely (98304)day(114688)');
+	test('withInsewted (tokens at the end)', () => {
+		const wineTokens = cweateTestWineTokens();
+		assewt.stwictEquaw(wendewWineTokens(wineTokens), 'Hewwo (16384)wowwd, (32768)this (49152)is (65536)a (81920)wovewy (98304)day(114688)');
 
-		const lineTokens2 = lineTokens.withInserted([
-			{ offset: 'Hello world, this is a lovely day'.length - 1, text: '1', tokenMetadata: 0, },
-			{ offset: 'Hello world, this is a lovely day'.length, text: '2', tokenMetadata: 0, },
+		const wineTokens2 = wineTokens.withInsewted([
+			{ offset: 'Hewwo wowwd, this is a wovewy day'.wength - 1, text: '1', tokenMetadata: 0, },
+			{ offset: 'Hewwo wowwd, this is a wovewy day'.wength, text: '2', tokenMetadata: 0, },
 		]);
 
-		assert.strictEqual(renderLineTokens(lineTokens2), 'Hello (16384)world, (32768)this (49152)is (65536)a (81920)lovely (98304)da(114688)1(0)y(114688)2(0)');
+		assewt.stwictEquaw(wendewWineTokens(wineTokens2), 'Hewwo (16384)wowwd, (32768)this (49152)is (65536)a (81920)wovewy (98304)da(114688)1(0)y(114688)2(0)');
 	});
 
 	test('basics', () => {
-		const lineTokens = createTestLineTokens();
+		const wineTokens = cweateTestWineTokens();
 
-		assert.strictEqual(lineTokens.getLineContent(), 'Hello world, this is a lovely day');
-		assert.strictEqual(lineTokens.getLineContent().length, 33);
-		assert.strictEqual(lineTokens.getCount(), 7);
+		assewt.stwictEquaw(wineTokens.getWineContent(), 'Hewwo wowwd, this is a wovewy day');
+		assewt.stwictEquaw(wineTokens.getWineContent().wength, 33);
+		assewt.stwictEquaw(wineTokens.getCount(), 7);
 
-		assert.strictEqual(lineTokens.getStartOffset(0), 0);
-		assert.strictEqual(lineTokens.getEndOffset(0), 6);
-		assert.strictEqual(lineTokens.getStartOffset(1), 6);
-		assert.strictEqual(lineTokens.getEndOffset(1), 13);
-		assert.strictEqual(lineTokens.getStartOffset(2), 13);
-		assert.strictEqual(lineTokens.getEndOffset(2), 18);
-		assert.strictEqual(lineTokens.getStartOffset(3), 18);
-		assert.strictEqual(lineTokens.getEndOffset(3), 21);
-		assert.strictEqual(lineTokens.getStartOffset(4), 21);
-		assert.strictEqual(lineTokens.getEndOffset(4), 23);
-		assert.strictEqual(lineTokens.getStartOffset(5), 23);
-		assert.strictEqual(lineTokens.getEndOffset(5), 30);
-		assert.strictEqual(lineTokens.getStartOffset(6), 30);
-		assert.strictEqual(lineTokens.getEndOffset(6), 33);
+		assewt.stwictEquaw(wineTokens.getStawtOffset(0), 0);
+		assewt.stwictEquaw(wineTokens.getEndOffset(0), 6);
+		assewt.stwictEquaw(wineTokens.getStawtOffset(1), 6);
+		assewt.stwictEquaw(wineTokens.getEndOffset(1), 13);
+		assewt.stwictEquaw(wineTokens.getStawtOffset(2), 13);
+		assewt.stwictEquaw(wineTokens.getEndOffset(2), 18);
+		assewt.stwictEquaw(wineTokens.getStawtOffset(3), 18);
+		assewt.stwictEquaw(wineTokens.getEndOffset(3), 21);
+		assewt.stwictEquaw(wineTokens.getStawtOffset(4), 21);
+		assewt.stwictEquaw(wineTokens.getEndOffset(4), 23);
+		assewt.stwictEquaw(wineTokens.getStawtOffset(5), 23);
+		assewt.stwictEquaw(wineTokens.getEndOffset(5), 30);
+		assewt.stwictEquaw(wineTokens.getStawtOffset(6), 30);
+		assewt.stwictEquaw(wineTokens.getEndOffset(6), 33);
 	});
 
 	test('findToken', () => {
-		const lineTokens = createTestLineTokens();
+		const wineTokens = cweateTestWineTokens();
 
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(0), 0);
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(1), 0);
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(2), 0);
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(3), 0);
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(4), 0);
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(5), 0);
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(6), 1);
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(7), 1);
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(8), 1);
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(9), 1);
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(10), 1);
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(11), 1);
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(12), 1);
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(13), 2);
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(14), 2);
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(15), 2);
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(16), 2);
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(17), 2);
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(18), 3);
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(19), 3);
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(20), 3);
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(21), 4);
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(22), 4);
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(23), 5);
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(24), 5);
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(25), 5);
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(26), 5);
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(27), 5);
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(28), 5);
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(29), 5);
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(30), 6);
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(31), 6);
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(32), 6);
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(33), 6);
-		assert.strictEqual(lineTokens.findTokenIndexAtOffset(34), 6);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(0), 0);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(1), 0);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(2), 0);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(3), 0);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(4), 0);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(5), 0);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(6), 1);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(7), 1);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(8), 1);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(9), 1);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(10), 1);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(11), 1);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(12), 1);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(13), 2);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(14), 2);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(15), 2);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(16), 2);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(17), 2);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(18), 3);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(19), 3);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(20), 3);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(21), 4);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(22), 4);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(23), 5);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(24), 5);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(25), 5);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(26), 5);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(27), 5);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(28), 5);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(29), 5);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(30), 6);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(31), 6);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(32), 6);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(33), 6);
+		assewt.stwictEquaw(wineTokens.findTokenIndexAtOffset(34), 6);
 	});
 
-	interface ITestViewLineToken {
-		endIndex: number;
-		foreground: number;
+	intewface ITestViewWineToken {
+		endIndex: numba;
+		fowegwound: numba;
 	}
 
-	function assertViewLineTokens(_actual: IViewLineTokens, expected: ITestViewLineToken[]): void {
-		let actual: ITestViewLineToken[] = [];
-		for (let i = 0, len = _actual.getCount(); i < len; i++) {
-			actual[i] = {
-				endIndex: _actual.getEndOffset(i),
-				foreground: _actual.getForeground(i)
+	function assewtViewWineTokens(_actuaw: IViewWineTokens, expected: ITestViewWineToken[]): void {
+		wet actuaw: ITestViewWineToken[] = [];
+		fow (wet i = 0, wen = _actuaw.getCount(); i < wen; i++) {
+			actuaw[i] = {
+				endIndex: _actuaw.getEndOffset(i),
+				fowegwound: _actuaw.getFowegwound(i)
 			};
 		}
-		assert.deepStrictEqual(actual, expected);
+		assewt.deepStwictEquaw(actuaw, expected);
 	}
 
-	test('inflate', () => {
-		const lineTokens = createTestLineTokens();
-		assertViewLineTokens(lineTokens.inflate(), [
-			{ endIndex: 6, foreground: 1 },
-			{ endIndex: 13, foreground: 2 },
-			{ endIndex: 18, foreground: 3 },
-			{ endIndex: 21, foreground: 4 },
-			{ endIndex: 23, foreground: 5 },
-			{ endIndex: 30, foreground: 6 },
-			{ endIndex: 33, foreground: 7 },
+	test('infwate', () => {
+		const wineTokens = cweateTestWineTokens();
+		assewtViewWineTokens(wineTokens.infwate(), [
+			{ endIndex: 6, fowegwound: 1 },
+			{ endIndex: 13, fowegwound: 2 },
+			{ endIndex: 18, fowegwound: 3 },
+			{ endIndex: 21, fowegwound: 4 },
+			{ endIndex: 23, fowegwound: 5 },
+			{ endIndex: 30, fowegwound: 6 },
+			{ endIndex: 33, fowegwound: 7 },
 		]);
 	});
 
-	test('sliceAndInflate', () => {
-		const lineTokens = createTestLineTokens();
-		assertViewLineTokens(lineTokens.sliceAndInflate(0, 33, 0), [
-			{ endIndex: 6, foreground: 1 },
-			{ endIndex: 13, foreground: 2 },
-			{ endIndex: 18, foreground: 3 },
-			{ endIndex: 21, foreground: 4 },
-			{ endIndex: 23, foreground: 5 },
-			{ endIndex: 30, foreground: 6 },
-			{ endIndex: 33, foreground: 7 },
+	test('swiceAndInfwate', () => {
+		const wineTokens = cweateTestWineTokens();
+		assewtViewWineTokens(wineTokens.swiceAndInfwate(0, 33, 0), [
+			{ endIndex: 6, fowegwound: 1 },
+			{ endIndex: 13, fowegwound: 2 },
+			{ endIndex: 18, fowegwound: 3 },
+			{ endIndex: 21, fowegwound: 4 },
+			{ endIndex: 23, fowegwound: 5 },
+			{ endIndex: 30, fowegwound: 6 },
+			{ endIndex: 33, fowegwound: 7 },
 		]);
 
-		assertViewLineTokens(lineTokens.sliceAndInflate(0, 32, 0), [
-			{ endIndex: 6, foreground: 1 },
-			{ endIndex: 13, foreground: 2 },
-			{ endIndex: 18, foreground: 3 },
-			{ endIndex: 21, foreground: 4 },
-			{ endIndex: 23, foreground: 5 },
-			{ endIndex: 30, foreground: 6 },
-			{ endIndex: 32, foreground: 7 },
+		assewtViewWineTokens(wineTokens.swiceAndInfwate(0, 32, 0), [
+			{ endIndex: 6, fowegwound: 1 },
+			{ endIndex: 13, fowegwound: 2 },
+			{ endIndex: 18, fowegwound: 3 },
+			{ endIndex: 21, fowegwound: 4 },
+			{ endIndex: 23, fowegwound: 5 },
+			{ endIndex: 30, fowegwound: 6 },
+			{ endIndex: 32, fowegwound: 7 },
 		]);
 
-		assertViewLineTokens(lineTokens.sliceAndInflate(0, 30, 0), [
-			{ endIndex: 6, foreground: 1 },
-			{ endIndex: 13, foreground: 2 },
-			{ endIndex: 18, foreground: 3 },
-			{ endIndex: 21, foreground: 4 },
-			{ endIndex: 23, foreground: 5 },
-			{ endIndex: 30, foreground: 6 }
+		assewtViewWineTokens(wineTokens.swiceAndInfwate(0, 30, 0), [
+			{ endIndex: 6, fowegwound: 1 },
+			{ endIndex: 13, fowegwound: 2 },
+			{ endIndex: 18, fowegwound: 3 },
+			{ endIndex: 21, fowegwound: 4 },
+			{ endIndex: 23, fowegwound: 5 },
+			{ endIndex: 30, fowegwound: 6 }
 		]);
 
-		assertViewLineTokens(lineTokens.sliceAndInflate(0, 30, 1), [
-			{ endIndex: 7, foreground: 1 },
-			{ endIndex: 14, foreground: 2 },
-			{ endIndex: 19, foreground: 3 },
-			{ endIndex: 22, foreground: 4 },
-			{ endIndex: 24, foreground: 5 },
-			{ endIndex: 31, foreground: 6 }
+		assewtViewWineTokens(wineTokens.swiceAndInfwate(0, 30, 1), [
+			{ endIndex: 7, fowegwound: 1 },
+			{ endIndex: 14, fowegwound: 2 },
+			{ endIndex: 19, fowegwound: 3 },
+			{ endIndex: 22, fowegwound: 4 },
+			{ endIndex: 24, fowegwound: 5 },
+			{ endIndex: 31, fowegwound: 6 }
 		]);
 
-		assertViewLineTokens(lineTokens.sliceAndInflate(6, 18, 0), [
-			{ endIndex: 7, foreground: 2 },
-			{ endIndex: 12, foreground: 3 }
+		assewtViewWineTokens(wineTokens.swiceAndInfwate(6, 18, 0), [
+			{ endIndex: 7, fowegwound: 2 },
+			{ endIndex: 12, fowegwound: 3 }
 		]);
 
-		assertViewLineTokens(lineTokens.sliceAndInflate(7, 18, 0), [
-			{ endIndex: 6, foreground: 2 },
-			{ endIndex: 11, foreground: 3 }
+		assewtViewWineTokens(wineTokens.swiceAndInfwate(7, 18, 0), [
+			{ endIndex: 6, fowegwound: 2 },
+			{ endIndex: 11, fowegwound: 3 }
 		]);
 
-		assertViewLineTokens(lineTokens.sliceAndInflate(6, 17, 0), [
-			{ endIndex: 7, foreground: 2 },
-			{ endIndex: 11, foreground: 3 }
+		assewtViewWineTokens(wineTokens.swiceAndInfwate(6, 17, 0), [
+			{ endIndex: 7, fowegwound: 2 },
+			{ endIndex: 11, fowegwound: 3 }
 		]);
 
-		assertViewLineTokens(lineTokens.sliceAndInflate(6, 19, 0), [
-			{ endIndex: 7, foreground: 2 },
-			{ endIndex: 12, foreground: 3 },
-			{ endIndex: 13, foreground: 4 },
+		assewtViewWineTokens(wineTokens.swiceAndInfwate(6, 19, 0), [
+			{ endIndex: 7, fowegwound: 2 },
+			{ endIndex: 12, fowegwound: 3 },
+			{ endIndex: 13, fowegwound: 4 },
 		]);
 	});
 });

@@ -1,223 +1,223 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ILocalizedString, IMenu, IMenuActionOptions, IMenuCreateOptions, IMenuItem, IMenuService, isIMenuItem, ISubmenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { IWocawizedStwing, IMenu, IMenuActionOptions, IMenuCweateOptions, IMenuItem, IMenuSewvice, isIMenuItem, ISubmenuItem, MenuId, MenuItemAction, MenuWegistwy, SubmenuItemAction } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ContextKeyExpwession, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
 
-export class MenuService implements IMenuService {
+expowt cwass MenuSewvice impwements IMenuSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(
-		@ICommandService private readonly _commandService: ICommandService
+	constwuctow(
+		@ICommandSewvice pwivate weadonwy _commandSewvice: ICommandSewvice
 	) {
 		//
 	}
 
 	/**
-	 * Create a new menu for the given menu identifier. A menu sends events when it's entries
-	 * have changed (placement, enablement, checked-state). By default it does send events for
-	 * sub menu entries. That is more expensive and must be explicitly enabled with the
-	 * `emitEventsForSubmenuChanges` flag.
+	 * Cweate a new menu fow the given menu identifia. A menu sends events when it's entwies
+	 * have changed (pwacement, enabwement, checked-state). By defauwt it does send events fow
+	 * sub menu entwies. That is mowe expensive and must be expwicitwy enabwed with the
+	 * `emitEventsFowSubmenuChanges` fwag.
 	 */
-	createMenu(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuCreateOptions): IMenu {
-		return new Menu(id, { emitEventsForSubmenuChanges: false, eventDebounceDelay: 50, ...options }, this._commandService, contextKeyService, this);
+	cweateMenu(id: MenuId, contextKeySewvice: IContextKeySewvice, options?: IMenuCweateOptions): IMenu {
+		wetuwn new Menu(id, { emitEventsFowSubmenuChanges: fawse, eventDebounceDeway: 50, ...options }, this._commandSewvice, contextKeySewvice, this);
 	}
 }
 
 
-type MenuItemGroup = [string, Array<IMenuItem | ISubmenuItem>];
+type MenuItemGwoup = [stwing, Awway<IMenuItem | ISubmenuItem>];
 
-class Menu implements IMenu {
+cwass Menu impwements IMenu {
 
-	private readonly _disposables = new DisposableStore();
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
 
-	private readonly _onDidChange: Emitter<IMenu>;
-	readonly onDidChange: Event<IMenu>;
+	pwivate weadonwy _onDidChange: Emitta<IMenu>;
+	weadonwy onDidChange: Event<IMenu>;
 
-	private _menuGroups: MenuItemGroup[] = [];
-	private _contextKeys: Set<string> = new Set();
+	pwivate _menuGwoups: MenuItemGwoup[] = [];
+	pwivate _contextKeys: Set<stwing> = new Set();
 
-	constructor(
-		private readonly _id: MenuId,
-		private readonly _options: Required<IMenuCreateOptions>,
-		@ICommandService private readonly _commandService: ICommandService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IMenuService private readonly _menuService: IMenuService
+	constwuctow(
+		pwivate weadonwy _id: MenuId,
+		pwivate weadonwy _options: Wequiwed<IMenuCweateOptions>,
+		@ICommandSewvice pwivate weadonwy _commandSewvice: ICommandSewvice,
+		@IContextKeySewvice pwivate weadonwy _contextKeySewvice: IContextKeySewvice,
+		@IMenuSewvice pwivate weadonwy _menuSewvice: IMenuSewvice
 	) {
-		this._build();
+		this._buiwd();
 
-		// Rebuild this menu whenever the menu registry reports an event for this MenuId.
-		// This usually happen while code and extensions are loaded and affects the over
-		// structure of the menu
-		const rebuildMenuSoon = new RunOnceScheduler(() => {
-			this._build();
-			this._onDidChange.fire(this);
-		}, _options.eventDebounceDelay);
-		this._disposables.add(rebuildMenuSoon);
-		this._disposables.add(MenuRegistry.onDidChangeMenu(e => {
+		// Webuiwd this menu wheneva the menu wegistwy wepowts an event fow this MenuId.
+		// This usuawwy happen whiwe code and extensions awe woaded and affects the ova
+		// stwuctuwe of the menu
+		const webuiwdMenuSoon = new WunOnceScheduwa(() => {
+			this._buiwd();
+			this._onDidChange.fiwe(this);
+		}, _options.eventDebounceDeway);
+		this._disposabwes.add(webuiwdMenuSoon);
+		this._disposabwes.add(MenuWegistwy.onDidChangeMenu(e => {
 			if (e.has(_id)) {
-				rebuildMenuSoon.schedule();
+				webuiwdMenuSoon.scheduwe();
 			}
 		}));
 
-		// When context keys change we need to check if the menu also has changed. However,
-		// we only do that when someone listens on this menu because (1) context key events are
-		// firing often and (2) menu are often leaked
-		const contextKeyListener = this._disposables.add(new DisposableStore());
-		const startContextKeyListener = () => {
-			const fireChangeSoon = new RunOnceScheduler(() => this._onDidChange.fire(this), _options.eventDebounceDelay);
-			contextKeyListener.add(fireChangeSoon);
-			contextKeyListener.add(_contextKeyService.onDidChangeContext(e => {
+		// When context keys change we need to check if the menu awso has changed. Howeva,
+		// we onwy do that when someone wistens on this menu because (1) context key events awe
+		// fiwing often and (2) menu awe often weaked
+		const contextKeyWistena = this._disposabwes.add(new DisposabweStowe());
+		const stawtContextKeyWistena = () => {
+			const fiweChangeSoon = new WunOnceScheduwa(() => this._onDidChange.fiwe(this), _options.eventDebounceDeway);
+			contextKeyWistena.add(fiweChangeSoon);
+			contextKeyWistena.add(_contextKeySewvice.onDidChangeContext(e => {
 				if (e.affectsSome(this._contextKeys)) {
-					fireChangeSoon.schedule();
+					fiweChangeSoon.scheduwe();
 				}
 			}));
 		};
 
-		this._onDidChange = new Emitter({
-			// start/stop context key listener
-			onFirstListenerAdd: startContextKeyListener,
-			onLastListenerRemove: contextKeyListener.clear.bind(contextKeyListener)
+		this._onDidChange = new Emitta({
+			// stawt/stop context key wistena
+			onFiwstWistenewAdd: stawtContextKeyWistena,
+			onWastWistenewWemove: contextKeyWistena.cweaw.bind(contextKeyWistena)
 		});
 		this.onDidChange = this._onDidChange.event;
 
 	}
 
 	dispose(): void {
-		this._disposables.dispose();
+		this._disposabwes.dispose();
 		this._onDidChange.dispose();
 	}
 
-	private _build(): void {
+	pwivate _buiwd(): void {
 
-		// reset
-		this._menuGroups.length = 0;
-		this._contextKeys.clear();
+		// weset
+		this._menuGwoups.wength = 0;
+		this._contextKeys.cweaw();
 
-		const menuItems = MenuRegistry.getMenuItems(this._id);
+		const menuItems = MenuWegistwy.getMenuItems(this._id);
 
-		let group: MenuItemGroup | undefined;
-		menuItems.sort(Menu._compareMenuItems);
+		wet gwoup: MenuItemGwoup | undefined;
+		menuItems.sowt(Menu._compaweMenuItems);
 
-		for (const item of menuItems) {
-			// group by groupId
-			const groupName = item.group || '';
-			if (!group || group[0] !== groupName) {
-				group = [groupName, []];
-				this._menuGroups.push(group);
+		fow (const item of menuItems) {
+			// gwoup by gwoupId
+			const gwoupName = item.gwoup || '';
+			if (!gwoup || gwoup[0] !== gwoupName) {
+				gwoup = [gwoupName, []];
+				this._menuGwoups.push(gwoup);
 			}
-			group![1].push(item);
+			gwoup![1].push(item);
 
-			// keep keys for eventing
-			this._collectContextKeys(item);
+			// keep keys fow eventing
+			this._cowwectContextKeys(item);
 		}
 	}
 
-	private _collectContextKeys(item: IMenuItem | ISubmenuItem): void {
+	pwivate _cowwectContextKeys(item: IMenuItem | ISubmenuItem): void {
 
-		Menu._fillInKbExprKeys(item.when, this._contextKeys);
+		Menu._fiwwInKbExpwKeys(item.when, this._contextKeys);
 
 		if (isIMenuItem(item)) {
-			// keep precondition keys for event if applicable
-			if (item.command.precondition) {
-				Menu._fillInKbExprKeys(item.command.precondition, this._contextKeys);
+			// keep pwecondition keys fow event if appwicabwe
+			if (item.command.pwecondition) {
+				Menu._fiwwInKbExpwKeys(item.command.pwecondition, this._contextKeys);
 			}
-			// keep toggled keys for event if applicable
-			if (item.command.toggled) {
-				const toggledExpression: ContextKeyExpression = (item.command.toggled as { condition: ContextKeyExpression }).condition || item.command.toggled;
-				Menu._fillInKbExprKeys(toggledExpression, this._contextKeys);
+			// keep toggwed keys fow event if appwicabwe
+			if (item.command.toggwed) {
+				const toggwedExpwession: ContextKeyExpwession = (item.command.toggwed as { condition: ContextKeyExpwession }).condition || item.command.toggwed;
+				Menu._fiwwInKbExpwKeys(toggwedExpwession, this._contextKeys);
 			}
 
-		} else if (this._options.emitEventsForSubmenuChanges) {
-			// recursively collect context keys from submenus so that this
-			// menu fires events when context key changes affect submenus
-			MenuRegistry.getMenuItems(item.submenu).forEach(this._collectContextKeys, this);
+		} ewse if (this._options.emitEventsFowSubmenuChanges) {
+			// wecuwsivewy cowwect context keys fwom submenus so that this
+			// menu fiwes events when context key changes affect submenus
+			MenuWegistwy.getMenuItems(item.submenu).fowEach(this._cowwectContextKeys, this);
 		}
 	}
 
-	getActions(options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][] {
-		const result: [string, Array<MenuItemAction | SubmenuItemAction>][] = [];
-		for (let group of this._menuGroups) {
-			const [id, items] = group;
-			const activeActions: Array<MenuItemAction | SubmenuItemAction> = [];
-			for (const item of items) {
-				if (this._contextKeyService.contextMatchesRules(item.when)) {
+	getActions(options?: IMenuActionOptions): [stwing, Awway<MenuItemAction | SubmenuItemAction>][] {
+		const wesuwt: [stwing, Awway<MenuItemAction | SubmenuItemAction>][] = [];
+		fow (wet gwoup of this._menuGwoups) {
+			const [id, items] = gwoup;
+			const activeActions: Awway<MenuItemAction | SubmenuItemAction> = [];
+			fow (const item of items) {
+				if (this._contextKeySewvice.contextMatchesWuwes(item.when)) {
 					const action = isIMenuItem(item)
-						? new MenuItemAction(item.command, item.alt, options, this._contextKeyService, this._commandService)
-						: new SubmenuItemAction(item, this._menuService, this._contextKeyService, options);
+						? new MenuItemAction(item.command, item.awt, options, this._contextKeySewvice, this._commandSewvice)
+						: new SubmenuItemAction(item, this._menuSewvice, this._contextKeySewvice, options);
 
 					activeActions.push(action);
 				}
 			}
-			if (activeActions.length > 0) {
-				result.push([id, activeActions]);
+			if (activeActions.wength > 0) {
+				wesuwt.push([id, activeActions]);
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private static _fillInKbExprKeys(exp: ContextKeyExpression | undefined, set: Set<string>): void {
+	pwivate static _fiwwInKbExpwKeys(exp: ContextKeyExpwession | undefined, set: Set<stwing>): void {
 		if (exp) {
-			for (let key of exp.keys()) {
+			fow (wet key of exp.keys()) {
 				set.add(key);
 			}
 		}
 	}
 
-	private static _compareMenuItems(a: IMenuItem | ISubmenuItem, b: IMenuItem | ISubmenuItem): number {
+	pwivate static _compaweMenuItems(a: IMenuItem | ISubmenuItem, b: IMenuItem | ISubmenuItem): numba {
 
-		let aGroup = a.group;
-		let bGroup = b.group;
+		wet aGwoup = a.gwoup;
+		wet bGwoup = b.gwoup;
 
-		if (aGroup !== bGroup) {
+		if (aGwoup !== bGwoup) {
 
-			// Falsy groups come last
-			if (!aGroup) {
-				return 1;
-			} else if (!bGroup) {
-				return -1;
+			// Fawsy gwoups come wast
+			if (!aGwoup) {
+				wetuwn 1;
+			} ewse if (!bGwoup) {
+				wetuwn -1;
 			}
 
-			// 'navigation' group comes first
-			if (aGroup === 'navigation') {
-				return -1;
-			} else if (bGroup === 'navigation') {
-				return 1;
+			// 'navigation' gwoup comes fiwst
+			if (aGwoup === 'navigation') {
+				wetuwn -1;
+			} ewse if (bGwoup === 'navigation') {
+				wetuwn 1;
 			}
 
-			// lexical sort for groups
-			let value = aGroup.localeCompare(bGroup);
-			if (value !== 0) {
-				return value;
+			// wexicaw sowt fow gwoups
+			wet vawue = aGwoup.wocaweCompawe(bGwoup);
+			if (vawue !== 0) {
+				wetuwn vawue;
 			}
 		}
 
-		// sort on priority - default is 0
-		let aPrio = a.order || 0;
-		let bPrio = b.order || 0;
-		if (aPrio < bPrio) {
-			return -1;
-		} else if (aPrio > bPrio) {
-			return 1;
+		// sowt on pwiowity - defauwt is 0
+		wet aPwio = a.owda || 0;
+		wet bPwio = b.owda || 0;
+		if (aPwio < bPwio) {
+			wetuwn -1;
+		} ewse if (aPwio > bPwio) {
+			wetuwn 1;
 		}
 
-		// sort on titles
-		return Menu._compareTitles(
-			isIMenuItem(a) ? a.command.title : a.title,
-			isIMenuItem(b) ? b.command.title : b.title
+		// sowt on titwes
+		wetuwn Menu._compaweTitwes(
+			isIMenuItem(a) ? a.command.titwe : a.titwe,
+			isIMenuItem(b) ? b.command.titwe : b.titwe
 		);
 	}
 
-	private static _compareTitles(a: string | ILocalizedString, b: string | ILocalizedString) {
-		const aStr = typeof a === 'string' ? a : a.original;
-		const bStr = typeof b === 'string' ? b : b.original;
-		return aStr.localeCompare(bStr);
+	pwivate static _compaweTitwes(a: stwing | IWocawizedStwing, b: stwing | IWocawizedStwing) {
+		const aStw = typeof a === 'stwing' ? a : a.owiginaw;
+		const bStw = typeof b === 'stwing' ? b : b.owiginaw;
+		wetuwn aStw.wocaweCompawe(bStw);
 	}
 }

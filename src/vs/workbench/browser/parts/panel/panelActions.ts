@@ -1,136 +1,136 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/panelpart';
-import { localize } from 'vs/nls';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { Action } from 'vs/base/common/actions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { SyncActionDescriptor, MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { IWorkbenchActionRegistry, Extensions as WorkbenchExtensions, CATEGORIES } from 'vs/workbench/common/actions';
-import { IWorkbenchLayoutService, Parts, Position, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
-import { ActivityAction, ToggleCompositePinnedAction, ICompositeBar } from 'vs/workbench/browser/parts/compositeBarActions';
-import { IActivity } from 'vs/workbench/common/activity';
-import { ActivePanelContext, PanelMaximizedContext, PanelPositionContext, PanelVisibleContext } from 'vs/workbench/common/panel';
-import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ViewContainerLocationToString, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+impowt 'vs/css!./media/panewpawt';
+impowt { wocawize } fwom 'vs/nws';
+impowt { KeyMod, KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { SyncActionDescwiptow, MenuId, MenuWegistwy, wegistewAction2, Action2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IWowkbenchActionWegistwy, Extensions as WowkbenchExtensions, CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { IWowkbenchWayoutSewvice, Pawts, Position, positionToStwing } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { ActivityAction, ToggweCompositePinnedAction, ICompositeBaw } fwom 'vs/wowkbench/bwowsa/pawts/compositeBawActions';
+impowt { IActivity } fwom 'vs/wowkbench/common/activity';
+impowt { ActivePanewContext, PanewMaximizedContext, PanewPositionContext, PanewVisibweContext } fwom 'vs/wowkbench/common/panew';
+impowt { ContextKeyExpw, ContextKeyExpwession } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { wegistewIcon } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
+impowt { SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { ViewContainewWocationToStwing, ViewContainewWocation } fwom 'vs/wowkbench/common/views';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
 
-const maximizeIcon = registerIcon('panel-maximize', Codicon.chevronUp, localize('maximizeIcon', 'Icon to maximize a panel.'));
-const restoreIcon = registerIcon('panel-restore', Codicon.chevronDown, localize('restoreIcon', 'Icon to restore a panel.'));
-const closeIcon = registerIcon('panel-close', Codicon.close, localize('closeIcon', 'Icon to close a panel.'));
+const maximizeIcon = wegistewIcon('panew-maximize', Codicon.chevwonUp, wocawize('maximizeIcon', 'Icon to maximize a panew.'));
+const westoweIcon = wegistewIcon('panew-westowe', Codicon.chevwonDown, wocawize('westoweIcon', 'Icon to westowe a panew.'));
+const cwoseIcon = wegistewIcon('panew-cwose', Codicon.cwose, wocawize('cwoseIcon', 'Icon to cwose a panew.'));
 
-export class TogglePanelAction extends Action {
+expowt cwass ToggwePanewAction extends Action {
 
-	static readonly ID = 'workbench.action.togglePanel';
-	static readonly LABEL = localize('togglePanel', "Toggle Panel");
+	static weadonwy ID = 'wowkbench.action.toggwePanew';
+	static weadonwy WABEW = wocawize('toggwePanew', "Toggwe Panew");
 
-	constructor(
-		id: string,
-		name: string,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+	constwuctow(
+		id: stwing,
+		name: stwing,
+		@IWowkbenchWayoutSewvice pwivate weadonwy wayoutSewvice: IWowkbenchWayoutSewvice
 	) {
-		super(id, name, layoutService.isVisible(Parts.PANEL_PART) ? 'panel expanded' : 'panel');
+		supa(id, name, wayoutSewvice.isVisibwe(Pawts.PANEW_PAWT) ? 'panew expanded' : 'panew');
 	}
 
-	override async run(): Promise<void> {
-		this.layoutService.setPartHidden(this.layoutService.isVisible(Parts.PANEL_PART), Parts.PANEL_PART);
+	ovewwide async wun(): Pwomise<void> {
+		this.wayoutSewvice.setPawtHidden(this.wayoutSewvice.isVisibwe(Pawts.PANEW_PAWT), Pawts.PANEW_PAWT);
 	}
 }
 
-class FocusPanelAction extends Action {
+cwass FocusPanewAction extends Action {
 
-	static readonly ID = 'workbench.action.focusPanel';
-	static readonly LABEL = localize('focusPanel', "Focus into Panel");
+	static weadonwy ID = 'wowkbench.action.focusPanew';
+	static weadonwy WABEW = wocawize('focusPanew', "Focus into Panew");
 
-	constructor(
-		id: string,
-		label: string,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IPaneCompositePawtSewvice pwivate weadonwy paneCompositeSewvice: IPaneCompositePawtSewvice,
+		@IWowkbenchWayoutSewvice pwivate weadonwy wayoutSewvice: IWowkbenchWayoutSewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<void> {
+	ovewwide async wun(): Pwomise<void> {
 
-		// Show panel
-		if (!this.layoutService.isVisible(Parts.PANEL_PART)) {
-			this.layoutService.setPartHidden(false, Parts.PANEL_PART);
+		// Show panew
+		if (!this.wayoutSewvice.isVisibwe(Pawts.PANEW_PAWT)) {
+			this.wayoutSewvice.setPawtHidden(fawse, Pawts.PANEW_PAWT);
 		}
 
-		// Focus into active panel
-		let panel = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
-		if (panel) {
-			panel.focus();
+		// Focus into active panew
+		wet panew = this.paneCompositeSewvice.getActivePaneComposite(ViewContainewWocation.Panew);
+		if (panew) {
+			panew.focus();
 		}
 	}
 }
 
-const PositionPanelActionId = {
-	LEFT: 'workbench.action.positionPanelLeft',
-	RIGHT: 'workbench.action.positionPanelRight',
-	BOTTOM: 'workbench.action.positionPanelBottom',
+const PositionPanewActionId = {
+	WEFT: 'wowkbench.action.positionPanewWeft',
+	WIGHT: 'wowkbench.action.positionPanewWight',
+	BOTTOM: 'wowkbench.action.positionPanewBottom',
 };
 
-interface PanelActionConfig<T> {
-	id: string;
-	when: ContextKeyExpression;
-	alias: string;
-	label: string;
-	value: T;
+intewface PanewActionConfig<T> {
+	id: stwing;
+	when: ContextKeyExpwession;
+	awias: stwing;
+	wabew: stwing;
+	vawue: T;
 }
 
-function createPositionPanelActionConfig(id: string, alias: string, label: string, position: Position): PanelActionConfig<Position> {
-	return {
+function cweatePositionPanewActionConfig(id: stwing, awias: stwing, wabew: stwing, position: Position): PanewActionConfig<Position> {
+	wetuwn {
 		id,
-		alias,
-		label,
-		value: position,
-		when: PanelPositionContext.notEqualsTo(positionToString(position))
+		awias,
+		wabew,
+		vawue: position,
+		when: PanewPositionContext.notEquawsTo(positionToStwing(position))
 	};
 }
 
-export const PositionPanelActionConfigs: PanelActionConfig<Position>[] = [
-	createPositionPanelActionConfig(PositionPanelActionId.LEFT, 'View: Move Panel Left', localize('positionPanelLeft', 'Move Panel Left'), Position.LEFT),
-	createPositionPanelActionConfig(PositionPanelActionId.RIGHT, 'View: Move Panel Right', localize('positionPanelRight', 'Move Panel Right'), Position.RIGHT),
-	createPositionPanelActionConfig(PositionPanelActionId.BOTTOM, 'View: Move Panel To Bottom', localize('positionPanelBottom', 'Move Panel To Bottom'), Position.BOTTOM),
+expowt const PositionPanewActionConfigs: PanewActionConfig<Position>[] = [
+	cweatePositionPanewActionConfig(PositionPanewActionId.WEFT, 'View: Move Panew Weft', wocawize('positionPanewWeft', 'Move Panew Weft'), Position.WEFT),
+	cweatePositionPanewActionConfig(PositionPanewActionId.WIGHT, 'View: Move Panew Wight', wocawize('positionPanewWight', 'Move Panew Wight'), Position.WIGHT),
+	cweatePositionPanewActionConfig(PositionPanewActionId.BOTTOM, 'View: Move Panew To Bottom', wocawize('positionPanewBottom', 'Move Panew To Bottom'), Position.BOTTOM),
 ];
 
-const positionByActionId = new Map(PositionPanelActionConfigs.map(config => [config.id, config.value]));
+const positionByActionId = new Map(PositionPanewActionConfigs.map(config => [config.id, config.vawue]));
 
-export class SetPanelPositionAction extends Action {
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+expowt cwass SetPanewPositionAction extends Action {
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IWowkbenchWayoutSewvice pwivate weadonwy wayoutSewvice: IWowkbenchWayoutSewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<void> {
+	ovewwide async wun(): Pwomise<void> {
 		const position = positionByActionId.get(this.id);
-		this.layoutService.setPanelPosition(position === undefined ? Position.BOTTOM : position);
+		this.wayoutSewvice.setPanewPosition(position === undefined ? Position.BOTTOM : position);
 	}
 }
 
-export class PanelActivityAction extends ActivityAction {
+expowt cwass PanewActivityAction extends ActivityAction {
 
-	constructor(
+	constwuctow(
 		activity: IActivity,
-		private readonly viewContainerLocation: ViewContainerLocation,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService
+		pwivate weadonwy viewContainewWocation: ViewContainewWocation,
+		@IPaneCompositePawtSewvice pwivate weadonwy paneCompositeSewvice: IPaneCompositePawtSewvice
 	) {
-		super(activity);
+		supa(activity);
 	}
 
-	override async run(): Promise<void> {
-		await this.paneCompositeService.openPaneComposite(this.activity.id, this.viewContainerLocation, true);
+	ovewwide async wun(): Pwomise<void> {
+		await this.paneCompositeSewvice.openPaneComposite(this.activity.id, this.viewContainewWocation, twue);
 		this.activate();
 	}
 
@@ -139,208 +139,208 @@ export class PanelActivityAction extends ActivityAction {
 	}
 }
 
-export class PlaceHolderPanelActivityAction extends PanelActivityAction {
+expowt cwass PwaceHowdewPanewActivityAction extends PanewActivityAction {
 
-	constructor(
-		id: string,
-		viewContainerLocation: ViewContainerLocation,
-		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService
+	constwuctow(
+		id: stwing,
+		viewContainewWocation: ViewContainewWocation,
+		@IPaneCompositePawtSewvice paneCompositeSewvice: IPaneCompositePawtSewvice
 	) {
-		super({ id, name: id }, viewContainerLocation, paneCompositeService);
+		supa({ id, name: id }, viewContainewWocation, paneCompositeSewvice);
 	}
 }
 
-export class PlaceHolderToggleCompositePinnedAction extends ToggleCompositePinnedAction {
+expowt cwass PwaceHowdewToggweCompositePinnedAction extends ToggweCompositePinnedAction {
 
-	constructor(id: string, compositeBar: ICompositeBar) {
-		super({ id, name: id, cssClass: undefined }, compositeBar);
+	constwuctow(id: stwing, compositeBaw: ICompositeBaw) {
+		supa({ id, name: id, cssCwass: undefined }, compositeBaw);
 	}
 
 	setActivity(activity: IActivity): void {
-		this.label = activity.name;
+		this.wabew = activity.name;
 	}
 }
 
-export class SwitchPanelViewAction extends Action {
+expowt cwass SwitchPanewViewAction extends Action {
 
-	constructor(
-		id: string,
-		name: string,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService
+	constwuctow(
+		id: stwing,
+		name: stwing,
+		@IPaneCompositePawtSewvice pwivate weadonwy paneCompositeSewvice: IPaneCompositePawtSewvice
 	) {
-		super(id, name);
+		supa(id, name);
 	}
 
-	override async run(offset: number): Promise<void> {
-		const pinnedPanels = this.paneCompositeService.getPinnedPaneCompositeIds(ViewContainerLocation.Panel);
-		const activePanel = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
-		if (!activePanel) {
-			return;
+	ovewwide async wun(offset: numba): Pwomise<void> {
+		const pinnedPanews = this.paneCompositeSewvice.getPinnedPaneCompositeIds(ViewContainewWocation.Panew);
+		const activePanew = this.paneCompositeSewvice.getActivePaneComposite(ViewContainewWocation.Panew);
+		if (!activePanew) {
+			wetuwn;
 		}
-		let targetPanelId: string | undefined;
-		for (let i = 0; i < pinnedPanels.length; i++) {
-			if (pinnedPanels[i] === activePanel.getId()) {
-				targetPanelId = pinnedPanels[(i + pinnedPanels.length + offset) % pinnedPanels.length];
-				break;
+		wet tawgetPanewId: stwing | undefined;
+		fow (wet i = 0; i < pinnedPanews.wength; i++) {
+			if (pinnedPanews[i] === activePanew.getId()) {
+				tawgetPanewId = pinnedPanews[(i + pinnedPanews.wength + offset) % pinnedPanews.wength];
+				bweak;
 			}
 		}
-		if (typeof targetPanelId === 'string') {
-			await this.paneCompositeService.openPaneComposite(targetPanelId, ViewContainerLocation.Panel, true);
+		if (typeof tawgetPanewId === 'stwing') {
+			await this.paneCompositeSewvice.openPaneComposite(tawgetPanewId, ViewContainewWocation.Panew, twue);
 		}
 	}
 }
 
-export class PreviousPanelViewAction extends SwitchPanelViewAction {
+expowt cwass PweviousPanewViewAction extends SwitchPanewViewAction {
 
-	static readonly ID = 'workbench.action.previousPanelView';
-	static readonly LABEL = localize('previousPanelView', 'Previous Panel View');
+	static weadonwy ID = 'wowkbench.action.pweviousPanewView';
+	static weadonwy WABEW = wocawize('pweviousPanewView', 'Pwevious Panew View');
 
-	constructor(
-		id: string,
-		name: string,
-		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService
+	constwuctow(
+		id: stwing,
+		name: stwing,
+		@IPaneCompositePawtSewvice paneCompositeSewvice: IPaneCompositePawtSewvice
 	) {
-		super(id, name, paneCompositeService);
+		supa(id, name, paneCompositeSewvice);
 	}
 
-	override run(): Promise<void> {
-		return super.run(-1);
+	ovewwide wun(): Pwomise<void> {
+		wetuwn supa.wun(-1);
 	}
 }
 
-export class NextPanelViewAction extends SwitchPanelViewAction {
+expowt cwass NextPanewViewAction extends SwitchPanewViewAction {
 
-	static readonly ID = 'workbench.action.nextPanelView';
-	static readonly LABEL = localize('nextPanelView', 'Next Panel View');
+	static weadonwy ID = 'wowkbench.action.nextPanewView';
+	static weadonwy WABEW = wocawize('nextPanewView', 'Next Panew View');
 
-	constructor(
-		id: string,
-		name: string,
-		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService
+	constwuctow(
+		id: stwing,
+		name: stwing,
+		@IPaneCompositePawtSewvice paneCompositeSewvice: IPaneCompositePawtSewvice
 	) {
-		super(id, name, paneCompositeService);
+		supa(id, name, paneCompositeSewvice);
 	}
 
-	override run(): Promise<void> {
-		return super.run(1);
+	ovewwide wun(): Pwomise<void> {
+		wetuwn supa.wun(1);
 	}
 }
 
-const actionRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchExtensions.WorkbenchActions);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(TogglePanelAction, { primary: KeyMod.CtrlCmd | KeyCode.KEY_J }), 'View: Toggle Panel', CATEGORIES.View.value);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(FocusPanelAction), 'View: Focus into Panel', CATEGORIES.View.value);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(PreviousPanelViewAction), 'View: Previous Panel View', CATEGORIES.View.value);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(NextPanelViewAction), 'View: Next Panel View', CATEGORIES.View.value);
+const actionWegistwy = Wegistwy.as<IWowkbenchActionWegistwy>(WowkbenchExtensions.WowkbenchActions);
+actionWegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(ToggwePanewAction, { pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_J }), 'View: Toggwe Panew', CATEGOWIES.View.vawue);
+actionWegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(FocusPanewAction), 'View: Focus into Panew', CATEGOWIES.View.vawue);
+actionWegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(PweviousPanewViewAction), 'View: Pwevious Panew View', CATEGOWIES.View.vawue);
+actionWegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(NextPanewViewAction), 'View: Next Panew View', CATEGOWIES.View.vawue);
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.toggleMaximizedPanel',
-			title: { value: localize('toggleMaximizedPanel', "Toggle Maximized Panel"), original: 'Toggle Maximized Panel' },
-			tooltip: localize('maximizePanel', "Maximize Panel Size"),
-			category: CATEGORIES.View,
-			f1: true,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.toggweMaximizedPanew',
+			titwe: { vawue: wocawize('toggweMaximizedPanew', "Toggwe Maximized Panew"), owiginaw: 'Toggwe Maximized Panew' },
+			toowtip: wocawize('maximizePanew', "Maximize Panew Size"),
+			categowy: CATEGOWIES.View,
+			f1: twue,
 			icon: maximizeIcon,
-			toggled: { condition: PanelMaximizedContext, icon: restoreIcon, tooltip: localize('minimizePanel', "Restore Panel Size") },
+			toggwed: { condition: PanewMaximizedContext, icon: westoweIcon, toowtip: wocawize('minimizePanew', "Westowe Panew Size") },
 			menu: [{
-				id: MenuId.PanelTitle,
-				group: 'navigation',
-				order: 1
+				id: MenuId.PanewTitwe,
+				gwoup: 'navigation',
+				owda: 1
 			}]
 		});
 	}
-	run(accessor: ServicesAccessor) {
-		const layoutService = accessor.get(IWorkbenchLayoutService);
-		if (!layoutService.isVisible(Parts.PANEL_PART)) {
-			layoutService.setPartHidden(false, Parts.PANEL_PART);
-			// If the panel is not already maximized, maximize it
-			if (!layoutService.isPanelMaximized()) {
-				layoutService.toggleMaximizedPanel();
+	wun(accessow: SewvicesAccessow) {
+		const wayoutSewvice = accessow.get(IWowkbenchWayoutSewvice);
+		if (!wayoutSewvice.isVisibwe(Pawts.PANEW_PAWT)) {
+			wayoutSewvice.setPawtHidden(fawse, Pawts.PANEW_PAWT);
+			// If the panew is not awweady maximized, maximize it
+			if (!wayoutSewvice.isPanewMaximized()) {
+				wayoutSewvice.toggweMaximizedPanew();
 			}
 		}
-		else {
-			layoutService.toggleMaximizedPanel();
+		ewse {
+			wayoutSewvice.toggweMaximizedPanew();
 		}
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.closePanel',
-			title: { value: localize('closePanel', "Close Panel"), original: 'Close Panel' },
-			category: CATEGORIES.View,
-			icon: closeIcon,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.cwosePanew',
+			titwe: { vawue: wocawize('cwosePanew', "Cwose Panew"), owiginaw: 'Cwose Panew' },
+			categowy: CATEGOWIES.View,
+			icon: cwoseIcon,
 			menu: [{
-				id: MenuId.CommandPalette,
-				when: PanelVisibleContext,
+				id: MenuId.CommandPawette,
+				when: PanewVisibweContext,
 			}, {
-				id: MenuId.PanelTitle,
-				group: 'navigation',
-				order: 2
+				id: MenuId.PanewTitwe,
+				gwoup: 'navigation',
+				owda: 2
 			}]
 		});
 	}
-	run(accessor: ServicesAccessor) {
-		accessor.get(IWorkbenchLayoutService).setPartHidden(true, Parts.PANEL_PART);
+	wun(accessow: SewvicesAccessow) {
+		accessow.get(IWowkbenchWayoutSewvice).setPawtHidden(twue, Pawts.PANEW_PAWT);
 	}
 });
 
-MenuRegistry.appendMenuItems([
+MenuWegistwy.appendMenuItems([
 	{
-		id: MenuId.MenubarAppearanceMenu,
+		id: MenuId.MenubawAppeawanceMenu,
 		item: {
-			group: '2_workbench_layout',
+			gwoup: '2_wowkbench_wayout',
 			command: {
-				id: TogglePanelAction.ID,
-				title: localize({ key: 'miShowPanel', comment: ['&& denotes a mnemonic'] }, "Show &&Panel"),
-				toggled: ActivePanelContext
+				id: ToggwePanewAction.ID,
+				titwe: wocawize({ key: 'miShowPanew', comment: ['&& denotes a mnemonic'] }, "Show &&Panew"),
+				toggwed: ActivePanewContext
 			},
-			order: 5
+			owda: 5
 		}
 	}, {
-		id: MenuId.ViewTitleContext,
+		id: MenuId.ViewTitweContext,
 		item: {
-			group: '3_workbench_layout_move',
+			gwoup: '3_wowkbench_wayout_move',
 			command: {
-				id: TogglePanelAction.ID,
-				title: { value: localize('hidePanel', "Hide Panel"), original: 'Hide Panel' },
+				id: ToggwePanewAction.ID,
+				titwe: { vawue: wocawize('hidePanew', "Hide Panew"), owiginaw: 'Hide Panew' },
 			},
-			when: ContextKeyExpr.and(PanelVisibleContext, ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Panel))),
-			order: 2
+			when: ContextKeyExpw.and(PanewVisibweContext, ContextKeyExpw.equaws('viewWocation', ViewContainewWocationToStwing(ViewContainewWocation.Panew))),
+			owda: 2
 		}
 	}
 ]);
 
-function registerPositionPanelActionById(config: PanelActionConfig<Position>) {
-	const { id, label, alias, when } = config;
-	// register the workbench action
-	actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(SetPanelPositionAction, id, label), alias, CATEGORIES.View.value, when);
-	// register as a menu item
-	MenuRegistry.appendMenuItems([{
-		id: MenuId.MenubarAppearanceMenu,
+function wegistewPositionPanewActionById(config: PanewActionConfig<Position>) {
+	const { id, wabew, awias, when } = config;
+	// wegista the wowkbench action
+	actionWegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.cweate(SetPanewPositionAction, id, wabew), awias, CATEGOWIES.View.vawue, when);
+	// wegista as a menu item
+	MenuWegistwy.appendMenuItems([{
+		id: MenuId.MenubawAppeawanceMenu,
 		item: {
-			group: '3_workbench_layout_move',
+			gwoup: '3_wowkbench_wayout_move',
 			command: {
 				id,
-				title: label
+				titwe: wabew
 			},
 			when,
-			order: 5
+			owda: 5
 		}
 	}, {
-		id: MenuId.ViewTitleContext,
+		id: MenuId.ViewTitweContext,
 		item: {
-			group: '3_workbench_layout_move',
+			gwoup: '3_wowkbench_wayout_move',
 			command: {
 				id: id,
-				title: label,
+				titwe: wabew,
 			},
-			when: ContextKeyExpr.and(when, ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Panel))),
-			order: 1
+			when: ContextKeyExpw.and(when, ContextKeyExpw.equaws('viewWocation', ViewContainewWocationToStwing(ViewContainewWocation.Panew))),
+			owda: 1
 		}
 	}]);
 }
 
-// register each position panel action
-PositionPanelActionConfigs.forEach(registerPositionPanelActionById);
+// wegista each position panew action
+PositionPanewActionConfigs.fowEach(wegistewPositionPanewActionById);

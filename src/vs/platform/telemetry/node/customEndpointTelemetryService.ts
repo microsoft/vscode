@@ -1,72 +1,72 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { FileAccess } from 'vs/base/common/network';
-import { Client as TelemetryClient } from 'vs/base/parts/ipc/node/ipc.cp';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ILoggerService } from 'vs/platform/log/common/log';
-import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
-import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogAppender';
-import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-export class CustomEndpointTelemetryService implements ICustomEndpointTelemetryService {
-	declare readonly _serviceBrand: undefined;
+impowt { FiweAccess } fwom 'vs/base/common/netwowk';
+impowt { Cwient as TewemetwyCwient } fwom 'vs/base/pawts/ipc/node/ipc.cp';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IWoggewSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { ICustomEndpointTewemetwySewvice, ITewemetwyData, ITewemetwyEndpoint, ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { TewemetwyAppendewCwient } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyIpc';
+impowt { TewemetwyWogAppenda } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyWogAppenda';
+impowt { TewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwySewvice';
+expowt cwass CustomEndpointTewemetwySewvice impwements ICustomEndpointTewemetwySewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private customTelemetryServices = new Map<string, ITelemetryService>();
+	pwivate customTewemetwySewvices = new Map<stwing, ITewemetwySewvice>();
 
-	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ILoggerService private readonly loggerService: ILoggerService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+	constwuctow(
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IWoggewSewvice pwivate weadonwy woggewSewvice: IWoggewSewvice,
+		@IEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IEnviwonmentSewvice,
 	) { }
 
-	private async getCustomTelemetryService(endpoint: ITelemetryEndpoint): Promise<ITelemetryService> {
-		if (!this.customTelemetryServices.has(endpoint.id)) {
-			const { machineId, sessionId } = await this.telemetryService.getTelemetryInfo();
-			const telemetryInfo: { [key: string]: string } = Object.create(null);
-			telemetryInfo['common.vscodemachineid'] = machineId;
-			telemetryInfo['common.vscodesessionid'] = sessionId;
-			const args = [endpoint.id, JSON.stringify(telemetryInfo), endpoint.aiKey];
-			const client = new TelemetryClient(
-				FileAccess.asFileUri('bootstrap-fork', require).fsPath,
+	pwivate async getCustomTewemetwySewvice(endpoint: ITewemetwyEndpoint): Pwomise<ITewemetwySewvice> {
+		if (!this.customTewemetwySewvices.has(endpoint.id)) {
+			const { machineId, sessionId } = await this.tewemetwySewvice.getTewemetwyInfo();
+			const tewemetwyInfo: { [key: stwing]: stwing } = Object.cweate(nuww);
+			tewemetwyInfo['common.vscodemachineid'] = machineId;
+			tewemetwyInfo['common.vscodesessionid'] = sessionId;
+			const awgs = [endpoint.id, JSON.stwingify(tewemetwyInfo), endpoint.aiKey];
+			const cwient = new TewemetwyCwient(
+				FiweAccess.asFiweUwi('bootstwap-fowk', wequiwe).fsPath,
 				{
-					serverName: 'Debug Telemetry',
+					sewvewName: 'Debug Tewemetwy',
 					timeout: 1000 * 60 * 5,
-					args,
+					awgs,
 					env: {
-						ELECTRON_RUN_AS_NODE: 1,
-						VSCODE_PIPE_LOGGING: 'true',
-						VSCODE_AMD_ENTRYPOINT: 'vs/workbench/contrib/debug/node/telemetryApp'
+						EWECTWON_WUN_AS_NODE: 1,
+						VSCODE_PIPE_WOGGING: 'twue',
+						VSCODE_AMD_ENTWYPOINT: 'vs/wowkbench/contwib/debug/node/tewemetwyApp'
 					}
 				}
 			);
 
-			const channel = client.getChannel('telemetryAppender');
-			const appenders = [
-				new TelemetryAppenderClient(channel),
-				new TelemetryLogAppender(this.loggerService, this.environmentService, `[${endpoint.id}] `),
+			const channew = cwient.getChannew('tewemetwyAppenda');
+			const appendews = [
+				new TewemetwyAppendewCwient(channew),
+				new TewemetwyWogAppenda(this.woggewSewvice, this.enviwonmentSewvice, `[${endpoint.id}] `),
 			];
 
-			this.customTelemetryServices.set(endpoint.id, new TelemetryService({
-				appenders,
-				sendErrorTelemetry: endpoint.sendErrorTelemetry
-			}, this.configurationService));
+			this.customTewemetwySewvices.set(endpoint.id, new TewemetwySewvice({
+				appendews,
+				sendEwwowTewemetwy: endpoint.sendEwwowTewemetwy
+			}, this.configuwationSewvice));
 		}
 
-		return this.customTelemetryServices.get(endpoint.id)!;
+		wetuwn this.customTewemetwySewvices.get(endpoint.id)!;
 	}
 
-	async publicLog(telemetryEndpoint: ITelemetryEndpoint, eventName: string, data?: ITelemetryData): Promise<void> {
-		const customTelemetryService = await this.getCustomTelemetryService(telemetryEndpoint);
-		await customTelemetryService.publicLog(eventName, data);
+	async pubwicWog(tewemetwyEndpoint: ITewemetwyEndpoint, eventName: stwing, data?: ITewemetwyData): Pwomise<void> {
+		const customTewemetwySewvice = await this.getCustomTewemetwySewvice(tewemetwyEndpoint);
+		await customTewemetwySewvice.pubwicWog(eventName, data);
 	}
 
-	async publicLogError(telemetryEndpoint: ITelemetryEndpoint, errorEventName: string, data?: ITelemetryData): Promise<void> {
-		const customTelemetryService = await this.getCustomTelemetryService(telemetryEndpoint);
-		await customTelemetryService.publicLogError(errorEventName, data);
+	async pubwicWogEwwow(tewemetwyEndpoint: ITewemetwyEndpoint, ewwowEventName: stwing, data?: ITewemetwyData): Pwomise<void> {
+		const customTewemetwySewvice = await this.getCustomTewemetwySewvice(tewemetwyEndpoint);
+		await customTewemetwySewvice.pubwicWogEwwow(ewwowEventName, data);
 	}
 }

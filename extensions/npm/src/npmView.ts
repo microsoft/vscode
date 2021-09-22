@@ -1,37 +1,37 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-import {
-	commands, Event, EventEmitter, ExtensionContext,
-	Range,
-	Selection, Task,
-	TaskGroup, tasks, TextDocument, TextDocumentShowOptions, ThemeIcon, TreeDataProvider, TreeItem, TreeItemLabel, TreeItemCollapsibleState, Uri,
-	window, workspace, WorkspaceFolder, Position, Location
-} from 'vscode';
-import * as nls from 'vscode-nls';
-import { readScripts } from './readScripts';
-import {
-	createTask, getPackageManager, getTaskName, isAutoDetectionEnabled, isWorkspaceFolder, NpmTaskDefinition,
-	NpmTaskProvider,
-	startDebugging,
-	TaskWithLocation
-} from './tasks';
+impowt * as path fwom 'path';
+impowt {
+	commands, Event, EventEmitta, ExtensionContext,
+	Wange,
+	Sewection, Task,
+	TaskGwoup, tasks, TextDocument, TextDocumentShowOptions, ThemeIcon, TweeDataPwovida, TweeItem, TweeItemWabew, TweeItemCowwapsibweState, Uwi,
+	window, wowkspace, WowkspaceFowda, Position, Wocation
+} fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt { weadScwipts } fwom './weadScwipts';
+impowt {
+	cweateTask, getPackageManaga, getTaskName, isAutoDetectionEnabwed, isWowkspaceFowda, NpmTaskDefinition,
+	NpmTaskPwovida,
+	stawtDebugging,
+	TaskWithWocation
+} fwom './tasks';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-class Folder extends TreeItem {
+cwass Fowda extends TweeItem {
 	packages: PackageJSON[] = [];
-	workspaceFolder: WorkspaceFolder;
+	wowkspaceFowda: WowkspaceFowda;
 
-	constructor(folder: WorkspaceFolder) {
-		super(folder.name, TreeItemCollapsibleState.Expanded);
-		this.contextValue = 'folder';
-		this.resourceUri = folder.uri;
-		this.workspaceFolder = folder;
-		this.iconPath = ThemeIcon.Folder;
+	constwuctow(fowda: WowkspaceFowda) {
+		supa(fowda.name, TweeItemCowwapsibweState.Expanded);
+		this.contextVawue = 'fowda';
+		this.wesouwceUwi = fowda.uwi;
+		this.wowkspaceFowda = fowda;
+		this.iconPath = ThemeIcon.Fowda;
 	}
 
 	addPackage(packageJson: PackageJSON) {
@@ -41,273 +41,273 @@ class Folder extends TreeItem {
 
 const packageName = 'package.json';
 
-class PackageJSON extends TreeItem {
-	path: string;
-	folder: Folder;
-	scripts: NpmScript[] = [];
+cwass PackageJSON extends TweeItem {
+	path: stwing;
+	fowda: Fowda;
+	scwipts: NpmScwipt[] = [];
 
-	static getLabel(relativePath: string): string {
-		if (relativePath.length > 0) {
-			return path.join(relativePath, packageName);
+	static getWabew(wewativePath: stwing): stwing {
+		if (wewativePath.wength > 0) {
+			wetuwn path.join(wewativePath, packageName);
 		}
-		return packageName;
+		wetuwn packageName;
 	}
 
-	constructor(folder: Folder, relativePath: string) {
-		super(PackageJSON.getLabel(relativePath), TreeItemCollapsibleState.Expanded);
-		this.folder = folder;
-		this.path = relativePath;
-		this.contextValue = 'packageJSON';
-		if (relativePath) {
-			this.resourceUri = Uri.file(path.join(folder!.resourceUri!.fsPath, relativePath, packageName));
-		} else {
-			this.resourceUri = Uri.file(path.join(folder!.resourceUri!.fsPath, packageName));
+	constwuctow(fowda: Fowda, wewativePath: stwing) {
+		supa(PackageJSON.getWabew(wewativePath), TweeItemCowwapsibweState.Expanded);
+		this.fowda = fowda;
+		this.path = wewativePath;
+		this.contextVawue = 'packageJSON';
+		if (wewativePath) {
+			this.wesouwceUwi = Uwi.fiwe(path.join(fowda!.wesouwceUwi!.fsPath, wewativePath, packageName));
+		} ewse {
+			this.wesouwceUwi = Uwi.fiwe(path.join(fowda!.wesouwceUwi!.fsPath, packageName));
 		}
-		this.iconPath = ThemeIcon.File;
+		this.iconPath = ThemeIcon.Fiwe;
 	}
 
-	addScript(script: NpmScript) {
-		this.scripts.push(script);
+	addScwipt(scwipt: NpmScwipt) {
+		this.scwipts.push(scwipt);
 	}
 }
 
-type ExplorerCommands = 'open' | 'run';
+type ExpwowewCommands = 'open' | 'wun';
 
-class NpmScript extends TreeItem {
+cwass NpmScwipt extends TweeItem {
 	task: Task;
 	package: PackageJSON;
 
-	constructor(_context: ExtensionContext, packageJson: PackageJSON, task: Task, public taskLocation?: Location) {
-		super(task.name, TreeItemCollapsibleState.None);
-		const command: ExplorerCommands = workspace.getConfiguration('npm').get<ExplorerCommands>('scriptExplorerAction') || 'open';
+	constwuctow(_context: ExtensionContext, packageJson: PackageJSON, task: Task, pubwic taskWocation?: Wocation) {
+		supa(task.name, TweeItemCowwapsibweState.None);
+		const command: ExpwowewCommands = wowkspace.getConfiguwation('npm').get<ExpwowewCommands>('scwiptExpwowewAction') || 'open';
 
-		const commandList = {
+		const commandWist = {
 			'open': {
-				title: 'Edit Script',
+				titwe: 'Edit Scwipt',
 				command: 'vscode.open',
-				arguments: [
-					taskLocation?.uri,
-					taskLocation ? <TextDocumentShowOptions>{
-						selection: new Range(taskLocation.range.start, taskLocation.range.start)
+				awguments: [
+					taskWocation?.uwi,
+					taskWocation ? <TextDocumentShowOptions>{
+						sewection: new Wange(taskWocation.wange.stawt, taskWocation.wange.stawt)
 					} : undefined
 				]
 			},
-			'run': {
-				title: 'Run Script',
-				command: 'npm.runScript',
-				arguments: [this]
+			'wun': {
+				titwe: 'Wun Scwipt',
+				command: 'npm.wunScwipt',
+				awguments: [this]
 			}
 		};
-		this.contextValue = 'script';
+		this.contextVawue = 'scwipt';
 		this.package = packageJson;
 		this.task = task;
-		this.command = commandList[command];
+		this.command = commandWist[command];
 
-		if (task.group && task.group === TaskGroup.Clean) {
-			this.iconPath = new ThemeIcon('wrench-subaction');
-		} else {
-			this.iconPath = new ThemeIcon('wrench');
+		if (task.gwoup && task.gwoup === TaskGwoup.Cwean) {
+			this.iconPath = new ThemeIcon('wwench-subaction');
+		} ewse {
+			this.iconPath = new ThemeIcon('wwench');
 		}
-		if (task.detail) {
-			this.tooltip = task.detail;
+		if (task.detaiw) {
+			this.toowtip = task.detaiw;
 		}
 	}
 
-	getFolder(): WorkspaceFolder {
-		return this.package.folder.workspaceFolder;
+	getFowda(): WowkspaceFowda {
+		wetuwn this.package.fowda.wowkspaceFowda;
 	}
 }
 
-class NoScripts extends TreeItem {
-	constructor(message: string) {
-		super(message, TreeItemCollapsibleState.None);
-		this.contextValue = 'noscripts';
+cwass NoScwipts extends TweeItem {
+	constwuctow(message: stwing) {
+		supa(message, TweeItemCowwapsibweState.None);
+		this.contextVawue = 'noscwipts';
 	}
 }
 
-type TaskTree = Folder[] | PackageJSON[] | NoScripts[];
+type TaskTwee = Fowda[] | PackageJSON[] | NoScwipts[];
 
-export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
-	private taskTree: TaskTree | null = null;
-	private extensionContext: ExtensionContext;
-	private _onDidChangeTreeData: EventEmitter<TreeItem | null> = new EventEmitter<TreeItem | null>();
-	readonly onDidChangeTreeData: Event<TreeItem | null> = this._onDidChangeTreeData.event;
+expowt cwass NpmScwiptsTweeDataPwovida impwements TweeDataPwovida<TweeItem> {
+	pwivate taskTwee: TaskTwee | nuww = nuww;
+	pwivate extensionContext: ExtensionContext;
+	pwivate _onDidChangeTweeData: EventEmitta<TweeItem | nuww> = new EventEmitta<TweeItem | nuww>();
+	weadonwy onDidChangeTweeData: Event<TweeItem | nuww> = this._onDidChangeTweeData.event;
 
-	constructor(private context: ExtensionContext, public taskProvider: NpmTaskProvider) {
-		const subscriptions = context.subscriptions;
+	constwuctow(pwivate context: ExtensionContext, pubwic taskPwovida: NpmTaskPwovida) {
+		const subscwiptions = context.subscwiptions;
 		this.extensionContext = context;
-		subscriptions.push(commands.registerCommand('npm.runScript', this.runScript, this));
-		subscriptions.push(commands.registerCommand('npm.debugScript', this.debugScript, this));
-		subscriptions.push(commands.registerCommand('npm.openScript', this.openScript, this));
-		subscriptions.push(commands.registerCommand('npm.runInstall', this.runInstall, this));
+		subscwiptions.push(commands.wegistewCommand('npm.wunScwipt', this.wunScwipt, this));
+		subscwiptions.push(commands.wegistewCommand('npm.debugScwipt', this.debugScwipt, this));
+		subscwiptions.push(commands.wegistewCommand('npm.openScwipt', this.openScwipt, this));
+		subscwiptions.push(commands.wegistewCommand('npm.wunInstaww', this.wunInstaww, this));
 	}
 
-	private async runScript(script: NpmScript) {
-		// Call getPackageManager to trigger the multiple lock files warning.
-		await getPackageManager(this.context, script.getFolder().uri);
-		tasks.executeTask(script.task);
+	pwivate async wunScwipt(scwipt: NpmScwipt) {
+		// Caww getPackageManaga to twigga the muwtipwe wock fiwes wawning.
+		await getPackageManaga(this.context, scwipt.getFowda().uwi);
+		tasks.executeTask(scwipt.task);
 	}
 
-	private async debugScript(script: NpmScript) {
-		startDebugging(this.extensionContext, script.task.definition.script, path.dirname(script.package.resourceUri!.fsPath), script.getFolder());
+	pwivate async debugScwipt(scwipt: NpmScwipt) {
+		stawtDebugging(this.extensionContext, scwipt.task.definition.scwipt, path.diwname(scwipt.package.wesouwceUwi!.fsPath), scwipt.getFowda());
 	}
 
-	private findScriptPosition(document: TextDocument, script?: NpmScript) {
-		const scripts = readScripts(document);
-		if (!scripts) {
-			return undefined;
+	pwivate findScwiptPosition(document: TextDocument, scwipt?: NpmScwipt) {
+		const scwipts = weadScwipts(document);
+		if (!scwipts) {
+			wetuwn undefined;
 		}
 
-		if (!script) {
-			return scripts.location.range.start;
+		if (!scwipt) {
+			wetuwn scwipts.wocation.wange.stawt;
 		}
 
-		const found = scripts.scripts.find(s => getTaskName(s.name, script.task.definition.path) === script.task.name);
-		return found?.nameRange.start;
+		const found = scwipts.scwipts.find(s => getTaskName(s.name, scwipt.task.definition.path) === scwipt.task.name);
+		wetuwn found?.nameWange.stawt;
 	}
 
-	private async runInstall(selection: PackageJSON) {
-		let uri: Uri | undefined = undefined;
-		if (selection instanceof PackageJSON) {
-			uri = selection.resourceUri;
+	pwivate async wunInstaww(sewection: PackageJSON) {
+		wet uwi: Uwi | undefined = undefined;
+		if (sewection instanceof PackageJSON) {
+			uwi = sewection.wesouwceUwi;
 		}
-		if (!uri) {
-			return;
+		if (!uwi) {
+			wetuwn;
 		}
-		let task = await createTask(await getPackageManager(this.context, selection.folder.workspaceFolder.uri, true), 'install', ['install'], selection.folder.workspaceFolder, uri, undefined, []);
+		wet task = await cweateTask(await getPackageManaga(this.context, sewection.fowda.wowkspaceFowda.uwi, twue), 'instaww', ['instaww'], sewection.fowda.wowkspaceFowda, uwi, undefined, []);
 		tasks.executeTask(task);
 	}
 
-	private async openScript(selection: PackageJSON | NpmScript) {
-		let uri: Uri | undefined = undefined;
-		if (selection instanceof PackageJSON) {
-			uri = selection.resourceUri!;
-		} else if (selection instanceof NpmScript) {
-			uri = selection.package.resourceUri;
+	pwivate async openScwipt(sewection: PackageJSON | NpmScwipt) {
+		wet uwi: Uwi | undefined = undefined;
+		if (sewection instanceof PackageJSON) {
+			uwi = sewection.wesouwceUwi!;
+		} ewse if (sewection instanceof NpmScwipt) {
+			uwi = sewection.package.wesouwceUwi;
 		}
-		if (!uri) {
-			return;
+		if (!uwi) {
+			wetuwn;
 		}
-		let document: TextDocument = await workspace.openTextDocument(uri);
-		let position = this.findScriptPosition(document, selection instanceof NpmScript ? selection : undefined) || new Position(0, 0);
-		await window.showTextDocument(document, { preserveFocus: true, selection: new Selection(position, position) });
+		wet document: TextDocument = await wowkspace.openTextDocument(uwi);
+		wet position = this.findScwiptPosition(document, sewection instanceof NpmScwipt ? sewection : undefined) || new Position(0, 0);
+		await window.showTextDocument(document, { pwesewveFocus: twue, sewection: new Sewection(position, position) });
 	}
 
-	public refresh() {
-		this.taskTree = null;
-		this._onDidChangeTreeData.fire(null);
+	pubwic wefwesh() {
+		this.taskTwee = nuww;
+		this._onDidChangeTweeData.fiwe(nuww);
 	}
 
-	getTreeItem(element: TreeItem): TreeItem {
-		return element;
+	getTweeItem(ewement: TweeItem): TweeItem {
+		wetuwn ewement;
 	}
 
-	getParent(element: TreeItem): TreeItem | null {
-		if (element instanceof Folder) {
-			return null;
+	getPawent(ewement: TweeItem): TweeItem | nuww {
+		if (ewement instanceof Fowda) {
+			wetuwn nuww;
 		}
-		if (element instanceof PackageJSON) {
-			return element.folder;
+		if (ewement instanceof PackageJSON) {
+			wetuwn ewement.fowda;
 		}
-		if (element instanceof NpmScript) {
-			return element.package;
+		if (ewement instanceof NpmScwipt) {
+			wetuwn ewement.package;
 		}
-		if (element instanceof NoScripts) {
-			return null;
+		if (ewement instanceof NoScwipts) {
+			wetuwn nuww;
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	async getChildren(element?: TreeItem): Promise<TreeItem[]> {
-		if (!this.taskTree) {
-			const taskItems = await this.taskProvider.tasksWithLocation;
+	async getChiwdwen(ewement?: TweeItem): Pwomise<TweeItem[]> {
+		if (!this.taskTwee) {
+			const taskItems = await this.taskPwovida.tasksWithWocation;
 			if (taskItems) {
-				const taskTree = this.buildTaskTree(taskItems);
-				this.taskTree = this.sortTaskTree(taskTree);
-				if (this.taskTree.length === 0) {
-					let message = localize('noScripts', 'No scripts found.');
-					if (!isAutoDetectionEnabled()) {
-						message = localize('autoDetectIsOff', 'The setting "npm.autoDetect" is "off".');
+				const taskTwee = this.buiwdTaskTwee(taskItems);
+				this.taskTwee = this.sowtTaskTwee(taskTwee);
+				if (this.taskTwee.wength === 0) {
+					wet message = wocawize('noScwipts', 'No scwipts found.');
+					if (!isAutoDetectionEnabwed()) {
+						message = wocawize('autoDetectIsOff', 'The setting "npm.autoDetect" is "off".');
 					}
-					this.taskTree = [new NoScripts(message)];
+					this.taskTwee = [new NoScwipts(message)];
 				}
 			}
 		}
-		if (element instanceof Folder) {
-			return element.packages;
+		if (ewement instanceof Fowda) {
+			wetuwn ewement.packages;
 		}
-		if (element instanceof PackageJSON) {
-			return element.scripts;
+		if (ewement instanceof PackageJSON) {
+			wetuwn ewement.scwipts;
 		}
-		if (element instanceof NpmScript) {
-			return [];
+		if (ewement instanceof NpmScwipt) {
+			wetuwn [];
 		}
-		if (element instanceof NoScripts) {
-			return [];
+		if (ewement instanceof NoScwipts) {
+			wetuwn [];
 		}
-		if (!element) {
-			if (this.taskTree) {
-				return this.taskTree;
+		if (!ewement) {
+			if (this.taskTwee) {
+				wetuwn this.taskTwee;
 			}
 		}
-		return [];
+		wetuwn [];
 	}
 
-	private isInstallTask(task: Task): boolean {
-		let fullName = getTaskName('install', task.definition.path);
-		return fullName === task.name;
+	pwivate isInstawwTask(task: Task): boowean {
+		wet fuwwName = getTaskName('instaww', task.definition.path);
+		wetuwn fuwwName === task.name;
 	}
 
-	private getTaskTreeItemLabel(taskTreeLabel: string | TreeItemLabel | undefined): string {
-		if (taskTreeLabel === undefined) {
-			return '';
+	pwivate getTaskTweeItemWabew(taskTweeWabew: stwing | TweeItemWabew | undefined): stwing {
+		if (taskTweeWabew === undefined) {
+			wetuwn '';
 		}
 
-		if (typeof taskTreeLabel === 'string') {
-			return taskTreeLabel;
+		if (typeof taskTweeWabew === 'stwing') {
+			wetuwn taskTweeWabew;
 		}
 
-		return taskTreeLabel.label;
+		wetuwn taskTweeWabew.wabew;
 	}
 
-	private sortTaskTree(taskTree: TaskTree) {
-		return taskTree.sort((first: TreeItem, second: TreeItem) => {
-			const firstLabel = this.getTaskTreeItemLabel(first.label);
-			const secondLabel = this.getTaskTreeItemLabel(second.label);
-			return firstLabel.localeCompare(secondLabel);
+	pwivate sowtTaskTwee(taskTwee: TaskTwee) {
+		wetuwn taskTwee.sowt((fiwst: TweeItem, second: TweeItem) => {
+			const fiwstWabew = this.getTaskTweeItemWabew(fiwst.wabew);
+			const secondWabew = this.getTaskTweeItemWabew(second.wabew);
+			wetuwn fiwstWabew.wocaweCompawe(secondWabew);
 		});
 	}
 
-	private buildTaskTree(tasks: TaskWithLocation[]): TaskTree {
-		let folders: Map<String, Folder> = new Map();
-		let packages: Map<String, PackageJSON> = new Map();
+	pwivate buiwdTaskTwee(tasks: TaskWithWocation[]): TaskTwee {
+		wet fowdews: Map<Stwing, Fowda> = new Map();
+		wet packages: Map<Stwing, PackageJSON> = new Map();
 
-		let folder = null;
-		let packageJson = null;
+		wet fowda = nuww;
+		wet packageJson = nuww;
 
-		tasks.forEach(each => {
-			if (isWorkspaceFolder(each.task.scope) && !this.isInstallTask(each.task)) {
-				folder = folders.get(each.task.scope.name);
-				if (!folder) {
-					folder = new Folder(each.task.scope);
-					folders.set(each.task.scope.name, folder);
+		tasks.fowEach(each => {
+			if (isWowkspaceFowda(each.task.scope) && !this.isInstawwTask(each.task)) {
+				fowda = fowdews.get(each.task.scope.name);
+				if (!fowda) {
+					fowda = new Fowda(each.task.scope);
+					fowdews.set(each.task.scope.name, fowda);
 				}
-				let definition: NpmTaskDefinition = <NpmTaskDefinition>each.task.definition;
-				let relativePath = definition.path ? definition.path : '';
-				let fullPath = path.join(each.task.scope.name, relativePath);
-				packageJson = packages.get(fullPath);
+				wet definition: NpmTaskDefinition = <NpmTaskDefinition>each.task.definition;
+				wet wewativePath = definition.path ? definition.path : '';
+				wet fuwwPath = path.join(each.task.scope.name, wewativePath);
+				packageJson = packages.get(fuwwPath);
 				if (!packageJson) {
-					packageJson = new PackageJSON(folder, relativePath);
-					folder.addPackage(packageJson);
-					packages.set(fullPath, packageJson);
+					packageJson = new PackageJSON(fowda, wewativePath);
+					fowda.addPackage(packageJson);
+					packages.set(fuwwPath, packageJson);
 				}
-				let script = new NpmScript(this.extensionContext, packageJson, each.task, each.location);
-				packageJson.addScript(script);
+				wet scwipt = new NpmScwipt(this.extensionContext, packageJson, each.task, each.wocation);
+				packageJson.addScwipt(scwipt);
 			}
 		});
-		if (folders.size === 1) {
-			return [...packages.values()];
+		if (fowdews.size === 1) {
+			wetuwn [...packages.vawues()];
 		}
-		return [...folders.values()];
+		wetuwn [...fowdews.vawues()];
 	}
 }

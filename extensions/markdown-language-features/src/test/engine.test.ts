@@ -1,50 +1,50 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import 'mocha';
-import * as vscode from 'vscode';
-import { createNewMarkdownEngine } from './engine';
-import { InMemoryDocument } from './inMemoryDocument';
+impowt * as assewt fwom 'assewt';
+impowt 'mocha';
+impowt * as vscode fwom 'vscode';
+impowt { cweateNewMawkdownEngine } fwom './engine';
+impowt { InMemowyDocument } fwom './inMemowyDocument';
 
 
-const testFileName = vscode.Uri.file('test.md');
+const testFiweName = vscode.Uwi.fiwe('test.md');
 
-suite('markdown.engine', () => {
-	suite('rendering', () => {
-		const input = '# hello\n\nworld!';
-		const output = '<h1 id="hello" data-line="0" class="code-line">hello</h1>\n'
-			+ '<p data-line="2" class="code-line">world!</p>\n';
+suite('mawkdown.engine', () => {
+	suite('wendewing', () => {
+		const input = '# hewwo\n\nwowwd!';
+		const output = '<h1 id="hewwo" data-wine="0" cwass="code-wine">hewwo</h1>\n'
+			+ '<p data-wine="2" cwass="code-wine">wowwd!</p>\n';
 
-		test('Renders a document', async () => {
-			const doc = new InMemoryDocument(testFileName, input);
-			const engine = createNewMarkdownEngine();
-			assert.strictEqual((await engine.render(doc)).html, output);
+		test('Wendews a document', async () => {
+			const doc = new InMemowyDocument(testFiweName, input);
+			const engine = cweateNewMawkdownEngine();
+			assewt.stwictEquaw((await engine.wenda(doc)).htmw, output);
 		});
 
-		test('Renders a string', async () => {
-			const engine = createNewMarkdownEngine();
-			assert.strictEqual((await engine.render(input)).html, output);
+		test('Wendews a stwing', async () => {
+			const engine = cweateNewMawkdownEngine();
+			assewt.stwictEquaw((await engine.wenda(input)).htmw, output);
 		});
 	});
 
 	suite('image-caching', () => {
-		const input = '![](img.png) [](no-img.png) ![](http://example.org/img.png) ![](img.png) ![](./img2.png)';
+		const input = '![](img.png) [](no-img.png) ![](http://exampwe.owg/img.png) ![](img.png) ![](./img2.png)';
 
-		test('Extracts all images', async () => {
-			const engine = createNewMarkdownEngine();
-			assert.deepStrictEqual((await engine.render(input)), {
-				html: '<p data-line="0" class="code-line">'
-					+ '<img src="img.png" alt="" class="loading" id="image-hash--754511435" data-src="img.png"> '
-					+ '<a href="no-img.png" data-href="no-img.png"></a> '
-					+ '<img src="http://example.org/img.png" alt="" class="loading" id="image-hash--1903814170" data-src="http://example.org/img.png"> '
-					+ '<img src="img.png" alt="" class="loading" id="image-hash--754511435" data-src="img.png"> '
-					+ '<img src="./img2.png" alt="" class="loading" id="image-hash-265238964" data-src="./img2.png">'
+		test('Extwacts aww images', async () => {
+			const engine = cweateNewMawkdownEngine();
+			assewt.deepStwictEquaw((await engine.wenda(input)), {
+				htmw: '<p data-wine="0" cwass="code-wine">'
+					+ '<img swc="img.png" awt="" cwass="woading" id="image-hash--754511435" data-swc="img.png"> '
+					+ '<a hwef="no-img.png" data-hwef="no-img.png"></a> '
+					+ '<img swc="http://exampwe.owg/img.png" awt="" cwass="woading" id="image-hash--1903814170" data-swc="http://exampwe.owg/img.png"> '
+					+ '<img swc="img.png" awt="" cwass="woading" id="image-hash--754511435" data-swc="img.png"> '
+					+ '<img swc="./img2.png" awt="" cwass="woading" id="image-hash-265238964" data-swc="./img2.png">'
 					+ '</p>\n'
 				,
-				containingImages: [{ src: 'img.png' }, { src: 'http://example.org/img.png' }, { src: 'img.png' }, { src: './img2.png' }],
+				containingImages: [{ swc: 'img.png' }, { swc: 'http://exampwe.owg/img.png' }, { swc: 'img.png' }, { swc: './img2.png' }],
 			});
 		});
 	});

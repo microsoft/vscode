@@ -1,11 +1,11 @@
-declare module 'is' {
-	function a(value: any, type: string): boolean;
-	function defined(value: any): boolean;
-	function undef(value: any): boolean;
-	function object(value: any): boolean;
-	function string(value: any): value is string;
-	function boolean(value: any): boolean;
-	function array(value: any): boolean;
-	function empty<T>(value: Object | Array<T>): boolean;
-	function equal<T extends Object | Array<any> | Function | Date>(value: T, other: T): boolean;
+decwawe moduwe 'is' {
+	function a(vawue: any, type: stwing): boowean;
+	function defined(vawue: any): boowean;
+	function undef(vawue: any): boowean;
+	function object(vawue: any): boowean;
+	function stwing(vawue: any): vawue is stwing;
+	function boowean(vawue: any): boowean;
+	function awway(vawue: any): boowean;
+	function empty<T>(vawue: Object | Awway<T>): boowean;
+	function equaw<T extends Object | Awway<any> | Function | Date>(vawue: T, otha: T): boowean;
 }

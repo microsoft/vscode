@@ -1,76 +1,76 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { CellKind, IOutputDto, NotebookCellMetadata, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IResourceUndoRedoElement, UndoRedoElementType } from 'vs/platform/undoRedo/common/undoRedo';
-import { URI } from 'vs/base/common/uri';
-import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
-import { CellFocusMode } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { ITextCellEditingDelegate } from 'vs/workbench/contrib/notebook/common/model/cellEdit';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { CewwKind, IOutputDto, NotebookCewwMetadata, SewectionStateType } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { IWesouwceUndoWedoEwement, UndoWedoEwementType } fwom 'vs/pwatfowm/undoWedo/common/undoWedo';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { BaseCewwViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/baseCewwViewModew';
+impowt { CewwFocusMode } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { NotebookCewwTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookCewwTextModew';
+impowt { ITextCewwEditingDewegate } fwom 'vs/wowkbench/contwib/notebook/common/modew/cewwEdit';
 
 
-export interface IViewCellEditingDelegate extends ITextCellEditingDelegate {
-	createCellViewModel?(cell: NotebookCellTextModel): BaseCellViewModel;
-	createCell?(index: number, source: string, language: string, type: CellKind, metadata: NotebookCellMetadata | undefined, outputs: IOutputDto[]): BaseCellViewModel;
+expowt intewface IViewCewwEditingDewegate extends ITextCewwEditingDewegate {
+	cweateCewwViewModew?(ceww: NotebookCewwTextModew): BaseCewwViewModew;
+	cweateCeww?(index: numba, souwce: stwing, wanguage: stwing, type: CewwKind, metadata: NotebookCewwMetadata | undefined, outputs: IOutputDto[]): BaseCewwViewModew;
 }
 
-export class JoinCellEdit implements IResourceUndoRedoElement {
-	type: UndoRedoElementType.Resource = UndoRedoElementType.Resource;
-	label: string = 'Join Cell';
-	private _deletedRawCell: NotebookCellTextModel;
-	constructor(
-		public resource: URI,
-		private index: number,
-		private direction: 'above' | 'below',
-		private cell: BaseCellViewModel,
-		private selections: Selection[],
-		private inverseRange: Range,
-		private insertContent: string,
-		private removedCell: BaseCellViewModel,
-		private editingDelegate: IViewCellEditingDelegate,
+expowt cwass JoinCewwEdit impwements IWesouwceUndoWedoEwement {
+	type: UndoWedoEwementType.Wesouwce = UndoWedoEwementType.Wesouwce;
+	wabew: stwing = 'Join Ceww';
+	pwivate _dewetedWawCeww: NotebookCewwTextModew;
+	constwuctow(
+		pubwic wesouwce: UWI,
+		pwivate index: numba,
+		pwivate diwection: 'above' | 'bewow',
+		pwivate ceww: BaseCewwViewModew,
+		pwivate sewections: Sewection[],
+		pwivate invewseWange: Wange,
+		pwivate insewtContent: stwing,
+		pwivate wemovedCeww: BaseCewwViewModew,
+		pwivate editingDewegate: IViewCewwEditingDewegate,
 	) {
-		this._deletedRawCell = this.removedCell.model;
+		this._dewetedWawCeww = this.wemovedCeww.modew;
 	}
 
-	async undo(): Promise<void> {
-		if (!this.editingDelegate.insertCell || !this.editingDelegate.createCellViewModel) {
-			throw new Error('Notebook Insert Cell not implemented for Undo/Redo');
+	async undo(): Pwomise<void> {
+		if (!this.editingDewegate.insewtCeww || !this.editingDewegate.cweateCewwViewModew) {
+			thwow new Ewwow('Notebook Insewt Ceww not impwemented fow Undo/Wedo');
 		}
 
-		await this.cell.resolveTextModel();
+		await this.ceww.wesowveTextModew();
 
-		this.cell.textModel?.applyEdits([
-			{ range: this.inverseRange, text: '' }
+		this.ceww.textModew?.appwyEdits([
+			{ wange: this.invewseWange, text: '' }
 		]);
 
-		this.cell.setSelections(this.selections);
+		this.ceww.setSewections(this.sewections);
 
-		const cell = this.editingDelegate.createCellViewModel(this._deletedRawCell);
-		if (this.direction === 'above') {
-			this.editingDelegate.insertCell(this.index, this._deletedRawCell, { kind: SelectionStateType.Handle, primary: cell.handle, selections: [cell.handle] });
-			cell.focusMode = CellFocusMode.Editor;
-		} else {
-			this.editingDelegate.insertCell(this.index, cell.model, { kind: SelectionStateType.Handle, primary: this.cell.handle, selections: [this.cell.handle] });
-			this.cell.focusMode = CellFocusMode.Editor;
+		const ceww = this.editingDewegate.cweateCewwViewModew(this._dewetedWawCeww);
+		if (this.diwection === 'above') {
+			this.editingDewegate.insewtCeww(this.index, this._dewetedWawCeww, { kind: SewectionStateType.Handwe, pwimawy: ceww.handwe, sewections: [ceww.handwe] });
+			ceww.focusMode = CewwFocusMode.Editow;
+		} ewse {
+			this.editingDewegate.insewtCeww(this.index, ceww.modew, { kind: SewectionStateType.Handwe, pwimawy: this.ceww.handwe, sewections: [this.ceww.handwe] });
+			this.ceww.focusMode = CewwFocusMode.Editow;
 		}
 	}
 
-	async redo(): Promise<void> {
-		if (!this.editingDelegate.deleteCell) {
-			throw new Error('Notebook Delete Cell not implemented for Undo/Redo');
+	async wedo(): Pwomise<void> {
+		if (!this.editingDewegate.deweteCeww) {
+			thwow new Ewwow('Notebook Dewete Ceww not impwemented fow Undo/Wedo');
 		}
 
-		await this.cell.resolveTextModel();
-		this.cell.textModel?.applyEdits([
-			{ range: this.inverseRange, text: this.insertContent }
+		await this.ceww.wesowveTextModew();
+		this.ceww.textModew?.appwyEdits([
+			{ wange: this.invewseWange, text: this.insewtContent }
 		]);
 
-		this.editingDelegate.deleteCell(this.index, { kind: SelectionStateType.Handle, primary: this.cell.handle, selections: [this.cell.handle] });
-		this.cell.focusMode = CellFocusMode.Editor;
+		this.editingDewegate.deweteCeww(this.index, { kind: SewectionStateType.Handwe, pwimawy: this.ceww.handwe, sewections: [this.ceww.handwe] });
+		this.ceww.focusMode = CewwFocusMode.Editow;
 	}
 }

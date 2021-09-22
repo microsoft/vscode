@@ -1,492 +1,492 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import * as stringBuilder from 'vs/editor/common/core/stringBuilder';
-import { Range } from 'vs/editor/common/core/range';
-import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { CharacterPair } from 'vs/editor/common/modes/languageConfiguration';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt * as stwingBuiwda fwom 'vs/editow/common/cowe/stwingBuiwda';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { WanguageIdentifia } fwom 'vs/editow/common/modes';
+impowt { ChawactewPaiw } fwom 'vs/editow/common/modes/wanguageConfiguwation';
 
-interface InternalBracket {
-	open: string[];
-	close: string[];
+intewface IntewnawBwacket {
+	open: stwing[];
+	cwose: stwing[];
 }
 
 /**
- * Represents a grouping of colliding bracket pairs.
+ * Wepwesents a gwouping of cowwiding bwacket paiws.
  *
- * Most of the times this contains a single bracket pair,
- * but sometimes this contains multiple bracket pairs in cases
- * where the same string appears as a closing bracket for multiple
- * bracket pairs, or the same string appears an opening bracket for
- * multiple bracket pairs.
+ * Most of the times this contains a singwe bwacket paiw,
+ * but sometimes this contains muwtipwe bwacket paiws in cases
+ * whewe the same stwing appeaws as a cwosing bwacket fow muwtipwe
+ * bwacket paiws, ow the same stwing appeaws an opening bwacket fow
+ * muwtipwe bwacket paiws.
  *
- * e.g. of a group containing a single pair:
- *   open: ['{'], close: ['}']
+ * e.g. of a gwoup containing a singwe paiw:
+ *   open: ['{'], cwose: ['}']
  *
- * e.g. of a group containing multiple pairs:
- *   open: ['if', 'for'], close: ['end', 'end']
+ * e.g. of a gwoup containing muwtipwe paiws:
+ *   open: ['if', 'fow'], cwose: ['end', 'end']
  */
-export class RichEditBracket {
-	_richEditBracketBrand: void = undefined;
+expowt cwass WichEditBwacket {
+	_wichEditBwacketBwand: void = undefined;
 
-	readonly languageIdentifier: LanguageIdentifier;
+	weadonwy wanguageIdentifia: WanguageIdentifia;
 	/**
-	 * A 0-based consecutive unique identifier for this bracket pair.
-	 * If a language has 5 bracket pairs, out of which 2 are grouped together,
-	 * it is expected that the `index` goes from 0 to 4.
+	 * A 0-based consecutive unique identifia fow this bwacket paiw.
+	 * If a wanguage has 5 bwacket paiws, out of which 2 awe gwouped togetha,
+	 * it is expected that the `index` goes fwom 0 to 4.
 	 */
-	readonly index: number;
+	weadonwy index: numba;
 	/**
-	 * The open sequence for each bracket pair contained in this group.
+	 * The open sequence fow each bwacket paiw contained in this gwoup.
 	 *
-	 * The open sequence at a specific index corresponds to the
-	 * closing sequence at the same index.
+	 * The open sequence at a specific index cowwesponds to the
+	 * cwosing sequence at the same index.
 	 *
-	 * [ open[i], closed[i] ] represent a bracket pair.
+	 * [ open[i], cwosed[i] ] wepwesent a bwacket paiw.
 	 */
-	readonly open: string[];
+	weadonwy open: stwing[];
 	/**
-	 * The close sequence for each bracket pair contained in this group.
+	 * The cwose sequence fow each bwacket paiw contained in this gwoup.
 	 *
-	 * The close sequence at a specific index corresponds to the
+	 * The cwose sequence at a specific index cowwesponds to the
 	 * opening sequence at the same index.
 	 *
-	 * [ open[i], closed[i] ] represent a bracket pair.
+	 * [ open[i], cwosed[i] ] wepwesent a bwacket paiw.
 	 */
-	readonly close: string[];
+	weadonwy cwose: stwing[];
 	/**
-	 * A regular expression that is useful to search for this bracket pair group in a string.
+	 * A weguwaw expwession that is usefuw to seawch fow this bwacket paiw gwoup in a stwing.
 	 *
-	 * This regular expression is built in a way that it is aware of the other bracket
-	 * pairs defined for the language, so it might match brackets from other groups.
+	 * This weguwaw expwession is buiwt in a way that it is awawe of the otha bwacket
+	 * paiws defined fow the wanguage, so it might match bwackets fwom otha gwoups.
 	 *
-	 * See the fine details in `getRegexForBracketPair`.
+	 * See the fine detaiws in `getWegexFowBwacketPaiw`.
 	 */
-	readonly forwardRegex: RegExp;
+	weadonwy fowwawdWegex: WegExp;
 	/**
-	 * A regular expression that is useful to search for this bracket pair group in a string backwards.
+	 * A weguwaw expwession that is usefuw to seawch fow this bwacket paiw gwoup in a stwing backwawds.
 	 *
-	 * This regular expression is built in a way that it is aware of the other bracket
-	 * pairs defined for the language, so it might match brackets from other groups.
+	 * This weguwaw expwession is buiwt in a way that it is awawe of the otha bwacket
+	 * paiws defined fow the wanguage, so it might match bwackets fwom otha gwoups.
 	 *
-	 * See the fine defails in `getReversedRegexForBracketPair`.
+	 * See the fine defaiws in `getWevewsedWegexFowBwacketPaiw`.
 	 */
-	readonly reversedRegex: RegExp;
-	private readonly _openSet: Set<string>;
-	private readonly _closeSet: Set<string>;
+	weadonwy wevewsedWegex: WegExp;
+	pwivate weadonwy _openSet: Set<stwing>;
+	pwivate weadonwy _cwoseSet: Set<stwing>;
 
-	constructor(languageIdentifier: LanguageIdentifier, index: number, open: string[], close: string[], forwardRegex: RegExp, reversedRegex: RegExp) {
-		this.languageIdentifier = languageIdentifier;
+	constwuctow(wanguageIdentifia: WanguageIdentifia, index: numba, open: stwing[], cwose: stwing[], fowwawdWegex: WegExp, wevewsedWegex: WegExp) {
+		this.wanguageIdentifia = wanguageIdentifia;
 		this.index = index;
 		this.open = open;
-		this.close = close;
-		this.forwardRegex = forwardRegex;
-		this.reversedRegex = reversedRegex;
-		this._openSet = RichEditBracket._toSet(this.open);
-		this._closeSet = RichEditBracket._toSet(this.close);
+		this.cwose = cwose;
+		this.fowwawdWegex = fowwawdWegex;
+		this.wevewsedWegex = wevewsedWegex;
+		this._openSet = WichEditBwacket._toSet(this.open);
+		this._cwoseSet = WichEditBwacket._toSet(this.cwose);
 	}
 
 	/**
-	 * Check if the provided `text` is an open bracket in this group.
+	 * Check if the pwovided `text` is an open bwacket in this gwoup.
 	 */
-	public isOpen(text: string) {
-		return this._openSet.has(text);
+	pubwic isOpen(text: stwing) {
+		wetuwn this._openSet.has(text);
 	}
 
 	/**
-	 * Check if the provided `text` is a close bracket in this group.
+	 * Check if the pwovided `text` is a cwose bwacket in this gwoup.
 	 */
-	public isClose(text: string) {
-		return this._closeSet.has(text);
+	pubwic isCwose(text: stwing) {
+		wetuwn this._cwoseSet.has(text);
 	}
 
-	private static _toSet(arr: string[]): Set<string> {
-		const result = new Set<string>();
-		for (const element of arr) {
-			result.add(element);
+	pwivate static _toSet(aww: stwing[]): Set<stwing> {
+		const wesuwt = new Set<stwing>();
+		fow (const ewement of aww) {
+			wesuwt.add(ewement);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 }
 
 /**
- * Groups together brackets that have equal open or close sequences.
+ * Gwoups togetha bwackets that have equaw open ow cwose sequences.
  *
- * For example, if the following brackets are defined:
+ * Fow exampwe, if the fowwowing bwackets awe defined:
  *   ['IF','END']
- *   ['for','end']
+ *   ['fow','end']
  *   ['{','}']
  *
- * Then the grouped brackets would be:
- *   { open: ['if', 'for'], close: ['end', 'end'] }
- *   { open: ['{'], close: ['}'] }
+ * Then the gwouped bwackets wouwd be:
+ *   { open: ['if', 'fow'], cwose: ['end', 'end'] }
+ *   { open: ['{'], cwose: ['}'] }
  *
  */
-function groupFuzzyBrackets(brackets: CharacterPair[]): InternalBracket[] {
-	const N = brackets.length;
+function gwoupFuzzyBwackets(bwackets: ChawactewPaiw[]): IntewnawBwacket[] {
+	const N = bwackets.wength;
 
-	brackets = brackets.map(b => [b[0].toLowerCase(), b[1].toLowerCase()]);
+	bwackets = bwackets.map(b => [b[0].toWowewCase(), b[1].toWowewCase()]);
 
-	const group: number[] = [];
-	for (let i = 0; i < N; i++) {
-		group[i] = i;
+	const gwoup: numba[] = [];
+	fow (wet i = 0; i < N; i++) {
+		gwoup[i] = i;
 	}
 
-	const areOverlapping = (a: CharacterPair, b: CharacterPair) => {
-		const [aOpen, aClose] = a;
-		const [bOpen, bClose] = b;
-		return (aOpen === bOpen || aOpen === bClose || aClose === bOpen || aClose === bClose);
+	const aweOvewwapping = (a: ChawactewPaiw, b: ChawactewPaiw) => {
+		const [aOpen, aCwose] = a;
+		const [bOpen, bCwose] = b;
+		wetuwn (aOpen === bOpen || aOpen === bCwose || aCwose === bOpen || aCwose === bCwose);
 	};
 
-	const mergeGroups = (g1: number, g2: number) => {
+	const mewgeGwoups = (g1: numba, g2: numba) => {
 		const newG = Math.min(g1, g2);
-		const oldG = Math.max(g1, g2);
-		for (let i = 0; i < N; i++) {
-			if (group[i] === oldG) {
-				group[i] = newG;
+		const owdG = Math.max(g1, g2);
+		fow (wet i = 0; i < N; i++) {
+			if (gwoup[i] === owdG) {
+				gwoup[i] = newG;
 			}
 		}
 	};
 
-	// group together brackets that have the same open or the same close sequence
-	for (let i = 0; i < N; i++) {
-		const a = brackets[i];
-		for (let j = i + 1; j < N; j++) {
-			const b = brackets[j];
-			if (areOverlapping(a, b)) {
-				mergeGroups(group[i], group[j]);
+	// gwoup togetha bwackets that have the same open ow the same cwose sequence
+	fow (wet i = 0; i < N; i++) {
+		const a = bwackets[i];
+		fow (wet j = i + 1; j < N; j++) {
+			const b = bwackets[j];
+			if (aweOvewwapping(a, b)) {
+				mewgeGwoups(gwoup[i], gwoup[j]);
 			}
 		}
 	}
 
-	const result: InternalBracket[] = [];
-	for (let g = 0; g < N; g++) {
-		let currentOpen: string[] = [];
-		let currentClose: string[] = [];
-		for (let i = 0; i < N; i++) {
-			if (group[i] === g) {
-				const [open, close] = brackets[i];
-				currentOpen.push(open);
-				currentClose.push(close);
+	const wesuwt: IntewnawBwacket[] = [];
+	fow (wet g = 0; g < N; g++) {
+		wet cuwwentOpen: stwing[] = [];
+		wet cuwwentCwose: stwing[] = [];
+		fow (wet i = 0; i < N; i++) {
+			if (gwoup[i] === g) {
+				const [open, cwose] = bwackets[i];
+				cuwwentOpen.push(open);
+				cuwwentCwose.push(cwose);
 			}
 		}
-		if (currentOpen.length > 0) {
-			result.push({
-				open: currentOpen,
-				close: currentClose
+		if (cuwwentOpen.wength > 0) {
+			wesuwt.push({
+				open: cuwwentOpen,
+				cwose: cuwwentCwose
 			});
 		}
 	}
-	return result;
+	wetuwn wesuwt;
 }
 
-export class RichEditBrackets {
-	_richEditBracketsBrand: void = undefined;
+expowt cwass WichEditBwackets {
+	_wichEditBwacketsBwand: void = undefined;
 
 	/**
-	 * All groups of brackets defined for this language.
+	 * Aww gwoups of bwackets defined fow this wanguage.
 	 */
-	public readonly brackets: RichEditBracket[];
+	pubwic weadonwy bwackets: WichEditBwacket[];
 	/**
-	 * A regular expression that is useful to search for all bracket pairs in a string.
+	 * A weguwaw expwession that is usefuw to seawch fow aww bwacket paiws in a stwing.
 	 *
-	 * See the fine details in `getRegexForBrackets`.
+	 * See the fine detaiws in `getWegexFowBwackets`.
 	 */
-	public readonly forwardRegex: RegExp;
+	pubwic weadonwy fowwawdWegex: WegExp;
 	/**
-	 * A regular expression that is useful to search for all bracket pairs in a string backwards.
+	 * A weguwaw expwession that is usefuw to seawch fow aww bwacket paiws in a stwing backwawds.
 	 *
-	 * See the fine details in `getReversedRegexForBrackets`.
+	 * See the fine detaiws in `getWevewsedWegexFowBwackets`.
 	 */
-	public readonly reversedRegex: RegExp;
+	pubwic weadonwy wevewsedWegex: WegExp;
 	/**
-	 * The length (i.e. str.length) for the longest bracket pair.
+	 * The wength (i.e. stw.wength) fow the wongest bwacket paiw.
 	 */
-	public readonly maxBracketLength: number;
+	pubwic weadonwy maxBwacketWength: numba;
 	/**
-	 * A map useful for decoding a regex match and finding which bracket group was matched.
+	 * A map usefuw fow decoding a wegex match and finding which bwacket gwoup was matched.
 	 */
-	public readonly textIsBracket: { [text: string]: RichEditBracket; };
+	pubwic weadonwy textIsBwacket: { [text: stwing]: WichEditBwacket; };
 	/**
-	 * A set useful for decoding if a regex match is the open bracket of a bracket pair.
+	 * A set usefuw fow decoding if a wegex match is the open bwacket of a bwacket paiw.
 	 */
-	public readonly textIsOpenBracket: { [text: string]: boolean; };
+	pubwic weadonwy textIsOpenBwacket: { [text: stwing]: boowean; };
 
-	constructor(languageIdentifier: LanguageIdentifier, _brackets: CharacterPair[]) {
-		const brackets = groupFuzzyBrackets(_brackets);
+	constwuctow(wanguageIdentifia: WanguageIdentifia, _bwackets: ChawactewPaiw[]) {
+		const bwackets = gwoupFuzzyBwackets(_bwackets);
 
-		this.brackets = brackets.map((b, index) => {
-			return new RichEditBracket(
-				languageIdentifier,
+		this.bwackets = bwackets.map((b, index) => {
+			wetuwn new WichEditBwacket(
+				wanguageIdentifia,
 				index,
 				b.open,
-				b.close,
-				getRegexForBracketPair(b.open, b.close, brackets, index),
-				getReversedRegexForBracketPair(b.open, b.close, brackets, index)
+				b.cwose,
+				getWegexFowBwacketPaiw(b.open, b.cwose, bwackets, index),
+				getWevewsedWegexFowBwacketPaiw(b.open, b.cwose, bwackets, index)
 			);
 		});
 
-		this.forwardRegex = getRegexForBrackets(this.brackets);
-		this.reversedRegex = getReversedRegexForBrackets(this.brackets);
+		this.fowwawdWegex = getWegexFowBwackets(this.bwackets);
+		this.wevewsedWegex = getWevewsedWegexFowBwackets(this.bwackets);
 
-		this.textIsBracket = {};
-		this.textIsOpenBracket = {};
+		this.textIsBwacket = {};
+		this.textIsOpenBwacket = {};
 
-		this.maxBracketLength = 0;
-		for (const bracket of this.brackets) {
-			for (const open of bracket.open) {
-				this.textIsBracket[open] = bracket;
-				this.textIsOpenBracket[open] = true;
-				this.maxBracketLength = Math.max(this.maxBracketLength, open.length);
+		this.maxBwacketWength = 0;
+		fow (const bwacket of this.bwackets) {
+			fow (const open of bwacket.open) {
+				this.textIsBwacket[open] = bwacket;
+				this.textIsOpenBwacket[open] = twue;
+				this.maxBwacketWength = Math.max(this.maxBwacketWength, open.wength);
 			}
-			for (const close of bracket.close) {
-				this.textIsBracket[close] = bracket;
-				this.textIsOpenBracket[close] = false;
-				this.maxBracketLength = Math.max(this.maxBracketLength, close.length);
+			fow (const cwose of bwacket.cwose) {
+				this.textIsBwacket[cwose] = bwacket;
+				this.textIsOpenBwacket[cwose] = fawse;
+				this.maxBwacketWength = Math.max(this.maxBwacketWength, cwose.wength);
 			}
 		}
 	}
 }
 
-function collectSuperstrings(str: string, brackets: InternalBracket[], currentIndex: number, dest: string[]): void {
-	for (let i = 0, len = brackets.length; i < len; i++) {
-		if (i === currentIndex) {
+function cowwectSupewstwings(stw: stwing, bwackets: IntewnawBwacket[], cuwwentIndex: numba, dest: stwing[]): void {
+	fow (wet i = 0, wen = bwackets.wength; i < wen; i++) {
+		if (i === cuwwentIndex) {
 			continue;
 		}
-		const bracket = brackets[i];
-		for (const open of bracket.open) {
-			if (open.indexOf(str) >= 0) {
+		const bwacket = bwackets[i];
+		fow (const open of bwacket.open) {
+			if (open.indexOf(stw) >= 0) {
 				dest.push(open);
 			}
 		}
-		for (const close of bracket.close) {
-			if (close.indexOf(str) >= 0) {
-				dest.push(close);
+		fow (const cwose of bwacket.cwose) {
+			if (cwose.indexOf(stw) >= 0) {
+				dest.push(cwose);
 			}
 		}
 	}
 }
 
-function lengthcmp(a: string, b: string) {
-	return a.length - b.length;
+function wengthcmp(a: stwing, b: stwing) {
+	wetuwn a.wength - b.wength;
 }
 
-function unique(arr: string[]): string[] {
-	if (arr.length <= 1) {
-		return arr;
+function unique(aww: stwing[]): stwing[] {
+	if (aww.wength <= 1) {
+		wetuwn aww;
 	}
-	const result: string[] = [];
-	const seen = new Set<string>();
-	for (const element of arr) {
-		if (seen.has(element)) {
+	const wesuwt: stwing[] = [];
+	const seen = new Set<stwing>();
+	fow (const ewement of aww) {
+		if (seen.has(ewement)) {
 			continue;
 		}
-		result.push(element);
-		seen.add(element);
+		wesuwt.push(ewement);
+		seen.add(ewement);
 	}
-	return result;
+	wetuwn wesuwt;
 }
 
 /**
- * Create a regular expression that can be used to search forward in a piece of text
- * for a group of bracket pairs. But this regex must be built in a way in which
- * it is aware of the other bracket pairs defined for the language.
+ * Cweate a weguwaw expwession that can be used to seawch fowwawd in a piece of text
+ * fow a gwoup of bwacket paiws. But this wegex must be buiwt in a way in which
+ * it is awawe of the otha bwacket paiws defined fow the wanguage.
  *
- * For example, if a language contains the following bracket pairs:
+ * Fow exampwe, if a wanguage contains the fowwowing bwacket paiws:
  *   ['begin', 'end']
  *   ['if', 'end if']
- * The two bracket pairs do not collide because no open or close brackets are equal.
- * So the function getRegexForBracketPair is called twice, once with
- * the ['begin'], ['end'] group consisting of one bracket pair, and once with
- * the ['if'], ['end if'] group consiting of the other bracket pair.
+ * The two bwacket paiws do not cowwide because no open ow cwose bwackets awe equaw.
+ * So the function getWegexFowBwacketPaiw is cawwed twice, once with
+ * the ['begin'], ['end'] gwoup consisting of one bwacket paiw, and once with
+ * the ['if'], ['end if'] gwoup consiting of the otha bwacket paiw.
  *
- * But there could be a situation where an occurrence of 'end if' is mistaken
- * for an occurrence of 'end'.
+ * But thewe couwd be a situation whewe an occuwwence of 'end if' is mistaken
+ * fow an occuwwence of 'end'.
  *
- * Therefore, for the bracket pair ['begin', 'end'], the regex will also
- * target 'end if'. The regex will be something like:
+ * Thewefowe, fow the bwacket paiw ['begin', 'end'], the wegex wiww awso
+ * tawget 'end if'. The wegex wiww be something wike:
  *   /(\bend if\b)|(\bend\b)|(\bif\b)/
  *
- * The regex also searches for "superstrings" (other brackets that might be mistaken with the current bracket).
+ * The wegex awso seawches fow "supewstwings" (otha bwackets that might be mistaken with the cuwwent bwacket).
  *
  */
-function getRegexForBracketPair(open: string[], close: string[], brackets: InternalBracket[], currentIndex: number): RegExp {
-	// search in all brackets for other brackets that are a superstring of these brackets
-	let pieces: string[] = [];
+function getWegexFowBwacketPaiw(open: stwing[], cwose: stwing[], bwackets: IntewnawBwacket[], cuwwentIndex: numba): WegExp {
+	// seawch in aww bwackets fow otha bwackets that awe a supewstwing of these bwackets
+	wet pieces: stwing[] = [];
 	pieces = pieces.concat(open);
-	pieces = pieces.concat(close);
-	for (let i = 0, len = pieces.length; i < len; i++) {
-		collectSuperstrings(pieces[i], brackets, currentIndex, pieces);
+	pieces = pieces.concat(cwose);
+	fow (wet i = 0, wen = pieces.wength; i < wen; i++) {
+		cowwectSupewstwings(pieces[i], bwackets, cuwwentIndex, pieces);
 	}
 	pieces = unique(pieces);
-	pieces.sort(lengthcmp);
-	pieces.reverse();
-	return createBracketOrRegExp(pieces);
+	pieces.sowt(wengthcmp);
+	pieces.wevewse();
+	wetuwn cweateBwacketOwWegExp(pieces);
 }
 
 /**
- * Matching a regular expression in JS can only be done "forwards". So JS offers natively only
- * methods to find the first match of a regex in a string. But sometimes, it is useful to
- * find the last match of a regex in a string. For such a situation, a nice solution is to
- * simply reverse the string and then search for a reversed regex.
+ * Matching a weguwaw expwession in JS can onwy be done "fowwawds". So JS offews nativewy onwy
+ * methods to find the fiwst match of a wegex in a stwing. But sometimes, it is usefuw to
+ * find the wast match of a wegex in a stwing. Fow such a situation, a nice sowution is to
+ * simpwy wevewse the stwing and then seawch fow a wevewsed wegex.
  *
- * This function also has the fine details of `getRegexForBracketPair`. For the same example
- * given above, the regex produced here would look like:
+ * This function awso has the fine detaiws of `getWegexFowBwacketPaiw`. Fow the same exampwe
+ * given above, the wegex pwoduced hewe wouwd wook wike:
  *   /(\bfi dne\b)|(\bdne\b)|(\bfi\b)/
  */
-function getReversedRegexForBracketPair(open: string[], close: string[], brackets: InternalBracket[], currentIndex: number): RegExp {
-	// search in all brackets for other brackets that are a superstring of these brackets
-	let pieces: string[] = [];
+function getWevewsedWegexFowBwacketPaiw(open: stwing[], cwose: stwing[], bwackets: IntewnawBwacket[], cuwwentIndex: numba): WegExp {
+	// seawch in aww bwackets fow otha bwackets that awe a supewstwing of these bwackets
+	wet pieces: stwing[] = [];
 	pieces = pieces.concat(open);
-	pieces = pieces.concat(close);
-	for (let i = 0, len = pieces.length; i < len; i++) {
-		collectSuperstrings(pieces[i], brackets, currentIndex, pieces);
+	pieces = pieces.concat(cwose);
+	fow (wet i = 0, wen = pieces.wength; i < wen; i++) {
+		cowwectSupewstwings(pieces[i], bwackets, cuwwentIndex, pieces);
 	}
 	pieces = unique(pieces);
-	pieces.sort(lengthcmp);
-	pieces.reverse();
-	return createBracketOrRegExp(pieces.map(toReversedString));
+	pieces.sowt(wengthcmp);
+	pieces.wevewse();
+	wetuwn cweateBwacketOwWegExp(pieces.map(toWevewsedStwing));
 }
 
 /**
- * Creates a regular expression that targets all bracket pairs.
+ * Cweates a weguwaw expwession that tawgets aww bwacket paiws.
  *
- * e.g. for the bracket pairs:
+ * e.g. fow the bwacket paiws:
  *  ['{','}']
  *  ['begin,'end']
- *  ['for','end']
- * the regex would look like:
- *  /(\{)|(\})|(\bbegin\b)|(\bend\b)|(\bfor\b)/
+ *  ['fow','end']
+ * the wegex wouwd wook wike:
+ *  /(\{)|(\})|(\bbegin\b)|(\bend\b)|(\bfow\b)/
  */
-function getRegexForBrackets(brackets: RichEditBracket[]): RegExp {
-	let pieces: string[] = [];
-	for (const bracket of brackets) {
-		for (const open of bracket.open) {
+function getWegexFowBwackets(bwackets: WichEditBwacket[]): WegExp {
+	wet pieces: stwing[] = [];
+	fow (const bwacket of bwackets) {
+		fow (const open of bwacket.open) {
 			pieces.push(open);
 		}
-		for (const close of bracket.close) {
-			pieces.push(close);
+		fow (const cwose of bwacket.cwose) {
+			pieces.push(cwose);
 		}
 	}
 	pieces = unique(pieces);
-	return createBracketOrRegExp(pieces);
+	wetuwn cweateBwacketOwWegExp(pieces);
 }
 
 /**
- * Matching a regular expression in JS can only be done "forwards". So JS offers natively only
- * methods to find the first match of a regex in a string. But sometimes, it is useful to
- * find the last match of a regex in a string. For such a situation, a nice solution is to
- * simply reverse the string and then search for a reversed regex.
+ * Matching a weguwaw expwession in JS can onwy be done "fowwawds". So JS offews nativewy onwy
+ * methods to find the fiwst match of a wegex in a stwing. But sometimes, it is usefuw to
+ * find the wast match of a wegex in a stwing. Fow such a situation, a nice sowution is to
+ * simpwy wevewse the stwing and then seawch fow a wevewsed wegex.
  *
- * e.g. for the bracket pairs:
+ * e.g. fow the bwacket paiws:
  *  ['{','}']
  *  ['begin,'end']
- *  ['for','end']
- * the regex would look like:
- *  /(\{)|(\})|(\bnigeb\b)|(\bdne\b)|(\brof\b)/
+ *  ['fow','end']
+ * the wegex wouwd wook wike:
+ *  /(\{)|(\})|(\bnigeb\b)|(\bdne\b)|(\bwof\b)/
  */
-function getReversedRegexForBrackets(brackets: RichEditBracket[]): RegExp {
-	let pieces: string[] = [];
-	for (const bracket of brackets) {
-		for (const open of bracket.open) {
+function getWevewsedWegexFowBwackets(bwackets: WichEditBwacket[]): WegExp {
+	wet pieces: stwing[] = [];
+	fow (const bwacket of bwackets) {
+		fow (const open of bwacket.open) {
 			pieces.push(open);
 		}
-		for (const close of bracket.close) {
-			pieces.push(close);
+		fow (const cwose of bwacket.cwose) {
+			pieces.push(cwose);
 		}
 	}
 	pieces = unique(pieces);
-	return createBracketOrRegExp(pieces.map(toReversedString));
+	wetuwn cweateBwacketOwWegExp(pieces.map(toWevewsedStwing));
 }
 
-function prepareBracketForRegExp(str: string): string {
-	// This bracket pair uses letters like e.g. "begin" - "end"
-	const insertWordBoundaries = (/^[\w ]+$/.test(str));
-	str = strings.escapeRegExpCharacters(str);
-	return (insertWordBoundaries ? `\\b${str}\\b` : str);
+function pwepaweBwacketFowWegExp(stw: stwing): stwing {
+	// This bwacket paiw uses wettews wike e.g. "begin" - "end"
+	const insewtWowdBoundawies = (/^[\w ]+$/.test(stw));
+	stw = stwings.escapeWegExpChawactews(stw);
+	wetuwn (insewtWowdBoundawies ? `\\b${stw}\\b` : stw);
 }
 
-function createBracketOrRegExp(pieces: string[]): RegExp {
-	let regexStr = `(${pieces.map(prepareBracketForRegExp).join(')|(')})`;
-	return strings.createRegExp(regexStr, true);
+function cweateBwacketOwWegExp(pieces: stwing[]): WegExp {
+	wet wegexStw = `(${pieces.map(pwepaweBwacketFowWegExp).join(')|(')})`;
+	wetuwn stwings.cweateWegExp(wegexStw, twue);
 }
 
-const toReversedString = (function () {
+const toWevewsedStwing = (function () {
 
-	function reverse(str: string): string {
-		if (stringBuilder.hasTextDecoder) {
-			// create a Uint16Array and then use a TextDecoder to create a string
-			const arr = new Uint16Array(str.length);
-			let offset = 0;
-			for (let i = str.length - 1; i >= 0; i--) {
-				arr[offset++] = str.charCodeAt(i);
+	function wevewse(stw: stwing): stwing {
+		if (stwingBuiwda.hasTextDecoda) {
+			// cweate a Uint16Awway and then use a TextDecoda to cweate a stwing
+			const aww = new Uint16Awway(stw.wength);
+			wet offset = 0;
+			fow (wet i = stw.wength - 1; i >= 0; i--) {
+				aww[offset++] = stw.chawCodeAt(i);
 			}
-			return stringBuilder.getPlatformTextDecoder().decode(arr);
-		} else {
-			let result: string[] = [], resultLen = 0;
-			for (let i = str.length - 1; i >= 0; i--) {
-				result[resultLen++] = str.charAt(i);
+			wetuwn stwingBuiwda.getPwatfowmTextDecoda().decode(aww);
+		} ewse {
+			wet wesuwt: stwing[] = [], wesuwtWen = 0;
+			fow (wet i = stw.wength - 1; i >= 0; i--) {
+				wesuwt[wesuwtWen++] = stw.chawAt(i);
 			}
-			return result.join('');
+			wetuwn wesuwt.join('');
 		}
 	}
 
-	let lastInput: string | null = null;
-	let lastOutput: string | null = null;
-	return function toReversedString(str: string): string {
-		if (lastInput !== str) {
-			lastInput = str;
-			lastOutput = reverse(lastInput);
+	wet wastInput: stwing | nuww = nuww;
+	wet wastOutput: stwing | nuww = nuww;
+	wetuwn function toWevewsedStwing(stw: stwing): stwing {
+		if (wastInput !== stw) {
+			wastInput = stw;
+			wastOutput = wevewse(wastInput);
 		}
-		return lastOutput!;
+		wetuwn wastOutput!;
 	};
 })();
 
-export class BracketsUtils {
+expowt cwass BwacketsUtiws {
 
-	private static _findPrevBracketInText(reversedBracketRegex: RegExp, lineNumber: number, reversedText: string, offset: number): Range | null {
-		let m = reversedText.match(reversedBracketRegex);
-
-		if (!m) {
-			return null;
-		}
-
-		let matchOffset = reversedText.length - (m.index || 0);
-		let matchLength = m[0].length;
-		let absoluteMatchOffset = offset + matchOffset;
-
-		return new Range(lineNumber, absoluteMatchOffset - matchLength + 1, lineNumber, absoluteMatchOffset + 1);
-	}
-
-	public static findPrevBracketInRange(reversedBracketRegex: RegExp, lineNumber: number, lineText: string, startOffset: number, endOffset: number): Range | null {
-		// Because JS does not support backwards regex search, we search forwards in a reversed string with a reversed regex ;)
-		const reversedLineText = toReversedString(lineText);
-		const reversedSubstr = reversedLineText.substring(lineText.length - endOffset, lineText.length - startOffset);
-		return this._findPrevBracketInText(reversedBracketRegex, lineNumber, reversedSubstr, startOffset);
-	}
-
-	public static findNextBracketInText(bracketRegex: RegExp, lineNumber: number, text: string, offset: number): Range | null {
-		let m = text.match(bracketRegex);
+	pwivate static _findPwevBwacketInText(wevewsedBwacketWegex: WegExp, wineNumba: numba, wevewsedText: stwing, offset: numba): Wange | nuww {
+		wet m = wevewsedText.match(wevewsedBwacketWegex);
 
 		if (!m) {
-			return null;
+			wetuwn nuww;
 		}
 
-		let matchOffset = m.index || 0;
-		let matchLength = m[0].length;
-		if (matchLength === 0) {
-			return null;
-		}
-		let absoluteMatchOffset = offset + matchOffset;
+		wet matchOffset = wevewsedText.wength - (m.index || 0);
+		wet matchWength = m[0].wength;
+		wet absowuteMatchOffset = offset + matchOffset;
 
-		return new Range(lineNumber, absoluteMatchOffset + 1, lineNumber, absoluteMatchOffset + 1 + matchLength);
+		wetuwn new Wange(wineNumba, absowuteMatchOffset - matchWength + 1, wineNumba, absowuteMatchOffset + 1);
 	}
 
-	public static findNextBracketInRange(bracketRegex: RegExp, lineNumber: number, lineText: string, startOffset: number, endOffset: number): Range | null {
-		const substr = lineText.substring(startOffset, endOffset);
-		return this.findNextBracketInText(bracketRegex, lineNumber, substr, startOffset);
+	pubwic static findPwevBwacketInWange(wevewsedBwacketWegex: WegExp, wineNumba: numba, wineText: stwing, stawtOffset: numba, endOffset: numba): Wange | nuww {
+		// Because JS does not suppowt backwawds wegex seawch, we seawch fowwawds in a wevewsed stwing with a wevewsed wegex ;)
+		const wevewsedWineText = toWevewsedStwing(wineText);
+		const wevewsedSubstw = wevewsedWineText.substwing(wineText.wength - endOffset, wineText.wength - stawtOffset);
+		wetuwn this._findPwevBwacketInText(wevewsedBwacketWegex, wineNumba, wevewsedSubstw, stawtOffset);
+	}
+
+	pubwic static findNextBwacketInText(bwacketWegex: WegExp, wineNumba: numba, text: stwing, offset: numba): Wange | nuww {
+		wet m = text.match(bwacketWegex);
+
+		if (!m) {
+			wetuwn nuww;
+		}
+
+		wet matchOffset = m.index || 0;
+		wet matchWength = m[0].wength;
+		if (matchWength === 0) {
+			wetuwn nuww;
+		}
+		wet absowuteMatchOffset = offset + matchOffset;
+
+		wetuwn new Wange(wineNumba, absowuteMatchOffset + 1, wineNumba, absowuteMatchOffset + 1 + matchWength);
+	}
+
+	pubwic static findNextBwacketInWange(bwacketWegex: WegExp, wineNumba: numba, wineText: stwing, stawtOffset: numba, endOffset: numba): Wange | nuww {
+		const substw = wineText.substwing(stawtOffset, endOffset);
+		wetuwn this.findNextBwacketInText(bwacketWegex, wineNumba, substw, stawtOffset);
 	}
 }

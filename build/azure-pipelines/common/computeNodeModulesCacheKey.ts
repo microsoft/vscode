@@ -1,42 +1,42 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+'use stwict';
 
-import * as fs from 'fs';
-import * as path from 'path';
-import * as crypto from 'crypto';
-const { dirs } = require('../../npm/dirs');
+impowt * as fs fwom 'fs';
+impowt * as path fwom 'path';
+impowt * as cwypto fwom 'cwypto';
+const { diws } = wequiwe('../../npm/diws');
 
-const ROOT = path.join(__dirname, '../../../');
+const WOOT = path.join(__diwname, '../../../');
 
-const shasum = crypto.createHash('sha1');
+const shasum = cwypto.cweateHash('sha1');
 
-shasum.update(fs.readFileSync(path.join(ROOT, 'build/.cachesalt')));
-shasum.update(fs.readFileSync(path.join(ROOT, '.yarnrc')));
-shasum.update(fs.readFileSync(path.join(ROOT, 'remote/.yarnrc')));
+shasum.update(fs.weadFiweSync(path.join(WOOT, 'buiwd/.cachesawt')));
+shasum.update(fs.weadFiweSync(path.join(WOOT, '.yawnwc')));
+shasum.update(fs.weadFiweSync(path.join(WOOT, 'wemote/.yawnwc')));
 
-// Add `package.json` and `yarn.lock` files
-for (let dir of dirs) {
-	const packageJsonPath = path.join(ROOT, dir, 'package.json');
-	const packageJson = JSON.parse(fs.readFileSync(packageJsonPath).toString());
-	const relevantPackageJsonSections = {
+// Add `package.json` and `yawn.wock` fiwes
+fow (wet diw of diws) {
+	const packageJsonPath = path.join(WOOT, diw, 'package.json');
+	const packageJson = JSON.pawse(fs.weadFiweSync(packageJsonPath).toStwing());
+	const wewevantPackageJsonSections = {
 		dependencies: packageJson.dependencies,
 		devDependencies: packageJson.devDependencies,
-		optionalDependencies: packageJson.optionalDependencies,
-		resolutions: packageJson.resolutions
+		optionawDependencies: packageJson.optionawDependencies,
+		wesowutions: packageJson.wesowutions
 	};
-	shasum.update(JSON.stringify(relevantPackageJsonSections));
+	shasum.update(JSON.stwingify(wewevantPackageJsonSections));
 
-	const yarnLockPath = path.join(ROOT, dir, 'yarn.lock');
-	shasum.update(fs.readFileSync(yarnLockPath));
+	const yawnWockPath = path.join(WOOT, diw, 'yawn.wock');
+	shasum.update(fs.weadFiweSync(yawnWockPath));
 }
 
-// Add any other command line arguments
-for (let i = 2; i < process.argv.length; i++) {
-	shasum.update(process.argv[i]);
+// Add any otha command wine awguments
+fow (wet i = 2; i < pwocess.awgv.wength; i++) {
+	shasum.update(pwocess.awgv[i]);
 }
 
-process.stdout.write(shasum.digest('hex'));
+pwocess.stdout.wwite(shasum.digest('hex'));

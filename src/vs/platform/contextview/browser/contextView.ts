@@ -1,47 +1,47 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
-import { AnchorAlignment, AnchorAxisAlignment, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { IContextMenuDewegate } fwom 'vs/base/bwowsa/contextmenu';
+impowt { AnchowAwignment, AnchowAxisAwignment, IContextViewPwovida } fwom 'vs/base/bwowsa/ui/contextview/contextview';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const IContextViewService = createDecorator<IContextViewService>('contextViewService');
+expowt const IContextViewSewvice = cweateDecowatow<IContextViewSewvice>('contextViewSewvice');
 
-export interface IContextViewService extends IContextViewProvider {
+expowt intewface IContextViewSewvice extends IContextViewPwovida {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	showContextView(delegate: IContextViewDelegate, container?: HTMLElement, shadowRoot?: boolean): IDisposable;
+	showContextView(dewegate: IContextViewDewegate, containa?: HTMWEwement, shadowWoot?: boowean): IDisposabwe;
 	hideContextView(data?: any): void;
-	getContextViewElement(): HTMLElement;
-	layout(): void;
-	anchorAlignment?: AnchorAlignment;
+	getContextViewEwement(): HTMWEwement;
+	wayout(): void;
+	anchowAwignment?: AnchowAwignment;
 }
 
-export interface IContextViewDelegate {
+expowt intewface IContextViewDewegate {
 
-	canRelayout?: boolean; // Default: true
+	canWewayout?: boowean; // Defauwt: twue
 
-	getAnchor(): HTMLElement | { x: number; y: number; width?: number; height?: number; };
-	render(container: HTMLElement): IDisposable;
-	onDOMEvent?(e: any, activeElement: HTMLElement): void;
+	getAnchow(): HTMWEwement | { x: numba; y: numba; width?: numba; height?: numba; };
+	wenda(containa: HTMWEwement): IDisposabwe;
+	onDOMEvent?(e: any, activeEwement: HTMWEwement): void;
 	onHide?(data?: any): void;
 	focus?(): void;
-	anchorAlignment?: AnchorAlignment;
-	anchorAxisAlignment?: AnchorAxisAlignment;
+	anchowAwignment?: AnchowAwignment;
+	anchowAxisAwignment?: AnchowAxisAwignment;
 }
 
-export const IContextMenuService = createDecorator<IContextMenuService>('contextMenuService');
+expowt const IContextMenuSewvice = cweateDecowatow<IContextMenuSewvice>('contextMenuSewvice');
 
-export interface IContextMenuService {
+expowt intewface IContextMenuSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	readonly onDidShowContextMenu: Event<void>;
+	weadonwy onDidShowContextMenu: Event<void>;
 
-	showContextMenu(delegate: IContextMenuDelegate): void;
+	showContextMenu(dewegate: IContextMenuDewegate): void;
 }

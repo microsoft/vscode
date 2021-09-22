@@ -1,50 +1,50 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { QuickInputController } from 'vs/base/parts/quickinput/browser/quickInput';
-import { QuickInputService as BaseQuickInputService } from 'vs/platform/quickinput/browser/quickInput';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { InQuickPickContextKey } from 'vs/workbench/browser/quickaccess';
+impowt { IWayoutSewvice } fwom 'vs/pwatfowm/wayout/bwowsa/wayoutSewvice';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IAccessibiwitySewvice } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { QuickInputContwowwa } fwom 'vs/base/pawts/quickinput/bwowsa/quickInput';
+impowt { QuickInputSewvice as BaseQuickInputSewvice } fwom 'vs/pwatfowm/quickinput/bwowsa/quickInput';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IQuickInputSewvice } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { InQuickPickContextKey } fwom 'vs/wowkbench/bwowsa/quickaccess';
 
-export class QuickInputService extends BaseQuickInputService {
+expowt cwass QuickInputSewvice extends BaseQuickInputSewvice {
 
-	private readonly inQuickInputContext = InQuickPickContextKey.bindTo(this.contextKeyService);
+	pwivate weadonwy inQuickInputContext = InQuickPickContextKey.bindTo(this.contextKeySewvice);
 
-	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@ILayoutService layoutService: ILayoutService,
+	constwuctow(
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IKeybindingSewvice pwivate weadonwy keybindingSewvice: IKeybindingSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IAccessibiwitySewvice accessibiwitySewvice: IAccessibiwitySewvice,
+		@IWayoutSewvice wayoutSewvice: IWayoutSewvice,
 	) {
-		super(instantiationService, contextKeyService, themeService, accessibilityService, layoutService);
+		supa(instantiationSewvice, contextKeySewvice, themeSewvice, accessibiwitySewvice, wayoutSewvice);
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		this._register(this.onShow(() => this.inQuickInputContext.set(true)));
-		this._register(this.onHide(() => this.inQuickInputContext.set(false)));
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.onShow(() => this.inQuickInputContext.set(twue)));
+		this._wegista(this.onHide(() => this.inQuickInputContext.set(fawse)));
 	}
 
-	protected override createController(): QuickInputController {
-		return super.createController(this.layoutService, {
-			ignoreFocusOut: () => !this.configurationService.getValue('workbench.quickOpen.closeOnFocusLost'),
-			backKeybindingLabel: () => this.keybindingService.lookupKeybinding('workbench.action.quickInputBack')?.getLabel() || undefined,
+	pwotected ovewwide cweateContwowwa(): QuickInputContwowwa {
+		wetuwn supa.cweateContwowwa(this.wayoutSewvice, {
+			ignoweFocusOut: () => !this.configuwationSewvice.getVawue('wowkbench.quickOpen.cwoseOnFocusWost'),
+			backKeybindingWabew: () => this.keybindingSewvice.wookupKeybinding('wowkbench.action.quickInputBack')?.getWabew() || undefined,
 		});
 	}
 }
 
-registerSingleton(IQuickInputService, QuickInputService, true);
+wegistewSingweton(IQuickInputSewvice, QuickInputSewvice, twue);

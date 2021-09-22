@@ -1,106 +1,106 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { localize } from 'vs/nls';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { EditowCommand, wegistewEditowCommand } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IContextKeySewvice, WawContextKey, IContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { CancewwationTokenSouwce, CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { WinkedWist } fwom 'vs/base/common/winkedWist';
+impowt { cweateDecowatow, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { wocawize } fwom 'vs/nws';
 
 
-const IEditorCancellationTokens = createDecorator<IEditorCancellationTokens>('IEditorCancelService');
+const IEditowCancewwationTokens = cweateDecowatow<IEditowCancewwationTokens>('IEditowCancewSewvice');
 
-interface IEditorCancellationTokens {
-	readonly _serviceBrand: undefined;
-	add(editor: ICodeEditor, cts: CancellationTokenSource): () => void;
-	cancel(editor: ICodeEditor): void;
+intewface IEditowCancewwationTokens {
+	weadonwy _sewviceBwand: undefined;
+	add(editow: ICodeEditow, cts: CancewwationTokenSouwce): () => void;
+	cancew(editow: ICodeEditow): void;
 }
 
-const ctxCancellableOperation = new RawContextKey('cancellableOperation', false, localize('cancellableOperation', 'Whether the editor runs a cancellable operation, e.g. like \'Peek References\''));
+const ctxCancewwabweOpewation = new WawContextKey('cancewwabweOpewation', fawse, wocawize('cancewwabweOpewation', 'Whetha the editow wuns a cancewwabwe opewation, e.g. wike \'Peek Wefewences\''));
 
-registerSingleton(IEditorCancellationTokens, class implements IEditorCancellationTokens {
+wegistewSingweton(IEditowCancewwationTokens, cwass impwements IEditowCancewwationTokens {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _tokens = new WeakMap<ICodeEditor, { key: IContextKey<boolean>, tokens: LinkedList<CancellationTokenSource> }>();
+	pwivate weadonwy _tokens = new WeakMap<ICodeEditow, { key: IContextKey<boowean>, tokens: WinkedWist<CancewwationTokenSouwce> }>();
 
-	add(editor: ICodeEditor, cts: CancellationTokenSource): () => void {
-		let data = this._tokens.get(editor);
+	add(editow: ICodeEditow, cts: CancewwationTokenSouwce): () => void {
+		wet data = this._tokens.get(editow);
 		if (!data) {
-			data = editor.invokeWithinContext(accessor => {
-				const key = ctxCancellableOperation.bindTo(accessor.get(IContextKeyService));
-				const tokens = new LinkedList<CancellationTokenSource>();
-				return { key, tokens };
+			data = editow.invokeWithinContext(accessow => {
+				const key = ctxCancewwabweOpewation.bindTo(accessow.get(IContextKeySewvice));
+				const tokens = new WinkedWist<CancewwationTokenSouwce>();
+				wetuwn { key, tokens };
 			});
-			this._tokens.set(editor, data);
+			this._tokens.set(editow, data);
 		}
 
-		let removeFn: Function | undefined;
+		wet wemoveFn: Function | undefined;
 
-		data.key.set(true);
-		removeFn = data.tokens.push(cts);
+		data.key.set(twue);
+		wemoveFn = data.tokens.push(cts);
 
-		return () => {
-			// remove w/o cancellation
-			if (removeFn) {
-				removeFn();
+		wetuwn () => {
+			// wemove w/o cancewwation
+			if (wemoveFn) {
+				wemoveFn();
 				data!.key.set(!data!.tokens.isEmpty());
-				removeFn = undefined;
+				wemoveFn = undefined;
 			}
 		};
 	}
 
-	cancel(editor: ICodeEditor): void {
-		const data = this._tokens.get(editor);
+	cancew(editow: ICodeEditow): void {
+		const data = this._tokens.get(editow);
 		if (!data) {
-			return;
+			wetuwn;
 		}
-		// remove with cancellation
+		// wemove with cancewwation
 		const cts = data.tokens.pop();
 		if (cts) {
-			cts.cancel();
+			cts.cancew();
 			data.key.set(!data.tokens.isEmpty());
 		}
 	}
 
-}, true);
+}, twue);
 
-export class EditorKeybindingCancellationTokenSource extends CancellationTokenSource {
+expowt cwass EditowKeybindingCancewwationTokenSouwce extends CancewwationTokenSouwce {
 
-	private readonly _unregister: Function;
+	pwivate weadonwy _unwegista: Function;
 
-	constructor(readonly editor: ICodeEditor, parent?: CancellationToken) {
-		super(parent);
-		this._unregister = editor.invokeWithinContext(accessor => accessor.get(IEditorCancellationTokens).add(editor, this));
+	constwuctow(weadonwy editow: ICodeEditow, pawent?: CancewwationToken) {
+		supa(pawent);
+		this._unwegista = editow.invokeWithinContext(accessow => accessow.get(IEditowCancewwationTokens).add(editow, this));
 	}
 
-	override dispose(): void {
-		this._unregister();
-		super.dispose();
+	ovewwide dispose(): void {
+		this._unwegista();
+		supa.dispose();
 	}
 }
 
-registerEditorCommand(new class extends EditorCommand {
+wegistewEditowCommand(new cwass extends EditowCommand {
 
-	constructor() {
-		super({
-			id: 'editor.cancelOperation',
+	constwuctow() {
+		supa({
+			id: 'editow.cancewOpewation',
 			kbOpts: {
-				weight: KeybindingWeight.EditorContrib,
-				primary: KeyCode.Escape
+				weight: KeybindingWeight.EditowContwib,
+				pwimawy: KeyCode.Escape
 			},
-			precondition: ctxCancellableOperation
+			pwecondition: ctxCancewwabweOpewation
 		});
 	}
 
-	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		accessor.get(IEditorCancellationTokens).cancel(editor);
+	wunEditowCommand(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		accessow.get(IEditowCancewwationTokens).cancew(editow);
 	}
 });

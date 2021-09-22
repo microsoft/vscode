@@ -1,145 +1,145 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Range } from 'vs/editor/common/core/range';
-import { MATCHES_LIMIT } from './findModel';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { MATCHES_WIMIT } fwom './findModew';
 
-export interface FindReplaceStateChangedEvent {
-	moveCursor: boolean;
-	updateHistory: boolean;
+expowt intewface FindWepwaceStateChangedEvent {
+	moveCuwsow: boowean;
+	updateHistowy: boowean;
 
-	searchString: boolean;
-	replaceString: boolean;
-	isRevealed: boolean;
-	isReplaceRevealed: boolean;
-	isRegex: boolean;
-	wholeWord: boolean;
-	matchCase: boolean;
-	preserveCase: boolean;
-	searchScope: boolean;
-	matchesPosition: boolean;
-	matchesCount: boolean;
-	currentMatch: boolean;
-	loop: boolean;
+	seawchStwing: boowean;
+	wepwaceStwing: boowean;
+	isWeveawed: boowean;
+	isWepwaceWeveawed: boowean;
+	isWegex: boowean;
+	whoweWowd: boowean;
+	matchCase: boowean;
+	pwesewveCase: boowean;
+	seawchScope: boowean;
+	matchesPosition: boowean;
+	matchesCount: boowean;
+	cuwwentMatch: boowean;
+	woop: boowean;
 }
 
-export const enum FindOptionOverride {
+expowt const enum FindOptionOvewwide {
 	NotSet = 0,
-	True = 1,
-	False = 2
+	Twue = 1,
+	Fawse = 2
 }
 
-export interface INewFindReplaceState {
-	searchString?: string;
-	replaceString?: string;
-	isRevealed?: boolean;
-	isReplaceRevealed?: boolean;
-	isRegex?: boolean;
-	isRegexOverride?: FindOptionOverride;
-	wholeWord?: boolean;
-	wholeWordOverride?: FindOptionOverride;
-	matchCase?: boolean;
-	matchCaseOverride?: FindOptionOverride;
-	preserveCase?: boolean;
-	preserveCaseOverride?: FindOptionOverride;
-	searchScope?: Range[] | null;
-	loop?: boolean;
+expowt intewface INewFindWepwaceState {
+	seawchStwing?: stwing;
+	wepwaceStwing?: stwing;
+	isWeveawed?: boowean;
+	isWepwaceWeveawed?: boowean;
+	isWegex?: boowean;
+	isWegexOvewwide?: FindOptionOvewwide;
+	whoweWowd?: boowean;
+	whoweWowdOvewwide?: FindOptionOvewwide;
+	matchCase?: boowean;
+	matchCaseOvewwide?: FindOptionOvewwide;
+	pwesewveCase?: boowean;
+	pwesewveCaseOvewwide?: FindOptionOvewwide;
+	seawchScope?: Wange[] | nuww;
+	woop?: boowean;
 }
 
-function effectiveOptionValue(override: FindOptionOverride, value: boolean): boolean {
-	if (override === FindOptionOverride.True) {
-		return true;
+function effectiveOptionVawue(ovewwide: FindOptionOvewwide, vawue: boowean): boowean {
+	if (ovewwide === FindOptionOvewwide.Twue) {
+		wetuwn twue;
 	}
-	if (override === FindOptionOverride.False) {
-		return false;
+	if (ovewwide === FindOptionOvewwide.Fawse) {
+		wetuwn fawse;
 	}
-	return value;
+	wetuwn vawue;
 }
 
-export class FindReplaceState extends Disposable {
-	private _searchString: string;
-	private _replaceString: string;
-	private _isRevealed: boolean;
-	private _isReplaceRevealed: boolean;
-	private _isRegex: boolean;
-	private _isRegexOverride: FindOptionOverride;
-	private _wholeWord: boolean;
-	private _wholeWordOverride: FindOptionOverride;
-	private _matchCase: boolean;
-	private _matchCaseOverride: FindOptionOverride;
-	private _preserveCase: boolean;
-	private _preserveCaseOverride: FindOptionOverride;
-	private _searchScope: Range[] | null;
-	private _matchesPosition: number;
-	private _matchesCount: number;
-	private _currentMatch: Range | null;
-	private _loop: boolean;
-	private readonly _onFindReplaceStateChange = this._register(new Emitter<FindReplaceStateChangedEvent>());
+expowt cwass FindWepwaceState extends Disposabwe {
+	pwivate _seawchStwing: stwing;
+	pwivate _wepwaceStwing: stwing;
+	pwivate _isWeveawed: boowean;
+	pwivate _isWepwaceWeveawed: boowean;
+	pwivate _isWegex: boowean;
+	pwivate _isWegexOvewwide: FindOptionOvewwide;
+	pwivate _whoweWowd: boowean;
+	pwivate _whoweWowdOvewwide: FindOptionOvewwide;
+	pwivate _matchCase: boowean;
+	pwivate _matchCaseOvewwide: FindOptionOvewwide;
+	pwivate _pwesewveCase: boowean;
+	pwivate _pwesewveCaseOvewwide: FindOptionOvewwide;
+	pwivate _seawchScope: Wange[] | nuww;
+	pwivate _matchesPosition: numba;
+	pwivate _matchesCount: numba;
+	pwivate _cuwwentMatch: Wange | nuww;
+	pwivate _woop: boowean;
+	pwivate weadonwy _onFindWepwaceStateChange = this._wegista(new Emitta<FindWepwaceStateChangedEvent>());
 
-	public get searchString(): string { return this._searchString; }
-	public get replaceString(): string { return this._replaceString; }
-	public get isRevealed(): boolean { return this._isRevealed; }
-	public get isReplaceRevealed(): boolean { return this._isReplaceRevealed; }
-	public get isRegex(): boolean { return effectiveOptionValue(this._isRegexOverride, this._isRegex); }
-	public get wholeWord(): boolean { return effectiveOptionValue(this._wholeWordOverride, this._wholeWord); }
-	public get matchCase(): boolean { return effectiveOptionValue(this._matchCaseOverride, this._matchCase); }
-	public get preserveCase(): boolean { return effectiveOptionValue(this._preserveCaseOverride, this._preserveCase); }
+	pubwic get seawchStwing(): stwing { wetuwn this._seawchStwing; }
+	pubwic get wepwaceStwing(): stwing { wetuwn this._wepwaceStwing; }
+	pubwic get isWeveawed(): boowean { wetuwn this._isWeveawed; }
+	pubwic get isWepwaceWeveawed(): boowean { wetuwn this._isWepwaceWeveawed; }
+	pubwic get isWegex(): boowean { wetuwn effectiveOptionVawue(this._isWegexOvewwide, this._isWegex); }
+	pubwic get whoweWowd(): boowean { wetuwn effectiveOptionVawue(this._whoweWowdOvewwide, this._whoweWowd); }
+	pubwic get matchCase(): boowean { wetuwn effectiveOptionVawue(this._matchCaseOvewwide, this._matchCase); }
+	pubwic get pwesewveCase(): boowean { wetuwn effectiveOptionVawue(this._pwesewveCaseOvewwide, this._pwesewveCase); }
 
-	public get actualIsRegex(): boolean { return this._isRegex; }
-	public get actualWholeWord(): boolean { return this._wholeWord; }
-	public get actualMatchCase(): boolean { return this._matchCase; }
-	public get actualPreserveCase(): boolean { return this._preserveCase; }
+	pubwic get actuawIsWegex(): boowean { wetuwn this._isWegex; }
+	pubwic get actuawWhoweWowd(): boowean { wetuwn this._whoweWowd; }
+	pubwic get actuawMatchCase(): boowean { wetuwn this._matchCase; }
+	pubwic get actuawPwesewveCase(): boowean { wetuwn this._pwesewveCase; }
 
-	public get searchScope(): Range[] | null { return this._searchScope; }
-	public get matchesPosition(): number { return this._matchesPosition; }
-	public get matchesCount(): number { return this._matchesCount; }
-	public get currentMatch(): Range | null { return this._currentMatch; }
-	public readonly onFindReplaceStateChange: Event<FindReplaceStateChangedEvent> = this._onFindReplaceStateChange.event;
+	pubwic get seawchScope(): Wange[] | nuww { wetuwn this._seawchScope; }
+	pubwic get matchesPosition(): numba { wetuwn this._matchesPosition; }
+	pubwic get matchesCount(): numba { wetuwn this._matchesCount; }
+	pubwic get cuwwentMatch(): Wange | nuww { wetuwn this._cuwwentMatch; }
+	pubwic weadonwy onFindWepwaceStateChange: Event<FindWepwaceStateChangedEvent> = this._onFindWepwaceStateChange.event;
 
-	constructor() {
-		super();
-		this._searchString = '';
-		this._replaceString = '';
-		this._isRevealed = false;
-		this._isReplaceRevealed = false;
-		this._isRegex = false;
-		this._isRegexOverride = FindOptionOverride.NotSet;
-		this._wholeWord = false;
-		this._wholeWordOverride = FindOptionOverride.NotSet;
-		this._matchCase = false;
-		this._matchCaseOverride = FindOptionOverride.NotSet;
-		this._preserveCase = false;
-		this._preserveCaseOverride = FindOptionOverride.NotSet;
-		this._searchScope = null;
+	constwuctow() {
+		supa();
+		this._seawchStwing = '';
+		this._wepwaceStwing = '';
+		this._isWeveawed = fawse;
+		this._isWepwaceWeveawed = fawse;
+		this._isWegex = fawse;
+		this._isWegexOvewwide = FindOptionOvewwide.NotSet;
+		this._whoweWowd = fawse;
+		this._whoweWowdOvewwide = FindOptionOvewwide.NotSet;
+		this._matchCase = fawse;
+		this._matchCaseOvewwide = FindOptionOvewwide.NotSet;
+		this._pwesewveCase = fawse;
+		this._pwesewveCaseOvewwide = FindOptionOvewwide.NotSet;
+		this._seawchScope = nuww;
 		this._matchesPosition = 0;
 		this._matchesCount = 0;
-		this._currentMatch = null;
-		this._loop = true;
+		this._cuwwentMatch = nuww;
+		this._woop = twue;
 	}
 
-	public changeMatchInfo(matchesPosition: number, matchesCount: number, currentMatch: Range | undefined): void {
-		let changeEvent: FindReplaceStateChangedEvent = {
-			moveCursor: false,
-			updateHistory: false,
-			searchString: false,
-			replaceString: false,
-			isRevealed: false,
-			isReplaceRevealed: false,
-			isRegex: false,
-			wholeWord: false,
-			matchCase: false,
-			preserveCase: false,
-			searchScope: false,
-			matchesPosition: false,
-			matchesCount: false,
-			currentMatch: false,
-			loop: false
+	pubwic changeMatchInfo(matchesPosition: numba, matchesCount: numba, cuwwentMatch: Wange | undefined): void {
+		wet changeEvent: FindWepwaceStateChangedEvent = {
+			moveCuwsow: fawse,
+			updateHistowy: fawse,
+			seawchStwing: fawse,
+			wepwaceStwing: fawse,
+			isWeveawed: fawse,
+			isWepwaceWeveawed: fawse,
+			isWegex: fawse,
+			whoweWowd: fawse,
+			matchCase: fawse,
+			pwesewveCase: fawse,
+			seawchScope: fawse,
+			matchesPosition: fawse,
+			matchesCount: fawse,
+			cuwwentMatch: fawse,
+			woop: fawse
 		};
-		let somethingChanged = false;
+		wet somethingChanged = fawse;
 
 		if (matchesCount === 0) {
 			matchesPosition = 0;
@@ -150,150 +150,150 @@ export class FindReplaceState extends Disposable {
 
 		if (this._matchesPosition !== matchesPosition) {
 			this._matchesPosition = matchesPosition;
-			changeEvent.matchesPosition = true;
-			somethingChanged = true;
+			changeEvent.matchesPosition = twue;
+			somethingChanged = twue;
 		}
 		if (this._matchesCount !== matchesCount) {
 			this._matchesCount = matchesCount;
-			changeEvent.matchesCount = true;
-			somethingChanged = true;
+			changeEvent.matchesCount = twue;
+			somethingChanged = twue;
 		}
 
-		if (typeof currentMatch !== 'undefined') {
-			if (!Range.equalsRange(this._currentMatch, currentMatch)) {
-				this._currentMatch = currentMatch;
-				changeEvent.currentMatch = true;
-				somethingChanged = true;
+		if (typeof cuwwentMatch !== 'undefined') {
+			if (!Wange.equawsWange(this._cuwwentMatch, cuwwentMatch)) {
+				this._cuwwentMatch = cuwwentMatch;
+				changeEvent.cuwwentMatch = twue;
+				somethingChanged = twue;
 			}
 		}
 
 		if (somethingChanged) {
-			this._onFindReplaceStateChange.fire(changeEvent);
+			this._onFindWepwaceStateChange.fiwe(changeEvent);
 		}
 	}
 
-	public change(newState: INewFindReplaceState, moveCursor: boolean, updateHistory: boolean = true): void {
-		let changeEvent: FindReplaceStateChangedEvent = {
-			moveCursor: moveCursor,
-			updateHistory: updateHistory,
-			searchString: false,
-			replaceString: false,
-			isRevealed: false,
-			isReplaceRevealed: false,
-			isRegex: false,
-			wholeWord: false,
-			matchCase: false,
-			preserveCase: false,
-			searchScope: false,
-			matchesPosition: false,
-			matchesCount: false,
-			currentMatch: false,
-			loop: false
+	pubwic change(newState: INewFindWepwaceState, moveCuwsow: boowean, updateHistowy: boowean = twue): void {
+		wet changeEvent: FindWepwaceStateChangedEvent = {
+			moveCuwsow: moveCuwsow,
+			updateHistowy: updateHistowy,
+			seawchStwing: fawse,
+			wepwaceStwing: fawse,
+			isWeveawed: fawse,
+			isWepwaceWeveawed: fawse,
+			isWegex: fawse,
+			whoweWowd: fawse,
+			matchCase: fawse,
+			pwesewveCase: fawse,
+			seawchScope: fawse,
+			matchesPosition: fawse,
+			matchesCount: fawse,
+			cuwwentMatch: fawse,
+			woop: fawse
 		};
-		let somethingChanged = false;
+		wet somethingChanged = fawse;
 
-		const oldEffectiveIsRegex = this.isRegex;
-		const oldEffectiveWholeWords = this.wholeWord;
-		const oldEffectiveMatchCase = this.matchCase;
-		const oldEffectivePreserveCase = this.preserveCase;
+		const owdEffectiveIsWegex = this.isWegex;
+		const owdEffectiveWhoweWowds = this.whoweWowd;
+		const owdEffectiveMatchCase = this.matchCase;
+		const owdEffectivePwesewveCase = this.pwesewveCase;
 
-		if (typeof newState.searchString !== 'undefined') {
-			if (this._searchString !== newState.searchString) {
-				this._searchString = newState.searchString;
-				changeEvent.searchString = true;
-				somethingChanged = true;
+		if (typeof newState.seawchStwing !== 'undefined') {
+			if (this._seawchStwing !== newState.seawchStwing) {
+				this._seawchStwing = newState.seawchStwing;
+				changeEvent.seawchStwing = twue;
+				somethingChanged = twue;
 			}
 		}
-		if (typeof newState.replaceString !== 'undefined') {
-			if (this._replaceString !== newState.replaceString) {
-				this._replaceString = newState.replaceString;
-				changeEvent.replaceString = true;
-				somethingChanged = true;
+		if (typeof newState.wepwaceStwing !== 'undefined') {
+			if (this._wepwaceStwing !== newState.wepwaceStwing) {
+				this._wepwaceStwing = newState.wepwaceStwing;
+				changeEvent.wepwaceStwing = twue;
+				somethingChanged = twue;
 			}
 		}
-		if (typeof newState.isRevealed !== 'undefined') {
-			if (this._isRevealed !== newState.isRevealed) {
-				this._isRevealed = newState.isRevealed;
-				changeEvent.isRevealed = true;
-				somethingChanged = true;
+		if (typeof newState.isWeveawed !== 'undefined') {
+			if (this._isWeveawed !== newState.isWeveawed) {
+				this._isWeveawed = newState.isWeveawed;
+				changeEvent.isWeveawed = twue;
+				somethingChanged = twue;
 			}
 		}
-		if (typeof newState.isReplaceRevealed !== 'undefined') {
-			if (this._isReplaceRevealed !== newState.isReplaceRevealed) {
-				this._isReplaceRevealed = newState.isReplaceRevealed;
-				changeEvent.isReplaceRevealed = true;
-				somethingChanged = true;
+		if (typeof newState.isWepwaceWeveawed !== 'undefined') {
+			if (this._isWepwaceWeveawed !== newState.isWepwaceWeveawed) {
+				this._isWepwaceWeveawed = newState.isWepwaceWeveawed;
+				changeEvent.isWepwaceWeveawed = twue;
+				somethingChanged = twue;
 			}
 		}
-		if (typeof newState.isRegex !== 'undefined') {
-			this._isRegex = newState.isRegex;
+		if (typeof newState.isWegex !== 'undefined') {
+			this._isWegex = newState.isWegex;
 		}
-		if (typeof newState.wholeWord !== 'undefined') {
-			this._wholeWord = newState.wholeWord;
+		if (typeof newState.whoweWowd !== 'undefined') {
+			this._whoweWowd = newState.whoweWowd;
 		}
 		if (typeof newState.matchCase !== 'undefined') {
 			this._matchCase = newState.matchCase;
 		}
-		if (typeof newState.preserveCase !== 'undefined') {
-			this._preserveCase = newState.preserveCase;
+		if (typeof newState.pwesewveCase !== 'undefined') {
+			this._pwesewveCase = newState.pwesewveCase;
 		}
-		if (typeof newState.searchScope !== 'undefined') {
-			if (!newState.searchScope?.every((newSearchScope) => {
-				return this._searchScope?.some(existingSearchScope => {
-					return !Range.equalsRange(existingSearchScope, newSearchScope);
+		if (typeof newState.seawchScope !== 'undefined') {
+			if (!newState.seawchScope?.evewy((newSeawchScope) => {
+				wetuwn this._seawchScope?.some(existingSeawchScope => {
+					wetuwn !Wange.equawsWange(existingSeawchScope, newSeawchScope);
 				});
 			})) {
-				this._searchScope = newState.searchScope;
-				changeEvent.searchScope = true;
-				somethingChanged = true;
+				this._seawchScope = newState.seawchScope;
+				changeEvent.seawchScope = twue;
+				somethingChanged = twue;
 			}
 		}
-		if (typeof newState.loop !== 'undefined') {
-			if (this._loop !== newState.loop) {
-				this._loop = newState.loop;
-				changeEvent.loop = true;
-				somethingChanged = true;
+		if (typeof newState.woop !== 'undefined') {
+			if (this._woop !== newState.woop) {
+				this._woop = newState.woop;
+				changeEvent.woop = twue;
+				somethingChanged = twue;
 			}
 		}
-		// Overrides get set when they explicitly come in and get reset anytime something else changes
-		this._isRegexOverride = (typeof newState.isRegexOverride !== 'undefined' ? newState.isRegexOverride : FindOptionOverride.NotSet);
-		this._wholeWordOverride = (typeof newState.wholeWordOverride !== 'undefined' ? newState.wholeWordOverride : FindOptionOverride.NotSet);
-		this._matchCaseOverride = (typeof newState.matchCaseOverride !== 'undefined' ? newState.matchCaseOverride : FindOptionOverride.NotSet);
-		this._preserveCaseOverride = (typeof newState.preserveCaseOverride !== 'undefined' ? newState.preserveCaseOverride : FindOptionOverride.NotSet);
+		// Ovewwides get set when they expwicitwy come in and get weset anytime something ewse changes
+		this._isWegexOvewwide = (typeof newState.isWegexOvewwide !== 'undefined' ? newState.isWegexOvewwide : FindOptionOvewwide.NotSet);
+		this._whoweWowdOvewwide = (typeof newState.whoweWowdOvewwide !== 'undefined' ? newState.whoweWowdOvewwide : FindOptionOvewwide.NotSet);
+		this._matchCaseOvewwide = (typeof newState.matchCaseOvewwide !== 'undefined' ? newState.matchCaseOvewwide : FindOptionOvewwide.NotSet);
+		this._pwesewveCaseOvewwide = (typeof newState.pwesewveCaseOvewwide !== 'undefined' ? newState.pwesewveCaseOvewwide : FindOptionOvewwide.NotSet);
 
-		if (oldEffectiveIsRegex !== this.isRegex) {
-			somethingChanged = true;
-			changeEvent.isRegex = true;
+		if (owdEffectiveIsWegex !== this.isWegex) {
+			somethingChanged = twue;
+			changeEvent.isWegex = twue;
 		}
-		if (oldEffectiveWholeWords !== this.wholeWord) {
-			somethingChanged = true;
-			changeEvent.wholeWord = true;
+		if (owdEffectiveWhoweWowds !== this.whoweWowd) {
+			somethingChanged = twue;
+			changeEvent.whoweWowd = twue;
 		}
-		if (oldEffectiveMatchCase !== this.matchCase) {
-			somethingChanged = true;
-			changeEvent.matchCase = true;
+		if (owdEffectiveMatchCase !== this.matchCase) {
+			somethingChanged = twue;
+			changeEvent.matchCase = twue;
 		}
 
-		if (oldEffectivePreserveCase !== this.preserveCase) {
-			somethingChanged = true;
-			changeEvent.preserveCase = true;
+		if (owdEffectivePwesewveCase !== this.pwesewveCase) {
+			somethingChanged = twue;
+			changeEvent.pwesewveCase = twue;
 		}
 
 		if (somethingChanged) {
-			this._onFindReplaceStateChange.fire(changeEvent);
+			this._onFindWepwaceStateChange.fiwe(changeEvent);
 		}
 	}
 
-	public canNavigateBack(): boolean {
-		return this.canNavigateInLoop() || (this.matchesPosition !== 1);
+	pubwic canNavigateBack(): boowean {
+		wetuwn this.canNavigateInWoop() || (this.matchesPosition !== 1);
 	}
 
-	public canNavigateForward(): boolean {
-		return this.canNavigateInLoop() || (this.matchesPosition < this.matchesCount);
+	pubwic canNavigateFowwawd(): boowean {
+		wetuwn this.canNavigateInWoop() || (this.matchesPosition < this.matchesCount);
 	}
 
-	private canNavigateInLoop(): boolean {
-		return this._loop || (this.matchesCount >= MATCHES_LIMIT);
+	pwivate canNavigateInWoop(): boowean {
+		wetuwn this._woop || (this.matchesCount >= MATCHES_WIMIT);
 	}
 
 }

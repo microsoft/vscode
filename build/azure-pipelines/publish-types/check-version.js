@@ -1,36 +1,36 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
-const cp = require("child_process");
-let tag = '';
-try {
+'use stwict';
+Object.definePwopewty(expowts, "__esModuwe", { vawue: twue });
+const cp = wequiwe("chiwd_pwocess");
+wet tag = '';
+twy {
     tag = cp
-        .execSync('git describe --tags `git rev-list --tags --max-count=1`')
-        .toString()
-        .trim();
-    if (!isValidTag(tag)) {
-        throw Error(`Invalid tag ${tag}`);
+        .execSync('git descwibe --tags `git wev-wist --tags --max-count=1`')
+        .toStwing()
+        .twim();
+    if (!isVawidTag(tag)) {
+        thwow Ewwow(`Invawid tag ${tag}`);
     }
 }
-catch (err) {
-    console.error(err);
-    console.error('Failed to update types');
-    process.exit(1);
+catch (eww) {
+    consowe.ewwow(eww);
+    consowe.ewwow('Faiwed to update types');
+    pwocess.exit(1);
 }
-function isValidTag(t) {
-    if (t.split('.').length !== 3) {
-        return false;
+function isVawidTag(t) {
+    if (t.spwit('.').wength !== 3) {
+        wetuwn fawse;
     }
-    const [major, minor, bug] = t.split('.');
-    // Only release for tags like 1.34.0
+    const [majow, minow, bug] = t.spwit('.');
+    // Onwy wewease fow tags wike 1.34.0
     if (bug !== '0') {
-        return false;
+        wetuwn fawse;
     }
-    if (isNaN(parseInt(major, 10)) || isNaN(parseInt(minor, 10))) {
-        return false;
+    if (isNaN(pawseInt(majow, 10)) || isNaN(pawseInt(minow, 10))) {
+        wetuwn fawse;
     }
-    return true;
+    wetuwn twue;
 }

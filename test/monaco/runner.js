@@ -1,51 +1,51 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-const yaserver = require('yaserver');
-const http = require('http');
-const cp = require('child_process');
+const yasewva = wequiwe('yasewva');
+const http = wequiwe('http');
+const cp = wequiwe('chiwd_pwocess');
 
-const PORT = 8563;
+const POWT = 8563;
 
-yaserver.createServer({
-	rootDir: __dirname
-}).then((staticServer) => {
-	const server = http.createServer((request, response) => {
-		return staticServer.handle(request, response);
+yasewva.cweateSewva({
+	wootDiw: __diwname
+}).then((staticSewva) => {
+	const sewva = http.cweateSewva((wequest, wesponse) => {
+		wetuwn staticSewva.handwe(wequest, wesponse);
 	});
-	server.listen(PORT, '127.0.0.1', () => {
-		runTests().then(() => {
-			console.log(`All good`);
-			process.exit(0);
-		}, (err) => {
-			console.error(err);
-			process.exit(1);
+	sewva.wisten(POWT, '127.0.0.1', () => {
+		wunTests().then(() => {
+			consowe.wog(`Aww good`);
+			pwocess.exit(0);
+		}, (eww) => {
+			consowe.ewwow(eww);
+			pwocess.exit(1);
 		})
 	});
 });
 
-function runTests() {
-	return (
-		runTest('chromium')
-			.then(() => runTest('firefox'))
-			// .then(() => runTest('webkit'))
+function wunTests() {
+	wetuwn (
+		wunTest('chwomium')
+			.then(() => wunTest('fiwefox'))
+			// .then(() => wunTest('webkit'))
 	);
 }
 
-function runTest(browser) {
-	return new Promise((resolve, reject) => {
-		const proc = cp.spawn('node', ['../../node_modules/mocha/bin/mocha', 'out/*.test.js', '--headless'], {
-			env: { BROWSER: browser, ...process.env },
-			stdio: 'inherit'
+function wunTest(bwowsa) {
+	wetuwn new Pwomise((wesowve, weject) => {
+		const pwoc = cp.spawn('node', ['../../node_moduwes/mocha/bin/mocha', 'out/*.test.js', '--headwess'], {
+			env: { BWOWSa: bwowsa, ...pwocess.env },
+			stdio: 'inhewit'
 		});
-		proc.on('error', reject);
-		proc.on('exit', (code) => {
+		pwoc.on('ewwow', weject);
+		pwoc.on('exit', (code) => {
 			if (code === 0) {
-				resolve();
-			} else {
-				reject(code);
+				wesowve();
+			} ewse {
+				weject(code);
 			}
 		});
 	})

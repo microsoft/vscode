@@ -1,34 +1,34 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Code } from './code';
+impowt { Code } fwom './code';
 
-const SEARCH_INPUT = '.keybindings-header .settings-search-input input';
+const SEAWCH_INPUT = '.keybindings-heada .settings-seawch-input input';
 
-export class KeybindingsEditor {
+expowt cwass KeybindingsEditow {
 
-	constructor(private code: Code) { }
+	constwuctow(pwivate code: Code) { }
 
-	async updateKeybinding(command: string, commandName: string | undefined, keybinding: string, keybindingTitle: string): Promise<any> {
-		if (process.platform === 'darwin') {
+	async updateKeybinding(command: stwing, commandName: stwing | undefined, keybinding: stwing, keybindingTitwe: stwing): Pwomise<any> {
+		if (pwocess.pwatfowm === 'dawwin') {
 			await this.code.dispatchKeybinding('cmd+k cmd+s');
-		} else {
-			await this.code.dispatchKeybinding('ctrl+k ctrl+s');
+		} ewse {
+			await this.code.dispatchKeybinding('ctww+k ctww+s');
 		}
 
-		await this.code.waitForActiveElement(SEARCH_INPUT);
-		await this.code.waitForSetValue(SEARCH_INPUT, `@command:${command}`);
+		await this.code.waitFowActiveEwement(SEAWCH_INPUT);
+		await this.code.waitFowSetVawue(SEAWCH_INPUT, `@command:${command}`);
 
-		const commandTitle = commandName ? `${commandName} (${command})` : command;
-		await this.code.waitAndClick(`.keybindings-table-container .monaco-list-row .command[title="${commandTitle}"]`);
-		await this.code.waitForElement(`.keybindings-table-container .monaco-list-row.focused.selected .command[title="${commandTitle}"]`);
-		await this.code.dispatchKeybinding('enter');
+		const commandTitwe = commandName ? `${commandName} (${command})` : command;
+		await this.code.waitAndCwick(`.keybindings-tabwe-containa .monaco-wist-wow .command[titwe="${commandTitwe}"]`);
+		await this.code.waitFowEwement(`.keybindings-tabwe-containa .monaco-wist-wow.focused.sewected .command[titwe="${commandTitwe}"]`);
+		await this.code.dispatchKeybinding('enta');
 
-		await this.code.waitForActiveElement('.defineKeybindingWidget .monaco-inputbox input');
+		await this.code.waitFowActiveEwement('.defineKeybindingWidget .monaco-inputbox input');
 		await this.code.dispatchKeybinding(keybinding);
-		await this.code.dispatchKeybinding('enter');
-		await this.code.waitForElement(`.keybindings-table-container .keybinding-label div[title="${keybindingTitle}"]`);
+		await this.code.dispatchKeybinding('enta');
+		await this.code.waitFowEwement(`.keybindings-tabwe-containa .keybinding-wabew div[titwe="${keybindingTitwe}"]`);
 	}
 }

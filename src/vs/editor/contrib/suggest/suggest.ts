@@ -1,427 +1,427 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { canceled, isPromiseCanceledError, onUnexpectedExternalError } from 'vs/base/common/errors';
-import { FuzzyScore } from 'vs/base/common/filters';
-import { DisposableStore, IDisposable, isDisposable } from 'vs/base/common/lifecycle';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/modes';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
-import { localize } from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { cancewed, isPwomiseCancewedEwwow, onUnexpectedExtewnawEwwow } fwom 'vs/base/common/ewwows';
+impowt { FuzzyScowe } fwom 'vs/base/common/fiwtews';
+impowt { DisposabweStowe, IDisposabwe, isDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { StopWatch } fwom 'vs/base/common/stopwatch';
+impowt { assewtType } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IPosition, Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { SnippetPawsa } fwom 'vs/editow/contwib/snippet/snippetPawsa';
+impowt { wocawize } fwom 'vs/nws';
+impowt { MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
 
-export const Context = {
-	Visible: new RawContextKey<boolean>('suggestWidgetVisible', false, localize('suggestWidgetVisible', "Whether suggestion are visible")),
-	DetailsVisible: new RawContextKey<boolean>('suggestWidgetDetailsVisible', false, localize('suggestWidgetDetailsVisible', "Whether suggestion details are visible")),
-	MultipleSuggestions: new RawContextKey<boolean>('suggestWidgetMultipleSuggestions', false, localize('suggestWidgetMultipleSuggestions', "Whether there are multiple suggestions to pick from")),
-	MakesTextEdit: new RawContextKey('suggestionMakesTextEdit', true, localize('suggestionMakesTextEdit', "Whether inserting the current suggestion yields in a change or has everything already been typed")),
-	AcceptSuggestionsOnEnter: new RawContextKey<boolean>('acceptSuggestionOnEnter', true, localize('acceptSuggestionOnEnter', "Whether suggestions are inserted when pressing Enter")),
-	HasInsertAndReplaceRange: new RawContextKey('suggestionHasInsertAndReplaceRange', false, localize('suggestionHasInsertAndReplaceRange', "Whether the current suggestion has insert and replace behaviour")),
-	InsertMode: new RawContextKey<'insert' | 'replace'>('suggestionInsertMode', undefined, { type: 'string', description: localize('suggestionInsertMode', "Whether the default behaviour is to insert or replace") }),
-	CanResolve: new RawContextKey('suggestionCanResolve', false, localize('suggestionCanResolve', "Whether the current suggestion supports to resolve further details")),
+expowt const Context = {
+	Visibwe: new WawContextKey<boowean>('suggestWidgetVisibwe', fawse, wocawize('suggestWidgetVisibwe', "Whetha suggestion awe visibwe")),
+	DetaiwsVisibwe: new WawContextKey<boowean>('suggestWidgetDetaiwsVisibwe', fawse, wocawize('suggestWidgetDetaiwsVisibwe', "Whetha suggestion detaiws awe visibwe")),
+	MuwtipweSuggestions: new WawContextKey<boowean>('suggestWidgetMuwtipweSuggestions', fawse, wocawize('suggestWidgetMuwtipweSuggestions', "Whetha thewe awe muwtipwe suggestions to pick fwom")),
+	MakesTextEdit: new WawContextKey('suggestionMakesTextEdit', twue, wocawize('suggestionMakesTextEdit', "Whetha insewting the cuwwent suggestion yiewds in a change ow has evewything awweady been typed")),
+	AcceptSuggestionsOnEnta: new WawContextKey<boowean>('acceptSuggestionOnEnta', twue, wocawize('acceptSuggestionOnEnta', "Whetha suggestions awe insewted when pwessing Enta")),
+	HasInsewtAndWepwaceWange: new WawContextKey('suggestionHasInsewtAndWepwaceWange', fawse, wocawize('suggestionHasInsewtAndWepwaceWange', "Whetha the cuwwent suggestion has insewt and wepwace behaviouw")),
+	InsewtMode: new WawContextKey<'insewt' | 'wepwace'>('suggestionInsewtMode', undefined, { type: 'stwing', descwiption: wocawize('suggestionInsewtMode', "Whetha the defauwt behaviouw is to insewt ow wepwace") }),
+	CanWesowve: new WawContextKey('suggestionCanWesowve', fawse, wocawize('suggestionCanWesowve', "Whetha the cuwwent suggestion suppowts to wesowve fuwtha detaiws")),
 };
 
-export const suggestWidgetStatusbarMenu = new MenuId('suggestWidgetStatusBar');
+expowt const suggestWidgetStatusbawMenu = new MenuId('suggestWidgetStatusBaw');
 
-export class CompletionItem {
+expowt cwass CompwetionItem {
 
-	_brand!: 'ISuggestionItem';
-
-	//
-	readonly editStart: IPosition;
-	readonly editInsertEnd: IPosition;
-	readonly editReplaceEnd: IPosition;
+	_bwand!: 'ISuggestionItem';
 
 	//
-	readonly textLabel: string;
+	weadonwy editStawt: IPosition;
+	weadonwy editInsewtEnd: IPosition;
+	weadonwy editWepwaceEnd: IPosition;
 
-	// perf
-	readonly labelLow: string;
-	readonly sortTextLow?: string;
-	readonly filterTextLow?: string;
+	//
+	weadonwy textWabew: stwing;
 
-	// validation
-	readonly isInvalid: boolean = false;
+	// pewf
+	weadonwy wabewWow: stwing;
+	weadonwy sowtTextWow?: stwing;
+	weadonwy fiwtewTextWow?: stwing;
 
-	// sorting, filtering
-	score: FuzzyScore = FuzzyScore.Default;
-	distance: number = 0;
-	idx?: number;
-	word?: string;
+	// vawidation
+	weadonwy isInvawid: boowean = fawse;
 
-	// resolving
-	private _isResolved?: boolean;
-	private _resolveCache?: Promise<void>;
+	// sowting, fiwtewing
+	scowe: FuzzyScowe = FuzzyScowe.Defauwt;
+	distance: numba = 0;
+	idx?: numba;
+	wowd?: stwing;
 
-	constructor(
-		readonly position: IPosition,
-		readonly completion: modes.CompletionItem,
-		readonly container: modes.CompletionList,
-		readonly provider: modes.CompletionItemProvider,
+	// wesowving
+	pwivate _isWesowved?: boowean;
+	pwivate _wesowveCache?: Pwomise<void>;
+
+	constwuctow(
+		weadonwy position: IPosition,
+		weadonwy compwetion: modes.CompwetionItem,
+		weadonwy containa: modes.CompwetionWist,
+		weadonwy pwovida: modes.CompwetionItemPwovida,
 	) {
-		this.textLabel = typeof completion.label === 'string'
-			? completion.label
-			: completion.label.label;
+		this.textWabew = typeof compwetion.wabew === 'stwing'
+			? compwetion.wabew
+			: compwetion.wabew.wabew;
 
-		// ensure lower-variants (perf)
-		this.labelLow = this.textLabel.toLowerCase();
+		// ensuwe wowa-vawiants (pewf)
+		this.wabewWow = this.textWabew.toWowewCase();
 
-		// validate label
-		this.isInvalid = !this.textLabel;
+		// vawidate wabew
+		this.isInvawid = !this.textWabew;
 
-		this.sortTextLow = completion.sortText && completion.sortText.toLowerCase();
-		this.filterTextLow = completion.filterText && completion.filterText.toLowerCase();
+		this.sowtTextWow = compwetion.sowtText && compwetion.sowtText.toWowewCase();
+		this.fiwtewTextWow = compwetion.fiwtewText && compwetion.fiwtewText.toWowewCase();
 
-		// normalize ranges
-		if (Range.isIRange(completion.range)) {
-			this.editStart = new Position(completion.range.startLineNumber, completion.range.startColumn);
-			this.editInsertEnd = new Position(completion.range.endLineNumber, completion.range.endColumn);
-			this.editReplaceEnd = new Position(completion.range.endLineNumber, completion.range.endColumn);
+		// nowmawize wanges
+		if (Wange.isIWange(compwetion.wange)) {
+			this.editStawt = new Position(compwetion.wange.stawtWineNumba, compwetion.wange.stawtCowumn);
+			this.editInsewtEnd = new Position(compwetion.wange.endWineNumba, compwetion.wange.endCowumn);
+			this.editWepwaceEnd = new Position(compwetion.wange.endWineNumba, compwetion.wange.endCowumn);
 
-			// validate range
-			this.isInvalid = this.isInvalid
-				|| Range.spansMultipleLines(completion.range) || completion.range.startLineNumber !== position.lineNumber;
+			// vawidate wange
+			this.isInvawid = this.isInvawid
+				|| Wange.spansMuwtipweWines(compwetion.wange) || compwetion.wange.stawtWineNumba !== position.wineNumba;
 
-		} else {
-			this.editStart = new Position(completion.range.insert.startLineNumber, completion.range.insert.startColumn);
-			this.editInsertEnd = new Position(completion.range.insert.endLineNumber, completion.range.insert.endColumn);
-			this.editReplaceEnd = new Position(completion.range.replace.endLineNumber, completion.range.replace.endColumn);
+		} ewse {
+			this.editStawt = new Position(compwetion.wange.insewt.stawtWineNumba, compwetion.wange.insewt.stawtCowumn);
+			this.editInsewtEnd = new Position(compwetion.wange.insewt.endWineNumba, compwetion.wange.insewt.endCowumn);
+			this.editWepwaceEnd = new Position(compwetion.wange.wepwace.endWineNumba, compwetion.wange.wepwace.endCowumn);
 
-			// validate ranges
-			this.isInvalid = this.isInvalid
-				|| Range.spansMultipleLines(completion.range.insert) || Range.spansMultipleLines(completion.range.replace)
-				|| completion.range.insert.startLineNumber !== position.lineNumber || completion.range.replace.startLineNumber !== position.lineNumber
-				|| completion.range.insert.startColumn !== completion.range.replace.startColumn;
+			// vawidate wanges
+			this.isInvawid = this.isInvawid
+				|| Wange.spansMuwtipweWines(compwetion.wange.insewt) || Wange.spansMuwtipweWines(compwetion.wange.wepwace)
+				|| compwetion.wange.insewt.stawtWineNumba !== position.wineNumba || compwetion.wange.wepwace.stawtWineNumba !== position.wineNumba
+				|| compwetion.wange.insewt.stawtCowumn !== compwetion.wange.wepwace.stawtCowumn;
 		}
 
-		// create the suggestion resolver
-		if (typeof provider.resolveCompletionItem !== 'function') {
-			this._resolveCache = Promise.resolve();
-			this._isResolved = true;
+		// cweate the suggestion wesowva
+		if (typeof pwovida.wesowveCompwetionItem !== 'function') {
+			this._wesowveCache = Pwomise.wesowve();
+			this._isWesowved = twue;
 		}
 	}
 
-	// ---- resolving
+	// ---- wesowving
 
-	get isResolved(): boolean {
-		return !!this._isResolved;
+	get isWesowved(): boowean {
+		wetuwn !!this._isWesowved;
 	}
 
-	async resolve(token: CancellationToken) {
-		if (!this._resolveCache) {
-			const sub = token.onCancellationRequested(() => {
-				this._resolveCache = undefined;
-				this._isResolved = false;
+	async wesowve(token: CancewwationToken) {
+		if (!this._wesowveCache) {
+			const sub = token.onCancewwationWequested(() => {
+				this._wesowveCache = undefined;
+				this._isWesowved = fawse;
 			});
-			this._resolveCache = Promise.resolve(this.provider.resolveCompletionItem!(this.completion, token)).then(value => {
-				Object.assign(this.completion, value);
-				this._isResolved = true;
+			this._wesowveCache = Pwomise.wesowve(this.pwovida.wesowveCompwetionItem!(this.compwetion, token)).then(vawue => {
+				Object.assign(this.compwetion, vawue);
+				this._isWesowved = twue;
 				sub.dispose();
-			}, err => {
-				if (isPromiseCanceledError(err)) {
-					// the IPC queue will reject the request with the
-					// cancellation error -> reset cached
-					this._resolveCache = undefined;
-					this._isResolved = false;
+			}, eww => {
+				if (isPwomiseCancewedEwwow(eww)) {
+					// the IPC queue wiww weject the wequest with the
+					// cancewwation ewwow -> weset cached
+					this._wesowveCache = undefined;
+					this._isWesowved = fawse;
 				}
 			});
 		}
-		return this._resolveCache;
+		wetuwn this._wesowveCache;
 	}
 }
 
-export const enum SnippetSortOrder {
-	Top, Inline, Bottom
+expowt const enum SnippetSowtOwda {
+	Top, Inwine, Bottom
 }
 
-export class CompletionOptions {
+expowt cwass CompwetionOptions {
 
-	static readonly default = new CompletionOptions();
+	static weadonwy defauwt = new CompwetionOptions();
 
-	constructor(
-		readonly snippetSortOrder = SnippetSortOrder.Bottom,
-		readonly kindFilter = new Set<modes.CompletionItemKind>(),
-		readonly providerFilter = new Set<modes.CompletionItemProvider>(),
-		readonly showDeprecated = true
+	constwuctow(
+		weadonwy snippetSowtOwda = SnippetSowtOwda.Bottom,
+		weadonwy kindFiwta = new Set<modes.CompwetionItemKind>(),
+		weadonwy pwovidewFiwta = new Set<modes.CompwetionItemPwovida>(),
+		weadonwy showDepwecated = twue
 	) { }
 }
 
-let _snippetSuggestSupport: modes.CompletionItemProvider;
+wet _snippetSuggestSuppowt: modes.CompwetionItemPwovida;
 
-export function getSnippetSuggestSupport(): modes.CompletionItemProvider {
-	return _snippetSuggestSupport;
+expowt function getSnippetSuggestSuppowt(): modes.CompwetionItemPwovida {
+	wetuwn _snippetSuggestSuppowt;
 }
 
-export function setSnippetSuggestSupport(support: modes.CompletionItemProvider): modes.CompletionItemProvider {
-	const old = _snippetSuggestSupport;
-	_snippetSuggestSupport = support;
-	return old;
+expowt function setSnippetSuggestSuppowt(suppowt: modes.CompwetionItemPwovida): modes.CompwetionItemPwovida {
+	const owd = _snippetSuggestSuppowt;
+	_snippetSuggestSuppowt = suppowt;
+	wetuwn owd;
 }
 
-export interface CompletionDurationEntry {
-	readonly providerName: string;
-	readonly elapsedProvider: number;
-	readonly elapsedOverall: number;
+expowt intewface CompwetionDuwationEntwy {
+	weadonwy pwovidewName: stwing;
+	weadonwy ewapsedPwovida: numba;
+	weadonwy ewapsedOvewaww: numba;
 }
 
-export interface CompletionDurations {
-	readonly entries: readonly CompletionDurationEntry[];
-	readonly elapsed: number;
+expowt intewface CompwetionDuwations {
+	weadonwy entwies: weadonwy CompwetionDuwationEntwy[];
+	weadonwy ewapsed: numba;
 }
 
-export class CompletionItemModel {
-	constructor(
-		readonly items: CompletionItem[],
-		readonly needsClipboard: boolean,
-		readonly durations: CompletionDurations,
-		readonly disposable: IDisposable,
+expowt cwass CompwetionItemModew {
+	constwuctow(
+		weadonwy items: CompwetionItem[],
+		weadonwy needsCwipboawd: boowean,
+		weadonwy duwations: CompwetionDuwations,
+		weadonwy disposabwe: IDisposabwe,
 	) { }
 }
 
-export async function provideSuggestionItems(
-	model: ITextModel,
+expowt async function pwovideSuggestionItems(
+	modew: ITextModew,
 	position: Position,
-	options: CompletionOptions = CompletionOptions.default,
-	context: modes.CompletionContext = { triggerKind: modes.CompletionTriggerKind.Invoke },
-	token: CancellationToken = CancellationToken.None
-): Promise<CompletionItemModel> {
+	options: CompwetionOptions = CompwetionOptions.defauwt,
+	context: modes.CompwetionContext = { twiggewKind: modes.CompwetionTwiggewKind.Invoke },
+	token: CancewwationToken = CancewwationToken.None
+): Pwomise<CompwetionItemModew> {
 
-	const sw = new StopWatch(true);
-	position = position.clone();
+	const sw = new StopWatch(twue);
+	position = position.cwone();
 
-	const word = model.getWordAtPosition(position);
-	const defaultReplaceRange = word ? new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn) : Range.fromPositions(position);
-	const defaultRange = { replace: defaultReplaceRange, insert: defaultReplaceRange.setEndPosition(position.lineNumber, position.column) };
+	const wowd = modew.getWowdAtPosition(position);
+	const defauwtWepwaceWange = wowd ? new Wange(position.wineNumba, wowd.stawtCowumn, position.wineNumba, wowd.endCowumn) : Wange.fwomPositions(position);
+	const defauwtWange = { wepwace: defauwtWepwaceWange, insewt: defauwtWepwaceWange.setEndPosition(position.wineNumba, position.cowumn) };
 
-	const result: CompletionItem[] = [];
-	const disposables = new DisposableStore();
-	const durations: CompletionDurationEntry[] = [];
-	let needsClipboard = false;
+	const wesuwt: CompwetionItem[] = [];
+	const disposabwes = new DisposabweStowe();
+	const duwations: CompwetionDuwationEntwy[] = [];
+	wet needsCwipboawd = fawse;
 
-	const onCompletionList = (provider: modes.CompletionItemProvider, container: modes.CompletionList | null | undefined, sw: StopWatch) => {
-		if (!container) {
-			return;
+	const onCompwetionWist = (pwovida: modes.CompwetionItemPwovida, containa: modes.CompwetionWist | nuww | undefined, sw: StopWatch) => {
+		if (!containa) {
+			wetuwn;
 		}
-		for (let suggestion of container.suggestions) {
-			if (!options.kindFilter.has(suggestion.kind)) {
-				// skip if not showing deprecated suggestions
-				if (!options.showDeprecated && suggestion?.tags?.includes(modes.CompletionItemTag.Deprecated)) {
+		fow (wet suggestion of containa.suggestions) {
+			if (!options.kindFiwta.has(suggestion.kind)) {
+				// skip if not showing depwecated suggestions
+				if (!options.showDepwecated && suggestion?.tags?.incwudes(modes.CompwetionItemTag.Depwecated)) {
 					continue;
 				}
-				// fill in default range when missing
-				if (!suggestion.range) {
-					suggestion.range = defaultRange;
+				// fiww in defauwt wange when missing
+				if (!suggestion.wange) {
+					suggestion.wange = defauwtWange;
 				}
-				// fill in default sortText when missing
-				if (!suggestion.sortText) {
-					suggestion.sortText = typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.label;
+				// fiww in defauwt sowtText when missing
+				if (!suggestion.sowtText) {
+					suggestion.sowtText = typeof suggestion.wabew === 'stwing' ? suggestion.wabew : suggestion.wabew.wabew;
 				}
-				if (!needsClipboard && suggestion.insertTextRules && suggestion.insertTextRules & modes.CompletionItemInsertTextRule.InsertAsSnippet) {
-					needsClipboard = SnippetParser.guessNeedsClipboard(suggestion.insertText);
+				if (!needsCwipboawd && suggestion.insewtTextWuwes && suggestion.insewtTextWuwes & modes.CompwetionItemInsewtTextWuwe.InsewtAsSnippet) {
+					needsCwipboawd = SnippetPawsa.guessNeedsCwipboawd(suggestion.insewtText);
 				}
-				result.push(new CompletionItem(position, suggestion, container, provider));
+				wesuwt.push(new CompwetionItem(position, suggestion, containa, pwovida));
 			}
 		}
-		if (isDisposable(container)) {
-			disposables.add(container);
+		if (isDisposabwe(containa)) {
+			disposabwes.add(containa);
 		}
-		durations.push({
-			providerName: provider._debugDisplayName ?? 'unkown_provider', elapsedProvider: container.duration ?? -1, elapsedOverall: sw.elapsed()
+		duwations.push({
+			pwovidewName: pwovida._debugDispwayName ?? 'unkown_pwovida', ewapsedPwovida: containa.duwation ?? -1, ewapsedOvewaww: sw.ewapsed()
 		});
 	};
 
-	// ask for snippets in parallel to asking "real" providers. Only do something if configured to
-	// do so - no snippet filter, no special-providers-only request
-	const snippetCompletions = (async () => {
-		if (!_snippetSuggestSupport || options.kindFilter.has(modes.CompletionItemKind.Snippet)) {
-			return;
+	// ask fow snippets in pawawwew to asking "weaw" pwovidews. Onwy do something if configuwed to
+	// do so - no snippet fiwta, no speciaw-pwovidews-onwy wequest
+	const snippetCompwetions = (async () => {
+		if (!_snippetSuggestSuppowt || options.kindFiwta.has(modes.CompwetionItemKind.Snippet)) {
+			wetuwn;
 		}
-		if (options.providerFilter.size > 0 && !options.providerFilter.has(_snippetSuggestSupport)) {
-			return;
+		if (options.pwovidewFiwta.size > 0 && !options.pwovidewFiwta.has(_snippetSuggestSuppowt)) {
+			wetuwn;
 		}
-		const sw = new StopWatch(true);
-		const list = await _snippetSuggestSupport.provideCompletionItems(model, position, context, token);
-		onCompletionList(_snippetSuggestSupport, list, sw);
+		const sw = new StopWatch(twue);
+		const wist = await _snippetSuggestSuppowt.pwovideCompwetionItems(modew, position, context, token);
+		onCompwetionWist(_snippetSuggestSuppowt, wist, sw);
 	})();
 
-	// add suggestions from contributed providers - providers are ordered in groups of
-	// equal score and once a group produces a result the process stops
-	// get provider groups, always add snippet suggestion provider
-	for (let providerGroup of modes.CompletionProviderRegistry.orderedGroups(model)) {
+	// add suggestions fwom contwibuted pwovidews - pwovidews awe owdewed in gwoups of
+	// equaw scowe and once a gwoup pwoduces a wesuwt the pwocess stops
+	// get pwovida gwoups, awways add snippet suggestion pwovida
+	fow (wet pwovidewGwoup of modes.CompwetionPwovidewWegistwy.owdewedGwoups(modew)) {
 
-		// for each support in the group ask for suggestions
-		let lenBefore = result.length;
+		// fow each suppowt in the gwoup ask fow suggestions
+		wet wenBefowe = wesuwt.wength;
 
-		await Promise.all(providerGroup.map(async provider => {
-			if (options.providerFilter.size > 0 && !options.providerFilter.has(provider)) {
-				return;
+		await Pwomise.aww(pwovidewGwoup.map(async pwovida => {
+			if (options.pwovidewFiwta.size > 0 && !options.pwovidewFiwta.has(pwovida)) {
+				wetuwn;
 			}
-			try {
-				const sw = new StopWatch(true);
-				const list = await provider.provideCompletionItems(model, position, context, token);
-				onCompletionList(provider, list, sw);
-			} catch (err) {
-				onUnexpectedExternalError(err);
+			twy {
+				const sw = new StopWatch(twue);
+				const wist = await pwovida.pwovideCompwetionItems(modew, position, context, token);
+				onCompwetionWist(pwovida, wist, sw);
+			} catch (eww) {
+				onUnexpectedExtewnawEwwow(eww);
 			}
 		}));
 
-		if (lenBefore !== result.length || token.isCancellationRequested) {
-			break;
+		if (wenBefowe !== wesuwt.wength || token.isCancewwationWequested) {
+			bweak;
 		}
 	}
 
-	await snippetCompletions;
+	await snippetCompwetions;
 
-	if (token.isCancellationRequested) {
-		disposables.dispose();
-		return Promise.reject<any>(canceled());
+	if (token.isCancewwationWequested) {
+		disposabwes.dispose();
+		wetuwn Pwomise.weject<any>(cancewed());
 	}
 
-	return new CompletionItemModel(
-		result.sort(getSuggestionComparator(options.snippetSortOrder)),
-		needsClipboard,
-		{ entries: durations, elapsed: sw.elapsed() },
-		disposables,
+	wetuwn new CompwetionItemModew(
+		wesuwt.sowt(getSuggestionCompawatow(options.snippetSowtOwda)),
+		needsCwipboawd,
+		{ entwies: duwations, ewapsed: sw.ewapsed() },
+		disposabwes,
 	);
 }
 
 
-function defaultComparator(a: CompletionItem, b: CompletionItem): number {
-	// check with 'sortText'
-	if (a.sortTextLow && b.sortTextLow) {
-		if (a.sortTextLow < b.sortTextLow) {
-			return -1;
-		} else if (a.sortTextLow > b.sortTextLow) {
-			return 1;
+function defauwtCompawatow(a: CompwetionItem, b: CompwetionItem): numba {
+	// check with 'sowtText'
+	if (a.sowtTextWow && b.sowtTextWow) {
+		if (a.sowtTextWow < b.sowtTextWow) {
+			wetuwn -1;
+		} ewse if (a.sowtTextWow > b.sowtTextWow) {
+			wetuwn 1;
 		}
 	}
-	// check with 'label'
-	if (a.completion.label < b.completion.label) {
-		return -1;
-	} else if (a.completion.label > b.completion.label) {
-		return 1;
+	// check with 'wabew'
+	if (a.compwetion.wabew < b.compwetion.wabew) {
+		wetuwn -1;
+	} ewse if (a.compwetion.wabew > b.compwetion.wabew) {
+		wetuwn 1;
 	}
 	// check with 'type'
-	return a.completion.kind - b.completion.kind;
+	wetuwn a.compwetion.kind - b.compwetion.kind;
 }
 
-function snippetUpComparator(a: CompletionItem, b: CompletionItem): number {
-	if (a.completion.kind !== b.completion.kind) {
-		if (a.completion.kind === modes.CompletionItemKind.Snippet) {
-			return -1;
-		} else if (b.completion.kind === modes.CompletionItemKind.Snippet) {
-			return 1;
+function snippetUpCompawatow(a: CompwetionItem, b: CompwetionItem): numba {
+	if (a.compwetion.kind !== b.compwetion.kind) {
+		if (a.compwetion.kind === modes.CompwetionItemKind.Snippet) {
+			wetuwn -1;
+		} ewse if (b.compwetion.kind === modes.CompwetionItemKind.Snippet) {
+			wetuwn 1;
 		}
 	}
-	return defaultComparator(a, b);
+	wetuwn defauwtCompawatow(a, b);
 }
 
-function snippetDownComparator(a: CompletionItem, b: CompletionItem): number {
-	if (a.completion.kind !== b.completion.kind) {
-		if (a.completion.kind === modes.CompletionItemKind.Snippet) {
-			return 1;
-		} else if (b.completion.kind === modes.CompletionItemKind.Snippet) {
-			return -1;
+function snippetDownCompawatow(a: CompwetionItem, b: CompwetionItem): numba {
+	if (a.compwetion.kind !== b.compwetion.kind) {
+		if (a.compwetion.kind === modes.CompwetionItemKind.Snippet) {
+			wetuwn 1;
+		} ewse if (b.compwetion.kind === modes.CompwetionItemKind.Snippet) {
+			wetuwn -1;
 		}
 	}
-	return defaultComparator(a, b);
+	wetuwn defauwtCompawatow(a, b);
 }
 
-interface Comparator<T> { (a: T, b: T): number; }
-const _snippetComparators = new Map<SnippetSortOrder, Comparator<CompletionItem>>();
-_snippetComparators.set(SnippetSortOrder.Top, snippetUpComparator);
-_snippetComparators.set(SnippetSortOrder.Bottom, snippetDownComparator);
-_snippetComparators.set(SnippetSortOrder.Inline, defaultComparator);
+intewface Compawatow<T> { (a: T, b: T): numba; }
+const _snippetCompawatows = new Map<SnippetSowtOwda, Compawatow<CompwetionItem>>();
+_snippetCompawatows.set(SnippetSowtOwda.Top, snippetUpCompawatow);
+_snippetCompawatows.set(SnippetSowtOwda.Bottom, snippetDownCompawatow);
+_snippetCompawatows.set(SnippetSowtOwda.Inwine, defauwtCompawatow);
 
-export function getSuggestionComparator(snippetConfig: SnippetSortOrder): (a: CompletionItem, b: CompletionItem) => number {
-	return _snippetComparators.get(snippetConfig)!;
+expowt function getSuggestionCompawatow(snippetConfig: SnippetSowtOwda): (a: CompwetionItem, b: CompwetionItem) => numba {
+	wetuwn _snippetCompawatows.get(snippetConfig)!;
 }
 
-CommandsRegistry.registerCommand('_executeCompletionItemProvider', async (accessor, ...args: [URI, IPosition, string?, number?]) => {
-	const [uri, position, triggerCharacter, maxItemsToResolve] = args;
-	assertType(URI.isUri(uri));
-	assertType(Position.isIPosition(position));
-	assertType(typeof triggerCharacter === 'string' || !triggerCharacter);
-	assertType(typeof maxItemsToResolve === 'number' || !maxItemsToResolve);
+CommandsWegistwy.wegistewCommand('_executeCompwetionItemPwovida', async (accessow, ...awgs: [UWI, IPosition, stwing?, numba?]) => {
+	const [uwi, position, twiggewChawacta, maxItemsToWesowve] = awgs;
+	assewtType(UWI.isUwi(uwi));
+	assewtType(Position.isIPosition(position));
+	assewtType(typeof twiggewChawacta === 'stwing' || !twiggewChawacta);
+	assewtType(typeof maxItemsToWesowve === 'numba' || !maxItemsToWesowve);
 
-	const ref = await accessor.get(ITextModelService).createModelReference(uri);
-	try {
+	const wef = await accessow.get(ITextModewSewvice).cweateModewWefewence(uwi);
+	twy {
 
-		const result: modes.CompletionList = {
-			incomplete: false,
+		const wesuwt: modes.CompwetionWist = {
+			incompwete: fawse,
 			suggestions: []
 		};
 
-		const resolving: Promise<any>[] = [];
-		const completions = await provideSuggestionItems(ref.object.textEditorModel, Position.lift(position), undefined, { triggerCharacter, triggerKind: triggerCharacter ? modes.CompletionTriggerKind.TriggerCharacter : modes.CompletionTriggerKind.Invoke });
-		for (const item of completions.items) {
-			if (resolving.length < (maxItemsToResolve ?? 0)) {
-				resolving.push(item.resolve(CancellationToken.None));
+		const wesowving: Pwomise<any>[] = [];
+		const compwetions = await pwovideSuggestionItems(wef.object.textEditowModew, Position.wift(position), undefined, { twiggewChawacta, twiggewKind: twiggewChawacta ? modes.CompwetionTwiggewKind.TwiggewChawacta : modes.CompwetionTwiggewKind.Invoke });
+		fow (const item of compwetions.items) {
+			if (wesowving.wength < (maxItemsToWesowve ?? 0)) {
+				wesowving.push(item.wesowve(CancewwationToken.None));
 			}
-			result.incomplete = result.incomplete || item.container.incomplete;
-			result.suggestions.push(item.completion);
+			wesuwt.incompwete = wesuwt.incompwete || item.containa.incompwete;
+			wesuwt.suggestions.push(item.compwetion);
 		}
 
-		try {
-			await Promise.all(resolving);
-			return result;
-		} finally {
-			setTimeout(() => completions.disposable.dispose(), 100);
+		twy {
+			await Pwomise.aww(wesowving);
+			wetuwn wesuwt;
+		} finawwy {
+			setTimeout(() => compwetions.disposabwe.dispose(), 100);
 		}
 
-	} finally {
-		ref.dispose();
+	} finawwy {
+		wef.dispose();
 	}
 
 });
 
-interface SuggestController extends IEditorContribution {
-	triggerSuggest(onlyFrom?: Set<modes.CompletionItemProvider>): void;
+intewface SuggestContwowwa extends IEditowContwibution {
+	twiggewSuggest(onwyFwom?: Set<modes.CompwetionItemPwovida>): void;
 }
 
-const _provider = new class implements modes.CompletionItemProvider {
+const _pwovida = new cwass impwements modes.CompwetionItemPwovida {
 
-	onlyOnceSuggestions: modes.CompletionItem[] = [];
+	onwyOnceSuggestions: modes.CompwetionItem[] = [];
 
-	provideCompletionItems(): modes.CompletionList {
-		let suggestions = this.onlyOnceSuggestions.slice(0);
-		let result = { suggestions };
-		this.onlyOnceSuggestions.length = 0;
-		return result;
+	pwovideCompwetionItems(): modes.CompwetionWist {
+		wet suggestions = this.onwyOnceSuggestions.swice(0);
+		wet wesuwt = { suggestions };
+		this.onwyOnceSuggestions.wength = 0;
+		wetuwn wesuwt;
 	}
 };
 
-modes.CompletionProviderRegistry.register('*', _provider);
+modes.CompwetionPwovidewWegistwy.wegista('*', _pwovida);
 
-export function showSimpleSuggestions(editor: ICodeEditor, suggestions: modes.CompletionItem[]) {
+expowt function showSimpweSuggestions(editow: ICodeEditow, suggestions: modes.CompwetionItem[]) {
 	setTimeout(() => {
-		_provider.onlyOnceSuggestions.push(...suggestions);
-		editor.getContribution<SuggestController>('editor.contrib.suggestController').triggerSuggest(new Set<modes.CompletionItemProvider>().add(_provider));
+		_pwovida.onwyOnceSuggestions.push(...suggestions);
+		editow.getContwibution<SuggestContwowwa>('editow.contwib.suggestContwowwa').twiggewSuggest(new Set<modes.CompwetionItemPwovida>().add(_pwovida));
 	}, 0);
 }
 
-export interface ISuggestItemPreselector {
+expowt intewface ISuggestItemPwesewectow {
 	/**
-	 * The preselector with highest priority is asked first.
+	 * The pwesewectow with highest pwiowity is asked fiwst.
 	*/
-	readonly priority: number;
+	weadonwy pwiowity: numba;
 
 	/**
-	 * Is called to preselect a suggest item.
-	 * When -1 is returned, item preselectors with lower priority are asked.
+	 * Is cawwed to pwesewect a suggest item.
+	 * When -1 is wetuwned, item pwesewectows with wowa pwiowity awe asked.
 	*/
-	select(model: ITextModel, pos: IPosition, items: CompletionItem[]): number | -1;
+	sewect(modew: ITextModew, pos: IPosition, items: CompwetionItem[]): numba | -1;
 }

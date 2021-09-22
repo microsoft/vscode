@@ -1,2296 +1,2296 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 
-/** Declaration module describing the VS Code debug protocol.
-	Auto-generated from json schema. Do not edit manually.
+/** Decwawation moduwe descwibing the VS Code debug pwotocow.
+	Auto-genewated fwom json schema. Do not edit manuawwy.
 */
-declare module DebugProtocol {
+decwawe moduwe DebugPwotocow {
 
-	/** Base class of requests, responses, and events. */
-	export interface ProtocolMessage {
-		/** Sequence number (also known as message ID). For protocol messages of type 'request' this ID can be used to cancel the request. */
-		seq: number;
+	/** Base cwass of wequests, wesponses, and events. */
+	expowt intewface PwotocowMessage {
+		/** Sequence numba (awso known as message ID). Fow pwotocow messages of type 'wequest' this ID can be used to cancew the wequest. */
+		seq: numba;
 		/** Message type.
-			Values: 'request', 'response', 'event', etc.
+			Vawues: 'wequest', 'wesponse', 'event', etc.
 		*/
-		type: 'request' | 'response' | 'event' | string;
+		type: 'wequest' | 'wesponse' | 'event' | stwing;
 	}
 
-	/** A client or debug adapter initiated request. */
-	export interface Request extends ProtocolMessage {
-		// type: 'request';
+	/** A cwient ow debug adapta initiated wequest. */
+	expowt intewface Wequest extends PwotocowMessage {
+		// type: 'wequest';
 		/** The command to execute. */
-		command: string;
-		/** Object containing arguments for the command. */
-		arguments?: any;
+		command: stwing;
+		/** Object containing awguments fow the command. */
+		awguments?: any;
 	}
 
-	/** A debug adapter initiated event. */
-	export interface Event extends ProtocolMessage {
+	/** A debug adapta initiated event. */
+	expowt intewface Event extends PwotocowMessage {
 		// type: 'event';
 		/** Type of event. */
-		event: string;
-		/** Event-specific information. */
+		event: stwing;
+		/** Event-specific infowmation. */
 		body?: any;
 	}
 
-	/** Response for a request. */
-	export interface Response extends ProtocolMessage {
-		// type: 'response';
-		/** Sequence number of the corresponding request. */
-		request_seq: number;
-		/** Outcome of the request.
-			If true, the request was successful and the 'body' attribute may contain the result of the request.
-			If the value is false, the attribute 'message' contains the error in short form and the 'body' may contain additional information (see 'ErrorResponse.body.error').
+	/** Wesponse fow a wequest. */
+	expowt intewface Wesponse extends PwotocowMessage {
+		// type: 'wesponse';
+		/** Sequence numba of the cowwesponding wequest. */
+		wequest_seq: numba;
+		/** Outcome of the wequest.
+			If twue, the wequest was successfuw and the 'body' attwibute may contain the wesuwt of the wequest.
+			If the vawue is fawse, the attwibute 'message' contains the ewwow in showt fowm and the 'body' may contain additionaw infowmation (see 'EwwowWesponse.body.ewwow').
 		*/
-		success: boolean;
-		/** The command requested. */
-		command: string;
-		/** Contains the raw error in short form if 'success' is false.
-			This raw error might be interpreted by the frontend and is not shown in the UI.
-			Some predefined values exist.
-			Values:
-			'cancelled': request was cancelled.
+		success: boowean;
+		/** The command wequested. */
+		command: stwing;
+		/** Contains the waw ewwow in showt fowm if 'success' is fawse.
+			This waw ewwow might be intewpweted by the fwontend and is not shown in the UI.
+			Some pwedefined vawues exist.
+			Vawues:
+			'cancewwed': wequest was cancewwed.
 			etc.
 		*/
-		message?: 'cancelled' | string;
-		/** Contains request result if success is true and optional error details if success is false. */
+		message?: 'cancewwed' | stwing;
+		/** Contains wequest wesuwt if success is twue and optionaw ewwow detaiws if success is fawse. */
 		body?: any;
 	}
 
-	/** On error (whenever 'success' is false), the body can provide more details. */
-	export interface ErrorResponse extends Response {
+	/** On ewwow (wheneva 'success' is fawse), the body can pwovide mowe detaiws. */
+	expowt intewface EwwowWesponse extends Wesponse {
 		body: {
-			/** An optional, structured error message. */
-			error?: Message;
+			/** An optionaw, stwuctuwed ewwow message. */
+			ewwow?: Message;
 		};
 	}
 
-	/** Cancel request; value of command field is 'cancel'.
-		The 'cancel' request is used by the frontend in two situations:
-		- to indicate that it is no longer interested in the result produced by a specific request issued earlier
-		- to cancel a progress sequence. Clients should only call this request if the capability 'supportsCancelRequest' is true.
-		This request has a hint characteristic: a debug adapter can only be expected to make a 'best effort' in honouring this request but there are no guarantees.
-		The 'cancel' request may return an error if it could not cancel an operation but a frontend should refrain from presenting this error to end users.
-		A frontend client should only call this request if the capability 'supportsCancelRequest' is true.
-		The request that got canceled still needs to send a response back. This can either be a normal result ('success' attribute true)
-		or an error response ('success' attribute false and the 'message' set to 'cancelled').
-		Returning partial results from a cancelled request is possible but please note that a frontend client has no generic way for detecting that a response is partial or not.
-		 The progress that got cancelled still needs to send a 'progressEnd' event back.
-		 A client should not assume that progress just got cancelled after sending the 'cancel' request.
+	/** Cancew wequest; vawue of command fiewd is 'cancew'.
+		The 'cancew' wequest is used by the fwontend in two situations:
+		- to indicate that it is no wonga intewested in the wesuwt pwoduced by a specific wequest issued eawwia
+		- to cancew a pwogwess sequence. Cwients shouwd onwy caww this wequest if the capabiwity 'suppowtsCancewWequest' is twue.
+		This wequest has a hint chawactewistic: a debug adapta can onwy be expected to make a 'best effowt' in honouwing this wequest but thewe awe no guawantees.
+		The 'cancew' wequest may wetuwn an ewwow if it couwd not cancew an opewation but a fwontend shouwd wefwain fwom pwesenting this ewwow to end usews.
+		A fwontend cwient shouwd onwy caww this wequest if the capabiwity 'suppowtsCancewWequest' is twue.
+		The wequest that got cancewed stiww needs to send a wesponse back. This can eitha be a nowmaw wesuwt ('success' attwibute twue)
+		ow an ewwow wesponse ('success' attwibute fawse and the 'message' set to 'cancewwed').
+		Wetuwning pawtiaw wesuwts fwom a cancewwed wequest is possibwe but pwease note that a fwontend cwient has no genewic way fow detecting that a wesponse is pawtiaw ow not.
+		 The pwogwess that got cancewwed stiww needs to send a 'pwogwessEnd' event back.
+		 A cwient shouwd not assume that pwogwess just got cancewwed afta sending the 'cancew' wequest.
 	*/
-	export interface CancelRequest extends Request {
-		// command: 'cancel';
-		arguments?: CancelArguments;
+	expowt intewface CancewWequest extends Wequest {
+		// command: 'cancew';
+		awguments?: CancewAwguments;
 	}
 
-	/** Arguments for 'cancel' request. */
-	export interface CancelArguments {
-		/** The ID (attribute 'seq') of the request to cancel. If missing no request is cancelled.
-			Both a 'requestId' and a 'progressId' can be specified in one request.
+	/** Awguments fow 'cancew' wequest. */
+	expowt intewface CancewAwguments {
+		/** The ID (attwibute 'seq') of the wequest to cancew. If missing no wequest is cancewwed.
+			Both a 'wequestId' and a 'pwogwessId' can be specified in one wequest.
 		*/
-		requestId?: number;
-		/** The ID (attribute 'progressId') of the progress to cancel. If missing no progress is cancelled.
-			Both a 'requestId' and a 'progressId' can be specified in one request.
+		wequestId?: numba;
+		/** The ID (attwibute 'pwogwessId') of the pwogwess to cancew. If missing no pwogwess is cancewwed.
+			Both a 'wequestId' and a 'pwogwessId' can be specified in one wequest.
 		*/
-		progressId?: string;
+		pwogwessId?: stwing;
 	}
 
-	/** Response to 'cancel' request. This is just an acknowledgement, so no body field is required. */
-	export interface CancelResponse extends Response {
+	/** Wesponse to 'cancew' wequest. This is just an acknowwedgement, so no body fiewd is wequiwed. */
+	expowt intewface CancewWesponse extends Wesponse {
 	}
 
-	/** Event message for 'initialized' event type.
-		This event indicates that the debug adapter is ready to accept configuration requests (e.g. SetBreakpointsRequest, SetExceptionBreakpointsRequest).
-		A debug adapter is expected to send this event when it is ready to accept configuration requests (but not before the 'initialize' request has finished).
-		The sequence of events/requests is as follows:
-		- adapters sends 'initialized' event (after the 'initialize' request has returned)
-		- frontend sends zero or more 'setBreakpoints' requests
-		- frontend sends one 'setFunctionBreakpoints' request (if capability 'supportsFunctionBreakpoints' is true)
-		- frontend sends a 'setExceptionBreakpoints' request if one or more 'exceptionBreakpointFilters' have been defined (or if 'supportsConfigurationDoneRequest' is not defined or false)
-		- frontend sends other future configuration requests
-		- frontend sends one 'configurationDone' request to indicate the end of the configuration.
+	/** Event message fow 'initiawized' event type.
+		This event indicates that the debug adapta is weady to accept configuwation wequests (e.g. SetBweakpointsWequest, SetExceptionBweakpointsWequest).
+		A debug adapta is expected to send this event when it is weady to accept configuwation wequests (but not befowe the 'initiawize' wequest has finished).
+		The sequence of events/wequests is as fowwows:
+		- adaptews sends 'initiawized' event (afta the 'initiawize' wequest has wetuwned)
+		- fwontend sends zewo ow mowe 'setBweakpoints' wequests
+		- fwontend sends one 'setFunctionBweakpoints' wequest (if capabiwity 'suppowtsFunctionBweakpoints' is twue)
+		- fwontend sends a 'setExceptionBweakpoints' wequest if one ow mowe 'exceptionBweakpointFiwtews' have been defined (ow if 'suppowtsConfiguwationDoneWequest' is not defined ow fawse)
+		- fwontend sends otha futuwe configuwation wequests
+		- fwontend sends one 'configuwationDone' wequest to indicate the end of the configuwation.
 	*/
-	export interface InitializedEvent extends Event {
-		// event: 'initialized';
+	expowt intewface InitiawizedEvent extends Event {
+		// event: 'initiawized';
 	}
 
-	/** Event message for 'stopped' event type.
+	/** Event message fow 'stopped' event type.
 		The event indicates that the execution of the debuggee has stopped due to some condition.
-		This can be caused by a break point previously set, a stepping request has completed, by executing a debugger statement etc.
+		This can be caused by a bweak point pweviouswy set, a stepping wequest has compweted, by executing a debugga statement etc.
 	*/
-	export interface StoppedEvent extends Event {
+	expowt intewface StoppedEvent extends Event {
 		// event: 'stopped';
 		body: {
-			/** The reason for the event.
-				For backward compatibility this string is shown in the UI if the 'description' attribute is missing (but it must not be translated).
-				Values: 'step', 'breakpoint', 'exception', 'pause', 'entry', 'goto', 'function breakpoint', 'data breakpoint', 'instruction breakpoint', etc.
+			/** The weason fow the event.
+				Fow backwawd compatibiwity this stwing is shown in the UI if the 'descwiption' attwibute is missing (but it must not be twanswated).
+				Vawues: 'step', 'bweakpoint', 'exception', 'pause', 'entwy', 'goto', 'function bweakpoint', 'data bweakpoint', 'instwuction bweakpoint', etc.
 			*/
-			reason: 'step' | 'breakpoint' | 'exception' | 'pause' | 'entry' | 'goto' | 'function breakpoint' | 'data breakpoint' | 'instruction breakpoint' | string;
-			/** The full reason for the event, e.g. 'Paused on exception'. This string is shown in the UI as is and must be translated. */
-			description?: string;
-			/** The thread which was stopped. */
-			threadId?: number;
-			/** A value of true hints to the frontend that this event should not change the focus. */
-			preserveFocusHint?: boolean;
-			/** Additional information. E.g. if reason is 'exception', text contains the exception name. This string is shown in the UI. */
-			text?: string;
-			/** If 'allThreadsStopped' is true, a debug adapter can announce that all threads have stopped.
-				- The client should use this information to enable that all threads can be expanded to access their stacktraces.
-				- If the attribute is missing or false, only the thread with the given threadId can be expanded.
+			weason: 'step' | 'bweakpoint' | 'exception' | 'pause' | 'entwy' | 'goto' | 'function bweakpoint' | 'data bweakpoint' | 'instwuction bweakpoint' | stwing;
+			/** The fuww weason fow the event, e.g. 'Paused on exception'. This stwing is shown in the UI as is and must be twanswated. */
+			descwiption?: stwing;
+			/** The thwead which was stopped. */
+			thweadId?: numba;
+			/** A vawue of twue hints to the fwontend that this event shouwd not change the focus. */
+			pwesewveFocusHint?: boowean;
+			/** Additionaw infowmation. E.g. if weason is 'exception', text contains the exception name. This stwing is shown in the UI. */
+			text?: stwing;
+			/** If 'awwThweadsStopped' is twue, a debug adapta can announce that aww thweads have stopped.
+				- The cwient shouwd use this infowmation to enabwe that aww thweads can be expanded to access theiw stacktwaces.
+				- If the attwibute is missing ow fawse, onwy the thwead with the given thweadId can be expanded.
 			*/
-			allThreadsStopped?: boolean;
-			/** Ids of the breakpoints that triggered the event. In most cases there will be only a single breakpoint but here are some examples for multiple breakpoints:
-				- Different types of breakpoints map to the same location.
-				- Multiple source breakpoints get collapsed to the same instruction by the compiler/runtime.
-				- Multiple function breakpoints with different function names map to the same location.
+			awwThweadsStopped?: boowean;
+			/** Ids of the bweakpoints that twiggewed the event. In most cases thewe wiww be onwy a singwe bweakpoint but hewe awe some exampwes fow muwtipwe bweakpoints:
+				- Diffewent types of bweakpoints map to the same wocation.
+				- Muwtipwe souwce bweakpoints get cowwapsed to the same instwuction by the compiwa/wuntime.
+				- Muwtipwe function bweakpoints with diffewent function names map to the same wocation.
 			*/
-			hitBreakpointIds?: number[];
+			hitBweakpointIds?: numba[];
 		};
 	}
 
-	/** Event message for 'continued' event type.
+	/** Event message fow 'continued' event type.
 		The event indicates that the execution of the debuggee has continued.
-		Please note: a debug adapter is not expected to send this event in response to a request that implies that execution continues, e.g. 'launch' or 'continue'.
-		It is only necessary to send a 'continued' event if there was no previous request that implied this.
+		Pwease note: a debug adapta is not expected to send this event in wesponse to a wequest that impwies that execution continues, e.g. 'waunch' ow 'continue'.
+		It is onwy necessawy to send a 'continued' event if thewe was no pwevious wequest that impwied this.
 	*/
-	export interface ContinuedEvent extends Event {
+	expowt intewface ContinuedEvent extends Event {
 		// event: 'continued';
 		body: {
-			/** The thread which was continued. */
-			threadId: number;
-			/** If 'allThreadsContinued' is true, a debug adapter can announce that all threads have continued. */
-			allThreadsContinued?: boolean;
+			/** The thwead which was continued. */
+			thweadId: numba;
+			/** If 'awwThweadsContinued' is twue, a debug adapta can announce that aww thweads have continued. */
+			awwThweadsContinued?: boowean;
 		};
 	}
 
-	/** Event message for 'exited' event type.
-		The event indicates that the debuggee has exited and returns its exit code.
+	/** Event message fow 'exited' event type.
+		The event indicates that the debuggee has exited and wetuwns its exit code.
 	*/
-	export interface ExitedEvent extends Event {
+	expowt intewface ExitedEvent extends Event {
 		// event: 'exited';
 		body: {
-			/** The exit code returned from the debuggee. */
-			exitCode: number;
+			/** The exit code wetuwned fwom the debuggee. */
+			exitCode: numba;
 		};
 	}
 
-	/** Event message for 'terminated' event type.
-		The event indicates that debugging of the debuggee has terminated. This does **not** mean that the debuggee itself has exited.
+	/** Event message fow 'tewminated' event type.
+		The event indicates that debugging of the debuggee has tewminated. This does **not** mean that the debuggee itsewf has exited.
 	*/
-	export interface TerminatedEvent extends Event {
-		// event: 'terminated';
+	expowt intewface TewminatedEvent extends Event {
+		// event: 'tewminated';
 		body?: {
-			/** A debug adapter may set 'restart' to true (or to an arbitrary object) to request that the front end restarts the session.
-				The value is not interpreted by the client and passed unmodified as an attribute '__restart' to the 'launch' and 'attach' requests.
+			/** A debug adapta may set 'westawt' to twue (ow to an awbitwawy object) to wequest that the fwont end westawts the session.
+				The vawue is not intewpweted by the cwient and passed unmodified as an attwibute '__westawt' to the 'waunch' and 'attach' wequests.
 			*/
-			restart?: any;
+			westawt?: any;
 		};
 	}
 
-	/** Event message for 'thread' event type.
-		The event indicates that a thread has started or exited.
+	/** Event message fow 'thwead' event type.
+		The event indicates that a thwead has stawted ow exited.
 	*/
-	export interface ThreadEvent extends Event {
-		// event: 'thread';
+	expowt intewface ThweadEvent extends Event {
+		// event: 'thwead';
 		body: {
-			/** The reason for the event.
-				Values: 'started', 'exited', etc.
+			/** The weason fow the event.
+				Vawues: 'stawted', 'exited', etc.
 			*/
-			reason: 'started' | 'exited' | string;
-			/** The identifier of the thread. */
-			threadId: number;
+			weason: 'stawted' | 'exited' | stwing;
+			/** The identifia of the thwead. */
+			thweadId: numba;
 		};
 	}
 
-	/** Event message for 'output' event type.
-		The event indicates that the target has produced some output.
+	/** Event message fow 'output' event type.
+		The event indicates that the tawget has pwoduced some output.
 	*/
-	export interface OutputEvent extends Event {
+	expowt intewface OutputEvent extends Event {
 		// event: 'output';
 		body: {
-			/** The output category. If not specified, 'console' is assumed.
-				Values: 'console', 'stdout', 'stderr', 'telemetry', etc.
+			/** The output categowy. If not specified, 'consowe' is assumed.
+				Vawues: 'consowe', 'stdout', 'stdeww', 'tewemetwy', etc.
 			*/
-			category?: 'console' | 'stdout' | 'stderr' | 'telemetry' | string;
-			/** The output to report. */
-			output: string;
-			/** Support for keeping an output log organized by grouping related messages.
-				'start': Start a new group in expanded mode. Subsequent output events are members of the group and should be shown indented.
-				The 'output' attribute becomes the name of the group and is not indented.
-				'startCollapsed': Start a new group in collapsed mode. Subsequent output events are members of the group and should be shown indented (as soon as the group is expanded).
-				The 'output' attribute becomes the name of the group and is not indented.
-				'end': End the current group and decreases the indentation of subsequent output events.
-				A non empty 'output' attribute is shown as the unindented end of the group.
+			categowy?: 'consowe' | 'stdout' | 'stdeww' | 'tewemetwy' | stwing;
+			/** The output to wepowt. */
+			output: stwing;
+			/** Suppowt fow keeping an output wog owganized by gwouping wewated messages.
+				'stawt': Stawt a new gwoup in expanded mode. Subsequent output events awe membews of the gwoup and shouwd be shown indented.
+				The 'output' attwibute becomes the name of the gwoup and is not indented.
+				'stawtCowwapsed': Stawt a new gwoup in cowwapsed mode. Subsequent output events awe membews of the gwoup and shouwd be shown indented (as soon as the gwoup is expanded).
+				The 'output' attwibute becomes the name of the gwoup and is not indented.
+				'end': End the cuwwent gwoup and decweases the indentation of subsequent output events.
+				A non empty 'output' attwibute is shown as the unindented end of the gwoup.
 			*/
-			group?: 'start' | 'startCollapsed' | 'end';
-			/** If an attribute 'variablesReference' exists and its value is > 0, the output contains objects which can be retrieved by passing 'variablesReference' to the 'variables' request. The value should be less than or equal to 2147483647 (2^31-1). */
-			variablesReference?: number;
-			/** An optional source location where the output was produced. */
-			source?: Source;
-			/** An optional source location line where the output was produced. */
-			line?: number;
-			/** An optional source location column where the output was produced. */
-			column?: number;
-			/** Optional data to report. For the 'telemetry' category the data will be sent to telemetry, for the other categories the data is shown in JSON format. */
+			gwoup?: 'stawt' | 'stawtCowwapsed' | 'end';
+			/** If an attwibute 'vawiabwesWefewence' exists and its vawue is > 0, the output contains objects which can be wetwieved by passing 'vawiabwesWefewence' to the 'vawiabwes' wequest. The vawue shouwd be wess than ow equaw to 2147483647 (2^31-1). */
+			vawiabwesWefewence?: numba;
+			/** An optionaw souwce wocation whewe the output was pwoduced. */
+			souwce?: Souwce;
+			/** An optionaw souwce wocation wine whewe the output was pwoduced. */
+			wine?: numba;
+			/** An optionaw souwce wocation cowumn whewe the output was pwoduced. */
+			cowumn?: numba;
+			/** Optionaw data to wepowt. Fow the 'tewemetwy' categowy the data wiww be sent to tewemetwy, fow the otha categowies the data is shown in JSON fowmat. */
 			data?: any;
 		};
 	}
 
-	/** Event message for 'breakpoint' event type.
-		The event indicates that some information about a breakpoint has changed.
+	/** Event message fow 'bweakpoint' event type.
+		The event indicates that some infowmation about a bweakpoint has changed.
 	*/
-	export interface BreakpointEvent extends Event {
-		// event: 'breakpoint';
+	expowt intewface BweakpointEvent extends Event {
+		// event: 'bweakpoint';
 		body: {
-			/** The reason for the event.
-				Values: 'changed', 'new', 'removed', etc.
+			/** The weason fow the event.
+				Vawues: 'changed', 'new', 'wemoved', etc.
 			*/
-			reason: 'changed' | 'new' | 'removed' | string;
-			/** The 'id' attribute is used to find the target breakpoint and the other attributes are used as the new values. */
-			breakpoint: Breakpoint;
+			weason: 'changed' | 'new' | 'wemoved' | stwing;
+			/** The 'id' attwibute is used to find the tawget bweakpoint and the otha attwibutes awe used as the new vawues. */
+			bweakpoint: Bweakpoint;
 		};
 	}
 
-	/** Event message for 'module' event type.
-		The event indicates that some information about a module has changed.
+	/** Event message fow 'moduwe' event type.
+		The event indicates that some infowmation about a moduwe has changed.
 	*/
-	export interface ModuleEvent extends Event {
-		// event: 'module';
+	expowt intewface ModuweEvent extends Event {
+		// event: 'moduwe';
 		body: {
-			/** The reason for the event. */
-			reason: 'new' | 'changed' | 'removed';
-			/** The new, changed, or removed module. In case of 'removed' only the module id is used. */
-			module: Module;
+			/** The weason fow the event. */
+			weason: 'new' | 'changed' | 'wemoved';
+			/** The new, changed, ow wemoved moduwe. In case of 'wemoved' onwy the moduwe id is used. */
+			moduwe: Moduwe;
 		};
 	}
 
-	/** Event message for 'loadedSource' event type.
-		The event indicates that some source has been added, changed, or removed from the set of all loaded sources.
+	/** Event message fow 'woadedSouwce' event type.
+		The event indicates that some souwce has been added, changed, ow wemoved fwom the set of aww woaded souwces.
 	*/
-	export interface LoadedSourceEvent extends Event {
-		// event: 'loadedSource';
+	expowt intewface WoadedSouwceEvent extends Event {
+		// event: 'woadedSouwce';
 		body: {
-			/** The reason for the event. */
-			reason: 'new' | 'changed' | 'removed';
-			/** The new, changed, or removed source. */
-			source: Source;
+			/** The weason fow the event. */
+			weason: 'new' | 'changed' | 'wemoved';
+			/** The new, changed, ow wemoved souwce. */
+			souwce: Souwce;
 		};
 	}
 
-	/** Event message for 'process' event type.
-		The event indicates that the debugger has begun debugging a new process. Either one that it has launched, or one that it has attached to.
+	/** Event message fow 'pwocess' event type.
+		The event indicates that the debugga has begun debugging a new pwocess. Eitha one that it has waunched, ow one that it has attached to.
 	*/
-	export interface ProcessEvent extends Event {
-		// event: 'process';
+	expowt intewface PwocessEvent extends Event {
+		// event: 'pwocess';
 		body: {
-			/** The logical name of the process. This is usually the full path to process's executable file. Example: /home/example/myproj/program.js. */
-			name: string;
-			/** The system process id of the debugged process. This property will be missing for non-system processes. */
-			systemProcessId?: number;
-			/** If true, the process is running on the same computer as the debug adapter. */
-			isLocalProcess?: boolean;
-			/** Describes how the debug engine started debugging this process.
-				'launch': Process was launched under the debugger.
-				'attach': Debugger attached to an existing process.
-				'attachForSuspendedLaunch': A project launcher component has launched a new process in a suspended state and then asked the debugger to attach.
+			/** The wogicaw name of the pwocess. This is usuawwy the fuww path to pwocess's executabwe fiwe. Exampwe: /home/exampwe/mypwoj/pwogwam.js. */
+			name: stwing;
+			/** The system pwocess id of the debugged pwocess. This pwopewty wiww be missing fow non-system pwocesses. */
+			systemPwocessId?: numba;
+			/** If twue, the pwocess is wunning on the same computa as the debug adapta. */
+			isWocawPwocess?: boowean;
+			/** Descwibes how the debug engine stawted debugging this pwocess.
+				'waunch': Pwocess was waunched unda the debugga.
+				'attach': Debugga attached to an existing pwocess.
+				'attachFowSuspendedWaunch': A pwoject wauncha component has waunched a new pwocess in a suspended state and then asked the debugga to attach.
 			*/
-			startMethod?: 'launch' | 'attach' | 'attachForSuspendedLaunch';
-			/** The size of a pointer or address for this process, in bits. This value may be used by clients when formatting addresses for display. */
-			pointerSize?: number;
+			stawtMethod?: 'waunch' | 'attach' | 'attachFowSuspendedWaunch';
+			/** The size of a pointa ow addwess fow this pwocess, in bits. This vawue may be used by cwients when fowmatting addwesses fow dispway. */
+			pointewSize?: numba;
 		};
 	}
 
-	/** Event message for 'capabilities' event type.
-		The event indicates that one or more capabilities have changed.
-		Since the capabilities are dependent on the frontend and its UI, it might not be possible to change that at random times (or too late).
-		Consequently this event has a hint characteristic: a frontend can only be expected to make a 'best effort' in honouring individual capabilities but there are no guarantees.
-		Only changed capabilities need to be included, all other capabilities keep their values.
+	/** Event message fow 'capabiwities' event type.
+		The event indicates that one ow mowe capabiwities have changed.
+		Since the capabiwities awe dependent on the fwontend and its UI, it might not be possibwe to change that at wandom times (ow too wate).
+		Consequentwy this event has a hint chawactewistic: a fwontend can onwy be expected to make a 'best effowt' in honouwing individuaw capabiwities but thewe awe no guawantees.
+		Onwy changed capabiwities need to be incwuded, aww otha capabiwities keep theiw vawues.
 	*/
-	export interface CapabilitiesEvent extends Event {
-		// event: 'capabilities';
+	expowt intewface CapabiwitiesEvent extends Event {
+		// event: 'capabiwities';
 		body: {
-			/** The set of updated capabilities. */
-			capabilities: Capabilities;
+			/** The set of updated capabiwities. */
+			capabiwities: Capabiwities;
 		};
 	}
 
-	/** Event message for 'progressStart' event type.
-		The event signals that a long running operation is about to start and
-		provides additional information for the client to set up a corresponding progress and cancellation UI.
-		The client is free to delay the showing of the UI in order to reduce flicker.
-		This event should only be sent if the client has passed the value true for the 'supportsProgressReporting' capability of the 'initialize' request.
+	/** Event message fow 'pwogwessStawt' event type.
+		The event signaws that a wong wunning opewation is about to stawt and
+		pwovides additionaw infowmation fow the cwient to set up a cowwesponding pwogwess and cancewwation UI.
+		The cwient is fwee to deway the showing of the UI in owda to weduce fwicka.
+		This event shouwd onwy be sent if the cwient has passed the vawue twue fow the 'suppowtsPwogwessWepowting' capabiwity of the 'initiawize' wequest.
 	*/
-	export interface ProgressStartEvent extends Event {
-		// event: 'progressStart';
+	expowt intewface PwogwessStawtEvent extends Event {
+		// event: 'pwogwessStawt';
 		body: {
-			/** An ID that must be used in subsequent 'progressUpdate' and 'progressEnd' events to make them refer to the same progress reporting.
+			/** An ID that must be used in subsequent 'pwogwessUpdate' and 'pwogwessEnd' events to make them wefa to the same pwogwess wepowting.
 				IDs must be unique within a debug session.
 			*/
-			progressId: string;
-			/** Mandatory (short) title of the progress reporting. Shown in the UI to describe the long running operation. */
-			title: string;
-			/** The request ID that this progress report is related to. If specified a debug adapter is expected to emit
-				progress events for the long running request until the request has been either completed or cancelled.
-				If the request ID is omitted, the progress report is assumed to be related to some general activity of the debug adapter.
+			pwogwessId: stwing;
+			/** Mandatowy (showt) titwe of the pwogwess wepowting. Shown in the UI to descwibe the wong wunning opewation. */
+			titwe: stwing;
+			/** The wequest ID that this pwogwess wepowt is wewated to. If specified a debug adapta is expected to emit
+				pwogwess events fow the wong wunning wequest untiw the wequest has been eitha compweted ow cancewwed.
+				If the wequest ID is omitted, the pwogwess wepowt is assumed to be wewated to some genewaw activity of the debug adapta.
 			*/
-			requestId?: number;
-			/** If true, the request that reports progress may be canceled with a 'cancel' request.
-				So this property basically controls whether the client should use UX that supports cancellation.
-				Clients that don't support cancellation are allowed to ignore the setting.
+			wequestId?: numba;
+			/** If twue, the wequest that wepowts pwogwess may be cancewed with a 'cancew' wequest.
+				So this pwopewty basicawwy contwows whetha the cwient shouwd use UX that suppowts cancewwation.
+				Cwients that don't suppowt cancewwation awe awwowed to ignowe the setting.
 			*/
-			cancellable?: boolean;
-			/** Optional, more detailed progress message. */
-			message?: string;
-			/** Optional progress percentage to display (value range: 0 to 100). If omitted no percentage will be shown. */
-			percentage?: number;
+			cancewwabwe?: boowean;
+			/** Optionaw, mowe detaiwed pwogwess message. */
+			message?: stwing;
+			/** Optionaw pwogwess pewcentage to dispway (vawue wange: 0 to 100). If omitted no pewcentage wiww be shown. */
+			pewcentage?: numba;
 		};
 	}
 
-	/** Event message for 'progressUpdate' event type.
-		The event signals that the progress reporting needs to updated with a new message and/or percentage.
-		The client does not have to update the UI immediately, but the clients needs to keep track of the message and/or percentage values.
-		This event should only be sent if the client has passed the value true for the 'supportsProgressReporting' capability of the 'initialize' request.
+	/** Event message fow 'pwogwessUpdate' event type.
+		The event signaws that the pwogwess wepowting needs to updated with a new message and/ow pewcentage.
+		The cwient does not have to update the UI immediatewy, but the cwients needs to keep twack of the message and/ow pewcentage vawues.
+		This event shouwd onwy be sent if the cwient has passed the vawue twue fow the 'suppowtsPwogwessWepowting' capabiwity of the 'initiawize' wequest.
 	*/
-	export interface ProgressUpdateEvent extends Event {
-		// event: 'progressUpdate';
+	expowt intewface PwogwessUpdateEvent extends Event {
+		// event: 'pwogwessUpdate';
 		body: {
-			/** The ID that was introduced in the initial 'progressStart' event. */
-			progressId: string;
-			/** Optional, more detailed progress message. If omitted, the previous message (if any) is used. */
-			message?: string;
-			/** Optional progress percentage to display (value range: 0 to 100). If omitted no percentage will be shown. */
-			percentage?: number;
+			/** The ID that was intwoduced in the initiaw 'pwogwessStawt' event. */
+			pwogwessId: stwing;
+			/** Optionaw, mowe detaiwed pwogwess message. If omitted, the pwevious message (if any) is used. */
+			message?: stwing;
+			/** Optionaw pwogwess pewcentage to dispway (vawue wange: 0 to 100). If omitted no pewcentage wiww be shown. */
+			pewcentage?: numba;
 		};
 	}
 
-	/** Event message for 'progressEnd' event type.
-		The event signals the end of the progress reporting with an optional final message.
-		This event should only be sent if the client has passed the value true for the 'supportsProgressReporting' capability of the 'initialize' request.
+	/** Event message fow 'pwogwessEnd' event type.
+		The event signaws the end of the pwogwess wepowting with an optionaw finaw message.
+		This event shouwd onwy be sent if the cwient has passed the vawue twue fow the 'suppowtsPwogwessWepowting' capabiwity of the 'initiawize' wequest.
 	*/
-	export interface ProgressEndEvent extends Event {
-		// event: 'progressEnd';
+	expowt intewface PwogwessEndEvent extends Event {
+		// event: 'pwogwessEnd';
 		body: {
-			/** The ID that was introduced in the initial 'ProgressStartEvent'. */
-			progressId: string;
-			/** Optional, more detailed progress message. If omitted, the previous message (if any) is used. */
-			message?: string;
+			/** The ID that was intwoduced in the initiaw 'PwogwessStawtEvent'. */
+			pwogwessId: stwing;
+			/** Optionaw, mowe detaiwed pwogwess message. If omitted, the pwevious message (if any) is used. */
+			message?: stwing;
 		};
 	}
 
-	/** Event message for 'invalidated' event type.
-		This event signals that some state in the debug adapter has changed and requires that the client needs to re-render the data snapshot previously requested.
-		Debug adapters do not have to emit this event for runtime changes like stopped or thread events because in that case the client refetches the new state anyway. But the event can be used for example to refresh the UI after rendering formatting has changed in the debug adapter.
-		This event should only be sent if the debug adapter has received a value true for the 'supportsInvalidatedEvent' capability of the 'initialize' request.
+	/** Event message fow 'invawidated' event type.
+		This event signaws that some state in the debug adapta has changed and wequiwes that the cwient needs to we-wenda the data snapshot pweviouswy wequested.
+		Debug adaptews do not have to emit this event fow wuntime changes wike stopped ow thwead events because in that case the cwient wefetches the new state anyway. But the event can be used fow exampwe to wefwesh the UI afta wendewing fowmatting has changed in the debug adapta.
+		This event shouwd onwy be sent if the debug adapta has weceived a vawue twue fow the 'suppowtsInvawidatedEvent' capabiwity of the 'initiawize' wequest.
 	*/
-	export interface InvalidatedEvent extends Event {
-		// event: 'invalidated';
+	expowt intewface InvawidatedEvent extends Event {
+		// event: 'invawidated';
 		body: {
-			/** Optional set of logical areas that got invalidated. This property has a hint characteristic: a client can only be expected to make a 'best effort' in honouring the areas but there are no guarantees. If this property is missing, empty, or if values are not understand the client should assume a single value 'all'. */
-			areas?: InvalidatedAreas[];
-			/** If specified, the client only needs to refetch data related to this thread. */
-			threadId?: number;
-			/** If specified, the client only needs to refetch data related to this stack frame (and the 'threadId' is ignored). */
-			stackFrameId?: number;
+			/** Optionaw set of wogicaw aweas that got invawidated. This pwopewty has a hint chawactewistic: a cwient can onwy be expected to make a 'best effowt' in honouwing the aweas but thewe awe no guawantees. If this pwopewty is missing, empty, ow if vawues awe not undewstand the cwient shouwd assume a singwe vawue 'aww'. */
+			aweas?: InvawidatedAweas[];
+			/** If specified, the cwient onwy needs to wefetch data wewated to this thwead. */
+			thweadId?: numba;
+			/** If specified, the cwient onwy needs to wefetch data wewated to this stack fwame (and the 'thweadId' is ignowed). */
+			stackFwameId?: numba;
 		};
 	}
 
-	/** Event message for 'memory' event type.
-		This event indicates that some memory range has been updated. It should only be sent if the debug adapter has received a value true for the `supportsMemoryEvent` capability of the `initialize` request.
-		Clients typically react to the event by re-issuing a `readMemory` request if they show the memory identified by the `memoryReference` and if the updated memory range overlaps the displayed range. Clients should not make assumptions how individual memory references relate to each other, so they should not assume that they are part of a single continuous address range and might overlap.
-		Debug adapters can use this event to indicate that the contents of a memory range has changed due to some other DAP request like `setVariable` or `setExpression`. Debug adapters are not expected to emit this event for each and every memory change of a running program, because that information is typically not available from debuggers and it would flood clients with too many events.
+	/** Event message fow 'memowy' event type.
+		This event indicates that some memowy wange has been updated. It shouwd onwy be sent if the debug adapta has weceived a vawue twue fow the `suppowtsMemowyEvent` capabiwity of the `initiawize` wequest.
+		Cwients typicawwy weact to the event by we-issuing a `weadMemowy` wequest if they show the memowy identified by the `memowyWefewence` and if the updated memowy wange ovewwaps the dispwayed wange. Cwients shouwd not make assumptions how individuaw memowy wefewences wewate to each otha, so they shouwd not assume that they awe pawt of a singwe continuous addwess wange and might ovewwap.
+		Debug adaptews can use this event to indicate that the contents of a memowy wange has changed due to some otha DAP wequest wike `setVawiabwe` ow `setExpwession`. Debug adaptews awe not expected to emit this event fow each and evewy memowy change of a wunning pwogwam, because that infowmation is typicawwy not avaiwabwe fwom debuggews and it wouwd fwood cwients with too many events.
 	*/
-	export interface MemoryEvent extends Event {
-		// event: 'memory';
+	expowt intewface MemowyEvent extends Event {
+		// event: 'memowy';
 		body: {
-			/** Memory reference of a memory range that has been updated. */
-			memoryReference: string;
-			/** Starting offset in bytes where memory has been updated. Can be negative. */
-			offset: number;
-			/** Number of bytes updated. */
-			count: number;
+			/** Memowy wefewence of a memowy wange that has been updated. */
+			memowyWefewence: stwing;
+			/** Stawting offset in bytes whewe memowy has been updated. Can be negative. */
+			offset: numba;
+			/** Numba of bytes updated. */
+			count: numba;
 		};
 	}
 
-	/** RunInTerminal request; value of command field is 'runInTerminal'.
-		This optional request is sent from the debug adapter to the client to run a command in a terminal.
-		This is typically used to launch the debuggee in a terminal provided by the client.
-		This request should only be called if the client has passed the value true for the 'supportsRunInTerminalRequest' capability of the 'initialize' request.
+	/** WunInTewminaw wequest; vawue of command fiewd is 'wunInTewminaw'.
+		This optionaw wequest is sent fwom the debug adapta to the cwient to wun a command in a tewminaw.
+		This is typicawwy used to waunch the debuggee in a tewminaw pwovided by the cwient.
+		This wequest shouwd onwy be cawwed if the cwient has passed the vawue twue fow the 'suppowtsWunInTewminawWequest' capabiwity of the 'initiawize' wequest.
 	*/
-	export interface RunInTerminalRequest extends Request {
-		// command: 'runInTerminal';
-		arguments: RunInTerminalRequestArguments;
+	expowt intewface WunInTewminawWequest extends Wequest {
+		// command: 'wunInTewminaw';
+		awguments: WunInTewminawWequestAwguments;
 	}
 
-	/** Arguments for 'runInTerminal' request. */
-	export interface RunInTerminalRequestArguments {
-		/** What kind of terminal to launch. */
-		kind?: 'integrated' | 'external';
-		/** Optional title of the terminal. */
-		title?: string;
-		/** Working directory for the command. For non-empty, valid paths this typically results in execution of a change directory command. */
-		cwd: string;
-		/** List of arguments. The first argument is the command to run. */
-		args: string[];
-		/** Environment key-value pairs that are added to or removed from the default environment. */
-		env?: { [key: string]: string | null; };
+	/** Awguments fow 'wunInTewminaw' wequest. */
+	expowt intewface WunInTewminawWequestAwguments {
+		/** What kind of tewminaw to waunch. */
+		kind?: 'integwated' | 'extewnaw';
+		/** Optionaw titwe of the tewminaw. */
+		titwe?: stwing;
+		/** Wowking diwectowy fow the command. Fow non-empty, vawid paths this typicawwy wesuwts in execution of a change diwectowy command. */
+		cwd: stwing;
+		/** Wist of awguments. The fiwst awgument is the command to wun. */
+		awgs: stwing[];
+		/** Enviwonment key-vawue paiws that awe added to ow wemoved fwom the defauwt enviwonment. */
+		env?: { [key: stwing]: stwing | nuww; };
 	}
 
-	/** Response to 'runInTerminal' request. */
-	export interface RunInTerminalResponse extends Response {
+	/** Wesponse to 'wunInTewminaw' wequest. */
+	expowt intewface WunInTewminawWesponse extends Wesponse {
 		body: {
-			/** The process ID. The value should be less than or equal to 2147483647 (2^31-1). */
-			processId?: number;
-			/** The process ID of the terminal shell. The value should be less than or equal to 2147483647 (2^31-1). */
-			shellProcessId?: number;
+			/** The pwocess ID. The vawue shouwd be wess than ow equaw to 2147483647 (2^31-1). */
+			pwocessId?: numba;
+			/** The pwocess ID of the tewminaw sheww. The vawue shouwd be wess than ow equaw to 2147483647 (2^31-1). */
+			shewwPwocessId?: numba;
 		};
 	}
 
-	/** Initialize request; value of command field is 'initialize'.
-		The 'initialize' request is sent as the first request from the client to the debug adapter
-		in order to configure it with client capabilities and to retrieve capabilities from the debug adapter.
-		Until the debug adapter has responded to with an 'initialize' response, the client must not send any additional requests or events to the debug adapter.
-		In addition the debug adapter is not allowed to send any requests or events to the client until it has responded with an 'initialize' response.
-		The 'initialize' request may only be sent once.
+	/** Initiawize wequest; vawue of command fiewd is 'initiawize'.
+		The 'initiawize' wequest is sent as the fiwst wequest fwom the cwient to the debug adapta
+		in owda to configuwe it with cwient capabiwities and to wetwieve capabiwities fwom the debug adapta.
+		Untiw the debug adapta has wesponded to with an 'initiawize' wesponse, the cwient must not send any additionaw wequests ow events to the debug adapta.
+		In addition the debug adapta is not awwowed to send any wequests ow events to the cwient untiw it has wesponded with an 'initiawize' wesponse.
+		The 'initiawize' wequest may onwy be sent once.
 	*/
-	export interface InitializeRequest extends Request {
-		// command: 'initialize';
-		arguments: InitializeRequestArguments;
+	expowt intewface InitiawizeWequest extends Wequest {
+		// command: 'initiawize';
+		awguments: InitiawizeWequestAwguments;
 	}
 
-	/** Arguments for 'initialize' request. */
-	export interface InitializeRequestArguments {
-		/** The ID of the (frontend) client using this adapter. */
-		clientID?: string;
-		/** The human readable name of the (frontend) client using this adapter. */
-		clientName?: string;
-		/** The ID of the debug adapter. */
-		adapterID: string;
-		/** The ISO-639 locale of the (frontend) client using this adapter, e.g. en-US or de-CH. */
-		locale?: string;
-		/** If true all line numbers are 1-based (default). */
-		linesStartAt1?: boolean;
-		/** If true all column numbers are 1-based (default). */
-		columnsStartAt1?: boolean;
-		/** Determines in what format paths are specified. The default is 'path', which is the native format.
-			Values: 'path', 'uri', etc.
+	/** Awguments fow 'initiawize' wequest. */
+	expowt intewface InitiawizeWequestAwguments {
+		/** The ID of the (fwontend) cwient using this adapta. */
+		cwientID?: stwing;
+		/** The human weadabwe name of the (fwontend) cwient using this adapta. */
+		cwientName?: stwing;
+		/** The ID of the debug adapta. */
+		adaptewID: stwing;
+		/** The ISO-639 wocawe of the (fwontend) cwient using this adapta, e.g. en-US ow de-CH. */
+		wocawe?: stwing;
+		/** If twue aww wine numbews awe 1-based (defauwt). */
+		winesStawtAt1?: boowean;
+		/** If twue aww cowumn numbews awe 1-based (defauwt). */
+		cowumnsStawtAt1?: boowean;
+		/** Detewmines in what fowmat paths awe specified. The defauwt is 'path', which is the native fowmat.
+			Vawues: 'path', 'uwi', etc.
 		*/
-		pathFormat?: 'path' | 'uri' | string;
-		/** Client supports the optional type attribute for variables. */
-		supportsVariableType?: boolean;
-		/** Client supports the paging of variables. */
-		supportsVariablePaging?: boolean;
-		/** Client supports the runInTerminal request. */
-		supportsRunInTerminalRequest?: boolean;
-		/** Client supports memory references. */
-		supportsMemoryReferences?: boolean;
-		/** Client supports progress reporting. */
-		supportsProgressReporting?: boolean;
-		/** Client supports the invalidated event. */
-		supportsInvalidatedEvent?: boolean;
-		/** Client supports the memory event. */
-		supportsMemoryEvent?: boolean;
+		pathFowmat?: 'path' | 'uwi' | stwing;
+		/** Cwient suppowts the optionaw type attwibute fow vawiabwes. */
+		suppowtsVawiabweType?: boowean;
+		/** Cwient suppowts the paging of vawiabwes. */
+		suppowtsVawiabwePaging?: boowean;
+		/** Cwient suppowts the wunInTewminaw wequest. */
+		suppowtsWunInTewminawWequest?: boowean;
+		/** Cwient suppowts memowy wefewences. */
+		suppowtsMemowyWefewences?: boowean;
+		/** Cwient suppowts pwogwess wepowting. */
+		suppowtsPwogwessWepowting?: boowean;
+		/** Cwient suppowts the invawidated event. */
+		suppowtsInvawidatedEvent?: boowean;
+		/** Cwient suppowts the memowy event. */
+		suppowtsMemowyEvent?: boowean;
 	}
 
-	/** Response to 'initialize' request. */
-	export interface InitializeResponse extends Response {
-		/** The capabilities of this debug adapter. */
-		body?: Capabilities;
+	/** Wesponse to 'initiawize' wequest. */
+	expowt intewface InitiawizeWesponse extends Wesponse {
+		/** The capabiwities of this debug adapta. */
+		body?: Capabiwities;
 	}
 
-	/** ConfigurationDone request; value of command field is 'configurationDone'.
-		This optional request indicates that the client has finished initialization of the debug adapter.
-		So it is the last request in the sequence of configuration requests (which was started by the 'initialized' event).
-		Clients should only call this request if the capability 'supportsConfigurationDoneRequest' is true.
+	/** ConfiguwationDone wequest; vawue of command fiewd is 'configuwationDone'.
+		This optionaw wequest indicates that the cwient has finished initiawization of the debug adapta.
+		So it is the wast wequest in the sequence of configuwation wequests (which was stawted by the 'initiawized' event).
+		Cwients shouwd onwy caww this wequest if the capabiwity 'suppowtsConfiguwationDoneWequest' is twue.
 	*/
-	export interface ConfigurationDoneRequest extends Request {
-		// command: 'configurationDone';
-		arguments?: ConfigurationDoneArguments;
+	expowt intewface ConfiguwationDoneWequest extends Wequest {
+		// command: 'configuwationDone';
+		awguments?: ConfiguwationDoneAwguments;
 	}
 
-	/** Arguments for 'configurationDone' request. */
-	export interface ConfigurationDoneArguments {
+	/** Awguments fow 'configuwationDone' wequest. */
+	expowt intewface ConfiguwationDoneAwguments {
 	}
 
-	/** Response to 'configurationDone' request. This is just an acknowledgement, so no body field is required. */
-	export interface ConfigurationDoneResponse extends Response {
+	/** Wesponse to 'configuwationDone' wequest. This is just an acknowwedgement, so no body fiewd is wequiwed. */
+	expowt intewface ConfiguwationDoneWesponse extends Wesponse {
 	}
 
-	/** Launch request; value of command field is 'launch'.
-		This launch request is sent from the client to the debug adapter to start the debuggee with or without debugging (if 'noDebug' is true).
-		Since launching is debugger/runtime specific, the arguments for this request are not part of this specification.
+	/** Waunch wequest; vawue of command fiewd is 'waunch'.
+		This waunch wequest is sent fwom the cwient to the debug adapta to stawt the debuggee with ow without debugging (if 'noDebug' is twue).
+		Since waunching is debugga/wuntime specific, the awguments fow this wequest awe not pawt of this specification.
 	*/
-	export interface LaunchRequest extends Request {
-		// command: 'launch';
-		arguments: LaunchRequestArguments;
+	expowt intewface WaunchWequest extends Wequest {
+		// command: 'waunch';
+		awguments: WaunchWequestAwguments;
 	}
 
-	/** Arguments for 'launch' request. Additional attributes are implementation specific. */
-	export interface LaunchRequestArguments {
-		/** If noDebug is true the launch request should launch the program without enabling debugging. */
-		noDebug?: boolean;
-		/** Optional data from the previous, restarted session.
-			The data is sent as the 'restart' attribute of the 'terminated' event.
-			The client should leave the data intact.
+	/** Awguments fow 'waunch' wequest. Additionaw attwibutes awe impwementation specific. */
+	expowt intewface WaunchWequestAwguments {
+		/** If noDebug is twue the waunch wequest shouwd waunch the pwogwam without enabwing debugging. */
+		noDebug?: boowean;
+		/** Optionaw data fwom the pwevious, westawted session.
+			The data is sent as the 'westawt' attwibute of the 'tewminated' event.
+			The cwient shouwd weave the data intact.
 		*/
-		__restart?: any;
+		__westawt?: any;
 	}
 
-	/** Response to 'launch' request. This is just an acknowledgement, so no body field is required. */
-	export interface LaunchResponse extends Response {
+	/** Wesponse to 'waunch' wequest. This is just an acknowwedgement, so no body fiewd is wequiwed. */
+	expowt intewface WaunchWesponse extends Wesponse {
 	}
 
-	/** Attach request; value of command field is 'attach'.
-		The attach request is sent from the client to the debug adapter to attach to a debuggee that is already running.
-		Since attaching is debugger/runtime specific, the arguments for this request are not part of this specification.
+	/** Attach wequest; vawue of command fiewd is 'attach'.
+		The attach wequest is sent fwom the cwient to the debug adapta to attach to a debuggee that is awweady wunning.
+		Since attaching is debugga/wuntime specific, the awguments fow this wequest awe not pawt of this specification.
 	*/
-	export interface AttachRequest extends Request {
+	expowt intewface AttachWequest extends Wequest {
 		// command: 'attach';
-		arguments: AttachRequestArguments;
+		awguments: AttachWequestAwguments;
 	}
 
-	/** Arguments for 'attach' request. Additional attributes are implementation specific. */
-	export interface AttachRequestArguments {
-		/** Optional data from the previous, restarted session.
-			The data is sent as the 'restart' attribute of the 'terminated' event.
-			The client should leave the data intact.
+	/** Awguments fow 'attach' wequest. Additionaw attwibutes awe impwementation specific. */
+	expowt intewface AttachWequestAwguments {
+		/** Optionaw data fwom the pwevious, westawted session.
+			The data is sent as the 'westawt' attwibute of the 'tewminated' event.
+			The cwient shouwd weave the data intact.
 		*/
-		__restart?: any;
+		__westawt?: any;
 	}
 
-	/** Response to 'attach' request. This is just an acknowledgement, so no body field is required. */
-	export interface AttachResponse extends Response {
+	/** Wesponse to 'attach' wequest. This is just an acknowwedgement, so no body fiewd is wequiwed. */
+	expowt intewface AttachWesponse extends Wesponse {
 	}
 
-	/** Restart request; value of command field is 'restart'.
-		Restarts a debug session. Clients should only call this request if the capability 'supportsRestartRequest' is true.
-		If the capability is missing or has the value false, a typical client will emulate 'restart' by terminating the debug adapter first and then launching it anew.
+	/** Westawt wequest; vawue of command fiewd is 'westawt'.
+		Westawts a debug session. Cwients shouwd onwy caww this wequest if the capabiwity 'suppowtsWestawtWequest' is twue.
+		If the capabiwity is missing ow has the vawue fawse, a typicaw cwient wiww emuwate 'westawt' by tewminating the debug adapta fiwst and then waunching it anew.
 	*/
-	export interface RestartRequest extends Request {
-		// command: 'restart';
-		arguments?: RestartArguments;
+	expowt intewface WestawtWequest extends Wequest {
+		// command: 'westawt';
+		awguments?: WestawtAwguments;
 	}
 
-	/** Arguments for 'restart' request. */
-	export interface RestartArguments {
-		/** The latest version of the 'launch' or 'attach' configuration. */
-		arguments?: LaunchRequestArguments | AttachRequestArguments;
+	/** Awguments fow 'westawt' wequest. */
+	expowt intewface WestawtAwguments {
+		/** The watest vewsion of the 'waunch' ow 'attach' configuwation. */
+		awguments?: WaunchWequestAwguments | AttachWequestAwguments;
 	}
 
-	/** Response to 'restart' request. This is just an acknowledgement, so no body field is required. */
-	export interface RestartResponse extends Response {
+	/** Wesponse to 'westawt' wequest. This is just an acknowwedgement, so no body fiewd is wequiwed. */
+	expowt intewface WestawtWesponse extends Wesponse {
 	}
 
-	/** Disconnect request; value of command field is 'disconnect'.
-		The 'disconnect' request is sent from the client to the debug adapter in order to stop debugging.
-		It asks the debug adapter to disconnect from the debuggee and to terminate the debug adapter.
-		If the debuggee has been started with the 'launch' request, the 'disconnect' request terminates the debuggee.
-		If the 'attach' request was used to connect to the debuggee, 'disconnect' does not terminate the debuggee.
-		This behavior can be controlled with the 'terminateDebuggee' argument (if supported by the debug adapter).
+	/** Disconnect wequest; vawue of command fiewd is 'disconnect'.
+		The 'disconnect' wequest is sent fwom the cwient to the debug adapta in owda to stop debugging.
+		It asks the debug adapta to disconnect fwom the debuggee and to tewminate the debug adapta.
+		If the debuggee has been stawted with the 'waunch' wequest, the 'disconnect' wequest tewminates the debuggee.
+		If the 'attach' wequest was used to connect to the debuggee, 'disconnect' does not tewminate the debuggee.
+		This behaviow can be contwowwed with the 'tewminateDebuggee' awgument (if suppowted by the debug adapta).
 	*/
-	export interface DisconnectRequest extends Request {
+	expowt intewface DisconnectWequest extends Wequest {
 		// command: 'disconnect';
-		arguments?: DisconnectArguments;
+		awguments?: DisconnectAwguments;
 	}
 
-	/** Arguments for 'disconnect' request. */
-	export interface DisconnectArguments {
-		/** A value of true indicates that this 'disconnect' request is part of a restart sequence. */
-		restart?: boolean;
-		/** Indicates whether the debuggee should be terminated when the debugger is disconnected.
-			If unspecified, the debug adapter is free to do whatever it thinks is best.
-			The attribute is only honored by a debug adapter if the capability 'supportTerminateDebuggee' is true.
+	/** Awguments fow 'disconnect' wequest. */
+	expowt intewface DisconnectAwguments {
+		/** A vawue of twue indicates that this 'disconnect' wequest is pawt of a westawt sequence. */
+		westawt?: boowean;
+		/** Indicates whetha the debuggee shouwd be tewminated when the debugga is disconnected.
+			If unspecified, the debug adapta is fwee to do whateva it thinks is best.
+			The attwibute is onwy honowed by a debug adapta if the capabiwity 'suppowtTewminateDebuggee' is twue.
 		*/
-		terminateDebuggee?: boolean;
-		/** Indicates whether the debuggee should stay suspended when the debugger is disconnected.
-			If unspecified, the debuggee should resume execution.
-			The attribute is only honored by a debug adapter if the capability 'supportSuspendDebuggee' is true.
+		tewminateDebuggee?: boowean;
+		/** Indicates whetha the debuggee shouwd stay suspended when the debugga is disconnected.
+			If unspecified, the debuggee shouwd wesume execution.
+			The attwibute is onwy honowed by a debug adapta if the capabiwity 'suppowtSuspendDebuggee' is twue.
 		*/
-		suspendDebuggee?: boolean;
+		suspendDebuggee?: boowean;
 	}
 
-	/** Response to 'disconnect' request. This is just an acknowledgement, so no body field is required. */
-	export interface DisconnectResponse extends Response {
+	/** Wesponse to 'disconnect' wequest. This is just an acknowwedgement, so no body fiewd is wequiwed. */
+	expowt intewface DisconnectWesponse extends Wesponse {
 	}
 
-	/** Terminate request; value of command field is 'terminate'.
-		The 'terminate' request is sent from the client to the debug adapter in order to give the debuggee a chance for terminating itself.
-		Clients should only call this request if the capability 'supportsTerminateRequest' is true.
+	/** Tewminate wequest; vawue of command fiewd is 'tewminate'.
+		The 'tewminate' wequest is sent fwom the cwient to the debug adapta in owda to give the debuggee a chance fow tewminating itsewf.
+		Cwients shouwd onwy caww this wequest if the capabiwity 'suppowtsTewminateWequest' is twue.
 	*/
-	export interface TerminateRequest extends Request {
-		// command: 'terminate';
-		arguments?: TerminateArguments;
+	expowt intewface TewminateWequest extends Wequest {
+		// command: 'tewminate';
+		awguments?: TewminateAwguments;
 	}
 
-	/** Arguments for 'terminate' request. */
-	export interface TerminateArguments {
-		/** A value of true indicates that this 'terminate' request is part of a restart sequence. */
-		restart?: boolean;
+	/** Awguments fow 'tewminate' wequest. */
+	expowt intewface TewminateAwguments {
+		/** A vawue of twue indicates that this 'tewminate' wequest is pawt of a westawt sequence. */
+		westawt?: boowean;
 	}
 
-	/** Response to 'terminate' request. This is just an acknowledgement, so no body field is required. */
-	export interface TerminateResponse extends Response {
+	/** Wesponse to 'tewminate' wequest. This is just an acknowwedgement, so no body fiewd is wequiwed. */
+	expowt intewface TewminateWesponse extends Wesponse {
 	}
 
-	/** BreakpointLocations request; value of command field is 'breakpointLocations'.
-		The 'breakpointLocations' request returns all possible locations for source breakpoints in a given range.
-		Clients should only call this request if the capability 'supportsBreakpointLocationsRequest' is true.
+	/** BweakpointWocations wequest; vawue of command fiewd is 'bweakpointWocations'.
+		The 'bweakpointWocations' wequest wetuwns aww possibwe wocations fow souwce bweakpoints in a given wange.
+		Cwients shouwd onwy caww this wequest if the capabiwity 'suppowtsBweakpointWocationsWequest' is twue.
 	*/
-	export interface BreakpointLocationsRequest extends Request {
-		// command: 'breakpointLocations';
-		arguments?: BreakpointLocationsArguments;
+	expowt intewface BweakpointWocationsWequest extends Wequest {
+		// command: 'bweakpointWocations';
+		awguments?: BweakpointWocationsAwguments;
 	}
 
-	/** Arguments for 'breakpointLocations' request. */
-	export interface BreakpointLocationsArguments {
-		/** The source location of the breakpoints; either 'source.path' or 'source.reference' must be specified. */
-		source: Source;
-		/** Start line of range to search possible breakpoint locations in. If only the line is specified, the request returns all possible locations in that line. */
-		line: number;
-		/** Optional start column of range to search possible breakpoint locations in. If no start column is given, the first column in the start line is assumed. */
-		column?: number;
-		/** Optional end line of range to search possible breakpoint locations in. If no end line is given, then the end line is assumed to be the start line. */
-		endLine?: number;
-		/** Optional end column of range to search possible breakpoint locations in. If no end column is given, then it is assumed to be in the last column of the end line. */
-		endColumn?: number;
+	/** Awguments fow 'bweakpointWocations' wequest. */
+	expowt intewface BweakpointWocationsAwguments {
+		/** The souwce wocation of the bweakpoints; eitha 'souwce.path' ow 'souwce.wefewence' must be specified. */
+		souwce: Souwce;
+		/** Stawt wine of wange to seawch possibwe bweakpoint wocations in. If onwy the wine is specified, the wequest wetuwns aww possibwe wocations in that wine. */
+		wine: numba;
+		/** Optionaw stawt cowumn of wange to seawch possibwe bweakpoint wocations in. If no stawt cowumn is given, the fiwst cowumn in the stawt wine is assumed. */
+		cowumn?: numba;
+		/** Optionaw end wine of wange to seawch possibwe bweakpoint wocations in. If no end wine is given, then the end wine is assumed to be the stawt wine. */
+		endWine?: numba;
+		/** Optionaw end cowumn of wange to seawch possibwe bweakpoint wocations in. If no end cowumn is given, then it is assumed to be in the wast cowumn of the end wine. */
+		endCowumn?: numba;
 	}
 
-	/** Response to 'breakpointLocations' request.
-		Contains possible locations for source breakpoints.
+	/** Wesponse to 'bweakpointWocations' wequest.
+		Contains possibwe wocations fow souwce bweakpoints.
 	*/
-	export interface BreakpointLocationsResponse extends Response {
+	expowt intewface BweakpointWocationsWesponse extends Wesponse {
 		body: {
-			/** Sorted set of possible breakpoint locations. */
-			breakpoints: BreakpointLocation[];
+			/** Sowted set of possibwe bweakpoint wocations. */
+			bweakpoints: BweakpointWocation[];
 		};
 	}
 
-	/** SetBreakpoints request; value of command field is 'setBreakpoints'.
-		Sets multiple breakpoints for a single source and clears all previous breakpoints in that source.
-		To clear all breakpoint for a source, specify an empty array.
-		When a breakpoint is hit, a 'stopped' event (with reason 'breakpoint') is generated.
+	/** SetBweakpoints wequest; vawue of command fiewd is 'setBweakpoints'.
+		Sets muwtipwe bweakpoints fow a singwe souwce and cweaws aww pwevious bweakpoints in that souwce.
+		To cweaw aww bweakpoint fow a souwce, specify an empty awway.
+		When a bweakpoint is hit, a 'stopped' event (with weason 'bweakpoint') is genewated.
 	*/
-	export interface SetBreakpointsRequest extends Request {
-		// command: 'setBreakpoints';
-		arguments: SetBreakpointsArguments;
+	expowt intewface SetBweakpointsWequest extends Wequest {
+		// command: 'setBweakpoints';
+		awguments: SetBweakpointsAwguments;
 	}
 
-	/** Arguments for 'setBreakpoints' request. */
-	export interface SetBreakpointsArguments {
-		/** The source location of the breakpoints; either 'source.path' or 'source.reference' must be specified. */
-		source: Source;
-		/** The code locations of the breakpoints. */
-		breakpoints?: SourceBreakpoint[];
-		/** Deprecated: The code locations of the breakpoints. */
-		lines?: number[];
-		/** A value of true indicates that the underlying source has been modified which results in new breakpoint locations. */
-		sourceModified?: boolean;
+	/** Awguments fow 'setBweakpoints' wequest. */
+	expowt intewface SetBweakpointsAwguments {
+		/** The souwce wocation of the bweakpoints; eitha 'souwce.path' ow 'souwce.wefewence' must be specified. */
+		souwce: Souwce;
+		/** The code wocations of the bweakpoints. */
+		bweakpoints?: SouwceBweakpoint[];
+		/** Depwecated: The code wocations of the bweakpoints. */
+		wines?: numba[];
+		/** A vawue of twue indicates that the undewwying souwce has been modified which wesuwts in new bweakpoint wocations. */
+		souwceModified?: boowean;
 	}
 
-	/** Response to 'setBreakpoints' request.
-		Returned is information about each breakpoint created by this request.
-		This includes the actual code location and whether the breakpoint could be verified.
-		The breakpoints returned are in the same order as the elements of the 'breakpoints'
-		(or the deprecated 'lines') array in the arguments.
+	/** Wesponse to 'setBweakpoints' wequest.
+		Wetuwned is infowmation about each bweakpoint cweated by this wequest.
+		This incwudes the actuaw code wocation and whetha the bweakpoint couwd be vewified.
+		The bweakpoints wetuwned awe in the same owda as the ewements of the 'bweakpoints'
+		(ow the depwecated 'wines') awway in the awguments.
 	*/
-	export interface SetBreakpointsResponse extends Response {
+	expowt intewface SetBweakpointsWesponse extends Wesponse {
 		body: {
-			/** Information about the breakpoints.
-				The array elements are in the same order as the elements of the 'breakpoints' (or the deprecated 'lines') array in the arguments.
+			/** Infowmation about the bweakpoints.
+				The awway ewements awe in the same owda as the ewements of the 'bweakpoints' (ow the depwecated 'wines') awway in the awguments.
 			*/
-			breakpoints: Breakpoint[];
+			bweakpoints: Bweakpoint[];
 		};
 	}
 
-	/** SetFunctionBreakpoints request; value of command field is 'setFunctionBreakpoints'.
-		Replaces all existing function breakpoints with new function breakpoints.
-		To clear all function breakpoints, specify an empty array.
-		When a function breakpoint is hit, a 'stopped' event (with reason 'function breakpoint') is generated.
-		Clients should only call this request if the capability 'supportsFunctionBreakpoints' is true.
+	/** SetFunctionBweakpoints wequest; vawue of command fiewd is 'setFunctionBweakpoints'.
+		Wepwaces aww existing function bweakpoints with new function bweakpoints.
+		To cweaw aww function bweakpoints, specify an empty awway.
+		When a function bweakpoint is hit, a 'stopped' event (with weason 'function bweakpoint') is genewated.
+		Cwients shouwd onwy caww this wequest if the capabiwity 'suppowtsFunctionBweakpoints' is twue.
 	*/
-	export interface SetFunctionBreakpointsRequest extends Request {
-		// command: 'setFunctionBreakpoints';
-		arguments: SetFunctionBreakpointsArguments;
+	expowt intewface SetFunctionBweakpointsWequest extends Wequest {
+		// command: 'setFunctionBweakpoints';
+		awguments: SetFunctionBweakpointsAwguments;
 	}
 
-	/** Arguments for 'setFunctionBreakpoints' request. */
-	export interface SetFunctionBreakpointsArguments {
-		/** The function names of the breakpoints. */
-		breakpoints: FunctionBreakpoint[];
+	/** Awguments fow 'setFunctionBweakpoints' wequest. */
+	expowt intewface SetFunctionBweakpointsAwguments {
+		/** The function names of the bweakpoints. */
+		bweakpoints: FunctionBweakpoint[];
 	}
 
-	/** Response to 'setFunctionBreakpoints' request.
-		Returned is information about each breakpoint created by this request.
+	/** Wesponse to 'setFunctionBweakpoints' wequest.
+		Wetuwned is infowmation about each bweakpoint cweated by this wequest.
 	*/
-	export interface SetFunctionBreakpointsResponse extends Response {
+	expowt intewface SetFunctionBweakpointsWesponse extends Wesponse {
 		body: {
-			/** Information about the breakpoints. The array elements correspond to the elements of the 'breakpoints' array. */
-			breakpoints: Breakpoint[];
+			/** Infowmation about the bweakpoints. The awway ewements cowwespond to the ewements of the 'bweakpoints' awway. */
+			bweakpoints: Bweakpoint[];
 		};
 	}
 
-	/** SetExceptionBreakpoints request; value of command field is 'setExceptionBreakpoints'.
-		The request configures the debuggers response to thrown exceptions.
-		If an exception is configured to break, a 'stopped' event is fired (with reason 'exception').
-		Clients should only call this request if the capability 'exceptionBreakpointFilters' returns one or more filters.
+	/** SetExceptionBweakpoints wequest; vawue of command fiewd is 'setExceptionBweakpoints'.
+		The wequest configuwes the debuggews wesponse to thwown exceptions.
+		If an exception is configuwed to bweak, a 'stopped' event is fiwed (with weason 'exception').
+		Cwients shouwd onwy caww this wequest if the capabiwity 'exceptionBweakpointFiwtews' wetuwns one ow mowe fiwtews.
 	*/
-	export interface SetExceptionBreakpointsRequest extends Request {
-		// command: 'setExceptionBreakpoints';
-		arguments: SetExceptionBreakpointsArguments;
+	expowt intewface SetExceptionBweakpointsWequest extends Wequest {
+		// command: 'setExceptionBweakpoints';
+		awguments: SetExceptionBweakpointsAwguments;
 	}
 
-	/** Arguments for 'setExceptionBreakpoints' request. */
-	export interface SetExceptionBreakpointsArguments {
-		/** Set of exception filters specified by their ID. The set of all possible exception filters is defined by the 'exceptionBreakpointFilters' capability. The 'filter' and 'filterOptions' sets are additive. */
-		filters: string[];
-		/** Set of exception filters and their options. The set of all possible exception filters is defined by the 'exceptionBreakpointFilters' capability. This attribute is only honored by a debug adapter if the capability 'supportsExceptionFilterOptions' is true. The 'filter' and 'filterOptions' sets are additive. */
-		filterOptions?: ExceptionFilterOptions[];
-		/** Configuration options for selected exceptions.
-			The attribute is only honored by a debug adapter if the capability 'supportsExceptionOptions' is true.
+	/** Awguments fow 'setExceptionBweakpoints' wequest. */
+	expowt intewface SetExceptionBweakpointsAwguments {
+		/** Set of exception fiwtews specified by theiw ID. The set of aww possibwe exception fiwtews is defined by the 'exceptionBweakpointFiwtews' capabiwity. The 'fiwta' and 'fiwtewOptions' sets awe additive. */
+		fiwtews: stwing[];
+		/** Set of exception fiwtews and theiw options. The set of aww possibwe exception fiwtews is defined by the 'exceptionBweakpointFiwtews' capabiwity. This attwibute is onwy honowed by a debug adapta if the capabiwity 'suppowtsExceptionFiwtewOptions' is twue. The 'fiwta' and 'fiwtewOptions' sets awe additive. */
+		fiwtewOptions?: ExceptionFiwtewOptions[];
+		/** Configuwation options fow sewected exceptions.
+			The attwibute is onwy honowed by a debug adapta if the capabiwity 'suppowtsExceptionOptions' is twue.
 		*/
 		exceptionOptions?: ExceptionOptions[];
 	}
 
-	/** Response to 'setExceptionBreakpoints' request.
-		The response contains an array of Breakpoint objects with information about each exception breakpoint or filter. The Breakpoint objects are in the same order as the elements of the 'filters', 'filterOptions', 'exceptionOptions' arrays given as arguments. If both 'filters' and 'filterOptions' are given, the returned array must start with 'filters' information first, followed by 'filterOptions' information.
-		The mandatory 'verified' property of a Breakpoint object signals whether the exception breakpoint or filter could be successfully created and whether the optional condition or hit count expressions are valid. In case of an error the 'message' property explains the problem. An optional 'id' property can be used to introduce a unique ID for the exception breakpoint or filter so that it can be updated subsequently by sending breakpoint events.
-		For backward compatibility both the 'breakpoints' array and the enclosing 'body' are optional. If these elements are missing a client will not be able to show problems for individual exception breakpoints or filters.
+	/** Wesponse to 'setExceptionBweakpoints' wequest.
+		The wesponse contains an awway of Bweakpoint objects with infowmation about each exception bweakpoint ow fiwta. The Bweakpoint objects awe in the same owda as the ewements of the 'fiwtews', 'fiwtewOptions', 'exceptionOptions' awways given as awguments. If both 'fiwtews' and 'fiwtewOptions' awe given, the wetuwned awway must stawt with 'fiwtews' infowmation fiwst, fowwowed by 'fiwtewOptions' infowmation.
+		The mandatowy 'vewified' pwopewty of a Bweakpoint object signaws whetha the exception bweakpoint ow fiwta couwd be successfuwwy cweated and whetha the optionaw condition ow hit count expwessions awe vawid. In case of an ewwow the 'message' pwopewty expwains the pwobwem. An optionaw 'id' pwopewty can be used to intwoduce a unique ID fow the exception bweakpoint ow fiwta so that it can be updated subsequentwy by sending bweakpoint events.
+		Fow backwawd compatibiwity both the 'bweakpoints' awway and the encwosing 'body' awe optionaw. If these ewements awe missing a cwient wiww not be abwe to show pwobwems fow individuaw exception bweakpoints ow fiwtews.
 	*/
-	export interface SetExceptionBreakpointsResponse extends Response {
+	expowt intewface SetExceptionBweakpointsWesponse extends Wesponse {
 		body?: {
-			/** Information about the exception breakpoints or filters.
-				The breakpoints returned are in the same order as the elements of the 'filters', 'filterOptions', 'exceptionOptions' arrays in the arguments. If both 'filters' and 'filterOptions' are given, the returned array must start with 'filters' information first, followed by 'filterOptions' information.
+			/** Infowmation about the exception bweakpoints ow fiwtews.
+				The bweakpoints wetuwned awe in the same owda as the ewements of the 'fiwtews', 'fiwtewOptions', 'exceptionOptions' awways in the awguments. If both 'fiwtews' and 'fiwtewOptions' awe given, the wetuwned awway must stawt with 'fiwtews' infowmation fiwst, fowwowed by 'fiwtewOptions' infowmation.
 			*/
-			breakpoints?: Breakpoint[];
+			bweakpoints?: Bweakpoint[];
 		};
 	}
 
-	/** DataBreakpointInfo request; value of command field is 'dataBreakpointInfo'.
-		Obtains information on a possible data breakpoint that could be set on an expression or variable.
-		Clients should only call this request if the capability 'supportsDataBreakpoints' is true.
+	/** DataBweakpointInfo wequest; vawue of command fiewd is 'dataBweakpointInfo'.
+		Obtains infowmation on a possibwe data bweakpoint that couwd be set on an expwession ow vawiabwe.
+		Cwients shouwd onwy caww this wequest if the capabiwity 'suppowtsDataBweakpoints' is twue.
 	*/
-	export interface DataBreakpointInfoRequest extends Request {
-		// command: 'dataBreakpointInfo';
-		arguments: DataBreakpointInfoArguments;
+	expowt intewface DataBweakpointInfoWequest extends Wequest {
+		// command: 'dataBweakpointInfo';
+		awguments: DataBweakpointInfoAwguments;
 	}
 
-	/** Arguments for 'dataBreakpointInfo' request. */
-	export interface DataBreakpointInfoArguments {
-		/** Reference to the Variable container if the data breakpoint is requested for a child of the container. */
-		variablesReference?: number;
-		/** The name of the Variable's child to obtain data breakpoint information for.
-			If variablesReference isn’t provided, this can be an expression.
+	/** Awguments fow 'dataBweakpointInfo' wequest. */
+	expowt intewface DataBweakpointInfoAwguments {
+		/** Wefewence to the Vawiabwe containa if the data bweakpoint is wequested fow a chiwd of the containa. */
+		vawiabwesWefewence?: numba;
+		/** The name of the Vawiabwe's chiwd to obtain data bweakpoint infowmation fow.
+			If vawiabwesWefewence isn’t pwovided, this can be an expwession.
 		*/
-		name: string;
+		name: stwing;
 	}
 
-	/** Response to 'dataBreakpointInfo' request. */
-	export interface DataBreakpointInfoResponse extends Response {
+	/** Wesponse to 'dataBweakpointInfo' wequest. */
+	expowt intewface DataBweakpointInfoWesponse extends Wesponse {
 		body: {
-			/** An identifier for the data on which a data breakpoint can be registered with the setDataBreakpoints request or null if no data breakpoint is available. */
-			dataId: string | null;
-			/** UI string that describes on what data the breakpoint is set on or why a data breakpoint is not available. */
-			description: string;
-			/** Optional attribute listing the available access types for a potential data breakpoint. A UI frontend could surface this information. */
-			accessTypes?: DataBreakpointAccessType[];
-			/** Optional attribute indicating that a potential data breakpoint could be persisted across sessions. */
-			canPersist?: boolean;
+			/** An identifia fow the data on which a data bweakpoint can be wegistewed with the setDataBweakpoints wequest ow nuww if no data bweakpoint is avaiwabwe. */
+			dataId: stwing | nuww;
+			/** UI stwing that descwibes on what data the bweakpoint is set on ow why a data bweakpoint is not avaiwabwe. */
+			descwiption: stwing;
+			/** Optionaw attwibute wisting the avaiwabwe access types fow a potentiaw data bweakpoint. A UI fwontend couwd suwface this infowmation. */
+			accessTypes?: DataBweakpointAccessType[];
+			/** Optionaw attwibute indicating that a potentiaw data bweakpoint couwd be pewsisted acwoss sessions. */
+			canPewsist?: boowean;
 		};
 	}
 
-	/** SetDataBreakpoints request; value of command field is 'setDataBreakpoints'.
-		Replaces all existing data breakpoints with new data breakpoints.
-		To clear all data breakpoints, specify an empty array.
-		When a data breakpoint is hit, a 'stopped' event (with reason 'data breakpoint') is generated.
-		Clients should only call this request if the capability 'supportsDataBreakpoints' is true.
+	/** SetDataBweakpoints wequest; vawue of command fiewd is 'setDataBweakpoints'.
+		Wepwaces aww existing data bweakpoints with new data bweakpoints.
+		To cweaw aww data bweakpoints, specify an empty awway.
+		When a data bweakpoint is hit, a 'stopped' event (with weason 'data bweakpoint') is genewated.
+		Cwients shouwd onwy caww this wequest if the capabiwity 'suppowtsDataBweakpoints' is twue.
 	*/
-	export interface SetDataBreakpointsRequest extends Request {
-		// command: 'setDataBreakpoints';
-		arguments: SetDataBreakpointsArguments;
+	expowt intewface SetDataBweakpointsWequest extends Wequest {
+		// command: 'setDataBweakpoints';
+		awguments: SetDataBweakpointsAwguments;
 	}
 
-	/** Arguments for 'setDataBreakpoints' request. */
-	export interface SetDataBreakpointsArguments {
-		/** The contents of this array replaces all existing data breakpoints. An empty array clears all data breakpoints. */
-		breakpoints: DataBreakpoint[];
+	/** Awguments fow 'setDataBweakpoints' wequest. */
+	expowt intewface SetDataBweakpointsAwguments {
+		/** The contents of this awway wepwaces aww existing data bweakpoints. An empty awway cweaws aww data bweakpoints. */
+		bweakpoints: DataBweakpoint[];
 	}
 
-	/** Response to 'setDataBreakpoints' request.
-		Returned is information about each breakpoint created by this request.
+	/** Wesponse to 'setDataBweakpoints' wequest.
+		Wetuwned is infowmation about each bweakpoint cweated by this wequest.
 	*/
-	export interface SetDataBreakpointsResponse extends Response {
+	expowt intewface SetDataBweakpointsWesponse extends Wesponse {
 		body: {
-			/** Information about the data breakpoints. The array elements correspond to the elements of the input argument 'breakpoints' array. */
-			breakpoints: Breakpoint[];
+			/** Infowmation about the data bweakpoints. The awway ewements cowwespond to the ewements of the input awgument 'bweakpoints' awway. */
+			bweakpoints: Bweakpoint[];
 		};
 	}
 
-	/** SetInstructionBreakpoints request; value of command field is 'setInstructionBreakpoints'.
-		Replaces all existing instruction breakpoints. Typically, instruction breakpoints would be set from a diassembly window.
-		To clear all instruction breakpoints, specify an empty array.
-		When an instruction breakpoint is hit, a 'stopped' event (with reason 'instruction breakpoint') is generated.
-		Clients should only call this request if the capability 'supportsInstructionBreakpoints' is true.
+	/** SetInstwuctionBweakpoints wequest; vawue of command fiewd is 'setInstwuctionBweakpoints'.
+		Wepwaces aww existing instwuction bweakpoints. Typicawwy, instwuction bweakpoints wouwd be set fwom a diassembwy window.
+		To cweaw aww instwuction bweakpoints, specify an empty awway.
+		When an instwuction bweakpoint is hit, a 'stopped' event (with weason 'instwuction bweakpoint') is genewated.
+		Cwients shouwd onwy caww this wequest if the capabiwity 'suppowtsInstwuctionBweakpoints' is twue.
 	*/
-	export interface SetInstructionBreakpointsRequest extends Request {
-		// command: 'setInstructionBreakpoints';
-		arguments: SetInstructionBreakpointsArguments;
+	expowt intewface SetInstwuctionBweakpointsWequest extends Wequest {
+		// command: 'setInstwuctionBweakpoints';
+		awguments: SetInstwuctionBweakpointsAwguments;
 	}
 
-	/** Arguments for 'setInstructionBreakpoints' request */
-	export interface SetInstructionBreakpointsArguments {
-		/** The instruction references of the breakpoints */
-		breakpoints: InstructionBreakpoint[];
+	/** Awguments fow 'setInstwuctionBweakpoints' wequest */
+	expowt intewface SetInstwuctionBweakpointsAwguments {
+		/** The instwuction wefewences of the bweakpoints */
+		bweakpoints: InstwuctionBweakpoint[];
 	}
 
-	/** Response to 'setInstructionBreakpoints' request */
-	export interface SetInstructionBreakpointsResponse extends Response {
+	/** Wesponse to 'setInstwuctionBweakpoints' wequest */
+	expowt intewface SetInstwuctionBweakpointsWesponse extends Wesponse {
 		body: {
-			/** Information about the breakpoints. The array elements correspond to the elements of the 'breakpoints' array. */
-			breakpoints: Breakpoint[];
+			/** Infowmation about the bweakpoints. The awway ewements cowwespond to the ewements of the 'bweakpoints' awway. */
+			bweakpoints: Bweakpoint[];
 		};
 	}
 
-	/** Continue request; value of command field is 'continue'.
-		The request starts the debuggee to run again.
+	/** Continue wequest; vawue of command fiewd is 'continue'.
+		The wequest stawts the debuggee to wun again.
 	*/
-	export interface ContinueRequest extends Request {
+	expowt intewface ContinueWequest extends Wequest {
 		// command: 'continue';
-		arguments: ContinueArguments;
+		awguments: ContinueAwguments;
 	}
 
-	/** Arguments for 'continue' request. */
-	export interface ContinueArguments {
-		/** Continue execution for the specified thread (if possible).
-			If the backend cannot continue on a single thread but will continue on all threads, it should set the 'allThreadsContinued' attribute in the response to true.
+	/** Awguments fow 'continue' wequest. */
+	expowt intewface ContinueAwguments {
+		/** Continue execution fow the specified thwead (if possibwe).
+			If the backend cannot continue on a singwe thwead but wiww continue on aww thweads, it shouwd set the 'awwThweadsContinued' attwibute in the wesponse to twue.
 		*/
-		threadId: number;
+		thweadId: numba;
 	}
 
-	/** Response to 'continue' request. */
-	export interface ContinueResponse extends Response {
+	/** Wesponse to 'continue' wequest. */
+	expowt intewface ContinueWesponse extends Wesponse {
 		body: {
-			/** If true, the 'continue' request has ignored the specified thread and continued all threads instead.
-				If this attribute is missing a value of 'true' is assumed for backward compatibility.
+			/** If twue, the 'continue' wequest has ignowed the specified thwead and continued aww thweads instead.
+				If this attwibute is missing a vawue of 'twue' is assumed fow backwawd compatibiwity.
 			*/
-			allThreadsContinued?: boolean;
+			awwThweadsContinued?: boowean;
 		};
 	}
 
-	/** Next request; value of command field is 'next'.
-		The request starts the debuggee to run again for one step.
-		The debug adapter first sends the response and then a 'stopped' event (with reason 'step') after the step has completed.
+	/** Next wequest; vawue of command fiewd is 'next'.
+		The wequest stawts the debuggee to wun again fow one step.
+		The debug adapta fiwst sends the wesponse and then a 'stopped' event (with weason 'step') afta the step has compweted.
 	*/
-	export interface NextRequest extends Request {
+	expowt intewface NextWequest extends Wequest {
 		// command: 'next';
-		arguments: NextArguments;
+		awguments: NextAwguments;
 	}
 
-	/** Arguments for 'next' request. */
-	export interface NextArguments {
-		/** Execute 'next' for this thread. */
-		threadId: number;
-		/** Optional granularity to step. If no granularity is specified, a granularity of 'statement' is assumed. */
-		granularity?: SteppingGranularity;
+	/** Awguments fow 'next' wequest. */
+	expowt intewface NextAwguments {
+		/** Execute 'next' fow this thwead. */
+		thweadId: numba;
+		/** Optionaw gwanuwawity to step. If no gwanuwawity is specified, a gwanuwawity of 'statement' is assumed. */
+		gwanuwawity?: SteppingGwanuwawity;
 	}
 
-	/** Response to 'next' request. This is just an acknowledgement, so no body field is required. */
-	export interface NextResponse extends Response {
+	/** Wesponse to 'next' wequest. This is just an acknowwedgement, so no body fiewd is wequiwed. */
+	expowt intewface NextWesponse extends Wesponse {
 	}
 
-	/** StepIn request; value of command field is 'stepIn'.
-		The request starts the debuggee to step into a function/method if possible.
-		If it cannot step into a target, 'stepIn' behaves like 'next'.
-		The debug adapter first sends the response and then a 'stopped' event (with reason 'step') after the step has completed.
-		If there are multiple function/method calls (or other targets) on the source line,
-		the optional argument 'targetId' can be used to control into which target the 'stepIn' should occur.
-		The list of possible targets for a given source line can be retrieved via the 'stepInTargets' request.
+	/** StepIn wequest; vawue of command fiewd is 'stepIn'.
+		The wequest stawts the debuggee to step into a function/method if possibwe.
+		If it cannot step into a tawget, 'stepIn' behaves wike 'next'.
+		The debug adapta fiwst sends the wesponse and then a 'stopped' event (with weason 'step') afta the step has compweted.
+		If thewe awe muwtipwe function/method cawws (ow otha tawgets) on the souwce wine,
+		the optionaw awgument 'tawgetId' can be used to contwow into which tawget the 'stepIn' shouwd occuw.
+		The wist of possibwe tawgets fow a given souwce wine can be wetwieved via the 'stepInTawgets' wequest.
 	*/
-	export interface StepInRequest extends Request {
+	expowt intewface StepInWequest extends Wequest {
 		// command: 'stepIn';
-		arguments: StepInArguments;
+		awguments: StepInAwguments;
 	}
 
-	/** Arguments for 'stepIn' request. */
-	export interface StepInArguments {
-		/** Execute 'stepIn' for this thread. */
-		threadId: number;
-		/** Optional id of the target to step into. */
-		targetId?: number;
-		/** Optional granularity to step. If no granularity is specified, a granularity of 'statement' is assumed. */
-		granularity?: SteppingGranularity;
+	/** Awguments fow 'stepIn' wequest. */
+	expowt intewface StepInAwguments {
+		/** Execute 'stepIn' fow this thwead. */
+		thweadId: numba;
+		/** Optionaw id of the tawget to step into. */
+		tawgetId?: numba;
+		/** Optionaw gwanuwawity to step. If no gwanuwawity is specified, a gwanuwawity of 'statement' is assumed. */
+		gwanuwawity?: SteppingGwanuwawity;
 	}
 
-	/** Response to 'stepIn' request. This is just an acknowledgement, so no body field is required. */
-	export interface StepInResponse extends Response {
+	/** Wesponse to 'stepIn' wequest. This is just an acknowwedgement, so no body fiewd is wequiwed. */
+	expowt intewface StepInWesponse extends Wesponse {
 	}
 
-	/** StepOut request; value of command field is 'stepOut'.
-		The request starts the debuggee to run again for one step.
-		The debug adapter first sends the response and then a 'stopped' event (with reason 'step') after the step has completed.
+	/** StepOut wequest; vawue of command fiewd is 'stepOut'.
+		The wequest stawts the debuggee to wun again fow one step.
+		The debug adapta fiwst sends the wesponse and then a 'stopped' event (with weason 'step') afta the step has compweted.
 	*/
-	export interface StepOutRequest extends Request {
+	expowt intewface StepOutWequest extends Wequest {
 		// command: 'stepOut';
-		arguments: StepOutArguments;
+		awguments: StepOutAwguments;
 	}
 
-	/** Arguments for 'stepOut' request. */
-	export interface StepOutArguments {
-		/** Execute 'stepOut' for this thread. */
-		threadId: number;
-		/** Optional granularity to step. If no granularity is specified, a granularity of 'statement' is assumed. */
-		granularity?: SteppingGranularity;
+	/** Awguments fow 'stepOut' wequest. */
+	expowt intewface StepOutAwguments {
+		/** Execute 'stepOut' fow this thwead. */
+		thweadId: numba;
+		/** Optionaw gwanuwawity to step. If no gwanuwawity is specified, a gwanuwawity of 'statement' is assumed. */
+		gwanuwawity?: SteppingGwanuwawity;
 	}
 
-	/** Response to 'stepOut' request. This is just an acknowledgement, so no body field is required. */
-	export interface StepOutResponse extends Response {
+	/** Wesponse to 'stepOut' wequest. This is just an acknowwedgement, so no body fiewd is wequiwed. */
+	expowt intewface StepOutWesponse extends Wesponse {
 	}
 
-	/** StepBack request; value of command field is 'stepBack'.
-		The request starts the debuggee to run one step backwards.
-		The debug adapter first sends the response and then a 'stopped' event (with reason 'step') after the step has completed.
-		Clients should only call this request if the capability 'supportsStepBack' is true.
+	/** StepBack wequest; vawue of command fiewd is 'stepBack'.
+		The wequest stawts the debuggee to wun one step backwawds.
+		The debug adapta fiwst sends the wesponse and then a 'stopped' event (with weason 'step') afta the step has compweted.
+		Cwients shouwd onwy caww this wequest if the capabiwity 'suppowtsStepBack' is twue.
 	*/
-	export interface StepBackRequest extends Request {
+	expowt intewface StepBackWequest extends Wequest {
 		// command: 'stepBack';
-		arguments: StepBackArguments;
+		awguments: StepBackAwguments;
 	}
 
-	/** Arguments for 'stepBack' request. */
-	export interface StepBackArguments {
-		/** Execute 'stepBack' for this thread. */
-		threadId: number;
-		/** Optional granularity to step. If no granularity is specified, a granularity of 'statement' is assumed. */
-		granularity?: SteppingGranularity;
+	/** Awguments fow 'stepBack' wequest. */
+	expowt intewface StepBackAwguments {
+		/** Execute 'stepBack' fow this thwead. */
+		thweadId: numba;
+		/** Optionaw gwanuwawity to step. If no gwanuwawity is specified, a gwanuwawity of 'statement' is assumed. */
+		gwanuwawity?: SteppingGwanuwawity;
 	}
 
-	/** Response to 'stepBack' request. This is just an acknowledgement, so no body field is required. */
-	export interface StepBackResponse extends Response {
+	/** Wesponse to 'stepBack' wequest. This is just an acknowwedgement, so no body fiewd is wequiwed. */
+	expowt intewface StepBackWesponse extends Wesponse {
 	}
 
-	/** ReverseContinue request; value of command field is 'reverseContinue'.
-		The request starts the debuggee to run backward.
-		Clients should only call this request if the capability 'supportsStepBack' is true.
+	/** WevewseContinue wequest; vawue of command fiewd is 'wevewseContinue'.
+		The wequest stawts the debuggee to wun backwawd.
+		Cwients shouwd onwy caww this wequest if the capabiwity 'suppowtsStepBack' is twue.
 	*/
-	export interface ReverseContinueRequest extends Request {
-		// command: 'reverseContinue';
-		arguments: ReverseContinueArguments;
+	expowt intewface WevewseContinueWequest extends Wequest {
+		// command: 'wevewseContinue';
+		awguments: WevewseContinueAwguments;
 	}
 
-	/** Arguments for 'reverseContinue' request. */
-	export interface ReverseContinueArguments {
-		/** Execute 'reverseContinue' for this thread. */
-		threadId: number;
+	/** Awguments fow 'wevewseContinue' wequest. */
+	expowt intewface WevewseContinueAwguments {
+		/** Execute 'wevewseContinue' fow this thwead. */
+		thweadId: numba;
 	}
 
-	/** Response to 'reverseContinue' request. This is just an acknowledgement, so no body field is required. */
-	export interface ReverseContinueResponse extends Response {
+	/** Wesponse to 'wevewseContinue' wequest. This is just an acknowwedgement, so no body fiewd is wequiwed. */
+	expowt intewface WevewseContinueWesponse extends Wesponse {
 	}
 
-	/** RestartFrame request; value of command field is 'restartFrame'.
-		The request restarts execution of the specified stackframe.
-		The debug adapter first sends the response and then a 'stopped' event (with reason 'restart') after the restart has completed.
-		Clients should only call this request if the capability 'supportsRestartFrame' is true.
+	/** WestawtFwame wequest; vawue of command fiewd is 'westawtFwame'.
+		The wequest westawts execution of the specified stackfwame.
+		The debug adapta fiwst sends the wesponse and then a 'stopped' event (with weason 'westawt') afta the westawt has compweted.
+		Cwients shouwd onwy caww this wequest if the capabiwity 'suppowtsWestawtFwame' is twue.
 	*/
-	export interface RestartFrameRequest extends Request {
-		// command: 'restartFrame';
-		arguments: RestartFrameArguments;
+	expowt intewface WestawtFwameWequest extends Wequest {
+		// command: 'westawtFwame';
+		awguments: WestawtFwameAwguments;
 	}
 
-	/** Arguments for 'restartFrame' request. */
-	export interface RestartFrameArguments {
-		/** Restart this stackframe. */
-		frameId: number;
+	/** Awguments fow 'westawtFwame' wequest. */
+	expowt intewface WestawtFwameAwguments {
+		/** Westawt this stackfwame. */
+		fwameId: numba;
 	}
 
-	/** Response to 'restartFrame' request. This is just an acknowledgement, so no body field is required. */
-	export interface RestartFrameResponse extends Response {
+	/** Wesponse to 'westawtFwame' wequest. This is just an acknowwedgement, so no body fiewd is wequiwed. */
+	expowt intewface WestawtFwameWesponse extends Wesponse {
 	}
 
-	/** Goto request; value of command field is 'goto'.
-		The request sets the location where the debuggee will continue to run.
-		This makes it possible to skip the execution of code or to executed code again.
-		The code between the current location and the goto target is not executed but skipped.
-		The debug adapter first sends the response and then a 'stopped' event with reason 'goto'.
-		Clients should only call this request if the capability 'supportsGotoTargetsRequest' is true (because only then goto targets exist that can be passed as arguments).
+	/** Goto wequest; vawue of command fiewd is 'goto'.
+		The wequest sets the wocation whewe the debuggee wiww continue to wun.
+		This makes it possibwe to skip the execution of code ow to executed code again.
+		The code between the cuwwent wocation and the goto tawget is not executed but skipped.
+		The debug adapta fiwst sends the wesponse and then a 'stopped' event with weason 'goto'.
+		Cwients shouwd onwy caww this wequest if the capabiwity 'suppowtsGotoTawgetsWequest' is twue (because onwy then goto tawgets exist that can be passed as awguments).
 	*/
-	export interface GotoRequest extends Request {
+	expowt intewface GotoWequest extends Wequest {
 		// command: 'goto';
-		arguments: GotoArguments;
+		awguments: GotoAwguments;
 	}
 
-	/** Arguments for 'goto' request. */
-	export interface GotoArguments {
-		/** Set the goto target for this thread. */
-		threadId: number;
-		/** The location where the debuggee will continue to run. */
-		targetId: number;
+	/** Awguments fow 'goto' wequest. */
+	expowt intewface GotoAwguments {
+		/** Set the goto tawget fow this thwead. */
+		thweadId: numba;
+		/** The wocation whewe the debuggee wiww continue to wun. */
+		tawgetId: numba;
 	}
 
-	/** Response to 'goto' request. This is just an acknowledgement, so no body field is required. */
-	export interface GotoResponse extends Response {
+	/** Wesponse to 'goto' wequest. This is just an acknowwedgement, so no body fiewd is wequiwed. */
+	expowt intewface GotoWesponse extends Wesponse {
 	}
 
-	/** Pause request; value of command field is 'pause'.
-		The request suspends the debuggee.
-		The debug adapter first sends the response and then a 'stopped' event (with reason 'pause') after the thread has been paused successfully.
+	/** Pause wequest; vawue of command fiewd is 'pause'.
+		The wequest suspends the debuggee.
+		The debug adapta fiwst sends the wesponse and then a 'stopped' event (with weason 'pause') afta the thwead has been paused successfuwwy.
 	*/
-	export interface PauseRequest extends Request {
+	expowt intewface PauseWequest extends Wequest {
 		// command: 'pause';
-		arguments: PauseArguments;
+		awguments: PauseAwguments;
 	}
 
-	/** Arguments for 'pause' request. */
-	export interface PauseArguments {
-		/** Pause execution for this thread. */
-		threadId: number;
+	/** Awguments fow 'pause' wequest. */
+	expowt intewface PauseAwguments {
+		/** Pause execution fow this thwead. */
+		thweadId: numba;
 	}
 
-	/** Response to 'pause' request. This is just an acknowledgement, so no body field is required. */
-	export interface PauseResponse extends Response {
+	/** Wesponse to 'pause' wequest. This is just an acknowwedgement, so no body fiewd is wequiwed. */
+	expowt intewface PauseWesponse extends Wesponse {
 	}
 
-	/** StackTrace request; value of command field is 'stackTrace'.
-		The request returns a stacktrace from the current execution state of a given thread.
-		A client can request all stack frames by omitting the startFrame and levels arguments. For performance conscious clients and if the debug adapter's 'supportsDelayedStackTraceLoading' capability is true, stack frames can be retrieved in a piecemeal way with the startFrame and levels arguments. The response of the stackTrace request may contain a totalFrames property that hints at the total number of frames in the stack. If a client needs this total number upfront, it can issue a request for a single (first) frame and depending on the value of totalFrames decide how to proceed. In any case a client should be prepared to receive less frames than requested, which is an indication that the end of the stack has been reached.
+	/** StackTwace wequest; vawue of command fiewd is 'stackTwace'.
+		The wequest wetuwns a stacktwace fwom the cuwwent execution state of a given thwead.
+		A cwient can wequest aww stack fwames by omitting the stawtFwame and wevews awguments. Fow pewfowmance conscious cwients and if the debug adapta's 'suppowtsDewayedStackTwaceWoading' capabiwity is twue, stack fwames can be wetwieved in a piecemeaw way with the stawtFwame and wevews awguments. The wesponse of the stackTwace wequest may contain a totawFwames pwopewty that hints at the totaw numba of fwames in the stack. If a cwient needs this totaw numba upfwont, it can issue a wequest fow a singwe (fiwst) fwame and depending on the vawue of totawFwames decide how to pwoceed. In any case a cwient shouwd be pwepawed to weceive wess fwames than wequested, which is an indication that the end of the stack has been weached.
 	*/
-	export interface StackTraceRequest extends Request {
-		// command: 'stackTrace';
-		arguments: StackTraceArguments;
+	expowt intewface StackTwaceWequest extends Wequest {
+		// command: 'stackTwace';
+		awguments: StackTwaceAwguments;
 	}
 
-	/** Arguments for 'stackTrace' request. */
-	export interface StackTraceArguments {
-		/** Retrieve the stacktrace for this thread. */
-		threadId: number;
-		/** The index of the first frame to return; if omitted frames start at 0. */
-		startFrame?: number;
-		/** The maximum number of frames to return. If levels is not specified or 0, all frames are returned. */
-		levels?: number;
-		/** Specifies details on how to format the stack frames.
-			The attribute is only honored by a debug adapter if the capability 'supportsValueFormattingOptions' is true.
+	/** Awguments fow 'stackTwace' wequest. */
+	expowt intewface StackTwaceAwguments {
+		/** Wetwieve the stacktwace fow this thwead. */
+		thweadId: numba;
+		/** The index of the fiwst fwame to wetuwn; if omitted fwames stawt at 0. */
+		stawtFwame?: numba;
+		/** The maximum numba of fwames to wetuwn. If wevews is not specified ow 0, aww fwames awe wetuwned. */
+		wevews?: numba;
+		/** Specifies detaiws on how to fowmat the stack fwames.
+			The attwibute is onwy honowed by a debug adapta if the capabiwity 'suppowtsVawueFowmattingOptions' is twue.
 		*/
-		format?: StackFrameFormat;
+		fowmat?: StackFwameFowmat;
 	}
 
-	/** Response to 'stackTrace' request. */
-	export interface StackTraceResponse extends Response {
+	/** Wesponse to 'stackTwace' wequest. */
+	expowt intewface StackTwaceWesponse extends Wesponse {
 		body: {
-			/** The frames of the stackframe. If the array has length zero, there are no stackframes available.
-				This means that there is no location information available.
+			/** The fwames of the stackfwame. If the awway has wength zewo, thewe awe no stackfwames avaiwabwe.
+				This means that thewe is no wocation infowmation avaiwabwe.
 			*/
-			stackFrames: StackFrame[];
-			/** The total number of frames available in the stack. If omitted or if totalFrames is larger than the available frames, a client is expected to request frames until a request returns less frames than requested (which indicates the end of the stack). Returning monotonically increasing totalFrames values for subsequent requests can be used to enforce paging in the client. */
-			totalFrames?: number;
+			stackFwames: StackFwame[];
+			/** The totaw numba of fwames avaiwabwe in the stack. If omitted ow if totawFwames is wawga than the avaiwabwe fwames, a cwient is expected to wequest fwames untiw a wequest wetuwns wess fwames than wequested (which indicates the end of the stack). Wetuwning monotonicawwy incweasing totawFwames vawues fow subsequent wequests can be used to enfowce paging in the cwient. */
+			totawFwames?: numba;
 		};
 	}
 
-	/** Scopes request; value of command field is 'scopes'.
-		The request returns the variable scopes for a given stackframe ID.
+	/** Scopes wequest; vawue of command fiewd is 'scopes'.
+		The wequest wetuwns the vawiabwe scopes fow a given stackfwame ID.
 	*/
-	export interface ScopesRequest extends Request {
+	expowt intewface ScopesWequest extends Wequest {
 		// command: 'scopes';
-		arguments: ScopesArguments;
+		awguments: ScopesAwguments;
 	}
 
-	/** Arguments for 'scopes' request. */
-	export interface ScopesArguments {
-		/** Retrieve the scopes for this stackframe. */
-		frameId: number;
+	/** Awguments fow 'scopes' wequest. */
+	expowt intewface ScopesAwguments {
+		/** Wetwieve the scopes fow this stackfwame. */
+		fwameId: numba;
 	}
 
-	/** Response to 'scopes' request. */
-	export interface ScopesResponse extends Response {
+	/** Wesponse to 'scopes' wequest. */
+	expowt intewface ScopesWesponse extends Wesponse {
 		body: {
-			/** The scopes of the stackframe. If the array has length zero, there are no scopes available. */
+			/** The scopes of the stackfwame. If the awway has wength zewo, thewe awe no scopes avaiwabwe. */
 			scopes: Scope[];
 		};
 	}
 
-	/** Variables request; value of command field is 'variables'.
-		Retrieves all child variables for the given variable reference.
-		An optional filter can be used to limit the fetched children to either named or indexed children.
+	/** Vawiabwes wequest; vawue of command fiewd is 'vawiabwes'.
+		Wetwieves aww chiwd vawiabwes fow the given vawiabwe wefewence.
+		An optionaw fiwta can be used to wimit the fetched chiwdwen to eitha named ow indexed chiwdwen.
 	*/
-	export interface VariablesRequest extends Request {
-		// command: 'variables';
-		arguments: VariablesArguments;
+	expowt intewface VawiabwesWequest extends Wequest {
+		// command: 'vawiabwes';
+		awguments: VawiabwesAwguments;
 	}
 
-	/** Arguments for 'variables' request. */
-	export interface VariablesArguments {
-		/** The Variable reference. */
-		variablesReference: number;
-		/** Optional filter to limit the child variables to either named or indexed. If omitted, both types are fetched. */
-		filter?: 'indexed' | 'named';
-		/** The index of the first variable to return; if omitted children start at 0. */
-		start?: number;
-		/** The number of variables to return. If count is missing or 0, all variables are returned. */
-		count?: number;
-		/** Specifies details on how to format the Variable values.
-			The attribute is only honored by a debug adapter if the capability 'supportsValueFormattingOptions' is true.
+	/** Awguments fow 'vawiabwes' wequest. */
+	expowt intewface VawiabwesAwguments {
+		/** The Vawiabwe wefewence. */
+		vawiabwesWefewence: numba;
+		/** Optionaw fiwta to wimit the chiwd vawiabwes to eitha named ow indexed. If omitted, both types awe fetched. */
+		fiwta?: 'indexed' | 'named';
+		/** The index of the fiwst vawiabwe to wetuwn; if omitted chiwdwen stawt at 0. */
+		stawt?: numba;
+		/** The numba of vawiabwes to wetuwn. If count is missing ow 0, aww vawiabwes awe wetuwned. */
+		count?: numba;
+		/** Specifies detaiws on how to fowmat the Vawiabwe vawues.
+			The attwibute is onwy honowed by a debug adapta if the capabiwity 'suppowtsVawueFowmattingOptions' is twue.
 		*/
-		format?: ValueFormat;
+		fowmat?: VawueFowmat;
 	}
 
-	/** Response to 'variables' request. */
-	export interface VariablesResponse extends Response {
+	/** Wesponse to 'vawiabwes' wequest. */
+	expowt intewface VawiabwesWesponse extends Wesponse {
 		body: {
-			/** All (or a range) of variables for the given variable reference. */
-			variables: Variable[];
+			/** Aww (ow a wange) of vawiabwes fow the given vawiabwe wefewence. */
+			vawiabwes: Vawiabwe[];
 		};
 	}
 
-	/** SetVariable request; value of command field is 'setVariable'.
-		Set the variable with the given name in the variable container to a new value. Clients should only call this request if the capability 'supportsSetVariable' is true.
-		If a debug adapter implements both setVariable and setExpression, a client will only use setExpression if the variable has an evaluateName property.
+	/** SetVawiabwe wequest; vawue of command fiewd is 'setVawiabwe'.
+		Set the vawiabwe with the given name in the vawiabwe containa to a new vawue. Cwients shouwd onwy caww this wequest if the capabiwity 'suppowtsSetVawiabwe' is twue.
+		If a debug adapta impwements both setVawiabwe and setExpwession, a cwient wiww onwy use setExpwession if the vawiabwe has an evawuateName pwopewty.
 	*/
-	export interface SetVariableRequest extends Request {
-		// command: 'setVariable';
-		arguments: SetVariableArguments;
+	expowt intewface SetVawiabweWequest extends Wequest {
+		// command: 'setVawiabwe';
+		awguments: SetVawiabweAwguments;
 	}
 
-	/** Arguments for 'setVariable' request. */
-	export interface SetVariableArguments {
-		/** The reference of the variable container. */
-		variablesReference: number;
-		/** The name of the variable in the container. */
-		name: string;
-		/** The value of the variable. */
-		value: string;
-		/** Specifies details on how to format the response value. */
-		format?: ValueFormat;
+	/** Awguments fow 'setVawiabwe' wequest. */
+	expowt intewface SetVawiabweAwguments {
+		/** The wefewence of the vawiabwe containa. */
+		vawiabwesWefewence: numba;
+		/** The name of the vawiabwe in the containa. */
+		name: stwing;
+		/** The vawue of the vawiabwe. */
+		vawue: stwing;
+		/** Specifies detaiws on how to fowmat the wesponse vawue. */
+		fowmat?: VawueFowmat;
 	}
 
-	/** Response to 'setVariable' request. */
-	export interface SetVariableResponse extends Response {
+	/** Wesponse to 'setVawiabwe' wequest. */
+	expowt intewface SetVawiabweWesponse extends Wesponse {
 		body: {
-			/** The new value of the variable. */
-			value: string;
-			/** The type of the new value. Typically shown in the UI when hovering over the value. */
-			type?: string;
-			/** If variablesReference is > 0, the new value is structured and its children can be retrieved by passing variablesReference to the VariablesRequest.
-				The value should be less than or equal to 2147483647 (2^31-1).
+			/** The new vawue of the vawiabwe. */
+			vawue: stwing;
+			/** The type of the new vawue. Typicawwy shown in the UI when hovewing ova the vawue. */
+			type?: stwing;
+			/** If vawiabwesWefewence is > 0, the new vawue is stwuctuwed and its chiwdwen can be wetwieved by passing vawiabwesWefewence to the VawiabwesWequest.
+				The vawue shouwd be wess than ow equaw to 2147483647 (2^31-1).
 			*/
-			variablesReference?: number;
-			/** The number of named child variables.
-				The client can use this optional information to present the variables in a paged UI and fetch them in chunks.
-				The value should be less than or equal to 2147483647 (2^31-1).
+			vawiabwesWefewence?: numba;
+			/** The numba of named chiwd vawiabwes.
+				The cwient can use this optionaw infowmation to pwesent the vawiabwes in a paged UI and fetch them in chunks.
+				The vawue shouwd be wess than ow equaw to 2147483647 (2^31-1).
 			*/
-			namedVariables?: number;
-			/** The number of indexed child variables.
-				The client can use this optional information to present the variables in a paged UI and fetch them in chunks.
-				The value should be less than or equal to 2147483647 (2^31-1).
+			namedVawiabwes?: numba;
+			/** The numba of indexed chiwd vawiabwes.
+				The cwient can use this optionaw infowmation to pwesent the vawiabwes in a paged UI and fetch them in chunks.
+				The vawue shouwd be wess than ow equaw to 2147483647 (2^31-1).
 			*/
-			indexedVariables?: number;
+			indexedVawiabwes?: numba;
 		};
 	}
 
-	/** Source request; value of command field is 'source'.
-		The request retrieves the source code for a given source reference.
+	/** Souwce wequest; vawue of command fiewd is 'souwce'.
+		The wequest wetwieves the souwce code fow a given souwce wefewence.
 	*/
-	export interface SourceRequest extends Request {
-		// command: 'source';
-		arguments: SourceArguments;
+	expowt intewface SouwceWequest extends Wequest {
+		// command: 'souwce';
+		awguments: SouwceAwguments;
 	}
 
-	/** Arguments for 'source' request. */
-	export interface SourceArguments {
-		/** Specifies the source content to load. Either source.path or source.sourceReference must be specified. */
-		source?: Source;
-		/** The reference to the source. This is the same as source.sourceReference.
-			This is provided for backward compatibility since old backends do not understand the 'source' attribute.
+	/** Awguments fow 'souwce' wequest. */
+	expowt intewface SouwceAwguments {
+		/** Specifies the souwce content to woad. Eitha souwce.path ow souwce.souwceWefewence must be specified. */
+		souwce?: Souwce;
+		/** The wefewence to the souwce. This is the same as souwce.souwceWefewence.
+			This is pwovided fow backwawd compatibiwity since owd backends do not undewstand the 'souwce' attwibute.
 		*/
-		sourceReference: number;
+		souwceWefewence: numba;
 	}
 
-	/** Response to 'source' request. */
-	export interface SourceResponse extends Response {
+	/** Wesponse to 'souwce' wequest. */
+	expowt intewface SouwceWesponse extends Wesponse {
 		body: {
-			/** Content of the source reference. */
-			content: string;
-			/** Optional content type (mime type) of the source. */
-			mimeType?: string;
+			/** Content of the souwce wefewence. */
+			content: stwing;
+			/** Optionaw content type (mime type) of the souwce. */
+			mimeType?: stwing;
 		};
 	}
 
-	/** Threads request; value of command field is 'threads'.
-		The request retrieves a list of all threads.
+	/** Thweads wequest; vawue of command fiewd is 'thweads'.
+		The wequest wetwieves a wist of aww thweads.
 	*/
-	export interface ThreadsRequest extends Request {
-		// command: 'threads';
+	expowt intewface ThweadsWequest extends Wequest {
+		// command: 'thweads';
 	}
 
-	/** Response to 'threads' request. */
-	export interface ThreadsResponse extends Response {
+	/** Wesponse to 'thweads' wequest. */
+	expowt intewface ThweadsWesponse extends Wesponse {
 		body: {
-			/** All threads. */
-			threads: Thread[];
+			/** Aww thweads. */
+			thweads: Thwead[];
 		};
 	}
 
-	/** TerminateThreads request; value of command field is 'terminateThreads'.
-		The request terminates the threads with the given ids.
-		Clients should only call this request if the capability 'supportsTerminateThreadsRequest' is true.
+	/** TewminateThweads wequest; vawue of command fiewd is 'tewminateThweads'.
+		The wequest tewminates the thweads with the given ids.
+		Cwients shouwd onwy caww this wequest if the capabiwity 'suppowtsTewminateThweadsWequest' is twue.
 	*/
-	export interface TerminateThreadsRequest extends Request {
-		// command: 'terminateThreads';
-		arguments: TerminateThreadsArguments;
+	expowt intewface TewminateThweadsWequest extends Wequest {
+		// command: 'tewminateThweads';
+		awguments: TewminateThweadsAwguments;
 	}
 
-	/** Arguments for 'terminateThreads' request. */
-	export interface TerminateThreadsArguments {
-		/** Ids of threads to be terminated. */
-		threadIds?: number[];
+	/** Awguments fow 'tewminateThweads' wequest. */
+	expowt intewface TewminateThweadsAwguments {
+		/** Ids of thweads to be tewminated. */
+		thweadIds?: numba[];
 	}
 
-	/** Response to 'terminateThreads' request. This is just an acknowledgement, so no body field is required. */
-	export interface TerminateThreadsResponse extends Response {
+	/** Wesponse to 'tewminateThweads' wequest. This is just an acknowwedgement, so no body fiewd is wequiwed. */
+	expowt intewface TewminateThweadsWesponse extends Wesponse {
 	}
 
-	/** Modules request; value of command field is 'modules'.
-		Modules can be retrieved from the debug adapter with this request which can either return all modules or a range of modules to support paging.
-		Clients should only call this request if the capability 'supportsModulesRequest' is true.
+	/** Moduwes wequest; vawue of command fiewd is 'moduwes'.
+		Moduwes can be wetwieved fwom the debug adapta with this wequest which can eitha wetuwn aww moduwes ow a wange of moduwes to suppowt paging.
+		Cwients shouwd onwy caww this wequest if the capabiwity 'suppowtsModuwesWequest' is twue.
 	*/
-	export interface ModulesRequest extends Request {
-		// command: 'modules';
-		arguments: ModulesArguments;
+	expowt intewface ModuwesWequest extends Wequest {
+		// command: 'moduwes';
+		awguments: ModuwesAwguments;
 	}
 
-	/** Arguments for 'modules' request. */
-	export interface ModulesArguments {
-		/** The index of the first module to return; if omitted modules start at 0. */
-		startModule?: number;
-		/** The number of modules to return. If moduleCount is not specified or 0, all modules are returned. */
-		moduleCount?: number;
+	/** Awguments fow 'moduwes' wequest. */
+	expowt intewface ModuwesAwguments {
+		/** The index of the fiwst moduwe to wetuwn; if omitted moduwes stawt at 0. */
+		stawtModuwe?: numba;
+		/** The numba of moduwes to wetuwn. If moduweCount is not specified ow 0, aww moduwes awe wetuwned. */
+		moduweCount?: numba;
 	}
 
-	/** Response to 'modules' request. */
-	export interface ModulesResponse extends Response {
+	/** Wesponse to 'moduwes' wequest. */
+	expowt intewface ModuwesWesponse extends Wesponse {
 		body: {
-			/** All modules or range of modules. */
-			modules: Module[];
-			/** The total number of modules available. */
-			totalModules?: number;
+			/** Aww moduwes ow wange of moduwes. */
+			moduwes: Moduwe[];
+			/** The totaw numba of moduwes avaiwabwe. */
+			totawModuwes?: numba;
 		};
 	}
 
-	/** LoadedSources request; value of command field is 'loadedSources'.
-		Retrieves the set of all sources currently loaded by the debugged process.
-		Clients should only call this request if the capability 'supportsLoadedSourcesRequest' is true.
+	/** WoadedSouwces wequest; vawue of command fiewd is 'woadedSouwces'.
+		Wetwieves the set of aww souwces cuwwentwy woaded by the debugged pwocess.
+		Cwients shouwd onwy caww this wequest if the capabiwity 'suppowtsWoadedSouwcesWequest' is twue.
 	*/
-	export interface LoadedSourcesRequest extends Request {
-		// command: 'loadedSources';
-		arguments?: LoadedSourcesArguments;
+	expowt intewface WoadedSouwcesWequest extends Wequest {
+		// command: 'woadedSouwces';
+		awguments?: WoadedSouwcesAwguments;
 	}
 
-	/** Arguments for 'loadedSources' request. */
-	export interface LoadedSourcesArguments {
+	/** Awguments fow 'woadedSouwces' wequest. */
+	expowt intewface WoadedSouwcesAwguments {
 	}
 
-	/** Response to 'loadedSources' request. */
-	export interface LoadedSourcesResponse extends Response {
+	/** Wesponse to 'woadedSouwces' wequest. */
+	expowt intewface WoadedSouwcesWesponse extends Wesponse {
 		body: {
-			/** Set of loaded sources. */
-			sources: Source[];
+			/** Set of woaded souwces. */
+			souwces: Souwce[];
 		};
 	}
 
-	/** Evaluate request; value of command field is 'evaluate'.
-		Evaluates the given expression in the context of the top most stack frame.
-		The expression has access to any variables and arguments that are in scope.
+	/** Evawuate wequest; vawue of command fiewd is 'evawuate'.
+		Evawuates the given expwession in the context of the top most stack fwame.
+		The expwession has access to any vawiabwes and awguments that awe in scope.
 	*/
-	export interface EvaluateRequest extends Request {
-		// command: 'evaluate';
-		arguments: EvaluateArguments;
+	expowt intewface EvawuateWequest extends Wequest {
+		// command: 'evawuate';
+		awguments: EvawuateAwguments;
 	}
 
-	/** Arguments for 'evaluate' request. */
-	export interface EvaluateArguments {
-		/** The expression to evaluate. */
-		expression: string;
-		/** Evaluate the expression in the scope of this stack frame. If not specified, the expression is evaluated in the global scope. */
-		frameId?: number;
-		/** The context in which the evaluate request is run.
-			Values:
-			'watch': evaluate is run in a watch.
-			'repl': evaluate is run from REPL console.
-			'hover': evaluate is run from a data hover.
-			'clipboard': evaluate is run to generate the value that will be stored in the clipboard.
-			The attribute is only honored by a debug adapter if the capability 'supportsClipboardContext' is true.
+	/** Awguments fow 'evawuate' wequest. */
+	expowt intewface EvawuateAwguments {
+		/** The expwession to evawuate. */
+		expwession: stwing;
+		/** Evawuate the expwession in the scope of this stack fwame. If not specified, the expwession is evawuated in the gwobaw scope. */
+		fwameId?: numba;
+		/** The context in which the evawuate wequest is wun.
+			Vawues:
+			'watch': evawuate is wun in a watch.
+			'wepw': evawuate is wun fwom WEPW consowe.
+			'hova': evawuate is wun fwom a data hova.
+			'cwipboawd': evawuate is wun to genewate the vawue that wiww be stowed in the cwipboawd.
+			The attwibute is onwy honowed by a debug adapta if the capabiwity 'suppowtsCwipboawdContext' is twue.
 			etc.
 		*/
-		context?: 'watch' | 'repl' | 'hover' | 'clipboard' | string;
-		/** Specifies details on how to format the Evaluate result.
-			The attribute is only honored by a debug adapter if the capability 'supportsValueFormattingOptions' is true.
+		context?: 'watch' | 'wepw' | 'hova' | 'cwipboawd' | stwing;
+		/** Specifies detaiws on how to fowmat the Evawuate wesuwt.
+			The attwibute is onwy honowed by a debug adapta if the capabiwity 'suppowtsVawueFowmattingOptions' is twue.
 		*/
-		format?: ValueFormat;
+		fowmat?: VawueFowmat;
 	}
 
-	/** Response to 'evaluate' request. */
-	export interface EvaluateResponse extends Response {
+	/** Wesponse to 'evawuate' wequest. */
+	expowt intewface EvawuateWesponse extends Wesponse {
 		body: {
-			/** The result of the evaluate request. */
-			result: string;
-			/** The optional type of the evaluate result.
-				This attribute should only be returned by a debug adapter if the client has passed the value true for the 'supportsVariableType' capability of the 'initialize' request.
+			/** The wesuwt of the evawuate wequest. */
+			wesuwt: stwing;
+			/** The optionaw type of the evawuate wesuwt.
+				This attwibute shouwd onwy be wetuwned by a debug adapta if the cwient has passed the vawue twue fow the 'suppowtsVawiabweType' capabiwity of the 'initiawize' wequest.
 			*/
-			type?: string;
-			/** Properties of a evaluate result that can be used to determine how to render the result in the UI. */
-			presentationHint?: VariablePresentationHint;
-			/** If variablesReference is > 0, the evaluate result is structured and its children can be retrieved by passing variablesReference to the VariablesRequest.
-				The value should be less than or equal to 2147483647 (2^31-1).
+			type?: stwing;
+			/** Pwopewties of a evawuate wesuwt that can be used to detewmine how to wenda the wesuwt in the UI. */
+			pwesentationHint?: VawiabwePwesentationHint;
+			/** If vawiabwesWefewence is > 0, the evawuate wesuwt is stwuctuwed and its chiwdwen can be wetwieved by passing vawiabwesWefewence to the VawiabwesWequest.
+				The vawue shouwd be wess than ow equaw to 2147483647 (2^31-1).
 			*/
-			variablesReference: number;
-			/** The number of named child variables.
-				The client can use this optional information to present the variables in a paged UI and fetch them in chunks.
-				The value should be less than or equal to 2147483647 (2^31-1).
+			vawiabwesWefewence: numba;
+			/** The numba of named chiwd vawiabwes.
+				The cwient can use this optionaw infowmation to pwesent the vawiabwes in a paged UI and fetch them in chunks.
+				The vawue shouwd be wess than ow equaw to 2147483647 (2^31-1).
 			*/
-			namedVariables?: number;
-			/** The number of indexed child variables.
-				The client can use this optional information to present the variables in a paged UI and fetch them in chunks.
-				The value should be less than or equal to 2147483647 (2^31-1).
+			namedVawiabwes?: numba;
+			/** The numba of indexed chiwd vawiabwes.
+				The cwient can use this optionaw infowmation to pwesent the vawiabwes in a paged UI and fetch them in chunks.
+				The vawue shouwd be wess than ow equaw to 2147483647 (2^31-1).
 			*/
-			indexedVariables?: number;
-			/** Optional memory reference to a location appropriate for this result.
-				For pointer type eval results, this is generally a reference to the memory address contained in the pointer.
-				This attribute should be returned by a debug adapter if the client has passed the value true for the 'supportsMemoryReferences' capability of the 'initialize' request.
+			indexedVawiabwes?: numba;
+			/** Optionaw memowy wefewence to a wocation appwopwiate fow this wesuwt.
+				Fow pointa type evaw wesuwts, this is genewawwy a wefewence to the memowy addwess contained in the pointa.
+				This attwibute shouwd be wetuwned by a debug adapta if the cwient has passed the vawue twue fow the 'suppowtsMemowyWefewences' capabiwity of the 'initiawize' wequest.
 			*/
-			memoryReference?: string;
+			memowyWefewence?: stwing;
 		};
 	}
 
-	/** SetExpression request; value of command field is 'setExpression'.
-		Evaluates the given 'value' expression and assigns it to the 'expression' which must be a modifiable l-value.
-		The expressions have access to any variables and arguments that are in scope of the specified frame.
-		Clients should only call this request if the capability 'supportsSetExpression' is true.
-		If a debug adapter implements both setExpression and setVariable, a client will only use setExpression if the variable has an evaluateName property.
+	/** SetExpwession wequest; vawue of command fiewd is 'setExpwession'.
+		Evawuates the given 'vawue' expwession and assigns it to the 'expwession' which must be a modifiabwe w-vawue.
+		The expwessions have access to any vawiabwes and awguments that awe in scope of the specified fwame.
+		Cwients shouwd onwy caww this wequest if the capabiwity 'suppowtsSetExpwession' is twue.
+		If a debug adapta impwements both setExpwession and setVawiabwe, a cwient wiww onwy use setExpwession if the vawiabwe has an evawuateName pwopewty.
 	*/
-	export interface SetExpressionRequest extends Request {
-		// command: 'setExpression';
-		arguments: SetExpressionArguments;
+	expowt intewface SetExpwessionWequest extends Wequest {
+		// command: 'setExpwession';
+		awguments: SetExpwessionAwguments;
 	}
 
-	/** Arguments for 'setExpression' request. */
-	export interface SetExpressionArguments {
-		/** The l-value expression to assign to. */
-		expression: string;
-		/** The value expression to assign to the l-value expression. */
-		value: string;
-		/** Evaluate the expressions in the scope of this stack frame. If not specified, the expressions are evaluated in the global scope. */
-		frameId?: number;
-		/** Specifies how the resulting value should be formatted. */
-		format?: ValueFormat;
+	/** Awguments fow 'setExpwession' wequest. */
+	expowt intewface SetExpwessionAwguments {
+		/** The w-vawue expwession to assign to. */
+		expwession: stwing;
+		/** The vawue expwession to assign to the w-vawue expwession. */
+		vawue: stwing;
+		/** Evawuate the expwessions in the scope of this stack fwame. If not specified, the expwessions awe evawuated in the gwobaw scope. */
+		fwameId?: numba;
+		/** Specifies how the wesuwting vawue shouwd be fowmatted. */
+		fowmat?: VawueFowmat;
 	}
 
-	/** Response to 'setExpression' request. */
-	export interface SetExpressionResponse extends Response {
+	/** Wesponse to 'setExpwession' wequest. */
+	expowt intewface SetExpwessionWesponse extends Wesponse {
 		body: {
-			/** The new value of the expression. */
-			value: string;
-			/** The optional type of the value.
-				This attribute should only be returned by a debug adapter if the client has passed the value true for the 'supportsVariableType' capability of the 'initialize' request.
+			/** The new vawue of the expwession. */
+			vawue: stwing;
+			/** The optionaw type of the vawue.
+				This attwibute shouwd onwy be wetuwned by a debug adapta if the cwient has passed the vawue twue fow the 'suppowtsVawiabweType' capabiwity of the 'initiawize' wequest.
 			*/
-			type?: string;
-			/** Properties of a value that can be used to determine how to render the result in the UI. */
-			presentationHint?: VariablePresentationHint;
-			/** If variablesReference is > 0, the value is structured and its children can be retrieved by passing variablesReference to the VariablesRequest.
-				The value should be less than or equal to 2147483647 (2^31-1).
+			type?: stwing;
+			/** Pwopewties of a vawue that can be used to detewmine how to wenda the wesuwt in the UI. */
+			pwesentationHint?: VawiabwePwesentationHint;
+			/** If vawiabwesWefewence is > 0, the vawue is stwuctuwed and its chiwdwen can be wetwieved by passing vawiabwesWefewence to the VawiabwesWequest.
+				The vawue shouwd be wess than ow equaw to 2147483647 (2^31-1).
 			*/
-			variablesReference?: number;
-			/** The number of named child variables.
-				The client can use this optional information to present the variables in a paged UI and fetch them in chunks.
-				The value should be less than or equal to 2147483647 (2^31-1).
+			vawiabwesWefewence?: numba;
+			/** The numba of named chiwd vawiabwes.
+				The cwient can use this optionaw infowmation to pwesent the vawiabwes in a paged UI and fetch them in chunks.
+				The vawue shouwd be wess than ow equaw to 2147483647 (2^31-1).
 			*/
-			namedVariables?: number;
-			/** The number of indexed child variables.
-				The client can use this optional information to present the variables in a paged UI and fetch them in chunks.
-				The value should be less than or equal to 2147483647 (2^31-1).
+			namedVawiabwes?: numba;
+			/** The numba of indexed chiwd vawiabwes.
+				The cwient can use this optionaw infowmation to pwesent the vawiabwes in a paged UI and fetch them in chunks.
+				The vawue shouwd be wess than ow equaw to 2147483647 (2^31-1).
 			*/
-			indexedVariables?: number;
+			indexedVawiabwes?: numba;
 		};
 	}
 
-	/** StepInTargets request; value of command field is 'stepInTargets'.
-		This request retrieves the possible stepIn targets for the specified stack frame.
-		These targets can be used in the 'stepIn' request.
-		The StepInTargets may only be called if the 'supportsStepInTargetsRequest' capability exists and is true.
-		Clients should only call this request if the capability 'supportsStepInTargetsRequest' is true.
+	/** StepInTawgets wequest; vawue of command fiewd is 'stepInTawgets'.
+		This wequest wetwieves the possibwe stepIn tawgets fow the specified stack fwame.
+		These tawgets can be used in the 'stepIn' wequest.
+		The StepInTawgets may onwy be cawwed if the 'suppowtsStepInTawgetsWequest' capabiwity exists and is twue.
+		Cwients shouwd onwy caww this wequest if the capabiwity 'suppowtsStepInTawgetsWequest' is twue.
 	*/
-	export interface StepInTargetsRequest extends Request {
-		// command: 'stepInTargets';
-		arguments: StepInTargetsArguments;
+	expowt intewface StepInTawgetsWequest extends Wequest {
+		// command: 'stepInTawgets';
+		awguments: StepInTawgetsAwguments;
 	}
 
-	/** Arguments for 'stepInTargets' request. */
-	export interface StepInTargetsArguments {
-		/** The stack frame for which to retrieve the possible stepIn targets. */
-		frameId: number;
+	/** Awguments fow 'stepInTawgets' wequest. */
+	expowt intewface StepInTawgetsAwguments {
+		/** The stack fwame fow which to wetwieve the possibwe stepIn tawgets. */
+		fwameId: numba;
 	}
 
-	/** Response to 'stepInTargets' request. */
-	export interface StepInTargetsResponse extends Response {
+	/** Wesponse to 'stepInTawgets' wequest. */
+	expowt intewface StepInTawgetsWesponse extends Wesponse {
 		body: {
-			/** The possible stepIn targets of the specified source location. */
-			targets: StepInTarget[];
+			/** The possibwe stepIn tawgets of the specified souwce wocation. */
+			tawgets: StepInTawget[];
 		};
 	}
 
-	/** GotoTargets request; value of command field is 'gotoTargets'.
-		This request retrieves the possible goto targets for the specified source location.
-		These targets can be used in the 'goto' request.
-		Clients should only call this request if the capability 'supportsGotoTargetsRequest' is true.
+	/** GotoTawgets wequest; vawue of command fiewd is 'gotoTawgets'.
+		This wequest wetwieves the possibwe goto tawgets fow the specified souwce wocation.
+		These tawgets can be used in the 'goto' wequest.
+		Cwients shouwd onwy caww this wequest if the capabiwity 'suppowtsGotoTawgetsWequest' is twue.
 	*/
-	export interface GotoTargetsRequest extends Request {
-		// command: 'gotoTargets';
-		arguments: GotoTargetsArguments;
+	expowt intewface GotoTawgetsWequest extends Wequest {
+		// command: 'gotoTawgets';
+		awguments: GotoTawgetsAwguments;
 	}
 
-	/** Arguments for 'gotoTargets' request. */
-	export interface GotoTargetsArguments {
-		/** The source location for which the goto targets are determined. */
-		source: Source;
-		/** The line location for which the goto targets are determined. */
-		line: number;
-		/** An optional column location for which the goto targets are determined. */
-		column?: number;
+	/** Awguments fow 'gotoTawgets' wequest. */
+	expowt intewface GotoTawgetsAwguments {
+		/** The souwce wocation fow which the goto tawgets awe detewmined. */
+		souwce: Souwce;
+		/** The wine wocation fow which the goto tawgets awe detewmined. */
+		wine: numba;
+		/** An optionaw cowumn wocation fow which the goto tawgets awe detewmined. */
+		cowumn?: numba;
 	}
 
-	/** Response to 'gotoTargets' request. */
-	export interface GotoTargetsResponse extends Response {
+	/** Wesponse to 'gotoTawgets' wequest. */
+	expowt intewface GotoTawgetsWesponse extends Wesponse {
 		body: {
-			/** The possible goto targets of the specified location. */
-			targets: GotoTarget[];
+			/** The possibwe goto tawgets of the specified wocation. */
+			tawgets: GotoTawget[];
 		};
 	}
 
-	/** Completions request; value of command field is 'completions'.
-		Returns a list of possible completions for a given caret position and text.
-		Clients should only call this request if the capability 'supportsCompletionsRequest' is true.
+	/** Compwetions wequest; vawue of command fiewd is 'compwetions'.
+		Wetuwns a wist of possibwe compwetions fow a given cawet position and text.
+		Cwients shouwd onwy caww this wequest if the capabiwity 'suppowtsCompwetionsWequest' is twue.
 	*/
-	export interface CompletionsRequest extends Request {
-		// command: 'completions';
-		arguments: CompletionsArguments;
+	expowt intewface CompwetionsWequest extends Wequest {
+		// command: 'compwetions';
+		awguments: CompwetionsAwguments;
 	}
 
-	/** Arguments for 'completions' request. */
-	export interface CompletionsArguments {
-		/** Returns completions in the scope of this stack frame. If not specified, the completions are returned for the global scope. */
-		frameId?: number;
-		/** One or more source lines. Typically this is the text a user has typed into the debug console before he asked for completion. */
-		text: string;
-		/** The character position for which to determine the completion proposals. */
-		column: number;
-		/** An optional line for which to determine the completion proposals. If missing the first line of the text is assumed. */
-		line?: number;
+	/** Awguments fow 'compwetions' wequest. */
+	expowt intewface CompwetionsAwguments {
+		/** Wetuwns compwetions in the scope of this stack fwame. If not specified, the compwetions awe wetuwned fow the gwobaw scope. */
+		fwameId?: numba;
+		/** One ow mowe souwce wines. Typicawwy this is the text a usa has typed into the debug consowe befowe he asked fow compwetion. */
+		text: stwing;
+		/** The chawacta position fow which to detewmine the compwetion pwoposaws. */
+		cowumn: numba;
+		/** An optionaw wine fow which to detewmine the compwetion pwoposaws. If missing the fiwst wine of the text is assumed. */
+		wine?: numba;
 	}
 
-	/** Response to 'completions' request. */
-	export interface CompletionsResponse extends Response {
+	/** Wesponse to 'compwetions' wequest. */
+	expowt intewface CompwetionsWesponse extends Wesponse {
 		body: {
-			/** The possible completions for . */
-			targets: CompletionItem[];
+			/** The possibwe compwetions fow . */
+			tawgets: CompwetionItem[];
 		};
 	}
 
-	/** ExceptionInfo request; value of command field is 'exceptionInfo'.
-		Retrieves the details of the exception that caused this event to be raised.
-		Clients should only call this request if the capability 'supportsExceptionInfoRequest' is true.
+	/** ExceptionInfo wequest; vawue of command fiewd is 'exceptionInfo'.
+		Wetwieves the detaiws of the exception that caused this event to be waised.
+		Cwients shouwd onwy caww this wequest if the capabiwity 'suppowtsExceptionInfoWequest' is twue.
 	*/
-	export interface ExceptionInfoRequest extends Request {
+	expowt intewface ExceptionInfoWequest extends Wequest {
 		// command: 'exceptionInfo';
-		arguments: ExceptionInfoArguments;
+		awguments: ExceptionInfoAwguments;
 	}
 
-	/** Arguments for 'exceptionInfo' request. */
-	export interface ExceptionInfoArguments {
-		/** Thread for which exception information should be retrieved. */
-		threadId: number;
+	/** Awguments fow 'exceptionInfo' wequest. */
+	expowt intewface ExceptionInfoAwguments {
+		/** Thwead fow which exception infowmation shouwd be wetwieved. */
+		thweadId: numba;
 	}
 
-	/** Response to 'exceptionInfo' request. */
-	export interface ExceptionInfoResponse extends Response {
+	/** Wesponse to 'exceptionInfo' wequest. */
+	expowt intewface ExceptionInfoWesponse extends Wesponse {
 		body: {
-			/** ID of the exception that was thrown. */
-			exceptionId: string;
-			/** Descriptive text for the exception provided by the debug adapter. */
-			description?: string;
-			/** Mode that caused the exception notification to be raised. */
-			breakMode: ExceptionBreakMode;
-			/** Detailed information about the exception. */
-			details?: ExceptionDetails;
+			/** ID of the exception that was thwown. */
+			exceptionId: stwing;
+			/** Descwiptive text fow the exception pwovided by the debug adapta. */
+			descwiption?: stwing;
+			/** Mode that caused the exception notification to be waised. */
+			bweakMode: ExceptionBweakMode;
+			/** Detaiwed infowmation about the exception. */
+			detaiws?: ExceptionDetaiws;
 		};
 	}
 
-	/** ReadMemory request; value of command field is 'readMemory'.
-		Reads bytes from memory at the provided location.
-		Clients should only call this request if the capability 'supportsReadMemoryRequest' is true.
+	/** WeadMemowy wequest; vawue of command fiewd is 'weadMemowy'.
+		Weads bytes fwom memowy at the pwovided wocation.
+		Cwients shouwd onwy caww this wequest if the capabiwity 'suppowtsWeadMemowyWequest' is twue.
 	*/
-	export interface ReadMemoryRequest extends Request {
-		// command: 'readMemory';
-		arguments: ReadMemoryArguments;
+	expowt intewface WeadMemowyWequest extends Wequest {
+		// command: 'weadMemowy';
+		awguments: WeadMemowyAwguments;
 	}
 
-	/** Arguments for 'readMemory' request. */
-	export interface ReadMemoryArguments {
-		/** Memory reference to the base location from which data should be read. */
-		memoryReference: string;
-		/** Optional offset (in bytes) to be applied to the reference location before reading data. Can be negative. */
-		offset?: number;
-		/** Number of bytes to read at the specified location and offset. */
-		count: number;
+	/** Awguments fow 'weadMemowy' wequest. */
+	expowt intewface WeadMemowyAwguments {
+		/** Memowy wefewence to the base wocation fwom which data shouwd be wead. */
+		memowyWefewence: stwing;
+		/** Optionaw offset (in bytes) to be appwied to the wefewence wocation befowe weading data. Can be negative. */
+		offset?: numba;
+		/** Numba of bytes to wead at the specified wocation and offset. */
+		count: numba;
 	}
 
-	/** Response to 'readMemory' request. */
-	export interface ReadMemoryResponse extends Response {
+	/** Wesponse to 'weadMemowy' wequest. */
+	expowt intewface WeadMemowyWesponse extends Wesponse {
 		body?: {
-			/** The address of the first byte of data returned.
-				Treated as a hex value if prefixed with '0x', or as a decimal value otherwise.
+			/** The addwess of the fiwst byte of data wetuwned.
+				Tweated as a hex vawue if pwefixed with '0x', ow as a decimaw vawue othewwise.
 			*/
-			address: string;
-			/** The number of unreadable bytes encountered after the last successfully read byte.
-				This can be used to determine the number of bytes that must be skipped before a subsequent 'readMemory' request will succeed.
+			addwess: stwing;
+			/** The numba of unweadabwe bytes encountewed afta the wast successfuwwy wead byte.
+				This can be used to detewmine the numba of bytes that must be skipped befowe a subsequent 'weadMemowy' wequest wiww succeed.
 			*/
-			unreadableBytes?: number;
-			/** The bytes read from memory, encoded using base64. */
-			data?: string;
+			unweadabweBytes?: numba;
+			/** The bytes wead fwom memowy, encoded using base64. */
+			data?: stwing;
 		};
 	}
 
-	/** WriteMemory request; value of command field is 'writeMemory'.
-		Writes bytes to memory at the provided location.
-		Clients should only call this request if the capability 'supportsWriteMemoryRequest' is true.
+	/** WwiteMemowy wequest; vawue of command fiewd is 'wwiteMemowy'.
+		Wwites bytes to memowy at the pwovided wocation.
+		Cwients shouwd onwy caww this wequest if the capabiwity 'suppowtsWwiteMemowyWequest' is twue.
 	*/
-	export interface WriteMemoryRequest extends Request {
-		// command: 'writeMemory';
-		arguments: WriteMemoryArguments;
+	expowt intewface WwiteMemowyWequest extends Wequest {
+		// command: 'wwiteMemowy';
+		awguments: WwiteMemowyAwguments;
 	}
 
-	/** Arguments for 'writeMemory' request. */
-	export interface WriteMemoryArguments {
-		/** Memory reference to the base location to which data should be written. */
-		memoryReference: string;
-		/** Optional offset (in bytes) to be applied to the reference location before writing data. Can be negative. */
-		offset?: number;
-		/** Optional property to control partial writes. If true, the debug adapter should attempt to write memory even if the entire memory region is not writable. In such a case the debug adapter should stop after hitting the first byte of memory that cannot be written and return the number of bytes written in the response via the 'offset' and 'bytesWritten' properties.
-			If false or missing, a debug adapter should attempt to verify the region is writable before writing, and fail the response if it is not.
+	/** Awguments fow 'wwiteMemowy' wequest. */
+	expowt intewface WwiteMemowyAwguments {
+		/** Memowy wefewence to the base wocation to which data shouwd be wwitten. */
+		memowyWefewence: stwing;
+		/** Optionaw offset (in bytes) to be appwied to the wefewence wocation befowe wwiting data. Can be negative. */
+		offset?: numba;
+		/** Optionaw pwopewty to contwow pawtiaw wwites. If twue, the debug adapta shouwd attempt to wwite memowy even if the entiwe memowy wegion is not wwitabwe. In such a case the debug adapta shouwd stop afta hitting the fiwst byte of memowy that cannot be wwitten and wetuwn the numba of bytes wwitten in the wesponse via the 'offset' and 'bytesWwitten' pwopewties.
+			If fawse ow missing, a debug adapta shouwd attempt to vewify the wegion is wwitabwe befowe wwiting, and faiw the wesponse if it is not.
 		*/
-		allowPartial?: boolean;
-		/** Bytes to write, encoded using base64. */
-		data: string;
+		awwowPawtiaw?: boowean;
+		/** Bytes to wwite, encoded using base64. */
+		data: stwing;
 	}
 
-	/** Response to 'writeMemory' request. */
-	export interface WriteMemoryResponse extends Response {
+	/** Wesponse to 'wwiteMemowy' wequest. */
+	expowt intewface WwiteMemowyWesponse extends Wesponse {
 		body?: {
-			/** Optional property that should be returned when 'allowPartial' is true to indicate the offset of the first byte of data successfully written. Can be negative. */
-			offset?: number;
-			/** Optional property that should be returned when 'allowPartial' is true to indicate the number of bytes starting from address that were successfully written. */
-			bytesWritten?: number;
+			/** Optionaw pwopewty that shouwd be wetuwned when 'awwowPawtiaw' is twue to indicate the offset of the fiwst byte of data successfuwwy wwitten. Can be negative. */
+			offset?: numba;
+			/** Optionaw pwopewty that shouwd be wetuwned when 'awwowPawtiaw' is twue to indicate the numba of bytes stawting fwom addwess that wewe successfuwwy wwitten. */
+			bytesWwitten?: numba;
 		};
 	}
 
-	/** Disassemble request; value of command field is 'disassemble'.
-		Disassembles code stored at the provided location.
-		Clients should only call this request if the capability 'supportsDisassembleRequest' is true.
+	/** Disassembwe wequest; vawue of command fiewd is 'disassembwe'.
+		Disassembwes code stowed at the pwovided wocation.
+		Cwients shouwd onwy caww this wequest if the capabiwity 'suppowtsDisassembweWequest' is twue.
 	*/
-	export interface DisassembleRequest extends Request {
-		// command: 'disassemble';
-		arguments: DisassembleArguments;
+	expowt intewface DisassembweWequest extends Wequest {
+		// command: 'disassembwe';
+		awguments: DisassembweAwguments;
 	}
 
-	/** Arguments for 'disassemble' request. */
-	export interface DisassembleArguments {
-		/** Memory reference to the base location containing the instructions to disassemble. */
-		memoryReference: string;
-		/** Optional offset (in bytes) to be applied to the reference location before disassembling. Can be negative. */
-		offset?: number;
-		/** Optional offset (in instructions) to be applied after the byte offset (if any) before disassembling. Can be negative. */
-		instructionOffset?: number;
-		/** Number of instructions to disassemble starting at the specified location and offset.
-			An adapter must return exactly this number of instructions - any unavailable instructions should be replaced with an implementation-defined 'invalid instruction' value.
+	/** Awguments fow 'disassembwe' wequest. */
+	expowt intewface DisassembweAwguments {
+		/** Memowy wefewence to the base wocation containing the instwuctions to disassembwe. */
+		memowyWefewence: stwing;
+		/** Optionaw offset (in bytes) to be appwied to the wefewence wocation befowe disassembwing. Can be negative. */
+		offset?: numba;
+		/** Optionaw offset (in instwuctions) to be appwied afta the byte offset (if any) befowe disassembwing. Can be negative. */
+		instwuctionOffset?: numba;
+		/** Numba of instwuctions to disassembwe stawting at the specified wocation and offset.
+			An adapta must wetuwn exactwy this numba of instwuctions - any unavaiwabwe instwuctions shouwd be wepwaced with an impwementation-defined 'invawid instwuction' vawue.
 		*/
-		instructionCount: number;
-		/** If true, the adapter should attempt to resolve memory addresses and other values to symbolic names. */
-		resolveSymbols?: boolean;
+		instwuctionCount: numba;
+		/** If twue, the adapta shouwd attempt to wesowve memowy addwesses and otha vawues to symbowic names. */
+		wesowveSymbows?: boowean;
 	}
 
-	/** Response to 'disassemble' request. */
-	export interface DisassembleResponse extends Response {
+	/** Wesponse to 'disassembwe' wequest. */
+	expowt intewface DisassembweWesponse extends Wesponse {
 		body?: {
-			/** The list of disassembled instructions. */
-			instructions: DisassembledInstruction[];
+			/** The wist of disassembwed instwuctions. */
+			instwuctions: DisassembwedInstwuction[];
 		};
 	}
 
-	/** Information about the capabilities of a debug adapter. */
-	export interface Capabilities {
-		/** The debug adapter supports the 'configurationDone' request. */
-		supportsConfigurationDoneRequest?: boolean;
-		/** The debug adapter supports function breakpoints. */
-		supportsFunctionBreakpoints?: boolean;
-		/** The debug adapter supports conditional breakpoints. */
-		supportsConditionalBreakpoints?: boolean;
-		/** The debug adapter supports breakpoints that break execution after a specified number of hits. */
-		supportsHitConditionalBreakpoints?: boolean;
-		/** The debug adapter supports a (side effect free) evaluate request for data hovers. */
-		supportsEvaluateForHovers?: boolean;
-		/** Available exception filter options for the 'setExceptionBreakpoints' request. */
-		exceptionBreakpointFilters?: ExceptionBreakpointsFilter[];
-		/** The debug adapter supports stepping back via the 'stepBack' and 'reverseContinue' requests. */
-		supportsStepBack?: boolean;
-		/** The debug adapter supports setting a variable to a value. */
-		supportsSetVariable?: boolean;
-		/** The debug adapter supports restarting a frame. */
-		supportsRestartFrame?: boolean;
-		/** The debug adapter supports the 'gotoTargets' request. */
-		supportsGotoTargetsRequest?: boolean;
-		/** The debug adapter supports the 'stepInTargets' request. */
-		supportsStepInTargetsRequest?: boolean;
-		/** The debug adapter supports the 'completions' request. */
-		supportsCompletionsRequest?: boolean;
-		/** The set of characters that should trigger completion in a REPL. If not specified, the UI should assume the '.' character. */
-		completionTriggerCharacters?: string[];
-		/** The debug adapter supports the 'modules' request. */
-		supportsModulesRequest?: boolean;
-		/** The set of additional module information exposed by the debug adapter. */
-		additionalModuleColumns?: ColumnDescriptor[];
-		/** Checksum algorithms supported by the debug adapter. */
-		supportedChecksumAlgorithms?: ChecksumAlgorithm[];
-		/** The debug adapter supports the 'restart' request. In this case a client should not implement 'restart' by terminating and relaunching the adapter but by calling the RestartRequest. */
-		supportsRestartRequest?: boolean;
-		/** The debug adapter supports 'exceptionOptions' on the setExceptionBreakpoints request. */
-		supportsExceptionOptions?: boolean;
-		/** The debug adapter supports a 'format' attribute on the stackTraceRequest, variablesRequest, and evaluateRequest. */
-		supportsValueFormattingOptions?: boolean;
-		/** The debug adapter supports the 'exceptionInfo' request. */
-		supportsExceptionInfoRequest?: boolean;
-		/** The debug adapter supports the 'terminateDebuggee' attribute on the 'disconnect' request. */
-		supportTerminateDebuggee?: boolean;
-		/** The debug adapter supports the 'suspendDebuggee' attribute on the 'disconnect' request. */
-		supportSuspendDebuggee?: boolean;
-		/** The debug adapter supports the delayed loading of parts of the stack, which requires that both the 'startFrame' and 'levels' arguments and an optional 'totalFrames' result of the 'StackTrace' request are supported. */
-		supportsDelayedStackTraceLoading?: boolean;
-		/** The debug adapter supports the 'loadedSources' request. */
-		supportsLoadedSourcesRequest?: boolean;
-		/** The debug adapter supports logpoints by interpreting the 'logMessage' attribute of the SourceBreakpoint. */
-		supportsLogPoints?: boolean;
-		/** The debug adapter supports the 'terminateThreads' request. */
-		supportsTerminateThreadsRequest?: boolean;
-		/** The debug adapter supports the 'setExpression' request. */
-		supportsSetExpression?: boolean;
-		/** The debug adapter supports the 'terminate' request. */
-		supportsTerminateRequest?: boolean;
-		/** The debug adapter supports data breakpoints. */
-		supportsDataBreakpoints?: boolean;
-		/** The debug adapter supports the 'readMemory' request. */
-		supportsReadMemoryRequest?: boolean;
-		/** The debug adapter supports the 'writeMemory' request. */
-		supportsWriteMemoryRequest?: boolean;
-		/** The debug adapter supports the 'disassemble' request. */
-		supportsDisassembleRequest?: boolean;
-		/** The debug adapter supports the 'cancel' request. */
-		supportsCancelRequest?: boolean;
-		/** The debug adapter supports the 'breakpointLocations' request. */
-		supportsBreakpointLocationsRequest?: boolean;
-		/** The debug adapter supports the 'clipboard' context value in the 'evaluate' request. */
-		supportsClipboardContext?: boolean;
-		/** The debug adapter supports stepping granularities (argument 'granularity') for the stepping requests. */
-		supportsSteppingGranularity?: boolean;
-		/** The debug adapter supports adding breakpoints based on instruction references. */
-		supportsInstructionBreakpoints?: boolean;
-		/** The debug adapter supports 'filterOptions' as an argument on the 'setExceptionBreakpoints' request. */
-		supportsExceptionFilterOptions?: boolean;
+	/** Infowmation about the capabiwities of a debug adapta. */
+	expowt intewface Capabiwities {
+		/** The debug adapta suppowts the 'configuwationDone' wequest. */
+		suppowtsConfiguwationDoneWequest?: boowean;
+		/** The debug adapta suppowts function bweakpoints. */
+		suppowtsFunctionBweakpoints?: boowean;
+		/** The debug adapta suppowts conditionaw bweakpoints. */
+		suppowtsConditionawBweakpoints?: boowean;
+		/** The debug adapta suppowts bweakpoints that bweak execution afta a specified numba of hits. */
+		suppowtsHitConditionawBweakpoints?: boowean;
+		/** The debug adapta suppowts a (side effect fwee) evawuate wequest fow data hovews. */
+		suppowtsEvawuateFowHovews?: boowean;
+		/** Avaiwabwe exception fiwta options fow the 'setExceptionBweakpoints' wequest. */
+		exceptionBweakpointFiwtews?: ExceptionBweakpointsFiwta[];
+		/** The debug adapta suppowts stepping back via the 'stepBack' and 'wevewseContinue' wequests. */
+		suppowtsStepBack?: boowean;
+		/** The debug adapta suppowts setting a vawiabwe to a vawue. */
+		suppowtsSetVawiabwe?: boowean;
+		/** The debug adapta suppowts westawting a fwame. */
+		suppowtsWestawtFwame?: boowean;
+		/** The debug adapta suppowts the 'gotoTawgets' wequest. */
+		suppowtsGotoTawgetsWequest?: boowean;
+		/** The debug adapta suppowts the 'stepInTawgets' wequest. */
+		suppowtsStepInTawgetsWequest?: boowean;
+		/** The debug adapta suppowts the 'compwetions' wequest. */
+		suppowtsCompwetionsWequest?: boowean;
+		/** The set of chawactews that shouwd twigga compwetion in a WEPW. If not specified, the UI shouwd assume the '.' chawacta. */
+		compwetionTwiggewChawactews?: stwing[];
+		/** The debug adapta suppowts the 'moduwes' wequest. */
+		suppowtsModuwesWequest?: boowean;
+		/** The set of additionaw moduwe infowmation exposed by the debug adapta. */
+		additionawModuweCowumns?: CowumnDescwiptow[];
+		/** Checksum awgowithms suppowted by the debug adapta. */
+		suppowtedChecksumAwgowithms?: ChecksumAwgowithm[];
+		/** The debug adapta suppowts the 'westawt' wequest. In this case a cwient shouwd not impwement 'westawt' by tewminating and wewaunching the adapta but by cawwing the WestawtWequest. */
+		suppowtsWestawtWequest?: boowean;
+		/** The debug adapta suppowts 'exceptionOptions' on the setExceptionBweakpoints wequest. */
+		suppowtsExceptionOptions?: boowean;
+		/** The debug adapta suppowts a 'fowmat' attwibute on the stackTwaceWequest, vawiabwesWequest, and evawuateWequest. */
+		suppowtsVawueFowmattingOptions?: boowean;
+		/** The debug adapta suppowts the 'exceptionInfo' wequest. */
+		suppowtsExceptionInfoWequest?: boowean;
+		/** The debug adapta suppowts the 'tewminateDebuggee' attwibute on the 'disconnect' wequest. */
+		suppowtTewminateDebuggee?: boowean;
+		/** The debug adapta suppowts the 'suspendDebuggee' attwibute on the 'disconnect' wequest. */
+		suppowtSuspendDebuggee?: boowean;
+		/** The debug adapta suppowts the dewayed woading of pawts of the stack, which wequiwes that both the 'stawtFwame' and 'wevews' awguments and an optionaw 'totawFwames' wesuwt of the 'StackTwace' wequest awe suppowted. */
+		suppowtsDewayedStackTwaceWoading?: boowean;
+		/** The debug adapta suppowts the 'woadedSouwces' wequest. */
+		suppowtsWoadedSouwcesWequest?: boowean;
+		/** The debug adapta suppowts wogpoints by intewpweting the 'wogMessage' attwibute of the SouwceBweakpoint. */
+		suppowtsWogPoints?: boowean;
+		/** The debug adapta suppowts the 'tewminateThweads' wequest. */
+		suppowtsTewminateThweadsWequest?: boowean;
+		/** The debug adapta suppowts the 'setExpwession' wequest. */
+		suppowtsSetExpwession?: boowean;
+		/** The debug adapta suppowts the 'tewminate' wequest. */
+		suppowtsTewminateWequest?: boowean;
+		/** The debug adapta suppowts data bweakpoints. */
+		suppowtsDataBweakpoints?: boowean;
+		/** The debug adapta suppowts the 'weadMemowy' wequest. */
+		suppowtsWeadMemowyWequest?: boowean;
+		/** The debug adapta suppowts the 'wwiteMemowy' wequest. */
+		suppowtsWwiteMemowyWequest?: boowean;
+		/** The debug adapta suppowts the 'disassembwe' wequest. */
+		suppowtsDisassembweWequest?: boowean;
+		/** The debug adapta suppowts the 'cancew' wequest. */
+		suppowtsCancewWequest?: boowean;
+		/** The debug adapta suppowts the 'bweakpointWocations' wequest. */
+		suppowtsBweakpointWocationsWequest?: boowean;
+		/** The debug adapta suppowts the 'cwipboawd' context vawue in the 'evawuate' wequest. */
+		suppowtsCwipboawdContext?: boowean;
+		/** The debug adapta suppowts stepping gwanuwawities (awgument 'gwanuwawity') fow the stepping wequests. */
+		suppowtsSteppingGwanuwawity?: boowean;
+		/** The debug adapta suppowts adding bweakpoints based on instwuction wefewences. */
+		suppowtsInstwuctionBweakpoints?: boowean;
+		/** The debug adapta suppowts 'fiwtewOptions' as an awgument on the 'setExceptionBweakpoints' wequest. */
+		suppowtsExceptionFiwtewOptions?: boowean;
 	}
 
-	/** An ExceptionBreakpointsFilter is shown in the UI as an filter option for configuring how exceptions are dealt with. */
-	export interface ExceptionBreakpointsFilter {
-		/** The internal ID of the filter option. This value is passed to the 'setExceptionBreakpoints' request. */
-		filter: string;
-		/** The name of the filter option. This will be shown in the UI. */
-		label: string;
-		/** An optional help text providing additional information about the exception filter. This string is typically shown as a hover and must be translated. */
-		description?: string;
-		/** Initial value of the filter option. If not specified a value 'false' is assumed. */
-		default?: boolean;
-		/** Controls whether a condition can be specified for this filter option. If false or missing, a condition can not be set. */
-		supportsCondition?: boolean;
-		/** An optional help text providing information about the condition. This string is shown as the placeholder text for a text box and must be translated. */
-		conditionDescription?: string;
+	/** An ExceptionBweakpointsFiwta is shown in the UI as an fiwta option fow configuwing how exceptions awe deawt with. */
+	expowt intewface ExceptionBweakpointsFiwta {
+		/** The intewnaw ID of the fiwta option. This vawue is passed to the 'setExceptionBweakpoints' wequest. */
+		fiwta: stwing;
+		/** The name of the fiwta option. This wiww be shown in the UI. */
+		wabew: stwing;
+		/** An optionaw hewp text pwoviding additionaw infowmation about the exception fiwta. This stwing is typicawwy shown as a hova and must be twanswated. */
+		descwiption?: stwing;
+		/** Initiaw vawue of the fiwta option. If not specified a vawue 'fawse' is assumed. */
+		defauwt?: boowean;
+		/** Contwows whetha a condition can be specified fow this fiwta option. If fawse ow missing, a condition can not be set. */
+		suppowtsCondition?: boowean;
+		/** An optionaw hewp text pwoviding infowmation about the condition. This stwing is shown as the pwacehowda text fow a text box and must be twanswated. */
+		conditionDescwiption?: stwing;
 	}
 
-	/** A structured message object. Used to return errors from requests. */
-	export interface Message {
-		/** Unique identifier for the message. */
-		id: number;
-		/** A format string for the message. Embedded variables have the form '{name}'.
-			If variable name starts with an underscore character, the variable does not contain user data (PII) and can be safely used for telemetry purposes.
+	/** A stwuctuwed message object. Used to wetuwn ewwows fwom wequests. */
+	expowt intewface Message {
+		/** Unique identifia fow the message. */
+		id: numba;
+		/** A fowmat stwing fow the message. Embedded vawiabwes have the fowm '{name}'.
+			If vawiabwe name stawts with an undewscowe chawacta, the vawiabwe does not contain usa data (PII) and can be safewy used fow tewemetwy puwposes.
 		*/
-		format: string;
-		/** An object used as a dictionary for looking up the variables in the format string. */
-		variables?: { [key: string]: string; };
-		/** If true send to telemetry. */
-		sendTelemetry?: boolean;
-		/** If true show user. */
-		showUser?: boolean;
-		/** An optional url where additional information about this message can be found. */
-		url?: string;
-		/** An optional label that is presented to the user as the UI for opening the url. */
-		urlLabel?: string;
+		fowmat: stwing;
+		/** An object used as a dictionawy fow wooking up the vawiabwes in the fowmat stwing. */
+		vawiabwes?: { [key: stwing]: stwing; };
+		/** If twue send to tewemetwy. */
+		sendTewemetwy?: boowean;
+		/** If twue show usa. */
+		showUsa?: boowean;
+		/** An optionaw uww whewe additionaw infowmation about this message can be found. */
+		uww?: stwing;
+		/** An optionaw wabew that is pwesented to the usa as the UI fow opening the uww. */
+		uwwWabew?: stwing;
 	}
 
-	/** A Module object represents a row in the modules view.
-		Two attributes are mandatory: an id identifies a module in the modules view and is used in a ModuleEvent for identifying a module for adding, updating or deleting.
-		The name is used to minimally render the module in the UI.
+	/** A Moduwe object wepwesents a wow in the moduwes view.
+		Two attwibutes awe mandatowy: an id identifies a moduwe in the moduwes view and is used in a ModuweEvent fow identifying a moduwe fow adding, updating ow deweting.
+		The name is used to minimawwy wenda the moduwe in the UI.
 
-		Additional attributes can be added to the module. They will show up in the module View if they have a corresponding ColumnDescriptor.
+		Additionaw attwibutes can be added to the moduwe. They wiww show up in the moduwe View if they have a cowwesponding CowumnDescwiptow.
 
-		To avoid an unnecessary proliferation of additional attributes with similar semantics but different names
-		we recommend to re-use attributes from the 'recommended' list below first, and only introduce new attributes if nothing appropriate could be found.
+		To avoid an unnecessawy pwowifewation of additionaw attwibutes with simiwaw semantics but diffewent names
+		we wecommend to we-use attwibutes fwom the 'wecommended' wist bewow fiwst, and onwy intwoduce new attwibutes if nothing appwopwiate couwd be found.
 	*/
-	export interface Module {
-		/** Unique identifier for the module. */
-		id: number | string;
-		/** A name of the module. */
-		name: string;
-		/** optional but recommended attributes.
-			always try to use these first before introducing additional attributes.
+	expowt intewface Moduwe {
+		/** Unique identifia fow the moduwe. */
+		id: numba | stwing;
+		/** A name of the moduwe. */
+		name: stwing;
+		/** optionaw but wecommended attwibutes.
+			awways twy to use these fiwst befowe intwoducing additionaw attwibutes.
 
-			Logical full path to the module. The exact definition is implementation defined, but usually this would be a full path to the on-disk file for the module.
+			Wogicaw fuww path to the moduwe. The exact definition is impwementation defined, but usuawwy this wouwd be a fuww path to the on-disk fiwe fow the moduwe.
 		*/
-		path?: string;
-		/** True if the module is optimized. */
-		isOptimized?: boolean;
-		/** True if the module is considered 'user code' by a debugger that supports 'Just My Code'. */
-		isUserCode?: boolean;
-		/** Version of Module. */
-		version?: string;
-		/** User understandable description of if symbols were found for the module (ex: 'Symbols Loaded', 'Symbols not found', etc. */
-		symbolStatus?: string;
-		/** Logical full path to the symbol file. The exact definition is implementation defined. */
-		symbolFilePath?: string;
-		/** Module created or modified. */
-		dateTimeStamp?: string;
-		/** Address range covered by this module. */
-		addressRange?: string;
+		path?: stwing;
+		/** Twue if the moduwe is optimized. */
+		isOptimized?: boowean;
+		/** Twue if the moduwe is considewed 'usa code' by a debugga that suppowts 'Just My Code'. */
+		isUsewCode?: boowean;
+		/** Vewsion of Moduwe. */
+		vewsion?: stwing;
+		/** Usa undewstandabwe descwiption of if symbows wewe found fow the moduwe (ex: 'Symbows Woaded', 'Symbows not found', etc. */
+		symbowStatus?: stwing;
+		/** Wogicaw fuww path to the symbow fiwe. The exact definition is impwementation defined. */
+		symbowFiwePath?: stwing;
+		/** Moduwe cweated ow modified. */
+		dateTimeStamp?: stwing;
+		/** Addwess wange covewed by this moduwe. */
+		addwessWange?: stwing;
 	}
 
-	/** A ColumnDescriptor specifies what module attribute to show in a column of the ModulesView, how to format it,
-		and what the column's label should be.
-		It is only used if the underlying UI actually supports this level of customization.
+	/** A CowumnDescwiptow specifies what moduwe attwibute to show in a cowumn of the ModuwesView, how to fowmat it,
+		and what the cowumn's wabew shouwd be.
+		It is onwy used if the undewwying UI actuawwy suppowts this wevew of customization.
 	*/
-	export interface ColumnDescriptor {
-		/** Name of the attribute rendered in this column. */
-		attributeName: string;
-		/** Header UI label of column. */
-		label: string;
-		/** Format to use for the rendered values in this column. TBD how the format strings looks like. */
-		format?: string;
-		/** Datatype of values in this column.  Defaults to 'string' if not specified. */
-		type?: 'string' | 'number' | 'boolean' | 'unixTimestampUTC';
-		/** Width of this column in characters (hint only). */
-		width?: number;
+	expowt intewface CowumnDescwiptow {
+		/** Name of the attwibute wendewed in this cowumn. */
+		attwibuteName: stwing;
+		/** Heada UI wabew of cowumn. */
+		wabew: stwing;
+		/** Fowmat to use fow the wendewed vawues in this cowumn. TBD how the fowmat stwings wooks wike. */
+		fowmat?: stwing;
+		/** Datatype of vawues in this cowumn.  Defauwts to 'stwing' if not specified. */
+		type?: 'stwing' | 'numba' | 'boowean' | 'unixTimestampUTC';
+		/** Width of this cowumn in chawactews (hint onwy). */
+		width?: numba;
 	}
 
-	/** The ModulesViewDescriptor is the container for all declarative configuration options of a ModuleView.
-		For now it only specifies the columns to be shown in the modules view.
+	/** The ModuwesViewDescwiptow is the containa fow aww decwawative configuwation options of a ModuweView.
+		Fow now it onwy specifies the cowumns to be shown in the moduwes view.
 	*/
-	export interface ModulesViewDescriptor {
-		columns: ColumnDescriptor[];
+	expowt intewface ModuwesViewDescwiptow {
+		cowumns: CowumnDescwiptow[];
 	}
 
-	/** A Thread */
-	export interface Thread {
-		/** Unique identifier for the thread. */
-		id: number;
-		/** A name of the thread. */
-		name: string;
+	/** A Thwead */
+	expowt intewface Thwead {
+		/** Unique identifia fow the thwead. */
+		id: numba;
+		/** A name of the thwead. */
+		name: stwing;
 	}
 
-	/** A Source is a descriptor for source code.
-		It is returned from the debug adapter as part of a StackFrame and it is used by clients when specifying breakpoints.
+	/** A Souwce is a descwiptow fow souwce code.
+		It is wetuwned fwom the debug adapta as pawt of a StackFwame and it is used by cwients when specifying bweakpoints.
 	*/
-	export interface Source {
-		/** The short name of the source. Every source returned from the debug adapter has a name.
-			When sending a source to the debug adapter this name is optional.
+	expowt intewface Souwce {
+		/** The showt name of the souwce. Evewy souwce wetuwned fwom the debug adapta has a name.
+			When sending a souwce to the debug adapta this name is optionaw.
 		*/
-		name?: string;
-		/** The path of the source to be shown in the UI.
-			It is only used to locate and load the content of the source if no sourceReference is specified (or its value is 0).
+		name?: stwing;
+		/** The path of the souwce to be shown in the UI.
+			It is onwy used to wocate and woad the content of the souwce if no souwceWefewence is specified (ow its vawue is 0).
 		*/
-		path?: string;
-		/** If sourceReference > 0 the contents of the source must be retrieved through the SourceRequest (even if a path is specified).
-			A sourceReference is only valid for a session, so it must not be used to persist a source.
-			The value should be less than or equal to 2147483647 (2^31-1).
+		path?: stwing;
+		/** If souwceWefewence > 0 the contents of the souwce must be wetwieved thwough the SouwceWequest (even if a path is specified).
+			A souwceWefewence is onwy vawid fow a session, so it must not be used to pewsist a souwce.
+			The vawue shouwd be wess than ow equaw to 2147483647 (2^31-1).
 		*/
-		sourceReference?: number;
-		/** An optional hint for how to present the source in the UI.
-			A value of 'deemphasize' can be used to indicate that the source is not available or that it is skipped on stepping.
+		souwceWefewence?: numba;
+		/** An optionaw hint fow how to pwesent the souwce in the UI.
+			A vawue of 'deemphasize' can be used to indicate that the souwce is not avaiwabwe ow that it is skipped on stepping.
 		*/
-		presentationHint?: 'normal' | 'emphasize' | 'deemphasize';
-		/** The (optional) origin of this source: possible values 'internal module', 'inlined content from source map', etc. */
-		origin?: string;
-		/** An optional list of sources that are related to this source. These may be the source that generated this source. */
-		sources?: Source[];
-		/** Optional data that a debug adapter might want to loop through the client.
-			The client should leave the data intact and persist it across sessions. The client should not interpret the data.
+		pwesentationHint?: 'nowmaw' | 'emphasize' | 'deemphasize';
+		/** The (optionaw) owigin of this souwce: possibwe vawues 'intewnaw moduwe', 'inwined content fwom souwce map', etc. */
+		owigin?: stwing;
+		/** An optionaw wist of souwces that awe wewated to this souwce. These may be the souwce that genewated this souwce. */
+		souwces?: Souwce[];
+		/** Optionaw data that a debug adapta might want to woop thwough the cwient.
+			The cwient shouwd weave the data intact and pewsist it acwoss sessions. The cwient shouwd not intewpwet the data.
 		*/
-		adapterData?: any;
-		/** The checksums associated with this file. */
+		adaptewData?: any;
+		/** The checksums associated with this fiwe. */
 		checksums?: Checksum[];
 	}
 
-	/** A Stackframe contains the source location. */
-	export interface StackFrame {
-		/** An identifier for the stack frame. It must be unique across all threads.
-			This id can be used to retrieve the scopes of the frame with the 'scopesRequest' or to restart the execution of a stackframe.
+	/** A Stackfwame contains the souwce wocation. */
+	expowt intewface StackFwame {
+		/** An identifia fow the stack fwame. It must be unique acwoss aww thweads.
+			This id can be used to wetwieve the scopes of the fwame with the 'scopesWequest' ow to westawt the execution of a stackfwame.
 		*/
-		id: number;
-		/** The name of the stack frame, typically a method name. */
-		name: string;
-		/** The optional source of the frame. */
-		source?: Source;
-		/** The line within the file of the frame. If source is null or doesn't exist, line is 0 and must be ignored. */
-		line: number;
-		/** The column within the line. If source is null or doesn't exist, column is 0 and must be ignored. */
-		column: number;
-		/** An optional end line of the range covered by the stack frame. */
-		endLine?: number;
-		/** An optional end column of the range covered by the stack frame. */
-		endColumn?: number;
-		/** Indicates whether this frame can be restarted with the 'restart' request. Clients should only use this if the debug adapter supports the 'restart' request (capability 'supportsRestartRequest' is true). */
-		canRestart?: boolean;
-		/** Optional memory reference for the current instruction pointer in this frame. */
-		instructionPointerReference?: string;
-		/** The module associated with this frame, if any. */
-		moduleId?: number | string;
-		/** An optional hint for how to present this frame in the UI.
-			A value of 'label' can be used to indicate that the frame is an artificial frame that is used as a visual label or separator. A value of 'subtle' can be used to change the appearance of a frame in a 'subtle' way.
+		id: numba;
+		/** The name of the stack fwame, typicawwy a method name. */
+		name: stwing;
+		/** The optionaw souwce of the fwame. */
+		souwce?: Souwce;
+		/** The wine within the fiwe of the fwame. If souwce is nuww ow doesn't exist, wine is 0 and must be ignowed. */
+		wine: numba;
+		/** The cowumn within the wine. If souwce is nuww ow doesn't exist, cowumn is 0 and must be ignowed. */
+		cowumn: numba;
+		/** An optionaw end wine of the wange covewed by the stack fwame. */
+		endWine?: numba;
+		/** An optionaw end cowumn of the wange covewed by the stack fwame. */
+		endCowumn?: numba;
+		/** Indicates whetha this fwame can be westawted with the 'westawt' wequest. Cwients shouwd onwy use this if the debug adapta suppowts the 'westawt' wequest (capabiwity 'suppowtsWestawtWequest' is twue). */
+		canWestawt?: boowean;
+		/** Optionaw memowy wefewence fow the cuwwent instwuction pointa in this fwame. */
+		instwuctionPointewWefewence?: stwing;
+		/** The moduwe associated with this fwame, if any. */
+		moduweId?: numba | stwing;
+		/** An optionaw hint fow how to pwesent this fwame in the UI.
+			A vawue of 'wabew' can be used to indicate that the fwame is an awtificiaw fwame that is used as a visuaw wabew ow sepawatow. A vawue of 'subtwe' can be used to change the appeawance of a fwame in a 'subtwe' way.
 		*/
-		presentationHint?: 'normal' | 'label' | 'subtle';
+		pwesentationHint?: 'nowmaw' | 'wabew' | 'subtwe';
 	}
 
-	/** A Scope is a named container for variables. Optionally a scope can map to a source or a range within a source. */
-	export interface Scope {
-		/** Name of the scope such as 'Arguments', 'Locals', or 'Registers'. This string is shown in the UI as is and can be translated. */
-		name: string;
-		/** An optional hint for how to present this scope in the UI. If this attribute is missing, the scope is shown with a generic UI.
-			Values:
-			'arguments': Scope contains method arguments.
-			'locals': Scope contains local variables.
-			'registers': Scope contains registers. Only a single 'registers' scope should be returned from a 'scopes' request.
+	/** A Scope is a named containa fow vawiabwes. Optionawwy a scope can map to a souwce ow a wange within a souwce. */
+	expowt intewface Scope {
+		/** Name of the scope such as 'Awguments', 'Wocaws', ow 'Wegistews'. This stwing is shown in the UI as is and can be twanswated. */
+		name: stwing;
+		/** An optionaw hint fow how to pwesent this scope in the UI. If this attwibute is missing, the scope is shown with a genewic UI.
+			Vawues:
+			'awguments': Scope contains method awguments.
+			'wocaws': Scope contains wocaw vawiabwes.
+			'wegistews': Scope contains wegistews. Onwy a singwe 'wegistews' scope shouwd be wetuwned fwom a 'scopes' wequest.
 			etc.
 		*/
-		presentationHint?: 'arguments' | 'locals' | 'registers' | string;
-		/** The variables of this scope can be retrieved by passing the value of variablesReference to the VariablesRequest. */
-		variablesReference: number;
-		/** The number of named variables in this scope.
-			The client can use this optional information to present the variables in a paged UI and fetch them in chunks.
+		pwesentationHint?: 'awguments' | 'wocaws' | 'wegistews' | stwing;
+		/** The vawiabwes of this scope can be wetwieved by passing the vawue of vawiabwesWefewence to the VawiabwesWequest. */
+		vawiabwesWefewence: numba;
+		/** The numba of named vawiabwes in this scope.
+			The cwient can use this optionaw infowmation to pwesent the vawiabwes in a paged UI and fetch them in chunks.
 		*/
-		namedVariables?: number;
-		/** The number of indexed variables in this scope.
-			The client can use this optional information to present the variables in a paged UI and fetch them in chunks.
+		namedVawiabwes?: numba;
+		/** The numba of indexed vawiabwes in this scope.
+			The cwient can use this optionaw infowmation to pwesent the vawiabwes in a paged UI and fetch them in chunks.
 		*/
-		indexedVariables?: number;
-		/** If true, the number of variables in this scope is large or expensive to retrieve. */
-		expensive: boolean;
-		/** Optional source for this scope. */
-		source?: Source;
-		/** Optional start line of the range covered by this scope. */
-		line?: number;
-		/** Optional start column of the range covered by this scope. */
-		column?: number;
-		/** Optional end line of the range covered by this scope. */
-		endLine?: number;
-		/** Optional end column of the range covered by this scope. */
-		endColumn?: number;
+		indexedVawiabwes?: numba;
+		/** If twue, the numba of vawiabwes in this scope is wawge ow expensive to wetwieve. */
+		expensive: boowean;
+		/** Optionaw souwce fow this scope. */
+		souwce?: Souwce;
+		/** Optionaw stawt wine of the wange covewed by this scope. */
+		wine?: numba;
+		/** Optionaw stawt cowumn of the wange covewed by this scope. */
+		cowumn?: numba;
+		/** Optionaw end wine of the wange covewed by this scope. */
+		endWine?: numba;
+		/** Optionaw end cowumn of the wange covewed by this scope. */
+		endCowumn?: numba;
 	}
 
-	/** A Variable is a name/value pair.
-		Optionally a variable can have a 'type' that is shown if space permits or when hovering over the variable's name.
-		An optional 'kind' is used to render additional properties of the variable, e.g. different icons can be used to indicate that a variable is public or private.
-		If the value is structured (has children), a handle is provided to retrieve the children with the VariablesRequest.
-		If the number of named or indexed children is large, the numbers should be returned via the optional 'namedVariables' and 'indexedVariables' attributes.
-		The client can use this optional information to present the children in a paged UI and fetch them in chunks.
+	/** A Vawiabwe is a name/vawue paiw.
+		Optionawwy a vawiabwe can have a 'type' that is shown if space pewmits ow when hovewing ova the vawiabwe's name.
+		An optionaw 'kind' is used to wenda additionaw pwopewties of the vawiabwe, e.g. diffewent icons can be used to indicate that a vawiabwe is pubwic ow pwivate.
+		If the vawue is stwuctuwed (has chiwdwen), a handwe is pwovided to wetwieve the chiwdwen with the VawiabwesWequest.
+		If the numba of named ow indexed chiwdwen is wawge, the numbews shouwd be wetuwned via the optionaw 'namedVawiabwes' and 'indexedVawiabwes' attwibutes.
+		The cwient can use this optionaw infowmation to pwesent the chiwdwen in a paged UI and fetch them in chunks.
 	*/
-	export interface Variable {
-		/** The variable's name. */
-		name: string;
-		/** The variable's value. This can be a multi-line text, e.g. for a function the body of a function. */
-		value: string;
-		/** The type of the variable's value. Typically shown in the UI when hovering over the value.
-			This attribute should only be returned by a debug adapter if the client has passed the value true for the 'supportsVariableType' capability of the 'initialize' request.
+	expowt intewface Vawiabwe {
+		/** The vawiabwe's name. */
+		name: stwing;
+		/** The vawiabwe's vawue. This can be a muwti-wine text, e.g. fow a function the body of a function. */
+		vawue: stwing;
+		/** The type of the vawiabwe's vawue. Typicawwy shown in the UI when hovewing ova the vawue.
+			This attwibute shouwd onwy be wetuwned by a debug adapta if the cwient has passed the vawue twue fow the 'suppowtsVawiabweType' capabiwity of the 'initiawize' wequest.
 		*/
-		type?: string;
-		/** Properties of a variable that can be used to determine how to render the variable in the UI. */
-		presentationHint?: VariablePresentationHint;
-		/** Optional evaluatable name of this variable which can be passed to the 'EvaluateRequest' to fetch the variable's value. */
-		evaluateName?: string;
-		/** If variablesReference is > 0, the variable is structured and its children can be retrieved by passing variablesReference to the VariablesRequest. */
-		variablesReference: number;
-		/** The number of named child variables.
-			The client can use this optional information to present the children in a paged UI and fetch them in chunks.
+		type?: stwing;
+		/** Pwopewties of a vawiabwe that can be used to detewmine how to wenda the vawiabwe in the UI. */
+		pwesentationHint?: VawiabwePwesentationHint;
+		/** Optionaw evawuatabwe name of this vawiabwe which can be passed to the 'EvawuateWequest' to fetch the vawiabwe's vawue. */
+		evawuateName?: stwing;
+		/** If vawiabwesWefewence is > 0, the vawiabwe is stwuctuwed and its chiwdwen can be wetwieved by passing vawiabwesWefewence to the VawiabwesWequest. */
+		vawiabwesWefewence: numba;
+		/** The numba of named chiwd vawiabwes.
+			The cwient can use this optionaw infowmation to pwesent the chiwdwen in a paged UI and fetch them in chunks.
 		*/
-		namedVariables?: number;
-		/** The number of indexed child variables.
-			The client can use this optional information to present the children in a paged UI and fetch them in chunks.
+		namedVawiabwes?: numba;
+		/** The numba of indexed chiwd vawiabwes.
+			The cwient can use this optionaw infowmation to pwesent the chiwdwen in a paged UI and fetch them in chunks.
 		*/
-		indexedVariables?: number;
-		/** Optional memory reference for the variable if the variable represents executable code, such as a function pointer.
-			This attribute is only required if the client has passed the value true for the 'supportsMemoryReferences' capability of the 'initialize' request.
+		indexedVawiabwes?: numba;
+		/** Optionaw memowy wefewence fow the vawiabwe if the vawiabwe wepwesents executabwe code, such as a function pointa.
+			This attwibute is onwy wequiwed if the cwient has passed the vawue twue fow the 'suppowtsMemowyWefewences' capabiwity of the 'initiawize' wequest.
 		*/
-		memoryReference?: string;
+		memowyWefewence?: stwing;
 	}
 
-	/** Optional properties of a variable that can be used to determine how to render the variable in the UI. */
-	export interface VariablePresentationHint {
-		/** The kind of variable. Before introducing additional values, try to use the listed values.
-			Values:
-			'property': Indicates that the object is a property.
+	/** Optionaw pwopewties of a vawiabwe that can be used to detewmine how to wenda the vawiabwe in the UI. */
+	expowt intewface VawiabwePwesentationHint {
+		/** The kind of vawiabwe. Befowe intwoducing additionaw vawues, twy to use the wisted vawues.
+			Vawues:
+			'pwopewty': Indicates that the object is a pwopewty.
 			'method': Indicates that the object is a method.
-			'class': Indicates that the object is a class.
+			'cwass': Indicates that the object is a cwass.
 			'data': Indicates that the object is data.
 			'event': Indicates that the object is an event.
-			'baseClass': Indicates that the object is a base class.
-			'innerClass': Indicates that the object is an inner class.
-			'interface': Indicates that the object is an interface.
-			'mostDerivedClass': Indicates that the object is the most derived class.
-			'virtual': Indicates that the object is virtual, that means it is a synthetic object introducedby the
-			adapter for rendering purposes, e.g. an index range for large arrays.
-			'dataBreakpoint': Deprecated: Indicates that a data breakpoint is registered for the object. The 'hasDataBreakpoint' attribute should generally be used instead.
+			'baseCwass': Indicates that the object is a base cwass.
+			'innewCwass': Indicates that the object is an inna cwass.
+			'intewface': Indicates that the object is an intewface.
+			'mostDewivedCwass': Indicates that the object is the most dewived cwass.
+			'viwtuaw': Indicates that the object is viwtuaw, that means it is a synthetic object intwoducedby the
+			adapta fow wendewing puwposes, e.g. an index wange fow wawge awways.
+			'dataBweakpoint': Depwecated: Indicates that a data bweakpoint is wegistewed fow the object. The 'hasDataBweakpoint' attwibute shouwd genewawwy be used instead.
 			etc.
 		*/
-		kind?: 'property' | 'method' | 'class' | 'data' | 'event' | 'baseClass' | 'innerClass' | 'interface' | 'mostDerivedClass' | 'virtual' | 'dataBreakpoint' | string;
-		/** Set of attributes represented as an array of strings. Before introducing additional values, try to use the listed values.
-			Values:
+		kind?: 'pwopewty' | 'method' | 'cwass' | 'data' | 'event' | 'baseCwass' | 'innewCwass' | 'intewface' | 'mostDewivedCwass' | 'viwtuaw' | 'dataBweakpoint' | stwing;
+		/** Set of attwibutes wepwesented as an awway of stwings. Befowe intwoducing additionaw vawues, twy to use the wisted vawues.
+			Vawues:
 			'static': Indicates that the object is static.
 			'constant': Indicates that the object is a constant.
-			'readOnly': Indicates that the object is read only.
-			'rawString': Indicates that the object is a raw string.
-			'hasObjectId': Indicates that the object can have an Object ID created for it.
+			'weadOnwy': Indicates that the object is wead onwy.
+			'wawStwing': Indicates that the object is a waw stwing.
+			'hasObjectId': Indicates that the object can have an Object ID cweated fow it.
 			'canHaveObjectId': Indicates that the object has an Object ID associated with it.
-			'hasSideEffects': Indicates that the evaluation had side effects.
-			'hasDataBreakpoint': Indicates that the object has its value tracked by a data breakpoint.
+			'hasSideEffects': Indicates that the evawuation had side effects.
+			'hasDataBweakpoint': Indicates that the object has its vawue twacked by a data bweakpoint.
 			etc.
 		*/
-		attributes?: ('static' | 'constant' | 'readOnly' | 'rawString' | 'hasObjectId' | 'canHaveObjectId' | 'hasSideEffects' | 'hasDataBreakpoint' | string)[];
-		/** Visibility of variable. Before introducing additional values, try to use the listed values.
-			Values: 'public', 'private', 'protected', 'internal', 'final', etc.
+		attwibutes?: ('static' | 'constant' | 'weadOnwy' | 'wawStwing' | 'hasObjectId' | 'canHaveObjectId' | 'hasSideEffects' | 'hasDataBweakpoint' | stwing)[];
+		/** Visibiwity of vawiabwe. Befowe intwoducing additionaw vawues, twy to use the wisted vawues.
+			Vawues: 'pubwic', 'pwivate', 'pwotected', 'intewnaw', 'finaw', etc.
 		*/
-		visibility?: 'public' | 'private' | 'protected' | 'internal' | 'final' | string;
+		visibiwity?: 'pubwic' | 'pwivate' | 'pwotected' | 'intewnaw' | 'finaw' | stwing;
 	}
 
-	/** Properties of a breakpoint location returned from the 'breakpointLocations' request. */
-	export interface BreakpointLocation {
-		/** Start line of breakpoint location. */
-		line: number;
-		/** Optional start column of breakpoint location. */
-		column?: number;
-		/** Optional end line of breakpoint location if the location covers a range. */
-		endLine?: number;
-		/** Optional end column of breakpoint location if the location covers a range. */
-		endColumn?: number;
+	/** Pwopewties of a bweakpoint wocation wetuwned fwom the 'bweakpointWocations' wequest. */
+	expowt intewface BweakpointWocation {
+		/** Stawt wine of bweakpoint wocation. */
+		wine: numba;
+		/** Optionaw stawt cowumn of bweakpoint wocation. */
+		cowumn?: numba;
+		/** Optionaw end wine of bweakpoint wocation if the wocation covews a wange. */
+		endWine?: numba;
+		/** Optionaw end cowumn of bweakpoint wocation if the wocation covews a wange. */
+		endCowumn?: numba;
 	}
 
-	/** Properties of a breakpoint or logpoint passed to the setBreakpoints request. */
-	export interface SourceBreakpoint {
-		/** The source line of the breakpoint or logpoint. */
-		line: number;
-		/** An optional source column of the breakpoint. */
-		column?: number;
-		/** An optional expression for conditional breakpoints.
-			It is only honored by a debug adapter if the capability 'supportsConditionalBreakpoints' is true.
+	/** Pwopewties of a bweakpoint ow wogpoint passed to the setBweakpoints wequest. */
+	expowt intewface SouwceBweakpoint {
+		/** The souwce wine of the bweakpoint ow wogpoint. */
+		wine: numba;
+		/** An optionaw souwce cowumn of the bweakpoint. */
+		cowumn?: numba;
+		/** An optionaw expwession fow conditionaw bweakpoints.
+			It is onwy honowed by a debug adapta if the capabiwity 'suppowtsConditionawBweakpoints' is twue.
 		*/
-		condition?: string;
-		/** An optional expression that controls how many hits of the breakpoint are ignored.
-			The backend is expected to interpret the expression as needed.
-			The attribute is only honored by a debug adapter if the capability 'supportsHitConditionalBreakpoints' is true.
+		condition?: stwing;
+		/** An optionaw expwession that contwows how many hits of the bweakpoint awe ignowed.
+			The backend is expected to intewpwet the expwession as needed.
+			The attwibute is onwy honowed by a debug adapta if the capabiwity 'suppowtsHitConditionawBweakpoints' is twue.
 		*/
-		hitCondition?: string;
-		/** If this attribute exists and is non-empty, the backend must not 'break' (stop)
-			but log the message instead. Expressions within {} are interpolated.
-			The attribute is only honored by a debug adapter if the capability 'supportsLogPoints' is true.
+		hitCondition?: stwing;
+		/** If this attwibute exists and is non-empty, the backend must not 'bweak' (stop)
+			but wog the message instead. Expwessions within {} awe intewpowated.
+			The attwibute is onwy honowed by a debug adapta if the capabiwity 'suppowtsWogPoints' is twue.
 		*/
-		logMessage?: string;
+		wogMessage?: stwing;
 	}
 
-	/** Properties of a breakpoint passed to the setFunctionBreakpoints request. */
-	export interface FunctionBreakpoint {
+	/** Pwopewties of a bweakpoint passed to the setFunctionBweakpoints wequest. */
+	expowt intewface FunctionBweakpoint {
 		/** The name of the function. */
-		name: string;
-		/** An optional expression for conditional breakpoints.
-			It is only honored by a debug adapter if the capability 'supportsConditionalBreakpoints' is true.
+		name: stwing;
+		/** An optionaw expwession fow conditionaw bweakpoints.
+			It is onwy honowed by a debug adapta if the capabiwity 'suppowtsConditionawBweakpoints' is twue.
 		*/
-		condition?: string;
-		/** An optional expression that controls how many hits of the breakpoint are ignored.
-			The backend is expected to interpret the expression as needed.
-			The attribute is only honored by a debug adapter if the capability 'supportsHitConditionalBreakpoints' is true.
+		condition?: stwing;
+		/** An optionaw expwession that contwows how many hits of the bweakpoint awe ignowed.
+			The backend is expected to intewpwet the expwession as needed.
+			The attwibute is onwy honowed by a debug adapta if the capabiwity 'suppowtsHitConditionawBweakpoints' is twue.
 		*/
-		hitCondition?: string;
+		hitCondition?: stwing;
 	}
 
-	/** This enumeration defines all possible access types for data breakpoints. */
-	export type DataBreakpointAccessType = 'read' | 'write' | 'readWrite';
+	/** This enumewation defines aww possibwe access types fow data bweakpoints. */
+	expowt type DataBweakpointAccessType = 'wead' | 'wwite' | 'weadWwite';
 
-	/** Properties of a data breakpoint passed to the setDataBreakpoints request. */
-	export interface DataBreakpoint {
-		/** An id representing the data. This id is returned from the dataBreakpointInfo request. */
-		dataId: string;
+	/** Pwopewties of a data bweakpoint passed to the setDataBweakpoints wequest. */
+	expowt intewface DataBweakpoint {
+		/** An id wepwesenting the data. This id is wetuwned fwom the dataBweakpointInfo wequest. */
+		dataId: stwing;
 		/** The access type of the data. */
-		accessType?: DataBreakpointAccessType;
-		/** An optional expression for conditional breakpoints. */
-		condition?: string;
-		/** An optional expression that controls how many hits of the breakpoint are ignored.
-			The backend is expected to interpret the expression as needed.
+		accessType?: DataBweakpointAccessType;
+		/** An optionaw expwession fow conditionaw bweakpoints. */
+		condition?: stwing;
+		/** An optionaw expwession that contwows how many hits of the bweakpoint awe ignowed.
+			The backend is expected to intewpwet the expwession as needed.
 		*/
-		hitCondition?: string;
+		hitCondition?: stwing;
 	}
 
-	/** Properties of a breakpoint passed to the setInstructionBreakpoints request */
-	export interface InstructionBreakpoint {
-		/** The instruction reference of the breakpoint.
-			This should be a memory or instruction pointer reference from an EvaluateResponse, Variable, StackFrame, GotoTarget, or Breakpoint.
+	/** Pwopewties of a bweakpoint passed to the setInstwuctionBweakpoints wequest */
+	expowt intewface InstwuctionBweakpoint {
+		/** The instwuction wefewence of the bweakpoint.
+			This shouwd be a memowy ow instwuction pointa wefewence fwom an EvawuateWesponse, Vawiabwe, StackFwame, GotoTawget, ow Bweakpoint.
 		*/
-		instructionReference: string;
-		/** An optional offset from the instruction reference.
+		instwuctionWefewence: stwing;
+		/** An optionaw offset fwom the instwuction wefewence.
 			This can be negative.
 		*/
-		offset?: number;
-		/** An optional expression for conditional breakpoints.
-			It is only honored by a debug adapter if the capability 'supportsConditionalBreakpoints' is true.
+		offset?: numba;
+		/** An optionaw expwession fow conditionaw bweakpoints.
+			It is onwy honowed by a debug adapta if the capabiwity 'suppowtsConditionawBweakpoints' is twue.
 		*/
-		condition?: string;
-		/** An optional expression that controls how many hits of the breakpoint are ignored.
-			The backend is expected to interpret the expression as needed.
-			The attribute is only honored by a debug adapter if the capability 'supportsHitConditionalBreakpoints' is true.
+		condition?: stwing;
+		/** An optionaw expwession that contwows how many hits of the bweakpoint awe ignowed.
+			The backend is expected to intewpwet the expwession as needed.
+			The attwibute is onwy honowed by a debug adapta if the capabiwity 'suppowtsHitConditionawBweakpoints' is twue.
 		*/
-		hitCondition?: string;
+		hitCondition?: stwing;
 	}
 
-	/** Information about a Breakpoint created in setBreakpoints, setFunctionBreakpoints, setInstructionBreakpoints, or setDataBreakpoints. */
-	export interface Breakpoint {
-		/** An optional identifier for the breakpoint. It is needed if breakpoint events are used to update or remove breakpoints. */
-		id?: number;
-		/** If true breakpoint could be set (but not necessarily at the desired location). */
-		verified: boolean;
-		/** An optional message about the state of the breakpoint.
-			This is shown to the user and can be used to explain why a breakpoint could not be verified.
+	/** Infowmation about a Bweakpoint cweated in setBweakpoints, setFunctionBweakpoints, setInstwuctionBweakpoints, ow setDataBweakpoints. */
+	expowt intewface Bweakpoint {
+		/** An optionaw identifia fow the bweakpoint. It is needed if bweakpoint events awe used to update ow wemove bweakpoints. */
+		id?: numba;
+		/** If twue bweakpoint couwd be set (but not necessawiwy at the desiwed wocation). */
+		vewified: boowean;
+		/** An optionaw message about the state of the bweakpoint.
+			This is shown to the usa and can be used to expwain why a bweakpoint couwd not be vewified.
 		*/
-		message?: string;
-		/** The source where the breakpoint is located. */
-		source?: Source;
-		/** The start line of the actual range covered by the breakpoint. */
-		line?: number;
-		/** An optional start column of the actual range covered by the breakpoint. */
-		column?: number;
-		/** An optional end line of the actual range covered by the breakpoint. */
-		endLine?: number;
-		/** An optional end column of the actual range covered by the breakpoint.
-			If no end line is given, then the end column is assumed to be in the start line.
+		message?: stwing;
+		/** The souwce whewe the bweakpoint is wocated. */
+		souwce?: Souwce;
+		/** The stawt wine of the actuaw wange covewed by the bweakpoint. */
+		wine?: numba;
+		/** An optionaw stawt cowumn of the actuaw wange covewed by the bweakpoint. */
+		cowumn?: numba;
+		/** An optionaw end wine of the actuaw wange covewed by the bweakpoint. */
+		endWine?: numba;
+		/** An optionaw end cowumn of the actuaw wange covewed by the bweakpoint.
+			If no end wine is given, then the end cowumn is assumed to be in the stawt wine.
 		*/
-		endColumn?: number;
-		/** An optional memory reference to where the breakpoint is set. */
-		instructionReference?: string;
-		/** An optional offset from the instruction reference.
+		endCowumn?: numba;
+		/** An optionaw memowy wefewence to whewe the bweakpoint is set. */
+		instwuctionWefewence?: stwing;
+		/** An optionaw offset fwom the instwuction wefewence.
 			This can be negative.
 		*/
-		offset?: number;
+		offset?: numba;
 	}
 
-	/** The granularity of one 'step' in the stepping requests 'next', 'stepIn', 'stepOut', and 'stepBack'.
-		'statement': The step should allow the program to run until the current statement has finished executing.
-		The meaning of a statement is determined by the adapter and it may be considered equivalent to a line.
-		For example 'for(int i = 0; i < 10; i++) could be considered to have 3 statements 'int i = 0', 'i < 10', and 'i++'.
-		'line': The step should allow the program to run until the current source line has executed.
-		'instruction': The step should allow one instruction to execute (e.g. one x86 instruction).
+	/** The gwanuwawity of one 'step' in the stepping wequests 'next', 'stepIn', 'stepOut', and 'stepBack'.
+		'statement': The step shouwd awwow the pwogwam to wun untiw the cuwwent statement has finished executing.
+		The meaning of a statement is detewmined by the adapta and it may be considewed equivawent to a wine.
+		Fow exampwe 'fow(int i = 0; i < 10; i++) couwd be considewed to have 3 statements 'int i = 0', 'i < 10', and 'i++'.
+		'wine': The step shouwd awwow the pwogwam to wun untiw the cuwwent souwce wine has executed.
+		'instwuction': The step shouwd awwow one instwuction to execute (e.g. one x86 instwuction).
 	*/
-	export type SteppingGranularity = 'statement' | 'line' | 'instruction';
+	expowt type SteppingGwanuwawity = 'statement' | 'wine' | 'instwuction';
 
-	/** A StepInTarget can be used in the 'stepIn' request and determines into which single target the stepIn request should step. */
-	export interface StepInTarget {
-		/** Unique identifier for a stepIn target. */
-		id: number;
-		/** The name of the stepIn target (shown in the UI). */
-		label: string;
+	/** A StepInTawget can be used in the 'stepIn' wequest and detewmines into which singwe tawget the stepIn wequest shouwd step. */
+	expowt intewface StepInTawget {
+		/** Unique identifia fow a stepIn tawget. */
+		id: numba;
+		/** The name of the stepIn tawget (shown in the UI). */
+		wabew: stwing;
 	}
 
-	/** A GotoTarget describes a code location that can be used as a target in the 'goto' request.
-		The possible goto targets can be determined via the 'gotoTargets' request.
+	/** A GotoTawget descwibes a code wocation that can be used as a tawget in the 'goto' wequest.
+		The possibwe goto tawgets can be detewmined via the 'gotoTawgets' wequest.
 	*/
-	export interface GotoTarget {
-		/** Unique identifier for a goto target. This is used in the goto request. */
-		id: number;
-		/** The name of the goto target (shown in the UI). */
-		label: string;
-		/** The line of the goto target. */
-		line: number;
-		/** An optional column of the goto target. */
-		column?: number;
-		/** An optional end line of the range covered by the goto target. */
-		endLine?: number;
-		/** An optional end column of the range covered by the goto target. */
-		endColumn?: number;
-		/** Optional memory reference for the instruction pointer value represented by this target. */
-		instructionPointerReference?: string;
+	expowt intewface GotoTawget {
+		/** Unique identifia fow a goto tawget. This is used in the goto wequest. */
+		id: numba;
+		/** The name of the goto tawget (shown in the UI). */
+		wabew: stwing;
+		/** The wine of the goto tawget. */
+		wine: numba;
+		/** An optionaw cowumn of the goto tawget. */
+		cowumn?: numba;
+		/** An optionaw end wine of the wange covewed by the goto tawget. */
+		endWine?: numba;
+		/** An optionaw end cowumn of the wange covewed by the goto tawget. */
+		endCowumn?: numba;
+		/** Optionaw memowy wefewence fow the instwuction pointa vawue wepwesented by this tawget. */
+		instwuctionPointewWefewence?: stwing;
 	}
 
-	/** CompletionItems are the suggestions returned from the CompletionsRequest. */
-	export interface CompletionItem {
-		/** The label of this completion item. By default this is also the text that is inserted when selecting this completion. */
-		label: string;
-		/** If text is not falsy then it is inserted instead of the label. */
-		text?: string;
-		/** A string that should be used when comparing this item with other items. When `falsy` the label is used. */
-		sortText?: string;
-		/** The item's type. Typically the client uses this information to render the item in the UI with an icon. */
-		type?: CompletionItemType;
-		/** This value determines the location (in the CompletionsRequest's 'text' attribute) where the completion text is added.
-			If missing the text is added at the location specified by the CompletionsRequest's 'column' attribute.
+	/** CompwetionItems awe the suggestions wetuwned fwom the CompwetionsWequest. */
+	expowt intewface CompwetionItem {
+		/** The wabew of this compwetion item. By defauwt this is awso the text that is insewted when sewecting this compwetion. */
+		wabew: stwing;
+		/** If text is not fawsy then it is insewted instead of the wabew. */
+		text?: stwing;
+		/** A stwing that shouwd be used when compawing this item with otha items. When `fawsy` the wabew is used. */
+		sowtText?: stwing;
+		/** The item's type. Typicawwy the cwient uses this infowmation to wenda the item in the UI with an icon. */
+		type?: CompwetionItemType;
+		/** This vawue detewmines the wocation (in the CompwetionsWequest's 'text' attwibute) whewe the compwetion text is added.
+			If missing the text is added at the wocation specified by the CompwetionsWequest's 'cowumn' attwibute.
 		*/
-		start?: number;
-		/** This value determines how many characters are overwritten by the completion text.
-			If missing the value 0 is assumed which results in the completion text being inserted.
+		stawt?: numba;
+		/** This vawue detewmines how many chawactews awe ovewwwitten by the compwetion text.
+			If missing the vawue 0 is assumed which wesuwts in the compwetion text being insewted.
 		*/
-		length?: number;
-		/** Determines the start of the new selection after the text has been inserted (or replaced).
-			The start position must in the range 0 and length of the completion text.
-			If omitted the selection starts at the end of the completion text.
+		wength?: numba;
+		/** Detewmines the stawt of the new sewection afta the text has been insewted (ow wepwaced).
+			The stawt position must in the wange 0 and wength of the compwetion text.
+			If omitted the sewection stawts at the end of the compwetion text.
 		*/
-		selectionStart?: number;
-		/** Determines the length of the new selection after the text has been inserted (or replaced).
-			The selection can not extend beyond the bounds of the completion text.
-			If omitted the length is assumed to be 0.
+		sewectionStawt?: numba;
+		/** Detewmines the wength of the new sewection afta the text has been insewted (ow wepwaced).
+			The sewection can not extend beyond the bounds of the compwetion text.
+			If omitted the wength is assumed to be 0.
 		*/
-		selectionLength?: number;
+		sewectionWength?: numba;
 	}
 
-	/** Some predefined types for the CompletionItem. Please note that not all clients have specific icons for all of them. */
-	export type CompletionItemType = 'method' | 'function' | 'constructor' | 'field' | 'variable' | 'class' | 'interface' | 'module' | 'property' | 'unit' | 'value' | 'enum' | 'keyword' | 'snippet' | 'text' | 'color' | 'file' | 'reference' | 'customcolor';
+	/** Some pwedefined types fow the CompwetionItem. Pwease note that not aww cwients have specific icons fow aww of them. */
+	expowt type CompwetionItemType = 'method' | 'function' | 'constwuctow' | 'fiewd' | 'vawiabwe' | 'cwass' | 'intewface' | 'moduwe' | 'pwopewty' | 'unit' | 'vawue' | 'enum' | 'keywowd' | 'snippet' | 'text' | 'cowow' | 'fiwe' | 'wefewence' | 'customcowow';
 
-	/** Names of checksum algorithms that may be supported by a debug adapter. */
-	export type ChecksumAlgorithm = 'MD5' | 'SHA1' | 'SHA256' | 'timestamp';
+	/** Names of checksum awgowithms that may be suppowted by a debug adapta. */
+	expowt type ChecksumAwgowithm = 'MD5' | 'SHA1' | 'SHA256' | 'timestamp';
 
-	/** The checksum of an item calculated by the specified algorithm. */
-	export interface Checksum {
-		/** The algorithm used to calculate this checksum. */
-		algorithm: ChecksumAlgorithm;
-		/** Value of the checksum. */
-		checksum: string;
+	/** The checksum of an item cawcuwated by the specified awgowithm. */
+	expowt intewface Checksum {
+		/** The awgowithm used to cawcuwate this checksum. */
+		awgowithm: ChecksumAwgowithm;
+		/** Vawue of the checksum. */
+		checksum: stwing;
 	}
 
-	/** Provides formatting information for a value. */
-	export interface ValueFormat {
-		/** Display the value in hex. */
-		hex?: boolean;
+	/** Pwovides fowmatting infowmation fow a vawue. */
+	expowt intewface VawueFowmat {
+		/** Dispway the vawue in hex. */
+		hex?: boowean;
 	}
 
-	/** Provides formatting information for a stack frame. */
-	export interface StackFrameFormat extends ValueFormat {
-		/** Displays parameters for the stack frame. */
-		parameters?: boolean;
-		/** Displays the types of parameters for the stack frame. */
-		parameterTypes?: boolean;
-		/** Displays the names of parameters for the stack frame. */
-		parameterNames?: boolean;
-		/** Displays the values of parameters for the stack frame. */
-		parameterValues?: boolean;
-		/** Displays the line number of the stack frame. */
-		line?: boolean;
-		/** Displays the module of the stack frame. */
-		module?: boolean;
-		/** Includes all stack frames, including those the debug adapter might otherwise hide. */
-		includeAll?: boolean;
+	/** Pwovides fowmatting infowmation fow a stack fwame. */
+	expowt intewface StackFwameFowmat extends VawueFowmat {
+		/** Dispways pawametews fow the stack fwame. */
+		pawametews?: boowean;
+		/** Dispways the types of pawametews fow the stack fwame. */
+		pawametewTypes?: boowean;
+		/** Dispways the names of pawametews fow the stack fwame. */
+		pawametewNames?: boowean;
+		/** Dispways the vawues of pawametews fow the stack fwame. */
+		pawametewVawues?: boowean;
+		/** Dispways the wine numba of the stack fwame. */
+		wine?: boowean;
+		/** Dispways the moduwe of the stack fwame. */
+		moduwe?: boowean;
+		/** Incwudes aww stack fwames, incwuding those the debug adapta might othewwise hide. */
+		incwudeAww?: boowean;
 	}
 
-	/** An ExceptionFilterOptions is used to specify an exception filter together with a condition for the setExceptionsFilter request. */
-	export interface ExceptionFilterOptions {
-		/** ID of an exception filter returned by the 'exceptionBreakpointFilters' capability. */
-		filterId: string;
-		/** An optional expression for conditional exceptions.
-			The exception will break into the debugger if the result of the condition is true.
+	/** An ExceptionFiwtewOptions is used to specify an exception fiwta togetha with a condition fow the setExceptionsFiwta wequest. */
+	expowt intewface ExceptionFiwtewOptions {
+		/** ID of an exception fiwta wetuwned by the 'exceptionBweakpointFiwtews' capabiwity. */
+		fiwtewId: stwing;
+		/** An optionaw expwession fow conditionaw exceptions.
+			The exception wiww bweak into the debugga if the wesuwt of the condition is twue.
 		*/
-		condition?: string;
+		condition?: stwing;
 	}
 
-	/** An ExceptionOptions assigns configuration options to a set of exceptions. */
-	export interface ExceptionOptions {
-		/** A path that selects a single or multiple exceptions in a tree. If 'path' is missing, the whole tree is selected.
-			By convention the first segment of the path is a category that is used to group exceptions in the UI.
+	/** An ExceptionOptions assigns configuwation options to a set of exceptions. */
+	expowt intewface ExceptionOptions {
+		/** A path that sewects a singwe ow muwtipwe exceptions in a twee. If 'path' is missing, the whowe twee is sewected.
+			By convention the fiwst segment of the path is a categowy that is used to gwoup exceptions in the UI.
 		*/
 		path?: ExceptionPathSegment[];
-		/** Condition when a thrown exception should result in a break. */
-		breakMode: ExceptionBreakMode;
+		/** Condition when a thwown exception shouwd wesuwt in a bweak. */
+		bweakMode: ExceptionBweakMode;
 	}
 
-	/** This enumeration defines all possible conditions when a thrown exception should result in a break.
-		never: never breaks,
-		always: always breaks,
-		unhandled: breaks when exception unhandled,
-		userUnhandled: breaks if the exception is not handled by user code.
+	/** This enumewation defines aww possibwe conditions when a thwown exception shouwd wesuwt in a bweak.
+		neva: neva bweaks,
+		awways: awways bweaks,
+		unhandwed: bweaks when exception unhandwed,
+		usewUnhandwed: bweaks if the exception is not handwed by usa code.
 	*/
-	export type ExceptionBreakMode = 'never' | 'always' | 'unhandled' | 'userUnhandled';
+	expowt type ExceptionBweakMode = 'neva' | 'awways' | 'unhandwed' | 'usewUnhandwed';
 
-	/** An ExceptionPathSegment represents a segment in a path that is used to match leafs or nodes in a tree of exceptions.
-		If a segment consists of more than one name, it matches the names provided if 'negate' is false or missing or
-		it matches anything except the names provided if 'negate' is true.
+	/** An ExceptionPathSegment wepwesents a segment in a path that is used to match weafs ow nodes in a twee of exceptions.
+		If a segment consists of mowe than one name, it matches the names pwovided if 'negate' is fawse ow missing ow
+		it matches anything except the names pwovided if 'negate' is twue.
 	*/
-	export interface ExceptionPathSegment {
-		/** If false or missing this segment matches the names provided, otherwise it matches anything except the names provided. */
-		negate?: boolean;
-		/** Depending on the value of 'negate' the names that should match or not match. */
-		names: string[];
+	expowt intewface ExceptionPathSegment {
+		/** If fawse ow missing this segment matches the names pwovided, othewwise it matches anything except the names pwovided. */
+		negate?: boowean;
+		/** Depending on the vawue of 'negate' the names that shouwd match ow not match. */
+		names: stwing[];
 	}
 
-	/** Detailed information about an exception that has occurred. */
-	export interface ExceptionDetails {
+	/** Detaiwed infowmation about an exception that has occuwwed. */
+	expowt intewface ExceptionDetaiws {
 		/** Message contained in the exception. */
-		message?: string;
-		/** Short type name of the exception object. */
-		typeName?: string;
-		/** Fully-qualified type name of the exception object. */
-		fullTypeName?: string;
-		/** Optional expression that can be evaluated in the current scope to obtain the exception object. */
-		evaluateName?: string;
-		/** Stack trace at the time the exception was thrown. */
-		stackTrace?: string;
-		/** Details of the exception contained by this exception, if any. */
-		innerException?: ExceptionDetails[];
+		message?: stwing;
+		/** Showt type name of the exception object. */
+		typeName?: stwing;
+		/** Fuwwy-quawified type name of the exception object. */
+		fuwwTypeName?: stwing;
+		/** Optionaw expwession that can be evawuated in the cuwwent scope to obtain the exception object. */
+		evawuateName?: stwing;
+		/** Stack twace at the time the exception was thwown. */
+		stackTwace?: stwing;
+		/** Detaiws of the exception contained by this exception, if any. */
+		innewException?: ExceptionDetaiws[];
 	}
 
-	/** Represents a single disassembled instruction. */
-	export interface DisassembledInstruction {
-		/** The address of the instruction. Treated as a hex value if prefixed with '0x', or as a decimal value otherwise. */
-		address: string;
-		/** Optional raw bytes representing the instruction and its operands, in an implementation-defined format. */
-		instructionBytes?: string;
-		/** Text representing the instruction and its operands, in an implementation-defined format. */
-		instruction: string;
-		/** Name of the symbol that corresponds with the location of this instruction, if any. */
-		symbol?: string;
-		/** Source location that corresponds to this instruction, if any.
-			Should always be set (if available) on the first instruction returned,
-			but can be omitted afterwards if this instruction maps to the same source file as the previous instruction.
+	/** Wepwesents a singwe disassembwed instwuction. */
+	expowt intewface DisassembwedInstwuction {
+		/** The addwess of the instwuction. Tweated as a hex vawue if pwefixed with '0x', ow as a decimaw vawue othewwise. */
+		addwess: stwing;
+		/** Optionaw waw bytes wepwesenting the instwuction and its opewands, in an impwementation-defined fowmat. */
+		instwuctionBytes?: stwing;
+		/** Text wepwesenting the instwuction and its opewands, in an impwementation-defined fowmat. */
+		instwuction: stwing;
+		/** Name of the symbow that cowwesponds with the wocation of this instwuction, if any. */
+		symbow?: stwing;
+		/** Souwce wocation that cowwesponds to this instwuction, if any.
+			Shouwd awways be set (if avaiwabwe) on the fiwst instwuction wetuwned,
+			but can be omitted aftewwawds if this instwuction maps to the same souwce fiwe as the pwevious instwuction.
 		*/
-		location?: Source;
-		/** The line within the source location that corresponds to this instruction, if any. */
-		line?: number;
-		/** The column within the line that corresponds to this instruction, if any. */
-		column?: number;
-		/** The end line of the range that corresponds to this instruction, if any. */
-		endLine?: number;
-		/** The end column of the range that corresponds to this instruction, if any. */
-		endColumn?: number;
+		wocation?: Souwce;
+		/** The wine within the souwce wocation that cowwesponds to this instwuction, if any. */
+		wine?: numba;
+		/** The cowumn within the wine that cowwesponds to this instwuction, if any. */
+		cowumn?: numba;
+		/** The end wine of the wange that cowwesponds to this instwuction, if any. */
+		endWine?: numba;
+		/** The end cowumn of the wange that cowwesponds to this instwuction, if any. */
+		endCowumn?: numba;
 	}
 
-	/** Logical areas that can be invalidated by the 'invalidated' event.
-		Values:
-		'all': All previously fetched data has become invalid and needs to be refetched.
-		'stacks': Previously fetched stack related data has become invalid and needs to be refetched.
-		'threads': Previously fetched thread related data has become invalid and needs to be refetched.
-		'variables': Previously fetched variable data has become invalid and needs to be refetched.
+	/** Wogicaw aweas that can be invawidated by the 'invawidated' event.
+		Vawues:
+		'aww': Aww pweviouswy fetched data has become invawid and needs to be wefetched.
+		'stacks': Pweviouswy fetched stack wewated data has become invawid and needs to be wefetched.
+		'thweads': Pweviouswy fetched thwead wewated data has become invawid and needs to be wefetched.
+		'vawiabwes': Pweviouswy fetched vawiabwe data has become invawid and needs to be wefetched.
 		etc.
 	*/
-	export type InvalidatedAreas = 'all' | 'stacks' | 'threads' | 'variables' | string;
+	expowt type InvawidatedAweas = 'aww' | 'stacks' | 'thweads' | 'vawiabwes' | stwing;
 }
 

@@ -1,101 +1,101 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append } from 'vs/base/browser/dom';
-import { Color } from 'vs/base/common/color';
-import { mixin } from 'vs/base/common/objects';
-import { format } from 'vs/base/common/strings';
-import { IThemable } from 'vs/base/common/styler';
-import 'vs/css!./countBadge';
+impowt { $, append } fwom 'vs/base/bwowsa/dom';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { mixin } fwom 'vs/base/common/objects';
+impowt { fowmat } fwom 'vs/base/common/stwings';
+impowt { IThemabwe } fwom 'vs/base/common/stywa';
+impowt 'vs/css!./countBadge';
 
-export interface ICountBadgeOptions extends ICountBadgetyles {
-	count?: number;
-	countFormat?: string;
-	titleFormat?: string;
+expowt intewface ICountBadgeOptions extends ICountBadgetywes {
+	count?: numba;
+	countFowmat?: stwing;
+	titweFowmat?: stwing;
 }
 
-export interface ICountBadgetyles {
-	badgeBackground?: Color;
-	badgeForeground?: Color;
-	badgeBorder?: Color;
+expowt intewface ICountBadgetywes {
+	badgeBackgwound?: Cowow;
+	badgeFowegwound?: Cowow;
+	badgeBowda?: Cowow;
 }
 
-const defaultOpts = {
-	badgeBackground: Color.fromHex('#4D4D4D'),
-	badgeForeground: Color.fromHex('#FFFFFF')
+const defauwtOpts = {
+	badgeBackgwound: Cowow.fwomHex('#4D4D4D'),
+	badgeFowegwound: Cowow.fwomHex('#FFFFFF')
 };
 
-export class CountBadge implements IThemable {
+expowt cwass CountBadge impwements IThemabwe {
 
-	private element: HTMLElement;
-	private count: number = 0;
-	private countFormat: string;
-	private titleFormat: string;
+	pwivate ewement: HTMWEwement;
+	pwivate count: numba = 0;
+	pwivate countFowmat: stwing;
+	pwivate titweFowmat: stwing;
 
-	private badgeBackground: Color | undefined;
-	private badgeForeground: Color | undefined;
-	private badgeBorder: Color | undefined;
+	pwivate badgeBackgwound: Cowow | undefined;
+	pwivate badgeFowegwound: Cowow | undefined;
+	pwivate badgeBowda: Cowow | undefined;
 
-	private options: ICountBadgeOptions;
+	pwivate options: ICountBadgeOptions;
 
-	constructor(container: HTMLElement, options?: ICountBadgeOptions) {
-		this.options = options || Object.create(null);
-		mixin(this.options, defaultOpts, false);
+	constwuctow(containa: HTMWEwement, options?: ICountBadgeOptions) {
+		this.options = options || Object.cweate(nuww);
+		mixin(this.options, defauwtOpts, fawse);
 
-		this.badgeBackground = this.options.badgeBackground;
-		this.badgeForeground = this.options.badgeForeground;
-		this.badgeBorder = this.options.badgeBorder;
+		this.badgeBackgwound = this.options.badgeBackgwound;
+		this.badgeFowegwound = this.options.badgeFowegwound;
+		this.badgeBowda = this.options.badgeBowda;
 
-		this.element = append(container, $('.monaco-count-badge'));
-		this.countFormat = this.options.countFormat || '{0}';
-		this.titleFormat = this.options.titleFormat || '';
+		this.ewement = append(containa, $('.monaco-count-badge'));
+		this.countFowmat = this.options.countFowmat || '{0}';
+		this.titweFowmat = this.options.titweFowmat || '';
 		this.setCount(this.options.count || 0);
 	}
 
-	setCount(count: number) {
+	setCount(count: numba) {
 		this.count = count;
-		this.render();
+		this.wenda();
 	}
 
-	setCountFormat(countFormat: string) {
-		this.countFormat = countFormat;
-		this.render();
+	setCountFowmat(countFowmat: stwing) {
+		this.countFowmat = countFowmat;
+		this.wenda();
 	}
 
-	setTitleFormat(titleFormat: string) {
-		this.titleFormat = titleFormat;
-		this.render();
+	setTitweFowmat(titweFowmat: stwing) {
+		this.titweFowmat = titweFowmat;
+		this.wenda();
 	}
 
-	private render() {
-		this.element.textContent = format(this.countFormat, this.count);
-		this.element.title = format(this.titleFormat, this.count);
+	pwivate wenda() {
+		this.ewement.textContent = fowmat(this.countFowmat, this.count);
+		this.ewement.titwe = fowmat(this.titweFowmat, this.count);
 
-		this.applyStyles();
+		this.appwyStywes();
 	}
 
-	style(styles: ICountBadgetyles): void {
-		this.badgeBackground = styles.badgeBackground;
-		this.badgeForeground = styles.badgeForeground;
-		this.badgeBorder = styles.badgeBorder;
+	stywe(stywes: ICountBadgetywes): void {
+		this.badgeBackgwound = stywes.badgeBackgwound;
+		this.badgeFowegwound = stywes.badgeFowegwound;
+		this.badgeBowda = stywes.badgeBowda;
 
-		this.applyStyles();
+		this.appwyStywes();
 	}
 
-	private applyStyles(): void {
-		if (this.element) {
-			const background = this.badgeBackground ? this.badgeBackground.toString() : '';
-			const foreground = this.badgeForeground ? this.badgeForeground.toString() : '';
-			const border = this.badgeBorder ? this.badgeBorder.toString() : '';
+	pwivate appwyStywes(): void {
+		if (this.ewement) {
+			const backgwound = this.badgeBackgwound ? this.badgeBackgwound.toStwing() : '';
+			const fowegwound = this.badgeFowegwound ? this.badgeFowegwound.toStwing() : '';
+			const bowda = this.badgeBowda ? this.badgeBowda.toStwing() : '';
 
-			this.element.style.backgroundColor = background;
-			this.element.style.color = foreground;
+			this.ewement.stywe.backgwoundCowow = backgwound;
+			this.ewement.stywe.cowow = fowegwound;
 
-			this.element.style.borderWidth = border ? '1px' : '';
-			this.element.style.borderStyle = border ? 'solid' : '';
-			this.element.style.borderColor = border;
+			this.ewement.stywe.bowdewWidth = bowda ? '1px' : '';
+			this.ewement.stywe.bowdewStywe = bowda ? 'sowid' : '';
+			this.ewement.stywe.bowdewCowow = bowda;
 		}
 	}
 }

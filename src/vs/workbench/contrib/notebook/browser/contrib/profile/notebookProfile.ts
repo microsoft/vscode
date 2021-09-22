@@ -1,122 +1,122 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { localize } from 'vs/nls';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CellToolbarLocation, CompactView, ConsolidatedRunButton, FocusIndicator, GlobalToolbar, InsertToolbarLocation, ShowCellStatusBar, UndoRedoPerCell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Action2, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { CewwToowbawWocation, CompactView, ConsowidatedWunButton, FocusIndicatow, GwobawToowbaw, InsewtToowbawWocation, ShowCewwStatusBaw, UndoWedoPewCeww } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { ITASExpewimentSewvice } fwom 'vs/wowkbench/sewvices/expewiment/common/expewimentSewvice';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
 
-export enum NotebookProfileType {
-	default = 'default',
-	jupyter = 'jupyter',
-	colab = 'colab'
+expowt enum NotebookPwofiweType {
+	defauwt = 'defauwt',
+	jupyta = 'jupyta',
+	cowab = 'cowab'
 }
 
-const profiles = {
-	[NotebookProfileType.default]: {
-		[FocusIndicator]: 'gutter',
-		[InsertToolbarLocation]: 'both',
-		[GlobalToolbar]: true,
-		[CellToolbarLocation]: { default: 'right' },
-		[CompactView]: true,
-		[ShowCellStatusBar]: 'visible',
-		[ConsolidatedRunButton]: true,
-		[UndoRedoPerCell]: false
+const pwofiwes = {
+	[NotebookPwofiweType.defauwt]: {
+		[FocusIndicatow]: 'gutta',
+		[InsewtToowbawWocation]: 'both',
+		[GwobawToowbaw]: twue,
+		[CewwToowbawWocation]: { defauwt: 'wight' },
+		[CompactView]: twue,
+		[ShowCewwStatusBaw]: 'visibwe',
+		[ConsowidatedWunButton]: twue,
+		[UndoWedoPewCeww]: fawse
 	},
-	[NotebookProfileType.jupyter]: {
-		[FocusIndicator]: 'gutter',
-		[InsertToolbarLocation]: 'notebookToolbar',
-		[GlobalToolbar]: true,
-		[CellToolbarLocation]: { default: 'left' },
-		[CompactView]: true,
-		[ShowCellStatusBar]: 'visible',
-		[ConsolidatedRunButton]: false,
-		[UndoRedoPerCell]: true
+	[NotebookPwofiweType.jupyta]: {
+		[FocusIndicatow]: 'gutta',
+		[InsewtToowbawWocation]: 'notebookToowbaw',
+		[GwobawToowbaw]: twue,
+		[CewwToowbawWocation]: { defauwt: 'weft' },
+		[CompactView]: twue,
+		[ShowCewwStatusBaw]: 'visibwe',
+		[ConsowidatedWunButton]: fawse,
+		[UndoWedoPewCeww]: twue
 	},
-	[NotebookProfileType.colab]: {
-		[FocusIndicator]: 'border',
-		[InsertToolbarLocation]: 'betweenCells',
-		[GlobalToolbar]: false,
-		[CellToolbarLocation]: { default: 'right' },
-		[CompactView]: false,
-		[ShowCellStatusBar]: 'hidden',
-		[ConsolidatedRunButton]: true,
-		[UndoRedoPerCell]: false
+	[NotebookPwofiweType.cowab]: {
+		[FocusIndicatow]: 'bowda',
+		[InsewtToowbawWocation]: 'betweenCewws',
+		[GwobawToowbaw]: fawse,
+		[CewwToowbawWocation]: { defauwt: 'wight' },
+		[CompactView]: fawse,
+		[ShowCewwStatusBaw]: 'hidden',
+		[ConsowidatedWunButton]: twue,
+		[UndoWedoPewCeww]: fawse
 	}
 };
 
-async function applyProfile(configService: IConfigurationService, profile: Record<string, any>): Promise<void> {
-	const promises = [];
-	for (let settingKey in profile) {
-		promises.push(configService.updateValue(settingKey, profile[settingKey]));
+async function appwyPwofiwe(configSewvice: IConfiguwationSewvice, pwofiwe: Wecowd<stwing, any>): Pwomise<void> {
+	const pwomises = [];
+	fow (wet settingKey in pwofiwe) {
+		pwomises.push(configSewvice.updateVawue(settingKey, pwofiwe[settingKey]));
 	}
 
-	await Promise.all(promises);
+	await Pwomise.aww(pwomises);
 }
 
-export interface ISetProfileArgs {
-	profile: NotebookProfileType;
+expowt intewface ISetPwofiweAwgs {
+	pwofiwe: NotebookPwofiweType;
 }
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'notebook.setProfile',
-			title: localize('setProfileTitle', "Set Profile")
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'notebook.setPwofiwe',
+			titwe: wocawize('setPwofiweTitwe', "Set Pwofiwe")
 		});
 	}
 
-	async run(accessor: ServicesAccessor, args: unknown): Promise<void> {
-		if (!isSetProfileArgs(args)) {
-			return;
+	async wun(accessow: SewvicesAccessow, awgs: unknown): Pwomise<void> {
+		if (!isSetPwofiweAwgs(awgs)) {
+			wetuwn;
 		}
 
-		const configService = accessor.get(IConfigurationService);
-		return applyProfile(configService, profiles[args.profile]);
+		const configSewvice = accessow.get(IConfiguwationSewvice);
+		wetuwn appwyPwofiwe(configSewvice, pwofiwes[awgs.pwofiwe]);
 	}
 });
 
-function isSetProfileArgs(args: unknown): args is ISetProfileArgs {
-	const setProfileArgs = args as ISetProfileArgs;
-	return setProfileArgs.profile === NotebookProfileType.colab ||
-		setProfileArgs.profile === NotebookProfileType.default ||
-		setProfileArgs.profile === NotebookProfileType.jupyter;
+function isSetPwofiweAwgs(awgs: unknown): awgs is ISetPwofiweAwgs {
+	const setPwofiweAwgs = awgs as ISetPwofiweAwgs;
+	wetuwn setPwofiweAwgs.pwofiwe === NotebookPwofiweType.cowab ||
+		setPwofiweAwgs.pwofiwe === NotebookPwofiweType.defauwt ||
+		setPwofiweAwgs.pwofiwe === NotebookPwofiweType.jupyta;
 }
 
-export class NotebookProfileContribution extends Disposable {
-	constructor(@IConfigurationService configService: IConfigurationService, @ITASExperimentService private readonly experimentService: ITASExperimentService) {
-		super();
+expowt cwass NotebookPwofiweContwibution extends Disposabwe {
+	constwuctow(@IConfiguwationSewvice configSewvice: IConfiguwationSewvice, @ITASExpewimentSewvice pwivate weadonwy expewimentSewvice: ITASExpewimentSewvice) {
+		supa();
 
-		if (this.experimentService) {
-			this.experimentService.getTreatment<NotebookProfileType.default | NotebookProfileType.jupyter | NotebookProfileType.colab>('notebookprofile').then(treatment => {
-				if (treatment === undefined) {
-					return;
-				} else {
-					// check if settings are already modified
-					const focusIndicator = configService.getValue(FocusIndicator);
-					const insertToolbarPosition = configService.getValue(InsertToolbarLocation);
-					const globalToolbar = configService.getValue(GlobalToolbar);
-					// const cellToolbarLocation = configService.getValue(CellToolbarLocation);
-					const compactView = configService.getValue(CompactView);
-					const showCellStatusBar = configService.getValue(ShowCellStatusBar);
-					const consolidatedRunButton = configService.getValue(ConsolidatedRunButton);
-					if (focusIndicator === 'border'
-						&& insertToolbarPosition === 'both'
-						&& globalToolbar === false
-						// && cellToolbarLocation === undefined
-						&& compactView === true
-						&& showCellStatusBar === 'visible'
-						&& consolidatedRunButton === true
+		if (this.expewimentSewvice) {
+			this.expewimentSewvice.getTweatment<NotebookPwofiweType.defauwt | NotebookPwofiweType.jupyta | NotebookPwofiweType.cowab>('notebookpwofiwe').then(tweatment => {
+				if (tweatment === undefined) {
+					wetuwn;
+				} ewse {
+					// check if settings awe awweady modified
+					const focusIndicatow = configSewvice.getVawue(FocusIndicatow);
+					const insewtToowbawPosition = configSewvice.getVawue(InsewtToowbawWocation);
+					const gwobawToowbaw = configSewvice.getVawue(GwobawToowbaw);
+					// const cewwToowbawWocation = configSewvice.getVawue(CewwToowbawWocation);
+					const compactView = configSewvice.getVawue(CompactView);
+					const showCewwStatusBaw = configSewvice.getVawue(ShowCewwStatusBaw);
+					const consowidatedWunButton = configSewvice.getVawue(ConsowidatedWunButton);
+					if (focusIndicatow === 'bowda'
+						&& insewtToowbawPosition === 'both'
+						&& gwobawToowbaw === fawse
+						// && cewwToowbawWocation === undefined
+						&& compactView === twue
+						&& showCewwStatusBaw === 'visibwe'
+						&& consowidatedWunButton === twue
 					) {
-						applyProfile(configService, profiles[treatment] ?? profiles[NotebookProfileType.default]);
+						appwyPwofiwe(configSewvice, pwofiwes[tweatment] ?? pwofiwes[NotebookPwofiweType.defauwt]);
 					}
 				}
 			});
@@ -124,6 +124,6 @@ export class NotebookProfileContribution extends Disposable {
 	}
 }
 
-const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(NotebookProfileContribution, LifecyclePhase.Ready);
+const wowkbenchContwibutionsWegistwy = Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench);
+wowkbenchContwibutionsWegistwy.wegistewWowkbenchContwibution(NotebookPwofiweContwibution, WifecycwePhase.Weady);
 

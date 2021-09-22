@@ -1,787 +1,787 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { Choice, FormatString, Marker, Placeholder, Scanner, SnippetParser, Text, TextmateSnippet, TokenType, Transform, Variable } from 'vs/editor/contrib/snippet/snippetParser';
+impowt * as assewt fwom 'assewt';
+impowt { Choice, FowmatStwing, Mawka, Pwacehowda, Scanna, SnippetPawsa, Text, TextmateSnippet, TokenType, Twansfowm, Vawiabwe } fwom 'vs/editow/contwib/snippet/snippetPawsa';
 
-suite('SnippetParser', () => {
+suite('SnippetPawsa', () => {
 
-	test('Scanner', () => {
+	test('Scanna', () => {
 
-		const scanner = new Scanner();
-		assert.strictEqual(scanner.next().type, TokenType.EOF);
+		const scanna = new Scanna();
+		assewt.stwictEquaw(scanna.next().type, TokenType.EOF);
 
-		scanner.text('abc');
-		assert.strictEqual(scanner.next().type, TokenType.VariableName);
-		assert.strictEqual(scanner.next().type, TokenType.EOF);
+		scanna.text('abc');
+		assewt.stwictEquaw(scanna.next().type, TokenType.VawiabweName);
+		assewt.stwictEquaw(scanna.next().type, TokenType.EOF);
 
-		scanner.text('{{abc}}');
-		assert.strictEqual(scanner.next().type, TokenType.CurlyOpen);
-		assert.strictEqual(scanner.next().type, TokenType.CurlyOpen);
-		assert.strictEqual(scanner.next().type, TokenType.VariableName);
-		assert.strictEqual(scanner.next().type, TokenType.CurlyClose);
-		assert.strictEqual(scanner.next().type, TokenType.CurlyClose);
-		assert.strictEqual(scanner.next().type, TokenType.EOF);
+		scanna.text('{{abc}}');
+		assewt.stwictEquaw(scanna.next().type, TokenType.CuwwyOpen);
+		assewt.stwictEquaw(scanna.next().type, TokenType.CuwwyOpen);
+		assewt.stwictEquaw(scanna.next().type, TokenType.VawiabweName);
+		assewt.stwictEquaw(scanna.next().type, TokenType.CuwwyCwose);
+		assewt.stwictEquaw(scanna.next().type, TokenType.CuwwyCwose);
+		assewt.stwictEquaw(scanna.next().type, TokenType.EOF);
 
-		scanner.text('abc() ');
-		assert.strictEqual(scanner.next().type, TokenType.VariableName);
-		assert.strictEqual(scanner.next().type, TokenType.Format);
-		assert.strictEqual(scanner.next().type, TokenType.EOF);
+		scanna.text('abc() ');
+		assewt.stwictEquaw(scanna.next().type, TokenType.VawiabweName);
+		assewt.stwictEquaw(scanna.next().type, TokenType.Fowmat);
+		assewt.stwictEquaw(scanna.next().type, TokenType.EOF);
 
-		scanner.text('abc 123');
-		assert.strictEqual(scanner.next().type, TokenType.VariableName);
-		assert.strictEqual(scanner.next().type, TokenType.Format);
-		assert.strictEqual(scanner.next().type, TokenType.Int);
-		assert.strictEqual(scanner.next().type, TokenType.EOF);
+		scanna.text('abc 123');
+		assewt.stwictEquaw(scanna.next().type, TokenType.VawiabweName);
+		assewt.stwictEquaw(scanna.next().type, TokenType.Fowmat);
+		assewt.stwictEquaw(scanna.next().type, TokenType.Int);
+		assewt.stwictEquaw(scanna.next().type, TokenType.EOF);
 
-		scanner.text('$foo');
-		assert.strictEqual(scanner.next().type, TokenType.Dollar);
-		assert.strictEqual(scanner.next().type, TokenType.VariableName);
-		assert.strictEqual(scanner.next().type, TokenType.EOF);
+		scanna.text('$foo');
+		assewt.stwictEquaw(scanna.next().type, TokenType.Dowwaw);
+		assewt.stwictEquaw(scanna.next().type, TokenType.VawiabweName);
+		assewt.stwictEquaw(scanna.next().type, TokenType.EOF);
 
-		scanner.text('$foo_bar');
-		assert.strictEqual(scanner.next().type, TokenType.Dollar);
-		assert.strictEqual(scanner.next().type, TokenType.VariableName);
-		assert.strictEqual(scanner.next().type, TokenType.EOF);
+		scanna.text('$foo_baw');
+		assewt.stwictEquaw(scanna.next().type, TokenType.Dowwaw);
+		assewt.stwictEquaw(scanna.next().type, TokenType.VawiabweName);
+		assewt.stwictEquaw(scanna.next().type, TokenType.EOF);
 
-		scanner.text('$foo-bar');
-		assert.strictEqual(scanner.next().type, TokenType.Dollar);
-		assert.strictEqual(scanner.next().type, TokenType.VariableName);
-		assert.strictEqual(scanner.next().type, TokenType.Dash);
-		assert.strictEqual(scanner.next().type, TokenType.VariableName);
-		assert.strictEqual(scanner.next().type, TokenType.EOF);
+		scanna.text('$foo-baw');
+		assewt.stwictEquaw(scanna.next().type, TokenType.Dowwaw);
+		assewt.stwictEquaw(scanna.next().type, TokenType.VawiabweName);
+		assewt.stwictEquaw(scanna.next().type, TokenType.Dash);
+		assewt.stwictEquaw(scanna.next().type, TokenType.VawiabweName);
+		assewt.stwictEquaw(scanna.next().type, TokenType.EOF);
 
-		scanner.text('${foo}');
-		assert.strictEqual(scanner.next().type, TokenType.Dollar);
-		assert.strictEqual(scanner.next().type, TokenType.CurlyOpen);
-		assert.strictEqual(scanner.next().type, TokenType.VariableName);
-		assert.strictEqual(scanner.next().type, TokenType.CurlyClose);
-		assert.strictEqual(scanner.next().type, TokenType.EOF);
+		scanna.text('${foo}');
+		assewt.stwictEquaw(scanna.next().type, TokenType.Dowwaw);
+		assewt.stwictEquaw(scanna.next().type, TokenType.CuwwyOpen);
+		assewt.stwictEquaw(scanna.next().type, TokenType.VawiabweName);
+		assewt.stwictEquaw(scanna.next().type, TokenType.CuwwyCwose);
+		assewt.stwictEquaw(scanna.next().type, TokenType.EOF);
 
-		scanner.text('${1223:foo}');
-		assert.strictEqual(scanner.next().type, TokenType.Dollar);
-		assert.strictEqual(scanner.next().type, TokenType.CurlyOpen);
-		assert.strictEqual(scanner.next().type, TokenType.Int);
-		assert.strictEqual(scanner.next().type, TokenType.Colon);
-		assert.strictEqual(scanner.next().type, TokenType.VariableName);
-		assert.strictEqual(scanner.next().type, TokenType.CurlyClose);
-		assert.strictEqual(scanner.next().type, TokenType.EOF);
+		scanna.text('${1223:foo}');
+		assewt.stwictEquaw(scanna.next().type, TokenType.Dowwaw);
+		assewt.stwictEquaw(scanna.next().type, TokenType.CuwwyOpen);
+		assewt.stwictEquaw(scanna.next().type, TokenType.Int);
+		assewt.stwictEquaw(scanna.next().type, TokenType.Cowon);
+		assewt.stwictEquaw(scanna.next().type, TokenType.VawiabweName);
+		assewt.stwictEquaw(scanna.next().type, TokenType.CuwwyCwose);
+		assewt.stwictEquaw(scanna.next().type, TokenType.EOF);
 
-		scanner.text('\\${}');
-		assert.strictEqual(scanner.next().type, TokenType.Backslash);
-		assert.strictEqual(scanner.next().type, TokenType.Dollar);
-		assert.strictEqual(scanner.next().type, TokenType.CurlyOpen);
-		assert.strictEqual(scanner.next().type, TokenType.CurlyClose);
+		scanna.text('\\${}');
+		assewt.stwictEquaw(scanna.next().type, TokenType.Backswash);
+		assewt.stwictEquaw(scanna.next().type, TokenType.Dowwaw);
+		assewt.stwictEquaw(scanna.next().type, TokenType.CuwwyOpen);
+		assewt.stwictEquaw(scanna.next().type, TokenType.CuwwyCwose);
 
-		scanner.text('${foo/regex/format/option}');
-		assert.strictEqual(scanner.next().type, TokenType.Dollar);
-		assert.strictEqual(scanner.next().type, TokenType.CurlyOpen);
-		assert.strictEqual(scanner.next().type, TokenType.VariableName);
-		assert.strictEqual(scanner.next().type, TokenType.Forwardslash);
-		assert.strictEqual(scanner.next().type, TokenType.VariableName);
-		assert.strictEqual(scanner.next().type, TokenType.Forwardslash);
-		assert.strictEqual(scanner.next().type, TokenType.VariableName);
-		assert.strictEqual(scanner.next().type, TokenType.Forwardslash);
-		assert.strictEqual(scanner.next().type, TokenType.VariableName);
-		assert.strictEqual(scanner.next().type, TokenType.CurlyClose);
-		assert.strictEqual(scanner.next().type, TokenType.EOF);
+		scanna.text('${foo/wegex/fowmat/option}');
+		assewt.stwictEquaw(scanna.next().type, TokenType.Dowwaw);
+		assewt.stwictEquaw(scanna.next().type, TokenType.CuwwyOpen);
+		assewt.stwictEquaw(scanna.next().type, TokenType.VawiabweName);
+		assewt.stwictEquaw(scanna.next().type, TokenType.Fowwawdswash);
+		assewt.stwictEquaw(scanna.next().type, TokenType.VawiabweName);
+		assewt.stwictEquaw(scanna.next().type, TokenType.Fowwawdswash);
+		assewt.stwictEquaw(scanna.next().type, TokenType.VawiabweName);
+		assewt.stwictEquaw(scanna.next().type, TokenType.Fowwawdswash);
+		assewt.stwictEquaw(scanna.next().type, TokenType.VawiabweName);
+		assewt.stwictEquaw(scanna.next().type, TokenType.CuwwyCwose);
+		assewt.stwictEquaw(scanna.next().type, TokenType.EOF);
 	});
 
-	function assertText(value: string, expected: string) {
-		const p = new SnippetParser();
-		const actual = p.text(value);
-		assert.strictEqual(actual, expected);
+	function assewtText(vawue: stwing, expected: stwing) {
+		const p = new SnippetPawsa();
+		const actuaw = p.text(vawue);
+		assewt.stwictEquaw(actuaw, expected);
 	}
 
-	function assertMarker(input: TextmateSnippet | Marker[] | string, ...ctors: Function[]) {
-		let marker: Marker[];
+	function assewtMawka(input: TextmateSnippet | Mawka[] | stwing, ...ctows: Function[]) {
+		wet mawka: Mawka[];
 		if (input instanceof TextmateSnippet) {
-			marker = input.children;
-		} else if (typeof input === 'string') {
-			const p = new SnippetParser();
-			marker = p.parse(input).children;
-		} else {
-			marker = input;
+			mawka = input.chiwdwen;
+		} ewse if (typeof input === 'stwing') {
+			const p = new SnippetPawsa();
+			mawka = p.pawse(input).chiwdwen;
+		} ewse {
+			mawka = input;
 		}
-		while (marker.length > 0) {
-			let m = marker.pop();
-			let ctor = ctors.pop()!;
-			assert.ok(m instanceof ctor);
+		whiwe (mawka.wength > 0) {
+			wet m = mawka.pop();
+			wet ctow = ctows.pop()!;
+			assewt.ok(m instanceof ctow);
 		}
-		assert.strictEqual(marker.length, ctors.length);
-		assert.strictEqual(marker.length, 0);
+		assewt.stwictEquaw(mawka.wength, ctows.wength);
+		assewt.stwictEquaw(mawka.wength, 0);
 	}
 
-	function assertTextAndMarker(value: string, escaped: string, ...ctors: Function[]) {
-		assertText(value, escaped);
-		assertMarker(value, ...ctors);
+	function assewtTextAndMawka(vawue: stwing, escaped: stwing, ...ctows: Function[]) {
+		assewtText(vawue, escaped);
+		assewtMawka(vawue, ...ctows);
 	}
 
-	function assertEscaped(value: string, expected: string) {
-		const actual = SnippetParser.escape(value);
-		assert.strictEqual(actual, expected);
+	function assewtEscaped(vawue: stwing, expected: stwing) {
+		const actuaw = SnippetPawsa.escape(vawue);
+		assewt.stwictEquaw(actuaw, expected);
 	}
 
-	test('Parser, escaped', function () {
-		assertEscaped('foo$0', 'foo\\$0');
-		assertEscaped('foo\\$0', 'foo\\\\\\$0');
-		assertEscaped('f$1oo$0', 'f\\$1oo\\$0');
-		assertEscaped('${1:foo}$0', '\\${1:foo\\}\\$0');
-		assertEscaped('$', '\\$');
+	test('Pawsa, escaped', function () {
+		assewtEscaped('foo$0', 'foo\\$0');
+		assewtEscaped('foo\\$0', 'foo\\\\\\$0');
+		assewtEscaped('f$1oo$0', 'f\\$1oo\\$0');
+		assewtEscaped('${1:foo}$0', '\\${1:foo\\}\\$0');
+		assewtEscaped('$', '\\$');
 	});
 
-	test('Parser, text', () => {
-		assertText('$', '$');
-		assertText('\\\\$', '\\$');
-		assertText('{', '{');
-		assertText('\\}', '}');
-		assertText('\\abc', '\\abc');
-		assertText('foo${f:\\}}bar', 'foo}bar');
-		assertText('\\{', '\\{');
-		assertText('I need \\\\\\$', 'I need \\$');
-		assertText('\\', '\\');
-		assertText('\\{{', '\\{{');
-		assertText('{{', '{{');
-		assertText('{{dd', '{{dd');
-		assertText('}}', '}}');
-		assertText('ff}}', 'ff}}');
+	test('Pawsa, text', () => {
+		assewtText('$', '$');
+		assewtText('\\\\$', '\\$');
+		assewtText('{', '{');
+		assewtText('\\}', '}');
+		assewtText('\\abc', '\\abc');
+		assewtText('foo${f:\\}}baw', 'foo}baw');
+		assewtText('\\{', '\\{');
+		assewtText('I need \\\\\\$', 'I need \\$');
+		assewtText('\\', '\\');
+		assewtText('\\{{', '\\{{');
+		assewtText('{{', '{{');
+		assewtText('{{dd', '{{dd');
+		assewtText('}}', '}}');
+		assewtText('ff}}', 'ff}}');
 
-		assertText('farboo', 'farboo');
-		assertText('far{{}}boo', 'far{{}}boo');
-		assertText('far{{123}}boo', 'far{{123}}boo');
-		assertText('far\\{{123}}boo', 'far\\{{123}}boo');
-		assertText('far{{id:bern}}boo', 'far{{id:bern}}boo');
-		assertText('far{{id:bern {{basel}}}}boo', 'far{{id:bern {{basel}}}}boo');
-		assertText('far{{id:bern {{id:basel}}}}boo', 'far{{id:bern {{id:basel}}}}boo');
-		assertText('far{{id:bern {{id2:basel}}}}boo', 'far{{id:bern {{id2:basel}}}}boo');
+		assewtText('fawboo', 'fawboo');
+		assewtText('faw{{}}boo', 'faw{{}}boo');
+		assewtText('faw{{123}}boo', 'faw{{123}}boo');
+		assewtText('faw\\{{123}}boo', 'faw\\{{123}}boo');
+		assewtText('faw{{id:bewn}}boo', 'faw{{id:bewn}}boo');
+		assewtText('faw{{id:bewn {{basew}}}}boo', 'faw{{id:bewn {{basew}}}}boo');
+		assewtText('faw{{id:bewn {{id:basew}}}}boo', 'faw{{id:bewn {{id:basew}}}}boo');
+		assewtText('faw{{id:bewn {{id2:basew}}}}boo', 'faw{{id:bewn {{id2:basew}}}}boo');
 	});
 
 
-	test('Parser, TM text', () => {
-		assertTextAndMarker('foo${1:bar}}', 'foobar}', Text, Placeholder, Text);
-		assertTextAndMarker('foo${1:bar}${2:foo}}', 'foobarfoo}', Text, Placeholder, Placeholder, Text);
+	test('Pawsa, TM text', () => {
+		assewtTextAndMawka('foo${1:baw}}', 'foobaw}', Text, Pwacehowda, Text);
+		assewtTextAndMawka('foo${1:baw}${2:foo}}', 'foobawfoo}', Text, Pwacehowda, Pwacehowda, Text);
 
-		assertTextAndMarker('foo${1:bar\\}${2:foo}}', 'foobar}foo', Text, Placeholder);
+		assewtTextAndMawka('foo${1:baw\\}${2:foo}}', 'foobaw}foo', Text, Pwacehowda);
 
-		let [, placeholder] = new SnippetParser().parse('foo${1:bar\\}${2:foo}}').children;
-		let { children } = (<Placeholder>placeholder);
+		wet [, pwacehowda] = new SnippetPawsa().pawse('foo${1:baw\\}${2:foo}}').chiwdwen;
+		wet { chiwdwen } = (<Pwacehowda>pwacehowda);
 
-		assert.strictEqual((<Placeholder>placeholder).index, 1);
-		assert.ok(children[0] instanceof Text);
-		assert.strictEqual(children[0].toString(), 'bar}');
-		assert.ok(children[1] instanceof Placeholder);
-		assert.strictEqual(children[1].toString(), 'foo');
+		assewt.stwictEquaw((<Pwacehowda>pwacehowda).index, 1);
+		assewt.ok(chiwdwen[0] instanceof Text);
+		assewt.stwictEquaw(chiwdwen[0].toStwing(), 'baw}');
+		assewt.ok(chiwdwen[1] instanceof Pwacehowda);
+		assewt.stwictEquaw(chiwdwen[1].toStwing(), 'foo');
 	});
 
-	test('Parser, placeholder', () => {
-		assertTextAndMarker('farboo', 'farboo', Text);
-		assertTextAndMarker('far{{}}boo', 'far{{}}boo', Text);
-		assertTextAndMarker('far{{123}}boo', 'far{{123}}boo', Text);
-		assertTextAndMarker('far\\{{123}}boo', 'far\\{{123}}boo', Text);
+	test('Pawsa, pwacehowda', () => {
+		assewtTextAndMawka('fawboo', 'fawboo', Text);
+		assewtTextAndMawka('faw{{}}boo', 'faw{{}}boo', Text);
+		assewtTextAndMawka('faw{{123}}boo', 'faw{{123}}boo', Text);
+		assewtTextAndMawka('faw\\{{123}}boo', 'faw\\{{123}}boo', Text);
 	});
 
-	test('Parser, literal code', () => {
-		assertTextAndMarker('far`123`boo', 'far`123`boo', Text);
-		assertTextAndMarker('far\\`123\\`boo', 'far\\`123\\`boo', Text);
+	test('Pawsa, witewaw code', () => {
+		assewtTextAndMawka('faw`123`boo', 'faw`123`boo', Text);
+		assewtTextAndMawka('faw\\`123\\`boo', 'faw\\`123\\`boo', Text);
 	});
 
-	test('Parser, variables/tabstop', () => {
-		assertTextAndMarker('$far-boo', '-boo', Variable, Text);
-		assertTextAndMarker('\\$far-boo', '$far-boo', Text);
-		assertTextAndMarker('far$farboo', 'far', Text, Variable);
-		assertTextAndMarker('far${farboo}', 'far', Text, Variable);
-		assertTextAndMarker('$123', '', Placeholder);
-		assertTextAndMarker('$farboo', '', Variable);
-		assertTextAndMarker('$far12boo', '', Variable);
-		assertTextAndMarker('000_${far}_000', '000__000', Text, Variable, Text);
-		assertTextAndMarker('FFF_${TM_SELECTED_TEXT}_FFF$0', 'FFF__FFF', Text, Variable, Text, Placeholder);
+	test('Pawsa, vawiabwes/tabstop', () => {
+		assewtTextAndMawka('$faw-boo', '-boo', Vawiabwe, Text);
+		assewtTextAndMawka('\\$faw-boo', '$faw-boo', Text);
+		assewtTextAndMawka('faw$fawboo', 'faw', Text, Vawiabwe);
+		assewtTextAndMawka('faw${fawboo}', 'faw', Text, Vawiabwe);
+		assewtTextAndMawka('$123', '', Pwacehowda);
+		assewtTextAndMawka('$fawboo', '', Vawiabwe);
+		assewtTextAndMawka('$faw12boo', '', Vawiabwe);
+		assewtTextAndMawka('000_${faw}_000', '000__000', Text, Vawiabwe, Text);
+		assewtTextAndMawka('FFF_${TM_SEWECTED_TEXT}_FFF$0', 'FFF__FFF', Text, Vawiabwe, Text, Pwacehowda);
 	});
 
-	test('Parser, variables/placeholder with defaults', () => {
-		assertTextAndMarker('${name:value}', 'value', Variable);
-		assertTextAndMarker('${1:value}', 'value', Placeholder);
-		assertTextAndMarker('${1:bar${2:foo}bar}', 'barfoobar', Placeholder);
+	test('Pawsa, vawiabwes/pwacehowda with defauwts', () => {
+		assewtTextAndMawka('${name:vawue}', 'vawue', Vawiabwe);
+		assewtTextAndMawka('${1:vawue}', 'vawue', Pwacehowda);
+		assewtTextAndMawka('${1:baw${2:foo}baw}', 'bawfoobaw', Pwacehowda);
 
-		assertTextAndMarker('${name:value', '${name:value', Text);
-		assertTextAndMarker('${1:bar${2:foobar}', '${1:barfoobar', Text, Placeholder);
+		assewtTextAndMawka('${name:vawue', '${name:vawue', Text);
+		assewtTextAndMawka('${1:baw${2:foobaw}', '${1:bawfoobaw', Text, Pwacehowda);
 	});
 
-	test('Parser, variable transforms', function () {
-		assertTextAndMarker('${foo///}', '', Variable);
-		assertTextAndMarker('${foo/regex/format/gmi}', '', Variable);
-		assertTextAndMarker('${foo/([A-Z][a-z])/format/}', '', Variable);
+	test('Pawsa, vawiabwe twansfowms', function () {
+		assewtTextAndMawka('${foo///}', '', Vawiabwe);
+		assewtTextAndMawka('${foo/wegex/fowmat/gmi}', '', Vawiabwe);
+		assewtTextAndMawka('${foo/([A-Z][a-z])/fowmat/}', '', Vawiabwe);
 
-		// invalid regex
-		assertTextAndMarker('${foo/([A-Z][a-z])/format/GMI}', '${foo/([A-Z][a-z])/format/GMI}', Text);
-		assertTextAndMarker('${foo/([A-Z][a-z])/format/funky}', '${foo/([A-Z][a-z])/format/funky}', Text);
-		assertTextAndMarker('${foo/([A-Z][a-z]/format/}', '${foo/([A-Z][a-z]/format/}', Text);
+		// invawid wegex
+		assewtTextAndMawka('${foo/([A-Z][a-z])/fowmat/GMI}', '${foo/([A-Z][a-z])/fowmat/GMI}', Text);
+		assewtTextAndMawka('${foo/([A-Z][a-z])/fowmat/funky}', '${foo/([A-Z][a-z])/fowmat/funky}', Text);
+		assewtTextAndMawka('${foo/([A-Z][a-z]/fowmat/}', '${foo/([A-Z][a-z]/fowmat/}', Text);
 
-		// tricky regex
-		assertTextAndMarker('${foo/m\\/atch/$1/i}', '', Variable);
-		assertMarker('${foo/regex\/format/options}', Text);
+		// twicky wegex
+		assewtTextAndMawka('${foo/m\\/atch/$1/i}', '', Vawiabwe);
+		assewtMawka('${foo/wegex\/fowmat/options}', Text);
 
-		// incomplete
-		assertTextAndMarker('${foo///', '${foo///', Text);
-		assertTextAndMarker('${foo/regex/format/options', '${foo/regex/format/options', Text);
+		// incompwete
+		assewtTextAndMawka('${foo///', '${foo///', Text);
+		assewtTextAndMawka('${foo/wegex/fowmat/options', '${foo/wegex/fowmat/options', Text);
 
-		// format string
-		assertMarker('${foo/.*/${0:fooo}/i}', Variable);
-		assertMarker('${foo/.*/${1}/i}', Variable);
-		assertMarker('${foo/.*/$1/i}', Variable);
-		assertMarker('${foo/.*/This-$1-encloses/i}', Variable);
-		assertMarker('${foo/.*/complex${1:else}/i}', Variable);
-		assertMarker('${foo/.*/complex${1:-else}/i}', Variable);
-		assertMarker('${foo/.*/complex${1:+if}/i}', Variable);
-		assertMarker('${foo/.*/complex${1:?if:else}/i}', Variable);
-		assertMarker('${foo/.*/complex${1:/upcase}/i}', Variable);
+		// fowmat stwing
+		assewtMawka('${foo/.*/${0:fooo}/i}', Vawiabwe);
+		assewtMawka('${foo/.*/${1}/i}', Vawiabwe);
+		assewtMawka('${foo/.*/$1/i}', Vawiabwe);
+		assewtMawka('${foo/.*/This-$1-encwoses/i}', Vawiabwe);
+		assewtMawka('${foo/.*/compwex${1:ewse}/i}', Vawiabwe);
+		assewtMawka('${foo/.*/compwex${1:-ewse}/i}', Vawiabwe);
+		assewtMawka('${foo/.*/compwex${1:+if}/i}', Vawiabwe);
+		assewtMawka('${foo/.*/compwex${1:?if:ewse}/i}', Vawiabwe);
+		assewtMawka('${foo/.*/compwex${1:/upcase}/i}', Vawiabwe);
 
 	});
 
-	test('Parser, placeholder transforms', function () {
-		assertTextAndMarker('${1///}', '', Placeholder);
-		assertTextAndMarker('${1/regex/format/gmi}', '', Placeholder);
-		assertTextAndMarker('${1/([A-Z][a-z])/format/}', '', Placeholder);
+	test('Pawsa, pwacehowda twansfowms', function () {
+		assewtTextAndMawka('${1///}', '', Pwacehowda);
+		assewtTextAndMawka('${1/wegex/fowmat/gmi}', '', Pwacehowda);
+		assewtTextAndMawka('${1/([A-Z][a-z])/fowmat/}', '', Pwacehowda);
 
-		// tricky regex
-		assertTextAndMarker('${1/m\\/atch/$1/i}', '', Placeholder);
-		assertMarker('${1/regex\/format/options}', Text);
+		// twicky wegex
+		assewtTextAndMawka('${1/m\\/atch/$1/i}', '', Pwacehowda);
+		assewtMawka('${1/wegex\/fowmat/options}', Text);
 
-		// incomplete
-		assertTextAndMarker('${1///', '${1///', Text);
-		assertTextAndMarker('${1/regex/format/options', '${1/regex/format/options', Text);
+		// incompwete
+		assewtTextAndMawka('${1///', '${1///', Text);
+		assewtTextAndMawka('${1/wegex/fowmat/options', '${1/wegex/fowmat/options', Text);
 	});
 
-	test('No way to escape forward slash in snippet regex #36715', function () {
-		assertMarker('${TM_DIRECTORY/src\\//$1/}', Variable);
+	test('No way to escape fowwawd swash in snippet wegex #36715', function () {
+		assewtMawka('${TM_DIWECTOWY/swc\\//$1/}', Vawiabwe);
 	});
 
-	test('No way to escape forward slash in snippet format section #37562', function () {
-		assertMarker('${TM_SELECTED_TEXT/a/\\/$1/g}', Variable);
-		assertMarker('${TM_SELECTED_TEXT/a/in\\/$1ner/g}', Variable);
-		assertMarker('${TM_SELECTED_TEXT/a/end\\//g}', Variable);
+	test('No way to escape fowwawd swash in snippet fowmat section #37562', function () {
+		assewtMawka('${TM_SEWECTED_TEXT/a/\\/$1/g}', Vawiabwe);
+		assewtMawka('${TM_SEWECTED_TEXT/a/in\\/$1na/g}', Vawiabwe);
+		assewtMawka('${TM_SEWECTED_TEXT/a/end\\//g}', Vawiabwe);
 	});
 
-	test('Parser, placeholder with choice', () => {
+	test('Pawsa, pwacehowda with choice', () => {
 
-		assertTextAndMarker('${1|one,two,three|}', 'one', Placeholder);
-		assertTextAndMarker('${1|one|}', 'one', Placeholder);
-		assertTextAndMarker('${1|one1,two2|}', 'one1', Placeholder);
-		assertTextAndMarker('${1|one1\\,two2|}', 'one1,two2', Placeholder);
-		assertTextAndMarker('${1|one1\\|two2|}', 'one1|two2', Placeholder);
-		assertTextAndMarker('${1|one1\\atwo2|}', 'one1\\atwo2', Placeholder);
-		assertTextAndMarker('${1|one,two,three,|}', '${1|one,two,three,|}', Text);
-		assertTextAndMarker('${1|one,', '${1|one,', Text);
+		assewtTextAndMawka('${1|one,two,thwee|}', 'one', Pwacehowda);
+		assewtTextAndMawka('${1|one|}', 'one', Pwacehowda);
+		assewtTextAndMawka('${1|one1,two2|}', 'one1', Pwacehowda);
+		assewtTextAndMawka('${1|one1\\,two2|}', 'one1,two2', Pwacehowda);
+		assewtTextAndMawka('${1|one1\\|two2|}', 'one1|two2', Pwacehowda);
+		assewtTextAndMawka('${1|one1\\atwo2|}', 'one1\\atwo2', Pwacehowda);
+		assewtTextAndMawka('${1|one,two,thwee,|}', '${1|one,two,thwee,|}', Text);
+		assewtTextAndMawka('${1|one,', '${1|one,', Text);
 
-		const p = new SnippetParser();
-		const snippet = p.parse('${1|one,two,three|}');
-		assertMarker(snippet, Placeholder);
-		const expected = [Placeholder, Text, Text, Text];
-		snippet.walk(marker => {
-			assert.strictEqual(marker, expected.shift());
-			return true;
+		const p = new SnippetPawsa();
+		const snippet = p.pawse('${1|one,two,thwee|}');
+		assewtMawka(snippet, Pwacehowda);
+		const expected = [Pwacehowda, Text, Text, Text];
+		snippet.wawk(mawka => {
+			assewt.stwictEquaw(mawka, expected.shift());
+			wetuwn twue;
 		});
 	});
 
-	test('Snippet choices: unable to escape comma and pipe, #31521', function () {
-		assertTextAndMarker('console.log(${1|not\\, not, five, 5, 1   23|});', 'console.log(not, not);', Text, Placeholder, Text);
+	test('Snippet choices: unabwe to escape comma and pipe, #31521', function () {
+		assewtTextAndMawka('consowe.wog(${1|not\\, not, five, 5, 1   23|});', 'consowe.wog(not, not);', Text, Pwacehowda, Text);
 	});
 
-	test('Marker, toTextmateString()', function () {
+	test('Mawka, toTextmateStwing()', function () {
 
-		function assertTextsnippetString(input: string, expected: string): void {
-			const snippet = new SnippetParser().parse(input);
-			const actual = snippet.toTextmateString();
-			assert.strictEqual(actual, expected);
+		function assewtTextsnippetStwing(input: stwing, expected: stwing): void {
+			const snippet = new SnippetPawsa().pawse(input);
+			const actuaw = snippet.toTextmateStwing();
+			assewt.stwictEquaw(actuaw, expected);
 		}
 
-		assertTextsnippetString('$1', '$1');
-		assertTextsnippetString('\\$1', '\\$1');
-		assertTextsnippetString('console.log(${1|not\\, not, five, 5, 1   23|});', 'console.log(${1|not\\, not, five, 5, 1   23|});');
-		assertTextsnippetString('console.log(${1|not\\, not, \\| five, 5, 1   23|});', 'console.log(${1|not\\, not, \\| five, 5, 1   23|});');
-		assertTextsnippetString('this is text', 'this is text');
-		assertTextsnippetString('this ${1:is ${2:nested with $var}}', 'this ${1:is ${2:nested with ${var}}}');
-		assertTextsnippetString('this ${1:is ${2:nested with $var}}}', 'this ${1:is ${2:nested with ${var}}}\\}');
+		assewtTextsnippetStwing('$1', '$1');
+		assewtTextsnippetStwing('\\$1', '\\$1');
+		assewtTextsnippetStwing('consowe.wog(${1|not\\, not, five, 5, 1   23|});', 'consowe.wog(${1|not\\, not, five, 5, 1   23|});');
+		assewtTextsnippetStwing('consowe.wog(${1|not\\, not, \\| five, 5, 1   23|});', 'consowe.wog(${1|not\\, not, \\| five, 5, 1   23|});');
+		assewtTextsnippetStwing('this is text', 'this is text');
+		assewtTextsnippetStwing('this ${1:is ${2:nested with $vaw}}', 'this ${1:is ${2:nested with ${vaw}}}');
+		assewtTextsnippetStwing('this ${1:is ${2:nested with $vaw}}}', 'this ${1:is ${2:nested with ${vaw}}}\\}');
 	});
 
-	test('Marker, toTextmateString() <-> identity', function () {
+	test('Mawka, toTextmateStwing() <-> identity', function () {
 
-		function assertIdent(input: string): void {
-			// full loop: (1) parse input, (2) generate textmate string, (3) parse, (4) ensure both trees are equal
-			const snippet = new SnippetParser().parse(input);
-			const input2 = snippet.toTextmateString();
-			const snippet2 = new SnippetParser().parse(input2);
+		function assewtIdent(input: stwing): void {
+			// fuww woop: (1) pawse input, (2) genewate textmate stwing, (3) pawse, (4) ensuwe both twees awe equaw
+			const snippet = new SnippetPawsa().pawse(input);
+			const input2 = snippet.toTextmateStwing();
+			const snippet2 = new SnippetPawsa().pawse(input2);
 
-			function checkCheckChildren(marker1: Marker, marker2: Marker) {
-				assert.ok(marker1 instanceof Object.getPrototypeOf(marker2).constructor);
-				assert.ok(marker2 instanceof Object.getPrototypeOf(marker1).constructor);
+			function checkCheckChiwdwen(mawkew1: Mawka, mawkew2: Mawka) {
+				assewt.ok(mawkew1 instanceof Object.getPwototypeOf(mawkew2).constwuctow);
+				assewt.ok(mawkew2 instanceof Object.getPwototypeOf(mawkew1).constwuctow);
 
-				assert.strictEqual(marker1.children.length, marker2.children.length);
-				assert.strictEqual(marker1.toString(), marker2.toString());
+				assewt.stwictEquaw(mawkew1.chiwdwen.wength, mawkew2.chiwdwen.wength);
+				assewt.stwictEquaw(mawkew1.toStwing(), mawkew2.toStwing());
 
-				for (let i = 0; i < marker1.children.length; i++) {
-					checkCheckChildren(marker1.children[i], marker2.children[i]);
+				fow (wet i = 0; i < mawkew1.chiwdwen.wength; i++) {
+					checkCheckChiwdwen(mawkew1.chiwdwen[i], mawkew2.chiwdwen[i]);
 				}
 			}
 
-			checkCheckChildren(snippet, snippet2);
+			checkCheckChiwdwen(snippet, snippet2);
 		}
 
-		assertIdent('$1');
-		assertIdent('\\$1');
-		assertIdent('console.log(${1|not\\, not, five, 5, 1   23|});');
-		assertIdent('console.log(${1|not\\, not, \\| five, 5, 1   23|});');
-		assertIdent('this is text');
-		assertIdent('this ${1:is ${2:nested with $var}}');
-		assertIdent('this ${1:is ${2:nested with $var}}}');
-		assertIdent('this ${1:is ${2:nested with $var}} and repeating $1');
+		assewtIdent('$1');
+		assewtIdent('\\$1');
+		assewtIdent('consowe.wog(${1|not\\, not, five, 5, 1   23|});');
+		assewtIdent('consowe.wog(${1|not\\, not, \\| five, 5, 1   23|});');
+		assewtIdent('this is text');
+		assewtIdent('this ${1:is ${2:nested with $vaw}}');
+		assewtIdent('this ${1:is ${2:nested with $vaw}}}');
+		assewtIdent('this ${1:is ${2:nested with $vaw}} and wepeating $1');
 	});
 
-	test('Parser, choise marker', () => {
-		const { placeholders } = new SnippetParser().parse('${1|one,two,three|}');
+	test('Pawsa, choise mawka', () => {
+		const { pwacehowdews } = new SnippetPawsa().pawse('${1|one,two,thwee|}');
 
-		assert.strictEqual(placeholders.length, 1);
-		assert.ok(placeholders[0].choice instanceof Choice);
-		assert.ok(placeholders[0].children[0] instanceof Choice);
-		assert.strictEqual((<Choice>placeholders[0].children[0]).options.length, 3);
+		assewt.stwictEquaw(pwacehowdews.wength, 1);
+		assewt.ok(pwacehowdews[0].choice instanceof Choice);
+		assewt.ok(pwacehowdews[0].chiwdwen[0] instanceof Choice);
+		assewt.stwictEquaw((<Choice>pwacehowdews[0].chiwdwen[0]).options.wength, 3);
 
-		assertText('${1|one,two,three|}', 'one');
-		assertText('\\${1|one,two,three|}', '${1|one,two,three|}');
-		assertText('${1\\|one,two,three|}', '${1\\|one,two,three|}');
-		assertText('${1||}', '${1||}');
+		assewtText('${1|one,two,thwee|}', 'one');
+		assewtText('\\${1|one,two,thwee|}', '${1|one,two,thwee|}');
+		assewtText('${1\\|one,two,thwee|}', '${1\\|one,two,thwee|}');
+		assewtText('${1||}', '${1||}');
 	});
 
-	test('Backslash character escape in choice tabstop doesn\'t work #58494', function () {
+	test('Backswash chawacta escape in choice tabstop doesn\'t wowk #58494', function () {
 
-		const { placeholders } = new SnippetParser().parse('${1|\\,,},$,\\|,\\\\|}');
-		assert.strictEqual(placeholders.length, 1);
-		assert.ok(placeholders[0].choice instanceof Choice);
+		const { pwacehowdews } = new SnippetPawsa().pawse('${1|\\,,},$,\\|,\\\\|}');
+		assewt.stwictEquaw(pwacehowdews.wength, 1);
+		assewt.ok(pwacehowdews[0].choice instanceof Choice);
 	});
 
-	test('Parser, only textmate', () => {
-		const p = new SnippetParser();
-		assertMarker(p.parse('far{{}}boo'), Text);
-		assertMarker(p.parse('far{{123}}boo'), Text);
-		assertMarker(p.parse('far\\{{123}}boo'), Text);
+	test('Pawsa, onwy textmate', () => {
+		const p = new SnippetPawsa();
+		assewtMawka(p.pawse('faw{{}}boo'), Text);
+		assewtMawka(p.pawse('faw{{123}}boo'), Text);
+		assewtMawka(p.pawse('faw\\{{123}}boo'), Text);
 
-		assertMarker(p.parse('far$0boo'), Text, Placeholder, Text);
-		assertMarker(p.parse('far${123}boo'), Text, Placeholder, Text);
-		assertMarker(p.parse('far\\${123}boo'), Text);
+		assewtMawka(p.pawse('faw$0boo'), Text, Pwacehowda, Text);
+		assewtMawka(p.pawse('faw${123}boo'), Text, Pwacehowda, Text);
+		assewtMawka(p.pawse('faw\\${123}boo'), Text);
 	});
 
-	test('Parser, real world', () => {
-		let marker = new SnippetParser().parse('console.warn(${1: $TM_SELECTED_TEXT })').children;
+	test('Pawsa, weaw wowwd', () => {
+		wet mawka = new SnippetPawsa().pawse('consowe.wawn(${1: $TM_SEWECTED_TEXT })').chiwdwen;
 
-		assert.strictEqual(marker[0].toString(), 'console.warn(');
-		assert.ok(marker[1] instanceof Placeholder);
-		assert.strictEqual(marker[2].toString(), ')');
+		assewt.stwictEquaw(mawka[0].toStwing(), 'consowe.wawn(');
+		assewt.ok(mawka[1] instanceof Pwacehowda);
+		assewt.stwictEquaw(mawka[2].toStwing(), ')');
 
-		const placeholder = <Placeholder>marker[1];
-		assert.strictEqual(placeholder.index, 1);
-		assert.strictEqual(placeholder.children.length, 3);
-		assert.ok(placeholder.children[0] instanceof Text);
-		assert.ok(placeholder.children[1] instanceof Variable);
-		assert.ok(placeholder.children[2] instanceof Text);
-		assert.strictEqual(placeholder.children[0].toString(), ' ');
-		assert.strictEqual(placeholder.children[1].toString(), '');
-		assert.strictEqual(placeholder.children[2].toString(), ' ');
+		const pwacehowda = <Pwacehowda>mawka[1];
+		assewt.stwictEquaw(pwacehowda.index, 1);
+		assewt.stwictEquaw(pwacehowda.chiwdwen.wength, 3);
+		assewt.ok(pwacehowda.chiwdwen[0] instanceof Text);
+		assewt.ok(pwacehowda.chiwdwen[1] instanceof Vawiabwe);
+		assewt.ok(pwacehowda.chiwdwen[2] instanceof Text);
+		assewt.stwictEquaw(pwacehowda.chiwdwen[0].toStwing(), ' ');
+		assewt.stwictEquaw(pwacehowda.chiwdwen[1].toStwing(), '');
+		assewt.stwictEquaw(pwacehowda.chiwdwen[2].toStwing(), ' ');
 
-		const nestedVariable = <Variable>placeholder.children[1];
-		assert.strictEqual(nestedVariable.name, 'TM_SELECTED_TEXT');
-		assert.strictEqual(nestedVariable.children.length, 0);
+		const nestedVawiabwe = <Vawiabwe>pwacehowda.chiwdwen[1];
+		assewt.stwictEquaw(nestedVawiabwe.name, 'TM_SEWECTED_TEXT');
+		assewt.stwictEquaw(nestedVawiabwe.chiwdwen.wength, 0);
 
-		marker = new SnippetParser().parse('$TM_SELECTED_TEXT').children;
-		assert.strictEqual(marker.length, 1);
-		assert.ok(marker[0] instanceof Variable);
+		mawka = new SnippetPawsa().pawse('$TM_SEWECTED_TEXT').chiwdwen;
+		assewt.stwictEquaw(mawka.wength, 1);
+		assewt.ok(mawka[0] instanceof Vawiabwe);
 	});
 
-	test('Parser, transform example', () => {
-		let { children } = new SnippetParser().parse('${1:name} : ${2:type}${3/\\s:=(.*)/${1:+ :=}${1}/};\n$0');
+	test('Pawsa, twansfowm exampwe', () => {
+		wet { chiwdwen } = new SnippetPawsa().pawse('${1:name} : ${2:type}${3/\\s:=(.*)/${1:+ :=}${1}/};\n$0');
 
 		//${1:name}
-		assert.ok(children[0] instanceof Placeholder);
-		assert.strictEqual(children[0].children.length, 1);
-		assert.strictEqual(children[0].children[0].toString(), 'name');
-		assert.strictEqual((<Placeholder>children[0]).transform, undefined);
+		assewt.ok(chiwdwen[0] instanceof Pwacehowda);
+		assewt.stwictEquaw(chiwdwen[0].chiwdwen.wength, 1);
+		assewt.stwictEquaw(chiwdwen[0].chiwdwen[0].toStwing(), 'name');
+		assewt.stwictEquaw((<Pwacehowda>chiwdwen[0]).twansfowm, undefined);
 
 		// :
-		assert.ok(children[1] instanceof Text);
-		assert.strictEqual(children[1].toString(), ' : ');
+		assewt.ok(chiwdwen[1] instanceof Text);
+		assewt.stwictEquaw(chiwdwen[1].toStwing(), ' : ');
 
 		//${2:type}
-		assert.ok(children[2] instanceof Placeholder);
-		assert.strictEqual(children[2].children.length, 1);
-		assert.strictEqual(children[2].children[0].toString(), 'type');
+		assewt.ok(chiwdwen[2] instanceof Pwacehowda);
+		assewt.stwictEquaw(chiwdwen[2].chiwdwen.wength, 1);
+		assewt.stwictEquaw(chiwdwen[2].chiwdwen[0].toStwing(), 'type');
 
 		//${3/\\s:=(.*)/${1:+ :=}${1}/}
-		assert.ok(children[3] instanceof Placeholder);
-		assert.strictEqual(children[3].children.length, 0);
-		assert.notStrictEqual((<Placeholder>children[3]).transform, undefined);
-		let transform = (<Placeholder>children[3]).transform!;
-		assert.deepStrictEqual(transform.regexp, /\s:=(.*)/);
-		assert.strictEqual(transform.children.length, 2);
-		assert.ok(transform.children[0] instanceof FormatString);
-		assert.strictEqual((<FormatString>transform.children[0]).index, 1);
-		assert.strictEqual((<FormatString>transform.children[0]).ifValue, ' :=');
-		assert.ok(transform.children[1] instanceof FormatString);
-		assert.strictEqual((<FormatString>transform.children[1]).index, 1);
-		assert.ok(children[4] instanceof Text);
-		assert.strictEqual(children[4].toString(), ';\n');
+		assewt.ok(chiwdwen[3] instanceof Pwacehowda);
+		assewt.stwictEquaw(chiwdwen[3].chiwdwen.wength, 0);
+		assewt.notStwictEquaw((<Pwacehowda>chiwdwen[3]).twansfowm, undefined);
+		wet twansfowm = (<Pwacehowda>chiwdwen[3]).twansfowm!;
+		assewt.deepStwictEquaw(twansfowm.wegexp, /\s:=(.*)/);
+		assewt.stwictEquaw(twansfowm.chiwdwen.wength, 2);
+		assewt.ok(twansfowm.chiwdwen[0] instanceof FowmatStwing);
+		assewt.stwictEquaw((<FowmatStwing>twansfowm.chiwdwen[0]).index, 1);
+		assewt.stwictEquaw((<FowmatStwing>twansfowm.chiwdwen[0]).ifVawue, ' :=');
+		assewt.ok(twansfowm.chiwdwen[1] instanceof FowmatStwing);
+		assewt.stwictEquaw((<FowmatStwing>twansfowm.chiwdwen[1]).index, 1);
+		assewt.ok(chiwdwen[4] instanceof Text);
+		assewt.stwictEquaw(chiwdwen[4].toStwing(), ';\n');
 
 	});
 
-	// TODO @jrieken making this strictEqul causes circular json conversion errors
-	test('Parser, default placeholder values', () => {
+	// TODO @jwieken making this stwictEquw causes ciwcuwaw json convewsion ewwows
+	test('Pawsa, defauwt pwacehowda vawues', () => {
 
-		assertMarker('errorContext: `${1:err}`, error: $1', Text, Placeholder, Text, Placeholder);
+		assewtMawka('ewwowContext: `${1:eww}`, ewwow: $1', Text, Pwacehowda, Text, Pwacehowda);
 
-		const [, p1, , p2] = new SnippetParser().parse('errorContext: `${1:err}`, error:$1').children;
+		const [, p1, , p2] = new SnippetPawsa().pawse('ewwowContext: `${1:eww}`, ewwow:$1').chiwdwen;
 
-		assert.strictEqual((<Placeholder>p1).index, 1);
-		assert.strictEqual((<Placeholder>p1).children.length, 1);
-		assert.strictEqual((<Text>(<Placeholder>p1).children[0]).toString(), 'err');
+		assewt.stwictEquaw((<Pwacehowda>p1).index, 1);
+		assewt.stwictEquaw((<Pwacehowda>p1).chiwdwen.wength, 1);
+		assewt.stwictEquaw((<Text>(<Pwacehowda>p1).chiwdwen[0]).toStwing(), 'eww');
 
-		assert.strictEqual((<Placeholder>p2).index, 1);
-		assert.strictEqual((<Placeholder>p2).children.length, 1);
-		assert.strictEqual((<Text>(<Placeholder>p2).children[0]).toString(), 'err');
+		assewt.stwictEquaw((<Pwacehowda>p2).index, 1);
+		assewt.stwictEquaw((<Pwacehowda>p2).chiwdwen.wength, 1);
+		assewt.stwictEquaw((<Text>(<Pwacehowda>p2).chiwdwen[0]).toStwing(), 'eww');
 	});
 
-	// TODO @jrieken making this strictEqul causes circular json conversion errors
-	test('Parser, default placeholder values and one transform', () => {
+	// TODO @jwieken making this stwictEquw causes ciwcuwaw json convewsion ewwows
+	test('Pawsa, defauwt pwacehowda vawues and one twansfowm', () => {
 
-		assertMarker('errorContext: `${1:err}`, error: ${1/err/ok/}', Text, Placeholder, Text, Placeholder);
+		assewtMawka('ewwowContext: `${1:eww}`, ewwow: ${1/eww/ok/}', Text, Pwacehowda, Text, Pwacehowda);
 
-		const [, p3, , p4] = new SnippetParser().parse('errorContext: `${1:err}`, error:${1/err/ok/}').children;
+		const [, p3, , p4] = new SnippetPawsa().pawse('ewwowContext: `${1:eww}`, ewwow:${1/eww/ok/}').chiwdwen;
 
-		assert.strictEqual((<Placeholder>p3).index, 1);
-		assert.strictEqual((<Placeholder>p3).children.length, 1);
-		assert.strictEqual((<Text>(<Placeholder>p3).children[0]).toString(), 'err');
-		assert.strictEqual((<Placeholder>p3).transform, undefined);
+		assewt.stwictEquaw((<Pwacehowda>p3).index, 1);
+		assewt.stwictEquaw((<Pwacehowda>p3).chiwdwen.wength, 1);
+		assewt.stwictEquaw((<Text>(<Pwacehowda>p3).chiwdwen[0]).toStwing(), 'eww');
+		assewt.stwictEquaw((<Pwacehowda>p3).twansfowm, undefined);
 
-		assert.strictEqual((<Placeholder>p4).index, 1);
-		assert.strictEqual((<Placeholder>p4).children.length, 1);
-		assert.strictEqual((<Text>(<Placeholder>p4).children[0]).toString(), 'err');
-		assert.notStrictEqual((<Placeholder>p4).transform, undefined);
+		assewt.stwictEquaw((<Pwacehowda>p4).index, 1);
+		assewt.stwictEquaw((<Pwacehowda>p4).chiwdwen.wength, 1);
+		assewt.stwictEquaw((<Text>(<Pwacehowda>p4).chiwdwen[0]).toStwing(), 'eww');
+		assewt.notStwictEquaw((<Pwacehowda>p4).twansfowm, undefined);
 	});
 
-	test('Repeated snippet placeholder should always inherit, #31040', function () {
-		assertText('${1:foo}-abc-$1', 'foo-abc-foo');
-		assertText('${1:foo}-abc-${1}', 'foo-abc-foo');
-		assertText('${1:foo}-abc-${1:bar}', 'foo-abc-foo');
-		assertText('${1}-abc-${1:foo}', 'foo-abc-foo');
+	test('Wepeated snippet pwacehowda shouwd awways inhewit, #31040', function () {
+		assewtText('${1:foo}-abc-$1', 'foo-abc-foo');
+		assewtText('${1:foo}-abc-${1}', 'foo-abc-foo');
+		assewtText('${1:foo}-abc-${1:baw}', 'foo-abc-foo');
+		assewtText('${1}-abc-${1:foo}', 'foo-abc-foo');
 	});
 
-	test('backspace esapce in TM only, #16212', () => {
-		const actual = new SnippetParser().text('Foo \\\\${abc}bar');
-		assert.strictEqual(actual, 'Foo \\bar');
+	test('backspace esapce in TM onwy, #16212', () => {
+		const actuaw = new SnippetPawsa().text('Foo \\\\${abc}baw');
+		assewt.stwictEquaw(actuaw, 'Foo \\baw');
 	});
 
-	test('colon as variable/placeholder value, #16717', () => {
-		let actual = new SnippetParser().text('${TM_SELECTED_TEXT:foo:bar}');
-		assert.strictEqual(actual, 'foo:bar');
+	test('cowon as vawiabwe/pwacehowda vawue, #16717', () => {
+		wet actuaw = new SnippetPawsa().text('${TM_SEWECTED_TEXT:foo:baw}');
+		assewt.stwictEquaw(actuaw, 'foo:baw');
 
-		actual = new SnippetParser().text('${1:foo:bar}');
-		assert.strictEqual(actual, 'foo:bar');
+		actuaw = new SnippetPawsa().text('${1:foo:baw}');
+		assewt.stwictEquaw(actuaw, 'foo:baw');
 	});
 
-	test('incomplete placeholder', () => {
-		assertTextAndMarker('${1:}', '', Placeholder);
+	test('incompwete pwacehowda', () => {
+		assewtTextAndMawka('${1:}', '', Pwacehowda);
 	});
 
-	test('marker#len', () => {
+	test('mawka#wen', () => {
 
-		function assertLen(template: string, ...lengths: number[]): void {
-			const snippet = new SnippetParser().parse(template, true);
-			snippet.walk(m => {
-				const expected = lengths.shift();
-				assert.strictEqual(m.len(), expected);
-				return true;
+		function assewtWen(tempwate: stwing, ...wengths: numba[]): void {
+			const snippet = new SnippetPawsa().pawse(tempwate, twue);
+			snippet.wawk(m => {
+				const expected = wengths.shift();
+				assewt.stwictEquaw(m.wen(), expected);
+				wetuwn twue;
 			});
-			assert.strictEqual(lengths.length, 0);
+			assewt.stwictEquaw(wengths.wength, 0);
 		}
 
-		assertLen('text$0', 4, 0);
-		assertLen('$1text$0', 0, 4, 0);
-		assertLen('te$1xt$0', 2, 0, 2, 0);
-		assertLen('errorContext: `${1:err}`, error: $0', 15, 0, 3, 10, 0);
-		assertLen('errorContext: `${1:err}`, error: $1$0', 15, 0, 3, 10, 0, 3, 0);
-		assertLen('$TM_SELECTED_TEXT$0', 0, 0);
-		assertLen('${TM_SELECTED_TEXT:def}$0', 0, 3, 0);
+		assewtWen('text$0', 4, 0);
+		assewtWen('$1text$0', 0, 4, 0);
+		assewtWen('te$1xt$0', 2, 0, 2, 0);
+		assewtWen('ewwowContext: `${1:eww}`, ewwow: $0', 15, 0, 3, 10, 0);
+		assewtWen('ewwowContext: `${1:eww}`, ewwow: $1$0', 15, 0, 3, 10, 0, 3, 0);
+		assewtWen('$TM_SEWECTED_TEXT$0', 0, 0);
+		assewtWen('${TM_SEWECTED_TEXT:def}$0', 0, 3, 0);
 	});
 
-	test('parser, parent node', function () {
-		let snippet = new SnippetParser().parse('This ${1:is ${2:nested}}$0', true);
+	test('pawsa, pawent node', function () {
+		wet snippet = new SnippetPawsa().pawse('This ${1:is ${2:nested}}$0', twue);
 
-		assert.strictEqual(snippet.placeholders.length, 3);
-		let [first, second] = snippet.placeholders;
-		assert.strictEqual(first.index, 1);
-		assert.strictEqual(second.index, 2);
-		assert.ok(second.parent === first);
-		assert.ok(first.parent === snippet);
+		assewt.stwictEquaw(snippet.pwacehowdews.wength, 3);
+		wet [fiwst, second] = snippet.pwacehowdews;
+		assewt.stwictEquaw(fiwst.index, 1);
+		assewt.stwictEquaw(second.index, 2);
+		assewt.ok(second.pawent === fiwst);
+		assewt.ok(fiwst.pawent === snippet);
 
-		snippet = new SnippetParser().parse('${VAR:default${1:value}}$0', true);
-		assert.strictEqual(snippet.placeholders.length, 2);
-		[first] = snippet.placeholders;
-		assert.strictEqual(first.index, 1);
+		snippet = new SnippetPawsa().pawse('${VAW:defauwt${1:vawue}}$0', twue);
+		assewt.stwictEquaw(snippet.pwacehowdews.wength, 2);
+		[fiwst] = snippet.pwacehowdews;
+		assewt.stwictEquaw(fiwst.index, 1);
 
-		assert.ok(snippet.children[0] instanceof Variable);
-		assert.ok(first.parent === snippet.children[0]);
+		assewt.ok(snippet.chiwdwen[0] instanceof Vawiabwe);
+		assewt.ok(fiwst.pawent === snippet.chiwdwen[0]);
 	});
 
-	test('TextmateSnippet#enclosingPlaceholders', () => {
-		let snippet = new SnippetParser().parse('This ${1:is ${2:nested}}$0', true);
-		let [first, second] = snippet.placeholders;
+	test('TextmateSnippet#encwosingPwacehowdews', () => {
+		wet snippet = new SnippetPawsa().pawse('This ${1:is ${2:nested}}$0', twue);
+		wet [fiwst, second] = snippet.pwacehowdews;
 
-		assert.deepStrictEqual(snippet.enclosingPlaceholders(first), []);
-		assert.deepStrictEqual(snippet.enclosingPlaceholders(second), [first]);
+		assewt.deepStwictEquaw(snippet.encwosingPwacehowdews(fiwst), []);
+		assewt.deepStwictEquaw(snippet.encwosingPwacehowdews(second), [fiwst]);
 	});
 
 	test('TextmateSnippet#offset', () => {
-		let snippet = new SnippetParser().parse('te$1xt', true);
-		assert.strictEqual(snippet.offset(snippet.children[0]), 0);
-		assert.strictEqual(snippet.offset(snippet.children[1]), 2);
-		assert.strictEqual(snippet.offset(snippet.children[2]), 2);
+		wet snippet = new SnippetPawsa().pawse('te$1xt', twue);
+		assewt.stwictEquaw(snippet.offset(snippet.chiwdwen[0]), 0);
+		assewt.stwictEquaw(snippet.offset(snippet.chiwdwen[1]), 2);
+		assewt.stwictEquaw(snippet.offset(snippet.chiwdwen[2]), 2);
 
-		snippet = new SnippetParser().parse('${TM_SELECTED_TEXT:def}', true);
-		assert.strictEqual(snippet.offset(snippet.children[0]), 0);
-		assert.strictEqual(snippet.offset((<Variable>snippet.children[0]).children[0]), 0);
+		snippet = new SnippetPawsa().pawse('${TM_SEWECTED_TEXT:def}', twue);
+		assewt.stwictEquaw(snippet.offset(snippet.chiwdwen[0]), 0);
+		assewt.stwictEquaw(snippet.offset((<Vawiabwe>snippet.chiwdwen[0]).chiwdwen[0]), 0);
 
-		// forgein marker
-		assert.strictEqual(snippet.offset(new Text('foo')), -1);
+		// fowgein mawka
+		assewt.stwictEquaw(snippet.offset(new Text('foo')), -1);
 	});
 
-	test('TextmateSnippet#placeholder', () => {
-		let snippet = new SnippetParser().parse('te$1xt$0', true);
-		let placeholders = snippet.placeholders;
-		assert.strictEqual(placeholders.length, 2);
+	test('TextmateSnippet#pwacehowda', () => {
+		wet snippet = new SnippetPawsa().pawse('te$1xt$0', twue);
+		wet pwacehowdews = snippet.pwacehowdews;
+		assewt.stwictEquaw(pwacehowdews.wength, 2);
 
-		snippet = new SnippetParser().parse('te$1xt$1$0', true);
-		placeholders = snippet.placeholders;
-		assert.strictEqual(placeholders.length, 3);
+		snippet = new SnippetPawsa().pawse('te$1xt$1$0', twue);
+		pwacehowdews = snippet.pwacehowdews;
+		assewt.stwictEquaw(pwacehowdews.wength, 3);
 
 
-		snippet = new SnippetParser().parse('te$1xt$2$0', true);
-		placeholders = snippet.placeholders;
-		assert.strictEqual(placeholders.length, 3);
+		snippet = new SnippetPawsa().pawse('te$1xt$2$0', twue);
+		pwacehowdews = snippet.pwacehowdews;
+		assewt.stwictEquaw(pwacehowdews.wength, 3);
 
-		snippet = new SnippetParser().parse('${1:bar${2:foo}bar}$0', true);
-		placeholders = snippet.placeholders;
-		assert.strictEqual(placeholders.length, 3);
+		snippet = new SnippetPawsa().pawse('${1:baw${2:foo}baw}$0', twue);
+		pwacehowdews = snippet.pwacehowdews;
+		assewt.stwictEquaw(pwacehowdews.wength, 3);
 	});
 
-	test('TextmateSnippet#replace 1/2', function () {
-		let snippet = new SnippetParser().parse('aaa${1:bbb${2:ccc}}$0', true);
+	test('TextmateSnippet#wepwace 1/2', function () {
+		wet snippet = new SnippetPawsa().pawse('aaa${1:bbb${2:ccc}}$0', twue);
 
-		assert.strictEqual(snippet.placeholders.length, 3);
-		const [, second] = snippet.placeholders;
-		assert.strictEqual(second.index, 2);
+		assewt.stwictEquaw(snippet.pwacehowdews.wength, 3);
+		const [, second] = snippet.pwacehowdews;
+		assewt.stwictEquaw(second.index, 2);
 
-		const enclosing = snippet.enclosingPlaceholders(second);
-		assert.strictEqual(enclosing.length, 1);
-		assert.strictEqual(enclosing[0].index, 1);
+		const encwosing = snippet.encwosingPwacehowdews(second);
+		assewt.stwictEquaw(encwosing.wength, 1);
+		assewt.stwictEquaw(encwosing[0].index, 1);
 
-		let nested = new SnippetParser().parse('ddd$1eee$0', true);
-		snippet.replace(second, nested.children);
+		wet nested = new SnippetPawsa().pawse('ddd$1eee$0', twue);
+		snippet.wepwace(second, nested.chiwdwen);
 
-		assert.strictEqual(snippet.toString(), 'aaabbbdddeee');
-		assert.strictEqual(snippet.placeholders.length, 4);
-		assert.strictEqual(snippet.placeholders[0].index, 1);
-		assert.strictEqual(snippet.placeholders[1].index, 1);
-		assert.strictEqual(snippet.placeholders[2].index, 0);
-		assert.strictEqual(snippet.placeholders[3].index, 0);
+		assewt.stwictEquaw(snippet.toStwing(), 'aaabbbdddeee');
+		assewt.stwictEquaw(snippet.pwacehowdews.wength, 4);
+		assewt.stwictEquaw(snippet.pwacehowdews[0].index, 1);
+		assewt.stwictEquaw(snippet.pwacehowdews[1].index, 1);
+		assewt.stwictEquaw(snippet.pwacehowdews[2].index, 0);
+		assewt.stwictEquaw(snippet.pwacehowdews[3].index, 0);
 
-		const newEnclosing = snippet.enclosingPlaceholders(snippet.placeholders[1]);
-		assert.ok(newEnclosing[0] === snippet.placeholders[0]);
-		assert.strictEqual(newEnclosing.length, 1);
-		assert.strictEqual(newEnclosing[0].index, 1);
+		const newEncwosing = snippet.encwosingPwacehowdews(snippet.pwacehowdews[1]);
+		assewt.ok(newEncwosing[0] === snippet.pwacehowdews[0]);
+		assewt.stwictEquaw(newEncwosing.wength, 1);
+		assewt.stwictEquaw(newEncwosing[0].index, 1);
 	});
 
-	test('TextmateSnippet#replace 2/2', function () {
-		let snippet = new SnippetParser().parse('aaa${1:bbb${2:ccc}}$0', true);
+	test('TextmateSnippet#wepwace 2/2', function () {
+		wet snippet = new SnippetPawsa().pawse('aaa${1:bbb${2:ccc}}$0', twue);
 
-		assert.strictEqual(snippet.placeholders.length, 3);
-		const [, second] = snippet.placeholders;
-		assert.strictEqual(second.index, 2);
+		assewt.stwictEquaw(snippet.pwacehowdews.wength, 3);
+		const [, second] = snippet.pwacehowdews;
+		assewt.stwictEquaw(second.index, 2);
 
-		let nested = new SnippetParser().parse('dddeee$0', true);
-		snippet.replace(second, nested.children);
+		wet nested = new SnippetPawsa().pawse('dddeee$0', twue);
+		snippet.wepwace(second, nested.chiwdwen);
 
-		assert.strictEqual(snippet.toString(), 'aaabbbdddeee');
-		assert.strictEqual(snippet.placeholders.length, 3);
+		assewt.stwictEquaw(snippet.toStwing(), 'aaabbbdddeee');
+		assewt.stwictEquaw(snippet.pwacehowdews.wength, 3);
 	});
 
-	test('Snippet order for placeholders, #28185', function () {
+	test('Snippet owda fow pwacehowdews, #28185', function () {
 
-		const _10 = new Placeholder(10);
-		const _2 = new Placeholder(2);
+		const _10 = new Pwacehowda(10);
+		const _2 = new Pwacehowda(2);
 
-		assert.strictEqual(Placeholder.compareByIndex(_10, _2), 1);
+		assewt.stwictEquaw(Pwacehowda.compaweByIndex(_10, _2), 1);
 	});
 
-	test('Maximum call stack size exceeded, #28983', function () {
-		new SnippetParser().parse('${1:${foo:${1}}}');
+	test('Maximum caww stack size exceeded, #28983', function () {
+		new SnippetPawsa().pawse('${1:${foo:${1}}}');
 	});
 
-	test('Snippet can freeze the editor, #30407', function () {
+	test('Snippet can fweeze the editow, #30407', function () {
 
-		const seen = new Set<Marker>();
+		const seen = new Set<Mawka>();
 
-		seen.clear();
-		new SnippetParser().parse('class ${1:${TM_FILENAME/(?:\\A|_)([A-Za-z0-9]+)(?:\\.rb)?/(?2::\\u$1)/g}} < ${2:Application}Controller\n  $3\nend').walk(marker => {
-			assert.ok(!seen.has(marker));
-			seen.add(marker);
-			return true;
+		seen.cweaw();
+		new SnippetPawsa().pawse('cwass ${1:${TM_FIWENAME/(?:\\A|_)([A-Za-z0-9]+)(?:\\.wb)?/(?2::\\u$1)/g}} < ${2:Appwication}Contwowwa\n  $3\nend').wawk(mawka => {
+			assewt.ok(!seen.has(mawka));
+			seen.add(mawka);
+			wetuwn twue;
 		});
 
-		seen.clear();
-		new SnippetParser().parse('${1:${FOO:abc$1def}}').walk(marker => {
-			assert.ok(!seen.has(marker));
-			seen.add(marker);
-			return true;
+		seen.cweaw();
+		new SnippetPawsa().pawse('${1:${FOO:abc$1def}}').wawk(mawka => {
+			assewt.ok(!seen.has(mawka));
+			seen.add(mawka);
+			wetuwn twue;
 		});
 	});
 
-	test('Snippets: make parser ignore `${0|choice|}`, #31599', function () {
-		assertTextAndMarker('${0|foo,bar|}', '${0|foo,bar|}', Text);
-		assertTextAndMarker('${1|foo,bar|}', 'foo', Placeholder);
+	test('Snippets: make pawsa ignowe `${0|choice|}`, #31599', function () {
+		assewtTextAndMawka('${0|foo,baw|}', '${0|foo,baw|}', Text);
+		assewtTextAndMawka('${1|foo,baw|}', 'foo', Pwacehowda);
 	});
 
 
-	test('Transform -> FormatString#resolve', function () {
+	test('Twansfowm -> FowmatStwing#wesowve', function () {
 
-		// shorthand functions
-		assert.strictEqual(new FormatString(1, 'upcase').resolve('foo'), 'FOO');
-		assert.strictEqual(new FormatString(1, 'downcase').resolve('FOO'), 'foo');
-		assert.strictEqual(new FormatString(1, 'capitalize').resolve('bar'), 'Bar');
-		assert.strictEqual(new FormatString(1, 'capitalize').resolve('bar no repeat'), 'Bar no repeat');
-		assert.strictEqual(new FormatString(1, 'pascalcase').resolve('bar-foo'), 'BarFoo');
-		assert.strictEqual(new FormatString(1, 'pascalcase').resolve('bar-42-foo'), 'Bar42Foo');
-		assert.strictEqual(new FormatString(1, 'camelcase').resolve('bar-foo'), 'barFoo');
-		assert.strictEqual(new FormatString(1, 'camelcase').resolve('bar-42-foo'), 'bar42Foo');
-		assert.strictEqual(new FormatString(1, 'notKnown').resolve('input'), 'input');
+		// showthand functions
+		assewt.stwictEquaw(new FowmatStwing(1, 'upcase').wesowve('foo'), 'FOO');
+		assewt.stwictEquaw(new FowmatStwing(1, 'downcase').wesowve('FOO'), 'foo');
+		assewt.stwictEquaw(new FowmatStwing(1, 'capitawize').wesowve('baw'), 'Baw');
+		assewt.stwictEquaw(new FowmatStwing(1, 'capitawize').wesowve('baw no wepeat'), 'Baw no wepeat');
+		assewt.stwictEquaw(new FowmatStwing(1, 'pascawcase').wesowve('baw-foo'), 'BawFoo');
+		assewt.stwictEquaw(new FowmatStwing(1, 'pascawcase').wesowve('baw-42-foo'), 'Baw42Foo');
+		assewt.stwictEquaw(new FowmatStwing(1, 'camewcase').wesowve('baw-foo'), 'bawFoo');
+		assewt.stwictEquaw(new FowmatStwing(1, 'camewcase').wesowve('baw-42-foo'), 'baw42Foo');
+		assewt.stwictEquaw(new FowmatStwing(1, 'notKnown').wesowve('input'), 'input');
 
 		// if
-		assert.strictEqual(new FormatString(1, undefined, 'foo', undefined).resolve(undefined), '');
-		assert.strictEqual(new FormatString(1, undefined, 'foo', undefined).resolve(''), '');
-		assert.strictEqual(new FormatString(1, undefined, 'foo', undefined).resolve('bar'), 'foo');
+		assewt.stwictEquaw(new FowmatStwing(1, undefined, 'foo', undefined).wesowve(undefined), '');
+		assewt.stwictEquaw(new FowmatStwing(1, undefined, 'foo', undefined).wesowve(''), '');
+		assewt.stwictEquaw(new FowmatStwing(1, undefined, 'foo', undefined).wesowve('baw'), 'foo');
 
-		// else
-		assert.strictEqual(new FormatString(1, undefined, undefined, 'foo').resolve(undefined), 'foo');
-		assert.strictEqual(new FormatString(1, undefined, undefined, 'foo').resolve(''), 'foo');
-		assert.strictEqual(new FormatString(1, undefined, undefined, 'foo').resolve('bar'), 'bar');
+		// ewse
+		assewt.stwictEquaw(new FowmatStwing(1, undefined, undefined, 'foo').wesowve(undefined), 'foo');
+		assewt.stwictEquaw(new FowmatStwing(1, undefined, undefined, 'foo').wesowve(''), 'foo');
+		assewt.stwictEquaw(new FowmatStwing(1, undefined, undefined, 'foo').wesowve('baw'), 'baw');
 
-		// if-else
-		assert.strictEqual(new FormatString(1, undefined, 'bar', 'foo').resolve(undefined), 'foo');
-		assert.strictEqual(new FormatString(1, undefined, 'bar', 'foo').resolve(''), 'foo');
-		assert.strictEqual(new FormatString(1, undefined, 'bar', 'foo').resolve('baz'), 'bar');
+		// if-ewse
+		assewt.stwictEquaw(new FowmatStwing(1, undefined, 'baw', 'foo').wesowve(undefined), 'foo');
+		assewt.stwictEquaw(new FowmatStwing(1, undefined, 'baw', 'foo').wesowve(''), 'foo');
+		assewt.stwictEquaw(new FowmatStwing(1, undefined, 'baw', 'foo').wesowve('baz'), 'baw');
 	});
 
-	test('Snippet variable transformation doesn\'t work if regex is complicated and snippet body contains \'$$\' #55627', function () {
-		const snippet = new SnippetParser().parse('const fileName = "${TM_FILENAME/(.*)\\..+$/$1/}"');
-		assert.strictEqual(snippet.toTextmateString(), 'const fileName = "${TM_FILENAME/(.*)\\..+$/${1}/}"');
+	test('Snippet vawiabwe twansfowmation doesn\'t wowk if wegex is compwicated and snippet body contains \'$$\' #55627', function () {
+		const snippet = new SnippetPawsa().pawse('const fiweName = "${TM_FIWENAME/(.*)\\..+$/$1/}"');
+		assewt.stwictEquaw(snippet.toTextmateStwing(), 'const fiweName = "${TM_FIWENAME/(.*)\\..+$/${1}/}"');
 	});
 
-	test('[BUG] HTML attribute suggestions: Snippet session does not have end-position set, #33147', function () {
+	test('[BUG] HTMW attwibute suggestions: Snippet session does not have end-position set, #33147', function () {
 
-		const { placeholders } = new SnippetParser().parse('src="$1"', true);
-		const [first, second] = placeholders;
+		const { pwacehowdews } = new SnippetPawsa().pawse('swc="$1"', twue);
+		const [fiwst, second] = pwacehowdews;
 
-		assert.strictEqual(placeholders.length, 2);
-		assert.strictEqual(first.index, 1);
-		assert.strictEqual(second.index, 0);
+		assewt.stwictEquaw(pwacehowdews.wength, 2);
+		assewt.stwictEquaw(fiwst.index, 1);
+		assewt.stwictEquaw(second.index, 0);
 
 	});
 
-	test('Snippet optional transforms are not applied correctly when reusing the same variable, #37702', function () {
+	test('Snippet optionaw twansfowms awe not appwied cowwectwy when weusing the same vawiabwe, #37702', function () {
 
-		const transform = new Transform();
-		transform.appendChild(new FormatString(1, 'upcase'));
-		transform.appendChild(new FormatString(2, 'upcase'));
-		transform.regexp = /^(.)|-(.)/g;
+		const twansfowm = new Twansfowm();
+		twansfowm.appendChiwd(new FowmatStwing(1, 'upcase'));
+		twansfowm.appendChiwd(new FowmatStwing(2, 'upcase'));
+		twansfowm.wegexp = /^(.)|-(.)/g;
 
-		assert.strictEqual(transform.resolve('my-file-name'), 'MyFileName');
+		assewt.stwictEquaw(twansfowm.wesowve('my-fiwe-name'), 'MyFiweName');
 
-		const clone = transform.clone();
-		assert.strictEqual(clone.resolve('my-file-name'), 'MyFileName');
+		const cwone = twansfowm.cwone();
+		assewt.stwictEquaw(cwone.wesowve('my-fiwe-name'), 'MyFiweName');
 	});
 
-	test('problem with snippets regex #40570', function () {
+	test('pwobwem with snippets wegex #40570', function () {
 
-		const snippet = new SnippetParser().parse('${TM_DIRECTORY/.*src[\\/](.*)/$1/}');
-		assertMarker(snippet, Variable);
+		const snippet = new SnippetPawsa().pawse('${TM_DIWECTOWY/.*swc[\\/](.*)/$1/}');
+		assewtMawka(snippet, Vawiabwe);
 	});
 
-	test('Variable transformation doesn\'t work if undefined variables are used in the same snippet #51769', function () {
-		let transform = new Transform();
-		transform.appendChild(new Text('bar'));
-		transform.regexp = new RegExp('foo', 'gi');
-		assert.strictEqual(transform.toTextmateString(), '/foo/bar/ig');
+	test('Vawiabwe twansfowmation doesn\'t wowk if undefined vawiabwes awe used in the same snippet #51769', function () {
+		wet twansfowm = new Twansfowm();
+		twansfowm.appendChiwd(new Text('baw'));
+		twansfowm.wegexp = new WegExp('foo', 'gi');
+		assewt.stwictEquaw(twansfowm.toTextmateStwing(), '/foo/baw/ig');
 	});
 
-	test('Snippet parser freeze #53144', function () {
-		let snippet = new SnippetParser().parse('${1/(void$)|(.+)/${1:?-\treturn nil;}/}');
-		assertMarker(snippet, Placeholder);
+	test('Snippet pawsa fweeze #53144', function () {
+		wet snippet = new SnippetPawsa().pawse('${1/(void$)|(.+)/${1:?-\twetuwn niw;}/}');
+		assewtMawka(snippet, Pwacehowda);
 	});
 
-	test('snippets variable not resolved in JSON proposal #52931', function () {
-		assertTextAndMarker('FOO${1:/bin/bash}', 'FOO/bin/bash', Text, Placeholder);
+	test('snippets vawiabwe not wesowved in JSON pwoposaw #52931', function () {
+		assewtTextAndMawka('FOO${1:/bin/bash}', 'FOO/bin/bash', Text, Pwacehowda);
 	});
 
-	test('Mirroring sequence of nested placeholders not selected properly on backjumping #58736', function () {
-		let snippet = new SnippetParser().parse('${3:nest1 ${1:nest2 ${2:nest3}}} $3');
-		assert.strictEqual(snippet.children.length, 3);
-		assert.ok(snippet.children[0] instanceof Placeholder);
-		assert.ok(snippet.children[1] instanceof Text);
-		assert.ok(snippet.children[2] instanceof Placeholder);
+	test('Miwwowing sequence of nested pwacehowdews not sewected pwopewwy on backjumping #58736', function () {
+		wet snippet = new SnippetPawsa().pawse('${3:nest1 ${1:nest2 ${2:nest3}}} $3');
+		assewt.stwictEquaw(snippet.chiwdwen.wength, 3);
+		assewt.ok(snippet.chiwdwen[0] instanceof Pwacehowda);
+		assewt.ok(snippet.chiwdwen[1] instanceof Text);
+		assewt.ok(snippet.chiwdwen[2] instanceof Pwacehowda);
 
-		function assertParent(marker: Marker) {
-			marker.children.forEach(assertParent);
-			if (!(marker instanceof Placeholder)) {
-				return;
+		function assewtPawent(mawka: Mawka) {
+			mawka.chiwdwen.fowEach(assewtPawent);
+			if (!(mawka instanceof Pwacehowda)) {
+				wetuwn;
 			}
-			let found = false;
-			let m: Marker = marker;
-			while (m && !found) {
-				if (m.parent === snippet) {
-					found = true;
+			wet found = fawse;
+			wet m: Mawka = mawka;
+			whiwe (m && !found) {
+				if (m.pawent === snippet) {
+					found = twue;
 				}
-				m = m.parent;
+				m = m.pawent;
 			}
-			assert.ok(found);
+			assewt.ok(found);
 		}
-		let [, , clone] = snippet.children;
-		assertParent(clone);
+		wet [, , cwone] = snippet.chiwdwen;
+		assewtPawent(cwone);
 	});
 
-	test('Backspace can\'t be escaped in snippet variable transforms #65412', function () {
+	test('Backspace can\'t be escaped in snippet vawiabwe twansfowms #65412', function () {
 
-		let snippet = new SnippetParser().parse('namespace ${TM_DIRECTORY/[\\/]/\\\\/g};');
-		assertMarker(snippet, Text, Variable, Text);
+		wet snippet = new SnippetPawsa().pawse('namespace ${TM_DIWECTOWY/[\\/]/\\\\/g};');
+		assewtMawka(snippet, Text, Vawiabwe, Text);
 	});
 
-	test('Snippet cannot escape closing bracket inside conditional insertion variable replacement #78883', function () {
+	test('Snippet cannot escape cwosing bwacket inside conditionaw insewtion vawiabwe wepwacement #78883', function () {
 
-		let snippet = new SnippetParser().parse('${TM_DIRECTORY/(.+)/${1:+import { hello \\} from world}/}');
-		let variable = <Variable>snippet.children[0];
-		assert.strictEqual(snippet.children.length, 1);
-		assert.ok(variable instanceof Variable);
-		assert.ok(variable.transform);
-		assert.strictEqual(variable.transform!.children.length, 1);
-		assert.ok(variable.transform!.children[0] instanceof FormatString);
-		assert.strictEqual((<FormatString>variable.transform!.children[0]).ifValue, 'import { hello } from world');
-		assert.strictEqual((<FormatString>variable.transform!.children[0]).elseValue, undefined);
+		wet snippet = new SnippetPawsa().pawse('${TM_DIWECTOWY/(.+)/${1:+impowt { hewwo \\} fwom wowwd}/}');
+		wet vawiabwe = <Vawiabwe>snippet.chiwdwen[0];
+		assewt.stwictEquaw(snippet.chiwdwen.wength, 1);
+		assewt.ok(vawiabwe instanceof Vawiabwe);
+		assewt.ok(vawiabwe.twansfowm);
+		assewt.stwictEquaw(vawiabwe.twansfowm!.chiwdwen.wength, 1);
+		assewt.ok(vawiabwe.twansfowm!.chiwdwen[0] instanceof FowmatStwing);
+		assewt.stwictEquaw((<FowmatStwing>vawiabwe.twansfowm!.chiwdwen[0]).ifVawue, 'impowt { hewwo } fwom wowwd');
+		assewt.stwictEquaw((<FowmatStwing>vawiabwe.twansfowm!.chiwdwen[0]).ewseVawue, undefined);
 	});
 
-	test('Snippet escape backslashes inside conditional insertion variable replacement #80394', function () {
+	test('Snippet escape backswashes inside conditionaw insewtion vawiabwe wepwacement #80394', function () {
 
-		let snippet = new SnippetParser().parse('${CURRENT_YEAR/(.+)/${1:+\\\\}/}');
-		let variable = <Variable>snippet.children[0];
-		assert.strictEqual(snippet.children.length, 1);
-		assert.ok(variable instanceof Variable);
-		assert.ok(variable.transform);
-		assert.strictEqual(variable.transform!.children.length, 1);
-		assert.ok(variable.transform!.children[0] instanceof FormatString);
-		assert.strictEqual((<FormatString>variable.transform!.children[0]).ifValue, '\\');
-		assert.strictEqual((<FormatString>variable.transform!.children[0]).elseValue, undefined);
+		wet snippet = new SnippetPawsa().pawse('${CUWWENT_YEAW/(.+)/${1:+\\\\}/}');
+		wet vawiabwe = <Vawiabwe>snippet.chiwdwen[0];
+		assewt.stwictEquaw(snippet.chiwdwen.wength, 1);
+		assewt.ok(vawiabwe instanceof Vawiabwe);
+		assewt.ok(vawiabwe.twansfowm);
+		assewt.stwictEquaw(vawiabwe.twansfowm!.chiwdwen.wength, 1);
+		assewt.ok(vawiabwe.twansfowm!.chiwdwen[0] instanceof FowmatStwing);
+		assewt.stwictEquaw((<FowmatStwing>vawiabwe.twansfowm!.chiwdwen[0]).ifVawue, '\\');
+		assewt.stwictEquaw((<FowmatStwing>vawiabwe.twansfowm!.chiwdwen[0]).ewseVawue, undefined);
 	});
 });

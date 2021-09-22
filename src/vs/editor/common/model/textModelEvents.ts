@@ -1,381 +1,381 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRange } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IModelDecoration, InjectedTextOptions } from 'vs/editor/common/model';
+impowt { IWange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { IModewDecowation, InjectedTextOptions } fwom 'vs/editow/common/modew';
 
 /**
- * An event describing that the current mode associated with a model has changed.
+ * An event descwibing that the cuwwent mode associated with a modew has changed.
  */
-export interface IModelLanguageChangedEvent {
+expowt intewface IModewWanguageChangedEvent {
 	/**
-	 * Previous language
+	 * Pwevious wanguage
 	 */
-	readonly oldLanguage: string;
+	weadonwy owdWanguage: stwing;
 	/**
-	 * New language
+	 * New wanguage
 	 */
-	readonly newLanguage: string;
+	weadonwy newWanguage: stwing;
 }
 
 /**
- * An event describing that the language configuration associated with a model has changed.
+ * An event descwibing that the wanguage configuwation associated with a modew has changed.
  */
-export interface IModelLanguageConfigurationChangedEvent {
+expowt intewface IModewWanguageConfiguwationChangedEvent {
 }
 
-export interface IModelContentChange {
+expowt intewface IModewContentChange {
 	/**
-	 * The range that got replaced.
+	 * The wange that got wepwaced.
 	 */
-	readonly range: IRange;
+	weadonwy wange: IWange;
 	/**
-	 * The offset of the range that got replaced.
+	 * The offset of the wange that got wepwaced.
 	 */
-	readonly rangeOffset: number;
+	weadonwy wangeOffset: numba;
 	/**
-	 * The length of the range that got replaced.
+	 * The wength of the wange that got wepwaced.
 	 */
-	readonly rangeLength: number;
+	weadonwy wangeWength: numba;
 	/**
-	 * The new text for the range.
+	 * The new text fow the wange.
 	 */
-	readonly text: string;
-}
-
-/**
- * An event describing a change in the text of a model.
- */
-export interface IModelContentChangedEvent {
-	readonly changes: IModelContentChange[];
-	/**
-	 * The (new) end-of-line character.
-	 */
-	readonly eol: string;
-	/**
-	 * The new version id the model has transitioned to.
-	 */
-	readonly versionId: number;
-	/**
-	 * Flag that indicates that this event was generated while undoing.
-	 */
-	readonly isUndoing: boolean;
-	/**
-	 * Flag that indicates that this event was generated while redoing.
-	 */
-	readonly isRedoing: boolean;
-	/**
-	 * Flag that indicates that all decorations were lost with this edit.
-	 * The model has been reset to a new value.
-	 */
-	readonly isFlush: boolean;
+	weadonwy text: stwing;
 }
 
 /**
- * An event describing that model decorations have changed.
+ * An event descwibing a change in the text of a modew.
  */
-export interface IModelDecorationsChangedEvent {
-	readonly affectsMinimap: boolean;
-	readonly affectsOverviewRuler: boolean;
+expowt intewface IModewContentChangedEvent {
+	weadonwy changes: IModewContentChange[];
+	/**
+	 * The (new) end-of-wine chawacta.
+	 */
+	weadonwy eow: stwing;
+	/**
+	 * The new vewsion id the modew has twansitioned to.
+	 */
+	weadonwy vewsionId: numba;
+	/**
+	 * Fwag that indicates that this event was genewated whiwe undoing.
+	 */
+	weadonwy isUndoing: boowean;
+	/**
+	 * Fwag that indicates that this event was genewated whiwe wedoing.
+	 */
+	weadonwy isWedoing: boowean;
+	/**
+	 * Fwag that indicates that aww decowations wewe wost with this edit.
+	 * The modew has been weset to a new vawue.
+	 */
+	weadonwy isFwush: boowean;
 }
 
 /**
- * An event describing that some ranges of lines have been tokenized (their tokens have changed).
- * @internal
+ * An event descwibing that modew decowations have changed.
  */
-export interface IModelTokensChangedEvent {
-	readonly tokenizationSupportChanged: boolean;
-	readonly semanticTokensApplied: boolean;
-	readonly ranges: {
+expowt intewface IModewDecowationsChangedEvent {
+	weadonwy affectsMinimap: boowean;
+	weadonwy affectsOvewviewWuwa: boowean;
+}
+
+/**
+ * An event descwibing that some wanges of wines have been tokenized (theiw tokens have changed).
+ * @intewnaw
+ */
+expowt intewface IModewTokensChangedEvent {
+	weadonwy tokenizationSuppowtChanged: boowean;
+	weadonwy semanticTokensAppwied: boowean;
+	weadonwy wanges: {
 		/**
-		 * The start of the range (inclusive)
+		 * The stawt of the wange (incwusive)
 		 */
-		readonly fromLineNumber: number;
+		weadonwy fwomWineNumba: numba;
 		/**
-		 * The end of the range (inclusive)
+		 * The end of the wange (incwusive)
 		 */
-		readonly toLineNumber: number;
+		weadonwy toWineNumba: numba;
 	}[];
 }
 
-export interface IModelOptionsChangedEvent {
-	readonly tabSize: boolean;
-	readonly indentSize: boolean;
-	readonly insertSpaces: boolean;
-	readonly trimAutoWhitespace: boolean;
+expowt intewface IModewOptionsChangedEvent {
+	weadonwy tabSize: boowean;
+	weadonwy indentSize: boowean;
+	weadonwy insewtSpaces: boowean;
+	weadonwy twimAutoWhitespace: boowean;
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export const enum RawContentChangedType {
-	Flush = 1,
-	LineChanged = 2,
-	LinesDeleted = 3,
-	LinesInserted = 4,
-	EOLChanged = 5
+expowt const enum WawContentChangedType {
+	Fwush = 1,
+	WineChanged = 2,
+	WinesDeweted = 3,
+	WinesInsewted = 4,
+	EOWChanged = 5
 }
 
 /**
- * An event describing that a model has been reset to a new value.
- * @internal
+ * An event descwibing that a modew has been weset to a new vawue.
+ * @intewnaw
  */
-export class ModelRawFlush {
-	public readonly changeType = RawContentChangedType.Flush;
+expowt cwass ModewWawFwush {
+	pubwic weadonwy changeType = WawContentChangedType.Fwush;
 }
 
 /**
- * Represents text injected on a line
- * @internal
+ * Wepwesents text injected on a wine
+ * @intewnaw
  */
-export class LineInjectedText {
-	public static applyInjectedText(lineText: string, injectedTexts: LineInjectedText[] | null): string {
-		if (!injectedTexts || injectedTexts.length === 0) {
-			return lineText;
+expowt cwass WineInjectedText {
+	pubwic static appwyInjectedText(wineText: stwing, injectedTexts: WineInjectedText[] | nuww): stwing {
+		if (!injectedTexts || injectedTexts.wength === 0) {
+			wetuwn wineText;
 		}
-		let result = '';
-		let lastOriginalOffset = 0;
-		for (const injectedText of injectedTexts) {
-			result += lineText.substring(lastOriginalOffset, injectedText.column - 1);
-			lastOriginalOffset = injectedText.column - 1;
-			result += injectedText.options.content;
+		wet wesuwt = '';
+		wet wastOwiginawOffset = 0;
+		fow (const injectedText of injectedTexts) {
+			wesuwt += wineText.substwing(wastOwiginawOffset, injectedText.cowumn - 1);
+			wastOwiginawOffset = injectedText.cowumn - 1;
+			wesuwt += injectedText.options.content;
 		}
-		result += lineText.substring(lastOriginalOffset);
-		return result;
+		wesuwt += wineText.substwing(wastOwiginawOffset);
+		wetuwn wesuwt;
 	}
 
-	public static fromDecorations(decorations: IModelDecoration[]): LineInjectedText[] {
-		const result: LineInjectedText[] = [];
-		for (const decoration of decorations) {
-			if (decoration.options.before && decoration.options.before.content.length > 0) {
-				result.push(new LineInjectedText(
-					decoration.ownerId,
-					decoration.range.startLineNumber,
-					decoration.range.startColumn,
-					decoration.options.before,
+	pubwic static fwomDecowations(decowations: IModewDecowation[]): WineInjectedText[] {
+		const wesuwt: WineInjectedText[] = [];
+		fow (const decowation of decowations) {
+			if (decowation.options.befowe && decowation.options.befowe.content.wength > 0) {
+				wesuwt.push(new WineInjectedText(
+					decowation.ownewId,
+					decowation.wange.stawtWineNumba,
+					decowation.wange.stawtCowumn,
+					decowation.options.befowe,
 					0,
 				));
 			}
-			if (decoration.options.after && decoration.options.after.content.length > 0) {
-				result.push(new LineInjectedText(
-					decoration.ownerId,
-					decoration.range.endLineNumber,
-					decoration.range.endColumn,
-					decoration.options.after,
+			if (decowation.options.afta && decowation.options.afta.content.wength > 0) {
+				wesuwt.push(new WineInjectedText(
+					decowation.ownewId,
+					decowation.wange.endWineNumba,
+					decowation.wange.endCowumn,
+					decowation.options.afta,
 					1,
 				));
 			}
 		}
-		result.sort((a, b) => {
-			if (a.lineNumber === b.lineNumber) {
-				if (a.column === b.column) {
-					return a.order - b.order;
+		wesuwt.sowt((a, b) => {
+			if (a.wineNumba === b.wineNumba) {
+				if (a.cowumn === b.cowumn) {
+					wetuwn a.owda - b.owda;
 				}
-				return a.column - b.column;
+				wetuwn a.cowumn - b.cowumn;
 			}
-			return a.lineNumber - b.lineNumber;
+			wetuwn a.wineNumba - b.wineNumba;
 		});
-		return result;
+		wetuwn wesuwt;
 	}
 
-	constructor(
-		public readonly ownerId: number,
-		public readonly lineNumber: number,
-		public readonly column: number,
-		public readonly options: InjectedTextOptions,
-		public readonly order: number
+	constwuctow(
+		pubwic weadonwy ownewId: numba,
+		pubwic weadonwy wineNumba: numba,
+		pubwic weadonwy cowumn: numba,
+		pubwic weadonwy options: InjectedTextOptions,
+		pubwic weadonwy owda: numba
 	) { }
 
-	public withText(text: string): LineInjectedText {
-		return new LineInjectedText(this.ownerId, this.lineNumber, this.column, { ...this.options, content: text }, this.order);
+	pubwic withText(text: stwing): WineInjectedText {
+		wetuwn new WineInjectedText(this.ownewId, this.wineNumba, this.cowumn, { ...this.options, content: text }, this.owda);
 	}
 }
 
 /**
- * An event describing that a line has changed in a model.
- * @internal
+ * An event descwibing that a wine has changed in a modew.
+ * @intewnaw
  */
-export class ModelRawLineChanged {
-	public readonly changeType = RawContentChangedType.LineChanged;
+expowt cwass ModewWawWineChanged {
+	pubwic weadonwy changeType = WawContentChangedType.WineChanged;
 	/**
-	 * The line that has changed.
+	 * The wine that has changed.
 	 */
-	public readonly lineNumber: number;
+	pubwic weadonwy wineNumba: numba;
 	/**
-	 * The new value of the line.
+	 * The new vawue of the wine.
 	 */
-	public readonly detail: string;
+	pubwic weadonwy detaiw: stwing;
 	/**
-	 * The injected text on the line.
+	 * The injected text on the wine.
 	 */
-	public readonly injectedText: LineInjectedText[] | null;
+	pubwic weadonwy injectedText: WineInjectedText[] | nuww;
 
-	constructor(lineNumber: number, detail: string, injectedText: LineInjectedText[] | null) {
-		this.lineNumber = lineNumber;
-		this.detail = detail;
+	constwuctow(wineNumba: numba, detaiw: stwing, injectedText: WineInjectedText[] | nuww) {
+		this.wineNumba = wineNumba;
+		this.detaiw = detaiw;
 		this.injectedText = injectedText;
 	}
 }
 
 /**
- * An event describing that line(s) have been deleted in a model.
- * @internal
+ * An event descwibing that wine(s) have been deweted in a modew.
+ * @intewnaw
  */
-export class ModelRawLinesDeleted {
-	public readonly changeType = RawContentChangedType.LinesDeleted;
+expowt cwass ModewWawWinesDeweted {
+	pubwic weadonwy changeType = WawContentChangedType.WinesDeweted;
 	/**
-	 * At what line the deletion began (inclusive).
+	 * At what wine the dewetion began (incwusive).
 	 */
-	public readonly fromLineNumber: number;
+	pubwic weadonwy fwomWineNumba: numba;
 	/**
-	 * At what line the deletion stopped (inclusive).
+	 * At what wine the dewetion stopped (incwusive).
 	 */
-	public readonly toLineNumber: number;
+	pubwic weadonwy toWineNumba: numba;
 
-	constructor(fromLineNumber: number, toLineNumber: number) {
-		this.fromLineNumber = fromLineNumber;
-		this.toLineNumber = toLineNumber;
+	constwuctow(fwomWineNumba: numba, toWineNumba: numba) {
+		this.fwomWineNumba = fwomWineNumba;
+		this.toWineNumba = toWineNumba;
 	}
 }
 
 /**
- * An event describing that line(s) have been inserted in a model.
- * @internal
+ * An event descwibing that wine(s) have been insewted in a modew.
+ * @intewnaw
  */
-export class ModelRawLinesInserted {
-	public readonly changeType = RawContentChangedType.LinesInserted;
+expowt cwass ModewWawWinesInsewted {
+	pubwic weadonwy changeType = WawContentChangedType.WinesInsewted;
 	/**
-	 * Before what line did the insertion begin
+	 * Befowe what wine did the insewtion begin
 	 */
-	public readonly fromLineNumber: number;
+	pubwic weadonwy fwomWineNumba: numba;
 	/**
-	 * `toLineNumber` - `fromLineNumber` + 1 denotes the number of lines that were inserted
+	 * `toWineNumba` - `fwomWineNumba` + 1 denotes the numba of wines that wewe insewted
 	 */
-	public readonly toLineNumber: number;
+	pubwic weadonwy toWineNumba: numba;
 	/**
-	 * The text that was inserted
+	 * The text that was insewted
 	 */
-	public readonly detail: string[];
+	pubwic weadonwy detaiw: stwing[];
 	/**
-	 * The injected texts for every inserted line.
+	 * The injected texts fow evewy insewted wine.
 	 */
-	public readonly injectedTexts: (LineInjectedText[] | null)[];
+	pubwic weadonwy injectedTexts: (WineInjectedText[] | nuww)[];
 
-	constructor(fromLineNumber: number, toLineNumber: number, detail: string[], injectedTexts: (LineInjectedText[] | null)[]) {
+	constwuctow(fwomWineNumba: numba, toWineNumba: numba, detaiw: stwing[], injectedTexts: (WineInjectedText[] | nuww)[]) {
 		this.injectedTexts = injectedTexts;
-		this.fromLineNumber = fromLineNumber;
-		this.toLineNumber = toLineNumber;
-		this.detail = detail;
+		this.fwomWineNumba = fwomWineNumba;
+		this.toWineNumba = toWineNumba;
+		this.detaiw = detaiw;
 	}
 }
 
 /**
- * An event describing that a model has had its EOL changed.
- * @internal
+ * An event descwibing that a modew has had its EOW changed.
+ * @intewnaw
  */
-export class ModelRawEOLChanged {
-	public readonly changeType = RawContentChangedType.EOLChanged;
+expowt cwass ModewWawEOWChanged {
+	pubwic weadonwy changeType = WawContentChangedType.EOWChanged;
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export type ModelRawChange = ModelRawFlush | ModelRawLineChanged | ModelRawLinesDeleted | ModelRawLinesInserted | ModelRawEOLChanged;
+expowt type ModewWawChange = ModewWawFwush | ModewWawWineChanged | ModewWawWinesDeweted | ModewWawWinesInsewted | ModewWawEOWChanged;
 
 /**
- * An event describing a change in the text of a model.
- * @internal
+ * An event descwibing a change in the text of a modew.
+ * @intewnaw
  */
-export class ModelRawContentChangedEvent {
+expowt cwass ModewWawContentChangedEvent {
 
-	public readonly changes: ModelRawChange[];
+	pubwic weadonwy changes: ModewWawChange[];
 	/**
-	 * The new version id the model has transitioned to.
+	 * The new vewsion id the modew has twansitioned to.
 	 */
-	public readonly versionId: number;
+	pubwic weadonwy vewsionId: numba;
 	/**
-	 * Flag that indicates that this event was generated while undoing.
+	 * Fwag that indicates that this event was genewated whiwe undoing.
 	 */
-	public readonly isUndoing: boolean;
+	pubwic weadonwy isUndoing: boowean;
 	/**
-	 * Flag that indicates that this event was generated while redoing.
+	 * Fwag that indicates that this event was genewated whiwe wedoing.
 	 */
-	public readonly isRedoing: boolean;
+	pubwic weadonwy isWedoing: boowean;
 
-	public resultingSelection: Selection[] | null;
+	pubwic wesuwtingSewection: Sewection[] | nuww;
 
-	constructor(changes: ModelRawChange[], versionId: number, isUndoing: boolean, isRedoing: boolean) {
+	constwuctow(changes: ModewWawChange[], vewsionId: numba, isUndoing: boowean, isWedoing: boowean) {
 		this.changes = changes;
-		this.versionId = versionId;
+		this.vewsionId = vewsionId;
 		this.isUndoing = isUndoing;
-		this.isRedoing = isRedoing;
-		this.resultingSelection = null;
+		this.isWedoing = isWedoing;
+		this.wesuwtingSewection = nuww;
 	}
 
-	public containsEvent(type: RawContentChangedType): boolean {
-		for (let i = 0, len = this.changes.length; i < len; i++) {
+	pubwic containsEvent(type: WawContentChangedType): boowean {
+		fow (wet i = 0, wen = this.changes.wength; i < wen; i++) {
 			const change = this.changes[i];
 			if (change.changeType === type) {
-				return true;
+				wetuwn twue;
 			}
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public static merge(a: ModelRawContentChangedEvent, b: ModelRawContentChangedEvent): ModelRawContentChangedEvent {
-		const changes = ([] as ModelRawChange[]).concat(a.changes).concat(b.changes);
-		const versionId = b.versionId;
+	pubwic static mewge(a: ModewWawContentChangedEvent, b: ModewWawContentChangedEvent): ModewWawContentChangedEvent {
+		const changes = ([] as ModewWawChange[]).concat(a.changes).concat(b.changes);
+		const vewsionId = b.vewsionId;
 		const isUndoing = (a.isUndoing || b.isUndoing);
-		const isRedoing = (a.isRedoing || b.isRedoing);
-		return new ModelRawContentChangedEvent(changes, versionId, isUndoing, isRedoing);
+		const isWedoing = (a.isWedoing || b.isWedoing);
+		wetuwn new ModewWawContentChangedEvent(changes, vewsionId, isUndoing, isWedoing);
 	}
 }
 
 /**
- * An event describing a change in injected text.
- * @internal
+ * An event descwibing a change in injected text.
+ * @intewnaw
  */
-export class ModelInjectedTextChangedEvent {
+expowt cwass ModewInjectedTextChangedEvent {
 
-	public readonly changes: ModelRawLineChanged[];
+	pubwic weadonwy changes: ModewWawWineChanged[];
 
-	constructor(changes: ModelRawLineChanged[]) {
+	constwuctow(changes: ModewWawWineChanged[]) {
 		this.changes = changes;
 	}
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export class InternalModelContentChangeEvent {
-	constructor(
-		public readonly rawContentChangedEvent: ModelRawContentChangedEvent,
-		public readonly contentChangedEvent: IModelContentChangedEvent,
+expowt cwass IntewnawModewContentChangeEvent {
+	constwuctow(
+		pubwic weadonwy wawContentChangedEvent: ModewWawContentChangedEvent,
+		pubwic weadonwy contentChangedEvent: IModewContentChangedEvent,
 	) { }
 
-	public merge(other: InternalModelContentChangeEvent): InternalModelContentChangeEvent {
-		const rawContentChangedEvent = ModelRawContentChangedEvent.merge(this.rawContentChangedEvent, other.rawContentChangedEvent);
-		const contentChangedEvent = InternalModelContentChangeEvent._mergeChangeEvents(this.contentChangedEvent, other.contentChangedEvent);
-		return new InternalModelContentChangeEvent(rawContentChangedEvent, contentChangedEvent);
+	pubwic mewge(otha: IntewnawModewContentChangeEvent): IntewnawModewContentChangeEvent {
+		const wawContentChangedEvent = ModewWawContentChangedEvent.mewge(this.wawContentChangedEvent, otha.wawContentChangedEvent);
+		const contentChangedEvent = IntewnawModewContentChangeEvent._mewgeChangeEvents(this.contentChangedEvent, otha.contentChangedEvent);
+		wetuwn new IntewnawModewContentChangeEvent(wawContentChangedEvent, contentChangedEvent);
 	}
 
-	private static _mergeChangeEvents(a: IModelContentChangedEvent, b: IModelContentChangedEvent): IModelContentChangedEvent {
-		const changes = ([] as IModelContentChange[]).concat(a.changes).concat(b.changes);
-		const eol = b.eol;
-		const versionId = b.versionId;
+	pwivate static _mewgeChangeEvents(a: IModewContentChangedEvent, b: IModewContentChangedEvent): IModewContentChangedEvent {
+		const changes = ([] as IModewContentChange[]).concat(a.changes).concat(b.changes);
+		const eow = b.eow;
+		const vewsionId = b.vewsionId;
 		const isUndoing = (a.isUndoing || b.isUndoing);
-		const isRedoing = (a.isRedoing || b.isRedoing);
-		const isFlush = (a.isFlush || b.isFlush);
-		return {
+		const isWedoing = (a.isWedoing || b.isWedoing);
+		const isFwush = (a.isFwush || b.isFwush);
+		wetuwn {
 			changes: changes,
-			eol: eol,
-			versionId: versionId,
+			eow: eow,
+			vewsionId: vewsionId,
 			isUndoing: isUndoing,
-			isRedoing: isRedoing,
-			isFlush: isFlush
+			isWedoing: isWedoing,
+			isFwush: isFwush
 		};
 	}
 }

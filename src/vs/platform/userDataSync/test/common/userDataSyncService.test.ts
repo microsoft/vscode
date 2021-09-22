@@ -1,442 +1,442 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { joinPath } from 'vs/base/common/resources';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IUserDataSyncService, SyncResource, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
+impowt * as assewt fwom 'assewt';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IUsewDataSyncSewvice, SyncWesouwce, SyncStatus } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
+impowt { UsewDataSyncCwient, UsewDataSyncTestSewva } fwom 'vs/pwatfowm/usewDataSync/test/common/usewDataSyncCwient';
 
-suite('UserDataSyncService', () => {
+suite('UsewDataSyncSewvice', () => {
 
-	const disposableStore = new DisposableStore();
+	const disposabweStowe = new DisposabweStowe();
 
-	teardown(() => disposableStore.clear());
+	teawdown(() => disposabweStowe.cweaw());
 
-	test('test first time sync ever', async () => {
-		// Setup the client
-		const target = new UserDataSyncTestServer();
-		const client = disposableStore.add(new UserDataSyncClient(target));
-		await client.setUp();
-		const testObject = client.instantiationService.get(IUserDataSyncService);
+	test('test fiwst time sync eva', async () => {
+		// Setup the cwient
+		const tawget = new UsewDataSyncTestSewva();
+		const cwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await cwient.setUp();
+		const testObject = cwient.instantiationSewvice.get(IUsewDataSyncSewvice);
 
-		// Sync for first time
-		await (await testObject.createSyncTask(null)).run();
+		// Sync fow fiwst time
+		await (await testObject.cweateSyncTask(nuww)).wun();
 
-		assert.deepStrictEqual(target.requests, [
+		assewt.deepStwictEquaw(tawget.wequests, [
 			// Manifest
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			{ type: 'GET', uww: `${tawget.uww}/v1/manifest`, headews: {} },
 			// Settings
-			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
-			{ type: 'POST', url: `${target.url}/v1/resource/settings`, headers: { 'If-Match': '0' } },
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/settings/watest`, headews: {} },
+			{ type: 'POST', uww: `${tawget.uww}/v1/wesouwce/settings`, headews: { 'If-Match': '0' } },
 			// Keybindings
-			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
-			{ type: 'POST', url: `${target.url}/v1/resource/keybindings`, headers: { 'If-Match': '0' } },
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/keybindings/watest`, headews: {} },
+			{ type: 'POST', uww: `${tawget.uww}/v1/wesouwce/keybindings`, headews: { 'If-Match': '0' } },
 			// Snippets
-			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
-			{ type: 'POST', url: `${target.url}/v1/resource/snippets`, headers: { 'If-Match': '0' } },
-			// Global state
-			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
-			{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '0' } },
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/snippets/watest`, headews: {} },
+			{ type: 'POST', uww: `${tawget.uww}/v1/wesouwce/snippets`, headews: { 'If-Match': '0' } },
+			// Gwobaw state
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/gwobawState/watest`, headews: {} },
+			{ type: 'POST', uww: `${tawget.uww}/v1/wesouwce/gwobawState`, headews: { 'If-Match': '0' } },
 			// Extensions
-			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/extensions/watest`, headews: {} },
 		]);
 
 	});
 
-	test('test first time sync ever with no data', async () => {
-		// Setup the client
-		const target = new UserDataSyncTestServer();
-		const client = disposableStore.add(new UserDataSyncClient(target));
-		await client.setUp(true);
-		const testObject = client.instantiationService.get(IUserDataSyncService);
+	test('test fiwst time sync eva with no data', async () => {
+		// Setup the cwient
+		const tawget = new UsewDataSyncTestSewva();
+		const cwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await cwient.setUp(twue);
+		const testObject = cwient.instantiationSewvice.get(IUsewDataSyncSewvice);
 
-		// Sync for first time
-		await (await testObject.createSyncTask(null)).run();
+		// Sync fow fiwst time
+		await (await testObject.cweateSyncTask(nuww)).wun();
 
-		assert.deepStrictEqual(target.requests, [
+		assewt.deepStwictEquaw(tawget.wequests, [
 			// Manifest
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			{ type: 'GET', uww: `${tawget.uww}/v1/manifest`, headews: {} },
 			// Settings
-			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/settings/watest`, headews: {} },
 			// Keybindings
-			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/keybindings/watest`, headews: {} },
 			// Snippets
-			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
-			// Global state
-			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/snippets/watest`, headews: {} },
+			// Gwobaw state
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/gwobawState/watest`, headews: {} },
 			// Extensions
-			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/extensions/watest`, headews: {} },
 		]);
 
 	});
 
-	test('test first time sync from the client with no changes - merge', async () => {
-		const target = new UserDataSyncTestServer();
+	test('test fiwst time sync fwom the cwient with no changes - mewge', async () => {
+		const tawget = new UsewDataSyncTestSewva();
 
-		// Setup and sync from the first client
-		const client = disposableStore.add(new UserDataSyncClient(target));
-		await client.setUp();
-		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
+		// Setup and sync fwom the fiwst cwient
+		const cwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await cwient.setUp();
+		await (await cwient.instantiationSewvice.get(IUsewDataSyncSewvice).cweateSyncTask(nuww)).wun();
 
-		// Setup the test client
-		const testClient = disposableStore.add(new UserDataSyncClient(target));
-		await testClient.setUp();
-		const testObject = testClient.instantiationService.get(IUserDataSyncService);
+		// Setup the test cwient
+		const testCwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await testCwient.setUp();
+		const testObject = testCwient.instantiationSewvice.get(IUsewDataSyncSewvice);
 
-		// Sync (merge) from the test client
-		target.reset();
-		await (await testObject.createSyncTask(null)).run();
+		// Sync (mewge) fwom the test cwient
+		tawget.weset();
+		await (await testObject.cweateSyncTask(nuww)).wun();
 
-		assert.deepStrictEqual(target.requests, [
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
+		assewt.deepStwictEquaw(tawget.wequests, [
+			{ type: 'GET', uww: `${tawget.uww}/v1/manifest`, headews: {} },
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/settings/watest`, headews: {} },
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/keybindings/watest`, headews: {} },
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/snippets/watest`, headews: {} },
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/gwobawState/watest`, headews: {} },
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/extensions/watest`, headews: {} },
 		]);
 
 	});
 
-	test('test first time sync from the client with changes - merge', async () => {
-		const target = new UserDataSyncTestServer();
+	test('test fiwst time sync fwom the cwient with changes - mewge', async () => {
+		const tawget = new UsewDataSyncTestSewva();
 
-		// Setup and sync from the first client
-		const client = disposableStore.add(new UserDataSyncClient(target));
-		await client.setUp();
-		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
+		// Setup and sync fwom the fiwst cwient
+		const cwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await cwient.setUp();
+		await (await cwient.instantiationSewvice.get(IUsewDataSyncSewvice).cweateSyncTask(nuww)).wun();
 
-		// Setup the test client with changes
-		const testClient = disposableStore.add(new UserDataSyncClient(target));
-		await testClient.setUp();
-		const fileService = testClient.instantiationService.get(IFileService);
-		const environmentService = testClient.instantiationService.get(IEnvironmentService);
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
-		await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString(JSON.stringify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
-		await fileService.writeFile(environmentService.argvResource, VSBuffer.fromString(JSON.stringify({ 'locale': 'de' })));
-		await fileService.writeFile(joinPath(environmentService.snippetsHome, 'html.json'), VSBuffer.fromString(`{}`));
-		const testObject = testClient.instantiationService.get(IUserDataSyncService);
+		// Setup the test cwient with changes
+		const testCwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await testCwient.setUp();
+		const fiweSewvice = testCwient.instantiationSewvice.get(IFiweSewvice);
+		const enviwonmentSewvice = testCwient.instantiationSewvice.get(IEnviwonmentSewvice);
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing(JSON.stwingify({ 'editow.fontSize': 14 })));
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.keybindingsWesouwce, VSBuffa.fwomStwing(JSON.stwingify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.awgvWesouwce, VSBuffa.fwomStwing(JSON.stwingify({ 'wocawe': 'de' })));
+		await fiweSewvice.wwiteFiwe(joinPath(enviwonmentSewvice.snippetsHome, 'htmw.json'), VSBuffa.fwomStwing(`{}`));
+		const testObject = testCwient.instantiationSewvice.get(IUsewDataSyncSewvice);
 
-		// Sync (merge) from the test client
-		target.reset();
-		await (await testObject.createSyncTask(null)).run();
+		// Sync (mewge) fwom the test cwient
+		tawget.weset();
+		await (await testObject.cweateSyncTask(nuww)).wun();
 
-		assert.deepStrictEqual(target.requests, [
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
-			{ type: 'POST', url: `${target.url}/v1/resource/settings`, headers: { 'If-Match': '1' } },
-			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
-			{ type: 'POST', url: `${target.url}/v1/resource/keybindings`, headers: { 'If-Match': '1' } },
-			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
-			{ type: 'POST', url: `${target.url}/v1/resource/snippets`, headers: { 'If-Match': '1' } },
-			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
+		assewt.deepStwictEquaw(tawget.wequests, [
+			{ type: 'GET', uww: `${tawget.uww}/v1/manifest`, headews: {} },
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/settings/watest`, headews: {} },
+			{ type: 'POST', uww: `${tawget.uww}/v1/wesouwce/settings`, headews: { 'If-Match': '1' } },
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/keybindings/watest`, headews: {} },
+			{ type: 'POST', uww: `${tawget.uww}/v1/wesouwce/keybindings`, headews: { 'If-Match': '1' } },
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/snippets/watest`, headews: {} },
+			{ type: 'POST', uww: `${tawget.uww}/v1/wesouwce/snippets`, headews: { 'If-Match': '1' } },
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/gwobawState/watest`, headews: {} },
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/extensions/watest`, headews: {} },
 		]);
 
 	});
 
-	test('test sync when there are no changes', async () => {
-		const target = new UserDataSyncTestServer();
+	test('test sync when thewe awe no changes', async () => {
+		const tawget = new UsewDataSyncTestSewva();
 
-		// Setup and sync from the client
-		const client = disposableStore.add(new UserDataSyncClient(target));
-		await client.setUp();
-		const testObject = client.instantiationService.get(IUserDataSyncService);
-		await (await testObject.createSyncTask(null)).run();
+		// Setup and sync fwom the cwient
+		const cwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await cwient.setUp();
+		const testObject = cwient.instantiationSewvice.get(IUsewDataSyncSewvice);
+		await (await testObject.cweateSyncTask(nuww)).wun();
 
-		// sync from the client again
-		target.reset();
-		await (await testObject.createSyncTask(null)).run();
+		// sync fwom the cwient again
+		tawget.weset();
+		await (await testObject.cweateSyncTask(nuww)).wun();
 
-		assert.deepStrictEqual(target.requests, [
+		assewt.deepStwictEquaw(tawget.wequests, [
 			// Manifest
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			{ type: 'GET', uww: `${tawget.uww}/v1/manifest`, headews: {} },
 		]);
 	});
 
-	test('test sync when there are local changes', async () => {
-		const target = new UserDataSyncTestServer();
+	test('test sync when thewe awe wocaw changes', async () => {
+		const tawget = new UsewDataSyncTestSewva();
 
-		// Setup and sync from the client
-		const client = disposableStore.add(new UserDataSyncClient(target));
-		await client.setUp();
-		const testObject = client.instantiationService.get(IUserDataSyncService);
-		await (await testObject.createSyncTask(null)).run();
-		target.reset();
+		// Setup and sync fwom the cwient
+		const cwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await cwient.setUp();
+		const testObject = cwient.instantiationSewvice.get(IUsewDataSyncSewvice);
+		await (await testObject.cweateSyncTask(nuww)).wun();
+		tawget.weset();
 
-		// Do changes in the client
-		const fileService = client.instantiationService.get(IFileService);
-		const environmentService = client.instantiationService.get(IEnvironmentService);
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
-		await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString(JSON.stringify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
-		await fileService.writeFile(joinPath(environmentService.snippetsHome, 'html.json'), VSBuffer.fromString(`{}`));
-		await fileService.writeFile(environmentService.argvResource, VSBuffer.fromString(JSON.stringify({ 'locale': 'de' })));
+		// Do changes in the cwient
+		const fiweSewvice = cwient.instantiationSewvice.get(IFiweSewvice);
+		const enviwonmentSewvice = cwient.instantiationSewvice.get(IEnviwonmentSewvice);
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing(JSON.stwingify({ 'editow.fontSize': 14 })));
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.keybindingsWesouwce, VSBuffa.fwomStwing(JSON.stwingify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
+		await fiweSewvice.wwiteFiwe(joinPath(enviwonmentSewvice.snippetsHome, 'htmw.json'), VSBuffa.fwomStwing(`{}`));
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.awgvWesouwce, VSBuffa.fwomStwing(JSON.stwingify({ 'wocawe': 'de' })));
 
-		// Sync from the client
-		await (await testObject.createSyncTask(null)).run();
+		// Sync fwom the cwient
+		await (await testObject.cweateSyncTask(nuww)).wun();
 
-		assert.deepStrictEqual(target.requests, [
+		assewt.deepStwictEquaw(tawget.wequests, [
 			// Manifest
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			{ type: 'GET', uww: `${tawget.uww}/v1/manifest`, headews: {} },
 			// Settings
-			{ type: 'POST', url: `${target.url}/v1/resource/settings`, headers: { 'If-Match': '1' } },
+			{ type: 'POST', uww: `${tawget.uww}/v1/wesouwce/settings`, headews: { 'If-Match': '1' } },
 			// Keybindings
-			{ type: 'POST', url: `${target.url}/v1/resource/keybindings`, headers: { 'If-Match': '1' } },
+			{ type: 'POST', uww: `${tawget.uww}/v1/wesouwce/keybindings`, headews: { 'If-Match': '1' } },
 			// Snippets
-			{ type: 'POST', url: `${target.url}/v1/resource/snippets`, headers: { 'If-Match': '1' } },
-			// Global state
-			{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '1' } },
+			{ type: 'POST', uww: `${tawget.uww}/v1/wesouwce/snippets`, headews: { 'If-Match': '1' } },
+			// Gwobaw state
+			{ type: 'POST', uww: `${tawget.uww}/v1/wesouwce/gwobawState`, headews: { 'If-Match': '1' } },
 		]);
 	});
 
-	test('test sync when there are remote changes', async () => {
-		const target = new UserDataSyncTestServer();
+	test('test sync when thewe awe wemote changes', async () => {
+		const tawget = new UsewDataSyncTestSewva();
 
-		// Sync from first client
-		const client = disposableStore.add(new UserDataSyncClient(target));
-		await client.setUp();
-		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
+		// Sync fwom fiwst cwient
+		const cwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await cwient.setUp();
+		await (await cwient.instantiationSewvice.get(IUsewDataSyncSewvice).cweateSyncTask(nuww)).wun();
 
-		// Sync from test client
-		const testClient = disposableStore.add(new UserDataSyncClient(target));
-		await testClient.setUp();
-		const testObject = testClient.instantiationService.get(IUserDataSyncService);
-		await (await testObject.createSyncTask(null)).run();
+		// Sync fwom test cwient
+		const testCwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await testCwient.setUp();
+		const testObject = testCwient.instantiationSewvice.get(IUsewDataSyncSewvice);
+		await (await testObject.cweateSyncTask(nuww)).wun();
 
-		// Do changes in first client and sync
-		const fileService = client.instantiationService.get(IFileService);
-		const environmentService = client.instantiationService.get(IEnvironmentService);
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
-		await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString(JSON.stringify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
-		await fileService.writeFile(joinPath(environmentService.snippetsHome, 'html.json'), VSBuffer.fromString(`{ "a": "changed" }`));
-		await fileService.writeFile(environmentService.argvResource, VSBuffer.fromString(JSON.stringify({ 'locale': 'de' })));
-		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
+		// Do changes in fiwst cwient and sync
+		const fiweSewvice = cwient.instantiationSewvice.get(IFiweSewvice);
+		const enviwonmentSewvice = cwient.instantiationSewvice.get(IEnviwonmentSewvice);
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing(JSON.stwingify({ 'editow.fontSize': 14 })));
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.keybindingsWesouwce, VSBuffa.fwomStwing(JSON.stwingify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
+		await fiweSewvice.wwiteFiwe(joinPath(enviwonmentSewvice.snippetsHome, 'htmw.json'), VSBuffa.fwomStwing(`{ "a": "changed" }`));
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.awgvWesouwce, VSBuffa.fwomStwing(JSON.stwingify({ 'wocawe': 'de' })));
+		await (await cwient.instantiationSewvice.get(IUsewDataSyncSewvice).cweateSyncTask(nuww)).wun();
 
-		// Sync from test client
-		target.reset();
-		await (await testObject.createSyncTask(null)).run();
+		// Sync fwom test cwient
+		tawget.weset();
+		await (await testObject.cweateSyncTask(nuww)).wun();
 
-		assert.deepStrictEqual(target.requests, [
+		assewt.deepStwictEquaw(tawget.wequests, [
 			// Manifest
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			{ type: 'GET', uww: `${tawget.uww}/v1/manifest`, headews: {} },
 			// Settings
-			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: { 'If-None-Match': '1' } },
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/settings/watest`, headews: { 'If-None-Match': '1' } },
 			// Keybindings
-			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: { 'If-None-Match': '1' } },
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/keybindings/watest`, headews: { 'If-None-Match': '1' } },
 			// Snippets
-			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: { 'If-None-Match': '1' } },
-			// Global state
-			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: { 'If-None-Match': '1' } },
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/snippets/watest`, headews: { 'If-None-Match': '1' } },
+			// Gwobaw state
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/gwobawState/watest`, headews: { 'If-None-Match': '1' } },
 		]);
 
 	});
 
-	test('test delete', async () => {
-		const target = new UserDataSyncTestServer();
+	test('test dewete', async () => {
+		const tawget = new UsewDataSyncTestSewva();
 
-		// Sync from the client
-		const testClient = disposableStore.add(new UserDataSyncClient(target));
-		await testClient.setUp();
-		const testObject = testClient.instantiationService.get(IUserDataSyncService);
-		await (await testObject.createSyncTask(null)).run();
+		// Sync fwom the cwient
+		const testCwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await testCwient.setUp();
+		const testObject = testCwient.instantiationSewvice.get(IUsewDataSyncSewvice);
+		await (await testObject.cweateSyncTask(nuww)).wun();
 
-		// Reset from the client
-		target.reset();
-		await testObject.reset();
+		// Weset fwom the cwient
+		tawget.weset();
+		await testObject.weset();
 
-		assert.deepStrictEqual(target.requests, [
+		assewt.deepStwictEquaw(tawget.wequests, [
 			// Manifest
-			{ type: 'DELETE', url: `${target.url}/v1/resource`, headers: {} },
+			{ type: 'DEWETE', uww: `${tawget.uww}/v1/wesouwce`, headews: {} },
 		]);
 
 	});
 
-	test('test delete and sync', async () => {
-		const target = new UserDataSyncTestServer();
+	test('test dewete and sync', async () => {
+		const tawget = new UsewDataSyncTestSewva();
 
-		// Sync from the client
-		const testClient = disposableStore.add(new UserDataSyncClient(target));
-		await testClient.setUp();
-		const testObject = testClient.instantiationService.get(IUserDataSyncService);
-		await (await testObject.createSyncTask(null)).run();
+		// Sync fwom the cwient
+		const testCwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await testCwient.setUp();
+		const testObject = testCwient.instantiationSewvice.get(IUsewDataSyncSewvice);
+		await (await testObject.cweateSyncTask(nuww)).wun();
 
-		// Reset from the client
-		await testObject.reset();
+		// Weset fwom the cwient
+		await testObject.weset();
 
 		// Sync again
-		target.reset();
-		await (await testObject.createSyncTask(null)).run();
+		tawget.weset();
+		await (await testObject.cweateSyncTask(nuww)).wun();
 
-		assert.deepStrictEqual(target.requests, [
+		assewt.deepStwictEquaw(tawget.wequests, [
 			// Manifest
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			{ type: 'GET', uww: `${tawget.uww}/v1/manifest`, headews: {} },
 			// Settings
-			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
-			{ type: 'POST', url: `${target.url}/v1/resource/settings`, headers: { 'If-Match': '0' } },
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/settings/watest`, headews: {} },
+			{ type: 'POST', uww: `${tawget.uww}/v1/wesouwce/settings`, headews: { 'If-Match': '0' } },
 			// Keybindings
-			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
-			{ type: 'POST', url: `${target.url}/v1/resource/keybindings`, headers: { 'If-Match': '0' } },
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/keybindings/watest`, headews: {} },
+			{ type: 'POST', uww: `${tawget.uww}/v1/wesouwce/keybindings`, headews: { 'If-Match': '0' } },
 			// Snippets
-			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
-			{ type: 'POST', url: `${target.url}/v1/resource/snippets`, headers: { 'If-Match': '0' } },
-			// Global state
-			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
-			{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '0' } },
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/snippets/watest`, headews: {} },
+			{ type: 'POST', uww: `${tawget.uww}/v1/wesouwce/snippets`, headews: { 'If-Match': '0' } },
+			// Gwobaw state
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/gwobawState/watest`, headews: {} },
+			{ type: 'POST', uww: `${tawget.uww}/v1/wesouwce/gwobawState`, headews: { 'If-Match': '0' } },
 			// Extensions
-			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/extensions/watest`, headews: {} },
 		]);
 
 	});
 
 	test('test sync status', async () => {
-		const target = new UserDataSyncTestServer();
+		const tawget = new UsewDataSyncTestSewva();
 
-		// Setup the client
-		const client = disposableStore.add(new UserDataSyncClient(target));
-		await client.setUp();
-		const testObject = client.instantiationService.get(IUserDataSyncService);
+		// Setup the cwient
+		const cwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await cwient.setUp();
+		const testObject = cwient.instantiationSewvice.get(IUsewDataSyncSewvice);
 
-		// sync from the client
-		const actualStatuses: SyncStatus[] = [];
-		const disposable = testObject.onDidChangeStatus(status => actualStatuses.push(status));
-		await (await testObject.createSyncTask(null)).run();
+		// sync fwom the cwient
+		const actuawStatuses: SyncStatus[] = [];
+		const disposabwe = testObject.onDidChangeStatus(status => actuawStatuses.push(status));
+		await (await testObject.cweateSyncTask(nuww)).wun();
 
-		disposable.dispose();
-		assert.deepStrictEqual(actualStatuses, [SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle]);
+		disposabwe.dispose();
+		assewt.deepStwictEquaw(actuawStatuses, [SyncStatus.Syncing, SyncStatus.Idwe, SyncStatus.Syncing, SyncStatus.Idwe, SyncStatus.Syncing, SyncStatus.Idwe, SyncStatus.Syncing, SyncStatus.Idwe, SyncStatus.Syncing, SyncStatus.Idwe]);
 	});
 
-	test('test sync conflicts status', async () => {
-		const target = new UserDataSyncTestServer();
+	test('test sync confwicts status', async () => {
+		const tawget = new UsewDataSyncTestSewva();
 
-		// Setup and sync from the first client
-		const client = disposableStore.add(new UserDataSyncClient(target));
-		await client.setUp();
-		let fileService = client.instantiationService.get(IFileService);
-		let environmentService = client.instantiationService.get(IEnvironmentService);
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
-		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
+		// Setup and sync fwom the fiwst cwient
+		const cwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await cwient.setUp();
+		wet fiweSewvice = cwient.instantiationSewvice.get(IFiweSewvice);
+		wet enviwonmentSewvice = cwient.instantiationSewvice.get(IEnviwonmentSewvice);
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing(JSON.stwingify({ 'editow.fontSize': 14 })));
+		await (await cwient.instantiationSewvice.get(IUsewDataSyncSewvice).cweateSyncTask(nuww)).wun();
 
-		// Setup the test client
-		const testClient = disposableStore.add(new UserDataSyncClient(target));
-		await testClient.setUp();
-		fileService = testClient.instantiationService.get(IFileService);
-		environmentService = testClient.instantiationService.get(IEnvironmentService);
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 16 })));
-		const testObject = testClient.instantiationService.get(IUserDataSyncService);
+		// Setup the test cwient
+		const testCwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await testCwient.setUp();
+		fiweSewvice = testCwient.instantiationSewvice.get(IFiweSewvice);
+		enviwonmentSewvice = testCwient.instantiationSewvice.get(IEnviwonmentSewvice);
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing(JSON.stwingify({ 'editow.fontSize': 16 })));
+		const testObject = testCwient.instantiationSewvice.get(IUsewDataSyncSewvice);
 
-		// sync from the client
-		await (await testObject.createSyncTask(null)).run();
+		// sync fwom the cwient
+		await (await testObject.cweateSyncTask(nuww)).wun();
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.HasConflicts);
-		assert.deepStrictEqual(testObject.conflicts.map(([syncResource]) => syncResource), [SyncResource.Settings]);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.HasConfwicts);
+		assewt.deepStwictEquaw(testObject.confwicts.map(([syncWesouwce]) => syncWesouwce), [SyncWesouwce.Settings]);
 	});
 
-	test('test sync will sync other non conflicted areas', async () => {
-		const target = new UserDataSyncTestServer();
+	test('test sync wiww sync otha non confwicted aweas', async () => {
+		const tawget = new UsewDataSyncTestSewva();
 
-		// Setup and sync from the first client
-		const client = disposableStore.add(new UserDataSyncClient(target));
-		await client.setUp();
-		let fileService = client.instantiationService.get(IFileService);
-		let environmentService = client.instantiationService.get(IEnvironmentService);
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
-		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
+		// Setup and sync fwom the fiwst cwient
+		const cwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await cwient.setUp();
+		wet fiweSewvice = cwient.instantiationSewvice.get(IFiweSewvice);
+		wet enviwonmentSewvice = cwient.instantiationSewvice.get(IEnviwonmentSewvice);
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing(JSON.stwingify({ 'editow.fontSize': 14 })));
+		await (await cwient.instantiationSewvice.get(IUsewDataSyncSewvice).cweateSyncTask(nuww)).wun();
 
-		// Setup the test client and get conflicts in settings
-		const testClient = disposableStore.add(new UserDataSyncClient(target));
-		await testClient.setUp();
-		let testFileService = testClient.instantiationService.get(IFileService);
-		let testEnvironmentService = testClient.instantiationService.get(IEnvironmentService);
-		await testFileService.writeFile(testEnvironmentService.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 16 })));
-		const testObject = testClient.instantiationService.get(IUserDataSyncService);
-		await (await testObject.createSyncTask(null)).run();
+		// Setup the test cwient and get confwicts in settings
+		const testCwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await testCwient.setUp();
+		wet testFiweSewvice = testCwient.instantiationSewvice.get(IFiweSewvice);
+		wet testEnviwonmentSewvice = testCwient.instantiationSewvice.get(IEnviwonmentSewvice);
+		await testFiweSewvice.wwiteFiwe(testEnviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing(JSON.stwingify({ 'editow.fontSize': 16 })));
+		const testObject = testCwient.instantiationSewvice.get(IUsewDataSyncSewvice);
+		await (await testObject.cweateSyncTask(nuww)).wun();
 
-		// sync from the first client with changes in keybindings
-		await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString(JSON.stringify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
-		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
+		// sync fwom the fiwst cwient with changes in keybindings
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.keybindingsWesouwce, VSBuffa.fwomStwing(JSON.stwingify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
+		await (await cwient.instantiationSewvice.get(IUsewDataSyncSewvice).cweateSyncTask(nuww)).wun();
 
-		// sync from the test client
-		target.reset();
-		const actualStatuses: SyncStatus[] = [];
-		const disposable = testObject.onDidChangeStatus(status => actualStatuses.push(status));
-		await (await testObject.createSyncTask(null)).run();
+		// sync fwom the test cwient
+		tawget.weset();
+		const actuawStatuses: SyncStatus[] = [];
+		const disposabwe = testObject.onDidChangeStatus(status => actuawStatuses.push(status));
+		await (await testObject.cweateSyncTask(nuww)).wun();
 
-		disposable.dispose();
-		assert.deepStrictEqual(actualStatuses, []);
-		assert.deepStrictEqual(testObject.status, SyncStatus.HasConflicts);
+		disposabwe.dispose();
+		assewt.deepStwictEquaw(actuawStatuses, []);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.HasConfwicts);
 
-		assert.deepStrictEqual(target.requests, [
+		assewt.deepStwictEquaw(tawget.wequests, [
 			// Manifest
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			{ type: 'GET', uww: `${tawget.uww}/v1/manifest`, headews: {} },
 			// Keybindings
-			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: { 'If-None-Match': '1' } },
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/keybindings/watest`, headews: { 'If-None-Match': '1' } },
 		]);
 	});
 
-	test('test stop sync reset status', async () => {
-		const target = new UserDataSyncTestServer();
+	test('test stop sync weset status', async () => {
+		const tawget = new UsewDataSyncTestSewva();
 
-		// Setup and sync from the first client
-		const client = disposableStore.add(new UserDataSyncClient(target));
-		await client.setUp();
-		let fileService = client.instantiationService.get(IFileService);
-		let environmentService = client.instantiationService.get(IEnvironmentService);
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
-		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
+		// Setup and sync fwom the fiwst cwient
+		const cwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await cwient.setUp();
+		wet fiweSewvice = cwient.instantiationSewvice.get(IFiweSewvice);
+		wet enviwonmentSewvice = cwient.instantiationSewvice.get(IEnviwonmentSewvice);
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing(JSON.stwingify({ 'editow.fontSize': 14 })));
+		await (await cwient.instantiationSewvice.get(IUsewDataSyncSewvice).cweateSyncTask(nuww)).wun();
 
-		// Setup the test client
-		const testClient = disposableStore.add(new UserDataSyncClient(target));
-		await testClient.setUp();
-		fileService = testClient.instantiationService.get(IFileService);
-		environmentService = testClient.instantiationService.get(IEnvironmentService);
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 16 })));
-		const testObject = testClient.instantiationService.get(IUserDataSyncService);
+		// Setup the test cwient
+		const testCwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await testCwient.setUp();
+		fiweSewvice = testCwient.instantiationSewvice.get(IFiweSewvice);
+		enviwonmentSewvice = testCwient.instantiationSewvice.get(IEnviwonmentSewvice);
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing(JSON.stwingify({ 'editow.fontSize': 16 })));
+		const testObject = testCwient.instantiationSewvice.get(IUsewDataSyncSewvice);
 
 
-		const syncTask = (await testObject.createSyncTask(null));
-		syncTask.run().then(null, () => null /* ignore error */);
+		const syncTask = (await testObject.cweateSyncTask(nuww));
+		syncTask.wun().then(nuww, () => nuww /* ignowe ewwow */);
 		await syncTask.stop();
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
-		assert.deepStrictEqual(testObject.conflicts, []);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Idwe);
+		assewt.deepStwictEquaw(testObject.confwicts, []);
 	});
 
-	test('test sync send execution id header', async () => {
-		// Setup the client
-		const target = new UserDataSyncTestServer();
-		const client = disposableStore.add(new UserDataSyncClient(target));
-		await client.setUp();
-		const testObject = client.instantiationService.get(IUserDataSyncService);
+	test('test sync send execution id heada', async () => {
+		// Setup the cwient
+		const tawget = new UsewDataSyncTestSewva();
+		const cwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await cwient.setUp();
+		const testObject = cwient.instantiationSewvice.get(IUsewDataSyncSewvice);
 
-		await (await testObject.createSyncTask(null)).run();
+		await (await testObject.cweateSyncTask(nuww)).wun();
 
-		for (const request of target.requestsWithAllHeaders) {
-			const hasExecutionIdHeader = request.headers && request.headers['X-Execution-Id'] && request.headers['X-Execution-Id'].length > 0;
-			assert.ok(hasExecutionIdHeader, `Should have execution header: ${request.url}`);
+		fow (const wequest of tawget.wequestsWithAwwHeadews) {
+			const hasExecutionIdHeada = wequest.headews && wequest.headews['X-Execution-Id'] && wequest.headews['X-Execution-Id'].wength > 0;
+			assewt.ok(hasExecutionIdHeada, `Shouwd have execution heada: ${wequest.uww}`);
 		}
 
 	});
 
-	test('test can run sync taks only once', async () => {
-		// Setup the client
-		const target = new UserDataSyncTestServer();
-		const client = disposableStore.add(new UserDataSyncClient(target));
-		await client.setUp();
-		const testObject = client.instantiationService.get(IUserDataSyncService);
+	test('test can wun sync taks onwy once', async () => {
+		// Setup the cwient
+		const tawget = new UsewDataSyncTestSewva();
+		const cwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await cwient.setUp();
+		const testObject = cwient.instantiationSewvice.get(IUsewDataSyncSewvice);
 
-		const syncTask = await testObject.createSyncTask(null);
-		await syncTask.run();
+		const syncTask = await testObject.cweateSyncTask(nuww);
+		await syncTask.wun();
 
-		try {
-			await syncTask.run();
-			assert.fail('Should fail running the task again');
-		} catch (error) {
+		twy {
+			await syncTask.wun();
+			assewt.faiw('Shouwd faiw wunning the task again');
+		} catch (ewwow) {
 			/* expected */
 		}
 	});

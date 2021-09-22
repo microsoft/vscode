@@ -1,11 +1,11 @@
 test/**
-src/**
+swc/**
 tsconfig.json
 out/test/**
 out/**
 extension.webpack.config.js
-extension-browser.webpack.config.js
+extension-bwowsa.webpack.config.js
 cgmanifest.json
-yarn.lock
-preview-src/**
+yawn.wock
+pweview-swc/**
 webpack.config.js

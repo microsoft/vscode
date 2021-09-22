@@ -1,300 +1,300 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { VSBufferReadableStream } from 'vs/base/common/buffer';
-import { IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ISaveOptions } from 'vs/workbench/common/editor';
-import { raceCancellation } from 'vs/base/common/async';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { emptyStream } from 'vs/base/common/stream';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { VSBuffewWeadabweStweam } fwom 'vs/base/common/buffa';
+impowt { IWowkingCopyBackup, WowkingCopyCapabiwities } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopy';
+impowt { IFiweWowkingCopy, IFiweWowkingCopyModew, IFiweWowkingCopyModewFactowy } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/fiweWowkingCopy';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWowkingCopySewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopySewvice';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { ISaveOptions } fwom 'vs/wowkbench/common/editow';
+impowt { waceCancewwation } fwom 'vs/base/common/async';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IWowkingCopyBackupSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyBackup';
+impowt { emptyStweam } fwom 'vs/base/common/stweam';
 
 /**
- * Untitled file specific working copy model factory.
+ * Untitwed fiwe specific wowking copy modew factowy.
  */
-export interface IUntitledFileWorkingCopyModelFactory<M extends IUntitledFileWorkingCopyModel> extends IFileWorkingCopyModelFactory<M> { }
+expowt intewface IUntitwedFiweWowkingCopyModewFactowy<M extends IUntitwedFiweWowkingCopyModew> extends IFiweWowkingCopyModewFactowy<M> { }
 
 /**
- * The underlying model of a untitled file working copy provides
- * some methods for the untitled file working copy to function.
- * The model is typically only available after the working copy
- * has been resolved via it's `resolve()` method.
+ * The undewwying modew of a untitwed fiwe wowking copy pwovides
+ * some methods fow the untitwed fiwe wowking copy to function.
+ * The modew is typicawwy onwy avaiwabwe afta the wowking copy
+ * has been wesowved via it's `wesowve()` method.
  */
-export interface IUntitledFileWorkingCopyModel extends IFileWorkingCopyModel {
+expowt intewface IUntitwedFiweWowkingCopyModew extends IFiweWowkingCopyModew {
 
-	readonly onDidChangeContent: Event<IUntitledFileWorkingCopyModelContentChangedEvent>;
+	weadonwy onDidChangeContent: Event<IUntitwedFiweWowkingCopyModewContentChangedEvent>;
 }
 
-export interface IUntitledFileWorkingCopyModelContentChangedEvent {
+expowt intewface IUntitwedFiweWowkingCopyModewContentChangedEvent {
 
 	/**
-	 * Flag that indicates that the content change should
-	 * clear the dirty flag, e.g. because the contents are
-	 * back to being empty or back to an initial state that
-	 * should not be considered as dirty.
+	 * Fwag that indicates that the content change shouwd
+	 * cweaw the diwty fwag, e.g. because the contents awe
+	 * back to being empty ow back to an initiaw state that
+	 * shouwd not be considewed as diwty.
 	 */
-	readonly isInitial: boolean;
+	weadonwy isInitiaw: boowean;
 }
 
-export interface IUntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> extends IFileWorkingCopy<M> {
+expowt intewface IUntitwedFiweWowkingCopy<M extends IUntitwedFiweWowkingCopyModew> extends IFiweWowkingCopy<M> {
 
 	/**
-	 * Whether this untitled file working copy model has an associated file path.
+	 * Whetha this untitwed fiwe wowking copy modew has an associated fiwe path.
 	 */
-	readonly hasAssociatedFilePath: boolean;
+	weadonwy hasAssociatedFiwePath: boowean;
 
 	/**
-	 * Whether we have a resolved model or not.
+	 * Whetha we have a wesowved modew ow not.
 	 */
-	isResolved(): this is IResolvedUntitledFileWorkingCopy<M>;
+	isWesowved(): this is IWesowvedUntitwedFiweWowkingCopy<M>;
 }
 
-export interface IResolvedUntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> extends IUntitledFileWorkingCopy<M> {
+expowt intewface IWesowvedUntitwedFiweWowkingCopy<M extends IUntitwedFiweWowkingCopyModew> extends IUntitwedFiweWowkingCopy<M> {
 
 	/**
-	 * A resolved untitled file working copy has a resolved model.
+	 * A wesowved untitwed fiwe wowking copy has a wesowved modew.
 	 */
-	readonly model: M;
+	weadonwy modew: M;
 }
 
-export interface IUntitledFileWorkingCopySaveDelegate<M extends IUntitledFileWorkingCopyModel> {
+expowt intewface IUntitwedFiweWowkingCopySaveDewegate<M extends IUntitwedFiweWowkingCopyModew> {
 
 	/**
-	 * A delegate to enable saving of untitled file working copies.
+	 * A dewegate to enabwe saving of untitwed fiwe wowking copies.
 	 */
-	(workingCopy: IUntitledFileWorkingCopy<M>, options?: ISaveOptions): Promise<boolean>;
+	(wowkingCopy: IUntitwedFiweWowkingCopy<M>, options?: ISaveOptions): Pwomise<boowean>;
 }
 
-export interface IUntitledFileWorkingCopyInitialContents {
+expowt intewface IUntitwedFiweWowkingCopyInitiawContents {
 
 	/**
-	 * The initial contents of the untitled file working copy.
+	 * The initiaw contents of the untitwed fiwe wowking copy.
 	 */
-	value: VSBufferReadableStream;
+	vawue: VSBuffewWeadabweStweam;
 
 	/**
-	 * If not provided, the untitled file working copy will be marked
-	 * dirty by default given initial contents are provided.
+	 * If not pwovided, the untitwed fiwe wowking copy wiww be mawked
+	 * diwty by defauwt given initiaw contents awe pwovided.
 	 *
-	 * Note: if the untitled file working copy has an associated path
-	 * the dirty state will always be set.
+	 * Note: if the untitwed fiwe wowking copy has an associated path
+	 * the diwty state wiww awways be set.
 	 */
-	markDirty?: boolean;
+	mawkDiwty?: boowean;
 }
 
-export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> extends Disposable implements IUntitledFileWorkingCopy<M>  {
+expowt cwass UntitwedFiweWowkingCopy<M extends IUntitwedFiweWowkingCopyModew> extends Disposabwe impwements IUntitwedFiweWowkingCopy<M>  {
 
-	readonly capabilities = WorkingCopyCapabilities.Untitled;
+	weadonwy capabiwities = WowkingCopyCapabiwities.Untitwed;
 
-	private _model: M | undefined = undefined;
-	get model(): M | undefined { return this._model; }
+	pwivate _modew: M | undefined = undefined;
+	get modew(): M | undefined { wetuwn this._modew; }
 
-	//#region Events
+	//#wegion Events
 
-	private readonly _onDidChangeContent = this._register(new Emitter<void>());
-	readonly onDidChangeContent = this._onDidChangeContent.event;
+	pwivate weadonwy _onDidChangeContent = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeContent = this._onDidChangeContent.event;
 
-	private readonly _onDidChangeDirty = this._register(new Emitter<void>());
-	readonly onDidChangeDirty = this._onDidChangeDirty.event;
+	pwivate weadonwy _onDidChangeDiwty = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeDiwty = this._onDidChangeDiwty.event;
 
-	private readonly _onDidRevert = this._register(new Emitter<void>());
-	readonly onDidRevert = this._onDidRevert.event;
+	pwivate weadonwy _onDidWevewt = this._wegista(new Emitta<void>());
+	weadonwy onDidWevewt = this._onDidWevewt.event;
 
-	private readonly _onWillDispose = this._register(new Emitter<void>());
-	readonly onWillDispose = this._onWillDispose.event;
+	pwivate weadonwy _onWiwwDispose = this._wegista(new Emitta<void>());
+	weadonwy onWiwwDispose = this._onWiwwDispose.event;
 
-	//#endregion
+	//#endwegion
 
-	constructor(
-		readonly typeId: string,
-		readonly resource: URI,
-		readonly name: string,
-		readonly hasAssociatedFilePath: boolean,
-		private readonly initialContents: IUntitledFileWorkingCopyInitialContents | undefined,
-		private readonly modelFactory: IUntitledFileWorkingCopyModelFactory<M>,
-		private readonly saveDelegate: IUntitledFileWorkingCopySaveDelegate<M>,
-		@IWorkingCopyService workingCopyService: IWorkingCopyService,
-		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
-		@ILogService private readonly logService: ILogService
+	constwuctow(
+		weadonwy typeId: stwing,
+		weadonwy wesouwce: UWI,
+		weadonwy name: stwing,
+		weadonwy hasAssociatedFiwePath: boowean,
+		pwivate weadonwy initiawContents: IUntitwedFiweWowkingCopyInitiawContents | undefined,
+		pwivate weadonwy modewFactowy: IUntitwedFiweWowkingCopyModewFactowy<M>,
+		pwivate weadonwy saveDewegate: IUntitwedFiweWowkingCopySaveDewegate<M>,
+		@IWowkingCopySewvice wowkingCopySewvice: IWowkingCopySewvice,
+		@IWowkingCopyBackupSewvice pwivate weadonwy wowkingCopyBackupSewvice: IWowkingCopyBackupSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice
 	) {
-		super();
+		supa();
 
-		// Make known to working copy service
-		this._register(workingCopyService.registerWorkingCopy(this));
+		// Make known to wowking copy sewvice
+		this._wegista(wowkingCopySewvice.wegistewWowkingCopy(this));
 	}
 
-	//#region Dirty
+	//#wegion Diwty
 
-	private dirty = this.hasAssociatedFilePath || Boolean(this.initialContents && this.initialContents.markDirty !== false);
+	pwivate diwty = this.hasAssociatedFiwePath || Boowean(this.initiawContents && this.initiawContents.mawkDiwty !== fawse);
 
-	isDirty(): boolean {
-		return this.dirty;
+	isDiwty(): boowean {
+		wetuwn this.diwty;
 	}
 
-	private setDirty(dirty: boolean): void {
-		if (this.dirty === dirty) {
-			return;
+	pwivate setDiwty(diwty: boowean): void {
+		if (this.diwty === diwty) {
+			wetuwn;
 		}
 
-		this.dirty = dirty;
-		this._onDidChangeDirty.fire();
+		this.diwty = diwty;
+		this._onDidChangeDiwty.fiwe();
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Resolve
+	//#wegion Wesowve
 
-	async resolve(): Promise<void> {
-		this.trace('[untitled file working copy] resolve()');
+	async wesowve(): Pwomise<void> {
+		this.twace('[untitwed fiwe wowking copy] wesowve()');
 
-		if (this.isResolved()) {
-			this.trace('[untitled file working copy] resolve() - exit (already resolved)');
+		if (this.isWesowved()) {
+			this.twace('[untitwed fiwe wowking copy] wesowve() - exit (awweady wesowved)');
 
-			// return early if the untitled file working copy is already
-			// resolved assuming that the contents have meanwhile changed
-			// in the underlying model. we only resolve untitled once.
-			return;
+			// wetuwn eawwy if the untitwed fiwe wowking copy is awweady
+			// wesowved assuming that the contents have meanwhiwe changed
+			// in the undewwying modew. we onwy wesowve untitwed once.
+			wetuwn;
 		}
 
-		let untitledContents: VSBufferReadableStream;
+		wet untitwedContents: VSBuffewWeadabweStweam;
 
-		// Check for backups or use initial value or empty
-		const backup = await this.workingCopyBackupService.resolve(this);
+		// Check fow backups ow use initiaw vawue ow empty
+		const backup = await this.wowkingCopyBackupSewvice.wesowve(this);
 		if (backup) {
-			this.trace('[untitled file working copy] resolve() - with backup');
+			this.twace('[untitwed fiwe wowking copy] wesowve() - with backup');
 
-			untitledContents = backup.value;
-		} else if (this.initialContents?.value) {
-			this.trace('[untitled file working copy] resolve() - with initial contents');
+			untitwedContents = backup.vawue;
+		} ewse if (this.initiawContents?.vawue) {
+			this.twace('[untitwed fiwe wowking copy] wesowve() - with initiaw contents');
 
-			untitledContents = this.initialContents.value;
-		} else {
-			this.trace('[untitled file working copy] resolve() - empty');
+			untitwedContents = this.initiawContents.vawue;
+		} ewse {
+			this.twace('[untitwed fiwe wowking copy] wesowve() - empty');
 
-			untitledContents = emptyStream();
+			untitwedContents = emptyStweam();
 		}
 
-		// Create model
-		await this.doCreateModel(untitledContents);
+		// Cweate modew
+		await this.doCweateModew(untitwedContents);
 
-		// Untitled associated to file path are dirty right away as well as untitled with content
-		this.setDirty(this.hasAssociatedFilePath || !!backup || Boolean(this.initialContents && this.initialContents.markDirty !== false));
+		// Untitwed associated to fiwe path awe diwty wight away as weww as untitwed with content
+		this.setDiwty(this.hasAssociatedFiwePath || !!backup || Boowean(this.initiawContents && this.initiawContents.mawkDiwty !== fawse));
 
-		// If we have initial contents, make sure to emit this
-		// as the appropiate events to the outside.
-		if (!!backup || this.initialContents) {
-			this._onDidChangeContent.fire();
+		// If we have initiaw contents, make suwe to emit this
+		// as the appwopiate events to the outside.
+		if (!!backup || this.initiawContents) {
+			this._onDidChangeContent.fiwe();
 		}
 	}
 
-	private async doCreateModel(contents: VSBufferReadableStream): Promise<void> {
-		this.trace('[untitled file working copy] doCreateModel()');
+	pwivate async doCweateModew(contents: VSBuffewWeadabweStweam): Pwomise<void> {
+		this.twace('[untitwed fiwe wowking copy] doCweateModew()');
 
-		// Create model and dispose it when we get disposed
-		this._model = this._register(await this.modelFactory.createModel(this.resource, contents, CancellationToken.None));
+		// Cweate modew and dispose it when we get disposed
+		this._modew = this._wegista(await this.modewFactowy.cweateModew(this.wesouwce, contents, CancewwationToken.None));
 
-		// Model listeners
-		this.installModelListeners(this._model);
+		// Modew wistenews
+		this.instawwModewWistenews(this._modew);
 	}
 
-	private installModelListeners(model: M): void {
+	pwivate instawwModewWistenews(modew: M): void {
 
 		// Content Change
-		this._register(model.onDidChangeContent(e => this.onModelContentChanged(e)));
+		this._wegista(modew.onDidChangeContent(e => this.onModewContentChanged(e)));
 
-		// Lifecycle
-		this._register(model.onWillDispose(() => this.dispose()));
+		// Wifecycwe
+		this._wegista(modew.onWiwwDispose(() => this.dispose()));
 	}
 
-	private onModelContentChanged(e: IUntitledFileWorkingCopyModelContentChangedEvent): void {
+	pwivate onModewContentChanged(e: IUntitwedFiweWowkingCopyModewContentChangedEvent): void {
 
-		// Mark the untitled file working copy as non-dirty once its
-		// in case provided by the change event and in case we do not
+		// Mawk the untitwed fiwe wowking copy as non-diwty once its
+		// in case pwovided by the change event and in case we do not
 		// have an associated path set
-		if (!this.hasAssociatedFilePath && e.isInitial) {
-			this.setDirty(false);
+		if (!this.hasAssociatedFiwePath && e.isInitiaw) {
+			this.setDiwty(fawse);
 		}
 
-		// Turn dirty otherwise
-		else {
-			this.setDirty(true);
+		// Tuwn diwty othewwise
+		ewse {
+			this.setDiwty(twue);
 		}
 
-		// Emit as general content change event
-		this._onDidChangeContent.fire();
+		// Emit as genewaw content change event
+		this._onDidChangeContent.fiwe();
 	}
 
-	isResolved(): this is IResolvedUntitledFileWorkingCopy<M> {
-		return !!this.model;
+	isWesowved(): this is IWesowvedUntitwedFiweWowkingCopy<M> {
+		wetuwn !!this.modew;
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Backup
+	//#wegion Backup
 
-	async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
+	async backup(token: CancewwationToken): Pwomise<IWowkingCopyBackup> {
 
-		// Fill in content if we are resolved
-		let content: VSBufferReadableStream | undefined = undefined;
-		if (this.isResolved()) {
-			content = await raceCancellation(this.model.snapshot(token), token);
+		// Fiww in content if we awe wesowved
+		wet content: VSBuffewWeadabweStweam | undefined = undefined;
+		if (this.isWesowved()) {
+			content = await waceCancewwation(this.modew.snapshot(token), token);
 		}
 
-		return { content };
+		wetuwn { content };
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Save
+	//#wegion Save
 
-	save(options?: ISaveOptions): Promise<boolean> {
-		this.trace('[untitled file working copy] save()');
+	save(options?: ISaveOptions): Pwomise<boowean> {
+		this.twace('[untitwed fiwe wowking copy] save()');
 
-		return this.saveDelegate(this, options);
+		wetuwn this.saveDewegate(this, options);
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Revert
+	//#wegion Wevewt
 
-	async revert(): Promise<void> {
-		this.trace('[untitled file working copy] revert()');
+	async wevewt(): Pwomise<void> {
+		this.twace('[untitwed fiwe wowking copy] wevewt()');
 
-		// No longer dirty
-		this.setDirty(false);
+		// No wonga diwty
+		this.setDiwty(fawse);
 
 		// Emit as event
-		this._onDidRevert.fire();
+		this._onDidWevewt.fiwe();
 
-		// A reverted untitled file working copy is invalid
-		// because it has no actual source on disk to revert to.
-		// As such we dispose the model.
+		// A wevewted untitwed fiwe wowking copy is invawid
+		// because it has no actuaw souwce on disk to wevewt to.
+		// As such we dispose the modew.
 		this.dispose();
 	}
 
-	//#endregion
+	//#endwegion
 
-	override dispose(): void {
-		this.trace('[untitled file working copy] dispose()');
+	ovewwide dispose(): void {
+		this.twace('[untitwed fiwe wowking copy] dispose()');
 
-		this._onWillDispose.fire();
+		this._onWiwwDispose.fiwe();
 
-		super.dispose();
+		supa.dispose();
 	}
 
-	private trace(msg: string): void {
-		this.logService.trace(msg, this.resource.toString(true), this.typeId);
+	pwivate twace(msg: stwing): void {
+		this.wogSewvice.twace(msg, this.wesouwce.toStwing(twue), this.typeId);
 	}
 }

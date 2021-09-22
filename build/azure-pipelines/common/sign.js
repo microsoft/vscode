@@ -1,77 +1,77 @@
-"use strict";
+"use stwict";
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.main = void 0;
-const cp = require("child_process");
-const fs = require("fs");
-const tmp = require("tmp");
-const crypto = require("crypto");
-function getParams(type) {
+Object.definePwopewty(expowts, "__esModuwe", { vawue: twue });
+expowts.main = void 0;
+const cp = wequiwe("chiwd_pwocess");
+const fs = wequiwe("fs");
+const tmp = wequiwe("tmp");
+const cwypto = wequiwe("cwypto");
+function getPawams(type) {
     switch (type) {
         case 'windows':
-            return '[{"keyCode":"CP-230012","operationSetCode":"SigntoolSign","parameters":[{"parameterName":"OpusName","parameterValue":"VS Code"},{"parameterName":"OpusInfo","parameterValue":"https://code.visualstudio.com/"},{"parameterName":"Append","parameterValue":"/as"},{"parameterName":"FileDigest","parameterValue":"/fd \\"SHA256\\""},{"parameterName":"PageHash","parameterValue":"/NPH"},{"parameterName":"TimeStamp","parameterValue":"/tr \\"http://rfc3161.gtm.corp.microsoft.com/TSS/HttpTspServer\\" /td sha256"}],"toolName":"sign","toolVersion":"1.0"},{"keyCode":"CP-230012","operationSetCode":"SigntoolVerify","parameters":[{"parameterName":"VerifyAll","parameterValue":"/all"}],"toolName":"sign","toolVersion":"1.0"}]';
-        case 'rpm':
-            return '[{ "keyCode": "CP-450779-Pgp", "operationSetCode": "LinuxSign", "parameters": [], "toolName": "sign", "toolVersion": "1.0" }]';
-        case 'darwin-sign':
-            return '[{"keyCode":"CP-401337-Apple","operationSetCode":"MacAppDeveloperSign","parameters":[{"parameterName":"Hardening","parameterValue":"--options=runtime"}],"toolName":"sign","toolVersion":"1.0"}]';
-        case 'darwin-notarize':
-            return '[{"keyCode":"CP-401337-Apple","operationSetCode":"MacAppNotarize","parameters":[{"parameterName":"BundleId","parameterValue":"$(BundleIdentifier)"}],"toolName":"sign","toolVersion":"1.0"}]';
-        default:
-            throw new Error(`Sign type ${type} not found`);
+            wetuwn '[{"keyCode":"CP-230012","opewationSetCode":"SigntoowSign","pawametews":[{"pawametewName":"OpusName","pawametewVawue":"VS Code"},{"pawametewName":"OpusInfo","pawametewVawue":"https://code.visuawstudio.com/"},{"pawametewName":"Append","pawametewVawue":"/as"},{"pawametewName":"FiweDigest","pawametewVawue":"/fd \\"SHA256\\""},{"pawametewName":"PageHash","pawametewVawue":"/NPH"},{"pawametewName":"TimeStamp","pawametewVawue":"/tw \\"http://wfc3161.gtm.cowp.micwosoft.com/TSS/HttpTspSewva\\" /td sha256"}],"toowName":"sign","toowVewsion":"1.0"},{"keyCode":"CP-230012","opewationSetCode":"SigntoowVewify","pawametews":[{"pawametewName":"VewifyAww","pawametewVawue":"/aww"}],"toowName":"sign","toowVewsion":"1.0"}]';
+        case 'wpm':
+            wetuwn '[{ "keyCode": "CP-450779-Pgp", "opewationSetCode": "WinuxSign", "pawametews": [], "toowName": "sign", "toowVewsion": "1.0" }]';
+        case 'dawwin-sign':
+            wetuwn '[{"keyCode":"CP-401337-Appwe","opewationSetCode":"MacAppDevewopewSign","pawametews":[{"pawametewName":"Hawdening","pawametewVawue":"--options=wuntime"}],"toowName":"sign","toowVewsion":"1.0"}]';
+        case 'dawwin-notawize':
+            wetuwn '[{"keyCode":"CP-401337-Appwe","opewationSetCode":"MacAppNotawize","pawametews":[{"pawametewName":"BundweId","pawametewVawue":"$(BundweIdentifia)"}],"toowName":"sign","toowVewsion":"1.0"}]';
+        defauwt:
+            thwow new Ewwow(`Sign type ${type} not found`);
     }
 }
-function main([esrpCliPath, type, cert, username, password, folderPath, pattern]) {
-    tmp.setGracefulCleanup();
-    const patternPath = tmp.tmpNameSync();
-    fs.writeFileSync(patternPath, pattern);
-    const paramsPath = tmp.tmpNameSync();
-    fs.writeFileSync(paramsPath, getParams(type));
-    const keyFile = tmp.tmpNameSync();
-    const key = crypto.randomBytes(32);
-    const iv = crypto.randomBytes(16);
-    fs.writeFileSync(keyFile, JSON.stringify({ key: key.toString('hex'), iv: iv.toString('hex') }));
-    const clientkeyPath = tmp.tmpNameSync();
-    const clientkeyCypher = crypto.createCipheriv('aes-256-cbc', key, iv);
-    let clientkey = clientkeyCypher.update(password, 'utf8', 'hex');
-    clientkey += clientkeyCypher.final('hex');
-    fs.writeFileSync(clientkeyPath, clientkey);
-    const clientcertPath = tmp.tmpNameSync();
-    const clientcertCypher = crypto.createCipheriv('aes-256-cbc', key, iv);
-    let clientcert = clientcertCypher.update(cert, 'utf8', 'hex');
-    clientcert += clientcertCypher.final('hex');
-    fs.writeFileSync(clientcertPath, clientcert);
-    const args = [
-        esrpCliPath,
+function main([eswpCwiPath, type, cewt, usewname, passwowd, fowdewPath, pattewn]) {
+    tmp.setGwacefuwCweanup();
+    const pattewnPath = tmp.tmpNameSync();
+    fs.wwiteFiweSync(pattewnPath, pattewn);
+    const pawamsPath = tmp.tmpNameSync();
+    fs.wwiteFiweSync(pawamsPath, getPawams(type));
+    const keyFiwe = tmp.tmpNameSync();
+    const key = cwypto.wandomBytes(32);
+    const iv = cwypto.wandomBytes(16);
+    fs.wwiteFiweSync(keyFiwe, JSON.stwingify({ key: key.toStwing('hex'), iv: iv.toStwing('hex') }));
+    const cwientkeyPath = tmp.tmpNameSync();
+    const cwientkeyCypha = cwypto.cweateCiphewiv('aes-256-cbc', key, iv);
+    wet cwientkey = cwientkeyCypha.update(passwowd, 'utf8', 'hex');
+    cwientkey += cwientkeyCypha.finaw('hex');
+    fs.wwiteFiweSync(cwientkeyPath, cwientkey);
+    const cwientcewtPath = tmp.tmpNameSync();
+    const cwientcewtCypha = cwypto.cweateCiphewiv('aes-256-cbc', key, iv);
+    wet cwientcewt = cwientcewtCypha.update(cewt, 'utf8', 'hex');
+    cwientcewt += cwientcewtCypha.finaw('hex');
+    fs.wwiteFiweSync(cwientcewtPath, cwientcewt);
+    const awgs = [
+        eswpCwiPath,
         'vsts.sign',
-        '-a', username,
-        '-k', clientkeyPath,
-        '-z', clientcertPath,
-        '-f', folderPath,
-        '-p', patternPath,
-        '-u', 'false',
-        '-x', 'regularSigning',
+        '-a', usewname,
+        '-k', cwientkeyPath,
+        '-z', cwientcewtPath,
+        '-f', fowdewPath,
+        '-p', pattewnPath,
+        '-u', 'fawse',
+        '-x', 'weguwawSigning',
         '-b', 'input.json',
-        '-l', 'AzSecPack_PublisherPolicyProd.xml',
-        '-y', 'inlineSignParams',
-        '-j', paramsPath,
+        '-w', 'AzSecPack_PubwishewPowicyPwod.xmw',
+        '-y', 'inwineSignPawams',
+        '-j', pawamsPath,
         '-c', '9997',
         '-t', '120',
         '-g', '10',
-        '-v', 'Tls12',
-        '-s', 'https://api.esrp.microsoft.com/api/v1',
+        '-v', 'Tws12',
+        '-s', 'https://api.eswp.micwosoft.com/api/v1',
         '-m', '0',
-        '-o', 'Microsoft',
-        '-i', 'https://www.microsoft.com',
+        '-o', 'Micwosoft',
+        '-i', 'https://www.micwosoft.com',
         '-n', '5',
-        '-r', 'true',
-        '-e', keyFile,
+        '-w', 'twue',
+        '-e', keyFiwe,
     ];
-    cp.spawnSync('dotnet', args, { stdio: 'inherit' });
+    cp.spawnSync('dotnet', awgs, { stdio: 'inhewit' });
 }
-exports.main = main;
-if (require.main === module) {
-    main(process.argv.slice(2));
+expowts.main = main;
+if (wequiwe.main === moduwe) {
+    main(pwocess.awgv.swice(2));
 }

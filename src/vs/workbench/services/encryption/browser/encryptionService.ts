@@ -1,22 +1,22 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IEncryptionService } from 'vs/workbench/services/encryption/common/encryptionService';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IEncwyptionSewvice } fwom 'vs/wowkbench/sewvices/encwyption/common/encwyptionSewvice';
 
-export class EncryptionService {
+expowt cwass EncwyptionSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	encrypt(value: string): Promise<string> {
-		return Promise.resolve(value);
+	encwypt(vawue: stwing): Pwomise<stwing> {
+		wetuwn Pwomise.wesowve(vawue);
 	}
 
-	decrypt(value: string): Promise<string> {
-		return Promise.resolve(value);
+	decwypt(vawue: stwing): Pwomise<stwing> {
+		wetuwn Pwomise.wesowve(vawue);
 	}
 }
 
-registerSingleton(IEncryptionService, EncryptionService, true);
+wegistewSingweton(IEncwyptionSewvice, EncwyptionSewvice, twue);

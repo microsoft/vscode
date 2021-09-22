@@ -1,183 +1,183 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { setupInstantiationService, withTestNotebook as _withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
-import { Emitter, Event } from 'vs/base/common/event';
-import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/notebookKernelServiceImpl';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { mock } from 'vs/base/test/common/mock';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { Mimes } from 'vs/base/common/mime';
+impowt * as assewt fwom 'assewt';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { setupInstantiationSewvice, withTestNotebook as _withTestNotebook } fwom 'vs/wowkbench/contwib/notebook/test/testNotebookEditow';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { INotebookKewnew, INotebookKewnewSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookKewnewSewvice';
+impowt { NotebookKewnewSewvice } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookKewnewSewviceImpw';
+impowt { INotebookSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookSewvice';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { NotebookTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookTextModew';
+impowt { Mimes } fwom 'vs/base/common/mime';
 
-suite('NotebookKernelService', () => {
+suite('NotebookKewnewSewvice', () => {
 
-	let instantiationService: TestInstantiationService;
-	let kernelService: INotebookKernelService;
-	const dispoables = new DisposableStore();
+	wet instantiationSewvice: TestInstantiationSewvice;
+	wet kewnewSewvice: INotebookKewnewSewvice;
+	const dispoabwes = new DisposabweStowe();
 
-	let onDidAddNotebookDocument: Emitter<NotebookTextModel>;
+	wet onDidAddNotebookDocument: Emitta<NotebookTextModew>;
 
 	setup(function () {
-		dispoables.clear();
+		dispoabwes.cweaw();
 
-		onDidAddNotebookDocument = new Emitter();
-		dispoables.add(onDidAddNotebookDocument);
+		onDidAddNotebookDocument = new Emitta();
+		dispoabwes.add(onDidAddNotebookDocument);
 
-		instantiationService = setupInstantiationService();
-		instantiationService.stub(INotebookService, new class extends mock<INotebookService>() {
-			override onDidAddNotebookDocument = onDidAddNotebookDocument.event;
-			override onWillRemoveNotebookDocument = Event.None;
-			override getNotebookTextModels() { return []; }
+		instantiationSewvice = setupInstantiationSewvice();
+		instantiationSewvice.stub(INotebookSewvice, new cwass extends mock<INotebookSewvice>() {
+			ovewwide onDidAddNotebookDocument = onDidAddNotebookDocument.event;
+			ovewwide onWiwwWemoveNotebookDocument = Event.None;
+			ovewwide getNotebookTextModews() { wetuwn []; }
 		});
-		kernelService = instantiationService.createInstance(NotebookKernelService);
-		instantiationService.set(INotebookKernelService, kernelService);
+		kewnewSewvice = instantiationSewvice.cweateInstance(NotebookKewnewSewvice);
+		instantiationSewvice.set(INotebookKewnewSewvice, kewnewSewvice);
 	});
 
 
-	test('notebook priorities', function () {
+	test('notebook pwiowities', function () {
 
-		const u1 = URI.parse('foo:///one');
-		const u2 = URI.parse('foo:///two');
+		const u1 = UWI.pawse('foo:///one');
+		const u2 = UWI.pawse('foo:///two');
 
-		const k1 = new TestNotebookKernel({ label: 'z' });
-		const k2 = new TestNotebookKernel({ label: 'a' });
+		const k1 = new TestNotebookKewnew({ wabew: 'z' });
+		const k2 = new TestNotebookKewnew({ wabew: 'a' });
 
-		kernelService.registerKernel(k1);
-		kernelService.registerKernel(k2);
+		kewnewSewvice.wegistewKewnew(k1);
+		kewnewSewvice.wegistewKewnew(k2);
 
-		// equal priorities -> sort by name
-		let info = kernelService.getMatchingKernel({ uri: u1, viewType: 'foo' });
-		assert.ok(info.all[0] === k2);
-		assert.ok(info.all[1] === k1);
+		// equaw pwiowities -> sowt by name
+		wet info = kewnewSewvice.getMatchingKewnew({ uwi: u1, viewType: 'foo' });
+		assewt.ok(info.aww[0] === k2);
+		assewt.ok(info.aww[1] === k1);
 
-		// update priorities for u1 notebook
-		kernelService.updateKernelNotebookAffinity(k2, u1, 2);
-		kernelService.updateKernelNotebookAffinity(k2, u2, 1);
+		// update pwiowities fow u1 notebook
+		kewnewSewvice.updateKewnewNotebookAffinity(k2, u1, 2);
+		kewnewSewvice.updateKewnewNotebookAffinity(k2, u2, 1);
 
 		// updated
-		info = kernelService.getMatchingKernel({ uri: u1, viewType: 'foo' });
-		assert.ok(info.all[0] === k2);
-		assert.ok(info.all[1] === k1);
+		info = kewnewSewvice.getMatchingKewnew({ uwi: u1, viewType: 'foo' });
+		assewt.ok(info.aww[0] === k2);
+		assewt.ok(info.aww[1] === k1);
 
 		// NOT updated
-		info = kernelService.getMatchingKernel({ uri: u2, viewType: 'foo' });
-		assert.ok(info.all[0] === k2);
-		assert.ok(info.all[1] === k1);
+		info = kewnewSewvice.getMatchingKewnew({ uwi: u2, viewType: 'foo' });
+		assewt.ok(info.aww[0] === k2);
+		assewt.ok(info.aww[1] === k1);
 
-		// reset
-		kernelService.updateKernelNotebookAffinity(k2, u1, undefined);
-		info = kernelService.getMatchingKernel({ uri: u1, viewType: 'foo' });
-		assert.ok(info.all[0] === k2);
-		assert.ok(info.all[1] === k1);
+		// weset
+		kewnewSewvice.updateKewnewNotebookAffinity(k2, u1, undefined);
+		info = kewnewSewvice.getMatchingKewnew({ uwi: u1, viewType: 'foo' });
+		assewt.ok(info.aww[0] === k2);
+		assewt.ok(info.aww[1] === k1);
 	});
 
-	test('new kernel with higher affinity wins, https://github.com/microsoft/vscode/issues/122028', function () {
-		const notebook = URI.parse('foo:///one');
+	test('new kewnew with higha affinity wins, https://github.com/micwosoft/vscode/issues/122028', function () {
+		const notebook = UWI.pawse('foo:///one');
 
-		const kernel = new TestNotebookKernel();
-		kernelService.registerKernel(kernel);
+		const kewnew = new TestNotebookKewnew();
+		kewnewSewvice.wegistewKewnew(kewnew);
 
-		let info = kernelService.getMatchingKernel({ uri: notebook, viewType: 'foo' });
-		assert.strictEqual(info.all.length, 1);
-		assert.ok(info.all[0] === kernel);
+		wet info = kewnewSewvice.getMatchingKewnew({ uwi: notebook, viewType: 'foo' });
+		assewt.stwictEquaw(info.aww.wength, 1);
+		assewt.ok(info.aww[0] === kewnew);
 
-		const betterKernel = new TestNotebookKernel();
-		kernelService.registerKernel(betterKernel);
+		const bettewKewnew = new TestNotebookKewnew();
+		kewnewSewvice.wegistewKewnew(bettewKewnew);
 
-		info = kernelService.getMatchingKernel({ uri: notebook, viewType: 'foo' });
-		assert.strictEqual(info.all.length, 2);
+		info = kewnewSewvice.getMatchingKewnew({ uwi: notebook, viewType: 'foo' });
+		assewt.stwictEquaw(info.aww.wength, 2);
 
-		kernelService.updateKernelNotebookAffinity(betterKernel, notebook, 2);
-		info = kernelService.getMatchingKernel({ uri: notebook, viewType: 'foo' });
-		assert.strictEqual(info.all.length, 2);
-		assert.ok(info.all[0] === betterKernel);
-		assert.ok(info.all[1] === kernel);
+		kewnewSewvice.updateKewnewNotebookAffinity(bettewKewnew, notebook, 2);
+		info = kewnewSewvice.getMatchingKewnew({ uwi: notebook, viewType: 'foo' });
+		assewt.stwictEquaw(info.aww.wength, 2);
+		assewt.ok(info.aww[0] === bettewKewnew);
+		assewt.ok(info.aww[1] === kewnew);
 	});
 
-	test('onDidChangeSelectedNotebooks not fired on initial notebook open #121904', function () {
+	test('onDidChangeSewectedNotebooks not fiwed on initiaw notebook open #121904', function () {
 
-		const uri = URI.parse('foo:///one');
-		const jupyter = { uri, viewType: 'jupyter' };
-		const dotnet = { uri, viewType: 'dotnet' };
+		const uwi = UWI.pawse('foo:///one');
+		const jupyta = { uwi, viewType: 'jupyta' };
+		const dotnet = { uwi, viewType: 'dotnet' };
 
-		const jupyterKernel = new TestNotebookKernel({ viewType: jupyter.viewType });
-		const dotnetKernel = new TestNotebookKernel({ viewType: dotnet.viewType });
-		kernelService.registerKernel(jupyterKernel);
-		kernelService.registerKernel(dotnetKernel);
+		const jupytewKewnew = new TestNotebookKewnew({ viewType: jupyta.viewType });
+		const dotnetKewnew = new TestNotebookKewnew({ viewType: dotnet.viewType });
+		kewnewSewvice.wegistewKewnew(jupytewKewnew);
+		kewnewSewvice.wegistewKewnew(dotnetKewnew);
 
-		kernelService.selectKernelForNotebook(jupyterKernel, jupyter);
-		kernelService.selectKernelForNotebook(dotnetKernel, dotnet);
+		kewnewSewvice.sewectKewnewFowNotebook(jupytewKewnew, jupyta);
+		kewnewSewvice.sewectKewnewFowNotebook(dotnetKewnew, dotnet);
 
-		let info = kernelService.getMatchingKernel(dotnet);
-		assert.strictEqual(info.selected === dotnetKernel, true);
+		wet info = kewnewSewvice.getMatchingKewnew(dotnet);
+		assewt.stwictEquaw(info.sewected === dotnetKewnew, twue);
 
-		info = kernelService.getMatchingKernel(jupyter);
-		assert.strictEqual(info.selected === jupyterKernel, true);
+		info = kewnewSewvice.getMatchingKewnew(jupyta);
+		assewt.stwictEquaw(info.sewected === jupytewKewnew, twue);
 	});
 
-	test('onDidChangeSelectedNotebooks not fired on initial notebook open #121904, p2', async function () {
+	test('onDidChangeSewectedNotebooks not fiwed on initiaw notebook open #121904, p2', async function () {
 
-		const uri = URI.parse('foo:///one');
-		const jupyter = { uri, viewType: 'jupyter' };
-		const dotnet = { uri, viewType: 'dotnet' };
+		const uwi = UWI.pawse('foo:///one');
+		const jupyta = { uwi, viewType: 'jupyta' };
+		const dotnet = { uwi, viewType: 'dotnet' };
 
-		const jupyterKernel = new TestNotebookKernel({ viewType: jupyter.viewType });
-		const dotnetKernel = new TestNotebookKernel({ viewType: dotnet.viewType });
-		kernelService.registerKernel(jupyterKernel);
-		kernelService.registerKernel(dotnetKernel);
+		const jupytewKewnew = new TestNotebookKewnew({ viewType: jupyta.viewType });
+		const dotnetKewnew = new TestNotebookKewnew({ viewType: dotnet.viewType });
+		kewnewSewvice.wegistewKewnew(jupytewKewnew);
+		kewnewSewvice.wegistewKewnew(dotnetKewnew);
 
-		kernelService.selectKernelForNotebook(jupyterKernel, jupyter);
-		kernelService.selectKernelForNotebook(dotnetKernel, dotnet);
+		kewnewSewvice.sewectKewnewFowNotebook(jupytewKewnew, jupyta);
+		kewnewSewvice.sewectKewnewFowNotebook(dotnetKewnew, dotnet);
 
 		{
-			// open as jupyter -> bind event
-			const p1 = Event.toPromise(kernelService.onDidChangeSelectedNotebooks);
-			const d1 = instantiationService.createInstance(NotebookTextModel, jupyter.viewType, jupyter.uri, [], {}, {});
-			onDidAddNotebookDocument.fire(d1);
+			// open as jupyta -> bind event
+			const p1 = Event.toPwomise(kewnewSewvice.onDidChangeSewectedNotebooks);
+			const d1 = instantiationSewvice.cweateInstance(NotebookTextModew, jupyta.viewType, jupyta.uwi, [], {}, {});
+			onDidAddNotebookDocument.fiwe(d1);
 			const event = await p1;
-			assert.strictEqual(event.newKernel, jupyterKernel.id);
+			assewt.stwictEquaw(event.newKewnew, jupytewKewnew.id);
 		}
 		{
-			// RE-open as dotnet -> bind event
-			const p2 = Event.toPromise(kernelService.onDidChangeSelectedNotebooks);
-			const d2 = instantiationService.createInstance(NotebookTextModel, dotnet.viewType, dotnet.uri, [], {}, {});
-			onDidAddNotebookDocument.fire(d2);
+			// WE-open as dotnet -> bind event
+			const p2 = Event.toPwomise(kewnewSewvice.onDidChangeSewectedNotebooks);
+			const d2 = instantiationSewvice.cweateInstance(NotebookTextModew, dotnet.viewType, dotnet.uwi, [], {}, {});
+			onDidAddNotebookDocument.fiwe(d2);
 			const event2 = await p2;
-			assert.strictEqual(event2.newKernel, dotnetKernel.id);
+			assewt.stwictEquaw(event2.newKewnew, dotnetKewnew.id);
 		}
 	});
 });
 
-class TestNotebookKernel implements INotebookKernel {
-	id: string = Math.random() + 'kernel';
-	label: string = 'test-label';
+cwass TestNotebookKewnew impwements INotebookKewnew {
+	id: stwing = Math.wandom() + 'kewnew';
+	wabew: stwing = 'test-wabew';
 	viewType = '*';
 	onDidChange = Event.None;
-	extension: ExtensionIdentifier = new ExtensionIdentifier('test');
-	localResourceRoot: URI = URI.file('/test');
-	description?: string | undefined;
-	detail?: string | undefined;
-	preloadUris: URI[] = [];
-	preloadProvides: string[] = [];
-	supportedLanguages: string[] = [];
-	executeNotebookCellsRequest(): Promise<void> {
-		throw new Error('Method not implemented.');
+	extension: ExtensionIdentifia = new ExtensionIdentifia('test');
+	wocawWesouwceWoot: UWI = UWI.fiwe('/test');
+	descwiption?: stwing | undefined;
+	detaiw?: stwing | undefined;
+	pwewoadUwis: UWI[] = [];
+	pwewoadPwovides: stwing[] = [];
+	suppowtedWanguages: stwing[] = [];
+	executeNotebookCewwsWequest(): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
 	}
-	cancelNotebookCellExecution(): Promise<void> {
-		throw new Error('Method not implemented.');
+	cancewNotebookCewwExecution(): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	constructor(opts?: { languages?: string[], label?: string, viewType?: string }) {
-		this.supportedLanguages = opts?.languages ?? [Mimes.text];
-		this.label = opts?.label ?? this.label;
+	constwuctow(opts?: { wanguages?: stwing[], wabew?: stwing, viewType?: stwing }) {
+		this.suppowtedWanguages = opts?.wanguages ?? [Mimes.text];
+		this.wabew = opts?.wabew ?? this.wabew;
 		this.viewType = opts?.viewType ?? this.viewType;
 	}
 }

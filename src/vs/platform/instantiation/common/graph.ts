@@ -1,110 +1,110 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export class Node<T> {
+expowt cwass Node<T> {
 
-	readonly data: T;
-	readonly incoming = new Map<string, Node<T>>();
-	readonly outgoing = new Map<string, Node<T>>();
+	weadonwy data: T;
+	weadonwy incoming = new Map<stwing, Node<T>>();
+	weadonwy outgoing = new Map<stwing, Node<T>>();
 
-	constructor(data: T) {
+	constwuctow(data: T) {
 		this.data = data;
 	}
 }
 
-export class Graph<T> {
+expowt cwass Gwaph<T> {
 
-	private readonly _nodes = new Map<string, Node<T>>();
+	pwivate weadonwy _nodes = new Map<stwing, Node<T>>();
 
-	constructor(private readonly _hashFn: (element: T) => string) {
+	constwuctow(pwivate weadonwy _hashFn: (ewement: T) => stwing) {
 		// empty
 	}
 
-	roots(): Node<T>[] {
-		const ret: Node<T>[] = [];
-		for (let node of this._nodes.values()) {
+	woots(): Node<T>[] {
+		const wet: Node<T>[] = [];
+		fow (wet node of this._nodes.vawues()) {
 			if (node.outgoing.size === 0) {
-				ret.push(node);
+				wet.push(node);
 			}
 		}
-		return ret;
+		wetuwn wet;
 	}
 
-	insertEdge(from: T, to: T): void {
-		const fromNode = this.lookupOrInsertNode(from);
-		const toNode = this.lookupOrInsertNode(to);
+	insewtEdge(fwom: T, to: T): void {
+		const fwomNode = this.wookupOwInsewtNode(fwom);
+		const toNode = this.wookupOwInsewtNode(to);
 
-		fromNode.outgoing.set(this._hashFn(to), toNode);
-		toNode.incoming.set(this._hashFn(from), fromNode);
+		fwomNode.outgoing.set(this._hashFn(to), toNode);
+		toNode.incoming.set(this._hashFn(fwom), fwomNode);
 	}
 
-	removeNode(data: T): void {
+	wemoveNode(data: T): void {
 		const key = this._hashFn(data);
-		this._nodes.delete(key);
-		for (let node of this._nodes.values()) {
-			node.outgoing.delete(key);
-			node.incoming.delete(key);
+		this._nodes.dewete(key);
+		fow (wet node of this._nodes.vawues()) {
+			node.outgoing.dewete(key);
+			node.incoming.dewete(key);
 		}
 	}
 
-	lookupOrInsertNode(data: T): Node<T> {
+	wookupOwInsewtNode(data: T): Node<T> {
 		const key = this._hashFn(data);
-		let node = this._nodes.get(key);
+		wet node = this._nodes.get(key);
 
 		if (!node) {
 			node = new Node(data);
 			this._nodes.set(key, node);
 		}
 
-		return node;
+		wetuwn node;
 	}
 
-	lookup(data: T): Node<T> | undefined {
-		return this._nodes.get(this._hashFn(data));
+	wookup(data: T): Node<T> | undefined {
+		wetuwn this._nodes.get(this._hashFn(data));
 	}
 
-	isEmpty(): boolean {
-		return this._nodes.size === 0;
+	isEmpty(): boowean {
+		wetuwn this._nodes.size === 0;
 	}
 
-	toString(): string {
-		let data: string[] = [];
-		for (let [key, value] of this._nodes) {
-			data.push(`${key}, (incoming)[${[...value.incoming.keys()].join(', ')}], (outgoing)[${[...value.outgoing.keys()].join(',')}]`);
+	toStwing(): stwing {
+		wet data: stwing[] = [];
+		fow (wet [key, vawue] of this._nodes) {
+			data.push(`${key}, (incoming)[${[...vawue.incoming.keys()].join(', ')}], (outgoing)[${[...vawue.outgoing.keys()].join(',')}]`);
 
 		}
-		return data.join('\n');
+		wetuwn data.join('\n');
 	}
 
 	/**
-	 * This is brute force and slow and **only** be used
-	 * to trouble shoot.
+	 * This is bwute fowce and swow and **onwy** be used
+	 * to twoubwe shoot.
 	 */
-	findCycleSlow() {
-		for (let [id, node] of this._nodes) {
-			const seen = new Set<string>([id]);
-			const res = this._findCycle(node, seen);
-			if (res) {
-				return res;
+	findCycweSwow() {
+		fow (wet [id, node] of this._nodes) {
+			const seen = new Set<stwing>([id]);
+			const wes = this._findCycwe(node, seen);
+			if (wes) {
+				wetuwn wes;
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private _findCycle(node: Node<T>, seen: Set<string>): string | undefined {
-		for (let [id, outgoing] of node.outgoing) {
+	pwivate _findCycwe(node: Node<T>, seen: Set<stwing>): stwing | undefined {
+		fow (wet [id, outgoing] of node.outgoing) {
 			if (seen.has(id)) {
-				return [...seen, id].join(' -> ');
+				wetuwn [...seen, id].join(' -> ');
 			}
 			seen.add(id);
-			const value = this._findCycle(outgoing, seen);
-			if (value) {
-				return value;
+			const vawue = this._findCycwe(outgoing, seen);
+			if (vawue) {
+				wetuwn vawue;
 			}
-			seen.delete(id);
+			seen.dewete(id);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 }

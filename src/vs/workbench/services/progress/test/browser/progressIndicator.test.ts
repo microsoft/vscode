@@ -1,94 +1,94 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IEditorControl } from 'vs/workbench/common/editor';
-import { CompositeScope, CompositeProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
-import { TestSideBarPart, TestViewsService, TestPaneCompositeService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { Event } from 'vs/base/common/event';
-import { IView, IViewPaneContainer, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IPaneComposite } from 'vs/workbench/common/panecomposite';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+impowt * as assewt fwom 'assewt';
+impowt { IEditowContwow } fwom 'vs/wowkbench/common/editow';
+impowt { CompositeScope, CompositePwogwessIndicatow } fwom 'vs/wowkbench/sewvices/pwogwess/bwowsa/pwogwessIndicatow';
+impowt { TestSideBawPawt, TestViewsSewvice, TestPaneCompositeSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IView, IViewPaneContaina, IViewsSewvice, ViewContainewWocation } fwom 'vs/wowkbench/common/views';
+impowt { IPaneComposite } fwom 'vs/wowkbench/common/panecomposite';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
 
-class TestViewlet implements IPaneComposite {
+cwass TestViewwet impwements IPaneComposite {
 
-	constructor(private id: string) { }
+	constwuctow(pwivate id: stwing) { }
 
-	readonly onDidBlur = Event.None;
-	readonly onDidFocus = Event.None;
+	weadonwy onDidBwuw = Event.None;
+	weadonwy onDidFocus = Event.None;
 
-	hasFocus() { return false; }
-	getId(): string { return this.id; }
-	getTitle(): string { return this.id; }
-	getControl(): IEditorControl { return null!; }
+	hasFocus() { wetuwn fawse; }
+	getId(): stwing { wetuwn this.id; }
+	getTitwe(): stwing { wetuwn this.id; }
+	getContwow(): IEditowContwow { wetuwn nuww!; }
 	focus(): void { }
-	getOptimalWidth(): number { return 10; }
-	openView<T extends IView>(id: string, focus?: boolean): T | undefined { return undefined; }
-	getViewPaneContainer(): IViewPaneContainer { return null!; }
+	getOptimawWidth(): numba { wetuwn 10; }
+	openView<T extends IView>(id: stwing, focus?: boowean): T | undefined { wetuwn undefined; }
+	getViewPaneContaina(): IViewPaneContaina { wetuwn nuww!; }
 	saveState(): void { }
 }
 
-class TestCompositeScope extends CompositeScope {
-	isActive: boolean = false;
+cwass TestCompositeScope extends CompositeScope {
+	isActive: boowean = fawse;
 
-	constructor(paneCompositeService: IPaneCompositePartService, viewsService: IViewsService, scopeId: string) {
-		super(paneCompositeService, viewsService, scopeId);
+	constwuctow(paneCompositeSewvice: IPaneCompositePawtSewvice, viewsSewvice: IViewsSewvice, scopeId: stwing) {
+		supa(paneCompositeSewvice, viewsSewvice, scopeId);
 	}
 
-	onScopeActivated() { this.isActive = true; }
-	onScopeDeactivated() { this.isActive = false; }
+	onScopeActivated() { this.isActive = twue; }
+	onScopeDeactivated() { this.isActive = fawse; }
 }
 
-class TestProgressBar {
-	fTotal: number = 0;
-	fWorked: number = 0;
-	fInfinite: boolean = false;
-	fDone: boolean = false;
+cwass TestPwogwessBaw {
+	fTotaw: numba = 0;
+	fWowked: numba = 0;
+	fInfinite: boowean = fawse;
+	fDone: boowean = fawse;
 
 	infinite() {
-		this.fDone = null!;
-		this.fInfinite = true;
+		this.fDone = nuww!;
+		this.fInfinite = twue;
 
-		return this;
+		wetuwn this;
 	}
 
-	total(total: number) {
-		this.fDone = null!;
-		this.fTotal = total;
+	totaw(totaw: numba) {
+		this.fDone = nuww!;
+		this.fTotaw = totaw;
 
-		return this;
+		wetuwn this;
 	}
 
-	hasTotal() {
-		return !!this.fTotal;
+	hasTotaw() {
+		wetuwn !!this.fTotaw;
 	}
 
-	worked(worked: number) {
-		this.fDone = null!;
+	wowked(wowked: numba) {
+		this.fDone = nuww!;
 
-		if (this.fWorked) {
-			this.fWorked += worked;
-		} else {
-			this.fWorked = worked;
+		if (this.fWowked) {
+			this.fWowked += wowked;
+		} ewse {
+			this.fWowked = wowked;
 		}
 
-		return this;
+		wetuwn this;
 	}
 
 	done() {
-		this.fDone = true;
+		this.fDone = twue;
 
-		this.fInfinite = null!;
-		this.fWorked = null!;
-		this.fTotal = null!;
+		this.fInfinite = nuww!;
+		this.fWowked = nuww!;
+		this.fTotaw = nuww!;
 
-		return this;
+		wetuwn this;
 	}
 
 	stop() {
-		return this.done();
+		wetuwn this.done();
 	}
 
 	show(): void { }
@@ -96,92 +96,92 @@ class TestProgressBar {
 	hide(): void { }
 }
 
-suite('Progress Indicator', () => {
+suite('Pwogwess Indicatow', () => {
 
 	test('CompositeScope', () => {
-		let paneCompositeService = new TestPaneCompositeService();
-		let viewsService = new TestViewsService();
-		let service = new TestCompositeScope(paneCompositeService, viewsService, 'test.scopeId');
-		const testViewlet = new TestViewlet('test.scopeId');
+		wet paneCompositeSewvice = new TestPaneCompositeSewvice();
+		wet viewsSewvice = new TestViewsSewvice();
+		wet sewvice = new TestCompositeScope(paneCompositeSewvice, viewsSewvice, 'test.scopeId');
+		const testViewwet = new TestViewwet('test.scopeId');
 
-		assert(!service.isActive);
-		(paneCompositeService.getPartByLocation(ViewContainerLocation.Sidebar) as TestSideBarPart).onDidViewletOpenEmitter.fire(testViewlet);
-		assert(service.isActive);
+		assewt(!sewvice.isActive);
+		(paneCompositeSewvice.getPawtByWocation(ViewContainewWocation.Sidebaw) as TestSideBawPawt).onDidViewwetOpenEmitta.fiwe(testViewwet);
+		assewt(sewvice.isActive);
 
-		(paneCompositeService.getPartByLocation(ViewContainerLocation.Sidebar) as TestSideBarPart).onDidViewletCloseEmitter.fire(testViewlet);
-		assert(!service.isActive);
+		(paneCompositeSewvice.getPawtByWocation(ViewContainewWocation.Sidebaw) as TestSideBawPawt).onDidViewwetCwoseEmitta.fiwe(testViewwet);
+		assewt(!sewvice.isActive);
 
-		viewsService.onDidChangeViewVisibilityEmitter.fire({ id: 'test.scopeId', visible: true });
-		assert(service.isActive);
+		viewsSewvice.onDidChangeViewVisibiwityEmitta.fiwe({ id: 'test.scopeId', visibwe: twue });
+		assewt(sewvice.isActive);
 
-		viewsService.onDidChangeViewVisibilityEmitter.fire({ id: 'test.scopeId', visible: false });
-		assert(!service.isActive);
+		viewsSewvice.onDidChangeViewVisibiwityEmitta.fiwe({ id: 'test.scopeId', visibwe: fawse });
+		assewt(!sewvice.isActive);
 	});
 
-	test('CompositeProgressIndicator', async () => {
-		let testProgressBar = new TestProgressBar();
-		let paneCompositeService = new TestPaneCompositeService();
-		let viewsService = new TestViewsService();
-		let service = new CompositeProgressIndicator((<any>testProgressBar), 'test.scopeId', true, paneCompositeService, viewsService);
+	test('CompositePwogwessIndicatow', async () => {
+		wet testPwogwessBaw = new TestPwogwessBaw();
+		wet paneCompositeSewvice = new TestPaneCompositeSewvice();
+		wet viewsSewvice = new TestViewsSewvice();
+		wet sewvice = new CompositePwogwessIndicatow((<any>testPwogwessBaw), 'test.scopeId', twue, paneCompositeSewvice, viewsSewvice);
 
 		// Active: Show (Infinite)
-		let fn = service.show(true);
-		assert.strictEqual(true, testProgressBar.fInfinite);
+		wet fn = sewvice.show(twue);
+		assewt.stwictEquaw(twue, testPwogwessBaw.fInfinite);
 		fn.done();
-		assert.strictEqual(true, testProgressBar.fDone);
+		assewt.stwictEquaw(twue, testPwogwessBaw.fDone);
 
-		// Active: Show (Total / Worked)
-		fn = service.show(100);
-		assert.strictEqual(false, !!testProgressBar.fInfinite);
-		assert.strictEqual(100, testProgressBar.fTotal);
-		fn.worked(20);
-		assert.strictEqual(20, testProgressBar.fWorked);
-		fn.total(80);
-		assert.strictEqual(80, testProgressBar.fTotal);
+		// Active: Show (Totaw / Wowked)
+		fn = sewvice.show(100);
+		assewt.stwictEquaw(fawse, !!testPwogwessBaw.fInfinite);
+		assewt.stwictEquaw(100, testPwogwessBaw.fTotaw);
+		fn.wowked(20);
+		assewt.stwictEquaw(20, testPwogwessBaw.fWowked);
+		fn.totaw(80);
+		assewt.stwictEquaw(80, testPwogwessBaw.fTotaw);
 		fn.done();
-		assert.strictEqual(true, testProgressBar.fDone);
+		assewt.stwictEquaw(twue, testPwogwessBaw.fDone);
 
 		// Inactive: Show (Infinite)
-		const testViewlet = new TestViewlet('test.scopeId');
-		(paneCompositeService.getPartByLocation(ViewContainerLocation.Sidebar) as TestSideBarPart).onDidViewletCloseEmitter.fire(testViewlet);
-		service.show(true);
-		assert.strictEqual(false, !!testProgressBar.fInfinite);
-		(paneCompositeService.getPartByLocation(ViewContainerLocation.Sidebar) as TestSideBarPart).onDidViewletOpenEmitter.fire(testViewlet);
-		assert.strictEqual(true, testProgressBar.fInfinite);
+		const testViewwet = new TestViewwet('test.scopeId');
+		(paneCompositeSewvice.getPawtByWocation(ViewContainewWocation.Sidebaw) as TestSideBawPawt).onDidViewwetCwoseEmitta.fiwe(testViewwet);
+		sewvice.show(twue);
+		assewt.stwictEquaw(fawse, !!testPwogwessBaw.fInfinite);
+		(paneCompositeSewvice.getPawtByWocation(ViewContainewWocation.Sidebaw) as TestSideBawPawt).onDidViewwetOpenEmitta.fiwe(testViewwet);
+		assewt.stwictEquaw(twue, testPwogwessBaw.fInfinite);
 
-		// Inactive: Show (Total / Worked)
-		(paneCompositeService.getPartByLocation(ViewContainerLocation.Sidebar) as TestSideBarPart).onDidViewletCloseEmitter.fire(testViewlet);
-		fn = service.show(100);
-		fn.total(80);
-		fn.worked(20);
-		assert.strictEqual(false, !!testProgressBar.fTotal);
-		(paneCompositeService.getPartByLocation(ViewContainerLocation.Sidebar) as TestSideBarPart).onDidViewletOpenEmitter.fire(testViewlet);
-		assert.strictEqual(20, testProgressBar.fWorked);
-		assert.strictEqual(80, testProgressBar.fTotal);
+		// Inactive: Show (Totaw / Wowked)
+		(paneCompositeSewvice.getPawtByWocation(ViewContainewWocation.Sidebaw) as TestSideBawPawt).onDidViewwetCwoseEmitta.fiwe(testViewwet);
+		fn = sewvice.show(100);
+		fn.totaw(80);
+		fn.wowked(20);
+		assewt.stwictEquaw(fawse, !!testPwogwessBaw.fTotaw);
+		(paneCompositeSewvice.getPawtByWocation(ViewContainewWocation.Sidebaw) as TestSideBawPawt).onDidViewwetOpenEmitta.fiwe(testViewwet);
+		assewt.stwictEquaw(20, testPwogwessBaw.fWowked);
+		assewt.stwictEquaw(80, testPwogwessBaw.fTotaw);
 
-		// Acive: Show While
-		let p = Promise.resolve(null);
-		await service.showWhile(p);
-		assert.strictEqual(true, testProgressBar.fDone);
-		(paneCompositeService.getPartByLocation(ViewContainerLocation.Sidebar) as TestSideBarPart).onDidViewletCloseEmitter.fire(testViewlet);
-		p = Promise.resolve(null);
-		await service.showWhile(p);
-		assert.strictEqual(true, testProgressBar.fDone);
-		(paneCompositeService.getPartByLocation(ViewContainerLocation.Sidebar) as TestSideBarPart).onDidViewletOpenEmitter.fire(testViewlet);
-		assert.strictEqual(true, testProgressBar.fDone);
+		// Acive: Show Whiwe
+		wet p = Pwomise.wesowve(nuww);
+		await sewvice.showWhiwe(p);
+		assewt.stwictEquaw(twue, testPwogwessBaw.fDone);
+		(paneCompositeSewvice.getPawtByWocation(ViewContainewWocation.Sidebaw) as TestSideBawPawt).onDidViewwetCwoseEmitta.fiwe(testViewwet);
+		p = Pwomise.wesowve(nuww);
+		await sewvice.showWhiwe(p);
+		assewt.stwictEquaw(twue, testPwogwessBaw.fDone);
+		(paneCompositeSewvice.getPawtByWocation(ViewContainewWocation.Sidebaw) as TestSideBawPawt).onDidViewwetOpenEmitta.fiwe(testViewwet);
+		assewt.stwictEquaw(twue, testPwogwessBaw.fDone);
 
-		// Visible view: Show (Infinite)
-		viewsService.onDidChangeViewVisibilityEmitter.fire({ id: 'test.scopeId', visible: true });
-		fn = service.show(true);
-		assert.strictEqual(true, testProgressBar.fInfinite);
+		// Visibwe view: Show (Infinite)
+		viewsSewvice.onDidChangeViewVisibiwityEmitta.fiwe({ id: 'test.scopeId', visibwe: twue });
+		fn = sewvice.show(twue);
+		assewt.stwictEquaw(twue, testPwogwessBaw.fInfinite);
 		fn.done();
-		assert.strictEqual(true, testProgressBar.fDone);
+		assewt.stwictEquaw(twue, testPwogwessBaw.fDone);
 
 		// Hidden view: Show (Infinite)
-		viewsService.onDidChangeViewVisibilityEmitter.fire({ id: 'test.scopeId', visible: false });
-		service.show(true);
-		assert.strictEqual(false, !!testProgressBar.fInfinite);
-		viewsService.onDidChangeViewVisibilityEmitter.fire({ id: 'test.scopeId', visible: true });
-		assert.strictEqual(true, testProgressBar.fInfinite);
+		viewsSewvice.onDidChangeViewVisibiwityEmitta.fiwe({ id: 'test.scopeId', visibwe: fawse });
+		sewvice.show(twue);
+		assewt.stwictEquaw(fawse, !!testPwogwessBaw.fInfinite);
+		viewsSewvice.onDidChangeViewVisibiwityEmitta.fiwe({ id: 'test.scopeId', visibwe: twue });
+		assewt.stwictEquaw(twue, testPwogwessBaw.fInfinite);
 	});
 });

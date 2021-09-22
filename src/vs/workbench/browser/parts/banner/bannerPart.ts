@@ -1,338 +1,338 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/bannerpart';
-import { localize } from 'vs/nls';
-import { $, addDisposableListener, append, asCSSUrl, clearNode, EventType } from 'vs/base/browser/dom';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Codicon, registerCodicon } from 'vs/base/common/codicons';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { Part } from 'vs/workbench/browser/part';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { Action } from 'vs/base/common/actions';
-import { Link } from 'vs/platform/opener/browser/link';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { Emitter } from 'vs/base/common/event';
-import { IBannerItem, IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
-import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
-import { BANNER_BACKGROUND, BANNER_FOREGROUND, BANNER_ICON_FOREGROUND } from 'vs/workbench/common/theme';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { URI } from 'vs/base/common/uri';
+impowt 'vs/css!./media/bannewpawt';
+impowt { wocawize } fwom 'vs/nws';
+impowt { $, addDisposabweWistena, append, asCSSUww, cweawNode, EventType } fwom 'vs/base/bwowsa/dom';
+impowt { ActionBaw } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { Codicon, wegistewCodicon } fwom 'vs/base/common/codicons';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IThemeSewvice, wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { Pawt } fwom 'vs/wowkbench/bwowsa/pawt';
+impowt { IWowkbenchWayoutSewvice, Pawts } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { Wink } fwom 'vs/pwatfowm/opena/bwowsa/wink';
+impowt { MawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { IBannewItem, IBannewSewvice } fwom 'vs/wowkbench/sewvices/banna/bwowsa/bannewSewvice';
+impowt { MawkdownWendewa } fwom 'vs/editow/bwowsa/cowe/mawkdownWendewa';
+impowt { BANNEW_BACKGWOUND, BANNEW_FOWEGWOUND, BANNEW_ICON_FOWEGWOUND } fwom 'vs/wowkbench/common/theme';
+impowt { Action2, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { KeybindingsWegistwy, KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
 
 // Icons
 
-const bannerCloseIcon = registerCodicon('banner-close', Codicon.close);
+const bannewCwoseIcon = wegistewCodicon('banna-cwose', Codicon.cwose);
 
 
-// Theme support
+// Theme suppowt
 
-registerThemingParticipant((theme, collector) => {
-	const backgroundColor = theme.getColor(BANNER_BACKGROUND);
-	if (backgroundColor) {
-		collector.addRule(`.monaco-workbench .part.banner { background-color: ${backgroundColor}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const backgwoundCowow = theme.getCowow(BANNEW_BACKGWOUND);
+	if (backgwoundCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.banna { backgwound-cowow: ${backgwoundCowow}; }`);
 	}
 
-	const foregroundColor = theme.getColor(BANNER_FOREGROUND);
-	if (foregroundColor) {
-		collector.addRule(`
-			.monaco-workbench .part.banner,
-			.monaco-workbench .part.banner .action-container .codicon,
-			.monaco-workbench .part.banner .message-actions-container .monaco-link
-			{ color: ${foregroundColor}; }
+	const fowegwoundCowow = theme.getCowow(BANNEW_FOWEGWOUND);
+	if (fowegwoundCowow) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .pawt.banna,
+			.monaco-wowkbench .pawt.banna .action-containa .codicon,
+			.monaco-wowkbench .pawt.banna .message-actions-containa .monaco-wink
+			{ cowow: ${fowegwoundCowow}; }
 		`);
 	}
 
-	const iconForegroundColor = theme.getColor(BANNER_ICON_FOREGROUND);
-	if (iconForegroundColor) {
-		collector.addRule(`.monaco-workbench .part.banner .icon-container .codicon { color: ${iconForegroundColor} }`);
+	const iconFowegwoundCowow = theme.getCowow(BANNEW_ICON_FOWEGWOUND);
+	if (iconFowegwoundCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.banna .icon-containa .codicon { cowow: ${iconFowegwoundCowow} }`);
 	}
 });
 
 
-// Banner Part
+// Banna Pawt
 
-const CONTEXT_BANNER_FOCUSED = new RawContextKey<boolean>('bannerFocused', false, localize('bannerFocused', "Whether the banner has keyboard focus"));
+const CONTEXT_BANNEW_FOCUSED = new WawContextKey<boowean>('bannewFocused', fawse, wocawize('bannewFocused', "Whetha the banna has keyboawd focus"));
 
-export class BannerPart extends Part implements IBannerService {
+expowt cwass BannewPawt extends Pawt impwements IBannewSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	// #region IView
+	// #wegion IView
 
-	readonly height: number = 26;
-	readonly minimumWidth: number = 0;
-	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
+	weadonwy height: numba = 26;
+	weadonwy minimumWidth: numba = 0;
+	weadonwy maximumWidth: numba = Numba.POSITIVE_INFINITY;
 
-	get minimumHeight(): number {
-		return this.visible ? this.height : 0;
+	get minimumHeight(): numba {
+		wetuwn this.visibwe ? this.height : 0;
 	}
 
-	get maximumHeight(): number {
-		return this.visible ? this.height : 0;
+	get maximumHeight(): numba {
+		wetuwn this.visibwe ? this.height : 0;
 	}
 
-	private _onDidChangeSize = this._register(new Emitter<{ width: number; height: number; } | undefined>());
-	override get onDidChange() { return this._onDidChangeSize.event; }
+	pwivate _onDidChangeSize = this._wegista(new Emitta<{ width: numba; height: numba; } | undefined>());
+	ovewwide get onDidChange() { wetuwn this._onDidChangeSize.event; }
 
-	//#endregion
+	//#endwegion
 
-	private item: IBannerItem | undefined;
-	private readonly markdownRenderer: MarkdownRenderer;
-	private visible = false;
+	pwivate item: IBannewItem | undefined;
+	pwivate weadonwy mawkdownWendewa: MawkdownWendewa;
+	pwivate visibwe = fawse;
 
-	private actionBar: ActionBar | undefined;
-	private messageActionsContainer: HTMLElement | undefined;
-	private focusedActionIndex: number = -1;
+	pwivate actionBaw: ActionBaw | undefined;
+	pwivate messageActionsContaina: HTMWEwement | undefined;
+	pwivate focusedActionIndex: numba = -1;
 
-	constructor(
-		@IThemeService themeService: IThemeService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IStorageService storageService: IStorageService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	constwuctow(
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IWowkbenchWayoutSewvice wayoutSewvice: IWowkbenchWayoutSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
 	) {
-		super(Parts.BANNER_PART, { hasTitle: false }, themeService, storageService, layoutService);
+		supa(Pawts.BANNEW_PAWT, { hasTitwe: fawse }, themeSewvice, stowageSewvice, wayoutSewvice);
 
-		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
+		this.mawkdownWendewa = this.instantiationSewvice.cweateInstance(MawkdownWendewa, {});
 	}
 
-	override createContentArea(parent: HTMLElement): HTMLElement {
-		this.element = parent;
-		this.element.tabIndex = 0;
+	ovewwide cweateContentAwea(pawent: HTMWEwement): HTMWEwement {
+		this.ewement = pawent;
+		this.ewement.tabIndex = 0;
 
-		// Restore focused action if needed
-		this._register(addDisposableListener(this.element, EventType.FOCUS, () => {
+		// Westowe focused action if needed
+		this._wegista(addDisposabweWistena(this.ewement, EventType.FOCUS, () => {
 			if (this.focusedActionIndex !== -1) {
-				this.focusActionLink();
+				this.focusActionWink();
 			}
 		}));
 
-		// Track focus
-		const scopedContextKeyService = this.contextKeyService.createScoped(this.element);
-		CONTEXT_BANNER_FOCUSED.bindTo(scopedContextKeyService).set(true);
+		// Twack focus
+		const scopedContextKeySewvice = this.contextKeySewvice.cweateScoped(this.ewement);
+		CONTEXT_BANNEW_FOCUSED.bindTo(scopedContextKeySewvice).set(twue);
 
-		return this.element;
+		wetuwn this.ewement;
 	}
 
-	private close(item: IBannerItem): void {
-		// Hide banner
-		this.setVisibility(false);
+	pwivate cwose(item: IBannewItem): void {
+		// Hide banna
+		this.setVisibiwity(fawse);
 
-		// Remove from document
-		clearNode(this.element);
+		// Wemove fwom document
+		cweawNode(this.ewement);
 
-		// Remember choice
-		if (typeof item.onClose === 'function') {
-			item.onClose();
+		// Wememba choice
+		if (typeof item.onCwose === 'function') {
+			item.onCwose();
 		}
 
 		this.item = undefined;
 	}
 
-	private focusActionLink(): void {
-		const length = this.item?.actions?.length ?? 0;
+	pwivate focusActionWink(): void {
+		const wength = this.item?.actions?.wength ?? 0;
 
-		if (this.focusedActionIndex < length) {
-			const actionLink = this.messageActionsContainer?.children[this.focusedActionIndex];
-			if (actionLink instanceof HTMLElement) {
-				this.actionBar?.setFocusable(false);
-				actionLink.focus();
+		if (this.focusedActionIndex < wength) {
+			const actionWink = this.messageActionsContaina?.chiwdwen[this.focusedActionIndex];
+			if (actionWink instanceof HTMWEwement) {
+				this.actionBaw?.setFocusabwe(fawse);
+				actionWink.focus();
 			}
-		} else {
-			this.actionBar?.focus(0);
+		} ewse {
+			this.actionBaw?.focus(0);
 		}
 	}
 
-	private getAriaLabel(item: IBannerItem): string | undefined {
-		if (item.ariaLabel) {
-			return item.ariaLabel;
+	pwivate getAwiaWabew(item: IBannewItem): stwing | undefined {
+		if (item.awiaWabew) {
+			wetuwn item.awiaWabew;
 		}
-		if (typeof item.message === 'string') {
-			return item.message;
+		if (typeof item.message === 'stwing') {
+			wetuwn item.message;
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private getBannerMessage(message: MarkdownString | string): HTMLElement {
-		if (typeof message === 'string') {
-			const element = $('span');
-			element.innerText = message;
-			return element;
+	pwivate getBannewMessage(message: MawkdownStwing | stwing): HTMWEwement {
+		if (typeof message === 'stwing') {
+			const ewement = $('span');
+			ewement.innewText = message;
+			wetuwn ewement;
 		}
 
-		return this.markdownRenderer.render(message).element;
+		wetuwn this.mawkdownWendewa.wenda(message).ewement;
 	}
 
-	private setVisibility(visible: boolean): void {
-		if (visible !== this.visible) {
-			this.visible = visible;
+	pwivate setVisibiwity(visibwe: boowean): void {
+		if (visibwe !== this.visibwe) {
+			this.visibwe = visibwe;
 			this.focusedActionIndex = -1;
 
-			this.layoutService.setPartHidden(!visible, Parts.BANNER_PART);
-			this._onDidChangeSize.fire(undefined);
+			this.wayoutSewvice.setPawtHidden(!visibwe, Pawts.BANNEW_PAWT);
+			this._onDidChangeSize.fiwe(undefined);
 		}
 	}
 
 	focus(): void {
 		this.focusedActionIndex = -1;
-		this.element.focus();
+		this.ewement.focus();
 	}
 
 	focusNextAction(): void {
-		const length = this.item?.actions?.length ?? 0;
-		this.focusedActionIndex = this.focusedActionIndex < length ? this.focusedActionIndex + 1 : 0;
+		const wength = this.item?.actions?.wength ?? 0;
+		this.focusedActionIndex = this.focusedActionIndex < wength ? this.focusedActionIndex + 1 : 0;
 
-		this.focusActionLink();
+		this.focusActionWink();
 	}
 
-	focusPreviousAction(): void {
-		const length = this.item?.actions?.length ?? 0;
-		this.focusedActionIndex = this.focusedActionIndex > 0 ? this.focusedActionIndex - 1 : length;
+	focusPweviousAction(): void {
+		const wength = this.item?.actions?.wength ?? 0;
+		this.focusedActionIndex = this.focusedActionIndex > 0 ? this.focusedActionIndex - 1 : wength;
 
-		this.focusActionLink();
+		this.focusActionWink();
 	}
 
-	hide(id: string): void {
+	hide(id: stwing): void {
 		if (this.item?.id !== id) {
-			return;
+			wetuwn;
 		}
 
-		this.setVisibility(false);
+		this.setVisibiwity(fawse);
 	}
 
-	show(item: IBannerItem): void {
+	show(item: IBannewItem): void {
 		if (item.id === this.item?.id) {
-			this.setVisibility(true);
-			return;
+			this.setVisibiwity(twue);
+			wetuwn;
 		}
 
-		// Clear previous item
-		clearNode(this.element);
+		// Cweaw pwevious item
+		cweawNode(this.ewement);
 
-		// Banner aria label
-		const ariaLabel = this.getAriaLabel(item);
-		if (ariaLabel) {
-			this.element.setAttribute('aria-label', ariaLabel);
+		// Banna awia wabew
+		const awiaWabew = this.getAwiaWabew(item);
+		if (awiaWabew) {
+			this.ewement.setAttwibute('awia-wabew', awiaWabew);
 		}
 
 		// Icon
-		const iconContainer = append(this.element, $('div.icon-container'));
-		iconContainer.setAttribute('aria-hidden', 'true');
+		const iconContaina = append(this.ewement, $('div.icon-containa'));
+		iconContaina.setAttwibute('awia-hidden', 'twue');
 
 		if (item.icon instanceof Codicon) {
-			iconContainer.appendChild($(`div${item.icon.cssSelector}`));
-		} else {
-			iconContainer.classList.add('custom-icon');
+			iconContaina.appendChiwd($(`div${item.icon.cssSewectow}`));
+		} ewse {
+			iconContaina.cwassWist.add('custom-icon');
 
-			if (URI.isUri(item.icon)) {
-				iconContainer.style.backgroundImage = asCSSUrl(item.icon);
+			if (UWI.isUwi(item.icon)) {
+				iconContaina.stywe.backgwoundImage = asCSSUww(item.icon);
 			}
 		}
 
 		// Message
-		const messageContainer = append(this.element, $('div.message-container'));
-		messageContainer.setAttribute('aria-hidden', 'true');
-		messageContainer.appendChild(this.getBannerMessage(item.message));
+		const messageContaina = append(this.ewement, $('div.message-containa'));
+		messageContaina.setAttwibute('awia-hidden', 'twue');
+		messageContaina.appendChiwd(this.getBannewMessage(item.message));
 
 		// Message Actions
 		if (item.actions) {
-			this.messageActionsContainer = append(this.element, $('div.message-actions-container'));
+			this.messageActionsContaina = append(this.ewement, $('div.message-actions-containa'));
 
-			for (const action of item.actions) {
-				this._register(this.instantiationService.createInstance(Link, this.messageActionsContainer, { ...action, tabIndex: -1 }, {}));
+			fow (const action of item.actions) {
+				this._wegista(this.instantiationSewvice.cweateInstance(Wink, this.messageActionsContaina, { ...action, tabIndex: -1 }, {}));
 			}
 		}
 
 		// Action
-		const actionBarContainer = append(this.element, $('div.action-container'));
-		this.actionBar = this._register(new ActionBar(actionBarContainer));
-		const closeAction = this._register(new Action('banner.close', 'Close Banner', bannerCloseIcon.classNames, true, () => this.close(item)));
-		this.actionBar.push(closeAction, { icon: true, label: false });
-		this.actionBar.setFocusable(false);
+		const actionBawContaina = append(this.ewement, $('div.action-containa'));
+		this.actionBaw = this._wegista(new ActionBaw(actionBawContaina));
+		const cwoseAction = this._wegista(new Action('banna.cwose', 'Cwose Banna', bannewCwoseIcon.cwassNames, twue, () => this.cwose(item)));
+		this.actionBaw.push(cwoseAction, { icon: twue, wabew: fawse });
+		this.actionBaw.setFocusabwe(fawse);
 
-		this.setVisibility(true);
+		this.setVisibiwity(twue);
 		this.item = item;
 	}
 
 	toJSON(): object {
-		return {
-			type: Parts.BANNER_PART
+		wetuwn {
+			type: Pawts.BANNEW_PAWT
 		};
 	}
 }
 
-registerSingleton(IBannerService, BannerPart);
+wegistewSingweton(IBannewSewvice, BannewPawt);
 
 
 // Keybindings
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.banner.focusBanner',
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyCode.Escape,
-	when: CONTEXT_BANNER_FOCUSED,
-	handler: (accessor: ServicesAccessor) => {
-		const bannerService = accessor.get(IBannerService);
-		bannerService.focus();
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'wowkbench.banna.focusBanna',
+	weight: KeybindingWeight.WowkbenchContwib,
+	pwimawy: KeyCode.Escape,
+	when: CONTEXT_BANNEW_FOCUSED,
+	handwa: (accessow: SewvicesAccessow) => {
+		const bannewSewvice = accessow.get(IBannewSewvice);
+		bannewSewvice.focus();
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.banner.focusNextAction',
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyCode.RightArrow,
-	secondary: [KeyCode.DownArrow],
-	when: CONTEXT_BANNER_FOCUSED,
-	handler: (accessor: ServicesAccessor) => {
-		const bannerService = accessor.get(IBannerService);
-		bannerService.focusNextAction();
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'wowkbench.banna.focusNextAction',
+	weight: KeybindingWeight.WowkbenchContwib,
+	pwimawy: KeyCode.WightAwwow,
+	secondawy: [KeyCode.DownAwwow],
+	when: CONTEXT_BANNEW_FOCUSED,
+	handwa: (accessow: SewvicesAccessow) => {
+		const bannewSewvice = accessow.get(IBannewSewvice);
+		bannewSewvice.focusNextAction();
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.banner.focusPreviousAction',
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyCode.LeftArrow,
-	secondary: [KeyCode.UpArrow],
-	when: CONTEXT_BANNER_FOCUSED,
-	handler: (accessor: ServicesAccessor) => {
-		const bannerService = accessor.get(IBannerService);
-		bannerService.focusPreviousAction();
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'wowkbench.banna.focusPweviousAction',
+	weight: KeybindingWeight.WowkbenchContwib,
+	pwimawy: KeyCode.WeftAwwow,
+	secondawy: [KeyCode.UpAwwow],
+	when: CONTEXT_BANNEW_FOCUSED,
+	handwa: (accessow: SewvicesAccessow) => {
+		const bannewSewvice = accessow.get(IBannewSewvice);
+		bannewSewvice.focusPweviousAction();
 	}
 });
 
 
 // Actions
 
-class FocusBannerAction extends Action2 {
+cwass FocusBannewAction extends Action2 {
 
-	static readonly ID = 'workbench.action.focusBanner';
-	static readonly LABEL = localize('focusBanner', "Focus Banner");
+	static weadonwy ID = 'wowkbench.action.focusBanna';
+	static weadonwy WABEW = wocawize('focusBanna', "Focus Banna");
 
-	constructor() {
-		super({
-			id: FocusBannerAction.ID,
-			title: { value: FocusBannerAction.LABEL, original: 'Focus Banner' },
-			category: CATEGORIES.View,
-			f1: true
+	constwuctow() {
+		supa({
+			id: FocusBannewAction.ID,
+			titwe: { vawue: FocusBannewAction.WABEW, owiginaw: 'Focus Banna' },
+			categowy: CATEGOWIES.View,
+			f1: twue
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const layoutService = accessor.get(IWorkbenchLayoutService);
-		layoutService.focusPart(Parts.BANNER_PART);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const wayoutSewvice = accessow.get(IWowkbenchWayoutSewvice);
+		wayoutSewvice.focusPawt(Pawts.BANNEW_PAWT);
 	}
 }
 
-registerAction2(FocusBannerAction);
+wegistewAction2(FocusBannewAction);

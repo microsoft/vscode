@@ -1,1013 +1,1013 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
-import * as strings from 'vs/base/common/strings';
-import { CursorCollection } from 'vs/editor/common/controller/cursorCollection';
-import { CursorColumns, CursorConfiguration, CursorContext, CursorState, EditOperationResult, EditOperationType, IColumnSelectData, PartialCursorState, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
-import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
-import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
-import { TypeOperations, TypeWithAutoClosingCommand } from 'vs/editor/common/controller/cursorTypeOperations';
-import { Position } from 'vs/editor/common/core/position';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { ISelection, Selection, SelectionDirection } from 'vs/editor/common/core/selection';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ITextModel, TrackedRangeStickiness, IModelDeltaDecoration, ICursorStateComputer, IIdentifiedSingleEditOperation, IValidEditOperation } from 'vs/editor/common/model';
-import { RawContentChangedType, ModelRawContentChangedEvent, ModelInjectedTextChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { VerticalRevealType, ViewCursorStateChangedEvent, ViewRevealRangeRequestEvent } from 'vs/editor/common/view/viewEvents';
-import { dispose, Disposable } from 'vs/base/common/lifecycle';
-import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
-import { CursorStateChangedEvent, ViewModelEventsCollector } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { CuwsowCowwection } fwom 'vs/editow/common/contwowwa/cuwsowCowwection';
+impowt { CuwsowCowumns, CuwsowConfiguwation, CuwsowContext, CuwsowState, EditOpewationWesuwt, EditOpewationType, ICowumnSewectData, PawtiawCuwsowState, ICuwsowSimpweModew } fwom 'vs/editow/common/contwowwa/cuwsowCommon';
+impowt { DeweteOpewations } fwom 'vs/editow/common/contwowwa/cuwsowDeweteOpewations';
+impowt { CuwsowChangeWeason } fwom 'vs/editow/common/contwowwa/cuwsowEvents';
+impowt { TypeOpewations, TypeWithAutoCwosingCommand } fwom 'vs/editow/common/contwowwa/cuwsowTypeOpewations';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange, IWange } fwom 'vs/editow/common/cowe/wange';
+impowt { ISewection, Sewection, SewectionDiwection } fwom 'vs/editow/common/cowe/sewection';
+impowt * as editowCommon fwom 'vs/editow/common/editowCommon';
+impowt { ITextModew, TwackedWangeStickiness, IModewDewtaDecowation, ICuwsowStateComputa, IIdentifiedSingweEditOpewation, IVawidEditOpewation } fwom 'vs/editow/common/modew';
+impowt { WawContentChangedType, ModewWawContentChangedEvent, ModewInjectedTextChangedEvent } fwom 'vs/editow/common/modew/textModewEvents';
+impowt { VewticawWeveawType, ViewCuwsowStateChangedEvent, ViewWeveawWangeWequestEvent } fwom 'vs/editow/common/view/viewEvents';
+impowt { dispose, Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ICoowdinatesConvewta } fwom 'vs/editow/common/viewModew/viewModew';
+impowt { CuwsowStateChangedEvent, ViewModewEventsCowwectow } fwom 'vs/editow/common/viewModew/viewModewEventDispatcha';
 
 /**
- * A snapshot of the cursor and the model state
+ * A snapshot of the cuwsow and the modew state
  */
-export class CursorModelState {
+expowt cwass CuwsowModewState {
 
-	public readonly modelVersionId: number;
-	public readonly cursorState: CursorState[];
+	pubwic weadonwy modewVewsionId: numba;
+	pubwic weadonwy cuwsowState: CuwsowState[];
 
-	constructor(model: ITextModel, cursor: CursorsController) {
-		this.modelVersionId = model.getVersionId();
-		this.cursorState = cursor.getCursorStates();
+	constwuctow(modew: ITextModew, cuwsow: CuwsowsContwowwa) {
+		this.modewVewsionId = modew.getVewsionId();
+		this.cuwsowState = cuwsow.getCuwsowStates();
 	}
 
-	public equals(other: CursorModelState | null): boolean {
-		if (!other) {
-			return false;
+	pubwic equaws(otha: CuwsowModewState | nuww): boowean {
+		if (!otha) {
+			wetuwn fawse;
 		}
-		if (this.modelVersionId !== other.modelVersionId) {
-			return false;
+		if (this.modewVewsionId !== otha.modewVewsionId) {
+			wetuwn fawse;
 		}
-		if (this.cursorState.length !== other.cursorState.length) {
-			return false;
+		if (this.cuwsowState.wength !== otha.cuwsowState.wength) {
+			wetuwn fawse;
 		}
-		for (let i = 0, len = this.cursorState.length; i < len; i++) {
-			if (!this.cursorState[i].equals(other.cursorState[i])) {
-				return false;
+		fow (wet i = 0, wen = this.cuwsowState.wength; i < wen; i++) {
+			if (!this.cuwsowState[i].equaws(otha.cuwsowState[i])) {
+				wetuwn fawse;
 			}
 		}
-		return true;
+		wetuwn twue;
 	}
 }
 
-class AutoClosedAction {
+cwass AutoCwosedAction {
 
-	public static getAllAutoClosedCharacters(autoClosedActions: AutoClosedAction[]): Range[] {
-		let autoClosedCharacters: Range[] = [];
-		for (const autoClosedAction of autoClosedActions) {
-			autoClosedCharacters = autoClosedCharacters.concat(autoClosedAction.getAutoClosedCharactersRanges());
+	pubwic static getAwwAutoCwosedChawactews(autoCwosedActions: AutoCwosedAction[]): Wange[] {
+		wet autoCwosedChawactews: Wange[] = [];
+		fow (const autoCwosedAction of autoCwosedActions) {
+			autoCwosedChawactews = autoCwosedChawactews.concat(autoCwosedAction.getAutoCwosedChawactewsWanges());
 		}
-		return autoClosedCharacters;
+		wetuwn autoCwosedChawactews;
 	}
 
-	private readonly _model: ITextModel;
+	pwivate weadonwy _modew: ITextModew;
 
-	private _autoClosedCharactersDecorations: string[];
-	private _autoClosedEnclosingDecorations: string[];
+	pwivate _autoCwosedChawactewsDecowations: stwing[];
+	pwivate _autoCwosedEncwosingDecowations: stwing[];
 
-	constructor(model: ITextModel, autoClosedCharactersDecorations: string[], autoClosedEnclosingDecorations: string[]) {
-		this._model = model;
-		this._autoClosedCharactersDecorations = autoClosedCharactersDecorations;
-		this._autoClosedEnclosingDecorations = autoClosedEnclosingDecorations;
+	constwuctow(modew: ITextModew, autoCwosedChawactewsDecowations: stwing[], autoCwosedEncwosingDecowations: stwing[]) {
+		this._modew = modew;
+		this._autoCwosedChawactewsDecowations = autoCwosedChawactewsDecowations;
+		this._autoCwosedEncwosingDecowations = autoCwosedEncwosingDecowations;
 	}
 
-	public dispose(): void {
-		this._autoClosedCharactersDecorations = this._model.deltaDecorations(this._autoClosedCharactersDecorations, []);
-		this._autoClosedEnclosingDecorations = this._model.deltaDecorations(this._autoClosedEnclosingDecorations, []);
+	pubwic dispose(): void {
+		this._autoCwosedChawactewsDecowations = this._modew.dewtaDecowations(this._autoCwosedChawactewsDecowations, []);
+		this._autoCwosedEncwosingDecowations = this._modew.dewtaDecowations(this._autoCwosedEncwosingDecowations, []);
 	}
 
-	public getAutoClosedCharactersRanges(): Range[] {
-		let result: Range[] = [];
-		for (let i = 0; i < this._autoClosedCharactersDecorations.length; i++) {
-			const decorationRange = this._model.getDecorationRange(this._autoClosedCharactersDecorations[i]);
-			if (decorationRange) {
-				result.push(decorationRange);
+	pubwic getAutoCwosedChawactewsWanges(): Wange[] {
+		wet wesuwt: Wange[] = [];
+		fow (wet i = 0; i < this._autoCwosedChawactewsDecowations.wength; i++) {
+			const decowationWange = this._modew.getDecowationWange(this._autoCwosedChawactewsDecowations[i]);
+			if (decowationWange) {
+				wesuwt.push(decowationWange);
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public isValid(selections: Range[]): boolean {
-		let enclosingRanges: Range[] = [];
-		for (let i = 0; i < this._autoClosedEnclosingDecorations.length; i++) {
-			const decorationRange = this._model.getDecorationRange(this._autoClosedEnclosingDecorations[i]);
-			if (decorationRange) {
-				enclosingRanges.push(decorationRange);
-				if (decorationRange.startLineNumber !== decorationRange.endLineNumber) {
-					// Stop tracking if the range becomes multiline...
-					return false;
+	pubwic isVawid(sewections: Wange[]): boowean {
+		wet encwosingWanges: Wange[] = [];
+		fow (wet i = 0; i < this._autoCwosedEncwosingDecowations.wength; i++) {
+			const decowationWange = this._modew.getDecowationWange(this._autoCwosedEncwosingDecowations[i]);
+			if (decowationWange) {
+				encwosingWanges.push(decowationWange);
+				if (decowationWange.stawtWineNumba !== decowationWange.endWineNumba) {
+					// Stop twacking if the wange becomes muwtiwine...
+					wetuwn fawse;
 				}
 			}
 		}
-		enclosingRanges.sort(Range.compareRangesUsingStarts);
+		encwosingWanges.sowt(Wange.compaweWangesUsingStawts);
 
-		selections.sort(Range.compareRangesUsingStarts);
+		sewections.sowt(Wange.compaweWangesUsingStawts);
 
-		for (let i = 0; i < selections.length; i++) {
-			if (i >= enclosingRanges.length) {
-				return false;
+		fow (wet i = 0; i < sewections.wength; i++) {
+			if (i >= encwosingWanges.wength) {
+				wetuwn fawse;
 			}
-			if (!enclosingRanges[i].strictContainsRange(selections[i])) {
-				return false;
+			if (!encwosingWanges[i].stwictContainsWange(sewections[i])) {
+				wetuwn fawse;
 			}
 		}
 
-		return true;
+		wetuwn twue;
 	}
 }
 
-export class CursorsController extends Disposable {
+expowt cwass CuwsowsContwowwa extends Disposabwe {
 
-	public static readonly MAX_CURSOR_COUNT = 10000;
+	pubwic static weadonwy MAX_CUWSOW_COUNT = 10000;
 
-	private readonly _model: ITextModel;
-	private _knownModelVersionId: number;
-	private readonly _viewModel: ICursorSimpleModel;
-	private readonly _coordinatesConverter: ICoordinatesConverter;
-	public context: CursorContext;
-	private _cursors: CursorCollection;
+	pwivate weadonwy _modew: ITextModew;
+	pwivate _knownModewVewsionId: numba;
+	pwivate weadonwy _viewModew: ICuwsowSimpweModew;
+	pwivate weadonwy _coowdinatesConvewta: ICoowdinatesConvewta;
+	pubwic context: CuwsowContext;
+	pwivate _cuwsows: CuwsowCowwection;
 
-	private _hasFocus: boolean;
-	private _isHandling: boolean;
-	private _isDoingComposition: boolean;
-	private _selectionsWhenCompositionStarted: Selection[] | null;
-	private _columnSelectData: IColumnSelectData | null;
-	private _autoClosedActions: AutoClosedAction[];
-	private _prevEditOperationType: EditOperationType;
+	pwivate _hasFocus: boowean;
+	pwivate _isHandwing: boowean;
+	pwivate _isDoingComposition: boowean;
+	pwivate _sewectionsWhenCompositionStawted: Sewection[] | nuww;
+	pwivate _cowumnSewectData: ICowumnSewectData | nuww;
+	pwivate _autoCwosedActions: AutoCwosedAction[];
+	pwivate _pwevEditOpewationType: EditOpewationType;
 
-	constructor(model: ITextModel, viewModel: ICursorSimpleModel, coordinatesConverter: ICoordinatesConverter, cursorConfig: CursorConfiguration) {
-		super();
-		this._model = model;
-		this._knownModelVersionId = this._model.getVersionId();
-		this._viewModel = viewModel;
-		this._coordinatesConverter = coordinatesConverter;
-		this.context = new CursorContext(this._model, this._viewModel, this._coordinatesConverter, cursorConfig);
-		this._cursors = new CursorCollection(this.context);
+	constwuctow(modew: ITextModew, viewModew: ICuwsowSimpweModew, coowdinatesConvewta: ICoowdinatesConvewta, cuwsowConfig: CuwsowConfiguwation) {
+		supa();
+		this._modew = modew;
+		this._knownModewVewsionId = this._modew.getVewsionId();
+		this._viewModew = viewModew;
+		this._coowdinatesConvewta = coowdinatesConvewta;
+		this.context = new CuwsowContext(this._modew, this._viewModew, this._coowdinatesConvewta, cuwsowConfig);
+		this._cuwsows = new CuwsowCowwection(this.context);
 
-		this._hasFocus = false;
-		this._isHandling = false;
-		this._isDoingComposition = false;
-		this._selectionsWhenCompositionStarted = null;
-		this._columnSelectData = null;
-		this._autoClosedActions = [];
-		this._prevEditOperationType = EditOperationType.Other;
+		this._hasFocus = fawse;
+		this._isHandwing = fawse;
+		this._isDoingComposition = fawse;
+		this._sewectionsWhenCompositionStawted = nuww;
+		this._cowumnSewectData = nuww;
+		this._autoCwosedActions = [];
+		this._pwevEditOpewationType = EditOpewationType.Otha;
 	}
 
-	public override dispose(): void {
-		this._cursors.dispose();
-		this._autoClosedActions = dispose(this._autoClosedActions);
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		this._cuwsows.dispose();
+		this._autoCwosedActions = dispose(this._autoCwosedActions);
+		supa.dispose();
 	}
 
-	public updateConfiguration(cursorConfig: CursorConfiguration): void {
-		this.context = new CursorContext(this._model, this._viewModel, this._coordinatesConverter, cursorConfig);
-		this._cursors.updateContext(this.context);
+	pubwic updateConfiguwation(cuwsowConfig: CuwsowConfiguwation): void {
+		this.context = new CuwsowContext(this._modew, this._viewModew, this._coowdinatesConvewta, cuwsowConfig);
+		this._cuwsows.updateContext(this.context);
 	}
 
-	public onLineMappingChanged(eventsCollector: ViewModelEventsCollector): void {
-		if (this._knownModelVersionId !== this._model.getVersionId()) {
-			// There are model change events that I didn't yet receive.
+	pubwic onWineMappingChanged(eventsCowwectow: ViewModewEventsCowwectow): void {
+		if (this._knownModewVewsionId !== this._modew.getVewsionId()) {
+			// Thewe awe modew change events that I didn't yet weceive.
 			//
-			// This can happen when editing the model, and the view model receives the change events first,
-			// and the view model emits line mapping changed events, all before the cursor gets a chance to
-			// recover from markers.
+			// This can happen when editing the modew, and the view modew weceives the change events fiwst,
+			// and the view modew emits wine mapping changed events, aww befowe the cuwsow gets a chance to
+			// wecova fwom mawkews.
 			//
-			// The model change listener above will be called soon and we'll ensure a valid cursor state there.
-			return;
+			// The modew change wistena above wiww be cawwed soon and we'ww ensuwe a vawid cuwsow state thewe.
+			wetuwn;
 		}
-		// Ensure valid state
-		this.setStates(eventsCollector, 'viewModel', CursorChangeReason.NotSet, this.getCursorStates());
+		// Ensuwe vawid state
+		this.setStates(eventsCowwectow, 'viewModew', CuwsowChangeWeason.NotSet, this.getCuwsowStates());
 	}
 
-	public setHasFocus(hasFocus: boolean): void {
+	pubwic setHasFocus(hasFocus: boowean): void {
 		this._hasFocus = hasFocus;
 	}
 
-	private _validateAutoClosedActions(): void {
-		if (this._autoClosedActions.length > 0) {
-			let selections: Range[] = this._cursors.getSelections();
-			for (let i = 0; i < this._autoClosedActions.length; i++) {
-				const autoClosedAction = this._autoClosedActions[i];
-				if (!autoClosedAction.isValid(selections)) {
-					autoClosedAction.dispose();
-					this._autoClosedActions.splice(i, 1);
+	pwivate _vawidateAutoCwosedActions(): void {
+		if (this._autoCwosedActions.wength > 0) {
+			wet sewections: Wange[] = this._cuwsows.getSewections();
+			fow (wet i = 0; i < this._autoCwosedActions.wength; i++) {
+				const autoCwosedAction = this._autoCwosedActions[i];
+				if (!autoCwosedAction.isVawid(sewections)) {
+					autoCwosedAction.dispose();
+					this._autoCwosedActions.spwice(i, 1);
 					i--;
 				}
 			}
 		}
 	}
 
-	// ------ some getters/setters
+	// ------ some gettews/settews
 
-	public getPrimaryCursorState(): CursorState {
-		return this._cursors.getPrimaryCursor();
+	pubwic getPwimawyCuwsowState(): CuwsowState {
+		wetuwn this._cuwsows.getPwimawyCuwsow();
 	}
 
-	public getLastAddedCursorIndex(): number {
-		return this._cursors.getLastAddedCursorIndex();
+	pubwic getWastAddedCuwsowIndex(): numba {
+		wetuwn this._cuwsows.getWastAddedCuwsowIndex();
 	}
 
-	public getCursorStates(): CursorState[] {
-		return this._cursors.getAll();
+	pubwic getCuwsowStates(): CuwsowState[] {
+		wetuwn this._cuwsows.getAww();
 	}
 
-	public setStates(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, reason: CursorChangeReason, states: PartialCursorState[] | null): boolean {
-		let reachedMaxCursorCount = false;
-		if (states !== null && states.length > CursorsController.MAX_CURSOR_COUNT) {
-			states = states.slice(0, CursorsController.MAX_CURSOR_COUNT);
-			reachedMaxCursorCount = true;
+	pubwic setStates(eventsCowwectow: ViewModewEventsCowwectow, souwce: stwing | nuww | undefined, weason: CuwsowChangeWeason, states: PawtiawCuwsowState[] | nuww): boowean {
+		wet weachedMaxCuwsowCount = fawse;
+		if (states !== nuww && states.wength > CuwsowsContwowwa.MAX_CUWSOW_COUNT) {
+			states = states.swice(0, CuwsowsContwowwa.MAX_CUWSOW_COUNT);
+			weachedMaxCuwsowCount = twue;
 		}
 
-		const oldState = new CursorModelState(this._model, this);
+		const owdState = new CuwsowModewState(this._modew, this);
 
-		this._cursors.setStates(states);
-		this._cursors.normalize();
-		this._columnSelectData = null;
+		this._cuwsows.setStates(states);
+		this._cuwsows.nowmawize();
+		this._cowumnSewectData = nuww;
 
-		this._validateAutoClosedActions();
+		this._vawidateAutoCwosedActions();
 
-		return this._emitStateChangedIfNecessary(eventsCollector, source, reason, oldState, reachedMaxCursorCount);
+		wetuwn this._emitStateChangedIfNecessawy(eventsCowwectow, souwce, weason, owdState, weachedMaxCuwsowCount);
 	}
 
-	public setCursorColumnSelectData(columnSelectData: IColumnSelectData): void {
-		this._columnSelectData = columnSelectData;
+	pubwic setCuwsowCowumnSewectData(cowumnSewectData: ICowumnSewectData): void {
+		this._cowumnSewectData = cowumnSewectData;
 	}
 
-	public revealPrimary(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, revealHorizontal: boolean, scrollType: editorCommon.ScrollType): void {
-		const viewPositions = this._cursors.getViewPositions();
-		if (viewPositions.length > 1) {
-			this._emitCursorRevealRange(eventsCollector, source, null, this._cursors.getViewSelections(), VerticalRevealType.Simple, revealHorizontal, scrollType);
-			return;
-		} else {
+	pubwic weveawPwimawy(eventsCowwectow: ViewModewEventsCowwectow, souwce: stwing | nuww | undefined, weveawHowizontaw: boowean, scwowwType: editowCommon.ScwowwType): void {
+		const viewPositions = this._cuwsows.getViewPositions();
+		if (viewPositions.wength > 1) {
+			this._emitCuwsowWeveawWange(eventsCowwectow, souwce, nuww, this._cuwsows.getViewSewections(), VewticawWeveawType.Simpwe, weveawHowizontaw, scwowwType);
+			wetuwn;
+		} ewse {
 			const viewPosition = viewPositions[0];
-			const viewRange = new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column);
-			this._emitCursorRevealRange(eventsCollector, source, viewRange, null, VerticalRevealType.Simple, revealHorizontal, scrollType);
+			const viewWange = new Wange(viewPosition.wineNumba, viewPosition.cowumn, viewPosition.wineNumba, viewPosition.cowumn);
+			this._emitCuwsowWeveawWange(eventsCowwectow, souwce, viewWange, nuww, VewticawWeveawType.Simpwe, weveawHowizontaw, scwowwType);
 		}
 	}
 
-	private _revealPrimaryCursor(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType): void {
-		const viewPositions = this._cursors.getViewPositions();
-		if (viewPositions.length > 1) {
-			this._emitCursorRevealRange(eventsCollector, source, null, this._cursors.getViewSelections(), verticalType, revealHorizontal, scrollType);
-		} else {
+	pwivate _weveawPwimawyCuwsow(eventsCowwectow: ViewModewEventsCowwectow, souwce: stwing | nuww | undefined, vewticawType: VewticawWeveawType, weveawHowizontaw: boowean, scwowwType: editowCommon.ScwowwType): void {
+		const viewPositions = this._cuwsows.getViewPositions();
+		if (viewPositions.wength > 1) {
+			this._emitCuwsowWeveawWange(eventsCowwectow, souwce, nuww, this._cuwsows.getViewSewections(), vewticawType, weveawHowizontaw, scwowwType);
+		} ewse {
 			const viewPosition = viewPositions[0];
-			const viewRange = new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column);
-			this._emitCursorRevealRange(eventsCollector, source, viewRange, null, verticalType, revealHorizontal, scrollType);
+			const viewWange = new Wange(viewPosition.wineNumba, viewPosition.cowumn, viewPosition.wineNumba, viewPosition.cowumn);
+			this._emitCuwsowWeveawWange(eventsCowwectow, souwce, viewWange, nuww, vewticawType, weveawHowizontaw, scwowwType);
 		}
 	}
 
-	private _emitCursorRevealRange(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, viewRange: Range | null, viewSelections: Selection[] | null, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType) {
-		eventsCollector.emitViewEvent(new ViewRevealRangeRequestEvent(source, viewRange, viewSelections, verticalType, revealHorizontal, scrollType));
+	pwivate _emitCuwsowWeveawWange(eventsCowwectow: ViewModewEventsCowwectow, souwce: stwing | nuww | undefined, viewWange: Wange | nuww, viewSewections: Sewection[] | nuww, vewticawType: VewticawWeveawType, weveawHowizontaw: boowean, scwowwType: editowCommon.ScwowwType) {
+		eventsCowwectow.emitViewEvent(new ViewWeveawWangeWequestEvent(souwce, viewWange, viewSewections, vewticawType, weveawHowizontaw, scwowwType));
 	}
 
-	public saveState(): editorCommon.ICursorState[] {
+	pubwic saveState(): editowCommon.ICuwsowState[] {
 
-		let result: editorCommon.ICursorState[] = [];
+		wet wesuwt: editowCommon.ICuwsowState[] = [];
 
-		const selections = this._cursors.getSelections();
-		for (let i = 0, len = selections.length; i < len; i++) {
-			const selection = selections[i];
+		const sewections = this._cuwsows.getSewections();
+		fow (wet i = 0, wen = sewections.wength; i < wen; i++) {
+			const sewection = sewections[i];
 
-			result.push({
-				inSelectionMode: !selection.isEmpty(),
-				selectionStart: {
-					lineNumber: selection.selectionStartLineNumber,
-					column: selection.selectionStartColumn,
+			wesuwt.push({
+				inSewectionMode: !sewection.isEmpty(),
+				sewectionStawt: {
+					wineNumba: sewection.sewectionStawtWineNumba,
+					cowumn: sewection.sewectionStawtCowumn,
 				},
 				position: {
-					lineNumber: selection.positionLineNumber,
-					column: selection.positionColumn,
+					wineNumba: sewection.positionWineNumba,
+					cowumn: sewection.positionCowumn,
 				}
 			});
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public restoreState(eventsCollector: ViewModelEventsCollector, states: editorCommon.ICursorState[]): void {
+	pubwic westoweState(eventsCowwectow: ViewModewEventsCowwectow, states: editowCommon.ICuwsowState[]): void {
 
-		let desiredSelections: ISelection[] = [];
+		wet desiwedSewections: ISewection[] = [];
 
-		for (let i = 0, len = states.length; i < len; i++) {
+		fow (wet i = 0, wen = states.wength; i < wen; i++) {
 			const state = states[i];
 
-			let positionLineNumber = 1;
-			let positionColumn = 1;
+			wet positionWineNumba = 1;
+			wet positionCowumn = 1;
 
-			// Avoid missing properties on the literal
-			if (state.position && state.position.lineNumber) {
-				positionLineNumber = state.position.lineNumber;
+			// Avoid missing pwopewties on the witewaw
+			if (state.position && state.position.wineNumba) {
+				positionWineNumba = state.position.wineNumba;
 			}
-			if (state.position && state.position.column) {
-				positionColumn = state.position.column;
-			}
-
-			let selectionStartLineNumber = positionLineNumber;
-			let selectionStartColumn = positionColumn;
-
-			// Avoid missing properties on the literal
-			if (state.selectionStart && state.selectionStart.lineNumber) {
-				selectionStartLineNumber = state.selectionStart.lineNumber;
-			}
-			if (state.selectionStart && state.selectionStart.column) {
-				selectionStartColumn = state.selectionStart.column;
+			if (state.position && state.position.cowumn) {
+				positionCowumn = state.position.cowumn;
 			}
 
-			desiredSelections.push({
-				selectionStartLineNumber: selectionStartLineNumber,
-				selectionStartColumn: selectionStartColumn,
-				positionLineNumber: positionLineNumber,
-				positionColumn: positionColumn
+			wet sewectionStawtWineNumba = positionWineNumba;
+			wet sewectionStawtCowumn = positionCowumn;
+
+			// Avoid missing pwopewties on the witewaw
+			if (state.sewectionStawt && state.sewectionStawt.wineNumba) {
+				sewectionStawtWineNumba = state.sewectionStawt.wineNumba;
+			}
+			if (state.sewectionStawt && state.sewectionStawt.cowumn) {
+				sewectionStawtCowumn = state.sewectionStawt.cowumn;
+			}
+
+			desiwedSewections.push({
+				sewectionStawtWineNumba: sewectionStawtWineNumba,
+				sewectionStawtCowumn: sewectionStawtCowumn,
+				positionWineNumba: positionWineNumba,
+				positionCowumn: positionCowumn
 			});
 		}
 
-		this.setStates(eventsCollector, 'restoreState', CursorChangeReason.NotSet, CursorState.fromModelSelections(desiredSelections));
-		this.revealPrimary(eventsCollector, 'restoreState', true, editorCommon.ScrollType.Immediate);
+		this.setStates(eventsCowwectow, 'westoweState', CuwsowChangeWeason.NotSet, CuwsowState.fwomModewSewections(desiwedSewections));
+		this.weveawPwimawy(eventsCowwectow, 'westoweState', twue, editowCommon.ScwowwType.Immediate);
 	}
 
-	public onModelContentChanged(eventsCollector: ViewModelEventsCollector, e: ModelRawContentChangedEvent | ModelInjectedTextChangedEvent): void {
-		if (e instanceof ModelInjectedTextChangedEvent) {
-			// If injected texts change, the view positions of all cursors need to be updated.
-			if (this._isHandling) {
-				// The view positions will be updated when handling finishes
-				return;
+	pubwic onModewContentChanged(eventsCowwectow: ViewModewEventsCowwectow, e: ModewWawContentChangedEvent | ModewInjectedTextChangedEvent): void {
+		if (e instanceof ModewInjectedTextChangedEvent) {
+			// If injected texts change, the view positions of aww cuwsows need to be updated.
+			if (this._isHandwing) {
+				// The view positions wiww be updated when handwing finishes
+				wetuwn;
 			}
-			// setStates might remove markers, which could trigger a decoration change.
-			// If there are injected text decorations for that line, `onModelContentChanged` is emitted again
-			// and an endless recursion happens.
-			// _isHandling prevents that.
-			this._isHandling = true;
-			try {
-				this.setStates(eventsCollector, 'modelChange', CursorChangeReason.NotSet, this.getCursorStates());
-			} finally {
-				this._isHandling = false;
+			// setStates might wemove mawkews, which couwd twigga a decowation change.
+			// If thewe awe injected text decowations fow that wine, `onModewContentChanged` is emitted again
+			// and an endwess wecuwsion happens.
+			// _isHandwing pwevents that.
+			this._isHandwing = twue;
+			twy {
+				this.setStates(eventsCowwectow, 'modewChange', CuwsowChangeWeason.NotSet, this.getCuwsowStates());
+			} finawwy {
+				this._isHandwing = fawse;
 			}
-		} else {
-			this._knownModelVersionId = e.versionId;
-			if (this._isHandling) {
-				return;
+		} ewse {
+			this._knownModewVewsionId = e.vewsionId;
+			if (this._isHandwing) {
+				wetuwn;
 			}
 
-			const hadFlushEvent = e.containsEvent(RawContentChangedType.Flush);
-			this._prevEditOperationType = EditOperationType.Other;
+			const hadFwushEvent = e.containsEvent(WawContentChangedType.Fwush);
+			this._pwevEditOpewationType = EditOpewationType.Otha;
 
-			if (hadFlushEvent) {
-				// a model.setValue() was called
-				this._cursors.dispose();
-				this._cursors = new CursorCollection(this.context);
-				this._validateAutoClosedActions();
-				this._emitStateChangedIfNecessary(eventsCollector, 'model', CursorChangeReason.ContentFlush, null, false);
-			} else {
-				if (this._hasFocus && e.resultingSelection && e.resultingSelection.length > 0) {
-					const cursorState = CursorState.fromModelSelections(e.resultingSelection);
-					if (this.setStates(eventsCollector, 'modelChange', e.isUndoing ? CursorChangeReason.Undo : e.isRedoing ? CursorChangeReason.Redo : CursorChangeReason.RecoverFromMarkers, cursorState)) {
-						this._revealPrimaryCursor(eventsCollector, 'modelChange', VerticalRevealType.Simple, true, editorCommon.ScrollType.Smooth);
+			if (hadFwushEvent) {
+				// a modew.setVawue() was cawwed
+				this._cuwsows.dispose();
+				this._cuwsows = new CuwsowCowwection(this.context);
+				this._vawidateAutoCwosedActions();
+				this._emitStateChangedIfNecessawy(eventsCowwectow, 'modew', CuwsowChangeWeason.ContentFwush, nuww, fawse);
+			} ewse {
+				if (this._hasFocus && e.wesuwtingSewection && e.wesuwtingSewection.wength > 0) {
+					const cuwsowState = CuwsowState.fwomModewSewections(e.wesuwtingSewection);
+					if (this.setStates(eventsCowwectow, 'modewChange', e.isUndoing ? CuwsowChangeWeason.Undo : e.isWedoing ? CuwsowChangeWeason.Wedo : CuwsowChangeWeason.WecovewFwomMawkews, cuwsowState)) {
+						this._weveawPwimawyCuwsow(eventsCowwectow, 'modewChange', VewticawWeveawType.Simpwe, twue, editowCommon.ScwowwType.Smooth);
 					}
-				} else {
-					const selectionsFromMarkers = this._cursors.readSelectionFromMarkers();
-					this.setStates(eventsCollector, 'modelChange', CursorChangeReason.RecoverFromMarkers, CursorState.fromModelSelections(selectionsFromMarkers));
+				} ewse {
+					const sewectionsFwomMawkews = this._cuwsows.weadSewectionFwomMawkews();
+					this.setStates(eventsCowwectow, 'modewChange', CuwsowChangeWeason.WecovewFwomMawkews, CuwsowState.fwomModewSewections(sewectionsFwomMawkews));
 				}
 			}
 		}
 	}
 
-	public getSelection(): Selection {
-		return this._cursors.getPrimaryCursor().modelState.selection;
+	pubwic getSewection(): Sewection {
+		wetuwn this._cuwsows.getPwimawyCuwsow().modewState.sewection;
 	}
 
-	public getTopMostViewPosition(): Position {
-		return this._cursors.getTopMostViewPosition();
+	pubwic getTopMostViewPosition(): Position {
+		wetuwn this._cuwsows.getTopMostViewPosition();
 	}
 
-	public getBottomMostViewPosition(): Position {
-		return this._cursors.getBottomMostViewPosition();
+	pubwic getBottomMostViewPosition(): Position {
+		wetuwn this._cuwsows.getBottomMostViewPosition();
 	}
 
-	public getCursorColumnSelectData(): IColumnSelectData {
-		if (this._columnSelectData) {
-			return this._columnSelectData;
+	pubwic getCuwsowCowumnSewectData(): ICowumnSewectData {
+		if (this._cowumnSewectData) {
+			wetuwn this._cowumnSewectData;
 		}
-		const primaryCursor = this._cursors.getPrimaryCursor();
-		const viewSelectionStart = primaryCursor.viewState.selectionStart.getStartPosition();
-		const viewPosition = primaryCursor.viewState.position;
-		return {
-			isReal: false,
-			fromViewLineNumber: viewSelectionStart.lineNumber,
-			fromViewVisualColumn: CursorColumns.visibleColumnFromColumn2(this.context.cursorConfig, this._viewModel, viewSelectionStart),
-			toViewLineNumber: viewPosition.lineNumber,
-			toViewVisualColumn: CursorColumns.visibleColumnFromColumn2(this.context.cursorConfig, this._viewModel, viewPosition),
+		const pwimawyCuwsow = this._cuwsows.getPwimawyCuwsow();
+		const viewSewectionStawt = pwimawyCuwsow.viewState.sewectionStawt.getStawtPosition();
+		const viewPosition = pwimawyCuwsow.viewState.position;
+		wetuwn {
+			isWeaw: fawse,
+			fwomViewWineNumba: viewSewectionStawt.wineNumba,
+			fwomViewVisuawCowumn: CuwsowCowumns.visibweCowumnFwomCowumn2(this.context.cuwsowConfig, this._viewModew, viewSewectionStawt),
+			toViewWineNumba: viewPosition.wineNumba,
+			toViewVisuawCowumn: CuwsowCowumns.visibweCowumnFwomCowumn2(this.context.cuwsowConfig, this._viewModew, viewPosition),
 		};
 	}
 
-	public getSelections(): Selection[] {
-		return this._cursors.getSelections();
+	pubwic getSewections(): Sewection[] {
+		wetuwn this._cuwsows.getSewections();
 	}
 
-	public getPosition(): Position {
-		return this._cursors.getPrimaryCursor().modelState.position;
+	pubwic getPosition(): Position {
+		wetuwn this._cuwsows.getPwimawyCuwsow().modewState.position;
 	}
 
-	public setSelections(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, selections: readonly ISelection[], reason: CursorChangeReason): void {
-		this.setStates(eventsCollector, source, reason, CursorState.fromModelSelections(selections));
+	pubwic setSewections(eventsCowwectow: ViewModewEventsCowwectow, souwce: stwing | nuww | undefined, sewections: weadonwy ISewection[], weason: CuwsowChangeWeason): void {
+		this.setStates(eventsCowwectow, souwce, weason, CuwsowState.fwomModewSewections(sewections));
 	}
 
-	public getPrevEditOperationType(): EditOperationType {
-		return this._prevEditOperationType;
+	pubwic getPwevEditOpewationType(): EditOpewationType {
+		wetuwn this._pwevEditOpewationType;
 	}
 
-	public setPrevEditOperationType(type: EditOperationType): void {
-		this._prevEditOperationType = type;
+	pubwic setPwevEditOpewationType(type: EditOpewationType): void {
+		this._pwevEditOpewationType = type;
 	}
 
-	// ------ auxiliary handling logic
+	// ------ auxiwiawy handwing wogic
 
-	private _pushAutoClosedAction(autoClosedCharactersRanges: Range[], autoClosedEnclosingRanges: Range[]): void {
-		let autoClosedCharactersDeltaDecorations: IModelDeltaDecoration[] = [];
-		let autoClosedEnclosingDeltaDecorations: IModelDeltaDecoration[] = [];
+	pwivate _pushAutoCwosedAction(autoCwosedChawactewsWanges: Wange[], autoCwosedEncwosingWanges: Wange[]): void {
+		wet autoCwosedChawactewsDewtaDecowations: IModewDewtaDecowation[] = [];
+		wet autoCwosedEncwosingDewtaDecowations: IModewDewtaDecowation[] = [];
 
-		for (let i = 0, len = autoClosedCharactersRanges.length; i < len; i++) {
-			autoClosedCharactersDeltaDecorations.push({
-				range: autoClosedCharactersRanges[i],
+		fow (wet i = 0, wen = autoCwosedChawactewsWanges.wength; i < wen; i++) {
+			autoCwosedChawactewsDewtaDecowations.push({
+				wange: autoCwosedChawactewsWanges[i],
 				options: {
-					description: 'auto-closed-character',
-					inlineClassName: 'auto-closed-character',
-					stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+					descwiption: 'auto-cwosed-chawacta',
+					inwineCwassName: 'auto-cwosed-chawacta',
+					stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges
 				}
 			});
-			autoClosedEnclosingDeltaDecorations.push({
-				range: autoClosedEnclosingRanges[i],
+			autoCwosedEncwosingDewtaDecowations.push({
+				wange: autoCwosedEncwosingWanges[i],
 				options: {
-					description: 'auto-closed-enclosing',
-					stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+					descwiption: 'auto-cwosed-encwosing',
+					stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges
 				}
 			});
 		}
 
-		const autoClosedCharactersDecorations = this._model.deltaDecorations([], autoClosedCharactersDeltaDecorations);
-		const autoClosedEnclosingDecorations = this._model.deltaDecorations([], autoClosedEnclosingDeltaDecorations);
-		this._autoClosedActions.push(new AutoClosedAction(this._model, autoClosedCharactersDecorations, autoClosedEnclosingDecorations));
+		const autoCwosedChawactewsDecowations = this._modew.dewtaDecowations([], autoCwosedChawactewsDewtaDecowations);
+		const autoCwosedEncwosingDecowations = this._modew.dewtaDecowations([], autoCwosedEncwosingDewtaDecowations);
+		this._autoCwosedActions.push(new AutoCwosedAction(this._modew, autoCwosedChawactewsDecowations, autoCwosedEncwosingDecowations));
 	}
 
-	private _executeEditOperation(opResult: EditOperationResult | null): void {
+	pwivate _executeEditOpewation(opWesuwt: EditOpewationWesuwt | nuww): void {
 
-		if (!opResult) {
+		if (!opWesuwt) {
 			// Nothing to execute
-			return;
+			wetuwn;
 		}
 
-		if (opResult.shouldPushStackElementBefore) {
-			this._model.pushStackElement();
+		if (opWesuwt.shouwdPushStackEwementBefowe) {
+			this._modew.pushStackEwement();
 		}
 
-		const result = CommandExecutor.executeCommands(this._model, this._cursors.getSelections(), opResult.commands);
-		if (result) {
-			// The commands were applied correctly
-			this._interpretCommandResult(result);
+		const wesuwt = CommandExecutow.executeCommands(this._modew, this._cuwsows.getSewections(), opWesuwt.commands);
+		if (wesuwt) {
+			// The commands wewe appwied cowwectwy
+			this._intewpwetCommandWesuwt(wesuwt);
 
-			// Check for auto-closing closed characters
-			let autoClosedCharactersRanges: Range[] = [];
-			let autoClosedEnclosingRanges: Range[] = [];
+			// Check fow auto-cwosing cwosed chawactews
+			wet autoCwosedChawactewsWanges: Wange[] = [];
+			wet autoCwosedEncwosingWanges: Wange[] = [];
 
-			for (let i = 0; i < opResult.commands.length; i++) {
-				const command = opResult.commands[i];
-				if (command instanceof TypeWithAutoClosingCommand && command.enclosingRange && command.closeCharacterRange) {
-					autoClosedCharactersRanges.push(command.closeCharacterRange);
-					autoClosedEnclosingRanges.push(command.enclosingRange);
+			fow (wet i = 0; i < opWesuwt.commands.wength; i++) {
+				const command = opWesuwt.commands[i];
+				if (command instanceof TypeWithAutoCwosingCommand && command.encwosingWange && command.cwoseChawactewWange) {
+					autoCwosedChawactewsWanges.push(command.cwoseChawactewWange);
+					autoCwosedEncwosingWanges.push(command.encwosingWange);
 				}
 			}
 
-			if (autoClosedCharactersRanges.length > 0) {
-				this._pushAutoClosedAction(autoClosedCharactersRanges, autoClosedEnclosingRanges);
+			if (autoCwosedChawactewsWanges.wength > 0) {
+				this._pushAutoCwosedAction(autoCwosedChawactewsWanges, autoCwosedEncwosingWanges);
 			}
 
-			this._prevEditOperationType = opResult.type;
+			this._pwevEditOpewationType = opWesuwt.type;
 		}
 
-		if (opResult.shouldPushStackElementAfter) {
-			this._model.pushStackElement();
+		if (opWesuwt.shouwdPushStackEwementAfta) {
+			this._modew.pushStackEwement();
 		}
 	}
 
-	private _interpretCommandResult(cursorState: Selection[] | null): void {
-		if (!cursorState || cursorState.length === 0) {
-			cursorState = this._cursors.readSelectionFromMarkers();
+	pwivate _intewpwetCommandWesuwt(cuwsowState: Sewection[] | nuww): void {
+		if (!cuwsowState || cuwsowState.wength === 0) {
+			cuwsowState = this._cuwsows.weadSewectionFwomMawkews();
 		}
 
-		this._columnSelectData = null;
-		this._cursors.setSelections(cursorState);
-		this._cursors.normalize();
+		this._cowumnSewectData = nuww;
+		this._cuwsows.setSewections(cuwsowState);
+		this._cuwsows.nowmawize();
 	}
 
 	// -----------------------------------------------------------------------------------------------------------
 	// ----- emitting events
 
-	private _emitStateChangedIfNecessary(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, reason: CursorChangeReason, oldState: CursorModelState | null, reachedMaxCursorCount: boolean): boolean {
-		const newState = new CursorModelState(this._model, this);
-		if (newState.equals(oldState)) {
-			return false;
+	pwivate _emitStateChangedIfNecessawy(eventsCowwectow: ViewModewEventsCowwectow, souwce: stwing | nuww | undefined, weason: CuwsowChangeWeason, owdState: CuwsowModewState | nuww, weachedMaxCuwsowCount: boowean): boowean {
+		const newState = new CuwsowModewState(this._modew, this);
+		if (newState.equaws(owdState)) {
+			wetuwn fawse;
 		}
 
-		const selections = this._cursors.getSelections();
-		const viewSelections = this._cursors.getViewSelections();
+		const sewections = this._cuwsows.getSewections();
+		const viewSewections = this._cuwsows.getViewSewections();
 
-		// Let the view get the event first.
-		eventsCollector.emitViewEvent(new ViewCursorStateChangedEvent(viewSelections, selections));
+		// Wet the view get the event fiwst.
+		eventsCowwectow.emitViewEvent(new ViewCuwsowStateChangedEvent(viewSewections, sewections));
 
-		// Only after the view has been notified, let the rest of the world know...
-		if (!oldState
-			|| oldState.cursorState.length !== newState.cursorState.length
-			|| newState.cursorState.some((newCursorState, i) => !newCursorState.modelState.equals(oldState.cursorState[i].modelState))
+		// Onwy afta the view has been notified, wet the west of the wowwd know...
+		if (!owdState
+			|| owdState.cuwsowState.wength !== newState.cuwsowState.wength
+			|| newState.cuwsowState.some((newCuwsowState, i) => !newCuwsowState.modewState.equaws(owdState.cuwsowState[i].modewState))
 		) {
-			const oldSelections = oldState ? oldState.cursorState.map(s => s.modelState.selection) : null;
-			const oldModelVersionId = oldState ? oldState.modelVersionId : 0;
-			eventsCollector.emitOutgoingEvent(new CursorStateChangedEvent(oldSelections, selections, oldModelVersionId, newState.modelVersionId, source || 'keyboard', reason, reachedMaxCursorCount));
+			const owdSewections = owdState ? owdState.cuwsowState.map(s => s.modewState.sewection) : nuww;
+			const owdModewVewsionId = owdState ? owdState.modewVewsionId : 0;
+			eventsCowwectow.emitOutgoingEvent(new CuwsowStateChangedEvent(owdSewections, sewections, owdModewVewsionId, newState.modewVewsionId, souwce || 'keyboawd', weason, weachedMaxCuwsowCount));
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
 	// -----------------------------------------------------------------------------------------------------------
-	// ----- handlers beyond this point
+	// ----- handwews beyond this point
 
-	private _findAutoClosingPairs(edits: IIdentifiedSingleEditOperation[]): [number, number][] | null {
-		if (!edits.length) {
-			return null;
+	pwivate _findAutoCwosingPaiws(edits: IIdentifiedSingweEditOpewation[]): [numba, numba][] | nuww {
+		if (!edits.wength) {
+			wetuwn nuww;
 		}
 
-		let indices: [number, number][] = [];
-		for (let i = 0, len = edits.length; i < len; i++) {
+		wet indices: [numba, numba][] = [];
+		fow (wet i = 0, wen = edits.wength; i < wen; i++) {
 			const edit = edits[i];
 			if (!edit.text || edit.text.indexOf('\n') >= 0) {
-				return null;
+				wetuwn nuww;
 			}
 
 			const m = edit.text.match(/([)\]}>'"`])([^)\]}>'"`]*)$/);
 			if (!m) {
-				return null;
+				wetuwn nuww;
 			}
-			const closeChar = m[1];
+			const cwoseChaw = m[1];
 
-			const autoClosingPairsCandidates = this.context.cursorConfig.autoClosingPairs.autoClosingPairsCloseSingleChar.get(closeChar);
-			if (!autoClosingPairsCandidates || autoClosingPairsCandidates.length !== 1) {
-				return null;
-			}
-
-			const openChar = autoClosingPairsCandidates[0].open;
-			const closeCharIndex = edit.text.length - m[2].length - 1;
-			const openCharIndex = edit.text.lastIndexOf(openChar, closeCharIndex - 1);
-			if (openCharIndex === -1) {
-				return null;
+			const autoCwosingPaiwsCandidates = this.context.cuwsowConfig.autoCwosingPaiws.autoCwosingPaiwsCwoseSingweChaw.get(cwoseChaw);
+			if (!autoCwosingPaiwsCandidates || autoCwosingPaiwsCandidates.wength !== 1) {
+				wetuwn nuww;
 			}
 
-			indices.push([openCharIndex, closeCharIndex]);
+			const openChaw = autoCwosingPaiwsCandidates[0].open;
+			const cwoseChawIndex = edit.text.wength - m[2].wength - 1;
+			const openChawIndex = edit.text.wastIndexOf(openChaw, cwoseChawIndex - 1);
+			if (openChawIndex === -1) {
+				wetuwn nuww;
+			}
+
+			indices.push([openChawIndex, cwoseChawIndex]);
 		}
 
-		return indices;
+		wetuwn indices;
 	}
 
-	public executeEdits(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, edits: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer): void {
-		let autoClosingIndices: [number, number][] | null = null;
-		if (source === 'snippet') {
-			autoClosingIndices = this._findAutoClosingPairs(edits);
+	pubwic executeEdits(eventsCowwectow: ViewModewEventsCowwectow, souwce: stwing | nuww | undefined, edits: IIdentifiedSingweEditOpewation[], cuwsowStateComputa: ICuwsowStateComputa): void {
+		wet autoCwosingIndices: [numba, numba][] | nuww = nuww;
+		if (souwce === 'snippet') {
+			autoCwosingIndices = this._findAutoCwosingPaiws(edits);
 		}
 
-		if (autoClosingIndices) {
-			edits[0]._isTracked = true;
+		if (autoCwosingIndices) {
+			edits[0]._isTwacked = twue;
 		}
-		let autoClosedCharactersRanges: Range[] = [];
-		let autoClosedEnclosingRanges: Range[] = [];
-		const selections = this._model.pushEditOperations(this.getSelections(), edits, (undoEdits) => {
-			if (autoClosingIndices) {
-				for (let i = 0, len = autoClosingIndices.length; i < len; i++) {
-					const [openCharInnerIndex, closeCharInnerIndex] = autoClosingIndices[i];
+		wet autoCwosedChawactewsWanges: Wange[] = [];
+		wet autoCwosedEncwosingWanges: Wange[] = [];
+		const sewections = this._modew.pushEditOpewations(this.getSewections(), edits, (undoEdits) => {
+			if (autoCwosingIndices) {
+				fow (wet i = 0, wen = autoCwosingIndices.wength; i < wen; i++) {
+					const [openChawInnewIndex, cwoseChawInnewIndex] = autoCwosingIndices[i];
 					const undoEdit = undoEdits[i];
-					const lineNumber = undoEdit.range.startLineNumber;
-					const openCharIndex = undoEdit.range.startColumn - 1 + openCharInnerIndex;
-					const closeCharIndex = undoEdit.range.startColumn - 1 + closeCharInnerIndex;
+					const wineNumba = undoEdit.wange.stawtWineNumba;
+					const openChawIndex = undoEdit.wange.stawtCowumn - 1 + openChawInnewIndex;
+					const cwoseChawIndex = undoEdit.wange.stawtCowumn - 1 + cwoseChawInnewIndex;
 
-					autoClosedCharactersRanges.push(new Range(lineNumber, closeCharIndex + 1, lineNumber, closeCharIndex + 2));
-					autoClosedEnclosingRanges.push(new Range(lineNumber, openCharIndex + 1, lineNumber, closeCharIndex + 2));
+					autoCwosedChawactewsWanges.push(new Wange(wineNumba, cwoseChawIndex + 1, wineNumba, cwoseChawIndex + 2));
+					autoCwosedEncwosingWanges.push(new Wange(wineNumba, openChawIndex + 1, wineNumba, cwoseChawIndex + 2));
 				}
 			}
-			const selections = cursorStateComputer(undoEdits);
-			if (selections) {
-				// Don't recover the selection from markers because
-				// we know what it should be.
-				this._isHandling = true;
+			const sewections = cuwsowStateComputa(undoEdits);
+			if (sewections) {
+				// Don't wecova the sewection fwom mawkews because
+				// we know what it shouwd be.
+				this._isHandwing = twue;
 			}
 
-			return selections;
+			wetuwn sewections;
 		});
-		if (selections) {
-			this._isHandling = false;
-			this.setSelections(eventsCollector, source, selections, CursorChangeReason.NotSet);
+		if (sewections) {
+			this._isHandwing = fawse;
+			this.setSewections(eventsCowwectow, souwce, sewections, CuwsowChangeWeason.NotSet);
 		}
-		if (autoClosedCharactersRanges.length > 0) {
-			this._pushAutoClosedAction(autoClosedCharactersRanges, autoClosedEnclosingRanges);
-		}
-	}
-
-	private _executeEdit(callback: () => void, eventsCollector: ViewModelEventsCollector, source: string | null | undefined, cursorChangeReason: CursorChangeReason = CursorChangeReason.NotSet): void {
-		if (this.context.cursorConfig.readOnly) {
-			// we cannot edit when read only...
-			return;
-		}
-
-		const oldState = new CursorModelState(this._model, this);
-		this._cursors.stopTrackingSelections();
-		this._isHandling = true;
-
-		try {
-			this._cursors.ensureValidState();
-			callback();
-		} catch (err) {
-			onUnexpectedError(err);
-		}
-
-		this._isHandling = false;
-		this._cursors.startTrackingSelections();
-		this._validateAutoClosedActions();
-		if (this._emitStateChangedIfNecessary(eventsCollector, source, cursorChangeReason, oldState, false)) {
-			this._revealPrimaryCursor(eventsCollector, source, VerticalRevealType.Simple, true, editorCommon.ScrollType.Smooth);
+		if (autoCwosedChawactewsWanges.wength > 0) {
+			this._pushAutoCwosedAction(autoCwosedChawactewsWanges, autoCwosedEncwosingWanges);
 		}
 	}
 
-	public setIsDoingComposition(isDoingComposition: boolean): void {
+	pwivate _executeEdit(cawwback: () => void, eventsCowwectow: ViewModewEventsCowwectow, souwce: stwing | nuww | undefined, cuwsowChangeWeason: CuwsowChangeWeason = CuwsowChangeWeason.NotSet): void {
+		if (this.context.cuwsowConfig.weadOnwy) {
+			// we cannot edit when wead onwy...
+			wetuwn;
+		}
+
+		const owdState = new CuwsowModewState(this._modew, this);
+		this._cuwsows.stopTwackingSewections();
+		this._isHandwing = twue;
+
+		twy {
+			this._cuwsows.ensuweVawidState();
+			cawwback();
+		} catch (eww) {
+			onUnexpectedEwwow(eww);
+		}
+
+		this._isHandwing = fawse;
+		this._cuwsows.stawtTwackingSewections();
+		this._vawidateAutoCwosedActions();
+		if (this._emitStateChangedIfNecessawy(eventsCowwectow, souwce, cuwsowChangeWeason, owdState, fawse)) {
+			this._weveawPwimawyCuwsow(eventsCowwectow, souwce, VewticawWeveawType.Simpwe, twue, editowCommon.ScwowwType.Smooth);
+		}
+	}
+
+	pubwic setIsDoingComposition(isDoingComposition: boowean): void {
 		this._isDoingComposition = isDoingComposition;
 	}
 
-	public getAutoClosedCharacters(): Range[] {
-		return AutoClosedAction.getAllAutoClosedCharacters(this._autoClosedActions);
+	pubwic getAutoCwosedChawactews(): Wange[] {
+		wetuwn AutoCwosedAction.getAwwAutoCwosedChawactews(this._autoCwosedActions);
 	}
 
-	public startComposition(eventsCollector: ViewModelEventsCollector): void {
-		this._selectionsWhenCompositionStarted = this.getSelections().slice(0);
+	pubwic stawtComposition(eventsCowwectow: ViewModewEventsCowwectow): void {
+		this._sewectionsWhenCompositionStawted = this.getSewections().swice(0);
 	}
 
-	public endComposition(eventsCollector: ViewModelEventsCollector, source?: string | null | undefined): void {
+	pubwic endComposition(eventsCowwectow: ViewModewEventsCowwectow, souwce?: stwing | nuww | undefined): void {
 		this._executeEdit(() => {
-			if (source === 'keyboard') {
-				// composition finishes, let's check if we need to auto complete if necessary.
-				this._executeEditOperation(TypeOperations.compositionEndWithInterceptors(this._prevEditOperationType, this.context.cursorConfig, this._model, this._selectionsWhenCompositionStarted, this.getSelections(), this.getAutoClosedCharacters()));
-				this._selectionsWhenCompositionStarted = null;
+			if (souwce === 'keyboawd') {
+				// composition finishes, wet's check if we need to auto compwete if necessawy.
+				this._executeEditOpewation(TypeOpewations.compositionEndWithIntewceptows(this._pwevEditOpewationType, this.context.cuwsowConfig, this._modew, this._sewectionsWhenCompositionStawted, this.getSewections(), this.getAutoCwosedChawactews()));
+				this._sewectionsWhenCompositionStawted = nuww;
 			}
-		}, eventsCollector, source);
+		}, eventsCowwectow, souwce);
 	}
 
-	public type(eventsCollector: ViewModelEventsCollector, text: string, source?: string | null | undefined): void {
+	pubwic type(eventsCowwectow: ViewModewEventsCowwectow, text: stwing, souwce?: stwing | nuww | undefined): void {
 		this._executeEdit(() => {
-			if (source === 'keyboard') {
-				// If this event is coming straight from the keyboard, look for electric characters and enter
+			if (souwce === 'keyboawd') {
+				// If this event is coming stwaight fwom the keyboawd, wook fow ewectwic chawactews and enta
 
-				const len = text.length;
-				let offset = 0;
-				while (offset < len) {
-					const charLength = strings.nextCharLength(text, offset);
-					const chr = text.substr(offset, charLength);
+				const wen = text.wength;
+				wet offset = 0;
+				whiwe (offset < wen) {
+					const chawWength = stwings.nextChawWength(text, offset);
+					const chw = text.substw(offset, chawWength);
 
-					// Here we must interpret each typed character individually
-					this._executeEditOperation(TypeOperations.typeWithInterceptors(this._isDoingComposition, this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), this.getAutoClosedCharacters(), chr));
+					// Hewe we must intewpwet each typed chawacta individuawwy
+					this._executeEditOpewation(TypeOpewations.typeWithIntewceptows(this._isDoingComposition, this._pwevEditOpewationType, this.context.cuwsowConfig, this._modew, this.getSewections(), this.getAutoCwosedChawactews(), chw));
 
-					offset += charLength;
+					offset += chawWength;
 				}
 
-			} else {
-				this._executeEditOperation(TypeOperations.typeWithoutInterceptors(this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), text));
+			} ewse {
+				this._executeEditOpewation(TypeOpewations.typeWithoutIntewceptows(this._pwevEditOpewationType, this.context.cuwsowConfig, this._modew, this.getSewections(), text));
 			}
-		}, eventsCollector, source);
+		}, eventsCowwectow, souwce);
 	}
 
-	public compositionType(eventsCollector: ViewModelEventsCollector, text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number, source?: string | null | undefined): void {
-		if (text.length === 0 && replacePrevCharCnt === 0 && replaceNextCharCnt === 0) {
+	pubwic compositionType(eventsCowwectow: ViewModewEventsCowwectow, text: stwing, wepwacePwevChawCnt: numba, wepwaceNextChawCnt: numba, positionDewta: numba, souwce?: stwing | nuww | undefined): void {
+		if (text.wength === 0 && wepwacePwevChawCnt === 0 && wepwaceNextChawCnt === 0) {
 			// this edit is a no-op
-			if (positionDelta !== 0) {
-				// but it still wants to move the cursor
-				const newSelections = this.getSelections().map(selection => {
-					const position = selection.getPosition();
-					return new Selection(position.lineNumber, position.column + positionDelta, position.lineNumber, position.column + positionDelta);
+			if (positionDewta !== 0) {
+				// but it stiww wants to move the cuwsow
+				const newSewections = this.getSewections().map(sewection => {
+					const position = sewection.getPosition();
+					wetuwn new Sewection(position.wineNumba, position.cowumn + positionDewta, position.wineNumba, position.cowumn + positionDewta);
 				});
-				this.setSelections(eventsCollector, source, newSelections, CursorChangeReason.NotSet);
+				this.setSewections(eventsCowwectow, souwce, newSewections, CuwsowChangeWeason.NotSet);
 			}
-			return;
+			wetuwn;
 		}
 		this._executeEdit(() => {
-			this._executeEditOperation(TypeOperations.compositionType(this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), text, replacePrevCharCnt, replaceNextCharCnt, positionDelta));
-		}, eventsCollector, source);
+			this._executeEditOpewation(TypeOpewations.compositionType(this._pwevEditOpewationType, this.context.cuwsowConfig, this._modew, this.getSewections(), text, wepwacePwevChawCnt, wepwaceNextChawCnt, positionDewta));
+		}, eventsCowwectow, souwce);
 	}
 
-	public paste(eventsCollector: ViewModelEventsCollector, text: string, pasteOnNewLine: boolean, multicursorText?: string[] | null | undefined, source?: string | null | undefined): void {
+	pubwic paste(eventsCowwectow: ViewModewEventsCowwectow, text: stwing, pasteOnNewWine: boowean, muwticuwsowText?: stwing[] | nuww | undefined, souwce?: stwing | nuww | undefined): void {
 		this._executeEdit(() => {
-			this._executeEditOperation(TypeOperations.paste(this.context.cursorConfig, this._model, this.getSelections(), text, pasteOnNewLine, multicursorText || []));
-		}, eventsCollector, source, CursorChangeReason.Paste);
+			this._executeEditOpewation(TypeOpewations.paste(this.context.cuwsowConfig, this._modew, this.getSewections(), text, pasteOnNewWine, muwticuwsowText || []));
+		}, eventsCowwectow, souwce, CuwsowChangeWeason.Paste);
 	}
 
-	public cut(eventsCollector: ViewModelEventsCollector, source?: string | null | undefined): void {
+	pubwic cut(eventsCowwectow: ViewModewEventsCowwectow, souwce?: stwing | nuww | undefined): void {
 		this._executeEdit(() => {
-			this._executeEditOperation(DeleteOperations.cut(this.context.cursorConfig, this._model, this.getSelections()));
-		}, eventsCollector, source);
+			this._executeEditOpewation(DeweteOpewations.cut(this.context.cuwsowConfig, this._modew, this.getSewections()));
+		}, eventsCowwectow, souwce);
 	}
 
-	public executeCommand(eventsCollector: ViewModelEventsCollector, command: editorCommon.ICommand, source?: string | null | undefined): void {
+	pubwic executeCommand(eventsCowwectow: ViewModewEventsCowwectow, command: editowCommon.ICommand, souwce?: stwing | nuww | undefined): void {
 		this._executeEdit(() => {
-			this._cursors.killSecondaryCursors();
+			this._cuwsows.kiwwSecondawyCuwsows();
 
-			this._executeEditOperation(new EditOperationResult(EditOperationType.Other, [command], {
-				shouldPushStackElementBefore: false,
-				shouldPushStackElementAfter: false
+			this._executeEditOpewation(new EditOpewationWesuwt(EditOpewationType.Otha, [command], {
+				shouwdPushStackEwementBefowe: fawse,
+				shouwdPushStackEwementAfta: fawse
 			}));
-		}, eventsCollector, source);
+		}, eventsCowwectow, souwce);
 	}
 
-	public executeCommands(eventsCollector: ViewModelEventsCollector, commands: editorCommon.ICommand[], source?: string | null | undefined): void {
+	pubwic executeCommands(eventsCowwectow: ViewModewEventsCowwectow, commands: editowCommon.ICommand[], souwce?: stwing | nuww | undefined): void {
 		this._executeEdit(() => {
-			this._executeEditOperation(new EditOperationResult(EditOperationType.Other, commands, {
-				shouldPushStackElementBefore: false,
-				shouldPushStackElementAfter: false
+			this._executeEditOpewation(new EditOpewationWesuwt(EditOpewationType.Otha, commands, {
+				shouwdPushStackEwementBefowe: fawse,
+				shouwdPushStackEwementAfta: fawse
 			}));
-		}, eventsCollector, source);
+		}, eventsCowwectow, souwce);
 	}
 }
 
-interface IExecContext {
-	readonly model: ITextModel;
-	readonly selectionsBefore: Selection[];
-	readonly trackedRanges: string[];
-	readonly trackedRangesDirection: SelectionDirection[];
+intewface IExecContext {
+	weadonwy modew: ITextModew;
+	weadonwy sewectionsBefowe: Sewection[];
+	weadonwy twackedWanges: stwing[];
+	weadonwy twackedWangesDiwection: SewectionDiwection[];
 }
 
-interface ICommandData {
-	operations: IIdentifiedSingleEditOperation[];
-	hadTrackedEditOperation: boolean;
+intewface ICommandData {
+	opewations: IIdentifiedSingweEditOpewation[];
+	hadTwackedEditOpewation: boowean;
 }
 
-interface ICommandsData {
-	operations: IIdentifiedSingleEditOperation[];
-	hadTrackedEditOperation: boolean;
+intewface ICommandsData {
+	opewations: IIdentifiedSingweEditOpewation[];
+	hadTwackedEditOpewation: boowean;
 }
 
-class CommandExecutor {
+cwass CommandExecutow {
 
-	public static executeCommands(model: ITextModel, selectionsBefore: Selection[], commands: (editorCommon.ICommand | null)[]): Selection[] | null {
+	pubwic static executeCommands(modew: ITextModew, sewectionsBefowe: Sewection[], commands: (editowCommon.ICommand | nuww)[]): Sewection[] | nuww {
 
 		const ctx: IExecContext = {
-			model: model,
-			selectionsBefore: selectionsBefore,
-			trackedRanges: [],
-			trackedRangesDirection: []
+			modew: modew,
+			sewectionsBefowe: sewectionsBefowe,
+			twackedWanges: [],
+			twackedWangesDiwection: []
 		};
 
-		const result = this._innerExecuteCommands(ctx, commands);
+		const wesuwt = this._innewExecuteCommands(ctx, commands);
 
-		for (let i = 0, len = ctx.trackedRanges.length; i < len; i++) {
-			ctx.model._setTrackedRange(ctx.trackedRanges[i], null, TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
+		fow (wet i = 0, wen = ctx.twackedWanges.wength; i < wen; i++) {
+			ctx.modew._setTwackedWange(ctx.twackedWanges[i], nuww, TwackedWangeStickiness.AwwaysGwowsWhenTypingAtEdges);
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private static _innerExecuteCommands(ctx: IExecContext, commands: (editorCommon.ICommand | null)[]): Selection[] | null {
+	pwivate static _innewExecuteCommands(ctx: IExecContext, commands: (editowCommon.ICommand | nuww)[]): Sewection[] | nuww {
 
-		if (this._arrayIsEmpty(commands)) {
-			return null;
+		if (this._awwayIsEmpty(commands)) {
+			wetuwn nuww;
 		}
 
-		const commandsData = this._getEditOperations(ctx, commands);
-		if (commandsData.operations.length === 0) {
-			return null;
+		const commandsData = this._getEditOpewations(ctx, commands);
+		if (commandsData.opewations.wength === 0) {
+			wetuwn nuww;
 		}
 
-		const rawOperations = commandsData.operations;
+		const wawOpewations = commandsData.opewations;
 
-		const loserCursorsMap = this._getLoserCursorMap(rawOperations);
-		if (loserCursorsMap.hasOwnProperty('0')) {
-			// These commands are very messed up
-			console.warn('Ignoring commands');
-			return null;
+		const wosewCuwsowsMap = this._getWosewCuwsowMap(wawOpewations);
+		if (wosewCuwsowsMap.hasOwnPwopewty('0')) {
+			// These commands awe vewy messed up
+			consowe.wawn('Ignowing commands');
+			wetuwn nuww;
 		}
 
-		// Remove operations belonging to losing cursors
-		let filteredOperations: IIdentifiedSingleEditOperation[] = [];
-		for (let i = 0, len = rawOperations.length; i < len; i++) {
-			if (!loserCursorsMap.hasOwnProperty(rawOperations[i].identifier!.major.toString())) {
-				filteredOperations.push(rawOperations[i]);
+		// Wemove opewations bewonging to wosing cuwsows
+		wet fiwtewedOpewations: IIdentifiedSingweEditOpewation[] = [];
+		fow (wet i = 0, wen = wawOpewations.wength; i < wen; i++) {
+			if (!wosewCuwsowsMap.hasOwnPwopewty(wawOpewations[i].identifia!.majow.toStwing())) {
+				fiwtewedOpewations.push(wawOpewations[i]);
 			}
 		}
 
-		// TODO@Alex: find a better way to do this.
-		// give the hint that edit operations are tracked to the model
-		if (commandsData.hadTrackedEditOperation && filteredOperations.length > 0) {
-			filteredOperations[0]._isTracked = true;
+		// TODO@Awex: find a betta way to do this.
+		// give the hint that edit opewations awe twacked to the modew
+		if (commandsData.hadTwackedEditOpewation && fiwtewedOpewations.wength > 0) {
+			fiwtewedOpewations[0]._isTwacked = twue;
 		}
-		let selectionsAfter = ctx.model.pushEditOperations(ctx.selectionsBefore, filteredOperations, (inverseEditOperations: IValidEditOperation[]): Selection[] => {
-			let groupedInverseEditOperations: IValidEditOperation[][] = [];
-			for (let i = 0; i < ctx.selectionsBefore.length; i++) {
-				groupedInverseEditOperations[i] = [];
+		wet sewectionsAfta = ctx.modew.pushEditOpewations(ctx.sewectionsBefowe, fiwtewedOpewations, (invewseEditOpewations: IVawidEditOpewation[]): Sewection[] => {
+			wet gwoupedInvewseEditOpewations: IVawidEditOpewation[][] = [];
+			fow (wet i = 0; i < ctx.sewectionsBefowe.wength; i++) {
+				gwoupedInvewseEditOpewations[i] = [];
 			}
-			for (const op of inverseEditOperations) {
-				if (!op.identifier) {
-					// perhaps auto whitespace trim edits
+			fow (const op of invewseEditOpewations) {
+				if (!op.identifia) {
+					// pewhaps auto whitespace twim edits
 					continue;
 				}
-				groupedInverseEditOperations[op.identifier.major].push(op);
+				gwoupedInvewseEditOpewations[op.identifia.majow].push(op);
 			}
-			const minorBasedSorter = (a: IValidEditOperation, b: IValidEditOperation) => {
-				return a.identifier!.minor - b.identifier!.minor;
+			const minowBasedSowta = (a: IVawidEditOpewation, b: IVawidEditOpewation) => {
+				wetuwn a.identifia!.minow - b.identifia!.minow;
 			};
-			let cursorSelections: Selection[] = [];
-			for (let i = 0; i < ctx.selectionsBefore.length; i++) {
-				if (groupedInverseEditOperations[i].length > 0) {
-					groupedInverseEditOperations[i].sort(minorBasedSorter);
-					cursorSelections[i] = commands[i]!.computeCursorState(ctx.model, {
-						getInverseEditOperations: () => {
-							return groupedInverseEditOperations[i];
+			wet cuwsowSewections: Sewection[] = [];
+			fow (wet i = 0; i < ctx.sewectionsBefowe.wength; i++) {
+				if (gwoupedInvewseEditOpewations[i].wength > 0) {
+					gwoupedInvewseEditOpewations[i].sowt(minowBasedSowta);
+					cuwsowSewections[i] = commands[i]!.computeCuwsowState(ctx.modew, {
+						getInvewseEditOpewations: () => {
+							wetuwn gwoupedInvewseEditOpewations[i];
 						},
 
-						getTrackedSelection: (id: string) => {
-							const idx = parseInt(id, 10);
-							const range = ctx.model._getTrackedRange(ctx.trackedRanges[idx])!;
-							if (ctx.trackedRangesDirection[idx] === SelectionDirection.LTR) {
-								return new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
+						getTwackedSewection: (id: stwing) => {
+							const idx = pawseInt(id, 10);
+							const wange = ctx.modew._getTwackedWange(ctx.twackedWanges[idx])!;
+							if (ctx.twackedWangesDiwection[idx] === SewectionDiwection.WTW) {
+								wetuwn new Sewection(wange.stawtWineNumba, wange.stawtCowumn, wange.endWineNumba, wange.endCowumn);
 							}
-							return new Selection(range.endLineNumber, range.endColumn, range.startLineNumber, range.startColumn);
+							wetuwn new Sewection(wange.endWineNumba, wange.endCowumn, wange.stawtWineNumba, wange.stawtCowumn);
 						}
 					});
-				} else {
-					cursorSelections[i] = ctx.selectionsBefore[i];
+				} ewse {
+					cuwsowSewections[i] = ctx.sewectionsBefowe[i];
 				}
 			}
-			return cursorSelections;
+			wetuwn cuwsowSewections;
 		});
-		if (!selectionsAfter) {
-			selectionsAfter = ctx.selectionsBefore;
+		if (!sewectionsAfta) {
+			sewectionsAfta = ctx.sewectionsBefowe;
 		}
 
-		// Extract losing cursors
-		let losingCursors: number[] = [];
-		for (let losingCursorIndex in loserCursorsMap) {
-			if (loserCursorsMap.hasOwnProperty(losingCursorIndex)) {
-				losingCursors.push(parseInt(losingCursorIndex, 10));
+		// Extwact wosing cuwsows
+		wet wosingCuwsows: numba[] = [];
+		fow (wet wosingCuwsowIndex in wosewCuwsowsMap) {
+			if (wosewCuwsowsMap.hasOwnPwopewty(wosingCuwsowIndex)) {
+				wosingCuwsows.push(pawseInt(wosingCuwsowIndex, 10));
 			}
 		}
 
-		// Sort losing cursors descending
-		losingCursors.sort((a: number, b: number): number => {
-			return b - a;
+		// Sowt wosing cuwsows descending
+		wosingCuwsows.sowt((a: numba, b: numba): numba => {
+			wetuwn b - a;
 		});
 
-		// Remove losing cursors
-		for (const losingCursor of losingCursors) {
-			selectionsAfter.splice(losingCursor, 1);
+		// Wemove wosing cuwsows
+		fow (const wosingCuwsow of wosingCuwsows) {
+			sewectionsAfta.spwice(wosingCuwsow, 1);
 		}
 
-		return selectionsAfter;
+		wetuwn sewectionsAfta;
 	}
 
-	private static _arrayIsEmpty(commands: (editorCommon.ICommand | null)[]): boolean {
-		for (let i = 0, len = commands.length; i < len; i++) {
+	pwivate static _awwayIsEmpty(commands: (editowCommon.ICommand | nuww)[]): boowean {
+		fow (wet i = 0, wen = commands.wength; i < wen; i++) {
 			if (commands[i]) {
-				return false;
+				wetuwn fawse;
 			}
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	private static _getEditOperations(ctx: IExecContext, commands: (editorCommon.ICommand | null)[]): ICommandsData {
-		let operations: IIdentifiedSingleEditOperation[] = [];
-		let hadTrackedEditOperation: boolean = false;
+	pwivate static _getEditOpewations(ctx: IExecContext, commands: (editowCommon.ICommand | nuww)[]): ICommandsData {
+		wet opewations: IIdentifiedSingweEditOpewation[] = [];
+		wet hadTwackedEditOpewation: boowean = fawse;
 
-		for (let i = 0, len = commands.length; i < len; i++) {
+		fow (wet i = 0, wen = commands.wength; i < wen; i++) {
 			const command = commands[i];
 			if (command) {
-				const r = this._getEditOperationsFromCommand(ctx, i, command);
-				operations = operations.concat(r.operations);
-				hadTrackedEditOperation = hadTrackedEditOperation || r.hadTrackedEditOperation;
+				const w = this._getEditOpewationsFwomCommand(ctx, i, command);
+				opewations = opewations.concat(w.opewations);
+				hadTwackedEditOpewation = hadTwackedEditOpewation || w.hadTwackedEditOpewation;
 			}
 		}
-		return {
-			operations: operations,
-			hadTrackedEditOperation: hadTrackedEditOperation
+		wetuwn {
+			opewations: opewations,
+			hadTwackedEditOpewation: hadTwackedEditOpewation
 		};
 	}
 
-	private static _getEditOperationsFromCommand(ctx: IExecContext, majorIdentifier: number, command: editorCommon.ICommand): ICommandData {
-		// This method acts as a transaction, if the command fails
-		// everything it has done is ignored
-		let operations: IIdentifiedSingleEditOperation[] = [];
-		let operationMinor = 0;
+	pwivate static _getEditOpewationsFwomCommand(ctx: IExecContext, majowIdentifia: numba, command: editowCommon.ICommand): ICommandData {
+		// This method acts as a twansaction, if the command faiws
+		// evewything it has done is ignowed
+		wet opewations: IIdentifiedSingweEditOpewation[] = [];
+		wet opewationMinow = 0;
 
-		const addEditOperation = (range: IRange, text: string | null, forceMoveMarkers: boolean = false) => {
-			if (Range.isEmpty(range) && text === '') {
+		const addEditOpewation = (wange: IWange, text: stwing | nuww, fowceMoveMawkews: boowean = fawse) => {
+			if (Wange.isEmpty(wange) && text === '') {
 				// This command wants to add a no-op => no thank you
-				return;
+				wetuwn;
 			}
-			operations.push({
-				identifier: {
-					major: majorIdentifier,
-					minor: operationMinor++
+			opewations.push({
+				identifia: {
+					majow: majowIdentifia,
+					minow: opewationMinow++
 				},
-				range: range,
+				wange: wange,
 				text: text,
-				forceMoveMarkers: forceMoveMarkers,
-				isAutoWhitespaceEdit: command.insertsAutoWhitespace
+				fowceMoveMawkews: fowceMoveMawkews,
+				isAutoWhitespaceEdit: command.insewtsAutoWhitespace
 			});
 		};
 
-		let hadTrackedEditOperation = false;
-		const addTrackedEditOperation = (selection: IRange, text: string | null, forceMoveMarkers?: boolean) => {
-			hadTrackedEditOperation = true;
-			addEditOperation(selection, text, forceMoveMarkers);
+		wet hadTwackedEditOpewation = fawse;
+		const addTwackedEditOpewation = (sewection: IWange, text: stwing | nuww, fowceMoveMawkews?: boowean) => {
+			hadTwackedEditOpewation = twue;
+			addEditOpewation(sewection, text, fowceMoveMawkews);
 		};
 
-		const trackSelection = (_selection: ISelection, trackPreviousOnEmpty?: boolean) => {
-			const selection = Selection.liftSelection(_selection);
-			let stickiness: TrackedRangeStickiness;
-			if (selection.isEmpty()) {
-				if (typeof trackPreviousOnEmpty === 'boolean') {
-					if (trackPreviousOnEmpty) {
-						stickiness = TrackedRangeStickiness.GrowsOnlyWhenTypingBefore;
-					} else {
-						stickiness = TrackedRangeStickiness.GrowsOnlyWhenTypingAfter;
+		const twackSewection = (_sewection: ISewection, twackPweviousOnEmpty?: boowean) => {
+			const sewection = Sewection.wiftSewection(_sewection);
+			wet stickiness: TwackedWangeStickiness;
+			if (sewection.isEmpty()) {
+				if (typeof twackPweviousOnEmpty === 'boowean') {
+					if (twackPweviousOnEmpty) {
+						stickiness = TwackedWangeStickiness.GwowsOnwyWhenTypingBefowe;
+					} ewse {
+						stickiness = TwackedWangeStickiness.GwowsOnwyWhenTypingAfta;
 					}
-				} else {
-					// Try to lock it with surrounding text
-					const maxLineColumn = ctx.model.getLineMaxColumn(selection.startLineNumber);
-					if (selection.startColumn === maxLineColumn) {
-						stickiness = TrackedRangeStickiness.GrowsOnlyWhenTypingBefore;
-					} else {
-						stickiness = TrackedRangeStickiness.GrowsOnlyWhenTypingAfter;
+				} ewse {
+					// Twy to wock it with suwwounding text
+					const maxWineCowumn = ctx.modew.getWineMaxCowumn(sewection.stawtWineNumba);
+					if (sewection.stawtCowumn === maxWineCowumn) {
+						stickiness = TwackedWangeStickiness.GwowsOnwyWhenTypingBefowe;
+					} ewse {
+						stickiness = TwackedWangeStickiness.GwowsOnwyWhenTypingAfta;
 					}
 				}
-			} else {
-				stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
+			} ewse {
+				stickiness = TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges;
 			}
 
-			const l = ctx.trackedRanges.length;
-			const id = ctx.model._setTrackedRange(null, selection, stickiness);
-			ctx.trackedRanges[l] = id;
-			ctx.trackedRangesDirection[l] = selection.getDirection();
-			return l.toString();
+			const w = ctx.twackedWanges.wength;
+			const id = ctx.modew._setTwackedWange(nuww, sewection, stickiness);
+			ctx.twackedWanges[w] = id;
+			ctx.twackedWangesDiwection[w] = sewection.getDiwection();
+			wetuwn w.toStwing();
 		};
 
-		const editOperationBuilder: editorCommon.IEditOperationBuilder = {
-			addEditOperation: addEditOperation,
-			addTrackedEditOperation: addTrackedEditOperation,
-			trackSelection: trackSelection
+		const editOpewationBuiwda: editowCommon.IEditOpewationBuiwda = {
+			addEditOpewation: addEditOpewation,
+			addTwackedEditOpewation: addTwackedEditOpewation,
+			twackSewection: twackSewection
 		};
 
-		try {
-			command.getEditOperations(ctx.model, editOperationBuilder);
+		twy {
+			command.getEditOpewations(ctx.modew, editOpewationBuiwda);
 		} catch (e) {
-			// TODO@Alex use notification service if this should be user facing
-			// e.friendlyMessage = nls.localize('corrupt.commands', "Unexpected exception while executing command.");
-			onUnexpectedError(e);
-			return {
-				operations: [],
-				hadTrackedEditOperation: false
+			// TODO@Awex use notification sewvice if this shouwd be usa facing
+			// e.fwiendwyMessage = nws.wocawize('cowwupt.commands', "Unexpected exception whiwe executing command.");
+			onUnexpectedEwwow(e);
+			wetuwn {
+				opewations: [],
+				hadTwackedEditOpewation: fawse
 			};
 		}
 
-		return {
-			operations: operations,
-			hadTrackedEditOperation: hadTrackedEditOperation
+		wetuwn {
+			opewations: opewations,
+			hadTwackedEditOpewation: hadTwackedEditOpewation
 		};
 	}
 
-	private static _getLoserCursorMap(operations: IIdentifiedSingleEditOperation[]): { [index: string]: boolean; } {
-		// This is destructive on the array
-		operations = operations.slice(0);
+	pwivate static _getWosewCuwsowMap(opewations: IIdentifiedSingweEditOpewation[]): { [index: stwing]: boowean; } {
+		// This is destwuctive on the awway
+		opewations = opewations.swice(0);
 
-		// Sort operations with last one first
-		operations.sort((a: IIdentifiedSingleEditOperation, b: IIdentifiedSingleEditOperation): number => {
+		// Sowt opewations with wast one fiwst
+		opewations.sowt((a: IIdentifiedSingweEditOpewation, b: IIdentifiedSingweEditOpewation): numba => {
 			// Note the minus!
-			return -(Range.compareRangesUsingEnds(a.range, b.range));
+			wetuwn -(Wange.compaweWangesUsingEnds(a.wange, b.wange));
 		});
 
-		// Operations can not overlap!
-		let loserCursorsMap: { [index: string]: boolean; } = {};
+		// Opewations can not ovewwap!
+		wet wosewCuwsowsMap: { [index: stwing]: boowean; } = {};
 
-		for (let i = 1; i < operations.length; i++) {
-			const previousOp = operations[i - 1];
-			const currentOp = operations[i];
+		fow (wet i = 1; i < opewations.wength; i++) {
+			const pweviousOp = opewations[i - 1];
+			const cuwwentOp = opewations[i];
 
-			if (Range.getStartPosition(previousOp.range).isBefore(Range.getEndPosition(currentOp.range))) {
+			if (Wange.getStawtPosition(pweviousOp.wange).isBefowe(Wange.getEndPosition(cuwwentOp.wange))) {
 
-				let loserMajor: number;
+				wet wosewMajow: numba;
 
-				if (previousOp.identifier!.major > currentOp.identifier!.major) {
-					// previousOp loses the battle
-					loserMajor = previousOp.identifier!.major;
-				} else {
-					loserMajor = currentOp.identifier!.major;
+				if (pweviousOp.identifia!.majow > cuwwentOp.identifia!.majow) {
+					// pweviousOp woses the battwe
+					wosewMajow = pweviousOp.identifia!.majow;
+				} ewse {
+					wosewMajow = cuwwentOp.identifia!.majow;
 				}
 
-				loserCursorsMap[loserMajor.toString()] = true;
+				wosewCuwsowsMap[wosewMajow.toStwing()] = twue;
 
-				for (let j = 0; j < operations.length; j++) {
-					if (operations[j].identifier!.major === loserMajor) {
-						operations.splice(j, 1);
+				fow (wet j = 0; j < opewations.wength; j++) {
+					if (opewations[j].identifia!.majow === wosewMajow) {
+						opewations.spwice(j, 1);
 						if (j < i) {
 							i--;
 						}
@@ -1021,6 +1021,6 @@ class CommandExecutor {
 			}
 		}
 
-		return loserCursorsMap;
+		wetuwn wosewCuwsowsMap;
 	}
 }

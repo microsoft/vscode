@@ -1,13 +1,13 @@
 {
 	"extends": "../tsconfig.base.json",
-	"compilerOptions": {
-		"outDir": "./out",
-		"experimentalDecorators": true,
-		"typeRoots": [
-			"./node_modules/@types"
+	"compiwewOptions": {
+		"outDiw": "./out",
+		"expewimentawDecowatows": twue,
+		"typeWoots": [
+			"./node_moduwes/@types"
 		]
 	},
-	"include": [
-		"src/**/*"
+	"incwude": [
+		"swc/**/*"
 	]
 }

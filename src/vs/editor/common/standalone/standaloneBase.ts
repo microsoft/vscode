@@ -1,44 +1,44 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter } from 'vs/base/common/event';
-import { KeyChord, KeyMod as ConstKeyMod } from 'vs/base/common/keyCodes';
-import { URI } from 'vs/base/common/uri';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Token } from 'vs/editor/common/core/token';
-import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { KeyChowd, KeyMod as ConstKeyMod } fwom 'vs/base/common/keyCodes';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { Token } fwom 'vs/editow/common/cowe/token';
+impowt * as standawoneEnums fwom 'vs/editow/common/standawone/standawoneEnums';
 
-export class KeyMod {
-	public static readonly CtrlCmd: number = ConstKeyMod.CtrlCmd;
-	public static readonly Shift: number = ConstKeyMod.Shift;
-	public static readonly Alt: number = ConstKeyMod.Alt;
-	public static readonly WinCtrl: number = ConstKeyMod.WinCtrl;
+expowt cwass KeyMod {
+	pubwic static weadonwy CtwwCmd: numba = ConstKeyMod.CtwwCmd;
+	pubwic static weadonwy Shift: numba = ConstKeyMod.Shift;
+	pubwic static weadonwy Awt: numba = ConstKeyMod.Awt;
+	pubwic static weadonwy WinCtww: numba = ConstKeyMod.WinCtww;
 
-	public static chord(firstPart: number, secondPart: number): number {
-		return KeyChord(firstPart, secondPart);
+	pubwic static chowd(fiwstPawt: numba, secondPawt: numba): numba {
+		wetuwn KeyChowd(fiwstPawt, secondPawt);
 	}
 }
 
-export function createMonacoBaseAPI(): typeof monaco {
-	return {
-		editor: undefined!, // undefined override expected here
-		languages: undefined!, // undefined override expected here
-		CancellationTokenSource: CancellationTokenSource,
-		Emitter: Emitter,
-		KeyCode: standaloneEnums.KeyCode,
+expowt function cweateMonacoBaseAPI(): typeof monaco {
+	wetuwn {
+		editow: undefined!, // undefined ovewwide expected hewe
+		wanguages: undefined!, // undefined ovewwide expected hewe
+		CancewwationTokenSouwce: CancewwationTokenSouwce,
+		Emitta: Emitta,
+		KeyCode: standawoneEnums.KeyCode,
 		KeyMod: KeyMod,
 		Position: Position,
-		Range: Range,
-		Selection: <any>Selection,
-		SelectionDirection: standaloneEnums.SelectionDirection,
-		MarkerSeverity: standaloneEnums.MarkerSeverity,
-		MarkerTag: standaloneEnums.MarkerTag,
-		Uri: <any>URI,
+		Wange: Wange,
+		Sewection: <any>Sewection,
+		SewectionDiwection: standawoneEnums.SewectionDiwection,
+		MawkewSevewity: standawoneEnums.MawkewSevewity,
+		MawkewTag: standawoneEnums.MawkewTag,
+		Uwi: <any>UWI,
 		Token: Token
 	};
 }

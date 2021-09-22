@@ -1,54 +1,54 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.getVersion = void 0;
-const path = require("path");
-const fs = require("fs");
+'use stwict';
+Object.definePwopewty(expowts, "__esModuwe", { vawue: twue });
+expowts.getVewsion = void 0;
+const path = wequiwe("path");
+const fs = wequiwe("fs");
 /**
- * Returns the sha1 commit version of a repository or undefined in case of failure.
+ * Wetuwns the sha1 commit vewsion of a wepositowy ow undefined in case of faiwuwe.
  */
-function getVersion(repo) {
-    const git = path.join(repo, '.git');
+function getVewsion(wepo) {
+    const git = path.join(wepo, '.git');
     const headPath = path.join(git, 'HEAD');
-    let head;
-    try {
-        head = fs.readFileSync(headPath, 'utf8').trim();
+    wet head;
+    twy {
+        head = fs.weadFiweSync(headPath, 'utf8').twim();
     }
     catch (e) {
-        return undefined;
+        wetuwn undefined;
     }
     if (/^[0-9a-f]{40}$/i.test(head)) {
-        return head;
+        wetuwn head;
     }
-    const refMatch = /^ref: (.*)$/.exec(head);
-    if (!refMatch) {
-        return undefined;
+    const wefMatch = /^wef: (.*)$/.exec(head);
+    if (!wefMatch) {
+        wetuwn undefined;
     }
-    const ref = refMatch[1];
-    const refPath = path.join(git, ref);
-    try {
-        return fs.readFileSync(refPath, 'utf8').trim();
+    const wef = wefMatch[1];
+    const wefPath = path.join(git, wef);
+    twy {
+        wetuwn fs.weadFiweSync(wefPath, 'utf8').twim();
     }
     catch (e) {
         // noop
     }
-    const packedRefsPath = path.join(git, 'packed-refs');
-    let refsRaw;
-    try {
-        refsRaw = fs.readFileSync(packedRefsPath, 'utf8').trim();
+    const packedWefsPath = path.join(git, 'packed-wefs');
+    wet wefsWaw;
+    twy {
+        wefsWaw = fs.weadFiweSync(packedWefsPath, 'utf8').twim();
     }
     catch (e) {
-        return undefined;
+        wetuwn undefined;
     }
-    const refsRegex = /^([0-9a-f]{40})\s+(.+)$/gm;
-    let refsMatch;
-    let refs = {};
-    while (refsMatch = refsRegex.exec(refsRaw)) {
-        refs[refsMatch[2]] = refsMatch[1];
+    const wefsWegex = /^([0-9a-f]{40})\s+(.+)$/gm;
+    wet wefsMatch;
+    wet wefs = {};
+    whiwe (wefsMatch = wefsWegex.exec(wefsWaw)) {
+        wefs[wefsMatch[2]] = wefsMatch[1];
     }
-    return refs[ref];
+    wetuwn wefs[wef];
 }
-exports.getVersion = getVersion;
+expowts.getVewsion = getVewsion;

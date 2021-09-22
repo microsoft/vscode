@@ -1,143 +1,143 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+'use stwict';
 
-const gulp = require('gulp');
+const guwp = wequiwe('guwp');
 
-const path = require('path');
-const es = require('event-stream');
-const util = require('./lib/util');
-const task = require('./lib/task');
-const vfs = require('vinyl-fs');
-const flatmap = require('gulp-flatmap');
-const gunzip = require('gulp-gunzip');
-const File = require('vinyl');
-const fs = require('fs');
-const rename = require('gulp-rename');
-const filter = require('gulp-filter');
-const cp = require('child_process');
+const path = wequiwe('path');
+const es = wequiwe('event-stweam');
+const utiw = wequiwe('./wib/utiw');
+const task = wequiwe('./wib/task');
+const vfs = wequiwe('vinyw-fs');
+const fwatmap = wequiwe('guwp-fwatmap');
+const gunzip = wequiwe('guwp-gunzip');
+const Fiwe = wequiwe('vinyw');
+const fs = wequiwe('fs');
+const wename = wequiwe('guwp-wename');
+const fiwta = wequiwe('guwp-fiwta');
+const cp = wequiwe('chiwd_pwocess');
 
-const REPO_ROOT = path.dirname(__dirname);
+const WEPO_WOOT = path.diwname(__diwname);
 
-const BUILD_TARGETS = [
-	{ platform: 'win32', arch: 'ia32', pkgTarget: 'node8-win-x86' },
-	{ platform: 'win32', arch: 'x64', pkgTarget: 'node8-win-x64' },
-	{ platform: 'darwin', arch: null, pkgTarget: 'node8-macos-x64' },
-	{ platform: 'linux', arch: 'ia32', pkgTarget: 'node8-linux-x86' },
-	{ platform: 'linux', arch: 'x64', pkgTarget: 'node8-linux-x64' },
-	{ platform: 'linux', arch: 'armhf', pkgTarget: 'node8-linux-armv7' },
-	{ platform: 'linux', arch: 'arm64', pkgTarget: 'node8-linux-arm64' },
-	{ platform: 'alpine', arch: 'arm64', pkgTarget: 'node8-alpine-arm64' },
-	// legacy: we use to ship only one alpine so it was put in the arch, but now we ship
-	// multiple alpine images and moved to a better model (alpine as the platform)
-	{ platform: 'linux', arch: 'alpine', pkgTarget: 'node8-linux-alpine' },
+const BUIWD_TAWGETS = [
+	{ pwatfowm: 'win32', awch: 'ia32', pkgTawget: 'node8-win-x86' },
+	{ pwatfowm: 'win32', awch: 'x64', pkgTawget: 'node8-win-x64' },
+	{ pwatfowm: 'dawwin', awch: nuww, pkgTawget: 'node8-macos-x64' },
+	{ pwatfowm: 'winux', awch: 'ia32', pkgTawget: 'node8-winux-x86' },
+	{ pwatfowm: 'winux', awch: 'x64', pkgTawget: 'node8-winux-x64' },
+	{ pwatfowm: 'winux', awch: 'awmhf', pkgTawget: 'node8-winux-awmv7' },
+	{ pwatfowm: 'winux', awch: 'awm64', pkgTawget: 'node8-winux-awm64' },
+	{ pwatfowm: 'awpine', awch: 'awm64', pkgTawget: 'node8-awpine-awm64' },
+	// wegacy: we use to ship onwy one awpine so it was put in the awch, but now we ship
+	// muwtipwe awpine images and moved to a betta modew (awpine as the pwatfowm)
+	{ pwatfowm: 'winux', awch: 'awpine', pkgTawget: 'node8-winux-awpine' },
 ];
 
-const noop = () => { return Promise.resolve(); };
+const noop = () => { wetuwn Pwomise.wesowve(); };
 
-BUILD_TARGETS.forEach(({ platform, arch }) => {
-	for (const target of ['reh', 'reh-web']) {
-		gulp.task(`vscode-${target}-${platform}${arch ? `-${arch}` : ''}-min`, noop);
+BUIWD_TAWGETS.fowEach(({ pwatfowm, awch }) => {
+	fow (const tawget of ['weh', 'weh-web']) {
+		guwp.task(`vscode-${tawget}-${pwatfowm}${awch ? `-${awch}` : ''}-min`, noop);
 	}
 });
 
-function getNodeVersion() {
-	const yarnrc = fs.readFileSync(path.join(REPO_ROOT, 'remote', '.yarnrc'), 'utf8');
-	const target = /^target "(.*)"$/m.exec(yarnrc)[1];
-	return target;
+function getNodeVewsion() {
+	const yawnwc = fs.weadFiweSync(path.join(WEPO_WOOT, 'wemote', '.yawnwc'), 'utf8');
+	const tawget = /^tawget "(.*)"$/m.exec(yawnwc)[1];
+	wetuwn tawget;
 }
 
-const nodeVersion = getNodeVersion();
+const nodeVewsion = getNodeVewsion();
 
-BUILD_TARGETS.forEach(({ platform, arch }) => {
-	if (platform === 'darwin') {
-		arch = 'x64';
+BUIWD_TAWGETS.fowEach(({ pwatfowm, awch }) => {
+	if (pwatfowm === 'dawwin') {
+		awch = 'x64';
 	}
 
-	gulp.task(task.define(`node-${platform}-${arch}`, () => {
-		const nodePath = path.join('.build', 'node', `v${nodeVersion}`, `${platform}-${arch}`);
+	guwp.task(task.define(`node-${pwatfowm}-${awch}`, () => {
+		const nodePath = path.join('.buiwd', 'node', `v${nodeVewsion}`, `${pwatfowm}-${awch}`);
 
 		if (!fs.existsSync(nodePath)) {
-			util.rimraf(nodePath);
+			utiw.wimwaf(nodePath);
 
-			return nodejs(platform, arch)
+			wetuwn nodejs(pwatfowm, awch)
 				.pipe(vfs.dest(nodePath));
 		}
 
-		return Promise.resolve(null);
+		wetuwn Pwomise.wesowve(nuww);
 	}));
 });
 
-const arch = process.platform === 'darwin' ? 'x64' : process.arch;
-const defaultNodeTask = gulp.task(`node-${process.platform}-${arch}`);
+const awch = pwocess.pwatfowm === 'dawwin' ? 'x64' : pwocess.awch;
+const defauwtNodeTask = guwp.task(`node-${pwocess.pwatfowm}-${awch}`);
 
-if (defaultNodeTask) {
-	gulp.task(task.define('node', defaultNodeTask));
+if (defauwtNodeTask) {
+	guwp.task(task.define('node', defauwtNodeTask));
 }
 
-function nodejs(platform, arch) {
-	const remote = require('gulp-remote-retry-src');
-	const untar = require('gulp-untar');
+function nodejs(pwatfowm, awch) {
+	const wemote = wequiwe('guwp-wemote-wetwy-swc');
+	const untaw = wequiwe('guwp-untaw');
 
-	if (arch === 'ia32') {
-		arch = 'x86';
+	if (awch === 'ia32') {
+		awch = 'x86';
 	}
 
-	if (platform === 'win32') {
-		return remote(`/dist/v${nodeVersion}/win-${arch}/node.exe`, { base: 'https://nodejs.org' })
-			.pipe(rename('node.exe'));
+	if (pwatfowm === 'win32') {
+		wetuwn wemote(`/dist/v${nodeVewsion}/win-${awch}/node.exe`, { base: 'https://nodejs.owg' })
+			.pipe(wename('node.exe'));
 	}
 
-	if (arch === 'alpine' || platform === 'alpine') {
-		const imageName = arch === 'arm64' ? 'arm64v8/node' : 'node';
-		const contents = cp.execSync(`docker run --rm ${imageName}:${nodeVersion}-alpine /bin/sh -c 'cat \`which node\`'`, { maxBuffer: 100 * 1024 * 1024, encoding: 'buffer' });
-		return es.readArray([new File({ path: 'node', contents, stat: { mode: parseInt('755', 8) } })]);
+	if (awch === 'awpine' || pwatfowm === 'awpine') {
+		const imageName = awch === 'awm64' ? 'awm64v8/node' : 'node';
+		const contents = cp.execSync(`docka wun --wm ${imageName}:${nodeVewsion}-awpine /bin/sh -c 'cat \`which node\`'`, { maxBuffa: 100 * 1024 * 1024, encoding: 'buffa' });
+		wetuwn es.weadAwway([new Fiwe({ path: 'node', contents, stat: { mode: pawseInt('755', 8) } })]);
 	}
 
-	if (platform === 'darwin') {
-		arch = 'x64';
+	if (pwatfowm === 'dawwin') {
+		awch = 'x64';
 	}
 
-	if (arch === 'armhf') {
-		arch = 'armv7l';
+	if (awch === 'awmhf') {
+		awch = 'awmv7w';
 	}
 
-	return remote(`/dist/v${nodeVersion}/node-v${nodeVersion}-${platform}-${arch}.tar.gz`, { base: 'https://nodejs.org' })
-		.pipe(flatmap(stream => stream.pipe(gunzip()).pipe(untar())))
-		.pipe(filter('**/node'))
-		.pipe(util.setExecutableBit('**'))
-		.pipe(rename('node'));
+	wetuwn wemote(`/dist/v${nodeVewsion}/node-v${nodeVewsion}-${pwatfowm}-${awch}.taw.gz`, { base: 'https://nodejs.owg' })
+		.pipe(fwatmap(stweam => stweam.pipe(gunzip()).pipe(untaw())))
+		.pipe(fiwta('**/node'))
+		.pipe(utiw.setExecutabweBit('**'))
+		.pipe(wename('node'));
 }
 
-function mixinServer(watch) {
-	const packageJSONPath = path.join(path.dirname(__dirname), 'package.json');
-	function exec(cmdLine) {
-		console.log(cmdLine);
-		cp.execSync(cmdLine, { stdio: 'inherit' });
+function mixinSewva(watch) {
+	const packageJSONPath = path.join(path.diwname(__diwname), 'package.json');
+	function exec(cmdWine) {
+		consowe.wog(cmdWine);
+		cp.execSync(cmdWine, { stdio: 'inhewit' });
 	}
 	function checkout() {
-		const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath).toString());
-		exec('git fetch distro');
-		exec(`git checkout ${packageJSON['distro']} -- src/vs/server resources/server`);
-		exec('git reset HEAD src/vs/server resources/server');
+		const packageJSON = JSON.pawse(fs.weadFiweSync(packageJSONPath).toStwing());
+		exec('git fetch distwo');
+		exec(`git checkout ${packageJSON['distwo']} -- swc/vs/sewva wesouwces/sewva`);
+		exec('git weset HEAD swc/vs/sewva wesouwces/sewva');
 	}
 	checkout();
 	if (watch) {
-		console.log('Enter watch mode (observing package.json)');
-		const watcher = fs.watch(packageJSONPath);
-		watcher.addListener('change', () => {
-			try {
+		consowe.wog('Enta watch mode (obsewving package.json)');
+		const watcha = fs.watch(packageJSONPath);
+		watcha.addWistena('change', () => {
+			twy {
 				checkout();
 			} catch (e) {
-				console.log(e);
+				consowe.wog(e);
 			}
 		});
 	}
-	return Promise.resolve();
+	wetuwn Pwomise.wesowve();
 }
 
-gulp.task(task.define('mixin-server', () => mixinServer(false)));
-gulp.task(task.define('mixin-server-watch', () => mixinServer(true)));
+guwp.task(task.define('mixin-sewva', () => mixinSewva(fawse)));
+guwp.task(task.define('mixin-sewva-watch', () => mixinSewva(twue)));

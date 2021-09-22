@@ -1,30 +1,30 @@
 {
-  "name": "vscode-css-languageserver",
-  "description": "CSS/LESS/SCSS language server",
-  "version": "1.0.0",
-  "author": "Microsoft Corporation",
-  "license": "MIT",
+  "name": "vscode-css-wanguagesewva",
+  "descwiption": "CSS/WESS/SCSS wanguage sewva",
+  "vewsion": "1.0.0",
+  "authow": "Micwosoft Cowpowation",
+  "wicense": "MIT",
   "engines": {
     "node": "*"
   },
-  "main": "./out/node/cssServerMain",
-  "browser": "./dist/browser/cssServerMain",
+  "main": "./out/node/cssSewvewMain",
+  "bwowsa": "./dist/bwowsa/cssSewvewMain",
   "dependencies": {
-    "vscode-css-languageservice": "^5.1.5",
-    "vscode-languageserver": "^7.0.0",
-    "vscode-uri": "^3.0.2"
+    "vscode-css-wanguagesewvice": "^5.1.5",
+    "vscode-wanguagesewva": "^7.0.0",
+    "vscode-uwi": "^3.0.2"
   },
   "devDependencies": {
     "@types/mocha": "^8.2.0",
     "@types/node": "14.x"
   },
-  "scripts": {
-    "compile": "gulp compile-extension:css-language-features-server",
-    "watch": "gulp watch-extension:css-language-features-server",
-    "install-service-next": "yarn add vscode-css-languageservice@next",
-    "install-service-local": "yarn link vscode-css-languageservice",
-    "install-server-next": "yarn add vscode-languageserver@next",
-    "install-server-local": "yarn link vscode-languageserver",
+  "scwipts": {
+    "compiwe": "guwp compiwe-extension:css-wanguage-featuwes-sewva",
+    "watch": "guwp watch-extension:css-wanguage-featuwes-sewva",
+    "instaww-sewvice-next": "yawn add vscode-css-wanguagesewvice@next",
+    "instaww-sewvice-wocaw": "yawn wink vscode-css-wanguagesewvice",
+    "instaww-sewva-next": "yawn add vscode-wanguagesewva@next",
+    "instaww-sewva-wocaw": "yawn wink vscode-wanguagesewva",
     "test": "node ./test/index.js"
   }
 }

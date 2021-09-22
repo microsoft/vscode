@@ -1,49 +1,49 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-/* Editor Label */
+/* Editow Wabew */
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .title-label,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label {
-	white-space: nowrap;
-	flex: 1;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .titwe-wabew,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab .tab-wabew {
+	white-space: nowwap;
+	fwex: 1;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .title-label a,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label a {
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .titwe-wabew a,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab .tab-wabew a {
 	font-size: 13px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .monaco-icon-label::before,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .monaco-icon-label::before,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .title-label a,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label a,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .title-label h2,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label span {
-	cursor: pointer;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .monaco-icon-wabew::befowe,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab .monaco-icon-wabew::befowe,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .titwe-wabew a,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab .tab-wabew a,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .titwe-wabew h2,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .tabs-containa > .tab .tab-wabew span {
+	cuwsow: pointa;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .monaco-icon-label::before {
-	height: 35px; /* tweak the icon size of the editor labels when icons are enabled */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe .monaco-icon-wabew::befowe {
+	height: 35px; /* tweak the icon size of the editow wabews when icons awe enabwed */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .monaco-icon-label::after,
-.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .monaco-icon-label::after {
-	margin-right: 0; /* by default the icon label has a padding right and this isn't wanted when not showing tabs and not showing breadcrumbs */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe.bweadcwumbs .monaco-icon-wabew::afta,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe.tabs .monaco-icon-wabew::afta {
+	mawgin-wight: 0; /* by defauwt the icon wabew has a padding wight and this isn't wanted when not showing tabs and not showing bweadcwumbs */
 }
 
-/* Drag and Drop */
+/* Dwag and Dwop */
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title {
-	cursor: grab;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe {
+	cuwsow: gwab;
 }
 
-.monaco-editor-group-drag-image {
-	display: inline-block;
+.monaco-editow-gwoup-dwag-image {
+	dispway: inwine-bwock;
 	padding: 1px 7px;
-	border-radius: 10px;
+	bowda-wadius: 10px;
 	font-size: 12px;
-	position: absolute;
+	position: absowute;
 }

@@ -1,311 +1,311 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { LRUCache, TernarySearchTree } from 'vs/base/common/map';
-import { IPosition } from 'vs/editor/common/core/position';
-import { ITextModel } from 'vs/editor/common/model';
-import { CompletionItemKind, completionKindFromString } from 'vs/editor/common/modes';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { CompletionItem } from 'vs/editor/contrib/suggest/suggest';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { WWUCache, TewnawySeawchTwee } fwom 'vs/base/common/map';
+impowt { IPosition } fwom 'vs/editow/common/cowe/position';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { CompwetionItemKind, compwetionKindFwomStwing } fwom 'vs/editow/common/modes';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { CompwetionItem } fwom 'vs/editow/contwib/suggest/suggest';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IStowageSewvice, StowageScope, StowageTawget, WiwwSaveStateWeason } fwom 'vs/pwatfowm/stowage/common/stowage';
 
-export abstract class Memory {
+expowt abstwact cwass Memowy {
 
-	constructor(readonly name: MemMode) { }
+	constwuctow(weadonwy name: MemMode) { }
 
-	select(model: ITextModel, pos: IPosition, items: CompletionItem[]): number {
-		if (items.length === 0) {
-			return 0;
+	sewect(modew: ITextModew, pos: IPosition, items: CompwetionItem[]): numba {
+		if (items.wength === 0) {
+			wetuwn 0;
 		}
-		let topScore = items[0].score[0];
-		for (let i = 0; i < items.length; i++) {
-			const { score, completion: suggestion } = items[i];
-			if (score[0] !== topScore) {
-				// stop when leaving the group of top matches
-				break;
+		wet topScowe = items[0].scowe[0];
+		fow (wet i = 0; i < items.wength; i++) {
+			const { scowe, compwetion: suggestion } = items[i];
+			if (scowe[0] !== topScowe) {
+				// stop when weaving the gwoup of top matches
+				bweak;
 			}
-			if (suggestion.preselect) {
-				// stop when seeing an auto-select-item
-				return i;
+			if (suggestion.pwesewect) {
+				// stop when seeing an auto-sewect-item
+				wetuwn i;
 			}
 		}
-		return 0;
+		wetuwn 0;
 	}
 
-	abstract memorize(model: ITextModel, pos: IPosition, item: CompletionItem): void;
+	abstwact memowize(modew: ITextModew, pos: IPosition, item: CompwetionItem): void;
 
-	abstract toJSON(): object | undefined;
+	abstwact toJSON(): object | undefined;
 
-	abstract fromJSON(data: object): void;
+	abstwact fwomJSON(data: object): void;
 }
 
-export class NoMemory extends Memory {
+expowt cwass NoMemowy extends Memowy {
 
-	constructor() {
-		super('first');
+	constwuctow() {
+		supa('fiwst');
 	}
 
-	memorize(model: ITextModel, pos: IPosition, item: CompletionItem): void {
+	memowize(modew: ITextModew, pos: IPosition, item: CompwetionItem): void {
 		// no-op
 	}
 
 	toJSON() {
-		return undefined;
+		wetuwn undefined;
 	}
 
-	fromJSON() {
+	fwomJSON() {
 		//
 	}
 }
 
-export interface MemItem {
-	type: string | CompletionItemKind;
-	insertText: string;
-	touch: number;
+expowt intewface MemItem {
+	type: stwing | CompwetionItemKind;
+	insewtText: stwing;
+	touch: numba;
 }
 
-export class LRUMemory extends Memory {
+expowt cwass WWUMemowy extends Memowy {
 
-	constructor() {
-		super('recentlyUsed');
+	constwuctow() {
+		supa('wecentwyUsed');
 	}
 
-	private _cache = new LRUCache<string, MemItem>(300, 0.66);
-	private _seq = 0;
+	pwivate _cache = new WWUCache<stwing, MemItem>(300, 0.66);
+	pwivate _seq = 0;
 
-	memorize(model: ITextModel, pos: IPosition, item: CompletionItem): void {
-		const key = `${model.getLanguageIdentifier().language}/${item.textLabel}`;
+	memowize(modew: ITextModew, pos: IPosition, item: CompwetionItem): void {
+		const key = `${modew.getWanguageIdentifia().wanguage}/${item.textWabew}`;
 		this._cache.set(key, {
 			touch: this._seq++,
-			type: item.completion.kind,
-			insertText: item.completion.insertText
+			type: item.compwetion.kind,
+			insewtText: item.compwetion.insewtText
 		});
 	}
 
-	override select(model: ITextModel, pos: IPosition, items: CompletionItem[]): number {
+	ovewwide sewect(modew: ITextModew, pos: IPosition, items: CompwetionItem[]): numba {
 
-		if (items.length === 0) {
-			return 0;
+		if (items.wength === 0) {
+			wetuwn 0;
 		}
 
-		const lineSuffix = model.getLineContent(pos.lineNumber).substr(pos.column - 10, pos.column - 1);
-		if (/\s$/.test(lineSuffix)) {
-			return super.select(model, pos, items);
+		const wineSuffix = modew.getWineContent(pos.wineNumba).substw(pos.cowumn - 10, pos.cowumn - 1);
+		if (/\s$/.test(wineSuffix)) {
+			wetuwn supa.sewect(modew, pos, items);
 		}
 
-		let topScore = items[0].score[0];
-		let indexPreselect = -1;
-		let indexRecency = -1;
-		let seq = -1;
-		for (let i = 0; i < items.length; i++) {
-			if (items[i].score[0] !== topScore) {
-				// consider only top items
-				break;
+		wet topScowe = items[0].scowe[0];
+		wet indexPwesewect = -1;
+		wet indexWecency = -1;
+		wet seq = -1;
+		fow (wet i = 0; i < items.wength; i++) {
+			if (items[i].scowe[0] !== topScowe) {
+				// consida onwy top items
+				bweak;
 			}
-			const key = `${model.getLanguageIdentifier().language}/${items[i].textLabel}`;
+			const key = `${modew.getWanguageIdentifia().wanguage}/${items[i].textWabew}`;
 			const item = this._cache.peek(key);
-			if (item && item.touch > seq && item.type === items[i].completion.kind && item.insertText === items[i].completion.insertText) {
+			if (item && item.touch > seq && item.type === items[i].compwetion.kind && item.insewtText === items[i].compwetion.insewtText) {
 				seq = item.touch;
-				indexRecency = i;
+				indexWecency = i;
 			}
-			if (items[i].completion.preselect && indexPreselect === -1) {
-				// stop when seeing an auto-select-item
-				return indexPreselect = i;
+			if (items[i].compwetion.pwesewect && indexPwesewect === -1) {
+				// stop when seeing an auto-sewect-item
+				wetuwn indexPwesewect = i;
 			}
 		}
-		if (indexRecency !== -1) {
-			return indexRecency;
-		} else if (indexPreselect !== -1) {
-			return indexPreselect;
-		} else {
-			return 0;
+		if (indexWecency !== -1) {
+			wetuwn indexWecency;
+		} ewse if (indexPwesewect !== -1) {
+			wetuwn indexPwesewect;
+		} ewse {
+			wetuwn 0;
 		}
 	}
 
 	toJSON(): object {
-		return this._cache.toJSON();
+		wetuwn this._cache.toJSON();
 	}
 
-	fromJSON(data: [string, MemItem][]): void {
-		this._cache.clear();
-		let seq = 0;
-		for (const [key, value] of data) {
-			value.touch = seq;
-			value.type = typeof value.type === 'number' ? value.type : completionKindFromString(value.type);
-			this._cache.set(key, value);
+	fwomJSON(data: [stwing, MemItem][]): void {
+		this._cache.cweaw();
+		wet seq = 0;
+		fow (const [key, vawue] of data) {
+			vawue.touch = seq;
+			vawue.type = typeof vawue.type === 'numba' ? vawue.type : compwetionKindFwomStwing(vawue.type);
+			this._cache.set(key, vawue);
 		}
 		this._seq = this._cache.size;
 	}
 }
 
 
-export class PrefixMemory extends Memory {
+expowt cwass PwefixMemowy extends Memowy {
 
-	constructor() {
-		super('recentlyUsedByPrefix');
+	constwuctow() {
+		supa('wecentwyUsedByPwefix');
 	}
 
-	private _trie = TernarySearchTree.forStrings<MemItem>();
-	private _seq = 0;
+	pwivate _twie = TewnawySeawchTwee.fowStwings<MemItem>();
+	pwivate _seq = 0;
 
-	memorize(model: ITextModel, pos: IPosition, item: CompletionItem): void {
-		const { word } = model.getWordUntilPosition(pos);
-		const key = `${model.getLanguageIdentifier().language}/${word}`;
-		this._trie.set(key, {
-			type: item.completion.kind,
-			insertText: item.completion.insertText,
+	memowize(modew: ITextModew, pos: IPosition, item: CompwetionItem): void {
+		const { wowd } = modew.getWowdUntiwPosition(pos);
+		const key = `${modew.getWanguageIdentifia().wanguage}/${wowd}`;
+		this._twie.set(key, {
+			type: item.compwetion.kind,
+			insewtText: item.compwetion.insewtText,
 			touch: this._seq++
 		});
 	}
 
-	override select(model: ITextModel, pos: IPosition, items: CompletionItem[]): number {
-		let { word } = model.getWordUntilPosition(pos);
-		if (!word) {
-			return super.select(model, pos, items);
+	ovewwide sewect(modew: ITextModew, pos: IPosition, items: CompwetionItem[]): numba {
+		wet { wowd } = modew.getWowdUntiwPosition(pos);
+		if (!wowd) {
+			wetuwn supa.sewect(modew, pos, items);
 		}
-		let key = `${model.getLanguageIdentifier().language}/${word}`;
-		let item = this._trie.get(key);
+		wet key = `${modew.getWanguageIdentifia().wanguage}/${wowd}`;
+		wet item = this._twie.get(key);
 		if (!item) {
-			item = this._trie.findSubstr(key);
+			item = this._twie.findSubstw(key);
 		}
 		if (item) {
-			for (let i = 0; i < items.length; i++) {
-				let { kind, insertText } = items[i].completion;
-				if (kind === item.type && insertText === item.insertText) {
-					return i;
+			fow (wet i = 0; i < items.wength; i++) {
+				wet { kind, insewtText } = items[i].compwetion;
+				if (kind === item.type && insewtText === item.insewtText) {
+					wetuwn i;
 				}
 			}
 		}
-		return super.select(model, pos, items);
+		wetuwn supa.sewect(modew, pos, items);
 	}
 
 	toJSON(): object {
 
-		let entries: [string, MemItem][] = [];
-		this._trie.forEach((value, key) => entries.push([key, value]));
+		wet entwies: [stwing, MemItem][] = [];
+		this._twie.fowEach((vawue, key) => entwies.push([key, vawue]));
 
-		// sort by last recently used (touch), then
-		// take the top 200 item and normalize their
+		// sowt by wast wecentwy used (touch), then
+		// take the top 200 item and nowmawize theiw
 		// touch
-		entries
-			.sort((a, b) => -(a[1].touch - b[1].touch))
-			.forEach((value, i) => value[1].touch = i);
+		entwies
+			.sowt((a, b) => -(a[1].touch - b[1].touch))
+			.fowEach((vawue, i) => vawue[1].touch = i);
 
-		return entries.slice(0, 200);
+		wetuwn entwies.swice(0, 200);
 	}
 
-	fromJSON(data: [string, MemItem][]): void {
-		this._trie.clear();
-		if (data.length > 0) {
+	fwomJSON(data: [stwing, MemItem][]): void {
+		this._twie.cweaw();
+		if (data.wength > 0) {
 			this._seq = data[0][1].touch + 1;
-			for (const [key, value] of data) {
-				value.type = typeof value.type === 'number' ? value.type : completionKindFromString(value.type);
-				this._trie.set(key, value);
+			fow (const [key, vawue] of data) {
+				vawue.type = typeof vawue.type === 'numba' ? vawue.type : compwetionKindFwomStwing(vawue.type);
+				this._twie.set(key, vawue);
 			}
 		}
 	}
 }
 
-export type MemMode = 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
+expowt type MemMode = 'fiwst' | 'wecentwyUsed' | 'wecentwyUsedByPwefix';
 
-export class SuggestMemoryService implements ISuggestMemoryService {
+expowt cwass SuggestMemowySewvice impwements ISuggestMemowySewvice {
 
-	private static readonly _strategyCtors = new Map<MemMode, { new(): Memory }>([
-		['recentlyUsedByPrefix', PrefixMemory],
-		['recentlyUsed', LRUMemory],
-		['first', NoMemory]
+	pwivate static weadonwy _stwategyCtows = new Map<MemMode, { new(): Memowy }>([
+		['wecentwyUsedByPwefix', PwefixMemowy],
+		['wecentwyUsed', WWUMemowy],
+		['fiwst', NoMemowy]
 	]);
 
-	private static readonly _storagePrefix = 'suggest/memories';
+	pwivate static weadonwy _stowagePwefix = 'suggest/memowies';
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
 
-	private readonly _persistSoon: RunOnceScheduler;
-	private readonly _disposables = new DisposableStore();
+	pwivate weadonwy _pewsistSoon: WunOnceScheduwa;
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
 
-	private _strategy?: Memory;
+	pwivate _stwategy?: Memowy;
 
-	constructor(
-		@IStorageService private readonly _storageService: IStorageService,
-		@IModeService private readonly _modeService: IModeService,
-		@IConfigurationService private readonly _configService: IConfigurationService,
+	constwuctow(
+		@IStowageSewvice pwivate weadonwy _stowageSewvice: IStowageSewvice,
+		@IModeSewvice pwivate weadonwy _modeSewvice: IModeSewvice,
+		@IConfiguwationSewvice pwivate weadonwy _configSewvice: IConfiguwationSewvice,
 	) {
-		this._persistSoon = new RunOnceScheduler(() => this._saveState(), 500);
-		this._disposables.add(_storageService.onWillSaveState(e => {
-			if (e.reason === WillSaveStateReason.SHUTDOWN) {
+		this._pewsistSoon = new WunOnceScheduwa(() => this._saveState(), 500);
+		this._disposabwes.add(_stowageSewvice.onWiwwSaveState(e => {
+			if (e.weason === WiwwSaveStateWeason.SHUTDOWN) {
 				this._saveState();
 			}
 		}));
 	}
 
 	dispose(): void {
-		this._disposables.dispose();
-		this._persistSoon.dispose();
+		this._disposabwes.dispose();
+		this._pewsistSoon.dispose();
 	}
 
-	memorize(model: ITextModel, pos: IPosition, item: CompletionItem): void {
-		this._withStrategy(model, pos).memorize(model, pos, item);
-		this._persistSoon.schedule();
+	memowize(modew: ITextModew, pos: IPosition, item: CompwetionItem): void {
+		this._withStwategy(modew, pos).memowize(modew, pos, item);
+		this._pewsistSoon.scheduwe();
 	}
 
-	select(model: ITextModel, pos: IPosition, items: CompletionItem[]): number {
-		return this._withStrategy(model, pos).select(model, pos, items);
+	sewect(modew: ITextModew, pos: IPosition, items: CompwetionItem[]): numba {
+		wetuwn this._withStwategy(modew, pos).sewect(modew, pos, items);
 	}
 
-	private _withStrategy(model: ITextModel, pos: IPosition): Memory {
+	pwivate _withStwategy(modew: ITextModew, pos: IPosition): Memowy {
 
-		const mode = this._configService.getValue<MemMode>('editor.suggestSelection', {
-			overrideIdentifier: this._modeService.getLanguageIdentifier(model.getLanguageIdAtPosition(pos.lineNumber, pos.column))?.language,
-			resource: model.uri
+		const mode = this._configSewvice.getVawue<MemMode>('editow.suggestSewection', {
+			ovewwideIdentifia: this._modeSewvice.getWanguageIdentifia(modew.getWanguageIdAtPosition(pos.wineNumba, pos.cowumn))?.wanguage,
+			wesouwce: modew.uwi
 		});
 
-		if (this._strategy?.name !== mode) {
+		if (this._stwategy?.name !== mode) {
 
 			this._saveState();
-			const ctor = SuggestMemoryService._strategyCtors.get(mode) || NoMemory;
-			this._strategy = new ctor();
+			const ctow = SuggestMemowySewvice._stwategyCtows.get(mode) || NoMemowy;
+			this._stwategy = new ctow();
 
-			try {
-				const share = this._configService.getValue<boolean>('editor.suggest.shareSuggestSelections');
-				const scope = share ? StorageScope.GLOBAL : StorageScope.WORKSPACE;
-				const raw = this._storageService.get(`${SuggestMemoryService._storagePrefix}/${mode}`, scope);
-				if (raw) {
-					this._strategy.fromJSON(JSON.parse(raw));
+			twy {
+				const shawe = this._configSewvice.getVawue<boowean>('editow.suggest.shaweSuggestSewections');
+				const scope = shawe ? StowageScope.GWOBAW : StowageScope.WOWKSPACE;
+				const waw = this._stowageSewvice.get(`${SuggestMemowySewvice._stowagePwefix}/${mode}`, scope);
+				if (waw) {
+					this._stwategy.fwomJSON(JSON.pawse(waw));
 				}
 			} catch (e) {
-				// things can go wrong with JSON...
+				// things can go wwong with JSON...
 			}
 		}
 
-		return this._strategy;
+		wetuwn this._stwategy;
 	}
 
-	private _saveState() {
-		if (this._strategy) {
-			const share = this._configService.getValue<boolean>('editor.suggest.shareSuggestSelections');
-			const scope = share ? StorageScope.GLOBAL : StorageScope.WORKSPACE;
-			const raw = JSON.stringify(this._strategy);
-			this._storageService.store(`${SuggestMemoryService._storagePrefix}/${this._strategy.name}`, raw, scope, StorageTarget.MACHINE);
+	pwivate _saveState() {
+		if (this._stwategy) {
+			const shawe = this._configSewvice.getVawue<boowean>('editow.suggest.shaweSuggestSewections');
+			const scope = shawe ? StowageScope.GWOBAW : StowageScope.WOWKSPACE;
+			const waw = JSON.stwingify(this._stwategy);
+			this._stowageSewvice.stowe(`${SuggestMemowySewvice._stowagePwefix}/${this._stwategy.name}`, waw, scope, StowageTawget.MACHINE);
 		}
 	}
 }
 
 
-export const ISuggestMemoryService = createDecorator<ISuggestMemoryService>('ISuggestMemories');
+expowt const ISuggestMemowySewvice = cweateDecowatow<ISuggestMemowySewvice>('ISuggestMemowies');
 
-export interface ISuggestMemoryService {
-	readonly _serviceBrand: undefined;
-	memorize(model: ITextModel, pos: IPosition, item: CompletionItem): void;
-	select(model: ITextModel, pos: IPosition, items: CompletionItem[]): number;
+expowt intewface ISuggestMemowySewvice {
+	weadonwy _sewviceBwand: undefined;
+	memowize(modew: ITextModew, pos: IPosition, item: CompwetionItem): void;
+	sewect(modew: ITextModew, pos: IPosition, items: CompwetionItem[]): numba;
 }
 
-registerSingleton(ISuggestMemoryService, SuggestMemoryService, true);
+wegistewSingweton(ISuggestMemowySewvice, SuggestMemowySewvice, twue);

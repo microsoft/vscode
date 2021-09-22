@@ -1,17 +1,17 @@
 {
-  "name": "monaco-editor-core",
-  "private": true,
-  "version": "0.23.0",
-  "description": "A browser based code editor",
-  "author": "Microsoft Corporation",
-  "license": "MIT",
-  "typings": "./esm/vs/editor/editor.api.d.ts",
-  "module": "./esm/vs/editor/editor.main.js",
-  "repository": {
+  "name": "monaco-editow-cowe",
+  "pwivate": twue,
+  "vewsion": "0.23.0",
+  "descwiption": "A bwowsa based code editow",
+  "authow": "Micwosoft Cowpowation",
+  "wicense": "MIT",
+  "typings": "./esm/vs/editow/editow.api.d.ts",
+  "moduwe": "./esm/vs/editow/editow.main.js",
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode"
+    "uww": "https://github.com/micwosoft/vscode"
   },
   "bugs": {
-    "url": "https://github.com/microsoft/vscode/issues"
+    "uww": "https://github.com/micwosoft/vscode/issues"
   }
 }

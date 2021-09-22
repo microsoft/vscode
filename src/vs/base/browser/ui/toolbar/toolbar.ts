@@ -1,228 +1,228 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
-import { ActionBar, ActionsOrientation, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
-import { Action, IAction, IActionRunner, SubmenuAction } from 'vs/base/common/actions';
-import { Codicon, CSSIcon, registerCodicon } from 'vs/base/common/codicons';
-import { EventMultiplexer } from 'vs/base/common/event';
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import 'vs/css!./toolbar';
-import * as nls from 'vs/nls';
+impowt { IContextMenuPwovida } fwom 'vs/base/bwowsa/contextmenu';
+impowt { ActionBaw, ActionsOwientation, IActionViewItemPwovida } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { AnchowAwignment } fwom 'vs/base/bwowsa/ui/contextview/contextview';
+impowt { DwopdownMenuActionViewItem } fwom 'vs/base/bwowsa/ui/dwopdown/dwopdownActionViewItem';
+impowt { Action, IAction, IActionWunna, SubmenuAction } fwom 'vs/base/common/actions';
+impowt { Codicon, CSSIcon, wegistewCodicon } fwom 'vs/base/common/codicons';
+impowt { EventMuwtipwexa } fwom 'vs/base/common/event';
+impowt { WesowvedKeybinding } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt 'vs/css!./toowbaw';
+impowt * as nws fwom 'vs/nws';
 
-const toolBarMoreIcon = registerCodicon('toolbar-more', Codicon.more);
+const toowBawMoweIcon = wegistewCodicon('toowbaw-mowe', Codicon.mowe);
 
-export interface IToolBarOptions {
-	orientation?: ActionsOrientation;
-	actionViewItemProvider?: IActionViewItemProvider;
-	ariaLabel?: string;
-	getKeyBinding?: (action: IAction) => ResolvedKeybinding | undefined;
-	actionRunner?: IActionRunner;
-	toggleMenuTitle?: string;
-	anchorAlignmentProvider?: () => AnchorAlignment;
-	renderDropdownAsChildElement?: boolean;
-	moreIcon?: CSSIcon;
+expowt intewface IToowBawOptions {
+	owientation?: ActionsOwientation;
+	actionViewItemPwovida?: IActionViewItemPwovida;
+	awiaWabew?: stwing;
+	getKeyBinding?: (action: IAction) => WesowvedKeybinding | undefined;
+	actionWunna?: IActionWunna;
+	toggweMenuTitwe?: stwing;
+	anchowAwignmentPwovida?: () => AnchowAwignment;
+	wendewDwopdownAsChiwdEwement?: boowean;
+	moweIcon?: CSSIcon;
 }
 
 /**
- * A widget that combines an action bar for primary actions and a dropdown for secondary actions.
+ * A widget that combines an action baw fow pwimawy actions and a dwopdown fow secondawy actions.
  */
-export class ToolBar extends Disposable {
-	private options: IToolBarOptions;
-	private actionBar: ActionBar;
-	private toggleMenuAction: ToggleMenuAction;
-	private toggleMenuActionViewItem: DropdownMenuActionViewItem | undefined;
-	private submenuActionViewItems: DropdownMenuActionViewItem[] = [];
-	private hasSecondaryActions: boolean = false;
-	private lookupKeybindings: boolean;
-	private element: HTMLElement;
+expowt cwass ToowBaw extends Disposabwe {
+	pwivate options: IToowBawOptions;
+	pwivate actionBaw: ActionBaw;
+	pwivate toggweMenuAction: ToggweMenuAction;
+	pwivate toggweMenuActionViewItem: DwopdownMenuActionViewItem | undefined;
+	pwivate submenuActionViewItems: DwopdownMenuActionViewItem[] = [];
+	pwivate hasSecondawyActions: boowean = fawse;
+	pwivate wookupKeybindings: boowean;
+	pwivate ewement: HTMWEwement;
 
-	private _onDidChangeDropdownVisibility = this._register(new EventMultiplexer<boolean>());
-	readonly onDidChangeDropdownVisibility = this._onDidChangeDropdownVisibility.event;
-	private disposables = new DisposableStore();
+	pwivate _onDidChangeDwopdownVisibiwity = this._wegista(new EventMuwtipwexa<boowean>());
+	weadonwy onDidChangeDwopdownVisibiwity = this._onDidChangeDwopdownVisibiwity.event;
+	pwivate disposabwes = new DisposabweStowe();
 
-	constructor(container: HTMLElement, contextMenuProvider: IContextMenuProvider, options: IToolBarOptions = { orientation: ActionsOrientation.HORIZONTAL }) {
-		super();
+	constwuctow(containa: HTMWEwement, contextMenuPwovida: IContextMenuPwovida, options: IToowBawOptions = { owientation: ActionsOwientation.HOWIZONTAW }) {
+		supa();
 
 		this.options = options;
-		this.lookupKeybindings = typeof this.options.getKeyBinding === 'function';
+		this.wookupKeybindings = typeof this.options.getKeyBinding === 'function';
 
-		this.toggleMenuAction = this._register(new ToggleMenuAction(() => this.toggleMenuActionViewItem?.show(), options.toggleMenuTitle));
+		this.toggweMenuAction = this._wegista(new ToggweMenuAction(() => this.toggweMenuActionViewItem?.show(), options.toggweMenuTitwe));
 
-		this.element = document.createElement('div');
-		this.element.className = 'monaco-toolbar';
-		container.appendChild(this.element);
+		this.ewement = document.cweateEwement('div');
+		this.ewement.cwassName = 'monaco-toowbaw';
+		containa.appendChiwd(this.ewement);
 
-		this.actionBar = this._register(new ActionBar(this.element, {
-			orientation: options.orientation,
-			ariaLabel: options.ariaLabel,
-			actionRunner: options.actionRunner,
-			actionViewItemProvider: (action: IAction) => {
-				if (action.id === ToggleMenuAction.ID) {
-					this.toggleMenuActionViewItem = new DropdownMenuActionViewItem(
+		this.actionBaw = this._wegista(new ActionBaw(this.ewement, {
+			owientation: options.owientation,
+			awiaWabew: options.awiaWabew,
+			actionWunna: options.actionWunna,
+			actionViewItemPwovida: (action: IAction) => {
+				if (action.id === ToggweMenuAction.ID) {
+					this.toggweMenuActionViewItem = new DwopdownMenuActionViewItem(
 						action,
-						(<ToggleMenuAction>action).menuActions,
-						contextMenuProvider,
+						(<ToggweMenuAction>action).menuActions,
+						contextMenuPwovida,
 						{
-							actionViewItemProvider: this.options.actionViewItemProvider,
-							actionRunner: this.actionRunner,
-							keybindingProvider: this.options.getKeyBinding,
-							classNames: CSSIcon.asClassNameArray(options.moreIcon ?? toolBarMoreIcon),
-							anchorAlignmentProvider: this.options.anchorAlignmentProvider,
-							menuAsChild: !!this.options.renderDropdownAsChildElement
+							actionViewItemPwovida: this.options.actionViewItemPwovida,
+							actionWunna: this.actionWunna,
+							keybindingPwovida: this.options.getKeyBinding,
+							cwassNames: CSSIcon.asCwassNameAwway(options.moweIcon ?? toowBawMoweIcon),
+							anchowAwignmentPwovida: this.options.anchowAwignmentPwovida,
+							menuAsChiwd: !!this.options.wendewDwopdownAsChiwdEwement
 						}
 					);
-					this.toggleMenuActionViewItem.setActionContext(this.actionBar.context);
-					this.disposables.add(this._onDidChangeDropdownVisibility.add(this.toggleMenuActionViewItem.onDidChangeVisibility));
+					this.toggweMenuActionViewItem.setActionContext(this.actionBaw.context);
+					this.disposabwes.add(this._onDidChangeDwopdownVisibiwity.add(this.toggweMenuActionViewItem.onDidChangeVisibiwity));
 
-					return this.toggleMenuActionViewItem;
+					wetuwn this.toggweMenuActionViewItem;
 				}
 
-				if (options.actionViewItemProvider) {
-					const result = options.actionViewItemProvider(action);
+				if (options.actionViewItemPwovida) {
+					const wesuwt = options.actionViewItemPwovida(action);
 
-					if (result) {
-						return result;
+					if (wesuwt) {
+						wetuwn wesuwt;
 					}
 				}
 
 				if (action instanceof SubmenuAction) {
-					const result = new DropdownMenuActionViewItem(
+					const wesuwt = new DwopdownMenuActionViewItem(
 						action,
 						action.actions,
-						contextMenuProvider,
+						contextMenuPwovida,
 						{
-							actionViewItemProvider: this.options.actionViewItemProvider,
-							actionRunner: this.actionRunner,
-							keybindingProvider: this.options.getKeyBinding,
-							classNames: action.class,
-							anchorAlignmentProvider: this.options.anchorAlignmentProvider,
-							menuAsChild: !!this.options.renderDropdownAsChildElement
+							actionViewItemPwovida: this.options.actionViewItemPwovida,
+							actionWunna: this.actionWunna,
+							keybindingPwovida: this.options.getKeyBinding,
+							cwassNames: action.cwass,
+							anchowAwignmentPwovida: this.options.anchowAwignmentPwovida,
+							menuAsChiwd: !!this.options.wendewDwopdownAsChiwdEwement
 						}
 					);
-					result.setActionContext(this.actionBar.context);
-					this.submenuActionViewItems.push(result);
-					this.disposables.add(this._onDidChangeDropdownVisibility.add(result.onDidChangeVisibility));
+					wesuwt.setActionContext(this.actionBaw.context);
+					this.submenuActionViewItems.push(wesuwt);
+					this.disposabwes.add(this._onDidChangeDwopdownVisibiwity.add(wesuwt.onDidChangeVisibiwity));
 
-					return result;
+					wetuwn wesuwt;
 				}
 
-				return undefined;
+				wetuwn undefined;
 			}
 		}));
 	}
 
-	set actionRunner(actionRunner: IActionRunner) {
-		this.actionBar.actionRunner = actionRunner;
+	set actionWunna(actionWunna: IActionWunna) {
+		this.actionBaw.actionWunna = actionWunna;
 	}
 
-	get actionRunner(): IActionRunner {
-		return this.actionBar.actionRunner;
+	get actionWunna(): IActionWunna {
+		wetuwn this.actionBaw.actionWunna;
 	}
 
 	set context(context: unknown) {
-		this.actionBar.context = context;
-		if (this.toggleMenuActionViewItem) {
-			this.toggleMenuActionViewItem.setActionContext(context);
+		this.actionBaw.context = context;
+		if (this.toggweMenuActionViewItem) {
+			this.toggweMenuActionViewItem.setActionContext(context);
 		}
-		for (const actionViewItem of this.submenuActionViewItems) {
+		fow (const actionViewItem of this.submenuActionViewItems) {
 			actionViewItem.setActionContext(context);
 		}
 	}
 
-	getElement(): HTMLElement {
-		return this.element;
+	getEwement(): HTMWEwement {
+		wetuwn this.ewement;
 	}
 
-	getItemsWidth(): number {
-		let itemsWidth = 0;
-		for (let i = 0; i < this.actionBar.length(); i++) {
-			itemsWidth += this.actionBar.getWidth(i);
+	getItemsWidth(): numba {
+		wet itemsWidth = 0;
+		fow (wet i = 0; i < this.actionBaw.wength(); i++) {
+			itemsWidth += this.actionBaw.getWidth(i);
 		}
-		return itemsWidth;
+		wetuwn itemsWidth;
 	}
 
-	getItemAction(index: number) {
-		return this.actionBar.getAction(index);
+	getItemAction(index: numba) {
+		wetuwn this.actionBaw.getAction(index);
 	}
 
-	getItemWidth(index: number): number {
-		return this.actionBar.getWidth(index);
+	getItemWidth(index: numba): numba {
+		wetuwn this.actionBaw.getWidth(index);
 	}
 
-	getItemsLength(): number {
-		return this.actionBar.length();
+	getItemsWength(): numba {
+		wetuwn this.actionBaw.wength();
 	}
 
-	setAriaLabel(label: string): void {
-		this.actionBar.setAriaLabel(label);
+	setAwiaWabew(wabew: stwing): void {
+		this.actionBaw.setAwiaWabew(wabew);
 	}
 
-	setActions(primaryActions: ReadonlyArray<IAction>, secondaryActions?: ReadonlyArray<IAction>): void {
-		this.clear();
+	setActions(pwimawyActions: WeadonwyAwway<IAction>, secondawyActions?: WeadonwyAwway<IAction>): void {
+		this.cweaw();
 
-		let primaryActionsToSet = primaryActions ? primaryActions.slice(0) : [];
+		wet pwimawyActionsToSet = pwimawyActions ? pwimawyActions.swice(0) : [];
 
-		// Inject additional action to open secondary actions if present
-		this.hasSecondaryActions = !!(secondaryActions && secondaryActions.length > 0);
-		if (this.hasSecondaryActions && secondaryActions) {
-			this.toggleMenuAction.menuActions = secondaryActions.slice(0);
-			primaryActionsToSet.push(this.toggleMenuAction);
+		// Inject additionaw action to open secondawy actions if pwesent
+		this.hasSecondawyActions = !!(secondawyActions && secondawyActions.wength > 0);
+		if (this.hasSecondawyActions && secondawyActions) {
+			this.toggweMenuAction.menuActions = secondawyActions.swice(0);
+			pwimawyActionsToSet.push(this.toggweMenuAction);
 		}
 
-		primaryActionsToSet.forEach(action => {
-			this.actionBar.push(action, { icon: true, label: false, keybinding: this.getKeybindingLabel(action) });
+		pwimawyActionsToSet.fowEach(action => {
+			this.actionBaw.push(action, { icon: twue, wabew: fawse, keybinding: this.getKeybindingWabew(action) });
 		});
 	}
 
-	private getKeybindingLabel(action: IAction): string | undefined {
-		const key = this.lookupKeybindings ? this.options.getKeyBinding?.(action) : undefined;
+	pwivate getKeybindingWabew(action: IAction): stwing | undefined {
+		const key = this.wookupKeybindings ? this.options.getKeyBinding?.(action) : undefined;
 
-		return withNullAsUndefined(key?.getLabel());
+		wetuwn withNuwwAsUndefined(key?.getWabew());
 	}
 
-	private clear(): void {
+	pwivate cweaw(): void {
 		this.submenuActionViewItems = [];
-		this.disposables.clear();
-		this.actionBar.clear();
+		this.disposabwes.cweaw();
+		this.actionBaw.cweaw();
 	}
 
-	override dispose(): void {
-		this.clear();
-		super.dispose();
+	ovewwide dispose(): void {
+		this.cweaw();
+		supa.dispose();
 	}
 }
 
-export class ToggleMenuAction extends Action {
+expowt cwass ToggweMenuAction extends Action {
 
-	static readonly ID = 'toolbar.toggle.more';
+	static weadonwy ID = 'toowbaw.toggwe.mowe';
 
-	private _menuActions: ReadonlyArray<IAction>;
-	private toggleDropdownMenu: () => void;
+	pwivate _menuActions: WeadonwyAwway<IAction>;
+	pwivate toggweDwopdownMenu: () => void;
 
-	constructor(toggleDropdownMenu: () => void, title?: string) {
-		title = title || nls.localize('moreActions', "More Actions...");
-		super(ToggleMenuAction.ID, title, undefined, true);
+	constwuctow(toggweDwopdownMenu: () => void, titwe?: stwing) {
+		titwe = titwe || nws.wocawize('moweActions', "Mowe Actions...");
+		supa(ToggweMenuAction.ID, titwe, undefined, twue);
 
 		this._menuActions = [];
-		this.toggleDropdownMenu = toggleDropdownMenu;
+		this.toggweDwopdownMenu = toggweDwopdownMenu;
 	}
 
-	override async run(): Promise<void> {
-		this.toggleDropdownMenu();
+	ovewwide async wun(): Pwomise<void> {
+		this.toggweDwopdownMenu();
 	}
 
-	get menuActions(): ReadonlyArray<IAction> {
-		return this._menuActions;
+	get menuActions(): WeadonwyAwway<IAction> {
+		wetuwn this._menuActions;
 	}
 
-	set menuActions(actions: ReadonlyArray<IAction>) {
+	set menuActions(actions: WeadonwyAwway<IAction>) {
 		this._menuActions = actions;
 	}
 }

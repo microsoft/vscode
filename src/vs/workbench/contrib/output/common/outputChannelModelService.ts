@@ -1,26 +1,26 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IOutputChannelModelService, AbstractOutputChannelModelService } from 'vs/workbench/contrib/output/common/outputChannelModel';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IFileService } from 'vs/platform/files/common/files';
-import { toLocalISOString } from 'vs/base/common/date';
-import { dirname, joinPath } from 'vs/base/common/resources';
+impowt { IOutputChannewModewSewvice, AbstwactOutputChannewModewSewvice } fwom 'vs/wowkbench/contwib/output/common/outputChannewModew';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { toWocawISOStwing } fwom 'vs/base/common/date';
+impowt { diwname, joinPath } fwom 'vs/base/common/wesouwces';
 
-export class OutputChannelModelService extends AbstractOutputChannelModelService implements IOutputChannelModelService {
+expowt cwass OutputChannewModewSewvice extends AbstwactOutputChannewModewSewvice impwements IOutputChannewModewSewvice {
 
-	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IFileService fileService: IFileService,
+	constwuctow(
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IWowkbenchEnviwonmentSewvice enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
 	) {
-		super(joinPath(dirname(environmentService.logFile), toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')), fileService, instantiationService);
+		supa(joinPath(diwname(enviwonmentSewvice.wogFiwe), toWocawISOStwing(new Date()).wepwace(/-|:|\.\d+Z$/g, '')), fiweSewvice, instantiationSewvice);
 	}
 }
 
-registerSingleton(IOutputChannelModelService, OutputChannelModelService);
+wegistewSingweton(IOutputChannewModewSewvice, OutputChannewModewSewvice);
 

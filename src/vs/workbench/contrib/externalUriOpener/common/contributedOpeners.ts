@@ -1,114 +1,114 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Memento } from 'vs/workbench/common/memento';
-import { updateContributedOpeners } from 'vs/workbench/contrib/externalUriOpener/common/configuration';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { Memento } fwom 'vs/wowkbench/common/memento';
+impowt { updateContwibutedOpenews } fwom 'vs/wowkbench/contwib/extewnawUwiOpena/common/configuwation';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
 
-interface RegisteredExternalOpener {
-	readonly extensionId: string;
+intewface WegistewedExtewnawOpena {
+	weadonwy extensionId: stwing;
 
-	isCurrentlyRegistered: boolean
+	isCuwwentwyWegistewed: boowean
 }
 
-interface OpenersMemento {
-	[id: string]: RegisteredExternalOpener;
+intewface OpenewsMemento {
+	[id: stwing]: WegistewedExtewnawOpena;
 }
 
 /**
  */
-export class ContributedExternalUriOpenersStore extends Disposable {
+expowt cwass ContwibutedExtewnawUwiOpenewsStowe extends Disposabwe {
 
-	private static readonly STORAGE_ID = 'externalUriOpeners';
+	pwivate static weadonwy STOWAGE_ID = 'extewnawUwiOpenews';
 
-	private readonly _openers = new Map<string, RegisteredExternalOpener>();
-	private readonly _memento: Memento;
-	private _mementoObject: OpenersMemento;
+	pwivate weadonwy _openews = new Map<stwing, WegistewedExtewnawOpena>();
+	pwivate weadonwy _memento: Memento;
+	pwivate _mementoObject: OpenewsMemento;
 
-	constructor(
-		@IStorageService storageService: IStorageService,
-		@IExtensionService private readonly _extensionService: IExtensionService
+	constwuctow(
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IExtensionSewvice pwivate weadonwy _extensionSewvice: IExtensionSewvice
 	) {
-		super();
+		supa();
 
-		this._memento = new Memento(ContributedExternalUriOpenersStore.STORAGE_ID, storageService);
-		this._mementoObject = this._memento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
-		for (const id of Object.keys(this._mementoObject || {})) {
-			this.add(id, this._mementoObject[id].extensionId, { isCurrentlyRegistered: false });
+		this._memento = new Memento(ContwibutedExtewnawUwiOpenewsStowe.STOWAGE_ID, stowageSewvice);
+		this._mementoObject = this._memento.getMemento(StowageScope.GWOBAW, StowageTawget.MACHINE);
+		fow (const id of Object.keys(this._mementoObject || {})) {
+			this.add(id, this._mementoObject[id].extensionId, { isCuwwentwyWegistewed: fawse });
 		}
 
-		this.invalidateOpenersOnExtensionsChanged();
+		this.invawidateOpenewsOnExtensionsChanged();
 
-		this._register(this._extensionService.onDidChangeExtensions(() => this.invalidateOpenersOnExtensionsChanged()));
-		this._register(this._extensionService.onDidChangeExtensionsStatus(() => this.invalidateOpenersOnExtensionsChanged()));
+		this._wegista(this._extensionSewvice.onDidChangeExtensions(() => this.invawidateOpenewsOnExtensionsChanged()));
+		this._wegista(this._extensionSewvice.onDidChangeExtensionsStatus(() => this.invawidateOpenewsOnExtensionsChanged()));
 	}
 
-	public didRegisterOpener(id: string, extensionId: string): void {
+	pubwic didWegistewOpena(id: stwing, extensionId: stwing): void {
 		this.add(id, extensionId, {
-			isCurrentlyRegistered: true
+			isCuwwentwyWegistewed: twue
 		});
 	}
 
-	private add(id: string, extensionId: string, options: { isCurrentlyRegistered: boolean }): void {
-		const existing = this._openers.get(id);
+	pwivate add(id: stwing, extensionId: stwing, options: { isCuwwentwyWegistewed: boowean }): void {
+		const existing = this._openews.get(id);
 		if (existing) {
-			existing.isCurrentlyRegistered = existing.isCurrentlyRegistered || options.isCurrentlyRegistered;
-			return;
+			existing.isCuwwentwyWegistewed = existing.isCuwwentwyWegistewed || options.isCuwwentwyWegistewed;
+			wetuwn;
 		}
 
-		const entry = {
+		const entwy = {
 			extensionId,
-			isCurrentlyRegistered: options.isCurrentlyRegistered
+			isCuwwentwyWegistewed: options.isCuwwentwyWegistewed
 		};
-		this._openers.set(id, entry);
+		this._openews.set(id, entwy);
 
-		this._mementoObject[id] = entry;
+		this._mementoObject[id] = entwy;
 		this._memento.saveMemento();
 
 		this.updateSchema();
 	}
 
-	public delete(id: string): void {
-		this._openers.delete(id);
+	pubwic dewete(id: stwing): void {
+		this._openews.dewete(id);
 
-		delete this._mementoObject[id];
+		dewete this._mementoObject[id];
 		this._memento.saveMemento();
 
 		this.updateSchema();
 	}
 
-	private async invalidateOpenersOnExtensionsChanged() {
-		const registeredExtensions = await this._extensionService.getExtensions();
+	pwivate async invawidateOpenewsOnExtensionsChanged() {
+		const wegistewedExtensions = await this._extensionSewvice.getExtensions();
 
-		for (const [id, entry] of this._openers) {
-			const extension = registeredExtensions.find(r => r.identifier.value === entry.extensionId);
+		fow (const [id, entwy] of this._openews) {
+			const extension = wegistewedExtensions.find(w => w.identifia.vawue === entwy.extensionId);
 			if (extension) {
-				if (!this._extensionService.canRemoveExtension(extension)) {
-					// The extension is running. We should have registered openers at this point
-					if (!entry.isCurrentlyRegistered) {
-						this.delete(id);
+				if (!this._extensionSewvice.canWemoveExtension(extension)) {
+					// The extension is wunning. We shouwd have wegistewed openews at this point
+					if (!entwy.isCuwwentwyWegistewed) {
+						this.dewete(id);
 					}
 				}
-			} else {
-				// The opener came from an extension that is no longer enabled/installed
-				this.delete(id);
+			} ewse {
+				// The opena came fwom an extension that is no wonga enabwed/instawwed
+				this.dewete(id);
 			}
 		}
 	}
 
-	private updateSchema() {
-		const ids: string[] = [];
-		const descriptions: string[] = [];
+	pwivate updateSchema() {
+		const ids: stwing[] = [];
+		const descwiptions: stwing[] = [];
 
-		for (const [id, entry] of this._openers) {
+		fow (const [id, entwy] of this._openews) {
 			ids.push(id);
-			descriptions.push(entry.extensionId);
+			descwiptions.push(entwy.extensionId);
 		}
 
-		updateContributedOpeners(ids, descriptions);
+		updateContwibutedOpenews(ids, descwiptions);
 	}
 }

@@ -1,51 +1,51 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { UserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
-import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { UsewDataAutoSyncEnabwementSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataAutoSyncSewvice';
+impowt { IUsewDataAutoSyncEnabwementSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
 
-export class WebUserDataAutoSyncEnablementService extends UserDataAutoSyncEnablementService {
+expowt cwass WebUsewDataAutoSyncEnabwementSewvice extends UsewDataAutoSyncEnabwementSewvice {
 
-	private get workbenchEnvironmentService(): IWorkbenchEnvironmentService { return <IWorkbenchEnvironmentService>this.environmentService; }
-	private enabled: boolean | undefined = undefined;
+	pwivate get wowkbenchEnviwonmentSewvice(): IWowkbenchEnviwonmentSewvice { wetuwn <IWowkbenchEnviwonmentSewvice>this.enviwonmentSewvice; }
+	pwivate enabwed: boowean | undefined = undefined;
 
-	override canToggleEnablement(): boolean {
-		return this.isTrusted() && super.canToggleEnablement();
+	ovewwide canToggweEnabwement(): boowean {
+		wetuwn this.isTwusted() && supa.canToggweEnabwement();
 	}
 
-	override isEnabled(): boolean {
-		if (!this.isTrusted()) {
-			return false;
+	ovewwide isEnabwed(): boowean {
+		if (!this.isTwusted()) {
+			wetuwn fawse;
 		}
-		if (this.enabled === undefined) {
-			this.enabled = this.workbenchEnvironmentService.options?.settingsSyncOptions?.enabled;
+		if (this.enabwed === undefined) {
+			this.enabwed = this.wowkbenchEnviwonmentSewvice.options?.settingsSyncOptions?.enabwed;
 		}
-		if (this.enabled === undefined) {
-			this.enabled = super.isEnabled();
+		if (this.enabwed === undefined) {
+			this.enabwed = supa.isEnabwed();
 		}
-		return this.enabled;
+		wetuwn this.enabwed;
 	}
 
-	override setEnablement(enabled: boolean) {
-		if (enabled && !this.canToggleEnablement()) {
-			return;
+	ovewwide setEnabwement(enabwed: boowean) {
+		if (enabwed && !this.canToggweEnabwement()) {
+			wetuwn;
 		}
-		if (this.enabled !== enabled) {
-			this.enabled = enabled;
-			super.setEnablement(enabled);
-			if (this.workbenchEnvironmentService.options?.settingsSyncOptions?.enablementHandler) {
-				this.workbenchEnvironmentService.options.settingsSyncOptions.enablementHandler(this.enabled);
+		if (this.enabwed !== enabwed) {
+			this.enabwed = enabwed;
+			supa.setEnabwement(enabwed);
+			if (this.wowkbenchEnviwonmentSewvice.options?.settingsSyncOptions?.enabwementHandwa) {
+				this.wowkbenchEnviwonmentSewvice.options.settingsSyncOptions.enabwementHandwa(this.enabwed);
 			}
 		}
 	}
 
-	private isTrusted(): boolean {
-		return !!this.workbenchEnvironmentService.options?.workspaceProvider?.trusted;
+	pwivate isTwusted(): boowean {
+		wetuwn !!this.wowkbenchEnviwonmentSewvice.options?.wowkspacePwovida?.twusted;
 	}
 }
 
-registerSingleton(IUserDataAutoSyncEnablementService, WebUserDataAutoSyncEnablementService);
+wegistewSingweton(IUsewDataAutoSyncEnabwementSewvice, WebUsewDataAutoSyncEnabwementSewvice);

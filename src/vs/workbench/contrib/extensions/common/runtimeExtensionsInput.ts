@@ -1,47 +1,47 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+impowt * as nws fwom 'vs/nws';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { EditowInputCapabiwities, IUntypedEditowInput } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
 
-export class RuntimeExtensionsInput extends EditorInput {
+expowt cwass WuntimeExtensionsInput extends EditowInput {
 
-	static readonly ID = 'workbench.runtimeExtensions.input';
+	static weadonwy ID = 'wowkbench.wuntimeExtensions.input';
 
-	override get typeId(): string {
-		return RuntimeExtensionsInput.ID;
+	ovewwide get typeId(): stwing {
+		wetuwn WuntimeExtensionsInput.ID;
 	}
 
-	override get capabilities(): EditorInputCapabilities {
-		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton;
+	ovewwide get capabiwities(): EditowInputCapabiwities {
+		wetuwn EditowInputCapabiwities.Weadonwy | EditowInputCapabiwities.Singweton;
 	}
 
-	static _instance: RuntimeExtensionsInput;
+	static _instance: WuntimeExtensionsInput;
 	static get instance() {
-		if (!RuntimeExtensionsInput._instance || RuntimeExtensionsInput._instance.isDisposed()) {
-			RuntimeExtensionsInput._instance = new RuntimeExtensionsInput();
+		if (!WuntimeExtensionsInput._instance || WuntimeExtensionsInput._instance.isDisposed()) {
+			WuntimeExtensionsInput._instance = new WuntimeExtensionsInput();
 		}
 
-		return RuntimeExtensionsInput._instance;
+		wetuwn WuntimeExtensionsInput._instance;
 	}
 
-	readonly resource = URI.from({
-		scheme: 'runtime-extensions',
-		path: 'default'
+	weadonwy wesouwce = UWI.fwom({
+		scheme: 'wuntime-extensions',
+		path: 'defauwt'
 	});
 
-	override getName(): string {
-		return nls.localize('extensionsInputName', "Running Extensions");
+	ovewwide getName(): stwing {
+		wetuwn nws.wocawize('extensionsInputName', "Wunning Extensions");
 	}
 
-	override matches(other: EditorInput | IUntypedEditorInput): boolean {
-		if (super.matches(other)) {
-			return true;
+	ovewwide matches(otha: EditowInput | IUntypedEditowInput): boowean {
+		if (supa.matches(otha)) {
+			wetuwn twue;
 		}
-		return other instanceof RuntimeExtensionsInput;
+		wetuwn otha instanceof WuntimeExtensionsInput;
 	}
 }

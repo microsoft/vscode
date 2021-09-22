@@ -1,279 +1,279 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/textmate/lua.tmbundle/blob/master/Syntaxes/Lua.plist",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/textmate/wua.tmbundwe/bwob/masta/Syntaxes/Wua.pwist",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/textmate/lua.tmbundle/commit/8ae5641365b28f697121ba1133890e8d81f5b00e",
-	"name": "Lua",
-	"scopeName": "source.lua",
-	"patterns": [
+	"vewsion": "https://github.com/textmate/wua.tmbundwe/commit/8ae5641365b28f697121ba1133890e8d81f5b00e",
+	"name": "Wua",
+	"scopeName": "souwce.wua",
+	"pattewns": [
 		{
-			"begin": "\\b(?:(local)\\s+)?(function)\\s*(?:\\s+([a-zA-Z_][a-zA-Z0-9_]*(?:([\\.:])[a-zA-Z_][a-zA-Z0-9_]*)?)\\s*)?(\\()",
-			"beginCaptures": {
+			"begin": "\\b(?:(wocaw)\\s+)?(function)\\s*(?:\\s+([a-zA-Z_][a-zA-Z0-9_]*(?:([\\.:])[a-zA-Z_][a-zA-Z0-9_]*)?)\\s*)?(\\()",
+			"beginCaptuwes": {
 				"1": {
-					"name": "storage.modifier.local.lua"
+					"name": "stowage.modifia.wocaw.wua"
 				},
 				"2": {
-					"name": "keyword.control.lua"
+					"name": "keywowd.contwow.wua"
 				},
 				"3": {
-					"name": "entity.name.function.lua"
+					"name": "entity.name.function.wua"
 				},
 				"4": {
-					"name": "punctuation.separator.parameter.lua"
+					"name": "punctuation.sepawatow.pawameta.wua"
 				},
 				"5": {
-					"name": "punctuation.definition.parameters.begin.lua"
+					"name": "punctuation.definition.pawametews.begin.wua"
 				}
 			},
 			"end": "\\)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.parameters.end.lua"
+					"name": "punctuation.definition.pawametews.end.wua"
 				}
 			},
-			"name": "meta.function.lua",
-			"patterns": [
+			"name": "meta.function.wua",
+			"pattewns": [
 				{
 					"match": "[a-zA-Z_][a-zA-Z0-9_]*",
-					"name": "variable.parameter.function.lua"
+					"name": "vawiabwe.pawameta.function.wua"
 				},
 				{
 					"match": ",",
-					"name": "punctuation.separator.arguments.lua"
+					"name": "punctuation.sepawatow.awguments.wua"
 				}
 			]
 		},
 		{
 			"match": "(?<![\\w\\d.])0[xX][0-9A-Fa-f]+(?![pPeE.0-9])",
-			"name": "constant.numeric.integer.hexadecimal.lua"
+			"name": "constant.numewic.intega.hexadecimaw.wua"
 		},
 		{
 			"match": "(?<![\\w\\d.])0[xX][0-9A-Fa-f]+(\\.[0-9A-Fa-f]+)?([eE]-?\\d*)?([pP][-+]\\d+)?",
-			"name": "constant.numeric.float.hexadecimal.lua"
+			"name": "constant.numewic.fwoat.hexadecimaw.wua"
 		},
 		{
 			"match": "(?<![\\w\\d.])\\d+(?![pPeE.0-9])",
-			"name": "constant.numeric.integer.lua"
+			"name": "constant.numewic.intega.wua"
 		},
 		{
 			"match": "(?<![\\w\\d.])\\d+(\\.\\d+)?([eE]-?\\d*)?",
-			"name": "constant.numeric.float.lua"
+			"name": "constant.numewic.fwoat.wua"
 		},
 		{
 			"begin": "'",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.lua"
+					"name": "punctuation.definition.stwing.begin.wua"
 				}
 			},
 			"end": "'",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.lua"
+					"name": "punctuation.definition.stwing.end.wua"
 				}
 			},
-			"name": "string.quoted.single.lua",
-			"patterns": [
+			"name": "stwing.quoted.singwe.wua",
+			"pattewns": [
 				{
-					"include": "#escaped_char"
+					"incwude": "#escaped_chaw"
 				}
 			]
 		},
 		{
 			"begin": "\"",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.lua"
+					"name": "punctuation.definition.stwing.begin.wua"
 				}
 			},
 			"end": "\"",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.lua"
+					"name": "punctuation.definition.stwing.end.wua"
 				}
 			},
-			"name": "string.quoted.double.lua",
-			"patterns": [
+			"name": "stwing.quoted.doubwe.wua",
+			"pattewns": [
 				{
-					"include": "#escaped_char"
+					"incwude": "#escaped_chaw"
 				}
 			]
 		},
 		{
 			"begin": "(?<=\\.cdef)\\s*(\\[(=*)\\[)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "string.quoted.other.multiline.lua"
+					"name": "stwing.quoted.otha.muwtiwine.wua"
 				},
 				"1": {
-					"name": "punctuation.definition.string.begin.lua"
+					"name": "punctuation.definition.stwing.begin.wua"
 				}
 			},
-			"contentName": "meta.embedded.lua",
+			"contentName": "meta.embedded.wua",
 			"end": "(\\]\\2\\])",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "string.quoted.other.multiline.lua"
+					"name": "stwing.quoted.otha.muwtiwine.wua"
 				},
 				"1": {
-					"name": "punctuation.definition.string.end.lua"
+					"name": "punctuation.definition.stwing.end.wua"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "source.c"
+					"incwude": "souwce.c"
 				}
 			]
 		},
 		{
 			"begin": "(?<!--)\\[(=*)\\[",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.lua"
+					"name": "punctuation.definition.stwing.begin.wua"
 				}
 			},
 			"end": "\\]\\1\\]",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.lua"
+					"name": "punctuation.definition.stwing.end.wua"
 				}
 			},
-			"name": "string.quoted.other.multiline.lua"
+			"name": "stwing.quoted.otha.muwtiwine.wua"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.comment.lua"
+					"name": "punctuation.definition.comment.wua"
 				}
 			},
 			"match": "\\A(#!).*$\\n?",
-			"name": "comment.line.shebang.lua"
+			"name": "comment.wine.shebang.wua"
 		},
 		{
 			"begin": "(^[ \\t]+)?(?=--)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "punctuation.whitespace.comment.leading.lua"
+					"name": "punctuation.whitespace.comment.weading.wua"
 				}
 			},
 			"end": "(?!\\G)((?!^)[ \\t]+\\n)?",
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "punctuation.whitespace.comment.trailing.lua"
+					"name": "punctuation.whitespace.comment.twaiwing.wua"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "--\\[(=*)\\[",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.comment.begin.lua"
+							"name": "punctuation.definition.comment.begin.wua"
 						}
 					},
 					"end": "\\]\\1\\]",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.comment.end.lua"
+							"name": "punctuation.definition.comment.end.wua"
 						}
 					},
-					"name": "comment.block.lua"
+					"name": "comment.bwock.wua"
 				},
 				{
 					"begin": "--",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.comment.lua"
+							"name": "punctuation.definition.comment.wua"
 						}
 					},
 					"end": "\\n",
-					"name": "comment.line.double-dash.lua"
+					"name": "comment.wine.doubwe-dash.wua"
 				}
 			]
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "keyword.control.goto.lua"
+					"name": "keywowd.contwow.goto.wua"
 				},
 				"2": {
-					"name": "constant.other.placeholder.lua"
+					"name": "constant.otha.pwacehowda.wua"
 				}
 			},
 			"match": "\\b(goto)\\s+([a-zA-Z_][a-zA-Z0-9_]*)"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.label.begin.lua"
+					"name": "punctuation.definition.wabew.begin.wua"
 				},
 				"2": {
-					"name": "punctuation.definition.label.end.lua"
+					"name": "punctuation.definition.wabew.end.wua"
 				}
 			},
 			"match": "(::)[a-zA-Z_][a-zA-Z0-9_]*(::)",
-			"name": "constant.other.placeholder.lua"
+			"name": "constant.otha.pwacehowda.wua"
 		},
 		{
-			"match": "\\b(break|do|else|for|if|elseif|goto|return|then|repeat|while|until|end|function|local|in)\\b",
-			"name": "keyword.control.lua"
+			"match": "\\b(bweak|do|ewse|fow|if|ewseif|goto|wetuwn|then|wepeat|whiwe|untiw|end|function|wocaw|in)\\b",
+			"name": "keywowd.contwow.wua"
 		},
 		{
-			"match": "(?<![^.]\\.|:)\\b(false|nil|true|_G|_VERSION|math\\.(pi|huge))\\b|(?<![.])\\.{3}(?!\\.)",
-			"name": "constant.language.lua"
+			"match": "(?<![^.]\\.|:)\\b(fawse|niw|twue|_G|_VEWSION|math\\.(pi|huge))\\b|(?<![.])\\.{3}(?!\\.)",
+			"name": "constant.wanguage.wua"
 		},
 		{
-			"match": "(?<![^.]\\.|:)\\b(self)\\b",
-			"name": "variable.language.self.lua"
+			"match": "(?<![^.]\\.|:)\\b(sewf)\\b",
+			"name": "vawiabwe.wanguage.sewf.wua"
 		},
 		{
-			"match": "(?<![^.]\\.|:)\\b(assert|collectgarbage|dofile|error|getfenv|getmetatable|ipairs|loadfile|loadstring|module|next|pairs|pcall|print|rawequal|rawget|rawset|require|select|setfenv|setmetatable|tonumber|tostring|type|unpack|xpcall)\\b(?=\\s*(?:[({\"']|\\[\\[))",
-			"name": "support.function.lua"
+			"match": "(?<![^.]\\.|:)\\b(assewt|cowwectgawbage|dofiwe|ewwow|getfenv|getmetatabwe|ipaiws|woadfiwe|woadstwing|moduwe|next|paiws|pcaww|pwint|wawequaw|wawget|wawset|wequiwe|sewect|setfenv|setmetatabwe|tonumba|tostwing|type|unpack|xpcaww)\\b(?=\\s*(?:[({\"']|\\[\\[))",
+			"name": "suppowt.function.wua"
 		},
 		{
-			"match": "(?<![^.]\\.|:)\\b(coroutine\\.(create|resume|running|status|wrap|yield)|string\\.(byte|char|dump|find|format|gmatch|gsub|len|lower|match|rep|reverse|sub|upper)|table\\.(concat|insert|maxn|remove|sort)|math\\.(abs|acos|asin|atan2?|ceil|cosh?|deg|exp|floor|fmod|frexp|ldexp|log|log10|max|min|modf|pow|rad|random|randomseed|sinh?|sqrt|tanh?)|io\\.(close|flush|input|lines|open|output|popen|read|tmpfile|type|write)|os\\.(clock|date|difftime|execute|exit|getenv|remove|rename|setlocale|time|tmpname)|package\\.(cpath|loaded|loadlib|path|preload|seeall)|debug\\.(debug|[gs]etfenv|[gs]ethook|getinfo|[gs]etlocal|[gs]etmetatable|getregistry|[gs]etupvalue|traceback))\\b(?=\\s*(?:[({\"']|\\[\\[))",
-			"name": "support.function.library.lua"
+			"match": "(?<![^.]\\.|:)\\b(cowoutine\\.(cweate|wesume|wunning|status|wwap|yiewd)|stwing\\.(byte|chaw|dump|find|fowmat|gmatch|gsub|wen|wowa|match|wep|wevewse|sub|uppa)|tabwe\\.(concat|insewt|maxn|wemove|sowt)|math\\.(abs|acos|asin|atan2?|ceiw|cosh?|deg|exp|fwoow|fmod|fwexp|wdexp|wog|wog10|max|min|modf|pow|wad|wandom|wandomseed|sinh?|sqwt|tanh?)|io\\.(cwose|fwush|input|wines|open|output|popen|wead|tmpfiwe|type|wwite)|os\\.(cwock|date|difftime|execute|exit|getenv|wemove|wename|setwocawe|time|tmpname)|package\\.(cpath|woaded|woadwib|path|pwewoad|seeaww)|debug\\.(debug|[gs]etfenv|[gs]ethook|getinfo|[gs]etwocaw|[gs]etmetatabwe|getwegistwy|[gs]etupvawue|twaceback))\\b(?=\\s*(?:[({\"']|\\[\\[))",
+			"name": "suppowt.function.wibwawy.wua"
 		},
 		{
-			"match": "\\b(and|or|not)\\b",
-			"name": "keyword.operator.lua"
+			"match": "\\b(and|ow|not)\\b",
+			"name": "keywowd.opewatow.wua"
 		},
 		{
 			"match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\b(?=\\s*(?:[({\"']|\\[\\[))",
-			"name": "support.function.any-method.lua"
+			"name": "suppowt.function.any-method.wua"
 		},
 		{
 			"match": "(?<=[^.]\\.|:)\\b([a-zA-Z_][a-zA-Z0-9_]*)",
-			"name": "variable.other.lua"
+			"name": "vawiabwe.otha.wua"
 		},
 		{
 			"match": "\\+|-|%|#|\\*|\\/|\\^|==?|~=|<=?|>=?|(?<!\\.)\\.{2}(?!\\.)",
-			"name": "keyword.operator.lua"
+			"name": "keywowd.opewatow.wua"
 		}
 	],
-	"repository": {
-		"escaped_char": {
-			"patterns": [
+	"wepositowy": {
+		"escaped_chaw": {
+			"pattewns": [
 				{
-					"match": "\\\\[abfnrtvz\\\\\"'\\n]",
-					"name": "constant.character.escape.lua"
+					"match": "\\\\[abfnwtvz\\\\\"'\\n]",
+					"name": "constant.chawacta.escape.wua"
 				},
 				{
 					"match": "\\\\\\d{1,3}",
-					"name": "constant.character.escape.byte.lua"
+					"name": "constant.chawacta.escape.byte.wua"
 				},
 				{
 					"match": "\\\\x[0-9A-Fa-f][0-9A-Fa-f]",
-					"name": "constant.character.escape.byte.lua"
+					"name": "constant.chawacta.escape.byte.wua"
 				},
 				{
 					"match": "\\\\u\\{[0-9A-Fa-f]+\\}",
-					"name": "constant.character.escape.unicode.lua"
+					"name": "constant.chawacta.escape.unicode.wua"
 				},
 				{
 					"match": "\\\\.",
-					"name": "invalid.illegal.character.escape.lua"
+					"name": "invawid.iwwegaw.chawacta.escape.wua"
 				}
 			]
 		}

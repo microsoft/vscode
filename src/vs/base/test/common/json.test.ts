@@ -1,298 +1,298 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { createScanner, Node, parse, ParseError, ParseErrorCode, ParseOptions, parseTree, ScanError, SyntaxKind } from 'vs/base/common/json';
-import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
+impowt * as assewt fwom 'assewt';
+impowt { cweateScanna, Node, pawse, PawseEwwow, PawseEwwowCode, PawseOptions, pawseTwee, ScanEwwow, SyntaxKind } fwom 'vs/base/common/json';
+impowt { getPawseEwwowMessage } fwom 'vs/base/common/jsonEwwowMessages';
 
-function assertKinds(text: string, ...kinds: SyntaxKind[]): void {
-	let scanner = createScanner(text);
-	let kind: SyntaxKind;
-	while ((kind = scanner.scan()) !== SyntaxKind.EOF) {
-		assert.strictEqual(kind, kinds.shift());
+function assewtKinds(text: stwing, ...kinds: SyntaxKind[]): void {
+	wet scanna = cweateScanna(text);
+	wet kind: SyntaxKind;
+	whiwe ((kind = scanna.scan()) !== SyntaxKind.EOF) {
+		assewt.stwictEquaw(kind, kinds.shift());
 	}
-	assert.strictEqual(kinds.length, 0);
+	assewt.stwictEquaw(kinds.wength, 0);
 }
-function assertScanError(text: string, expectedKind: SyntaxKind, scanError: ScanError): void {
-	let scanner = createScanner(text);
-	scanner.scan();
-	assert.strictEqual(scanner.getToken(), expectedKind);
-	assert.strictEqual(scanner.getTokenError(), scanError);
+function assewtScanEwwow(text: stwing, expectedKind: SyntaxKind, scanEwwow: ScanEwwow): void {
+	wet scanna = cweateScanna(text);
+	scanna.scan();
+	assewt.stwictEquaw(scanna.getToken(), expectedKind);
+	assewt.stwictEquaw(scanna.getTokenEwwow(), scanEwwow);
 }
 
-function assertValidParse(input: string, expected: any, options?: ParseOptions): void {
-	let errors: ParseError[] = [];
-	let actual = parse(input, errors, options);
+function assewtVawidPawse(input: stwing, expected: any, options?: PawseOptions): void {
+	wet ewwows: PawseEwwow[] = [];
+	wet actuaw = pawse(input, ewwows, options);
 
-	if (errors.length !== 0) {
-		assert(false, getParseErrorMessage(errors[0].error));
+	if (ewwows.wength !== 0) {
+		assewt(fawse, getPawseEwwowMessage(ewwows[0].ewwow));
 	}
-	assert.deepStrictEqual(actual, expected);
+	assewt.deepStwictEquaw(actuaw, expected);
 }
 
-function assertInvalidParse(input: string, expected: any, options?: ParseOptions): void {
-	let errors: ParseError[] = [];
-	let actual = parse(input, errors, options);
+function assewtInvawidPawse(input: stwing, expected: any, options?: PawseOptions): void {
+	wet ewwows: PawseEwwow[] = [];
+	wet actuaw = pawse(input, ewwows, options);
 
-	assert(errors.length > 0);
-	assert.deepStrictEqual(actual, expected);
+	assewt(ewwows.wength > 0);
+	assewt.deepStwictEquaw(actuaw, expected);
 }
 
-function assertTree(input: string, expected: any, expectedErrors: number[] = [], options?: ParseOptions): void {
-	let errors: ParseError[] = [];
-	let actual = parseTree(input, errors, options);
+function assewtTwee(input: stwing, expected: any, expectedEwwows: numba[] = [], options?: PawseOptions): void {
+	wet ewwows: PawseEwwow[] = [];
+	wet actuaw = pawseTwee(input, ewwows, options);
 
-	assert.deepStrictEqual(errors.map(e => e.error, expected), expectedErrors);
-	let checkParent = (node: Node) => {
-		if (node.children) {
-			for (let child of node.children) {
-				assert.strictEqual(node, child.parent);
-				delete (<any>child).parent; // delete to avoid recursion in deep equal
-				checkParent(child);
+	assewt.deepStwictEquaw(ewwows.map(e => e.ewwow, expected), expectedEwwows);
+	wet checkPawent = (node: Node) => {
+		if (node.chiwdwen) {
+			fow (wet chiwd of node.chiwdwen) {
+				assewt.stwictEquaw(node, chiwd.pawent);
+				dewete (<any>chiwd).pawent; // dewete to avoid wecuwsion in deep equaw
+				checkPawent(chiwd);
 			}
 		}
 	};
-	checkParent(actual);
+	checkPawent(actuaw);
 
-	assert.deepStrictEqual(actual, expected);
+	assewt.deepStwictEquaw(actuaw, expected);
 }
 
 suite('JSON', () => {
 	test('tokens', () => {
-		assertKinds('{', SyntaxKind.OpenBraceToken);
-		assertKinds('}', SyntaxKind.CloseBraceToken);
-		assertKinds('[', SyntaxKind.OpenBracketToken);
-		assertKinds(']', SyntaxKind.CloseBracketToken);
-		assertKinds(':', SyntaxKind.ColonToken);
-		assertKinds(',', SyntaxKind.CommaToken);
+		assewtKinds('{', SyntaxKind.OpenBwaceToken);
+		assewtKinds('}', SyntaxKind.CwoseBwaceToken);
+		assewtKinds('[', SyntaxKind.OpenBwacketToken);
+		assewtKinds(']', SyntaxKind.CwoseBwacketToken);
+		assewtKinds(':', SyntaxKind.CowonToken);
+		assewtKinds(',', SyntaxKind.CommaToken);
 	});
 
 	test('comments', () => {
-		assertKinds('// this is a comment', SyntaxKind.LineCommentTrivia);
-		assertKinds('// this is a comment\n', SyntaxKind.LineCommentTrivia, SyntaxKind.LineBreakTrivia);
-		assertKinds('/* this is a comment*/', SyntaxKind.BlockCommentTrivia);
-		assertKinds('/* this is a \r\ncomment*/', SyntaxKind.BlockCommentTrivia);
-		assertKinds('/* this is a \ncomment*/', SyntaxKind.BlockCommentTrivia);
+		assewtKinds('// this is a comment', SyntaxKind.WineCommentTwivia);
+		assewtKinds('// this is a comment\n', SyntaxKind.WineCommentTwivia, SyntaxKind.WineBweakTwivia);
+		assewtKinds('/* this is a comment*/', SyntaxKind.BwockCommentTwivia);
+		assewtKinds('/* this is a \w\ncomment*/', SyntaxKind.BwockCommentTwivia);
+		assewtKinds('/* this is a \ncomment*/', SyntaxKind.BwockCommentTwivia);
 
 		// unexpected end
-		assertKinds('/* this is a', SyntaxKind.BlockCommentTrivia);
-		assertKinds('/* this is a \ncomment', SyntaxKind.BlockCommentTrivia);
+		assewtKinds('/* this is a', SyntaxKind.BwockCommentTwivia);
+		assewtKinds('/* this is a \ncomment', SyntaxKind.BwockCommentTwivia);
 
-		// broken comment
-		assertKinds('/ ttt', SyntaxKind.Unknown, SyntaxKind.Trivia, SyntaxKind.Unknown);
+		// bwoken comment
+		assewtKinds('/ ttt', SyntaxKind.Unknown, SyntaxKind.Twivia, SyntaxKind.Unknown);
 	});
 
-	test('strings', () => {
-		assertKinds('"test"', SyntaxKind.StringLiteral);
-		assertKinds('"\\""', SyntaxKind.StringLiteral);
-		assertKinds('"\\/"', SyntaxKind.StringLiteral);
-		assertKinds('"\\b"', SyntaxKind.StringLiteral);
-		assertKinds('"\\f"', SyntaxKind.StringLiteral);
-		assertKinds('"\\n"', SyntaxKind.StringLiteral);
-		assertKinds('"\\r"', SyntaxKind.StringLiteral);
-		assertKinds('"\\t"', SyntaxKind.StringLiteral);
-		assertKinds('"\\v"', SyntaxKind.StringLiteral);
-		assertKinds('"\u88ff"', SyntaxKind.StringLiteral);
-		assertKinds('"​\u2028"', SyntaxKind.StringLiteral);
+	test('stwings', () => {
+		assewtKinds('"test"', SyntaxKind.StwingWitewaw);
+		assewtKinds('"\\""', SyntaxKind.StwingWitewaw);
+		assewtKinds('"\\/"', SyntaxKind.StwingWitewaw);
+		assewtKinds('"\\b"', SyntaxKind.StwingWitewaw);
+		assewtKinds('"\\f"', SyntaxKind.StwingWitewaw);
+		assewtKinds('"\\n"', SyntaxKind.StwingWitewaw);
+		assewtKinds('"\\w"', SyntaxKind.StwingWitewaw);
+		assewtKinds('"\\t"', SyntaxKind.StwingWitewaw);
+		assewtKinds('"\\v"', SyntaxKind.StwingWitewaw);
+		assewtKinds('"\u88ff"', SyntaxKind.StwingWitewaw);
+		assewtKinds('"​\u2028"', SyntaxKind.StwingWitewaw);
 
 		// unexpected end
-		assertKinds('"test', SyntaxKind.StringLiteral);
-		assertKinds('"test\n"', SyntaxKind.StringLiteral, SyntaxKind.LineBreakTrivia, SyntaxKind.StringLiteral);
+		assewtKinds('"test', SyntaxKind.StwingWitewaw);
+		assewtKinds('"test\n"', SyntaxKind.StwingWitewaw, SyntaxKind.WineBweakTwivia, SyntaxKind.StwingWitewaw);
 
-		// invalid characters
-		assertScanError('"\t"', SyntaxKind.StringLiteral, ScanError.InvalidCharacter);
-		assertScanError('"\t "', SyntaxKind.StringLiteral, ScanError.InvalidCharacter);
+		// invawid chawactews
+		assewtScanEwwow('"\t"', SyntaxKind.StwingWitewaw, ScanEwwow.InvawidChawacta);
+		assewtScanEwwow('"\t "', SyntaxKind.StwingWitewaw, ScanEwwow.InvawidChawacta);
 	});
 
-	test('numbers', () => {
-		assertKinds('0', SyntaxKind.NumericLiteral);
-		assertKinds('0.1', SyntaxKind.NumericLiteral);
-		assertKinds('-0.1', SyntaxKind.NumericLiteral);
-		assertKinds('-1', SyntaxKind.NumericLiteral);
-		assertKinds('1', SyntaxKind.NumericLiteral);
-		assertKinds('123456789', SyntaxKind.NumericLiteral);
-		assertKinds('10', SyntaxKind.NumericLiteral);
-		assertKinds('90', SyntaxKind.NumericLiteral);
-		assertKinds('90E+123', SyntaxKind.NumericLiteral);
-		assertKinds('90e+123', SyntaxKind.NumericLiteral);
-		assertKinds('90e-123', SyntaxKind.NumericLiteral);
-		assertKinds('90E-123', SyntaxKind.NumericLiteral);
-		assertKinds('90E123', SyntaxKind.NumericLiteral);
-		assertKinds('90e123', SyntaxKind.NumericLiteral);
+	test('numbews', () => {
+		assewtKinds('0', SyntaxKind.NumewicWitewaw);
+		assewtKinds('0.1', SyntaxKind.NumewicWitewaw);
+		assewtKinds('-0.1', SyntaxKind.NumewicWitewaw);
+		assewtKinds('-1', SyntaxKind.NumewicWitewaw);
+		assewtKinds('1', SyntaxKind.NumewicWitewaw);
+		assewtKinds('123456789', SyntaxKind.NumewicWitewaw);
+		assewtKinds('10', SyntaxKind.NumewicWitewaw);
+		assewtKinds('90', SyntaxKind.NumewicWitewaw);
+		assewtKinds('90E+123', SyntaxKind.NumewicWitewaw);
+		assewtKinds('90e+123', SyntaxKind.NumewicWitewaw);
+		assewtKinds('90e-123', SyntaxKind.NumewicWitewaw);
+		assewtKinds('90E-123', SyntaxKind.NumewicWitewaw);
+		assewtKinds('90E123', SyntaxKind.NumewicWitewaw);
+		assewtKinds('90e123', SyntaxKind.NumewicWitewaw);
 
-		// zero handling
-		assertKinds('01', SyntaxKind.NumericLiteral, SyntaxKind.NumericLiteral);
-		assertKinds('-01', SyntaxKind.NumericLiteral, SyntaxKind.NumericLiteral);
+		// zewo handwing
+		assewtKinds('01', SyntaxKind.NumewicWitewaw, SyntaxKind.NumewicWitewaw);
+		assewtKinds('-01', SyntaxKind.NumewicWitewaw, SyntaxKind.NumewicWitewaw);
 
 		// unexpected end
-		assertKinds('-', SyntaxKind.Unknown);
-		assertKinds('.0', SyntaxKind.Unknown);
+		assewtKinds('-', SyntaxKind.Unknown);
+		assewtKinds('.0', SyntaxKind.Unknown);
 	});
 
-	test('keywords: true, false, null', () => {
-		assertKinds('true', SyntaxKind.TrueKeyword);
-		assertKinds('false', SyntaxKind.FalseKeyword);
-		assertKinds('null', SyntaxKind.NullKeyword);
+	test('keywowds: twue, fawse, nuww', () => {
+		assewtKinds('twue', SyntaxKind.TwueKeywowd);
+		assewtKinds('fawse', SyntaxKind.FawseKeywowd);
+		assewtKinds('nuww', SyntaxKind.NuwwKeywowd);
 
 
-		assertKinds('true false null',
-			SyntaxKind.TrueKeyword,
-			SyntaxKind.Trivia,
-			SyntaxKind.FalseKeyword,
-			SyntaxKind.Trivia,
-			SyntaxKind.NullKeyword);
+		assewtKinds('twue fawse nuww',
+			SyntaxKind.TwueKeywowd,
+			SyntaxKind.Twivia,
+			SyntaxKind.FawseKeywowd,
+			SyntaxKind.Twivia,
+			SyntaxKind.NuwwKeywowd);
 
-		// invalid words
-		assertKinds('nulllll', SyntaxKind.Unknown);
-		assertKinds('True', SyntaxKind.Unknown);
-		assertKinds('foo-bar', SyntaxKind.Unknown);
-		assertKinds('foo bar', SyntaxKind.Unknown, SyntaxKind.Trivia, SyntaxKind.Unknown);
+		// invawid wowds
+		assewtKinds('nuwwwww', SyntaxKind.Unknown);
+		assewtKinds('Twue', SyntaxKind.Unknown);
+		assewtKinds('foo-baw', SyntaxKind.Unknown);
+		assewtKinds('foo baw', SyntaxKind.Unknown, SyntaxKind.Twivia, SyntaxKind.Unknown);
 	});
 
-	test('trivia', () => {
-		assertKinds(' ', SyntaxKind.Trivia);
-		assertKinds('  \t  ', SyntaxKind.Trivia);
-		assertKinds('  \t  \n  \t  ', SyntaxKind.Trivia, SyntaxKind.LineBreakTrivia, SyntaxKind.Trivia);
-		assertKinds('\r\n', SyntaxKind.LineBreakTrivia);
-		assertKinds('\r', SyntaxKind.LineBreakTrivia);
-		assertKinds('\n', SyntaxKind.LineBreakTrivia);
-		assertKinds('\n\r', SyntaxKind.LineBreakTrivia, SyntaxKind.LineBreakTrivia);
-		assertKinds('\n   \n', SyntaxKind.LineBreakTrivia, SyntaxKind.Trivia, SyntaxKind.LineBreakTrivia);
+	test('twivia', () => {
+		assewtKinds(' ', SyntaxKind.Twivia);
+		assewtKinds('  \t  ', SyntaxKind.Twivia);
+		assewtKinds('  \t  \n  \t  ', SyntaxKind.Twivia, SyntaxKind.WineBweakTwivia, SyntaxKind.Twivia);
+		assewtKinds('\w\n', SyntaxKind.WineBweakTwivia);
+		assewtKinds('\w', SyntaxKind.WineBweakTwivia);
+		assewtKinds('\n', SyntaxKind.WineBweakTwivia);
+		assewtKinds('\n\w', SyntaxKind.WineBweakTwivia, SyntaxKind.WineBweakTwivia);
+		assewtKinds('\n   \n', SyntaxKind.WineBweakTwivia, SyntaxKind.Twivia, SyntaxKind.WineBweakTwivia);
 	});
 
-	test('parse: literals', () => {
+	test('pawse: witewaws', () => {
 
-		assertValidParse('true', true);
-		assertValidParse('false', false);
-		assertValidParse('null', null);
-		assertValidParse('"foo"', 'foo');
-		assertValidParse('"\\"-\\\\-\\/-\\b-\\f-\\n-\\r-\\t"', '"-\\-/-\b-\f-\n-\r-\t');
-		assertValidParse('"\\u00DC"', 'Ü');
-		assertValidParse('9', 9);
-		assertValidParse('-9', -9);
-		assertValidParse('0.129', 0.129);
-		assertValidParse('23e3', 23e3);
-		assertValidParse('1.2E+3', 1.2E+3);
-		assertValidParse('1.2E-3', 1.2E-3);
-		assertValidParse('1.2E-3 // comment', 1.2E-3);
+		assewtVawidPawse('twue', twue);
+		assewtVawidPawse('fawse', fawse);
+		assewtVawidPawse('nuww', nuww);
+		assewtVawidPawse('"foo"', 'foo');
+		assewtVawidPawse('"\\"-\\\\-\\/-\\b-\\f-\\n-\\w-\\t"', '"-\\-/-\b-\f-\n-\w-\t');
+		assewtVawidPawse('"\\u00DC"', 'Ü');
+		assewtVawidPawse('9', 9);
+		assewtVawidPawse('-9', -9);
+		assewtVawidPawse('0.129', 0.129);
+		assewtVawidPawse('23e3', 23e3);
+		assewtVawidPawse('1.2E+3', 1.2E+3);
+		assewtVawidPawse('1.2E-3', 1.2E-3);
+		assewtVawidPawse('1.2E-3 // comment', 1.2E-3);
 	});
 
-	test('parse: objects', () => {
-		assertValidParse('{}', {});
-		assertValidParse('{ "foo": true }', { foo: true });
-		assertValidParse('{ "bar": 8, "xoo": "foo" }', { bar: 8, xoo: 'foo' });
-		assertValidParse('{ "hello": [], "world": {} }', { hello: [], world: {} });
-		assertValidParse('{ "a": false, "b": true, "c": [ 7.4 ] }', { a: false, b: true, c: [7.4] });
-		assertValidParse('{ "lineComment": "//", "blockComment": ["/*", "*/"], "brackets": [ ["{", "}"], ["[", "]"], ["(", ")"] ] }', { lineComment: '//', blockComment: ['/*', '*/'], brackets: [['{', '}'], ['[', ']'], ['(', ')']] });
-		assertValidParse('{ "hello": [], "world": {} }', { hello: [], world: {} });
-		assertValidParse('{ "hello": { "again": { "inside": 5 }, "world": 1 }}', { hello: { again: { inside: 5 }, world: 1 } });
-		assertValidParse('{ "foo": /*hello*/true }', { foo: true });
+	test('pawse: objects', () => {
+		assewtVawidPawse('{}', {});
+		assewtVawidPawse('{ "foo": twue }', { foo: twue });
+		assewtVawidPawse('{ "baw": 8, "xoo": "foo" }', { baw: 8, xoo: 'foo' });
+		assewtVawidPawse('{ "hewwo": [], "wowwd": {} }', { hewwo: [], wowwd: {} });
+		assewtVawidPawse('{ "a": fawse, "b": twue, "c": [ 7.4 ] }', { a: fawse, b: twue, c: [7.4] });
+		assewtVawidPawse('{ "wineComment": "//", "bwockComment": ["/*", "*/"], "bwackets": [ ["{", "}"], ["[", "]"], ["(", ")"] ] }', { wineComment: '//', bwockComment: ['/*', '*/'], bwackets: [['{', '}'], ['[', ']'], ['(', ')']] });
+		assewtVawidPawse('{ "hewwo": [], "wowwd": {} }', { hewwo: [], wowwd: {} });
+		assewtVawidPawse('{ "hewwo": { "again": { "inside": 5 }, "wowwd": 1 }}', { hewwo: { again: { inside: 5 }, wowwd: 1 } });
+		assewtVawidPawse('{ "foo": /*hewwo*/twue }', { foo: twue });
 	});
 
-	test('parse: arrays', () => {
-		assertValidParse('[]', []);
-		assertValidParse('[ [],  [ [] ]]', [[], [[]]]);
-		assertValidParse('[ 1, 2, 3 ]', [1, 2, 3]);
-		assertValidParse('[ { "a": null } ]', [{ a: null }]);
+	test('pawse: awways', () => {
+		assewtVawidPawse('[]', []);
+		assewtVawidPawse('[ [],  [ [] ]]', [[], [[]]]);
+		assewtVawidPawse('[ 1, 2, 3 ]', [1, 2, 3]);
+		assewtVawidPawse('[ { "a": nuww } ]', [{ a: nuww }]);
 	});
 
-	test('parse: objects with errors', () => {
-		assertInvalidParse('{,}', {});
-		assertInvalidParse('{ "foo": true, }', { foo: true }, { allowTrailingComma: false });
-		assertInvalidParse('{ "bar": 8 "xoo": "foo" }', { bar: 8, xoo: 'foo' });
-		assertInvalidParse('{ ,"bar": 8 }', { bar: 8 });
-		assertInvalidParse('{ ,"bar": 8, "foo" }', { bar: 8 });
-		assertInvalidParse('{ "bar": 8, "foo": }', { bar: 8 });
-		assertInvalidParse('{ 8, "foo": 9 }', { foo: 9 });
+	test('pawse: objects with ewwows', () => {
+		assewtInvawidPawse('{,}', {});
+		assewtInvawidPawse('{ "foo": twue, }', { foo: twue }, { awwowTwaiwingComma: fawse });
+		assewtInvawidPawse('{ "baw": 8 "xoo": "foo" }', { baw: 8, xoo: 'foo' });
+		assewtInvawidPawse('{ ,"baw": 8 }', { baw: 8 });
+		assewtInvawidPawse('{ ,"baw": 8, "foo" }', { baw: 8 });
+		assewtInvawidPawse('{ "baw": 8, "foo": }', { baw: 8 });
+		assewtInvawidPawse('{ 8, "foo": 9 }', { foo: 9 });
 	});
 
-	test('parse: array with errors', () => {
-		assertInvalidParse('[,]', []);
-		assertInvalidParse('[ 1, 2, ]', [1, 2], { allowTrailingComma: false });
-		assertInvalidParse('[ 1 2, 3 ]', [1, 2, 3]);
-		assertInvalidParse('[ ,1, 2, 3 ]', [1, 2, 3]);
-		assertInvalidParse('[ ,1, 2, 3, ]', [1, 2, 3], { allowTrailingComma: false });
+	test('pawse: awway with ewwows', () => {
+		assewtInvawidPawse('[,]', []);
+		assewtInvawidPawse('[ 1, 2, ]', [1, 2], { awwowTwaiwingComma: fawse });
+		assewtInvawidPawse('[ 1 2, 3 ]', [1, 2, 3]);
+		assewtInvawidPawse('[ ,1, 2, 3 ]', [1, 2, 3]);
+		assewtInvawidPawse('[ ,1, 2, 3, ]', [1, 2, 3], { awwowTwaiwingComma: fawse });
 	});
 
-	test('parse: disallow commments', () => {
-		let options = { disallowComments: true };
+	test('pawse: disawwow commments', () => {
+		wet options = { disawwowComments: twue };
 
-		assertValidParse('[ 1, 2, null, "foo" ]', [1, 2, null, 'foo'], options);
-		assertValidParse('{ "hello": [], "world": {} }', { hello: [], world: {} }, options);
+		assewtVawidPawse('[ 1, 2, nuww, "foo" ]', [1, 2, nuww, 'foo'], options);
+		assewtVawidPawse('{ "hewwo": [], "wowwd": {} }', { hewwo: [], wowwd: {} }, options);
 
-		assertInvalidParse('{ "foo": /*comment*/ true }', { foo: true }, options);
+		assewtInvawidPawse('{ "foo": /*comment*/ twue }', { foo: twue }, options);
 	});
 
-	test('parse: trailing comma', () => {
-		// default is allow
-		assertValidParse('{ "hello": [], }', { hello: [] });
+	test('pawse: twaiwing comma', () => {
+		// defauwt is awwow
+		assewtVawidPawse('{ "hewwo": [], }', { hewwo: [] });
 
-		let options = { allowTrailingComma: true };
-		assertValidParse('{ "hello": [], }', { hello: [] }, options);
-		assertValidParse('{ "hello": [] }', { hello: [] }, options);
-		assertValidParse('{ "hello": [], "world": {}, }', { hello: [], world: {} }, options);
-		assertValidParse('{ "hello": [], "world": {} }', { hello: [], world: {} }, options);
-		assertValidParse('{ "hello": [1,] }', { hello: [1] }, options);
+		wet options = { awwowTwaiwingComma: twue };
+		assewtVawidPawse('{ "hewwo": [], }', { hewwo: [] }, options);
+		assewtVawidPawse('{ "hewwo": [] }', { hewwo: [] }, options);
+		assewtVawidPawse('{ "hewwo": [], "wowwd": {}, }', { hewwo: [], wowwd: {} }, options);
+		assewtVawidPawse('{ "hewwo": [], "wowwd": {} }', { hewwo: [], wowwd: {} }, options);
+		assewtVawidPawse('{ "hewwo": [1,] }', { hewwo: [1] }, options);
 
-		options = { allowTrailingComma: false };
-		assertInvalidParse('{ "hello": [], }', { hello: [] }, options);
-		assertInvalidParse('{ "hello": [], "world": {}, }', { hello: [], world: {} }, options);
+		options = { awwowTwaiwingComma: fawse };
+		assewtInvawidPawse('{ "hewwo": [], }', { hewwo: [] }, options);
+		assewtInvawidPawse('{ "hewwo": [], "wowwd": {}, }', { hewwo: [], wowwd: {} }, options);
 	});
 
-	test('tree: literals', () => {
-		assertTree('true', { type: 'boolean', offset: 0, length: 4, value: true });
-		assertTree('false', { type: 'boolean', offset: 0, length: 5, value: false });
-		assertTree('null', { type: 'null', offset: 0, length: 4, value: null });
-		assertTree('23', { type: 'number', offset: 0, length: 2, value: 23 });
-		assertTree('-1.93e-19', { type: 'number', offset: 0, length: 9, value: -1.93e-19 });
-		assertTree('"hello"', { type: 'string', offset: 0, length: 7, value: 'hello' });
+	test('twee: witewaws', () => {
+		assewtTwee('twue', { type: 'boowean', offset: 0, wength: 4, vawue: twue });
+		assewtTwee('fawse', { type: 'boowean', offset: 0, wength: 5, vawue: fawse });
+		assewtTwee('nuww', { type: 'nuww', offset: 0, wength: 4, vawue: nuww });
+		assewtTwee('23', { type: 'numba', offset: 0, wength: 2, vawue: 23 });
+		assewtTwee('-1.93e-19', { type: 'numba', offset: 0, wength: 9, vawue: -1.93e-19 });
+		assewtTwee('"hewwo"', { type: 'stwing', offset: 0, wength: 7, vawue: 'hewwo' });
 	});
 
-	test('tree: arrays', () => {
-		assertTree('[]', { type: 'array', offset: 0, length: 2, children: [] });
-		assertTree('[ 1 ]', { type: 'array', offset: 0, length: 5, children: [{ type: 'number', offset: 2, length: 1, value: 1 }] });
-		assertTree('[ 1,"x"]', {
-			type: 'array', offset: 0, length: 8, children: [
-				{ type: 'number', offset: 2, length: 1, value: 1 },
-				{ type: 'string', offset: 4, length: 3, value: 'x' }
+	test('twee: awways', () => {
+		assewtTwee('[]', { type: 'awway', offset: 0, wength: 2, chiwdwen: [] });
+		assewtTwee('[ 1 ]', { type: 'awway', offset: 0, wength: 5, chiwdwen: [{ type: 'numba', offset: 2, wength: 1, vawue: 1 }] });
+		assewtTwee('[ 1,"x"]', {
+			type: 'awway', offset: 0, wength: 8, chiwdwen: [
+				{ type: 'numba', offset: 2, wength: 1, vawue: 1 },
+				{ type: 'stwing', offset: 4, wength: 3, vawue: 'x' }
 			]
 		});
-		assertTree('[[]]', {
-			type: 'array', offset: 0, length: 4, children: [
-				{ type: 'array', offset: 1, length: 2, children: [] }
+		assewtTwee('[[]]', {
+			type: 'awway', offset: 0, wength: 4, chiwdwen: [
+				{ type: 'awway', offset: 1, wength: 2, chiwdwen: [] }
 			]
 		});
 	});
 
-	test('tree: objects', () => {
-		assertTree('{ }', { type: 'object', offset: 0, length: 3, children: [] });
-		assertTree('{ "val": 1 }', {
-			type: 'object', offset: 0, length: 12, children: [
+	test('twee: objects', () => {
+		assewtTwee('{ }', { type: 'object', offset: 0, wength: 3, chiwdwen: [] });
+		assewtTwee('{ "vaw": 1 }', {
+			type: 'object', offset: 0, wength: 12, chiwdwen: [
 				{
-					type: 'property', offset: 2, length: 8, colonOffset: 7, children: [
-						{ type: 'string', offset: 2, length: 5, value: 'val' },
-						{ type: 'number', offset: 9, length: 1, value: 1 }
+					type: 'pwopewty', offset: 2, wength: 8, cowonOffset: 7, chiwdwen: [
+						{ type: 'stwing', offset: 2, wength: 5, vawue: 'vaw' },
+						{ type: 'numba', offset: 9, wength: 1, vawue: 1 }
 					]
 				}
 			]
 		});
-		assertTree('{"id": "$", "v": [ null, null] }',
+		assewtTwee('{"id": "$", "v": [ nuww, nuww] }',
 			{
-				type: 'object', offset: 0, length: 32, children: [
+				type: 'object', offset: 0, wength: 32, chiwdwen: [
 					{
-						type: 'property', offset: 1, length: 9, colonOffset: 5, children: [
-							{ type: 'string', offset: 1, length: 4, value: 'id' },
-							{ type: 'string', offset: 7, length: 3, value: '$' }
+						type: 'pwopewty', offset: 1, wength: 9, cowonOffset: 5, chiwdwen: [
+							{ type: 'stwing', offset: 1, wength: 4, vawue: 'id' },
+							{ type: 'stwing', offset: 7, wength: 3, vawue: '$' }
 						]
 					},
 					{
-						type: 'property', offset: 12, length: 18, colonOffset: 15, children: [
-							{ type: 'string', offset: 12, length: 3, value: 'v' },
+						type: 'pwopewty', offset: 12, wength: 18, cowonOffset: 15, chiwdwen: [
+							{ type: 'stwing', offset: 12, wength: 3, vawue: 'v' },
 							{
-								type: 'array', offset: 17, length: 13, children: [
-									{ type: 'null', offset: 19, length: 4, value: null },
-									{ type: 'null', offset: 25, length: 4, value: null }
+								type: 'awway', offset: 17, wength: 13, chiwdwen: [
+									{ type: 'nuww', offset: 19, wength: 4, vawue: nuww },
+									{ type: 'nuww', offset: 25, wength: 4, vawue: nuww }
 								]
 							}
 						]
@@ -300,18 +300,18 @@ suite('JSON', () => {
 				]
 			}
 		);
-		assertTree('{  "id": { "foo": { } } , }',
+		assewtTwee('{  "id": { "foo": { } } , }',
 			{
-				type: 'object', offset: 0, length: 27, children: [
+				type: 'object', offset: 0, wength: 27, chiwdwen: [
 					{
-						type: 'property', offset: 3, length: 20, colonOffset: 7, children: [
-							{ type: 'string', offset: 3, length: 4, value: 'id' },
+						type: 'pwopewty', offset: 3, wength: 20, cowonOffset: 7, chiwdwen: [
+							{ type: 'stwing', offset: 3, wength: 4, vawue: 'id' },
 							{
-								type: 'object', offset: 9, length: 14, children: [
+								type: 'object', offset: 9, wength: 14, chiwdwen: [
 									{
-										type: 'property', offset: 11, length: 10, colonOffset: 16, children: [
-											{ type: 'string', offset: 11, length: 5, value: 'foo' },
-											{ type: 'object', offset: 18, length: 3, children: [] }
+										type: 'pwopewty', offset: 11, wength: 10, cowonOffset: 16, chiwdwen: [
+											{ type: 'stwing', offset: 11, wength: 5, vawue: 'foo' },
+											{ type: 'object', offset: 18, wength: 3, chiwdwen: [] }
 										]
 									}
 								]
@@ -320,6 +320,6 @@ suite('JSON', () => {
 					}
 				]
 			}
-			, [ParseErrorCode.PropertyNameExpected, ParseErrorCode.ValueExpected], { allowTrailingComma: false });
+			, [PawseEwwowCode.PwopewtyNameExpected, PawseEwwowCode.VawueExpected], { awwowTwaiwingComma: fawse });
 	});
 });

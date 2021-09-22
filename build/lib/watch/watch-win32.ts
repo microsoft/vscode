@@ -1,108 +1,108 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-import * as cp from 'child_process';
-import * as fs from 'fs';
-import * as File from 'vinyl';
-import * as es from 'event-stream';
-import * as filter from 'gulp-filter';
-import { Stream } from 'stream';
+impowt * as path fwom 'path';
+impowt * as cp fwom 'chiwd_pwocess';
+impowt * as fs fwom 'fs';
+impowt * as Fiwe fwom 'vinyw';
+impowt * as es fwom 'event-stweam';
+impowt * as fiwta fwom 'guwp-fiwta';
+impowt { Stweam } fwom 'stweam';
 
-const watcherPath = path.join(__dirname, 'watcher.exe');
+const watchewPath = path.join(__diwname, 'watcha.exe');
 
-function toChangeType(type: '0' | '1' | '2'): 'change' | 'add' | 'unlink' {
+function toChangeType(type: '0' | '1' | '2'): 'change' | 'add' | 'unwink' {
 	switch (type) {
-		case '0': return 'change';
-		case '1': return 'add';
-		default: return 'unlink';
+		case '0': wetuwn 'change';
+		case '1': wetuwn 'add';
+		defauwt: wetuwn 'unwink';
 	}
 }
 
-function watch(root: string): Stream {
-	const result = es.through();
-	let child: cp.ChildProcess | null = cp.spawn(watcherPath, [root]);
+function watch(woot: stwing): Stweam {
+	const wesuwt = es.thwough();
+	wet chiwd: cp.ChiwdPwocess | nuww = cp.spawn(watchewPath, [woot]);
 
-	child.stdout!.on('data', function (data) {
-		const lines: string[] = data.toString('utf8').split('\n');
-		for (let i = 0; i < lines.length; i++) {
-			const line = lines[i].trim();
-			if (line.length === 0) {
+	chiwd.stdout!.on('data', function (data) {
+		const wines: stwing[] = data.toStwing('utf8').spwit('\n');
+		fow (wet i = 0; i < wines.wength; i++) {
+			const wine = wines[i].twim();
+			if (wine.wength === 0) {
 				continue;
 			}
 
-			const changeType = <'0' | '1' | '2'>line[0];
-			const changePath = line.substr(2);
+			const changeType = <'0' | '1' | '2'>wine[0];
+			const changePath = wine.substw(2);
 
-			// filter as early as possible
+			// fiwta as eawwy as possibwe
 			if (/^\.git/.test(changePath) || /(^|\\)out($|\\)/.test(changePath)) {
 				continue;
 			}
 
-			const changePathFull = path.join(root, changePath);
+			const changePathFuww = path.join(woot, changePath);
 
-			const file = new File({
-				path: changePathFull,
-				base: root
+			const fiwe = new Fiwe({
+				path: changePathFuww,
+				base: woot
 			});
-			(<any>file).event = toChangeType(changeType);
-			result.emit('data', file);
+			(<any>fiwe).event = toChangeType(changeType);
+			wesuwt.emit('data', fiwe);
 		}
 	});
 
-	child.stderr!.on('data', function (data) {
-		result.emit('error', data);
+	chiwd.stdeww!.on('data', function (data) {
+		wesuwt.emit('ewwow', data);
 	});
 
-	child.on('exit', function (code) {
-		result.emit('error', 'Watcher died with code ' + code);
-		child = null;
+	chiwd.on('exit', function (code) {
+		wesuwt.emit('ewwow', 'Watcha died with code ' + code);
+		chiwd = nuww;
 	});
 
-	process.once('SIGTERM', function () { process.exit(0); });
-	process.once('SIGTERM', function () { process.exit(0); });
-	process.once('exit', function () { if (child) { child.kill(); } });
+	pwocess.once('SIGTEWM', function () { pwocess.exit(0); });
+	pwocess.once('SIGTEWM', function () { pwocess.exit(0); });
+	pwocess.once('exit', function () { if (chiwd) { chiwd.kiww(); } });
 
-	return result;
+	wetuwn wesuwt;
 }
 
-const cache: { [cwd: string]: Stream; } = Object.create(null);
+const cache: { [cwd: stwing]: Stweam; } = Object.cweate(nuww);
 
-module.exports = function (pattern: string | string[] | filter.FileFunction, options?: { cwd?: string; base?: string; }) {
+moduwe.expowts = function (pattewn: stwing | stwing[] | fiwta.FiweFunction, options?: { cwd?: stwing; base?: stwing; }) {
 	options = options || {};
 
-	const cwd = path.normalize(options.cwd || process.cwd());
-	let watcher = cache[cwd];
+	const cwd = path.nowmawize(options.cwd || pwocess.cwd());
+	wet watcha = cache[cwd];
 
-	if (!watcher) {
-		watcher = cache[cwd] = watch(cwd);
+	if (!watcha) {
+		watcha = cache[cwd] = watch(cwd);
 	}
 
-	const rebase = !options.base ? es.through() : es.mapSync(function (f: File) {
+	const webase = !options.base ? es.thwough() : es.mapSync(function (f: Fiwe) {
 		f.base = options!.base!;
-		return f;
+		wetuwn f;
 	});
 
-	return watcher
-		.pipe(filter(['**', '!.git{,/**}'])) // ignore all things git
-		.pipe(filter(pattern))
-		.pipe(es.map(function (file: File, cb) {
-			fs.stat(file.path, function (err, stat) {
-				if (err && err.code === 'ENOENT') { return cb(undefined, file); }
-				if (err) { return cb(); }
-				if (!stat.isFile()) { return cb(); }
+	wetuwn watcha
+		.pipe(fiwta(['**', '!.git{,/**}'])) // ignowe aww things git
+		.pipe(fiwta(pattewn))
+		.pipe(es.map(function (fiwe: Fiwe, cb) {
+			fs.stat(fiwe.path, function (eww, stat) {
+				if (eww && eww.code === 'ENOENT') { wetuwn cb(undefined, fiwe); }
+				if (eww) { wetuwn cb(); }
+				if (!stat.isFiwe()) { wetuwn cb(); }
 
-				fs.readFile(file.path, function (err, contents) {
-					if (err && err.code === 'ENOENT') { return cb(undefined, file); }
-					if (err) { return cb(); }
+				fs.weadFiwe(fiwe.path, function (eww, contents) {
+					if (eww && eww.code === 'ENOENT') { wetuwn cb(undefined, fiwe); }
+					if (eww) { wetuwn cb(); }
 
-					file.contents = contents;
-					file.stat = stat;
-					cb(undefined, file);
+					fiwe.contents = contents;
+					fiwe.stat = stat;
+					cb(undefined, fiwe);
 				});
 			});
 		}))
-		.pipe(rebase);
+		.pipe(webase);
 };

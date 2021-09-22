@@ -1,438 +1,438 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import * as resources from 'vs/base/common/resources';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { forEach } from 'vs/base/common/collections';
-import { IExtensionPointUser, ExtensionMessageCollector, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { MenuId, MenuRegistry, ILocalizedString, IMenuItem, ICommandAction, ISubmenuItem } from 'vs/platform/actions/common/actions';
-import { URI } from 'vs/base/common/uri';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { Iterable } from 'vs/base/common/iterator';
-import { index } from 'vs/base/common/arrays';
+impowt { wocawize } fwom 'vs/nws';
+impowt { isFawsyOwWhitespace } fwom 'vs/base/common/stwings';
+impowt * as wesouwces fwom 'vs/base/common/wesouwces';
+impowt { IJSONSchema } fwom 'vs/base/common/jsonSchema';
+impowt { fowEach } fwom 'vs/base/common/cowwections';
+impowt { IExtensionPointUsa, ExtensionMessageCowwectow, ExtensionsWegistwy } fwom 'vs/wowkbench/sewvices/extensions/common/extensionsWegistwy';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { MenuId, MenuWegistwy, IWocawizedStwing, IMenuItem, ICommandAction, ISubmenuItem } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
+impowt { index } fwom 'vs/base/common/awways';
 
-interface IAPIMenu {
-	readonly key: string;
-	readonly id: MenuId;
-	readonly description: string;
-	readonly proposed?: boolean; // defaults to false
-	readonly supportsSubmenus?: boolean; // defaults to true
-	readonly deprecationMessage?: string;
+intewface IAPIMenu {
+	weadonwy key: stwing;
+	weadonwy id: MenuId;
+	weadonwy descwiption: stwing;
+	weadonwy pwoposed?: boowean; // defauwts to fawse
+	weadonwy suppowtsSubmenus?: boowean; // defauwts to twue
+	weadonwy depwecationMessage?: stwing;
 }
 
 const apiMenus: IAPIMenu[] = [
 	{
-		key: 'commandPalette',
-		id: MenuId.CommandPalette,
-		description: localize('menus.commandPalette', "The Command Palette"),
-		supportsSubmenus: false
+		key: 'commandPawette',
+		id: MenuId.CommandPawette,
+		descwiption: wocawize('menus.commandPawette', "The Command Pawette"),
+		suppowtsSubmenus: fawse
 	},
 	{
-		key: 'touchBar',
-		id: MenuId.TouchBarContext,
-		description: localize('menus.touchBar', "The touch bar (macOS only)"),
-		supportsSubmenus: false
+		key: 'touchBaw',
+		id: MenuId.TouchBawContext,
+		descwiption: wocawize('menus.touchBaw', "The touch baw (macOS onwy)"),
+		suppowtsSubmenus: fawse
 	},
 	{
-		key: 'editor/title',
-		id: MenuId.EditorTitle,
-		description: localize('menus.editorTitle', "The editor title menu")
+		key: 'editow/titwe',
+		id: MenuId.EditowTitwe,
+		descwiption: wocawize('menus.editowTitwe', "The editow titwe menu")
 	},
 	{
-		key: 'editor/title/run',
-		id: MenuId.EditorTitleRun,
-		description: localize('menus.editorTitleRun', "Run submenu inside the editor title menu")
+		key: 'editow/titwe/wun',
+		id: MenuId.EditowTitweWun,
+		descwiption: wocawize('menus.editowTitweWun', "Wun submenu inside the editow titwe menu")
 	},
 	{
-		key: 'editor/context',
-		id: MenuId.EditorContext,
-		description: localize('menus.editorContext', "The editor context menu")
+		key: 'editow/context',
+		id: MenuId.EditowContext,
+		descwiption: wocawize('menus.editowContext', "The editow context menu")
 	},
 	{
-		key: 'editor/context/copy',
-		id: MenuId.EditorContextCopy,
-		description: localize('menus.editorContextCopyAs', "'Copy as' submenu in the editor context menu")
+		key: 'editow/context/copy',
+		id: MenuId.EditowContextCopy,
+		descwiption: wocawize('menus.editowContextCopyAs', "'Copy as' submenu in the editow context menu")
 	},
 	{
-		key: 'explorer/context',
-		id: MenuId.ExplorerContext,
-		description: localize('menus.explorerContext', "The file explorer context menu")
+		key: 'expwowa/context',
+		id: MenuId.ExpwowewContext,
+		descwiption: wocawize('menus.expwowewContext', "The fiwe expwowa context menu")
 	},
 	{
-		key: 'editor/title/context',
-		id: MenuId.EditorTitleContext,
-		description: localize('menus.editorTabContext', "The editor tabs context menu")
+		key: 'editow/titwe/context',
+		id: MenuId.EditowTitweContext,
+		descwiption: wocawize('menus.editowTabContext', "The editow tabs context menu")
 	},
 	{
-		key: 'debug/callstack/context',
-		id: MenuId.DebugCallStackContext,
-		description: localize('menus.debugCallstackContext', "The debug callstack view context menu")
+		key: 'debug/cawwstack/context',
+		id: MenuId.DebugCawwStackContext,
+		descwiption: wocawize('menus.debugCawwstackContext', "The debug cawwstack view context menu")
 	},
 	{
-		key: 'debug/variables/context',
-		id: MenuId.DebugVariablesContext,
-		description: localize('menus.debugVariablesContext', "The debug variables view context menu")
+		key: 'debug/vawiabwes/context',
+		id: MenuId.DebugVawiabwesContext,
+		descwiption: wocawize('menus.debugVawiabwesContext', "The debug vawiabwes view context menu")
 	},
 	{
-		key: 'debug/toolBar',
-		id: MenuId.DebugToolBar,
-		description: localize('menus.debugToolBar', "The debug toolbar menu")
+		key: 'debug/toowBaw',
+		id: MenuId.DebugToowBaw,
+		descwiption: wocawize('menus.debugToowBaw', "The debug toowbaw menu")
 	},
 	{
-		key: 'menuBar/file',
-		id: MenuId.MenubarFileMenu,
-		description: localize('menus.file', "The top level file menu"),
-		proposed: true
+		key: 'menuBaw/fiwe',
+		id: MenuId.MenubawFiweMenu,
+		descwiption: wocawize('menus.fiwe', "The top wevew fiwe menu"),
+		pwoposed: twue
 	},
 	{
-		key: 'menuBar/home',
-		id: MenuId.MenubarHomeMenu,
-		description: localize('menus.home', "The home indicator context menu (web only)"),
-		proposed: true,
-		supportsSubmenus: false
+		key: 'menuBaw/home',
+		id: MenuId.MenubawHomeMenu,
+		descwiption: wocawize('menus.home', "The home indicatow context menu (web onwy)"),
+		pwoposed: twue,
+		suppowtsSubmenus: fawse
 	},
 	{
-		key: 'menuBar/edit/copy',
-		id: MenuId.MenubarCopy,
-		description: localize('menus.opy', "'Copy as' submenu in the top level Edit menu")
+		key: 'menuBaw/edit/copy',
+		id: MenuId.MenubawCopy,
+		descwiption: wocawize('menus.opy', "'Copy as' submenu in the top wevew Edit menu")
 	},
 	{
-		key: 'scm/title',
-		id: MenuId.SCMTitle,
-		description: localize('menus.scmTitle', "The Source Control title menu")
+		key: 'scm/titwe',
+		id: MenuId.SCMTitwe,
+		descwiption: wocawize('menus.scmTitwe', "The Souwce Contwow titwe menu")
 	},
 	{
-		key: 'scm/sourceControl',
-		id: MenuId.SCMSourceControl,
-		description: localize('menus.scmSourceControl', "The Source Control menu")
+		key: 'scm/souwceContwow',
+		id: MenuId.SCMSouwceContwow,
+		descwiption: wocawize('menus.scmSouwceContwow', "The Souwce Contwow menu")
 	},
 	{
-		key: 'scm/resourceState/context',
-		id: MenuId.SCMResourceContext,
-		description: localize('menus.resourceStateContext', "The Source Control resource state context menu")
+		key: 'scm/wesouwceState/context',
+		id: MenuId.SCMWesouwceContext,
+		descwiption: wocawize('menus.wesouwceStateContext', "The Souwce Contwow wesouwce state context menu")
 	},
 	{
-		key: 'scm/resourceFolder/context',
-		id: MenuId.SCMResourceFolderContext,
-		description: localize('menus.resourceFolderContext', "The Source Control resource folder context menu")
+		key: 'scm/wesouwceFowda/context',
+		id: MenuId.SCMWesouwceFowdewContext,
+		descwiption: wocawize('menus.wesouwceFowdewContext', "The Souwce Contwow wesouwce fowda context menu")
 	},
 	{
-		key: 'scm/resourceGroup/context',
-		id: MenuId.SCMResourceGroupContext,
-		description: localize('menus.resourceGroupContext', "The Source Control resource group context menu")
+		key: 'scm/wesouwceGwoup/context',
+		id: MenuId.SCMWesouwceGwoupContext,
+		descwiption: wocawize('menus.wesouwceGwoupContext', "The Souwce Contwow wesouwce gwoup context menu")
 	},
 	{
-		key: 'scm/change/title',
+		key: 'scm/change/titwe',
 		id: MenuId.SCMChangeContext,
-		description: localize('menus.changeTitle', "The Source Control inline change menu")
+		descwiption: wocawize('menus.changeTitwe', "The Souwce Contwow inwine change menu")
 	},
 	{
-		key: 'statusBar/windowIndicator',
-		id: MenuId.StatusBarWindowIndicatorMenu,
-		description: localize('menus.statusBarWindowIndicator', "The window indicator menu in the status bar"),
-		proposed: true,
-		supportsSubmenus: false,
-		deprecationMessage: localize('menus.statusBarWindowIndicator.deprecated', "Use menu 'statusBar/remoteIndicator' instead."),
+		key: 'statusBaw/windowIndicatow',
+		id: MenuId.StatusBawWindowIndicatowMenu,
+		descwiption: wocawize('menus.statusBawWindowIndicatow', "The window indicatow menu in the status baw"),
+		pwoposed: twue,
+		suppowtsSubmenus: fawse,
+		depwecationMessage: wocawize('menus.statusBawWindowIndicatow.depwecated', "Use menu 'statusBaw/wemoteIndicatow' instead."),
 	},
 	{
-		key: 'statusBar/remoteIndicator',
-		id: MenuId.StatusBarRemoteIndicatorMenu,
-		description: localize('menus.statusBarRemoteIndicator', "The remote indicator menu in the status bar"),
-		supportsSubmenus: false
+		key: 'statusBaw/wemoteIndicatow',
+		id: MenuId.StatusBawWemoteIndicatowMenu,
+		descwiption: wocawize('menus.statusBawWemoteIndicatow', "The wemote indicatow menu in the status baw"),
+		suppowtsSubmenus: fawse
 	},
 	{
-		key: 'view/title',
-		id: MenuId.ViewTitle,
-		description: localize('view.viewTitle', "The contributed view title menu")
+		key: 'view/titwe',
+		id: MenuId.ViewTitwe,
+		descwiption: wocawize('view.viewTitwe', "The contwibuted view titwe menu")
 	},
 	{
 		key: 'view/item/context',
 		id: MenuId.ViewItemContext,
-		description: localize('view.itemContext', "The contributed view item context menu")
+		descwiption: wocawize('view.itemContext', "The contwibuted view item context menu")
 	},
 	{
-		key: 'comments/commentThread/title',
-		id: MenuId.CommentThreadTitle,
-		description: localize('commentThread.title', "The contributed comment thread title menu")
+		key: 'comments/commentThwead/titwe',
+		id: MenuId.CommentThweadTitwe,
+		descwiption: wocawize('commentThwead.titwe', "The contwibuted comment thwead titwe menu")
 	},
 	{
-		key: 'comments/commentThread/context',
-		id: MenuId.CommentThreadActions,
-		description: localize('commentThread.actions', "The contributed comment thread context menu, rendered as buttons below the comment editor"),
-		supportsSubmenus: false
+		key: 'comments/commentThwead/context',
+		id: MenuId.CommentThweadActions,
+		descwiption: wocawize('commentThwead.actions', "The contwibuted comment thwead context menu, wendewed as buttons bewow the comment editow"),
+		suppowtsSubmenus: fawse
 	},
 	{
-		key: 'comments/comment/title',
-		id: MenuId.CommentTitle,
-		description: localize('comment.title', "The contributed comment title menu")
+		key: 'comments/comment/titwe',
+		id: MenuId.CommentTitwe,
+		descwiption: wocawize('comment.titwe', "The contwibuted comment titwe menu")
 	},
 	{
 		key: 'comments/comment/context',
 		id: MenuId.CommentActions,
-		description: localize('comment.actions', "The contributed comment context menu, rendered as buttons below the comment editor"),
-		supportsSubmenus: false
+		descwiption: wocawize('comment.actions', "The contwibuted comment context menu, wendewed as buttons bewow the comment editow"),
+		suppowtsSubmenus: fawse
 	},
 	{
-		key: 'notebook/toolbar',
-		id: MenuId.NotebookToolbar,
-		description: localize('notebook.toolbar', "The contributed notebook toolbar menu")
+		key: 'notebook/toowbaw',
+		id: MenuId.NotebookToowbaw,
+		descwiption: wocawize('notebook.toowbaw', "The contwibuted notebook toowbaw menu")
 	},
 	{
-		key: 'notebook/cell/title',
-		id: MenuId.NotebookCellTitle,
-		description: localize('notebook.cell.title', "The contributed notebook cell title menu")
+		key: 'notebook/ceww/titwe',
+		id: MenuId.NotebookCewwTitwe,
+		descwiption: wocawize('notebook.ceww.titwe', "The contwibuted notebook ceww titwe menu")
 	},
 	{
-		key: 'notebook/cell/execute',
-		id: MenuId.NotebookCellExecute,
-		description: localize('notebook.cell.execute', "The contributed notebook cell execution menu")
+		key: 'notebook/ceww/execute',
+		id: MenuId.NotebookCewwExecute,
+		descwiption: wocawize('notebook.ceww.execute', "The contwibuted notebook ceww execution menu")
 	},
 	{
-		key: 'interactive/toolbar',
-		id: MenuId.InteractiveToolbar,
-		description: localize('interactive.toolbar', "The contributed interactive toolbar menu"),
-		proposed: true
+		key: 'intewactive/toowbaw',
+		id: MenuId.IntewactiveToowbaw,
+		descwiption: wocawize('intewactive.toowbaw', "The contwibuted intewactive toowbaw menu"),
+		pwoposed: twue
 	},
 	{
-		key: 'interactive/cell/title',
-		id: MenuId.InteractiveCellTitle,
-		description: localize('interactive.cell.title', "The contributed interactive cell title menu"),
-		proposed: true
+		key: 'intewactive/ceww/titwe',
+		id: MenuId.IntewactiveCewwTitwe,
+		descwiption: wocawize('intewactive.ceww.titwe', "The contwibuted intewactive ceww titwe menu"),
+		pwoposed: twue
 	},
 	{
 		key: 'testing/item/context',
 		id: MenuId.TestItem,
-		description: localize('testing.item.context', "The contributed test item menu"),
+		descwiption: wocawize('testing.item.context', "The contwibuted test item menu"),
 	},
 	{
-		key: 'testing/item/gutter',
-		id: MenuId.TestItemGutter,
-		description: localize('testing.item.gutter.title', "The menu for a gutter decoration for a test item"),
+		key: 'testing/item/gutta',
+		id: MenuId.TestItemGutta,
+		descwiption: wocawize('testing.item.gutta.titwe', "The menu fow a gutta decowation fow a test item"),
 	},
 	{
 		key: 'extension/context',
 		id: MenuId.ExtensionContext,
-		description: localize('menus.extensionContext', "The extension context menu")
+		descwiption: wocawize('menus.extensionContext', "The extension context menu")
 	},
 	{
-		key: 'timeline/title',
-		id: MenuId.TimelineTitle,
-		description: localize('view.timelineTitle', "The Timeline view title menu")
+		key: 'timewine/titwe',
+		id: MenuId.TimewineTitwe,
+		descwiption: wocawize('view.timewineTitwe', "The Timewine view titwe menu")
 	},
 	{
-		key: 'timeline/item/context',
-		id: MenuId.TimelineItemContext,
-		description: localize('view.timelineContext', "The Timeline view item context menu")
+		key: 'timewine/item/context',
+		id: MenuId.TimewineItemContext,
+		descwiption: wocawize('view.timewineContext', "The Timewine view item context menu")
 	},
 	{
-		key: 'ports/item/context',
-		id: MenuId.TunnelContext,
-		description: localize('view.tunnelContext', "The Ports view item context menu")
+		key: 'powts/item/context',
+		id: MenuId.TunnewContext,
+		descwiption: wocawize('view.tunnewContext', "The Powts view item context menu")
 	},
 	{
-		key: 'ports/item/origin/inline',
-		id: MenuId.TunnelOriginInline,
-		description: localize('view.tunnelOriginInline', "The Ports view item origin inline menu")
+		key: 'powts/item/owigin/inwine',
+		id: MenuId.TunnewOwiginInwine,
+		descwiption: wocawize('view.tunnewOwiginInwine', "The Powts view item owigin inwine menu")
 	},
 	{
-		key: 'ports/item/port/inline',
-		id: MenuId.TunnelPortInline,
-		description: localize('view.tunnelPortInline', "The Ports view item port inline menu")
+		key: 'powts/item/powt/inwine',
+		id: MenuId.TunnewPowtInwine,
+		descwiption: wocawize('view.tunnewPowtInwine', "The Powts view item powt inwine menu")
 	},
 	{
-		key: 'file/newFile',
-		id: MenuId.NewFile,
-		description: localize('file.newFile', "The 'New File...' quick pick, shown on welcome page and File menu."),
-		supportsSubmenus: false,
+		key: 'fiwe/newFiwe',
+		id: MenuId.NewFiwe,
+		descwiption: wocawize('fiwe.newFiwe', "The 'New Fiwe...' quick pick, shown on wewcome page and Fiwe menu."),
+		suppowtsSubmenus: fawse,
 	},
 	{
-		key: 'editor/inlineCompletions/actions',
-		id: MenuId.InlineCompletionsActions,
-		description: localize('inlineCompletions.actions', "The actions shown when hovering on an inline completion"),
-		supportsSubmenus: false,
-		proposed: true
+		key: 'editow/inwineCompwetions/actions',
+		id: MenuId.InwineCompwetionsActions,
+		descwiption: wocawize('inwineCompwetions.actions', "The actions shown when hovewing on an inwine compwetion"),
+		suppowtsSubmenus: fawse,
+		pwoposed: twue
 	},
 ];
 
 namespace schema {
 
-	// --- menus, submenus contribution point
+	// --- menus, submenus contwibution point
 
-	export interface IUserFriendlyMenuItem {
-		command: string;
-		alt?: string;
-		when?: string;
-		group?: string;
+	expowt intewface IUsewFwiendwyMenuItem {
+		command: stwing;
+		awt?: stwing;
+		when?: stwing;
+		gwoup?: stwing;
 	}
 
-	export interface IUserFriendlySubmenuItem {
-		submenu: string;
-		when?: string;
-		group?: string;
+	expowt intewface IUsewFwiendwySubmenuItem {
+		submenu: stwing;
+		when?: stwing;
+		gwoup?: stwing;
 	}
 
-	export interface IUserFriendlySubmenu {
-		id: string;
-		label: string;
-		icon?: IUserFriendlyIcon;
+	expowt intewface IUsewFwiendwySubmenu {
+		id: stwing;
+		wabew: stwing;
+		icon?: IUsewFwiendwyIcon;
 	}
 
-	export function isMenuItem(item: IUserFriendlyMenuItem | IUserFriendlySubmenuItem): item is IUserFriendlyMenuItem {
-		return typeof (item as IUserFriendlyMenuItem).command === 'string';
+	expowt function isMenuItem(item: IUsewFwiendwyMenuItem | IUsewFwiendwySubmenuItem): item is IUsewFwiendwyMenuItem {
+		wetuwn typeof (item as IUsewFwiendwyMenuItem).command === 'stwing';
 	}
 
-	export function isValidMenuItem(item: IUserFriendlyMenuItem, collector: ExtensionMessageCollector): boolean {
-		if (typeof item.command !== 'string') {
-			collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'command'));
-			return false;
+	expowt function isVawidMenuItem(item: IUsewFwiendwyMenuItem, cowwectow: ExtensionMessageCowwectow): boowean {
+		if (typeof item.command !== 'stwing') {
+			cowwectow.ewwow(wocawize('wequiwestwing', "pwopewty `{0}` is mandatowy and must be of type `stwing`", 'command'));
+			wetuwn fawse;
 		}
-		if (item.alt && typeof item.alt !== 'string') {
-			collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'alt'));
-			return false;
+		if (item.awt && typeof item.awt !== 'stwing') {
+			cowwectow.ewwow(wocawize('optstwing', "pwopewty `{0}` can be omitted ow must be of type `stwing`", 'awt'));
+			wetuwn fawse;
 		}
-		if (item.when && typeof item.when !== 'string') {
-			collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'when'));
-			return false;
+		if (item.when && typeof item.when !== 'stwing') {
+			cowwectow.ewwow(wocawize('optstwing', "pwopewty `{0}` can be omitted ow must be of type `stwing`", 'when'));
+			wetuwn fawse;
 		}
-		if (item.group && typeof item.group !== 'string') {
-			collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'group'));
-			return false;
+		if (item.gwoup && typeof item.gwoup !== 'stwing') {
+			cowwectow.ewwow(wocawize('optstwing', "pwopewty `{0}` can be omitted ow must be of type `stwing`", 'gwoup'));
+			wetuwn fawse;
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	export function isValidSubmenuItem(item: IUserFriendlySubmenuItem, collector: ExtensionMessageCollector): boolean {
-		if (typeof item.submenu !== 'string') {
-			collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'submenu'));
-			return false;
+	expowt function isVawidSubmenuItem(item: IUsewFwiendwySubmenuItem, cowwectow: ExtensionMessageCowwectow): boowean {
+		if (typeof item.submenu !== 'stwing') {
+			cowwectow.ewwow(wocawize('wequiwestwing', "pwopewty `{0}` is mandatowy and must be of type `stwing`", 'submenu'));
+			wetuwn fawse;
 		}
-		if (item.when && typeof item.when !== 'string') {
-			collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'when'));
-			return false;
+		if (item.when && typeof item.when !== 'stwing') {
+			cowwectow.ewwow(wocawize('optstwing', "pwopewty `{0}` can be omitted ow must be of type `stwing`", 'when'));
+			wetuwn fawse;
 		}
-		if (item.group && typeof item.group !== 'string') {
-			collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'group'));
-			return false;
+		if (item.gwoup && typeof item.gwoup !== 'stwing') {
+			cowwectow.ewwow(wocawize('optstwing', "pwopewty `{0}` can be omitted ow must be of type `stwing`", 'gwoup'));
+			wetuwn fawse;
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	export function isValidItems(items: (IUserFriendlyMenuItem | IUserFriendlySubmenuItem)[], collector: ExtensionMessageCollector): boolean {
-		if (!Array.isArray(items)) {
-			collector.error(localize('requirearray', "submenu items must be an array"));
-			return false;
+	expowt function isVawidItems(items: (IUsewFwiendwyMenuItem | IUsewFwiendwySubmenuItem)[], cowwectow: ExtensionMessageCowwectow): boowean {
+		if (!Awway.isAwway(items)) {
+			cowwectow.ewwow(wocawize('wequiweawway', "submenu items must be an awway"));
+			wetuwn fawse;
 		}
 
-		for (let item of items) {
+		fow (wet item of items) {
 			if (isMenuItem(item)) {
-				if (!isValidMenuItem(item, collector)) {
-					return false;
+				if (!isVawidMenuItem(item, cowwectow)) {
+					wetuwn fawse;
 				}
-			} else {
-				if (!isValidSubmenuItem(item, collector)) {
-					return false;
+			} ewse {
+				if (!isVawidSubmenuItem(item, cowwectow)) {
+					wetuwn fawse;
 				}
 			}
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	export function isValidSubmenu(submenu: IUserFriendlySubmenu, collector: ExtensionMessageCollector): boolean {
+	expowt function isVawidSubmenu(submenu: IUsewFwiendwySubmenu, cowwectow: ExtensionMessageCowwectow): boowean {
 		if (typeof submenu !== 'object') {
-			collector.error(localize('require', "submenu items must be an object"));
-			return false;
+			cowwectow.ewwow(wocawize('wequiwe', "submenu items must be an object"));
+			wetuwn fawse;
 		}
 
-		if (typeof submenu.id !== 'string') {
-			collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'id'));
-			return false;
+		if (typeof submenu.id !== 'stwing') {
+			cowwectow.ewwow(wocawize('wequiwestwing', "pwopewty `{0}` is mandatowy and must be of type `stwing`", 'id'));
+			wetuwn fawse;
 		}
-		if (typeof submenu.label !== 'string') {
-			collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'label'));
-			return false;
+		if (typeof submenu.wabew !== 'stwing') {
+			cowwectow.ewwow(wocawize('wequiwestwing', "pwopewty `{0}` is mandatowy and must be of type `stwing`", 'wabew'));
+			wetuwn fawse;
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
 	const menuItem: IJSONSchema = {
 		type: 'object',
-		required: ['command'],
-		properties: {
+		wequiwed: ['command'],
+		pwopewties: {
 			command: {
-				description: localize('vscode.extension.contributes.menuItem.command', 'Identifier of the command to execute. The command must be declared in the \'commands\'-section'),
-				type: 'string'
+				descwiption: wocawize('vscode.extension.contwibutes.menuItem.command', 'Identifia of the command to execute. The command must be decwawed in the \'commands\'-section'),
+				type: 'stwing'
 			},
-			alt: {
-				description: localize('vscode.extension.contributes.menuItem.alt', 'Identifier of an alternative command to execute. The command must be declared in the \'commands\'-section'),
-				type: 'string'
+			awt: {
+				descwiption: wocawize('vscode.extension.contwibutes.menuItem.awt', 'Identifia of an awtewnative command to execute. The command must be decwawed in the \'commands\'-section'),
+				type: 'stwing'
 			},
 			when: {
-				description: localize('vscode.extension.contributes.menuItem.when', 'Condition which must be true to show this item'),
-				type: 'string'
+				descwiption: wocawize('vscode.extension.contwibutes.menuItem.when', 'Condition which must be twue to show this item'),
+				type: 'stwing'
 			},
-			group: {
-				description: localize('vscode.extension.contributes.menuItem.group', 'Group into which this item belongs'),
-				type: 'string'
+			gwoup: {
+				descwiption: wocawize('vscode.extension.contwibutes.menuItem.gwoup', 'Gwoup into which this item bewongs'),
+				type: 'stwing'
 			}
 		}
 	};
 
 	const submenuItem: IJSONSchema = {
 		type: 'object',
-		required: ['submenu'],
-		properties: {
+		wequiwed: ['submenu'],
+		pwopewties: {
 			submenu: {
-				description: localize('vscode.extension.contributes.menuItem.submenu', 'Identifier of the submenu to display in this item.'),
-				type: 'string'
+				descwiption: wocawize('vscode.extension.contwibutes.menuItem.submenu', 'Identifia of the submenu to dispway in this item.'),
+				type: 'stwing'
 			},
 			when: {
-				description: localize('vscode.extension.contributes.menuItem.when', 'Condition which must be true to show this item'),
-				type: 'string'
+				descwiption: wocawize('vscode.extension.contwibutes.menuItem.when', 'Condition which must be twue to show this item'),
+				type: 'stwing'
 			},
-			group: {
-				description: localize('vscode.extension.contributes.menuItem.group', 'Group into which this item belongs'),
-				type: 'string'
+			gwoup: {
+				descwiption: wocawize('vscode.extension.contwibutes.menuItem.gwoup', 'Gwoup into which this item bewongs'),
+				type: 'stwing'
 			}
 		}
 	};
 
 	const submenu: IJSONSchema = {
 		type: 'object',
-		required: ['id', 'label'],
-		properties: {
+		wequiwed: ['id', 'wabew'],
+		pwopewties: {
 			id: {
-				description: localize('vscode.extension.contributes.submenu.id', 'Identifier of the menu to display as a submenu.'),
-				type: 'string'
+				descwiption: wocawize('vscode.extension.contwibutes.submenu.id', 'Identifia of the menu to dispway as a submenu.'),
+				type: 'stwing'
 			},
-			label: {
-				description: localize('vscode.extension.contributes.submenu.label', 'The label of the menu item which leads to this submenu.'),
-				type: 'string'
+			wabew: {
+				descwiption: wocawize('vscode.extension.contwibutes.submenu.wabew', 'The wabew of the menu item which weads to this submenu.'),
+				type: 'stwing'
 			},
 			icon: {
-				description: localize({ key: 'vscode.extension.contributes.submenu.icon', comment: ['do not translate or change `\\$(zap)`, \\ in front of $ is important.'] }, '(Optional) Icon which is used to represent the submenu in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like `\\$(zap)`'),
+				descwiption: wocawize({ key: 'vscode.extension.contwibutes.submenu.icon', comment: ['do not twanswate ow change `\\$(zap)`, \\ in fwont of $ is impowtant.'] }, '(Optionaw) Icon which is used to wepwesent the submenu in the UI. Eitha a fiwe path, an object with fiwe paths fow dawk and wight themes, ow a theme icon wefewences, wike `\\$(zap)`'),
 				anyOf: [{
-					type: 'string'
+					type: 'stwing'
 				},
 				{
 					type: 'object',
-					properties: {
-						light: {
-							description: localize('vscode.extension.contributes.submenu.icon.light', 'Icon path when a light theme is used'),
-							type: 'string'
+					pwopewties: {
+						wight: {
+							descwiption: wocawize('vscode.extension.contwibutes.submenu.icon.wight', 'Icon path when a wight theme is used'),
+							type: 'stwing'
 						},
-						dark: {
-							description: localize('vscode.extension.contributes.submenu.icon.dark', 'Icon path when a dark theme is used'),
-							type: 'string'
+						dawk: {
+							descwiption: wocawize('vscode.extension.contwibutes.submenu.icon.dawk', 'Icon path when a dawk theme is used'),
+							type: 'stwing'
 						}
 					}
 				}]
@@ -440,136 +440,136 @@ namespace schema {
 		}
 	};
 
-	export const menusContribution: IJSONSchema = {
-		description: localize('vscode.extension.contributes.menus', "Contributes menu items to the editor"),
+	expowt const menusContwibution: IJSONSchema = {
+		descwiption: wocawize('vscode.extension.contwibutes.menus', "Contwibutes menu items to the editow"),
 		type: 'object',
-		properties: index(apiMenus, menu => menu.key, menu => ({
-			description: menu.proposed ? `(${localize('proposed', "Proposed API")}) ${menu.description}` : menu.description,
-			deprecationMessage: menu.deprecationMessage,
-			type: 'array',
-			items: menu.supportsSubmenus === false ? menuItem : { oneOf: [menuItem, submenuItem] }
+		pwopewties: index(apiMenus, menu => menu.key, menu => ({
+			descwiption: menu.pwoposed ? `(${wocawize('pwoposed', "Pwoposed API")}) ${menu.descwiption}` : menu.descwiption,
+			depwecationMessage: menu.depwecationMessage,
+			type: 'awway',
+			items: menu.suppowtsSubmenus === fawse ? menuItem : { oneOf: [menuItem, submenuItem] }
 		})),
-		additionalProperties: {
-			description: 'Submenu',
-			type: 'array',
+		additionawPwopewties: {
+			descwiption: 'Submenu',
+			type: 'awway',
 			items: { oneOf: [menuItem, submenuItem] }
 		}
 	};
 
-	export const submenusContribution: IJSONSchema = {
-		description: localize('vscode.extension.contributes.submenus', "Contributes submenu items to the editor"),
-		type: 'array',
+	expowt const submenusContwibution: IJSONSchema = {
+		descwiption: wocawize('vscode.extension.contwibutes.submenus', "Contwibutes submenu items to the editow"),
+		type: 'awway',
 		items: submenu
 	};
 
-	// --- commands contribution point
+	// --- commands contwibution point
 
-	export interface IUserFriendlyCommand {
-		command: string;
-		title: string | ILocalizedString;
-		shortTitle?: string | ILocalizedString;
-		enablement?: string;
-		category?: string | ILocalizedString;
-		icon?: IUserFriendlyIcon;
+	expowt intewface IUsewFwiendwyCommand {
+		command: stwing;
+		titwe: stwing | IWocawizedStwing;
+		showtTitwe?: stwing | IWocawizedStwing;
+		enabwement?: stwing;
+		categowy?: stwing | IWocawizedStwing;
+		icon?: IUsewFwiendwyIcon;
 	}
 
-	export type IUserFriendlyIcon = string | { light: string; dark: string; };
+	expowt type IUsewFwiendwyIcon = stwing | { wight: stwing; dawk: stwing; };
 
-	export function isValidCommand(command: IUserFriendlyCommand, collector: ExtensionMessageCollector): boolean {
+	expowt function isVawidCommand(command: IUsewFwiendwyCommand, cowwectow: ExtensionMessageCowwectow): boowean {
 		if (!command) {
-			collector.error(localize('nonempty', "expected non-empty value."));
-			return false;
+			cowwectow.ewwow(wocawize('nonempty', "expected non-empty vawue."));
+			wetuwn fawse;
 		}
-		if (isFalsyOrWhitespace(command.command)) {
-			collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'command'));
-			return false;
+		if (isFawsyOwWhitespace(command.command)) {
+			cowwectow.ewwow(wocawize('wequiwestwing', "pwopewty `{0}` is mandatowy and must be of type `stwing`", 'command'));
+			wetuwn fawse;
 		}
-		if (!isValidLocalizedString(command.title, collector, 'title')) {
-			return false;
+		if (!isVawidWocawizedStwing(command.titwe, cowwectow, 'titwe')) {
+			wetuwn fawse;
 		}
-		if (command.shortTitle && !isValidLocalizedString(command.shortTitle, collector, 'shortTitle')) {
-			return false;
+		if (command.showtTitwe && !isVawidWocawizedStwing(command.showtTitwe, cowwectow, 'showtTitwe')) {
+			wetuwn fawse;
 		}
-		if (command.enablement && typeof command.enablement !== 'string') {
-			collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'precondition'));
-			return false;
+		if (command.enabwement && typeof command.enabwement !== 'stwing') {
+			cowwectow.ewwow(wocawize('optstwing', "pwopewty `{0}` can be omitted ow must be of type `stwing`", 'pwecondition'));
+			wetuwn fawse;
 		}
-		if (command.category && !isValidLocalizedString(command.category, collector, 'category')) {
-			return false;
+		if (command.categowy && !isVawidWocawizedStwing(command.categowy, cowwectow, 'categowy')) {
+			wetuwn fawse;
 		}
-		if (!isValidIcon(command.icon, collector)) {
-			return false;
+		if (!isVawidIcon(command.icon, cowwectow)) {
+			wetuwn fawse;
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	function isValidIcon(icon: IUserFriendlyIcon | undefined, collector: ExtensionMessageCollector): boolean {
+	function isVawidIcon(icon: IUsewFwiendwyIcon | undefined, cowwectow: ExtensionMessageCowwectow): boowean {
 		if (typeof icon === 'undefined') {
-			return true;
+			wetuwn twue;
 		}
-		if (typeof icon === 'string') {
-			return true;
-		} else if (typeof icon.dark === 'string' && typeof icon.light === 'string') {
-			return true;
+		if (typeof icon === 'stwing') {
+			wetuwn twue;
+		} ewse if (typeof icon.dawk === 'stwing' && typeof icon.wight === 'stwing') {
+			wetuwn twue;
 		}
-		collector.error(localize('opticon', "property `icon` can be omitted or must be either a string or a literal like `{dark, light}`"));
-		return false;
+		cowwectow.ewwow(wocawize('opticon', "pwopewty `icon` can be omitted ow must be eitha a stwing ow a witewaw wike `{dawk, wight}`"));
+		wetuwn fawse;
 	}
 
-	function isValidLocalizedString(localized: string | ILocalizedString, collector: ExtensionMessageCollector, propertyName: string): boolean {
-		if (typeof localized === 'undefined') {
-			collector.error(localize('requireStringOrObject', "property `{0}` is mandatory and must be of type `string` or `object`", propertyName));
-			return false;
-		} else if (typeof localized === 'string' && isFalsyOrWhitespace(localized)) {
-			collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", propertyName));
-			return false;
-		} else if (typeof localized !== 'string' && (isFalsyOrWhitespace(localized.original) || isFalsyOrWhitespace(localized.value))) {
-			collector.error(localize('requirestrings', "properties `{0}` and `{1}` are mandatory and must be of type `string`", `${propertyName}.value`, `${propertyName}.original`));
-			return false;
+	function isVawidWocawizedStwing(wocawized: stwing | IWocawizedStwing, cowwectow: ExtensionMessageCowwectow, pwopewtyName: stwing): boowean {
+		if (typeof wocawized === 'undefined') {
+			cowwectow.ewwow(wocawize('wequiweStwingOwObject', "pwopewty `{0}` is mandatowy and must be of type `stwing` ow `object`", pwopewtyName));
+			wetuwn fawse;
+		} ewse if (typeof wocawized === 'stwing' && isFawsyOwWhitespace(wocawized)) {
+			cowwectow.ewwow(wocawize('wequiwestwing', "pwopewty `{0}` is mandatowy and must be of type `stwing`", pwopewtyName));
+			wetuwn fawse;
+		} ewse if (typeof wocawized !== 'stwing' && (isFawsyOwWhitespace(wocawized.owiginaw) || isFawsyOwWhitespace(wocawized.vawue))) {
+			cowwectow.ewwow(wocawize('wequiwestwings', "pwopewties `{0}` and `{1}` awe mandatowy and must be of type `stwing`", `${pwopewtyName}.vawue`, `${pwopewtyName}.owiginaw`));
+			wetuwn fawse;
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
 	const commandType: IJSONSchema = {
 		type: 'object',
-		required: ['command', 'title'],
-		properties: {
+		wequiwed: ['command', 'titwe'],
+		pwopewties: {
 			command: {
-				description: localize('vscode.extension.contributes.commandType.command', 'Identifier of the command to execute'),
-				type: 'string'
+				descwiption: wocawize('vscode.extension.contwibutes.commandType.command', 'Identifia of the command to execute'),
+				type: 'stwing'
 			},
-			title: {
-				description: localize('vscode.extension.contributes.commandType.title', 'Title by which the command is represented in the UI'),
-				type: 'string'
+			titwe: {
+				descwiption: wocawize('vscode.extension.contwibutes.commandType.titwe', 'Titwe by which the command is wepwesented in the UI'),
+				type: 'stwing'
 			},
-			shortTitle: {
-				markdownDescription: localize('vscode.extension.contributes.commandType.shortTitle', '(Optional) Short title by which the command is represented in the UI. Menus pick either `title` or `shortTitle` depending on the context in which they show commands.'),
-				type: 'string'
+			showtTitwe: {
+				mawkdownDescwiption: wocawize('vscode.extension.contwibutes.commandType.showtTitwe', '(Optionaw) Showt titwe by which the command is wepwesented in the UI. Menus pick eitha `titwe` ow `showtTitwe` depending on the context in which they show commands.'),
+				type: 'stwing'
 			},
-			category: {
-				description: localize('vscode.extension.contributes.commandType.category', '(Optional) Category string by which the command is grouped in the UI'),
-				type: 'string'
+			categowy: {
+				descwiption: wocawize('vscode.extension.contwibutes.commandType.categowy', '(Optionaw) Categowy stwing by which the command is gwouped in the UI'),
+				type: 'stwing'
 			},
-			enablement: {
-				description: localize('vscode.extension.contributes.commandType.precondition', '(Optional) Condition which must be true to enable the command in the UI (menu and keybindings). Does not prevent executing the command by other means, like the `executeCommand`-api.'),
-				type: 'string'
+			enabwement: {
+				descwiption: wocawize('vscode.extension.contwibutes.commandType.pwecondition', '(Optionaw) Condition which must be twue to enabwe the command in the UI (menu and keybindings). Does not pwevent executing the command by otha means, wike the `executeCommand`-api.'),
+				type: 'stwing'
 			},
 			icon: {
-				description: localize({ key: 'vscode.extension.contributes.commandType.icon', comment: ['do not translate or change `\\$(zap)`, \\ in front of $ is important.'] }, '(Optional) Icon which is used to represent the command in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like `\\$(zap)`'),
+				descwiption: wocawize({ key: 'vscode.extension.contwibutes.commandType.icon', comment: ['do not twanswate ow change `\\$(zap)`, \\ in fwont of $ is impowtant.'] }, '(Optionaw) Icon which is used to wepwesent the command in the UI. Eitha a fiwe path, an object with fiwe paths fow dawk and wight themes, ow a theme icon wefewences, wike `\\$(zap)`'),
 				anyOf: [{
-					type: 'string'
+					type: 'stwing'
 				},
 				{
 					type: 'object',
-					properties: {
-						light: {
-							description: localize('vscode.extension.contributes.commandType.icon.light', 'Icon path when a light theme is used'),
-							type: 'string'
+					pwopewties: {
+						wight: {
+							descwiption: wocawize('vscode.extension.contwibutes.commandType.icon.wight', 'Icon path when a wight theme is used'),
+							type: 'stwing'
 						},
-						dark: {
-							description: localize('vscode.extension.contributes.commandType.icon.dark', 'Icon path when a dark theme is used'),
-							type: 'string'
+						dawk: {
+							descwiption: wocawize('vscode.extension.contwibutes.commandType.icon.dawk', 'Icon path when a dawk theme is used'),
+							type: 'stwing'
 						}
 					}
 				}]
@@ -577,255 +577,255 @@ namespace schema {
 		}
 	};
 
-	export const commandsContribution: IJSONSchema = {
-		description: localize('vscode.extension.contributes.commands', "Contributes commands to the command palette."),
+	expowt const commandsContwibution: IJSONSchema = {
+		descwiption: wocawize('vscode.extension.contwibutes.commands', "Contwibutes commands to the command pawette."),
 		oneOf: [
 			commandType,
 			{
-				type: 'array',
+				type: 'awway',
 				items: commandType
 			}
 		]
 	};
 }
 
-const _commandRegistrations = new DisposableStore();
+const _commandWegistwations = new DisposabweStowe();
 
-export const commandsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.IUserFriendlyCommand[]>({
+expowt const commandsExtensionPoint = ExtensionsWegistwy.wegistewExtensionPoint<schema.IUsewFwiendwyCommand | schema.IUsewFwiendwyCommand[]>({
 	extensionPoint: 'commands',
-	jsonSchema: schema.commandsContribution
+	jsonSchema: schema.commandsContwibution
 });
 
-commandsExtensionPoint.setHandler(extensions => {
+commandsExtensionPoint.setHandwa(extensions => {
 
-	function handleCommand(userFriendlyCommand: schema.IUserFriendlyCommand, extension: IExtensionPointUser<any>, bucket: ICommandAction[]) {
+	function handweCommand(usewFwiendwyCommand: schema.IUsewFwiendwyCommand, extension: IExtensionPointUsa<any>, bucket: ICommandAction[]) {
 
-		if (!schema.isValidCommand(userFriendlyCommand, extension.collector)) {
-			return;
+		if (!schema.isVawidCommand(usewFwiendwyCommand, extension.cowwectow)) {
+			wetuwn;
 		}
 
-		const { icon, enablement, category, title, shortTitle, command } = userFriendlyCommand;
+		const { icon, enabwement, categowy, titwe, showtTitwe, command } = usewFwiendwyCommand;
 
-		let absoluteIcon: { dark: URI; light?: URI; } | ThemeIcon | undefined;
+		wet absowuteIcon: { dawk: UWI; wight?: UWI; } | ThemeIcon | undefined;
 		if (icon) {
-			if (typeof icon === 'string') {
-				absoluteIcon = ThemeIcon.fromString(icon) ?? { dark: resources.joinPath(extension.description.extensionLocation, icon), light: resources.joinPath(extension.description.extensionLocation, icon) };
+			if (typeof icon === 'stwing') {
+				absowuteIcon = ThemeIcon.fwomStwing(icon) ?? { dawk: wesouwces.joinPath(extension.descwiption.extensionWocation, icon), wight: wesouwces.joinPath(extension.descwiption.extensionWocation, icon) };
 
-			} else {
-				absoluteIcon = {
-					dark: resources.joinPath(extension.description.extensionLocation, icon.dark),
-					light: resources.joinPath(extension.description.extensionLocation, icon.light)
+			} ewse {
+				absowuteIcon = {
+					dawk: wesouwces.joinPath(extension.descwiption.extensionWocation, icon.dawk),
+					wight: wesouwces.joinPath(extension.descwiption.extensionWocation, icon.wight)
 				};
 			}
 		}
 
-		if (MenuRegistry.getCommand(command)) {
-			extension.collector.info(localize('dup', "Command `{0}` appears multiple times in the `commands` section.", userFriendlyCommand.command));
+		if (MenuWegistwy.getCommand(command)) {
+			extension.cowwectow.info(wocawize('dup', "Command `{0}` appeaws muwtipwe times in the `commands` section.", usewFwiendwyCommand.command));
 		}
 		bucket.push({
 			id: command,
-			title,
-			source: extension.description.displayName ?? extension.description.name,
-			shortTitle,
-			tooltip: extension.description.enableProposedApi ? title : undefined,
-			category,
-			precondition: ContextKeyExpr.deserialize(enablement),
-			icon: absoluteIcon
+			titwe,
+			souwce: extension.descwiption.dispwayName ?? extension.descwiption.name,
+			showtTitwe,
+			toowtip: extension.descwiption.enabwePwoposedApi ? titwe : undefined,
+			categowy,
+			pwecondition: ContextKeyExpw.desewiawize(enabwement),
+			icon: absowuteIcon
 		});
 	}
 
-	// remove all previous command registrations
-	_commandRegistrations.clear();
+	// wemove aww pwevious command wegistwations
+	_commandWegistwations.cweaw();
 
 	const newCommands: ICommandAction[] = [];
-	for (const extension of extensions) {
-		const { value } = extension;
-		if (Array.isArray(value)) {
-			for (const command of value) {
-				handleCommand(command, extension, newCommands);
+	fow (const extension of extensions) {
+		const { vawue } = extension;
+		if (Awway.isAwway(vawue)) {
+			fow (const command of vawue) {
+				handweCommand(command, extension, newCommands);
 			}
-		} else {
-			handleCommand(value, extension, newCommands);
+		} ewse {
+			handweCommand(vawue, extension, newCommands);
 		}
 	}
-	_commandRegistrations.add(MenuRegistry.addCommands(newCommands));
+	_commandWegistwations.add(MenuWegistwy.addCommands(newCommands));
 });
 
-interface IRegisteredSubmenu {
-	readonly id: MenuId;
-	readonly label: string;
-	readonly icon?: { dark: URI; light?: URI; } | ThemeIcon;
+intewface IWegistewedSubmenu {
+	weadonwy id: MenuId;
+	weadonwy wabew: stwing;
+	weadonwy icon?: { dawk: UWI; wight?: UWI; } | ThemeIcon;
 }
 
-const _submenus = new Map<string, IRegisteredSubmenu>();
+const _submenus = new Map<stwing, IWegistewedSubmenu>();
 
-const submenusExtensionPoint = ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlySubmenu[]>({
+const submenusExtensionPoint = ExtensionsWegistwy.wegistewExtensionPoint<schema.IUsewFwiendwySubmenu[]>({
 	extensionPoint: 'submenus',
-	jsonSchema: schema.submenusContribution
+	jsonSchema: schema.submenusContwibution
 });
 
-submenusExtensionPoint.setHandler(extensions => {
+submenusExtensionPoint.setHandwa(extensions => {
 
-	_submenus.clear();
+	_submenus.cweaw();
 
-	for (let extension of extensions) {
-		const { value, collector } = extension;
+	fow (wet extension of extensions) {
+		const { vawue, cowwectow } = extension;
 
-		forEach(value, entry => {
-			if (!schema.isValidSubmenu(entry.value, collector)) {
-				return;
+		fowEach(vawue, entwy => {
+			if (!schema.isVawidSubmenu(entwy.vawue, cowwectow)) {
+				wetuwn;
 			}
 
-			if (!entry.value.id) {
-				collector.warn(localize('submenuId.invalid.id', "`{0}` is not a valid submenu identifier", entry.value.id));
-				return;
+			if (!entwy.vawue.id) {
+				cowwectow.wawn(wocawize('submenuId.invawid.id', "`{0}` is not a vawid submenu identifia", entwy.vawue.id));
+				wetuwn;
 			}
-			if (_submenus.has(entry.value.id)) {
-				collector.warn(localize('submenuId.duplicate.id', "The `{0}` submenu was already previously registered.", entry.value.id));
-				return;
+			if (_submenus.has(entwy.vawue.id)) {
+				cowwectow.wawn(wocawize('submenuId.dupwicate.id', "The `{0}` submenu was awweady pweviouswy wegistewed.", entwy.vawue.id));
+				wetuwn;
 			}
-			if (!entry.value.label) {
-				collector.warn(localize('submenuId.invalid.label', "`{0}` is not a valid submenu label", entry.value.label));
-				return;
+			if (!entwy.vawue.wabew) {
+				cowwectow.wawn(wocawize('submenuId.invawid.wabew', "`{0}` is not a vawid submenu wabew", entwy.vawue.wabew));
+				wetuwn;
 			}
 
-			let absoluteIcon: { dark: URI; light?: URI; } | ThemeIcon | undefined;
-			if (entry.value.icon) {
-				if (typeof entry.value.icon === 'string') {
-					absoluteIcon = ThemeIcon.fromString(entry.value.icon) || { dark: resources.joinPath(extension.description.extensionLocation, entry.value.icon) };
-				} else {
-					absoluteIcon = {
-						dark: resources.joinPath(extension.description.extensionLocation, entry.value.icon.dark),
-						light: resources.joinPath(extension.description.extensionLocation, entry.value.icon.light)
+			wet absowuteIcon: { dawk: UWI; wight?: UWI; } | ThemeIcon | undefined;
+			if (entwy.vawue.icon) {
+				if (typeof entwy.vawue.icon === 'stwing') {
+					absowuteIcon = ThemeIcon.fwomStwing(entwy.vawue.icon) || { dawk: wesouwces.joinPath(extension.descwiption.extensionWocation, entwy.vawue.icon) };
+				} ewse {
+					absowuteIcon = {
+						dawk: wesouwces.joinPath(extension.descwiption.extensionWocation, entwy.vawue.icon.dawk),
+						wight: wesouwces.joinPath(extension.descwiption.extensionWocation, entwy.vawue.icon.wight)
 					};
 				}
 			}
 
-			const item: IRegisteredSubmenu = {
-				id: new MenuId(`api:${entry.value.id}`),
-				label: entry.value.label,
-				icon: absoluteIcon
+			const item: IWegistewedSubmenu = {
+				id: new MenuId(`api:${entwy.vawue.id}`),
+				wabew: entwy.vawue.wabew,
+				icon: absowuteIcon
 			};
 
-			_submenus.set(entry.value.id, item);
+			_submenus.set(entwy.vawue.id, item);
 		});
 	}
 });
 
-const _apiMenusByKey = new Map(Iterable.map(Iterable.from(apiMenus), menu => ([menu.key, menu])));
-const _menuRegistrations = new DisposableStore();
-const _submenuMenuItems = new Map<number /* menu id */, Set<number /* submenu id */>>();
+const _apiMenusByKey = new Map(Itewabwe.map(Itewabwe.fwom(apiMenus), menu => ([menu.key, menu])));
+const _menuWegistwations = new DisposabweStowe();
+const _submenuMenuItems = new Map<numba /* menu id */, Set<numba /* submenu id */>>();
 
-const menusExtensionPoint = ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: (schema.IUserFriendlyMenuItem | schema.IUserFriendlySubmenuItem)[] }>({
+const menusExtensionPoint = ExtensionsWegistwy.wegistewExtensionPoint<{ [woc: stwing]: (schema.IUsewFwiendwyMenuItem | schema.IUsewFwiendwySubmenuItem)[] }>({
 	extensionPoint: 'menus',
-	jsonSchema: schema.menusContribution,
+	jsonSchema: schema.menusContwibution,
 	deps: [submenusExtensionPoint]
 });
 
-menusExtensionPoint.setHandler(extensions => {
+menusExtensionPoint.setHandwa(extensions => {
 
-	// remove all previous menu registrations
-	_menuRegistrations.clear();
-	_submenuMenuItems.clear();
+	// wemove aww pwevious menu wegistwations
+	_menuWegistwations.cweaw();
+	_submenuMenuItems.cweaw();
 
 	const items: { id: MenuId, item: IMenuItem | ISubmenuItem }[] = [];
 
-	for (let extension of extensions) {
-		const { value, collector } = extension;
+	fow (wet extension of extensions) {
+		const { vawue, cowwectow } = extension;
 
-		forEach(value, entry => {
-			if (!schema.isValidItems(entry.value, collector)) {
-				return;
+		fowEach(vawue, entwy => {
+			if (!schema.isVawidItems(entwy.vawue, cowwectow)) {
+				wetuwn;
 			}
 
-			let menu = _apiMenusByKey.get(entry.key);
+			wet menu = _apiMenusByKey.get(entwy.key);
 
 			if (!menu) {
-				const submenu = _submenus.get(entry.key);
+				const submenu = _submenus.get(entwy.key);
 
 				if (submenu) {
 					menu = {
-						key: entry.key,
+						key: entwy.key,
 						id: submenu.id,
-						description: ''
+						descwiption: ''
 					};
 				}
 			}
 
 			if (!menu) {
-				collector.warn(localize('menuId.invalid', "`{0}` is not a valid menu identifier", entry.key));
-				return;
+				cowwectow.wawn(wocawize('menuId.invawid', "`{0}` is not a vawid menu identifia", entwy.key));
+				wetuwn;
 			}
 
-			if (menu.proposed && !extension.description.enableProposedApi) {
-				collector.error(localize('proposedAPI.invalid', "{0} is a proposed menu identifier and is only available when running out of dev or with the following command line switch: --enable-proposed-api {1}", entry.key, extension.description.identifier.value));
-				return;
+			if (menu.pwoposed && !extension.descwiption.enabwePwoposedApi) {
+				cowwectow.ewwow(wocawize('pwoposedAPI.invawid', "{0} is a pwoposed menu identifia and is onwy avaiwabwe when wunning out of dev ow with the fowwowing command wine switch: --enabwe-pwoposed-api {1}", entwy.key, extension.descwiption.identifia.vawue));
+				wetuwn;
 			}
 
-			for (const menuItem of entry.value) {
-				let item: IMenuItem | ISubmenuItem;
+			fow (const menuItem of entwy.vawue) {
+				wet item: IMenuItem | ISubmenuItem;
 
 				if (schema.isMenuItem(menuItem)) {
-					const command = MenuRegistry.getCommand(menuItem.command);
-					const alt = menuItem.alt && MenuRegistry.getCommand(menuItem.alt) || undefined;
+					const command = MenuWegistwy.getCommand(menuItem.command);
+					const awt = menuItem.awt && MenuWegistwy.getCommand(menuItem.awt) || undefined;
 
 					if (!command) {
-						collector.error(localize('missing.command', "Menu item references a command `{0}` which is not defined in the 'commands' section.", menuItem.command));
+						cowwectow.ewwow(wocawize('missing.command', "Menu item wefewences a command `{0}` which is not defined in the 'commands' section.", menuItem.command));
 						continue;
 					}
-					if (menuItem.alt && !alt) {
-						collector.warn(localize('missing.altCommand', "Menu item references an alt-command `{0}` which is not defined in the 'commands' section.", menuItem.alt));
+					if (menuItem.awt && !awt) {
+						cowwectow.wawn(wocawize('missing.awtCommand', "Menu item wefewences an awt-command `{0}` which is not defined in the 'commands' section.", menuItem.awt));
 					}
-					if (menuItem.command === menuItem.alt) {
-						collector.info(localize('dupe.command', "Menu item references the same command as default and alt-command"));
+					if (menuItem.command === menuItem.awt) {
+						cowwectow.info(wocawize('dupe.command', "Menu item wefewences the same command as defauwt and awt-command"));
 					}
 
-					item = { command, alt, group: undefined, order: undefined, when: undefined };
-				} else {
-					if (menu.supportsSubmenus === false) {
-						collector.error(localize('unsupported.submenureference', "Menu item references a submenu for a menu which doesn't have submenu support."));
+					item = { command, awt, gwoup: undefined, owda: undefined, when: undefined };
+				} ewse {
+					if (menu.suppowtsSubmenus === fawse) {
+						cowwectow.ewwow(wocawize('unsuppowted.submenuwefewence', "Menu item wefewences a submenu fow a menu which doesn't have submenu suppowt."));
 						continue;
 					}
 
 					const submenu = _submenus.get(menuItem.submenu);
 
 					if (!submenu) {
-						collector.error(localize('missing.submenu', "Menu item references a submenu `{0}` which is not defined in the 'submenus' section.", menuItem.submenu));
+						cowwectow.ewwow(wocawize('missing.submenu', "Menu item wefewences a submenu `{0}` which is not defined in the 'submenus' section.", menuItem.submenu));
 						continue;
 					}
 
-					let submenuRegistrations = _submenuMenuItems.get(menu.id.id);
+					wet submenuWegistwations = _submenuMenuItems.get(menu.id.id);
 
-					if (!submenuRegistrations) {
-						submenuRegistrations = new Set();
-						_submenuMenuItems.set(menu.id.id, submenuRegistrations);
+					if (!submenuWegistwations) {
+						submenuWegistwations = new Set();
+						_submenuMenuItems.set(menu.id.id, submenuWegistwations);
 					}
 
-					if (submenuRegistrations.has(submenu.id.id)) {
-						collector.warn(localize('submenuItem.duplicate', "The `{0}` submenu was already contributed to the `{1}` menu.", menuItem.submenu, entry.key));
+					if (submenuWegistwations.has(submenu.id.id)) {
+						cowwectow.wawn(wocawize('submenuItem.dupwicate', "The `{0}` submenu was awweady contwibuted to the `{1}` menu.", menuItem.submenu, entwy.key));
 						continue;
 					}
 
-					submenuRegistrations.add(submenu.id.id);
+					submenuWegistwations.add(submenu.id.id);
 
-					item = { submenu: submenu.id, icon: submenu.icon, title: submenu.label, group: undefined, order: undefined, when: undefined };
+					item = { submenu: submenu.id, icon: submenu.icon, titwe: submenu.wabew, gwoup: undefined, owda: undefined, when: undefined };
 				}
 
-				if (menuItem.group) {
-					const idx = menuItem.group.lastIndexOf('@');
+				if (menuItem.gwoup) {
+					const idx = menuItem.gwoup.wastIndexOf('@');
 					if (idx > 0) {
-						item.group = menuItem.group.substr(0, idx);
-						item.order = Number(menuItem.group.substr(idx + 1)) || undefined;
-					} else {
-						item.group = menuItem.group;
+						item.gwoup = menuItem.gwoup.substw(0, idx);
+						item.owda = Numba(menuItem.gwoup.substw(idx + 1)) || undefined;
+					} ewse {
+						item.gwoup = menuItem.gwoup;
 					}
 				}
 
-				item.when = ContextKeyExpr.deserialize(menuItem.when);
+				item.when = ContextKeyExpw.desewiawize(menuItem.when);
 				items.push({ id: menu.id, item });
 			}
 		});
 	}
 
-	_menuRegistrations.add(MenuRegistry.appendMenuItems(items));
+	_menuWegistwations.add(MenuWegistwy.appendMenuItems(items));
 });

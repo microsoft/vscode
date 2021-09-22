@@ -1,161 +1,161 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
-import { CallHierarchyItem, CallHierarchyDirection, CallHierarchyModel, } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { SymbolKinds, Location, SymbolTag } from 'vs/editor/common/modes';
-import { compare } from 'vs/base/common/strings';
-import { Range } from 'vs/editor/common/core/range';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { localize } from 'vs/nls';
+impowt { IAsyncDataSouwce, ITweeWendewa, ITweeNode, ITweeSowta } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { CawwHiewawchyItem, CawwHiewawchyDiwection, CawwHiewawchyModew, } fwom 'vs/wowkbench/contwib/cawwHiewawchy/common/cawwHiewawchy';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IIdentityPwovida, IWistViwtuawDewegate } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { FuzzyScowe, cweateMatches } fwom 'vs/base/common/fiwtews';
+impowt { IconWabew } fwom 'vs/base/bwowsa/ui/iconWabew/iconWabew';
+impowt { SymbowKinds, Wocation, SymbowTag } fwom 'vs/editow/common/modes';
+impowt { compawe } fwom 'vs/base/common/stwings';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IWistAccessibiwityPwovida } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { wocawize } fwom 'vs/nws';
 
-export class Call {
-	constructor(
-		readonly item: CallHierarchyItem,
-		readonly locations: Location[] | undefined,
-		readonly model: CallHierarchyModel,
-		readonly parent: Call | undefined
+expowt cwass Caww {
+	constwuctow(
+		weadonwy item: CawwHiewawchyItem,
+		weadonwy wocations: Wocation[] | undefined,
+		weadonwy modew: CawwHiewawchyModew,
+		weadonwy pawent: Caww | undefined
 	) { }
 
-	static compare(a: Call, b: Call): number {
-		let res = compare(a.item.uri.toString(), b.item.uri.toString());
-		if (res === 0) {
-			res = Range.compareRangesUsingStarts(a.item.range, b.item.range);
+	static compawe(a: Caww, b: Caww): numba {
+		wet wes = compawe(a.item.uwi.toStwing(), b.item.uwi.toStwing());
+		if (wes === 0) {
+			wes = Wange.compaweWangesUsingStawts(a.item.wange, b.item.wange);
 		}
-		return res;
+		wetuwn wes;
 	}
 }
 
-export class DataSource implements IAsyncDataSource<CallHierarchyModel, Call> {
+expowt cwass DataSouwce impwements IAsyncDataSouwce<CawwHiewawchyModew, Caww> {
 
-	constructor(
-		public getDirection: () => CallHierarchyDirection,
+	constwuctow(
+		pubwic getDiwection: () => CawwHiewawchyDiwection,
 	) { }
 
-	hasChildren(): boolean {
-		return true;
+	hasChiwdwen(): boowean {
+		wetuwn twue;
 	}
 
-	async getChildren(element: CallHierarchyModel | Call): Promise<Call[]> {
-		if (element instanceof CallHierarchyModel) {
-			return element.roots.map(root => new Call(root, undefined, element, undefined));
+	async getChiwdwen(ewement: CawwHiewawchyModew | Caww): Pwomise<Caww[]> {
+		if (ewement instanceof CawwHiewawchyModew) {
+			wetuwn ewement.woots.map(woot => new Caww(woot, undefined, ewement, undefined));
 		}
 
-		const { model, item } = element;
+		const { modew, item } = ewement;
 
-		if (this.getDirection() === CallHierarchyDirection.CallsFrom) {
-			return (await model.resolveOutgoingCalls(item, CancellationToken.None)).map(call => {
-				return new Call(
-					call.to,
-					call.fromRanges.map(range => ({ range, uri: item.uri })),
-					model,
-					element
+		if (this.getDiwection() === CawwHiewawchyDiwection.CawwsFwom) {
+			wetuwn (await modew.wesowveOutgoingCawws(item, CancewwationToken.None)).map(caww => {
+				wetuwn new Caww(
+					caww.to,
+					caww.fwomWanges.map(wange => ({ wange, uwi: item.uwi })),
+					modew,
+					ewement
 				);
 			});
 
-		} else {
-			return (await model.resolveIncomingCalls(item, CancellationToken.None)).map(call => {
-				return new Call(
-					call.from,
-					call.fromRanges.map(range => ({ range, uri: call.from.uri })),
-					model,
-					element
+		} ewse {
+			wetuwn (await modew.wesowveIncomingCawws(item, CancewwationToken.None)).map(caww => {
+				wetuwn new Caww(
+					caww.fwom,
+					caww.fwomWanges.map(wange => ({ wange, uwi: caww.fwom.uwi })),
+					modew,
+					ewement
 				);
 			});
 		}
 	}
 }
 
-export class Sorter implements ITreeSorter<Call> {
+expowt cwass Sowta impwements ITweeSowta<Caww> {
 
-	compare(element: Call, otherElement: Call): number {
-		return Call.compare(element, otherElement);
+	compawe(ewement: Caww, othewEwement: Caww): numba {
+		wetuwn Caww.compawe(ewement, othewEwement);
 	}
 }
 
-export class IdentityProvider implements IIdentityProvider<Call> {
+expowt cwass IdentityPwovida impwements IIdentityPwovida<Caww> {
 
-	constructor(
-		public getDirection: () => CallHierarchyDirection
+	constwuctow(
+		pubwic getDiwection: () => CawwHiewawchyDiwection
 	) { }
 
-	getId(element: Call): { toString(): string; } {
-		let res = this.getDirection() + JSON.stringify(element.item.uri) + JSON.stringify(element.item.range);
-		if (element.parent) {
-			res += this.getId(element.parent);
+	getId(ewement: Caww): { toStwing(): stwing; } {
+		wet wes = this.getDiwection() + JSON.stwingify(ewement.item.uwi) + JSON.stwingify(ewement.item.wange);
+		if (ewement.pawent) {
+			wes += this.getId(ewement.pawent);
 		}
-		return res;
+		wetuwn wes;
 	}
 }
 
-class CallRenderingTemplate {
-	constructor(
-		readonly icon: HTMLDivElement,
-		readonly label: IconLabel
+cwass CawwWendewingTempwate {
+	constwuctow(
+		weadonwy icon: HTMWDivEwement,
+		weadonwy wabew: IconWabew
 	) { }
 }
 
-export class CallRenderer implements ITreeRenderer<Call, FuzzyScore, CallRenderingTemplate> {
+expowt cwass CawwWendewa impwements ITweeWendewa<Caww, FuzzyScowe, CawwWendewingTempwate> {
 
-	static readonly id = 'CallRenderer';
+	static weadonwy id = 'CawwWendewa';
 
-	templateId: string = CallRenderer.id;
+	tempwateId: stwing = CawwWendewa.id;
 
-	renderTemplate(container: HTMLElement): CallRenderingTemplate {
-		container.classList.add('callhierarchy-element');
-		let icon = document.createElement('div');
-		container.appendChild(icon);
-		const label = new IconLabel(container, { supportHighlights: true });
-		return new CallRenderingTemplate(icon, label);
+	wendewTempwate(containa: HTMWEwement): CawwWendewingTempwate {
+		containa.cwassWist.add('cawwhiewawchy-ewement');
+		wet icon = document.cweateEwement('div');
+		containa.appendChiwd(icon);
+		const wabew = new IconWabew(containa, { suppowtHighwights: twue });
+		wetuwn new CawwWendewingTempwate(icon, wabew);
 	}
 
-	renderElement(node: ITreeNode<Call, FuzzyScore>, _index: number, template: CallRenderingTemplate): void {
-		const { element, filterData } = node;
-		const deprecated = element.item.tags?.includes(SymbolTag.Deprecated);
-		template.icon.className = SymbolKinds.toCssClassName(element.item.kind, true);
-		template.label.setLabel(
-			element.item.name,
-			element.item.detail,
-			{ labelEscapeNewLines: true, matches: createMatches(filterData), strikethrough: deprecated }
+	wendewEwement(node: ITweeNode<Caww, FuzzyScowe>, _index: numba, tempwate: CawwWendewingTempwate): void {
+		const { ewement, fiwtewData } = node;
+		const depwecated = ewement.item.tags?.incwudes(SymbowTag.Depwecated);
+		tempwate.icon.cwassName = SymbowKinds.toCssCwassName(ewement.item.kind, twue);
+		tempwate.wabew.setWabew(
+			ewement.item.name,
+			ewement.item.detaiw,
+			{ wabewEscapeNewWines: twue, matches: cweateMatches(fiwtewData), stwikethwough: depwecated }
 		);
 	}
-	disposeTemplate(template: CallRenderingTemplate): void {
-		template.label.dispose();
+	disposeTempwate(tempwate: CawwWendewingTempwate): void {
+		tempwate.wabew.dispose();
 	}
 }
 
-export class VirtualDelegate implements IListVirtualDelegate<Call> {
+expowt cwass ViwtuawDewegate impwements IWistViwtuawDewegate<Caww> {
 
-	getHeight(_element: Call): number {
-		return 22;
+	getHeight(_ewement: Caww): numba {
+		wetuwn 22;
 	}
 
-	getTemplateId(_element: Call): string {
-		return CallRenderer.id;
+	getTempwateId(_ewement: Caww): stwing {
+		wetuwn CawwWendewa.id;
 	}
 }
 
-export class AccessibilityProvider implements IListAccessibilityProvider<Call> {
+expowt cwass AccessibiwityPwovida impwements IWistAccessibiwityPwovida<Caww> {
 
-	constructor(
-		public getDirection: () => CallHierarchyDirection
+	constwuctow(
+		pubwic getDiwection: () => CawwHiewawchyDiwection
 	) { }
 
-	getWidgetAriaLabel(): string {
-		return localize('tree.aria', "Call Hierarchy");
+	getWidgetAwiaWabew(): stwing {
+		wetuwn wocawize('twee.awia', "Caww Hiewawchy");
 	}
 
-	getAriaLabel(element: Call): string | null {
-		if (this.getDirection() === CallHierarchyDirection.CallsFrom) {
-			return localize('from', "calls from {0}", element.item.name);
-		} else {
-			return localize('to', "callers of {0}", element.item.name);
+	getAwiaWabew(ewement: Caww): stwing | nuww {
+		if (this.getDiwection() === CawwHiewawchyDiwection.CawwsFwom) {
+			wetuwn wocawize('fwom', "cawws fwom {0}", ewement.item.name);
+		} ewse {
+			wetuwn wocawize('to', "cawwews of {0}", ewement.item.name);
 		}
 	}
 }

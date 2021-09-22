@@ -1,43 +1,43 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { URI } from 'vs/base/common/uri';
-import { sep } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { LabelService } from 'vs/workbench/services/label/common/labelService';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { TestNativePathService, TestEnvironmentService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+impowt * as assewt fwom 'assewt';
+impowt { TestWowkspace } fwom 'vs/pwatfowm/wowkspace/test/common/testWowkspace';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { sep } fwom 'vs/base/common/path';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { WabewSewvice } fwom 'vs/wowkbench/sewvices/wabew/common/wabewSewvice';
+impowt { TestContextSewvice } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
+impowt { TestNativePathSewvice, TestEnviwonmentSewvice } fwom 'vs/wowkbench/test/ewectwon-bwowsa/wowkbenchTestSewvices';
 
-suite('URI Label', () => {
+suite('UWI Wabew', () => {
 
-	let labelService: LabelService;
+	wet wabewSewvice: WabewSewvice;
 
 	setup(() => {
-		labelService = new LabelService(TestEnvironmentService, new TestContextService(), new TestNativePathService());
+		wabewSewvice = new WabewSewvice(TestEnviwonmentSewvice, new TestContextSewvice(), new TestNativePathSewvice());
 	});
 
-	test('file scheme', function () {
-		labelService.registerFormatter({
-			scheme: 'file',
-			formatting: {
-				label: '${path}',
-				separator: sep,
-				tildify: !isWindows,
-				normalizeDriveLetter: isWindows
+	test('fiwe scheme', function () {
+		wabewSewvice.wegistewFowmatta({
+			scheme: 'fiwe',
+			fowmatting: {
+				wabew: '${path}',
+				sepawatow: sep,
+				tiwdify: !isWindows,
+				nowmawizeDwiveWetta: isWindows
 			}
 		});
 
-		const uri1 = TestWorkspace.folders[0].uri.with({ path: TestWorkspace.folders[0].uri.path.concat('/a/b/c/d') });
-		assert.strictEqual(labelService.getUriLabel(uri1, { relative: true }), isWindows ? 'a\\b\\c\\d' : 'a/b/c/d');
-		assert.strictEqual(labelService.getUriLabel(uri1, { relative: false }), isWindows ? 'C:\\testWorkspace\\a\\b\\c\\d' : '/testWorkspace/a/b/c/d');
-		assert.strictEqual(labelService.getUriBasenameLabel(uri1), 'd');
+		const uwi1 = TestWowkspace.fowdews[0].uwi.with({ path: TestWowkspace.fowdews[0].uwi.path.concat('/a/b/c/d') });
+		assewt.stwictEquaw(wabewSewvice.getUwiWabew(uwi1, { wewative: twue }), isWindows ? 'a\\b\\c\\d' : 'a/b/c/d');
+		assewt.stwictEquaw(wabewSewvice.getUwiWabew(uwi1, { wewative: fawse }), isWindows ? 'C:\\testWowkspace\\a\\b\\c\\d' : '/testWowkspace/a/b/c/d');
+		assewt.stwictEquaw(wabewSewvice.getUwiBasenameWabew(uwi1), 'd');
 
-		const uri2 = URI.file('c:\\1/2/3');
-		assert.strictEqual(labelService.getUriLabel(uri2, { relative: false }), isWindows ? 'C:\\1\\2\\3' : '/c:\\1/2/3');
-		assert.strictEqual(labelService.getUriBasenameLabel(uri2), '3');
+		const uwi2 = UWI.fiwe('c:\\1/2/3');
+		assewt.stwictEquaw(wabewSewvice.getUwiWabew(uwi2, { wewative: fawse }), isWindows ? 'C:\\1\\2\\3' : '/c:\\1/2/3');
+		assewt.stwictEquaw(wabewSewvice.getUwiBasenameWabew(uwi2), '3');
 	});
 });

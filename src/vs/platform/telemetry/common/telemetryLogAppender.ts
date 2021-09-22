@@ -1,40 +1,40 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ILogger, ILoggerService } from 'vs/platform/log/common/log';
-import { ITelemetryAppender, validateTelemetryData } from 'vs/platform/telemetry/common/telemetryUtils';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IWogga, IWoggewSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { ITewemetwyAppenda, vawidateTewemetwyData } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
 
-export class TelemetryLogAppender extends Disposable implements ITelemetryAppender {
+expowt cwass TewemetwyWogAppenda extends Disposabwe impwements ITewemetwyAppenda {
 
-	private readonly logger: ILogger;
+	pwivate weadonwy wogga: IWogga;
 
-	constructor(
-		@ILoggerService loggerService: ILoggerService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		private readonly prefix: string = '',
+	constwuctow(
+		@IWoggewSewvice woggewSewvice: IWoggewSewvice,
+		@IEnviwonmentSewvice enviwonmentSewvice: IEnviwonmentSewvice,
+		pwivate weadonwy pwefix: stwing = '',
 	) {
-		super();
+		supa();
 
-		const logger = loggerService.getLogger(environmentService.telemetryLogResource);
-		if (logger) {
-			this.logger = this._register(logger);
-		} else {
-			this.logger = this._register(loggerService.createLogger(environmentService.telemetryLogResource));
-			this.logger.info('The below are logs for every telemetry event sent from VS Code once the log level is set to trace.');
-			this.logger.info('===========================================================');
+		const wogga = woggewSewvice.getWogga(enviwonmentSewvice.tewemetwyWogWesouwce);
+		if (wogga) {
+			this.wogga = this._wegista(wogga);
+		} ewse {
+			this.wogga = this._wegista(woggewSewvice.cweateWogga(enviwonmentSewvice.tewemetwyWogWesouwce));
+			this.wogga.info('The bewow awe wogs fow evewy tewemetwy event sent fwom VS Code once the wog wevew is set to twace.');
+			this.wogga.info('===========================================================');
 		}
 	}
 
-	flush(): Promise<any> {
-		return Promise.resolve(undefined);
+	fwush(): Pwomise<any> {
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	log(eventName: string, data: any): void {
-		this.logger.trace(`${this.prefix}telemetry/${eventName}`, validateTelemetryData(data));
+	wog(eventName: stwing, data: any): void {
+		this.wogga.twace(`${this.pwefix}tewemetwy/${eventName}`, vawidateTewemetwyData(data));
 	}
 }
 

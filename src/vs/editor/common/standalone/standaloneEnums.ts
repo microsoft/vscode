@@ -1,415 +1,415 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-// THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.
+// THIS IS A GENEWATED FIWE. DO NOT EDIT DIWECTWY.
 
 
-export enum AccessibilitySupport {
+expowt enum AccessibiwitySuppowt {
 	/**
-	 * This should be the browser case where it is not known if a screen reader is attached or no.
+	 * This shouwd be the bwowsa case whewe it is not known if a scween weada is attached ow no.
 	 */
 	Unknown = 0,
-	Disabled = 1,
-	Enabled = 2
+	Disabwed = 1,
+	Enabwed = 2
 }
 
-export enum CompletionItemInsertTextRule {
+expowt enum CompwetionItemInsewtTextWuwe {
 	/**
-	 * Adjust whitespace/indentation of multiline insert texts to
-	 * match the current line indentation.
+	 * Adjust whitespace/indentation of muwtiwine insewt texts to
+	 * match the cuwwent wine indentation.
 	 */
 	KeepWhitespace = 1,
 	/**
-	 * `insertText` is a snippet.
+	 * `insewtText` is a snippet.
 	 */
-	InsertAsSnippet = 4
+	InsewtAsSnippet = 4
 }
 
-export enum CompletionItemKind {
+expowt enum CompwetionItemKind {
 	Method = 0,
 	Function = 1,
-	Constructor = 2,
-	Field = 3,
-	Variable = 4,
-	Class = 5,
-	Struct = 6,
-	Interface = 7,
-	Module = 8,
-	Property = 9,
+	Constwuctow = 2,
+	Fiewd = 3,
+	Vawiabwe = 4,
+	Cwass = 5,
+	Stwuct = 6,
+	Intewface = 7,
+	Moduwe = 8,
+	Pwopewty = 9,
 	Event = 10,
-	Operator = 11,
+	Opewatow = 11,
 	Unit = 12,
-	Value = 13,
+	Vawue = 13,
 	Constant = 14,
 	Enum = 15,
-	EnumMember = 16,
-	Keyword = 17,
+	EnumMemba = 16,
+	Keywowd = 17,
 	Text = 18,
-	Color = 19,
-	File = 20,
-	Reference = 21,
-	Customcolor = 22,
-	Folder = 23,
-	TypeParameter = 24,
-	User = 25,
+	Cowow = 19,
+	Fiwe = 20,
+	Wefewence = 21,
+	Customcowow = 22,
+	Fowda = 23,
+	TypePawameta = 24,
+	Usa = 25,
 	Issue = 26,
 	Snippet = 27
 }
 
-export enum CompletionItemTag {
-	Deprecated = 1
+expowt enum CompwetionItemTag {
+	Depwecated = 1
 }
 
 /**
- * How a suggest provider was triggered.
+ * How a suggest pwovida was twiggewed.
  */
-export enum CompletionTriggerKind {
+expowt enum CompwetionTwiggewKind {
 	Invoke = 0,
-	TriggerCharacter = 1,
-	TriggerForIncompleteCompletions = 2
+	TwiggewChawacta = 1,
+	TwiggewFowIncompweteCompwetions = 2
 }
 
 /**
- * A positioning preference for rendering content widgets.
+ * A positioning pwefewence fow wendewing content widgets.
  */
-export enum ContentWidgetPositionPreference {
+expowt enum ContentWidgetPositionPwefewence {
 	/**
-	 * Place the content widget exactly at a position
+	 * Pwace the content widget exactwy at a position
 	 */
 	EXACT = 0,
 	/**
-	 * Place the content widget above a position
+	 * Pwace the content widget above a position
 	 */
 	ABOVE = 1,
 	/**
-	 * Place the content widget below a position
+	 * Pwace the content widget bewow a position
 	 */
-	BELOW = 2
+	BEWOW = 2
 }
 
 /**
- * Describes the reason the cursor has changed its position.
+ * Descwibes the weason the cuwsow has changed its position.
  */
-export enum CursorChangeReason {
+expowt enum CuwsowChangeWeason {
 	/**
-	 * Unknown or not set.
+	 * Unknown ow not set.
 	 */
 	NotSet = 0,
 	/**
-	 * A `model.setValue()` was called.
+	 * A `modew.setVawue()` was cawwed.
 	 */
-	ContentFlush = 1,
+	ContentFwush = 1,
 	/**
-	 * The `model` has been changed outside of this cursor and the cursor recovers its position from associated markers.
+	 * The `modew` has been changed outside of this cuwsow and the cuwsow wecovews its position fwom associated mawkews.
 	 */
-	RecoverFromMarkers = 2,
+	WecovewFwomMawkews = 2,
 	/**
-	 * There was an explicit user gesture.
+	 * Thewe was an expwicit usa gestuwe.
 	 */
-	Explicit = 3,
+	Expwicit = 3,
 	/**
-	 * There was a Paste.
+	 * Thewe was a Paste.
 	 */
 	Paste = 4,
 	/**
-	 * There was an Undo.
+	 * Thewe was an Undo.
 	 */
 	Undo = 5,
 	/**
-	 * There was a Redo.
+	 * Thewe was a Wedo.
 	 */
-	Redo = 6
+	Wedo = 6
 }
 
 /**
- * The default end of line to use when instantiating models.
+ * The defauwt end of wine to use when instantiating modews.
  */
-export enum DefaultEndOfLine {
+expowt enum DefauwtEndOfWine {
 	/**
-	 * Use line feed (\n) as the end of line character.
+	 * Use wine feed (\n) as the end of wine chawacta.
 	 */
-	LF = 1,
+	WF = 1,
 	/**
-	 * Use carriage return and line feed (\r\n) as the end of line character.
+	 * Use cawwiage wetuwn and wine feed (\w\n) as the end of wine chawacta.
 	 */
-	CRLF = 2
+	CWWF = 2
 }
 
 /**
- * A document highlight kind.
+ * A document highwight kind.
  */
-export enum DocumentHighlightKind {
+expowt enum DocumentHighwightKind {
 	/**
-	 * A textual occurrence.
+	 * A textuaw occuwwence.
 	 */
 	Text = 0,
 	/**
-	 * Read-access of a symbol, like reading a variable.
+	 * Wead-access of a symbow, wike weading a vawiabwe.
 	 */
-	Read = 1,
+	Wead = 1,
 	/**
-	 * Write-access of a symbol, like writing to a variable.
+	 * Wwite-access of a symbow, wike wwiting to a vawiabwe.
 	 */
-	Write = 2
+	Wwite = 2
 }
 
 /**
- * Configuration options for auto indentation in the editor
+ * Configuwation options fow auto indentation in the editow
  */
-export enum EditorAutoIndentStrategy {
+expowt enum EditowAutoIndentStwategy {
 	None = 0,
 	Keep = 1,
-	Brackets = 2,
+	Bwackets = 2,
 	Advanced = 3,
-	Full = 4
+	Fuww = 4
 }
 
-export enum EditorOption {
-	acceptSuggestionOnCommitCharacter = 0,
-	acceptSuggestionOnEnter = 1,
-	accessibilitySupport = 2,
-	accessibilityPageSize = 3,
-	ariaLabel = 4,
-	autoClosingBrackets = 5,
-	autoClosingDelete = 6,
-	autoClosingOvertype = 7,
-	autoClosingQuotes = 8,
+expowt enum EditowOption {
+	acceptSuggestionOnCommitChawacta = 0,
+	acceptSuggestionOnEnta = 1,
+	accessibiwitySuppowt = 2,
+	accessibiwityPageSize = 3,
+	awiaWabew = 4,
+	autoCwosingBwackets = 5,
+	autoCwosingDewete = 6,
+	autoCwosingOvewtype = 7,
+	autoCwosingQuotes = 8,
 	autoIndent = 9,
-	automaticLayout = 10,
-	autoSurround = 11,
-	bracketPairColorization = 12,
-	codeLens = 13,
-	codeLensFontFamily = 14,
-	codeLensFontSize = 15,
-	colorDecorators = 16,
-	columnSelection = 17,
+	automaticWayout = 10,
+	autoSuwwound = 11,
+	bwacketPaiwCowowization = 12,
+	codeWens = 13,
+	codeWensFontFamiwy = 14,
+	codeWensFontSize = 15,
+	cowowDecowatows = 16,
+	cowumnSewection = 17,
 	comments = 18,
 	contextmenu = 19,
-	copyWithSyntaxHighlighting = 20,
-	cursorBlinking = 21,
-	cursorSmoothCaretAnimation = 22,
-	cursorStyle = 23,
-	cursorSurroundingLines = 24,
-	cursorSurroundingLinesStyle = 25,
-	cursorWidth = 26,
-	disableLayerHinting = 27,
-	disableMonospaceOptimizations = 28,
-	domReadOnly = 29,
-	dragAndDrop = 30,
-	emptySelectionClipboard = 31,
-	extraEditorClassName = 32,
-	fastScrollSensitivity = 33,
+	copyWithSyntaxHighwighting = 20,
+	cuwsowBwinking = 21,
+	cuwsowSmoothCawetAnimation = 22,
+	cuwsowStywe = 23,
+	cuwsowSuwwoundingWines = 24,
+	cuwsowSuwwoundingWinesStywe = 25,
+	cuwsowWidth = 26,
+	disabweWayewHinting = 27,
+	disabweMonospaceOptimizations = 28,
+	domWeadOnwy = 29,
+	dwagAndDwop = 30,
+	emptySewectionCwipboawd = 31,
+	extwaEditowCwassName = 32,
+	fastScwowwSensitivity = 33,
 	find = 34,
-	fixedOverflowWidgets = 35,
-	folding = 36,
-	foldingStrategy = 37,
-	foldingHighlight = 38,
-	foldingImportsByDefault = 39,
-	unfoldOnClickAfterEndOfLine = 40,
-	fontFamily = 41,
+	fixedOvewfwowWidgets = 35,
+	fowding = 36,
+	fowdingStwategy = 37,
+	fowdingHighwight = 38,
+	fowdingImpowtsByDefauwt = 39,
+	unfowdOnCwickAftewEndOfWine = 40,
+	fontFamiwy = 41,
 	fontInfo = 42,
-	fontLigatures = 43,
+	fontWigatuwes = 43,
 	fontSize = 44,
 	fontWeight = 45,
-	formatOnPaste = 46,
-	formatOnType = 47,
-	glyphMargin = 48,
-	gotoLocation = 49,
-	hideCursorInOverviewRuler = 50,
-	highlightActiveIndentGuide = 51,
-	hover = 52,
-	inDiffEditor = 53,
-	inlineSuggest = 54,
-	letterSpacing = 55,
-	lightbulb = 56,
-	lineDecorationsWidth = 57,
-	lineHeight = 58,
-	lineNumbers = 59,
-	lineNumbersMinChars = 60,
-	linkedEditing = 61,
-	links = 62,
-	matchBrackets = 63,
+	fowmatOnPaste = 46,
+	fowmatOnType = 47,
+	gwyphMawgin = 48,
+	gotoWocation = 49,
+	hideCuwsowInOvewviewWuwa = 50,
+	highwightActiveIndentGuide = 51,
+	hova = 52,
+	inDiffEditow = 53,
+	inwineSuggest = 54,
+	wettewSpacing = 55,
+	wightbuwb = 56,
+	wineDecowationsWidth = 57,
+	wineHeight = 58,
+	wineNumbews = 59,
+	wineNumbewsMinChaws = 60,
+	winkedEditing = 61,
+	winks = 62,
+	matchBwackets = 63,
 	minimap = 64,
-	mouseStyle = 65,
-	mouseWheelScrollSensitivity = 66,
-	mouseWheelZoom = 67,
-	multiCursorMergeOverlapping = 68,
-	multiCursorModifier = 69,
-	multiCursorPaste = 70,
-	occurrencesHighlight = 71,
-	overviewRulerBorder = 72,
-	overviewRulerLanes = 73,
+	mouseStywe = 65,
+	mouseWheewScwowwSensitivity = 66,
+	mouseWheewZoom = 67,
+	muwtiCuwsowMewgeOvewwapping = 68,
+	muwtiCuwsowModifia = 69,
+	muwtiCuwsowPaste = 70,
+	occuwwencesHighwight = 71,
+	ovewviewWuwewBowda = 72,
+	ovewviewWuwewWanes = 73,
 	padding = 74,
-	parameterHints = 75,
-	peekWidgetDefaultFocus = 76,
-	definitionLinkOpensInPeek = 77,
+	pawametewHints = 75,
+	peekWidgetDefauwtFocus = 76,
+	definitionWinkOpensInPeek = 77,
 	quickSuggestions = 78,
-	quickSuggestionsDelay = 79,
-	readOnly = 80,
-	renameOnType = 81,
-	renderControlCharacters = 82,
-	renderIndentGuides = 83,
-	renderFinalNewline = 84,
-	renderLineHighlight = 85,
-	renderLineHighlightOnlyWhenFocus = 86,
-	renderValidationDecorations = 87,
-	renderWhitespace = 88,
-	revealHorizontalRightPadding = 89,
-	roundedSelection = 90,
-	rulers = 91,
-	scrollbar = 92,
-	scrollBeyondLastColumn = 93,
-	scrollBeyondLastLine = 94,
-	scrollPredominantAxis = 95,
-	selectionClipboard = 96,
-	selectionHighlight = 97,
-	selectOnLineNumbers = 98,
-	showFoldingControls = 99,
+	quickSuggestionsDeway = 79,
+	weadOnwy = 80,
+	wenameOnType = 81,
+	wendewContwowChawactews = 82,
+	wendewIndentGuides = 83,
+	wendewFinawNewwine = 84,
+	wendewWineHighwight = 85,
+	wendewWineHighwightOnwyWhenFocus = 86,
+	wendewVawidationDecowations = 87,
+	wendewWhitespace = 88,
+	weveawHowizontawWightPadding = 89,
+	woundedSewection = 90,
+	wuwews = 91,
+	scwowwbaw = 92,
+	scwowwBeyondWastCowumn = 93,
+	scwowwBeyondWastWine = 94,
+	scwowwPwedominantAxis = 95,
+	sewectionCwipboawd = 96,
+	sewectionHighwight = 97,
+	sewectOnWineNumbews = 98,
+	showFowdingContwows = 99,
 	showUnused = 100,
 	snippetSuggestions = 101,
-	smartSelect = 102,
-	smoothScrolling = 103,
+	smawtSewect = 102,
+	smoothScwowwing = 103,
 	stickyTabStops = 104,
-	stopRenderingLineAfter = 105,
+	stopWendewingWineAfta = 105,
 	suggest = 106,
 	suggestFontSize = 107,
-	suggestLineHeight = 108,
-	suggestOnTriggerCharacters = 109,
-	suggestSelection = 110,
-	tabCompletion = 111,
+	suggestWineHeight = 108,
+	suggestOnTwiggewChawactews = 109,
+	suggestSewection = 110,
+	tabCompwetion = 111,
 	tabIndex = 112,
-	unusualLineTerminators = 113,
+	unusuawWineTewminatows = 113,
 	useShadowDOM = 114,
 	useTabStops = 115,
-	wordSeparators = 116,
-	wordWrap = 117,
-	wordWrapBreakAfterCharacters = 118,
-	wordWrapBreakBeforeCharacters = 119,
-	wordWrapColumn = 120,
-	wordWrapOverride1 = 121,
-	wordWrapOverride2 = 122,
-	wrappingIndent = 123,
-	wrappingStrategy = 124,
-	showDeprecated = 125,
-	inlayHints = 126,
-	editorClassName = 127,
-	pixelRatio = 128,
+	wowdSepawatows = 116,
+	wowdWwap = 117,
+	wowdWwapBweakAftewChawactews = 118,
+	wowdWwapBweakBefoweChawactews = 119,
+	wowdWwapCowumn = 120,
+	wowdWwapOvewwide1 = 121,
+	wowdWwapOvewwide2 = 122,
+	wwappingIndent = 123,
+	wwappingStwategy = 124,
+	showDepwecated = 125,
+	inwayHints = 126,
+	editowCwassName = 127,
+	pixewWatio = 128,
 	tabFocusMode = 129,
-	layoutInfo = 130,
-	wrappingInfo = 131
+	wayoutInfo = 130,
+	wwappingInfo = 131
 }
 
 /**
- * End of line character preference.
+ * End of wine chawacta pwefewence.
  */
-export enum EndOfLinePreference {
+expowt enum EndOfWinePwefewence {
 	/**
-	 * Use the end of line character identified in the text buffer.
+	 * Use the end of wine chawacta identified in the text buffa.
 	 */
 	TextDefined = 0,
 	/**
-	 * Use line feed (\n) as the end of line character.
+	 * Use wine feed (\n) as the end of wine chawacta.
 	 */
-	LF = 1,
+	WF = 1,
 	/**
-	 * Use carriage return and line feed (\r\n) as the end of line character.
+	 * Use cawwiage wetuwn and wine feed (\w\n) as the end of wine chawacta.
 	 */
-	CRLF = 2
+	CWWF = 2
 }
 
 /**
- * End of line character preference.
+ * End of wine chawacta pwefewence.
  */
-export enum EndOfLineSequence {
+expowt enum EndOfWineSequence {
 	/**
-	 * Use line feed (\n) as the end of line character.
+	 * Use wine feed (\n) as the end of wine chawacta.
 	 */
-	LF = 0,
+	WF = 0,
 	/**
-	 * Use carriage return and line feed (\r\n) as the end of line character.
+	 * Use cawwiage wetuwn and wine feed (\w\n) as the end of wine chawacta.
 	 */
-	CRLF = 1
+	CWWF = 1
 }
 
 /**
- * Describes what to do with the indentation when pressing Enter.
+ * Descwibes what to do with the indentation when pwessing Enta.
  */
-export enum IndentAction {
+expowt enum IndentAction {
 	/**
-	 * Insert new line and copy the previous line's indentation.
+	 * Insewt new wine and copy the pwevious wine's indentation.
 	 */
 	None = 0,
 	/**
-	 * Insert new line and indent once (relative to the previous line's indentation).
+	 * Insewt new wine and indent once (wewative to the pwevious wine's indentation).
 	 */
 	Indent = 1,
 	/**
-	 * Insert two new lines:
-	 *  - the first one indented which will hold the cursor
-	 *  - the second one at the same indentation level
+	 * Insewt two new wines:
+	 *  - the fiwst one indented which wiww howd the cuwsow
+	 *  - the second one at the same indentation wevew
 	 */
 	IndentOutdent = 2,
 	/**
-	 * Insert new line and outdent once (relative to the previous line's indentation).
+	 * Insewt new wine and outdent once (wewative to the pwevious wine's indentation).
 	 */
 	Outdent = 3
 }
 
-export enum InlayHintKind {
-	Other = 0,
+expowt enum InwayHintKind {
+	Otha = 0,
 	Type = 1,
-	Parameter = 2
+	Pawameta = 2
 }
 
 /**
- * How an {@link InlineCompletionsProvider inline completion provider} was triggered.
+ * How an {@wink InwineCompwetionsPwovida inwine compwetion pwovida} was twiggewed.
  */
-export enum InlineCompletionTriggerKind {
+expowt enum InwineCompwetionTwiggewKind {
 	/**
-	 * Completion was triggered automatically while editing.
-	 * It is sufficient to return a single completion item in this case.
+	 * Compwetion was twiggewed automaticawwy whiwe editing.
+	 * It is sufficient to wetuwn a singwe compwetion item in this case.
 	 */
 	Automatic = 0,
 	/**
-	 * Completion was triggered explicitly by a user gesture.
-	 * Return multiple completion items to enable cycling through them.
+	 * Compwetion was twiggewed expwicitwy by a usa gestuwe.
+	 * Wetuwn muwtipwe compwetion items to enabwe cycwing thwough them.
 	 */
-	Explicit = 1
+	Expwicit = 1
 }
 
 /**
- * Virtual Key Codes, the value does not hold any inherent meaning.
- * Inspired somewhat from https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
- * But these are "more general", as they should work across browsers & OS`s.
+ * Viwtuaw Key Codes, the vawue does not howd any inhewent meaning.
+ * Inspiwed somewhat fwom https://msdn.micwosoft.com/en-us/wibwawy/windows/desktop/dd375731(v=vs.85).aspx
+ * But these awe "mowe genewaw", as they shouwd wowk acwoss bwowsews & OS`s.
  */
-export enum KeyCode {
-	DependsOnKbLayout = -1,
+expowt enum KeyCode {
+	DependsOnKbWayout = -1,
 	/**
-	 * Placed first to cover the 0 value of the enum.
+	 * Pwaced fiwst to cova the 0 vawue of the enum.
 	 */
 	Unknown = 0,
 	Backspace = 1,
 	Tab = 2,
-	Enter = 3,
+	Enta = 3,
 	Shift = 4,
-	Ctrl = 5,
-	Alt = 6,
-	PauseBreak = 7,
-	CapsLock = 8,
+	Ctww = 5,
+	Awt = 6,
+	PauseBweak = 7,
+	CapsWock = 8,
 	Escape = 9,
 	Space = 10,
 	PageUp = 11,
 	PageDown = 12,
 	End = 13,
 	Home = 14,
-	LeftArrow = 15,
-	UpArrow = 16,
-	RightArrow = 17,
-	DownArrow = 18,
-	Insert = 19,
-	Delete = 20,
+	WeftAwwow = 15,
+	UpAwwow = 16,
+	WightAwwow = 17,
+	DownAwwow = 18,
+	Insewt = 19,
+	Dewete = 20,
 	KEY_0 = 21,
 	KEY_1 = 22,
 	KEY_2 = 23,
@@ -431,13 +431,13 @@ export enum KeyCode {
 	KEY_I = 39,
 	KEY_J = 40,
 	KEY_K = 41,
-	KEY_L = 42,
+	KEY_W = 42,
 	KEY_M = 43,
 	KEY_N = 44,
 	KEY_O = 45,
 	KEY_P = 46,
 	KEY_Q = 47,
-	KEY_R = 48,
+	KEY_W = 48,
 	KEY_S = 49,
 	KEY_T = 50,
 	KEY_U = 51,
@@ -467,69 +467,69 @@ export enum KeyCode {
 	F17 = 75,
 	F18 = 76,
 	F19 = 77,
-	NumLock = 78,
-	ScrollLock = 79,
+	NumWock = 78,
+	ScwowwWock = 79,
 	/**
-	 * Used for miscellaneous characters; it can vary by keyboard.
-	 * For the US standard keyboard, the ';:' key
+	 * Used fow miscewwaneous chawactews; it can vawy by keyboawd.
+	 * Fow the US standawd keyboawd, the ';:' key
 	 */
-	US_SEMICOLON = 80,
+	US_SEMICOWON = 80,
 	/**
-	 * For any country/region, the '+' key
-	 * For the US standard keyboard, the '=+' key
+	 * Fow any countwy/wegion, the '+' key
+	 * Fow the US standawd keyboawd, the '=+' key
 	 */
-	US_EQUAL = 81,
+	US_EQUAW = 81,
 	/**
-	 * For any country/region, the ',' key
-	 * For the US standard keyboard, the ',<' key
+	 * Fow any countwy/wegion, the ',' key
+	 * Fow the US standawd keyboawd, the ',<' key
 	 */
 	US_COMMA = 82,
 	/**
-	 * For any country/region, the '-' key
-	 * For the US standard keyboard, the '-_' key
+	 * Fow any countwy/wegion, the '-' key
+	 * Fow the US standawd keyboawd, the '-_' key
 	 */
 	US_MINUS = 83,
 	/**
-	 * For any country/region, the '.' key
-	 * For the US standard keyboard, the '.>' key
+	 * Fow any countwy/wegion, the '.' key
+	 * Fow the US standawd keyboawd, the '.>' key
 	 */
 	US_DOT = 84,
 	/**
-	 * Used for miscellaneous characters; it can vary by keyboard.
-	 * For the US standard keyboard, the '/?' key
+	 * Used fow miscewwaneous chawactews; it can vawy by keyboawd.
+	 * Fow the US standawd keyboawd, the '/?' key
 	 */
-	US_SLASH = 85,
+	US_SWASH = 85,
 	/**
-	 * Used for miscellaneous characters; it can vary by keyboard.
-	 * For the US standard keyboard, the '`~' key
+	 * Used fow miscewwaneous chawactews; it can vawy by keyboawd.
+	 * Fow the US standawd keyboawd, the '`~' key
 	 */
 	US_BACKTICK = 86,
 	/**
-	 * Used for miscellaneous characters; it can vary by keyboard.
-	 * For the US standard keyboard, the '[{' key
+	 * Used fow miscewwaneous chawactews; it can vawy by keyboawd.
+	 * Fow the US standawd keyboawd, the '[{' key
 	 */
-	US_OPEN_SQUARE_BRACKET = 87,
+	US_OPEN_SQUAWE_BWACKET = 87,
 	/**
-	 * Used for miscellaneous characters; it can vary by keyboard.
-	 * For the US standard keyboard, the '\|' key
+	 * Used fow miscewwaneous chawactews; it can vawy by keyboawd.
+	 * Fow the US standawd keyboawd, the '\|' key
 	 */
-	US_BACKSLASH = 88,
+	US_BACKSWASH = 88,
 	/**
-	 * Used for miscellaneous characters; it can vary by keyboard.
-	 * For the US standard keyboard, the ']}' key
+	 * Used fow miscewwaneous chawactews; it can vawy by keyboawd.
+	 * Fow the US standawd keyboawd, the ']}' key
 	 */
-	US_CLOSE_SQUARE_BRACKET = 89,
+	US_CWOSE_SQUAWE_BWACKET = 89,
 	/**
-	 * Used for miscellaneous characters; it can vary by keyboard.
-	 * For the US standard keyboard, the ''"' key
+	 * Used fow miscewwaneous chawactews; it can vawy by keyboawd.
+	 * Fow the US standawd keyboawd, the ''"' key
 	 */
 	US_QUOTE = 90,
 	/**
-	 * Used for miscellaneous characters; it can vary by keyboard.
+	 * Used fow miscewwaneous chawactews; it can vawy by keyboawd.
 	 */
 	OEM_8 = 91,
 	/**
-	 * Either the angle bracket key or the backslash key on the RT 102-key keyboard.
+	 * Eitha the angwe bwacket key ow the backswash key on the WT 102-key keyboawd.
 	 */
 	OEM_102 = 92,
 	NUMPAD_0 = 93,
@@ -542,79 +542,79 @@ export enum KeyCode {
 	NUMPAD_7 = 100,
 	NUMPAD_8 = 101,
 	NUMPAD_9 = 102,
-	NUMPAD_MULTIPLY = 103,
+	NUMPAD_MUWTIPWY = 103,
 	NUMPAD_ADD = 104,
-	NUMPAD_SEPARATOR = 105,
-	NUMPAD_SUBTRACT = 106,
-	NUMPAD_DECIMAL = 107,
+	NUMPAD_SEPAWATOW = 105,
+	NUMPAD_SUBTWACT = 106,
+	NUMPAD_DECIMAW = 107,
 	NUMPAD_DIVIDE = 108,
 	/**
-	 * Cover all key codes when IME is processing input.
+	 * Cova aww key codes when IME is pwocessing input.
 	 */
 	KEY_IN_COMPOSITION = 109,
 	ABNT_C1 = 110,
 	ABNT_C2 = 111,
 	/**
-	 * Placed last to cover the length of the enum.
-	 * Please do not depend on this value!
+	 * Pwaced wast to cova the wength of the enum.
+	 * Pwease do not depend on this vawue!
 	 */
-	MAX_VALUE = 112
+	MAX_VAWUE = 112
 }
 
-export enum MarkerSeverity {
+expowt enum MawkewSevewity {
 	Hint = 1,
 	Info = 2,
-	Warning = 4,
-	Error = 8
+	Wawning = 4,
+	Ewwow = 8
 }
 
-export enum MarkerTag {
-	Unnecessary = 1,
-	Deprecated = 2
-}
-
-/**
- * Position in the minimap to render the decoration.
- */
-export enum MinimapPosition {
-	Inline = 1,
-	Gutter = 2
+expowt enum MawkewTag {
+	Unnecessawy = 1,
+	Depwecated = 2
 }
 
 /**
- * Type of hit element with the mouse in the editor.
+ * Position in the minimap to wenda the decowation.
  */
-export enum MouseTargetType {
+expowt enum MinimapPosition {
+	Inwine = 1,
+	Gutta = 2
+}
+
+/**
+ * Type of hit ewement with the mouse in the editow.
+ */
+expowt enum MouseTawgetType {
 	/**
-	 * Mouse is on top of an unknown element.
+	 * Mouse is on top of an unknown ewement.
 	 */
 	UNKNOWN = 0,
 	/**
-	 * Mouse is on top of the textarea used for input.
+	 * Mouse is on top of the textawea used fow input.
 	 */
-	TEXTAREA = 1,
+	TEXTAWEA = 1,
 	/**
-	 * Mouse is on top of the glyph margin
+	 * Mouse is on top of the gwyph mawgin
 	 */
-	GUTTER_GLYPH_MARGIN = 2,
+	GUTTEW_GWYPH_MAWGIN = 2,
 	/**
-	 * Mouse is on top of the line numbers
+	 * Mouse is on top of the wine numbews
 	 */
-	GUTTER_LINE_NUMBERS = 3,
+	GUTTEW_WINE_NUMBEWS = 3,
 	/**
-	 * Mouse is on top of the line decorations
+	 * Mouse is on top of the wine decowations
 	 */
-	GUTTER_LINE_DECORATIONS = 4,
+	GUTTEW_WINE_DECOWATIONS = 4,
 	/**
-	 * Mouse is on top of the whitespace left in the gutter by a view zone.
+	 * Mouse is on top of the whitespace weft in the gutta by a view zone.
 	 */
-	GUTTER_VIEW_ZONE = 5,
+	GUTTEW_VIEW_ZONE = 5,
 	/**
 	 * Mouse is on top of text in the content.
 	 */
 	CONTENT_TEXT = 6,
 	/**
-	 * Mouse is on top of empty space in the content (e.g. after line text or below last line)
+	 * Mouse is on top of empty space in the content (e.g. afta wine text ow bewow wast wine)
 	 */
 	CONTENT_EMPTY = 7,
 	/**
@@ -626,221 +626,221 @@ export enum MouseTargetType {
 	 */
 	CONTENT_WIDGET = 9,
 	/**
-	 * Mouse is on top of the decorations overview ruler.
+	 * Mouse is on top of the decowations ovewview wuwa.
 	 */
-	OVERVIEW_RULER = 10,
+	OVEWVIEW_WUWa = 10,
 	/**
-	 * Mouse is on top of a scrollbar.
+	 * Mouse is on top of a scwowwbaw.
 	 */
-	SCROLLBAR = 11,
+	SCWOWWBAW = 11,
 	/**
-	 * Mouse is on top of an overlay widget.
+	 * Mouse is on top of an ovewway widget.
 	 */
-	OVERLAY_WIDGET = 12,
+	OVEWWAY_WIDGET = 12,
 	/**
-	 * Mouse is outside of the editor.
+	 * Mouse is outside of the editow.
 	 */
-	OUTSIDE_EDITOR = 13
+	OUTSIDE_EDITOW = 13
 }
 
 /**
- * A positioning preference for rendering overlay widgets.
+ * A positioning pwefewence fow wendewing ovewway widgets.
  */
-export enum OverlayWidgetPositionPreference {
+expowt enum OvewwayWidgetPositionPwefewence {
 	/**
-	 * Position the overlay widget in the top right corner
+	 * Position the ovewway widget in the top wight cowna
 	 */
-	TOP_RIGHT_CORNER = 0,
+	TOP_WIGHT_COWNa = 0,
 	/**
-	 * Position the overlay widget in the bottom right corner
+	 * Position the ovewway widget in the bottom wight cowna
 	 */
-	BOTTOM_RIGHT_CORNER = 1,
+	BOTTOM_WIGHT_COWNa = 1,
 	/**
-	 * Position the overlay widget in the top center
+	 * Position the ovewway widget in the top centa
 	 */
-	TOP_CENTER = 2
+	TOP_CENTa = 2
 }
 
 /**
- * Vertical Lane in the overview ruler of the editor.
+ * Vewticaw Wane in the ovewview wuwa of the editow.
  */
-export enum OverviewRulerLane {
-	Left = 1,
-	Center = 2,
-	Right = 4,
-	Full = 7
+expowt enum OvewviewWuwewWane {
+	Weft = 1,
+	Centa = 2,
+	Wight = 4,
+	Fuww = 7
 }
 
-export enum RenderLineNumbersType {
+expowt enum WendewWineNumbewsType {
 	Off = 0,
 	On = 1,
-	Relative = 2,
-	Interval = 3,
+	Wewative = 2,
+	Intewvaw = 3,
 	Custom = 4
 }
 
-export enum RenderMinimap {
+expowt enum WendewMinimap {
 	None = 0,
 	Text = 1,
-	Blocks = 2
+	Bwocks = 2
 }
 
-export enum ScrollType {
+expowt enum ScwowwType {
 	Smooth = 0,
 	Immediate = 1
 }
 
-export enum ScrollbarVisibility {
+expowt enum ScwowwbawVisibiwity {
 	Auto = 1,
 	Hidden = 2,
-	Visible = 3
+	Visibwe = 3
 }
 
 /**
- * The direction of a selection.
+ * The diwection of a sewection.
  */
-export enum SelectionDirection {
+expowt enum SewectionDiwection {
 	/**
-	 * The selection starts above where it ends.
+	 * The sewection stawts above whewe it ends.
 	 */
-	LTR = 0,
+	WTW = 0,
 	/**
-	 * The selection starts below where it ends.
+	 * The sewection stawts bewow whewe it ends.
 	 */
-	RTL = 1
+	WTW = 1
 }
 
-export enum SignatureHelpTriggerKind {
+expowt enum SignatuweHewpTwiggewKind {
 	Invoke = 1,
-	TriggerCharacter = 2,
+	TwiggewChawacta = 2,
 	ContentChange = 3
 }
 
 /**
- * A symbol kind.
+ * A symbow kind.
  */
-export enum SymbolKind {
-	File = 0,
-	Module = 1,
+expowt enum SymbowKind {
+	Fiwe = 0,
+	Moduwe = 1,
 	Namespace = 2,
 	Package = 3,
-	Class = 4,
+	Cwass = 4,
 	Method = 5,
-	Property = 6,
-	Field = 7,
-	Constructor = 8,
+	Pwopewty = 6,
+	Fiewd = 7,
+	Constwuctow = 8,
 	Enum = 9,
-	Interface = 10,
+	Intewface = 10,
 	Function = 11,
-	Variable = 12,
+	Vawiabwe = 12,
 	Constant = 13,
-	String = 14,
-	Number = 15,
-	Boolean = 16,
-	Array = 17,
+	Stwing = 14,
+	Numba = 15,
+	Boowean = 16,
+	Awway = 17,
 	Object = 18,
 	Key = 19,
-	Null = 20,
-	EnumMember = 21,
-	Struct = 22,
+	Nuww = 20,
+	EnumMemba = 21,
+	Stwuct = 22,
 	Event = 23,
-	Operator = 24,
-	TypeParameter = 25
+	Opewatow = 24,
+	TypePawameta = 25
 }
 
-export enum SymbolTag {
-	Deprecated = 1
+expowt enum SymbowTag {
+	Depwecated = 1
 }
 
 /**
- * The kind of animation in which the editor's cursor should be rendered.
+ * The kind of animation in which the editow's cuwsow shouwd be wendewed.
  */
-export enum TextEditorCursorBlinkingStyle {
+expowt enum TextEditowCuwsowBwinkingStywe {
 	/**
 	 * Hidden
 	 */
 	Hidden = 0,
 	/**
-	 * Blinking
+	 * Bwinking
 	 */
-	Blink = 1,
+	Bwink = 1,
 	/**
-	 * Blinking with smooth fading
+	 * Bwinking with smooth fading
 	 */
 	Smooth = 2,
 	/**
-	 * Blinking with prolonged filled state and smooth fading
+	 * Bwinking with pwowonged fiwwed state and smooth fading
 	 */
 	Phase = 3,
 	/**
-	 * Expand collapse animation on the y axis
+	 * Expand cowwapse animation on the y axis
 	 */
 	Expand = 4,
 	/**
-	 * No-Blinking
+	 * No-Bwinking
 	 */
-	Solid = 5
+	Sowid = 5
 }
 
 /**
- * The style in which the editor's cursor should be rendered.
+ * The stywe in which the editow's cuwsow shouwd be wendewed.
  */
-export enum TextEditorCursorStyle {
+expowt enum TextEditowCuwsowStywe {
 	/**
-	 * As a vertical line (sitting between two characters).
+	 * As a vewticaw wine (sitting between two chawactews).
 	 */
-	Line = 1,
+	Wine = 1,
 	/**
-	 * As a block (sitting on top of a character).
+	 * As a bwock (sitting on top of a chawacta).
 	 */
-	Block = 2,
+	Bwock = 2,
 	/**
-	 * As a horizontal line (sitting under a character).
+	 * As a howizontaw wine (sitting unda a chawacta).
 	 */
-	Underline = 3,
+	Undewwine = 3,
 	/**
-	 * As a thin vertical line (sitting between two characters).
+	 * As a thin vewticaw wine (sitting between two chawactews).
 	 */
-	LineThin = 4,
+	WineThin = 4,
 	/**
-	 * As an outlined block (sitting on top of a character).
+	 * As an outwined bwock (sitting on top of a chawacta).
 	 */
-	BlockOutline = 5,
+	BwockOutwine = 5,
 	/**
-	 * As a thin horizontal line (sitting under a character).
+	 * As a thin howizontaw wine (sitting unda a chawacta).
 	 */
-	UnderlineThin = 6
+	UndewwineThin = 6
 }
 
 /**
- * Describes the behavior of decorations when typing/editing near their edges.
- * Note: Please do not edit the values, as they very carefully match `DecorationRangeBehavior`
+ * Descwibes the behaviow of decowations when typing/editing neaw theiw edges.
+ * Note: Pwease do not edit the vawues, as they vewy cawefuwwy match `DecowationWangeBehaviow`
  */
-export enum TrackedRangeStickiness {
-	AlwaysGrowsWhenTypingAtEdges = 0,
-	NeverGrowsWhenTypingAtEdges = 1,
-	GrowsOnlyWhenTypingBefore = 2,
-	GrowsOnlyWhenTypingAfter = 3
+expowt enum TwackedWangeStickiness {
+	AwwaysGwowsWhenTypingAtEdges = 0,
+	NevewGwowsWhenTypingAtEdges = 1,
+	GwowsOnwyWhenTypingBefowe = 2,
+	GwowsOnwyWhenTypingAfta = 3
 }
 
 /**
- * Describes how to indent wrapped lines.
+ * Descwibes how to indent wwapped wines.
  */
-export enum WrappingIndent {
+expowt enum WwappingIndent {
 	/**
-	 * No indentation => wrapped lines begin at column 1.
+	 * No indentation => wwapped wines begin at cowumn 1.
 	 */
 	None = 0,
 	/**
-	 * Same => wrapped lines get the same indentation as the parent.
+	 * Same => wwapped wines get the same indentation as the pawent.
 	 */
 	Same = 1,
 	/**
-	 * Indent => wrapped lines get +1 indentation toward the parent.
+	 * Indent => wwapped wines get +1 indentation towawd the pawent.
 	 */
 	Indent = 2,
 	/**
-	 * DeepIndent => wrapped lines get +2 indentation toward the parent.
+	 * DeepIndent => wwapped wines get +2 indentation towawd the pawent.
 	 */
 	DeepIndent = 3
 }

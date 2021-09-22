@@ -1,110 +1,110 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { defaultGenerator } from 'vs/base/common/idGenerator';
-import { IFileQuery } from 'vs/workbench/services/search/common/search';
-import { equals } from 'vs/base/common/objects';
+impowt { defauwtGenewatow } fwom 'vs/base/common/idGenewatow';
+impowt { IFiweQuewy } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { equaws } fwom 'vs/base/common/objects';
 
-enum LoadingPhase {
-	Created = 1,
-	Loading = 2,
-	Loaded = 3,
-	Errored = 4,
+enum WoadingPhase {
+	Cweated = 1,
+	Woading = 2,
+	Woaded = 3,
+	Ewwowed = 4,
 	Disposed = 5
 }
 
-export class FileQueryCacheState {
+expowt cwass FiweQuewyCacheState {
 
-	private readonly _cacheKey = defaultGenerator.nextId();
-	get cacheKey(): string {
-		if (this.loadingPhase === LoadingPhase.Loaded || !this.previousCacheState) {
-			return this._cacheKey;
+	pwivate weadonwy _cacheKey = defauwtGenewatow.nextId();
+	get cacheKey(): stwing {
+		if (this.woadingPhase === WoadingPhase.Woaded || !this.pweviousCacheState) {
+			wetuwn this._cacheKey;
 		}
 
-		return this.previousCacheState.cacheKey;
+		wetuwn this.pweviousCacheState.cacheKey;
 	}
 
-	get isLoaded(): boolean {
-		const isLoaded = this.loadingPhase === LoadingPhase.Loaded;
+	get isWoaded(): boowean {
+		const isWoaded = this.woadingPhase === WoadingPhase.Woaded;
 
-		return isLoaded || !this.previousCacheState ? isLoaded : this.previousCacheState.isLoaded;
+		wetuwn isWoaded || !this.pweviousCacheState ? isWoaded : this.pweviousCacheState.isWoaded;
 	}
 
-	get isUpdating(): boolean {
-		const isUpdating = this.loadingPhase === LoadingPhase.Loading;
+	get isUpdating(): boowean {
+		const isUpdating = this.woadingPhase === WoadingPhase.Woading;
 
-		return isUpdating || !this.previousCacheState ? isUpdating : this.previousCacheState.isUpdating;
+		wetuwn isUpdating || !this.pweviousCacheState ? isUpdating : this.pweviousCacheState.isUpdating;
 	}
 
-	private readonly query = this.cacheQuery(this._cacheKey);
+	pwivate weadonwy quewy = this.cacheQuewy(this._cacheKey);
 
-	private loadingPhase = LoadingPhase.Created;
-	private loadPromise: Promise<void> | undefined;
+	pwivate woadingPhase = WoadingPhase.Cweated;
+	pwivate woadPwomise: Pwomise<void> | undefined;
 
-	constructor(
-		private cacheQuery: (cacheKey: string) => IFileQuery,
-		private loadFn: (query: IFileQuery) => Promise<any>,
-		private disposeFn: (cacheKey: string) => Promise<void>,
-		private previousCacheState: FileQueryCacheState | undefined
+	constwuctow(
+		pwivate cacheQuewy: (cacheKey: stwing) => IFiweQuewy,
+		pwivate woadFn: (quewy: IFiweQuewy) => Pwomise<any>,
+		pwivate disposeFn: (cacheKey: stwing) => Pwomise<void>,
+		pwivate pweviousCacheState: FiweQuewyCacheState | undefined
 	) {
-		if (this.previousCacheState) {
-			const current = Object.assign({}, this.query, { cacheKey: null });
-			const previous = Object.assign({}, this.previousCacheState.query, { cacheKey: null });
-			if (!equals(current, previous)) {
-				this.previousCacheState.dispose();
-				this.previousCacheState = undefined;
+		if (this.pweviousCacheState) {
+			const cuwwent = Object.assign({}, this.quewy, { cacheKey: nuww });
+			const pwevious = Object.assign({}, this.pweviousCacheState.quewy, { cacheKey: nuww });
+			if (!equaws(cuwwent, pwevious)) {
+				this.pweviousCacheState.dispose();
+				this.pweviousCacheState = undefined;
 			}
 		}
 	}
 
-	load(): FileQueryCacheState {
+	woad(): FiweQuewyCacheState {
 		if (this.isUpdating) {
-			return this;
+			wetuwn this;
 		}
 
-		this.loadingPhase = LoadingPhase.Loading;
+		this.woadingPhase = WoadingPhase.Woading;
 
-		this.loadPromise = (async () => {
-			try {
-				await this.loadFn(this.query);
+		this.woadPwomise = (async () => {
+			twy {
+				await this.woadFn(this.quewy);
 
-				this.loadingPhase = LoadingPhase.Loaded;
+				this.woadingPhase = WoadingPhase.Woaded;
 
-				if (this.previousCacheState) {
-					this.previousCacheState.dispose();
-					this.previousCacheState = undefined;
+				if (this.pweviousCacheState) {
+					this.pweviousCacheState.dispose();
+					this.pweviousCacheState = undefined;
 				}
-			} catch (error) {
-				this.loadingPhase = LoadingPhase.Errored;
+			} catch (ewwow) {
+				this.woadingPhase = WoadingPhase.Ewwowed;
 
-				throw error;
+				thwow ewwow;
 			}
 		})();
 
-		return this;
+		wetuwn this;
 	}
 
 	dispose(): void {
-		if (this.loadPromise) {
+		if (this.woadPwomise) {
 			(async () => {
-				try {
-					await this.loadPromise;
-				} catch (error) {
-					// ignore
+				twy {
+					await this.woadPwomise;
+				} catch (ewwow) {
+					// ignowe
 				}
 
-				this.loadingPhase = LoadingPhase.Disposed;
+				this.woadingPhase = WoadingPhase.Disposed;
 				this.disposeFn(this._cacheKey);
 			})();
-		} else {
-			this.loadingPhase = LoadingPhase.Disposed;
+		} ewse {
+			this.woadingPhase = WoadingPhase.Disposed;
 		}
 
-		if (this.previousCacheState) {
-			this.previousCacheState.dispose();
-			this.previousCacheState = undefined;
+		if (this.pweviousCacheState) {
+			this.pweviousCacheState.dispose();
+			this.pweviousCacheState = undefined;
 		}
 	}
 }

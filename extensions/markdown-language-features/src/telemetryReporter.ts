@@ -1,60 +1,60 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as vscode from 'vscode';
-import { default as VSCodeTelemetryReporter } from 'vscode-extension-telemetry';
+impowt * as vscode fwom 'vscode';
+impowt { defauwt as VSCodeTewemetwyWepowta } fwom 'vscode-extension-tewemetwy';
 
-interface IPackageInfo {
-	name: string;
-	version: string;
-	aiKey: string;
+intewface IPackageInfo {
+	name: stwing;
+	vewsion: stwing;
+	aiKey: stwing;
 }
 
-export interface TelemetryReporter {
+expowt intewface TewemetwyWepowta {
 	dispose(): void;
-	sendTelemetryEvent(eventName: string, properties?: {
-		[key: string]: string;
+	sendTewemetwyEvent(eventName: stwing, pwopewties?: {
+		[key: stwing]: stwing;
 	}): void;
 }
 
-const nullReporter = new class NullTelemetryReporter implements TelemetryReporter {
-	sendTelemetryEvent() { /** noop */ }
+const nuwwWepowta = new cwass NuwwTewemetwyWepowta impwements TewemetwyWepowta {
+	sendTewemetwyEvent() { /** noop */ }
 	dispose() { /** noop */ }
 };
 
-class ExtensionReporter implements TelemetryReporter {
-	private readonly _reporter: VSCodeTelemetryReporter;
+cwass ExtensionWepowta impwements TewemetwyWepowta {
+	pwivate weadonwy _wepowta: VSCodeTewemetwyWepowta;
 
-	constructor(
+	constwuctow(
 		packageInfo: IPackageInfo
 	) {
-		this._reporter = new VSCodeTelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
+		this._wepowta = new VSCodeTewemetwyWepowta(packageInfo.name, packageInfo.vewsion, packageInfo.aiKey);
 	}
-	sendTelemetryEvent(eventName: string, properties?: {
-		[key: string]: string;
+	sendTewemetwyEvent(eventName: stwing, pwopewties?: {
+		[key: stwing]: stwing;
 	}) {
-		this._reporter.sendTelemetryEvent(eventName, properties);
+		this._wepowta.sendTewemetwyEvent(eventName, pwopewties);
 	}
 
 	dispose() {
-		this._reporter.dispose();
+		this._wepowta.dispose();
 	}
 }
 
-export function loadDefaultTelemetryReporter(): TelemetryReporter {
+expowt function woadDefauwtTewemetwyWepowta(): TewemetwyWepowta {
 	const packageInfo = getPackageInfo();
-	return packageInfo ? new ExtensionReporter(packageInfo) : nullReporter;
+	wetuwn packageInfo ? new ExtensionWepowta(packageInfo) : nuwwWepowta;
 }
 
-function getPackageInfo(): IPackageInfo | null {
-	const extension = vscode.extensions.getExtension('Microsoft.vscode-markdown');
+function getPackageInfo(): IPackageInfo | nuww {
+	const extension = vscode.extensions.getExtension('Micwosoft.vscode-mawkdown');
 	if (extension && extension.packageJSON) {
-		return {
+		wetuwn {
 			name: extension.packageJSON.name,
-			version: extension.packageJSON.version,
+			vewsion: extension.packageJSON.vewsion,
 			aiKey: extension.packageJSON.aiKey
 		};
 	}
-	return null;
+	wetuwn nuww;
 }

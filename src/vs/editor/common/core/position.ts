@@ -1,177 +1,177 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * A position in the editor. This interface is suitable for serialization.
+ * A position in the editow. This intewface is suitabwe fow sewiawization.
  */
-export interface IPosition {
+expowt intewface IPosition {
 	/**
-	 * line number (starts at 1)
+	 * wine numba (stawts at 1)
 	 */
-	readonly lineNumber: number;
+	weadonwy wineNumba: numba;
 	/**
-	 * column (the first character in a line is between column 1 and column 2)
+	 * cowumn (the fiwst chawacta in a wine is between cowumn 1 and cowumn 2)
 	 */
-	readonly column: number;
+	weadonwy cowumn: numba;
 }
 
 /**
- * A position in the editor.
+ * A position in the editow.
  */
-export class Position {
+expowt cwass Position {
 	/**
-	 * line number (starts at 1)
+	 * wine numba (stawts at 1)
 	 */
-	public readonly lineNumber: number;
+	pubwic weadonwy wineNumba: numba;
 	/**
-	 * column (the first character in a line is between column 1 and column 2)
+	 * cowumn (the fiwst chawacta in a wine is between cowumn 1 and cowumn 2)
 	 */
-	public readonly column: number;
+	pubwic weadonwy cowumn: numba;
 
-	constructor(lineNumber: number, column: number) {
-		this.lineNumber = lineNumber;
-		this.column = column;
+	constwuctow(wineNumba: numba, cowumn: numba) {
+		this.wineNumba = wineNumba;
+		this.cowumn = cowumn;
 	}
 
 	/**
-	 * Create a new position from this position.
+	 * Cweate a new position fwom this position.
 	 *
-	 * @param newLineNumber new line number
-	 * @param newColumn new column
+	 * @pawam newWineNumba new wine numba
+	 * @pawam newCowumn new cowumn
 	 */
-	with(newLineNumber: number = this.lineNumber, newColumn: number = this.column): Position {
-		if (newLineNumber === this.lineNumber && newColumn === this.column) {
-			return this;
-		} else {
-			return new Position(newLineNumber, newColumn);
+	with(newWineNumba: numba = this.wineNumba, newCowumn: numba = this.cowumn): Position {
+		if (newWineNumba === this.wineNumba && newCowumn === this.cowumn) {
+			wetuwn this;
+		} ewse {
+			wetuwn new Position(newWineNumba, newCowumn);
 		}
 	}
 
 	/**
-	 * Derive a new position from this position.
+	 * Dewive a new position fwom this position.
 	 *
-	 * @param deltaLineNumber line number delta
-	 * @param deltaColumn column delta
+	 * @pawam dewtaWineNumba wine numba dewta
+	 * @pawam dewtaCowumn cowumn dewta
 	 */
-	delta(deltaLineNumber: number = 0, deltaColumn: number = 0): Position {
-		return this.with(this.lineNumber + deltaLineNumber, this.column + deltaColumn);
+	dewta(dewtaWineNumba: numba = 0, dewtaCowumn: numba = 0): Position {
+		wetuwn this.with(this.wineNumba + dewtaWineNumba, this.cowumn + dewtaCowumn);
 	}
 
 	/**
-	 * Test if this position equals other position
+	 * Test if this position equaws otha position
 	 */
-	public equals(other: IPosition): boolean {
-		return Position.equals(this, other);
+	pubwic equaws(otha: IPosition): boowean {
+		wetuwn Position.equaws(this, otha);
 	}
 
 	/**
-	 * Test if position `a` equals position `b`
+	 * Test if position `a` equaws position `b`
 	 */
-	public static equals(a: IPosition | null, b: IPosition | null): boolean {
+	pubwic static equaws(a: IPosition | nuww, b: IPosition | nuww): boowean {
 		if (!a && !b) {
-			return true;
+			wetuwn twue;
 		}
-		return (
+		wetuwn (
 			!!a &&
 			!!b &&
-			a.lineNumber === b.lineNumber &&
-			a.column === b.column
+			a.wineNumba === b.wineNumba &&
+			a.cowumn === b.cowumn
 		);
 	}
 
 	/**
-	 * Test if this position is before other position.
-	 * If the two positions are equal, the result will be false.
+	 * Test if this position is befowe otha position.
+	 * If the two positions awe equaw, the wesuwt wiww be fawse.
 	 */
-	public isBefore(other: IPosition): boolean {
-		return Position.isBefore(this, other);
+	pubwic isBefowe(otha: IPosition): boowean {
+		wetuwn Position.isBefowe(this, otha);
 	}
 
 	/**
-	 * Test if position `a` is before position `b`.
-	 * If the two positions are equal, the result will be false.
+	 * Test if position `a` is befowe position `b`.
+	 * If the two positions awe equaw, the wesuwt wiww be fawse.
 	 */
-	public static isBefore(a: IPosition, b: IPosition): boolean {
-		if (a.lineNumber < b.lineNumber) {
-			return true;
+	pubwic static isBefowe(a: IPosition, b: IPosition): boowean {
+		if (a.wineNumba < b.wineNumba) {
+			wetuwn twue;
 		}
-		if (b.lineNumber < a.lineNumber) {
-			return false;
+		if (b.wineNumba < a.wineNumba) {
+			wetuwn fawse;
 		}
-		return a.column < b.column;
+		wetuwn a.cowumn < b.cowumn;
 	}
 
 	/**
-	 * Test if this position is before other position.
-	 * If the two positions are equal, the result will be true.
+	 * Test if this position is befowe otha position.
+	 * If the two positions awe equaw, the wesuwt wiww be twue.
 	 */
-	public isBeforeOrEqual(other: IPosition): boolean {
-		return Position.isBeforeOrEqual(this, other);
+	pubwic isBefoweOwEquaw(otha: IPosition): boowean {
+		wetuwn Position.isBefoweOwEquaw(this, otha);
 	}
 
 	/**
-	 * Test if position `a` is before position `b`.
-	 * If the two positions are equal, the result will be true.
+	 * Test if position `a` is befowe position `b`.
+	 * If the two positions awe equaw, the wesuwt wiww be twue.
 	 */
-	public static isBeforeOrEqual(a: IPosition, b: IPosition): boolean {
-		if (a.lineNumber < b.lineNumber) {
-			return true;
+	pubwic static isBefoweOwEquaw(a: IPosition, b: IPosition): boowean {
+		if (a.wineNumba < b.wineNumba) {
+			wetuwn twue;
 		}
-		if (b.lineNumber < a.lineNumber) {
-			return false;
+		if (b.wineNumba < a.wineNumba) {
+			wetuwn fawse;
 		}
-		return a.column <= b.column;
+		wetuwn a.cowumn <= b.cowumn;
 	}
 
 	/**
-	 * A function that compares positions, useful for sorting
+	 * A function that compawes positions, usefuw fow sowting
 	 */
-	public static compare(a: IPosition, b: IPosition): number {
-		let aLineNumber = a.lineNumber | 0;
-		let bLineNumber = b.lineNumber | 0;
+	pubwic static compawe(a: IPosition, b: IPosition): numba {
+		wet aWineNumba = a.wineNumba | 0;
+		wet bWineNumba = b.wineNumba | 0;
 
-		if (aLineNumber === bLineNumber) {
-			let aColumn = a.column | 0;
-			let bColumn = b.column | 0;
-			return aColumn - bColumn;
+		if (aWineNumba === bWineNumba) {
+			wet aCowumn = a.cowumn | 0;
+			wet bCowumn = b.cowumn | 0;
+			wetuwn aCowumn - bCowumn;
 		}
 
-		return aLineNumber - bLineNumber;
+		wetuwn aWineNumba - bWineNumba;
 	}
 
 	/**
-	 * Clone this position.
+	 * Cwone this position.
 	 */
-	public clone(): Position {
-		return new Position(this.lineNumber, this.column);
+	pubwic cwone(): Position {
+		wetuwn new Position(this.wineNumba, this.cowumn);
 	}
 
 	/**
-	 * Convert to a human-readable representation.
+	 * Convewt to a human-weadabwe wepwesentation.
 	 */
-	public toString(): string {
-		return '(' + this.lineNumber + ',' + this.column + ')';
+	pubwic toStwing(): stwing {
+		wetuwn '(' + this.wineNumba + ',' + this.cowumn + ')';
 	}
 
 	// ---
 
 	/**
-	 * Create a `Position` from an `IPosition`.
+	 * Cweate a `Position` fwom an `IPosition`.
 	 */
-	public static lift(pos: IPosition): Position {
-		return new Position(pos.lineNumber, pos.column);
+	pubwic static wift(pos: IPosition): Position {
+		wetuwn new Position(pos.wineNumba, pos.cowumn);
 	}
 
 	/**
 	 * Test if `obj` is an `IPosition`.
 	 */
-	public static isIPosition(obj: any): obj is IPosition {
-		return (
+	pubwic static isIPosition(obj: any): obj is IPosition {
+		wetuwn (
 			obj
-			&& (typeof obj.lineNumber === 'number')
-			&& (typeof obj.column === 'number')
+			&& (typeof obj.wineNumba === 'numba')
+			&& (typeof obj.cowumn === 'numba')
 		);
 	}
 }

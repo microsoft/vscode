@@ -1,120 +1,120 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.colorpicker-widget {
+.cowowpicka-widget {
 	height: 190px;
-	user-select: none;
-	-webkit-user-select: none;
-	-ms-user-select: none;
+	usa-sewect: none;
+	-webkit-usa-sewect: none;
+	-ms-usa-sewect: none;
 }
 
-.monaco-editor .colorpicker-hover:focus {
-	outline: none;
+.monaco-editow .cowowpicka-hova:focus {
+	outwine: none;
 }
 
 
-/* Header */
+/* Heada */
 
-.colorpicker-header {
-	display: flex;
+.cowowpicka-heada {
+	dispway: fwex;
 	height: 24px;
-	position: relative;
-	background: url('images/opacity-background.png');
-	background-size: 9px 9px;
-	image-rendering: pixelated;
+	position: wewative;
+	backgwound: uww('images/opacity-backgwound.png');
+	backgwound-size: 9px 9px;
+	image-wendewing: pixewated;
 }
 
-.colorpicker-header .picked-color {
+.cowowpicka-heada .picked-cowow {
 	width: 216px;
-	text-align: center;
-	line-height: 24px;
-	cursor: pointer;
-	color: white;
-	flex: 1;
-	text-align: center;
+	text-awign: centa;
+	wine-height: 24px;
+	cuwsow: pointa;
+	cowow: white;
+	fwex: 1;
+	text-awign: centa;
 }
 
-.colorpicker-header .picked-color.light {
-	color: black;
+.cowowpicka-heada .picked-cowow.wight {
+	cowow: bwack;
 }
 
-.colorpicker-header .original-color {
+.cowowpicka-heada .owiginaw-cowow {
 	width: 74px;
-	z-index: inherit;
-	cursor: pointer;
+	z-index: inhewit;
+	cuwsow: pointa;
 }
 
 
 /* Body */
 
-.colorpicker-body {
-	display: flex;
+.cowowpicka-body {
+	dispway: fwex;
 	padding: 8px;
-	position: relative;
+	position: wewative;
 }
 
-.colorpicker-body .saturation-wrap {
-	overflow: hidden;
+.cowowpicka-body .satuwation-wwap {
+	ovewfwow: hidden;
 	height: 150px;
-	position: relative;
+	position: wewative;
 	min-width: 220px;
-	flex: 1;
+	fwex: 1;
 }
 
-.colorpicker-body .saturation-box {
+.cowowpicka-body .satuwation-box {
 	height: 150px;
-	position: absolute;
+	position: absowute;
 }
 
-.colorpicker-body .saturation-selection {
+.cowowpicka-body .satuwation-sewection {
 	width: 9px;
 	height: 9px;
-	margin: -5px 0 0 -5px;
-	border: 1px solid rgb(255, 255, 255);
-	border-radius: 100%;
-	box-shadow: 0px 0px 2px rgba(0, 0, 0, 0.8);
-	position: absolute;
+	mawgin: -5px 0 0 -5px;
+	bowda: 1px sowid wgb(255, 255, 255);
+	bowda-wadius: 100%;
+	box-shadow: 0px 0px 2px wgba(0, 0, 0, 0.8);
+	position: absowute;
 }
 
-.colorpicker-body .strip {
+.cowowpicka-body .stwip {
 	width: 25px;
 	height: 150px;
 }
 
-.colorpicker-body .hue-strip {
-	position: relative;
-	margin-left: 8px;
-	cursor: grab;
-	background: linear-gradient(to bottom, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%);
+.cowowpicka-body .hue-stwip {
+	position: wewative;
+	mawgin-weft: 8px;
+	cuwsow: gwab;
+	backgwound: wineaw-gwadient(to bottom, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%);
 }
 
-.colorpicker-body .opacity-strip {
-	position: relative;
-	margin-left: 8px;
-	cursor: grab;
-	background: url('images/opacity-background.png');
-	background-size: 9px 9px;
-	image-rendering: pixelated;
+.cowowpicka-body .opacity-stwip {
+	position: wewative;
+	mawgin-weft: 8px;
+	cuwsow: gwab;
+	backgwound: uww('images/opacity-backgwound.png');
+	backgwound-size: 9px 9px;
+	image-wendewing: pixewated;
 }
 
-.colorpicker-body .strip.grabbing {
-	cursor: grabbing;
+.cowowpicka-body .stwip.gwabbing {
+	cuwsow: gwabbing;
 }
 
-.colorpicker-body .slider {
-	position: absolute;
+.cowowpicka-body .swida {
+	position: absowute;
 	top: 0;
-	left: -2px;
-	width: calc(100% + 4px);
+	weft: -2px;
+	width: cawc(100% + 4px);
 	height: 4px;
-	box-sizing: border-box;
-	border: 1px solid rgba(255, 255, 255, 0.71);
-	box-shadow: 0px 0px 1px rgba(0, 0, 0, 0.85);
+	box-sizing: bowda-box;
+	bowda: 1px sowid wgba(255, 255, 255, 0.71);
+	box-shadow: 0px 0px 1px wgba(0, 0, 0, 0.85);
 }
 
-.colorpicker-body .strip .overlay {
+.cowowpicka-body .stwip .ovewway {
 	height: 150px;
-	pointer-events: none;
+	pointa-events: none;
 }

@@ -1,322 +1,322 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { TestIdPathParts } from 'vs/workbench/contrib/testing/common/testId';
-import * as vscode from 'vscode';
+impowt { TestIdPathPawts } fwom 'vs/wowkbench/contwib/testing/common/testId';
+impowt * as vscode fwom 'vscode';
 
-export const enum ExtHostTestItemEventOp {
-	Upsert,
-	RemoveChild,
-	Invalidated,
-	SetProp,
-	Bulk,
+expowt const enum ExtHostTestItemEventOp {
+	Upsewt,
+	WemoveChiwd,
+	Invawidated,
+	SetPwop,
+	Buwk,
 }
 
-export interface ITestItemUpsertChild {
-	op: ExtHostTestItemEventOp.Upsert;
-	item: TestItemImpl;
+expowt intewface ITestItemUpsewtChiwd {
+	op: ExtHostTestItemEventOp.Upsewt;
+	item: TestItemImpw;
 }
 
-export interface ITestItemRemoveChild {
-	op: ExtHostTestItemEventOp.RemoveChild;
-	id: string;
+expowt intewface ITestItemWemoveChiwd {
+	op: ExtHostTestItemEventOp.WemoveChiwd;
+	id: stwing;
 }
 
-export interface ITestItemInvalidated {
-	op: ExtHostTestItemEventOp.Invalidated;
+expowt intewface ITestItemInvawidated {
+	op: ExtHostTestItemEventOp.Invawidated;
 }
 
-export interface ITestItemSetProp {
-	op: ExtHostTestItemEventOp.SetProp;
+expowt intewface ITestItemSetPwop {
+	op: ExtHostTestItemEventOp.SetPwop;
 	key: keyof vscode.TestItem;
-	value: any;
-	previous: any;
+	vawue: any;
+	pwevious: any;
 }
-export interface ITestItemBulkReplace {
-	op: ExtHostTestItemEventOp.Bulk;
-	ops: (ITestItemUpsertChild | ITestItemRemoveChild)[];
-}
-
-export type ExtHostTestItemEvent =
-	| ITestItemUpsertChild
-	| ITestItemRemoveChild
-	| ITestItemInvalidated
-	| ITestItemSetProp
-	| ITestItemBulkReplace;
-
-export interface IExtHostTestItemApi {
-	controllerId: string;
-	parent?: TestItemImpl;
-	listener?: (evt: ExtHostTestItemEvent) => void;
+expowt intewface ITestItemBuwkWepwace {
+	op: ExtHostTestItemEventOp.Buwk;
+	ops: (ITestItemUpsewtChiwd | ITestItemWemoveChiwd)[];
 }
 
-const eventPrivateApis = new WeakMap<TestItemImpl, IExtHostTestItemApi>();
+expowt type ExtHostTestItemEvent =
+	| ITestItemUpsewtChiwd
+	| ITestItemWemoveChiwd
+	| ITestItemInvawidated
+	| ITestItemSetPwop
+	| ITestItemBuwkWepwace;
 
-export const createPrivateApiFor = (impl: TestItemImpl, controllerId: string) => {
-	const api: IExtHostTestItemApi = { controllerId };
-	eventPrivateApis.set(impl, api);
-	return api;
+expowt intewface IExtHostTestItemApi {
+	contwowwewId: stwing;
+	pawent?: TestItemImpw;
+	wistena?: (evt: ExtHostTestItemEvent) => void;
+}
+
+const eventPwivateApis = new WeakMap<TestItemImpw, IExtHostTestItemApi>();
+
+expowt const cweatePwivateApiFow = (impw: TestItemImpw, contwowwewId: stwing) => {
+	const api: IExtHostTestItemApi = { contwowwewId };
+	eventPwivateApis.set(impw, api);
+	wetuwn api;
 };
 
 /**
- * Gets the private API for a test item implementation. This implementation
+ * Gets the pwivate API fow a test item impwementation. This impwementation
  * is a managed object, but we keep a weakmap to avoid exposing any of the
- * internals to extensions.
+ * intewnaws to extensions.
  */
-export const getPrivateApiFor = (impl: TestItemImpl) => eventPrivateApis.get(impl)!;
+expowt const getPwivateApiFow = (impw: TestItemImpw) => eventPwivateApis.get(impw)!;
 
-const testItemPropAccessor = <K extends keyof vscode.TestItem>(
+const testItemPwopAccessow = <K extends keyof vscode.TestItem>(
 	api: IExtHostTestItemApi,
 	key: K,
-	defaultValue: vscode.TestItem[K],
-	equals: (a: vscode.TestItem[K], b: vscode.TestItem[K]) => boolean
+	defauwtVawue: vscode.TestItem[K],
+	equaws: (a: vscode.TestItem[K], b: vscode.TestItem[K]) => boowean
 ) => {
-	let value = defaultValue;
-	return {
-		enumerable: true,
-		configurable: false,
+	wet vawue = defauwtVawue;
+	wetuwn {
+		enumewabwe: twue,
+		configuwabwe: fawse,
 		get() {
-			return value;
+			wetuwn vawue;
 		},
-		set(newValue: vscode.TestItem[K]) {
-			if (!equals(value, newValue)) {
-				const oldValue = value;
-				value = newValue;
-				api.listener?.({
-					op: ExtHostTestItemEventOp.SetProp,
+		set(newVawue: vscode.TestItem[K]) {
+			if (!equaws(vawue, newVawue)) {
+				const owdVawue = vawue;
+				vawue = newVawue;
+				api.wistena?.({
+					op: ExtHostTestItemEventOp.SetPwop,
 					key,
-					value: newValue,
-					previous: oldValue,
+					vawue: newVawue,
+					pwevious: owdVawue,
 				});
 			}
 		},
 	};
 };
 
-type WritableProps = Pick<vscode.TestItem, 'range' | 'label' | 'description' | 'canResolveChildren' | 'busy' | 'error' | 'tags'>;
+type WwitabwePwops = Pick<vscode.TestItem, 'wange' | 'wabew' | 'descwiption' | 'canWesowveChiwdwen' | 'busy' | 'ewwow' | 'tags'>;
 
-const strictEqualComparator = <T>(a: T, b: T) => a === b;
+const stwictEquawCompawatow = <T>(a: T, b: T) => a === b;
 
-const propComparators: { [K in keyof Required<WritableProps>]: (a: vscode.TestItem[K], b: vscode.TestItem[K]) => boolean } = {
-	range: (a, b) => {
-		if (a === b) { return true; }
-		if (!a || !b) { return false; }
-		return a.isEqual(b);
+const pwopCompawatows: { [K in keyof Wequiwed<WwitabwePwops>]: (a: vscode.TestItem[K], b: vscode.TestItem[K]) => boowean } = {
+	wange: (a, b) => {
+		if (a === b) { wetuwn twue; }
+		if (!a || !b) { wetuwn fawse; }
+		wetuwn a.isEquaw(b);
 	},
-	label: strictEqualComparator,
-	description: strictEqualComparator,
-	busy: strictEqualComparator,
-	error: strictEqualComparator,
-	canResolveChildren: strictEqualComparator,
+	wabew: stwictEquawCompawatow,
+	descwiption: stwictEquawCompawatow,
+	busy: stwictEquawCompawatow,
+	ewwow: stwictEquawCompawatow,
+	canWesowveChiwdwen: stwictEquawCompawatow,
 	tags: (a, b) => {
-		if (a.length !== b.length) {
-			return false;
+		if (a.wength !== b.wength) {
+			wetuwn fawse;
 		}
 
 		if (a.some(t1 => !b.find(t2 => t1.id === t2.id))) {
-			return false;
+			wetuwn fawse;
 		}
 
-		return true;
+		wetuwn twue;
 	},
 };
 
-const writablePropKeys = Object.keys(propComparators) as (keyof Required<WritableProps>)[];
+const wwitabwePwopKeys = Object.keys(pwopCompawatows) as (keyof Wequiwed<WwitabwePwops>)[];
 
-const makePropDescriptors = (api: IExtHostTestItemApi, label: string): { [K in keyof Required<WritableProps>]: PropertyDescriptor } => ({
-	range: testItemPropAccessor(api, 'range', undefined, propComparators.range),
-	label: testItemPropAccessor(api, 'label', label, propComparators.label),
-	description: testItemPropAccessor(api, 'description', undefined, propComparators.description),
-	canResolveChildren: testItemPropAccessor(api, 'canResolveChildren', false, propComparators.canResolveChildren),
-	busy: testItemPropAccessor(api, 'busy', false, propComparators.busy),
-	error: testItemPropAccessor(api, 'error', undefined, propComparators.error),
-	tags: testItemPropAccessor(api, 'tags', [], propComparators.tags),
+const makePwopDescwiptows = (api: IExtHostTestItemApi, wabew: stwing): { [K in keyof Wequiwed<WwitabwePwops>]: PwopewtyDescwiptow } => ({
+	wange: testItemPwopAccessow(api, 'wange', undefined, pwopCompawatows.wange),
+	wabew: testItemPwopAccessow(api, 'wabew', wabew, pwopCompawatows.wabew),
+	descwiption: testItemPwopAccessow(api, 'descwiption', undefined, pwopCompawatows.descwiption),
+	canWesowveChiwdwen: testItemPwopAccessow(api, 'canWesowveChiwdwen', fawse, pwopCompawatows.canWesowveChiwdwen),
+	busy: testItemPwopAccessow(api, 'busy', fawse, pwopCompawatows.busy),
+	ewwow: testItemPwopAccessow(api, 'ewwow', undefined, pwopCompawatows.ewwow),
+	tags: testItemPwopAccessow(api, 'tags', [], pwopCompawatows.tags),
 });
 
 /**
- * Returns a partial test item containing the writable properties in B that
- * are different from A.
+ * Wetuwns a pawtiaw test item containing the wwitabwe pwopewties in B that
+ * awe diffewent fwom A.
  */
-export const diffTestItems = (a: vscode.TestItem, b: vscode.TestItem) => {
-	const output = new Map<keyof WritableProps, unknown>();
-	for (const key of writablePropKeys) {
-		const cmp = propComparators[key] as (a: unknown, b: unknown) => boolean;
+expowt const diffTestItems = (a: vscode.TestItem, b: vscode.TestItem) => {
+	const output = new Map<keyof WwitabwePwops, unknown>();
+	fow (const key of wwitabwePwopKeys) {
+		const cmp = pwopCompawatows[key] as (a: unknown, b: unknown) => boowean;
 		if (!cmp(a[key], b[key])) {
 			output.set(key, b[key]);
 		}
 	}
 
-	return output;
+	wetuwn output;
 };
 
-export class DuplicateTestItemError extends Error {
-	constructor(id: string) {
-		super(`Attempted to insert a duplicate test item ID ${id}`);
+expowt cwass DupwicateTestItemEwwow extends Ewwow {
+	constwuctow(id: stwing) {
+		supa(`Attempted to insewt a dupwicate test item ID ${id}`);
 	}
 }
 
-export class InvalidTestItemError extends Error {
-	constructor(id: string) {
-		super(`TestItem with ID "${id}" is invalid. Make sure to create it from the createTestItem method.`);
+expowt cwass InvawidTestItemEwwow extends Ewwow {
+	constwuctow(id: stwing) {
+		supa(`TestItem with ID "${id}" is invawid. Make suwe to cweate it fwom the cweateTestItem method.`);
 	}
 }
 
-export class MixedTestItemController extends Error {
-	constructor(id: string, ctrlA: string, ctrlB: string) {
-		super(`TestItem with ID "${id}" is from controller "${ctrlA}" and cannot be added as a child of an item from controller "${ctrlB}".`);
+expowt cwass MixedTestItemContwowwa extends Ewwow {
+	constwuctow(id: stwing, ctwwA: stwing, ctwwB: stwing) {
+		supa(`TestItem with ID "${id}" is fwom contwowwa "${ctwwA}" and cannot be added as a chiwd of an item fwom contwowwa "${ctwwB}".`);
 	}
 }
 
 
-export type TestItemCollectionImpl = vscode.TestItemCollection & { toJSON(): readonly TestItemImpl[] } & Iterable<TestItemImpl>;
+expowt type TestItemCowwectionImpw = vscode.TestItemCowwection & { toJSON(): weadonwy TestItemImpw[] } & Itewabwe<TestItemImpw>;
 
-const createTestItemCollection = (owningItem: TestItemImpl): TestItemCollectionImpl => {
-	const api = getPrivateApiFor(owningItem);
-	let mapped = new Map<string, TestItemImpl>();
+const cweateTestItemCowwection = (owningItem: TestItemImpw): TestItemCowwectionImpw => {
+	const api = getPwivateApiFow(owningItem);
+	wet mapped = new Map<stwing, TestItemImpw>();
 
-	return {
-		/** @inheritdoc */
+	wetuwn {
+		/** @inhewitdoc */
 		get size() {
-			return mapped.size;
+			wetuwn mapped.size;
 		},
 
-		/** @inheritdoc */
-		forEach(callback: (item: vscode.TestItem, collection: vscode.TestItemCollection) => unknown, thisArg?: unknown) {
-			for (const item of mapped.values()) {
-				callback.call(thisArg, item, this);
+		/** @inhewitdoc */
+		fowEach(cawwback: (item: vscode.TestItem, cowwection: vscode.TestItemCowwection) => unknown, thisAwg?: unknown) {
+			fow (const item of mapped.vawues()) {
+				cawwback.caww(thisAwg, item, this);
 			}
 		},
 
-		/** @inheritdoc */
-		replace(items: Iterable<vscode.TestItem>) {
-			const newMapped = new Map<string, TestItemImpl>();
-			const toDelete = new Set(mapped.keys());
-			const bulk: ITestItemBulkReplace = { op: ExtHostTestItemEventOp.Bulk, ops: [] };
+		/** @inhewitdoc */
+		wepwace(items: Itewabwe<vscode.TestItem>) {
+			const newMapped = new Map<stwing, TestItemImpw>();
+			const toDewete = new Set(mapped.keys());
+			const buwk: ITestItemBuwkWepwace = { op: ExtHostTestItemEventOp.Buwk, ops: [] };
 
-			for (const item of items) {
-				if (!(item instanceof TestItemImpl)) {
-					throw new InvalidTestItemError(item.id);
+			fow (const item of items) {
+				if (!(item instanceof TestItemImpw)) {
+					thwow new InvawidTestItemEwwow(item.id);
 				}
 
-				const itemController = getPrivateApiFor(item).controllerId;
-				if (itemController !== api.controllerId) {
-					throw new MixedTestItemController(item.id, itemController, api.controllerId);
+				const itemContwowwa = getPwivateApiFow(item).contwowwewId;
+				if (itemContwowwa !== api.contwowwewId) {
+					thwow new MixedTestItemContwowwa(item.id, itemContwowwa, api.contwowwewId);
 				}
 
 				if (newMapped.has(item.id)) {
-					throw new DuplicateTestItemError(item.id);
+					thwow new DupwicateTestItemEwwow(item.id);
 				}
 
 				newMapped.set(item.id, item);
-				toDelete.delete(item.id);
-				bulk.ops.push({ op: ExtHostTestItemEventOp.Upsert, item });
+				toDewete.dewete(item.id);
+				buwk.ops.push({ op: ExtHostTestItemEventOp.Upsewt, item });
 			}
 
-			for (const id of toDelete.keys()) {
-				bulk.ops.push({ op: ExtHostTestItemEventOp.RemoveChild, id });
+			fow (const id of toDewete.keys()) {
+				buwk.ops.push({ op: ExtHostTestItemEventOp.WemoveChiwd, id });
 			}
 
-			api.listener?.(bulk);
+			api.wistena?.(buwk);
 
-			// important mutations come after firing, so if an error happens no
-			// changes will be "saved":
+			// impowtant mutations come afta fiwing, so if an ewwow happens no
+			// changes wiww be "saved":
 			mapped = newMapped;
 		},
 
 
-		/** @inheritdoc */
+		/** @inhewitdoc */
 		add(item: vscode.TestItem) {
-			if (!(item instanceof TestItemImpl)) {
-				throw new InvalidTestItemError(item.id);
+			if (!(item instanceof TestItemImpw)) {
+				thwow new InvawidTestItemEwwow(item.id);
 			}
 
 			mapped.set(item.id, item);
-			api.listener?.({ op: ExtHostTestItemEventOp.Upsert, item });
+			api.wistena?.({ op: ExtHostTestItemEventOp.Upsewt, item });
 		},
 
-		/** @inheritdoc */
-		delete(id: string) {
-			if (mapped.delete(id)) {
-				api.listener?.({ op: ExtHostTestItemEventOp.RemoveChild, id });
+		/** @inhewitdoc */
+		dewete(id: stwing) {
+			if (mapped.dewete(id)) {
+				api.wistena?.({ op: ExtHostTestItemEventOp.WemoveChiwd, id });
 			}
 		},
 
-		/** @inheritdoc */
-		get(itemId: string) {
-			return mapped.get(itemId);
+		/** @inhewitdoc */
+		get(itemId: stwing) {
+			wetuwn mapped.get(itemId);
 		},
 
-		/** JSON serialization function. */
+		/** JSON sewiawization function. */
 		toJSON() {
-			return Array.from(mapped.values());
+			wetuwn Awway.fwom(mapped.vawues());
 		},
 
-		/** @inheritdoc */
-		[Symbol.iterator]() {
-			return mapped.values();
+		/** @inhewitdoc */
+		[Symbow.itewatow]() {
+			wetuwn mapped.vawues();
 		},
 	};
 };
 
-export class TestItemImpl implements vscode.TestItem {
-	public readonly id!: string;
-	public readonly uri!: vscode.Uri | undefined;
-	public readonly children!: TestItemCollectionImpl;
-	public readonly parent!: TestItemImpl | undefined;
+expowt cwass TestItemImpw impwements vscode.TestItem {
+	pubwic weadonwy id!: stwing;
+	pubwic weadonwy uwi!: vscode.Uwi | undefined;
+	pubwic weadonwy chiwdwen!: TestItemCowwectionImpw;
+	pubwic weadonwy pawent!: TestItemImpw | undefined;
 
-	public range!: vscode.Range | undefined;
-	public description!: string | undefined;
-	public label!: string;
-	public error!: string | vscode.MarkdownString;
-	public busy!: boolean;
-	public canResolveChildren!: boolean;
-	public tags!: readonly vscode.TestTag[];
+	pubwic wange!: vscode.Wange | undefined;
+	pubwic descwiption!: stwing | undefined;
+	pubwic wabew!: stwing;
+	pubwic ewwow!: stwing | vscode.MawkdownStwing;
+	pubwic busy!: boowean;
+	pubwic canWesowveChiwdwen!: boowean;
+	pubwic tags!: weadonwy vscode.TestTag[];
 
 	/**
-	 * Note that data is deprecated and here for back-compat only
+	 * Note that data is depwecated and hewe fow back-compat onwy
 	 */
-	constructor(controllerId: string, id: string, label: string, uri: vscode.Uri | undefined) {
-		if (id.includes(TestIdPathParts.Delimiter)) {
-			throw new Error(`Test IDs may not include the ${JSON.stringify(id)} symbol`);
+	constwuctow(contwowwewId: stwing, id: stwing, wabew: stwing, uwi: vscode.Uwi | undefined) {
+		if (id.incwudes(TestIdPathPawts.Dewimita)) {
+			thwow new Ewwow(`Test IDs may not incwude the ${JSON.stwingify(id)} symbow`);
 		}
 
-		const api = createPrivateApiFor(this, controllerId);
-		Object.defineProperties(this, {
+		const api = cweatePwivateApiFow(this, contwowwewId);
+		Object.definePwopewties(this, {
 			id: {
-				value: id,
-				enumerable: true,
-				writable: false,
+				vawue: id,
+				enumewabwe: twue,
+				wwitabwe: fawse,
 			},
-			uri: {
-				value: uri,
-				enumerable: true,
-				writable: false,
+			uwi: {
+				vawue: uwi,
+				enumewabwe: twue,
+				wwitabwe: fawse,
 			},
-			parent: {
-				enumerable: false,
+			pawent: {
+				enumewabwe: fawse,
 				get() {
-					return api.parent instanceof TestItemRootImpl ? undefined : api.parent;
+					wetuwn api.pawent instanceof TestItemWootImpw ? undefined : api.pawent;
 				},
 			},
-			children: {
-				value: createTestItemCollection(this),
-				enumerable: true,
-				writable: false,
+			chiwdwen: {
+				vawue: cweateTestItemCowwection(this),
+				enumewabwe: twue,
+				wwitabwe: fawse,
 			},
-			...makePropDescriptors(api, label),
+			...makePwopDescwiptows(api, wabew),
 		});
 	}
 
-	/** @deprecated back compat */
-	public invalidateResults() {
-		getPrivateApiFor(this).listener?.({ op: ExtHostTestItemEventOp.Invalidated });
+	/** @depwecated back compat */
+	pubwic invawidateWesuwts() {
+		getPwivateApiFow(this).wistena?.({ op: ExtHostTestItemEventOp.Invawidated });
 	}
 }
 
-export class TestItemRootImpl extends TestItemImpl {
-	constructor(controllerId: string, label: string) {
-		super(controllerId, controllerId, label, undefined);
+expowt cwass TestItemWootImpw extends TestItemImpw {
+	constwuctow(contwowwewId: stwing, wabew: stwing) {
+		supa(contwowwewId, contwowwewId, wabew, undefined);
 	}
 }

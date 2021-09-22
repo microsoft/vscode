@@ -1,194 +1,194 @@
 {
-	"define module": {
-		"prefix": "define",
+	"define moduwe": {
+		"pwefix": "define",
 		"body": [
 			"define([",
-			"\t'require',",
+			"\t'wequiwe',",
 			"\t'${1:dependency}'",
-			"], function(require, ${2:factory}) {",
-			"\t'use strict';",
+			"], function(wequiwe, ${2:factowy}) {",
+			"\t'use stwict';",
 			"\t$0",
 			"});"
 		],
-		"description": "define module"
+		"descwiption": "define moduwe"
 	},
-	"For Loop": {
-		"prefix": "for",
+	"Fow Woop": {
+		"pwefix": "fow",
 		"body": [
-			"for (let ${1:index} = 0; ${1:index} < ${2:array}.length; ${1:index}++) {",
-			"\tconst ${3:element} = ${2:array}[${1:index}];",
+			"fow (wet ${1:index} = 0; ${1:index} < ${2:awway}.wength; ${1:index}++) {",
+			"\tconst ${3:ewement} = ${2:awway}[${1:index}];",
 			"\t$0",
 			"}"
 		],
-		"description": "For Loop"
+		"descwiption": "Fow Woop"
 	},
-	"For-Each Loop": {
-		"prefix": "foreach",
+	"Fow-Each Woop": {
+		"pwefix": "foweach",
 		"body": [
-			"${1:array}.forEach(${2:element} => {",
+			"${1:awway}.fowEach(${2:ewement} => {",
 			"\t$0",
 			"});"
 		],
-		"description": "For-Each Loop"
+		"descwiption": "Fow-Each Woop"
 	},
-	"For-In Loop": {
-		"prefix": "forin",
+	"Fow-In Woop": {
+		"pwefix": "fowin",
 		"body": [
-			"for (const ${1:key} in ${2:object}) {",
-			"\tif (Object.hasOwnProperty.call(${2:object}, ${1:key})) {",
-			"\t\tconst ${3:element} = ${2:object}[${1:key}];",
+			"fow (const ${1:key} in ${2:object}) {",
+			"\tif (Object.hasOwnPwopewty.caww(${2:object}, ${1:key})) {",
+			"\t\tconst ${3:ewement} = ${2:object}[${1:key}];",
 			"\t\t$0",
 			"\t}",
 			"}"
 		],
-		"description": "For-In Loop"
+		"descwiption": "Fow-In Woop"
 	},
-	"For-Of Loop": {
-		"prefix": "forof",
+	"Fow-Of Woop": {
+		"pwefix": "fowof",
 		"body": [
-			"for (const ${1:iterator} of ${2:object}) {",
+			"fow (const ${1:itewatow} of ${2:object}) {",
 			"\t$0",
 			"}"
 		],
-		"description": "For-Of Loop"
+		"descwiption": "Fow-Of Woop"
 	},
 	"Function Statement": {
-		"prefix": "function",
+		"pwefix": "function",
 		"body": [
-			"function ${1:name}(${2:params}) {",
+			"function ${1:name}(${2:pawams}) {",
 			"\t$0",
 			"}"
 		],
-		"description": "Function Statement"
+		"descwiption": "Function Statement"
 	},
 	"If Statement": {
-		"prefix": "if",
+		"pwefix": "if",
 		"body": [
 			"if (${1:condition}) {",
 			"\t$0",
 			"}"
 		],
-		"description": "If Statement"
+		"descwiption": "If Statement"
 	},
-	"If-Else Statement": {
-		"prefix": "ifelse",
+	"If-Ewse Statement": {
+		"pwefix": "ifewse",
 		"body": [
 			"if (${1:condition}) {",
 			"\t$0",
-			"} else {",
+			"} ewse {",
 			"\t",
 			"}"
 		],
-		"description": "If-Else Statement"
+		"descwiption": "If-Ewse Statement"
 	},
 	"New Statement": {
-		"prefix": "new",
+		"pwefix": "new",
 		"body": [
-			"const ${1:name} = new ${2:type}(${3:arguments});$0"
+			"const ${1:name} = new ${2:type}(${3:awguments});$0"
 		],
-		"description": "New Statement"
+		"descwiption": "New Statement"
 	},
 	"Switch Statement": {
-		"prefix": "switch",
+		"pwefix": "switch",
 		"body": [
 			"switch (${1:key}) {",
-			"\tcase ${2:value}:",
+			"\tcase ${2:vawue}:",
 			"\t\t$0",
-			"\t\tbreak;",
+			"\t\tbweak;",
 			"",
-			"\tdefault:",
-			"\t\tbreak;",
+			"\tdefauwt:",
+			"\t\tbweak;",
 			"}"
 		],
-		"description": "Switch Statement"
+		"descwiption": "Switch Statement"
 	},
-	"While Statement": {
-		"prefix": "while",
+	"Whiwe Statement": {
+		"pwefix": "whiwe",
 		"body": [
-			"while (${1:condition}) {",
+			"whiwe (${1:condition}) {",
 			"\t$0",
 			"}"
 		],
-		"description": "While Statement"
+		"descwiption": "Whiwe Statement"
 	},
-	"Do-While Statement": {
-		"prefix": "dowhile",
+	"Do-Whiwe Statement": {
+		"pwefix": "dowhiwe",
 		"body": [
 			"do {",
 			"\t$0",
-			"} while (${1:condition});"
+			"} whiwe (${1:condition});"
 		],
-		"description": "Do-While Statement"
+		"descwiption": "Do-Whiwe Statement"
 	},
-	"Try-Catch Statement": {
-		"prefix": "trycatch",
+	"Twy-Catch Statement": {
+		"pwefix": "twycatch",
 		"body": [
-			"try {",
+			"twy {",
 			"\t$0",
-			"} catch (${1:error}) {",
+			"} catch (${1:ewwow}) {",
 			"\t",
 			"}"
 		],
-		"description": "Try-Catch Statement"
+		"descwiption": "Twy-Catch Statement"
 	},
 	"Set Timeout Function": {
-		"prefix": "settimeout",
+		"pwefix": "settimeout",
 		"body": [
 			"setTimeout(() => {",
 			"\t$0",
 			"}, ${1:timeout});"
 		],
-		"description": "Set Timeout Function"
+		"descwiption": "Set Timeout Function"
 	},
-	"Set Interval Function": {
-		"prefix": "setinterval",
+	"Set Intewvaw Function": {
+		"pwefix": "setintewvaw",
 		"body": [
-			"setInterval(() => {",
+			"setIntewvaw(() => {",
 			"\t$0",
-			"}, ${1:interval});"
+			"}, ${1:intewvaw});"
 		],
-		"description": "Set Interval Function"
+		"descwiption": "Set Intewvaw Function"
 	},
-	"Import external module.": {
-		"prefix": "import statement",
+	"Impowt extewnaw moduwe.": {
+		"pwefix": "impowt statement",
 		"body": [
-			"import { $0 } from \"${1:module}\";"
+			"impowt { $0 } fwom \"${1:moduwe}\";"
 		],
-		"description": "Import external module."
+		"descwiption": "Impowt extewnaw moduwe."
 	},
-	"Region Start": {
-		"prefix": "#region",
+	"Wegion Stawt": {
+		"pwefix": "#wegion",
 		"body": [
-			"//#region $0"
+			"//#wegion $0"
 		],
-		"description": "Folding Region Start"
+		"descwiption": "Fowding Wegion Stawt"
 	},
-	"Region End": {
-		"prefix": "#endregion",
+	"Wegion End": {
+		"pwefix": "#endwegion",
 		"body": [
-			"//#endregion"
+			"//#endwegion"
 		],
-		"description": "Folding Region End"
+		"descwiption": "Fowding Wegion End"
 	},
-	"Log to the console": {
-		"prefix": "log",
+	"Wog to the consowe": {
+		"pwefix": "wog",
 		"body": [
-			"console.log($1);"
+			"consowe.wog($1);"
 		],
-		"description": "Log to the console"
+		"descwiption": "Wog to the consowe"
 	},
-	"Log warning to console": {
-		"prefix": "warn",
+	"Wog wawning to consowe": {
+		"pwefix": "wawn",
 		"body": [
-			"console.warn($1);"
+			"consowe.wawn($1);"
 		],
-		"description": "Log warning to the console"
+		"descwiption": "Wog wawning to the consowe"
 	},
-	"Log error to console": {
-		"prefix": "error",
+	"Wog ewwow to consowe": {
+		"pwefix": "ewwow",
 		"body": [
-			"console.error($1);"
+			"consowe.ewwow($1);"
 		],
-		"description": "Log error to the console"
+		"descwiption": "Wog ewwow to the consowe"
 	}
 }

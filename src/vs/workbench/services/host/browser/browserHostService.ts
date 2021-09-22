@@ -1,481 +1,481 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData, IFileToOpen } from 'vs/platform/windows/common/windows';
-import { pathsToEditors } from 'vs/workbench/common/editor';
-import { whenEditorClosed } from 'vs/workbench/browser/editor';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ModifierKeyEmitter, trackFocus } from 'vs/base/browser/dom';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { memoize } from 'vs/base/common/decorators';
-import { parseLineAndColumnAware } from 'vs/base/common/extpath';
-import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILifecycleService, BeforeShutdownEvent, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { BrowserLifecycleService } from 'vs/workbench/services/lifecycle/browser/lifecycleService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
-import { localize } from 'vs/nls';
-import Severity from 'vs/base/common/severity';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { DomEmitter } from 'vs/base/browser/event';
-import { isUndefined } from 'vs/base/common/types';
-import { IStorageService, WillSaveStateReason } from 'vs/platform/storage/common/storage';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IWayoutSewvice } fwom 'vs/pwatfowm/wayout/bwowsa/wayoutSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IWindowSettings, IWindowOpenabwe, IOpenWindowOptions, isFowdewToOpen, isWowkspaceToOpen, isFiweToOpen, IOpenEmptyWindowOptions, IPathData, IFiweToOpen } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { pathsToEditows } fwom 'vs/wowkbench/common/editow';
+impowt { whenEditowCwosed } fwom 'vs/wowkbench/bwowsa/editow';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { ModifiewKeyEmitta, twackFocus } fwom 'vs/base/bwowsa/dom';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { memoize } fwom 'vs/base/common/decowatows';
+impowt { pawseWineAndCowumnAwawe } fwom 'vs/base/common/extpath';
+impowt { IWowkspaceFowdewCweationData } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { IWowkspaceEditingSewvice } fwom 'vs/wowkbench/sewvices/wowkspaces/common/wowkspaceEditing';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWifecycweSewvice, BefoweShutdownEvent, ShutdownWeason } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { BwowsewWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/bwowsa/wifecycweSewvice';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { getWowkspaceIdentifia } fwom 'vs/wowkbench/sewvices/wowkspaces/bwowsa/wowkspaces';
+impowt { wocawize } fwom 'vs/nws';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { DomEmitta } fwom 'vs/base/bwowsa/event';
+impowt { isUndefined } fwom 'vs/base/common/types';
+impowt { IStowageSewvice, WiwwSaveStateWeason } fwom 'vs/pwatfowm/stowage/common/stowage';
 
 /**
- * A workspace to open in the workbench can either be:
- * - a workspace file with 0-N folders (via `workspaceUri`)
- * - a single folder (via `folderUri`)
+ * A wowkspace to open in the wowkbench can eitha be:
+ * - a wowkspace fiwe with 0-N fowdews (via `wowkspaceUwi`)
+ * - a singwe fowda (via `fowdewUwi`)
  * - empty (via `undefined`)
  */
-export type IWorkspace = { workspaceUri: URI } | { folderUri: URI } | undefined;
+expowt type IWowkspace = { wowkspaceUwi: UWI } | { fowdewUwi: UWI } | undefined;
 
-export interface IWorkspaceProvider {
+expowt intewface IWowkspacePwovida {
 
 	/**
-	 * The initial workspace to open.
+	 * The initiaw wowkspace to open.
 	 */
-	readonly workspace: IWorkspace;
+	weadonwy wowkspace: IWowkspace;
 
 	/**
-	 * Arbitrary payload from the `IWorkspaceProvider.open` call.
+	 * Awbitwawy paywoad fwom the `IWowkspacePwovida.open` caww.
 	 */
-	readonly payload?: object;
+	weadonwy paywoad?: object;
 
 	/**
-	 * Return `true` if the provided [workspace](#IWorkspaceProvider.workspace) is trusted, `false` if not trusted, `undefined` if unknown.
+	 * Wetuwn `twue` if the pwovided [wowkspace](#IWowkspacePwovida.wowkspace) is twusted, `fawse` if not twusted, `undefined` if unknown.
 	 */
-	readonly trusted: boolean | undefined;
+	weadonwy twusted: boowean | undefined;
 
 	/**
-	 * Asks to open a workspace in the current or a new window.
+	 * Asks to open a wowkspace in the cuwwent ow a new window.
 	 *
-	 * @param workspace the workspace to open.
-	 * @param options optional options for the workspace to open.
-	 * - `reuse`: whether to open inside the current window or a new window
-	 * - `payload`: arbitrary payload that should be made available
-	 * to the opening window via the `IWorkspaceProvider.payload` property.
-	 * @param payload optional payload to send to the workspace to open.
+	 * @pawam wowkspace the wowkspace to open.
+	 * @pawam options optionaw options fow the wowkspace to open.
+	 * - `weuse`: whetha to open inside the cuwwent window ow a new window
+	 * - `paywoad`: awbitwawy paywoad that shouwd be made avaiwabwe
+	 * to the opening window via the `IWowkspacePwovida.paywoad` pwopewty.
+	 * @pawam paywoad optionaw paywoad to send to the wowkspace to open.
 	 *
-	 * @returns true if successfully opened, false otherwise.
+	 * @wetuwns twue if successfuwwy opened, fawse othewwise.
 	 */
-	open(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<boolean>;
+	open(wowkspace: IWowkspace, options?: { weuse?: boowean, paywoad?: object }): Pwomise<boowean>;
 }
 
-enum HostShutdownReason {
+enum HostShutdownWeason {
 
 	/**
-	 * An unknown shutdown reason.
+	 * An unknown shutdown weason.
 	 */
 	Unknown = 1,
 
 	/**
-	 * A shutdown that was potentially triggered by keyboard use.
+	 * A shutdown that was potentiawwy twiggewed by keyboawd use.
 	 */
-	Keyboard = 2,
+	Keyboawd = 2,
 
 	/**
-	 * An explicit shutdown via code.
+	 * An expwicit shutdown via code.
 	 */
 	Api = 3
 }
 
-export class BrowserHostService extends Disposable implements IHostService {
+expowt cwass BwowsewHostSewvice extends Disposabwe impwements IHostSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private workspaceProvider: IWorkspaceProvider;
+	pwivate wowkspacePwovida: IWowkspacePwovida;
 
-	private shutdownReason = HostShutdownReason.Unknown;
+	pwivate shutdownWeason = HostShutdownWeason.Unknown;
 
-	constructor(
-		@ILayoutService private readonly layoutService: ILayoutService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IFileService private readonly fileService: IFileService,
-		@ILabelService private readonly labelService: ILabelService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ILifecycleService private readonly lifecycleService: BrowserLifecycleService,
-		@ILogService private readonly logService: ILogService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IStorageService private readonly storageService: IStorageService
+	constwuctow(
+		@IWayoutSewvice pwivate weadonwy wayoutSewvice: IWayoutSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IWifecycweSewvice pwivate weadonwy wifecycweSewvice: BwowsewWifecycweSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IDiawogSewvice pwivate weadonwy diawogSewvice: IDiawogSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice
 	) {
-		super();
+		supa();
 
-		if (environmentService.options?.workspaceProvider) {
-			this.workspaceProvider = environmentService.options.workspaceProvider;
-		} else {
-			this.workspaceProvider = new class implements IWorkspaceProvider {
-				readonly workspace = undefined;
-				readonly trusted = undefined;
-				async open() { return true; }
+		if (enviwonmentSewvice.options?.wowkspacePwovida) {
+			this.wowkspacePwovida = enviwonmentSewvice.options.wowkspacePwovida;
+		} ewse {
+			this.wowkspacePwovida = new cwass impwements IWowkspacePwovida {
+				weadonwy wowkspace = undefined;
+				weadonwy twusted = undefined;
+				async open() { wetuwn twue; }
 			};
 		}
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// Veto shutdown depending on `window.confirmBeforeClose` setting
-		this._register(this.lifecycleService.onBeforeShutdown(e => this.onBeforeShutdown(e)));
+		// Veto shutdown depending on `window.confiwmBefoweCwose` setting
+		this._wegista(this.wifecycweSewvice.onBefoweShutdown(e => this.onBefoweShutdown(e)));
 
-		// Track modifier keys to detect keybinding usage
-		this._register(ModifierKeyEmitter.getInstance().event(() => this.updateShutdownReasonFromEvent()));
+		// Twack modifia keys to detect keybinding usage
+		this._wegista(ModifiewKeyEmitta.getInstance().event(() => this.updateShutdownWeasonFwomEvent()));
 	}
 
-	private onBeforeShutdown(e: BeforeShutdownEvent): void {
+	pwivate onBefoweShutdown(e: BefoweShutdownEvent): void {
 
-		// Optimistically trigger a UI state flush
-		// without waiting for it. The browser does
-		// not guarantee that this is being executed
-		// but if a dialog opens, we have a chance
+		// Optimisticawwy twigga a UI state fwush
+		// without waiting fow it. The bwowsa does
+		// not guawantee that this is being executed
+		// but if a diawog opens, we have a chance
 		// to succeed.
-		this.storageService.flush(WillSaveStateReason.SHUTDOWN);
+		this.stowageSewvice.fwush(WiwwSaveStateWeason.SHUTDOWN);
 
-		switch (this.shutdownReason) {
+		switch (this.shutdownWeason) {
 
-			// Unknown / Keyboard shows veto depending on setting
-			case HostShutdownReason.Unknown:
-			case HostShutdownReason.Keyboard:
-				const confirmBeforeClose = this.configurationService.getValue('window.confirmBeforeClose');
-				if (confirmBeforeClose === 'always' || (confirmBeforeClose === 'keyboardOnly' && this.shutdownReason === HostShutdownReason.Keyboard)) {
-					e.veto(true, 'veto.confirmBeforeClose');
+			// Unknown / Keyboawd shows veto depending on setting
+			case HostShutdownWeason.Unknown:
+			case HostShutdownWeason.Keyboawd:
+				const confiwmBefoweCwose = this.configuwationSewvice.getVawue('window.confiwmBefoweCwose');
+				if (confiwmBefoweCwose === 'awways' || (confiwmBefoweCwose === 'keyboawdOnwy' && this.shutdownWeason === HostShutdownWeason.Keyboawd)) {
+					e.veto(twue, 'veto.confiwmBefoweCwose');
 				}
-				break;
+				bweak;
 
-			// Api never shows veto
-			case HostShutdownReason.Api:
-				break;
+			// Api neva shows veto
+			case HostShutdownWeason.Api:
+				bweak;
 		}
 
-		// Unset for next shutdown
-		this.shutdownReason = HostShutdownReason.Unknown;
+		// Unset fow next shutdown
+		this.shutdownWeason = HostShutdownWeason.Unknown;
 	}
 
-	private updateShutdownReasonFromEvent(): void {
-		if (this.shutdownReason === HostShutdownReason.Api) {
-			return; // do not overwrite any explicitly set shutdown reason
+	pwivate updateShutdownWeasonFwomEvent(): void {
+		if (this.shutdownWeason === HostShutdownWeason.Api) {
+			wetuwn; // do not ovewwwite any expwicitwy set shutdown weason
 		}
 
-		if (ModifierKeyEmitter.getInstance().isModifierPressed) {
-			this.shutdownReason = HostShutdownReason.Keyboard;
-		} else {
-			this.shutdownReason = HostShutdownReason.Unknown;
+		if (ModifiewKeyEmitta.getInstance().isModifiewPwessed) {
+			this.shutdownWeason = HostShutdownWeason.Keyboawd;
+		} ewse {
+			this.shutdownWeason = HostShutdownWeason.Unknown;
 		}
 	}
 
-	//#region Focus
+	//#wegion Focus
 
 	@memoize
-	get onDidChangeFocus(): Event<boolean> {
-		const focusTracker = this._register(trackFocus(window));
-		const onVisibilityChange = this._register(new DomEmitter(window.document, 'visibilitychange'));
+	get onDidChangeFocus(): Event<boowean> {
+		const focusTwacka = this._wegista(twackFocus(window));
+		const onVisibiwityChange = this._wegista(new DomEmitta(window.document, 'visibiwitychange'));
 
-		return Event.latch(Event.any(
-			Event.map(focusTracker.onDidFocus, () => this.hasFocus),
-			Event.map(focusTracker.onDidBlur, () => this.hasFocus),
-			Event.map(onVisibilityChange.event, () => this.hasFocus)
+		wetuwn Event.watch(Event.any(
+			Event.map(focusTwacka.onDidFocus, () => this.hasFocus),
+			Event.map(focusTwacka.onDidBwuw, () => this.hasFocus),
+			Event.map(onVisibiwityChange.event, () => this.hasFocus)
 		));
 	}
 
-	get hasFocus(): boolean {
-		return document.hasFocus();
+	get hasFocus(): boowean {
+		wetuwn document.hasFocus();
 	}
 
-	async hadLastFocus(): Promise<boolean> {
-		return true;
+	async hadWastFocus(): Pwomise<boowean> {
+		wetuwn twue;
 	}
 
-	async focus(): Promise<void> {
+	async focus(): Pwomise<void> {
 		window.focus();
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Window
+	//#wegion Window
 
-	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
-	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
-	openWindow(arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: IOpenWindowOptions): Promise<void> {
-		if (Array.isArray(arg1)) {
-			return this.doOpenWindow(arg1, arg2);
+	openWindow(options?: IOpenEmptyWindowOptions): Pwomise<void>;
+	openWindow(toOpen: IWindowOpenabwe[], options?: IOpenWindowOptions): Pwomise<void>;
+	openWindow(awg1?: IOpenEmptyWindowOptions | IWindowOpenabwe[], awg2?: IOpenWindowOptions): Pwomise<void> {
+		if (Awway.isAwway(awg1)) {
+			wetuwn this.doOpenWindow(awg1, awg2);
 		}
 
-		return this.doOpenEmptyWindow(arg1);
+		wetuwn this.doOpenEmptyWindow(awg1);
 	}
 
-	private async doOpenWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
-		const payload = this.preservePayload();
-		const fileOpenables: IFileToOpen[] = [];
-		const foldersToAdd: IWorkspaceFolderCreationData[] = [];
+	pwivate async doOpenWindow(toOpen: IWindowOpenabwe[], options?: IOpenWindowOptions): Pwomise<void> {
+		const paywoad = this.pwesewvePaywoad();
+		const fiweOpenabwes: IFiweToOpen[] = [];
+		const fowdewsToAdd: IWowkspaceFowdewCweationData[] = [];
 
-		for (const openable of toOpen) {
-			openable.label = openable.label || this.getRecentLabel(openable);
+		fow (const openabwe of toOpen) {
+			openabwe.wabew = openabwe.wabew || this.getWecentWabew(openabwe);
 
-			// Folder
-			if (isFolderToOpen(openable)) {
+			// Fowda
+			if (isFowdewToOpen(openabwe)) {
 				if (options?.addMode) {
-					foldersToAdd.push(({ uri: openable.folderUri }));
-				} else {
-					this.doOpen({ folderUri: openable.folderUri }, { reuse: this.shouldReuse(options, false /* no file */), payload });
+					fowdewsToAdd.push(({ uwi: openabwe.fowdewUwi }));
+				} ewse {
+					this.doOpen({ fowdewUwi: openabwe.fowdewUwi }, { weuse: this.shouwdWeuse(options, fawse /* no fiwe */), paywoad });
 				}
 			}
 
-			// Workspace
-			else if (isWorkspaceToOpen(openable)) {
-				this.doOpen({ workspaceUri: openable.workspaceUri }, { reuse: this.shouldReuse(options, false /* no file */), payload });
+			// Wowkspace
+			ewse if (isWowkspaceToOpen(openabwe)) {
+				this.doOpen({ wowkspaceUwi: openabwe.wowkspaceUwi }, { weuse: this.shouwdWeuse(options, fawse /* no fiwe */), paywoad });
 			}
 
-			// File (handled later in bulk)
-			else if (isFileToOpen(openable)) {
-				fileOpenables.push(openable);
+			// Fiwe (handwed wata in buwk)
+			ewse if (isFiweToOpen(openabwe)) {
+				fiweOpenabwes.push(openabwe);
 			}
 		}
 
-		// Handle Folders to Add
-		if (foldersToAdd.length > 0) {
-			this.instantiationService.invokeFunction(accessor => {
-				const workspaceEditingService: IWorkspaceEditingService = accessor.get(IWorkspaceEditingService);  // avoid heavy dependencies (https://github.com/microsoft/vscode/issues/108522)
-				workspaceEditingService.addFolders(foldersToAdd);
+		// Handwe Fowdews to Add
+		if (fowdewsToAdd.wength > 0) {
+			this.instantiationSewvice.invokeFunction(accessow => {
+				const wowkspaceEditingSewvice: IWowkspaceEditingSewvice = accessow.get(IWowkspaceEditingSewvice);  // avoid heavy dependencies (https://github.com/micwosoft/vscode/issues/108522)
+				wowkspaceEditingSewvice.addFowdews(fowdewsToAdd);
 			});
 		}
 
-		// Handle Files
-		if (fileOpenables.length > 0) {
-			this.instantiationService.invokeFunction(async accessor => {
-				const editorService = accessor.get(IEditorService); // avoid heavy dependencies (https://github.com/microsoft/vscode/issues/108522)
+		// Handwe Fiwes
+		if (fiweOpenabwes.wength > 0) {
+			this.instantiationSewvice.invokeFunction(async accessow => {
+				const editowSewvice = accessow.get(IEditowSewvice); // avoid heavy dependencies (https://github.com/micwosoft/vscode/issues/108522)
 
-				// Support diffMode
-				if (options?.diffMode && fileOpenables.length === 2) {
-					const editors = await pathsToEditors(fileOpenables, this.fileService);
-					if (editors.length !== 2 || !editors[0].resource || !editors[1].resource) {
-						return; // invalid resources
+				// Suppowt diffMode
+				if (options?.diffMode && fiweOpenabwes.wength === 2) {
+					const editows = await pathsToEditows(fiweOpenabwes, this.fiweSewvice);
+					if (editows.wength !== 2 || !editows[0].wesouwce || !editows[1].wesouwce) {
+						wetuwn; // invawid wesouwces
 					}
 
-					// Same Window: open via editor service in current window
-					if (this.shouldReuse(options, true /* file */)) {
-						editorService.openEditor({
-							original: { resource: editors[0].resource },
-							modified: { resource: editors[1].resource },
-							options: { pinned: true }
+					// Same Window: open via editow sewvice in cuwwent window
+					if (this.shouwdWeuse(options, twue /* fiwe */)) {
+						editowSewvice.openEditow({
+							owiginaw: { wesouwce: editows[0].wesouwce },
+							modified: { wesouwce: editows[1].wesouwce },
+							options: { pinned: twue }
 						});
 					}
 
 					// New Window: open into empty window
-					else {
-						const environment = new Map<string, string>();
-						environment.set('diffFileSecondary', editors[0].resource.toString());
-						environment.set('diffFilePrimary', editors[1].resource.toString());
+					ewse {
+						const enviwonment = new Map<stwing, stwing>();
+						enviwonment.set('diffFiweSecondawy', editows[0].wesouwce.toStwing());
+						enviwonment.set('diffFiwePwimawy', editows[1].wesouwce.toStwing());
 
-						this.doOpen(undefined, { payload: Array.from(environment.entries()) });
+						this.doOpen(undefined, { paywoad: Awway.fwom(enviwonment.entwies()) });
 					}
 				}
 
-				// Just open normally
-				else {
-					for (const openable of fileOpenables) {
+				// Just open nowmawwy
+				ewse {
+					fow (const openabwe of fiweOpenabwes) {
 
-						// Same Window: open via editor service in current window
-						if (this.shouldReuse(options, true /* file */)) {
-							let openables: IPathData[] = [];
+						// Same Window: open via editow sewvice in cuwwent window
+						if (this.shouwdWeuse(options, twue /* fiwe */)) {
+							wet openabwes: IPathData[] = [];
 
-							// Support: --goto parameter to open on line/col
-							if (options?.gotoLineMode) {
-								const pathColumnAware = parseLineAndColumnAware(openable.fileUri.path);
-								openables = [{
-									fileUri: openable.fileUri.with({ path: pathColumnAware.path }),
-									selection: !isUndefined(pathColumnAware.line) ? { startLineNumber: pathColumnAware.line, startColumn: pathColumnAware.column || 1 } : undefined
+							// Suppowt: --goto pawameta to open on wine/cow
+							if (options?.gotoWineMode) {
+								const pathCowumnAwawe = pawseWineAndCowumnAwawe(openabwe.fiweUwi.path);
+								openabwes = [{
+									fiweUwi: openabwe.fiweUwi.with({ path: pathCowumnAwawe.path }),
+									sewection: !isUndefined(pathCowumnAwawe.wine) ? { stawtWineNumba: pathCowumnAwawe.wine, stawtCowumn: pathCowumnAwawe.cowumn || 1 } : undefined
 								}];
-							} else {
-								openables = [openable];
+							} ewse {
+								openabwes = [openabwe];
 							}
 
-							editorService.openEditors(await pathsToEditors(openables, this.fileService), undefined, { validateTrust: true });
+							editowSewvice.openEditows(await pathsToEditows(openabwes, this.fiweSewvice), undefined, { vawidateTwust: twue });
 						}
 
 						// New Window: open into empty window
-						else {
-							const environment = new Map<string, string>();
-							environment.set('openFile', openable.fileUri.toString());
+						ewse {
+							const enviwonment = new Map<stwing, stwing>();
+							enviwonment.set('openFiwe', openabwe.fiweUwi.toStwing());
 
-							if (options?.gotoLineMode) {
-								environment.set('gotoLineMode', 'true');
+							if (options?.gotoWineMode) {
+								enviwonment.set('gotoWineMode', 'twue');
 							}
 
-							this.doOpen(undefined, { payload: Array.from(environment.entries()) });
+							this.doOpen(undefined, { paywoad: Awway.fwom(enviwonment.entwies()) });
 						}
 					}
 				}
 
-				// Support wait mode
-				const waitMarkerFileURI = options?.waitMarkerFileURI;
-				if (waitMarkerFileURI) {
+				// Suppowt wait mode
+				const waitMawkewFiweUWI = options?.waitMawkewFiweUWI;
+				if (waitMawkewFiweUWI) {
 					(async () => {
 
-						// Wait for the resources to be closed in the text editor...
-						await this.instantiationService.invokeFunction(accessor => whenEditorClosed(accessor, fileOpenables.map(fileOpenable => fileOpenable.fileUri)));
+						// Wait fow the wesouwces to be cwosed in the text editow...
+						await this.instantiationSewvice.invokeFunction(accessow => whenEditowCwosed(accessow, fiweOpenabwes.map(fiweOpenabwe => fiweOpenabwe.fiweUwi)));
 
-						// ...before deleting the wait marker file
-						await this.fileService.del(waitMarkerFileURI);
+						// ...befowe deweting the wait mawka fiwe
+						await this.fiweSewvice.dew(waitMawkewFiweUWI);
 					})();
 				}
 			});
 		}
 	}
 
-	private preservePayload(): Array<unknown> | undefined {
+	pwivate pwesewvePaywoad(): Awway<unknown> | undefined {
 
-		// Selectively copy payload: for now only extension debugging properties are considered
-		let newPayload: Array<unknown> | undefined = undefined;
-		if (this.environmentService.extensionDevelopmentLocationURI) {
-			newPayload = new Array();
+		// Sewectivewy copy paywoad: fow now onwy extension debugging pwopewties awe considewed
+		wet newPaywoad: Awway<unknown> | undefined = undefined;
+		if (this.enviwonmentSewvice.extensionDevewopmentWocationUWI) {
+			newPaywoad = new Awway();
 
-			newPayload.push(['extensionDevelopmentPath', this.environmentService.extensionDevelopmentLocationURI.toString()]);
+			newPaywoad.push(['extensionDevewopmentPath', this.enviwonmentSewvice.extensionDevewopmentWocationUWI.toStwing()]);
 
-			if (this.environmentService.debugExtensionHost.debugId) {
-				newPayload.push(['debugId', this.environmentService.debugExtensionHost.debugId]);
+			if (this.enviwonmentSewvice.debugExtensionHost.debugId) {
+				newPaywoad.push(['debugId', this.enviwonmentSewvice.debugExtensionHost.debugId]);
 			}
 
-			if (this.environmentService.debugExtensionHost.port) {
-				newPayload.push(['inspect-brk-extensions', String(this.environmentService.debugExtensionHost.port)]);
+			if (this.enviwonmentSewvice.debugExtensionHost.powt) {
+				newPaywoad.push(['inspect-bwk-extensions', Stwing(this.enviwonmentSewvice.debugExtensionHost.powt)]);
 			}
 		}
 
-		return newPayload;
+		wetuwn newPaywoad;
 	}
 
-	private getRecentLabel(openable: IWindowOpenable): string {
-		if (isFolderToOpen(openable)) {
-			return this.labelService.getWorkspaceLabel(openable.folderUri, { verbose: true });
+	pwivate getWecentWabew(openabwe: IWindowOpenabwe): stwing {
+		if (isFowdewToOpen(openabwe)) {
+			wetuwn this.wabewSewvice.getWowkspaceWabew(openabwe.fowdewUwi, { vewbose: twue });
 		}
 
-		if (isWorkspaceToOpen(openable)) {
-			return this.labelService.getWorkspaceLabel(getWorkspaceIdentifier(openable.workspaceUri), { verbose: true });
+		if (isWowkspaceToOpen(openabwe)) {
+			wetuwn this.wabewSewvice.getWowkspaceWabew(getWowkspaceIdentifia(openabwe.wowkspaceUwi), { vewbose: twue });
 		}
 
-		return this.labelService.getUriLabel(openable.fileUri);
+		wetuwn this.wabewSewvice.getUwiWabew(openabwe.fiweUwi);
 	}
 
-	private shouldReuse(options: IOpenWindowOptions = Object.create(null), isFile: boolean): boolean {
-		if (options.waitMarkerFileURI) {
-			return true; // always handle --wait in same window
+	pwivate shouwdWeuse(options: IOpenWindowOptions = Object.cweate(nuww), isFiwe: boowean): boowean {
+		if (options.waitMawkewFiweUWI) {
+			wetuwn twue; // awways handwe --wait in same window
 		}
 
-		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
-		const openInNewWindowConfig = isFile ? (windowConfig?.openFilesInNewWindow || 'off' /* default */) : (windowConfig?.openFoldersInNewWindow || 'default' /* default */);
+		const windowConfig = this.configuwationSewvice.getVawue<IWindowSettings | undefined>('window');
+		const openInNewWindowConfig = isFiwe ? (windowConfig?.openFiwesInNewWindow || 'off' /* defauwt */) : (windowConfig?.openFowdewsInNewWindow || 'defauwt' /* defauwt */);
 
-		let openInNewWindow = (options.preferNewWindow || !!options.forceNewWindow) && !options.forceReuseWindow;
-		if (!options.forceNewWindow && !options.forceReuseWindow && (openInNewWindowConfig === 'on' || openInNewWindowConfig === 'off')) {
+		wet openInNewWindow = (options.pwefewNewWindow || !!options.fowceNewWindow) && !options.fowceWeuseWindow;
+		if (!options.fowceNewWindow && !options.fowceWeuseWindow && (openInNewWindowConfig === 'on' || openInNewWindowConfig === 'off')) {
 			openInNewWindow = (openInNewWindowConfig === 'on');
 		}
 
-		return !openInNewWindow;
+		wetuwn !openInNewWindow;
 	}
 
-	private async doOpenEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void> {
-		return this.doOpen(undefined, { reuse: options?.forceReuseWindow });
+	pwivate async doOpenEmptyWindow(options?: IOpenEmptyWindowOptions): Pwomise<void> {
+		wetuwn this.doOpen(undefined, { weuse: options?.fowceWeuseWindow });
 	}
 
-	private async doOpen(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<void> {
+	pwivate async doOpen(wowkspace: IWowkspace, options?: { weuse?: boowean, paywoad?: object }): Pwomise<void> {
 
-		// We know that `workspaceProvider.open` will trigger a shutdown
-		// with `options.reuse` so we handle this expected shutdown
-		if (options?.reuse) {
-			await this.handleExpectedShutdown(ShutdownReason.LOAD);
+		// We know that `wowkspacePwovida.open` wiww twigga a shutdown
+		// with `options.weuse` so we handwe this expected shutdown
+		if (options?.weuse) {
+			await this.handweExpectedShutdown(ShutdownWeason.WOAD);
 		}
 
-		const opened = await this.workspaceProvider.open(workspace, options);
+		const opened = await this.wowkspacePwovida.open(wowkspace, options);
 		if (!opened) {
-			const showResult = await this.dialogService.show(Severity.Warning, localize('unableToOpenExternal', "The browser interrupted the opening of a new tab or window. Press 'Open' to open it anyway."), [localize('open', "Open"), localize('cancel', "Cancel")], { cancelId: 1 });
-			if (showResult.choice === 0) {
-				await this.workspaceProvider.open(workspace, options);
+			const showWesuwt = await this.diawogSewvice.show(Sevewity.Wawning, wocawize('unabweToOpenExtewnaw', "The bwowsa intewwupted the opening of a new tab ow window. Pwess 'Open' to open it anyway."), [wocawize('open', "Open"), wocawize('cancew', "Cancew")], { cancewId: 1 });
+			if (showWesuwt.choice === 0) {
+				await this.wowkspacePwovida.open(wowkspace, options);
 			}
 		}
 	}
 
-	async toggleFullScreen(): Promise<void> {
-		const target = this.layoutService.container;
+	async toggweFuwwScween(): Pwomise<void> {
+		const tawget = this.wayoutSewvice.containa;
 
-		// Chromium
-		if (document.fullscreen !== undefined) {
-			if (!document.fullscreen) {
-				try {
-					return await target.requestFullscreen();
-				} catch (error) {
-					this.logService.warn('toggleFullScreen(): requestFullscreen failed'); // https://developer.mozilla.org/en-US/docs/Web/API/Element/requestFullscreen
+		// Chwomium
+		if (document.fuwwscween !== undefined) {
+			if (!document.fuwwscween) {
+				twy {
+					wetuwn await tawget.wequestFuwwscween();
+				} catch (ewwow) {
+					this.wogSewvice.wawn('toggweFuwwScween(): wequestFuwwscween faiwed'); // https://devewopa.moziwwa.owg/en-US/docs/Web/API/Ewement/wequestFuwwscween
 				}
-			} else {
-				try {
-					return await document.exitFullscreen();
-				} catch (error) {
-					this.logService.warn('toggleFullScreen(): exitFullscreen failed');
+			} ewse {
+				twy {
+					wetuwn await document.exitFuwwscween();
+				} catch (ewwow) {
+					this.wogSewvice.wawn('toggweFuwwScween(): exitFuwwscween faiwed');
 				}
 			}
 		}
 
-		// Safari and Edge 14 are all using webkit prefix
-		if ((<any>document).webkitIsFullScreen !== undefined) {
-			try {
-				if (!(<any>document).webkitIsFullScreen) {
-					(<any>target).webkitRequestFullscreen(); // it's async, but doesn't return a real promise.
-				} else {
-					(<any>document).webkitExitFullscreen(); // it's async, but doesn't return a real promise.
+		// Safawi and Edge 14 awe aww using webkit pwefix
+		if ((<any>document).webkitIsFuwwScween !== undefined) {
+			twy {
+				if (!(<any>document).webkitIsFuwwScween) {
+					(<any>tawget).webkitWequestFuwwscween(); // it's async, but doesn't wetuwn a weaw pwomise.
+				} ewse {
+					(<any>document).webkitExitFuwwscween(); // it's async, but doesn't wetuwn a weaw pwomise.
 				}
 			} catch {
-				this.logService.warn('toggleFullScreen(): requestFullscreen/exitFullscreen failed');
+				this.wogSewvice.wawn('toggweFuwwScween(): wequestFuwwscween/exitFuwwscween faiwed');
 			}
 		}
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Lifecycle
+	//#wegion Wifecycwe
 
-	async restart(): Promise<void> {
-		this.reload();
+	async westawt(): Pwomise<void> {
+		this.wewoad();
 	}
 
-	async reload(): Promise<void> {
-		await this.handleExpectedShutdown(ShutdownReason.RELOAD);
+	async wewoad(): Pwomise<void> {
+		await this.handweExpectedShutdown(ShutdownWeason.WEWOAD);
 
-		window.location.reload();
+		window.wocation.wewoad();
 	}
 
-	async close(): Promise<void> {
-		await this.handleExpectedShutdown(ShutdownReason.CLOSE);
+	async cwose(): Pwomise<void> {
+		await this.handweExpectedShutdown(ShutdownWeason.CWOSE);
 
-		window.close();
+		window.cwose();
 	}
 
-	private async handleExpectedShutdown(reason: ShutdownReason): Promise<void> {
+	pwivate async handweExpectedShutdown(weason: ShutdownWeason): Pwomise<void> {
 
-		// Update shutdown reason in a way that we do
-		// not show a dialog because this is a expected
+		// Update shutdown weason in a way that we do
+		// not show a diawog because this is a expected
 		// shutdown.
-		this.shutdownReason = HostShutdownReason.Api;
+		this.shutdownWeason = HostShutdownWeason.Api;
 
-		// Signal shutdown reason to lifecycle
-		this.lifecycleService.withExpectedShutdown(reason);
+		// Signaw shutdown weason to wifecycwe
+		this.wifecycweSewvice.withExpectedShutdown(weason);
 
-		// Ensure UI state is persisted
-		await this.storageService.flush(WillSaveStateReason.SHUTDOWN);
+		// Ensuwe UI state is pewsisted
+		await this.stowageSewvice.fwush(WiwwSaveStateWeason.SHUTDOWN);
 	}
 
-	//#endregion
+	//#endwegion
 }
 
-registerSingleton(IHostService, BrowserHostService, true);
+wegistewSingweton(IHostSewvice, BwowsewHostSewvice, twue);

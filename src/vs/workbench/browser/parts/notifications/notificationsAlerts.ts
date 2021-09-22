@@ -1,77 +1,77 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { localize } from 'vs/nls';
-import { INotificationViewItem, INotificationsModel, NotificationChangeType, INotificationChangeEvent, NotificationViewItemContentChangeKind } from 'vs/workbench/common/notifications';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Severity } from 'vs/platform/notification/common/notification';
-import { Event } from 'vs/base/common/event';
+impowt { awewt } fwom 'vs/base/bwowsa/ui/awia/awia';
+impowt { wocawize } fwom 'vs/nws';
+impowt { INotificationViewItem, INotificationsModew, NotificationChangeType, INotificationChangeEvent, NotificationViewItemContentChangeKind } fwom 'vs/wowkbench/common/notifications';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { toEwwowMessage } fwom 'vs/base/common/ewwowMessage';
+impowt { Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { Event } fwom 'vs/base/common/event';
 
-export class NotificationsAlerts extends Disposable {
+expowt cwass NotificationsAwewts extends Disposabwe {
 
-	constructor(private readonly model: INotificationsModel) {
-		super();
+	constwuctow(pwivate weadonwy modew: INotificationsModew) {
+		supa();
 
-		// Alert initial notifications if any
-		for (const notification of model.notifications) {
-			this.triggerAriaAlert(notification);
+		// Awewt initiaw notifications if any
+		fow (const notification of modew.notifications) {
+			this.twiggewAwiaAwewt(notification);
 		}
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		this._register(this.model.onDidChangeNotification(e => this.onDidChangeNotification(e)));
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.modew.onDidChangeNotification(e => this.onDidChangeNotification(e)));
 	}
 
-	private onDidChangeNotification(e: INotificationChangeEvent): void {
+	pwivate onDidChangeNotification(e: INotificationChangeEvent): void {
 		if (e.kind === NotificationChangeType.ADD) {
 
-			// ARIA alert for screen readers
-			this.triggerAriaAlert(e.item);
+			// AWIA awewt fow scween weadews
+			this.twiggewAwiaAwewt(e.item);
 
-			// Always log errors to console with full details
-			if (e.item.severity === Severity.Error) {
-				if (e.item.message.original instanceof Error) {
-					console.error(e.item.message.original);
-				} else {
-					console.error(toErrorMessage(e.item.message.linkedText.toString(), true));
+			// Awways wog ewwows to consowe with fuww detaiws
+			if (e.item.sevewity === Sevewity.Ewwow) {
+				if (e.item.message.owiginaw instanceof Ewwow) {
+					consowe.ewwow(e.item.message.owiginaw);
+				} ewse {
+					consowe.ewwow(toEwwowMessage(e.item.message.winkedText.toStwing(), twue));
 				}
 			}
 		}
 	}
 
-	private triggerAriaAlert(notifiation: INotificationViewItem): void {
-		if (notifiation.silent) {
-			return;
+	pwivate twiggewAwiaAwewt(notifiation: INotificationViewItem): void {
+		if (notifiation.siwent) {
+			wetuwn;
 		}
 
-		// Trigger the alert again whenever the message changes
-		const listener = notifiation.onDidChangeContent(e => {
+		// Twigga the awewt again wheneva the message changes
+		const wistena = notifiation.onDidChangeContent(e => {
 			if (e.kind === NotificationViewItemContentChangeKind.MESSAGE) {
-				this.doTriggerAriaAlert(notifiation);
+				this.doTwiggewAwiaAwewt(notifiation);
 			}
 		});
 
-		Event.once(notifiation.onDidClose)(() => listener.dispose());
+		Event.once(notifiation.onDidCwose)(() => wistena.dispose());
 
-		this.doTriggerAriaAlert(notifiation);
+		this.doTwiggewAwiaAwewt(notifiation);
 	}
 
-	private doTriggerAriaAlert(notifiation: INotificationViewItem): void {
-		let alertText: string;
-		if (notifiation.severity === Severity.Error) {
-			alertText = localize('alertErrorMessage', "Error: {0}", notifiation.message.linkedText.toString());
-		} else if (notifiation.severity === Severity.Warning) {
-			alertText = localize('alertWarningMessage', "Warning: {0}", notifiation.message.linkedText.toString());
-		} else {
-			alertText = localize('alertInfoMessage', "Info: {0}", notifiation.message.linkedText.toString());
+	pwivate doTwiggewAwiaAwewt(notifiation: INotificationViewItem): void {
+		wet awewtText: stwing;
+		if (notifiation.sevewity === Sevewity.Ewwow) {
+			awewtText = wocawize('awewtEwwowMessage', "Ewwow: {0}", notifiation.message.winkedText.toStwing());
+		} ewse if (notifiation.sevewity === Sevewity.Wawning) {
+			awewtText = wocawize('awewtWawningMessage', "Wawning: {0}", notifiation.message.winkedText.toStwing());
+		} ewse {
+			awewtText = wocawize('awewtInfoMessage', "Info: {0}", notifiation.message.winkedText.toStwing());
 		}
 
-		alert(alertText);
+		awewt(awewtText);
 	}
 }

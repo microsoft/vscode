@@ -1,153 +1,153 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { MouseTarget } from 'vs/editor/browser/controller/mouseTarget';
-import { IEditorMouseEvent, IMouseTarget, IPartialEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+impowt { IKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { MouseTawget } fwom 'vs/editow/bwowsa/contwowwa/mouseTawget';
+impowt { IEditowMouseEvent, IMouseTawget, IPawtiawEditowMouseEvent, MouseTawgetType } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { ICoowdinatesConvewta } fwom 'vs/editow/common/viewModew/viewModew';
+impowt { IMouseWheewEvent } fwom 'vs/base/bwowsa/mouseEvent';
 
-export interface EventCallback<T> {
+expowt intewface EventCawwback<T> {
 	(event: T): void;
 }
 
-export class ViewUserInputEvents {
+expowt cwass ViewUsewInputEvents {
 
-	public onKeyDown: EventCallback<IKeyboardEvent> | null = null;
-	public onKeyUp: EventCallback<IKeyboardEvent> | null = null;
-	public onContextMenu: EventCallback<IEditorMouseEvent> | null = null;
-	public onMouseMove: EventCallback<IEditorMouseEvent> | null = null;
-	public onMouseLeave: EventCallback<IPartialEditorMouseEvent> | null = null;
-	public onMouseDown: EventCallback<IEditorMouseEvent> | null = null;
-	public onMouseUp: EventCallback<IEditorMouseEvent> | null = null;
-	public onMouseDrag: EventCallback<IEditorMouseEvent> | null = null;
-	public onMouseDrop: EventCallback<IPartialEditorMouseEvent> | null = null;
-	public onMouseDropCanceled: EventCallback<void> | null = null;
-	public onMouseWheel: EventCallback<IMouseWheelEvent> | null = null;
+	pubwic onKeyDown: EventCawwback<IKeyboawdEvent> | nuww = nuww;
+	pubwic onKeyUp: EventCawwback<IKeyboawdEvent> | nuww = nuww;
+	pubwic onContextMenu: EventCawwback<IEditowMouseEvent> | nuww = nuww;
+	pubwic onMouseMove: EventCawwback<IEditowMouseEvent> | nuww = nuww;
+	pubwic onMouseWeave: EventCawwback<IPawtiawEditowMouseEvent> | nuww = nuww;
+	pubwic onMouseDown: EventCawwback<IEditowMouseEvent> | nuww = nuww;
+	pubwic onMouseUp: EventCawwback<IEditowMouseEvent> | nuww = nuww;
+	pubwic onMouseDwag: EventCawwback<IEditowMouseEvent> | nuww = nuww;
+	pubwic onMouseDwop: EventCawwback<IPawtiawEditowMouseEvent> | nuww = nuww;
+	pubwic onMouseDwopCancewed: EventCawwback<void> | nuww = nuww;
+	pubwic onMouseWheew: EventCawwback<IMouseWheewEvent> | nuww = nuww;
 
-	private readonly _coordinatesConverter: ICoordinatesConverter;
+	pwivate weadonwy _coowdinatesConvewta: ICoowdinatesConvewta;
 
-	constructor(coordinatesConverter: ICoordinatesConverter) {
-		this._coordinatesConverter = coordinatesConverter;
+	constwuctow(coowdinatesConvewta: ICoowdinatesConvewta) {
+		this._coowdinatesConvewta = coowdinatesConvewta;
 	}
 
-	public emitKeyDown(e: IKeyboardEvent): void {
+	pubwic emitKeyDown(e: IKeyboawdEvent): void {
 		if (this.onKeyDown) {
 			this.onKeyDown(e);
 		}
 	}
 
-	public emitKeyUp(e: IKeyboardEvent): void {
+	pubwic emitKeyUp(e: IKeyboawdEvent): void {
 		if (this.onKeyUp) {
 			this.onKeyUp(e);
 		}
 	}
 
-	public emitContextMenu(e: IEditorMouseEvent): void {
+	pubwic emitContextMenu(e: IEditowMouseEvent): void {
 		if (this.onContextMenu) {
-			this.onContextMenu(this._convertViewToModelMouseEvent(e));
+			this.onContextMenu(this._convewtViewToModewMouseEvent(e));
 		}
 	}
 
-	public emitMouseMove(e: IEditorMouseEvent): void {
+	pubwic emitMouseMove(e: IEditowMouseEvent): void {
 		if (this.onMouseMove) {
-			this.onMouseMove(this._convertViewToModelMouseEvent(e));
+			this.onMouseMove(this._convewtViewToModewMouseEvent(e));
 		}
 	}
 
-	public emitMouseLeave(e: IPartialEditorMouseEvent): void {
-		if (this.onMouseLeave) {
-			this.onMouseLeave(this._convertViewToModelMouseEvent(e));
+	pubwic emitMouseWeave(e: IPawtiawEditowMouseEvent): void {
+		if (this.onMouseWeave) {
+			this.onMouseWeave(this._convewtViewToModewMouseEvent(e));
 		}
 	}
 
-	public emitMouseDown(e: IEditorMouseEvent): void {
+	pubwic emitMouseDown(e: IEditowMouseEvent): void {
 		if (this.onMouseDown) {
-			this.onMouseDown(this._convertViewToModelMouseEvent(e));
+			this.onMouseDown(this._convewtViewToModewMouseEvent(e));
 		}
 	}
 
-	public emitMouseUp(e: IEditorMouseEvent): void {
+	pubwic emitMouseUp(e: IEditowMouseEvent): void {
 		if (this.onMouseUp) {
-			this.onMouseUp(this._convertViewToModelMouseEvent(e));
+			this.onMouseUp(this._convewtViewToModewMouseEvent(e));
 		}
 	}
 
-	public emitMouseDrag(e: IEditorMouseEvent): void {
-		if (this.onMouseDrag) {
-			this.onMouseDrag(this._convertViewToModelMouseEvent(e));
+	pubwic emitMouseDwag(e: IEditowMouseEvent): void {
+		if (this.onMouseDwag) {
+			this.onMouseDwag(this._convewtViewToModewMouseEvent(e));
 		}
 	}
 
-	public emitMouseDrop(e: IPartialEditorMouseEvent): void {
-		if (this.onMouseDrop) {
-			this.onMouseDrop(this._convertViewToModelMouseEvent(e));
+	pubwic emitMouseDwop(e: IPawtiawEditowMouseEvent): void {
+		if (this.onMouseDwop) {
+			this.onMouseDwop(this._convewtViewToModewMouseEvent(e));
 		}
 	}
 
-	public emitMouseDropCanceled(): void {
-		if (this.onMouseDropCanceled) {
-			this.onMouseDropCanceled();
+	pubwic emitMouseDwopCancewed(): void {
+		if (this.onMouseDwopCancewed) {
+			this.onMouseDwopCancewed();
 		}
 	}
 
-	public emitMouseWheel(e: IMouseWheelEvent): void {
-		if (this.onMouseWheel) {
-			this.onMouseWheel(e);
+	pubwic emitMouseWheew(e: IMouseWheewEvent): void {
+		if (this.onMouseWheew) {
+			this.onMouseWheew(e);
 		}
 	}
 
-	private _convertViewToModelMouseEvent(e: IEditorMouseEvent): IEditorMouseEvent;
-	private _convertViewToModelMouseEvent(e: IPartialEditorMouseEvent): IPartialEditorMouseEvent;
-	private _convertViewToModelMouseEvent(e: IEditorMouseEvent | IPartialEditorMouseEvent): IEditorMouseEvent | IPartialEditorMouseEvent {
-		if (e.target) {
-			return {
+	pwivate _convewtViewToModewMouseEvent(e: IEditowMouseEvent): IEditowMouseEvent;
+	pwivate _convewtViewToModewMouseEvent(e: IPawtiawEditowMouseEvent): IPawtiawEditowMouseEvent;
+	pwivate _convewtViewToModewMouseEvent(e: IEditowMouseEvent | IPawtiawEditowMouseEvent): IEditowMouseEvent | IPawtiawEditowMouseEvent {
+		if (e.tawget) {
+			wetuwn {
 				event: e.event,
-				target: this._convertViewToModelMouseTarget(e.target)
+				tawget: this._convewtViewToModewMouseTawget(e.tawget)
 			};
 		}
-		return e;
+		wetuwn e;
 	}
 
-	private _convertViewToModelMouseTarget(target: IMouseTarget): IMouseTarget {
-		return ViewUserInputEvents.convertViewToModelMouseTarget(target, this._coordinatesConverter);
+	pwivate _convewtViewToModewMouseTawget(tawget: IMouseTawget): IMouseTawget {
+		wetuwn ViewUsewInputEvents.convewtViewToModewMouseTawget(tawget, this._coowdinatesConvewta);
 	}
 
-	public static convertViewToModelMouseTarget(target: IMouseTarget, coordinatesConverter: ICoordinatesConverter): IMouseTarget {
-		return new ExternalMouseTarget(
-			target.element,
-			target.type,
-			target.mouseColumn,
-			target.position ? coordinatesConverter.convertViewPositionToModelPosition(target.position) : null,
-			target.range ? coordinatesConverter.convertViewRangeToModelRange(target.range) : null,
-			target.detail
+	pubwic static convewtViewToModewMouseTawget(tawget: IMouseTawget, coowdinatesConvewta: ICoowdinatesConvewta): IMouseTawget {
+		wetuwn new ExtewnawMouseTawget(
+			tawget.ewement,
+			tawget.type,
+			tawget.mouseCowumn,
+			tawget.position ? coowdinatesConvewta.convewtViewPositionToModewPosition(tawget.position) : nuww,
+			tawget.wange ? coowdinatesConvewta.convewtViewWangeToModewWange(tawget.wange) : nuww,
+			tawget.detaiw
 		);
 	}
 }
 
-class ExternalMouseTarget implements IMouseTarget {
+cwass ExtewnawMouseTawget impwements IMouseTawget {
 
-	public readonly element: Element | null;
-	public readonly type: MouseTargetType;
-	public readonly mouseColumn: number;
-	public readonly position: Position | null;
-	public readonly range: Range | null;
-	public readonly detail: any;
+	pubwic weadonwy ewement: Ewement | nuww;
+	pubwic weadonwy type: MouseTawgetType;
+	pubwic weadonwy mouseCowumn: numba;
+	pubwic weadonwy position: Position | nuww;
+	pubwic weadonwy wange: Wange | nuww;
+	pubwic weadonwy detaiw: any;
 
-	constructor(element: Element | null, type: MouseTargetType, mouseColumn: number, position: Position | null, range: Range | null, detail: any) {
-		this.element = element;
+	constwuctow(ewement: Ewement | nuww, type: MouseTawgetType, mouseCowumn: numba, position: Position | nuww, wange: Wange | nuww, detaiw: any) {
+		this.ewement = ewement;
 		this.type = type;
-		this.mouseColumn = mouseColumn;
+		this.mouseCowumn = mouseCowumn;
 		this.position = position;
-		this.range = range;
-		this.detail = detail;
+		this.wange = wange;
+		this.detaiw = detaiw;
 	}
 
-	public toString(): string {
-		return MouseTarget.toString(this);
+	pubwic toStwing(): stwing {
+		wetuwn MouseTawget.toStwing(this);
 	}
 }

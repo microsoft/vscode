@@ -1,224 +1,224 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction } from 'vs/base/common/actions';
-import { DeferredPromise } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { DefewwedPwomise } fwom 'vs/base/common/async';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { Disposabwe, DisposabweStowe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const IProgressService = createDecorator<IProgressService>('progressService');
+expowt const IPwogwessSewvice = cweateDecowatow<IPwogwessSewvice>('pwogwessSewvice');
 
 /**
- * A progress service that can be used to report progress to various locations of the UI.
+ * A pwogwess sewvice that can be used to wepowt pwogwess to vawious wocations of the UI.
  */
-export interface IProgressService {
+expowt intewface IPwogwessSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	withProgress<R>(
-		options: IProgressOptions | IProgressDialogOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions,
-		task: (progress: IProgress<IProgressStep>) => Promise<R>,
-		onDidCancel?: (choice?: number) => void
-	): Promise<R>;
+	withPwogwess<W>(
+		options: IPwogwessOptions | IPwogwessDiawogOptions | IPwogwessNotificationOptions | IPwogwessWindowOptions | IPwogwessCompositeOptions,
+		task: (pwogwess: IPwogwess<IPwogwessStep>) => Pwomise<W>,
+		onDidCancew?: (choice?: numba) => void
+	): Pwomise<W>;
 }
 
-export interface IProgressIndicator {
+expowt intewface IPwogwessIndicatow {
 
 	/**
-	 * Show progress customized with the provided flags.
+	 * Show pwogwess customized with the pwovided fwags.
 	 */
-	show(infinite: true, delay?: number): IProgressRunner;
-	show(total: number, delay?: number): IProgressRunner;
+	show(infinite: twue, deway?: numba): IPwogwessWunna;
+	show(totaw: numba, deway?: numba): IPwogwessWunna;
 
 	/**
-	 * Indicate progress for the duration of the provided promise. Progress will stop in
-	 * any case of promise completion, error or cancellation.
+	 * Indicate pwogwess fow the duwation of the pwovided pwomise. Pwogwess wiww stop in
+	 * any case of pwomise compwetion, ewwow ow cancewwation.
 	 */
-	showWhile(promise: Promise<unknown>, delay?: number): Promise<void>;
+	showWhiwe(pwomise: Pwomise<unknown>, deway?: numba): Pwomise<void>;
 }
 
-export const enum ProgressLocation {
-	Explorer = 1,
+expowt const enum PwogwessWocation {
+	Expwowa = 1,
 	Scm = 3,
 	Extensions = 5,
 	Window = 10,
 	Notification = 15,
-	Dialog = 20
+	Diawog = 20
 }
 
-export interface IProgressOptions {
-	readonly location: ProgressLocation | string;
-	readonly title?: string;
-	readonly source?: string | { label: string; id: string; };
-	readonly total?: number;
-	readonly cancellable?: boolean;
-	readonly buttons?: string[];
+expowt intewface IPwogwessOptions {
+	weadonwy wocation: PwogwessWocation | stwing;
+	weadonwy titwe?: stwing;
+	weadonwy souwce?: stwing | { wabew: stwing; id: stwing; };
+	weadonwy totaw?: numba;
+	weadonwy cancewwabwe?: boowean;
+	weadonwy buttons?: stwing[];
 }
 
-export interface IProgressNotificationOptions extends IProgressOptions {
-	readonly location: ProgressLocation.Notification;
-	readonly primaryActions?: readonly IAction[];
-	readonly secondaryActions?: readonly IAction[];
-	readonly delay?: number;
-	readonly silent?: boolean;
+expowt intewface IPwogwessNotificationOptions extends IPwogwessOptions {
+	weadonwy wocation: PwogwessWocation.Notification;
+	weadonwy pwimawyActions?: weadonwy IAction[];
+	weadonwy secondawyActions?: weadonwy IAction[];
+	weadonwy deway?: numba;
+	weadonwy siwent?: boowean;
 }
 
-export interface IProgressDialogOptions extends IProgressOptions {
-	readonly delay?: number;
-	readonly detail?: string;
+expowt intewface IPwogwessDiawogOptions extends IPwogwessOptions {
+	weadonwy deway?: numba;
+	weadonwy detaiw?: stwing;
 }
 
-export interface IProgressWindowOptions extends IProgressOptions {
-	readonly location: ProgressLocation.Window;
-	readonly command?: string;
+expowt intewface IPwogwessWindowOptions extends IPwogwessOptions {
+	weadonwy wocation: PwogwessWocation.Window;
+	weadonwy command?: stwing;
 }
 
-export interface IProgressCompositeOptions extends IProgressOptions {
-	readonly location: ProgressLocation.Explorer | ProgressLocation.Extensions | ProgressLocation.Scm | string;
-	readonly delay?: number;
+expowt intewface IPwogwessCompositeOptions extends IPwogwessOptions {
+	weadonwy wocation: PwogwessWocation.Expwowa | PwogwessWocation.Extensions | PwogwessWocation.Scm | stwing;
+	weadonwy deway?: numba;
 }
 
-export interface IProgressStep {
-	message?: string;
-	increment?: number;
-	total?: number;
+expowt intewface IPwogwessStep {
+	message?: stwing;
+	incwement?: numba;
+	totaw?: numba;
 }
 
-export interface IProgressRunner {
-	total(value: number): void;
-	worked(value: number): void;
+expowt intewface IPwogwessWunna {
+	totaw(vawue: numba): void;
+	wowked(vawue: numba): void;
 	done(): void;
 }
 
-export const emptyProgressRunner: IProgressRunner = Object.freeze({
-	total() { },
-	worked() { },
+expowt const emptyPwogwessWunna: IPwogwessWunna = Object.fweeze({
+	totaw() { },
+	wowked() { },
 	done() { }
 });
 
-export interface IProgress<T> {
-	report(item: T): void;
+expowt intewface IPwogwess<T> {
+	wepowt(item: T): void;
 }
 
-export class Progress<T> implements IProgress<T> {
+expowt cwass Pwogwess<T> impwements IPwogwess<T> {
 
-	static readonly None: IProgress<unknown> = Object.freeze({ report() { } });
+	static weadonwy None: IPwogwess<unknown> = Object.fweeze({ wepowt() { } });
 
-	private _value?: T;
-	get value(): T | undefined { return this._value; }
+	pwivate _vawue?: T;
+	get vawue(): T | undefined { wetuwn this._vawue; }
 
-	constructor(private callback: (data: T) => void) { }
+	constwuctow(pwivate cawwback: (data: T) => void) { }
 
-	report(item: T) {
-		this._value = item;
-		this.callback(this._value);
+	wepowt(item: T) {
+		this._vawue = item;
+		this.cawwback(this._vawue);
 	}
 }
 
 /**
- * A helper to show progress during a long running operation. If the operation
- * is started multiple times, only the last invocation will drive the progress.
+ * A hewpa to show pwogwess duwing a wong wunning opewation. If the opewation
+ * is stawted muwtipwe times, onwy the wast invocation wiww dwive the pwogwess.
  */
-export interface IOperation {
-	id: number;
-	isCurrent: () => boolean;
-	token: CancellationToken;
+expowt intewface IOpewation {
+	id: numba;
+	isCuwwent: () => boowean;
+	token: CancewwationToken;
 	stop(): void;
 }
 
 /**
- * RAII-style progress instance that allows imperative reporting and hides
- * once `dispose()` is called.
+ * WAII-stywe pwogwess instance that awwows impewative wepowting and hides
+ * once `dispose()` is cawwed.
  */
-export class UnmanagedProgress extends Disposable {
-	private readonly deferred = new DeferredPromise<void>();
-	private reporter?: IProgress<IProgressStep>;
-	private lastStep?: IProgressStep;
+expowt cwass UnmanagedPwogwess extends Disposabwe {
+	pwivate weadonwy defewwed = new DefewwedPwomise<void>();
+	pwivate wepowta?: IPwogwess<IPwogwessStep>;
+	pwivate wastStep?: IPwogwessStep;
 
-	constructor(
-		options: IProgressOptions | IProgressDialogOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions,
-		@IProgressService progressService: IProgressService,
+	constwuctow(
+		options: IPwogwessOptions | IPwogwessDiawogOptions | IPwogwessNotificationOptions | IPwogwessWindowOptions | IPwogwessCompositeOptions,
+		@IPwogwessSewvice pwogwessSewvice: IPwogwessSewvice,
 	) {
-		super();
-		progressService.withProgress(options, reporter => {
-			this.reporter = reporter;
-			if (this.lastStep) {
-				reporter.report(this.lastStep);
+		supa();
+		pwogwessSewvice.withPwogwess(options, wepowta => {
+			this.wepowta = wepowta;
+			if (this.wastStep) {
+				wepowta.wepowt(this.wastStep);
 			}
 
-			return this.deferred.p;
+			wetuwn this.defewwed.p;
 		});
 
-		this._register(toDisposable(() => this.deferred.complete()));
+		this._wegista(toDisposabwe(() => this.defewwed.compwete()));
 	}
 
-	report(step: IProgressStep) {
-		if (this.reporter) {
-			this.reporter.report(step);
-		} else {
-			this.lastStep = step;
+	wepowt(step: IPwogwessStep) {
+		if (this.wepowta) {
+			this.wepowta.wepowt(step);
+		} ewse {
+			this.wastStep = step;
 		}
 	}
 }
 
-export class LongRunningOperation extends Disposable {
-	private currentOperationId = 0;
-	private readonly currentOperationDisposables = this._register(new DisposableStore());
-	private currentProgressRunner: IProgressRunner | undefined;
-	private currentProgressTimeout: any;
+expowt cwass WongWunningOpewation extends Disposabwe {
+	pwivate cuwwentOpewationId = 0;
+	pwivate weadonwy cuwwentOpewationDisposabwes = this._wegista(new DisposabweStowe());
+	pwivate cuwwentPwogwessWunna: IPwogwessWunna | undefined;
+	pwivate cuwwentPwogwessTimeout: any;
 
-	constructor(
-		private progressIndicator: IProgressIndicator
+	constwuctow(
+		pwivate pwogwessIndicatow: IPwogwessIndicatow
 	) {
-		super();
+		supa();
 	}
 
-	start(progressDelay: number): IOperation {
+	stawt(pwogwessDeway: numba): IOpewation {
 
-		// Stop any previous operation
+		// Stop any pwevious opewation
 		this.stop();
 
-		// Start new
-		const newOperationId = ++this.currentOperationId;
-		const newOperationToken = new CancellationTokenSource();
-		this.currentProgressTimeout = setTimeout(() => {
-			if (newOperationId === this.currentOperationId) {
-				this.currentProgressRunner = this.progressIndicator.show(true);
+		// Stawt new
+		const newOpewationId = ++this.cuwwentOpewationId;
+		const newOpewationToken = new CancewwationTokenSouwce();
+		this.cuwwentPwogwessTimeout = setTimeout(() => {
+			if (newOpewationId === this.cuwwentOpewationId) {
+				this.cuwwentPwogwessWunna = this.pwogwessIndicatow.show(twue);
 			}
-		}, progressDelay);
+		}, pwogwessDeway);
 
-		this.currentOperationDisposables.add(toDisposable(() => clearTimeout(this.currentProgressTimeout)));
-		this.currentOperationDisposables.add(toDisposable(() => newOperationToken.cancel()));
-		this.currentOperationDisposables.add(toDisposable(() => this.currentProgressRunner ? this.currentProgressRunner.done() : undefined));
+		this.cuwwentOpewationDisposabwes.add(toDisposabwe(() => cweawTimeout(this.cuwwentPwogwessTimeout)));
+		this.cuwwentOpewationDisposabwes.add(toDisposabwe(() => newOpewationToken.cancew()));
+		this.cuwwentOpewationDisposabwes.add(toDisposabwe(() => this.cuwwentPwogwessWunna ? this.cuwwentPwogwessWunna.done() : undefined));
 
-		return {
-			id: newOperationId,
-			token: newOperationToken.token,
-			stop: () => this.doStop(newOperationId),
-			isCurrent: () => this.currentOperationId === newOperationId
+		wetuwn {
+			id: newOpewationId,
+			token: newOpewationToken.token,
+			stop: () => this.doStop(newOpewationId),
+			isCuwwent: () => this.cuwwentOpewationId === newOpewationId
 		};
 	}
 
 	stop(): void {
-		this.doStop(this.currentOperationId);
+		this.doStop(this.cuwwentOpewationId);
 	}
 
-	private doStop(operationId: number): void {
-		if (this.currentOperationId === operationId) {
-			this.currentOperationDisposables.clear();
+	pwivate doStop(opewationId: numba): void {
+		if (this.cuwwentOpewationId === opewationId) {
+			this.cuwwentOpewationDisposabwes.cweaw();
 		}
 	}
 }
 
-export const IEditorProgressService = createDecorator<IEditorProgressService>('editorProgressService');
+expowt const IEditowPwogwessSewvice = cweateDecowatow<IEditowPwogwessSewvice>('editowPwogwessSewvice');
 
 /**
- * A progress service that will report progress local to the editor triggered from.
+ * A pwogwess sewvice that wiww wepowt pwogwess wocaw to the editow twiggewed fwom.
  */
-export interface IEditorProgressService extends IProgressIndicator {
+expowt intewface IEditowPwogwessSewvice extends IPwogwessIndicatow {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 }

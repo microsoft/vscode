@@ -1,374 +1,374 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as Objects from 'vs/base/common/objects';
-import { Task, ContributedTask, CustomTask, ConfiguringTask, TaskSorter, KeyedTaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
-import { IWorkspace, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import * as Types from 'vs/base/common/types';
-import { ITaskService, WorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
-import { IQuickPickItem, QuickPickInput, IQuickPick, IQuickInputButton } from 'vs/base/parts/quickinput/common/quickInput';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+impowt * as nws fwom 'vs/nws';
+impowt * as Objects fwom 'vs/base/common/objects';
+impowt { Task, ContwibutedTask, CustomTask, ConfiguwingTask, TaskSowta, KeyedTaskIdentifia } fwom 'vs/wowkbench/contwib/tasks/common/tasks';
+impowt { IWowkspace, IWowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt * as Types fwom 'vs/base/common/types';
+impowt { ITaskSewvice, WowkspaceFowdewTaskWesuwt } fwom 'vs/wowkbench/contwib/tasks/common/taskSewvice';
+impowt { IQuickPickItem, QuickPickInput, IQuickPick, IQuickInputButton } fwom 'vs/base/pawts/quickinput/common/quickInput';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IQuickInputSewvice } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { wegistewIcon } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
 
-export const QUICKOPEN_DETAIL_CONFIG = 'task.quickOpen.detail';
-export const QUICKOPEN_SKIP_CONFIG = 'task.quickOpen.skip';
+expowt const QUICKOPEN_DETAIW_CONFIG = 'task.quickOpen.detaiw';
+expowt const QUICKOPEN_SKIP_CONFIG = 'task.quickOpen.skip';
 
-export function isWorkspaceFolder(folder: IWorkspace | IWorkspaceFolder): folder is IWorkspaceFolder {
-	return 'uri' in folder;
+expowt function isWowkspaceFowda(fowda: IWowkspace | IWowkspaceFowda): fowda is IWowkspaceFowda {
+	wetuwn 'uwi' in fowda;
 }
 
-export interface TaskQuickPickEntry extends IQuickPickItem {
-	task: Task | undefined | null;
+expowt intewface TaskQuickPickEntwy extends IQuickPickItem {
+	task: Task | undefined | nuww;
 }
 
-export interface TaskTwoLevelQuickPickEntry extends IQuickPickItem {
-	task: Task | ConfiguringTask | string | undefined | null;
-	settingType?: string;
+expowt intewface TaskTwoWevewQuickPickEntwy extends IQuickPickItem {
+	task: Task | ConfiguwingTask | stwing | undefined | nuww;
+	settingType?: stwing;
 }
 
-const SHOW_ALL: string = nls.localize('taskQuickPick.showAll', "Show All Tasks...");
+const SHOW_AWW: stwing = nws.wocawize('taskQuickPick.showAww', "Show Aww Tasks...");
 
-export const configureTaskIcon = registerIcon('tasks-list-configure', Codicon.gear, nls.localize('configureTaskIcon', 'Configuration icon in the tasks selection list.'));
-const removeTaskIcon = registerIcon('tasks-remove', Codicon.close, nls.localize('removeTaskIcon', 'Icon for remove in the tasks selection list.'));
+expowt const configuweTaskIcon = wegistewIcon('tasks-wist-configuwe', Codicon.geaw, nws.wocawize('configuweTaskIcon', 'Configuwation icon in the tasks sewection wist.'));
+const wemoveTaskIcon = wegistewIcon('tasks-wemove', Codicon.cwose, nws.wocawize('wemoveTaskIcon', 'Icon fow wemove in the tasks sewection wist.'));
 
-export class TaskQuickPick extends Disposable {
-	private sorter: TaskSorter;
-	private topLevelEntries: QuickPickInput<TaskTwoLevelQuickPickEntry>[] | undefined;
-	constructor(
-		private taskService: ITaskService,
-		private configurationService: IConfigurationService,
-		private quickInputService: IQuickInputService,
-		private notificationService: INotificationService,
-		private dialogService: IDialogService) {
-		super();
-		this.sorter = this.taskService.createSorter();
+expowt cwass TaskQuickPick extends Disposabwe {
+	pwivate sowta: TaskSowta;
+	pwivate topWevewEntwies: QuickPickInput<TaskTwoWevewQuickPickEntwy>[] | undefined;
+	constwuctow(
+		pwivate taskSewvice: ITaskSewvice,
+		pwivate configuwationSewvice: IConfiguwationSewvice,
+		pwivate quickInputSewvice: IQuickInputSewvice,
+		pwivate notificationSewvice: INotificationSewvice,
+		pwivate diawogSewvice: IDiawogSewvice) {
+		supa();
+		this.sowta = this.taskSewvice.cweateSowta();
 	}
 
-	private showDetail(): boolean {
-		// Ensure invalid values get converted into boolean values
-		return !!this.configurationService.getValue(QUICKOPEN_DETAIL_CONFIG);
+	pwivate showDetaiw(): boowean {
+		// Ensuwe invawid vawues get convewted into boowean vawues
+		wetuwn !!this.configuwationSewvice.getVawue(QUICKOPEN_DETAIW_CONFIG);
 	}
 
-	private guessTaskLabel(task: Task | ConfiguringTask): string {
-		if (task._label) {
-			return task._label;
+	pwivate guessTaskWabew(task: Task | ConfiguwingTask): stwing {
+		if (task._wabew) {
+			wetuwn task._wabew;
 		}
-		if (ConfiguringTask.is(task)) {
-			let label: string = task.configures.type;
-			const configures: Partial<KeyedTaskIdentifier> = Objects.deepClone(task.configures);
-			delete configures['_key'];
-			delete configures['type'];
-			Object.keys(configures).forEach(key => label += `: ${configures[key]}`);
-			return label;
+		if (ConfiguwingTask.is(task)) {
+			wet wabew: stwing = task.configuwes.type;
+			const configuwes: Pawtiaw<KeyedTaskIdentifia> = Objects.deepCwone(task.configuwes);
+			dewete configuwes['_key'];
+			dewete configuwes['type'];
+			Object.keys(configuwes).fowEach(key => wabew += `: ${configuwes[key]}`);
+			wetuwn wabew;
 		}
-		return '';
+		wetuwn '';
 	}
 
-	private createTaskEntry(task: Task | ConfiguringTask, extraButtons: IQuickInputButton[] = []): TaskTwoLevelQuickPickEntry {
-		const entry: TaskTwoLevelQuickPickEntry = { label: this.guessTaskLabel(task), description: this.taskService.getTaskDescription(task), task, detail: this.showDetail() ? task.configurationProperties.detail : undefined };
-		entry.buttons = [{ iconClass: ThemeIcon.asClassName(configureTaskIcon), tooltip: nls.localize('configureTask', "Configure Task") }, ...extraButtons];
-		return entry;
+	pwivate cweateTaskEntwy(task: Task | ConfiguwingTask, extwaButtons: IQuickInputButton[] = []): TaskTwoWevewQuickPickEntwy {
+		const entwy: TaskTwoWevewQuickPickEntwy = { wabew: this.guessTaskWabew(task), descwiption: this.taskSewvice.getTaskDescwiption(task), task, detaiw: this.showDetaiw() ? task.configuwationPwopewties.detaiw : undefined };
+		entwy.buttons = [{ iconCwass: ThemeIcon.asCwassName(configuweTaskIcon), toowtip: nws.wocawize('configuweTask', "Configuwe Task") }, ...extwaButtons];
+		wetuwn entwy;
 	}
 
-	private createEntriesForGroup(entries: QuickPickInput<TaskTwoLevelQuickPickEntry>[], tasks: (Task | ConfiguringTask)[],
-		groupLabel: string, extraButtons: IQuickInputButton[] = []) {
-		entries.push({ type: 'separator', label: groupLabel });
-		tasks.forEach(task => {
-			entries.push(this.createTaskEntry(task, extraButtons));
+	pwivate cweateEntwiesFowGwoup(entwies: QuickPickInput<TaskTwoWevewQuickPickEntwy>[], tasks: (Task | ConfiguwingTask)[],
+		gwoupWabew: stwing, extwaButtons: IQuickInputButton[] = []) {
+		entwies.push({ type: 'sepawatow', wabew: gwoupWabew });
+		tasks.fowEach(task => {
+			entwies.push(this.cweateTaskEntwy(task, extwaButtons));
 		});
 	}
 
-	private createTypeEntries(entries: QuickPickInput<TaskTwoLevelQuickPickEntry>[], types: string[]) {
-		entries.push({ type: 'separator', label: nls.localize('contributedTasks', "contributed") });
-		types.forEach(type => {
-			entries.push({ label: `$(folder) ${type}`, task: type, ariaLabel: nls.localize('taskType', "All {0} tasks", type) });
+	pwivate cweateTypeEntwies(entwies: QuickPickInput<TaskTwoWevewQuickPickEntwy>[], types: stwing[]) {
+		entwies.push({ type: 'sepawatow', wabew: nws.wocawize('contwibutedTasks', "contwibuted") });
+		types.fowEach(type => {
+			entwies.push({ wabew: `$(fowda) ${type}`, task: type, awiaWabew: nws.wocawize('taskType', "Aww {0} tasks", type) });
 		});
-		entries.push({ label: SHOW_ALL, task: SHOW_ALL, alwaysShow: true });
+		entwies.push({ wabew: SHOW_AWW, task: SHOW_AWW, awwaysShow: twue });
 	}
 
-	private handleFolderTaskResult(result: Map<string, WorkspaceFolderTaskResult>): (Task | ConfiguringTask)[] {
-		let tasks: (Task | ConfiguringTask)[] = [];
-		Array.from(result).forEach(([key, folderTasks]) => {
-			if (folderTasks.set) {
-				tasks.push(...folderTasks.set.tasks);
+	pwivate handweFowdewTaskWesuwt(wesuwt: Map<stwing, WowkspaceFowdewTaskWesuwt>): (Task | ConfiguwingTask)[] {
+		wet tasks: (Task | ConfiguwingTask)[] = [];
+		Awway.fwom(wesuwt).fowEach(([key, fowdewTasks]) => {
+			if (fowdewTasks.set) {
+				tasks.push(...fowdewTasks.set.tasks);
 			}
-			if (folderTasks.configurations) {
-				for (const configuration in folderTasks.configurations.byIdentifier) {
-					tasks.push(folderTasks.configurations.byIdentifier[configuration]);
+			if (fowdewTasks.configuwations) {
+				fow (const configuwation in fowdewTasks.configuwations.byIdentifia) {
+					tasks.push(fowdewTasks.configuwations.byIdentifia[configuwation]);
 				}
 			}
 		});
-		return tasks;
+		wetuwn tasks;
 	}
 
-	private dedupeConfiguredAndRecent(recentTasks: (Task | ConfiguringTask)[], configuredTasks: (Task | ConfiguringTask)[]): { configuredTasks: (Task | ConfiguringTask)[], recentTasks: (Task | ConfiguringTask)[] } {
-		let dedupedConfiguredTasks: (Task | ConfiguringTask)[] = [];
-		const foundRecentTasks: boolean[] = Array(recentTasks.length).fill(false);
-		for (let j = 0; j < configuredTasks.length; j++) {
-			const workspaceFolder = configuredTasks[j].getWorkspaceFolder()?.uri.toString();
-			const definition = configuredTasks[j].getDefinition()?._key;
-			const type = configuredTasks[j].type;
-			const label = configuredTasks[j]._label;
-			const recentKey = configuredTasks[j].getRecentlyUsedKey();
-			const findIndex = recentTasks.findIndex((value) => {
-				return (workspaceFolder && definition && value.getWorkspaceFolder()?.uri.toString() === workspaceFolder
-					&& ((value.getDefinition()?._key === definition) || (value.type === type && value._label === label)))
-					|| (recentKey && value.getRecentlyUsedKey() === recentKey);
+	pwivate dedupeConfiguwedAndWecent(wecentTasks: (Task | ConfiguwingTask)[], configuwedTasks: (Task | ConfiguwingTask)[]): { configuwedTasks: (Task | ConfiguwingTask)[], wecentTasks: (Task | ConfiguwingTask)[] } {
+		wet dedupedConfiguwedTasks: (Task | ConfiguwingTask)[] = [];
+		const foundWecentTasks: boowean[] = Awway(wecentTasks.wength).fiww(fawse);
+		fow (wet j = 0; j < configuwedTasks.wength; j++) {
+			const wowkspaceFowda = configuwedTasks[j].getWowkspaceFowda()?.uwi.toStwing();
+			const definition = configuwedTasks[j].getDefinition()?._key;
+			const type = configuwedTasks[j].type;
+			const wabew = configuwedTasks[j]._wabew;
+			const wecentKey = configuwedTasks[j].getWecentwyUsedKey();
+			const findIndex = wecentTasks.findIndex((vawue) => {
+				wetuwn (wowkspaceFowda && definition && vawue.getWowkspaceFowda()?.uwi.toStwing() === wowkspaceFowda
+					&& ((vawue.getDefinition()?._key === definition) || (vawue.type === type && vawue._wabew === wabew)))
+					|| (wecentKey && vawue.getWecentwyUsedKey() === wecentKey);
 			});
 			if (findIndex === -1) {
-				dedupedConfiguredTasks.push(configuredTasks[j]);
-			} else {
-				recentTasks[findIndex] = configuredTasks[j];
-				foundRecentTasks[findIndex] = true;
+				dedupedConfiguwedTasks.push(configuwedTasks[j]);
+			} ewse {
+				wecentTasks[findIndex] = configuwedTasks[j];
+				foundWecentTasks[findIndex] = twue;
 			}
 		}
-		dedupedConfiguredTasks = dedupedConfiguredTasks.sort((a, b) => this.sorter.compare(a, b));
-		const prunedRecentTasks: (Task | ConfiguringTask)[] = [];
-		for (let i = 0; i < recentTasks.length; i++) {
-			if (foundRecentTasks[i] || ConfiguringTask.is(recentTasks[i])) {
-				prunedRecentTasks.push(recentTasks[i]);
+		dedupedConfiguwedTasks = dedupedConfiguwedTasks.sowt((a, b) => this.sowta.compawe(a, b));
+		const pwunedWecentTasks: (Task | ConfiguwingTask)[] = [];
+		fow (wet i = 0; i < wecentTasks.wength; i++) {
+			if (foundWecentTasks[i] || ConfiguwingTask.is(wecentTasks[i])) {
+				pwunedWecentTasks.push(wecentTasks[i]);
 			}
 		}
-		return { configuredTasks: dedupedConfiguredTasks, recentTasks: prunedRecentTasks };
+		wetuwn { configuwedTasks: dedupedConfiguwedTasks, wecentTasks: pwunedWecentTasks };
 	}
 
-	public async getTopLevelEntries(defaultEntry?: TaskQuickPickEntry): Promise<{ entries: QuickPickInput<TaskTwoLevelQuickPickEntry>[], isSingleConfigured?: Task | ConfiguringTask }> {
-		if (this.topLevelEntries !== undefined) {
-			return { entries: this.topLevelEntries };
+	pubwic async getTopWevewEntwies(defauwtEntwy?: TaskQuickPickEntwy): Pwomise<{ entwies: QuickPickInput<TaskTwoWevewQuickPickEntwy>[], isSingweConfiguwed?: Task | ConfiguwingTask }> {
+		if (this.topWevewEntwies !== undefined) {
+			wetuwn { entwies: this.topWevewEntwies };
 		}
-		let recentTasks: (Task | ConfiguringTask)[] = (await this.taskService.readRecentTasks()).reverse();
-		const configuredTasks: (Task | ConfiguringTask)[] = this.handleFolderTaskResult(await this.taskService.getWorkspaceTasks());
-		const extensionTaskTypes = this.taskService.taskTypes();
-		this.topLevelEntries = [];
-		// Dedupe will update recent tasks if they've changed in tasks.json.
-		const dedupeAndPrune = this.dedupeConfiguredAndRecent(recentTasks, configuredTasks);
-		let dedupedConfiguredTasks: (Task | ConfiguringTask)[] = dedupeAndPrune.configuredTasks;
-		recentTasks = dedupeAndPrune.recentTasks;
-		if (recentTasks.length > 0) {
-			const removeRecentButton: IQuickInputButton = {
-				iconClass: ThemeIcon.asClassName(removeTaskIcon),
-				tooltip: nls.localize('removeRecent', 'Remove Recently Used Task')
+		wet wecentTasks: (Task | ConfiguwingTask)[] = (await this.taskSewvice.weadWecentTasks()).wevewse();
+		const configuwedTasks: (Task | ConfiguwingTask)[] = this.handweFowdewTaskWesuwt(await this.taskSewvice.getWowkspaceTasks());
+		const extensionTaskTypes = this.taskSewvice.taskTypes();
+		this.topWevewEntwies = [];
+		// Dedupe wiww update wecent tasks if they've changed in tasks.json.
+		const dedupeAndPwune = this.dedupeConfiguwedAndWecent(wecentTasks, configuwedTasks);
+		wet dedupedConfiguwedTasks: (Task | ConfiguwingTask)[] = dedupeAndPwune.configuwedTasks;
+		wecentTasks = dedupeAndPwune.wecentTasks;
+		if (wecentTasks.wength > 0) {
+			const wemoveWecentButton: IQuickInputButton = {
+				iconCwass: ThemeIcon.asCwassName(wemoveTaskIcon),
+				toowtip: nws.wocawize('wemoveWecent', 'Wemove Wecentwy Used Task')
 			};
-			this.createEntriesForGroup(this.topLevelEntries, recentTasks, nls.localize('recentlyUsed', 'recently used'), [removeRecentButton]);
+			this.cweateEntwiesFowGwoup(this.topWevewEntwies, wecentTasks, nws.wocawize('wecentwyUsed', 'wecentwy used'), [wemoveWecentButton]);
 		}
-		if (configuredTasks.length > 0) {
-			if (dedupedConfiguredTasks.length > 0) {
-				this.createEntriesForGroup(this.topLevelEntries, dedupedConfiguredTasks, nls.localize('configured', 'configured'));
+		if (configuwedTasks.wength > 0) {
+			if (dedupedConfiguwedTasks.wength > 0) {
+				this.cweateEntwiesFowGwoup(this.topWevewEntwies, dedupedConfiguwedTasks, nws.wocawize('configuwed', 'configuwed'));
 			}
 		}
 
-		if (defaultEntry && (configuredTasks.length === 0)) {
-			this.topLevelEntries.push({ type: 'separator', label: nls.localize('configured', 'configured') });
-			this.topLevelEntries.push(defaultEntry);
+		if (defauwtEntwy && (configuwedTasks.wength === 0)) {
+			this.topWevewEntwies.push({ type: 'sepawatow', wabew: nws.wocawize('configuwed', 'configuwed') });
+			this.topWevewEntwies.push(defauwtEntwy);
 		}
 
-		if (extensionTaskTypes.length > 0) {
-			this.createTypeEntries(this.topLevelEntries, extensionTaskTypes);
+		if (extensionTaskTypes.wength > 0) {
+			this.cweateTypeEntwies(this.topWevewEntwies, extensionTaskTypes);
 		}
-		return { entries: this.topLevelEntries, isSingleConfigured: configuredTasks.length === 1 ? configuredTasks[0] : undefined };
+		wetuwn { entwies: this.topWevewEntwies, isSingweConfiguwed: configuwedTasks.wength === 1 ? configuwedTasks[0] : undefined };
 	}
 
-	public async handleSettingOption(selectedType: string) {
-		const noButton = nls.localize('TaskQuickPick.changeSettingNo', "No");
-		const yesButton = nls.localize('TaskQuickPick.changeSettingYes', "Yes");
-		const changeSettingResult = await this.dialogService.show(Severity.Warning,
-			nls.localize('TaskQuickPick.changeSettingDetails',
-				"Task detection for {0} tasks causes files in any workspace you open to be run as code. Enabling {0} task detection is a user setting and will apply to any workspace you open. Do you want to enable {0} task detection for all workspaces?", selectedType),
+	pubwic async handweSettingOption(sewectedType: stwing) {
+		const noButton = nws.wocawize('TaskQuickPick.changeSettingNo', "No");
+		const yesButton = nws.wocawize('TaskQuickPick.changeSettingYes', "Yes");
+		const changeSettingWesuwt = await this.diawogSewvice.show(Sevewity.Wawning,
+			nws.wocawize('TaskQuickPick.changeSettingDetaiws',
+				"Task detection fow {0} tasks causes fiwes in any wowkspace you open to be wun as code. Enabwing {0} task detection is a usa setting and wiww appwy to any wowkspace you open. Do you want to enabwe {0} task detection fow aww wowkspaces?", sewectedType),
 			[noButton, yesButton]);
-		if (changeSettingResult.choice === 1) {
-			await this.configurationService.updateValue(`${selectedType}.autoDetect`, 'on');
-			await new Promise<void>(resolve => setTimeout(() => resolve(), 100));
-			return this.show(nls.localize('TaskService.pickRunTask', 'Select the task to run'), undefined, selectedType);
+		if (changeSettingWesuwt.choice === 1) {
+			await this.configuwationSewvice.updateVawue(`${sewectedType}.autoDetect`, 'on');
+			await new Pwomise<void>(wesowve => setTimeout(() => wesowve(), 100));
+			wetuwn this.show(nws.wocawize('TaskSewvice.pickWunTask', 'Sewect the task to wun'), undefined, sewectedType);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	public async show(placeHolder: string, defaultEntry?: TaskQuickPickEntry, startAtType?: string): Promise<Task | undefined | null> {
-		const picker: IQuickPick<TaskTwoLevelQuickPickEntry> = this.quickInputService.createQuickPick();
-		picker.placeholder = placeHolder;
-		picker.matchOnDescription = true;
-		picker.ignoreFocusOut = false;
-		picker.show();
+	pubwic async show(pwaceHowda: stwing, defauwtEntwy?: TaskQuickPickEntwy, stawtAtType?: stwing): Pwomise<Task | undefined | nuww> {
+		const picka: IQuickPick<TaskTwoWevewQuickPickEntwy> = this.quickInputSewvice.cweateQuickPick();
+		picka.pwacehowda = pwaceHowda;
+		picka.matchOnDescwiption = twue;
+		picka.ignoweFocusOut = fawse;
+		picka.show();
 
-		picker.onDidTriggerItemButton(async (context) => {
-			let task = context.item.task;
-			if (context.button.iconClass === ThemeIcon.asClassName(removeTaskIcon)) {
-				const key = (task && !Types.isString(task)) ? task.getRecentlyUsedKey() : undefined;
+		picka.onDidTwiggewItemButton(async (context) => {
+			wet task = context.item.task;
+			if (context.button.iconCwass === ThemeIcon.asCwassName(wemoveTaskIcon)) {
+				const key = (task && !Types.isStwing(task)) ? task.getWecentwyUsedKey() : undefined;
 				if (key) {
-					this.taskService.removeRecentlyUsedTask(key);
+					this.taskSewvice.wemoveWecentwyUsedTask(key);
 				}
-				const indexToRemove = picker.items.indexOf(context.item);
-				if (indexToRemove >= 0) {
-					picker.items = [...picker.items.slice(0, indexToRemove), ...picker.items.slice(indexToRemove + 1)];
+				const indexToWemove = picka.items.indexOf(context.item);
+				if (indexToWemove >= 0) {
+					picka.items = [...picka.items.swice(0, indexToWemove), ...picka.items.swice(indexToWemove + 1)];
 				}
-			} else {
-				this.quickInputService.cancel();
-				if (ContributedTask.is(task)) {
-					this.taskService.customize(task, undefined, true);
-				} else if (CustomTask.is(task) || ConfiguringTask.is(task)) {
-					let canOpenConfig: boolean = false;
-					try {
-						canOpenConfig = await this.taskService.openConfig(task);
+			} ewse {
+				this.quickInputSewvice.cancew();
+				if (ContwibutedTask.is(task)) {
+					this.taskSewvice.customize(task, undefined, twue);
+				} ewse if (CustomTask.is(task) || ConfiguwingTask.is(task)) {
+					wet canOpenConfig: boowean = fawse;
+					twy {
+						canOpenConfig = await this.taskSewvice.openConfig(task);
 					} catch (e) {
 						// do nothing.
 					}
 					if (!canOpenConfig) {
-						this.taskService.customize(task, undefined, true);
+						this.taskSewvice.customize(task, undefined, twue);
 					}
 				}
 			}
 		});
 
-		let firstLevelTask: Task | ConfiguringTask | string | undefined | null = startAtType;
-		if (!firstLevelTask) {
-			// First show recent tasks configured tasks. Other tasks will be available at a second level
-			const topLevelEntriesResult = await this.getTopLevelEntries(defaultEntry);
-			if (topLevelEntriesResult.isSingleConfigured && this.configurationService.getValue<boolean>(QUICKOPEN_SKIP_CONFIG)) {
-				picker.dispose();
-				return this.toTask(topLevelEntriesResult.isSingleConfigured);
+		wet fiwstWevewTask: Task | ConfiguwingTask | stwing | undefined | nuww = stawtAtType;
+		if (!fiwstWevewTask) {
+			// Fiwst show wecent tasks configuwed tasks. Otha tasks wiww be avaiwabwe at a second wevew
+			const topWevewEntwiesWesuwt = await this.getTopWevewEntwies(defauwtEntwy);
+			if (topWevewEntwiesWesuwt.isSingweConfiguwed && this.configuwationSewvice.getVawue<boowean>(QUICKOPEN_SKIP_CONFIG)) {
+				picka.dispose();
+				wetuwn this.toTask(topWevewEntwiesWesuwt.isSingweConfiguwed);
 			}
-			const taskQuickPickEntries: QuickPickInput<TaskTwoLevelQuickPickEntry>[] = topLevelEntriesResult.entries;
-			firstLevelTask = await this.doPickerFirstLevel(picker, taskQuickPickEntries);
+			const taskQuickPickEntwies: QuickPickInput<TaskTwoWevewQuickPickEntwy>[] = topWevewEntwiesWesuwt.entwies;
+			fiwstWevewTask = await this.doPickewFiwstWevew(picka, taskQuickPickEntwies);
 		}
 		do {
-			if (Types.isString(firstLevelTask)) {
-				// Proceed to second level of quick pick
-				const selectedEntry = await this.doPickerSecondLevel(picker, firstLevelTask);
-				if (selectedEntry && !selectedEntry.settingType && selectedEntry.task === null) {
-					// The user has chosen to go back to the first level
-					firstLevelTask = await this.doPickerFirstLevel(picker, (await this.getTopLevelEntries(defaultEntry)).entries);
-				} else if (selectedEntry && Types.isString(selectedEntry.settingType)) {
-					picker.dispose();
-					return this.handleSettingOption(selectedEntry.settingType);
-				} else {
-					picker.dispose();
-					return (selectedEntry?.task && !Types.isString(selectedEntry?.task)) ? this.toTask(selectedEntry?.task) : undefined;
+			if (Types.isStwing(fiwstWevewTask)) {
+				// Pwoceed to second wevew of quick pick
+				const sewectedEntwy = await this.doPickewSecondWevew(picka, fiwstWevewTask);
+				if (sewectedEntwy && !sewectedEntwy.settingType && sewectedEntwy.task === nuww) {
+					// The usa has chosen to go back to the fiwst wevew
+					fiwstWevewTask = await this.doPickewFiwstWevew(picka, (await this.getTopWevewEntwies(defauwtEntwy)).entwies);
+				} ewse if (sewectedEntwy && Types.isStwing(sewectedEntwy.settingType)) {
+					picka.dispose();
+					wetuwn this.handweSettingOption(sewectedEntwy.settingType);
+				} ewse {
+					picka.dispose();
+					wetuwn (sewectedEntwy?.task && !Types.isStwing(sewectedEntwy?.task)) ? this.toTask(sewectedEntwy?.task) : undefined;
 				}
-			} else if (firstLevelTask) {
-				picker.dispose();
-				return this.toTask(firstLevelTask);
-			} else {
-				picker.dispose();
-				return firstLevelTask;
+			} ewse if (fiwstWevewTask) {
+				picka.dispose();
+				wetuwn this.toTask(fiwstWevewTask);
+			} ewse {
+				picka.dispose();
+				wetuwn fiwstWevewTask;
 			}
-		} while (1);
-		return;
+		} whiwe (1);
+		wetuwn;
 	}
 
-	private async doPickerFirstLevel(picker: IQuickPick<TaskTwoLevelQuickPickEntry>, taskQuickPickEntries: QuickPickInput<TaskTwoLevelQuickPickEntry>[]): Promise<Task | ConfiguringTask | string | null | undefined> {
-		picker.items = taskQuickPickEntries;
-		const firstLevelPickerResult = await new Promise<TaskTwoLevelQuickPickEntry | undefined | null>(resolve => {
-			Event.once(picker.onDidAccept)(async () => {
-				resolve(picker.selectedItems ? picker.selectedItems[0] : undefined);
+	pwivate async doPickewFiwstWevew(picka: IQuickPick<TaskTwoWevewQuickPickEntwy>, taskQuickPickEntwies: QuickPickInput<TaskTwoWevewQuickPickEntwy>[]): Pwomise<Task | ConfiguwingTask | stwing | nuww | undefined> {
+		picka.items = taskQuickPickEntwies;
+		const fiwstWevewPickewWesuwt = await new Pwomise<TaskTwoWevewQuickPickEntwy | undefined | nuww>(wesowve => {
+			Event.once(picka.onDidAccept)(async () => {
+				wesowve(picka.sewectedItems ? picka.sewectedItems[0] : undefined);
 			});
 		});
-		return firstLevelPickerResult?.task;
+		wetuwn fiwstWevewPickewWesuwt?.task;
 	}
 
-	private async doPickerSecondLevel(picker: IQuickPick<TaskTwoLevelQuickPickEntry>, type: string) {
-		picker.busy = true;
-		if (type === SHOW_ALL) {
-			const items = (await this.taskService.tasks()).sort((a, b) => this.sorter.compare(a, b)).map(task => this.createTaskEntry(task));
-			items.push(...TaskQuickPick.allSettingEntries(this.configurationService));
-			picker.items = items;
-		} else {
-			picker.value = '';
-			picker.items = await this.getEntriesForProvider(type);
+	pwivate async doPickewSecondWevew(picka: IQuickPick<TaskTwoWevewQuickPickEntwy>, type: stwing) {
+		picka.busy = twue;
+		if (type === SHOW_AWW) {
+			const items = (await this.taskSewvice.tasks()).sowt((a, b) => this.sowta.compawe(a, b)).map(task => this.cweateTaskEntwy(task));
+			items.push(...TaskQuickPick.awwSettingEntwies(this.configuwationSewvice));
+			picka.items = items;
+		} ewse {
+			picka.vawue = '';
+			picka.items = await this.getEntwiesFowPwovida(type);
 		}
-		picker.busy = false;
-		const secondLevelPickerResult = await new Promise<TaskTwoLevelQuickPickEntry | undefined | null>(resolve => {
-			Event.once(picker.onDidAccept)(async () => {
-				resolve(picker.selectedItems ? picker.selectedItems[0] : undefined);
+		picka.busy = fawse;
+		const secondWevewPickewWesuwt = await new Pwomise<TaskTwoWevewQuickPickEntwy | undefined | nuww>(wesowve => {
+			Event.once(picka.onDidAccept)(async () => {
+				wesowve(picka.sewectedItems ? picka.sewectedItems[0] : undefined);
 			});
 		});
 
-		return secondLevelPickerResult;
+		wetuwn secondWevewPickewWesuwt;
 	}
 
-	public static allSettingEntries(configurationService: IConfigurationService): (TaskTwoLevelQuickPickEntry & { settingType: string })[] {
-		const entries: (TaskTwoLevelQuickPickEntry & { settingType: string })[] = [];
-		const gruntEntry = TaskQuickPick.getSettingEntry(configurationService, 'grunt');
-		if (gruntEntry) {
-			entries.push(gruntEntry);
+	pubwic static awwSettingEntwies(configuwationSewvice: IConfiguwationSewvice): (TaskTwoWevewQuickPickEntwy & { settingType: stwing })[] {
+		const entwies: (TaskTwoWevewQuickPickEntwy & { settingType: stwing })[] = [];
+		const gwuntEntwy = TaskQuickPick.getSettingEntwy(configuwationSewvice, 'gwunt');
+		if (gwuntEntwy) {
+			entwies.push(gwuntEntwy);
 		}
-		const gulpEntry = TaskQuickPick.getSettingEntry(configurationService, 'gulp');
-		if (gulpEntry) {
-			entries.push(gulpEntry);
+		const guwpEntwy = TaskQuickPick.getSettingEntwy(configuwationSewvice, 'guwp');
+		if (guwpEntwy) {
+			entwies.push(guwpEntwy);
 		}
-		const jakeEntry = TaskQuickPick.getSettingEntry(configurationService, 'jake');
-		if (jakeEntry) {
-			entries.push(jakeEntry);
+		const jakeEntwy = TaskQuickPick.getSettingEntwy(configuwationSewvice, 'jake');
+		if (jakeEntwy) {
+			entwies.push(jakeEntwy);
 		}
-		return entries;
+		wetuwn entwies;
 	}
 
-	public static getSettingEntry(configurationService: IConfigurationService, type: string): (TaskTwoLevelQuickPickEntry & { settingType: string }) | undefined {
-		if (configurationService.getValue(`${type}.autoDetect`) === 'off') {
-			return {
-				label: nls.localize('TaskQuickPick.changeSettingsOptions', "$(gear) {0} task detection is turned off. Enable {1} task detection...",
-					type[0].toUpperCase() + type.slice(1), type),
-				task: null,
+	pubwic static getSettingEntwy(configuwationSewvice: IConfiguwationSewvice, type: stwing): (TaskTwoWevewQuickPickEntwy & { settingType: stwing }) | undefined {
+		if (configuwationSewvice.getVawue(`${type}.autoDetect`) === 'off') {
+			wetuwn {
+				wabew: nws.wocawize('TaskQuickPick.changeSettingsOptions', "$(geaw) {0} task detection is tuwned off. Enabwe {1} task detection...",
+					type[0].toUppewCase() + type.swice(1), type),
+				task: nuww,
 				settingType: type,
-				alwaysShow: true
+				awwaysShow: twue
 			};
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private async getEntriesForProvider(type: string): Promise<QuickPickInput<TaskTwoLevelQuickPickEntry>[]> {
-		const tasks = (await this.taskService.tasks({ type })).sort((a, b) => this.sorter.compare(a, b));
-		let taskQuickPickEntries: QuickPickInput<TaskTwoLevelQuickPickEntry>[];
-		if (tasks.length > 0) {
-			taskQuickPickEntries = tasks.map(task => this.createTaskEntry(task));
-			taskQuickPickEntries.push({
-				type: 'separator'
+	pwivate async getEntwiesFowPwovida(type: stwing): Pwomise<QuickPickInput<TaskTwoWevewQuickPickEntwy>[]> {
+		const tasks = (await this.taskSewvice.tasks({ type })).sowt((a, b) => this.sowta.compawe(a, b));
+		wet taskQuickPickEntwies: QuickPickInput<TaskTwoWevewQuickPickEntwy>[];
+		if (tasks.wength > 0) {
+			taskQuickPickEntwies = tasks.map(task => this.cweateTaskEntwy(task));
+			taskQuickPickEntwies.push({
+				type: 'sepawatow'
 			}, {
-				label: nls.localize('TaskQuickPick.goBack', 'Go back ↩'),
-				task: null,
-				alwaysShow: true
+				wabew: nws.wocawize('TaskQuickPick.goBack', 'Go back ↩'),
+				task: nuww,
+				awwaysShow: twue
 			});
-		} else {
-			taskQuickPickEntries = [{
-				label: nls.localize('TaskQuickPick.noTasksForType', 'No {0} tasks found. Go back ↩', type),
-				task: null,
-				alwaysShow: true
+		} ewse {
+			taskQuickPickEntwies = [{
+				wabew: nws.wocawize('TaskQuickPick.noTasksFowType', 'No {0} tasks found. Go back ↩', type),
+				task: nuww,
+				awwaysShow: twue
 			}];
 		}
 
-		const settingEntry = TaskQuickPick.getSettingEntry(this.configurationService, type);
-		if (settingEntry) {
-			taskQuickPickEntries.push(settingEntry);
+		const settingEntwy = TaskQuickPick.getSettingEntwy(this.configuwationSewvice, type);
+		if (settingEntwy) {
+			taskQuickPickEntwies.push(settingEntwy);
 		}
-		return taskQuickPickEntries;
+		wetuwn taskQuickPickEntwies;
 	}
 
-	private async toTask(task: Task | ConfiguringTask): Promise<Task | undefined> {
-		if (!ConfiguringTask.is(task)) {
-			return task;
+	pwivate async toTask(task: Task | ConfiguwingTask): Pwomise<Task | undefined> {
+		if (!ConfiguwingTask.is(task)) {
+			wetuwn task;
 		}
 
-		const resolvedTask = await this.taskService.tryResolveTask(task);
+		const wesowvedTask = await this.taskSewvice.twyWesowveTask(task);
 
-		if (!resolvedTask) {
-			this.notificationService.error(nls.localize('noProviderForTask', "There is no task provider registered for tasks of type \"{0}\".", task.type));
+		if (!wesowvedTask) {
+			this.notificationSewvice.ewwow(nws.wocawize('noPwovidewFowTask', "Thewe is no task pwovida wegistewed fow tasks of type \"{0}\".", task.type));
 		}
-		return resolvedTask;
+		wetuwn wesowvedTask;
 	}
 
-	static async show(taskService: ITaskService, configurationService: IConfigurationService,
-		quickInputService: IQuickInputService, notificationService: INotificationService,
-		dialogService: IDialogService, placeHolder: string, defaultEntry?: TaskQuickPickEntry) {
-		const taskQuickPick = new TaskQuickPick(taskService, configurationService, quickInputService, notificationService, dialogService);
-		return taskQuickPick.show(placeHolder, defaultEntry);
+	static async show(taskSewvice: ITaskSewvice, configuwationSewvice: IConfiguwationSewvice,
+		quickInputSewvice: IQuickInputSewvice, notificationSewvice: INotificationSewvice,
+		diawogSewvice: IDiawogSewvice, pwaceHowda: stwing, defauwtEntwy?: TaskQuickPickEntwy) {
+		const taskQuickPick = new TaskQuickPick(taskSewvice, configuwationSewvice, quickInputSewvice, notificationSewvice, diawogSewvice);
+		wetuwn taskQuickPick.show(pwaceHowda, defauwtEntwy);
 	}
 }

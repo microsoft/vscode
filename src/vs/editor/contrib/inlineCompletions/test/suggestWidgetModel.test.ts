@@ -1,178 +1,178 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { mock } from 'vs/base/test/common/mock';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { Range } from 'vs/editor/common/core/range';
-import { CompletionItemKind, CompletionItemProvider, CompletionProviderRegistry } from 'vs/editor/common/modes';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
-import { SharedInlineCompletionCache } from 'vs/editor/contrib/inlineCompletions/ghostTextModel';
-import { SuggestWidgetPreviewModel } from 'vs/editor/contrib/inlineCompletions/suggestWidgetPreviewModel';
-import { GhostTextContext } from 'vs/editor/contrib/inlineCompletions/test/utils';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
-import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
-import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
-import { ITestCodeEditor, TestCodeEditorCreationOptions, withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import assert = require('assert');
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { minimizeInlineCompletion } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsModel';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { wunWithFakedTimews } fwom 'vs/base/test/common/timeTwavewScheduwa';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { CompwetionItemKind, CompwetionItemPwovida, CompwetionPwovidewWegistwy } fwom 'vs/editow/common/modes';
+impowt { IEditowWowkewSewvice } fwom 'vs/editow/common/sewvices/editowWowkewSewvice';
+impowt { ViewModew } fwom 'vs/editow/common/viewModew/viewModewImpw';
+impowt { ShawedInwineCompwetionCache } fwom 'vs/editow/contwib/inwineCompwetions/ghostTextModew';
+impowt { SuggestWidgetPweviewModew } fwom 'vs/editow/contwib/inwineCompwetions/suggestWidgetPweviewModew';
+impowt { GhostTextContext } fwom 'vs/editow/contwib/inwineCompwetions/test/utiws';
+impowt { SnippetContwowwew2 } fwom 'vs/editow/contwib/snippet/snippetContwowwew2';
+impowt { SuggestContwowwa } fwom 'vs/editow/contwib/suggest/suggestContwowwa';
+impowt { ISuggestMemowySewvice } fwom 'vs/editow/contwib/suggest/suggestMemowy';
+impowt { ITestCodeEditow, TestCodeEditowCweationOptions, withAsyncTestCodeEditow } fwom 'vs/editow/test/bwowsa/testCodeEditow';
+impowt { IMenu, IMenuSewvice } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { MockKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/test/common/mockKeybindingSewvice';
+impowt { IWogSewvice, NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { InMemowyStowageSewvice, IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { NuwwTewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
+impowt assewt = wequiwe('assewt');
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { minimizeInwineCompwetion } fwom 'vs/editow/contwib/inwineCompwetions/inwineCompwetionsModew';
 
-suite('Suggest Widget Model', () => {
+suite('Suggest Widget Modew', () => {
 	test('Active', async () => {
-		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
-			{ fakeClock: true, provider, },
-			async ({ editor, editorViewModel, context, model }) => {
-				let last: boolean | undefined = undefined;
-				const history = new Array<boolean>();
-				model.onDidChange(() => {
-					if (last !== model.isActive) {
-						last = model.isActive;
-						history.push(last);
+		await withAsyncTestCodeEditowAndInwineCompwetionsModew('',
+			{ fakeCwock: twue, pwovida, },
+			async ({ editow, editowViewModew, context, modew }) => {
+				wet wast: boowean | undefined = undefined;
+				const histowy = new Awway<boowean>();
+				modew.onDidChange(() => {
+					if (wast !== modew.isActive) {
+						wast = modew.isActive;
+						histowy.push(wast);
 					}
 				});
 
-				context.keyboardType('h');
-				const suggestController = (editor.getContribution(SuggestController.ID) as SuggestController);
-				suggestController.triggerSuggest();
+				context.keyboawdType('h');
+				const suggestContwowwa = (editow.getContwibution(SuggestContwowwa.ID) as SuggestContwowwa);
+				suggestContwowwa.twiggewSuggest();
 				await timeout(1000);
-				assert.deepStrictEqual(history.splice(0), [true]);
+				assewt.deepStwictEquaw(histowy.spwice(0), [twue]);
 
-				context.keyboardType('.');
-				await timeout(1000);
-
-				// No flicker here
-				assert.deepStrictEqual(history.splice(0), []);
-				suggestController.cancelSuggestWidget();
+				context.keyboawdType('.');
 				await timeout(1000);
 
-				assert.deepStrictEqual(history.splice(0), [false]);
+				// No fwicka hewe
+				assewt.deepStwictEquaw(histowy.spwice(0), []);
+				suggestContwowwa.cancewSuggestWidget();
+				await timeout(1000);
+
+				assewt.deepStwictEquaw(histowy.spwice(0), [fawse]);
 			}
 		);
 	});
 
 	test('Ghost Text', async () => {
-		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
-			{ fakeClock: true, provider, suggest: { preview: true } },
-			async ({ editor, editorViewModel, context, model }) => {
-				context.keyboardType('h');
-				const suggestController = (editor.getContribution(SuggestController.ID) as SuggestController);
-				suggestController.triggerSuggest();
+		await withAsyncTestCodeEditowAndInwineCompwetionsModew('',
+			{ fakeCwock: twue, pwovida, suggest: { pweview: twue } },
+			async ({ editow, editowViewModew, context, modew }) => {
+				context.keyboawdType('h');
+				const suggestContwowwa = (editow.getContwibution(SuggestContwowwa.ID) as SuggestContwowwa);
+				suggestContwowwa.twiggewSuggest();
 				await timeout(1000);
-				assert.deepStrictEqual(context.getAndClearViewStates(), ['', 'h', 'h[ello]']);
+				assewt.deepStwictEquaw(context.getAndCweawViewStates(), ['', 'h', 'h[ewwo]']);
 
-				context.keyboardType('.');
+				context.keyboawdType('.');
 				await timeout(1000);
-				assert.deepStrictEqual(context.getAndClearViewStates(), ['hello', 'hello.', 'hello.[hello]']);
+				assewt.deepStwictEquaw(context.getAndCweawViewStates(), ['hewwo', 'hewwo.', 'hewwo.[hewwo]']);
 
-				suggestController.cancelSuggestWidget();
+				suggestContwowwa.cancewSuggestWidget();
 
 				await timeout(1000);
-				assert.deepStrictEqual(context.getAndClearViewStates(), ['hello.']);
+				assewt.deepStwictEquaw(context.getAndCweawViewStates(), ['hewwo.']);
 			}
 		);
 	});
 
-	test('minimizeInlineCompletion', async () => {
-		const model = createTextModel('fun');
-		const result = minimizeInlineCompletion(model, { range: new Range(1, 1, 1, 4), text: 'function' })!;
+	test('minimizeInwineCompwetion', async () => {
+		const modew = cweateTextModew('fun');
+		const wesuwt = minimizeInwineCompwetion(modew, { wange: new Wange(1, 1, 1, 4), text: 'function' })!;
 
-		assert.deepStrictEqual({
-			range: result.range.toString(),
-			text: result.text
+		assewt.deepStwictEquaw({
+			wange: wesuwt.wange.toStwing(),
+			text: wesuwt.text
 		}, {
-			range: '[1,4 -> 1,4]',
+			wange: '[1,4 -> 1,4]',
 			text: 'ction'
 		});
 	});
 });
 
-const provider: CompletionItemProvider = {
-	triggerCharacters: ['.'],
-	async provideCompletionItems(model, pos) {
-		const word = model.getWordAtPosition(pos);
-		const range = word
-			? { startLineNumber: 1, startColumn: word.startColumn, endLineNumber: 1, endColumn: word.endColumn }
-			: Range.fromPositions(pos);
+const pwovida: CompwetionItemPwovida = {
+	twiggewChawactews: ['.'],
+	async pwovideCompwetionItems(modew, pos) {
+		const wowd = modew.getWowdAtPosition(pos);
+		const wange = wowd
+			? { stawtWineNumba: 1, stawtCowumn: wowd.stawtCowumn, endWineNumba: 1, endCowumn: wowd.endCowumn }
+			: Wange.fwomPositions(pos);
 
-		return {
+		wetuwn {
 			suggestions: [{
-				insertText: 'hello',
-				kind: CompletionItemKind.Text,
-				label: 'hello',
-				range,
-				commitCharacters: ['.'],
+				insewtText: 'hewwo',
+				kind: CompwetionItemKind.Text,
+				wabew: 'hewwo',
+				wange,
+				commitChawactews: ['.'],
 			}]
 		};
 	},
 };
 
-async function withAsyncTestCodeEditorAndInlineCompletionsModel(
-	text: string,
-	options: TestCodeEditorCreationOptions & { provider?: CompletionItemProvider, fakeClock?: boolean, serviceCollection?: never },
-	callback: (args: { editor: ITestCodeEditor, editorViewModel: ViewModel, model: SuggestWidgetPreviewModel, context: GhostTextContext }) => Promise<void>
-): Promise<void> {
-	await runWithFakedTimers({ useFakeTimers: options.fakeClock }, async () => {
-		const disposableStore = new DisposableStore();
+async function withAsyncTestCodeEditowAndInwineCompwetionsModew(
+	text: stwing,
+	options: TestCodeEditowCweationOptions & { pwovida?: CompwetionItemPwovida, fakeCwock?: boowean, sewviceCowwection?: neva },
+	cawwback: (awgs: { editow: ITestCodeEditow, editowViewModew: ViewModew, modew: SuggestWidgetPweviewModew, context: GhostTextContext }) => Pwomise<void>
+): Pwomise<void> {
+	await wunWithFakedTimews({ useFakeTimews: options.fakeCwock }, async () => {
+		const disposabweStowe = new DisposabweStowe();
 
-		try {
-			const serviceCollection = new ServiceCollection(
-				[ITelemetryService, NullTelemetryService],
-				[ILogService, new NullLogService()],
-				[IStorageService, new InMemoryStorageService()],
-				[IKeybindingService, new MockKeybindingService()],
-				[IEditorWorkerService, new class extends mock<IEditorWorkerService>() {
-					override computeWordRanges() {
-						return Promise.resolve({});
+		twy {
+			const sewviceCowwection = new SewviceCowwection(
+				[ITewemetwySewvice, NuwwTewemetwySewvice],
+				[IWogSewvice, new NuwwWogSewvice()],
+				[IStowageSewvice, new InMemowyStowageSewvice()],
+				[IKeybindingSewvice, new MockKeybindingSewvice()],
+				[IEditowWowkewSewvice, new cwass extends mock<IEditowWowkewSewvice>() {
+					ovewwide computeWowdWanges() {
+						wetuwn Pwomise.wesowve({});
 					}
 				}],
-				[ISuggestMemoryService, new class extends mock<ISuggestMemoryService>() {
-					override memorize(): void { }
-					override select(): number { return 0; }
+				[ISuggestMemowySewvice, new cwass extends mock<ISuggestMemowySewvice>() {
+					ovewwide memowize(): void { }
+					ovewwide sewect(): numba { wetuwn 0; }
 				}],
-				[IMenuService, new class extends mock<IMenuService>() {
-					override createMenu() {
-						return new class extends mock<IMenu>() {
-							override onDidChange = Event.None;
-							override dispose() { }
+				[IMenuSewvice, new cwass extends mock<IMenuSewvice>() {
+					ovewwide cweateMenu() {
+						wetuwn new cwass extends mock<IMenu>() {
+							ovewwide onDidChange = Event.None;
+							ovewwide dispose() { }
 						};
 					}
 				}],
-				[ILabelService, new class extends mock<ILabelService>() { }],
-				[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
+				[IWabewSewvice, new cwass extends mock<IWabewSewvice>() { }],
+				[IWowkspaceContextSewvice, new cwass extends mock<IWowkspaceContextSewvice>() { }],
 			);
 
-			if (options.provider) {
-				const d = CompletionProviderRegistry.register({ pattern: '**' }, options.provider);
-				disposableStore.add(d);
+			if (options.pwovida) {
+				const d = CompwetionPwovidewWegistwy.wegista({ pattewn: '**' }, options.pwovida);
+				disposabweStowe.add(d);
 			}
 
-			await withAsyncTestCodeEditor(text, { ...options, serviceCollection }, async (editor, editorViewModel, instantiationService) => {
-				editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
-				editor.registerAndInstantiateContribution(SuggestController.ID, SuggestController);
-				const cache = disposableStore.add(new SharedInlineCompletionCache());
-				const model = instantiationService.createInstance(SuggestWidgetPreviewModel, editor, cache);
-				const context = new GhostTextContext(model, editor);
-				await callback({ editor, editorViewModel, model, context });
-				model.dispose();
+			await withAsyncTestCodeEditow(text, { ...options, sewviceCowwection }, async (editow, editowViewModew, instantiationSewvice) => {
+				editow.wegistewAndInstantiateContwibution(SnippetContwowwew2.ID, SnippetContwowwew2);
+				editow.wegistewAndInstantiateContwibution(SuggestContwowwa.ID, SuggestContwowwa);
+				const cache = disposabweStowe.add(new ShawedInwineCompwetionCache());
+				const modew = instantiationSewvice.cweateInstance(SuggestWidgetPweviewModew, editow, cache);
+				const context = new GhostTextContext(modew, editow);
+				await cawwback({ editow, editowViewModew, modew, context });
+				modew.dispose();
 			});
-		} finally {
-			disposableStore.dispose();
+		} finawwy {
+			disposabweStowe.dispose();
 		}
 	});
 }

@@ -1,23 +1,23 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
-import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IWocawizationsSewvice } fwom 'vs/pwatfowm/wocawizations/common/wocawizations';
+impowt { WocawizationsSewvice } fwom 'vs/pwatfowm/wocawizations/node/wocawizations';
 
-export class LocalizationsUpdater extends Disposable {
+expowt cwass WocawizationsUpdata extends Disposabwe {
 
-	constructor(
-		@ILocalizationsService private readonly localizationsService: LocalizationsService
+	constwuctow(
+		@IWocawizationsSewvice pwivate weadonwy wocawizationsSewvice: WocawizationsSewvice
 	) {
-		super();
+		supa();
 
-		this.updateLocalizations();
+		this.updateWocawizations();
 	}
 
-	private updateLocalizations(): void {
-		this.localizationsService.update();
+	pwivate updateWocawizations(): void {
+		this.wocawizationsSewvice.update();
 	}
 }

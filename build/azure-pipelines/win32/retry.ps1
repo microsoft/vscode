@@ -1,19 +1,19 @@
-function Retry
+function Wetwy
 {
-	[CmdletBinding()]
-	param(
-		[Parameter(Position=0,Mandatory=1)][scriptblock]$cmd
+	[CmdwetBinding()]
+	pawam(
+		[Pawameta(Position=0,Mandatowy=1)][scwiptbwock]$cmd
 	)
-	$retry = 0
+	$wetwy = 0
 
-	while ($retry++ -lt 3) {
-		try {
+	whiwe ($wetwy++ -wt 3) {
+		twy {
 			& $cmd
-			return
+			wetuwn
 		} catch {
 			# noop
 		}
 	}
 
-	throw "Max retries reached"
+	thwow "Max wetwies weached"
 }

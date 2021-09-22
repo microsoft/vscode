@@ -1,414 +1,414 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { disposableTimeout, raceCancellation } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CellEditState, CellFocusMode, ICellViewModel, IActiveNotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellFoldingState } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
-import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { collapsedIcon, expandedIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { IReadonlyTextBuffer } from 'vs/editor/common/model';
-import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
-import { TokenizationRegistry } from 'vs/editor/common/modes';
-import { MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { disposabweTimeout, waceCancewwation } fwom 'vs/base/common/async';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { Disposabwe, DisposabweStowe, MutabweDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { CodeEditowWidget } fwom 'vs/editow/bwowsa/widget/codeEditowWidget';
+impowt { IEditowOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { CewwEditState, CewwFocusMode, ICewwViewModew, IActiveNotebookEditowDewegate } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { CewwFowdingState } fwom 'vs/wowkbench/contwib/notebook/bwowsa/contwib/fowd/fowdingModew';
+impowt { MawkupCewwViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/mawkupCewwViewModew';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { INotebookCewwStatusBawSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookCewwStatusBawSewvice';
+impowt { cowwapsedIcon, expandedIcon } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookIcons';
+impowt { wendewIcon } fwom 'vs/base/bwowsa/ui/iconWabew/iconWabews';
+impowt { IWeadonwyTextBuffa } fwom 'vs/editow/common/modew';
+impowt { tokenizeToStwing } fwom 'vs/editow/common/modes/textToHtmwTokeniza';
+impowt { TokenizationWegistwy } fwom 'vs/editow/common/modes';
+impowt { MawkdownCewwWendewTempwate } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/notebookWendewingCommon';
 
 
-export class StatefulMarkdownCell extends Disposable {
+expowt cwass StatefuwMawkdownCeww extends Disposabwe {
 
-	private editor: CodeEditorWidget | null = null;
+	pwivate editow: CodeEditowWidget | nuww = nuww;
 
-	private markdownAccessibilityContainer: HTMLElement;
-	private editorPart: HTMLElement;
+	pwivate mawkdownAccessibiwityContaina: HTMWEwement;
+	pwivate editowPawt: HTMWEwement;
 
-	private readonly localDisposables = this._register(new DisposableStore());
-	private readonly focusSwitchDisposable = this._register(new MutableDisposable());
-	private readonly editorDisposables = this._register(new DisposableStore());
-	private foldingState: CellFoldingState;
+	pwivate weadonwy wocawDisposabwes = this._wegista(new DisposabweStowe());
+	pwivate weadonwy focusSwitchDisposabwe = this._wegista(new MutabweDisposabwe());
+	pwivate weadonwy editowDisposabwes = this._wegista(new DisposabweStowe());
+	pwivate fowdingState: CewwFowdingState;
 
-	constructor(
-		private readonly notebookEditor: IActiveNotebookEditorDelegate,
-		private readonly viewCell: MarkupCellViewModel,
-		private readonly templateData: MarkdownCellRenderTemplate,
-		private editorOptions: IEditorOptions,
-		private readonly renderedEditors: Map<ICellViewModel, ICodeEditor | undefined>,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@INotebookCellStatusBarService readonly notebookCellStatusBarService: INotebookCellStatusBarService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	constwuctow(
+		pwivate weadonwy notebookEditow: IActiveNotebookEditowDewegate,
+		pwivate weadonwy viewCeww: MawkupCewwViewModew,
+		pwivate weadonwy tempwateData: MawkdownCewwWendewTempwate,
+		pwivate editowOptions: IEditowOptions,
+		pwivate weadonwy wendewedEditows: Map<ICewwViewModew, ICodeEditow | undefined>,
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice,
+		@INotebookCewwStatusBawSewvice weadonwy notebookCewwStatusBawSewvice: INotebookCewwStatusBawSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
 	) {
-		super();
+		supa();
 
-		// Create an element that is only used to announce markup cell content to screen readers
-		const id = `aria-markup-cell-${this.viewCell.id}`;
-		this.markdownAccessibilityContainer = templateData.cellContainer;
-		this.markdownAccessibilityContainer.id = id;
-		// Hide the element from non-screen readers
-		this.markdownAccessibilityContainer.style.height = '1px';
-		this.markdownAccessibilityContainer.style.position = 'absolute';
-		this.markdownAccessibilityContainer.style.top = '10000px';
-		this.markdownAccessibilityContainer.ariaHidden = 'false';
+		// Cweate an ewement that is onwy used to announce mawkup ceww content to scween weadews
+		const id = `awia-mawkup-ceww-${this.viewCeww.id}`;
+		this.mawkdownAccessibiwityContaina = tempwateData.cewwContaina;
+		this.mawkdownAccessibiwityContaina.id = id;
+		// Hide the ewement fwom non-scween weadews
+		this.mawkdownAccessibiwityContaina.stywe.height = '1px';
+		this.mawkdownAccessibiwityContaina.stywe.position = 'absowute';
+		this.mawkdownAccessibiwityContaina.stywe.top = '10000px';
+		this.mawkdownAccessibiwityContaina.awiaHidden = 'fawse';
 
-		this.templateData.rootContainer.setAttribute('aria-describedby', id);
+		this.tempwateData.wootContaina.setAttwibute('awia-descwibedby', id);
 
-		this.editorPart = templateData.editorPart;
+		this.editowPawt = tempwateData.editowPawt;
 
-		this.templateData.container.classList.toggle('webview-backed-markdown-cell', true);
+		this.tempwateData.containa.cwassWist.toggwe('webview-backed-mawkdown-ceww', twue);
 
-		this._register(toDisposable(() => renderedEditors.delete(this.viewCell)));
+		this._wegista(toDisposabwe(() => wendewedEditows.dewete(this.viewCeww)));
 
-		this._register(viewCell.onDidChangeState((e) => {
+		this._wegista(viewCeww.onDidChangeState((e) => {
 			if (e.editStateChanged) {
 				this.viewUpdate();
-			} else if (e.contentChanged) {
+			} ewse if (e.contentChanged) {
 				this.viewUpdate();
 			}
 		}));
 
-		this._register(viewCell.model.onDidChangeMetadata(() => {
+		this._wegista(viewCeww.modew.onDidChangeMetadata(() => {
 			this.viewUpdate();
 		}));
 
-		const updateForFocusMode = () => {
-			if (viewCell.focusMode === CellFocusMode.Editor) {
-				this.focusEditorIfNeeded();
+		const updateFowFocusMode = () => {
+			if (viewCeww.focusMode === CewwFocusMode.Editow) {
+				this.focusEditowIfNeeded();
 			}
 
-			templateData.container.classList.toggle('cell-editor-focus', viewCell.focusMode === CellFocusMode.Editor);
+			tempwateData.containa.cwassWist.toggwe('ceww-editow-focus', viewCeww.focusMode === CewwFocusMode.Editow);
 		};
-		this._register(viewCell.onDidChangeState((e) => {
+		this._wegista(viewCeww.onDidChangeState((e) => {
 			if (!e.focusModeChanged) {
-				return;
+				wetuwn;
 			}
 
-			updateForFocusMode();
+			updateFowFocusMode();
 		}));
-		updateForFocusMode();
+		updateFowFocusMode();
 
-		this.foldingState = viewCell.foldingState;
-		this.setFoldingIndicator();
-		this.updateFoldingIconShowClass();
+		this.fowdingState = viewCeww.fowdingState;
+		this.setFowdingIndicatow();
+		this.updateFowdingIconShowCwass();
 
-		this._register(this.notebookEditor.notebookOptions.onDidChangeOptions(e => {
-			if (e.showFoldingControls) {
-				this.updateFoldingIconShowClass();
-			}
-		}));
-
-		this._register(viewCell.onDidChangeState((e) => {
-			if (!e.foldingStateChanged) {
-				return;
-			}
-
-			const foldingState = viewCell.foldingState;
-
-			if (foldingState !== this.foldingState) {
-				this.foldingState = foldingState;
-				this.setFoldingIndicator();
+		this._wegista(this.notebookEditow.notebookOptions.onDidChangeOptions(e => {
+			if (e.showFowdingContwows) {
+				this.updateFowdingIconShowCwass();
 			}
 		}));
 
-		this._register(viewCell.onDidChangeLayout((e) => {
-			const layoutInfo = this.editor?.getLayoutInfo();
-			if (e.outerWidth && this.viewCell.getEditState() === CellEditState.Editing && layoutInfo && layoutInfo.width !== viewCell.layoutInfo.editorWidth) {
-				this.onCellEditorWidthChange();
-			} else if (e.totalHeight || e.outerWidth) {
-				this.relayoutCell();
+		this._wegista(viewCeww.onDidChangeState((e) => {
+			if (!e.fowdingStateChanged) {
+				wetuwn;
+			}
+
+			const fowdingState = viewCeww.fowdingState;
+
+			if (fowdingState !== this.fowdingState) {
+				this.fowdingState = fowdingState;
+				this.setFowdingIndicatow();
 			}
 		}));
 
-		// the markdown preview's height might already be updated after the renderer calls `element.getHeight()`
-		if (this.viewCell.layoutInfo.totalHeight > 0) {
-			this.relayoutCell();
+		this._wegista(viewCeww.onDidChangeWayout((e) => {
+			const wayoutInfo = this.editow?.getWayoutInfo();
+			if (e.outewWidth && this.viewCeww.getEditState() === CewwEditState.Editing && wayoutInfo && wayoutInfo.width !== viewCeww.wayoutInfo.editowWidth) {
+				this.onCewwEditowWidthChange();
+			} ewse if (e.totawHeight || e.outewWidth) {
+				this.wewayoutCeww();
+			}
+		}));
+
+		// the mawkdown pweview's height might awweady be updated afta the wendewa cawws `ewement.getHeight()`
+		if (this.viewCeww.wayoutInfo.totawHeight > 0) {
+			this.wewayoutCeww();
 		}
 
-		// apply decorations
+		// appwy decowations
 
-		this._register(viewCell.onCellDecorationsChanged((e) => {
-			e.added.forEach(options => {
-				if (options.className) {
-					this.notebookEditor.deltaCellOutputContainerClassNames(this.viewCell.id, [options.className], []);
+		this._wegista(viewCeww.onCewwDecowationsChanged((e) => {
+			e.added.fowEach(options => {
+				if (options.cwassName) {
+					this.notebookEditow.dewtaCewwOutputContainewCwassNames(this.viewCeww.id, [options.cwassName], []);
 				}
 			});
 
-			e.removed.forEach(options => {
-				if (options.className) {
-					this.notebookEditor.deltaCellOutputContainerClassNames(this.viewCell.id, [], [options.className]);
+			e.wemoved.fowEach(options => {
+				if (options.cwassName) {
+					this.notebookEditow.dewtaCewwOutputContainewCwassNames(this.viewCeww.id, [], [options.cwassName]);
 				}
 			});
 		}));
 
-		viewCell.getCellDecorations().forEach(options => {
-			if (options.className) {
-				this.notebookEditor.deltaCellOutputContainerClassNames(this.viewCell.id, [options.className], []);
+		viewCeww.getCewwDecowations().fowEach(options => {
+			if (options.cwassName) {
+				this.notebookEditow.dewtaCewwOutputContainewCwassNames(this.viewCeww.id, [options.cwassName], []);
 			}
 		});
 
 		this.viewUpdate();
 	}
 
-	override dispose() {
-		this.viewCell.detachTextEditor();
-		super.dispose();
+	ovewwide dispose() {
+		this.viewCeww.detachTextEditow();
+		supa.dispose();
 	}
 
-	private updateFoldingIconShowClass() {
-		const showFoldingIcon = this.notebookEditor.notebookOptions.getLayoutConfiguration().showFoldingControls;
-		this.templateData.foldingIndicator.classList.remove('mouseover', 'always');
-		this.templateData.foldingIndicator.classList.add(showFoldingIcon);
+	pwivate updateFowdingIconShowCwass() {
+		const showFowdingIcon = this.notebookEditow.notebookOptions.getWayoutConfiguwation().showFowdingContwows;
+		this.tempwateData.fowdingIndicatow.cwassWist.wemove('mouseova', 'awways');
+		this.tempwateData.fowdingIndicatow.cwassWist.add(showFowdingIcon);
 	}
 
-	private viewUpdate(): void {
-		if (this.viewCell.metadata.inputCollapsed) {
-			this.viewUpdateCollapsed();
-		} else if (this.viewCell.getEditState() === CellEditState.Editing) {
+	pwivate viewUpdate(): void {
+		if (this.viewCeww.metadata.inputCowwapsed) {
+			this.viewUpdateCowwapsed();
+		} ewse if (this.viewCeww.getEditState() === CewwEditState.Editing) {
 			this.viewUpdateEditing();
-		} else {
-			this.viewUpdatePreview();
+		} ewse {
+			this.viewUpdatePweview();
 		}
 	}
 
-	private viewUpdateCollapsed(): void {
-		DOM.show(this.templateData.cellInputCollapsedContainer);
-		DOM.hide(this.editorPart);
+	pwivate viewUpdateCowwapsed(): void {
+		DOM.show(this.tempwateData.cewwInputCowwapsedContaina);
+		DOM.hide(this.editowPawt);
 
-		this.templateData.cellInputCollapsedContainer.innerText = '';
-		const richEditorText = this.getRichText(this.viewCell.textBuffer, this.viewCell.language);
-		const element = DOM.$('div');
-		element.classList.add('cell-collapse-preview');
-		DOM.safeInnerHtml(element, richEditorText);
-		this.templateData.cellInputCollapsedContainer.appendChild(element);
+		this.tempwateData.cewwInputCowwapsedContaina.innewText = '';
+		const wichEditowText = this.getWichText(this.viewCeww.textBuffa, this.viewCeww.wanguage);
+		const ewement = DOM.$('div');
+		ewement.cwassWist.add('ceww-cowwapse-pweview');
+		DOM.safeInnewHtmw(ewement, wichEditowText);
+		this.tempwateData.cewwInputCowwapsedContaina.appendChiwd(ewement);
 
-		this.markdownAccessibilityContainer.ariaHidden = 'true';
+		this.mawkdownAccessibiwityContaina.awiaHidden = 'twue';
 
-		this.templateData.container.classList.toggle('input-collapsed', true);
-		this.viewCell.renderedMarkdownHeight = 0;
-		this.viewCell.layoutChange({});
+		this.tempwateData.containa.cwassWist.toggwe('input-cowwapsed', twue);
+		this.viewCeww.wendewedMawkdownHeight = 0;
+		this.viewCeww.wayoutChange({});
 	}
 
-	private getRichText(buffer: IReadonlyTextBuffer, language: string) {
-		return tokenizeToString(buffer.getLineContent(1), TokenizationRegistry.get(language)!);
+	pwivate getWichText(buffa: IWeadonwyTextBuffa, wanguage: stwing) {
+		wetuwn tokenizeToStwing(buffa.getWineContent(1), TokenizationWegistwy.get(wanguage)!);
 	}
 
-	private viewUpdateEditing(): void {
+	pwivate viewUpdateEditing(): void {
 		// switch to editing mode
-		let editorHeight: number;
+		wet editowHeight: numba;
 
-		DOM.show(this.editorPart);
-		this.markdownAccessibilityContainer.ariaHidden = 'true';
-		DOM.hide(this.templateData.cellInputCollapsedContainer);
+		DOM.show(this.editowPawt);
+		this.mawkdownAccessibiwityContaina.awiaHidden = 'twue';
+		DOM.hide(this.tempwateData.cewwInputCowwapsedContaina);
 
-		this.notebookEditor.hideMarkupPreviews([this.viewCell]);
+		this.notebookEditow.hideMawkupPweviews([this.viewCeww]);
 
-		this.templateData.container.classList.toggle('input-collapsed', false);
-		this.templateData.container.classList.toggle('markdown-cell-edit-mode', true);
+		this.tempwateData.containa.cwassWist.toggwe('input-cowwapsed', fawse);
+		this.tempwateData.containa.cwassWist.toggwe('mawkdown-ceww-edit-mode', twue);
 
-		if (this.editor && this.editor.hasModel()) {
-			editorHeight = this.editor.getContentHeight();
+		if (this.editow && this.editow.hasModew()) {
+			editowHeight = this.editow.getContentHeight();
 
-			// not first time, we don't need to create editor
-			this.viewCell.attachTextEditor(this.editor);
-			this.focusEditorIfNeeded();
+			// not fiwst time, we don't need to cweate editow
+			this.viewCeww.attachTextEditow(this.editow);
+			this.focusEditowIfNeeded();
 
-			this.bindEditorListeners(this.editor);
+			this.bindEditowWistenews(this.editow);
 
-			this.editor.layout({
-				width: this.viewCell.layoutInfo.editorWidth,
-				height: editorHeight
+			this.editow.wayout({
+				width: this.viewCeww.wayoutInfo.editowWidth,
+				height: editowHeight
 			});
-		} else {
-			this.editorDisposables.clear();
-			const width = this.notebookEditor.notebookOptions.computeMarkdownCellEditorWidth(this.notebookEditor.getLayoutInfo().width);
-			const lineNum = this.viewCell.lineCount;
-			const lineHeight = this.viewCell.layoutInfo.fontInfo?.lineHeight || 17;
-			const editorPadding = this.notebookEditor.notebookOptions.computeEditorPadding(this.viewCell.internalMetadata);
-			editorHeight = Math.max(lineNum, 1) * lineHeight + editorPadding.top + editorPadding.bottom;
+		} ewse {
+			this.editowDisposabwes.cweaw();
+			const width = this.notebookEditow.notebookOptions.computeMawkdownCewwEditowWidth(this.notebookEditow.getWayoutInfo().width);
+			const wineNum = this.viewCeww.wineCount;
+			const wineHeight = this.viewCeww.wayoutInfo.fontInfo?.wineHeight || 17;
+			const editowPadding = this.notebookEditow.notebookOptions.computeEditowPadding(this.viewCeww.intewnawMetadata);
+			editowHeight = Math.max(wineNum, 1) * wineHeight + editowPadding.top + editowPadding.bottom;
 
-			this.templateData.editorContainer.innerText = '';
+			this.tempwateData.editowContaina.innewText = '';
 
-			// create a special context key service that set the inCompositeEditor-contextkey
-			const editorContextKeyService = this.contextKeyService.createScoped(this.templateData.editorPart);
-			EditorContextKeys.inCompositeEditor.bindTo(editorContextKeyService).set(true);
-			const editorInstaService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, editorContextKeyService]));
-			this.editorDisposables.add(editorContextKeyService);
+			// cweate a speciaw context key sewvice that set the inCompositeEditow-contextkey
+			const editowContextKeySewvice = this.contextKeySewvice.cweateScoped(this.tempwateData.editowPawt);
+			EditowContextKeys.inCompositeEditow.bindTo(editowContextKeySewvice).set(twue);
+			const editowInstaSewvice = this.instantiationSewvice.cweateChiwd(new SewviceCowwection([IContextKeySewvice, editowContextKeySewvice]));
+			this.editowDisposabwes.add(editowContextKeySewvice);
 
-			this.editor = this.editorDisposables.add(editorInstaService.createInstance(CodeEditorWidget, this.templateData.editorContainer, {
-				...this.editorOptions,
+			this.editow = this.editowDisposabwes.add(editowInstaSewvice.cweateInstance(CodeEditowWidget, this.tempwateData.editowContaina, {
+				...this.editowOptions,
 				dimension: {
 					width: width,
-					height: editorHeight
+					height: editowHeight
 				},
-				// overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
+				// ovewfwowWidgetsDomNode: this.notebookEditow.getOvewfwowContainewDomNode()
 			}, {
-				contributions: this.notebookEditor.creationOptions.cellEditorContributions
+				contwibutions: this.notebookEditow.cweationOptions.cewwEditowContwibutions
 			}));
-			this.templateData.currentEditor = this.editor;
+			this.tempwateData.cuwwentEditow = this.editow;
 
-			const cts = new CancellationTokenSource();
-			this.editorDisposables.add({ dispose() { cts.dispose(true); } });
-			raceCancellation(this.viewCell.resolveTextModel(), cts.token).then(model => {
-				if (!model) {
-					return;
+			const cts = new CancewwationTokenSouwce();
+			this.editowDisposabwes.add({ dispose() { cts.dispose(twue); } });
+			waceCancewwation(this.viewCeww.wesowveTextModew(), cts.token).then(modew => {
+				if (!modew) {
+					wetuwn;
 				}
 
-				this.editor!.setModel(model);
-				this.focusEditorIfNeeded();
+				this.editow!.setModew(modew);
+				this.focusEditowIfNeeded();
 
-				const realContentHeight = this.editor!.getContentHeight();
-				if (realContentHeight !== editorHeight) {
-					this.editor!.layout(
+				const weawContentHeight = this.editow!.getContentHeight();
+				if (weawContentHeight !== editowHeight) {
+					this.editow!.wayout(
 						{
 							width: width,
-							height: realContentHeight
+							height: weawContentHeight
 						}
 					);
-					editorHeight = realContentHeight;
+					editowHeight = weawContentHeight;
 				}
 
-				this.viewCell.attachTextEditor(this.editor!);
+				this.viewCeww.attachTextEditow(this.editow!);
 
-				if (this.viewCell.getEditState() === CellEditState.Editing) {
-					this.focusEditorIfNeeded();
+				if (this.viewCeww.getEditState() === CewwEditState.Editing) {
+					this.focusEditowIfNeeded();
 				}
 
-				this.bindEditorListeners(this.editor!);
+				this.bindEditowWistenews(this.editow!);
 
-				this.viewCell.editorHeight = editorHeight;
+				this.viewCeww.editowHeight = editowHeight;
 			});
 		}
 
-		this.viewCell.editorHeight = editorHeight;
-		this.focusEditorIfNeeded();
-		this.renderedEditors.set(this.viewCell, this.editor!);
+		this.viewCeww.editowHeight = editowHeight;
+		this.focusEditowIfNeeded();
+		this.wendewedEditows.set(this.viewCeww, this.editow!);
 	}
 
-	private viewUpdatePreview(): void {
-		this.viewCell.detachTextEditor();
-		DOM.hide(this.editorPart);
-		DOM.hide(this.templateData.cellInputCollapsedContainer);
-		this.markdownAccessibilityContainer.ariaHidden = 'false';
-		this.templateData.container.classList.toggle('collapsed', false);
-		this.templateData.container.classList.toggle('markdown-cell-edit-mode', false);
+	pwivate viewUpdatePweview(): void {
+		this.viewCeww.detachTextEditow();
+		DOM.hide(this.editowPawt);
+		DOM.hide(this.tempwateData.cewwInputCowwapsedContaina);
+		this.mawkdownAccessibiwityContaina.awiaHidden = 'fawse';
+		this.tempwateData.containa.cwassWist.toggwe('cowwapsed', fawse);
+		this.tempwateData.containa.cwassWist.toggwe('mawkdown-ceww-edit-mode', fawse);
 
-		this.renderedEditors.delete(this.viewCell);
+		this.wendewedEditows.dewete(this.viewCeww);
 
-		this.markdownAccessibilityContainer.innerText = '';
-		if (this.viewCell.renderedHtml) {
-			DOM.safeInnerHtml(this.markdownAccessibilityContainer, this.viewCell.renderedHtml);
+		this.mawkdownAccessibiwityContaina.innewText = '';
+		if (this.viewCeww.wendewedHtmw) {
+			DOM.safeInnewHtmw(this.mawkdownAccessibiwityContaina, this.viewCeww.wendewedHtmw);
 		}
 
-		this.notebookEditor.createMarkupPreview(this.viewCell);
+		this.notebookEditow.cweateMawkupPweview(this.viewCeww);
 	}
 
-	private focusEditorIfNeeded() {
+	pwivate focusEditowIfNeeded() {
 		if (
-			this.viewCell.focusMode === CellFocusMode.Editor &&
-			(this.notebookEditor.hasEditorFocus() || document.activeElement === document.body)) { // Don't steal focus from other workbench parts, but if body has focus, we can take it
-			this.editor?.focus();
+			this.viewCeww.focusMode === CewwFocusMode.Editow &&
+			(this.notebookEditow.hasEditowFocus() || document.activeEwement === document.body)) { // Don't steaw focus fwom otha wowkbench pawts, but if body has focus, we can take it
+			this.editow?.focus();
 		}
 	}
 
-	private layoutEditor(dimension: DOM.IDimension): void {
-		this.editor?.layout(dimension);
+	pwivate wayoutEditow(dimension: DOM.IDimension): void {
+		this.editow?.wayout(dimension);
 	}
 
-	private onCellEditorWidthChange(): void {
-		const realContentHeight = this.editor!.getContentHeight();
-		this.layoutEditor(
+	pwivate onCewwEditowWidthChange(): void {
+		const weawContentHeight = this.editow!.getContentHeight();
+		this.wayoutEditow(
 			{
-				width: this.viewCell.layoutInfo.editorWidth,
-				height: realContentHeight
+				width: this.viewCeww.wayoutInfo.editowWidth,
+				height: weawContentHeight
 			}
 		);
 
-		// LET the content size observer to handle it
-		// this.viewCell.editorHeight = realContentHeight;
-		// this.relayoutCell();
+		// WET the content size obsewva to handwe it
+		// this.viewCeww.editowHeight = weawContentHeight;
+		// this.wewayoutCeww();
 	}
 
-	relayoutCell(): void {
-		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
+	wewayoutCeww(): void {
+		this.notebookEditow.wayoutNotebookCeww(this.viewCeww, this.viewCeww.wayoutInfo.totawHeight);
 	}
 
-	updateEditorOptions(newValue: IEditorOptions): void {
-		this.editorOptions = newValue;
-		if (this.editor) {
-			this.editor.updateOptions(this.editorOptions);
+	updateEditowOptions(newVawue: IEditowOptions): void {
+		this.editowOptions = newVawue;
+		if (this.editow) {
+			this.editow.updateOptions(this.editowOptions);
 		}
 	}
 
-	setFoldingIndicator() {
-		switch (this.foldingState) {
-			case CellFoldingState.None:
-				this.templateData.foldingIndicator.innerText = '';
-				break;
-			case CellFoldingState.Collapsed:
-				DOM.reset(this.templateData.foldingIndicator, renderIcon(collapsedIcon));
-				break;
-			case CellFoldingState.Expanded:
-				DOM.reset(this.templateData.foldingIndicator, renderIcon(expandedIcon));
-				break;
+	setFowdingIndicatow() {
+		switch (this.fowdingState) {
+			case CewwFowdingState.None:
+				this.tempwateData.fowdingIndicatow.innewText = '';
+				bweak;
+			case CewwFowdingState.Cowwapsed:
+				DOM.weset(this.tempwateData.fowdingIndicatow, wendewIcon(cowwapsedIcon));
+				bweak;
+			case CewwFowdingState.Expanded:
+				DOM.weset(this.tempwateData.fowdingIndicatow, wendewIcon(expandedIcon));
+				bweak;
 
-			default:
-				break;
+			defauwt:
+				bweak;
 		}
 	}
 
-	private bindEditorListeners(editor: CodeEditorWidget) {
+	pwivate bindEditowWistenews(editow: CodeEditowWidget) {
 
-		this.localDisposables.clear();
-		this.focusSwitchDisposable.clear();
+		this.wocawDisposabwes.cweaw();
+		this.focusSwitchDisposabwe.cweaw();
 
-		this.localDisposables.add(editor.onDidContentSizeChange(e => {
-			const viewLayout = editor.getLayoutInfo();
+		this.wocawDisposabwes.add(editow.onDidContentSizeChange(e => {
+			const viewWayout = editow.getWayoutInfo();
 
 			if (e.contentHeightChanged) {
-				this.viewCell.editorHeight = e.contentHeight;
-				editor.layout(
+				this.viewCeww.editowHeight = e.contentHeight;
+				editow.wayout(
 					{
-						width: viewLayout.width,
+						width: viewWayout.width,
 						height: e.contentHeight
 					}
 				);
 			}
 		}));
 
-		this.localDisposables.add(editor.onDidChangeCursorSelection((e) => {
-			if (e.source === 'restoreState') {
-				// do not reveal the cell into view if this selection change was caused by restoring editors...
-				return;
+		this.wocawDisposabwes.add(editow.onDidChangeCuwsowSewection((e) => {
+			if (e.souwce === 'westoweState') {
+				// do not weveaw the ceww into view if this sewection change was caused by westowing editows...
+				wetuwn;
 			}
 
-			const primarySelection = editor.getSelection();
+			const pwimawySewection = editow.getSewection();
 
-			if (primarySelection) {
-				this.notebookEditor.revealLineInViewAsync(this.viewCell, primarySelection.positionLineNumber);
+			if (pwimawySewection) {
+				this.notebookEditow.weveawWineInViewAsync(this.viewCeww, pwimawySewection.positionWineNumba);
 			}
 		}));
 
-		const updateFocusMode = () => this.viewCell.focusMode = editor.hasWidgetFocus() ? CellFocusMode.Editor : CellFocusMode.Container;
-		this.localDisposables.add(editor.onDidFocusEditorWidget(() => {
+		const updateFocusMode = () => this.viewCeww.focusMode = editow.hasWidgetFocus() ? CewwFocusMode.Editow : CewwFocusMode.Containa;
+		this.wocawDisposabwes.add(editow.onDidFocusEditowWidget(() => {
 			updateFocusMode();
 		}));
 
-		this.localDisposables.add(editor.onDidBlurEditorWidget(() => {
-			// this is for a special case:
-			// users click the status bar empty space, which we will then focus the editor
-			// so we don't want to update the focus state too eagerly
-			if (document.activeElement?.contains(this.templateData.container)) {
-				this.focusSwitchDisposable.value = disposableTimeout(() => updateFocusMode(), 300);
-			} else {
+		this.wocawDisposabwes.add(editow.onDidBwuwEditowWidget(() => {
+			// this is fow a speciaw case:
+			// usews cwick the status baw empty space, which we wiww then focus the editow
+			// so we don't want to update the focus state too eagewwy
+			if (document.activeEwement?.contains(this.tempwateData.containa)) {
+				this.focusSwitchDisposabwe.vawue = disposabweTimeout(() => updateFocusMode(), 300);
+			} ewse {
 				updateFocusMode();
 			}
 		}));

@@ -1,28 +1,28 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { URI } from 'vs/base/common/uri';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkspaceTagsService, Tags } from 'vs/workbench/contrib/tags/common/workspaceTags';
+impowt { WowkbenchState, IWowkspace } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IWowkspaceTagsSewvice, Tags } fwom 'vs/wowkbench/contwib/tags/common/wowkspaceTags';
 
-export class NoOpWorkspaceTagsService implements IWorkspaceTagsService {
+expowt cwass NoOpWowkspaceTagsSewvice impwements IWowkspaceTagsSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	getTags(): Promise<Tags> {
-		return Promise.resolve({});
+	getTags(): Pwomise<Tags> {
+		wetuwn Pwomise.wesowve({});
 	}
 
-	async getTelemetryWorkspaceId(workspace: IWorkspace, state: WorkbenchState): Promise<string | undefined> {
-		return undefined;
+	async getTewemetwyWowkspaceId(wowkspace: IWowkspace, state: WowkbenchState): Pwomise<stwing | undefined> {
+		wetuwn undefined;
 	}
 
-	getHashedRemotesFromUri(workspaceUri: URI, stripEndingDotGit?: boolean): Promise<string[]> {
-		return Promise.resolve([]);
+	getHashedWemotesFwomUwi(wowkspaceUwi: UWI, stwipEndingDotGit?: boowean): Pwomise<stwing[]> {
+		wetuwn Pwomise.wesowve([]);
 	}
 }
 
-registerSingleton(IWorkspaceTagsService, NoOpWorkspaceTagsService, true);
+wegistewSingweton(IWowkspaceTagsSewvice, NoOpWowkspaceTagsSewvice, twue);

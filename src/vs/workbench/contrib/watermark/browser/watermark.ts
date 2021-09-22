@@ -1,199 +1,199 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./watermark';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isMacintosh, isWeb, OS } from 'vs/base/common/platform';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import * as nls from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { OpenFolderAction, OpenFileFolderAction, OpenFileAction } from 'vs/workbench/browser/actions/workspaceActions';
-import { ShowAllCommandsAction } from 'vs/workbench/contrib/quickaccess/browser/commandsQuickAccess';
-import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { FindInFilesActionId } from 'vs/workbench/contrib/search/common/constants';
-import * as dom from 'vs/base/browser/dom';
-import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { assertIsDefined } from 'vs/base/common/types';
-import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import { NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
-import { DEBUG_START_COMMAND_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachKeybindingLabelStyler } from 'vs/platform/theme/common/styler';
+impowt 'vs/css!./watewmawk';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { isMacintosh, isWeb, OS } fwom 'vs/base/common/pwatfowm';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt * as nws fwom 'vs/nws';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IConfiguwationWegistwy, Extensions as ConfiguwationExtensions } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { IWowkspaceContextSewvice, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IWowkbenchContwibution, IWowkbenchContwibutionsWegistwy, Extensions as WowkbenchExtensions } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IWifecycweSewvice, WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { OpenFowdewAction, OpenFiweFowdewAction, OpenFiweAction } fwom 'vs/wowkbench/bwowsa/actions/wowkspaceActions';
+impowt { ShowAwwCommandsAction } fwom 'vs/wowkbench/contwib/quickaccess/bwowsa/commandsQuickAccess';
+impowt { Pawts, IWowkbenchWayoutSewvice } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { FindInFiwesActionId } fwom 'vs/wowkbench/contwib/seawch/common/constants';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { KeybindingWabew } fwom 'vs/base/bwowsa/ui/keybindingWabew/keybindingWabew';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { TewminawCommandId } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminaw';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
+impowt { wowkbenchConfiguwationNodeBase } fwom 'vs/wowkbench/common/configuwation';
+impowt { NEW_UNTITWED_FIWE_COMMAND_ID } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/fiweCommands';
+impowt { DEBUG_STAWT_COMMAND_ID } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugCommands';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { attachKeybindingWabewStywa } fwom 'vs/pwatfowm/theme/common/stywa';
 
 const $ = dom.$;
 
-interface WatermarkEntry {
-	text: string;
-	id: string;
-	mac?: boolean;
+intewface WatewmawkEntwy {
+	text: stwing;
+	id: stwing;
+	mac?: boowean;
 }
 
-const showCommands: WatermarkEntry = { text: nls.localize('watermark.showCommands', "Show All Commands"), id: ShowAllCommandsAction.ID };
-const quickAccess: WatermarkEntry = { text: nls.localize('watermark.quickAccess', "Go to File"), id: 'workbench.action.quickOpen' };
-const openFileNonMacOnly: WatermarkEntry = { text: nls.localize('watermark.openFile', "Open File"), id: OpenFileAction.ID, mac: false };
-const openFolderNonMacOnly: WatermarkEntry = { text: nls.localize('watermark.openFolder', "Open Folder"), id: OpenFolderAction.ID, mac: false };
-const openFileOrFolderMacOnly: WatermarkEntry = { text: nls.localize('watermark.openFileFolder', "Open File or Folder"), id: OpenFileFolderAction.ID, mac: true };
-const openRecent: WatermarkEntry = { text: nls.localize('watermark.openRecent', "Open Recent"), id: 'workbench.action.openRecent' };
-const newUntitledFile: WatermarkEntry = { text: nls.localize('watermark.newUntitledFile', "New Untitled File"), id: NEW_UNTITLED_FILE_COMMAND_ID };
-const newUntitledFileMacOnly: WatermarkEntry = Object.assign({ mac: true }, newUntitledFile);
-const toggleTerminal: WatermarkEntry = { text: nls.localize({ key: 'watermark.toggleTerminal', comment: ['toggle is a verb here'] }, "Toggle Terminal"), id: TerminalCommandId.Toggle };
-const findInFiles: WatermarkEntry = { text: nls.localize('watermark.findInFiles', "Find in Files"), id: FindInFilesActionId };
-const startDebugging: WatermarkEntry = { text: nls.localize('watermark.startDebugging', "Start Debugging"), id: DEBUG_START_COMMAND_ID };
+const showCommands: WatewmawkEntwy = { text: nws.wocawize('watewmawk.showCommands', "Show Aww Commands"), id: ShowAwwCommandsAction.ID };
+const quickAccess: WatewmawkEntwy = { text: nws.wocawize('watewmawk.quickAccess', "Go to Fiwe"), id: 'wowkbench.action.quickOpen' };
+const openFiweNonMacOnwy: WatewmawkEntwy = { text: nws.wocawize('watewmawk.openFiwe', "Open Fiwe"), id: OpenFiweAction.ID, mac: fawse };
+const openFowdewNonMacOnwy: WatewmawkEntwy = { text: nws.wocawize('watewmawk.openFowda', "Open Fowda"), id: OpenFowdewAction.ID, mac: fawse };
+const openFiweOwFowdewMacOnwy: WatewmawkEntwy = { text: nws.wocawize('watewmawk.openFiweFowda', "Open Fiwe ow Fowda"), id: OpenFiweFowdewAction.ID, mac: twue };
+const openWecent: WatewmawkEntwy = { text: nws.wocawize('watewmawk.openWecent', "Open Wecent"), id: 'wowkbench.action.openWecent' };
+const newUntitwedFiwe: WatewmawkEntwy = { text: nws.wocawize('watewmawk.newUntitwedFiwe', "New Untitwed Fiwe"), id: NEW_UNTITWED_FIWE_COMMAND_ID };
+const newUntitwedFiweMacOnwy: WatewmawkEntwy = Object.assign({ mac: twue }, newUntitwedFiwe);
+const toggweTewminaw: WatewmawkEntwy = { text: nws.wocawize({ key: 'watewmawk.toggweTewminaw', comment: ['toggwe is a vewb hewe'] }, "Toggwe Tewminaw"), id: TewminawCommandId.Toggwe };
+const findInFiwes: WatewmawkEntwy = { text: nws.wocawize('watewmawk.findInFiwes', "Find in Fiwes"), id: FindInFiwesActionId };
+const stawtDebugging: WatewmawkEntwy = { text: nws.wocawize('watewmawk.stawtDebugging', "Stawt Debugging"), id: DEBUG_STAWT_COMMAND_ID };
 
-const noFolderEntries = [
+const noFowdewEntwies = [
 	showCommands,
-	openFileNonMacOnly,
-	openFolderNonMacOnly,
-	openFileOrFolderMacOnly,
-	openRecent,
-	newUntitledFileMacOnly
+	openFiweNonMacOnwy,
+	openFowdewNonMacOnwy,
+	openFiweOwFowdewMacOnwy,
+	openWecent,
+	newUntitwedFiweMacOnwy
 ];
 
-const folderEntries = [
+const fowdewEntwies = [
 	showCommands,
 	quickAccess,
-	findInFiles,
-	startDebugging,
-	toggleTerminal
+	findInFiwes,
+	stawtDebugging,
+	toggweTewminaw
 ];
 
-const WORKBENCH_TIPS_ENABLED_KEY = 'workbench.tips.enabled';
+const WOWKBENCH_TIPS_ENABWED_KEY = 'wowkbench.tips.enabwed';
 
-export class WatermarkContribution extends Disposable implements IWorkbenchContribution {
-	private watermark: HTMLElement | undefined;
-	private watermarkDisposable = this._register(new DisposableStore());
-	private enabled: boolean;
-	private workbenchState: WorkbenchState;
+expowt cwass WatewmawkContwibution extends Disposabwe impwements IWowkbenchContwibution {
+	pwivate watewmawk: HTMWEwement | undefined;
+	pwivate watewmawkDisposabwe = this._wegista(new DisposabweStowe());
+	pwivate enabwed: boowean;
+	pwivate wowkbenchState: WowkbenchState;
 
-	constructor(
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
-		@IThemeService private readonly themeService: IThemeService
+	constwuctow(
+		@IWifecycweSewvice pwivate weadonwy wifecycweSewvice: IWifecycweSewvice,
+		@IWowkbenchWayoutSewvice pwivate weadonwy wayoutSewvice: IWowkbenchWayoutSewvice,
+		@IKeybindingSewvice pwivate weadonwy keybindingSewvice: IKeybindingSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IEditowGwoupsSewvice pwivate weadonwy editowGwoupsSewvice: IEditowGwoupsSewvice,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice
 	) {
-		super();
+		supa();
 
-		this.workbenchState = contextService.getWorkbenchState();
-		this.enabled = this.configurationService.getValue<boolean>(WORKBENCH_TIPS_ENABLED_KEY);
+		this.wowkbenchState = contextSewvice.getWowkbenchState();
+		this.enabwed = this.configuwationSewvice.getVawue<boowean>(WOWKBENCH_TIPS_ENABWED_KEY);
 
-		this.registerListeners();
+		this.wegistewWistenews();
 
-		if (this.enabled) {
-			this.create();
+		if (this.enabwed) {
+			this.cweate();
 		}
 	}
 
-	private registerListeners(): void {
-		this.lifecycleService.onDidShutdown(() => this.dispose());
+	pwivate wegistewWistenews(): void {
+		this.wifecycweSewvice.onDidShutdown(() => this.dispose());
 
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(WORKBENCH_TIPS_ENABLED_KEY)) {
-				const enabled = this.configurationService.getValue<boolean>(WORKBENCH_TIPS_ENABLED_KEY);
-				if (enabled !== this.enabled) {
-					this.enabled = enabled;
-					if (this.enabled) {
-						this.create();
-					} else {
-						this.destroy();
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation(WOWKBENCH_TIPS_ENABWED_KEY)) {
+				const enabwed = this.configuwationSewvice.getVawue<boowean>(WOWKBENCH_TIPS_ENABWED_KEY);
+				if (enabwed !== this.enabwed) {
+					this.enabwed = enabwed;
+					if (this.enabwed) {
+						this.cweate();
+					} ewse {
+						this.destwoy();
 					}
 				}
 			}
 		}));
 
-		this._register(this.contextService.onDidChangeWorkbenchState(e => {
-			const previousWorkbenchState = this.workbenchState;
-			this.workbenchState = this.contextService.getWorkbenchState();
+		this._wegista(this.contextSewvice.onDidChangeWowkbenchState(e => {
+			const pweviousWowkbenchState = this.wowkbenchState;
+			this.wowkbenchState = this.contextSewvice.getWowkbenchState();
 
-			if (this.enabled && this.workbenchState !== previousWorkbenchState) {
-				this.recreate();
+			if (this.enabwed && this.wowkbenchState !== pweviousWowkbenchState) {
+				this.wecweate();
 			}
 		}));
 	}
 
-	private create(): void {
-		const container = assertIsDefined(this.layoutService.getContainer(Parts.EDITOR_PART));
-		container.classList.add('has-watermark');
+	pwivate cweate(): void {
+		const containa = assewtIsDefined(this.wayoutSewvice.getContaina(Pawts.EDITOW_PAWT));
+		containa.cwassWist.add('has-watewmawk');
 
-		this.watermark = $('.watermark');
-		const box = dom.append(this.watermark, $('.watermark-box'));
-		const folder = this.workbenchState !== WorkbenchState.EMPTY;
-		const selected = folder ? folderEntries : noFolderEntries
-			.filter(entry => !('mac' in entry) || entry.mac === (isMacintosh && !isWeb))
-			.filter(entry => !!CommandsRegistry.getCommand(entry.id));
+		this.watewmawk = $('.watewmawk');
+		const box = dom.append(this.watewmawk, $('.watewmawk-box'));
+		const fowda = this.wowkbenchState !== WowkbenchState.EMPTY;
+		const sewected = fowda ? fowdewEntwies : noFowdewEntwies
+			.fiwta(entwy => !('mac' in entwy) || entwy.mac === (isMacintosh && !isWeb))
+			.fiwta(entwy => !!CommandsWegistwy.getCommand(entwy.id));
 
-		const keybindingLabelStylers = this.watermarkDisposable.add(new DisposableStore());
+		const keybindingWabewStywews = this.watewmawkDisposabwe.add(new DisposabweStowe());
 
 		const update = () => {
-			dom.clearNode(box);
-			keybindingLabelStylers.clear();
-			selected.map(entry => {
-				const dl = dom.append(box, $('dl'));
-				const dt = dom.append(dl, $('dt'));
-				dt.textContent = entry.text;
-				const dd = dom.append(dl, $('dd'));
-				const keybinding = new KeybindingLabel(dd, OS, { renderUnboundKeybindings: true });
-				keybindingLabelStylers.add(attachKeybindingLabelStyler(keybinding, this.themeService));
-				keybinding.set(this.keybindingService.lookupKeybinding(entry.id));
+			dom.cweawNode(box);
+			keybindingWabewStywews.cweaw();
+			sewected.map(entwy => {
+				const dw = dom.append(box, $('dw'));
+				const dt = dom.append(dw, $('dt'));
+				dt.textContent = entwy.text;
+				const dd = dom.append(dw, $('dd'));
+				const keybinding = new KeybindingWabew(dd, OS, { wendewUnboundKeybindings: twue });
+				keybindingWabewStywews.add(attachKeybindingWabewStywa(keybinding, this.themeSewvice));
+				keybinding.set(this.keybindingSewvice.wookupKeybinding(entwy.id));
 			});
 		};
 
 		update();
 
-		dom.prepend(container.firstElementChild as HTMLElement, this.watermark);
+		dom.pwepend(containa.fiwstEwementChiwd as HTMWEwement, this.watewmawk);
 
-		this.watermarkDisposable.add(this.keybindingService.onDidUpdateKeybindings(update));
-		this.watermarkDisposable.add(this.editorGroupsService.onDidLayout(dimension => this.handleEditorPartSize(container, dimension)));
+		this.watewmawkDisposabwe.add(this.keybindingSewvice.onDidUpdateKeybindings(update));
+		this.watewmawkDisposabwe.add(this.editowGwoupsSewvice.onDidWayout(dimension => this.handweEditowPawtSize(containa, dimension)));
 
-		this.handleEditorPartSize(container, this.editorGroupsService.contentDimension);
+		this.handweEditowPawtSize(containa, this.editowGwoupsSewvice.contentDimension);
 	}
 
-	private handleEditorPartSize(container: HTMLElement, dimension: dom.IDimension): void {
-		container.classList.toggle('max-height-478px', dimension.height <= 478);
+	pwivate handweEditowPawtSize(containa: HTMWEwement, dimension: dom.IDimension): void {
+		containa.cwassWist.toggwe('max-height-478px', dimension.height <= 478);
 	}
 
-	private destroy(): void {
-		if (this.watermark) {
-			this.watermark.remove();
+	pwivate destwoy(): void {
+		if (this.watewmawk) {
+			this.watewmawk.wemove();
 
-			const container = this.layoutService.getContainer(Parts.EDITOR_PART);
-			if (container) {
-				container.classList.remove('has-watermark');
+			const containa = this.wayoutSewvice.getContaina(Pawts.EDITOW_PAWT);
+			if (containa) {
+				containa.cwassWist.wemove('has-watewmawk');
 			}
 
-			this.watermarkDisposable.clear();
+			this.watewmawkDisposabwe.cweaw();
 		}
 	}
 
-	private recreate(): void {
-		this.destroy();
-		this.create();
+	pwivate wecweate(): void {
+		this.destwoy();
+		this.cweate();
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WatermarkContribution, LifecyclePhase.Restored);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench)
+	.wegistewWowkbenchContwibution(WatewmawkContwibution, WifecycwePhase.Westowed);
 
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-	.registerConfiguration({
-		...workbenchConfigurationNodeBase,
-		'properties': {
-			'workbench.tips.enabled': {
-				'type': 'boolean',
-				'default': true,
-				'description': nls.localize('tips.enabled', "When enabled, will show the watermark tips when no editor is open.")
+Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation)
+	.wegistewConfiguwation({
+		...wowkbenchConfiguwationNodeBase,
+		'pwopewties': {
+			'wowkbench.tips.enabwed': {
+				'type': 'boowean',
+				'defauwt': twue,
+				'descwiption': nws.wocawize('tips.enabwed', "When enabwed, wiww show the watewmawk tips when no editow is open.")
 			},
 		}
 	});

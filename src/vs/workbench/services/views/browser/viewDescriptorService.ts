@@ -1,555 +1,555 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ViewContainerLocation, IViewDescriptorService, ViewContainer, IViewsRegistry, IViewContainersRegistry, IViewDescriptor, Extensions as ViewExtensions, ViewVisibilityState, defaultViewIcon, ViewContainerLocationToString } from 'vs/workbench/common/views';
-import { IContextKey, RawContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { toDisposable, DisposableStore, Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ViewPaneContainer, ViewPaneContainerAction, ViewsSubMenu } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { getViewsStateStorageId, ViewContainerModel } from 'vs/workbench/services/views/common/viewContainerModel';
-import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { localize } from 'vs/nls';
+impowt { ViewContainewWocation, IViewDescwiptowSewvice, ViewContaina, IViewsWegistwy, IViewContainewsWegistwy, IViewDescwiptow, Extensions as ViewExtensions, ViewVisibiwityState, defauwtViewIcon, ViewContainewWocationToStwing } fwom 'vs/wowkbench/common/views';
+impowt { IContextKey, WawContextKey, IContextKeySewvice, ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IStowageSewvice, StowageScope, IStowageVawueChangeEvent, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { toDisposabwe, DisposabweStowe, Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ViewPaneContaina, ViewPaneContainewAction, ViewsSubMenu } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPaneContaina';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { getViewsStateStowageId, ViewContainewModew } fwom 'vs/wowkbench/sewvices/views/common/viewContainewModew';
+impowt { wegistewAction2, Action2, MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { wocawize } fwom 'vs/nws';
 
-interface ICachedViewContainerInfo {
-	containerId: string;
+intewface ICachedViewContainewInfo {
+	containewId: stwing;
 }
 
-function getViewContainerStorageId(viewContainerId: string): string { return `${viewContainerId}.state`; }
+function getViewContainewStowageId(viewContainewId: stwing): stwing { wetuwn `${viewContainewId}.state`; }
 
-export class ViewDescriptorService extends Disposable implements IViewDescriptorService {
+expowt cwass ViewDescwiptowSewvice extends Disposabwe impwements IViewDescwiptowSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private static readonly CACHED_VIEW_POSITIONS = 'views.cachedViewPositions';
-	private static readonly CACHED_VIEW_CONTAINER_LOCATIONS = 'views.cachedViewContainerLocations';
-	private static readonly COMMON_CONTAINER_ID_PREFIX = 'workbench.views.service';
+	pwivate static weadonwy CACHED_VIEW_POSITIONS = 'views.cachedViewPositions';
+	pwivate static weadonwy CACHED_VIEW_CONTAINEW_WOCATIONS = 'views.cachedViewContainewWocations';
+	pwivate static weadonwy COMMON_CONTAINEW_ID_PWEFIX = 'wowkbench.views.sewvice';
 
-	private readonly _onDidChangeContainer: Emitter<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }> = this._register(new Emitter<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }>());
-	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }> = this._onDidChangeContainer.event;
+	pwivate weadonwy _onDidChangeContaina: Emitta<{ views: IViewDescwiptow[], fwom: ViewContaina, to: ViewContaina }> = this._wegista(new Emitta<{ views: IViewDescwiptow[], fwom: ViewContaina, to: ViewContaina }>());
+	weadonwy onDidChangeContaina: Event<{ views: IViewDescwiptow[], fwom: ViewContaina, to: ViewContaina }> = this._onDidChangeContaina.event;
 
-	private readonly _onDidChangeLocation: Emitter<{ views: IViewDescriptor[], from: ViewContainerLocation, to: ViewContainerLocation }> = this._register(new Emitter<{ views: IViewDescriptor[], from: ViewContainerLocation, to: ViewContainerLocation }>());
-	readonly onDidChangeLocation: Event<{ views: IViewDescriptor[], from: ViewContainerLocation, to: ViewContainerLocation }> = this._onDidChangeLocation.event;
+	pwivate weadonwy _onDidChangeWocation: Emitta<{ views: IViewDescwiptow[], fwom: ViewContainewWocation, to: ViewContainewWocation }> = this._wegista(new Emitta<{ views: IViewDescwiptow[], fwom: ViewContainewWocation, to: ViewContainewWocation }>());
+	weadonwy onDidChangeWocation: Event<{ views: IViewDescwiptow[], fwom: ViewContainewWocation, to: ViewContainewWocation }> = this._onDidChangeWocation.event;
 
-	private readonly _onDidChangeContainerLocation: Emitter<{ viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation }> = this._register(new Emitter<{ viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation }>());
-	readonly onDidChangeContainerLocation: Event<{ viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation }> = this._onDidChangeContainerLocation.event;
+	pwivate weadonwy _onDidChangeContainewWocation: Emitta<{ viewContaina: ViewContaina, fwom: ViewContainewWocation, to: ViewContainewWocation }> = this._wegista(new Emitta<{ viewContaina: ViewContaina, fwom: ViewContainewWocation, to: ViewContainewWocation }>());
+	weadonwy onDidChangeContainewWocation: Event<{ viewContaina: ViewContaina, fwom: ViewContainewWocation, to: ViewContainewWocation }> = this._onDidChangeContainewWocation.event;
 
-	private readonly viewContainerModels: Map<ViewContainer, { viewContainerModel: ViewContainerModel, disposable: IDisposable; }>;
-	private readonly viewsVisibilityActionDisposables: Map<ViewContainer, DisposableStore>;
-	private readonly activeViewContextKeys: Map<string, IContextKey<boolean>>;
-	private readonly movableViewContextKeys: Map<string, IContextKey<boolean>>;
-	private readonly defaultViewLocationContextKeys: Map<string, IContextKey<boolean>>;
-	private readonly defaultViewContainerLocationContextKeys: Map<string, IContextKey<boolean>>;
+	pwivate weadonwy viewContainewModews: Map<ViewContaina, { viewContainewModew: ViewContainewModew, disposabwe: IDisposabwe; }>;
+	pwivate weadonwy viewsVisibiwityActionDisposabwes: Map<ViewContaina, DisposabweStowe>;
+	pwivate weadonwy activeViewContextKeys: Map<stwing, IContextKey<boowean>>;
+	pwivate weadonwy movabweViewContextKeys: Map<stwing, IContextKey<boowean>>;
+	pwivate weadonwy defauwtViewWocationContextKeys: Map<stwing, IContextKey<boowean>>;
+	pwivate weadonwy defauwtViewContainewWocationContextKeys: Map<stwing, IContextKey<boowean>>;
 
-	private readonly viewsRegistry: IViewsRegistry;
-	private readonly viewContainersRegistry: IViewContainersRegistry;
+	pwivate weadonwy viewsWegistwy: IViewsWegistwy;
+	pwivate weadonwy viewContainewsWegistwy: IViewContainewsWegistwy;
 
-	private cachedViewInfo: Map<string, ICachedViewContainerInfo>;
-	private cachedViewContainerInfo: Map<string, ViewContainerLocation>;
+	pwivate cachedViewInfo: Map<stwing, ICachedViewContainewInfo>;
+	pwivate cachedViewContainewInfo: Map<stwing, ViewContainewWocation>;
 
-	private _cachedViewPositionsValue: string | undefined;
-	private get cachedViewPositionsValue(): string {
-		if (!this._cachedViewPositionsValue) {
-			this._cachedViewPositionsValue = this.getStoredCachedViewPositionsValue();
+	pwivate _cachedViewPositionsVawue: stwing | undefined;
+	pwivate get cachedViewPositionsVawue(): stwing {
+		if (!this._cachedViewPositionsVawue) {
+			this._cachedViewPositionsVawue = this.getStowedCachedViewPositionsVawue();
 		}
 
-		return this._cachedViewPositionsValue;
+		wetuwn this._cachedViewPositionsVawue;
 	}
 
-	private set cachedViewPositionsValue(value: string) {
-		if (this.cachedViewPositionsValue !== value) {
-			this._cachedViewPositionsValue = value;
-			this.setStoredCachedViewPositionsValue(value);
-		}
-	}
-
-	private _cachedViewContainerLocationsValue: string | undefined;
-	private get cachedViewContainerLocationsValue(): string {
-		if (!this._cachedViewContainerLocationsValue) {
-			this._cachedViewContainerLocationsValue = this.getStoredCachedViewContainerLocationsValue();
-		}
-
-		return this._cachedViewContainerLocationsValue;
-	}
-
-	private set cachedViewContainerLocationsValue(value: string) {
-		if (this._cachedViewContainerLocationsValue !== value) {
-			this._cachedViewContainerLocationsValue = value;
-			this.setStoredCachedViewContainerLocationsValue(value);
+	pwivate set cachedViewPositionsVawue(vawue: stwing) {
+		if (this.cachedViewPositionsVawue !== vawue) {
+			this._cachedViewPositionsVawue = vawue;
+			this.setStowedCachedViewPositionsVawue(vawue);
 		}
 	}
 
-	private readonly _onDidChangeViewContainers = this._register(new Emitter<{ added: ReadonlyArray<{ container: ViewContainer, location: ViewContainerLocation }>, removed: ReadonlyArray<{ container: ViewContainer, location: ViewContainerLocation }> }>());
-	readonly onDidChangeViewContainers = this._onDidChangeViewContainers.event;
-	get viewContainers(): ReadonlyArray<ViewContainer> { return this.viewContainersRegistry.all; }
+	pwivate _cachedViewContainewWocationsVawue: stwing | undefined;
+	pwivate get cachedViewContainewWocationsVawue(): stwing {
+		if (!this._cachedViewContainewWocationsVawue) {
+			this._cachedViewContainewWocationsVawue = this.getStowedCachedViewContainewWocationsVawue();
+		}
 
-	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		wetuwn this._cachedViewContainewWocationsVawue;
+	}
+
+	pwivate set cachedViewContainewWocationsVawue(vawue: stwing) {
+		if (this._cachedViewContainewWocationsVawue !== vawue) {
+			this._cachedViewContainewWocationsVawue = vawue;
+			this.setStowedCachedViewContainewWocationsVawue(vawue);
+		}
+	}
+
+	pwivate weadonwy _onDidChangeViewContainews = this._wegista(new Emitta<{ added: WeadonwyAwway<{ containa: ViewContaina, wocation: ViewContainewWocation }>, wemoved: WeadonwyAwway<{ containa: ViewContaina, wocation: ViewContainewWocation }> }>());
+	weadonwy onDidChangeViewContainews = this._onDidChangeViewContainews.event;
+	get viewContainews(): WeadonwyAwway<ViewContaina> { wetuwn this.viewContainewsWegistwy.aww; }
+
+	constwuctow(
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IExtensionSewvice pwivate weadonwy extensionSewvice: IExtensionSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
 	) {
-		super();
+		supa();
 
-		this.viewContainerModels = new Map<ViewContainer, { viewContainerModel: ViewContainerModel, disposable: IDisposable; }>();
-		this.viewsVisibilityActionDisposables = new Map<ViewContainer, DisposableStore>();
-		this.activeViewContextKeys = new Map<string, IContextKey<boolean>>();
-		this.movableViewContextKeys = new Map<string, IContextKey<boolean>>();
-		this.defaultViewLocationContextKeys = new Map<string, IContextKey<boolean>>();
-		this.defaultViewContainerLocationContextKeys = new Map<string, IContextKey<boolean>>();
+		this.viewContainewModews = new Map<ViewContaina, { viewContainewModew: ViewContainewModew, disposabwe: IDisposabwe; }>();
+		this.viewsVisibiwityActionDisposabwes = new Map<ViewContaina, DisposabweStowe>();
+		this.activeViewContextKeys = new Map<stwing, IContextKey<boowean>>();
+		this.movabweViewContextKeys = new Map<stwing, IContextKey<boowean>>();
+		this.defauwtViewWocationContextKeys = new Map<stwing, IContextKey<boowean>>();
+		this.defauwtViewContainewWocationContextKeys = new Map<stwing, IContextKey<boowean>>();
 
-		this.viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
-		this.viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
+		this.viewContainewsWegistwy = Wegistwy.as<IViewContainewsWegistwy>(ViewExtensions.ViewContainewsWegistwy);
+		this.viewsWegistwy = Wegistwy.as<IViewsWegistwy>(ViewExtensions.ViewsWegistwy);
 
-		this.cachedViewContainerInfo = this.getCachedViewContainerLocations();
+		this.cachedViewContainewInfo = this.getCachedViewContainewWocations();
 		this.cachedViewInfo = this.getCachedViewPositions();
 
-		// Register all containers that were registered before this ctor
-		this.viewContainers.forEach(viewContainer => this.onDidRegisterViewContainer(viewContainer));
+		// Wegista aww containews that wewe wegistewed befowe this ctow
+		this.viewContainews.fowEach(viewContaina => this.onDidWegistewViewContaina(viewContaina));
 
-		this._register(this.viewsRegistry.onViewsRegistered(views => this.onDidRegisterViews(views)));
-		this._register(this.viewsRegistry.onViewsDeregistered(({ views, viewContainer }) => this.onDidDeregisterViews(views, viewContainer)));
+		this._wegista(this.viewsWegistwy.onViewsWegistewed(views => this.onDidWegistewViews(views)));
+		this._wegista(this.viewsWegistwy.onViewsDewegistewed(({ views, viewContaina }) => this.onDidDewegistewViews(views, viewContaina)));
 
-		this._register(this.viewsRegistry.onDidChangeContainer(({ views, from, to }) => this.moveViews(views, from, to)));
+		this._wegista(this.viewsWegistwy.onDidChangeContaina(({ views, fwom, to }) => this.moveViews(views, fwom, to)));
 
-		this._register(this.viewContainersRegistry.onDidRegister(({ viewContainer }) => {
-			this.onDidRegisterViewContainer(viewContainer);
-			this._onDidChangeViewContainers.fire({ added: [{ container: viewContainer, location: this.getViewContainerLocation(viewContainer) }], removed: [] });
+		this._wegista(this.viewContainewsWegistwy.onDidWegista(({ viewContaina }) => {
+			this.onDidWegistewViewContaina(viewContaina);
+			this._onDidChangeViewContainews.fiwe({ added: [{ containa: viewContaina, wocation: this.getViewContainewWocation(viewContaina) }], wemoved: [] });
 		}));
 
-		this._register(this.viewContainersRegistry.onDidDeregister(({ viewContainer }) => {
-			this.onDidDeregisterViewContainer(viewContainer);
-			this._onDidChangeViewContainers.fire({ removed: [{ container: viewContainer, location: this.getViewContainerLocation(viewContainer) }], added: [] });
+		this._wegista(this.viewContainewsWegistwy.onDidDewegista(({ viewContaina }) => {
+			this.onDidDewegistewViewContaina(viewContaina);
+			this._onDidChangeViewContainews.fiwe({ wemoved: [{ containa: viewContaina, wocation: this.getViewContainewWocation(viewContaina) }], added: [] });
 		}));
 
-		this._register(toDisposable(() => {
-			this.viewContainerModels.forEach(({ disposable }) => disposable.dispose());
-			this.viewContainerModels.clear();
-			this.viewsVisibilityActionDisposables.forEach(disposables => disposables.dispose());
-			this.viewsVisibilityActionDisposables.clear();
+		this._wegista(toDisposabwe(() => {
+			this.viewContainewModews.fowEach(({ disposabwe }) => disposabwe.dispose());
+			this.viewContainewModews.cweaw();
+			this.viewsVisibiwityActionDisposabwes.fowEach(disposabwes => disposabwes.dispose());
+			this.viewsVisibiwityActionDisposabwes.cweaw();
 		}));
 
-		this._register(this.storageService.onDidChangeValue((e) => { this.onDidStorageChange(e); }));
+		this._wegista(this.stowageSewvice.onDidChangeVawue((e) => { this.onDidStowageChange(e); }));
 
-		this._register(this.extensionService.onDidRegisterExtensions(() => this.onDidRegisterExtensions()));
+		this._wegista(this.extensionSewvice.onDidWegistewExtensions(() => this.onDidWegistewExtensions()));
 	}
 
-	private registerGroupedViews(groupedViews: Map<string, { cachedContainerInfo?: ICachedViewContainerInfo, views: IViewDescriptor[] }>): void {
-		// Register views that have already been registered to their correct view containers
-		for (const containerId of groupedViews.keys()) {
-			const viewContainer = this.viewContainersRegistry.get(containerId);
-			const containerData = groupedViews.get(containerId)!;
+	pwivate wegistewGwoupedViews(gwoupedViews: Map<stwing, { cachedContainewInfo?: ICachedViewContainewInfo, views: IViewDescwiptow[] }>): void {
+		// Wegista views that have awweady been wegistewed to theiw cowwect view containews
+		fow (const containewId of gwoupedViews.keys()) {
+			const viewContaina = this.viewContainewsWegistwy.get(containewId);
+			const containewData = gwoupedViews.get(containewId)!;
 
-			// The container has not been registered yet
-			if (!viewContainer || !this.viewContainerModels.has(viewContainer)) {
-				if (containerData.cachedContainerInfo && this.isGeneratedContainerId(containerData.cachedContainerInfo.containerId)) {
-					if (!this.viewContainersRegistry.get(containerId)) {
-						this.registerGeneratedViewContainer(this.cachedViewContainerInfo.get(containerId)!, containerId);
+			// The containa has not been wegistewed yet
+			if (!viewContaina || !this.viewContainewModews.has(viewContaina)) {
+				if (containewData.cachedContainewInfo && this.isGenewatedContainewId(containewData.cachedContainewInfo.containewId)) {
+					if (!this.viewContainewsWegistwy.get(containewId)) {
+						this.wegistewGenewatedViewContaina(this.cachedViewContainewInfo.get(containewId)!, containewId);
 					}
 				}
 
-				// Registration of a generated container handles registration of its views
+				// Wegistwation of a genewated containa handwes wegistwation of its views
 				continue;
 			}
 
-			// Filter out views that have already been added to the view container model
-			// This is needed when statically-registered views are moved to
-			// other statically registered containers as they will both try to add on startup
-			const viewsToAdd = containerData.views.filter(view => this.getViewContainerModel(viewContainer).allViewDescriptors.filter(vd => vd.id === view.id).length === 0);
-			this.addViews(viewContainer, viewsToAdd);
+			// Fiwta out views that have awweady been added to the view containa modew
+			// This is needed when staticawwy-wegistewed views awe moved to
+			// otha staticawwy wegistewed containews as they wiww both twy to add on stawtup
+			const viewsToAdd = containewData.views.fiwta(view => this.getViewContainewModew(viewContaina).awwViewDescwiptows.fiwta(vd => vd.id === view.id).wength === 0);
+			this.addViews(viewContaina, viewsToAdd);
 		}
 	}
 
-	private deregisterGroupedViews(groupedViews: Map<string, { cachedContainerInfo?: ICachedViewContainerInfo, views: IViewDescriptor[] }>): void {
-		// Register views that have already been registered to their correct view containers
-		for (const viewContainerId of groupedViews.keys()) {
-			const viewContainer = this.viewContainersRegistry.get(viewContainerId);
+	pwivate dewegistewGwoupedViews(gwoupedViews: Map<stwing, { cachedContainewInfo?: ICachedViewContainewInfo, views: IViewDescwiptow[] }>): void {
+		// Wegista views that have awweady been wegistewed to theiw cowwect view containews
+		fow (const viewContainewId of gwoupedViews.keys()) {
+			const viewContaina = this.viewContainewsWegistwy.get(viewContainewId);
 
-			// The container has not been registered yet
-			if (!viewContainer || !this.viewContainerModels.has(viewContainer)) {
+			// The containa has not been wegistewed yet
+			if (!viewContaina || !this.viewContainewModews.has(viewContaina)) {
 				continue;
 			}
 
-			this.removeViews(viewContainer, groupedViews.get(viewContainerId)!.views);
+			this.wemoveViews(viewContaina, gwoupedViews.get(viewContainewId)!.views);
 		}
 	}
 
-	private fallbackOrphanedViews(): void {
-		for (const [viewId, containerInfo] of this.cachedViewInfo.entries()) {
-			const containerId = containerInfo.containerId;
+	pwivate fawwbackOwphanedViews(): void {
+		fow (const [viewId, containewInfo] of this.cachedViewInfo.entwies()) {
+			const containewId = containewInfo.containewId;
 
-			// check if cached view container is registered
-			if (this.viewContainersRegistry.get(containerId)) {
+			// check if cached view containa is wegistewed
+			if (this.viewContainewsWegistwy.get(containewId)) {
 				continue;
 			}
 
-			// check if view has been registered to default location
-			const viewContainer = this.viewsRegistry.getViewContainer(viewId);
-			const viewDescriptor = this.getViewDescriptorById(viewId);
-			if (viewContainer && viewDescriptor) {
-				this.addViews(viewContainer, [viewDescriptor]);
+			// check if view has been wegistewed to defauwt wocation
+			const viewContaina = this.viewsWegistwy.getViewContaina(viewId);
+			const viewDescwiptow = this.getViewDescwiptowById(viewId);
+			if (viewContaina && viewDescwiptow) {
+				this.addViews(viewContaina, [viewDescwiptow]);
 			}
 		}
 	}
 
-	private onDidRegisterExtensions(): void {
-		// If an extension is uninstalled, this method will handle resetting views to default locations
-		this.fallbackOrphanedViews();
+	pwivate onDidWegistewExtensions(): void {
+		// If an extension is uninstawwed, this method wiww handwe wesetting views to defauwt wocations
+		this.fawwbackOwphanedViews();
 
-		// Clean up empty generated view containers
-		for (const viewContainerId of [...this.cachedViewContainerInfo.keys()]) {
-			this.cleanUpViewContainer(viewContainerId);
+		// Cwean up empty genewated view containews
+		fow (const viewContainewId of [...this.cachedViewContainewInfo.keys()]) {
+			this.cweanUpViewContaina(viewContainewId);
 		}
 	}
 
-	private onDidRegisterViews(views: { views: IViewDescriptor[], viewContainer: ViewContainer }[]): void {
-		this.contextKeyService.bufferChangeEvents(() => {
-			views.forEach(({ views, viewContainer }) => {
-				// When views are registered, we need to regroup them based on the cache
-				const regroupedViews = this.regroupViews(viewContainer.id, views);
+	pwivate onDidWegistewViews(views: { views: IViewDescwiptow[], viewContaina: ViewContaina }[]): void {
+		this.contextKeySewvice.buffewChangeEvents(() => {
+			views.fowEach(({ views, viewContaina }) => {
+				// When views awe wegistewed, we need to wegwoup them based on the cache
+				const wegwoupedViews = this.wegwoupViews(viewContaina.id, views);
 
-				// Once they are grouped, try registering them which occurs
-				// if the container has already been registered within this service
-				// or we can generate the container from the source view id
-				this.registerGroupedViews(regroupedViews);
+				// Once they awe gwouped, twy wegistewing them which occuws
+				// if the containa has awweady been wegistewed within this sewvice
+				// ow we can genewate the containa fwom the souwce view id
+				this.wegistewGwoupedViews(wegwoupedViews);
 
-				views.forEach(viewDescriptor => this.getOrCreateMovableViewContextKey(viewDescriptor).set(!!viewDescriptor.canMoveView));
+				views.fowEach(viewDescwiptow => this.getOwCweateMovabweViewContextKey(viewDescwiptow).set(!!viewDescwiptow.canMoveView));
 			});
 		});
 	}
 
-	private isGeneratedContainerId(id: string): boolean {
-		return id.startsWith(ViewDescriptorService.COMMON_CONTAINER_ID_PREFIX);
+	pwivate isGenewatedContainewId(id: stwing): boowean {
+		wetuwn id.stawtsWith(ViewDescwiptowSewvice.COMMON_CONTAINEW_ID_PWEFIX);
 	}
 
-	private onDidDeregisterViews(views: IViewDescriptor[], viewContainer: ViewContainer): void {
-		// When views are registered, we need to regroup them based on the cache
-		const regroupedViews = this.regroupViews(viewContainer.id, views);
-		this.deregisterGroupedViews(regroupedViews);
-		this.contextKeyService.bufferChangeEvents(() => {
-			views.forEach(viewDescriptor => this.getOrCreateMovableViewContextKey(viewDescriptor).set(false));
+	pwivate onDidDewegistewViews(views: IViewDescwiptow[], viewContaina: ViewContaina): void {
+		// When views awe wegistewed, we need to wegwoup them based on the cache
+		const wegwoupedViews = this.wegwoupViews(viewContaina.id, views);
+		this.dewegistewGwoupedViews(wegwoupedViews);
+		this.contextKeySewvice.buffewChangeEvents(() => {
+			views.fowEach(viewDescwiptow => this.getOwCweateMovabweViewContextKey(viewDescwiptow).set(fawse));
 		});
 	}
 
-	private regroupViews(containerId: string, views: IViewDescriptor[]): Map<string, { cachedContainerInfo?: ICachedViewContainerInfo, views: IViewDescriptor[] }> {
-		const ret = new Map<string, { cachedContainerInfo?: ICachedViewContainerInfo, views: IViewDescriptor[] }>();
+	pwivate wegwoupViews(containewId: stwing, views: IViewDescwiptow[]): Map<stwing, { cachedContainewInfo?: ICachedViewContainewInfo, views: IViewDescwiptow[] }> {
+		const wet = new Map<stwing, { cachedContainewInfo?: ICachedViewContainewInfo, views: IViewDescwiptow[] }>();
 
-		views.forEach(viewDescriptor => {
-			const containerInfo = this.cachedViewInfo.get(viewDescriptor.id);
-			const correctContainerId = containerInfo?.containerId || containerId;
+		views.fowEach(viewDescwiptow => {
+			const containewInfo = this.cachedViewInfo.get(viewDescwiptow.id);
+			const cowwectContainewId = containewInfo?.containewId || containewId;
 
-			const containerData = ret.get(correctContainerId) || { cachedContainerInfo: containerInfo, views: [] };
-			containerData.views.push(viewDescriptor);
-			ret.set(correctContainerId, containerData);
+			const containewData = wet.get(cowwectContainewId) || { cachedContainewInfo: containewInfo, views: [] };
+			containewData.views.push(viewDescwiptow);
+			wet.set(cowwectContainewId, containewData);
 		});
 
-		return ret;
+		wetuwn wet;
 	}
 
-	getViewDescriptorById(viewId: string): IViewDescriptor | null {
-		return this.viewsRegistry.getView(viewId);
+	getViewDescwiptowById(viewId: stwing): IViewDescwiptow | nuww {
+		wetuwn this.viewsWegistwy.getView(viewId);
 	}
 
-	getViewLocationById(viewId: string): ViewContainerLocation | null {
-		const container = this.getViewContainerByViewId(viewId);
-		if (container === null) {
-			return null;
+	getViewWocationById(viewId: stwing): ViewContainewWocation | nuww {
+		const containa = this.getViewContainewByViewId(viewId);
+		if (containa === nuww) {
+			wetuwn nuww;
 		}
 
-		return this.getViewContainerLocation(container);
+		wetuwn this.getViewContainewWocation(containa);
 	}
 
-	getViewContainerByViewId(viewId: string): ViewContainer | null {
-		const containerId = this.cachedViewInfo.get(viewId)?.containerId;
+	getViewContainewByViewId(viewId: stwing): ViewContaina | nuww {
+		const containewId = this.cachedViewInfo.get(viewId)?.containewId;
 
-		return containerId ?
-			this.viewContainersRegistry.get(containerId) ?? null :
-			this.viewsRegistry.getViewContainer(viewId);
+		wetuwn containewId ?
+			this.viewContainewsWegistwy.get(containewId) ?? nuww :
+			this.viewsWegistwy.getViewContaina(viewId);
 	}
 
-	getViewContainerLocation(viewContainer: ViewContainer): ViewContainerLocation {
-		const location = this.cachedViewContainerInfo.get(viewContainer.id);
-		return location !== undefined ? location : this.getDefaultViewContainerLocation(viewContainer);
+	getViewContainewWocation(viewContaina: ViewContaina): ViewContainewWocation {
+		const wocation = this.cachedViewContainewInfo.get(viewContaina.id);
+		wetuwn wocation !== undefined ? wocation : this.getDefauwtViewContainewWocation(viewContaina);
 	}
 
-	getDefaultViewContainerLocation(viewContainer: ViewContainer): ViewContainerLocation {
-		return this.viewContainersRegistry.getViewContainerLocation(viewContainer);
+	getDefauwtViewContainewWocation(viewContaina: ViewContaina): ViewContainewWocation {
+		wetuwn this.viewContainewsWegistwy.getViewContainewWocation(viewContaina);
 	}
 
-	getDefaultContainerById(viewId: string): ViewContainer | null {
-		return this.viewsRegistry.getViewContainer(viewId) ?? null;
+	getDefauwtContainewById(viewId: stwing): ViewContaina | nuww {
+		wetuwn this.viewsWegistwy.getViewContaina(viewId) ?? nuww;
 	}
 
-	getViewContainerModel(container: ViewContainer): ViewContainerModel {
-		return this.getOrRegisterViewContainerModel(container);
+	getViewContainewModew(containa: ViewContaina): ViewContainewModew {
+		wetuwn this.getOwWegistewViewContainewModew(containa);
 	}
 
-	getViewContainerById(id: string): ViewContainer | null {
-		return this.viewContainersRegistry.get(id) || null;
+	getViewContainewById(id: stwing): ViewContaina | nuww {
+		wetuwn this.viewContainewsWegistwy.get(id) || nuww;
 	}
 
-	getViewContainersByLocation(location: ViewContainerLocation): ViewContainer[] {
-		return this.viewContainers.filter(v => this.getViewContainerLocation(v) === location);
+	getViewContainewsByWocation(wocation: ViewContainewWocation): ViewContaina[] {
+		wetuwn this.viewContainews.fiwta(v => this.getViewContainewWocation(v) === wocation);
 	}
 
-	getDefaultViewContainer(location: ViewContainerLocation): ViewContainer | undefined {
-		return this.viewContainersRegistry.getDefaultViewContainer(location);
+	getDefauwtViewContaina(wocation: ViewContainewWocation): ViewContaina | undefined {
+		wetuwn this.viewContainewsWegistwy.getDefauwtViewContaina(wocation);
 	}
 
-	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation, requestedIndex?: number): void {
-		const from = this.getViewContainerLocation(viewContainer);
-		const to = location;
-		if (from !== to) {
-			this.cachedViewContainerInfo.set(viewContainer.id, to);
+	moveViewContainewToWocation(viewContaina: ViewContaina, wocation: ViewContainewWocation, wequestedIndex?: numba): void {
+		const fwom = this.getViewContainewWocation(viewContaina);
+		const to = wocation;
+		if (fwom !== to) {
+			this.cachedViewContainewInfo.set(viewContaina.id, to);
 
-			const defaultLocation = this.isGeneratedContainerId(viewContainer.id) ? true : this.getViewContainerLocation(viewContainer) === this.getDefaultViewContainerLocation(viewContainer);
-			this.getOrCreateDefaultViewContainerLocationContextKey(viewContainer).set(defaultLocation);
+			const defauwtWocation = this.isGenewatedContainewId(viewContaina.id) ? twue : this.getViewContainewWocation(viewContaina) === this.getDefauwtViewContainewWocation(viewContaina);
+			this.getOwCweateDefauwtViewContainewWocationContextKey(viewContaina).set(defauwtWocation);
 
-			viewContainer.requestedIndex = requestedIndex;
-			this._onDidChangeContainerLocation.fire({ viewContainer, from, to });
+			viewContaina.wequestedIndex = wequestedIndex;
+			this._onDidChangeContainewWocation.fiwe({ viewContaina, fwom, to });
 
-			const views = this.getViewsByContainer(viewContainer);
-			this._onDidChangeLocation.fire({ views, from, to });
+			const views = this.getViewsByContaina(viewContaina);
+			this._onDidChangeWocation.fiwe({ views, fwom, to });
 
-			this.saveViewContainerLocationsToCache();
-		}
-	}
-
-	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation): void {
-		let container = this.registerGeneratedViewContainer(location);
-		this.moveViewsToContainer([view], container);
-	}
-
-	moveViewsToContainer(views: IViewDescriptor[], viewContainer: ViewContainer, visibilityState?: ViewVisibilityState): void {
-		if (!views.length) {
-			return;
-		}
-
-		const from = this.getViewContainerByViewId(views[0].id);
-		const to = viewContainer;
-
-		if (from && to && from !== to) {
-			this.moveViews(views, from, to, visibilityState);
-			this.cleanUpViewContainer(from.id);
+			this.saveViewContainewWocationsToCache();
 		}
 	}
 
-	reset(): void {
-		this.viewContainers.forEach(viewContainer => {
-			const viewContainerModel = this.getViewContainerModel(viewContainer);
+	moveViewToWocation(view: IViewDescwiptow, wocation: ViewContainewWocation): void {
+		wet containa = this.wegistewGenewatedViewContaina(wocation);
+		this.moveViewsToContaina([view], containa);
+	}
 
-			viewContainerModel.allViewDescriptors.forEach(viewDescriptor => {
-				const defaultContainer = this.getDefaultContainerById(viewDescriptor.id);
-				const currentContainer = this.getViewContainerByViewId(viewDescriptor.id);
+	moveViewsToContaina(views: IViewDescwiptow[], viewContaina: ViewContaina, visibiwityState?: ViewVisibiwityState): void {
+		if (!views.wength) {
+			wetuwn;
+		}
 
-				if (currentContainer && defaultContainer && currentContainer !== defaultContainer) {
-					this.moveViews([viewDescriptor], currentContainer, defaultContainer);
+		const fwom = this.getViewContainewByViewId(views[0].id);
+		const to = viewContaina;
+
+		if (fwom && to && fwom !== to) {
+			this.moveViews(views, fwom, to, visibiwityState);
+			this.cweanUpViewContaina(fwom.id);
+		}
+	}
+
+	weset(): void {
+		this.viewContainews.fowEach(viewContaina => {
+			const viewContainewModew = this.getViewContainewModew(viewContaina);
+
+			viewContainewModew.awwViewDescwiptows.fowEach(viewDescwiptow => {
+				const defauwtContaina = this.getDefauwtContainewById(viewDescwiptow.id);
+				const cuwwentContaina = this.getViewContainewByViewId(viewDescwiptow.id);
+
+				if (cuwwentContaina && defauwtContaina && cuwwentContaina !== defauwtContaina) {
+					this.moveViews([viewDescwiptow], cuwwentContaina, defauwtContaina);
 				}
 			});
 
-			const defaultContainerLocation = this.getDefaultViewContainerLocation(viewContainer);
-			const currentContainerLocation = this.getViewContainerLocation(viewContainer);
-			if (defaultContainerLocation !== null && currentContainerLocation !== defaultContainerLocation) {
-				this.moveViewContainerToLocation(viewContainer, defaultContainerLocation);
+			const defauwtContainewWocation = this.getDefauwtViewContainewWocation(viewContaina);
+			const cuwwentContainewWocation = this.getViewContainewWocation(viewContaina);
+			if (defauwtContainewWocation !== nuww && cuwwentContainewWocation !== defauwtContainewWocation) {
+				this.moveViewContainewToWocation(viewContaina, defauwtContainewWocation);
 			}
 
-			this.cleanUpViewContainer(viewContainer.id);
+			this.cweanUpViewContaina(viewContaina.id);
 		});
 
-		this.cachedViewContainerInfo.clear();
-		this.saveViewContainerLocationsToCache();
-		this.cachedViewInfo.clear();
+		this.cachedViewContainewInfo.cweaw();
+		this.saveViewContainewWocationsToCache();
+		this.cachedViewInfo.cweaw();
 		this.saveViewPositionsToCache();
 	}
 
-	isViewContainerRemovedPermanently(viewContainerId: string): boolean {
-		return this.isGeneratedContainerId(viewContainerId) && !this.cachedViewContainerInfo.has(viewContainerId);
+	isViewContainewWemovedPewmanentwy(viewContainewId: stwing): boowean {
+		wetuwn this.isGenewatedContainewId(viewContainewId) && !this.cachedViewContainewInfo.has(viewContainewId);
 	}
 
-	private moveViews(views: IViewDescriptor[], from: ViewContainer, to: ViewContainer, visibilityState: ViewVisibilityState = ViewVisibilityState.Expand): void {
-		this.removeViews(from, views);
-		this.addViews(to, views, visibilityState);
+	pwivate moveViews(views: IViewDescwiptow[], fwom: ViewContaina, to: ViewContaina, visibiwityState: ViewVisibiwityState = ViewVisibiwityState.Expand): void {
+		this.wemoveViews(fwom, views);
+		this.addViews(to, views, visibiwityState);
 
-		const oldLocation = this.getViewContainerLocation(from);
-		const newLocation = this.getViewContainerLocation(to);
+		const owdWocation = this.getViewContainewWocation(fwom);
+		const newWocation = this.getViewContainewWocation(to);
 
-		if (oldLocation !== newLocation) {
-			this._onDidChangeLocation.fire({ views, from: oldLocation, to: newLocation });
+		if (owdWocation !== newWocation) {
+			this._onDidChangeWocation.fiwe({ views, fwom: owdWocation, to: newWocation });
 		}
 
-		this._onDidChangeContainer.fire({ views, from, to });
+		this._onDidChangeContaina.fiwe({ views, fwom, to });
 
 		this.saveViewPositionsToCache();
 
-		const containerToString = (container: ViewContainer): string => {
-			if (container.id.startsWith(ViewDescriptorService.COMMON_CONTAINER_ID_PREFIX)) {
-				return 'custom';
+		const containewToStwing = (containa: ViewContaina): stwing => {
+			if (containa.id.stawtsWith(ViewDescwiptowSewvice.COMMON_CONTAINEW_ID_PWEFIX)) {
+				wetuwn 'custom';
 			}
 
-			if (!container.extensionId) {
-				return container.id;
+			if (!containa.extensionId) {
+				wetuwn containa.id;
 			}
 
-			return 'extension';
+			wetuwn 'extension';
 		};
 
-		// Log on cache update to avoid duplicate events in other windows
-		const viewCount = views.length;
-		const fromContainer = containerToString(from);
-		const toContainer = containerToString(to);
-		const fromLocation = oldLocation === ViewContainerLocation.Panel ? 'panel' : 'sidebar';
-		const toLocation = newLocation === ViewContainerLocation.Panel ? 'panel' : 'sidebar';
+		// Wog on cache update to avoid dupwicate events in otha windows
+		const viewCount = views.wength;
+		const fwomContaina = containewToStwing(fwom);
+		const toContaina = containewToStwing(to);
+		const fwomWocation = owdWocation === ViewContainewWocation.Panew ? 'panew' : 'sidebaw';
+		const toWocation = newWocation === ViewContainewWocation.Panew ? 'panew' : 'sidebaw';
 
-		interface ViewDescriptorServiceMoveViewsEvent {
-			viewCount: number;
-			fromContainer: string;
-			toContainer: string;
-			fromLocation: string;
-			toLocation: string;
+		intewface ViewDescwiptowSewviceMoveViewsEvent {
+			viewCount: numba;
+			fwomContaina: stwing;
+			toContaina: stwing;
+			fwomWocation: stwing;
+			toWocation: stwing;
 		}
 
-		type ViewDescriptorServiceMoveViewsClassification = {
-			viewCount: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			fromContainer: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			toContainer: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			fromLocation: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			toLocation: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+		type ViewDescwiptowSewviceMoveViewsCwassification = {
+			viewCount: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+			fwomContaina: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+			toContaina: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+			fwomWocation: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+			toWocation: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
 		};
 
-		this.telemetryService.publicLog2<ViewDescriptorServiceMoveViewsEvent, ViewDescriptorServiceMoveViewsClassification>('viewDescriptorService.moveViews', { viewCount, fromContainer, toContainer, fromLocation, toLocation });
+		this.tewemetwySewvice.pubwicWog2<ViewDescwiptowSewviceMoveViewsEvent, ViewDescwiptowSewviceMoveViewsCwassification>('viewDescwiptowSewvice.moveViews', { viewCount, fwomContaina, toContaina, fwomWocation, toWocation });
 	}
 
-	private cleanUpViewContainer(viewContainerId: string): void {
-		// Skip if container is not generated
-		if (!this.isGeneratedContainerId(viewContainerId)) {
-			return;
+	pwivate cweanUpViewContaina(viewContainewId: stwing): void {
+		// Skip if containa is not genewated
+		if (!this.isGenewatedContainewId(viewContainewId)) {
+			wetuwn;
 		}
 
-		// Skip if container has views registered
-		const viewContainer = this.getViewContainerById(viewContainerId);
-		if (viewContainer && this.getViewContainerModel(viewContainer)?.allViewDescriptors.length) {
-			return;
+		// Skip if containa has views wegistewed
+		const viewContaina = this.getViewContainewById(viewContainewId);
+		if (viewContaina && this.getViewContainewModew(viewContaina)?.awwViewDescwiptows.wength) {
+			wetuwn;
 		}
 
-		// Skip if container has views in the cache
-		if ([...this.cachedViewInfo.values()].some(({ containerId }) => containerId === viewContainerId)) {
-			return;
+		// Skip if containa has views in the cache
+		if ([...this.cachedViewInfo.vawues()].some(({ containewId }) => containewId === viewContainewId)) {
+			wetuwn;
 		}
 
-		// Deregister the container
-		if (viewContainer) {
-			this.viewContainersRegistry.deregisterViewContainer(viewContainer);
+		// Dewegista the containa
+		if (viewContaina) {
+			this.viewContainewsWegistwy.dewegistewViewContaina(viewContaina);
 		}
 
-		// Clean up caches of container
-		this.cachedViewContainerInfo.delete(viewContainerId);
-		this.cachedViewContainerLocationsValue = JSON.stringify([...this.cachedViewContainerInfo]);
-		this.storageService.remove(getViewsStateStorageId(viewContainer?.storageId || getViewContainerStorageId(viewContainerId)), StorageScope.GLOBAL);
+		// Cwean up caches of containa
+		this.cachedViewContainewInfo.dewete(viewContainewId);
+		this.cachedViewContainewWocationsVawue = JSON.stwingify([...this.cachedViewContainewInfo]);
+		this.stowageSewvice.wemove(getViewsStateStowageId(viewContaina?.stowageId || getViewContainewStowageId(viewContainewId)), StowageScope.GWOBAW);
 	}
 
-	private registerGeneratedViewContainer(location: ViewContainerLocation, existingId?: string): ViewContainer {
-		const id = existingId || this.generateContainerId(location);
+	pwivate wegistewGenewatedViewContaina(wocation: ViewContainewWocation, existingId?: stwing): ViewContaina {
+		const id = existingId || this.genewateContainewId(wocation);
 
-		const container = this.viewContainersRegistry.registerViewContainer({
+		const containa = this.viewContainewsWegistwy.wegistewViewContaina({
 			id,
-			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [id, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
-			title: id, // we don't want to see this so using id
-			icon: location === ViewContainerLocation.Sidebar ? defaultViewIcon : undefined,
-			storageId: getViewContainerStorageId(id),
-			hideIfEmpty: true
-		}, location, { donotRegisterOpenCommand: true });
+			ctowDescwiptow: new SyncDescwiptow(ViewPaneContaina, [id, { mewgeViewWithContainewWhenSingweView: twue, donotShowContainewTitweWhenMewgedWithContaina: twue }]),
+			titwe: id, // we don't want to see this so using id
+			icon: wocation === ViewContainewWocation.Sidebaw ? defauwtViewIcon : undefined,
+			stowageId: getViewContainewStowageId(id),
+			hideIfEmpty: twue
+		}, wocation, { donotWegistewOpenCommand: twue });
 
-		const cachedInfo = this.cachedViewContainerInfo.get(container.id);
-		if (cachedInfo !== location) {
-			this.cachedViewContainerInfo.set(container.id, location);
-			this.saveViewContainerLocationsToCache();
+		const cachedInfo = this.cachedViewContainewInfo.get(containa.id);
+		if (cachedInfo !== wocation) {
+			this.cachedViewContainewInfo.set(containa.id, wocation);
+			this.saveViewContainewWocationsToCache();
 		}
 
-		this.getOrCreateDefaultViewContainerLocationContextKey(container).set(true);
+		this.getOwCweateDefauwtViewContainewWocationContextKey(containa).set(twue);
 
-		return container;
+		wetuwn containa;
 	}
 
-	private getCachedViewPositions(): Map<string, ICachedViewContainerInfo> {
-		const result = new Map<string, ICachedViewContainerInfo>(JSON.parse(this.cachedViewPositionsValue));
+	pwivate getCachedViewPositions(): Map<stwing, ICachedViewContainewInfo> {
+		const wesuwt = new Map<stwing, ICachedViewContainewInfo>(JSON.pawse(this.cachedViewPositionsVawue));
 
 		// Sanitize cache
-		for (const [viewId, containerInfo] of result.entries()) {
-			if (!containerInfo) {
-				result.delete(viewId);
+		fow (const [viewId, containewInfo] of wesuwt.entwies()) {
+			if (!containewInfo) {
+				wesuwt.dewete(viewId);
 				continue;
 			}
 
-			// Verify a view that is in a generated has cached container info
-			const generated = this.isGeneratedContainerId(containerInfo.containerId);
-			const missingCacheData = this.cachedViewContainerInfo.get(containerInfo.containerId) === undefined;
-			if (generated && missingCacheData) {
-				result.delete(viewId);
+			// Vewify a view that is in a genewated has cached containa info
+			const genewated = this.isGenewatedContainewId(containewInfo.containewId);
+			const missingCacheData = this.cachedViewContainewInfo.get(containewInfo.containewId) === undefined;
+			if (genewated && missingCacheData) {
+				wesuwt.dewete(viewId);
 			}
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private getCachedViewContainerLocations(): Map<string, ViewContainerLocation> {
-		return new Map<string, ViewContainerLocation>(JSON.parse(this.cachedViewContainerLocationsValue));
+	pwivate getCachedViewContainewWocations(): Map<stwing, ViewContainewWocation> {
+		wetuwn new Map<stwing, ViewContainewWocation>(JSON.pawse(this.cachedViewContainewWocationsVawue));
 	}
 
-	private onDidStorageChange(e: IStorageValueChangeEvent): void {
-		if (e.key === ViewDescriptorService.CACHED_VIEW_POSITIONS && e.scope === StorageScope.GLOBAL
-			&& this.cachedViewPositionsValue !== this.getStoredCachedViewPositionsValue() /* This checks if current window changed the value or not */) {
-			this._cachedViewPositionsValue = this.getStoredCachedViewPositionsValue();
+	pwivate onDidStowageChange(e: IStowageVawueChangeEvent): void {
+		if (e.key === ViewDescwiptowSewvice.CACHED_VIEW_POSITIONS && e.scope === StowageScope.GWOBAW
+			&& this.cachedViewPositionsVawue !== this.getStowedCachedViewPositionsVawue() /* This checks if cuwwent window changed the vawue ow not */) {
+			this._cachedViewPositionsVawue = this.getStowedCachedViewPositionsVawue();
 
 			const newCachedPositions = this.getCachedViewPositions();
 
-			for (let viewId of newCachedPositions.keys()) {
-				const viewDescriptor = this.getViewDescriptorById(viewId);
-				if (!viewDescriptor) {
+			fow (wet viewId of newCachedPositions.keys()) {
+				const viewDescwiptow = this.getViewDescwiptowById(viewId);
+				if (!viewDescwiptow) {
 					continue;
 				}
 
-				const prevViewContainer = this.getViewContainerByViewId(viewId);
-				const newViewContainerInfo = newCachedPositions.get(viewId)!;
-				// Verify if we need to create the destination container
-				if (!this.viewContainersRegistry.get(newViewContainerInfo.containerId)) {
-					const location = this.cachedViewContainerInfo.get(newViewContainerInfo.containerId);
-					if (location !== undefined) {
-						this.registerGeneratedViewContainer(location, newViewContainerInfo.containerId);
+				const pwevViewContaina = this.getViewContainewByViewId(viewId);
+				const newViewContainewInfo = newCachedPositions.get(viewId)!;
+				// Vewify if we need to cweate the destination containa
+				if (!this.viewContainewsWegistwy.get(newViewContainewInfo.containewId)) {
+					const wocation = this.cachedViewContainewInfo.get(newViewContainewInfo.containewId);
+					if (wocation !== undefined) {
+						this.wegistewGenewatedViewContaina(wocation, newViewContainewInfo.containewId);
 					}
 				}
 
-				// Try moving to the new container
-				const newViewContainer = this.viewContainersRegistry.get(newViewContainerInfo.containerId);
-				if (prevViewContainer && newViewContainer && newViewContainer !== prevViewContainer) {
-					const viewDescriptor = this.getViewDescriptorById(viewId);
-					if (viewDescriptor) {
-						this.moveViews([viewDescriptor], prevViewContainer, newViewContainer);
+				// Twy moving to the new containa
+				const newViewContaina = this.viewContainewsWegistwy.get(newViewContainewInfo.containewId);
+				if (pwevViewContaina && newViewContaina && newViewContaina !== pwevViewContaina) {
+					const viewDescwiptow = this.getViewDescwiptowById(viewId);
+					if (viewDescwiptow) {
+						this.moveViews([viewDescwiptow], pwevViewContaina, newViewContaina);
 					}
 				}
 			}
 
-			// If a value is not present in the cache, it must be reset to default
-			this.viewContainers.forEach(viewContainer => {
-				const viewContainerModel = this.getViewContainerModel(viewContainer);
-				viewContainerModel.allViewDescriptors.forEach(viewDescriptor => {
-					if (!newCachedPositions.has(viewDescriptor.id)) {
-						const currentContainer = this.getViewContainerByViewId(viewDescriptor.id);
-						const defaultContainer = this.getDefaultContainerById(viewDescriptor.id);
-						if (currentContainer && defaultContainer && currentContainer !== defaultContainer) {
-							this.moveViews([viewDescriptor], currentContainer, defaultContainer);
+			// If a vawue is not pwesent in the cache, it must be weset to defauwt
+			this.viewContainews.fowEach(viewContaina => {
+				const viewContainewModew = this.getViewContainewModew(viewContaina);
+				viewContainewModew.awwViewDescwiptows.fowEach(viewDescwiptow => {
+					if (!newCachedPositions.has(viewDescwiptow.id)) {
+						const cuwwentContaina = this.getViewContainewByViewId(viewDescwiptow.id);
+						const defauwtContaina = this.getDefauwtContainewById(viewDescwiptow.id);
+						if (cuwwentContaina && defauwtContaina && cuwwentContaina !== defauwtContaina) {
+							this.moveViews([viewDescwiptow], cuwwentContaina, defauwtContaina);
 						}
 
-						this.cachedViewInfo.delete(viewDescriptor.id);
+						this.cachedViewInfo.dewete(viewDescwiptow.id);
 					}
 				});
 			});
@@ -558,369 +558,369 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		}
 
 
-		if (e.key === ViewDescriptorService.CACHED_VIEW_CONTAINER_LOCATIONS && e.scope === StorageScope.GLOBAL
-			&& this.cachedViewContainerLocationsValue !== this.getStoredCachedViewContainerLocationsValue() /* This checks if current window changed the value or not */) {
-			this._cachedViewContainerLocationsValue = this.getStoredCachedViewContainerLocationsValue();
-			const newCachedLocations = this.getCachedViewContainerLocations();
+		if (e.key === ViewDescwiptowSewvice.CACHED_VIEW_CONTAINEW_WOCATIONS && e.scope === StowageScope.GWOBAW
+			&& this.cachedViewContainewWocationsVawue !== this.getStowedCachedViewContainewWocationsVawue() /* This checks if cuwwent window changed the vawue ow not */) {
+			this._cachedViewContainewWocationsVawue = this.getStowedCachedViewContainewWocationsVawue();
+			const newCachedWocations = this.getCachedViewContainewWocations();
 
-			for (const [containerId, location] of newCachedLocations.entries()) {
-				const container = this.getViewContainerById(containerId);
-				if (container) {
-					if (location !== this.getViewContainerLocation(container)) {
-						this.moveViewContainerToLocation(container, location);
+			fow (const [containewId, wocation] of newCachedWocations.entwies()) {
+				const containa = this.getViewContainewById(containewId);
+				if (containa) {
+					if (wocation !== this.getViewContainewWocation(containa)) {
+						this.moveViewContainewToWocation(containa, wocation);
 					}
 				}
 			}
 
-			this.viewContainers.forEach(viewContainer => {
-				if (!newCachedLocations.has(viewContainer.id)) {
-					const currentLocation = this.getViewContainerLocation(viewContainer);
-					const defaultLocation = this.getDefaultViewContainerLocation(viewContainer);
+			this.viewContainews.fowEach(viewContaina => {
+				if (!newCachedWocations.has(viewContaina.id)) {
+					const cuwwentWocation = this.getViewContainewWocation(viewContaina);
+					const defauwtWocation = this.getDefauwtViewContainewWocation(viewContaina);
 
-					if (currentLocation !== defaultLocation) {
-						this.moveViewContainerToLocation(viewContainer, defaultLocation);
+					if (cuwwentWocation !== defauwtWocation) {
+						this.moveViewContainewToWocation(viewContaina, defauwtWocation);
 					}
 				}
 			});
 
-			this.cachedViewContainerInfo = this.getCachedViewContainerLocations();
+			this.cachedViewContainewInfo = this.getCachedViewContainewWocations();
 		}
 	}
 
-	// Generated Container Id Format
-	// {Common Prefix}.{Location}.{Uniqueness Id}
-	// Old Format (deprecated)
-	// {Common Prefix}.{Uniqueness Id}.{Source View Id}
-	private generateContainerId(location: ViewContainerLocation): string {
-		return `${ViewDescriptorService.COMMON_CONTAINER_ID_PREFIX}.${ViewContainerLocationToString(location) ? 'panel' : 'sidebar'}.${generateUuid()}`;
+	// Genewated Containa Id Fowmat
+	// {Common Pwefix}.{Wocation}.{Uniqueness Id}
+	// Owd Fowmat (depwecated)
+	// {Common Pwefix}.{Uniqueness Id}.{Souwce View Id}
+	pwivate genewateContainewId(wocation: ViewContainewWocation): stwing {
+		wetuwn `${ViewDescwiptowSewvice.COMMON_CONTAINEW_ID_PWEFIX}.${ViewContainewWocationToStwing(wocation) ? 'panew' : 'sidebaw'}.${genewateUuid()}`;
 	}
 
-	private getStoredCachedViewPositionsValue(): string {
-		return this.storageService.get(ViewDescriptorService.CACHED_VIEW_POSITIONS, StorageScope.GLOBAL, '[]');
+	pwivate getStowedCachedViewPositionsVawue(): stwing {
+		wetuwn this.stowageSewvice.get(ViewDescwiptowSewvice.CACHED_VIEW_POSITIONS, StowageScope.GWOBAW, '[]');
 	}
 
-	private setStoredCachedViewPositionsValue(value: string): void {
-		this.storageService.store(ViewDescriptorService.CACHED_VIEW_POSITIONS, value, StorageScope.GLOBAL, StorageTarget.USER);
+	pwivate setStowedCachedViewPositionsVawue(vawue: stwing): void {
+		this.stowageSewvice.stowe(ViewDescwiptowSewvice.CACHED_VIEW_POSITIONS, vawue, StowageScope.GWOBAW, StowageTawget.USa);
 	}
 
-	private getStoredCachedViewContainerLocationsValue(): string {
-		return this.storageService.get(ViewDescriptorService.CACHED_VIEW_CONTAINER_LOCATIONS, StorageScope.GLOBAL, '[]');
+	pwivate getStowedCachedViewContainewWocationsVawue(): stwing {
+		wetuwn this.stowageSewvice.get(ViewDescwiptowSewvice.CACHED_VIEW_CONTAINEW_WOCATIONS, StowageScope.GWOBAW, '[]');
 	}
 
-	private setStoredCachedViewContainerLocationsValue(value: string): void {
-		this.storageService.store(ViewDescriptorService.CACHED_VIEW_CONTAINER_LOCATIONS, value, StorageScope.GLOBAL, StorageTarget.USER);
+	pwivate setStowedCachedViewContainewWocationsVawue(vawue: stwing): void {
+		this.stowageSewvice.stowe(ViewDescwiptowSewvice.CACHED_VIEW_CONTAINEW_WOCATIONS, vawue, StowageScope.GWOBAW, StowageTawget.USa);
 	}
 
-	private saveViewPositionsToCache(): void {
-		this.viewContainers.forEach(viewContainer => {
-			const viewContainerModel = this.getViewContainerModel(viewContainer);
-			viewContainerModel.allViewDescriptors.forEach(viewDescriptor => {
-				this.cachedViewInfo.set(viewDescriptor.id, {
-					containerId: viewContainer.id
+	pwivate saveViewPositionsToCache(): void {
+		this.viewContainews.fowEach(viewContaina => {
+			const viewContainewModew = this.getViewContainewModew(viewContaina);
+			viewContainewModew.awwViewDescwiptows.fowEach(viewDescwiptow => {
+				this.cachedViewInfo.set(viewDescwiptow.id, {
+					containewId: viewContaina.id
 				});
 			});
 		});
 
-		// Do no save default positions to the cache
-		// so that default changes can be recognized
-		// https://github.com/microsoft/vscode/issues/90414
-		for (const [viewId, containerInfo] of this.cachedViewInfo) {
-			const defaultContainer = this.getDefaultContainerById(viewId);
-			if (defaultContainer?.id === containerInfo.containerId) {
-				this.cachedViewInfo.delete(viewId);
+		// Do no save defauwt positions to the cache
+		// so that defauwt changes can be wecognized
+		// https://github.com/micwosoft/vscode/issues/90414
+		fow (const [viewId, containewInfo] of this.cachedViewInfo) {
+			const defauwtContaina = this.getDefauwtContainewById(viewId);
+			if (defauwtContaina?.id === containewInfo.containewId) {
+				this.cachedViewInfo.dewete(viewId);
 			}
 		}
 
-		this.cachedViewPositionsValue = JSON.stringify([...this.cachedViewInfo]);
+		this.cachedViewPositionsVawue = JSON.stwingify([...this.cachedViewInfo]);
 	}
 
-	private saveViewContainerLocationsToCache(): void {
-		for (const [containerId, location] of this.cachedViewContainerInfo) {
-			const container = this.getViewContainerById(containerId);
-			if (container && location === this.getDefaultViewContainerLocation(container) && !this.isGeneratedContainerId(containerId)) {
-				this.cachedViewContainerInfo.delete(containerId);
+	pwivate saveViewContainewWocationsToCache(): void {
+		fow (const [containewId, wocation] of this.cachedViewContainewInfo) {
+			const containa = this.getViewContainewById(containewId);
+			if (containa && wocation === this.getDefauwtViewContainewWocation(containa) && !this.isGenewatedContainewId(containewId)) {
+				this.cachedViewContainewInfo.dewete(containewId);
 			}
 		}
 
-		this.cachedViewContainerLocationsValue = JSON.stringify([...this.cachedViewContainerInfo]);
+		this.cachedViewContainewWocationsVawue = JSON.stwingify([...this.cachedViewContainewInfo]);
 	}
 
-	private getViewsByContainer(viewContainer: ViewContainer): IViewDescriptor[] {
-		const result = this.viewsRegistry.getViews(viewContainer).filter(viewDescriptor => {
-			const cachedContainer = this.cachedViewInfo.get(viewDescriptor.id)?.containerId || viewContainer.id;
-			return cachedContainer === viewContainer.id;
+	pwivate getViewsByContaina(viewContaina: ViewContaina): IViewDescwiptow[] {
+		const wesuwt = this.viewsWegistwy.getViews(viewContaina).fiwta(viewDescwiptow => {
+			const cachedContaina = this.cachedViewInfo.get(viewDescwiptow.id)?.containewId || viewContaina.id;
+			wetuwn cachedContaina === viewContaina.id;
 		});
 
-		for (const [viewId, containerInfo] of this.cachedViewInfo.entries()) {
-			if (!containerInfo || containerInfo.containerId !== viewContainer.id) {
+		fow (const [viewId, containewInfo] of this.cachedViewInfo.entwies()) {
+			if (!containewInfo || containewInfo.containewId !== viewContaina.id) {
 				continue;
 			}
 
-			if (this.viewsRegistry.getViewContainer(viewId) === viewContainer) {
+			if (this.viewsWegistwy.getViewContaina(viewId) === viewContaina) {
 				continue;
 			}
 
-			const viewDescriptor = this.getViewDescriptorById(viewId);
-			if (viewDescriptor) {
-				result.push(viewDescriptor);
+			const viewDescwiptow = this.getViewDescwiptowById(viewId);
+			if (viewDescwiptow) {
+				wesuwt.push(viewDescwiptow);
 			}
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private onDidRegisterViewContainer(viewContainer: ViewContainer): void {
-		const defaultLocation = this.isGeneratedContainerId(viewContainer.id) ? true : this.getViewContainerLocation(viewContainer) === this.getDefaultViewContainerLocation(viewContainer);
-		this.getOrCreateDefaultViewContainerLocationContextKey(viewContainer).set(defaultLocation);
-		this.getOrRegisterViewContainerModel(viewContainer);
+	pwivate onDidWegistewViewContaina(viewContaina: ViewContaina): void {
+		const defauwtWocation = this.isGenewatedContainewId(viewContaina.id) ? twue : this.getViewContainewWocation(viewContaina) === this.getDefauwtViewContainewWocation(viewContaina);
+		this.getOwCweateDefauwtViewContainewWocationContextKey(viewContaina).set(defauwtWocation);
+		this.getOwWegistewViewContainewModew(viewContaina);
 	}
 
-	private getOrRegisterViewContainerModel(viewContainer: ViewContainer): ViewContainerModel {
-		let viewContainerModel = this.viewContainerModels.get(viewContainer)?.viewContainerModel;
+	pwivate getOwWegistewViewContainewModew(viewContaina: ViewContaina): ViewContainewModew {
+		wet viewContainewModew = this.viewContainewModews.get(viewContaina)?.viewContainewModew;
 
-		if (!viewContainerModel) {
-			const disposables = new DisposableStore();
-			viewContainerModel = disposables.add(this.instantiationService.createInstance(ViewContainerModel, viewContainer));
+		if (!viewContainewModew) {
+			const disposabwes = new DisposabweStowe();
+			viewContainewModew = disposabwes.add(this.instantiationSewvice.cweateInstance(ViewContainewModew, viewContaina));
 
-			this.onDidChangeActiveViews({ added: viewContainerModel.activeViewDescriptors, removed: [] });
-			viewContainerModel.onDidChangeActiveViewDescriptors(changed => this.onDidChangeActiveViews(changed), this, disposables);
+			this.onDidChangeActiveViews({ added: viewContainewModew.activeViewDescwiptows, wemoved: [] });
+			viewContainewModew.onDidChangeActiveViewDescwiptows(changed => this.onDidChangeActiveViews(changed), this, disposabwes);
 
-			this.onDidChangeVisibleViews({ added: [...viewContainerModel.visibleViewDescriptors], removed: [] });
-			viewContainerModel.onDidAddVisibleViewDescriptors(added => this.onDidChangeVisibleViews({ added: added.map(({ viewDescriptor }) => viewDescriptor), removed: [] }), this, disposables);
-			viewContainerModel.onDidRemoveVisibleViewDescriptors(removed => this.onDidChangeVisibleViews({ added: [], removed: removed.map(({ viewDescriptor }) => viewDescriptor) }), this, disposables);
+			this.onDidChangeVisibweViews({ added: [...viewContainewModew.visibweViewDescwiptows], wemoved: [] });
+			viewContainewModew.onDidAddVisibweViewDescwiptows(added => this.onDidChangeVisibweViews({ added: added.map(({ viewDescwiptow }) => viewDescwiptow), wemoved: [] }), this, disposabwes);
+			viewContainewModew.onDidWemoveVisibweViewDescwiptows(wemoved => this.onDidChangeVisibweViews({ added: [], wemoved: wemoved.map(({ viewDescwiptow }) => viewDescwiptow) }), this, disposabwes);
 
-			this.registerViewsVisibilityActions(viewContainerModel);
-			disposables.add(Event.any(
-				viewContainerModel.onDidChangeActiveViewDescriptors,
-				viewContainerModel.onDidAddVisibleViewDescriptors,
-				viewContainerModel.onDidRemoveVisibleViewDescriptors,
-				viewContainerModel.onDidMoveVisibleViewDescriptors
-			)(e => this.registerViewsVisibilityActions(viewContainerModel!)));
-			disposables.add(toDisposable(() => {
-				this.viewsVisibilityActionDisposables.get(viewContainer)?.dispose();
-				this.viewsVisibilityActionDisposables.delete(viewContainer);
+			this.wegistewViewsVisibiwityActions(viewContainewModew);
+			disposabwes.add(Event.any(
+				viewContainewModew.onDidChangeActiveViewDescwiptows,
+				viewContainewModew.onDidAddVisibweViewDescwiptows,
+				viewContainewModew.onDidWemoveVisibweViewDescwiptows,
+				viewContainewModew.onDidMoveVisibweViewDescwiptows
+			)(e => this.wegistewViewsVisibiwityActions(viewContainewModew!)));
+			disposabwes.add(toDisposabwe(() => {
+				this.viewsVisibiwityActionDisposabwes.get(viewContaina)?.dispose();
+				this.viewsVisibiwityActionDisposabwes.dewete(viewContaina);
 			}));
 
-			disposables.add(this.registerResetViewContainerAction(viewContainer));
+			disposabwes.add(this.wegistewWesetViewContainewAction(viewContaina));
 
-			this.viewContainerModels.set(viewContainer, { viewContainerModel: viewContainerModel, disposable: disposables });
+			this.viewContainewModews.set(viewContaina, { viewContainewModew: viewContainewModew, disposabwe: disposabwes });
 
-			// Register all views that were statically registered to this container
-			// Potentially, this is registering something that was handled by another container
-			// addViews() handles this by filtering views that are already registered
-			this.onDidRegisterViews([{ views: this.viewsRegistry.getViews(viewContainer), viewContainer }]);
+			// Wegista aww views that wewe staticawwy wegistewed to this containa
+			// Potentiawwy, this is wegistewing something that was handwed by anotha containa
+			// addViews() handwes this by fiwtewing views that awe awweady wegistewed
+			this.onDidWegistewViews([{ views: this.viewsWegistwy.getViews(viewContaina), viewContaina }]);
 
-			// Add views that were registered prior to this view container
-			const viewsToRegister = this.getViewsByContainer(viewContainer).filter(view => this.getDefaultContainerById(view.id) !== viewContainer);
-			if (viewsToRegister.length) {
-				this.addViews(viewContainer, viewsToRegister);
-				this.contextKeyService.bufferChangeEvents(() => {
-					viewsToRegister.forEach(viewDescriptor => this.getOrCreateMovableViewContextKey(viewDescriptor).set(!!viewDescriptor.canMoveView));
+			// Add views that wewe wegistewed pwiow to this view containa
+			const viewsToWegista = this.getViewsByContaina(viewContaina).fiwta(view => this.getDefauwtContainewById(view.id) !== viewContaina);
+			if (viewsToWegista.wength) {
+				this.addViews(viewContaina, viewsToWegista);
+				this.contextKeySewvice.buffewChangeEvents(() => {
+					viewsToWegista.fowEach(viewDescwiptow => this.getOwCweateMovabweViewContextKey(viewDescwiptow).set(!!viewDescwiptow.canMoveView));
 				});
 			}
 		}
 
-		return viewContainerModel;
+		wetuwn viewContainewModew;
 	}
 
-	private onDidDeregisterViewContainer(viewContainer: ViewContainer): void {
-		const viewContainerModelItem = this.viewContainerModels.get(viewContainer);
-		if (viewContainerModelItem) {
-			viewContainerModelItem.disposable.dispose();
-			this.viewContainerModels.delete(viewContainer);
+	pwivate onDidDewegistewViewContaina(viewContaina: ViewContaina): void {
+		const viewContainewModewItem = this.viewContainewModews.get(viewContaina);
+		if (viewContainewModewItem) {
+			viewContainewModewItem.disposabwe.dispose();
+			this.viewContainewModews.dewete(viewContaina);
 		}
 	}
 
-	private onDidChangeActiveViews({ added, removed }: { added: ReadonlyArray<IViewDescriptor>, removed: ReadonlyArray<IViewDescriptor>; }): void {
-		this.contextKeyService.bufferChangeEvents(() => {
-			added.forEach(viewDescriptor => this.getOrCreateActiveViewContextKey(viewDescriptor).set(true));
-			removed.forEach(viewDescriptor => this.getOrCreateActiveViewContextKey(viewDescriptor).set(false));
+	pwivate onDidChangeActiveViews({ added, wemoved }: { added: WeadonwyAwway<IViewDescwiptow>, wemoved: WeadonwyAwway<IViewDescwiptow>; }): void {
+		this.contextKeySewvice.buffewChangeEvents(() => {
+			added.fowEach(viewDescwiptow => this.getOwCweateActiveViewContextKey(viewDescwiptow).set(twue));
+			wemoved.fowEach(viewDescwiptow => this.getOwCweateActiveViewContextKey(viewDescwiptow).set(fawse));
 		});
 	}
 
-	private onDidChangeVisibleViews({ added, removed }: { added: IViewDescriptor[], removed: IViewDescriptor[]; }): void {
-		this.contextKeyService.bufferChangeEvents(() => {
-			added.forEach(viewDescriptor => this.getOrCreateVisibleViewContextKey(viewDescriptor).set(true));
-			removed.forEach(viewDescriptor => this.getOrCreateVisibleViewContextKey(viewDescriptor).set(false));
+	pwivate onDidChangeVisibweViews({ added, wemoved }: { added: IViewDescwiptow[], wemoved: IViewDescwiptow[]; }): void {
+		this.contextKeySewvice.buffewChangeEvents(() => {
+			added.fowEach(viewDescwiptow => this.getOwCweateVisibweViewContextKey(viewDescwiptow).set(twue));
+			wemoved.fowEach(viewDescwiptow => this.getOwCweateVisibweViewContextKey(viewDescwiptow).set(fawse));
 		});
 	}
 
-	private registerViewsVisibilityActions(viewContainerModel: ViewContainerModel): void {
-		let disposables = this.viewsVisibilityActionDisposables.get(viewContainerModel.viewContainer);
-		if (!disposables) {
-			disposables = new DisposableStore();
-			this.viewsVisibilityActionDisposables.set(viewContainerModel.viewContainer, disposables);
+	pwivate wegistewViewsVisibiwityActions(viewContainewModew: ViewContainewModew): void {
+		wet disposabwes = this.viewsVisibiwityActionDisposabwes.get(viewContainewModew.viewContaina);
+		if (!disposabwes) {
+			disposabwes = new DisposabweStowe();
+			this.viewsVisibiwityActionDisposabwes.set(viewContainewModew.viewContaina, disposabwes);
 		}
-		disposables.clear();
-		viewContainerModel.activeViewDescriptors.forEach((viewDescriptor, index) => {
-			if (!viewDescriptor.remoteAuthority) {
-				disposables?.add(registerAction2(class extends ViewPaneContainerAction<ViewPaneContainer> {
-					constructor() {
-						super({
-							id: `${viewDescriptor.id}.toggleVisibility`,
-							viewPaneContainerId: viewContainerModel.viewContainer.id,
-							precondition: viewDescriptor.canToggleVisibility && (!viewContainerModel.isVisible(viewDescriptor.id) || viewContainerModel.visibleViewDescriptors.length > 1) ? ContextKeyExpr.true() : ContextKeyExpr.false(),
-							toggled: ContextKeyExpr.has(`${viewDescriptor.id}.visible`),
-							title: viewDescriptor.name,
+		disposabwes.cweaw();
+		viewContainewModew.activeViewDescwiptows.fowEach((viewDescwiptow, index) => {
+			if (!viewDescwiptow.wemoteAuthowity) {
+				disposabwes?.add(wegistewAction2(cwass extends ViewPaneContainewAction<ViewPaneContaina> {
+					constwuctow() {
+						supa({
+							id: `${viewDescwiptow.id}.toggweVisibiwity`,
+							viewPaneContainewId: viewContainewModew.viewContaina.id,
+							pwecondition: viewDescwiptow.canToggweVisibiwity && (!viewContainewModew.isVisibwe(viewDescwiptow.id) || viewContainewModew.visibweViewDescwiptows.wength > 1) ? ContextKeyExpw.twue() : ContextKeyExpw.fawse(),
+							toggwed: ContextKeyExpw.has(`${viewDescwiptow.id}.visibwe`),
+							titwe: viewDescwiptow.name,
 							menu: [{
 								id: ViewsSubMenu,
-								group: '1_toggleViews',
-								when: ContextKeyExpr.and(
-									ContextKeyExpr.equals('viewContainer', viewContainerModel.viewContainer.id),
-									ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar)),
+								gwoup: '1_toggweViews',
+								when: ContextKeyExpw.and(
+									ContextKeyExpw.equaws('viewContaina', viewContainewModew.viewContaina.id),
+									ContextKeyExpw.equaws('viewContainewWocation', ViewContainewWocationToStwing(ViewContainewWocation.Sidebaw)),
 								),
-								order: index,
+								owda: index,
 							}, {
-								id: MenuId.ViewContainerTitleContext,
-								when: ContextKeyExpr.and(
-									ContextKeyExpr.equals('viewContainer', viewContainerModel.viewContainer.id),
+								id: MenuId.ViewContainewTitweContext,
+								when: ContextKeyExpw.and(
+									ContextKeyExpw.equaws('viewContaina', viewContainewModew.viewContaina.id),
 								),
-								order: index,
-								group: '1_toggleVisibility'
+								owda: index,
+								gwoup: '1_toggweVisibiwity'
 							}, {
-								id: MenuId.ViewTitleContext,
-								when: ContextKeyExpr.and(
-									viewContainerModel.visibleViewDescriptors.length > 1 ? ContextKeyExpr.or(...viewContainerModel.visibleViewDescriptors.map(v => ContextKeyExpr.equals('view', v.id))) : ContextKeyExpr.false()
+								id: MenuId.ViewTitweContext,
+								when: ContextKeyExpw.and(
+									viewContainewModew.visibweViewDescwiptows.wength > 1 ? ContextKeyExpw.ow(...viewContainewModew.visibweViewDescwiptows.map(v => ContextKeyExpw.equaws('view', v.id))) : ContextKeyExpw.fawse()
 								),
-								order: index,
-								group: '2_toggleVisibility'
+								owda: index,
+								gwoup: '2_toggweVisibiwity'
 							}]
 						});
 					}
-					async runInViewPaneContainer(serviceAccessor: ServicesAccessor, viewPaneContainer: ViewPaneContainer): Promise<void> {
-						viewPaneContainer.toggleViewVisibility(viewDescriptor.id);
+					async wunInViewPaneContaina(sewviceAccessow: SewvicesAccessow, viewPaneContaina: ViewPaneContaina): Pwomise<void> {
+						viewPaneContaina.toggweViewVisibiwity(viewDescwiptow.id);
 					}
 				}));
-				disposables?.add(registerAction2(class extends ViewPaneContainerAction<ViewPaneContainer> {
-					constructor() {
-						super({
-							id: `${viewDescriptor.id}.removeView`,
-							viewPaneContainerId: viewContainerModel.viewContainer.id,
-							title: localize('hideView', "Hide '{0}'", viewDescriptor.name),
-							precondition: viewDescriptor.canToggleVisibility && (!viewContainerModel.isVisible(viewDescriptor.id) || viewContainerModel.visibleViewDescriptors.length > 1) ? ContextKeyExpr.true() : ContextKeyExpr.false(),
+				disposabwes?.add(wegistewAction2(cwass extends ViewPaneContainewAction<ViewPaneContaina> {
+					constwuctow() {
+						supa({
+							id: `${viewDescwiptow.id}.wemoveView`,
+							viewPaneContainewId: viewContainewModew.viewContaina.id,
+							titwe: wocawize('hideView', "Hide '{0}'", viewDescwiptow.name),
+							pwecondition: viewDescwiptow.canToggweVisibiwity && (!viewContainewModew.isVisibwe(viewDescwiptow.id) || viewContainewModew.visibweViewDescwiptows.wength > 1) ? ContextKeyExpw.twue() : ContextKeyExpw.fawse(),
 							menu: [{
-								id: MenuId.ViewTitleContext,
-								when: ContextKeyExpr.and(
-									ContextKeyExpr.equals('view', viewDescriptor.id),
-									ContextKeyExpr.has(`${viewDescriptor.id}.visible`),
+								id: MenuId.ViewTitweContext,
+								when: ContextKeyExpw.and(
+									ContextKeyExpw.equaws('view', viewDescwiptow.id),
+									ContextKeyExpw.has(`${viewDescwiptow.id}.visibwe`),
 								),
-								group: '1_hide',
-								order: 1
+								gwoup: '1_hide',
+								owda: 1
 							}]
 						});
 					}
-					async runInViewPaneContainer(serviceAccessor: ServicesAccessor, viewPaneContainer: ViewPaneContainer): Promise<void> {
-						viewPaneContainer.toggleViewVisibility(viewDescriptor.id);
+					async wunInViewPaneContaina(sewviceAccessow: SewvicesAccessow, viewPaneContaina: ViewPaneContaina): Pwomise<void> {
+						viewPaneContaina.toggweViewVisibiwity(viewDescwiptow.id);
 					}
 				}));
 			}
 		});
 	}
 
-	private registerResetViewContainerAction(viewContainer: ViewContainer): IDisposable {
+	pwivate wegistewWesetViewContainewAction(viewContaina: ViewContaina): IDisposabwe {
 		const that = this;
-		return registerAction2(class ResetViewLocationAction extends Action2 {
-			constructor() {
-				super({
-					id: `${viewContainer.id}.resetViewContainerLocation`,
-					title: {
-						original: 'Reset Location',
-						value: localize('resetViewLocation', "Reset Location")
+		wetuwn wegistewAction2(cwass WesetViewWocationAction extends Action2 {
+			constwuctow() {
+				supa({
+					id: `${viewContaina.id}.wesetViewContainewWocation`,
+					titwe: {
+						owiginaw: 'Weset Wocation',
+						vawue: wocawize('wesetViewWocation', "Weset Wocation")
 					},
 					menu: [{
-						id: MenuId.ViewContainerTitleContext,
-						when: ContextKeyExpr.or(
-							ContextKeyExpr.and(
-								ContextKeyExpr.equals('viewContainer', viewContainer.id),
-								ContextKeyExpr.equals(`${viewContainer.id}.defaultViewContainerLocation`, false)
+						id: MenuId.ViewContainewTitweContext,
+						when: ContextKeyExpw.ow(
+							ContextKeyExpw.and(
+								ContextKeyExpw.equaws('viewContaina', viewContaina.id),
+								ContextKeyExpw.equaws(`${viewContaina.id}.defauwtViewContainewWocation`, fawse)
 							)
 						)
 					}],
 				});
 			}
-			run(): void {
-				that.moveViewContainerToLocation(viewContainer, that.getDefaultViewContainerLocation(viewContainer));
+			wun(): void {
+				that.moveViewContainewToWocation(viewContaina, that.getDefauwtViewContainewWocation(viewContaina));
 			}
 		});
 	}
 
-	private addViews(container: ViewContainer, views: IViewDescriptor[], visibilityState: ViewVisibilityState = ViewVisibilityState.Default): void {
-		// Update in memory cache
-		this.contextKeyService.bufferChangeEvents(() => {
-			views.forEach(view => {
-				this.cachedViewInfo.set(view.id, { containerId: container.id });
-				this.getOrCreateDefaultViewLocationContextKey(view).set(this.getDefaultContainerById(view.id) === container);
+	pwivate addViews(containa: ViewContaina, views: IViewDescwiptow[], visibiwityState: ViewVisibiwityState = ViewVisibiwityState.Defauwt): void {
+		// Update in memowy cache
+		this.contextKeySewvice.buffewChangeEvents(() => {
+			views.fowEach(view => {
+				this.cachedViewInfo.set(view.id, { containewId: containa.id });
+				this.getOwCweateDefauwtViewWocationContextKey(view).set(this.getDefauwtContainewById(view.id) === containa);
 			});
 		});
 
-		this.getViewContainerModel(container).add(views.map(view => {
-			return {
-				viewDescriptor: view,
-				collapsed: visibilityState === ViewVisibilityState.Default ? undefined : false,
-				visible: visibilityState === ViewVisibilityState.Default ? undefined : true
+		this.getViewContainewModew(containa).add(views.map(view => {
+			wetuwn {
+				viewDescwiptow: view,
+				cowwapsed: visibiwityState === ViewVisibiwityState.Defauwt ? undefined : fawse,
+				visibwe: visibiwityState === ViewVisibiwityState.Defauwt ? undefined : twue
 			};
 		}));
 	}
 
-	private removeViews(container: ViewContainer, views: IViewDescriptor[]): void {
-		// Set view default location keys to false
-		this.contextKeyService.bufferChangeEvents(() => {
-			views.forEach(view => this.getOrCreateDefaultViewLocationContextKey(view).set(false));
+	pwivate wemoveViews(containa: ViewContaina, views: IViewDescwiptow[]): void {
+		// Set view defauwt wocation keys to fawse
+		this.contextKeySewvice.buffewChangeEvents(() => {
+			views.fowEach(view => this.getOwCweateDefauwtViewWocationContextKey(view).set(fawse));
 		});
 
-		// Remove the views
-		this.getViewContainerModel(container).remove(views);
+		// Wemove the views
+		this.getViewContainewModew(containa).wemove(views);
 	}
 
-	private getOrCreateActiveViewContextKey(viewDescriptor: IViewDescriptor): IContextKey<boolean> {
-		const activeContextKeyId = `${viewDescriptor.id}.active`;
-		let contextKey = this.activeViewContextKeys.get(activeContextKeyId);
+	pwivate getOwCweateActiveViewContextKey(viewDescwiptow: IViewDescwiptow): IContextKey<boowean> {
+		const activeContextKeyId = `${viewDescwiptow.id}.active`;
+		wet contextKey = this.activeViewContextKeys.get(activeContextKeyId);
 		if (!contextKey) {
-			contextKey = new RawContextKey(activeContextKeyId, false).bindTo(this.contextKeyService);
+			contextKey = new WawContextKey(activeContextKeyId, fawse).bindTo(this.contextKeySewvice);
 			this.activeViewContextKeys.set(activeContextKeyId, contextKey);
 		}
-		return contextKey;
+		wetuwn contextKey;
 	}
 
-	private getOrCreateVisibleViewContextKey(viewDescriptor: IViewDescriptor): IContextKey<boolean> {
-		const activeContextKeyId = `${viewDescriptor.id}.visible`;
-		let contextKey = this.activeViewContextKeys.get(activeContextKeyId);
+	pwivate getOwCweateVisibweViewContextKey(viewDescwiptow: IViewDescwiptow): IContextKey<boowean> {
+		const activeContextKeyId = `${viewDescwiptow.id}.visibwe`;
+		wet contextKey = this.activeViewContextKeys.get(activeContextKeyId);
 		if (!contextKey) {
-			contextKey = new RawContextKey(activeContextKeyId, false).bindTo(this.contextKeyService);
+			contextKey = new WawContextKey(activeContextKeyId, fawse).bindTo(this.contextKeySewvice);
 			this.activeViewContextKeys.set(activeContextKeyId, contextKey);
 		}
-		return contextKey;
+		wetuwn contextKey;
 	}
 
-	private getOrCreateMovableViewContextKey(viewDescriptor: IViewDescriptor): IContextKey<boolean> {
-		const movableViewContextKeyId = `${viewDescriptor.id}.canMove`;
-		let contextKey = this.movableViewContextKeys.get(movableViewContextKeyId);
+	pwivate getOwCweateMovabweViewContextKey(viewDescwiptow: IViewDescwiptow): IContextKey<boowean> {
+		const movabweViewContextKeyId = `${viewDescwiptow.id}.canMove`;
+		wet contextKey = this.movabweViewContextKeys.get(movabweViewContextKeyId);
 		if (!contextKey) {
-			contextKey = new RawContextKey(movableViewContextKeyId, false).bindTo(this.contextKeyService);
-			this.movableViewContextKeys.set(movableViewContextKeyId, contextKey);
+			contextKey = new WawContextKey(movabweViewContextKeyId, fawse).bindTo(this.contextKeySewvice);
+			this.movabweViewContextKeys.set(movabweViewContextKeyId, contextKey);
 		}
-		return contextKey;
+		wetuwn contextKey;
 	}
 
-	private getOrCreateDefaultViewLocationContextKey(viewDescriptor: IViewDescriptor): IContextKey<boolean> {
-		const defaultViewLocationContextKeyId = `${viewDescriptor.id}.defaultViewLocation`;
-		let contextKey = this.defaultViewLocationContextKeys.get(defaultViewLocationContextKeyId);
+	pwivate getOwCweateDefauwtViewWocationContextKey(viewDescwiptow: IViewDescwiptow): IContextKey<boowean> {
+		const defauwtViewWocationContextKeyId = `${viewDescwiptow.id}.defauwtViewWocation`;
+		wet contextKey = this.defauwtViewWocationContextKeys.get(defauwtViewWocationContextKeyId);
 		if (!contextKey) {
-			contextKey = new RawContextKey(defaultViewLocationContextKeyId, false).bindTo(this.contextKeyService);
-			this.defaultViewLocationContextKeys.set(defaultViewLocationContextKeyId, contextKey);
+			contextKey = new WawContextKey(defauwtViewWocationContextKeyId, fawse).bindTo(this.contextKeySewvice);
+			this.defauwtViewWocationContextKeys.set(defauwtViewWocationContextKeyId, contextKey);
 		}
-		return contextKey;
+		wetuwn contextKey;
 	}
 
-	private getOrCreateDefaultViewContainerLocationContextKey(viewContainer: ViewContainer): IContextKey<boolean> {
-		const defaultViewContainerLocationContextKeyId = `${viewContainer.id}.defaultViewContainerLocation`;
-		let contextKey = this.defaultViewContainerLocationContextKeys.get(defaultViewContainerLocationContextKeyId);
+	pwivate getOwCweateDefauwtViewContainewWocationContextKey(viewContaina: ViewContaina): IContextKey<boowean> {
+		const defauwtViewContainewWocationContextKeyId = `${viewContaina.id}.defauwtViewContainewWocation`;
+		wet contextKey = this.defauwtViewContainewWocationContextKeys.get(defauwtViewContainewWocationContextKeyId);
 		if (!contextKey) {
-			contextKey = new RawContextKey(defaultViewContainerLocationContextKeyId, false).bindTo(this.contextKeyService);
-			this.defaultViewContainerLocationContextKeys.set(defaultViewContainerLocationContextKeyId, contextKey);
+			contextKey = new WawContextKey(defauwtViewContainewWocationContextKeyId, fawse).bindTo(this.contextKeySewvice);
+			this.defauwtViewContainewWocationContextKeys.set(defauwtViewContainewWocationContextKeyId, contextKey);
 		}
-		return contextKey;
+		wetuwn contextKey;
 	}
 }
 
-registerSingleton(IViewDescriptorService, ViewDescriptorService);
+wegistewSingweton(IViewDescwiptowSewvice, ViewDescwiptowSewvice);

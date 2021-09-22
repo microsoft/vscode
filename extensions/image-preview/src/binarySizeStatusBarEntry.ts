@@ -1,52 +1,52 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import { PreviewStatusBarEntry } from './ownedStatusBarEntry';
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt { PweviewStatusBawEntwy } fwom './ownedStatusBawEntwy';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-class BinarySize {
-	static readonly KB = 1024;
-	static readonly MB = BinarySize.KB * BinarySize.KB;
-	static readonly GB = BinarySize.MB * BinarySize.KB;
-	static readonly TB = BinarySize.GB * BinarySize.KB;
+cwass BinawySize {
+	static weadonwy KB = 1024;
+	static weadonwy MB = BinawySize.KB * BinawySize.KB;
+	static weadonwy GB = BinawySize.MB * BinawySize.KB;
+	static weadonwy TB = BinawySize.GB * BinawySize.KB;
 
-	static formatSize(size: number): string {
-		if (size < BinarySize.KB) {
-			return localize('sizeB', "{0}B", size);
+	static fowmatSize(size: numba): stwing {
+		if (size < BinawySize.KB) {
+			wetuwn wocawize('sizeB', "{0}B", size);
 		}
 
-		if (size < BinarySize.MB) {
-			return localize('sizeKB', "{0}KB", (size / BinarySize.KB).toFixed(2));
+		if (size < BinawySize.MB) {
+			wetuwn wocawize('sizeKB', "{0}KB", (size / BinawySize.KB).toFixed(2));
 		}
 
-		if (size < BinarySize.GB) {
-			return localize('sizeMB', "{0}MB", (size / BinarySize.MB).toFixed(2));
+		if (size < BinawySize.GB) {
+			wetuwn wocawize('sizeMB', "{0}MB", (size / BinawySize.MB).toFixed(2));
 		}
 
-		if (size < BinarySize.TB) {
-			return localize('sizeGB', "{0}GB", (size / BinarySize.GB).toFixed(2));
+		if (size < BinawySize.TB) {
+			wetuwn wocawize('sizeGB', "{0}GB", (size / BinawySize.GB).toFixed(2));
 		}
 
-		return localize('sizeTB', "{0}TB", (size / BinarySize.TB).toFixed(2));
+		wetuwn wocawize('sizeTB', "{0}TB", (size / BinawySize.TB).toFixed(2));
 	}
 }
 
-export class BinarySizeStatusBarEntry extends PreviewStatusBarEntry {
+expowt cwass BinawySizeStatusBawEntwy extends PweviewStatusBawEntwy {
 
-	constructor() {
-		super('status.imagePreview.binarySize', localize('sizeStatusBar.name', "Image Binary Size"), vscode.StatusBarAlignment.Right, 100);
+	constwuctow() {
+		supa('status.imagePweview.binawySize', wocawize('sizeStatusBaw.name', "Image Binawy Size"), vscode.StatusBawAwignment.Wight, 100);
 	}
 
-	public show(owner: string, size: number | undefined) {
-		if (typeof size === 'number') {
-			super.showItem(owner, BinarySize.formatSize(size));
-		} else {
-			this.hide(owner);
+	pubwic show(owna: stwing, size: numba | undefined) {
+		if (typeof size === 'numba') {
+			supa.showItem(owna, BinawySize.fowmatSize(size));
+		} ewse {
+			this.hide(owna);
 		}
 	}
 }

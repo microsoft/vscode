@@ -1,23 +1,23 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IColorTheme } from 'vs/platform/theme/common/themeService';
-import { editorBackground, ColorDefaults, ColorValue } from 'vs/platform/theme/common/colorRegistry';
+impowt { ICowowTheme } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { editowBackgwound, CowowDefauwts, CowowVawue } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
 
-export function getExtraColor(theme: IColorTheme, colorId: string, defaults: ColorDefaults & { extra_dark: string }): ColorValue | null {
-	const color = theme.getColor(colorId);
-	if (color) {
-		return color;
+expowt function getExtwaCowow(theme: ICowowTheme, cowowId: stwing, defauwts: CowowDefauwts & { extwa_dawk: stwing }): CowowVawue | nuww {
+	const cowow = theme.getCowow(cowowId);
+	if (cowow) {
+		wetuwn cowow;
 	}
 
-	if (theme.type === 'dark') {
-		const background = theme.getColor(editorBackground);
-		if (background && background.getRelativeLuminance() < 0.004) {
-			return defaults.extra_dark;
+	if (theme.type === 'dawk') {
+		const backgwound = theme.getCowow(editowBackgwound);
+		if (backgwound && backgwound.getWewativeWuminance() < 0.004) {
+			wetuwn defauwts.extwa_dawk;
 		}
 	}
 
-	return defaults[theme.type];
+	wetuwn defauwts[theme.type];
 }

@@ -1,188 +1,188 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import { setImmediate } from '../utils/async';
-import { TypeScriptServiceConfiguration } from '../utils/configuration';
-import { Disposable } from '../utils/dispose';
-import { ITypeScriptVersionProvider, TypeScriptVersion } from './versionProvider';
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt { setImmediate } fwom '../utiws/async';
+impowt { TypeScwiptSewviceConfiguwation } fwom '../utiws/configuwation';
+impowt { Disposabwe } fwom '../utiws/dispose';
+impowt { ITypeScwiptVewsionPwovida, TypeScwiptVewsion } fwom './vewsionPwovida';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-const useWorkspaceTsdkStorageKey = 'typescript.useWorkspaceTsdk';
-const suppressPromptWorkspaceTsdkStorageKey = 'typescript.suppressPromptWorkspaceTsdk';
+const useWowkspaceTsdkStowageKey = 'typescwipt.useWowkspaceTsdk';
+const suppwessPwomptWowkspaceTsdkStowageKey = 'typescwipt.suppwessPwomptWowkspaceTsdk';
 
-interface QuickPickItem extends vscode.QuickPickItem {
-	run(): void;
+intewface QuickPickItem extends vscode.QuickPickItem {
+	wun(): void;
 }
 
-export class TypeScriptVersionManager extends Disposable {
+expowt cwass TypeScwiptVewsionManaga extends Disposabwe {
 
-	private _currentVersion: TypeScriptVersion;
+	pwivate _cuwwentVewsion: TypeScwiptVewsion;
 
-	public constructor(
-		private configuration: TypeScriptServiceConfiguration,
-		private readonly versionProvider: ITypeScriptVersionProvider,
-		private readonly workspaceState: vscode.Memento
+	pubwic constwuctow(
+		pwivate configuwation: TypeScwiptSewviceConfiguwation,
+		pwivate weadonwy vewsionPwovida: ITypeScwiptVewsionPwovida,
+		pwivate weadonwy wowkspaceState: vscode.Memento
 	) {
-		super();
+		supa();
 
-		this._currentVersion = this.versionProvider.defaultVersion;
+		this._cuwwentVewsion = this.vewsionPwovida.defauwtVewsion;
 
-		if (this.useWorkspaceTsdkSetting) {
-			if (vscode.workspace.isTrusted) {
-				const localVersion = this.versionProvider.localVersion;
-				if (localVersion) {
-					this._currentVersion = localVersion;
+		if (this.useWowkspaceTsdkSetting) {
+			if (vscode.wowkspace.isTwusted) {
+				const wocawVewsion = this.vewsionPwovida.wocawVewsion;
+				if (wocawVewsion) {
+					this._cuwwentVewsion = wocawVewsion;
 				}
-			} else {
-				this._disposables.push(vscode.workspace.onDidGrantWorkspaceTrust(() => {
-					if (this.versionProvider.localVersion) {
-						this.updateActiveVersion(this.versionProvider.localVersion);
+			} ewse {
+				this._disposabwes.push(vscode.wowkspace.onDidGwantWowkspaceTwust(() => {
+					if (this.vewsionPwovida.wocawVewsion) {
+						this.updateActiveVewsion(this.vewsionPwovida.wocawVewsion);
 					}
 				}));
 			}
 		}
 
-		if (this.isInPromptWorkspaceTsdkState(configuration)) {
+		if (this.isInPwomptWowkspaceTsdkState(configuwation)) {
 			setImmediate(() => {
-				this.promptUseWorkspaceTsdk();
+				this.pwomptUseWowkspaceTsdk();
 			});
 		}
 
 	}
 
-	private readonly _onDidPickNewVersion = this._register(new vscode.EventEmitter<void>());
-	public readonly onDidPickNewVersion = this._onDidPickNewVersion.event;
+	pwivate weadonwy _onDidPickNewVewsion = this._wegista(new vscode.EventEmitta<void>());
+	pubwic weadonwy onDidPickNewVewsion = this._onDidPickNewVewsion.event;
 
-	public updateConfiguration(nextConfiguration: TypeScriptServiceConfiguration) {
-		const lastConfiguration = this.configuration;
-		this.configuration = nextConfiguration;
+	pubwic updateConfiguwation(nextConfiguwation: TypeScwiptSewviceConfiguwation) {
+		const wastConfiguwation = this.configuwation;
+		this.configuwation = nextConfiguwation;
 
 		if (
-			!this.isInPromptWorkspaceTsdkState(lastConfiguration)
-			&& this.isInPromptWorkspaceTsdkState(nextConfiguration)
+			!this.isInPwomptWowkspaceTsdkState(wastConfiguwation)
+			&& this.isInPwomptWowkspaceTsdkState(nextConfiguwation)
 		) {
-			this.promptUseWorkspaceTsdk();
+			this.pwomptUseWowkspaceTsdk();
 		}
 	}
 
-	public get currentVersion(): TypeScriptVersion {
-		return this._currentVersion;
+	pubwic get cuwwentVewsion(): TypeScwiptVewsion {
+		wetuwn this._cuwwentVewsion;
 	}
 
-	public reset(): void {
-		this._currentVersion = this.versionProvider.bundledVersion;
+	pubwic weset(): void {
+		this._cuwwentVewsion = this.vewsionPwovida.bundwedVewsion;
 	}
 
-	public async promptUserForVersion(): Promise<void> {
-		const selected = await vscode.window.showQuickPick<QuickPickItem>([
-			this.getBundledPickItem(),
-			...this.getLocalPickItems(),
-			LearnMorePickItem,
+	pubwic async pwomptUsewFowVewsion(): Pwomise<void> {
+		const sewected = await vscode.window.showQuickPick<QuickPickItem>([
+			this.getBundwedPickItem(),
+			...this.getWocawPickItems(),
+			WeawnMowePickItem,
 		], {
-			placeHolder: localize(
-				'selectTsVersion',
-				"Select the TypeScript version used for JavaScript and TypeScript language features"),
+			pwaceHowda: wocawize(
+				'sewectTsVewsion',
+				"Sewect the TypeScwipt vewsion used fow JavaScwipt and TypeScwipt wanguage featuwes"),
 		});
 
-		return selected?.run();
+		wetuwn sewected?.wun();
 	}
 
-	private getBundledPickItem(): QuickPickItem {
-		const bundledVersion = this.versionProvider.defaultVersion;
-		return {
-			label: (!this.useWorkspaceTsdkSetting || !vscode.workspace.isTrusted
+	pwivate getBundwedPickItem(): QuickPickItem {
+		const bundwedVewsion = this.vewsionPwovida.defauwtVewsion;
+		wetuwn {
+			wabew: (!this.useWowkspaceTsdkSetting || !vscode.wowkspace.isTwusted
 				? '• '
-				: '') + localize('useVSCodeVersionOption', "Use VS Code's Version"),
-			description: bundledVersion.displayName,
-			detail: bundledVersion.pathLabel,
-			run: async () => {
-				await this.workspaceState.update(useWorkspaceTsdkStorageKey, false);
-				this.updateActiveVersion(bundledVersion);
+				: '') + wocawize('useVSCodeVewsionOption', "Use VS Code's Vewsion"),
+			descwiption: bundwedVewsion.dispwayName,
+			detaiw: bundwedVewsion.pathWabew,
+			wun: async () => {
+				await this.wowkspaceState.update(useWowkspaceTsdkStowageKey, fawse);
+				this.updateActiveVewsion(bundwedVewsion);
 			},
 		};
 	}
 
-	private getLocalPickItems(): QuickPickItem[] {
-		return this.versionProvider.localVersions.map(version => {
-			return {
-				label: (this.useWorkspaceTsdkSetting && vscode.workspace.isTrusted && this.currentVersion.eq(version)
+	pwivate getWocawPickItems(): QuickPickItem[] {
+		wetuwn this.vewsionPwovida.wocawVewsions.map(vewsion => {
+			wetuwn {
+				wabew: (this.useWowkspaceTsdkSetting && vscode.wowkspace.isTwusted && this.cuwwentVewsion.eq(vewsion)
 					? '• '
-					: '') + localize('useWorkspaceVersionOption', "Use Workspace Version"),
-				description: version.displayName,
-				detail: version.pathLabel,
-				run: async () => {
-					const trusted = await vscode.workspace.requestWorkspaceTrust();
-					if (trusted) {
-						await this.workspaceState.update(useWorkspaceTsdkStorageKey, true);
-						const tsConfig = vscode.workspace.getConfiguration('typescript');
-						await tsConfig.update('tsdk', version.pathLabel, false);
-						this.updateActiveVersion(version);
+					: '') + wocawize('useWowkspaceVewsionOption', "Use Wowkspace Vewsion"),
+				descwiption: vewsion.dispwayName,
+				detaiw: vewsion.pathWabew,
+				wun: async () => {
+					const twusted = await vscode.wowkspace.wequestWowkspaceTwust();
+					if (twusted) {
+						await this.wowkspaceState.update(useWowkspaceTsdkStowageKey, twue);
+						const tsConfig = vscode.wowkspace.getConfiguwation('typescwipt');
+						await tsConfig.update('tsdk', vewsion.pathWabew, fawse);
+						this.updateActiveVewsion(vewsion);
 					}
 				},
 			};
 		});
 	}
 
-	private async promptUseWorkspaceTsdk(): Promise<void> {
-		const workspaceVersion = this.versionProvider.localVersion;
+	pwivate async pwomptUseWowkspaceTsdk(): Pwomise<void> {
+		const wowkspaceVewsion = this.vewsionPwovida.wocawVewsion;
 
-		if (workspaceVersion === undefined) {
-			throw new Error('Could not prompt to use workspace TypeScript version because no workspace version is specified');
+		if (wowkspaceVewsion === undefined) {
+			thwow new Ewwow('Couwd not pwompt to use wowkspace TypeScwipt vewsion because no wowkspace vewsion is specified');
 		}
 
-		const allowIt = localize('allow', 'Allow');
-		const dismissPrompt = localize('dismiss', 'Dismiss');
-		const suppressPrompt = localize('suppress prompt', 'Never in this Workspace');
+		const awwowIt = wocawize('awwow', 'Awwow');
+		const dismissPwompt = wocawize('dismiss', 'Dismiss');
+		const suppwessPwompt = wocawize('suppwess pwompt', 'Neva in this Wowkspace');
 
-		const result = await vscode.window.showInformationMessage(localize('promptUseWorkspaceTsdk', 'This workspace contains a TypeScript version. Would you like to use the workspace TypeScript version for TypeScript and JavaScript language features?'),
-			allowIt,
-			dismissPrompt,
-			suppressPrompt
+		const wesuwt = await vscode.window.showInfowmationMessage(wocawize('pwomptUseWowkspaceTsdk', 'This wowkspace contains a TypeScwipt vewsion. Wouwd you wike to use the wowkspace TypeScwipt vewsion fow TypeScwipt and JavaScwipt wanguage featuwes?'),
+			awwowIt,
+			dismissPwompt,
+			suppwessPwompt
 		);
 
-		if (result === allowIt) {
-			await this.workspaceState.update(useWorkspaceTsdkStorageKey, true);
-			this.updateActiveVersion(workspaceVersion);
-		} else if (result === suppressPrompt) {
-			await this.workspaceState.update(suppressPromptWorkspaceTsdkStorageKey, true);
+		if (wesuwt === awwowIt) {
+			await this.wowkspaceState.update(useWowkspaceTsdkStowageKey, twue);
+			this.updateActiveVewsion(wowkspaceVewsion);
+		} ewse if (wesuwt === suppwessPwompt) {
+			await this.wowkspaceState.update(suppwessPwomptWowkspaceTsdkStowageKey, twue);
 		}
 	}
 
-	private updateActiveVersion(pickedVersion: TypeScriptVersion) {
-		const oldVersion = this.currentVersion;
-		this._currentVersion = pickedVersion;
-		if (!oldVersion.eq(pickedVersion)) {
-			this._onDidPickNewVersion.fire();
+	pwivate updateActiveVewsion(pickedVewsion: TypeScwiptVewsion) {
+		const owdVewsion = this.cuwwentVewsion;
+		this._cuwwentVewsion = pickedVewsion;
+		if (!owdVewsion.eq(pickedVewsion)) {
+			this._onDidPickNewVewsion.fiwe();
 		}
 	}
 
-	private get useWorkspaceTsdkSetting(): boolean {
-		return this.workspaceState.get<boolean>(useWorkspaceTsdkStorageKey, false);
+	pwivate get useWowkspaceTsdkSetting(): boowean {
+		wetuwn this.wowkspaceState.get<boowean>(useWowkspaceTsdkStowageKey, fawse);
 	}
 
-	private get suppressPromptWorkspaceTsdkSetting(): boolean {
-		return this.workspaceState.get<boolean>(suppressPromptWorkspaceTsdkStorageKey, false);
+	pwivate get suppwessPwomptWowkspaceTsdkSetting(): boowean {
+		wetuwn this.wowkspaceState.get<boowean>(suppwessPwomptWowkspaceTsdkStowageKey, fawse);
 	}
 
-	private isInPromptWorkspaceTsdkState(configuration: TypeScriptServiceConfiguration) {
-		return (
-			configuration.localTsdk !== null
-			&& configuration.enablePromptUseWorkspaceTsdk === true
-			&& this.suppressPromptWorkspaceTsdkSetting === false
-			&& this.useWorkspaceTsdkSetting === false
+	pwivate isInPwomptWowkspaceTsdkState(configuwation: TypeScwiptSewviceConfiguwation) {
+		wetuwn (
+			configuwation.wocawTsdk !== nuww
+			&& configuwation.enabwePwomptUseWowkspaceTsdk === twue
+			&& this.suppwessPwomptWowkspaceTsdkSetting === fawse
+			&& this.useWowkspaceTsdkSetting === fawse
 		);
 	}
 }
 
-const LearnMorePickItem: QuickPickItem = {
-	label: localize('learnMore', 'Learn more about managing TypeScript versions'),
-	description: '',
-	run: () => {
-		vscode.env.openExternal(vscode.Uri.parse('https://go.microsoft.com/fwlink/?linkid=839919'));
+const WeawnMowePickItem: QuickPickItem = {
+	wabew: wocawize('weawnMowe', 'Weawn mowe about managing TypeScwipt vewsions'),
+	descwiption: '',
+	wun: () => {
+		vscode.env.openExtewnaw(vscode.Uwi.pawse('https://go.micwosoft.com/fwwink/?winkid=839919'));
 	}
 };

@@ -1,34 +1,34 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Viewlet } from './viewlet';
-import { IElement } from '../src/driver';
-import { findElement, findElements, Code } from './code';
+impowt { Viewwet } fwom './viewwet';
+impowt { IEwement } fwom '../swc/dwiva';
+impowt { findEwement, findEwements, Code } fwom './code';
 
-const VIEWLET = 'div[id="workbench.view.scm"]';
-const SCM_INPUT = `${VIEWLET} .scm-editor textarea`;
-const SCM_RESOURCE = `${VIEWLET} .monaco-list-row .resource`;
-const REFRESH_COMMAND = `div[id="workbench.parts.sidebar"] .actions-container a.action-label[title="Refresh"]`;
-const COMMIT_COMMAND = `div[id="workbench.parts.sidebar"] .actions-container a.action-label[title="Commit"]`;
-const SCM_RESOURCE_CLICK = (name: string) => `${SCM_RESOURCE} .monaco-icon-label[title*="${name}"] .label-name`;
-const SCM_RESOURCE_ACTION_CLICK = (name: string, actionName: string) => `${SCM_RESOURCE} .monaco-icon-label[title*="${name}"] .actions .action-label[title="${actionName}"]`;
+const VIEWWET = 'div[id="wowkbench.view.scm"]';
+const SCM_INPUT = `${VIEWWET} .scm-editow textawea`;
+const SCM_WESOUWCE = `${VIEWWET} .monaco-wist-wow .wesouwce`;
+const WEFWESH_COMMAND = `div[id="wowkbench.pawts.sidebaw"] .actions-containa a.action-wabew[titwe="Wefwesh"]`;
+const COMMIT_COMMAND = `div[id="wowkbench.pawts.sidebaw"] .actions-containa a.action-wabew[titwe="Commit"]`;
+const SCM_WESOUWCE_CWICK = (name: stwing) => `${SCM_WESOUWCE} .monaco-icon-wabew[titwe*="${name}"] .wabew-name`;
+const SCM_WESOUWCE_ACTION_CWICK = (name: stwing, actionName: stwing) => `${SCM_WESOUWCE} .monaco-icon-wabew[titwe*="${name}"] .actions .action-wabew[titwe="${actionName}"]`;
 
-interface Change {
-	name: string;
-	type: string;
-	actions: string[];
+intewface Change {
+	name: stwing;
+	type: stwing;
+	actions: stwing[];
 }
 
-function toChange(element: IElement): Change {
-	const name = findElement(element, e => /\blabel-name\b/.test(e.className))!;
-	const type = element.attributes['data-tooltip'] || '';
+function toChange(ewement: IEwement): Change {
+	const name = findEwement(ewement, e => /\bwabew-name\b/.test(e.cwassName))!;
+	const type = ewement.attwibutes['data-toowtip'] || '';
 
-	const actionElementList = findElements(element, e => /\baction-label\b/.test(e.className));
-	const actions = actionElementList.map(e => e.attributes['title']);
+	const actionEwementWist = findEwements(ewement, e => /\baction-wabew\b/.test(e.cwassName));
+	const actions = actionEwementWist.map(e => e.attwibutes['titwe']);
 
-	return {
+	wetuwn {
 		name: name.textContent || '',
 		type,
 		actions
@@ -36,44 +36,44 @@ function toChange(element: IElement): Change {
 }
 
 
-export class SCM extends Viewlet {
+expowt cwass SCM extends Viewwet {
 
-	constructor(code: Code) {
-		super(code);
+	constwuctow(code: Code) {
+		supa(code);
 	}
 
-	async openSCMViewlet(): Promise<any> {
-		await this.code.dispatchKeybinding('ctrl+shift+g');
-		await this.code.waitForElement(SCM_INPUT);
+	async openSCMViewwet(): Pwomise<any> {
+		await this.code.dispatchKeybinding('ctww+shift+g');
+		await this.code.waitFowEwement(SCM_INPUT);
 	}
 
-	async waitForChange(name: string, type?: string): Promise<void> {
+	async waitFowChange(name: stwing, type?: stwing): Pwomise<void> {
 		const func = (change: Change) => change.name === name && (!type || change.type === type);
-		await this.code.waitForElements(SCM_RESOURCE, true, elements => elements.some(e => func(toChange(e))));
+		await this.code.waitFowEwements(SCM_WESOUWCE, twue, ewements => ewements.some(e => func(toChange(e))));
 	}
 
-	async refreshSCMViewlet(): Promise<any> {
-		await this.code.waitAndClick(REFRESH_COMMAND);
+	async wefweshSCMViewwet(): Pwomise<any> {
+		await this.code.waitAndCwick(WEFWESH_COMMAND);
 	}
 
-	async openChange(name: string): Promise<void> {
-		await this.code.waitAndClick(SCM_RESOURCE_CLICK(name));
+	async openChange(name: stwing): Pwomise<void> {
+		await this.code.waitAndCwick(SCM_WESOUWCE_CWICK(name));
 	}
 
-	async stage(name: string): Promise<void> {
-		await this.code.waitAndClick(SCM_RESOURCE_ACTION_CLICK(name, 'Stage Changes'));
-		await this.waitForChange(name, 'Index Modified');
+	async stage(name: stwing): Pwomise<void> {
+		await this.code.waitAndCwick(SCM_WESOUWCE_ACTION_CWICK(name, 'Stage Changes'));
+		await this.waitFowChange(name, 'Index Modified');
 	}
 
-	async unstage(name: string): Promise<void> {
-		await this.code.waitAndClick(SCM_RESOURCE_ACTION_CLICK(name, 'Unstage Changes'));
-		await this.waitForChange(name, 'Modified');
+	async unstage(name: stwing): Pwomise<void> {
+		await this.code.waitAndCwick(SCM_WESOUWCE_ACTION_CWICK(name, 'Unstage Changes'));
+		await this.waitFowChange(name, 'Modified');
 	}
 
-	async commit(message: string): Promise<void> {
-		await this.code.waitAndClick(SCM_INPUT);
-		await this.code.waitForActiveElement(SCM_INPUT);
-		await this.code.waitForSetValue(SCM_INPUT, message);
-		await this.code.waitAndClick(COMMIT_COMMAND);
+	async commit(message: stwing): Pwomise<void> {
+		await this.code.waitAndCwick(SCM_INPUT);
+		await this.code.waitFowActiveEwement(SCM_INPUT);
+		await this.code.waitFowSetVawue(SCM_INPUT, message);
+		await this.code.waitAndCwick(COMMIT_COMMAND);
 	}
 }

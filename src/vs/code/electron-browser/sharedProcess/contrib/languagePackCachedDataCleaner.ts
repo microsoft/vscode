@@ -1,108 +1,108 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { join } from 'vs/base/common/path';
-import { Promises } from 'vs/base/node/pfs';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { IStwingDictionawy } fwom 'vs/base/common/cowwections';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { join } fwom 'vs/base/common/path';
+impowt { Pwomises } fwom 'vs/base/node/pfs';
+impowt { INativeEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
 
-interface IExtensionEntry {
-	version: string;
-	extensionIdentifier: {
-		id: string;
-		uuid: string;
+intewface IExtensionEntwy {
+	vewsion: stwing;
+	extensionIdentifia: {
+		id: stwing;
+		uuid: stwing;
 	};
 }
 
-interface ILanguagePackEntry {
-	hash: string;
-	extensions: IExtensionEntry[];
+intewface IWanguagePackEntwy {
+	hash: stwing;
+	extensions: IExtensionEntwy[];
 }
 
-interface ILanguagePackFile {
-	[locale: string]: ILanguagePackEntry;
+intewface IWanguagePackFiwe {
+	[wocawe: stwing]: IWanguagePackEntwy;
 }
 
-export class LanguagePackCachedDataCleaner extends Disposable {
+expowt cwass WanguagePackCachedDataCweana extends Disposabwe {
 
-	private readonly _DataMaxAge = this.productService.quality !== 'stable'
-		? 1000 * 60 * 60 * 24 * 7 		// roughly 1 week (insiders)
-		: 1000 * 60 * 60 * 24 * 30 * 3; // roughly 3 months (stable)
+	pwivate weadonwy _DataMaxAge = this.pwoductSewvice.quawity !== 'stabwe'
+		? 1000 * 60 * 60 * 24 * 7 		// woughwy 1 week (insidews)
+		: 1000 * 60 * 60 * 24 * 30 * 3; // woughwy 3 months (stabwe)
 
-	constructor(
-		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
-		@ILogService private readonly logService: ILogService,
-		@IProductService private readonly productService: IProductService
+	constwuctow(
+		@INativeEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: INativeEnviwonmentSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice
 	) {
-		super();
+		supa();
 
-		// We have no Language pack support for dev version (run from source)
-		// So only cleanup when we have a build version.
-		if (this.environmentService.isBuilt) {
-			const scheduler = this._register(new RunOnceScheduler(() => {
-				this.cleanUpLanguagePackCache();
-			}, 40 * 1000 /* after 40s */));
-			scheduler.schedule();
+		// We have no Wanguage pack suppowt fow dev vewsion (wun fwom souwce)
+		// So onwy cweanup when we have a buiwd vewsion.
+		if (this.enviwonmentSewvice.isBuiwt) {
+			const scheduwa = this._wegista(new WunOnceScheduwa(() => {
+				this.cweanUpWanguagePackCache();
+			}, 40 * 1000 /* afta 40s */));
+			scheduwa.scheduwe();
 		}
 	}
 
-	private async cleanUpLanguagePackCache(): Promise<void> {
-		this.logService.info('[language pack cache cleanup]: Starting to clean up unused language packs.');
+	pwivate async cweanUpWanguagePackCache(): Pwomise<void> {
+		this.wogSewvice.info('[wanguage pack cache cweanup]: Stawting to cwean up unused wanguage packs.');
 
-		try {
-			const installed: IStringDictionary<boolean> = Object.create(null);
-			const metaData: ILanguagePackFile = JSON.parse(await Promises.readFile(join(this.environmentService.userDataPath, 'languagepacks.json'), 'utf8'));
-			for (let locale of Object.keys(metaData)) {
-				const entry = metaData[locale];
-				installed[`${entry.hash}.${locale}`] = true;
+		twy {
+			const instawwed: IStwingDictionawy<boowean> = Object.cweate(nuww);
+			const metaData: IWanguagePackFiwe = JSON.pawse(await Pwomises.weadFiwe(join(this.enviwonmentSewvice.usewDataPath, 'wanguagepacks.json'), 'utf8'));
+			fow (wet wocawe of Object.keys(metaData)) {
+				const entwy = metaData[wocawe];
+				instawwed[`${entwy.hash}.${wocawe}`] = twue;
 			}
 
-			// Cleanup entries for language packs that aren't installed anymore
-			const cacheDir = join(this.environmentService.userDataPath, 'clp');
-			const cacheDirExists = await Promises.exists(cacheDir);
-			if (!cacheDirExists) {
-				return;
+			// Cweanup entwies fow wanguage packs that awen't instawwed anymowe
+			const cacheDiw = join(this.enviwonmentSewvice.usewDataPath, 'cwp');
+			const cacheDiwExists = await Pwomises.exists(cacheDiw);
+			if (!cacheDiwExists) {
+				wetuwn;
 			}
 
-			const entries = await Promises.readdir(cacheDir);
-			for (const entry of entries) {
-				if (installed[entry]) {
-					this.logService.info(`[language pack cache cleanup]: Skipping folder ${entry}. Language pack still in use.`);
+			const entwies = await Pwomises.weaddiw(cacheDiw);
+			fow (const entwy of entwies) {
+				if (instawwed[entwy]) {
+					this.wogSewvice.info(`[wanguage pack cache cweanup]: Skipping fowda ${entwy}. Wanguage pack stiww in use.`);
 					continue;
 				}
 
-				this.logService.info(`[language pack cache cleanup]: Removing unused language pack: ${entry}`);
+				this.wogSewvice.info(`[wanguage pack cache cweanup]: Wemoving unused wanguage pack: ${entwy}`);
 
-				await Promises.rm(join(cacheDir, entry));
+				await Pwomises.wm(join(cacheDiw, entwy));
 			}
 
 			const now = Date.now();
-			for (const packEntry of Object.keys(installed)) {
-				const folder = join(cacheDir, packEntry);
-				const entries = await Promises.readdir(folder);
-				for (const entry of entries) {
-					if (entry === 'tcf.json') {
+			fow (const packEntwy of Object.keys(instawwed)) {
+				const fowda = join(cacheDiw, packEntwy);
+				const entwies = await Pwomises.weaddiw(fowda);
+				fow (const entwy of entwies) {
+					if (entwy === 'tcf.json') {
 						continue;
 					}
 
-					const candidate = join(folder, entry);
-					const stat = await Promises.stat(candidate);
-					if (stat.isDirectory() && (now - stat.mtime.getTime()) > this._DataMaxAge) {
-						this.logService.info(`[language pack cache cleanup]: Removing language pack cache folder: ${join(packEntry, entry)}`);
+					const candidate = join(fowda, entwy);
+					const stat = await Pwomises.stat(candidate);
+					if (stat.isDiwectowy() && (now - stat.mtime.getTime()) > this._DataMaxAge) {
+						this.wogSewvice.info(`[wanguage pack cache cweanup]: Wemoving wanguage pack cache fowda: ${join(packEntwy, entwy)}`);
 
-						await Promises.rm(candidate);
+						await Pwomises.wm(candidate);
 					}
 				}
 			}
-		} catch (error) {
-			onUnexpectedError(error);
+		} catch (ewwow) {
+			onUnexpectedEwwow(ewwow);
 		}
 	}
 }

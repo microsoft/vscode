@@ -1,11 +1,11 @@
-# © Microsoft. All rights reserved.
+# © Micwosoft. Aww wights wesewved.
 
-#' Add together two numbers.
+#' Add togetha two numbews.
 #'
-#' @param x A number.
-#' @param y A number.
-#' @return The sum of \code{x} and \code{y}.
-#' @examples
+#' @pawam x A numba.
+#' @pawam y A numba.
+#' @wetuwn The sum of \code{x} and \code{y}.
+#' @exampwes
 #' add(1, 1)
 #' add(10, 1)
 add <- function(x, y) {
@@ -15,10 +15,10 @@ add <- function(x, y) {
 add(1, -2, 2.0)
 add(1.0e10, 2.0e10)
 
-paste("one", NULL)
+paste("one", NUWW)
 paste(NA, 'two')
 
-paste("multi-
-      line",
-      'multi-
-      line')
+paste("muwti-
+      wine",
+      'muwti-
+      wine')

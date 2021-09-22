@@ -1,434 +1,434 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { dispose } from 'vs/base/common/lifecycle';
-import * as UUID from 'vs/base/common/uuid';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { CellEditState, CellFindMatch, CodeCellLayoutChangeEvent, CodeCellLayoutInfo, CellLayoutState, ICellOutputViewModel, ICellViewModel, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/cellOutputViewModel';
-import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, INotebookSearchOptions, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookKeymapService } from 'vs/workbench/contrib/notebook/common/notebookKeymapService';
-import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/common/notebookOptions';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { BaseCellViewModel } from './baseCellViewModel';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { dispose } fwom 'vs/base/common/wifecycwe';
+impowt * as UUID fwom 'vs/base/common/uuid';
+impowt * as editowCommon fwom 'vs/editow/common/editowCommon';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { PwefixSumComputa } fwom 'vs/editow/common/viewModew/pwefixSumComputa';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IUndoWedoSewvice } fwom 'vs/pwatfowm/undoWedo/common/undoWedo';
+impowt { CewwEditState, CewwFindMatch, CodeCewwWayoutChangeEvent, CodeCewwWayoutInfo, CewwWayoutState, ICewwOutputViewModew, ICewwViewModew, NotebookWayoutInfo } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { CewwOutputViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/cewwOutputViewModew';
+impowt { ViewContext } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/viewContext';
+impowt { NotebookCewwTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookCewwTextModew';
+impowt { CewwKind, INotebookSeawchOptions, NotebookCewwOutputsSpwice } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { INotebookKeymapSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookKeymapSewvice';
+impowt { NotebookOptionsChangeEvent } fwom 'vs/wowkbench/contwib/notebook/common/notebookOptions';
+impowt { INotebookSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookSewvice';
+impowt { BaseCewwViewModew } fwom './baseCewwViewModew';
 
-export class CodeCellViewModel extends BaseCellViewModel implements ICellViewModel {
-	readonly cellKind = CellKind.Code;
-	protected readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice>());
-	readonly onDidChangeOutputs = this._onDidChangeOutputs.event;
+expowt cwass CodeCewwViewModew extends BaseCewwViewModew impwements ICewwViewModew {
+	weadonwy cewwKind = CewwKind.Code;
+	pwotected weadonwy _onDidChangeOutputs = this._wegista(new Emitta<NotebookCewwOutputsSpwice>());
+	weadonwy onDidChangeOutputs = this._onDidChangeOutputs.event;
 
-	private readonly _onDidRemoveOutputs = this._register(new Emitter<readonly ICellOutputViewModel[]>());
-	readonly onDidRemoveOutputs = this._onDidRemoveOutputs.event;
+	pwivate weadonwy _onDidWemoveOutputs = this._wegista(new Emitta<weadonwy ICewwOutputViewModew[]>());
+	weadonwy onDidWemoveOutputs = this._onDidWemoveOutputs.event;
 
-	private readonly _onDidHideInput = this._register(new Emitter<void>());
-	readonly onDidHideInput = this._onDidHideInput.event;
+	pwivate weadonwy _onDidHideInput = this._wegista(new Emitta<void>());
+	weadonwy onDidHideInput = this._onDidHideInput.event;
 
-	private readonly _onDidHideOutputs = this._register(new Emitter<readonly ICellOutputViewModel[]>());
-	readonly onDidHideOutputs = this._onDidHideOutputs.event;
+	pwivate weadonwy _onDidHideOutputs = this._wegista(new Emitta<weadonwy ICewwOutputViewModew[]>());
+	weadonwy onDidHideOutputs = this._onDidHideOutputs.event;
 
-	private _outputCollection: number[] = [];
+	pwivate _outputCowwection: numba[] = [];
 
-	private _outputsTop: PrefixSumComputer | null = null;
+	pwivate _outputsTop: PwefixSumComputa | nuww = nuww;
 
-	protected readonly _onDidChangeLayout = this._register(new Emitter<CodeCellLayoutChangeEvent>());
-	readonly onDidChangeLayout = this._onDidChangeLayout.event;
+	pwotected weadonwy _onDidChangeWayout = this._wegista(new Emitta<CodeCewwWayoutChangeEvent>());
+	weadonwy onDidChangeWayout = this._onDidChangeWayout.event;
 
-	private _editorHeight = 0;
-	set editorHeight(height: number) {
-		this._editorHeight = height;
+	pwivate _editowHeight = 0;
+	set editowHeight(height: numba) {
+		this._editowHeight = height;
 
-		this.layoutChange({ editorHeight: true }, 'CodeCellViewModel#editorHeight');
+		this.wayoutChange({ editowHeight: twue }, 'CodeCewwViewModew#editowHeight');
 	}
 
-	get editorHeight() {
-		throw new Error('editorHeight is write-only');
+	get editowHeight() {
+		thwow new Ewwow('editowHeight is wwite-onwy');
 	}
 
-	private _hoveringOutput: boolean = false;
-	public get outputIsHovered(): boolean {
-		return this._hoveringOutput;
+	pwivate _hovewingOutput: boowean = fawse;
+	pubwic get outputIsHovewed(): boowean {
+		wetuwn this._hovewingOutput;
 	}
 
-	public set outputIsHovered(v: boolean) {
-		this._hoveringOutput = v;
-		this._onDidChangeState.fire({ outputIsHoveredChanged: true });
+	pubwic set outputIsHovewed(v: boowean) {
+		this._hovewingOutput = v;
+		this._onDidChangeState.fiwe({ outputIsHovewedChanged: twue });
 	}
 
-	private _focusOnOutput: boolean = false;
-	public get outputIsFocused(): boolean {
-		return this._focusOnOutput;
+	pwivate _focusOnOutput: boowean = fawse;
+	pubwic get outputIsFocused(): boowean {
+		wetuwn this._focusOnOutput;
 	}
 
-	public set outputIsFocused(v: boolean) {
+	pubwic set outputIsFocused(v: boowean) {
 		this._focusOnOutput = v;
-		this._onDidChangeState.fire({ outputIsFocusedChanged: true });
+		this._onDidChangeState.fiwe({ outputIsFocusedChanged: twue });
 	}
 
-	private _outputMinHeight: number = 0;
+	pwivate _outputMinHeight: numba = 0;
 
-	private get outputMinHeight() {
-		return this._outputMinHeight;
+	pwivate get outputMinHeight() {
+		wetuwn this._outputMinHeight;
 	}
 
 	/**
-	 * The minimum height of the output region. It's only set to non-zero temporarily when replacing an output with a new one.
-	 * It's reset to 0 when the new output is rendered, or in one second.
+	 * The minimum height of the output wegion. It's onwy set to non-zewo tempowawiwy when wepwacing an output with a new one.
+	 * It's weset to 0 when the new output is wendewed, ow in one second.
 	 */
-	private set outputMinHeight(newMin: number) {
+	pwivate set outputMinHeight(newMin: numba) {
 		this._outputMinHeight = newMin;
 	}
 
-	private _layoutInfo: CodeCellLayoutInfo;
+	pwivate _wayoutInfo: CodeCewwWayoutInfo;
 
-	get layoutInfo() {
-		return this._layoutInfo;
+	get wayoutInfo() {
+		wetuwn this._wayoutInfo;
 	}
 
-	private _outputViewModels: ICellOutputViewModel[];
+	pwivate _outputViewModews: ICewwOutputViewModew[];
 
-	get outputsViewModels() {
-		return this._outputViewModels;
+	get outputsViewModews() {
+		wetuwn this._outputViewModews;
 	}
 
-	constructor(
-		viewType: string,
-		model: NotebookCellTextModel,
-		initialNotebookLayoutInfo: NotebookLayoutInfo | null,
-		readonly viewContext: ViewContext,
-		@IConfigurationService configurationService: IConfigurationService,
-		@INotebookService private readonly _notebookService: INotebookService,
-		@ITextModelService modelService: ITextModelService,
-		@IUndoRedoService undoRedoService: IUndoRedoService,
-		@INotebookKeymapService keymapService: INotebookKeymapService
+	constwuctow(
+		viewType: stwing,
+		modew: NotebookCewwTextModew,
+		initiawNotebookWayoutInfo: NotebookWayoutInfo | nuww,
+		weadonwy viewContext: ViewContext,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@INotebookSewvice pwivate weadonwy _notebookSewvice: INotebookSewvice,
+		@ITextModewSewvice modewSewvice: ITextModewSewvice,
+		@IUndoWedoSewvice undoWedoSewvice: IUndoWedoSewvice,
+		@INotebookKeymapSewvice keymapSewvice: INotebookKeymapSewvice
 	) {
-		super(viewType, model, UUID.generateUuid(), viewContext, configurationService, modelService, undoRedoService);
-		this._outputViewModels = this.model.outputs.map(output => new CellOutputViewModel(this, output, this._notebookService));
+		supa(viewType, modew, UUID.genewateUuid(), viewContext, configuwationSewvice, modewSewvice, undoWedoSewvice);
+		this._outputViewModews = this.modew.outputs.map(output => new CewwOutputViewModew(this, output, this._notebookSewvice));
 
-		this._register(this.model.onDidChangeOutputs((splice) => {
-			const removedOutputs: ICellOutputViewModel[] = [];
-			this._outputCollection.splice(splice.start, splice.deleteCount, ...splice.newOutputs.map(() => 0));
-			removedOutputs.push(...this._outputViewModels.splice(splice.start, splice.deleteCount, ...splice.newOutputs.map(output => new CellOutputViewModel(this, output, this._notebookService))));
+		this._wegista(this.modew.onDidChangeOutputs((spwice) => {
+			const wemovedOutputs: ICewwOutputViewModew[] = [];
+			this._outputCowwection.spwice(spwice.stawt, spwice.deweteCount, ...spwice.newOutputs.map(() => 0));
+			wemovedOutputs.push(...this._outputViewModews.spwice(spwice.stawt, spwice.deweteCount, ...spwice.newOutputs.map(output => new CewwOutputViewModew(this, output, this._notebookSewvice))));
 
-			this._outputsTop = null;
-			this._onDidChangeOutputs.fire(splice);
-			this._onDidRemoveOutputs.fire(removedOutputs);
-			this.layoutChange({ outputHeight: true }, 'CodeCellViewModel#model.onDidChangeOutputs');
-			dispose(removedOutputs);
+			this._outputsTop = nuww;
+			this._onDidChangeOutputs.fiwe(spwice);
+			this._onDidWemoveOutputs.fiwe(wemovedOutputs);
+			this.wayoutChange({ outputHeight: twue }, 'CodeCewwViewModew#modew.onDidChangeOutputs');
+			dispose(wemovedOutputs);
 		}));
 
-		this._register(this.model.onDidChangeMetadata(e => {
-			if (this.metadata.outputCollapsed) {
-				this._onDidHideOutputs.fire(this.outputsViewModels.slice(0));
+		this._wegista(this.modew.onDidChangeMetadata(e => {
+			if (this.metadata.outputCowwapsed) {
+				this._onDidHideOutputs.fiwe(this.outputsViewModews.swice(0));
 			}
 
-			if (this.metadata.inputCollapsed) {
-				this._onDidHideInput.fire();
+			if (this.metadata.inputCowwapsed) {
+				this._onDidHideInput.fiwe();
 			}
 		}));
 
-		this._outputCollection = new Array(this.model.outputs.length);
+		this._outputCowwection = new Awway(this.modew.outputs.wength);
 
-		this._layoutInfo = {
-			fontInfo: initialNotebookLayoutInfo?.fontInfo || null,
-			editorHeight: 0,
-			editorWidth: initialNotebookLayoutInfo
-				? this.viewContext.notebookOptions.computeCodeCellEditorWidth(initialNotebookLayoutInfo.width)
+		this._wayoutInfo = {
+			fontInfo: initiawNotebookWayoutInfo?.fontInfo || nuww,
+			editowHeight: 0,
+			editowWidth: initiawNotebookWayoutInfo
+				? this.viewContext.notebookOptions.computeCodeCewwEditowWidth(initiawNotebookWayoutInfo.width)
 				: 0,
-			outputContainerOffset: 0,
-			outputTotalHeight: 0,
-			outputShowMoreContainerHeight: 0,
-			outputShowMoreContainerOffset: 0,
-			totalHeight: this.computeTotalHeight(17, 0, 0),
-			indicatorHeight: 0,
-			bottomToolbarOffset: 0,
-			layoutState: CellLayoutState.Uninitialized
+			outputContainewOffset: 0,
+			outputTotawHeight: 0,
+			outputShowMoweContainewHeight: 0,
+			outputShowMoweContainewOffset: 0,
+			totawHeight: this.computeTotawHeight(17, 0, 0),
+			indicatowHeight: 0,
+			bottomToowbawOffset: 0,
+			wayoutState: CewwWayoutState.Uninitiawized
 		};
 	}
 
 	updateOptions(e: NotebookOptionsChangeEvent) {
-		if (e.cellStatusBarVisibility || e.insertToolbarPosition || e.cellToolbarLocation) {
-			this.layoutChange({});
+		if (e.cewwStatusBawVisibiwity || e.insewtToowbawPosition || e.cewwToowbawWocation) {
+			this.wayoutChange({});
 		}
 	}
 
-	layoutChange(state: CodeCellLayoutChangeEvent, source?: string) {
-		// recompute
-		this._ensureOutputsTop();
-		const notebookLayoutConfiguration = this.viewContext.notebookOptions.getLayoutConfiguration();
-		const bottomToolbarDimensions = this.viewContext.notebookOptions.computeBottomToolbarDimensions();
-		const outputShowMoreContainerHeight = state.outputShowMoreContainerHeight ? state.outputShowMoreContainerHeight : this._layoutInfo.outputShowMoreContainerHeight;
-		let outputTotalHeight = Math.max(this._outputMinHeight, this.metadata.outputCollapsed ? notebookLayoutConfiguration.collapsedIndicatorHeight : this._outputsTop!.getTotalSum());
+	wayoutChange(state: CodeCewwWayoutChangeEvent, souwce?: stwing) {
+		// wecompute
+		this._ensuweOutputsTop();
+		const notebookWayoutConfiguwation = this.viewContext.notebookOptions.getWayoutConfiguwation();
+		const bottomToowbawDimensions = this.viewContext.notebookOptions.computeBottomToowbawDimensions();
+		const outputShowMoweContainewHeight = state.outputShowMoweContainewHeight ? state.outputShowMoweContainewHeight : this._wayoutInfo.outputShowMoweContainewHeight;
+		wet outputTotawHeight = Math.max(this._outputMinHeight, this.metadata.outputCowwapsed ? notebookWayoutConfiguwation.cowwapsedIndicatowHeight : this._outputsTop!.getTotawSum());
 
-		const originalLayout = this.layoutInfo;
-		if (!this.metadata.inputCollapsed) {
-			let newState: CellLayoutState;
-			let editorHeight: number;
-			let totalHeight: number;
-			if (!state.editorHeight && this._layoutInfo.layoutState === CellLayoutState.FromCache && !state.outputHeight) {
-				// No new editorHeight info - keep cached totalHeight and estimate editorHeight
-				editorHeight = this.estimateEditorHeight(state.font?.lineHeight ?? this._layoutInfo.fontInfo?.lineHeight);
-				totalHeight = this._layoutInfo.totalHeight;
-				newState = CellLayoutState.FromCache;
-			} else if (state.editorHeight || this._layoutInfo.layoutState === CellLayoutState.Measured) {
-				// Editor has been measured
-				editorHeight = this._editorHeight;
-				totalHeight = this.computeTotalHeight(this._editorHeight, outputTotalHeight, outputShowMoreContainerHeight);
-				newState = CellLayoutState.Measured;
-			} else {
-				editorHeight = this.estimateEditorHeight(state.font?.lineHeight ?? this._layoutInfo.fontInfo?.lineHeight);
-				totalHeight = this.computeTotalHeight(editorHeight, outputTotalHeight, outputShowMoreContainerHeight);
-				newState = CellLayoutState.Estimated;
+		const owiginawWayout = this.wayoutInfo;
+		if (!this.metadata.inputCowwapsed) {
+			wet newState: CewwWayoutState;
+			wet editowHeight: numba;
+			wet totawHeight: numba;
+			if (!state.editowHeight && this._wayoutInfo.wayoutState === CewwWayoutState.FwomCache && !state.outputHeight) {
+				// No new editowHeight info - keep cached totawHeight and estimate editowHeight
+				editowHeight = this.estimateEditowHeight(state.font?.wineHeight ?? this._wayoutInfo.fontInfo?.wineHeight);
+				totawHeight = this._wayoutInfo.totawHeight;
+				newState = CewwWayoutState.FwomCache;
+			} ewse if (state.editowHeight || this._wayoutInfo.wayoutState === CewwWayoutState.Measuwed) {
+				// Editow has been measuwed
+				editowHeight = this._editowHeight;
+				totawHeight = this.computeTotawHeight(this._editowHeight, outputTotawHeight, outputShowMoweContainewHeight);
+				newState = CewwWayoutState.Measuwed;
+			} ewse {
+				editowHeight = this.estimateEditowHeight(state.font?.wineHeight ?? this._wayoutInfo.fontInfo?.wineHeight);
+				totawHeight = this.computeTotawHeight(editowHeight, outputTotawHeight, outputShowMoweContainewHeight);
+				newState = CewwWayoutState.Estimated;
 			}
 
-			const statusbarHeight = this.viewContext.notebookOptions.computeEditorStatusbarHeight(this.internalMetadata);
-			const indicatorHeight = editorHeight + statusbarHeight + outputTotalHeight + outputShowMoreContainerHeight;
-			const outputContainerOffset = notebookLayoutConfiguration.editorToolbarHeight
-				+ notebookLayoutConfiguration.cellTopMargin // CELL_TOP_MARGIN
-				+ editorHeight
-				+ statusbarHeight;
-			const outputShowMoreContainerOffset = totalHeight
-				- bottomToolbarDimensions.bottomToolbarGap
-				- bottomToolbarDimensions.bottomToolbarHeight / 2
-				- outputShowMoreContainerHeight;
-			const bottomToolbarOffset = this.viewContext.notebookOptions.computeBottomToolbarOffset(totalHeight, this.viewType);
-			const editorWidth = state.outerWidth !== undefined
-				? this.viewContext.notebookOptions.computeCodeCellEditorWidth(state.outerWidth)
-				: this._layoutInfo?.editorWidth;
+			const statusbawHeight = this.viewContext.notebookOptions.computeEditowStatusbawHeight(this.intewnawMetadata);
+			const indicatowHeight = editowHeight + statusbawHeight + outputTotawHeight + outputShowMoweContainewHeight;
+			const outputContainewOffset = notebookWayoutConfiguwation.editowToowbawHeight
+				+ notebookWayoutConfiguwation.cewwTopMawgin // CEWW_TOP_MAWGIN
+				+ editowHeight
+				+ statusbawHeight;
+			const outputShowMoweContainewOffset = totawHeight
+				- bottomToowbawDimensions.bottomToowbawGap
+				- bottomToowbawDimensions.bottomToowbawHeight / 2
+				- outputShowMoweContainewHeight;
+			const bottomToowbawOffset = this.viewContext.notebookOptions.computeBottomToowbawOffset(totawHeight, this.viewType);
+			const editowWidth = state.outewWidth !== undefined
+				? this.viewContext.notebookOptions.computeCodeCewwEditowWidth(state.outewWidth)
+				: this._wayoutInfo?.editowWidth;
 
-			this._layoutInfo = {
-				fontInfo: state.font ?? this._layoutInfo.fontInfo ?? null,
-				editorHeight,
-				editorWidth,
-				outputContainerOffset,
-				outputTotalHeight,
-				outputShowMoreContainerHeight,
-				outputShowMoreContainerOffset,
-				totalHeight,
-				indicatorHeight,
-				bottomToolbarOffset,
-				layoutState: newState
+			this._wayoutInfo = {
+				fontInfo: state.font ?? this._wayoutInfo.fontInfo ?? nuww,
+				editowHeight,
+				editowWidth,
+				outputContainewOffset,
+				outputTotawHeight,
+				outputShowMoweContainewHeight,
+				outputShowMoweContainewOffset,
+				totawHeight,
+				indicatowHeight,
+				bottomToowbawOffset,
+				wayoutState: newState
 			};
-		} else {
-			const indicatorHeight = notebookLayoutConfiguration.collapsedIndicatorHeight + outputTotalHeight + outputShowMoreContainerHeight;
+		} ewse {
+			const indicatowHeight = notebookWayoutConfiguwation.cowwapsedIndicatowHeight + outputTotawHeight + outputShowMoweContainewHeight;
 
-			const outputContainerOffset = notebookLayoutConfiguration.cellTopMargin + notebookLayoutConfiguration.collapsedIndicatorHeight;
-			const totalHeight =
-				notebookLayoutConfiguration.cellTopMargin
-				+ notebookLayoutConfiguration.collapsedIndicatorHeight
-				+ notebookLayoutConfiguration.cellBottomMargin //CELL_BOTTOM_MARGIN
-				+ bottomToolbarDimensions.bottomToolbarGap //BOTTOM_CELL_TOOLBAR_GAP
-				+ outputTotalHeight + outputShowMoreContainerHeight;
-			const outputShowMoreContainerOffset = totalHeight
-				- bottomToolbarDimensions.bottomToolbarGap
-				- bottomToolbarDimensions.bottomToolbarHeight / 2
-				- outputShowMoreContainerHeight;
-			const bottomToolbarOffset = this.viewContext.notebookOptions.computeBottomToolbarOffset(totalHeight, this.viewType);
-			const editorWidth = state.outerWidth !== undefined
-				? this.viewContext.notebookOptions.computeCodeCellEditorWidth(state.outerWidth)
-				: this._layoutInfo?.editorWidth;
+			const outputContainewOffset = notebookWayoutConfiguwation.cewwTopMawgin + notebookWayoutConfiguwation.cowwapsedIndicatowHeight;
+			const totawHeight =
+				notebookWayoutConfiguwation.cewwTopMawgin
+				+ notebookWayoutConfiguwation.cowwapsedIndicatowHeight
+				+ notebookWayoutConfiguwation.cewwBottomMawgin //CEWW_BOTTOM_MAWGIN
+				+ bottomToowbawDimensions.bottomToowbawGap //BOTTOM_CEWW_TOOWBAW_GAP
+				+ outputTotawHeight + outputShowMoweContainewHeight;
+			const outputShowMoweContainewOffset = totawHeight
+				- bottomToowbawDimensions.bottomToowbawGap
+				- bottomToowbawDimensions.bottomToowbawHeight / 2
+				- outputShowMoweContainewHeight;
+			const bottomToowbawOffset = this.viewContext.notebookOptions.computeBottomToowbawOffset(totawHeight, this.viewType);
+			const editowWidth = state.outewWidth !== undefined
+				? this.viewContext.notebookOptions.computeCodeCewwEditowWidth(state.outewWidth)
+				: this._wayoutInfo?.editowWidth;
 
-			this._layoutInfo = {
-				fontInfo: state.font ?? this._layoutInfo.fontInfo ?? null,
-				editorHeight: this._layoutInfo.editorHeight,
-				editorWidth,
-				outputContainerOffset,
-				outputTotalHeight,
-				outputShowMoreContainerHeight,
-				outputShowMoreContainerOffset,
-				totalHeight,
-				indicatorHeight,
-				bottomToolbarOffset,
-				layoutState: this._layoutInfo.layoutState
+			this._wayoutInfo = {
+				fontInfo: state.font ?? this._wayoutInfo.fontInfo ?? nuww,
+				editowHeight: this._wayoutInfo.editowHeight,
+				editowWidth,
+				outputContainewOffset,
+				outputTotawHeight,
+				outputShowMoweContainewHeight,
+				outputShowMoweContainewOffset,
+				totawHeight,
+				indicatowHeight,
+				bottomToowbawOffset,
+				wayoutState: this._wayoutInfo.wayoutState
 			};
 		}
 
-		state.totalHeight = this.layoutInfo.totalHeight !== originalLayout.totalHeight;
-		state.source = source;
+		state.totawHeight = this.wayoutInfo.totawHeight !== owiginawWayout.totawHeight;
+		state.souwce = souwce;
 
-		this._fireOnDidChangeLayout(state);
+		this._fiweOnDidChangeWayout(state);
 	}
 
-	private _fireOnDidChangeLayout(state: CodeCellLayoutChangeEvent) {
-		this._onDidChangeLayout.fire(state);
+	pwivate _fiweOnDidChangeWayout(state: CodeCewwWayoutChangeEvent) {
+		this._onDidChangeWayout.fiwe(state);
 	}
 
-	override restoreEditorViewState(editorViewStates: editorCommon.ICodeEditorViewState | null, totalHeight?: number) {
-		super.restoreEditorViewState(editorViewStates);
-		if (totalHeight !== undefined && this._layoutInfo.layoutState !== CellLayoutState.Measured) {
-			this._layoutInfo = {
-				fontInfo: this._layoutInfo.fontInfo,
-				editorHeight: this._layoutInfo.editorHeight,
-				editorWidth: this._layoutInfo.editorWidth,
-				outputContainerOffset: this._layoutInfo.outputContainerOffset,
-				outputTotalHeight: this._layoutInfo.outputTotalHeight,
-				outputShowMoreContainerHeight: this._layoutInfo.outputShowMoreContainerHeight,
-				outputShowMoreContainerOffset: this._layoutInfo.outputShowMoreContainerOffset,
-				totalHeight: totalHeight,
-				indicatorHeight: this._layoutInfo.indicatorHeight,
-				bottomToolbarOffset: this._layoutInfo.bottomToolbarOffset,
-				layoutState: CellLayoutState.FromCache
+	ovewwide westoweEditowViewState(editowViewStates: editowCommon.ICodeEditowViewState | nuww, totawHeight?: numba) {
+		supa.westoweEditowViewState(editowViewStates);
+		if (totawHeight !== undefined && this._wayoutInfo.wayoutState !== CewwWayoutState.Measuwed) {
+			this._wayoutInfo = {
+				fontInfo: this._wayoutInfo.fontInfo,
+				editowHeight: this._wayoutInfo.editowHeight,
+				editowWidth: this._wayoutInfo.editowWidth,
+				outputContainewOffset: this._wayoutInfo.outputContainewOffset,
+				outputTotawHeight: this._wayoutInfo.outputTotawHeight,
+				outputShowMoweContainewHeight: this._wayoutInfo.outputShowMoweContainewHeight,
+				outputShowMoweContainewOffset: this._wayoutInfo.outputShowMoweContainewOffset,
+				totawHeight: totawHeight,
+				indicatowHeight: this._wayoutInfo.indicatowHeight,
+				bottomToowbawOffset: this._wayoutInfo.bottomToowbawOffset,
+				wayoutState: CewwWayoutState.FwomCache
 			};
 		}
 	}
 
 	hasDynamicHeight() {
-		// CodeCellVM always measures itself and controls its cell's height
-		return false;
+		// CodeCewwVM awways measuwes itsewf and contwows its ceww's height
+		wetuwn fawse;
 	}
 
-	firstLine(): string {
-		return this.getText().split('\n')[0];
+	fiwstWine(): stwing {
+		wetuwn this.getText().spwit('\n')[0];
 	}
 
-	getHeight(lineHeight: number) {
-		if (this._layoutInfo.layoutState === CellLayoutState.Uninitialized) {
-			const editorHeight = this.estimateEditorHeight(lineHeight);
-			return this.computeTotalHeight(editorHeight, 0, 0);
-		} else {
-			return this._layoutInfo.totalHeight;
+	getHeight(wineHeight: numba) {
+		if (this._wayoutInfo.wayoutState === CewwWayoutState.Uninitiawized) {
+			const editowHeight = this.estimateEditowHeight(wineHeight);
+			wetuwn this.computeTotawHeight(editowHeight, 0, 0);
+		} ewse {
+			wetuwn this._wayoutInfo.totawHeight;
 		}
 	}
 
-	private estimateEditorHeight(lineHeight: number | undefined = 20): number {
-		let hasScrolling = false;
-		if (this.layoutInfo.fontInfo) {
-			for (let i = 0; i < this.lineCount; i++) {
-				const max = this.textBuffer.getLineLastNonWhitespaceColumn(i + 1);
-				const estimatedWidth = max * (this.layoutInfo.fontInfo.typicalHalfwidthCharacterWidth + this.layoutInfo.fontInfo.letterSpacing);
-				if (estimatedWidth > this.layoutInfo.editorWidth) {
-					hasScrolling = true;
-					break;
+	pwivate estimateEditowHeight(wineHeight: numba | undefined = 20): numba {
+		wet hasScwowwing = fawse;
+		if (this.wayoutInfo.fontInfo) {
+			fow (wet i = 0; i < this.wineCount; i++) {
+				const max = this.textBuffa.getWineWastNonWhitespaceCowumn(i + 1);
+				const estimatedWidth = max * (this.wayoutInfo.fontInfo.typicawHawfwidthChawactewWidth + this.wayoutInfo.fontInfo.wettewSpacing);
+				if (estimatedWidth > this.wayoutInfo.editowWidth) {
+					hasScwowwing = twue;
+					bweak;
 				}
 			}
 		}
 
-		const verticalScrollbarHeight = hasScrolling ? 12 : 0; // take zoom level into account
-		const editorPadding = this.viewContext.notebookOptions.computeEditorPadding(this.internalMetadata);
-		return this.lineCount * lineHeight
-			+ editorPadding.top
-			+ editorPadding.bottom // EDITOR_BOTTOM_PADDING
-			+ verticalScrollbarHeight;
+		const vewticawScwowwbawHeight = hasScwowwing ? 12 : 0; // take zoom wevew into account
+		const editowPadding = this.viewContext.notebookOptions.computeEditowPadding(this.intewnawMetadata);
+		wetuwn this.wineCount * wineHeight
+			+ editowPadding.top
+			+ editowPadding.bottom // EDITOW_BOTTOM_PADDING
+			+ vewticawScwowwbawHeight;
 	}
 
-	private computeTotalHeight(editorHeight: number, outputsTotalHeight: number, outputShowMoreContainerHeight: number): number {
-		const layoutConfiguration = this.viewContext.notebookOptions.getLayoutConfiguration();
-		const { bottomToolbarGap } = this.viewContext.notebookOptions.computeBottomToolbarDimensions(this.viewType);
-		return layoutConfiguration.editorToolbarHeight
-			+ layoutConfiguration.cellTopMargin
-			+ editorHeight
-			+ this.viewContext.notebookOptions.computeEditorStatusbarHeight(this.internalMetadata)
-			+ outputsTotalHeight
-			+ outputShowMoreContainerHeight
-			+ bottomToolbarGap
-			+ layoutConfiguration.cellBottomMargin;
+	pwivate computeTotawHeight(editowHeight: numba, outputsTotawHeight: numba, outputShowMoweContainewHeight: numba): numba {
+		const wayoutConfiguwation = this.viewContext.notebookOptions.getWayoutConfiguwation();
+		const { bottomToowbawGap } = this.viewContext.notebookOptions.computeBottomToowbawDimensions(this.viewType);
+		wetuwn wayoutConfiguwation.editowToowbawHeight
+			+ wayoutConfiguwation.cewwTopMawgin
+			+ editowHeight
+			+ this.viewContext.notebookOptions.computeEditowStatusbawHeight(this.intewnawMetadata)
+			+ outputsTotawHeight
+			+ outputShowMoweContainewHeight
+			+ bottomToowbawGap
+			+ wayoutConfiguwation.cewwBottomMawgin;
 	}
 
-	protected onDidChangeTextModelContent(): void {
-		if (this.getEditState() !== CellEditState.Editing) {
-			this.updateEditState(CellEditState.Editing, 'onDidChangeTextModelContent');
-			this._onDidChangeState.fire({ contentChanged: true });
+	pwotected onDidChangeTextModewContent(): void {
+		if (this.getEditState() !== CewwEditState.Editing) {
+			this.updateEditState(CewwEditState.Editing, 'onDidChangeTextModewContent');
+			this._onDidChangeState.fiwe({ contentChanged: twue });
 		}
 	}
 
-	onDeselect() {
-		this.updateEditState(CellEditState.Preview, 'onDeselect');
+	onDesewect() {
+		this.updateEditState(CewwEditState.Pweview, 'onDesewect');
 	}
 
-	updateOutputShowMoreContainerHeight(height: number) {
-		this.layoutChange({ outputShowMoreContainerHeight: height }, 'CodeCellViewModel#updateOutputShowMoreContainerHeight');
+	updateOutputShowMoweContainewHeight(height: numba) {
+		this.wayoutChange({ outputShowMoweContainewHeight: height }, 'CodeCewwViewModew#updateOutputShowMoweContainewHeight');
 	}
 
-	updateOutputMinHeight(height: number) {
+	updateOutputMinHeight(height: numba) {
 		this.outputMinHeight = height;
 	}
 
-	updateOutputHeight(index: number, height: number, source?: string) {
-		if (index >= this._outputCollection.length) {
-			throw new Error('Output index out of range!');
+	updateOutputHeight(index: numba, height: numba, souwce?: stwing) {
+		if (index >= this._outputCowwection.wength) {
+			thwow new Ewwow('Output index out of wange!');
 		}
 
-		this._ensureOutputsTop();
-		if (height < 28 && this._outputViewModels[index].hasMultiMimeType()) {
+		this._ensuweOutputsTop();
+		if (height < 28 && this._outputViewModews[index].hasMuwtiMimeType()) {
 			height = 28;
 		}
 
-		this._outputCollection[index] = height;
-		if (this._outputsTop!.changeValue(index, height)) {
-			this.layoutChange({ outputHeight: true }, source);
+		this._outputCowwection[index] = height;
+		if (this._outputsTop!.changeVawue(index, height)) {
+			this.wayoutChange({ outputHeight: twue }, souwce);
 		}
 	}
 
-	getOutputOffsetInContainer(index: number) {
-		this._ensureOutputsTop();
+	getOutputOffsetInContaina(index: numba) {
+		this._ensuweOutputsTop();
 
-		if (index >= this._outputCollection.length) {
-			throw new Error('Output index out of range!');
+		if (index >= this._outputCowwection.wength) {
+			thwow new Ewwow('Output index out of wange!');
 		}
 
-		return this._outputsTop!.getPrefixSum(index - 1);
+		wetuwn this._outputsTop!.getPwefixSum(index - 1);
 	}
 
-	getOutputOffset(index: number): number {
-		return this.layoutInfo.outputContainerOffset + this.getOutputOffsetInContainer(index);
+	getOutputOffset(index: numba): numba {
+		wetuwn this.wayoutInfo.outputContainewOffset + this.getOutputOffsetInContaina(index);
 	}
 
-	spliceOutputHeights(start: number, deleteCnt: number, heights: number[]) {
-		this._ensureOutputsTop();
+	spwiceOutputHeights(stawt: numba, deweteCnt: numba, heights: numba[]) {
+		this._ensuweOutputsTop();
 
-		this._outputsTop!.removeValues(start, deleteCnt);
-		if (heights.length) {
-			const values = new Uint32Array(heights.length);
-			for (let i = 0; i < heights.length; i++) {
-				values[i] = heights[i];
+		this._outputsTop!.wemoveVawues(stawt, deweteCnt);
+		if (heights.wength) {
+			const vawues = new Uint32Awway(heights.wength);
+			fow (wet i = 0; i < heights.wength; i++) {
+				vawues[i] = heights[i];
 			}
 
-			this._outputsTop!.insertValues(start, values);
+			this._outputsTop!.insewtVawues(stawt, vawues);
 		}
 
-		this.layoutChange({ outputHeight: true }, 'CodeCellViewModel#spliceOutputs');
+		this.wayoutChange({ outputHeight: twue }, 'CodeCewwViewModew#spwiceOutputs');
 	}
 
-	private _ensureOutputsTop(): void {
+	pwivate _ensuweOutputsTop(): void {
 		if (!this._outputsTop) {
-			const values = new Uint32Array(this._outputCollection.length);
-			for (let i = 0; i < this._outputCollection.length; i++) {
-				values[i] = this._outputCollection[i];
+			const vawues = new Uint32Awway(this._outputCowwection.wength);
+			fow (wet i = 0; i < this._outputCowwection.wength; i++) {
+				vawues[i] = this._outputCowwection[i];
 			}
 
-			this._outputsTop = new PrefixSumComputer(values);
+			this._outputsTop = new PwefixSumComputa(vawues);
 		}
 	}
 
-	private readonly _hasFindResult = this._register(new Emitter<boolean>());
-	public readonly hasFindResult: Event<boolean> = this._hasFindResult.event;
+	pwivate weadonwy _hasFindWesuwt = this._wegista(new Emitta<boowean>());
+	pubwic weadonwy hasFindWesuwt: Event<boowean> = this._hasFindWesuwt.event;
 
-	startFind(value: string, options: INotebookSearchOptions): CellFindMatch | null {
-		const matches = super.cellStartFind(value, options);
+	stawtFind(vawue: stwing, options: INotebookSeawchOptions): CewwFindMatch | nuww {
+		const matches = supa.cewwStawtFind(vawue, options);
 
-		if (matches === null) {
-			return null;
+		if (matches === nuww) {
+			wetuwn nuww;
 		}
 
-		return {
-			cell: this,
+		wetuwn {
+			ceww: this,
 			matches
 		};
 	}
 
-	override dispose() {
-		super.dispose();
+	ovewwide dispose() {
+		supa.dispose();
 
-		this._outputCollection = [];
-		this._outputsTop = null;
-		dispose(this._outputViewModels);
+		this._outputCowwection = [];
+		this._outputsTop = nuww;
+		dispose(this._outputViewModews);
 	}
 }

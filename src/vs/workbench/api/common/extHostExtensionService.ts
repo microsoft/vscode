@@ -1,886 +1,886 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as path from 'vs/base/common/path';
-import * as performance from 'vs/base/common/performance';
-import { originalFSPath, joinPath } from 'vs/base/common/resources';
-import { asPromise, Barrier, timeout } from 'vs/base/common/async';
-import { dispose, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
-import { TernarySearchTree } from 'vs/base/common/map';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ExtHostExtensionServiceShape, IInitData, MainContext, MainThreadExtensionServiceShape, MainThreadTelemetryShape, MainThreadWorkspaceShape, IResolveAuthorityResult } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostConfiguration, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
-import { ActivatedExtension, EmptyExtension, ExtensionActivationReason, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionModule, HostExtension, ExtensionActivationTimesFragment } from 'vs/workbench/api/common/extHostExtensionActivator';
-import { ExtHostStorage, IExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
-import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { MissingExtensionDependency, checkProposedApiEnabled, ActivationKind } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
-import * as errors from 'vs/base/common/errors';
-import type * as vscode from 'vscode';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { ExtensionGlobalMemento, ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
-import { RemoteAuthorityResolverError, ExtensionKind, ExtensionMode, ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
-import { ResolvedAuthority, ResolvedOptions, RemoteAuthorityResolverErrorCode, IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelService';
-import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IExtensionActivationHost, checkActivateWorkspaceContainsExtension } from 'vs/workbench/api/common/shared/workspaceContains';
-import { ExtHostSecretState, IExtHostSecretState } from 'vs/workbench/api/common/exHostSecretState';
-import { ExtensionSecrets } from 'vs/workbench/api/common/extHostSecrets';
+impowt * as nws fwom 'vs/nws';
+impowt * as path fwom 'vs/base/common/path';
+impowt * as pewfowmance fwom 'vs/base/common/pewfowmance';
+impowt { owiginawFSPath, joinPath } fwom 'vs/base/common/wesouwces';
+impowt { asPwomise, Bawwia, timeout } fwom 'vs/base/common/async';
+impowt { dispose, toDisposabwe, DisposabweStowe, Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { TewnawySeawchTwee } fwom 'vs/base/common/map';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { ExtHostExtensionSewviceShape, IInitData, MainContext, MainThweadExtensionSewviceShape, MainThweadTewemetwyShape, MainThweadWowkspaceShape, IWesowveAuthowityWesuwt } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { ExtHostConfiguwation, IExtHostConfiguwation } fwom 'vs/wowkbench/api/common/extHostConfiguwation';
+impowt { ActivatedExtension, EmptyExtension, ExtensionActivationWeason, ExtensionActivationTimes, ExtensionActivationTimesBuiwda, ExtensionsActivatow, IExtensionAPI, IExtensionModuwe, HostExtension, ExtensionActivationTimesFwagment } fwom 'vs/wowkbench/api/common/extHostExtensionActivatow';
+impowt { ExtHostStowage, IExtHostStowage } fwom 'vs/wowkbench/api/common/extHostStowage';
+impowt { ExtHostWowkspace, IExtHostWowkspace } fwom 'vs/wowkbench/api/common/extHostWowkspace';
+impowt { MissingExtensionDependency, checkPwoposedApiEnabwed, ActivationKind } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { ExtensionDescwiptionWegistwy } fwom 'vs/wowkbench/sewvices/extensions/common/extensionDescwiptionWegistwy';
+impowt * as ewwows fwom 'vs/base/common/ewwows';
+impowt type * as vscode fwom 'vscode';
+impowt { ExtensionIdentifia, IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { ExtensionGwobawMemento, ExtensionMemento } fwom 'vs/wowkbench/api/common/extHostMemento';
+impowt { WemoteAuthowityWesowvewEwwow, ExtensionKind, ExtensionMode, ExtensionWuntime } fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt { WesowvedAuthowity, WesowvedOptions, WemoteAuthowityWesowvewEwwowCode, IWemoteConnectionData } fwom 'vs/pwatfowm/wemote/common/wemoteAuthowityWesowva';
+impowt { IInstantiationSewvice, cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IExtHostInitDataSewvice } fwom 'vs/wowkbench/api/common/extHostInitDataSewvice';
+impowt { IExtensionStowagePaths } fwom 'vs/wowkbench/api/common/extHostStowagePaths';
+impowt { IExtHostWpcSewvice } fwom 'vs/wowkbench/api/common/extHostWpcSewvice';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { IExtHostTunnewSewvice } fwom 'vs/wowkbench/api/common/extHostTunnewSewvice';
+impowt { IExtHostTewminawSewvice } fwom 'vs/wowkbench/api/common/extHostTewminawSewvice';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IExtensionActivationHost, checkActivateWowkspaceContainsExtension } fwom 'vs/wowkbench/api/common/shawed/wowkspaceContains';
+impowt { ExtHostSecwetState, IExtHostSecwetState } fwom 'vs/wowkbench/api/common/exHostSecwetState';
+impowt { ExtensionSecwets } fwom 'vs/wowkbench/api/common/extHostSecwets';
 
-interface ITestRunner {
-	/** Old test runner API, as exported from `vscode/lib/testrunner` */
-	run(testsRoot: string, clb: (error: Error, failures?: number) => void): void;
+intewface ITestWunna {
+	/** Owd test wunna API, as expowted fwom `vscode/wib/testwunna` */
+	wun(testsWoot: stwing, cwb: (ewwow: Ewwow, faiwuwes?: numba) => void): void;
 }
 
-interface INewTestRunner {
-	/** New test runner API, as explained in the extension test doc */
-	run(): Promise<void>;
+intewface INewTestWunna {
+	/** New test wunna API, as expwained in the extension test doc */
+	wun(): Pwomise<void>;
 }
 
-export const IHostUtils = createDecorator<IHostUtils>('IHostUtils');
+expowt const IHostUtiws = cweateDecowatow<IHostUtiws>('IHostUtiws');
 
-export interface IHostUtils {
-	readonly _serviceBrand: undefined;
-	exit(code: number): void;
-	exists(path: string): Promise<boolean>;
-	realpath(path: string): Promise<string>;
+expowt intewface IHostUtiws {
+	weadonwy _sewviceBwand: undefined;
+	exit(code: numba): void;
+	exists(path: stwing): Pwomise<boowean>;
+	weawpath(path: stwing): Pwomise<stwing>;
 }
 
-type TelemetryActivationEventFragment = {
-	id: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
-	name: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
-	extensionVersion: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
-	publisherDisplayName: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	activationEvents: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	isBuiltin: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-	reason: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	reasonId: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+type TewemetwyActivationEventFwagment = {
+	id: { cwassification: 'PubwicNonPewsonawData', puwpose: 'FeatuweInsight' };
+	name: { cwassification: 'PubwicNonPewsonawData', puwpose: 'FeatuweInsight' };
+	extensionVewsion: { cwassification: 'PubwicNonPewsonawData', puwpose: 'FeatuweInsight' };
+	pubwishewDispwayName: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+	activationEvents: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+	isBuiwtin: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
+	weason: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+	weasonId: { cwassification: 'PubwicNonPewsonawData', puwpose: 'FeatuweInsight' };
 };
 
-export abstract class AbstractExtHostExtensionService extends Disposable implements ExtHostExtensionServiceShape {
+expowt abstwact cwass AbstwactExtHostExtensionSewvice extends Disposabwe impwements ExtHostExtensionSewviceShape {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	abstract readonly extensionRuntime: ExtensionRuntime;
+	abstwact weadonwy extensionWuntime: ExtensionWuntime;
 
-	private readonly _onDidChangeRemoteConnectionData = this._register(new Emitter<void>());
-	public readonly onDidChangeRemoteConnectionData = this._onDidChangeRemoteConnectionData.event;
+	pwivate weadonwy _onDidChangeWemoteConnectionData = this._wegista(new Emitta<void>());
+	pubwic weadonwy onDidChangeWemoteConnectionData = this._onDidChangeWemoteConnectionData.event;
 
-	protected readonly _hostUtils: IHostUtils;
-	protected readonly _initData: IInitData;
-	protected readonly _extHostContext: IExtHostRpcService;
-	protected readonly _instaService: IInstantiationService;
-	protected readonly _extHostWorkspace: ExtHostWorkspace;
-	protected readonly _extHostConfiguration: ExtHostConfiguration;
-	protected readonly _logService: ILogService;
-	protected readonly _extHostTunnelService: IExtHostTunnelService;
-	protected readonly _extHostTerminalService: IExtHostTerminalService;
+	pwotected weadonwy _hostUtiws: IHostUtiws;
+	pwotected weadonwy _initData: IInitData;
+	pwotected weadonwy _extHostContext: IExtHostWpcSewvice;
+	pwotected weadonwy _instaSewvice: IInstantiationSewvice;
+	pwotected weadonwy _extHostWowkspace: ExtHostWowkspace;
+	pwotected weadonwy _extHostConfiguwation: ExtHostConfiguwation;
+	pwotected weadonwy _wogSewvice: IWogSewvice;
+	pwotected weadonwy _extHostTunnewSewvice: IExtHostTunnewSewvice;
+	pwotected weadonwy _extHostTewminawSewvice: IExtHostTewminawSewvice;
 
-	protected readonly _mainThreadWorkspaceProxy: MainThreadWorkspaceShape;
-	protected readonly _mainThreadTelemetryProxy: MainThreadTelemetryShape;
-	protected readonly _mainThreadExtensionsProxy: MainThreadExtensionServiceShape;
+	pwotected weadonwy _mainThweadWowkspacePwoxy: MainThweadWowkspaceShape;
+	pwotected weadonwy _mainThweadTewemetwyPwoxy: MainThweadTewemetwyShape;
+	pwotected weadonwy _mainThweadExtensionsPwoxy: MainThweadExtensionSewviceShape;
 
-	private readonly _almostReadyToRunExtensions: Barrier;
-	private readonly _readyToStartExtensionHost: Barrier;
-	private readonly _readyToRunExtensions: Barrier;
-	private readonly _eagerExtensionsActivated: Barrier;
+	pwivate weadonwy _awmostWeadyToWunExtensions: Bawwia;
+	pwivate weadonwy _weadyToStawtExtensionHost: Bawwia;
+	pwivate weadonwy _weadyToWunExtensions: Bawwia;
+	pwivate weadonwy _eagewExtensionsActivated: Bawwia;
 
-	protected readonly _registry: ExtensionDescriptionRegistry;
-	private readonly _storage: ExtHostStorage;
-	private readonly _secretState: ExtHostSecretState;
-	private readonly _storagePath: IExtensionStoragePaths;
-	private readonly _activator: ExtensionsActivator;
-	private _extensionPathIndex: Promise<TernarySearchTree<string, IExtensionDescription>> | null;
+	pwotected weadonwy _wegistwy: ExtensionDescwiptionWegistwy;
+	pwivate weadonwy _stowage: ExtHostStowage;
+	pwivate weadonwy _secwetState: ExtHostSecwetState;
+	pwivate weadonwy _stowagePath: IExtensionStowagePaths;
+	pwivate weadonwy _activatow: ExtensionsActivatow;
+	pwivate _extensionPathIndex: Pwomise<TewnawySeawchTwee<stwing, IExtensionDescwiption>> | nuww;
 
-	private readonly _resolvers: { [authorityPrefix: string]: vscode.RemoteAuthorityResolver; };
+	pwivate weadonwy _wesowvews: { [authowityPwefix: stwing]: vscode.WemoteAuthowityWesowva; };
 
-	private _started: boolean;
-	private _remoteConnectionData: IRemoteConnectionData | null;
+	pwivate _stawted: boowean;
+	pwivate _wemoteConnectionData: IWemoteConnectionData | nuww;
 
-	private readonly _disposables: DisposableStore;
+	pwivate weadonwy _disposabwes: DisposabweStowe;
 
-	constructor(
-		@IInstantiationService instaService: IInstantiationService,
-		@IHostUtils hostUtils: IHostUtils,
-		@IExtHostRpcService extHostContext: IExtHostRpcService,
-		@IExtHostWorkspace extHostWorkspace: IExtHostWorkspace,
-		@IExtHostConfiguration extHostConfiguration: IExtHostConfiguration,
-		@ILogService logService: ILogService,
-		@IExtHostInitDataService initData: IExtHostInitDataService,
-		@IExtensionStoragePaths storagePath: IExtensionStoragePaths,
-		@IExtHostTunnelService extHostTunnelService: IExtHostTunnelService,
-		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService,
+	constwuctow(
+		@IInstantiationSewvice instaSewvice: IInstantiationSewvice,
+		@IHostUtiws hostUtiws: IHostUtiws,
+		@IExtHostWpcSewvice extHostContext: IExtHostWpcSewvice,
+		@IExtHostWowkspace extHostWowkspace: IExtHostWowkspace,
+		@IExtHostConfiguwation extHostConfiguwation: IExtHostConfiguwation,
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@IExtHostInitDataSewvice initData: IExtHostInitDataSewvice,
+		@IExtensionStowagePaths stowagePath: IExtensionStowagePaths,
+		@IExtHostTunnewSewvice extHostTunnewSewvice: IExtHostTunnewSewvice,
+		@IExtHostTewminawSewvice extHostTewminawSewvice: IExtHostTewminawSewvice,
 	) {
-		super();
-		this._hostUtils = hostUtils;
+		supa();
+		this._hostUtiws = hostUtiws;
 		this._extHostContext = extHostContext;
 		this._initData = initData;
 
-		this._extHostWorkspace = extHostWorkspace;
-		this._extHostConfiguration = extHostConfiguration;
-		this._logService = logService;
-		this._extHostTunnelService = extHostTunnelService;
-		this._extHostTerminalService = extHostTerminalService;
-		this._disposables = new DisposableStore();
+		this._extHostWowkspace = extHostWowkspace;
+		this._extHostConfiguwation = extHostConfiguwation;
+		this._wogSewvice = wogSewvice;
+		this._extHostTunnewSewvice = extHostTunnewSewvice;
+		this._extHostTewminawSewvice = extHostTewminawSewvice;
+		this._disposabwes = new DisposabweStowe();
 
-		this._mainThreadWorkspaceProxy = this._extHostContext.getProxy(MainContext.MainThreadWorkspace);
-		this._mainThreadTelemetryProxy = this._extHostContext.getProxy(MainContext.MainThreadTelemetry);
-		this._mainThreadExtensionsProxy = this._extHostContext.getProxy(MainContext.MainThreadExtensionService);
+		this._mainThweadWowkspacePwoxy = this._extHostContext.getPwoxy(MainContext.MainThweadWowkspace);
+		this._mainThweadTewemetwyPwoxy = this._extHostContext.getPwoxy(MainContext.MainThweadTewemetwy);
+		this._mainThweadExtensionsPwoxy = this._extHostContext.getPwoxy(MainContext.MainThweadExtensionSewvice);
 
-		this._almostReadyToRunExtensions = new Barrier();
-		this._readyToStartExtensionHost = new Barrier();
-		this._readyToRunExtensions = new Barrier();
-		this._eagerExtensionsActivated = new Barrier();
-		this._registry = new ExtensionDescriptionRegistry(this._initData.extensions);
-		this._storage = new ExtHostStorage(this._extHostContext);
-		this._secretState = new ExtHostSecretState(this._extHostContext);
-		this._storagePath = storagePath;
+		this._awmostWeadyToWunExtensions = new Bawwia();
+		this._weadyToStawtExtensionHost = new Bawwia();
+		this._weadyToWunExtensions = new Bawwia();
+		this._eagewExtensionsActivated = new Bawwia();
+		this._wegistwy = new ExtensionDescwiptionWegistwy(this._initData.extensions);
+		this._stowage = new ExtHostStowage(this._extHostContext);
+		this._secwetState = new ExtHostSecwetState(this._extHostContext);
+		this._stowagePath = stowagePath;
 
-		this._instaService = instaService.createChild(new ServiceCollection(
-			[IExtHostStorage, this._storage],
-			[IExtHostSecretState, this._secretState]
+		this._instaSewvice = instaSewvice.cweateChiwd(new SewviceCowwection(
+			[IExtHostStowage, this._stowage],
+			[IExtHostSecwetState, this._secwetState]
 		));
 
-		const hostExtensions = new Set<string>();
-		this._initData.hostExtensions.forEach((extensionId) => hostExtensions.add(ExtensionIdentifier.toKey(extensionId)));
+		const hostExtensions = new Set<stwing>();
+		this._initData.hostExtensions.fowEach((extensionId) => hostExtensions.add(ExtensionIdentifia.toKey(extensionId)));
 
-		this._activator = new ExtensionsActivator(
-			this._registry,
-			this._initData.resolvedExtensions,
+		this._activatow = new ExtensionsActivatow(
+			this._wegistwy,
+			this._initData.wesowvedExtensions,
 			this._initData.hostExtensions,
 			{
-				onExtensionActivationError: (extensionId: ExtensionIdentifier, error: Error, missingExtensionDependency: MissingExtensionDependency | null): void => {
-					this._mainThreadExtensionsProxy.$onExtensionActivationError(extensionId, errors.transformErrorForSerialization(error), missingExtensionDependency);
+				onExtensionActivationEwwow: (extensionId: ExtensionIdentifia, ewwow: Ewwow, missingExtensionDependency: MissingExtensionDependency | nuww): void => {
+					this._mainThweadExtensionsPwoxy.$onExtensionActivationEwwow(extensionId, ewwows.twansfowmEwwowFowSewiawization(ewwow), missingExtensionDependency);
 				},
 
-				actualActivateExtension: async (extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<ActivatedExtension> => {
-					if (hostExtensions.has(ExtensionIdentifier.toKey(extensionId))) {
-						await this._mainThreadExtensionsProxy.$activateExtension(extensionId, reason);
-						return new HostExtension();
+				actuawActivateExtension: async (extensionId: ExtensionIdentifia, weason: ExtensionActivationWeason): Pwomise<ActivatedExtension> => {
+					if (hostExtensions.has(ExtensionIdentifia.toKey(extensionId))) {
+						await this._mainThweadExtensionsPwoxy.$activateExtension(extensionId, weason);
+						wetuwn new HostExtension();
 					}
-					const extensionDescription = this._registry.getExtensionDescription(extensionId)!;
-					return this._activateExtension(extensionDescription, reason);
+					const extensionDescwiption = this._wegistwy.getExtensionDescwiption(extensionId)!;
+					wetuwn this._activateExtension(extensionDescwiption, weason);
 				}
 			},
-			this._logService
+			this._wogSewvice
 		);
-		this._extensionPathIndex = null;
-		this._resolvers = Object.create(null);
-		this._started = false;
-		this._remoteConnectionData = this._initData.remote.connectionData;
+		this._extensionPathIndex = nuww;
+		this._wesowvews = Object.cweate(nuww);
+		this._stawted = fawse;
+		this._wemoteConnectionData = this._initData.wemote.connectionData;
 	}
 
-	public getRemoteConnectionData(): IRemoteConnectionData | null {
-		return this._remoteConnectionData;
+	pubwic getWemoteConnectionData(): IWemoteConnectionData | nuww {
+		wetuwn this._wemoteConnectionData;
 	}
 
-	public async initialize(): Promise<void> {
-		try {
+	pubwic async initiawize(): Pwomise<void> {
+		twy {
 
-			await this._beforeAlmostReadyToRunExtensions();
-			this._almostReadyToRunExtensions.open();
+			await this._befoweAwmostWeadyToWunExtensions();
+			this._awmostWeadyToWunExtensions.open();
 
-			await this._extHostWorkspace.waitForInitializeCall();
-			performance.mark('code/extHost/ready');
-			this._readyToStartExtensionHost.open();
+			await this._extHostWowkspace.waitFowInitiawizeCaww();
+			pewfowmance.mawk('code/extHost/weady');
+			this._weadyToStawtExtensionHost.open();
 
-			if (this._initData.autoStart) {
-				this._startExtensionHost();
+			if (this._initData.autoStawt) {
+				this._stawtExtensionHost();
 			}
-		} catch (err) {
-			errors.onUnexpectedError(err);
+		} catch (eww) {
+			ewwows.onUnexpectedEwwow(eww);
 		}
 	}
 
-	public async deactivateAll(): Promise<void> {
-		this._storagePath.onWillDeactivateAll();
+	pubwic async deactivateAww(): Pwomise<void> {
+		this._stowagePath.onWiwwDeactivateAww();
 
-		let allPromises: Promise<void>[] = [];
-		try {
-			const allExtensions = this._registry.getAllExtensionDescriptions();
-			const allExtensionsIds = allExtensions.map(ext => ext.identifier);
-			const activatedExtensions = allExtensionsIds.filter(id => this.isActivated(id));
+		wet awwPwomises: Pwomise<void>[] = [];
+		twy {
+			const awwExtensions = this._wegistwy.getAwwExtensionDescwiptions();
+			const awwExtensionsIds = awwExtensions.map(ext => ext.identifia);
+			const activatedExtensions = awwExtensionsIds.fiwta(id => this.isActivated(id));
 
-			allPromises = activatedExtensions.map((extensionId) => {
-				return this._deactivate(extensionId);
+			awwPwomises = activatedExtensions.map((extensionId) => {
+				wetuwn this._deactivate(extensionId);
 			});
-		} catch (err) {
-			// TODO: write to log once we have one
+		} catch (eww) {
+			// TODO: wwite to wog once we have one
 		}
-		await Promise.all(allPromises);
+		await Pwomise.aww(awwPwomises);
 	}
 
-	public isActivated(extensionId: ExtensionIdentifier): boolean {
-		if (this._readyToRunExtensions.isOpen()) {
-			return this._activator.isActivated(extensionId);
+	pubwic isActivated(extensionId: ExtensionIdentifia): boowean {
+		if (this._weadyToWunExtensions.isOpen()) {
+			wetuwn this._activatow.isActivated(extensionId);
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private _activateByEvent(activationEvent: string, startup: boolean): Promise<void> {
-		return this._activator.activateByEvent(activationEvent, startup);
+	pwivate _activateByEvent(activationEvent: stwing, stawtup: boowean): Pwomise<void> {
+		wetuwn this._activatow.activateByEvent(activationEvent, stawtup);
 	}
 
-	private _activateById(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> {
-		return this._activator.activateById(extensionId, reason);
+	pwivate _activateById(extensionId: ExtensionIdentifia, weason: ExtensionActivationWeason): Pwomise<void> {
+		wetuwn this._activatow.activateById(extensionId, weason);
 	}
 
-	public activateByIdWithErrors(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> {
-		return this._activateById(extensionId, reason).then(() => {
-			const extension = this._activator.getActivatedExtension(extensionId);
-			if (extension.activationFailed) {
-				// activation failed => bubble up the error as the promise result
-				return Promise.reject(extension.activationFailedError);
+	pubwic activateByIdWithEwwows(extensionId: ExtensionIdentifia, weason: ExtensionActivationWeason): Pwomise<void> {
+		wetuwn this._activateById(extensionId, weason).then(() => {
+			const extension = this._activatow.getActivatedExtension(extensionId);
+			if (extension.activationFaiwed) {
+				// activation faiwed => bubbwe up the ewwow as the pwomise wesuwt
+				wetuwn Pwomise.weject(extension.activationFaiwedEwwow);
 			}
-			return undefined;
+			wetuwn undefined;
 		});
 	}
 
-	public getExtensionRegistry(): Promise<ExtensionDescriptionRegistry> {
-		return this._readyToRunExtensions.wait().then(_ => this._registry);
+	pubwic getExtensionWegistwy(): Pwomise<ExtensionDescwiptionWegistwy> {
+		wetuwn this._weadyToWunExtensions.wait().then(_ => this._wegistwy);
 	}
 
-	public getExtensionExports(extensionId: ExtensionIdentifier): IExtensionAPI | null | undefined {
-		if (this._readyToRunExtensions.isOpen()) {
-			return this._activator.getActivatedExtension(extensionId).exports;
-		} else {
-			return null;
+	pubwic getExtensionExpowts(extensionId: ExtensionIdentifia): IExtensionAPI | nuww | undefined {
+		if (this._weadyToWunExtensions.isOpen()) {
+			wetuwn this._activatow.getActivatedExtension(extensionId).expowts;
+		} ewse {
+			wetuwn nuww;
 		}
 	}
 
-	// create trie to enable fast 'filename -> extension id' look up
-	public getExtensionPathIndex(): Promise<TernarySearchTree<string, IExtensionDescription>> {
+	// cweate twie to enabwe fast 'fiwename -> extension id' wook up
+	pubwic getExtensionPathIndex(): Pwomise<TewnawySeawchTwee<stwing, IExtensionDescwiption>> {
 		if (!this._extensionPathIndex) {
-			const tree = TernarySearchTree.forPaths<IExtensionDescription>();
-			const extensions = this._registry.getAllExtensionDescriptions().map(ext => {
-				if (!this._getEntryPoint(ext)) {
-					return undefined;
+			const twee = TewnawySeawchTwee.fowPaths<IExtensionDescwiption>();
+			const extensions = this._wegistwy.getAwwExtensionDescwiptions().map(ext => {
+				if (!this._getEntwyPoint(ext)) {
+					wetuwn undefined;
 				}
-				return this._hostUtils.realpath(ext.extensionLocation.fsPath).then(value => tree.set(URI.file(value).fsPath, ext));
+				wetuwn this._hostUtiws.weawpath(ext.extensionWocation.fsPath).then(vawue => twee.set(UWI.fiwe(vawue).fsPath, ext));
 			});
-			this._extensionPathIndex = Promise.all(extensions).then(() => tree);
+			this._extensionPathIndex = Pwomise.aww(extensions).then(() => twee);
 		}
-		return this._extensionPathIndex;
+		wetuwn this._extensionPathIndex;
 	}
 
-	private _deactivate(extensionId: ExtensionIdentifier): Promise<void> {
-		let result = Promise.resolve(undefined);
+	pwivate _deactivate(extensionId: ExtensionIdentifia): Pwomise<void> {
+		wet wesuwt = Pwomise.wesowve(undefined);
 
-		if (!this._readyToRunExtensions.isOpen()) {
-			return result;
+		if (!this._weadyToWunExtensions.isOpen()) {
+			wetuwn wesuwt;
 		}
 
-		if (!this._activator.isActivated(extensionId)) {
-			return result;
+		if (!this._activatow.isActivated(extensionId)) {
+			wetuwn wesuwt;
 		}
 
-		const extension = this._activator.getActivatedExtension(extensionId);
+		const extension = this._activatow.getActivatedExtension(extensionId);
 		if (!extension) {
-			return result;
+			wetuwn wesuwt;
 		}
 
-		// call deactivate if available
-		try {
-			if (typeof extension.module.deactivate === 'function') {
-				result = Promise.resolve(extension.module.deactivate()).then(undefined, (err) => {
-					this._logService.error(err);
-					return Promise.resolve(undefined);
+		// caww deactivate if avaiwabwe
+		twy {
+			if (typeof extension.moduwe.deactivate === 'function') {
+				wesuwt = Pwomise.wesowve(extension.moduwe.deactivate()).then(undefined, (eww) => {
+					this._wogSewvice.ewwow(eww);
+					wetuwn Pwomise.wesowve(undefined);
 				});
 			}
-		} catch (err) {
-			this._logService.error(err);
+		} catch (eww) {
+			this._wogSewvice.ewwow(eww);
 		}
 
-		// clean up subscriptions
-		try {
-			dispose(extension.subscriptions);
-		} catch (err) {
-			this._logService.error(err);
+		// cwean up subscwiptions
+		twy {
+			dispose(extension.subscwiptions);
+		} catch (eww) {
+			this._wogSewvice.ewwow(eww);
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	// --- impl
+	// --- impw
 
-	private async _activateExtension(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): Promise<ActivatedExtension> {
-		if (!this._initData.remote.isRemote) {
-			// local extension host process
-			await this._mainThreadExtensionsProxy.$onWillActivateExtension(extensionDescription.identifier);
-		} else {
-			// remote extension host process
-			// do not wait for renderer confirmation
-			this._mainThreadExtensionsProxy.$onWillActivateExtension(extensionDescription.identifier);
+	pwivate async _activateExtension(extensionDescwiption: IExtensionDescwiption, weason: ExtensionActivationWeason): Pwomise<ActivatedExtension> {
+		if (!this._initData.wemote.isWemote) {
+			// wocaw extension host pwocess
+			await this._mainThweadExtensionsPwoxy.$onWiwwActivateExtension(extensionDescwiption.identifia);
+		} ewse {
+			// wemote extension host pwocess
+			// do not wait fow wendewa confiwmation
+			this._mainThweadExtensionsPwoxy.$onWiwwActivateExtension(extensionDescwiption.identifia);
 		}
-		return this._doActivateExtension(extensionDescription, reason).then((activatedExtension) => {
+		wetuwn this._doActivateExtension(extensionDescwiption, weason).then((activatedExtension) => {
 			const activationTimes = activatedExtension.activationTimes;
-			this._mainThreadExtensionsProxy.$onDidActivateExtension(extensionDescription.identifier, activationTimes.codeLoadingTime, activationTimes.activateCallTime, activationTimes.activateResolvedTime, reason);
-			this._logExtensionActivationTimes(extensionDescription, reason, 'success', activationTimes);
-			return activatedExtension;
-		}, (err) => {
-			this._logExtensionActivationTimes(extensionDescription, reason, 'failure');
-			throw err;
+			this._mainThweadExtensionsPwoxy.$onDidActivateExtension(extensionDescwiption.identifia, activationTimes.codeWoadingTime, activationTimes.activateCawwTime, activationTimes.activateWesowvedTime, weason);
+			this._wogExtensionActivationTimes(extensionDescwiption, weason, 'success', activationTimes);
+			wetuwn activatedExtension;
+		}, (eww) => {
+			this._wogExtensionActivationTimes(extensionDescwiption, weason, 'faiwuwe');
+			thwow eww;
 		});
 	}
 
-	private _logExtensionActivationTimes(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason, outcome: string, activationTimes?: ExtensionActivationTimes) {
-		const event = getTelemetryActivationEvent(extensionDescription, reason);
-		type ExtensionActivationTimesClassification = {
-			outcome: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-		} & TelemetryActivationEventFragment & ExtensionActivationTimesFragment;
+	pwivate _wogExtensionActivationTimes(extensionDescwiption: IExtensionDescwiption, weason: ExtensionActivationWeason, outcome: stwing, activationTimes?: ExtensionActivationTimes) {
+		const event = getTewemetwyActivationEvent(extensionDescwiption, weason);
+		type ExtensionActivationTimesCwassification = {
+			outcome: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+		} & TewemetwyActivationEventFwagment & ExtensionActivationTimesFwagment;
 
 		type ExtensionActivationTimesEvent = {
-			outcome: string
-		} & ActivationTimesEvent & TelemetryActivationEvent;
+			outcome: stwing
+		} & ActivationTimesEvent & TewemetwyActivationEvent;
 
 		type ActivationTimesEvent = {
-			startup?: boolean;
-			codeLoadingTime?: number;
-			activateCallTime?: number;
-			activateResolvedTime?: number;
+			stawtup?: boowean;
+			codeWoadingTime?: numba;
+			activateCawwTime?: numba;
+			activateWesowvedTime?: numba;
 		};
 
-		this._mainThreadTelemetryProxy.$publicLog2<ExtensionActivationTimesEvent, ExtensionActivationTimesClassification>('extensionActivationTimes', {
+		this._mainThweadTewemetwyPwoxy.$pubwicWog2<ExtensionActivationTimesEvent, ExtensionActivationTimesCwassification>('extensionActivationTimes', {
 			...event,
 			...(activationTimes || {}),
 			outcome
 		});
 	}
 
-	private _doActivateExtension(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): Promise<ActivatedExtension> {
-		const event = getTelemetryActivationEvent(extensionDescription, reason);
-		type ActivatePluginClassification = {} & TelemetryActivationEventFragment;
-		this._mainThreadTelemetryProxy.$publicLog2<TelemetryActivationEvent, ActivatePluginClassification>('activatePlugin', event);
-		const entryPoint = this._getEntryPoint(extensionDescription);
-		if (!entryPoint) {
-			// Treat the extension as being empty => NOT AN ERROR CASE
-			return Promise.resolve(new EmptyExtension(ExtensionActivationTimes.NONE));
+	pwivate _doActivateExtension(extensionDescwiption: IExtensionDescwiption, weason: ExtensionActivationWeason): Pwomise<ActivatedExtension> {
+		const event = getTewemetwyActivationEvent(extensionDescwiption, weason);
+		type ActivatePwuginCwassification = {} & TewemetwyActivationEventFwagment;
+		this._mainThweadTewemetwyPwoxy.$pubwicWog2<TewemetwyActivationEvent, ActivatePwuginCwassification>('activatePwugin', event);
+		const entwyPoint = this._getEntwyPoint(extensionDescwiption);
+		if (!entwyPoint) {
+			// Tweat the extension as being empty => NOT AN EWWOW CASE
+			wetuwn Pwomise.wesowve(new EmptyExtension(ExtensionActivationTimes.NONE));
 		}
 
-		this._logService.info(`ExtensionService#_doActivateExtension ${extensionDescription.identifier.value} ${JSON.stringify(reason)}`);
-		this._logService.flush();
+		this._wogSewvice.info(`ExtensionSewvice#_doActivateExtension ${extensionDescwiption.identifia.vawue} ${JSON.stwingify(weason)}`);
+		this._wogSewvice.fwush();
 
-		const activationTimesBuilder = new ExtensionActivationTimesBuilder(reason.startup);
-		return Promise.all([
-			this._loadCommonJSModule<IExtensionModule>(extensionDescription.identifier, joinPath(extensionDescription.extensionLocation, entryPoint), activationTimesBuilder),
-			this._loadExtensionContext(extensionDescription)
-		]).then(values => {
-			performance.mark(`code/extHost/willActivateExtension/${extensionDescription.identifier.value}`);
-			return AbstractExtHostExtensionService._callActivate(this._logService, extensionDescription.identifier, values[0], values[1], activationTimesBuilder);
+		const activationTimesBuiwda = new ExtensionActivationTimesBuiwda(weason.stawtup);
+		wetuwn Pwomise.aww([
+			this._woadCommonJSModuwe<IExtensionModuwe>(extensionDescwiption.identifia, joinPath(extensionDescwiption.extensionWocation, entwyPoint), activationTimesBuiwda),
+			this._woadExtensionContext(extensionDescwiption)
+		]).then(vawues => {
+			pewfowmance.mawk(`code/extHost/wiwwActivateExtension/${extensionDescwiption.identifia.vawue}`);
+			wetuwn AbstwactExtHostExtensionSewvice._cawwActivate(this._wogSewvice, extensionDescwiption.identifia, vawues[0], vawues[1], activationTimesBuiwda);
 		}).then((activatedExtension) => {
-			performance.mark(`code/extHost/didActivateExtension/${extensionDescription.identifier.value}`);
-			return activatedExtension;
+			pewfowmance.mawk(`code/extHost/didActivateExtension/${extensionDescwiption.identifia.vawue}`);
+			wetuwn activatedExtension;
 		});
 	}
 
-	private _loadExtensionContext(extensionDescription: IExtensionDescription): Promise<vscode.ExtensionContext> {
+	pwivate _woadExtensionContext(extensionDescwiption: IExtensionDescwiption): Pwomise<vscode.ExtensionContext> {
 
-		const globalState = new ExtensionGlobalMemento(extensionDescription, this._storage);
-		const workspaceState = new ExtensionMemento(extensionDescription.identifier.value, false, this._storage);
-		const secrets = new ExtensionSecrets(extensionDescription, this._secretState);
-		const extensionMode = extensionDescription.isUnderDevelopment
-			? (this._initData.environment.extensionTestsLocationURI ? ExtensionMode.Test : ExtensionMode.Development)
-			: ExtensionMode.Production;
-		const extensionKind = this._initData.remote.isRemote ? ExtensionKind.Workspace : ExtensionKind.UI;
+		const gwobawState = new ExtensionGwobawMemento(extensionDescwiption, this._stowage);
+		const wowkspaceState = new ExtensionMemento(extensionDescwiption.identifia.vawue, fawse, this._stowage);
+		const secwets = new ExtensionSecwets(extensionDescwiption, this._secwetState);
+		const extensionMode = extensionDescwiption.isUndewDevewopment
+			? (this._initData.enviwonment.extensionTestsWocationUWI ? ExtensionMode.Test : ExtensionMode.Devewopment)
+			: ExtensionMode.Pwoduction;
+		const extensionKind = this._initData.wemote.isWemote ? ExtensionKind.Wowkspace : ExtensionKind.UI;
 
-		this._logService.trace(`ExtensionService#loadExtensionContext ${extensionDescription.identifier.value}`);
+		this._wogSewvice.twace(`ExtensionSewvice#woadExtensionContext ${extensionDescwiption.identifia.vawue}`);
 
-		return Promise.all([
-			globalState.whenReady,
-			workspaceState.whenReady,
-			this._storagePath.whenReady
+		wetuwn Pwomise.aww([
+			gwobawState.whenWeady,
+			wowkspaceState.whenWeady,
+			this._stowagePath.whenWeady
 		]).then(() => {
 			const that = this;
-			let extension: vscode.Extension<any> | undefined;
+			wet extension: vscode.Extension<any> | undefined;
 
-			return Object.freeze<vscode.ExtensionContext>({
-				globalState,
-				workspaceState,
-				secrets,
-				subscriptions: [],
-				get extensionUri() { return extensionDescription.extensionLocation; },
-				get extensionPath() { return extensionDescription.extensionLocation.fsPath; },
-				asAbsolutePath(relativePath: string) { return path.join(extensionDescription.extensionLocation.fsPath, relativePath); },
-				get storagePath() { return that._storagePath.workspaceValue(extensionDescription)?.fsPath; },
-				get globalStoragePath() { return that._storagePath.globalValue(extensionDescription).fsPath; },
-				get logPath() { return path.join(that._initData.logsLocation.fsPath, extensionDescription.identifier.value); },
-				get logUri() { return URI.joinPath(that._initData.logsLocation, extensionDescription.identifier.value); },
-				get storageUri() { return that._storagePath.workspaceValue(extensionDescription); },
-				get globalStorageUri() { return that._storagePath.globalValue(extensionDescription); },
-				get extensionMode() { return extensionMode; },
+			wetuwn Object.fweeze<vscode.ExtensionContext>({
+				gwobawState,
+				wowkspaceState,
+				secwets,
+				subscwiptions: [],
+				get extensionUwi() { wetuwn extensionDescwiption.extensionWocation; },
+				get extensionPath() { wetuwn extensionDescwiption.extensionWocation.fsPath; },
+				asAbsowutePath(wewativePath: stwing) { wetuwn path.join(extensionDescwiption.extensionWocation.fsPath, wewativePath); },
+				get stowagePath() { wetuwn that._stowagePath.wowkspaceVawue(extensionDescwiption)?.fsPath; },
+				get gwobawStowagePath() { wetuwn that._stowagePath.gwobawVawue(extensionDescwiption).fsPath; },
+				get wogPath() { wetuwn path.join(that._initData.wogsWocation.fsPath, extensionDescwiption.identifia.vawue); },
+				get wogUwi() { wetuwn UWI.joinPath(that._initData.wogsWocation, extensionDescwiption.identifia.vawue); },
+				get stowageUwi() { wetuwn that._stowagePath.wowkspaceVawue(extensionDescwiption); },
+				get gwobawStowageUwi() { wetuwn that._stowagePath.gwobawVawue(extensionDescwiption); },
+				get extensionMode() { wetuwn extensionMode; },
 				get extension() {
 					if (extension === undefined) {
-						extension = new Extension(that, extensionDescription.identifier, extensionDescription, extensionKind);
+						extension = new Extension(that, extensionDescwiption.identifia, extensionDescwiption, extensionKind);
 					}
-					return extension;
+					wetuwn extension;
 				},
-				get extensionRuntime() {
-					checkProposedApiEnabled(extensionDescription);
-					return that.extensionRuntime;
+				get extensionWuntime() {
+					checkPwoposedApiEnabwed(extensionDescwiption);
+					wetuwn that.extensionWuntime;
 				},
-				get environmentVariableCollection() { return that._extHostTerminalService.getEnvironmentVariableCollection(extensionDescription); }
+				get enviwonmentVawiabweCowwection() { wetuwn that._extHostTewminawSewvice.getEnviwonmentVawiabweCowwection(extensionDescwiption); }
 			});
 		});
 	}
 
-	private static _callActivate(logService: ILogService, extensionId: ExtensionIdentifier, extensionModule: IExtensionModule, context: vscode.ExtensionContext, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<ActivatedExtension> {
-		// Make sure the extension's surface is not undefined
-		extensionModule = extensionModule || {
+	pwivate static _cawwActivate(wogSewvice: IWogSewvice, extensionId: ExtensionIdentifia, extensionModuwe: IExtensionModuwe, context: vscode.ExtensionContext, activationTimesBuiwda: ExtensionActivationTimesBuiwda): Pwomise<ActivatedExtension> {
+		// Make suwe the extension's suwface is not undefined
+		extensionModuwe = extensionModuwe || {
 			activate: undefined,
 			deactivate: undefined
 		};
 
-		return this._callActivateOptional(logService, extensionId, extensionModule, context, activationTimesBuilder).then((extensionExports) => {
-			return new ActivatedExtension(false, null, activationTimesBuilder.build(), extensionModule, extensionExports, context.subscriptions);
+		wetuwn this._cawwActivateOptionaw(wogSewvice, extensionId, extensionModuwe, context, activationTimesBuiwda).then((extensionExpowts) => {
+			wetuwn new ActivatedExtension(fawse, nuww, activationTimesBuiwda.buiwd(), extensionModuwe, extensionExpowts, context.subscwiptions);
 		});
 	}
 
-	private static _callActivateOptional(logService: ILogService, extensionId: ExtensionIdentifier, extensionModule: IExtensionModule, context: vscode.ExtensionContext, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<IExtensionAPI> {
-		if (typeof extensionModule.activate === 'function') {
-			try {
-				activationTimesBuilder.activateCallStart();
-				logService.trace(`ExtensionService#_callActivateOptional ${extensionId.value}`);
-				const scope = typeof global === 'object' ? global : self; // `global` is nodejs while `self` is for workers
-				const activateResult: Promise<IExtensionAPI> = extensionModule.activate.apply(scope, [context]);
-				activationTimesBuilder.activateCallStop();
+	pwivate static _cawwActivateOptionaw(wogSewvice: IWogSewvice, extensionId: ExtensionIdentifia, extensionModuwe: IExtensionModuwe, context: vscode.ExtensionContext, activationTimesBuiwda: ExtensionActivationTimesBuiwda): Pwomise<IExtensionAPI> {
+		if (typeof extensionModuwe.activate === 'function') {
+			twy {
+				activationTimesBuiwda.activateCawwStawt();
+				wogSewvice.twace(`ExtensionSewvice#_cawwActivateOptionaw ${extensionId.vawue}`);
+				const scope = typeof gwobaw === 'object' ? gwobaw : sewf; // `gwobaw` is nodejs whiwe `sewf` is fow wowkews
+				const activateWesuwt: Pwomise<IExtensionAPI> = extensionModuwe.activate.appwy(scope, [context]);
+				activationTimesBuiwda.activateCawwStop();
 
-				activationTimesBuilder.activateResolveStart();
-				return Promise.resolve(activateResult).then((value) => {
-					activationTimesBuilder.activateResolveStop();
-					return value;
+				activationTimesBuiwda.activateWesowveStawt();
+				wetuwn Pwomise.wesowve(activateWesuwt).then((vawue) => {
+					activationTimesBuiwda.activateWesowveStop();
+					wetuwn vawue;
 				});
-			} catch (err) {
-				return Promise.reject(err);
+			} catch (eww) {
+				wetuwn Pwomise.weject(eww);
 			}
-		} else {
-			// No activate found => the module is the extension's exports
-			return Promise.resolve<IExtensionAPI>(extensionModule);
+		} ewse {
+			// No activate found => the moduwe is the extension's expowts
+			wetuwn Pwomise.wesowve<IExtensionAPI>(extensionModuwe);
 		}
 	}
 
-	// -- eager activation
+	// -- eaga activation
 
-	private _activateOneStartupFinished(desc: IExtensionDescription, activationEvent: string): void {
-		this._activateById(desc.identifier, {
-			startup: false,
-			extensionId: desc.identifier,
+	pwivate _activateOneStawtupFinished(desc: IExtensionDescwiption, activationEvent: stwing): void {
+		this._activateById(desc.identifia, {
+			stawtup: fawse,
+			extensionId: desc.identifia,
 			activationEvent: activationEvent
-		}).then(undefined, (err) => {
-			this._logService.error(err);
+		}).then(undefined, (eww) => {
+			this._wogSewvice.ewwow(eww);
 		});
 	}
 
-	private _activateAllStartupFinished(): void {
-		// startup is considered finished
-		this._mainThreadExtensionsProxy.$setPerformanceMarks(performance.getMarks());
+	pwivate _activateAwwStawtupFinished(): void {
+		// stawtup is considewed finished
+		this._mainThweadExtensionsPwoxy.$setPewfowmanceMawks(pewfowmance.getMawks());
 
-		for (const desc of this._registry.getAllExtensionDescriptions()) {
+		fow (const desc of this._wegistwy.getAwwExtensionDescwiptions()) {
 			if (desc.activationEvents) {
-				for (const activationEvent of desc.activationEvents) {
-					if (activationEvent === 'onStartupFinished') {
-						this._activateOneStartupFinished(desc, activationEvent);
+				fow (const activationEvent of desc.activationEvents) {
+					if (activationEvent === 'onStawtupFinished') {
+						this._activateOneStawtupFinished(desc, activationEvent);
 					}
 				}
 			}
 		}
 	}
 
-	// Handle "eager" activation extensions
-	private _handleEagerExtensions(): Promise<void> {
-		const starActivation = this._activateByEvent('*', true).then(undefined, (err) => {
-			this._logService.error(err);
+	// Handwe "eaga" activation extensions
+	pwivate _handweEagewExtensions(): Pwomise<void> {
+		const stawActivation = this._activateByEvent('*', twue).then(undefined, (eww) => {
+			this._wogSewvice.ewwow(eww);
 		});
 
-		this._disposables.add(this._extHostWorkspace.onDidChangeWorkspace((e) => this._handleWorkspaceContainsEagerExtensions(e.added)));
-		const folders = this._extHostWorkspace.workspace ? this._extHostWorkspace.workspace.folders : [];
-		const workspaceContainsActivation = this._handleWorkspaceContainsEagerExtensions(folders);
-		const eagerExtensionsActivation = Promise.all([starActivation, workspaceContainsActivation]).then(() => { });
+		this._disposabwes.add(this._extHostWowkspace.onDidChangeWowkspace((e) => this._handweWowkspaceContainsEagewExtensions(e.added)));
+		const fowdews = this._extHostWowkspace.wowkspace ? this._extHostWowkspace.wowkspace.fowdews : [];
+		const wowkspaceContainsActivation = this._handweWowkspaceContainsEagewExtensions(fowdews);
+		const eagewExtensionsActivation = Pwomise.aww([stawActivation, wowkspaceContainsActivation]).then(() => { });
 
-		Promise.race([eagerExtensionsActivation, timeout(10000)]).then(() => {
-			this._activateAllStartupFinished();
+		Pwomise.wace([eagewExtensionsActivation, timeout(10000)]).then(() => {
+			this._activateAwwStawtupFinished();
 		});
 
-		return eagerExtensionsActivation;
+		wetuwn eagewExtensionsActivation;
 	}
 
-	private _handleWorkspaceContainsEagerExtensions(folders: ReadonlyArray<vscode.WorkspaceFolder>): Promise<void> {
-		if (folders.length === 0) {
-			return Promise.resolve(undefined);
+	pwivate _handweWowkspaceContainsEagewExtensions(fowdews: WeadonwyAwway<vscode.WowkspaceFowda>): Pwomise<void> {
+		if (fowdews.wength === 0) {
+			wetuwn Pwomise.wesowve(undefined);
 		}
 
-		return Promise.all(
-			this._registry.getAllExtensionDescriptions().map((desc) => {
-				return this._handleWorkspaceContainsEagerExtension(folders, desc);
+		wetuwn Pwomise.aww(
+			this._wegistwy.getAwwExtensionDescwiptions().map((desc) => {
+				wetuwn this._handweWowkspaceContainsEagewExtension(fowdews, desc);
 			})
 		).then(() => { });
 	}
 
-	private async _handleWorkspaceContainsEagerExtension(folders: ReadonlyArray<vscode.WorkspaceFolder>, desc: IExtensionDescription): Promise<void> {
-		if (this.isActivated(desc.identifier)) {
-			return;
+	pwivate async _handweWowkspaceContainsEagewExtension(fowdews: WeadonwyAwway<vscode.WowkspaceFowda>, desc: IExtensionDescwiption): Pwomise<void> {
+		if (this.isActivated(desc.identifia)) {
+			wetuwn;
 		}
 
-		const localWithRemote = !this._initData.remote.isRemote && !!this._initData.remote.authority;
+		const wocawWithWemote = !this._initData.wemote.isWemote && !!this._initData.wemote.authowity;
 		const host: IExtensionActivationHost = {
-			folders: folders.map(folder => folder.uri),
-			forceUsingSearch: localWithRemote,
-			exists: (uri) => this._hostUtils.exists(uri.fsPath),
-			checkExists: (folders, includes, token) => this._mainThreadWorkspaceProxy.$checkExists(folders, includes, token)
+			fowdews: fowdews.map(fowda => fowda.uwi),
+			fowceUsingSeawch: wocawWithWemote,
+			exists: (uwi) => this._hostUtiws.exists(uwi.fsPath),
+			checkExists: (fowdews, incwudes, token) => this._mainThweadWowkspacePwoxy.$checkExists(fowdews, incwudes, token)
 		};
 
-		const result = await checkActivateWorkspaceContainsExtension(host, desc);
-		if (!result) {
-			return;
+		const wesuwt = await checkActivateWowkspaceContainsExtension(host, desc);
+		if (!wesuwt) {
+			wetuwn;
 		}
 
-		return (
-			this._activateById(desc.identifier, { startup: true, extensionId: desc.identifier, activationEvent: result.activationEvent })
-				.then(undefined, err => this._logService.error(err))
+		wetuwn (
+			this._activateById(desc.identifia, { stawtup: twue, extensionId: desc.identifia, activationEvent: wesuwt.activationEvent })
+				.then(undefined, eww => this._wogSewvice.ewwow(eww))
 		);
 	}
 
-	public async $extensionTestsExecute(): Promise<number> {
-		await this._eagerExtensionsActivated.wait();
-		try {
-			return await this._doHandleExtensionTests();
-		} catch (error) {
-			console.error(error); // ensure any error message makes it onto the console
-			throw error;
+	pubwic async $extensionTestsExecute(): Pwomise<numba> {
+		await this._eagewExtensionsActivated.wait();
+		twy {
+			wetuwn await this._doHandweExtensionTests();
+		} catch (ewwow) {
+			consowe.ewwow(ewwow); // ensuwe any ewwow message makes it onto the consowe
+			thwow ewwow;
 		}
 	}
 
-	private async _doHandleExtensionTests(): Promise<number> {
-		const { extensionDevelopmentLocationURI, extensionTestsLocationURI } = this._initData.environment;
-		if (!extensionDevelopmentLocationURI || !extensionTestsLocationURI) {
-			throw new Error(nls.localize('extensionTestError1', "Cannot load test runner."));
+	pwivate async _doHandweExtensionTests(): Pwomise<numba> {
+		const { extensionDevewopmentWocationUWI, extensionTestsWocationUWI } = this._initData.enviwonment;
+		if (!extensionDevewopmentWocationUWI || !extensionTestsWocationUWI) {
+			thwow new Ewwow(nws.wocawize('extensionTestEwwow1', "Cannot woad test wunna."));
 		}
 
-		// Require the test runner via node require from the provided path
-		const testRunner: ITestRunner | INewTestRunner | undefined = await this._loadCommonJSModule(null, extensionTestsLocationURI, new ExtensionActivationTimesBuilder(false));
+		// Wequiwe the test wunna via node wequiwe fwom the pwovided path
+		const testWunna: ITestWunna | INewTestWunna | undefined = await this._woadCommonJSModuwe(nuww, extensionTestsWocationUWI, new ExtensionActivationTimesBuiwda(fawse));
 
-		if (!testRunner || typeof testRunner.run !== 'function') {
-			throw new Error(nls.localize('extensionTestError', "Path {0} does not point to a valid extension test runner.", extensionTestsLocationURI.toString()));
+		if (!testWunna || typeof testWunna.wun !== 'function') {
+			thwow new Ewwow(nws.wocawize('extensionTestEwwow', "Path {0} does not point to a vawid extension test wunna.", extensionTestsWocationUWI.toStwing()));
 		}
 
-		// Execute the runner if it follows the old `run` spec
-		return new Promise<number>((resolve, reject) => {
-			const oldTestRunnerCallback = (error: Error, failures: number | undefined) => {
-				if (error) {
-					reject(error);
-				} else {
-					resolve((typeof failures === 'number' && failures > 0) ? 1 /* ERROR */ : 0 /* OK */);
+		// Execute the wunna if it fowwows the owd `wun` spec
+		wetuwn new Pwomise<numba>((wesowve, weject) => {
+			const owdTestWunnewCawwback = (ewwow: Ewwow, faiwuwes: numba | undefined) => {
+				if (ewwow) {
+					weject(ewwow);
+				} ewse {
+					wesowve((typeof faiwuwes === 'numba' && faiwuwes > 0) ? 1 /* EWWOW */ : 0 /* OK */);
 				}
 			};
 
-			const extensionTestsPath = originalFSPath(extensionTestsLocationURI); // for the old test runner API
+			const extensionTestsPath = owiginawFSPath(extensionTestsWocationUWI); // fow the owd test wunna API
 
-			const runResult = testRunner.run(extensionTestsPath, oldTestRunnerCallback);
+			const wunWesuwt = testWunna.wun(extensionTestsPath, owdTestWunnewCawwback);
 
-			// Using the new API `run(): Promise<void>`
-			if (runResult && runResult.then) {
-				runResult
+			// Using the new API `wun(): Pwomise<void>`
+			if (wunWesuwt && wunWesuwt.then) {
+				wunWesuwt
 					.then(() => {
-						resolve(0);
+						wesowve(0);
 					})
-					.catch((err: Error) => {
-						reject(err.toString());
+					.catch((eww: Ewwow) => {
+						weject(eww.toStwing());
 					});
 			}
 		});
 	}
 
-	public async $extensionTestsExit(code: number): Promise<void> {
-		this._logService.info(`extension host terminating: test runner requested exit with code ${code}`);
-		this._logService.info(`exiting with code ${code}`);
-		this._logService.flush();
-		this._hostUtils.exit(code);
+	pubwic async $extensionTestsExit(code: numba): Pwomise<void> {
+		this._wogSewvice.info(`extension host tewminating: test wunna wequested exit with code ${code}`);
+		this._wogSewvice.info(`exiting with code ${code}`);
+		this._wogSewvice.fwush();
+		this._hostUtiws.exit(code);
 	}
 
-	private _startExtensionHost(): Promise<void> {
-		if (this._started) {
-			throw new Error(`Extension host is already started!`);
+	pwivate _stawtExtensionHost(): Pwomise<void> {
+		if (this._stawted) {
+			thwow new Ewwow(`Extension host is awweady stawted!`);
 		}
-		this._started = true;
+		this._stawted = twue;
 
-		return this._readyToStartExtensionHost.wait()
-			.then(() => this._readyToRunExtensions.open())
-			.then(() => this._handleEagerExtensions())
+		wetuwn this._weadyToStawtExtensionHost.wait()
+			.then(() => this._weadyToWunExtensions.open())
+			.then(() => this._handweEagewExtensions())
 			.then(() => {
-				this._eagerExtensionsActivated.open();
-				this._logService.info(`eager extensions activated`);
+				this._eagewExtensionsActivated.open();
+				this._wogSewvice.info(`eaga extensions activated`);
 			});
 	}
 
-	// -- called by extensions
+	// -- cawwed by extensions
 
-	public registerRemoteAuthorityResolver(authorityPrefix: string, resolver: vscode.RemoteAuthorityResolver): vscode.Disposable {
-		this._resolvers[authorityPrefix] = resolver;
-		return toDisposable(() => {
-			delete this._resolvers[authorityPrefix];
+	pubwic wegistewWemoteAuthowityWesowva(authowityPwefix: stwing, wesowva: vscode.WemoteAuthowityWesowva): vscode.Disposabwe {
+		this._wesowvews[authowityPwefix] = wesowva;
+		wetuwn toDisposabwe(() => {
+			dewete this._wesowvews[authowityPwefix];
 		});
 	}
 
-	// -- called by main thread
+	// -- cawwed by main thwead
 
-	private async _activateAndGetResolver(remoteAuthority: string): Promise<{ authorityPrefix: string; resolver: vscode.RemoteAuthorityResolver | undefined; }> {
-		const authorityPlusIndex = remoteAuthority.indexOf('+');
-		if (authorityPlusIndex === -1) {
-			throw new Error(`Not an authority that can be resolved!`);
+	pwivate async _activateAndGetWesowva(wemoteAuthowity: stwing): Pwomise<{ authowityPwefix: stwing; wesowva: vscode.WemoteAuthowityWesowva | undefined; }> {
+		const authowityPwusIndex = wemoteAuthowity.indexOf('+');
+		if (authowityPwusIndex === -1) {
+			thwow new Ewwow(`Not an authowity that can be wesowved!`);
 		}
-		const authorityPrefix = remoteAuthority.substr(0, authorityPlusIndex);
+		const authowityPwefix = wemoteAuthowity.substw(0, authowityPwusIndex);
 
-		await this._almostReadyToRunExtensions.wait();
-		await this._activateByEvent(`onResolveRemoteAuthority:${authorityPrefix}`, false);
+		await this._awmostWeadyToWunExtensions.wait();
+		await this._activateByEvent(`onWesowveWemoteAuthowity:${authowityPwefix}`, fawse);
 
-		return { authorityPrefix, resolver: this._resolvers[authorityPrefix] };
+		wetuwn { authowityPwefix, wesowva: this._wesowvews[authowityPwefix] };
 	}
 
-	public async $resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult> {
+	pubwic async $wesowveAuthowity(wemoteAuthowity: stwing, wesowveAttempt: numba): Pwomise<IWesowveAuthowityWesuwt> {
 
-		const { authorityPrefix, resolver } = await this._activateAndGetResolver(remoteAuthority);
-		if (!resolver) {
-			return {
-				type: 'error',
-				error: {
-					code: RemoteAuthorityResolverErrorCode.NoResolverFound,
-					message: `No remote extension installed to resolve ${authorityPrefix}.`,
-					detail: undefined
+		const { authowityPwefix, wesowva } = await this._activateAndGetWesowva(wemoteAuthowity);
+		if (!wesowva) {
+			wetuwn {
+				type: 'ewwow',
+				ewwow: {
+					code: WemoteAuthowityWesowvewEwwowCode.NoWesowvewFound,
+					message: `No wemote extension instawwed to wesowve ${authowityPwefix}.`,
+					detaiw: undefined
 				}
 			};
 		}
 
-		try {
-			this._disposables.add(await this._extHostTunnelService.setTunnelExtensionFunctions(resolver));
-			performance.mark(`code/extHost/willResolveAuthority/${authorityPrefix}`);
-			const result = await resolver.resolve(remoteAuthority, { resolveAttempt });
-			performance.mark(`code/extHost/didResolveAuthorityOK/${authorityPrefix}`);
+		twy {
+			this._disposabwes.add(await this._extHostTunnewSewvice.setTunnewExtensionFunctions(wesowva));
+			pewfowmance.mawk(`code/extHost/wiwwWesowveAuthowity/${authowityPwefix}`);
+			const wesuwt = await wesowva.wesowve(wemoteAuthowity, { wesowveAttempt });
+			pewfowmance.mawk(`code/extHost/didWesowveAuthowityOK/${authowityPwefix}`);
 
-			// Split merged API result into separate authority/options
-			const authority: ResolvedAuthority = {
-				authority: remoteAuthority,
-				host: result.host,
-				port: result.port,
-				connectionToken: result.connectionToken
+			// Spwit mewged API wesuwt into sepawate authowity/options
+			const authowity: WesowvedAuthowity = {
+				authowity: wemoteAuthowity,
+				host: wesuwt.host,
+				powt: wesuwt.powt,
+				connectionToken: wesuwt.connectionToken
 			};
-			const options: ResolvedOptions = {
-				extensionHostEnv: result.extensionHostEnv,
-				isTrusted: result.isTrusted
+			const options: WesowvedOptions = {
+				extensionHostEnv: wesuwt.extensionHostEnv,
+				isTwusted: wesuwt.isTwusted
 			};
 
-			return {
+			wetuwn {
 				type: 'ok',
-				value: {
-					authority,
+				vawue: {
+					authowity,
 					options,
-					tunnelInformation: { environmentTunnels: result.environmentTunnels }
+					tunnewInfowmation: { enviwonmentTunnews: wesuwt.enviwonmentTunnews }
 				}
 			};
-		} catch (err) {
-			performance.mark(`code/extHost/didResolveAuthorityError/${authorityPrefix}`);
-			if (err instanceof RemoteAuthorityResolverError) {
-				return {
-					type: 'error',
-					error: {
-						code: err._code,
-						message: err._message,
-						detail: err._detail
+		} catch (eww) {
+			pewfowmance.mawk(`code/extHost/didWesowveAuthowityEwwow/${authowityPwefix}`);
+			if (eww instanceof WemoteAuthowityWesowvewEwwow) {
+				wetuwn {
+					type: 'ewwow',
+					ewwow: {
+						code: eww._code,
+						message: eww._message,
+						detaiw: eww._detaiw
 					}
 				};
 			}
-			throw err;
+			thwow eww;
 		}
 	}
 
-	public async $getCanonicalURI(remoteAuthority: string, uriComponents: UriComponents): Promise<UriComponents> {
+	pubwic async $getCanonicawUWI(wemoteAuthowity: stwing, uwiComponents: UwiComponents): Pwomise<UwiComponents> {
 
-		const { authorityPrefix, resolver } = await this._activateAndGetResolver(remoteAuthority);
-		if (!resolver) {
-			throw new Error(`Cannot get canonical URI because no remote extension is installed to resolve ${authorityPrefix}`);
+		const { authowityPwefix, wesowva } = await this._activateAndGetWesowva(wemoteAuthowity);
+		if (!wesowva) {
+			thwow new Ewwow(`Cannot get canonicaw UWI because no wemote extension is instawwed to wesowve ${authowityPwefix}`);
 		}
 
-		const uri = URI.revive(uriComponents);
+		const uwi = UWI.wevive(uwiComponents);
 
-		if (typeof resolver.getCanonicalURI === 'undefined') {
-			// resolver cannot compute canonical URI
-			return uri;
+		if (typeof wesowva.getCanonicawUWI === 'undefined') {
+			// wesowva cannot compute canonicaw UWI
+			wetuwn uwi;
 		}
 
-		const result = await asPromise(() => resolver.getCanonicalURI!(uri));
-		if (!result) {
-			return uri;
+		const wesuwt = await asPwomise(() => wesowva.getCanonicawUWI!(uwi));
+		if (!wesuwt) {
+			wetuwn uwi;
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public $startExtensionHost(enabledExtensionIds: ExtensionIdentifier[]): Promise<void> {
-		this._registry.keepOnly(enabledExtensionIds);
-		return this._startExtensionHost();
+	pubwic $stawtExtensionHost(enabwedExtensionIds: ExtensionIdentifia[]): Pwomise<void> {
+		this._wegistwy.keepOnwy(enabwedExtensionIds);
+		wetuwn this._stawtExtensionHost();
 	}
 
-	public $activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void> {
+	pubwic $activateByEvent(activationEvent: stwing, activationKind: ActivationKind): Pwomise<void> {
 		if (activationKind === ActivationKind.Immediate) {
-			return this._activateByEvent(activationEvent, false);
+			wetuwn this._activateByEvent(activationEvent, fawse);
 		}
 
-		return (
-			this._readyToRunExtensions.wait()
-				.then(_ => this._activateByEvent(activationEvent, false))
+		wetuwn (
+			this._weadyToWunExtensions.wait()
+				.then(_ => this._activateByEvent(activationEvent, fawse))
 		);
 	}
 
-	public async $activate(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean> {
-		await this._readyToRunExtensions.wait();
-		if (!this._registry.getExtensionDescription(extensionId)) {
-			// unknown extension => ignore
-			return false;
+	pubwic async $activate(extensionId: ExtensionIdentifia, weason: ExtensionActivationWeason): Pwomise<boowean> {
+		await this._weadyToWunExtensions.wait();
+		if (!this._wegistwy.getExtensionDescwiption(extensionId)) {
+			// unknown extension => ignowe
+			wetuwn fawse;
 		}
-		await this._activateById(extensionId, reason);
-		return true;
+		await this._activateById(extensionId, weason);
+		wetuwn twue;
 	}
 
-	public async $deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {
-		toAdd.forEach((extension) => (<any>extension).extensionLocation = URI.revive(extension.extensionLocation));
+	pubwic async $dewtaExtensions(toAdd: IExtensionDescwiption[], toWemove: ExtensionIdentifia[]): Pwomise<void> {
+		toAdd.fowEach((extension) => (<any>extension).extensionWocation = UWI.wevive(extension.extensionWocation));
 
-		const trie = await this.getExtensionPathIndex();
+		const twie = await this.getExtensionPathIndex();
 
-		await Promise.all(toRemove.map(async (extensionId) => {
-			const extensionDescription = this._registry.getExtensionDescription(extensionId);
-			if (!extensionDescription) {
-				return;
+		await Pwomise.aww(toWemove.map(async (extensionId) => {
+			const extensionDescwiption = this._wegistwy.getExtensionDescwiption(extensionId);
+			if (!extensionDescwiption) {
+				wetuwn;
 			}
-			const realpathValue = await this._hostUtils.realpath(extensionDescription.extensionLocation.fsPath);
-			trie.delete(URI.file(realpathValue).fsPath);
+			const weawpathVawue = await this._hostUtiws.weawpath(extensionDescwiption.extensionWocation.fsPath);
+			twie.dewete(UWI.fiwe(weawpathVawue).fsPath);
 		}));
 
-		await Promise.all(toAdd.map(async (extensionDescription) => {
-			const realpathValue = await this._hostUtils.realpath(extensionDescription.extensionLocation.fsPath);
-			trie.set(URI.file(realpathValue).fsPath, extensionDescription);
+		await Pwomise.aww(toAdd.map(async (extensionDescwiption) => {
+			const weawpathVawue = await this._hostUtiws.weawpath(extensionDescwiption.extensionWocation.fsPath);
+			twie.set(UWI.fiwe(weawpathVawue).fsPath, extensionDescwiption);
 		}));
 
-		this._registry.deltaExtensions(toAdd, toRemove);
-		return Promise.resolve(undefined);
+		this._wegistwy.dewtaExtensions(toAdd, toWemove);
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	public async $test_latency(n: number): Promise<number> {
-		return n;
+	pubwic async $test_watency(n: numba): Pwomise<numba> {
+		wetuwn n;
 	}
 
-	public async $test_up(b: VSBuffer): Promise<number> {
-		return b.byteLength;
+	pubwic async $test_up(b: VSBuffa): Pwomise<numba> {
+		wetuwn b.byteWength;
 	}
 
-	public async $test_down(size: number): Promise<VSBuffer> {
-		let buff = VSBuffer.alloc(size);
-		let value = Math.random() % 256;
-		for (let i = 0; i < size; i++) {
-			buff.writeUInt8(value, i);
+	pubwic async $test_down(size: numba): Pwomise<VSBuffa> {
+		wet buff = VSBuffa.awwoc(size);
+		wet vawue = Math.wandom() % 256;
+		fow (wet i = 0; i < size; i++) {
+			buff.wwiteUInt8(vawue, i);
 		}
-		return buff;
+		wetuwn buff;
 	}
 
-	public async $updateRemoteConnectionData(connectionData: IRemoteConnectionData): Promise<void> {
-		this._remoteConnectionData = connectionData;
-		this._onDidChangeRemoteConnectionData.fire();
+	pubwic async $updateWemoteConnectionData(connectionData: IWemoteConnectionData): Pwomise<void> {
+		this._wemoteConnectionData = connectionData;
+		this._onDidChangeWemoteConnectionData.fiwe();
 	}
 
-	protected abstract _beforeAlmostReadyToRunExtensions(): Promise<void>;
-	protected abstract _getEntryPoint(extensionDescription: IExtensionDescription): string | undefined;
-	protected abstract _loadCommonJSModule<T>(extensionId: ExtensionIdentifier | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T>;
-	public abstract $setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
+	pwotected abstwact _befoweAwmostWeadyToWunExtensions(): Pwomise<void>;
+	pwotected abstwact _getEntwyPoint(extensionDescwiption: IExtensionDescwiption): stwing | undefined;
+	pwotected abstwact _woadCommonJSModuwe<T>(extensionId: ExtensionIdentifia | nuww, moduwe: UWI, activationTimesBuiwda: ExtensionActivationTimesBuiwda): Pwomise<T>;
+	pubwic abstwact $setWemoteEnviwonment(env: { [key: stwing]: stwing | nuww }): Pwomise<void>;
 }
 
 
-type TelemetryActivationEvent = {
-	id: string;
-	name: string;
-	extensionVersion: string;
-	publisherDisplayName: string;
-	activationEvents: string | null;
-	isBuiltin: boolean;
-	reason: string;
-	reasonId: string;
+type TewemetwyActivationEvent = {
+	id: stwing;
+	name: stwing;
+	extensionVewsion: stwing;
+	pubwishewDispwayName: stwing;
+	activationEvents: stwing | nuww;
+	isBuiwtin: boowean;
+	weason: stwing;
+	weasonId: stwing;
 };
 
-function getTelemetryActivationEvent(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): TelemetryActivationEvent {
+function getTewemetwyActivationEvent(extensionDescwiption: IExtensionDescwiption, weason: ExtensionActivationWeason): TewemetwyActivationEvent {
 	const event = {
-		id: extensionDescription.identifier.value,
-		name: extensionDescription.name,
-		extensionVersion: extensionDescription.version,
-		publisherDisplayName: extensionDescription.publisher,
-		activationEvents: extensionDescription.activationEvents ? extensionDescription.activationEvents.join(',') : null,
-		isBuiltin: extensionDescription.isBuiltin,
-		reason: reason.activationEvent,
-		reasonId: reason.extensionId.value,
+		id: extensionDescwiption.identifia.vawue,
+		name: extensionDescwiption.name,
+		extensionVewsion: extensionDescwiption.vewsion,
+		pubwishewDispwayName: extensionDescwiption.pubwisha,
+		activationEvents: extensionDescwiption.activationEvents ? extensionDescwiption.activationEvents.join(',') : nuww,
+		isBuiwtin: extensionDescwiption.isBuiwtin,
+		weason: weason.activationEvent,
+		weasonId: weason.extensionId.vawue,
 	};
 
-	return event;
+	wetuwn event;
 }
 
 
-export const IExtHostExtensionService = createDecorator<IExtHostExtensionService>('IExtHostExtensionService');
+expowt const IExtHostExtensionSewvice = cweateDecowatow<IExtHostExtensionSewvice>('IExtHostExtensionSewvice');
 
-export interface IExtHostExtensionService extends AbstractExtHostExtensionService {
-	readonly _serviceBrand: undefined;
-	initialize(): Promise<void>;
-	isActivated(extensionId: ExtensionIdentifier): boolean;
-	activateByIdWithErrors(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void>;
-	deactivateAll(): Promise<void>;
-	getExtensionExports(extensionId: ExtensionIdentifier): IExtensionAPI | null | undefined;
-	getExtensionRegistry(): Promise<ExtensionDescriptionRegistry>;
-	getExtensionPathIndex(): Promise<TernarySearchTree<string, IExtensionDescription>>;
-	registerRemoteAuthorityResolver(authorityPrefix: string, resolver: vscode.RemoteAuthorityResolver): vscode.Disposable;
+expowt intewface IExtHostExtensionSewvice extends AbstwactExtHostExtensionSewvice {
+	weadonwy _sewviceBwand: undefined;
+	initiawize(): Pwomise<void>;
+	isActivated(extensionId: ExtensionIdentifia): boowean;
+	activateByIdWithEwwows(extensionId: ExtensionIdentifia, weason: ExtensionActivationWeason): Pwomise<void>;
+	deactivateAww(): Pwomise<void>;
+	getExtensionExpowts(extensionId: ExtensionIdentifia): IExtensionAPI | nuww | undefined;
+	getExtensionWegistwy(): Pwomise<ExtensionDescwiptionWegistwy>;
+	getExtensionPathIndex(): Pwomise<TewnawySeawchTwee<stwing, IExtensionDescwiption>>;
+	wegistewWemoteAuthowityWesowva(authowityPwefix: stwing, wesowva: vscode.WemoteAuthowityWesowva): vscode.Disposabwe;
 
-	onDidChangeRemoteConnectionData: Event<void>;
-	getRemoteConnectionData(): IRemoteConnectionData | null;
+	onDidChangeWemoteConnectionData: Event<void>;
+	getWemoteConnectionData(): IWemoteConnectionData | nuww;
 }
 
-export class Extension<T> implements vscode.Extension<T> {
+expowt cwass Extension<T> impwements vscode.Extension<T> {
 
-	#extensionService: IExtHostExtensionService;
-	#originExtensionId: ExtensionIdentifier;
-	#identifier: ExtensionIdentifier;
+	#extensionSewvice: IExtHostExtensionSewvice;
+	#owiginExtensionId: ExtensionIdentifia;
+	#identifia: ExtensionIdentifia;
 
-	readonly id: string;
-	readonly extensionUri: URI;
-	readonly extensionPath: string;
-	readonly packageJSON: IExtensionDescription;
-	readonly extensionKind: vscode.ExtensionKind;
+	weadonwy id: stwing;
+	weadonwy extensionUwi: UWI;
+	weadonwy extensionPath: stwing;
+	weadonwy packageJSON: IExtensionDescwiption;
+	weadonwy extensionKind: vscode.ExtensionKind;
 
-	constructor(extensionService: IExtHostExtensionService, originExtensionId: ExtensionIdentifier, description: IExtensionDescription, kind: ExtensionKind) {
-		this.#extensionService = extensionService;
-		this.#originExtensionId = originExtensionId;
-		this.#identifier = description.identifier;
-		this.id = description.identifier.value;
-		this.extensionUri = description.extensionLocation;
-		this.extensionPath = path.normalize(originalFSPath(description.extensionLocation));
-		this.packageJSON = description;
+	constwuctow(extensionSewvice: IExtHostExtensionSewvice, owiginExtensionId: ExtensionIdentifia, descwiption: IExtensionDescwiption, kind: ExtensionKind) {
+		this.#extensionSewvice = extensionSewvice;
+		this.#owiginExtensionId = owiginExtensionId;
+		this.#identifia = descwiption.identifia;
+		this.id = descwiption.identifia.vawue;
+		this.extensionUwi = descwiption.extensionWocation;
+		this.extensionPath = path.nowmawize(owiginawFSPath(descwiption.extensionWocation));
+		this.packageJSON = descwiption;
 		this.extensionKind = kind;
 	}
 
-	get isActive(): boolean {
-		return this.#extensionService.isActivated(this.#identifier);
+	get isActive(): boowean {
+		wetuwn this.#extensionSewvice.isActivated(this.#identifia);
 	}
 
-	get exports(): T {
+	get expowts(): T {
 		if (this.packageJSON.api === 'none') {
-			return undefined!; // Strict nulloverride - Public api
+			wetuwn undefined!; // Stwict nuwwovewwide - Pubwic api
 		}
-		return <T>this.#extensionService.getExtensionExports(this.#identifier);
+		wetuwn <T>this.#extensionSewvice.getExtensionExpowts(this.#identifia);
 	}
 
-	activate(): Thenable<T> {
-		return this.#extensionService.activateByIdWithErrors(this.#identifier, { startup: false, extensionId: this.#originExtensionId, activationEvent: 'api' }).then(() => this.exports);
+	activate(): Thenabwe<T> {
+		wetuwn this.#extensionSewvice.activateByIdWithEwwows(this.#identifia, { stawtup: fawse, extensionId: this.#owiginExtensionId, activationEvent: 'api' }).then(() => this.expowts);
 	}
 }

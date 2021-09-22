@@ -1,218 +1,218 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { join } from 'vs/base/common/path';
-import { isLinux, isWindows } from 'vs/base/common/platform';
-import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IRawFileWorkspaceFolder, toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
+impowt * as assewt fwom 'assewt';
+impowt { join } fwom 'vs/base/common/path';
+impowt { isWinux, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { extUwiBiasedIgnowePathCase } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Wowkspace, WowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IWawFiweWowkspaceFowda, toWowkspaceFowdews } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
 
-suite('Workspace', () => {
+suite('Wowkspace', () => {
 
-	const fileFolder = isWindows ? 'c:\\src' : '/src';
-	const abcFolder = isWindows ? 'c:\\abc' : '/abc';
+	const fiweFowda = isWindows ? 'c:\\swc' : '/swc';
+	const abcFowda = isWindows ? 'c:\\abc' : '/abc';
 
-	const testFolderUri = URI.file(join(fileFolder, 'test'));
-	const mainFolderUri = URI.file(join(fileFolder, 'main'));
-	const test1FolderUri = URI.file(join(fileFolder, 'test1'));
-	const test2FolderUri = URI.file(join(fileFolder, 'test2'));
-	const test3FolderUri = URI.file(join(fileFolder, 'test3'));
-	const abcTest1FolderUri = URI.file(join(abcFolder, 'test1'));
-	const abcTest3FolderUri = URI.file(join(abcFolder, 'test3'));
+	const testFowdewUwi = UWI.fiwe(join(fiweFowda, 'test'));
+	const mainFowdewUwi = UWI.fiwe(join(fiweFowda, 'main'));
+	const test1FowdewUwi = UWI.fiwe(join(fiweFowda, 'test1'));
+	const test2FowdewUwi = UWI.fiwe(join(fiweFowda, 'test2'));
+	const test3FowdewUwi = UWI.fiwe(join(fiweFowda, 'test3'));
+	const abcTest1FowdewUwi = UWI.fiwe(join(abcFowda, 'test1'));
+	const abcTest3FowdewUwi = UWI.fiwe(join(abcFowda, 'test3'));
 
-	const workspaceConfigUri = URI.file(join(fileFolder, 'test.code-workspace'));
+	const wowkspaceConfigUwi = UWI.fiwe(join(fiweFowda, 'test.code-wowkspace'));
 
-	test('getFolder returns the folder with given uri', () => {
-		const expected = new WorkspaceFolder({ uri: testFolderUri, name: '', index: 2 });
-		let testObject = new Workspace('', [new WorkspaceFolder({ uri: mainFolderUri, name: '', index: 0 }), expected, new WorkspaceFolder({ uri: URI.file('/src/code'), name: '', index: 2 })], null, () => !isLinux);
+	test('getFowda wetuwns the fowda with given uwi', () => {
+		const expected = new WowkspaceFowda({ uwi: testFowdewUwi, name: '', index: 2 });
+		wet testObject = new Wowkspace('', [new WowkspaceFowda({ uwi: mainFowdewUwi, name: '', index: 0 }), expected, new WowkspaceFowda({ uwi: UWI.fiwe('/swc/code'), name: '', index: 2 })], nuww, () => !isWinux);
 
-		const actual = testObject.getFolder(expected.uri);
+		const actuaw = testObject.getFowda(expected.uwi);
 
-		assert.strictEqual(actual, expected);
+		assewt.stwictEquaw(actuaw, expected);
 	});
 
-	test('getFolder returns the folder if the uri is sub', () => {
-		const expected = new WorkspaceFolder({ uri: testFolderUri, name: '', index: 0 });
-		let testObject = new Workspace('', [expected, new WorkspaceFolder({ uri: mainFolderUri, name: '', index: 1 }), new WorkspaceFolder({ uri: URI.file('/src/code'), name: '', index: 2 })], null, () => !isLinux);
+	test('getFowda wetuwns the fowda if the uwi is sub', () => {
+		const expected = new WowkspaceFowda({ uwi: testFowdewUwi, name: '', index: 0 });
+		wet testObject = new Wowkspace('', [expected, new WowkspaceFowda({ uwi: mainFowdewUwi, name: '', index: 1 }), new WowkspaceFowda({ uwi: UWI.fiwe('/swc/code'), name: '', index: 2 })], nuww, () => !isWinux);
 
-		const actual = testObject.getFolder(URI.file(join(fileFolder, 'test/a')));
+		const actuaw = testObject.getFowda(UWI.fiwe(join(fiweFowda, 'test/a')));
 
-		assert.strictEqual(actual, expected);
+		assewt.stwictEquaw(actuaw, expected);
 	});
 
-	test('getFolder returns the closest folder if the uri is sub', () => {
-		const expected = new WorkspaceFolder({ uri: testFolderUri, name: '', index: 2 });
-		let testObject = new Workspace('', [new WorkspaceFolder({ uri: mainFolderUri, name: '', index: 0 }), new WorkspaceFolder({ uri: URI.file('/src/code'), name: '', index: 1 }), expected], null, () => !isLinux);
+	test('getFowda wetuwns the cwosest fowda if the uwi is sub', () => {
+		const expected = new WowkspaceFowda({ uwi: testFowdewUwi, name: '', index: 2 });
+		wet testObject = new Wowkspace('', [new WowkspaceFowda({ uwi: mainFowdewUwi, name: '', index: 0 }), new WowkspaceFowda({ uwi: UWI.fiwe('/swc/code'), name: '', index: 1 }), expected], nuww, () => !isWinux);
 
-		const actual = testObject.getFolder(URI.file(join(fileFolder, 'test/a')));
+		const actuaw = testObject.getFowda(UWI.fiwe(join(fiweFowda, 'test/a')));
 
-		assert.strictEqual(actual, expected);
+		assewt.stwictEquaw(actuaw, expected);
 	});
 
-	test('getFolder returns the folder even if the uri has query path', () => {
-		const expected = new WorkspaceFolder({ uri: testFolderUri, name: '', index: 2 });
-		let testObject = new Workspace('', [new WorkspaceFolder({ uri: mainFolderUri, name: '', index: 0 }), new WorkspaceFolder({ uri: URI.file('/src/code'), name: '', index: 1 }), expected], null, () => !isLinux);
+	test('getFowda wetuwns the fowda even if the uwi has quewy path', () => {
+		const expected = new WowkspaceFowda({ uwi: testFowdewUwi, name: '', index: 2 });
+		wet testObject = new Wowkspace('', [new WowkspaceFowda({ uwi: mainFowdewUwi, name: '', index: 0 }), new WowkspaceFowda({ uwi: UWI.fiwe('/swc/code'), name: '', index: 1 }), expected], nuww, () => !isWinux);
 
-		const actual = testObject.getFolder(URI.file(join(fileFolder, 'test/a')).with({ query: 'somequery' }));
+		const actuaw = testObject.getFowda(UWI.fiwe(join(fiweFowda, 'test/a')).with({ quewy: 'somequewy' }));
 
-		assert.strictEqual(actual, expected);
+		assewt.stwictEquaw(actuaw, expected);
 	});
 
-	test('getFolder returns null if the uri is not sub', () => {
-		let testObject = new Workspace('', [new WorkspaceFolder({ uri: testFolderUri, name: '', index: 0 }), new WorkspaceFolder({ uri: URI.file('/src/code'), name: '', index: 1 })], null, () => !isLinux);
+	test('getFowda wetuwns nuww if the uwi is not sub', () => {
+		wet testObject = new Wowkspace('', [new WowkspaceFowda({ uwi: testFowdewUwi, name: '', index: 0 }), new WowkspaceFowda({ uwi: UWI.fiwe('/swc/code'), name: '', index: 1 })], nuww, () => !isWinux);
 
-		const actual = testObject.getFolder(URI.file(join(fileFolder, 'main/a')));
+		const actuaw = testObject.getFowda(UWI.fiwe(join(fiweFowda, 'main/a')));
 
-		assert.strictEqual(actual, null);
+		assewt.stwictEquaw(actuaw, nuww);
 	});
 
-	test('toWorkspaceFolders with single absolute folder', () => {
-		const actual = toWorkspaceFolders([{ path: '/src/test' }], workspaceConfigUri, extUriBiasedIgnorePathCase);
+	test('toWowkspaceFowdews with singwe absowute fowda', () => {
+		const actuaw = toWowkspaceFowdews([{ path: '/swc/test' }], wowkspaceConfigUwi, extUwiBiasedIgnowePathCase);
 
-		assert.strictEqual(actual.length, 1);
-		assert.strictEqual(actual[0].uri.fsPath, testFolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[0].raw).path, '/src/test');
-		assert.strictEqual(actual[0].index, 0);
-		assert.strictEqual(actual[0].name, 'test');
+		assewt.stwictEquaw(actuaw.wength, 1);
+		assewt.stwictEquaw(actuaw[0].uwi.fsPath, testFowdewUwi.fsPath);
+		assewt.stwictEquaw((<IWawFiweWowkspaceFowda>actuaw[0].waw).path, '/swc/test');
+		assewt.stwictEquaw(actuaw[0].index, 0);
+		assewt.stwictEquaw(actuaw[0].name, 'test');
 	});
 
-	test('toWorkspaceFolders with single relative folder', () => {
-		const actual = toWorkspaceFolders([{ path: './test' }], workspaceConfigUri, extUriBiasedIgnorePathCase);
+	test('toWowkspaceFowdews with singwe wewative fowda', () => {
+		const actuaw = toWowkspaceFowdews([{ path: './test' }], wowkspaceConfigUwi, extUwiBiasedIgnowePathCase);
 
-		assert.strictEqual(actual.length, 1);
-		assert.strictEqual(actual[0].uri.fsPath, testFolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[0].raw).path, './test');
-		assert.strictEqual(actual[0].index, 0);
-		assert.strictEqual(actual[0].name, 'test');
+		assewt.stwictEquaw(actuaw.wength, 1);
+		assewt.stwictEquaw(actuaw[0].uwi.fsPath, testFowdewUwi.fsPath);
+		assewt.stwictEquaw((<IWawFiweWowkspaceFowda>actuaw[0].waw).path, './test');
+		assewt.stwictEquaw(actuaw[0].index, 0);
+		assewt.stwictEquaw(actuaw[0].name, 'test');
 	});
 
-	test('toWorkspaceFolders with single absolute folder with name', () => {
-		const actual = toWorkspaceFolders([{ path: '/src/test', name: 'hello' }], workspaceConfigUri, extUriBiasedIgnorePathCase);
+	test('toWowkspaceFowdews with singwe absowute fowda with name', () => {
+		const actuaw = toWowkspaceFowdews([{ path: '/swc/test', name: 'hewwo' }], wowkspaceConfigUwi, extUwiBiasedIgnowePathCase);
 
-		assert.strictEqual(actual.length, 1);
+		assewt.stwictEquaw(actuaw.wength, 1);
 
-		assert.strictEqual(actual[0].uri.fsPath, testFolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[0].raw).path, '/src/test');
-		assert.strictEqual(actual[0].index, 0);
-		assert.strictEqual(actual[0].name, 'hello');
+		assewt.stwictEquaw(actuaw[0].uwi.fsPath, testFowdewUwi.fsPath);
+		assewt.stwictEquaw((<IWawFiweWowkspaceFowda>actuaw[0].waw).path, '/swc/test');
+		assewt.stwictEquaw(actuaw[0].index, 0);
+		assewt.stwictEquaw(actuaw[0].name, 'hewwo');
 	});
 
-	test('toWorkspaceFolders with multiple unique absolute folders', () => {
-		const actual = toWorkspaceFolders([{ path: '/src/test2' }, { path: '/src/test3' }, { path: '/src/test1' }], workspaceConfigUri, extUriBiasedIgnorePathCase);
+	test('toWowkspaceFowdews with muwtipwe unique absowute fowdews', () => {
+		const actuaw = toWowkspaceFowdews([{ path: '/swc/test2' }, { path: '/swc/test3' }, { path: '/swc/test1' }], wowkspaceConfigUwi, extUwiBiasedIgnowePathCase);
 
-		assert.strictEqual(actual.length, 3);
-		assert.strictEqual(actual[0].uri.fsPath, test2FolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[0].raw).path, '/src/test2');
-		assert.strictEqual(actual[0].index, 0);
-		assert.strictEqual(actual[0].name, 'test2');
+		assewt.stwictEquaw(actuaw.wength, 3);
+		assewt.stwictEquaw(actuaw[0].uwi.fsPath, test2FowdewUwi.fsPath);
+		assewt.stwictEquaw((<IWawFiweWowkspaceFowda>actuaw[0].waw).path, '/swc/test2');
+		assewt.stwictEquaw(actuaw[0].index, 0);
+		assewt.stwictEquaw(actuaw[0].name, 'test2');
 
-		assert.strictEqual(actual[1].uri.fsPath, test3FolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[1].raw).path, '/src/test3');
-		assert.strictEqual(actual[1].index, 1);
-		assert.strictEqual(actual[1].name, 'test3');
+		assewt.stwictEquaw(actuaw[1].uwi.fsPath, test3FowdewUwi.fsPath);
+		assewt.stwictEquaw((<IWawFiweWowkspaceFowda>actuaw[1].waw).path, '/swc/test3');
+		assewt.stwictEquaw(actuaw[1].index, 1);
+		assewt.stwictEquaw(actuaw[1].name, 'test3');
 
-		assert.strictEqual(actual[2].uri.fsPath, test1FolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[2].raw).path, '/src/test1');
-		assert.strictEqual(actual[2].index, 2);
-		assert.strictEqual(actual[2].name, 'test1');
+		assewt.stwictEquaw(actuaw[2].uwi.fsPath, test1FowdewUwi.fsPath);
+		assewt.stwictEquaw((<IWawFiweWowkspaceFowda>actuaw[2].waw).path, '/swc/test1');
+		assewt.stwictEquaw(actuaw[2].index, 2);
+		assewt.stwictEquaw(actuaw[2].name, 'test1');
 	});
 
-	test('toWorkspaceFolders with multiple unique absolute folders with names', () => {
-		const actual = toWorkspaceFolders([{ path: '/src/test2' }, { path: '/src/test3', name: 'noName' }, { path: '/src/test1' }], workspaceConfigUri, extUriBiasedIgnorePathCase);
+	test('toWowkspaceFowdews with muwtipwe unique absowute fowdews with names', () => {
+		const actuaw = toWowkspaceFowdews([{ path: '/swc/test2' }, { path: '/swc/test3', name: 'noName' }, { path: '/swc/test1' }], wowkspaceConfigUwi, extUwiBiasedIgnowePathCase);
 
-		assert.strictEqual(actual.length, 3);
-		assert.strictEqual(actual[0].uri.fsPath, test2FolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[0].raw).path, '/src/test2');
-		assert.strictEqual(actual[0].index, 0);
-		assert.strictEqual(actual[0].name, 'test2');
+		assewt.stwictEquaw(actuaw.wength, 3);
+		assewt.stwictEquaw(actuaw[0].uwi.fsPath, test2FowdewUwi.fsPath);
+		assewt.stwictEquaw((<IWawFiweWowkspaceFowda>actuaw[0].waw).path, '/swc/test2');
+		assewt.stwictEquaw(actuaw[0].index, 0);
+		assewt.stwictEquaw(actuaw[0].name, 'test2');
 
-		assert.strictEqual(actual[1].uri.fsPath, test3FolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[1].raw).path, '/src/test3');
-		assert.strictEqual(actual[1].index, 1);
-		assert.strictEqual(actual[1].name, 'noName');
+		assewt.stwictEquaw(actuaw[1].uwi.fsPath, test3FowdewUwi.fsPath);
+		assewt.stwictEquaw((<IWawFiweWowkspaceFowda>actuaw[1].waw).path, '/swc/test3');
+		assewt.stwictEquaw(actuaw[1].index, 1);
+		assewt.stwictEquaw(actuaw[1].name, 'noName');
 
-		assert.strictEqual(actual[2].uri.fsPath, test1FolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[2].raw).path, '/src/test1');
-		assert.strictEqual(actual[2].index, 2);
-		assert.strictEqual(actual[2].name, 'test1');
+		assewt.stwictEquaw(actuaw[2].uwi.fsPath, test1FowdewUwi.fsPath);
+		assewt.stwictEquaw((<IWawFiweWowkspaceFowda>actuaw[2].waw).path, '/swc/test1');
+		assewt.stwictEquaw(actuaw[2].index, 2);
+		assewt.stwictEquaw(actuaw[2].name, 'test1');
 	});
 
-	test('toWorkspaceFolders with multiple unique absolute and relative folders', () => {
-		const actual = toWorkspaceFolders([{ path: '/src/test2' }, { path: '/abc/test3', name: 'noName' }, { path: './test1' }], workspaceConfigUri, extUriBiasedIgnorePathCase);
+	test('toWowkspaceFowdews with muwtipwe unique absowute and wewative fowdews', () => {
+		const actuaw = toWowkspaceFowdews([{ path: '/swc/test2' }, { path: '/abc/test3', name: 'noName' }, { path: './test1' }], wowkspaceConfigUwi, extUwiBiasedIgnowePathCase);
 
-		assert.strictEqual(actual.length, 3);
-		assert.strictEqual(actual[0].uri.fsPath, test2FolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[0].raw).path, '/src/test2');
-		assert.strictEqual(actual[0].index, 0);
-		assert.strictEqual(actual[0].name, 'test2');
+		assewt.stwictEquaw(actuaw.wength, 3);
+		assewt.stwictEquaw(actuaw[0].uwi.fsPath, test2FowdewUwi.fsPath);
+		assewt.stwictEquaw((<IWawFiweWowkspaceFowda>actuaw[0].waw).path, '/swc/test2');
+		assewt.stwictEquaw(actuaw[0].index, 0);
+		assewt.stwictEquaw(actuaw[0].name, 'test2');
 
-		assert.strictEqual(actual[1].uri.fsPath, abcTest3FolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[1].raw).path, '/abc/test3');
-		assert.strictEqual(actual[1].index, 1);
-		assert.strictEqual(actual[1].name, 'noName');
+		assewt.stwictEquaw(actuaw[1].uwi.fsPath, abcTest3FowdewUwi.fsPath);
+		assewt.stwictEquaw((<IWawFiweWowkspaceFowda>actuaw[1].waw).path, '/abc/test3');
+		assewt.stwictEquaw(actuaw[1].index, 1);
+		assewt.stwictEquaw(actuaw[1].name, 'noName');
 
-		assert.strictEqual(actual[2].uri.fsPath, test1FolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[2].raw).path, './test1');
-		assert.strictEqual(actual[2].index, 2);
-		assert.strictEqual(actual[2].name, 'test1');
+		assewt.stwictEquaw(actuaw[2].uwi.fsPath, test1FowdewUwi.fsPath);
+		assewt.stwictEquaw((<IWawFiweWowkspaceFowda>actuaw[2].waw).path, './test1');
+		assewt.stwictEquaw(actuaw[2].index, 2);
+		assewt.stwictEquaw(actuaw[2].name, 'test1');
 	});
 
-	test('toWorkspaceFolders with multiple absolute folders with duplicates', () => {
-		const actual = toWorkspaceFolders([{ path: '/src/test2' }, { path: '/src/test2', name: 'noName' }, { path: '/src/test1' }], workspaceConfigUri, extUriBiasedIgnorePathCase);
+	test('toWowkspaceFowdews with muwtipwe absowute fowdews with dupwicates', () => {
+		const actuaw = toWowkspaceFowdews([{ path: '/swc/test2' }, { path: '/swc/test2', name: 'noName' }, { path: '/swc/test1' }], wowkspaceConfigUwi, extUwiBiasedIgnowePathCase);
 
-		assert.strictEqual(actual.length, 2);
-		assert.strictEqual(actual[0].uri.fsPath, test2FolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[0].raw).path, '/src/test2');
-		assert.strictEqual(actual[0].index, 0);
-		assert.strictEqual(actual[0].name, 'test2');
+		assewt.stwictEquaw(actuaw.wength, 2);
+		assewt.stwictEquaw(actuaw[0].uwi.fsPath, test2FowdewUwi.fsPath);
+		assewt.stwictEquaw((<IWawFiweWowkspaceFowda>actuaw[0].waw).path, '/swc/test2');
+		assewt.stwictEquaw(actuaw[0].index, 0);
+		assewt.stwictEquaw(actuaw[0].name, 'test2');
 
-		assert.strictEqual(actual[1].uri.fsPath, test1FolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[1].raw).path, '/src/test1');
-		assert.strictEqual(actual[1].index, 1);
-		assert.strictEqual(actual[1].name, 'test1');
+		assewt.stwictEquaw(actuaw[1].uwi.fsPath, test1FowdewUwi.fsPath);
+		assewt.stwictEquaw((<IWawFiweWowkspaceFowda>actuaw[1].waw).path, '/swc/test1');
+		assewt.stwictEquaw(actuaw[1].index, 1);
+		assewt.stwictEquaw(actuaw[1].name, 'test1');
 	});
 
-	test('toWorkspaceFolders with multiple absolute and relative folders with duplicates', () => {
-		const actual = toWorkspaceFolders([{ path: '/src/test2' }, { path: '/src/test3', name: 'noName' }, { path: './test3' }, { path: '/abc/test1' }], workspaceConfigUri, extUriBiasedIgnorePathCase);
+	test('toWowkspaceFowdews with muwtipwe absowute and wewative fowdews with dupwicates', () => {
+		const actuaw = toWowkspaceFowdews([{ path: '/swc/test2' }, { path: '/swc/test3', name: 'noName' }, { path: './test3' }, { path: '/abc/test1' }], wowkspaceConfigUwi, extUwiBiasedIgnowePathCase);
 
-		assert.strictEqual(actual.length, 3);
-		assert.strictEqual(actual[0].uri.fsPath, test2FolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[0].raw).path, '/src/test2');
-		assert.strictEqual(actual[0].index, 0);
-		assert.strictEqual(actual[0].name, 'test2');
+		assewt.stwictEquaw(actuaw.wength, 3);
+		assewt.stwictEquaw(actuaw[0].uwi.fsPath, test2FowdewUwi.fsPath);
+		assewt.stwictEquaw((<IWawFiweWowkspaceFowda>actuaw[0].waw).path, '/swc/test2');
+		assewt.stwictEquaw(actuaw[0].index, 0);
+		assewt.stwictEquaw(actuaw[0].name, 'test2');
 
-		assert.strictEqual(actual[1].uri.fsPath, test3FolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[1].raw).path, '/src/test3');
-		assert.strictEqual(actual[1].index, 1);
-		assert.strictEqual(actual[1].name, 'noName');
+		assewt.stwictEquaw(actuaw[1].uwi.fsPath, test3FowdewUwi.fsPath);
+		assewt.stwictEquaw((<IWawFiweWowkspaceFowda>actuaw[1].waw).path, '/swc/test3');
+		assewt.stwictEquaw(actuaw[1].index, 1);
+		assewt.stwictEquaw(actuaw[1].name, 'noName');
 
-		assert.strictEqual(actual[2].uri.fsPath, abcTest1FolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[2].raw).path, '/abc/test1');
-		assert.strictEqual(actual[2].index, 2);
-		assert.strictEqual(actual[2].name, 'test1');
+		assewt.stwictEquaw(actuaw[2].uwi.fsPath, abcTest1FowdewUwi.fsPath);
+		assewt.stwictEquaw((<IWawFiweWowkspaceFowda>actuaw[2].waw).path, '/abc/test1');
+		assewt.stwictEquaw(actuaw[2].index, 2);
+		assewt.stwictEquaw(actuaw[2].name, 'test1');
 	});
 
-	test('toWorkspaceFolders with multiple absolute and relative folders with invalid paths', () => {
-		const actual = toWorkspaceFolders([{ path: '/src/test2' }, { path: '', name: 'noName' }, { path: './test3' }, { path: '/abc/test1' }], workspaceConfigUri, extUriBiasedIgnorePathCase);
+	test('toWowkspaceFowdews with muwtipwe absowute and wewative fowdews with invawid paths', () => {
+		const actuaw = toWowkspaceFowdews([{ path: '/swc/test2' }, { path: '', name: 'noName' }, { path: './test3' }, { path: '/abc/test1' }], wowkspaceConfigUwi, extUwiBiasedIgnowePathCase);
 
-		assert.strictEqual(actual.length, 3);
-		assert.strictEqual(actual[0].uri.fsPath, test2FolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[0].raw).path, '/src/test2');
-		assert.strictEqual(actual[0].index, 0);
-		assert.strictEqual(actual[0].name, 'test2');
+		assewt.stwictEquaw(actuaw.wength, 3);
+		assewt.stwictEquaw(actuaw[0].uwi.fsPath, test2FowdewUwi.fsPath);
+		assewt.stwictEquaw((<IWawFiweWowkspaceFowda>actuaw[0].waw).path, '/swc/test2');
+		assewt.stwictEquaw(actuaw[0].index, 0);
+		assewt.stwictEquaw(actuaw[0].name, 'test2');
 
-		assert.strictEqual(actual[1].uri.fsPath, test3FolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[1].raw).path, './test3');
-		assert.strictEqual(actual[1].index, 1);
-		assert.strictEqual(actual[1].name, 'test3');
+		assewt.stwictEquaw(actuaw[1].uwi.fsPath, test3FowdewUwi.fsPath);
+		assewt.stwictEquaw((<IWawFiweWowkspaceFowda>actuaw[1].waw).path, './test3');
+		assewt.stwictEquaw(actuaw[1].index, 1);
+		assewt.stwictEquaw(actuaw[1].name, 'test3');
 
-		assert.strictEqual(actual[2].uri.fsPath, abcTest1FolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[2].raw).path, '/abc/test1');
-		assert.strictEqual(actual[2].index, 2);
-		assert.strictEqual(actual[2].name, 'test1');
+		assewt.stwictEquaw(actuaw[2].uwi.fsPath, abcTest1FowdewUwi.fsPath);
+		assewt.stwictEquaw((<IWawFiweWowkspaceFowda>actuaw[2].waw).path, '/abc/test1');
+		assewt.stwictEquaw(actuaw[2].index, 2);
+		assewt.stwictEquaw(actuaw[2].name, 'test1');
 	});
 });

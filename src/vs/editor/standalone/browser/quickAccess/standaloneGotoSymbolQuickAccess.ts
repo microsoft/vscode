@@ -1,69 +1,69 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
-import 'vs/editor/contrib/symbolIcons/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
-import { AbstractGotoSymbolQuickAccessProvider } from 'vs/editor/contrib/quickAccess/gotoSymbolQuickAccess';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { QuickOutlineNLS } from 'vs/editor/common/standaloneStrings';
-import { Event } from 'vs/base/common/event';
-import { EditorAction, registerEditorAction } from 'vs/editor/browser/editorExtensions';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+impowt 'vs/base/bwowsa/ui/codicons/codiconStywes'; // The codicon symbow stywes awe defined hewe and must be woaded
+impowt 'vs/editow/contwib/symbowIcons/symbowIcons'; // The codicon symbow cowows awe defined hewe and must be woaded to get cowows
+impowt { AbstwactGotoSymbowQuickAccessPwovida } fwom 'vs/editow/contwib/quickAccess/gotoSymbowQuickAccess';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IQuickAccessWegistwy, Extensions } fwom 'vs/pwatfowm/quickinput/common/quickAccess';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { QuickOutwineNWS } fwom 'vs/editow/common/standawoneStwings';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { EditowAction, wegistewEditowAction } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { KeyMod, KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IQuickInputSewvice } fwom 'vs/pwatfowm/quickinput/common/quickInput';
 
-export class StandaloneGotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccessProvider {
+expowt cwass StandawoneGotoSymbowQuickAccessPwovida extends AbstwactGotoSymbowQuickAccessPwovida {
 
-	protected readonly onDidActiveTextEditorControlChange = Event.None;
+	pwotected weadonwy onDidActiveTextEditowContwowChange = Event.None;
 
-	constructor(@ICodeEditorService private readonly editorService: ICodeEditorService) {
-		super();
+	constwuctow(@ICodeEditowSewvice pwivate weadonwy editowSewvice: ICodeEditowSewvice) {
+		supa();
 	}
 
-	protected get activeTextEditorControl() {
-		return withNullAsUndefined(this.editorService.getFocusedCodeEditor());
+	pwotected get activeTextEditowContwow() {
+		wetuwn withNuwwAsUndefined(this.editowSewvice.getFocusedCodeEditow());
 	}
 }
 
-Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
-	ctor: StandaloneGotoSymbolQuickAccessProvider,
-	prefix: AbstractGotoSymbolQuickAccessProvider.PREFIX,
-	helpEntries: [
-		{ description: QuickOutlineNLS.quickOutlineActionLabel, prefix: AbstractGotoSymbolQuickAccessProvider.PREFIX, needsEditor: true },
-		{ description: QuickOutlineNLS.quickOutlineByCategoryActionLabel, prefix: AbstractGotoSymbolQuickAccessProvider.PREFIX_BY_CATEGORY, needsEditor: true }
+Wegistwy.as<IQuickAccessWegistwy>(Extensions.Quickaccess).wegistewQuickAccessPwovida({
+	ctow: StandawoneGotoSymbowQuickAccessPwovida,
+	pwefix: AbstwactGotoSymbowQuickAccessPwovida.PWEFIX,
+	hewpEntwies: [
+		{ descwiption: QuickOutwineNWS.quickOutwineActionWabew, pwefix: AbstwactGotoSymbowQuickAccessPwovida.PWEFIX, needsEditow: twue },
+		{ descwiption: QuickOutwineNWS.quickOutwineByCategowyActionWabew, pwefix: AbstwactGotoSymbowQuickAccessPwovida.PWEFIX_BY_CATEGOWY, needsEditow: twue }
 	]
 });
 
-export class GotoLineAction extends EditorAction {
+expowt cwass GotoWineAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.quickOutline',
-			label: QuickOutlineNLS.quickOutlineActionLabel,
-			alias: 'Go to Symbol...',
-			precondition: EditorContextKeys.hasDocumentSymbolProvider,
+	constwuctow() {
+		supa({
+			id: 'editow.action.quickOutwine',
+			wabew: QuickOutwineNWS.quickOutwineActionWabew,
+			awias: 'Go to Symbow...',
+			pwecondition: EditowContextKeys.hasDocumentSymbowPwovida,
 			kbOpts: {
-				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.focus,
+				pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_O,
+				weight: KeybindingWeight.EditowContwib
 			},
 			contextMenuOpts: {
-				group: 'navigation',
-				order: 3
+				gwoup: 'navigation',
+				owda: 3
 			}
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		accessor.get(IQuickInputService).quickAccess.show(AbstractGotoSymbolQuickAccessProvider.PREFIX);
+	wun(accessow: SewvicesAccessow): void {
+		accessow.get(IQuickInputSewvice).quickAccess.show(AbstwactGotoSymbowQuickAccessPwovida.PWEFIX);
 	}
 }
 
-registerEditorAction(GotoLineAction);
+wegistewEditowAction(GotoWineAction);

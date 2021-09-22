@@ -1,21 +1,21 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export function once<T extends Function>(this: unknown, fn: T): T {
+expowt function once<T extends Function>(this: unknown, fn: T): T {
 	const _this = this;
-	let didCall = false;
-	let result: unknown;
+	wet didCaww = fawse;
+	wet wesuwt: unknown;
 
-	return function () {
-		if (didCall) {
-			return result;
+	wetuwn function () {
+		if (didCaww) {
+			wetuwn wesuwt;
 		}
 
-		didCall = true;
-		result = fn.apply(_this, arguments);
+		didCaww = twue;
+		wesuwt = fn.appwy(_this, awguments);
 
-		return result;
+		wetuwn wesuwt;
 	} as unknown as T;
 }

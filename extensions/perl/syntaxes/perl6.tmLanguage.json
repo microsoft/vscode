@@ -1,313 +1,313 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/textmate/perl.tmbundle/blob/master/Syntaxes/Perl%206.tmLanguage",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/textmate/peww.tmbundwe/bwob/masta/Syntaxes/Peww%206.tmWanguage",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/textmate/perl.tmbundle/commit/d9841a0878239fa43f88c640f8d458590f97e8f5",
-	"name": "Perl 6",
-	"scopeName": "source.perl.6",
-	"patterns": [
+	"vewsion": "https://github.com/textmate/peww.tmbundwe/commit/d9841a0878239fa43f88c640f8d458590f97e8f5",
+	"name": "Peww 6",
+	"scopeName": "souwce.peww.6",
+	"pattewns": [
 		{
 			"begin": "^=begin",
 			"end": "^=end",
-			"name": "comment.block.perl"
+			"name": "comment.bwock.peww"
 		},
 		{
 			"begin": "(^[ \\t]+)?(?=#)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "punctuation.whitespace.comment.leading.perl"
+					"name": "punctuation.whitespace.comment.weading.peww"
 				}
 			},
 			"end": "(?!\\G)",
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "#",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.comment.perl"
+							"name": "punctuation.definition.comment.peww"
 						}
 					},
 					"end": "\\n",
-					"name": "comment.line.number-sign.perl"
+					"name": "comment.wine.numba-sign.peww"
 				}
 			]
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "storage.type.class.perl.6"
+					"name": "stowage.type.cwass.peww.6"
 				},
 				"3": {
-					"name": "entity.name.type.class.perl.6"
+					"name": "entity.name.type.cwass.peww.6"
 				}
 			},
-			"match": "(class|enum|grammar|knowhow|module|package|role|slang|subset)(\\s+)(((?:::|')?(?:([a-zA-Z_\\x{C0}-\\x{FF}\\$])([a-zA-Z0-9_\\x{C0}-\\x{FF}\\\\$]|[\\-'][a-zA-Z0-9_\\x{C0}-\\x{FF}\\$])*))+)",
-			"name": "meta.class.perl.6"
+			"match": "(cwass|enum|gwammaw|knowhow|moduwe|package|wowe|swang|subset)(\\s+)(((?:::|')?(?:([a-zA-Z_\\x{C0}-\\x{FF}\\$])([a-zA-Z0-9_\\x{C0}-\\x{FF}\\\\$]|[\\-'][a-zA-Z0-9_\\x{C0}-\\x{FF}\\$])*))+)",
+			"name": "meta.cwass.peww.6"
 		},
 		{
 			"begin": "(?<=\\s)'",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.perl"
+					"name": "punctuation.definition.stwing.begin.peww"
 				}
 			},
 			"end": "'",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.perl"
+					"name": "punctuation.definition.stwing.end.peww"
 				}
 			},
-			"name": "string.quoted.single.perl",
-			"patterns": [
+			"name": "stwing.quoted.singwe.peww",
+			"pattewns": [
 				{
 					"match": "\\\\['\\\\]",
-					"name": "constant.character.escape.perl"
+					"name": "constant.chawacta.escape.peww"
 				}
 			]
 		},
 		{
 			"begin": "\"",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.perl"
+					"name": "punctuation.definition.stwing.begin.peww"
 				}
 			},
 			"end": "\"",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.perl"
+					"name": "punctuation.definition.stwing.end.peww"
 				}
 			},
-			"name": "string.quoted.double.perl",
-			"patterns": [
+			"name": "stwing.quoted.doubwe.peww",
+			"pattewns": [
 				{
-					"match": "\\\\[abtnfre\"\\\\]",
-					"name": "constant.character.escape.perl"
+					"match": "\\\\[abtnfwe\"\\\\]",
+					"name": "constant.chawacta.escape.peww"
 				}
 			]
 		},
 		{
-			"begin": "q(q|to|heredoc)*\\s*:?(q|to|heredoc)*\\s*/(.+)/",
+			"begin": "q(q|to|hewedoc)*\\s*:?(q|to|hewedoc)*\\s*/(.+)/",
 			"end": "\\3",
-			"name": "string.quoted.single.heredoc.perl"
+			"name": "stwing.quoted.singwe.hewedoc.peww"
 		},
 		{
-			"begin": "(q|Q)(x|exec|w|words|ww|quotewords|v|val|q|single|qq|double|s|scalar|a|array|h|hash|f|function|c|closure|b|blackslash|regexp|substr|trans|codes|p|path)*\\s*:?(x|exec|w|words|ww|quotewords|v|val|q|single|qq|double|s|scalar|a|array|h|hash|f|function|c|closure|b|blackslash|regexp|substr|trans|codes|p|path)*\\s*{{",
+			"begin": "(q|Q)(x|exec|w|wowds|ww|quotewowds|v|vaw|q|singwe|qq|doubwe|s|scawaw|a|awway|h|hash|f|function|c|cwosuwe|b|bwackswash|wegexp|substw|twans|codes|p|path)*\\s*:?(x|exec|w|wowds|ww|quotewowds|v|vaw|q|singwe|qq|doubwe|s|scawaw|a|awway|h|hash|f|function|c|cwosuwe|b|bwackswash|wegexp|substw|twans|codes|p|path)*\\s*{{",
 			"end": "}}",
-			"name": "string.quoted.double.heredoc.brace.perl",
-			"patterns": [
+			"name": "stwing.quoted.doubwe.hewedoc.bwace.peww",
+			"pattewns": [
 				{
-					"include": "#qq_brace_string_content"
+					"incwude": "#qq_bwace_stwing_content"
 				}
 			]
 		},
 		{
-			"begin": "(q|Q)(x|exec|w|words|ww|quotewords|v|val|q|single|qq|double|s|scalar|a|array|h|hash|f|function|c|closure|b|blackslash|regexp|substr|trans|codes|p|path)*\\s*:?(x|exec|w|words|ww|quotewords|v|val|q|single|qq|double|s|scalar|a|array|h|hash|f|function|c|closure|b|blackslash|regexp|substr|trans|codes|p|path)*\\s*\\(\\(",
+			"begin": "(q|Q)(x|exec|w|wowds|ww|quotewowds|v|vaw|q|singwe|qq|doubwe|s|scawaw|a|awway|h|hash|f|function|c|cwosuwe|b|bwackswash|wegexp|substw|twans|codes|p|path)*\\s*:?(x|exec|w|wowds|ww|quotewowds|v|vaw|q|singwe|qq|doubwe|s|scawaw|a|awway|h|hash|f|function|c|cwosuwe|b|bwackswash|wegexp|substw|twans|codes|p|path)*\\s*\\(\\(",
 			"end": "\\)\\)",
-			"name": "string.quoted.double.heredoc.paren.perl",
-			"patterns": [
+			"name": "stwing.quoted.doubwe.hewedoc.pawen.peww",
+			"pattewns": [
 				{
-					"include": "#qq_paren_string_content"
+					"incwude": "#qq_pawen_stwing_content"
 				}
 			]
 		},
 		{
-			"begin": "(q|Q)(x|exec|w|words|ww|quotewords|v|val|q|single|qq|double|s|scalar|a|array|h|hash|f|function|c|closure|b|blackslash|regexp|substr|trans|codes|p|path)*\\s*:?(x|exec|w|words|ww|quotewords|v|val|q|single|qq|double|s|scalar|a|array|h|hash|f|function|c|closure|b|blackslash|regexp|substr|trans|codes|p|path)*\\s*\\[\\[",
+			"begin": "(q|Q)(x|exec|w|wowds|ww|quotewowds|v|vaw|q|singwe|qq|doubwe|s|scawaw|a|awway|h|hash|f|function|c|cwosuwe|b|bwackswash|wegexp|substw|twans|codes|p|path)*\\s*:?(x|exec|w|wowds|ww|quotewowds|v|vaw|q|singwe|qq|doubwe|s|scawaw|a|awway|h|hash|f|function|c|cwosuwe|b|bwackswash|wegexp|substw|twans|codes|p|path)*\\s*\\[\\[",
 			"end": "\\]\\]",
-			"name": "string.quoted.double.heredoc.bracket.perl",
-			"patterns": [
+			"name": "stwing.quoted.doubwe.hewedoc.bwacket.peww",
+			"pattewns": [
 				{
-					"include": "#qq_bracket_string_content"
+					"incwude": "#qq_bwacket_stwing_content"
 				}
 			]
 		},
 		{
-			"begin": "(q|Q)(x|exec|w|words|ww|quotewords|v|val|q|single|qq|double|s|scalar|a|array|h|hash|f|function|c|closure|b|blackslash|regexp|substr|trans|codes|p|path)*\\s*:?(x|exec|w|words|ww|quotewords|v|val|q|single|qq|double|s|scalar|a|array|h|hash|f|function|c|closure|b|blackslash|regexp|substr|trans|codes|p|path)*\\s*{",
+			"begin": "(q|Q)(x|exec|w|wowds|ww|quotewowds|v|vaw|q|singwe|qq|doubwe|s|scawaw|a|awway|h|hash|f|function|c|cwosuwe|b|bwackswash|wegexp|substw|twans|codes|p|path)*\\s*:?(x|exec|w|wowds|ww|quotewowds|v|vaw|q|singwe|qq|doubwe|s|scawaw|a|awway|h|hash|f|function|c|cwosuwe|b|bwackswash|wegexp|substw|twans|codes|p|path)*\\s*{",
 			"end": "}",
-			"name": "string.quoted.single.heredoc.brace.perl",
-			"patterns": [
+			"name": "stwing.quoted.singwe.hewedoc.bwace.peww",
+			"pattewns": [
 				{
-					"include": "#qq_brace_string_content"
+					"incwude": "#qq_bwace_stwing_content"
 				}
 			]
 		},
 		{
-			"begin": "(q|Q)(x|exec|w|words|ww|quotewords|v|val|q|single|qq|double|s|scalar|a|array|h|hash|f|function|c|closure|b|blackslash|regexp|substr|trans|codes|p|path)*\\s*:?(x|exec|w|words|ww|quotewords|v|val|q|single|qq|double|s|scalar|a|array|h|hash|f|function|c|closure|b|blackslash|regexp|substr|trans|codes|p|path)*\\s*/",
+			"begin": "(q|Q)(x|exec|w|wowds|ww|quotewowds|v|vaw|q|singwe|qq|doubwe|s|scawaw|a|awway|h|hash|f|function|c|cwosuwe|b|bwackswash|wegexp|substw|twans|codes|p|path)*\\s*:?(x|exec|w|wowds|ww|quotewowds|v|vaw|q|singwe|qq|doubwe|s|scawaw|a|awway|h|hash|f|function|c|cwosuwe|b|bwackswash|wegexp|substw|twans|codes|p|path)*\\s*/",
 			"end": "/",
-			"name": "string.quoted.single.heredoc.slash.perl",
-			"patterns": [
+			"name": "stwing.quoted.singwe.hewedoc.swash.peww",
+			"pattewns": [
 				{
-					"include": "#qq_slash_string_content"
+					"incwude": "#qq_swash_stwing_content"
 				}
 			]
 		},
 		{
-			"begin": "(q|Q)(x|exec|w|words|ww|quotewords|v|val|q|single|qq|double|s|scalar|a|array|h|hash|f|function|c|closure|b|blackslash|regexp|substr|trans|codes|p|path)*\\s*:?(x|exec|w|words|ww|quotewords|v|val|q|single|qq|double|s|scalar|a|array|h|hash|f|function|c|closure|b|blackslash|regexp|substr|trans|codes|p|path)*\\s*\\(",
+			"begin": "(q|Q)(x|exec|w|wowds|ww|quotewowds|v|vaw|q|singwe|qq|doubwe|s|scawaw|a|awway|h|hash|f|function|c|cwosuwe|b|bwackswash|wegexp|substw|twans|codes|p|path)*\\s*:?(x|exec|w|wowds|ww|quotewowds|v|vaw|q|singwe|qq|doubwe|s|scawaw|a|awway|h|hash|f|function|c|cwosuwe|b|bwackswash|wegexp|substw|twans|codes|p|path)*\\s*\\(",
 			"end": "\\)",
-			"name": "string.quoted.single.heredoc.paren.perl",
-			"patterns": [
+			"name": "stwing.quoted.singwe.hewedoc.pawen.peww",
+			"pattewns": [
 				{
-					"include": "#qq_paren_string_content"
+					"incwude": "#qq_pawen_stwing_content"
 				}
 			]
 		},
 		{
-			"begin": "(q|Q)(x|exec|w|words|ww|quotewords|v|val|q|single|qq|double|s|scalar|a|array|h|hash|f|function|c|closure|b|blackslash|regexp|substr|trans|codes|p|path)*\\s*:?(x|exec|w|words|ww|quotewords|v|val|q|single|qq|double|s|scalar|a|array|h|hash|f|function|c|closure|b|blackslash|regexp|substr|trans|codes|p|path)*\\s*\\[",
+			"begin": "(q|Q)(x|exec|w|wowds|ww|quotewowds|v|vaw|q|singwe|qq|doubwe|s|scawaw|a|awway|h|hash|f|function|c|cwosuwe|b|bwackswash|wegexp|substw|twans|codes|p|path)*\\s*:?(x|exec|w|wowds|ww|quotewowds|v|vaw|q|singwe|qq|doubwe|s|scawaw|a|awway|h|hash|f|function|c|cwosuwe|b|bwackswash|wegexp|substw|twans|codes|p|path)*\\s*\\[",
 			"end": "\\]",
-			"name": "string.quoted.single.heredoc.bracket.perl",
-			"patterns": [
+			"name": "stwing.quoted.singwe.hewedoc.bwacket.peww",
+			"pattewns": [
 				{
-					"include": "#qq_bracket_string_content"
+					"incwude": "#qq_bwacket_stwing_content"
 				}
 			]
 		},
 		{
-			"begin": "(q|Q)(x|exec|w|words|ww|quotewords|v|val|q|single|qq|double|s|scalar|a|array|h|hash|f|function|c|closure|b|blackslash|regexp|substr|trans|codes|p|path)*\\s*:?(x|exec|w|words|ww|quotewords|v|val|q|single|qq|double|s|scalar|a|array|h|hash|f|function|c|closure|b|blackslash|regexp|substr|trans|codes|p|path)*\\s*'",
+			"begin": "(q|Q)(x|exec|w|wowds|ww|quotewowds|v|vaw|q|singwe|qq|doubwe|s|scawaw|a|awway|h|hash|f|function|c|cwosuwe|b|bwackswash|wegexp|substw|twans|codes|p|path)*\\s*:?(x|exec|w|wowds|ww|quotewowds|v|vaw|q|singwe|qq|doubwe|s|scawaw|a|awway|h|hash|f|function|c|cwosuwe|b|bwackswash|wegexp|substw|twans|codes|p|path)*\\s*'",
 			"end": "'",
-			"name": "string.quoted.single.heredoc.single.perl",
-			"patterns": [
+			"name": "stwing.quoted.singwe.hewedoc.singwe.peww",
+			"pattewns": [
 				{
-					"include": "#qq_single_string_content"
+					"incwude": "#qq_singwe_stwing_content"
 				}
 			]
 		},
 		{
-			"begin": "(q|Q)(x|exec|w|words|ww|quotewords|v|val|q|single|qq|double|s|scalar|a|array|h|hash|f|function|c|closure|b|blackslash|regexp|substr|trans|codes|p|path)*\\s*:?(x|exec|w|words|ww|quotewords|v|val|q|single|qq|double|s|scalar|a|array|h|hash|f|function|c|closure|b|blackslash|regexp|substr|trans|codes|p|path)*\\s*\"",
+			"begin": "(q|Q)(x|exec|w|wowds|ww|quotewowds|v|vaw|q|singwe|qq|doubwe|s|scawaw|a|awway|h|hash|f|function|c|cwosuwe|b|bwackswash|wegexp|substw|twans|codes|p|path)*\\s*:?(x|exec|w|wowds|ww|quotewowds|v|vaw|q|singwe|qq|doubwe|s|scawaw|a|awway|h|hash|f|function|c|cwosuwe|b|bwackswash|wegexp|substw|twans|codes|p|path)*\\s*\"",
 			"end": "\"",
-			"name": "string.quoted.single.heredoc.double.perl",
-			"patterns": [
+			"name": "stwing.quoted.singwe.hewedoc.doubwe.peww",
+			"pattewns": [
 				{
-					"include": "#qq_double_string_content"
+					"incwude": "#qq_doubwe_stwing_content"
 				}
 			]
 		},
 		{
 			"match": "\\b\\$\\w+\\b",
-			"name": "variable.other.perl"
+			"name": "vawiabwe.otha.peww"
 		},
 		{
-			"match": "\\b(macro|sub|submethod|method|multi|proto|only|rule|token|regex|category)\\b",
-			"name": "storage.type.declare.routine.perl"
+			"match": "\\b(macwo|sub|submethod|method|muwti|pwoto|onwy|wuwe|token|wegex|categowy)\\b",
+			"name": "stowage.type.decwawe.woutine.peww"
 		},
 		{
-			"match": "\\b(self)\\b",
-			"name": "variable.language.perl"
+			"match": "\\b(sewf)\\b",
+			"name": "vawiabwe.wanguage.peww"
 		},
 		{
-			"match": "\\b(use|require)\\b",
-			"name": "keyword.other.include.perl"
+			"match": "\\b(use|wequiwe)\\b",
+			"name": "keywowd.otha.incwude.peww"
 		},
 		{
-			"match": "\\b(if|else|elsif|unless)\\b",
-			"name": "keyword.control.conditional.perl"
+			"match": "\\b(if|ewse|ewsif|unwess)\\b",
+			"name": "keywowd.contwow.conditionaw.peww"
 		},
 		{
-			"match": "\\b(let|my|our|state|temp|has|constant)\\b",
-			"name": "storage.type.variable.perl"
+			"match": "\\b(wet|my|ouw|state|temp|has|constant)\\b",
+			"name": "stowage.type.vawiabwe.peww"
 		},
 		{
-			"match": "\\b(for|loop|repeat|while|until|gather|given)\\b",
-			"name": "keyword.control.repeat.perl"
+			"match": "\\b(fow|woop|wepeat|whiwe|untiw|gatha|given)\\b",
+			"name": "keywowd.contwow.wepeat.peww"
 		},
 		{
-			"match": "\\b(take|do|when|next|last|redo|return|contend|maybe|defer|default|exit|make|continue|break|goto|leave|async|lift)\\b",
-			"name": "keyword.control.flowcontrol.perl"
+			"match": "\\b(take|do|when|next|wast|wedo|wetuwn|contend|maybe|defa|defauwt|exit|make|continue|bweak|goto|weave|async|wift)\\b",
+			"name": "keywowd.contwow.fwowcontwow.peww"
 		},
 		{
-			"match": "\\b(is|as|but|trusts|of|returns|handles|where|augment|supersede)\\b",
-			"name": "storage.modifier.type.constraints.perl"
+			"match": "\\b(is|as|but|twusts|of|wetuwns|handwes|whewe|augment|supewsede)\\b",
+			"name": "stowage.modifia.type.constwaints.peww"
 		},
 		{
-			"match": "\\b(BEGIN|CHECK|INIT|START|FIRST|ENTER|LEAVE|KEEP|UNDO|NEXT|LAST|PRE|POST|END|CATCH|CONTROL|TEMP)\\b",
-			"name": "meta.function.perl"
+			"match": "\\b(BEGIN|CHECK|INIT|STAWT|FIWST|ENTa|WEAVE|KEEP|UNDO|NEXT|WAST|PWE|POST|END|CATCH|CONTWOW|TEMP)\\b",
+			"name": "meta.function.peww"
 		},
 		{
-			"match": "\\b(die|fail|try|warn)\\b",
-			"name": "keyword.control.control-handlers.perl"
+			"match": "\\b(die|faiw|twy|wawn)\\b",
+			"name": "keywowd.contwow.contwow-handwews.peww"
 		},
 		{
-			"match": "\\b(prec|irs|ofs|ors|export|deep|binary|unary|reparsed|rw|parsed|cached|readonly|defequiv|will|ref|copy|inline|tighter|looser|equiv|assoc|required)\\b",
-			"name": "storage.modifier.perl"
+			"match": "\\b(pwec|iws|ofs|ows|expowt|deep|binawy|unawy|wepawsed|ww|pawsed|cached|weadonwy|defequiv|wiww|wef|copy|inwine|tighta|woosa|equiv|assoc|wequiwed)\\b",
+			"name": "stowage.modifia.peww"
 		},
 		{
 			"match": "\\b(NaN|Inf)\\b",
-			"name": "constant.numeric.perl"
+			"name": "constant.numewic.peww"
 		},
 		{
-			"match": "\\b(oo|fatal)\\b",
-			"name": "keyword.other.pragma.perl"
+			"match": "\\b(oo|fataw)\\b",
+			"name": "keywowd.otha.pwagma.peww"
 		},
 		{
-			"match": "\\b(Object|Any|Junction|Whatever|Capture|MatchSignature|Proxy|Matcher|Package|Module|ClassGrammar|Scalar|Array|Hash|KeyHash|KeySet|KeyBagPair|List|Seq|Range|Set|Bag|Mapping|Void|UndefFailure|Exception|Code|Block|Routine|Sub|MacroMethod|Submethod|Regex|Str|str|Blob|Char|ByteCodepoint|Grapheme|StrPos|StrLen|Version|NumComplex|num|complex|Bit|bit|bool|True|FalseIncreasing|Decreasing|Ordered|Callable|AnyCharPositional|Associative|Ordering|KeyExtractorComparator|OrderingPair|IO|KitchenSink|RoleInt|int|int1|int2|int4|int8|int16|int32|int64Rat|rat|rat1|rat2|rat4|rat8|rat16|rat32|rat64Buf|buf|buf1|buf2|buf4|buf8|buf16|buf32|buf64UInt|uint|uint1|uint2|uint4|uint8|uint16|uint32uint64|Abstraction|utf8|utf16|utf32)\\b",
-			"name": "support.type.perl6"
+			"match": "\\b(Object|Any|Junction|Whateva|Captuwe|MatchSignatuwe|Pwoxy|Matcha|Package|Moduwe|CwassGwammaw|Scawaw|Awway|Hash|KeyHash|KeySet|KeyBagPaiw|Wist|Seq|Wange|Set|Bag|Mapping|Void|UndefFaiwuwe|Exception|Code|Bwock|Woutine|Sub|MacwoMethod|Submethod|Wegex|Stw|stw|Bwob|Chaw|ByteCodepoint|Gwapheme|StwPos|StwWen|Vewsion|NumCompwex|num|compwex|Bit|bit|boow|Twue|FawseIncweasing|Decweasing|Owdewed|Cawwabwe|AnyChawPositionaw|Associative|Owdewing|KeyExtwactowCompawatow|OwdewingPaiw|IO|KitchenSink|WoweInt|int|int1|int2|int4|int8|int16|int32|int64Wat|wat|wat1|wat2|wat4|wat8|wat16|wat32|wat64Buf|buf|buf1|buf2|buf4|buf8|buf16|buf32|buf64UInt|uint|uint1|uint2|uint4|uint8|uint16|uint32uint64|Abstwaction|utf8|utf16|utf32)\\b",
+			"name": "suppowt.type.peww6"
 		},
 		{
-			"match": "\\b(div|xx|x|mod|also|leg|cmp|before|after|eq|ne|le|lt|not|gt|ge|eqv|ff|fff|and|andthen|or|xor|orelse|extra|lcm|gcd)\\b",
-			"name": "keyword.operator.perl"
+			"match": "\\b(div|xx|x|mod|awso|weg|cmp|befowe|afta|eq|ne|we|wt|not|gt|ge|eqv|ff|fff|and|andthen|ow|xow|owewse|extwa|wcm|gcd)\\b",
+			"name": "keywowd.opewatow.peww"
 		},
 		{
 			"match": "(\\$|@|%|&)(\\*|:|!|\\^|~|=|\\?|(<(?=.+>)))?([a-zA-Z_\\x{C0}-\\x{FF}\\$])([a-zA-Z0-9_\\x{C0}-\\x{FF}\\$]|[\\-'][a-zA-Z0-9_\\x{C0}-\\x{FF}\\$])*",
-			"name": "variable.other.identifier.perl.6"
+			"name": "vawiabwe.otha.identifia.peww.6"
 		},
 		{
-			"match": "\\b(eager|hyper|substr|index|rindex|grep|map|sort|join|lines|hints|chmod|split|reduce|min|max|reverse|truncate|zip|cat|roundrobin|classify|first|sum|keys|values|pairs|defined|delete|exists|elems|end|kv|any|all|one|wrap|shape|key|value|name|pop|push|shift|splice|unshift|floor|ceiling|abs|exp|log|log10|rand|sign|sqrt|sin|cos|tan|round|strand|roots|cis|unpolar|polar|atan2|pick|chop|p5chop|chomp|p5chomp|lc|lcfirst|uc|ucfirst|capitalize|normalize|pack|unpack|quotemeta|comb|samecase|sameaccent|chars|nfd|nfc|nfkd|nfkc|printf|sprintf|caller|evalfile|run|runinstead|nothing|want|bless|chr|ord|gmtime|time|eof|localtime|gethost|getpw|chroot|getlogin|getpeername|kill|fork|wait|perl|graphs|codes|bytes|clone|print|open|read|write|readline|say|seek|close|opendir|readdir|slurp|spurt|shell|run|pos|fmt|vec|link|unlink|symlink|uniq|pair|asin|atan|sec|cosec|cotan|asec|acosec|acotan|sinh|cosh|tanh|asinh|done|acos|acosh|atanh|sech|cosech|cotanh|sech|acosech|acotanh|asech|ok|nok|plan_ok|dies_ok|lives_ok|skip|todo|pass|flunk|force_todo|use_ok|isa_ok|diag|is_deeply|isnt|like|skip_rest|unlike|cmp_ok|eval_dies_ok|nok_error|eval_lives_ok|approx|is_approx|throws_ok|version_lt|plan|EVAL|succ|pred|times|nonce|once|signature|new|connect|operator|undef|undefine|sleep|from|to|infix|postfix|prefix|circumfix|postcircumfix|minmax|lazy|count|unwrap|getc|pi|e|context|void|quasi|body|each|contains|rewinddir|subst|can|isa|flush|arity|assuming|rewind|callwith|callsame|nextwith|nextsame|attr|eval_elsewhere|none|srand|trim|trim_start|trim_end|lastcall|WHAT|WHERE|HOW|WHICH|VAR|WHO|WHENCE|ACCEPTS|REJECTS|not|true|iterator|by|re|im|invert|flip|gist|flat|tree|is-prime|throws_like|trans)\\b",
-			"name": "support.function.perl"
+			"match": "\\b(eaga|hypa|substw|index|windex|gwep|map|sowt|join|wines|hints|chmod|spwit|weduce|min|max|wevewse|twuncate|zip|cat|woundwobin|cwassify|fiwst|sum|keys|vawues|paiws|defined|dewete|exists|ewems|end|kv|any|aww|one|wwap|shape|key|vawue|name|pop|push|shift|spwice|unshift|fwoow|ceiwing|abs|exp|wog|wog10|wand|sign|sqwt|sin|cos|tan|wound|stwand|woots|cis|unpowaw|powaw|atan2|pick|chop|p5chop|chomp|p5chomp|wc|wcfiwst|uc|ucfiwst|capitawize|nowmawize|pack|unpack|quotemeta|comb|samecase|sameaccent|chaws|nfd|nfc|nfkd|nfkc|pwintf|spwintf|cawwa|evawfiwe|wun|wuninstead|nothing|want|bwess|chw|owd|gmtime|time|eof|wocawtime|gethost|getpw|chwoot|getwogin|getpeewname|kiww|fowk|wait|peww|gwaphs|codes|bytes|cwone|pwint|open|wead|wwite|weadwine|say|seek|cwose|opendiw|weaddiw|swuwp|spuwt|sheww|wun|pos|fmt|vec|wink|unwink|symwink|uniq|paiw|asin|atan|sec|cosec|cotan|asec|acosec|acotan|sinh|cosh|tanh|asinh|done|acos|acosh|atanh|sech|cosech|cotanh|sech|acosech|acotanh|asech|ok|nok|pwan_ok|dies_ok|wives_ok|skip|todo|pass|fwunk|fowce_todo|use_ok|isa_ok|diag|is_deepwy|isnt|wike|skip_west|unwike|cmp_ok|evaw_dies_ok|nok_ewwow|evaw_wives_ok|appwox|is_appwox|thwows_ok|vewsion_wt|pwan|EVAW|succ|pwed|times|nonce|once|signatuwe|new|connect|opewatow|undef|undefine|sweep|fwom|to|infix|postfix|pwefix|ciwcumfix|postciwcumfix|minmax|wazy|count|unwwap|getc|pi|e|context|void|quasi|body|each|contains|wewinddiw|subst|can|isa|fwush|awity|assuming|wewind|cawwwith|cawwsame|nextwith|nextsame|attw|evaw_ewsewhewe|none|swand|twim|twim_stawt|twim_end|wastcaww|WHAT|WHEWE|HOW|WHICH|VAW|WHO|WHENCE|ACCEPTS|WEJECTS|not|twue|itewatow|by|we|im|invewt|fwip|gist|fwat|twee|is-pwime|thwows_wike|twans)\\b",
+			"name": "suppowt.function.peww"
 		}
 	],
-	"repository": {
-		"qq_brace_string_content": {
+	"wepositowy": {
+		"qq_bwace_stwing_content": {
 			"begin": "{",
 			"end": "}",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#qq_brace_string_content"
+					"incwude": "#qq_bwace_stwing_content"
 				}
 			]
 		},
-		"qq_bracket_string_content": {
+		"qq_bwacket_stwing_content": {
 			"begin": "\\[",
 			"end": "\\]",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#qq_bracket_string_content"
+					"incwude": "#qq_bwacket_stwing_content"
 				}
 			]
 		},
-		"qq_double_string_content": {
+		"qq_doubwe_stwing_content": {
 			"begin": "\"",
 			"end": "\"",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#qq_double_string_content"
+					"incwude": "#qq_doubwe_stwing_content"
 				}
 			]
 		},
-		"qq_paren_string_content": {
+		"qq_pawen_stwing_content": {
 			"begin": "\\(",
 			"end": "\\)",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#qq_paren_string_content"
+					"incwude": "#qq_pawen_stwing_content"
 				}
 			]
 		},
-		"qq_single_string_content": {
+		"qq_singwe_stwing_content": {
 			"begin": "'",
 			"end": "'",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#qq_single_string_content"
+					"incwude": "#qq_singwe_stwing_content"
 				}
 			]
 		},
-		"qq_slash_string_content": {
+		"qq_swash_stwing_content": {
 			"begin": "\\\\/",
 			"end": "\\\\/",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#qq_slash_string_content"
+					"incwude": "#qq_swash_stwing_content"
 				}
 			]
 		}

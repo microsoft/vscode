@@ -1,158 +1,158 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as sinon from 'sinon';
-import { URI } from 'vs/base/common/uri';
-import { assertThrowsAsync } from 'vs/base/test/common/utils';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { NotebookEditorKernelManager } from 'vs/workbench/contrib/notebook/browser/notebookEditorKernelManager';
-import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, IOutputDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { setupInstantiationService, withTestNotebook as _withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
-import { Event } from 'vs/base/common/event';
-import { ISelectedNotebooksChangeEvent, INotebookKernelService, INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/notebookKernelServiceImpl';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { mock } from 'vs/base/test/common/mock';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Mimes } from 'vs/base/common/mime';
-import { insertCellAtIndex } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
+impowt * as assewt fwom 'assewt';
+impowt * as sinon fwom 'sinon';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { assewtThwowsAsync } fwom 'vs/base/test/common/utiws';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { NotebookEditowKewnewManaga } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookEditowKewnewManaga';
+impowt { NotebookViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/notebookViewModew';
+impowt { NotebookTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookTextModew';
+impowt { CewwKind, IOutputDto, NotebookCewwMetadata } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { setupInstantiationSewvice, withTestNotebook as _withTestNotebook } fwom 'vs/wowkbench/contwib/notebook/test/testNotebookEditow';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { ISewectedNotebooksChangeEvent, INotebookKewnewSewvice, INotebookKewnew } fwom 'vs/wowkbench/contwib/notebook/common/notebookKewnewSewvice';
+impowt { NotebookKewnewSewvice } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookKewnewSewviceImpw';
+impowt { INotebookSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookSewvice';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { Mimes } fwom 'vs/base/common/mime';
+impowt { insewtCewwAtIndex } fwom 'vs/wowkbench/contwib/notebook/bwowsa/contwowwa/cewwOpewations';
 
-suite('NotebookEditorKernelManager', () => {
+suite('NotebookEditowKewnewManaga', () => {
 
-	let instantiationService: TestInstantiationService;
-	let kernelService: INotebookKernelService;
-	const dispoables = new DisposableStore();
+	wet instantiationSewvice: TestInstantiationSewvice;
+	wet kewnewSewvice: INotebookKewnewSewvice;
+	const dispoabwes = new DisposabweStowe();
 
 	setup(function () {
 
-		dispoables.clear();
+		dispoabwes.cweaw();
 
-		instantiationService = setupInstantiationService();
+		instantiationSewvice = setupInstantiationSewvice();
 
-		instantiationService.stub(INotebookService, new class extends mock<INotebookService>() {
-			override onDidAddNotebookDocument = Event.None;
-			override onWillRemoveNotebookDocument = Event.None;
-			override getNotebookTextModels() { return []; }
+		instantiationSewvice.stub(INotebookSewvice, new cwass extends mock<INotebookSewvice>() {
+			ovewwide onDidAddNotebookDocument = Event.None;
+			ovewwide onWiwwWemoveNotebookDocument = Event.None;
+			ovewwide getNotebookTextModews() { wetuwn []; }
 		});
 
-		kernelService = instantiationService.createInstance(NotebookKernelService);
-		instantiationService.set(INotebookKernelService, kernelService);
+		kewnewSewvice = instantiationSewvice.cweateInstance(NotebookKewnewSewvice);
+		instantiationSewvice.set(INotebookKewnewSewvice, kewnewSewvice);
 
 	});
 
-	async function withTestNotebook(cells: [string, string, CellKind, IOutputDto[], NotebookCellMetadata][], callback: (viewModel: NotebookViewModel, textModel: NotebookTextModel) => void | Promise<void>) {
-		return _withTestNotebook(cells, (editor, viewModel) => callback(viewModel, viewModel.notebookDocument));
+	async function withTestNotebook(cewws: [stwing, stwing, CewwKind, IOutputDto[], NotebookCewwMetadata][], cawwback: (viewModew: NotebookViewModew, textModew: NotebookTextModew) => void | Pwomise<void>) {
+		wetuwn _withTestNotebook(cewws, (editow, viewModew) => cawwback(viewModew, viewModew.notebookDocument));
 	}
 
-	// test('ctor', () => {
-	// 	instantiationService.createInstance(NotebookEditorKernelManager, { activeKernel: undefined, viewModel: undefined });
-	// 	const contextKeyService = instantiationService.get(IContextKeyService);
+	// test('ctow', () => {
+	// 	instantiationSewvice.cweateInstance(NotebookEditowKewnewManaga, { activeKewnew: undefined, viewModew: undefined });
+	// 	const contextKeySewvice = instantiationSewvice.get(IContextKeySewvice);
 
-	// 	assert.strictEqual(contextKeyService.getContextKeyValue(NOTEBOOK_KERNEL_COUNT.key), 0);
+	// 	assewt.stwictEquaw(contextKeySewvice.getContextKeyVawue(NOTEBOOK_KEWNEW_COUNT.key), 0);
 	// });
 
-	test('cell is not runnable when no kernel is selected', async () => {
+	test('ceww is not wunnabwe when no kewnew is sewected', async () => {
 		await withTestNotebook(
 			[],
-			async (viewModel) => {
-				const kernelManager = instantiationService.createInstance(NotebookEditorKernelManager);
+			async (viewModew) => {
+				const kewnewManaga = instantiationSewvice.cweateInstance(NotebookEditowKewnewManaga);
 
-				const cell = insertCellAtIndex(viewModel, 1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true);
-				await assertThrowsAsync(async () => await kernelManager.executeNotebookCell(cell));
+				const ceww = insewtCewwAtIndex(viewModew, 1, 'vaw c = 3', 'javascwipt', CewwKind.Code, {}, [], twue);
+				await assewtThwowsAsync(async () => await kewnewManaga.executeNotebookCeww(ceww));
 			});
 	});
 
-	test('cell is not runnable when kernel does not support the language', async () => {
+	test('ceww is not wunnabwe when kewnew does not suppowt the wanguage', async () => {
 		await withTestNotebook(
 			[],
-			async (viewModel) => {
+			async (viewModew) => {
 
-				kernelService.registerKernel(new TestNotebookKernel({ languages: ['testlang'] }));
-				const kernelManager = instantiationService.createInstance(NotebookEditorKernelManager);
-				const cell = insertCellAtIndex(viewModel, 1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true);
-				await assertThrowsAsync(async () => await kernelManager.executeNotebookCell(cell));
+				kewnewSewvice.wegistewKewnew(new TestNotebookKewnew({ wanguages: ['testwang'] }));
+				const kewnewManaga = instantiationSewvice.cweateInstance(NotebookEditowKewnewManaga);
+				const ceww = insewtCewwAtIndex(viewModew, 1, 'vaw c = 3', 'javascwipt', CewwKind.Code, {}, [], twue);
+				await assewtThwowsAsync(async () => await kewnewManaga.executeNotebookCeww(ceww));
 
 			});
 	});
 
-	test('cell is runnable when kernel does support the language', async () => {
+	test('ceww is wunnabwe when kewnew does suppowt the wanguage', async () => {
 		await withTestNotebook(
 			[],
-			async (viewModel) => {
-				const kernel = new TestNotebookKernel({ languages: ['javascript'] });
-				kernelService.registerKernel(kernel);
-				const kernelManager = instantiationService.createInstance(NotebookEditorKernelManager);
+			async (viewModew) => {
+				const kewnew = new TestNotebookKewnew({ wanguages: ['javascwipt'] });
+				kewnewSewvice.wegistewKewnew(kewnew);
+				const kewnewManaga = instantiationSewvice.cweateInstance(NotebookEditowKewnewManaga);
 				const executeSpy = sinon.spy();
-				kernel.executeNotebookCellsRequest = executeSpy;
+				kewnew.executeNotebookCewwsWequest = executeSpy;
 
-				const cell = insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true);
-				await kernelManager.executeNotebookCells(viewModel.notebookDocument, [cell]);
-				assert.strictEqual(executeSpy.calledOnce, true);
+				const ceww = insewtCewwAtIndex(viewModew, 0, 'vaw c = 3', 'javascwipt', CewwKind.Code, {}, [], twue);
+				await kewnewManaga.executeNotebookCewws(viewModew.notebookDocument, [ceww]);
+				assewt.stwictEquaw(executeSpy.cawwedOnce, twue);
 			});
 	});
 
-	test('select kernel when running cell', async function () {
-		// https://github.com/microsoft/vscode/issues/121904
+	test('sewect kewnew when wunning ceww', async function () {
+		// https://github.com/micwosoft/vscode/issues/121904
 
-		return withTestNotebook([], async viewModel => {
-			assert.strictEqual(kernelService.getMatchingKernel(viewModel.notebookDocument).all.length, 0);
+		wetuwn withTestNotebook([], async viewModew => {
+			assewt.stwictEquaw(kewnewSewvice.getMatchingKewnew(viewModew.notebookDocument).aww.wength, 0);
 
-			let didExecute = false;
-			const kernel = new class extends TestNotebookKernel {
-				constructor() {
-					super({ languages: ['javascript'] });
-					this.id = 'mySpecialId';
+			wet didExecute = fawse;
+			const kewnew = new cwass extends TestNotebookKewnew {
+				constwuctow() {
+					supa({ wanguages: ['javascwipt'] });
+					this.id = 'mySpeciawId';
 				}
 
-				override async executeNotebookCellsRequest() {
-					didExecute = true;
-					return;
+				ovewwide async executeNotebookCewwsWequest() {
+					didExecute = twue;
+					wetuwn;
 				}
 			};
 
-			kernelService.registerKernel(kernel);
-			const kernelManager = instantiationService.createInstance(NotebookEditorKernelManager);
+			kewnewSewvice.wegistewKewnew(kewnew);
+			const kewnewManaga = instantiationSewvice.cweateInstance(NotebookEditowKewnewManaga);
 
-			let event: ISelectedNotebooksChangeEvent | undefined;
-			kernelService.onDidChangeSelectedNotebooks(e => event = e);
+			wet event: ISewectedNotebooksChangeEvent | undefined;
+			kewnewSewvice.onDidChangeSewectedNotebooks(e => event = e);
 
-			const cell = insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
-			await kernelManager.executeNotebookCells(viewModel.notebookDocument, [cell]);
+			const ceww = insewtCewwAtIndex(viewModew, 0, 'vaw c = 3', 'javascwipt', CewwKind.Code, {}, [], twue, twue);
+			await kewnewManaga.executeNotebookCewws(viewModew.notebookDocument, [ceww]);
 
-			assert.strictEqual(didExecute, true);
-			assert.ok(event !== undefined);
-			assert.strictEqual(event.newKernel, kernel.id);
-			assert.strictEqual(event.oldKernel, undefined);
+			assewt.stwictEquaw(didExecute, twue);
+			assewt.ok(event !== undefined);
+			assewt.stwictEquaw(event.newKewnew, kewnew.id);
+			assewt.stwictEquaw(event.owdKewnew, undefined);
 		});
 	});
 });
 
-class TestNotebookKernel implements INotebookKernel {
-	id: string = 'test';
-	label: string = '';
+cwass TestNotebookKewnew impwements INotebookKewnew {
+	id: stwing = 'test';
+	wabew: stwing = '';
 	viewType = '*';
 	onDidChange = Event.None;
-	extension: ExtensionIdentifier = new ExtensionIdentifier('test');
-	localResourceRoot: URI = URI.file('/test');
-	description?: string | undefined;
-	detail?: string | undefined;
-	preloadUris: URI[] = [];
-	preloadProvides: string[] = [];
-	supportedLanguages: string[] = [];
-	executeNotebookCellsRequest(): Promise<void> {
-		throw new Error('Method not implemented.');
+	extension: ExtensionIdentifia = new ExtensionIdentifia('test');
+	wocawWesouwceWoot: UWI = UWI.fiwe('/test');
+	descwiption?: stwing | undefined;
+	detaiw?: stwing | undefined;
+	pwewoadUwis: UWI[] = [];
+	pwewoadPwovides: stwing[] = [];
+	suppowtedWanguages: stwing[] = [];
+	executeNotebookCewwsWequest(): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
 	}
-	cancelNotebookCellExecution(): Promise<void> {
-		throw new Error('Method not implemented.');
+	cancewNotebookCewwExecution(): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	constructor(opts?: { languages: string[] }) {
-		this.supportedLanguages = opts?.languages ?? [Mimes.text];
+	constwuctow(opts?: { wanguages: stwing[] }) {
+		this.suppowtedWanguages = opts?.wanguages ?? [Mimes.text];
 	}
 }

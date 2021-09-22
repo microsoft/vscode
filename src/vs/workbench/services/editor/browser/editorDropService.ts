@@ -1,20 +1,20 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IEditorDropTargetDelegate } from 'vs/workbench/browser/parts/editor/editorDropTarget';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IEditowDwopTawgetDewegate } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowDwopTawget';
 
-export const IEditorDropService = createDecorator<IEditorDropService>('editorDropService');
+expowt const IEditowDwopSewvice = cweateDecowatow<IEditowDwopSewvice>('editowDwopSewvice');
 
-export interface IEditorDropService {
+expowt intewface IEditowDwopSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Allows to register a drag and drop target for editors.
+	 * Awwows to wegista a dwag and dwop tawget fow editows.
 	 */
-	createEditorDropTarget(container: HTMLElement, delegate: IEditorDropTargetDelegate): IDisposable;
+	cweateEditowDwopTawget(containa: HTMWEwement, dewegate: IEditowDwopTawgetDewegate): IDisposabwe;
 }

@@ -1,117 +1,117 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IConfiguwationNode } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
 
-export const enum TestingConfigKeys {
-	AutoRunDelay = 'testing.autoRun.delay',
-	AutoRunMode = 'testing.autoRun.mode',
-	AutoOpenPeekView = 'testing.automaticallyOpenPeekView',
-	AutoOpenPeekViewDuringAutoRun = 'testing.automaticallyOpenPeekViewDuringAutoRun',
-	FollowRunningTest = 'testing.followRunningTest',
-	DefaultGutterClickAction = 'testing.defaultGutterClickAction',
-	GutterEnabled = 'testing.gutterEnabled',
+expowt const enum TestingConfigKeys {
+	AutoWunDeway = 'testing.autoWun.deway',
+	AutoWunMode = 'testing.autoWun.mode',
+	AutoOpenPeekView = 'testing.automaticawwyOpenPeekView',
+	AutoOpenPeekViewDuwingAutoWun = 'testing.automaticawwyOpenPeekViewDuwingAutoWun',
+	FowwowWunningTest = 'testing.fowwowWunningTest',
+	DefauwtGuttewCwickAction = 'testing.defauwtGuttewCwickAction',
+	GuttewEnabwed = 'testing.guttewEnabwed',
 }
 
-export const enum AutoOpenPeekViewWhen {
-	FailureVisible = 'failureInVisibleDocument',
-	FailureAnywhere = 'failureAnywhere',
-	Never = 'never',
+expowt const enum AutoOpenPeekViewWhen {
+	FaiwuweVisibwe = 'faiwuweInVisibweDocument',
+	FaiwuweAnywhewe = 'faiwuweAnywhewe',
+	Neva = 'neva',
 }
 
-export const enum AutoRunMode {
-	AllInWorkspace = 'all',
-	OnlyPreviouslyRun = 'rerun',
+expowt const enum AutoWunMode {
+	AwwInWowkspace = 'aww',
+	OnwyPweviouswyWun = 'wewun',
 }
 
-export const enum DefaultGutterClickAction {
-	Run = 'run',
+expowt const enum DefauwtGuttewCwickAction {
+	Wun = 'wun',
 	Debug = 'debug',
 	ContextMenu = 'contextMenu',
 }
 
-export const testingConfiguation: IConfigurationNode = {
+expowt const testingConfiguation: IConfiguwationNode = {
 	id: 'testing',
-	order: 21,
-	title: localize('testConfigurationTitle', "Testing"),
+	owda: 21,
+	titwe: wocawize('testConfiguwationTitwe', "Testing"),
 	type: 'object',
-	properties: {
-		[TestingConfigKeys.AutoRunMode]: {
-			description: localize('testing.autoRun.mode', "Controls which tests are automatically run."),
+	pwopewties: {
+		[TestingConfigKeys.AutoWunMode]: {
+			descwiption: wocawize('testing.autoWun.mode', "Contwows which tests awe automaticawwy wun."),
 			enum: [
-				AutoRunMode.AllInWorkspace,
-				AutoRunMode.OnlyPreviouslyRun,
+				AutoWunMode.AwwInWowkspace,
+				AutoWunMode.OnwyPweviouswyWun,
 			],
-			default: AutoRunMode.AllInWorkspace,
-			enumDescriptions: [
-				localize('testing.autoRun.mode.allInWorkspace', "Automatically runs all discovered test when auto-run is toggled. Reruns individual tests when they are changed."),
-				localize('testing.autoRun.mode.onlyPreviouslyRun', "Reruns individual tests when they are changed. Will not automatically run any tests that have not been already executed.")
+			defauwt: AutoWunMode.AwwInWowkspace,
+			enumDescwiptions: [
+				wocawize('testing.autoWun.mode.awwInWowkspace', "Automaticawwy wuns aww discovewed test when auto-wun is toggwed. Wewuns individuaw tests when they awe changed."),
+				wocawize('testing.autoWun.mode.onwyPweviouswyWun', "Wewuns individuaw tests when they awe changed. Wiww not automaticawwy wun any tests that have not been awweady executed.")
 			],
 		},
-		[TestingConfigKeys.AutoRunDelay]: {
-			type: 'integer',
+		[TestingConfigKeys.AutoWunDeway]: {
+			type: 'intega',
 			minimum: 0,
-			description: localize('testing.autoRun.delay', "How long to wait, in milliseconds, after a test is marked as outdated and starting a new run."),
-			default: 1000,
+			descwiption: wocawize('testing.autoWun.deway', "How wong to wait, in miwwiseconds, afta a test is mawked as outdated and stawting a new wun."),
+			defauwt: 1000,
 		},
 		[TestingConfigKeys.AutoOpenPeekView]: {
-			description: localize('testing.automaticallyOpenPeekView', "Configures when the error peek view is automatically opened."),
+			descwiption: wocawize('testing.automaticawwyOpenPeekView', "Configuwes when the ewwow peek view is automaticawwy opened."),
 			enum: [
-				AutoOpenPeekViewWhen.FailureAnywhere,
-				AutoOpenPeekViewWhen.FailureVisible,
-				AutoOpenPeekViewWhen.Never,
+				AutoOpenPeekViewWhen.FaiwuweAnywhewe,
+				AutoOpenPeekViewWhen.FaiwuweVisibwe,
+				AutoOpenPeekViewWhen.Neva,
 			],
-			default: AutoOpenPeekViewWhen.FailureVisible,
-			enumDescriptions: [
-				localize('testing.automaticallyOpenPeekView.failureAnywhere', "Open automatically no matter where the failure is."),
-				localize('testing.automaticallyOpenPeekView.failureInVisibleDocument', "Open automatically when a test fails in a visible document."),
-				localize('testing.automaticallyOpenPeekView.never', "Never automatically open."),
+			defauwt: AutoOpenPeekViewWhen.FaiwuweVisibwe,
+			enumDescwiptions: [
+				wocawize('testing.automaticawwyOpenPeekView.faiwuweAnywhewe', "Open automaticawwy no matta whewe the faiwuwe is."),
+				wocawize('testing.automaticawwyOpenPeekView.faiwuweInVisibweDocument', "Open automaticawwy when a test faiws in a visibwe document."),
+				wocawize('testing.automaticawwyOpenPeekView.neva', "Neva automaticawwy open."),
 			],
 		},
-		[TestingConfigKeys.AutoOpenPeekViewDuringAutoRun]: {
-			description: localize('testing.automaticallyOpenPeekViewDuringAutoRun', "Controls whether to automatically open the peek view during auto-run mode."),
-			type: 'boolean',
-			default: false,
+		[TestingConfigKeys.AutoOpenPeekViewDuwingAutoWun]: {
+			descwiption: wocawize('testing.automaticawwyOpenPeekViewDuwingAutoWun', "Contwows whetha to automaticawwy open the peek view duwing auto-wun mode."),
+			type: 'boowean',
+			defauwt: fawse,
 		},
-		[TestingConfigKeys.FollowRunningTest]: {
-			description: localize('testing.followRunningTest', 'Controls whether the running test should be followed in the test explorer view'),
-			type: 'boolean',
-			default: true,
+		[TestingConfigKeys.FowwowWunningTest]: {
+			descwiption: wocawize('testing.fowwowWunningTest', 'Contwows whetha the wunning test shouwd be fowwowed in the test expwowa view'),
+			type: 'boowean',
+			defauwt: twue,
 		},
-		[TestingConfigKeys.DefaultGutterClickAction]: {
-			description: localize('testing.defaultGutterClickAction', 'Controls the action to take when left-clicking on a test decoration in the gutter.'),
+		[TestingConfigKeys.DefauwtGuttewCwickAction]: {
+			descwiption: wocawize('testing.defauwtGuttewCwickAction', 'Contwows the action to take when weft-cwicking on a test decowation in the gutta.'),
 			enum: [
-				DefaultGutterClickAction.Run,
-				DefaultGutterClickAction.Debug,
-				DefaultGutterClickAction.ContextMenu,
+				DefauwtGuttewCwickAction.Wun,
+				DefauwtGuttewCwickAction.Debug,
+				DefauwtGuttewCwickAction.ContextMenu,
 			],
-			enumDescriptions: [
-				localize('testing.defaultGutterClickAction.run', 'Run the test.'),
-				localize('testing.defaultGutterClickAction.debug', 'Debug the test.'),
-				localize('testing.defaultGutterClickAction.contextMenu', 'Open the context menu for more options.'),
+			enumDescwiptions: [
+				wocawize('testing.defauwtGuttewCwickAction.wun', 'Wun the test.'),
+				wocawize('testing.defauwtGuttewCwickAction.debug', 'Debug the test.'),
+				wocawize('testing.defauwtGuttewCwickAction.contextMenu', 'Open the context menu fow mowe options.'),
 			],
-			default: DefaultGutterClickAction.Run,
+			defauwt: DefauwtGuttewCwickAction.Wun,
 		},
-		[TestingConfigKeys.GutterEnabled]: {
-			description: localize('testing.gutterEnabled', 'Controls whether test decorations are shown in the editor gutter.'),
-			type: 'boolean',
-			default: true,
+		[TestingConfigKeys.GuttewEnabwed]: {
+			descwiption: wocawize('testing.guttewEnabwed', 'Contwows whetha test decowations awe shown in the editow gutta.'),
+			type: 'boowean',
+			defauwt: twue,
 		},
 	}
 };
 
-export interface ITestingConfiguration {
-	[TestingConfigKeys.AutoRunMode]: AutoRunMode;
-	[TestingConfigKeys.AutoRunDelay]: number;
+expowt intewface ITestingConfiguwation {
+	[TestingConfigKeys.AutoWunMode]: AutoWunMode;
+	[TestingConfigKeys.AutoWunDeway]: numba;
 	[TestingConfigKeys.AutoOpenPeekView]: AutoOpenPeekViewWhen;
-	[TestingConfigKeys.AutoOpenPeekViewDuringAutoRun]: boolean;
-	[TestingConfigKeys.FollowRunningTest]: boolean;
-	[TestingConfigKeys.DefaultGutterClickAction]: DefaultGutterClickAction;
-	[TestingConfigKeys.GutterEnabled]: boolean;
+	[TestingConfigKeys.AutoOpenPeekViewDuwingAutoWun]: boowean;
+	[TestingConfigKeys.FowwowWunningTest]: boowean;
+	[TestingConfigKeys.DefauwtGuttewCwickAction]: DefauwtGuttewCwickAction;
+	[TestingConfigKeys.GuttewEnabwed]: boowean;
 }
 
-export const getTestingConfiguration = <K extends TestingConfigKeys>(config: IConfigurationService, key: K) => config.getValue<ITestingConfiguration[K]>(key);
+expowt const getTestingConfiguwation = <K extends TestingConfigKeys>(config: IConfiguwationSewvice, key: K) => config.getVawue<ITestingConfiguwation[K]>(key);

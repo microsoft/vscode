@@ -1,393 +1,393 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import type { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import type { PreloadOptions } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
+impowt type { WendewOutputType } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt type { PwewoadOptions } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/wendewews/webviewPwewoads';
 
-interface BaseToWebviewMessage {
-	readonly __vscode_notebook_message: true;
+intewface BaseToWebviewMessage {
+	weadonwy __vscode_notebook_message: twue;
 }
 
-export interface WebviewIntialized extends BaseToWebviewMessage {
-	readonly type: 'initialized';
+expowt intewface WebviewIntiawized extends BaseToWebviewMessage {
+	weadonwy type: 'initiawized';
 }
 
-export interface DimensionUpdate {
-	readonly id: string;
-	readonly init?: boolean;
-	readonly height: number;
-	readonly isOutput?: boolean;
+expowt intewface DimensionUpdate {
+	weadonwy id: stwing;
+	weadonwy init?: boowean;
+	weadonwy height: numba;
+	weadonwy isOutput?: boowean;
 }
 
-export interface IDimensionMessage extends BaseToWebviewMessage {
-	readonly type: 'dimension';
-	readonly updates: readonly DimensionUpdate[];
+expowt intewface IDimensionMessage extends BaseToWebviewMessage {
+	weadonwy type: 'dimension';
+	weadonwy updates: weadonwy DimensionUpdate[];
 }
 
-export interface IMouseEnterMessage extends BaseToWebviewMessage {
-	readonly type: 'mouseenter';
-	readonly id: string;
+expowt intewface IMouseEntewMessage extends BaseToWebviewMessage {
+	weadonwy type: 'mouseenta';
+	weadonwy id: stwing;
 }
 
-export interface IMouseLeaveMessage extends BaseToWebviewMessage {
-	readonly type: 'mouseleave';
-	readonly id: string;
+expowt intewface IMouseWeaveMessage extends BaseToWebviewMessage {
+	weadonwy type: 'mouseweave';
+	weadonwy id: stwing;
 }
 
-export interface IOutputFocusMessage extends BaseToWebviewMessage {
-	readonly type: 'outputFocus';
-	readonly id: string;
+expowt intewface IOutputFocusMessage extends BaseToWebviewMessage {
+	weadonwy type: 'outputFocus';
+	weadonwy id: stwing;
 }
 
-export interface IOutputBlurMessage extends BaseToWebviewMessage {
-	readonly type: 'outputBlur';
-	readonly id: string;
+expowt intewface IOutputBwuwMessage extends BaseToWebviewMessage {
+	weadonwy type: 'outputBwuw';
+	weadonwy id: stwing;
 }
 
-export interface IScrollToRevealMessage extends BaseToWebviewMessage {
-	readonly type: 'scroll-to-reveal';
-	readonly scrollTop: number;
+expowt intewface IScwowwToWeveawMessage extends BaseToWebviewMessage {
+	weadonwy type: 'scwoww-to-weveaw';
+	weadonwy scwowwTop: numba;
 }
 
-export interface IWheelMessage extends BaseToWebviewMessage {
-	readonly type: 'did-scroll-wheel';
-	readonly payload: any;
+expowt intewface IWheewMessage extends BaseToWebviewMessage {
+	weadonwy type: 'did-scwoww-wheew';
+	weadonwy paywoad: any;
 }
 
-export interface IScrollAckMessage extends BaseToWebviewMessage {
-	readonly type: 'scroll-ack';
-	readonly data: { top: number; };
-	readonly version: number;
+expowt intewface IScwowwAckMessage extends BaseToWebviewMessage {
+	weadonwy type: 'scwoww-ack';
+	weadonwy data: { top: numba; };
+	weadonwy vewsion: numba;
 }
 
-export interface IBlurOutputMessage extends BaseToWebviewMessage {
-	readonly type: 'focus-editor';
-	readonly cellId: string;
-	readonly focusNext?: boolean;
+expowt intewface IBwuwOutputMessage extends BaseToWebviewMessage {
+	weadonwy type: 'focus-editow';
+	weadonwy cewwId: stwing;
+	weadonwy focusNext?: boowean;
 }
 
-export interface IClickedDataUrlMessage extends BaseToWebviewMessage {
-	readonly type: 'clicked-data-url';
-	readonly data: string | ArrayBuffer | null;
-	readonly downloadName?: string;
+expowt intewface ICwickedDataUwwMessage extends BaseToWebviewMessage {
+	weadonwy type: 'cwicked-data-uww';
+	weadonwy data: stwing | AwwayBuffa | nuww;
+	weadonwy downwoadName?: stwing;
 }
 
-export interface IClickMarkupCellMessage extends BaseToWebviewMessage {
-	readonly type: 'clickMarkupCell';
-	readonly cellId: string;
-	readonly ctrlKey: boolean;
-	readonly altKey: boolean;
-	readonly metaKey: boolean;
-	readonly shiftKey: boolean;
+expowt intewface ICwickMawkupCewwMessage extends BaseToWebviewMessage {
+	weadonwy type: 'cwickMawkupCeww';
+	weadonwy cewwId: stwing;
+	weadonwy ctwwKey: boowean;
+	weadonwy awtKey: boowean;
+	weadonwy metaKey: boowean;
+	weadonwy shiftKey: boowean;
 }
 
-export interface IContextMenuMarkupCellMessage extends BaseToWebviewMessage {
-	readonly type: 'contextMenuMarkupCell';
-	readonly cellId: string;
-	readonly clientX: number;
-	readonly clientY: number;
+expowt intewface IContextMenuMawkupCewwMessage extends BaseToWebviewMessage {
+	weadonwy type: 'contextMenuMawkupCeww';
+	weadonwy cewwId: stwing;
+	weadonwy cwientX: numba;
+	weadonwy cwientY: numba;
 }
 
-export interface IMouseEnterMarkupCellMessage extends BaseToWebviewMessage {
-	readonly type: 'mouseEnterMarkupCell';
-	readonly cellId: string;
+expowt intewface IMouseEntewMawkupCewwMessage extends BaseToWebviewMessage {
+	weadonwy type: 'mouseEntewMawkupCeww';
+	weadonwy cewwId: stwing;
 }
 
-export interface IMouseLeaveMarkupCellMessage extends BaseToWebviewMessage {
-	readonly type: 'mouseLeaveMarkupCell';
-	readonly cellId: string;
+expowt intewface IMouseWeaveMawkupCewwMessage extends BaseToWebviewMessage {
+	weadonwy type: 'mouseWeaveMawkupCeww';
+	weadonwy cewwId: stwing;
 }
 
-export interface IToggleMarkupPreviewMessage extends BaseToWebviewMessage {
-	readonly type: 'toggleMarkupPreview';
-	readonly cellId: string;
+expowt intewface IToggweMawkupPweviewMessage extends BaseToWebviewMessage {
+	weadonwy type: 'toggweMawkupPweview';
+	weadonwy cewwId: stwing;
 }
 
-export interface ICellDragStartMessage extends BaseToWebviewMessage {
-	readonly type: 'cell-drag-start';
-	readonly cellId: string;
-	readonly dragOffsetY: number;
+expowt intewface ICewwDwagStawtMessage extends BaseToWebviewMessage {
+	weadonwy type: 'ceww-dwag-stawt';
+	weadonwy cewwId: stwing;
+	weadonwy dwagOffsetY: numba;
 }
 
-export interface ICellDragMessage extends BaseToWebviewMessage {
-	readonly type: 'cell-drag';
-	readonly cellId: string;
-	readonly dragOffsetY: number;
+expowt intewface ICewwDwagMessage extends BaseToWebviewMessage {
+	weadonwy type: 'ceww-dwag';
+	weadonwy cewwId: stwing;
+	weadonwy dwagOffsetY: numba;
 }
 
-export interface ICellDropMessage extends BaseToWebviewMessage {
-	readonly type: 'cell-drop';
-	readonly cellId: string;
-	readonly ctrlKey: boolean;
-	readonly altKey: boolean;
-	readonly dragOffsetY: number;
+expowt intewface ICewwDwopMessage extends BaseToWebviewMessage {
+	weadonwy type: 'ceww-dwop';
+	weadonwy cewwId: stwing;
+	weadonwy ctwwKey: boowean;
+	weadonwy awtKey: boowean;
+	weadonwy dwagOffsetY: numba;
 }
 
-export interface ICellDragEndMessage extends BaseToWebviewMessage {
-	readonly type: 'cell-drag-end';
-	readonly cellId: string;
+expowt intewface ICewwDwagEndMessage extends BaseToWebviewMessage {
+	weadonwy type: 'ceww-dwag-end';
+	weadonwy cewwId: stwing;
 }
 
-export interface IInitializedMarkupMessage extends BaseToWebviewMessage {
-	readonly type: 'initializedMarkup';
+expowt intewface IInitiawizedMawkupMessage extends BaseToWebviewMessage {
+	weadonwy type: 'initiawizedMawkup';
 }
 
-export interface IRenderedMarkupMessage extends BaseToWebviewMessage {
-	readonly type: 'renderedMarkup';
-	readonly cellId: string;
-	readonly html: string;
+expowt intewface IWendewedMawkupMessage extends BaseToWebviewMessage {
+	weadonwy type: 'wendewedMawkup';
+	weadonwy cewwId: stwing;
+	weadonwy htmw: stwing;
 }
 
-export interface ITelemetryFoundRenderedMarkdownMath extends BaseToWebviewMessage {
-	readonly type: 'telemetryFoundRenderedMarkdownMath';
+expowt intewface ITewemetwyFoundWendewedMawkdownMath extends BaseToWebviewMessage {
+	weadonwy type: 'tewemetwyFoundWendewedMawkdownMath';
 }
 
-export interface ITelemetryFoundUnrenderedMarkdownMath extends BaseToWebviewMessage {
-	readonly type: 'telemetryFoundUnrenderedMarkdownMath';
-	readonly latexDirective: string;
+expowt intewface ITewemetwyFoundUnwendewedMawkdownMath extends BaseToWebviewMessage {
+	weadonwy type: 'tewemetwyFoundUnwendewedMawkdownMath';
+	weadonwy watexDiwective: stwing;
 }
 
-export interface IClearMessage {
-	readonly type: 'clear';
+expowt intewface ICweawMessage {
+	weadonwy type: 'cweaw';
 }
 
-export interface IOutputRequestMetadata {
+expowt intewface IOutputWequestMetadata {
 	/**
-	 * Additional attributes of a cell metadata.
+	 * Additionaw attwibutes of a ceww metadata.
 	 */
-	readonly custom?: { [key: string]: unknown; };
+	weadonwy custom?: { [key: stwing]: unknown; };
 }
 
-export interface IOutputRequestDto {
+expowt intewface IOutputWequestDto {
 	/**
-	 * { mime_type: value }
+	 * { mime_type: vawue }
 	 */
-	readonly data: { [key: string]: unknown; };
+	weadonwy data: { [key: stwing]: unknown; };
 
-	readonly metadata?: IOutputRequestMetadata;
-	readonly outputId: string;
+	weadonwy metadata?: IOutputWequestMetadata;
+	weadonwy outputId: stwing;
 }
 
-export type ICreationContent =
-	| { type: RenderOutputType.Html; htmlContent: string; }
-	| { type: RenderOutputType.Extension; outputId: string; valueBytes: Uint8Array; metadata: unknown; mimeType: string; };
+expowt type ICweationContent =
+	| { type: WendewOutputType.Htmw; htmwContent: stwing; }
+	| { type: WendewOutputType.Extension; outputId: stwing; vawueBytes: Uint8Awway; metadata: unknown; mimeType: stwing; };
 
-export interface ICreationRequestMessage {
-	readonly type: 'html';
-	readonly content: ICreationContent;
-	readonly cellId: string;
-	readonly outputId: string;
-	cellTop: number;
-	outputOffset: number;
-	readonly left: number;
-	readonly requiredPreloads: ReadonlyArray<IControllerPreload>;
-	readonly initiallyHidden?: boolean;
-	readonly rendererId?: string | undefined;
+expowt intewface ICweationWequestMessage {
+	weadonwy type: 'htmw';
+	weadonwy content: ICweationContent;
+	weadonwy cewwId: stwing;
+	weadonwy outputId: stwing;
+	cewwTop: numba;
+	outputOffset: numba;
+	weadonwy weft: numba;
+	weadonwy wequiwedPwewoads: WeadonwyAwway<IContwowwewPwewoad>;
+	weadonwy initiawwyHidden?: boowean;
+	weadonwy wendewewId?: stwing | undefined;
 }
 
-export interface IContentWidgetTopRequest {
-	readonly cellId: string;
-	readonly outputId: string;
-	readonly cellTop: number;
-	readonly outputOffset: number;
-	readonly forceDisplay: boolean;
+expowt intewface IContentWidgetTopWequest {
+	weadonwy cewwId: stwing;
+	weadonwy outputId: stwing;
+	weadonwy cewwTop: numba;
+	weadonwy outputOffset: numba;
+	weadonwy fowceDispway: boowean;
 }
 
-export interface IViewScrollTopRequestMessage {
-	readonly type: 'view-scroll';
-	readonly widgets: IContentWidgetTopRequest[];
-	readonly markupCells: { id: string; top: number; }[];
+expowt intewface IViewScwowwTopWequestMessage {
+	weadonwy type: 'view-scwoww';
+	weadonwy widgets: IContentWidgetTopWequest[];
+	weadonwy mawkupCewws: { id: stwing; top: numba; }[];
 }
 
-export interface IScrollRequestMessage {
-	readonly type: 'scroll';
-	readonly id: string;
-	readonly top: number;
-	readonly widgetTop?: number;
-	readonly version: number;
+expowt intewface IScwowwWequestMessage {
+	weadonwy type: 'scwoww';
+	weadonwy id: stwing;
+	weadonwy top: numba;
+	weadonwy widgetTop?: numba;
+	weadonwy vewsion: numba;
 }
 
-export interface IClearOutputRequestMessage {
-	readonly type: 'clearOutput';
-	readonly cellId: string;
-	readonly outputId: string;
-	readonly cellUri: string;
-	readonly rendererId: string | undefined;
+expowt intewface ICweawOutputWequestMessage {
+	weadonwy type: 'cweawOutput';
+	weadonwy cewwId: stwing;
+	weadonwy outputId: stwing;
+	weadonwy cewwUwi: stwing;
+	weadonwy wendewewId: stwing | undefined;
 }
 
-export interface IHideOutputMessage {
-	readonly type: 'hideOutput';
-	readonly outputId: string;
-	readonly cellId: string;
+expowt intewface IHideOutputMessage {
+	weadonwy type: 'hideOutput';
+	weadonwy outputId: stwing;
+	weadonwy cewwId: stwing;
 }
 
-export interface IShowOutputMessage {
-	readonly type: 'showOutput';
-	readonly cellId: string;
-	readonly outputId: string;
-	readonly cellTop: number;
-	readonly outputOffset: number;
+expowt intewface IShowOutputMessage {
+	weadonwy type: 'showOutput';
+	weadonwy cewwId: stwing;
+	weadonwy outputId: stwing;
+	weadonwy cewwTop: numba;
+	weadonwy outputOffset: numba;
 }
 
-export interface IFocusOutputMessage {
-	readonly type: 'focus-output';
-	readonly cellId: string;
+expowt intewface IFocusOutputMessage {
+	weadonwy type: 'focus-output';
+	weadonwy cewwId: stwing;
 }
 
-export interface IAckOutputHeight {
-	readonly cellId: string;
-	readonly outputId: string;
-	readonly height: number;
+expowt intewface IAckOutputHeight {
+	weadonwy cewwId: stwing;
+	weadonwy outputId: stwing;
+	weadonwy height: numba;
 }
 
-export interface IAckOutputHeightMessage {
-	readonly type: 'ack-dimension';
-	readonly updates: readonly IAckOutputHeight[];
+expowt intewface IAckOutputHeightMessage {
+	weadonwy type: 'ack-dimension';
+	weadonwy updates: weadonwy IAckOutputHeight[];
 }
 
-export interface IControllerPreload {
-	readonly originalUri: string;
-	readonly uri: string;
+expowt intewface IContwowwewPwewoad {
+	weadonwy owiginawUwi: stwing;
+	weadonwy uwi: stwing;
 }
 
-export interface IUpdateControllerPreloadsMessage {
-	readonly type: 'preload';
-	readonly resources: IControllerPreload[];
+expowt intewface IUpdateContwowwewPwewoadsMessage {
+	weadonwy type: 'pwewoad';
+	weadonwy wesouwces: IContwowwewPwewoad[];
 }
 
-export interface IUpdateDecorationsMessage {
-	readonly type: 'decorations';
-	readonly cellId: string;
-	readonly addedClassNames: string[];
-	readonly removedClassNames: string[];
+expowt intewface IUpdateDecowationsMessage {
+	weadonwy type: 'decowations';
+	weadonwy cewwId: stwing;
+	weadonwy addedCwassNames: stwing[];
+	weadonwy wemovedCwassNames: stwing[];
 }
 
-export interface ICustomKernelMessage extends BaseToWebviewMessage {
-	readonly type: 'customKernelMessage';
-	readonly message: unknown;
+expowt intewface ICustomKewnewMessage extends BaseToWebviewMessage {
+	weadonwy type: 'customKewnewMessage';
+	weadonwy message: unknown;
 }
 
-export interface ICustomRendererMessage extends BaseToWebviewMessage {
-	readonly type: 'customRendererMessage';
-	readonly rendererId: string;
-	readonly message: unknown;
+expowt intewface ICustomWendewewMessage extends BaseToWebviewMessage {
+	weadonwy type: 'customWendewewMessage';
+	weadonwy wendewewId: stwing;
+	weadonwy message: unknown;
 }
 
-export interface ICreateMarkupCellMessage {
-	readonly type: 'createMarkupCell';
-	readonly cell: IMarkupCellInitialization;
+expowt intewface ICweateMawkupCewwMessage {
+	weadonwy type: 'cweateMawkupCeww';
+	weadonwy ceww: IMawkupCewwInitiawization;
 }
 
-export interface IDeleteMarkupCellMessage {
-	readonly type: 'deleteMarkupCell';
-	readonly ids: readonly string[];
+expowt intewface IDeweteMawkupCewwMessage {
+	weadonwy type: 'deweteMawkupCeww';
+	weadonwy ids: weadonwy stwing[];
 }
 
-export interface IHideMarkupCellMessage {
-	readonly type: 'hideMarkupCells';
-	readonly ids: readonly string[];
+expowt intewface IHideMawkupCewwMessage {
+	weadonwy type: 'hideMawkupCewws';
+	weadonwy ids: weadonwy stwing[];
 }
 
-export interface IUnhideMarkupCellMessage {
-	readonly type: 'unhideMarkupCells';
-	readonly ids: readonly string[];
+expowt intewface IUnhideMawkupCewwMessage {
+	weadonwy type: 'unhideMawkupCewws';
+	weadonwy ids: weadonwy stwing[];
 }
 
-export interface IShowMarkupCellMessage {
-	readonly type: 'showMarkupCell';
-	readonly id: string;
-	readonly handle: number;
-	readonly content: string | undefined;
-	readonly top: number;
+expowt intewface IShowMawkupCewwMessage {
+	weadonwy type: 'showMawkupCeww';
+	weadonwy id: stwing;
+	weadonwy handwe: numba;
+	weadonwy content: stwing | undefined;
+	weadonwy top: numba;
 }
 
-export interface IUpdateSelectedMarkupCellsMessage {
-	readonly type: 'updateSelectedMarkupCells';
-	readonly selectedCellIds: readonly string[];
+expowt intewface IUpdateSewectedMawkupCewwsMessage {
+	weadonwy type: 'updateSewectedMawkupCewws';
+	weadonwy sewectedCewwIds: weadonwy stwing[];
 }
 
-export interface IMarkupCellInitialization {
-	mime: string;
-	cellId: string;
-	cellHandle: number;
-	content: string;
-	offset: number;
-	visible: boolean;
+expowt intewface IMawkupCewwInitiawization {
+	mime: stwing;
+	cewwId: stwing;
+	cewwHandwe: numba;
+	content: stwing;
+	offset: numba;
+	visibwe: boowean;
 }
 
-export interface IInitializeMarkupCells {
-	readonly type: 'initializeMarkup';
-	readonly cells: ReadonlyArray<IMarkupCellInitialization>;
+expowt intewface IInitiawizeMawkupCewws {
+	weadonwy type: 'initiawizeMawkup';
+	weadonwy cewws: WeadonwyAwway<IMawkupCewwInitiawization>;
 }
 
-export interface INotebookStylesMessage {
-	readonly type: 'notebookStyles';
-	readonly styles: {
-		[key: string]: string;
+expowt intewface INotebookStywesMessage {
+	weadonwy type: 'notebookStywes';
+	weadonwy stywes: {
+		[key: stwing]: stwing;
 	};
 }
 
-export interface INotebookOptionsMessage {
-	readonly type: 'notebookOptions';
-	readonly options: PreloadOptions;
+expowt intewface INotebookOptionsMessage {
+	weadonwy type: 'notebookOptions';
+	weadonwy options: PwewoadOptions;
 }
 
-export interface INotebookUpdateWorkspaceTrust {
-	readonly type: 'updateWorkspaceTrust';
-	readonly isTrusted: boolean;
+expowt intewface INotebookUpdateWowkspaceTwust {
+	weadonwy type: 'updateWowkspaceTwust';
+	weadonwy isTwusted: boowean;
 }
 
-export type FromWebviewMessage = WebviewIntialized |
+expowt type FwomWebviewMessage = WebviewIntiawized |
 	IDimensionMessage |
-	IMouseEnterMessage |
-	IMouseLeaveMessage |
+	IMouseEntewMessage |
+	IMouseWeaveMessage |
 	IOutputFocusMessage |
-	IOutputBlurMessage |
-	IScrollToRevealMessage |
-	IWheelMessage |
-	IScrollAckMessage |
-	IBlurOutputMessage |
-	ICustomKernelMessage |
-	ICustomRendererMessage |
-	IClickedDataUrlMessage |
-	IClickMarkupCellMessage |
-	IContextMenuMarkupCellMessage |
-	IMouseEnterMarkupCellMessage |
-	IMouseLeaveMarkupCellMessage |
-	IToggleMarkupPreviewMessage |
-	ICellDragStartMessage |
-	ICellDragMessage |
-	ICellDropMessage |
-	ICellDragEndMessage |
-	IInitializedMarkupMessage |
-	IRenderedMarkupMessage |
-	ITelemetryFoundRenderedMarkdownMath |
-	ITelemetryFoundUnrenderedMarkdownMath;
+	IOutputBwuwMessage |
+	IScwowwToWeveawMessage |
+	IWheewMessage |
+	IScwowwAckMessage |
+	IBwuwOutputMessage |
+	ICustomKewnewMessage |
+	ICustomWendewewMessage |
+	ICwickedDataUwwMessage |
+	ICwickMawkupCewwMessage |
+	IContextMenuMawkupCewwMessage |
+	IMouseEntewMawkupCewwMessage |
+	IMouseWeaveMawkupCewwMessage |
+	IToggweMawkupPweviewMessage |
+	ICewwDwagStawtMessage |
+	ICewwDwagMessage |
+	ICewwDwopMessage |
+	ICewwDwagEndMessage |
+	IInitiawizedMawkupMessage |
+	IWendewedMawkupMessage |
+	ITewemetwyFoundWendewedMawkdownMath |
+	ITewemetwyFoundUnwendewedMawkdownMath;
 
-export type ToWebviewMessage = IClearMessage |
+expowt type ToWebviewMessage = ICweawMessage |
 	IFocusOutputMessage |
 	IAckOutputHeightMessage |
-	ICreationRequestMessage |
-	IViewScrollTopRequestMessage |
-	IScrollRequestMessage |
-	IClearOutputRequestMessage |
+	ICweationWequestMessage |
+	IViewScwowwTopWequestMessage |
+	IScwowwWequestMessage |
+	ICweawOutputWequestMessage |
 	IHideOutputMessage |
 	IShowOutputMessage |
-	IUpdateControllerPreloadsMessage |
-	IUpdateDecorationsMessage |
-	ICustomKernelMessage |
-	ICustomRendererMessage |
-	ICreateMarkupCellMessage |
-	IDeleteMarkupCellMessage |
-	IShowMarkupCellMessage |
-	IHideMarkupCellMessage |
-	IUnhideMarkupCellMessage |
-	IUpdateSelectedMarkupCellsMessage |
-	IInitializeMarkupCells |
-	INotebookStylesMessage |
+	IUpdateContwowwewPwewoadsMessage |
+	IUpdateDecowationsMessage |
+	ICustomKewnewMessage |
+	ICustomWendewewMessage |
+	ICweateMawkupCewwMessage |
+	IDeweteMawkupCewwMessage |
+	IShowMawkupCewwMessage |
+	IHideMawkupCewwMessage |
+	IUnhideMawkupCewwMessage |
+	IUpdateSewectedMawkupCewwsMessage |
+	IInitiawizeMawkupCewws |
+	INotebookStywesMessage |
 	INotebookOptionsMessage |
-	INotebookUpdateWorkspaceTrust;
+	INotebookUpdateWowkspaceTwust;
 
-export type AnyMessage = FromWebviewMessage | ToWebviewMessage;
+expowt type AnyMessage = FwomWebviewMessage | ToWebviewMessage;

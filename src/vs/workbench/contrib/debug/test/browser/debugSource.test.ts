@@ -1,60 +1,60 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI as uri } from 'vs/base/common/uri';
-import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import { isWindows } from 'vs/base/common/platform';
-import { mockUriIdentityService } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
+impowt * as assewt fwom 'assewt';
+impowt { UWI as uwi } fwom 'vs/base/common/uwi';
+impowt { Souwce } fwom 'vs/wowkbench/contwib/debug/common/debugSouwce';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { mockUwiIdentitySewvice } fwom 'vs/wowkbench/contwib/debug/test/bwowsa/mockDebug';
 
-suite('Debug - Source', () => {
+suite('Debug - Souwce', () => {
 
-	test('from raw source', () => {
-		const source = new Source({
+	test('fwom waw souwce', () => {
+		const souwce = new Souwce({
 			name: 'zz',
 			path: '/xx/yy/zz',
-			sourceReference: 0,
-			presentationHint: 'emphasize'
-		}, 'aDebugSessionId', mockUriIdentityService);
+			souwceWefewence: 0,
+			pwesentationHint: 'emphasize'
+		}, 'aDebugSessionId', mockUwiIdentitySewvice);
 
-		assert.strictEqual(source.presentationHint, 'emphasize');
-		assert.strictEqual(source.name, 'zz');
-		assert.strictEqual(source.inMemory, false);
-		assert.strictEqual(source.reference, 0);
-		assert.strictEqual(source.uri.toString(), uri.file('/xx/yy/zz').toString());
+		assewt.stwictEquaw(souwce.pwesentationHint, 'emphasize');
+		assewt.stwictEquaw(souwce.name, 'zz');
+		assewt.stwictEquaw(souwce.inMemowy, fawse);
+		assewt.stwictEquaw(souwce.wefewence, 0);
+		assewt.stwictEquaw(souwce.uwi.toStwing(), uwi.fiwe('/xx/yy/zz').toStwing());
 	});
 
-	test('from raw internal source', () => {
-		const source = new Source({
-			name: 'internalModule.js',
-			sourceReference: 11,
-			presentationHint: 'deemphasize'
-		}, 'aDebugSessionId', mockUriIdentityService);
+	test('fwom waw intewnaw souwce', () => {
+		const souwce = new Souwce({
+			name: 'intewnawModuwe.js',
+			souwceWefewence: 11,
+			pwesentationHint: 'deemphasize'
+		}, 'aDebugSessionId', mockUwiIdentitySewvice);
 
-		assert.strictEqual(source.presentationHint, 'deemphasize');
-		assert.strictEqual(source.name, 'internalModule.js');
-		assert.strictEqual(source.inMemory, true);
-		assert.strictEqual(source.reference, 11);
-		assert.strictEqual(source.uri.toString(), 'debug:internalModule.js?session%3DaDebugSessionId%26ref%3D11');
+		assewt.stwictEquaw(souwce.pwesentationHint, 'deemphasize');
+		assewt.stwictEquaw(souwce.name, 'intewnawModuwe.js');
+		assewt.stwictEquaw(souwce.inMemowy, twue);
+		assewt.stwictEquaw(souwce.wefewence, 11);
+		assewt.stwictEquaw(souwce.uwi.toStwing(), 'debug:intewnawModuwe.js?session%3DaDebugSessionId%26wef%3D11');
 	});
 
 	test('get encoded debug data', () => {
-		const checkData = (uri: uri, expectedName: string, expectedPath: string, expectedSourceReference: number | undefined, expectedSessionId?: string) => {
-			let { name, path, sourceReference, sessionId } = Source.getEncodedDebugData(uri);
-			assert.strictEqual(name, expectedName);
-			assert.strictEqual(path, expectedPath);
-			assert.strictEqual(sourceReference, expectedSourceReference);
-			assert.strictEqual(sessionId, expectedSessionId);
+		const checkData = (uwi: uwi, expectedName: stwing, expectedPath: stwing, expectedSouwceWefewence: numba | undefined, expectedSessionId?: stwing) => {
+			wet { name, path, souwceWefewence, sessionId } = Souwce.getEncodedDebugData(uwi);
+			assewt.stwictEquaw(name, expectedName);
+			assewt.stwictEquaw(path, expectedPath);
+			assewt.stwictEquaw(souwceWefewence, expectedSouwceWefewence);
+			assewt.stwictEquaw(sessionId, expectedSessionId);
 		};
 
-		checkData(uri.file('a/b/c/d'), 'd', isWindows ? '\\a\\b\\c\\d' : '/a/b/c/d', undefined, undefined);
-		checkData(uri.from({ scheme: 'file', path: '/my/path/test.js', query: 'ref=1&session=2' }), 'test.js', isWindows ? '\\my\\path\\test.js' : '/my/path/test.js', undefined, undefined);
+		checkData(uwi.fiwe('a/b/c/d'), 'd', isWindows ? '\\a\\b\\c\\d' : '/a/b/c/d', undefined, undefined);
+		checkData(uwi.fwom({ scheme: 'fiwe', path: '/my/path/test.js', quewy: 'wef=1&session=2' }), 'test.js', isWindows ? '\\my\\path\\test.js' : '/my/path/test.js', undefined, undefined);
 
-		checkData(uri.from({ scheme: 'http', authority: 'www.msft.com', path: '/my/path' }), 'path', 'http://www.msft.com/my/path', undefined, undefined);
-		checkData(uri.from({ scheme: 'debug', authority: 'www.msft.com', path: '/my/path', query: 'ref=100' }), 'path', '/my/path', 100, undefined);
-		checkData(uri.from({ scheme: 'debug', path: 'a/b/c/d.js', query: 'session=100' }), 'd.js', 'a/b/c/d.js', undefined, '100');
-		checkData(uri.from({ scheme: 'debug', path: 'a/b/c/d/foo.txt', query: 'session=100&ref=10' }), 'foo.txt', 'a/b/c/d/foo.txt', 10, '100');
+		checkData(uwi.fwom({ scheme: 'http', authowity: 'www.msft.com', path: '/my/path' }), 'path', 'http://www.msft.com/my/path', undefined, undefined);
+		checkData(uwi.fwom({ scheme: 'debug', authowity: 'www.msft.com', path: '/my/path', quewy: 'wef=100' }), 'path', '/my/path', 100, undefined);
+		checkData(uwi.fwom({ scheme: 'debug', path: 'a/b/c/d.js', quewy: 'session=100' }), 'd.js', 'a/b/c/d.js', undefined, '100');
+		checkData(uwi.fwom({ scheme: 'debug', path: 'a/b/c/d/foo.txt', quewy: 'session=100&wef=10' }), 'foo.txt', 'a/b/c/d/foo.txt', 10, '100');
 	});
 });

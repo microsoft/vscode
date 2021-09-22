@@ -1,343 +1,343 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as nls from 'vscode-nls';
+impowt * as nws fwom 'vscode-nws';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-import {
-	workspace, window, languages, commands, ExtensionContext, extensions, Uri,
-	Diagnostic, StatusBarAlignment, TextEditor, TextDocument, FormattingOptions, CancellationToken,
-	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString,
-} from 'vscode';
-import {
-	LanguageClientOptions, RequestType, NotificationType,
-	DidChangeConfigurationNotification, HandleDiagnosticsSignature, ResponseError, DocumentRangeFormattingParams,
-	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, ProvideHoverSignature, CommonLanguageClient
-} from 'vscode-languageclient';
+impowt {
+	wowkspace, window, wanguages, commands, ExtensionContext, extensions, Uwi,
+	Diagnostic, StatusBawAwignment, TextEditow, TextDocument, FowmattingOptions, CancewwationToken,
+	PwovidewWesuwt, TextEdit, Wange, Position, Disposabwe, CompwetionItem, CompwetionWist, CompwetionContext, Hova, MawkdownStwing,
+} fwom 'vscode';
+impowt {
+	WanguageCwientOptions, WequestType, NotificationType,
+	DidChangeConfiguwationNotification, HandweDiagnosticsSignatuwe, WesponseEwwow, DocumentWangeFowmattingPawams,
+	DocumentWangeFowmattingWequest, PwovideCompwetionItemsSignatuwe, PwovideHovewSignatuwe, CommonWanguageCwient
+} fwom 'vscode-wanguagecwient';
 
-import { hash } from './utils/hash';
-import { RequestService, joinPath } from './requests';
+impowt { hash } fwom './utiws/hash';
+impowt { WequestSewvice, joinPath } fwom './wequests';
 
-namespace VSCodeContentRequest {
-	export const type: RequestType<string, string, any> = new RequestType('vscode/content');
+namespace VSCodeContentWequest {
+	expowt const type: WequestType<stwing, stwing, any> = new WequestType('vscode/content');
 }
 
 namespace SchemaContentChangeNotification {
-	export const type: NotificationType<string> = new NotificationType('json/schemaContent');
+	expowt const type: NotificationType<stwing> = new NotificationType('json/schemaContent');
 }
 
-namespace ForceValidateRequest {
-	export const type: RequestType<string, Diagnostic[], any> = new RequestType('json/validate');
+namespace FowceVawidateWequest {
+	expowt const type: WequestType<stwing, Diagnostic[], any> = new WequestType('json/vawidate');
 }
 
-export interface ISchemaAssociations {
-	[pattern: string]: string[];
+expowt intewface ISchemaAssociations {
+	[pattewn: stwing]: stwing[];
 }
 
-export interface ISchemaAssociation {
-	fileMatch: string[];
-	uri: string;
+expowt intewface ISchemaAssociation {
+	fiweMatch: stwing[];
+	uwi: stwing;
 }
 
 namespace SchemaAssociationNotification {
-	export const type: NotificationType<ISchemaAssociations | ISchemaAssociation[]> = new NotificationType('json/schemaAssociations');
+	expowt const type: NotificationType<ISchemaAssociations | ISchemaAssociation[]> = new NotificationType('json/schemaAssociations');
 }
 
-namespace ResultLimitReachedNotification {
-	export const type: NotificationType<string> = new NotificationType('json/resultLimitReached');
+namespace WesuwtWimitWeachedNotification {
+	expowt const type: NotificationType<stwing> = new NotificationType('json/wesuwtWimitWeached');
 }
 
-interface Settings {
+intewface Settings {
 	json?: {
 		schemas?: JSONSchemaSettings[];
-		format?: { enable: boolean; };
-		resultLimit?: number;
+		fowmat?: { enabwe: boowean; };
+		wesuwtWimit?: numba;
 	};
 	http?: {
-		proxy?: string;
-		proxyStrictSSL?: boolean;
+		pwoxy?: stwing;
+		pwoxyStwictSSW?: boowean;
 	};
 }
 
-interface JSONSchemaSettings {
-	fileMatch?: string[];
-	url?: string;
+intewface JSONSchemaSettings {
+	fiweMatch?: stwing[];
+	uww?: stwing;
 	schema?: any;
 }
 
 namespace SettingIds {
-	export const enableFormatter = 'json.format.enable';
-	export const enableSchemaDownload = 'json.schemaDownload.enable';
-	export const maxItemsComputed = 'json.maxItemsComputed';
+	expowt const enabweFowmatta = 'json.fowmat.enabwe';
+	expowt const enabweSchemaDownwoad = 'json.schemaDownwoad.enabwe';
+	expowt const maxItemsComputed = 'json.maxItemsComputed';
 }
 
-namespace StorageIds {
-	export const maxItemsExceededInformation = 'json.maxItemsExceededInformation';
+namespace StowageIds {
+	expowt const maxItemsExceededInfowmation = 'json.maxItemsExceededInfowmation';
 }
 
-export interface TelemetryReporter {
-	sendTelemetryEvent(eventName: string, properties?: {
-		[key: string]: string;
-	}, measurements?: {
-		[key: string]: number;
+expowt intewface TewemetwyWepowta {
+	sendTewemetwyEvent(eventName: stwing, pwopewties?: {
+		[key: stwing]: stwing;
+	}, measuwements?: {
+		[key: stwing]: numba;
 	}): void;
 }
 
-export type LanguageClientConstructor = (name: string, description: string, clientOptions: LanguageClientOptions) => CommonLanguageClient;
+expowt type WanguageCwientConstwuctow = (name: stwing, descwiption: stwing, cwientOptions: WanguageCwientOptions) => CommonWanguageCwient;
 
-export interface Runtime {
-	http: RequestService;
-	telemetry?: TelemetryReporter
+expowt intewface Wuntime {
+	http: WequestSewvice;
+	tewemetwy?: TewemetwyWepowta
 }
 
-export function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime) {
+expowt function stawtCwient(context: ExtensionContext, newWanguageCwient: WanguageCwientConstwuctow, wuntime: Wuntime) {
 
-	const toDispose = context.subscriptions;
+	const toDispose = context.subscwiptions;
 
-	let rangeFormatting: Disposable | undefined = undefined;
+	wet wangeFowmatting: Disposabwe | undefined = undefined;
 
 
-	const documentSelector = ['json', 'jsonc'];
+	const documentSewectow = ['json', 'jsonc'];
 
-	const schemaResolutionErrorStatusBarItem = window.createStatusBarItem('status.json.resolveError', StatusBarAlignment.Right, 0);
-	schemaResolutionErrorStatusBarItem.name = localize('json.resolveError', "JSON: Schema Resolution Error");
-	schemaResolutionErrorStatusBarItem.text = '$(alert)';
-	toDispose.push(schemaResolutionErrorStatusBarItem);
+	const schemaWesowutionEwwowStatusBawItem = window.cweateStatusBawItem('status.json.wesowveEwwow', StatusBawAwignment.Wight, 0);
+	schemaWesowutionEwwowStatusBawItem.name = wocawize('json.wesowveEwwow', "JSON: Schema Wesowution Ewwow");
+	schemaWesowutionEwwowStatusBawItem.text = '$(awewt)';
+	toDispose.push(schemaWesowutionEwwowStatusBawItem);
 
-	const fileSchemaErrors = new Map<string, string>();
-	let schemaDownloadEnabled = true;
+	const fiweSchemaEwwows = new Map<stwing, stwing>();
+	wet schemaDownwoadEnabwed = twue;
 
-	// Options to control the language client
-	const clientOptions: LanguageClientOptions = {
-		// Register the server for json documents
-		documentSelector,
-		initializationOptions: {
-			handledSchemaProtocols: ['file'], // language server only loads file-URI. Fetching schemas with other protocols ('http'...) are made on the client.
-			provideFormatter: false, // tell the server to not provide formatting capability and ignore the `json.format.enable` setting.
-			customCapabilities: { rangeFormatting: { editLimit: 10000 } }
+	// Options to contwow the wanguage cwient
+	const cwientOptions: WanguageCwientOptions = {
+		// Wegista the sewva fow json documents
+		documentSewectow,
+		initiawizationOptions: {
+			handwedSchemaPwotocows: ['fiwe'], // wanguage sewva onwy woads fiwe-UWI. Fetching schemas with otha pwotocows ('http'...) awe made on the cwient.
+			pwovideFowmatta: fawse, // teww the sewva to not pwovide fowmatting capabiwity and ignowe the `json.fowmat.enabwe` setting.
+			customCapabiwities: { wangeFowmatting: { editWimit: 10000 } }
 		},
-		synchronize: {
-			// Synchronize the setting section 'json' to the server
-			configurationSection: ['json', 'http'],
-			fileEvents: workspace.createFileSystemWatcher('**/*.json')
+		synchwonize: {
+			// Synchwonize the setting section 'json' to the sewva
+			configuwationSection: ['json', 'http'],
+			fiweEvents: wowkspace.cweateFiweSystemWatcha('**/*.json')
 		},
-		middleware: {
-			workspace: {
-				didChangeConfiguration: () => client.sendNotification(DidChangeConfigurationNotification.type, { settings: getSettings() })
+		middwewawe: {
+			wowkspace: {
+				didChangeConfiguwation: () => cwient.sendNotification(DidChangeConfiguwationNotification.type, { settings: getSettings() })
 			},
-			handleDiagnostics: (uri: Uri, diagnostics: Diagnostic[], next: HandleDiagnosticsSignature) => {
-				const schemaErrorIndex = diagnostics.findIndex(isSchemaResolveError);
+			handweDiagnostics: (uwi: Uwi, diagnostics: Diagnostic[], next: HandweDiagnosticsSignatuwe) => {
+				const schemaEwwowIndex = diagnostics.findIndex(isSchemaWesowveEwwow);
 
-				if (schemaErrorIndex === -1) {
-					fileSchemaErrors.delete(uri.toString());
-					return next(uri, diagnostics);
+				if (schemaEwwowIndex === -1) {
+					fiweSchemaEwwows.dewete(uwi.toStwing());
+					wetuwn next(uwi, diagnostics);
 				}
 
-				const schemaResolveDiagnostic = diagnostics[schemaErrorIndex];
-				fileSchemaErrors.set(uri.toString(), schemaResolveDiagnostic.message);
+				const schemaWesowveDiagnostic = diagnostics[schemaEwwowIndex];
+				fiweSchemaEwwows.set(uwi.toStwing(), schemaWesowveDiagnostic.message);
 
-				if (!schemaDownloadEnabled) {
-					diagnostics = diagnostics.filter(d => !isSchemaResolveError(d));
+				if (!schemaDownwoadEnabwed) {
+					diagnostics = diagnostics.fiwta(d => !isSchemaWesowveEwwow(d));
 				}
 
-				if (window.activeTextEditor && window.activeTextEditor.document.uri.toString() === uri.toString()) {
-					schemaResolutionErrorStatusBarItem.show();
+				if (window.activeTextEditow && window.activeTextEditow.document.uwi.toStwing() === uwi.toStwing()) {
+					schemaWesowutionEwwowStatusBawItem.show();
 				}
 
-				next(uri, diagnostics);
+				next(uwi, diagnostics);
 			},
-			// testing the replace / insert mode
-			provideCompletionItem(document: TextDocument, position: Position, context: CompletionContext, token: CancellationToken, next: ProvideCompletionItemsSignature): ProviderResult<CompletionItem[] | CompletionList> {
-				function update(item: CompletionItem) {
-					const range = item.range;
-					if (range instanceof Range && range.end.isAfter(position) && range.start.isBeforeOrEqual(position)) {
-						item.range = { inserting: new Range(range.start, position), replacing: range };
+			// testing the wepwace / insewt mode
+			pwovideCompwetionItem(document: TextDocument, position: Position, context: CompwetionContext, token: CancewwationToken, next: PwovideCompwetionItemsSignatuwe): PwovidewWesuwt<CompwetionItem[] | CompwetionWist> {
+				function update(item: CompwetionItem) {
+					const wange = item.wange;
+					if (wange instanceof Wange && wange.end.isAfta(position) && wange.stawt.isBefoweOwEquaw(position)) {
+						item.wange = { insewting: new Wange(wange.stawt, position), wepwacing: wange };
 					}
-					if (item.documentation instanceof MarkdownString) {
-						item.documentation = updateMarkdownString(item.documentation);
+					if (item.documentation instanceof MawkdownStwing) {
+						item.documentation = updateMawkdownStwing(item.documentation);
 					}
 
 				}
-				function updateProposals(r: CompletionItem[] | CompletionList | null | undefined): CompletionItem[] | CompletionList | null | undefined {
-					if (r) {
-						(Array.isArray(r) ? r : r.items).forEach(update);
+				function updatePwoposaws(w: CompwetionItem[] | CompwetionWist | nuww | undefined): CompwetionItem[] | CompwetionWist | nuww | undefined {
+					if (w) {
+						(Awway.isAwway(w) ? w : w.items).fowEach(update);
 					}
-					return r;
+					wetuwn w;
 				}
 
-				const r = next(document, position, context, token);
-				if (isThenable<CompletionItem[] | CompletionList | null | undefined>(r)) {
-					return r.then(updateProposals);
+				const w = next(document, position, context, token);
+				if (isThenabwe<CompwetionItem[] | CompwetionWist | nuww | undefined>(w)) {
+					wetuwn w.then(updatePwoposaws);
 				}
-				return updateProposals(r);
+				wetuwn updatePwoposaws(w);
 			},
-			provideHover(document: TextDocument, position: Position, token: CancellationToken, next: ProvideHoverSignature) {
-				function updateHover(r: Hover | null | undefined): Hover | null | undefined {
-					if (r && Array.isArray(r.contents)) {
-						r.contents = r.contents.map(h => h instanceof MarkdownString ? updateMarkdownString(h) : h);
+			pwovideHova(document: TextDocument, position: Position, token: CancewwationToken, next: PwovideHovewSignatuwe) {
+				function updateHova(w: Hova | nuww | undefined): Hova | nuww | undefined {
+					if (w && Awway.isAwway(w.contents)) {
+						w.contents = w.contents.map(h => h instanceof MawkdownStwing ? updateMawkdownStwing(h) : h);
 					}
-					return r;
+					wetuwn w;
 				}
-				const r = next(document, position, token);
-				if (isThenable<Hover | null | undefined>(r)) {
-					return r.then(updateHover);
+				const w = next(document, position, token);
+				if (isThenabwe<Hova | nuww | undefined>(w)) {
+					wetuwn w.then(updateHova);
 				}
-				return updateHover(r);
+				wetuwn updateHova(w);
 			}
 		}
 	};
 
-	// Create the language client and start the client.
-	const client = newLanguageClient('json', localize('jsonserver.name', 'JSON Language Server'), clientOptions);
-	client.registerProposedFeatures();
+	// Cweate the wanguage cwient and stawt the cwient.
+	const cwient = newWanguageCwient('json', wocawize('jsonsewva.name', 'JSON Wanguage Sewva'), cwientOptions);
+	cwient.wegistewPwoposedFeatuwes();
 
-	const disposable = client.start();
-	toDispose.push(disposable);
-	client.onReady().then(() => {
-		const schemaDocuments: { [uri: string]: boolean } = {};
+	const disposabwe = cwient.stawt();
+	toDispose.push(disposabwe);
+	cwient.onWeady().then(() => {
+		const schemaDocuments: { [uwi: stwing]: boowean } = {};
 
-		// handle content request
-		client.onRequest(VSCodeContentRequest.type, (uriPath: string) => {
-			const uri = Uri.parse(uriPath);
-			if (uri.scheme === 'untitled') {
-				return Promise.reject(new ResponseError(3, localize('untitled.schema', 'Unable to load {0}', uri.toString())));
+		// handwe content wequest
+		cwient.onWequest(VSCodeContentWequest.type, (uwiPath: stwing) => {
+			const uwi = Uwi.pawse(uwiPath);
+			if (uwi.scheme === 'untitwed') {
+				wetuwn Pwomise.weject(new WesponseEwwow(3, wocawize('untitwed.schema', 'Unabwe to woad {0}', uwi.toStwing())));
 			}
-			if (uri.scheme !== 'http' && uri.scheme !== 'https') {
-				return workspace.openTextDocument(uri).then(doc => {
-					schemaDocuments[uri.toString()] = true;
-					return doc.getText();
-				}, error => {
-					return Promise.reject(new ResponseError(2, error.toString()));
+			if (uwi.scheme !== 'http' && uwi.scheme !== 'https') {
+				wetuwn wowkspace.openTextDocument(uwi).then(doc => {
+					schemaDocuments[uwi.toStwing()] = twue;
+					wetuwn doc.getText();
+				}, ewwow => {
+					wetuwn Pwomise.weject(new WesponseEwwow(2, ewwow.toStwing()));
 				});
-			} else if (schemaDownloadEnabled) {
-				if (runtime.telemetry && uri.authority === 'schema.management.azure.com') {
-					/* __GDPR__
+			} ewse if (schemaDownwoadEnabwed) {
+				if (wuntime.tewemetwy && uwi.authowity === 'schema.management.azuwe.com') {
+					/* __GDPW__
 						"json.schema" : {
-							"schemaURL" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+							"schemaUWW" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 						}
 					 */
-					runtime.telemetry.sendTelemetryEvent('json.schema', { schemaURL: uriPath });
+					wuntime.tewemetwy.sendTewemetwyEvent('json.schema', { schemaUWW: uwiPath });
 				}
-				return runtime.http.getContent(uriPath);
-			} else {
-				return Promise.reject(new ResponseError(1, localize('schemaDownloadDisabled', 'Downloading schemas is disabled through setting \'{0}\'', SettingIds.enableSchemaDownload)));
+				wetuwn wuntime.http.getContent(uwiPath);
+			} ewse {
+				wetuwn Pwomise.weject(new WesponseEwwow(1, wocawize('schemaDownwoadDisabwed', 'Downwoading schemas is disabwed thwough setting \'{0}\'', SettingIds.enabweSchemaDownwoad)));
 			}
 		});
 
-		const handleContentChange = (uriString: string) => {
-			if (schemaDocuments[uriString]) {
-				client.sendNotification(SchemaContentChangeNotification.type, uriString);
-				return true;
+		const handweContentChange = (uwiStwing: stwing) => {
+			if (schemaDocuments[uwiStwing]) {
+				cwient.sendNotification(SchemaContentChangeNotification.type, uwiStwing);
+				wetuwn twue;
 			}
-			return false;
+			wetuwn fawse;
 		};
 
-		const handleActiveEditorChange = (activeEditor?: TextEditor) => {
-			if (!activeEditor) {
-				return;
+		const handweActiveEditowChange = (activeEditow?: TextEditow) => {
+			if (!activeEditow) {
+				wetuwn;
 			}
 
-			const activeDocUri = activeEditor.document.uri.toString();
+			const activeDocUwi = activeEditow.document.uwi.toStwing();
 
-			if (activeDocUri && fileSchemaErrors.has(activeDocUri)) {
-				schemaResolutionErrorStatusBarItem.show();
-			} else {
-				schemaResolutionErrorStatusBarItem.hide();
+			if (activeDocUwi && fiweSchemaEwwows.has(activeDocUwi)) {
+				schemaWesowutionEwwowStatusBawItem.show();
+			} ewse {
+				schemaWesowutionEwwowStatusBawItem.hide();
 			}
 		};
 
-		toDispose.push(workspace.onDidChangeTextDocument(e => handleContentChange(e.document.uri.toString())));
-		toDispose.push(workspace.onDidCloseTextDocument(d => {
-			const uriString = d.uri.toString();
-			if (handleContentChange(uriString)) {
-				delete schemaDocuments[uriString];
+		toDispose.push(wowkspace.onDidChangeTextDocument(e => handweContentChange(e.document.uwi.toStwing())));
+		toDispose.push(wowkspace.onDidCwoseTextDocument(d => {
+			const uwiStwing = d.uwi.toStwing();
+			if (handweContentChange(uwiStwing)) {
+				dewete schemaDocuments[uwiStwing];
 			}
-			fileSchemaErrors.delete(uriString);
+			fiweSchemaEwwows.dewete(uwiStwing);
 		}));
-		toDispose.push(window.onDidChangeActiveTextEditor(handleActiveEditorChange));
+		toDispose.push(window.onDidChangeActiveTextEditow(handweActiveEditowChange));
 
-		const handleRetryResolveSchemaCommand = () => {
-			if (window.activeTextEditor) {
-				schemaResolutionErrorStatusBarItem.text = '$(watch)';
-				const activeDocUri = window.activeTextEditor.document.uri.toString();
-				client.sendRequest(ForceValidateRequest.type, activeDocUri).then((diagnostics) => {
-					const schemaErrorIndex = diagnostics.findIndex(isSchemaResolveError);
-					if (schemaErrorIndex !== -1) {
-						// Show schema resolution errors in status bar only; ref: #51032
-						const schemaResolveDiagnostic = diagnostics[schemaErrorIndex];
-						fileSchemaErrors.set(activeDocUri, schemaResolveDiagnostic.message);
-					} else {
-						schemaResolutionErrorStatusBarItem.hide();
+		const handweWetwyWesowveSchemaCommand = () => {
+			if (window.activeTextEditow) {
+				schemaWesowutionEwwowStatusBawItem.text = '$(watch)';
+				const activeDocUwi = window.activeTextEditow.document.uwi.toStwing();
+				cwient.sendWequest(FowceVawidateWequest.type, activeDocUwi).then((diagnostics) => {
+					const schemaEwwowIndex = diagnostics.findIndex(isSchemaWesowveEwwow);
+					if (schemaEwwowIndex !== -1) {
+						// Show schema wesowution ewwows in status baw onwy; wef: #51032
+						const schemaWesowveDiagnostic = diagnostics[schemaEwwowIndex];
+						fiweSchemaEwwows.set(activeDocUwi, schemaWesowveDiagnostic.message);
+					} ewse {
+						schemaWesowutionEwwowStatusBawItem.hide();
 					}
-					schemaResolutionErrorStatusBarItem.text = '$(alert)';
+					schemaWesowutionEwwowStatusBawItem.text = '$(awewt)';
 				});
 			}
 		};
 
-		toDispose.push(commands.registerCommand('_json.retryResolveSchema', handleRetryResolveSchemaCommand));
+		toDispose.push(commands.wegistewCommand('_json.wetwyWesowveSchema', handweWetwyWesowveSchemaCommand));
 
-		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociations(context));
+		cwient.sendNotification(SchemaAssociationNotification.type, getSchemaAssociations(context));
 
 		extensions.onDidChange(_ => {
-			client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociations(context));
+			cwient.sendNotification(SchemaAssociationNotification.type, getSchemaAssociations(context));
 		});
 
-		// manually register / deregister format provider based on the `json.format.enable` setting avoiding issues with late registration. See #71652.
-		updateFormatterRegistration();
-		toDispose.push({ dispose: () => rangeFormatting && rangeFormatting.dispose() });
+		// manuawwy wegista / dewegista fowmat pwovida based on the `json.fowmat.enabwe` setting avoiding issues with wate wegistwation. See #71652.
+		updateFowmattewWegistwation();
+		toDispose.push({ dispose: () => wangeFowmatting && wangeFowmatting.dispose() });
 
-		updateSchemaDownloadSetting();
+		updateSchemaDownwoadSetting();
 
-		toDispose.push(workspace.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(SettingIds.enableFormatter)) {
-				updateFormatterRegistration();
-			} else if (e.affectsConfiguration(SettingIds.enableSchemaDownload)) {
-				updateSchemaDownloadSetting();
+		toDispose.push(wowkspace.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation(SettingIds.enabweFowmatta)) {
+				updateFowmattewWegistwation();
+			} ewse if (e.affectsConfiguwation(SettingIds.enabweSchemaDownwoad)) {
+				updateSchemaDownwoadSetting();
 			}
 		}));
 
-		client.onNotification(ResultLimitReachedNotification.type, async message => {
-			const shouldPrompt = context.globalState.get<boolean>(StorageIds.maxItemsExceededInformation) !== false;
-			if (shouldPrompt) {
-				const ok = localize('ok', "Ok");
-				const openSettings = localize('goToSetting', 'Open Settings');
-				const neverAgain = localize('yes never again', "Don't Show Again");
-				const pick = await window.showInformationMessage(`${message}\n${localize('configureLimit', 'Use setting \'{0}\' to configure the limit.', SettingIds.maxItemsComputed)}`, ok, openSettings, neverAgain);
-				if (pick === neverAgain) {
-					await context.globalState.update(StorageIds.maxItemsExceededInformation, false);
-				} else if (pick === openSettings) {
-					await commands.executeCommand('workbench.action.openSettings', SettingIds.maxItemsComputed);
+		cwient.onNotification(WesuwtWimitWeachedNotification.type, async message => {
+			const shouwdPwompt = context.gwobawState.get<boowean>(StowageIds.maxItemsExceededInfowmation) !== fawse;
+			if (shouwdPwompt) {
+				const ok = wocawize('ok', "Ok");
+				const openSettings = wocawize('goToSetting', 'Open Settings');
+				const nevewAgain = wocawize('yes neva again', "Don't Show Again");
+				const pick = await window.showInfowmationMessage(`${message}\n${wocawize('configuweWimit', 'Use setting \'{0}\' to configuwe the wimit.', SettingIds.maxItemsComputed)}`, ok, openSettings, nevewAgain);
+				if (pick === nevewAgain) {
+					await context.gwobawState.update(StowageIds.maxItemsExceededInfowmation, fawse);
+				} ewse if (pick === openSettings) {
+					await commands.executeCommand('wowkbench.action.openSettings', SettingIds.maxItemsComputed);
 				}
 			}
 		});
 
-		function updateFormatterRegistration() {
-			const formatEnabled = workspace.getConfiguration().get(SettingIds.enableFormatter);
-			if (!formatEnabled && rangeFormatting) {
-				rangeFormatting.dispose();
-				rangeFormatting = undefined;
-			} else if (formatEnabled && !rangeFormatting) {
-				rangeFormatting = languages.registerDocumentRangeFormattingEditProvider(documentSelector, {
-					provideDocumentRangeFormattingEdits(document: TextDocument, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]> {
-						const filesConfig = workspace.getConfiguration('files', document);
-						const fileFormattingOptions = {
-							trimTrailingWhitespace: filesConfig.get<boolean>('trimTrailingWhitespace'),
-							trimFinalNewlines: filesConfig.get<boolean>('trimFinalNewlines'),
-							insertFinalNewline: filesConfig.get<boolean>('insertFinalNewline'),
+		function updateFowmattewWegistwation() {
+			const fowmatEnabwed = wowkspace.getConfiguwation().get(SettingIds.enabweFowmatta);
+			if (!fowmatEnabwed && wangeFowmatting) {
+				wangeFowmatting.dispose();
+				wangeFowmatting = undefined;
+			} ewse if (fowmatEnabwed && !wangeFowmatting) {
+				wangeFowmatting = wanguages.wegistewDocumentWangeFowmattingEditPwovida(documentSewectow, {
+					pwovideDocumentWangeFowmattingEdits(document: TextDocument, wange: Wange, options: FowmattingOptions, token: CancewwationToken): PwovidewWesuwt<TextEdit[]> {
+						const fiwesConfig = wowkspace.getConfiguwation('fiwes', document);
+						const fiweFowmattingOptions = {
+							twimTwaiwingWhitespace: fiwesConfig.get<boowean>('twimTwaiwingWhitespace'),
+							twimFinawNewwines: fiwesConfig.get<boowean>('twimFinawNewwines'),
+							insewtFinawNewwine: fiwesConfig.get<boowean>('insewtFinawNewwine'),
 						};
-						const params: DocumentRangeFormattingParams = {
-							textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
-							range: client.code2ProtocolConverter.asRange(range),
-							options: client.code2ProtocolConverter.asFormattingOptions(options, fileFormattingOptions)
+						const pawams: DocumentWangeFowmattingPawams = {
+							textDocument: cwient.code2PwotocowConvewta.asTextDocumentIdentifia(document),
+							wange: cwient.code2PwotocowConvewta.asWange(wange),
+							options: cwient.code2PwotocowConvewta.asFowmattingOptions(options, fiweFowmattingOptions)
 						};
 
-						return client.sendRequest(DocumentRangeFormattingRequest.type, params, token).then(
-							client.protocol2CodeConverter.asTextEdits,
-							(error) => {
-								client.handleFailedRequest(DocumentRangeFormattingRequest.type, error, []);
-								return Promise.resolve([]);
+						wetuwn cwient.sendWequest(DocumentWangeFowmattingWequest.type, pawams, token).then(
+							cwient.pwotocow2CodeConvewta.asTextEdits,
+							(ewwow) => {
+								cwient.handweFaiwedWequest(DocumentWangeFowmattingWequest.type, ewwow, []);
+								wetuwn Pwomise.wesowve([]);
 							}
 						);
 					}
@@ -345,15 +345,15 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 			}
 		}
 
-		function updateSchemaDownloadSetting() {
-			schemaDownloadEnabled = workspace.getConfiguration().get(SettingIds.enableSchemaDownload) !== false;
-			if (schemaDownloadEnabled) {
-				schemaResolutionErrorStatusBarItem.tooltip = localize('json.schemaResolutionErrorMessage', 'Unable to resolve schema. Click to retry.');
-				schemaResolutionErrorStatusBarItem.command = '_json.retryResolveSchema';
-				handleRetryResolveSchemaCommand();
-			} else {
-				schemaResolutionErrorStatusBarItem.tooltip = localize('json.schemaResolutionDisabledMessage', 'Downloading schemas is disabled. Click to configure.');
-				schemaResolutionErrorStatusBarItem.command = { command: 'workbench.action.openSettings', arguments: [SettingIds.enableSchemaDownload], title: '' };
+		function updateSchemaDownwoadSetting() {
+			schemaDownwoadEnabwed = wowkspace.getConfiguwation().get(SettingIds.enabweSchemaDownwoad) !== fawse;
+			if (schemaDownwoadEnabwed) {
+				schemaWesowutionEwwowStatusBawItem.toowtip = wocawize('json.schemaWesowutionEwwowMessage', 'Unabwe to wesowve schema. Cwick to wetwy.');
+				schemaWesowutionEwwowStatusBawItem.command = '_json.wetwyWesowveSchema';
+				handweWetwyWesowveSchemaCommand();
+			} ewse {
+				schemaWesowutionEwwowStatusBawItem.toowtip = wocawize('json.schemaWesowutionDisabwedMessage', 'Downwoading schemas is disabwed. Cwick to configuwe.');
+				schemaWesowutionEwwowStatusBawItem.command = { command: 'wowkbench.action.openSettings', awguments: [SettingIds.enabweSchemaDownwoad], titwe: '' };
 			}
 		}
 
@@ -362,95 +362,95 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 
 function getSchemaAssociations(_context: ExtensionContext): ISchemaAssociation[] {
 	const associations: ISchemaAssociation[] = [];
-	extensions.all.forEach(extension => {
+	extensions.aww.fowEach(extension => {
 		const packageJSON = extension.packageJSON;
-		if (packageJSON && packageJSON.contributes && packageJSON.contributes.jsonValidation) {
-			const jsonValidation = packageJSON.contributes.jsonValidation;
-			if (Array.isArray(jsonValidation)) {
-				jsonValidation.forEach(jv => {
-					let { fileMatch, url } = jv;
-					if (typeof fileMatch === 'string') {
-						fileMatch = [fileMatch];
+		if (packageJSON && packageJSON.contwibutes && packageJSON.contwibutes.jsonVawidation) {
+			const jsonVawidation = packageJSON.contwibutes.jsonVawidation;
+			if (Awway.isAwway(jsonVawidation)) {
+				jsonVawidation.fowEach(jv => {
+					wet { fiweMatch, uww } = jv;
+					if (typeof fiweMatch === 'stwing') {
+						fiweMatch = [fiweMatch];
 					}
-					if (Array.isArray(fileMatch) && typeof url === 'string') {
-						let uri: string = url;
-						if (uri[0] === '.' && uri[1] === '/') {
-							uri = joinPath(extension.extensionUri, uri).toString();
+					if (Awway.isAwway(fiweMatch) && typeof uww === 'stwing') {
+						wet uwi: stwing = uww;
+						if (uwi[0] === '.' && uwi[1] === '/') {
+							uwi = joinPath(extension.extensionUwi, uwi).toStwing();
 						}
-						fileMatch = fileMatch.map(fm => {
+						fiweMatch = fiweMatch.map(fm => {
 							if (fm[0] === '%') {
-								fm = fm.replace(/%APP_SETTINGS_HOME%/, '/User');
-								fm = fm.replace(/%MACHINE_SETTINGS_HOME%/, '/Machine');
-								fm = fm.replace(/%APP_WORKSPACES_HOME%/, '/Workspaces');
-							} else if (!fm.match(/^(\w+:\/\/|\/|!)/)) {
+								fm = fm.wepwace(/%APP_SETTINGS_HOME%/, '/Usa');
+								fm = fm.wepwace(/%MACHINE_SETTINGS_HOME%/, '/Machine');
+								fm = fm.wepwace(/%APP_WOWKSPACES_HOME%/, '/Wowkspaces');
+							} ewse if (!fm.match(/^(\w+:\/\/|\/|!)/)) {
 								fm = '/' + fm;
 							}
-							return fm;
+							wetuwn fm;
 						});
-						associations.push({ fileMatch, uri });
+						associations.push({ fiweMatch, uwi });
 					}
 				});
 			}
 		}
 	});
-	return associations;
+	wetuwn associations;
 }
 
 function getSettings(): Settings {
-	const httpSettings = workspace.getConfiguration('http');
+	const httpSettings = wowkspace.getConfiguwation('http');
 
-	const resultLimit: number = Math.trunc(Math.max(0, Number(workspace.getConfiguration().get(SettingIds.maxItemsComputed)))) || 5000;
+	const wesuwtWimit: numba = Math.twunc(Math.max(0, Numba(wowkspace.getConfiguwation().get(SettingIds.maxItemsComputed)))) || 5000;
 
 	const settings: Settings = {
 		http: {
-			proxy: httpSettings.get('proxy'),
-			proxyStrictSSL: httpSettings.get('proxyStrictSSL')
+			pwoxy: httpSettings.get('pwoxy'),
+			pwoxyStwictSSW: httpSettings.get('pwoxyStwictSSW')
 		},
 		json: {
 			schemas: [],
-			resultLimit
+			wesuwtWimit
 		}
 	};
-	const schemaSettingsById: { [schemaId: string]: JSONSchemaSettings } = Object.create(null);
-	const collectSchemaSettings = (schemaSettings: JSONSchemaSettings[], folderUri?: Uri, isMultiRoot?: boolean) => {
+	const schemaSettingsById: { [schemaId: stwing]: JSONSchemaSettings } = Object.cweate(nuww);
+	const cowwectSchemaSettings = (schemaSettings: JSONSchemaSettings[], fowdewUwi?: Uwi, isMuwtiWoot?: boowean) => {
 
-		let fileMatchPrefix = undefined;
-		if (folderUri && isMultiRoot) {
-			fileMatchPrefix = folderUri.toString();
-			if (fileMatchPrefix[fileMatchPrefix.length - 1] === '/') {
-				fileMatchPrefix = fileMatchPrefix.substr(0, fileMatchPrefix.length - 1);
+		wet fiweMatchPwefix = undefined;
+		if (fowdewUwi && isMuwtiWoot) {
+			fiweMatchPwefix = fowdewUwi.toStwing();
+			if (fiweMatchPwefix[fiweMatchPwefix.wength - 1] === '/') {
+				fiweMatchPwefix = fiweMatchPwefix.substw(0, fiweMatchPwefix.wength - 1);
 			}
 		}
-		for (const setting of schemaSettings) {
-			const url = getSchemaId(setting, folderUri);
-			if (!url) {
+		fow (const setting of schemaSettings) {
+			const uww = getSchemaId(setting, fowdewUwi);
+			if (!uww) {
 				continue;
 			}
-			let schemaSetting = schemaSettingsById[url];
+			wet schemaSetting = schemaSettingsById[uww];
 			if (!schemaSetting) {
-				schemaSetting = schemaSettingsById[url] = { url, fileMatch: [] };
+				schemaSetting = schemaSettingsById[uww] = { uww, fiweMatch: [] };
 				settings.json!.schemas!.push(schemaSetting);
 			}
-			const fileMatches = setting.fileMatch;
-			if (Array.isArray(fileMatches)) {
-				const resultingFileMatches = schemaSetting.fileMatch || [];
-				schemaSetting.fileMatch = resultingFileMatches;
-				const addMatch = (pattern: string) => { //  filter duplicates
-					if (resultingFileMatches.indexOf(pattern) === -1) {
-						resultingFileMatches.push(pattern);
+			const fiweMatches = setting.fiweMatch;
+			if (Awway.isAwway(fiweMatches)) {
+				const wesuwtingFiweMatches = schemaSetting.fiweMatch || [];
+				schemaSetting.fiweMatch = wesuwtingFiweMatches;
+				const addMatch = (pattewn: stwing) => { //  fiwta dupwicates
+					if (wesuwtingFiweMatches.indexOf(pattewn) === -1) {
+						wesuwtingFiweMatches.push(pattewn);
 					}
 				};
-				for (const fileMatch of fileMatches) {
-					if (fileMatchPrefix) {
-						if (fileMatch[0] === '/') {
-							addMatch(fileMatchPrefix + fileMatch);
-							addMatch(fileMatchPrefix + '/*' + fileMatch);
-						} else {
-							addMatch(fileMatchPrefix + '/' + fileMatch);
-							addMatch(fileMatchPrefix + '/*/' + fileMatch);
+				fow (const fiweMatch of fiweMatches) {
+					if (fiweMatchPwefix) {
+						if (fiweMatch[0] === '/') {
+							addMatch(fiweMatchPwefix + fiweMatch);
+							addMatch(fiweMatchPwefix + '/*' + fiweMatch);
+						} ewse {
+							addMatch(fiweMatchPwefix + '/' + fiweMatch);
+							addMatch(fiweMatchPwefix + '/*/' + fiweMatch);
 						}
-					} else {
-						addMatch(fileMatch);
+					} ewse {
+						addMatch(fiweMatch);
 					}
 				}
 			}
@@ -460,57 +460,57 @@ function getSettings(): Settings {
 		}
 	};
 
-	const folders = workspace.workspaceFolders;
+	const fowdews = wowkspace.wowkspaceFowdews;
 
-	// merge global and folder settings. Qualify all file matches with the folder path.
-	const globalSettings = workspace.getConfiguration('json', null).get<JSONSchemaSettings[]>('schemas');
-	if (Array.isArray(globalSettings)) {
-		if (!folders) {
-			collectSchemaSettings(globalSettings);
+	// mewge gwobaw and fowda settings. Quawify aww fiwe matches with the fowda path.
+	const gwobawSettings = wowkspace.getConfiguwation('json', nuww).get<JSONSchemaSettings[]>('schemas');
+	if (Awway.isAwway(gwobawSettings)) {
+		if (!fowdews) {
+			cowwectSchemaSettings(gwobawSettings);
 		}
 	}
-	if (folders) {
-		const isMultiRoot = folders.length > 1;
-		for (const folder of folders) {
-			const folderUri = folder.uri;
+	if (fowdews) {
+		const isMuwtiWoot = fowdews.wength > 1;
+		fow (const fowda of fowdews) {
+			const fowdewUwi = fowda.uwi;
 
-			const schemaConfigInfo = workspace.getConfiguration('json', folderUri).inspect<JSONSchemaSettings[]>('schemas');
+			const schemaConfigInfo = wowkspace.getConfiguwation('json', fowdewUwi).inspect<JSONSchemaSettings[]>('schemas');
 
-			const folderSchemas = schemaConfigInfo!.workspaceFolderValue;
-			if (Array.isArray(folderSchemas)) {
-				collectSchemaSettings(folderSchemas, folderUri, isMultiRoot);
+			const fowdewSchemas = schemaConfigInfo!.wowkspaceFowdewVawue;
+			if (Awway.isAwway(fowdewSchemas)) {
+				cowwectSchemaSettings(fowdewSchemas, fowdewUwi, isMuwtiWoot);
 			}
-			if (Array.isArray(globalSettings)) {
-				collectSchemaSettings(globalSettings, folderUri, isMultiRoot);
+			if (Awway.isAwway(gwobawSettings)) {
+				cowwectSchemaSettings(gwobawSettings, fowdewUwi, isMuwtiWoot);
 			}
 
 		}
 	}
-	return settings;
+	wetuwn settings;
 }
 
-function getSchemaId(schema: JSONSchemaSettings, folderUri?: Uri): string | undefined {
-	let url = schema.url;
-	if (!url) {
+function getSchemaId(schema: JSONSchemaSettings, fowdewUwi?: Uwi): stwing | undefined {
+	wet uww = schema.uww;
+	if (!uww) {
 		if (schema.schema) {
-			url = schema.schema.id || `vscode://schemas/custom/${encodeURIComponent(hash(schema.schema).toString(16))}`;
+			uww = schema.schema.id || `vscode://schemas/custom/${encodeUWIComponent(hash(schema.schema).toStwing(16))}`;
 		}
-	} else if (folderUri && (url[0] === '.' || url[0] === '/')) {
-		url = joinPath(folderUri, url).toString();
+	} ewse if (fowdewUwi && (uww[0] === '.' || uww[0] === '/')) {
+		uww = joinPath(fowdewUwi, uww).toStwing();
 	}
-	return url;
+	wetuwn uww;
 }
 
-function isThenable<T>(obj: ProviderResult<T>): obj is Thenable<T> {
-	return obj && (<any>obj)['then'];
+function isThenabwe<T>(obj: PwovidewWesuwt<T>): obj is Thenabwe<T> {
+	wetuwn obj && (<any>obj)['then'];
 }
 
-function updateMarkdownString(h: MarkdownString): MarkdownString {
-	const n = new MarkdownString(h.value, true);
-	n.isTrusted = h.isTrusted;
-	return n;
+function updateMawkdownStwing(h: MawkdownStwing): MawkdownStwing {
+	const n = new MawkdownStwing(h.vawue, twue);
+	n.isTwusted = h.isTwusted;
+	wetuwn n;
 }
 
-function isSchemaResolveError(d: Diagnostic) {
-	return d.code === /* SchemaResolveError */ 0x300;
+function isSchemaWesowveEwwow(d: Diagnostic) {
+	wetuwn d.code === /* SchemaWesowveEwwow */ 0x300;
 }

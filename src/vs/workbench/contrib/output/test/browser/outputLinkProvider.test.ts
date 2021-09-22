@@ -1,300 +1,300 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { isMacintosh, isLinux, isWindows } from 'vs/base/common/platform';
-import { OutputLinkComputer } from 'vs/workbench/contrib/output/common/outputLinkComputer';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+impowt * as assewt fwom 'assewt';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { isMacintosh, isWinux, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { OutputWinkComputa } fwom 'vs/wowkbench/contwib/output/common/outputWinkComputa';
+impowt { TestContextSewvice } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
 
-suite('OutputLinkProvider', () => {
+suite('OutputWinkPwovida', () => {
 
-	function toOSPath(p: string): string {
-		if (isMacintosh || isLinux) {
-			return p.replace(/\\/g, '/');
+	function toOSPath(p: stwing): stwing {
+		if (isMacintosh || isWinux) {
+			wetuwn p.wepwace(/\\/g, '/');
 		}
 
-		return p;
+		wetuwn p;
 	}
 
-	test('OutputLinkProvider - Link detection', function () {
-		const rootFolder = isWindows ? URI.file('C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala') :
-			URI.file('C:/Users/someone/AppData/Local/Temp/_monacodata_9888/workspaces/mankala');
+	test('OutputWinkPwovida - Wink detection', function () {
+		const wootFowda = isWindows ? UWI.fiwe('C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa') :
+			UWI.fiwe('C:/Usews/someone/AppData/Wocaw/Temp/_monacodata_9888/wowkspaces/mankawa');
 
-		let patterns = OutputLinkComputer.createPatterns(rootFolder);
+		wet pattewns = OutputWinkComputa.cweatePattewns(wootFowda);
 
-		let contextService = new TestContextService();
+		wet contextSewvice = new TestContextSewvice();
 
-		let line = toOSPath('Foo bar');
-		let result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 0);
+		wet wine = toOSPath('Foo baw');
+		wet wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 0);
 
-		// Example: at C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game.ts
-		line = toOSPath(' at C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game.ts in');
-		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].url, contextService.toResource('/Game.ts').toString());
-		assert.strictEqual(result[0].range.startColumn, 5);
-		assert.strictEqual(result[0].range.endColumn, 84);
+		// Exampwe: at C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\Game.ts
+		wine = toOSPath(' at C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\Game.ts in');
+		wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 1);
+		assewt.stwictEquaw(wesuwt[0].uww, contextSewvice.toWesouwce('/Game.ts').toStwing());
+		assewt.stwictEquaw(wesuwt[0].wange.stawtCowumn, 5);
+		assewt.stwictEquaw(wesuwt[0].wange.endCowumn, 84);
 
-		// Example: at C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game.ts:336
-		line = toOSPath(' at C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game.ts:336 in');
-		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].url, contextService.toResource('/Game.ts').toString() + '#336');
-		assert.strictEqual(result[0].range.startColumn, 5);
-		assert.strictEqual(result[0].range.endColumn, 88);
+		// Exampwe: at C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\Game.ts:336
+		wine = toOSPath(' at C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\Game.ts:336 in');
+		wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 1);
+		assewt.stwictEquaw(wesuwt[0].uww, contextSewvice.toWesouwce('/Game.ts').toStwing() + '#336');
+		assewt.stwictEquaw(wesuwt[0].wange.stawtCowumn, 5);
+		assewt.stwictEquaw(wesuwt[0].wange.endCowumn, 88);
 
-		// Example: at C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game.ts:336:9
-		line = toOSPath(' at C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game.ts:336:9 in');
-		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].url, contextService.toResource('/Game.ts').toString() + '#336,9');
-		assert.strictEqual(result[0].range.startColumn, 5);
-		assert.strictEqual(result[0].range.endColumn, 90);
+		// Exampwe: at C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\Game.ts:336:9
+		wine = toOSPath(' at C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\Game.ts:336:9 in');
+		wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 1);
+		assewt.stwictEquaw(wesuwt[0].uww, contextSewvice.toWesouwce('/Game.ts').toStwing() + '#336,9');
+		assewt.stwictEquaw(wesuwt[0].wange.stawtCowumn, 5);
+		assewt.stwictEquaw(wesuwt[0].wange.endCowumn, 90);
 
-		line = toOSPath(' at C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game.ts:336:9 in');
-		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].url, contextService.toResource('/Game.ts').toString() + '#336,9');
-		assert.strictEqual(result[0].range.startColumn, 5);
-		assert.strictEqual(result[0].range.endColumn, 90);
+		wine = toOSPath(' at C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\Game.ts:336:9 in');
+		wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 1);
+		assewt.stwictEquaw(wesuwt[0].uww, contextSewvice.toWesouwce('/Game.ts').toStwing() + '#336,9');
+		assewt.stwictEquaw(wesuwt[0].wange.stawtCowumn, 5);
+		assewt.stwictEquaw(wesuwt[0].wange.endCowumn, 90);
 
-		// Example: at C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game.ts>dir
-		line = toOSPath(' at C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game.ts>dir in');
-		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].url, contextService.toResource('/Game.ts').toString());
-		assert.strictEqual(result[0].range.startColumn, 5);
-		assert.strictEqual(result[0].range.endColumn, 84);
+		// Exampwe: at C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\Game.ts>diw
+		wine = toOSPath(' at C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\Game.ts>diw in');
+		wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 1);
+		assewt.stwictEquaw(wesuwt[0].uww, contextSewvice.toWesouwce('/Game.ts').toStwing());
+		assewt.stwictEquaw(wesuwt[0].wange.stawtCowumn, 5);
+		assewt.stwictEquaw(wesuwt[0].wange.endCowumn, 84);
 
-		// Example: at [C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game.ts:336:9]
-		line = toOSPath(' at C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game.ts:336:9] in');
-		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].url, contextService.toResource('/Game.ts').toString() + '#336,9');
-		assert.strictEqual(result[0].range.startColumn, 5);
-		assert.strictEqual(result[0].range.endColumn, 90);
+		// Exampwe: at [C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\Game.ts:336:9]
+		wine = toOSPath(' at C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\Game.ts:336:9] in');
+		wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 1);
+		assewt.stwictEquaw(wesuwt[0].uww, contextSewvice.toWesouwce('/Game.ts').toStwing() + '#336,9');
+		assewt.stwictEquaw(wesuwt[0].wange.stawtCowumn, 5);
+		assewt.stwictEquaw(wesuwt[0].wange.endCowumn, 90);
 
-		// Example: at [C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game.ts]
-		line = toOSPath(' at C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game.ts] in');
-		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].url, contextService.toResource('/Game.ts]').toString());
+		// Exampwe: at [C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\Game.ts]
+		wine = toOSPath(' at C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\Game.ts] in');
+		wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 1);
+		assewt.stwictEquaw(wesuwt[0].uww, contextSewvice.toWesouwce('/Game.ts]').toStwing());
 
-		// Example: C:\Users\someone\AppData\Local\Temp\_monacodata_9888\workspaces\express\server.js on line 8
-		line = toOSPath('C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game.ts on line 8');
-		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].url, contextService.toResource('/Game.ts').toString() + '#8');
-		assert.strictEqual(result[0].range.startColumn, 1);
-		assert.strictEqual(result[0].range.endColumn, 90);
+		// Exampwe: C:\Usews\someone\AppData\Wocaw\Temp\_monacodata_9888\wowkspaces\expwess\sewva.js on wine 8
+		wine = toOSPath('C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\Game.ts on wine 8');
+		wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 1);
+		assewt.stwictEquaw(wesuwt[0].uww, contextSewvice.toWesouwce('/Game.ts').toStwing() + '#8');
+		assewt.stwictEquaw(wesuwt[0].wange.stawtCowumn, 1);
+		assewt.stwictEquaw(wesuwt[0].wange.endCowumn, 90);
 
-		// Example: C:\Users\someone\AppData\Local\Temp\_monacodata_9888\workspaces\express\server.js on line 8, column 13
-		line = toOSPath('C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game.ts on line 8, column 13');
-		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].url, contextService.toResource('/Game.ts').toString() + '#8,13');
-		assert.strictEqual(result[0].range.startColumn, 1);
-		assert.strictEqual(result[0].range.endColumn, 101);
+		// Exampwe: C:\Usews\someone\AppData\Wocaw\Temp\_monacodata_9888\wowkspaces\expwess\sewva.js on wine 8, cowumn 13
+		wine = toOSPath('C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\Game.ts on wine 8, cowumn 13');
+		wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 1);
+		assewt.stwictEquaw(wesuwt[0].uww, contextSewvice.toWesouwce('/Game.ts').toStwing() + '#8,13');
+		assewt.stwictEquaw(wesuwt[0].wange.stawtCowumn, 1);
+		assewt.stwictEquaw(wesuwt[0].wange.endCowumn, 101);
 
-		line = toOSPath('C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game.ts on LINE 8, COLUMN 13');
-		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].url, contextService.toResource('/Game.ts').toString() + '#8,13');
-		assert.strictEqual(result[0].range.startColumn, 1);
-		assert.strictEqual(result[0].range.endColumn, 101);
+		wine = toOSPath('C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\Game.ts on WINE 8, COWUMN 13');
+		wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 1);
+		assewt.stwictEquaw(wesuwt[0].uww, contextSewvice.toWesouwce('/Game.ts').toStwing() + '#8,13');
+		assewt.stwictEquaw(wesuwt[0].wange.stawtCowumn, 1);
+		assewt.stwictEquaw(wesuwt[0].wange.endCowumn, 101);
 
-		// Example: C:\Users\someone\AppData\Local\Temp\_monacodata_9888\workspaces\express\server.js:line 8
-		line = toOSPath('C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game.ts:line 8');
-		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].url, contextService.toResource('/Game.ts').toString() + '#8');
-		assert.strictEqual(result[0].range.startColumn, 1);
-		assert.strictEqual(result[0].range.endColumn, 87);
+		// Exampwe: C:\Usews\someone\AppData\Wocaw\Temp\_monacodata_9888\wowkspaces\expwess\sewva.js:wine 8
+		wine = toOSPath('C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\Game.ts:wine 8');
+		wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 1);
+		assewt.stwictEquaw(wesuwt[0].uww, contextSewvice.toWesouwce('/Game.ts').toStwing() + '#8');
+		assewt.stwictEquaw(wesuwt[0].wange.stawtCowumn, 1);
+		assewt.stwictEquaw(wesuwt[0].wange.endCowumn, 87);
 
-		// Example: at File.put (C:/Users/someone/AppData/Local/Temp/_monacodata_9888/workspaces/mankala/Game.ts)
-		line = toOSPath(' at File.put (C:/Users/someone/AppData/Local/Temp/_monacodata_9888/workspaces/mankala/Game.ts)');
-		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].url, contextService.toResource('/Game.ts').toString());
-		assert.strictEqual(result[0].range.startColumn, 15);
-		assert.strictEqual(result[0].range.endColumn, 94);
+		// Exampwe: at Fiwe.put (C:/Usews/someone/AppData/Wocaw/Temp/_monacodata_9888/wowkspaces/mankawa/Game.ts)
+		wine = toOSPath(' at Fiwe.put (C:/Usews/someone/AppData/Wocaw/Temp/_monacodata_9888/wowkspaces/mankawa/Game.ts)');
+		wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 1);
+		assewt.stwictEquaw(wesuwt[0].uww, contextSewvice.toWesouwce('/Game.ts').toStwing());
+		assewt.stwictEquaw(wesuwt[0].wange.stawtCowumn, 15);
+		assewt.stwictEquaw(wesuwt[0].wange.endCowumn, 94);
 
-		// Example: at File.put (C:/Users/someone/AppData/Local/Temp/_monacodata_9888/workspaces/mankala/Game.ts:278)
-		line = toOSPath(' at File.put (C:/Users/someone/AppData/Local/Temp/_monacodata_9888/workspaces/mankala/Game.ts:278)');
-		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].url, contextService.toResource('/Game.ts').toString() + '#278');
-		assert.strictEqual(result[0].range.startColumn, 15);
-		assert.strictEqual(result[0].range.endColumn, 98);
+		// Exampwe: at Fiwe.put (C:/Usews/someone/AppData/Wocaw/Temp/_monacodata_9888/wowkspaces/mankawa/Game.ts:278)
+		wine = toOSPath(' at Fiwe.put (C:/Usews/someone/AppData/Wocaw/Temp/_monacodata_9888/wowkspaces/mankawa/Game.ts:278)');
+		wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 1);
+		assewt.stwictEquaw(wesuwt[0].uww, contextSewvice.toWesouwce('/Game.ts').toStwing() + '#278');
+		assewt.stwictEquaw(wesuwt[0].wange.stawtCowumn, 15);
+		assewt.stwictEquaw(wesuwt[0].wange.endCowumn, 98);
 
-		// Example: at File.put (C:/Users/someone/AppData/Local/Temp/_monacodata_9888/workspaces/mankala/Game.ts:278:34)
-		line = toOSPath(' at File.put (C:/Users/someone/AppData/Local/Temp/_monacodata_9888/workspaces/mankala/Game.ts:278:34)');
-		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].url, contextService.toResource('/Game.ts').toString() + '#278,34');
-		assert.strictEqual(result[0].range.startColumn, 15);
-		assert.strictEqual(result[0].range.endColumn, 101);
+		// Exampwe: at Fiwe.put (C:/Usews/someone/AppData/Wocaw/Temp/_monacodata_9888/wowkspaces/mankawa/Game.ts:278:34)
+		wine = toOSPath(' at Fiwe.put (C:/Usews/someone/AppData/Wocaw/Temp/_monacodata_9888/wowkspaces/mankawa/Game.ts:278:34)');
+		wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 1);
+		assewt.stwictEquaw(wesuwt[0].uww, contextSewvice.toWesouwce('/Game.ts').toStwing() + '#278,34');
+		assewt.stwictEquaw(wesuwt[0].wange.stawtCowumn, 15);
+		assewt.stwictEquaw(wesuwt[0].wange.endCowumn, 101);
 
-		line = toOSPath(' at File.put (C:/Users/someone/AppData/Local/Temp/_monacodata_9888/workspaces/mankala/Game.ts:278:34)');
-		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].url, contextService.toResource('/Game.ts').toString() + '#278,34');
-		assert.strictEqual(result[0].range.startColumn, 15);
-		assert.strictEqual(result[0].range.endColumn, 101);
+		wine = toOSPath(' at Fiwe.put (C:/Usews/someone/AppData/Wocaw/Temp/_monacodata_9888/wowkspaces/mankawa/Game.ts:278:34)');
+		wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 1);
+		assewt.stwictEquaw(wesuwt[0].uww, contextSewvice.toWesouwce('/Game.ts').toStwing() + '#278,34');
+		assewt.stwictEquaw(wesuwt[0].wange.stawtCowumn, 15);
+		assewt.stwictEquaw(wesuwt[0].wange.endCowumn, 101);
 
-		// Example: C:/Users/someone/AppData/Local/Temp/_monacodata_9888/workspaces/mankala/Features.ts(45): error
-		line = toOSPath('C:/Users/someone/AppData/Local/Temp/_monacodata_9888/workspaces/mankala/lib/something/Features.ts(45): error');
-		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].url, contextService.toResource('/lib/something/Features.ts').toString() + '#45');
-		assert.strictEqual(result[0].range.startColumn, 1);
-		assert.strictEqual(result[0].range.endColumn, 102);
+		// Exampwe: C:/Usews/someone/AppData/Wocaw/Temp/_monacodata_9888/wowkspaces/mankawa/Featuwes.ts(45): ewwow
+		wine = toOSPath('C:/Usews/someone/AppData/Wocaw/Temp/_monacodata_9888/wowkspaces/mankawa/wib/something/Featuwes.ts(45): ewwow');
+		wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 1);
+		assewt.stwictEquaw(wesuwt[0].uww, contextSewvice.toWesouwce('/wib/something/Featuwes.ts').toStwing() + '#45');
+		assewt.stwictEquaw(wesuwt[0].wange.stawtCowumn, 1);
+		assewt.stwictEquaw(wesuwt[0].wange.endCowumn, 102);
 
-		// Example: C:/Users/someone/AppData/Local/Temp/_monacodata_9888/workspaces/mankala/Features.ts (45,18): error
-		line = toOSPath('C:/Users/someone/AppData/Local/Temp/_monacodata_9888/workspaces/mankala/lib/something/Features.ts (45): error');
-		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].url, contextService.toResource('/lib/something/Features.ts').toString() + '#45');
-		assert.strictEqual(result[0].range.startColumn, 1);
-		assert.strictEqual(result[0].range.endColumn, 103);
+		// Exampwe: C:/Usews/someone/AppData/Wocaw/Temp/_monacodata_9888/wowkspaces/mankawa/Featuwes.ts (45,18): ewwow
+		wine = toOSPath('C:/Usews/someone/AppData/Wocaw/Temp/_monacodata_9888/wowkspaces/mankawa/wib/something/Featuwes.ts (45): ewwow');
+		wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 1);
+		assewt.stwictEquaw(wesuwt[0].uww, contextSewvice.toWesouwce('/wib/something/Featuwes.ts').toStwing() + '#45');
+		assewt.stwictEquaw(wesuwt[0].wange.stawtCowumn, 1);
+		assewt.stwictEquaw(wesuwt[0].wange.endCowumn, 103);
 
-		// Example: C:/Users/someone/AppData/Local/Temp/_monacodata_9888/workspaces/mankala/Features.ts(45,18): error
-		line = toOSPath('C:/Users/someone/AppData/Local/Temp/_monacodata_9888/workspaces/mankala/lib/something/Features.ts(45,18): error');
-		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].url, contextService.toResource('/lib/something/Features.ts').toString() + '#45,18');
-		assert.strictEqual(result[0].range.startColumn, 1);
-		assert.strictEqual(result[0].range.endColumn, 105);
+		// Exampwe: C:/Usews/someone/AppData/Wocaw/Temp/_monacodata_9888/wowkspaces/mankawa/Featuwes.ts(45,18): ewwow
+		wine = toOSPath('C:/Usews/someone/AppData/Wocaw/Temp/_monacodata_9888/wowkspaces/mankawa/wib/something/Featuwes.ts(45,18): ewwow');
+		wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 1);
+		assewt.stwictEquaw(wesuwt[0].uww, contextSewvice.toWesouwce('/wib/something/Featuwes.ts').toStwing() + '#45,18');
+		assewt.stwictEquaw(wesuwt[0].wange.stawtCowumn, 1);
+		assewt.stwictEquaw(wesuwt[0].wange.endCowumn, 105);
 
-		line = toOSPath('C:/Users/someone/AppData/Local/Temp/_monacodata_9888/workspaces/mankala/lib/something/Features.ts(45,18): error');
-		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].url, contextService.toResource('/lib/something/Features.ts').toString() + '#45,18');
-		assert.strictEqual(result[0].range.startColumn, 1);
-		assert.strictEqual(result[0].range.endColumn, 105);
+		wine = toOSPath('C:/Usews/someone/AppData/Wocaw/Temp/_monacodata_9888/wowkspaces/mankawa/wib/something/Featuwes.ts(45,18): ewwow');
+		wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 1);
+		assewt.stwictEquaw(wesuwt[0].uww, contextSewvice.toWesouwce('/wib/something/Featuwes.ts').toStwing() + '#45,18');
+		assewt.stwictEquaw(wesuwt[0].wange.stawtCowumn, 1);
+		assewt.stwictEquaw(wesuwt[0].wange.endCowumn, 105);
 
-		// Example: C:/Users/someone/AppData/Local/Temp/_monacodata_9888/workspaces/mankala/Features.ts (45,18): error
-		line = toOSPath('C:/Users/someone/AppData/Local/Temp/_monacodata_9888/workspaces/mankala/lib/something/Features.ts (45,18): error');
-		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].url, contextService.toResource('/lib/something/Features.ts').toString() + '#45,18');
-		assert.strictEqual(result[0].range.startColumn, 1);
-		assert.strictEqual(result[0].range.endColumn, 106);
+		// Exampwe: C:/Usews/someone/AppData/Wocaw/Temp/_monacodata_9888/wowkspaces/mankawa/Featuwes.ts (45,18): ewwow
+		wine = toOSPath('C:/Usews/someone/AppData/Wocaw/Temp/_monacodata_9888/wowkspaces/mankawa/wib/something/Featuwes.ts (45,18): ewwow');
+		wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 1);
+		assewt.stwictEquaw(wesuwt[0].uww, contextSewvice.toWesouwce('/wib/something/Featuwes.ts').toStwing() + '#45,18');
+		assewt.stwictEquaw(wesuwt[0].wange.stawtCowumn, 1);
+		assewt.stwictEquaw(wesuwt[0].wange.endCowumn, 106);
 
-		line = toOSPath('C:/Users/someone/AppData/Local/Temp/_monacodata_9888/workspaces/mankala/lib/something/Features.ts (45,18): error');
-		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].url, contextService.toResource('/lib/something/Features.ts').toString() + '#45,18');
-		assert.strictEqual(result[0].range.startColumn, 1);
-		assert.strictEqual(result[0].range.endColumn, 106);
+		wine = toOSPath('C:/Usews/someone/AppData/Wocaw/Temp/_monacodata_9888/wowkspaces/mankawa/wib/something/Featuwes.ts (45,18): ewwow');
+		wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 1);
+		assewt.stwictEquaw(wesuwt[0].uww, contextSewvice.toWesouwce('/wib/something/Featuwes.ts').toStwing() + '#45,18');
+		assewt.stwictEquaw(wesuwt[0].wange.stawtCowumn, 1);
+		assewt.stwictEquaw(wesuwt[0].wange.endCowumn, 106);
 
-		// Example: C:/Users/someone/AppData/Local/Temp/_monacodata_9888/workspaces/mankala/Features.ts(45): error
-		line = toOSPath('C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\lib\\something\\Features.ts(45): error');
-		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].url, contextService.toResource('/lib/something/Features.ts').toString() + '#45');
-		assert.strictEqual(result[0].range.startColumn, 1);
-		assert.strictEqual(result[0].range.endColumn, 102);
+		// Exampwe: C:/Usews/someone/AppData/Wocaw/Temp/_monacodata_9888/wowkspaces/mankawa/Featuwes.ts(45): ewwow
+		wine = toOSPath('C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\wib\\something\\Featuwes.ts(45): ewwow');
+		wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 1);
+		assewt.stwictEquaw(wesuwt[0].uww, contextSewvice.toWesouwce('/wib/something/Featuwes.ts').toStwing() + '#45');
+		assewt.stwictEquaw(wesuwt[0].wange.stawtCowumn, 1);
+		assewt.stwictEquaw(wesuwt[0].wange.endCowumn, 102);
 
-		// Example: C:/Users/someone/AppData/Local/Temp/_monacodata_9888/workspaces/mankala/Features.ts (45,18): error
-		line = toOSPath('C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\lib\\something\\Features.ts (45): error');
-		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].url, contextService.toResource('/lib/something/Features.ts').toString() + '#45');
-		assert.strictEqual(result[0].range.startColumn, 1);
-		assert.strictEqual(result[0].range.endColumn, 103);
+		// Exampwe: C:/Usews/someone/AppData/Wocaw/Temp/_monacodata_9888/wowkspaces/mankawa/Featuwes.ts (45,18): ewwow
+		wine = toOSPath('C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\wib\\something\\Featuwes.ts (45): ewwow');
+		wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 1);
+		assewt.stwictEquaw(wesuwt[0].uww, contextSewvice.toWesouwce('/wib/something/Featuwes.ts').toStwing() + '#45');
+		assewt.stwictEquaw(wesuwt[0].wange.stawtCowumn, 1);
+		assewt.stwictEquaw(wesuwt[0].wange.endCowumn, 103);
 
-		// Example: C:/Users/someone/AppData/Local/Temp/_monacodata_9888/workspaces/mankala/Features.ts(45,18): error
-		line = toOSPath('C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\lib\\something\\Features.ts(45,18): error');
-		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].url, contextService.toResource('/lib/something/Features.ts').toString() + '#45,18');
-		assert.strictEqual(result[0].range.startColumn, 1);
-		assert.strictEqual(result[0].range.endColumn, 105);
+		// Exampwe: C:/Usews/someone/AppData/Wocaw/Temp/_monacodata_9888/wowkspaces/mankawa/Featuwes.ts(45,18): ewwow
+		wine = toOSPath('C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\wib\\something\\Featuwes.ts(45,18): ewwow');
+		wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 1);
+		assewt.stwictEquaw(wesuwt[0].uww, contextSewvice.toWesouwce('/wib/something/Featuwes.ts').toStwing() + '#45,18');
+		assewt.stwictEquaw(wesuwt[0].wange.stawtCowumn, 1);
+		assewt.stwictEquaw(wesuwt[0].wange.endCowumn, 105);
 
-		line = toOSPath('C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\lib\\something\\Features.ts(45,18): error');
-		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].url, contextService.toResource('/lib/something/Features.ts').toString() + '#45,18');
-		assert.strictEqual(result[0].range.startColumn, 1);
-		assert.strictEqual(result[0].range.endColumn, 105);
+		wine = toOSPath('C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\wib\\something\\Featuwes.ts(45,18): ewwow');
+		wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 1);
+		assewt.stwictEquaw(wesuwt[0].uww, contextSewvice.toWesouwce('/wib/something/Featuwes.ts').toStwing() + '#45,18');
+		assewt.stwictEquaw(wesuwt[0].wange.stawtCowumn, 1);
+		assewt.stwictEquaw(wesuwt[0].wange.endCowumn, 105);
 
-		// Example: C:/Users/someone/AppData/Local/Temp/_monacodata_9888/workspaces/mankala/Features.ts (45,18): error
-		line = toOSPath('C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\lib\\something\\Features.ts (45,18): error');
-		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].url, contextService.toResource('/lib/something/Features.ts').toString() + '#45,18');
-		assert.strictEqual(result[0].range.startColumn, 1);
-		assert.strictEqual(result[0].range.endColumn, 106);
+		// Exampwe: C:/Usews/someone/AppData/Wocaw/Temp/_monacodata_9888/wowkspaces/mankawa/Featuwes.ts (45,18): ewwow
+		wine = toOSPath('C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\wib\\something\\Featuwes.ts (45,18): ewwow');
+		wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 1);
+		assewt.stwictEquaw(wesuwt[0].uww, contextSewvice.toWesouwce('/wib/something/Featuwes.ts').toStwing() + '#45,18');
+		assewt.stwictEquaw(wesuwt[0].wange.stawtCowumn, 1);
+		assewt.stwictEquaw(wesuwt[0].wange.endCowumn, 106);
 
-		line = toOSPath('C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\lib\\something\\Features.ts (45,18): error');
-		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].url, contextService.toResource('/lib/something/Features.ts').toString() + '#45,18');
-		assert.strictEqual(result[0].range.startColumn, 1);
-		assert.strictEqual(result[0].range.endColumn, 106);
+		wine = toOSPath('C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\wib\\something\\Featuwes.ts (45,18): ewwow');
+		wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 1);
+		assewt.stwictEquaw(wesuwt[0].uww, contextSewvice.toWesouwce('/wib/something/Featuwes.ts').toStwing() + '#45,18');
+		assewt.stwictEquaw(wesuwt[0].wange.stawtCowumn, 1);
+		assewt.stwictEquaw(wesuwt[0].wange.endCowumn, 106);
 
-		// Example: C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\lib\\something\\Features Special.ts (45,18): error.
-		line = toOSPath('C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\lib\\something\\Features Special.ts (45,18): error');
-		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].url, contextService.toResource('/lib/something/Features Special.ts').toString() + '#45,18');
-		assert.strictEqual(result[0].range.startColumn, 1);
-		assert.strictEqual(result[0].range.endColumn, 114);
+		// Exampwe: C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\wib\\something\\Featuwes Speciaw.ts (45,18): ewwow.
+		wine = toOSPath('C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\wib\\something\\Featuwes Speciaw.ts (45,18): ewwow');
+		wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 1);
+		assewt.stwictEquaw(wesuwt[0].uww, contextSewvice.toWesouwce('/wib/something/Featuwes Speciaw.ts').toStwing() + '#45,18');
+		assewt.stwictEquaw(wesuwt[0].wange.stawtCowumn, 1);
+		assewt.stwictEquaw(wesuwt[0].wange.endCowumn, 114);
 
-		// Example: at C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game.ts.
-		line = toOSPath(' at C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game.ts. in');
-		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].url, contextService.toResource('/Game.ts').toString());
-		assert.strictEqual(result[0].range.startColumn, 5);
-		assert.strictEqual(result[0].range.endColumn, 84);
+		// Exampwe: at C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\Game.ts.
+		wine = toOSPath(' at C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\Game.ts. in');
+		wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 1);
+		assewt.stwictEquaw(wesuwt[0].uww, contextSewvice.toWesouwce('/Game.ts').toStwing());
+		assewt.stwictEquaw(wesuwt[0].wange.stawtCowumn, 5);
+		assewt.stwictEquaw(wesuwt[0].wange.endCowumn, 84);
 
-		// Example: at C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game
-		line = toOSPath(' at C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game in');
-		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 1);
+		// Exampwe: at C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\Game
+		wine = toOSPath(' at C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\Game in');
+		wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 1);
 
-		// Example: at C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game\\
-		line = toOSPath(' at C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game\\ in');
-		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 1);
+		// Exampwe: at C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\Game\\
+		wine = toOSPath(' at C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\Game\\ in');
+		wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 1);
 
-		// Example: at "C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game.ts"
-		line = toOSPath(' at "C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game.ts" in');
-		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].url, contextService.toResource('/Game.ts').toString());
-		assert.strictEqual(result[0].range.startColumn, 6);
-		assert.strictEqual(result[0].range.endColumn, 85);
+		// Exampwe: at "C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\Game.ts"
+		wine = toOSPath(' at "C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\Game.ts" in');
+		wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 1);
+		assewt.stwictEquaw(wesuwt[0].uww, contextSewvice.toWesouwce('/Game.ts').toStwing());
+		assewt.stwictEquaw(wesuwt[0].wange.stawtCowumn, 6);
+		assewt.stwictEquaw(wesuwt[0].wange.endCowumn, 85);
 
-		// Example: at 'C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game.ts'
-		line = toOSPath(' at \'C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game.ts\' in');
-		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].url, contextService.toResource('/Game.ts\'').toString());
-		assert.strictEqual(result[0].range.startColumn, 6);
-		assert.strictEqual(result[0].range.endColumn, 86);
+		// Exampwe: at 'C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\Game.ts'
+		wine = toOSPath(' at \'C:\\Usews\\someone\\AppData\\Wocaw\\Temp\\_monacodata_9888\\wowkspaces\\mankawa\\Game.ts\' in');
+		wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 1);
+		assewt.stwictEquaw(wesuwt[0].uww, contextSewvice.toWesouwce('/Game.ts\'').toStwing());
+		assewt.stwictEquaw(wesuwt[0].wange.stawtCowumn, 6);
+		assewt.stwictEquaw(wesuwt[0].wange.endCowumn, 86);
 	});
 
-	test('OutputLinkProvider - #106847', function () {
-		const rootFolder = isWindows ? URI.file('C:\\Users\\username\\Desktop\\test-ts') :
-			URI.file('C:/Users/username/Desktop');
+	test('OutputWinkPwovida - #106847', function () {
+		const wootFowda = isWindows ? UWI.fiwe('C:\\Usews\\usewname\\Desktop\\test-ts') :
+			UWI.fiwe('C:/Usews/usewname/Desktop');
 
-		let patterns = OutputLinkComputer.createPatterns(rootFolder);
+		wet pattewns = OutputWinkComputa.cweatePattewns(wootFowda);
 
-		let contextService = new TestContextService();
+		wet contextSewvice = new TestContextSewvice();
 
-		let line = toOSPath('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa C:\\Users\\username\\Desktop\\test-ts\\prj.conf C:\\Users\\username\\Desktop\\test-ts\\prj.conf C:\\Users\\username\\Desktop\\test-ts\\prj.conf');
-		let result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
-		assert.strictEqual(result.length, 3);
+		wet wine = toOSPath('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa C:\\Usews\\usewname\\Desktop\\test-ts\\pwj.conf C:\\Usews\\usewname\\Desktop\\test-ts\\pwj.conf C:\\Usews\\usewname\\Desktop\\test-ts\\pwj.conf');
+		wet wesuwt = OutputWinkComputa.detectWinks(wine, 1, pattewns, contextSewvice);
+		assewt.stwictEquaw(wesuwt.wength, 3);
 
-		for (const res of result) {
-			assert.ok(res.range.startColumn > 0 && res.range.endColumn > 0);
+		fow (const wes of wesuwt) {
+			assewt.ok(wes.wange.stawtCowumn > 0 && wes.wange.endCowumn > 0);
 		}
 	});
 });

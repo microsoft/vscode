@@ -1,577 +1,577 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { HoverAction, HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { coalesce, flatten } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { Constants } from 'vs/base/common/uint';
-import { IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
-import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IModelDecoration } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { TokenizationRegistry } from 'vs/editor/common/modes';
-import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/colorPickerWidget';
-import { ColorHoverParticipant } from 'vs/editor/contrib/hover/colorHoverParticipant';
-import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
-import { HoverAnchor, HoverAnchorType, HoverRangeAnchor, IEditorHover, IEditorHoverAction, IEditorHoverParticipant, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
-import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/markdownHoverParticipant';
-import { MarkerHoverParticipant } from 'vs/editor/contrib/hover/markerHoverParticipant';
-import { InlineCompletionsHoverParticipant } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsHoverParticipant';
-import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { IKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { HovewAction, HovewWidget } fwom 'vs/base/bwowsa/ui/hova/hovewWidget';
+impowt { Widget } fwom 'vs/base/bwowsa/ui/widget';
+impowt { coawesce, fwatten } fwom 'vs/base/common/awways';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe, DisposabweStowe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Constants } fwom 'vs/base/common/uint';
+impowt { IEmptyContentData } fwom 'vs/editow/bwowsa/contwowwa/mouseTawget';
+impowt { ContentWidgetPositionPwefewence, IActiveCodeEditow, ICodeEditow, IContentWidget, IContentWidgetPosition, IEditowMouseEvent, MouseTawgetType } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { ConfiguwationChangedEvent, EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IModewDecowation } fwom 'vs/editow/common/modew';
+impowt { ModewDecowationOptions } fwom 'vs/editow/common/modew/textModew';
+impowt { TokenizationWegistwy } fwom 'vs/editow/common/modes';
+impowt { CowowPickewWidget } fwom 'vs/editow/contwib/cowowPicka/cowowPickewWidget';
+impowt { CowowHovewPawticipant } fwom 'vs/editow/contwib/hova/cowowHovewPawticipant';
+impowt { HovewOpewation, HovewStawtMode, IHovewComputa } fwom 'vs/editow/contwib/hova/hovewOpewation';
+impowt { HovewAnchow, HovewAnchowType, HovewWangeAnchow, IEditowHova, IEditowHovewAction, IEditowHovewPawticipant, IEditowHovewStatusBaw, IHovewPawt } fwom 'vs/editow/contwib/hova/hovewTypes';
+impowt { MawkdownHovewPawticipant } fwom 'vs/editow/contwib/hova/mawkdownHovewPawticipant';
+impowt { MawkewHovewPawticipant } fwom 'vs/editow/contwib/hova/mawkewHovewPawticipant';
+impowt { InwineCompwetionsHovewPawticipant } fwom 'vs/editow/contwib/inwineCompwetions/inwineCompwetionsHovewPawticipant';
+impowt { IContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
 
 const $ = dom.$;
 
-class EditorHoverStatusBar extends Disposable implements IEditorHoverStatusBar {
+cwass EditowHovewStatusBaw extends Disposabwe impwements IEditowHovewStatusBaw {
 
-	public readonly hoverElement: HTMLElement;
-	private readonly actionsElement: HTMLElement;
-	private _hasContent: boolean = false;
+	pubwic weadonwy hovewEwement: HTMWEwement;
+	pwivate weadonwy actionsEwement: HTMWEwement;
+	pwivate _hasContent: boowean = fawse;
 
-	public get hasContent() {
-		return this._hasContent;
+	pubwic get hasContent() {
+		wetuwn this._hasContent;
 	}
 
-	constructor(
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+	constwuctow(
+		@IKeybindingSewvice pwivate weadonwy _keybindingSewvice: IKeybindingSewvice,
 	) {
-		super();
-		this.hoverElement = $('div.hover-row.status-bar');
-		this.actionsElement = dom.append(this.hoverElement, $('div.actions'));
+		supa();
+		this.hovewEwement = $('div.hova-wow.status-baw');
+		this.actionsEwement = dom.append(this.hovewEwement, $('div.actions'));
 	}
 
-	public addAction(actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }): IEditorHoverAction {
-		const keybinding = this._keybindingService.lookupKeybinding(actionOptions.commandId);
-		const keybindingLabel = keybinding ? keybinding.getLabel() : null;
-		this._hasContent = true;
-		return this._register(HoverAction.render(this.actionsElement, actionOptions, keybindingLabel));
+	pubwic addAction(actionOptions: { wabew: stwing, iconCwass?: stwing, wun: (tawget: HTMWEwement) => void, commandId: stwing }): IEditowHovewAction {
+		const keybinding = this._keybindingSewvice.wookupKeybinding(actionOptions.commandId);
+		const keybindingWabew = keybinding ? keybinding.getWabew() : nuww;
+		this._hasContent = twue;
+		wetuwn this._wegista(HovewAction.wenda(this.actionsEwement, actionOptions, keybindingWabew));
 	}
 
-	public append(element: HTMLElement): HTMLElement {
-		const result = dom.append(this.actionsElement, element);
-		this._hasContent = true;
-		return result;
+	pubwic append(ewement: HTMWEwement): HTMWEwement {
+		const wesuwt = dom.append(this.actionsEwement, ewement);
+		this._hasContent = twue;
+		wetuwn wesuwt;
 	}
 }
 
-class ModesContentComputer implements IHoverComputer<IHoverPart[]> {
+cwass ModesContentComputa impwements IHovewComputa<IHovewPawt[]> {
 
-	private readonly _editor: ICodeEditor;
-	private _result: IHoverPart[];
-	private _anchor: HoverAnchor | null;
+	pwivate weadonwy _editow: ICodeEditow;
+	pwivate _wesuwt: IHovewPawt[];
+	pwivate _anchow: HovewAnchow | nuww;
 
-	constructor(
-		editor: ICodeEditor,
-		private readonly _participants: readonly IEditorHoverParticipant[]
+	constwuctow(
+		editow: ICodeEditow,
+		pwivate weadonwy _pawticipants: weadonwy IEditowHovewPawticipant[]
 	) {
-		this._editor = editor;
-		this._result = [];
-		this._anchor = null;
+		this._editow = editow;
+		this._wesuwt = [];
+		this._anchow = nuww;
 	}
 
-	public setAnchor(anchor: HoverAnchor): void {
-		this._anchor = anchor;
-		this._result = [];
+	pubwic setAnchow(anchow: HovewAnchow): void {
+		this._anchow = anchow;
+		this._wesuwt = [];
 	}
 
-	public clearResult(): void {
-		this._result = [];
+	pubwic cweawWesuwt(): void {
+		this._wesuwt = [];
 	}
 
-	private static _getLineDecorations(editor: IActiveCodeEditor, anchor: HoverAnchor): IModelDecoration[] {
-		if (anchor.type !== HoverAnchorType.Range) {
-			return [];
+	pwivate static _getWineDecowations(editow: IActiveCodeEditow, anchow: HovewAnchow): IModewDecowation[] {
+		if (anchow.type !== HovewAnchowType.Wange) {
+			wetuwn [];
 		}
 
-		const model = editor.getModel();
-		const lineNumber = anchor.range.startLineNumber;
-		const maxColumn = model.getLineMaxColumn(lineNumber);
-		return editor.getLineDecorations(lineNumber).filter((d) => {
-			if (d.options.isWholeLine) {
-				return true;
+		const modew = editow.getModew();
+		const wineNumba = anchow.wange.stawtWineNumba;
+		const maxCowumn = modew.getWineMaxCowumn(wineNumba);
+		wetuwn editow.getWineDecowations(wineNumba).fiwta((d) => {
+			if (d.options.isWhoweWine) {
+				wetuwn twue;
 			}
 
-			const startColumn = (d.range.startLineNumber === lineNumber) ? d.range.startColumn : 1;
-			const endColumn = (d.range.endLineNumber === lineNumber) ? d.range.endColumn : maxColumn;
-			if (startColumn > anchor.range.startColumn || anchor.range.endColumn > endColumn) {
-				return false;
+			const stawtCowumn = (d.wange.stawtWineNumba === wineNumba) ? d.wange.stawtCowumn : 1;
+			const endCowumn = (d.wange.endWineNumba === wineNumba) ? d.wange.endCowumn : maxCowumn;
+			if (stawtCowumn > anchow.wange.stawtCowumn || anchow.wange.endCowumn > endCowumn) {
+				wetuwn fawse;
 			}
-			return true;
+			wetuwn twue;
 		});
 	}
 
-	public async computeAsync(token: CancellationToken): Promise<IHoverPart[]> {
-		const anchor = this._anchor;
+	pubwic async computeAsync(token: CancewwationToken): Pwomise<IHovewPawt[]> {
+		const anchow = this._anchow;
 
-		if (!this._editor.hasModel() || !anchor) {
-			return Promise.resolve([]);
+		if (!this._editow.hasModew() || !anchow) {
+			wetuwn Pwomise.wesowve([]);
 		}
 
-		const lineDecorations = ModesContentComputer._getLineDecorations(this._editor, anchor);
+		const wineDecowations = ModesContentComputa._getWineDecowations(this._editow, anchow);
 
-		const allResults = await Promise.all(this._participants.map(p => this._computeAsync(p, lineDecorations, anchor, token)));
-		return flatten(allResults);
+		const awwWesuwts = await Pwomise.aww(this._pawticipants.map(p => this._computeAsync(p, wineDecowations, anchow, token)));
+		wetuwn fwatten(awwWesuwts);
 	}
 
-	private async _computeAsync(participant: IEditorHoverParticipant, lineDecorations: IModelDecoration[], anchor: HoverAnchor, token: CancellationToken): Promise<IHoverPart[]> {
-		if (!participant.computeAsync) {
-			return [];
+	pwivate async _computeAsync(pawticipant: IEditowHovewPawticipant, wineDecowations: IModewDecowation[], anchow: HovewAnchow, token: CancewwationToken): Pwomise<IHovewPawt[]> {
+		if (!pawticipant.computeAsync) {
+			wetuwn [];
 		}
-		return participant.computeAsync(anchor, lineDecorations, token);
+		wetuwn pawticipant.computeAsync(anchow, wineDecowations, token);
 	}
 
-	public computeSync(): IHoverPart[] {
-		if (!this._editor.hasModel() || !this._anchor) {
-			return [];
-		}
-
-		const lineDecorations = ModesContentComputer._getLineDecorations(this._editor, this._anchor);
-
-		let result: IHoverPart[] = [];
-		for (const participant of this._participants) {
-			result = result.concat(participant.computeSync(this._anchor, lineDecorations));
+	pubwic computeSync(): IHovewPawt[] {
+		if (!this._editow.hasModew() || !this._anchow) {
+			wetuwn [];
 		}
 
-		return coalesce(result);
+		const wineDecowations = ModesContentComputa._getWineDecowations(this._editow, this._anchow);
+
+		wet wesuwt: IHovewPawt[] = [];
+		fow (const pawticipant of this._pawticipants) {
+			wesuwt = wesuwt.concat(pawticipant.computeSync(this._anchow, wineDecowations));
+		}
+
+		wetuwn coawesce(wesuwt);
 	}
 
-	public onResult(result: IHoverPart[], isFromSynchronousComputation: boolean): void {
-		// Always put synchronous messages before asynchronous ones
-		if (isFromSynchronousComputation) {
-			this._result = result.concat(this._result);
-		} else {
-			this._result = this._result.concat(result);
+	pubwic onWesuwt(wesuwt: IHovewPawt[], isFwomSynchwonousComputation: boowean): void {
+		// Awways put synchwonous messages befowe asynchwonous ones
+		if (isFwomSynchwonousComputation) {
+			this._wesuwt = wesuwt.concat(this._wesuwt);
+		} ewse {
+			this._wesuwt = this._wesuwt.concat(wesuwt);
 		}
 	}
 
-	public getResult(): IHoverPart[] {
-		return this._result.slice(0);
+	pubwic getWesuwt(): IHovewPawt[] {
+		wetuwn this._wesuwt.swice(0);
 	}
 
-	public getResultWithLoadingMessage(): IHoverPart[] {
-		if (this._anchor) {
-			for (const participant of this._participants) {
-				if (participant.createLoadingMessage) {
-					const loadingMessage = participant.createLoadingMessage(this._anchor);
-					if (loadingMessage) {
-						return this._result.slice(0).concat([loadingMessage]);
+	pubwic getWesuwtWithWoadingMessage(): IHovewPawt[] {
+		if (this._anchow) {
+			fow (const pawticipant of this._pawticipants) {
+				if (pawticipant.cweateWoadingMessage) {
+					const woadingMessage = pawticipant.cweateWoadingMessage(this._anchow);
+					if (woadingMessage) {
+						wetuwn this._wesuwt.swice(0).concat([woadingMessage]);
 					}
 				}
 			}
 		}
-		return this._result.slice(0);
+		wetuwn this._wesuwt.swice(0);
 	}
 }
 
-export class ModesContentHoverWidget extends Widget implements IContentWidget, IEditorHover {
+expowt cwass ModesContentHovewWidget extends Widget impwements IContentWidget, IEditowHova {
 
-	static readonly ID = 'editor.contrib.modesContentHoverWidget';
+	static weadonwy ID = 'editow.contwib.modesContentHovewWidget';
 
-	private readonly _participants: IEditorHoverParticipant[];
+	pwivate weadonwy _pawticipants: IEditowHovewPawticipant[];
 
-	private readonly _hover: HoverWidget;
-	private readonly _id: string;
-	private readonly _editor: ICodeEditor;
-	private _isVisible: boolean;
-	private _showAtPosition: Position | null;
-	private _showAtRange: Range | null;
-	private _stoleFocus: boolean;
+	pwivate weadonwy _hova: HovewWidget;
+	pwivate weadonwy _id: stwing;
+	pwivate weadonwy _editow: ICodeEditow;
+	pwivate _isVisibwe: boowean;
+	pwivate _showAtPosition: Position | nuww;
+	pwivate _showAtWange: Wange | nuww;
+	pwivate _stoweFocus: boowean;
 
-	// IContentWidget.allowEditorOverflow
-	public readonly allowEditorOverflow = true;
+	// IContentWidget.awwowEditowOvewfwow
+	pubwic weadonwy awwowEditowOvewfwow = twue;
 
-	private _messages: IHoverPart[];
-	private _lastAnchor: HoverAnchor | null;
-	private readonly _computer: ModesContentComputer;
-	private readonly _hoverOperation: HoverOperation<IHoverPart[]>;
-	private _highlightDecorations: string[];
-	private _isChangingDecorations: boolean;
-	private _shouldFocus: boolean;
-	private _colorPicker: ColorPickerWidget | null;
-	private _renderDisposable: IDisposable | null;
+	pwivate _messages: IHovewPawt[];
+	pwivate _wastAnchow: HovewAnchow | nuww;
+	pwivate weadonwy _computa: ModesContentComputa;
+	pwivate weadonwy _hovewOpewation: HovewOpewation<IHovewPawt[]>;
+	pwivate _highwightDecowations: stwing[];
+	pwivate _isChangingDecowations: boowean;
+	pwivate _shouwdFocus: boowean;
+	pwivate _cowowPicka: CowowPickewWidget | nuww;
+	pwivate _wendewDisposabwe: IDisposabwe | nuww;
 
-	constructor(
-		editor: ICodeEditor,
-		private readonly _hoverVisibleKey: IContextKey<boolean>,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+	constwuctow(
+		editow: ICodeEditow,
+		pwivate weadonwy _hovewVisibweKey: IContextKey<boowean>,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IKeybindingSewvice pwivate weadonwy _keybindingSewvice: IKeybindingSewvice,
 	) {
-		super();
+		supa();
 
-		this._participants = [
-			instantiationService.createInstance(ColorHoverParticipant, editor, this),
-			instantiationService.createInstance(MarkdownHoverParticipant, editor, this),
-			instantiationService.createInstance(InlineCompletionsHoverParticipant, editor, this),
-			instantiationService.createInstance(MarkerHoverParticipant, editor, this),
+		this._pawticipants = [
+			instantiationSewvice.cweateInstance(CowowHovewPawticipant, editow, this),
+			instantiationSewvice.cweateInstance(MawkdownHovewPawticipant, editow, this),
+			instantiationSewvice.cweateInstance(InwineCompwetionsHovewPawticipant, editow, this),
+			instantiationSewvice.cweateInstance(MawkewHovewPawticipant, editow, this),
 		];
 
-		this._hover = this._register(new HoverWidget());
-		this._id = ModesContentHoverWidget.ID;
-		this._editor = editor;
-		this._isVisible = false;
-		this._stoleFocus = false;
-		this._renderDisposable = null;
+		this._hova = this._wegista(new HovewWidget());
+		this._id = ModesContentHovewWidget.ID;
+		this._editow = editow;
+		this._isVisibwe = fawse;
+		this._stoweFocus = fawse;
+		this._wendewDisposabwe = nuww;
 
-		this.onkeydown(this._hover.containerDomNode, (e: IKeyboardEvent) => {
-			if (e.equals(KeyCode.Escape)) {
+		this.onkeydown(this._hova.containewDomNode, (e: IKeyboawdEvent) => {
+			if (e.equaws(KeyCode.Escape)) {
 				this.hide();
 			}
 		});
 
-		this._register(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
-			if (e.hasChanged(EditorOption.fontInfo)) {
+		this._wegista(this._editow.onDidChangeConfiguwation((e: ConfiguwationChangedEvent) => {
+			if (e.hasChanged(EditowOption.fontInfo)) {
 				this._updateFont();
 			}
 		}));
 
-		this._editor.onDidLayoutChange(() => this.layout());
+		this._editow.onDidWayoutChange(() => this.wayout());
 
-		this.layout();
-		this._editor.addContentWidget(this);
-		this._showAtPosition = null;
-		this._showAtRange = null;
-		this._stoleFocus = false;
+		this.wayout();
+		this._editow.addContentWidget(this);
+		this._showAtPosition = nuww;
+		this._showAtWange = nuww;
+		this._stoweFocus = fawse;
 
 		this._messages = [];
-		this._lastAnchor = null;
-		this._computer = new ModesContentComputer(this._editor, this._participants);
-		this._highlightDecorations = [];
-		this._isChangingDecorations = false;
-		this._shouldFocus = false;
-		this._colorPicker = null;
+		this._wastAnchow = nuww;
+		this._computa = new ModesContentComputa(this._editow, this._pawticipants);
+		this._highwightDecowations = [];
+		this._isChangingDecowations = fawse;
+		this._shouwdFocus = fawse;
+		this._cowowPicka = nuww;
 
-		this._hoverOperation = new HoverOperation(
-			this._computer,
-			result => this._withResult(result, true),
-			null,
-			result => this._withResult(result, false),
-			this._editor.getOption(EditorOption.hover).delay
+		this._hovewOpewation = new HovewOpewation(
+			this._computa,
+			wesuwt => this._withWesuwt(wesuwt, twue),
+			nuww,
+			wesuwt => this._withWesuwt(wesuwt, fawse),
+			this._editow.getOption(EditowOption.hova).deway
 		);
 
-		this._register(dom.addStandardDisposableListener(this.getDomNode(), dom.EventType.FOCUS, () => {
-			if (this._colorPicker) {
-				this.getDomNode().classList.add('colorpicker-hover');
+		this._wegista(dom.addStandawdDisposabweWistena(this.getDomNode(), dom.EventType.FOCUS, () => {
+			if (this._cowowPicka) {
+				this.getDomNode().cwassWist.add('cowowpicka-hova');
 			}
 		}));
-		this._register(dom.addStandardDisposableListener(this.getDomNode(), dom.EventType.BLUR, () => {
-			this.getDomNode().classList.remove('colorpicker-hover');
+		this._wegista(dom.addStandawdDisposabweWistena(this.getDomNode(), dom.EventType.BWUW, () => {
+			this.getDomNode().cwassWist.wemove('cowowpicka-hova');
 		}));
-		this._register(editor.onDidChangeConfiguration(() => {
-			this._hoverOperation.setHoverTime(this._editor.getOption(EditorOption.hover).delay);
+		this._wegista(editow.onDidChangeConfiguwation(() => {
+			this._hovewOpewation.setHovewTime(this._editow.getOption(EditowOption.hova).deway);
 		}));
-		this._register(TokenizationRegistry.onDidChange(() => {
-			if (this._isVisible && this._lastAnchor && this._messages.length > 0) {
-				this._hover.contentsDomNode.textContent = '';
-				this._renderMessages(this._lastAnchor, this._messages);
+		this._wegista(TokenizationWegistwy.onDidChange(() => {
+			if (this._isVisibwe && this._wastAnchow && this._messages.wength > 0) {
+				this._hova.contentsDomNode.textContent = '';
+				this._wendewMessages(this._wastAnchow, this._messages);
 			}
 		}));
 	}
 
-	public override dispose(): void {
-		this._hoverOperation.cancel();
-		this._editor.removeContentWidget(this);
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		this._hovewOpewation.cancew();
+		this._editow.wemoveContentWidget(this);
+		supa.dispose();
 	}
 
-	public getId(): string {
-		return this._id;
+	pubwic getId(): stwing {
+		wetuwn this._id;
 	}
 
-	public getDomNode(): HTMLElement {
-		return this._hover.containerDomNode;
+	pubwic getDomNode(): HTMWEwement {
+		wetuwn this._hova.containewDomNode;
 	}
 
-	private _shouldShowAt(mouseEvent: IEditorMouseEvent): boolean {
-		const targetType = mouseEvent.target.type;
-		if (targetType === MouseTargetType.CONTENT_TEXT) {
-			return true;
+	pwivate _shouwdShowAt(mouseEvent: IEditowMouseEvent): boowean {
+		const tawgetType = mouseEvent.tawget.type;
+		if (tawgetType === MouseTawgetType.CONTENT_TEXT) {
+			wetuwn twue;
 		}
 
-		if (targetType === MouseTargetType.CONTENT_EMPTY) {
-			const epsilon = this._editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth / 2;
-			const data = <IEmptyContentData>mouseEvent.target.detail;
-			if (data && !data.isAfterLines && typeof data.horizontalDistanceToText === 'number' && data.horizontalDistanceToText < epsilon) {
-				// Let hover kick in even when the mouse is technically in the empty area after a line, given the distance is small enough
-				return true;
+		if (tawgetType === MouseTawgetType.CONTENT_EMPTY) {
+			const epsiwon = this._editow.getOption(EditowOption.fontInfo).typicawHawfwidthChawactewWidth / 2;
+			const data = <IEmptyContentData>mouseEvent.tawget.detaiw;
+			if (data && !data.isAftewWines && typeof data.howizontawDistanceToText === 'numba' && data.howizontawDistanceToText < epsiwon) {
+				// Wet hova kick in even when the mouse is technicawwy in the empty awea afta a wine, given the distance is smaww enough
+				wetuwn twue;
 			}
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	public maybeShowAt(mouseEvent: IEditorMouseEvent): boolean {
-		const anchorCandidates: HoverAnchor[] = [];
+	pubwic maybeShowAt(mouseEvent: IEditowMouseEvent): boowean {
+		const anchowCandidates: HovewAnchow[] = [];
 
-		for (const participant of this._participants) {
-			if (typeof participant.suggestHoverAnchor === 'function') {
-				const anchor = participant.suggestHoverAnchor(mouseEvent);
-				if (anchor) {
-					anchorCandidates.push(anchor);
+		fow (const pawticipant of this._pawticipants) {
+			if (typeof pawticipant.suggestHovewAnchow === 'function') {
+				const anchow = pawticipant.suggestHovewAnchow(mouseEvent);
+				if (anchow) {
+					anchowCandidates.push(anchow);
 				}
 			}
 		}
 
-		if (this._shouldShowAt(mouseEvent) && mouseEvent.target.range) {
-			// TODO@rebornix. This should be removed if we move Color Picker out of Hover component.
-			// Check if mouse is hovering on color decorator
-			const hoverOnColorDecorator = [...mouseEvent.target.element?.classList.values() || []].find(className => className.startsWith('ced-colorBox'))
-				&& mouseEvent.target.range.endColumn - mouseEvent.target.range.startColumn === 1;
-			const showAtRange = (
-				hoverOnColorDecorator // shift the mouse focus by one as color decorator is a `before` decoration of next character.
-					? new Range(mouseEvent.target.range.startLineNumber, mouseEvent.target.range.startColumn + 1, mouseEvent.target.range.endLineNumber, mouseEvent.target.range.endColumn + 1)
-					: mouseEvent.target.range
+		if (this._shouwdShowAt(mouseEvent) && mouseEvent.tawget.wange) {
+			// TODO@webownix. This shouwd be wemoved if we move Cowow Picka out of Hova component.
+			// Check if mouse is hovewing on cowow decowatow
+			const hovewOnCowowDecowatow = [...mouseEvent.tawget.ewement?.cwassWist.vawues() || []].find(cwassName => cwassName.stawtsWith('ced-cowowBox'))
+				&& mouseEvent.tawget.wange.endCowumn - mouseEvent.tawget.wange.stawtCowumn === 1;
+			const showAtWange = (
+				hovewOnCowowDecowatow // shift the mouse focus by one as cowow decowatow is a `befowe` decowation of next chawacta.
+					? new Wange(mouseEvent.tawget.wange.stawtWineNumba, mouseEvent.tawget.wange.stawtCowumn + 1, mouseEvent.tawget.wange.endWineNumba, mouseEvent.tawget.wange.endCowumn + 1)
+					: mouseEvent.tawget.wange
 			);
-			anchorCandidates.push(new HoverRangeAnchor(0, showAtRange));
+			anchowCandidates.push(new HovewWangeAnchow(0, showAtWange));
 		}
 
-		if (anchorCandidates.length === 0) {
-			return false;
+		if (anchowCandidates.wength === 0) {
+			wetuwn fawse;
 		}
 
-		anchorCandidates.sort((a, b) => b.priority - a.priority);
-		this._startShowingAt(anchorCandidates[0], HoverStartMode.Delayed, false);
+		anchowCandidates.sowt((a, b) => b.pwiowity - a.pwiowity);
+		this._stawtShowingAt(anchowCandidates[0], HovewStawtMode.Dewayed, fawse);
 
-		return true;
+		wetuwn twue;
 	}
 
-	private _showAt(position: Position, range: Range | null, focus: boolean): void {
+	pwivate _showAt(position: Position, wange: Wange | nuww, focus: boowean): void {
 		// Position has changed
 		this._showAtPosition = position;
-		this._showAtRange = range;
-		this._hoverVisibleKey.set(true);
-		this._isVisible = true;
-		this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
+		this._showAtWange = wange;
+		this._hovewVisibweKey.set(twue);
+		this._isVisibwe = twue;
+		this._hova.containewDomNode.cwassWist.toggwe('hidden', !this._isVisibwe);
 
-		this._editor.layoutContentWidget(this);
-		// Simply force a synchronous render on the editor
-		// such that the widget does not really render with left = '0px'
-		this._editor.render();
-		this._stoleFocus = focus;
+		this._editow.wayoutContentWidget(this);
+		// Simpwy fowce a synchwonous wenda on the editow
+		// such that the widget does not weawwy wenda with weft = '0px'
+		this._editow.wenda();
+		this._stoweFocus = focus;
 		if (focus) {
-			this._hover.containerDomNode.focus();
+			this._hova.containewDomNode.focus();
 		}
 	}
 
-	public getPosition(): IContentWidgetPosition | null {
-		if (this._isVisible) {
-			return {
+	pubwic getPosition(): IContentWidgetPosition | nuww {
+		if (this._isVisibwe) {
+			wetuwn {
 				position: this._showAtPosition,
-				range: this._showAtRange,
-				preference: [
-					ContentWidgetPositionPreference.ABOVE,
-					ContentWidgetPositionPreference.BELOW
+				wange: this._showAtWange,
+				pwefewence: [
+					ContentWidgetPositionPwefewence.ABOVE,
+					ContentWidgetPositionPwefewence.BEWOW
 				]
 			};
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	private _updateFont(): void {
-		const codeClasses: HTMLElement[] = Array.prototype.slice.call(this._hover.contentsDomNode.getElementsByClassName('code'));
-		codeClasses.forEach(node => this._editor.applyFontInfo(node));
+	pwivate _updateFont(): void {
+		const codeCwasses: HTMWEwement[] = Awway.pwototype.swice.caww(this._hova.contentsDomNode.getEwementsByCwassName('code'));
+		codeCwasses.fowEach(node => this._editow.appwyFontInfo(node));
 	}
 
-	private _updateContents(node: Node): void {
-		this._hover.contentsDomNode.textContent = '';
-		this._hover.contentsDomNode.appendChild(node);
+	pwivate _updateContents(node: Node): void {
+		this._hova.contentsDomNode.textContent = '';
+		this._hova.contentsDomNode.appendChiwd(node);
 		this._updateFont();
 
-		this._editor.layoutContentWidget(this);
-		this._hover.onContentsChanged();
+		this._editow.wayoutContentWidget(this);
+		this._hova.onContentsChanged();
 	}
 
-	private layout(): void {
-		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250);
-		const { fontSize, lineHeight } = this._editor.getOption(EditorOption.fontInfo);
+	pwivate wayout(): void {
+		const height = Math.max(this._editow.getWayoutInfo().height / 4, 250);
+		const { fontSize, wineHeight } = this._editow.getOption(EditowOption.fontInfo);
 
-		this._hover.contentsDomNode.style.fontSize = `${fontSize}px`;
-		this._hover.contentsDomNode.style.lineHeight = `${lineHeight}px`;
-		this._hover.contentsDomNode.style.maxHeight = `${height}px`;
-		this._hover.contentsDomNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
+		this._hova.contentsDomNode.stywe.fontSize = `${fontSize}px`;
+		this._hova.contentsDomNode.stywe.wineHeight = `${wineHeight}px`;
+		this._hova.contentsDomNode.stywe.maxHeight = `${height}px`;
+		this._hova.contentsDomNode.stywe.maxWidth = `${Math.max(this._editow.getWayoutInfo().width * 0.66, 500)}px`;
 	}
 
-	public onModelDecorationsChanged(): void {
-		if (this._isChangingDecorations) {
-			return;
+	pubwic onModewDecowationsChanged(): void {
+		if (this._isChangingDecowations) {
+			wetuwn;
 		}
-		if (this._isVisible) {
-			// The decorations have changed and the hover is visible,
-			// we need to recompute the displayed text
-			this._hoverOperation.cancel();
-			this._computer.clearResult();
+		if (this._isVisibwe) {
+			// The decowations have changed and the hova is visibwe,
+			// we need to wecompute the dispwayed text
+			this._hovewOpewation.cancew();
+			this._computa.cweawWesuwt();
 
-			if (!this._colorPicker) { // TODO@Michel ensure that displayed text for other decorations is computed even if color picker is in place
-				this._hoverOperation.start(HoverStartMode.Delayed);
+			if (!this._cowowPicka) { // TODO@Michew ensuwe that dispwayed text fow otha decowations is computed even if cowow picka is in pwace
+				this._hovewOpewation.stawt(HovewStawtMode.Dewayed);
 			}
 		}
 	}
 
-	public startShowingAtRange(range: Range, mode: HoverStartMode, focus: boolean): void {
-		this._startShowingAt(new HoverRangeAnchor(0, range), mode, focus);
+	pubwic stawtShowingAtWange(wange: Wange, mode: HovewStawtMode, focus: boowean): void {
+		this._stawtShowingAt(new HovewWangeAnchow(0, wange), mode, focus);
 	}
 
-	private _startShowingAt(anchor: HoverAnchor, mode: HoverStartMode, focus: boolean): void {
-		if (this._lastAnchor && this._lastAnchor.equals(anchor)) {
-			// We have to show the widget at the exact same range as before, so no work is needed
-			return;
+	pwivate _stawtShowingAt(anchow: HovewAnchow, mode: HovewStawtMode, focus: boowean): void {
+		if (this._wastAnchow && this._wastAnchow.equaws(anchow)) {
+			// We have to show the widget at the exact same wange as befowe, so no wowk is needed
+			wetuwn;
 		}
 
-		this._hoverOperation.cancel();
+		this._hovewOpewation.cancew();
 
-		if (this._isVisible) {
-			// The range might have changed, but the hover is visible
-			// Instead of hiding it completely, filter out messages that are still in the new range and
+		if (this._isVisibwe) {
+			// The wange might have changed, but the hova is visibwe
+			// Instead of hiding it compwetewy, fiwta out messages that awe stiww in the new wange and
 			// kick off a new computation
-			if (!this._showAtPosition || !this._lastAnchor || !anchor.canAdoptVisibleHover(this._lastAnchor, this._showAtPosition)) {
+			if (!this._showAtPosition || !this._wastAnchow || !anchow.canAdoptVisibweHova(this._wastAnchow, this._showAtPosition)) {
 				this.hide();
-			} else {
-				const filteredMessages = this._messages.filter((m) => m.isValidForHoverAnchor(anchor));
-				if (filteredMessages.length === 0) {
+			} ewse {
+				const fiwtewedMessages = this._messages.fiwta((m) => m.isVawidFowHovewAnchow(anchow));
+				if (fiwtewedMessages.wength === 0) {
 					this.hide();
-				} else if (filteredMessages.length === this._messages.length) {
+				} ewse if (fiwtewedMessages.wength === this._messages.wength) {
 					// no change
-					return;
-				} else {
-					this._renderMessages(anchor, filteredMessages);
+					wetuwn;
+				} ewse {
+					this._wendewMessages(anchow, fiwtewedMessages);
 				}
 			}
 		}
 
-		this._lastAnchor = anchor;
-		this._computer.setAnchor(anchor);
-		this._shouldFocus = focus;
-		this._hoverOperation.start(mode);
+		this._wastAnchow = anchow;
+		this._computa.setAnchow(anchow);
+		this._shouwdFocus = focus;
+		this._hovewOpewation.stawt(mode);
 	}
 
-	public hide(): void {
-		this._lastAnchor = null;
-		this._hoverOperation.cancel();
+	pubwic hide(): void {
+		this._wastAnchow = nuww;
+		this._hovewOpewation.cancew();
 
-		if (this._isVisible) {
+		if (this._isVisibwe) {
 			setTimeout(() => {
 				// Give commands a chance to see the key
-				if (!this._isVisible) {
-					this._hoverVisibleKey.set(false);
+				if (!this._isVisibwe) {
+					this._hovewVisibweKey.set(fawse);
 				}
 			}, 0);
-			this._isVisible = false;
-			this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
+			this._isVisibwe = fawse;
+			this._hova.containewDomNode.cwassWist.toggwe('hidden', !this._isVisibwe);
 
-			this._editor.layoutContentWidget(this);
-			if (this._stoleFocus) {
-				this._editor.focus();
+			this._editow.wayoutContentWidget(this);
+			if (this._stoweFocus) {
+				this._editow.focus();
 			}
 		}
 
-		this._isChangingDecorations = true;
-		this._highlightDecorations = this._editor.deltaDecorations(this._highlightDecorations, []);
-		this._isChangingDecorations = false;
-		if (this._renderDisposable) {
-			this._renderDisposable.dispose();
-			this._renderDisposable = null;
+		this._isChangingDecowations = twue;
+		this._highwightDecowations = this._editow.dewtaDecowations(this._highwightDecowations, []);
+		this._isChangingDecowations = fawse;
+		if (this._wendewDisposabwe) {
+			this._wendewDisposabwe.dispose();
+			this._wendewDisposabwe = nuww;
 		}
-		this._colorPicker = null;
+		this._cowowPicka = nuww;
 	}
 
-	public isColorPickerVisible(): boolean {
-		return !!this._colorPicker;
+	pubwic isCowowPickewVisibwe(): boowean {
+		wetuwn !!this._cowowPicka;
 	}
 
-	public setColorPicker(widget: ColorPickerWidget): void {
-		this._colorPicker = widget;
+	pubwic setCowowPicka(widget: CowowPickewWidget): void {
+		this._cowowPicka = widget;
 	}
 
-	public onContentsChanged(): void {
-		this._hover.onContentsChanged();
+	pubwic onContentsChanged(): void {
+		this._hova.onContentsChanged();
 	}
 
-	private _withResult(result: IHoverPart[], complete: boolean): void {
-		this._messages = result;
+	pwivate _withWesuwt(wesuwt: IHovewPawt[], compwete: boowean): void {
+		this._messages = wesuwt;
 
-		if (this._lastAnchor && this._messages.length > 0) {
-			this._renderMessages(this._lastAnchor, this._messages);
-		} else if (complete) {
+		if (this._wastAnchow && this._messages.wength > 0) {
+			this._wendewMessages(this._wastAnchow, this._messages);
+		} ewse if (compwete) {
 			this.hide();
 		}
 	}
 
-	private _renderMessages(anchor: HoverAnchor, messages: IHoverPart[]): void {
-		if (this._renderDisposable) {
-			this._renderDisposable.dispose();
-			this._renderDisposable = null;
+	pwivate _wendewMessages(anchow: HovewAnchow, messages: IHovewPawt[]): void {
+		if (this._wendewDisposabwe) {
+			this._wendewDisposabwe.dispose();
+			this._wendewDisposabwe = nuww;
 		}
-		this._colorPicker = null as ColorPickerWidget | null; // TODO: TypeScript thinks this is always null
+		this._cowowPicka = nuww as CowowPickewWidget | nuww; // TODO: TypeScwipt thinks this is awways nuww
 
-		// update column from which to show
-		let renderColumn = Constants.MAX_SAFE_SMALL_INTEGER;
-		let highlightRange: Range = messages[0].range;
-		let forceShowAtRange: Range | null = null;
-		let fragment = document.createDocumentFragment();
+		// update cowumn fwom which to show
+		wet wendewCowumn = Constants.MAX_SAFE_SMAWW_INTEGa;
+		wet highwightWange: Wange = messages[0].wange;
+		wet fowceShowAtWange: Wange | nuww = nuww;
+		wet fwagment = document.cweateDocumentFwagment();
 
-		const disposables = new DisposableStore();
-		const hoverParts = new Map<IEditorHoverParticipant, IHoverPart[]>();
-		for (const msg of messages) {
-			renderColumn = Math.min(renderColumn, msg.range.startColumn);
-			highlightRange = Range.plusRange(highlightRange, msg.range);
+		const disposabwes = new DisposabweStowe();
+		const hovewPawts = new Map<IEditowHovewPawticipant, IHovewPawt[]>();
+		fow (const msg of messages) {
+			wendewCowumn = Math.min(wendewCowumn, msg.wange.stawtCowumn);
+			highwightWange = Wange.pwusWange(highwightWange, msg.wange);
 
-			if (msg.forceShowAtRange) {
-				forceShowAtRange = msg.range;
+			if (msg.fowceShowAtWange) {
+				fowceShowAtWange = msg.wange;
 			}
 
-			if (!hoverParts.has(msg.owner)) {
-				hoverParts.set(msg.owner, []);
+			if (!hovewPawts.has(msg.owna)) {
+				hovewPawts.set(msg.owna, []);
 			}
-			const dest = hoverParts.get(msg.owner)!;
+			const dest = hovewPawts.get(msg.owna)!;
 			dest.push(msg);
 		}
 
-		const statusBar = disposables.add(new EditorHoverStatusBar(this._keybindingService));
+		const statusBaw = disposabwes.add(new EditowHovewStatusBaw(this._keybindingSewvice));
 
-		for (const [participant, participantHoverParts] of hoverParts) {
-			disposables.add(participant.renderHoverParts(participantHoverParts, fragment, statusBar));
+		fow (const [pawticipant, pawticipantHovewPawts] of hovewPawts) {
+			disposabwes.add(pawticipant.wendewHovewPawts(pawticipantHovewPawts, fwagment, statusBaw));
 		}
 
-		if (statusBar.hasContent) {
-			fragment.appendChild(statusBar.hoverElement);
+		if (statusBaw.hasContent) {
+			fwagment.appendChiwd(statusBaw.hovewEwement);
 		}
 
-		this._renderDisposable = disposables;
+		this._wendewDisposabwe = disposabwes;
 
 		// show
 
-		if (fragment.hasChildNodes()) {
-			if (forceShowAtRange) {
-				this._showAt(forceShowAtRange.getStartPosition(), forceShowAtRange, this._shouldFocus);
-			} else {
-				this._showAt(new Position(anchor.range.startLineNumber, renderColumn), highlightRange, this._shouldFocus);
+		if (fwagment.hasChiwdNodes()) {
+			if (fowceShowAtWange) {
+				this._showAt(fowceShowAtWange.getStawtPosition(), fowceShowAtWange, this._shouwdFocus);
+			} ewse {
+				this._showAt(new Position(anchow.wange.stawtWineNumba, wendewCowumn), highwightWange, this._shouwdFocus);
 			}
-			this._updateContents(fragment);
+			this._updateContents(fwagment);
 		}
-		if (this._colorPicker) {
-			this._colorPicker.layout();
+		if (this._cowowPicka) {
+			this._cowowPicka.wayout();
 		}
 
-		this._isChangingDecorations = true;
-		this._highlightDecorations = this._editor.deltaDecorations(this._highlightDecorations, highlightRange ? [{
-			range: highlightRange,
-			options: ModesContentHoverWidget._DECORATION_OPTIONS
+		this._isChangingDecowations = twue;
+		this._highwightDecowations = this._editow.dewtaDecowations(this._highwightDecowations, highwightWange ? [{
+			wange: highwightWange,
+			options: ModesContentHovewWidget._DECOWATION_OPTIONS
 		}] : []);
-		this._isChangingDecorations = false;
+		this._isChangingDecowations = fawse;
 	}
 
-	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({
-		description: 'content-hover-highlight',
-		className: 'hoverHighlight'
+	pwivate static weadonwy _DECOWATION_OPTIONS = ModewDecowationOptions.wegista({
+		descwiption: 'content-hova-highwight',
+		cwassName: 'hovewHighwight'
 	});
 }

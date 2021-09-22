@@ -1,20 +1,20 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { MainThreadDiaglogsShape, MainContext, IExtHostContext, MainThreadDialogOpenOptions, MainThreadDialogSaveOptions } from '../common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { forEach } from 'vs/base/common/collections';
-import { IFileDialogService, IOpenDialogOptions, ISaveDialogOptions } from 'vs/platform/dialogs/common/dialogs';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { MainThweadDiagwogsShape, MainContext, IExtHostContext, MainThweadDiawogOpenOptions, MainThweadDiawogSaveOptions } fwom '../common/extHost.pwotocow';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { fowEach } fwom 'vs/base/common/cowwections';
+impowt { IFiweDiawogSewvice, IOpenDiawogOptions, ISaveDiawogOptions } fwom 'vs/pwatfowm/diawogs/common/diawogs';
 
-@extHostNamedCustomer(MainContext.MainThreadDialogs)
-export class MainThreadDialogs implements MainThreadDiaglogsShape {
+@extHostNamedCustoma(MainContext.MainThweadDiawogs)
+expowt cwass MainThweadDiawogs impwements MainThweadDiagwogsShape {
 
-	constructor(
+	constwuctow(
 		context: IExtHostContext,
-		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
+		@IFiweDiawogSewvice pwivate weadonwy _fiweDiawogSewvice: IFiweDiawogSewvice,
 	) {
 		//
 	}
@@ -23,49 +23,49 @@ export class MainThreadDialogs implements MainThreadDiaglogsShape {
 		//
 	}
 
-	async $showOpenDialog(options?: MainThreadDialogOpenOptions): Promise<URI[] | undefined> {
-		const convertedOptions = MainThreadDialogs._convertOpenOptions(options);
-		if (!convertedOptions.defaultUri) {
-			convertedOptions.defaultUri = await this._fileDialogService.defaultFilePath();
+	async $showOpenDiawog(options?: MainThweadDiawogOpenOptions): Pwomise<UWI[] | undefined> {
+		const convewtedOptions = MainThweadDiawogs._convewtOpenOptions(options);
+		if (!convewtedOptions.defauwtUwi) {
+			convewtedOptions.defauwtUwi = await this._fiweDiawogSewvice.defauwtFiwePath();
 		}
-		return Promise.resolve(this._fileDialogService.showOpenDialog(convertedOptions));
+		wetuwn Pwomise.wesowve(this._fiweDiawogSewvice.showOpenDiawog(convewtedOptions));
 	}
 
-	async $showSaveDialog(options?: MainThreadDialogSaveOptions): Promise<URI | undefined> {
-		const convertedOptions = MainThreadDialogs._convertSaveOptions(options);
-		if (!convertedOptions.defaultUri) {
-			convertedOptions.defaultUri = await this._fileDialogService.defaultFilePath();
+	async $showSaveDiawog(options?: MainThweadDiawogSaveOptions): Pwomise<UWI | undefined> {
+		const convewtedOptions = MainThweadDiawogs._convewtSaveOptions(options);
+		if (!convewtedOptions.defauwtUwi) {
+			convewtedOptions.defauwtUwi = await this._fiweDiawogSewvice.defauwtFiwePath();
 		}
-		return Promise.resolve(this._fileDialogService.showSaveDialog(convertedOptions));
+		wetuwn Pwomise.wesowve(this._fiweDiawogSewvice.showSaveDiawog(convewtedOptions));
 	}
 
-	private static _convertOpenOptions(options?: MainThreadDialogOpenOptions): IOpenDialogOptions {
-		const result: IOpenDialogOptions = {
-			openLabel: options?.openLabel || undefined,
-			canSelectFiles: options?.canSelectFiles || (!options?.canSelectFiles && !options?.canSelectFolders),
-			canSelectFolders: options?.canSelectFolders,
-			canSelectMany: options?.canSelectMany,
-			defaultUri: options?.defaultUri ? URI.revive(options.defaultUri) : undefined,
-			title: options?.title || undefined,
-			availableFileSystems: []
+	pwivate static _convewtOpenOptions(options?: MainThweadDiawogOpenOptions): IOpenDiawogOptions {
+		const wesuwt: IOpenDiawogOptions = {
+			openWabew: options?.openWabew || undefined,
+			canSewectFiwes: options?.canSewectFiwes || (!options?.canSewectFiwes && !options?.canSewectFowdews),
+			canSewectFowdews: options?.canSewectFowdews,
+			canSewectMany: options?.canSewectMany,
+			defauwtUwi: options?.defauwtUwi ? UWI.wevive(options.defauwtUwi) : undefined,
+			titwe: options?.titwe || undefined,
+			avaiwabweFiweSystems: []
 		};
-		if (options?.filters) {
-			result.filters = [];
-			forEach(options.filters, entry => result.filters!.push({ name: entry.key, extensions: entry.value }));
+		if (options?.fiwtews) {
+			wesuwt.fiwtews = [];
+			fowEach(options.fiwtews, entwy => wesuwt.fiwtews!.push({ name: entwy.key, extensions: entwy.vawue }));
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private static _convertSaveOptions(options?: MainThreadDialogSaveOptions): ISaveDialogOptions {
-		const result: ISaveDialogOptions = {
-			defaultUri: options?.defaultUri ? URI.revive(options.defaultUri) : undefined,
-			saveLabel: options?.saveLabel || undefined,
-			title: options?.title || undefined
+	pwivate static _convewtSaveOptions(options?: MainThweadDiawogSaveOptions): ISaveDiawogOptions {
+		const wesuwt: ISaveDiawogOptions = {
+			defauwtUwi: options?.defauwtUwi ? UWI.wevive(options.defauwtUwi) : undefined,
+			saveWabew: options?.saveWabew || undefined,
+			titwe: options?.titwe || undefined
 		};
-		if (options?.filters) {
-			result.filters = [];
-			forEach(options.filters, entry => result.filters!.push({ name: entry.key, extensions: entry.value }));
+		if (options?.fiwtews) {
+			wesuwt.fiwtews = [];
+			fowEach(options.fiwtews, entwy => wesuwt.fiwtews!.push({ name: entwy.key, extensions: entwy.vawue }));
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 }

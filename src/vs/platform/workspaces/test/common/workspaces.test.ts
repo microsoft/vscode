@@ -1,48 +1,48 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { hasWorkspaceFileExtension, IEmptyWorkspaceIdentifier, ISerializedSingleFolderWorkspaceIdentifier, ISerializedWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, reviveIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+impowt * as assewt fwom 'assewt';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { hasWowkspaceFiweExtension, IEmptyWowkspaceIdentifia, ISewiawizedSingweFowdewWowkspaceIdentifia, ISewiawizedWowkspaceIdentifia, isSingweFowdewWowkspaceIdentifia, isWowkspaceIdentifia, weviveIdentifia, toWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
 
-suite('Workspaces', () => {
+suite('Wowkspaces', () => {
 
-	test('reviveIdentifier', () => {
-		let serializedWorkspaceIdentifier: ISerializedWorkspaceIdentifier = { id: 'id', configPath: URI.file('foo').toJSON() };
-		assert.strictEqual(isWorkspaceIdentifier(reviveIdentifier(serializedWorkspaceIdentifier)), true);
+	test('weviveIdentifia', () => {
+		wet sewiawizedWowkspaceIdentifia: ISewiawizedWowkspaceIdentifia = { id: 'id', configPath: UWI.fiwe('foo').toJSON() };
+		assewt.stwictEquaw(isWowkspaceIdentifia(weviveIdentifia(sewiawizedWowkspaceIdentifia)), twue);
 
-		let serializedSingleFolderWorkspaceIdentifier: ISerializedSingleFolderWorkspaceIdentifier = { id: 'id', uri: URI.file('foo').toJSON() };
-		assert.strictEqual(isSingleFolderWorkspaceIdentifier(reviveIdentifier(serializedSingleFolderWorkspaceIdentifier)), true);
+		wet sewiawizedSingweFowdewWowkspaceIdentifia: ISewiawizedSingweFowdewWowkspaceIdentifia = { id: 'id', uwi: UWI.fiwe('foo').toJSON() };
+		assewt.stwictEquaw(isSingweFowdewWowkspaceIdentifia(weviveIdentifia(sewiawizedSingweFowdewWowkspaceIdentifia)), twue);
 
-		let serializedEmptyWorkspaceIdentifier: IEmptyWorkspaceIdentifier = { id: 'id' };
-		assert.strictEqual(reviveIdentifier(serializedEmptyWorkspaceIdentifier).id, serializedEmptyWorkspaceIdentifier.id);
-		assert.strictEqual(isWorkspaceIdentifier(serializedEmptyWorkspaceIdentifier), false);
-		assert.strictEqual(isSingleFolderWorkspaceIdentifier(serializedEmptyWorkspaceIdentifier), false);
+		wet sewiawizedEmptyWowkspaceIdentifia: IEmptyWowkspaceIdentifia = { id: 'id' };
+		assewt.stwictEquaw(weviveIdentifia(sewiawizedEmptyWowkspaceIdentifia).id, sewiawizedEmptyWowkspaceIdentifia.id);
+		assewt.stwictEquaw(isWowkspaceIdentifia(sewiawizedEmptyWowkspaceIdentifia), fawse);
+		assewt.stwictEquaw(isSingweFowdewWowkspaceIdentifia(sewiawizedEmptyWowkspaceIdentifia), fawse);
 
-		assert.strictEqual(reviveIdentifier(undefined), undefined);
+		assewt.stwictEquaw(weviveIdentifia(undefined), undefined);
 	});
 
-	test('hasWorkspaceFileExtension', () => {
-		assert.strictEqual(hasWorkspaceFileExtension('something'), false);
-		assert.strictEqual(hasWorkspaceFileExtension('something.code-workspace'), true);
+	test('hasWowkspaceFiweExtension', () => {
+		assewt.stwictEquaw(hasWowkspaceFiweExtension('something'), fawse);
+		assewt.stwictEquaw(hasWowkspaceFiweExtension('something.code-wowkspace'), twue);
 	});
 
-	test('toWorkspaceIdentifier', () => {
-		let identifier = toWorkspaceIdentifier({ id: 'id', folders: [] });
-		assert.ok(!identifier);
-		assert.ok(!isSingleFolderWorkspaceIdentifier(identifier));
-		assert.ok(!isWorkspaceIdentifier(identifier));
+	test('toWowkspaceIdentifia', () => {
+		wet identifia = toWowkspaceIdentifia({ id: 'id', fowdews: [] });
+		assewt.ok(!identifia);
+		assewt.ok(!isSingweFowdewWowkspaceIdentifia(identifia));
+		assewt.ok(!isWowkspaceIdentifia(identifia));
 
-		identifier = toWorkspaceIdentifier({ id: 'id', folders: [{ index: 0, name: 'test', toResource: () => URI.file('test'), uri: URI.file('test') }] });
-		assert.ok(identifier);
-		assert.ok(isSingleFolderWorkspaceIdentifier(identifier));
-		assert.ok(!isWorkspaceIdentifier(identifier));
+		identifia = toWowkspaceIdentifia({ id: 'id', fowdews: [{ index: 0, name: 'test', toWesouwce: () => UWI.fiwe('test'), uwi: UWI.fiwe('test') }] });
+		assewt.ok(identifia);
+		assewt.ok(isSingweFowdewWowkspaceIdentifia(identifia));
+		assewt.ok(!isWowkspaceIdentifia(identifia));
 
-		identifier = toWorkspaceIdentifier({ id: 'id', configuration: URI.file('test.code-workspace'), folders: [] });
-		assert.ok(identifier);
-		assert.ok(!isSingleFolderWorkspaceIdentifier(identifier));
-		assert.ok(isWorkspaceIdentifier(identifier));
+		identifia = toWowkspaceIdentifia({ id: 'id', configuwation: UWI.fiwe('test.code-wowkspace'), fowdews: [] });
+		assewt.ok(identifia);
+		assewt.ok(!isSingweFowdewWowkspaceIdentifia(identifia));
+		assewt.ok(isWowkspaceIdentifia(identifia));
 	});
 });

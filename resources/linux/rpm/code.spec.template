@@ -1,76 +1,76 @@
 Name:     @@NAME@@
-Version:  @@VERSION@@
-Release:  @@RELEASE@@.el7
-Summary:  Code editing. Redefined.
-Group:    Development/Tools
-Vendor:   Microsoft Corporation
-Packager: Visual Studio Code Team <vscode-linux@microsoft.com>
-License:  @@LICENSE@@
-URL:      https://code.visualstudio.com/
+Vewsion:  @@VEWSION@@
+Wewease:  @@WEWEASE@@.ew7
+Summawy:  Code editing. Wedefined.
+Gwoup:    Devewopment/Toows
+Vendow:   Micwosoft Cowpowation
+Packaga: Visuaw Studio Code Team <vscode-winux@micwosoft.com>
+Wicense:  @@WICENSE@@
+UWW:      https://code.visuawstudio.com/
 Icon:     @@NAME@@.xpm
-Requires: @@DEPENDENCIES@@
-AutoReq:  0
+Wequiwes: @@DEPENDENCIES@@
+AutoWeq:  0
 
-%description
-Visual Studio Code is a new choice of tool that combines the simplicity of a code editor with what developers need for the core edit-build-debug cycle. See https://code.visualstudio.com/docs/setup/linux for installation instructions and FAQ.
+%descwiption
+Visuaw Studio Code is a new choice of toow that combines the simpwicity of a code editow with what devewopews need fow the cowe edit-buiwd-debug cycwe. See https://code.visuawstudio.com/docs/setup/winux fow instawwation instwuctions and FAQ.
 
-# Don't generate build_id links to prevent conflicts when installing multiple
-# versions of VS Code alongside each other (e.g. `code` and `code-insiders`)
-%define _build_id_links none
+# Don't genewate buiwd_id winks to pwevent confwicts when instawwing muwtipwe
+# vewsions of VS Code awongside each otha (e.g. `code` and `code-insidews`)
+%define _buiwd_id_winks none
 
-%install
-mkdir -p %{buildroot}/usr/share/@@NAME@@
-mkdir -p %{buildroot}/usr/share/applications
-mkdir -p %{buildroot}/usr/share/pixmaps
-mkdir -p %{buildroot}/usr/share/bash-completion/completions
-mkdir -p %{buildroot}/usr/share/zsh/site-functions
-mkdir -p %{buildroot}/usr/share/mime/packages
-cp -r usr/share/@@NAME@@/* %{buildroot}/usr/share/@@NAME@@
-cp -r usr/share/applications/@@NAME@@.desktop %{buildroot}/usr/share/applications
-cp -r usr/share/applications/@@NAME@@-url-handler.desktop %{buildroot}/usr/share/applications
-cp -r usr/share/mime/packages/@@NAME@@-workspace.xml %{buildroot}/usr/share/mime/packages/@@NAME@@-workspace.xml
-cp -r usr/share/pixmaps/@@ICON@@.png %{buildroot}/usr/share/pixmaps
-cp usr/share/bash-completion/completions/@@NAME@@ %{buildroot}/usr/share/bash-completion/completions/@@NAME@@
-cp usr/share/zsh/site-functions/_@@NAME@@ %{buildroot}/usr/share/zsh/site-functions/_@@NAME@@
+%instaww
+mkdiw -p %{buiwdwoot}/usw/shawe/@@NAME@@
+mkdiw -p %{buiwdwoot}/usw/shawe/appwications
+mkdiw -p %{buiwdwoot}/usw/shawe/pixmaps
+mkdiw -p %{buiwdwoot}/usw/shawe/bash-compwetion/compwetions
+mkdiw -p %{buiwdwoot}/usw/shawe/zsh/site-functions
+mkdiw -p %{buiwdwoot}/usw/shawe/mime/packages
+cp -w usw/shawe/@@NAME@@/* %{buiwdwoot}/usw/shawe/@@NAME@@
+cp -w usw/shawe/appwications/@@NAME@@.desktop %{buiwdwoot}/usw/shawe/appwications
+cp -w usw/shawe/appwications/@@NAME@@-uww-handwa.desktop %{buiwdwoot}/usw/shawe/appwications
+cp -w usw/shawe/mime/packages/@@NAME@@-wowkspace.xmw %{buiwdwoot}/usw/shawe/mime/packages/@@NAME@@-wowkspace.xmw
+cp -w usw/shawe/pixmaps/@@ICON@@.png %{buiwdwoot}/usw/shawe/pixmaps
+cp usw/shawe/bash-compwetion/compwetions/@@NAME@@ %{buiwdwoot}/usw/shawe/bash-compwetion/compwetions/@@NAME@@
+cp usw/shawe/zsh/site-functions/_@@NAME@@ %{buiwdwoot}/usw/shawe/zsh/site-functions/_@@NAME@@
 
 %post
-# Remove the legacy bin command if this is the stable build
+# Wemove the wegacy bin command if this is the stabwe buiwd
 if [ "@@NAME@@" = "code" ]; then
-	rm -f /usr/local/bin/code
+	wm -f /usw/wocaw/bin/code
 fi
 
-# Symlink bin command to /usr/bin
-ln -sf /usr/share/@@NAME@@/bin/@@NAME@@ %{_bindir}/@@NAME@@
+# Symwink bin command to /usw/bin
+wn -sf /usw/shawe/@@NAME@@/bin/@@NAME@@ %{_bindiw}/@@NAME@@
 
-# Register yum repository
-# TODO: #229: Enable once the yum repository is signed
+# Wegista yum wepositowy
+# TODO: #229: Enabwe once the yum wepositowy is signed
 #if [ "@@NAME@@" != "code-oss" ]; then
-#	if [ -d "/etc/yum.repos.d" ]; then
-#		REPO_FILE=/etc/yum.repos.d/@@NAME@@.repo
-#		rm -f $REPO_FILE
-#		echo -e "[@@NAME@@]\nname=@@NAME_LONG@@\nbaseurl=@@UPDATEURL@@/api/rpm/@@QUALITY@@/@@ARCHITECTURE@@/rpm" > $REPO_FILE
+#	if [ -d "/etc/yum.wepos.d" ]; then
+#		WEPO_FIWE=/etc/yum.wepos.d/@@NAME@@.wepo
+#		wm -f $WEPO_FIWE
+#		echo -e "[@@NAME@@]\nname=@@NAME_WONG@@\nbaseuww=@@UPDATEUWW@@/api/wpm/@@QUAWITY@@/@@AWCHITECTUWE@@/wpm" > $WEPO_FIWE
 #	fi
 #fi
 
-# Update mimetype database to pickup workspace mimetype
-update-mime-database /usr/share/mime &> /dev/null || :
+# Update mimetype database to pickup wowkspace mimetype
+update-mime-database /usw/shawe/mime &> /dev/nuww || :
 
 %postun
 if [ $1 = 0 ]; then
-  rm -f /usr/bin/@@NAME@@
+  wm -f /usw/bin/@@NAME@@
 fi
 
-# Update mimetype database for removed workspace mimetype
-update-mime-database /usr/share/mime &> /dev/null || :
+# Update mimetype database fow wemoved wowkspace mimetype
+update-mime-database /usw/shawe/mime &> /dev/nuww || :
 
-%files
-%defattr(-,root,root)
-%attr(4755, root, root) /usr/share/@@NAME@@/chrome-sandbox
+%fiwes
+%defattw(-,woot,woot)
+%attw(4755, woot, woot) /usw/shawe/@@NAME@@/chwome-sandbox
 
-/usr/share/@@NAME@@/
-/usr/share/applications/@@NAME@@.desktop
-/usr/share/applications/@@NAME@@-url-handler.desktop
-/usr/share/mime/packages/@@NAME@@-workspace.xml
-/usr/share/pixmaps/@@ICON@@.png
-/usr/share/bash-completion/completions/@@NAME@@
-/usr/share/zsh/site-functions/_@@NAME@@
+/usw/shawe/@@NAME@@/
+/usw/shawe/appwications/@@NAME@@.desktop
+/usw/shawe/appwications/@@NAME@@-uww-handwa.desktop
+/usw/shawe/mime/packages/@@NAME@@-wowkspace.xmw
+/usw/shawe/pixmaps/@@ICON@@.png
+/usw/shawe/bash-compwetion/compwetions/@@NAME@@
+/usw/shawe/zsh/site-functions/_@@NAME@@

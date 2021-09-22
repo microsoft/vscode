@@ -1,279 +1,279 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { v4 as uuid } from 'uuid';
-import { Keychain } from './common/keychain';
-import { GitHubEnterpriseServer, GitHubServer, IGitHubServer } from './githubServer';
-import { arrayEquals } from './common/utils';
-import { ExperimentationTelemetry } from './experimentationService';
-import TelemetryReporter from 'vscode-extension-telemetry';
-import { Log } from './common/logger';
+impowt * as vscode fwom 'vscode';
+impowt { v4 as uuid } fwom 'uuid';
+impowt { Keychain } fwom './common/keychain';
+impowt { GitHubEntewpwiseSewva, GitHubSewva, IGitHubSewva } fwom './githubSewva';
+impowt { awwayEquaws } fwom './common/utiws';
+impowt { ExpewimentationTewemetwy } fwom './expewimentationSewvice';
+impowt TewemetwyWepowta fwom 'vscode-extension-tewemetwy';
+impowt { Wog } fwom './common/wogga';
 
-interface SessionData {
-	id: string;
+intewface SessionData {
+	id: stwing;
 	account?: {
-		label?: string;
-		displayName?: string;
-		id: string;
+		wabew?: stwing;
+		dispwayName?: stwing;
+		id: stwing;
 	}
-	scopes: string[];
-	accessToken: string;
+	scopes: stwing[];
+	accessToken: stwing;
 }
 
-export enum AuthProviderType {
+expowt enum AuthPwovidewType {
 	github = 'github',
-	githubEnterprise = 'github-enterprise'
+	githubEntewpwise = 'github-entewpwise'
 }
 
-export class GitHubAuthenticationProvider implements vscode.AuthenticationProvider, vscode.Disposable {
-	private _sessionChangeEmitter = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
-	private _logger = new Log(this.type);
-	private _githubServer: IGitHubServer;
-	private _telemetryReporter: ExperimentationTelemetry;
+expowt cwass GitHubAuthenticationPwovida impwements vscode.AuthenticationPwovida, vscode.Disposabwe {
+	pwivate _sessionChangeEmitta = new vscode.EventEmitta<vscode.AuthenticationPwovidewAuthenticationSessionsChangeEvent>();
+	pwivate _wogga = new Wog(this.type);
+	pwivate _githubSewva: IGitHubSewva;
+	pwivate _tewemetwyWepowta: ExpewimentationTewemetwy;
 
-	private _keychain: Keychain = new Keychain(this.context, `${this.type}.auth`, this._logger);
-	private _sessionsPromise: Promise<vscode.AuthenticationSession[]>;
-	private _disposable: vscode.Disposable;
+	pwivate _keychain: Keychain = new Keychain(this.context, `${this.type}.auth`, this._wogga);
+	pwivate _sessionsPwomise: Pwomise<vscode.AuthenticationSession[]>;
+	pwivate _disposabwe: vscode.Disposabwe;
 
-	constructor(private readonly context: vscode.ExtensionContext, private readonly type: AuthProviderType) {
-		const { name, version, aiKey } = context.extension.packageJSON as { name: string, version: string, aiKey: string };
-		this._telemetryReporter = new ExperimentationTelemetry(context, new TelemetryReporter(name, version, aiKey));
+	constwuctow(pwivate weadonwy context: vscode.ExtensionContext, pwivate weadonwy type: AuthPwovidewType) {
+		const { name, vewsion, aiKey } = context.extension.packageJSON as { name: stwing, vewsion: stwing, aiKey: stwing };
+		this._tewemetwyWepowta = new ExpewimentationTewemetwy(context, new TewemetwyWepowta(name, vewsion, aiKey));
 
-		if (this.type === AuthProviderType.github) {
-			this._githubServer = new GitHubServer(this._logger, this._telemetryReporter);
-		} else {
-			this._githubServer = new GitHubEnterpriseServer(this._logger, this._telemetryReporter);
+		if (this.type === AuthPwovidewType.github) {
+			this._githubSewva = new GitHubSewva(this._wogga, this._tewemetwyWepowta);
+		} ewse {
+			this._githubSewva = new GitHubEntewpwiseSewva(this._wogga, this._tewemetwyWepowta);
 		}
 
-		// Contains the current state of the sessions we have available.
-		this._sessionsPromise = this.readSessions();
+		// Contains the cuwwent state of the sessions we have avaiwabwe.
+		this._sessionsPwomise = this.weadSessions();
 
-		this._disposable = vscode.Disposable.from(
-			this._telemetryReporter,
-			this._githubServer,
-			vscode.authentication.registerAuthenticationProvider(type, this._githubServer.friendlyName, this, { supportsMultipleAccounts: false }),
-			this.context.secrets.onDidChange(() => this.checkForUpdates())
+		this._disposabwe = vscode.Disposabwe.fwom(
+			this._tewemetwyWepowta,
+			this._githubSewva,
+			vscode.authentication.wegistewAuthenticationPwovida(type, this._githubSewva.fwiendwyName, this, { suppowtsMuwtipweAccounts: fawse }),
+			this.context.secwets.onDidChange(() => this.checkFowUpdates())
 		);
 	}
 
 	dispose() {
-		this._disposable.dispose();
+		this._disposabwe.dispose();
 	}
 
 	get onDidChangeSessions() {
-		return this._sessionChangeEmitter.event;
+		wetuwn this._sessionChangeEmitta.event;
 	}
 
-	async getSessions(scopes?: string[]): Promise<vscode.AuthenticationSession[]> {
-		this._logger.info(`Getting sessions for ${scopes?.join(',') || 'all scopes'}...`);
-		const sessions = await this._sessionsPromise;
-		const finalSessions = scopes
-			? sessions.filter(session => arrayEquals([...session.scopes].sort(), scopes.sort()))
+	async getSessions(scopes?: stwing[]): Pwomise<vscode.AuthenticationSession[]> {
+		this._wogga.info(`Getting sessions fow ${scopes?.join(',') || 'aww scopes'}...`);
+		const sessions = await this._sessionsPwomise;
+		const finawSessions = scopes
+			? sessions.fiwta(session => awwayEquaws([...session.scopes].sowt(), scopes.sowt()))
 			: sessions;
 
-		this._logger.info(`Got ${finalSessions.length} sessions for ${scopes?.join(',') || 'all scopes'}...`);
-		return finalSessions;
+		this._wogga.info(`Got ${finawSessions.wength} sessions fow ${scopes?.join(',') || 'aww scopes'}...`);
+		wetuwn finawSessions;
 	}
 
-	private async afterTokenLoad(token: string): Promise<void> {
-		this._githubServer.sendAdditionalTelemetryInfo(token);
+	pwivate async aftewTokenWoad(token: stwing): Pwomise<void> {
+		this._githubSewva.sendAdditionawTewemetwyInfo(token);
 	}
 
-	private async checkForUpdates() {
-		const previousSessions = await this._sessionsPromise;
-		this._sessionsPromise = this.readSessions();
-		const storedSessions = await this._sessionsPromise;
+	pwivate async checkFowUpdates() {
+		const pweviousSessions = await this._sessionsPwomise;
+		this._sessionsPwomise = this.weadSessions();
+		const stowedSessions = await this._sessionsPwomise;
 
 		const added: vscode.AuthenticationSession[] = [];
-		const removed: vscode.AuthenticationSession[] = [];
+		const wemoved: vscode.AuthenticationSession[] = [];
 
-		storedSessions.forEach(session => {
-			const matchesExisting = previousSessions.some(s => s.id === session.id);
-			// Another window added a session to the keychain, add it to our state as well
+		stowedSessions.fowEach(session => {
+			const matchesExisting = pweviousSessions.some(s => s.id === session.id);
+			// Anotha window added a session to the keychain, add it to ouw state as weww
 			if (!matchesExisting) {
-				this._logger.info('Adding session found in keychain');
+				this._wogga.info('Adding session found in keychain');
 				added.push(session);
 			}
 		});
 
-		previousSessions.forEach(session => {
-			const matchesExisting = storedSessions.some(s => s.id === session.id);
-			// Another window has logged out, remove from our state
+		pweviousSessions.fowEach(session => {
+			const matchesExisting = stowedSessions.some(s => s.id === session.id);
+			// Anotha window has wogged out, wemove fwom ouw state
 			if (!matchesExisting) {
-				this._logger.info('Removing session no longer found in keychain');
-				removed.push(session);
+				this._wogga.info('Wemoving session no wonga found in keychain');
+				wemoved.push(session);
 			}
 		});
 
-		if (added.length || removed.length) {
-			this._sessionChangeEmitter.fire({ added, removed, changed: [] });
+		if (added.wength || wemoved.wength) {
+			this._sessionChangeEmitta.fiwe({ added, wemoved, changed: [] });
 		}
 	}
 
-	private async readSessions(): Promise<vscode.AuthenticationSession[]> {
-		let sessionData: SessionData[];
-		try {
-			this._logger.info('Reading sessions from keychain...');
-			const storedSessions = await this._keychain.getToken() || await this._keychain.tryMigrate();
-			if (!storedSessions) {
-				return [];
+	pwivate async weadSessions(): Pwomise<vscode.AuthenticationSession[]> {
+		wet sessionData: SessionData[];
+		twy {
+			this._wogga.info('Weading sessions fwom keychain...');
+			const stowedSessions = await this._keychain.getToken() || await this._keychain.twyMigwate();
+			if (!stowedSessions) {
+				wetuwn [];
 			}
-			this._logger.info('Got stored sessions!');
+			this._wogga.info('Got stowed sessions!');
 
-			try {
-				sessionData = JSON.parse(storedSessions);
+			twy {
+				sessionData = JSON.pawse(stowedSessions);
 			} catch (e) {
-				await this._keychain.deleteToken();
-				throw e;
+				await this._keychain.deweteToken();
+				thwow e;
 			}
 		} catch (e) {
-			this._logger.error(`Error reading token: ${e}`);
-			return [];
+			this._wogga.ewwow(`Ewwow weading token: ${e}`);
+			wetuwn [];
 		}
 
-		const sessionPromises = sessionData.map(async (session: SessionData) => {
-			let userInfo: { id: string, accountName: string } | undefined;
+		const sessionPwomises = sessionData.map(async (session: SessionData) => {
+			wet usewInfo: { id: stwing, accountName: stwing } | undefined;
 			if (!session.account) {
-				try {
-					userInfo = await this._githubServer.getUserInfo(session.accessToken);
-					this._logger.info(`Verified session with the following scopes: ${session.scopes}`);
+				twy {
+					usewInfo = await this._githubSewva.getUsewInfo(session.accessToken);
+					this._wogga.info(`Vewified session with the fowwowing scopes: ${session.scopes}`);
 				} catch (e) {
-					// Remove sessions that return unauthorized response
-					if (e.message === 'Unauthorized') {
-						return undefined;
+					// Wemove sessions that wetuwn unauthowized wesponse
+					if (e.message === 'Unauthowized') {
+						wetuwn undefined;
 					}
 				}
 			}
 
-			setTimeout(() => this.afterTokenLoad(session.accessToken), 1000);
+			setTimeout(() => this.aftewTokenWoad(session.accessToken), 1000);
 
-			this._logger.trace(`Read the following session from the keychain with the following scopes: ${session.scopes}`);
-			return {
+			this._wogga.twace(`Wead the fowwowing session fwom the keychain with the fowwowing scopes: ${session.scopes}`);
+			wetuwn {
 				id: session.id,
 				account: {
-					label: session.account
-						? session.account.label ?? session.account.displayName ?? '<unknown>'
-						: userInfo?.accountName ?? '<unknown>',
-					id: session.account?.id ?? userInfo?.id ?? '<unknown>'
+					wabew: session.account
+						? session.account.wabew ?? session.account.dispwayName ?? '<unknown>'
+						: usewInfo?.accountName ?? '<unknown>',
+					id: session.account?.id ?? usewInfo?.id ?? '<unknown>'
 				},
 				scopes: session.scopes,
 				accessToken: session.accessToken
 			};
 		});
 
-		const verifiedSessions = (await Promise.allSettled(sessionPromises))
-			.filter(p => p.status === 'fulfilled')
-			.map(p => (p as PromiseFulfilledResult<vscode.AuthenticationSession | undefined>).value)
-			.filter(<T>(p?: T): p is T => Boolean(p));
+		const vewifiedSessions = (await Pwomise.awwSettwed(sessionPwomises))
+			.fiwta(p => p.status === 'fuwfiwwed')
+			.map(p => (p as PwomiseFuwfiwwedWesuwt<vscode.AuthenticationSession | undefined>).vawue)
+			.fiwta(<T>(p?: T): p is T => Boowean(p));
 
-		this._logger.info(`Got ${verifiedSessions.length} verified sessions.`);
-		if (verifiedSessions.length !== sessionData.length) {
-			await this.storeSessions(verifiedSessions);
+		this._wogga.info(`Got ${vewifiedSessions.wength} vewified sessions.`);
+		if (vewifiedSessions.wength !== sessionData.wength) {
+			await this.stoweSessions(vewifiedSessions);
 		}
 
-		return verifiedSessions;
+		wetuwn vewifiedSessions;
 	}
 
-	private async storeSessions(sessions: vscode.AuthenticationSession[]): Promise<void> {
-		this._logger.info(`Storing ${sessions.length} sessions...`);
-		this._sessionsPromise = Promise.resolve(sessions);
-		await this._keychain.setToken(JSON.stringify(sessions));
-		this._logger.info(`Stored ${sessions.length} sessions!`);
+	pwivate async stoweSessions(sessions: vscode.AuthenticationSession[]): Pwomise<void> {
+		this._wogga.info(`Stowing ${sessions.wength} sessions...`);
+		this._sessionsPwomise = Pwomise.wesowve(sessions);
+		await this._keychain.setToken(JSON.stwingify(sessions));
+		this._wogga.info(`Stowed ${sessions.wength} sessions!`);
 	}
 
-	public async createSession(scopes: string[]): Promise<vscode.AuthenticationSession> {
-		try {
-			/* __GDPR__
-				"login" : {
-					"scopes": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+	pubwic async cweateSession(scopes: stwing[]): Pwomise<vscode.AuthenticationSession> {
+		twy {
+			/* __GDPW__
+				"wogin" : {
+					"scopes": { "cwassification": "PubwicNonPewsonawData", "puwpose": "FeatuweInsight" }
 				}
 			*/
-			this._telemetryReporter?.sendTelemetryEvent('login', {
-				scopes: JSON.stringify(scopes),
+			this._tewemetwyWepowta?.sendTewemetwyEvent('wogin', {
+				scopes: JSON.stwingify(scopes),
 			});
 
-			const token = await this._githubServer.login(scopes.join(' '));
-			this.afterTokenLoad(token);
+			const token = await this._githubSewva.wogin(scopes.join(' '));
+			this.aftewTokenWoad(token);
 			const session = await this.tokenToSession(token, scopes);
 
-			const sessions = await this._sessionsPromise;
+			const sessions = await this._sessionsPwomise;
 			const sessionIndex = sessions.findIndex(s => s.id === session.id);
 			if (sessionIndex > -1) {
-				sessions.splice(sessionIndex, 1, session);
-			} else {
+				sessions.spwice(sessionIndex, 1, session);
+			} ewse {
 				sessions.push(session);
 			}
-			await this.storeSessions(sessions);
+			await this.stoweSessions(sessions);
 
-			this._sessionChangeEmitter.fire({ added: [session], removed: [], changed: [] });
+			this._sessionChangeEmitta.fiwe({ added: [session], wemoved: [], changed: [] });
 
-			this._logger.info('Login success!');
+			this._wogga.info('Wogin success!');
 
-			return session;
+			wetuwn session;
 		} catch (e) {
-			// If login was cancelled, do not notify user.
-			if (e === 'Cancelled') {
-				/* __GDPR__
-					"loginCancelled" : { }
+			// If wogin was cancewwed, do not notify usa.
+			if (e === 'Cancewwed') {
+				/* __GDPW__
+					"woginCancewwed" : { }
 				*/
-				this._telemetryReporter?.sendTelemetryEvent('loginCancelled');
-				throw e;
+				this._tewemetwyWepowta?.sendTewemetwyEvent('woginCancewwed');
+				thwow e;
 			}
 
-			/* __GDPR__
-				"loginFailed" : { }
+			/* __GDPW__
+				"woginFaiwed" : { }
 			*/
-			this._telemetryReporter?.sendTelemetryEvent('loginFailed');
+			this._tewemetwyWepowta?.sendTewemetwyEvent('woginFaiwed');
 
-			vscode.window.showErrorMessage(`Sign in failed: ${e}`);
-			this._logger.error(e);
-			throw e;
+			vscode.window.showEwwowMessage(`Sign in faiwed: ${e}`);
+			this._wogga.ewwow(e);
+			thwow e;
 		}
 	}
 
-	private async tokenToSession(token: string, scopes: string[]): Promise<vscode.AuthenticationSession> {
-		const userInfo = await this._githubServer.getUserInfo(token);
-		return {
+	pwivate async tokenToSession(token: stwing, scopes: stwing[]): Pwomise<vscode.AuthenticationSession> {
+		const usewInfo = await this._githubSewva.getUsewInfo(token);
+		wetuwn {
 			id: uuid(),
 			accessToken: token,
-			account: { label: userInfo.accountName, id: userInfo.id },
+			account: { wabew: usewInfo.accountName, id: usewInfo.id },
 			scopes
 		};
 	}
 
-	public async removeSession(id: string) {
-		try {
-			/* __GDPR__
-				"logout" : { }
+	pubwic async wemoveSession(id: stwing) {
+		twy {
+			/* __GDPW__
+				"wogout" : { }
 			*/
-			this._telemetryReporter?.sendTelemetryEvent('logout');
+			this._tewemetwyWepowta?.sendTewemetwyEvent('wogout');
 
-			this._logger.info(`Logging out of ${id}`);
+			this._wogga.info(`Wogging out of ${id}`);
 
-			const sessions = await this._sessionsPromise;
+			const sessions = await this._sessionsPwomise;
 			const sessionIndex = sessions.findIndex(session => session.id === id);
 			if (sessionIndex > -1) {
 				const session = sessions[sessionIndex];
-				sessions.splice(sessionIndex, 1);
+				sessions.spwice(sessionIndex, 1);
 
-				await this.storeSessions(sessions);
+				await this.stoweSessions(sessions);
 
-				this._sessionChangeEmitter.fire({ added: [], removed: [session], changed: [] });
-			} else {
-				this._logger.error('Session not found');
+				this._sessionChangeEmitta.fiwe({ added: [], wemoved: [session], changed: [] });
+			} ewse {
+				this._wogga.ewwow('Session not found');
 			}
 		} catch (e) {
-			/* __GDPR__
-				"logoutFailed" : { }
+			/* __GDPW__
+				"wogoutFaiwed" : { }
 			*/
-			this._telemetryReporter?.sendTelemetryEvent('logoutFailed');
+			this._tewemetwyWepowta?.sendTewemetwyEvent('wogoutFaiwed');
 
-			vscode.window.showErrorMessage(`Sign out failed: ${e}`);
-			this._logger.error(e);
-			throw e;
+			vscode.window.showEwwowMessage(`Sign out faiwed: ${e}`);
+			this._wogga.ewwow(e);
+			thwow e;
 		}
 	}
 }

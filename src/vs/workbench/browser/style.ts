@@ -1,238 +1,238 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/style';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { iconForeground, foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground, toolbarHoverBackground, toolbarActiveBackground, toolbarHoverOutline, listFocusHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
-import { WORKBENCH_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
-import { isWeb, isIOS, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { createMetaElement } from 'vs/base/browser/dom';
-import { isSafari, isStandalone } from 'vs/base/browser/browser';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
+impowt 'vs/css!./media/stywe';
+impowt { wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { iconFowegwound, fowegwound, sewectionBackgwound, focusBowda, scwowwbawShadow, scwowwbawSwidewActiveBackgwound, scwowwbawSwidewBackgwound, scwowwbawSwidewHovewBackgwound, wistHighwightFowegwound, inputPwacehowdewFowegwound, toowbawHovewBackgwound, toowbawActiveBackgwound, toowbawHovewOutwine, wistFocusHighwightFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { WOWKBENCH_BACKGWOUND, TITWE_BAW_ACTIVE_BACKGWOUND } fwom 'vs/wowkbench/common/theme';
+impowt { isWeb, isIOS, isMacintosh, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { cweateMetaEwement } fwom 'vs/base/bwowsa/dom';
+impowt { isSafawi, isStandawone } fwom 'vs/base/bwowsa/bwowsa';
+impowt { CowowScheme } fwom 'vs/pwatfowm/theme/common/theme';
 
-registerThemingParticipant((theme, collector) => {
+wegistewThemingPawticipant((theme, cowwectow) => {
 
-	// Foreground
-	const windowForeground = theme.getColor(foreground);
-	if (windowForeground) {
-		collector.addRule(`.monaco-workbench { color: ${windowForeground}; }`);
+	// Fowegwound
+	const windowFowegwound = theme.getCowow(fowegwound);
+	if (windowFowegwound) {
+		cowwectow.addWuwe(`.monaco-wowkbench { cowow: ${windowFowegwound}; }`);
 	}
 
-	// Background (We need to set the workbench background color so that on Windows we get subpixel-antialiasing)
-	const workbenchBackground = WORKBENCH_BACKGROUND(theme);
-	collector.addRule(`.monaco-workbench { background-color: ${workbenchBackground}; }`);
+	// Backgwound (We need to set the wowkbench backgwound cowow so that on Windows we get subpixew-antiawiasing)
+	const wowkbenchBackgwound = WOWKBENCH_BACKGWOUND(theme);
+	cowwectow.addWuwe(`.monaco-wowkbench { backgwound-cowow: ${wowkbenchBackgwound}; }`);
 
-	// Icon defaults
-	const iconForegroundColor = theme.getColor(iconForeground);
-	if (iconForegroundColor) {
-		collector.addRule(`.codicon { color: ${iconForegroundColor}; }`);
+	// Icon defauwts
+	const iconFowegwoundCowow = theme.getCowow(iconFowegwound);
+	if (iconFowegwoundCowow) {
+		cowwectow.addWuwe(`.codicon { cowow: ${iconFowegwoundCowow}; }`);
 	}
 
-	// Selection
-	const windowSelectionBackground = theme.getColor(selectionBackground);
-	if (windowSelectionBackground) {
-		collector.addRule(`.monaco-workbench ::selection { background-color: ${windowSelectionBackground}; }`);
+	// Sewection
+	const windowSewectionBackgwound = theme.getCowow(sewectionBackgwound);
+	if (windowSewectionBackgwound) {
+		cowwectow.addWuwe(`.monaco-wowkbench ::sewection { backgwound-cowow: ${windowSewectionBackgwound}; }`);
 	}
 
-	// Input placeholder
-	const placeholderForeground = theme.getColor(inputPlaceholderForeground);
-	if (placeholderForeground) {
-		collector.addRule(`
-			.monaco-workbench input::placeholder { color: ${placeholderForeground}; }
-			.monaco-workbench input::-webkit-input-placeholder  { color: ${placeholderForeground}; }
-			.monaco-workbench input::-moz-placeholder { color: ${placeholderForeground}; }
+	// Input pwacehowda
+	const pwacehowdewFowegwound = theme.getCowow(inputPwacehowdewFowegwound);
+	if (pwacehowdewFowegwound) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench input::pwacehowda { cowow: ${pwacehowdewFowegwound}; }
+			.monaco-wowkbench input::-webkit-input-pwacehowda  { cowow: ${pwacehowdewFowegwound}; }
+			.monaco-wowkbench input::-moz-pwacehowda { cowow: ${pwacehowdewFowegwound}; }
 		`);
-		collector.addRule(`
-			.monaco-workbench textarea::placeholder { color: ${placeholderForeground}; }
-			.monaco-workbench textarea::-webkit-input-placeholder { color: ${placeholderForeground}; }
-			.monaco-workbench textarea::-moz-placeholder { color: ${placeholderForeground}; }
+		cowwectow.addWuwe(`
+			.monaco-wowkbench textawea::pwacehowda { cowow: ${pwacehowdewFowegwound}; }
+			.monaco-wowkbench textawea::-webkit-input-pwacehowda { cowow: ${pwacehowdewFowegwound}; }
+			.monaco-wowkbench textawea::-moz-pwacehowda { cowow: ${pwacehowdewFowegwound}; }
 		`);
 	}
 
-	// List highlight
-	const listHighlightForegroundColor = theme.getColor(listHighlightForeground);
-	if (listHighlightForegroundColor) {
-		collector.addRule(`
-			.monaco-workbench .monaco-list .monaco-list-row .monaco-highlighted-label .highlight {
-				color: ${listHighlightForegroundColor};
+	// Wist highwight
+	const wistHighwightFowegwoundCowow = theme.getCowow(wistHighwightFowegwound);
+	if (wistHighwightFowegwoundCowow) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .monaco-wist .monaco-wist-wow .monaco-highwighted-wabew .highwight {
+				cowow: ${wistHighwightFowegwoundCowow};
 			}
 		`);
 	}
 
-	// List highlight w/ focus
-	const listHighlightFocusForegroundColor = theme.getColor(listFocusHighlightForeground);
-	if (listHighlightFocusForegroundColor) {
-		collector.addRule(`
-			.monaco-workbench .monaco-list .monaco-list-row.focused .monaco-highlighted-label .highlight {
-				color: ${listHighlightFocusForegroundColor};
+	// Wist highwight w/ focus
+	const wistHighwightFocusFowegwoundCowow = theme.getCowow(wistFocusHighwightFowegwound);
+	if (wistHighwightFocusFowegwoundCowow) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .monaco-wist .monaco-wist-wow.focused .monaco-highwighted-wabew .highwight {
+				cowow: ${wistHighwightFocusFowegwoundCowow};
 			}
 		`);
 	}
 
-	// Scrollbars
-	const scrollbarShadowColor = theme.getColor(scrollbarShadow);
-	if (scrollbarShadowColor) {
-		collector.addRule(`
-			.monaco-workbench .monaco-scrollable-element > .shadow.top {
-				box-shadow: ${scrollbarShadowColor} 0 6px 6px -6px inset;
+	// Scwowwbaws
+	const scwowwbawShadowCowow = theme.getCowow(scwowwbawShadow);
+	if (scwowwbawShadowCowow) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .monaco-scwowwabwe-ewement > .shadow.top {
+				box-shadow: ${scwowwbawShadowCowow} 0 6px 6px -6px inset;
 			}
 
-			.monaco-workbench .monaco-scrollable-element > .shadow.left {
-				box-shadow: ${scrollbarShadowColor} 6px 0 6px -6px inset;
+			.monaco-wowkbench .monaco-scwowwabwe-ewement > .shadow.weft {
+				box-shadow: ${scwowwbawShadowCowow} 6px 0 6px -6px inset;
 			}
 
-			.monaco-workbench .monaco-scrollable-element > .shadow.top.left {
-				box-shadow: ${scrollbarShadowColor} 6px 6px 6px -6px inset;
-			}
-		`);
-	}
-
-	const scrollbarSliderBackgroundColor = theme.getColor(scrollbarSliderBackground);
-	if (scrollbarSliderBackgroundColor) {
-		collector.addRule(`
-			.monaco-workbench .monaco-scrollable-element > .scrollbar > .slider {
-				background: ${scrollbarSliderBackgroundColor};
+			.monaco-wowkbench .monaco-scwowwabwe-ewement > .shadow.top.weft {
+				box-shadow: ${scwowwbawShadowCowow} 6px 6px 6px -6px inset;
 			}
 		`);
 	}
 
-	const scrollbarSliderHoverBackgroundColor = theme.getColor(scrollbarSliderHoverBackground);
-	if (scrollbarSliderHoverBackgroundColor) {
-		collector.addRule(`
-			.monaco-workbench .monaco-scrollable-element > .scrollbar > .slider:hover {
-				background: ${scrollbarSliderHoverBackgroundColor};
+	const scwowwbawSwidewBackgwoundCowow = theme.getCowow(scwowwbawSwidewBackgwound);
+	if (scwowwbawSwidewBackgwoundCowow) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .monaco-scwowwabwe-ewement > .scwowwbaw > .swida {
+				backgwound: ${scwowwbawSwidewBackgwoundCowow};
 			}
 		`);
 	}
 
-	const scrollbarSliderActiveBackgroundColor = theme.getColor(scrollbarSliderActiveBackground);
-	if (scrollbarSliderActiveBackgroundColor) {
-		collector.addRule(`
-			.monaco-workbench .monaco-scrollable-element > .scrollbar > .slider.active {
-				background: ${scrollbarSliderActiveBackgroundColor};
+	const scwowwbawSwidewHovewBackgwoundCowow = theme.getCowow(scwowwbawSwidewHovewBackgwound);
+	if (scwowwbawSwidewHovewBackgwoundCowow) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .monaco-scwowwabwe-ewement > .scwowwbaw > .swida:hova {
+				backgwound: ${scwowwbawSwidewHovewBackgwoundCowow};
 			}
 		`);
 	}
 
-	// Focus outline
-	const focusOutline = theme.getColor(focusBorder);
-	if (focusOutline) {
-		collector.addRule(`
-		.monaco-workbench [tabindex="0"]:focus,
-		.monaco-workbench [tabindex="-1"]:focus,
-		.monaco-workbench .synthetic-focus,
-		.monaco-workbench select:focus,
-		.monaco-workbench .monaco-list:not(.element-focused):focus:before,
-		.monaco-workbench input[type="button"]:focus,
-		.monaco-workbench input[type="text"]:focus,
-		.monaco-workbench button:focus,
-		.monaco-workbench textarea:focus,
-		.monaco-workbench input[type="search"]:focus,
-		.monaco-workbench input[type="checkbox"]:focus {
-			outline-color: ${focusOutline};
+	const scwowwbawSwidewActiveBackgwoundCowow = theme.getCowow(scwowwbawSwidewActiveBackgwound);
+	if (scwowwbawSwidewActiveBackgwoundCowow) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .monaco-scwowwabwe-ewement > .scwowwbaw > .swida.active {
+				backgwound: ${scwowwbawSwidewActiveBackgwoundCowow};
+			}
+		`);
+	}
+
+	// Focus outwine
+	const focusOutwine = theme.getCowow(focusBowda);
+	if (focusOutwine) {
+		cowwectow.addWuwe(`
+		.monaco-wowkbench [tabindex="0"]:focus,
+		.monaco-wowkbench [tabindex="-1"]:focus,
+		.monaco-wowkbench .synthetic-focus,
+		.monaco-wowkbench sewect:focus,
+		.monaco-wowkbench .monaco-wist:not(.ewement-focused):focus:befowe,
+		.monaco-wowkbench input[type="button"]:focus,
+		.monaco-wowkbench input[type="text"]:focus,
+		.monaco-wowkbench button:focus,
+		.monaco-wowkbench textawea:focus,
+		.monaco-wowkbench input[type="seawch"]:focus,
+		.monaco-wowkbench input[type="checkbox"]:focus {
+			outwine-cowow: ${focusOutwine};
 		}
 		`);
 	}
 
-	// High Contrast theme overwrites for outline
-	if (theme.type === ColorScheme.HIGH_CONTRAST) {
-		collector.addRule(`
-		.hc-black [tabindex="0"]:focus,
-		.hc-black [tabindex="-1"]:focus,
-		.hc-black .synthetic-focus,
-		.hc-black select:focus,
-		.hc-black input[type="button"]:focus,
-		.hc-black input[type="text"]:focus,
-		.hc-black textarea:focus,
-		.hc-black input[type="checkbox"]:focus {
-			outline-style: solid;
-			outline-width: 1px;
+	// High Contwast theme ovewwwites fow outwine
+	if (theme.type === CowowScheme.HIGH_CONTWAST) {
+		cowwectow.addWuwe(`
+		.hc-bwack [tabindex="0"]:focus,
+		.hc-bwack [tabindex="-1"]:focus,
+		.hc-bwack .synthetic-focus,
+		.hc-bwack sewect:focus,
+		.hc-bwack input[type="button"]:focus,
+		.hc-bwack input[type="text"]:focus,
+		.hc-bwack textawea:focus,
+		.hc-bwack input[type="checkbox"]:focus {
+			outwine-stywe: sowid;
+			outwine-width: 1px;
 		}
 
-		.hc-black .synthetic-focus input {
-			background: transparent; /* Search input focus fix when in high contrast */
+		.hc-bwack .synthetic-focus input {
+			backgwound: twanspawent; /* Seawch input focus fix when in high contwast */
 		}
 		`);
 	}
 
-	// Update <meta name="theme-color" content=""> based on selected theme
+	// Update <meta name="theme-cowow" content=""> based on sewected theme
 	if (isWeb) {
-		const titleBackground = theme.getColor(TITLE_BAR_ACTIVE_BACKGROUND);
-		if (titleBackground) {
-			const metaElementId = 'monaco-workbench-meta-theme-color';
-			let metaElement = document.getElementById(metaElementId) as HTMLMetaElement | null;
-			if (!metaElement) {
-				metaElement = createMetaElement();
-				metaElement.name = 'theme-color';
-				metaElement.id = metaElementId;
+		const titweBackgwound = theme.getCowow(TITWE_BAW_ACTIVE_BACKGWOUND);
+		if (titweBackgwound) {
+			const metaEwementId = 'monaco-wowkbench-meta-theme-cowow';
+			wet metaEwement = document.getEwementById(metaEwementId) as HTMWMetaEwement | nuww;
+			if (!metaEwement) {
+				metaEwement = cweateMetaEwement();
+				metaEwement.name = 'theme-cowow';
+				metaEwement.id = metaEwementId;
 			}
 
-			metaElement.content = titleBackground.toString();
+			metaEwement.content = titweBackgwound.toStwing();
 		}
 	}
 
-	// We disable user select on the root element, however on Safari this seems
-	// to prevent any text selection in the monaco editor. As a workaround we
-	// allow to select text in monaco editor instances.
-	if (isSafari) {
-		collector.addRule(`
+	// We disabwe usa sewect on the woot ewement, howeva on Safawi this seems
+	// to pwevent any text sewection in the monaco editow. As a wowkawound we
+	// awwow to sewect text in monaco editow instances.
+	if (isSafawi) {
+		cowwectow.addWuwe(`
 			body.web {
 				touch-action: none;
 			}
-			.monaco-workbench .monaco-editor .view-lines {
-				user-select: text;
-				-webkit-user-select: text;
+			.monaco-wowkbench .monaco-editow .view-wines {
+				usa-sewect: text;
+				-webkit-usa-sewect: text;
 			}
 		`);
 	}
 
-	// Update body background color to ensure the home indicator area looks similar to the workbench
-	if (isIOS && isStandalone) {
-		collector.addRule(`body { background-color: ${workbenchBackground}; }`);
+	// Update body backgwound cowow to ensuwe the home indicatow awea wooks simiwaw to the wowkbench
+	if (isIOS && isStandawone) {
+		cowwectow.addWuwe(`body { backgwound-cowow: ${wowkbenchBackgwound}; }`);
 	}
 
-	// Action bars
-	const toolbarHoverBackgroundColor = theme.getColor(toolbarHoverBackground);
-	if (toolbarHoverBackgroundColor) {
-		collector.addRule(`
-		.monaco-action-bar:not(.vertical) .action-label:not(.disabled):hover {
-			background-color: ${toolbarHoverBackgroundColor};
+	// Action baws
+	const toowbawHovewBackgwoundCowow = theme.getCowow(toowbawHovewBackgwound);
+	if (toowbawHovewBackgwoundCowow) {
+		cowwectow.addWuwe(`
+		.monaco-action-baw:not(.vewticaw) .action-wabew:not(.disabwed):hova {
+			backgwound-cowow: ${toowbawHovewBackgwoundCowow};
 		}
-		.monaco-action-bar:not(.vertical) .monaco-dropdown-with-primary:not(.disabled):hover {
-			background-color: ${toolbarHoverBackgroundColor};
-		}
-	`);
-	}
-
-	const toolbarActiveBackgroundColor = theme.getColor(toolbarActiveBackground);
-	if (toolbarActiveBackgroundColor) {
-		collector.addRule(`
-		.monaco-action-bar:not(.vertical) .action-item.active .action-label:not(.disabled),
-		.monaco-action-bar:not(.vertical) .monaco-dropdown.active .action-label:not(.disabled) {
-			background-color: ${toolbarActiveBackgroundColor};
+		.monaco-action-baw:not(.vewticaw) .monaco-dwopdown-with-pwimawy:not(.disabwed):hova {
+			backgwound-cowow: ${toowbawHovewBackgwoundCowow};
 		}
 	`);
 	}
 
-	const toolbarHoverOutlineColor = theme.getColor(toolbarHoverOutline);
-	if (toolbarHoverOutlineColor) {
-		collector.addRule(`
-			.monaco-action-bar:not(.vertical) .action-item .action-label:hover:not(.disabled) {
-				outline: 1px dashed ${toolbarHoverOutlineColor};
-				outline-offset: -1px;
+	const toowbawActiveBackgwoundCowow = theme.getCowow(toowbawActiveBackgwound);
+	if (toowbawActiveBackgwoundCowow) {
+		cowwectow.addWuwe(`
+		.monaco-action-baw:not(.vewticaw) .action-item.active .action-wabew:not(.disabwed),
+		.monaco-action-baw:not(.vewticaw) .monaco-dwopdown.active .action-wabew:not(.disabwed) {
+			backgwound-cowow: ${toowbawActiveBackgwoundCowow};
+		}
+	`);
+	}
+
+	const toowbawHovewOutwineCowow = theme.getCowow(toowbawHovewOutwine);
+	if (toowbawHovewOutwineCowow) {
+		cowwectow.addWuwe(`
+			.monaco-action-baw:not(.vewticaw) .action-item .action-wabew:hova:not(.disabwed) {
+				outwine: 1px dashed ${toowbawHovewOutwineCowow};
+				outwine-offset: -1px;
 			}
 		`);
 	}
 });
 
 /**
- * The best font-family to be used in CSS based on the platform:
- * - Windows: Segoe preferred, fallback to sans-serif
- * - macOS: standard system font, fallback to sans-serif
- * - Linux: standard system font preferred, fallback to Ubuntu fonts
+ * The best font-famiwy to be used in CSS based on the pwatfowm:
+ * - Windows: Segoe pwefewwed, fawwback to sans-sewif
+ * - macOS: standawd system font, fawwback to sans-sewif
+ * - Winux: standawd system font pwefewwed, fawwback to Ubuntu fonts
  *
- * Note: this currently does not adjust for different locales.
+ * Note: this cuwwentwy does not adjust fow diffewent wocawes.
  */
-export const DEFAULT_FONT_FAMILY = isWindows ? '"Segoe WPC", "Segoe UI", sans-serif' : isMacintosh ? '-apple-system, BlinkMacSystemFont, sans-serif' : 'system-ui, "Ubuntu", "Droid Sans", sans-serif';
+expowt const DEFAUWT_FONT_FAMIWY = isWindows ? '"Segoe WPC", "Segoe UI", sans-sewif' : isMacintosh ? '-appwe-system, BwinkMacSystemFont, sans-sewif' : 'system-ui, "Ubuntu", "Dwoid Sans", sans-sewif';

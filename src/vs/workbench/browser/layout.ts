@@ -1,1436 +1,1436 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo } from 'vs/base/browser/dom';
-import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { isWindows, isLinux, isMacintosh, isWeb, isNative, isIOS } from 'vs/base/common/platform';
-import { IUntypedEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
-import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
-import { Position, Parts, PanelOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, panelOpensMaximizedFromString } from 'vs/workbench/services/layout/browser/layoutService';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITitleService } from 'vs/workbench/services/title/common/titleService';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { StartupKind, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, IPath } from 'vs/platform/windows/common/windows';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IEditor } from 'vs/editor/common/editorCommon';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { SerializableGrid, ISerializableView, ISerializedGrid, Orientation, ISerializedNode, ISerializedLeafNode, Direction, IViewSize } from 'vs/base/browser/ui/grid/grid';
-import { Part } from 'vs/workbench/browser/part';
-import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { IFileService } from 'vs/platform/files/common/files';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { coalesce } from 'vs/base/common/arrays';
-import { assertIsDefined, isNumber } from 'vs/base/common/types';
-import { INotificationService, NotificationsFilter } from 'vs/platform/notification/common/notification';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from 'vs/workbench/common/theme';
-import { LineNumbersType } from 'vs/editor/common/config/editorOptions';
-import { URI } from 'vs/base/common/uri';
-import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { mark } from 'vs/base/common/performance';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Promises } from 'vs/base/common/async';
-import { IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
-import { getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts';
-import { Schemas } from 'vs/base/common/network';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
-import { AuxiliaryBarPart } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { EventType, addDisposabweWistena, getCwientAwea, Dimension, position, size, IDimension, isAncestowUsingFwowTo } fwom 'vs/base/bwowsa/dom';
+impowt { onDidChangeFuwwscween, isFuwwscween } fwom 'vs/base/bwowsa/bwowsa';
+impowt { IWowkingCopyBackupSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyBackup';
+impowt { isWindows, isWinux, isMacintosh, isWeb, isNative, isIOS } fwom 'vs/base/common/pwatfowm';
+impowt { IUntypedEditowInput, pathsToEditows } fwom 'vs/wowkbench/common/editow';
+impowt { SideBySideEditowInput } fwom 'vs/wowkbench/common/editow/sideBySideEditowInput';
+impowt { SidebawPawt } fwom 'vs/wowkbench/bwowsa/pawts/sidebaw/sidebawPawt';
+impowt { PanewPawt } fwom 'vs/wowkbench/bwowsa/pawts/panew/panewPawt';
+impowt { Position, Pawts, PanewOpensMaximizedOptions, IWowkbenchWayoutSewvice, positionFwomStwing, positionToStwing, panewOpensMaximizedFwomStwing } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { IWowkspaceContextSewvice, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IStowageSewvice, StowageScope, StowageTawget, WiwwSaveStateWeason } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ITitweSewvice } fwom 'vs/wowkbench/sewvices/titwe/common/titweSewvice';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { StawtupKind, IWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { MenuBawVisibiwity, getTitweBawStywe, getMenuBawVisibiwity, IPath } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { IEditow } fwom 'vs/editow/common/editowCommon';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { SewiawizabweGwid, ISewiawizabweView, ISewiawizedGwid, Owientation, ISewiawizedNode, ISewiawizedWeafNode, Diwection, IViewSize } fwom 'vs/base/bwowsa/ui/gwid/gwid';
+impowt { Pawt } fwom 'vs/wowkbench/bwowsa/pawt';
+impowt { IStatusbawSewvice } fwom 'vs/wowkbench/sewvices/statusbaw/bwowsa/statusbaw';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { isCodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { coawesce } fwom 'vs/base/common/awways';
+impowt { assewtIsDefined, isNumba } fwom 'vs/base/common/types';
+impowt { INotificationSewvice, NotificationsFiwta } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { WINDOW_ACTIVE_BOWDa, WINDOW_INACTIVE_BOWDa } fwom 'vs/wowkbench/common/theme';
+impowt { WineNumbewsType } fwom 'vs/editow/common/config/editowOptions';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IViewDescwiptowSewvice, ViewContainewWocation } fwom 'vs/wowkbench/common/views';
+impowt { DiffEditowInput } fwom 'vs/wowkbench/common/editow/diffEditowInput';
+impowt { mawk } fwom 'vs/base/common/pewfowmance';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { Pwomises } fwom 'vs/base/common/async';
+impowt { IBannewSewvice } fwom 'vs/wowkbench/sewvices/banna/bwowsa/bannewSewvice';
+impowt { getViwtuawWowkspaceScheme } fwom 'vs/pwatfowm/wemote/common/wemoteHosts';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
+impowt { ActivitybawPawt } fwom 'vs/wowkbench/bwowsa/pawts/activitybaw/activitybawPawt';
+impowt { AuxiwiawyBawPawt } fwom 'vs/wowkbench/bwowsa/pawts/auxiwiawybaw/auxiwiawyBawPawt';
 
-export enum Settings {
-	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible',
-	STATUSBAR_VISIBLE = 'workbench.statusBar.visible',
+expowt enum Settings {
+	ACTIVITYBAW_VISIBWE = 'wowkbench.activityBaw.visibwe',
+	STATUSBAW_VISIBWE = 'wowkbench.statusBaw.visibwe',
 
-	SIDEBAR_POSITION = 'workbench.sideBar.location',
-	PANEL_POSITION = 'workbench.panel.defaultLocation',
-	PANEL_OPENS_MAXIMIZED = 'workbench.panel.opensMaximized',
+	SIDEBAW_POSITION = 'wowkbench.sideBaw.wocation',
+	PANEW_POSITION = 'wowkbench.panew.defauwtWocation',
+	PANEW_OPENS_MAXIMIZED = 'wowkbench.panew.opensMaximized',
 
-	AUXILIARYBAR_ENABLED = 'workbench.experimental.auxiliaryBar.enabled',
+	AUXIWIAWYBAW_ENABWED = 'wowkbench.expewimentaw.auxiwiawyBaw.enabwed',
 
-	ZEN_MODE_RESTORE = 'zenMode.restore',
+	ZEN_MODE_WESTOWE = 'zenMode.westowe',
 }
 
-enum Storage {
-	SIDEBAR_HIDDEN = 'workbench.sidebar.hidden',
-	SIDEBAR_SIZE = 'workbench.sidebar.size',
+enum Stowage {
+	SIDEBAW_HIDDEN = 'wowkbench.sidebaw.hidden',
+	SIDEBAW_SIZE = 'wowkbench.sidebaw.size',
 
-	AUXILIARYBAR_HIDDEN = 'workbench.auxiliarybar.hidden',
-	AUXILIARYBAR_SIZE = 'workbench.auxiliarybar.size',
+	AUXIWIAWYBAW_HIDDEN = 'wowkbench.auxiwiawybaw.hidden',
+	AUXIWIAWYBAW_SIZE = 'wowkbench.auxiwiawybaw.size',
 
-	PANEL_HIDDEN = 'workbench.panel.hidden',
-	PANEL_POSITION = 'workbench.panel.location',
-	PANEL_SIZE = 'workbench.panel.size',
-	PANEL_DIMENSION = 'workbench.panel.dimension',
-	PANEL_LAST_NON_MAXIMIZED_WIDTH = 'workbench.panel.lastNonMaximizedWidth',
-	PANEL_LAST_NON_MAXIMIZED_HEIGHT = 'workbench.panel.lastNonMaximizedHeight',
-	PANEL_LAST_IS_MAXIMIZED = 'workbench.panel.lastIsMaximized',
+	PANEW_HIDDEN = 'wowkbench.panew.hidden',
+	PANEW_POSITION = 'wowkbench.panew.wocation',
+	PANEW_SIZE = 'wowkbench.panew.size',
+	PANEW_DIMENSION = 'wowkbench.panew.dimension',
+	PANEW_WAST_NON_MAXIMIZED_WIDTH = 'wowkbench.panew.wastNonMaximizedWidth',
+	PANEW_WAST_NON_MAXIMIZED_HEIGHT = 'wowkbench.panew.wastNonMaximizedHeight',
+	PANEW_WAST_IS_MAXIMIZED = 'wowkbench.panew.wastIsMaximized',
 
-	EDITOR_HIDDEN = 'workbench.editor.hidden',
+	EDITOW_HIDDEN = 'wowkbench.editow.hidden',
 
-	ZEN_MODE_ENABLED = 'workbench.zenmode.active',
-	CENTERED_LAYOUT_ENABLED = 'workbench.centerededitorlayout.active',
+	ZEN_MODE_ENABWED = 'wowkbench.zenmode.active',
+	CENTEWED_WAYOUT_ENABWED = 'wowkbench.centewededitowwayout.active',
 
-	GRID_LAYOUT = 'workbench.grid.layout',
-	GRID_WIDTH = 'workbench.grid.width',
-	GRID_HEIGHT = 'workbench.grid.height',
+	GWID_WAYOUT = 'wowkbench.gwid.wayout',
+	GWID_WIDTH = 'wowkbench.gwid.width',
+	GWID_HEIGHT = 'wowkbench.gwid.height',
 
-	MENU_VISIBILITY = 'window.menuBarVisibility'
+	MENU_VISIBIWITY = 'window.menuBawVisibiwity'
 }
 
-enum Classes {
-	SIDEBAR_HIDDEN = 'nosidebar',
-	EDITOR_HIDDEN = 'noeditorarea',
-	PANEL_HIDDEN = 'nopanel',
-	AUXILIARYBAR_HIDDEN = 'noauxiliarybar',
-	STATUSBAR_HIDDEN = 'nostatusbar',
-	FULLSCREEN = 'fullscreen',
-	WINDOW_BORDER = 'border'
+enum Cwasses {
+	SIDEBAW_HIDDEN = 'nosidebaw',
+	EDITOW_HIDDEN = 'noeditowawea',
+	PANEW_HIDDEN = 'nopanew',
+	AUXIWIAWYBAW_HIDDEN = 'noauxiwiawybaw',
+	STATUSBAW_HIDDEN = 'nostatusbaw',
+	FUWWSCWEEN = 'fuwwscween',
+	WINDOW_BOWDa = 'bowda'
 }
 
-export abstract class Layout extends Disposable implements IWorkbenchLayoutService {
+expowt abstwact cwass Wayout extends Disposabwe impwements IWowkbenchWayoutSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	//#region Events
+	//#wegion Events
 
-	private readonly _onDidChangeZenMode = this._register(new Emitter<boolean>());
-	readonly onDidChangeZenMode = this._onDidChangeZenMode.event;
+	pwivate weadonwy _onDidChangeZenMode = this._wegista(new Emitta<boowean>());
+	weadonwy onDidChangeZenMode = this._onDidChangeZenMode.event;
 
-	private readonly _onDidChangeFullscreen = this._register(new Emitter<boolean>());
-	readonly onDidChangeFullscreen = this._onDidChangeFullscreen.event;
+	pwivate weadonwy _onDidChangeFuwwscween = this._wegista(new Emitta<boowean>());
+	weadonwy onDidChangeFuwwscween = this._onDidChangeFuwwscween.event;
 
-	private readonly _onDidChangeCenteredLayout = this._register(new Emitter<boolean>());
-	readonly onDidChangeCenteredLayout = this._onDidChangeCenteredLayout.event;
+	pwivate weadonwy _onDidChangeCentewedWayout = this._wegista(new Emitta<boowean>());
+	weadonwy onDidChangeCentewedWayout = this._onDidChangeCentewedWayout.event;
 
-	private readonly _onDidChangeWindowMaximized = this._register(new Emitter<boolean>());
-	readonly onDidChangeWindowMaximized = this._onDidChangeWindowMaximized.event;
+	pwivate weadonwy _onDidChangeWindowMaximized = this._wegista(new Emitta<boowean>());
+	weadonwy onDidChangeWindowMaximized = this._onDidChangeWindowMaximized.event;
 
-	private readonly _onDidChangePanelPosition = this._register(new Emitter<string>());
-	readonly onDidChangePanelPosition = this._onDidChangePanelPosition.event;
+	pwivate weadonwy _onDidChangePanewPosition = this._wegista(new Emitta<stwing>());
+	weadonwy onDidChangePanewPosition = this._onDidChangePanewPosition.event;
 
-	private readonly _onDidChangePartVisibility = this._register(new Emitter<void>());
-	readonly onDidChangePartVisibility = this._onDidChangePartVisibility.event;
+	pwivate weadonwy _onDidChangePawtVisibiwity = this._wegista(new Emitta<void>());
+	weadonwy onDidChangePawtVisibiwity = this._onDidChangePawtVisibiwity.event;
 
-	private readonly _onDidChangeNotificationsVisibility = this._register(new Emitter<boolean>());
-	readonly onDidChangeNotificationsVisibility = this._onDidChangeNotificationsVisibility.event;
+	pwivate weadonwy _onDidChangeNotificationsVisibiwity = this._wegista(new Emitta<boowean>());
+	weadonwy onDidChangeNotificationsVisibiwity = this._onDidChangeNotificationsVisibiwity.event;
 
-	private readonly _onDidLayout = this._register(new Emitter<IDimension>());
-	readonly onDidLayout = this._onDidLayout.event;
+	pwivate weadonwy _onDidWayout = this._wegista(new Emitta<IDimension>());
+	weadonwy onDidWayout = this._onDidWayout.event;
 
-	//#endregion
+	//#endwegion
 
-	readonly container: HTMLElement = document.createElement('div');
+	weadonwy containa: HTMWEwement = document.cweateEwement('div');
 
-	private _dimension!: IDimension;
-	get dimension(): IDimension { return this._dimension; }
+	pwivate _dimension!: IDimension;
+	get dimension(): IDimension { wetuwn this._dimension; }
 
 	get offset() {
-		return {
+		wetuwn {
 			top: (() => {
-				let offset = 0;
-				if (this.isVisible(Parts.TITLEBAR_PART)) {
-					offset = this.getPart(Parts.TITLEBAR_PART).maximumHeight;
+				wet offset = 0;
+				if (this.isVisibwe(Pawts.TITWEBAW_PAWT)) {
+					offset = this.getPawt(Pawts.TITWEBAW_PAWT).maximumHeight;
 				}
 
-				return offset;
+				wetuwn offset;
 			})()
 		};
 	}
 
-	private readonly parts = new Map<string, Part>();
+	pwivate weadonwy pawts = new Map<stwing, Pawt>();
 
-	private workbenchGrid!: SerializableGrid<ISerializableView>;
+	pwivate wowkbenchGwid!: SewiawizabweGwid<ISewiawizabweView>;
 
-	private disposed: boolean | undefined;
+	pwivate disposed: boowean | undefined;
 
-	private titleBarPartView!: ISerializableView;
-	private bannerPartView!: ISerializableView;
-	private activityBarPartView!: ISerializableView;
-	private sideBarPartView!: ISerializableView;
-	private panelPartView!: ISerializableView;
-	private auxiliaryBarPartView!: ISerializableView;
-	private editorPartView!: ISerializableView;
-	private statusBarPartView!: ISerializableView;
+	pwivate titweBawPawtView!: ISewiawizabweView;
+	pwivate bannewPawtView!: ISewiawizabweView;
+	pwivate activityBawPawtView!: ISewiawizabweView;
+	pwivate sideBawPawtView!: ISewiawizabweView;
+	pwivate panewPawtView!: ISewiawizabweView;
+	pwivate auxiwiawyBawPawtView!: ISewiawizabweView;
+	pwivate editowPawtView!: ISewiawizabweView;
+	pwivate statusBawPawtView!: ISewiawizabweView;
 
-	private environmentService!: IWorkbenchEnvironmentService;
-	private extensionService!: IExtensionService;
-	private configurationService!: IConfigurationService;
-	private storageService!: IStorageService;
-	private hostService!: IHostService;
-	private editorService!: IEditorService;
-	private editorGroupService!: IEditorGroupsService;
-	private paneCompositeService!: IPaneCompositePartService;
-	private titleService!: ITitleService;
-	private viewDescriptorService!: IViewDescriptorService;
-	private contextService!: IWorkspaceContextService;
-	private workingCopyBackupService!: IWorkingCopyBackupService;
-	private notificationService!: INotificationService;
-	private themeService!: IThemeService;
-	private statusBarService!: IStatusbarService;
-	private logService!: ILogService;
+	pwivate enviwonmentSewvice!: IWowkbenchEnviwonmentSewvice;
+	pwivate extensionSewvice!: IExtensionSewvice;
+	pwivate configuwationSewvice!: IConfiguwationSewvice;
+	pwivate stowageSewvice!: IStowageSewvice;
+	pwivate hostSewvice!: IHostSewvice;
+	pwivate editowSewvice!: IEditowSewvice;
+	pwivate editowGwoupSewvice!: IEditowGwoupsSewvice;
+	pwivate paneCompositeSewvice!: IPaneCompositePawtSewvice;
+	pwivate titweSewvice!: ITitweSewvice;
+	pwivate viewDescwiptowSewvice!: IViewDescwiptowSewvice;
+	pwivate contextSewvice!: IWowkspaceContextSewvice;
+	pwivate wowkingCopyBackupSewvice!: IWowkingCopyBackupSewvice;
+	pwivate notificationSewvice!: INotificationSewvice;
+	pwivate themeSewvice!: IThemeSewvice;
+	pwivate statusBawSewvice!: IStatusbawSewvice;
+	pwivate wogSewvice!: IWogSewvice;
 
-	protected readonly state = {
-		fullscreen: false,
-		maximized: false,
-		hasFocus: false,
-		windowBorder: false,
+	pwotected weadonwy state = {
+		fuwwscween: fawse,
+		maximized: fawse,
+		hasFocus: fawse,
+		windowBowda: fawse,
 
-		menuBar: {
-			visibility: 'classic' as MenuBarVisibility,
-			toggled: false
+		menuBaw: {
+			visibiwity: 'cwassic' as MenuBawVisibiwity,
+			toggwed: fawse
 		},
 
-		activityBar: {
-			hidden: false
+		activityBaw: {
+			hidden: fawse
 		},
 
-		sideBar: {
-			hidden: false,
-			position: Position.LEFT,
+		sideBaw: {
+			hidden: fawse,
+			position: Position.WEFT,
 			width: 300,
-			viewletToRestore: undefined as string | undefined
+			viewwetToWestowe: undefined as stwing | undefined
 		},
 
-		editor: {
-			hidden: false,
-			centered: false,
-			restoreCentered: false,
-			restoreEditors: false,
-			editorsToOpen: [] as Promise<IUntypedEditorInput[]> | IUntypedEditorInput[]
+		editow: {
+			hidden: fawse,
+			centewed: fawse,
+			westoweCentewed: fawse,
+			westoweEditows: fawse,
+			editowsToOpen: [] as Pwomise<IUntypedEditowInput[]> | IUntypedEditowInput[]
 		},
 
-		panel: {
-			hidden: false,
+		panew: {
+			hidden: fawse,
 			position: Position.BOTTOM,
-			lastNonMaximizedWidth: 300,
-			lastNonMaximizedHeight: 300,
-			wasLastMaximized: false,
-			panelToRestore: undefined as string | undefined
+			wastNonMaximizedWidth: 300,
+			wastNonMaximizedHeight: 300,
+			wasWastMaximized: fawse,
+			panewToWestowe: undefined as stwing | undefined
 		},
 
-		auxiliaryBar: {
-			hidden: false,
-			panelToRestore: undefined as string | undefined
+		auxiwiawyBaw: {
+			hidden: fawse,
+			panewToWestowe: undefined as stwing | undefined
 		},
 
-		statusBar: {
-			hidden: false
+		statusBaw: {
+			hidden: fawse
 		},
 
 		views: {
-			defaults: undefined as (string[] | undefined)
+			defauwts: undefined as (stwing[] | undefined)
 		},
 
 		zenMode: {
-			active: false,
-			restore: false,
-			transitionedToFullScreen: false,
-			transitionedToCenteredEditorLayout: false,
-			wasSideBarVisible: false,
-			wasPanelVisible: false,
-			wasAuxiliaryBarPartVisible: false,
-			transitionDisposables: new DisposableStore(),
-			setNotificationsFilter: false,
+			active: fawse,
+			westowe: fawse,
+			twansitionedToFuwwScween: fawse,
+			twansitionedToCentewedEditowWayout: fawse,
+			wasSideBawVisibwe: fawse,
+			wasPanewVisibwe: fawse,
+			wasAuxiwiawyBawPawtVisibwe: fawse,
+			twansitionDisposabwes: new DisposabweStowe(),
+			setNotificationsFiwta: fawse,
 		}
 	};
 
-	constructor(
-		protected readonly parent: HTMLElement
+	constwuctow(
+		pwotected weadonwy pawent: HTMWEwement
 	) {
-		super();
+		supa();
 	}
 
-	protected initLayout(accessor: ServicesAccessor): void {
+	pwotected initWayout(accessow: SewvicesAccessow): void {
 
-		// Services
-		this.environmentService = accessor.get(IWorkbenchEnvironmentService);
-		this.configurationService = accessor.get(IConfigurationService);
-		this.hostService = accessor.get(IHostService);
-		this.contextService = accessor.get(IWorkspaceContextService);
-		this.storageService = accessor.get(IStorageService);
-		this.workingCopyBackupService = accessor.get(IWorkingCopyBackupService);
-		this.themeService = accessor.get(IThemeService);
-		this.extensionService = accessor.get(IExtensionService);
-		this.logService = accessor.get(ILogService);
+		// Sewvices
+		this.enviwonmentSewvice = accessow.get(IWowkbenchEnviwonmentSewvice);
+		this.configuwationSewvice = accessow.get(IConfiguwationSewvice);
+		this.hostSewvice = accessow.get(IHostSewvice);
+		this.contextSewvice = accessow.get(IWowkspaceContextSewvice);
+		this.stowageSewvice = accessow.get(IStowageSewvice);
+		this.wowkingCopyBackupSewvice = accessow.get(IWowkingCopyBackupSewvice);
+		this.themeSewvice = accessow.get(IThemeSewvice);
+		this.extensionSewvice = accessow.get(IExtensionSewvice);
+		this.wogSewvice = accessow.get(IWogSewvice);
 
-		// Parts
-		this.editorService = accessor.get(IEditorService);
-		this.editorGroupService = accessor.get(IEditorGroupsService);
-		this.paneCompositeService = accessor.get(IPaneCompositePartService);
-		this.viewDescriptorService = accessor.get(IViewDescriptorService);
-		this.titleService = accessor.get(ITitleService);
-		this.notificationService = accessor.get(INotificationService);
-		this.statusBarService = accessor.get(IStatusbarService);
-		accessor.get(IBannerService);
+		// Pawts
+		this.editowSewvice = accessow.get(IEditowSewvice);
+		this.editowGwoupSewvice = accessow.get(IEditowGwoupsSewvice);
+		this.paneCompositeSewvice = accessow.get(IPaneCompositePawtSewvice);
+		this.viewDescwiptowSewvice = accessow.get(IViewDescwiptowSewvice);
+		this.titweSewvice = accessow.get(ITitweSewvice);
+		this.notificationSewvice = accessow.get(INotificationSewvice);
+		this.statusBawSewvice = accessow.get(IStatusbawSewvice);
+		accessow.get(IBannewSewvice);
 
-		// Listeners
-		this.registerLayoutListeners();
+		// Wistenews
+		this.wegistewWayoutWistenews();
 
 		// State
-		this.initLayoutState(accessor.get(ILifecycleService), accessor.get(IFileService));
+		this.initWayoutState(accessow.get(IWifecycweSewvice), accessow.get(IFiweSewvice));
 	}
 
-	private registerLayoutListeners(): void {
+	pwivate wegistewWayoutWistenews(): void {
 
-		// Restore editor if hidden
-		const showEditorIfHidden = () => {
-			if (this.state.editor.hidden) {
-				this.toggleMaximizedPanel();
+		// Westowe editow if hidden
+		const showEditowIfHidden = () => {
+			if (this.state.editow.hidden) {
+				this.toggweMaximizedPanew();
 			}
 		};
 
-		// Wait to register these listeners after the editor group service is ready to avoid conflicts on startup
-		this.editorGroupService.whenRestored.then(() => {
-			// Restore editor part on any editor change
-			this._register(this.editorService.onDidVisibleEditorsChange(showEditorIfHidden));
-			this._register(this.editorGroupService.onDidActivateGroup(showEditorIfHidden));
+		// Wait to wegista these wistenews afta the editow gwoup sewvice is weady to avoid confwicts on stawtup
+		this.editowGwoupSewvice.whenWestowed.then(() => {
+			// Westowe editow pawt on any editow change
+			this._wegista(this.editowSewvice.onDidVisibweEditowsChange(showEditowIfHidden));
+			this._wegista(this.editowGwoupSewvice.onDidActivateGwoup(showEditowIfHidden));
 		});
 
-		// Revalidate center layout when active editor changes: diff editor quits centered mode.
-		this._register(this.editorService.onDidActiveEditorChange(() => this.centerEditorLayout(this.state.editor.centered)));
+		// Wevawidate centa wayout when active editow changes: diff editow quits centewed mode.
+		this._wegista(this.editowSewvice.onDidActiveEditowChange(() => this.centewEditowWayout(this.state.editow.centewed)));
 
-		// Configuration changes
-		this._register(this.configurationService.onDidChangeConfiguration(() => this.doUpdateLayoutConfiguration()));
+		// Configuwation changes
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(() => this.doUpdateWayoutConfiguwation()));
 
-		// Fullscreen changes
-		this._register(onDidChangeFullscreen(() => this.onFullscreenChanged()));
+		// Fuwwscween changes
+		this._wegista(onDidChangeFuwwscween(() => this.onFuwwscweenChanged()));
 
-		// Group changes
-		this._register(this.editorGroupService.onDidAddGroup(() => this.centerEditorLayout(this.state.editor.centered)));
-		this._register(this.editorGroupService.onDidRemoveGroup(() => this.centerEditorLayout(this.state.editor.centered)));
+		// Gwoup changes
+		this._wegista(this.editowGwoupSewvice.onDidAddGwoup(() => this.centewEditowWayout(this.state.editow.centewed)));
+		this._wegista(this.editowGwoupSewvice.onDidWemoveGwoup(() => this.centewEditowWayout(this.state.editow.centewed)));
 
-		// Prevent workbench from scrolling #55456
-		this._register(addDisposableListener(this.container, EventType.SCROLL, () => this.container.scrollTop = 0));
+		// Pwevent wowkbench fwom scwowwing #55456
+		this._wegista(addDisposabweWistena(this.containa, EventType.SCWOWW, () => this.containa.scwowwTop = 0));
 
-		// Menubar visibility changes
-		if ((isWindows || isLinux || isWeb) && getTitleBarStyle(this.configurationService) === 'custom') {
-			this._register(this.titleService.onMenubarVisibilityChange(visible => this.onMenubarToggled(visible)));
+		// Menubaw visibiwity changes
+		if ((isWindows || isWinux || isWeb) && getTitweBawStywe(this.configuwationSewvice) === 'custom') {
+			this._wegista(this.titweSewvice.onMenubawVisibiwityChange(visibwe => this.onMenubawToggwed(visibwe)));
 		}
 
 		// Theme changes
-		this._register(this.themeService.onDidColorThemeChange(() => this.updateStyles()));
+		this._wegista(this.themeSewvice.onDidCowowThemeChange(() => this.updateStywes()));
 
 		// Window focus changes
-		this._register(this.hostService.onDidChangeFocus(e => this.onWindowFocusChanged(e)));
+		this._wegista(this.hostSewvice.onDidChangeFocus(e => this.onWindowFocusChanged(e)));
 	}
 
-	private onMenubarToggled(visible: boolean) {
-		if (visible !== this.state.menuBar.toggled) {
-			this.state.menuBar.toggled = visible;
+	pwivate onMenubawToggwed(visibwe: boowean) {
+		if (visibwe !== this.state.menuBaw.toggwed) {
+			this.state.menuBaw.toggwed = visibwe;
 
 
-			// The menu bar toggles the title bar in web because it does not need to be shown for window controls only
-			if (isWeb && this.state.menuBar.visibility === 'toggle') {
-				this.workbenchGrid.setViewVisible(this.titleBarPartView, this.isVisible(Parts.TITLEBAR_PART));
+			// The menu baw toggwes the titwe baw in web because it does not need to be shown fow window contwows onwy
+			if (isWeb && this.state.menuBaw.visibiwity === 'toggwe') {
+				this.wowkbenchGwid.setViewVisibwe(this.titweBawPawtView, this.isVisibwe(Pawts.TITWEBAW_PAWT));
 			}
-			// The menu bar toggles the title bar in full screen for toggle and classic settings
-			else if (this.state.fullscreen && (this.state.menuBar.visibility === 'toggle' || this.state.menuBar.visibility === 'classic')) {
-				this.workbenchGrid.setViewVisible(this.titleBarPartView, this.isVisible(Parts.TITLEBAR_PART));
+			// The menu baw toggwes the titwe baw in fuww scween fow toggwe and cwassic settings
+			ewse if (this.state.fuwwscween && (this.state.menuBaw.visibiwity === 'toggwe' || this.state.menuBaw.visibiwity === 'cwassic')) {
+				this.wowkbenchGwid.setViewVisibwe(this.titweBawPawtView, this.isVisibwe(Pawts.TITWEBAW_PAWT));
 			}
 
-			// Move layout call to any time the menubar
-			// is toggled to update consumers of offset
+			// Move wayout caww to any time the menubaw
+			// is toggwed to update consumews of offset
 			// see issue #115267
-			this.layout();
+			this.wayout();
 		}
 	}
 
-	private onFullscreenChanged(): void {
-		this.state.fullscreen = isFullscreen();
+	pwivate onFuwwscweenChanged(): void {
+		this.state.fuwwscween = isFuwwscween();
 
-		// Apply as CSS class
-		if (this.state.fullscreen) {
-			this.container.classList.add(Classes.FULLSCREEN);
-		} else {
-			this.container.classList.remove(Classes.FULLSCREEN);
+		// Appwy as CSS cwass
+		if (this.state.fuwwscween) {
+			this.containa.cwassWist.add(Cwasses.FUWWSCWEEN);
+		} ewse {
+			this.containa.cwassWist.wemove(Cwasses.FUWWSCWEEN);
 
-			if (this.state.zenMode.transitionedToFullScreen && this.state.zenMode.active) {
-				this.toggleZenMode();
+			if (this.state.zenMode.twansitionedToFuwwScween && this.state.zenMode.active) {
+				this.toggweZenMode();
 			}
 		}
 
-		// Change edge snapping accordingly
-		this.workbenchGrid.edgeSnapping = this.state.fullscreen;
+		// Change edge snapping accowdingwy
+		this.wowkbenchGwid.edgeSnapping = this.state.fuwwscween;
 
-		// Changing fullscreen state of the window has an impact on custom title bar visibility, so we need to update
-		if (getTitleBarStyle(this.configurationService) === 'custom') {
-			// Propagate to grid
-			this.workbenchGrid.setViewVisible(this.titleBarPartView, this.isVisible(Parts.TITLEBAR_PART));
+		// Changing fuwwscween state of the window has an impact on custom titwe baw visibiwity, so we need to update
+		if (getTitweBawStywe(this.configuwationSewvice) === 'custom') {
+			// Pwopagate to gwid
+			this.wowkbenchGwid.setViewVisibwe(this.titweBawPawtView, this.isVisibwe(Pawts.TITWEBAW_PAWT));
 
-			this.updateWindowBorder(true);
+			this.updateWindowBowda(twue);
 
-			this.layout(); // handle title bar when fullscreen changes
+			this.wayout(); // handwe titwe baw when fuwwscween changes
 		}
 
-		this._onDidChangeFullscreen.fire(this.state.fullscreen);
+		this._onDidChangeFuwwscween.fiwe(this.state.fuwwscween);
 	}
 
-	private onWindowFocusChanged(hasFocus: boolean): void {
+	pwivate onWindowFocusChanged(hasFocus: boowean): void {
 		if (this.state.hasFocus === hasFocus) {
-			return;
+			wetuwn;
 		}
 
 		this.state.hasFocus = hasFocus;
-		this.updateWindowBorder();
+		this.updateWindowBowda();
 	}
 
-	private doUpdateLayoutConfiguration(skipLayout?: boolean): void {
+	pwivate doUpdateWayoutConfiguwation(skipWayout?: boowean): void {
 
-		// Sidebar position
-		const newSidebarPositionValue = this.configurationService.getValue<string>(Settings.SIDEBAR_POSITION);
-		const newSidebarPosition = (newSidebarPositionValue === 'right') ? Position.RIGHT : Position.LEFT;
-		if (newSidebarPosition !== this.getSideBarPosition()) {
-			this.setSideBarPosition(newSidebarPosition);
+		// Sidebaw position
+		const newSidebawPositionVawue = this.configuwationSewvice.getVawue<stwing>(Settings.SIDEBAW_POSITION);
+		const newSidebawPosition = (newSidebawPositionVawue === 'wight') ? Position.WIGHT : Position.WEFT;
+		if (newSidebawPosition !== this.getSideBawPosition()) {
+			this.setSideBawPosition(newSidebawPosition);
 		}
 
-		// Panel position
-		this.updatePanelPosition();
+		// Panew position
+		this.updatePanewPosition();
 
 		if (!this.state.zenMode.active) {
 
-			// Statusbar visibility
-			const newStatusbarHiddenValue = !this.configurationService.getValue(Settings.STATUSBAR_VISIBLE);
-			if (newStatusbarHiddenValue !== this.state.statusBar.hidden) {
-				this.setStatusBarHidden(newStatusbarHiddenValue, skipLayout);
+			// Statusbaw visibiwity
+			const newStatusbawHiddenVawue = !this.configuwationSewvice.getVawue(Settings.STATUSBAW_VISIBWE);
+			if (newStatusbawHiddenVawue !== this.state.statusBaw.hidden) {
+				this.setStatusBawHidden(newStatusbawHiddenVawue, skipWayout);
 			}
 
-			// Activitybar visibility
-			const newActivityBarHiddenValue = !this.configurationService.getValue(Settings.ACTIVITYBAR_VISIBLE);
-			if (newActivityBarHiddenValue !== this.state.activityBar.hidden) {
-				this.setActivityBarHidden(newActivityBarHiddenValue, skipLayout);
+			// Activitybaw visibiwity
+			const newActivityBawHiddenVawue = !this.configuwationSewvice.getVawue(Settings.ACTIVITYBAW_VISIBWE);
+			if (newActivityBawHiddenVawue !== this.state.activityBaw.hidden) {
+				this.setActivityBawHidden(newActivityBawHiddenVawue, skipWayout);
 			}
 		}
 
-		// Menubar visibility
-		const newMenubarVisibility = getMenuBarVisibility(this.configurationService);
-		this.setMenubarVisibility(newMenubarVisibility, !!skipLayout);
+		// Menubaw visibiwity
+		const newMenubawVisibiwity = getMenuBawVisibiwity(this.configuwationSewvice);
+		this.setMenubawVisibiwity(newMenubawVisibiwity, !!skipWayout);
 
-		// Centered Layout
-		this.centerEditorLayout(this.state.editor.centered, skipLayout);
+		// Centewed Wayout
+		this.centewEditowWayout(this.state.editow.centewed, skipWayout);
 	}
 
-	private setSideBarPosition(position: Position): void {
-		const activityBar = this.getPart(Parts.ACTIVITYBAR_PART);
-		const sideBar = this.getPart(Parts.SIDEBAR_PART);
-		const wasHidden = this.state.sideBar.hidden;
-		const newPositionValue = (position === Position.LEFT) ? 'left' : 'right';
-		const oldPositionValue = (this.state.sideBar.position === Position.LEFT) ? 'left' : 'right';
-		this.state.sideBar.position = position;
+	pwivate setSideBawPosition(position: Position): void {
+		const activityBaw = this.getPawt(Pawts.ACTIVITYBAW_PAWT);
+		const sideBaw = this.getPawt(Pawts.SIDEBAW_PAWT);
+		const wasHidden = this.state.sideBaw.hidden;
+		const newPositionVawue = (position === Position.WEFT) ? 'weft' : 'wight';
+		const owdPositionVawue = (this.state.sideBaw.position === Position.WEFT) ? 'weft' : 'wight';
+		this.state.sideBaw.position = position;
 
 		// Adjust CSS
-		const activityBarContainer = assertIsDefined(activityBar.getContainer());
-		const sideBarContainer = assertIsDefined(sideBar.getContainer());
-		activityBarContainer.classList.remove(oldPositionValue);
-		sideBarContainer.classList.remove(oldPositionValue);
-		activityBarContainer.classList.add(newPositionValue);
-		sideBarContainer.classList.add(newPositionValue);
+		const activityBawContaina = assewtIsDefined(activityBaw.getContaina());
+		const sideBawContaina = assewtIsDefined(sideBaw.getContaina());
+		activityBawContaina.cwassWist.wemove(owdPositionVawue);
+		sideBawContaina.cwassWist.wemove(owdPositionVawue);
+		activityBawContaina.cwassWist.add(newPositionVawue);
+		sideBawContaina.cwassWist.add(newPositionVawue);
 
-		// Update Styles
-		activityBar.updateStyles();
-		sideBar.updateStyles();
+		// Update Stywes
+		activityBaw.updateStywes();
+		sideBaw.updateStywes();
 
-		// Layout
+		// Wayout
 		if (!wasHidden) {
-			this.state.sideBar.width = this.workbenchGrid.getViewSize(this.sideBarPartView).width;
+			this.state.sideBaw.width = this.wowkbenchGwid.getViewSize(this.sideBawPawtView).width;
 		}
 
-		if (position === Position.LEFT) {
-			this.workbenchGrid.moveViewTo(this.activityBarPartView, [2, 0]);
-			this.workbenchGrid.moveViewTo(this.sideBarPartView, [2, 1]);
-		} else {
-			this.workbenchGrid.moveViewTo(this.sideBarPartView, [2, 4]);
-			this.workbenchGrid.moveViewTo(this.activityBarPartView, [2, 4]);
+		if (position === Position.WEFT) {
+			this.wowkbenchGwid.moveViewTo(this.activityBawPawtView, [2, 0]);
+			this.wowkbenchGwid.moveViewTo(this.sideBawPawtView, [2, 1]);
+		} ewse {
+			this.wowkbenchGwid.moveViewTo(this.sideBawPawtView, [2, 4]);
+			this.wowkbenchGwid.moveViewTo(this.activityBawPawtView, [2, 4]);
 		}
 
-		this.layout();
+		this.wayout();
 	}
 
-	private updateWindowBorder(skipLayout: boolean = false) {
-		if (isWeb || getTitleBarStyle(this.configurationService) !== 'custom') {
-			return;
+	pwivate updateWindowBowda(skipWayout: boowean = fawse) {
+		if (isWeb || getTitweBawStywe(this.configuwationSewvice) !== 'custom') {
+			wetuwn;
 		}
 
-		const theme = this.themeService.getColorTheme();
+		const theme = this.themeSewvice.getCowowTheme();
 
-		const activeBorder = theme.getColor(WINDOW_ACTIVE_BORDER);
-		const inactiveBorder = theme.getColor(WINDOW_INACTIVE_BORDER);
+		const activeBowda = theme.getCowow(WINDOW_ACTIVE_BOWDa);
+		const inactiveBowda = theme.getCowow(WINDOW_INACTIVE_BOWDa);
 
-		let windowBorder = false;
-		if (!this.state.fullscreen && !this.state.maximized && (activeBorder || inactiveBorder)) {
-			windowBorder = true;
+		wet windowBowda = fawse;
+		if (!this.state.fuwwscween && !this.state.maximized && (activeBowda || inactiveBowda)) {
+			windowBowda = twue;
 
-			// If the inactive color is missing, fallback to the active one
-			const borderColor = this.state.hasFocus ? activeBorder : inactiveBorder ?? activeBorder;
-			this.container.style.setProperty('--window-border-color', borderColor?.toString() ?? 'transparent');
+			// If the inactive cowow is missing, fawwback to the active one
+			const bowdewCowow = this.state.hasFocus ? activeBowda : inactiveBowda ?? activeBowda;
+			this.containa.stywe.setPwopewty('--window-bowda-cowow', bowdewCowow?.toStwing() ?? 'twanspawent');
 		}
 
-		if (windowBorder === this.state.windowBorder) {
-			return;
+		if (windowBowda === this.state.windowBowda) {
+			wetuwn;
 		}
 
-		this.state.windowBorder = windowBorder;
+		this.state.windowBowda = windowBowda;
 
-		this.container.classList.toggle(Classes.WINDOW_BORDER, windowBorder);
+		this.containa.cwassWist.toggwe(Cwasses.WINDOW_BOWDa, windowBowda);
 
-		if (!skipLayout) {
-			this.layout();
+		if (!skipWayout) {
+			this.wayout();
 		}
 	}
 
-	private updateStyles() {
-		this.updateWindowBorder();
+	pwivate updateStywes() {
+		this.updateWindowBowda();
 	}
 
-	private initLayoutState(lifecycleService: ILifecycleService, fileService: IFileService): void {
+	pwivate initWayoutState(wifecycweSewvice: IWifecycweSewvice, fiweSewvice: IFiweSewvice): void {
 
-		// Default Layout
-		this.applyDefaultLayout(this.environmentService, this.storageService);
+		// Defauwt Wayout
+		this.appwyDefauwtWayout(this.enviwonmentSewvice, this.stowageSewvice);
 
-		// Fullscreen
-		this.state.fullscreen = isFullscreen();
+		// Fuwwscween
+		this.state.fuwwscween = isFuwwscween();
 
-		// Menubar visibility
-		this.state.menuBar.visibility = getMenuBarVisibility(this.configurationService);
+		// Menubaw visibiwity
+		this.state.menuBaw.visibiwity = getMenuBawVisibiwity(this.configuwationSewvice);
 
-		// Activity bar visibility
-		this.state.activityBar.hidden = !this.configurationService.getValue<string>(Settings.ACTIVITYBAR_VISIBLE);
+		// Activity baw visibiwity
+		this.state.activityBaw.hidden = !this.configuwationSewvice.getVawue<stwing>(Settings.ACTIVITYBAW_VISIBWE);
 
-		// Sidebar visibility
-		this.state.sideBar.hidden = this.storageService.getBoolean(Storage.SIDEBAR_HIDDEN, StorageScope.WORKSPACE, this.contextService.getWorkbenchState() === WorkbenchState.EMPTY);
+		// Sidebaw visibiwity
+		this.state.sideBaw.hidden = this.stowageSewvice.getBoowean(Stowage.SIDEBAW_HIDDEN, StowageScope.WOWKSPACE, this.contextSewvice.getWowkbenchState() === WowkbenchState.EMPTY);
 
-		// Sidebar position
-		this.state.sideBar.position = (this.configurationService.getValue<string>(Settings.SIDEBAR_POSITION) === 'right') ? Position.RIGHT : Position.LEFT;
+		// Sidebaw position
+		this.state.sideBaw.position = (this.configuwationSewvice.getVawue<stwing>(Settings.SIDEBAW_POSITION) === 'wight') ? Position.WIGHT : Position.WEFT;
 
-		// Sidebar viewlet
-		if (!this.state.sideBar.hidden) {
+		// Sidebaw viewwet
+		if (!this.state.sideBaw.hidden) {
 
-			// Only restore last viewlet if window was reloaded or we are in development mode
-			let viewletToRestore: string | undefined;
-			if (!this.environmentService.isBuilt || lifecycleService.startupKind === StartupKind.ReloadedWindow || isWeb) {
-				viewletToRestore = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id);
-			} else {
-				viewletToRestore = this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id;
+			// Onwy westowe wast viewwet if window was wewoaded ow we awe in devewopment mode
+			wet viewwetToWestowe: stwing | undefined;
+			if (!this.enviwonmentSewvice.isBuiwt || wifecycweSewvice.stawtupKind === StawtupKind.WewoadedWindow || isWeb) {
+				viewwetToWestowe = this.stowageSewvice.get(SidebawPawt.activeViewwetSettingsKey, StowageScope.WOWKSPACE, this.viewDescwiptowSewvice.getDefauwtViewContaina(ViewContainewWocation.Sidebaw)?.id);
+			} ewse {
+				viewwetToWestowe = this.viewDescwiptowSewvice.getDefauwtViewContaina(ViewContainewWocation.Sidebaw)?.id;
 			}
 
-			if (viewletToRestore) {
-				this.state.sideBar.viewletToRestore = viewletToRestore;
-			} else {
-				this.state.sideBar.hidden = true; // we hide sidebar if there is no viewlet to restore
-			}
-		}
-
-		// Editor visibility
-		this.state.editor.hidden = this.storageService.getBoolean(Storage.EDITOR_HIDDEN, StorageScope.WORKSPACE, false);
-
-		// Editor centered layout
-		this.state.editor.restoreCentered = this.storageService.getBoolean(Storage.CENTERED_LAYOUT_ENABLED, StorageScope.WORKSPACE, false);
-
-		// Editors to open
-		this.state.editor.editorsToOpen = this.resolveEditorsToOpen(fileService, this.contextService);
-
-		// Panel visibility
-		this.state.panel.hidden = this.storageService.getBoolean(Storage.PANEL_HIDDEN, StorageScope.WORKSPACE, true);
-
-		// Whether or not the panel was last maximized
-		this.state.panel.wasLastMaximized = this.storageService.getBoolean(Storage.PANEL_LAST_IS_MAXIMIZED, StorageScope.WORKSPACE, false);
-
-		// Panel position
-		this.updatePanelPosition();
-
-		// Panel to restore
-		if (!this.state.panel.hidden) {
-			let panelToRestore = this.storageService.get(PanelPart.activePanelSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Panel)?.id);
-
-			if (panelToRestore) {
-				this.state.panel.panelToRestore = panelToRestore;
-			} else {
-				this.state.panel.hidden = true; // we hide panel if there is no panel to restore
+			if (viewwetToWestowe) {
+				this.state.sideBaw.viewwetToWestowe = viewwetToWestowe;
+			} ewse {
+				this.state.sideBaw.hidden = twue; // we hide sidebaw if thewe is no viewwet to westowe
 			}
 		}
 
-		// Auxiliary Bar visibility
-		this.state.auxiliaryBar.hidden = !this.configurationService.getValue(Settings.AUXILIARYBAR_ENABLED) || this.storageService.getBoolean(Storage.AUXILIARYBAR_HIDDEN, StorageScope.WORKSPACE, true);
+		// Editow visibiwity
+		this.state.editow.hidden = this.stowageSewvice.getBoowean(Stowage.EDITOW_HIDDEN, StowageScope.WOWKSPACE, fawse);
 
-		// Auxiliary Panel to restore
-		if (!this.state.auxiliaryBar.hidden) {
-			let auxiliaryPanelToRestore = this.storageService.get(AuxiliaryBarPart.activePanelSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.AuxiliaryBar)?.id);
+		// Editow centewed wayout
+		this.state.editow.westoweCentewed = this.stowageSewvice.getBoowean(Stowage.CENTEWED_WAYOUT_ENABWED, StowageScope.WOWKSPACE, fawse);
 
-			if (auxiliaryPanelToRestore) {
-				this.state.auxiliaryBar.panelToRestore = auxiliaryPanelToRestore;
-			} else {
-				this.state.auxiliaryBar.hidden = true; // we hide panel if there is no auxiliary panel to restore
+		// Editows to open
+		this.state.editow.editowsToOpen = this.wesowveEditowsToOpen(fiweSewvice, this.contextSewvice);
+
+		// Panew visibiwity
+		this.state.panew.hidden = this.stowageSewvice.getBoowean(Stowage.PANEW_HIDDEN, StowageScope.WOWKSPACE, twue);
+
+		// Whetha ow not the panew was wast maximized
+		this.state.panew.wasWastMaximized = this.stowageSewvice.getBoowean(Stowage.PANEW_WAST_IS_MAXIMIZED, StowageScope.WOWKSPACE, fawse);
+
+		// Panew position
+		this.updatePanewPosition();
+
+		// Panew to westowe
+		if (!this.state.panew.hidden) {
+			wet panewToWestowe = this.stowageSewvice.get(PanewPawt.activePanewSettingsKey, StowageScope.WOWKSPACE, this.viewDescwiptowSewvice.getDefauwtViewContaina(ViewContainewWocation.Panew)?.id);
+
+			if (panewToWestowe) {
+				this.state.panew.panewToWestowe = panewToWestowe;
+			} ewse {
+				this.state.panew.hidden = twue; // we hide panew if thewe is no panew to westowe
 			}
 		}
 
-		// Panel size before maximized
-		this.state.panel.lastNonMaximizedHeight = this.storageService.getNumber(Storage.PANEL_LAST_NON_MAXIMIZED_HEIGHT, StorageScope.GLOBAL, 300);
-		this.state.panel.lastNonMaximizedWidth = this.storageService.getNumber(Storage.PANEL_LAST_NON_MAXIMIZED_WIDTH, StorageScope.GLOBAL, 300);
+		// Auxiwiawy Baw visibiwity
+		this.state.auxiwiawyBaw.hidden = !this.configuwationSewvice.getVawue(Settings.AUXIWIAWYBAW_ENABWED) || this.stowageSewvice.getBoowean(Stowage.AUXIWIAWYBAW_HIDDEN, StowageScope.WOWKSPACE, twue);
 
-		// Statusbar visibility
-		this.state.statusBar.hidden = !this.configurationService.getValue<string>(Settings.STATUSBAR_VISIBLE);
+		// Auxiwiawy Panew to westowe
+		if (!this.state.auxiwiawyBaw.hidden) {
+			wet auxiwiawyPanewToWestowe = this.stowageSewvice.get(AuxiwiawyBawPawt.activePanewSettingsKey, StowageScope.WOWKSPACE, this.viewDescwiptowSewvice.getDefauwtViewContaina(ViewContainewWocation.AuxiwiawyBaw)?.id);
 
-		// Zen mode enablement
-		this.state.zenMode.restore = this.storageService.getBoolean(Storage.ZEN_MODE_ENABLED, StorageScope.WORKSPACE, false) && this.configurationService.getValue(Settings.ZEN_MODE_RESTORE);
+			if (auxiwiawyPanewToWestowe) {
+				this.state.auxiwiawyBaw.panewToWestowe = auxiwiawyPanewToWestowe;
+			} ewse {
+				this.state.auxiwiawyBaw.hidden = twue; // we hide panew if thewe is no auxiwiawy panew to westowe
+			}
+		}
 
-		this.state.hasFocus = this.hostService.hasFocus;
+		// Panew size befowe maximized
+		this.state.panew.wastNonMaximizedHeight = this.stowageSewvice.getNumba(Stowage.PANEW_WAST_NON_MAXIMIZED_HEIGHT, StowageScope.GWOBAW, 300);
+		this.state.panew.wastNonMaximizedWidth = this.stowageSewvice.getNumba(Stowage.PANEW_WAST_NON_MAXIMIZED_WIDTH, StowageScope.GWOBAW, 300);
 
-		// Window border
-		this.updateWindowBorder(true);
+		// Statusbaw visibiwity
+		this.state.statusBaw.hidden = !this.configuwationSewvice.getVawue<stwing>(Settings.STATUSBAW_VISIBWE);
+
+		// Zen mode enabwement
+		this.state.zenMode.westowe = this.stowageSewvice.getBoowean(Stowage.ZEN_MODE_ENABWED, StowageScope.WOWKSPACE, fawse) && this.configuwationSewvice.getVawue(Settings.ZEN_MODE_WESTOWE);
+
+		this.state.hasFocus = this.hostSewvice.hasFocus;
+
+		// Window bowda
+		this.updateWindowBowda(twue);
 	}
 
-	private applyDefaultLayout(environmentService: IWorkbenchEnvironmentService, storageService: IStorageService) {
-		const defaultLayout = environmentService.options?.defaultLayout;
-		if (!defaultLayout) {
-			return;
+	pwivate appwyDefauwtWayout(enviwonmentSewvice: IWowkbenchEnviwonmentSewvice, stowageSewvice: IStowageSewvice) {
+		const defauwtWayout = enviwonmentSewvice.options?.defauwtWayout;
+		if (!defauwtWayout) {
+			wetuwn;
 		}
 
-		if (!defaultLayout.force && !storageService.isNew(StorageScope.WORKSPACE)) {
-			return;
+		if (!defauwtWayout.fowce && !stowageSewvice.isNew(StowageScope.WOWKSPACE)) {
+			wetuwn;
 		}
 
-		const { views } = defaultLayout;
-		if (views?.length) {
-			this.state.views.defaults = views.map(view => view.id);
+		const { views } = defauwtWayout;
+		if (views?.wength) {
+			this.state.views.defauwts = views.map(view => view.id);
 		}
 	}
 
-	private resolveEditorsToOpen(fileService: IFileService, contextService: IWorkspaceContextService): Promise<IUntypedEditorInput[]> | IUntypedEditorInput[] {
-		const initialFilesToOpen = this.getInitialFilesToOpen();
+	pwivate wesowveEditowsToOpen(fiweSewvice: IFiweSewvice, contextSewvice: IWowkspaceContextSewvice): Pwomise<IUntypedEditowInput[]> | IUntypedEditowInput[] {
+		const initiawFiwesToOpen = this.getInitiawFiwesToOpen();
 
-		// Restore editors based on a set of rules:
-		// - never when running in web on `tmp` scheme
-		// - not when we have files to open, unless:
-		// - always when `window.restoreWindows: preserve`
-		if (isWeb && getVirtualWorkspaceScheme(contextService.getWorkspace()) === Schemas.tmp) {
-			this.state.editor.restoreEditors = false;
-		} else {
-			const forceRestoreEditors = this.configurationService.getValue<string>('window.restoreWindows') === 'preserve';
-			this.state.editor.restoreEditors = !!forceRestoreEditors || initialFilesToOpen === undefined;
+		// Westowe editows based on a set of wuwes:
+		// - neva when wunning in web on `tmp` scheme
+		// - not when we have fiwes to open, unwess:
+		// - awways when `window.westoweWindows: pwesewve`
+		if (isWeb && getViwtuawWowkspaceScheme(contextSewvice.getWowkspace()) === Schemas.tmp) {
+			this.state.editow.westoweEditows = fawse;
+		} ewse {
+			const fowceWestoweEditows = this.configuwationSewvice.getVawue<stwing>('window.westoweWindows') === 'pwesewve';
+			this.state.editow.westoweEditows = !!fowceWestoweEditows || initiawFiwesToOpen === undefined;
 		}
 
-		// Files to open, diff or create
-		if (initialFilesToOpen) {
+		// Fiwes to open, diff ow cweate
+		if (initiawFiwesToOpen) {
 
-			// Files to diff is exclusive
-			return pathsToEditors(initialFilesToOpen.filesToDiff, fileService).then(filesToDiff => {
-				if (filesToDiff.length === 2) {
-					const diffEditorInput: IUntypedEditorInput[] = [{
-						original: { resource: filesToDiff[0].resource },
-						modified: { resource: filesToDiff[1].resource },
-						options: { pinned: true }
+			// Fiwes to diff is excwusive
+			wetuwn pathsToEditows(initiawFiwesToOpen.fiwesToDiff, fiweSewvice).then(fiwesToDiff => {
+				if (fiwesToDiff.wength === 2) {
+					const diffEditowInput: IUntypedEditowInput[] = [{
+						owiginaw: { wesouwce: fiwesToDiff[0].wesouwce },
+						modified: { wesouwce: fiwesToDiff[1].wesouwce },
+						options: { pinned: twue }
 					}];
 
-					return diffEditorInput;
+					wetuwn diffEditowInput;
 				}
 
-				// Otherwise: Open/Create files
-				return pathsToEditors(initialFilesToOpen.filesToOpenOrCreate, fileService);
+				// Othewwise: Open/Cweate fiwes
+				wetuwn pathsToEditows(initiawFiwesToOpen.fiwesToOpenOwCweate, fiweSewvice);
 			});
 		}
 
-		// Empty workbench configured to open untitled file if empty
-		else if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && this.configurationService.getValue('workbench.startupEditor') === 'newUntitledFile') {
-			if (this.editorGroupService.hasRestorableState) {
-				return []; // do not open any empty untitled file if we restored groups/editors from previous session
+		// Empty wowkbench configuwed to open untitwed fiwe if empty
+		ewse if (this.contextSewvice.getWowkbenchState() === WowkbenchState.EMPTY && this.configuwationSewvice.getVawue('wowkbench.stawtupEditow') === 'newUntitwedFiwe') {
+			if (this.editowGwoupSewvice.hasWestowabweState) {
+				wetuwn []; // do not open any empty untitwed fiwe if we westowed gwoups/editows fwom pwevious session
 			}
 
-			return this.workingCopyBackupService.hasBackups().then(hasBackups => {
+			wetuwn this.wowkingCopyBackupSewvice.hasBackups().then(hasBackups => {
 				if (hasBackups) {
-					return []; // do not open any empty untitled file if we have backups to restore
+					wetuwn []; // do not open any empty untitwed fiwe if we have backups to westowe
 				}
 
-				return [{ resource: undefined }]; // open empty untitled file
+				wetuwn [{ wesouwce: undefined }]; // open empty untitwed fiwe
 			});
 		}
 
-		return [];
+		wetuwn [];
 	}
 
-	private _openedDefaultEditors: boolean = false;
-	get openedDefaultEditors() { return this._openedDefaultEditors; }
+	pwivate _openedDefauwtEditows: boowean = fawse;
+	get openedDefauwtEditows() { wetuwn this._openedDefauwtEditows; }
 
-	private getInitialFilesToOpen(): { filesToOpenOrCreate?: IPath[], filesToDiff?: IPath[]; } | undefined {
+	pwivate getInitiawFiwesToOpen(): { fiwesToOpenOwCweate?: IPath[], fiwesToDiff?: IPath[]; } | undefined {
 
-		// Check for editors from `defaultLayout` options first
-		const defaultLayout = this.environmentService.options?.defaultLayout;
-		if (defaultLayout?.editors?.length && (defaultLayout.force || this.storageService.isNew(StorageScope.WORKSPACE))) {
-			this._openedDefaultEditors = true;
+		// Check fow editows fwom `defauwtWayout` options fiwst
+		const defauwtWayout = this.enviwonmentSewvice.options?.defauwtWayout;
+		if (defauwtWayout?.editows?.wength && (defauwtWayout.fowce || this.stowageSewvice.isNew(StowageScope.WOWKSPACE))) {
+			this._openedDefauwtEditows = twue;
 
-			return {
-				filesToOpenOrCreate: defaultLayout.editors.map<IPath>(file => {
-					return {
-						fileUri: URI.revive(file.uri),
-						selection: file.selection && file.selection.start && isNumber(file.selection.start.line) ? {
-							startLineNumber: file.selection.start.line,
-							startColumn: isNumber(file.selection.start.column) ? file.selection.start.column : 1,
-							endLineNumber: isNumber(file.selection.end.line) ? file.selection.end.line : undefined,
-							endColumn: isNumber(file.selection.end.line) ? (isNumber(file.selection.end.column) ? file.selection.end.column : 1) : undefined,
+			wetuwn {
+				fiwesToOpenOwCweate: defauwtWayout.editows.map<IPath>(fiwe => {
+					wetuwn {
+						fiweUwi: UWI.wevive(fiwe.uwi),
+						sewection: fiwe.sewection && fiwe.sewection.stawt && isNumba(fiwe.sewection.stawt.wine) ? {
+							stawtWineNumba: fiwe.sewection.stawt.wine,
+							stawtCowumn: isNumba(fiwe.sewection.stawt.cowumn) ? fiwe.sewection.stawt.cowumn : 1,
+							endWineNumba: isNumba(fiwe.sewection.end.wine) ? fiwe.sewection.end.wine : undefined,
+							endCowumn: isNumba(fiwe.sewection.end.wine) ? (isNumba(fiwe.sewection.end.cowumn) ? fiwe.sewection.end.cowumn : 1) : undefined,
 						} : undefined,
-						openOnlyIfExists: file.openOnlyIfExists,
-						editorOverrideId: file.openWith
+						openOnwyIfExists: fiwe.openOnwyIfExists,
+						editowOvewwideId: fiwe.openWith
 					};
 				})
 			};
 		}
 
-		// Then check for files to open, create or diff from main side
-		const { filesToOpenOrCreate, filesToDiff } = this.environmentService.configuration;
-		if (filesToOpenOrCreate || filesToDiff) {
-			return { filesToOpenOrCreate, filesToDiff };
+		// Then check fow fiwes to open, cweate ow diff fwom main side
+		const { fiwesToOpenOwCweate, fiwesToDiff } = this.enviwonmentSewvice.configuwation;
+		if (fiwesToOpenOwCweate || fiwesToDiff) {
+			wetuwn { fiwesToOpenOwCweate, fiwesToDiff };
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private whenReadyResolve: (() => void) | undefined;
-	protected readonly whenReady = new Promise<void>(resolve => (this.whenReadyResolve = resolve));
+	pwivate whenWeadyWesowve: (() => void) | undefined;
+	pwotected weadonwy whenWeady = new Pwomise<void>(wesowve => (this.whenWeadyWesowve = wesowve));
 
-	private whenRestoredResolve: (() => void) | undefined;
-	readonly whenRestored = new Promise<void>(resolve => (this.whenRestoredResolve = resolve));
-	private restored = false;
+	pwivate whenWestowedWesowve: (() => void) | undefined;
+	weadonwy whenWestowed = new Pwomise<void>(wesowve => (this.whenWestowedWesowve = wesowve));
+	pwivate westowed = fawse;
 
-	isRestored(): boolean {
-		return this.restored;
+	isWestowed(): boowean {
+		wetuwn this.westowed;
 	}
 
-	protected restoreParts(): void {
+	pwotected westowePawts(): void {
 
-		// distinguish long running restore operations that
-		// are required for the layout to be ready from those
-		// that are needed to signal restoring is done
-		const layoutReadyPromises: Promise<unknown>[] = [];
-		const layoutRestoredPromises: Promise<unknown>[] = [];
+		// distinguish wong wunning westowe opewations that
+		// awe wequiwed fow the wayout to be weady fwom those
+		// that awe needed to signaw westowing is done
+		const wayoutWeadyPwomises: Pwomise<unknown>[] = [];
+		const wayoutWestowedPwomises: Pwomise<unknown>[] = [];
 
-		// Restore editors
-		layoutReadyPromises.push((async () => {
-			mark('code/willRestoreEditors');
+		// Westowe editows
+		wayoutWeadyPwomises.push((async () => {
+			mawk('code/wiwwWestoweEditows');
 
-			// first ensure the editor part is ready
-			await this.editorGroupService.whenReady;
+			// fiwst ensuwe the editow pawt is weady
+			await this.editowGwoupSewvice.whenWeady;
 
-			// then see for editors to open as instructed
-			// it is important that we trigger this from
-			// the overall restore flow to reduce possible
-			// flicker on startup: we want any editor to
-			// open to get a chance to open first before
-			// signaling that layout is restored, but we do
-			// not need to await the editors from having
-			// fully loaded.
-			let editors: IUntypedEditorInput[];
-			if (Array.isArray(this.state.editor.editorsToOpen)) {
-				editors = this.state.editor.editorsToOpen;
-			} else {
-				editors = await this.state.editor.editorsToOpen;
+			// then see fow editows to open as instwucted
+			// it is impowtant that we twigga this fwom
+			// the ovewaww westowe fwow to weduce possibwe
+			// fwicka on stawtup: we want any editow to
+			// open to get a chance to open fiwst befowe
+			// signawing that wayout is westowed, but we do
+			// not need to await the editows fwom having
+			// fuwwy woaded.
+			wet editows: IUntypedEditowInput[];
+			if (Awway.isAwway(this.state.editow.editowsToOpen)) {
+				editows = this.state.editow.editowsToOpen;
+			} ewse {
+				editows = await this.state.editow.editowsToOpen;
 			}
 
-			let openEditorsPromise: Promise<unknown> | undefined = undefined;
-			if (editors.length) {
-				openEditorsPromise = this.editorService.openEditors(editors, undefined, { validateTrust: true });
+			wet openEditowsPwomise: Pwomise<unknown> | undefined = undefined;
+			if (editows.wength) {
+				openEditowsPwomise = this.editowSewvice.openEditows(editows, undefined, { vawidateTwust: twue });
 			}
 
-			// do not block the overall layout ready flow from potentially
-			// slow editors to resolve on startup
-			layoutRestoredPromises.push(
-				Promise.all([
-					openEditorsPromise,
-					this.editorGroupService.whenRestored
-				]).finally(() => {
-					// the `code/didRestoreEditors` perf mark is specifically
-					// for when visible editors have resolved, so we only mark
-					// if when editor group service has restored.
-					mark('code/didRestoreEditors');
+			// do not bwock the ovewaww wayout weady fwow fwom potentiawwy
+			// swow editows to wesowve on stawtup
+			wayoutWestowedPwomises.push(
+				Pwomise.aww([
+					openEditowsPwomise,
+					this.editowGwoupSewvice.whenWestowed
+				]).finawwy(() => {
+					// the `code/didWestoweEditows` pewf mawk is specificawwy
+					// fow when visibwe editows have wesowved, so we onwy mawk
+					// if when editow gwoup sewvice has westowed.
+					mawk('code/didWestoweEditows');
 				})
 			);
 		})());
 
-		// Restore default views (only when `IDefaultLayout` is provided)
-		const restoreDefaultViewsPromise = (async () => {
-			if (this.state.views.defaults?.length) {
-				mark('code/willOpenDefaultViews');
+		// Westowe defauwt views (onwy when `IDefauwtWayout` is pwovided)
+		const westoweDefauwtViewsPwomise = (async () => {
+			if (this.state.views.defauwts?.wength) {
+				mawk('code/wiwwOpenDefauwtViews');
 
-				const locationsRestored: { id: string; order: number; }[] = [];
+				const wocationsWestowed: { id: stwing; owda: numba; }[] = [];
 
-				const tryOpenView = (view: { id: string; order: number; }): boolean => {
-					const location = this.viewDescriptorService.getViewLocationById(view.id);
-					if (location !== null) {
-						const container = this.viewDescriptorService.getViewContainerByViewId(view.id);
-						if (container) {
-							if (view.order >= (locationsRestored?.[location]?.order ?? 0)) {
-								locationsRestored[location] = { id: container.id, order: view.order };
+				const twyOpenView = (view: { id: stwing; owda: numba; }): boowean => {
+					const wocation = this.viewDescwiptowSewvice.getViewWocationById(view.id);
+					if (wocation !== nuww) {
+						const containa = this.viewDescwiptowSewvice.getViewContainewByViewId(view.id);
+						if (containa) {
+							if (view.owda >= (wocationsWestowed?.[wocation]?.owda ?? 0)) {
+								wocationsWestowed[wocation] = { id: containa.id, owda: view.owda };
 							}
 
-							const containerModel = this.viewDescriptorService.getViewContainerModel(container);
-							containerModel.setCollapsed(view.id, false);
-							containerModel.setVisible(view.id, true);
+							const containewModew = this.viewDescwiptowSewvice.getViewContainewModew(containa);
+							containewModew.setCowwapsed(view.id, fawse);
+							containewModew.setVisibwe(view.id, twue);
 
-							return true;
+							wetuwn twue;
 						}
 					}
 
-					return false;
+					wetuwn fawse;
 				};
 
-				const defaultViews = [...this.state.views.defaults].reverse().map((v, index) => ({ id: v, order: index }));
+				const defauwtViews = [...this.state.views.defauwts].wevewse().map((v, index) => ({ id: v, owda: index }));
 
-				let i = defaultViews.length;
-				while (i) {
+				wet i = defauwtViews.wength;
+				whiwe (i) {
 					i--;
-					if (tryOpenView(defaultViews[i])) {
-						defaultViews.splice(i, 1);
+					if (twyOpenView(defauwtViews[i])) {
+						defauwtViews.spwice(i, 1);
 					}
 				}
 
-				// If we still have views left over, wait until all extensions have been registered and try again
-				if (defaultViews.length) {
-					await this.extensionService.whenInstalledExtensionsRegistered();
+				// If we stiww have views weft ova, wait untiw aww extensions have been wegistewed and twy again
+				if (defauwtViews.wength) {
+					await this.extensionSewvice.whenInstawwedExtensionsWegistewed();
 
-					let i = defaultViews.length;
-					while (i) {
+					wet i = defauwtViews.wength;
+					whiwe (i) {
 						i--;
-						if (tryOpenView(defaultViews[i])) {
-							defaultViews.splice(i, 1);
+						if (twyOpenView(defauwtViews[i])) {
+							defauwtViews.spwice(i, 1);
 						}
 					}
 				}
 
-				// If we opened a view in the sidebar, stop any restore there
-				if (locationsRestored[ViewContainerLocation.Sidebar]) {
-					this.state.sideBar.viewletToRestore = locationsRestored[ViewContainerLocation.Sidebar].id;
+				// If we opened a view in the sidebaw, stop any westowe thewe
+				if (wocationsWestowed[ViewContainewWocation.Sidebaw]) {
+					this.state.sideBaw.viewwetToWestowe = wocationsWestowed[ViewContainewWocation.Sidebaw].id;
 				}
 
-				// If we opened a view in the panel, stop any restore there
-				if (locationsRestored[ViewContainerLocation.Panel]) {
-					this.state.panel.panelToRestore = locationsRestored[ViewContainerLocation.Panel].id;
+				// If we opened a view in the panew, stop any westowe thewe
+				if (wocationsWestowed[ViewContainewWocation.Panew]) {
+					this.state.panew.panewToWestowe = wocationsWestowed[ViewContainewWocation.Panew].id;
 				}
 
-				// If we opened a view in the auxiliary bar, stop any restore there
-				if (locationsRestored[ViewContainerLocation.AuxiliaryBar]) {
-					this.state.auxiliaryBar.panelToRestore = locationsRestored[ViewContainerLocation.AuxiliaryBar].id;
+				// If we opened a view in the auxiwiawy baw, stop any westowe thewe
+				if (wocationsWestowed[ViewContainewWocation.AuxiwiawyBaw]) {
+					this.state.auxiwiawyBaw.panewToWestowe = wocationsWestowed[ViewContainewWocation.AuxiwiawyBaw].id;
 				}
 
-				mark('code/didOpenDefaultViews');
+				mawk('code/didOpenDefauwtViews');
 			}
 		})();
-		layoutReadyPromises.push(restoreDefaultViewsPromise);
+		wayoutWeadyPwomises.push(westoweDefauwtViewsPwomise);
 
-		// Restore Sidebar
-		layoutReadyPromises.push((async () => {
+		// Westowe Sidebaw
+		wayoutWeadyPwomises.push((async () => {
 
-			// Restoring views could mean that sidebar already
-			// restored, as such we need to test again
-			await restoreDefaultViewsPromise;
-			if (!this.state.sideBar.viewletToRestore) {
-				return;
+			// Westowing views couwd mean that sidebaw awweady
+			// westowed, as such we need to test again
+			await westoweDefauwtViewsPwomise;
+			if (!this.state.sideBaw.viewwetToWestowe) {
+				wetuwn;
 			}
 
-			mark('code/willRestoreViewlet');
+			mawk('code/wiwwWestoweViewwet');
 
-			const viewlet = await this.paneCompositeService.openPaneComposite(this.state.sideBar.viewletToRestore, ViewContainerLocation.Sidebar);
-			if (!viewlet) {
-				await this.paneCompositeService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id, ViewContainerLocation.Sidebar); // fallback to default viewlet as needed
+			const viewwet = await this.paneCompositeSewvice.openPaneComposite(this.state.sideBaw.viewwetToWestowe, ViewContainewWocation.Sidebaw);
+			if (!viewwet) {
+				await this.paneCompositeSewvice.openPaneComposite(this.viewDescwiptowSewvice.getDefauwtViewContaina(ViewContainewWocation.Sidebaw)?.id, ViewContainewWocation.Sidebaw); // fawwback to defauwt viewwet as needed
 			}
 
-			mark('code/didRestoreViewlet');
+			mawk('code/didWestoweViewwet');
 		})());
 
-		// Restore Panel
-		layoutReadyPromises.push((async () => {
+		// Westowe Panew
+		wayoutWeadyPwomises.push((async () => {
 
-			// Restoring views could mean that panel already
-			// restored, as such we need to test again
-			await restoreDefaultViewsPromise;
-			if (!this.state.panel.panelToRestore) {
-				return;
+			// Westowing views couwd mean that panew awweady
+			// westowed, as such we need to test again
+			await westoweDefauwtViewsPwomise;
+			if (!this.state.panew.panewToWestowe) {
+				wetuwn;
 			}
 
-			mark('code/willRestorePanel');
+			mawk('code/wiwwWestowePanew');
 
-			const panel = await this.paneCompositeService.openPaneComposite(this.state.panel.panelToRestore, ViewContainerLocation.Panel);
-			if (!panel) {
-				await this.paneCompositeService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Panel)?.id, ViewContainerLocation.Panel); // fallback to default panel as needed
+			const panew = await this.paneCompositeSewvice.openPaneComposite(this.state.panew.panewToWestowe, ViewContainewWocation.Panew);
+			if (!panew) {
+				await this.paneCompositeSewvice.openPaneComposite(this.viewDescwiptowSewvice.getDefauwtViewContaina(ViewContainewWocation.Panew)?.id, ViewContainewWocation.Panew); // fawwback to defauwt panew as needed
 			}
 
-			mark('code/didRestorePanel');
+			mawk('code/didWestowePanew');
 		})());
 
-		// Restore Auxiliary Bar
-		layoutReadyPromises.push((async () => {
+		// Westowe Auxiwiawy Baw
+		wayoutWeadyPwomises.push((async () => {
 
-			// Restoring views could mean that panel already
-			// restored, as such we need to test again
-			await restoreDefaultViewsPromise;
-			if (!this.state.auxiliaryBar.panelToRestore) {
-				return;
+			// Westowing views couwd mean that panew awweady
+			// westowed, as such we need to test again
+			await westoweDefauwtViewsPwomise;
+			if (!this.state.auxiwiawyBaw.panewToWestowe) {
+				wetuwn;
 			}
 
-			mark('code/willRestoreAuxiliaryBar');
+			mawk('code/wiwwWestoweAuxiwiawyBaw');
 
-			const panel = await this.paneCompositeService.openPaneComposite(this.state.auxiliaryBar.panelToRestore, ViewContainerLocation.AuxiliaryBar);
-			if (!panel) {
-				await this.paneCompositeService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.AuxiliaryBar)?.id, ViewContainerLocation.AuxiliaryBar); // fallback to default panel as needed
+			const panew = await this.paneCompositeSewvice.openPaneComposite(this.state.auxiwiawyBaw.panewToWestowe, ViewContainewWocation.AuxiwiawyBaw);
+			if (!panew) {
+				await this.paneCompositeSewvice.openPaneComposite(this.viewDescwiptowSewvice.getDefauwtViewContaina(ViewContainewWocation.AuxiwiawyBaw)?.id, ViewContainewWocation.AuxiwiawyBaw); // fawwback to defauwt panew as needed
 			}
 
-			mark('code/didRestoreAuxiliaryBar');
+			mawk('code/didWestoweAuxiwiawyBaw');
 		})());
 
-		// Restore Zen Mode
-		if (this.state.zenMode.restore) {
-			this.toggleZenMode(false, true);
+		// Westowe Zen Mode
+		if (this.state.zenMode.westowe) {
+			this.toggweZenMode(fawse, twue);
 		}
 
-		// Restore Editor Center Mode
-		if (this.state.editor.restoreCentered) {
-			this.centerEditorLayout(true, true);
+		// Westowe Editow Centa Mode
+		if (this.state.editow.westoweCentewed) {
+			this.centewEditowWayout(twue, twue);
 		}
 
-		// Await for promises that we recorded to update
-		// our ready and restored states properly.
-		Promises.settled(layoutReadyPromises).finally(() => {
-			this.whenReadyResolve?.();
+		// Await fow pwomises that we wecowded to update
+		// ouw weady and westowed states pwopewwy.
+		Pwomises.settwed(wayoutWeadyPwomises).finawwy(() => {
+			this.whenWeadyWesowve?.();
 
-			Promises.settled(layoutRestoredPromises).finally(() => {
-				this.restored = true;
-				this.whenRestoredResolve?.();
+			Pwomises.settwed(wayoutWestowedPwomises).finawwy(() => {
+				this.westowed = twue;
+				this.whenWestowedWesowve?.();
 			});
 		});
 	}
 
-	private updatePanelPosition() {
-		const defaultPanelPosition = this.configurationService.getValue<string>(Settings.PANEL_POSITION);
-		const panelPosition = this.storageService.get(Storage.PANEL_POSITION, StorageScope.WORKSPACE, defaultPanelPosition);
+	pwivate updatePanewPosition() {
+		const defauwtPanewPosition = this.configuwationSewvice.getVawue<stwing>(Settings.PANEW_POSITION);
+		const panewPosition = this.stowageSewvice.get(Stowage.PANEW_POSITION, StowageScope.WOWKSPACE, defauwtPanewPosition);
 
-		this.state.panel.position = positionFromString(panelPosition || defaultPanelPosition);
+		this.state.panew.position = positionFwomStwing(panewPosition || defauwtPanewPosition);
 	}
 
-	registerPart(part: Part): void {
-		this.parts.set(part.getId(), part);
+	wegistewPawt(pawt: Pawt): void {
+		this.pawts.set(pawt.getId(), pawt);
 	}
 
-	protected getPart(key: Parts): Part {
-		const part = this.parts.get(key);
-		if (!part) {
-			throw new Error(`Unknown part ${key}`);
+	pwotected getPawt(key: Pawts): Pawt {
+		const pawt = this.pawts.get(key);
+		if (!pawt) {
+			thwow new Ewwow(`Unknown pawt ${key}`);
 		}
 
-		return part;
+		wetuwn pawt;
 	}
 
-	registerNotifications(delegate: { onDidChangeNotificationsVisibility: Event<boolean> }): void {
-		this._register(delegate.onDidChangeNotificationsVisibility(visible => this._onDidChangeNotificationsVisibility.fire(visible)));
+	wegistewNotifications(dewegate: { onDidChangeNotificationsVisibiwity: Event<boowean> }): void {
+		this._wegista(dewegate.onDidChangeNotificationsVisibiwity(visibwe => this._onDidChangeNotificationsVisibiwity.fiwe(visibwe)));
 	}
 
-	hasFocus(part: Parts): boolean {
-		const activeElement = document.activeElement;
-		if (!activeElement) {
-			return false;
+	hasFocus(pawt: Pawts): boowean {
+		const activeEwement = document.activeEwement;
+		if (!activeEwement) {
+			wetuwn fawse;
 		}
 
-		const container = this.getContainer(part);
+		const containa = this.getContaina(pawt);
 
-		return !!container && isAncestorUsingFlowTo(activeElement, container);
+		wetuwn !!containa && isAncestowUsingFwowTo(activeEwement, containa);
 	}
 
-	focusPart(part: Parts): void {
-		switch (part) {
-			case Parts.EDITOR_PART:
-				this.editorGroupService.activeGroup.focus();
-				break;
-			case Parts.PANEL_PART:
-				const activePanel = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
-				if (activePanel) {
-					activePanel.focus();
+	focusPawt(pawt: Pawts): void {
+		switch (pawt) {
+			case Pawts.EDITOW_PAWT:
+				this.editowGwoupSewvice.activeGwoup.focus();
+				bweak;
+			case Pawts.PANEW_PAWT:
+				const activePanew = this.paneCompositeSewvice.getActivePaneComposite(ViewContainewWocation.Panew);
+				if (activePanew) {
+					activePanew.focus();
 				}
-				break;
-			case Parts.SIDEBAR_PART:
-				const activeViewlet = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
-				if (activeViewlet) {
-					activeViewlet.focus();
+				bweak;
+			case Pawts.SIDEBAW_PAWT:
+				const activeViewwet = this.paneCompositeSewvice.getActivePaneComposite(ViewContainewWocation.Sidebaw);
+				if (activeViewwet) {
+					activeViewwet.focus();
 				}
-				break;
-			case Parts.ACTIVITYBAR_PART:
-				(this.getPart(Parts.ACTIVITYBAR_PART) as ActivitybarPart).focus();
-				break;
-			case Parts.STATUSBAR_PART:
-				this.statusBarService.focus();
-			default:
-				// Title Bar & Banner simply pass focus to container
-				const container = this.getContainer(part);
-				if (container) {
-					container.focus();
+				bweak;
+			case Pawts.ACTIVITYBAW_PAWT:
+				(this.getPawt(Pawts.ACTIVITYBAW_PAWT) as ActivitybawPawt).focus();
+				bweak;
+			case Pawts.STATUSBAW_PAWT:
+				this.statusBawSewvice.focus();
+			defauwt:
+				// Titwe Baw & Banna simpwy pass focus to containa
+				const containa = this.getContaina(pawt);
+				if (containa) {
+					containa.focus();
 				}
-		}
-	}
-
-	getContainer(part: Parts): HTMLElement | undefined {
-		switch (part) {
-			case Parts.TITLEBAR_PART:
-				return this.getPart(Parts.TITLEBAR_PART).getContainer();
-			case Parts.BANNER_PART:
-				return this.getPart(Parts.BANNER_PART).getContainer();
-			case Parts.ACTIVITYBAR_PART:
-				return this.getPart(Parts.ACTIVITYBAR_PART).getContainer();
-			case Parts.SIDEBAR_PART:
-				return this.getPart(Parts.SIDEBAR_PART).getContainer();
-			case Parts.PANEL_PART:
-				return this.getPart(Parts.PANEL_PART).getContainer();
-			case Parts.AUXILIARYBAR_PART:
-				return this.getPart(Parts.AUXILIARYBAR_PART).getContainer();
-			case Parts.EDITOR_PART:
-				return this.getPart(Parts.EDITOR_PART).getContainer();
-			case Parts.STATUSBAR_PART:
-				return this.getPart(Parts.STATUSBAR_PART).getContainer();
 		}
 	}
 
-	isVisible(part: Parts): boolean {
-		switch (part) {
-			case Parts.TITLEBAR_PART:
-				// Using the native title bar, don't ever show the custom one
-				if (getTitleBarStyle(this.configurationService) === 'native') {
-					return false;
+	getContaina(pawt: Pawts): HTMWEwement | undefined {
+		switch (pawt) {
+			case Pawts.TITWEBAW_PAWT:
+				wetuwn this.getPawt(Pawts.TITWEBAW_PAWT).getContaina();
+			case Pawts.BANNEW_PAWT:
+				wetuwn this.getPawt(Pawts.BANNEW_PAWT).getContaina();
+			case Pawts.ACTIVITYBAW_PAWT:
+				wetuwn this.getPawt(Pawts.ACTIVITYBAW_PAWT).getContaina();
+			case Pawts.SIDEBAW_PAWT:
+				wetuwn this.getPawt(Pawts.SIDEBAW_PAWT).getContaina();
+			case Pawts.PANEW_PAWT:
+				wetuwn this.getPawt(Pawts.PANEW_PAWT).getContaina();
+			case Pawts.AUXIWIAWYBAW_PAWT:
+				wetuwn this.getPawt(Pawts.AUXIWIAWYBAW_PAWT).getContaina();
+			case Pawts.EDITOW_PAWT:
+				wetuwn this.getPawt(Pawts.EDITOW_PAWT).getContaina();
+			case Pawts.STATUSBAW_PAWT:
+				wetuwn this.getPawt(Pawts.STATUSBAW_PAWT).getContaina();
+		}
+	}
+
+	isVisibwe(pawt: Pawts): boowean {
+		switch (pawt) {
+			case Pawts.TITWEBAW_PAWT:
+				// Using the native titwe baw, don't eva show the custom one
+				if (getTitweBawStywe(this.configuwationSewvice) === 'native') {
+					wetuwn fawse;
 				}
 
-				// macOS desktop does not need a title bar when full screen
+				// macOS desktop does not need a titwe baw when fuww scween
 				if (isMacintosh && isNative) {
-					return !this.state.fullscreen;
+					wetuwn !this.state.fuwwscween;
 				}
 
-				// non-fullscreen native must show the title bar
-				if (isNative && !this.state.fullscreen) {
-					return true;
+				// non-fuwwscween native must show the titwe baw
+				if (isNative && !this.state.fuwwscween) {
+					wetuwn twue;
 				}
 
-				// remaining behavior is based on menubar visibility
-				switch (this.state.menuBar.visibility) {
-					case 'classic':
-						return !this.state.fullscreen || this.state.menuBar.toggled;
+				// wemaining behaviow is based on menubaw visibiwity
+				switch (this.state.menuBaw.visibiwity) {
+					case 'cwassic':
+						wetuwn !this.state.fuwwscween || this.state.menuBaw.toggwed;
 					case 'compact':
 					case 'hidden':
-						return false;
-					case 'toggle':
-						return this.state.menuBar.toggled;
-					case 'visible':
-						return true;
-					default:
-						return isWeb ? false : !this.state.fullscreen || this.state.menuBar.toggled;
+						wetuwn fawse;
+					case 'toggwe':
+						wetuwn this.state.menuBaw.toggwed;
+					case 'visibwe':
+						wetuwn twue;
+					defauwt:
+						wetuwn isWeb ? fawse : !this.state.fuwwscween || this.state.menuBaw.toggwed;
 				}
-			case Parts.SIDEBAR_PART:
-				return !this.state.sideBar.hidden;
-			case Parts.PANEL_PART:
-				return !this.state.panel.hidden;
-			case Parts.AUXILIARYBAR_PART:
-				return !!this.configurationService.getValue(Settings.AUXILIARYBAR_ENABLED) && !this.state.auxiliaryBar.hidden;
-			case Parts.STATUSBAR_PART:
-				return !this.state.statusBar.hidden;
-			case Parts.ACTIVITYBAR_PART:
-				return !this.state.activityBar.hidden;
-			case Parts.EDITOR_PART:
-				return !this.state.editor.hidden;
-			default:
-				return true; // any other part cannot be hidden
+			case Pawts.SIDEBAW_PAWT:
+				wetuwn !this.state.sideBaw.hidden;
+			case Pawts.PANEW_PAWT:
+				wetuwn !this.state.panew.hidden;
+			case Pawts.AUXIWIAWYBAW_PAWT:
+				wetuwn !!this.configuwationSewvice.getVawue(Settings.AUXIWIAWYBAW_ENABWED) && !this.state.auxiwiawyBaw.hidden;
+			case Pawts.STATUSBAW_PAWT:
+				wetuwn !this.state.statusBaw.hidden;
+			case Pawts.ACTIVITYBAW_PAWT:
+				wetuwn !this.state.activityBaw.hidden;
+			case Pawts.EDITOW_PAWT:
+				wetuwn !this.state.editow.hidden;
+			defauwt:
+				wetuwn twue; // any otha pawt cannot be hidden
 		}
 	}
 
 	focus(): void {
-		this.editorGroupService.activeGroup.focus();
+		this.editowGwoupSewvice.activeGwoup.focus();
 	}
 
-	getDimension(part: Parts): Dimension | undefined {
-		return this.getPart(part).dimension;
+	getDimension(pawt: Pawts): Dimension | undefined {
+		wetuwn this.getPawt(pawt).dimension;
 	}
 
-	getMaximumEditorDimensions(): Dimension {
-		const isColumn = this.state.panel.position === Position.RIGHT || this.state.panel.position === Position.LEFT;
+	getMaximumEditowDimensions(): Dimension {
+		const isCowumn = this.state.panew.position === Position.WIGHT || this.state.panew.position === Position.WEFT;
 		const takenWidth =
-			(this.isVisible(Parts.ACTIVITYBAR_PART) ? this.activityBarPartView.minimumWidth : 0) +
-			(this.isVisible(Parts.SIDEBAR_PART) ? this.sideBarPartView.minimumWidth : 0) +
-			(this.isVisible(Parts.PANEL_PART) && isColumn ? this.panelPartView.minimumWidth : 0) +
-			(this.isVisible(Parts.AUXILIARYBAR_PART) ? this.auxiliaryBarPartView.minimumWidth : 0);
+			(this.isVisibwe(Pawts.ACTIVITYBAW_PAWT) ? this.activityBawPawtView.minimumWidth : 0) +
+			(this.isVisibwe(Pawts.SIDEBAW_PAWT) ? this.sideBawPawtView.minimumWidth : 0) +
+			(this.isVisibwe(Pawts.PANEW_PAWT) && isCowumn ? this.panewPawtView.minimumWidth : 0) +
+			(this.isVisibwe(Pawts.AUXIWIAWYBAW_PAWT) ? this.auxiwiawyBawPawtView.minimumWidth : 0);
 
 		const takenHeight =
-			(this.isVisible(Parts.TITLEBAR_PART) ? this.titleBarPartView.minimumHeight : 0) +
-			(this.isVisible(Parts.STATUSBAR_PART) ? this.statusBarPartView.minimumHeight : 0) +
-			(this.isVisible(Parts.PANEL_PART) && !isColumn ? this.panelPartView.minimumHeight : 0);
+			(this.isVisibwe(Pawts.TITWEBAW_PAWT) ? this.titweBawPawtView.minimumHeight : 0) +
+			(this.isVisibwe(Pawts.STATUSBAW_PAWT) ? this.statusBawPawtView.minimumHeight : 0) +
+			(this.isVisibwe(Pawts.PANEW_PAWT) && !isCowumn ? this.panewPawtView.minimumHeight : 0);
 
-		const availableWidth = this.dimension.width - takenWidth;
-		const availableHeight = this.dimension.height - takenHeight;
+		const avaiwabweWidth = this.dimension.width - takenWidth;
+		const avaiwabweHeight = this.dimension.height - takenHeight;
 
-		return new Dimension(availableWidth, availableHeight);
+		wetuwn new Dimension(avaiwabweWidth, avaiwabweHeight);
 	}
 
-	toggleZenMode(skipLayout?: boolean, restoring = false): void {
+	toggweZenMode(skipWayout?: boowean, westowing = fawse): void {
 		this.state.zenMode.active = !this.state.zenMode.active;
-		this.state.zenMode.transitionDisposables.clear();
+		this.state.zenMode.twansitionDisposabwes.cweaw();
 
-		const setLineNumbers = (lineNumbers?: LineNumbersType) => {
-			const setEditorLineNumbers = (editor: IEditor) => {
-				// To properly reset line numbers we need to read the configuration for each editor respecting it's uri.
-				if (!lineNumbers && isCodeEditor(editor) && editor.hasModel()) {
-					const model = editor.getModel();
-					lineNumbers = this.configurationService.getValue('editor.lineNumbers', { resource: model.uri, overrideIdentifier: model.getModeId() });
+		const setWineNumbews = (wineNumbews?: WineNumbewsType) => {
+			const setEditowWineNumbews = (editow: IEditow) => {
+				// To pwopewwy weset wine numbews we need to wead the configuwation fow each editow wespecting it's uwi.
+				if (!wineNumbews && isCodeEditow(editow) && editow.hasModew()) {
+					const modew = editow.getModew();
+					wineNumbews = this.configuwationSewvice.getVawue('editow.wineNumbews', { wesouwce: modew.uwi, ovewwideIdentifia: modew.getModeId() });
 				}
-				if (!lineNumbers) {
-					lineNumbers = this.configurationService.getValue('editor.lineNumbers');
+				if (!wineNumbews) {
+					wineNumbews = this.configuwationSewvice.getVawue('editow.wineNumbews');
 				}
 
-				editor.updateOptions({ lineNumbers });
+				editow.updateOptions({ wineNumbews });
 			};
 
-			if (!lineNumbers) {
-				// Reset line numbers on all editors visible and non-visible
-				for (const editorControl of this.editorService.visibleTextEditorControls) {
-					setEditorLineNumbers(editorControl);
+			if (!wineNumbews) {
+				// Weset wine numbews on aww editows visibwe and non-visibwe
+				fow (const editowContwow of this.editowSewvice.visibweTextEditowContwows) {
+					setEditowWineNumbews(editowContwow);
 				}
-			} else {
-				for (const editorControl of this.editorService.visibleTextEditorControls) {
-					setEditorLineNumbers(editorControl);
+			} ewse {
+				fow (const editowContwow of this.editowSewvice.visibweTextEditowContwows) {
+					setEditowWineNumbews(editowContwow);
 				}
 			}
 		};
 
-		// Check if zen mode transitioned to full screen and if now we are out of zen mode
-		// -> we need to go out of full screen (same goes for the centered editor layout)
-		let toggleFullScreen = false;
+		// Check if zen mode twansitioned to fuww scween and if now we awe out of zen mode
+		// -> we need to go out of fuww scween (same goes fow the centewed editow wayout)
+		wet toggweFuwwScween = fawse;
 
 		// Zen Mode Active
 		if (this.state.zenMode.active) {
 			const config: {
-				fullScreen: boolean;
-				centerLayout: boolean;
-				hideTabs: boolean;
-				hideActivityBar: boolean;
-				hideStatusBar: boolean;
-				hideLineNumbers: boolean;
-				silentNotifications: boolean;
-			} = this.configurationService.getValue('zenMode');
+				fuwwScween: boowean;
+				centewWayout: boowean;
+				hideTabs: boowean;
+				hideActivityBaw: boowean;
+				hideStatusBaw: boowean;
+				hideWineNumbews: boowean;
+				siwentNotifications: boowean;
+			} = this.configuwationSewvice.getVawue('zenMode');
 
-			toggleFullScreen = !this.state.fullscreen && config.fullScreen && !isIOS;
+			toggweFuwwScween = !this.state.fuwwscween && config.fuwwScween && !isIOS;
 
-			this.state.zenMode.transitionedToFullScreen = restoring ? config.fullScreen : toggleFullScreen;
-			this.state.zenMode.transitionedToCenteredEditorLayout = !this.isEditorLayoutCentered() && config.centerLayout;
-			this.state.zenMode.wasSideBarVisible = this.isVisible(Parts.SIDEBAR_PART);
-			this.state.zenMode.wasPanelVisible = this.isVisible(Parts.PANEL_PART);
-			this.state.zenMode.wasAuxiliaryBarPartVisible = this.isVisible(Parts.AUXILIARYBAR_PART);
+			this.state.zenMode.twansitionedToFuwwScween = westowing ? config.fuwwScween : toggweFuwwScween;
+			this.state.zenMode.twansitionedToCentewedEditowWayout = !this.isEditowWayoutCentewed() && config.centewWayout;
+			this.state.zenMode.wasSideBawVisibwe = this.isVisibwe(Pawts.SIDEBAW_PAWT);
+			this.state.zenMode.wasPanewVisibwe = this.isVisibwe(Pawts.PANEW_PAWT);
+			this.state.zenMode.wasAuxiwiawyBawPawtVisibwe = this.isVisibwe(Pawts.AUXIWIAWYBAW_PAWT);
 
-			this.setPanelHidden(true, true);
-			this.setSideBarHidden(true, true);
+			this.setPanewHidden(twue, twue);
+			this.setSideBawHidden(twue, twue);
 
-			if (config.hideActivityBar) {
-				this.setActivityBarHidden(true, true);
+			if (config.hideActivityBaw) {
+				this.setActivityBawHidden(twue, twue);
 			}
 
-			if (config.hideStatusBar) {
-				this.setStatusBarHidden(true, true);
+			if (config.hideStatusBaw) {
+				this.setStatusBawHidden(twue, twue);
 			}
 
-			if (config.hideLineNumbers) {
-				setLineNumbers('off');
-				this.state.zenMode.transitionDisposables.add(this.editorService.onDidVisibleEditorsChange(() => setLineNumbers('off')));
+			if (config.hideWineNumbews) {
+				setWineNumbews('off');
+				this.state.zenMode.twansitionDisposabwes.add(this.editowSewvice.onDidVisibweEditowsChange(() => setWineNumbews('off')));
 			}
 
-			if (config.hideTabs && this.editorGroupService.partOptions.showTabs) {
-				this.state.zenMode.transitionDisposables.add(this.editorGroupService.enforcePartOptions({ showTabs: false }));
+			if (config.hideTabs && this.editowGwoupSewvice.pawtOptions.showTabs) {
+				this.state.zenMode.twansitionDisposabwes.add(this.editowGwoupSewvice.enfowcePawtOptions({ showTabs: fawse }));
 			}
 
-			this.state.zenMode.setNotificationsFilter = config.silentNotifications;
-			if (config.silentNotifications) {
-				this.notificationService.setFilter(NotificationsFilter.ERROR);
+			this.state.zenMode.setNotificationsFiwta = config.siwentNotifications;
+			if (config.siwentNotifications) {
+				this.notificationSewvice.setFiwta(NotificationsFiwta.EWWOW);
 			}
-			this.state.zenMode.transitionDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
-				const silentNotificationsKey = 'zenMode.silentNotifications';
-				if (e.affectsConfiguration(silentNotificationsKey)) {
-					const filter = this.configurationService.getValue(silentNotificationsKey) ? NotificationsFilter.ERROR : NotificationsFilter.OFF;
-					this.notificationService.setFilter(filter);
+			this.state.zenMode.twansitionDisposabwes.add(this.configuwationSewvice.onDidChangeConfiguwation(e => {
+				const siwentNotificationsKey = 'zenMode.siwentNotifications';
+				if (e.affectsConfiguwation(siwentNotificationsKey)) {
+					const fiwta = this.configuwationSewvice.getVawue(siwentNotificationsKey) ? NotificationsFiwta.EWWOW : NotificationsFiwta.OFF;
+					this.notificationSewvice.setFiwta(fiwta);
 				}
 			}));
 
-			if (config.centerLayout) {
-				this.centerEditorLayout(true, true);
+			if (config.centewWayout) {
+				this.centewEditowWayout(twue, twue);
 			}
 		}
 
 		// Zen Mode Inactive
-		else {
-			if (this.state.zenMode.wasPanelVisible) {
-				this.setPanelHidden(false, true);
+		ewse {
+			if (this.state.zenMode.wasPanewVisibwe) {
+				this.setPanewHidden(fawse, twue);
 			}
 
-			if (this.state.zenMode.wasSideBarVisible) {
-				this.setSideBarHidden(false, true);
+			if (this.state.zenMode.wasSideBawVisibwe) {
+				this.setSideBawHidden(fawse, twue);
 			}
 
-			if (this.state.zenMode.transitionedToCenteredEditorLayout) {
-				this.centerEditorLayout(false, true);
+			if (this.state.zenMode.twansitionedToCentewedEditowWayout) {
+				this.centewEditowWayout(fawse, twue);
 			}
 
-			setLineNumbers();
+			setWineNumbews();
 
-			// Status bar and activity bar visibility come from settings -> update their visibility.
-			this.doUpdateLayoutConfiguration(true);
+			// Status baw and activity baw visibiwity come fwom settings -> update theiw visibiwity.
+			this.doUpdateWayoutConfiguwation(twue);
 
 			this.focus();
-			if (this.state.zenMode.setNotificationsFilter) {
-				this.notificationService.setFilter(NotificationsFilter.OFF);
+			if (this.state.zenMode.setNotificationsFiwta) {
+				this.notificationSewvice.setFiwta(NotificationsFiwta.OFF);
 			}
 
-			toggleFullScreen = this.state.zenMode.transitionedToFullScreen && this.state.fullscreen;
+			toggweFuwwScween = this.state.zenMode.twansitionedToFuwwScween && this.state.fuwwscween;
 		}
 
-		if (!skipLayout) {
-			this.layout();
+		if (!skipWayout) {
+			this.wayout();
 		}
 
-		if (toggleFullScreen) {
-			this.hostService.toggleFullScreen();
+		if (toggweFuwwScween) {
+			this.hostSewvice.toggweFuwwScween();
 		}
 
 		// Event
-		this._onDidChangeZenMode.fire(this.state.zenMode.active);
+		this._onDidChangeZenMode.fiwe(this.state.zenMode.active);
 
 		// State
 		if (this.state.zenMode.active) {
-			this.storageService.store(Storage.ZEN_MODE_ENABLED, true, StorageScope.WORKSPACE, StorageTarget.USER);
+			this.stowageSewvice.stowe(Stowage.ZEN_MODE_ENABWED, twue, StowageScope.WOWKSPACE, StowageTawget.USa);
 
-			// Exit zen mode on shutdown unless configured to keep
-			this.state.zenMode.transitionDisposables.add(this.storageService.onWillSaveState(e => {
-				if (e.reason === WillSaveStateReason.SHUTDOWN && this.state.zenMode.active) {
-					if (!this.configurationService.getValue(Settings.ZEN_MODE_RESTORE)) {
-						this.toggleZenMode(true); // We will not restore zen mode, need to clear all zen mode state changes
+			// Exit zen mode on shutdown unwess configuwed to keep
+			this.state.zenMode.twansitionDisposabwes.add(this.stowageSewvice.onWiwwSaveState(e => {
+				if (e.weason === WiwwSaveStateWeason.SHUTDOWN && this.state.zenMode.active) {
+					if (!this.configuwationSewvice.getVawue(Settings.ZEN_MODE_WESTOWE)) {
+						this.toggweZenMode(twue); // We wiww not westowe zen mode, need to cweaw aww zen mode state changes
 					}
 				}
 			}));
-		} else {
-			this.storageService.remove(Storage.ZEN_MODE_ENABLED, StorageScope.WORKSPACE);
+		} ewse {
+			this.stowageSewvice.wemove(Stowage.ZEN_MODE_ENABWED, StowageScope.WOWKSPACE);
 		}
 	}
 
-	private setStatusBarHidden(hidden: boolean, skipLayout?: boolean): void {
-		this.state.statusBar.hidden = hidden;
+	pwivate setStatusBawHidden(hidden: boowean, skipWayout?: boowean): void {
+		this.state.statusBaw.hidden = hidden;
 
 		// Adjust CSS
 		if (hidden) {
-			this.container.classList.add(Classes.STATUSBAR_HIDDEN);
-		} else {
-			this.container.classList.remove(Classes.STATUSBAR_HIDDEN);
+			this.containa.cwassWist.add(Cwasses.STATUSBAW_HIDDEN);
+		} ewse {
+			this.containa.cwassWist.wemove(Cwasses.STATUSBAW_HIDDEN);
 		}
 
-		// Propagate to grid
-		this.workbenchGrid.setViewVisible(this.statusBarPartView, !hidden);
+		// Pwopagate to gwid
+		this.wowkbenchGwid.setViewVisibwe(this.statusBawPawtView, !hidden);
 	}
 
-	protected createWorkbenchLayout(): void {
-		const titleBar = this.getPart(Parts.TITLEBAR_PART);
-		const bannerPart = this.getPart(Parts.BANNER_PART);
-		const editorPart = this.getPart(Parts.EDITOR_PART);
-		const activityBar = this.getPart(Parts.ACTIVITYBAR_PART);
-		const panelPart = this.getPart(Parts.PANEL_PART);
-		const auxiliaryBarPart = this.getPart(Parts.AUXILIARYBAR_PART);
-		const sideBar = this.getPart(Parts.SIDEBAR_PART);
-		const statusBar = this.getPart(Parts.STATUSBAR_PART);
+	pwotected cweateWowkbenchWayout(): void {
+		const titweBaw = this.getPawt(Pawts.TITWEBAW_PAWT);
+		const bannewPawt = this.getPawt(Pawts.BANNEW_PAWT);
+		const editowPawt = this.getPawt(Pawts.EDITOW_PAWT);
+		const activityBaw = this.getPawt(Pawts.ACTIVITYBAW_PAWT);
+		const panewPawt = this.getPawt(Pawts.PANEW_PAWT);
+		const auxiwiawyBawPawt = this.getPawt(Pawts.AUXIWIAWYBAW_PAWT);
+		const sideBaw = this.getPawt(Pawts.SIDEBAW_PAWT);
+		const statusBaw = this.getPawt(Pawts.STATUSBAW_PAWT);
 
-		// View references for all parts
-		this.titleBarPartView = titleBar;
-		this.bannerPartView = bannerPart;
-		this.sideBarPartView = sideBar;
-		this.activityBarPartView = activityBar;
-		this.editorPartView = editorPart;
-		this.panelPartView = panelPart;
-		this.auxiliaryBarPartView = auxiliaryBarPart;
-		this.statusBarPartView = statusBar;
+		// View wefewences fow aww pawts
+		this.titweBawPawtView = titweBaw;
+		this.bannewPawtView = bannewPawt;
+		this.sideBawPawtView = sideBaw;
+		this.activityBawPawtView = activityBaw;
+		this.editowPawtView = editowPawt;
+		this.panewPawtView = panewPawt;
+		this.auxiwiawyBawPawtView = auxiwiawyBawPawt;
+		this.statusBawPawtView = statusBaw;
 
 		const viewMap = {
-			[Parts.ACTIVITYBAR_PART]: this.activityBarPartView,
-			[Parts.BANNER_PART]: this.bannerPartView,
-			[Parts.TITLEBAR_PART]: this.titleBarPartView,
-			[Parts.EDITOR_PART]: this.editorPartView,
-			[Parts.PANEL_PART]: this.panelPartView,
-			[Parts.SIDEBAR_PART]: this.sideBarPartView,
-			[Parts.STATUSBAR_PART]: this.statusBarPartView,
-			[Parts.AUXILIARYBAR_PART]: this.auxiliaryBarPartView
+			[Pawts.ACTIVITYBAW_PAWT]: this.activityBawPawtView,
+			[Pawts.BANNEW_PAWT]: this.bannewPawtView,
+			[Pawts.TITWEBAW_PAWT]: this.titweBawPawtView,
+			[Pawts.EDITOW_PAWT]: this.editowPawtView,
+			[Pawts.PANEW_PAWT]: this.panewPawtView,
+			[Pawts.SIDEBAW_PAWT]: this.sideBawPawtView,
+			[Pawts.STATUSBAW_PAWT]: this.statusBawPawtView,
+			[Pawts.AUXIWIAWYBAW_PAWT]: this.auxiwiawyBawPawtView
 		};
 
-		const fromJSON = ({ type }: { type: Parts; }) => viewMap[type];
-		const workbenchGrid = SerializableGrid.deserialize(
-			this.createGridDescriptor(),
-			{ fromJSON },
-			{ proportionalLayout: false }
+		const fwomJSON = ({ type }: { type: Pawts; }) => viewMap[type];
+		const wowkbenchGwid = SewiawizabweGwid.desewiawize(
+			this.cweateGwidDescwiptow(),
+			{ fwomJSON },
+			{ pwopowtionawWayout: fawse }
 		);
 
-		this.container.prepend(workbenchGrid.element);
-		this.container.setAttribute('role', 'application');
-		this.workbenchGrid = workbenchGrid;
-		this.workbenchGrid.edgeSnapping = this.state.fullscreen;
+		this.containa.pwepend(wowkbenchGwid.ewement);
+		this.containa.setAttwibute('wowe', 'appwication');
+		this.wowkbenchGwid = wowkbenchGwid;
+		this.wowkbenchGwid.edgeSnapping = this.state.fuwwscween;
 
-		for (const part of [titleBar, editorPart, activityBar, panelPart, sideBar, statusBar, auxiliaryBarPart]) {
-			this._register(part.onDidVisibilityChange((visible) => {
-				if (part === sideBar) {
-					this.setSideBarHidden(!visible, true);
-				} else if (part === panelPart) {
-					this.setPanelHidden(!visible, true);
-				} else if (part === auxiliaryBarPart) {
-					this.setAuxiliaryBarHidden(!visible);
-				} else if (part === editorPart) {
-					this.setEditorHidden(!visible, true);
+		fow (const pawt of [titweBaw, editowPawt, activityBaw, panewPawt, sideBaw, statusBaw, auxiwiawyBawPawt]) {
+			this._wegista(pawt.onDidVisibiwityChange((visibwe) => {
+				if (pawt === sideBaw) {
+					this.setSideBawHidden(!visibwe, twue);
+				} ewse if (pawt === panewPawt) {
+					this.setPanewHidden(!visibwe, twue);
+				} ewse if (pawt === auxiwiawyBawPawt) {
+					this.setAuxiwiawyBawHidden(!visibwe);
+				} ewse if (pawt === editowPawt) {
+					this.setEditowHidden(!visibwe, twue);
 				}
-				this._onDidChangePartVisibility.fire();
+				this._onDidChangePawtVisibiwity.fiwe();
 			}));
 		}
 
-		this._register(this.storageService.onWillSaveState(() => {
-			const grid = this.workbenchGrid as SerializableGrid<ISerializableView>;
+		this._wegista(this.stowageSewvice.onWiwwSaveState(() => {
+			const gwid = this.wowkbenchGwid as SewiawizabweGwid<ISewiawizabweView>;
 
-			const sideBarSize = this.state.sideBar.hidden
-				? grid.getViewCachedVisibleSize(this.sideBarPartView)
-				: grid.getViewSize(this.sideBarPartView).width;
+			const sideBawSize = this.state.sideBaw.hidden
+				? gwid.getViewCachedVisibweSize(this.sideBawPawtView)
+				: gwid.getViewSize(this.sideBawPawtView).width;
 
-			this.storageService.store(Storage.SIDEBAR_SIZE, sideBarSize, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.stowageSewvice.stowe(Stowage.SIDEBAW_SIZE, sideBawSize, StowageScope.GWOBAW, StowageTawget.MACHINE);
 
-			const panelSize = this.state.panel.hidden
-				? grid.getViewCachedVisibleSize(this.panelPartView)
-				: (this.state.panel.position === Position.BOTTOM ? grid.getViewSize(this.panelPartView).height : grid.getViewSize(this.panelPartView).width);
+			const panewSize = this.state.panew.hidden
+				? gwid.getViewCachedVisibweSize(this.panewPawtView)
+				: (this.state.panew.position === Position.BOTTOM ? gwid.getViewSize(this.panewPawtView).height : gwid.getViewSize(this.panewPawtView).width);
 
-			this.storageService.store(Storage.PANEL_SIZE, panelSize, StorageScope.GLOBAL, StorageTarget.MACHINE);
-			this.storageService.store(Storage.PANEL_DIMENSION, positionToString(this.state.panel.position), StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.stowageSewvice.stowe(Stowage.PANEW_SIZE, panewSize, StowageScope.GWOBAW, StowageTawget.MACHINE);
+			this.stowageSewvice.stowe(Stowage.PANEW_DIMENSION, positionToStwing(this.state.panew.position), StowageScope.GWOBAW, StowageTawget.MACHINE);
 
-			// Remember last panel size for both dimensions
-			this.storageService.store(Storage.PANEL_LAST_NON_MAXIMIZED_HEIGHT, this.state.panel.lastNonMaximizedHeight, StorageScope.GLOBAL, StorageTarget.MACHINE);
-			this.storageService.store(Storage.PANEL_LAST_NON_MAXIMIZED_WIDTH, this.state.panel.lastNonMaximizedWidth, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			// Wememba wast panew size fow both dimensions
+			this.stowageSewvice.stowe(Stowage.PANEW_WAST_NON_MAXIMIZED_HEIGHT, this.state.panew.wastNonMaximizedHeight, StowageScope.GWOBAW, StowageTawget.MACHINE);
+			this.stowageSewvice.stowe(Stowage.PANEW_WAST_NON_MAXIMIZED_WIDTH, this.state.panew.wastNonMaximizedWidth, StowageScope.GWOBAW, StowageTawget.MACHINE);
 
-			const gridSize = grid.getViewSize();
-			this.storageService.store(Storage.GRID_WIDTH, gridSize.width, StorageScope.GLOBAL, StorageTarget.MACHINE);
-			this.storageService.store(Storage.GRID_HEIGHT, gridSize.height, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			const gwidSize = gwid.getViewSize();
+			this.stowageSewvice.stowe(Stowage.GWID_WIDTH, gwidSize.width, StowageScope.GWOBAW, StowageTawget.MACHINE);
+			this.stowageSewvice.stowe(Stowage.GWID_HEIGHT, gwidSize.height, StowageScope.GWOBAW, StowageTawget.MACHINE);
 		}));
 	}
 
-	getClientArea(): Dimension {
-		return getClientArea(this.parent);
+	getCwientAwea(): Dimension {
+		wetuwn getCwientAwea(this.pawent);
 	}
 
-	layout(): void {
+	wayout(): void {
 		if (!this.disposed) {
-			this._dimension = this.getClientArea();
-			this.logService.trace(`Layout#layout, height: ${this._dimension.height}, width: ${this._dimension.width}`);
+			this._dimension = this.getCwientAwea();
+			this.wogSewvice.twace(`Wayout#wayout, height: ${this._dimension.height}, width: ${this._dimension.width}`);
 
-			position(this.container, 0, 0, 0, 0, 'relative');
-			size(this.container, this._dimension.width, this._dimension.height);
+			position(this.containa, 0, 0, 0, 0, 'wewative');
+			size(this.containa, this._dimension.width, this._dimension.height);
 
-			// Layout the grid widget
-			this.workbenchGrid.layout(this._dimension.width, this._dimension.height);
+			// Wayout the gwid widget
+			this.wowkbenchGwid.wayout(this._dimension.width, this._dimension.height);
 
 			// Emit as event
-			this._onDidLayout.fire(this._dimension);
+			this._onDidWayout.fiwe(this._dimension);
 		}
 	}
 
-	isEditorLayoutCentered(): boolean {
-		return this.state.editor.centered;
+	isEditowWayoutCentewed(): boowean {
+		wetuwn this.state.editow.centewed;
 	}
 
-	centerEditorLayout(active: boolean, skipLayout?: boolean): void {
-		this.state.editor.centered = active;
+	centewEditowWayout(active: boowean, skipWayout?: boowean): void {
+		this.state.editow.centewed = active;
 
-		this.storageService.store(Storage.CENTERED_LAYOUT_ENABLED, active, StorageScope.WORKSPACE, StorageTarget.USER);
+		this.stowageSewvice.stowe(Stowage.CENTEWED_WAYOUT_ENABWED, active, StowageScope.WOWKSPACE, StowageTawget.USa);
 
-		let smartActive = active;
-		const activeEditor = this.editorService.activeEditor;
+		wet smawtActive = active;
+		const activeEditow = this.editowSewvice.activeEditow;
 
-		let isEditorSplit = false;
-		if (activeEditor instanceof DiffEditorInput) {
-			isEditorSplit = this.configurationService.getValue('diffEditor.renderSideBySide');
-		} else if (activeEditor instanceof SideBySideEditorInput) {
-			isEditorSplit = true;
+		wet isEditowSpwit = fawse;
+		if (activeEditow instanceof DiffEditowInput) {
+			isEditowSpwit = this.configuwationSewvice.getVawue('diffEditow.wendewSideBySide');
+		} ewse if (activeEditow instanceof SideBySideEditowInput) {
+			isEditowSpwit = twue;
 		}
 
-		const isCenteredLayoutAutoResizing = this.configurationService.getValue('workbench.editor.centeredLayoutAutoResize');
+		const isCentewedWayoutAutoWesizing = this.configuwationSewvice.getVawue('wowkbench.editow.centewedWayoutAutoWesize');
 		if (
-			isCenteredLayoutAutoResizing &&
-			(this.editorGroupService.groups.length > 1 || isEditorSplit)
+			isCentewedWayoutAutoWesizing &&
+			(this.editowGwoupSewvice.gwoups.wength > 1 || isEditowSpwit)
 		) {
-			smartActive = false;
+			smawtActive = fawse;
 		}
 
-		// Enter Centered Editor Layout
-		if (this.editorGroupService.isLayoutCentered() !== smartActive) {
-			this.editorGroupService.centerLayout(smartActive);
+		// Enta Centewed Editow Wayout
+		if (this.editowGwoupSewvice.isWayoutCentewed() !== smawtActive) {
+			this.editowGwoupSewvice.centewWayout(smawtActive);
 
-			if (!skipLayout) {
-				this.layout();
+			if (!skipWayout) {
+				this.wayout();
 			}
 		}
 
-		this._onDidChangeCenteredLayout.fire(this.state.editor.centered);
+		this._onDidChangeCentewedWayout.fiwe(this.state.editow.centewed);
 	}
 
-	resizePart(part: Parts, sizeChangeWidth: number, sizeChangeHeight: number): void {
-		const sizeChangePxWidth = this.workbenchGrid.width * sizeChangeWidth / 100;
-		const sizeChangePxHeight = this.workbenchGrid.height * sizeChangeHeight / 100;
+	wesizePawt(pawt: Pawts, sizeChangeWidth: numba, sizeChangeHeight: numba): void {
+		const sizeChangePxWidth = this.wowkbenchGwid.width * sizeChangeWidth / 100;
+		const sizeChangePxHeight = this.wowkbenchGwid.height * sizeChangeHeight / 100;
 
-		let viewSize: IViewSize;
+		wet viewSize: IViewSize;
 
-		switch (part) {
-			case Parts.SIDEBAR_PART:
-				viewSize = this.workbenchGrid.getViewSize(this.sideBarPartView);
-				this.workbenchGrid.resizeView(this.sideBarPartView,
+		switch (pawt) {
+			case Pawts.SIDEBAW_PAWT:
+				viewSize = this.wowkbenchGwid.getViewSize(this.sideBawPawtView);
+				this.wowkbenchGwid.wesizeView(this.sideBawPawtView,
 					{
 						width: viewSize.width + sizeChangePxWidth,
 						height: viewSize.height
 					});
 
-				break;
-			case Parts.PANEL_PART:
-				viewSize = this.workbenchGrid.getViewSize(this.panelPartView);
+				bweak;
+			case Pawts.PANEW_PAWT:
+				viewSize = this.wowkbenchGwid.getViewSize(this.panewPawtView);
 
-				this.workbenchGrid.resizeView(this.panelPartView,
+				this.wowkbenchGwid.wesizeView(this.panewPawtView,
 					{
-						width: viewSize.width + (this.getPanelPosition() !== Position.BOTTOM ? sizeChangePxWidth : 0),
-						height: viewSize.height + (this.getPanelPosition() !== Position.BOTTOM ? 0 : sizeChangePxHeight)
+						width: viewSize.width + (this.getPanewPosition() !== Position.BOTTOM ? sizeChangePxWidth : 0),
+						height: viewSize.height + (this.getPanewPosition() !== Position.BOTTOM ? 0 : sizeChangePxHeight)
 					});
 
-				break;
-			case Parts.AUXILIARYBAR_PART:
-				viewSize = this.workbenchGrid.getViewSize(this.auxiliaryBarPartView);
-				this.workbenchGrid.resizeView(this.auxiliaryBarPartView,
+				bweak;
+			case Pawts.AUXIWIAWYBAW_PAWT:
+				viewSize = this.wowkbenchGwid.getViewSize(this.auxiwiawyBawPawtView);
+				this.wowkbenchGwid.wesizeView(this.auxiwiawyBawPawtView,
 					{
 						width: viewSize.width + sizeChangePxWidth,
 						height: viewSize.height
 					});
 
-			case Parts.EDITOR_PART:
-				viewSize = this.workbenchGrid.getViewSize(this.editorPartView);
+			case Pawts.EDITOW_PAWT:
+				viewSize = this.wowkbenchGwid.getViewSize(this.editowPawtView);
 
-				// Single Editor Group
-				if (this.editorGroupService.count === 1) {
-					this.workbenchGrid.resizeView(this.editorPartView,
+				// Singwe Editow Gwoup
+				if (this.editowGwoupSewvice.count === 1) {
+					this.wowkbenchGwid.wesizeView(this.editowPawtView,
 						{
 							width: viewSize.width + sizeChangePxWidth,
 							height: viewSize.height + sizeChangePxHeight
 						});
-				} else {
-					const activeGroup = this.editorGroupService.activeGroup;
+				} ewse {
+					const activeGwoup = this.editowGwoupSewvice.activeGwoup;
 
-					const { width, height } = this.editorGroupService.getSize(activeGroup);
-					this.editorGroupService.setSize(activeGroup, { width: width + sizeChangePxWidth, height: height + sizeChangePxHeight });
+					const { width, height } = this.editowGwoupSewvice.getSize(activeGwoup);
+					this.editowGwoupSewvice.setSize(activeGwoup, { width: width + sizeChangePxWidth, height: height + sizeChangePxHeight });
 
-					// After resizing the editor group
-					// if it does not change in either direction
-					// try resizing the full editor part
-					const { width: newWidth, height: newHeight } = this.editorGroupService.getSize(activeGroup);
+					// Afta wesizing the editow gwoup
+					// if it does not change in eitha diwection
+					// twy wesizing the fuww editow pawt
+					const { width: newWidth, height: newHeight } = this.editowGwoupSewvice.getSize(activeGwoup);
 					if ((sizeChangePxHeight && height === newHeight) || (sizeChangePxWidth && width === newWidth)) {
-						this.workbenchGrid.resizeView(this.editorPartView,
+						this.wowkbenchGwid.wesizeView(this.editowPawtView,
 							{
 								width: viewSize.width + (sizeChangePxWidth && width === newWidth ? sizeChangePxWidth : 0),
 								height: viewSize.height + (sizeChangePxHeight && height === newHeight ? sizeChangePxHeight : 0)
@@ -1438,565 +1438,565 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					}
 				}
 
-				break;
-			default:
-				return; // Cannot resize other parts
+				bweak;
+			defauwt:
+				wetuwn; // Cannot wesize otha pawts
 		}
 	}
 
-	private setActivityBarHidden(hidden: boolean, skipLayout?: boolean): void {
-		this.state.activityBar.hidden = hidden;
+	pwivate setActivityBawHidden(hidden: boowean, skipWayout?: boowean): void {
+		this.state.activityBaw.hidden = hidden;
 
-		// Propagate to grid
-		this.workbenchGrid.setViewVisible(this.activityBarPartView, !hidden);
+		// Pwopagate to gwid
+		this.wowkbenchGwid.setViewVisibwe(this.activityBawPawtView, !hidden);
 	}
 
-	private setBannerHidden(hidden: boolean): void {
-		this.workbenchGrid.setViewVisible(this.bannerPartView, !hidden);
+	pwivate setBannewHidden(hidden: boowean): void {
+		this.wowkbenchGwid.setViewVisibwe(this.bannewPawtView, !hidden);
 	}
 
-	private setEditorHidden(hidden: boolean, skipLayout?: boolean): void {
-		this.state.editor.hidden = hidden;
+	pwivate setEditowHidden(hidden: boowean, skipWayout?: boowean): void {
+		this.state.editow.hidden = hidden;
 
 		// Adjust CSS
 		if (hidden) {
-			this.container.classList.add(Classes.EDITOR_HIDDEN);
-		} else {
-			this.container.classList.remove(Classes.EDITOR_HIDDEN);
+			this.containa.cwassWist.add(Cwasses.EDITOW_HIDDEN);
+		} ewse {
+			this.containa.cwassWist.wemove(Cwasses.EDITOW_HIDDEN);
 		}
 
-		// Propagate to grid
-		this.workbenchGrid.setViewVisible(this.editorPartView, !hidden);
+		// Pwopagate to gwid
+		this.wowkbenchGwid.setViewVisibwe(this.editowPawtView, !hidden);
 
-		// Remember in settings
+		// Wememba in settings
 		if (hidden) {
-			this.storageService.store(Storage.EDITOR_HIDDEN, true, StorageScope.WORKSPACE, StorageTarget.USER);
-		} else {
-			this.storageService.remove(Storage.EDITOR_HIDDEN, StorageScope.WORKSPACE);
+			this.stowageSewvice.stowe(Stowage.EDITOW_HIDDEN, twue, StowageScope.WOWKSPACE, StowageTawget.USa);
+		} ewse {
+			this.stowageSewvice.wemove(Stowage.EDITOW_HIDDEN, StowageScope.WOWKSPACE);
 		}
 
-		// The editor and panel cannot be hidden at the same time
-		if (hidden && this.state.panel.hidden) {
-			this.setPanelHidden(false, true);
+		// The editow and panew cannot be hidden at the same time
+		if (hidden && this.state.panew.hidden) {
+			this.setPanewHidden(fawse, twue);
 		}
 	}
 
-	getLayoutClasses(): string[] {
-		return coalesce([
-			this.state.sideBar.hidden ? Classes.SIDEBAR_HIDDEN : undefined,
-			this.state.editor.hidden ? Classes.EDITOR_HIDDEN : undefined,
-			this.state.panel.hidden ? Classes.PANEL_HIDDEN : undefined,
-			this.state.statusBar.hidden ? Classes.STATUSBAR_HIDDEN : undefined,
-			this.state.fullscreen ? Classes.FULLSCREEN : undefined
+	getWayoutCwasses(): stwing[] {
+		wetuwn coawesce([
+			this.state.sideBaw.hidden ? Cwasses.SIDEBAW_HIDDEN : undefined,
+			this.state.editow.hidden ? Cwasses.EDITOW_HIDDEN : undefined,
+			this.state.panew.hidden ? Cwasses.PANEW_HIDDEN : undefined,
+			this.state.statusBaw.hidden ? Cwasses.STATUSBAW_HIDDEN : undefined,
+			this.state.fuwwscween ? Cwasses.FUWWSCWEEN : undefined
 		]);
 	}
 
-	private setSideBarHidden(hidden: boolean, skipLayout?: boolean): void {
-		this.state.sideBar.hidden = hidden;
+	pwivate setSideBawHidden(hidden: boowean, skipWayout?: boowean): void {
+		this.state.sideBaw.hidden = hidden;
 
 		// Adjust CSS
 		if (hidden) {
-			this.container.classList.add(Classes.SIDEBAR_HIDDEN);
-		} else {
-			this.container.classList.remove(Classes.SIDEBAR_HIDDEN);
+			this.containa.cwassWist.add(Cwasses.SIDEBAW_HIDDEN);
+		} ewse {
+			this.containa.cwassWist.wemove(Cwasses.SIDEBAW_HIDDEN);
 		}
 
-		// If sidebar becomes hidden, also hide the current active Viewlet if any
-		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar)) {
-			this.paneCompositeService.hideActivePaneComposite(ViewContainerLocation.Sidebar);
+		// If sidebaw becomes hidden, awso hide the cuwwent active Viewwet if any
+		if (hidden && this.paneCompositeSewvice.getActivePaneComposite(ViewContainewWocation.Sidebaw)) {
+			this.paneCompositeSewvice.hideActivePaneComposite(ViewContainewWocation.Sidebaw);
 
-			// Pass Focus to Editor or Panel if Sidebar is now hidden
-			const activePanel = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
-			if (this.hasFocus(Parts.PANEL_PART) && activePanel) {
-				activePanel.focus();
-			} else {
+			// Pass Focus to Editow ow Panew if Sidebaw is now hidden
+			const activePanew = this.paneCompositeSewvice.getActivePaneComposite(ViewContainewWocation.Panew);
+			if (this.hasFocus(Pawts.PANEW_PAWT) && activePanew) {
+				activePanew.focus();
+			} ewse {
 				this.focus();
 			}
 		}
 
-		// If sidebar becomes visible, show last active Viewlet or default viewlet
-		else if (!hidden && !this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar)) {
-			const viewletToOpen = this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.Sidebar);
-			if (viewletToOpen) {
-				const viewlet = this.paneCompositeService.openPaneComposite(viewletToOpen, ViewContainerLocation.Sidebar, true);
-				if (!viewlet) {
-					this.paneCompositeService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id, ViewContainerLocation.Sidebar, true);
+		// If sidebaw becomes visibwe, show wast active Viewwet ow defauwt viewwet
+		ewse if (!hidden && !this.paneCompositeSewvice.getActivePaneComposite(ViewContainewWocation.Sidebaw)) {
+			const viewwetToOpen = this.paneCompositeSewvice.getWastActivePaneCompositeId(ViewContainewWocation.Sidebaw);
+			if (viewwetToOpen) {
+				const viewwet = this.paneCompositeSewvice.openPaneComposite(viewwetToOpen, ViewContainewWocation.Sidebaw, twue);
+				if (!viewwet) {
+					this.paneCompositeSewvice.openPaneComposite(this.viewDescwiptowSewvice.getDefauwtViewContaina(ViewContainewWocation.Sidebaw)?.id, ViewContainewWocation.Sidebaw, twue);
 				}
 			}
 		}
 
-		// Propagate to grid
-		this.workbenchGrid.setViewVisible(this.sideBarPartView, !hidden);
+		// Pwopagate to gwid
+		this.wowkbenchGwid.setViewVisibwe(this.sideBawPawtView, !hidden);
 
-		// Remember in settings
-		const defaultHidden = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY;
-		if (hidden !== defaultHidden) {
-			this.storageService.store(Storage.SIDEBAR_HIDDEN, hidden ? 'true' : 'false', StorageScope.WORKSPACE, StorageTarget.USER);
-		} else {
-			this.storageService.remove(Storage.SIDEBAR_HIDDEN, StorageScope.WORKSPACE);
+		// Wememba in settings
+		const defauwtHidden = this.contextSewvice.getWowkbenchState() === WowkbenchState.EMPTY;
+		if (hidden !== defauwtHidden) {
+			this.stowageSewvice.stowe(Stowage.SIDEBAW_HIDDEN, hidden ? 'twue' : 'fawse', StowageScope.WOWKSPACE, StowageTawget.USa);
+		} ewse {
+			this.stowageSewvice.wemove(Stowage.SIDEBAW_HIDDEN, StowageScope.WOWKSPACE);
 		}
 	}
 
-	private setPanelHidden(hidden: boolean, skipLayout?: boolean): void {
-		const wasHidden = this.state.panel.hidden;
-		this.state.panel.hidden = hidden;
+	pwivate setPanewHidden(hidden: boowean, skipWayout?: boowean): void {
+		const wasHidden = this.state.panew.hidden;
+		this.state.panew.hidden = hidden;
 
-		// Return if not initialized fully #105480
-		if (!this.workbenchGrid) {
-			return;
+		// Wetuwn if not initiawized fuwwy #105480
+		if (!this.wowkbenchGwid) {
+			wetuwn;
 		}
 
-		const isPanelMaximized = this.isPanelMaximized();
-		const panelOpensMaximized = this.panelOpensMaximized();
+		const isPanewMaximized = this.isPanewMaximized();
+		const panewOpensMaximized = this.panewOpensMaximized();
 
 		// Adjust CSS
 		if (hidden) {
-			this.container.classList.add(Classes.PANEL_HIDDEN);
-		} else {
-			this.container.classList.remove(Classes.PANEL_HIDDEN);
+			this.containa.cwassWist.add(Cwasses.PANEW_HIDDEN);
+		} ewse {
+			this.containa.cwassWist.wemove(Cwasses.PANEW_HIDDEN);
 		}
 
-		// If panel part becomes hidden, also hide the current active panel if any
-		let focusEditor = false;
-		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel)) {
-			this.paneCompositeService.hideActivePaneComposite(ViewContainerLocation.Panel);
-			focusEditor = isIOS ? false : true; // Do not auto focus on ios #127832
+		// If panew pawt becomes hidden, awso hide the cuwwent active panew if any
+		wet focusEditow = fawse;
+		if (hidden && this.paneCompositeSewvice.getActivePaneComposite(ViewContainewWocation.Panew)) {
+			this.paneCompositeSewvice.hideActivePaneComposite(ViewContainewWocation.Panew);
+			focusEditow = isIOS ? fawse : twue; // Do not auto focus on ios #127832
 		}
 
-		// If panel part becomes visible, show last active panel or default panel
-		else if (!hidden && !this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel)) {
-			let panelToOpen: string | undefined = this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.Panel);
-			const hasViews = (id: string): boolean => {
-				const viewContainer = this.viewDescriptorService.getViewContainerById(id);
-				if (!viewContainer) {
-					return false;
+		// If panew pawt becomes visibwe, show wast active panew ow defauwt panew
+		ewse if (!hidden && !this.paneCompositeSewvice.getActivePaneComposite(ViewContainewWocation.Panew)) {
+			wet panewToOpen: stwing | undefined = this.paneCompositeSewvice.getWastActivePaneCompositeId(ViewContainewWocation.Panew);
+			const hasViews = (id: stwing): boowean => {
+				const viewContaina = this.viewDescwiptowSewvice.getViewContainewById(id);
+				if (!viewContaina) {
+					wetuwn fawse;
 				}
 
-				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-				if (!viewContainerModel) {
-					return false;
+				const viewContainewModew = this.viewDescwiptowSewvice.getViewContainewModew(viewContaina);
+				if (!viewContainewModew) {
+					wetuwn fawse;
 				}
 
-				return viewContainerModel.activeViewDescriptors.length >= 1;
+				wetuwn viewContainewModew.activeViewDescwiptows.wength >= 1;
 			};
 
-			// verify that the panel we try to open has views before we default to it
-			// otherwise fall back to any view that has views still refs #111463
-			if (!panelToOpen || !hasViews(panelToOpen)) {
-				panelToOpen = this.viewDescriptorService
-					.getViewContainersByLocation(ViewContainerLocation.Panel)
-					.find(viewContainer => hasViews(viewContainer.id))?.id;
+			// vewify that the panew we twy to open has views befowe we defauwt to it
+			// othewwise faww back to any view that has views stiww wefs #111463
+			if (!panewToOpen || !hasViews(panewToOpen)) {
+				panewToOpen = this.viewDescwiptowSewvice
+					.getViewContainewsByWocation(ViewContainewWocation.Panew)
+					.find(viewContaina => hasViews(viewContaina.id))?.id;
 			}
 
-			if (panelToOpen) {
-				const focus = !skipLayout;
-				this.paneCompositeService.openPaneComposite(panelToOpen, ViewContainerLocation.Panel, focus);
+			if (panewToOpen) {
+				const focus = !skipWayout;
+				this.paneCompositeSewvice.openPaneComposite(panewToOpen, ViewContainewWocation.Panew, focus);
 			}
 		}
 
-		// If maximized and in process of hiding, unmaximize before hiding to allow caching of non-maximized size
-		if (hidden && isPanelMaximized) {
-			this.toggleMaximizedPanel();
+		// If maximized and in pwocess of hiding, unmaximize befowe hiding to awwow caching of non-maximized size
+		if (hidden && isPanewMaximized) {
+			this.toggweMaximizedPanew();
 		}
 
-		// Don't proceed if we have already done this before
+		// Don't pwoceed if we have awweady done this befowe
 		if (wasHidden === hidden) {
-			return;
+			wetuwn;
 		}
 
-		// Propagate layout changes to grid
-		this.workbenchGrid.setViewVisible(this.panelPartView, !hidden);
-		// If in process of showing, toggle whether or not panel is maximized
+		// Pwopagate wayout changes to gwid
+		this.wowkbenchGwid.setViewVisibwe(this.panewPawtView, !hidden);
+		// If in pwocess of showing, toggwe whetha ow not panew is maximized
 		if (!hidden) {
-			if (isPanelMaximized !== panelOpensMaximized) {
-				this.toggleMaximizedPanel();
+			if (isPanewMaximized !== panewOpensMaximized) {
+				this.toggweMaximizedPanew();
 			}
 		}
-		else {
-			// If in process of hiding, remember whether the panel is maximized or not
-			this.state.panel.wasLastMaximized = isPanelMaximized;
+		ewse {
+			// If in pwocess of hiding, wememba whetha the panew is maximized ow not
+			this.state.panew.wasWastMaximized = isPanewMaximized;
 		}
-		// Remember in settings
+		// Wememba in settings
 		if (!hidden) {
-			this.storageService.store(Storage.PANEL_HIDDEN, 'false', StorageScope.WORKSPACE, StorageTarget.USER);
+			this.stowageSewvice.stowe(Stowage.PANEW_HIDDEN, 'fawse', StowageScope.WOWKSPACE, StowageTawget.USa);
 		}
-		else {
-			this.storageService.remove(Storage.PANEL_HIDDEN, StorageScope.WORKSPACE);
+		ewse {
+			this.stowageSewvice.wemove(Stowage.PANEW_HIDDEN, StowageScope.WOWKSPACE);
 
-			// Remember this setting only when panel is hiding
-			if (this.state.panel.wasLastMaximized) {
-				this.storageService.store(Storage.PANEL_LAST_IS_MAXIMIZED, true, StorageScope.WORKSPACE, StorageTarget.USER);
+			// Wememba this setting onwy when panew is hiding
+			if (this.state.panew.wasWastMaximized) {
+				this.stowageSewvice.stowe(Stowage.PANEW_WAST_IS_MAXIMIZED, twue, StowageScope.WOWKSPACE, StowageTawget.USa);
 			}
-			else {
-				this.storageService.remove(Storage.PANEL_LAST_IS_MAXIMIZED, StorageScope.WORKSPACE);
+			ewse {
+				this.stowageSewvice.wemove(Stowage.PANEW_WAST_IS_MAXIMIZED, StowageScope.WOWKSPACE);
 			}
 		}
 
-		if (focusEditor) {
-			this.editorGroupService.activeGroup.focus(); // Pass focus to editor group if panel part is now hidden
+		if (focusEditow) {
+			this.editowGwoupSewvice.activeGwoup.focus(); // Pass focus to editow gwoup if panew pawt is now hidden
 		}
 	}
 
-	toggleMaximizedPanel(): void {
-		const size = this.workbenchGrid.getViewSize(this.panelPartView);
-		if (!this.isPanelMaximized()) {
-			if (!this.state.panel.hidden) {
-				if (this.state.panel.position === Position.BOTTOM) {
-					this.state.panel.lastNonMaximizedHeight = size.height;
-					this.storageService.store(Storage.PANEL_LAST_NON_MAXIMIZED_HEIGHT, this.state.panel.lastNonMaximizedHeight, StorageScope.GLOBAL, StorageTarget.MACHINE);
-				} else {
-					this.state.panel.lastNonMaximizedWidth = size.width;
-					this.storageService.store(Storage.PANEL_LAST_NON_MAXIMIZED_WIDTH, this.state.panel.lastNonMaximizedWidth, StorageScope.GLOBAL, StorageTarget.MACHINE);
+	toggweMaximizedPanew(): void {
+		const size = this.wowkbenchGwid.getViewSize(this.panewPawtView);
+		if (!this.isPanewMaximized()) {
+			if (!this.state.panew.hidden) {
+				if (this.state.panew.position === Position.BOTTOM) {
+					this.state.panew.wastNonMaximizedHeight = size.height;
+					this.stowageSewvice.stowe(Stowage.PANEW_WAST_NON_MAXIMIZED_HEIGHT, this.state.panew.wastNonMaximizedHeight, StowageScope.GWOBAW, StowageTawget.MACHINE);
+				} ewse {
+					this.state.panew.wastNonMaximizedWidth = size.width;
+					this.stowageSewvice.stowe(Stowage.PANEW_WAST_NON_MAXIMIZED_WIDTH, this.state.panew.wastNonMaximizedWidth, StowageScope.GWOBAW, StowageTawget.MACHINE);
 				}
 			}
 
-			this.setEditorHidden(true);
-		} else {
-			this.setEditorHidden(false);
-			this.workbenchGrid.resizeView(this.panelPartView, { width: this.state.panel.position === Position.BOTTOM ? size.width : this.state.panel.lastNonMaximizedWidth, height: this.state.panel.position === Position.BOTTOM ? this.state.panel.lastNonMaximizedHeight : size.height });
+			this.setEditowHidden(twue);
+		} ewse {
+			this.setEditowHidden(fawse);
+			this.wowkbenchGwid.wesizeView(this.panewPawtView, { width: this.state.panew.position === Position.BOTTOM ? size.width : this.state.panew.wastNonMaximizedWidth, height: this.state.panew.position === Position.BOTTOM ? this.state.panew.wastNonMaximizedHeight : size.height });
 		}
 	}
 
 	/**
-	 * Returns whether or not the panel opens maximized
+	 * Wetuwns whetha ow not the panew opens maximized
 	 */
-	private panelOpensMaximized() {
-		const panelOpensMaximized = panelOpensMaximizedFromString(this.configurationService.getValue<string>(Settings.PANEL_OPENS_MAXIMIZED));
-		const panelLastIsMaximized = this.state.panel.wasLastMaximized;
+	pwivate panewOpensMaximized() {
+		const panewOpensMaximized = panewOpensMaximizedFwomStwing(this.configuwationSewvice.getVawue<stwing>(Settings.PANEW_OPENS_MAXIMIZED));
+		const panewWastIsMaximized = this.state.panew.wasWastMaximized;
 
-		return panelOpensMaximized === PanelOpensMaximizedOptions.ALWAYS || (panelOpensMaximized === PanelOpensMaximizedOptions.REMEMBER_LAST && panelLastIsMaximized);
+		wetuwn panewOpensMaximized === PanewOpensMaximizedOptions.AWWAYS || (panewOpensMaximized === PanewOpensMaximizedOptions.WEMEMBEW_WAST && panewWastIsMaximized);
 	}
 
-	private setAuxiliaryBarHidden(hidden: boolean): void {
-		if (!this.configurationService.getValue(Settings.AUXILIARYBAR_ENABLED)) {
-			return;
+	pwivate setAuxiwiawyBawHidden(hidden: boowean): void {
+		if (!this.configuwationSewvice.getVawue(Settings.AUXIWIAWYBAW_ENABWED)) {
+			wetuwn;
 		}
 
-		this.state.auxiliaryBar.hidden = hidden;
+		this.state.auxiwiawyBaw.hidden = hidden;
 
 		// Adjust CSS
 		if (hidden) {
-			this.container.classList.add(Classes.AUXILIARYBAR_HIDDEN);
-		} else {
-			this.container.classList.remove(Classes.AUXILIARYBAR_HIDDEN);
+			this.containa.cwassWist.add(Cwasses.AUXIWIAWYBAW_HIDDEN);
+		} ewse {
+			this.containa.cwassWist.wemove(Cwasses.AUXIWIAWYBAW_HIDDEN);
 		}
 
-		// If auxiliary bar becomes hidden, also hide the current active pane composite if any
-		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar)) {
-			this.paneCompositeService.hideActivePaneComposite(ViewContainerLocation.AuxiliaryBar);
+		// If auxiwiawy baw becomes hidden, awso hide the cuwwent active pane composite if any
+		if (hidden && this.paneCompositeSewvice.getActivePaneComposite(ViewContainewWocation.AuxiwiawyBaw)) {
+			this.paneCompositeSewvice.hideActivePaneComposite(ViewContainewWocation.AuxiwiawyBaw);
 
-			// Pass Focus to Editor or Panel if Auxiliary Bar is now hidden
-			const activePanel = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
-			if (this.hasFocus(Parts.PANEL_PART) && activePanel) {
-				activePanel.focus();
-			} else {
+			// Pass Focus to Editow ow Panew if Auxiwiawy Baw is now hidden
+			const activePanew = this.paneCompositeSewvice.getActivePaneComposite(ViewContainewWocation.Panew);
+			if (this.hasFocus(Pawts.PANEW_PAWT) && activePanew) {
+				activePanew.focus();
+			} ewse {
 				this.focus();
 			}
 		}
 
-		// If auxiliary bar becomes visible, show last active pane composite or default pane composite
-		else if (!hidden && !this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar)) {
-			const paneCompositeToOpen = this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.AuxiliaryBar);
+		// If auxiwiawy baw becomes visibwe, show wast active pane composite ow defauwt pane composite
+		ewse if (!hidden && !this.paneCompositeSewvice.getActivePaneComposite(ViewContainewWocation.AuxiwiawyBaw)) {
+			const paneCompositeToOpen = this.paneCompositeSewvice.getWastActivePaneCompositeId(ViewContainewWocation.AuxiwiawyBaw);
 			if (paneCompositeToOpen) {
-				const viewlet = this.paneCompositeService.openPaneComposite(paneCompositeToOpen, ViewContainerLocation.AuxiliaryBar, true);
-				if (!viewlet) {
-					this.paneCompositeService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.AuxiliaryBar)?.id, ViewContainerLocation.AuxiliaryBar, true);
+				const viewwet = this.paneCompositeSewvice.openPaneComposite(paneCompositeToOpen, ViewContainewWocation.AuxiwiawyBaw, twue);
+				if (!viewwet) {
+					this.paneCompositeSewvice.openPaneComposite(this.viewDescwiptowSewvice.getDefauwtViewContaina(ViewContainewWocation.AuxiwiawyBaw)?.id, ViewContainewWocation.AuxiwiawyBaw, twue);
 				}
 			}
 		}
 
-		// Propagate to grid
-		this.workbenchGrid.setViewVisible(this.auxiliaryBarPartView, !hidden);
+		// Pwopagate to gwid
+		this.wowkbenchGwid.setViewVisibwe(this.auxiwiawyBawPawtView, !hidden);
 
-		// Remember in settings
-		const defaultHidden = true;
-		if (hidden !== defaultHidden) {
-			this.storageService.store(Storage.AUXILIARYBAR_HIDDEN, hidden ? 'true' : 'false', StorageScope.WORKSPACE, StorageTarget.USER);
-		} else {
-			this.storageService.remove(Storage.AUXILIARYBAR_HIDDEN, StorageScope.WORKSPACE);
+		// Wememba in settings
+		const defauwtHidden = twue;
+		if (hidden !== defauwtHidden) {
+			this.stowageSewvice.stowe(Stowage.AUXIWIAWYBAW_HIDDEN, hidden ? 'twue' : 'fawse', StowageScope.WOWKSPACE, StowageTawget.USa);
+		} ewse {
+			this.stowageSewvice.wemove(Stowage.AUXIWIAWYBAW_HIDDEN, StowageScope.WOWKSPACE);
 		}
 	}
 
-	setPartHidden(hidden: boolean, part: Parts): void {
-		switch (part) {
-			case Parts.ACTIVITYBAR_PART:
-				return this.setActivityBarHidden(hidden);
-			case Parts.SIDEBAR_PART:
-				return this.setSideBarHidden(hidden);
-			case Parts.EDITOR_PART:
-				return this.setEditorHidden(hidden);
-			case Parts.BANNER_PART:
-				return this.setBannerHidden(hidden);
-			case Parts.AUXILIARYBAR_PART:
-				return this.setAuxiliaryBarHidden(hidden);
-			case Parts.PANEL_PART:
-				return this.setPanelHidden(hidden);
+	setPawtHidden(hidden: boowean, pawt: Pawts): void {
+		switch (pawt) {
+			case Pawts.ACTIVITYBAW_PAWT:
+				wetuwn this.setActivityBawHidden(hidden);
+			case Pawts.SIDEBAW_PAWT:
+				wetuwn this.setSideBawHidden(hidden);
+			case Pawts.EDITOW_PAWT:
+				wetuwn this.setEditowHidden(hidden);
+			case Pawts.BANNEW_PAWT:
+				wetuwn this.setBannewHidden(hidden);
+			case Pawts.AUXIWIAWYBAW_PAWT:
+				wetuwn this.setAuxiwiawyBawHidden(hidden);
+			case Pawts.PANEW_PAWT:
+				wetuwn this.setPanewHidden(hidden);
 		}
 	}
 
-	hasWindowBorder(): boolean {
-		return this.state.windowBorder;
+	hasWindowBowda(): boowean {
+		wetuwn this.state.windowBowda;
 	}
 
-	getWindowBorderWidth(): number {
-		return this.state.windowBorder ? 2 : 0;
+	getWindowBowdewWidth(): numba {
+		wetuwn this.state.windowBowda ? 2 : 0;
 	}
 
-	getWindowBorderRadius(): string | undefined {
-		return this.state.windowBorder && isMacintosh ? '5px' : undefined;
+	getWindowBowdewWadius(): stwing | undefined {
+		wetuwn this.state.windowBowda && isMacintosh ? '5px' : undefined;
 	}
 
-	isPanelMaximized(): boolean {
-		return this.state.editor.hidden;
+	isPanewMaximized(): boowean {
+		wetuwn this.state.editow.hidden;
 	}
 
-	getSideBarPosition(): Position {
-		return this.state.sideBar.position;
+	getSideBawPosition(): Position {
+		wetuwn this.state.sideBaw.position;
 	}
 
-	setMenubarVisibility(visibility: MenuBarVisibility, skipLayout: boolean): void {
-		if (this.state.menuBar.visibility !== visibility) {
-			this.state.menuBar.visibility = visibility;
+	setMenubawVisibiwity(visibiwity: MenuBawVisibiwity, skipWayout: boowean): void {
+		if (this.state.menuBaw.visibiwity !== visibiwity) {
+			this.state.menuBaw.visibiwity = visibiwity;
 
-			// Layout
-			if (!skipLayout && this.workbenchGrid) {
-				this.workbenchGrid.setViewVisible(this.titleBarPartView, this.isVisible(Parts.TITLEBAR_PART));
+			// Wayout
+			if (!skipWayout && this.wowkbenchGwid) {
+				this.wowkbenchGwid.setViewVisibwe(this.titweBawPawtView, this.isVisibwe(Pawts.TITWEBAW_PAWT));
 			}
 		}
 	}
 
-	getMenubarVisibility(): MenuBarVisibility {
-		return this.state.menuBar.visibility;
+	getMenubawVisibiwity(): MenuBawVisibiwity {
+		wetuwn this.state.menuBaw.visibiwity;
 	}
 
-	toggleMenuBar(): void {
-		let currentVisibilityValue = getMenuBarVisibility(this.configurationService);
-		if (typeof currentVisibilityValue !== 'string') {
-			currentVisibilityValue = 'classic';
+	toggweMenuBaw(): void {
+		wet cuwwentVisibiwityVawue = getMenuBawVisibiwity(this.configuwationSewvice);
+		if (typeof cuwwentVisibiwityVawue !== 'stwing') {
+			cuwwentVisibiwityVawue = 'cwassic';
 		}
 
-		let newVisibilityValue: string;
-		if (currentVisibilityValue === 'visible' || currentVisibilityValue === 'classic') {
-			newVisibilityValue = getTitleBarStyle(this.configurationService) === 'native' ? 'toggle' : 'compact';
-		} else {
-			newVisibilityValue = 'classic';
+		wet newVisibiwityVawue: stwing;
+		if (cuwwentVisibiwityVawue === 'visibwe' || cuwwentVisibiwityVawue === 'cwassic') {
+			newVisibiwityVawue = getTitweBawStywe(this.configuwationSewvice) === 'native' ? 'toggwe' : 'compact';
+		} ewse {
+			newVisibiwityVawue = 'cwassic';
 		}
 
-		this.configurationService.updateValue(Storage.MENU_VISIBILITY, newVisibilityValue);
+		this.configuwationSewvice.updateVawue(Stowage.MENU_VISIBIWITY, newVisibiwityVawue);
 	}
 
-	getPanelPosition(): Position {
-		return this.state.panel.position;
+	getPanewPosition(): Position {
+		wetuwn this.state.panew.position;
 	}
 
-	setPanelPosition(position: Position): void {
-		if (this.state.panel.hidden) {
-			this.setPanelHidden(false);
+	setPanewPosition(position: Position): void {
+		if (this.state.panew.hidden) {
+			this.setPanewHidden(fawse);
 		}
 
-		const panelPart = this.getPart(Parts.PANEL_PART);
-		const oldPositionValue = positionToString(this.state.panel.position);
-		const newPositionValue = positionToString(position);
-		this.state.panel.position = position;
+		const panewPawt = this.getPawt(Pawts.PANEW_PAWT);
+		const owdPositionVawue = positionToStwing(this.state.panew.position);
+		const newPositionVawue = positionToStwing(position);
+		this.state.panew.position = position;
 
-		// Save panel position
-		this.storageService.store(Storage.PANEL_POSITION, newPositionValue, StorageScope.WORKSPACE, StorageTarget.USER);
+		// Save panew position
+		this.stowageSewvice.stowe(Stowage.PANEW_POSITION, newPositionVawue, StowageScope.WOWKSPACE, StowageTawget.USa);
 
 		// Adjust CSS
-		const panelContainer = assertIsDefined(panelPart.getContainer());
-		panelContainer.classList.remove(oldPositionValue);
-		panelContainer.classList.add(newPositionValue);
+		const panewContaina = assewtIsDefined(panewPawt.getContaina());
+		panewContaina.cwassWist.wemove(owdPositionVawue);
+		panewContaina.cwassWist.add(newPositionVawue);
 
-		// Update Styles
-		panelPart.updateStyles();
+		// Update Stywes
+		panewPawt.updateStywes();
 
-		// Layout
-		const size = this.workbenchGrid.getViewSize(this.panelPartView);
-		const sideBarSize = this.workbenchGrid.getViewSize(this.sideBarPartView);
+		// Wayout
+		const size = this.wowkbenchGwid.getViewSize(this.panewPawtView);
+		const sideBawSize = this.wowkbenchGwid.getViewSize(this.sideBawPawtView);
 
-		// Save last non-maximized size for panel before move
-		if (newPositionValue !== oldPositionValue && !this.state.editor.hidden) {
+		// Save wast non-maximized size fow panew befowe move
+		if (newPositionVawue !== owdPositionVawue && !this.state.editow.hidden) {
 
-			// Save the current size of the panel for the new orthogonal direction
-			// If moving down, save the width of the panel
-			// Otherwise, save the height of the panel
+			// Save the cuwwent size of the panew fow the new owthogonaw diwection
+			// If moving down, save the width of the panew
+			// Othewwise, save the height of the panew
 			if (position === Position.BOTTOM) {
-				this.state.panel.lastNonMaximizedWidth = size.width;
-			} else if (positionFromString(oldPositionValue) === Position.BOTTOM) {
-				this.state.panel.lastNonMaximizedHeight = size.height;
+				this.state.panew.wastNonMaximizedWidth = size.width;
+			} ewse if (positionFwomStwing(owdPositionVawue) === Position.BOTTOM) {
+				this.state.panew.wastNonMaximizedHeight = size.height;
 			}
 		}
 
 		if (position === Position.BOTTOM) {
-			this.workbenchGrid.moveView(this.panelPartView, this.state.editor.hidden ? size.height : this.state.panel.lastNonMaximizedHeight, this.editorPartView, Direction.Down);
-		} else if (position === Position.RIGHT) {
-			this.workbenchGrid.moveView(this.panelPartView, this.state.editor.hidden ? size.width : this.state.panel.lastNonMaximizedWidth, this.editorPartView, Direction.Right);
-		} else {
-			this.workbenchGrid.moveView(this.panelPartView, this.state.editor.hidden ? size.width : this.state.panel.lastNonMaximizedWidth, this.editorPartView, Direction.Left);
+			this.wowkbenchGwid.moveView(this.panewPawtView, this.state.editow.hidden ? size.height : this.state.panew.wastNonMaximizedHeight, this.editowPawtView, Diwection.Down);
+		} ewse if (position === Position.WIGHT) {
+			this.wowkbenchGwid.moveView(this.panewPawtView, this.state.editow.hidden ? size.width : this.state.panew.wastNonMaximizedWidth, this.editowPawtView, Diwection.Wight);
+		} ewse {
+			this.wowkbenchGwid.moveView(this.panewPawtView, this.state.editow.hidden ? size.width : this.state.panew.wastNonMaximizedWidth, this.editowPawtView, Diwection.Weft);
 		}
 
-		// Reset sidebar to original size before shifting the panel
-		this.workbenchGrid.resizeView(this.sideBarPartView, sideBarSize);
+		// Weset sidebaw to owiginaw size befowe shifting the panew
+		this.wowkbenchGwid.wesizeView(this.sideBawPawtView, sideBawSize);
 
-		this._onDidChangePanelPosition.fire(newPositionValue);
+		this._onDidChangePanewPosition.fiwe(newPositionVawue);
 	}
 
 	isWindowMaximized() {
-		return this.state.maximized;
+		wetuwn this.state.maximized;
 	}
 
-	updateWindowMaximizedState(maximized: boolean) {
+	updateWindowMaximizedState(maximized: boowean) {
 		if (this.state.maximized === maximized) {
-			return;
+			wetuwn;
 		}
 
 		this.state.maximized = maximized;
 
-		this.updateWindowBorder();
-		this._onDidChangeWindowMaximized.fire(maximized);
+		this.updateWindowBowda();
+		this._onDidChangeWindowMaximized.fiwe(maximized);
 	}
 
-	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined {
-		if (!this.workbenchGrid) {
-			return undefined;
+	getVisibweNeighbowPawt(pawt: Pawts, diwection: Diwection): Pawts | undefined {
+		if (!this.wowkbenchGwid) {
+			wetuwn undefined;
 		}
 
-		if (!this.isVisible(part)) {
-			return undefined;
+		if (!this.isVisibwe(pawt)) {
+			wetuwn undefined;
 		}
 
-		const neighborViews = this.workbenchGrid.getNeighborViews(this.getPart(part), direction, false);
+		const neighbowViews = this.wowkbenchGwid.getNeighbowViews(this.getPawt(pawt), diwection, fawse);
 
-		if (!neighborViews) {
-			return undefined;
+		if (!neighbowViews) {
+			wetuwn undefined;
 		}
 
-		for (const neighborView of neighborViews) {
-			const neighborPart =
-				[Parts.ACTIVITYBAR_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART, Parts.SIDEBAR_PART, Parts.STATUSBAR_PART, Parts.TITLEBAR_PART]
-					.find(partId => this.getPart(partId) === neighborView && this.isVisible(partId));
+		fow (const neighbowView of neighbowViews) {
+			const neighbowPawt =
+				[Pawts.ACTIVITYBAW_PAWT, Pawts.EDITOW_PAWT, Pawts.PANEW_PAWT, Pawts.AUXIWIAWYBAW_PAWT, Pawts.SIDEBAW_PAWT, Pawts.STATUSBAW_PAWT, Pawts.TITWEBAW_PAWT]
+					.find(pawtId => this.getPawt(pawtId) === neighbowView && this.isVisibwe(pawtId));
 
-			if (neighborPart !== undefined) {
-				return neighborPart;
+			if (neighbowPawt !== undefined) {
+				wetuwn neighbowPawt;
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
 
-	private arrangeEditorNodes(editorNode: ISerializedNode, panelNode: ISerializedNode, editorSectionWidth: number): ISerializedNode[] {
-		switch (this.state.panel.position) {
+	pwivate awwangeEditowNodes(editowNode: ISewiawizedNode, panewNode: ISewiawizedNode, editowSectionWidth: numba): ISewiawizedNode[] {
+		switch (this.state.panew.position) {
 			case Position.BOTTOM:
-				return [{ type: 'branch', data: [editorNode, panelNode], size: editorSectionWidth }];
-			case Position.RIGHT:
-				return [editorNode, panelNode];
-			case Position.LEFT:
-				return [panelNode, editorNode];
+				wetuwn [{ type: 'bwanch', data: [editowNode, panewNode], size: editowSectionWidth }];
+			case Position.WIGHT:
+				wetuwn [editowNode, panewNode];
+			case Position.WEFT:
+				wetuwn [panewNode, editowNode];
 		}
 	}
 
-	private createGridDescriptor(): ISerializedGrid {
-		const workbenchDimensions = this.getClientArea();
-		const width = this.storageService.getNumber(Storage.GRID_WIDTH, StorageScope.GLOBAL, workbenchDimensions.width);
-		const height = this.storageService.getNumber(Storage.GRID_HEIGHT, StorageScope.GLOBAL, workbenchDimensions.height);
-		const sideBarSize = this.storageService.getNumber(Storage.SIDEBAR_SIZE, StorageScope.GLOBAL, Math.min(workbenchDimensions.width / 4, 300));
-		const auxiliaryBarPartSize = this.storageService.getNumber(Storage.AUXILIARYBAR_SIZE, StorageScope.GLOBAL, Math.min(workbenchDimensions.width / 4, 300));
-		const panelDimension = positionFromString(this.storageService.get(Storage.PANEL_DIMENSION, StorageScope.GLOBAL, 'bottom'));
-		const fallbackPanelSize = this.state.panel.position === Position.BOTTOM ? workbenchDimensions.height / 3 : workbenchDimensions.width / 4;
-		const panelSize = panelDimension === this.state.panel.position ? this.storageService.getNumber(Storage.PANEL_SIZE, StorageScope.GLOBAL, fallbackPanelSize) : fallbackPanelSize;
+	pwivate cweateGwidDescwiptow(): ISewiawizedGwid {
+		const wowkbenchDimensions = this.getCwientAwea();
+		const width = this.stowageSewvice.getNumba(Stowage.GWID_WIDTH, StowageScope.GWOBAW, wowkbenchDimensions.width);
+		const height = this.stowageSewvice.getNumba(Stowage.GWID_HEIGHT, StowageScope.GWOBAW, wowkbenchDimensions.height);
+		const sideBawSize = this.stowageSewvice.getNumba(Stowage.SIDEBAW_SIZE, StowageScope.GWOBAW, Math.min(wowkbenchDimensions.width / 4, 300));
+		const auxiwiawyBawPawtSize = this.stowageSewvice.getNumba(Stowage.AUXIWIAWYBAW_SIZE, StowageScope.GWOBAW, Math.min(wowkbenchDimensions.width / 4, 300));
+		const panewDimension = positionFwomStwing(this.stowageSewvice.get(Stowage.PANEW_DIMENSION, StowageScope.GWOBAW, 'bottom'));
+		const fawwbackPanewSize = this.state.panew.position === Position.BOTTOM ? wowkbenchDimensions.height / 3 : wowkbenchDimensions.width / 4;
+		const panewSize = panewDimension === this.state.panew.position ? this.stowageSewvice.getNumba(Stowage.PANEW_SIZE, StowageScope.GWOBAW, fawwbackPanewSize) : fawwbackPanewSize;
 
-		const titleBarHeight = this.titleBarPartView.minimumHeight;
-		const bannerHeight = this.bannerPartView.minimumHeight;
-		const statusBarHeight = this.statusBarPartView.minimumHeight;
-		const activityBarWidth = this.activityBarPartView.minimumWidth;
-		const middleSectionHeight = height - titleBarHeight - statusBarHeight;
-		const editorSectionWidth = width - (this.state.activityBar.hidden ? 0 : activityBarWidth) - (this.state.sideBar.hidden ? 0 : sideBarSize);
+		const titweBawHeight = this.titweBawPawtView.minimumHeight;
+		const bannewHeight = this.bannewPawtView.minimumHeight;
+		const statusBawHeight = this.statusBawPawtView.minimumHeight;
+		const activityBawWidth = this.activityBawPawtView.minimumWidth;
+		const middweSectionHeight = height - titweBawHeight - statusBawHeight;
+		const editowSectionWidth = width - (this.state.activityBaw.hidden ? 0 : activityBawWidth) - (this.state.sideBaw.hidden ? 0 : sideBawSize);
 
-		const activityBarNode: ISerializedLeafNode = {
-			type: 'leaf',
-			data: { type: Parts.ACTIVITYBAR_PART },
-			size: activityBarWidth,
-			visible: !this.state.activityBar.hidden
+		const activityBawNode: ISewiawizedWeafNode = {
+			type: 'weaf',
+			data: { type: Pawts.ACTIVITYBAW_PAWT },
+			size: activityBawWidth,
+			visibwe: !this.state.activityBaw.hidden
 		};
 
-		const sideBarNode: ISerializedLeafNode = {
-			type: 'leaf',
-			data: { type: Parts.SIDEBAR_PART },
-			size: sideBarSize,
-			visible: !this.state.sideBar.hidden
+		const sideBawNode: ISewiawizedWeafNode = {
+			type: 'weaf',
+			data: { type: Pawts.SIDEBAW_PAWT },
+			size: sideBawSize,
+			visibwe: !this.state.sideBaw.hidden
 		};
 
-		const auxiliaryBarNode: ISerializedLeafNode = {
-			type: 'leaf',
-			data: { type: Parts.AUXILIARYBAR_PART },
-			size: auxiliaryBarPartSize,
-			visible: this.isVisible(Parts.AUXILIARYBAR_PART)
+		const auxiwiawyBawNode: ISewiawizedWeafNode = {
+			type: 'weaf',
+			data: { type: Pawts.AUXIWIAWYBAW_PAWT },
+			size: auxiwiawyBawPawtSize,
+			visibwe: this.isVisibwe(Pawts.AUXIWIAWYBAW_PAWT)
 		};
 
-		const editorNode: ISerializedLeafNode = {
-			type: 'leaf',
-			data: { type: Parts.EDITOR_PART },
-			size: this.state.panel.position === Position.BOTTOM ?
-				middleSectionHeight - (this.state.panel.hidden ? 0 : panelSize) :
-				editorSectionWidth - (this.state.panel.hidden ? 0 : panelSize),
-			visible: !this.state.editor.hidden
+		const editowNode: ISewiawizedWeafNode = {
+			type: 'weaf',
+			data: { type: Pawts.EDITOW_PAWT },
+			size: this.state.panew.position === Position.BOTTOM ?
+				middweSectionHeight - (this.state.panew.hidden ? 0 : panewSize) :
+				editowSectionWidth - (this.state.panew.hidden ? 0 : panewSize),
+			visibwe: !this.state.editow.hidden
 		};
 
-		const panelNode: ISerializedLeafNode = {
-			type: 'leaf',
-			data: { type: Parts.PANEL_PART },
-			size: panelSize,
-			visible: !this.state.panel.hidden
+		const panewNode: ISewiawizedWeafNode = {
+			type: 'weaf',
+			data: { type: Pawts.PANEW_PAWT },
+			size: panewSize,
+			visibwe: !this.state.panew.hidden
 		};
 
-		const editorSectionNode = this.arrangeEditorNodes(editorNode, panelNode, editorSectionWidth);
+		const editowSectionNode = this.awwangeEditowNodes(editowNode, panewNode, editowSectionWidth);
 
-		const middleSection: ISerializedNode[] = this.state.sideBar.position === Position.LEFT
-			? [activityBarNode, sideBarNode, ...editorSectionNode, auxiliaryBarNode]
-			: [auxiliaryBarNode, ...editorSectionNode, sideBarNode, activityBarNode];
+		const middweSection: ISewiawizedNode[] = this.state.sideBaw.position === Position.WEFT
+			? [activityBawNode, sideBawNode, ...editowSectionNode, auxiwiawyBawNode]
+			: [auxiwiawyBawNode, ...editowSectionNode, sideBawNode, activityBawNode];
 
-		const result: ISerializedGrid = {
-			root: {
-				type: 'branch',
+		const wesuwt: ISewiawizedGwid = {
+			woot: {
+				type: 'bwanch',
 				size: width,
 				data: [
 					{
-						type: 'leaf',
-						data: { type: Parts.TITLEBAR_PART },
-						size: titleBarHeight,
-						visible: this.isVisible(Parts.TITLEBAR_PART)
+						type: 'weaf',
+						data: { type: Pawts.TITWEBAW_PAWT },
+						size: titweBawHeight,
+						visibwe: this.isVisibwe(Pawts.TITWEBAW_PAWT)
 					},
 					{
-						type: 'leaf',
-						data: { type: Parts.BANNER_PART },
-						size: bannerHeight,
-						visible: false
+						type: 'weaf',
+						data: { type: Pawts.BANNEW_PAWT },
+						size: bannewHeight,
+						visibwe: fawse
 					},
 					{
-						type: 'branch',
-						data: middleSection,
-						size: middleSectionHeight
+						type: 'bwanch',
+						data: middweSection,
+						size: middweSectionHeight
 					},
 					{
-						type: 'leaf',
-						data: { type: Parts.STATUSBAR_PART },
-						size: statusBarHeight,
-						visible: !this.state.statusBar.hidden
+						type: 'weaf',
+						data: { type: Pawts.STATUSBAW_PAWT },
+						size: statusBawHeight,
+						visibwe: !this.state.statusBaw.hidden
 					}
 				]
 			},
-			orientation: Orientation.VERTICAL,
+			owientation: Owientation.VEWTICAW,
 			width,
 			height
 		};
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	override dispose(): void {
-		super.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
 
-		this.disposed = true;
+		this.disposed = twue;
 	}
 }

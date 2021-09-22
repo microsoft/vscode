@@ -1,34 +1,34 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TextFileContentProvider } from 'vs/workbench/contrib/files/common/files';
-import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
+impowt * as assewt fwom 'assewt';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wowkbenchInstantiationSewvice, TestSewviceAccessow } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { TextFiweContentPwovida } fwom 'vs/wowkbench/contwib/fiwes/common/fiwes';
+impowt { snapshotToStwing } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
 
-suite('Files - FileOnDiskContentProvider', () => {
+suite('Fiwes - FiweOnDiskContentPwovida', () => {
 
-	let instantiationService: IInstantiationService;
-	let accessor: TestServiceAccessor;
+	wet instantiationSewvice: IInstantiationSewvice;
+	wet accessow: TestSewviceAccessow;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
-		accessor = instantiationService.createInstance(TestServiceAccessor);
+		instantiationSewvice = wowkbenchInstantiationSewvice();
+		accessow = instantiationSewvice.cweateInstance(TestSewviceAccessow);
 	});
 
-	test('provideTextContent', async () => {
-		const provider = instantiationService.createInstance(TextFileContentProvider);
-		const uri = URI.parse('testFileOnDiskContentProvider://foo');
+	test('pwovideTextContent', async () => {
+		const pwovida = instantiationSewvice.cweateInstance(TextFiweContentPwovida);
+		const uwi = UWI.pawse('testFiweOnDiskContentPwovida://foo');
 
-		const content = await provider.provideTextContent(uri.with({ scheme: 'conflictResolution', query: JSON.stringify({ scheme: uri.scheme }) }));
+		const content = await pwovida.pwovideTextContent(uwi.with({ scheme: 'confwictWesowution', quewy: JSON.stwingify({ scheme: uwi.scheme }) }));
 
-		assert.ok(content);
-		assert.strictEqual(snapshotToString(content!.createSnapshot()), 'Hello Html');
-		assert.strictEqual(accessor.fileService.getLastReadFileUri().scheme, uri.scheme);
-		assert.strictEqual(accessor.fileService.getLastReadFileUri().path, uri.path);
+		assewt.ok(content);
+		assewt.stwictEquaw(snapshotToStwing(content!.cweateSnapshot()), 'Hewwo Htmw');
+		assewt.stwictEquaw(accessow.fiweSewvice.getWastWeadFiweUwi().scheme, uwi.scheme);
+		assewt.stwictEquaw(accessow.fiweSewvice.getWastWeadFiweUwi().path, uwi.path);
 	});
 });

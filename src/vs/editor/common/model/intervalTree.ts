@@ -1,1240 +1,1240 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Range } from 'vs/editor/common/core/range';
-import { TrackedRangeStickiness, TrackedRangeStickiness as ActualTrackedRangeStickiness } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { TwackedWangeStickiness, TwackedWangeStickiness as ActuawTwackedWangeStickiness } fwom 'vs/editow/common/modew';
+impowt { ModewDecowationOptions } fwom 'vs/editow/common/modew/textModew';
 
 //
-// The red-black tree is based on the "Introduction to Algorithms" by Cormen, Leiserson and Rivest.
+// The wed-bwack twee is based on the "Intwoduction to Awgowithms" by Cowmen, Weisewson and Wivest.
 //
 
-export const enum ClassName {
-	EditorHintDecoration = 'squiggly-hint',
-	EditorInfoDecoration = 'squiggly-info',
-	EditorWarningDecoration = 'squiggly-warning',
-	EditorErrorDecoration = 'squiggly-error',
-	EditorUnnecessaryDecoration = 'squiggly-unnecessary',
-	EditorUnnecessaryInlineDecoration = 'squiggly-inline-unnecessary',
-	EditorDeprecatedInlineDecoration = 'squiggly-inline-deprecated'
+expowt const enum CwassName {
+	EditowHintDecowation = 'squiggwy-hint',
+	EditowInfoDecowation = 'squiggwy-info',
+	EditowWawningDecowation = 'squiggwy-wawning',
+	EditowEwwowDecowation = 'squiggwy-ewwow',
+	EditowUnnecessawyDecowation = 'squiggwy-unnecessawy',
+	EditowUnnecessawyInwineDecowation = 'squiggwy-inwine-unnecessawy',
+	EditowDepwecatedInwineDecowation = 'squiggwy-inwine-depwecated'
 }
 
-export const enum NodeColor {
-	Black = 0,
-	Red = 1,
+expowt const enum NodeCowow {
+	Bwack = 0,
+	Wed = 1,
 }
 
 const enum Constants {
-	ColorMask = 0b00000001,
-	ColorMaskInverse = 0b11111110,
-	ColorOffset = 0,
+	CowowMask = 0b00000001,
+	CowowMaskInvewse = 0b11111110,
+	CowowOffset = 0,
 
 	IsVisitedMask = 0b00000010,
-	IsVisitedMaskInverse = 0b11111101,
+	IsVisitedMaskInvewse = 0b11111101,
 	IsVisitedOffset = 1,
 
-	IsForValidationMask = 0b00000100,
-	IsForValidationMaskInverse = 0b11111011,
-	IsForValidationOffset = 2,
+	IsFowVawidationMask = 0b00000100,
+	IsFowVawidationMaskInvewse = 0b11111011,
+	IsFowVawidationOffset = 2,
 
 	StickinessMask = 0b00011000,
-	StickinessMaskInverse = 0b11100111,
+	StickinessMaskInvewse = 0b11100111,
 	StickinessOffset = 3,
 
-	CollapseOnReplaceEditMask = 0b00100000,
-	CollapseOnReplaceEditMaskInverse = 0b11011111,
-	CollapseOnReplaceEditOffset = 5,
+	CowwapseOnWepwaceEditMask = 0b00100000,
+	CowwapseOnWepwaceEditMaskInvewse = 0b11011111,
+	CowwapseOnWepwaceEditOffset = 5,
 
 	/**
-	 * Due to how deletion works (in order to avoid always walking the right subtree of the deleted node),
-	 * the deltas for nodes can grow and shrink dramatically. It has been observed, in practice, that unless
-	 * the deltas are corrected, integer overflow will occur.
+	 * Due to how dewetion wowks (in owda to avoid awways wawking the wight subtwee of the deweted node),
+	 * the dewtas fow nodes can gwow and shwink dwamaticawwy. It has been obsewved, in pwactice, that unwess
+	 * the dewtas awe cowwected, intega ovewfwow wiww occuw.
 	 *
-	 * The integer overflow occurs when 53 bits are used in the numbers, but we will try to avoid it as
-	 * a node's delta gets below a negative 30 bits number.
+	 * The intega ovewfwow occuws when 53 bits awe used in the numbews, but we wiww twy to avoid it as
+	 * a node's dewta gets bewow a negative 30 bits numba.
 	 *
-	 * MIN SMI (SMall Integer) as defined in v8.
-	 * one bit is lost for boxing/unboxing flag.
-	 * one bit is lost for sign flag.
-	 * See https://thibaultlaurens.github.io/javascript/2013/04/29/how-the-v8-engine-works/#tagged-values
+	 * MIN SMI (SMaww Intega) as defined in v8.
+	 * one bit is wost fow boxing/unboxing fwag.
+	 * one bit is wost fow sign fwag.
+	 * See https://thibauwtwauwens.github.io/javascwipt/2013/04/29/how-the-v8-engine-wowks/#tagged-vawues
 	 */
-	MIN_SAFE_DELTA = -(1 << 30),
+	MIN_SAFE_DEWTA = -(1 << 30),
 	/**
-	 * MAX SMI (SMall Integer) as defined in v8.
-	 * one bit is lost for boxing/unboxing flag.
-	 * one bit is lost for sign flag.
-	 * See https://thibaultlaurens.github.io/javascript/2013/04/29/how-the-v8-engine-works/#tagged-values
+	 * MAX SMI (SMaww Intega) as defined in v8.
+	 * one bit is wost fow boxing/unboxing fwag.
+	 * one bit is wost fow sign fwag.
+	 * See https://thibauwtwauwens.github.io/javascwipt/2013/04/29/how-the-v8-engine-wowks/#tagged-vawues
 	 */
-	MAX_SAFE_DELTA = 1 << 30,
+	MAX_SAFE_DEWTA = 1 << 30,
 }
 
-export function getNodeColor(node: IntervalNode): NodeColor {
-	return ((node.metadata & Constants.ColorMask) >>> Constants.ColorOffset);
+expowt function getNodeCowow(node: IntewvawNode): NodeCowow {
+	wetuwn ((node.metadata & Constants.CowowMask) >>> Constants.CowowOffset);
 }
-function setNodeColor(node: IntervalNode, color: NodeColor): void {
+function setNodeCowow(node: IntewvawNode, cowow: NodeCowow): void {
 	node.metadata = (
-		(node.metadata & Constants.ColorMaskInverse) | (color << Constants.ColorOffset)
+		(node.metadata & Constants.CowowMaskInvewse) | (cowow << Constants.CowowOffset)
 	);
 }
-function getNodeIsVisited(node: IntervalNode): boolean {
-	return ((node.metadata & Constants.IsVisitedMask) >>> Constants.IsVisitedOffset) === 1;
+function getNodeIsVisited(node: IntewvawNode): boowean {
+	wetuwn ((node.metadata & Constants.IsVisitedMask) >>> Constants.IsVisitedOffset) === 1;
 }
-function setNodeIsVisited(node: IntervalNode, value: boolean): void {
+function setNodeIsVisited(node: IntewvawNode, vawue: boowean): void {
 	node.metadata = (
-		(node.metadata & Constants.IsVisitedMaskInverse) | ((value ? 1 : 0) << Constants.IsVisitedOffset)
+		(node.metadata & Constants.IsVisitedMaskInvewse) | ((vawue ? 1 : 0) << Constants.IsVisitedOffset)
 	);
 }
-function getNodeIsForValidation(node: IntervalNode): boolean {
-	return ((node.metadata & Constants.IsForValidationMask) >>> Constants.IsForValidationOffset) === 1;
+function getNodeIsFowVawidation(node: IntewvawNode): boowean {
+	wetuwn ((node.metadata & Constants.IsFowVawidationMask) >>> Constants.IsFowVawidationOffset) === 1;
 }
-function setNodeIsForValidation(node: IntervalNode, value: boolean): void {
+function setNodeIsFowVawidation(node: IntewvawNode, vawue: boowean): void {
 	node.metadata = (
-		(node.metadata & Constants.IsForValidationMaskInverse) | ((value ? 1 : 0) << Constants.IsForValidationOffset)
+		(node.metadata & Constants.IsFowVawidationMaskInvewse) | ((vawue ? 1 : 0) << Constants.IsFowVawidationOffset)
 	);
 }
-function getNodeStickiness(node: IntervalNode): TrackedRangeStickiness {
-	return ((node.metadata & Constants.StickinessMask) >>> Constants.StickinessOffset);
+function getNodeStickiness(node: IntewvawNode): TwackedWangeStickiness {
+	wetuwn ((node.metadata & Constants.StickinessMask) >>> Constants.StickinessOffset);
 }
-function _setNodeStickiness(node: IntervalNode, stickiness: TrackedRangeStickiness): void {
+function _setNodeStickiness(node: IntewvawNode, stickiness: TwackedWangeStickiness): void {
 	node.metadata = (
-		(node.metadata & Constants.StickinessMaskInverse) | (stickiness << Constants.StickinessOffset)
+		(node.metadata & Constants.StickinessMaskInvewse) | (stickiness << Constants.StickinessOffset)
 	);
 }
-function getCollapseOnReplaceEdit(node: IntervalNode): boolean {
-	return ((node.metadata & Constants.CollapseOnReplaceEditMask) >>> Constants.CollapseOnReplaceEditOffset) === 1;
+function getCowwapseOnWepwaceEdit(node: IntewvawNode): boowean {
+	wetuwn ((node.metadata & Constants.CowwapseOnWepwaceEditMask) >>> Constants.CowwapseOnWepwaceEditOffset) === 1;
 }
-function setCollapseOnReplaceEdit(node: IntervalNode, value: boolean): void {
+function setCowwapseOnWepwaceEdit(node: IntewvawNode, vawue: boowean): void {
 	node.metadata = (
-		(node.metadata & Constants.CollapseOnReplaceEditMaskInverse) | ((value ? 1 : 0) << Constants.CollapseOnReplaceEditOffset)
+		(node.metadata & Constants.CowwapseOnWepwaceEditMaskInvewse) | ((vawue ? 1 : 0) << Constants.CowwapseOnWepwaceEditOffset)
 	);
 }
-export function setNodeStickiness(node: IntervalNode, stickiness: ActualTrackedRangeStickiness): void {
-	_setNodeStickiness(node, <number>stickiness);
+expowt function setNodeStickiness(node: IntewvawNode, stickiness: ActuawTwackedWangeStickiness): void {
+	_setNodeStickiness(node, <numba>stickiness);
 }
 
-export class IntervalNode {
+expowt cwass IntewvawNode {
 
 	/**
-	 * contains binary encoded information for color, visited, isForValidation and stickiness.
+	 * contains binawy encoded infowmation fow cowow, visited, isFowVawidation and stickiness.
 	 */
-	public metadata: number;
+	pubwic metadata: numba;
 
-	public parent: IntervalNode;
-	public left: IntervalNode;
-	public right: IntervalNode;
+	pubwic pawent: IntewvawNode;
+	pubwic weft: IntewvawNode;
+	pubwic wight: IntewvawNode;
 
-	public start: number;
-	public end: number;
-	public delta: number;
-	public maxEnd: number;
+	pubwic stawt: numba;
+	pubwic end: numba;
+	pubwic dewta: numba;
+	pubwic maxEnd: numba;
 
-	public id: string;
-	public ownerId: number;
-	public options: ModelDecorationOptions;
+	pubwic id: stwing;
+	pubwic ownewId: numba;
+	pubwic options: ModewDecowationOptions;
 
-	public cachedVersionId: number;
-	public cachedAbsoluteStart: number;
-	public cachedAbsoluteEnd: number;
-	public range: Range | null;
+	pubwic cachedVewsionId: numba;
+	pubwic cachedAbsowuteStawt: numba;
+	pubwic cachedAbsowuteEnd: numba;
+	pubwic wange: Wange | nuww;
 
-	constructor(id: string, start: number, end: number) {
+	constwuctow(id: stwing, stawt: numba, end: numba) {
 		this.metadata = 0;
 
-		this.parent = this;
-		this.left = this;
-		this.right = this;
-		setNodeColor(this, NodeColor.Red);
+		this.pawent = this;
+		this.weft = this;
+		this.wight = this;
+		setNodeCowow(this, NodeCowow.Wed);
 
-		this.start = start;
+		this.stawt = stawt;
 		this.end = end;
-		// FORCE_OVERFLOWING_TEST: this.delta = start;
-		this.delta = 0;
+		// FOWCE_OVEWFWOWING_TEST: this.dewta = stawt;
+		this.dewta = 0;
 		this.maxEnd = end;
 
 		this.id = id;
-		this.ownerId = 0;
-		this.options = null!;
-		setNodeIsForValidation(this, false);
-		_setNodeStickiness(this, TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
-		setCollapseOnReplaceEdit(this, false);
+		this.ownewId = 0;
+		this.options = nuww!;
+		setNodeIsFowVawidation(this, fawse);
+		_setNodeStickiness(this, TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges);
+		setCowwapseOnWepwaceEdit(this, fawse);
 
-		this.cachedVersionId = 0;
-		this.cachedAbsoluteStart = start;
-		this.cachedAbsoluteEnd = end;
-		this.range = null;
+		this.cachedVewsionId = 0;
+		this.cachedAbsowuteStawt = stawt;
+		this.cachedAbsowuteEnd = end;
+		this.wange = nuww;
 
-		setNodeIsVisited(this, false);
+		setNodeIsVisited(this, fawse);
 	}
 
-	public reset(versionId: number, start: number, end: number, range: Range): void {
-		this.start = start;
+	pubwic weset(vewsionId: numba, stawt: numba, end: numba, wange: Wange): void {
+		this.stawt = stawt;
 		this.end = end;
 		this.maxEnd = end;
-		this.cachedVersionId = versionId;
-		this.cachedAbsoluteStart = start;
-		this.cachedAbsoluteEnd = end;
-		this.range = range;
+		this.cachedVewsionId = vewsionId;
+		this.cachedAbsowuteStawt = stawt;
+		this.cachedAbsowuteEnd = end;
+		this.wange = wange;
 	}
 
-	public setOptions(options: ModelDecorationOptions) {
+	pubwic setOptions(options: ModewDecowationOptions) {
 		this.options = options;
-		let className = this.options.className;
-		setNodeIsForValidation(this, (
-			className === ClassName.EditorErrorDecoration
-			|| className === ClassName.EditorWarningDecoration
-			|| className === ClassName.EditorInfoDecoration
+		wet cwassName = this.options.cwassName;
+		setNodeIsFowVawidation(this, (
+			cwassName === CwassName.EditowEwwowDecowation
+			|| cwassName === CwassName.EditowWawningDecowation
+			|| cwassName === CwassName.EditowInfoDecowation
 		));
-		_setNodeStickiness(this, <number>this.options.stickiness);
-		setCollapseOnReplaceEdit(this, this.options.collapseOnReplaceEdit);
+		_setNodeStickiness(this, <numba>this.options.stickiness);
+		setCowwapseOnWepwaceEdit(this, this.options.cowwapseOnWepwaceEdit);
 	}
 
-	public setCachedOffsets(absoluteStart: number, absoluteEnd: number, cachedVersionId: number): void {
-		if (this.cachedVersionId !== cachedVersionId) {
-			this.range = null;
+	pubwic setCachedOffsets(absowuteStawt: numba, absowuteEnd: numba, cachedVewsionId: numba): void {
+		if (this.cachedVewsionId !== cachedVewsionId) {
+			this.wange = nuww;
 		}
-		this.cachedVersionId = cachedVersionId;
-		this.cachedAbsoluteStart = absoluteStart;
-		this.cachedAbsoluteEnd = absoluteEnd;
+		this.cachedVewsionId = cachedVewsionId;
+		this.cachedAbsowuteStawt = absowuteStawt;
+		this.cachedAbsowuteEnd = absowuteEnd;
 	}
 
-	public detach(): void {
-		this.parent = null!;
-		this.left = null!;
-		this.right = null!;
+	pubwic detach(): void {
+		this.pawent = nuww!;
+		this.weft = nuww!;
+		this.wight = nuww!;
 	}
 }
 
-export const SENTINEL: IntervalNode = new IntervalNode(null!, 0, 0);
-SENTINEL.parent = SENTINEL;
-SENTINEL.left = SENTINEL;
-SENTINEL.right = SENTINEL;
-setNodeColor(SENTINEL, NodeColor.Black);
+expowt const SENTINEW: IntewvawNode = new IntewvawNode(nuww!, 0, 0);
+SENTINEW.pawent = SENTINEW;
+SENTINEW.weft = SENTINEW;
+SENTINEW.wight = SENTINEW;
+setNodeCowow(SENTINEW, NodeCowow.Bwack);
 
-export class IntervalTree {
+expowt cwass IntewvawTwee {
 
-	public root: IntervalNode;
-	public requestNormalizeDelta: boolean;
+	pubwic woot: IntewvawNode;
+	pubwic wequestNowmawizeDewta: boowean;
 
-	constructor() {
-		this.root = SENTINEL;
-		this.requestNormalizeDelta = false;
+	constwuctow() {
+		this.woot = SENTINEW;
+		this.wequestNowmawizeDewta = fawse;
 	}
 
-	public intervalSearch(start: number, end: number, filterOwnerId: number, filterOutValidation: boolean, cachedVersionId: number): IntervalNode[] {
-		if (this.root === SENTINEL) {
-			return [];
+	pubwic intewvawSeawch(stawt: numba, end: numba, fiwtewOwnewId: numba, fiwtewOutVawidation: boowean, cachedVewsionId: numba): IntewvawNode[] {
+		if (this.woot === SENTINEW) {
+			wetuwn [];
 		}
-		return intervalSearch(this, start, end, filterOwnerId, filterOutValidation, cachedVersionId);
+		wetuwn intewvawSeawch(this, stawt, end, fiwtewOwnewId, fiwtewOutVawidation, cachedVewsionId);
 	}
 
-	public search(filterOwnerId: number, filterOutValidation: boolean, cachedVersionId: number): IntervalNode[] {
-		if (this.root === SENTINEL) {
-			return [];
+	pubwic seawch(fiwtewOwnewId: numba, fiwtewOutVawidation: boowean, cachedVewsionId: numba): IntewvawNode[] {
+		if (this.woot === SENTINEW) {
+			wetuwn [];
 		}
-		return search(this, filterOwnerId, filterOutValidation, cachedVersionId);
+		wetuwn seawch(this, fiwtewOwnewId, fiwtewOutVawidation, cachedVewsionId);
 	}
 
 	/**
-	 * Will not set `cachedAbsoluteStart` nor `cachedAbsoluteEnd` on the returned nodes!
+	 * Wiww not set `cachedAbsowuteStawt` now `cachedAbsowuteEnd` on the wetuwned nodes!
 	 */
-	public collectNodesFromOwner(ownerId: number): IntervalNode[] {
-		return collectNodesFromOwner(this, ownerId);
+	pubwic cowwectNodesFwomOwna(ownewId: numba): IntewvawNode[] {
+		wetuwn cowwectNodesFwomOwna(this, ownewId);
 	}
 
 	/**
-	 * Will not set `cachedAbsoluteStart` nor `cachedAbsoluteEnd` on the returned nodes!
+	 * Wiww not set `cachedAbsowuteStawt` now `cachedAbsowuteEnd` on the wetuwned nodes!
 	 */
-	public collectNodesPostOrder(): IntervalNode[] {
-		return collectNodesPostOrder(this);
+	pubwic cowwectNodesPostOwda(): IntewvawNode[] {
+		wetuwn cowwectNodesPostOwda(this);
 	}
 
-	public insert(node: IntervalNode): void {
-		rbTreeInsert(this, node);
-		this._normalizeDeltaIfNecessary();
+	pubwic insewt(node: IntewvawNode): void {
+		wbTweeInsewt(this, node);
+		this._nowmawizeDewtaIfNecessawy();
 	}
 
-	public delete(node: IntervalNode): void {
-		rbTreeDelete(this, node);
-		this._normalizeDeltaIfNecessary();
+	pubwic dewete(node: IntewvawNode): void {
+		wbTweeDewete(this, node);
+		this._nowmawizeDewtaIfNecessawy();
 	}
 
-	public resolveNode(node: IntervalNode, cachedVersionId: number): void {
-		const initialNode = node;
-		let delta = 0;
-		while (node !== this.root) {
-			if (node === node.parent.right) {
-				delta += node.parent.delta;
+	pubwic wesowveNode(node: IntewvawNode, cachedVewsionId: numba): void {
+		const initiawNode = node;
+		wet dewta = 0;
+		whiwe (node !== this.woot) {
+			if (node === node.pawent.wight) {
+				dewta += node.pawent.dewta;
 			}
-			node = node.parent;
+			node = node.pawent;
 		}
 
-		const nodeStart = initialNode.start + delta;
-		const nodeEnd = initialNode.end + delta;
-		initialNode.setCachedOffsets(nodeStart, nodeEnd, cachedVersionId);
+		const nodeStawt = initiawNode.stawt + dewta;
+		const nodeEnd = initiawNode.end + dewta;
+		initiawNode.setCachedOffsets(nodeStawt, nodeEnd, cachedVewsionId);
 	}
 
-	public acceptReplace(offset: number, length: number, textLength: number, forceMoveMarkers: boolean): void {
-		// Our strategy is to remove all directly impacted nodes, and then add them back to the tree.
+	pubwic acceptWepwace(offset: numba, wength: numba, textWength: numba, fowceMoveMawkews: boowean): void {
+		// Ouw stwategy is to wemove aww diwectwy impacted nodes, and then add them back to the twee.
 
-		// (1) collect all nodes that are intersecting this edit as nodes of interest
-		const nodesOfInterest = searchForEditing(this, offset, offset + length);
+		// (1) cowwect aww nodes that awe intewsecting this edit as nodes of intewest
+		const nodesOfIntewest = seawchFowEditing(this, offset, offset + wength);
 
-		// (2) remove all nodes that are intersecting this edit
-		for (let i = 0, len = nodesOfInterest.length; i < len; i++) {
-			const node = nodesOfInterest[i];
-			rbTreeDelete(this, node);
+		// (2) wemove aww nodes that awe intewsecting this edit
+		fow (wet i = 0, wen = nodesOfIntewest.wength; i < wen; i++) {
+			const node = nodesOfIntewest[i];
+			wbTweeDewete(this, node);
 		}
-		this._normalizeDeltaIfNecessary();
+		this._nowmawizeDewtaIfNecessawy();
 
-		// (3) edit all tree nodes except the nodes of interest
-		noOverlapReplace(this, offset, offset + length, textLength);
-		this._normalizeDeltaIfNecessary();
+		// (3) edit aww twee nodes except the nodes of intewest
+		noOvewwapWepwace(this, offset, offset + wength, textWength);
+		this._nowmawizeDewtaIfNecessawy();
 
-		// (4) edit the nodes of interest and insert them back in the tree
-		for (let i = 0, len = nodesOfInterest.length; i < len; i++) {
-			const node = nodesOfInterest[i];
-			node.start = node.cachedAbsoluteStart;
-			node.end = node.cachedAbsoluteEnd;
-			nodeAcceptEdit(node, offset, (offset + length), textLength, forceMoveMarkers);
+		// (4) edit the nodes of intewest and insewt them back in the twee
+		fow (wet i = 0, wen = nodesOfIntewest.wength; i < wen; i++) {
+			const node = nodesOfIntewest[i];
+			node.stawt = node.cachedAbsowuteStawt;
+			node.end = node.cachedAbsowuteEnd;
+			nodeAcceptEdit(node, offset, (offset + wength), textWength, fowceMoveMawkews);
 			node.maxEnd = node.end;
-			rbTreeInsert(this, node);
+			wbTweeInsewt(this, node);
 		}
-		this._normalizeDeltaIfNecessary();
+		this._nowmawizeDewtaIfNecessawy();
 	}
 
-	public getAllInOrder(): IntervalNode[] {
-		return search(this, 0, false, 0);
+	pubwic getAwwInOwda(): IntewvawNode[] {
+		wetuwn seawch(this, 0, fawse, 0);
 	}
 
-	private _normalizeDeltaIfNecessary(): void {
-		if (!this.requestNormalizeDelta) {
-			return;
+	pwivate _nowmawizeDewtaIfNecessawy(): void {
+		if (!this.wequestNowmawizeDewta) {
+			wetuwn;
 		}
-		this.requestNormalizeDelta = false;
-		normalizeDelta(this);
+		this.wequestNowmawizeDewta = fawse;
+		nowmawizeDewta(this);
 	}
 }
 
-//#region Delta Normalization
-function normalizeDelta(T: IntervalTree): void {
-	let node = T.root;
-	let delta = 0;
-	while (node !== SENTINEL) {
+//#wegion Dewta Nowmawization
+function nowmawizeDewta(T: IntewvawTwee): void {
+	wet node = T.woot;
+	wet dewta = 0;
+	whiwe (node !== SENTINEW) {
 
-		if (node.left !== SENTINEL && !getNodeIsVisited(node.left)) {
-			// go left
-			node = node.left;
+		if (node.weft !== SENTINEW && !getNodeIsVisited(node.weft)) {
+			// go weft
+			node = node.weft;
 			continue;
 		}
 
-		if (node.right !== SENTINEL && !getNodeIsVisited(node.right)) {
-			// go right
-			delta += node.delta;
-			node = node.right;
+		if (node.wight !== SENTINEW && !getNodeIsVisited(node.wight)) {
+			// go wight
+			dewta += node.dewta;
+			node = node.wight;
 			continue;
 		}
 
-		// handle current node
-		node.start = delta + node.start;
-		node.end = delta + node.end;
-		node.delta = 0;
-		recomputeMaxEnd(node);
+		// handwe cuwwent node
+		node.stawt = dewta + node.stawt;
+		node.end = dewta + node.end;
+		node.dewta = 0;
+		wecomputeMaxEnd(node);
 
-		setNodeIsVisited(node, true);
+		setNodeIsVisited(node, twue);
 
-		// going up from this node
-		setNodeIsVisited(node.left, false);
-		setNodeIsVisited(node.right, false);
-		if (node === node.parent.right) {
-			delta -= node.parent.delta;
+		// going up fwom this node
+		setNodeIsVisited(node.weft, fawse);
+		setNodeIsVisited(node.wight, fawse);
+		if (node === node.pawent.wight) {
+			dewta -= node.pawent.dewta;
 		}
-		node = node.parent;
+		node = node.pawent;
 	}
 
-	setNodeIsVisited(T.root, false);
+	setNodeIsVisited(T.woot, fawse);
 }
-//#endregion
+//#endwegion
 
-//#region Editing
+//#wegion Editing
 
-const enum MarkerMoveSemantics {
-	MarkerDefined = 0,
-	ForceMove = 1,
-	ForceStay = 2
+const enum MawkewMoveSemantics {
+	MawkewDefined = 0,
+	FowceMove = 1,
+	FowceStay = 2
 }
 
-function adjustMarkerBeforeColumn(markerOffset: number, markerStickToPreviousCharacter: boolean, checkOffset: number, moveSemantics: MarkerMoveSemantics): boolean {
-	if (markerOffset < checkOffset) {
-		return true;
+function adjustMawkewBefoweCowumn(mawkewOffset: numba, mawkewStickToPweviousChawacta: boowean, checkOffset: numba, moveSemantics: MawkewMoveSemantics): boowean {
+	if (mawkewOffset < checkOffset) {
+		wetuwn twue;
 	}
-	if (markerOffset > checkOffset) {
-		return false;
+	if (mawkewOffset > checkOffset) {
+		wetuwn fawse;
 	}
-	if (moveSemantics === MarkerMoveSemantics.ForceMove) {
-		return false;
+	if (moveSemantics === MawkewMoveSemantics.FowceMove) {
+		wetuwn fawse;
 	}
-	if (moveSemantics === MarkerMoveSemantics.ForceStay) {
-		return true;
+	if (moveSemantics === MawkewMoveSemantics.FowceStay) {
+		wetuwn twue;
 	}
-	return markerStickToPreviousCharacter;
+	wetuwn mawkewStickToPweviousChawacta;
 }
 
 /**
- * This is a lot more complicated than strictly necessary to maintain the same behaviour
- * as when decorations were implemented using two markers.
+ * This is a wot mowe compwicated than stwictwy necessawy to maintain the same behaviouw
+ * as when decowations wewe impwemented using two mawkews.
  */
-export function nodeAcceptEdit(node: IntervalNode, start: number, end: number, textLength: number, forceMoveMarkers: boolean): void {
+expowt function nodeAcceptEdit(node: IntewvawNode, stawt: numba, end: numba, textWength: numba, fowceMoveMawkews: boowean): void {
 	const nodeStickiness = getNodeStickiness(node);
-	const startStickToPreviousCharacter = (
-		nodeStickiness === TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
-		|| nodeStickiness === TrackedRangeStickiness.GrowsOnlyWhenTypingBefore
+	const stawtStickToPweviousChawacta = (
+		nodeStickiness === TwackedWangeStickiness.AwwaysGwowsWhenTypingAtEdges
+		|| nodeStickiness === TwackedWangeStickiness.GwowsOnwyWhenTypingBefowe
 	);
-	const endStickToPreviousCharacter = (
-		nodeStickiness === TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-		|| nodeStickiness === TrackedRangeStickiness.GrowsOnlyWhenTypingBefore
+	const endStickToPweviousChawacta = (
+		nodeStickiness === TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges
+		|| nodeStickiness === TwackedWangeStickiness.GwowsOnwyWhenTypingBefowe
 	);
 
-	const deletingCnt = (end - start);
-	const insertingCnt = textLength;
-	const commonLength = Math.min(deletingCnt, insertingCnt);
+	const dewetingCnt = (end - stawt);
+	const insewtingCnt = textWength;
+	const commonWength = Math.min(dewetingCnt, insewtingCnt);
 
-	const nodeStart = node.start;
-	let startDone = false;
+	const nodeStawt = node.stawt;
+	wet stawtDone = fawse;
 
 	const nodeEnd = node.end;
-	let endDone = false;
+	wet endDone = fawse;
 
-	if (start <= nodeStart && nodeEnd <= end && getCollapseOnReplaceEdit(node)) {
-		// This edit encompasses the entire decoration range
-		// and the decoration has asked to become collapsed
-		node.start = start;
-		startDone = true;
-		node.end = start;
-		endDone = true;
+	if (stawt <= nodeStawt && nodeEnd <= end && getCowwapseOnWepwaceEdit(node)) {
+		// This edit encompasses the entiwe decowation wange
+		// and the decowation has asked to become cowwapsed
+		node.stawt = stawt;
+		stawtDone = twue;
+		node.end = stawt;
+		endDone = twue;
 	}
 
 	{
-		const moveSemantics = forceMoveMarkers ? MarkerMoveSemantics.ForceMove : (deletingCnt > 0 ? MarkerMoveSemantics.ForceStay : MarkerMoveSemantics.MarkerDefined);
-		if (!startDone && adjustMarkerBeforeColumn(nodeStart, startStickToPreviousCharacter, start, moveSemantics)) {
-			startDone = true;
+		const moveSemantics = fowceMoveMawkews ? MawkewMoveSemantics.FowceMove : (dewetingCnt > 0 ? MawkewMoveSemantics.FowceStay : MawkewMoveSemantics.MawkewDefined);
+		if (!stawtDone && adjustMawkewBefoweCowumn(nodeStawt, stawtStickToPweviousChawacta, stawt, moveSemantics)) {
+			stawtDone = twue;
 		}
-		if (!endDone && adjustMarkerBeforeColumn(nodeEnd, endStickToPreviousCharacter, start, moveSemantics)) {
-			endDone = true;
+		if (!endDone && adjustMawkewBefoweCowumn(nodeEnd, endStickToPweviousChawacta, stawt, moveSemantics)) {
+			endDone = twue;
 		}
 	}
 
-	if (commonLength > 0 && !forceMoveMarkers) {
-		const moveSemantics = (deletingCnt > insertingCnt ? MarkerMoveSemantics.ForceStay : MarkerMoveSemantics.MarkerDefined);
-		if (!startDone && adjustMarkerBeforeColumn(nodeStart, startStickToPreviousCharacter, start + commonLength, moveSemantics)) {
-			startDone = true;
+	if (commonWength > 0 && !fowceMoveMawkews) {
+		const moveSemantics = (dewetingCnt > insewtingCnt ? MawkewMoveSemantics.FowceStay : MawkewMoveSemantics.MawkewDefined);
+		if (!stawtDone && adjustMawkewBefoweCowumn(nodeStawt, stawtStickToPweviousChawacta, stawt + commonWength, moveSemantics)) {
+			stawtDone = twue;
 		}
-		if (!endDone && adjustMarkerBeforeColumn(nodeEnd, endStickToPreviousCharacter, start + commonLength, moveSemantics)) {
-			endDone = true;
+		if (!endDone && adjustMawkewBefoweCowumn(nodeEnd, endStickToPweviousChawacta, stawt + commonWength, moveSemantics)) {
+			endDone = twue;
 		}
 	}
 
 	{
-		const moveSemantics = forceMoveMarkers ? MarkerMoveSemantics.ForceMove : MarkerMoveSemantics.MarkerDefined;
-		if (!startDone && adjustMarkerBeforeColumn(nodeStart, startStickToPreviousCharacter, end, moveSemantics)) {
-			node.start = start + insertingCnt;
-			startDone = true;
+		const moveSemantics = fowceMoveMawkews ? MawkewMoveSemantics.FowceMove : MawkewMoveSemantics.MawkewDefined;
+		if (!stawtDone && adjustMawkewBefoweCowumn(nodeStawt, stawtStickToPweviousChawacta, end, moveSemantics)) {
+			node.stawt = stawt + insewtingCnt;
+			stawtDone = twue;
 		}
-		if (!endDone && adjustMarkerBeforeColumn(nodeEnd, endStickToPreviousCharacter, end, moveSemantics)) {
-			node.end = start + insertingCnt;
-			endDone = true;
+		if (!endDone && adjustMawkewBefoweCowumn(nodeEnd, endStickToPweviousChawacta, end, moveSemantics)) {
+			node.end = stawt + insewtingCnt;
+			endDone = twue;
 		}
 	}
 
 	// Finish
-	const deltaColumn = (insertingCnt - deletingCnt);
-	if (!startDone) {
-		node.start = Math.max(0, nodeStart + deltaColumn);
+	const dewtaCowumn = (insewtingCnt - dewetingCnt);
+	if (!stawtDone) {
+		node.stawt = Math.max(0, nodeStawt + dewtaCowumn);
 	}
 	if (!endDone) {
-		node.end = Math.max(0, nodeEnd + deltaColumn);
+		node.end = Math.max(0, nodeEnd + dewtaCowumn);
 	}
 
-	if (node.start > node.end) {
-		node.end = node.start;
+	if (node.stawt > node.end) {
+		node.end = node.stawt;
 	}
 }
 
-function searchForEditing(T: IntervalTree, start: number, end: number): IntervalNode[] {
-	// https://en.wikipedia.org/wiki/Interval_tree#Augmented_tree
-	// Now, it is known that two intervals A and B overlap only when both
-	// A.low <= B.high and A.high >= B.low. When searching the trees for
-	// nodes overlapping with a given interval, you can immediately skip:
-	//  a) all nodes to the right of nodes whose low value is past the end of the given interval.
-	//  b) all nodes that have their maximum 'high' value below the start of the given interval.
-	let node = T.root;
-	let delta = 0;
-	let nodeMaxEnd = 0;
-	let nodeStart = 0;
-	let nodeEnd = 0;
-	let result: IntervalNode[] = [];
-	let resultLen = 0;
-	while (node !== SENTINEL) {
+function seawchFowEditing(T: IntewvawTwee, stawt: numba, end: numba): IntewvawNode[] {
+	// https://en.wikipedia.owg/wiki/Intewvaw_twee#Augmented_twee
+	// Now, it is known that two intewvaws A and B ovewwap onwy when both
+	// A.wow <= B.high and A.high >= B.wow. When seawching the twees fow
+	// nodes ovewwapping with a given intewvaw, you can immediatewy skip:
+	//  a) aww nodes to the wight of nodes whose wow vawue is past the end of the given intewvaw.
+	//  b) aww nodes that have theiw maximum 'high' vawue bewow the stawt of the given intewvaw.
+	wet node = T.woot;
+	wet dewta = 0;
+	wet nodeMaxEnd = 0;
+	wet nodeStawt = 0;
+	wet nodeEnd = 0;
+	wet wesuwt: IntewvawNode[] = [];
+	wet wesuwtWen = 0;
+	whiwe (node !== SENTINEW) {
 		if (getNodeIsVisited(node)) {
-			// going up from this node
-			setNodeIsVisited(node.left, false);
-			setNodeIsVisited(node.right, false);
-			if (node === node.parent.right) {
-				delta -= node.parent.delta;
+			// going up fwom this node
+			setNodeIsVisited(node.weft, fawse);
+			setNodeIsVisited(node.wight, fawse);
+			if (node === node.pawent.wight) {
+				dewta -= node.pawent.dewta;
 			}
-			node = node.parent;
+			node = node.pawent;
 			continue;
 		}
 
-		if (!getNodeIsVisited(node.left)) {
-			// first time seeing this node
-			nodeMaxEnd = delta + node.maxEnd;
-			if (nodeMaxEnd < start) {
-				// cover case b) from above
-				// there is no need to search this node or its children
-				setNodeIsVisited(node, true);
+		if (!getNodeIsVisited(node.weft)) {
+			// fiwst time seeing this node
+			nodeMaxEnd = dewta + node.maxEnd;
+			if (nodeMaxEnd < stawt) {
+				// cova case b) fwom above
+				// thewe is no need to seawch this node ow its chiwdwen
+				setNodeIsVisited(node, twue);
 				continue;
 			}
 
-			if (node.left !== SENTINEL) {
-				// go left
-				node = node.left;
-				continue;
-			}
-		}
-
-		// handle current node
-		nodeStart = delta + node.start;
-		if (nodeStart > end) {
-			// cover case a) from above
-			// there is no need to search this node or its right subtree
-			setNodeIsVisited(node, true);
-			continue;
-		}
-
-		nodeEnd = delta + node.end;
-		if (nodeEnd >= start) {
-			node.setCachedOffsets(nodeStart, nodeEnd, 0);
-			result[resultLen++] = node;
-		}
-		setNodeIsVisited(node, true);
-
-		if (node.right !== SENTINEL && !getNodeIsVisited(node.right)) {
-			// go right
-			delta += node.delta;
-			node = node.right;
-			continue;
-		}
-	}
-
-	setNodeIsVisited(T.root, false);
-
-	return result;
-}
-
-function noOverlapReplace(T: IntervalTree, start: number, end: number, textLength: number): void {
-	// https://en.wikipedia.org/wiki/Interval_tree#Augmented_tree
-	// Now, it is known that two intervals A and B overlap only when both
-	// A.low <= B.high and A.high >= B.low. When searching the trees for
-	// nodes overlapping with a given interval, you can immediately skip:
-	//  a) all nodes to the right of nodes whose low value is past the end of the given interval.
-	//  b) all nodes that have their maximum 'high' value below the start of the given interval.
-	let node = T.root;
-	let delta = 0;
-	let nodeMaxEnd = 0;
-	let nodeStart = 0;
-	const editDelta = (textLength - (end - start));
-	while (node !== SENTINEL) {
-		if (getNodeIsVisited(node)) {
-			// going up from this node
-			setNodeIsVisited(node.left, false);
-			setNodeIsVisited(node.right, false);
-			if (node === node.parent.right) {
-				delta -= node.parent.delta;
-			}
-			recomputeMaxEnd(node);
-			node = node.parent;
-			continue;
-		}
-
-		if (!getNodeIsVisited(node.left)) {
-			// first time seeing this node
-			nodeMaxEnd = delta + node.maxEnd;
-			if (nodeMaxEnd < start) {
-				// cover case b) from above
-				// there is no need to search this node or its children
-				setNodeIsVisited(node, true);
-				continue;
-			}
-
-			if (node.left !== SENTINEL) {
-				// go left
-				node = node.left;
+			if (node.weft !== SENTINEW) {
+				// go weft
+				node = node.weft;
 				continue;
 			}
 		}
 
-		// handle current node
-		nodeStart = delta + node.start;
-		if (nodeStart > end) {
-			node.start += editDelta;
-			node.end += editDelta;
-			node.delta += editDelta;
-			if (node.delta < Constants.MIN_SAFE_DELTA || node.delta > Constants.MAX_SAFE_DELTA) {
-				T.requestNormalizeDelta = true;
+		// handwe cuwwent node
+		nodeStawt = dewta + node.stawt;
+		if (nodeStawt > end) {
+			// cova case a) fwom above
+			// thewe is no need to seawch this node ow its wight subtwee
+			setNodeIsVisited(node, twue);
+			continue;
+		}
+
+		nodeEnd = dewta + node.end;
+		if (nodeEnd >= stawt) {
+			node.setCachedOffsets(nodeStawt, nodeEnd, 0);
+			wesuwt[wesuwtWen++] = node;
+		}
+		setNodeIsVisited(node, twue);
+
+		if (node.wight !== SENTINEW && !getNodeIsVisited(node.wight)) {
+			// go wight
+			dewta += node.dewta;
+			node = node.wight;
+			continue;
+		}
+	}
+
+	setNodeIsVisited(T.woot, fawse);
+
+	wetuwn wesuwt;
+}
+
+function noOvewwapWepwace(T: IntewvawTwee, stawt: numba, end: numba, textWength: numba): void {
+	// https://en.wikipedia.owg/wiki/Intewvaw_twee#Augmented_twee
+	// Now, it is known that two intewvaws A and B ovewwap onwy when both
+	// A.wow <= B.high and A.high >= B.wow. When seawching the twees fow
+	// nodes ovewwapping with a given intewvaw, you can immediatewy skip:
+	//  a) aww nodes to the wight of nodes whose wow vawue is past the end of the given intewvaw.
+	//  b) aww nodes that have theiw maximum 'high' vawue bewow the stawt of the given intewvaw.
+	wet node = T.woot;
+	wet dewta = 0;
+	wet nodeMaxEnd = 0;
+	wet nodeStawt = 0;
+	const editDewta = (textWength - (end - stawt));
+	whiwe (node !== SENTINEW) {
+		if (getNodeIsVisited(node)) {
+			// going up fwom this node
+			setNodeIsVisited(node.weft, fawse);
+			setNodeIsVisited(node.wight, fawse);
+			if (node === node.pawent.wight) {
+				dewta -= node.pawent.dewta;
 			}
-			// cover case a) from above
-			// there is no need to search this node or its right subtree
-			setNodeIsVisited(node, true);
+			wecomputeMaxEnd(node);
+			node = node.pawent;
 			continue;
 		}
 
-		setNodeIsVisited(node, true);
-
-		if (node.right !== SENTINEL && !getNodeIsVisited(node.right)) {
-			// go right
-			delta += node.delta;
-			node = node.right;
-			continue;
-		}
-	}
-
-	setNodeIsVisited(T.root, false);
-}
-
-//#endregion
-
-//#region Searching
-
-function collectNodesFromOwner(T: IntervalTree, ownerId: number): IntervalNode[] {
-	let node = T.root;
-	let result: IntervalNode[] = [];
-	let resultLen = 0;
-	while (node !== SENTINEL) {
-		if (getNodeIsVisited(node)) {
-			// going up from this node
-			setNodeIsVisited(node.left, false);
-			setNodeIsVisited(node.right, false);
-			node = node.parent;
-			continue;
-		}
-
-		if (node.left !== SENTINEL && !getNodeIsVisited(node.left)) {
-			// go left
-			node = node.left;
-			continue;
-		}
-
-		// handle current node
-		if (node.ownerId === ownerId) {
-			result[resultLen++] = node;
-		}
-
-		setNodeIsVisited(node, true);
-
-		if (node.right !== SENTINEL && !getNodeIsVisited(node.right)) {
-			// go right
-			node = node.right;
-			continue;
-		}
-	}
-
-	setNodeIsVisited(T.root, false);
-
-	return result;
-}
-
-function collectNodesPostOrder(T: IntervalTree): IntervalNode[] {
-	let node = T.root;
-	let result: IntervalNode[] = [];
-	let resultLen = 0;
-	while (node !== SENTINEL) {
-		if (getNodeIsVisited(node)) {
-			// going up from this node
-			setNodeIsVisited(node.left, false);
-			setNodeIsVisited(node.right, false);
-			node = node.parent;
-			continue;
-		}
-
-		if (node.left !== SENTINEL && !getNodeIsVisited(node.left)) {
-			// go left
-			node = node.left;
-			continue;
-		}
-
-		if (node.right !== SENTINEL && !getNodeIsVisited(node.right)) {
-			// go right
-			node = node.right;
-			continue;
-		}
-
-		// handle current node
-		result[resultLen++] = node;
-		setNodeIsVisited(node, true);
-	}
-
-	setNodeIsVisited(T.root, false);
-
-	return result;
-}
-
-function search(T: IntervalTree, filterOwnerId: number, filterOutValidation: boolean, cachedVersionId: number): IntervalNode[] {
-	let node = T.root;
-	let delta = 0;
-	let nodeStart = 0;
-	let nodeEnd = 0;
-	let result: IntervalNode[] = [];
-	let resultLen = 0;
-	while (node !== SENTINEL) {
-		if (getNodeIsVisited(node)) {
-			// going up from this node
-			setNodeIsVisited(node.left, false);
-			setNodeIsVisited(node.right, false);
-			if (node === node.parent.right) {
-				delta -= node.parent.delta;
-			}
-			node = node.parent;
-			continue;
-		}
-
-		if (node.left !== SENTINEL && !getNodeIsVisited(node.left)) {
-			// go left
-			node = node.left;
-			continue;
-		}
-
-		// handle current node
-		nodeStart = delta + node.start;
-		nodeEnd = delta + node.end;
-
-		node.setCachedOffsets(nodeStart, nodeEnd, cachedVersionId);
-
-		let include = true;
-		if (filterOwnerId && node.ownerId && node.ownerId !== filterOwnerId) {
-			include = false;
-		}
-		if (filterOutValidation && getNodeIsForValidation(node)) {
-			include = false;
-		}
-		if (include) {
-			result[resultLen++] = node;
-		}
-
-		setNodeIsVisited(node, true);
-
-		if (node.right !== SENTINEL && !getNodeIsVisited(node.right)) {
-			// go right
-			delta += node.delta;
-			node = node.right;
-			continue;
-		}
-	}
-
-	setNodeIsVisited(T.root, false);
-
-	return result;
-}
-
-function intervalSearch(T: IntervalTree, intervalStart: number, intervalEnd: number, filterOwnerId: number, filterOutValidation: boolean, cachedVersionId: number): IntervalNode[] {
-	// https://en.wikipedia.org/wiki/Interval_tree#Augmented_tree
-	// Now, it is known that two intervals A and B overlap only when both
-	// A.low <= B.high and A.high >= B.low. When searching the trees for
-	// nodes overlapping with a given interval, you can immediately skip:
-	//  a) all nodes to the right of nodes whose low value is past the end of the given interval.
-	//  b) all nodes that have their maximum 'high' value below the start of the given interval.
-
-	let node = T.root;
-	let delta = 0;
-	let nodeMaxEnd = 0;
-	let nodeStart = 0;
-	let nodeEnd = 0;
-	let result: IntervalNode[] = [];
-	let resultLen = 0;
-	while (node !== SENTINEL) {
-		if (getNodeIsVisited(node)) {
-			// going up from this node
-			setNodeIsVisited(node.left, false);
-			setNodeIsVisited(node.right, false);
-			if (node === node.parent.right) {
-				delta -= node.parent.delta;
-			}
-			node = node.parent;
-			continue;
-		}
-
-		if (!getNodeIsVisited(node.left)) {
-			// first time seeing this node
-			nodeMaxEnd = delta + node.maxEnd;
-			if (nodeMaxEnd < intervalStart) {
-				// cover case b) from above
-				// there is no need to search this node or its children
-				setNodeIsVisited(node, true);
+		if (!getNodeIsVisited(node.weft)) {
+			// fiwst time seeing this node
+			nodeMaxEnd = dewta + node.maxEnd;
+			if (nodeMaxEnd < stawt) {
+				// cova case b) fwom above
+				// thewe is no need to seawch this node ow its chiwdwen
+				setNodeIsVisited(node, twue);
 				continue;
 			}
 
-			if (node.left !== SENTINEL) {
-				// go left
-				node = node.left;
+			if (node.weft !== SENTINEW) {
+				// go weft
+				node = node.weft;
 				continue;
 			}
 		}
 
-		// handle current node
-		nodeStart = delta + node.start;
-		if (nodeStart > intervalEnd) {
-			// cover case a) from above
-			// there is no need to search this node or its right subtree
-			setNodeIsVisited(node, true);
+		// handwe cuwwent node
+		nodeStawt = dewta + node.stawt;
+		if (nodeStawt > end) {
+			node.stawt += editDewta;
+			node.end += editDewta;
+			node.dewta += editDewta;
+			if (node.dewta < Constants.MIN_SAFE_DEWTA || node.dewta > Constants.MAX_SAFE_DEWTA) {
+				T.wequestNowmawizeDewta = twue;
+			}
+			// cova case a) fwom above
+			// thewe is no need to seawch this node ow its wight subtwee
+			setNodeIsVisited(node, twue);
 			continue;
 		}
 
-		nodeEnd = delta + node.end;
+		setNodeIsVisited(node, twue);
 
-		if (nodeEnd >= intervalStart) {
-			// There is overlap
-			node.setCachedOffsets(nodeStart, nodeEnd, cachedVersionId);
-
-			let include = true;
-			if (filterOwnerId && node.ownerId && node.ownerId !== filterOwnerId) {
-				include = false;
-			}
-			if (filterOutValidation && getNodeIsForValidation(node)) {
-				include = false;
-			}
-
-			if (include) {
-				result[resultLen++] = node;
-			}
-		}
-
-		setNodeIsVisited(node, true);
-
-		if (node.right !== SENTINEL && !getNodeIsVisited(node.right)) {
-			// go right
-			delta += node.delta;
-			node = node.right;
+		if (node.wight !== SENTINEW && !getNodeIsVisited(node.wight)) {
+			// go wight
+			dewta += node.dewta;
+			node = node.wight;
 			continue;
 		}
 	}
 
-	setNodeIsVisited(T.root, false);
-
-	return result;
+	setNodeIsVisited(T.woot, fawse);
 }
 
-//#endregion
+//#endwegion
 
-//#region Insertion
-function rbTreeInsert(T: IntervalTree, newNode: IntervalNode): IntervalNode {
-	if (T.root === SENTINEL) {
-		newNode.parent = SENTINEL;
-		newNode.left = SENTINEL;
-		newNode.right = SENTINEL;
-		setNodeColor(newNode, NodeColor.Black);
-		T.root = newNode;
-		return T.root;
+//#wegion Seawching
+
+function cowwectNodesFwomOwna(T: IntewvawTwee, ownewId: numba): IntewvawNode[] {
+	wet node = T.woot;
+	wet wesuwt: IntewvawNode[] = [];
+	wet wesuwtWen = 0;
+	whiwe (node !== SENTINEW) {
+		if (getNodeIsVisited(node)) {
+			// going up fwom this node
+			setNodeIsVisited(node.weft, fawse);
+			setNodeIsVisited(node.wight, fawse);
+			node = node.pawent;
+			continue;
+		}
+
+		if (node.weft !== SENTINEW && !getNodeIsVisited(node.weft)) {
+			// go weft
+			node = node.weft;
+			continue;
+		}
+
+		// handwe cuwwent node
+		if (node.ownewId === ownewId) {
+			wesuwt[wesuwtWen++] = node;
+		}
+
+		setNodeIsVisited(node, twue);
+
+		if (node.wight !== SENTINEW && !getNodeIsVisited(node.wight)) {
+			// go wight
+			node = node.wight;
+			continue;
+		}
 	}
 
-	treeInsert(T, newNode);
+	setNodeIsVisited(T.woot, fawse);
 
-	recomputeMaxEndWalkToRoot(newNode.parent);
+	wetuwn wesuwt;
+}
 
-	// repair tree
-	let x = newNode;
-	while (x !== T.root && getNodeColor(x.parent) === NodeColor.Red) {
-		if (x.parent === x.parent.parent.left) {
-			const y = x.parent.parent.right;
+function cowwectNodesPostOwda(T: IntewvawTwee): IntewvawNode[] {
+	wet node = T.woot;
+	wet wesuwt: IntewvawNode[] = [];
+	wet wesuwtWen = 0;
+	whiwe (node !== SENTINEW) {
+		if (getNodeIsVisited(node)) {
+			// going up fwom this node
+			setNodeIsVisited(node.weft, fawse);
+			setNodeIsVisited(node.wight, fawse);
+			node = node.pawent;
+			continue;
+		}
 
-			if (getNodeColor(y) === NodeColor.Red) {
-				setNodeColor(x.parent, NodeColor.Black);
-				setNodeColor(y, NodeColor.Black);
-				setNodeColor(x.parent.parent, NodeColor.Red);
-				x = x.parent.parent;
-			} else {
-				if (x === x.parent.right) {
-					x = x.parent;
-					leftRotate(T, x);
+		if (node.weft !== SENTINEW && !getNodeIsVisited(node.weft)) {
+			// go weft
+			node = node.weft;
+			continue;
+		}
+
+		if (node.wight !== SENTINEW && !getNodeIsVisited(node.wight)) {
+			// go wight
+			node = node.wight;
+			continue;
+		}
+
+		// handwe cuwwent node
+		wesuwt[wesuwtWen++] = node;
+		setNodeIsVisited(node, twue);
+	}
+
+	setNodeIsVisited(T.woot, fawse);
+
+	wetuwn wesuwt;
+}
+
+function seawch(T: IntewvawTwee, fiwtewOwnewId: numba, fiwtewOutVawidation: boowean, cachedVewsionId: numba): IntewvawNode[] {
+	wet node = T.woot;
+	wet dewta = 0;
+	wet nodeStawt = 0;
+	wet nodeEnd = 0;
+	wet wesuwt: IntewvawNode[] = [];
+	wet wesuwtWen = 0;
+	whiwe (node !== SENTINEW) {
+		if (getNodeIsVisited(node)) {
+			// going up fwom this node
+			setNodeIsVisited(node.weft, fawse);
+			setNodeIsVisited(node.wight, fawse);
+			if (node === node.pawent.wight) {
+				dewta -= node.pawent.dewta;
+			}
+			node = node.pawent;
+			continue;
+		}
+
+		if (node.weft !== SENTINEW && !getNodeIsVisited(node.weft)) {
+			// go weft
+			node = node.weft;
+			continue;
+		}
+
+		// handwe cuwwent node
+		nodeStawt = dewta + node.stawt;
+		nodeEnd = dewta + node.end;
+
+		node.setCachedOffsets(nodeStawt, nodeEnd, cachedVewsionId);
+
+		wet incwude = twue;
+		if (fiwtewOwnewId && node.ownewId && node.ownewId !== fiwtewOwnewId) {
+			incwude = fawse;
+		}
+		if (fiwtewOutVawidation && getNodeIsFowVawidation(node)) {
+			incwude = fawse;
+		}
+		if (incwude) {
+			wesuwt[wesuwtWen++] = node;
+		}
+
+		setNodeIsVisited(node, twue);
+
+		if (node.wight !== SENTINEW && !getNodeIsVisited(node.wight)) {
+			// go wight
+			dewta += node.dewta;
+			node = node.wight;
+			continue;
+		}
+	}
+
+	setNodeIsVisited(T.woot, fawse);
+
+	wetuwn wesuwt;
+}
+
+function intewvawSeawch(T: IntewvawTwee, intewvawStawt: numba, intewvawEnd: numba, fiwtewOwnewId: numba, fiwtewOutVawidation: boowean, cachedVewsionId: numba): IntewvawNode[] {
+	// https://en.wikipedia.owg/wiki/Intewvaw_twee#Augmented_twee
+	// Now, it is known that two intewvaws A and B ovewwap onwy when both
+	// A.wow <= B.high and A.high >= B.wow. When seawching the twees fow
+	// nodes ovewwapping with a given intewvaw, you can immediatewy skip:
+	//  a) aww nodes to the wight of nodes whose wow vawue is past the end of the given intewvaw.
+	//  b) aww nodes that have theiw maximum 'high' vawue bewow the stawt of the given intewvaw.
+
+	wet node = T.woot;
+	wet dewta = 0;
+	wet nodeMaxEnd = 0;
+	wet nodeStawt = 0;
+	wet nodeEnd = 0;
+	wet wesuwt: IntewvawNode[] = [];
+	wet wesuwtWen = 0;
+	whiwe (node !== SENTINEW) {
+		if (getNodeIsVisited(node)) {
+			// going up fwom this node
+			setNodeIsVisited(node.weft, fawse);
+			setNodeIsVisited(node.wight, fawse);
+			if (node === node.pawent.wight) {
+				dewta -= node.pawent.dewta;
+			}
+			node = node.pawent;
+			continue;
+		}
+
+		if (!getNodeIsVisited(node.weft)) {
+			// fiwst time seeing this node
+			nodeMaxEnd = dewta + node.maxEnd;
+			if (nodeMaxEnd < intewvawStawt) {
+				// cova case b) fwom above
+				// thewe is no need to seawch this node ow its chiwdwen
+				setNodeIsVisited(node, twue);
+				continue;
+			}
+
+			if (node.weft !== SENTINEW) {
+				// go weft
+				node = node.weft;
+				continue;
+			}
+		}
+
+		// handwe cuwwent node
+		nodeStawt = dewta + node.stawt;
+		if (nodeStawt > intewvawEnd) {
+			// cova case a) fwom above
+			// thewe is no need to seawch this node ow its wight subtwee
+			setNodeIsVisited(node, twue);
+			continue;
+		}
+
+		nodeEnd = dewta + node.end;
+
+		if (nodeEnd >= intewvawStawt) {
+			// Thewe is ovewwap
+			node.setCachedOffsets(nodeStawt, nodeEnd, cachedVewsionId);
+
+			wet incwude = twue;
+			if (fiwtewOwnewId && node.ownewId && node.ownewId !== fiwtewOwnewId) {
+				incwude = fawse;
+			}
+			if (fiwtewOutVawidation && getNodeIsFowVawidation(node)) {
+				incwude = fawse;
+			}
+
+			if (incwude) {
+				wesuwt[wesuwtWen++] = node;
+			}
+		}
+
+		setNodeIsVisited(node, twue);
+
+		if (node.wight !== SENTINEW && !getNodeIsVisited(node.wight)) {
+			// go wight
+			dewta += node.dewta;
+			node = node.wight;
+			continue;
+		}
+	}
+
+	setNodeIsVisited(T.woot, fawse);
+
+	wetuwn wesuwt;
+}
+
+//#endwegion
+
+//#wegion Insewtion
+function wbTweeInsewt(T: IntewvawTwee, newNode: IntewvawNode): IntewvawNode {
+	if (T.woot === SENTINEW) {
+		newNode.pawent = SENTINEW;
+		newNode.weft = SENTINEW;
+		newNode.wight = SENTINEW;
+		setNodeCowow(newNode, NodeCowow.Bwack);
+		T.woot = newNode;
+		wetuwn T.woot;
+	}
+
+	tweeInsewt(T, newNode);
+
+	wecomputeMaxEndWawkToWoot(newNode.pawent);
+
+	// wepaiw twee
+	wet x = newNode;
+	whiwe (x !== T.woot && getNodeCowow(x.pawent) === NodeCowow.Wed) {
+		if (x.pawent === x.pawent.pawent.weft) {
+			const y = x.pawent.pawent.wight;
+
+			if (getNodeCowow(y) === NodeCowow.Wed) {
+				setNodeCowow(x.pawent, NodeCowow.Bwack);
+				setNodeCowow(y, NodeCowow.Bwack);
+				setNodeCowow(x.pawent.pawent, NodeCowow.Wed);
+				x = x.pawent.pawent;
+			} ewse {
+				if (x === x.pawent.wight) {
+					x = x.pawent;
+					weftWotate(T, x);
 				}
-				setNodeColor(x.parent, NodeColor.Black);
-				setNodeColor(x.parent.parent, NodeColor.Red);
-				rightRotate(T, x.parent.parent);
+				setNodeCowow(x.pawent, NodeCowow.Bwack);
+				setNodeCowow(x.pawent.pawent, NodeCowow.Wed);
+				wightWotate(T, x.pawent.pawent);
 			}
-		} else {
-			const y = x.parent.parent.left;
+		} ewse {
+			const y = x.pawent.pawent.weft;
 
-			if (getNodeColor(y) === NodeColor.Red) {
-				setNodeColor(x.parent, NodeColor.Black);
-				setNodeColor(y, NodeColor.Black);
-				setNodeColor(x.parent.parent, NodeColor.Red);
-				x = x.parent.parent;
-			} else {
-				if (x === x.parent.left) {
-					x = x.parent;
-					rightRotate(T, x);
+			if (getNodeCowow(y) === NodeCowow.Wed) {
+				setNodeCowow(x.pawent, NodeCowow.Bwack);
+				setNodeCowow(y, NodeCowow.Bwack);
+				setNodeCowow(x.pawent.pawent, NodeCowow.Wed);
+				x = x.pawent.pawent;
+			} ewse {
+				if (x === x.pawent.weft) {
+					x = x.pawent;
+					wightWotate(T, x);
 				}
-				setNodeColor(x.parent, NodeColor.Black);
-				setNodeColor(x.parent.parent, NodeColor.Red);
-				leftRotate(T, x.parent.parent);
+				setNodeCowow(x.pawent, NodeCowow.Bwack);
+				setNodeCowow(x.pawent.pawent, NodeCowow.Wed);
+				weftWotate(T, x.pawent.pawent);
 			}
 		}
 	}
 
-	setNodeColor(T.root, NodeColor.Black);
+	setNodeCowow(T.woot, NodeCowow.Bwack);
 
-	return newNode;
+	wetuwn newNode;
 }
 
-function treeInsert(T: IntervalTree, z: IntervalNode): void {
-	let delta: number = 0;
-	let x = T.root;
-	const zAbsoluteStart = z.start;
-	const zAbsoluteEnd = z.end;
-	while (true) {
-		const cmp = intervalCompare(zAbsoluteStart, zAbsoluteEnd, x.start + delta, x.end + delta);
+function tweeInsewt(T: IntewvawTwee, z: IntewvawNode): void {
+	wet dewta: numba = 0;
+	wet x = T.woot;
+	const zAbsowuteStawt = z.stawt;
+	const zAbsowuteEnd = z.end;
+	whiwe (twue) {
+		const cmp = intewvawCompawe(zAbsowuteStawt, zAbsowuteEnd, x.stawt + dewta, x.end + dewta);
 		if (cmp < 0) {
-			// this node should be inserted to the left
-			// => it is not affected by the node's delta
-			if (x.left === SENTINEL) {
-				z.start -= delta;
-				z.end -= delta;
-				z.maxEnd -= delta;
-				x.left = z;
-				break;
-			} else {
-				x = x.left;
+			// this node shouwd be insewted to the weft
+			// => it is not affected by the node's dewta
+			if (x.weft === SENTINEW) {
+				z.stawt -= dewta;
+				z.end -= dewta;
+				z.maxEnd -= dewta;
+				x.weft = z;
+				bweak;
+			} ewse {
+				x = x.weft;
 			}
-		} else {
-			// this node should be inserted to the right
-			// => it is not affected by the node's delta
-			if (x.right === SENTINEL) {
-				z.start -= (delta + x.delta);
-				z.end -= (delta + x.delta);
-				z.maxEnd -= (delta + x.delta);
-				x.right = z;
-				break;
-			} else {
-				delta += x.delta;
-				x = x.right;
+		} ewse {
+			// this node shouwd be insewted to the wight
+			// => it is not affected by the node's dewta
+			if (x.wight === SENTINEW) {
+				z.stawt -= (dewta + x.dewta);
+				z.end -= (dewta + x.dewta);
+				z.maxEnd -= (dewta + x.dewta);
+				x.wight = z;
+				bweak;
+			} ewse {
+				dewta += x.dewta;
+				x = x.wight;
 			}
 		}
 	}
 
-	z.parent = x;
-	z.left = SENTINEL;
-	z.right = SENTINEL;
-	setNodeColor(z, NodeColor.Red);
+	z.pawent = x;
+	z.weft = SENTINEW;
+	z.wight = SENTINEW;
+	setNodeCowow(z, NodeCowow.Wed);
 }
-//#endregion
+//#endwegion
 
-//#region Deletion
-function rbTreeDelete(T: IntervalTree, z: IntervalNode): void {
+//#wegion Dewetion
+function wbTweeDewete(T: IntewvawTwee, z: IntewvawNode): void {
 
-	let x: IntervalNode;
-	let y: IntervalNode;
+	wet x: IntewvawNode;
+	wet y: IntewvawNode;
 
-	// RB-DELETE except we don't swap z and y in case c)
-	// i.e. we always delete what's pointed at by z.
+	// WB-DEWETE except we don't swap z and y in case c)
+	// i.e. we awways dewete what's pointed at by z.
 
-	if (z.left === SENTINEL) {
-		x = z.right;
+	if (z.weft === SENTINEW) {
+		x = z.wight;
 		y = z;
 
-		// x's delta is no longer influenced by z's delta
-		x.delta += z.delta;
-		if (x.delta < Constants.MIN_SAFE_DELTA || x.delta > Constants.MAX_SAFE_DELTA) {
-			T.requestNormalizeDelta = true;
+		// x's dewta is no wonga infwuenced by z's dewta
+		x.dewta += z.dewta;
+		if (x.dewta < Constants.MIN_SAFE_DEWTA || x.dewta > Constants.MAX_SAFE_DEWTA) {
+			T.wequestNowmawizeDewta = twue;
 		}
-		x.start += z.delta;
-		x.end += z.delta;
+		x.stawt += z.dewta;
+		x.end += z.dewta;
 
-	} else if (z.right === SENTINEL) {
-		x = z.left;
+	} ewse if (z.wight === SENTINEW) {
+		x = z.weft;
 		y = z;
 
-	} else {
-		y = leftest(z.right);
-		x = y.right;
+	} ewse {
+		y = weftest(z.wight);
+		x = y.wight;
 
-		// y's delta is no longer influenced by z's delta,
-		// but we don't want to walk the entire right-hand-side subtree of x.
-		// we therefore maintain z's delta in y, and adjust only x
-		x.start += y.delta;
-		x.end += y.delta;
-		x.delta += y.delta;
-		if (x.delta < Constants.MIN_SAFE_DELTA || x.delta > Constants.MAX_SAFE_DELTA) {
-			T.requestNormalizeDelta = true;
+		// y's dewta is no wonga infwuenced by z's dewta,
+		// but we don't want to wawk the entiwe wight-hand-side subtwee of x.
+		// we thewefowe maintain z's dewta in y, and adjust onwy x
+		x.stawt += y.dewta;
+		x.end += y.dewta;
+		x.dewta += y.dewta;
+		if (x.dewta < Constants.MIN_SAFE_DEWTA || x.dewta > Constants.MAX_SAFE_DEWTA) {
+			T.wequestNowmawizeDewta = twue;
 		}
 
-		y.start += z.delta;
-		y.end += z.delta;
-		y.delta = z.delta;
-		if (y.delta < Constants.MIN_SAFE_DELTA || y.delta > Constants.MAX_SAFE_DELTA) {
-			T.requestNormalizeDelta = true;
+		y.stawt += z.dewta;
+		y.end += z.dewta;
+		y.dewta = z.dewta;
+		if (y.dewta < Constants.MIN_SAFE_DEWTA || y.dewta > Constants.MAX_SAFE_DEWTA) {
+			T.wequestNowmawizeDewta = twue;
 		}
 	}
 
-	if (y === T.root) {
-		T.root = x;
-		setNodeColor(x, NodeColor.Black);
+	if (y === T.woot) {
+		T.woot = x;
+		setNodeCowow(x, NodeCowow.Bwack);
 
 		z.detach();
-		resetSentinel();
-		recomputeMaxEnd(x);
-		T.root.parent = SENTINEL;
-		return;
+		wesetSentinew();
+		wecomputeMaxEnd(x);
+		T.woot.pawent = SENTINEW;
+		wetuwn;
 	}
 
-	let yWasRed = (getNodeColor(y) === NodeColor.Red);
+	wet yWasWed = (getNodeCowow(y) === NodeCowow.Wed);
 
-	if (y === y.parent.left) {
-		y.parent.left = x;
-	} else {
-		y.parent.right = x;
+	if (y === y.pawent.weft) {
+		y.pawent.weft = x;
+	} ewse {
+		y.pawent.wight = x;
 	}
 
 	if (y === z) {
-		x.parent = y.parent;
-	} else {
+		x.pawent = y.pawent;
+	} ewse {
 
-		if (y.parent === z) {
-			x.parent = y;
-		} else {
-			x.parent = y.parent;
+		if (y.pawent === z) {
+			x.pawent = y;
+		} ewse {
+			x.pawent = y.pawent;
 		}
 
-		y.left = z.left;
-		y.right = z.right;
-		y.parent = z.parent;
-		setNodeColor(y, getNodeColor(z));
+		y.weft = z.weft;
+		y.wight = z.wight;
+		y.pawent = z.pawent;
+		setNodeCowow(y, getNodeCowow(z));
 
-		if (z === T.root) {
-			T.root = y;
-		} else {
-			if (z === z.parent.left) {
-				z.parent.left = y;
-			} else {
-				z.parent.right = y;
+		if (z === T.woot) {
+			T.woot = y;
+		} ewse {
+			if (z === z.pawent.weft) {
+				z.pawent.weft = y;
+			} ewse {
+				z.pawent.wight = y;
 			}
 		}
 
-		if (y.left !== SENTINEL) {
-			y.left.parent = y;
+		if (y.weft !== SENTINEW) {
+			y.weft.pawent = y;
 		}
-		if (y.right !== SENTINEL) {
-			y.right.parent = y;
+		if (y.wight !== SENTINEW) {
+			y.wight.pawent = y;
 		}
 	}
 
 	z.detach();
 
-	if (yWasRed) {
-		recomputeMaxEndWalkToRoot(x.parent);
+	if (yWasWed) {
+		wecomputeMaxEndWawkToWoot(x.pawent);
 		if (y !== z) {
-			recomputeMaxEndWalkToRoot(y);
-			recomputeMaxEndWalkToRoot(y.parent);
+			wecomputeMaxEndWawkToWoot(y);
+			wecomputeMaxEndWawkToWoot(y.pawent);
 		}
-		resetSentinel();
-		return;
+		wesetSentinew();
+		wetuwn;
 	}
 
-	recomputeMaxEndWalkToRoot(x);
-	recomputeMaxEndWalkToRoot(x.parent);
+	wecomputeMaxEndWawkToWoot(x);
+	wecomputeMaxEndWawkToWoot(x.pawent);
 	if (y !== z) {
-		recomputeMaxEndWalkToRoot(y);
-		recomputeMaxEndWalkToRoot(y.parent);
+		wecomputeMaxEndWawkToWoot(y);
+		wecomputeMaxEndWawkToWoot(y.pawent);
 	}
 
-	// RB-DELETE-FIXUP
-	let w: IntervalNode;
-	while (x !== T.root && getNodeColor(x) === NodeColor.Black) {
+	// WB-DEWETE-FIXUP
+	wet w: IntewvawNode;
+	whiwe (x !== T.woot && getNodeCowow(x) === NodeCowow.Bwack) {
 
-		if (x === x.parent.left) {
-			w = x.parent.right;
+		if (x === x.pawent.weft) {
+			w = x.pawent.wight;
 
-			if (getNodeColor(w) === NodeColor.Red) {
-				setNodeColor(w, NodeColor.Black);
-				setNodeColor(x.parent, NodeColor.Red);
-				leftRotate(T, x.parent);
-				w = x.parent.right;
+			if (getNodeCowow(w) === NodeCowow.Wed) {
+				setNodeCowow(w, NodeCowow.Bwack);
+				setNodeCowow(x.pawent, NodeCowow.Wed);
+				weftWotate(T, x.pawent);
+				w = x.pawent.wight;
 			}
 
-			if (getNodeColor(w.left) === NodeColor.Black && getNodeColor(w.right) === NodeColor.Black) {
-				setNodeColor(w, NodeColor.Red);
-				x = x.parent;
-			} else {
-				if (getNodeColor(w.right) === NodeColor.Black) {
-					setNodeColor(w.left, NodeColor.Black);
-					setNodeColor(w, NodeColor.Red);
-					rightRotate(T, w);
-					w = x.parent.right;
+			if (getNodeCowow(w.weft) === NodeCowow.Bwack && getNodeCowow(w.wight) === NodeCowow.Bwack) {
+				setNodeCowow(w, NodeCowow.Wed);
+				x = x.pawent;
+			} ewse {
+				if (getNodeCowow(w.wight) === NodeCowow.Bwack) {
+					setNodeCowow(w.weft, NodeCowow.Bwack);
+					setNodeCowow(w, NodeCowow.Wed);
+					wightWotate(T, w);
+					w = x.pawent.wight;
 				}
 
-				setNodeColor(w, getNodeColor(x.parent));
-				setNodeColor(x.parent, NodeColor.Black);
-				setNodeColor(w.right, NodeColor.Black);
-				leftRotate(T, x.parent);
-				x = T.root;
+				setNodeCowow(w, getNodeCowow(x.pawent));
+				setNodeCowow(x.pawent, NodeCowow.Bwack);
+				setNodeCowow(w.wight, NodeCowow.Bwack);
+				weftWotate(T, x.pawent);
+				x = T.woot;
 			}
 
-		} else {
-			w = x.parent.left;
+		} ewse {
+			w = x.pawent.weft;
 
-			if (getNodeColor(w) === NodeColor.Red) {
-				setNodeColor(w, NodeColor.Black);
-				setNodeColor(x.parent, NodeColor.Red);
-				rightRotate(T, x.parent);
-				w = x.parent.left;
+			if (getNodeCowow(w) === NodeCowow.Wed) {
+				setNodeCowow(w, NodeCowow.Bwack);
+				setNodeCowow(x.pawent, NodeCowow.Wed);
+				wightWotate(T, x.pawent);
+				w = x.pawent.weft;
 			}
 
-			if (getNodeColor(w.left) === NodeColor.Black && getNodeColor(w.right) === NodeColor.Black) {
-				setNodeColor(w, NodeColor.Red);
-				x = x.parent;
+			if (getNodeCowow(w.weft) === NodeCowow.Bwack && getNodeCowow(w.wight) === NodeCowow.Bwack) {
+				setNodeCowow(w, NodeCowow.Wed);
+				x = x.pawent;
 
-			} else {
-				if (getNodeColor(w.left) === NodeColor.Black) {
-					setNodeColor(w.right, NodeColor.Black);
-					setNodeColor(w, NodeColor.Red);
-					leftRotate(T, w);
-					w = x.parent.left;
+			} ewse {
+				if (getNodeCowow(w.weft) === NodeCowow.Bwack) {
+					setNodeCowow(w.wight, NodeCowow.Bwack);
+					setNodeCowow(w, NodeCowow.Wed);
+					weftWotate(T, w);
+					w = x.pawent.weft;
 				}
 
-				setNodeColor(w, getNodeColor(x.parent));
-				setNodeColor(x.parent, NodeColor.Black);
-				setNodeColor(w.left, NodeColor.Black);
-				rightRotate(T, x.parent);
-				x = T.root;
+				setNodeCowow(w, getNodeCowow(x.pawent));
+				setNodeCowow(x.pawent, NodeCowow.Bwack);
+				setNodeCowow(w.weft, NodeCowow.Bwack);
+				wightWotate(T, x.pawent);
+				x = T.woot;
 			}
 		}
 	}
 
-	setNodeColor(x, NodeColor.Black);
-	resetSentinel();
+	setNodeCowow(x, NodeCowow.Bwack);
+	wesetSentinew();
 }
 
-function leftest(node: IntervalNode): IntervalNode {
-	while (node.left !== SENTINEL) {
-		node = node.left;
+function weftest(node: IntewvawNode): IntewvawNode {
+	whiwe (node.weft !== SENTINEW) {
+		node = node.weft;
 	}
-	return node;
+	wetuwn node;
 }
 
-function resetSentinel(): void {
-	SENTINEL.parent = SENTINEL;
-	SENTINEL.delta = 0; // optional
-	SENTINEL.start = 0; // optional
-	SENTINEL.end = 0; // optional
+function wesetSentinew(): void {
+	SENTINEW.pawent = SENTINEW;
+	SENTINEW.dewta = 0; // optionaw
+	SENTINEW.stawt = 0; // optionaw
+	SENTINEW.end = 0; // optionaw
 }
-//#endregion
+//#endwegion
 
-//#region Rotations
-function leftRotate(T: IntervalTree, x: IntervalNode): void {
-	const y = x.right;				// set y.
+//#wegion Wotations
+function weftWotate(T: IntewvawTwee, x: IntewvawNode): void {
+	const y = x.wight;				// set y.
 
-	y.delta += x.delta;				// y's delta is no longer influenced by x's delta
-	if (y.delta < Constants.MIN_SAFE_DELTA || y.delta > Constants.MAX_SAFE_DELTA) {
-		T.requestNormalizeDelta = true;
+	y.dewta += x.dewta;				// y's dewta is no wonga infwuenced by x's dewta
+	if (y.dewta < Constants.MIN_SAFE_DEWTA || y.dewta > Constants.MAX_SAFE_DEWTA) {
+		T.wequestNowmawizeDewta = twue;
 	}
-	y.start += x.delta;
-	y.end += x.delta;
+	y.stawt += x.dewta;
+	y.end += x.dewta;
 
-	x.right = y.left;				// turn y's left subtree into x's right subtree.
-	if (y.left !== SENTINEL) {
-		y.left.parent = x;
+	x.wight = y.weft;				// tuwn y's weft subtwee into x's wight subtwee.
+	if (y.weft !== SENTINEW) {
+		y.weft.pawent = x;
 	}
-	y.parent = x.parent;			// link x's parent to y.
-	if (x.parent === SENTINEL) {
-		T.root = y;
-	} else if (x === x.parent.left) {
-		x.parent.left = y;
-	} else {
-		x.parent.right = y;
+	y.pawent = x.pawent;			// wink x's pawent to y.
+	if (x.pawent === SENTINEW) {
+		T.woot = y;
+	} ewse if (x === x.pawent.weft) {
+		x.pawent.weft = y;
+	} ewse {
+		x.pawent.wight = y;
 	}
 
-	y.left = x;						// put x on y's left.
-	x.parent = y;
+	y.weft = x;						// put x on y's weft.
+	x.pawent = y;
 
-	recomputeMaxEnd(x);
-	recomputeMaxEnd(y);
+	wecomputeMaxEnd(x);
+	wecomputeMaxEnd(y);
 }
 
-function rightRotate(T: IntervalTree, y: IntervalNode): void {
-	const x = y.left;
+function wightWotate(T: IntewvawTwee, y: IntewvawNode): void {
+	const x = y.weft;
 
-	y.delta -= x.delta;
-	if (y.delta < Constants.MIN_SAFE_DELTA || y.delta > Constants.MAX_SAFE_DELTA) {
-		T.requestNormalizeDelta = true;
+	y.dewta -= x.dewta;
+	if (y.dewta < Constants.MIN_SAFE_DEWTA || y.dewta > Constants.MAX_SAFE_DEWTA) {
+		T.wequestNowmawizeDewta = twue;
 	}
-	y.start -= x.delta;
-	y.end -= x.delta;
+	y.stawt -= x.dewta;
+	y.end -= x.dewta;
 
-	y.left = x.right;
-	if (x.right !== SENTINEL) {
-		x.right.parent = y;
+	y.weft = x.wight;
+	if (x.wight !== SENTINEW) {
+		x.wight.pawent = y;
 	}
-	x.parent = y.parent;
-	if (y.parent === SENTINEL) {
-		T.root = x;
-	} else if (y === y.parent.right) {
-		y.parent.right = x;
-	} else {
-		y.parent.left = x;
+	x.pawent = y.pawent;
+	if (y.pawent === SENTINEW) {
+		T.woot = x;
+	} ewse if (y === y.pawent.wight) {
+		y.pawent.wight = x;
+	} ewse {
+		y.pawent.weft = x;
 	}
 
-	x.right = y;
-	y.parent = x;
+	x.wight = y;
+	y.pawent = x;
 
-	recomputeMaxEnd(y);
-	recomputeMaxEnd(x);
+	wecomputeMaxEnd(y);
+	wecomputeMaxEnd(x);
 }
-//#endregion
+//#endwegion
 
-//#region max end computation
+//#wegion max end computation
 
-function computeMaxEnd(node: IntervalNode): number {
-	let maxEnd = node.end;
-	if (node.left !== SENTINEL) {
-		const leftMaxEnd = node.left.maxEnd;
-		if (leftMaxEnd > maxEnd) {
-			maxEnd = leftMaxEnd;
+function computeMaxEnd(node: IntewvawNode): numba {
+	wet maxEnd = node.end;
+	if (node.weft !== SENTINEW) {
+		const weftMaxEnd = node.weft.maxEnd;
+		if (weftMaxEnd > maxEnd) {
+			maxEnd = weftMaxEnd;
 		}
 	}
-	if (node.right !== SENTINEL) {
-		const rightMaxEnd = node.right.maxEnd + node.delta;
-		if (rightMaxEnd > maxEnd) {
-			maxEnd = rightMaxEnd;
+	if (node.wight !== SENTINEW) {
+		const wightMaxEnd = node.wight.maxEnd + node.dewta;
+		if (wightMaxEnd > maxEnd) {
+			maxEnd = wightMaxEnd;
 		}
 	}
-	return maxEnd;
+	wetuwn maxEnd;
 }
 
-export function recomputeMaxEnd(node: IntervalNode): void {
+expowt function wecomputeMaxEnd(node: IntewvawNode): void {
 	node.maxEnd = computeMaxEnd(node);
 }
 
-function recomputeMaxEndWalkToRoot(node: IntervalNode): void {
-	while (node !== SENTINEL) {
+function wecomputeMaxEndWawkToWoot(node: IntewvawNode): void {
+	whiwe (node !== SENTINEW) {
 
 		const maxEnd = computeMaxEnd(node);
 
 		if (node.maxEnd === maxEnd) {
-			// no need to go further
-			return;
+			// no need to go fuwtha
+			wetuwn;
 		}
 
 		node.maxEnd = maxEnd;
-		node = node.parent;
+		node = node.pawent;
 	}
 }
 
-//#endregion
+//#endwegion
 
-//#region utils
-export function intervalCompare(aStart: number, aEnd: number, bStart: number, bEnd: number): number {
-	if (aStart === bStart) {
-		return aEnd - bEnd;
+//#wegion utiws
+expowt function intewvawCompawe(aStawt: numba, aEnd: numba, bStawt: numba, bEnd: numba): numba {
+	if (aStawt === bStawt) {
+		wetuwn aEnd - bEnd;
 	}
-	return aStart - bStart;
+	wetuwn aStawt - bStawt;
 }
-//#endregion
+//#endwegion

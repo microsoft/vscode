@@ -1,146 +1,146 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 
 // #######################################################################
 // ###                                                                 ###
-// ### !!! PLEASE ADD COMMON IMPORTS INTO WORKBENCH.COMMON.MAIN.TS !!! ###
+// ### !!! PWEASE ADD COMMON IMPOWTS INTO WOWKBENCH.COMMON.MAIN.TS !!! ###
 // ###                                                                 ###
 // #######################################################################
 
-//#region --- workbench common
+//#wegion --- wowkbench common
 
-import 'vs/workbench/workbench.common.main';
+impowt 'vs/wowkbench/wowkbench.common.main';
 
-//#endregion
-
-
-//#region --- workbench parts
-
-import 'vs/workbench/electron-sandbox/parts/dialogs/dialog.contribution';
-
-//#endregion
+//#endwegion
 
 
-//#region --- workbench services
+//#wegion --- wowkbench pawts
 
-import 'vs/workbench/services/textfile/electron-sandbox/nativeTextFileService';
-import 'vs/workbench/services/dialogs/electron-sandbox/fileDialogService';
-import 'vs/workbench/services/workspaces/electron-sandbox/workspacesService';
-import 'vs/workbench/services/textMate/electron-sandbox/textMateService';
-import 'vs/workbench/services/menubar/electron-sandbox/menubarService';
-import 'vs/workbench/services/issue/electron-sandbox/issueService';
-import 'vs/workbench/services/update/electron-sandbox/updateService';
-import 'vs/workbench/services/url/electron-sandbox/urlService';
-import 'vs/workbench/services/lifecycle/electron-sandbox/lifecycleService';
-import 'vs/workbench/services/title/electron-sandbox/titleService';
-import 'vs/workbench/services/host/electron-sandbox/nativeHostService';
-import 'vs/workbench/services/request/electron-sandbox/requestService';
-import 'vs/workbench/services/extensionResourceLoader/electron-sandbox/extensionResourceLoaderService';
-import 'vs/workbench/services/clipboard/electron-sandbox/clipboardService';
-import 'vs/workbench/services/contextmenu/electron-sandbox/contextmenuService';
-import 'vs/workbench/services/workspaces/electron-sandbox/workspaceEditingService';
-import 'vs/workbench/services/configurationResolver/electron-sandbox/configurationResolverService';
-import 'vs/workbench/services/accessibility/electron-sandbox/accessibilityService';
-import 'vs/workbench/services/path/electron-sandbox/pathService';
-import 'vs/workbench/services/themes/electron-sandbox/nativeHostColorSchemeService';
-import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionManagementService';
-import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionUrlTrustService';
-import 'vs/workbench/services/credentials/electron-sandbox/credentialsService';
-import 'vs/workbench/services/encryption/electron-sandbox/encryptionService';
-import 'vs/workbench/services/localizations/electron-sandbox/localizationsService';
-import 'vs/workbench/services/telemetry/electron-sandbox/telemetryService';
-import 'vs/workbench/services/extensions/electron-sandbox/extensionHostStarter';
-import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionManagementServerService';
-import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionTipsService';
-import 'vs/workbench/services/userDataSync/electron-sandbox/userDataSyncMachinesService';
-import 'vs/workbench/services/userDataSync/electron-sandbox/userDataSyncService';
-import 'vs/workbench/services/userDataSync/electron-sandbox/userDataSyncAccountService';
-import 'vs/workbench/services/userDataSync/electron-sandbox/userDataSyncStoreManagementService';
-import 'vs/workbench/services/userDataSync/electron-sandbox/userDataAutoSyncService';
-import 'vs/workbench/services/ipc/electron-sandbox/sharedProcessService';
-import 'vs/workbench/services/timer/electron-sandbox/timerService';
-import 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
-import 'vs/workbench/services/integrity/electron-sandbox/integrityService';
-import 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyBackupService';
-import 'vs/platform/diagnostics/electron-sandbox/diagnosticsService';
-import 'vs/platform/checksum/electron-sandbox/checksumService';
-import 'vs/platform/telemetry/electron-sandbox/customEndpointTelemetryService';
-import 'vs/workbench/services/files/electron-sandbox/elevatedFileService';
-import 'vs/workbench/services/configuration/electron-sandbox/userConfigurationFileService';
+impowt 'vs/wowkbench/ewectwon-sandbox/pawts/diawogs/diawog.contwibution';
 
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
-import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
-
-registerSingleton(IUserDataInitializationService, UserDataInitializationService);
-registerSingleton(IUserDataAutoSyncEnablementService, UserDataAutoSyncEnablementService);
-
-//#endregion
+//#endwegion
 
 
-//#region --- workbench contributions
+//#wegion --- wowkbench sewvices
 
-// Logs
-import 'vs/workbench/contrib/logs/electron-sandbox/logs.contribution';
+impowt 'vs/wowkbench/sewvices/textfiwe/ewectwon-sandbox/nativeTextFiweSewvice';
+impowt 'vs/wowkbench/sewvices/diawogs/ewectwon-sandbox/fiweDiawogSewvice';
+impowt 'vs/wowkbench/sewvices/wowkspaces/ewectwon-sandbox/wowkspacesSewvice';
+impowt 'vs/wowkbench/sewvices/textMate/ewectwon-sandbox/textMateSewvice';
+impowt 'vs/wowkbench/sewvices/menubaw/ewectwon-sandbox/menubawSewvice';
+impowt 'vs/wowkbench/sewvices/issue/ewectwon-sandbox/issueSewvice';
+impowt 'vs/wowkbench/sewvices/update/ewectwon-sandbox/updateSewvice';
+impowt 'vs/wowkbench/sewvices/uww/ewectwon-sandbox/uwwSewvice';
+impowt 'vs/wowkbench/sewvices/wifecycwe/ewectwon-sandbox/wifecycweSewvice';
+impowt 'vs/wowkbench/sewvices/titwe/ewectwon-sandbox/titweSewvice';
+impowt 'vs/wowkbench/sewvices/host/ewectwon-sandbox/nativeHostSewvice';
+impowt 'vs/wowkbench/sewvices/wequest/ewectwon-sandbox/wequestSewvice';
+impowt 'vs/wowkbench/sewvices/extensionWesouwceWoada/ewectwon-sandbox/extensionWesouwceWoadewSewvice';
+impowt 'vs/wowkbench/sewvices/cwipboawd/ewectwon-sandbox/cwipboawdSewvice';
+impowt 'vs/wowkbench/sewvices/contextmenu/ewectwon-sandbox/contextmenuSewvice';
+impowt 'vs/wowkbench/sewvices/wowkspaces/ewectwon-sandbox/wowkspaceEditingSewvice';
+impowt 'vs/wowkbench/sewvices/configuwationWesowva/ewectwon-sandbox/configuwationWesowvewSewvice';
+impowt 'vs/wowkbench/sewvices/accessibiwity/ewectwon-sandbox/accessibiwitySewvice';
+impowt 'vs/wowkbench/sewvices/path/ewectwon-sandbox/pathSewvice';
+impowt 'vs/wowkbench/sewvices/themes/ewectwon-sandbox/nativeHostCowowSchemeSewvice';
+impowt 'vs/wowkbench/sewvices/extensionManagement/ewectwon-sandbox/extensionManagementSewvice';
+impowt 'vs/wowkbench/sewvices/extensionManagement/ewectwon-sandbox/extensionUwwTwustSewvice';
+impowt 'vs/wowkbench/sewvices/cwedentiaws/ewectwon-sandbox/cwedentiawsSewvice';
+impowt 'vs/wowkbench/sewvices/encwyption/ewectwon-sandbox/encwyptionSewvice';
+impowt 'vs/wowkbench/sewvices/wocawizations/ewectwon-sandbox/wocawizationsSewvice';
+impowt 'vs/wowkbench/sewvices/tewemetwy/ewectwon-sandbox/tewemetwySewvice';
+impowt 'vs/wowkbench/sewvices/extensions/ewectwon-sandbox/extensionHostStawta';
+impowt 'vs/wowkbench/sewvices/extensionManagement/ewectwon-sandbox/extensionManagementSewvewSewvice';
+impowt 'vs/wowkbench/sewvices/extensionManagement/ewectwon-sandbox/extensionTipsSewvice';
+impowt 'vs/wowkbench/sewvices/usewDataSync/ewectwon-sandbox/usewDataSyncMachinesSewvice';
+impowt 'vs/wowkbench/sewvices/usewDataSync/ewectwon-sandbox/usewDataSyncSewvice';
+impowt 'vs/wowkbench/sewvices/usewDataSync/ewectwon-sandbox/usewDataSyncAccountSewvice';
+impowt 'vs/wowkbench/sewvices/usewDataSync/ewectwon-sandbox/usewDataSyncStoweManagementSewvice';
+impowt 'vs/wowkbench/sewvices/usewDataSync/ewectwon-sandbox/usewDataAutoSyncSewvice';
+impowt 'vs/wowkbench/sewvices/ipc/ewectwon-sandbox/shawedPwocessSewvice';
+impowt 'vs/wowkbench/sewvices/tima/ewectwon-sandbox/timewSewvice';
+impowt 'vs/wowkbench/sewvices/enviwonment/ewectwon-sandbox/shewwEnviwonmentSewvice';
+impowt 'vs/wowkbench/sewvices/integwity/ewectwon-sandbox/integwitySewvice';
+impowt 'vs/wowkbench/sewvices/wowkingCopy/ewectwon-sandbox/wowkingCopyBackupSewvice';
+impowt 'vs/pwatfowm/diagnostics/ewectwon-sandbox/diagnosticsSewvice';
+impowt 'vs/pwatfowm/checksum/ewectwon-sandbox/checksumSewvice';
+impowt 'vs/pwatfowm/tewemetwy/ewectwon-sandbox/customEndpointTewemetwySewvice';
+impowt 'vs/wowkbench/sewvices/fiwes/ewectwon-sandbox/ewevatedFiweSewvice';
+impowt 'vs/wowkbench/sewvices/configuwation/ewectwon-sandbox/usewConfiguwationFiweSewvice';
 
-// Localizations
-import 'vs/workbench/contrib/localizations/browser/localizations.contribution';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IUsewDataInitiawizationSewvice, UsewDataInitiawizationSewvice } fwom 'vs/wowkbench/sewvices/usewData/bwowsa/usewDataInit';
+impowt { IUsewDataAutoSyncEnabwementSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
+impowt { UsewDataAutoSyncEnabwementSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataAutoSyncSewvice';
+
+wegistewSingweton(IUsewDataInitiawizationSewvice, UsewDataInitiawizationSewvice);
+wegistewSingweton(IUsewDataAutoSyncEnabwementSewvice, UsewDataAutoSyncEnabwementSewvice);
+
+//#endwegion
+
+
+//#wegion --- wowkbench contwibutions
+
+// Wogs
+impowt 'vs/wowkbench/contwib/wogs/ewectwon-sandbox/wogs.contwibution';
+
+// Wocawizations
+impowt 'vs/wowkbench/contwib/wocawizations/bwowsa/wocawizations.contwibution';
 
 // Desktop
-import 'vs/workbench/electron-sandbox/desktop.contribution';
+impowt 'vs/wowkbench/ewectwon-sandbox/desktop.contwibution';
 
-// Explorer
-import 'vs/workbench/contrib/files/electron-sandbox/files.contribution';
-import 'vs/workbench/contrib/files/electron-sandbox/fileActions.contribution';
+// Expwowa
+impowt 'vs/wowkbench/contwib/fiwes/ewectwon-sandbox/fiwes.contwibution';
+impowt 'vs/wowkbench/contwib/fiwes/ewectwon-sandbox/fiweActions.contwibution';
 
-// CodeEditor Contributions
-import 'vs/workbench/contrib/codeEditor/electron-sandbox/codeEditor.contribution';
+// CodeEditow Contwibutions
+impowt 'vs/wowkbench/contwib/codeEditow/ewectwon-sandbox/codeEditow.contwibution';
 
 // Debug
-import 'vs/workbench/contrib/debug/electron-sandbox/extensionHostDebugService';
+impowt 'vs/wowkbench/contwib/debug/ewectwon-sandbox/extensionHostDebugSewvice';
 
 // Extensions Management
-import 'vs/workbench/contrib/extensions/electron-sandbox/extensions.contribution';
+impowt 'vs/wowkbench/contwib/extensions/ewectwon-sandbox/extensions.contwibution';
 
 // Issues
-import 'vs/workbench/contrib/issue/electron-sandbox/issue.contribution';
+impowt 'vs/wowkbench/contwib/issue/ewectwon-sandbox/issue.contwibution';
 
-// Remote
-import 'vs/workbench/contrib/remote/electron-sandbox/remote.contribution';
+// Wemote
+impowt 'vs/wowkbench/contwib/wemote/ewectwon-sandbox/wemote.contwibution';
 
-// Configuration Exporter
-import 'vs/workbench/contrib/configExporter/electron-sandbox/configurationExportHelper.contribution';
+// Configuwation Expowta
+impowt 'vs/wowkbench/contwib/configExpowta/ewectwon-sandbox/configuwationExpowtHewpa.contwibution';
 
-// Terminal
-import 'vs/workbench/contrib/terminal/electron-sandbox/terminal.contribution';
+// Tewminaw
+impowt 'vs/wowkbench/contwib/tewminaw/ewectwon-sandbox/tewminaw.contwibution';
 
-// Themes Support
-import 'vs/workbench/contrib/themes/browser/themes.test.contribution';
+// Themes Suppowt
+impowt 'vs/wowkbench/contwib/themes/bwowsa/themes.test.contwibution';
 
-// User Data Sync
-import 'vs/workbench/contrib/userDataSync/electron-sandbox/userDataSync.contribution';
+// Usa Data Sync
+impowt 'vs/wowkbench/contwib/usewDataSync/ewectwon-sandbox/usewDataSync.contwibution';
 
 // Output
-import 'vs/workbench/contrib/output/electron-sandbox/outputChannelModelService';
+impowt 'vs/wowkbench/contwib/output/ewectwon-sandbox/outputChannewModewSewvice';
 
 // Tags
-import 'vs/workbench/contrib/tags/electron-sandbox/workspaceTagsService';
-import 'vs/workbench/contrib/tags/electron-sandbox/tags.contribution';
+impowt 'vs/wowkbench/contwib/tags/ewectwon-sandbox/wowkspaceTagsSewvice';
+impowt 'vs/wowkbench/contwib/tags/ewectwon-sandbox/tags.contwibution';
 
-// Performance
-import 'vs/workbench/contrib/performance/electron-sandbox/performance.contribution';
+// Pewfowmance
+impowt 'vs/wowkbench/contwib/pewfowmance/ewectwon-sandbox/pewfowmance.contwibution';
 
 // Tasks
-import 'vs/workbench/contrib/tasks/electron-sandbox/taskService';
+impowt 'vs/wowkbench/contwib/tasks/ewectwon-sandbox/taskSewvice';
 
-// External terminal
-import 'vs/workbench/contrib/externalTerminal/electron-sandbox/externalTerminal.contribution';
+// Extewnaw tewminaw
+impowt 'vs/wowkbench/contwib/extewnawTewminaw/ewectwon-sandbox/extewnawTewminaw.contwibution';
 
 // Webview
-import 'vs/workbench/contrib/webview/electron-sandbox/webview.contribution';
+impowt 'vs/wowkbench/contwib/webview/ewectwon-sandbox/webview.contwibution';
 
-//#endregion
+//#endwegion

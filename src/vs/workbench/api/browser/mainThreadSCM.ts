@@ -1,269 +1,269 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
-import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService, InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
-import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, IExtHostContext } from '../common/extHost.protocol';
-import { Command } from 'vs/editor/common/modes';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { ISplice, Sequence } from 'vs/base/common/sequence';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { MarshalledId } from 'vs/base/common/marshalling';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { IDisposabwe, DisposabweStowe, combinedDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ISCMSewvice, ISCMWepositowy, ISCMPwovida, ISCMWesouwce, ISCMWesouwceGwoup, ISCMWesouwceDecowations, IInputVawidation, ISCMViewSewvice, InputVawidationType } fwom 'vs/wowkbench/contwib/scm/common/scm';
+impowt { ExtHostContext, MainThweadSCMShape, ExtHostSCMShape, SCMPwovidewFeatuwes, SCMWawWesouwceSpwices, SCMGwoupFeatuwes, MainContext, IExtHostContext } fwom '../common/extHost.pwotocow';
+impowt { Command } fwom 'vs/editow/common/modes';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { ISpwice, Sequence } fwom 'vs/base/common/sequence';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { MawshawwedId } fwom 'vs/base/common/mawshawwing';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IMawkdownStwing } fwom 'vs/base/common/htmwContent';
 
-class MainThreadSCMResourceGroup implements ISCMResourceGroup {
+cwass MainThweadSCMWesouwceGwoup impwements ISCMWesouwceGwoup {
 
-	readonly elements: ISCMResource[] = [];
+	weadonwy ewements: ISCMWesouwce[] = [];
 
-	private readonly _onDidSplice = new Emitter<ISplice<ISCMResource>>();
-	readonly onDidSplice = this._onDidSplice.event;
+	pwivate weadonwy _onDidSpwice = new Emitta<ISpwice<ISCMWesouwce>>();
+	weadonwy onDidSpwice = this._onDidSpwice.event;
 
-	get hideWhenEmpty(): boolean { return !!this.features.hideWhenEmpty; }
+	get hideWhenEmpty(): boowean { wetuwn !!this.featuwes.hideWhenEmpty; }
 
-	private readonly _onDidChange = new Emitter<void>();
-	readonly onDidChange: Event<void> = this._onDidChange.event;
+	pwivate weadonwy _onDidChange = new Emitta<void>();
+	weadonwy onDidChange: Event<void> = this._onDidChange.event;
 
-	constructor(
-		private readonly sourceControlHandle: number,
-		private readonly handle: number,
-		public provider: ISCMProvider,
-		public features: SCMGroupFeatures,
-		public label: string,
-		public id: string
+	constwuctow(
+		pwivate weadonwy souwceContwowHandwe: numba,
+		pwivate weadonwy handwe: numba,
+		pubwic pwovida: ISCMPwovida,
+		pubwic featuwes: SCMGwoupFeatuwes,
+		pubwic wabew: stwing,
+		pubwic id: stwing
 	) { }
 
 	toJSON(): any {
-		return {
-			$mid: MarshalledId.ScmResourceGroup,
-			sourceControlHandle: this.sourceControlHandle,
-			groupHandle: this.handle
+		wetuwn {
+			$mid: MawshawwedId.ScmWesouwceGwoup,
+			souwceContwowHandwe: this.souwceContwowHandwe,
+			gwoupHandwe: this.handwe
 		};
 	}
 
-	splice(start: number, deleteCount: number, toInsert: ISCMResource[]) {
-		this.elements.splice(start, deleteCount, ...toInsert);
-		this._onDidSplice.fire({ start, deleteCount, toInsert });
+	spwice(stawt: numba, deweteCount: numba, toInsewt: ISCMWesouwce[]) {
+		this.ewements.spwice(stawt, deweteCount, ...toInsewt);
+		this._onDidSpwice.fiwe({ stawt, deweteCount, toInsewt });
 	}
 
-	$updateGroup(features: SCMGroupFeatures): void {
-		this.features = { ...this.features, ...features };
-		this._onDidChange.fire();
+	$updateGwoup(featuwes: SCMGwoupFeatuwes): void {
+		this.featuwes = { ...this.featuwes, ...featuwes };
+		this._onDidChange.fiwe();
 	}
 
-	$updateGroupLabel(label: string): void {
-		this.label = label;
-		this._onDidChange.fire();
+	$updateGwoupWabew(wabew: stwing): void {
+		this.wabew = wabew;
+		this._onDidChange.fiwe();
 	}
 }
 
-class MainThreadSCMResource implements ISCMResource {
+cwass MainThweadSCMWesouwce impwements ISCMWesouwce {
 
-	constructor(
-		private readonly proxy: ExtHostSCMShape,
-		private readonly sourceControlHandle: number,
-		private readonly groupHandle: number,
-		private readonly handle: number,
-		readonly sourceUri: URI,
-		readonly resourceGroup: ISCMResourceGroup,
-		readonly decorations: ISCMResourceDecorations,
-		readonly contextValue: string | undefined,
-		readonly command: Command | undefined
+	constwuctow(
+		pwivate weadonwy pwoxy: ExtHostSCMShape,
+		pwivate weadonwy souwceContwowHandwe: numba,
+		pwivate weadonwy gwoupHandwe: numba,
+		pwivate weadonwy handwe: numba,
+		weadonwy souwceUwi: UWI,
+		weadonwy wesouwceGwoup: ISCMWesouwceGwoup,
+		weadonwy decowations: ISCMWesouwceDecowations,
+		weadonwy contextVawue: stwing | undefined,
+		weadonwy command: Command | undefined
 	) { }
 
-	open(preserveFocus: boolean): Promise<void> {
-		return this.proxy.$executeResourceCommand(this.sourceControlHandle, this.groupHandle, this.handle, preserveFocus);
+	open(pwesewveFocus: boowean): Pwomise<void> {
+		wetuwn this.pwoxy.$executeWesouwceCommand(this.souwceContwowHandwe, this.gwoupHandwe, this.handwe, pwesewveFocus);
 	}
 
 	toJSON(): any {
-		return {
-			$mid: MarshalledId.ScmResource,
-			sourceControlHandle: this.sourceControlHandle,
-			groupHandle: this.groupHandle,
-			handle: this.handle
+		wetuwn {
+			$mid: MawshawwedId.ScmWesouwce,
+			souwceContwowHandwe: this.souwceContwowHandwe,
+			gwoupHandwe: this.gwoupHandwe,
+			handwe: this.handwe
 		};
 	}
 }
 
-class MainThreadSCMProvider implements ISCMProvider {
+cwass MainThweadSCMPwovida impwements ISCMPwovida {
 
-	private static ID_HANDLE = 0;
-	private _id = `scm${MainThreadSCMProvider.ID_HANDLE++}`;
-	get id(): string { return this._id; }
+	pwivate static ID_HANDWE = 0;
+	pwivate _id = `scm${MainThweadSCMPwovida.ID_HANDWE++}`;
+	get id(): stwing { wetuwn this._id; }
 
-	readonly groups = new Sequence<MainThreadSCMResourceGroup>();
-	private readonly _groupsByHandle: { [handle: number]: MainThreadSCMResourceGroup; } = Object.create(null);
+	weadonwy gwoups = new Sequence<MainThweadSCMWesouwceGwoup>();
+	pwivate weadonwy _gwoupsByHandwe: { [handwe: numba]: MainThweadSCMWesouwceGwoup; } = Object.cweate(nuww);
 
-	// get groups(): ISequence<ISCMResourceGroup> {
-	// 	return {
-	// 		elements: this._groups,
-	// 		onDidSplice: this._onDidSplice.event
+	// get gwoups(): ISequence<ISCMWesouwceGwoup> {
+	// 	wetuwn {
+	// 		ewements: this._gwoups,
+	// 		onDidSpwice: this._onDidSpwice.event
 	// 	};
 
-	// 	// return this._groups
-	// 	// 	.filter(g => g.resources.elements.length > 0 || !g.features.hideWhenEmpty);
+	// 	// wetuwn this._gwoups
+	// 	// 	.fiwta(g => g.wesouwces.ewements.wength > 0 || !g.featuwes.hideWhenEmpty);
 	// }
 
-	private readonly _onDidChangeResources = new Emitter<void>();
-	readonly onDidChangeResources: Event<void> = this._onDidChangeResources.event;
+	pwivate weadonwy _onDidChangeWesouwces = new Emitta<void>();
+	weadonwy onDidChangeWesouwces: Event<void> = this._onDidChangeWesouwces.event;
 
-	private features: SCMProviderFeatures = {};
+	pwivate featuwes: SCMPwovidewFeatuwes = {};
 
-	get handle(): number { return this._handle; }
-	get label(): string { return this._label; }
-	get rootUri(): URI | undefined { return this._rootUri; }
-	get contextValue(): string { return this._contextValue; }
+	get handwe(): numba { wetuwn this._handwe; }
+	get wabew(): stwing { wetuwn this._wabew; }
+	get wootUwi(): UWI | undefined { wetuwn this._wootUwi; }
+	get contextVawue(): stwing { wetuwn this._contextVawue; }
 
-	get commitTemplate(): string { return this.features.commitTemplate || ''; }
-	get acceptInputCommand(): Command | undefined { return this.features.acceptInputCommand; }
-	get statusBarCommands(): Command[] | undefined { return this.features.statusBarCommands; }
-	get count(): number | undefined { return this.features.count; }
+	get commitTempwate(): stwing { wetuwn this.featuwes.commitTempwate || ''; }
+	get acceptInputCommand(): Command | undefined { wetuwn this.featuwes.acceptInputCommand; }
+	get statusBawCommands(): Command[] | undefined { wetuwn this.featuwes.statusBawCommands; }
+	get count(): numba | undefined { wetuwn this.featuwes.count; }
 
-	private readonly _onDidChangeCommitTemplate = new Emitter<string>();
-	readonly onDidChangeCommitTemplate: Event<string> = this._onDidChangeCommitTemplate.event;
+	pwivate weadonwy _onDidChangeCommitTempwate = new Emitta<stwing>();
+	weadonwy onDidChangeCommitTempwate: Event<stwing> = this._onDidChangeCommitTempwate.event;
 
-	private readonly _onDidChangeStatusBarCommands = new Emitter<Command[]>();
-	get onDidChangeStatusBarCommands(): Event<Command[]> { return this._onDidChangeStatusBarCommands.event; }
+	pwivate weadonwy _onDidChangeStatusBawCommands = new Emitta<Command[]>();
+	get onDidChangeStatusBawCommands(): Event<Command[]> { wetuwn this._onDidChangeStatusBawCommands.event; }
 
-	private readonly _onDidChange = new Emitter<void>();
-	readonly onDidChange: Event<void> = this._onDidChange.event;
+	pwivate weadonwy _onDidChange = new Emitta<void>();
+	weadonwy onDidChange: Event<void> = this._onDidChange.event;
 
-	constructor(
-		private readonly proxy: ExtHostSCMShape,
-		private readonly _handle: number,
-		private readonly _contextValue: string,
-		private readonly _label: string,
-		private readonly _rootUri: URI | undefined
+	constwuctow(
+		pwivate weadonwy pwoxy: ExtHostSCMShape,
+		pwivate weadonwy _handwe: numba,
+		pwivate weadonwy _contextVawue: stwing,
+		pwivate weadonwy _wabew: stwing,
+		pwivate weadonwy _wootUwi: UWI | undefined
 	) { }
 
-	$updateSourceControl(features: SCMProviderFeatures): void {
-		this.features = { ...this.features, ...features };
-		this._onDidChange.fire();
+	$updateSouwceContwow(featuwes: SCMPwovidewFeatuwes): void {
+		this.featuwes = { ...this.featuwes, ...featuwes };
+		this._onDidChange.fiwe();
 
-		if (typeof features.commitTemplate !== 'undefined') {
-			this._onDidChangeCommitTemplate.fire(this.commitTemplate!);
+		if (typeof featuwes.commitTempwate !== 'undefined') {
+			this._onDidChangeCommitTempwate.fiwe(this.commitTempwate!);
 		}
 
-		if (typeof features.statusBarCommands !== 'undefined') {
-			this._onDidChangeStatusBarCommands.fire(this.statusBarCommands!);
+		if (typeof featuwes.statusBawCommands !== 'undefined') {
+			this._onDidChangeStatusBawCommands.fiwe(this.statusBawCommands!);
 		}
 	}
 
-	$registerGroups(_groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures][]): void {
-		const groups = _groups.map(([handle, id, label, features]) => {
-			const group = new MainThreadSCMResourceGroup(
-				this.handle,
-				handle,
+	$wegistewGwoups(_gwoups: [numba /*handwe*/, stwing /*id*/, stwing /*wabew*/, SCMGwoupFeatuwes][]): void {
+		const gwoups = _gwoups.map(([handwe, id, wabew, featuwes]) => {
+			const gwoup = new MainThweadSCMWesouwceGwoup(
+				this.handwe,
+				handwe,
 				this,
-				features,
-				label,
+				featuwes,
+				wabew,
 				id
 			);
 
-			this._groupsByHandle[handle] = group;
-			return group;
+			this._gwoupsByHandwe[handwe] = gwoup;
+			wetuwn gwoup;
 		});
 
-		this.groups.splice(this.groups.elements.length, 0, groups);
+		this.gwoups.spwice(this.gwoups.ewements.wength, 0, gwoups);
 	}
 
-	$updateGroup(handle: number, features: SCMGroupFeatures): void {
-		const group = this._groupsByHandle[handle];
+	$updateGwoup(handwe: numba, featuwes: SCMGwoupFeatuwes): void {
+		const gwoup = this._gwoupsByHandwe[handwe];
 
-		if (!group) {
-			return;
+		if (!gwoup) {
+			wetuwn;
 		}
 
-		group.$updateGroup(features);
+		gwoup.$updateGwoup(featuwes);
 	}
 
-	$updateGroupLabel(handle: number, label: string): void {
-		const group = this._groupsByHandle[handle];
+	$updateGwoupWabew(handwe: numba, wabew: stwing): void {
+		const gwoup = this._gwoupsByHandwe[handwe];
 
-		if (!group) {
-			return;
+		if (!gwoup) {
+			wetuwn;
 		}
 
-		group.$updateGroupLabel(label);
+		gwoup.$updateGwoupWabew(wabew);
 	}
 
-	$spliceGroupResourceStates(splices: SCMRawResourceSplices[]): void {
-		for (const [groupHandle, groupSlices] of splices) {
-			const group = this._groupsByHandle[groupHandle];
+	$spwiceGwoupWesouwceStates(spwices: SCMWawWesouwceSpwices[]): void {
+		fow (const [gwoupHandwe, gwoupSwices] of spwices) {
+			const gwoup = this._gwoupsByHandwe[gwoupHandwe];
 
-			if (!group) {
-				console.warn(`SCM group ${groupHandle} not found in provider ${this.label}`);
+			if (!gwoup) {
+				consowe.wawn(`SCM gwoup ${gwoupHandwe} not found in pwovida ${this.wabew}`);
 				continue;
 			}
 
-			// reverse the splices sequence in order to apply them correctly
-			groupSlices.reverse();
+			// wevewse the spwices sequence in owda to appwy them cowwectwy
+			gwoupSwices.wevewse();
 
-			for (const [start, deleteCount, rawResources] of groupSlices) {
-				const resources = rawResources.map(rawResource => {
-					const [handle, sourceUri, icons, tooltip, strikeThrough, faded, contextValue, command] = rawResource;
+			fow (const [stawt, deweteCount, wawWesouwces] of gwoupSwices) {
+				const wesouwces = wawWesouwces.map(wawWesouwce => {
+					const [handwe, souwceUwi, icons, toowtip, stwikeThwough, faded, contextVawue, command] = wawWesouwce;
 
-					const [light, dark] = icons;
-					const icon = ThemeIcon.isThemeIcon(light) ? light : URI.revive(light);
-					const iconDark = (ThemeIcon.isThemeIcon(dark) ? dark : URI.revive(dark)) || icon;
+					const [wight, dawk] = icons;
+					const icon = ThemeIcon.isThemeIcon(wight) ? wight : UWI.wevive(wight);
+					const iconDawk = (ThemeIcon.isThemeIcon(dawk) ? dawk : UWI.wevive(dawk)) || icon;
 
-					const decorations = {
+					const decowations = {
 						icon: icon,
-						iconDark: iconDark,
-						tooltip,
-						strikeThrough,
+						iconDawk: iconDawk,
+						toowtip,
+						stwikeThwough,
 						faded
 					};
 
-					return new MainThreadSCMResource(
-						this.proxy,
-						this.handle,
-						groupHandle,
-						handle,
-						URI.revive(sourceUri),
-						group,
-						decorations,
-						contextValue || undefined,
+					wetuwn new MainThweadSCMWesouwce(
+						this.pwoxy,
+						this.handwe,
+						gwoupHandwe,
+						handwe,
+						UWI.wevive(souwceUwi),
+						gwoup,
+						decowations,
+						contextVawue || undefined,
 						command
 					);
 				});
 
-				group.splice(start, deleteCount, resources);
+				gwoup.spwice(stawt, deweteCount, wesouwces);
 			}
 		}
 
-		this._onDidChangeResources.fire();
+		this._onDidChangeWesouwces.fiwe();
 	}
 
-	$unregisterGroup(handle: number): void {
-		const group = this._groupsByHandle[handle];
+	$unwegistewGwoup(handwe: numba): void {
+		const gwoup = this._gwoupsByHandwe[handwe];
 
-		if (!group) {
-			return;
+		if (!gwoup) {
+			wetuwn;
 		}
 
-		delete this._groupsByHandle[handle];
-		this.groups.splice(this.groups.elements.indexOf(group), 1);
-		this._onDidChangeResources.fire();
+		dewete this._gwoupsByHandwe[handwe];
+		this.gwoups.spwice(this.gwoups.ewements.indexOf(gwoup), 1);
+		this._onDidChangeWesouwces.fiwe();
 	}
 
-	async getOriginalResource(uri: URI): Promise<URI | null> {
-		if (!this.features.hasQuickDiffProvider) {
-			return null;
+	async getOwiginawWesouwce(uwi: UWI): Pwomise<UWI | nuww> {
+		if (!this.featuwes.hasQuickDiffPwovida) {
+			wetuwn nuww;
 		}
 
-		const result = await this.proxy.$provideOriginalResource(this.handle, uri, CancellationToken.None);
-		return result && URI.revive(result);
+		const wesuwt = await this.pwoxy.$pwovideOwiginawWesouwce(this.handwe, uwi, CancewwationToken.None);
+		wetuwn wesuwt && UWI.wevive(wesuwt);
 	}
 
 	toJSON(): any {
-		return {
-			$mid: MarshalledId.ScmProvider,
-			handle: this.handle
+		wetuwn {
+			$mid: MawshawwedId.ScmPwovida,
+			handwe: this.handwe
 		};
 	}
 
@@ -272,196 +272,196 @@ class MainThreadSCMProvider implements ISCMProvider {
 	}
 }
 
-@extHostNamedCustomer(MainContext.MainThreadSCM)
-export class MainThreadSCM implements MainThreadSCMShape {
+@extHostNamedCustoma(MainContext.MainThweadSCM)
+expowt cwass MainThweadSCM impwements MainThweadSCMShape {
 
-	private readonly _proxy: ExtHostSCMShape;
-	private _repositories = new Map<number, ISCMRepository>();
-	private _repositoryDisposables = new Map<number, IDisposable>();
-	private readonly _disposables = new DisposableStore();
+	pwivate weadonwy _pwoxy: ExtHostSCMShape;
+	pwivate _wepositowies = new Map<numba, ISCMWepositowy>();
+	pwivate _wepositowyDisposabwes = new Map<numba, IDisposabwe>();
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
 
-	constructor(
+	constwuctow(
 		extHostContext: IExtHostContext,
-		@ISCMService private readonly scmService: ISCMService,
-		@ISCMViewService private readonly scmViewService: ISCMViewService
+		@ISCMSewvice pwivate weadonwy scmSewvice: ISCMSewvice,
+		@ISCMViewSewvice pwivate weadonwy scmViewSewvice: ISCMViewSewvice
 	) {
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSCM);
+		this._pwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostSCM);
 	}
 
 	dispose(): void {
-		this._repositories.forEach(r => r.dispose());
-		this._repositories.clear();
+		this._wepositowies.fowEach(w => w.dispose());
+		this._wepositowies.cweaw();
 
-		this._repositoryDisposables.forEach(d => d.dispose());
-		this._repositoryDisposables.clear();
+		this._wepositowyDisposabwes.fowEach(d => d.dispose());
+		this._wepositowyDisposabwes.cweaw();
 
-		this._disposables.dispose();
+		this._disposabwes.dispose();
 	}
 
-	$registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined): void {
-		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri ? URI.revive(rootUri) : undefined);
-		const repository = this.scmService.registerSCMProvider(provider);
-		this._repositories.set(handle, repository);
+	$wegistewSouwceContwow(handwe: numba, id: stwing, wabew: stwing, wootUwi: UwiComponents | undefined): void {
+		const pwovida = new MainThweadSCMPwovida(this._pwoxy, handwe, id, wabew, wootUwi ? UWI.wevive(wootUwi) : undefined);
+		const wepositowy = this.scmSewvice.wegistewSCMPwovida(pwovida);
+		this._wepositowies.set(handwe, wepositowy);
 
-		const disposable = combinedDisposable(
-			Event.filter(this.scmViewService.onDidFocusRepository, r => r === repository)(_ => this._proxy.$setSelectedSourceControl(handle)),
-			repository.input.onDidChange(({ value }) => this._proxy.$onInputBoxValueChange(handle, value))
+		const disposabwe = combinedDisposabwe(
+			Event.fiwta(this.scmViewSewvice.onDidFocusWepositowy, w => w === wepositowy)(_ => this._pwoxy.$setSewectedSouwceContwow(handwe)),
+			wepositowy.input.onDidChange(({ vawue }) => this._pwoxy.$onInputBoxVawueChange(handwe, vawue))
 		);
 
-		if (this.scmViewService.focusedRepository === repository) {
-			setTimeout(() => this._proxy.$setSelectedSourceControl(handle), 0);
+		if (this.scmViewSewvice.focusedWepositowy === wepositowy) {
+			setTimeout(() => this._pwoxy.$setSewectedSouwceContwow(handwe), 0);
 		}
 
-		if (repository.input.value) {
-			setTimeout(() => this._proxy.$onInputBoxValueChange(handle, repository.input.value), 0);
+		if (wepositowy.input.vawue) {
+			setTimeout(() => this._pwoxy.$onInputBoxVawueChange(handwe, wepositowy.input.vawue), 0);
 		}
 
-		this._repositoryDisposables.set(handle, disposable);
+		this._wepositowyDisposabwes.set(handwe, disposabwe);
 	}
 
-	$updateSourceControl(handle: number, features: SCMProviderFeatures): void {
-		const repository = this._repositories.get(handle);
+	$updateSouwceContwow(handwe: numba, featuwes: SCMPwovidewFeatuwes): void {
+		const wepositowy = this._wepositowies.get(handwe);
 
-		if (!repository) {
-			return;
+		if (!wepositowy) {
+			wetuwn;
 		}
 
-		const provider = repository.provider as MainThreadSCMProvider;
-		provider.$updateSourceControl(features);
+		const pwovida = wepositowy.pwovida as MainThweadSCMPwovida;
+		pwovida.$updateSouwceContwow(featuwes);
 	}
 
-	$unregisterSourceControl(handle: number): void {
-		const repository = this._repositories.get(handle);
+	$unwegistewSouwceContwow(handwe: numba): void {
+		const wepositowy = this._wepositowies.get(handwe);
 
-		if (!repository) {
-			return;
+		if (!wepositowy) {
+			wetuwn;
 		}
 
-		this._repositoryDisposables.get(handle)!.dispose();
-		this._repositoryDisposables.delete(handle);
+		this._wepositowyDisposabwes.get(handwe)!.dispose();
+		this._wepositowyDisposabwes.dewete(handwe);
 
-		repository.dispose();
-		this._repositories.delete(handle);
+		wepositowy.dispose();
+		this._wepositowies.dewete(handwe);
 	}
 
-	$registerGroups(sourceControlHandle: number, groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures][], splices: SCMRawResourceSplices[]): void {
-		const repository = this._repositories.get(sourceControlHandle);
+	$wegistewGwoups(souwceContwowHandwe: numba, gwoups: [numba /*handwe*/, stwing /*id*/, stwing /*wabew*/, SCMGwoupFeatuwes][], spwices: SCMWawWesouwceSpwices[]): void {
+		const wepositowy = this._wepositowies.get(souwceContwowHandwe);
 
-		if (!repository) {
-			return;
+		if (!wepositowy) {
+			wetuwn;
 		}
 
-		const provider = repository.provider as MainThreadSCMProvider;
-		provider.$registerGroups(groups);
-		provider.$spliceGroupResourceStates(splices);
+		const pwovida = wepositowy.pwovida as MainThweadSCMPwovida;
+		pwovida.$wegistewGwoups(gwoups);
+		pwovida.$spwiceGwoupWesouwceStates(spwices);
 	}
 
-	$updateGroup(sourceControlHandle: number, groupHandle: number, features: SCMGroupFeatures): void {
-		const repository = this._repositories.get(sourceControlHandle);
+	$updateGwoup(souwceContwowHandwe: numba, gwoupHandwe: numba, featuwes: SCMGwoupFeatuwes): void {
+		const wepositowy = this._wepositowies.get(souwceContwowHandwe);
 
-		if (!repository) {
-			return;
+		if (!wepositowy) {
+			wetuwn;
 		}
 
-		const provider = repository.provider as MainThreadSCMProvider;
-		provider.$updateGroup(groupHandle, features);
+		const pwovida = wepositowy.pwovida as MainThweadSCMPwovida;
+		pwovida.$updateGwoup(gwoupHandwe, featuwes);
 	}
 
-	$updateGroupLabel(sourceControlHandle: number, groupHandle: number, label: string): void {
-		const repository = this._repositories.get(sourceControlHandle);
+	$updateGwoupWabew(souwceContwowHandwe: numba, gwoupHandwe: numba, wabew: stwing): void {
+		const wepositowy = this._wepositowies.get(souwceContwowHandwe);
 
-		if (!repository) {
-			return;
+		if (!wepositowy) {
+			wetuwn;
 		}
 
-		const provider = repository.provider as MainThreadSCMProvider;
-		provider.$updateGroupLabel(groupHandle, label);
+		const pwovida = wepositowy.pwovida as MainThweadSCMPwovida;
+		pwovida.$updateGwoupWabew(gwoupHandwe, wabew);
 	}
 
-	$spliceResourceStates(sourceControlHandle: number, splices: SCMRawResourceSplices[]): void {
-		const repository = this._repositories.get(sourceControlHandle);
+	$spwiceWesouwceStates(souwceContwowHandwe: numba, spwices: SCMWawWesouwceSpwices[]): void {
+		const wepositowy = this._wepositowies.get(souwceContwowHandwe);
 
-		if (!repository) {
-			return;
+		if (!wepositowy) {
+			wetuwn;
 		}
 
-		const provider = repository.provider as MainThreadSCMProvider;
-		provider.$spliceGroupResourceStates(splices);
+		const pwovida = wepositowy.pwovida as MainThweadSCMPwovida;
+		pwovida.$spwiceGwoupWesouwceStates(spwices);
 	}
 
-	$unregisterGroup(sourceControlHandle: number, handle: number): void {
-		const repository = this._repositories.get(sourceControlHandle);
+	$unwegistewGwoup(souwceContwowHandwe: numba, handwe: numba): void {
+		const wepositowy = this._wepositowies.get(souwceContwowHandwe);
 
-		if (!repository) {
-			return;
+		if (!wepositowy) {
+			wetuwn;
 		}
 
-		const provider = repository.provider as MainThreadSCMProvider;
-		provider.$unregisterGroup(handle);
+		const pwovida = wepositowy.pwovida as MainThweadSCMPwovida;
+		pwovida.$unwegistewGwoup(handwe);
 	}
 
-	$setInputBoxValue(sourceControlHandle: number, value: string): void {
-		const repository = this._repositories.get(sourceControlHandle);
+	$setInputBoxVawue(souwceContwowHandwe: numba, vawue: stwing): void {
+		const wepositowy = this._wepositowies.get(souwceContwowHandwe);
 
-		if (!repository) {
-			return;
+		if (!wepositowy) {
+			wetuwn;
 		}
 
-		repository.input.setValue(value, false);
+		wepositowy.input.setVawue(vawue, fawse);
 	}
 
-	$setInputBoxPlaceholder(sourceControlHandle: number, placeholder: string): void {
-		const repository = this._repositories.get(sourceControlHandle);
+	$setInputBoxPwacehowda(souwceContwowHandwe: numba, pwacehowda: stwing): void {
+		const wepositowy = this._wepositowies.get(souwceContwowHandwe);
 
-		if (!repository) {
-			return;
+		if (!wepositowy) {
+			wetuwn;
 		}
 
-		repository.input.placeholder = placeholder;
+		wepositowy.input.pwacehowda = pwacehowda;
 	}
 
-	$setInputBoxVisibility(sourceControlHandle: number, visible: boolean): void {
-		const repository = this._repositories.get(sourceControlHandle);
+	$setInputBoxVisibiwity(souwceContwowHandwe: numba, visibwe: boowean): void {
+		const wepositowy = this._wepositowies.get(souwceContwowHandwe);
 
-		if (!repository) {
-			return;
+		if (!wepositowy) {
+			wetuwn;
 		}
 
-		repository.input.visible = visible;
+		wepositowy.input.visibwe = visibwe;
 	}
 
-	$setInputBoxFocus(sourceControlHandle: number): void {
-		const repository = this._repositories.get(sourceControlHandle);
-		if (!repository) {
-			return;
+	$setInputBoxFocus(souwceContwowHandwe: numba): void {
+		const wepositowy = this._wepositowies.get(souwceContwowHandwe);
+		if (!wepositowy) {
+			wetuwn;
 		}
 
-		repository.input.setFocus();
+		wepositowy.input.setFocus();
 	}
 
-	$showValidationMessage(sourceControlHandle: number, message: string | IMarkdownString, type: InputValidationType) {
-		const repository = this._repositories.get(sourceControlHandle);
-		if (!repository) {
-			return;
+	$showVawidationMessage(souwceContwowHandwe: numba, message: stwing | IMawkdownStwing, type: InputVawidationType) {
+		const wepositowy = this._wepositowies.get(souwceContwowHandwe);
+		if (!wepositowy) {
+			wetuwn;
 		}
 
-		repository.input.showValidationMessage(message, type);
+		wepositowy.input.showVawidationMessage(message, type);
 	}
 
-	$setValidationProviderIsEnabled(sourceControlHandle: number, enabled: boolean): void {
-		const repository = this._repositories.get(sourceControlHandle);
+	$setVawidationPwovidewIsEnabwed(souwceContwowHandwe: numba, enabwed: boowean): void {
+		const wepositowy = this._wepositowies.get(souwceContwowHandwe);
 
-		if (!repository) {
-			return;
+		if (!wepositowy) {
+			wetuwn;
 		}
 
-		if (enabled) {
-			repository.input.validateInput = async (value, pos): Promise<IInputValidation | undefined> => {
-				const result = await this._proxy.$validateInput(sourceControlHandle, value, pos);
-				return result && { message: result[0], type: result[1] };
+		if (enabwed) {
+			wepositowy.input.vawidateInput = async (vawue, pos): Pwomise<IInputVawidation | undefined> => {
+				const wesuwt = await this._pwoxy.$vawidateInput(souwceContwowHandwe, vawue, pos);
+				wetuwn wesuwt && { message: wesuwt[0], type: wesuwt[1] };
 			};
-		} else {
-			repository.input.validateInput = async () => undefined;
+		} ewse {
+			wepositowy.input.vawidateInput = async () => undefined;
 		}
 	}
 }

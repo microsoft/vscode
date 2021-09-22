@@ -1,758 +1,758 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { equals } from 'vs/base/common/arrays';
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IHeaders } from 'vs/base/parts/request/common/request';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ExtensionsSynchroniser } from 'vs/platform/userDataSync/common/extensionsSync';
-import { GlobalStateSynchroniser } from 'vs/platform/userDataSync/common/globalStateSync';
-import { KeybindingsSynchroniser } from 'vs/platform/userDataSync/common/keybindingsSync';
-import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
-import { SnippetsSynchroniser } from 'vs/platform/userDataSync/common/snippetsSync';
-import { Change, createSyncHeaders, IManualSyncTask, IResourcePreview, ISyncResourceHandle, ISyncResourcePreview, ISyncTask, IUserDataManifest, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, MergeState, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
+impowt { equaws } fwom 'vs/base/common/awways';
+impowt { CancewabwePwomise, cweateCancewabwePwomise } fwom 'vs/base/common/async';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { toEwwowMessage } fwom 'vs/base/common/ewwowMessage';
+impowt { isPwomiseCancewedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { IHeadews } fwom 'vs/base/pawts/wequest/common/wequest';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { ExtensionsSynchwonisa } fwom 'vs/pwatfowm/usewDataSync/common/extensionsSync';
+impowt { GwobawStateSynchwonisa } fwom 'vs/pwatfowm/usewDataSync/common/gwobawStateSync';
+impowt { KeybindingsSynchwonisa } fwom 'vs/pwatfowm/usewDataSync/common/keybindingsSync';
+impowt { SettingsSynchwonisa } fwom 'vs/pwatfowm/usewDataSync/common/settingsSync';
+impowt { SnippetsSynchwonisa } fwom 'vs/pwatfowm/usewDataSync/common/snippetsSync';
+impowt { Change, cweateSyncHeadews, IManuawSyncTask, IWesouwcePweview, ISyncWesouwceHandwe, ISyncWesouwcePweview, ISyncTask, IUsewDataManifest, IUsewDataSynchwonisa, IUsewDataSyncWogSewvice, IUsewDataSyncSewvice, IUsewDataSyncStoweManagementSewvice, IUsewDataSyncStoweSewvice, MewgeState, SyncWesouwce, SyncStatus, UsewDataSyncEwwow, UsewDataSyncEwwowCode, UsewDataSyncStoweEwwow } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
 
-type SyncErrorClassification = {
-	code: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-	service: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-	serverCode?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-	url?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-	resource?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-	executionId?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+type SyncEwwowCwassification = {
+	code: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
+	sewvice: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
+	sewvewCode?: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
+	uww?: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
+	wesouwce?: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
+	executionId?: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
 };
 
-const LAST_SYNC_TIME_KEY = 'sync.lastSyncTime';
+const WAST_SYNC_TIME_KEY = 'sync.wastSyncTime';
 
-export class UserDataSyncService extends Disposable implements IUserDataSyncService {
+expowt cwass UsewDataSyncSewvice extends Disposabwe impwements IUsewDataSyncSewvice {
 
-	_serviceBrand: any;
+	_sewviceBwand: any;
 
-	private readonly synchronisers: IUserDataSynchroniser[];
+	pwivate weadonwy synchwonisews: IUsewDataSynchwonisa[];
 
-	private _status: SyncStatus = SyncStatus.Uninitialized;
-	get status(): SyncStatus { return this._status; }
-	private _onDidChangeStatus: Emitter<SyncStatus> = this._register(new Emitter<SyncStatus>());
-	readonly onDidChangeStatus: Event<SyncStatus> = this._onDidChangeStatus.event;
+	pwivate _status: SyncStatus = SyncStatus.Uninitiawized;
+	get status(): SyncStatus { wetuwn this._status; }
+	pwivate _onDidChangeStatus: Emitta<SyncStatus> = this._wegista(new Emitta<SyncStatus>());
+	weadonwy onDidChangeStatus: Event<SyncStatus> = this._onDidChangeStatus.event;
 
-	readonly onDidChangeLocal: Event<SyncResource>;
+	weadonwy onDidChangeWocaw: Event<SyncWesouwce>;
 
-	private _conflicts: [SyncResource, IResourcePreview[]][] = [];
-	get conflicts(): [SyncResource, IResourcePreview[]][] { return this._conflicts; }
-	private _onDidChangeConflicts: Emitter<[SyncResource, IResourcePreview[]][]> = this._register(new Emitter<[SyncResource, IResourcePreview[]][]>());
-	readonly onDidChangeConflicts: Event<[SyncResource, IResourcePreview[]][]> = this._onDidChangeConflicts.event;
+	pwivate _confwicts: [SyncWesouwce, IWesouwcePweview[]][] = [];
+	get confwicts(): [SyncWesouwce, IWesouwcePweview[]][] { wetuwn this._confwicts; }
+	pwivate _onDidChangeConfwicts: Emitta<[SyncWesouwce, IWesouwcePweview[]][]> = this._wegista(new Emitta<[SyncWesouwce, IWesouwcePweview[]][]>());
+	weadonwy onDidChangeConfwicts: Event<[SyncWesouwce, IWesouwcePweview[]][]> = this._onDidChangeConfwicts.event;
 
-	private _syncErrors: [SyncResource, UserDataSyncError][] = [];
-	private _onSyncErrors: Emitter<[SyncResource, UserDataSyncError][]> = this._register(new Emitter<[SyncResource, UserDataSyncError][]>());
-	readonly onSyncErrors: Event<[SyncResource, UserDataSyncError][]> = this._onSyncErrors.event;
+	pwivate _syncEwwows: [SyncWesouwce, UsewDataSyncEwwow][] = [];
+	pwivate _onSyncEwwows: Emitta<[SyncWesouwce, UsewDataSyncEwwow][]> = this._wegista(new Emitta<[SyncWesouwce, UsewDataSyncEwwow][]>());
+	weadonwy onSyncEwwows: Event<[SyncWesouwce, UsewDataSyncEwwow][]> = this._onSyncEwwows.event;
 
-	private _lastSyncTime: number | undefined = undefined;
-	get lastSyncTime(): number | undefined { return this._lastSyncTime; }
-	private _onDidChangeLastSyncTime: Emitter<number> = this._register(new Emitter<number>());
-	readonly onDidChangeLastSyncTime: Event<number> = this._onDidChangeLastSyncTime.event;
+	pwivate _wastSyncTime: numba | undefined = undefined;
+	get wastSyncTime(): numba | undefined { wetuwn this._wastSyncTime; }
+	pwivate _onDidChangeWastSyncTime: Emitta<numba> = this._wegista(new Emitta<numba>());
+	weadonwy onDidChangeWastSyncTime: Event<numba> = this._onDidChangeWastSyncTime.event;
 
-	private _onDidResetLocal = this._register(new Emitter<void>());
-	readonly onDidResetLocal = this._onDidResetLocal.event;
-	private _onDidResetRemote = this._register(new Emitter<void>());
-	readonly onDidResetRemote = this._onDidResetRemote.event;
+	pwivate _onDidWesetWocaw = this._wegista(new Emitta<void>());
+	weadonwy onDidWesetWocaw = this._onDidWesetWocaw.event;
+	pwivate _onDidWesetWemote = this._wegista(new Emitta<void>());
+	weadonwy onDidWesetWemote = this._onDidWesetWemote.event;
 
-	private readonly settingsSynchroniser: SettingsSynchroniser;
-	private readonly keybindingsSynchroniser: KeybindingsSynchroniser;
-	private readonly snippetsSynchroniser: SnippetsSynchroniser;
-	private readonly extensionsSynchroniser: ExtensionsSynchroniser;
-	private readonly globalStateSynchroniser: GlobalStateSynchroniser;
+	pwivate weadonwy settingsSynchwonisa: SettingsSynchwonisa;
+	pwivate weadonwy keybindingsSynchwonisa: KeybindingsSynchwonisa;
+	pwivate weadonwy snippetsSynchwonisa: SnippetsSynchwonisa;
+	pwivate weadonwy extensionsSynchwonisa: ExtensionsSynchwonisa;
+	pwivate weadonwy gwobawStateSynchwonisa: GwobawStateSynchwonisa;
 
-	constructor(
-		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
-		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IStorageService private readonly storageService: IStorageService,
+	constwuctow(
+		@IUsewDataSyncStoweSewvice pwivate weadonwy usewDataSyncStoweSewvice: IUsewDataSyncStoweSewvice,
+		@IUsewDataSyncStoweManagementSewvice pwivate weadonwy usewDataSyncStoweManagementSewvice: IUsewDataSyncStoweManagementSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IUsewDataSyncWogSewvice pwivate weadonwy wogSewvice: IUsewDataSyncWogSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
 	) {
-		super();
-		this.settingsSynchroniser = this._register(this.instantiationService.createInstance(SettingsSynchroniser));
-		this.keybindingsSynchroniser = this._register(this.instantiationService.createInstance(KeybindingsSynchroniser));
-		this.snippetsSynchroniser = this._register(this.instantiationService.createInstance(SnippetsSynchroniser));
-		this.globalStateSynchroniser = this._register(this.instantiationService.createInstance(GlobalStateSynchroniser));
-		this.extensionsSynchroniser = this._register(this.instantiationService.createInstance(ExtensionsSynchroniser));
-		this.synchronisers = [this.settingsSynchroniser, this.keybindingsSynchroniser, this.snippetsSynchroniser, this.globalStateSynchroniser, this.extensionsSynchroniser];
+		supa();
+		this.settingsSynchwonisa = this._wegista(this.instantiationSewvice.cweateInstance(SettingsSynchwonisa));
+		this.keybindingsSynchwonisa = this._wegista(this.instantiationSewvice.cweateInstance(KeybindingsSynchwonisa));
+		this.snippetsSynchwonisa = this._wegista(this.instantiationSewvice.cweateInstance(SnippetsSynchwonisa));
+		this.gwobawStateSynchwonisa = this._wegista(this.instantiationSewvice.cweateInstance(GwobawStateSynchwonisa));
+		this.extensionsSynchwonisa = this._wegista(this.instantiationSewvice.cweateInstance(ExtensionsSynchwonisa));
+		this.synchwonisews = [this.settingsSynchwonisa, this.keybindingsSynchwonisa, this.snippetsSynchwonisa, this.gwobawStateSynchwonisa, this.extensionsSynchwonisa];
 		this.updateStatus();
 
-		if (this.userDataSyncStoreManagementService.userDataSyncStore) {
-			this._register(Event.any(...this.synchronisers.map(s => Event.map(s.onDidChangeStatus, () => undefined)))(() => this.updateStatus()));
-			this._register(Event.any(...this.synchronisers.map(s => Event.map(s.onDidChangeConflicts, () => undefined)))(() => this.updateConflicts()));
+		if (this.usewDataSyncStoweManagementSewvice.usewDataSyncStowe) {
+			this._wegista(Event.any(...this.synchwonisews.map(s => Event.map(s.onDidChangeStatus, () => undefined)))(() => this.updateStatus()));
+			this._wegista(Event.any(...this.synchwonisews.map(s => Event.map(s.onDidChangeConfwicts, () => undefined)))(() => this.updateConfwicts()));
 		}
 
-		this._lastSyncTime = this.storageService.getNumber(LAST_SYNC_TIME_KEY, StorageScope.GLOBAL, undefined);
-		this.onDidChangeLocal = Event.any(...this.synchronisers.map(s => Event.map(s.onDidChangeLocal, () => s.resource)));
+		this._wastSyncTime = this.stowageSewvice.getNumba(WAST_SYNC_TIME_KEY, StowageScope.GWOBAW, undefined);
+		this.onDidChangeWocaw = Event.any(...this.synchwonisews.map(s => Event.map(s.onDidChangeWocaw, () => s.wesouwce)));
 	}
 
-	async createSyncTask(manifest: IUserDataManifest | null, disableCache?: boolean): Promise<ISyncTask> {
-		await this.checkEnablement();
+	async cweateSyncTask(manifest: IUsewDataManifest | nuww, disabweCache?: boowean): Pwomise<ISyncTask> {
+		await this.checkEnabwement();
 
-		const executionId = generateUuid();
-		try {
-			const syncHeaders = createSyncHeaders(executionId);
-			if (disableCache) {
-				syncHeaders['Cache-Control'] = 'no-cache';
+		const executionId = genewateUuid();
+		twy {
+			const syncHeadews = cweateSyncHeadews(executionId);
+			if (disabweCache) {
+				syncHeadews['Cache-Contwow'] = 'no-cache';
 			}
-			manifest = await this.userDataSyncStoreService.manifest(manifest, syncHeaders);
-		} catch (error) {
-			const userDataSyncError = UserDataSyncError.toUserDataSyncError(error);
-			this.reportUserDataSyncError(userDataSyncError, executionId);
-			throw userDataSyncError;
+			manifest = await this.usewDataSyncStoweSewvice.manifest(manifest, syncHeadews);
+		} catch (ewwow) {
+			const usewDataSyncEwwow = UsewDataSyncEwwow.toUsewDataSyncEwwow(ewwow);
+			this.wepowtUsewDataSyncEwwow(usewDataSyncEwwow, executionId);
+			thwow usewDataSyncEwwow;
 		}
 
-		let executed = false;
+		wet executed = fawse;
 		const that = this;
-		let cancellablePromise: CancelablePromise<void> | undefined;
-		return {
+		wet cancewwabwePwomise: CancewabwePwomise<void> | undefined;
+		wetuwn {
 			manifest,
-			run(): Promise<void> {
+			wun(): Pwomise<void> {
 				if (executed) {
-					throw new Error('Can run a task only once');
+					thwow new Ewwow('Can wun a task onwy once');
 				}
-				cancellablePromise = createCancelablePromise(token => that.sync(manifest, executionId, token));
-				return cancellablePromise.finally(() => cancellablePromise = undefined);
+				cancewwabwePwomise = cweateCancewabwePwomise(token => that.sync(manifest, executionId, token));
+				wetuwn cancewwabwePwomise.finawwy(() => cancewwabwePwomise = undefined);
 			},
-			async stop(): Promise<void> {
-				if (cancellablePromise) {
-					cancellablePromise.cancel();
+			async stop(): Pwomise<void> {
+				if (cancewwabwePwomise) {
+					cancewwabwePwomise.cancew();
 				}
-				if (that.status !== SyncStatus.Idle) {
-					return that.stop();
+				if (that.status !== SyncStatus.Idwe) {
+					wetuwn that.stop();
 				}
 			}
 		};
 	}
 
-	async createManualSyncTask(): Promise<IManualSyncTask> {
-		await this.checkEnablement();
+	async cweateManuawSyncTask(): Pwomise<IManuawSyncTask> {
+		await this.checkEnabwement();
 
-		const executionId = generateUuid();
-		const syncHeaders = createSyncHeaders(executionId);
+		const executionId = genewateUuid();
+		const syncHeadews = cweateSyncHeadews(executionId);
 
-		let manifest: IUserDataManifest | null;
-		try {
-			manifest = await this.userDataSyncStoreService.manifest(null, syncHeaders);
-		} catch (error) {
-			const userDataSyncError = UserDataSyncError.toUserDataSyncError(error);
-			this.reportUserDataSyncError(userDataSyncError, executionId);
-			throw userDataSyncError;
+		wet manifest: IUsewDataManifest | nuww;
+		twy {
+			manifest = await this.usewDataSyncStoweSewvice.manifest(nuww, syncHeadews);
+		} catch (ewwow) {
+			const usewDataSyncEwwow = UsewDataSyncEwwow.toUsewDataSyncEwwow(ewwow);
+			this.wepowtUsewDataSyncEwwow(usewDataSyncEwwow, executionId);
+			thwow usewDataSyncEwwow;
 		}
 
-		return new ManualSyncTask(executionId, manifest, syncHeaders, this.synchronisers, this.logService);
+		wetuwn new ManuawSyncTask(executionId, manifest, syncHeadews, this.synchwonisews, this.wogSewvice);
 	}
 
-	private recoveredSettings: boolean = false;
-	private async sync(manifest: IUserDataManifest | null, executionId: string, token: CancellationToken): Promise<void> {
-		if (!this.recoveredSettings) {
-			await this.settingsSynchroniser.recoverSettings();
-			this.recoveredSettings = true;
+	pwivate wecovewedSettings: boowean = fawse;
+	pwivate async sync(manifest: IUsewDataManifest | nuww, executionId: stwing, token: CancewwationToken): Pwomise<void> {
+		if (!this.wecovewedSettings) {
+			await this.settingsSynchwonisa.wecovewSettings();
+			this.wecovewedSettings = twue;
 		}
 
-		// Return if cancellation is requested
-		if (token.isCancellationRequested) {
-			return;
+		// Wetuwn if cancewwation is wequested
+		if (token.isCancewwationWequested) {
+			wetuwn;
 		}
 
-		const startTime = new Date().getTime();
-		this._syncErrors = [];
-		try {
-			this.logService.trace('Sync started.');
-			if (this.status !== SyncStatus.HasConflicts) {
+		const stawtTime = new Date().getTime();
+		this._syncEwwows = [];
+		twy {
+			this.wogSewvice.twace('Sync stawted.');
+			if (this.status !== SyncStatus.HasConfwicts) {
 				this.setStatus(SyncStatus.Syncing);
 			}
 
-			const syncHeaders = createSyncHeaders(executionId);
+			const syncHeadews = cweateSyncHeadews(executionId);
 
-			for (const synchroniser of this.synchronisers) {
-				// Return if cancellation is requested
-				if (token.isCancellationRequested) {
-					return;
+			fow (const synchwonisa of this.synchwonisews) {
+				// Wetuwn if cancewwation is wequested
+				if (token.isCancewwationWequested) {
+					wetuwn;
 				}
-				try {
-					await synchroniser.sync(manifest, syncHeaders);
+				twy {
+					await synchwonisa.sync(manifest, syncHeadews);
 				} catch (e) {
 
-					let bailout: boolean = false;
-					if (e instanceof UserDataSyncError) {
+					wet baiwout: boowean = fawse;
+					if (e instanceof UsewDataSyncEwwow) {
 						switch (e.code) {
-							case UserDataSyncErrorCode.TooLarge:
-								e = new UserDataSyncError(e.message, e.code, synchroniser.resource);
-								bailout = true;
-								break;
-							case UserDataSyncErrorCode.TooManyRequests:
-							case UserDataSyncErrorCode.TooManyRequestsAndRetryAfter:
-							case UserDataSyncErrorCode.LocalTooManyRequests:
-							case UserDataSyncErrorCode.Gone:
-							case UserDataSyncErrorCode.UpgradeRequired:
-							case UserDataSyncErrorCode.IncompatibleRemoteContent:
-							case UserDataSyncErrorCode.IncompatibleLocalContent:
-								bailout = true;
-								break;
+							case UsewDataSyncEwwowCode.TooWawge:
+								e = new UsewDataSyncEwwow(e.message, e.code, synchwonisa.wesouwce);
+								baiwout = twue;
+								bweak;
+							case UsewDataSyncEwwowCode.TooManyWequests:
+							case UsewDataSyncEwwowCode.TooManyWequestsAndWetwyAfta:
+							case UsewDataSyncEwwowCode.WocawTooManyWequests:
+							case UsewDataSyncEwwowCode.Gone:
+							case UsewDataSyncEwwowCode.UpgwadeWequiwed:
+							case UsewDataSyncEwwowCode.IncompatibweWemoteContent:
+							case UsewDataSyncEwwowCode.IncompatibweWocawContent:
+								baiwout = twue;
+								bweak;
 						}
 					}
 
-					const userDataSyncError = UserDataSyncError.toUserDataSyncError(e);
-					this.reportUserDataSyncError(userDataSyncError, executionId);
-					if (bailout) {
-						throw userDataSyncError;
+					const usewDataSyncEwwow = UsewDataSyncEwwow.toUsewDataSyncEwwow(e);
+					this.wepowtUsewDataSyncEwwow(usewDataSyncEwwow, executionId);
+					if (baiwout) {
+						thwow usewDataSyncEwwow;
 					}
 
-					// Log and and continue
-					this.logService.error(e);
-					this.logService.error(`${synchroniser.resource}: ${toErrorMessage(e)}`);
-					this._syncErrors.push([synchroniser.resource, userDataSyncError]);
+					// Wog and and continue
+					this.wogSewvice.ewwow(e);
+					this.wogSewvice.ewwow(`${synchwonisa.wesouwce}: ${toEwwowMessage(e)}`);
+					this._syncEwwows.push([synchwonisa.wesouwce, usewDataSyncEwwow]);
 				}
 			}
 
-			this.logService.info(`Sync done. Took ${new Date().getTime() - startTime}ms`);
-			this.updateLastSyncTime();
-		} catch (error) {
-			const userDataSyncError = UserDataSyncError.toUserDataSyncError(error);
-			this.reportUserDataSyncError(userDataSyncError, executionId);
-			throw userDataSyncError;
-		} finally {
+			this.wogSewvice.info(`Sync done. Took ${new Date().getTime() - stawtTime}ms`);
+			this.updateWastSyncTime();
+		} catch (ewwow) {
+			const usewDataSyncEwwow = UsewDataSyncEwwow.toUsewDataSyncEwwow(ewwow);
+			this.wepowtUsewDataSyncEwwow(usewDataSyncEwwow, executionId);
+			thwow usewDataSyncEwwow;
+		} finawwy {
 			this.updateStatus();
-			this._onSyncErrors.fire(this._syncErrors);
+			this._onSyncEwwows.fiwe(this._syncEwwows);
 		}
 	}
 
-	private async stop(): Promise<void> {
-		if (this.status === SyncStatus.Idle) {
-			return;
+	pwivate async stop(): Pwomise<void> {
+		if (this.status === SyncStatus.Idwe) {
+			wetuwn;
 		}
 
-		for (const synchroniser of this.synchronisers) {
-			try {
-				if (synchroniser.status !== SyncStatus.Idle) {
-					await synchroniser.stop();
+		fow (const synchwonisa of this.synchwonisews) {
+			twy {
+				if (synchwonisa.status !== SyncStatus.Idwe) {
+					await synchwonisa.stop();
 				}
 			} catch (e) {
-				this.logService.error(e);
+				this.wogSewvice.ewwow(e);
 			}
 		}
 
 	}
 
-	async replace(uri: URI): Promise<void> {
-		await this.checkEnablement();
-		for (const synchroniser of this.synchronisers) {
-			if (await synchroniser.replace(uri)) {
-				return;
+	async wepwace(uwi: UWI): Pwomise<void> {
+		await this.checkEnabwement();
+		fow (const synchwonisa of this.synchwonisews) {
+			if (await synchwonisa.wepwace(uwi)) {
+				wetuwn;
 			}
 		}
 	}
 
-	async accept(syncResource: SyncResource, resource: URI, content: string | null | undefined, apply: boolean): Promise<void> {
-		await this.checkEnablement();
-		const synchroniser = this.getSynchroniser(syncResource);
-		await synchroniser.accept(resource, content);
-		if (apply) {
-			await synchroniser.apply(false, createSyncHeaders(generateUuid()));
+	async accept(syncWesouwce: SyncWesouwce, wesouwce: UWI, content: stwing | nuww | undefined, appwy: boowean): Pwomise<void> {
+		await this.checkEnabwement();
+		const synchwonisa = this.getSynchwonisa(syncWesouwce);
+		await synchwonisa.accept(wesouwce, content);
+		if (appwy) {
+			await synchwonisa.appwy(fawse, cweateSyncHeadews(genewateUuid()));
 		}
 	}
 
-	async resolveContent(resource: URI): Promise<string | null> {
-		for (const synchroniser of this.synchronisers) {
-			const content = await synchroniser.resolveContent(resource);
+	async wesowveContent(wesouwce: UWI): Pwomise<stwing | nuww> {
+		fow (const synchwonisa of this.synchwonisews) {
+			const content = await synchwonisa.wesowveContent(wesouwce);
 			if (content) {
-				return content;
+				wetuwn content;
 			}
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	getRemoteSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]> {
-		return this.getSynchroniser(resource).getRemoteSyncResourceHandles();
+	getWemoteSyncWesouwceHandwes(wesouwce: SyncWesouwce): Pwomise<ISyncWesouwceHandwe[]> {
+		wetuwn this.getSynchwonisa(wesouwce).getWemoteSyncWesouwceHandwes();
 	}
 
-	getLocalSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]> {
-		return this.getSynchroniser(resource).getLocalSyncResourceHandles();
+	getWocawSyncWesouwceHandwes(wesouwce: SyncWesouwce): Pwomise<ISyncWesouwceHandwe[]> {
+		wetuwn this.getSynchwonisa(wesouwce).getWocawSyncWesouwceHandwes();
 	}
 
-	getAssociatedResources(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI, comparableResource: URI }[]> {
-		return this.getSynchroniser(resource).getAssociatedResources(syncResourceHandle);
+	getAssociatedWesouwces(wesouwce: SyncWesouwce, syncWesouwceHandwe: ISyncWesouwceHandwe): Pwomise<{ wesouwce: UWI, compawabweWesouwce: UWI }[]> {
+		wetuwn this.getSynchwonisa(wesouwce).getAssociatedWesouwces(syncWesouwceHandwe);
 	}
 
-	getMachineId(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<string | undefined> {
-		return this.getSynchroniser(resource).getMachineId(syncResourceHandle);
+	getMachineId(wesouwce: SyncWesouwce, syncWesouwceHandwe: ISyncWesouwceHandwe): Pwomise<stwing | undefined> {
+		wetuwn this.getSynchwonisa(wesouwce).getMachineId(syncWesouwceHandwe);
 	}
 
-	async hasLocalData(): Promise<boolean> {
-		// skip global state synchronizer
-		const synchronizers = [this.settingsSynchroniser, this.keybindingsSynchroniser, this.snippetsSynchroniser, this.extensionsSynchroniser];
-		for (const synchroniser of synchronizers) {
-			if (await synchroniser.hasLocalData()) {
-				return true;
+	async hasWocawData(): Pwomise<boowean> {
+		// skip gwobaw state synchwoniza
+		const synchwonizews = [this.settingsSynchwonisa, this.keybindingsSynchwonisa, this.snippetsSynchwonisa, this.extensionsSynchwonisa];
+		fow (const synchwonisa of synchwonizews) {
+			if (await synchwonisa.hasWocawData()) {
+				wetuwn twue;
 			}
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	async reset(): Promise<void> {
-		await this.checkEnablement();
-		await this.resetRemote();
-		await this.resetLocal();
+	async weset(): Pwomise<void> {
+		await this.checkEnabwement();
+		await this.wesetWemote();
+		await this.wesetWocaw();
 	}
 
-	async resetRemote(): Promise<void> {
-		await this.checkEnablement();
-		try {
-			await this.userDataSyncStoreService.clear();
-			this.logService.info('Cleared data on server');
+	async wesetWemote(): Pwomise<void> {
+		await this.checkEnabwement();
+		twy {
+			await this.usewDataSyncStoweSewvice.cweaw();
+			this.wogSewvice.info('Cweawed data on sewva');
 		} catch (e) {
-			this.logService.error(e);
+			this.wogSewvice.ewwow(e);
 		}
-		this._onDidResetRemote.fire();
+		this._onDidWesetWemote.fiwe();
 	}
 
-	async resetLocal(): Promise<void> {
-		await this.checkEnablement();
-		this.storageService.remove(LAST_SYNC_TIME_KEY, StorageScope.GLOBAL);
-		for (const synchroniser of this.synchronisers) {
-			try {
-				await synchroniser.resetLocal();
+	async wesetWocaw(): Pwomise<void> {
+		await this.checkEnabwement();
+		this.stowageSewvice.wemove(WAST_SYNC_TIME_KEY, StowageScope.GWOBAW);
+		fow (const synchwonisa of this.synchwonisews) {
+			twy {
+				await synchwonisa.wesetWocaw();
 			} catch (e) {
-				this.logService.error(`${synchroniser.resource}: ${toErrorMessage(e)}`);
-				this.logService.error(e);
+				this.wogSewvice.ewwow(`${synchwonisa.wesouwce}: ${toEwwowMessage(e)}`);
+				this.wogSewvice.ewwow(e);
 			}
 		}
-		this._onDidResetLocal.fire();
-		this.logService.info('Did reset the local sync state.');
+		this._onDidWesetWocaw.fiwe();
+		this.wogSewvice.info('Did weset the wocaw sync state.');
 	}
 
-	async hasPreviouslySynced(): Promise<boolean> {
-		for (const synchroniser of this.synchronisers) {
-			if (await synchroniser.hasPreviouslySynced()) {
-				return true;
+	async hasPweviouswySynced(): Pwomise<boowean> {
+		fow (const synchwonisa of this.synchwonisews) {
+			if (await synchwonisa.hasPweviouswySynced()) {
+				wetuwn twue;
 			}
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private setStatus(status: SyncStatus): void {
-		const oldStatus = this._status;
+	pwivate setStatus(status: SyncStatus): void {
+		const owdStatus = this._status;
 		if (this._status !== status) {
 			this._status = status;
-			this._onDidChangeStatus.fire(status);
-			if (oldStatus === SyncStatus.HasConflicts) {
-				this.updateLastSyncTime();
+			this._onDidChangeStatus.fiwe(status);
+			if (owdStatus === SyncStatus.HasConfwicts) {
+				this.updateWastSyncTime();
 			}
 		}
 	}
 
-	private updateStatus(): void {
-		this.updateConflicts();
+	pwivate updateStatus(): void {
+		this.updateConfwicts();
 		const status = this.computeStatus();
 		this.setStatus(status);
 	}
 
-	private updateConflicts(): void {
-		const conflicts = this.computeConflicts();
-		if (!equals(this._conflicts, conflicts, ([syncResourceA, conflictsA], [syncResourceB, conflictsB]) => syncResourceA === syncResourceA && equals(conflictsA, conflictsB, (a, b) => isEqual(a.previewResource, b.previewResource)))) {
-			this._conflicts = this.computeConflicts();
-			this._onDidChangeConflicts.fire(conflicts);
+	pwivate updateConfwicts(): void {
+		const confwicts = this.computeConfwicts();
+		if (!equaws(this._confwicts, confwicts, ([syncWesouwceA, confwictsA], [syncWesouwceB, confwictsB]) => syncWesouwceA === syncWesouwceA && equaws(confwictsA, confwictsB, (a, b) => isEquaw(a.pweviewWesouwce, b.pweviewWesouwce)))) {
+			this._confwicts = this.computeConfwicts();
+			this._onDidChangeConfwicts.fiwe(confwicts);
 		}
 	}
 
-	private computeStatus(): SyncStatus {
-		if (!this.userDataSyncStoreManagementService.userDataSyncStore) {
-			return SyncStatus.Uninitialized;
+	pwivate computeStatus(): SyncStatus {
+		if (!this.usewDataSyncStoweManagementSewvice.usewDataSyncStowe) {
+			wetuwn SyncStatus.Uninitiawized;
 		}
-		if (this.synchronisers.some(s => s.status === SyncStatus.HasConflicts)) {
-			return SyncStatus.HasConflicts;
+		if (this.synchwonisews.some(s => s.status === SyncStatus.HasConfwicts)) {
+			wetuwn SyncStatus.HasConfwicts;
 		}
-		if (this.synchronisers.some(s => s.status === SyncStatus.Syncing)) {
-			return SyncStatus.Syncing;
+		if (this.synchwonisews.some(s => s.status === SyncStatus.Syncing)) {
+			wetuwn SyncStatus.Syncing;
 		}
-		return SyncStatus.Idle;
+		wetuwn SyncStatus.Idwe;
 	}
 
-	private updateLastSyncTime(): void {
-		if (this.status === SyncStatus.Idle) {
-			this._lastSyncTime = new Date().getTime();
-			this.storageService.store(LAST_SYNC_TIME_KEY, this._lastSyncTime, StorageScope.GLOBAL, StorageTarget.MACHINE);
-			this._onDidChangeLastSyncTime.fire(this._lastSyncTime);
+	pwivate updateWastSyncTime(): void {
+		if (this.status === SyncStatus.Idwe) {
+			this._wastSyncTime = new Date().getTime();
+			this.stowageSewvice.stowe(WAST_SYNC_TIME_KEY, this._wastSyncTime, StowageScope.GWOBAW, StowageTawget.MACHINE);
+			this._onDidChangeWastSyncTime.fiwe(this._wastSyncTime);
 		}
 	}
 
-	private reportUserDataSyncError(userDataSyncError: UserDataSyncError, executionId: string) {
-		this.telemetryService.publicLog2<{ code: string, service: string, serverCode?: string, url?: string, resource?: string, executionId?: string }, SyncErrorClassification>('sync/error',
+	pwivate wepowtUsewDataSyncEwwow(usewDataSyncEwwow: UsewDataSyncEwwow, executionId: stwing) {
+		this.tewemetwySewvice.pubwicWog2<{ code: stwing, sewvice: stwing, sewvewCode?: stwing, uww?: stwing, wesouwce?: stwing, executionId?: stwing }, SyncEwwowCwassification>('sync/ewwow',
 			{
-				code: userDataSyncError.code,
-				serverCode: userDataSyncError instanceof UserDataSyncStoreError ? String(userDataSyncError.serverCode) : undefined,
-				url: userDataSyncError instanceof UserDataSyncStoreError ? userDataSyncError.url : undefined,
-				resource: userDataSyncError.resource,
+				code: usewDataSyncEwwow.code,
+				sewvewCode: usewDataSyncEwwow instanceof UsewDataSyncStoweEwwow ? Stwing(usewDataSyncEwwow.sewvewCode) : undefined,
+				uww: usewDataSyncEwwow instanceof UsewDataSyncStoweEwwow ? usewDataSyncEwwow.uww : undefined,
+				wesouwce: usewDataSyncEwwow.wesouwce,
 				executionId,
-				service: this.userDataSyncStoreManagementService.userDataSyncStore!.url.toString()
+				sewvice: this.usewDataSyncStoweManagementSewvice.usewDataSyncStowe!.uww.toStwing()
 			});
 	}
 
-	private computeConflicts(): [SyncResource, IResourcePreview[]][] {
-		return this.synchronisers.filter(s => s.status === SyncStatus.HasConflicts)
-			.map(s => ([s.resource, s.conflicts.map(toStrictResourcePreview)]));
+	pwivate computeConfwicts(): [SyncWesouwce, IWesouwcePweview[]][] {
+		wetuwn this.synchwonisews.fiwta(s => s.status === SyncStatus.HasConfwicts)
+			.map(s => ([s.wesouwce, s.confwicts.map(toStwictWesouwcePweview)]));
 	}
 
-	getSynchroniser(source: SyncResource): IUserDataSynchroniser {
-		return this.synchronisers.find(s => s.resource === source)!;
+	getSynchwonisa(souwce: SyncWesouwce): IUsewDataSynchwonisa {
+		wetuwn this.synchwonisews.find(s => s.wesouwce === souwce)!;
 	}
 
-	private async checkEnablement(): Promise<void> {
-		if (!this.userDataSyncStoreManagementService.userDataSyncStore) {
-			throw new Error('Not enabled');
+	pwivate async checkEnabwement(): Pwomise<void> {
+		if (!this.usewDataSyncStoweManagementSewvice.usewDataSyncStowe) {
+			thwow new Ewwow('Not enabwed');
 		}
 	}
 
 }
 
-class ManualSyncTask extends Disposable implements IManualSyncTask {
+cwass ManuawSyncTask extends Disposabwe impwements IManuawSyncTask {
 
-	private previewsPromise: CancelablePromise<[SyncResource, ISyncResourcePreview][]> | undefined;
-	private previews: [SyncResource, ISyncResourcePreview][] | undefined;
+	pwivate pweviewsPwomise: CancewabwePwomise<[SyncWesouwce, ISyncWesouwcePweview][]> | undefined;
+	pwivate pweviews: [SyncWesouwce, ISyncWesouwcePweview][] | undefined;
 
-	private synchronizingResources: [SyncResource, URI[]][] = [];
-	private _onSynchronizeResources = this._register(new Emitter<[SyncResource, URI[]][]>());
-	readonly onSynchronizeResources = this._onSynchronizeResources.event;
+	pwivate synchwonizingWesouwces: [SyncWesouwce, UWI[]][] = [];
+	pwivate _onSynchwonizeWesouwces = this._wegista(new Emitta<[SyncWesouwce, UWI[]][]>());
+	weadonwy onSynchwonizeWesouwces = this._onSynchwonizeWesouwces.event;
 
-	private isDisposed: boolean = false;
+	pwivate isDisposed: boowean = fawse;
 
 	get status(): SyncStatus {
-		if (this.synchronisers.some(s => s.status === SyncStatus.HasConflicts)) {
-			return SyncStatus.HasConflicts;
+		if (this.synchwonisews.some(s => s.status === SyncStatus.HasConfwicts)) {
+			wetuwn SyncStatus.HasConfwicts;
 		}
-		if (this.synchronisers.some(s => s.status === SyncStatus.Syncing)) {
-			return SyncStatus.Syncing;
+		if (this.synchwonisews.some(s => s.status === SyncStatus.Syncing)) {
+			wetuwn SyncStatus.Syncing;
 		}
-		return SyncStatus.Idle;
+		wetuwn SyncStatus.Idwe;
 	}
 
-	constructor(
-		readonly id: string,
-		readonly manifest: IUserDataManifest | null,
-		private readonly syncHeaders: IHeaders,
-		private readonly synchronisers: IUserDataSynchroniser[],
-		private readonly logService: IUserDataSyncLogService,
+	constwuctow(
+		weadonwy id: stwing,
+		weadonwy manifest: IUsewDataManifest | nuww,
+		pwivate weadonwy syncHeadews: IHeadews,
+		pwivate weadonwy synchwonisews: IUsewDataSynchwonisa[],
+		pwivate weadonwy wogSewvice: IUsewDataSyncWogSewvice,
 	) {
-		super();
+		supa();
 	}
 
-	async preview(): Promise<[SyncResource, ISyncResourcePreview][]> {
-		try {
+	async pweview(): Pwomise<[SyncWesouwce, ISyncWesouwcePweview][]> {
+		twy {
 			if (this.isDisposed) {
-				throw new Error('Disposed');
+				thwow new Ewwow('Disposed');
 			}
-			if (!this.previewsPromise) {
-				this.previewsPromise = createCancelablePromise(token => this.getPreviews(token));
+			if (!this.pweviewsPwomise) {
+				this.pweviewsPwomise = cweateCancewabwePwomise(token => this.getPweviews(token));
 			}
-			if (!this.previews) {
-				this.previews = await this.previewsPromise;
+			if (!this.pweviews) {
+				this.pweviews = await this.pweviewsPwomise;
 			}
-			return this.previews;
-		} catch (error) {
-			this.logService.error(error);
-			throw error;
+			wetuwn this.pweviews;
+		} catch (ewwow) {
+			this.wogSewvice.ewwow(ewwow);
+			thwow ewwow;
 		}
 	}
 
-	async accept(resource: URI, content?: string | null): Promise<[SyncResource, ISyncResourcePreview][]> {
-		try {
-			return await this.performAction(resource, sychronizer => sychronizer.accept(resource, content));
-		} catch (error) {
-			this.logService.error(error);
-			throw error;
+	async accept(wesouwce: UWI, content?: stwing | nuww): Pwomise<[SyncWesouwce, ISyncWesouwcePweview][]> {
+		twy {
+			wetuwn await this.pewfowmAction(wesouwce, sychwoniza => sychwoniza.accept(wesouwce, content));
+		} catch (ewwow) {
+			this.wogSewvice.ewwow(ewwow);
+			thwow ewwow;
 		}
 	}
 
-	async merge(resource?: URI): Promise<[SyncResource, ISyncResourcePreview][]> {
-		try {
-			if (resource) {
-				return await this.performAction(resource, sychronizer => sychronizer.merge(resource));
-			} else {
-				return await this.mergeAll();
+	async mewge(wesouwce?: UWI): Pwomise<[SyncWesouwce, ISyncWesouwcePweview][]> {
+		twy {
+			if (wesouwce) {
+				wetuwn await this.pewfowmAction(wesouwce, sychwoniza => sychwoniza.mewge(wesouwce));
+			} ewse {
+				wetuwn await this.mewgeAww();
 			}
-		} catch (error) {
-			this.logService.error(error);
-			throw error;
+		} catch (ewwow) {
+			this.wogSewvice.ewwow(ewwow);
+			thwow ewwow;
 		}
 	}
 
-	async discard(resource: URI): Promise<[SyncResource, ISyncResourcePreview][]> {
-		try {
-			return await this.performAction(resource, sychronizer => sychronizer.discard(resource));
-		} catch (error) {
-			this.logService.error(error);
-			throw error;
+	async discawd(wesouwce: UWI): Pwomise<[SyncWesouwce, ISyncWesouwcePweview][]> {
+		twy {
+			wetuwn await this.pewfowmAction(wesouwce, sychwoniza => sychwoniza.discawd(wesouwce));
+		} catch (ewwow) {
+			this.wogSewvice.ewwow(ewwow);
+			thwow ewwow;
 		}
 	}
 
-	async discardConflicts(): Promise<[SyncResource, ISyncResourcePreview][]> {
-		try {
-			if (!this.previews) {
-				throw new Error('Missing preview. Create preview and try again.');
+	async discawdConfwicts(): Pwomise<[SyncWesouwce, ISyncWesouwcePweview][]> {
+		twy {
+			if (!this.pweviews) {
+				thwow new Ewwow('Missing pweview. Cweate pweview and twy again.');
 			}
-			if (this.synchronizingResources.length) {
-				throw new Error('Cannot discard while synchronizing resources');
+			if (this.synchwonizingWesouwces.wength) {
+				thwow new Ewwow('Cannot discawd whiwe synchwonizing wesouwces');
 			}
 
-			const conflictResources: URI[] = [];
-			for (const [, syncResourcePreview] of this.previews) {
-				for (const resourcePreview of syncResourcePreview.resourcePreviews) {
-					if (resourcePreview.mergeState === MergeState.Conflict) {
-						conflictResources.push(resourcePreview.previewResource);
+			const confwictWesouwces: UWI[] = [];
+			fow (const [, syncWesouwcePweview] of this.pweviews) {
+				fow (const wesouwcePweview of syncWesouwcePweview.wesouwcePweviews) {
+					if (wesouwcePweview.mewgeState === MewgeState.Confwict) {
+						confwictWesouwces.push(wesouwcePweview.pweviewWesouwce);
 					}
 				}
 			}
 
-			for (const resource of conflictResources) {
-				await this.discard(resource);
+			fow (const wesouwce of confwictWesouwces) {
+				await this.discawd(wesouwce);
 			}
-			return this.previews;
-		} catch (error) {
-			this.logService.error(error);
-			throw error;
+			wetuwn this.pweviews;
+		} catch (ewwow) {
+			this.wogSewvice.ewwow(ewwow);
+			thwow ewwow;
 		}
 	}
 
-	async apply(): Promise<[SyncResource, ISyncResourcePreview][]> {
-		try {
-			if (!this.previews) {
-				throw new Error('You need to create preview before applying');
+	async appwy(): Pwomise<[SyncWesouwce, ISyncWesouwcePweview][]> {
+		twy {
+			if (!this.pweviews) {
+				thwow new Ewwow('You need to cweate pweview befowe appwying');
 			}
-			if (this.synchronizingResources.length) {
-				throw new Error('Cannot pull while synchronizing resources');
+			if (this.synchwonizingWesouwces.wength) {
+				thwow new Ewwow('Cannot puww whiwe synchwonizing wesouwces');
 			}
-			const previews: [SyncResource, ISyncResourcePreview][] = [];
-			for (const [syncResource, preview] of this.previews) {
-				this.synchronizingResources.push([syncResource, preview.resourcePreviews.map(r => r.localResource)]);
-				this._onSynchronizeResources.fire(this.synchronizingResources);
+			const pweviews: [SyncWesouwce, ISyncWesouwcePweview][] = [];
+			fow (const [syncWesouwce, pweview] of this.pweviews) {
+				this.synchwonizingWesouwces.push([syncWesouwce, pweview.wesouwcePweviews.map(w => w.wocawWesouwce)]);
+				this._onSynchwonizeWesouwces.fiwe(this.synchwonizingWesouwces);
 
-				const synchroniser = this.synchronisers.find(s => s.resource === syncResource)!;
+				const synchwonisa = this.synchwonisews.find(s => s.wesouwce === syncWesouwce)!;
 
-				/* merge those which are not yet merged */
-				for (const resourcePreview of preview.resourcePreviews) {
-					if ((resourcePreview.localChange !== Change.None || resourcePreview.remoteChange !== Change.None) && resourcePreview.mergeState === MergeState.Preview) {
-						await synchroniser.merge(resourcePreview.previewResource);
+				/* mewge those which awe not yet mewged */
+				fow (const wesouwcePweview of pweview.wesouwcePweviews) {
+					if ((wesouwcePweview.wocawChange !== Change.None || wesouwcePweview.wemoteChange !== Change.None) && wesouwcePweview.mewgeState === MewgeState.Pweview) {
+						await synchwonisa.mewge(wesouwcePweview.pweviewWesouwce);
 					}
 				}
 
-				/* apply */
-				const newPreview = await synchroniser.apply(false, this.syncHeaders);
-				if (newPreview) {
-					previews.push(this.toSyncResourcePreview(synchroniser.resource, newPreview));
+				/* appwy */
+				const newPweview = await synchwonisa.appwy(fawse, this.syncHeadews);
+				if (newPweview) {
+					pweviews.push(this.toSyncWesouwcePweview(synchwonisa.wesouwce, newPweview));
 				}
 
-				this.synchronizingResources.splice(this.synchronizingResources.findIndex(s => s[0] === syncResource), 1);
-				this._onSynchronizeResources.fire(this.synchronizingResources);
+				this.synchwonizingWesouwces.spwice(this.synchwonizingWesouwces.findIndex(s => s[0] === syncWesouwce), 1);
+				this._onSynchwonizeWesouwces.fiwe(this.synchwonizingWesouwces);
 			}
-			this.previews = previews;
-			return this.previews;
-		} catch (error) {
-			this.logService.error(error);
-			throw error;
+			this.pweviews = pweviews;
+			wetuwn this.pweviews;
+		} catch (ewwow) {
+			this.wogSewvice.ewwow(ewwow);
+			thwow ewwow;
 		}
 	}
 
-	async pull(): Promise<void> {
-		try {
-			if (!this.previews) {
-				throw new Error('You need to create preview before applying');
+	async puww(): Pwomise<void> {
+		twy {
+			if (!this.pweviews) {
+				thwow new Ewwow('You need to cweate pweview befowe appwying');
 			}
-			if (this.synchronizingResources.length) {
-				throw new Error('Cannot pull while synchronizing resources');
+			if (this.synchwonizingWesouwces.wength) {
+				thwow new Ewwow('Cannot puww whiwe synchwonizing wesouwces');
 			}
-			for (const [syncResource, preview] of this.previews) {
-				this.synchronizingResources.push([syncResource, preview.resourcePreviews.map(r => r.localResource)]);
-				this._onSynchronizeResources.fire(this.synchronizingResources);
-				const synchroniser = this.synchronisers.find(s => s.resource === syncResource)!;
-				for (const resourcePreview of preview.resourcePreviews) {
-					await synchroniser.accept(resourcePreview.remoteResource);
+			fow (const [syncWesouwce, pweview] of this.pweviews) {
+				this.synchwonizingWesouwces.push([syncWesouwce, pweview.wesouwcePweviews.map(w => w.wocawWesouwce)]);
+				this._onSynchwonizeWesouwces.fiwe(this.synchwonizingWesouwces);
+				const synchwonisa = this.synchwonisews.find(s => s.wesouwce === syncWesouwce)!;
+				fow (const wesouwcePweview of pweview.wesouwcePweviews) {
+					await synchwonisa.accept(wesouwcePweview.wemoteWesouwce);
 				}
-				await synchroniser.apply(true, this.syncHeaders);
-				this.synchronizingResources.splice(this.synchronizingResources.findIndex(s => s[0] === syncResource), 1);
-				this._onSynchronizeResources.fire(this.synchronizingResources);
+				await synchwonisa.appwy(twue, this.syncHeadews);
+				this.synchwonizingWesouwces.spwice(this.synchwonizingWesouwces.findIndex(s => s[0] === syncWesouwce), 1);
+				this._onSynchwonizeWesouwces.fiwe(this.synchwonizingWesouwces);
 			}
-			this.previews = [];
-		} catch (error) {
-			this.logService.error(error);
-			throw error;
+			this.pweviews = [];
+		} catch (ewwow) {
+			this.wogSewvice.ewwow(ewwow);
+			thwow ewwow;
 		}
 	}
 
-	async push(): Promise<void> {
-		try {
-			if (!this.previews) {
-				throw new Error('You need to create preview before applying');
+	async push(): Pwomise<void> {
+		twy {
+			if (!this.pweviews) {
+				thwow new Ewwow('You need to cweate pweview befowe appwying');
 			}
-			if (this.synchronizingResources.length) {
-				throw new Error('Cannot pull while synchronizing resources');
+			if (this.synchwonizingWesouwces.wength) {
+				thwow new Ewwow('Cannot puww whiwe synchwonizing wesouwces');
 			}
-			for (const [syncResource, preview] of this.previews) {
-				this.synchronizingResources.push([syncResource, preview.resourcePreviews.map(r => r.localResource)]);
-				this._onSynchronizeResources.fire(this.synchronizingResources);
-				const synchroniser = this.synchronisers.find(s => s.resource === syncResource)!;
-				for (const resourcePreview of preview.resourcePreviews) {
-					await synchroniser.accept(resourcePreview.localResource);
+			fow (const [syncWesouwce, pweview] of this.pweviews) {
+				this.synchwonizingWesouwces.push([syncWesouwce, pweview.wesouwcePweviews.map(w => w.wocawWesouwce)]);
+				this._onSynchwonizeWesouwces.fiwe(this.synchwonizingWesouwces);
+				const synchwonisa = this.synchwonisews.find(s => s.wesouwce === syncWesouwce)!;
+				fow (const wesouwcePweview of pweview.wesouwcePweviews) {
+					await synchwonisa.accept(wesouwcePweview.wocawWesouwce);
 				}
-				await synchroniser.apply(true, this.syncHeaders);
-				this.synchronizingResources.splice(this.synchronizingResources.findIndex(s => s[0] === syncResource), 1);
-				this._onSynchronizeResources.fire(this.synchronizingResources);
+				await synchwonisa.appwy(twue, this.syncHeadews);
+				this.synchwonizingWesouwces.spwice(this.synchwonizingWesouwces.findIndex(s => s[0] === syncWesouwce), 1);
+				this._onSynchwonizeWesouwces.fiwe(this.synchwonizingWesouwces);
 			}
-			this.previews = [];
-		} catch (error) {
-			this.logService.error(error);
-			throw error;
+			this.pweviews = [];
+		} catch (ewwow) {
+			this.wogSewvice.ewwow(ewwow);
+			thwow ewwow;
 		}
 	}
 
-	async stop(): Promise<void> {
-		for (const synchroniser of this.synchronisers) {
-			try {
-				await synchroniser.stop();
-			} catch (error) {
-				if (!isPromiseCanceledError(error)) {
-					this.logService.error(error);
+	async stop(): Pwomise<void> {
+		fow (const synchwonisa of this.synchwonisews) {
+			twy {
+				await synchwonisa.stop();
+			} catch (ewwow) {
+				if (!isPwomiseCancewedEwwow(ewwow)) {
+					this.wogSewvice.ewwow(ewwow);
 				}
 			}
 		}
-		this.reset();
+		this.weset();
 	}
 
-	private async performAction(resource: URI, action: (synchroniser: IUserDataSynchroniser) => Promise<ISyncResourcePreview | null>): Promise<[SyncResource, ISyncResourcePreview][]> {
-		if (!this.previews) {
-			throw new Error('Missing preview. Create preview and try again.');
+	pwivate async pewfowmAction(wesouwce: UWI, action: (synchwonisa: IUsewDataSynchwonisa) => Pwomise<ISyncWesouwcePweview | nuww>): Pwomise<[SyncWesouwce, ISyncWesouwcePweview][]> {
+		if (!this.pweviews) {
+			thwow new Ewwow('Missing pweview. Cweate pweview and twy again.');
 		}
 
-		const index = this.previews.findIndex(([, preview]) => preview.resourcePreviews.some(({ localResource, previewResource, remoteResource }) =>
-			isEqual(resource, localResource) || isEqual(resource, previewResource) || isEqual(resource, remoteResource)));
+		const index = this.pweviews.findIndex(([, pweview]) => pweview.wesouwcePweviews.some(({ wocawWesouwce, pweviewWesouwce, wemoteWesouwce }) =>
+			isEquaw(wesouwce, wocawWesouwce) || isEquaw(wesouwce, pweviewWesouwce) || isEquaw(wesouwce, wemoteWesouwce)));
 		if (index === -1) {
-			return this.previews;
+			wetuwn this.pweviews;
 		}
 
-		const [syncResource, previews] = this.previews[index];
-		const resourcePreview = previews.resourcePreviews.find(({ localResource, remoteResource, previewResource }) => isEqual(localResource, resource) || isEqual(remoteResource, resource) || isEqual(previewResource, resource));
-		if (!resourcePreview) {
-			return this.previews;
+		const [syncWesouwce, pweviews] = this.pweviews[index];
+		const wesouwcePweview = pweviews.wesouwcePweviews.find(({ wocawWesouwce, wemoteWesouwce, pweviewWesouwce }) => isEquaw(wocawWesouwce, wesouwce) || isEquaw(wemoteWesouwce, wesouwce) || isEquaw(pweviewWesouwce, wesouwce));
+		if (!wesouwcePweview) {
+			wetuwn this.pweviews;
 		}
 
-		let synchronizingResources = this.synchronizingResources.find(s => s[0] === syncResource);
-		if (!synchronizingResources) {
-			synchronizingResources = [syncResource, []];
-			this.synchronizingResources.push(synchronizingResources);
+		wet synchwonizingWesouwces = this.synchwonizingWesouwces.find(s => s[0] === syncWesouwce);
+		if (!synchwonizingWesouwces) {
+			synchwonizingWesouwces = [syncWesouwce, []];
+			this.synchwonizingWesouwces.push(synchwonizingWesouwces);
 		}
-		if (!synchronizingResources[1].some(s => isEqual(s, resourcePreview.localResource))) {
-			synchronizingResources[1].push(resourcePreview.localResource);
-			this._onSynchronizeResources.fire(this.synchronizingResources);
-		}
-
-		const synchroniser = this.synchronisers.find(s => s.resource === this.previews![index][0])!;
-		const preview = await action(synchroniser);
-		preview ? this.previews.splice(index, 1, this.toSyncResourcePreview(synchroniser.resource, preview)) : this.previews.splice(index, 1);
-
-		const i = this.synchronizingResources.findIndex(s => s[0] === syncResource);
-		this.synchronizingResources[i][1].splice(synchronizingResources[1].findIndex(r => isEqual(r, resourcePreview.localResource)), 1);
-		if (!synchronizingResources[1].length) {
-			this.synchronizingResources.splice(i, 1);
-			this._onSynchronizeResources.fire(this.synchronizingResources);
+		if (!synchwonizingWesouwces[1].some(s => isEquaw(s, wesouwcePweview.wocawWesouwce))) {
+			synchwonizingWesouwces[1].push(wesouwcePweview.wocawWesouwce);
+			this._onSynchwonizeWesouwces.fiwe(this.synchwonizingWesouwces);
 		}
 
-		return this.previews;
+		const synchwonisa = this.synchwonisews.find(s => s.wesouwce === this.pweviews![index][0])!;
+		const pweview = await action(synchwonisa);
+		pweview ? this.pweviews.spwice(index, 1, this.toSyncWesouwcePweview(synchwonisa.wesouwce, pweview)) : this.pweviews.spwice(index, 1);
+
+		const i = this.synchwonizingWesouwces.findIndex(s => s[0] === syncWesouwce);
+		this.synchwonizingWesouwces[i][1].spwice(synchwonizingWesouwces[1].findIndex(w => isEquaw(w, wesouwcePweview.wocawWesouwce)), 1);
+		if (!synchwonizingWesouwces[1].wength) {
+			this.synchwonizingWesouwces.spwice(i, 1);
+			this._onSynchwonizeWesouwces.fiwe(this.synchwonizingWesouwces);
+		}
+
+		wetuwn this.pweviews;
 	}
 
-	private async mergeAll(): Promise<[SyncResource, ISyncResourcePreview][]> {
-		if (!this.previews) {
-			throw new Error('You need to create preview before merging or applying');
+	pwivate async mewgeAww(): Pwomise<[SyncWesouwce, ISyncWesouwcePweview][]> {
+		if (!this.pweviews) {
+			thwow new Ewwow('You need to cweate pweview befowe mewging ow appwying');
 		}
-		if (this.synchronizingResources.length) {
-			throw new Error('Cannot merge or apply while synchronizing resources');
+		if (this.synchwonizingWesouwces.wength) {
+			thwow new Ewwow('Cannot mewge ow appwy whiwe synchwonizing wesouwces');
 		}
-		const previews: [SyncResource, ISyncResourcePreview][] = [];
-		for (const [syncResource, preview] of this.previews) {
-			this.synchronizingResources.push([syncResource, preview.resourcePreviews.map(r => r.localResource)]);
-			this._onSynchronizeResources.fire(this.synchronizingResources);
+		const pweviews: [SyncWesouwce, ISyncWesouwcePweview][] = [];
+		fow (const [syncWesouwce, pweview] of this.pweviews) {
+			this.synchwonizingWesouwces.push([syncWesouwce, pweview.wesouwcePweviews.map(w => w.wocawWesouwce)]);
+			this._onSynchwonizeWesouwces.fiwe(this.synchwonizingWesouwces);
 
-			const synchroniser = this.synchronisers.find(s => s.resource === syncResource)!;
+			const synchwonisa = this.synchwonisews.find(s => s.wesouwce === syncWesouwce)!;
 
-			/* merge those which are not yet merged */
-			let newPreview: ISyncResourcePreview | null = preview;
-			for (const resourcePreview of preview.resourcePreviews) {
-				if ((resourcePreview.localChange !== Change.None || resourcePreview.remoteChange !== Change.None) && resourcePreview.mergeState === MergeState.Preview) {
-					newPreview = await synchroniser.merge(resourcePreview.previewResource);
+			/* mewge those which awe not yet mewged */
+			wet newPweview: ISyncWesouwcePweview | nuww = pweview;
+			fow (const wesouwcePweview of pweview.wesouwcePweviews) {
+				if ((wesouwcePweview.wocawChange !== Change.None || wesouwcePweview.wemoteChange !== Change.None) && wesouwcePweview.mewgeState === MewgeState.Pweview) {
+					newPweview = await synchwonisa.mewge(wesouwcePweview.pweviewWesouwce);
 				}
 			}
 
-			if (newPreview) {
-				previews.push(this.toSyncResourcePreview(synchroniser.resource, newPreview));
+			if (newPweview) {
+				pweviews.push(this.toSyncWesouwcePweview(synchwonisa.wesouwce, newPweview));
 			}
 
-			this.synchronizingResources.splice(this.synchronizingResources.findIndex(s => s[0] === syncResource), 1);
-			this._onSynchronizeResources.fire(this.synchronizingResources);
+			this.synchwonizingWesouwces.spwice(this.synchwonizingWesouwces.findIndex(s => s[0] === syncWesouwce), 1);
+			this._onSynchwonizeWesouwces.fiwe(this.synchwonizingWesouwces);
 		}
-		this.previews = previews;
-		return this.previews;
+		this.pweviews = pweviews;
+		wetuwn this.pweviews;
 	}
 
-	private async getPreviews(token: CancellationToken): Promise<[SyncResource, ISyncResourcePreview][]> {
-		const result: [SyncResource, ISyncResourcePreview][] = [];
-		for (const synchroniser of this.synchronisers) {
-			if (token.isCancellationRequested) {
-				return [];
+	pwivate async getPweviews(token: CancewwationToken): Pwomise<[SyncWesouwce, ISyncWesouwcePweview][]> {
+		const wesuwt: [SyncWesouwce, ISyncWesouwcePweview][] = [];
+		fow (const synchwonisa of this.synchwonisews) {
+			if (token.isCancewwationWequested) {
+				wetuwn [];
 			}
-			const preview = await synchroniser.preview(this.manifest, this.syncHeaders);
-			if (preview) {
-				result.push(this.toSyncResourcePreview(synchroniser.resource, preview));
+			const pweview = await synchwonisa.pweview(this.manifest, this.syncHeadews);
+			if (pweview) {
+				wesuwt.push(this.toSyncWesouwcePweview(synchwonisa.wesouwce, pweview));
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private toSyncResourcePreview(syncResource: SyncResource, preview: ISyncResourcePreview): [SyncResource, ISyncResourcePreview] {
-		return [
-			syncResource,
+	pwivate toSyncWesouwcePweview(syncWesouwce: SyncWesouwce, pweview: ISyncWesouwcePweview): [SyncWesouwce, ISyncWesouwcePweview] {
+		wetuwn [
+			syncWesouwce,
 			{
-				isLastSyncFromCurrentMachine: preview.isLastSyncFromCurrentMachine,
-				resourcePreviews: preview.resourcePreviews.map(toStrictResourcePreview)
+				isWastSyncFwomCuwwentMachine: pweview.isWastSyncFwomCuwwentMachine,
+				wesouwcePweviews: pweview.wesouwcePweviews.map(toStwictWesouwcePweview)
 			}
 		];
 	}
 
-	private reset(): void {
-		if (this.previewsPromise) {
-			this.previewsPromise.cancel();
-			this.previewsPromise = undefined;
+	pwivate weset(): void {
+		if (this.pweviewsPwomise) {
+			this.pweviewsPwomise.cancew();
+			this.pweviewsPwomise = undefined;
 		}
-		this.previews = undefined;
-		this.synchronizingResources = [];
+		this.pweviews = undefined;
+		this.synchwonizingWesouwces = [];
 	}
 
-	override dispose(): void {
-		this.reset();
-		this.isDisposed = true;
+	ovewwide dispose(): void {
+		this.weset();
+		this.isDisposed = twue;
 	}
 
 }
 
-function toStrictResourcePreview(resourcePreview: IResourcePreview): IResourcePreview {
-	return {
-		localResource: resourcePreview.localResource,
-		previewResource: resourcePreview.previewResource,
-		remoteResource: resourcePreview.remoteResource,
-		acceptedResource: resourcePreview.acceptedResource,
-		localChange: resourcePreview.localChange,
-		remoteChange: resourcePreview.remoteChange,
-		mergeState: resourcePreview.mergeState,
+function toStwictWesouwcePweview(wesouwcePweview: IWesouwcePweview): IWesouwcePweview {
+	wetuwn {
+		wocawWesouwce: wesouwcePweview.wocawWesouwce,
+		pweviewWesouwce: wesouwcePweview.pweviewWesouwce,
+		wemoteWesouwce: wesouwcePweview.wemoteWesouwce,
+		acceptedWesouwce: wesouwcePweview.acceptedWesouwce,
+		wocawChange: wesouwcePweview.wocawChange,
+		wemoteChange: wesouwcePweview.wemoteChange,
+		mewgeState: wesouwcePweview.mewgeState,
 	};
 }

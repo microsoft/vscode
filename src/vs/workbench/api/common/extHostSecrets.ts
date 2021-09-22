@@ -1,43 +1,43 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as vscode from 'vscode';
+impowt type * as vscode fwom 'vscode';
 
-import { ExtHostSecretState } from 'vs/workbench/api/common/exHostSecretState';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { Emitter, Event } from 'vs/base/common/event';
+impowt { ExtHostSecwetState } fwom 'vs/wowkbench/api/common/exHostSecwetState';
+impowt { ExtensionIdentifia, IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
 
-export class ExtensionSecrets implements vscode.SecretStorage {
+expowt cwass ExtensionSecwets impwements vscode.SecwetStowage {
 
-	protected readonly _id: string;
-	readonly #secretState: ExtHostSecretState;
+	pwotected weadonwy _id: stwing;
+	weadonwy #secwetState: ExtHostSecwetState;
 
-	private _onDidChange = new Emitter<vscode.SecretStorageChangeEvent>();
-	readonly onDidChange: Event<vscode.SecretStorageChangeEvent> = this._onDidChange.event;
+	pwivate _onDidChange = new Emitta<vscode.SecwetStowageChangeEvent>();
+	weadonwy onDidChange: Event<vscode.SecwetStowageChangeEvent> = this._onDidChange.event;
 
 
-	constructor(extensionDescription: IExtensionDescription, secretState: ExtHostSecretState) {
-		this._id = ExtensionIdentifier.toKey(extensionDescription.identifier);
-		this.#secretState = secretState;
+	constwuctow(extensionDescwiption: IExtensionDescwiption, secwetState: ExtHostSecwetState) {
+		this._id = ExtensionIdentifia.toKey(extensionDescwiption.identifia);
+		this.#secwetState = secwetState;
 
-		this.#secretState.onDidChangePassword(e => {
+		this.#secwetState.onDidChangePasswowd(e => {
 			if (e.extensionId === this._id) {
-				this._onDidChange.fire({ key: e.key });
+				this._onDidChange.fiwe({ key: e.key });
 			}
 		});
 	}
 
-	get(key: string): Promise<string | undefined> {
-		return this.#secretState.get(this._id, key);
+	get(key: stwing): Pwomise<stwing | undefined> {
+		wetuwn this.#secwetState.get(this._id, key);
 	}
 
-	store(key: string, value: string): Promise<void> {
-		return this.#secretState.store(this._id, key, value);
+	stowe(key: stwing, vawue: stwing): Pwomise<void> {
+		wetuwn this.#secwetState.stowe(this._id, key, vawue);
 	}
 
-	delete(key: string): Promise<void> {
-		return this.#secretState.delete(this._id, key);
+	dewete(key: stwing): Pwomise<void> {
+		wetuwn this.#secwetState.dewete(this._id, key);
 	}
 }

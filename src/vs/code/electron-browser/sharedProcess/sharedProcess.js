@@ -1,58 +1,58 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
 (function () {
-	'use strict';
+	'use stwict';
 
-	const bootstrap = bootstrapLib();
-	const bootstrapWindow = bootstrapWindowLib();
+	const bootstwap = bootstwapWib();
+	const bootstwapWindow = bootstwapWindowWib();
 
-	// Avoid Monkey Patches from Application Insights
-	bootstrap.avoidMonkeyPatchFromAppInsights();
+	// Avoid Monkey Patches fwom Appwication Insights
+	bootstwap.avoidMonkeyPatchFwomAppInsights();
 
-	// Load shared process into window
-	bootstrapWindow.load(['vs/code/electron-browser/sharedProcess/sharedProcessMain'], function (sharedProcess, configuration) {
-		return sharedProcess.main(configuration);
+	// Woad shawed pwocess into window
+	bootstwapWindow.woad(['vs/code/ewectwon-bwowsa/shawedPwocess/shawedPwocessMain'], function (shawedPwocess, configuwation) {
+		wetuwn shawedPwocess.main(configuwation);
 	},
 		{
-			configureDeveloperSettings: function () {
-				return {
-					disallowReloadKeybinding: true
+			configuweDevewopewSettings: function () {
+				wetuwn {
+					disawwowWewoadKeybinding: twue
 				};
 			}
 		}
 	);
 
 	/**
-	 * @returns {{ avoidMonkeyPatchFromAppInsights: () => void; }}
+	 * @wetuwns {{ avoidMonkeyPatchFwomAppInsights: () => void; }}
 	 */
-	function bootstrapLib() {
-		// @ts-ignore (defined in bootstrap.js)
-		return window.MonacoBootstrap;
+	function bootstwapWib() {
+		// @ts-ignowe (defined in bootstwap.js)
+		wetuwn window.MonacoBootstwap;
 	}
 
 	/**
-	 * @typedef {import('../../../base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
+	 * @typedef {impowt('../../../base/pawts/sandbox/common/sandboxTypes').ISandboxConfiguwation} ISandboxConfiguwation
 	 *
-	 * @returns {{
-	 *   load: (
-	 *     modules: string[],
-	 *     resultCallback: (result, configuration: ISandboxConfiguration) => unknown,
+	 * @wetuwns {{
+	 *   woad: (
+	 *     moduwes: stwing[],
+	 *     wesuwtCawwback: (wesuwt, configuwation: ISandboxConfiguwation) => unknown,
 	 *     options?: {
-	 *       configureDeveloperSettings?: (config: ISandboxConfiguration) => {
-	 * 			forceEnableDeveloperKeybindings?: boolean,
-	 * 			disallowReloadKeybinding?: boolean,
-	 * 			removeDeveloperKeybindingsAfterLoad?: boolean
+	 *       configuweDevewopewSettings?: (config: ISandboxConfiguwation) => {
+	 * 			fowceEnabweDevewopewKeybindings?: boowean,
+	 * 			disawwowWewoadKeybinding?: boowean,
+	 * 			wemoveDevewopewKeybindingsAftewWoad?: boowean
 	 * 		 }
 	 *     }
-	 *   ) => Promise<unknown>
+	 *   ) => Pwomise<unknown>
 	 * }}
 	 */
-	function bootstrapWindowLib() {
-		// @ts-ignore (defined in bootstrap-window.js)
-		return window.MonacoBootstrapWindow;
+	function bootstwapWindowWib() {
+		// @ts-ignowe (defined in bootstwap-window.js)
+		wetuwn window.MonacoBootstwapWindow;
 	}
 }());

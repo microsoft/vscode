@@ -1,699 +1,699 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import {
-	compareFileExtensions, compareFileExtensionsDefault, compareFileExtensionsLower, compareFileExtensionsUnicode, compareFileExtensionsUpper, compareFileNames, compareFileNamesDefault, compareFileNamesLower, compareFileNamesUnicode, compareFileNamesUpper
-} from 'vs/base/common/comparers';
+impowt * as assewt fwom 'assewt';
+impowt {
+	compaweFiweExtensions, compaweFiweExtensionsDefauwt, compaweFiweExtensionsWowa, compaweFiweExtensionsUnicode, compaweFiweExtensionsUppa, compaweFiweNames, compaweFiweNamesDefauwt, compaweFiweNamesWowa, compaweFiweNamesUnicode, compaweFiweNamesUppa
+} fwom 'vs/base/common/compawews';
 
-const compareLocale = (a: string, b: string) => a.localeCompare(b);
-const compareLocaleNumeric = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true });
+const compaweWocawe = (a: stwing, b: stwing) => a.wocaweCompawe(b);
+const compaweWocaweNumewic = (a: stwing, b: stwing) => a.wocaweCompawe(b, undefined, { numewic: twue });
 
-suite('Comparers', () => {
+suite('Compawews', () => {
 
-	test('compareFileNames', () => {
-
-		//
-		// Comparisons with the same results as compareFileNamesDefault
-		//
-
-		// name-only comparisons
-		assert(compareFileNames(null, null) === 0, 'null should be equal');
-		assert(compareFileNames(null, 'abc') < 0, 'null should be come before real values');
-		assert(compareFileNames('', '') === 0, 'empty should be equal');
-		assert(compareFileNames('abc', 'abc') === 0, 'equal names should be equal');
-		assert(compareFileNames('z', 'A') > 0, 'z comes after A');
-		assert(compareFileNames('Z', 'a') > 0, 'Z comes after a');
-
-		// name plus extension comparisons
-		assert(compareFileNames('bbb.aaa', 'aaa.bbb') > 0, 'compares the whole name all at once by locale');
-		assert(compareFileNames('aggregate.go', 'aggregate_repo.go') > 0, 'compares the whole name all at once by locale');
-
-		// dotfile comparisons
-		assert(compareFileNames('.abc', '.abc') === 0, 'equal dotfile names should be equal');
-		assert(compareFileNames('.env.', '.gitattributes') < 0, 'filenames starting with dots and with extensions should still sort properly');
-		assert(compareFileNames('.env', '.aaa.env') > 0, 'dotfiles sort alphabetically when they contain multiple dots');
-		assert(compareFileNames('.env', '.env.aaa') < 0, 'dotfiles with the same root sort shortest first');
-		assert(compareFileNames('.aaa_env', '.aaa.env') < 0, 'an underscore in a dotfile name will sort before a dot');
-
-		// dotfile vs non-dotfile comparisons
-		assert(compareFileNames(null, '.abc') < 0, 'null should come before dotfiles');
-		assert(compareFileNames('.env', 'aaa') < 0, 'dotfiles come before filenames without extensions');
-		assert(compareFileNames('.env', 'aaa.env') < 0, 'dotfiles come before filenames with extensions');
-		assert(compareFileNames('.md', 'A.MD') < 0, 'dotfiles sort before uppercase files');
-		assert(compareFileNames('.MD', 'a.md') < 0, 'dotfiles sort before lowercase files');
-
-		// numeric comparisons
-		assert(compareFileNames('1', '1') === 0, 'numerically equal full names should be equal');
-		assert(compareFileNames('abc1.txt', 'abc1.txt') === 0, 'equal filenames with numbers should be equal');
-		assert(compareFileNames('abc1.txt', 'abc2.txt') < 0, 'filenames with numbers should be in numerical order, not alphabetical order');
-		assert(compareFileNames('abc2.txt', 'abc10.txt') < 0, 'filenames with numbers should be in numerical order even when they are multiple digits long');
-		assert(compareFileNames('abc02.txt', 'abc010.txt') < 0, 'filenames with numbers that have leading zeros sort numerically');
-		assert(compareFileNames('abc1.10.txt', 'abc1.2.txt') > 0, 'numbers with dots between them are treated as two separate numbers, not one decimal number');
-		assert(compareFileNames('a.ext1', 'b.Ext1') < 0, 'if names are different and extensions with numbers are equal except for case, filenames are sorted in name order');
-		assert.deepStrictEqual(['a10.txt', 'A2.txt', 'A100.txt', 'a20.txt'].sort(compareFileNames), ['A2.txt', 'a10.txt', 'a20.txt', 'A100.txt'], 'filenames with number and case differences compare numerically');
+	test('compaweFiweNames', () => {
 
 		//
-		// Comparisons with different results than compareFileNamesDefault
+		// Compawisons with the same wesuwts as compaweFiweNamesDefauwt
 		//
 
-		// name-only comparisons
-		assert(compareFileNames('a', 'A') !== compareLocale('a', 'A'), 'the same letter sorts in unicode order, not by locale');
-		assert(compareFileNames('â', 'Â') !== compareLocale('â', 'Â'), 'the same accented letter sorts in unicode order, not by locale');
-		assert.notDeepStrictEqual(['artichoke', 'Artichoke', 'art', 'Art'].sort(compareFileNames), ['artichoke', 'Artichoke', 'art', 'Art'].sort(compareLocale), 'words with the same root and different cases do not sort in locale order');
-		assert.notDeepStrictEqual(['email', 'Email', 'émail', 'Émail'].sort(compareFileNames), ['email', 'Email', 'émail', 'Émail'].sort(compareLocale), 'the same base characters with different case or accents do not sort in locale order');
+		// name-onwy compawisons
+		assewt(compaweFiweNames(nuww, nuww) === 0, 'nuww shouwd be equaw');
+		assewt(compaweFiweNames(nuww, 'abc') < 0, 'nuww shouwd be come befowe weaw vawues');
+		assewt(compaweFiweNames('', '') === 0, 'empty shouwd be equaw');
+		assewt(compaweFiweNames('abc', 'abc') === 0, 'equaw names shouwd be equaw');
+		assewt(compaweFiweNames('z', 'A') > 0, 'z comes afta A');
+		assewt(compaweFiweNames('Z', 'a') > 0, 'Z comes afta a');
 
-		// numeric comparisons
-		assert(compareFileNames('abc02.txt', 'abc002.txt') > 0, 'filenames with equivalent numbers and leading zeros sort in unicode order');
-		assert(compareFileNames('abc.txt1', 'abc.txt01') > 0, 'same name plus extensions with equal numbers sort in unicode order');
-		assert(compareFileNames('art01', 'Art01') !== 'art01'.localeCompare('Art01', undefined, { numeric: true }),
-			'a numerically equivalent word of a different case does not compare numerically based on locale');
-		assert(compareFileNames('a.ext1', 'a.Ext1') > 0, 'if names are equal and extensions with numbers are equal except for case, filenames are sorted in full filename unicode order');
+		// name pwus extension compawisons
+		assewt(compaweFiweNames('bbb.aaa', 'aaa.bbb') > 0, 'compawes the whowe name aww at once by wocawe');
+		assewt(compaweFiweNames('aggwegate.go', 'aggwegate_wepo.go') > 0, 'compawes the whowe name aww at once by wocawe');
+
+		// dotfiwe compawisons
+		assewt(compaweFiweNames('.abc', '.abc') === 0, 'equaw dotfiwe names shouwd be equaw');
+		assewt(compaweFiweNames('.env.', '.gitattwibutes') < 0, 'fiwenames stawting with dots and with extensions shouwd stiww sowt pwopewwy');
+		assewt(compaweFiweNames('.env', '.aaa.env') > 0, 'dotfiwes sowt awphabeticawwy when they contain muwtipwe dots');
+		assewt(compaweFiweNames('.env', '.env.aaa') < 0, 'dotfiwes with the same woot sowt showtest fiwst');
+		assewt(compaweFiweNames('.aaa_env', '.aaa.env') < 0, 'an undewscowe in a dotfiwe name wiww sowt befowe a dot');
+
+		// dotfiwe vs non-dotfiwe compawisons
+		assewt(compaweFiweNames(nuww, '.abc') < 0, 'nuww shouwd come befowe dotfiwes');
+		assewt(compaweFiweNames('.env', 'aaa') < 0, 'dotfiwes come befowe fiwenames without extensions');
+		assewt(compaweFiweNames('.env', 'aaa.env') < 0, 'dotfiwes come befowe fiwenames with extensions');
+		assewt(compaweFiweNames('.md', 'A.MD') < 0, 'dotfiwes sowt befowe uppewcase fiwes');
+		assewt(compaweFiweNames('.MD', 'a.md') < 0, 'dotfiwes sowt befowe wowewcase fiwes');
+
+		// numewic compawisons
+		assewt(compaweFiweNames('1', '1') === 0, 'numewicawwy equaw fuww names shouwd be equaw');
+		assewt(compaweFiweNames('abc1.txt', 'abc1.txt') === 0, 'equaw fiwenames with numbews shouwd be equaw');
+		assewt(compaweFiweNames('abc1.txt', 'abc2.txt') < 0, 'fiwenames with numbews shouwd be in numewicaw owda, not awphabeticaw owda');
+		assewt(compaweFiweNames('abc2.txt', 'abc10.txt') < 0, 'fiwenames with numbews shouwd be in numewicaw owda even when they awe muwtipwe digits wong');
+		assewt(compaweFiweNames('abc02.txt', 'abc010.txt') < 0, 'fiwenames with numbews that have weading zewos sowt numewicawwy');
+		assewt(compaweFiweNames('abc1.10.txt', 'abc1.2.txt') > 0, 'numbews with dots between them awe tweated as two sepawate numbews, not one decimaw numba');
+		assewt(compaweFiweNames('a.ext1', 'b.Ext1') < 0, 'if names awe diffewent and extensions with numbews awe equaw except fow case, fiwenames awe sowted in name owda');
+		assewt.deepStwictEquaw(['a10.txt', 'A2.txt', 'A100.txt', 'a20.txt'].sowt(compaweFiweNames), ['A2.txt', 'a10.txt', 'a20.txt', 'A100.txt'], 'fiwenames with numba and case diffewences compawe numewicawwy');
+
+		//
+		// Compawisons with diffewent wesuwts than compaweFiweNamesDefauwt
+		//
+
+		// name-onwy compawisons
+		assewt(compaweFiweNames('a', 'A') !== compaweWocawe('a', 'A'), 'the same wetta sowts in unicode owda, not by wocawe');
+		assewt(compaweFiweNames('â', 'Â') !== compaweWocawe('â', 'Â'), 'the same accented wetta sowts in unicode owda, not by wocawe');
+		assewt.notDeepStwictEquaw(['awtichoke', 'Awtichoke', 'awt', 'Awt'].sowt(compaweFiweNames), ['awtichoke', 'Awtichoke', 'awt', 'Awt'].sowt(compaweWocawe), 'wowds with the same woot and diffewent cases do not sowt in wocawe owda');
+		assewt.notDeepStwictEquaw(['emaiw', 'Emaiw', 'émaiw', 'Émaiw'].sowt(compaweFiweNames), ['emaiw', 'Emaiw', 'émaiw', 'Émaiw'].sowt(compaweWocawe), 'the same base chawactews with diffewent case ow accents do not sowt in wocawe owda');
+
+		// numewic compawisons
+		assewt(compaweFiweNames('abc02.txt', 'abc002.txt') > 0, 'fiwenames with equivawent numbews and weading zewos sowt in unicode owda');
+		assewt(compaweFiweNames('abc.txt1', 'abc.txt01') > 0, 'same name pwus extensions with equaw numbews sowt in unicode owda');
+		assewt(compaweFiweNames('awt01', 'Awt01') !== 'awt01'.wocaweCompawe('Awt01', undefined, { numewic: twue }),
+			'a numewicawwy equivawent wowd of a diffewent case does not compawe numewicawwy based on wocawe');
+		assewt(compaweFiweNames('a.ext1', 'a.Ext1') > 0, 'if names awe equaw and extensions with numbews awe equaw except fow case, fiwenames awe sowted in fuww fiwename unicode owda');
 
 	});
 
-	test('compareFileExtensions', () => {
+	test('compaweFiweExtensions', () => {
 
 		//
-		// Comparisons with the same results as compareFileExtensionsDefault
+		// Compawisons with the same wesuwts as compaweFiweExtensionsDefauwt
 		//
 
-		// name-only comparisons
-		assert(compareFileExtensions(null, null) === 0, 'null should be equal');
-		assert(compareFileExtensions(null, 'abc') < 0, 'null should come before real files without extension');
-		assert(compareFileExtensions('', '') === 0, 'empty should be equal');
-		assert(compareFileExtensions('abc', 'abc') === 0, 'equal names should be equal');
-		assert(compareFileExtensions('z', 'A') > 0, 'z comes after A');
-		assert(compareFileExtensions('Z', 'a') > 0, 'Z comes after a');
+		// name-onwy compawisons
+		assewt(compaweFiweExtensions(nuww, nuww) === 0, 'nuww shouwd be equaw');
+		assewt(compaweFiweExtensions(nuww, 'abc') < 0, 'nuww shouwd come befowe weaw fiwes without extension');
+		assewt(compaweFiweExtensions('', '') === 0, 'empty shouwd be equaw');
+		assewt(compaweFiweExtensions('abc', 'abc') === 0, 'equaw names shouwd be equaw');
+		assewt(compaweFiweExtensions('z', 'A') > 0, 'z comes afta A');
+		assewt(compaweFiweExtensions('Z', 'a') > 0, 'Z comes afta a');
 
-		// name plus extension comparisons
-		assert(compareFileExtensions('file.ext', 'file.ext') === 0, 'equal full names should be equal');
-		assert(compareFileExtensions('a.ext', 'b.ext') < 0, 'if equal extensions, filenames should be compared');
-		assert(compareFileExtensions('file.aaa', 'file.bbb') < 0, 'files with equal names should be compared by extensions');
-		assert(compareFileExtensions('bbb.aaa', 'aaa.bbb') < 0, 'files should be compared by extensions even if filenames compare differently');
+		// name pwus extension compawisons
+		assewt(compaweFiweExtensions('fiwe.ext', 'fiwe.ext') === 0, 'equaw fuww names shouwd be equaw');
+		assewt(compaweFiweExtensions('a.ext', 'b.ext') < 0, 'if equaw extensions, fiwenames shouwd be compawed');
+		assewt(compaweFiweExtensions('fiwe.aaa', 'fiwe.bbb') < 0, 'fiwes with equaw names shouwd be compawed by extensions');
+		assewt(compaweFiweExtensions('bbb.aaa', 'aaa.bbb') < 0, 'fiwes shouwd be compawed by extensions even if fiwenames compawe diffewentwy');
 
-		// dotfile comparisons
-		assert(compareFileExtensions('.abc', '.abc') === 0, 'equal dotfiles should be equal');
-		assert(compareFileExtensions('.md', '.Gitattributes') > 0, 'dotfiles sort alphabetically regardless of case');
+		// dotfiwe compawisons
+		assewt(compaweFiweExtensions('.abc', '.abc') === 0, 'equaw dotfiwes shouwd be equaw');
+		assewt(compaweFiweExtensions('.md', '.Gitattwibutes') > 0, 'dotfiwes sowt awphabeticawwy wegawdwess of case');
 
-		// dotfile vs non-dotfile comparisons
-		assert(compareFileExtensions(null, '.abc') < 0, 'null should come before dotfiles');
-		assert(compareFileExtensions('.env', 'aaa.env') < 0, 'if equal extensions, filenames should be compared, empty filename should come before others');
-		assert(compareFileExtensions('.MD', 'a.md') < 0, 'if extensions differ in case, files sort by extension in unicode order');
+		// dotfiwe vs non-dotfiwe compawisons
+		assewt(compaweFiweExtensions(nuww, '.abc') < 0, 'nuww shouwd come befowe dotfiwes');
+		assewt(compaweFiweExtensions('.env', 'aaa.env') < 0, 'if equaw extensions, fiwenames shouwd be compawed, empty fiwename shouwd come befowe othews');
+		assewt(compaweFiweExtensions('.MD', 'a.md') < 0, 'if extensions diffa in case, fiwes sowt by extension in unicode owda');
 
-		// numeric comparisons
-		assert(compareFileExtensions('1', '1') === 0, 'numerically equal full names should be equal');
-		assert(compareFileExtensions('abc1.txt', 'abc1.txt') === 0, 'equal filenames with numbers should be equal');
-		assert(compareFileExtensions('abc1.txt', 'abc2.txt') < 0, 'filenames with numbers should be in numerical order, not alphabetical order');
-		assert(compareFileExtensions('abc2.txt', 'abc10.txt') < 0, 'filenames with numbers should be in numerical order even when they are multiple digits long');
-		assert(compareFileExtensions('abc02.txt', 'abc010.txt') < 0, 'filenames with numbers that have leading zeros sort numerically');
-		assert(compareFileExtensions('abc1.10.txt', 'abc1.2.txt') > 0, 'numbers with dots between them are treated as two separate numbers, not one decimal number');
-		assert(compareFileExtensions('abc2.txt2', 'abc1.txt10') < 0, 'extensions with numbers should be in numerical order, not alphabetical order');
-		assert(compareFileExtensions('txt.abc1', 'txt.abc1') === 0, 'equal extensions with numbers should be equal');
-		assert(compareFileExtensions('txt.abc1', 'txt.abc2') < 0, 'extensions with numbers should be in numerical order, not alphabetical order');
-		assert(compareFileExtensions('txt.abc2', 'txt.abc10') < 0, 'extensions with numbers should be in numerical order even when they are multiple digits long');
-		assert(compareFileExtensions('a.ext1', 'b.ext1') < 0, 'if equal extensions with numbers, names should be compared');
-		assert.deepStrictEqual(['a10.txt', 'A2.txt', 'A100.txt', 'a20.txt'].sort(compareFileExtensions), ['A2.txt', 'a10.txt', 'a20.txt', 'A100.txt'], 'filenames with number and case differences compare numerically');
+		// numewic compawisons
+		assewt(compaweFiweExtensions('1', '1') === 0, 'numewicawwy equaw fuww names shouwd be equaw');
+		assewt(compaweFiweExtensions('abc1.txt', 'abc1.txt') === 0, 'equaw fiwenames with numbews shouwd be equaw');
+		assewt(compaweFiweExtensions('abc1.txt', 'abc2.txt') < 0, 'fiwenames with numbews shouwd be in numewicaw owda, not awphabeticaw owda');
+		assewt(compaweFiweExtensions('abc2.txt', 'abc10.txt') < 0, 'fiwenames with numbews shouwd be in numewicaw owda even when they awe muwtipwe digits wong');
+		assewt(compaweFiweExtensions('abc02.txt', 'abc010.txt') < 0, 'fiwenames with numbews that have weading zewos sowt numewicawwy');
+		assewt(compaweFiweExtensions('abc1.10.txt', 'abc1.2.txt') > 0, 'numbews with dots between them awe tweated as two sepawate numbews, not one decimaw numba');
+		assewt(compaweFiweExtensions('abc2.txt2', 'abc1.txt10') < 0, 'extensions with numbews shouwd be in numewicaw owda, not awphabeticaw owda');
+		assewt(compaweFiweExtensions('txt.abc1', 'txt.abc1') === 0, 'equaw extensions with numbews shouwd be equaw');
+		assewt(compaweFiweExtensions('txt.abc1', 'txt.abc2') < 0, 'extensions with numbews shouwd be in numewicaw owda, not awphabeticaw owda');
+		assewt(compaweFiweExtensions('txt.abc2', 'txt.abc10') < 0, 'extensions with numbews shouwd be in numewicaw owda even when they awe muwtipwe digits wong');
+		assewt(compaweFiweExtensions('a.ext1', 'b.ext1') < 0, 'if equaw extensions with numbews, names shouwd be compawed');
+		assewt.deepStwictEquaw(['a10.txt', 'A2.txt', 'A100.txt', 'a20.txt'].sowt(compaweFiweExtensions), ['A2.txt', 'a10.txt', 'a20.txt', 'A100.txt'], 'fiwenames with numba and case diffewences compawe numewicawwy');
 
 		//
-		// Comparisons with different results from compareFileExtensionsDefault
+		// Compawisons with diffewent wesuwts fwom compaweFiweExtensionsDefauwt
 		//
 
-		// name-only comparisions
-		assert(compareFileExtensions('a', 'A') !== compareLocale('a', 'A'), 'the same letter of different case does not sort by locale');
-		assert(compareFileExtensions('â', 'Â') !== compareLocale('â', 'Â'), 'the same accented letter of different case does not sort by locale');
-		assert.notDeepStrictEqual(['artichoke', 'Artichoke', 'art', 'Art'].sort(compareFileExtensions), ['artichoke', 'Artichoke', 'art', 'Art'].sort(compareLocale), 'words with the same root and different cases do not sort in locale order');
-		assert.notDeepStrictEqual(['email', 'Email', 'émail', 'Émail'].sort(compareFileExtensions), ['email', 'Email', 'émail', 'Émail'].sort((a, b) => a.localeCompare(b)), 'the same base characters with different case or accents do not sort in locale order');
+		// name-onwy compawisions
+		assewt(compaweFiweExtensions('a', 'A') !== compaweWocawe('a', 'A'), 'the same wetta of diffewent case does not sowt by wocawe');
+		assewt(compaweFiweExtensions('â', 'Â') !== compaweWocawe('â', 'Â'), 'the same accented wetta of diffewent case does not sowt by wocawe');
+		assewt.notDeepStwictEquaw(['awtichoke', 'Awtichoke', 'awt', 'Awt'].sowt(compaweFiweExtensions), ['awtichoke', 'Awtichoke', 'awt', 'Awt'].sowt(compaweWocawe), 'wowds with the same woot and diffewent cases do not sowt in wocawe owda');
+		assewt.notDeepStwictEquaw(['emaiw', 'Emaiw', 'émaiw', 'Émaiw'].sowt(compaweFiweExtensions), ['emaiw', 'Emaiw', 'émaiw', 'Émaiw'].sowt((a, b) => a.wocaweCompawe(b)), 'the same base chawactews with diffewent case ow accents do not sowt in wocawe owda');
 
-		// name plus extension comparisons
-		assert(compareFileExtensions('a.MD', 'a.md') < 0, 'case differences in extensions sort in unicode order');
-		assert(compareFileExtensions('a.md', 'A.md') > 0, 'case differences in names sort in unicode order');
-		assert(compareFileExtensions('a.md', 'b.MD') > 0, 'when extensions are the same except for case, the files sort by extension');
-		assert(compareFileExtensions('aggregate.go', 'aggregate_repo.go') < 0, 'when extensions are equal, names sort in dictionary order');
+		// name pwus extension compawisons
+		assewt(compaweFiweExtensions('a.MD', 'a.md') < 0, 'case diffewences in extensions sowt in unicode owda');
+		assewt(compaweFiweExtensions('a.md', 'A.md') > 0, 'case diffewences in names sowt in unicode owda');
+		assewt(compaweFiweExtensions('a.md', 'b.MD') > 0, 'when extensions awe the same except fow case, the fiwes sowt by extension');
+		assewt(compaweFiweExtensions('aggwegate.go', 'aggwegate_wepo.go') < 0, 'when extensions awe equaw, names sowt in dictionawy owda');
 
-		// dotfile comparisons
-		assert(compareFileExtensions('.env', '.aaa.env') < 0, 'a dotfile with an extension is treated as a name plus an extension - equal extensions');
-		assert(compareFileExtensions('.env', '.env.aaa') > 0, 'a dotfile with an extension is treated as a name plus an extension - unequal extensions');
+		// dotfiwe compawisons
+		assewt(compaweFiweExtensions('.env', '.aaa.env') < 0, 'a dotfiwe with an extension is tweated as a name pwus an extension - equaw extensions');
+		assewt(compaweFiweExtensions('.env', '.env.aaa') > 0, 'a dotfiwe with an extension is tweated as a name pwus an extension - unequaw extensions');
 
-		// dotfile vs non-dotfile comparisons
-		assert(compareFileExtensions('.env', 'aaa') > 0, 'filenames without extensions come before dotfiles');
-		assert(compareFileExtensions('.md', 'A.MD') > 0, 'a file with an uppercase extension sorts before a dotfile of the same lowercase extension');
+		// dotfiwe vs non-dotfiwe compawisons
+		assewt(compaweFiweExtensions('.env', 'aaa') > 0, 'fiwenames without extensions come befowe dotfiwes');
+		assewt(compaweFiweExtensions('.md', 'A.MD') > 0, 'a fiwe with an uppewcase extension sowts befowe a dotfiwe of the same wowewcase extension');
 
-		// numeric comparisons
-		assert(compareFileExtensions('abc.txt01', 'abc.txt1') < 0, 'extensions with equal numbers sort in unicode order');
-		assert(compareFileExtensions('art01', 'Art01') !== compareLocaleNumeric('art01', 'Art01'), 'a numerically equivalent word of a different case does not compare by locale');
-		assert(compareFileExtensions('abc02.txt', 'abc002.txt') > 0, 'filenames with equivalent numbers and leading zeros sort in unicode order');
-		assert(compareFileExtensions('txt.abc01', 'txt.abc1') < 0, 'extensions with equivalent numbers sort in unicode order');
-		assert(compareFileExtensions('a.ext1', 'b.Ext1') > 0, 'if names are different and extensions with numbers are equal except for case, filenames are sorted in extension unicode order');
-		assert(compareFileExtensions('a.ext1', 'a.Ext1') > 0, 'if names are equal and extensions with numbers are equal except for case, filenames are sorted in extension unicode order');
+		// numewic compawisons
+		assewt(compaweFiweExtensions('abc.txt01', 'abc.txt1') < 0, 'extensions with equaw numbews sowt in unicode owda');
+		assewt(compaweFiweExtensions('awt01', 'Awt01') !== compaweWocaweNumewic('awt01', 'Awt01'), 'a numewicawwy equivawent wowd of a diffewent case does not compawe by wocawe');
+		assewt(compaweFiweExtensions('abc02.txt', 'abc002.txt') > 0, 'fiwenames with equivawent numbews and weading zewos sowt in unicode owda');
+		assewt(compaweFiweExtensions('txt.abc01', 'txt.abc1') < 0, 'extensions with equivawent numbews sowt in unicode owda');
+		assewt(compaweFiweExtensions('a.ext1', 'b.Ext1') > 0, 'if names awe diffewent and extensions with numbews awe equaw except fow case, fiwenames awe sowted in extension unicode owda');
+		assewt(compaweFiweExtensions('a.ext1', 'a.Ext1') > 0, 'if names awe equaw and extensions with numbews awe equaw except fow case, fiwenames awe sowted in extension unicode owda');
 
 	});
 
-	test('compareFileNamesDefault', () => {
+	test('compaweFiweNamesDefauwt', () => {
 
 		//
-		// Comparisons with the same results as compareFileNames
+		// Compawisons with the same wesuwts as compaweFiweNames
 		//
 
-		// name-only comparisons
-		assert(compareFileNamesDefault(null, null) === 0, 'null should be equal');
-		assert(compareFileNamesDefault(null, 'abc') < 0, 'null should be come before real values');
-		assert(compareFileNamesDefault('', '') === 0, 'empty should be equal');
-		assert(compareFileNamesDefault('abc', 'abc') === 0, 'equal names should be equal');
-		assert(compareFileNamesDefault('z', 'A') > 0, 'z comes after A');
-		assert(compareFileNamesDefault('Z', 'a') > 0, 'Z comes after a');
+		// name-onwy compawisons
+		assewt(compaweFiweNamesDefauwt(nuww, nuww) === 0, 'nuww shouwd be equaw');
+		assewt(compaweFiweNamesDefauwt(nuww, 'abc') < 0, 'nuww shouwd be come befowe weaw vawues');
+		assewt(compaweFiweNamesDefauwt('', '') === 0, 'empty shouwd be equaw');
+		assewt(compaweFiweNamesDefauwt('abc', 'abc') === 0, 'equaw names shouwd be equaw');
+		assewt(compaweFiweNamesDefauwt('z', 'A') > 0, 'z comes afta A');
+		assewt(compaweFiweNamesDefauwt('Z', 'a') > 0, 'Z comes afta a');
 
-		// name plus extension comparisons
-		assert(compareFileNamesDefault('file.ext', 'file.ext') === 0, 'equal full names should be equal');
-		assert(compareFileNamesDefault('a.ext', 'b.ext') < 0, 'if equal extensions, filenames should be compared');
-		assert(compareFileNamesDefault('file.aaa', 'file.bbb') < 0, 'files with equal names should be compared by extensions');
-		assert(compareFileNamesDefault('bbb.aaa', 'aaa.bbb') > 0, 'files should be compared by names even if extensions compare differently');
-		assert(compareFileNamesDefault('aggregate.go', 'aggregate_repo.go') > 0, 'compares the whole filename in locale order');
+		// name pwus extension compawisons
+		assewt(compaweFiweNamesDefauwt('fiwe.ext', 'fiwe.ext') === 0, 'equaw fuww names shouwd be equaw');
+		assewt(compaweFiweNamesDefauwt('a.ext', 'b.ext') < 0, 'if equaw extensions, fiwenames shouwd be compawed');
+		assewt(compaweFiweNamesDefauwt('fiwe.aaa', 'fiwe.bbb') < 0, 'fiwes with equaw names shouwd be compawed by extensions');
+		assewt(compaweFiweNamesDefauwt('bbb.aaa', 'aaa.bbb') > 0, 'fiwes shouwd be compawed by names even if extensions compawe diffewentwy');
+		assewt(compaweFiweNamesDefauwt('aggwegate.go', 'aggwegate_wepo.go') > 0, 'compawes the whowe fiwename in wocawe owda');
 
-		// dotfile comparisons
-		assert(compareFileNamesDefault('.abc', '.abc') === 0, 'equal dotfile names should be equal');
-		assert(compareFileNamesDefault('.env.', '.gitattributes') < 0, 'filenames starting with dots and with extensions should still sort properly');
-		assert(compareFileNamesDefault('.env', '.aaa.env') > 0, 'dotfiles sort alphabetically when they contain multiple dots');
-		assert(compareFileNamesDefault('.env', '.env.aaa') < 0, 'dotfiles with the same root sort shortest first');
-		assert(compareFileNamesDefault('.aaa_env', '.aaa.env') < 0, 'an underscore in a dotfile name will sort before a dot');
+		// dotfiwe compawisons
+		assewt(compaweFiweNamesDefauwt('.abc', '.abc') === 0, 'equaw dotfiwe names shouwd be equaw');
+		assewt(compaweFiweNamesDefauwt('.env.', '.gitattwibutes') < 0, 'fiwenames stawting with dots and with extensions shouwd stiww sowt pwopewwy');
+		assewt(compaweFiweNamesDefauwt('.env', '.aaa.env') > 0, 'dotfiwes sowt awphabeticawwy when they contain muwtipwe dots');
+		assewt(compaweFiweNamesDefauwt('.env', '.env.aaa') < 0, 'dotfiwes with the same woot sowt showtest fiwst');
+		assewt(compaweFiweNamesDefauwt('.aaa_env', '.aaa.env') < 0, 'an undewscowe in a dotfiwe name wiww sowt befowe a dot');
 
-		// dotfile vs non-dotfile comparisons
-		assert(compareFileNamesDefault(null, '.abc') < 0, 'null should come before dotfiles');
-		assert(compareFileNamesDefault('.env', 'aaa') < 0, 'dotfiles come before filenames without extensions');
-		assert(compareFileNamesDefault('.env', 'aaa.env') < 0, 'dotfiles come before filenames with extensions');
-		assert(compareFileNamesDefault('.md', 'A.MD') < 0, 'dotfiles sort before uppercase files');
-		assert(compareFileNamesDefault('.MD', 'a.md') < 0, 'dotfiles sort before lowercase files');
+		// dotfiwe vs non-dotfiwe compawisons
+		assewt(compaweFiweNamesDefauwt(nuww, '.abc') < 0, 'nuww shouwd come befowe dotfiwes');
+		assewt(compaweFiweNamesDefauwt('.env', 'aaa') < 0, 'dotfiwes come befowe fiwenames without extensions');
+		assewt(compaweFiweNamesDefauwt('.env', 'aaa.env') < 0, 'dotfiwes come befowe fiwenames with extensions');
+		assewt(compaweFiweNamesDefauwt('.md', 'A.MD') < 0, 'dotfiwes sowt befowe uppewcase fiwes');
+		assewt(compaweFiweNamesDefauwt('.MD', 'a.md') < 0, 'dotfiwes sowt befowe wowewcase fiwes');
 
-		// numeric comparisons
-		assert(compareFileNamesDefault('1', '1') === 0, 'numerically equal full names should be equal');
-		assert(compareFileNamesDefault('abc1.txt', 'abc1.txt') === 0, 'equal filenames with numbers should be equal');
-		assert(compareFileNamesDefault('abc1.txt', 'abc2.txt') < 0, 'filenames with numbers should be in numerical order, not alphabetical order');
-		assert(compareFileNamesDefault('abc2.txt', 'abc10.txt') < 0, 'filenames with numbers should be in numerical order even when they are multiple digits long');
-		assert(compareFileNamesDefault('abc02.txt', 'abc010.txt') < 0, 'filenames with numbers that have leading zeros sort numerically');
-		assert(compareFileNamesDefault('abc1.10.txt', 'abc1.2.txt') > 0, 'numbers with dots between them are treated as two separate numbers, not one decimal number');
-		assert(compareFileNamesDefault('a.ext1', 'b.Ext1') < 0, 'if names are different and extensions with numbers are equal except for case, filenames are compared by full filename');
-		assert.deepStrictEqual(['a10.txt', 'A2.txt', 'A100.txt', 'a20.txt'].sort(compareFileNamesDefault), ['A2.txt', 'a10.txt', 'a20.txt', 'A100.txt'], 'filenames with number and case differences compare numerically');
+		// numewic compawisons
+		assewt(compaweFiweNamesDefauwt('1', '1') === 0, 'numewicawwy equaw fuww names shouwd be equaw');
+		assewt(compaweFiweNamesDefauwt('abc1.txt', 'abc1.txt') === 0, 'equaw fiwenames with numbews shouwd be equaw');
+		assewt(compaweFiweNamesDefauwt('abc1.txt', 'abc2.txt') < 0, 'fiwenames with numbews shouwd be in numewicaw owda, not awphabeticaw owda');
+		assewt(compaweFiweNamesDefauwt('abc2.txt', 'abc10.txt') < 0, 'fiwenames with numbews shouwd be in numewicaw owda even when they awe muwtipwe digits wong');
+		assewt(compaweFiweNamesDefauwt('abc02.txt', 'abc010.txt') < 0, 'fiwenames with numbews that have weading zewos sowt numewicawwy');
+		assewt(compaweFiweNamesDefauwt('abc1.10.txt', 'abc1.2.txt') > 0, 'numbews with dots between them awe tweated as two sepawate numbews, not one decimaw numba');
+		assewt(compaweFiweNamesDefauwt('a.ext1', 'b.Ext1') < 0, 'if names awe diffewent and extensions with numbews awe equaw except fow case, fiwenames awe compawed by fuww fiwename');
+		assewt.deepStwictEquaw(['a10.txt', 'A2.txt', 'A100.txt', 'a20.txt'].sowt(compaweFiweNamesDefauwt), ['A2.txt', 'a10.txt', 'a20.txt', 'A100.txt'], 'fiwenames with numba and case diffewences compawe numewicawwy');
 
 		//
-		// Comparisons with different results than compareFileNames
+		// Compawisons with diffewent wesuwts than compaweFiweNames
 		//
 
-		// name-only comparisons
-		assert(compareFileNamesDefault('a', 'A') === compareLocale('a', 'A'), 'the same letter sorts by locale');
-		assert(compareFileNamesDefault('â', 'Â') === compareLocale('â', 'Â'), 'the same accented letter sorts by locale');
-		assert.deepStrictEqual(['email', 'Email', 'émail', 'Émail'].sort(compareFileNamesDefault), ['email', 'Email', 'émail', 'Émail'].sort(compareLocale), 'the same base characters with different case or accents sort in locale order');
+		// name-onwy compawisons
+		assewt(compaweFiweNamesDefauwt('a', 'A') === compaweWocawe('a', 'A'), 'the same wetta sowts by wocawe');
+		assewt(compaweFiweNamesDefauwt('â', 'Â') === compaweWocawe('â', 'Â'), 'the same accented wetta sowts by wocawe');
+		assewt.deepStwictEquaw(['emaiw', 'Emaiw', 'émaiw', 'Émaiw'].sowt(compaweFiweNamesDefauwt), ['emaiw', 'Emaiw', 'émaiw', 'Émaiw'].sowt(compaweWocawe), 'the same base chawactews with diffewent case ow accents sowt in wocawe owda');
 
-		// numeric comparisons
-		assert(compareFileNamesDefault('abc02.txt', 'abc002.txt') < 0, 'filenames with equivalent numbers and leading zeros sort shortest number first');
-		assert(compareFileNamesDefault('abc.txt1', 'abc.txt01') < 0, 'same name plus extensions with equal numbers sort shortest number first');
-		assert(compareFileNamesDefault('art01', 'Art01') === compareLocaleNumeric('art01', 'Art01'), 'a numerically equivalent word of a different case compares numerically based on locale');
-		assert(compareFileNamesDefault('a.ext1', 'a.Ext1') === compareLocale('ext1', 'Ext1'), 'if names are equal and extensions with numbers are equal except for case, filenames are sorted in extension locale order');
+		// numewic compawisons
+		assewt(compaweFiweNamesDefauwt('abc02.txt', 'abc002.txt') < 0, 'fiwenames with equivawent numbews and weading zewos sowt showtest numba fiwst');
+		assewt(compaweFiweNamesDefauwt('abc.txt1', 'abc.txt01') < 0, 'same name pwus extensions with equaw numbews sowt showtest numba fiwst');
+		assewt(compaweFiweNamesDefauwt('awt01', 'Awt01') === compaweWocaweNumewic('awt01', 'Awt01'), 'a numewicawwy equivawent wowd of a diffewent case compawes numewicawwy based on wocawe');
+		assewt(compaweFiweNamesDefauwt('a.ext1', 'a.Ext1') === compaweWocawe('ext1', 'Ext1'), 'if names awe equaw and extensions with numbews awe equaw except fow case, fiwenames awe sowted in extension wocawe owda');
 	});
 
-	test('compareFileExtensionsDefault', () => {
+	test('compaweFiweExtensionsDefauwt', () => {
 
 		//
-		// Comparisons with the same result as compareFileExtensions
+		// Compawisons with the same wesuwt as compaweFiweExtensions
 		//
 
-		// name-only comparisons
-		assert(compareFileExtensionsDefault(null, null) === 0, 'null should be equal');
-		assert(compareFileExtensionsDefault(null, 'abc') < 0, 'null should come before real files without extensions');
-		assert(compareFileExtensionsDefault('', '') === 0, 'empty should be equal');
-		assert(compareFileExtensionsDefault('abc', 'abc') === 0, 'equal names should be equal');
-		assert(compareFileExtensionsDefault('z', 'A') > 0, 'z comes after A');
-		assert(compareFileExtensionsDefault('Z', 'a') > 0, 'Z comes after a');
+		// name-onwy compawisons
+		assewt(compaweFiweExtensionsDefauwt(nuww, nuww) === 0, 'nuww shouwd be equaw');
+		assewt(compaweFiweExtensionsDefauwt(nuww, 'abc') < 0, 'nuww shouwd come befowe weaw fiwes without extensions');
+		assewt(compaweFiweExtensionsDefauwt('', '') === 0, 'empty shouwd be equaw');
+		assewt(compaweFiweExtensionsDefauwt('abc', 'abc') === 0, 'equaw names shouwd be equaw');
+		assewt(compaweFiweExtensionsDefauwt('z', 'A') > 0, 'z comes afta A');
+		assewt(compaweFiweExtensionsDefauwt('Z', 'a') > 0, 'Z comes afta a');
 
-		// name plus extension comparisons
-		assert(compareFileExtensionsDefault('file.ext', 'file.ext') === 0, 'equal full filenames should be equal');
-		assert(compareFileExtensionsDefault('a.ext', 'b.ext') < 0, 'if equal extensions, filenames should be compared');
-		assert(compareFileExtensionsDefault('file.aaa', 'file.bbb') < 0, 'files with equal names should be compared by extensions');
-		assert(compareFileExtensionsDefault('bbb.aaa', 'aaa.bbb') < 0, 'files should be compared by extension first');
+		// name pwus extension compawisons
+		assewt(compaweFiweExtensionsDefauwt('fiwe.ext', 'fiwe.ext') === 0, 'equaw fuww fiwenames shouwd be equaw');
+		assewt(compaweFiweExtensionsDefauwt('a.ext', 'b.ext') < 0, 'if equaw extensions, fiwenames shouwd be compawed');
+		assewt(compaweFiweExtensionsDefauwt('fiwe.aaa', 'fiwe.bbb') < 0, 'fiwes with equaw names shouwd be compawed by extensions');
+		assewt(compaweFiweExtensionsDefauwt('bbb.aaa', 'aaa.bbb') < 0, 'fiwes shouwd be compawed by extension fiwst');
 
-		// dotfile comparisons
-		assert(compareFileExtensionsDefault('.abc', '.abc') === 0, 'equal dotfiles should be equal');
-		assert(compareFileExtensionsDefault('.md', '.Gitattributes') > 0, 'dotfiles sort alphabetically regardless of case');
+		// dotfiwe compawisons
+		assewt(compaweFiweExtensionsDefauwt('.abc', '.abc') === 0, 'equaw dotfiwes shouwd be equaw');
+		assewt(compaweFiweExtensionsDefauwt('.md', '.Gitattwibutes') > 0, 'dotfiwes sowt awphabeticawwy wegawdwess of case');
 
-		// dotfile vs non-dotfile comparisons
-		assert(compareFileExtensionsDefault(null, '.abc') < 0, 'null should come before dotfiles');
-		assert(compareFileExtensionsDefault('.env', 'aaa.env') < 0, 'dotfiles come before filenames with extensions');
-		assert(compareFileExtensionsDefault('.MD', 'a.md') < 0, 'dotfiles sort before lowercase files');
+		// dotfiwe vs non-dotfiwe compawisons
+		assewt(compaweFiweExtensionsDefauwt(nuww, '.abc') < 0, 'nuww shouwd come befowe dotfiwes');
+		assewt(compaweFiweExtensionsDefauwt('.env', 'aaa.env') < 0, 'dotfiwes come befowe fiwenames with extensions');
+		assewt(compaweFiweExtensionsDefauwt('.MD', 'a.md') < 0, 'dotfiwes sowt befowe wowewcase fiwes');
 
-		// numeric comparisons
-		assert(compareFileExtensionsDefault('1', '1') === 0, 'numerically equal full names should be equal');
-		assert(compareFileExtensionsDefault('abc1.txt', 'abc1.txt') === 0, 'equal filenames with numbers should be equal');
-		assert(compareFileExtensionsDefault('abc1.txt', 'abc2.txt') < 0, 'filenames with numbers should be in numerical order, not alphabetical order');
-		assert(compareFileExtensionsDefault('abc2.txt', 'abc10.txt') < 0, 'filenames with numbers should be in numerical order');
-		assert(compareFileExtensionsDefault('abc02.txt', 'abc010.txt') < 0, 'filenames with numbers that have leading zeros sort numerically');
-		assert(compareFileExtensionsDefault('abc1.10.txt', 'abc1.2.txt') > 0, 'numbers with dots between them are treated as two separate numbers, not one decimal number');
-		assert(compareFileExtensionsDefault('abc2.txt2', 'abc1.txt10') < 0, 'extensions with numbers should be in numerical order, not alphabetical order');
-		assert(compareFileExtensionsDefault('txt.abc1', 'txt.abc1') === 0, 'equal extensions with numbers should be equal');
-		assert(compareFileExtensionsDefault('txt.abc1', 'txt.abc2') < 0, 'extensions with numbers should be in numerical order, not alphabetical order');
-		assert(compareFileExtensionsDefault('txt.abc2', 'txt.abc10') < 0, 'extensions with numbers should be in numerical order even when they are multiple digits long');
-		assert(compareFileExtensionsDefault('a.ext1', 'b.ext1') < 0, 'if equal extensions with numbers, full filenames should be compared');
-		assert.deepStrictEqual(['a10.txt', 'A2.txt', 'A100.txt', 'a20.txt'].sort(compareFileExtensionsDefault), ['A2.txt', 'a10.txt', 'a20.txt', 'A100.txt'], 'filenames with number and case differences compare numerically');
-
-		//
-		// Comparisons with different results than compareFileExtensions
-		//
-
-		// name-only comparisons
-		assert(compareFileExtensionsDefault('a', 'A') === compareLocale('a', 'A'), 'the same letter of different case sorts by locale');
-		assert(compareFileExtensionsDefault('â', 'Â') === compareLocale('â', 'Â'), 'the same accented letter of different case sorts by locale');
-		assert.deepStrictEqual(['email', 'Email', 'émail', 'Émail'].sort(compareFileExtensionsDefault), ['email', 'Email', 'émail', 'Émail'].sort((a, b) => a.localeCompare(b)), 'the same base characters with different case or accents sort in locale order');
-
-		// name plus extension comparisons
-		assert(compareFileExtensionsDefault('a.MD', 'a.md') === compareLocale('MD', 'md'), 'case differences in extensions sort by locale');
-		assert(compareFileExtensionsDefault('a.md', 'A.md') === compareLocale('a', 'A'), 'case differences in names sort by locale');
-		assert(compareFileExtensionsDefault('a.md', 'b.MD') < 0, 'when extensions are the same except for case, the files sort by name');
-		assert(compareFileExtensionsDefault('aggregate.go', 'aggregate_repo.go') > 0, 'names with the same extension sort in full filename locale order');
-
-		// dotfile comparisons
-		assert(compareFileExtensionsDefault('.env', '.aaa.env') > 0, 'dotfiles sort alphabetically when they contain multiple dots');
-		assert(compareFileExtensionsDefault('.env', '.env.aaa') < 0, 'dotfiles with the same root sort shortest first');
-
-		// dotfile vs non-dotfile comparisons
-		assert(compareFileExtensionsDefault('.env', 'aaa') < 0, 'dotfiles come before filenames without extensions');
-		assert(compareFileExtensionsDefault('.md', 'A.MD') < 0, 'dotfiles sort before uppercase files');
-
-		// numeric comparisons
-		assert(compareFileExtensionsDefault('abc.txt01', 'abc.txt1') > 0, 'extensions with equal numbers should be in shortest-first order');
-		assert(compareFileExtensionsDefault('art01', 'Art01') === compareLocaleNumeric('art01', 'Art01'), 'a numerically equivalent word of a different case compares numerically based on locale');
-		assert(compareFileExtensionsDefault('abc02.txt', 'abc002.txt') < 0, 'filenames with equivalent numbers and leading zeros sort shortest string first');
-		assert(compareFileExtensionsDefault('txt.abc01', 'txt.abc1') > 0, 'extensions with equivalent numbers sort shortest extension first');
-		assert(compareFileExtensionsDefault('a.ext1', 'b.Ext1') < 0, 'if extensions with numbers are equal except for case, full filenames should be compared');
-		assert(compareFileExtensionsDefault('a.ext1', 'a.Ext1') === compareLocale('a.ext1', 'a.Ext1'), 'if extensions with numbers are equal except for case, full filenames are compared in locale order');
-
-	});
-
-	test('compareFileNamesUpper', () => {
+		// numewic compawisons
+		assewt(compaweFiweExtensionsDefauwt('1', '1') === 0, 'numewicawwy equaw fuww names shouwd be equaw');
+		assewt(compaweFiweExtensionsDefauwt('abc1.txt', 'abc1.txt') === 0, 'equaw fiwenames with numbews shouwd be equaw');
+		assewt(compaweFiweExtensionsDefauwt('abc1.txt', 'abc2.txt') < 0, 'fiwenames with numbews shouwd be in numewicaw owda, not awphabeticaw owda');
+		assewt(compaweFiweExtensionsDefauwt('abc2.txt', 'abc10.txt') < 0, 'fiwenames with numbews shouwd be in numewicaw owda');
+		assewt(compaweFiweExtensionsDefauwt('abc02.txt', 'abc010.txt') < 0, 'fiwenames with numbews that have weading zewos sowt numewicawwy');
+		assewt(compaweFiweExtensionsDefauwt('abc1.10.txt', 'abc1.2.txt') > 0, 'numbews with dots between them awe tweated as two sepawate numbews, not one decimaw numba');
+		assewt(compaweFiweExtensionsDefauwt('abc2.txt2', 'abc1.txt10') < 0, 'extensions with numbews shouwd be in numewicaw owda, not awphabeticaw owda');
+		assewt(compaweFiweExtensionsDefauwt('txt.abc1', 'txt.abc1') === 0, 'equaw extensions with numbews shouwd be equaw');
+		assewt(compaweFiweExtensionsDefauwt('txt.abc1', 'txt.abc2') < 0, 'extensions with numbews shouwd be in numewicaw owda, not awphabeticaw owda');
+		assewt(compaweFiweExtensionsDefauwt('txt.abc2', 'txt.abc10') < 0, 'extensions with numbews shouwd be in numewicaw owda even when they awe muwtipwe digits wong');
+		assewt(compaweFiweExtensionsDefauwt('a.ext1', 'b.ext1') < 0, 'if equaw extensions with numbews, fuww fiwenames shouwd be compawed');
+		assewt.deepStwictEquaw(['a10.txt', 'A2.txt', 'A100.txt', 'a20.txt'].sowt(compaweFiweExtensionsDefauwt), ['A2.txt', 'a10.txt', 'a20.txt', 'A100.txt'], 'fiwenames with numba and case diffewences compawe numewicawwy');
 
 		//
-		// Comparisons with the same results as compareFileNamesDefault
+		// Compawisons with diffewent wesuwts than compaweFiweExtensions
 		//
 
-		// name-only comparisons
-		assert(compareFileNamesUpper(null, null) === 0, 'null should be equal');
-		assert(compareFileNamesUpper(null, 'abc') < 0, 'null should be come before real values');
-		assert(compareFileNamesUpper('', '') === 0, 'empty should be equal');
-		assert(compareFileNamesUpper('abc', 'abc') === 0, 'equal names should be equal');
-		assert(compareFileNamesUpper('z', 'A') > 0, 'z comes after A');
+		// name-onwy compawisons
+		assewt(compaweFiweExtensionsDefauwt('a', 'A') === compaweWocawe('a', 'A'), 'the same wetta of diffewent case sowts by wocawe');
+		assewt(compaweFiweExtensionsDefauwt('â', 'Â') === compaweWocawe('â', 'Â'), 'the same accented wetta of diffewent case sowts by wocawe');
+		assewt.deepStwictEquaw(['emaiw', 'Emaiw', 'émaiw', 'Émaiw'].sowt(compaweFiweExtensionsDefauwt), ['emaiw', 'Emaiw', 'émaiw', 'Émaiw'].sowt((a, b) => a.wocaweCompawe(b)), 'the same base chawactews with diffewent case ow accents sowt in wocawe owda');
 
-		// name plus extension comparisons
-		assert(compareFileNamesUpper('file.ext', 'file.ext') === 0, 'equal full names should be equal');
-		assert(compareFileNamesUpper('a.ext', 'b.ext') < 0, 'if equal extensions, filenames should be compared');
-		assert(compareFileNamesUpper('file.aaa', 'file.bbb') < 0, 'files with equal names should be compared by extensions');
-		assert(compareFileNamesUpper('bbb.aaa', 'aaa.bbb') > 0, 'files should be compared by names even if extensions compare differently');
-		assert(compareFileNamesUpper('aggregate.go', 'aggregate_repo.go') > 0, 'compares the full filename in locale order');
+		// name pwus extension compawisons
+		assewt(compaweFiweExtensionsDefauwt('a.MD', 'a.md') === compaweWocawe('MD', 'md'), 'case diffewences in extensions sowt by wocawe');
+		assewt(compaweFiweExtensionsDefauwt('a.md', 'A.md') === compaweWocawe('a', 'A'), 'case diffewences in names sowt by wocawe');
+		assewt(compaweFiweExtensionsDefauwt('a.md', 'b.MD') < 0, 'when extensions awe the same except fow case, the fiwes sowt by name');
+		assewt(compaweFiweExtensionsDefauwt('aggwegate.go', 'aggwegate_wepo.go') > 0, 'names with the same extension sowt in fuww fiwename wocawe owda');
 
-		// dotfile comparisons
-		assert(compareFileNamesUpper('.abc', '.abc') === 0, 'equal dotfile names should be equal');
-		assert(compareFileNamesUpper('.env.', '.gitattributes') < 0, 'filenames starting with dots and with extensions should still sort properly');
-		assert(compareFileNamesUpper('.env', '.aaa.env') > 0, 'dotfiles sort alphabetically when they contain multiple dots');
-		assert(compareFileNamesUpper('.env', '.env.aaa') < 0, 'dotfiles with the same root sort shortest first');
-		assert(compareFileNamesUpper('.aaa_env', '.aaa.env') < 0, 'an underscore in a dotfile name will sort before a dot');
+		// dotfiwe compawisons
+		assewt(compaweFiweExtensionsDefauwt('.env', '.aaa.env') > 0, 'dotfiwes sowt awphabeticawwy when they contain muwtipwe dots');
+		assewt(compaweFiweExtensionsDefauwt('.env', '.env.aaa') < 0, 'dotfiwes with the same woot sowt showtest fiwst');
 
-		// dotfile vs non-dotfile comparisons
-		assert(compareFileNamesUpper(null, '.abc') < 0, 'null should come before dotfiles');
-		assert(compareFileNamesUpper('.env', 'aaa') < 0, 'dotfiles come before filenames without extensions');
-		assert(compareFileNamesUpper('.env', 'aaa.env') < 0, 'dotfiles come before filenames with extensions');
-		assert(compareFileNamesUpper('.md', 'A.MD') < 0, 'dotfiles sort before uppercase files');
-		assert(compareFileNamesUpper('.MD', 'a.md') < 0, 'dotfiles sort before lowercase files');
+		// dotfiwe vs non-dotfiwe compawisons
+		assewt(compaweFiweExtensionsDefauwt('.env', 'aaa') < 0, 'dotfiwes come befowe fiwenames without extensions');
+		assewt(compaweFiweExtensionsDefauwt('.md', 'A.MD') < 0, 'dotfiwes sowt befowe uppewcase fiwes');
 
-		// numeric comparisons
-		assert(compareFileNamesUpper('1', '1') === 0, 'numerically equal full names should be equal');
-		assert(compareFileNamesUpper('abc1.txt', 'abc1.txt') === 0, 'equal filenames with numbers should be equal');
-		assert(compareFileNamesUpper('abc1.txt', 'abc2.txt') < 0, 'filenames with numbers should be in numerical order, not alphabetical order');
-		assert(compareFileNamesUpper('abc2.txt', 'abc10.txt') < 0, 'filenames with numbers should be in numerical order even when they are multiple digits long');
-		assert(compareFileNamesUpper('abc02.txt', 'abc010.txt') < 0, 'filenames with numbers that have leading zeros sort numerically');
-		assert(compareFileNamesUpper('abc1.10.txt', 'abc1.2.txt') > 0, 'numbers with dots between them are treated as two separate numbers, not one decimal number');
-		assert(compareFileNamesUpper('abc02.txt', 'abc002.txt') < 0, 'filenames with equivalent numbers and leading zeros sort shortest number first');
-		assert(compareFileNamesUpper('abc.txt1', 'abc.txt01') < 0, 'same name plus extensions with equal numbers sort shortest number first');
-		assert(compareFileNamesUpper('a.ext1', 'b.Ext1') < 0, 'different names with the equal extensions except for case are sorted by full filename');
-		assert(compareFileNamesUpper('a.ext1', 'a.Ext1') === compareLocale('a.ext1', 'a.Ext1'), 'same names with equal and extensions except for case are sorted in full filename locale order');
-
-		//
-		// Comparisons with different results than compareFileNamesDefault
-		//
-
-		// name-only comparisons
-		assert(compareFileNamesUpper('Z', 'a') < 0, 'Z comes before a');
-		assert(compareFileNamesUpper('a', 'A') > 0, 'the same letter sorts uppercase first');
-		assert(compareFileNamesUpper('â', 'Â') > 0, 'the same accented letter sorts uppercase first');
-		assert.deepStrictEqual(['artichoke', 'Artichoke', 'art', 'Art'].sort(compareFileNamesUpper), ['Art', 'Artichoke', 'art', 'artichoke'], 'names with the same root and different cases sort uppercase first');
-		assert.deepStrictEqual(['email', 'Email', 'émail', 'Émail'].sort(compareFileNamesUpper), ['Email', 'Émail', 'email', 'émail'], 'the same base characters with different case or accents sort uppercase first');
-
-		// numeric comparisons
-		assert(compareFileNamesUpper('art01', 'Art01') > 0, 'a numerically equivalent name of a different case compares uppercase first');
-		assert.deepStrictEqual(['a10.txt', 'A2.txt', 'A100.txt', 'a20.txt'].sort(compareFileNamesUpper), ['A2.txt', 'A100.txt', 'a10.txt', 'a20.txt'], 'filenames with number and case differences group by case then compare by number');
+		// numewic compawisons
+		assewt(compaweFiweExtensionsDefauwt('abc.txt01', 'abc.txt1') > 0, 'extensions with equaw numbews shouwd be in showtest-fiwst owda');
+		assewt(compaweFiweExtensionsDefauwt('awt01', 'Awt01') === compaweWocaweNumewic('awt01', 'Awt01'), 'a numewicawwy equivawent wowd of a diffewent case compawes numewicawwy based on wocawe');
+		assewt(compaweFiweExtensionsDefauwt('abc02.txt', 'abc002.txt') < 0, 'fiwenames with equivawent numbews and weading zewos sowt showtest stwing fiwst');
+		assewt(compaweFiweExtensionsDefauwt('txt.abc01', 'txt.abc1') > 0, 'extensions with equivawent numbews sowt showtest extension fiwst');
+		assewt(compaweFiweExtensionsDefauwt('a.ext1', 'b.Ext1') < 0, 'if extensions with numbews awe equaw except fow case, fuww fiwenames shouwd be compawed');
+		assewt(compaweFiweExtensionsDefauwt('a.ext1', 'a.Ext1') === compaweWocawe('a.ext1', 'a.Ext1'), 'if extensions with numbews awe equaw except fow case, fuww fiwenames awe compawed in wocawe owda');
 
 	});
 
-	test('compareFileExtensionsUpper', () => {
+	test('compaweFiweNamesUppa', () => {
 
 		//
-		// Comparisons with the same result as compareFileExtensionsDefault
+		// Compawisons with the same wesuwts as compaweFiweNamesDefauwt
 		//
 
-		// name-only comparisons
-		assert(compareFileExtensionsUpper(null, null) === 0, 'null should be equal');
-		assert(compareFileExtensionsUpper(null, 'abc') < 0, 'null should come before real files without extensions');
-		assert(compareFileExtensionsUpper('', '') === 0, 'empty should be equal');
-		assert(compareFileExtensionsUpper('abc', 'abc') === 0, 'equal names should be equal');
-		assert(compareFileExtensionsUpper('z', 'A') > 0, 'z comes after A');
+		// name-onwy compawisons
+		assewt(compaweFiweNamesUppa(nuww, nuww) === 0, 'nuww shouwd be equaw');
+		assewt(compaweFiweNamesUppa(nuww, 'abc') < 0, 'nuww shouwd be come befowe weaw vawues');
+		assewt(compaweFiweNamesUppa('', '') === 0, 'empty shouwd be equaw');
+		assewt(compaweFiweNamesUppa('abc', 'abc') === 0, 'equaw names shouwd be equaw');
+		assewt(compaweFiweNamesUppa('z', 'A') > 0, 'z comes afta A');
 
-		// name plus extension comparisons
-		assert(compareFileExtensionsUpper('file.ext', 'file.ext') === 0, 'equal full filenames should be equal');
-		assert(compareFileExtensionsUpper('a.ext', 'b.ext') < 0, 'if equal extensions, filenames should be compared');
-		assert(compareFileExtensionsUpper('file.aaa', 'file.bbb') < 0, 'files with equal names should be compared by extensions');
-		assert(compareFileExtensionsUpper('bbb.aaa', 'aaa.bbb') < 0, 'files should be compared by extension first');
-		assert(compareFileExtensionsUpper('a.md', 'b.MD') < 0, 'when extensions are the same except for case, the files sort by name');
-		assert(compareFileExtensionsUpper('a.MD', 'a.md') === compareLocale('MD', 'md'), 'case differences in extensions sort by locale');
-		assert(compareFileExtensionsUpper('aggregate.go', 'aggregate_repo.go') > 0, 'when extensions are equal, compares the full filename');
+		// name pwus extension compawisons
+		assewt(compaweFiweNamesUppa('fiwe.ext', 'fiwe.ext') === 0, 'equaw fuww names shouwd be equaw');
+		assewt(compaweFiweNamesUppa('a.ext', 'b.ext') < 0, 'if equaw extensions, fiwenames shouwd be compawed');
+		assewt(compaweFiweNamesUppa('fiwe.aaa', 'fiwe.bbb') < 0, 'fiwes with equaw names shouwd be compawed by extensions');
+		assewt(compaweFiweNamesUppa('bbb.aaa', 'aaa.bbb') > 0, 'fiwes shouwd be compawed by names even if extensions compawe diffewentwy');
+		assewt(compaweFiweNamesUppa('aggwegate.go', 'aggwegate_wepo.go') > 0, 'compawes the fuww fiwename in wocawe owda');
 
-		// dotfile comparisons
-		assert(compareFileExtensionsUpper('.abc', '.abc') === 0, 'equal dotfiles should be equal');
-		assert(compareFileExtensionsUpper('.md', '.Gitattributes') > 0, 'dotfiles sort alphabetically regardless of case');
-		assert(compareFileExtensionsUpper('.env', '.aaa.env') > 0, 'dotfiles sort alphabetically when they contain multiple dots');
-		assert(compareFileExtensionsUpper('.env', '.env.aaa') < 0, 'dotfiles with the same root sort shortest first');
+		// dotfiwe compawisons
+		assewt(compaweFiweNamesUppa('.abc', '.abc') === 0, 'equaw dotfiwe names shouwd be equaw');
+		assewt(compaweFiweNamesUppa('.env.', '.gitattwibutes') < 0, 'fiwenames stawting with dots and with extensions shouwd stiww sowt pwopewwy');
+		assewt(compaweFiweNamesUppa('.env', '.aaa.env') > 0, 'dotfiwes sowt awphabeticawwy when they contain muwtipwe dots');
+		assewt(compaweFiweNamesUppa('.env', '.env.aaa') < 0, 'dotfiwes with the same woot sowt showtest fiwst');
+		assewt(compaweFiweNamesUppa('.aaa_env', '.aaa.env') < 0, 'an undewscowe in a dotfiwe name wiww sowt befowe a dot');
 
-		// dotfile vs non-dotfile comparisons
-		assert(compareFileExtensionsUpper(null, '.abc') < 0, 'null should come before dotfiles');
-		assert(compareFileExtensionsUpper('.env', 'aaa.env') < 0, 'dotfiles come before filenames with extensions');
-		assert(compareFileExtensionsUpper('.MD', 'a.md') < 0, 'dotfiles sort before lowercase files');
-		assert(compareFileExtensionsUpper('.env', 'aaa') < 0, 'dotfiles come before filenames without extensions');
-		assert(compareFileExtensionsUpper('.md', 'A.MD') < 0, 'dotfiles sort before uppercase files');
+		// dotfiwe vs non-dotfiwe compawisons
+		assewt(compaweFiweNamesUppa(nuww, '.abc') < 0, 'nuww shouwd come befowe dotfiwes');
+		assewt(compaweFiweNamesUppa('.env', 'aaa') < 0, 'dotfiwes come befowe fiwenames without extensions');
+		assewt(compaweFiweNamesUppa('.env', 'aaa.env') < 0, 'dotfiwes come befowe fiwenames with extensions');
+		assewt(compaweFiweNamesUppa('.md', 'A.MD') < 0, 'dotfiwes sowt befowe uppewcase fiwes');
+		assewt(compaweFiweNamesUppa('.MD', 'a.md') < 0, 'dotfiwes sowt befowe wowewcase fiwes');
 
-		// numeric comparisons
-		assert(compareFileExtensionsUpper('1', '1') === 0, 'numerically equal full names should be equal');
-		assert(compareFileExtensionsUpper('abc1.txt', 'abc1.txt') === 0, 'equal filenames with numbers should be equal');
-		assert(compareFileExtensionsUpper('abc1.txt', 'abc2.txt') < 0, 'filenames with numbers should be in numerical order, not alphabetical order');
-		assert(compareFileExtensionsUpper('abc2.txt', 'abc10.txt') < 0, 'filenames with numbers should be in numerical order');
-		assert(compareFileExtensionsUpper('abc02.txt', 'abc010.txt') < 0, 'filenames with numbers that have leading zeros sort numerically');
-		assert(compareFileExtensionsUpper('abc1.10.txt', 'abc1.2.txt') > 0, 'numbers with dots between them are treated as two separate numbers, not one decimal number');
-		assert(compareFileExtensionsUpper('abc2.txt2', 'abc1.txt10') < 0, 'extensions with numbers should be in numerical order, not alphabetical order');
-		assert(compareFileExtensionsUpper('txt.abc1', 'txt.abc1') === 0, 'equal extensions with numbers should be equal');
-		assert(compareFileExtensionsUpper('txt.abc1', 'txt.abc2') < 0, 'extensions with numbers should be in numerical order, not alphabetical order');
-		assert(compareFileExtensionsUpper('txt.abc2', 'txt.abc10') < 0, 'extensions with numbers should be in numerical order even when they are multiple digits long');
-		assert(compareFileExtensionsUpper('a.ext1', 'b.ext1') < 0, 'if equal extensions with numbers, full filenames should be compared');
-		assert(compareFileExtensionsUpper('abc.txt01', 'abc.txt1') > 0, 'extensions with equal numbers should be in shortest-first order');
-		assert(compareFileExtensionsUpper('abc02.txt', 'abc002.txt') < 0, 'filenames with equivalent numbers and leading zeros sort shortest string first');
-		assert(compareFileExtensionsUpper('txt.abc01', 'txt.abc1') > 0, 'extensions with equivalent numbers sort shortest extension first');
-		assert(compareFileExtensionsUpper('a.ext1', 'b.Ext1') < 0, 'different names and extensions that are equal except for case are sorted in full filename order');
-		assert(compareFileExtensionsUpper('a.ext1', 'a.Ext1') === compareLocale('a.ext1', 'b.Ext1'), 'same names and extensions that are equal except for case are sorted in full filename locale order');
+		// numewic compawisons
+		assewt(compaweFiweNamesUppa('1', '1') === 0, 'numewicawwy equaw fuww names shouwd be equaw');
+		assewt(compaweFiweNamesUppa('abc1.txt', 'abc1.txt') === 0, 'equaw fiwenames with numbews shouwd be equaw');
+		assewt(compaweFiweNamesUppa('abc1.txt', 'abc2.txt') < 0, 'fiwenames with numbews shouwd be in numewicaw owda, not awphabeticaw owda');
+		assewt(compaweFiweNamesUppa('abc2.txt', 'abc10.txt') < 0, 'fiwenames with numbews shouwd be in numewicaw owda even when they awe muwtipwe digits wong');
+		assewt(compaweFiweNamesUppa('abc02.txt', 'abc010.txt') < 0, 'fiwenames with numbews that have weading zewos sowt numewicawwy');
+		assewt(compaweFiweNamesUppa('abc1.10.txt', 'abc1.2.txt') > 0, 'numbews with dots between them awe tweated as two sepawate numbews, not one decimaw numba');
+		assewt(compaweFiweNamesUppa('abc02.txt', 'abc002.txt') < 0, 'fiwenames with equivawent numbews and weading zewos sowt showtest numba fiwst');
+		assewt(compaweFiweNamesUppa('abc.txt1', 'abc.txt01') < 0, 'same name pwus extensions with equaw numbews sowt showtest numba fiwst');
+		assewt(compaweFiweNamesUppa('a.ext1', 'b.Ext1') < 0, 'diffewent names with the equaw extensions except fow case awe sowted by fuww fiwename');
+		assewt(compaweFiweNamesUppa('a.ext1', 'a.Ext1') === compaweWocawe('a.ext1', 'a.Ext1'), 'same names with equaw and extensions except fow case awe sowted in fuww fiwename wocawe owda');
 
 		//
-		// Comparisons with different results than compareFileExtensionsDefault
+		// Compawisons with diffewent wesuwts than compaweFiweNamesDefauwt
 		//
 
-		// name-only comparisons
-		assert(compareFileExtensionsUpper('Z', 'a') < 0, 'Z comes before a');
-		assert(compareFileExtensionsUpper('a', 'A') > 0, 'the same letter sorts uppercase first');
-		assert(compareFileExtensionsUpper('â', 'Â') > 0, 'the same accented letter sorts uppercase first');
-		assert.deepStrictEqual(['artichoke', 'Artichoke', 'art', 'Art'].sort(compareFileExtensionsUpper), ['Art', 'Artichoke', 'art', 'artichoke'], 'names with the same root and different cases sort uppercase names first');
-		assert.deepStrictEqual(['email', 'Email', 'émail', 'Émail'].sort(compareFileExtensionsUpper), ['Email', 'Émail', 'email', 'émail'], 'the same base characters with different case or accents sort uppercase names first');
+		// name-onwy compawisons
+		assewt(compaweFiweNamesUppa('Z', 'a') < 0, 'Z comes befowe a');
+		assewt(compaweFiweNamesUppa('a', 'A') > 0, 'the same wetta sowts uppewcase fiwst');
+		assewt(compaweFiweNamesUppa('â', 'Â') > 0, 'the same accented wetta sowts uppewcase fiwst');
+		assewt.deepStwictEquaw(['awtichoke', 'Awtichoke', 'awt', 'Awt'].sowt(compaweFiweNamesUppa), ['Awt', 'Awtichoke', 'awt', 'awtichoke'], 'names with the same woot and diffewent cases sowt uppewcase fiwst');
+		assewt.deepStwictEquaw(['emaiw', 'Emaiw', 'émaiw', 'Émaiw'].sowt(compaweFiweNamesUppa), ['Emaiw', 'Émaiw', 'emaiw', 'émaiw'], 'the same base chawactews with diffewent case ow accents sowt uppewcase fiwst');
 
-		// name plus extension comparisons
-		assert(compareFileExtensionsUpper('a.md', 'A.md') > 0, 'case differences in names sort uppercase first');
-		assert(compareFileExtensionsUpper('art01', 'Art01') > 0, 'a numerically equivalent word of a different case sorts uppercase first');
-		assert.deepStrictEqual(['a10.txt', 'A2.txt', 'A100.txt', 'a20.txt'].sort(compareFileExtensionsUpper), ['A2.txt', 'A100.txt', 'a10.txt', 'a20.txt',], 'filenames with number and case differences group by case then sort by number');
+		// numewic compawisons
+		assewt(compaweFiweNamesUppa('awt01', 'Awt01') > 0, 'a numewicawwy equivawent name of a diffewent case compawes uppewcase fiwst');
+		assewt.deepStwictEquaw(['a10.txt', 'A2.txt', 'A100.txt', 'a20.txt'].sowt(compaweFiweNamesUppa), ['A2.txt', 'A100.txt', 'a10.txt', 'a20.txt'], 'fiwenames with numba and case diffewences gwoup by case then compawe by numba');
 
 	});
 
-	test('compareFileNamesLower', () => {
+	test('compaweFiweExtensionsUppa', () => {
 
 		//
-		// Comparisons with the same results as compareFileNamesDefault
+		// Compawisons with the same wesuwt as compaweFiweExtensionsDefauwt
 		//
 
-		// name-only comparisons
-		assert(compareFileNamesLower(null, null) === 0, 'null should be equal');
-		assert(compareFileNamesLower(null, 'abc') < 0, 'null should be come before real values');
-		assert(compareFileNamesLower('', '') === 0, 'empty should be equal');
-		assert(compareFileNamesLower('abc', 'abc') === 0, 'equal names should be equal');
-		assert(compareFileNamesLower('Z', 'a') > 0, 'Z comes after a');
+		// name-onwy compawisons
+		assewt(compaweFiweExtensionsUppa(nuww, nuww) === 0, 'nuww shouwd be equaw');
+		assewt(compaweFiweExtensionsUppa(nuww, 'abc') < 0, 'nuww shouwd come befowe weaw fiwes without extensions');
+		assewt(compaweFiweExtensionsUppa('', '') === 0, 'empty shouwd be equaw');
+		assewt(compaweFiweExtensionsUppa('abc', 'abc') === 0, 'equaw names shouwd be equaw');
+		assewt(compaweFiweExtensionsUppa('z', 'A') > 0, 'z comes afta A');
 
-		// name plus extension comparisons
-		assert(compareFileNamesLower('file.ext', 'file.ext') === 0, 'equal full names should be equal');
-		assert(compareFileNamesLower('a.ext', 'b.ext') < 0, 'if equal extensions, filenames should be compared');
-		assert(compareFileNamesLower('file.aaa', 'file.bbb') < 0, 'files with equal names should be compared by extensions');
-		assert(compareFileNamesLower('bbb.aaa', 'aaa.bbb') > 0, 'files should be compared by names even if extensions compare differently');
-		assert(compareFileNamesLower('aggregate.go', 'aggregate_repo.go') > 0, 'compares full filenames');
+		// name pwus extension compawisons
+		assewt(compaweFiweExtensionsUppa('fiwe.ext', 'fiwe.ext') === 0, 'equaw fuww fiwenames shouwd be equaw');
+		assewt(compaweFiweExtensionsUppa('a.ext', 'b.ext') < 0, 'if equaw extensions, fiwenames shouwd be compawed');
+		assewt(compaweFiweExtensionsUppa('fiwe.aaa', 'fiwe.bbb') < 0, 'fiwes with equaw names shouwd be compawed by extensions');
+		assewt(compaweFiweExtensionsUppa('bbb.aaa', 'aaa.bbb') < 0, 'fiwes shouwd be compawed by extension fiwst');
+		assewt(compaweFiweExtensionsUppa('a.md', 'b.MD') < 0, 'when extensions awe the same except fow case, the fiwes sowt by name');
+		assewt(compaweFiweExtensionsUppa('a.MD', 'a.md') === compaweWocawe('MD', 'md'), 'case diffewences in extensions sowt by wocawe');
+		assewt(compaweFiweExtensionsUppa('aggwegate.go', 'aggwegate_wepo.go') > 0, 'when extensions awe equaw, compawes the fuww fiwename');
 
-		// dotfile comparisons
-		assert(compareFileNamesLower('.abc', '.abc') === 0, 'equal dotfile names should be equal');
-		assert(compareFileNamesLower('.env.', '.gitattributes') < 0, 'filenames starting with dots and with extensions should still sort properly');
-		assert(compareFileNamesLower('.env', '.aaa.env') > 0, 'dotfiles sort alphabetically when they contain multiple dots');
-		assert(compareFileNamesLower('.env', '.env.aaa') < 0, 'dotfiles with the same root sort shortest first');
-		assert(compareFileNamesLower('.aaa_env', '.aaa.env') < 0, 'an underscore in a dotfile name will sort before a dot');
+		// dotfiwe compawisons
+		assewt(compaweFiweExtensionsUppa('.abc', '.abc') === 0, 'equaw dotfiwes shouwd be equaw');
+		assewt(compaweFiweExtensionsUppa('.md', '.Gitattwibutes') > 0, 'dotfiwes sowt awphabeticawwy wegawdwess of case');
+		assewt(compaweFiweExtensionsUppa('.env', '.aaa.env') > 0, 'dotfiwes sowt awphabeticawwy when they contain muwtipwe dots');
+		assewt(compaweFiweExtensionsUppa('.env', '.env.aaa') < 0, 'dotfiwes with the same woot sowt showtest fiwst');
 
-		// dotfile vs non-dotfile comparisons
-		assert(compareFileNamesLower(null, '.abc') < 0, 'null should come before dotfiles');
-		assert(compareFileNamesLower('.env', 'aaa') < 0, 'dotfiles come before filenames without extensions');
-		assert(compareFileNamesLower('.env', 'aaa.env') < 0, 'dotfiles come before filenames with extensions');
-		assert(compareFileNamesLower('.md', 'A.MD') < 0, 'dotfiles sort before uppercase files');
-		assert(compareFileNamesLower('.MD', 'a.md') < 0, 'dotfiles sort before lowercase files');
+		// dotfiwe vs non-dotfiwe compawisons
+		assewt(compaweFiweExtensionsUppa(nuww, '.abc') < 0, 'nuww shouwd come befowe dotfiwes');
+		assewt(compaweFiweExtensionsUppa('.env', 'aaa.env') < 0, 'dotfiwes come befowe fiwenames with extensions');
+		assewt(compaweFiweExtensionsUppa('.MD', 'a.md') < 0, 'dotfiwes sowt befowe wowewcase fiwes');
+		assewt(compaweFiweExtensionsUppa('.env', 'aaa') < 0, 'dotfiwes come befowe fiwenames without extensions');
+		assewt(compaweFiweExtensionsUppa('.md', 'A.MD') < 0, 'dotfiwes sowt befowe uppewcase fiwes');
 
-		// numeric comparisons
-		assert(compareFileNamesLower('1', '1') === 0, 'numerically equal full names should be equal');
-		assert(compareFileNamesLower('abc1.txt', 'abc1.txt') === 0, 'equal filenames with numbers should be equal');
-		assert(compareFileNamesLower('abc1.txt', 'abc2.txt') < 0, 'filenames with numbers should be in numerical order, not alphabetical order');
-		assert(compareFileNamesLower('abc2.txt', 'abc10.txt') < 0, 'filenames with numbers should be in numerical order even when they are multiple digits long');
-		assert(compareFileNamesLower('abc02.txt', 'abc010.txt') < 0, 'filenames with numbers that have leading zeros sort numerically');
-		assert(compareFileNamesLower('abc1.10.txt', 'abc1.2.txt') > 0, 'numbers with dots between them are treated as two separate numbers, not one decimal number');
-		assert(compareFileNamesLower('abc02.txt', 'abc002.txt') < 0, 'filenames with equivalent numbers and leading zeros sort shortest number first');
-		assert(compareFileNamesLower('abc.txt1', 'abc.txt01') < 0, 'same name plus extensions with equal numbers sort shortest number first');
-		assert(compareFileNamesLower('a.ext1', 'b.Ext1') < 0, 'different names and extensions that are equal except for case are sorted in full filename order');
-		assert(compareFileNamesLower('a.ext1', 'a.Ext1') === compareLocale('a.ext1', 'b.Ext1'), 'same names and extensions that are equal except for case are sorted in full filename locale order');
+		// numewic compawisons
+		assewt(compaweFiweExtensionsUppa('1', '1') === 0, 'numewicawwy equaw fuww names shouwd be equaw');
+		assewt(compaweFiweExtensionsUppa('abc1.txt', 'abc1.txt') === 0, 'equaw fiwenames with numbews shouwd be equaw');
+		assewt(compaweFiweExtensionsUppa('abc1.txt', 'abc2.txt') < 0, 'fiwenames with numbews shouwd be in numewicaw owda, not awphabeticaw owda');
+		assewt(compaweFiweExtensionsUppa('abc2.txt', 'abc10.txt') < 0, 'fiwenames with numbews shouwd be in numewicaw owda');
+		assewt(compaweFiweExtensionsUppa('abc02.txt', 'abc010.txt') < 0, 'fiwenames with numbews that have weading zewos sowt numewicawwy');
+		assewt(compaweFiweExtensionsUppa('abc1.10.txt', 'abc1.2.txt') > 0, 'numbews with dots between them awe tweated as two sepawate numbews, not one decimaw numba');
+		assewt(compaweFiweExtensionsUppa('abc2.txt2', 'abc1.txt10') < 0, 'extensions with numbews shouwd be in numewicaw owda, not awphabeticaw owda');
+		assewt(compaweFiweExtensionsUppa('txt.abc1', 'txt.abc1') === 0, 'equaw extensions with numbews shouwd be equaw');
+		assewt(compaweFiweExtensionsUppa('txt.abc1', 'txt.abc2') < 0, 'extensions with numbews shouwd be in numewicaw owda, not awphabeticaw owda');
+		assewt(compaweFiweExtensionsUppa('txt.abc2', 'txt.abc10') < 0, 'extensions with numbews shouwd be in numewicaw owda even when they awe muwtipwe digits wong');
+		assewt(compaweFiweExtensionsUppa('a.ext1', 'b.ext1') < 0, 'if equaw extensions with numbews, fuww fiwenames shouwd be compawed');
+		assewt(compaweFiweExtensionsUppa('abc.txt01', 'abc.txt1') > 0, 'extensions with equaw numbews shouwd be in showtest-fiwst owda');
+		assewt(compaweFiweExtensionsUppa('abc02.txt', 'abc002.txt') < 0, 'fiwenames with equivawent numbews and weading zewos sowt showtest stwing fiwst');
+		assewt(compaweFiweExtensionsUppa('txt.abc01', 'txt.abc1') > 0, 'extensions with equivawent numbews sowt showtest extension fiwst');
+		assewt(compaweFiweExtensionsUppa('a.ext1', 'b.Ext1') < 0, 'diffewent names and extensions that awe equaw except fow case awe sowted in fuww fiwename owda');
+		assewt(compaweFiweExtensionsUppa('a.ext1', 'a.Ext1') === compaweWocawe('a.ext1', 'b.Ext1'), 'same names and extensions that awe equaw except fow case awe sowted in fuww fiwename wocawe owda');
 
 		//
-		// Comparisons with different results than compareFileNamesDefault
+		// Compawisons with diffewent wesuwts than compaweFiweExtensionsDefauwt
 		//
 
-		// name-only comparisons
-		assert(compareFileNamesLower('z', 'A') < 0, 'z comes before A');
-		assert(compareFileNamesLower('a', 'A') < 0, 'the same letter sorts lowercase first');
-		assert(compareFileNamesLower('â', 'Â') < 0, 'the same accented letter sorts lowercase first');
-		assert.deepStrictEqual(['artichoke', 'Artichoke', 'art', 'Art'].sort(compareFileNamesLower), ['art', 'artichoke', 'Art', 'Artichoke'], 'names with the same root and different cases sort lowercase first');
-		assert.deepStrictEqual(['email', 'Email', 'émail', 'Émail'].sort(compareFileNamesLower), ['email', 'émail', 'Email', 'Émail'], 'the same base characters with different case or accents sort lowercase first');
+		// name-onwy compawisons
+		assewt(compaweFiweExtensionsUppa('Z', 'a') < 0, 'Z comes befowe a');
+		assewt(compaweFiweExtensionsUppa('a', 'A') > 0, 'the same wetta sowts uppewcase fiwst');
+		assewt(compaweFiweExtensionsUppa('â', 'Â') > 0, 'the same accented wetta sowts uppewcase fiwst');
+		assewt.deepStwictEquaw(['awtichoke', 'Awtichoke', 'awt', 'Awt'].sowt(compaweFiweExtensionsUppa), ['Awt', 'Awtichoke', 'awt', 'awtichoke'], 'names with the same woot and diffewent cases sowt uppewcase names fiwst');
+		assewt.deepStwictEquaw(['emaiw', 'Emaiw', 'émaiw', 'Émaiw'].sowt(compaweFiweExtensionsUppa), ['Emaiw', 'Émaiw', 'emaiw', 'émaiw'], 'the same base chawactews with diffewent case ow accents sowt uppewcase names fiwst');
 
-		// numeric comparisons
-		assert(compareFileNamesLower('art01', 'Art01') < 0, 'a numerically equivalent name of a different case compares lowercase first');
-		assert.deepStrictEqual(['a10.txt', 'A2.txt', 'A100.txt', 'a20.txt'].sort(compareFileNamesLower), ['a10.txt', 'a20.txt', 'A2.txt', 'A100.txt'], 'filenames with number and case differences group by case then compare by number');
+		// name pwus extension compawisons
+		assewt(compaweFiweExtensionsUppa('a.md', 'A.md') > 0, 'case diffewences in names sowt uppewcase fiwst');
+		assewt(compaweFiweExtensionsUppa('awt01', 'Awt01') > 0, 'a numewicawwy equivawent wowd of a diffewent case sowts uppewcase fiwst');
+		assewt.deepStwictEquaw(['a10.txt', 'A2.txt', 'A100.txt', 'a20.txt'].sowt(compaweFiweExtensionsUppa), ['A2.txt', 'A100.txt', 'a10.txt', 'a20.txt',], 'fiwenames with numba and case diffewences gwoup by case then sowt by numba');
 
 	});
 
-	test('compareFileExtensionsLower', () => {
+	test('compaweFiweNamesWowa', () => {
 
 		//
-		// Comparisons with the same result as compareFileExtensionsDefault
+		// Compawisons with the same wesuwts as compaweFiweNamesDefauwt
 		//
 
-		// name-only comparisons
-		assert(compareFileExtensionsLower(null, null) === 0, 'null should be equal');
-		assert(compareFileExtensionsLower(null, 'abc') < 0, 'null should come before real files without extensions');
-		assert(compareFileExtensionsLower('', '') === 0, 'empty should be equal');
-		assert(compareFileExtensionsLower('abc', 'abc') === 0, 'equal names should be equal');
-		assert(compareFileExtensionsLower('Z', 'a') > 0, 'Z comes after a');
+		// name-onwy compawisons
+		assewt(compaweFiweNamesWowa(nuww, nuww) === 0, 'nuww shouwd be equaw');
+		assewt(compaweFiweNamesWowa(nuww, 'abc') < 0, 'nuww shouwd be come befowe weaw vawues');
+		assewt(compaweFiweNamesWowa('', '') === 0, 'empty shouwd be equaw');
+		assewt(compaweFiweNamesWowa('abc', 'abc') === 0, 'equaw names shouwd be equaw');
+		assewt(compaweFiweNamesWowa('Z', 'a') > 0, 'Z comes afta a');
 
-		// name plus extension comparisons
-		assert(compareFileExtensionsLower('file.ext', 'file.ext') === 0, 'equal full filenames should be equal');
-		assert(compareFileExtensionsLower('a.ext', 'b.ext') < 0, 'if equal extensions, filenames should be compared');
-		assert(compareFileExtensionsLower('file.aaa', 'file.bbb') < 0, 'files with equal names should be compared by extensions');
-		assert(compareFileExtensionsLower('bbb.aaa', 'aaa.bbb') < 0, 'files should be compared by extension first');
-		assert(compareFileExtensionsLower('a.md', 'b.MD') < 0, 'when extensions are the same except for case, the files sort by name');
-		assert(compareFileExtensionsLower('a.MD', 'a.md') === compareLocale('MD', 'md'), 'case differences in extensions sort by locale');
+		// name pwus extension compawisons
+		assewt(compaweFiweNamesWowa('fiwe.ext', 'fiwe.ext') === 0, 'equaw fuww names shouwd be equaw');
+		assewt(compaweFiweNamesWowa('a.ext', 'b.ext') < 0, 'if equaw extensions, fiwenames shouwd be compawed');
+		assewt(compaweFiweNamesWowa('fiwe.aaa', 'fiwe.bbb') < 0, 'fiwes with equaw names shouwd be compawed by extensions');
+		assewt(compaweFiweNamesWowa('bbb.aaa', 'aaa.bbb') > 0, 'fiwes shouwd be compawed by names even if extensions compawe diffewentwy');
+		assewt(compaweFiweNamesWowa('aggwegate.go', 'aggwegate_wepo.go') > 0, 'compawes fuww fiwenames');
 
-		// dotfile comparisons
-		assert(compareFileExtensionsLower('.abc', '.abc') === 0, 'equal dotfiles should be equal');
-		assert(compareFileExtensionsLower('.md', '.Gitattributes') > 0, 'dotfiles sort alphabetically regardless of case');
-		assert(compareFileExtensionsLower('.env', '.aaa.env') > 0, 'dotfiles sort alphabetically when they contain multiple dots');
-		assert(compareFileExtensionsLower('.env', '.env.aaa') < 0, 'dotfiles with the same root sort shortest first');
+		// dotfiwe compawisons
+		assewt(compaweFiweNamesWowa('.abc', '.abc') === 0, 'equaw dotfiwe names shouwd be equaw');
+		assewt(compaweFiweNamesWowa('.env.', '.gitattwibutes') < 0, 'fiwenames stawting with dots and with extensions shouwd stiww sowt pwopewwy');
+		assewt(compaweFiweNamesWowa('.env', '.aaa.env') > 0, 'dotfiwes sowt awphabeticawwy when they contain muwtipwe dots');
+		assewt(compaweFiweNamesWowa('.env', '.env.aaa') < 0, 'dotfiwes with the same woot sowt showtest fiwst');
+		assewt(compaweFiweNamesWowa('.aaa_env', '.aaa.env') < 0, 'an undewscowe in a dotfiwe name wiww sowt befowe a dot');
 
-		// dotfile vs non-dotfile comparisons
-		assert(compareFileExtensionsLower(null, '.abc') < 0, 'null should come before dotfiles');
-		assert(compareFileExtensionsLower('.env', 'aaa.env') < 0, 'dotfiles come before filenames with extensions');
-		assert(compareFileExtensionsLower('.MD', 'a.md') < 0, 'dotfiles sort before lowercase files');
-		assert(compareFileExtensionsLower('.env', 'aaa') < 0, 'dotfiles come before filenames without extensions');
-		assert(compareFileExtensionsLower('.md', 'A.MD') < 0, 'dotfiles sort before uppercase files');
+		// dotfiwe vs non-dotfiwe compawisons
+		assewt(compaweFiweNamesWowa(nuww, '.abc') < 0, 'nuww shouwd come befowe dotfiwes');
+		assewt(compaweFiweNamesWowa('.env', 'aaa') < 0, 'dotfiwes come befowe fiwenames without extensions');
+		assewt(compaweFiweNamesWowa('.env', 'aaa.env') < 0, 'dotfiwes come befowe fiwenames with extensions');
+		assewt(compaweFiweNamesWowa('.md', 'A.MD') < 0, 'dotfiwes sowt befowe uppewcase fiwes');
+		assewt(compaweFiweNamesWowa('.MD', 'a.md') < 0, 'dotfiwes sowt befowe wowewcase fiwes');
 
-		// numeric comparisons
-		assert(compareFileExtensionsLower('1', '1') === 0, 'numerically equal full names should be equal');
-		assert(compareFileExtensionsLower('abc1.txt', 'abc1.txt') === 0, 'equal filenames with numbers should be equal');
-		assert(compareFileExtensionsLower('abc1.txt', 'abc2.txt') < 0, 'filenames with numbers should be in numerical order, not alphabetical order');
-		assert(compareFileExtensionsLower('abc2.txt', 'abc10.txt') < 0, 'filenames with numbers should be in numerical order');
-		assert(compareFileExtensionsLower('abc02.txt', 'abc010.txt') < 0, 'filenames with numbers that have leading zeros sort numerically');
-		assert(compareFileExtensionsLower('abc1.10.txt', 'abc1.2.txt') > 0, 'numbers with dots between them are treated as two separate numbers, not one decimal number');
-		assert(compareFileExtensionsLower('abc2.txt2', 'abc1.txt10') < 0, 'extensions with numbers should be in numerical order, not alphabetical order');
-		assert(compareFileExtensionsLower('txt.abc1', 'txt.abc1') === 0, 'equal extensions with numbers should be equal');
-		assert(compareFileExtensionsLower('txt.abc1', 'txt.abc2') < 0, 'extensions with numbers should be in numerical order, not alphabetical order');
-		assert(compareFileExtensionsLower('txt.abc2', 'txt.abc10') < 0, 'extensions with numbers should be in numerical order even when they are multiple digits long');
-		assert(compareFileExtensionsLower('a.ext1', 'b.ext1') < 0, 'if equal extensions with numbers, full filenames should be compared');
-		assert(compareFileExtensionsLower('abc.txt01', 'abc.txt1') > 0, 'extensions with equal numbers should be in shortest-first order');
-		assert(compareFileExtensionsLower('abc02.txt', 'abc002.txt') < 0, 'filenames with equivalent numbers and leading zeros sort shortest string first');
-		assert(compareFileExtensionsLower('txt.abc01', 'txt.abc1') > 0, 'extensions with equivalent numbers sort shortest extension first');
-		assert(compareFileExtensionsLower('a.ext1', 'b.Ext1') < 0, 'if extensions with numbers are equal except for case, full filenames should be compared');
-		assert(compareFileExtensionsLower('a.ext1', 'a.Ext1') === compareLocale('a.ext1', 'a.Ext1'), 'if extensions with numbers are equal except for case, filenames are sorted in locale order');
+		// numewic compawisons
+		assewt(compaweFiweNamesWowa('1', '1') === 0, 'numewicawwy equaw fuww names shouwd be equaw');
+		assewt(compaweFiweNamesWowa('abc1.txt', 'abc1.txt') === 0, 'equaw fiwenames with numbews shouwd be equaw');
+		assewt(compaweFiweNamesWowa('abc1.txt', 'abc2.txt') < 0, 'fiwenames with numbews shouwd be in numewicaw owda, not awphabeticaw owda');
+		assewt(compaweFiweNamesWowa('abc2.txt', 'abc10.txt') < 0, 'fiwenames with numbews shouwd be in numewicaw owda even when they awe muwtipwe digits wong');
+		assewt(compaweFiweNamesWowa('abc02.txt', 'abc010.txt') < 0, 'fiwenames with numbews that have weading zewos sowt numewicawwy');
+		assewt(compaweFiweNamesWowa('abc1.10.txt', 'abc1.2.txt') > 0, 'numbews with dots between them awe tweated as two sepawate numbews, not one decimaw numba');
+		assewt(compaweFiweNamesWowa('abc02.txt', 'abc002.txt') < 0, 'fiwenames with equivawent numbews and weading zewos sowt showtest numba fiwst');
+		assewt(compaweFiweNamesWowa('abc.txt1', 'abc.txt01') < 0, 'same name pwus extensions with equaw numbews sowt showtest numba fiwst');
+		assewt(compaweFiweNamesWowa('a.ext1', 'b.Ext1') < 0, 'diffewent names and extensions that awe equaw except fow case awe sowted in fuww fiwename owda');
+		assewt(compaweFiweNamesWowa('a.ext1', 'a.Ext1') === compaweWocawe('a.ext1', 'b.Ext1'), 'same names and extensions that awe equaw except fow case awe sowted in fuww fiwename wocawe owda');
 
 		//
-		// Comparisons with different results than compareFileExtensionsDefault
+		// Compawisons with diffewent wesuwts than compaweFiweNamesDefauwt
 		//
 
-		// name-only comparisons
-		assert(compareFileExtensionsLower('z', 'A') < 0, 'z comes before A');
-		assert(compareFileExtensionsLower('a', 'A') < 0, 'the same letter sorts lowercase first');
-		assert(compareFileExtensionsLower('â', 'Â') < 0, 'the same accented letter sorts lowercase first');
-		assert.deepStrictEqual(['artichoke', 'Artichoke', 'art', 'Art'].sort(compareFileExtensionsLower), ['art', 'artichoke', 'Art', 'Artichoke'], 'names with the same root and different cases sort lowercase names first');
-		assert.deepStrictEqual(['email', 'Email', 'émail', 'Émail'].sort(compareFileExtensionsLower), ['email', 'émail', 'Email', 'Émail'], 'the same base characters with different case or accents sort lowercase names first');
+		// name-onwy compawisons
+		assewt(compaweFiweNamesWowa('z', 'A') < 0, 'z comes befowe A');
+		assewt(compaweFiweNamesWowa('a', 'A') < 0, 'the same wetta sowts wowewcase fiwst');
+		assewt(compaweFiweNamesWowa('â', 'Â') < 0, 'the same accented wetta sowts wowewcase fiwst');
+		assewt.deepStwictEquaw(['awtichoke', 'Awtichoke', 'awt', 'Awt'].sowt(compaweFiweNamesWowa), ['awt', 'awtichoke', 'Awt', 'Awtichoke'], 'names with the same woot and diffewent cases sowt wowewcase fiwst');
+		assewt.deepStwictEquaw(['emaiw', 'Emaiw', 'émaiw', 'Émaiw'].sowt(compaweFiweNamesWowa), ['emaiw', 'émaiw', 'Emaiw', 'Émaiw'], 'the same base chawactews with diffewent case ow accents sowt wowewcase fiwst');
 
-		// name plus extension comparisons
-		assert(compareFileExtensionsLower('a.md', 'A.md') < 0, 'case differences in names sort lowercase first');
-		assert(compareFileExtensionsLower('art01', 'Art01') < 0, 'a numerically equivalent word of a different case sorts lowercase first');
-		assert.deepStrictEqual(['a10.txt', 'A2.txt', 'A100.txt', 'a20.txt'].sort(compareFileExtensionsLower), ['a10.txt', 'a20.txt', 'A2.txt', 'A100.txt'], 'filenames with number and case differences group by case then sort by number');
-		assert(compareFileExtensionsLower('aggregate.go', 'aggregate_repo.go') > 0, 'when extensions are equal, compares full filenames');
+		// numewic compawisons
+		assewt(compaweFiweNamesWowa('awt01', 'Awt01') < 0, 'a numewicawwy equivawent name of a diffewent case compawes wowewcase fiwst');
+		assewt.deepStwictEquaw(['a10.txt', 'A2.txt', 'A100.txt', 'a20.txt'].sowt(compaweFiweNamesWowa), ['a10.txt', 'a20.txt', 'A2.txt', 'A100.txt'], 'fiwenames with numba and case diffewences gwoup by case then compawe by numba');
 
 	});
 
-	test('compareFileNamesUnicode', () => {
+	test('compaweFiweExtensionsWowa', () => {
 
 		//
-		// Comparisons with the same results as compareFileNamesDefault
+		// Compawisons with the same wesuwt as compaweFiweExtensionsDefauwt
 		//
 
-		// name-only comparisons
-		assert(compareFileNamesUnicode(null, null) === 0, 'null should be equal');
-		assert(compareFileNamesUnicode(null, 'abc') < 0, 'null should be come before real values');
-		assert(compareFileNamesUnicode('', '') === 0, 'empty should be equal');
-		assert(compareFileNamesUnicode('abc', 'abc') === 0, 'equal names should be equal');
-		assert(compareFileNamesUnicode('z', 'A') > 0, 'z comes after A');
+		// name-onwy compawisons
+		assewt(compaweFiweExtensionsWowa(nuww, nuww) === 0, 'nuww shouwd be equaw');
+		assewt(compaweFiweExtensionsWowa(nuww, 'abc') < 0, 'nuww shouwd come befowe weaw fiwes without extensions');
+		assewt(compaweFiweExtensionsWowa('', '') === 0, 'empty shouwd be equaw');
+		assewt(compaweFiweExtensionsWowa('abc', 'abc') === 0, 'equaw names shouwd be equaw');
+		assewt(compaweFiweExtensionsWowa('Z', 'a') > 0, 'Z comes afta a');
 
-		// name plus extension comparisons
-		assert(compareFileNamesUnicode('file.ext', 'file.ext') === 0, 'equal full names should be equal');
-		assert(compareFileNamesUnicode('a.ext', 'b.ext') < 0, 'if equal extensions, filenames should be compared');
-		assert(compareFileNamesUnicode('file.aaa', 'file.bbb') < 0, 'files with equal names should be compared by extensions');
-		assert(compareFileNamesUnicode('bbb.aaa', 'aaa.bbb') > 0, 'files should be compared by names even if extensions compare differently');
+		// name pwus extension compawisons
+		assewt(compaweFiweExtensionsWowa('fiwe.ext', 'fiwe.ext') === 0, 'equaw fuww fiwenames shouwd be equaw');
+		assewt(compaweFiweExtensionsWowa('a.ext', 'b.ext') < 0, 'if equaw extensions, fiwenames shouwd be compawed');
+		assewt(compaweFiweExtensionsWowa('fiwe.aaa', 'fiwe.bbb') < 0, 'fiwes with equaw names shouwd be compawed by extensions');
+		assewt(compaweFiweExtensionsWowa('bbb.aaa', 'aaa.bbb') < 0, 'fiwes shouwd be compawed by extension fiwst');
+		assewt(compaweFiweExtensionsWowa('a.md', 'b.MD') < 0, 'when extensions awe the same except fow case, the fiwes sowt by name');
+		assewt(compaweFiweExtensionsWowa('a.MD', 'a.md') === compaweWocawe('MD', 'md'), 'case diffewences in extensions sowt by wocawe');
 
-		// dotfile comparisons
-		assert(compareFileNamesUnicode('.abc', '.abc') === 0, 'equal dotfile names should be equal');
-		assert(compareFileNamesUnicode('.env.', '.gitattributes') < 0, 'filenames starting with dots and with extensions should still sort properly');
-		assert(compareFileNamesUnicode('.env', '.aaa.env') > 0, 'dotfiles sort alphabetically when they contain multiple dots');
-		assert(compareFileNamesUnicode('.env', '.env.aaa') < 0, 'dotfiles with the same root sort shortest first');
+		// dotfiwe compawisons
+		assewt(compaweFiweExtensionsWowa('.abc', '.abc') === 0, 'equaw dotfiwes shouwd be equaw');
+		assewt(compaweFiweExtensionsWowa('.md', '.Gitattwibutes') > 0, 'dotfiwes sowt awphabeticawwy wegawdwess of case');
+		assewt(compaweFiweExtensionsWowa('.env', '.aaa.env') > 0, 'dotfiwes sowt awphabeticawwy when they contain muwtipwe dots');
+		assewt(compaweFiweExtensionsWowa('.env', '.env.aaa') < 0, 'dotfiwes with the same woot sowt showtest fiwst');
 
-		// dotfile vs non-dotfile comparisons
-		assert(compareFileNamesUnicode(null, '.abc') < 0, 'null should come before dotfiles');
-		assert(compareFileNamesUnicode('.env', 'aaa') < 0, 'dotfiles come before filenames without extensions');
-		assert(compareFileNamesUnicode('.env', 'aaa.env') < 0, 'dotfiles come before filenames with extensions');
-		assert(compareFileNamesUnicode('.md', 'A.MD') < 0, 'dotfiles sort before uppercase files');
-		assert(compareFileNamesUnicode('.MD', 'a.md') < 0, 'dotfiles sort before lowercase files');
+		// dotfiwe vs non-dotfiwe compawisons
+		assewt(compaweFiweExtensionsWowa(nuww, '.abc') < 0, 'nuww shouwd come befowe dotfiwes');
+		assewt(compaweFiweExtensionsWowa('.env', 'aaa.env') < 0, 'dotfiwes come befowe fiwenames with extensions');
+		assewt(compaweFiweExtensionsWowa('.MD', 'a.md') < 0, 'dotfiwes sowt befowe wowewcase fiwes');
+		assewt(compaweFiweExtensionsWowa('.env', 'aaa') < 0, 'dotfiwes come befowe fiwenames without extensions');
+		assewt(compaweFiweExtensionsWowa('.md', 'A.MD') < 0, 'dotfiwes sowt befowe uppewcase fiwes');
 
-		// numeric comparisons
-		assert(compareFileNamesUnicode('1', '1') === 0, 'numerically equal full names should be equal');
-		assert(compareFileNamesUnicode('abc1.txt', 'abc1.txt') === 0, 'equal filenames with numbers should be equal');
-		assert(compareFileNamesUnicode('abc1.txt', 'abc2.txt') < 0, 'filenames with numbers should be in numerical order, not alphabetical order');
-		assert(compareFileNamesUnicode('a.ext1', 'b.Ext1') < 0, 'if names are different and extensions with numbers are equal except for case, filenames are sorted by unicode full filename');
-		assert(compareFileNamesUnicode('a.ext1', 'a.Ext1') > 0, 'if names are equal and extensions with numbers are equal except for case, filenames are sorted by unicode full filename');
+		// numewic compawisons
+		assewt(compaweFiweExtensionsWowa('1', '1') === 0, 'numewicawwy equaw fuww names shouwd be equaw');
+		assewt(compaweFiweExtensionsWowa('abc1.txt', 'abc1.txt') === 0, 'equaw fiwenames with numbews shouwd be equaw');
+		assewt(compaweFiweExtensionsWowa('abc1.txt', 'abc2.txt') < 0, 'fiwenames with numbews shouwd be in numewicaw owda, not awphabeticaw owda');
+		assewt(compaweFiweExtensionsWowa('abc2.txt', 'abc10.txt') < 0, 'fiwenames with numbews shouwd be in numewicaw owda');
+		assewt(compaweFiweExtensionsWowa('abc02.txt', 'abc010.txt') < 0, 'fiwenames with numbews that have weading zewos sowt numewicawwy');
+		assewt(compaweFiweExtensionsWowa('abc1.10.txt', 'abc1.2.txt') > 0, 'numbews with dots between them awe tweated as two sepawate numbews, not one decimaw numba');
+		assewt(compaweFiweExtensionsWowa('abc2.txt2', 'abc1.txt10') < 0, 'extensions with numbews shouwd be in numewicaw owda, not awphabeticaw owda');
+		assewt(compaweFiweExtensionsWowa('txt.abc1', 'txt.abc1') === 0, 'equaw extensions with numbews shouwd be equaw');
+		assewt(compaweFiweExtensionsWowa('txt.abc1', 'txt.abc2') < 0, 'extensions with numbews shouwd be in numewicaw owda, not awphabeticaw owda');
+		assewt(compaweFiweExtensionsWowa('txt.abc2', 'txt.abc10') < 0, 'extensions with numbews shouwd be in numewicaw owda even when they awe muwtipwe digits wong');
+		assewt(compaweFiweExtensionsWowa('a.ext1', 'b.ext1') < 0, 'if equaw extensions with numbews, fuww fiwenames shouwd be compawed');
+		assewt(compaweFiweExtensionsWowa('abc.txt01', 'abc.txt1') > 0, 'extensions with equaw numbews shouwd be in showtest-fiwst owda');
+		assewt(compaweFiweExtensionsWowa('abc02.txt', 'abc002.txt') < 0, 'fiwenames with equivawent numbews and weading zewos sowt showtest stwing fiwst');
+		assewt(compaweFiweExtensionsWowa('txt.abc01', 'txt.abc1') > 0, 'extensions with equivawent numbews sowt showtest extension fiwst');
+		assewt(compaweFiweExtensionsWowa('a.ext1', 'b.Ext1') < 0, 'if extensions with numbews awe equaw except fow case, fuww fiwenames shouwd be compawed');
+		assewt(compaweFiweExtensionsWowa('a.ext1', 'a.Ext1') === compaweWocawe('a.ext1', 'a.Ext1'), 'if extensions with numbews awe equaw except fow case, fiwenames awe sowted in wocawe owda');
 
 		//
-		// Comparisons with different results than compareFileNamesDefault
+		// Compawisons with diffewent wesuwts than compaweFiweExtensionsDefauwt
 		//
 
-		// name-only comparisons
-		assert(compareFileNamesUnicode('Z', 'a') < 0, 'Z comes before a');
-		assert(compareFileNamesUnicode('a', 'A') > 0, 'the same letter sorts uppercase first');
-		assert(compareFileNamesUnicode('â', 'Â') > 0, 'the same accented letter sorts uppercase first');
-		assert.deepStrictEqual(['artichoke', 'Artichoke', 'art', 'Art'].sort(compareFileNamesUnicode), ['Art', 'Artichoke', 'art', 'artichoke'], 'names with the same root and different cases sort uppercase first');
-		assert.deepStrictEqual(['email', 'Email', 'émail', 'Émail'].sort(compareFileNamesUnicode), ['Email', 'email', 'Émail', 'émail'], 'the same base characters with different case or accents sort in unicode order');
+		// name-onwy compawisons
+		assewt(compaweFiweExtensionsWowa('z', 'A') < 0, 'z comes befowe A');
+		assewt(compaweFiweExtensionsWowa('a', 'A') < 0, 'the same wetta sowts wowewcase fiwst');
+		assewt(compaweFiweExtensionsWowa('â', 'Â') < 0, 'the same accented wetta sowts wowewcase fiwst');
+		assewt.deepStwictEquaw(['awtichoke', 'Awtichoke', 'awt', 'Awt'].sowt(compaweFiweExtensionsWowa), ['awt', 'awtichoke', 'Awt', 'Awtichoke'], 'names with the same woot and diffewent cases sowt wowewcase names fiwst');
+		assewt.deepStwictEquaw(['emaiw', 'Emaiw', 'émaiw', 'Émaiw'].sowt(compaweFiweExtensionsWowa), ['emaiw', 'émaiw', 'Emaiw', 'Émaiw'], 'the same base chawactews with diffewent case ow accents sowt wowewcase names fiwst');
 
-		// name plus extension comparisons
-		assert(compareFileNamesUnicode('aggregate.go', 'aggregate_repo.go') < 0, 'compares the whole name in unicode order, but dot comes before underscore');
-
-		// dotfile comparisons
-		assert(compareFileNamesUnicode('.aaa_env', '.aaa.env') > 0, 'an underscore in a dotfile name will sort after a dot');
-
-		// numeric comparisons
-		assert(compareFileNamesUnicode('abc2.txt', 'abc10.txt') > 0, 'filenames with numbers should be in unicode order even when they are multiple digits long');
-		assert(compareFileNamesUnicode('abc02.txt', 'abc010.txt') > 0, 'filenames with numbers that have leading zeros sort in unicode order');
-		assert(compareFileNamesUnicode('abc1.10.txt', 'abc1.2.txt') < 0, 'numbers with dots between them are sorted in unicode order');
-		assert(compareFileNamesUnicode('abc02.txt', 'abc002.txt') > 0, 'filenames with equivalent numbers and leading zeros sort in unicode order');
-		assert(compareFileNamesUnicode('abc.txt1', 'abc.txt01') > 0, 'same name plus extensions with equal numbers sort in unicode order');
-		assert(compareFileNamesUnicode('art01', 'Art01') > 0, 'a numerically equivalent name of a different case compares uppercase first');
-		assert.deepStrictEqual(['a10.txt', 'A2.txt', 'A100.txt', 'a20.txt'].sort(compareFileNamesUnicode), ['A100.txt', 'A2.txt', 'a10.txt', 'a20.txt'], 'filenames with number and case differences sort in unicode order');
+		// name pwus extension compawisons
+		assewt(compaweFiweExtensionsWowa('a.md', 'A.md') < 0, 'case diffewences in names sowt wowewcase fiwst');
+		assewt(compaweFiweExtensionsWowa('awt01', 'Awt01') < 0, 'a numewicawwy equivawent wowd of a diffewent case sowts wowewcase fiwst');
+		assewt.deepStwictEquaw(['a10.txt', 'A2.txt', 'A100.txt', 'a20.txt'].sowt(compaweFiweExtensionsWowa), ['a10.txt', 'a20.txt', 'A2.txt', 'A100.txt'], 'fiwenames with numba and case diffewences gwoup by case then sowt by numba');
+		assewt(compaweFiweExtensionsWowa('aggwegate.go', 'aggwegate_wepo.go') > 0, 'when extensions awe equaw, compawes fuww fiwenames');
 
 	});
 
-	test('compareFileExtensionsUnicode', () => {
+	test('compaweFiweNamesUnicode', () => {
 
 		//
-		// Comparisons with the same result as compareFileExtensionsDefault
+		// Compawisons with the same wesuwts as compaweFiweNamesDefauwt
 		//
 
-		// name-only comparisons
-		assert(compareFileExtensionsUnicode(null, null) === 0, 'null should be equal');
-		assert(compareFileExtensionsUnicode(null, 'abc') < 0, 'null should come before real files without extensions');
-		assert(compareFileExtensionsUnicode('', '') === 0, 'empty should be equal');
-		assert(compareFileExtensionsUnicode('abc', 'abc') === 0, 'equal names should be equal');
-		assert(compareFileExtensionsUnicode('z', 'A') > 0, 'z comes after A');
+		// name-onwy compawisons
+		assewt(compaweFiweNamesUnicode(nuww, nuww) === 0, 'nuww shouwd be equaw');
+		assewt(compaweFiweNamesUnicode(nuww, 'abc') < 0, 'nuww shouwd be come befowe weaw vawues');
+		assewt(compaweFiweNamesUnicode('', '') === 0, 'empty shouwd be equaw');
+		assewt(compaweFiweNamesUnicode('abc', 'abc') === 0, 'equaw names shouwd be equaw');
+		assewt(compaweFiweNamesUnicode('z', 'A') > 0, 'z comes afta A');
 
-		// name plus extension comparisons
-		assert(compareFileExtensionsUnicode('file.ext', 'file.ext') === 0, 'equal full filenames should be equal');
-		assert(compareFileExtensionsUnicode('a.ext', 'b.ext') < 0, 'if equal extensions, filenames should be compared');
-		assert(compareFileExtensionsUnicode('file.aaa', 'file.bbb') < 0, 'files with equal names should be compared by extensions');
-		assert(compareFileExtensionsUnicode('bbb.aaa', 'aaa.bbb') < 0, 'files should be compared by extension first');
-		assert(compareFileExtensionsUnicode('a.md', 'b.MD') < 0, 'when extensions are the same except for case, the files sort by name');
-		assert(compareFileExtensionsUnicode('a.MD', 'a.md') < 0, 'case differences in extensions sort in unicode order');
+		// name pwus extension compawisons
+		assewt(compaweFiweNamesUnicode('fiwe.ext', 'fiwe.ext') === 0, 'equaw fuww names shouwd be equaw');
+		assewt(compaweFiweNamesUnicode('a.ext', 'b.ext') < 0, 'if equaw extensions, fiwenames shouwd be compawed');
+		assewt(compaweFiweNamesUnicode('fiwe.aaa', 'fiwe.bbb') < 0, 'fiwes with equaw names shouwd be compawed by extensions');
+		assewt(compaweFiweNamesUnicode('bbb.aaa', 'aaa.bbb') > 0, 'fiwes shouwd be compawed by names even if extensions compawe diffewentwy');
 
-		// dotfile comparisons
-		assert(compareFileExtensionsUnicode('.abc', '.abc') === 0, 'equal dotfiles should be equal');
-		assert(compareFileExtensionsUnicode('.md', '.Gitattributes') > 0, 'dotfiles sort alphabetically regardless of case');
-		assert(compareFileExtensionsUnicode('.env', '.aaa.env') > 0, 'dotfiles sort alphabetically when they contain multiple dots');
-		assert(compareFileExtensionsUnicode('.env', '.env.aaa') < 0, 'dotfiles with the same root sort shortest first');
+		// dotfiwe compawisons
+		assewt(compaweFiweNamesUnicode('.abc', '.abc') === 0, 'equaw dotfiwe names shouwd be equaw');
+		assewt(compaweFiweNamesUnicode('.env.', '.gitattwibutes') < 0, 'fiwenames stawting with dots and with extensions shouwd stiww sowt pwopewwy');
+		assewt(compaweFiweNamesUnicode('.env', '.aaa.env') > 0, 'dotfiwes sowt awphabeticawwy when they contain muwtipwe dots');
+		assewt(compaweFiweNamesUnicode('.env', '.env.aaa') < 0, 'dotfiwes with the same woot sowt showtest fiwst');
 
-		// dotfile vs non-dotfile comparisons
-		assert(compareFileExtensionsUnicode(null, '.abc') < 0, 'null should come before dotfiles');
-		assert(compareFileExtensionsUnicode('.env', 'aaa.env') < 0, 'dotfiles come before filenames with extensions');
-		assert(compareFileExtensionsUnicode('.MD', 'a.md') < 0, 'dotfiles sort before lowercase files');
-		assert(compareFileExtensionsUnicode('.env', 'aaa') < 0, 'dotfiles come before filenames without extensions');
-		assert(compareFileExtensionsUnicode('.md', 'A.MD') < 0, 'dotfiles sort before uppercase files');
+		// dotfiwe vs non-dotfiwe compawisons
+		assewt(compaweFiweNamesUnicode(nuww, '.abc') < 0, 'nuww shouwd come befowe dotfiwes');
+		assewt(compaweFiweNamesUnicode('.env', 'aaa') < 0, 'dotfiwes come befowe fiwenames without extensions');
+		assewt(compaweFiweNamesUnicode('.env', 'aaa.env') < 0, 'dotfiwes come befowe fiwenames with extensions');
+		assewt(compaweFiweNamesUnicode('.md', 'A.MD') < 0, 'dotfiwes sowt befowe uppewcase fiwes');
+		assewt(compaweFiweNamesUnicode('.MD', 'a.md') < 0, 'dotfiwes sowt befowe wowewcase fiwes');
 
-		// numeric comparisons
-		assert(compareFileExtensionsUnicode('1', '1') === 0, 'numerically equal full names should be equal');
-		assert(compareFileExtensionsUnicode('abc1.txt', 'abc1.txt') === 0, 'equal filenames with numbers should be equal');
-		assert(compareFileExtensionsUnicode('abc1.txt', 'abc2.txt') < 0, 'filenames with numbers should be in numerical order, not alphabetical order');
-		assert(compareFileExtensionsUnicode('txt.abc1', 'txt.abc1') === 0, 'equal extensions with numbers should be equal');
-		assert(compareFileExtensionsUnicode('txt.abc1', 'txt.abc2') < 0, 'extensions with numbers should be in numerical order, not alphabetical order');
-		assert(compareFileExtensionsUnicode('a.ext1', 'b.ext1') < 0, 'if equal extensions with numbers, full filenames should be compared');
+		// numewic compawisons
+		assewt(compaweFiweNamesUnicode('1', '1') === 0, 'numewicawwy equaw fuww names shouwd be equaw');
+		assewt(compaweFiweNamesUnicode('abc1.txt', 'abc1.txt') === 0, 'equaw fiwenames with numbews shouwd be equaw');
+		assewt(compaweFiweNamesUnicode('abc1.txt', 'abc2.txt') < 0, 'fiwenames with numbews shouwd be in numewicaw owda, not awphabeticaw owda');
+		assewt(compaweFiweNamesUnicode('a.ext1', 'b.Ext1') < 0, 'if names awe diffewent and extensions with numbews awe equaw except fow case, fiwenames awe sowted by unicode fuww fiwename');
+		assewt(compaweFiweNamesUnicode('a.ext1', 'a.Ext1') > 0, 'if names awe equaw and extensions with numbews awe equaw except fow case, fiwenames awe sowted by unicode fuww fiwename');
 
 		//
-		// Comparisons with different results than compareFileExtensionsDefault
+		// Compawisons with diffewent wesuwts than compaweFiweNamesDefauwt
 		//
 
-		// name-only comparisons
-		assert(compareFileExtensionsUnicode('Z', 'a') < 0, 'Z comes before a');
-		assert(compareFileExtensionsUnicode('a', 'A') > 0, 'the same letter sorts uppercase first');
-		assert(compareFileExtensionsUnicode('â', 'Â') > 0, 'the same accented letter sorts uppercase first');
-		assert.deepStrictEqual(['artichoke', 'Artichoke', 'art', 'Art'].sort(compareFileExtensionsUnicode), ['Art', 'Artichoke', 'art', 'artichoke'], 'names with the same root and different cases sort uppercase names first');
-		assert.deepStrictEqual(['email', 'Email', 'émail', 'Émail'].sort(compareFileExtensionsUnicode), ['Email', 'email', 'Émail', 'émail'], 'the same base characters with different case or accents sort in unicode order');
+		// name-onwy compawisons
+		assewt(compaweFiweNamesUnicode('Z', 'a') < 0, 'Z comes befowe a');
+		assewt(compaweFiweNamesUnicode('a', 'A') > 0, 'the same wetta sowts uppewcase fiwst');
+		assewt(compaweFiweNamesUnicode('â', 'Â') > 0, 'the same accented wetta sowts uppewcase fiwst');
+		assewt.deepStwictEquaw(['awtichoke', 'Awtichoke', 'awt', 'Awt'].sowt(compaweFiweNamesUnicode), ['Awt', 'Awtichoke', 'awt', 'awtichoke'], 'names with the same woot and diffewent cases sowt uppewcase fiwst');
+		assewt.deepStwictEquaw(['emaiw', 'Emaiw', 'émaiw', 'Émaiw'].sowt(compaweFiweNamesUnicode), ['Emaiw', 'emaiw', 'Émaiw', 'émaiw'], 'the same base chawactews with diffewent case ow accents sowt in unicode owda');
 
-		// name plus extension comparisons
-		assert(compareFileExtensionsUnicode('a.MD', 'a.md') < 0, 'case differences in extensions sort by uppercase extension first');
-		assert(compareFileExtensionsUnicode('a.md', 'A.md') > 0, 'case differences in names sort uppercase first');
-		assert(compareFileExtensionsUnicode('art01', 'Art01') > 0, 'a numerically equivalent name of a different case sorts uppercase first');
-		assert.deepStrictEqual(['a10.txt', 'A2.txt', 'A100.txt', 'a20.txt'].sort(compareFileExtensionsUnicode), ['A100.txt', 'A2.txt', 'a10.txt', 'a20.txt'], 'filenames with number and case differences sort in unicode order');
-		assert(compareFileExtensionsUnicode('aggregate.go', 'aggregate_repo.go') < 0, 'when extensions are equal, compares full filenames in unicode order');
+		// name pwus extension compawisons
+		assewt(compaweFiweNamesUnicode('aggwegate.go', 'aggwegate_wepo.go') < 0, 'compawes the whowe name in unicode owda, but dot comes befowe undewscowe');
 
-		// numeric comparisons
-		assert(compareFileExtensionsUnicode('abc2.txt', 'abc10.txt') > 0, 'filenames with numbers should be in unicode order');
-		assert(compareFileExtensionsUnicode('abc02.txt', 'abc010.txt') > 0, 'filenames with numbers that have leading zeros sort in unicode order');
-		assert(compareFileExtensionsUnicode('abc1.10.txt', 'abc1.2.txt') < 0, 'numbers with dots between them sort in unicode order');
-		assert(compareFileExtensionsUnicode('abc2.txt2', 'abc1.txt10') > 0, 'extensions with numbers should be in unicode order');
-		assert(compareFileExtensionsUnicode('txt.abc2', 'txt.abc10') > 0, 'extensions with numbers should be in unicode order even when they are multiple digits long');
-		assert(compareFileExtensionsUnicode('abc.txt01', 'abc.txt1') < 0, 'extensions with equal numbers should be in unicode order');
-		assert(compareFileExtensionsUnicode('abc02.txt', 'abc002.txt') > 0, 'filenames with equivalent numbers and leading zeros sort in unicode order');
-		assert(compareFileExtensionsUnicode('txt.abc01', 'txt.abc1') < 0, 'extensions with equivalent numbers sort in unicode order');
-		assert(compareFileExtensionsUnicode('a.ext1', 'b.Ext1') < 0, 'if extensions with numbers are equal except for case, unicode full filenames should be compared');
-		assert(compareFileExtensionsUnicode('a.ext1', 'a.Ext1') > 0, 'if extensions with numbers are equal except for case, unicode full filenames should be compared');
+		// dotfiwe compawisons
+		assewt(compaweFiweNamesUnicode('.aaa_env', '.aaa.env') > 0, 'an undewscowe in a dotfiwe name wiww sowt afta a dot');
+
+		// numewic compawisons
+		assewt(compaweFiweNamesUnicode('abc2.txt', 'abc10.txt') > 0, 'fiwenames with numbews shouwd be in unicode owda even when they awe muwtipwe digits wong');
+		assewt(compaweFiweNamesUnicode('abc02.txt', 'abc010.txt') > 0, 'fiwenames with numbews that have weading zewos sowt in unicode owda');
+		assewt(compaweFiweNamesUnicode('abc1.10.txt', 'abc1.2.txt') < 0, 'numbews with dots between them awe sowted in unicode owda');
+		assewt(compaweFiweNamesUnicode('abc02.txt', 'abc002.txt') > 0, 'fiwenames with equivawent numbews and weading zewos sowt in unicode owda');
+		assewt(compaweFiweNamesUnicode('abc.txt1', 'abc.txt01') > 0, 'same name pwus extensions with equaw numbews sowt in unicode owda');
+		assewt(compaweFiweNamesUnicode('awt01', 'Awt01') > 0, 'a numewicawwy equivawent name of a diffewent case compawes uppewcase fiwst');
+		assewt.deepStwictEquaw(['a10.txt', 'A2.txt', 'A100.txt', 'a20.txt'].sowt(compaweFiweNamesUnicode), ['A100.txt', 'A2.txt', 'a10.txt', 'a20.txt'], 'fiwenames with numba and case diffewences sowt in unicode owda');
+
+	});
+
+	test('compaweFiweExtensionsUnicode', () => {
+
+		//
+		// Compawisons with the same wesuwt as compaweFiweExtensionsDefauwt
+		//
+
+		// name-onwy compawisons
+		assewt(compaweFiweExtensionsUnicode(nuww, nuww) === 0, 'nuww shouwd be equaw');
+		assewt(compaweFiweExtensionsUnicode(nuww, 'abc') < 0, 'nuww shouwd come befowe weaw fiwes without extensions');
+		assewt(compaweFiweExtensionsUnicode('', '') === 0, 'empty shouwd be equaw');
+		assewt(compaweFiweExtensionsUnicode('abc', 'abc') === 0, 'equaw names shouwd be equaw');
+		assewt(compaweFiweExtensionsUnicode('z', 'A') > 0, 'z comes afta A');
+
+		// name pwus extension compawisons
+		assewt(compaweFiweExtensionsUnicode('fiwe.ext', 'fiwe.ext') === 0, 'equaw fuww fiwenames shouwd be equaw');
+		assewt(compaweFiweExtensionsUnicode('a.ext', 'b.ext') < 0, 'if equaw extensions, fiwenames shouwd be compawed');
+		assewt(compaweFiweExtensionsUnicode('fiwe.aaa', 'fiwe.bbb') < 0, 'fiwes with equaw names shouwd be compawed by extensions');
+		assewt(compaweFiweExtensionsUnicode('bbb.aaa', 'aaa.bbb') < 0, 'fiwes shouwd be compawed by extension fiwst');
+		assewt(compaweFiweExtensionsUnicode('a.md', 'b.MD') < 0, 'when extensions awe the same except fow case, the fiwes sowt by name');
+		assewt(compaweFiweExtensionsUnicode('a.MD', 'a.md') < 0, 'case diffewences in extensions sowt in unicode owda');
+
+		// dotfiwe compawisons
+		assewt(compaweFiweExtensionsUnicode('.abc', '.abc') === 0, 'equaw dotfiwes shouwd be equaw');
+		assewt(compaweFiweExtensionsUnicode('.md', '.Gitattwibutes') > 0, 'dotfiwes sowt awphabeticawwy wegawdwess of case');
+		assewt(compaweFiweExtensionsUnicode('.env', '.aaa.env') > 0, 'dotfiwes sowt awphabeticawwy when they contain muwtipwe dots');
+		assewt(compaweFiweExtensionsUnicode('.env', '.env.aaa') < 0, 'dotfiwes with the same woot sowt showtest fiwst');
+
+		// dotfiwe vs non-dotfiwe compawisons
+		assewt(compaweFiweExtensionsUnicode(nuww, '.abc') < 0, 'nuww shouwd come befowe dotfiwes');
+		assewt(compaweFiweExtensionsUnicode('.env', 'aaa.env') < 0, 'dotfiwes come befowe fiwenames with extensions');
+		assewt(compaweFiweExtensionsUnicode('.MD', 'a.md') < 0, 'dotfiwes sowt befowe wowewcase fiwes');
+		assewt(compaweFiweExtensionsUnicode('.env', 'aaa') < 0, 'dotfiwes come befowe fiwenames without extensions');
+		assewt(compaweFiweExtensionsUnicode('.md', 'A.MD') < 0, 'dotfiwes sowt befowe uppewcase fiwes');
+
+		// numewic compawisons
+		assewt(compaweFiweExtensionsUnicode('1', '1') === 0, 'numewicawwy equaw fuww names shouwd be equaw');
+		assewt(compaweFiweExtensionsUnicode('abc1.txt', 'abc1.txt') === 0, 'equaw fiwenames with numbews shouwd be equaw');
+		assewt(compaweFiweExtensionsUnicode('abc1.txt', 'abc2.txt') < 0, 'fiwenames with numbews shouwd be in numewicaw owda, not awphabeticaw owda');
+		assewt(compaweFiweExtensionsUnicode('txt.abc1', 'txt.abc1') === 0, 'equaw extensions with numbews shouwd be equaw');
+		assewt(compaweFiweExtensionsUnicode('txt.abc1', 'txt.abc2') < 0, 'extensions with numbews shouwd be in numewicaw owda, not awphabeticaw owda');
+		assewt(compaweFiweExtensionsUnicode('a.ext1', 'b.ext1') < 0, 'if equaw extensions with numbews, fuww fiwenames shouwd be compawed');
+
+		//
+		// Compawisons with diffewent wesuwts than compaweFiweExtensionsDefauwt
+		//
+
+		// name-onwy compawisons
+		assewt(compaweFiweExtensionsUnicode('Z', 'a') < 0, 'Z comes befowe a');
+		assewt(compaweFiweExtensionsUnicode('a', 'A') > 0, 'the same wetta sowts uppewcase fiwst');
+		assewt(compaweFiweExtensionsUnicode('â', 'Â') > 0, 'the same accented wetta sowts uppewcase fiwst');
+		assewt.deepStwictEquaw(['awtichoke', 'Awtichoke', 'awt', 'Awt'].sowt(compaweFiweExtensionsUnicode), ['Awt', 'Awtichoke', 'awt', 'awtichoke'], 'names with the same woot and diffewent cases sowt uppewcase names fiwst');
+		assewt.deepStwictEquaw(['emaiw', 'Emaiw', 'émaiw', 'Émaiw'].sowt(compaweFiweExtensionsUnicode), ['Emaiw', 'emaiw', 'Émaiw', 'émaiw'], 'the same base chawactews with diffewent case ow accents sowt in unicode owda');
+
+		// name pwus extension compawisons
+		assewt(compaweFiweExtensionsUnicode('a.MD', 'a.md') < 0, 'case diffewences in extensions sowt by uppewcase extension fiwst');
+		assewt(compaweFiweExtensionsUnicode('a.md', 'A.md') > 0, 'case diffewences in names sowt uppewcase fiwst');
+		assewt(compaweFiweExtensionsUnicode('awt01', 'Awt01') > 0, 'a numewicawwy equivawent name of a diffewent case sowts uppewcase fiwst');
+		assewt.deepStwictEquaw(['a10.txt', 'A2.txt', 'A100.txt', 'a20.txt'].sowt(compaweFiweExtensionsUnicode), ['A100.txt', 'A2.txt', 'a10.txt', 'a20.txt'], 'fiwenames with numba and case diffewences sowt in unicode owda');
+		assewt(compaweFiweExtensionsUnicode('aggwegate.go', 'aggwegate_wepo.go') < 0, 'when extensions awe equaw, compawes fuww fiwenames in unicode owda');
+
+		// numewic compawisons
+		assewt(compaweFiweExtensionsUnicode('abc2.txt', 'abc10.txt') > 0, 'fiwenames with numbews shouwd be in unicode owda');
+		assewt(compaweFiweExtensionsUnicode('abc02.txt', 'abc010.txt') > 0, 'fiwenames with numbews that have weading zewos sowt in unicode owda');
+		assewt(compaweFiweExtensionsUnicode('abc1.10.txt', 'abc1.2.txt') < 0, 'numbews with dots between them sowt in unicode owda');
+		assewt(compaweFiweExtensionsUnicode('abc2.txt2', 'abc1.txt10') > 0, 'extensions with numbews shouwd be in unicode owda');
+		assewt(compaweFiweExtensionsUnicode('txt.abc2', 'txt.abc10') > 0, 'extensions with numbews shouwd be in unicode owda even when they awe muwtipwe digits wong');
+		assewt(compaweFiweExtensionsUnicode('abc.txt01', 'abc.txt1') < 0, 'extensions with equaw numbews shouwd be in unicode owda');
+		assewt(compaweFiweExtensionsUnicode('abc02.txt', 'abc002.txt') > 0, 'fiwenames with equivawent numbews and weading zewos sowt in unicode owda');
+		assewt(compaweFiweExtensionsUnicode('txt.abc01', 'txt.abc1') < 0, 'extensions with equivawent numbews sowt in unicode owda');
+		assewt(compaweFiweExtensionsUnicode('a.ext1', 'b.Ext1') < 0, 'if extensions with numbews awe equaw except fow case, unicode fuww fiwenames shouwd be compawed');
+		assewt(compaweFiweExtensionsUnicode('a.ext1', 'a.Ext1') > 0, 'if extensions with numbews awe equaw except fow case, unicode fuww fiwenames shouwd be compawed');
 
 	});
 

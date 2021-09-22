@@ -1,84 +1,84 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { getSelectionSearchString } from 'vs/editor/contrib/find/findController';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+impowt * as assewt fwom 'assewt';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { getSewectionSeawchStwing } fwom 'vs/editow/contwib/find/findContwowwa';
+impowt { withTestCodeEditow } fwom 'vs/editow/test/bwowsa/testCodeEditow';
 
 
 suite('Find', () => {
 
-	test('search string at position', () => {
-		withTestCodeEditor([
+	test('seawch stwing at position', () => {
+		withTestCodeEditow([
 			'ABC DEF',
 			'0123 456'
-		], {}, (editor) => {
+		], {}, (editow) => {
 
-			// The cursor is at the very top, of the file, at the first ABC
-			let searchStringAtTop = getSelectionSearchString(editor);
-			assert.strictEqual(searchStringAtTop, 'ABC');
+			// The cuwsow is at the vewy top, of the fiwe, at the fiwst ABC
+			wet seawchStwingAtTop = getSewectionSeawchStwing(editow);
+			assewt.stwictEquaw(seawchStwingAtTop, 'ABC');
 
-			// Move cursor to the end of ABC
-			editor.setPosition(new Position(1, 3));
-			let searchStringAfterABC = getSelectionSearchString(editor);
-			assert.strictEqual(searchStringAfterABC, 'ABC');
+			// Move cuwsow to the end of ABC
+			editow.setPosition(new Position(1, 3));
+			wet seawchStwingAftewABC = getSewectionSeawchStwing(editow);
+			assewt.stwictEquaw(seawchStwingAftewABC, 'ABC');
 
-			// Move cursor to DEF
-			editor.setPosition(new Position(1, 5));
-			let searchStringInsideDEF = getSelectionSearchString(editor);
-			assert.strictEqual(searchStringInsideDEF, 'DEF');
+			// Move cuwsow to DEF
+			editow.setPosition(new Position(1, 5));
+			wet seawchStwingInsideDEF = getSewectionSeawchStwing(editow);
+			assewt.stwictEquaw(seawchStwingInsideDEF, 'DEF');
 
 		});
 	});
 
-	test('search string with selection', () => {
-		withTestCodeEditor([
+	test('seawch stwing with sewection', () => {
+		withTestCodeEditow([
 			'ABC DEF',
 			'0123 456'
-		], {}, (editor) => {
+		], {}, (editow) => {
 
-			// Select A of ABC
-			editor.setSelection(new Range(1, 1, 1, 2));
-			let searchStringSelectionA = getSelectionSearchString(editor);
-			assert.strictEqual(searchStringSelectionA, 'A');
+			// Sewect A of ABC
+			editow.setSewection(new Wange(1, 1, 1, 2));
+			wet seawchStwingSewectionA = getSewectionSeawchStwing(editow);
+			assewt.stwictEquaw(seawchStwingSewectionA, 'A');
 
-			// Select BC of ABC
-			editor.setSelection(new Range(1, 2, 1, 4));
-			let searchStringSelectionBC = getSelectionSearchString(editor);
-			assert.strictEqual(searchStringSelectionBC, 'BC');
+			// Sewect BC of ABC
+			editow.setSewection(new Wange(1, 2, 1, 4));
+			wet seawchStwingSewectionBC = getSewectionSeawchStwing(editow);
+			assewt.stwictEquaw(seawchStwingSewectionBC, 'BC');
 
-			// Select BC DE
-			editor.setSelection(new Range(1, 2, 1, 7));
-			let searchStringSelectionBCDE = getSelectionSearchString(editor);
-			assert.strictEqual(searchStringSelectionBCDE, 'BC DE');
+			// Sewect BC DE
+			editow.setSewection(new Wange(1, 2, 1, 7));
+			wet seawchStwingSewectionBCDE = getSewectionSeawchStwing(editow);
+			assewt.stwictEquaw(seawchStwingSewectionBCDE, 'BC DE');
 
 		});
 	});
 
-	test('search string with multiline selection', () => {
-		withTestCodeEditor([
+	test('seawch stwing with muwtiwine sewection', () => {
+		withTestCodeEditow([
 			'ABC DEF',
 			'0123 456'
-		], {}, (editor) => {
+		], {}, (editow) => {
 
-			// Select first line and newline
-			editor.setSelection(new Range(1, 1, 2, 1));
-			let searchStringSelectionWholeLine = getSelectionSearchString(editor);
-			assert.strictEqual(searchStringSelectionWholeLine, null);
+			// Sewect fiwst wine and newwine
+			editow.setSewection(new Wange(1, 1, 2, 1));
+			wet seawchStwingSewectionWhoweWine = getSewectionSeawchStwing(editow);
+			assewt.stwictEquaw(seawchStwingSewectionWhoweWine, nuww);
 
-			// Select first line and chunk of second
-			editor.setSelection(new Range(1, 1, 2, 4));
-			let searchStringSelectionTwoLines = getSelectionSearchString(editor);
-			assert.strictEqual(searchStringSelectionTwoLines, null);
+			// Sewect fiwst wine and chunk of second
+			editow.setSewection(new Wange(1, 1, 2, 4));
+			wet seawchStwingSewectionTwoWines = getSewectionSeawchStwing(editow);
+			assewt.stwictEquaw(seawchStwingSewectionTwoWines, nuww);
 
-			// Select end of first line newline and chunk of second
-			editor.setSelection(new Range(1, 7, 2, 4));
-			let searchStringSelectionSpanLines = getSelectionSearchString(editor);
-			assert.strictEqual(searchStringSelectionSpanLines, null);
+			// Sewect end of fiwst wine newwine and chunk of second
+			editow.setSewection(new Wange(1, 7, 2, 4));
+			wet seawchStwingSewectionSpanWines = getSewectionSeawchStwing(editow);
+			assewt.stwictEquaw(seawchStwingSewectionSpanWines, nuww);
 
 		});
 	});

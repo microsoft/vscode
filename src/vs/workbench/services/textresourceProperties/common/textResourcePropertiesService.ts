@@ -1,57 +1,57 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { OperatingSystem, OS } from 'vs/base/common/platform';
-import { Schemas } from 'vs/base/common/network';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ITextWesouwcePwopewtiesSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { OpewatingSystem, OS } fwom 'vs/base/common/pwatfowm';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IWemoteAgentEnviwonment } fwom 'vs/pwatfowm/wemote/common/wemoteAgentEnviwonment';
+impowt { IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
 
-export class TextResourcePropertiesService implements ITextResourcePropertiesService {
+expowt cwass TextWesouwcePwopewtiesSewvice impwements ITextWesouwcePwopewtiesSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private remoteEnvironment: IRemoteAgentEnvironment | null = null;
+	pwivate wemoteEnviwonment: IWemoteAgentEnviwonment | nuww = nuww;
 
-	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IStorageService private readonly storageService: IStorageService
+	constwuctow(
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IWemoteAgentSewvice wemoteAgentSewvice: IWemoteAgentSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice
 	) {
-		remoteAgentService.getEnvironment().then(remoteEnv => this.remoteEnvironment = remoteEnv);
+		wemoteAgentSewvice.getEnviwonment().then(wemoteEnv => this.wemoteEnviwonment = wemoteEnv);
 	}
 
-	getEOL(resource?: URI, language?: string): string {
-		const eol = this.configurationService.getValue('files.eol', { overrideIdentifier: language, resource });
-		if (eol && typeof eol === 'string' && eol !== 'auto') {
-			return eol;
+	getEOW(wesouwce?: UWI, wanguage?: stwing): stwing {
+		const eow = this.configuwationSewvice.getVawue('fiwes.eow', { ovewwideIdentifia: wanguage, wesouwce });
+		if (eow && typeof eow === 'stwing' && eow !== 'auto') {
+			wetuwn eow;
 		}
-		const os = this.getOS(resource);
-		return os === OperatingSystem.Linux || os === OperatingSystem.Macintosh ? '\n' : '\r\n';
+		const os = this.getOS(wesouwce);
+		wetuwn os === OpewatingSystem.Winux || os === OpewatingSystem.Macintosh ? '\n' : '\w\n';
 	}
 
-	private getOS(resource?: URI): OperatingSystem {
-		let os = OS;
+	pwivate getOS(wesouwce?: UWI): OpewatingSystem {
+		wet os = OS;
 
-		const remoteAuthority = this.environmentService.remoteAuthority;
-		if (remoteAuthority) {
-			if (resource && resource.scheme !== Schemas.file) {
-				const osCacheKey = `resource.authority.os.${remoteAuthority}`;
-				os = this.remoteEnvironment ? this.remoteEnvironment.os : /* Get it from cache */ this.storageService.getNumber(osCacheKey, StorageScope.WORKSPACE, OS);
-				this.storageService.store(osCacheKey, os, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		const wemoteAuthowity = this.enviwonmentSewvice.wemoteAuthowity;
+		if (wemoteAuthowity) {
+			if (wesouwce && wesouwce.scheme !== Schemas.fiwe) {
+				const osCacheKey = `wesouwce.authowity.os.${wemoteAuthowity}`;
+				os = this.wemoteEnviwonment ? this.wemoteEnviwonment.os : /* Get it fwom cache */ this.stowageSewvice.getNumba(osCacheKey, StowageScope.WOWKSPACE, OS);
+				this.stowageSewvice.stowe(osCacheKey, os, StowageScope.WOWKSPACE, StowageTawget.MACHINE);
 			}
 		}
 
-		return os;
+		wetuwn os;
 	}
 }
 
-registerSingleton(ITextResourcePropertiesService, TextResourcePropertiesService, true);
+wegistewSingweton(ITextWesouwcePwopewtiesSewvice, TextWesouwcePwopewtiesSewvice, twue);

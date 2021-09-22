@@ -1,32 +1,32 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILinkDescriptor } from 'vs/platform/opener/browser/link';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { MawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWinkDescwiptow } fwom 'vs/pwatfowm/opena/bwowsa/wink';
 
 
-export interface IBannerItem {
-	readonly id: string;
-	readonly icon: Codicon | URI | undefined;
-	readonly message: string | MarkdownString;
-	readonly actions?: ILinkDescriptor[];
-	readonly ariaLabel?: string;
-	readonly onClose?: () => void;
+expowt intewface IBannewItem {
+	weadonwy id: stwing;
+	weadonwy icon: Codicon | UWI | undefined;
+	weadonwy message: stwing | MawkdownStwing;
+	weadonwy actions?: IWinkDescwiptow[];
+	weadonwy awiaWabew?: stwing;
+	weadonwy onCwose?: () => void;
 }
 
-export const IBannerService = createDecorator<IBannerService>('bannerService');
+expowt const IBannewSewvice = cweateDecowatow<IBannewSewvice>('bannewSewvice');
 
-export interface IBannerService {
-	readonly _serviceBrand: undefined;
+expowt intewface IBannewSewvice {
+	weadonwy _sewviceBwand: undefined;
 
 	focus(): void;
 	focusNextAction(): void;
-	focusPreviousAction(): void;
-	hide(id: string): void;
-	show(item: IBannerItem): void;
+	focusPweviousAction(): void;
+	hide(id: stwing): void;
+	show(item: IBannewItem): void;
 }

@@ -1,38 +1,38 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
-import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
-import { ToggleHighContrastNLS } from 'vs/editor/common/standaloneStrings';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, SewvicesAccessow, wegistewEditowAction } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { IStandawoneThemeSewvice } fwom 'vs/editow/standawone/common/standawoneThemeSewvice';
+impowt { ToggweHighContwastNWS } fwom 'vs/editow/common/standawoneStwings';
 
-class ToggleHighContrast extends EditorAction {
+cwass ToggweHighContwast extends EditowAction {
 
-	private _originalThemeName: string | null;
+	pwivate _owiginawThemeName: stwing | nuww;
 
-	constructor() {
-		super({
-			id: 'editor.action.toggleHighContrast',
-			label: ToggleHighContrastNLS.toggleHighContrast,
-			alias: 'Toggle High Contrast Theme',
-			precondition: undefined
+	constwuctow() {
+		supa({
+			id: 'editow.action.toggweHighContwast',
+			wabew: ToggweHighContwastNWS.toggweHighContwast,
+			awias: 'Toggwe High Contwast Theme',
+			pwecondition: undefined
 		});
-		this._originalThemeName = null;
+		this._owiginawThemeName = nuww;
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const standaloneThemeService = accessor.get(IStandaloneThemeService);
-		if (this._originalThemeName) {
-			// We must toggle back to the integrator's theme
-			standaloneThemeService.setTheme(this._originalThemeName);
-			this._originalThemeName = null;
-		} else {
-			this._originalThemeName = standaloneThemeService.getColorTheme().themeName;
-			standaloneThemeService.setTheme('hc-black');
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		const standawoneThemeSewvice = accessow.get(IStandawoneThemeSewvice);
+		if (this._owiginawThemeName) {
+			// We must toggwe back to the integwatow's theme
+			standawoneThemeSewvice.setTheme(this._owiginawThemeName);
+			this._owiginawThemeName = nuww;
+		} ewse {
+			this._owiginawThemeName = standawoneThemeSewvice.getCowowTheme().themeName;
+			standawoneThemeSewvice.setTheme('hc-bwack');
 		}
 	}
 }
 
-registerEditorAction(ToggleHighContrast);
+wegistewEditowAction(ToggweHighContwast);

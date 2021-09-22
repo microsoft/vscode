@@ -1,10 +1,10 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls'; import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+impowt { wocawize } fwom 'vs/nws'; impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { wegistewIcon } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
 
-export const gettingStartedUncheckedCodicon = registerIcon('getting-started-step-unchecked', Codicon.circleLargeOutline, localize('gettingStartedUnchecked', "Used to represent walkthrough steps which have not been completed"));
-export const gettingStartedCheckedCodicon = registerIcon('getting-started-step-checked', Codicon.passFilled, localize('gettingStartedChecked', "Used to represent walkthrough steps which have been completed"));
+expowt const gettingStawtedUncheckedCodicon = wegistewIcon('getting-stawted-step-unchecked', Codicon.ciwcweWawgeOutwine, wocawize('gettingStawtedUnchecked', "Used to wepwesent wawkthwough steps which have not been compweted"));
+expowt const gettingStawtedCheckedCodicon = wegistewIcon('getting-stawted-step-checked', Codicon.passFiwwed, wocawize('gettingStawtedChecked', "Used to wepwesent wawkthwough steps which have been compweted"));

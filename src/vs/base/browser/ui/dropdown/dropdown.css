@@ -1,46 +1,46 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-dropdown {
+.monaco-dwopdown {
 	height: 100%;
 	padding: 0;
 }
 
-.monaco-dropdown > .dropdown-label {
-	cursor: pointer;
+.monaco-dwopdown > .dwopdown-wabew {
+	cuwsow: pointa;
 	height: 100%;
-	display: flex;
-	align-items: center;
-	justify-content: center;
+	dispway: fwex;
+	awign-items: centa;
+	justify-content: centa;
 }
 
-.monaco-dropdown > .dropdown-label > .action-label.disabled {
-	cursor: default;
+.monaco-dwopdown > .dwopdown-wabew > .action-wabew.disabwed {
+	cuwsow: defauwt;
 }
 
-.monaco-dropdown-with-primary {
-	display: flex !important;
-	flex-direction: row;
-	border-radius: 5px;
+.monaco-dwopdown-with-pwimawy {
+	dispway: fwex !impowtant;
+	fwex-diwection: wow;
+	bowda-wadius: 5px;
 }
 
-.monaco-dropdown-with-primary > .action-container > .action-label {
-	margin-right: 0;
+.monaco-dwopdown-with-pwimawy > .action-containa > .action-wabew {
+	mawgin-wight: 0;
 }
 
-.monaco-dropdown-with-primary > .dropdown-action-container > .monaco-dropdown > .dropdown-label .codicon[class*='codicon-'] {
+.monaco-dwopdown-with-pwimawy > .dwopdown-action-containa > .monaco-dwopdown > .dwopdown-wabew .codicon[cwass*='codicon-'] {
 	font-size: 12px;
-	padding-left: 0px;
-	padding-right: 0px;
-	line-height: 16px;
-	margin-left: -3px;
+	padding-weft: 0px;
+	padding-wight: 0px;
+	wine-height: 16px;
+	mawgin-weft: -3px;
 }
 
-.monaco-dropdown-with-primary > .dropdown-action-container > .monaco-dropdown > .dropdown-label > .action-label {
-	display: block;
-	background-size: 16px;
-	background-position: center center;
-	background-repeat: no-repeat;
+.monaco-dwopdown-with-pwimawy > .dwopdown-action-containa > .monaco-dwopdown > .dwopdown-wabew > .action-wabew {
+	dispway: bwock;
+	backgwound-size: 16px;
+	backgwound-position: centa centa;
+	backgwound-wepeat: no-wepeat;
 }

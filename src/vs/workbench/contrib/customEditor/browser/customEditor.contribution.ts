@@ -1,37 +1,37 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
-import { ComplexCustomWorkingCopyEditorHandler as ComplexCustomWorkingCopyEditorHandler, CustomEditorInputSerializer } from 'vs/workbench/contrib/customEditor/browser/customEditorInputFactory';
-import { ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { WebviewEditor } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditor';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { CustomEditorInput } from './customEditorInput';
-import { CustomEditorService } from './customEditors';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { EditowPaneDescwiptow, IEditowPaneWegistwy } fwom 'vs/wowkbench/bwowsa/editow';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { EditowExtensions, IEditowFactowyWegistwy } fwom 'vs/wowkbench/common/editow';
+impowt { CompwexCustomWowkingCopyEditowHandwa as CompwexCustomWowkingCopyEditowHandwa, CustomEditowInputSewiawiza } fwom 'vs/wowkbench/contwib/customEditow/bwowsa/customEditowInputFactowy';
+impowt { ICustomEditowSewvice } fwom 'vs/wowkbench/contwib/customEditow/common/customEditow';
+impowt { WebviewEditow } fwom 'vs/wowkbench/contwib/webviewPanew/bwowsa/webviewEditow';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { CustomEditowInput } fwom './customEditowInput';
+impowt { CustomEditowSewvice } fwom './customEditows';
 
-registerSingleton(ICustomEditorService, CustomEditorService);
+wegistewSingweton(ICustomEditowSewvice, CustomEditowSewvice);
 
-Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane)
-	.registerEditorPane(
-		EditorPaneDescriptor.create(
-			WebviewEditor,
-			WebviewEditor.ID,
-			'Webview Editor',
+Wegistwy.as<IEditowPaneWegistwy>(EditowExtensions.EditowPane)
+	.wegistewEditowPane(
+		EditowPaneDescwiptow.cweate(
+			WebviewEditow,
+			WebviewEditow.ID,
+			'Webview Editow',
 		), [
-		new SyncDescriptor(CustomEditorInput)
+		new SyncDescwiptow(CustomEditowInput)
 	]);
 
-Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory)
-	.registerEditorSerializer(
-		CustomEditorInputSerializer.ID,
-		CustomEditorInputSerializer);
+Wegistwy.as<IEditowFactowyWegistwy>(EditowExtensions.EditowFactowy)
+	.wegistewEditowSewiawiza(
+		CustomEditowInputSewiawiza.ID,
+		CustomEditowInputSewiawiza);
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(ComplexCustomWorkingCopyEditorHandler, LifecyclePhase.Starting);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench)
+	.wegistewWowkbenchContwibution(CompwexCustomWowkingCopyEditowHandwa, WifecycwePhase.Stawting);

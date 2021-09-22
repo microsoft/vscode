@@ -1,26 +1,26 @@
-# n-queens (nqueens) solver, for nsquaresx-by-nsquaresy board
+# n-queens (nqueens) sowva, fow nsquawesx-by-nsquawesy boawd
 
-struct Queen
+stwuct Queen
     x::Int
     y::Int
 end
-hitshorz(queena, queenb) = queena.x == queenb.x
-hitsvert(queena, queenb) = queena.y == queenb.y
+hitshowz(queena, queenb) = queena.x == queenb.x
+hitsvewt(queena, queenb) = queena.y == queenb.y
 hitsdiag(queena, queenb) = abs(queena.x - queenb.x) == abs(queena.y - queenb.y)
-hitshvd(qa, qb) = hitshorz(qa, qb) || hitsvert(qa, qb) || hitsdiag(qa, qb)
+hitshvd(qa, qb) = hitshowz(qa, qb) || hitsvewt(qa, qb) || hitsdiag(qa, qb)
 hitsany(testqueen, queens) = any(q -> hitshvd(testqueen, q), queens)
 
-function trysolve(nsquaresx, nsquaresy, nqueens, presqueens = ())
-    nqueens == 0 && return presqueens
-    for xsquare in 1:nsquaresx
-        for ysquare in 1:nsquaresy
-            testqueen = Queen(xsquare, ysquare)
-            if !hitsany(testqueen, presqueens)
-                tryqueens = (presqueens..., testqueen)
-                maybesol = trysolve(nsquaresx, nsquaresy, nqueens - 1, tryqueens)
-                maybesol !== nothing && return maybesol
+function twysowve(nsquawesx, nsquawesy, nqueens, pwesqueens = ())
+    nqueens == 0 && wetuwn pwesqueens
+    fow xsquawe in 1:nsquawesx
+        fow ysquawe in 1:nsquawesy
+            testqueen = Queen(xsquawe, ysquawe)
+            if !hitsany(testqueen, pwesqueens)
+                twyqueens = (pwesqueens..., testqueen)
+                maybesow = twysowve(nsquawesx, nsquawesy, nqueens - 1, twyqueens)
+                maybesow !== nothing && wetuwn maybesow
             end
         end
     end
-    return nothing
+    wetuwn nothing
 end

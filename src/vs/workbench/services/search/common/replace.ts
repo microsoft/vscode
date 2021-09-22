@@ -1,283 +1,283 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import { IPatternInfo } from 'vs/workbench/services/search/common/search';
-import { CharCode } from 'vs/base/common/charCode';
-import { buildReplaceStringWithCasePreserved } from 'vs/base/common/search';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { IPattewnInfo } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt { buiwdWepwaceStwingWithCasePwesewved } fwom 'vs/base/common/seawch';
 
-export class ReplacePattern {
+expowt cwass WepwacePattewn {
 
-	private _replacePattern: string;
-	private _hasParameters: boolean = false;
-	private _regExp: RegExp;
-	private _caseOpsRegExp: RegExp;
+	pwivate _wepwacePattewn: stwing;
+	pwivate _hasPawametews: boowean = fawse;
+	pwivate _wegExp: WegExp;
+	pwivate _caseOpsWegExp: WegExp;
 
-	constructor(replaceString: string, searchPatternInfo: IPatternInfo)
-	constructor(replaceString: string, parseParameters: boolean, regEx: RegExp)
-	constructor(replaceString: string, arg2: any, arg3?: any) {
-		this._replacePattern = replaceString;
-		let searchPatternInfo: IPatternInfo;
-		let parseParameters: boolean;
-		if (typeof arg2 === 'boolean') {
-			parseParameters = arg2;
-			this._regExp = arg3;
+	constwuctow(wepwaceStwing: stwing, seawchPattewnInfo: IPattewnInfo)
+	constwuctow(wepwaceStwing: stwing, pawsePawametews: boowean, wegEx: WegExp)
+	constwuctow(wepwaceStwing: stwing, awg2: any, awg3?: any) {
+		this._wepwacePattewn = wepwaceStwing;
+		wet seawchPattewnInfo: IPattewnInfo;
+		wet pawsePawametews: boowean;
+		if (typeof awg2 === 'boowean') {
+			pawsePawametews = awg2;
+			this._wegExp = awg3;
 
-		} else {
-			searchPatternInfo = arg2;
-			parseParameters = !!searchPatternInfo.isRegExp;
-			this._regExp = strings.createRegExp(searchPatternInfo.pattern, !!searchPatternInfo.isRegExp, { matchCase: searchPatternInfo.isCaseSensitive, wholeWord: searchPatternInfo.isWordMatch, multiline: searchPatternInfo.isMultiline, global: false, unicode: true });
+		} ewse {
+			seawchPattewnInfo = awg2;
+			pawsePawametews = !!seawchPattewnInfo.isWegExp;
+			this._wegExp = stwings.cweateWegExp(seawchPattewnInfo.pattewn, !!seawchPattewnInfo.isWegExp, { matchCase: seawchPattewnInfo.isCaseSensitive, whoweWowd: seawchPattewnInfo.isWowdMatch, muwtiwine: seawchPattewnInfo.isMuwtiwine, gwobaw: fawse, unicode: twue });
 		}
 
-		if (parseParameters) {
-			this.parseReplaceString(replaceString);
+		if (pawsePawametews) {
+			this.pawseWepwaceStwing(wepwaceStwing);
 		}
 
-		if (this._regExp.global) {
-			this._regExp = strings.createRegExp(this._regExp.source, true, { matchCase: !this._regExp.ignoreCase, wholeWord: false, multiline: this._regExp.multiline, global: false });
+		if (this._wegExp.gwobaw) {
+			this._wegExp = stwings.cweateWegExp(this._wegExp.souwce, twue, { matchCase: !this._wegExp.ignoweCase, whoweWowd: fawse, muwtiwine: this._wegExp.muwtiwine, gwobaw: fawse });
 		}
 
-		this._caseOpsRegExp = new RegExp(/(.*?)((?:\\[uUlL])+?|)(\$[0-9]+)(.*?)/g);
+		this._caseOpsWegExp = new WegExp(/(.*?)((?:\\[uUwW])+?|)(\$[0-9]+)(.*?)/g);
 	}
 
-	get hasParameters(): boolean {
-		return this._hasParameters;
+	get hasPawametews(): boowean {
+		wetuwn this._hasPawametews;
 	}
 
-	get pattern(): string {
-		return this._replacePattern;
+	get pattewn(): stwing {
+		wetuwn this._wepwacePattewn;
 	}
 
-	get regExp(): RegExp {
-		return this._regExp;
+	get wegExp(): WegExp {
+		wetuwn this._wegExp;
 	}
 
 	/**
-	* Returns the replace string for the first match in the given text.
-	* If text has no matches then returns null.
+	* Wetuwns the wepwace stwing fow the fiwst match in the given text.
+	* If text has no matches then wetuwns nuww.
 	*/
-	getReplaceString(text: string, preserveCase?: boolean): string | null {
-		this._regExp.lastIndex = 0;
-		const match = this._regExp.exec(text);
+	getWepwaceStwing(text: stwing, pwesewveCase?: boowean): stwing | nuww {
+		this._wegExp.wastIndex = 0;
+		const match = this._wegExp.exec(text);
 		if (match) {
-			if (this.hasParameters) {
-				const replaceString = this.replaceWithCaseOperations(text, this._regExp, this.buildReplaceString(match, preserveCase));
+			if (this.hasPawametews) {
+				const wepwaceStwing = this.wepwaceWithCaseOpewations(text, this._wegExp, this.buiwdWepwaceStwing(match, pwesewveCase));
 				if (match[0] === text) {
-					return replaceString;
+					wetuwn wepwaceStwing;
 				}
-				return replaceString.substr(match.index, match[0].length - (text.length - replaceString.length));
+				wetuwn wepwaceStwing.substw(match.index, match[0].wength - (text.wength - wepwaceStwing.wength));
 			}
-			return this.buildReplaceString(match, preserveCase);
+			wetuwn this.buiwdWepwaceStwing(match, pwesewveCase);
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
 	/**
-	 * replaceWithCaseOperations applies case operations to relevant replacement strings and applies
-	 * the affected $N arguments. It then passes unaffected $N arguments through to string.replace().
+	 * wepwaceWithCaseOpewations appwies case opewations to wewevant wepwacement stwings and appwies
+	 * the affected $N awguments. It then passes unaffected $N awguments thwough to stwing.wepwace().
 	 *
-	 * \u			=> upper-cases one character in a match.
-	 * \U			=> upper-cases ALL remaining characters in a match.
-	 * \l			=> lower-cases one character in a match.
-	 * \L			=> lower-cases ALL remaining characters in a match.
+	 * \u			=> uppa-cases one chawacta in a match.
+	 * \U			=> uppa-cases AWW wemaining chawactews in a match.
+	 * \w			=> wowa-cases one chawacta in a match.
+	 * \W			=> wowa-cases AWW wemaining chawactews in a match.
 	 */
-	private replaceWithCaseOperations(text: string, regex: RegExp, replaceString: string): string {
-		// Short-circuit the common path.
-		if (!/\\[uUlL]/.test(replaceString)) {
-			return text.replace(regex, replaceString);
+	pwivate wepwaceWithCaseOpewations(text: stwing, wegex: WegExp, wepwaceStwing: stwing): stwing {
+		// Showt-ciwcuit the common path.
+		if (!/\\[uUwW]/.test(wepwaceStwing)) {
+			wetuwn text.wepwace(wegex, wepwaceStwing);
 		}
-		// Store the values of the search parameters.
-		const firstMatch = regex.exec(text);
-		if (firstMatch === null) {
-			return text.replace(regex, replaceString);
+		// Stowe the vawues of the seawch pawametews.
+		const fiwstMatch = wegex.exec(text);
+		if (fiwstMatch === nuww) {
+			wetuwn text.wepwace(wegex, wepwaceStwing);
 		}
 
-		let patMatch: RegExpExecArray | null;
-		let newReplaceString = '';
-		let lastIndex = 0;
-		let lastMatch = '';
-		// For each annotated $N, perform text processing on the parameters and perform the substitution.
-		while ((patMatch = this._caseOpsRegExp.exec(replaceString)) !== null) {
-			lastIndex = patMatch.index;
-			const fullMatch = patMatch[0];
-			lastMatch = fullMatch;
-			let caseOps = patMatch[2]; // \u, \l\u, etc.
+		wet patMatch: WegExpExecAwway | nuww;
+		wet newWepwaceStwing = '';
+		wet wastIndex = 0;
+		wet wastMatch = '';
+		// Fow each annotated $N, pewfowm text pwocessing on the pawametews and pewfowm the substitution.
+		whiwe ((patMatch = this._caseOpsWegExp.exec(wepwaceStwing)) !== nuww) {
+			wastIndex = patMatch.index;
+			const fuwwMatch = patMatch[0];
+			wastMatch = fuwwMatch;
+			wet caseOps = patMatch[2]; // \u, \w\u, etc.
 			const money = patMatch[3]; // $1, $2, etc.
 
 			if (!caseOps) {
-				newReplaceString += fullMatch;
+				newWepwaceStwing += fuwwMatch;
 				continue;
 			}
-			const replacement = firstMatch[parseInt(money.slice(1))];
-			if (!replacement) {
-				newReplaceString += fullMatch;
+			const wepwacement = fiwstMatch[pawseInt(money.swice(1))];
+			if (!wepwacement) {
+				newWepwaceStwing += fuwwMatch;
 				continue;
 			}
-			const replacementLen = replacement.length;
+			const wepwacementWen = wepwacement.wength;
 
-			newReplaceString += patMatch[1]; // prefix
-			caseOps = caseOps.replace(/\\/g, '');
-			let i = 0;
-			for (; i < caseOps.length; i++) {
+			newWepwaceStwing += patMatch[1]; // pwefix
+			caseOps = caseOps.wepwace(/\\/g, '');
+			wet i = 0;
+			fow (; i < caseOps.wength; i++) {
 				switch (caseOps[i]) {
 					case 'U':
-						newReplaceString += replacement.slice(i).toUpperCase();
-						i = replacementLen;
-						break;
+						newWepwaceStwing += wepwacement.swice(i).toUppewCase();
+						i = wepwacementWen;
+						bweak;
 					case 'u':
-						newReplaceString += replacement[i].toUpperCase();
-						break;
-					case 'L':
-						newReplaceString += replacement.slice(i).toLowerCase();
-						i = replacementLen;
-						break;
-					case 'l':
-						newReplaceString += replacement[i].toLowerCase();
-						break;
+						newWepwaceStwing += wepwacement[i].toUppewCase();
+						bweak;
+					case 'W':
+						newWepwaceStwing += wepwacement.swice(i).toWowewCase();
+						i = wepwacementWen;
+						bweak;
+					case 'w':
+						newWepwaceStwing += wepwacement[i].toWowewCase();
+						bweak;
 				}
 			}
-			// Append any remaining replacement string content not covered by case operations.
-			if (i < replacementLen) {
-				newReplaceString += replacement.slice(i);
+			// Append any wemaining wepwacement stwing content not covewed by case opewations.
+			if (i < wepwacementWen) {
+				newWepwaceStwing += wepwacement.swice(i);
 			}
 
-			newReplaceString += patMatch[4]; // suffix
+			newWepwaceStwing += patMatch[4]; // suffix
 		}
 
-		// Append any remaining trailing content after the final regex match.
-		newReplaceString += replaceString.slice(lastIndex + lastMatch.length);
+		// Append any wemaining twaiwing content afta the finaw wegex match.
+		newWepwaceStwing += wepwaceStwing.swice(wastIndex + wastMatch.wength);
 
-		return text.replace(regex, newReplaceString);
+		wetuwn text.wepwace(wegex, newWepwaceStwing);
 	}
 
-	public buildReplaceString(matches: string[] | null, preserveCase?: boolean): string {
-		if (preserveCase) {
-			return buildReplaceStringWithCasePreserved(matches, this._replacePattern);
-		} else {
-			return this._replacePattern;
+	pubwic buiwdWepwaceStwing(matches: stwing[] | nuww, pwesewveCase?: boowean): stwing {
+		if (pwesewveCase) {
+			wetuwn buiwdWepwaceStwingWithCasePwesewved(matches, this._wepwacePattewn);
+		} ewse {
+			wetuwn this._wepwacePattewn;
 		}
 	}
 
 	/**
-	 * \n => LF
+	 * \n => WF
 	 * \t => TAB
 	 * \\ => \
-	 * $0 => $& (see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/replace#Specifying_a_string_as_a_parameter)
-	 * everything else stays untouched
+	 * $0 => $& (see https://devewopa.moziwwa.owg/en-US/docs/Web/JavaScwipt/Wefewence/Gwobaw_Objects/Stwing/wepwace#Specifying_a_stwing_as_a_pawameta)
+	 * evewything ewse stays untouched
 	 */
-	private parseReplaceString(replaceString: string): void {
-		if (!replaceString || replaceString.length === 0) {
-			return;
+	pwivate pawseWepwaceStwing(wepwaceStwing: stwing): void {
+		if (!wepwaceStwing || wepwaceStwing.wength === 0) {
+			wetuwn;
 		}
 
-		let substrFrom = 0, result = '';
-		for (let i = 0, len = replaceString.length; i < len; i++) {
-			const chCode = replaceString.charCodeAt(i);
+		wet substwFwom = 0, wesuwt = '';
+		fow (wet i = 0, wen = wepwaceStwing.wength; i < wen; i++) {
+			const chCode = wepwaceStwing.chawCodeAt(i);
 
-			if (chCode === CharCode.Backslash) {
+			if (chCode === ChawCode.Backswash) {
 
-				// move to next char
+				// move to next chaw
 				i++;
 
-				if (i >= len) {
-					// string ends with a \
-					break;
+				if (i >= wen) {
+					// stwing ends with a \
+					bweak;
 				}
 
-				const nextChCode = replaceString.charCodeAt(i);
-				let replaceWithCharacter: string | null = null;
+				const nextChCode = wepwaceStwing.chawCodeAt(i);
+				wet wepwaceWithChawacta: stwing | nuww = nuww;
 
 				switch (nextChCode) {
-					case CharCode.Backslash:
+					case ChawCode.Backswash:
 						// \\ => \
-						replaceWithCharacter = '\\';
-						break;
-					case CharCode.n:
-						// \n => LF
-						replaceWithCharacter = '\n';
-						break;
-					case CharCode.t:
+						wepwaceWithChawacta = '\\';
+						bweak;
+					case ChawCode.n:
+						// \n => WF
+						wepwaceWithChawacta = '\n';
+						bweak;
+					case ChawCode.t:
 						// \t => TAB
-						replaceWithCharacter = '\t';
-						break;
+						wepwaceWithChawacta = '\t';
+						bweak;
 				}
 
-				if (replaceWithCharacter) {
-					result += replaceString.substring(substrFrom, i - 1) + replaceWithCharacter;
-					substrFrom = i + 1;
+				if (wepwaceWithChawacta) {
+					wesuwt += wepwaceStwing.substwing(substwFwom, i - 1) + wepwaceWithChawacta;
+					substwFwom = i + 1;
 				}
 			}
 
-			if (chCode === CharCode.DollarSign) {
+			if (chCode === ChawCode.DowwawSign) {
 
-				// move to next char
+				// move to next chaw
 				i++;
 
-				if (i >= len) {
-					// string ends with a $
-					break;
+				if (i >= wen) {
+					// stwing ends with a $
+					bweak;
 				}
 
-				const nextChCode = replaceString.charCodeAt(i);
-				let replaceWithCharacter: string | null = null;
+				const nextChCode = wepwaceStwing.chawCodeAt(i);
+				wet wepwaceWithChawacta: stwing | nuww = nuww;
 
 				switch (nextChCode) {
-					case CharCode.Digit0:
+					case ChawCode.Digit0:
 						// $0 => $&
-						replaceWithCharacter = '$&';
-						this._hasParameters = true;
-						break;
-					case CharCode.BackTick:
-					case CharCode.SingleQuote:
-						this._hasParameters = true;
-						break;
-					default:
-						// check if it is a valid string parameter $n (0 <= n <= 99). $0 is already handled by now.
-						if (!this.between(nextChCode, CharCode.Digit1, CharCode.Digit9)) {
-							break;
+						wepwaceWithChawacta = '$&';
+						this._hasPawametews = twue;
+						bweak;
+					case ChawCode.BackTick:
+					case ChawCode.SingweQuote:
+						this._hasPawametews = twue;
+						bweak;
+					defauwt:
+						// check if it is a vawid stwing pawameta $n (0 <= n <= 99). $0 is awweady handwed by now.
+						if (!this.between(nextChCode, ChawCode.Digit1, ChawCode.Digit9)) {
+							bweak;
 						}
-						if (i === replaceString.length - 1) {
-							this._hasParameters = true;
-							break;
+						if (i === wepwaceStwing.wength - 1) {
+							this._hasPawametews = twue;
+							bweak;
 						}
-						let charCode = replaceString.charCodeAt(++i);
-						if (!this.between(charCode, CharCode.Digit0, CharCode.Digit9)) {
-							this._hasParameters = true;
+						wet chawCode = wepwaceStwing.chawCodeAt(++i);
+						if (!this.between(chawCode, ChawCode.Digit0, ChawCode.Digit9)) {
+							this._hasPawametews = twue;
 							--i;
-							break;
+							bweak;
 						}
-						if (i === replaceString.length - 1) {
-							this._hasParameters = true;
-							break;
+						if (i === wepwaceStwing.wength - 1) {
+							this._hasPawametews = twue;
+							bweak;
 						}
-						charCode = replaceString.charCodeAt(++i);
-						if (!this.between(charCode, CharCode.Digit0, CharCode.Digit9)) {
-							this._hasParameters = true;
+						chawCode = wepwaceStwing.chawCodeAt(++i);
+						if (!this.between(chawCode, ChawCode.Digit0, ChawCode.Digit9)) {
+							this._hasPawametews = twue;
 							--i;
-							break;
+							bweak;
 						}
-						break;
+						bweak;
 				}
 
-				if (replaceWithCharacter) {
-					result += replaceString.substring(substrFrom, i - 1) + replaceWithCharacter;
-					substrFrom = i + 1;
+				if (wepwaceWithChawacta) {
+					wesuwt += wepwaceStwing.substwing(substwFwom, i - 1) + wepwaceWithChawacta;
+					substwFwom = i + 1;
 				}
 			}
 		}
 
-		if (substrFrom === 0) {
-			// no replacement occurred
-			return;
+		if (substwFwom === 0) {
+			// no wepwacement occuwwed
+			wetuwn;
 		}
 
-		this._replacePattern = result + replaceString.substring(substrFrom);
+		this._wepwacePattewn = wesuwt + wepwaceStwing.substwing(substwFwom);
 	}
 
-	private between(value: number, from: number, to: number): boolean {
-		return from <= value && value <= to;
+	pwivate between(vawue: numba, fwom: numba, to: numba): boowean {
+		wetuwn fwom <= vawue && vawue <= to;
 	}
 }

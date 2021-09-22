@@ -1,83 +1,83 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IWorkingCopyBackupMeta, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { VSBuffewWeadabwe, VSBuffewWeadabweStweam } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IWowkingCopyBackupMeta, IWowkingCopyIdentifia } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopy';
 
-export const IWorkingCopyBackupService = createDecorator<IWorkingCopyBackupService>('workingCopyBackupService');
+expowt const IWowkingCopyBackupSewvice = cweateDecowatow<IWowkingCopyBackupSewvice>('wowkingCopyBackupSewvice');
 
 /**
- * A resolved working copy backup carries the backup value
- * as well as associated metadata with it.
+ * A wesowved wowking copy backup cawwies the backup vawue
+ * as weww as associated metadata with it.
  */
-export interface IResolvedWorkingCopyBackup<T extends IWorkingCopyBackupMeta> {
+expowt intewface IWesowvedWowkingCopyBackup<T extends IWowkingCopyBackupMeta> {
 
 	/**
-	 * The content of the working copy backup.
+	 * The content of the wowking copy backup.
 	 */
-	readonly value: VSBufferReadableStream;
+	weadonwy vawue: VSBuffewWeadabweStweam;
 
 	/**
-	 * Additional metadata that is associated with
-	 * the working copy backup.
+	 * Additionaw metadata that is associated with
+	 * the wowking copy backup.
 	 */
-	readonly meta?: T;
+	weadonwy meta?: T;
 }
 
 /**
- * The working copy backup service is the main service to handle backups
- * for working copies.
- * Methods allow to persist and resolve working copy backups from the file
+ * The wowking copy backup sewvice is the main sewvice to handwe backups
+ * fow wowking copies.
+ * Methods awwow to pewsist and wesowve wowking copy backups fwom the fiwe
  * system.
  */
-export interface IWorkingCopyBackupService {
+expowt intewface IWowkingCopyBackupSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Finds out if there are any working copy backups stored.
+	 * Finds out if thewe awe any wowking copy backups stowed.
 	 */
-	hasBackups(): Promise<boolean>;
+	hasBackups(): Pwomise<boowean>;
 
 	/**
-	 * Finds out if a working copy backup with the given identifier
-	 * and optional version exists.
+	 * Finds out if a wowking copy backup with the given identifia
+	 * and optionaw vewsion exists.
 	 *
-	 * Note: if the backup service has not been initialized yet, this may return
-	 * the wrong result. Always use `resolve()` if you can do a long running
-	 * operation.
+	 * Note: if the backup sewvice has not been initiawized yet, this may wetuwn
+	 * the wwong wesuwt. Awways use `wesowve()` if you can do a wong wunning
+	 * opewation.
 	 */
-	hasBackupSync(identifier: IWorkingCopyIdentifier, versionId?: number): boolean;
+	hasBackupSync(identifia: IWowkingCopyIdentifia, vewsionId?: numba): boowean;
 
 	/**
-	 * Gets a list of working copy backups for the current workspace.
+	 * Gets a wist of wowking copy backups fow the cuwwent wowkspace.
 	 */
-	getBackups(): Promise<readonly IWorkingCopyIdentifier[]>;
+	getBackups(): Pwomise<weadonwy IWowkingCopyIdentifia[]>;
 
 	/**
-	 * Resolves the working copy backup for the given identifier if that exists.
+	 * Wesowves the wowking copy backup fow the given identifia if that exists.
 	 */
-	resolve<T extends IWorkingCopyBackupMeta>(identifier: IWorkingCopyIdentifier): Promise<IResolvedWorkingCopyBackup<T> | undefined>;
+	wesowve<T extends IWowkingCopyBackupMeta>(identifia: IWowkingCopyIdentifia): Pwomise<IWesowvedWowkingCopyBackup<T> | undefined>;
 
 	/**
-	 * Stores a new working copy backup for the given identifier.
+	 * Stowes a new wowking copy backup fow the given identifia.
 	 */
-	backup(identifier: IWorkingCopyIdentifier, content?: VSBufferReadable | VSBufferReadableStream, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void>;
+	backup(identifia: IWowkingCopyIdentifia, content?: VSBuffewWeadabwe | VSBuffewWeadabweStweam, vewsionId?: numba, meta?: IWowkingCopyBackupMeta, token?: CancewwationToken): Pwomise<void>;
 
 	/**
-	 * Discards the working copy backup associated with the identifier if it exists.
+	 * Discawds the wowking copy backup associated with the identifia if it exists.
 	 */
-	discardBackup(identifier: IWorkingCopyIdentifier): Promise<void>;
+	discawdBackup(identifia: IWowkingCopyIdentifia): Pwomise<void>;
 
 	/**
-	 * Discards all working copy backups.
+	 * Discawds aww wowking copy backups.
 	 *
-	 * The optional set of identifiers in the filter can be
-	 * provided to discard all but the provided ones.
+	 * The optionaw set of identifiews in the fiwta can be
+	 * pwovided to discawd aww but the pwovided ones.
 	 */
-	discardBackups(filter?: { except: IWorkingCopyIdentifier[] }): Promise<void>;
+	discawdBackups(fiwta?: { except: IWowkingCopyIdentifia[] }): Pwomise<void>;
 }

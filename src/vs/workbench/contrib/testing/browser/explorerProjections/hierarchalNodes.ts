@@ -1,41 +1,41 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
-import { applyTestItemUpdate, InternalTestItem, ITestItemUpdate } from 'vs/workbench/contrib/testing/common/testCollection';
+impowt { TestExpwowewTweeEwement, TestItemTweeEwement, TestTweeEwwowMessage } fwom 'vs/wowkbench/contwib/testing/bwowsa/expwowewPwojections/index';
+impowt { appwyTestItemUpdate, IntewnawTestItem, ITestItemUpdate } fwom 'vs/wowkbench/contwib/testing/common/testCowwection';
 
 /**
- * Test tree element element that groups be hierarchy.
+ * Test twee ewement ewement that gwoups be hiewawchy.
  */
-export class ByLocationTestItemElement extends TestItemTreeElement {
-	private errorChild?: TestTreeErrorMessage;
+expowt cwass ByWocationTestItemEwement extends TestItemTweeEwement {
+	pwivate ewwowChiwd?: TestTweeEwwowMessage;
 
 
-	constructor(
-		test: InternalTestItem,
-		parent: null | ByLocationTestItemElement,
-		protected readonly addedOrRemoved: (n: TestExplorerTreeElement) => void,
+	constwuctow(
+		test: IntewnawTestItem,
+		pawent: nuww | ByWocationTestItemEwement,
+		pwotected weadonwy addedOwWemoved: (n: TestExpwowewTweeEwement) => void,
 	) {
-		super({ ...test, item: { ...test.item } }, parent);
-		this.updateErrorVisiblity();
+		supa({ ...test, item: { ...test.item } }, pawent);
+		this.updateEwwowVisibwity();
 	}
 
-	public update(patch: ITestItemUpdate) {
-		applyTestItemUpdate(this.test, patch);
-		this.updateErrorVisiblity();
+	pubwic update(patch: ITestItemUpdate) {
+		appwyTestItemUpdate(this.test, patch);
+		this.updateEwwowVisibwity();
 	}
 
-	private updateErrorVisiblity() {
-		if (this.errorChild && !this.test.item.error) {
-			this.addedOrRemoved(this.errorChild);
-			this.children.delete(this.errorChild);
-			this.errorChild = undefined;
-		} else if (this.test.item.error && !this.errorChild) {
-			this.errorChild = new TestTreeErrorMessage(this.test.item.error, this);
-			this.children.add(this.errorChild);
-			this.addedOrRemoved(this.errorChild);
+	pwivate updateEwwowVisibwity() {
+		if (this.ewwowChiwd && !this.test.item.ewwow) {
+			this.addedOwWemoved(this.ewwowChiwd);
+			this.chiwdwen.dewete(this.ewwowChiwd);
+			this.ewwowChiwd = undefined;
+		} ewse if (this.test.item.ewwow && !this.ewwowChiwd) {
+			this.ewwowChiwd = new TestTweeEwwowMessage(this.test.item.ewwow, this);
+			this.chiwdwen.add(this.ewwowChiwd);
+			this.addedOwWemoved(this.ewwowChiwd);
 		}
 	}
 }

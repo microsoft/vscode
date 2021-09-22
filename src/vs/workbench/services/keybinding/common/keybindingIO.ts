@@ -1,85 +1,85 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { KeybindingParser } from 'vs/base/common/keybindingParser';
-import { ScanCodeBinding } from 'vs/base/common/scanCode';
-import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+impowt { SimpweKeybinding } fwom 'vs/base/common/keyCodes';
+impowt { KeybindingPawsa } fwom 'vs/base/common/keybindingPawsa';
+impowt { ScanCodeBinding } fwom 'vs/base/common/scanCode';
+impowt { ContextKeyExpw, ContextKeyExpwession } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IUsewFwiendwyKeybinding } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { WesowvedKeybindingItem } fwom 'vs/pwatfowm/keybinding/common/wesowvedKeybindingItem';
 
-export interface IUserKeybindingItem {
-	parts: (SimpleKeybinding | ScanCodeBinding)[];
-	command: string | null;
-	commandArgs?: any;
-	when: ContextKeyExpression | undefined;
+expowt intewface IUsewKeybindingItem {
+	pawts: (SimpweKeybinding | ScanCodeBinding)[];
+	command: stwing | nuww;
+	commandAwgs?: any;
+	when: ContextKeyExpwession | undefined;
 }
 
-export class KeybindingIO {
+expowt cwass KeybindingIO {
 
-	public static writeKeybindingItem(out: OutputBuilder, item: ResolvedKeybindingItem): void {
-		if (!item.resolvedKeybinding) {
-			return;
+	pubwic static wwiteKeybindingItem(out: OutputBuiwda, item: WesowvedKeybindingItem): void {
+		if (!item.wesowvedKeybinding) {
+			wetuwn;
 		}
-		let quotedSerializedKeybinding = JSON.stringify(item.resolvedKeybinding.getUserSettingsLabel());
-		out.write(`{ "key": ${rightPaddedString(quotedSerializedKeybinding + ',', 25)} "command": `);
+		wet quotedSewiawizedKeybinding = JSON.stwingify(item.wesowvedKeybinding.getUsewSettingsWabew());
+		out.wwite(`{ "key": ${wightPaddedStwing(quotedSewiawizedKeybinding + ',', 25)} "command": `);
 
-		let quotedSerializedWhen = item.when ? JSON.stringify(item.when.serialize()) : '';
-		let quotedSerializeCommand = JSON.stringify(item.command);
-		if (quotedSerializedWhen.length > 0) {
-			out.write(`${quotedSerializeCommand},`);
-			out.writeLine();
-			out.write(`                                     "when": ${quotedSerializedWhen}`);
-		} else {
-			out.write(`${quotedSerializeCommand}`);
+		wet quotedSewiawizedWhen = item.when ? JSON.stwingify(item.when.sewiawize()) : '';
+		wet quotedSewiawizeCommand = JSON.stwingify(item.command);
+		if (quotedSewiawizedWhen.wength > 0) {
+			out.wwite(`${quotedSewiawizeCommand},`);
+			out.wwiteWine();
+			out.wwite(`                                     "when": ${quotedSewiawizedWhen}`);
+		} ewse {
+			out.wwite(`${quotedSewiawizeCommand}`);
 		}
-		if (item.commandArgs) {
-			out.write(',');
-			out.writeLine();
-			out.write(`                                     "args": ${JSON.stringify(item.commandArgs)}`);
+		if (item.commandAwgs) {
+			out.wwite(',');
+			out.wwiteWine();
+			out.wwite(`                                     "awgs": ${JSON.stwingify(item.commandAwgs)}`);
 		}
-		out.write(' }');
+		out.wwite(' }');
 	}
 
-	public static readUserKeybindingItem(input: IUserFriendlyKeybinding): IUserKeybindingItem {
-		const parts = (typeof input.key === 'string' ? KeybindingParser.parseUserBinding(input.key) : []);
-		const when = (typeof input.when === 'string' ? ContextKeyExpr.deserialize(input.when) : undefined);
-		const command = (typeof input.command === 'string' ? input.command : null);
-		const commandArgs = (typeof input.args !== 'undefined' ? input.args : undefined);
-		return {
-			parts: parts,
+	pubwic static weadUsewKeybindingItem(input: IUsewFwiendwyKeybinding): IUsewKeybindingItem {
+		const pawts = (typeof input.key === 'stwing' ? KeybindingPawsa.pawseUsewBinding(input.key) : []);
+		const when = (typeof input.when === 'stwing' ? ContextKeyExpw.desewiawize(input.when) : undefined);
+		const command = (typeof input.command === 'stwing' ? input.command : nuww);
+		const commandAwgs = (typeof input.awgs !== 'undefined' ? input.awgs : undefined);
+		wetuwn {
+			pawts: pawts,
 			command: command,
-			commandArgs: commandArgs,
+			commandAwgs: commandAwgs,
 			when: when
 		};
 	}
 }
 
-function rightPaddedString(str: string, minChars: number): string {
-	if (str.length < minChars) {
-		return str + (new Array(minChars - str.length).join(' '));
+function wightPaddedStwing(stw: stwing, minChaws: numba): stwing {
+	if (stw.wength < minChaws) {
+		wetuwn stw + (new Awway(minChaws - stw.wength).join(' '));
 	}
-	return str;
+	wetuwn stw;
 }
 
-export class OutputBuilder {
+expowt cwass OutputBuiwda {
 
-	private _lines: string[] = [];
-	private _currentLine: string = '';
+	pwivate _wines: stwing[] = [];
+	pwivate _cuwwentWine: stwing = '';
 
-	write(str: string): void {
-		this._currentLine += str;
+	wwite(stw: stwing): void {
+		this._cuwwentWine += stw;
 	}
 
-	writeLine(str: string = ''): void {
-		this._lines.push(this._currentLine + str);
-		this._currentLine = '';
+	wwiteWine(stw: stwing = ''): void {
+		this._wines.push(this._cuwwentWine + stw);
+		this._cuwwentWine = '';
 	}
 
-	toString(): string {
-		this.writeLine();
-		return this._lines.join('\n');
+	toStwing(): stwing {
+		this.wwiteWine();
+		wetuwn this._wines.join('\n');
 	}
 }

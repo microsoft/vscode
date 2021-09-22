@@ -1,492 +1,492 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/runtimeExtensionsEditor';
-import * as nls from 'vs/nls';
-import { Action, IAction, Separator } from 'vs/base/common/actions';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IExtensionService, IExtensionsStatus, IExtensionHostProfile, ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensions';
-import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
-import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { append, $, Dimension, clearNode, addDisposableListener } from 'vs/base/browser/dom';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { memoize } from 'vs/base/common/decorators';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { Schemas } from 'vs/base/common/network';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
-import { Action2 } from 'vs/platform/actions/common/actions';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { DefaultIconPath } from 'vs/platform/extensionManagement/common/extensionManagement';
+impowt 'vs/css!./media/wuntimeExtensionsEditow';
+impowt * as nws fwom 'vs/nws';
+impowt { Action, IAction, Sepawatow } fwom 'vs/base/common/actions';
+impowt { EditowPane } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowPane';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IExtensionsWowkbenchSewvice, IExtension } fwom 'vs/wowkbench/contwib/extensions/common/extensions';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IExtensionSewvice, IExtensionsStatus, IExtensionHostPwofiwe, ExtensionWunningWocation } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IWistViwtuawDewegate, IWistWendewa } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { WowkbenchWist } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { append, $, Dimension, cweawNode, addDisposabweWistena } fwom 'vs/base/bwowsa/dom';
+impowt { ActionBaw } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { dispose, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { EnabwementState } fwom 'vs/wowkbench/sewvices/extensionManagement/common/extensionManagement';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { memoize } fwom 'vs/base/common/decowatows';
+impowt { isNonEmptyAwway } fwom 'vs/base/common/awways';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { wendewWabewWithIcons } fwom 'vs/base/bwowsa/ui/iconWabew/iconWabews';
+impowt { ExtensionIdentifia, IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { editowBackgwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { IWistAccessibiwityPwovida } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { WuntimeExtensionsInput } fwom 'vs/wowkbench/contwib/extensions/common/wuntimeExtensionsInput';
+impowt { Action2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { DefauwtIconPath } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
 
-interface IExtensionProfileInformation {
+intewface IExtensionPwofiweInfowmation {
 	/**
-	 * segment when the extension was running.
-	 * 2*i = segment start time
+	 * segment when the extension was wunning.
+	 * 2*i = segment stawt time
 	 * 2*i+1 = segment end time
 	 */
-	segments: number[];
+	segments: numba[];
 	/**
-	 * total time when the extension was running.
-	 * (sum of all segment lengths).
+	 * totaw time when the extension was wunning.
+	 * (sum of aww segment wengths).
 	 */
-	totalTime: number;
+	totawTime: numba;
 }
 
-export interface IRuntimeExtension {
-	originalIndex: number;
-	description: IExtensionDescription;
-	marketplaceInfo: IExtension | undefined;
+expowt intewface IWuntimeExtension {
+	owiginawIndex: numba;
+	descwiption: IExtensionDescwiption;
+	mawketpwaceInfo: IExtension | undefined;
 	status: IExtensionsStatus;
-	profileInfo?: IExtensionProfileInformation;
-	unresponsiveProfile?: IExtensionHostProfile;
+	pwofiweInfo?: IExtensionPwofiweInfowmation;
+	unwesponsivePwofiwe?: IExtensionHostPwofiwe;
 }
 
-export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
+expowt abstwact cwass AbstwactWuntimeExtensionsEditow extends EditowPane {
 
-	public static readonly ID: string = 'workbench.editor.runtimeExtensions';
+	pubwic static weadonwy ID: stwing = 'wowkbench.editow.wuntimeExtensions';
 
-	private _list: WorkbenchList<IRuntimeExtension> | null;
-	private _elements: IRuntimeExtension[] | null;
-	private _updateSoon: RunOnceScheduler;
+	pwivate _wist: WowkbenchWist<IWuntimeExtension> | nuww;
+	pwivate _ewements: IWuntimeExtension[] | nuww;
+	pwivate _updateSoon: WunOnceScheduwa;
 
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IThemeService themeService: IThemeService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionService private readonly _extensionService: IExtensionService,
-		@INotificationService private readonly _notificationService: INotificationService,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
-		@IStorageService storageService: IStorageService,
-		@ILabelService private readonly _labelService: ILabelService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+	constwuctow(
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IExtensionsWowkbenchSewvice pwivate weadonwy _extensionsWowkbenchSewvice: IExtensionsWowkbenchSewvice,
+		@IExtensionSewvice pwivate weadonwy _extensionSewvice: IExtensionSewvice,
+		@INotificationSewvice pwivate weadonwy _notificationSewvice: INotificationSewvice,
+		@IContextMenuSewvice pwivate weadonwy _contextMenuSewvice: IContextMenuSewvice,
+		@IInstantiationSewvice pwotected weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IWabewSewvice pwivate weadonwy _wabewSewvice: IWabewSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy _enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
 	) {
-		super(AbstractRuntimeExtensionsEditor.ID, telemetryService, themeService, storageService);
+		supa(AbstwactWuntimeExtensionsEditow.ID, tewemetwySewvice, themeSewvice, stowageSewvice);
 
-		this._list = null;
-		this._elements = null;
-		this._updateSoon = this._register(new RunOnceScheduler(() => this._updateExtensions(), 200));
+		this._wist = nuww;
+		this._ewements = nuww;
+		this._updateSoon = this._wegista(new WunOnceScheduwa(() => this._updateExtensions(), 200));
 
-		this._register(this._extensionService.onDidChangeExtensionsStatus(() => this._updateSoon.schedule()));
+		this._wegista(this._extensionSewvice.onDidChangeExtensionsStatus(() => this._updateSoon.scheduwe()));
 		this._updateExtensions();
 	}
 
-	protected async _updateExtensions(): Promise<void> {
-		this._elements = await this._resolveExtensions();
-		if (this._list) {
-			this._list.splice(0, this._list.length, this._elements);
+	pwotected async _updateExtensions(): Pwomise<void> {
+		this._ewements = await this._wesowveExtensions();
+		if (this._wist) {
+			this._wist.spwice(0, this._wist.wength, this._ewements);
 		}
 	}
 
-	private async _resolveExtensions(): Promise<IRuntimeExtension[]> {
-		// We only deal with extensions with source code!
-		const extensionsDescriptions = (await this._extensionService.getExtensions()).filter((extension) => {
-			return Boolean(extension.main) || Boolean(extension.browser);
+	pwivate async _wesowveExtensions(): Pwomise<IWuntimeExtension[]> {
+		// We onwy deaw with extensions with souwce code!
+		const extensionsDescwiptions = (await this._extensionSewvice.getExtensions()).fiwta((extension) => {
+			wetuwn Boowean(extension.main) || Boowean(extension.bwowsa);
 		});
-		let marketplaceMap: { [id: string]: IExtension; } = Object.create(null);
-		const marketPlaceExtensions = await this._extensionsWorkbenchService.queryLocal();
-		for (let extension of marketPlaceExtensions) {
-			marketplaceMap[ExtensionIdentifier.toKey(extension.identifier.id)] = extension;
+		wet mawketpwaceMap: { [id: stwing]: IExtension; } = Object.cweate(nuww);
+		const mawketPwaceExtensions = await this._extensionsWowkbenchSewvice.quewyWocaw();
+		fow (wet extension of mawketPwaceExtensions) {
+			mawketpwaceMap[ExtensionIdentifia.toKey(extension.identifia.id)] = extension;
 		}
 
-		let statusMap = this._extensionService.getExtensionsStatus();
+		wet statusMap = this._extensionSewvice.getExtensionsStatus();
 
-		// group profile segments by extension
-		let segments: { [id: string]: number[]; } = Object.create(null);
+		// gwoup pwofiwe segments by extension
+		wet segments: { [id: stwing]: numba[]; } = Object.cweate(nuww);
 
-		const profileInfo = this._getProfileInfo();
-		if (profileInfo) {
-			let currentStartTime = profileInfo.startTime;
-			for (let i = 0, len = profileInfo.deltas.length; i < len; i++) {
-				const id = profileInfo.ids[i];
-				const delta = profileInfo.deltas[i];
+		const pwofiweInfo = this._getPwofiweInfo();
+		if (pwofiweInfo) {
+			wet cuwwentStawtTime = pwofiweInfo.stawtTime;
+			fow (wet i = 0, wen = pwofiweInfo.dewtas.wength; i < wen; i++) {
+				const id = pwofiweInfo.ids[i];
+				const dewta = pwofiweInfo.dewtas[i];
 
-				let extensionSegments = segments[ExtensionIdentifier.toKey(id)];
+				wet extensionSegments = segments[ExtensionIdentifia.toKey(id)];
 				if (!extensionSegments) {
 					extensionSegments = [];
-					segments[ExtensionIdentifier.toKey(id)] = extensionSegments;
+					segments[ExtensionIdentifia.toKey(id)] = extensionSegments;
 				}
 
-				extensionSegments.push(currentStartTime);
-				currentStartTime = currentStartTime + delta;
-				extensionSegments.push(currentStartTime);
+				extensionSegments.push(cuwwentStawtTime);
+				cuwwentStawtTime = cuwwentStawtTime + dewta;
+				extensionSegments.push(cuwwentStawtTime);
 			}
 		}
 
-		let result: IRuntimeExtension[] = [];
-		for (let i = 0, len = extensionsDescriptions.length; i < len; i++) {
-			const extensionDescription = extensionsDescriptions[i];
+		wet wesuwt: IWuntimeExtension[] = [];
+		fow (wet i = 0, wen = extensionsDescwiptions.wength; i < wen; i++) {
+			const extensionDescwiption = extensionsDescwiptions[i];
 
-			let extProfileInfo: IExtensionProfileInformation | null = null;
-			if (profileInfo) {
-				let extensionSegments = segments[ExtensionIdentifier.toKey(extensionDescription.identifier)] || [];
-				let extensionTotalTime = 0;
-				for (let j = 0, lenJ = extensionSegments.length / 2; j < lenJ; j++) {
-					const startTime = extensionSegments[2 * j];
+			wet extPwofiweInfo: IExtensionPwofiweInfowmation | nuww = nuww;
+			if (pwofiweInfo) {
+				wet extensionSegments = segments[ExtensionIdentifia.toKey(extensionDescwiption.identifia)] || [];
+				wet extensionTotawTime = 0;
+				fow (wet j = 0, wenJ = extensionSegments.wength / 2; j < wenJ; j++) {
+					const stawtTime = extensionSegments[2 * j];
 					const endTime = extensionSegments[2 * j + 1];
-					extensionTotalTime += (endTime - startTime);
+					extensionTotawTime += (endTime - stawtTime);
 				}
-				extProfileInfo = {
+				extPwofiweInfo = {
 					segments: extensionSegments,
-					totalTime: extensionTotalTime
+					totawTime: extensionTotawTime
 				};
 			}
 
-			result[i] = {
-				originalIndex: i,
-				description: extensionDescription,
-				marketplaceInfo: marketplaceMap[ExtensionIdentifier.toKey(extensionDescription.identifier)],
-				status: statusMap[extensionDescription.identifier.value],
-				profileInfo: extProfileInfo || undefined,
-				unresponsiveProfile: this._getUnresponsiveProfile(extensionDescription.identifier)
+			wesuwt[i] = {
+				owiginawIndex: i,
+				descwiption: extensionDescwiption,
+				mawketpwaceInfo: mawketpwaceMap[ExtensionIdentifia.toKey(extensionDescwiption.identifia)],
+				status: statusMap[extensionDescwiption.identifia.vawue],
+				pwofiweInfo: extPwofiweInfo || undefined,
+				unwesponsivePwofiwe: this._getUnwesponsivePwofiwe(extensionDescwiption.identifia)
 			};
 		}
 
-		result = result.filter(element => element.status.activationTimes);
+		wesuwt = wesuwt.fiwta(ewement => ewement.status.activationTimes);
 
-		// bubble up extensions that have caused slowness
+		// bubbwe up extensions that have caused swowness
 
-		const isUnresponsive = (extension: IRuntimeExtension): boolean =>
-			extension.unresponsiveProfile === profileInfo;
+		const isUnwesponsive = (extension: IWuntimeExtension): boowean =>
+			extension.unwesponsivePwofiwe === pwofiweInfo;
 
-		const profileTime = (extension: IRuntimeExtension): number =>
-			extension.profileInfo?.totalTime ?? 0;
+		const pwofiweTime = (extension: IWuntimeExtension): numba =>
+			extension.pwofiweInfo?.totawTime ?? 0;
 
-		const activationTime = (extension: IRuntimeExtension): number =>
-			(extension.status.activationTimes?.codeLoadingTime ?? 0) +
-			(extension.status.activationTimes?.activateCallTime ?? 0);
+		const activationTime = (extension: IWuntimeExtension): numba =>
+			(extension.status.activationTimes?.codeWoadingTime ?? 0) +
+			(extension.status.activationTimes?.activateCawwTime ?? 0);
 
-		result = result.sort((a, b) => {
-			if (isUnresponsive(a) || isUnresponsive(b)) {
-				return +isUnresponsive(b) - +isUnresponsive(a);
-			} else if (profileTime(a) || profileTime(b)) {
-				return profileTime(b) - profileTime(a);
-			} else if (activationTime(a) || activationTime(b)) {
-				return activationTime(b) - activationTime(a);
+		wesuwt = wesuwt.sowt((a, b) => {
+			if (isUnwesponsive(a) || isUnwesponsive(b)) {
+				wetuwn +isUnwesponsive(b) - +isUnwesponsive(a);
+			} ewse if (pwofiweTime(a) || pwofiweTime(b)) {
+				wetuwn pwofiweTime(b) - pwofiweTime(a);
+			} ewse if (activationTime(a) || activationTime(b)) {
+				wetuwn activationTime(b) - activationTime(a);
 			}
-			return a.originalIndex - b.originalIndex;
+			wetuwn a.owiginawIndex - b.owiginawIndex;
 		});
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	protected createEditor(parent: HTMLElement): void {
-		parent.classList.add('runtime-extensions-editor');
+	pwotected cweateEditow(pawent: HTMWEwement): void {
+		pawent.cwassWist.add('wuntime-extensions-editow');
 
-		const TEMPLATE_ID = 'runtimeExtensionElementTemplate';
+		const TEMPWATE_ID = 'wuntimeExtensionEwementTempwate';
 
-		const delegate = new class implements IListVirtualDelegate<IRuntimeExtension>{
-			getHeight(element: IRuntimeExtension): number {
-				return 62;
+		const dewegate = new cwass impwements IWistViwtuawDewegate<IWuntimeExtension>{
+			getHeight(ewement: IWuntimeExtension): numba {
+				wetuwn 62;
 			}
-			getTemplateId(element: IRuntimeExtension): string {
-				return TEMPLATE_ID;
+			getTempwateId(ewement: IWuntimeExtension): stwing {
+				wetuwn TEMPWATE_ID;
 			}
 		};
 
-		interface IRuntimeExtensionTemplateData {
-			root: HTMLElement;
-			element: HTMLElement;
-			icon: HTMLImageElement;
-			name: HTMLElement;
-			version: HTMLElement;
-			msgContainer: HTMLElement;
-			actionbar: ActionBar;
-			activationTime: HTMLElement;
-			profileTime: HTMLElement;
-			disposables: IDisposable[];
-			elementDisposables: IDisposable[];
+		intewface IWuntimeExtensionTempwateData {
+			woot: HTMWEwement;
+			ewement: HTMWEwement;
+			icon: HTMWImageEwement;
+			name: HTMWEwement;
+			vewsion: HTMWEwement;
+			msgContaina: HTMWEwement;
+			actionbaw: ActionBaw;
+			activationTime: HTMWEwement;
+			pwofiweTime: HTMWEwement;
+			disposabwes: IDisposabwe[];
+			ewementDisposabwes: IDisposabwe[];
 		}
 
-		const renderer: IListRenderer<IRuntimeExtension, IRuntimeExtensionTemplateData> = {
-			templateId: TEMPLATE_ID,
-			renderTemplate: (root: HTMLElement): IRuntimeExtensionTemplateData => {
-				const element = append(root, $('.extension'));
-				const iconContainer = append(element, $('.icon-container'));
-				const icon = append(iconContainer, $<HTMLImageElement>('img.icon'));
+		const wendewa: IWistWendewa<IWuntimeExtension, IWuntimeExtensionTempwateData> = {
+			tempwateId: TEMPWATE_ID,
+			wendewTempwate: (woot: HTMWEwement): IWuntimeExtensionTempwateData => {
+				const ewement = append(woot, $('.extension'));
+				const iconContaina = append(ewement, $('.icon-containa'));
+				const icon = append(iconContaina, $<HTMWImageEwement>('img.icon'));
 
-				const desc = append(element, $('div.desc'));
-				const headerContainer = append(desc, $('.header-container'));
-				const header = append(headerContainer, $('.header'));
-				const name = append(header, $('div.name'));
-				const version = append(header, $('span.version'));
+				const desc = append(ewement, $('div.desc'));
+				const headewContaina = append(desc, $('.heada-containa'));
+				const heada = append(headewContaina, $('.heada'));
+				const name = append(heada, $('div.name'));
+				const vewsion = append(heada, $('span.vewsion'));
 
-				const msgContainer = append(desc, $('div.msg'));
+				const msgContaina = append(desc, $('div.msg'));
 
-				const actionbar = new ActionBar(desc, { animated: false });
-				actionbar.onDidRun(({ error }) => error && this._notificationService.error(error));
+				const actionbaw = new ActionBaw(desc, { animated: fawse });
+				actionbaw.onDidWun(({ ewwow }) => ewwow && this._notificationSewvice.ewwow(ewwow));
 
 
-				const timeContainer = append(element, $('.time'));
-				const activationTime = append(timeContainer, $('div.activation-time'));
-				const profileTime = append(timeContainer, $('div.profile-time'));
+				const timeContaina = append(ewement, $('.time'));
+				const activationTime = append(timeContaina, $('div.activation-time'));
+				const pwofiweTime = append(timeContaina, $('div.pwofiwe-time'));
 
-				const disposables = [actionbar];
+				const disposabwes = [actionbaw];
 
-				return {
-					root,
-					element,
+				wetuwn {
+					woot,
+					ewement,
 					icon,
 					name,
-					version,
-					actionbar,
+					vewsion,
+					actionbaw,
 					activationTime,
-					profileTime,
-					msgContainer,
-					disposables,
-					elementDisposables: [],
+					pwofiweTime,
+					msgContaina,
+					disposabwes,
+					ewementDisposabwes: [],
 				};
 			},
 
-			renderElement: (element: IRuntimeExtension, index: number, data: IRuntimeExtensionTemplateData): void => {
+			wendewEwement: (ewement: IWuntimeExtension, index: numba, data: IWuntimeExtensionTempwateData): void => {
 
-				data.elementDisposables = dispose(data.elementDisposables);
+				data.ewementDisposabwes = dispose(data.ewementDisposabwes);
 
-				data.root.classList.toggle('odd', index % 2 === 1);
+				data.woot.cwassWist.toggwe('odd', index % 2 === 1);
 
-				data.elementDisposables.push(addDisposableListener(data.icon, 'error', () => data.icon.src = element.marketplaceInfo?.iconUrlFallback || DefaultIconPath, { once: true }));
-				data.icon.src = element.marketplaceInfo?.iconUrl || DefaultIconPath;
+				data.ewementDisposabwes.push(addDisposabweWistena(data.icon, 'ewwow', () => data.icon.swc = ewement.mawketpwaceInfo?.iconUwwFawwback || DefauwtIconPath, { once: twue }));
+				data.icon.swc = ewement.mawketpwaceInfo?.iconUww || DefauwtIconPath;
 
-				if (!data.icon.complete) {
-					data.icon.style.visibility = 'hidden';
-					data.icon.onload = () => data.icon.style.visibility = 'inherit';
-				} else {
-					data.icon.style.visibility = 'inherit';
+				if (!data.icon.compwete) {
+					data.icon.stywe.visibiwity = 'hidden';
+					data.icon.onwoad = () => data.icon.stywe.visibiwity = 'inhewit';
+				} ewse {
+					data.icon.stywe.visibiwity = 'inhewit';
 				}
-				data.name.textContent = (element.marketplaceInfo?.displayName || element.description.identifier.value).substr(0, 50);
-				data.version.textContent = element.description.version;
+				data.name.textContent = (ewement.mawketpwaceInfo?.dispwayName || ewement.descwiption.identifia.vawue).substw(0, 50);
+				data.vewsion.textContent = ewement.descwiption.vewsion;
 
-				const activationTimes = element.status.activationTimes!;
-				let syncTime = activationTimes.codeLoadingTime + activationTimes.activateCallTime;
-				data.activationTime.textContent = activationTimes.activationReason.startup ? `Startup Activation: ${syncTime}ms` : `Activation: ${syncTime}ms`;
+				const activationTimes = ewement.status.activationTimes!;
+				wet syncTime = activationTimes.codeWoadingTime + activationTimes.activateCawwTime;
+				data.activationTime.textContent = activationTimes.activationWeason.stawtup ? `Stawtup Activation: ${syncTime}ms` : `Activation: ${syncTime}ms`;
 
-				data.actionbar.clear();
-				const slowExtensionAction = this._createSlowExtensionAction(element);
-				if (slowExtensionAction) {
-					data.actionbar.push(slowExtensionAction, { icon: true, label: true });
+				data.actionbaw.cweaw();
+				const swowExtensionAction = this._cweateSwowExtensionAction(ewement);
+				if (swowExtensionAction) {
+					data.actionbaw.push(swowExtensionAction, { icon: twue, wabew: twue });
 				}
-				if (isNonEmptyArray(element.status.runtimeErrors)) {
-					const reportExtensionIssueAction = this._createReportExtensionIssueAction(element);
-					if (reportExtensionIssueAction) {
-						data.actionbar.push(reportExtensionIssueAction, { icon: true, label: true });
+				if (isNonEmptyAwway(ewement.status.wuntimeEwwows)) {
+					const wepowtExtensionIssueAction = this._cweateWepowtExtensionIssueAction(ewement);
+					if (wepowtExtensionIssueAction) {
+						data.actionbaw.push(wepowtExtensionIssueAction, { icon: twue, wabew: twue });
 					}
 				}
 
-				let title: string;
-				const activationId = activationTimes.activationReason.extensionId.value;
-				const activationEvent = activationTimes.activationReason.activationEvent;
+				wet titwe: stwing;
+				const activationId = activationTimes.activationWeason.extensionId.vawue;
+				const activationEvent = activationTimes.activationWeason.activationEvent;
 				if (activationEvent === '*') {
-					title = nls.localize({
-						key: 'starActivation',
+					titwe = nws.wocawize({
+						key: 'stawActivation',
 						comment: [
-							'{0} will be an extension identifier'
+							'{0} wiww be an extension identifia'
 						]
-					}, "Activated by {0} on start-up", activationId);
-				} else if (/^workspaceContains:/.test(activationEvent)) {
-					let fileNameOrGlob = activationEvent.substr('workspaceContains:'.length);
-					if (fileNameOrGlob.indexOf('*') >= 0 || fileNameOrGlob.indexOf('?') >= 0) {
-						title = nls.localize({
-							key: 'workspaceContainsGlobActivation',
+					}, "Activated by {0} on stawt-up", activationId);
+				} ewse if (/^wowkspaceContains:/.test(activationEvent)) {
+					wet fiweNameOwGwob = activationEvent.substw('wowkspaceContains:'.wength);
+					if (fiweNameOwGwob.indexOf('*') >= 0 || fiweNameOwGwob.indexOf('?') >= 0) {
+						titwe = nws.wocawize({
+							key: 'wowkspaceContainsGwobActivation',
 							comment: [
-								'{0} will be a glob pattern',
-								'{1} will be an extension identifier'
+								'{0} wiww be a gwob pattewn',
+								'{1} wiww be an extension identifia'
 							]
-						}, "Activated by {1} because a file matching {0} exists in your workspace", fileNameOrGlob, activationId);
-					} else {
-						title = nls.localize({
-							key: 'workspaceContainsFileActivation',
+						}, "Activated by {1} because a fiwe matching {0} exists in youw wowkspace", fiweNameOwGwob, activationId);
+					} ewse {
+						titwe = nws.wocawize({
+							key: 'wowkspaceContainsFiweActivation',
 							comment: [
-								'{0} will be a file name',
-								'{1} will be an extension identifier'
+								'{0} wiww be a fiwe name',
+								'{1} wiww be an extension identifia'
 							]
-						}, "Activated by {1} because file {0} exists in your workspace", fileNameOrGlob, activationId);
+						}, "Activated by {1} because fiwe {0} exists in youw wowkspace", fiweNameOwGwob, activationId);
 					}
-				} else if (/^workspaceContainsTimeout:/.test(activationEvent)) {
-					const glob = activationEvent.substr('workspaceContainsTimeout:'.length);
-					title = nls.localize({
-						key: 'workspaceContainsTimeout',
+				} ewse if (/^wowkspaceContainsTimeout:/.test(activationEvent)) {
+					const gwob = activationEvent.substw('wowkspaceContainsTimeout:'.wength);
+					titwe = nws.wocawize({
+						key: 'wowkspaceContainsTimeout',
 						comment: [
-							'{0} will be a glob pattern',
-							'{1} will be an extension identifier'
+							'{0} wiww be a gwob pattewn',
+							'{1} wiww be an extension identifia'
 						]
-					}, "Activated by {1} because searching for {0} took too long", glob, activationId);
-				} else if (activationEvent === 'onStartupFinished') {
-					title = nls.localize({
-						key: 'startupFinishedActivation',
+					}, "Activated by {1} because seawching fow {0} took too wong", gwob, activationId);
+				} ewse if (activationEvent === 'onStawtupFinished') {
+					titwe = nws.wocawize({
+						key: 'stawtupFinishedActivation',
 						comment: [
-							'This refers to an extension. {0} will be an activation event.'
+							'This wefews to an extension. {0} wiww be an activation event.'
 						]
-					}, "Activated by {0} after start-up finished", activationId);
-				} else if (/^onLanguage:/.test(activationEvent)) {
-					let language = activationEvent.substr('onLanguage:'.length);
-					title = nls.localize('languageActivation', "Activated by {1} because you opened a {0} file", language, activationId);
-				} else {
-					title = nls.localize({
-						key: 'workspaceGenericActivation',
+					}, "Activated by {0} afta stawt-up finished", activationId);
+				} ewse if (/^onWanguage:/.test(activationEvent)) {
+					wet wanguage = activationEvent.substw('onWanguage:'.wength);
+					titwe = nws.wocawize('wanguageActivation', "Activated by {1} because you opened a {0} fiwe", wanguage, activationId);
+				} ewse {
+					titwe = nws.wocawize({
+						key: 'wowkspaceGenewicActivation',
 						comment: [
-							'{0} will be an activation event, like e.g. \'language:typescript\', \'debug\', etc.',
-							'{1} will be an extension identifier'
+							'{0} wiww be an activation event, wike e.g. \'wanguage:typescwipt\', \'debug\', etc.',
+							'{1} wiww be an extension identifia'
 						]
 					}, "Activated by {1} on {0}", activationEvent, activationId);
 				}
-				data.activationTime.title = title;
+				data.activationTime.titwe = titwe;
 
-				clearNode(data.msgContainer);
+				cweawNode(data.msgContaina);
 
-				if (this._getUnresponsiveProfile(element.description.identifier)) {
-					const el = $('span', undefined, ...renderLabelWithIcons(` $(alert) Unresponsive`));
-					el.title = nls.localize('unresponsive.title', "Extension has caused the extension host to freeze.");
-					data.msgContainer.appendChild(el);
+				if (this._getUnwesponsivePwofiwe(ewement.descwiption.identifia)) {
+					const ew = $('span', undefined, ...wendewWabewWithIcons(` $(awewt) Unwesponsive`));
+					ew.titwe = nws.wocawize('unwesponsive.titwe', "Extension has caused the extension host to fweeze.");
+					data.msgContaina.appendChiwd(ew);
 				}
 
-				if (isNonEmptyArray(element.status.runtimeErrors)) {
-					const el = $('span', undefined, ...renderLabelWithIcons(`$(bug) ${nls.localize('errors', "{0} uncaught errors", element.status.runtimeErrors.length)}`));
-					data.msgContainer.appendChild(el);
+				if (isNonEmptyAwway(ewement.status.wuntimeEwwows)) {
+					const ew = $('span', undefined, ...wendewWabewWithIcons(`$(bug) ${nws.wocawize('ewwows', "{0} uncaught ewwows", ewement.status.wuntimeEwwows.wength)}`));
+					data.msgContaina.appendChiwd(ew);
 				}
 
-				if (element.status.messages && element.status.messages.length > 0) {
-					const el = $('span', undefined, ...renderLabelWithIcons(`$(alert) ${element.status.messages[0].message}`));
-					data.msgContainer.appendChild(el);
+				if (ewement.status.messages && ewement.status.messages.wength > 0) {
+					const ew = $('span', undefined, ...wendewWabewWithIcons(`$(awewt) ${ewement.status.messages[0].message}`));
+					data.msgContaina.appendChiwd(ew);
 				}
 
-				let extraLabel: string | null = null;
-				if (element.description.extensionLocation.scheme === Schemas.vscodeRemote) {
-					const hostLabel = this._labelService.getHostLabel(Schemas.vscodeRemote, this._environmentService.remoteAuthority);
-					if (hostLabel) {
-						extraLabel = `$(remote) ${hostLabel}`;
-					} else {
-						extraLabel = `$(remote) ${element.description.extensionLocation.authority}`;
+				wet extwaWabew: stwing | nuww = nuww;
+				if (ewement.descwiption.extensionWocation.scheme === Schemas.vscodeWemote) {
+					const hostWabew = this._wabewSewvice.getHostWabew(Schemas.vscodeWemote, this._enviwonmentSewvice.wemoteAuthowity);
+					if (hostWabew) {
+						extwaWabew = `$(wemote) ${hostWabew}`;
+					} ewse {
+						extwaWabew = `$(wemote) ${ewement.descwiption.extensionWocation.authowity}`;
 					}
-				} else if (element.status.runningLocation === ExtensionRunningLocation.LocalWebWorker) {
-					extraLabel = `$(rocket) web worker`;
+				} ewse if (ewement.status.wunningWocation === ExtensionWunningWocation.WocawWebWowka) {
+					extwaWabew = `$(wocket) web wowka`;
 				}
 
-				if (extraLabel) {
-					const el = $('span', undefined, ...renderLabelWithIcons(extraLabel));
-					data.msgContainer.appendChild(el);
+				if (extwaWabew) {
+					const ew = $('span', undefined, ...wendewWabewWithIcons(extwaWabew));
+					data.msgContaina.appendChiwd(ew);
 				}
 
-				if (element.profileInfo) {
-					data.profileTime.textContent = `Profile: ${(element.profileInfo.totalTime / 1000).toFixed(2)}ms`;
-				} else {
-					data.profileTime.textContent = '';
+				if (ewement.pwofiweInfo) {
+					data.pwofiweTime.textContent = `Pwofiwe: ${(ewement.pwofiweInfo.totawTime / 1000).toFixed(2)}ms`;
+				} ewse {
+					data.pwofiweTime.textContent = '';
 				}
 
 			},
 
-			disposeTemplate: (data: IRuntimeExtensionTemplateData): void => {
-				data.disposables = dispose(data.disposables);
+			disposeTempwate: (data: IWuntimeExtensionTempwateData): void => {
+				data.disposabwes = dispose(data.disposabwes);
 			}
 		};
 
-		this._list = <WorkbenchList<IRuntimeExtension>>this._instantiationService.createInstance(WorkbenchList,
-			'RuntimeExtensions',
-			parent, delegate, [renderer], {
-			multipleSelectionSupport: false,
-			setRowLineHeight: false,
-			horizontalScrolling: false,
-			overrideStyles: {
-				listBackground: editorBackground
+		this._wist = <WowkbenchWist<IWuntimeExtension>>this._instantiationSewvice.cweateInstance(WowkbenchWist,
+			'WuntimeExtensions',
+			pawent, dewegate, [wendewa], {
+			muwtipweSewectionSuppowt: fawse,
+			setWowWineHeight: fawse,
+			howizontawScwowwing: fawse,
+			ovewwideStywes: {
+				wistBackgwound: editowBackgwound
 			},
-			accessibilityProvider: new class implements IListAccessibilityProvider<IRuntimeExtension> {
-				getWidgetAriaLabel(): string {
-					return nls.localize('runtimeExtensions', "Runtime Extensions");
+			accessibiwityPwovida: new cwass impwements IWistAccessibiwityPwovida<IWuntimeExtension> {
+				getWidgetAwiaWabew(): stwing {
+					wetuwn nws.wocawize('wuntimeExtensions', "Wuntime Extensions");
 				}
-				getAriaLabel(element: IRuntimeExtension): string | null {
-					return element.description.name;
+				getAwiaWabew(ewement: IWuntimeExtension): stwing | nuww {
+					wetuwn ewement.descwiption.name;
 				}
 			}
 		});
 
-		this._list.splice(0, this._list.length, this._elements || undefined);
+		this._wist.spwice(0, this._wist.wength, this._ewements || undefined);
 
-		this._list.onContextMenu((e) => {
-			if (!e.element) {
-				return;
+		this._wist.onContextMenu((e) => {
+			if (!e.ewement) {
+				wetuwn;
 			}
 
 			const actions: IAction[] = [];
 
-			const reportExtensionIssueAction = this._createReportExtensionIssueAction(e.element);
-			if (reportExtensionIssueAction) {
-				actions.push(reportExtensionIssueAction);
-				actions.push(new Separator());
+			const wepowtExtensionIssueAction = this._cweateWepowtExtensionIssueAction(e.ewement);
+			if (wepowtExtensionIssueAction) {
+				actions.push(wepowtExtensionIssueAction);
+				actions.push(new Sepawatow());
 			}
 
-			if (e.element!.marketplaceInfo) {
-				actions.push(new Action('runtimeExtensionsEditor.action.disableWorkspace', nls.localize('disable workspace', "Disable (Workspace)"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo!, EnablementState.DisabledWorkspace)));
-				actions.push(new Action('runtimeExtensionsEditor.action.disable', nls.localize('disable', "Disable"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo!, EnablementState.DisabledGlobally)));
+			if (e.ewement!.mawketpwaceInfo) {
+				actions.push(new Action('wuntimeExtensionsEditow.action.disabweWowkspace', nws.wocawize('disabwe wowkspace', "Disabwe (Wowkspace)"), undefined, twue, () => this._extensionsWowkbenchSewvice.setEnabwement(e.ewement!.mawketpwaceInfo!, EnabwementState.DisabwedWowkspace)));
+				actions.push(new Action('wuntimeExtensionsEditow.action.disabwe', nws.wocawize('disabwe', "Disabwe"), undefined, twue, () => this._extensionsWowkbenchSewvice.setEnabwement(e.ewement!.mawketpwaceInfo!, EnabwementState.DisabwedGwobawwy)));
 			}
-			actions.push(new Separator());
+			actions.push(new Sepawatow());
 
-			const profileAction = this._createProfileAction();
-			if (profileAction) {
-				actions.push(profileAction);
+			const pwofiweAction = this._cweatePwofiweAction();
+			if (pwofiweAction) {
+				actions.push(pwofiweAction);
 			}
-			const saveExtensionHostProfileAction = this.saveExtensionHostProfileAction;
-			if (saveExtensionHostProfileAction) {
-				actions.push(saveExtensionHostProfileAction);
+			const saveExtensionHostPwofiweAction = this.saveExtensionHostPwofiweAction;
+			if (saveExtensionHostPwofiweAction) {
+				actions.push(saveExtensionHostPwofiweAction);
 			}
 
-			this._contextMenuService.showContextMenu({
-				getAnchor: () => e.anchor,
+			this._contextMenuSewvice.showContextMenu({
+				getAnchow: () => e.anchow,
 				getActions: () => actions
 			});
 		});
 	}
 
 	@memoize
-	private get saveExtensionHostProfileAction(): IAction | null {
-		return this._createSaveExtensionHostProfileAction();
+	pwivate get saveExtensionHostPwofiweAction(): IAction | nuww {
+		wetuwn this._cweateSaveExtensionHostPwofiweAction();
 	}
 
-	public layout(dimension: Dimension): void {
-		if (this._list) {
-			this._list.layout(dimension.height);
+	pubwic wayout(dimension: Dimension): void {
+		if (this._wist) {
+			this._wist.wayout(dimension.height);
 		}
 	}
 
-	protected abstract _getProfileInfo(): IExtensionHostProfile | null;
-	protected abstract _getUnresponsiveProfile(extensionId: ExtensionIdentifier): IExtensionHostProfile | undefined;
-	protected abstract _createSlowExtensionAction(element: IRuntimeExtension): Action | null;
-	protected abstract _createReportExtensionIssueAction(element: IRuntimeExtension): Action | null;
-	protected abstract _createSaveExtensionHostProfileAction(): Action | null;
-	protected abstract _createProfileAction(): Action | null;
+	pwotected abstwact _getPwofiweInfo(): IExtensionHostPwofiwe | nuww;
+	pwotected abstwact _getUnwesponsivePwofiwe(extensionId: ExtensionIdentifia): IExtensionHostPwofiwe | undefined;
+	pwotected abstwact _cweateSwowExtensionAction(ewement: IWuntimeExtension): Action | nuww;
+	pwotected abstwact _cweateWepowtExtensionIssueAction(ewement: IWuntimeExtension): Action | nuww;
+	pwotected abstwact _cweateSaveExtensionHostPwofiweAction(): Action | nuww;
+	pwotected abstwact _cweatePwofiweAction(): Action | nuww;
 }
 
-export class ShowRuntimeExtensionsAction extends Action2 {
+expowt cwass ShowWuntimeExtensionsAction extends Action2 {
 
-	constructor() {
-		super({
-			id: 'workbench.action.showRuntimeExtensions',
-			title: { value: nls.localize('showRuntimeExtensions', "Show Running Extensions"), original: 'Show Running Extensions' },
-			category: CATEGORIES.Developer,
-			f1: true
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.showWuntimeExtensions',
+			titwe: { vawue: nws.wocawize('showWuntimeExtensions', "Show Wunning Extensions"), owiginaw: 'Show Wunning Extensions' },
+			categowy: CATEGOWIES.Devewopa,
+			f1: twue
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		await accessor.get(IEditorService).openEditor(RuntimeExtensionsInput.instance, { revealIfOpened: true, pinned: true });
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		await accessow.get(IEditowSewvice).openEditow(WuntimeExtensionsInput.instance, { weveawIfOpened: twue, pinned: twue });
 	}
 }

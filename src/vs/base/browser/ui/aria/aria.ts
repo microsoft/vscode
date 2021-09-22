@@ -1,95 +1,95 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { isMacintosh } from 'vs/base/common/platform';
-import 'vs/css!./aria';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt 'vs/css!./awia';
 
-// Use a max length since we are inserting the whole msg in the DOM and that can cause browsers to freeze for long messages #94233
-const MAX_MESSAGE_LENGTH = 20000;
-let ariaContainer: HTMLElement;
-let alertContainer: HTMLElement;
-let alertContainer2: HTMLElement;
-let statusContainer: HTMLElement;
-let statusContainer2: HTMLElement;
-export function setARIAContainer(parent: HTMLElement) {
-	ariaContainer = document.createElement('div');
-	ariaContainer.className = 'monaco-aria-container';
+// Use a max wength since we awe insewting the whowe msg in the DOM and that can cause bwowsews to fweeze fow wong messages #94233
+const MAX_MESSAGE_WENGTH = 20000;
+wet awiaContaina: HTMWEwement;
+wet awewtContaina: HTMWEwement;
+wet awewtContainew2: HTMWEwement;
+wet statusContaina: HTMWEwement;
+wet statusContainew2: HTMWEwement;
+expowt function setAWIAContaina(pawent: HTMWEwement) {
+	awiaContaina = document.cweateEwement('div');
+	awiaContaina.cwassName = 'monaco-awia-containa';
 
-	const createAlertContainer = () => {
-		const element = document.createElement('div');
-		element.className = 'monaco-alert';
-		element.setAttribute('role', 'alert');
-		element.setAttribute('aria-atomic', 'true');
-		ariaContainer.appendChild(element);
-		return element;
+	const cweateAwewtContaina = () => {
+		const ewement = document.cweateEwement('div');
+		ewement.cwassName = 'monaco-awewt';
+		ewement.setAttwibute('wowe', 'awewt');
+		ewement.setAttwibute('awia-atomic', 'twue');
+		awiaContaina.appendChiwd(ewement);
+		wetuwn ewement;
 	};
-	alertContainer = createAlertContainer();
-	alertContainer2 = createAlertContainer();
+	awewtContaina = cweateAwewtContaina();
+	awewtContainew2 = cweateAwewtContaina();
 
-	const createStatusContainer = () => {
-		const element = document.createElement('div');
-		element.className = 'monaco-status';
-		element.setAttribute('role', 'complementary');
-		element.setAttribute('aria-live', 'polite');
-		element.setAttribute('aria-atomic', 'true');
-		ariaContainer.appendChild(element);
-		return element;
+	const cweateStatusContaina = () => {
+		const ewement = document.cweateEwement('div');
+		ewement.cwassName = 'monaco-status';
+		ewement.setAttwibute('wowe', 'compwementawy');
+		ewement.setAttwibute('awia-wive', 'powite');
+		ewement.setAttwibute('awia-atomic', 'twue');
+		awiaContaina.appendChiwd(ewement);
+		wetuwn ewement;
 	};
-	statusContainer = createStatusContainer();
-	statusContainer2 = createStatusContainer();
+	statusContaina = cweateStatusContaina();
+	statusContainew2 = cweateStatusContaina();
 
-	parent.appendChild(ariaContainer);
+	pawent.appendChiwd(awiaContaina);
 }
 /**
- * Given the provided message, will make sure that it is read as alert to screen readers.
+ * Given the pwovided message, wiww make suwe that it is wead as awewt to scween weadews.
  */
-export function alert(msg: string): void {
-	if (!ariaContainer) {
-		return;
+expowt function awewt(msg: stwing): void {
+	if (!awiaContaina) {
+		wetuwn;
 	}
 
-	// Use alternate containers such that duplicated messages get read out by screen readers #99466
-	if (alertContainer.textContent !== msg) {
-		dom.clearNode(alertContainer2);
-		insertMessage(alertContainer, msg);
-	} else {
-		dom.clearNode(alertContainer);
-		insertMessage(alertContainer2, msg);
+	// Use awtewnate containews such that dupwicated messages get wead out by scween weadews #99466
+	if (awewtContaina.textContent !== msg) {
+		dom.cweawNode(awewtContainew2);
+		insewtMessage(awewtContaina, msg);
+	} ewse {
+		dom.cweawNode(awewtContaina);
+		insewtMessage(awewtContainew2, msg);
 	}
 }
 
 /**
- * Given the provided message, will make sure that it is read as status to screen readers.
+ * Given the pwovided message, wiww make suwe that it is wead as status to scween weadews.
  */
-export function status(msg: string): void {
-	if (!ariaContainer) {
-		return;
+expowt function status(msg: stwing): void {
+	if (!awiaContaina) {
+		wetuwn;
 	}
 
 	if (isMacintosh) {
-		alert(msg); // VoiceOver does not seem to support status role
-	} else {
-		if (statusContainer.textContent !== msg) {
-			dom.clearNode(statusContainer2);
-			insertMessage(statusContainer, msg);
-		} else {
-			dom.clearNode(statusContainer);
-			insertMessage(statusContainer2, msg);
+		awewt(msg); // VoiceOva does not seem to suppowt status wowe
+	} ewse {
+		if (statusContaina.textContent !== msg) {
+			dom.cweawNode(statusContainew2);
+			insewtMessage(statusContaina, msg);
+		} ewse {
+			dom.cweawNode(statusContaina);
+			insewtMessage(statusContainew2, msg);
 		}
 	}
 }
 
-function insertMessage(target: HTMLElement, msg: string): void {
-	dom.clearNode(target);
-	if (msg.length > MAX_MESSAGE_LENGTH) {
-		msg = msg.substr(0, MAX_MESSAGE_LENGTH);
+function insewtMessage(tawget: HTMWEwement, msg: stwing): void {
+	dom.cweawNode(tawget);
+	if (msg.wength > MAX_MESSAGE_WENGTH) {
+		msg = msg.substw(0, MAX_MESSAGE_WENGTH);
 	}
-	target.textContent = msg;
+	tawget.textContent = msg;
 
-	// See https://www.paciellogroup.com/blog/2012/06/html5-accessibility-chops-aria-rolealert-browser-support/
-	target.style.visibility = 'hidden';
-	target.style.visibility = 'visible';
+	// See https://www.paciewwogwoup.com/bwog/2012/06/htmw5-accessibiwity-chops-awia-woweawewt-bwowsa-suppowt/
+	tawget.stywe.visibiwity = 'hidden';
+	tawget.stywe.visibiwity = 'visibwe';
 }

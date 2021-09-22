@@ -1,752 +1,752 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ILine, RenderedLinesCollection } from 'vs/editor/browser/view/viewLayer';
+impowt * as assewt fwom 'assewt';
+impowt { IWine, WendewedWinesCowwection } fwom 'vs/editow/bwowsa/view/viewWaya';
 
-class TestLine implements ILine {
+cwass TestWine impwements IWine {
 
-	_pinged = false;
-	constructor(public id: string) {
+	_pinged = fawse;
+	constwuctow(pubwic id: stwing) {
 	}
 
 	onContentChanged(): void {
-		this._pinged = true;
+		this._pinged = twue;
 	}
 	onTokensChanged(): void {
-		this._pinged = true;
+		this._pinged = twue;
 	}
 }
 
-interface ILinesCollectionState {
-	startLineNumber: number;
-	lines: string[];
-	pinged: boolean[];
+intewface IWinesCowwectionState {
+	stawtWineNumba: numba;
+	wines: stwing[];
+	pinged: boowean[];
 }
 
-function assertState(col: RenderedLinesCollection<TestLine>, state: ILinesCollectionState): void {
-	let actualState: ILinesCollectionState = {
-		startLineNumber: col.getStartLineNumber(),
-		lines: [],
+function assewtState(cow: WendewedWinesCowwection<TestWine>, state: IWinesCowwectionState): void {
+	wet actuawState: IWinesCowwectionState = {
+		stawtWineNumba: cow.getStawtWineNumba(),
+		wines: [],
 		pinged: []
 	};
-	for (let lineNumber = col.getStartLineNumber(); lineNumber <= col.getEndLineNumber(); lineNumber++) {
-		actualState.lines.push(col.getLine(lineNumber).id);
-		actualState.pinged.push(col.getLine(lineNumber)._pinged);
+	fow (wet wineNumba = cow.getStawtWineNumba(); wineNumba <= cow.getEndWineNumba(); wineNumba++) {
+		actuawState.wines.push(cow.getWine(wineNumba).id);
+		actuawState.pinged.push(cow.getWine(wineNumba)._pinged);
 	}
-	assert.deepStrictEqual(actualState, state);
+	assewt.deepStwictEquaw(actuawState, state);
 }
 
-suite('RenderedLinesCollection onLinesDeleted', () => {
+suite('WendewedWinesCowwection onWinesDeweted', () => {
 
-	function testOnModelLinesDeleted(deleteFromLineNumber: number, deleteToLineNumber: number, expectedDeleted: string[], expectedState: ILinesCollectionState): void {
-		let col = new RenderedLinesCollection<TestLine>(() => new TestLine('new'));
-		col._set(6, [
-			new TestLine('old6'),
-			new TestLine('old7'),
-			new TestLine('old8'),
-			new TestLine('old9')
+	function testOnModewWinesDeweted(deweteFwomWineNumba: numba, deweteToWineNumba: numba, expectedDeweted: stwing[], expectedState: IWinesCowwectionState): void {
+		wet cow = new WendewedWinesCowwection<TestWine>(() => new TestWine('new'));
+		cow._set(6, [
+			new TestWine('owd6'),
+			new TestWine('owd7'),
+			new TestWine('owd8'),
+			new TestWine('owd9')
 		]);
-		let actualDeleted1 = col.onLinesDeleted(deleteFromLineNumber, deleteToLineNumber);
-		let actualDeleted: string[] = [];
-		if (actualDeleted1) {
-			actualDeleted = actualDeleted1.map(line => line.id);
+		wet actuawDeweted1 = cow.onWinesDeweted(deweteFwomWineNumba, deweteToWineNumba);
+		wet actuawDeweted: stwing[] = [];
+		if (actuawDeweted1) {
+			actuawDeweted = actuawDeweted1.map(wine => wine.id);
 		}
-		assert.deepStrictEqual(actualDeleted, expectedDeleted);
-		assertState(col, expectedState);
+		assewt.deepStwictEquaw(actuawDeweted, expectedDeweted);
+		assewtState(cow, expectedState);
 	}
 
 	test('A1', () => {
-		testOnModelLinesDeleted(3, 3, [], {
-			startLineNumber: 5,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewWinesDeweted(3, 3, [], {
+			stawtWineNumba: 5,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 
 	test('A2', () => {
-		testOnModelLinesDeleted(3, 4, [], {
-			startLineNumber: 4,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewWinesDeweted(3, 4, [], {
+			stawtWineNumba: 4,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 
 	test('A3', () => {
-		testOnModelLinesDeleted(3, 5, [], {
-			startLineNumber: 3,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewWinesDeweted(3, 5, [], {
+			stawtWineNumba: 3,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 
 	test('A4', () => {
-		testOnModelLinesDeleted(3, 6, ['old6'], {
-			startLineNumber: 3,
-			lines: ['old7', 'old8', 'old9'],
-			pinged: [false, false, false]
+		testOnModewWinesDeweted(3, 6, ['owd6'], {
+			stawtWineNumba: 3,
+			wines: ['owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse]
 		});
 	});
 
 	test('A5', () => {
-		testOnModelLinesDeleted(3, 7, ['old6', 'old7'], {
-			startLineNumber: 3,
-			lines: ['old8', 'old9'],
-			pinged: [false, false]
+		testOnModewWinesDeweted(3, 7, ['owd6', 'owd7'], {
+			stawtWineNumba: 3,
+			wines: ['owd8', 'owd9'],
+			pinged: [fawse, fawse]
 		});
 	});
 
 	test('A6', () => {
-		testOnModelLinesDeleted(3, 8, ['old6', 'old7', 'old8'], {
-			startLineNumber: 3,
-			lines: ['old9'],
-			pinged: [false]
+		testOnModewWinesDeweted(3, 8, ['owd6', 'owd7', 'owd8'], {
+			stawtWineNumba: 3,
+			wines: ['owd9'],
+			pinged: [fawse]
 		});
 	});
 
 	test('A7', () => {
-		testOnModelLinesDeleted(3, 9, ['old6', 'old7', 'old8', 'old9'], {
-			startLineNumber: 3,
-			lines: [],
+		testOnModewWinesDeweted(3, 9, ['owd6', 'owd7', 'owd8', 'owd9'], {
+			stawtWineNumba: 3,
+			wines: [],
 			pinged: []
 		});
 	});
 
 	test('A8', () => {
-		testOnModelLinesDeleted(3, 10, ['old6', 'old7', 'old8', 'old9'], {
-			startLineNumber: 3,
-			lines: [],
+		testOnModewWinesDeweted(3, 10, ['owd6', 'owd7', 'owd8', 'owd9'], {
+			stawtWineNumba: 3,
+			wines: [],
 			pinged: []
 		});
 	});
 
 
 	test('B1', () => {
-		testOnModelLinesDeleted(5, 5, [], {
-			startLineNumber: 5,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewWinesDeweted(5, 5, [], {
+			stawtWineNumba: 5,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 
 	test('B2', () => {
-		testOnModelLinesDeleted(5, 6, ['old6'], {
-			startLineNumber: 5,
-			lines: ['old7', 'old8', 'old9'],
-			pinged: [false, false, false]
+		testOnModewWinesDeweted(5, 6, ['owd6'], {
+			stawtWineNumba: 5,
+			wines: ['owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse]
 		});
 	});
 
 	test('B3', () => {
-		testOnModelLinesDeleted(5, 7, ['old6', 'old7'], {
-			startLineNumber: 5,
-			lines: ['old8', 'old9'],
-			pinged: [false, false]
+		testOnModewWinesDeweted(5, 7, ['owd6', 'owd7'], {
+			stawtWineNumba: 5,
+			wines: ['owd8', 'owd9'],
+			pinged: [fawse, fawse]
 		});
 	});
 
 	test('B4', () => {
-		testOnModelLinesDeleted(5, 8, ['old6', 'old7', 'old8'], {
-			startLineNumber: 5,
-			lines: ['old9'],
-			pinged: [false]
+		testOnModewWinesDeweted(5, 8, ['owd6', 'owd7', 'owd8'], {
+			stawtWineNumba: 5,
+			wines: ['owd9'],
+			pinged: [fawse]
 		});
 	});
 
 	test('B5', () => {
-		testOnModelLinesDeleted(5, 9, ['old6', 'old7', 'old8', 'old9'], {
-			startLineNumber: 5,
-			lines: [],
+		testOnModewWinesDeweted(5, 9, ['owd6', 'owd7', 'owd8', 'owd9'], {
+			stawtWineNumba: 5,
+			wines: [],
 			pinged: []
 		});
 	});
 
 	test('B6', () => {
-		testOnModelLinesDeleted(5, 10, ['old6', 'old7', 'old8', 'old9'], {
-			startLineNumber: 5,
-			lines: [],
+		testOnModewWinesDeweted(5, 10, ['owd6', 'owd7', 'owd8', 'owd9'], {
+			stawtWineNumba: 5,
+			wines: [],
 			pinged: []
 		});
 	});
 
 
 	test('C1', () => {
-		testOnModelLinesDeleted(6, 6, ['old6'], {
-			startLineNumber: 6,
-			lines: ['old7', 'old8', 'old9'],
-			pinged: [false, false, false]
+		testOnModewWinesDeweted(6, 6, ['owd6'], {
+			stawtWineNumba: 6,
+			wines: ['owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse]
 		});
 	});
 
 	test('C2', () => {
-		testOnModelLinesDeleted(6, 7, ['old6', 'old7'], {
-			startLineNumber: 6,
-			lines: ['old8', 'old9'],
-			pinged: [false, false]
+		testOnModewWinesDeweted(6, 7, ['owd6', 'owd7'], {
+			stawtWineNumba: 6,
+			wines: ['owd8', 'owd9'],
+			pinged: [fawse, fawse]
 		});
 	});
 
 	test('C3', () => {
-		testOnModelLinesDeleted(6, 8, ['old6', 'old7', 'old8'], {
-			startLineNumber: 6,
-			lines: ['old9'],
-			pinged: [false]
+		testOnModewWinesDeweted(6, 8, ['owd6', 'owd7', 'owd8'], {
+			stawtWineNumba: 6,
+			wines: ['owd9'],
+			pinged: [fawse]
 		});
 	});
 
 	test('C4', () => {
-		testOnModelLinesDeleted(6, 9, ['old6', 'old7', 'old8', 'old9'], {
-			startLineNumber: 6,
-			lines: [],
+		testOnModewWinesDeweted(6, 9, ['owd6', 'owd7', 'owd8', 'owd9'], {
+			stawtWineNumba: 6,
+			wines: [],
 			pinged: []
 		});
 	});
 
 	test('C5', () => {
-		testOnModelLinesDeleted(6, 10, ['old6', 'old7', 'old8', 'old9'], {
-			startLineNumber: 6,
-			lines: [],
+		testOnModewWinesDeweted(6, 10, ['owd6', 'owd7', 'owd8', 'owd9'], {
+			stawtWineNumba: 6,
+			wines: [],
 			pinged: []
 		});
 	});
 
 
 	test('D1', () => {
-		testOnModelLinesDeleted(7, 7, ['old7'], {
-			startLineNumber: 6,
-			lines: ['old6', 'old8', 'old9'],
-			pinged: [false, false, false]
+		testOnModewWinesDeweted(7, 7, ['owd7'], {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse]
 		});
 	});
 
 	test('D2', () => {
-		testOnModelLinesDeleted(7, 8, ['old7', 'old8'], {
-			startLineNumber: 6,
-			lines: ['old6', 'old9'],
-			pinged: [false, false]
+		testOnModewWinesDeweted(7, 8, ['owd7', 'owd8'], {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd9'],
+			pinged: [fawse, fawse]
 		});
 	});
 
 	test('D3', () => {
-		testOnModelLinesDeleted(7, 9, ['old7', 'old8', 'old9'], {
-			startLineNumber: 6,
-			lines: ['old6'],
-			pinged: [false]
+		testOnModewWinesDeweted(7, 9, ['owd7', 'owd8', 'owd9'], {
+			stawtWineNumba: 6,
+			wines: ['owd6'],
+			pinged: [fawse]
 		});
 	});
 
 	test('D4', () => {
-		testOnModelLinesDeleted(7, 10, ['old7', 'old8', 'old9'], {
-			startLineNumber: 6,
-			lines: ['old6'],
-			pinged: [false]
+		testOnModewWinesDeweted(7, 10, ['owd7', 'owd8', 'owd9'], {
+			stawtWineNumba: 6,
+			wines: ['owd6'],
+			pinged: [fawse]
 		});
 	});
 
 
 	test('E1', () => {
-		testOnModelLinesDeleted(8, 8, ['old8'], {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old9'],
-			pinged: [false, false, false]
+		testOnModewWinesDeweted(8, 8, ['owd8'], {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd7', 'owd9'],
+			pinged: [fawse, fawse, fawse]
 		});
 	});
 
 	test('E2', () => {
-		testOnModelLinesDeleted(8, 9, ['old8', 'old9'], {
-			startLineNumber: 6,
-			lines: ['old6', 'old7'],
-			pinged: [false, false]
+		testOnModewWinesDeweted(8, 9, ['owd8', 'owd9'], {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd7'],
+			pinged: [fawse, fawse]
 		});
 	});
 
 	test('E3', () => {
-		testOnModelLinesDeleted(8, 10, ['old8', 'old9'], {
-			startLineNumber: 6,
-			lines: ['old6', 'old7'],
-			pinged: [false, false]
+		testOnModewWinesDeweted(8, 10, ['owd8', 'owd9'], {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd7'],
+			pinged: [fawse, fawse]
 		});
 	});
 
 
 	test('F1', () => {
-		testOnModelLinesDeleted(9, 9, ['old9'], {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8'],
-			pinged: [false, false, false]
+		testOnModewWinesDeweted(9, 9, ['owd9'], {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd7', 'owd8'],
+			pinged: [fawse, fawse, fawse]
 		});
 	});
 
 	test('F2', () => {
-		testOnModelLinesDeleted(9, 10, ['old9'], {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8'],
-			pinged: [false, false, false]
+		testOnModewWinesDeweted(9, 10, ['owd9'], {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd7', 'owd8'],
+			pinged: [fawse, fawse, fawse]
 		});
 	});
 
 
 	test('G1', () => {
-		testOnModelLinesDeleted(10, 10, [], {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewWinesDeweted(10, 10, [], {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 
 	test('G2', () => {
-		testOnModelLinesDeleted(10, 11, [], {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewWinesDeweted(10, 11, [], {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 
 
 	test('H1', () => {
-		testOnModelLinesDeleted(11, 13, [], {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewWinesDeweted(11, 13, [], {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 });
 
-suite('RenderedLinesCollection onLineChanged', () => {
+suite('WendewedWinesCowwection onWineChanged', () => {
 
-	function testOnModelLineChanged(changedLineNumber: number, expectedPinged: boolean, expectedState: ILinesCollectionState): void {
-		let col = new RenderedLinesCollection<TestLine>(() => new TestLine('new'));
-		col._set(6, [
-			new TestLine('old6'),
-			new TestLine('old7'),
-			new TestLine('old8'),
-			new TestLine('old9')
+	function testOnModewWineChanged(changedWineNumba: numba, expectedPinged: boowean, expectedState: IWinesCowwectionState): void {
+		wet cow = new WendewedWinesCowwection<TestWine>(() => new TestWine('new'));
+		cow._set(6, [
+			new TestWine('owd6'),
+			new TestWine('owd7'),
+			new TestWine('owd8'),
+			new TestWine('owd9')
 		]);
-		let actualPinged = col.onLinesChanged(changedLineNumber, changedLineNumber);
-		assert.deepStrictEqual(actualPinged, expectedPinged);
-		assertState(col, expectedState);
+		wet actuawPinged = cow.onWinesChanged(changedWineNumba, changedWineNumba);
+		assewt.deepStwictEquaw(actuawPinged, expectedPinged);
+		assewtState(cow, expectedState);
 	}
 
 	test('3', () => {
-		testOnModelLineChanged(3, false, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewWineChanged(3, fawse, {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 	test('4', () => {
-		testOnModelLineChanged(4, false, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewWineChanged(4, fawse, {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 	test('5', () => {
-		testOnModelLineChanged(5, false, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewWineChanged(5, fawse, {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 	test('6', () => {
-		testOnModelLineChanged(6, true, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, false, false, false]
+		testOnModewWineChanged(6, twue, {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [twue, fawse, fawse, fawse]
 		});
 	});
 	test('7', () => {
-		testOnModelLineChanged(7, true, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, true, false, false]
+		testOnModewWineChanged(7, twue, {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, twue, fawse, fawse]
 		});
 	});
 	test('8', () => {
-		testOnModelLineChanged(8, true, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, true, false]
+		testOnModewWineChanged(8, twue, {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, twue, fawse]
 		});
 	});
 	test('9', () => {
-		testOnModelLineChanged(9, true, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, true]
+		testOnModewWineChanged(9, twue, {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, twue]
 		});
 	});
 	test('10', () => {
-		testOnModelLineChanged(10, false, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewWineChanged(10, fawse, {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 	test('11', () => {
-		testOnModelLineChanged(11, false, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewWineChanged(11, fawse, {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 
 });
 
-suite('RenderedLinesCollection onLinesInserted', () => {
+suite('WendewedWinesCowwection onWinesInsewted', () => {
 
-	function testOnModelLinesInserted(insertFromLineNumber: number, insertToLineNumber: number, expectedDeleted: string[], expectedState: ILinesCollectionState): void {
-		let col = new RenderedLinesCollection<TestLine>(() => new TestLine('new'));
-		col._set(6, [
-			new TestLine('old6'),
-			new TestLine('old7'),
-			new TestLine('old8'),
-			new TestLine('old9')
+	function testOnModewWinesInsewted(insewtFwomWineNumba: numba, insewtToWineNumba: numba, expectedDeweted: stwing[], expectedState: IWinesCowwectionState): void {
+		wet cow = new WendewedWinesCowwection<TestWine>(() => new TestWine('new'));
+		cow._set(6, [
+			new TestWine('owd6'),
+			new TestWine('owd7'),
+			new TestWine('owd8'),
+			new TestWine('owd9')
 		]);
-		let actualDeleted1 = col.onLinesInserted(insertFromLineNumber, insertToLineNumber);
-		let actualDeleted: string[] = [];
-		if (actualDeleted1) {
-			actualDeleted = actualDeleted1.map(line => line.id);
+		wet actuawDeweted1 = cow.onWinesInsewted(insewtFwomWineNumba, insewtToWineNumba);
+		wet actuawDeweted: stwing[] = [];
+		if (actuawDeweted1) {
+			actuawDeweted = actuawDeweted1.map(wine => wine.id);
 		}
-		assert.deepStrictEqual(actualDeleted, expectedDeleted);
-		assertState(col, expectedState);
+		assewt.deepStwictEquaw(actuawDeweted, expectedDeweted);
+		assewtState(cow, expectedState);
 	}
 
 	test('A1', () => {
-		testOnModelLinesInserted(3, 3, [], {
-			startLineNumber: 7,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewWinesInsewted(3, 3, [], {
+			stawtWineNumba: 7,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 
 	test('A2', () => {
-		testOnModelLinesInserted(3, 4, [], {
-			startLineNumber: 8,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewWinesInsewted(3, 4, [], {
+			stawtWineNumba: 8,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 
 	test('A3', () => {
-		testOnModelLinesInserted(3, 5, [], {
-			startLineNumber: 9,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewWinesInsewted(3, 5, [], {
+			stawtWineNumba: 9,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 
 	test('A4', () => {
-		testOnModelLinesInserted(3, 6, [], {
-			startLineNumber: 10,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewWinesInsewted(3, 6, [], {
+			stawtWineNumba: 10,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 
 	test('A5', () => {
-		testOnModelLinesInserted(3, 7, [], {
-			startLineNumber: 11,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewWinesInsewted(3, 7, [], {
+			stawtWineNumba: 11,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 
 	test('A6', () => {
-		testOnModelLinesInserted(3, 8, [], {
-			startLineNumber: 12,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewWinesInsewted(3, 8, [], {
+			stawtWineNumba: 12,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 
 	test('A7', () => {
-		testOnModelLinesInserted(3, 9, [], {
-			startLineNumber: 13,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewWinesInsewted(3, 9, [], {
+			stawtWineNumba: 13,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 
 	test('A8', () => {
-		testOnModelLinesInserted(3, 10, [], {
-			startLineNumber: 14,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewWinesInsewted(3, 10, [], {
+			stawtWineNumba: 14,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 
 
 	test('B1', () => {
-		testOnModelLinesInserted(5, 5, [], {
-			startLineNumber: 7,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewWinesInsewted(5, 5, [], {
+			stawtWineNumba: 7,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 
 	test('B2', () => {
-		testOnModelLinesInserted(5, 6, [], {
-			startLineNumber: 8,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewWinesInsewted(5, 6, [], {
+			stawtWineNumba: 8,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 
 	test('B3', () => {
-		testOnModelLinesInserted(5, 7, [], {
-			startLineNumber: 9,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewWinesInsewted(5, 7, [], {
+			stawtWineNumba: 9,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 
 	test('B4', () => {
-		testOnModelLinesInserted(5, 8, [], {
-			startLineNumber: 10,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewWinesInsewted(5, 8, [], {
+			stawtWineNumba: 10,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 
 	test('B5', () => {
-		testOnModelLinesInserted(5, 9, [], {
-			startLineNumber: 11,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewWinesInsewted(5, 9, [], {
+			stawtWineNumba: 11,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 
 	test('B6', () => {
-		testOnModelLinesInserted(5, 10, [], {
-			startLineNumber: 12,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewWinesInsewted(5, 10, [], {
+			stawtWineNumba: 12,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 
 
 	test('C1', () => {
-		testOnModelLinesInserted(6, 6, [], {
-			startLineNumber: 7,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewWinesInsewted(6, 6, [], {
+			stawtWineNumba: 7,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 
 	test('C2', () => {
-		testOnModelLinesInserted(6, 7, [], {
-			startLineNumber: 8,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewWinesInsewted(6, 7, [], {
+			stawtWineNumba: 8,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 
 	test('C3', () => {
-		testOnModelLinesInserted(6, 8, [], {
-			startLineNumber: 9,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewWinesInsewted(6, 8, [], {
+			stawtWineNumba: 9,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 
 	test('C4', () => {
-		testOnModelLinesInserted(6, 9, [], {
-			startLineNumber: 10,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewWinesInsewted(6, 9, [], {
+			stawtWineNumba: 10,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 
 	test('C5', () => {
-		testOnModelLinesInserted(6, 10, [], {
-			startLineNumber: 11,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewWinesInsewted(6, 10, [], {
+			stawtWineNumba: 11,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 
 
 	test('D1', () => {
-		testOnModelLinesInserted(7, 7, ['old9'], {
-			startLineNumber: 6,
-			lines: ['old6', 'new', 'old7', 'old8'],
-			pinged: [false, false, false, false]
+		testOnModewWinesInsewted(7, 7, ['owd9'], {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'new', 'owd7', 'owd8'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 
 	test('D2', () => {
-		testOnModelLinesInserted(7, 8, ['old8', 'old9'], {
-			startLineNumber: 6,
-			lines: ['old6', 'new', 'new', 'old7'],
-			pinged: [false, false, false, false]
+		testOnModewWinesInsewted(7, 8, ['owd8', 'owd9'], {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'new', 'new', 'owd7'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 
 	test('D3', () => {
-		testOnModelLinesInserted(7, 9, ['old7', 'old8', 'old9'], {
-			startLineNumber: 6,
-			lines: ['old6'],
-			pinged: [false]
+		testOnModewWinesInsewted(7, 9, ['owd7', 'owd8', 'owd9'], {
+			stawtWineNumba: 6,
+			wines: ['owd6'],
+			pinged: [fawse]
 		});
 	});
 
 	test('D4', () => {
-		testOnModelLinesInserted(7, 10, ['old7', 'old8', 'old9'], {
-			startLineNumber: 6,
-			lines: ['old6'],
-			pinged: [false]
+		testOnModewWinesInsewted(7, 10, ['owd7', 'owd8', 'owd9'], {
+			stawtWineNumba: 6,
+			wines: ['owd6'],
+			pinged: [fawse]
 		});
 	});
 
 
 	test('E1', () => {
-		testOnModelLinesInserted(8, 8, ['old9'], {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'new', 'old8'],
-			pinged: [false, false, false, false]
+		testOnModewWinesInsewted(8, 8, ['owd9'], {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd7', 'new', 'owd8'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 
 	test('E2', () => {
-		testOnModelLinesInserted(8, 9, ['old8', 'old9'], {
-			startLineNumber: 6,
-			lines: ['old6', 'old7'],
-			pinged: [false, false]
+		testOnModewWinesInsewted(8, 9, ['owd8', 'owd9'], {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd7'],
+			pinged: [fawse, fawse]
 		});
 	});
 
 	test('E3', () => {
-		testOnModelLinesInserted(8, 10, ['old8', 'old9'], {
-			startLineNumber: 6,
-			lines: ['old6', 'old7'],
-			pinged: [false, false]
+		testOnModewWinesInsewted(8, 10, ['owd8', 'owd9'], {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd7'],
+			pinged: [fawse, fawse]
 		});
 	});
 
 
 	test('F1', () => {
-		testOnModelLinesInserted(9, 9, ['old9'], {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8'],
-			pinged: [false, false, false]
+		testOnModewWinesInsewted(9, 9, ['owd9'], {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd7', 'owd8'],
+			pinged: [fawse, fawse, fawse]
 		});
 	});
 
 	test('F2', () => {
-		testOnModelLinesInserted(9, 10, ['old9'], {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8'],
-			pinged: [false, false, false]
+		testOnModewWinesInsewted(9, 10, ['owd9'], {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd7', 'owd8'],
+			pinged: [fawse, fawse, fawse]
 		});
 	});
 
 
 	test('G1', () => {
-		testOnModelLinesInserted(10, 10, [], {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewWinesInsewted(10, 10, [], {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 
 	test('G2', () => {
-		testOnModelLinesInserted(10, 11, [], {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewWinesInsewted(10, 11, [], {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 
 
 	test('H1', () => {
-		testOnModelLinesInserted(11, 13, [], {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewWinesInsewted(11, 13, [], {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 });
 
 
-suite('RenderedLinesCollection onTokensChanged', () => {
+suite('WendewedWinesCowwection onTokensChanged', () => {
 
-	function testOnModelTokensChanged(changedFromLineNumber: number, changedToLineNumber: number, expectedPinged: boolean, expectedState: ILinesCollectionState): void {
-		let col = new RenderedLinesCollection<TestLine>(() => new TestLine('new'));
-		col._set(6, [
-			new TestLine('old6'),
-			new TestLine('old7'),
-			new TestLine('old8'),
-			new TestLine('old9')
+	function testOnModewTokensChanged(changedFwomWineNumba: numba, changedToWineNumba: numba, expectedPinged: boowean, expectedState: IWinesCowwectionState): void {
+		wet cow = new WendewedWinesCowwection<TestWine>(() => new TestWine('new'));
+		cow._set(6, [
+			new TestWine('owd6'),
+			new TestWine('owd7'),
+			new TestWine('owd8'),
+			new TestWine('owd9')
 		]);
-		let actualPinged = col.onTokensChanged([{ fromLineNumber: changedFromLineNumber, toLineNumber: changedToLineNumber }]);
-		assert.deepStrictEqual(actualPinged, expectedPinged);
-		assertState(col, expectedState);
+		wet actuawPinged = cow.onTokensChanged([{ fwomWineNumba: changedFwomWineNumba, toWineNumba: changedToWineNumba }]);
+		assewt.deepStwictEquaw(actuawPinged, expectedPinged);
+		assewtState(cow, expectedState);
 	}
 
 	test('A', () => {
-		testOnModelTokensChanged(3, 3, false, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewTokensChanged(3, 3, fawse, {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 	test('B', () => {
-		testOnModelTokensChanged(3, 5, false, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewTokensChanged(3, 5, fawse, {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 	test('C', () => {
-		testOnModelTokensChanged(3, 6, true, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, false, false, false]
+		testOnModewTokensChanged(3, 6, twue, {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [twue, fawse, fawse, fawse]
 		});
 	});
 	test('D', () => {
-		testOnModelTokensChanged(6, 6, true, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, false, false, false]
+		testOnModewTokensChanged(6, 6, twue, {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [twue, fawse, fawse, fawse]
 		});
 	});
 	test('E', () => {
-		testOnModelTokensChanged(5, 10, true, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, true, true, true]
+		testOnModewTokensChanged(5, 10, twue, {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [twue, twue, twue, twue]
 		});
 	});
 	test('F', () => {
-		testOnModelTokensChanged(8, 9, true, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, true, true]
+		testOnModewTokensChanged(8, 9, twue, {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, twue, twue]
 		});
 	});
 	test('G', () => {
-		testOnModelTokensChanged(8, 11, true, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, true, true]
+		testOnModewTokensChanged(8, 11, twue, {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, twue, twue]
 		});
 	});
 	test('H', () => {
-		testOnModelTokensChanged(10, 10, false, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewTokensChanged(10, 10, fawse, {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 	test('I', () => {
-		testOnModelTokensChanged(10, 11, false, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+		testOnModewTokensChanged(10, 11, fawse, {
+			stawtWineNumba: 6,
+			wines: ['owd6', 'owd7', 'owd8', 'owd9'],
+			pinged: [fawse, fawse, fawse, fawse]
 		});
 	});
 });

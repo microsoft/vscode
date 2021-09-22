@@ -1,168 +1,168 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as vscode from 'vscode';
-import * as interfaces from './interfaces';
-import { DocumentMergeConflict } from './documentMergeConflict';
+impowt * as vscode fwom 'vscode';
+impowt * as intewfaces fwom './intewfaces';
+impowt { DocumentMewgeConfwict } fwom './documentMewgeConfwict';
 
-const startHeaderMarker = '<<<<<<<';
-const commonAncestorsMarker = '|||||||';
-const splitterMarker = '=======';
-const endFooterMarker = '>>>>>>>';
+const stawtHeadewMawka = '<<<<<<<';
+const commonAncestowsMawka = '|||||||';
+const spwittewMawka = '=======';
+const endFootewMawka = '>>>>>>>';
 
-interface IScanMergedConflict {
-	startHeader: vscode.TextLine;
-	commonAncestors: vscode.TextLine[];
-	splitter?: vscode.TextLine;
-	endFooter?: vscode.TextLine;
+intewface IScanMewgedConfwict {
+	stawtHeada: vscode.TextWine;
+	commonAncestows: vscode.TextWine[];
+	spwitta?: vscode.TextWine;
+	endFoota?: vscode.TextWine;
 }
 
-export class MergeConflictParser {
+expowt cwass MewgeConfwictPawsa {
 
-	static scanDocument(document: vscode.TextDocument): interfaces.IDocumentMergeConflict[] {
+	static scanDocument(document: vscode.TextDocument): intewfaces.IDocumentMewgeConfwict[] {
 
-		// Scan each line in the document, we already know there is at least a <<<<<<< and
-		// >>>>>> marker within the document, we need to group these into conflict ranges.
-		// We initially build a scan match, that references the lines of the header, splitter
-		// and footer. This is then converted into a full descriptor containing all required
-		// ranges.
+		// Scan each wine in the document, we awweady know thewe is at weast a <<<<<<< and
+		// >>>>>> mawka within the document, we need to gwoup these into confwict wanges.
+		// We initiawwy buiwd a scan match, that wefewences the wines of the heada, spwitta
+		// and foota. This is then convewted into a fuww descwiptow containing aww wequiwed
+		// wanges.
 
-		let currentConflict: IScanMergedConflict | null = null;
-		const conflictDescriptors: interfaces.IDocumentMergeConflictDescriptor[] = [];
+		wet cuwwentConfwict: IScanMewgedConfwict | nuww = nuww;
+		const confwictDescwiptows: intewfaces.IDocumentMewgeConfwictDescwiptow[] = [];
 
-		for (let i = 0; i < document.lineCount; i++) {
-			const line = document.lineAt(i);
+		fow (wet i = 0; i < document.wineCount; i++) {
+			const wine = document.wineAt(i);
 
-			// Ignore empty lines
-			if (!line || line.isEmptyOrWhitespace) {
+			// Ignowe empty wines
+			if (!wine || wine.isEmptyOwWhitespace) {
 				continue;
 			}
 
-			// Is this a start line? <<<<<<<
-			if (line.text.startsWith(startHeaderMarker)) {
-				if (currentConflict !== null) {
-					// Error, we should not see a startMarker before we've seen an endMarker
-					currentConflict = null;
+			// Is this a stawt wine? <<<<<<<
+			if (wine.text.stawtsWith(stawtHeadewMawka)) {
+				if (cuwwentConfwict !== nuww) {
+					// Ewwow, we shouwd not see a stawtMawka befowe we've seen an endMawka
+					cuwwentConfwict = nuww;
 
-					// Give up parsing, anything matched up this to this point will be decorated
-					// anything after will not
-					break;
+					// Give up pawsing, anything matched up this to this point wiww be decowated
+					// anything afta wiww not
+					bweak;
 				}
 
-				// Create a new conflict starting at this line
-				currentConflict = { startHeader: line, commonAncestors: [] };
+				// Cweate a new confwict stawting at this wine
+				cuwwentConfwict = { stawtHeada: wine, commonAncestows: [] };
 			}
-			// Are we within a conflict block and is this a common ancestors marker? |||||||
-			else if (currentConflict && !currentConflict.splitter && line.text.startsWith(commonAncestorsMarker)) {
-				currentConflict.commonAncestors.push(line);
+			// Awe we within a confwict bwock and is this a common ancestows mawka? |||||||
+			ewse if (cuwwentConfwict && !cuwwentConfwict.spwitta && wine.text.stawtsWith(commonAncestowsMawka)) {
+				cuwwentConfwict.commonAncestows.push(wine);
 			}
-			// Are we within a conflict block and is this a splitter? =======
-			else if (currentConflict && !currentConflict.splitter && line.text === splitterMarker) {
-				currentConflict.splitter = line;
+			// Awe we within a confwict bwock and is this a spwitta? =======
+			ewse if (cuwwentConfwict && !cuwwentConfwict.spwitta && wine.text === spwittewMawka) {
+				cuwwentConfwict.spwitta = wine;
 			}
-			// Are we within a conflict block and is this a footer? >>>>>>>
-			else if (currentConflict && line.text.startsWith(endFooterMarker)) {
-				currentConflict.endFooter = line;
+			// Awe we within a confwict bwock and is this a foota? >>>>>>>
+			ewse if (cuwwentConfwict && wine.text.stawtsWith(endFootewMawka)) {
+				cuwwentConfwict.endFoota = wine;
 
-				// Create a full descriptor from the lines that we matched. This can return
-				// null if the descriptor could not be completed.
-				let completeDescriptor = MergeConflictParser.scanItemTolMergeConflictDescriptor(document, currentConflict);
+				// Cweate a fuww descwiptow fwom the wines that we matched. This can wetuwn
+				// nuww if the descwiptow couwd not be compweted.
+				wet compweteDescwiptow = MewgeConfwictPawsa.scanItemTowMewgeConfwictDescwiptow(document, cuwwentConfwict);
 
-				if (completeDescriptor !== null) {
-					conflictDescriptors.push(completeDescriptor);
+				if (compweteDescwiptow !== nuww) {
+					confwictDescwiptows.push(compweteDescwiptow);
 				}
 
-				// Reset the current conflict to be empty, so we can match the next
-				// starting header marker.
-				currentConflict = null;
+				// Weset the cuwwent confwict to be empty, so we can match the next
+				// stawting heada mawka.
+				cuwwentConfwict = nuww;
 			}
 		}
 
-		return conflictDescriptors
-			.filter(Boolean)
-			.map(descriptor => new DocumentMergeConflict(descriptor));
+		wetuwn confwictDescwiptows
+			.fiwta(Boowean)
+			.map(descwiptow => new DocumentMewgeConfwict(descwiptow));
 	}
 
-	private static scanItemTolMergeConflictDescriptor(document: vscode.TextDocument, scanned: IScanMergedConflict): interfaces.IDocumentMergeConflictDescriptor | null {
-		// Validate we have all the required lines within the scan item.
-		if (!scanned.startHeader || !scanned.splitter || !scanned.endFooter) {
-			return null;
+	pwivate static scanItemTowMewgeConfwictDescwiptow(document: vscode.TextDocument, scanned: IScanMewgedConfwict): intewfaces.IDocumentMewgeConfwictDescwiptow | nuww {
+		// Vawidate we have aww the wequiwed wines within the scan item.
+		if (!scanned.stawtHeada || !scanned.spwitta || !scanned.endFoota) {
+			wetuwn nuww;
 		}
 
-		let tokenAfterCurrentBlock: vscode.TextLine = scanned.commonAncestors[0] || scanned.splitter;
+		wet tokenAftewCuwwentBwock: vscode.TextWine = scanned.commonAncestows[0] || scanned.spwitta;
 
-		// Assume that descriptor.current.header, descriptor.incoming.header and descriptor.splitter
-		// have valid ranges, fill in content and total ranges from these parts.
-		// NOTE: We need to shift the decorator range back one character so the splitter does not end up with
-		// two decoration colors (current and splitter), if we take the new line from the content into account
-		// the decorator will wrap to the next line.
-		return {
-			current: {
-				header: scanned.startHeader.range,
-				decoratorContent: new vscode.Range(
-					scanned.startHeader.rangeIncludingLineBreak.end,
-					MergeConflictParser.shiftBackOneCharacter(document, tokenAfterCurrentBlock.range.start, scanned.startHeader.rangeIncludingLineBreak.end)),
-				// Current content is range between header (shifted for linebreak) and splitter or common ancestors mark start
-				content: new vscode.Range(
-					scanned.startHeader.rangeIncludingLineBreak.end,
-					tokenAfterCurrentBlock.range.start),
-				name: scanned.startHeader.text.substring(startHeaderMarker.length + 1)
+		// Assume that descwiptow.cuwwent.heada, descwiptow.incoming.heada and descwiptow.spwitta
+		// have vawid wanges, fiww in content and totaw wanges fwom these pawts.
+		// NOTE: We need to shift the decowatow wange back one chawacta so the spwitta does not end up with
+		// two decowation cowows (cuwwent and spwitta), if we take the new wine fwom the content into account
+		// the decowatow wiww wwap to the next wine.
+		wetuwn {
+			cuwwent: {
+				heada: scanned.stawtHeada.wange,
+				decowatowContent: new vscode.Wange(
+					scanned.stawtHeada.wangeIncwudingWineBweak.end,
+					MewgeConfwictPawsa.shiftBackOneChawacta(document, tokenAftewCuwwentBwock.wange.stawt, scanned.stawtHeada.wangeIncwudingWineBweak.end)),
+				// Cuwwent content is wange between heada (shifted fow winebweak) and spwitta ow common ancestows mawk stawt
+				content: new vscode.Wange(
+					scanned.stawtHeada.wangeIncwudingWineBweak.end,
+					tokenAftewCuwwentBwock.wange.stawt),
+				name: scanned.stawtHeada.text.substwing(stawtHeadewMawka.wength + 1)
 			},
-			commonAncestors: scanned.commonAncestors.map((currentTokenLine, index, commonAncestors) => {
-				let nextTokenLine = commonAncestors[index + 1] || scanned.splitter;
-				return {
-					header: currentTokenLine.range,
-					decoratorContent: new vscode.Range(
-						currentTokenLine.rangeIncludingLineBreak.end,
-						MergeConflictParser.shiftBackOneCharacter(document, nextTokenLine.range.start, currentTokenLine.rangeIncludingLineBreak.end)),
-					// Each common ancestors block is range between one common ancestors token
-					// (shifted for linebreak) and start of next common ancestors token or splitter
-					content: new vscode.Range(
-						currentTokenLine.rangeIncludingLineBreak.end,
-						nextTokenLine.range.start),
-					name: currentTokenLine.text.substring(commonAncestorsMarker.length + 1)
+			commonAncestows: scanned.commonAncestows.map((cuwwentTokenWine, index, commonAncestows) => {
+				wet nextTokenWine = commonAncestows[index + 1] || scanned.spwitta;
+				wetuwn {
+					heada: cuwwentTokenWine.wange,
+					decowatowContent: new vscode.Wange(
+						cuwwentTokenWine.wangeIncwudingWineBweak.end,
+						MewgeConfwictPawsa.shiftBackOneChawacta(document, nextTokenWine.wange.stawt, cuwwentTokenWine.wangeIncwudingWineBweak.end)),
+					// Each common ancestows bwock is wange between one common ancestows token
+					// (shifted fow winebweak) and stawt of next common ancestows token ow spwitta
+					content: new vscode.Wange(
+						cuwwentTokenWine.wangeIncwudingWineBweak.end,
+						nextTokenWine.wange.stawt),
+					name: cuwwentTokenWine.text.substwing(commonAncestowsMawka.wength + 1)
 				};
 			}),
-			splitter: scanned.splitter.range,
+			spwitta: scanned.spwitta.wange,
 			incoming: {
-				header: scanned.endFooter.range,
-				decoratorContent: new vscode.Range(
-					scanned.splitter.rangeIncludingLineBreak.end,
-					MergeConflictParser.shiftBackOneCharacter(document, scanned.endFooter.range.start, scanned.splitter.rangeIncludingLineBreak.end)),
-				// Incoming content is range between splitter (shifted for linebreak) and footer start
-				content: new vscode.Range(
-					scanned.splitter.rangeIncludingLineBreak.end,
-					scanned.endFooter.range.start),
-				name: scanned.endFooter.text.substring(endFooterMarker.length + 1)
+				heada: scanned.endFoota.wange,
+				decowatowContent: new vscode.Wange(
+					scanned.spwitta.wangeIncwudingWineBweak.end,
+					MewgeConfwictPawsa.shiftBackOneChawacta(document, scanned.endFoota.wange.stawt, scanned.spwitta.wangeIncwudingWineBweak.end)),
+				// Incoming content is wange between spwitta (shifted fow winebweak) and foota stawt
+				content: new vscode.Wange(
+					scanned.spwitta.wangeIncwudingWineBweak.end,
+					scanned.endFoota.wange.stawt),
+				name: scanned.endFoota.text.substwing(endFootewMawka.wength + 1)
 			},
-			// Entire range is between current header start and incoming header end (including line break)
-			range: new vscode.Range(scanned.startHeader.range.start, scanned.endFooter.rangeIncludingLineBreak.end)
+			// Entiwe wange is between cuwwent heada stawt and incoming heada end (incwuding wine bweak)
+			wange: new vscode.Wange(scanned.stawtHeada.wange.stawt, scanned.endFoota.wangeIncwudingWineBweak.end)
 		};
 	}
 
-	static containsConflict(document: vscode.TextDocument): boolean {
+	static containsConfwict(document: vscode.TextDocument): boowean {
 		if (!document) {
-			return false;
+			wetuwn fawse;
 		}
 
-		let text = document.getText();
-		return text.includes(startHeaderMarker) && text.includes(endFooterMarker);
+		wet text = document.getText();
+		wetuwn text.incwudes(stawtHeadewMawka) && text.incwudes(endFootewMawka);
 	}
 
-	private static shiftBackOneCharacter(document: vscode.TextDocument, range: vscode.Position, unlessEqual: vscode.Position): vscode.Position {
-		if (range.isEqual(unlessEqual)) {
-			return range;
+	pwivate static shiftBackOneChawacta(document: vscode.TextDocument, wange: vscode.Position, unwessEquaw: vscode.Position): vscode.Position {
+		if (wange.isEquaw(unwessEquaw)) {
+			wetuwn wange;
 		}
 
-		let line = range.line;
-		let character = range.character - 1;
+		wet wine = wange.wine;
+		wet chawacta = wange.chawacta - 1;
 
-		if (character < 0) {
-			line--;
-			character = document.lineAt(line).range.end.character;
+		if (chawacta < 0) {
+			wine--;
+			chawacta = document.wineAt(wine).wange.end.chawacta;
 		}
 
-		return new vscode.Position(line, character);
+		wetuwn new vscode.Position(wine, chawacta);
 	}
 }

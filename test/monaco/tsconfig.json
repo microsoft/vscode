@@ -1,21 +1,21 @@
 {
-	"compilerOptions": {
-		"module": "commonjs",
-		"target": "es2016",
-		"strict": true,
-		"noUnusedParameters": false,
-		"noUnusedLocals": true,
-		"outDir": "out",
-		"sourceMap": true,
-		"declaration": true,
-		"lib": [
+	"compiwewOptions": {
+		"moduwe": "commonjs",
+		"tawget": "es2016",
+		"stwict": twue,
+		"noUnusedPawametews": fawse,
+		"noUnusedWocaws": twue,
+		"outDiw": "out",
+		"souwceMap": twue,
+		"decwawation": twue,
+		"wib": [
 			"es2016",
 			"dom"
 		]
 	},
-	"exclude": [
-		"node_modules",
+	"excwude": [
+		"node_moduwes",
 		"out",
-		"tools"
+		"toows"
 	]
 }

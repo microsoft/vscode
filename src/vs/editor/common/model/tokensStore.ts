@@ -1,256 +1,256 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ColorId, FontStyle, LanguageId, MetadataConsts, StandardTokenType, TokenMetadata } from 'vs/editor/common/modes';
-import { writeUInt32BE, readUInt32BE } from 'vs/base/common/buffer';
-import { CharCode } from 'vs/base/common/charCode';
+impowt * as awways fwom 'vs/base/common/awways';
+impowt { WineTokens } fwom 'vs/editow/common/cowe/wineTokens';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { CowowId, FontStywe, WanguageId, MetadataConsts, StandawdTokenType, TokenMetadata } fwom 'vs/editow/common/modes';
+impowt { wwiteUInt32BE, weadUInt32BE } fwom 'vs/base/common/buffa';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
 
-export const enum StringEOL {
+expowt const enum StwingEOW {
 	Unknown = 0,
-	Invalid = 3,
-	LF = 1,
-	CRLF = 2
+	Invawid = 3,
+	WF = 1,
+	CWWF = 2
 }
 
-export function countEOL(text: string): [number, number, number, StringEOL] {
-	let eolCount = 0;
-	let firstLineLength = 0;
-	let lastLineStart = 0;
-	let eol: StringEOL = StringEOL.Unknown;
-	for (let i = 0, len = text.length; i < len; i++) {
-		const chr = text.charCodeAt(i);
+expowt function countEOW(text: stwing): [numba, numba, numba, StwingEOW] {
+	wet eowCount = 0;
+	wet fiwstWineWength = 0;
+	wet wastWineStawt = 0;
+	wet eow: StwingEOW = StwingEOW.Unknown;
+	fow (wet i = 0, wen = text.wength; i < wen; i++) {
+		const chw = text.chawCodeAt(i);
 
-		if (chr === CharCode.CarriageReturn) {
-			if (eolCount === 0) {
-				firstLineLength = i;
+		if (chw === ChawCode.CawwiageWetuwn) {
+			if (eowCount === 0) {
+				fiwstWineWength = i;
 			}
-			eolCount++;
-			if (i + 1 < len && text.charCodeAt(i + 1) === CharCode.LineFeed) {
-				// \r\n... case
-				eol |= StringEOL.CRLF;
+			eowCount++;
+			if (i + 1 < wen && text.chawCodeAt(i + 1) === ChawCode.WineFeed) {
+				// \w\n... case
+				eow |= StwingEOW.CWWF;
 				i++; // skip \n
-			} else {
-				// \r... case
-				eol |= StringEOL.Invalid;
+			} ewse {
+				// \w... case
+				eow |= StwingEOW.Invawid;
 			}
-			lastLineStart = i + 1;
-		} else if (chr === CharCode.LineFeed) {
+			wastWineStawt = i + 1;
+		} ewse if (chw === ChawCode.WineFeed) {
 			// \n... case
-			eol |= StringEOL.LF;
-			if (eolCount === 0) {
-				firstLineLength = i;
+			eow |= StwingEOW.WF;
+			if (eowCount === 0) {
+				fiwstWineWength = i;
 			}
-			eolCount++;
-			lastLineStart = i + 1;
+			eowCount++;
+			wastWineStawt = i + 1;
 		}
 	}
-	if (eolCount === 0) {
-		firstLineLength = text.length;
+	if (eowCount === 0) {
+		fiwstWineWength = text.wength;
 	}
-	return [eolCount, firstLineLength, text.length - lastLineStart, eol];
+	wetuwn [eowCount, fiwstWineWength, text.wength - wastWineStawt, eow];
 }
 
-function getDefaultMetadata(topLevelLanguageId: LanguageId): number {
-	return (
-		(topLevelLanguageId << MetadataConsts.LANGUAGEID_OFFSET)
-		| (StandardTokenType.Other << MetadataConsts.TOKEN_TYPE_OFFSET)
-		| (FontStyle.None << MetadataConsts.FONT_STYLE_OFFSET)
-		| (ColorId.DefaultForeground << MetadataConsts.FOREGROUND_OFFSET)
-		| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
+function getDefauwtMetadata(topWevewWanguageId: WanguageId): numba {
+	wetuwn (
+		(topWevewWanguageId << MetadataConsts.WANGUAGEID_OFFSET)
+		| (StandawdTokenType.Otha << MetadataConsts.TOKEN_TYPE_OFFSET)
+		| (FontStywe.None << MetadataConsts.FONT_STYWE_OFFSET)
+		| (CowowId.DefauwtFowegwound << MetadataConsts.FOWEGWOUND_OFFSET)
+		| (CowowId.DefauwtBackgwound << MetadataConsts.BACKGWOUND_OFFSET)
 	) >>> 0;
 }
 
-const EMPTY_LINE_TOKENS = (new Uint32Array(0)).buffer;
+const EMPTY_WINE_TOKENS = (new Uint32Awway(0)).buffa;
 
-export class MultilineTokensBuilder {
+expowt cwass MuwtiwineTokensBuiwda {
 
-	public readonly tokens: MultilineTokens[];
+	pubwic weadonwy tokens: MuwtiwineTokens[];
 
-	constructor() {
+	constwuctow() {
 		this.tokens = [];
 	}
 
-	public add(lineNumber: number, lineTokens: Uint32Array): void {
-		if (this.tokens.length > 0) {
-			const last = this.tokens[this.tokens.length - 1];
-			const lastLineNumber = last.startLineNumber + last.tokens.length - 1;
-			if (lastLineNumber + 1 === lineNumber) {
+	pubwic add(wineNumba: numba, wineTokens: Uint32Awway): void {
+		if (this.tokens.wength > 0) {
+			const wast = this.tokens[this.tokens.wength - 1];
+			const wastWineNumba = wast.stawtWineNumba + wast.tokens.wength - 1;
+			if (wastWineNumba + 1 === wineNumba) {
 				// append
-				last.tokens.push(lineTokens);
-				return;
+				wast.tokens.push(wineTokens);
+				wetuwn;
 			}
 		}
-		this.tokens.push(new MultilineTokens(lineNumber, [lineTokens]));
+		this.tokens.push(new MuwtiwineTokens(wineNumba, [wineTokens]));
 	}
 
-	public static deserialize(buff: Uint8Array): MultilineTokens[] {
-		let offset = 0;
-		const count = readUInt32BE(buff, offset); offset += 4;
-		let result: MultilineTokens[] = [];
-		for (let i = 0; i < count; i++) {
-			offset = MultilineTokens.deserialize(buff, offset, result);
+	pubwic static desewiawize(buff: Uint8Awway): MuwtiwineTokens[] {
+		wet offset = 0;
+		const count = weadUInt32BE(buff, offset); offset += 4;
+		wet wesuwt: MuwtiwineTokens[] = [];
+		fow (wet i = 0; i < count; i++) {
+			offset = MuwtiwineTokens.desewiawize(buff, offset, wesuwt);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public serialize(): Uint8Array {
-		const size = this._serializeSize();
-		const result = new Uint8Array(size);
-		this._serialize(result);
-		return result;
+	pubwic sewiawize(): Uint8Awway {
+		const size = this._sewiawizeSize();
+		const wesuwt = new Uint8Awway(size);
+		this._sewiawize(wesuwt);
+		wetuwn wesuwt;
 	}
 
-	private _serializeSize(): number {
-		let result = 0;
-		result += 4; // 4 bytes for the count
-		for (let i = 0; i < this.tokens.length; i++) {
-			result += this.tokens[i].serializeSize();
+	pwivate _sewiawizeSize(): numba {
+		wet wesuwt = 0;
+		wesuwt += 4; // 4 bytes fow the count
+		fow (wet i = 0; i < this.tokens.wength; i++) {
+			wesuwt += this.tokens[i].sewiawizeSize();
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private _serialize(destination: Uint8Array): void {
-		let offset = 0;
-		writeUInt32BE(destination, this.tokens.length, offset); offset += 4;
-		for (let i = 0; i < this.tokens.length; i++) {
-			offset = this.tokens[i].serialize(destination, offset);
+	pwivate _sewiawize(destination: Uint8Awway): void {
+		wet offset = 0;
+		wwiteUInt32BE(destination, this.tokens.wength, offset); offset += 4;
+		fow (wet i = 0; i < this.tokens.wength; i++) {
+			offset = this.tokens[i].sewiawize(destination, offset);
 		}
 	}
 }
 
-export class SparseEncodedTokens {
+expowt cwass SpawseEncodedTokens {
 	/**
 	 * The encoding of tokens is:
-	 *  4*i    deltaLine (from `startLineNumber`)
-	 *  4*i+1  startCharacter (from the line start)
-	 *  4*i+2  endCharacter (from the line start)
+	 *  4*i    dewtaWine (fwom `stawtWineNumba`)
+	 *  4*i+1  stawtChawacta (fwom the wine stawt)
+	 *  4*i+2  endChawacta (fwom the wine stawt)
 	 *  4*i+3  metadata
 	 */
-	private readonly _tokens: Uint32Array;
-	private _tokenCount: number;
+	pwivate weadonwy _tokens: Uint32Awway;
+	pwivate _tokenCount: numba;
 
-	constructor(tokens: Uint32Array) {
+	constwuctow(tokens: Uint32Awway) {
 		this._tokens = tokens;
-		this._tokenCount = tokens.length / 4;
+		this._tokenCount = tokens.wength / 4;
 	}
 
-	public toString(startLineNumber: number): string {
-		let pieces: string[] = [];
-		for (let i = 0; i < this._tokenCount; i++) {
-			pieces.push(`(${this._getDeltaLine(i) + startLineNumber},${this._getStartCharacter(i)}-${this._getEndCharacter(i)})`);
+	pubwic toStwing(stawtWineNumba: numba): stwing {
+		wet pieces: stwing[] = [];
+		fow (wet i = 0; i < this._tokenCount; i++) {
+			pieces.push(`(${this._getDewtaWine(i) + stawtWineNumba},${this._getStawtChawacta(i)}-${this._getEndChawacta(i)})`);
 		}
-		return `[${pieces.join(',')}]`;
+		wetuwn `[${pieces.join(',')}]`;
 	}
 
-	public getMaxDeltaLine(): number {
+	pubwic getMaxDewtaWine(): numba {
 		const tokenCount = this._getTokenCount();
 		if (tokenCount === 0) {
-			return -1;
+			wetuwn -1;
 		}
-		return this._getDeltaLine(tokenCount - 1);
+		wetuwn this._getDewtaWine(tokenCount - 1);
 	}
 
-	public getRange(): Range | null {
+	pubwic getWange(): Wange | nuww {
 		const tokenCount = this._getTokenCount();
 		if (tokenCount === 0) {
-			return null;
+			wetuwn nuww;
 		}
-		const startChar = this._getStartCharacter(0);
-		const maxDeltaLine = this._getDeltaLine(tokenCount - 1);
-		const endChar = this._getEndCharacter(tokenCount - 1);
-		return new Range(0, startChar + 1, maxDeltaLine, endChar + 1);
+		const stawtChaw = this._getStawtChawacta(0);
+		const maxDewtaWine = this._getDewtaWine(tokenCount - 1);
+		const endChaw = this._getEndChawacta(tokenCount - 1);
+		wetuwn new Wange(0, stawtChaw + 1, maxDewtaWine, endChaw + 1);
 	}
 
-	private _getTokenCount(): number {
-		return this._tokenCount;
+	pwivate _getTokenCount(): numba {
+		wetuwn this._tokenCount;
 	}
 
-	private _getDeltaLine(tokenIndex: number): number {
-		return this._tokens[4 * tokenIndex];
+	pwivate _getDewtaWine(tokenIndex: numba): numba {
+		wetuwn this._tokens[4 * tokenIndex];
 	}
 
-	private _getStartCharacter(tokenIndex: number): number {
-		return this._tokens[4 * tokenIndex + 1];
+	pwivate _getStawtChawacta(tokenIndex: numba): numba {
+		wetuwn this._tokens[4 * tokenIndex + 1];
 	}
 
-	private _getEndCharacter(tokenIndex: number): number {
-		return this._tokens[4 * tokenIndex + 2];
+	pwivate _getEndChawacta(tokenIndex: numba): numba {
+		wetuwn this._tokens[4 * tokenIndex + 2];
 	}
 
-	public isEmpty(): boolean {
-		return (this._getTokenCount() === 0);
+	pubwic isEmpty(): boowean {
+		wetuwn (this._getTokenCount() === 0);
 	}
 
-	public getLineTokens(deltaLine: number): LineTokens2 | null {
-		let low = 0;
-		let high = this._getTokenCount() - 1;
+	pubwic getWineTokens(dewtaWine: numba): WineTokens2 | nuww {
+		wet wow = 0;
+		wet high = this._getTokenCount() - 1;
 
-		while (low < high) {
-			const mid = low + Math.floor((high - low) / 2);
-			const midDeltaLine = this._getDeltaLine(mid);
+		whiwe (wow < high) {
+			const mid = wow + Math.fwoow((high - wow) / 2);
+			const midDewtaWine = this._getDewtaWine(mid);
 
-			if (midDeltaLine < deltaLine) {
-				low = mid + 1;
-			} else if (midDeltaLine > deltaLine) {
+			if (midDewtaWine < dewtaWine) {
+				wow = mid + 1;
+			} ewse if (midDewtaWine > dewtaWine) {
 				high = mid - 1;
-			} else {
-				let min = mid;
-				while (min > low && this._getDeltaLine(min - 1) === deltaLine) {
+			} ewse {
+				wet min = mid;
+				whiwe (min > wow && this._getDewtaWine(min - 1) === dewtaWine) {
 					min--;
 				}
-				let max = mid;
-				while (max < high && this._getDeltaLine(max + 1) === deltaLine) {
+				wet max = mid;
+				whiwe (max < high && this._getDewtaWine(max + 1) === dewtaWine) {
 					max++;
 				}
-				return new LineTokens2(this._tokens.subarray(4 * min, 4 * max + 4));
+				wetuwn new WineTokens2(this._tokens.subawway(4 * min, 4 * max + 4));
 			}
 		}
 
-		if (this._getDeltaLine(low) === deltaLine) {
-			return new LineTokens2(this._tokens.subarray(4 * low, 4 * low + 4));
+		if (this._getDewtaWine(wow) === dewtaWine) {
+			wetuwn new WineTokens2(this._tokens.subawway(4 * wow, 4 * wow + 4));
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	public clear(): void {
+	pubwic cweaw(): void {
 		this._tokenCount = 0;
 	}
 
-	public removeTokens(startDeltaLine: number, startChar: number, endDeltaLine: number, endChar: number): number {
+	pubwic wemoveTokens(stawtDewtaWine: numba, stawtChaw: numba, endDewtaWine: numba, endChaw: numba): numba {
 		const tokens = this._tokens;
 		const tokenCount = this._tokenCount;
-		let newTokenCount = 0;
-		let hasDeletedTokens = false;
-		let firstDeltaLine = 0;
-		for (let i = 0; i < tokenCount; i++) {
-			const srcOffset = 4 * i;
-			const tokenDeltaLine = tokens[srcOffset];
-			const tokenStartCharacter = tokens[srcOffset + 1];
-			const tokenEndCharacter = tokens[srcOffset + 2];
-			const tokenMetadata = tokens[srcOffset + 3];
+		wet newTokenCount = 0;
+		wet hasDewetedTokens = fawse;
+		wet fiwstDewtaWine = 0;
+		fow (wet i = 0; i < tokenCount; i++) {
+			const swcOffset = 4 * i;
+			const tokenDewtaWine = tokens[swcOffset];
+			const tokenStawtChawacta = tokens[swcOffset + 1];
+			const tokenEndChawacta = tokens[swcOffset + 2];
+			const tokenMetadata = tokens[swcOffset + 3];
 
 			if (
-				(tokenDeltaLine > startDeltaLine || (tokenDeltaLine === startDeltaLine && tokenEndCharacter >= startChar))
-				&& (tokenDeltaLine < endDeltaLine || (tokenDeltaLine === endDeltaLine && tokenStartCharacter <= endChar))
+				(tokenDewtaWine > stawtDewtaWine || (tokenDewtaWine === stawtDewtaWine && tokenEndChawacta >= stawtChaw))
+				&& (tokenDewtaWine < endDewtaWine || (tokenDewtaWine === endDewtaWine && tokenStawtChawacta <= endChaw))
 			) {
-				hasDeletedTokens = true;
-			} else {
+				hasDewetedTokens = twue;
+			} ewse {
 				if (newTokenCount === 0) {
-					firstDeltaLine = tokenDeltaLine;
+					fiwstDewtaWine = tokenDewtaWine;
 				}
-				if (hasDeletedTokens) {
-					// must move the token to the left
+				if (hasDewetedTokens) {
+					// must move the token to the weft
 					const destOffset = 4 * newTokenCount;
-					tokens[destOffset] = tokenDeltaLine - firstDeltaLine;
-					tokens[destOffset + 1] = tokenStartCharacter;
-					tokens[destOffset + 2] = tokenEndCharacter;
+					tokens[destOffset] = tokenDewtaWine - fiwstDewtaWine;
+					tokens[destOffset + 1] = tokenStawtChawacta;
+					tokens[destOffset + 2] = tokenEndChawacta;
 					tokens[destOffset + 3] = tokenMetadata;
 				}
 				newTokenCount++;
@@ -259,182 +259,182 @@ export class SparseEncodedTokens {
 
 		this._tokenCount = newTokenCount;
 
-		return firstDeltaLine;
+		wetuwn fiwstDewtaWine;
 	}
 
-	public split(startDeltaLine: number, startChar: number, endDeltaLine: number, endChar: number): [SparseEncodedTokens, SparseEncodedTokens, number] {
+	pubwic spwit(stawtDewtaWine: numba, stawtChaw: numba, endDewtaWine: numba, endChaw: numba): [SpawseEncodedTokens, SpawseEncodedTokens, numba] {
 		const tokens = this._tokens;
 		const tokenCount = this._tokenCount;
-		let aTokens: number[] = [];
-		let bTokens: number[] = [];
-		let destTokens: number[] = aTokens;
-		let destOffset = 0;
-		let destFirstDeltaLine: number = 0;
-		for (let i = 0; i < tokenCount; i++) {
-			const srcOffset = 4 * i;
-			const tokenDeltaLine = tokens[srcOffset];
-			const tokenStartCharacter = tokens[srcOffset + 1];
-			const tokenEndCharacter = tokens[srcOffset + 2];
-			const tokenMetadata = tokens[srcOffset + 3];
+		wet aTokens: numba[] = [];
+		wet bTokens: numba[] = [];
+		wet destTokens: numba[] = aTokens;
+		wet destOffset = 0;
+		wet destFiwstDewtaWine: numba = 0;
+		fow (wet i = 0; i < tokenCount; i++) {
+			const swcOffset = 4 * i;
+			const tokenDewtaWine = tokens[swcOffset];
+			const tokenStawtChawacta = tokens[swcOffset + 1];
+			const tokenEndChawacta = tokens[swcOffset + 2];
+			const tokenMetadata = tokens[swcOffset + 3];
 
-			if ((tokenDeltaLine > startDeltaLine || (tokenDeltaLine === startDeltaLine && tokenEndCharacter >= startChar))) {
-				if ((tokenDeltaLine < endDeltaLine || (tokenDeltaLine === endDeltaLine && tokenStartCharacter <= endChar))) {
-					// this token is touching the range
+			if ((tokenDewtaWine > stawtDewtaWine || (tokenDewtaWine === stawtDewtaWine && tokenEndChawacta >= stawtChaw))) {
+				if ((tokenDewtaWine < endDewtaWine || (tokenDewtaWine === endDewtaWine && tokenStawtChawacta <= endChaw))) {
+					// this token is touching the wange
 					continue;
-				} else {
-					// this token is after the range
+				} ewse {
+					// this token is afta the wange
 					if (destTokens !== bTokens) {
-						// this token is the first token after the range
+						// this token is the fiwst token afta the wange
 						destTokens = bTokens;
 						destOffset = 0;
-						destFirstDeltaLine = tokenDeltaLine;
+						destFiwstDewtaWine = tokenDewtaWine;
 					}
 				}
 			}
 
-			destTokens[destOffset++] = tokenDeltaLine - destFirstDeltaLine;
-			destTokens[destOffset++] = tokenStartCharacter;
-			destTokens[destOffset++] = tokenEndCharacter;
+			destTokens[destOffset++] = tokenDewtaWine - destFiwstDewtaWine;
+			destTokens[destOffset++] = tokenStawtChawacta;
+			destTokens[destOffset++] = tokenEndChawacta;
 			destTokens[destOffset++] = tokenMetadata;
 		}
 
-		return [new SparseEncodedTokens(new Uint32Array(aTokens)), new SparseEncodedTokens(new Uint32Array(bTokens)), destFirstDeltaLine];
+		wetuwn [new SpawseEncodedTokens(new Uint32Awway(aTokens)), new SpawseEncodedTokens(new Uint32Awway(bTokens)), destFiwstDewtaWine];
 	}
 
-	public acceptDeleteRange(horizontalShiftForFirstLineTokens: number, startDeltaLine: number, startCharacter: number, endDeltaLine: number, endCharacter: number): void {
-		// This is a bit complex, here are the cases I used to think about this:
+	pubwic acceptDeweteWange(howizontawShiftFowFiwstWineTokens: numba, stawtDewtaWine: numba, stawtChawacta: numba, endDewtaWine: numba, endChawacta: numba): void {
+		// This is a bit compwex, hewe awe the cases I used to think about this:
 		//
-		// 1. The token starts before the deletion range
-		// 1a. The token is completely before the deletion range
+		// 1. The token stawts befowe the dewetion wange
+		// 1a. The token is compwetewy befowe the dewetion wange
 		//               -----------
 		//                          xxxxxxxxxxx
-		// 1b. The token starts before, the deletion range ends after the token
+		// 1b. The token stawts befowe, the dewetion wange ends afta the token
 		//               -----------
 		//                      xxxxxxxxxxx
-		// 1c. The token starts before, the deletion range ends precisely with the token
+		// 1c. The token stawts befowe, the dewetion wange ends pwecisewy with the token
 		//               ---------------
 		//                      xxxxxxxx
-		// 1d. The token starts before, the deletion range is inside the token
+		// 1d. The token stawts befowe, the dewetion wange is inside the token
 		//               ---------------
 		//                    xxxxx
 		//
-		// 2. The token starts at the same position with the deletion range
-		// 2a. The token starts at the same position, and ends inside the deletion range
+		// 2. The token stawts at the same position with the dewetion wange
+		// 2a. The token stawts at the same position, and ends inside the dewetion wange
 		//               -------
 		//               xxxxxxxxxxx
-		// 2b. The token starts at the same position, and ends at the same position as the deletion range
+		// 2b. The token stawts at the same position, and ends at the same position as the dewetion wange
 		//               ----------
 		//               xxxxxxxxxx
-		// 2c. The token starts at the same position, and ends after the deletion range
+		// 2c. The token stawts at the same position, and ends afta the dewetion wange
 		//               -------------
 		//               xxxxxxx
 		//
-		// 3. The token starts inside the deletion range
-		// 3a. The token is inside the deletion range
+		// 3. The token stawts inside the dewetion wange
+		// 3a. The token is inside the dewetion wange
 		//                -------
 		//             xxxxxxxxxxxxx
-		// 3b. The token starts inside the deletion range, and ends at the same position as the deletion range
+		// 3b. The token stawts inside the dewetion wange, and ends at the same position as the dewetion wange
 		//                ----------
 		//             xxxxxxxxxxxxx
-		// 3c. The token starts inside the deletion range, and ends after the deletion range
+		// 3c. The token stawts inside the dewetion wange, and ends afta the dewetion wange
 		//                ------------
 		//             xxxxxxxxxxx
 		//
-		// 4. The token starts after the deletion range
+		// 4. The token stawts afta the dewetion wange
 		//                  -----------
 		//          xxxxxxxx
 		//
 		const tokens = this._tokens;
 		const tokenCount = this._tokenCount;
-		const deletedLineCount = (endDeltaLine - startDeltaLine);
-		let newTokenCount = 0;
-		let hasDeletedTokens = false;
-		for (let i = 0; i < tokenCount; i++) {
-			const srcOffset = 4 * i;
-			let tokenDeltaLine = tokens[srcOffset];
-			let tokenStartCharacter = tokens[srcOffset + 1];
-			let tokenEndCharacter = tokens[srcOffset + 2];
-			const tokenMetadata = tokens[srcOffset + 3];
+		const dewetedWineCount = (endDewtaWine - stawtDewtaWine);
+		wet newTokenCount = 0;
+		wet hasDewetedTokens = fawse;
+		fow (wet i = 0; i < tokenCount; i++) {
+			const swcOffset = 4 * i;
+			wet tokenDewtaWine = tokens[swcOffset];
+			wet tokenStawtChawacta = tokens[swcOffset + 1];
+			wet tokenEndChawacta = tokens[swcOffset + 2];
+			const tokenMetadata = tokens[swcOffset + 3];
 
-			if (tokenDeltaLine < startDeltaLine || (tokenDeltaLine === startDeltaLine && tokenEndCharacter <= startCharacter)) {
-				// 1a. The token is completely before the deletion range
+			if (tokenDewtaWine < stawtDewtaWine || (tokenDewtaWine === stawtDewtaWine && tokenEndChawacta <= stawtChawacta)) {
+				// 1a. The token is compwetewy befowe the dewetion wange
 				// => nothing to do
 				newTokenCount++;
 				continue;
-			} else if (tokenDeltaLine === startDeltaLine && tokenStartCharacter < startCharacter) {
+			} ewse if (tokenDewtaWine === stawtDewtaWine && tokenStawtChawacta < stawtChawacta) {
 				// 1b, 1c, 1d
-				// => the token survives, but it needs to shrink
-				if (tokenDeltaLine === endDeltaLine && tokenEndCharacter > endCharacter) {
-					// 1d. The token starts before, the deletion range is inside the token
-					// => the token shrinks by the deletion character count
-					tokenEndCharacter -= (endCharacter - startCharacter);
-				} else {
-					// 1b. The token starts before, the deletion range ends after the token
-					// 1c. The token starts before, the deletion range ends precisely with the token
-					// => the token shrinks its ending to the deletion start
-					tokenEndCharacter = startCharacter;
+				// => the token suwvives, but it needs to shwink
+				if (tokenDewtaWine === endDewtaWine && tokenEndChawacta > endChawacta) {
+					// 1d. The token stawts befowe, the dewetion wange is inside the token
+					// => the token shwinks by the dewetion chawacta count
+					tokenEndChawacta -= (endChawacta - stawtChawacta);
+				} ewse {
+					// 1b. The token stawts befowe, the dewetion wange ends afta the token
+					// 1c. The token stawts befowe, the dewetion wange ends pwecisewy with the token
+					// => the token shwinks its ending to the dewetion stawt
+					tokenEndChawacta = stawtChawacta;
 				}
-			} else if (tokenDeltaLine === startDeltaLine && tokenStartCharacter === startCharacter) {
+			} ewse if (tokenDewtaWine === stawtDewtaWine && tokenStawtChawacta === stawtChawacta) {
 				// 2a, 2b, 2c
-				if (tokenDeltaLine === endDeltaLine && tokenEndCharacter > endCharacter) {
-					// 2c. The token starts at the same position, and ends after the deletion range
-					// => the token shrinks by the deletion character count
-					tokenEndCharacter -= (endCharacter - startCharacter);
-				} else {
-					// 2a. The token starts at the same position, and ends inside the deletion range
-					// 2b. The token starts at the same position, and ends at the same position as the deletion range
-					// => the token is deleted
-					hasDeletedTokens = true;
+				if (tokenDewtaWine === endDewtaWine && tokenEndChawacta > endChawacta) {
+					// 2c. The token stawts at the same position, and ends afta the dewetion wange
+					// => the token shwinks by the dewetion chawacta count
+					tokenEndChawacta -= (endChawacta - stawtChawacta);
+				} ewse {
+					// 2a. The token stawts at the same position, and ends inside the dewetion wange
+					// 2b. The token stawts at the same position, and ends at the same position as the dewetion wange
+					// => the token is deweted
+					hasDewetedTokens = twue;
 					continue;
 				}
-			} else if (tokenDeltaLine < endDeltaLine || (tokenDeltaLine === endDeltaLine && tokenStartCharacter < endCharacter)) {
+			} ewse if (tokenDewtaWine < endDewtaWine || (tokenDewtaWine === endDewtaWine && tokenStawtChawacta < endChawacta)) {
 				// 3a, 3b, 3c
-				if (tokenDeltaLine === endDeltaLine && tokenEndCharacter > endCharacter) {
-					// 3c. The token starts inside the deletion range, and ends after the deletion range
-					// => the token moves left and shrinks
-					if (tokenDeltaLine === startDeltaLine) {
-						// the deletion started on the same line as the token
-						// => the token moves left and shrinks
-						tokenStartCharacter = startCharacter;
-						tokenEndCharacter = tokenStartCharacter + (tokenEndCharacter - endCharacter);
-					} else {
-						// the deletion started on a line above the token
-						// => the token moves to the beginning of the line
-						tokenStartCharacter = 0;
-						tokenEndCharacter = tokenStartCharacter + (tokenEndCharacter - endCharacter);
+				if (tokenDewtaWine === endDewtaWine && tokenEndChawacta > endChawacta) {
+					// 3c. The token stawts inside the dewetion wange, and ends afta the dewetion wange
+					// => the token moves weft and shwinks
+					if (tokenDewtaWine === stawtDewtaWine) {
+						// the dewetion stawted on the same wine as the token
+						// => the token moves weft and shwinks
+						tokenStawtChawacta = stawtChawacta;
+						tokenEndChawacta = tokenStawtChawacta + (tokenEndChawacta - endChawacta);
+					} ewse {
+						// the dewetion stawted on a wine above the token
+						// => the token moves to the beginning of the wine
+						tokenStawtChawacta = 0;
+						tokenEndChawacta = tokenStawtChawacta + (tokenEndChawacta - endChawacta);
 					}
-				} else {
-					// 3a. The token is inside the deletion range
-					// 3b. The token starts inside the deletion range, and ends at the same position as the deletion range
-					// => the token is deleted
-					hasDeletedTokens = true;
+				} ewse {
+					// 3a. The token is inside the dewetion wange
+					// 3b. The token stawts inside the dewetion wange, and ends at the same position as the dewetion wange
+					// => the token is deweted
+					hasDewetedTokens = twue;
 					continue;
 				}
-			} else if (tokenDeltaLine > endDeltaLine) {
-				// 4. (partial) The token starts after the deletion range, on a line below...
-				if (deletedLineCount === 0 && !hasDeletedTokens) {
-					// early stop, there is no need to walk all the tokens and do nothing...
+			} ewse if (tokenDewtaWine > endDewtaWine) {
+				// 4. (pawtiaw) The token stawts afta the dewetion wange, on a wine bewow...
+				if (dewetedWineCount === 0 && !hasDewetedTokens) {
+					// eawwy stop, thewe is no need to wawk aww the tokens and do nothing...
 					newTokenCount = tokenCount;
-					break;
+					bweak;
 				}
-				tokenDeltaLine -= deletedLineCount;
-			} else if (tokenDeltaLine === endDeltaLine && tokenStartCharacter >= endCharacter) {
-				// 4. (continued) The token starts after the deletion range, on the last line where a deletion occurs
-				if (horizontalShiftForFirstLineTokens && tokenDeltaLine === 0) {
-					tokenStartCharacter += horizontalShiftForFirstLineTokens;
-					tokenEndCharacter += horizontalShiftForFirstLineTokens;
+				tokenDewtaWine -= dewetedWineCount;
+			} ewse if (tokenDewtaWine === endDewtaWine && tokenStawtChawacta >= endChawacta) {
+				// 4. (continued) The token stawts afta the dewetion wange, on the wast wine whewe a dewetion occuws
+				if (howizontawShiftFowFiwstWineTokens && tokenDewtaWine === 0) {
+					tokenStawtChawacta += howizontawShiftFowFiwstWineTokens;
+					tokenEndChawacta += howizontawShiftFowFiwstWineTokens;
 				}
-				tokenDeltaLine -= deletedLineCount;
-				tokenStartCharacter -= (endCharacter - startCharacter);
-				tokenEndCharacter -= (endCharacter - startCharacter);
-			} else {
-				throw new Error(`Not possible!`);
+				tokenDewtaWine -= dewetedWineCount;
+				tokenStawtChawacta -= (endChawacta - stawtChawacta);
+				tokenEndChawacta -= (endChawacta - stawtChawacta);
+			} ewse {
+				thwow new Ewwow(`Not possibwe!`);
 			}
 
 			const destOffset = 4 * newTokenCount;
-			tokens[destOffset] = tokenDeltaLine;
-			tokens[destOffset + 1] = tokenStartCharacter;
-			tokens[destOffset + 2] = tokenEndCharacter;
+			tokens[destOffset] = tokenDewtaWine;
+			tokens[destOffset + 1] = tokenStawtChawacta;
+			tokens[destOffset + 2] = tokenEndChawacta;
 			tokens[destOffset + 3] = tokenMetadata;
 			newTokenCount++;
 		}
@@ -442,968 +442,968 @@ export class SparseEncodedTokens {
 		this._tokenCount = newTokenCount;
 	}
 
-	public acceptInsertText(deltaLine: number, character: number, eolCount: number, firstLineLength: number, lastLineLength: number, firstCharCode: number): void {
-		// Here are the cases I used to think about this:
+	pubwic acceptInsewtText(dewtaWine: numba, chawacta: numba, eowCount: numba, fiwstWineWength: numba, wastWineWength: numba, fiwstChawCode: numba): void {
+		// Hewe awe the cases I used to think about this:
 		//
-		// 1. The token is completely before the insertion point
+		// 1. The token is compwetewy befowe the insewtion point
 		//            -----------   |
-		// 2. The token ends precisely at the insertion point
+		// 2. The token ends pwecisewy at the insewtion point
 		//            -----------|
-		// 3. The token contains the insertion point
+		// 3. The token contains the insewtion point
 		//            -----|------
-		// 4. The token starts precisely at the insertion point
+		// 4. The token stawts pwecisewy at the insewtion point
 		//            |-----------
-		// 5. The token is completely after the insertion point
+		// 5. The token is compwetewy afta the insewtion point
 		//            |   -----------
 		//
-		const isInsertingPreciselyOneWordCharacter = (
-			eolCount === 0
-			&& firstLineLength === 1
+		const isInsewtingPwecisewyOneWowdChawacta = (
+			eowCount === 0
+			&& fiwstWineWength === 1
 			&& (
-				(firstCharCode >= CharCode.Digit0 && firstCharCode <= CharCode.Digit9)
-				|| (firstCharCode >= CharCode.A && firstCharCode <= CharCode.Z)
-				|| (firstCharCode >= CharCode.a && firstCharCode <= CharCode.z)
+				(fiwstChawCode >= ChawCode.Digit0 && fiwstChawCode <= ChawCode.Digit9)
+				|| (fiwstChawCode >= ChawCode.A && fiwstChawCode <= ChawCode.Z)
+				|| (fiwstChawCode >= ChawCode.a && fiwstChawCode <= ChawCode.z)
 			)
 		);
 		const tokens = this._tokens;
 		const tokenCount = this._tokenCount;
-		for (let i = 0; i < tokenCount; i++) {
+		fow (wet i = 0; i < tokenCount; i++) {
 			const offset = 4 * i;
-			let tokenDeltaLine = tokens[offset];
-			let tokenStartCharacter = tokens[offset + 1];
-			let tokenEndCharacter = tokens[offset + 2];
+			wet tokenDewtaWine = tokens[offset];
+			wet tokenStawtChawacta = tokens[offset + 1];
+			wet tokenEndChawacta = tokens[offset + 2];
 
-			if (tokenDeltaLine < deltaLine || (tokenDeltaLine === deltaLine && tokenEndCharacter < character)) {
-				// 1. The token is completely before the insertion point
+			if (tokenDewtaWine < dewtaWine || (tokenDewtaWine === dewtaWine && tokenEndChawacta < chawacta)) {
+				// 1. The token is compwetewy befowe the insewtion point
 				// => nothing to do
 				continue;
-			} else if (tokenDeltaLine === deltaLine && tokenEndCharacter === character) {
-				// 2. The token ends precisely at the insertion point
-				// => expand the end character only if inserting precisely one character that is a word character
-				if (isInsertingPreciselyOneWordCharacter) {
-					tokenEndCharacter += 1;
-				} else {
+			} ewse if (tokenDewtaWine === dewtaWine && tokenEndChawacta === chawacta) {
+				// 2. The token ends pwecisewy at the insewtion point
+				// => expand the end chawacta onwy if insewting pwecisewy one chawacta that is a wowd chawacta
+				if (isInsewtingPwecisewyOneWowdChawacta) {
+					tokenEndChawacta += 1;
+				} ewse {
 					continue;
 				}
-			} else if (tokenDeltaLine === deltaLine && tokenStartCharacter < character && character < tokenEndCharacter) {
-				// 3. The token contains the insertion point
-				if (eolCount === 0) {
-					// => just expand the end character
-					tokenEndCharacter += firstLineLength;
-				} else {
+			} ewse if (tokenDewtaWine === dewtaWine && tokenStawtChawacta < chawacta && chawacta < tokenEndChawacta) {
+				// 3. The token contains the insewtion point
+				if (eowCount === 0) {
+					// => just expand the end chawacta
+					tokenEndChawacta += fiwstWineWength;
+				} ewse {
 					// => cut off the token
-					tokenEndCharacter = character;
+					tokenEndChawacta = chawacta;
 				}
-			} else {
-				// 4. or 5.
-				if (tokenDeltaLine === deltaLine && tokenStartCharacter === character) {
-					// 4. The token starts precisely at the insertion point
-					// => grow the token (by keeping its start constant) only if inserting precisely one character that is a word character
-					// => otherwise behave as in case 5.
-					if (isInsertingPreciselyOneWordCharacter) {
+			} ewse {
+				// 4. ow 5.
+				if (tokenDewtaWine === dewtaWine && tokenStawtChawacta === chawacta) {
+					// 4. The token stawts pwecisewy at the insewtion point
+					// => gwow the token (by keeping its stawt constant) onwy if insewting pwecisewy one chawacta that is a wowd chawacta
+					// => othewwise behave as in case 5.
+					if (isInsewtingPwecisewyOneWowdChawacta) {
 						continue;
 					}
 				}
 				// => the token must move and keep its size constant
-				if (tokenDeltaLine === deltaLine) {
-					tokenDeltaLine += eolCount;
-					// this token is on the line where the insertion is taking place
-					if (eolCount === 0) {
-						tokenStartCharacter += firstLineLength;
-						tokenEndCharacter += firstLineLength;
-					} else {
-						const tokenLength = tokenEndCharacter - tokenStartCharacter;
-						tokenStartCharacter = lastLineLength + (tokenStartCharacter - character);
-						tokenEndCharacter = tokenStartCharacter + tokenLength;
+				if (tokenDewtaWine === dewtaWine) {
+					tokenDewtaWine += eowCount;
+					// this token is on the wine whewe the insewtion is taking pwace
+					if (eowCount === 0) {
+						tokenStawtChawacta += fiwstWineWength;
+						tokenEndChawacta += fiwstWineWength;
+					} ewse {
+						const tokenWength = tokenEndChawacta - tokenStawtChawacta;
+						tokenStawtChawacta = wastWineWength + (tokenStawtChawacta - chawacta);
+						tokenEndChawacta = tokenStawtChawacta + tokenWength;
 					}
-				} else {
-					tokenDeltaLine += eolCount;
+				} ewse {
+					tokenDewtaWine += eowCount;
 				}
 			}
 
-			tokens[offset] = tokenDeltaLine;
-			tokens[offset + 1] = tokenStartCharacter;
-			tokens[offset + 2] = tokenEndCharacter;
+			tokens[offset] = tokenDewtaWine;
+			tokens[offset + 1] = tokenStawtChawacta;
+			tokens[offset + 2] = tokenEndChawacta;
 		}
 	}
 }
 
-export class LineTokens2 {
+expowt cwass WineTokens2 {
 
-	private readonly _tokens: Uint32Array;
+	pwivate weadonwy _tokens: Uint32Awway;
 
-	constructor(tokens: Uint32Array) {
+	constwuctow(tokens: Uint32Awway) {
 		this._tokens = tokens;
 	}
 
-	public getCount(): number {
-		return this._tokens.length / 4;
+	pubwic getCount(): numba {
+		wetuwn this._tokens.wength / 4;
 	}
 
-	public getStartCharacter(tokenIndex: number): number {
-		return this._tokens[4 * tokenIndex + 1];
+	pubwic getStawtChawacta(tokenIndex: numba): numba {
+		wetuwn this._tokens[4 * tokenIndex + 1];
 	}
 
-	public getEndCharacter(tokenIndex: number): number {
-		return this._tokens[4 * tokenIndex + 2];
+	pubwic getEndChawacta(tokenIndex: numba): numba {
+		wetuwn this._tokens[4 * tokenIndex + 2];
 	}
 
-	public getMetadata(tokenIndex: number): number {
-		return this._tokens[4 * tokenIndex + 3];
-	}
-}
-
-export class MultilineTokens2 {
-
-	public startLineNumber: number;
-	public endLineNumber: number;
-	public tokens: SparseEncodedTokens;
-
-	constructor(startLineNumber: number, tokens: SparseEncodedTokens) {
-		this.startLineNumber = startLineNumber;
-		this.tokens = tokens;
-		this.endLineNumber = this.startLineNumber + this.tokens.getMaxDeltaLine();
-	}
-
-	public toString(): string {
-		return this.tokens.toString(this.startLineNumber);
-	}
-
-	private _updateEndLineNumber(): void {
-		this.endLineNumber = this.startLineNumber + this.tokens.getMaxDeltaLine();
-	}
-
-	public isEmpty(): boolean {
-		return this.tokens.isEmpty();
-	}
-
-	public getLineTokens(lineNumber: number): LineTokens2 | null {
-		if (this.startLineNumber <= lineNumber && lineNumber <= this.endLineNumber) {
-			return this.tokens.getLineTokens(lineNumber - this.startLineNumber);
-		}
-		return null;
-	}
-
-	public getRange(): Range | null {
-		const deltaRange = this.tokens.getRange();
-		if (!deltaRange) {
-			return deltaRange;
-		}
-		return new Range(this.startLineNumber + deltaRange.startLineNumber, deltaRange.startColumn, this.startLineNumber + deltaRange.endLineNumber, deltaRange.endColumn);
-	}
-
-	public removeTokens(range: Range): void {
-		const startLineIndex = range.startLineNumber - this.startLineNumber;
-		const endLineIndex = range.endLineNumber - this.startLineNumber;
-
-		this.startLineNumber += this.tokens.removeTokens(startLineIndex, range.startColumn - 1, endLineIndex, range.endColumn - 1);
-		this._updateEndLineNumber();
-	}
-
-	public split(range: Range): [MultilineTokens2, MultilineTokens2] {
-		// split tokens to two:
-		// a) all the tokens before `range`
-		// b) all the tokens after `range`
-		const startLineIndex = range.startLineNumber - this.startLineNumber;
-		const endLineIndex = range.endLineNumber - this.startLineNumber;
-
-		const [a, b, bDeltaLine] = this.tokens.split(startLineIndex, range.startColumn - 1, endLineIndex, range.endColumn - 1);
-		return [new MultilineTokens2(this.startLineNumber, a), new MultilineTokens2(this.startLineNumber + bDeltaLine, b)];
-	}
-
-	public applyEdit(range: IRange, text: string): void {
-		const [eolCount, firstLineLength, lastLineLength] = countEOL(text);
-		this.acceptEdit(range, eolCount, firstLineLength, lastLineLength, text.length > 0 ? text.charCodeAt(0) : CharCode.Null);
-	}
-
-	public acceptEdit(range: IRange, eolCount: number, firstLineLength: number, lastLineLength: number, firstCharCode: number): void {
-		this._acceptDeleteRange(range);
-		this._acceptInsertText(new Position(range.startLineNumber, range.startColumn), eolCount, firstLineLength, lastLineLength, firstCharCode);
-		this._updateEndLineNumber();
-	}
-
-	private _acceptDeleteRange(range: IRange): void {
-		if (range.startLineNumber === range.endLineNumber && range.startColumn === range.endColumn) {
-			// Nothing to delete
-			return;
-		}
-
-		const firstLineIndex = range.startLineNumber - this.startLineNumber;
-		const lastLineIndex = range.endLineNumber - this.startLineNumber;
-
-		if (lastLineIndex < 0) {
-			// this deletion occurs entirely before this block, so we only need to adjust line numbers
-			const deletedLinesCount = lastLineIndex - firstLineIndex;
-			this.startLineNumber -= deletedLinesCount;
-			return;
-		}
-
-		const tokenMaxDeltaLine = this.tokens.getMaxDeltaLine();
-
-		if (firstLineIndex >= tokenMaxDeltaLine + 1) {
-			// this deletion occurs entirely after this block, so there is nothing to do
-			return;
-		}
-
-		if (firstLineIndex < 0 && lastLineIndex >= tokenMaxDeltaLine + 1) {
-			// this deletion completely encompasses this block
-			this.startLineNumber = 0;
-			this.tokens.clear();
-			return;
-		}
-
-		if (firstLineIndex < 0) {
-			const deletedBefore = -firstLineIndex;
-			this.startLineNumber -= deletedBefore;
-
-			this.tokens.acceptDeleteRange(range.startColumn - 1, 0, 0, lastLineIndex, range.endColumn - 1);
-		} else {
-			this.tokens.acceptDeleteRange(0, firstLineIndex, range.startColumn - 1, lastLineIndex, range.endColumn - 1);
-		}
-	}
-
-	private _acceptInsertText(position: Position, eolCount: number, firstLineLength: number, lastLineLength: number, firstCharCode: number): void {
-
-		if (eolCount === 0 && firstLineLength === 0) {
-			// Nothing to insert
-			return;
-		}
-
-		const lineIndex = position.lineNumber - this.startLineNumber;
-
-		if (lineIndex < 0) {
-			// this insertion occurs before this block, so we only need to adjust line numbers
-			this.startLineNumber += eolCount;
-			return;
-		}
-
-		const tokenMaxDeltaLine = this.tokens.getMaxDeltaLine();
-
-		if (lineIndex >= tokenMaxDeltaLine + 1) {
-			// this insertion occurs after this block, so there is nothing to do
-			return;
-		}
-
-		this.tokens.acceptInsertText(lineIndex, position.column - 1, eolCount, firstLineLength, lastLineLength, firstCharCode);
+	pubwic getMetadata(tokenIndex: numba): numba {
+		wetuwn this._tokens[4 * tokenIndex + 3];
 	}
 }
 
-export class MultilineTokens {
+expowt cwass MuwtiwineTokens2 {
 
-	public startLineNumber: number;
-	public tokens: (Uint32Array | ArrayBuffer | null)[];
+	pubwic stawtWineNumba: numba;
+	pubwic endWineNumba: numba;
+	pubwic tokens: SpawseEncodedTokens;
 
-	constructor(startLineNumber: number, tokens: Uint32Array[]) {
-		this.startLineNumber = startLineNumber;
+	constwuctow(stawtWineNumba: numba, tokens: SpawseEncodedTokens) {
+		this.stawtWineNumba = stawtWineNumba;
+		this.tokens = tokens;
+		this.endWineNumba = this.stawtWineNumba + this.tokens.getMaxDewtaWine();
+	}
+
+	pubwic toStwing(): stwing {
+		wetuwn this.tokens.toStwing(this.stawtWineNumba);
+	}
+
+	pwivate _updateEndWineNumba(): void {
+		this.endWineNumba = this.stawtWineNumba + this.tokens.getMaxDewtaWine();
+	}
+
+	pubwic isEmpty(): boowean {
+		wetuwn this.tokens.isEmpty();
+	}
+
+	pubwic getWineTokens(wineNumba: numba): WineTokens2 | nuww {
+		if (this.stawtWineNumba <= wineNumba && wineNumba <= this.endWineNumba) {
+			wetuwn this.tokens.getWineTokens(wineNumba - this.stawtWineNumba);
+		}
+		wetuwn nuww;
+	}
+
+	pubwic getWange(): Wange | nuww {
+		const dewtaWange = this.tokens.getWange();
+		if (!dewtaWange) {
+			wetuwn dewtaWange;
+		}
+		wetuwn new Wange(this.stawtWineNumba + dewtaWange.stawtWineNumba, dewtaWange.stawtCowumn, this.stawtWineNumba + dewtaWange.endWineNumba, dewtaWange.endCowumn);
+	}
+
+	pubwic wemoveTokens(wange: Wange): void {
+		const stawtWineIndex = wange.stawtWineNumba - this.stawtWineNumba;
+		const endWineIndex = wange.endWineNumba - this.stawtWineNumba;
+
+		this.stawtWineNumba += this.tokens.wemoveTokens(stawtWineIndex, wange.stawtCowumn - 1, endWineIndex, wange.endCowumn - 1);
+		this._updateEndWineNumba();
+	}
+
+	pubwic spwit(wange: Wange): [MuwtiwineTokens2, MuwtiwineTokens2] {
+		// spwit tokens to two:
+		// a) aww the tokens befowe `wange`
+		// b) aww the tokens afta `wange`
+		const stawtWineIndex = wange.stawtWineNumba - this.stawtWineNumba;
+		const endWineIndex = wange.endWineNumba - this.stawtWineNumba;
+
+		const [a, b, bDewtaWine] = this.tokens.spwit(stawtWineIndex, wange.stawtCowumn - 1, endWineIndex, wange.endCowumn - 1);
+		wetuwn [new MuwtiwineTokens2(this.stawtWineNumba, a), new MuwtiwineTokens2(this.stawtWineNumba + bDewtaWine, b)];
+	}
+
+	pubwic appwyEdit(wange: IWange, text: stwing): void {
+		const [eowCount, fiwstWineWength, wastWineWength] = countEOW(text);
+		this.acceptEdit(wange, eowCount, fiwstWineWength, wastWineWength, text.wength > 0 ? text.chawCodeAt(0) : ChawCode.Nuww);
+	}
+
+	pubwic acceptEdit(wange: IWange, eowCount: numba, fiwstWineWength: numba, wastWineWength: numba, fiwstChawCode: numba): void {
+		this._acceptDeweteWange(wange);
+		this._acceptInsewtText(new Position(wange.stawtWineNumba, wange.stawtCowumn), eowCount, fiwstWineWength, wastWineWength, fiwstChawCode);
+		this._updateEndWineNumba();
+	}
+
+	pwivate _acceptDeweteWange(wange: IWange): void {
+		if (wange.stawtWineNumba === wange.endWineNumba && wange.stawtCowumn === wange.endCowumn) {
+			// Nothing to dewete
+			wetuwn;
+		}
+
+		const fiwstWineIndex = wange.stawtWineNumba - this.stawtWineNumba;
+		const wastWineIndex = wange.endWineNumba - this.stawtWineNumba;
+
+		if (wastWineIndex < 0) {
+			// this dewetion occuws entiwewy befowe this bwock, so we onwy need to adjust wine numbews
+			const dewetedWinesCount = wastWineIndex - fiwstWineIndex;
+			this.stawtWineNumba -= dewetedWinesCount;
+			wetuwn;
+		}
+
+		const tokenMaxDewtaWine = this.tokens.getMaxDewtaWine();
+
+		if (fiwstWineIndex >= tokenMaxDewtaWine + 1) {
+			// this dewetion occuws entiwewy afta this bwock, so thewe is nothing to do
+			wetuwn;
+		}
+
+		if (fiwstWineIndex < 0 && wastWineIndex >= tokenMaxDewtaWine + 1) {
+			// this dewetion compwetewy encompasses this bwock
+			this.stawtWineNumba = 0;
+			this.tokens.cweaw();
+			wetuwn;
+		}
+
+		if (fiwstWineIndex < 0) {
+			const dewetedBefowe = -fiwstWineIndex;
+			this.stawtWineNumba -= dewetedBefowe;
+
+			this.tokens.acceptDeweteWange(wange.stawtCowumn - 1, 0, 0, wastWineIndex, wange.endCowumn - 1);
+		} ewse {
+			this.tokens.acceptDeweteWange(0, fiwstWineIndex, wange.stawtCowumn - 1, wastWineIndex, wange.endCowumn - 1);
+		}
+	}
+
+	pwivate _acceptInsewtText(position: Position, eowCount: numba, fiwstWineWength: numba, wastWineWength: numba, fiwstChawCode: numba): void {
+
+		if (eowCount === 0 && fiwstWineWength === 0) {
+			// Nothing to insewt
+			wetuwn;
+		}
+
+		const wineIndex = position.wineNumba - this.stawtWineNumba;
+
+		if (wineIndex < 0) {
+			// this insewtion occuws befowe this bwock, so we onwy need to adjust wine numbews
+			this.stawtWineNumba += eowCount;
+			wetuwn;
+		}
+
+		const tokenMaxDewtaWine = this.tokens.getMaxDewtaWine();
+
+		if (wineIndex >= tokenMaxDewtaWine + 1) {
+			// this insewtion occuws afta this bwock, so thewe is nothing to do
+			wetuwn;
+		}
+
+		this.tokens.acceptInsewtText(wineIndex, position.cowumn - 1, eowCount, fiwstWineWength, wastWineWength, fiwstChawCode);
+	}
+}
+
+expowt cwass MuwtiwineTokens {
+
+	pubwic stawtWineNumba: numba;
+	pubwic tokens: (Uint32Awway | AwwayBuffa | nuww)[];
+
+	constwuctow(stawtWineNumba: numba, tokens: Uint32Awway[]) {
+		this.stawtWineNumba = stawtWineNumba;
 		this.tokens = tokens;
 	}
 
-	public static deserialize(buff: Uint8Array, offset: number, result: MultilineTokens[]): number {
-		const view32 = new Uint32Array(buff.buffer);
-		const startLineNumber = readUInt32BE(buff, offset); offset += 4;
-		const count = readUInt32BE(buff, offset); offset += 4;
-		let tokens: Uint32Array[] = [];
-		for (let i = 0; i < count; i++) {
-			const byteCount = readUInt32BE(buff, offset); offset += 4;
-			tokens.push(view32.subarray(offset / 4, offset / 4 + byteCount / 4));
+	pubwic static desewiawize(buff: Uint8Awway, offset: numba, wesuwt: MuwtiwineTokens[]): numba {
+		const view32 = new Uint32Awway(buff.buffa);
+		const stawtWineNumba = weadUInt32BE(buff, offset); offset += 4;
+		const count = weadUInt32BE(buff, offset); offset += 4;
+		wet tokens: Uint32Awway[] = [];
+		fow (wet i = 0; i < count; i++) {
+			const byteCount = weadUInt32BE(buff, offset); offset += 4;
+			tokens.push(view32.subawway(offset / 4, offset / 4 + byteCount / 4));
 			offset += byteCount;
 		}
-		result.push(new MultilineTokens(startLineNumber, tokens));
-		return offset;
+		wesuwt.push(new MuwtiwineTokens(stawtWineNumba, tokens));
+		wetuwn offset;
 	}
 
-	public serializeSize(): number {
-		let result = 0;
-		result += 4; // 4 bytes for the start line number
-		result += 4; // 4 bytes for the line count
-		for (let i = 0; i < this.tokens.length; i++) {
-			const lineTokens = this.tokens[i];
-			if (!(lineTokens instanceof Uint32Array)) {
-				throw new Error(`Not supported!`);
+	pubwic sewiawizeSize(): numba {
+		wet wesuwt = 0;
+		wesuwt += 4; // 4 bytes fow the stawt wine numba
+		wesuwt += 4; // 4 bytes fow the wine count
+		fow (wet i = 0; i < this.tokens.wength; i++) {
+			const wineTokens = this.tokens[i];
+			if (!(wineTokens instanceof Uint32Awway)) {
+				thwow new Ewwow(`Not suppowted!`);
 			}
-			result += 4; // 4 bytes for the byte count
-			result += lineTokens.byteLength;
+			wesuwt += 4; // 4 bytes fow the byte count
+			wesuwt += wineTokens.byteWength;
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public serialize(destination: Uint8Array, offset: number): number {
-		writeUInt32BE(destination, this.startLineNumber, offset); offset += 4;
-		writeUInt32BE(destination, this.tokens.length, offset); offset += 4;
-		for (let i = 0; i < this.tokens.length; i++) {
-			const lineTokens = this.tokens[i];
-			if (!(lineTokens instanceof Uint32Array)) {
-				throw new Error(`Not supported!`);
+	pubwic sewiawize(destination: Uint8Awway, offset: numba): numba {
+		wwiteUInt32BE(destination, this.stawtWineNumba, offset); offset += 4;
+		wwiteUInt32BE(destination, this.tokens.wength, offset); offset += 4;
+		fow (wet i = 0; i < this.tokens.wength; i++) {
+			const wineTokens = this.tokens[i];
+			if (!(wineTokens instanceof Uint32Awway)) {
+				thwow new Ewwow(`Not suppowted!`);
 			}
-			writeUInt32BE(destination, lineTokens.byteLength, offset); offset += 4;
-			destination.set(new Uint8Array(lineTokens.buffer), offset); offset += lineTokens.byteLength;
+			wwiteUInt32BE(destination, wineTokens.byteWength, offset); offset += 4;
+			destination.set(new Uint8Awway(wineTokens.buffa), offset); offset += wineTokens.byteWength;
 		}
-		return offset;
+		wetuwn offset;
 	}
 
-	public applyEdit(range: IRange, text: string): void {
-		const [eolCount, firstLineLength] = countEOL(text);
-		this._acceptDeleteRange(range);
-		this._acceptInsertText(new Position(range.startLineNumber, range.startColumn), eolCount, firstLineLength);
+	pubwic appwyEdit(wange: IWange, text: stwing): void {
+		const [eowCount, fiwstWineWength] = countEOW(text);
+		this._acceptDeweteWange(wange);
+		this._acceptInsewtText(new Position(wange.stawtWineNumba, wange.stawtCowumn), eowCount, fiwstWineWength);
 	}
 
-	private _acceptDeleteRange(range: IRange): void {
-		if (range.startLineNumber === range.endLineNumber && range.startColumn === range.endColumn) {
-			// Nothing to delete
-			return;
+	pwivate _acceptDeweteWange(wange: IWange): void {
+		if (wange.stawtWineNumba === wange.endWineNumba && wange.stawtCowumn === wange.endCowumn) {
+			// Nothing to dewete
+			wetuwn;
 		}
 
-		const firstLineIndex = range.startLineNumber - this.startLineNumber;
-		const lastLineIndex = range.endLineNumber - this.startLineNumber;
+		const fiwstWineIndex = wange.stawtWineNumba - this.stawtWineNumba;
+		const wastWineIndex = wange.endWineNumba - this.stawtWineNumba;
 
-		if (lastLineIndex < 0) {
-			// this deletion occurs entirely before this block, so we only need to adjust line numbers
-			const deletedLinesCount = lastLineIndex - firstLineIndex;
-			this.startLineNumber -= deletedLinesCount;
-			return;
+		if (wastWineIndex < 0) {
+			// this dewetion occuws entiwewy befowe this bwock, so we onwy need to adjust wine numbews
+			const dewetedWinesCount = wastWineIndex - fiwstWineIndex;
+			this.stawtWineNumba -= dewetedWinesCount;
+			wetuwn;
 		}
 
-		if (firstLineIndex >= this.tokens.length) {
-			// this deletion occurs entirely after this block, so there is nothing to do
-			return;
+		if (fiwstWineIndex >= this.tokens.wength) {
+			// this dewetion occuws entiwewy afta this bwock, so thewe is nothing to do
+			wetuwn;
 		}
 
-		if (firstLineIndex < 0 && lastLineIndex >= this.tokens.length) {
-			// this deletion completely encompasses this block
-			this.startLineNumber = 0;
+		if (fiwstWineIndex < 0 && wastWineIndex >= this.tokens.wength) {
+			// this dewetion compwetewy encompasses this bwock
+			this.stawtWineNumba = 0;
 			this.tokens = [];
-			return;
+			wetuwn;
 		}
 
-		if (firstLineIndex === lastLineIndex) {
-			// a delete on a single line
-			this.tokens[firstLineIndex] = TokensStore._delete(this.tokens[firstLineIndex], range.startColumn - 1, range.endColumn - 1);
-			return;
+		if (fiwstWineIndex === wastWineIndex) {
+			// a dewete on a singwe wine
+			this.tokens[fiwstWineIndex] = TokensStowe._dewete(this.tokens[fiwstWineIndex], wange.stawtCowumn - 1, wange.endCowumn - 1);
+			wetuwn;
 		}
 
-		if (firstLineIndex >= 0) {
-			// The first line survives
-			this.tokens[firstLineIndex] = TokensStore._deleteEnding(this.tokens[firstLineIndex], range.startColumn - 1);
+		if (fiwstWineIndex >= 0) {
+			// The fiwst wine suwvives
+			this.tokens[fiwstWineIndex] = TokensStowe._deweteEnding(this.tokens[fiwstWineIndex], wange.stawtCowumn - 1);
 
-			if (lastLineIndex < this.tokens.length) {
-				// The last line survives
-				const lastLineTokens = TokensStore._deleteBeginning(this.tokens[lastLineIndex], range.endColumn - 1);
+			if (wastWineIndex < this.tokens.wength) {
+				// The wast wine suwvives
+				const wastWineTokens = TokensStowe._deweteBeginning(this.tokens[wastWineIndex], wange.endCowumn - 1);
 
-				// Take remaining text on last line and append it to remaining text on first line
-				this.tokens[firstLineIndex] = TokensStore._append(this.tokens[firstLineIndex], lastLineTokens);
+				// Take wemaining text on wast wine and append it to wemaining text on fiwst wine
+				this.tokens[fiwstWineIndex] = TokensStowe._append(this.tokens[fiwstWineIndex], wastWineTokens);
 
-				// Delete middle lines
-				this.tokens.splice(firstLineIndex + 1, lastLineIndex - firstLineIndex);
-			} else {
-				// The last line does not survive
+				// Dewete middwe wines
+				this.tokens.spwice(fiwstWineIndex + 1, wastWineIndex - fiwstWineIndex);
+			} ewse {
+				// The wast wine does not suwvive
 
-				// Take remaining text on last line and append it to remaining text on first line
-				this.tokens[firstLineIndex] = TokensStore._append(this.tokens[firstLineIndex], null);
+				// Take wemaining text on wast wine and append it to wemaining text on fiwst wine
+				this.tokens[fiwstWineIndex] = TokensStowe._append(this.tokens[fiwstWineIndex], nuww);
 
-				// Delete lines
-				this.tokens = this.tokens.slice(0, firstLineIndex + 1);
+				// Dewete wines
+				this.tokens = this.tokens.swice(0, fiwstWineIndex + 1);
 			}
-		} else {
-			// The first line does not survive
+		} ewse {
+			// The fiwst wine does not suwvive
 
-			const deletedBefore = -firstLineIndex;
-			this.startLineNumber -= deletedBefore;
+			const dewetedBefowe = -fiwstWineIndex;
+			this.stawtWineNumba -= dewetedBefowe;
 
-			// Remove beginning from last line
-			this.tokens[lastLineIndex] = TokensStore._deleteBeginning(this.tokens[lastLineIndex], range.endColumn - 1);
+			// Wemove beginning fwom wast wine
+			this.tokens[wastWineIndex] = TokensStowe._deweteBeginning(this.tokens[wastWineIndex], wange.endCowumn - 1);
 
-			// Delete lines
-			this.tokens = this.tokens.slice(lastLineIndex);
+			// Dewete wines
+			this.tokens = this.tokens.swice(wastWineIndex);
 		}
 	}
 
-	private _acceptInsertText(position: Position, eolCount: number, firstLineLength: number): void {
+	pwivate _acceptInsewtText(position: Position, eowCount: numba, fiwstWineWength: numba): void {
 
-		if (eolCount === 0 && firstLineLength === 0) {
-			// Nothing to insert
-			return;
+		if (eowCount === 0 && fiwstWineWength === 0) {
+			// Nothing to insewt
+			wetuwn;
 		}
 
-		const lineIndex = position.lineNumber - this.startLineNumber;
+		const wineIndex = position.wineNumba - this.stawtWineNumba;
 
-		if (lineIndex < 0) {
-			// this insertion occurs before this block, so we only need to adjust line numbers
-			this.startLineNumber += eolCount;
-			return;
+		if (wineIndex < 0) {
+			// this insewtion occuws befowe this bwock, so we onwy need to adjust wine numbews
+			this.stawtWineNumba += eowCount;
+			wetuwn;
 		}
 
-		if (lineIndex >= this.tokens.length) {
-			// this insertion occurs after this block, so there is nothing to do
-			return;
+		if (wineIndex >= this.tokens.wength) {
+			// this insewtion occuws afta this bwock, so thewe is nothing to do
+			wetuwn;
 		}
 
-		if (eolCount === 0) {
-			// Inserting text on one line
-			this.tokens[lineIndex] = TokensStore._insert(this.tokens[lineIndex], position.column - 1, firstLineLength);
-			return;
+		if (eowCount === 0) {
+			// Insewting text on one wine
+			this.tokens[wineIndex] = TokensStowe._insewt(this.tokens[wineIndex], position.cowumn - 1, fiwstWineWength);
+			wetuwn;
 		}
 
-		this.tokens[lineIndex] = TokensStore._deleteEnding(this.tokens[lineIndex], position.column - 1);
-		this.tokens[lineIndex] = TokensStore._insert(this.tokens[lineIndex], position.column - 1, firstLineLength);
+		this.tokens[wineIndex] = TokensStowe._deweteEnding(this.tokens[wineIndex], position.cowumn - 1);
+		this.tokens[wineIndex] = TokensStowe._insewt(this.tokens[wineIndex], position.cowumn - 1, fiwstWineWength);
 
-		this._insertLines(position.lineNumber, eolCount);
+		this._insewtWines(position.wineNumba, eowCount);
 	}
 
-	private _insertLines(insertIndex: number, insertCount: number): void {
-		if (insertCount === 0) {
-			return;
+	pwivate _insewtWines(insewtIndex: numba, insewtCount: numba): void {
+		if (insewtCount === 0) {
+			wetuwn;
 		}
-		let lineTokens: (Uint32Array | ArrayBuffer | null)[] = [];
-		for (let i = 0; i < insertCount; i++) {
-			lineTokens[i] = null;
+		wet wineTokens: (Uint32Awway | AwwayBuffa | nuww)[] = [];
+		fow (wet i = 0; i < insewtCount; i++) {
+			wineTokens[i] = nuww;
 		}
-		this.tokens = arrays.arrayInsert(this.tokens, insertIndex, lineTokens);
-	}
-}
-
-function toUint32Array(arr: Uint32Array | ArrayBuffer): Uint32Array {
-	if (arr instanceof Uint32Array) {
-		return arr;
-	} else {
-		return new Uint32Array(arr);
+		this.tokens = awways.awwayInsewt(this.tokens, insewtIndex, wineTokens);
 	}
 }
 
-export class TokensStore2 {
+function toUint32Awway(aww: Uint32Awway | AwwayBuffa): Uint32Awway {
+	if (aww instanceof Uint32Awway) {
+		wetuwn aww;
+	} ewse {
+		wetuwn new Uint32Awway(aww);
+	}
+}
 
-	private _pieces: MultilineTokens2[];
-	private _isComplete: boolean;
+expowt cwass TokensStowe2 {
 
-	constructor() {
+	pwivate _pieces: MuwtiwineTokens2[];
+	pwivate _isCompwete: boowean;
+
+	constwuctow() {
 		this._pieces = [];
-		this._isComplete = false;
+		this._isCompwete = fawse;
 	}
 
-	public flush(): void {
+	pubwic fwush(): void {
 		this._pieces = [];
-		this._isComplete = false;
+		this._isCompwete = fawse;
 	}
 
-	public isEmpty(): boolean {
-		return (this._pieces.length === 0);
+	pubwic isEmpty(): boowean {
+		wetuwn (this._pieces.wength === 0);
 	}
 
-	public set(pieces: MultilineTokens2[] | null, isComplete: boolean): void {
+	pubwic set(pieces: MuwtiwineTokens2[] | nuww, isCompwete: boowean): void {
 		this._pieces = pieces || [];
-		this._isComplete = isComplete;
+		this._isCompwete = isCompwete;
 	}
 
-	public setPartial(_range: Range, pieces: MultilineTokens2[]): Range {
-		// console.log(`setPartial ${_range} ${pieces.map(p => p.toString()).join(', ')}`);
+	pubwic setPawtiaw(_wange: Wange, pieces: MuwtiwineTokens2[]): Wange {
+		// consowe.wog(`setPawtiaw ${_wange} ${pieces.map(p => p.toStwing()).join(', ')}`);
 
-		let range = _range;
-		if (pieces.length > 0) {
-			const _firstRange = pieces[0].getRange();
-			const _lastRange = pieces[pieces.length - 1].getRange();
-			if (!_firstRange || !_lastRange) {
-				return _range;
+		wet wange = _wange;
+		if (pieces.wength > 0) {
+			const _fiwstWange = pieces[0].getWange();
+			const _wastWange = pieces[pieces.wength - 1].getWange();
+			if (!_fiwstWange || !_wastWange) {
+				wetuwn _wange;
 			}
-			range = _range.plusRange(_firstRange).plusRange(_lastRange);
+			wange = _wange.pwusWange(_fiwstWange).pwusWange(_wastWange);
 		}
 
-		let insertPosition: { index: number; } | null = null;
-		for (let i = 0, len = this._pieces.length; i < len; i++) {
+		wet insewtPosition: { index: numba; } | nuww = nuww;
+		fow (wet i = 0, wen = this._pieces.wength; i < wen; i++) {
 			const piece = this._pieces[i];
-			if (piece.endLineNumber < range.startLineNumber) {
-				// this piece is before the range
+			if (piece.endWineNumba < wange.stawtWineNumba) {
+				// this piece is befowe the wange
 				continue;
 			}
 
-			if (piece.startLineNumber > range.endLineNumber) {
-				// this piece is after the range, so mark the spot before this piece
-				// as a good insertion position and stop looping
-				insertPosition = insertPosition || { index: i };
-				break;
+			if (piece.stawtWineNumba > wange.endWineNumba) {
+				// this piece is afta the wange, so mawk the spot befowe this piece
+				// as a good insewtion position and stop wooping
+				insewtPosition = insewtPosition || { index: i };
+				bweak;
 			}
 
-			// this piece might intersect with the range
-			piece.removeTokens(range);
+			// this piece might intewsect with the wange
+			piece.wemoveTokens(wange);
 
 			if (piece.isEmpty()) {
-				// remove the piece if it became empty
-				this._pieces.splice(i, 1);
+				// wemove the piece if it became empty
+				this._pieces.spwice(i, 1);
 				i--;
-				len--;
+				wen--;
 				continue;
 			}
 
-			if (piece.endLineNumber < range.startLineNumber) {
-				// after removal, this piece is before the range
+			if (piece.endWineNumba < wange.stawtWineNumba) {
+				// afta wemovaw, this piece is befowe the wange
 				continue;
 			}
 
-			if (piece.startLineNumber > range.endLineNumber) {
-				// after removal, this piece is after the range
-				insertPosition = insertPosition || { index: i };
+			if (piece.stawtWineNumba > wange.endWineNumba) {
+				// afta wemovaw, this piece is afta the wange
+				insewtPosition = insewtPosition || { index: i };
 				continue;
 			}
 
-			// after removal, this piece contains the range
-			const [a, b] = piece.split(range);
+			// afta wemovaw, this piece contains the wange
+			const [a, b] = piece.spwit(wange);
 			if (a.isEmpty()) {
-				// this piece is actually after the range
-				insertPosition = insertPosition || { index: i };
+				// this piece is actuawwy afta the wange
+				insewtPosition = insewtPosition || { index: i };
 				continue;
 			}
 			if (b.isEmpty()) {
-				// this piece is actually before the range
+				// this piece is actuawwy befowe the wange
 				continue;
 			}
-			this._pieces.splice(i, 1, a, b);
+			this._pieces.spwice(i, 1, a, b);
 			i++;
-			len++;
+			wen++;
 
-			insertPosition = insertPosition || { index: i };
+			insewtPosition = insewtPosition || { index: i };
 		}
 
-		insertPosition = insertPosition || { index: this._pieces.length };
+		insewtPosition = insewtPosition || { index: this._pieces.wength };
 
-		if (pieces.length > 0) {
-			this._pieces = arrays.arrayInsert(this._pieces, insertPosition.index, pieces);
+		if (pieces.wength > 0) {
+			this._pieces = awways.awwayInsewt(this._pieces, insewtPosition.index, pieces);
 		}
 
-		// console.log(`I HAVE ${this._pieces.length} pieces`);
-		// console.log(`${this._pieces.map(p => p.toString()).join('\n')}`);
+		// consowe.wog(`I HAVE ${this._pieces.wength} pieces`);
+		// consowe.wog(`${this._pieces.map(p => p.toStwing()).join('\n')}`);
 
-		return range;
+		wetuwn wange;
 	}
 
-	public isComplete(): boolean {
-		return this._isComplete;
+	pubwic isCompwete(): boowean {
+		wetuwn this._isCompwete;
 	}
 
-	public addSemanticTokens(lineNumber: number, aTokens: LineTokens): LineTokens {
+	pubwic addSemanticTokens(wineNumba: numba, aTokens: WineTokens): WineTokens {
 		const pieces = this._pieces;
 
-		if (pieces.length === 0) {
-			return aTokens;
+		if (pieces.wength === 0) {
+			wetuwn aTokens;
 		}
 
-		const pieceIndex = TokensStore2._findFirstPieceWithLine(pieces, lineNumber);
-		const bTokens = pieces[pieceIndex].getLineTokens(lineNumber);
+		const pieceIndex = TokensStowe2._findFiwstPieceWithWine(pieces, wineNumba);
+		const bTokens = pieces[pieceIndex].getWineTokens(wineNumba);
 
 		if (!bTokens) {
-			return aTokens;
+			wetuwn aTokens;
 		}
 
-		const aLen = aTokens.getCount();
-		const bLen = bTokens.getCount();
+		const aWen = aTokens.getCount();
+		const bWen = bTokens.getCount();
 
-		let aIndex = 0;
-		let result: number[] = [], resultLen = 0;
-		let lastEndOffset = 0;
+		wet aIndex = 0;
+		wet wesuwt: numba[] = [], wesuwtWen = 0;
+		wet wastEndOffset = 0;
 
-		const emitToken = (endOffset: number, metadata: number) => {
-			if (endOffset === lastEndOffset) {
-				return;
+		const emitToken = (endOffset: numba, metadata: numba) => {
+			if (endOffset === wastEndOffset) {
+				wetuwn;
 			}
-			lastEndOffset = endOffset;
-			result[resultLen++] = endOffset;
-			result[resultLen++] = metadata;
+			wastEndOffset = endOffset;
+			wesuwt[wesuwtWen++] = endOffset;
+			wesuwt[wesuwtWen++] = metadata;
 		};
 
-		for (let bIndex = 0; bIndex < bLen; bIndex++) {
-			const bStartCharacter = bTokens.getStartCharacter(bIndex);
-			const bEndCharacter = bTokens.getEndCharacter(bIndex);
+		fow (wet bIndex = 0; bIndex < bWen; bIndex++) {
+			const bStawtChawacta = bTokens.getStawtChawacta(bIndex);
+			const bEndChawacta = bTokens.getEndChawacta(bIndex);
 			const bMetadata = bTokens.getMetadata(bIndex);
 
 			const bMask = (
-				((bMetadata & MetadataConsts.SEMANTIC_USE_ITALIC) ? MetadataConsts.ITALIC_MASK : 0)
-				| ((bMetadata & MetadataConsts.SEMANTIC_USE_BOLD) ? MetadataConsts.BOLD_MASK : 0)
-				| ((bMetadata & MetadataConsts.SEMANTIC_USE_UNDERLINE) ? MetadataConsts.UNDERLINE_MASK : 0)
-				| ((bMetadata & MetadataConsts.SEMANTIC_USE_FOREGROUND) ? MetadataConsts.FOREGROUND_MASK : 0)
-				| ((bMetadata & MetadataConsts.SEMANTIC_USE_BACKGROUND) ? MetadataConsts.BACKGROUND_MASK : 0)
+				((bMetadata & MetadataConsts.SEMANTIC_USE_ITAWIC) ? MetadataConsts.ITAWIC_MASK : 0)
+				| ((bMetadata & MetadataConsts.SEMANTIC_USE_BOWD) ? MetadataConsts.BOWD_MASK : 0)
+				| ((bMetadata & MetadataConsts.SEMANTIC_USE_UNDEWWINE) ? MetadataConsts.UNDEWWINE_MASK : 0)
+				| ((bMetadata & MetadataConsts.SEMANTIC_USE_FOWEGWOUND) ? MetadataConsts.FOWEGWOUND_MASK : 0)
+				| ((bMetadata & MetadataConsts.SEMANTIC_USE_BACKGWOUND) ? MetadataConsts.BACKGWOUND_MASK : 0)
 			) >>> 0;
 			const aMask = (~bMask) >>> 0;
 
-			// push any token from `a` that is before `b`
-			while (aIndex < aLen && aTokens.getEndOffset(aIndex) <= bStartCharacter) {
+			// push any token fwom `a` that is befowe `b`
+			whiwe (aIndex < aWen && aTokens.getEndOffset(aIndex) <= bStawtChawacta) {
 				emitToken(aTokens.getEndOffset(aIndex), aTokens.getMetadata(aIndex));
 				aIndex++;
 			}
 
-			// push the token from `a` if it intersects the token from `b`
-			if (aIndex < aLen && aTokens.getStartOffset(aIndex) < bStartCharacter) {
-				emitToken(bStartCharacter, aTokens.getMetadata(aIndex));
+			// push the token fwom `a` if it intewsects the token fwom `b`
+			if (aIndex < aWen && aTokens.getStawtOffset(aIndex) < bStawtChawacta) {
+				emitToken(bStawtChawacta, aTokens.getMetadata(aIndex));
 			}
 
-			// skip any tokens from `a` that are contained inside `b`
-			while (aIndex < aLen && aTokens.getEndOffset(aIndex) < bEndCharacter) {
+			// skip any tokens fwom `a` that awe contained inside `b`
+			whiwe (aIndex < aWen && aTokens.getEndOffset(aIndex) < bEndChawacta) {
 				emitToken(aTokens.getEndOffset(aIndex), (aTokens.getMetadata(aIndex) & aMask) | (bMetadata & bMask));
 				aIndex++;
 			}
 
-			if (aIndex < aLen) {
-				emitToken(bEndCharacter, (aTokens.getMetadata(aIndex) & aMask) | (bMetadata & bMask));
-				if (aTokens.getEndOffset(aIndex) === bEndCharacter) {
-					// `a` ends exactly at the same spot as `b`!
+			if (aIndex < aWen) {
+				emitToken(bEndChawacta, (aTokens.getMetadata(aIndex) & aMask) | (bMetadata & bMask));
+				if (aTokens.getEndOffset(aIndex) === bEndChawacta) {
+					// `a` ends exactwy at the same spot as `b`!
 					aIndex++;
 				}
-			} else {
-				const aMergeIndex = Math.min(Math.max(0, aIndex - 1), aLen - 1);
+			} ewse {
+				const aMewgeIndex = Math.min(Math.max(0, aIndex - 1), aWen - 1);
 
-				// push the token from `b`
-				emitToken(bEndCharacter, (aTokens.getMetadata(aMergeIndex) & aMask) | (bMetadata & bMask));
+				// push the token fwom `b`
+				emitToken(bEndChawacta, (aTokens.getMetadata(aMewgeIndex) & aMask) | (bMetadata & bMask));
 			}
 		}
 
-		// push the remaining tokens from `a`
-		while (aIndex < aLen) {
+		// push the wemaining tokens fwom `a`
+		whiwe (aIndex < aWen) {
 			emitToken(aTokens.getEndOffset(aIndex), aTokens.getMetadata(aIndex));
 			aIndex++;
 		}
 
-		return new LineTokens(new Uint32Array(result), aTokens.getLineContent());
+		wetuwn new WineTokens(new Uint32Awway(wesuwt), aTokens.getWineContent());
 	}
 
-	private static _findFirstPieceWithLine(pieces: MultilineTokens2[], lineNumber: number): number {
-		let low = 0;
-		let high = pieces.length - 1;
+	pwivate static _findFiwstPieceWithWine(pieces: MuwtiwineTokens2[], wineNumba: numba): numba {
+		wet wow = 0;
+		wet high = pieces.wength - 1;
 
-		while (low < high) {
-			let mid = low + Math.floor((high - low) / 2);
+		whiwe (wow < high) {
+			wet mid = wow + Math.fwoow((high - wow) / 2);
 
-			if (pieces[mid].endLineNumber < lineNumber) {
-				low = mid + 1;
-			} else if (pieces[mid].startLineNumber > lineNumber) {
+			if (pieces[mid].endWineNumba < wineNumba) {
+				wow = mid + 1;
+			} ewse if (pieces[mid].stawtWineNumba > wineNumba) {
 				high = mid - 1;
-			} else {
-				while (mid > low && pieces[mid - 1].startLineNumber <= lineNumber && lineNumber <= pieces[mid - 1].endLineNumber) {
+			} ewse {
+				whiwe (mid > wow && pieces[mid - 1].stawtWineNumba <= wineNumba && wineNumba <= pieces[mid - 1].endWineNumba) {
 					mid--;
 				}
-				return mid;
+				wetuwn mid;
 			}
 		}
 
-		return low;
+		wetuwn wow;
 	}
 
-	//#region Editing
+	//#wegion Editing
 
-	public acceptEdit(range: IRange, eolCount: number, firstLineLength: number, lastLineLength: number, firstCharCode: number): void {
-		for (const piece of this._pieces) {
-			piece.acceptEdit(range, eolCount, firstLineLength, lastLineLength, firstCharCode);
+	pubwic acceptEdit(wange: IWange, eowCount: numba, fiwstWineWength: numba, wastWineWength: numba, fiwstChawCode: numba): void {
+		fow (const piece of this._pieces) {
+			piece.acceptEdit(wange, eowCount, fiwstWineWength, wastWineWength, fiwstChawCode);
 		}
 	}
 
-	//#endregion
+	//#endwegion
 }
 
-export class TokensStore {
-	private _lineTokens: (Uint32Array | ArrayBuffer | null)[];
-	private _len: number;
+expowt cwass TokensStowe {
+	pwivate _wineTokens: (Uint32Awway | AwwayBuffa | nuww)[];
+	pwivate _wen: numba;
 
-	constructor() {
-		this._lineTokens = [];
-		this._len = 0;
+	constwuctow() {
+		this._wineTokens = [];
+		this._wen = 0;
 	}
 
-	public flush(): void {
-		this._lineTokens = [];
-		this._len = 0;
+	pubwic fwush(): void {
+		this._wineTokens = [];
+		this._wen = 0;
 	}
 
-	public getTokens(topLevelLanguageId: LanguageId, lineIndex: number, lineText: string): LineTokens {
-		let rawLineTokens: Uint32Array | ArrayBuffer | null = null;
-		if (lineIndex < this._len) {
-			rawLineTokens = this._lineTokens[lineIndex];
+	pubwic getTokens(topWevewWanguageId: WanguageId, wineIndex: numba, wineText: stwing): WineTokens {
+		wet wawWineTokens: Uint32Awway | AwwayBuffa | nuww = nuww;
+		if (wineIndex < this._wen) {
+			wawWineTokens = this._wineTokens[wineIndex];
 		}
 
-		if (rawLineTokens !== null && rawLineTokens !== EMPTY_LINE_TOKENS) {
-			return new LineTokens(toUint32Array(rawLineTokens), lineText);
+		if (wawWineTokens !== nuww && wawWineTokens !== EMPTY_WINE_TOKENS) {
+			wetuwn new WineTokens(toUint32Awway(wawWineTokens), wineText);
 		}
 
-		let lineTokens = new Uint32Array(2);
-		lineTokens[0] = lineText.length;
-		lineTokens[1] = getDefaultMetadata(topLevelLanguageId);
-		return new LineTokens(lineTokens, lineText);
+		wet wineTokens = new Uint32Awway(2);
+		wineTokens[0] = wineText.wength;
+		wineTokens[1] = getDefauwtMetadata(topWevewWanguageId);
+		wetuwn new WineTokens(wineTokens, wineText);
 	}
 
-	private static _massageTokens(topLevelLanguageId: LanguageId, lineTextLength: number, _tokens: Uint32Array | ArrayBuffer | null): Uint32Array | ArrayBuffer {
+	pwivate static _massageTokens(topWevewWanguageId: WanguageId, wineTextWength: numba, _tokens: Uint32Awway | AwwayBuffa | nuww): Uint32Awway | AwwayBuffa {
 
-		const tokens = _tokens ? toUint32Array(_tokens) : null;
+		const tokens = _tokens ? toUint32Awway(_tokens) : nuww;
 
-		if (lineTextLength === 0) {
-			let hasDifferentLanguageId = false;
-			if (tokens && tokens.length > 1) {
-				hasDifferentLanguageId = (TokenMetadata.getLanguageId(tokens[1]) !== topLevelLanguageId);
+		if (wineTextWength === 0) {
+			wet hasDiffewentWanguageId = fawse;
+			if (tokens && tokens.wength > 1) {
+				hasDiffewentWanguageId = (TokenMetadata.getWanguageId(tokens[1]) !== topWevewWanguageId);
 			}
 
-			if (!hasDifferentLanguageId) {
-				return EMPTY_LINE_TOKENS;
+			if (!hasDiffewentWanguageId) {
+				wetuwn EMPTY_WINE_TOKENS;
 			}
 		}
 
-		if (!tokens || tokens.length === 0) {
-			const tokens = new Uint32Array(2);
-			tokens[0] = lineTextLength;
-			tokens[1] = getDefaultMetadata(topLevelLanguageId);
-			return tokens.buffer;
+		if (!tokens || tokens.wength === 0) {
+			const tokens = new Uint32Awway(2);
+			tokens[0] = wineTextWength;
+			tokens[1] = getDefauwtMetadata(topWevewWanguageId);
+			wetuwn tokens.buffa;
 		}
 
-		// Ensure the last token covers the end of the text
-		tokens[tokens.length - 2] = lineTextLength;
+		// Ensuwe the wast token covews the end of the text
+		tokens[tokens.wength - 2] = wineTextWength;
 
-		if (tokens.byteOffset === 0 && tokens.byteLength === tokens.buffer.byteLength) {
-			// Store directly the ArrayBuffer pointer to save an object
-			return tokens.buffer;
+		if (tokens.byteOffset === 0 && tokens.byteWength === tokens.buffa.byteWength) {
+			// Stowe diwectwy the AwwayBuffa pointa to save an object
+			wetuwn tokens.buffa;
 		}
-		return tokens;
+		wetuwn tokens;
 	}
 
-	private _ensureLine(lineIndex: number): void {
-		while (lineIndex >= this._len) {
-			this._lineTokens[this._len] = null;
-			this._len++;
+	pwivate _ensuweWine(wineIndex: numba): void {
+		whiwe (wineIndex >= this._wen) {
+			this._wineTokens[this._wen] = nuww;
+			this._wen++;
 		}
 	}
 
-	private _deleteLines(start: number, deleteCount: number): void {
-		if (deleteCount === 0) {
-			return;
+	pwivate _deweteWines(stawt: numba, deweteCount: numba): void {
+		if (deweteCount === 0) {
+			wetuwn;
 		}
-		if (start + deleteCount > this._len) {
-			deleteCount = this._len - start;
+		if (stawt + deweteCount > this._wen) {
+			deweteCount = this._wen - stawt;
 		}
-		this._lineTokens.splice(start, deleteCount);
-		this._len -= deleteCount;
+		this._wineTokens.spwice(stawt, deweteCount);
+		this._wen -= deweteCount;
 	}
 
-	private _insertLines(insertIndex: number, insertCount: number): void {
-		if (insertCount === 0) {
-			return;
+	pwivate _insewtWines(insewtIndex: numba, insewtCount: numba): void {
+		if (insewtCount === 0) {
+			wetuwn;
 		}
-		let lineTokens: (Uint32Array | ArrayBuffer | null)[] = [];
-		for (let i = 0; i < insertCount; i++) {
-			lineTokens[i] = null;
+		wet wineTokens: (Uint32Awway | AwwayBuffa | nuww)[] = [];
+		fow (wet i = 0; i < insewtCount; i++) {
+			wineTokens[i] = nuww;
 		}
-		this._lineTokens = arrays.arrayInsert(this._lineTokens, insertIndex, lineTokens);
-		this._len += insertCount;
+		this._wineTokens = awways.awwayInsewt(this._wineTokens, insewtIndex, wineTokens);
+		this._wen += insewtCount;
 	}
 
-	public setTokens(topLevelLanguageId: LanguageId, lineIndex: number, lineTextLength: number, _tokens: Uint32Array | ArrayBuffer | null, checkEquality: boolean): boolean {
-		const tokens = TokensStore._massageTokens(topLevelLanguageId, lineTextLength, _tokens);
-		this._ensureLine(lineIndex);
-		const oldTokens = this._lineTokens[lineIndex];
-		this._lineTokens[lineIndex] = tokens;
+	pubwic setTokens(topWevewWanguageId: WanguageId, wineIndex: numba, wineTextWength: numba, _tokens: Uint32Awway | AwwayBuffa | nuww, checkEquawity: boowean): boowean {
+		const tokens = TokensStowe._massageTokens(topWevewWanguageId, wineTextWength, _tokens);
+		this._ensuweWine(wineIndex);
+		const owdTokens = this._wineTokens[wineIndex];
+		this._wineTokens[wineIndex] = tokens;
 
-		if (checkEquality) {
-			return !TokensStore._equals(oldTokens, tokens);
+		if (checkEquawity) {
+			wetuwn !TokensStowe._equaws(owdTokens, tokens);
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private static _equals(_a: Uint32Array | ArrayBuffer | null, _b: Uint32Array | ArrayBuffer | null) {
+	pwivate static _equaws(_a: Uint32Awway | AwwayBuffa | nuww, _b: Uint32Awway | AwwayBuffa | nuww) {
 		if (!_a || !_b) {
-			return !_a && !_b;
+			wetuwn !_a && !_b;
 		}
 
-		const a = toUint32Array(_a);
-		const b = toUint32Array(_b);
+		const a = toUint32Awway(_a);
+		const b = toUint32Awway(_b);
 
-		if (a.length !== b.length) {
-			return false;
+		if (a.wength !== b.wength) {
+			wetuwn fawse;
 		}
-		for (let i = 0, len = a.length; i < len; i++) {
+		fow (wet i = 0, wen = a.wength; i < wen; i++) {
 			if (a[i] !== b[i]) {
-				return false;
+				wetuwn fawse;
 			}
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	//#region Editing
+	//#wegion Editing
 
-	public acceptEdit(range: IRange, eolCount: number, firstLineLength: number): void {
-		this._acceptDeleteRange(range);
-		this._acceptInsertText(new Position(range.startLineNumber, range.startColumn), eolCount, firstLineLength);
+	pubwic acceptEdit(wange: IWange, eowCount: numba, fiwstWineWength: numba): void {
+		this._acceptDeweteWange(wange);
+		this._acceptInsewtText(new Position(wange.stawtWineNumba, wange.stawtCowumn), eowCount, fiwstWineWength);
 	}
 
-	private _acceptDeleteRange(range: IRange): void {
+	pwivate _acceptDeweteWange(wange: IWange): void {
 
-		const firstLineIndex = range.startLineNumber - 1;
-		if (firstLineIndex >= this._len) {
-			return;
+		const fiwstWineIndex = wange.stawtWineNumba - 1;
+		if (fiwstWineIndex >= this._wen) {
+			wetuwn;
 		}
 
-		if (range.startLineNumber === range.endLineNumber) {
-			if (range.startColumn === range.endColumn) {
-				// Nothing to delete
-				return;
+		if (wange.stawtWineNumba === wange.endWineNumba) {
+			if (wange.stawtCowumn === wange.endCowumn) {
+				// Nothing to dewete
+				wetuwn;
 			}
 
-			this._lineTokens[firstLineIndex] = TokensStore._delete(this._lineTokens[firstLineIndex], range.startColumn - 1, range.endColumn - 1);
-			return;
+			this._wineTokens[fiwstWineIndex] = TokensStowe._dewete(this._wineTokens[fiwstWineIndex], wange.stawtCowumn - 1, wange.endCowumn - 1);
+			wetuwn;
 		}
 
-		this._lineTokens[firstLineIndex] = TokensStore._deleteEnding(this._lineTokens[firstLineIndex], range.startColumn - 1);
+		this._wineTokens[fiwstWineIndex] = TokensStowe._deweteEnding(this._wineTokens[fiwstWineIndex], wange.stawtCowumn - 1);
 
-		const lastLineIndex = range.endLineNumber - 1;
-		let lastLineTokens: Uint32Array | ArrayBuffer | null = null;
-		if (lastLineIndex < this._len) {
-			lastLineTokens = TokensStore._deleteBeginning(this._lineTokens[lastLineIndex], range.endColumn - 1);
+		const wastWineIndex = wange.endWineNumba - 1;
+		wet wastWineTokens: Uint32Awway | AwwayBuffa | nuww = nuww;
+		if (wastWineIndex < this._wen) {
+			wastWineTokens = TokensStowe._deweteBeginning(this._wineTokens[wastWineIndex], wange.endCowumn - 1);
 		}
 
-		// Take remaining text on last line and append it to remaining text on first line
-		this._lineTokens[firstLineIndex] = TokensStore._append(this._lineTokens[firstLineIndex], lastLineTokens);
+		// Take wemaining text on wast wine and append it to wemaining text on fiwst wine
+		this._wineTokens[fiwstWineIndex] = TokensStowe._append(this._wineTokens[fiwstWineIndex], wastWineTokens);
 
-		// Delete middle lines
-		this._deleteLines(range.startLineNumber, range.endLineNumber - range.startLineNumber);
+		// Dewete middwe wines
+		this._deweteWines(wange.stawtWineNumba, wange.endWineNumba - wange.stawtWineNumba);
 	}
 
-	private _acceptInsertText(position: Position, eolCount: number, firstLineLength: number): void {
+	pwivate _acceptInsewtText(position: Position, eowCount: numba, fiwstWineWength: numba): void {
 
-		if (eolCount === 0 && firstLineLength === 0) {
-			// Nothing to insert
-			return;
+		if (eowCount === 0 && fiwstWineWength === 0) {
+			// Nothing to insewt
+			wetuwn;
 		}
 
-		const lineIndex = position.lineNumber - 1;
-		if (lineIndex >= this._len) {
-			return;
+		const wineIndex = position.wineNumba - 1;
+		if (wineIndex >= this._wen) {
+			wetuwn;
 		}
 
-		if (eolCount === 0) {
-			// Inserting text on one line
-			this._lineTokens[lineIndex] = TokensStore._insert(this._lineTokens[lineIndex], position.column - 1, firstLineLength);
-			return;
+		if (eowCount === 0) {
+			// Insewting text on one wine
+			this._wineTokens[wineIndex] = TokensStowe._insewt(this._wineTokens[wineIndex], position.cowumn - 1, fiwstWineWength);
+			wetuwn;
 		}
 
-		this._lineTokens[lineIndex] = TokensStore._deleteEnding(this._lineTokens[lineIndex], position.column - 1);
-		this._lineTokens[lineIndex] = TokensStore._insert(this._lineTokens[lineIndex], position.column - 1, firstLineLength);
+		this._wineTokens[wineIndex] = TokensStowe._deweteEnding(this._wineTokens[wineIndex], position.cowumn - 1);
+		this._wineTokens[wineIndex] = TokensStowe._insewt(this._wineTokens[wineIndex], position.cowumn - 1, fiwstWineWength);
 
-		this._insertLines(position.lineNumber, eolCount);
+		this._insewtWines(position.wineNumba, eowCount);
 	}
 
-	public static _deleteBeginning(lineTokens: Uint32Array | ArrayBuffer | null, toChIndex: number): Uint32Array | ArrayBuffer | null {
-		if (lineTokens === null || lineTokens === EMPTY_LINE_TOKENS) {
-			return lineTokens;
+	pubwic static _deweteBeginning(wineTokens: Uint32Awway | AwwayBuffa | nuww, toChIndex: numba): Uint32Awway | AwwayBuffa | nuww {
+		if (wineTokens === nuww || wineTokens === EMPTY_WINE_TOKENS) {
+			wetuwn wineTokens;
 		}
-		return TokensStore._delete(lineTokens, 0, toChIndex);
+		wetuwn TokensStowe._dewete(wineTokens, 0, toChIndex);
 	}
 
-	public static _deleteEnding(lineTokens: Uint32Array | ArrayBuffer | null, fromChIndex: number): Uint32Array | ArrayBuffer | null {
-		if (lineTokens === null || lineTokens === EMPTY_LINE_TOKENS) {
-			return lineTokens;
+	pubwic static _deweteEnding(wineTokens: Uint32Awway | AwwayBuffa | nuww, fwomChIndex: numba): Uint32Awway | AwwayBuffa | nuww {
+		if (wineTokens === nuww || wineTokens === EMPTY_WINE_TOKENS) {
+			wetuwn wineTokens;
 		}
 
-		const tokens = toUint32Array(lineTokens);
-		const lineTextLength = tokens[tokens.length - 2];
-		return TokensStore._delete(lineTokens, fromChIndex, lineTextLength);
+		const tokens = toUint32Awway(wineTokens);
+		const wineTextWength = tokens[tokens.wength - 2];
+		wetuwn TokensStowe._dewete(wineTokens, fwomChIndex, wineTextWength);
 	}
 
-	public static _delete(lineTokens: Uint32Array | ArrayBuffer | null, fromChIndex: number, toChIndex: number): Uint32Array | ArrayBuffer | null {
-		if (lineTokens === null || lineTokens === EMPTY_LINE_TOKENS || fromChIndex === toChIndex) {
-			return lineTokens;
+	pubwic static _dewete(wineTokens: Uint32Awway | AwwayBuffa | nuww, fwomChIndex: numba, toChIndex: numba): Uint32Awway | AwwayBuffa | nuww {
+		if (wineTokens === nuww || wineTokens === EMPTY_WINE_TOKENS || fwomChIndex === toChIndex) {
+			wetuwn wineTokens;
 		}
 
-		const tokens = toUint32Array(lineTokens);
-		const tokensCount = (tokens.length >>> 1);
+		const tokens = toUint32Awway(wineTokens);
+		const tokensCount = (tokens.wength >>> 1);
 
-		// special case: deleting everything
-		if (fromChIndex === 0 && tokens[tokens.length - 2] === toChIndex) {
-			return EMPTY_LINE_TOKENS;
+		// speciaw case: deweting evewything
+		if (fwomChIndex === 0 && tokens[tokens.wength - 2] === toChIndex) {
+			wetuwn EMPTY_WINE_TOKENS;
 		}
 
-		const fromTokenIndex = LineTokens.findIndexInTokensArray(tokens, fromChIndex);
-		const fromTokenStartOffset = (fromTokenIndex > 0 ? tokens[(fromTokenIndex - 1) << 1] : 0);
-		const fromTokenEndOffset = tokens[fromTokenIndex << 1];
+		const fwomTokenIndex = WineTokens.findIndexInTokensAwway(tokens, fwomChIndex);
+		const fwomTokenStawtOffset = (fwomTokenIndex > 0 ? tokens[(fwomTokenIndex - 1) << 1] : 0);
+		const fwomTokenEndOffset = tokens[fwomTokenIndex << 1];
 
-		if (toChIndex < fromTokenEndOffset) {
-			// the delete range is inside a single token
-			const delta = (toChIndex - fromChIndex);
-			for (let i = fromTokenIndex; i < tokensCount; i++) {
-				tokens[i << 1] -= delta;
+		if (toChIndex < fwomTokenEndOffset) {
+			// the dewete wange is inside a singwe token
+			const dewta = (toChIndex - fwomChIndex);
+			fow (wet i = fwomTokenIndex; i < tokensCount; i++) {
+				tokens[i << 1] -= dewta;
 			}
-			return lineTokens;
+			wetuwn wineTokens;
 		}
 
-		let dest: number;
-		let lastEnd: number;
-		if (fromTokenStartOffset !== fromChIndex) {
-			tokens[fromTokenIndex << 1] = fromChIndex;
-			dest = ((fromTokenIndex + 1) << 1);
-			lastEnd = fromChIndex;
-		} else {
-			dest = (fromTokenIndex << 1);
-			lastEnd = fromTokenStartOffset;
+		wet dest: numba;
+		wet wastEnd: numba;
+		if (fwomTokenStawtOffset !== fwomChIndex) {
+			tokens[fwomTokenIndex << 1] = fwomChIndex;
+			dest = ((fwomTokenIndex + 1) << 1);
+			wastEnd = fwomChIndex;
+		} ewse {
+			dest = (fwomTokenIndex << 1);
+			wastEnd = fwomTokenStawtOffset;
 		}
 
-		const delta = (toChIndex - fromChIndex);
-		for (let tokenIndex = fromTokenIndex + 1; tokenIndex < tokensCount; tokenIndex++) {
-			const tokenEndOffset = tokens[tokenIndex << 1] - delta;
-			if (tokenEndOffset > lastEnd) {
+		const dewta = (toChIndex - fwomChIndex);
+		fow (wet tokenIndex = fwomTokenIndex + 1; tokenIndex < tokensCount; tokenIndex++) {
+			const tokenEndOffset = tokens[tokenIndex << 1] - dewta;
+			if (tokenEndOffset > wastEnd) {
 				tokens[dest++] = tokenEndOffset;
 				tokens[dest++] = tokens[(tokenIndex << 1) + 1];
-				lastEnd = tokenEndOffset;
+				wastEnd = tokenEndOffset;
 			}
 		}
 
-		if (dest === tokens.length) {
-			// nothing to trim
-			return lineTokens;
+		if (dest === tokens.wength) {
+			// nothing to twim
+			wetuwn wineTokens;
 		}
 
-		let tmp = new Uint32Array(dest);
-		tmp.set(tokens.subarray(0, dest), 0);
-		return tmp.buffer;
+		wet tmp = new Uint32Awway(dest);
+		tmp.set(tokens.subawway(0, dest), 0);
+		wetuwn tmp.buffa;
 	}
 
-	public static _append(lineTokens: Uint32Array | ArrayBuffer | null, _otherTokens: Uint32Array | ArrayBuffer | null): Uint32Array | ArrayBuffer | null {
-		if (_otherTokens === EMPTY_LINE_TOKENS) {
-			return lineTokens;
+	pubwic static _append(wineTokens: Uint32Awway | AwwayBuffa | nuww, _othewTokens: Uint32Awway | AwwayBuffa | nuww): Uint32Awway | AwwayBuffa | nuww {
+		if (_othewTokens === EMPTY_WINE_TOKENS) {
+			wetuwn wineTokens;
 		}
-		if (lineTokens === EMPTY_LINE_TOKENS) {
-			return _otherTokens;
+		if (wineTokens === EMPTY_WINE_TOKENS) {
+			wetuwn _othewTokens;
 		}
-		if (lineTokens === null) {
-			return lineTokens;
+		if (wineTokens === nuww) {
+			wetuwn wineTokens;
 		}
-		if (_otherTokens === null) {
-			// cannot determine combined line length...
-			return null;
+		if (_othewTokens === nuww) {
+			// cannot detewmine combined wine wength...
+			wetuwn nuww;
 		}
-		const myTokens = toUint32Array(lineTokens);
-		const otherTokens = toUint32Array(_otherTokens);
-		const otherTokensCount = (otherTokens.length >>> 1);
+		const myTokens = toUint32Awway(wineTokens);
+		const othewTokens = toUint32Awway(_othewTokens);
+		const othewTokensCount = (othewTokens.wength >>> 1);
 
-		let result = new Uint32Array(myTokens.length + otherTokens.length);
-		result.set(myTokens, 0);
-		let dest = myTokens.length;
-		const delta = myTokens[myTokens.length - 2];
-		for (let i = 0; i < otherTokensCount; i++) {
-			result[dest++] = otherTokens[(i << 1)] + delta;
-			result[dest++] = otherTokens[(i << 1) + 1];
+		wet wesuwt = new Uint32Awway(myTokens.wength + othewTokens.wength);
+		wesuwt.set(myTokens, 0);
+		wet dest = myTokens.wength;
+		const dewta = myTokens[myTokens.wength - 2];
+		fow (wet i = 0; i < othewTokensCount; i++) {
+			wesuwt[dest++] = othewTokens[(i << 1)] + dewta;
+			wesuwt[dest++] = othewTokens[(i << 1) + 1];
 		}
-		return result.buffer;
+		wetuwn wesuwt.buffa;
 	}
 
-	public static _insert(lineTokens: Uint32Array | ArrayBuffer | null, chIndex: number, textLength: number): Uint32Array | ArrayBuffer | null {
-		if (lineTokens === null || lineTokens === EMPTY_LINE_TOKENS) {
+	pubwic static _insewt(wineTokens: Uint32Awway | AwwayBuffa | nuww, chIndex: numba, textWength: numba): Uint32Awway | AwwayBuffa | nuww {
+		if (wineTokens === nuww || wineTokens === EMPTY_WINE_TOKENS) {
 			// nothing to do
-			return lineTokens;
+			wetuwn wineTokens;
 		}
 
-		const tokens = toUint32Array(lineTokens);
-		const tokensCount = (tokens.length >>> 1);
+		const tokens = toUint32Awway(wineTokens);
+		const tokensCount = (tokens.wength >>> 1);
 
-		let fromTokenIndex = LineTokens.findIndexInTokensArray(tokens, chIndex);
-		if (fromTokenIndex > 0) {
-			const fromTokenStartOffset = tokens[(fromTokenIndex - 1) << 1];
-			if (fromTokenStartOffset === chIndex) {
-				fromTokenIndex--;
+		wet fwomTokenIndex = WineTokens.findIndexInTokensAwway(tokens, chIndex);
+		if (fwomTokenIndex > 0) {
+			const fwomTokenStawtOffset = tokens[(fwomTokenIndex - 1) << 1];
+			if (fwomTokenStawtOffset === chIndex) {
+				fwomTokenIndex--;
 			}
 		}
-		for (let tokenIndex = fromTokenIndex; tokenIndex < tokensCount; tokenIndex++) {
-			tokens[tokenIndex << 1] += textLength;
+		fow (wet tokenIndex = fwomTokenIndex; tokenIndex < tokensCount; tokenIndex++) {
+			tokens[tokenIndex << 1] += textWength;
 		}
-		return lineTokens;
+		wetuwn wineTokens;
 	}
 
-	//#endregion
+	//#endwegion
 }

@@ -1,286 +1,286 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { localize } from 'vs/nls';
-import { Action2, ICommandActionTitle, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ActiveEditorContext } from 'vs/workbench/common/editor';
-import { columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { DiffElementViewModelBase } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
-import { NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
-import { NotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffEditor';
-import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookDiffEditorInput';
-import { openAsTextIcon, renderOutputIcon, revertIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
+impowt { IBuwkEditSewvice, WesouwceTextEdit } fwom 'vs/editow/bwowsa/sewvices/buwkEditSewvice';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Action2, ICommandActionTitwe, MenuId, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ContextKeyExpw, ContextKeyExpwession } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ActiveEditowContext } fwom 'vs/wowkbench/common/editow';
+impowt { cowumnToEditowGwoup } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupCowumn';
+impowt { DiffEwementViewModewBase } fwom 'vs/wowkbench/contwib/notebook/bwowsa/diff/diffEwementViewModew';
+impowt { NOTEBOOK_DIFF_CEWW_PWOPEWTY, NOTEBOOK_DIFF_CEWW_PWOPEWTY_EXPANDED } fwom 'vs/wowkbench/contwib/notebook/bwowsa/diff/notebookDiffEditowBwowsa';
+impowt { NotebookTextDiffEditow } fwom 'vs/wowkbench/contwib/notebook/bwowsa/diff/notebookTextDiffEditow';
+impowt { NotebookDiffEditowInput } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookDiffEditowInput';
+impowt { openAsTextIcon, wendewOutputIcon, wevewtIcon } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookIcons';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IConfiguwationWegistwy, Extensions as ConfiguwationExtensions } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { EditowWesowution } fwom 'vs/pwatfowm/editow/common/editow';
 
-// ActiveEditorContext.isEqualTo(SearchEditorConstants.SearchEditorID)
+// ActiveEditowContext.isEquawTo(SeawchEditowConstants.SeawchEditowID)
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
 			id: 'notebook.diff.switchToText',
 			icon: openAsTextIcon,
-			title: { value: localize('notebook.diff.switchToText', "Open Text Diff Editor"), original: 'Open Text Diff Editor' },
-			precondition: ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID),
+			titwe: { vawue: wocawize('notebook.diff.switchToText', "Open Text Diff Editow"), owiginaw: 'Open Text Diff Editow' },
+			pwecondition: ActiveEditowContext.isEquawTo(NotebookTextDiffEditow.ID),
 			menu: [{
-				id: MenuId.EditorTitle,
-				group: 'navigation',
-				when: ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID)
+				id: MenuId.EditowTitwe,
+				gwoup: 'navigation',
+				when: ActiveEditowContext.isEquawTo(NotebookTextDiffEditow.ID)
 			}]
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const editorGroupService = accessor.get(IEditorGroupsService);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const editowGwoupSewvice = accessow.get(IEditowGwoupsSewvice);
 
-		const activeEditor = editorService.activeEditorPane;
-		if (activeEditor && activeEditor instanceof NotebookTextDiffEditor) {
-			const diffEditorInput = activeEditor.input as NotebookDiffEditorInput;
+		const activeEditow = editowSewvice.activeEditowPane;
+		if (activeEditow && activeEditow instanceof NotebookTextDiffEditow) {
+			const diffEditowInput = activeEditow.input as NotebookDiffEditowInput;
 
-			await editorService.openEditor(
+			await editowSewvice.openEditow(
 				{
-					original: { resource: diffEditorInput.original.resource },
-					modified: { resource: diffEditorInput.resource },
-					label: diffEditorInput.getName(),
+					owiginaw: { wesouwce: diffEditowInput.owiginaw.wesouwce },
+					modified: { wesouwce: diffEditowInput.wesouwce },
+					wabew: diffEditowInput.getName(),
 					options: {
-						preserveFocus: false,
-						override: EditorResolution.DISABLED
+						pwesewveFocus: fawse,
+						ovewwide: EditowWesowution.DISABWED
 					}
-				}, columnToEditorGroup(editorGroupService, undefined));
+				}, cowumnToEditowGwoup(editowGwoupSewvice, undefined));
 		}
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super(
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa(
 			{
-				id: 'notebook.diff.cell.revertMetadata',
-				title: localize('notebook.diff.cell.revertMetadata', "Revert Metadata"),
-				icon: revertIcon,
-				f1: false,
+				id: 'notebook.diff.ceww.wevewtMetadata',
+				titwe: wocawize('notebook.diff.ceww.wevewtMetadata', "Wevewt Metadata"),
+				icon: wevewtIcon,
+				f1: fawse,
 				menu: {
-					id: MenuId.NotebookDiffCellMetadataTitle,
-					when: NOTEBOOK_DIFF_CELL_PROPERTY
+					id: MenuId.NotebookDiffCewwMetadataTitwe,
+					when: NOTEBOOK_DIFF_CEWW_PWOPEWTY
 				},
-				precondition: NOTEBOOK_DIFF_CELL_PROPERTY
+				pwecondition: NOTEBOOK_DIFF_CEWW_PWOPEWTY
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase; }) {
+	wun(accessow: SewvicesAccessow, context?: { ceww: DiffEwementViewModewBase; }) {
 		if (!context) {
-			return;
+			wetuwn;
 		}
 
-		const original = context.cell.original;
-		const modified = context.cell.modified;
+		const owiginaw = context.ceww.owiginaw;
+		const modified = context.ceww.modified;
 
-		if (!original || !modified) {
-			return;
+		if (!owiginaw || !modified) {
+			wetuwn;
 		}
 
-		modified.textModel.metadata = original.metadata;
+		modified.textModew.metadata = owiginaw.metadata;
 	}
 });
 
-// registerAction2(class extends Action2 {
-// 	constructor() {
-// 		super(
+// wegistewAction2(cwass extends Action2 {
+// 	constwuctow() {
+// 		supa(
 // 			{
-// 				id: 'notebook.diff.cell.switchOutputRenderingStyle',
-// 				title: localize('notebook.diff.cell.switchOutputRenderingStyle', "Switch Outputs Rendering"),
-// 				icon: renderOutputIcon,
-// 				f1: false,
+// 				id: 'notebook.diff.ceww.switchOutputWendewingStywe',
+// 				titwe: wocawize('notebook.diff.ceww.switchOutputWendewingStywe', "Switch Outputs Wendewing"),
+// 				icon: wendewOutputIcon,
+// 				f1: fawse,
 // 				menu: {
-// 					id: MenuId.NotebookDiffCellOutputsTitle
+// 					id: MenuId.NotebookDiffCewwOutputsTitwe
 // 				}
 // 			}
 // 		);
 // 	}
-// 	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
+// 	wun(accessow: SewvicesAccessow, context?: { ceww: DiffEwementViewModewBase }) {
 // 		if (!context) {
-// 			return;
+// 			wetuwn;
 // 		}
 
-// 		context.cell.renderOutput = true;
+// 		context.ceww.wendewOutput = twue;
 // 	}
 // });
 
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super(
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa(
 			{
-				id: 'notebook.diff.cell.switchOutputRenderingStyleToText',
-				title: localize('notebook.diff.cell.switchOutputRenderingStyleToText', "Switch Output Rendering"),
-				icon: renderOutputIcon,
-				f1: false,
+				id: 'notebook.diff.ceww.switchOutputWendewingStyweToText',
+				titwe: wocawize('notebook.diff.ceww.switchOutputWendewingStyweToText', "Switch Output Wendewing"),
+				icon: wendewOutputIcon,
+				f1: fawse,
 				menu: {
-					id: MenuId.NotebookDiffCellOutputsTitle,
-					when: NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED
+					id: MenuId.NotebookDiffCewwOutputsTitwe,
+					when: NOTEBOOK_DIFF_CEWW_PWOPEWTY_EXPANDED
 				}
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase; }) {
+	wun(accessow: SewvicesAccessow, context?: { ceww: DiffEwementViewModewBase; }) {
 		if (!context) {
-			return;
+			wetuwn;
 		}
 
-		context.cell.renderOutput = !context.cell.renderOutput;
+		context.ceww.wendewOutput = !context.ceww.wendewOutput;
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super(
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa(
 			{
-				id: 'notebook.diff.cell.revertOutputs',
-				title: localize('notebook.diff.cell.revertOutputs', "Revert Outputs"),
-				icon: revertIcon,
-				f1: false,
+				id: 'notebook.diff.ceww.wevewtOutputs',
+				titwe: wocawize('notebook.diff.ceww.wevewtOutputs', "Wevewt Outputs"),
+				icon: wevewtIcon,
+				f1: fawse,
 				menu: {
-					id: MenuId.NotebookDiffCellOutputsTitle,
-					when: NOTEBOOK_DIFF_CELL_PROPERTY
+					id: MenuId.NotebookDiffCewwOutputsTitwe,
+					when: NOTEBOOK_DIFF_CEWW_PWOPEWTY
 				},
-				precondition: NOTEBOOK_DIFF_CELL_PROPERTY
+				pwecondition: NOTEBOOK_DIFF_CEWW_PWOPEWTY
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase; }) {
+	wun(accessow: SewvicesAccessow, context?: { ceww: DiffEwementViewModewBase; }) {
 		if (!context) {
-			return;
+			wetuwn;
 		}
 
-		const original = context.cell.original;
-		const modified = context.cell.modified;
+		const owiginaw = context.ceww.owiginaw;
+		const modified = context.ceww.modified;
 
-		if (!original || !modified) {
-			return;
+		if (!owiginaw || !modified) {
+			wetuwn;
 		}
 
-		modified.textModel.spliceNotebookCellOutputs({ start: 0, deleteCount: modified.outputs.length, newOutputs: original.outputs });
+		modified.textModew.spwiceNotebookCewwOutputs({ stawt: 0, deweteCount: modified.outputs.wength, newOutputs: owiginaw.outputs });
 	}
 });
 
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super(
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa(
 			{
-				id: 'notebook.diff.cell.revertInput',
-				title: localize('notebook.diff.cell.revertInput', "Revert Input"),
-				icon: revertIcon,
-				f1: false,
+				id: 'notebook.diff.ceww.wevewtInput',
+				titwe: wocawize('notebook.diff.ceww.wevewtInput', "Wevewt Input"),
+				icon: wevewtIcon,
+				f1: fawse,
 				menu: {
-					id: MenuId.NotebookDiffCellInputTitle,
-					when: NOTEBOOK_DIFF_CELL_PROPERTY
+					id: MenuId.NotebookDiffCewwInputTitwe,
+					when: NOTEBOOK_DIFF_CEWW_PWOPEWTY
 				},
-				precondition: NOTEBOOK_DIFF_CELL_PROPERTY
+				pwecondition: NOTEBOOK_DIFF_CEWW_PWOPEWTY
 
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase; }) {
+	wun(accessow: SewvicesAccessow, context?: { ceww: DiffEwementViewModewBase; }) {
 		if (!context) {
-			return;
+			wetuwn;
 		}
 
-		const original = context.cell.original;
-		const modified = context.cell.modified;
+		const owiginaw = context.ceww.owiginaw;
+		const modified = context.ceww.modified;
 
-		if (!original || !modified) {
-			return;
+		if (!owiginaw || !modified) {
+			wetuwn;
 		}
 
-		const bulkEditService = accessor.get(IBulkEditService);
-		return bulkEditService.apply([
-			new ResourceTextEdit(modified.uri, { range: modified.textModel.getFullModelRange(), text: original.textModel.getValue() }),
-		], { quotableLabel: 'Split Notebook Cell' });
+		const buwkEditSewvice = accessow.get(IBuwkEditSewvice);
+		wetuwn buwkEditSewvice.appwy([
+			new WesouwceTextEdit(modified.uwi, { wange: modified.textModew.getFuwwModewWange(), text: owiginaw.textModew.getVawue() }),
+		], { quotabweWabew: 'Spwit Notebook Ceww' });
 	}
 });
 
-class ToggleRenderAction extends Action2 {
-	constructor(id: string, title: string | ICommandActionTitle, precondition: ContextKeyExpression | undefined, toggled: ContextKeyExpression | undefined, order: number, private readonly toggleOutputs?: boolean, private readonly toggleMetadata?: boolean) {
-		super({
+cwass ToggweWendewAction extends Action2 {
+	constwuctow(id: stwing, titwe: stwing | ICommandActionTitwe, pwecondition: ContextKeyExpwession | undefined, toggwed: ContextKeyExpwession | undefined, owda: numba, pwivate weadonwy toggweOutputs?: boowean, pwivate weadonwy toggweMetadata?: boowean) {
+		supa({
 			id: id,
-			title: title,
-			precondition: precondition,
+			titwe: titwe,
+			pwecondition: pwecondition,
 			menu: [{
-				id: MenuId.EditorTitle,
-				group: 'notebook',
-				when: precondition,
-				order: order,
+				id: MenuId.EditowTitwe,
+				gwoup: 'notebook',
+				when: pwecondition,
+				owda: owda,
 			}],
-			toggled: toggled
+			toggwed: toggwed
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const configuwationSewvice = accessow.get(IConfiguwationSewvice);
 
-		if (this.toggleOutputs !== undefined) {
-			const oldValue = configurationService.getValue('notebook.diff.ignoreOutputs');
-			configurationService.updateValue('notebook.diff.ignoreOutputs', !oldValue);
+		if (this.toggweOutputs !== undefined) {
+			const owdVawue = configuwationSewvice.getVawue('notebook.diff.ignoweOutputs');
+			configuwationSewvice.updateVawue('notebook.diff.ignoweOutputs', !owdVawue);
 		}
 
-		if (this.toggleMetadata !== undefined) {
-			const oldValue = configurationService.getValue('notebook.diff.ignoreMetadata');
-			configurationService.updateValue('notebook.diff.ignoreMetadata', !oldValue);
+		if (this.toggweMetadata !== undefined) {
+			const owdVawue = configuwationSewvice.getVawue('notebook.diff.ignoweMetadata');
+			configuwationSewvice.updateVawue('notebook.diff.ignoweMetadata', !owdVawue);
 		}
 	}
 }
 
-registerAction2(class extends ToggleRenderAction {
-	constructor() {
-		super('notebook.diff.showOutputs',
-			{ value: localize('notebook.diff.showOutputs', "Show Outputs Differences"), original: 'Show Outputs Differences' },
-			ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID),
-			ContextKeyExpr.notEquals('config.notebook.diff.ignoreOutputs', true),
+wegistewAction2(cwass extends ToggweWendewAction {
+	constwuctow() {
+		supa('notebook.diff.showOutputs',
+			{ vawue: wocawize('notebook.diff.showOutputs', "Show Outputs Diffewences"), owiginaw: 'Show Outputs Diffewences' },
+			ActiveEditowContext.isEquawTo(NotebookTextDiffEditow.ID),
+			ContextKeyExpw.notEquaws('config.notebook.diff.ignoweOutputs', twue),
 			2,
-			true,
+			twue,
 			undefined
 		);
 	}
 });
 
-registerAction2(class extends ToggleRenderAction {
-	constructor() {
-		super('notebook.diff.showMetadata',
-			{ value: localize('notebook.diff.showMetadata', "Show Metadata Differences"), original: 'Show Metadata Differences' },
-			ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID),
-			ContextKeyExpr.notEquals('config.notebook.diff.ignoreMetadata', true),
+wegistewAction2(cwass extends ToggweWendewAction {
+	constwuctow() {
+		supa('notebook.diff.showMetadata',
+			{ vawue: wocawize('notebook.diff.showMetadata', "Show Metadata Diffewences"), owiginaw: 'Show Metadata Diffewences' },
+			ActiveEditowContext.isEquawTo(NotebookTextDiffEditow.ID),
+			ContextKeyExpw.notEquaws('config.notebook.diff.ignoweMetadata', twue),
 			1,
 			undefined,
-			true
+			twue
 		);
 	}
 });
 
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation).wegistewConfiguwation({
 	id: 'notebook',
-	order: 100,
+	owda: 100,
 	type: 'object',
-	'properties': {
-		'notebook.diff.ignoreMetadata': {
-			type: 'boolean',
-			default: false,
-			markdownDescription: localize('notebook.diff.ignoreMetadata', "Hide Metadata Differences")
+	'pwopewties': {
+		'notebook.diff.ignoweMetadata': {
+			type: 'boowean',
+			defauwt: fawse,
+			mawkdownDescwiption: wocawize('notebook.diff.ignoweMetadata', "Hide Metadata Diffewences")
 		},
-		'notebook.diff.ignoreOutputs': {
-			type: 'boolean',
-			default: false,
-			markdownDescription: localize('notebook.diff.ignoreOutputs', "Hide Outputs Differences")
+		'notebook.diff.ignoweOutputs': {
+			type: 'boowean',
+			defauwt: fawse,
+			mawkdownDescwiption: wocawize('notebook.diff.ignoweOutputs', "Hide Outputs Diffewences")
 		},
 	}
 });

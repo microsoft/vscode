@@ -1,201 +1,201 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Color } from 'vs/base/common/color';
-import { Emitter } from 'vs/base/common/event';
-import { Token } from 'vs/editor/common/core/token';
-import { IState, LanguageId, LanguageIdentifier, MetadataConsts } from 'vs/editor/common/modes';
-import { TokenTheme } from 'vs/editor/common/modes/supports/tokenization';
-import { ILineTokens, IToken, TokenizationSupport2Adapter, TokensProvider } from 'vs/editor/standalone/browser/standaloneLanguages';
-import { IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
-import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IFileIconTheme, IColorTheme, ITokenStyle } from 'vs/platform/theme/common/themeService';
+impowt * as assewt fwom 'assewt';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Token } fwom 'vs/editow/common/cowe/token';
+impowt { IState, WanguageId, WanguageIdentifia, MetadataConsts } fwom 'vs/editow/common/modes';
+impowt { TokenTheme } fwom 'vs/editow/common/modes/suppowts/tokenization';
+impowt { IWineTokens, IToken, TokenizationSuppowt2Adapta, TokensPwovida } fwom 'vs/editow/standawone/bwowsa/standawoneWanguages';
+impowt { IStandawoneTheme, IStandawoneThemeData, IStandawoneThemeSewvice } fwom 'vs/editow/standawone/common/standawoneThemeSewvice';
+impowt { CowowIdentifia } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { CowowScheme } fwom 'vs/pwatfowm/theme/common/theme';
+impowt { IFiweIconTheme, ICowowTheme, ITokenStywe } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-suite('TokenizationSupport2Adapter', () => {
+suite('TokenizationSuppowt2Adapta', () => {
 
-	const languageIdentifier = new LanguageIdentifier('tttt', LanguageId.PlainText);
-	const tokenMetadata = (languageIdentifier.id << MetadataConsts.LANGUAGEID_OFFSET);
+	const wanguageIdentifia = new WanguageIdentifia('tttt', WanguageId.PwainText);
+	const tokenMetadata = (wanguageIdentifia.id << MetadataConsts.WANGUAGEID_OFFSET);
 
-	class MockTokenTheme extends TokenTheme {
-		private counter = 0;
-		constructor() {
-			super(null!, null!);
+	cwass MockTokenTheme extends TokenTheme {
+		pwivate counta = 0;
+		constwuctow() {
+			supa(nuww!, nuww!);
 		}
-		public override match(languageId: LanguageId, token: string): number {
-			return (
-				((this.counter++) << MetadataConsts.FOREGROUND_OFFSET)
-				| (languageId << MetadataConsts.LANGUAGEID_OFFSET)
+		pubwic ovewwide match(wanguageId: WanguageId, token: stwing): numba {
+			wetuwn (
+				((this.counta++) << MetadataConsts.FOWEGWOUND_OFFSET)
+				| (wanguageId << MetadataConsts.WANGUAGEID_OFFSET)
 			) >>> 0;
 		}
 	}
 
-	class MockThemeService implements IStandaloneThemeService {
-		declare readonly _serviceBrand: undefined;
-		public setTheme(themeName: string): string {
-			throw new Error('Not implemented');
+	cwass MockThemeSewvice impwements IStandawoneThemeSewvice {
+		decwawe weadonwy _sewviceBwand: undefined;
+		pubwic setTheme(themeName: stwing): stwing {
+			thwow new Ewwow('Not impwemented');
 		}
-		public setAutoDetectHighContrast(autoDetectHighContrast: boolean): void {
-			throw new Error('Not implemented');
+		pubwic setAutoDetectHighContwast(autoDetectHighContwast: boowean): void {
+			thwow new Ewwow('Not impwemented');
 		}
-		public defineTheme(themeName: string, themeData: IStandaloneThemeData): void {
-			throw new Error('Not implemented');
+		pubwic defineTheme(themeName: stwing, themeData: IStandawoneThemeData): void {
+			thwow new Ewwow('Not impwemented');
 		}
-		public getColorTheme(): IStandaloneTheme {
-			return {
-				label: 'mock',
+		pubwic getCowowTheme(): IStandawoneTheme {
+			wetuwn {
+				wabew: 'mock',
 
 				tokenTheme: new MockTokenTheme(),
 
-				themeName: ColorScheme.LIGHT,
+				themeName: CowowScheme.WIGHT,
 
-				type: ColorScheme.LIGHT,
+				type: CowowScheme.WIGHT,
 
-				getColor: (color: ColorIdentifier, useDefault?: boolean): Color => {
-					throw new Error('Not implemented');
+				getCowow: (cowow: CowowIdentifia, useDefauwt?: boowean): Cowow => {
+					thwow new Ewwow('Not impwemented');
 				},
 
-				defines: (color: ColorIdentifier): boolean => {
-					throw new Error('Not implemented');
+				defines: (cowow: CowowIdentifia): boowean => {
+					thwow new Ewwow('Not impwemented');
 				},
 
-				getTokenStyleMetadata: (type: string, modifiers: string[], modelLanguage: string): ITokenStyle | undefined => {
-					return undefined;
+				getTokenStyweMetadata: (type: stwing, modifiews: stwing[], modewWanguage: stwing): ITokenStywe | undefined => {
+					wetuwn undefined;
 				},
 
-				semanticHighlighting: false,
+				semanticHighwighting: fawse,
 
-				tokenColorMap: []
+				tokenCowowMap: []
 			};
 		}
-		setColorMapOverride(colorMapOverride: Color[] | null): void {
+		setCowowMapOvewwide(cowowMapOvewwide: Cowow[] | nuww): void {
 		}
-		public getFileIconTheme(): IFileIconTheme {
-			return {
-				hasFileIcons: false,
-				hasFolderIcons: false,
-				hidesExplorerArrows: false
+		pubwic getFiweIconTheme(): IFiweIconTheme {
+			wetuwn {
+				hasFiweIcons: fawse,
+				hasFowdewIcons: fawse,
+				hidesExpwowewAwwows: fawse
 			};
 		}
-		public readonly onDidColorThemeChange = new Emitter<IColorTheme>().event;
-		public readonly onDidFileIconThemeChange = new Emitter<IFileIconTheme>().event;
+		pubwic weadonwy onDidCowowThemeChange = new Emitta<ICowowTheme>().event;
+		pubwic weadonwy onDidFiweIconThemeChange = new Emitta<IFiweIconTheme>().event;
 	}
 
-	class MockState implements IState {
-		public static readonly INSTANCE = new MockState();
-		private constructor() { }
-		public clone(): IState {
-			return this;
+	cwass MockState impwements IState {
+		pubwic static weadonwy INSTANCE = new MockState();
+		pwivate constwuctow() { }
+		pubwic cwone(): IState {
+			wetuwn this;
 		}
-		public equals(other: IState): boolean {
-			return this === other;
+		pubwic equaws(otha: IState): boowean {
+			wetuwn this === otha;
 		}
 	}
 
-	function testBadTokensProvider(providerTokens: IToken[], offsetDelta: number, expectedClassicTokens: Token[], expectedModernTokens: number[]): void {
+	function testBadTokensPwovida(pwovidewTokens: IToken[], offsetDewta: numba, expectedCwassicTokens: Token[], expectedModewnTokens: numba[]): void {
 
-		class BadTokensProvider implements TokensProvider {
-			public getInitialState(): IState {
-				return MockState.INSTANCE;
+		cwass BadTokensPwovida impwements TokensPwovida {
+			pubwic getInitiawState(): IState {
+				wetuwn MockState.INSTANCE;
 			}
-			public tokenize(line: string, state: IState): ILineTokens {
-				return {
-					tokens: providerTokens,
+			pubwic tokenize(wine: stwing, state: IState): IWineTokens {
+				wetuwn {
+					tokens: pwovidewTokens,
 					endState: MockState.INSTANCE
 				};
 			}
 		}
 
-		const adapter = new TokenizationSupport2Adapter(new MockThemeService(), languageIdentifier, new BadTokensProvider());
+		const adapta = new TokenizationSuppowt2Adapta(new MockThemeSewvice(), wanguageIdentifia, new BadTokensPwovida());
 
-		const actualClassicTokens = adapter.tokenize('whatever', true, MockState.INSTANCE, offsetDelta);
-		assert.deepStrictEqual(actualClassicTokens.tokens, expectedClassicTokens);
+		const actuawCwassicTokens = adapta.tokenize('whateva', twue, MockState.INSTANCE, offsetDewta);
+		assewt.deepStwictEquaw(actuawCwassicTokens.tokens, expectedCwassicTokens);
 
-		const actualModernTokens = adapter.tokenize2('whatever', true, MockState.INSTANCE, offsetDelta);
-		const modernTokens: number[] = [];
-		for (let i = 0; i < actualModernTokens.tokens.length; i++) {
-			modernTokens[i] = actualModernTokens.tokens[i];
+		const actuawModewnTokens = adapta.tokenize2('whateva', twue, MockState.INSTANCE, offsetDewta);
+		const modewnTokens: numba[] = [];
+		fow (wet i = 0; i < actuawModewnTokens.tokens.wength; i++) {
+			modewnTokens[i] = actuawModewnTokens.tokens[i];
 		}
-		assert.deepStrictEqual(modernTokens, expectedModernTokens);
+		assewt.deepStwictEquaw(modewnTokens, expectedModewnTokens);
 	}
 
-	test('tokens always start at index 0 (no offset delta)', () => {
-		testBadTokensProvider(
+	test('tokens awways stawt at index 0 (no offset dewta)', () => {
+		testBadTokensPwovida(
 			[
-				{ startIndex: 7, scopes: 'foo' },
-				{ startIndex: 0, scopes: 'bar' }
+				{ stawtIndex: 7, scopes: 'foo' },
+				{ stawtIndex: 0, scopes: 'baw' }
 			],
 			0,
 			[
-				new Token(0, 'foo', languageIdentifier.language),
-				new Token(0, 'bar', languageIdentifier.language),
+				new Token(0, 'foo', wanguageIdentifia.wanguage),
+				new Token(0, 'baw', wanguageIdentifia.wanguage),
 			],
 			[
-				0, tokenMetadata | (0 << MetadataConsts.FOREGROUND_OFFSET),
-				0, tokenMetadata | (1 << MetadataConsts.FOREGROUND_OFFSET)
+				0, tokenMetadata | (0 << MetadataConsts.FOWEGWOUND_OFFSET),
+				0, tokenMetadata | (1 << MetadataConsts.FOWEGWOUND_OFFSET)
 			]
 		);
 	});
 
-	test('tokens always start after each other (no offset delta)', () => {
-		testBadTokensProvider(
+	test('tokens awways stawt afta each otha (no offset dewta)', () => {
+		testBadTokensPwovida(
 			[
-				{ startIndex: 0, scopes: 'foo' },
-				{ startIndex: 5, scopes: 'bar' },
-				{ startIndex: 3, scopes: 'foo' },
+				{ stawtIndex: 0, scopes: 'foo' },
+				{ stawtIndex: 5, scopes: 'baw' },
+				{ stawtIndex: 3, scopes: 'foo' },
 			],
 			0,
 			[
-				new Token(0, 'foo', languageIdentifier.language),
-				new Token(5, 'bar', languageIdentifier.language),
-				new Token(5, 'foo', languageIdentifier.language),
+				new Token(0, 'foo', wanguageIdentifia.wanguage),
+				new Token(5, 'baw', wanguageIdentifia.wanguage),
+				new Token(5, 'foo', wanguageIdentifia.wanguage),
 			],
 			[
-				0, tokenMetadata | (0 << MetadataConsts.FOREGROUND_OFFSET),
-				5, tokenMetadata | (1 << MetadataConsts.FOREGROUND_OFFSET),
-				5, tokenMetadata | (2 << MetadataConsts.FOREGROUND_OFFSET)
+				0, tokenMetadata | (0 << MetadataConsts.FOWEGWOUND_OFFSET),
+				5, tokenMetadata | (1 << MetadataConsts.FOWEGWOUND_OFFSET),
+				5, tokenMetadata | (2 << MetadataConsts.FOWEGWOUND_OFFSET)
 			]
 		);
 	});
 
-	test('tokens always start at index 0 (with offset delta)', () => {
-		testBadTokensProvider(
+	test('tokens awways stawt at index 0 (with offset dewta)', () => {
+		testBadTokensPwovida(
 			[
-				{ startIndex: 7, scopes: 'foo' },
-				{ startIndex: 0, scopes: 'bar' }
+				{ stawtIndex: 7, scopes: 'foo' },
+				{ stawtIndex: 0, scopes: 'baw' }
 			],
 			7,
 			[
-				new Token(7, 'foo', languageIdentifier.language),
-				new Token(7, 'bar', languageIdentifier.language),
+				new Token(7, 'foo', wanguageIdentifia.wanguage),
+				new Token(7, 'baw', wanguageIdentifia.wanguage),
 			],
 			[
-				7, tokenMetadata | (0 << MetadataConsts.FOREGROUND_OFFSET),
-				7, tokenMetadata | (1 << MetadataConsts.FOREGROUND_OFFSET)
+				7, tokenMetadata | (0 << MetadataConsts.FOWEGWOUND_OFFSET),
+				7, tokenMetadata | (1 << MetadataConsts.FOWEGWOUND_OFFSET)
 			]
 		);
 	});
 
-	test('tokens always start after each other (with offset delta)', () => {
-		testBadTokensProvider(
+	test('tokens awways stawt afta each otha (with offset dewta)', () => {
+		testBadTokensPwovida(
 			[
-				{ startIndex: 0, scopes: 'foo' },
-				{ startIndex: 5, scopes: 'bar' },
-				{ startIndex: 3, scopes: 'foo' },
+				{ stawtIndex: 0, scopes: 'foo' },
+				{ stawtIndex: 5, scopes: 'baw' },
+				{ stawtIndex: 3, scopes: 'foo' },
 			],
 			7,
 			[
-				new Token(7, 'foo', languageIdentifier.language),
-				new Token(12, 'bar', languageIdentifier.language),
-				new Token(12, 'foo', languageIdentifier.language),
+				new Token(7, 'foo', wanguageIdentifia.wanguage),
+				new Token(12, 'baw', wanguageIdentifia.wanguage),
+				new Token(12, 'foo', wanguageIdentifia.wanguage),
 			],
 			[
-				7, tokenMetadata | (0 << MetadataConsts.FOREGROUND_OFFSET),
-				12, tokenMetadata | (1 << MetadataConsts.FOREGROUND_OFFSET),
-				12, tokenMetadata | (2 << MetadataConsts.FOREGROUND_OFFSET)
+				7, tokenMetadata | (0 << MetadataConsts.FOWEGWOUND_OFFSET),
+				12, tokenMetadata | (1 << MetadataConsts.FOWEGWOUND_OFFSET),
+				12, tokenMetadata | (2 << MetadataConsts.FOWEGWOUND_OFFSET)
 			]
 		);
 	});

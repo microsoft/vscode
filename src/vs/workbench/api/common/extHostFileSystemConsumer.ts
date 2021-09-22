@@ -1,88 +1,88 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainContext } from './extHost.protocol';
-import * as vscode from 'vscode';
-import * as files from 'vs/platform/files/common/files';
-import { FileSystemError } from 'vs/workbench/api/common/extHostTypes';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
+impowt { MainContext } fwom './extHost.pwotocow';
+impowt * as vscode fwom 'vscode';
+impowt * as fiwes fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { FiweSystemEwwow } fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IExtHostWpcSewvice } fwom 'vs/wowkbench/api/common/extHostWpcSewvice';
+impowt { IExtHostFiweSystemInfo } fwom 'vs/wowkbench/api/common/extHostFiweSystemInfo';
 
-export class ExtHostConsumerFileSystem {
+expowt cwass ExtHostConsumewFiweSystem {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	readonly value: vscode.FileSystem;
+	weadonwy vawue: vscode.FiweSystem;
 
-	constructor(
-		@IExtHostRpcService extHostRpc: IExtHostRpcService,
-		@IExtHostFileSystemInfo fileSystemInfo: IExtHostFileSystemInfo,
+	constwuctow(
+		@IExtHostWpcSewvice extHostWpc: IExtHostWpcSewvice,
+		@IExtHostFiweSystemInfo fiweSystemInfo: IExtHostFiweSystemInfo,
 	) {
-		const proxy = extHostRpc.getProxy(MainContext.MainThreadFileSystem);
+		const pwoxy = extHostWpc.getPwoxy(MainContext.MainThweadFiweSystem);
 
-		this.value = Object.freeze({
-			stat(uri: vscode.Uri): Promise<vscode.FileStat> {
-				return proxy.$stat(uri).catch(ExtHostConsumerFileSystem._handleError);
+		this.vawue = Object.fweeze({
+			stat(uwi: vscode.Uwi): Pwomise<vscode.FiweStat> {
+				wetuwn pwoxy.$stat(uwi).catch(ExtHostConsumewFiweSystem._handweEwwow);
 			},
-			readDirectory(uri: vscode.Uri): Promise<[string, vscode.FileType][]> {
-				return proxy.$readdir(uri).catch(ExtHostConsumerFileSystem._handleError);
+			weadDiwectowy(uwi: vscode.Uwi): Pwomise<[stwing, vscode.FiweType][]> {
+				wetuwn pwoxy.$weaddiw(uwi).catch(ExtHostConsumewFiweSystem._handweEwwow);
 			},
-			createDirectory(uri: vscode.Uri): Promise<void> {
-				return proxy.$mkdir(uri).catch(ExtHostConsumerFileSystem._handleError);
+			cweateDiwectowy(uwi: vscode.Uwi): Pwomise<void> {
+				wetuwn pwoxy.$mkdiw(uwi).catch(ExtHostConsumewFiweSystem._handweEwwow);
 			},
-			async readFile(uri: vscode.Uri): Promise<Uint8Array> {
-				return proxy.$readFile(uri).then(buff => buff.buffer).catch(ExtHostConsumerFileSystem._handleError);
+			async weadFiwe(uwi: vscode.Uwi): Pwomise<Uint8Awway> {
+				wetuwn pwoxy.$weadFiwe(uwi).then(buff => buff.buffa).catch(ExtHostConsumewFiweSystem._handweEwwow);
 			},
-			writeFile(uri: vscode.Uri, content: Uint8Array): Promise<void> {
-				return proxy.$writeFile(uri, VSBuffer.wrap(content)).catch(ExtHostConsumerFileSystem._handleError);
+			wwiteFiwe(uwi: vscode.Uwi, content: Uint8Awway): Pwomise<void> {
+				wetuwn pwoxy.$wwiteFiwe(uwi, VSBuffa.wwap(content)).catch(ExtHostConsumewFiweSystem._handweEwwow);
 			},
-			delete(uri: vscode.Uri, options?: { recursive?: boolean; useTrash?: boolean; }): Promise<void> {
-				return proxy.$delete(uri, { ...{ recursive: false, useTrash: false }, ...options }).catch(ExtHostConsumerFileSystem._handleError);
+			dewete(uwi: vscode.Uwi, options?: { wecuwsive?: boowean; useTwash?: boowean; }): Pwomise<void> {
+				wetuwn pwoxy.$dewete(uwi, { ...{ wecuwsive: fawse, useTwash: fawse }, ...options }).catch(ExtHostConsumewFiweSystem._handweEwwow);
 			},
-			rename(oldUri: vscode.Uri, newUri: vscode.Uri, options?: { overwrite?: boolean; }): Promise<void> {
-				return proxy.$rename(oldUri, newUri, { ...{ overwrite: false }, ...options }).catch(ExtHostConsumerFileSystem._handleError);
+			wename(owdUwi: vscode.Uwi, newUwi: vscode.Uwi, options?: { ovewwwite?: boowean; }): Pwomise<void> {
+				wetuwn pwoxy.$wename(owdUwi, newUwi, { ...{ ovewwwite: fawse }, ...options }).catch(ExtHostConsumewFiweSystem._handweEwwow);
 			},
-			copy(source: vscode.Uri, destination: vscode.Uri, options?: { overwrite?: boolean; }): Promise<void> {
-				return proxy.$copy(source, destination, { ...{ overwrite: false }, ...options }).catch(ExtHostConsumerFileSystem._handleError);
+			copy(souwce: vscode.Uwi, destination: vscode.Uwi, options?: { ovewwwite?: boowean; }): Pwomise<void> {
+				wetuwn pwoxy.$copy(souwce, destination, { ...{ ovewwwite: fawse }, ...options }).catch(ExtHostConsumewFiweSystem._handweEwwow);
 			},
-			isWritableFileSystem(scheme: string): boolean | undefined {
-				const capabilities = fileSystemInfo.getCapabilities(scheme);
-				if (typeof capabilities === 'number') {
-					return !(capabilities & files.FileSystemProviderCapabilities.Readonly);
+			isWwitabweFiweSystem(scheme: stwing): boowean | undefined {
+				const capabiwities = fiweSystemInfo.getCapabiwities(scheme);
+				if (typeof capabiwities === 'numba') {
+					wetuwn !(capabiwities & fiwes.FiweSystemPwovidewCapabiwities.Weadonwy);
 				}
-				return undefined;
+				wetuwn undefined;
 			}
 		});
 	}
 
-	private static _handleError(err: any): never {
-		// generic error
-		if (!(err instanceof Error)) {
-			throw new FileSystemError(String(err));
+	pwivate static _handweEwwow(eww: any): neva {
+		// genewic ewwow
+		if (!(eww instanceof Ewwow)) {
+			thwow new FiweSystemEwwow(Stwing(eww));
 		}
 
-		// no provider (unknown scheme) error
-		if (err.name === 'ENOPRO') {
-			throw FileSystemError.Unavailable(err.message);
+		// no pwovida (unknown scheme) ewwow
+		if (eww.name === 'ENOPWO') {
+			thwow FiweSystemEwwow.Unavaiwabwe(eww.message);
 		}
 
-		// file system error
-		switch (err.name) {
-			case files.FileSystemProviderErrorCode.FileExists: throw FileSystemError.FileExists(err.message);
-			case files.FileSystemProviderErrorCode.FileNotFound: throw FileSystemError.FileNotFound(err.message);
-			case files.FileSystemProviderErrorCode.FileNotADirectory: throw FileSystemError.FileNotADirectory(err.message);
-			case files.FileSystemProviderErrorCode.FileIsADirectory: throw FileSystemError.FileIsADirectory(err.message);
-			case files.FileSystemProviderErrorCode.NoPermissions: throw FileSystemError.NoPermissions(err.message);
-			case files.FileSystemProviderErrorCode.Unavailable: throw FileSystemError.Unavailable(err.message);
+		// fiwe system ewwow
+		switch (eww.name) {
+			case fiwes.FiweSystemPwovidewEwwowCode.FiweExists: thwow FiweSystemEwwow.FiweExists(eww.message);
+			case fiwes.FiweSystemPwovidewEwwowCode.FiweNotFound: thwow FiweSystemEwwow.FiweNotFound(eww.message);
+			case fiwes.FiweSystemPwovidewEwwowCode.FiweNotADiwectowy: thwow FiweSystemEwwow.FiweNotADiwectowy(eww.message);
+			case fiwes.FiweSystemPwovidewEwwowCode.FiweIsADiwectowy: thwow FiweSystemEwwow.FiweIsADiwectowy(eww.message);
+			case fiwes.FiweSystemPwovidewEwwowCode.NoPewmissions: thwow FiweSystemEwwow.NoPewmissions(eww.message);
+			case fiwes.FiweSystemPwovidewEwwowCode.Unavaiwabwe: thwow FiweSystemEwwow.Unavaiwabwe(eww.message);
 
-			default: throw new FileSystemError(err.message, err.name as files.FileSystemProviderErrorCode);
+			defauwt: thwow new FiweSystemEwwow(eww.message, eww.name as fiwes.FiweSystemPwovidewEwwowCode);
 		}
 	}
 }
 
-export interface IExtHostConsumerFileSystem extends ExtHostConsumerFileSystem { }
-export const IExtHostConsumerFileSystem = createDecorator<IExtHostConsumerFileSystem>('IExtHostConsumerFileSystem');
+expowt intewface IExtHostConsumewFiweSystem extends ExtHostConsumewFiweSystem { }
+expowt const IExtHostConsumewFiweSystem = cweateDecowatow<IExtHostConsumewFiweSystem>('IExtHostConsumewFiweSystem');

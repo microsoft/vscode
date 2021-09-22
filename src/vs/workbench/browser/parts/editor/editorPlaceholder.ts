@@ -1,227 +1,227 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/editorplaceholder';
-import { localize } from 'vs/nls';
-import { IEditorOpenContext } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Dimension, size, clearNode } from 'vs/base/browser/dom';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { EditorOpenContext, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { EditorPaneDescriptor } from 'vs/workbench/browser/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Link } from 'vs/platform/opener/browser/link';
+impowt 'vs/css!./media/editowpwacehowda';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IEditowOpenContext } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { EditowPane } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowPane';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { DomScwowwabweEwement } fwom 'vs/base/bwowsa/ui/scwowwbaw/scwowwabweEwement';
+impowt { ScwowwbawVisibiwity } fwom 'vs/base/common/scwowwabwe';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { Dimension, size, cweawNode } fwom 'vs/base/bwowsa/dom';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { DisposabweStowe, IDisposabwe, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { assewtIsDefined, assewtAwwDefined } fwom 'vs/base/common/types';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { isSingweFowdewWowkspaceIdentifia, toWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { EditowOpenContext, IEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { EditowPaneDescwiptow } fwom 'vs/wowkbench/bwowsa/editow';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Wink } fwom 'vs/pwatfowm/opena/bwowsa/wink';
 
-abstract class EditorPlaceholderPane extends EditorPane {
+abstwact cwass EditowPwacehowdewPane extends EditowPane {
 
-	private container: HTMLElement | undefined;
-	private scrollbar: DomScrollableElement | undefined;
-	private inputDisposable = this._register(new MutableDisposable());
+	pwivate containa: HTMWEwement | undefined;
+	pwivate scwowwbaw: DomScwowwabweEwement | undefined;
+	pwivate inputDisposabwe = this._wegista(new MutabweDisposabwe());
 
-	constructor(
-		id: string,
-		private readonly title: string,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService
+	constwuctow(
+		id: stwing,
+		pwivate weadonwy titwe: stwing,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice
 	) {
-		super(id, telemetryService, themeService, storageService);
+		supa(id, tewemetwySewvice, themeSewvice, stowageSewvice);
 	}
 
-	override getTitle(): string {
-		return this.title;
+	ovewwide getTitwe(): stwing {
+		wetuwn this.titwe;
 	}
 
-	protected createEditor(parent: HTMLElement): void {
+	pwotected cweateEditow(pawent: HTMWEwement): void {
 
-		// Container
-		this.container = document.createElement('div');
-		this.container.className = 'monaco-editor-pane-placeholder';
-		this.container.style.outline = 'none';
-		this.container.tabIndex = 0; // enable focus support from the editor part (do not remove)
+		// Containa
+		this.containa = document.cweateEwement('div');
+		this.containa.cwassName = 'monaco-editow-pane-pwacehowda';
+		this.containa.stywe.outwine = 'none';
+		this.containa.tabIndex = 0; // enabwe focus suppowt fwom the editow pawt (do not wemove)
 
-		// Custom Scrollbars
-		this.scrollbar = this._register(new DomScrollableElement(this.container, { horizontal: ScrollbarVisibility.Auto, vertical: ScrollbarVisibility.Auto }));
-		parent.appendChild(this.scrollbar.getDomNode());
+		// Custom Scwowwbaws
+		this.scwowwbaw = this._wegista(new DomScwowwabweEwement(this.containa, { howizontaw: ScwowwbawVisibiwity.Auto, vewticaw: ScwowwbawVisibiwity.Auto }));
+		pawent.appendChiwd(this.scwowwbaw.getDomNode());
 	}
 
-	override async setInput(input: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		await super.setInput(input, options, context, token);
+	ovewwide async setInput(input: EditowInput, options: IEditowOptions | undefined, context: IEditowOpenContext, token: CancewwationToken): Pwomise<void> {
+		await supa.setInput(input, options, context, token);
 
-		// Check for cancellation
-		if (token.isCancellationRequested) {
-			return;
+		// Check fow cancewwation
+		if (token.isCancewwationWequested) {
+			wetuwn;
 		}
 
-		// Render Input
-		this.inputDisposable.value = this.renderInput();
+		// Wenda Input
+		this.inputDisposabwe.vawue = this.wendewInput();
 	}
 
-	private renderInput(): IDisposable {
-		const [container, scrollbar] = assertAllDefined(this.container, this.scrollbar);
+	pwivate wendewInput(): IDisposabwe {
+		const [containa, scwowwbaw] = assewtAwwDefined(this.containa, this.scwowwbaw);
 
-		// Reset any previous contents
-		clearNode(container);
+		// Weset any pwevious contents
+		cweawNode(containa);
 
-		// Delegate to implementation
-		const disposables = new DisposableStore();
-		this.renderBody(container, disposables);
+		// Dewegate to impwementation
+		const disposabwes = new DisposabweStowe();
+		this.wendewBody(containa, disposabwes);
 
-		// Adjust scrollbar
-		scrollbar.scanDomNode();
+		// Adjust scwowwbaw
+		scwowwbaw.scanDomNode();
 
-		return disposables;
+		wetuwn disposabwes;
 	}
 
-	protected abstract renderBody(container: HTMLElement, disposables: DisposableStore): void;
+	pwotected abstwact wendewBody(containa: HTMWEwement, disposabwes: DisposabweStowe): void;
 
-	override clearInput(): void {
-		if (this.container) {
-			clearNode(this.container);
+	ovewwide cweawInput(): void {
+		if (this.containa) {
+			cweawNode(this.containa);
 		}
 
-		this.inputDisposable.clear();
+		this.inputDisposabwe.cweaw();
 
-		super.clearInput();
+		supa.cweawInput();
 	}
 
-	layout(dimension: Dimension): void {
-		const [container, scrollbar] = assertAllDefined(this.container, this.scrollbar);
+	wayout(dimension: Dimension): void {
+		const [containa, scwowwbaw] = assewtAwwDefined(this.containa, this.scwowwbaw);
 
-		// Pass on to Container
-		size(container, dimension.width, dimension.height);
+		// Pass on to Containa
+		size(containa, dimension.width, dimension.height);
 
-		// Adjust scrollbar
-		scrollbar.scanDomNode();
+		// Adjust scwowwbaw
+		scwowwbaw.scanDomNode();
 	}
 
-	override focus(): void {
-		const container = assertIsDefined(this.container);
+	ovewwide focus(): void {
+		const containa = assewtIsDefined(this.containa);
 
-		container.focus();
+		containa.focus();
 	}
 
-	override dispose(): void {
-		this.container?.remove();
+	ovewwide dispose(): void {
+		this.containa?.wemove();
 
-		super.dispose();
+		supa.dispose();
 	}
 }
 
-export class WorkspaceTrustRequiredEditor extends EditorPlaceholderPane {
+expowt cwass WowkspaceTwustWequiwedEditow extends EditowPwacehowdewPane {
 
-	static readonly ID = 'workbench.editors.workspaceTrustRequiredEditor';
-	static readonly LABEL = localize('trustRequiredEditor', "Workspace Trust Required");
-	static readonly DESCRIPTOR = EditorPaneDescriptor.create(WorkspaceTrustRequiredEditor, WorkspaceTrustRequiredEditor.ID, WorkspaceTrustRequiredEditor.LABEL);
+	static weadonwy ID = 'wowkbench.editows.wowkspaceTwustWequiwedEditow';
+	static weadonwy WABEW = wocawize('twustWequiwedEditow', "Wowkspace Twust Wequiwed");
+	static weadonwy DESCWIPTOW = EditowPaneDescwiptow.cweate(WowkspaceTwustWequiwedEditow, WowkspaceTwustWequiwedEditow.ID, WowkspaceTwustWequiwedEditow.WABEW);
 
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IThemeService themeService: IThemeService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
-		@IStorageService storageService: IStorageService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+	constwuctow(
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy wowkspaceSewvice: IWowkspaceContextSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice
 	) {
-		super(WorkspaceTrustRequiredEditor.ID, WorkspaceTrustRequiredEditor.LABEL, telemetryService, themeService, storageService);
+		supa(WowkspaceTwustWequiwedEditow.ID, WowkspaceTwustWequiwedEditow.WABEW, tewemetwySewvice, themeSewvice, stowageSewvice);
 	}
 
-	protected renderBody(container: HTMLElement, disposables: DisposableStore): void {
-		const label = container.appendChild(document.createElement('p'));
-		label.textContent = isSingleFolderWorkspaceIdentifier(toWorkspaceIdentifier(this.workspaceService.getWorkspace())) ?
-			localize('requiresFolderTrustText', "The file is not displayed in the editor because trust has not been granted to the folder.") :
-			localize('requiresWorkspaceTrustText', "The file is not displayed in the editor because trust has not been granted to the workspace.");
+	pwotected wendewBody(containa: HTMWEwement, disposabwes: DisposabweStowe): void {
+		const wabew = containa.appendChiwd(document.cweateEwement('p'));
+		wabew.textContent = isSingweFowdewWowkspaceIdentifia(toWowkspaceIdentifia(this.wowkspaceSewvice.getWowkspace())) ?
+			wocawize('wequiwesFowdewTwustText', "The fiwe is not dispwayed in the editow because twust has not been gwanted to the fowda.") :
+			wocawize('wequiwesWowkspaceTwustText', "The fiwe is not dispwayed in the editow because twust has not been gwanted to the wowkspace.");
 
-		disposables.add(this.instantiationService.createInstance(Link, label, {
-			label: localize('manageTrust', "Manage Workspace Trust"),
-			href: ''
+		disposabwes.add(this.instantiationSewvice.cweateInstance(Wink, wabew, {
+			wabew: wocawize('manageTwust', "Manage Wowkspace Twust"),
+			hwef: ''
 		}, {
-			opener: () => this.commandService.executeCommand('workbench.trust.manage')
+			opena: () => this.commandSewvice.executeCommand('wowkbench.twust.manage')
 		}));
 	}
 }
 
-abstract class AbstractErrorEditor extends EditorPlaceholderPane {
+abstwact cwass AbstwactEwwowEditow extends EditowPwacehowdewPane {
 
-	constructor(
-		id: string,
-		label: string,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice
 	) {
-		super(id, label, telemetryService, themeService, storageService);
+		supa(id, wabew, tewemetwySewvice, themeSewvice, stowageSewvice);
 	}
 
-	protected abstract getErrorMessage(): string;
+	pwotected abstwact getEwwowMessage(): stwing;
 
-	protected renderBody(container: HTMLElement, disposables: DisposableStore): void {
-		const label = container.appendChild(document.createElement('p'));
-		label.textContent = this.getErrorMessage();
+	pwotected wendewBody(containa: HTMWEwement, disposabwes: DisposabweStowe): void {
+		const wabew = containa.appendChiwd(document.cweateEwement('p'));
+		wabew.textContent = this.getEwwowMessage();
 
-		// Offer to re-open
-		const group = this.group;
+		// Offa to we-open
+		const gwoup = this.gwoup;
 		const input = this.input;
-		if (group && input) {
-			disposables.add(this.instantiationService.createInstance(Link, label, {
-				label: localize('retry', "Try Again"),
-				href: ''
+		if (gwoup && input) {
+			disposabwes.add(this.instantiationSewvice.cweateInstance(Wink, wabew, {
+				wabew: wocawize('wetwy', "Twy Again"),
+				hwef: ''
 			}, {
-				opener: () => group.openEditor(input, { ...this.options, context: EditorOpenContext.USER /* explicit user gesture */ })
+				opena: () => gwoup.openEditow(input, { ...this.options, context: EditowOpenContext.USa /* expwicit usa gestuwe */ })
 			}));
 		}
 	}
 }
 
-export class UnknownErrorEditor extends AbstractErrorEditor {
+expowt cwass UnknownEwwowEditow extends AbstwactEwwowEditow {
 
-	static readonly ID = 'workbench.editors.unknownErrorEditor';
-	static readonly LABEL = localize('unknownErrorEditor', "Unknown Error Editor");
-	static readonly DESCRIPTOR = EditorPaneDescriptor.create(UnknownErrorEditor, UnknownErrorEditor.ID, UnknownErrorEditor.LABEL);
+	static weadonwy ID = 'wowkbench.editows.unknownEwwowEditow';
+	static weadonwy WABEW = wocawize('unknownEwwowEditow', "Unknown Ewwow Editow");
+	static weadonwy DESCWIPTOW = EditowPaneDescwiptow.cweate(UnknownEwwowEditow, UnknownEwwowEditow.ID, UnknownEwwowEditow.WABEW);
 
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
-		@IInstantiationService instantiationService: IInstantiationService
+	constwuctow(
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice
 	) {
-		super(UnknownErrorEditor.ID, UnknownErrorEditor.LABEL, telemetryService, themeService, storageService, instantiationService);
+		supa(UnknownEwwowEditow.ID, UnknownEwwowEditow.WABEW, tewemetwySewvice, themeSewvice, stowageSewvice, instantiationSewvice);
 	}
 
-	protected override getErrorMessage(): string {
-		return localize('unknownErrorEditorText', "The editor could not be opened due to an unexpected error.");
+	pwotected ovewwide getEwwowMessage(): stwing {
+		wetuwn wocawize('unknownEwwowEditowText', "The editow couwd not be opened due to an unexpected ewwow.");
 	}
 }
 
-export class UnavailableResourceErrorEditor extends AbstractErrorEditor {
+expowt cwass UnavaiwabweWesouwceEwwowEditow extends AbstwactEwwowEditow {
 
-	static readonly ID = 'workbench.editors.unavailableResourceErrorEditor';
-	static readonly LABEL = localize('unavailableResourceErrorEditor', "Unavailable Resource Error Editor");
-	static readonly DESCRIPTOR = EditorPaneDescriptor.create(UnavailableResourceErrorEditor, UnavailableResourceErrorEditor.ID, UnavailableResourceErrorEditor.LABEL);
+	static weadonwy ID = 'wowkbench.editows.unavaiwabweWesouwceEwwowEditow';
+	static weadonwy WABEW = wocawize('unavaiwabweWesouwceEwwowEditow', "Unavaiwabwe Wesouwce Ewwow Editow");
+	static weadonwy DESCWIPTOW = EditowPaneDescwiptow.cweate(UnavaiwabweWesouwceEwwowEditow, UnavaiwabweWesouwceEwwowEditow.ID, UnavaiwabweWesouwceEwwowEditow.WABEW);
 
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
-		@IInstantiationService instantiationService: IInstantiationService
+	constwuctow(
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice
 	) {
-		super(UnavailableResourceErrorEditor.ID, UnavailableResourceErrorEditor.LABEL, telemetryService, themeService, storageService, instantiationService);
+		supa(UnavaiwabweWesouwceEwwowEditow.ID, UnavaiwabweWesouwceEwwowEditow.WABEW, tewemetwySewvice, themeSewvice, stowageSewvice, instantiationSewvice);
 	}
 
-	protected override getErrorMessage(): string {
-		return localize('unavailableResourceErrorEditorText', "The editor could not be opened due to an unavailable resource.");
+	pwotected ovewwide getEwwowMessage(): stwing {
+		wetuwn wocawize('unavaiwabweWesouwceEwwowEditowText', "The editow couwd not be opened due to an unavaiwabwe wesouwce.");
 	}
 }

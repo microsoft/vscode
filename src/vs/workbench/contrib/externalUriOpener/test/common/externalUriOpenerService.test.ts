@@ -1,128 +1,128 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ExternalUriOpenerPriority } from 'vs/editor/common/modes';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IPickOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { ExternalUriOpenerService, IExternalOpenerProvider, IExternalUriOpener } from 'vs/workbench/contrib/externalUriOpener/common/externalUriOpenerService';
+impowt * as assewt fwom 'assewt';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ExtewnawUwiOpenewPwiowity } fwom 'vs/editow/common/modes';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IPickOptions, IQuickInputSewvice, IQuickPickItem, QuickPickInput } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { ExtewnawUwiOpenewSewvice, IExtewnawOpenewPwovida, IExtewnawUwiOpena } fwom 'vs/wowkbench/contwib/extewnawUwiOpena/common/extewnawUwiOpenewSewvice';
 
 
-class MockQuickInputService implements Partial<IQuickInputService>{
+cwass MockQuickInputSewvice impwements Pawtiaw<IQuickInputSewvice>{
 
-	constructor(
-		private readonly pickIndex: number
+	constwuctow(
+		pwivate weadonwy pickIndex: numba
 	) { }
 
-	public pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: true }, token?: CancellationToken): Promise<T[]>;
-	public pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): Promise<T>;
-	public async pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancellationToken): Promise<T | undefined> {
-		const resolvedPicks = await picks;
-		const item = resolvedPicks[this.pickIndex];
-		if (item.type === 'separator') {
-			return undefined;
+	pubwic pick<T extends IQuickPickItem>(picks: Pwomise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: twue }, token?: CancewwationToken): Pwomise<T[]>;
+	pubwic pick<T extends IQuickPickItem>(picks: Pwomise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: fawse }, token?: CancewwationToken): Pwomise<T>;
+	pubwic async pick<T extends IQuickPickItem>(picks: Pwomise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancewwationToken): Pwomise<T | undefined> {
+		const wesowvedPicks = await picks;
+		const item = wesowvedPicks[this.pickIndex];
+		if (item.type === 'sepawatow') {
+			wetuwn undefined;
 		}
-		return item;
+		wetuwn item;
 	}
 
 }
 
-suite('ExternalUriOpenerService', () => {
+suite('ExtewnawUwiOpenewSewvice', () => {
 
-	let instantiationService: TestInstantiationService;
+	wet instantiationSewvice: TestInstantiationSewvice;
 
 	setup(() => {
-		instantiationService = new TestInstantiationService();
+		instantiationSewvice = new TestInstantiationSewvice();
 
-		instantiationService.stub(IConfigurationService, new TestConfigurationService());
-		instantiationService.stub(IOpenerService, {
-			registerExternalOpener: () => { return Disposable.None; }
+		instantiationSewvice.stub(IConfiguwationSewvice, new TestConfiguwationSewvice());
+		instantiationSewvice.stub(IOpenewSewvice, {
+			wegistewExtewnawOpena: () => { wetuwn Disposabwe.None; }
 		});
 	});
 
-	test('Should not open if there are no openers', async () => {
-		const externalUriOpenerService: ExternalUriOpenerService = instantiationService.createInstance(ExternalUriOpenerService);
+	test('Shouwd not open if thewe awe no openews', async () => {
+		const extewnawUwiOpenewSewvice: ExtewnawUwiOpenewSewvice = instantiationSewvice.cweateInstance(ExtewnawUwiOpenewSewvice);
 
-		externalUriOpenerService.registerExternalOpenerProvider(new class implements IExternalOpenerProvider {
-			async *getOpeners(_targetUri: URI): AsyncGenerator<IExternalUriOpener> {
+		extewnawUwiOpenewSewvice.wegistewExtewnawOpenewPwovida(new cwass impwements IExtewnawOpenewPwovida {
+			async *getOpenews(_tawgetUwi: UWI): AsyncGenewatow<IExtewnawUwiOpena> {
 				// noop
 			}
 		});
 
-		const uri = URI.parse('http://contoso.com');
-		const didOpen = await externalUriOpenerService.openExternal(uri.toString(), { sourceUri: uri }, CancellationToken.None);
-		assert.strictEqual(didOpen, false);
+		const uwi = UWI.pawse('http://contoso.com');
+		const didOpen = await extewnawUwiOpenewSewvice.openExtewnaw(uwi.toStwing(), { souwceUwi: uwi }, CancewwationToken.None);
+		assewt.stwictEquaw(didOpen, fawse);
 	});
 
-	test('Should prompt if there is at least one enabled opener', async () => {
-		instantiationService.stub(IQuickInputService, new MockQuickInputService(0));
+	test('Shouwd pwompt if thewe is at weast one enabwed opena', async () => {
+		instantiationSewvice.stub(IQuickInputSewvice, new MockQuickInputSewvice(0));
 
-		const externalUriOpenerService: ExternalUriOpenerService = instantiationService.createInstance(ExternalUriOpenerService);
+		const extewnawUwiOpenewSewvice: ExtewnawUwiOpenewSewvice = instantiationSewvice.cweateInstance(ExtewnawUwiOpenewSewvice);
 
-		let openedWithEnabled = false;
-		externalUriOpenerService.registerExternalOpenerProvider(new class implements IExternalOpenerProvider {
-			async *getOpeners(_targetUri: URI): AsyncGenerator<IExternalUriOpener> {
-				yield {
-					id: 'disabled-id',
-					label: 'disabled',
-					canOpen: async () => ExternalUriOpenerPriority.None,
-					openExternalUri: async () => true,
+		wet openedWithEnabwed = fawse;
+		extewnawUwiOpenewSewvice.wegistewExtewnawOpenewPwovida(new cwass impwements IExtewnawOpenewPwovida {
+			async *getOpenews(_tawgetUwi: UWI): AsyncGenewatow<IExtewnawUwiOpena> {
+				yiewd {
+					id: 'disabwed-id',
+					wabew: 'disabwed',
+					canOpen: async () => ExtewnawUwiOpenewPwiowity.None,
+					openExtewnawUwi: async () => twue,
 				};
-				yield {
-					id: 'enabled-id',
-					label: 'enabled',
-					canOpen: async () => ExternalUriOpenerPriority.Default,
-					openExternalUri: async () => {
-						openedWithEnabled = true;
-						return true;
+				yiewd {
+					id: 'enabwed-id',
+					wabew: 'enabwed',
+					canOpen: async () => ExtewnawUwiOpenewPwiowity.Defauwt,
+					openExtewnawUwi: async () => {
+						openedWithEnabwed = twue;
+						wetuwn twue;
 					}
 				};
 			}
 		});
 
-		const uri = URI.parse('http://contoso.com');
-		const didOpen = await externalUriOpenerService.openExternal(uri.toString(), { sourceUri: uri }, CancellationToken.None);
-		assert.strictEqual(didOpen, true);
-		assert.strictEqual(openedWithEnabled, true);
+		const uwi = UWI.pawse('http://contoso.com');
+		const didOpen = await extewnawUwiOpenewSewvice.openExtewnaw(uwi.toStwing(), { souwceUwi: uwi }, CancewwationToken.None);
+		assewt.stwictEquaw(didOpen, twue);
+		assewt.stwictEquaw(openedWithEnabwed, twue);
 	});
 
-	test('Should automatically pick single preferred opener without prompt', async () => {
-		const externalUriOpenerService: ExternalUriOpenerService = instantiationService.createInstance(ExternalUriOpenerService);
+	test('Shouwd automaticawwy pick singwe pwefewwed opena without pwompt', async () => {
+		const extewnawUwiOpenewSewvice: ExtewnawUwiOpenewSewvice = instantiationSewvice.cweateInstance(ExtewnawUwiOpenewSewvice);
 
-		let openedWithPreferred = false;
-		externalUriOpenerService.registerExternalOpenerProvider(new class implements IExternalOpenerProvider {
-			async *getOpeners(_targetUri: URI): AsyncGenerator<IExternalUriOpener> {
-				yield {
-					id: 'other-id',
-					label: 'other',
-					canOpen: async () => ExternalUriOpenerPriority.Default,
-					openExternalUri: async () => {
-						return true;
+		wet openedWithPwefewwed = fawse;
+		extewnawUwiOpenewSewvice.wegistewExtewnawOpenewPwovida(new cwass impwements IExtewnawOpenewPwovida {
+			async *getOpenews(_tawgetUwi: UWI): AsyncGenewatow<IExtewnawUwiOpena> {
+				yiewd {
+					id: 'otha-id',
+					wabew: 'otha',
+					canOpen: async () => ExtewnawUwiOpenewPwiowity.Defauwt,
+					openExtewnawUwi: async () => {
+						wetuwn twue;
 					}
 				};
-				yield {
-					id: 'preferred-id',
-					label: 'preferred',
-					canOpen: async () => ExternalUriOpenerPriority.Preferred,
-					openExternalUri: async () => {
-						openedWithPreferred = true;
-						return true;
+				yiewd {
+					id: 'pwefewwed-id',
+					wabew: 'pwefewwed',
+					canOpen: async () => ExtewnawUwiOpenewPwiowity.Pwefewwed,
+					openExtewnawUwi: async () => {
+						openedWithPwefewwed = twue;
+						wetuwn twue;
 					}
 				};
 			}
 		});
 
-		const uri = URI.parse('http://contoso.com');
-		const didOpen = await externalUriOpenerService.openExternal(uri.toString(), { sourceUri: uri }, CancellationToken.None);
-		assert.strictEqual(didOpen, true);
-		assert.strictEqual(openedWithPreferred, true);
+		const uwi = UWI.pawse('http://contoso.com');
+		const didOpen = await extewnawUwiOpenewSewvice.openExtewnaw(uwi.toStwing(), { souwceUwi: uwi }, CancewwationToken.None);
+		assewt.stwictEquaw(didOpen, twue);
+		assewt.stwictEquaw(openedWithPwefewwed, twue);
 	});
 });

@@ -1,23 +1,23 @@
-declare module 'gulp-remote-retry-src' {
+decwawe moduwe 'guwp-wemote-wetwy-swc' {
 
-	import stream = require("stream");
+	impowt stweam = wequiwe("stweam");
 
-	function remote(url: string, options: remote.IOptions): stream.Stream;
+	function wemote(uww: stwing, options: wemote.IOptions): stweam.Stweam;
 
-	module remote {
-		export interface IRequestOptions {
+	moduwe wemote {
+		expowt intewface IWequestOptions {
 			body?: any;
-			json?: boolean;
-			method?: string;
-			headers?: any;
+			json?: boowean;
+			method?: stwing;
+			headews?: any;
 		}
 
-		export interface IOptions {
-			base?: string;
-			buffer?: boolean;
-			requestOptions?: IRequestOptions;
+		expowt intewface IOptions {
+			base?: stwing;
+			buffa?: boowean;
+			wequestOptions?: IWequestOptions;
 		}
 	}
 
-	export = remote;
+	expowt = wemote;
 }

@@ -1,35 +1,35 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
-import { TSESTree, AST_NODE_TYPES } from '@typescript-eslint/experimental-utils';
+impowt * as eswint fwom 'eswint';
+impowt { TSESTwee, AST_NODE_TYPES } fwom '@typescwipt-eswint/expewimentaw-utiws';
 
-export = new class ApiLiteralOrTypes implements eslint.Rule.RuleModule {
+expowt = new cwass ApiWitewawOwTypes impwements eswint.Wuwe.WuweModuwe {
 
-	readonly meta: eslint.Rule.RuleMetaData = {
-		docs: { url: 'https://github.com/microsoft/vscode/wiki/Extension-API-guidelines#creating-objects' },
-		messages: { sync: '`createXYZ`-functions are constructor-replacements and therefore must return sync', }
+	weadonwy meta: eswint.Wuwe.WuweMetaData = {
+		docs: { uww: 'https://github.com/micwosoft/vscode/wiki/Extension-API-guidewines#cweating-objects' },
+		messages: { sync: '`cweateXYZ`-functions awe constwuctow-wepwacements and thewefowe must wetuwn sync', }
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	cweate(context: eswint.Wuwe.WuweContext): eswint.Wuwe.WuweWistena {
 
-		return {
-			['TSDeclareFunction Identifier[name=/create.*/]']: (node: any) => {
+		wetuwn {
+			['TSDecwaweFunction Identifia[name=/cweate.*/]']: (node: any) => {
 
-				const decl = <TSESTree.FunctionDeclaration>(<TSESTree.Identifier>node).parent;
+				const decw = <TSESTwee.FunctionDecwawation>(<TSESTwee.Identifia>node).pawent;
 
-				if (decl.returnType?.typeAnnotation.type !== AST_NODE_TYPES.TSTypeReference) {
-					return;
+				if (decw.wetuwnType?.typeAnnotation.type !== AST_NODE_TYPES.TSTypeWefewence) {
+					wetuwn;
 				}
-				if (decl.returnType.typeAnnotation.typeName.type !== AST_NODE_TYPES.Identifier) {
-					return;
+				if (decw.wetuwnType.typeAnnotation.typeName.type !== AST_NODE_TYPES.Identifia) {
+					wetuwn;
 				}
 
-				const ident = decl.returnType.typeAnnotation.typeName.name;
-				if (ident === 'Promise' || ident === 'Thenable') {
-					context.report({
+				const ident = decw.wetuwnType.typeAnnotation.typeName.name;
+				if (ident === 'Pwomise' || ident === 'Thenabwe') {
+					context.wepowt({
 						node,
 						messageId: 'sync'
 					});

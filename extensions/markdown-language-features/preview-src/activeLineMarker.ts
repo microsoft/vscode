@@ -1,34 +1,34 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import { getElementsForSourceLine } from './scroll-sync';
+impowt { getEwementsFowSouwceWine } fwom './scwoww-sync';
 
-export class ActiveLineMarker {
-	private _current: any;
+expowt cwass ActiveWineMawka {
+	pwivate _cuwwent: any;
 
-	onDidChangeTextEditorSelection(line: number) {
-		const { previous } = getElementsForSourceLine(line);
-		this._update(previous && previous.element);
+	onDidChangeTextEditowSewection(wine: numba) {
+		const { pwevious } = getEwementsFowSouwceWine(wine);
+		this._update(pwevious && pwevious.ewement);
 	}
 
-	_update(before: HTMLElement | undefined) {
-		this._unmarkActiveElement(this._current);
-		this._markActiveElement(before);
-		this._current = before;
+	_update(befowe: HTMWEwement | undefined) {
+		this._unmawkActiveEwement(this._cuwwent);
+		this._mawkActiveEwement(befowe);
+		this._cuwwent = befowe;
 	}
 
-	_unmarkActiveElement(element: HTMLElement | undefined) {
-		if (!element) {
-			return;
+	_unmawkActiveEwement(ewement: HTMWEwement | undefined) {
+		if (!ewement) {
+			wetuwn;
 		}
-		element.className = element.className.replace(/\bcode-active-line\b/g, '');
+		ewement.cwassName = ewement.cwassName.wepwace(/\bcode-active-wine\b/g, '');
 	}
 
-	_markActiveElement(element: HTMLElement | undefined) {
-		if (!element) {
-			return;
+	_mawkActiveEwement(ewement: HTMWEwement | undefined) {
+		if (!ewement) {
+			wetuwn;
 		}
-		element.className += ' code-active-line';
+		ewement.cwassName += ' code-active-wine';
 	}
 }

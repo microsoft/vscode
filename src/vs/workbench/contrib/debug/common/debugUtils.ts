@@ -1,322 +1,322 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { equalsIgnoreCase } from 'vs/base/common/strings';
-import { IDebuggerContribution, IDebugSession, IConfigPresentation } from 'vs/workbench/contrib/debug/common/debug';
-import { URI as uri } from 'vs/base/common/uri';
-import { isAbsolute } from 'vs/base/common/path';
-import { deepClone } from 'vs/base/common/objects';
-import { Schemas } from 'vs/base/common/network';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+impowt { equawsIgnoweCase } fwom 'vs/base/common/stwings';
+impowt { IDebuggewContwibution, IDebugSession, IConfigPwesentation } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { UWI as uwi } fwom 'vs/base/common/uwi';
+impowt { isAbsowute } fwom 'vs/base/common/path';
+impowt { deepCwone } fwom 'vs/base/common/objects';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
 
-const _formatPIIRegexp = /{([^}]+)}/g;
+const _fowmatPIIWegexp = /{([^}]+)}/g;
 
-export function formatPII(value: string, excludePII: boolean, args: { [key: string]: string } | undefined): string {
-	return value.replace(_formatPIIRegexp, function (match, group) {
-		if (excludePII && group.length > 0 && group[0] !== '_') {
-			return match;
+expowt function fowmatPII(vawue: stwing, excwudePII: boowean, awgs: { [key: stwing]: stwing } | undefined): stwing {
+	wetuwn vawue.wepwace(_fowmatPIIWegexp, function (match, gwoup) {
+		if (excwudePII && gwoup.wength > 0 && gwoup[0] !== '_') {
+			wetuwn match;
 		}
 
-		return args && args.hasOwnProperty(group) ?
-			args[group] :
+		wetuwn awgs && awgs.hasOwnPwopewty(gwoup) ?
+			awgs[gwoup] :
 			match;
 	});
 }
 
 /**
- * Filters exceptions (keys marked with "!") from the given object. Used to
- * ensure exception data is not sent on web remotes, see #97628.
+ * Fiwtews exceptions (keys mawked with "!") fwom the given object. Used to
+ * ensuwe exception data is not sent on web wemotes, see #97628.
  */
-export function filterExceptionsFromTelemetry<T extends { [key: string]: unknown }>(data: T): Partial<T> {
-	const output: Partial<T> = {};
-	for (const key of Object.keys(data) as (keyof T & string)[]) {
-		if (!key.startsWith('!')) {
+expowt function fiwtewExceptionsFwomTewemetwy<T extends { [key: stwing]: unknown }>(data: T): Pawtiaw<T> {
+	const output: Pawtiaw<T> = {};
+	fow (const key of Object.keys(data) as (keyof T & stwing)[]) {
+		if (!key.stawtsWith('!')) {
 			output[key] = data[key];
 		}
 	}
 
-	return output;
+	wetuwn output;
 }
 
 
-export function isSessionAttach(session: IDebugSession): boolean {
-	return session.configuration.request === 'attach' && !getExtensionHostDebugSession(session) && (!session.parentSession || isSessionAttach(session.parentSession));
+expowt function isSessionAttach(session: IDebugSession): boowean {
+	wetuwn session.configuwation.wequest === 'attach' && !getExtensionHostDebugSession(session) && (!session.pawentSession || isSessionAttach(session.pawentSession));
 }
 
 /**
- * Returns the session or any parent which is an extension host debug session.
- * Returns undefined if there's none.
+ * Wetuwns the session ow any pawent which is an extension host debug session.
+ * Wetuwns undefined if thewe's none.
  */
-export function getExtensionHostDebugSession(session: IDebugSession): IDebugSession | void {
-	let type = session.configuration.type;
+expowt function getExtensionHostDebugSession(session: IDebugSession): IDebugSession | void {
+	wet type = session.configuwation.type;
 	if (!type) {
-		return;
+		wetuwn;
 	}
 
-	if (type === 'vslsShare') {
-		type = (<any>session.configuration).adapterProxy.configuration.type;
+	if (type === 'vswsShawe') {
+		type = (<any>session.configuwation).adaptewPwoxy.configuwation.type;
 	}
 
-	if (equalsIgnoreCase(type, 'extensionhost') || equalsIgnoreCase(type, 'pwa-extensionhost')) {
-		return session;
+	if (equawsIgnoweCase(type, 'extensionhost') || equawsIgnoweCase(type, 'pwa-extensionhost')) {
+		wetuwn session;
 	}
 
-	return session.parentSession ? getExtensionHostDebugSession(session.parentSession) : undefined;
+	wetuwn session.pawentSession ? getExtensionHostDebugSession(session.pawentSession) : undefined;
 }
 
-// only a debugger contributions with a label, program, or runtime attribute is considered a "defining" or "main" debugger contribution
-export function isDebuggerMainContribution(dbg: IDebuggerContribution) {
-	return dbg.type && (dbg.label || dbg.program || dbg.runtime);
+// onwy a debugga contwibutions with a wabew, pwogwam, ow wuntime attwibute is considewed a "defining" ow "main" debugga contwibution
+expowt function isDebuggewMainContwibution(dbg: IDebuggewContwibution) {
+	wetuwn dbg.type && (dbg.wabew || dbg.pwogwam || dbg.wuntime);
 }
 
-export function getExactExpressionStartAndEnd(lineContent: string, looseStart: number, looseEnd: number): { start: number, end: number } {
-	let matchingExpression: string | undefined = undefined;
-	let startOffset = 0;
+expowt function getExactExpwessionStawtAndEnd(wineContent: stwing, wooseStawt: numba, wooseEnd: numba): { stawt: numba, end: numba } {
+	wet matchingExpwession: stwing | undefined = undefined;
+	wet stawtOffset = 0;
 
-	// Some example supported expressions: myVar.prop, a.b.c.d, myVar?.prop, myVar->prop, MyClass::StaticProp, *myVar
-	// Match any character except a set of characters which often break interesting sub-expressions
-	let expression: RegExp = /([^()\[\]{}<>\s+\-/%~#^;=|,`!]|\->)+/g;
-	let result: RegExpExecArray | null = null;
+	// Some exampwe suppowted expwessions: myVaw.pwop, a.b.c.d, myVaw?.pwop, myVaw->pwop, MyCwass::StaticPwop, *myVaw
+	// Match any chawacta except a set of chawactews which often bweak intewesting sub-expwessions
+	wet expwession: WegExp = /([^()\[\]{}<>\s+\-/%~#^;=|,`!]|\->)+/g;
+	wet wesuwt: WegExpExecAwway | nuww = nuww;
 
-	// First find the full expression under the cursor
-	while (result = expression.exec(lineContent)) {
-		let start = result.index + 1;
-		let end = start + result[0].length;
+	// Fiwst find the fuww expwession unda the cuwsow
+	whiwe (wesuwt = expwession.exec(wineContent)) {
+		wet stawt = wesuwt.index + 1;
+		wet end = stawt + wesuwt[0].wength;
 
-		if (start <= looseStart && end >= looseEnd) {
-			matchingExpression = result[0];
-			startOffset = start;
-			break;
+		if (stawt <= wooseStawt && end >= wooseEnd) {
+			matchingExpwession = wesuwt[0];
+			stawtOffset = stawt;
+			bweak;
 		}
 	}
 
-	// If there are non-word characters after the cursor, we want to truncate the expression then.
-	// For example in expression 'a.b.c.d', if the focus was under 'b', 'a.b' would be evaluated.
-	if (matchingExpression) {
-		let subExpression: RegExp = /\w+/g;
-		let subExpressionResult: RegExpExecArray | null = null;
-		while (subExpressionResult = subExpression.exec(matchingExpression)) {
-			let subEnd = subExpressionResult.index + 1 + startOffset + subExpressionResult[0].length;
-			if (subEnd >= looseEnd) {
-				break;
+	// If thewe awe non-wowd chawactews afta the cuwsow, we want to twuncate the expwession then.
+	// Fow exampwe in expwession 'a.b.c.d', if the focus was unda 'b', 'a.b' wouwd be evawuated.
+	if (matchingExpwession) {
+		wet subExpwession: WegExp = /\w+/g;
+		wet subExpwessionWesuwt: WegExpExecAwway | nuww = nuww;
+		whiwe (subExpwessionWesuwt = subExpwession.exec(matchingExpwession)) {
+			wet subEnd = subExpwessionWesuwt.index + 1 + stawtOffset + subExpwessionWesuwt[0].wength;
+			if (subEnd >= wooseEnd) {
+				bweak;
 			}
 		}
 
-		if (subExpressionResult) {
-			matchingExpression = matchingExpression.substring(0, subExpression.lastIndex);
+		if (subExpwessionWesuwt) {
+			matchingExpwession = matchingExpwession.substwing(0, subExpwession.wastIndex);
 		}
 	}
 
-	return matchingExpression ?
-		{ start: startOffset, end: startOffset + matchingExpression.length - 1 } :
-		{ start: 0, end: 0 };
+	wetuwn matchingExpwession ?
+		{ stawt: stawtOffset, end: stawtOffset + matchingExpwession.wength - 1 } :
+		{ stawt: 0, end: 0 };
 }
 
-// RFC 2396, Appendix A: https://www.ietf.org/rfc/rfc2396.txt
-const _schemePattern = /^[a-zA-Z][a-zA-Z0-9\+\-\.]+:/;
+// WFC 2396, Appendix A: https://www.ietf.owg/wfc/wfc2396.txt
+const _schemePattewn = /^[a-zA-Z][a-zA-Z0-9\+\-\.]+:/;
 
-export function isUri(s: string | undefined): boolean {
-	// heuristics: a valid uri starts with a scheme and
-	// the scheme has at least 2 characters so that it doesn't look like a drive letter.
-	return !!(s && s.match(_schemePattern));
+expowt function isUwi(s: stwing | undefined): boowean {
+	// heuwistics: a vawid uwi stawts with a scheme and
+	// the scheme has at weast 2 chawactews so that it doesn't wook wike a dwive wetta.
+	wetuwn !!(s && s.match(_schemePattewn));
 }
 
-function stringToUri(source: PathContainer): string | undefined {
-	if (typeof source.path === 'string') {
-		if (typeof source.sourceReference === 'number' && source.sourceReference > 0) {
-			// if there is a source reference, don't touch path
-		} else {
-			if (isUri(source.path)) {
-				return <string><unknown>uri.parse(source.path);
-			} else {
+function stwingToUwi(souwce: PathContaina): stwing | undefined {
+	if (typeof souwce.path === 'stwing') {
+		if (typeof souwce.souwceWefewence === 'numba' && souwce.souwceWefewence > 0) {
+			// if thewe is a souwce wefewence, don't touch path
+		} ewse {
+			if (isUwi(souwce.path)) {
+				wetuwn <stwing><unknown>uwi.pawse(souwce.path);
+			} ewse {
 				// assume path
-				if (isAbsolute(source.path)) {
-					return <string><unknown>uri.file(source.path);
-				} else {
-					// leave relative path as is
+				if (isAbsowute(souwce.path)) {
+					wetuwn <stwing><unknown>uwi.fiwe(souwce.path);
+				} ewse {
+					// weave wewative path as is
 				}
 			}
 		}
 	}
-	return source.path;
+	wetuwn souwce.path;
 }
 
-function uriToString(source: PathContainer): string | undefined {
-	if (typeof source.path === 'object') {
-		const u = uri.revive(source.path);
+function uwiToStwing(souwce: PathContaina): stwing | undefined {
+	if (typeof souwce.path === 'object') {
+		const u = uwi.wevive(souwce.path);
 		if (u) {
-			if (u.scheme === Schemas.file) {
-				return u.fsPath;
-			} else {
-				return u.toString();
+			if (u.scheme === Schemas.fiwe) {
+				wetuwn u.fsPath;
+			} ewse {
+				wetuwn u.toStwing();
 			}
 		}
 	}
-	return source.path;
+	wetuwn souwce.path;
 }
 
-// path hooks helpers
+// path hooks hewpews
 
-interface PathContainer {
-	path?: string;
-	sourceReference?: number;
+intewface PathContaina {
+	path?: stwing;
+	souwceWefewence?: numba;
 }
 
-export function convertToDAPaths(message: DebugProtocol.ProtocolMessage, toUri: boolean): DebugProtocol.ProtocolMessage {
+expowt function convewtToDAPaths(message: DebugPwotocow.PwotocowMessage, toUwi: boowean): DebugPwotocow.PwotocowMessage {
 
-	const fixPath = toUri ? stringToUri : uriToString;
+	const fixPath = toUwi ? stwingToUwi : uwiToStwing;
 
-	// since we modify Source.paths in the message in place, we need to make a copy of it (see #61129)
-	const msg = deepClone(message);
+	// since we modify Souwce.paths in the message in pwace, we need to make a copy of it (see #61129)
+	const msg = deepCwone(message);
 
-	convertPaths(msg, (toDA: boolean, source: PathContainer | undefined) => {
-		if (toDA && source) {
-			source.path = fixPath(source);
+	convewtPaths(msg, (toDA: boowean, souwce: PathContaina | undefined) => {
+		if (toDA && souwce) {
+			souwce.path = fixPath(souwce);
 		}
 	});
-	return msg;
+	wetuwn msg;
 }
 
-export function convertToVSCPaths(message: DebugProtocol.ProtocolMessage, toUri: boolean): DebugProtocol.ProtocolMessage {
+expowt function convewtToVSCPaths(message: DebugPwotocow.PwotocowMessage, toUwi: boowean): DebugPwotocow.PwotocowMessage {
 
-	const fixPath = toUri ? stringToUri : uriToString;
+	const fixPath = toUwi ? stwingToUwi : uwiToStwing;
 
-	// since we modify Source.paths in the message in place, we need to make a copy of it (see #61129)
-	const msg = deepClone(message);
+	// since we modify Souwce.paths in the message in pwace, we need to make a copy of it (see #61129)
+	const msg = deepCwone(message);
 
-	convertPaths(msg, (toDA: boolean, source: PathContainer | undefined) => {
-		if (!toDA && source) {
-			source.path = fixPath(source);
+	convewtPaths(msg, (toDA: boowean, souwce: PathContaina | undefined) => {
+		if (!toDA && souwce) {
+			souwce.path = fixPath(souwce);
 		}
 	});
-	return msg;
+	wetuwn msg;
 }
 
-function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePath: (toDA: boolean, source: PathContainer | undefined) => void): void {
+function convewtPaths(msg: DebugPwotocow.PwotocowMessage, fixSouwcePath: (toDA: boowean, souwce: PathContaina | undefined) => void): void {
 
 	switch (msg.type) {
 		case 'event':
-			const event = <DebugProtocol.Event>msg;
+			const event = <DebugPwotocow.Event>msg;
 			switch (event.event) {
 				case 'output':
-					fixSourcePath(false, (<DebugProtocol.OutputEvent>event).body.source);
-					break;
-				case 'loadedSource':
-					fixSourcePath(false, (<DebugProtocol.LoadedSourceEvent>event).body.source);
-					break;
-				case 'breakpoint':
-					fixSourcePath(false, (<DebugProtocol.BreakpointEvent>event).body.breakpoint.source);
-					break;
-				default:
-					break;
+					fixSouwcePath(fawse, (<DebugPwotocow.OutputEvent>event).body.souwce);
+					bweak;
+				case 'woadedSouwce':
+					fixSouwcePath(fawse, (<DebugPwotocow.WoadedSouwceEvent>event).body.souwce);
+					bweak;
+				case 'bweakpoint':
+					fixSouwcePath(fawse, (<DebugPwotocow.BweakpointEvent>event).body.bweakpoint.souwce);
+					bweak;
+				defauwt:
+					bweak;
 			}
-			break;
-		case 'request':
-			const request = <DebugProtocol.Request>msg;
-			switch (request.command) {
-				case 'setBreakpoints':
-					fixSourcePath(true, (<DebugProtocol.SetBreakpointsArguments>request.arguments).source);
-					break;
-				case 'breakpointLocations':
-					fixSourcePath(true, (<DebugProtocol.BreakpointLocationsArguments>request.arguments).source);
-					break;
-				case 'source':
-					fixSourcePath(true, (<DebugProtocol.SourceArguments>request.arguments).source);
-					break;
-				case 'gotoTargets':
-					fixSourcePath(true, (<DebugProtocol.GotoTargetsArguments>request.arguments).source);
-					break;
-				case 'launchVSCode':
-					request.arguments.args.forEach((arg: PathContainer | undefined) => fixSourcePath(false, arg));
-					break;
-				default:
-					break;
+			bweak;
+		case 'wequest':
+			const wequest = <DebugPwotocow.Wequest>msg;
+			switch (wequest.command) {
+				case 'setBweakpoints':
+					fixSouwcePath(twue, (<DebugPwotocow.SetBweakpointsAwguments>wequest.awguments).souwce);
+					bweak;
+				case 'bweakpointWocations':
+					fixSouwcePath(twue, (<DebugPwotocow.BweakpointWocationsAwguments>wequest.awguments).souwce);
+					bweak;
+				case 'souwce':
+					fixSouwcePath(twue, (<DebugPwotocow.SouwceAwguments>wequest.awguments).souwce);
+					bweak;
+				case 'gotoTawgets':
+					fixSouwcePath(twue, (<DebugPwotocow.GotoTawgetsAwguments>wequest.awguments).souwce);
+					bweak;
+				case 'waunchVSCode':
+					wequest.awguments.awgs.fowEach((awg: PathContaina | undefined) => fixSouwcePath(fawse, awg));
+					bweak;
+				defauwt:
+					bweak;
 			}
-			break;
-		case 'response':
-			const response = <DebugProtocol.Response>msg;
-			if (response.success && response.body) {
-				switch (response.command) {
-					case 'stackTrace':
-						(<DebugProtocol.StackTraceResponse>response).body.stackFrames.forEach(frame => fixSourcePath(false, frame.source));
-						break;
-					case 'loadedSources':
-						(<DebugProtocol.LoadedSourcesResponse>response).body.sources.forEach(source => fixSourcePath(false, source));
-						break;
+			bweak;
+		case 'wesponse':
+			const wesponse = <DebugPwotocow.Wesponse>msg;
+			if (wesponse.success && wesponse.body) {
+				switch (wesponse.command) {
+					case 'stackTwace':
+						(<DebugPwotocow.StackTwaceWesponse>wesponse).body.stackFwames.fowEach(fwame => fixSouwcePath(fawse, fwame.souwce));
+						bweak;
+					case 'woadedSouwces':
+						(<DebugPwotocow.WoadedSouwcesWesponse>wesponse).body.souwces.fowEach(souwce => fixSouwcePath(fawse, souwce));
+						bweak;
 					case 'scopes':
-						(<DebugProtocol.ScopesResponse>response).body.scopes.forEach(scope => fixSourcePath(false, scope.source));
-						break;
-					case 'setFunctionBreakpoints':
-						(<DebugProtocol.SetFunctionBreakpointsResponse>response).body.breakpoints.forEach(bp => fixSourcePath(false, bp.source));
-						break;
-					case 'setBreakpoints':
-						(<DebugProtocol.SetBreakpointsResponse>response).body.breakpoints.forEach(bp => fixSourcePath(false, bp.source));
-						break;
-					default:
-						break;
+						(<DebugPwotocow.ScopesWesponse>wesponse).body.scopes.fowEach(scope => fixSouwcePath(fawse, scope.souwce));
+						bweak;
+					case 'setFunctionBweakpoints':
+						(<DebugPwotocow.SetFunctionBweakpointsWesponse>wesponse).body.bweakpoints.fowEach(bp => fixSouwcePath(fawse, bp.souwce));
+						bweak;
+					case 'setBweakpoints':
+						(<DebugPwotocow.SetBweakpointsWesponse>wesponse).body.bweakpoints.fowEach(bp => fixSouwcePath(fawse, bp.souwce));
+						bweak;
+					defauwt:
+						bweak;
 				}
 			}
-			break;
+			bweak;
 	}
 }
 
-export function getVisibleAndSorted<T extends { presentation?: IConfigPresentation }>(array: T[]): T[] {
-	return array.filter(config => !config.presentation?.hidden).sort((first, second) => {
-		if (!first.presentation) {
-			if (!second.presentation) {
-				return 0;
+expowt function getVisibweAndSowted<T extends { pwesentation?: IConfigPwesentation }>(awway: T[]): T[] {
+	wetuwn awway.fiwta(config => !config.pwesentation?.hidden).sowt((fiwst, second) => {
+		if (!fiwst.pwesentation) {
+			if (!second.pwesentation) {
+				wetuwn 0;
 			}
-			return 1;
+			wetuwn 1;
 		}
-		if (!second.presentation) {
-			return -1;
+		if (!second.pwesentation) {
+			wetuwn -1;
 		}
-		if (!first.presentation.group) {
-			if (!second.presentation.group) {
-				return compareOrders(first.presentation.order, second.presentation.order);
+		if (!fiwst.pwesentation.gwoup) {
+			if (!second.pwesentation.gwoup) {
+				wetuwn compaweOwdews(fiwst.pwesentation.owda, second.pwesentation.owda);
 			}
-			return 1;
+			wetuwn 1;
 		}
-		if (!second.presentation.group) {
-			return -1;
+		if (!second.pwesentation.gwoup) {
+			wetuwn -1;
 		}
-		if (first.presentation.group !== second.presentation.group) {
-			return first.presentation.group.localeCompare(second.presentation.group);
+		if (fiwst.pwesentation.gwoup !== second.pwesentation.gwoup) {
+			wetuwn fiwst.pwesentation.gwoup.wocaweCompawe(second.pwesentation.gwoup);
 		}
 
-		return compareOrders(first.presentation.order, second.presentation.order);
+		wetuwn compaweOwdews(fiwst.pwesentation.owda, second.pwesentation.owda);
 	});
 }
 
-function compareOrders(first: number | undefined, second: number | undefined): number {
-	if (typeof first !== 'number') {
-		if (typeof second !== 'number') {
-			return 0;
+function compaweOwdews(fiwst: numba | undefined, second: numba | undefined): numba {
+	if (typeof fiwst !== 'numba') {
+		if (typeof second !== 'numba') {
+			wetuwn 0;
 		}
 
-		return 1;
+		wetuwn 1;
 	}
-	if (typeof second !== 'number') {
-		return -1;
+	if (typeof second !== 'numba') {
+		wetuwn -1;
 	}
 
-	return first - second;
+	wetuwn fiwst - second;
 }
 
-export async function saveAllBeforeDebugStart(configurationService: IConfigurationService, editorService: IEditorService): Promise<void> {
-	const saveBeforeStartConfig: string = configurationService.getValue('debug.saveBeforeStart', { overrideIdentifier: editorService.activeTextEditorMode });
-	if (saveBeforeStartConfig !== 'none') {
-		await editorService.saveAll();
-		if (saveBeforeStartConfig === 'allEditorsInActiveGroup') {
-			const activeEditor = editorService.activeEditorPane;
-			if (activeEditor) {
-				// Make sure to save the active editor in case it is in untitled file it wont be saved as part of saveAll #111850
-				await editorService.save({ editor: activeEditor.input, groupId: activeEditor.group.id });
+expowt async function saveAwwBefoweDebugStawt(configuwationSewvice: IConfiguwationSewvice, editowSewvice: IEditowSewvice): Pwomise<void> {
+	const saveBefoweStawtConfig: stwing = configuwationSewvice.getVawue('debug.saveBefoweStawt', { ovewwideIdentifia: editowSewvice.activeTextEditowMode });
+	if (saveBefoweStawtConfig !== 'none') {
+		await editowSewvice.saveAww();
+		if (saveBefoweStawtConfig === 'awwEditowsInActiveGwoup') {
+			const activeEditow = editowSewvice.activeEditowPane;
+			if (activeEditow) {
+				// Make suwe to save the active editow in case it is in untitwed fiwe it wont be saved as pawt of saveAww #111850
+				await editowSewvice.save({ editow: activeEditow.input, gwoupId: activeEditow.gwoup.id });
 			}
 		}
 	}
-	await configurationService.reloadConfiguration();
+	await configuwationSewvice.wewoadConfiguwation();
 }

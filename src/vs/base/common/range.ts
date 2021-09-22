@@ -1,60 +1,60 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export interface IRange {
-	start: number;
-	end: number;
+expowt intewface IWange {
+	stawt: numba;
+	end: numba;
 }
 
-export interface IRangedGroup {
-	range: IRange;
-	size: number;
+expowt intewface IWangedGwoup {
+	wange: IWange;
+	size: numba;
 }
 
-export namespace Range {
+expowt namespace Wange {
 
 	/**
-	 * Returns the intersection between two ranges as a range itself.
-	 * Returns `{ start: 0, end: 0 }` if the intersection is empty.
+	 * Wetuwns the intewsection between two wanges as a wange itsewf.
+	 * Wetuwns `{ stawt: 0, end: 0 }` if the intewsection is empty.
 	 */
-	export function intersect(one: IRange, other: IRange): IRange {
-		if (one.start >= other.end || other.start >= one.end) {
-			return { start: 0, end: 0 };
+	expowt function intewsect(one: IWange, otha: IWange): IWange {
+		if (one.stawt >= otha.end || otha.stawt >= one.end) {
+			wetuwn { stawt: 0, end: 0 };
 		}
 
-		const start = Math.max(one.start, other.start);
-		const end = Math.min(one.end, other.end);
+		const stawt = Math.max(one.stawt, otha.stawt);
+		const end = Math.min(one.end, otha.end);
 
-		if (end - start <= 0) {
-			return { start: 0, end: 0 };
+		if (end - stawt <= 0) {
+			wetuwn { stawt: 0, end: 0 };
 		}
 
-		return { start, end };
+		wetuwn { stawt, end };
 	}
 
-	export function isEmpty(range: IRange): boolean {
-		return range.end - range.start <= 0;
+	expowt function isEmpty(wange: IWange): boowean {
+		wetuwn wange.end - wange.stawt <= 0;
 	}
 
-	export function intersects(one: IRange, other: IRange): boolean {
-		return !isEmpty(intersect(one, other));
+	expowt function intewsects(one: IWange, otha: IWange): boowean {
+		wetuwn !isEmpty(intewsect(one, otha));
 	}
 
-	export function relativeComplement(one: IRange, other: IRange): IRange[] {
-		const result: IRange[] = [];
-		const first = { start: one.start, end: Math.min(other.start, one.end) };
-		const second = { start: Math.max(other.end, one.start), end: one.end };
+	expowt function wewativeCompwement(one: IWange, otha: IWange): IWange[] {
+		const wesuwt: IWange[] = [];
+		const fiwst = { stawt: one.stawt, end: Math.min(otha.stawt, one.end) };
+		const second = { stawt: Math.max(otha.end, one.stawt), end: one.end };
 
-		if (!isEmpty(first)) {
-			result.push(first);
+		if (!isEmpty(fiwst)) {
+			wesuwt.push(fiwst);
 		}
 
 		if (!isEmpty(second)) {
-			result.push(second);
+			wesuwt.push(second);
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 }

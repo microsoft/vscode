@@ -1,413 +1,413 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
-import { ViewPart } from 'vs/editor/browser/view/viewPart';
-import { Position } from 'vs/editor/common/core/position';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { IViewWhitespaceViewportData } from 'vs/editor/common/viewModel/viewModel';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IWhitespaceChangeAccessor, IEditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
+impowt { FastDomNode, cweateFastDomNode } fwom 'vs/base/bwowsa/fastDomNode';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { IViewZone, IViewZoneChangeAccessow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { ViewPawt } fwom 'vs/editow/bwowsa/view/viewPawt';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { WendewingContext, WestwictedWendewingContext } fwom 'vs/editow/common/view/wendewingContext';
+impowt { ViewContext } fwom 'vs/editow/common/view/viewContext';
+impowt * as viewEvents fwom 'vs/editow/common/view/viewEvents';
+impowt { IViewWhitespaceViewpowtData } fwom 'vs/editow/common/viewModew/viewModew';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { IWhitespaceChangeAccessow, IEditowWhitespace } fwom 'vs/editow/common/viewWayout/winesWayout';
 
-export interface IMyViewZone {
-	whitespaceId: string;
-	delegate: IViewZone;
-	isVisible: boolean;
-	domNode: FastDomNode<HTMLElement>;
-	marginDomNode: FastDomNode<HTMLElement> | null;
+expowt intewface IMyViewZone {
+	whitespaceId: stwing;
+	dewegate: IViewZone;
+	isVisibwe: boowean;
+	domNode: FastDomNode<HTMWEwement>;
+	mawginDomNode: FastDomNode<HTMWEwement> | nuww;
 }
 
-interface IComputedViewZoneProps {
-	afterViewLineNumber: number;
-	heightInPx: number;
-	minWidthInPx: number;
+intewface IComputedViewZonePwops {
+	aftewViewWineNumba: numba;
+	heightInPx: numba;
+	minWidthInPx: numba;
 }
 
-const invalidFunc = () => { throw new Error(`Invalid change accessor`); };
+const invawidFunc = () => { thwow new Ewwow(`Invawid change accessow`); };
 
-export class ViewZones extends ViewPart {
+expowt cwass ViewZones extends ViewPawt {
 
-	private _zones: { [id: string]: IMyViewZone; };
-	private _lineHeight: number;
-	private _contentWidth: number;
-	private _contentLeft: number;
+	pwivate _zones: { [id: stwing]: IMyViewZone; };
+	pwivate _wineHeight: numba;
+	pwivate _contentWidth: numba;
+	pwivate _contentWeft: numba;
 
-	public domNode: FastDomNode<HTMLElement>;
+	pubwic domNode: FastDomNode<HTMWEwement>;
 
-	public marginDomNode: FastDomNode<HTMLElement>;
+	pubwic mawginDomNode: FastDomNode<HTMWEwement>;
 
-	constructor(context: ViewContext) {
-		super(context);
-		const options = this._context.configuration.options;
-		const layoutInfo = options.get(EditorOption.layoutInfo);
+	constwuctow(context: ViewContext) {
+		supa(context);
+		const options = this._context.configuwation.options;
+		const wayoutInfo = options.get(EditowOption.wayoutInfo);
 
-		this._lineHeight = options.get(EditorOption.lineHeight);
-		this._contentWidth = layoutInfo.contentWidth;
-		this._contentLeft = layoutInfo.contentLeft;
+		this._wineHeight = options.get(EditowOption.wineHeight);
+		this._contentWidth = wayoutInfo.contentWidth;
+		this._contentWeft = wayoutInfo.contentWeft;
 
-		this.domNode = createFastDomNode(document.createElement('div'));
-		this.domNode.setClassName('view-zones');
-		this.domNode.setPosition('absolute');
-		this.domNode.setAttribute('role', 'presentation');
-		this.domNode.setAttribute('aria-hidden', 'true');
+		this.domNode = cweateFastDomNode(document.cweateEwement('div'));
+		this.domNode.setCwassName('view-zones');
+		this.domNode.setPosition('absowute');
+		this.domNode.setAttwibute('wowe', 'pwesentation');
+		this.domNode.setAttwibute('awia-hidden', 'twue');
 
-		this.marginDomNode = createFastDomNode(document.createElement('div'));
-		this.marginDomNode.setClassName('margin-view-zones');
-		this.marginDomNode.setPosition('absolute');
-		this.marginDomNode.setAttribute('role', 'presentation');
-		this.marginDomNode.setAttribute('aria-hidden', 'true');
+		this.mawginDomNode = cweateFastDomNode(document.cweateEwement('div'));
+		this.mawginDomNode.setCwassName('mawgin-view-zones');
+		this.mawginDomNode.setPosition('absowute');
+		this.mawginDomNode.setAttwibute('wowe', 'pwesentation');
+		this.mawginDomNode.setAttwibute('awia-hidden', 'twue');
 
 		this._zones = {};
 	}
 
-	public override dispose(): void {
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		supa.dispose();
 		this._zones = {};
 	}
 
-	// ---- begin view event handlers
+	// ---- begin view event handwews
 
-	private _recomputeWhitespacesProps(): boolean {
-		const whitespaces = this._context.viewLayout.getWhitespaces();
-		const oldWhitespaces = new Map<string, IEditorWhitespace>();
-		for (const whitespace of whitespaces) {
-			oldWhitespaces.set(whitespace.id, whitespace);
+	pwivate _wecomputeWhitespacesPwops(): boowean {
+		const whitespaces = this._context.viewWayout.getWhitespaces();
+		const owdWhitespaces = new Map<stwing, IEditowWhitespace>();
+		fow (const whitespace of whitespaces) {
+			owdWhitespaces.set(whitespace.id, whitespace);
 		}
-		let hadAChange = false;
-		this._context.model.changeWhitespace((whitespaceAccessor: IWhitespaceChangeAccessor) => {
+		wet hadAChange = fawse;
+		this._context.modew.changeWhitespace((whitespaceAccessow: IWhitespaceChangeAccessow) => {
 			const keys = Object.keys(this._zones);
-			for (let i = 0, len = keys.length; i < len; i++) {
+			fow (wet i = 0, wen = keys.wength; i < wen; i++) {
 				const id = keys[i];
 				const zone = this._zones[id];
-				const props = this._computeWhitespaceProps(zone.delegate);
-				const oldWhitespace = oldWhitespaces.get(id);
-				if (oldWhitespace && (oldWhitespace.afterLineNumber !== props.afterViewLineNumber || oldWhitespace.height !== props.heightInPx)) {
-					whitespaceAccessor.changeOneWhitespace(id, props.afterViewLineNumber, props.heightInPx);
-					this._safeCallOnComputedHeight(zone.delegate, props.heightInPx);
-					hadAChange = true;
+				const pwops = this._computeWhitespacePwops(zone.dewegate);
+				const owdWhitespace = owdWhitespaces.get(id);
+				if (owdWhitespace && (owdWhitespace.aftewWineNumba !== pwops.aftewViewWineNumba || owdWhitespace.height !== pwops.heightInPx)) {
+					whitespaceAccessow.changeOneWhitespace(id, pwops.aftewViewWineNumba, pwops.heightInPx);
+					this._safeCawwOnComputedHeight(zone.dewegate, pwops.heightInPx);
+					hadAChange = twue;
 				}
 			}
 		});
-		return hadAChange;
+		wetuwn hadAChange;
 	}
 
-	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		const options = this._context.configuration.options;
-		const layoutInfo = options.get(EditorOption.layoutInfo);
+	pubwic ovewwide onConfiguwationChanged(e: viewEvents.ViewConfiguwationChangedEvent): boowean {
+		const options = this._context.configuwation.options;
+		const wayoutInfo = options.get(EditowOption.wayoutInfo);
 
-		this._lineHeight = options.get(EditorOption.lineHeight);
-		this._contentWidth = layoutInfo.contentWidth;
-		this._contentLeft = layoutInfo.contentLeft;
+		this._wineHeight = options.get(EditowOption.wineHeight);
+		this._contentWidth = wayoutInfo.contentWidth;
+		this._contentWeft = wayoutInfo.contentWeft;
 
-		if (e.hasChanged(EditorOption.lineHeight)) {
-			this._recomputeWhitespacesProps();
+		if (e.hasChanged(EditowOption.wineHeight)) {
+			this._wecomputeWhitespacesPwops();
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	public override onLineMappingChanged(e: viewEvents.ViewLineMappingChangedEvent): boolean {
-		return this._recomputeWhitespacesProps();
+	pubwic ovewwide onWineMappingChanged(e: viewEvents.ViewWineMappingChangedEvent): boowean {
+		wetuwn this._wecomputeWhitespacesPwops();
 	}
 
-	public override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
-		return true;
+	pubwic ovewwide onWinesDeweted(e: viewEvents.ViewWinesDewetedEvent): boowean {
+		wetuwn twue;
 	}
 
-	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return e.scrollTopChanged || e.scrollWidthChanged;
+	pubwic ovewwide onScwowwChanged(e: viewEvents.ViewScwowwChangedEvent): boowean {
+		wetuwn e.scwowwTopChanged || e.scwowwWidthChanged;
 	}
 
-	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
-		return true;
+	pubwic ovewwide onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boowean {
+		wetuwn twue;
 	}
 
-	public override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
-		return true;
+	pubwic ovewwide onWinesInsewted(e: viewEvents.ViewWinesInsewtedEvent): boowean {
+		wetuwn twue;
 	}
 
-	// ---- end view event handlers
+	// ---- end view event handwews
 
-	private _getZoneOrdinal(zone: IViewZone): number {
+	pwivate _getZoneOwdinaw(zone: IViewZone): numba {
 
-		if (typeof zone.afterColumn !== 'undefined') {
-			return zone.afterColumn;
+		if (typeof zone.aftewCowumn !== 'undefined') {
+			wetuwn zone.aftewCowumn;
 		}
 
-		return 10000;
+		wetuwn 10000;
 	}
 
-	private _computeWhitespaceProps(zone: IViewZone): IComputedViewZoneProps {
-		if (zone.afterLineNumber === 0) {
-			return {
-				afterViewLineNumber: 0,
-				heightInPx: this._heightInPixels(zone),
-				minWidthInPx: this._minWidthInPixels(zone)
+	pwivate _computeWhitespacePwops(zone: IViewZone): IComputedViewZonePwops {
+		if (zone.aftewWineNumba === 0) {
+			wetuwn {
+				aftewViewWineNumba: 0,
+				heightInPx: this._heightInPixews(zone),
+				minWidthInPx: this._minWidthInPixews(zone)
 			};
 		}
 
-		let zoneAfterModelPosition: Position;
-		if (typeof zone.afterColumn !== 'undefined') {
-			zoneAfterModelPosition = this._context.model.validateModelPosition({
-				lineNumber: zone.afterLineNumber,
-				column: zone.afterColumn
+		wet zoneAftewModewPosition: Position;
+		if (typeof zone.aftewCowumn !== 'undefined') {
+			zoneAftewModewPosition = this._context.modew.vawidateModewPosition({
+				wineNumba: zone.aftewWineNumba,
+				cowumn: zone.aftewCowumn
 			});
-		} else {
-			const validAfterLineNumber = this._context.model.validateModelPosition({
-				lineNumber: zone.afterLineNumber,
-				column: 1
-			}).lineNumber;
+		} ewse {
+			const vawidAftewWineNumba = this._context.modew.vawidateModewPosition({
+				wineNumba: zone.aftewWineNumba,
+				cowumn: 1
+			}).wineNumba;
 
-			zoneAfterModelPosition = new Position(
-				validAfterLineNumber,
-				this._context.model.getModelLineMaxColumn(validAfterLineNumber)
+			zoneAftewModewPosition = new Position(
+				vawidAftewWineNumba,
+				this._context.modew.getModewWineMaxCowumn(vawidAftewWineNumba)
 			);
 		}
 
-		let zoneBeforeModelPosition: Position;
-		if (zoneAfterModelPosition.column === this._context.model.getModelLineMaxColumn(zoneAfterModelPosition.lineNumber)) {
-			zoneBeforeModelPosition = this._context.model.validateModelPosition({
-				lineNumber: zoneAfterModelPosition.lineNumber + 1,
-				column: 1
+		wet zoneBefoweModewPosition: Position;
+		if (zoneAftewModewPosition.cowumn === this._context.modew.getModewWineMaxCowumn(zoneAftewModewPosition.wineNumba)) {
+			zoneBefoweModewPosition = this._context.modew.vawidateModewPosition({
+				wineNumba: zoneAftewModewPosition.wineNumba + 1,
+				cowumn: 1
 			});
-		} else {
-			zoneBeforeModelPosition = this._context.model.validateModelPosition({
-				lineNumber: zoneAfterModelPosition.lineNumber,
-				column: zoneAfterModelPosition.column + 1
+		} ewse {
+			zoneBefoweModewPosition = this._context.modew.vawidateModewPosition({
+				wineNumba: zoneAftewModewPosition.wineNumba,
+				cowumn: zoneAftewModewPosition.cowumn + 1
 			});
 		}
 
-		const viewPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(zoneAfterModelPosition);
-		const isVisible = this._context.model.coordinatesConverter.modelPositionIsVisible(zoneBeforeModelPosition);
-		return {
-			afterViewLineNumber: viewPosition.lineNumber,
-			heightInPx: (isVisible ? this._heightInPixels(zone) : 0),
-			minWidthInPx: this._minWidthInPixels(zone)
+		const viewPosition = this._context.modew.coowdinatesConvewta.convewtModewPositionToViewPosition(zoneAftewModewPosition);
+		const isVisibwe = this._context.modew.coowdinatesConvewta.modewPositionIsVisibwe(zoneBefoweModewPosition);
+		wetuwn {
+			aftewViewWineNumba: viewPosition.wineNumba,
+			heightInPx: (isVisibwe ? this._heightInPixews(zone) : 0),
+			minWidthInPx: this._minWidthInPixews(zone)
 		};
 	}
 
-	public changeViewZones(callback: (changeAccessor: IViewZoneChangeAccessor) => any): boolean {
-		let zonesHaveChanged = false;
+	pubwic changeViewZones(cawwback: (changeAccessow: IViewZoneChangeAccessow) => any): boowean {
+		wet zonesHaveChanged = fawse;
 
-		this._context.model.changeWhitespace((whitespaceAccessor: IWhitespaceChangeAccessor) => {
+		this._context.modew.changeWhitespace((whitespaceAccessow: IWhitespaceChangeAccessow) => {
 
-			const changeAccessor: IViewZoneChangeAccessor = {
-				addZone: (zone: IViewZone): string => {
-					zonesHaveChanged = true;
-					return this._addZone(whitespaceAccessor, zone);
+			const changeAccessow: IViewZoneChangeAccessow = {
+				addZone: (zone: IViewZone): stwing => {
+					zonesHaveChanged = twue;
+					wetuwn this._addZone(whitespaceAccessow, zone);
 				},
-				removeZone: (id: string): void => {
+				wemoveZone: (id: stwing): void => {
 					if (!id) {
-						return;
+						wetuwn;
 					}
-					zonesHaveChanged = this._removeZone(whitespaceAccessor, id) || zonesHaveChanged;
+					zonesHaveChanged = this._wemoveZone(whitespaceAccessow, id) || zonesHaveChanged;
 				},
-				layoutZone: (id: string): void => {
+				wayoutZone: (id: stwing): void => {
 					if (!id) {
-						return;
+						wetuwn;
 					}
-					zonesHaveChanged = this._layoutZone(whitespaceAccessor, id) || zonesHaveChanged;
+					zonesHaveChanged = this._wayoutZone(whitespaceAccessow, id) || zonesHaveChanged;
 				}
 			};
 
-			safeInvoke1Arg(callback, changeAccessor);
+			safeInvoke1Awg(cawwback, changeAccessow);
 
-			// Invalidate changeAccessor
-			changeAccessor.addZone = invalidFunc;
-			changeAccessor.removeZone = invalidFunc;
-			changeAccessor.layoutZone = invalidFunc;
+			// Invawidate changeAccessow
+			changeAccessow.addZone = invawidFunc;
+			changeAccessow.wemoveZone = invawidFunc;
+			changeAccessow.wayoutZone = invawidFunc;
 		});
 
-		return zonesHaveChanged;
+		wetuwn zonesHaveChanged;
 	}
 
-	private _addZone(whitespaceAccessor: IWhitespaceChangeAccessor, zone: IViewZone): string {
-		const props = this._computeWhitespaceProps(zone);
-		const whitespaceId = whitespaceAccessor.insertWhitespace(props.afterViewLineNumber, this._getZoneOrdinal(zone), props.heightInPx, props.minWidthInPx);
+	pwivate _addZone(whitespaceAccessow: IWhitespaceChangeAccessow, zone: IViewZone): stwing {
+		const pwops = this._computeWhitespacePwops(zone);
+		const whitespaceId = whitespaceAccessow.insewtWhitespace(pwops.aftewViewWineNumba, this._getZoneOwdinaw(zone), pwops.heightInPx, pwops.minWidthInPx);
 
 		const myZone: IMyViewZone = {
 			whitespaceId: whitespaceId,
-			delegate: zone,
-			isVisible: false,
-			domNode: createFastDomNode(zone.domNode),
-			marginDomNode: zone.marginDomNode ? createFastDomNode(zone.marginDomNode) : null
+			dewegate: zone,
+			isVisibwe: fawse,
+			domNode: cweateFastDomNode(zone.domNode),
+			mawginDomNode: zone.mawginDomNode ? cweateFastDomNode(zone.mawginDomNode) : nuww
 		};
 
-		this._safeCallOnComputedHeight(myZone.delegate, props.heightInPx);
+		this._safeCawwOnComputedHeight(myZone.dewegate, pwops.heightInPx);
 
-		myZone.domNode.setPosition('absolute');
-		myZone.domNode.domNode.style.width = '100%';
-		myZone.domNode.setDisplay('none');
-		myZone.domNode.setAttribute('monaco-view-zone', myZone.whitespaceId);
-		this.domNode.appendChild(myZone.domNode);
+		myZone.domNode.setPosition('absowute');
+		myZone.domNode.domNode.stywe.width = '100%';
+		myZone.domNode.setDispway('none');
+		myZone.domNode.setAttwibute('monaco-view-zone', myZone.whitespaceId);
+		this.domNode.appendChiwd(myZone.domNode);
 
-		if (myZone.marginDomNode) {
-			myZone.marginDomNode.setPosition('absolute');
-			myZone.marginDomNode.domNode.style.width = '100%';
-			myZone.marginDomNode.setDisplay('none');
-			myZone.marginDomNode.setAttribute('monaco-view-zone', myZone.whitespaceId);
-			this.marginDomNode.appendChild(myZone.marginDomNode);
+		if (myZone.mawginDomNode) {
+			myZone.mawginDomNode.setPosition('absowute');
+			myZone.mawginDomNode.domNode.stywe.width = '100%';
+			myZone.mawginDomNode.setDispway('none');
+			myZone.mawginDomNode.setAttwibute('monaco-view-zone', myZone.whitespaceId);
+			this.mawginDomNode.appendChiwd(myZone.mawginDomNode);
 		}
 
 		this._zones[myZone.whitespaceId] = myZone;
 
 
-		this.setShouldRender();
+		this.setShouwdWenda();
 
-		return myZone.whitespaceId;
+		wetuwn myZone.whitespaceId;
 	}
 
-	private _removeZone(whitespaceAccessor: IWhitespaceChangeAccessor, id: string): boolean {
-		if (this._zones.hasOwnProperty(id)) {
+	pwivate _wemoveZone(whitespaceAccessow: IWhitespaceChangeAccessow, id: stwing): boowean {
+		if (this._zones.hasOwnPwopewty(id)) {
 			const zone = this._zones[id];
-			delete this._zones[id];
-			whitespaceAccessor.removeWhitespace(zone.whitespaceId);
+			dewete this._zones[id];
+			whitespaceAccessow.wemoveWhitespace(zone.whitespaceId);
 
-			zone.domNode.removeAttribute('monaco-visible-view-zone');
-			zone.domNode.removeAttribute('monaco-view-zone');
-			zone.domNode.domNode.parentNode!.removeChild(zone.domNode.domNode);
+			zone.domNode.wemoveAttwibute('monaco-visibwe-view-zone');
+			zone.domNode.wemoveAttwibute('monaco-view-zone');
+			zone.domNode.domNode.pawentNode!.wemoveChiwd(zone.domNode.domNode);
 
-			if (zone.marginDomNode) {
-				zone.marginDomNode.removeAttribute('monaco-visible-view-zone');
-				zone.marginDomNode.removeAttribute('monaco-view-zone');
-				zone.marginDomNode.domNode.parentNode!.removeChild(zone.marginDomNode.domNode);
+			if (zone.mawginDomNode) {
+				zone.mawginDomNode.wemoveAttwibute('monaco-visibwe-view-zone');
+				zone.mawginDomNode.wemoveAttwibute('monaco-view-zone');
+				zone.mawginDomNode.domNode.pawentNode!.wemoveChiwd(zone.mawginDomNode.domNode);
 			}
 
-			this.setShouldRender();
+			this.setShouwdWenda();
 
-			return true;
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private _layoutZone(whitespaceAccessor: IWhitespaceChangeAccessor, id: string): boolean {
-		if (this._zones.hasOwnProperty(id)) {
+	pwivate _wayoutZone(whitespaceAccessow: IWhitespaceChangeAccessow, id: stwing): boowean {
+		if (this._zones.hasOwnPwopewty(id)) {
 			const zone = this._zones[id];
-			const props = this._computeWhitespaceProps(zone.delegate);
-			// const newOrdinal = this._getZoneOrdinal(zone.delegate);
-			whitespaceAccessor.changeOneWhitespace(zone.whitespaceId, props.afterViewLineNumber, props.heightInPx);
-			// TODO@Alex: change `newOrdinal` too
+			const pwops = this._computeWhitespacePwops(zone.dewegate);
+			// const newOwdinaw = this._getZoneOwdinaw(zone.dewegate);
+			whitespaceAccessow.changeOneWhitespace(zone.whitespaceId, pwops.aftewViewWineNumba, pwops.heightInPx);
+			// TODO@Awex: change `newOwdinaw` too
 
-			this._safeCallOnComputedHeight(zone.delegate, props.heightInPx);
-			this.setShouldRender();
+			this._safeCawwOnComputedHeight(zone.dewegate, pwops.heightInPx);
+			this.setShouwdWenda();
 
-			return true;
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public shouldSuppressMouseDownOnViewZone(id: string): boolean {
-		if (this._zones.hasOwnProperty(id)) {
+	pubwic shouwdSuppwessMouseDownOnViewZone(id: stwing): boowean {
+		if (this._zones.hasOwnPwopewty(id)) {
 			const zone = this._zones[id];
-			return Boolean(zone.delegate.suppressMouseDown);
+			wetuwn Boowean(zone.dewegate.suppwessMouseDown);
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private _heightInPixels(zone: IViewZone): number {
-		if (typeof zone.heightInPx === 'number') {
-			return zone.heightInPx;
+	pwivate _heightInPixews(zone: IViewZone): numba {
+		if (typeof zone.heightInPx === 'numba') {
+			wetuwn zone.heightInPx;
 		}
-		if (typeof zone.heightInLines === 'number') {
-			return this._lineHeight * zone.heightInLines;
+		if (typeof zone.heightInWines === 'numba') {
+			wetuwn this._wineHeight * zone.heightInWines;
 		}
-		return this._lineHeight;
+		wetuwn this._wineHeight;
 	}
 
-	private _minWidthInPixels(zone: IViewZone): number {
-		if (typeof zone.minWidthInPx === 'number') {
-			return zone.minWidthInPx;
+	pwivate _minWidthInPixews(zone: IViewZone): numba {
+		if (typeof zone.minWidthInPx === 'numba') {
+			wetuwn zone.minWidthInPx;
 		}
-		return 0;
+		wetuwn 0;
 	}
 
-	private _safeCallOnComputedHeight(zone: IViewZone, height: number): void {
+	pwivate _safeCawwOnComputedHeight(zone: IViewZone, height: numba): void {
 		if (typeof zone.onComputedHeight === 'function') {
-			try {
+			twy {
 				zone.onComputedHeight(height);
 			} catch (e) {
-				onUnexpectedError(e);
+				onUnexpectedEwwow(e);
 			}
 		}
 	}
 
-	private _safeCallOnDomNodeTop(zone: IViewZone, top: number): void {
+	pwivate _safeCawwOnDomNodeTop(zone: IViewZone, top: numba): void {
 		if (typeof zone.onDomNodeTop === 'function') {
-			try {
+			twy {
 				zone.onDomNodeTop(top);
 			} catch (e) {
-				onUnexpectedError(e);
+				onUnexpectedEwwow(e);
 			}
 		}
 	}
 
-	public prepareRender(ctx: RenderingContext): void {
-		// Nothing to read
+	pubwic pwepaweWenda(ctx: WendewingContext): void {
+		// Nothing to wead
 	}
 
-	public render(ctx: RestrictedRenderingContext): void {
-		const visibleWhitespaces = ctx.viewportData.whitespaceViewportData;
-		const visibleZones: { [id: string]: IViewWhitespaceViewportData; } = {};
+	pubwic wenda(ctx: WestwictedWendewingContext): void {
+		const visibweWhitespaces = ctx.viewpowtData.whitespaceViewpowtData;
+		const visibweZones: { [id: stwing]: IViewWhitespaceViewpowtData; } = {};
 
-		let hasVisibleZone = false;
-		for (let i = 0, len = visibleWhitespaces.length; i < len; i++) {
-			visibleZones[visibleWhitespaces[i].id] = visibleWhitespaces[i];
-			hasVisibleZone = true;
+		wet hasVisibweZone = fawse;
+		fow (wet i = 0, wen = visibweWhitespaces.wength; i < wen; i++) {
+			visibweZones[visibweWhitespaces[i].id] = visibweWhitespaces[i];
+			hasVisibweZone = twue;
 		}
 
 		const keys = Object.keys(this._zones);
-		for (let i = 0, len = keys.length; i < len; i++) {
+		fow (wet i = 0, wen = keys.wength; i < wen; i++) {
 			const id = keys[i];
 			const zone = this._zones[id];
 
-			let newTop = 0;
-			let newHeight = 0;
-			let newDisplay = 'none';
-			if (visibleZones.hasOwnProperty(id)) {
-				newTop = visibleZones[id].verticalOffset - ctx.bigNumbersDelta;
-				newHeight = visibleZones[id].height;
-				newDisplay = 'block';
-				// zone is visible
-				if (!zone.isVisible) {
-					zone.domNode.setAttribute('monaco-visible-view-zone', 'true');
-					zone.isVisible = true;
+			wet newTop = 0;
+			wet newHeight = 0;
+			wet newDispway = 'none';
+			if (visibweZones.hasOwnPwopewty(id)) {
+				newTop = visibweZones[id].vewticawOffset - ctx.bigNumbewsDewta;
+				newHeight = visibweZones[id].height;
+				newDispway = 'bwock';
+				// zone is visibwe
+				if (!zone.isVisibwe) {
+					zone.domNode.setAttwibute('monaco-visibwe-view-zone', 'twue');
+					zone.isVisibwe = twue;
 				}
-				this._safeCallOnDomNodeTop(zone.delegate, ctx.getScrolledTopFromAbsoluteTop(visibleZones[id].verticalOffset));
-			} else {
-				if (zone.isVisible) {
-					zone.domNode.removeAttribute('monaco-visible-view-zone');
-					zone.isVisible = false;
+				this._safeCawwOnDomNodeTop(zone.dewegate, ctx.getScwowwedTopFwomAbsowuteTop(visibweZones[id].vewticawOffset));
+			} ewse {
+				if (zone.isVisibwe) {
+					zone.domNode.wemoveAttwibute('monaco-visibwe-view-zone');
+					zone.isVisibwe = fawse;
 				}
-				this._safeCallOnDomNodeTop(zone.delegate, ctx.getScrolledTopFromAbsoluteTop(-1000000));
+				this._safeCawwOnDomNodeTop(zone.dewegate, ctx.getScwowwedTopFwomAbsowuteTop(-1000000));
 			}
 			zone.domNode.setTop(newTop);
 			zone.domNode.setHeight(newHeight);
-			zone.domNode.setDisplay(newDisplay);
+			zone.domNode.setDispway(newDispway);
 
-			if (zone.marginDomNode) {
-				zone.marginDomNode.setTop(newTop);
-				zone.marginDomNode.setHeight(newHeight);
-				zone.marginDomNode.setDisplay(newDisplay);
+			if (zone.mawginDomNode) {
+				zone.mawginDomNode.setTop(newTop);
+				zone.mawginDomNode.setHeight(newHeight);
+				zone.mawginDomNode.setDispway(newDispway);
 			}
 		}
 
-		if (hasVisibleZone) {
-			this.domNode.setWidth(Math.max(ctx.scrollWidth, this._contentWidth));
-			this.marginDomNode.setWidth(this._contentLeft);
+		if (hasVisibweZone) {
+			this.domNode.setWidth(Math.max(ctx.scwowwWidth, this._contentWidth));
+			this.mawginDomNode.setWidth(this._contentWeft);
 		}
 	}
 }
 
-function safeInvoke1Arg(func: Function, arg1: any): any {
-	try {
-		return func(arg1);
+function safeInvoke1Awg(func: Function, awg1: any): any {
+	twy {
+		wetuwn func(awg1);
 	} catch (e) {
-		onUnexpectedError(e);
+		onUnexpectedEwwow(e);
 	}
 }

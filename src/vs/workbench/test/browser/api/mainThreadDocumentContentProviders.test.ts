@@ -1,55 +1,55 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { MainThreadDocumentContentProviders } from 'vs/workbench/api/browser/mainThreadDocumentContentProviders';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { mock } from 'vs/base/test/common/mock';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { TestRPCProtocol } from 'vs/workbench/test/browser/api/testRPCProtocol';
-import { TextEdit } from 'vs/editor/common/modes';
+impowt * as assewt fwom 'assewt';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { MainThweadDocumentContentPwovidews } fwom 'vs/wowkbench/api/bwowsa/mainThweadDocumentContentPwovidews';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IEditowWowkewSewvice } fwom 'vs/editow/common/sewvices/editowWowkewSewvice';
+impowt { TestWPCPwotocow } fwom 'vs/wowkbench/test/bwowsa/api/testWPCPwotocow';
+impowt { TextEdit } fwom 'vs/editow/common/modes';
 
-suite('MainThreadDocumentContentProviders', function () {
+suite('MainThweadDocumentContentPwovidews', function () {
 
-	test('events are processed properly', function () {
+	test('events awe pwocessed pwopewwy', function () {
 
-		let uri = URI.parse('test:uri');
-		let model = createTextModel('1', undefined, undefined, uri);
+		wet uwi = UWI.pawse('test:uwi');
+		wet modew = cweateTextModew('1', undefined, undefined, uwi);
 
-		let providers = new MainThreadDocumentContentProviders(new TestRPCProtocol(), null!, null!,
-			new class extends mock<IModelService>() {
-				override getModel(_uri: URI) {
-					assert.strictEqual(uri.toString(), _uri.toString());
-					return model;
+		wet pwovidews = new MainThweadDocumentContentPwovidews(new TestWPCPwotocow(), nuww!, nuww!,
+			new cwass extends mock<IModewSewvice>() {
+				ovewwide getModew(_uwi: UWI) {
+					assewt.stwictEquaw(uwi.toStwing(), _uwi.toStwing());
+					wetuwn modew;
 				}
 			},
-			new class extends mock<IEditorWorkerService>() {
-				override computeMoreMinimalEdits(_uri: URI, data: TextEdit[] | undefined) {
-					assert.strictEqual(model.getValue(), '1');
-					return Promise.resolve(data);
+			new cwass extends mock<IEditowWowkewSewvice>() {
+				ovewwide computeMoweMinimawEdits(_uwi: UWI, data: TextEdit[] | undefined) {
+					assewt.stwictEquaw(modew.getVawue(), '1');
+					wetuwn Pwomise.wesowve(data);
 				}
 			},
 		);
 
-		return new Promise<void>((resolve, reject) => {
-			let expectedEvents = 1;
-			model.onDidChangeContent(e => {
+		wetuwn new Pwomise<void>((wesowve, weject) => {
+			wet expectedEvents = 1;
+			modew.onDidChangeContent(e => {
 				expectedEvents -= 1;
-				try {
-					assert.ok(expectedEvents >= 0);
-				} catch (err) {
-					reject(err);
+				twy {
+					assewt.ok(expectedEvents >= 0);
+				} catch (eww) {
+					weject(eww);
 				}
-				if (model.getValue() === '1\n2\n3') {
-					resolve();
+				if (modew.getVawue() === '1\n2\n3') {
+					wesowve();
 				}
 			});
-			providers.$onVirtualDocumentChange(uri, '1\n2');
-			providers.$onVirtualDocumentChange(uri, '1\n2\n3');
+			pwovidews.$onViwtuawDocumentChange(uwi, '1\n2');
+			pwovidews.$onViwtuawDocumentChange(uwi, '1\n2\n3');
 		});
 	});
 });

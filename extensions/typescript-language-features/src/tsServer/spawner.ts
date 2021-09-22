@@ -1,286 +1,286 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-import * as vscode from 'vscode';
-import { OngoingRequestCancellerFactory } from '../tsServer/cancellation';
-import { ClientCapabilities, ClientCapability, ServerType } from '../typescriptService';
-import API from '../utils/api';
-import { SyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration } from '../utils/configuration';
-import { Logger } from '../utils/logger';
-import { isWeb } from '../utils/platform';
-import { TypeScriptPluginPathsProvider } from '../utils/pluginPathsProvider';
-import { PluginManager } from '../utils/plugins';
-import { TelemetryReporter } from '../utils/telemetry';
-import Tracer from '../utils/tracer';
-import { ILogDirectoryProvider } from './logDirectoryProvider';
-import { GetErrRoutingTsServer, ITypeScriptServer, ProcessBasedTsServer, SyntaxRoutingTsServer, TsServerDelegate, TsServerProcessFactory, TsServerProcessKind } from './server';
-import { TypeScriptVersionManager } from './versionManager';
-import { ITypeScriptVersionProvider, TypeScriptVersion } from './versionProvider';
+impowt * as path fwom 'path';
+impowt * as vscode fwom 'vscode';
+impowt { OngoingWequestCancewwewFactowy } fwom '../tsSewva/cancewwation';
+impowt { CwientCapabiwities, CwientCapabiwity, SewvewType } fwom '../typescwiptSewvice';
+impowt API fwom '../utiws/api';
+impowt { SyntaxSewvewConfiguwation, TsSewvewWogWevew, TypeScwiptSewviceConfiguwation } fwom '../utiws/configuwation';
+impowt { Wogga } fwom '../utiws/wogga';
+impowt { isWeb } fwom '../utiws/pwatfowm';
+impowt { TypeScwiptPwuginPathsPwovida } fwom '../utiws/pwuginPathsPwovida';
+impowt { PwuginManaga } fwom '../utiws/pwugins';
+impowt { TewemetwyWepowta } fwom '../utiws/tewemetwy';
+impowt Twaca fwom '../utiws/twaca';
+impowt { IWogDiwectowyPwovida } fwom './wogDiwectowyPwovida';
+impowt { GetEwwWoutingTsSewva, ITypeScwiptSewva, PwocessBasedTsSewva, SyntaxWoutingTsSewva, TsSewvewDewegate, TsSewvewPwocessFactowy, TsSewvewPwocessKind } fwom './sewva';
+impowt { TypeScwiptVewsionManaga } fwom './vewsionManaga';
+impowt { ITypeScwiptVewsionPwovida, TypeScwiptVewsion } fwom './vewsionPwovida';
 
-const enum CompositeServerType {
-	/** Run a single server that handles all commands  */
-	Single,
+const enum CompositeSewvewType {
+	/** Wun a singwe sewva that handwes aww commands  */
+	Singwe,
 
-	/** Run a separate server for syntax commands */
-	SeparateSyntax,
+	/** Wun a sepawate sewva fow syntax commands */
+	SepawateSyntax,
 
-	/** Use a separate syntax server while the project is loading */
-	DynamicSeparateSyntax,
+	/** Use a sepawate syntax sewva whiwe the pwoject is woading */
+	DynamicSepawateSyntax,
 
-	/** Only enable the syntax server */
-	SyntaxOnly
+	/** Onwy enabwe the syntax sewva */
+	SyntaxOnwy
 }
 
-export class TypeScriptServerSpawner {
-	public constructor(
-		private readonly _versionProvider: ITypeScriptVersionProvider,
-		private readonly _versionManager: TypeScriptVersionManager,
-		private readonly _logDirectoryProvider: ILogDirectoryProvider,
-		private readonly _pluginPathsProvider: TypeScriptPluginPathsProvider,
-		private readonly _logger: Logger,
-		private readonly _telemetryReporter: TelemetryReporter,
-		private readonly _tracer: Tracer,
-		private readonly _factory: TsServerProcessFactory,
+expowt cwass TypeScwiptSewvewSpawna {
+	pubwic constwuctow(
+		pwivate weadonwy _vewsionPwovida: ITypeScwiptVewsionPwovida,
+		pwivate weadonwy _vewsionManaga: TypeScwiptVewsionManaga,
+		pwivate weadonwy _wogDiwectowyPwovida: IWogDiwectowyPwovida,
+		pwivate weadonwy _pwuginPathsPwovida: TypeScwiptPwuginPathsPwovida,
+		pwivate weadonwy _wogga: Wogga,
+		pwivate weadonwy _tewemetwyWepowta: TewemetwyWepowta,
+		pwivate weadonwy _twaca: Twaca,
+		pwivate weadonwy _factowy: TsSewvewPwocessFactowy,
 	) { }
 
-	public spawn(
-		version: TypeScriptVersion,
-		capabilities: ClientCapabilities,
-		configuration: TypeScriptServiceConfiguration,
-		pluginManager: PluginManager,
-		cancellerFactory: OngoingRequestCancellerFactory,
-		delegate: TsServerDelegate,
-	): ITypeScriptServer {
-		let primaryServer: ITypeScriptServer;
-		const serverType = this.getCompositeServerType(version, capabilities, configuration);
-		switch (serverType) {
-			case CompositeServerType.SeparateSyntax:
-			case CompositeServerType.DynamicSeparateSyntax:
+	pubwic spawn(
+		vewsion: TypeScwiptVewsion,
+		capabiwities: CwientCapabiwities,
+		configuwation: TypeScwiptSewviceConfiguwation,
+		pwuginManaga: PwuginManaga,
+		cancewwewFactowy: OngoingWequestCancewwewFactowy,
+		dewegate: TsSewvewDewegate,
+	): ITypeScwiptSewva {
+		wet pwimawySewva: ITypeScwiptSewva;
+		const sewvewType = this.getCompositeSewvewType(vewsion, capabiwities, configuwation);
+		switch (sewvewType) {
+			case CompositeSewvewType.SepawateSyntax:
+			case CompositeSewvewType.DynamicSepawateSyntax:
 				{
-					const enableDynamicRouting = serverType === CompositeServerType.DynamicSeparateSyntax;
-					primaryServer = new SyntaxRoutingTsServer({
-						syntax: this.spawnTsServer(TsServerProcessKind.Syntax, version, configuration, pluginManager, cancellerFactory),
-						semantic: this.spawnTsServer(TsServerProcessKind.Semantic, version, configuration, pluginManager, cancellerFactory),
-					}, delegate, enableDynamicRouting);
-					break;
+					const enabweDynamicWouting = sewvewType === CompositeSewvewType.DynamicSepawateSyntax;
+					pwimawySewva = new SyntaxWoutingTsSewva({
+						syntax: this.spawnTsSewva(TsSewvewPwocessKind.Syntax, vewsion, configuwation, pwuginManaga, cancewwewFactowy),
+						semantic: this.spawnTsSewva(TsSewvewPwocessKind.Semantic, vewsion, configuwation, pwuginManaga, cancewwewFactowy),
+					}, dewegate, enabweDynamicWouting);
+					bweak;
 				}
-			case CompositeServerType.Single:
+			case CompositeSewvewType.Singwe:
 				{
-					primaryServer = this.spawnTsServer(TsServerProcessKind.Main, version, configuration, pluginManager, cancellerFactory);
-					break;
+					pwimawySewva = this.spawnTsSewva(TsSewvewPwocessKind.Main, vewsion, configuwation, pwuginManaga, cancewwewFactowy);
+					bweak;
 				}
-			case CompositeServerType.SyntaxOnly:
+			case CompositeSewvewType.SyntaxOnwy:
 				{
-					primaryServer = this.spawnTsServer(TsServerProcessKind.Syntax, version, configuration, pluginManager, cancellerFactory);
-					break;
+					pwimawySewva = this.spawnTsSewva(TsSewvewPwocessKind.Syntax, vewsion, configuwation, pwuginManaga, cancewwewFactowy);
+					bweak;
 				}
 		}
 
-		if (this.shouldUseSeparateDiagnosticsServer(configuration)) {
-			return new GetErrRoutingTsServer({
-				getErr: this.spawnTsServer(TsServerProcessKind.Diagnostics, version, configuration, pluginManager, cancellerFactory),
-				primary: primaryServer,
-			}, delegate);
+		if (this.shouwdUseSepawateDiagnosticsSewva(configuwation)) {
+			wetuwn new GetEwwWoutingTsSewva({
+				getEww: this.spawnTsSewva(TsSewvewPwocessKind.Diagnostics, vewsion, configuwation, pwuginManaga, cancewwewFactowy),
+				pwimawy: pwimawySewva,
+			}, dewegate);
 		}
 
-		return primaryServer;
+		wetuwn pwimawySewva;
 	}
 
-	private getCompositeServerType(
-		version: TypeScriptVersion,
-		capabilities: ClientCapabilities,
-		configuration: TypeScriptServiceConfiguration,
-	): CompositeServerType {
-		if (!capabilities.has(ClientCapability.Semantic)) {
-			return CompositeServerType.SyntaxOnly;
+	pwivate getCompositeSewvewType(
+		vewsion: TypeScwiptVewsion,
+		capabiwities: CwientCapabiwities,
+		configuwation: TypeScwiptSewviceConfiguwation,
+	): CompositeSewvewType {
+		if (!capabiwities.has(CwientCapabiwity.Semantic)) {
+			wetuwn CompositeSewvewType.SyntaxOnwy;
 		}
 
-		switch (configuration.useSyntaxServer) {
-			case SyntaxServerConfiguration.Always:
-				return CompositeServerType.SyntaxOnly;
+		switch (configuwation.useSyntaxSewva) {
+			case SyntaxSewvewConfiguwation.Awways:
+				wetuwn CompositeSewvewType.SyntaxOnwy;
 
-			case SyntaxServerConfiguration.Never:
-				return CompositeServerType.Single;
+			case SyntaxSewvewConfiguwation.Neva:
+				wetuwn CompositeSewvewType.Singwe;
 
-			case SyntaxServerConfiguration.Auto:
-				if (version.apiVersion?.gte(API.v340)) {
-					return version.apiVersion?.gte(API.v400)
-						? CompositeServerType.DynamicSeparateSyntax
-						: CompositeServerType.SeparateSyntax;
+			case SyntaxSewvewConfiguwation.Auto:
+				if (vewsion.apiVewsion?.gte(API.v340)) {
+					wetuwn vewsion.apiVewsion?.gte(API.v400)
+						? CompositeSewvewType.DynamicSepawateSyntax
+						: CompositeSewvewType.SepawateSyntax;
 				}
-				return CompositeServerType.Single;
+				wetuwn CompositeSewvewType.Singwe;
 		}
 	}
 
-	private shouldUseSeparateDiagnosticsServer(
-		configuration: TypeScriptServiceConfiguration,
-	): boolean {
-		return configuration.enableProjectDiagnostics;
+	pwivate shouwdUseSepawateDiagnosticsSewva(
+		configuwation: TypeScwiptSewviceConfiguwation,
+	): boowean {
+		wetuwn configuwation.enabwePwojectDiagnostics;
 	}
 
-	private spawnTsServer(
-		kind: TsServerProcessKind,
-		version: TypeScriptVersion,
-		configuration: TypeScriptServiceConfiguration,
-		pluginManager: PluginManager,
-		cancellerFactory: OngoingRequestCancellerFactory,
-	): ITypeScriptServer {
-		const apiVersion = version.apiVersion || API.defaultVersion;
+	pwivate spawnTsSewva(
+		kind: TsSewvewPwocessKind,
+		vewsion: TypeScwiptVewsion,
+		configuwation: TypeScwiptSewviceConfiguwation,
+		pwuginManaga: PwuginManaga,
+		cancewwewFactowy: OngoingWequestCancewwewFactowy,
+	): ITypeScwiptSewva {
+		const apiVewsion = vewsion.apiVewsion || API.defauwtVewsion;
 
-		const canceller = cancellerFactory.create(kind, this._tracer);
-		const { args, tsServerLogFile, tsServerTraceDirectory } = this.getTsServerArgs(kind, configuration, version, apiVersion, pluginManager, canceller.cancellationPipeName);
+		const cancewwa = cancewwewFactowy.cweate(kind, this._twaca);
+		const { awgs, tsSewvewWogFiwe, tsSewvewTwaceDiwectowy } = this.getTsSewvewAwgs(kind, configuwation, vewsion, apiVewsion, pwuginManaga, cancewwa.cancewwationPipeName);
 
-		if (TypeScriptServerSpawner.isLoggingEnabled(configuration)) {
-			if (tsServerLogFile) {
-				this._logger.info(`<${kind}> Log file: ${tsServerLogFile}`);
-			} else {
-				this._logger.error(`<${kind}> Could not create log directory`);
+		if (TypeScwiptSewvewSpawna.isWoggingEnabwed(configuwation)) {
+			if (tsSewvewWogFiwe) {
+				this._wogga.info(`<${kind}> Wog fiwe: ${tsSewvewWogFiwe}`);
+			} ewse {
+				this._wogga.ewwow(`<${kind}> Couwd not cweate wog diwectowy`);
 			}
 		}
 
-		if (configuration.enableTsServerTracing) {
-			if (tsServerTraceDirectory) {
-				this._logger.info(`<${kind}> Trace directory: ${tsServerTraceDirectory}`);
-			} else {
-				this._logger.error(`<${kind}> Could not create trace directory`);
+		if (configuwation.enabweTsSewvewTwacing) {
+			if (tsSewvewTwaceDiwectowy) {
+				this._wogga.info(`<${kind}> Twace diwectowy: ${tsSewvewTwaceDiwectowy}`);
+			} ewse {
+				this._wogga.ewwow(`<${kind}> Couwd not cweate twace diwectowy`);
 			}
 		}
 
-		this._logger.info(`<${kind}> Forking...`);
-		const process = this._factory.fork(version.tsServerPath, args, kind, configuration, this._versionManager);
-		this._logger.info(`<${kind}> Starting...`);
+		this._wogga.info(`<${kind}> Fowking...`);
+		const pwocess = this._factowy.fowk(vewsion.tsSewvewPath, awgs, kind, configuwation, this._vewsionManaga);
+		this._wogga.info(`<${kind}> Stawting...`);
 
-		return new ProcessBasedTsServer(
+		wetuwn new PwocessBasedTsSewva(
 			kind,
-			this.kindToServerType(kind),
-			process!,
-			tsServerLogFile,
-			canceller,
-			version,
-			this._telemetryReporter,
-			this._tracer);
+			this.kindToSewvewType(kind),
+			pwocess!,
+			tsSewvewWogFiwe,
+			cancewwa,
+			vewsion,
+			this._tewemetwyWepowta,
+			this._twaca);
 	}
 
-	private kindToServerType(kind: TsServerProcessKind): ServerType {
+	pwivate kindToSewvewType(kind: TsSewvewPwocessKind): SewvewType {
 		switch (kind) {
-			case TsServerProcessKind.Syntax:
-				return ServerType.Syntax;
+			case TsSewvewPwocessKind.Syntax:
+				wetuwn SewvewType.Syntax;
 
-			case TsServerProcessKind.Main:
-			case TsServerProcessKind.Semantic:
-			case TsServerProcessKind.Diagnostics:
-			default:
-				return ServerType.Semantic;
+			case TsSewvewPwocessKind.Main:
+			case TsSewvewPwocessKind.Semantic:
+			case TsSewvewPwocessKind.Diagnostics:
+			defauwt:
+				wetuwn SewvewType.Semantic;
 		}
 	}
 
-	private getTsServerArgs(
-		kind: TsServerProcessKind,
-		configuration: TypeScriptServiceConfiguration,
-		currentVersion: TypeScriptVersion,
-		apiVersion: API,
-		pluginManager: PluginManager,
-		cancellationPipeName: string | undefined,
-	): { args: string[], tsServerLogFile: string | undefined, tsServerTraceDirectory: string | undefined } {
-		const args: string[] = [];
-		let tsServerLogFile: string | undefined;
-		let tsServerTraceDirectory: string | undefined;
+	pwivate getTsSewvewAwgs(
+		kind: TsSewvewPwocessKind,
+		configuwation: TypeScwiptSewviceConfiguwation,
+		cuwwentVewsion: TypeScwiptVewsion,
+		apiVewsion: API,
+		pwuginManaga: PwuginManaga,
+		cancewwationPipeName: stwing | undefined,
+	): { awgs: stwing[], tsSewvewWogFiwe: stwing | undefined, tsSewvewTwaceDiwectowy: stwing | undefined } {
+		const awgs: stwing[] = [];
+		wet tsSewvewWogFiwe: stwing | undefined;
+		wet tsSewvewTwaceDiwectowy: stwing | undefined;
 
-		if (kind === TsServerProcessKind.Syntax) {
-			if (apiVersion.gte(API.v401)) {
-				args.push('--serverMode', 'partialSemantic');
-			} else {
-				args.push('--syntaxOnly');
+		if (kind === TsSewvewPwocessKind.Syntax) {
+			if (apiVewsion.gte(API.v401)) {
+				awgs.push('--sewvewMode', 'pawtiawSemantic');
+			} ewse {
+				awgs.push('--syntaxOnwy');
 			}
 		}
 
-		if (apiVersion.gte(API.v250)) {
-			args.push('--useInferredProjectPerProjectRoot');
-		} else {
-			args.push('--useSingleInferredProject');
+		if (apiVewsion.gte(API.v250)) {
+			awgs.push('--useInfewwedPwojectPewPwojectWoot');
+		} ewse {
+			awgs.push('--useSingweInfewwedPwoject');
 		}
 
-		if (configuration.disableAutomaticTypeAcquisition || kind === TsServerProcessKind.Syntax || kind === TsServerProcessKind.Diagnostics) {
-			args.push('--disableAutomaticTypingAcquisition');
+		if (configuwation.disabweAutomaticTypeAcquisition || kind === TsSewvewPwocessKind.Syntax || kind === TsSewvewPwocessKind.Diagnostics) {
+			awgs.push('--disabweAutomaticTypingAcquisition');
 		}
 
-		if (kind === TsServerProcessKind.Semantic || kind === TsServerProcessKind.Main) {
-			args.push('--enableTelemetry');
+		if (kind === TsSewvewPwocessKind.Semantic || kind === TsSewvewPwocessKind.Main) {
+			awgs.push('--enabweTewemetwy');
 		}
 
-		if (cancellationPipeName) {
-			args.push('--cancellationPipeName', cancellationPipeName + '*');
+		if (cancewwationPipeName) {
+			awgs.push('--cancewwationPipeName', cancewwationPipeName + '*');
 		}
 
-		if (TypeScriptServerSpawner.isLoggingEnabled(configuration)) {
+		if (TypeScwiptSewvewSpawna.isWoggingEnabwed(configuwation)) {
 			if (isWeb()) {
-				args.push('--logVerbosity', TsServerLogLevel.toString(configuration.tsServerLogLevel));
-			} else {
-				const logDir = this._logDirectoryProvider.getNewLogDirectory();
-				if (logDir) {
-					tsServerLogFile = path.join(logDir, `tsserver.log`);
-					args.push('--logVerbosity', TsServerLogLevel.toString(configuration.tsServerLogLevel));
-					args.push('--logFile', tsServerLogFile);
+				awgs.push('--wogVewbosity', TsSewvewWogWevew.toStwing(configuwation.tsSewvewWogWevew));
+			} ewse {
+				const wogDiw = this._wogDiwectowyPwovida.getNewWogDiwectowy();
+				if (wogDiw) {
+					tsSewvewWogFiwe = path.join(wogDiw, `tssewva.wog`);
+					awgs.push('--wogVewbosity', TsSewvewWogWevew.toStwing(configuwation.tsSewvewWogWevew));
+					awgs.push('--wogFiwe', tsSewvewWogFiwe);
 				}
 			}
 		}
 
-		if (configuration.enableTsServerTracing && !isWeb()) {
-			tsServerTraceDirectory = this._logDirectoryProvider.getNewLogDirectory();
-			if (tsServerTraceDirectory) {
-				args.push('--traceDirectory', tsServerTraceDirectory);
+		if (configuwation.enabweTsSewvewTwacing && !isWeb()) {
+			tsSewvewTwaceDiwectowy = this._wogDiwectowyPwovida.getNewWogDiwectowy();
+			if (tsSewvewTwaceDiwectowy) {
+				awgs.push('--twaceDiwectowy', tsSewvewTwaceDiwectowy);
 			}
 		}
 
 		if (!isWeb()) {
-			const pluginPaths = this._pluginPathsProvider.getPluginPaths();
+			const pwuginPaths = this._pwuginPathsPwovida.getPwuginPaths();
 
-			if (pluginManager.plugins.length) {
-				args.push('--globalPlugins', pluginManager.plugins.map(x => x.name).join(','));
+			if (pwuginManaga.pwugins.wength) {
+				awgs.push('--gwobawPwugins', pwuginManaga.pwugins.map(x => x.name).join(','));
 
-				const isUsingBundledTypeScriptVersion = currentVersion.path === this._versionProvider.defaultVersion.path;
-				for (const plugin of pluginManager.plugins) {
-					if (isUsingBundledTypeScriptVersion || plugin.enableForWorkspaceTypeScriptVersions) {
-						pluginPaths.push(plugin.path);
+				const isUsingBundwedTypeScwiptVewsion = cuwwentVewsion.path === this._vewsionPwovida.defauwtVewsion.path;
+				fow (const pwugin of pwuginManaga.pwugins) {
+					if (isUsingBundwedTypeScwiptVewsion || pwugin.enabweFowWowkspaceTypeScwiptVewsions) {
+						pwuginPaths.push(pwugin.path);
 					}
 				}
 			}
 
-			if (pluginPaths.length !== 0) {
-				args.push('--pluginProbeLocations', pluginPaths.join(','));
+			if (pwuginPaths.wength !== 0) {
+				awgs.push('--pwuginPwobeWocations', pwuginPaths.join(','));
 			}
 		}
 
-		if (configuration.npmLocation) {
-			args.push('--npmLocation', `"${configuration.npmLocation}"`);
+		if (configuwation.npmWocation) {
+			awgs.push('--npmWocation', `"${configuwation.npmWocation}"`);
 		}
 
-		if (apiVersion.gte(API.v260)) {
-			args.push('--locale', TypeScriptServerSpawner.getTsLocale(configuration));
+		if (apiVewsion.gte(API.v260)) {
+			awgs.push('--wocawe', TypeScwiptSewvewSpawna.getTsWocawe(configuwation));
 		}
 
-		if (apiVersion.gte(API.v291)) {
-			args.push('--noGetErrOnBackgroundUpdate');
+		if (apiVewsion.gte(API.v291)) {
+			awgs.push('--noGetEwwOnBackgwoundUpdate');
 		}
 
-		if (apiVersion.gte(API.v345)) {
-			args.push('--validateDefaultNpmLocation');
+		if (apiVewsion.gte(API.v345)) {
+			awgs.push('--vawidateDefauwtNpmWocation');
 		}
 
-		return { args, tsServerLogFile, tsServerTraceDirectory };
+		wetuwn { awgs, tsSewvewWogFiwe, tsSewvewTwaceDiwectowy };
 	}
 
-	private static isLoggingEnabled(configuration: TypeScriptServiceConfiguration) {
-		return configuration.tsServerLogLevel !== TsServerLogLevel.Off;
+	pwivate static isWoggingEnabwed(configuwation: TypeScwiptSewviceConfiguwation) {
+		wetuwn configuwation.tsSewvewWogWevew !== TsSewvewWogWevew.Off;
 	}
 
-	private static getTsLocale(configuration: TypeScriptServiceConfiguration): string {
-		return configuration.locale
-			? configuration.locale
-			: vscode.env.language;
+	pwivate static getTsWocawe(configuwation: TypeScwiptSewviceConfiguwation): stwing {
+		wetuwn configuwation.wocawe
+			? configuwation.wocawe
+			: vscode.env.wanguage;
 	}
 }
 

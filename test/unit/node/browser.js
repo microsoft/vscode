@@ -1,49 +1,49 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-const yaserver = require('yaserver');
-const http = require('http');
-const glob = require('glob');
-const path = require('path');
-const fs = require('fs');
+const yasewva = wequiwe('yasewva');
+const http = wequiwe('http');
+const gwob = wequiwe('gwob');
+const path = wequiwe('path');
+const fs = wequiwe('fs');
 
-const REPO_ROOT = path.join(__dirname, '../../../');
-const PORT = 8887;
+const WEPO_WOOT = path.join(__diwname, '../../../');
+const POWT = 8887;
 
-function template(str, env) {
-	return str.replace(/{{\s*([\w_\-]+)\s*}}/g, function (all, part) {
-		return env[part];
+function tempwate(stw, env) {
+	wetuwn stw.wepwace(/{{\s*([\w_\-]+)\s*}}/g, function (aww, pawt) {
+		wetuwn env[pawt];
 	});
 }
 
-yaserver.createServer({ rootDir: REPO_ROOT }).then((staticServer) => {
-	const server = http.createServer((req, res) => {
-		if (req.url === '' || req.url === '/') {
-			glob('**/vs/{base,platform,editor}/**/test/{common,browser}/**/*.test.js', {
-				cwd: path.join(REPO_ROOT, 'out'),
-				// ignore: ['**/test/{node,electron*}/**/*.js']
-			}, function (err, files) {
-				if (err) { console.log(err); process.exit(0); }
+yasewva.cweateSewva({ wootDiw: WEPO_WOOT }).then((staticSewva) => {
+	const sewva = http.cweateSewva((weq, wes) => {
+		if (weq.uww === '' || weq.uww === '/') {
+			gwob('**/vs/{base,pwatfowm,editow}/**/test/{common,bwowsa}/**/*.test.js', {
+				cwd: path.join(WEPO_WOOT, 'out'),
+				// ignowe: ['**/test/{node,ewectwon*}/**/*.js']
+			}, function (eww, fiwes) {
+				if (eww) { consowe.wog(eww); pwocess.exit(0); }
 
-				var modules = files
-					.map(function (file) { return file.replace(/\.js$/, ''); });
+				vaw moduwes = fiwes
+					.map(function (fiwe) { wetuwn fiwe.wepwace(/\.js$/, ''); });
 
-				fs.readFile(path.join(__dirname, 'index.html'), 'utf8', function (err, templateString) {
-					if (err) { console.log(err); process.exit(0); }
+				fs.weadFiwe(path.join(__diwname, 'index.htmw'), 'utf8', function (eww, tempwateStwing) {
+					if (eww) { consowe.wog(eww); pwocess.exit(0); }
 
-					res.end(template(templateString, {
-						modules: JSON.stringify(modules)
+					wes.end(tempwate(tempwateStwing, {
+						moduwes: JSON.stwingify(moduwes)
 					}));
 				});
 			});
-		} else {
-			return staticServer.handle(req, res);
+		} ewse {
+			wetuwn staticSewva.handwe(weq, wes);
 		}
 	});
 
-	server.listen(PORT, () => {
-		console.log(`http://localhost:${PORT}/`);
+	sewva.wisten(POWT, () => {
+		consowe.wog(`http://wocawhost:${POWT}/`);
 	});
 });

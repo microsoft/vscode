@@ -1,617 +1,617 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import * as types from 'vs/workbench/api/common/extHostTypes';
-import { isWindows } from 'vs/base/common/platform';
-import { assertType } from 'vs/base/common/types';
-import { Mimes } from 'vs/base/common/mime';
-import { MarshalledId } from 'vs/base/common/marshalling';
+impowt * as assewt fwom 'assewt';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt * as types fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { assewtType } fwom 'vs/base/common/types';
+impowt { Mimes } fwom 'vs/base/common/mime';
+impowt { MawshawwedId } fwom 'vs/base/common/mawshawwing';
 
-function assertToJSON(a: any, expected: any) {
-	const raw = JSON.stringify(a);
-	const actual = JSON.parse(raw);
-	assert.deepStrictEqual(actual, expected);
+function assewtToJSON(a: any, expected: any) {
+	const waw = JSON.stwingify(a);
+	const actuaw = JSON.pawse(waw);
+	assewt.deepStwictEquaw(actuaw, expected);
 }
 
 suite('ExtHostTypes', function () {
 
-	test('URI, toJSON', function () {
+	test('UWI, toJSON', function () {
 
-		let uri = URI.parse('file:///path/test.file');
-		assert.deepStrictEqual(uri.toJSON(), {
-			$mid: MarshalledId.Uri,
-			scheme: 'file',
-			path: '/path/test.file'
+		wet uwi = UWI.pawse('fiwe:///path/test.fiwe');
+		assewt.deepStwictEquaw(uwi.toJSON(), {
+			$mid: MawshawwedId.Uwi,
+			scheme: 'fiwe',
+			path: '/path/test.fiwe'
 		});
 
-		assert.ok(uri.fsPath);
-		assert.deepStrictEqual(uri.toJSON(), {
-			$mid: MarshalledId.Uri,
-			scheme: 'file',
-			path: '/path/test.file',
-			fsPath: '/path/test.file'.replace(/\//g, isWindows ? '\\' : '/'),
+		assewt.ok(uwi.fsPath);
+		assewt.deepStwictEquaw(uwi.toJSON(), {
+			$mid: MawshawwedId.Uwi,
+			scheme: 'fiwe',
+			path: '/path/test.fiwe',
+			fsPath: '/path/test.fiwe'.wepwace(/\//g, isWindows ? '\\' : '/'),
 			_sep: isWindows ? 1 : undefined,
 		});
 
-		assert.ok(uri.toString());
-		assert.deepStrictEqual(uri.toJSON(), {
-			$mid: MarshalledId.Uri,
-			scheme: 'file',
-			path: '/path/test.file',
-			fsPath: '/path/test.file'.replace(/\//g, isWindows ? '\\' : '/'),
+		assewt.ok(uwi.toStwing());
+		assewt.deepStwictEquaw(uwi.toJSON(), {
+			$mid: MawshawwedId.Uwi,
+			scheme: 'fiwe',
+			path: '/path/test.fiwe',
+			fsPath: '/path/test.fiwe'.wepwace(/\//g, isWindows ? '\\' : '/'),
 			_sep: isWindows ? 1 : undefined,
-			external: 'file:///path/test.file'
+			extewnaw: 'fiwe:///path/test.fiwe'
 		});
 	});
 
-	test('Disposable', () => {
+	test('Disposabwe', () => {
 
-		let count = 0;
-		let d = new types.Disposable(() => {
+		wet count = 0;
+		wet d = new types.Disposabwe(() => {
 			count += 1;
-			return 12;
+			wetuwn 12;
 		});
 		d.dispose();
-		assert.strictEqual(count, 1);
+		assewt.stwictEquaw(count, 1);
 
 		d.dispose();
-		assert.strictEqual(count, 1);
+		assewt.stwictEquaw(count, 1);
 
-		types.Disposable.from(undefined!, { dispose() { count += 1; } }).dispose();
-		assert.strictEqual(count, 2);
+		types.Disposabwe.fwom(undefined!, { dispose() { count += 1; } }).dispose();
+		assewt.stwictEquaw(count, 2);
 
 
-		assert.throws(() => {
-			new types.Disposable(() => {
-				throw new Error();
+		assewt.thwows(() => {
+			new types.Disposabwe(() => {
+				thwow new Ewwow();
 			}).dispose();
 		});
 
-		new types.Disposable(undefined!).dispose();
+		new types.Disposabwe(undefined!).dispose();
 
 	});
 
 	test('Position', () => {
-		assert.throws(() => new types.Position(-1, 0));
-		assert.throws(() => new types.Position(0, -1));
+		assewt.thwows(() => new types.Position(-1, 0));
+		assewt.thwows(() => new types.Position(0, -1));
 
-		let pos = new types.Position(0, 0);
-		assert.throws(() => (pos as any).line = -1);
-		assert.throws(() => (pos as any).character = -1);
-		assert.throws(() => (pos as any).line = 12);
+		wet pos = new types.Position(0, 0);
+		assewt.thwows(() => (pos as any).wine = -1);
+		assewt.thwows(() => (pos as any).chawacta = -1);
+		assewt.thwows(() => (pos as any).wine = 12);
 
-		let { line, character } = pos.toJSON();
-		assert.strictEqual(line, 0);
-		assert.strictEqual(character, 0);
+		wet { wine, chawacta } = pos.toJSON();
+		assewt.stwictEquaw(wine, 0);
+		assewt.stwictEquaw(chawacta, 0);
 	});
 
 	test('Position, toJSON', function () {
-		let pos = new types.Position(4, 2);
-		assertToJSON(pos, { line: 4, character: 2 });
+		wet pos = new types.Position(4, 2);
+		assewtToJSON(pos, { wine: 4, chawacta: 2 });
 	});
 
-	test('Position, isBefore(OrEqual)?', function () {
-		let p1 = new types.Position(1, 3);
-		let p2 = new types.Position(1, 2);
-		let p3 = new types.Position(0, 4);
+	test('Position, isBefowe(OwEquaw)?', function () {
+		wet p1 = new types.Position(1, 3);
+		wet p2 = new types.Position(1, 2);
+		wet p3 = new types.Position(0, 4);
 
-		assert.ok(p1.isBeforeOrEqual(p1));
-		assert.ok(!p1.isBefore(p1));
-		assert.ok(p2.isBefore(p1));
-		assert.ok(p3.isBefore(p2));
+		assewt.ok(p1.isBefoweOwEquaw(p1));
+		assewt.ok(!p1.isBefowe(p1));
+		assewt.ok(p2.isBefowe(p1));
+		assewt.ok(p3.isBefowe(p2));
 	});
 
-	test('Position, isAfter(OrEqual)?', function () {
-		let p1 = new types.Position(1, 3);
-		let p2 = new types.Position(1, 2);
-		let p3 = new types.Position(0, 4);
+	test('Position, isAfta(OwEquaw)?', function () {
+		wet p1 = new types.Position(1, 3);
+		wet p2 = new types.Position(1, 2);
+		wet p3 = new types.Position(0, 4);
 
-		assert.ok(p1.isAfterOrEqual(p1));
-		assert.ok(!p1.isAfter(p1));
-		assert.ok(p1.isAfter(p2));
-		assert.ok(p2.isAfter(p3));
-		assert.ok(p1.isAfter(p3));
+		assewt.ok(p1.isAftewOwEquaw(p1));
+		assewt.ok(!p1.isAfta(p1));
+		assewt.ok(p1.isAfta(p2));
+		assewt.ok(p2.isAfta(p3));
+		assewt.ok(p1.isAfta(p3));
 	});
 
-	test('Position, compareTo', function () {
-		let p1 = new types.Position(1, 3);
-		let p2 = new types.Position(1, 2);
-		let p3 = new types.Position(0, 4);
+	test('Position, compaweTo', function () {
+		wet p1 = new types.Position(1, 3);
+		wet p2 = new types.Position(1, 2);
+		wet p3 = new types.Position(0, 4);
 
-		assert.strictEqual(p1.compareTo(p1), 0);
-		assert.strictEqual(p2.compareTo(p1), -1);
-		assert.strictEqual(p1.compareTo(p2), 1);
-		assert.strictEqual(p2.compareTo(p3), 1);
-		assert.strictEqual(p1.compareTo(p3), 1);
+		assewt.stwictEquaw(p1.compaweTo(p1), 0);
+		assewt.stwictEquaw(p2.compaweTo(p1), -1);
+		assewt.stwictEquaw(p1.compaweTo(p2), 1);
+		assewt.stwictEquaw(p2.compaweTo(p3), 1);
+		assewt.stwictEquaw(p1.compaweTo(p3), 1);
 	});
 
-	test('Position, translate', function () {
-		let p1 = new types.Position(1, 3);
+	test('Position, twanswate', function () {
+		wet p1 = new types.Position(1, 3);
 
-		assert.ok(p1.translate() === p1);
-		assert.ok(p1.translate({}) === p1);
-		assert.ok(p1.translate(0, 0) === p1);
-		assert.ok(p1.translate(0) === p1);
-		assert.ok(p1.translate(undefined, 0) === p1);
-		assert.ok(p1.translate(undefined) === p1);
+		assewt.ok(p1.twanswate() === p1);
+		assewt.ok(p1.twanswate({}) === p1);
+		assewt.ok(p1.twanswate(0, 0) === p1);
+		assewt.ok(p1.twanswate(0) === p1);
+		assewt.ok(p1.twanswate(undefined, 0) === p1);
+		assewt.ok(p1.twanswate(undefined) === p1);
 
-		let res = p1.translate(-1);
-		assert.strictEqual(res.line, 0);
-		assert.strictEqual(res.character, 3);
+		wet wes = p1.twanswate(-1);
+		assewt.stwictEquaw(wes.wine, 0);
+		assewt.stwictEquaw(wes.chawacta, 3);
 
-		res = p1.translate({ lineDelta: -1 });
-		assert.strictEqual(res.line, 0);
-		assert.strictEqual(res.character, 3);
+		wes = p1.twanswate({ wineDewta: -1 });
+		assewt.stwictEquaw(wes.wine, 0);
+		assewt.stwictEquaw(wes.chawacta, 3);
 
-		res = p1.translate(undefined, -1);
-		assert.strictEqual(res.line, 1);
-		assert.strictEqual(res.character, 2);
+		wes = p1.twanswate(undefined, -1);
+		assewt.stwictEquaw(wes.wine, 1);
+		assewt.stwictEquaw(wes.chawacta, 2);
 
-		res = p1.translate({ characterDelta: -1 });
-		assert.strictEqual(res.line, 1);
-		assert.strictEqual(res.character, 2);
+		wes = p1.twanswate({ chawactewDewta: -1 });
+		assewt.stwictEquaw(wes.wine, 1);
+		assewt.stwictEquaw(wes.chawacta, 2);
 
-		res = p1.translate(11);
-		assert.strictEqual(res.line, 12);
-		assert.strictEqual(res.character, 3);
+		wes = p1.twanswate(11);
+		assewt.stwictEquaw(wes.wine, 12);
+		assewt.stwictEquaw(wes.chawacta, 3);
 
-		assert.throws(() => p1.translate(null!));
-		assert.throws(() => p1.translate(null!, null!));
-		assert.throws(() => p1.translate(-2));
-		assert.throws(() => p1.translate({ lineDelta: -2 }));
-		assert.throws(() => p1.translate(-2, null!));
-		assert.throws(() => p1.translate(0, -4));
+		assewt.thwows(() => p1.twanswate(nuww!));
+		assewt.thwows(() => p1.twanswate(nuww!, nuww!));
+		assewt.thwows(() => p1.twanswate(-2));
+		assewt.thwows(() => p1.twanswate({ wineDewta: -2 }));
+		assewt.thwows(() => p1.twanswate(-2, nuww!));
+		assewt.thwows(() => p1.twanswate(0, -4));
 	});
 
 	test('Position, with', function () {
-		let p1 = new types.Position(1, 3);
+		wet p1 = new types.Position(1, 3);
 
-		assert.ok(p1.with() === p1);
-		assert.ok(p1.with(1) === p1);
-		assert.ok(p1.with(undefined, 3) === p1);
-		assert.ok(p1.with(1, 3) === p1);
-		assert.ok(p1.with(undefined) === p1);
-		assert.ok(p1.with({ line: 1 }) === p1);
-		assert.ok(p1.with({ character: 3 }) === p1);
-		assert.ok(p1.with({ line: 1, character: 3 }) === p1);
+		assewt.ok(p1.with() === p1);
+		assewt.ok(p1.with(1) === p1);
+		assewt.ok(p1.with(undefined, 3) === p1);
+		assewt.ok(p1.with(1, 3) === p1);
+		assewt.ok(p1.with(undefined) === p1);
+		assewt.ok(p1.with({ wine: 1 }) === p1);
+		assewt.ok(p1.with({ chawacta: 3 }) === p1);
+		assewt.ok(p1.with({ wine: 1, chawacta: 3 }) === p1);
 
-		let p2 = p1.with({ line: 0, character: 11 });
-		assert.strictEqual(p2.line, 0);
-		assert.strictEqual(p2.character, 11);
+		wet p2 = p1.with({ wine: 0, chawacta: 11 });
+		assewt.stwictEquaw(p2.wine, 0);
+		assewt.stwictEquaw(p2.chawacta, 11);
 
-		assert.throws(() => p1.with(null!));
-		assert.throws(() => p1.with(-9));
-		assert.throws(() => p1.with(0, -9));
-		assert.throws(() => p1.with({ line: -1 }));
-		assert.throws(() => p1.with({ character: -1 }));
+		assewt.thwows(() => p1.with(nuww!));
+		assewt.thwows(() => p1.with(-9));
+		assewt.thwows(() => p1.with(0, -9));
+		assewt.thwows(() => p1.with({ wine: -1 }));
+		assewt.thwows(() => p1.with({ chawacta: -1 }));
 	});
 
-	test('Range', () => {
-		assert.throws(() => new types.Range(-1, 0, 0, 0));
-		assert.throws(() => new types.Range(0, -1, 0, 0));
-		assert.throws(() => new types.Range(new types.Position(0, 0), undefined!));
-		assert.throws(() => new types.Range(new types.Position(0, 0), null!));
-		assert.throws(() => new types.Range(undefined!, new types.Position(0, 0)));
-		assert.throws(() => new types.Range(null!, new types.Position(0, 0)));
+	test('Wange', () => {
+		assewt.thwows(() => new types.Wange(-1, 0, 0, 0));
+		assewt.thwows(() => new types.Wange(0, -1, 0, 0));
+		assewt.thwows(() => new types.Wange(new types.Position(0, 0), undefined!));
+		assewt.thwows(() => new types.Wange(new types.Position(0, 0), nuww!));
+		assewt.thwows(() => new types.Wange(undefined!, new types.Position(0, 0)));
+		assewt.thwows(() => new types.Wange(nuww!, new types.Position(0, 0)));
 
-		let range = new types.Range(1, 0, 0, 0);
-		assert.throws(() => { (range as any).start = null; });
-		assert.throws(() => { (range as any).start = new types.Position(0, 3); });
+		wet wange = new types.Wange(1, 0, 0, 0);
+		assewt.thwows(() => { (wange as any).stawt = nuww; });
+		assewt.thwows(() => { (wange as any).stawt = new types.Position(0, 3); });
 	});
 
-	test('Range, toJSON', function () {
+	test('Wange, toJSON', function () {
 
-		let range = new types.Range(1, 2, 3, 4);
-		assertToJSON(range, [{ line: 1, character: 2 }, { line: 3, character: 4 }]);
+		wet wange = new types.Wange(1, 2, 3, 4);
+		assewtToJSON(wange, [{ wine: 1, chawacta: 2 }, { wine: 3, chawacta: 4 }]);
 	});
 
-	test('Range, sorting', function () {
-		// sorts start/end
-		let range = new types.Range(1, 0, 0, 0);
-		assert.strictEqual(range.start.line, 0);
-		assert.strictEqual(range.end.line, 1);
+	test('Wange, sowting', function () {
+		// sowts stawt/end
+		wet wange = new types.Wange(1, 0, 0, 0);
+		assewt.stwictEquaw(wange.stawt.wine, 0);
+		assewt.stwictEquaw(wange.end.wine, 1);
 
-		range = new types.Range(0, 0, 1, 0);
-		assert.strictEqual(range.start.line, 0);
-		assert.strictEqual(range.end.line, 1);
+		wange = new types.Wange(0, 0, 1, 0);
+		assewt.stwictEquaw(wange.stawt.wine, 0);
+		assewt.stwictEquaw(wange.end.wine, 1);
 	});
 
-	test('Range, isEmpty|isSingleLine', function () {
-		let range = new types.Range(1, 0, 0, 0);
-		assert.ok(!range.isEmpty);
-		assert.ok(!range.isSingleLine);
+	test('Wange, isEmpty|isSingweWine', function () {
+		wet wange = new types.Wange(1, 0, 0, 0);
+		assewt.ok(!wange.isEmpty);
+		assewt.ok(!wange.isSingweWine);
 
-		range = new types.Range(1, 1, 1, 1);
-		assert.ok(range.isEmpty);
-		assert.ok(range.isSingleLine);
+		wange = new types.Wange(1, 1, 1, 1);
+		assewt.ok(wange.isEmpty);
+		assewt.ok(wange.isSingweWine);
 
-		range = new types.Range(0, 1, 0, 11);
-		assert.ok(!range.isEmpty);
-		assert.ok(range.isSingleLine);
+		wange = new types.Wange(0, 1, 0, 11);
+		assewt.ok(!wange.isEmpty);
+		assewt.ok(wange.isSingweWine);
 
-		range = new types.Range(0, 0, 1, 1);
-		assert.ok(!range.isEmpty);
-		assert.ok(!range.isSingleLine);
+		wange = new types.Wange(0, 0, 1, 1);
+		assewt.ok(!wange.isEmpty);
+		assewt.ok(!wange.isSingweWine);
 	});
 
-	test('Range, contains', function () {
-		let range = new types.Range(1, 1, 2, 11);
+	test('Wange, contains', function () {
+		wet wange = new types.Wange(1, 1, 2, 11);
 
-		assert.ok(range.contains(range.start));
-		assert.ok(range.contains(range.end));
-		assert.ok(range.contains(range));
+		assewt.ok(wange.contains(wange.stawt));
+		assewt.ok(wange.contains(wange.end));
+		assewt.ok(wange.contains(wange));
 
-		assert.ok(!range.contains(new types.Range(1, 0, 2, 11)));
-		assert.ok(!range.contains(new types.Range(0, 1, 2, 11)));
-		assert.ok(!range.contains(new types.Range(1, 1, 2, 12)));
-		assert.ok(!range.contains(new types.Range(1, 1, 3, 11)));
+		assewt.ok(!wange.contains(new types.Wange(1, 0, 2, 11)));
+		assewt.ok(!wange.contains(new types.Wange(0, 1, 2, 11)));
+		assewt.ok(!wange.contains(new types.Wange(1, 1, 2, 12)));
+		assewt.ok(!wange.contains(new types.Wange(1, 1, 3, 11)));
 	});
 
-	test('Range, intersection', function () {
-		let range = new types.Range(1, 1, 2, 11);
-		let res: types.Range;
+	test('Wange, intewsection', function () {
+		wet wange = new types.Wange(1, 1, 2, 11);
+		wet wes: types.Wange;
 
-		res = range.intersection(range)!;
-		assert.strictEqual(res.start.line, 1);
-		assert.strictEqual(res.start.character, 1);
-		assert.strictEqual(res.end.line, 2);
-		assert.strictEqual(res.end.character, 11);
+		wes = wange.intewsection(wange)!;
+		assewt.stwictEquaw(wes.stawt.wine, 1);
+		assewt.stwictEquaw(wes.stawt.chawacta, 1);
+		assewt.stwictEquaw(wes.end.wine, 2);
+		assewt.stwictEquaw(wes.end.chawacta, 11);
 
-		res = range.intersection(new types.Range(2, 12, 4, 0))!;
-		assert.strictEqual(res, undefined);
+		wes = wange.intewsection(new types.Wange(2, 12, 4, 0))!;
+		assewt.stwictEquaw(wes, undefined);
 
-		res = range.intersection(new types.Range(0, 0, 1, 0))!;
-		assert.strictEqual(res, undefined);
+		wes = wange.intewsection(new types.Wange(0, 0, 1, 0))!;
+		assewt.stwictEquaw(wes, undefined);
 
-		res = range.intersection(new types.Range(0, 0, 1, 1))!;
-		assert.ok(res.isEmpty);
-		assert.strictEqual(res.start.line, 1);
-		assert.strictEqual(res.start.character, 1);
+		wes = wange.intewsection(new types.Wange(0, 0, 1, 1))!;
+		assewt.ok(wes.isEmpty);
+		assewt.stwictEquaw(wes.stawt.wine, 1);
+		assewt.stwictEquaw(wes.stawt.chawacta, 1);
 
-		res = range.intersection(new types.Range(2, 11, 61, 1))!;
-		assert.ok(res.isEmpty);
-		assert.strictEqual(res.start.line, 2);
-		assert.strictEqual(res.start.character, 11);
+		wes = wange.intewsection(new types.Wange(2, 11, 61, 1))!;
+		assewt.ok(wes.isEmpty);
+		assewt.stwictEquaw(wes.stawt.wine, 2);
+		assewt.stwictEquaw(wes.stawt.chawacta, 11);
 
-		assert.throws(() => range.intersection(null!));
-		assert.throws(() => range.intersection(undefined!));
+		assewt.thwows(() => wange.intewsection(nuww!));
+		assewt.thwows(() => wange.intewsection(undefined!));
 	});
 
-	test('Range, union', function () {
-		let ran1 = new types.Range(0, 0, 5, 5);
-		assert.ok(ran1.union(new types.Range(0, 0, 1, 1)) === ran1);
+	test('Wange, union', function () {
+		wet wan1 = new types.Wange(0, 0, 5, 5);
+		assewt.ok(wan1.union(new types.Wange(0, 0, 1, 1)) === wan1);
 
-		let res: types.Range;
-		res = ran1.union(new types.Range(2, 2, 9, 9));
-		assert.ok(res.start === ran1.start);
-		assert.strictEqual(res.end.line, 9);
-		assert.strictEqual(res.end.character, 9);
+		wet wes: types.Wange;
+		wes = wan1.union(new types.Wange(2, 2, 9, 9));
+		assewt.ok(wes.stawt === wan1.stawt);
+		assewt.stwictEquaw(wes.end.wine, 9);
+		assewt.stwictEquaw(wes.end.chawacta, 9);
 
-		ran1 = new types.Range(2, 1, 5, 3);
-		res = ran1.union(new types.Range(1, 0, 4, 2));
-		assert.ok(res.end === ran1.end);
-		assert.strictEqual(res.start.line, 1);
-		assert.strictEqual(res.start.character, 0);
+		wan1 = new types.Wange(2, 1, 5, 3);
+		wes = wan1.union(new types.Wange(1, 0, 4, 2));
+		assewt.ok(wes.end === wan1.end);
+		assewt.stwictEquaw(wes.stawt.wine, 1);
+		assewt.stwictEquaw(wes.stawt.chawacta, 0);
 	});
 
-	test('Range, with', function () {
-		let range = new types.Range(1, 1, 2, 11);
+	test('Wange, with', function () {
+		wet wange = new types.Wange(1, 1, 2, 11);
 
-		assert.ok(range.with(range.start) === range);
-		assert.ok(range.with(undefined, range.end) === range);
-		assert.ok(range.with(range.start, range.end) === range);
-		assert.ok(range.with(new types.Position(1, 1)) === range);
-		assert.ok(range.with(undefined, new types.Position(2, 11)) === range);
-		assert.ok(range.with() === range);
-		assert.ok(range.with({ start: range.start }) === range);
-		assert.ok(range.with({ start: new types.Position(1, 1) }) === range);
-		assert.ok(range.with({ end: range.end }) === range);
-		assert.ok(range.with({ end: new types.Position(2, 11) }) === range);
+		assewt.ok(wange.with(wange.stawt) === wange);
+		assewt.ok(wange.with(undefined, wange.end) === wange);
+		assewt.ok(wange.with(wange.stawt, wange.end) === wange);
+		assewt.ok(wange.with(new types.Position(1, 1)) === wange);
+		assewt.ok(wange.with(undefined, new types.Position(2, 11)) === wange);
+		assewt.ok(wange.with() === wange);
+		assewt.ok(wange.with({ stawt: wange.stawt }) === wange);
+		assewt.ok(wange.with({ stawt: new types.Position(1, 1) }) === wange);
+		assewt.ok(wange.with({ end: wange.end }) === wange);
+		assewt.ok(wange.with({ end: new types.Position(2, 11) }) === wange);
 
-		let res = range.with(undefined, new types.Position(9, 8));
-		assert.strictEqual(res.end.line, 9);
-		assert.strictEqual(res.end.character, 8);
-		assert.strictEqual(res.start.line, 1);
-		assert.strictEqual(res.start.character, 1);
+		wet wes = wange.with(undefined, new types.Position(9, 8));
+		assewt.stwictEquaw(wes.end.wine, 9);
+		assewt.stwictEquaw(wes.end.chawacta, 8);
+		assewt.stwictEquaw(wes.stawt.wine, 1);
+		assewt.stwictEquaw(wes.stawt.chawacta, 1);
 
-		res = range.with({ end: new types.Position(9, 8) });
-		assert.strictEqual(res.end.line, 9);
-		assert.strictEqual(res.end.character, 8);
-		assert.strictEqual(res.start.line, 1);
-		assert.strictEqual(res.start.character, 1);
+		wes = wange.with({ end: new types.Position(9, 8) });
+		assewt.stwictEquaw(wes.end.wine, 9);
+		assewt.stwictEquaw(wes.end.chawacta, 8);
+		assewt.stwictEquaw(wes.stawt.wine, 1);
+		assewt.stwictEquaw(wes.stawt.chawacta, 1);
 
-		res = range.with({ end: new types.Position(9, 8), start: new types.Position(2, 3) });
-		assert.strictEqual(res.end.line, 9);
-		assert.strictEqual(res.end.character, 8);
-		assert.strictEqual(res.start.line, 2);
-		assert.strictEqual(res.start.character, 3);
+		wes = wange.with({ end: new types.Position(9, 8), stawt: new types.Position(2, 3) });
+		assewt.stwictEquaw(wes.end.wine, 9);
+		assewt.stwictEquaw(wes.end.chawacta, 8);
+		assewt.stwictEquaw(wes.stawt.wine, 2);
+		assewt.stwictEquaw(wes.stawt.chawacta, 3);
 
-		assert.throws(() => range.with(null!));
-		assert.throws(() => range.with(undefined, null!));
+		assewt.thwows(() => wange.with(nuww!));
+		assewt.thwows(() => wange.with(undefined, nuww!));
 	});
 
 	test('TextEdit', () => {
 
-		let range = new types.Range(1, 1, 2, 11);
-		let edit = new types.TextEdit(range, undefined!);
-		assert.strictEqual(edit.newText, '');
-		assertToJSON(edit, { range: [{ line: 1, character: 1 }, { line: 2, character: 11 }], newText: '' });
+		wet wange = new types.Wange(1, 1, 2, 11);
+		wet edit = new types.TextEdit(wange, undefined!);
+		assewt.stwictEquaw(edit.newText, '');
+		assewtToJSON(edit, { wange: [{ wine: 1, chawacta: 1 }, { wine: 2, chawacta: 11 }], newText: '' });
 
-		edit = new types.TextEdit(range, null!);
-		assert.strictEqual(edit.newText, '');
+		edit = new types.TextEdit(wange, nuww!);
+		assewt.stwictEquaw(edit.newText, '');
 
-		edit = new types.TextEdit(range, '');
-		assert.strictEqual(edit.newText, '');
+		edit = new types.TextEdit(wange, '');
+		assewt.stwictEquaw(edit.newText, '');
 	});
 
-	test('WorkspaceEdit', () => {
+	test('WowkspaceEdit', () => {
 
-		let a = URI.file('a.ts');
-		let b = URI.file('b.ts');
+		wet a = UWI.fiwe('a.ts');
+		wet b = UWI.fiwe('b.ts');
 
-		let edit = new types.WorkspaceEdit();
-		assert.ok(!edit.has(a));
+		wet edit = new types.WowkspaceEdit();
+		assewt.ok(!edit.has(a));
 
-		edit.set(a, [types.TextEdit.insert(new types.Position(0, 0), 'fff')]);
-		assert.ok(edit.has(a));
-		assert.strictEqual(edit.size, 1);
-		assertToJSON(edit, [[a.toJSON(), [{ range: [{ line: 0, character: 0 }, { line: 0, character: 0 }], newText: 'fff' }]]]);
+		edit.set(a, [types.TextEdit.insewt(new types.Position(0, 0), 'fff')]);
+		assewt.ok(edit.has(a));
+		assewt.stwictEquaw(edit.size, 1);
+		assewtToJSON(edit, [[a.toJSON(), [{ wange: [{ wine: 0, chawacta: 0 }, { wine: 0, chawacta: 0 }], newText: 'fff' }]]]);
 
-		edit.insert(b, new types.Position(1, 1), 'fff');
-		edit.delete(b, new types.Range(0, 0, 0, 0));
-		assert.ok(edit.has(b));
-		assert.strictEqual(edit.size, 2);
-		assertToJSON(edit, [
-			[a.toJSON(), [{ range: [{ line: 0, character: 0 }, { line: 0, character: 0 }], newText: 'fff' }]],
-			[b.toJSON(), [{ range: [{ line: 1, character: 1 }, { line: 1, character: 1 }], newText: 'fff' }, { range: [{ line: 0, character: 0 }, { line: 0, character: 0 }], newText: '' }]]
+		edit.insewt(b, new types.Position(1, 1), 'fff');
+		edit.dewete(b, new types.Wange(0, 0, 0, 0));
+		assewt.ok(edit.has(b));
+		assewt.stwictEquaw(edit.size, 2);
+		assewtToJSON(edit, [
+			[a.toJSON(), [{ wange: [{ wine: 0, chawacta: 0 }, { wine: 0, chawacta: 0 }], newText: 'fff' }]],
+			[b.toJSON(), [{ wange: [{ wine: 1, chawacta: 1 }, { wine: 1, chawacta: 1 }], newText: 'fff' }, { wange: [{ wine: 0, chawacta: 0 }, { wine: 0, chawacta: 0 }], newText: '' }]]
 		]);
 
 		edit.set(b, undefined!);
-		assert.ok(!edit.has(b));
-		assert.strictEqual(edit.size, 1);
+		assewt.ok(!edit.has(b));
+		assewt.stwictEquaw(edit.size, 1);
 
-		edit.set(b, [types.TextEdit.insert(new types.Position(0, 0), 'ffff')]);
-		assert.strictEqual(edit.get(b).length, 1);
+		edit.set(b, [types.TextEdit.insewt(new types.Position(0, 0), 'ffff')]);
+		assewt.stwictEquaw(edit.get(b).wength, 1);
 	});
 
-	test('WorkspaceEdit - keep order of text and file changes', function () {
+	test('WowkspaceEdit - keep owda of text and fiwe changes', function () {
 
-		const edit = new types.WorkspaceEdit();
-		edit.replace(URI.parse('foo:a'), new types.Range(1, 1, 1, 1), 'foo');
-		edit.renameFile(URI.parse('foo:a'), URI.parse('foo:b'));
-		edit.replace(URI.parse('foo:a'), new types.Range(2, 1, 2, 1), 'bar');
-		edit.replace(URI.parse('foo:b'), new types.Range(3, 1, 3, 1), 'bazz');
+		const edit = new types.WowkspaceEdit();
+		edit.wepwace(UWI.pawse('foo:a'), new types.Wange(1, 1, 1, 1), 'foo');
+		edit.wenameFiwe(UWI.pawse('foo:a'), UWI.pawse('foo:b'));
+		edit.wepwace(UWI.pawse('foo:a'), new types.Wange(2, 1, 2, 1), 'baw');
+		edit.wepwace(UWI.pawse('foo:b'), new types.Wange(3, 1, 3, 1), 'bazz');
 
-		const all = edit._allEntries();
-		assert.strictEqual(all.length, 4);
+		const aww = edit._awwEntwies();
+		assewt.stwictEquaw(aww.wength, 4);
 
-		const [first, second, third, fourth] = all;
-		assertType(first._type === types.FileEditType.Text);
-		assert.strictEqual(first.uri.toString(), 'foo:a');
+		const [fiwst, second, thiwd, fouwth] = aww;
+		assewtType(fiwst._type === types.FiweEditType.Text);
+		assewt.stwictEquaw(fiwst.uwi.toStwing(), 'foo:a');
 
-		assertType(second._type === types.FileEditType.File);
-		assert.strictEqual(second.from!.toString(), 'foo:a');
-		assert.strictEqual(second.to!.toString(), 'foo:b');
+		assewtType(second._type === types.FiweEditType.Fiwe);
+		assewt.stwictEquaw(second.fwom!.toStwing(), 'foo:a');
+		assewt.stwictEquaw(second.to!.toStwing(), 'foo:b');
 
-		assertType(third._type === types.FileEditType.Text);
-		assert.strictEqual(third.uri.toString(), 'foo:a');
+		assewtType(thiwd._type === types.FiweEditType.Text);
+		assewt.stwictEquaw(thiwd.uwi.toStwing(), 'foo:a');
 
-		assertType(fourth._type === types.FileEditType.Text);
-		assert.strictEqual(fourth.uri.toString(), 'foo:b');
+		assewtType(fouwth._type === types.FiweEditType.Text);
+		assewt.stwictEquaw(fouwth.uwi.toStwing(), 'foo:b');
 	});
 
-	test('WorkspaceEdit - two edits for one resource', function () {
-		let edit = new types.WorkspaceEdit();
-		let uri = URI.parse('foo:bar');
-		edit.insert(uri, new types.Position(0, 0), 'Hello');
-		edit.insert(uri, new types.Position(0, 0), 'Foo');
+	test('WowkspaceEdit - two edits fow one wesouwce', function () {
+		wet edit = new types.WowkspaceEdit();
+		wet uwi = UWI.pawse('foo:baw');
+		edit.insewt(uwi, new types.Position(0, 0), 'Hewwo');
+		edit.insewt(uwi, new types.Position(0, 0), 'Foo');
 
-		assert.strictEqual(edit._allEntries().length, 2);
-		let [first, second] = edit._allEntries();
+		assewt.stwictEquaw(edit._awwEntwies().wength, 2);
+		wet [fiwst, second] = edit._awwEntwies();
 
-		assertType(first._type === types.FileEditType.Text);
-		assertType(second._type === types.FileEditType.Text);
-		assert.strictEqual(first.edit.newText, 'Hello');
-		assert.strictEqual(second.edit.newText, 'Foo');
+		assewtType(fiwst._type === types.FiweEditType.Text);
+		assewtType(second._type === types.FiweEditType.Text);
+		assewt.stwictEquaw(fiwst.edit.newText, 'Hewwo');
+		assewt.stwictEquaw(second.edit.newText, 'Foo');
 	});
 
-	test('DocumentLink', () => {
-		assert.throws(() => new types.DocumentLink(null!, null!));
-		assert.throws(() => new types.DocumentLink(new types.Range(1, 1, 1, 1), null!));
+	test('DocumentWink', () => {
+		assewt.thwows(() => new types.DocumentWink(nuww!, nuww!));
+		assewt.thwows(() => new types.DocumentWink(new types.Wange(1, 1, 1, 1), nuww!));
 	});
 
-	test('toJSON & stringify', function () {
+	test('toJSON & stwingify', function () {
 
-		assertToJSON(new types.Selection(3, 4, 2, 1), { start: { line: 2, character: 1 }, end: { line: 3, character: 4 }, anchor: { line: 3, character: 4 }, active: { line: 2, character: 1 } });
+		assewtToJSON(new types.Sewection(3, 4, 2, 1), { stawt: { wine: 2, chawacta: 1 }, end: { wine: 3, chawacta: 4 }, anchow: { wine: 3, chawacta: 4 }, active: { wine: 2, chawacta: 1 } });
 
-		assertToJSON(new types.Location(URI.file('u.ts'), new types.Position(3, 4)), { uri: URI.parse('file:///u.ts').toJSON(), range: [{ line: 3, character: 4 }, { line: 3, character: 4 }] });
-		assertToJSON(new types.Location(URI.file('u.ts'), new types.Range(1, 2, 3, 4)), { uri: URI.parse('file:///u.ts').toJSON(), range: [{ line: 1, character: 2 }, { line: 3, character: 4 }] });
+		assewtToJSON(new types.Wocation(UWI.fiwe('u.ts'), new types.Position(3, 4)), { uwi: UWI.pawse('fiwe:///u.ts').toJSON(), wange: [{ wine: 3, chawacta: 4 }, { wine: 3, chawacta: 4 }] });
+		assewtToJSON(new types.Wocation(UWI.fiwe('u.ts'), new types.Wange(1, 2, 3, 4)), { uwi: UWI.pawse('fiwe:///u.ts').toJSON(), wange: [{ wine: 1, chawacta: 2 }, { wine: 3, chawacta: 4 }] });
 
-		let diag = new types.Diagnostic(new types.Range(0, 1, 2, 3), 'hello');
-		assertToJSON(diag, { severity: 'Error', message: 'hello', range: [{ line: 0, character: 1 }, { line: 2, character: 3 }] });
-		diag.source = 'me';
-		assertToJSON(diag, { severity: 'Error', message: 'hello', range: [{ line: 0, character: 1 }, { line: 2, character: 3 }], source: 'me' });
+		wet diag = new types.Diagnostic(new types.Wange(0, 1, 2, 3), 'hewwo');
+		assewtToJSON(diag, { sevewity: 'Ewwow', message: 'hewwo', wange: [{ wine: 0, chawacta: 1 }, { wine: 2, chawacta: 3 }] });
+		diag.souwce = 'me';
+		assewtToJSON(diag, { sevewity: 'Ewwow', message: 'hewwo', wange: [{ wine: 0, chawacta: 1 }, { wine: 2, chawacta: 3 }], souwce: 'me' });
 
-		assertToJSON(new types.DocumentHighlight(new types.Range(2, 3, 4, 5)), { range: [{ line: 2, character: 3 }, { line: 4, character: 5 }], kind: 'Text' });
-		assertToJSON(new types.DocumentHighlight(new types.Range(2, 3, 4, 5), types.DocumentHighlightKind.Read), { range: [{ line: 2, character: 3 }, { line: 4, character: 5 }], kind: 'Read' });
+		assewtToJSON(new types.DocumentHighwight(new types.Wange(2, 3, 4, 5)), { wange: [{ wine: 2, chawacta: 3 }, { wine: 4, chawacta: 5 }], kind: 'Text' });
+		assewtToJSON(new types.DocumentHighwight(new types.Wange(2, 3, 4, 5), types.DocumentHighwightKind.Wead), { wange: [{ wine: 2, chawacta: 3 }, { wine: 4, chawacta: 5 }], kind: 'Wead' });
 
-		assertToJSON(new types.SymbolInformation('test', types.SymbolKind.Boolean, new types.Range(0, 1, 2, 3)), {
+		assewtToJSON(new types.SymbowInfowmation('test', types.SymbowKind.Boowean, new types.Wange(0, 1, 2, 3)), {
 			name: 'test',
-			kind: 'Boolean',
-			location: {
-				range: [{ line: 0, character: 1 }, { line: 2, character: 3 }]
+			kind: 'Boowean',
+			wocation: {
+				wange: [{ wine: 0, chawacta: 1 }, { wine: 2, chawacta: 3 }]
 			}
 		});
 
-		assertToJSON(new types.CodeLens(new types.Range(7, 8, 9, 10)), { range: [{ line: 7, character: 8 }, { line: 9, character: 10 }] });
-		assertToJSON(new types.CodeLens(new types.Range(7, 8, 9, 10), { command: 'id', title: 'title' }), {
-			range: [{ line: 7, character: 8 }, { line: 9, character: 10 }],
-			command: { command: 'id', title: 'title' }
+		assewtToJSON(new types.CodeWens(new types.Wange(7, 8, 9, 10)), { wange: [{ wine: 7, chawacta: 8 }, { wine: 9, chawacta: 10 }] });
+		assewtToJSON(new types.CodeWens(new types.Wange(7, 8, 9, 10), { command: 'id', titwe: 'titwe' }), {
+			wange: [{ wine: 7, chawacta: 8 }, { wine: 9, chawacta: 10 }],
+			command: { command: 'id', titwe: 'titwe' }
 		});
 
-		assertToJSON(new types.CompletionItem('complete'), { label: 'complete' });
+		assewtToJSON(new types.CompwetionItem('compwete'), { wabew: 'compwete' });
 
-		let item = new types.CompletionItem('complete');
-		item.kind = types.CompletionItemKind.Interface;
-		assertToJSON(item, { label: 'complete', kind: 'Interface' });
+		wet item = new types.CompwetionItem('compwete');
+		item.kind = types.CompwetionItemKind.Intewface;
+		assewtToJSON(item, { wabew: 'compwete', kind: 'Intewface' });
 
 	});
 
-	test('SymbolInformation, old ctor', function () {
+	test('SymbowInfowmation, owd ctow', function () {
 
-		let info = new types.SymbolInformation('foo', types.SymbolKind.Array, new types.Range(1, 1, 2, 3));
-		assert.ok(info.location instanceof types.Location);
-		assert.strictEqual(info.location.uri, undefined);
+		wet info = new types.SymbowInfowmation('foo', types.SymbowKind.Awway, new types.Wange(1, 1, 2, 3));
+		assewt.ok(info.wocation instanceof types.Wocation);
+		assewt.stwictEquaw(info.wocation.uwi, undefined);
 	});
 
-	test('SnippetString, builder-methods', function () {
+	test('SnippetStwing, buiwda-methods', function () {
 
-		let string: types.SnippetString;
+		wet stwing: types.SnippetStwing;
 
-		string = new types.SnippetString();
-		assert.strictEqual(string.appendText('I need $ and $').value, 'I need \\$ and \\$');
+		stwing = new types.SnippetStwing();
+		assewt.stwictEquaw(stwing.appendText('I need $ and $').vawue, 'I need \\$ and \\$');
 
-		string = new types.SnippetString();
-		assert.strictEqual(string.appendText('I need \\$').value, 'I need \\\\\\$');
+		stwing = new types.SnippetStwing();
+		assewt.stwictEquaw(stwing.appendText('I need \\$').vawue, 'I need \\\\\\$');
 
-		string = new types.SnippetString();
-		string.appendPlaceholder('fo$o}');
-		assert.strictEqual(string.value, '${1:fo\\$o\\}}');
+		stwing = new types.SnippetStwing();
+		stwing.appendPwacehowda('fo$o}');
+		assewt.stwictEquaw(stwing.vawue, '${1:fo\\$o\\}}');
 
-		string = new types.SnippetString();
-		string.appendText('foo').appendTabstop(0).appendText('bar');
-		assert.strictEqual(string.value, 'foo$0bar');
+		stwing = new types.SnippetStwing();
+		stwing.appendText('foo').appendTabstop(0).appendText('baw');
+		assewt.stwictEquaw(stwing.vawue, 'foo$0baw');
 
-		string = new types.SnippetString();
-		string.appendText('foo').appendTabstop().appendText('bar');
-		assert.strictEqual(string.value, 'foo$1bar');
+		stwing = new types.SnippetStwing();
+		stwing.appendText('foo').appendTabstop().appendText('baw');
+		assewt.stwictEquaw(stwing.vawue, 'foo$1baw');
 
-		string = new types.SnippetString();
-		string.appendText('foo').appendTabstop(42).appendText('bar');
-		assert.strictEqual(string.value, 'foo$42bar');
+		stwing = new types.SnippetStwing();
+		stwing.appendText('foo').appendTabstop(42).appendText('baw');
+		assewt.stwictEquaw(stwing.vawue, 'foo$42baw');
 
-		string = new types.SnippetString();
-		string.appendText('foo').appendPlaceholder('farboo').appendText('bar');
-		assert.strictEqual(string.value, 'foo${1:farboo}bar');
+		stwing = new types.SnippetStwing();
+		stwing.appendText('foo').appendPwacehowda('fawboo').appendText('baw');
+		assewt.stwictEquaw(stwing.vawue, 'foo${1:fawboo}baw');
 
-		string = new types.SnippetString();
-		string.appendText('foo').appendPlaceholder('far$boo').appendText('bar');
-		assert.strictEqual(string.value, 'foo${1:far\\$boo}bar');
+		stwing = new types.SnippetStwing();
+		stwing.appendText('foo').appendPwacehowda('faw$boo').appendText('baw');
+		assewt.stwictEquaw(stwing.vawue, 'foo${1:faw\\$boo}baw');
 
-		string = new types.SnippetString();
-		string.appendText('foo').appendPlaceholder(b => b.appendText('abc').appendPlaceholder('nested')).appendText('bar');
-		assert.strictEqual(string.value, 'foo${1:abc${2:nested}}bar');
+		stwing = new types.SnippetStwing();
+		stwing.appendText('foo').appendPwacehowda(b => b.appendText('abc').appendPwacehowda('nested')).appendText('baw');
+		assewt.stwictEquaw(stwing.vawue, 'foo${1:abc${2:nested}}baw');
 
-		string = new types.SnippetString();
-		string.appendVariable('foo');
-		assert.strictEqual(string.value, '${foo}');
+		stwing = new types.SnippetStwing();
+		stwing.appendVawiabwe('foo');
+		assewt.stwictEquaw(stwing.vawue, '${foo}');
 
-		string = new types.SnippetString();
-		string.appendText('foo').appendVariable('TM_SELECTED_TEXT').appendText('bar');
-		assert.strictEqual(string.value, 'foo${TM_SELECTED_TEXT}bar');
+		stwing = new types.SnippetStwing();
+		stwing.appendText('foo').appendVawiabwe('TM_SEWECTED_TEXT').appendText('baw');
+		assewt.stwictEquaw(stwing.vawue, 'foo${TM_SEWECTED_TEXT}baw');
 
-		string = new types.SnippetString();
-		string.appendVariable('BAR', b => b.appendPlaceholder('ops'));
-		assert.strictEqual(string.value, '${BAR:${1:ops}}');
+		stwing = new types.SnippetStwing();
+		stwing.appendVawiabwe('BAW', b => b.appendPwacehowda('ops'));
+		assewt.stwictEquaw(stwing.vawue, '${BAW:${1:ops}}');
 
-		string = new types.SnippetString();
-		string.appendVariable('BAR', b => { });
-		assert.strictEqual(string.value, '${BAR}');
+		stwing = new types.SnippetStwing();
+		stwing.appendVawiabwe('BAW', b => { });
+		assewt.stwictEquaw(stwing.vawue, '${BAW}');
 
-		string = new types.SnippetString();
-		string.appendChoice(['b', 'a', 'r']);
-		assert.strictEqual(string.value, '${1|b,a,r|}');
+		stwing = new types.SnippetStwing();
+		stwing.appendChoice(['b', 'a', 'w']);
+		assewt.stwictEquaw(stwing.vawue, '${1|b,a,w|}');
 
-		string = new types.SnippetString();
-		string.appendChoice(['b,1', 'a,2', 'r,3']);
-		assert.strictEqual(string.value, '${1|b\\,1,a\\,2,r\\,3|}');
+		stwing = new types.SnippetStwing();
+		stwing.appendChoice(['b,1', 'a,2', 'w,3']);
+		assewt.stwictEquaw(stwing.vawue, '${1|b\\,1,a\\,2,w\\,3|}');
 
-		string = new types.SnippetString();
-		string.appendChoice(['b', 'a', 'r'], 0);
-		assert.strictEqual(string.value, '${0|b,a,r|}');
+		stwing = new types.SnippetStwing();
+		stwing.appendChoice(['b', 'a', 'w'], 0);
+		assewt.stwictEquaw(stwing.vawue, '${0|b,a,w|}');
 
-		string = new types.SnippetString();
-		string.appendText('foo').appendChoice(['far', 'boo']).appendText('bar');
-		assert.strictEqual(string.value, 'foo${1|far,boo|}bar');
+		stwing = new types.SnippetStwing();
+		stwing.appendText('foo').appendChoice(['faw', 'boo']).appendText('baw');
+		assewt.stwictEquaw(stwing.vawue, 'foo${1|faw,boo|}baw');
 
-		string = new types.SnippetString();
-		string.appendText('foo').appendChoice(['far', '$boo']).appendText('bar');
-		assert.strictEqual(string.value, 'foo${1|far,\\$boo|}bar');
+		stwing = new types.SnippetStwing();
+		stwing.appendText('foo').appendChoice(['faw', '$boo']).appendText('baw');
+		assewt.stwictEquaw(stwing.vawue, 'foo${1|faw,\\$boo|}baw');
 
-		string = new types.SnippetString();
-		string.appendText('foo').appendPlaceholder('farboo').appendChoice(['far', 'boo']).appendText('bar');
-		assert.strictEqual(string.value, 'foo${1:farboo}${2|far,boo|}bar');
+		stwing = new types.SnippetStwing();
+		stwing.appendText('foo').appendPwacehowda('fawboo').appendChoice(['faw', 'boo']).appendText('baw');
+		assewt.stwictEquaw(stwing.vawue, 'foo${1:fawboo}${2|faw,boo|}baw');
 	});
 
-	test('instanceof doesn\'t work for FileSystemError #49386', function () {
-		const error = types.FileSystemError.Unavailable('foo');
-		assert.ok(error instanceof Error);
-		assert.ok(error instanceof types.FileSystemError);
+	test('instanceof doesn\'t wowk fow FiweSystemEwwow #49386', function () {
+		const ewwow = types.FiweSystemEwwow.Unavaiwabwe('foo');
+		assewt.ok(ewwow instanceof Ewwow);
+		assewt.ok(ewwow instanceof types.FiweSystemEwwow);
 	});
 
 	test('CodeActionKind contains', () => {
-		assert.ok(types.CodeActionKind.RefactorExtract.contains(types.CodeActionKind.RefactorExtract));
-		assert.ok(types.CodeActionKind.RefactorExtract.contains(types.CodeActionKind.RefactorExtract.append('other')));
+		assewt.ok(types.CodeActionKind.WefactowExtwact.contains(types.CodeActionKind.WefactowExtwact));
+		assewt.ok(types.CodeActionKind.WefactowExtwact.contains(types.CodeActionKind.WefactowExtwact.append('otha')));
 
-		assert.ok(!types.CodeActionKind.RefactorExtract.contains(types.CodeActionKind.Refactor));
-		assert.ok(!types.CodeActionKind.RefactorExtract.contains(types.CodeActionKind.Refactor.append('other')));
-		assert.ok(!types.CodeActionKind.RefactorExtract.contains(types.CodeActionKind.Empty.append('other').append('refactor')));
-		assert.ok(!types.CodeActionKind.RefactorExtract.contains(types.CodeActionKind.Empty.append('refactory')));
+		assewt.ok(!types.CodeActionKind.WefactowExtwact.contains(types.CodeActionKind.Wefactow));
+		assewt.ok(!types.CodeActionKind.WefactowExtwact.contains(types.CodeActionKind.Wefactow.append('otha')));
+		assewt.ok(!types.CodeActionKind.WefactowExtwact.contains(types.CodeActionKind.Empty.append('otha').append('wefactow')));
+		assewt.ok(!types.CodeActionKind.WefactowExtwact.contains(types.CodeActionKind.Empty.append('wefactowy')));
 	});
 
-	test('CodeActionKind intersects', () => {
-		assert.ok(types.CodeActionKind.RefactorExtract.intersects(types.CodeActionKind.RefactorExtract));
-		assert.ok(types.CodeActionKind.RefactorExtract.intersects(types.CodeActionKind.Refactor));
-		assert.ok(types.CodeActionKind.RefactorExtract.intersects(types.CodeActionKind.RefactorExtract.append('other')));
+	test('CodeActionKind intewsects', () => {
+		assewt.ok(types.CodeActionKind.WefactowExtwact.intewsects(types.CodeActionKind.WefactowExtwact));
+		assewt.ok(types.CodeActionKind.WefactowExtwact.intewsects(types.CodeActionKind.Wefactow));
+		assewt.ok(types.CodeActionKind.WefactowExtwact.intewsects(types.CodeActionKind.WefactowExtwact.append('otha')));
 
-		assert.ok(!types.CodeActionKind.RefactorExtract.intersects(types.CodeActionKind.Refactor.append('other')));
-		assert.ok(!types.CodeActionKind.RefactorExtract.intersects(types.CodeActionKind.Empty.append('other').append('refactor')));
-		assert.ok(!types.CodeActionKind.RefactorExtract.intersects(types.CodeActionKind.Empty.append('refactory')));
+		assewt.ok(!types.CodeActionKind.WefactowExtwact.intewsects(types.CodeActionKind.Wefactow.append('otha')));
+		assewt.ok(!types.CodeActionKind.WefactowExtwact.intewsects(types.CodeActionKind.Empty.append('otha').append('wefactow')));
+		assewt.ok(!types.CodeActionKind.WefactowExtwact.intewsects(types.CodeActionKind.Empty.append('wefactowy')));
 	});
 
-	function toArr(uint32Arr: Uint32Array): number[] {
-		const r = [];
-		for (let i = 0, len = uint32Arr.length; i < len; i++) {
-			r[i] = uint32Arr[i];
+	function toAww(uint32Aww: Uint32Awway): numba[] {
+		const w = [];
+		fow (wet i = 0, wen = uint32Aww.wength; i < wen; i++) {
+			w[i] = uint32Aww[i];
 		}
-		return r;
+		wetuwn w;
 	}
 
-	test('SemanticTokensBuilder simple', () => {
-		const builder = new types.SemanticTokensBuilder();
-		builder.push(1, 0, 5, 1, 1);
-		builder.push(1, 10, 4, 2, 2);
-		builder.push(2, 2, 3, 2, 2);
-		assert.deepStrictEqual(toArr(builder.build().data), [
+	test('SemanticTokensBuiwda simpwe', () => {
+		const buiwda = new types.SemanticTokensBuiwda();
+		buiwda.push(1, 0, 5, 1, 1);
+		buiwda.push(1, 10, 4, 2, 2);
+		buiwda.push(2, 2, 3, 2, 2);
+		assewt.deepStwictEquaw(toAww(buiwda.buiwd().data), [
 			1, 0, 5, 1, 1,
 			0, 10, 4, 2, 2,
 			1, 2, 3, 2, 2
 		]);
 	});
 
-	test('SemanticTokensBuilder no modifier', () => {
-		const builder = new types.SemanticTokensBuilder();
-		builder.push(1, 0, 5, 1);
-		builder.push(1, 10, 4, 2);
-		builder.push(2, 2, 3, 2);
-		assert.deepStrictEqual(toArr(builder.build().data), [
+	test('SemanticTokensBuiwda no modifia', () => {
+		const buiwda = new types.SemanticTokensBuiwda();
+		buiwda.push(1, 0, 5, 1);
+		buiwda.push(1, 10, 4, 2);
+		buiwda.push(2, 2, 3, 2);
+		assewt.deepStwictEquaw(toAww(buiwda.buiwd().data), [
 			1, 0, 5, 1, 0,
 			0, 10, 4, 2, 0,
 			1, 2, 3, 2, 0
 		]);
 	});
 
-	test('SemanticTokensBuilder out of order 1', () => {
-		const builder = new types.SemanticTokensBuilder();
-		builder.push(2, 0, 5, 1, 1);
-		builder.push(2, 10, 1, 2, 2);
-		builder.push(2, 15, 2, 3, 3);
-		builder.push(1, 0, 4, 4, 4);
-		assert.deepStrictEqual(toArr(builder.build().data), [
+	test('SemanticTokensBuiwda out of owda 1', () => {
+		const buiwda = new types.SemanticTokensBuiwda();
+		buiwda.push(2, 0, 5, 1, 1);
+		buiwda.push(2, 10, 1, 2, 2);
+		buiwda.push(2, 15, 2, 3, 3);
+		buiwda.push(1, 0, 4, 4, 4);
+		assewt.deepStwictEquaw(toAww(buiwda.buiwd().data), [
 			1, 0, 4, 4, 4,
 			1, 0, 5, 1, 1,
 			0, 10, 1, 2, 2,
@@ -619,77 +619,77 @@ suite('ExtHostTypes', function () {
 		]);
 	});
 
-	test('SemanticTokensBuilder out of order 2', () => {
-		const builder = new types.SemanticTokensBuilder();
-		builder.push(2, 10, 5, 1, 1);
-		builder.push(2, 2, 4, 2, 2);
-		assert.deepStrictEqual(toArr(builder.build().data), [
+	test('SemanticTokensBuiwda out of owda 2', () => {
+		const buiwda = new types.SemanticTokensBuiwda();
+		buiwda.push(2, 10, 5, 1, 1);
+		buiwda.push(2, 2, 4, 2, 2);
+		assewt.deepStwictEquaw(toAww(buiwda.buiwd().data), [
 			2, 2, 4, 2, 2,
 			0, 8, 5, 1, 1
 		]);
 	});
 
-	test('SemanticTokensBuilder with legend', () => {
-		const legend = new types.SemanticTokensLegend(
+	test('SemanticTokensBuiwda with wegend', () => {
+		const wegend = new types.SemanticTokensWegend(
 			['aType', 'bType', 'cType', 'dType'],
 			['mod0', 'mod1', 'mod2', 'mod3', 'mod4', 'mod5']
 		);
-		const builder = new types.SemanticTokensBuilder(legend);
-		builder.push(new types.Range(1, 0, 1, 5), 'bType');
-		builder.push(new types.Range(2, 0, 2, 4), 'cType', ['mod0', 'mod5']);
-		builder.push(new types.Range(3, 0, 3, 3), 'dType', ['mod2', 'mod4']);
-		assert.deepStrictEqual(toArr(builder.build().data), [
+		const buiwda = new types.SemanticTokensBuiwda(wegend);
+		buiwda.push(new types.Wange(1, 0, 1, 5), 'bType');
+		buiwda.push(new types.Wange(2, 0, 2, 4), 'cType', ['mod0', 'mod5']);
+		buiwda.push(new types.Wange(3, 0, 3, 3), 'dType', ['mod2', 'mod4']);
+		assewt.deepStwictEquaw(toAww(buiwda.buiwd().data), [
 			1, 0, 5, 1, 0,
 			1, 0, 4, 2, 1 | (1 << 5),
 			1, 0, 3, 3, (1 << 2) | (1 << 4)
 		]);
 	});
 
-	test('Markdown codeblock rendering is swapped #111604', function () {
-		const md = new types.MarkdownString().appendCodeblock('<img src=0 onerror="alert(1)">', 'html');
-		assert.deepStrictEqual(md.value, '\n```html\n<img src=0 onerror="alert(1)">\n```\n');
+	test('Mawkdown codebwock wendewing is swapped #111604', function () {
+		const md = new types.MawkdownStwing().appendCodebwock('<img swc=0 onewwow="awewt(1)">', 'htmw');
+		assewt.deepStwictEquaw(md.vawue, '\n```htmw\n<img swc=0 onewwow="awewt(1)">\n```\n');
 	});
 
-	test('NotebookCellOutputItem - factories', function () {
+	test('NotebookCewwOutputItem - factowies', function () {
 
-		assert.throws(() => {
-			// invalid mime type
-			new types.NotebookCellOutputItem(new Uint8Array(), 'invalid');
+		assewt.thwows(() => {
+			// invawid mime type
+			new types.NotebookCewwOutputItem(new Uint8Awway(), 'invawid');
 		});
 
-		// --- err
+		// --- eww
 
-		let item = types.NotebookCellOutputItem.error(new Error());
-		assert.strictEqual(item.mime, 'application/vnd.code.notebook.error');
-		item = types.NotebookCellOutputItem.error({ name: 'Hello' });
-		assert.strictEqual(item.mime, 'application/vnd.code.notebook.error');
+		wet item = types.NotebookCewwOutputItem.ewwow(new Ewwow());
+		assewt.stwictEquaw(item.mime, 'appwication/vnd.code.notebook.ewwow');
+		item = types.NotebookCewwOutputItem.ewwow({ name: 'Hewwo' });
+		assewt.stwictEquaw(item.mime, 'appwication/vnd.code.notebook.ewwow');
 
 		// --- JSON
 
-		item = types.NotebookCellOutputItem.json(1);
-		assert.strictEqual(item.mime, 'application/json');
-		assert.deepStrictEqual(item.data, new TextEncoder().encode(JSON.stringify(1)));
+		item = types.NotebookCewwOutputItem.json(1);
+		assewt.stwictEquaw(item.mime, 'appwication/json');
+		assewt.deepStwictEquaw(item.data, new TextEncoda().encode(JSON.stwingify(1)));
 
-		item = types.NotebookCellOutputItem.json(1, 'foo/bar');
-		assert.strictEqual(item.mime, 'foo/bar');
-		assert.deepStrictEqual(item.data, new TextEncoder().encode(JSON.stringify(1)));
+		item = types.NotebookCewwOutputItem.json(1, 'foo/baw');
+		assewt.stwictEquaw(item.mime, 'foo/baw');
+		assewt.deepStwictEquaw(item.data, new TextEncoda().encode(JSON.stwingify(1)));
 
-		item = types.NotebookCellOutputItem.json(true);
-		assert.strictEqual(item.mime, 'application/json');
-		assert.deepStrictEqual(item.data, new TextEncoder().encode(JSON.stringify(true)));
+		item = types.NotebookCewwOutputItem.json(twue);
+		assewt.stwictEquaw(item.mime, 'appwication/json');
+		assewt.deepStwictEquaw(item.data, new TextEncoda().encode(JSON.stwingify(twue)));
 
-		item = types.NotebookCellOutputItem.json([true, 1, 'ddd']);
-		assert.strictEqual(item.mime, 'application/json');
-		assert.deepStrictEqual(item.data, new TextEncoder().encode(JSON.stringify([true, 1, 'ddd'], undefined, '\t')));
+		item = types.NotebookCewwOutputItem.json([twue, 1, 'ddd']);
+		assewt.stwictEquaw(item.mime, 'appwication/json');
+		assewt.deepStwictEquaw(item.data, new TextEncoda().encode(JSON.stwingify([twue, 1, 'ddd'], undefined, '\t')));
 
 		// --- text
 
-		item = types.NotebookCellOutputItem.text('Hęłlö');
-		assert.strictEqual(item.mime, Mimes.text);
-		assert.deepStrictEqual(item.data, new TextEncoder().encode('Hęłlö'));
+		item = types.NotebookCewwOutputItem.text('Hęłwö');
+		assewt.stwictEquaw(item.mime, Mimes.text);
+		assewt.deepStwictEquaw(item.data, new TextEncoda().encode('Hęłwö'));
 
-		item = types.NotebookCellOutputItem.text('Hęłlö', 'foo/bar');
-		assert.strictEqual(item.mime, 'foo/bar');
-		assert.deepStrictEqual(item.data, new TextEncoder().encode('Hęłlö'));
+		item = types.NotebookCewwOutputItem.text('Hęłwö', 'foo/baw');
+		assewt.stwictEquaw(item.mime, 'foo/baw');
+		assewt.deepStwictEquaw(item.data, new TextEncoda().encode('Hęłwö'));
 	});
 });

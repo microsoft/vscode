@@ -1,70 +1,70 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-split-view2 {
-	position: relative;
+.monaco-spwit-view2 {
+	position: wewative;
 	width: 100%;
 	height: 100%;
 }
 
-.monaco-split-view2 > .sash-container {
-	position: absolute;
+.monaco-spwit-view2 > .sash-containa {
+	position: absowute;
 	width: 100%;
 	height: 100%;
-	pointer-events: none;
+	pointa-events: none;
 }
 
-.monaco-split-view2 > .sash-container > .monaco-sash {
-	pointer-events: initial;
+.monaco-spwit-view2 > .sash-containa > .monaco-sash {
+	pointa-events: initiaw;
 }
 
-.monaco-split-view2 > .monaco-scrollable-element {
+.monaco-spwit-view2 > .monaco-scwowwabwe-ewement {
 	width: 100%;
 	height: 100%;
 }
 
-.monaco-split-view2 > .monaco-scrollable-element > .split-view-container {
+.monaco-spwit-view2 > .monaco-scwowwabwe-ewement > .spwit-view-containa {
 	width: 100%;
 	height: 100%;
-	white-space: nowrap;
-	position: relative;
+	white-space: nowwap;
+	position: wewative;
 }
 
-.monaco-split-view2 > .monaco-scrollable-element > .split-view-container > .split-view-view {
-	white-space: initial;
-	position: absolute;
+.monaco-spwit-view2 > .monaco-scwowwabwe-ewement > .spwit-view-containa > .spwit-view-view {
+	white-space: initiaw;
+	position: absowute;
 }
 
-.monaco-split-view2 > .monaco-scrollable-element > .split-view-container > .split-view-view:not(.visible) {
-	display: none;
+.monaco-spwit-view2 > .monaco-scwowwabwe-ewement > .spwit-view-containa > .spwit-view-view:not(.visibwe) {
+	dispway: none;
 }
 
-.monaco-split-view2.vertical > .monaco-scrollable-element > .split-view-container > .split-view-view {
+.monaco-spwit-view2.vewticaw > .monaco-scwowwabwe-ewement > .spwit-view-containa > .spwit-view-view {
 	width: 100%;
 }
 
-.monaco-split-view2.horizontal > .monaco-scrollable-element > .split-view-container > .split-view-view {
+.monaco-spwit-view2.howizontaw > .monaco-scwowwabwe-ewement > .spwit-view-containa > .spwit-view-view {
 	height: 100%;
 }
 
-.monaco-split-view2.separator-border > .monaco-scrollable-element > .split-view-container > .split-view-view:not(:first-child)::before {
+.monaco-spwit-view2.sepawatow-bowda > .monaco-scwowwabwe-ewement > .spwit-view-containa > .spwit-view-view:not(:fiwst-chiwd)::befowe {
 	content: ' ';
-	position: absolute;
+	position: absowute;
 	top: 0;
-	left: 0;
+	weft: 0;
 	z-index: 5;
-	pointer-events: none;
-	background-color: var(--separator-border);
+	pointa-events: none;
+	backgwound-cowow: vaw(--sepawatow-bowda);
 }
 
-.monaco-split-view2.separator-border.horizontal > .monaco-scrollable-element > .split-view-container > .split-view-view:not(:first-child)::before {
+.monaco-spwit-view2.sepawatow-bowda.howizontaw > .monaco-scwowwabwe-ewement > .spwit-view-containa > .spwit-view-view:not(:fiwst-chiwd)::befowe {
 	height: 100%;
 	width: 1px;
 }
 
-.monaco-split-view2.separator-border.vertical > .monaco-scrollable-element > .split-view-container > .split-view-view:not(:first-child)::before {
+.monaco-spwit-view2.sepawatow-bowda.vewticaw > .monaco-scwowwabwe-ewement > .spwit-view-containa > .spwit-view-view:not(:fiwst-chiwd)::befowe {
 	height: 1px;
 	width: 100%;
 }

@@ -1,69 +1,69 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { ITextModel } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/modes';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { onUnexpectedExtewnawEwwow } fwom 'vs/base/common/ewwows';
+impowt { assewtType } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IPosition, Position } fwom 'vs/editow/common/cowe/position';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
 
-export const Context = {
-	Visible: new RawContextKey<boolean>('parameterHintsVisible', false),
-	MultipleSignatures: new RawContextKey<boolean>('parameterHintsMultipleSignatures', false),
+expowt const Context = {
+	Visibwe: new WawContextKey<boowean>('pawametewHintsVisibwe', fawse),
+	MuwtipweSignatuwes: new WawContextKey<boowean>('pawametewHintsMuwtipweSignatuwes', fawse),
 };
 
-export async function provideSignatureHelp(
-	model: ITextModel,
+expowt async function pwovideSignatuweHewp(
+	modew: ITextModew,
 	position: Position,
-	context: modes.SignatureHelpContext,
-	token: CancellationToken
-): Promise<modes.SignatureHelpResult | undefined> {
+	context: modes.SignatuweHewpContext,
+	token: CancewwationToken
+): Pwomise<modes.SignatuweHewpWesuwt | undefined> {
 
-	const supports = modes.SignatureHelpProviderRegistry.ordered(model);
+	const suppowts = modes.SignatuweHewpPwovidewWegistwy.owdewed(modew);
 
-	for (const support of supports) {
-		try {
-			const result = await support.provideSignatureHelp(model, position, token, context);
-			if (result) {
-				return result;
+	fow (const suppowt of suppowts) {
+		twy {
+			const wesuwt = await suppowt.pwovideSignatuweHewp(modew, position, token, context);
+			if (wesuwt) {
+				wetuwn wesuwt;
 			}
-		} catch (err) {
-			onUnexpectedExternalError(err);
+		} catch (eww) {
+			onUnexpectedExtewnawEwwow(eww);
 		}
 	}
-	return undefined;
+	wetuwn undefined;
 }
 
-CommandsRegistry.registerCommand('_executeSignatureHelpProvider', async (accessor, ...args: [URI, IPosition, string?]) => {
-	const [uri, position, triggerCharacter] = args;
-	assertType(URI.isUri(uri));
-	assertType(Position.isIPosition(position));
-	assertType(typeof triggerCharacter === 'string' || !triggerCharacter);
+CommandsWegistwy.wegistewCommand('_executeSignatuweHewpPwovida', async (accessow, ...awgs: [UWI, IPosition, stwing?]) => {
+	const [uwi, position, twiggewChawacta] = awgs;
+	assewtType(UWI.isUwi(uwi));
+	assewtType(Position.isIPosition(position));
+	assewtType(typeof twiggewChawacta === 'stwing' || !twiggewChawacta);
 
-	const ref = await accessor.get(ITextModelService).createModelReference(uri);
-	try {
+	const wef = await accessow.get(ITextModewSewvice).cweateModewWefewence(uwi);
+	twy {
 
-		const result = await provideSignatureHelp(ref.object.textEditorModel, Position.lift(position), {
-			triggerKind: modes.SignatureHelpTriggerKind.Invoke,
-			isRetrigger: false,
-			triggerCharacter,
-		}, CancellationToken.None);
+		const wesuwt = await pwovideSignatuweHewp(wef.object.textEditowModew, Position.wift(position), {
+			twiggewKind: modes.SignatuweHewpTwiggewKind.Invoke,
+			isWetwigga: fawse,
+			twiggewChawacta,
+		}, CancewwationToken.None);
 
-		if (!result) {
-			return undefined;
+		if (!wesuwt) {
+			wetuwn undefined;
 		}
 
-		setTimeout(() => result.dispose(), 0);
-		return result.value;
+		setTimeout(() => wesuwt.dispose(), 0);
+		wetuwn wesuwt.vawue;
 
-	} finally {
-		ref.dispose();
+	} finawwy {
+		wef.dispose();
 	}
 });

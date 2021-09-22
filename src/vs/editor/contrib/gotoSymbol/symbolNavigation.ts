@@ -1,215 +1,215 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { combinedDisposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { isEqual } from 'vs/base/common/resources';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { Range } from 'vs/editor/common/core/range';
-import { OneReference, ReferencesModel } from 'vs/editor/contrib/gotoSymbol/referencesModel';
-import { localize } from 'vs/nls';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { combinedDisposabwe, DisposabweStowe, dispose, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowCommand, wegistewEditowCommand } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { OneWefewence, WefewencesModew } fwom 'vs/editow/contwib/gotoSymbow/wefewencesModew';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IContextKey, IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { TextEditowSewectionWeveawType } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { cweateDecowatow, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { KeybindingsWegistwy, KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
 
-export const ctxHasSymbols = new RawContextKey('hasSymbols', false, localize('hasSymbols', "Whether there are symbol locations that can be navigated via keyboard-only."));
+expowt const ctxHasSymbows = new WawContextKey('hasSymbows', fawse, wocawize('hasSymbows', "Whetha thewe awe symbow wocations that can be navigated via keyboawd-onwy."));
 
-export const ISymbolNavigationService = createDecorator<ISymbolNavigationService>('ISymbolNavigationService');
+expowt const ISymbowNavigationSewvice = cweateDecowatow<ISymbowNavigationSewvice>('ISymbowNavigationSewvice');
 
-export interface ISymbolNavigationService {
-	readonly _serviceBrand: undefined;
-	reset(): void;
-	put(anchor: OneReference): void;
-	revealNext(source: ICodeEditor): Promise<any>;
+expowt intewface ISymbowNavigationSewvice {
+	weadonwy _sewviceBwand: undefined;
+	weset(): void;
+	put(anchow: OneWefewence): void;
+	weveawNext(souwce: ICodeEditow): Pwomise<any>;
 }
 
-class SymbolNavigationService implements ISymbolNavigationService {
+cwass SymbowNavigationSewvice impwements ISymbowNavigationSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _ctxHasSymbols: IContextKey<boolean>;
+	pwivate weadonwy _ctxHasSymbows: IContextKey<boowean>;
 
-	private _currentModel?: ReferencesModel = undefined;
-	private _currentIdx: number = -1;
-	private _currentState?: IDisposable;
-	private _currentMessage?: IDisposable;
-	private _ignoreEditorChange: boolean = false;
+	pwivate _cuwwentModew?: WefewencesModew = undefined;
+	pwivate _cuwwentIdx: numba = -1;
+	pwivate _cuwwentState?: IDisposabwe;
+	pwivate _cuwwentMessage?: IDisposabwe;
+	pwivate _ignoweEditowChange: boowean = fawse;
 
-	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@ICodeEditorService private readonly _editorService: ICodeEditorService,
-		@INotificationService private readonly _notificationService: INotificationService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+	constwuctow(
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@ICodeEditowSewvice pwivate weadonwy _editowSewvice: ICodeEditowSewvice,
+		@INotificationSewvice pwivate weadonwy _notificationSewvice: INotificationSewvice,
+		@IKeybindingSewvice pwivate weadonwy _keybindingSewvice: IKeybindingSewvice,
 	) {
-		this._ctxHasSymbols = ctxHasSymbols.bindTo(contextKeyService);
+		this._ctxHasSymbows = ctxHasSymbows.bindTo(contextKeySewvice);
 	}
 
-	reset(): void {
-		this._ctxHasSymbols.reset();
-		this._currentState?.dispose();
-		this._currentMessage?.dispose();
-		this._currentModel = undefined;
-		this._currentIdx = -1;
+	weset(): void {
+		this._ctxHasSymbows.weset();
+		this._cuwwentState?.dispose();
+		this._cuwwentMessage?.dispose();
+		this._cuwwentModew = undefined;
+		this._cuwwentIdx = -1;
 	}
 
-	put(anchor: OneReference): void {
-		const refModel = anchor.parent.parent;
+	put(anchow: OneWefewence): void {
+		const wefModew = anchow.pawent.pawent;
 
-		if (refModel.references.length <= 1) {
-			this.reset();
-			return;
+		if (wefModew.wefewences.wength <= 1) {
+			this.weset();
+			wetuwn;
 		}
 
-		this._currentModel = refModel;
-		this._currentIdx = refModel.references.indexOf(anchor);
-		this._ctxHasSymbols.set(true);
+		this._cuwwentModew = wefModew;
+		this._cuwwentIdx = wefModew.wefewences.indexOf(anchow);
+		this._ctxHasSymbows.set(twue);
 		this._showMessage();
 
-		const editorState = new EditorState(this._editorService);
-		const listener = editorState.onDidChange(_ => {
+		const editowState = new EditowState(this._editowSewvice);
+		const wistena = editowState.onDidChange(_ => {
 
-			if (this._ignoreEditorChange) {
-				return;
+			if (this._ignoweEditowChange) {
+				wetuwn;
 			}
 
-			const editor = this._editorService.getActiveCodeEditor();
-			if (!editor) {
-				return;
+			const editow = this._editowSewvice.getActiveCodeEditow();
+			if (!editow) {
+				wetuwn;
 			}
-			const model = editor.getModel();
-			const position = editor.getPosition();
-			if (!model || !position) {
-				return;
+			const modew = editow.getModew();
+			const position = editow.getPosition();
+			if (!modew || !position) {
+				wetuwn;
 			}
 
-			let seenUri: boolean = false;
-			let seenPosition: boolean = false;
-			for (const reference of refModel.references) {
-				if (isEqual(reference.uri, model.uri)) {
-					seenUri = true;
-					seenPosition = seenPosition || Range.containsPosition(reference.range, position);
-				} else if (seenUri) {
-					break;
+			wet seenUwi: boowean = fawse;
+			wet seenPosition: boowean = fawse;
+			fow (const wefewence of wefModew.wefewences) {
+				if (isEquaw(wefewence.uwi, modew.uwi)) {
+					seenUwi = twue;
+					seenPosition = seenPosition || Wange.containsPosition(wefewence.wange, position);
+				} ewse if (seenUwi) {
+					bweak;
 				}
 			}
-			if (!seenUri || !seenPosition) {
-				this.reset();
+			if (!seenUwi || !seenPosition) {
+				this.weset();
 			}
 		});
 
-		this._currentState = combinedDisposable(editorState, listener);
+		this._cuwwentState = combinedDisposabwe(editowState, wistena);
 	}
 
-	revealNext(source: ICodeEditor): Promise<any> {
-		if (!this._currentModel) {
-			return Promise.resolve();
+	weveawNext(souwce: ICodeEditow): Pwomise<any> {
+		if (!this._cuwwentModew) {
+			wetuwn Pwomise.wesowve();
 		}
 
-		// get next result and advance
-		this._currentIdx += 1;
-		this._currentIdx %= this._currentModel.references.length;
-		const reference = this._currentModel.references[this._currentIdx];
+		// get next wesuwt and advance
+		this._cuwwentIdx += 1;
+		this._cuwwentIdx %= this._cuwwentModew.wefewences.wength;
+		const wefewence = this._cuwwentModew.wefewences[this._cuwwentIdx];
 
 		// status
 		this._showMessage();
 
-		// open editor, ignore events while that happens
-		this._ignoreEditorChange = true;
-		return this._editorService.openCodeEditor({
-			resource: reference.uri,
+		// open editow, ignowe events whiwe that happens
+		this._ignoweEditowChange = twue;
+		wetuwn this._editowSewvice.openCodeEditow({
+			wesouwce: wefewence.uwi,
 			options: {
-				selection: Range.collapseToStart(reference.range),
-				selectionRevealType: TextEditorSelectionRevealType.NearTopIfOutsideViewport
+				sewection: Wange.cowwapseToStawt(wefewence.wange),
+				sewectionWeveawType: TextEditowSewectionWeveawType.NeawTopIfOutsideViewpowt
 			}
-		}, source).finally(() => {
-			this._ignoreEditorChange = false;
+		}, souwce).finawwy(() => {
+			this._ignoweEditowChange = fawse;
 		});
 
 	}
 
-	private _showMessage(): void {
+	pwivate _showMessage(): void {
 
-		this._currentMessage?.dispose();
+		this._cuwwentMessage?.dispose();
 
-		const kb = this._keybindingService.lookupKeybinding('editor.gotoNextSymbolFromResult');
+		const kb = this._keybindingSewvice.wookupKeybinding('editow.gotoNextSymbowFwomWesuwt');
 		const message = kb
-			? localize('location.kb', "Symbol {0} of {1}, {2} for next", this._currentIdx + 1, this._currentModel!.references.length, kb.getLabel())
-			: localize('location', "Symbol {0} of {1}", this._currentIdx + 1, this._currentModel!.references.length);
+			? wocawize('wocation.kb', "Symbow {0} of {1}, {2} fow next", this._cuwwentIdx + 1, this._cuwwentModew!.wefewences.wength, kb.getWabew())
+			: wocawize('wocation', "Symbow {0} of {1}", this._cuwwentIdx + 1, this._cuwwentModew!.wefewences.wength);
 
-		this._currentMessage = this._notificationService.status(message);
+		this._cuwwentMessage = this._notificationSewvice.status(message);
 	}
 }
 
-registerSingleton(ISymbolNavigationService, SymbolNavigationService, true);
+wegistewSingweton(ISymbowNavigationSewvice, SymbowNavigationSewvice, twue);
 
-registerEditorCommand(new class extends EditorCommand {
+wegistewEditowCommand(new cwass extends EditowCommand {
 
-	constructor() {
-		super({
-			id: 'editor.gotoNextSymbolFromResult',
-			precondition: ctxHasSymbols,
+	constwuctow() {
+		supa({
+			id: 'editow.gotoNextSymbowFwomWesuwt',
+			pwecondition: ctxHasSymbows,
 			kbOpts: {
-				weight: KeybindingWeight.EditorContrib,
-				primary: KeyCode.F12
+				weight: KeybindingWeight.EditowContwib,
+				pwimawy: KeyCode.F12
 			}
 		});
 	}
 
-	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
-		return accessor.get(ISymbolNavigationService).revealNext(editor);
+	wunEditowCommand(accessow: SewvicesAccessow, editow: ICodeEditow): void | Pwomise<void> {
+		wetuwn accessow.get(ISymbowNavigationSewvice).weveawNext(editow);
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'editor.gotoNextSymbolFromResult.cancel',
-	weight: KeybindingWeight.EditorContrib,
-	when: ctxHasSymbols,
-	primary: KeyCode.Escape,
-	handler(accessor) {
-		accessor.get(ISymbolNavigationService).reset();
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'editow.gotoNextSymbowFwomWesuwt.cancew',
+	weight: KeybindingWeight.EditowContwib,
+	when: ctxHasSymbows,
+	pwimawy: KeyCode.Escape,
+	handwa(accessow) {
+		accessow.get(ISymbowNavigationSewvice).weset();
 	}
 });
 
 //
 
-class EditorState {
+cwass EditowState {
 
-	private readonly _listener = new Map<ICodeEditor, IDisposable>();
-	private readonly _disposables = new DisposableStore();
+	pwivate weadonwy _wistena = new Map<ICodeEditow, IDisposabwe>();
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
 
-	private readonly _onDidChange = new Emitter<{ editor: ICodeEditor }>();
-	readonly onDidChange: Event<{ editor: ICodeEditor }> = this._onDidChange.event;
+	pwivate weadonwy _onDidChange = new Emitta<{ editow: ICodeEditow }>();
+	weadonwy onDidChange: Event<{ editow: ICodeEditow }> = this._onDidChange.event;
 
-	constructor(@ICodeEditorService editorService: ICodeEditorService) {
-		this._disposables.add(editorService.onCodeEditorRemove(this._onDidRemoveEditor, this));
-		this._disposables.add(editorService.onCodeEditorAdd(this._onDidAddEditor, this));
-		editorService.listCodeEditors().forEach(this._onDidAddEditor, this);
+	constwuctow(@ICodeEditowSewvice editowSewvice: ICodeEditowSewvice) {
+		this._disposabwes.add(editowSewvice.onCodeEditowWemove(this._onDidWemoveEditow, this));
+		this._disposabwes.add(editowSewvice.onCodeEditowAdd(this._onDidAddEditow, this));
+		editowSewvice.wistCodeEditows().fowEach(this._onDidAddEditow, this);
 	}
 
 	dispose(): void {
-		this._disposables.dispose();
+		this._disposabwes.dispose();
 		this._onDidChange.dispose();
-		dispose(this._listener.values());
+		dispose(this._wistena.vawues());
 	}
 
-	private _onDidAddEditor(editor: ICodeEditor): void {
-		this._listener.set(editor, combinedDisposable(
-			editor.onDidChangeCursorPosition(_ => this._onDidChange.fire({ editor })),
-			editor.onDidChangeModelContent(_ => this._onDidChange.fire({ editor })),
+	pwivate _onDidAddEditow(editow: ICodeEditow): void {
+		this._wistena.set(editow, combinedDisposabwe(
+			editow.onDidChangeCuwsowPosition(_ => this._onDidChange.fiwe({ editow })),
+			editow.onDidChangeModewContent(_ => this._onDidChange.fiwe({ editow })),
 		));
 	}
 
-	private _onDidRemoveEditor(editor: ICodeEditor): void {
-		this._listener.get(editor)?.dispose();
-		this._listener.delete(editor);
+	pwivate _onDidWemoveEditow(editow: ICodeEditow): void {
+		this._wistena.get(editow)?.dispose();
+		this._wistena.dewete(editow);
 	}
 }

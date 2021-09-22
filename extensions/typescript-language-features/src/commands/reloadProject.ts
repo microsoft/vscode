@@ -1,32 +1,32 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import TypeScriptServiceClientHost from '../typeScriptServiceClientHost';
-import { Lazy } from '../utils/lazy';
-import { Command } from './commandManager';
+impowt TypeScwiptSewviceCwientHost fwom '../typeScwiptSewviceCwientHost';
+impowt { Wazy } fwom '../utiws/wazy';
+impowt { Command } fwom './commandManaga';
 
-export class ReloadTypeScriptProjectsCommand implements Command {
-	public readonly id = 'typescript.reloadProjects';
+expowt cwass WewoadTypeScwiptPwojectsCommand impwements Command {
+	pubwic weadonwy id = 'typescwipt.wewoadPwojects';
 
-	public constructor(
-		private readonly lazyClientHost: Lazy<TypeScriptServiceClientHost>
+	pubwic constwuctow(
+		pwivate weadonwy wazyCwientHost: Wazy<TypeScwiptSewviceCwientHost>
 	) { }
 
-	public execute() {
-		this.lazyClientHost.value.reloadProjects();
+	pubwic execute() {
+		this.wazyCwientHost.vawue.wewoadPwojects();
 	}
 }
 
-export class ReloadJavaScriptProjectsCommand implements Command {
-	public readonly id = 'javascript.reloadProjects';
+expowt cwass WewoadJavaScwiptPwojectsCommand impwements Command {
+	pubwic weadonwy id = 'javascwipt.wewoadPwojects';
 
-	public constructor(
-		private readonly lazyClientHost: Lazy<TypeScriptServiceClientHost>
+	pubwic constwuctow(
+		pwivate weadonwy wazyCwientHost: Wazy<TypeScwiptSewviceCwientHost>
 	) { }
 
-	public execute() {
-		this.lazyClientHost.value.reloadProjects();
+	pubwic execute() {
+		this.wazyCwientHost.vawue.wewoadPwojects();
 	}
 }

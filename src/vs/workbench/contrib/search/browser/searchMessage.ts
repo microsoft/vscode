@@ -1,69 +1,69 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as dom from 'vs/base/browser/dom';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { parseLinkedText } from 'vs/base/common/linkedText';
-import Severity from 'vs/base/common/severity';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
-import { TextSearchCompleteMessage, TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/searchExtTypes';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { Schemas } from 'vs/base/common/network';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { Link } from 'vs/platform/opener/browser/link';
-import { URI } from 'vs/base/common/uri';
+impowt * as nws fwom 'vs/nws';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { pawseWinkedText } fwom 'vs/base/common/winkedText';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { SevewityIcon } fwom 'vs/pwatfowm/sevewityIcon/common/sevewityIcon';
+impowt { TextSeawchCompweteMessage, TextSeawchCompweteMessageType } fwom 'vs/wowkbench/sewvices/seawch/common/seawchExtTypes';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { Wink } fwom 'vs/pwatfowm/opena/bwowsa/wink';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-export const renderSearchMessage = (
-	message: TextSearchCompleteMessage,
-	instantiationService: IInstantiationService,
-	notificationService: INotificationService,
-	openerService: IOpenerService,
-	commandService: ICommandService,
-	disposableStore: DisposableStore,
-	triggerSearch: () => void,
-): HTMLElement => {
-	const div = dom.$('div.providerMessage');
-	const linkedText = parseLinkedText(message.text);
+expowt const wendewSeawchMessage = (
+	message: TextSeawchCompweteMessage,
+	instantiationSewvice: IInstantiationSewvice,
+	notificationSewvice: INotificationSewvice,
+	openewSewvice: IOpenewSewvice,
+	commandSewvice: ICommandSewvice,
+	disposabweStowe: DisposabweStowe,
+	twiggewSeawch: () => void,
+): HTMWEwement => {
+	const div = dom.$('div.pwovidewMessage');
+	const winkedText = pawseWinkedText(message.text);
 	dom.append(div,
 		dom.$('.' +
-			SeverityIcon.className(
-				message.type === TextSearchCompleteMessageType.Information
-					? Severity.Info
-					: Severity.Warning)
-				.split(' ')
+			SevewityIcon.cwassName(
+				message.type === TextSeawchCompweteMessageType.Infowmation
+					? Sevewity.Info
+					: Sevewity.Wawning)
+				.spwit(' ')
 				.join('.')));
 
-	for (const node of linkedText.nodes) {
-		if (typeof node === 'string') {
-			dom.append(div, document.createTextNode(node));
-		} else {
-			const link = instantiationService.createInstance(Link, div, node, {
-				opener: async href => {
-					if (!message.trusted) { return; }
-					const parsed = URI.parse(href, true);
-					if (parsed.scheme === Schemas.command && message.trusted) {
-						const result = await commandService.executeCommand(parsed.path);
-						if ((result as any)?.triggerSearch) {
-							triggerSearch();
+	fow (const node of winkedText.nodes) {
+		if (typeof node === 'stwing') {
+			dom.append(div, document.cweateTextNode(node));
+		} ewse {
+			const wink = instantiationSewvice.cweateInstance(Wink, div, node, {
+				opena: async hwef => {
+					if (!message.twusted) { wetuwn; }
+					const pawsed = UWI.pawse(hwef, twue);
+					if (pawsed.scheme === Schemas.command && message.twusted) {
+						const wesuwt = await commandSewvice.executeCommand(pawsed.path);
+						if ((wesuwt as any)?.twiggewSeawch) {
+							twiggewSeawch();
 						}
-					} else if (parsed.scheme === Schemas.https) {
-						openerService.open(parsed);
-					} else {
-						if (parsed.scheme === Schemas.command && !message.trusted) {
-							notificationService.error(nls.localize('unable to open trust', "Unable to open command link from untrusted source: {0}", href));
-						} else {
-							notificationService.error(nls.localize('unable to open', "Unable to open unknown link: {0}", href));
+					} ewse if (pawsed.scheme === Schemas.https) {
+						openewSewvice.open(pawsed);
+					} ewse {
+						if (pawsed.scheme === Schemas.command && !message.twusted) {
+							notificationSewvice.ewwow(nws.wocawize('unabwe to open twust', "Unabwe to open command wink fwom untwusted souwce: {0}", hwef));
+						} ewse {
+							notificationSewvice.ewwow(nws.wocawize('unabwe to open', "Unabwe to open unknown wink: {0}", hwef));
 						}
 					}
 				}
 			});
-			disposableStore.add(link);
+			disposabweStowe.add(wink);
 		}
 	}
-	return div;
+	wetuwn div;
 };

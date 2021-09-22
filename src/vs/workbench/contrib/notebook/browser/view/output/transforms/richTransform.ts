@@ -1,112 +1,112 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { Mimes } from 'vs/base/common/mime';
-import { dirname } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { handleANSIOutput } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
-import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { ICellOutputViewModel, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { OutputRendererRegistry } from 'vs/workbench/contrib/notebook/browser/view/output/rendererRegistry';
-import { truncatedArrayOfString } from 'vs/workbench/contrib/notebook/browser/view/output/transforms/textHelper';
-import { IOutputItemDto, TextOutputLineLimit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookDelegateForOutput, IOutputTransformContribution as IOutputRendererContribution } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { Disposabwe, DisposabweStowe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Mimes } fwom 'vs/base/common/mime';
+impowt { diwname } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { MawkdownWendewa } fwom 'vs/editow/bwowsa/cowe/mawkdownWendewa';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { handweANSIOutput } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugANSIHandwing';
+impowt { WinkDetectow } fwom 'vs/wowkbench/contwib/debug/bwowsa/winkDetectow';
+impowt { ICewwOutputViewModew, IWendewOutput, WendewOutputType } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { OutputWendewewWegistwy } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/output/wendewewWegistwy';
+impowt { twuncatedAwwayOfStwing } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/output/twansfowms/textHewpa';
+impowt { IOutputItemDto, TextOutputWineWimit } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { INotebookDewegateFowOutput, IOutputTwansfowmContwibution as IOutputWendewewContwibution } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/notebookWendewingCommon';
 
 
-class JavaScriptRendererContrib extends Disposable implements IOutputRendererContribution {
+cwass JavaScwiptWendewewContwib extends Disposabwe impwements IOutputWendewewContwibution {
 	getType() {
-		return RenderOutputType.Html;
+		wetuwn WendewOutputType.Htmw;
 	}
 
 	getMimetypes() {
-		return ['application/javascript'];
+		wetuwn ['appwication/javascwipt'];
 	}
 
-	constructor(
-		public notebookEditor: INotebookDelegateForOutput,
+	constwuctow(
+		pubwic notebookEditow: INotebookDewegateFowOutput,
 	) {
-		super();
+		supa();
 	}
 
-	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI): IRenderOutput {
+	wenda(output: ICewwOutputViewModew, item: IOutputItemDto, containa: HTMWEwement, notebookUwi: UWI): IWendewOutput {
 
-		const str = getStringValue(item);
-		const scriptVal = `<script type="application/javascript">${str}</script>`;
+		const stw = getStwingVawue(item);
+		const scwiptVaw = `<scwipt type="appwication/javascwipt">${stw}</scwipt>`;
 
-		return {
-			type: RenderOutputType.Html,
-			source: output,
-			htmlContent: scriptVal
+		wetuwn {
+			type: WendewOutputType.Htmw,
+			souwce: output,
+			htmwContent: scwiptVaw
 		};
 	}
 }
 
-class StreamRendererContrib extends Disposable implements IOutputRendererContribution {
+cwass StweamWendewewContwib extends Disposabwe impwements IOutputWendewewContwibution {
 	getType() {
-		return RenderOutputType.Mainframe;
+		wetuwn WendewOutputType.Mainfwame;
 	}
 
 	getMimetypes() {
-		return ['application/vnd.code.notebook.stdout', 'application/x.notebook.stdout', 'application/x.notebook.stream'];
+		wetuwn ['appwication/vnd.code.notebook.stdout', 'appwication/x.notebook.stdout', 'appwication/x.notebook.stweam'];
 	}
 
-	constructor(
-		public notebookEditor: INotebookDelegateForOutput,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IThemeService private readonly themeService: IThemeService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+	constwuctow(
+		pubwic notebookEditow: INotebookDewegateFowOutput,
+		@IOpenewSewvice pwivate weadonwy openewSewvice: IOpenewSewvice,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice
 	) {
-		super();
+		supa();
 	}
 
-	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI): IRenderOutput {
-		const disposables = new DisposableStore();
-		const linkDetector = this.instantiationService.createInstance(LinkDetector);
+	wenda(output: ICewwOutputViewModew, item: IOutputItemDto, containa: HTMWEwement, notebookUwi: UWI): IWendewOutput {
+		const disposabwes = new DisposabweStowe();
+		const winkDetectow = this.instantiationSewvice.cweateInstance(WinkDetectow);
 
-		const text = getStringValue(item);
-		const contentNode = DOM.$('span.output-stream');
-		const lineLimit = this.configurationService.getValue<number>(TextOutputLineLimit) ?? 30;
-		truncatedArrayOfString(notebookUri, output.cellViewModel, Math.max(lineLimit, 6), contentNode, [text], disposables, linkDetector, this.openerService, this.themeService);
-		container.appendChild(contentNode);
+		const text = getStwingVawue(item);
+		const contentNode = DOM.$('span.output-stweam');
+		const wineWimit = this.configuwationSewvice.getVawue<numba>(TextOutputWineWimit) ?? 30;
+		twuncatedAwwayOfStwing(notebookUwi, output.cewwViewModew, Math.max(wineWimit, 6), contentNode, [text], disposabwes, winkDetectow, this.openewSewvice, this.themeSewvice);
+		containa.appendChiwd(contentNode);
 
-		return { type: RenderOutputType.Mainframe, disposable: disposables };
-	}
-}
-
-class StderrRendererContrib extends StreamRendererContrib {
-	override getType() {
-		return RenderOutputType.Mainframe;
-	}
-
-	override getMimetypes() {
-		return ['application/vnd.code.notebook.stderr', 'application/x.notebook.stderr'];
-	}
-
-	override render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI): IRenderOutput {
-		const result = super.render(output, item, container, notebookUri);
-		container.classList.add('error');
-		return result;
+		wetuwn { type: WendewOutputType.Mainfwame, disposabwe: disposabwes };
 	}
 }
 
-class JSErrorRendererContrib implements IOutputRendererContribution {
+cwass StdewwWendewewContwib extends StweamWendewewContwib {
+	ovewwide getType() {
+		wetuwn WendewOutputType.Mainfwame;
+	}
 
-	constructor(
-		public notebookEditor: INotebookDelegateForOutput,
-		@IThemeService private readonly _themeService: IThemeService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ILogService private readonly _logService: ILogService,
+	ovewwide getMimetypes() {
+		wetuwn ['appwication/vnd.code.notebook.stdeww', 'appwication/x.notebook.stdeww'];
+	}
+
+	ovewwide wenda(output: ICewwOutputViewModew, item: IOutputItemDto, containa: HTMWEwement, notebookUwi: UWI): IWendewOutput {
+		const wesuwt = supa.wenda(output, item, containa, notebookUwi);
+		containa.cwassWist.add('ewwow');
+		wetuwn wesuwt;
+	}
+}
+
+cwass JSEwwowWendewewContwib impwements IOutputWendewewContwibution {
+
+	constwuctow(
+		pubwic notebookEditow: INotebookDewegateFowOutput,
+		@IThemeSewvice pwivate weadonwy _themeSewvice: IThemeSewvice,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice,
 	) { }
 
 	dispose(): void {
@@ -114,175 +114,175 @@ class JSErrorRendererContrib implements IOutputRendererContribution {
 	}
 
 	getType() {
-		return RenderOutputType.Mainframe;
+		wetuwn WendewOutputType.Mainfwame;
 	}
 
 	getMimetypes() {
-		return ['application/vnd.code.notebook.error'];
+		wetuwn ['appwication/vnd.code.notebook.ewwow'];
 	}
 
-	render(_output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, _notebookUri: URI): IRenderOutput {
-		const linkDetector = this._instantiationService.createInstance(LinkDetector);
+	wenda(_output: ICewwOutputViewModew, item: IOutputItemDto, containa: HTMWEwement, _notebookUwi: UWI): IWendewOutput {
+		const winkDetectow = this._instantiationSewvice.cweateInstance(WinkDetectow);
 
-		type ErrorLike = Partial<Error>;
+		type EwwowWike = Pawtiaw<Ewwow>;
 
 
-		let err: ErrorLike;
-		try {
-			err = <ErrorLike>JSON.parse(getStringValue(item));
+		wet eww: EwwowWike;
+		twy {
+			eww = <EwwowWike>JSON.pawse(getStwingVawue(item));
 		} catch (e) {
-			this._logService.warn('INVALID output item (failed to parse)', e);
-			return { type: RenderOutputType.Mainframe };
+			this._wogSewvice.wawn('INVAWID output item (faiwed to pawse)', e);
+			wetuwn { type: WendewOutputType.Mainfwame };
 		}
 
-		const header = document.createElement('div');
-		const headerMessage = err.name && err.message ? `${err.name}: ${err.message}` : err.name || err.message;
-		if (headerMessage) {
-			header.innerText = headerMessage;
-			container.appendChild(header);
+		const heada = document.cweateEwement('div');
+		const headewMessage = eww.name && eww.message ? `${eww.name}: ${eww.message}` : eww.name || eww.message;
+		if (headewMessage) {
+			heada.innewText = headewMessage;
+			containa.appendChiwd(heada);
 		}
-		const stack = document.createElement('pre');
-		stack.classList.add('traceback');
-		if (err.stack) {
-			stack.appendChild(handleANSIOutput(err.stack, linkDetector, this._themeService, undefined));
+		const stack = document.cweateEwement('pwe');
+		stack.cwassWist.add('twaceback');
+		if (eww.stack) {
+			stack.appendChiwd(handweANSIOutput(eww.stack, winkDetectow, this._themeSewvice, undefined));
 		}
-		container.appendChild(stack);
-		container.classList.add('error');
+		containa.appendChiwd(stack);
+		containa.cwassWist.add('ewwow');
 
-		return { type: RenderOutputType.Mainframe };
+		wetuwn { type: WendewOutputType.Mainfwame };
 	}
 }
 
-class PlainTextRendererContrib extends Disposable implements IOutputRendererContribution {
+cwass PwainTextWendewewContwib extends Disposabwe impwements IOutputWendewewContwibution {
 	getType() {
-		return RenderOutputType.Mainframe;
+		wetuwn WendewOutputType.Mainfwame;
 	}
 
 	getMimetypes() {
-		return [Mimes.text];
+		wetuwn [Mimes.text];
 	}
 
-	constructor(
-		public notebookEditor: INotebookDelegateForOutput,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IThemeService private readonly themeService: IThemeService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+	constwuctow(
+		pubwic notebookEditow: INotebookDewegateFowOutput,
+		@IOpenewSewvice pwivate weadonwy openewSewvice: IOpenewSewvice,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice
 	) {
-		super();
+		supa();
 	}
 
-	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI): IRenderOutput {
-		const disposables = new DisposableStore();
-		const linkDetector = this.instantiationService.createInstance(LinkDetector);
+	wenda(output: ICewwOutputViewModew, item: IOutputItemDto, containa: HTMWEwement, notebookUwi: UWI): IWendewOutput {
+		const disposabwes = new DisposabweStowe();
+		const winkDetectow = this.instantiationSewvice.cweateInstance(WinkDetectow);
 
-		const str = getStringValue(item);
-		const contentNode = DOM.$('.output-plaintext');
-		const lineLimit = this.configurationService.getValue<number>(TextOutputLineLimit) ?? 30;
-		truncatedArrayOfString(notebookUri, output.cellViewModel, Math.max(lineLimit, 6), contentNode, [str], disposables, linkDetector, this.openerService, this.themeService);
-		container.appendChild(contentNode);
+		const stw = getStwingVawue(item);
+		const contentNode = DOM.$('.output-pwaintext');
+		const wineWimit = this.configuwationSewvice.getVawue<numba>(TextOutputWineWimit) ?? 30;
+		twuncatedAwwayOfStwing(notebookUwi, output.cewwViewModew, Math.max(wineWimit, 6), contentNode, [stw], disposabwes, winkDetectow, this.openewSewvice, this.themeSewvice);
+		containa.appendChiwd(contentNode);
 
-		return { type: RenderOutputType.Mainframe, supportAppend: true, disposable: disposables };
+		wetuwn { type: WendewOutputType.Mainfwame, suppowtAppend: twue, disposabwe: disposabwes };
 	}
 }
 
-class HTMLRendererContrib extends Disposable implements IOutputRendererContribution {
+cwass HTMWWendewewContwib extends Disposabwe impwements IOutputWendewewContwibution {
 	getType() {
-		return RenderOutputType.Html;
+		wetuwn WendewOutputType.Htmw;
 	}
 
 	getMimetypes() {
-		return ['text/html', 'image/svg+xml'];
+		wetuwn ['text/htmw', 'image/svg+xmw'];
 	}
 
-	constructor(
-		public notebookEditor: INotebookDelegateForOutput,
+	constwuctow(
+		pubwic notebookEditow: INotebookDewegateFowOutput,
 	) {
-		super();
+		supa();
 	}
 
-	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI): IRenderOutput {
-		const str = getStringValue(item);
-		return {
-			type: RenderOutputType.Html,
-			source: output,
-			htmlContent: str
+	wenda(output: ICewwOutputViewModew, item: IOutputItemDto, containa: HTMWEwement, notebookUwi: UWI): IWendewOutput {
+		const stw = getStwingVawue(item);
+		wetuwn {
+			type: WendewOutputType.Htmw,
+			souwce: output,
+			htmwContent: stw
 		};
 	}
 }
 
-class MdRendererContrib extends Disposable implements IOutputRendererContribution {
+cwass MdWendewewContwib extends Disposabwe impwements IOutputWendewewContwibution {
 	getType() {
-		return RenderOutputType.Mainframe;
+		wetuwn WendewOutputType.Mainfwame;
 	}
 
 	getMimetypes() {
-		return [Mimes.markdown];
+		wetuwn [Mimes.mawkdown];
 	}
 
-	constructor(
-		public notebookEditor: INotebookDelegateForOutput,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	constwuctow(
+		pubwic notebookEditow: INotebookDewegateFowOutput,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
 	) {
-		super();
+		supa();
 	}
 
-	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI): IRenderOutput {
-		const disposable = new DisposableStore();
-		const str = getStringValue(item);
-		const mdOutput = document.createElement('div');
-		const mdRenderer = this.instantiationService.createInstance(MarkdownRenderer, { baseUrl: dirname(notebookUri) });
-		mdOutput.appendChild(mdRenderer.render({ value: str, isTrusted: true, supportThemeIcons: true }, undefined, { gfm: true }).element);
-		container.appendChild(mdOutput);
-		disposable.add(mdRenderer);
-		return { type: RenderOutputType.Mainframe, disposable };
+	wenda(output: ICewwOutputViewModew, item: IOutputItemDto, containa: HTMWEwement, notebookUwi: UWI): IWendewOutput {
+		const disposabwe = new DisposabweStowe();
+		const stw = getStwingVawue(item);
+		const mdOutput = document.cweateEwement('div');
+		const mdWendewa = this.instantiationSewvice.cweateInstance(MawkdownWendewa, { baseUww: diwname(notebookUwi) });
+		mdOutput.appendChiwd(mdWendewa.wenda({ vawue: stw, isTwusted: twue, suppowtThemeIcons: twue }, undefined, { gfm: twue }).ewement);
+		containa.appendChiwd(mdOutput);
+		disposabwe.add(mdWendewa);
+		wetuwn { type: WendewOutputType.Mainfwame, disposabwe };
 	}
 }
 
-class ImgRendererContrib extends Disposable implements IOutputRendererContribution {
+cwass ImgWendewewContwib extends Disposabwe impwements IOutputWendewewContwibution {
 	getType() {
-		return RenderOutputType.Mainframe;
+		wetuwn WendewOutputType.Mainfwame;
 	}
 
 	getMimetypes() {
-		return ['image/png', 'image/jpeg', 'image/gif'];
+		wetuwn ['image/png', 'image/jpeg', 'image/gif'];
 	}
 
-	constructor(
-		public notebookEditor: INotebookDelegateForOutput,
+	constwuctow(
+		pubwic notebookEditow: INotebookDewegateFowOutput,
 	) {
-		super();
+		supa();
 	}
 
-	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI): IRenderOutput {
-		const disposable = new DisposableStore();
+	wenda(output: ICewwOutputViewModew, item: IOutputItemDto, containa: HTMWEwement, notebookUwi: UWI): IWendewOutput {
+		const disposabwe = new DisposabweStowe();
 
-		const blob = new Blob([item.data.buffer], { type: item.mime });
-		const src = URL.createObjectURL(blob);
-		disposable.add(toDisposable(() => URL.revokeObjectURL(src)));
+		const bwob = new Bwob([item.data.buffa], { type: item.mime });
+		const swc = UWW.cweateObjectUWW(bwob);
+		disposabwe.add(toDisposabwe(() => UWW.wevokeObjectUWW(swc)));
 
-		const image = document.createElement('img');
-		image.src = src;
-		const display = document.createElement('div');
-		display.classList.add('display');
-		display.appendChild(image);
-		container.appendChild(display);
+		const image = document.cweateEwement('img');
+		image.swc = swc;
+		const dispway = document.cweateEwement('div');
+		dispway.cwassWist.add('dispway');
+		dispway.appendChiwd(image);
+		containa.appendChiwd(dispway);
 
-		return { type: RenderOutputType.Mainframe, disposable };
+		wetuwn { type: WendewOutputType.Mainfwame, disposabwe };
 	}
 }
 
-OutputRendererRegistry.registerOutputTransform(JavaScriptRendererContrib);
-OutputRendererRegistry.registerOutputTransform(HTMLRendererContrib);
-OutputRendererRegistry.registerOutputTransform(MdRendererContrib);
-OutputRendererRegistry.registerOutputTransform(ImgRendererContrib);
-OutputRendererRegistry.registerOutputTransform(PlainTextRendererContrib);
-OutputRendererRegistry.registerOutputTransform(JSErrorRendererContrib);
-OutputRendererRegistry.registerOutputTransform(StreamRendererContrib);
-OutputRendererRegistry.registerOutputTransform(StderrRendererContrib);
+OutputWendewewWegistwy.wegistewOutputTwansfowm(JavaScwiptWendewewContwib);
+OutputWendewewWegistwy.wegistewOutputTwansfowm(HTMWWendewewContwib);
+OutputWendewewWegistwy.wegistewOutputTwansfowm(MdWendewewContwib);
+OutputWendewewWegistwy.wegistewOutputTwansfowm(ImgWendewewContwib);
+OutputWendewewWegistwy.wegistewOutputTwansfowm(PwainTextWendewewContwib);
+OutputWendewewWegistwy.wegistewOutputTwansfowm(JSEwwowWendewewContwib);
+OutputWendewewWegistwy.wegistewOutputTwansfowm(StweamWendewewContwib);
+OutputWendewewWegistwy.wegistewOutputTwansfowm(StdewwWendewewContwib);
 
 
-// --- utils ---
-export function getStringValue(item: IOutputItemDto): string {
-	return item.data.toString();
+// --- utiws ---
+expowt function getStwingVawue(item: IOutputItemDto): stwing {
+	wetuwn item.data.toStwing();
 }

@@ -1,148 +1,148 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'mocha';
-import * as assert from 'assert';
-import { Selection } from 'vscode';
-import { withRandomFileEditor, closeAllEditors } from './testUtils';
-import { updateImageSize } from '../updateImageSize';
+impowt 'mocha';
+impowt * as assewt fwom 'assewt';
+impowt { Sewection } fwom 'vscode';
+impowt { withWandomFiweEditow, cwoseAwwEditows } fwom './testUtiws';
+impowt { updateImageSize } fwom '../updateImageSize';
 
-suite('Tests for Emmet actions on html tags', () => {
-	teardown(closeAllEditors);
+suite('Tests fow Emmet actions on htmw tags', () => {
+	teawdown(cwoseAwwEditows);
 
-	test('update image css with multiple cursors in css file', () => {
+	test('update image css with muwtipwe cuwsows in css fiwe', () => {
 		const cssContents = `
 		.one {
-			margin: 10px;
+			mawgin: 10px;
 			padding: 10px;
-			background-image: url(https://raw.githubusercontent.com/microsoft/vscode/master/resources/linux/code.png);
+			backgwound-image: uww(https://waw.githubusewcontent.com/micwosoft/vscode/masta/wesouwces/winux/code.png);
 		}
 		.two {
-			background-image: url(https://raw.githubusercontent.com/microsoft/vscode/master/resources/linux/code.png);
+			backgwound-image: uww(https://waw.githubusewcontent.com/micwosoft/vscode/masta/wesouwces/winux/code.png);
 			height: 42px;
 		}
-		.three {
-			background-image: url(https://raw.githubusercontent.com/microsoft/vscode/master/resources/linux/code.png);
+		.thwee {
+			backgwound-image: uww(https://waw.githubusewcontent.com/micwosoft/vscode/masta/wesouwces/winux/code.png);
 			width: 42px;
 		}
 	`;
 		const expectedContents = `
 		.one {
-			margin: 10px;
+			mawgin: 10px;
 			padding: 10px;
-			background-image: url(https://raw.githubusercontent.com/microsoft/vscode/master/resources/linux/code.png);
+			backgwound-image: uww(https://waw.githubusewcontent.com/micwosoft/vscode/masta/wesouwces/winux/code.png);
 			width: 1024px;
 			height: 1024px;
 		}
 		.two {
-			background-image: url(https://raw.githubusercontent.com/microsoft/vscode/master/resources/linux/code.png);
+			backgwound-image: uww(https://waw.githubusewcontent.com/micwosoft/vscode/masta/wesouwces/winux/code.png);
 			width: 1024px;
 			height: 1024px;
 		}
-		.three {
-			background-image: url(https://raw.githubusercontent.com/microsoft/vscode/master/resources/linux/code.png);
+		.thwee {
+			backgwound-image: uww(https://waw.githubusewcontent.com/micwosoft/vscode/masta/wesouwces/winux/code.png);
 			height: 1024px;
 			width: 1024px;
 		}
 	`;
-		return withRandomFileEditor(cssContents, 'css', (editor, doc) => {
-			editor.selections = [
-				new Selection(4, 50, 4, 50),
-				new Selection(7, 50, 7, 50),
-				new Selection(11, 50, 11, 50)
+		wetuwn withWandomFiweEditow(cssContents, 'css', (editow, doc) => {
+			editow.sewections = [
+				new Sewection(4, 50, 4, 50),
+				new Sewection(7, 50, 7, 50),
+				new Sewection(11, 50, 11, 50)
 			];
 
-			return updateImageSize()!.then(() => {
-				assert.strictEqual(doc.getText(), expectedContents);
-				return Promise.resolve();
+			wetuwn updateImageSize()!.then(() => {
+				assewt.stwictEquaw(doc.getText(), expectedContents);
+				wetuwn Pwomise.wesowve();
 			});
 		});
 	});
 
-	test('update image size in css in html file with multiple cursors', () => {
-		const htmlWithCssContents = `
-		<html>
-			<style>
+	test('update image size in css in htmw fiwe with muwtipwe cuwsows', () => {
+		const htmwWithCssContents = `
+		<htmw>
+			<stywe>
 				.one {
-					margin: 10px;
+					mawgin: 10px;
 					padding: 10px;
-					background-image: url(https://raw.githubusercontent.com/microsoft/vscode/master/resources/linux/code.png);
+					backgwound-image: uww(https://waw.githubusewcontent.com/micwosoft/vscode/masta/wesouwces/winux/code.png);
 				}
 				.two {
-					background-image: url(https://raw.githubusercontent.com/microsoft/vscode/master/resources/linux/code.png);
+					backgwound-image: uww(https://waw.githubusewcontent.com/micwosoft/vscode/masta/wesouwces/winux/code.png);
 					height: 42px;
 				}
-				.three {
-					background-image: url(https://raw.githubusercontent.com/microsoft/vscode/master/resources/linux/code.png);
+				.thwee {
+					backgwound-image: uww(https://waw.githubusewcontent.com/micwosoft/vscode/masta/wesouwces/winux/code.png);
 					width: 42px;
 				}
-			</style>
-		</html>
+			</stywe>
+		</htmw>
 	`;
 		const expectedContents = `
-		<html>
-			<style>
+		<htmw>
+			<stywe>
 				.one {
-					margin: 10px;
+					mawgin: 10px;
 					padding: 10px;
-					background-image: url(https://raw.githubusercontent.com/microsoft/vscode/master/resources/linux/code.png);
+					backgwound-image: uww(https://waw.githubusewcontent.com/micwosoft/vscode/masta/wesouwces/winux/code.png);
 					width: 1024px;
 					height: 1024px;
 				}
 				.two {
-					background-image: url(https://raw.githubusercontent.com/microsoft/vscode/master/resources/linux/code.png);
+					backgwound-image: uww(https://waw.githubusewcontent.com/micwosoft/vscode/masta/wesouwces/winux/code.png);
 					width: 1024px;
 					height: 1024px;
 				}
-				.three {
-					background-image: url(https://raw.githubusercontent.com/microsoft/vscode/master/resources/linux/code.png);
+				.thwee {
+					backgwound-image: uww(https://waw.githubusewcontent.com/micwosoft/vscode/masta/wesouwces/winux/code.png);
 					height: 1024px;
 					width: 1024px;
 				}
-			</style>
-		</html>
+			</stywe>
+		</htmw>
 	`;
-		return withRandomFileEditor(htmlWithCssContents, 'html', (editor, doc) => {
-			editor.selections = [
-				new Selection(6, 50, 6, 50),
-				new Selection(9, 50, 9, 50),
-				new Selection(13, 50, 13, 50)
+		wetuwn withWandomFiweEditow(htmwWithCssContents, 'htmw', (editow, doc) => {
+			editow.sewections = [
+				new Sewection(6, 50, 6, 50),
+				new Sewection(9, 50, 9, 50),
+				new Sewection(13, 50, 13, 50)
 			];
 
-			return updateImageSize()!.then(() => {
-				assert.strictEqual(doc.getText(), expectedContents);
-				return Promise.resolve();
+			wetuwn updateImageSize()!.then(() => {
+				assewt.stwictEquaw(doc.getText(), expectedContents);
+				wetuwn Pwomise.wesowve();
 			});
 		});
 	});
 
-	test('update image size in img tag in html file with multiple cursors', () => {
-		const htmlwithimgtag = `
-		<html>
-			<img id="one" src="https://raw.githubusercontent.com/microsoft/vscode/master/resources/linux/code.png" />
-			<img id="two" src="https://raw.githubusercontent.com/microsoft/vscode/master/resources/linux/code.png" width="56" />
-			<img id="three" src="https://raw.githubusercontent.com/microsoft/vscode/master/resources/linux/code.png" height="56" />
-		</html>
+	test('update image size in img tag in htmw fiwe with muwtipwe cuwsows', () => {
+		const htmwwithimgtag = `
+		<htmw>
+			<img id="one" swc="https://waw.githubusewcontent.com/micwosoft/vscode/masta/wesouwces/winux/code.png" />
+			<img id="two" swc="https://waw.githubusewcontent.com/micwosoft/vscode/masta/wesouwces/winux/code.png" width="56" />
+			<img id="thwee" swc="https://waw.githubusewcontent.com/micwosoft/vscode/masta/wesouwces/winux/code.png" height="56" />
+		</htmw>
 	`;
 		const expectedContents = `
-		<html>
-			<img id="one" src="https://raw.githubusercontent.com/microsoft/vscode/master/resources/linux/code.png" width="1024" height="1024" />
-			<img id="two" src="https://raw.githubusercontent.com/microsoft/vscode/master/resources/linux/code.png" width="1024" height="1024" />
-			<img id="three" src="https://raw.githubusercontent.com/microsoft/vscode/master/resources/linux/code.png" height="1024" width="1024" />
-		</html>
+		<htmw>
+			<img id="one" swc="https://waw.githubusewcontent.com/micwosoft/vscode/masta/wesouwces/winux/code.png" width="1024" height="1024" />
+			<img id="two" swc="https://waw.githubusewcontent.com/micwosoft/vscode/masta/wesouwces/winux/code.png" width="1024" height="1024" />
+			<img id="thwee" swc="https://waw.githubusewcontent.com/micwosoft/vscode/masta/wesouwces/winux/code.png" height="1024" width="1024" />
+		</htmw>
 	`;
-		return withRandomFileEditor(htmlwithimgtag, 'html', (editor, doc) => {
-			editor.selections = [
-				new Selection(2, 50, 2, 50),
-				new Selection(3, 50, 3, 50),
-				new Selection(4, 50, 4, 50)
+		wetuwn withWandomFiweEditow(htmwwithimgtag, 'htmw', (editow, doc) => {
+			editow.sewections = [
+				new Sewection(2, 50, 2, 50),
+				new Sewection(3, 50, 3, 50),
+				new Sewection(4, 50, 4, 50)
 			];
 
-			return updateImageSize()!.then(() => {
-				assert.strictEqual(doc.getText(), expectedContents);
-				return Promise.resolve();
+			wetuwn updateImageSize()!.then(() => {
+				assewt.stwictEquaw(doc.getText(), expectedContents);
+				wetuwn Pwomise.wesowve();
 			});
 		});
 	});

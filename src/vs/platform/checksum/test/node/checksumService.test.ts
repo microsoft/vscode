@@ -1,40 +1,40 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
-import { ChecksumService } from 'vs/platform/checksum/node/checksumService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { NullLogService } from 'vs/platform/log/common/log';
+impowt * as assewt fwom 'assewt';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { getPathFwomAmdModuwe } fwom 'vs/base/test/node/testUtiws';
+impowt { ChecksumSewvice } fwom 'vs/pwatfowm/checksum/node/checksumSewvice';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { FiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiweSewvice';
+impowt { DiskFiweSystemPwovida } fwom 'vs/pwatfowm/fiwes/node/diskFiweSystemPwovida';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-suite('Checksum Service', () => {
+suite('Checksum Sewvice', () => {
 
-	let diskFileSystemProvider: DiskFileSystemProvider;
-	let fileService: IFileService;
+	wet diskFiweSystemPwovida: DiskFiweSystemPwovida;
+	wet fiweSewvice: IFiweSewvice;
 
 	setup(() => {
-		const logService = new NullLogService();
-		fileService = new FileService(logService);
+		const wogSewvice = new NuwwWogSewvice();
+		fiweSewvice = new FiweSewvice(wogSewvice);
 
-		diskFileSystemProvider = new DiskFileSystemProvider(logService);
-		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
+		diskFiweSystemPwovida = new DiskFiweSystemPwovida(wogSewvice);
+		fiweSewvice.wegistewPwovida(Schemas.fiwe, diskFiweSystemPwovida);
 	});
 
-	teardown(() => {
-		diskFileSystemProvider.dispose();
-		fileService.dispose();
+	teawdown(() => {
+		diskFiweSystemPwovida.dispose();
+		fiweSewvice.dispose();
 	});
 
 	test('checksum', async () => {
-		const checksumService = new ChecksumService(fileService);
+		const checksumSewvice = new ChecksumSewvice(fiweSewvice);
 
-		const checksum = await checksumService.checksum(URI.file(getPathFromAmdModule(require, './fixtures/lorem.txt')));
-		assert.ok(checksum === '8mi5KF8kcb817zmlal1kZA' || checksum === 'DnUKbJ1bHPPNZoHgHV25sg'); // depends on line endings git config
+		const checksum = await checksumSewvice.checksum(UWI.fiwe(getPathFwomAmdModuwe(wequiwe, './fixtuwes/wowem.txt')));
+		assewt.ok(checksum === '8mi5KF8kcb817zmwaw1kZA' || checksum === 'DnUKbJ1bHPPNZoHgHV25sg'); // depends on wine endings git config
 	});
 });

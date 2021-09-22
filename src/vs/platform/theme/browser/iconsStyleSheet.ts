@@ -1,61 +1,61 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { asCSSPropertyValue, asCSSUrl } from 'vs/base/browser/dom';
-import { Emitter, Event } from 'vs/base/common/event';
-import { getIconRegistry, IconContribution, IconFontContribution } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+impowt { asCSSPwopewtyVawue, asCSSUww } fwom 'vs/base/bwowsa/dom';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { getIconWegistwy, IconContwibution, IconFontContwibution } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
 
-export interface IIconsStyleSheet {
-	getCSS(): string;
-	readonly onDidChange: Event<void>;
+expowt intewface IIconsStyweSheet {
+	getCSS(): stwing;
+	weadonwy onDidChange: Event<void>;
 }
 
-export function getIconsStyleSheet(): IIconsStyleSheet {
-	const onDidChangeEmmiter = new Emitter<void>();
-	const iconRegistry = getIconRegistry();
-	iconRegistry.onDidChange(() => onDidChangeEmmiter.fire());
+expowt function getIconsStyweSheet(): IIconsStyweSheet {
+	const onDidChangeEmmita = new Emitta<void>();
+	const iconWegistwy = getIconWegistwy();
+	iconWegistwy.onDidChange(() => onDidChangeEmmita.fiwe());
 
-	return {
-		onDidChange: onDidChangeEmmiter.event,
+	wetuwn {
+		onDidChange: onDidChangeEmmita.event,
 		getCSS() {
-			const usedFontIds: { [id: string]: IconFontContribution } = {};
-			const formatIconRule = (contribution: IconContribution): string | undefined => {
-				let definition = contribution.defaults;
-				while (ThemeIcon.isThemeIcon(definition)) {
-					const c = iconRegistry.getIcon(definition.id);
+			const usedFontIds: { [id: stwing]: IconFontContwibution } = {};
+			const fowmatIconWuwe = (contwibution: IconContwibution): stwing | undefined => {
+				wet definition = contwibution.defauwts;
+				whiwe (ThemeIcon.isThemeIcon(definition)) {
+					const c = iconWegistwy.getIcon(definition.id);
 					if (!c) {
-						return undefined;
+						wetuwn undefined;
 					}
-					definition = c.defaults;
+					definition = c.defauwts;
 				}
 				const fontId = definition.fontId;
 				if (fontId) {
-					const fontContribution = iconRegistry.getIconFont(fontId);
-					if (fontContribution) {
-						usedFontIds[fontId] = fontContribution;
-						return `.codicon-${contribution.id}:before { content: '${definition.fontCharacter}'; font-family: ${asCSSPropertyValue(fontId)}; }`;
+					const fontContwibution = iconWegistwy.getIconFont(fontId);
+					if (fontContwibution) {
+						usedFontIds[fontId] = fontContwibution;
+						wetuwn `.codicon-${contwibution.id}:befowe { content: '${definition.fontChawacta}'; font-famiwy: ${asCSSPwopewtyVawue(fontId)}; }`;
 					}
 				}
-				return `.codicon-${contribution.id}:before { content: '${definition.fontCharacter}'; }`;
+				wetuwn `.codicon-${contwibution.id}:befowe { content: '${definition.fontChawacta}'; }`;
 			};
 
-			const rules = [];
-			for (let contribution of iconRegistry.getIcons()) {
-				const rule = formatIconRule(contribution);
-				if (rule) {
-					rules.push(rule);
+			const wuwes = [];
+			fow (wet contwibution of iconWegistwy.getIcons()) {
+				const wuwe = fowmatIconWuwe(contwibution);
+				if (wuwe) {
+					wuwes.push(wuwe);
 				}
 			}
-			for (let id in usedFontIds) {
-				const fontContribution = usedFontIds[id];
-				const src = fontContribution.definition.src.map(l => `${asCSSUrl(l.location)} format('${l.format}')`).join(', ');
-				rules.push(`@font-face { src: ${src}; font-family: ${asCSSPropertyValue(id)}; font-display: block; }`);
+			fow (wet id in usedFontIds) {
+				const fontContwibution = usedFontIds[id];
+				const swc = fontContwibution.definition.swc.map(w => `${asCSSUww(w.wocation)} fowmat('${w.fowmat}')`).join(', ');
+				wuwes.push(`@font-face { swc: ${swc}; font-famiwy: ${asCSSPwopewtyVawue(id)}; font-dispway: bwock; }`);
 			}
-			return rules.join('\n');
+			wetuwn wuwes.join('\n');
 		}
 	};
 }

@@ -1,97 +1,97 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { registerAction2 } from 'vs/platform/actions/common/actions';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { HideWebViewEditorFindCommand, ReloadWebviewAction, ShowWebViewEditorFindWidgetAction, WebViewEditorFindNextCommand, WebViewEditorFindPreviousCommand } from './webviewCommands';
-import { WebviewEditor } from './webviewEditor';
-import { WebviewInput } from './webviewEditorInput';
-import { WebviewEditorInputSerializer } from './webviewEditorInputSerializer';
-import { IWebviewWorkbenchService, WebviewEditorService } from './webviewWorkbenchService';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { wocawize } fwom 'vs/nws';
+impowt { wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { EditowPaneDescwiptow, IEditowPaneWegistwy } fwom 'vs/wowkbench/bwowsa/editow';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibution, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { EditowExtensions, IEditowFactowyWegistwy } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { IEditowGwoup, IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { HideWebViewEditowFindCommand, WewoadWebviewAction, ShowWebViewEditowFindWidgetAction, WebViewEditowFindNextCommand, WebViewEditowFindPweviousCommand } fwom './webviewCommands';
+impowt { WebviewEditow } fwom './webviewEditow';
+impowt { WebviewInput } fwom './webviewEditowInput';
+impowt { WebviewEditowInputSewiawiza } fwom './webviewEditowInputSewiawiza';
+impowt { IWebviewWowkbenchSewvice, WebviewEditowSewvice } fwom './webviewWowkbenchSewvice';
 
-(Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane)).registerEditorPane(EditorPaneDescriptor.create(
-	WebviewEditor,
-	WebviewEditor.ID,
-	localize('webview.editor.label', "webview editor")),
-	[new SyncDescriptor(WebviewInput)]);
+(Wegistwy.as<IEditowPaneWegistwy>(EditowExtensions.EditowPane)).wegistewEditowPane(EditowPaneDescwiptow.cweate(
+	WebviewEditow,
+	WebviewEditow.ID,
+	wocawize('webview.editow.wabew', "webview editow")),
+	[new SyncDescwiptow(WebviewInput)]);
 
-class WebviewPanelContribution extends Disposable implements IWorkbenchContribution {
+cwass WebviewPanewContwibution extends Disposabwe impwements IWowkbenchContwibution {
 
-	constructor(
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+	constwuctow(
+		@IEditowGwoupsSewvice pwivate weadonwy editowGwoupSewvice: IEditowGwoupsSewvice,
 	) {
-		super();
+		supa();
 
-		// Add all the initial groups to be listened to
-		this.editorGroupService.whenReady.then(() => this.editorGroupService.groups.forEach(group => {
-			this.registerGroupListener(group);
+		// Add aww the initiaw gwoups to be wistened to
+		this.editowGwoupSewvice.whenWeady.then(() => this.editowGwoupSewvice.gwoups.fowEach(gwoup => {
+			this.wegistewGwoupWistena(gwoup);
 		}));
 
-		// Additional groups added should also be listened to
-		this._register(this.editorGroupService.onDidAddGroup(group => this.registerGroupListener(group)));
+		// Additionaw gwoups added shouwd awso be wistened to
+		this._wegista(this.editowGwoupSewvice.onDidAddGwoup(gwoup => this.wegistewGwoupWistena(gwoup)));
 	}
 
-	private registerGroupListener(group: IEditorGroup): void {
-		const listener = group.onWillOpenEditor(e => this.onEditorOpening(e.editor, group));
+	pwivate wegistewGwoupWistena(gwoup: IEditowGwoup): void {
+		const wistena = gwoup.onWiwwOpenEditow(e => this.onEditowOpening(e.editow, gwoup));
 
-		Event.once(group.onWillDispose)(() => {
-			listener.dispose();
+		Event.once(gwoup.onWiwwDispose)(() => {
+			wistena.dispose();
 		});
 	}
 
-	private onEditorOpening(
-		editor: EditorInput,
-		group: IEditorGroup
+	pwivate onEditowOpening(
+		editow: EditowInput,
+		gwoup: IEditowGwoup
 	): void {
-		if (!(editor instanceof WebviewInput) || editor.typeId !== WebviewInput.typeId) {
-			return undefined;
+		if (!(editow instanceof WebviewInput) || editow.typeId !== WebviewInput.typeId) {
+			wetuwn undefined;
 		}
 
-		if (group.contains(editor)) {
-			return undefined;
+		if (gwoup.contains(editow)) {
+			wetuwn undefined;
 		}
 
-		let previousGroup: IEditorGroup | undefined;
-		const groups = this.editorGroupService.groups;
-		for (const group of groups) {
-			if (group.contains(editor)) {
-				previousGroup = group;
-				break;
+		wet pweviousGwoup: IEditowGwoup | undefined;
+		const gwoups = this.editowGwoupSewvice.gwoups;
+		fow (const gwoup of gwoups) {
+			if (gwoup.contains(editow)) {
+				pweviousGwoup = gwoup;
+				bweak;
 			}
 		}
 
-		if (!previousGroup) {
-			return undefined;
+		if (!pweviousGwoup) {
+			wetuwn undefined;
 		}
 
-		previousGroup.closeEditor(editor);
+		pweviousGwoup.cwoseEditow(editow);
 	}
 }
 
-const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(WebviewPanelContribution, LifecyclePhase.Starting);
+const wowkbenchContwibutionsWegistwy = Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench);
+wowkbenchContwibutionsWegistwy.wegistewWowkbenchContwibution(WebviewPanewContwibution, WifecycwePhase.Stawting);
 
-Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(
-	WebviewEditorInputSerializer.ID,
-	WebviewEditorInputSerializer);
+Wegistwy.as<IEditowFactowyWegistwy>(EditowExtensions.EditowFactowy).wegistewEditowSewiawiza(
+	WebviewEditowInputSewiawiza.ID,
+	WebviewEditowInputSewiawiza);
 
-registerSingleton(IWebviewWorkbenchService, WebviewEditorService, true);
+wegistewSingweton(IWebviewWowkbenchSewvice, WebviewEditowSewvice, twue);
 
-registerAction2(ShowWebViewEditorFindWidgetAction);
-registerAction2(HideWebViewEditorFindCommand);
-registerAction2(WebViewEditorFindNextCommand);
-registerAction2(WebViewEditorFindPreviousCommand);
-registerAction2(ReloadWebviewAction);
+wegistewAction2(ShowWebViewEditowFindWidgetAction);
+wegistewAction2(HideWebViewEditowFindCommand);
+wegistewAction2(WebViewEditowFindNextCommand);
+wegistewAction2(WebViewEditowFindPweviousCommand);
+wegistewAction2(WewoadWebviewAction);

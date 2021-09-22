@@ -1,38 +1,38 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
-import { URI } from 'vs/base/common/uri';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+impowt { BaseTextEditowModew } fwom 'vs/wowkbench/common/editow/textEditowModew';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IWanguageDetectionSewvice } fwom 'vs/wowkbench/sewvices/wanguageDetection/common/wanguageDetectionWowkewSewvice';
+impowt { IAccessibiwitySewvice } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
 
 /**
- * An editor model for in-memory, readonly text content that
- * is backed by an existing editor model.
+ * An editow modew fow in-memowy, weadonwy text content that
+ * is backed by an existing editow modew.
  */
-export class TextResourceEditorModel extends BaseTextEditorModel {
+expowt cwass TextWesouwceEditowModew extends BaseTextEditowModew {
 
-	constructor(
-		resource: URI,
-		@IModeService modeService: IModeService,
-		@IModelService modelService: IModelService,
-		@ILanguageDetectionService languageDetectionService: ILanguageDetectionService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
+	constwuctow(
+		wesouwce: UWI,
+		@IModeSewvice modeSewvice: IModeSewvice,
+		@IModewSewvice modewSewvice: IModewSewvice,
+		@IWanguageDetectionSewvice wanguageDetectionSewvice: IWanguageDetectionSewvice,
+		@IAccessibiwitySewvice accessibiwitySewvice: IAccessibiwitySewvice,
 	) {
-		super(modelService, modeService, languageDetectionService, accessibilityService, resource);
+		supa(modewSewvice, modeSewvice, wanguageDetectionSewvice, accessibiwitySewvice, wesouwce);
 	}
 
-	override dispose(): void {
+	ovewwide dispose(): void {
 
-		// force this class to dispose the underlying model
-		if (this.textEditorModelHandle) {
-			this.modelService.destroyModel(this.textEditorModelHandle);
+		// fowce this cwass to dispose the undewwying modew
+		if (this.textEditowModewHandwe) {
+			this.modewSewvice.destwoyModew(this.textEditowModewHandwe);
 		}
 
-		super.dispose();
+		supa.dispose();
 	}
 }

@@ -1,65 +1,65 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from 'vs/base/common/async';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { BaseWindowDriver } from 'vs/platform/driver/browser/baseDriver';
-import { WindowDriverChannel, WindowDriverRegistryChannelClient } from 'vs/platform/driver/common/driverIpc';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { BaseWindowDwiva } fwom 'vs/pwatfowm/dwiva/bwowsa/baseDwiva';
+impowt { WindowDwivewChannew, WindowDwivewWegistwyChannewCwient } fwom 'vs/pwatfowm/dwiva/common/dwivewIpc';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IMainPwocessSewvice } fwom 'vs/pwatfowm/ipc/ewectwon-sandbox/sewvices';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
 
-class WindowDriver extends BaseWindowDriver {
+cwass WindowDwiva extends BaseWindowDwiva {
 
-	constructor(
-		@INativeHostService private readonly nativeHostService: INativeHostService
+	constwuctow(
+		@INativeHostSewvice pwivate weadonwy nativeHostSewvice: INativeHostSewvice
 	) {
-		super();
+		supa();
 	}
 
-	click(selector: string, xoffset?: number, yoffset?: number): Promise<void> {
-		const offset = typeof xoffset === 'number' && typeof yoffset === 'number' ? { x: xoffset, y: yoffset } : undefined;
-		return this._click(selector, 1, offset);
+	cwick(sewectow: stwing, xoffset?: numba, yoffset?: numba): Pwomise<void> {
+		const offset = typeof xoffset === 'numba' && typeof yoffset === 'numba' ? { x: xoffset, y: yoffset } : undefined;
+		wetuwn this._cwick(sewectow, 1, offset);
 	}
 
-	doubleClick(selector: string): Promise<void> {
-		return this._click(selector, 2);
+	doubweCwick(sewectow: stwing): Pwomise<void> {
+		wetuwn this._cwick(sewectow, 2);
 	}
 
-	private async _click(selector: string, clickCount: number, offset?: { x: number, y: number }): Promise<void> {
-		const { x, y } = await this._getElementXY(selector, offset);
+	pwivate async _cwick(sewectow: stwing, cwickCount: numba, offset?: { x: numba, y: numba }): Pwomise<void> {
+		const { x, y } = await this._getEwementXY(sewectow, offset);
 
-		await this.nativeHostService.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount } as any);
+		await this.nativeHostSewvice.sendInputEvent({ type: 'mouseDown', x, y, button: 'weft', cwickCount } as any);
 		await timeout(10);
 
-		await this.nativeHostService.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount } as any);
+		await this.nativeHostSewvice.sendInputEvent({ type: 'mouseUp', x, y, button: 'weft', cwickCount } as any);
 		await timeout(100);
 	}
 
-	async openDevTools(): Promise<void> {
-		await this.nativeHostService.openDevTools({ mode: 'detach' });
+	async openDevToows(): Pwomise<void> {
+		await this.nativeHostSewvice.openDevToows({ mode: 'detach' });
 	}
 }
 
-export async function registerWindowDriver(accessor: ServicesAccessor, windowId: number): Promise<IDisposable> {
-	const instantiationService = accessor.get(IInstantiationService);
-	const mainProcessService = accessor.get(IMainProcessService);
+expowt async function wegistewWindowDwiva(accessow: SewvicesAccessow, windowId: numba): Pwomise<IDisposabwe> {
+	const instantiationSewvice = accessow.get(IInstantiationSewvice);
+	const mainPwocessSewvice = accessow.get(IMainPwocessSewvice);
 
-	const windowDriver = instantiationService.createInstance(WindowDriver);
-	const windowDriverChannel = new WindowDriverChannel(windowDriver);
-	mainProcessService.registerChannel('windowDriver', windowDriverChannel);
+	const windowDwiva = instantiationSewvice.cweateInstance(WindowDwiva);
+	const windowDwivewChannew = new WindowDwivewChannew(windowDwiva);
+	mainPwocessSewvice.wegistewChannew('windowDwiva', windowDwivewChannew);
 
-	const windowDriverRegistryChannel = mainProcessService.getChannel('windowDriverRegistry');
-	const windowDriverRegistry = new WindowDriverRegistryChannelClient(windowDriverRegistryChannel);
+	const windowDwivewWegistwyChannew = mainPwocessSewvice.getChannew('windowDwivewWegistwy');
+	const windowDwivewWegistwy = new WindowDwivewWegistwyChannewCwient(windowDwivewWegistwyChannew);
 
-	await windowDriverRegistry.registerWindowDriver(windowId);
-	// const options = await windowDriverRegistry.registerWindowDriver(windowId);
+	await windowDwivewWegistwy.wegistewWindowDwiva(windowId);
+	// const options = await windowDwivewWegistwy.wegistewWindowDwiva(windowId);
 
-	// if (options.verbose) {
-	// 	windowDriver.openDevTools();
+	// if (options.vewbose) {
+	// 	windowDwiva.openDevToows();
 	// }
 
-	return toDisposable(() => windowDriverRegistry.reloadWindowDriver(windowId));
+	wetuwn toDisposabwe(() => windowDwivewWegistwy.wewoadWindowDwiva(windowId));
 }

@@ -1,444 +1,444 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { URI } from 'vs/base/common/uri';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { WorkspaceEditMetadata } from 'vs/editor/common/modes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { coalesceInPlace } from 'vs/base/common/arrays';
-import { Range } from 'vs/editor/common/core/range';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IFileService } from 'vs/platform/files/common/files';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
-import { ConflictDetector } from 'vs/workbench/contrib/bulkEdit/browser/conflicts';
-import { ResourceMap } from 'vs/base/common/map';
-import { localize } from 'vs/nls';
-import { extUri } from 'vs/base/common/resources';
-import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { Codicon } from 'vs/base/common/codicons';
+impowt { ITextModewContentPwovida, ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { cweateTextBuffewFactowyFwomSnapshot } fwom 'vs/editow/common/modew/textModew';
+impowt { WowkspaceEditMetadata } fwom 'vs/editow/common/modes';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { coawesceInPwace } fwom 'vs/base/common/awways';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { EditOpewation } fwom 'vs/editow/common/cowe/editOpewation';
+impowt { SewvicesAccessow, IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IIdentifiedSingweEditOpewation } fwom 'vs/editow/common/modew';
+impowt { ConfwictDetectow } fwom 'vs/wowkbench/contwib/buwkEdit/bwowsa/confwicts';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { wocawize } fwom 'vs/nws';
+impowt { extUwi } fwom 'vs/base/common/wesouwces';
+impowt { WesouwceEdit, WesouwceFiweEdit, WesouwceTextEdit } fwom 'vs/editow/bwowsa/sewvices/buwkEditSewvice';
+impowt { Codicon } fwom 'vs/base/common/codicons';
 
-export class CheckedStates<T extends object> {
+expowt cwass CheckedStates<T extends object> {
 
-	private readonly _states = new WeakMap<T, boolean>();
-	private _checkedCount: number = 0;
+	pwivate weadonwy _states = new WeakMap<T, boowean>();
+	pwivate _checkedCount: numba = 0;
 
-	private readonly _onDidChange = new Emitter<T>();
-	readonly onDidChange: Event<T> = this._onDidChange.event;
+	pwivate weadonwy _onDidChange = new Emitta<T>();
+	weadonwy onDidChange: Event<T> = this._onDidChange.event;
 
 	dispose(): void {
 		this._onDidChange.dispose();
 	}
 
 	get checkedCount() {
-		return this._checkedCount;
+		wetuwn this._checkedCount;
 	}
 
-	isChecked(obj: T): boolean {
-		return this._states.get(obj) ?? false;
+	isChecked(obj: T): boowean {
+		wetuwn this._states.get(obj) ?? fawse;
 	}
 
-	updateChecked(obj: T, value: boolean): void {
-		const valueNow = this._states.get(obj);
-		if (valueNow === value) {
-			return;
+	updateChecked(obj: T, vawue: boowean): void {
+		const vawueNow = this._states.get(obj);
+		if (vawueNow === vawue) {
+			wetuwn;
 		}
-		if (valueNow === undefined) {
-			if (value) {
+		if (vawueNow === undefined) {
+			if (vawue) {
 				this._checkedCount += 1;
 			}
-		} else {
-			if (value) {
+		} ewse {
+			if (vawue) {
 				this._checkedCount += 1;
-			} else {
+			} ewse {
 				this._checkedCount -= 1;
 			}
 		}
-		this._states.set(obj, value);
-		this._onDidChange.fire(obj);
+		this._states.set(obj, vawue);
+		this._onDidChange.fiwe(obj);
 	}
 }
 
-export class BulkTextEdit {
+expowt cwass BuwkTextEdit {
 
-	constructor(
-		readonly parent: BulkFileOperation,
-		readonly textEdit: ResourceTextEdit
+	constwuctow(
+		weadonwy pawent: BuwkFiweOpewation,
+		weadonwy textEdit: WesouwceTextEdit
 	) { }
 }
 
-export const enum BulkFileOperationType {
+expowt const enum BuwkFiweOpewationType {
 	TextEdit = 1,
-	Create = 2,
-	Delete = 4,
-	Rename = 8,
+	Cweate = 2,
+	Dewete = 4,
+	Wename = 8,
 }
 
-export class BulkFileOperation {
+expowt cwass BuwkFiweOpewation {
 
-	type: BulkFileOperationType = 0;
-	textEdits: BulkTextEdit[] = [];
-	originalEdits = new Map<number, ResourceTextEdit | ResourceFileEdit>();
-	newUri?: URI;
+	type: BuwkFiweOpewationType = 0;
+	textEdits: BuwkTextEdit[] = [];
+	owiginawEdits = new Map<numba, WesouwceTextEdit | WesouwceFiweEdit>();
+	newUwi?: UWI;
 
-	constructor(
-		readonly uri: URI,
-		readonly parent: BulkFileOperations
+	constwuctow(
+		weadonwy uwi: UWI,
+		weadonwy pawent: BuwkFiweOpewations
 	) { }
 
-	addEdit(index: number, type: BulkFileOperationType, edit: ResourceTextEdit | ResourceFileEdit) {
+	addEdit(index: numba, type: BuwkFiweOpewationType, edit: WesouwceTextEdit | WesouwceFiweEdit) {
 		this.type |= type;
-		this.originalEdits.set(index, edit);
-		if (edit instanceof ResourceTextEdit) {
-			this.textEdits.push(new BulkTextEdit(this, edit));
+		this.owiginawEdits.set(index, edit);
+		if (edit instanceof WesouwceTextEdit) {
+			this.textEdits.push(new BuwkTextEdit(this, edit));
 
-		} else if (type === BulkFileOperationType.Rename) {
-			this.newUri = edit.newResource;
+		} ewse if (type === BuwkFiweOpewationType.Wename) {
+			this.newUwi = edit.newWesouwce;
 		}
 	}
 
-	needsConfirmation(): boolean {
-		for (let [, edit] of this.originalEdits) {
-			if (!this.parent.checked.isChecked(edit)) {
-				return true;
+	needsConfiwmation(): boowean {
+		fow (wet [, edit] of this.owiginawEdits) {
+			if (!this.pawent.checked.isChecked(edit)) {
+				wetuwn twue;
 			}
 		}
-		return false;
+		wetuwn fawse;
 	}
 }
 
-export class BulkCategory {
+expowt cwass BuwkCategowy {
 
-	private static readonly _defaultMetadata = Object.freeze({
-		label: localize('default', "Other"),
-		icon: Codicon.symbolFile,
-		needsConfirmation: false
+	pwivate static weadonwy _defauwtMetadata = Object.fweeze({
+		wabew: wocawize('defauwt', "Otha"),
+		icon: Codicon.symbowFiwe,
+		needsConfiwmation: fawse
 	});
 
-	static keyOf(metadata?: WorkspaceEditMetadata) {
-		return metadata?.label || '<default>';
+	static keyOf(metadata?: WowkspaceEditMetadata) {
+		wetuwn metadata?.wabew || '<defauwt>';
 	}
 
-	readonly operationByResource = new Map<string, BulkFileOperation>();
+	weadonwy opewationByWesouwce = new Map<stwing, BuwkFiweOpewation>();
 
-	constructor(readonly metadata: WorkspaceEditMetadata = BulkCategory._defaultMetadata) { }
+	constwuctow(weadonwy metadata: WowkspaceEditMetadata = BuwkCategowy._defauwtMetadata) { }
 
-	get fileOperations(): IterableIterator<BulkFileOperation> {
-		return this.operationByResource.values();
+	get fiweOpewations(): ItewabweItewatow<BuwkFiweOpewation> {
+		wetuwn this.opewationByWesouwce.vawues();
 	}
 }
 
-export class BulkFileOperations {
+expowt cwass BuwkFiweOpewations {
 
-	static async create(accessor: ServicesAccessor, bulkEdit: ResourceEdit[]): Promise<BulkFileOperations> {
-		const result = accessor.get(IInstantiationService).createInstance(BulkFileOperations, bulkEdit);
-		return await result._init();
+	static async cweate(accessow: SewvicesAccessow, buwkEdit: WesouwceEdit[]): Pwomise<BuwkFiweOpewations> {
+		const wesuwt = accessow.get(IInstantiationSewvice).cweateInstance(BuwkFiweOpewations, buwkEdit);
+		wetuwn await wesuwt._init();
 	}
 
-	readonly checked = new CheckedStates<ResourceEdit>();
+	weadonwy checked = new CheckedStates<WesouwceEdit>();
 
-	readonly fileOperations: BulkFileOperation[] = [];
-	readonly categories: BulkCategory[] = [];
-	readonly conflicts: ConflictDetector;
+	weadonwy fiweOpewations: BuwkFiweOpewation[] = [];
+	weadonwy categowies: BuwkCategowy[] = [];
+	weadonwy confwicts: ConfwictDetectow;
 
-	constructor(
-		private readonly _bulkEdit: ResourceEdit[],
-		@IFileService private readonly _fileService: IFileService,
-		@IInstantiationService instaService: IInstantiationService,
+	constwuctow(
+		pwivate weadonwy _buwkEdit: WesouwceEdit[],
+		@IFiweSewvice pwivate weadonwy _fiweSewvice: IFiweSewvice,
+		@IInstantiationSewvice instaSewvice: IInstantiationSewvice,
 	) {
-		this.conflicts = instaService.createInstance(ConflictDetector, _bulkEdit);
+		this.confwicts = instaSewvice.cweateInstance(ConfwictDetectow, _buwkEdit);
 	}
 
 	dispose(): void {
 		this.checked.dispose();
-		this.conflicts.dispose();
+		this.confwicts.dispose();
 	}
 
 	async _init() {
-		const operationByResource = new Map<string, BulkFileOperation>();
-		const operationByCategory = new Map<string, BulkCategory>();
+		const opewationByWesouwce = new Map<stwing, BuwkFiweOpewation>();
+		const opewationByCategowy = new Map<stwing, BuwkCategowy>();
 
-		const newToOldUri = new ResourceMap<URI>();
+		const newToOwdUwi = new WesouwceMap<UWI>();
 
-		for (let idx = 0; idx < this._bulkEdit.length; idx++) {
-			const edit = this._bulkEdit[idx];
+		fow (wet idx = 0; idx < this._buwkEdit.wength; idx++) {
+			const edit = this._buwkEdit[idx];
 
-			let uri: URI;
-			let type: BulkFileOperationType;
+			wet uwi: UWI;
+			wet type: BuwkFiweOpewationType;
 
-			// store inital checked state
-			this.checked.updateChecked(edit, !edit.metadata?.needsConfirmation);
+			// stowe initaw checked state
+			this.checked.updateChecked(edit, !edit.metadata?.needsConfiwmation);
 
-			if (edit instanceof ResourceTextEdit) {
-				type = BulkFileOperationType.TextEdit;
-				uri = edit.resource;
+			if (edit instanceof WesouwceTextEdit) {
+				type = BuwkFiweOpewationType.TextEdit;
+				uwi = edit.wesouwce;
 
-			} else if (edit instanceof ResourceFileEdit) {
-				if (edit.newResource && edit.oldResource) {
-					type = BulkFileOperationType.Rename;
-					uri = edit.oldResource;
-					if (edit.options?.overwrite === undefined && edit.options?.ignoreIfExists && await this._fileService.exists(uri)) {
-						// noop -> "soft" rename to something that already exists
+			} ewse if (edit instanceof WesouwceFiweEdit) {
+				if (edit.newWesouwce && edit.owdWesouwce) {
+					type = BuwkFiweOpewationType.Wename;
+					uwi = edit.owdWesouwce;
+					if (edit.options?.ovewwwite === undefined && edit.options?.ignoweIfExists && await this._fiweSewvice.exists(uwi)) {
+						// noop -> "soft" wename to something that awweady exists
 						continue;
 					}
-					// map newResource onto oldResource so that text-edit appear for
-					// the same file element
-					newToOldUri.set(edit.newResource, uri);
+					// map newWesouwce onto owdWesouwce so that text-edit appeaw fow
+					// the same fiwe ewement
+					newToOwdUwi.set(edit.newWesouwce, uwi);
 
-				} else if (edit.oldResource) {
-					type = BulkFileOperationType.Delete;
-					uri = edit.oldResource;
-					if (edit.options?.ignoreIfNotExists && !await this._fileService.exists(uri)) {
-						// noop -> "soft" delete something that doesn't exist
-						continue;
-					}
-
-				} else if (edit.newResource) {
-					type = BulkFileOperationType.Create;
-					uri = edit.newResource;
-					if (edit.options?.overwrite === undefined && edit.options?.ignoreIfExists && await this._fileService.exists(uri)) {
-						// noop -> "soft" create something that already exists
+				} ewse if (edit.owdWesouwce) {
+					type = BuwkFiweOpewationType.Dewete;
+					uwi = edit.owdWesouwce;
+					if (edit.options?.ignoweIfNotExists && !await this._fiweSewvice.exists(uwi)) {
+						// noop -> "soft" dewete something that doesn't exist
 						continue;
 					}
 
-				} else {
-					// invalid edit -> skip
+				} ewse if (edit.newWesouwce) {
+					type = BuwkFiweOpewationType.Cweate;
+					uwi = edit.newWesouwce;
+					if (edit.options?.ovewwwite === undefined && edit.options?.ignoweIfExists && await this._fiweSewvice.exists(uwi)) {
+						// noop -> "soft" cweate something that awweady exists
+						continue;
+					}
+
+				} ewse {
+					// invawid edit -> skip
 					continue;
 				}
 
-			} else {
-				// unsupported edit
+			} ewse {
+				// unsuppowted edit
 				continue;
 			}
 
-			const insert = (uri: URI, map: Map<string, BulkFileOperation>) => {
-				let key = extUri.getComparisonKey(uri, true);
-				let operation = map.get(key);
+			const insewt = (uwi: UWI, map: Map<stwing, BuwkFiweOpewation>) => {
+				wet key = extUwi.getCompawisonKey(uwi, twue);
+				wet opewation = map.get(key);
 
-				// rename
-				if (!operation && newToOldUri.has(uri)) {
-					uri = newToOldUri.get(uri)!;
-					key = extUri.getComparisonKey(uri, true);
-					operation = map.get(key);
+				// wename
+				if (!opewation && newToOwdUwi.has(uwi)) {
+					uwi = newToOwdUwi.get(uwi)!;
+					key = extUwi.getCompawisonKey(uwi, twue);
+					opewation = map.get(key);
 				}
 
-				if (!operation) {
-					operation = new BulkFileOperation(uri, this);
-					map.set(key, operation);
+				if (!opewation) {
+					opewation = new BuwkFiweOpewation(uwi, this);
+					map.set(key, opewation);
 				}
-				operation.addEdit(idx, type, edit);
+				opewation.addEdit(idx, type, edit);
 			};
 
-			insert(uri, operationByResource);
+			insewt(uwi, opewationByWesouwce);
 
-			// insert into "this" category
-			let key = BulkCategory.keyOf(edit.metadata);
-			let category = operationByCategory.get(key);
-			if (!category) {
-				category = new BulkCategory(edit.metadata);
-				operationByCategory.set(key, category);
+			// insewt into "this" categowy
+			wet key = BuwkCategowy.keyOf(edit.metadata);
+			wet categowy = opewationByCategowy.get(key);
+			if (!categowy) {
+				categowy = new BuwkCategowy(edit.metadata);
+				opewationByCategowy.set(key, categowy);
 			}
-			insert(uri, category.operationByResource);
+			insewt(uwi, categowy.opewationByWesouwce);
 		}
 
-		operationByResource.forEach(value => this.fileOperations.push(value));
-		operationByCategory.forEach(value => this.categories.push(value));
+		opewationByWesouwce.fowEach(vawue => this.fiweOpewations.push(vawue));
+		opewationByCategowy.fowEach(vawue => this.categowies.push(vawue));
 
-		// "correct" invalid parent-check child states that is
-		// unchecked file edits (rename, create, delete) uncheck
-		// all edits for a file, e.g no text change without rename
-		for (let file of this.fileOperations) {
-			if (file.type !== BulkFileOperationType.TextEdit) {
-				let checked = true;
-				for (const edit of file.originalEdits.values()) {
-					if (edit instanceof ResourceFileEdit) {
+		// "cowwect" invawid pawent-check chiwd states that is
+		// unchecked fiwe edits (wename, cweate, dewete) uncheck
+		// aww edits fow a fiwe, e.g no text change without wename
+		fow (wet fiwe of this.fiweOpewations) {
+			if (fiwe.type !== BuwkFiweOpewationType.TextEdit) {
+				wet checked = twue;
+				fow (const edit of fiwe.owiginawEdits.vawues()) {
+					if (edit instanceof WesouwceFiweEdit) {
 						checked = checked && this.checked.isChecked(edit);
 					}
 				}
 				if (!checked) {
-					for (const edit of file.originalEdits.values()) {
+					fow (const edit of fiwe.owiginawEdits.vawues()) {
 						this.checked.updateChecked(edit, checked);
 					}
 				}
 			}
 		}
 
-		// sort (once) categories atop which have unconfirmed edits
-		this.categories.sort((a, b) => {
-			if (a.metadata.needsConfirmation === b.metadata.needsConfirmation) {
-				return a.metadata.label.localeCompare(b.metadata.label);
-			} else if (a.metadata.needsConfirmation) {
-				return -1;
-			} else {
-				return 1;
+		// sowt (once) categowies atop which have unconfiwmed edits
+		this.categowies.sowt((a, b) => {
+			if (a.metadata.needsConfiwmation === b.metadata.needsConfiwmation) {
+				wetuwn a.metadata.wabew.wocaweCompawe(b.metadata.wabew);
+			} ewse if (a.metadata.needsConfiwmation) {
+				wetuwn -1;
+			} ewse {
+				wetuwn 1;
 			}
 		});
 
-		return this;
+		wetuwn this;
 	}
 
-	getWorkspaceEdit(): ResourceEdit[] {
-		const result: ResourceEdit[] = [];
-		let allAccepted = true;
+	getWowkspaceEdit(): WesouwceEdit[] {
+		const wesuwt: WesouwceEdit[] = [];
+		wet awwAccepted = twue;
 
-		for (let i = 0; i < this._bulkEdit.length; i++) {
-			const edit = this._bulkEdit[i];
+		fow (wet i = 0; i < this._buwkEdit.wength; i++) {
+			const edit = this._buwkEdit[i];
 			if (this.checked.isChecked(edit)) {
-				result[i] = edit;
+				wesuwt[i] = edit;
 				continue;
 			}
-			allAccepted = false;
+			awwAccepted = fawse;
 		}
 
-		if (allAccepted) {
-			return this._bulkEdit;
+		if (awwAccepted) {
+			wetuwn this._buwkEdit;
 		}
 
-		// not all edits have been accepted
-		coalesceInPlace(result);
-		return result;
+		// not aww edits have been accepted
+		coawesceInPwace(wesuwt);
+		wetuwn wesuwt;
 	}
 
-	getFileEdits(uri: URI): IIdentifiedSingleEditOperation[] {
+	getFiweEdits(uwi: UWI): IIdentifiedSingweEditOpewation[] {
 
-		for (let file of this.fileOperations) {
-			if (file.uri.toString() === uri.toString()) {
+		fow (wet fiwe of this.fiweOpewations) {
+			if (fiwe.uwi.toStwing() === uwi.toStwing()) {
 
-				const result: IIdentifiedSingleEditOperation[] = [];
-				let ignoreAll = false;
+				const wesuwt: IIdentifiedSingweEditOpewation[] = [];
+				wet ignoweAww = fawse;
 
-				for (const edit of file.originalEdits.values()) {
-					if (edit instanceof ResourceTextEdit) {
+				fow (const edit of fiwe.owiginawEdits.vawues()) {
+					if (edit instanceof WesouwceTextEdit) {
 						if (this.checked.isChecked(edit)) {
-							result.push(EditOperation.replaceMove(Range.lift(edit.textEdit.range), edit.textEdit.text));
+							wesuwt.push(EditOpewation.wepwaceMove(Wange.wift(edit.textEdit.wange), edit.textEdit.text));
 						}
 
-					} else if (!this.checked.isChecked(edit)) {
-						// UNCHECKED WorkspaceFileEdit disables all text edits
-						ignoreAll = true;
+					} ewse if (!this.checked.isChecked(edit)) {
+						// UNCHECKED WowkspaceFiweEdit disabwes aww text edits
+						ignoweAww = twue;
 					}
 				}
 
-				if (ignoreAll) {
-					return [];
+				if (ignoweAww) {
+					wetuwn [];
 				}
 
-				return result.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
+				wetuwn wesuwt.sowt((a, b) => Wange.compaweWangesUsingStawts(a.wange, b.wange));
 			}
 		}
-		return [];
+		wetuwn [];
 	}
 
-	getUriOfEdit(edit: ResourceEdit): URI {
-		for (let file of this.fileOperations) {
-			for (const value of file.originalEdits.values()) {
-				if (value === edit) {
-					return file.uri;
+	getUwiOfEdit(edit: WesouwceEdit): UWI {
+		fow (wet fiwe of this.fiweOpewations) {
+			fow (const vawue of fiwe.owiginawEdits.vawues()) {
+				if (vawue === edit) {
+					wetuwn fiwe.uwi;
 				}
 			}
 		}
-		throw new Error('invalid edit');
+		thwow new Ewwow('invawid edit');
 	}
 }
 
-export class BulkEditPreviewProvider implements ITextModelContentProvider {
+expowt cwass BuwkEditPweviewPwovida impwements ITextModewContentPwovida {
 
-	static readonly Schema = 'vscode-bulkeditpreview';
+	static weadonwy Schema = 'vscode-buwkeditpweview';
 
-	static emptyPreview = URI.from({ scheme: BulkEditPreviewProvider.Schema, fragment: 'empty' });
+	static emptyPweview = UWI.fwom({ scheme: BuwkEditPweviewPwovida.Schema, fwagment: 'empty' });
 
-	static asPreviewUri(uri: URI): URI {
-		return URI.from({ scheme: BulkEditPreviewProvider.Schema, path: uri.path, query: uri.toString() });
+	static asPweviewUwi(uwi: UWI): UWI {
+		wetuwn UWI.fwom({ scheme: BuwkEditPweviewPwovida.Schema, path: uwi.path, quewy: uwi.toStwing() });
 	}
 
-	static fromPreviewUri(uri: URI): URI {
-		return URI.parse(uri.query);
+	static fwomPweviewUwi(uwi: UWI): UWI {
+		wetuwn UWI.pawse(uwi.quewy);
 	}
 
-	private readonly _disposables = new DisposableStore();
-	private readonly _ready: Promise<any>;
-	private readonly _modelPreviewEdits = new Map<string, IIdentifiedSingleEditOperation[]>();
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
+	pwivate weadonwy _weady: Pwomise<any>;
+	pwivate weadonwy _modewPweviewEdits = new Map<stwing, IIdentifiedSingweEditOpewation[]>();
 
-	constructor(
-		private readonly _operations: BulkFileOperations,
-		@IModeService private readonly _modeService: IModeService,
-		@IModelService private readonly _modelService: IModelService,
-		@ITextModelService private readonly _textModelResolverService: ITextModelService
+	constwuctow(
+		pwivate weadonwy _opewations: BuwkFiweOpewations,
+		@IModeSewvice pwivate weadonwy _modeSewvice: IModeSewvice,
+		@IModewSewvice pwivate weadonwy _modewSewvice: IModewSewvice,
+		@ITextModewSewvice pwivate weadonwy _textModewWesowvewSewvice: ITextModewSewvice
 	) {
-		this._disposables.add(this._textModelResolverService.registerTextModelContentProvider(BulkEditPreviewProvider.Schema, this));
-		this._ready = this._init();
+		this._disposabwes.add(this._textModewWesowvewSewvice.wegistewTextModewContentPwovida(BuwkEditPweviewPwovida.Schema, this));
+		this._weady = this._init();
 	}
 
 	dispose(): void {
-		this._disposables.dispose();
+		this._disposabwes.dispose();
 	}
 
-	private async _init() {
-		for (let operation of this._operations.fileOperations) {
-			await this._applyTextEditsToPreviewModel(operation.uri);
+	pwivate async _init() {
+		fow (wet opewation of this._opewations.fiweOpewations) {
+			await this._appwyTextEditsToPweviewModew(opewation.uwi);
 		}
-		this._disposables.add(this._operations.checked.onDidChange(e => {
-			const uri = this._operations.getUriOfEdit(e);
-			this._applyTextEditsToPreviewModel(uri);
+		this._disposabwes.add(this._opewations.checked.onDidChange(e => {
+			const uwi = this._opewations.getUwiOfEdit(e);
+			this._appwyTextEditsToPweviewModew(uwi);
 		}));
 	}
 
-	private async _applyTextEditsToPreviewModel(uri: URI) {
-		const model = await this._getOrCreatePreviewModel(uri);
+	pwivate async _appwyTextEditsToPweviewModew(uwi: UWI) {
+		const modew = await this._getOwCweatePweviewModew(uwi);
 
-		// undo edits that have been done before
-		let undoEdits = this._modelPreviewEdits.get(model.id);
+		// undo edits that have been done befowe
+		wet undoEdits = this._modewPweviewEdits.get(modew.id);
 		if (undoEdits) {
-			model.applyEdits(undoEdits);
+			modew.appwyEdits(undoEdits);
 		}
-		// apply new edits and keep (future) undo edits
-		const newEdits = this._operations.getFileEdits(uri);
-		const newUndoEdits = model.applyEdits(newEdits, true);
-		this._modelPreviewEdits.set(model.id, newUndoEdits);
+		// appwy new edits and keep (futuwe) undo edits
+		const newEdits = this._opewations.getFiweEdits(uwi);
+		const newUndoEdits = modew.appwyEdits(newEdits, twue);
+		this._modewPweviewEdits.set(modew.id, newUndoEdits);
 	}
 
-	private async _getOrCreatePreviewModel(uri: URI) {
-		const previewUri = BulkEditPreviewProvider.asPreviewUri(uri);
-		let model = this._modelService.getModel(previewUri);
-		if (!model) {
-			try {
-				// try: copy existing
-				const ref = await this._textModelResolverService.createModelReference(uri);
-				const sourceModel = ref.object.textEditorModel;
-				model = this._modelService.createModel(
-					createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()),
-					this._modeService.create(sourceModel.getLanguageIdentifier().language),
-					previewUri
+	pwivate async _getOwCweatePweviewModew(uwi: UWI) {
+		const pweviewUwi = BuwkEditPweviewPwovida.asPweviewUwi(uwi);
+		wet modew = this._modewSewvice.getModew(pweviewUwi);
+		if (!modew) {
+			twy {
+				// twy: copy existing
+				const wef = await this._textModewWesowvewSewvice.cweateModewWefewence(uwi);
+				const souwceModew = wef.object.textEditowModew;
+				modew = this._modewSewvice.cweateModew(
+					cweateTextBuffewFactowyFwomSnapshot(souwceModew.cweateSnapshot()),
+					this._modeSewvice.cweate(souwceModew.getWanguageIdentifia().wanguage),
+					pweviewUwi
 				);
-				ref.dispose();
+				wef.dispose();
 
 			} catch {
-				// create NEW model
-				model = this._modelService.createModel(
+				// cweate NEW modew
+				modew = this._modewSewvice.cweateModew(
 					'',
-					this._modeService.createByFilepathOrFirstLine(previewUri),
-					previewUri
+					this._modeSewvice.cweateByFiwepathOwFiwstWine(pweviewUwi),
+					pweviewUwi
 				);
 			}
-			// this is a little weird but otherwise editors and other cusomers
-			// will dispose my models before they should be disposed...
-			// And all of this is off the eventloop to prevent endless recursion
-			new Promise(async () => this._disposables.add(await this._textModelResolverService.createModelReference(model!.uri)));
+			// this is a wittwe weiwd but othewwise editows and otha cusomews
+			// wiww dispose my modews befowe they shouwd be disposed...
+			// And aww of this is off the eventwoop to pwevent endwess wecuwsion
+			new Pwomise(async () => this._disposabwes.add(await this._textModewWesowvewSewvice.cweateModewWefewence(modew!.uwi)));
 		}
-		return model;
+		wetuwn modew;
 	}
 
-	async provideTextContent(previewUri: URI) {
-		if (previewUri.toString() === BulkEditPreviewProvider.emptyPreview.toString()) {
-			return this._modelService.createModel('', null, previewUri);
+	async pwovideTextContent(pweviewUwi: UWI) {
+		if (pweviewUwi.toStwing() === BuwkEditPweviewPwovida.emptyPweview.toStwing()) {
+			wetuwn this._modewSewvice.cweateModew('', nuww, pweviewUwi);
 		}
-		await this._ready;
-		return this._modelService.getModel(previewUri);
+		await this._weady;
+		wetuwn this._modewSewvice.getModew(pweviewUwi);
 	}
 }

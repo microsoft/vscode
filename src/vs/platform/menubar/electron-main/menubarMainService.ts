@@ -1,44 +1,44 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ICommonMenubarService, IMenubarData } from 'vs/platform/menubar/common/menubar';
-import { Menubar } from 'vs/platform/menubar/electron-main/menubar';
+impowt { cweateDecowatow, IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWifecycweMainSewvice, WifecycweMainPhase } fwom 'vs/pwatfowm/wifecycwe/ewectwon-main/wifecycweMainSewvice';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { ICommonMenubawSewvice, IMenubawData } fwom 'vs/pwatfowm/menubaw/common/menubaw';
+impowt { Menubaw } fwom 'vs/pwatfowm/menubaw/ewectwon-main/menubaw';
 
-export const IMenubarMainService = createDecorator<IMenubarMainService>('menubarMainService');
+expowt const IMenubawMainSewvice = cweateDecowatow<IMenubawMainSewvice>('menubawMainSewvice');
 
-export interface IMenubarMainService extends ICommonMenubarService {
-	readonly _serviceBrand: undefined;
+expowt intewface IMenubawMainSewvice extends ICommonMenubawSewvice {
+	weadonwy _sewviceBwand: undefined;
 }
 
-export class MenubarMainService implements IMenubarMainService {
+expowt cwass MenubawMainSewvice impwements IMenubawMainSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private menubar: Promise<Menubar>;
+	pwivate menubaw: Pwomise<Menubaw>;
 
-	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@ILogService private readonly logService: ILogService
+	constwuctow(
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IWifecycweMainSewvice pwivate weadonwy wifecycweMainSewvice: IWifecycweMainSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice
 	) {
-		this.menubar = this.installMenuBarAfterWindowOpen();
+		this.menubaw = this.instawwMenuBawAftewWindowOpen();
 	}
 
-	private async installMenuBarAfterWindowOpen(): Promise<Menubar> {
-		await this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen);
+	pwivate async instawwMenuBawAftewWindowOpen(): Pwomise<Menubaw> {
+		await this.wifecycweMainSewvice.when(WifecycweMainPhase.AftewWindowOpen);
 
-		return this.instantiationService.createInstance(Menubar);
+		wetuwn this.instantiationSewvice.cweateInstance(Menubaw);
 	}
 
-	async updateMenubar(windowId: number, menus: IMenubarData): Promise<void> {
-		this.logService.trace('menubarService#updateMenubar', windowId);
+	async updateMenubaw(windowId: numba, menus: IMenubawData): Pwomise<void> {
+		this.wogSewvice.twace('menubawSewvice#updateMenubaw', windowId);
 
-		const menubar = await this.menubar;
-		menubar.updateMenu(menus, windowId);
+		const menubaw = await this.menubaw;
+		menubaw.updateMenu(menus, windowId);
 	}
 }

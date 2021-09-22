@@ -1,127 +1,127 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { CellEditType, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { TestCell, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
+impowt * as assewt fwom 'assewt';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { CewwEditType, CewwKind } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { TestCeww, withTestNotebook } fwom 'vs/wowkbench/contwib/notebook/test/testNotebookEditow';
 
-suite('Notebook Undo/Redo', () => {
+suite('Notebook Undo/Wedo', () => {
 	test('Basics', async function () {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markup, [], {}],
-				['body', 'markdown', CellKind.Markup, [], {}],
+				['# heada 1', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body', 'mawkdown', CewwKind.Mawkup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
-				const modeService = accessor.get(IModeService);
-				assert.strictEqual(viewModel.length, 2);
-				assert.strictEqual(viewModel.getVersionId(), 0);
-				assert.strictEqual(viewModel.getAlternativeId(), '0_0,1;1,1');
+			async (editow, viewModew, accessow) => {
+				const modeSewvice = accessow.get(IModeSewvice);
+				assewt.stwictEquaw(viewModew.wength, 2);
+				assewt.stwictEquaw(viewModew.getVewsionId(), 0);
+				assewt.stwictEquaw(viewModew.getAwtewnativeId(), '0_0,1;1,1');
 
-				editor.textModel.applyEdits([{
-					editType: CellEditType.Replace, index: 0, count: 2, cells: []
-				}], true, undefined, () => undefined, undefined, true);
-				assert.strictEqual(viewModel.length, 0);
-				assert.strictEqual(viewModel.getVersionId(), 1);
-				assert.strictEqual(viewModel.getAlternativeId(), '1_');
+				editow.textModew.appwyEdits([{
+					editType: CewwEditType.Wepwace, index: 0, count: 2, cewws: []
+				}], twue, undefined, () => undefined, undefined, twue);
+				assewt.stwictEquaw(viewModew.wength, 0);
+				assewt.stwictEquaw(viewModew.getVewsionId(), 1);
+				assewt.stwictEquaw(viewModew.getAwtewnativeId(), '1_');
 
-				await viewModel.undo();
-				assert.strictEqual(viewModel.length, 2);
-				assert.strictEqual(viewModel.getVersionId(), 2);
-				assert.strictEqual(viewModel.getAlternativeId(), '0_0,1;1,1');
+				await viewModew.undo();
+				assewt.stwictEquaw(viewModew.wength, 2);
+				assewt.stwictEquaw(viewModew.getVewsionId(), 2);
+				assewt.stwictEquaw(viewModew.getAwtewnativeId(), '0_0,1;1,1');
 
-				await viewModel.redo();
-				assert.strictEqual(viewModel.length, 0);
-				assert.strictEqual(viewModel.getVersionId(), 3);
-				assert.strictEqual(viewModel.getAlternativeId(), '1_');
+				await viewModew.wedo();
+				assewt.stwictEquaw(viewModew.wength, 0);
+				assewt.stwictEquaw(viewModew.getVewsionId(), 3);
+				assewt.stwictEquaw(viewModew.getAwtewnativeId(), '1_');
 
-				editor.textModel.applyEdits([{
-					editType: CellEditType.Replace, index: 0, count: 0, cells: [
-						new TestCell(viewModel.viewType, 3, '# header 2', 'markdown', CellKind.Code, [], modeService),
+				editow.textModew.appwyEdits([{
+					editType: CewwEditType.Wepwace, index: 0, count: 0, cewws: [
+						new TestCeww(viewModew.viewType, 3, '# heada 2', 'mawkdown', CewwKind.Code, [], modeSewvice),
 					]
-				}], true, undefined, () => undefined, undefined, true);
-				assert.strictEqual(viewModel.getVersionId(), 4);
-				assert.strictEqual(viewModel.getAlternativeId(), '4_2,1');
+				}], twue, undefined, () => undefined, undefined, twue);
+				assewt.stwictEquaw(viewModew.getVewsionId(), 4);
+				assewt.stwictEquaw(viewModew.getAwtewnativeId(), '4_2,1');
 
-				await viewModel.undo();
-				assert.strictEqual(viewModel.getVersionId(), 5);
-				assert.strictEqual(viewModel.getAlternativeId(), '1_');
+				await viewModew.undo();
+				assewt.stwictEquaw(viewModew.getVewsionId(), 5);
+				assewt.stwictEquaw(viewModew.getAwtewnativeId(), '1_');
 			}
 		);
 	});
 
-	test('Invalid replace count should not throw', async function () {
+	test('Invawid wepwace count shouwd not thwow', async function () {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markup, [], {}],
-				['body', 'markdown', CellKind.Markup, [], {}],
+				['# heada 1', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body', 'mawkdown', CewwKind.Mawkup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
-				const modeService = accessor.get(IModeService);
-				editor.textModel.applyEdits([{
-					editType: CellEditType.Replace, index: 0, count: 2, cells: []
-				}], true, undefined, () => undefined, undefined, true);
+			async (editow, viewModew, accessow) => {
+				const modeSewvice = accessow.get(IModeSewvice);
+				editow.textModew.appwyEdits([{
+					editType: CewwEditType.Wepwace, index: 0, count: 2, cewws: []
+				}], twue, undefined, () => undefined, undefined, twue);
 
-				assert.doesNotThrow(() => {
-					editor.textModel.applyEdits([{
-						editType: CellEditType.Replace, index: 0, count: 2, cells: [
-							new TestCell(viewModel.viewType, 3, '# header 2', 'markdown', CellKind.Code, [], modeService),
+				assewt.doesNotThwow(() => {
+					editow.textModew.appwyEdits([{
+						editType: CewwEditType.Wepwace, index: 0, count: 2, cewws: [
+							new TestCeww(viewModew.viewType, 3, '# heada 2', 'mawkdown', CewwKind.Code, [], modeSewvice),
 						]
-					}], true, undefined, () => undefined, undefined, true);
+					}], twue, undefined, () => undefined, undefined, twue);
 				});
 			}
 		);
 	});
 
-	test('Replace beyond length', async function () {
+	test('Wepwace beyond wength', async function () {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markup, [], {}],
-				['body', 'markdown', CellKind.Markup, [], {}],
+				['# heada 1', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body', 'mawkdown', CewwKind.Mawkup, [], {}],
 			],
-			async (editor, viewModel) => {
-				editor.textModel.applyEdits([{
-					editType: CellEditType.Replace, index: 1, count: 2, cells: []
-				}], true, undefined, () => undefined, undefined, true);
+			async (editow, viewModew) => {
+				editow.textModew.appwyEdits([{
+					editType: CewwEditType.Wepwace, index: 1, count: 2, cewws: []
+				}], twue, undefined, () => undefined, undefined, twue);
 
-				assert.deepStrictEqual(viewModel.length, 1);
-				await viewModel.undo();
-				assert.deepStrictEqual(viewModel.length, 2);
+				assewt.deepStwictEquaw(viewModew.wength, 1);
+				await viewModew.undo();
+				assewt.deepStwictEquaw(viewModew.wength, 2);
 			}
 		);
 	});
 
-	test('Invalid replace count should not affect undo/redo', async function () {
+	test('Invawid wepwace count shouwd not affect undo/wedo', async function () {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markup, [], {}],
-				['body', 'markdown', CellKind.Markup, [], {}],
+				['# heada 1', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body', 'mawkdown', CewwKind.Mawkup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
-				const modeService = accessor.get(IModeService);
-				editor.textModel.applyEdits([{
-					editType: CellEditType.Replace, index: 0, count: 2, cells: []
-				}], true, undefined, () => undefined, undefined, true);
+			async (editow, viewModew, accessow) => {
+				const modeSewvice = accessow.get(IModeSewvice);
+				editow.textModew.appwyEdits([{
+					editType: CewwEditType.Wepwace, index: 0, count: 2, cewws: []
+				}], twue, undefined, () => undefined, undefined, twue);
 
-				editor.textModel.applyEdits([{
-					editType: CellEditType.Replace, index: 0, count: 2, cells: [
-						new TestCell(viewModel.viewType, 3, '# header 2', 'markdown', CellKind.Code, [], modeService),
+				editow.textModew.appwyEdits([{
+					editType: CewwEditType.Wepwace, index: 0, count: 2, cewws: [
+						new TestCeww(viewModew.viewType, 3, '# heada 2', 'mawkdown', CewwKind.Code, [], modeSewvice),
 					]
-				}], true, undefined, () => undefined, undefined, true);
+				}], twue, undefined, () => undefined, undefined, twue);
 
-				assert.deepStrictEqual(viewModel.length, 1);
+				assewt.deepStwictEquaw(viewModew.wength, 1);
 
-				await viewModel.undo();
-				await viewModel.undo();
+				await viewModew.undo();
+				await viewModew.undo();
 
-				assert.deepStrictEqual(viewModel.length, 2);
-				editor.textModel.applyEdits([{
-					editType: CellEditType.Replace, index: 1, count: 2, cells: []
-				}], true, undefined, () => undefined, undefined, true);
-				assert.deepStrictEqual(viewModel.length, 1);
+				assewt.deepStwictEquaw(viewModew.wength, 2);
+				editow.textModew.appwyEdits([{
+					editType: CewwEditType.Wepwace, index: 1, count: 2, cewws: []
+				}], twue, undefined, () => undefined, undefined, twue);
+				assewt.deepStwictEquaw(viewModew.wength, 1);
 			}
 		);
 	});

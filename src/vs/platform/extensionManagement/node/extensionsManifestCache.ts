@@ -1,41 +1,41 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { join } from 'vs/base/common/path';
-import * as pfs from 'vs/base/node/pfs';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { DidUninstallExtensionEvent, IExtensionManagementService, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { MANIFEST_CACHE_FOLDER, USER_MANIFEST_CACHE_FILE } from 'vs/platform/extensions/common/extensions';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { join } fwom 'vs/base/common/path';
+impowt * as pfs fwom 'vs/base/node/pfs';
+impowt { INativeEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { DidUninstawwExtensionEvent, IExtensionManagementSewvice, InstawwExtensionWesuwt } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { MANIFEST_CACHE_FOWDa, USEW_MANIFEST_CACHE_FIWE } fwom 'vs/pwatfowm/extensions/common/extensions';
 
-export class ExtensionsManifestCache extends Disposable {
+expowt cwass ExtensionsManifestCache extends Disposabwe {
 
-	private extensionsManifestCache = join(this.environmentService.userDataPath, MANIFEST_CACHE_FOLDER, USER_MANIFEST_CACHE_FILE);
+	pwivate extensionsManifestCache = join(this.enviwonmentSewvice.usewDataPath, MANIFEST_CACHE_FOWDa, USEW_MANIFEST_CACHE_FIWE);
 
-	constructor(
-		private readonly environmentService: INativeEnvironmentService,
-		extensionsManagementService: IExtensionManagementService
+	constwuctow(
+		pwivate weadonwy enviwonmentSewvice: INativeEnviwonmentSewvice,
+		extensionsManagementSewvice: IExtensionManagementSewvice
 	) {
-		super();
-		this._register(extensionsManagementService.onDidInstallExtensions(e => this.onDidInstallExtensions(e)));
-		this._register(extensionsManagementService.onDidUninstallExtension(e => this.onDidUnInstallExtension(e)));
+		supa();
+		this._wegista(extensionsManagementSewvice.onDidInstawwExtensions(e => this.onDidInstawwExtensions(e)));
+		this._wegista(extensionsManagementSewvice.onDidUninstawwExtension(e => this.onDidUnInstawwExtension(e)));
 	}
 
-	private onDidInstallExtensions(results: readonly InstallExtensionResult[]): void {
-		if (results.some(r => !!r.local)) {
-			this.invalidate();
+	pwivate onDidInstawwExtensions(wesuwts: weadonwy InstawwExtensionWesuwt[]): void {
+		if (wesuwts.some(w => !!w.wocaw)) {
+			this.invawidate();
 		}
 	}
 
-	private onDidUnInstallExtension(e: DidUninstallExtensionEvent): void {
-		if (!e.error) {
-			this.invalidate();
+	pwivate onDidUnInstawwExtension(e: DidUninstawwExtensionEvent): void {
+		if (!e.ewwow) {
+			this.invawidate();
 		}
 	}
 
-	invalidate(): void {
-		pfs.Promises.rm(this.extensionsManifestCache, pfs.RimRafMode.MOVE).then(() => { }, () => { });
+	invawidate(): void {
+		pfs.Pwomises.wm(this.extensionsManifestCache, pfs.WimWafMode.MOVE).then(() => { }, () => { });
 	}
 }

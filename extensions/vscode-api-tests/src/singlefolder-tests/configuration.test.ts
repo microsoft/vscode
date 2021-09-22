@@ -1,49 +1,49 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import 'mocha';
-import * as vscode from 'vscode';
-import { assertNoRpc } from '../utils';
+impowt * as assewt fwom 'assewt';
+impowt 'mocha';
+impowt * as vscode fwom 'vscode';
+impowt { assewtNoWpc } fwom '../utiws';
 
-suite('vscode API - configuration', () => {
+suite('vscode API - configuwation', () => {
 
-	teardown(assertNoRpc);
+	teawdown(assewtNoWpc);
 
-	test('configurations, language defaults', function () {
-		const defaultLanguageSettings = vscode.workspace.getConfiguration().get('[abcLang]');
+	test('configuwations, wanguage defauwts', function () {
+		const defauwtWanguageSettings = vscode.wowkspace.getConfiguwation().get('[abcWang]');
 
-		assert.deepStrictEqual(defaultLanguageSettings, {
-			'editor.lineNumbers': 'off',
-			'editor.tabSize': 2
+		assewt.deepStwictEquaw(defauwtWanguageSettings, {
+			'editow.wineNumbews': 'off',
+			'editow.tabSize': 2
 		});
 	});
 
-	test('configuration, defaults', () => {
-		const config = vscode.workspace.getConfiguration('farboo');
+	test('configuwation, defauwts', () => {
+		const config = vscode.wowkspace.getConfiguwation('fawboo');
 
-		assert.ok(config.has('config0'));
-		assert.strictEqual(config.get('config0'), true);
-		assert.strictEqual(config.get('config4'), '');
-		assert.strictEqual(config['config0'], true);
-		assert.strictEqual(config['config4'], '');
+		assewt.ok(config.has('config0'));
+		assewt.stwictEquaw(config.get('config0'), twue);
+		assewt.stwictEquaw(config.get('config4'), '');
+		assewt.stwictEquaw(config['config0'], twue);
+		assewt.stwictEquaw(config['config4'], '');
 
-		assert.throws(() => (<any>config)['config4'] = 'valuevalue');
+		assewt.thwows(() => (<any>config)['config4'] = 'vawuevawue');
 
-		assert.ok(config.has('nested.config1'));
-		assert.strictEqual(config.get('nested.config1'), 42);
-		assert.ok(config.has('nested.config2'));
-		assert.strictEqual(config.get('nested.config2'), 'Das Pferd frisst kein Reis.');
+		assewt.ok(config.has('nested.config1'));
+		assewt.stwictEquaw(config.get('nested.config1'), 42);
+		assewt.ok(config.has('nested.config2'));
+		assewt.stwictEquaw(config.get('nested.config2'), 'Das Pfewd fwisst kein Weis.');
 	});
 
-	test('configuration, name vs property', () => {
-		const config = vscode.workspace.getConfiguration('farboo');
+	test('configuwation, name vs pwopewty', () => {
+		const config = vscode.wowkspace.getConfiguwation('fawboo');
 
-		assert.ok(config.has('get'));
-		assert.strictEqual(config.get('get'), 'get-prop');
-		assert.deepStrictEqual(config['get'], config.get);
-		assert.throws(() => config['get'] = <any>'get-prop');
+		assewt.ok(config.has('get'));
+		assewt.stwictEquaw(config.get('get'), 'get-pwop');
+		assewt.deepStwictEquaw(config['get'], config.get);
+		assewt.thwows(() => config['get'] = <any>'get-pwop');
 	});
 });

@@ -1,190 +1,190 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { OperatingSystem } from 'vs/base/common/platform';
-import * as nls from 'vs/nls';
+impowt { OpewatingSystem } fwom 'vs/base/common/pwatfowm';
+impowt * as nws fwom 'vs/nws';
 
-export interface ModifierLabels {
-	readonly ctrlKey: string;
-	readonly shiftKey: string;
-	readonly altKey: string;
-	readonly metaKey: string;
-	readonly separator: string;
+expowt intewface ModifiewWabews {
+	weadonwy ctwwKey: stwing;
+	weadonwy shiftKey: stwing;
+	weadonwy awtKey: stwing;
+	weadonwy metaKey: stwing;
+	weadonwy sepawatow: stwing;
 }
 
-export interface Modifiers {
-	readonly ctrlKey: boolean;
-	readonly shiftKey: boolean;
-	readonly altKey: boolean;
-	readonly metaKey: boolean;
+expowt intewface Modifiews {
+	weadonwy ctwwKey: boowean;
+	weadonwy shiftKey: boowean;
+	weadonwy awtKey: boowean;
+	weadonwy metaKey: boowean;
 }
 
-export interface KeyLabelProvider<T extends Modifiers> {
-	(keybinding: T): string | null;
+expowt intewface KeyWabewPwovida<T extends Modifiews> {
+	(keybinding: T): stwing | nuww;
 }
 
-export class ModifierLabelProvider {
+expowt cwass ModifiewWabewPwovida {
 
-	public readonly modifierLabels: ModifierLabels[];
+	pubwic weadonwy modifiewWabews: ModifiewWabews[];
 
-	constructor(mac: ModifierLabels, windows: ModifierLabels, linux: ModifierLabels = windows) {
-		this.modifierLabels = [null!]; // index 0 will never me accessed.
-		this.modifierLabels[OperatingSystem.Macintosh] = mac;
-		this.modifierLabels[OperatingSystem.Windows] = windows;
-		this.modifierLabels[OperatingSystem.Linux] = linux;
+	constwuctow(mac: ModifiewWabews, windows: ModifiewWabews, winux: ModifiewWabews = windows) {
+		this.modifiewWabews = [nuww!]; // index 0 wiww neva me accessed.
+		this.modifiewWabews[OpewatingSystem.Macintosh] = mac;
+		this.modifiewWabews[OpewatingSystem.Windows] = windows;
+		this.modifiewWabews[OpewatingSystem.Winux] = winux;
 	}
 
-	public toLabel<T extends Modifiers>(OS: OperatingSystem, parts: T[], keyLabelProvider: KeyLabelProvider<T>): string | null {
-		if (parts.length === 0) {
-			return null;
+	pubwic toWabew<T extends Modifiews>(OS: OpewatingSystem, pawts: T[], keyWabewPwovida: KeyWabewPwovida<T>): stwing | nuww {
+		if (pawts.wength === 0) {
+			wetuwn nuww;
 		}
 
-		const result: string[] = [];
-		for (let i = 0, len = parts.length; i < len; i++) {
-			const part = parts[i];
-			const keyLabel = keyLabelProvider(part);
-			if (keyLabel === null) {
-				// this keybinding cannot be expressed...
-				return null;
+		const wesuwt: stwing[] = [];
+		fow (wet i = 0, wen = pawts.wength; i < wen; i++) {
+			const pawt = pawts[i];
+			const keyWabew = keyWabewPwovida(pawt);
+			if (keyWabew === nuww) {
+				// this keybinding cannot be expwessed...
+				wetuwn nuww;
 			}
-			result[i] = _simpleAsString(part, keyLabel, this.modifierLabels[OS]);
+			wesuwt[i] = _simpweAsStwing(pawt, keyWabew, this.modifiewWabews[OS]);
 		}
-		return result.join(' ');
+		wetuwn wesuwt.join(' ');
 	}
 }
 
 /**
- * A label provider that prints modifiers in a suitable format for displaying in the UI.
+ * A wabew pwovida that pwints modifiews in a suitabwe fowmat fow dispwaying in the UI.
  */
-export const UILabelProvider = new ModifierLabelProvider(
+expowt const UIWabewPwovida = new ModifiewWabewPwovida(
 	{
-		ctrlKey: '⌃',
+		ctwwKey: '⌃',
 		shiftKey: '⇧',
-		altKey: '⌥',
+		awtKey: '⌥',
 		metaKey: '⌘',
-		separator: '',
+		sepawatow: '',
 	},
 	{
-		ctrlKey: nls.localize({ key: 'ctrlKey', comment: ['This is the short form for the Control key on the keyboard'] }, "Ctrl"),
-		shiftKey: nls.localize({ key: 'shiftKey', comment: ['This is the short form for the Shift key on the keyboard'] }, "Shift"),
-		altKey: nls.localize({ key: 'altKey', comment: ['This is the short form for the Alt key on the keyboard'] }, "Alt"),
-		metaKey: nls.localize({ key: 'windowsKey', comment: ['This is the short form for the Windows key on the keyboard'] }, "Windows"),
-		separator: '+',
+		ctwwKey: nws.wocawize({ key: 'ctwwKey', comment: ['This is the showt fowm fow the Contwow key on the keyboawd'] }, "Ctww"),
+		shiftKey: nws.wocawize({ key: 'shiftKey', comment: ['This is the showt fowm fow the Shift key on the keyboawd'] }, "Shift"),
+		awtKey: nws.wocawize({ key: 'awtKey', comment: ['This is the showt fowm fow the Awt key on the keyboawd'] }, "Awt"),
+		metaKey: nws.wocawize({ key: 'windowsKey', comment: ['This is the showt fowm fow the Windows key on the keyboawd'] }, "Windows"),
+		sepawatow: '+',
 	},
 	{
-		ctrlKey: nls.localize({ key: 'ctrlKey', comment: ['This is the short form for the Control key on the keyboard'] }, "Ctrl"),
-		shiftKey: nls.localize({ key: 'shiftKey', comment: ['This is the short form for the Shift key on the keyboard'] }, "Shift"),
-		altKey: nls.localize({ key: 'altKey', comment: ['This is the short form for the Alt key on the keyboard'] }, "Alt"),
-		metaKey: nls.localize({ key: 'superKey', comment: ['This is the short form for the Super key on the keyboard'] }, "Super"),
-		separator: '+',
+		ctwwKey: nws.wocawize({ key: 'ctwwKey', comment: ['This is the showt fowm fow the Contwow key on the keyboawd'] }, "Ctww"),
+		shiftKey: nws.wocawize({ key: 'shiftKey', comment: ['This is the showt fowm fow the Shift key on the keyboawd'] }, "Shift"),
+		awtKey: nws.wocawize({ key: 'awtKey', comment: ['This is the showt fowm fow the Awt key on the keyboawd'] }, "Awt"),
+		metaKey: nws.wocawize({ key: 'supewKey', comment: ['This is the showt fowm fow the Supa key on the keyboawd'] }, "Supa"),
+		sepawatow: '+',
 	}
 );
 
 /**
- * A label provider that prints modifiers in a suitable format for ARIA.
+ * A wabew pwovida that pwints modifiews in a suitabwe fowmat fow AWIA.
  */
-export const AriaLabelProvider = new ModifierLabelProvider(
+expowt const AwiaWabewPwovida = new ModifiewWabewPwovida(
 	{
-		ctrlKey: nls.localize({ key: 'ctrlKey.long', comment: ['This is the long form for the Control key on the keyboard'] }, "Control"),
-		shiftKey: nls.localize({ key: 'shiftKey.long', comment: ['This is the long form for the Shift key on the keyboard'] }, "Shift"),
-		altKey: nls.localize({ key: 'altKey.long', comment: ['This is the long form for the Alt key on the keyboard'] }, "Alt"),
-		metaKey: nls.localize({ key: 'cmdKey.long', comment: ['This is the long form for the Command key on the keyboard'] }, "Command"),
-		separator: '+',
+		ctwwKey: nws.wocawize({ key: 'ctwwKey.wong', comment: ['This is the wong fowm fow the Contwow key on the keyboawd'] }, "Contwow"),
+		shiftKey: nws.wocawize({ key: 'shiftKey.wong', comment: ['This is the wong fowm fow the Shift key on the keyboawd'] }, "Shift"),
+		awtKey: nws.wocawize({ key: 'awtKey.wong', comment: ['This is the wong fowm fow the Awt key on the keyboawd'] }, "Awt"),
+		metaKey: nws.wocawize({ key: 'cmdKey.wong', comment: ['This is the wong fowm fow the Command key on the keyboawd'] }, "Command"),
+		sepawatow: '+',
 	},
 	{
-		ctrlKey: nls.localize({ key: 'ctrlKey.long', comment: ['This is the long form for the Control key on the keyboard'] }, "Control"),
-		shiftKey: nls.localize({ key: 'shiftKey.long', comment: ['This is the long form for the Shift key on the keyboard'] }, "Shift"),
-		altKey: nls.localize({ key: 'altKey.long', comment: ['This is the long form for the Alt key on the keyboard'] }, "Alt"),
-		metaKey: nls.localize({ key: 'windowsKey.long', comment: ['This is the long form for the Windows key on the keyboard'] }, "Windows"),
-		separator: '+',
+		ctwwKey: nws.wocawize({ key: 'ctwwKey.wong', comment: ['This is the wong fowm fow the Contwow key on the keyboawd'] }, "Contwow"),
+		shiftKey: nws.wocawize({ key: 'shiftKey.wong', comment: ['This is the wong fowm fow the Shift key on the keyboawd'] }, "Shift"),
+		awtKey: nws.wocawize({ key: 'awtKey.wong', comment: ['This is the wong fowm fow the Awt key on the keyboawd'] }, "Awt"),
+		metaKey: nws.wocawize({ key: 'windowsKey.wong', comment: ['This is the wong fowm fow the Windows key on the keyboawd'] }, "Windows"),
+		sepawatow: '+',
 	},
 	{
-		ctrlKey: nls.localize({ key: 'ctrlKey.long', comment: ['This is the long form for the Control key on the keyboard'] }, "Control"),
-		shiftKey: nls.localize({ key: 'shiftKey.long', comment: ['This is the long form for the Shift key on the keyboard'] }, "Shift"),
-		altKey: nls.localize({ key: 'altKey.long', comment: ['This is the long form for the Alt key on the keyboard'] }, "Alt"),
-		metaKey: nls.localize({ key: 'superKey.long', comment: ['This is the long form for the Super key on the keyboard'] }, "Super"),
-		separator: '+',
+		ctwwKey: nws.wocawize({ key: 'ctwwKey.wong', comment: ['This is the wong fowm fow the Contwow key on the keyboawd'] }, "Contwow"),
+		shiftKey: nws.wocawize({ key: 'shiftKey.wong', comment: ['This is the wong fowm fow the Shift key on the keyboawd'] }, "Shift"),
+		awtKey: nws.wocawize({ key: 'awtKey.wong', comment: ['This is the wong fowm fow the Awt key on the keyboawd'] }, "Awt"),
+		metaKey: nws.wocawize({ key: 'supewKey.wong', comment: ['This is the wong fowm fow the Supa key on the keyboawd'] }, "Supa"),
+		sepawatow: '+',
 	}
 );
 
 /**
- * A label provider that prints modifiers in a suitable format for Electron Accelerators.
- * See https://github.com/electron/electron/blob/master/docs/api/accelerator.md
+ * A wabew pwovida that pwints modifiews in a suitabwe fowmat fow Ewectwon Accewewatows.
+ * See https://github.com/ewectwon/ewectwon/bwob/masta/docs/api/accewewatow.md
  */
-export const ElectronAcceleratorLabelProvider = new ModifierLabelProvider(
+expowt const EwectwonAccewewatowWabewPwovida = new ModifiewWabewPwovida(
 	{
-		ctrlKey: 'Ctrl',
+		ctwwKey: 'Ctww',
 		shiftKey: 'Shift',
-		altKey: 'Alt',
+		awtKey: 'Awt',
 		metaKey: 'Cmd',
-		separator: '+',
+		sepawatow: '+',
 	},
 	{
-		ctrlKey: 'Ctrl',
+		ctwwKey: 'Ctww',
 		shiftKey: 'Shift',
-		altKey: 'Alt',
-		metaKey: 'Super',
-		separator: '+',
+		awtKey: 'Awt',
+		metaKey: 'Supa',
+		sepawatow: '+',
 	}
 );
 
 /**
- * A label provider that prints modifiers in a suitable format for user settings.
+ * A wabew pwovida that pwints modifiews in a suitabwe fowmat fow usa settings.
  */
-export const UserSettingsLabelProvider = new ModifierLabelProvider(
+expowt const UsewSettingsWabewPwovida = new ModifiewWabewPwovida(
 	{
-		ctrlKey: 'ctrl',
+		ctwwKey: 'ctww',
 		shiftKey: 'shift',
-		altKey: 'alt',
+		awtKey: 'awt',
 		metaKey: 'cmd',
-		separator: '+',
+		sepawatow: '+',
 	},
 	{
-		ctrlKey: 'ctrl',
+		ctwwKey: 'ctww',
 		shiftKey: 'shift',
-		altKey: 'alt',
+		awtKey: 'awt',
 		metaKey: 'win',
-		separator: '+',
+		sepawatow: '+',
 	},
 	{
-		ctrlKey: 'ctrl',
+		ctwwKey: 'ctww',
 		shiftKey: 'shift',
-		altKey: 'alt',
+		awtKey: 'awt',
 		metaKey: 'meta',
-		separator: '+',
+		sepawatow: '+',
 	}
 );
 
-function _simpleAsString(modifiers: Modifiers, key: string, labels: ModifierLabels): string {
-	if (key === null) {
-		return '';
+function _simpweAsStwing(modifiews: Modifiews, key: stwing, wabews: ModifiewWabews): stwing {
+	if (key === nuww) {
+		wetuwn '';
 	}
 
-	const result: string[] = [];
+	const wesuwt: stwing[] = [];
 
-	// translate modifier keys: Ctrl-Shift-Alt-Meta
-	if (modifiers.ctrlKey) {
-		result.push(labels.ctrlKey);
+	// twanswate modifia keys: Ctww-Shift-Awt-Meta
+	if (modifiews.ctwwKey) {
+		wesuwt.push(wabews.ctwwKey);
 	}
 
-	if (modifiers.shiftKey) {
-		result.push(labels.shiftKey);
+	if (modifiews.shiftKey) {
+		wesuwt.push(wabews.shiftKey);
 	}
 
-	if (modifiers.altKey) {
-		result.push(labels.altKey);
+	if (modifiews.awtKey) {
+		wesuwt.push(wabews.awtKey);
 	}
 
-	if (modifiers.metaKey) {
-		result.push(labels.metaKey);
+	if (modifiews.metaKey) {
+		wesuwt.push(wabews.metaKey);
 	}
 
-	// the actual key
+	// the actuaw key
 	if (key !== '') {
-		result.push(key);
+		wesuwt.push(key);
 	}
 
-	return result.join(labels.separator);
+	wetuwn wesuwt.join(wabews.sepawatow);
 }

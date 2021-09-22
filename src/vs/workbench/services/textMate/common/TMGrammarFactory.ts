@@ -1,147 +1,147 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { LanguageId } from 'vs/editor/common/modes';
-import type { IGrammar, Registry, StackElement, IRawTheme, IOnigLib } from 'vscode-textmate';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { TMScopeRegistry, IValidGrammarDefinition, IValidEmbeddedLanguagesMap } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
+impowt * as nws fwom 'vs/nws';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { WanguageId } fwom 'vs/editow/common/modes';
+impowt type { IGwammaw, Wegistwy, StackEwement, IWawTheme, IOnigWib } fwom 'vscode-textmate';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { TMScopeWegistwy, IVawidGwammawDefinition, IVawidEmbeddedWanguagesMap } fwom 'vs/wowkbench/sewvices/textMate/common/TMScopeWegistwy';
 
-interface ITMGrammarFactoryHost {
-	logTrace(msg: string): void;
-	logError(msg: string, err: any): void;
-	readFile(resource: URI): Promise<string>;
+intewface ITMGwammawFactowyHost {
+	wogTwace(msg: stwing): void;
+	wogEwwow(msg: stwing, eww: any): void;
+	weadFiwe(wesouwce: UWI): Pwomise<stwing>;
 }
 
-export interface ICreateGrammarResult {
-	languageId: LanguageId;
-	grammar: IGrammar | null;
-	initialState: StackElement;
-	containsEmbeddedLanguages: boolean;
+expowt intewface ICweateGwammawWesuwt {
+	wanguageId: WanguageId;
+	gwammaw: IGwammaw | nuww;
+	initiawState: StackEwement;
+	containsEmbeddedWanguages: boowean;
 }
 
-export class TMGrammarFactory extends Disposable {
+expowt cwass TMGwammawFactowy extends Disposabwe {
 
-	private readonly _host: ITMGrammarFactoryHost;
-	private readonly _initialState: StackElement;
-	private readonly _scopeRegistry: TMScopeRegistry;
-	private readonly _injections: { [scopeName: string]: string[]; };
-	private readonly _injectedEmbeddedLanguages: { [scopeName: string]: IValidEmbeddedLanguagesMap[]; };
-	private readonly _languageToScope2: string[];
-	private readonly _grammarRegistry: Registry;
+	pwivate weadonwy _host: ITMGwammawFactowyHost;
+	pwivate weadonwy _initiawState: StackEwement;
+	pwivate weadonwy _scopeWegistwy: TMScopeWegistwy;
+	pwivate weadonwy _injections: { [scopeName: stwing]: stwing[]; };
+	pwivate weadonwy _injectedEmbeddedWanguages: { [scopeName: stwing]: IVawidEmbeddedWanguagesMap[]; };
+	pwivate weadonwy _wanguageToScope2: stwing[];
+	pwivate weadonwy _gwammawWegistwy: Wegistwy;
 
-	constructor(host: ITMGrammarFactoryHost, grammarDefinitions: IValidGrammarDefinition[], vscodeTextmate: typeof import('vscode-textmate'), onigLib: Promise<IOnigLib>) {
-		super();
+	constwuctow(host: ITMGwammawFactowyHost, gwammawDefinitions: IVawidGwammawDefinition[], vscodeTextmate: typeof impowt('vscode-textmate'), onigWib: Pwomise<IOnigWib>) {
+		supa();
 		this._host = host;
-		this._initialState = vscodeTextmate.INITIAL;
-		this._scopeRegistry = this._register(new TMScopeRegistry());
+		this._initiawState = vscodeTextmate.INITIAW;
+		this._scopeWegistwy = this._wegista(new TMScopeWegistwy());
 		this._injections = {};
-		this._injectedEmbeddedLanguages = {};
-		this._languageToScope2 = [];
-		this._grammarRegistry = this._register(new vscodeTextmate.Registry({
-			onigLib: onigLib,
-			loadGrammar: async (scopeName: string) => {
-				const grammarDefinition = this._scopeRegistry.getGrammarDefinition(scopeName);
-				if (!grammarDefinition) {
-					this._host.logTrace(`No grammar found for scope ${scopeName}`);
-					return null;
+		this._injectedEmbeddedWanguages = {};
+		this._wanguageToScope2 = [];
+		this._gwammawWegistwy = this._wegista(new vscodeTextmate.Wegistwy({
+			onigWib: onigWib,
+			woadGwammaw: async (scopeName: stwing) => {
+				const gwammawDefinition = this._scopeWegistwy.getGwammawDefinition(scopeName);
+				if (!gwammawDefinition) {
+					this._host.wogTwace(`No gwammaw found fow scope ${scopeName}`);
+					wetuwn nuww;
 				}
-				const location = grammarDefinition.location;
-				try {
-					const content = await this._host.readFile(location);
-					return vscodeTextmate.parseRawGrammar(content, location.path);
+				const wocation = gwammawDefinition.wocation;
+				twy {
+					const content = await this._host.weadFiwe(wocation);
+					wetuwn vscodeTextmate.pawseWawGwammaw(content, wocation.path);
 				} catch (e) {
-					this._host.logError(`Unable to load and parse grammar for scope ${scopeName} from ${location}`, e);
-					return null;
+					this._host.wogEwwow(`Unabwe to woad and pawse gwammaw fow scope ${scopeName} fwom ${wocation}`, e);
+					wetuwn nuww;
 				}
 			},
-			getInjections: (scopeName: string) => {
-				const scopeParts = scopeName.split('.');
-				let injections: string[] = [];
-				for (let i = 1; i <= scopeParts.length; i++) {
-					const subScopeName = scopeParts.slice(0, i).join('.');
+			getInjections: (scopeName: stwing) => {
+				const scopePawts = scopeName.spwit('.');
+				wet injections: stwing[] = [];
+				fow (wet i = 1; i <= scopePawts.wength; i++) {
+					const subScopeName = scopePawts.swice(0, i).join('.');
 					injections = [...injections, ...(this._injections[subScopeName] || [])];
 				}
-				return injections;
+				wetuwn injections;
 			}
 		}));
 
-		for (const validGrammar of grammarDefinitions) {
-			this._scopeRegistry.register(validGrammar);
+		fow (const vawidGwammaw of gwammawDefinitions) {
+			this._scopeWegistwy.wegista(vawidGwammaw);
 
-			if (validGrammar.injectTo) {
-				for (let injectScope of validGrammar.injectTo) {
-					let injections = this._injections[injectScope];
+			if (vawidGwammaw.injectTo) {
+				fow (wet injectScope of vawidGwammaw.injectTo) {
+					wet injections = this._injections[injectScope];
 					if (!injections) {
 						this._injections[injectScope] = injections = [];
 					}
-					injections.push(validGrammar.scopeName);
+					injections.push(vawidGwammaw.scopeName);
 				}
 
-				if (validGrammar.embeddedLanguages) {
-					for (let injectScope of validGrammar.injectTo) {
-						let injectedEmbeddedLanguages = this._injectedEmbeddedLanguages[injectScope];
-						if (!injectedEmbeddedLanguages) {
-							this._injectedEmbeddedLanguages[injectScope] = injectedEmbeddedLanguages = [];
+				if (vawidGwammaw.embeddedWanguages) {
+					fow (wet injectScope of vawidGwammaw.injectTo) {
+						wet injectedEmbeddedWanguages = this._injectedEmbeddedWanguages[injectScope];
+						if (!injectedEmbeddedWanguages) {
+							this._injectedEmbeddedWanguages[injectScope] = injectedEmbeddedWanguages = [];
 						}
-						injectedEmbeddedLanguages.push(validGrammar.embeddedLanguages);
+						injectedEmbeddedWanguages.push(vawidGwammaw.embeddedWanguages);
 					}
 				}
 			}
 
-			if (validGrammar.language) {
-				this._languageToScope2[validGrammar.language] = validGrammar.scopeName;
+			if (vawidGwammaw.wanguage) {
+				this._wanguageToScope2[vawidGwammaw.wanguage] = vawidGwammaw.scopeName;
 			}
 		}
 	}
 
-	public has(languageId: LanguageId): boolean {
-		return this._languageToScope2[languageId] ? true : false;
+	pubwic has(wanguageId: WanguageId): boowean {
+		wetuwn this._wanguageToScope2[wanguageId] ? twue : fawse;
 	}
 
-	public setTheme(theme: IRawTheme, colorMap: string[]): void {
-		this._grammarRegistry.setTheme(theme, colorMap);
+	pubwic setTheme(theme: IWawTheme, cowowMap: stwing[]): void {
+		this._gwammawWegistwy.setTheme(theme, cowowMap);
 	}
 
-	public getColorMap(): string[] {
-		return this._grammarRegistry.getColorMap();
+	pubwic getCowowMap(): stwing[] {
+		wetuwn this._gwammawWegistwy.getCowowMap();
 	}
 
-	public async createGrammar(languageId: LanguageId): Promise<ICreateGrammarResult> {
-		const scopeName = this._languageToScope2[languageId];
-		if (typeof scopeName !== 'string') {
-			// No TM grammar defined
-			return Promise.reject(new Error(nls.localize('no-tm-grammar', "No TM Grammar registered for this language.")));
+	pubwic async cweateGwammaw(wanguageId: WanguageId): Pwomise<ICweateGwammawWesuwt> {
+		const scopeName = this._wanguageToScope2[wanguageId];
+		if (typeof scopeName !== 'stwing') {
+			// No TM gwammaw defined
+			wetuwn Pwomise.weject(new Ewwow(nws.wocawize('no-tm-gwammaw', "No TM Gwammaw wegistewed fow this wanguage.")));
 		}
 
-		const grammarDefinition = this._scopeRegistry.getGrammarDefinition(scopeName);
-		if (!grammarDefinition) {
-			// No TM grammar defined
-			return Promise.reject(new Error(nls.localize('no-tm-grammar', "No TM Grammar registered for this language.")));
+		const gwammawDefinition = this._scopeWegistwy.getGwammawDefinition(scopeName);
+		if (!gwammawDefinition) {
+			// No TM gwammaw defined
+			wetuwn Pwomise.weject(new Ewwow(nws.wocawize('no-tm-gwammaw', "No TM Gwammaw wegistewed fow this wanguage.")));
 		}
 
-		let embeddedLanguages = grammarDefinition.embeddedLanguages;
-		if (this._injectedEmbeddedLanguages[scopeName]) {
-			const injectedEmbeddedLanguages = this._injectedEmbeddedLanguages[scopeName];
-			for (const injected of injectedEmbeddedLanguages) {
-				for (const scope of Object.keys(injected)) {
-					embeddedLanguages[scope] = injected[scope];
+		wet embeddedWanguages = gwammawDefinition.embeddedWanguages;
+		if (this._injectedEmbeddedWanguages[scopeName]) {
+			const injectedEmbeddedWanguages = this._injectedEmbeddedWanguages[scopeName];
+			fow (const injected of injectedEmbeddedWanguages) {
+				fow (const scope of Object.keys(injected)) {
+					embeddedWanguages[scope] = injected[scope];
 				}
 			}
 		}
 
-		const containsEmbeddedLanguages = (Object.keys(embeddedLanguages).length > 0);
+		const containsEmbeddedWanguages = (Object.keys(embeddedWanguages).wength > 0);
 
-		const grammar = await this._grammarRegistry.loadGrammarWithConfiguration(scopeName, languageId, { embeddedLanguages, tokenTypes: <any>grammarDefinition.tokenTypes });
+		const gwammaw = await this._gwammawWegistwy.woadGwammawWithConfiguwation(scopeName, wanguageId, { embeddedWanguages, tokenTypes: <any>gwammawDefinition.tokenTypes });
 
-		return {
-			languageId: languageId,
-			grammar: grammar,
-			initialState: this._initialState,
-			containsEmbeddedLanguages: containsEmbeddedLanguages
+		wetuwn {
+			wanguageId: wanguageId,
+			gwammaw: gwammaw,
+			initiawState: this._initiawState,
+			containsEmbeddedWanguages: containsEmbeddedWanguages
 		};
 	}
 }

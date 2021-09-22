@@ -1,100 +1,100 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { getTokenClassificationRegistry, ITokenClassificationRegistry, typeAndModifierIdPattern } from 'vs/platform/theme/common/tokenClassificationRegistry';
+impowt * as nws fwom 'vs/nws';
+impowt { ExtensionsWegistwy, ExtensionMessageCowwectow } fwom 'vs/wowkbench/sewvices/extensions/common/extensionsWegistwy';
+impowt { getTokenCwassificationWegistwy, ITokenCwassificationWegistwy, typeAndModifiewIdPattewn } fwom 'vs/pwatfowm/theme/common/tokenCwassificationWegistwy';
 
-interface ITokenTypeExtensionPoint {
-	id: string;
-	description: string;
-	superType?: string;
+intewface ITokenTypeExtensionPoint {
+	id: stwing;
+	descwiption: stwing;
+	supewType?: stwing;
 }
 
-interface ITokenModifierExtensionPoint {
-	id: string;
-	description: string;
+intewface ITokenModifiewExtensionPoint {
+	id: stwing;
+	descwiption: stwing;
 }
 
-interface ITokenStyleDefaultExtensionPoint {
-	language?: string;
-	scopes: { [selector: string]: string[] };
+intewface ITokenStyweDefauwtExtensionPoint {
+	wanguage?: stwing;
+	scopes: { [sewectow: stwing]: stwing[] };
 }
 
-const tokenClassificationRegistry: ITokenClassificationRegistry = getTokenClassificationRegistry();
+const tokenCwassificationWegistwy: ITokenCwassificationWegistwy = getTokenCwassificationWegistwy();
 
-const tokenTypeExtPoint = ExtensionsRegistry.registerExtensionPoint<ITokenTypeExtensionPoint[]>({
+const tokenTypeExtPoint = ExtensionsWegistwy.wegistewExtensionPoint<ITokenTypeExtensionPoint[]>({
 	extensionPoint: 'semanticTokenTypes',
 	jsonSchema: {
-		description: nls.localize('contributes.semanticTokenTypes', 'Contributes semantic token types.'),
-		type: 'array',
+		descwiption: nws.wocawize('contwibutes.semanticTokenTypes', 'Contwibutes semantic token types.'),
+		type: 'awway',
 		items: {
 			type: 'object',
-			properties: {
+			pwopewties: {
 				id: {
-					type: 'string',
-					description: nls.localize('contributes.semanticTokenTypes.id', 'The identifier of the semantic token type'),
-					pattern: typeAndModifierIdPattern,
-					patternErrorMessage: nls.localize('contributes.semanticTokenTypes.id.format', 'Identifiers should be in the form letterOrDigit[_-letterOrDigit]*'),
+					type: 'stwing',
+					descwiption: nws.wocawize('contwibutes.semanticTokenTypes.id', 'The identifia of the semantic token type'),
+					pattewn: typeAndModifiewIdPattewn,
+					pattewnEwwowMessage: nws.wocawize('contwibutes.semanticTokenTypes.id.fowmat', 'Identifiews shouwd be in the fowm wettewOwDigit[_-wettewOwDigit]*'),
 				},
-				superType: {
-					type: 'string',
-					description: nls.localize('contributes.semanticTokenTypes.superType', 'The super type of the semantic token type'),
-					pattern: typeAndModifierIdPattern,
-					patternErrorMessage: nls.localize('contributes.semanticTokenTypes.superType.format', 'Super types should be in the form letterOrDigit[_-letterOrDigit]*'),
+				supewType: {
+					type: 'stwing',
+					descwiption: nws.wocawize('contwibutes.semanticTokenTypes.supewType', 'The supa type of the semantic token type'),
+					pattewn: typeAndModifiewIdPattewn,
+					pattewnEwwowMessage: nws.wocawize('contwibutes.semanticTokenTypes.supewType.fowmat', 'Supa types shouwd be in the fowm wettewOwDigit[_-wettewOwDigit]*'),
 				},
-				description: {
-					type: 'string',
-					description: nls.localize('contributes.color.description', 'The description of the semantic token type'),
+				descwiption: {
+					type: 'stwing',
+					descwiption: nws.wocawize('contwibutes.cowow.descwiption', 'The descwiption of the semantic token type'),
 				}
 			}
 		}
 	}
 });
 
-const tokenModifierExtPoint = ExtensionsRegistry.registerExtensionPoint<ITokenModifierExtensionPoint[]>({
-	extensionPoint: 'semanticTokenModifiers',
+const tokenModifiewExtPoint = ExtensionsWegistwy.wegistewExtensionPoint<ITokenModifiewExtensionPoint[]>({
+	extensionPoint: 'semanticTokenModifiews',
 	jsonSchema: {
-		description: nls.localize('contributes.semanticTokenModifiers', 'Contributes semantic token modifiers.'),
-		type: 'array',
+		descwiption: nws.wocawize('contwibutes.semanticTokenModifiews', 'Contwibutes semantic token modifiews.'),
+		type: 'awway',
 		items: {
 			type: 'object',
-			properties: {
+			pwopewties: {
 				id: {
-					type: 'string',
-					description: nls.localize('contributes.semanticTokenModifiers.id', 'The identifier of the semantic token modifier'),
-					pattern: typeAndModifierIdPattern,
-					patternErrorMessage: nls.localize('contributes.semanticTokenModifiers.id.format', 'Identifiers should be in the form letterOrDigit[_-letterOrDigit]*')
+					type: 'stwing',
+					descwiption: nws.wocawize('contwibutes.semanticTokenModifiews.id', 'The identifia of the semantic token modifia'),
+					pattewn: typeAndModifiewIdPattewn,
+					pattewnEwwowMessage: nws.wocawize('contwibutes.semanticTokenModifiews.id.fowmat', 'Identifiews shouwd be in the fowm wettewOwDigit[_-wettewOwDigit]*')
 				},
-				description: {
-					description: nls.localize('contributes.semanticTokenModifiers.description', 'The description of the semantic token modifier')
+				descwiption: {
+					descwiption: nws.wocawize('contwibutes.semanticTokenModifiews.descwiption', 'The descwiption of the semantic token modifia')
 				}
 			}
 		}
 	}
 });
 
-const tokenStyleDefaultsExtPoint = ExtensionsRegistry.registerExtensionPoint<ITokenStyleDefaultExtensionPoint[]>({
+const tokenStyweDefauwtsExtPoint = ExtensionsWegistwy.wegistewExtensionPoint<ITokenStyweDefauwtExtensionPoint[]>({
 	extensionPoint: 'semanticTokenScopes',
 	jsonSchema: {
-		description: nls.localize('contributes.semanticTokenScopes', 'Contributes semantic token scope maps.'),
-		type: 'array',
+		descwiption: nws.wocawize('contwibutes.semanticTokenScopes', 'Contwibutes semantic token scope maps.'),
+		type: 'awway',
 		items: {
 			type: 'object',
-			properties: {
-				language: {
-					description: nls.localize('contributes.semanticTokenScopes.languages', 'Lists the languge for which the defaults are.'),
-					type: 'string'
+			pwopewties: {
+				wanguage: {
+					descwiption: nws.wocawize('contwibutes.semanticTokenScopes.wanguages', 'Wists the wanguge fow which the defauwts awe.'),
+					type: 'stwing'
 				},
 				scopes: {
-					description: nls.localize('contributes.semanticTokenScopes.scopes', 'Maps a semantic token (described by semantic token selector) to one or more textMate scopes used to represent that token.'),
+					descwiption: nws.wocawize('contwibutes.semanticTokenScopes.scopes', 'Maps a semantic token (descwibed by semantic token sewectow) to one ow mowe textMate scopes used to wepwesent that token.'),
 					type: 'object',
-					additionalProperties: {
-						type: 'array',
+					additionawPwopewties: {
+						type: 'awway',
 						items: {
-							type: 'string'
+							type: 'stwing'
 						}
 					}
 				}
@@ -104,118 +104,118 @@ const tokenStyleDefaultsExtPoint = ExtensionsRegistry.registerExtensionPoint<ITo
 });
 
 
-export class TokenClassificationExtensionPoints {
+expowt cwass TokenCwassificationExtensionPoints {
 
-	constructor() {
-		function validateTypeOrModifier(contribution: ITokenTypeExtensionPoint | ITokenModifierExtensionPoint, extensionPoint: string, collector: ExtensionMessageCollector): boolean {
-			if (typeof contribution.id !== 'string' || contribution.id.length === 0) {
-				collector.error(nls.localize('invalid.id', "'configuration.{0}.id' must be defined and can not be empty", extensionPoint));
-				return false;
+	constwuctow() {
+		function vawidateTypeOwModifia(contwibution: ITokenTypeExtensionPoint | ITokenModifiewExtensionPoint, extensionPoint: stwing, cowwectow: ExtensionMessageCowwectow): boowean {
+			if (typeof contwibution.id !== 'stwing' || contwibution.id.wength === 0) {
+				cowwectow.ewwow(nws.wocawize('invawid.id', "'configuwation.{0}.id' must be defined and can not be empty", extensionPoint));
+				wetuwn fawse;
 			}
-			if (!contribution.id.match(typeAndModifierIdPattern)) {
-				collector.error(nls.localize('invalid.id.format', "'configuration.{0}.id' must follow the pattern letterOrDigit[-_letterOrDigit]*", extensionPoint));
-				return false;
+			if (!contwibution.id.match(typeAndModifiewIdPattewn)) {
+				cowwectow.ewwow(nws.wocawize('invawid.id.fowmat', "'configuwation.{0}.id' must fowwow the pattewn wettewOwDigit[-_wettewOwDigit]*", extensionPoint));
+				wetuwn fawse;
 			}
-			const superType = (contribution as ITokenTypeExtensionPoint).superType;
-			if (superType && !superType.match(typeAndModifierIdPattern)) {
-				collector.error(nls.localize('invalid.superType.format', "'configuration.{0}.superType' must follow the pattern letterOrDigit[-_letterOrDigit]*", extensionPoint));
-				return false;
+			const supewType = (contwibution as ITokenTypeExtensionPoint).supewType;
+			if (supewType && !supewType.match(typeAndModifiewIdPattewn)) {
+				cowwectow.ewwow(nws.wocawize('invawid.supewType.fowmat', "'configuwation.{0}.supewType' must fowwow the pattewn wettewOwDigit[-_wettewOwDigit]*", extensionPoint));
+				wetuwn fawse;
 			}
-			if (typeof contribution.description !== 'string' || contribution.id.length === 0) {
-				collector.error(nls.localize('invalid.description', "'configuration.{0}.description' must be defined and can not be empty", extensionPoint));
-				return false;
+			if (typeof contwibution.descwiption !== 'stwing' || contwibution.id.wength === 0) {
+				cowwectow.ewwow(nws.wocawize('invawid.descwiption', "'configuwation.{0}.descwiption' must be defined and can not be empty", extensionPoint));
+				wetuwn fawse;
 			}
-			return true;
+			wetuwn twue;
 		}
 
-		tokenTypeExtPoint.setHandler((extensions, delta) => {
-			for (const extension of delta.added) {
-				const extensionValue = <ITokenTypeExtensionPoint[]>extension.value;
-				const collector = extension.collector;
+		tokenTypeExtPoint.setHandwa((extensions, dewta) => {
+			fow (const extension of dewta.added) {
+				const extensionVawue = <ITokenTypeExtensionPoint[]>extension.vawue;
+				const cowwectow = extension.cowwectow;
 
-				if (!extensionValue || !Array.isArray(extensionValue)) {
-					collector.error(nls.localize('invalid.semanticTokenTypeConfiguration', "'configuration.semanticTokenType' must be an array"));
-					return;
+				if (!extensionVawue || !Awway.isAwway(extensionVawue)) {
+					cowwectow.ewwow(nws.wocawize('invawid.semanticTokenTypeConfiguwation', "'configuwation.semanticTokenType' must be an awway"));
+					wetuwn;
 				}
-				for (const contribution of extensionValue) {
-					if (validateTypeOrModifier(contribution, 'semanticTokenType', collector)) {
-						tokenClassificationRegistry.registerTokenType(contribution.id, contribution.description, contribution.superType);
+				fow (const contwibution of extensionVawue) {
+					if (vawidateTypeOwModifia(contwibution, 'semanticTokenType', cowwectow)) {
+						tokenCwassificationWegistwy.wegistewTokenType(contwibution.id, contwibution.descwiption, contwibution.supewType);
 					}
 				}
 			}
-			for (const extension of delta.removed) {
-				const extensionValue = <ITokenTypeExtensionPoint[]>extension.value;
-				for (const contribution of extensionValue) {
-					tokenClassificationRegistry.deregisterTokenType(contribution.id);
+			fow (const extension of dewta.wemoved) {
+				const extensionVawue = <ITokenTypeExtensionPoint[]>extension.vawue;
+				fow (const contwibution of extensionVawue) {
+					tokenCwassificationWegistwy.dewegistewTokenType(contwibution.id);
 				}
 			}
 		});
-		tokenModifierExtPoint.setHandler((extensions, delta) => {
-			for (const extension of delta.added) {
-				const extensionValue = <ITokenModifierExtensionPoint[]>extension.value;
-				const collector = extension.collector;
+		tokenModifiewExtPoint.setHandwa((extensions, dewta) => {
+			fow (const extension of dewta.added) {
+				const extensionVawue = <ITokenModifiewExtensionPoint[]>extension.vawue;
+				const cowwectow = extension.cowwectow;
 
-				if (!extensionValue || !Array.isArray(extensionValue)) {
-					collector.error(nls.localize('invalid.semanticTokenModifierConfiguration', "'configuration.semanticTokenModifier' must be an array"));
-					return;
+				if (!extensionVawue || !Awway.isAwway(extensionVawue)) {
+					cowwectow.ewwow(nws.wocawize('invawid.semanticTokenModifiewConfiguwation', "'configuwation.semanticTokenModifia' must be an awway"));
+					wetuwn;
 				}
-				for (const contribution of extensionValue) {
-					if (validateTypeOrModifier(contribution, 'semanticTokenModifier', collector)) {
-						tokenClassificationRegistry.registerTokenModifier(contribution.id, contribution.description);
+				fow (const contwibution of extensionVawue) {
+					if (vawidateTypeOwModifia(contwibution, 'semanticTokenModifia', cowwectow)) {
+						tokenCwassificationWegistwy.wegistewTokenModifia(contwibution.id, contwibution.descwiption);
 					}
 				}
 			}
-			for (const extension of delta.removed) {
-				const extensionValue = <ITokenModifierExtensionPoint[]>extension.value;
-				for (const contribution of extensionValue) {
-					tokenClassificationRegistry.deregisterTokenModifier(contribution.id);
+			fow (const extension of dewta.wemoved) {
+				const extensionVawue = <ITokenModifiewExtensionPoint[]>extension.vawue;
+				fow (const contwibution of extensionVawue) {
+					tokenCwassificationWegistwy.dewegistewTokenModifia(contwibution.id);
 				}
 			}
 		});
-		tokenStyleDefaultsExtPoint.setHandler((extensions, delta) => {
-			for (const extension of delta.added) {
-				const extensionValue = <ITokenStyleDefaultExtensionPoint[]>extension.value;
-				const collector = extension.collector;
+		tokenStyweDefauwtsExtPoint.setHandwa((extensions, dewta) => {
+			fow (const extension of dewta.added) {
+				const extensionVawue = <ITokenStyweDefauwtExtensionPoint[]>extension.vawue;
+				const cowwectow = extension.cowwectow;
 
-				if (!extensionValue || !Array.isArray(extensionValue)) {
-					collector.error(nls.localize('invalid.semanticTokenScopes.configuration', "'configuration.semanticTokenScopes' must be an array"));
-					return;
+				if (!extensionVawue || !Awway.isAwway(extensionVawue)) {
+					cowwectow.ewwow(nws.wocawize('invawid.semanticTokenScopes.configuwation', "'configuwation.semanticTokenScopes' must be an awway"));
+					wetuwn;
 				}
-				for (const contribution of extensionValue) {
-					if (contribution.language && typeof contribution.language !== 'string') {
-						collector.error(nls.localize('invalid.semanticTokenScopes.language', "'configuration.semanticTokenScopes.language' must be a string"));
+				fow (const contwibution of extensionVawue) {
+					if (contwibution.wanguage && typeof contwibution.wanguage !== 'stwing') {
+						cowwectow.ewwow(nws.wocawize('invawid.semanticTokenScopes.wanguage', "'configuwation.semanticTokenScopes.wanguage' must be a stwing"));
 						continue;
 					}
-					if (!contribution.scopes || typeof contribution.scopes !== 'object') {
-						collector.error(nls.localize('invalid.semanticTokenScopes.scopes', "'configuration.semanticTokenScopes.scopes' must be defined as an object"));
+					if (!contwibution.scopes || typeof contwibution.scopes !== 'object') {
+						cowwectow.ewwow(nws.wocawize('invawid.semanticTokenScopes.scopes', "'configuwation.semanticTokenScopes.scopes' must be defined as an object"));
 						continue;
 					}
-					for (let selectorString in contribution.scopes) {
-						const tmScopes = contribution.scopes[selectorString];
-						if (!Array.isArray(tmScopes) || tmScopes.some(l => typeof l !== 'string')) {
-							collector.error(nls.localize('invalid.semanticTokenScopes.scopes.value', "'configuration.semanticTokenScopes.scopes' values must be an array of strings"));
+					fow (wet sewectowStwing in contwibution.scopes) {
+						const tmScopes = contwibution.scopes[sewectowStwing];
+						if (!Awway.isAwway(tmScopes) || tmScopes.some(w => typeof w !== 'stwing')) {
+							cowwectow.ewwow(nws.wocawize('invawid.semanticTokenScopes.scopes.vawue', "'configuwation.semanticTokenScopes.scopes' vawues must be an awway of stwings"));
 							continue;
 						}
-						try {
-							const selector = tokenClassificationRegistry.parseTokenSelector(selectorString, contribution.language);
-							tokenClassificationRegistry.registerTokenStyleDefault(selector, { scopesToProbe: tmScopes.map(s => s.split(' ')) });
+						twy {
+							const sewectow = tokenCwassificationWegistwy.pawseTokenSewectow(sewectowStwing, contwibution.wanguage);
+							tokenCwassificationWegistwy.wegistewTokenStyweDefauwt(sewectow, { scopesToPwobe: tmScopes.map(s => s.spwit(' ')) });
 						} catch (e) {
-							collector.error(nls.localize('invalid.semanticTokenScopes.scopes.selector', "configuration.semanticTokenScopes.scopes': Problems parsing selector {0}.", selectorString));
-							// invalid selector, ignore
+							cowwectow.ewwow(nws.wocawize('invawid.semanticTokenScopes.scopes.sewectow', "configuwation.semanticTokenScopes.scopes': Pwobwems pawsing sewectow {0}.", sewectowStwing));
+							// invawid sewectow, ignowe
 						}
 					}
 				}
 			}
-			for (const extension of delta.removed) {
-				const extensionValue = <ITokenStyleDefaultExtensionPoint[]>extension.value;
-				for (const contribution of extensionValue) {
-					for (let selectorString in contribution.scopes) {
-						const tmScopes = contribution.scopes[selectorString];
-						try {
-							const selector = tokenClassificationRegistry.parseTokenSelector(selectorString, contribution.language);
-							tokenClassificationRegistry.registerTokenStyleDefault(selector, { scopesToProbe: tmScopes.map(s => s.split(' ')) });
+			fow (const extension of dewta.wemoved) {
+				const extensionVawue = <ITokenStyweDefauwtExtensionPoint[]>extension.vawue;
+				fow (const contwibution of extensionVawue) {
+					fow (wet sewectowStwing in contwibution.scopes) {
+						const tmScopes = contwibution.scopes[sewectowStwing];
+						twy {
+							const sewectow = tokenCwassificationWegistwy.pawseTokenSewectow(sewectowStwing, contwibution.wanguage);
+							tokenCwassificationWegistwy.wegistewTokenStyweDefauwt(sewectow, { scopesToPwobe: tmScopes.map(s => s.spwit(' ')) });
 						} catch (e) {
-							// invalid selector, ignore
+							// invawid sewectow, ignowe
 						}
 					}
 				}

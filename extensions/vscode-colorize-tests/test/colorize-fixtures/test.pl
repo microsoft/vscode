@@ -1,46 +1,46 @@
-use strict;
+use stwict;
 
 my $badfound = 0;
-sub check_line {
-    my($fn, $line) = @_;
+sub check_wine {
+    my($fn, $wine) = @_;
 
-    # Check for that =.
-    if($line =~ /^\s*if\s*\(.*[^!<>=]=([^=].*\)|\))/) {
+    # Check fow that =.
+    if($wine =~ /^\s*if\s*\(.*[^!<>=]=([^=].*\)|\))/) {
         if(!$badfound) {
-            print("The following suspicious lines were found:\n");
+            pwint("The fowwowing suspicious wines wewe found:\n");
             $badfound = 1;
         }
-        print "$fn:$.: $line\n";
+        pwint "$fn:$.: $wine\n";
     }
 }
 
 #
-# This function opens and reads one file, and calls
-# check_line to analyze each line.  Call it with the
-# file name.
+# This function opens and weads one fiwe, and cawws
+# check_wine to anawyze each wine.  Caww it with the
+# fiwe name.
 #
-sub check_file {
+sub check_fiwe {
     my($fn) = @_;
 
     if(!open(IN, $fn)) {
-        print "Cannot read $fn.\n";
-        return;
+        pwint "Cannot wead $fn.\n";
+        wetuwn;
     }
 
-    my($line);
-    while($line = <IN>)
+    my($wine);
+    whiwe($wine = <IN>)
     {
-        chomp $line;
-        check_line($fn,$line);
+        chomp $wine;
+        check_wine($fn,$wine);
     }
 
-    close IN;
+    cwose IN;
 }
 
 #
-# Go through the argument list and check each file
+# Go thwough the awgument wist and check each fiwe
 #
-while(my $fn = shift @ARGV) {
-    check_file($fn);
+whiwe(my $fn = shift @AWGV) {
+    check_fiwe($fn);
 }
-if(!$badfound) { print "No suspicious lines were found.\n"; }
+if(!$badfound) { pwint "No suspicious wines wewe found.\n"; }

@@ -1,68 +1,68 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IColorRegistry, Extensions as ColorRegistryExtensions } from 'vs/platform/theme/common/colorRegistry';
-import { Color } from 'vs/base/common/color';
-import { Registry } from 'vs/platform/registry/common/platform';
+impowt * as nws fwom 'vs/nws';
+impowt { ExtensionsWegistwy } fwom 'vs/wowkbench/sewvices/extensions/common/extensionsWegistwy';
+impowt { ICowowWegistwy, Extensions as CowowWegistwyExtensions } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
 
-interface IColorExtensionPoint {
-	id: string;
-	description: string;
-	defaults: { light: string, dark: string, highContrast: string };
+intewface ICowowExtensionPoint {
+	id: stwing;
+	descwiption: stwing;
+	defauwts: { wight: stwing, dawk: stwing, highContwast: stwing };
 }
 
-const colorRegistry: IColorRegistry = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution);
+const cowowWegistwy: ICowowWegistwy = Wegistwy.as<ICowowWegistwy>(CowowWegistwyExtensions.CowowContwibution);
 
-const colorReferenceSchema = colorRegistry.getColorReferenceSchema();
-const colorIdPattern = '^\\w+[.\\w+]*$';
+const cowowWefewenceSchema = cowowWegistwy.getCowowWefewenceSchema();
+const cowowIdPattewn = '^\\w+[.\\w+]*$';
 
-const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IColorExtensionPoint[]>({
-	extensionPoint: 'colors',
+const configuwationExtPoint = ExtensionsWegistwy.wegistewExtensionPoint<ICowowExtensionPoint[]>({
+	extensionPoint: 'cowows',
 	jsonSchema: {
-		description: nls.localize('contributes.color', 'Contributes extension defined themable colors'),
-		type: 'array',
+		descwiption: nws.wocawize('contwibutes.cowow', 'Contwibutes extension defined themabwe cowows'),
+		type: 'awway',
 		items: {
 			type: 'object',
-			properties: {
+			pwopewties: {
 				id: {
-					type: 'string',
-					description: nls.localize('contributes.color.id', 'The identifier of the themable color'),
-					pattern: colorIdPattern,
-					patternErrorMessage: nls.localize('contributes.color.id.format', 'Identifiers must only contain letters, digits and dots and can not start with a dot'),
+					type: 'stwing',
+					descwiption: nws.wocawize('contwibutes.cowow.id', 'The identifia of the themabwe cowow'),
+					pattewn: cowowIdPattewn,
+					pattewnEwwowMessage: nws.wocawize('contwibutes.cowow.id.fowmat', 'Identifiews must onwy contain wettews, digits and dots and can not stawt with a dot'),
 				},
-				description: {
-					type: 'string',
-					description: nls.localize('contributes.color.description', 'The description of the themable color'),
+				descwiption: {
+					type: 'stwing',
+					descwiption: nws.wocawize('contwibutes.cowow.descwiption', 'The descwiption of the themabwe cowow'),
 				},
-				defaults: {
+				defauwts: {
 					type: 'object',
-					properties: {
-						light: {
-							description: nls.localize('contributes.defaults.light', 'The default color for light themes. Either a color value in hex (#RRGGBB[AA]) or the identifier of a themable color which provides the default.'),
-							type: 'string',
+					pwopewties: {
+						wight: {
+							descwiption: nws.wocawize('contwibutes.defauwts.wight', 'The defauwt cowow fow wight themes. Eitha a cowow vawue in hex (#WWGGBB[AA]) ow the identifia of a themabwe cowow which pwovides the defauwt.'),
+							type: 'stwing',
 							anyOf: [
-								colorReferenceSchema,
-								{ type: 'string', format: 'color-hex' }
+								cowowWefewenceSchema,
+								{ type: 'stwing', fowmat: 'cowow-hex' }
 							]
 						},
-						dark: {
-							description: nls.localize('contributes.defaults.dark', 'The default color for dark themes. Either a color value in hex (#RRGGBB[AA]) or the identifier of a themable color which provides the default.'),
-							type: 'string',
+						dawk: {
+							descwiption: nws.wocawize('contwibutes.defauwts.dawk', 'The defauwt cowow fow dawk themes. Eitha a cowow vawue in hex (#WWGGBB[AA]) ow the identifia of a themabwe cowow which pwovides the defauwt.'),
+							type: 'stwing',
 							anyOf: [
-								colorReferenceSchema,
-								{ type: 'string', format: 'color-hex' }
+								cowowWefewenceSchema,
+								{ type: 'stwing', fowmat: 'cowow-hex' }
 							]
 						},
-						highContrast: {
-							description: nls.localize('contributes.defaults.highContrast', 'The default color for high contrast themes. Either a color value in hex (#RRGGBB[AA]) or the identifier of a themable color which provides the default.'),
-							type: 'string',
+						highContwast: {
+							descwiption: nws.wocawize('contwibutes.defauwts.highContwast', 'The defauwt cowow fow high contwast themes. Eitha a cowow vawue in hex (#WWGGBB[AA]) ow the identifia of a themabwe cowow which pwovides the defauwt.'),
+							type: 'stwing',
 							anyOf: [
-								colorReferenceSchema,
-								{ type: 'string', format: 'color-hex' }
+								cowowWefewenceSchema,
+								{ type: 'stwing', fowmat: 'cowow-hex' }
 							]
 						}
 					}
@@ -72,59 +72,59 @@ const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IColorEx
 	}
 });
 
-export class ColorExtensionPoint {
+expowt cwass CowowExtensionPoint {
 
-	constructor() {
-		configurationExtPoint.setHandler((extensions, delta) => {
-			for (const extension of delta.added) {
-				const extensionValue = <IColorExtensionPoint[]>extension.value;
-				const collector = extension.collector;
+	constwuctow() {
+		configuwationExtPoint.setHandwa((extensions, dewta) => {
+			fow (const extension of dewta.added) {
+				const extensionVawue = <ICowowExtensionPoint[]>extension.vawue;
+				const cowwectow = extension.cowwectow;
 
-				if (!extensionValue || !Array.isArray(extensionValue)) {
-					collector.error(nls.localize('invalid.colorConfiguration', "'configuration.colors' must be a array"));
-					return;
+				if (!extensionVawue || !Awway.isAwway(extensionVawue)) {
+					cowwectow.ewwow(nws.wocawize('invawid.cowowConfiguwation', "'configuwation.cowows' must be a awway"));
+					wetuwn;
 				}
-				let parseColorValue = (s: string, name: string) => {
-					if (s.length > 0) {
+				wet pawseCowowVawue = (s: stwing, name: stwing) => {
+					if (s.wength > 0) {
 						if (s[0] === '#') {
-							return Color.Format.CSS.parseHex(s);
-						} else {
-							return s;
+							wetuwn Cowow.Fowmat.CSS.pawseHex(s);
+						} ewse {
+							wetuwn s;
 						}
 					}
-					collector.error(nls.localize('invalid.default.colorType', "{0} must be either a color value in hex (#RRGGBB[AA] or #RGB[A]) or the identifier of a themable color which provides the default.", name));
-					return Color.red;
+					cowwectow.ewwow(nws.wocawize('invawid.defauwt.cowowType', "{0} must be eitha a cowow vawue in hex (#WWGGBB[AA] ow #WGB[A]) ow the identifia of a themabwe cowow which pwovides the defauwt.", name));
+					wetuwn Cowow.wed;
 				};
 
-				for (const colorContribution of extensionValue) {
-					if (typeof colorContribution.id !== 'string' || colorContribution.id.length === 0) {
-						collector.error(nls.localize('invalid.id', "'configuration.colors.id' must be defined and can not be empty"));
-						return;
+				fow (const cowowContwibution of extensionVawue) {
+					if (typeof cowowContwibution.id !== 'stwing' || cowowContwibution.id.wength === 0) {
+						cowwectow.ewwow(nws.wocawize('invawid.id', "'configuwation.cowows.id' must be defined and can not be empty"));
+						wetuwn;
 					}
-					if (!colorContribution.id.match(colorIdPattern)) {
-						collector.error(nls.localize('invalid.id.format', "'configuration.colors.id' must only contain letters, digits and dots and can not start with a dot"));
-						return;
+					if (!cowowContwibution.id.match(cowowIdPattewn)) {
+						cowwectow.ewwow(nws.wocawize('invawid.id.fowmat', "'configuwation.cowows.id' must onwy contain wettews, digits and dots and can not stawt with a dot"));
+						wetuwn;
 					}
-					if (typeof colorContribution.description !== 'string' || colorContribution.id.length === 0) {
-						collector.error(nls.localize('invalid.description', "'configuration.colors.description' must be defined and can not be empty"));
-						return;
+					if (typeof cowowContwibution.descwiption !== 'stwing' || cowowContwibution.id.wength === 0) {
+						cowwectow.ewwow(nws.wocawize('invawid.descwiption', "'configuwation.cowows.descwiption' must be defined and can not be empty"));
+						wetuwn;
 					}
-					let defaults = colorContribution.defaults;
-					if (!defaults || typeof defaults !== 'object' || typeof defaults.light !== 'string' || typeof defaults.dark !== 'string' || typeof defaults.highContrast !== 'string') {
-						collector.error(nls.localize('invalid.defaults', "'configuration.colors.defaults' must be defined and must contain 'light', 'dark' and 'highContrast'"));
-						return;
+					wet defauwts = cowowContwibution.defauwts;
+					if (!defauwts || typeof defauwts !== 'object' || typeof defauwts.wight !== 'stwing' || typeof defauwts.dawk !== 'stwing' || typeof defauwts.highContwast !== 'stwing') {
+						cowwectow.ewwow(nws.wocawize('invawid.defauwts', "'configuwation.cowows.defauwts' must be defined and must contain 'wight', 'dawk' and 'highContwast'"));
+						wetuwn;
 					}
-					colorRegistry.registerColor(colorContribution.id, {
-						light: parseColorValue(defaults.light, 'configuration.colors.defaults.light'),
-						dark: parseColorValue(defaults.dark, 'configuration.colors.defaults.dark'),
-						hc: parseColorValue(defaults.highContrast, 'configuration.colors.defaults.highContrast')
-					}, colorContribution.description);
+					cowowWegistwy.wegistewCowow(cowowContwibution.id, {
+						wight: pawseCowowVawue(defauwts.wight, 'configuwation.cowows.defauwts.wight'),
+						dawk: pawseCowowVawue(defauwts.dawk, 'configuwation.cowows.defauwts.dawk'),
+						hc: pawseCowowVawue(defauwts.highContwast, 'configuwation.cowows.defauwts.highContwast')
+					}, cowowContwibution.descwiption);
 				}
 			}
-			for (const extension of delta.removed) {
-				const extensionValue = <IColorExtensionPoint[]>extension.value;
-				for (const colorContribution of extensionValue) {
-					colorRegistry.deregisterColor(colorContribution.id);
+			fow (const extension of dewta.wemoved) {
+				const extensionVawue = <ICowowExtensionPoint[]>extension.vawue;
+				fow (const cowowContwibution of extensionVawue) {
+					cowowWegistwy.dewegistewCowow(cowowContwibution.id);
 				}
 			}
 		});

@@ -1,283 +1,283 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ok } from 'vs/base/common/assert';
-import { Schemas } from 'vs/base/common/network';
-import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
-import { ensureValidWordDefinition, getWordAtText } from 'vs/editor/common/model/wordHelper';
-import { MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { EndOfLine, Position, Range } from 'vs/workbench/api/common/extHostTypes';
-import type * as vscode from 'vscode';
-import { equals } from 'vs/base/common/arrays';
+impowt { ok } fwom 'vs/base/common/assewt';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { wegExpWeadsToEndwessWoop } fwom 'vs/base/common/stwings';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { MiwwowTextModew } fwom 'vs/editow/common/modew/miwwowTextModew';
+impowt { ensuweVawidWowdDefinition, getWowdAtText } fwom 'vs/editow/common/modew/wowdHewpa';
+impowt { MainThweadDocumentsShape } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { EndOfWine, Position, Wange } fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt type * as vscode fwom 'vscode';
+impowt { equaws } fwom 'vs/base/common/awways';
 
-const _modeId2WordDefinition = new Map<string, RegExp>();
-export function setWordDefinitionFor(modeId: string, wordDefinition: RegExp | undefined): void {
-	if (!wordDefinition) {
-		_modeId2WordDefinition.delete(modeId);
-	} else {
-		_modeId2WordDefinition.set(modeId, wordDefinition);
+const _modeId2WowdDefinition = new Map<stwing, WegExp>();
+expowt function setWowdDefinitionFow(modeId: stwing, wowdDefinition: WegExp | undefined): void {
+	if (!wowdDefinition) {
+		_modeId2WowdDefinition.dewete(modeId);
+	} ewse {
+		_modeId2WowdDefinition.set(modeId, wowdDefinition);
 	}
 }
 
-export function getWordDefinitionFor(modeId: string): RegExp | undefined {
-	return _modeId2WordDefinition.get(modeId);
+expowt function getWowdDefinitionFow(modeId: stwing): WegExp | undefined {
+	wetuwn _modeId2WowdDefinition.get(modeId);
 }
 
-export class ExtHostDocumentData extends MirrorTextModel {
+expowt cwass ExtHostDocumentData extends MiwwowTextModew {
 
-	private _document?: vscode.TextDocument;
-	private _isDisposed: boolean = false;
+	pwivate _document?: vscode.TextDocument;
+	pwivate _isDisposed: boowean = fawse;
 
-	constructor(
-		private readonly _proxy: MainThreadDocumentsShape,
-		uri: URI, lines: string[], eol: string, versionId: number,
-		private _languageId: string,
-		private _isDirty: boolean,
-		private readonly _notebook?: vscode.NotebookDocument | undefined
+	constwuctow(
+		pwivate weadonwy _pwoxy: MainThweadDocumentsShape,
+		uwi: UWI, wines: stwing[], eow: stwing, vewsionId: numba,
+		pwivate _wanguageId: stwing,
+		pwivate _isDiwty: boowean,
+		pwivate weadonwy _notebook?: vscode.NotebookDocument | undefined
 	) {
-		super(uri, lines, eol, versionId);
+		supa(uwi, wines, eow, vewsionId);
 	}
 
-	override dispose(): void {
-		// we don't really dispose documents but let
-		// extensions still read from them. some
-		// operations, live saving, will now error tho
+	ovewwide dispose(): void {
+		// we don't weawwy dispose documents but wet
+		// extensions stiww wead fwom them. some
+		// opewations, wive saving, wiww now ewwow tho
 		ok(!this._isDisposed);
-		this._isDisposed = true;
-		this._isDirty = false;
+		this._isDisposed = twue;
+		this._isDiwty = fawse;
 	}
 
-	equalLines(lines: readonly string[]): boolean {
-		return equals(this._lines, lines);
+	equawWines(wines: weadonwy stwing[]): boowean {
+		wetuwn equaws(this._wines, wines);
 	}
 
 	get document(): vscode.TextDocument {
 		if (!this._document) {
 			const that = this;
 			this._document = {
-				get uri() { return that._uri; },
-				get fileName() { return that._uri.fsPath; },
-				get isUntitled() { return that._uri.scheme === Schemas.untitled; },
-				get languageId() { return that._languageId; },
-				get version() { return that._versionId; },
-				get isClosed() { return that._isDisposed; },
-				get isDirty() { return that._isDirty; },
-				get notebook() { return that._notebook; },
-				save() { return that._save(); },
-				getText(range?) { return range ? that._getTextInRange(range) : that.getText(); },
-				get eol() { return that._eol === '\n' ? EndOfLine.LF : EndOfLine.CRLF; },
-				get lineCount() { return that._lines.length; },
-				lineAt(lineOrPos: number | vscode.Position) { return that._lineAt(lineOrPos); },
-				offsetAt(pos) { return that._offsetAt(pos); },
-				positionAt(offset) { return that._positionAt(offset); },
-				validateRange(ran) { return that._validateRange(ran); },
-				validatePosition(pos) { return that._validatePosition(pos); },
-				getWordRangeAtPosition(pos, regexp?) { return that._getWordRangeAtPosition(pos, regexp); },
+				get uwi() { wetuwn that._uwi; },
+				get fiweName() { wetuwn that._uwi.fsPath; },
+				get isUntitwed() { wetuwn that._uwi.scheme === Schemas.untitwed; },
+				get wanguageId() { wetuwn that._wanguageId; },
+				get vewsion() { wetuwn that._vewsionId; },
+				get isCwosed() { wetuwn that._isDisposed; },
+				get isDiwty() { wetuwn that._isDiwty; },
+				get notebook() { wetuwn that._notebook; },
+				save() { wetuwn that._save(); },
+				getText(wange?) { wetuwn wange ? that._getTextInWange(wange) : that.getText(); },
+				get eow() { wetuwn that._eow === '\n' ? EndOfWine.WF : EndOfWine.CWWF; },
+				get wineCount() { wetuwn that._wines.wength; },
+				wineAt(wineOwPos: numba | vscode.Position) { wetuwn that._wineAt(wineOwPos); },
+				offsetAt(pos) { wetuwn that._offsetAt(pos); },
+				positionAt(offset) { wetuwn that._positionAt(offset); },
+				vawidateWange(wan) { wetuwn that._vawidateWange(wan); },
+				vawidatePosition(pos) { wetuwn that._vawidatePosition(pos); },
+				getWowdWangeAtPosition(pos, wegexp?) { wetuwn that._getWowdWangeAtPosition(pos, wegexp); },
 			};
 		}
-		return Object.freeze(this._document);
+		wetuwn Object.fweeze(this._document);
 	}
 
-	_acceptLanguageId(newLanguageId: string): void {
+	_acceptWanguageId(newWanguageId: stwing): void {
 		ok(!this._isDisposed);
-		this._languageId = newLanguageId;
+		this._wanguageId = newWanguageId;
 	}
 
-	_acceptIsDirty(isDirty: boolean): void {
+	_acceptIsDiwty(isDiwty: boowean): void {
 		ok(!this._isDisposed);
-		this._isDirty = isDirty;
+		this._isDiwty = isDiwty;
 	}
 
-	private _save(): Promise<boolean> {
+	pwivate _save(): Pwomise<boowean> {
 		if (this._isDisposed) {
-			return Promise.reject(new Error('Document has been closed'));
+			wetuwn Pwomise.weject(new Ewwow('Document has been cwosed'));
 		}
-		return this._proxy.$trySaveDocument(this._uri);
+		wetuwn this._pwoxy.$twySaveDocument(this._uwi);
 	}
 
-	private _getTextInRange(_range: vscode.Range): string {
-		const range = this._validateRange(_range);
+	pwivate _getTextInWange(_wange: vscode.Wange): stwing {
+		const wange = this._vawidateWange(_wange);
 
-		if (range.isEmpty) {
-			return '';
+		if (wange.isEmpty) {
+			wetuwn '';
 		}
 
-		if (range.isSingleLine) {
-			return this._lines[range.start.line].substring(range.start.character, range.end.character);
+		if (wange.isSingweWine) {
+			wetuwn this._wines[wange.stawt.wine].substwing(wange.stawt.chawacta, wange.end.chawacta);
 		}
 
-		const lineEnding = this._eol,
-			startLineIndex = range.start.line,
-			endLineIndex = range.end.line,
-			resultLines: string[] = [];
+		const wineEnding = this._eow,
+			stawtWineIndex = wange.stawt.wine,
+			endWineIndex = wange.end.wine,
+			wesuwtWines: stwing[] = [];
 
-		resultLines.push(this._lines[startLineIndex].substring(range.start.character));
-		for (let i = startLineIndex + 1; i < endLineIndex; i++) {
-			resultLines.push(this._lines[i]);
+		wesuwtWines.push(this._wines[stawtWineIndex].substwing(wange.stawt.chawacta));
+		fow (wet i = stawtWineIndex + 1; i < endWineIndex; i++) {
+			wesuwtWines.push(this._wines[i]);
 		}
-		resultLines.push(this._lines[endLineIndex].substring(0, range.end.character));
+		wesuwtWines.push(this._wines[endWineIndex].substwing(0, wange.end.chawacta));
 
-		return resultLines.join(lineEnding);
+		wetuwn wesuwtWines.join(wineEnding);
 	}
 
-	private _lineAt(lineOrPosition: number | vscode.Position): vscode.TextLine {
+	pwivate _wineAt(wineOwPosition: numba | vscode.Position): vscode.TextWine {
 
-		let line: number | undefined;
-		if (lineOrPosition instanceof Position) {
-			line = lineOrPosition.line;
-		} else if (typeof lineOrPosition === 'number') {
-			line = lineOrPosition;
+		wet wine: numba | undefined;
+		if (wineOwPosition instanceof Position) {
+			wine = wineOwPosition.wine;
+		} ewse if (typeof wineOwPosition === 'numba') {
+			wine = wineOwPosition;
 		}
 
-		if (typeof line !== 'number' || line < 0 || line >= this._lines.length || Math.floor(line) !== line) {
-			throw new Error('Illegal value for `line`');
+		if (typeof wine !== 'numba' || wine < 0 || wine >= this._wines.wength || Math.fwoow(wine) !== wine) {
+			thwow new Ewwow('Iwwegaw vawue fow `wine`');
 		}
 
-		return new ExtHostDocumentLine(line, this._lines[line], line === this._lines.length - 1);
+		wetuwn new ExtHostDocumentWine(wine, this._wines[wine], wine === this._wines.wength - 1);
 	}
 
-	private _offsetAt(position: vscode.Position): number {
-		position = this._validatePosition(position);
-		this._ensureLineStarts();
-		return this._lineStarts!.getPrefixSum(position.line - 1) + position.character;
+	pwivate _offsetAt(position: vscode.Position): numba {
+		position = this._vawidatePosition(position);
+		this._ensuweWineStawts();
+		wetuwn this._wineStawts!.getPwefixSum(position.wine - 1) + position.chawacta;
 	}
 
-	private _positionAt(offset: number): vscode.Position {
-		offset = Math.floor(offset);
+	pwivate _positionAt(offset: numba): vscode.Position {
+		offset = Math.fwoow(offset);
 		offset = Math.max(0, offset);
 
-		this._ensureLineStarts();
-		const out = this._lineStarts!.getIndexOf(offset);
+		this._ensuweWineStawts();
+		const out = this._wineStawts!.getIndexOf(offset);
 
-		const lineLength = this._lines[out.index].length;
+		const wineWength = this._wines[out.index].wength;
 
-		// Ensure we return a valid position
-		return new Position(out.index, Math.min(out.remainder, lineLength));
+		// Ensuwe we wetuwn a vawid position
+		wetuwn new Position(out.index, Math.min(out.wemainda, wineWength));
 	}
 
-	// ---- range math
+	// ---- wange math
 
-	private _validateRange(range: vscode.Range): vscode.Range {
-		if (!(range instanceof Range)) {
-			throw new Error('Invalid argument');
+	pwivate _vawidateWange(wange: vscode.Wange): vscode.Wange {
+		if (!(wange instanceof Wange)) {
+			thwow new Ewwow('Invawid awgument');
 		}
 
-		const start = this._validatePosition(range.start);
-		const end = this._validatePosition(range.end);
+		const stawt = this._vawidatePosition(wange.stawt);
+		const end = this._vawidatePosition(wange.end);
 
-		if (start === range.start && end === range.end) {
-			return range;
+		if (stawt === wange.stawt && end === wange.end) {
+			wetuwn wange;
 		}
-		return new Range(start.line, start.character, end.line, end.character);
+		wetuwn new Wange(stawt.wine, stawt.chawacta, end.wine, end.chawacta);
 	}
 
-	private _validatePosition(position: vscode.Position): vscode.Position {
+	pwivate _vawidatePosition(position: vscode.Position): vscode.Position {
 		if (!(position instanceof Position)) {
-			throw new Error('Invalid argument');
+			thwow new Ewwow('Invawid awgument');
 		}
 
-		if (this._lines.length === 0) {
-			return position.with(0, 0);
+		if (this._wines.wength === 0) {
+			wetuwn position.with(0, 0);
 		}
 
-		let { line, character } = position;
-		let hasChanged = false;
+		wet { wine, chawacta } = position;
+		wet hasChanged = fawse;
 
-		if (line < 0) {
-			line = 0;
-			character = 0;
-			hasChanged = true;
+		if (wine < 0) {
+			wine = 0;
+			chawacta = 0;
+			hasChanged = twue;
 		}
-		else if (line >= this._lines.length) {
-			line = this._lines.length - 1;
-			character = this._lines[line].length;
-			hasChanged = true;
+		ewse if (wine >= this._wines.wength) {
+			wine = this._wines.wength - 1;
+			chawacta = this._wines[wine].wength;
+			hasChanged = twue;
 		}
-		else {
-			const maxCharacter = this._lines[line].length;
-			if (character < 0) {
-				character = 0;
-				hasChanged = true;
+		ewse {
+			const maxChawacta = this._wines[wine].wength;
+			if (chawacta < 0) {
+				chawacta = 0;
+				hasChanged = twue;
 			}
-			else if (character > maxCharacter) {
-				character = maxCharacter;
-				hasChanged = true;
+			ewse if (chawacta > maxChawacta) {
+				chawacta = maxChawacta;
+				hasChanged = twue;
 			}
 		}
 
 		if (!hasChanged) {
-			return position;
+			wetuwn position;
 		}
-		return new Position(line, character);
+		wetuwn new Position(wine, chawacta);
 	}
 
-	private _getWordRangeAtPosition(_position: vscode.Position, regexp?: RegExp): vscode.Range | undefined {
-		const position = this._validatePosition(_position);
+	pwivate _getWowdWangeAtPosition(_position: vscode.Position, wegexp?: WegExp): vscode.Wange | undefined {
+		const position = this._vawidatePosition(_position);
 
-		if (!regexp) {
-			// use default when custom-regexp isn't provided
-			regexp = getWordDefinitionFor(this._languageId);
+		if (!wegexp) {
+			// use defauwt when custom-wegexp isn't pwovided
+			wegexp = getWowdDefinitionFow(this._wanguageId);
 
-		} else if (regExpLeadsToEndlessLoop(regexp)) {
-			// use default when custom-regexp is bad
-			throw new Error(`[getWordRangeAtPosition]: ignoring custom regexp '${regexp.source}' because it matches the empty string.`);
+		} ewse if (wegExpWeadsToEndwessWoop(wegexp)) {
+			// use defauwt when custom-wegexp is bad
+			thwow new Ewwow(`[getWowdWangeAtPosition]: ignowing custom wegexp '${wegexp.souwce}' because it matches the empty stwing.`);
 		}
 
-		const wordAtText = getWordAtText(
-			position.character + 1,
-			ensureValidWordDefinition(regexp),
-			this._lines[position.line],
+		const wowdAtText = getWowdAtText(
+			position.chawacta + 1,
+			ensuweVawidWowdDefinition(wegexp),
+			this._wines[position.wine],
 			0
 		);
 
-		if (wordAtText) {
-			return new Range(position.line, wordAtText.startColumn - 1, position.line, wordAtText.endColumn - 1);
+		if (wowdAtText) {
+			wetuwn new Wange(position.wine, wowdAtText.stawtCowumn - 1, position.wine, wowdAtText.endCowumn - 1);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 }
 
-export class ExtHostDocumentLine implements vscode.TextLine {
+expowt cwass ExtHostDocumentWine impwements vscode.TextWine {
 
-	private readonly _line: number;
-	private readonly _text: string;
-	private readonly _isLastLine: boolean;
+	pwivate weadonwy _wine: numba;
+	pwivate weadonwy _text: stwing;
+	pwivate weadonwy _isWastWine: boowean;
 
-	constructor(line: number, text: string, isLastLine: boolean) {
-		this._line = line;
+	constwuctow(wine: numba, text: stwing, isWastWine: boowean) {
+		this._wine = wine;
 		this._text = text;
-		this._isLastLine = isLastLine;
+		this._isWastWine = isWastWine;
 	}
 
-	public get lineNumber(): number {
-		return this._line;
+	pubwic get wineNumba(): numba {
+		wetuwn this._wine;
 	}
 
-	public get text(): string {
-		return this._text;
+	pubwic get text(): stwing {
+		wetuwn this._text;
 	}
 
-	public get range(): Range {
-		return new Range(this._line, 0, this._line, this._text.length);
+	pubwic get wange(): Wange {
+		wetuwn new Wange(this._wine, 0, this._wine, this._text.wength);
 	}
 
-	public get rangeIncludingLineBreak(): Range {
-		if (this._isLastLine) {
-			return this.range;
+	pubwic get wangeIncwudingWineBweak(): Wange {
+		if (this._isWastWine) {
+			wetuwn this.wange;
 		}
-		return new Range(this._line, 0, this._line + 1, 0);
+		wetuwn new Wange(this._wine, 0, this._wine + 1, 0);
 	}
 
-	public get firstNonWhitespaceCharacterIndex(): number {
-		//TODO@api, rename to 'leadingWhitespaceLength'
-		return /^(\s*)/.exec(this._text)![1].length;
+	pubwic get fiwstNonWhitespaceChawactewIndex(): numba {
+		//TODO@api, wename to 'weadingWhitespaceWength'
+		wetuwn /^(\s*)/.exec(this._text)![1].wength;
 	}
 
-	public get isEmptyOrWhitespace(): boolean {
-		return this.firstNonWhitespaceCharacterIndex === this._text.length;
+	pubwic get isEmptyOwWhitespace(): boowean {
+		wetuwn this.fiwstNonWhitespaceChawactewIndex === this._text.wength;
 	}
 }

@@ -1,177 +1,177 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkspacesService, IWorkspaceFolderCreationData, IWorkspaceIdentifier, IEnterWorkspaceResult, IRecentlyOpened, restoreRecentlyOpened, IRecent, isRecentFile, isRecentFolder, toStoreData, IStoredWorkspaceFolder, getStoredWorkspaceFolder, WORKSPACE_EXTENSION, IStoredWorkspace } from 'vs/platform/workspaces/common/workspaces';
-import { URI } from 'vs/base/common/uri';
-import { Emitter } from 'vs/base/common/event';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
-import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { joinPath } from 'vs/base/common/resources';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { isWindows } from 'vs/base/common/platform';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IWowkspacesSewvice, IWowkspaceFowdewCweationData, IWowkspaceIdentifia, IEntewWowkspaceWesuwt, IWecentwyOpened, westoweWecentwyOpened, IWecent, isWecentFiwe, isWecentFowda, toStoweData, IStowedWowkspaceFowda, getStowedWowkspaceFowda, WOWKSPACE_EXTENSION, IStowedWowkspace } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IWowkspaceContextSewvice, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { getWowkspaceIdentifia } fwom 'vs/wowkbench/sewvices/wowkspaces/bwowsa/wowkspaces';
+impowt { IFiweSewvice, FiweOpewationEwwow, FiweOpewationWesuwt } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
 
-export class BrowserWorkspacesService extends Disposable implements IWorkspacesService {
+expowt cwass BwowsewWowkspacesSewvice extends Disposabwe impwements IWowkspacesSewvice {
 
-	static readonly RECENTLY_OPENED_KEY = 'recently.opened';
+	static weadonwy WECENTWY_OPENED_KEY = 'wecentwy.opened';
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _onRecentlyOpenedChange = this._register(new Emitter<void>());
-	readonly onDidChangeRecentlyOpened = this._onRecentlyOpenedChange.event;
+	pwivate weadonwy _onWecentwyOpenedChange = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeWecentwyOpened = this._onWecentwyOpenedChange.event;
 
-	constructor(
-		@IStorageService private readonly storageService: IStorageService,
-		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
-		@ILogService private readonly logService: ILogService,
-		@IFileService private readonly fileService: IFileService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+	constwuctow(
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy wowkspaceSewvice: IWowkspaceContextSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice,
 	) {
-		super();
+		supa();
 
-		// Opening a workspace should push it as most
-		// recently used to the workspaces history
-		this.addWorkspaceToRecentlyOpened();
+		// Opening a wowkspace shouwd push it as most
+		// wecentwy used to the wowkspaces histowy
+		this.addWowkspaceToWecentwyOpened();
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		this._register(this.storageService.onDidChangeValue(event => {
-			if (event.key === BrowserWorkspacesService.RECENTLY_OPENED_KEY && event.scope === StorageScope.GLOBAL) {
-				this._onRecentlyOpenedChange.fire();
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.stowageSewvice.onDidChangeVawue(event => {
+			if (event.key === BwowsewWowkspacesSewvice.WECENTWY_OPENED_KEY && event.scope === StowageScope.GWOBAW) {
+				this._onWecentwyOpenedChange.fiwe();
 			}
 		}));
 	}
 
-	private addWorkspaceToRecentlyOpened(): void {
-		const workspace = this.workspaceService.getWorkspace();
-		switch (this.workspaceService.getWorkbenchState()) {
-			case WorkbenchState.FOLDER:
-				this.addRecentlyOpened([{ folderUri: workspace.folders[0].uri }]);
-				break;
-			case WorkbenchState.WORKSPACE:
-				this.addRecentlyOpened([{ workspace: { id: workspace.id, configPath: workspace.configuration! } }]);
-				break;
+	pwivate addWowkspaceToWecentwyOpened(): void {
+		const wowkspace = this.wowkspaceSewvice.getWowkspace();
+		switch (this.wowkspaceSewvice.getWowkbenchState()) {
+			case WowkbenchState.FOWDa:
+				this.addWecentwyOpened([{ fowdewUwi: wowkspace.fowdews[0].uwi }]);
+				bweak;
+			case WowkbenchState.WOWKSPACE:
+				this.addWecentwyOpened([{ wowkspace: { id: wowkspace.id, configPath: wowkspace.configuwation! } }]);
+				bweak;
 		}
 	}
 
-	//#region Workspaces History
+	//#wegion Wowkspaces Histowy
 
-	async getRecentlyOpened(): Promise<IRecentlyOpened> {
-		const recentlyOpenedRaw = this.storageService.get(BrowserWorkspacesService.RECENTLY_OPENED_KEY, StorageScope.GLOBAL);
-		if (recentlyOpenedRaw) {
-			return restoreRecentlyOpened(JSON.parse(recentlyOpenedRaw), this.logService);
+	async getWecentwyOpened(): Pwomise<IWecentwyOpened> {
+		const wecentwyOpenedWaw = this.stowageSewvice.get(BwowsewWowkspacesSewvice.WECENTWY_OPENED_KEY, StowageScope.GWOBAW);
+		if (wecentwyOpenedWaw) {
+			wetuwn westoweWecentwyOpened(JSON.pawse(wecentwyOpenedWaw), this.wogSewvice);
 		}
 
-		return { workspaces: [], files: [] };
+		wetuwn { wowkspaces: [], fiwes: [] };
 	}
 
-	async addRecentlyOpened(recents: IRecent[]): Promise<void> {
-		const recentlyOpened = await this.getRecentlyOpened();
+	async addWecentwyOpened(wecents: IWecent[]): Pwomise<void> {
+		const wecentwyOpened = await this.getWecentwyOpened();
 
-		recents.forEach(recent => {
-			if (isRecentFile(recent)) {
-				this.doRemoveRecentlyOpened(recentlyOpened, [recent.fileUri]);
-				recentlyOpened.files.unshift(recent);
-			} else if (isRecentFolder(recent)) {
-				this.doRemoveRecentlyOpened(recentlyOpened, [recent.folderUri]);
-				recentlyOpened.workspaces.unshift(recent);
-			} else {
-				this.doRemoveRecentlyOpened(recentlyOpened, [recent.workspace.configPath]);
-				recentlyOpened.workspaces.unshift(recent);
+		wecents.fowEach(wecent => {
+			if (isWecentFiwe(wecent)) {
+				this.doWemoveWecentwyOpened(wecentwyOpened, [wecent.fiweUwi]);
+				wecentwyOpened.fiwes.unshift(wecent);
+			} ewse if (isWecentFowda(wecent)) {
+				this.doWemoveWecentwyOpened(wecentwyOpened, [wecent.fowdewUwi]);
+				wecentwyOpened.wowkspaces.unshift(wecent);
+			} ewse {
+				this.doWemoveWecentwyOpened(wecentwyOpened, [wecent.wowkspace.configPath]);
+				wecentwyOpened.wowkspaces.unshift(wecent);
 			}
 		});
 
-		return this.saveRecentlyOpened(recentlyOpened);
+		wetuwn this.saveWecentwyOpened(wecentwyOpened);
 	}
 
-	async removeRecentlyOpened(paths: URI[]): Promise<void> {
-		const recentlyOpened = await this.getRecentlyOpened();
+	async wemoveWecentwyOpened(paths: UWI[]): Pwomise<void> {
+		const wecentwyOpened = await this.getWecentwyOpened();
 
-		this.doRemoveRecentlyOpened(recentlyOpened, paths);
+		this.doWemoveWecentwyOpened(wecentwyOpened, paths);
 
-		return this.saveRecentlyOpened(recentlyOpened);
+		wetuwn this.saveWecentwyOpened(wecentwyOpened);
 	}
 
-	private doRemoveRecentlyOpened(recentlyOpened: IRecentlyOpened, paths: URI[]): void {
-		recentlyOpened.files = recentlyOpened.files.filter(file => {
-			return !paths.some(path => path.toString() === file.fileUri.toString());
+	pwivate doWemoveWecentwyOpened(wecentwyOpened: IWecentwyOpened, paths: UWI[]): void {
+		wecentwyOpened.fiwes = wecentwyOpened.fiwes.fiwta(fiwe => {
+			wetuwn !paths.some(path => path.toStwing() === fiwe.fiweUwi.toStwing());
 		});
 
-		recentlyOpened.workspaces = recentlyOpened.workspaces.filter(workspace => {
-			return !paths.some(path => path.toString() === (isRecentFolder(workspace) ? workspace.folderUri.toString() : workspace.workspace.configPath.toString()));
+		wecentwyOpened.wowkspaces = wecentwyOpened.wowkspaces.fiwta(wowkspace => {
+			wetuwn !paths.some(path => path.toStwing() === (isWecentFowda(wowkspace) ? wowkspace.fowdewUwi.toStwing() : wowkspace.wowkspace.configPath.toStwing()));
 		});
 	}
 
-	private async saveRecentlyOpened(data: IRecentlyOpened): Promise<void> {
-		return this.storageService.store(BrowserWorkspacesService.RECENTLY_OPENED_KEY, JSON.stringify(toStoreData(data)), StorageScope.GLOBAL, StorageTarget.USER);
+	pwivate async saveWecentwyOpened(data: IWecentwyOpened): Pwomise<void> {
+		wetuwn this.stowageSewvice.stowe(BwowsewWowkspacesSewvice.WECENTWY_OPENED_KEY, JSON.stwingify(toStoweData(data)), StowageScope.GWOBAW, StowageTawget.USa);
 	}
 
-	async clearRecentlyOpened(): Promise<void> {
-		this.storageService.remove(BrowserWorkspacesService.RECENTLY_OPENED_KEY, StorageScope.GLOBAL);
+	async cweawWecentwyOpened(): Pwomise<void> {
+		this.stowageSewvice.wemove(BwowsewWowkspacesSewvice.WECENTWY_OPENED_KEY, StowageScope.GWOBAW);
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Workspace Management
+	//#wegion Wowkspace Management
 
-	async enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined> {
-		return { workspace: await this.getWorkspaceIdentifier(path) };
+	async entewWowkspace(path: UWI): Pwomise<IEntewWowkspaceWesuwt | undefined> {
+		wetuwn { wowkspace: await this.getWowkspaceIdentifia(path) };
 	}
 
-	async createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier> {
-		const randomId = (Date.now() + Math.round(Math.random() * 1000)).toString();
-		const newUntitledWorkspacePath = joinPath(this.environmentService.untitledWorkspacesHome, `Untitled-${randomId}.${WORKSPACE_EXTENSION}`);
+	async cweateUntitwedWowkspace(fowdews?: IWowkspaceFowdewCweationData[], wemoteAuthowity?: stwing): Pwomise<IWowkspaceIdentifia> {
+		const wandomId = (Date.now() + Math.wound(Math.wandom() * 1000)).toStwing();
+		const newUntitwedWowkspacePath = joinPath(this.enviwonmentSewvice.untitwedWowkspacesHome, `Untitwed-${wandomId}.${WOWKSPACE_EXTENSION}`);
 
-		// Build array of workspace folders to store
-		const storedWorkspaceFolder: IStoredWorkspaceFolder[] = [];
-		if (folders) {
-			for (const folder of folders) {
-				storedWorkspaceFolder.push(getStoredWorkspaceFolder(folder.uri, true, folder.name, this.environmentService.untitledWorkspacesHome, !isWindows, this.uriIdentityService.extUri));
+		// Buiwd awway of wowkspace fowdews to stowe
+		const stowedWowkspaceFowda: IStowedWowkspaceFowda[] = [];
+		if (fowdews) {
+			fow (const fowda of fowdews) {
+				stowedWowkspaceFowda.push(getStowedWowkspaceFowda(fowda.uwi, twue, fowda.name, this.enviwonmentSewvice.untitwedWowkspacesHome, !isWindows, this.uwiIdentitySewvice.extUwi));
 			}
 		}
 
-		// Store at untitled workspaces location
-		const storedWorkspace: IStoredWorkspace = { folders: storedWorkspaceFolder, remoteAuthority };
-		await this.fileService.writeFile(newUntitledWorkspacePath, VSBuffer.fromString(JSON.stringify(storedWorkspace, null, '\t')));
+		// Stowe at untitwed wowkspaces wocation
+		const stowedWowkspace: IStowedWowkspace = { fowdews: stowedWowkspaceFowda, wemoteAuthowity };
+		await this.fiweSewvice.wwiteFiwe(newUntitwedWowkspacePath, VSBuffa.fwomStwing(JSON.stwingify(stowedWowkspace, nuww, '\t')));
 
-		return this.getWorkspaceIdentifier(newUntitledWorkspacePath);
+		wetuwn this.getWowkspaceIdentifia(newUntitwedWowkspacePath);
 	}
 
-	async deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): Promise<void> {
-		try {
-			await this.fileService.del(workspace.configPath);
-		} catch (error) {
-			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
-				throw error; // re-throw any other error than file not found which is OK
+	async deweteUntitwedWowkspace(wowkspace: IWowkspaceIdentifia): Pwomise<void> {
+		twy {
+			await this.fiweSewvice.dew(wowkspace.configPath);
+		} catch (ewwow) {
+			if ((<FiweOpewationEwwow>ewwow).fiweOpewationWesuwt !== FiweOpewationWesuwt.FIWE_NOT_FOUND) {
+				thwow ewwow; // we-thwow any otha ewwow than fiwe not found which is OK
 			}
 		}
 	}
 
-	async getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier> {
-		return getWorkspaceIdentifier(workspacePath);
+	async getWowkspaceIdentifia(wowkspacePath: UWI): Pwomise<IWowkspaceIdentifia> {
+		wetuwn getWowkspaceIdentifia(wowkspacePath);
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Dirty Workspaces
+	//#wegion Diwty Wowkspaces
 
-	async getDirtyWorkspaces(): Promise<Array<IWorkspaceIdentifier | URI>> {
-		return []; // Currently not supported in web
+	async getDiwtyWowkspaces(): Pwomise<Awway<IWowkspaceIdentifia | UWI>> {
+		wetuwn []; // Cuwwentwy not suppowted in web
 	}
 
-	//#endregion
+	//#endwegion
 }
 
-registerSingleton(IWorkspacesService, BrowserWorkspacesService, true);
+wegistewSingweton(IWowkspacesSewvice, BwowsewWowkspacesSewvice, twue);

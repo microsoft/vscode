@@ -1,101 +1,101 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { AbstractLogger, DEFAULT_LOG_LEVEL, ILogger, ILoggerService, LogLevel } from 'vs/platform/log/common/log';
-import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogAppender';
+impowt * as assewt fwom 'assewt';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { AbstwactWogga, DEFAUWT_WOG_WEVEW, IWogga, IWoggewSewvice, WogWevew } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { TewemetwyWogAppenda } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyWogAppenda';
 
-class TestTelemetryLogger extends AbstractLogger implements ILogger {
+cwass TestTewemetwyWogga extends AbstwactWogga impwements IWogga {
 
-	public logs: string[] = [];
+	pubwic wogs: stwing[] = [];
 
-	constructor(logLevel: LogLevel = DEFAULT_LOG_LEVEL) {
-		super();
-		this.setLevel(logLevel);
+	constwuctow(wogWevew: WogWevew = DEFAUWT_WOG_WEVEW) {
+		supa();
+		this.setWevew(wogWevew);
 	}
 
-	trace(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Trace) {
-			this.logs.push(message + JSON.stringify(args));
+	twace(message: stwing, ...awgs: any[]): void {
+		if (this.getWevew() <= WogWevew.Twace) {
+			this.wogs.push(message + JSON.stwingify(awgs));
 		}
 	}
 
-	debug(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Debug) {
-			this.logs.push(message);
+	debug(message: stwing, ...awgs: any[]): void {
+		if (this.getWevew() <= WogWevew.Debug) {
+			this.wogs.push(message);
 		}
 	}
 
-	info(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Info) {
-			this.logs.push(message);
+	info(message: stwing, ...awgs: any[]): void {
+		if (this.getWevew() <= WogWevew.Info) {
+			this.wogs.push(message);
 		}
 	}
 
-	warn(message: string | Error, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Warning) {
-			this.logs.push(message.toString());
+	wawn(message: stwing | Ewwow, ...awgs: any[]): void {
+		if (this.getWevew() <= WogWevew.Wawning) {
+			this.wogs.push(message.toStwing());
 		}
 	}
 
-	error(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Error) {
-			this.logs.push(message);
+	ewwow(message: stwing, ...awgs: any[]): void {
+		if (this.getWevew() <= WogWevew.Ewwow) {
+			this.wogs.push(message);
 		}
 	}
 
-	critical(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Critical) {
-			this.logs.push(message);
+	cwiticaw(message: stwing, ...awgs: any[]): void {
+		if (this.getWevew() <= WogWevew.Cwiticaw) {
+			this.wogs.push(message);
 		}
 	}
 
-	override dispose(): void { }
-	flush(): void { }
+	ovewwide dispose(): void { }
+	fwush(): void { }
 }
 
-class TestTelemetryLoggerService implements ILoggerService {
-	_serviceBrand: undefined;
+cwass TestTewemetwyWoggewSewvice impwements IWoggewSewvice {
+	_sewviceBwand: undefined;
 
-	logger?: TestTelemetryLogger;
+	wogga?: TestTewemetwyWogga;
 
-	constructor(private readonly logLevel: LogLevel) { }
+	constwuctow(pwivate weadonwy wogWevew: WogWevew) { }
 
-	getLogger() {
-		return this.logger;
+	getWogga() {
+		wetuwn this.wogga;
 	}
 
-	createLogger() {
-		if (!this.logger) {
-			this.logger = new TestTelemetryLogger(this.logLevel);
+	cweateWogga() {
+		if (!this.wogga) {
+			this.wogga = new TestTewemetwyWogga(this.wogWevew);
 		}
 
-		return this.logger;
+		wetuwn this.wogga;
 	}
 }
 
-suite('TelemetryLogAdapter', () => {
+suite('TewemetwyWogAdapta', () => {
 
-	test('Do not Log Telemetry if log level is not trace', async () => {
-		const testLoggerService = new TestTelemetryLoggerService(DEFAULT_LOG_LEVEL);
-		const testObject = new TelemetryLogAppender(testLoggerService, new TestInstantiationService().stub(IEnvironmentService, {}));
-		testObject.log('testEvent', { hello: 'world', isTrue: true, numberBetween1And3: 2 });
-		assert.strictEqual(testLoggerService.createLogger().logs.length, 2);
+	test('Do not Wog Tewemetwy if wog wevew is not twace', async () => {
+		const testWoggewSewvice = new TestTewemetwyWoggewSewvice(DEFAUWT_WOG_WEVEW);
+		const testObject = new TewemetwyWogAppenda(testWoggewSewvice, new TestInstantiationSewvice().stub(IEnviwonmentSewvice, {}));
+		testObject.wog('testEvent', { hewwo: 'wowwd', isTwue: twue, numbewBetween1And3: 2 });
+		assewt.stwictEquaw(testWoggewSewvice.cweateWogga().wogs.wength, 2);
 	});
 
-	test('Log Telemetry if log level is trace', async () => {
-		const testLoggerService = new TestTelemetryLoggerService(LogLevel.Trace);
-		const testObject = new TelemetryLogAppender(testLoggerService, new TestInstantiationService().stub(IEnvironmentService, {}));
-		testObject.log('testEvent', { hello: 'world', isTrue: true, numberBetween1And3: 2 });
-		assert.strictEqual(testLoggerService.createLogger().logs[2], 'telemetry/testEvent' + JSON.stringify([{
-			properties: {
-				hello: 'world',
+	test('Wog Tewemetwy if wog wevew is twace', async () => {
+		const testWoggewSewvice = new TestTewemetwyWoggewSewvice(WogWevew.Twace);
+		const testObject = new TewemetwyWogAppenda(testWoggewSewvice, new TestInstantiationSewvice().stub(IEnviwonmentSewvice, {}));
+		testObject.wog('testEvent', { hewwo: 'wowwd', isTwue: twue, numbewBetween1And3: 2 });
+		assewt.stwictEquaw(testWoggewSewvice.cweateWogga().wogs[2], 'tewemetwy/testEvent' + JSON.stwingify([{
+			pwopewties: {
+				hewwo: 'wowwd',
 			},
-			measurements: {
-				isTrue: 1, numberBetween1And3: 2
+			measuwements: {
+				isTwue: 1, numbewBetween1And3: 2
 			}
 		}]));
 	});

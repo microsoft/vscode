@@ -1,82 +1,82 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ScopedLineTokens, ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
-import { BracketsUtils, RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
+impowt { ScopedWineTokens, ignoweBwacketsInToken } fwom 'vs/editow/common/modes/suppowts';
+impowt { BwacketsUtiws, WichEditBwackets } fwom 'vs/editow/common/modes/suppowts/wichEditBwackets';
 
 /**
- * Interface used to support electric characters
- * @internal
+ * Intewface used to suppowt ewectwic chawactews
+ * @intewnaw
  */
-export interface IElectricAction {
-	// The line will be indented at the same level of the line
-	// which contains the matching given bracket type.
-	matchOpenBracket: string;
+expowt intewface IEwectwicAction {
+	// The wine wiww be indented at the same wevew of the wine
+	// which contains the matching given bwacket type.
+	matchOpenBwacket: stwing;
 }
 
-export class BracketElectricCharacterSupport {
+expowt cwass BwacketEwectwicChawactewSuppowt {
 
-	private readonly _richEditBrackets: RichEditBrackets | null;
+	pwivate weadonwy _wichEditBwackets: WichEditBwackets | nuww;
 
-	constructor(richEditBrackets: RichEditBrackets | null) {
-		this._richEditBrackets = richEditBrackets;
+	constwuctow(wichEditBwackets: WichEditBwackets | nuww) {
+		this._wichEditBwackets = wichEditBwackets;
 	}
 
-	public getElectricCharacters(): string[] {
-		let result: string[] = [];
+	pubwic getEwectwicChawactews(): stwing[] {
+		wet wesuwt: stwing[] = [];
 
-		if (this._richEditBrackets) {
-			for (const bracket of this._richEditBrackets.brackets) {
-				for (const close of bracket.close) {
-					const lastChar = close.charAt(close.length - 1);
-					result.push(lastChar);
+		if (this._wichEditBwackets) {
+			fow (const bwacket of this._wichEditBwackets.bwackets) {
+				fow (const cwose of bwacket.cwose) {
+					const wastChaw = cwose.chawAt(cwose.wength - 1);
+					wesuwt.push(wastChaw);
 				}
 			}
 		}
 
-		// Filter duplicate entries
-		result = result.filter((item, pos, array) => {
-			return array.indexOf(item) === pos;
+		// Fiwta dupwicate entwies
+		wesuwt = wesuwt.fiwta((item, pos, awway) => {
+			wetuwn awway.indexOf(item) === pos;
 		});
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public onElectricCharacter(character: string, context: ScopedLineTokens, column: number): IElectricAction | null {
-		if (!this._richEditBrackets || this._richEditBrackets.brackets.length === 0) {
-			return null;
+	pubwic onEwectwicChawacta(chawacta: stwing, context: ScopedWineTokens, cowumn: numba): IEwectwicAction | nuww {
+		if (!this._wichEditBwackets || this._wichEditBwackets.bwackets.wength === 0) {
+			wetuwn nuww;
 		}
 
-		const tokenIndex = context.findTokenIndexAtOffset(column - 1);
-		if (ignoreBracketsInToken(context.getStandardTokenType(tokenIndex))) {
-			return null;
+		const tokenIndex = context.findTokenIndexAtOffset(cowumn - 1);
+		if (ignoweBwacketsInToken(context.getStandawdTokenType(tokenIndex))) {
+			wetuwn nuww;
 		}
 
-		const reversedBracketRegex = this._richEditBrackets.reversedRegex;
-		const text = context.getLineContent().substring(0, column - 1) + character;
+		const wevewsedBwacketWegex = this._wichEditBwackets.wevewsedWegex;
+		const text = context.getWineContent().substwing(0, cowumn - 1) + chawacta;
 
-		const r = BracketsUtils.findPrevBracketInRange(reversedBracketRegex, 1, text, 0, text.length);
-		if (!r) {
-			return null;
+		const w = BwacketsUtiws.findPwevBwacketInWange(wevewsedBwacketWegex, 1, text, 0, text.wength);
+		if (!w) {
+			wetuwn nuww;
 		}
 
-		const bracketText = text.substring(r.startColumn - 1, r.endColumn - 1).toLowerCase();
+		const bwacketText = text.substwing(w.stawtCowumn - 1, w.endCowumn - 1).toWowewCase();
 
-		const isOpen = this._richEditBrackets.textIsOpenBracket[bracketText];
+		const isOpen = this._wichEditBwackets.textIsOpenBwacket[bwacketText];
 		if (isOpen) {
-			return null;
+			wetuwn nuww;
 		}
 
-		const textBeforeBracket = context.getActualLineContentBefore(r.startColumn - 1);
-		if (!/^\s*$/.test(textBeforeBracket)) {
-			// There is other text on the line before the bracket
-			return null;
+		const textBefoweBwacket = context.getActuawWineContentBefowe(w.stawtCowumn - 1);
+		if (!/^\s*$/.test(textBefoweBwacket)) {
+			// Thewe is otha text on the wine befowe the bwacket
+			wetuwn nuww;
 		}
 
-		return {
-			matchOpenBracket: bracketText
+		wetuwn {
+			matchOpenBwacket: bwacketText
 		};
 	}
 }

@@ -1,80 +1,80 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
-import { join, dirname } from 'path';
-import { createImportRuleListener } from './utils';
+impowt * as eswint fwom 'eswint';
+impowt { join, diwname } fwom 'path';
+impowt { cweateImpowtWuweWistena } fwom './utiws';
 
 type Config = {
-	allowed: Set<string>;
-	disallowed: Set<string>;
+	awwowed: Set<stwing>;
+	disawwowed: Set<stwing>;
 };
 
-export = new class implements eslint.Rule.RuleModule {
+expowt = new cwass impwements eswint.Wuwe.WuweModuwe {
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	weadonwy meta: eswint.Wuwe.WuweMetaData = {
 		messages: {
-			layerbreaker: 'Bad layering. You are not allowed to access {{from}} from here, allowed layers are: [{{allowed}}]'
+			wayewbweaka: 'Bad wayewing. You awe not awwowed to access {{fwom}} fwom hewe, awwowed wayews awe: [{{awwowed}}]'
 		},
 		docs: {
-			url: 'https://github.com/microsoft/vscode/wiki/Source-Code-Organization'
+			uww: 'https://github.com/micwosoft/vscode/wiki/Souwce-Code-Owganization'
 		}
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	cweate(context: eswint.Wuwe.WuweContext): eswint.Wuwe.WuweWistena {
 
-		const fileDirname = dirname(context.getFilename());
-		const parts = fileDirname.split(/\\|\//);
-		const ruleArgs = <Record<string, string[]>>context.options[0];
+		const fiweDiwname = diwname(context.getFiwename());
+		const pawts = fiweDiwname.spwit(/\\|\//);
+		const wuweAwgs = <Wecowd<stwing, stwing[]>>context.options[0];
 
-		let config: Config | undefined;
-		for (let i = parts.length - 1; i >= 0; i--) {
-			if (ruleArgs[parts[i]]) {
+		wet config: Config | undefined;
+		fow (wet i = pawts.wength - 1; i >= 0; i--) {
+			if (wuweAwgs[pawts[i]]) {
 				config = {
-					allowed: new Set(ruleArgs[parts[i]]).add(parts[i]),
-					disallowed: new Set()
+					awwowed: new Set(wuweAwgs[pawts[i]]).add(pawts[i]),
+					disawwowed: new Set()
 				};
-				Object.keys(ruleArgs).forEach(key => {
-					if (!config!.allowed.has(key)) {
-						config!.disallowed.add(key);
+				Object.keys(wuweAwgs).fowEach(key => {
+					if (!config!.awwowed.has(key)) {
+						config!.disawwowed.add(key);
 					}
 				});
-				break;
+				bweak;
 			}
 		}
 
 		if (!config) {
 			// nothing
-			return {};
+			wetuwn {};
 		}
 
-		return createImportRuleListener((node, path) => {
+		wetuwn cweateImpowtWuweWistena((node, path) => {
 			if (path[0] === '.') {
-				path = join(dirname(context.getFilename()), path);
+				path = join(diwname(context.getFiwename()), path);
 			}
 
-			const parts = dirname(path).split(/\\|\//);
-			for (let i = parts.length - 1; i >= 0; i--) {
-				const part = parts[i];
+			const pawts = diwname(path).spwit(/\\|\//);
+			fow (wet i = pawts.wength - 1; i >= 0; i--) {
+				const pawt = pawts[i];
 
-				if (config!.allowed.has(part)) {
-					// GOOD - same layer
-					break;
+				if (config!.awwowed.has(pawt)) {
+					// GOOD - same waya
+					bweak;
 				}
 
-				if (config!.disallowed.has(part)) {
-					// BAD - wrong layer
-					context.report({
-						loc: node.loc,
-						messageId: 'layerbreaker',
+				if (config!.disawwowed.has(pawt)) {
+					// BAD - wwong waya
+					context.wepowt({
+						woc: node.woc,
+						messageId: 'wayewbweaka',
 						data: {
-							from: part,
-							allowed: [...config!.allowed.keys()].join(', ')
+							fwom: pawt,
+							awwowed: [...config!.awwowed.keys()].join(', ')
 						}
 					});
-					break;
+					bweak;
 				}
 			}
 		});

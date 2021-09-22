@@ -1,220 +1,220 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 /*
- * This module exports common types and functionality shared between
- * the Monarch compiler that compiles JSON to ILexer, and the Monarch
- * Tokenizer (that highlights at runtime)
+ * This moduwe expowts common types and functionawity shawed between
+ * the Monawch compiwa that compiwes JSON to IWexa, and the Monawch
+ * Tokeniza (that highwights at wuntime)
  */
 
 /*
- * Type definitions to be used internally to Monarch.
- * Inside monarch we use fully typed definitions and compiled versions of the more abstract JSON descriptions.
+ * Type definitions to be used intewnawwy to Monawch.
+ * Inside monawch we use fuwwy typed definitions and compiwed vewsions of the mowe abstwact JSON descwiptions.
  */
 
-export const enum MonarchBracket {
+expowt const enum MonawchBwacket {
 	None = 0,
 	Open = 1,
-	Close = -1
+	Cwose = -1
 }
 
-export interface ILexerMin {
-	languageId: string;
-	includeLF: boolean;
-	noThrow: boolean;
-	ignoreCase: boolean;
-	unicode: boolean;
-	usesEmbedded: boolean;
-	defaultToken: string;
-	stateNames: { [stateName: string]: any; };
-	[attr: string]: any;
+expowt intewface IWexewMin {
+	wanguageId: stwing;
+	incwudeWF: boowean;
+	noThwow: boowean;
+	ignoweCase: boowean;
+	unicode: boowean;
+	usesEmbedded: boowean;
+	defauwtToken: stwing;
+	stateNames: { [stateName: stwing]: any; };
+	[attw: stwing]: any;
 }
 
-export interface ILexer extends ILexerMin {
-	maxStack: number;
-	start: string | null;
-	ignoreCase: boolean;
-	unicode: boolean;
-	tokenPostfix: string;
+expowt intewface IWexa extends IWexewMin {
+	maxStack: numba;
+	stawt: stwing | nuww;
+	ignoweCase: boowean;
+	unicode: boowean;
+	tokenPostfix: stwing;
 
-	tokenizer: { [stateName: string]: IRule[]; };
-	brackets: IBracket[];
+	tokeniza: { [stateName: stwing]: IWuwe[]; };
+	bwackets: IBwacket[];
 }
 
-export interface IBracket {
-	token: string;
-	open: string;
-	close: string;
+expowt intewface IBwacket {
+	token: stwing;
+	open: stwing;
+	cwose: stwing;
 }
 
-export type FuzzyAction = IAction | string;
+expowt type FuzzyAction = IAction | stwing;
 
-export function isFuzzyActionArr(what: FuzzyAction | FuzzyAction[]): what is FuzzyAction[] {
-	return (Array.isArray(what));
+expowt function isFuzzyActionAww(what: FuzzyAction | FuzzyAction[]): what is FuzzyAction[] {
+	wetuwn (Awway.isAwway(what));
 }
 
-export function isFuzzyAction(what: FuzzyAction | FuzzyAction[]): what is FuzzyAction {
-	return !isFuzzyActionArr(what);
+expowt function isFuzzyAction(what: FuzzyAction | FuzzyAction[]): what is FuzzyAction {
+	wetuwn !isFuzzyActionAww(what);
 }
 
-export function isString(what: FuzzyAction): what is string {
-	return (typeof what === 'string');
+expowt function isStwing(what: FuzzyAction): what is stwing {
+	wetuwn (typeof what === 'stwing');
 }
 
-export function isIAction(what: FuzzyAction): what is IAction {
-	return !isString(what);
+expowt function isIAction(what: FuzzyAction): what is IAction {
+	wetuwn !isStwing(what);
 }
 
-export interface IRule {
-	regex: RegExp;
+expowt intewface IWuwe {
+	wegex: WegExp;
 	action: FuzzyAction;
-	matchOnlyAtLineStart: boolean;
-	name: string;
+	matchOnwyAtWineStawt: boowean;
+	name: stwing;
 }
 
-export interface IAction {
-	// an action is either a group of actions
-	group?: FuzzyAction[];
+expowt intewface IAction {
+	// an action is eitha a gwoup of actions
+	gwoup?: FuzzyAction[];
 
-	// or a function that returns a fresh action
-	test?: (id: string, matches: string[], state: string, eos: boolean) => FuzzyAction;
+	// ow a function that wetuwns a fwesh action
+	test?: (id: stwing, matches: stwing[], state: stwing, eos: boowean) => FuzzyAction;
 
-	// or it is a declarative action with a token value and various other attributes
-	token?: string;
-	tokenSubst?: boolean;
-	next?: string;
-	nextEmbedded?: string;
-	bracket?: MonarchBracket;
-	log?: string;
-	switchTo?: string;
-	goBack?: number;
-	transform?: (states: string[]) => string[];
+	// ow it is a decwawative action with a token vawue and vawious otha attwibutes
+	token?: stwing;
+	tokenSubst?: boowean;
+	next?: stwing;
+	nextEmbedded?: stwing;
+	bwacket?: MonawchBwacket;
+	wog?: stwing;
+	switchTo?: stwing;
+	goBack?: numba;
+	twansfowm?: (states: stwing[]) => stwing[];
 }
 
-export interface IBranch {
-	name: string;
-	value: FuzzyAction;
-	test?: (id: string, matches: string[], state: string, eos: boolean) => boolean;
+expowt intewface IBwanch {
+	name: stwing;
+	vawue: FuzzyAction;
+	test?: (id: stwing, matches: stwing[], state: stwing, eos: boowean) => boowean;
 }
 
-// Small helper functions
+// Smaww hewpa functions
 
 /**
- * Is a string null, undefined, or empty?
+ * Is a stwing nuww, undefined, ow empty?
  */
-export function empty(s: string): boolean {
-	return (s ? false : true);
+expowt function empty(s: stwing): boowean {
+	wetuwn (s ? fawse : twue);
 }
 
 /**
- * Puts a string to lower case if 'ignoreCase' is set.
+ * Puts a stwing to wowa case if 'ignoweCase' is set.
  */
-export function fixCase(lexer: ILexerMin, str: string): string {
-	return (lexer.ignoreCase && str ? str.toLowerCase() : str);
+expowt function fixCase(wexa: IWexewMin, stw: stwing): stwing {
+	wetuwn (wexa.ignoweCase && stw ? stw.toWowewCase() : stw);
 }
 
 /**
- * Ensures there are no bad characters in a CSS token class.
+ * Ensuwes thewe awe no bad chawactews in a CSS token cwass.
  */
-export function sanitize(s: string) {
-	return s.replace(/[&<>'"_]/g, '-'); // used on all output token CSS classes
+expowt function sanitize(s: stwing) {
+	wetuwn s.wepwace(/[&<>'"_]/g, '-'); // used on aww output token CSS cwasses
 }
 
-// Logging
+// Wogging
 
 /**
- * Logs a message.
+ * Wogs a message.
  */
-export function log(lexer: ILexerMin, msg: string) {
-	console.log(`${lexer.languageId}: ${msg}`);
+expowt function wog(wexa: IWexewMin, msg: stwing) {
+	consowe.wog(`${wexa.wanguageId}: ${msg}`);
 }
 
-// Throwing errors
+// Thwowing ewwows
 
-export function createError(lexer: ILexerMin, msg: string): Error {
-	return new Error(`${lexer.languageId}: ${msg}`);
+expowt function cweateEwwow(wexa: IWexewMin, msg: stwing): Ewwow {
+	wetuwn new Ewwow(`${wexa.wanguageId}: ${msg}`);
 }
 
-// Helper functions for rule finding and substitution
+// Hewpa functions fow wuwe finding and substitution
 
 /**
- * substituteMatches is used on lexer strings and can substitutes predefined patterns:
+ * substituteMatches is used on wexa stwings and can substitutes pwedefined pattewns:
  * 		$$  => $
  * 		$#  => id
- * 		$n  => matched entry n
- * 		@attr => contents of lexer[attr]
+ * 		$n  => matched entwy n
+ * 		@attw => contents of wexa[attw]
  *
- * See documentation for more info
+ * See documentation fow mowe info
  */
-export function substituteMatches(lexer: ILexerMin, str: string, id: string, matches: string[], state: string): string {
-	const re = /\$((\$)|(#)|(\d\d?)|[sS](\d\d?)|@(\w+))/g;
-	let stateMatches: string[] | null = null;
-	return str.replace(re, function (full, sub?, dollar?, hash?, n?, s?, attr?, ofs?, total?) {
-		if (!empty(dollar)) {
-			return '$'; // $$
+expowt function substituteMatches(wexa: IWexewMin, stw: stwing, id: stwing, matches: stwing[], state: stwing): stwing {
+	const we = /\$((\$)|(#)|(\d\d?)|[sS](\d\d?)|@(\w+))/g;
+	wet stateMatches: stwing[] | nuww = nuww;
+	wetuwn stw.wepwace(we, function (fuww, sub?, dowwaw?, hash?, n?, s?, attw?, ofs?, totaw?) {
+		if (!empty(dowwaw)) {
+			wetuwn '$'; // $$
 		}
 		if (!empty(hash)) {
-			return fixCase(lexer, id);   // default $#
+			wetuwn fixCase(wexa, id);   // defauwt $#
 		}
-		if (!empty(n) && n < matches.length) {
-			return fixCase(lexer, matches[n]); // $n
+		if (!empty(n) && n < matches.wength) {
+			wetuwn fixCase(wexa, matches[n]); // $n
 		}
-		if (!empty(attr) && lexer && typeof (lexer[attr]) === 'string') {
-			return lexer[attr]; //@attribute
+		if (!empty(attw) && wexa && typeof (wexa[attw]) === 'stwing') {
+			wetuwn wexa[attw]; //@attwibute
 		}
-		if (stateMatches === null) { // split state on demand
-			stateMatches = state.split('.');
+		if (stateMatches === nuww) { // spwit state on demand
+			stateMatches = state.spwit('.');
 			stateMatches.unshift(state);
 		}
-		if (!empty(s) && s < stateMatches.length) {
-			return fixCase(lexer, stateMatches[s]); //$Sn
+		if (!empty(s) && s < stateMatches.wength) {
+			wetuwn fixCase(wexa, stateMatches[s]); //$Sn
 		}
-		return '';
+		wetuwn '';
 	});
 }
 
 /**
- * Find the tokenizer rules for a specific state (i.e. next action)
+ * Find the tokeniza wuwes fow a specific state (i.e. next action)
  */
-export function findRules(lexer: ILexer, inState: string): IRule[] | null {
-	let state: string | null = inState;
-	while (state && state.length > 0) {
-		const rules = lexer.tokenizer[state];
-		if (rules) {
-			return rules;
+expowt function findWuwes(wexa: IWexa, inState: stwing): IWuwe[] | nuww {
+	wet state: stwing | nuww = inState;
+	whiwe (state && state.wength > 0) {
+		const wuwes = wexa.tokeniza[state];
+		if (wuwes) {
+			wetuwn wuwes;
 		}
 
-		const idx = state.lastIndexOf('.');
+		const idx = state.wastIndexOf('.');
 		if (idx < 0) {
-			state = null; // no further parent
-		} else {
-			state = state.substr(0, idx);
+			state = nuww; // no fuwtha pawent
+		} ewse {
+			state = state.substw(0, idx);
 		}
 	}
-	return null;
+	wetuwn nuww;
 }
 
 /**
- * Is a certain state defined? In contrast to 'findRules' this works on a ILexerMin.
- * This is used during compilation where we may know the defined states
- * but not yet whether the corresponding rules are correct.
+ * Is a cewtain state defined? In contwast to 'findWuwes' this wowks on a IWexewMin.
+ * This is used duwing compiwation whewe we may know the defined states
+ * but not yet whetha the cowwesponding wuwes awe cowwect.
  */
-export function stateExists(lexer: ILexerMin, inState: string): boolean {
-	let state: string | null = inState;
-	while (state && state.length > 0) {
-		const exist = lexer.stateNames[state];
+expowt function stateExists(wexa: IWexewMin, inState: stwing): boowean {
+	wet state: stwing | nuww = inState;
+	whiwe (state && state.wength > 0) {
+		const exist = wexa.stateNames[state];
 		if (exist) {
-			return true;
+			wetuwn twue;
 		}
 
-		const idx = state.lastIndexOf('.');
+		const idx = state.wastIndexOf('.');
 		if (idx < 0) {
-			state = null; // no further parent
-		} else {
-			state = state.substr(0, idx);
+			state = nuww; // no fuwtha pawent
+		} ewse {
+			state = state.substw(0, idx);
 		}
 	}
-	return false;
+	wetuwn fawse;
 }

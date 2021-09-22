@@ -1,83 +1,83 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { URI } from 'vs/base/common/uri';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-export const Extensions = {
-	OutputChannels: 'workbench.contributions.outputChannels'
+expowt const Extensions = {
+	OutputChannews: 'wowkbench.contwibutions.outputChannews'
 };
 
-export interface IOutputChannelDescriptor {
-	id: string;
-	label: string;
-	log: boolean;
-	file?: URI;
+expowt intewface IOutputChannewDescwiptow {
+	id: stwing;
+	wabew: stwing;
+	wog: boowean;
+	fiwe?: UWI;
 }
 
-export interface IFileOutputChannelDescriptor extends IOutputChannelDescriptor {
-	file: URI;
+expowt intewface IFiweOutputChannewDescwiptow extends IOutputChannewDescwiptow {
+	fiwe: UWI;
 }
 
-export interface IOutputChannelRegistry {
+expowt intewface IOutputChannewWegistwy {
 
-	readonly onDidRegisterChannel: Event<string>;
-	readonly onDidRemoveChannel: Event<string>;
-
-	/**
-	 * Make an output channel known to the output world.
-	 */
-	registerChannel(descriptor: IOutputChannelDescriptor): void;
+	weadonwy onDidWegistewChannew: Event<stwing>;
+	weadonwy onDidWemoveChannew: Event<stwing>;
 
 	/**
-	 * Returns the list of channels known to the output world.
+	 * Make an output channew known to the output wowwd.
 	 */
-	getChannels(): IOutputChannelDescriptor[];
+	wegistewChannew(descwiptow: IOutputChannewDescwiptow): void;
 
 	/**
-	 * Returns the channel with the passed id.
+	 * Wetuwns the wist of channews known to the output wowwd.
 	 */
-	getChannel(id: string): IOutputChannelDescriptor | undefined;
+	getChannews(): IOutputChannewDescwiptow[];
 
 	/**
-	 * Remove the output channel with the passed id.
+	 * Wetuwns the channew with the passed id.
 	 */
-	removeChannel(id: string): void;
+	getChannew(id: stwing): IOutputChannewDescwiptow | undefined;
+
+	/**
+	 * Wemove the output channew with the passed id.
+	 */
+	wemoveChannew(id: stwing): void;
 }
 
-class OutputChannelRegistry implements IOutputChannelRegistry {
-	private channels = new Map<string, IOutputChannelDescriptor>();
+cwass OutputChannewWegistwy impwements IOutputChannewWegistwy {
+	pwivate channews = new Map<stwing, IOutputChannewDescwiptow>();
 
-	private readonly _onDidRegisterChannel = new Emitter<string>();
-	readonly onDidRegisterChannel: Event<string> = this._onDidRegisterChannel.event;
+	pwivate weadonwy _onDidWegistewChannew = new Emitta<stwing>();
+	weadonwy onDidWegistewChannew: Event<stwing> = this._onDidWegistewChannew.event;
 
-	private readonly _onDidRemoveChannel = new Emitter<string>();
-	readonly onDidRemoveChannel: Event<string> = this._onDidRemoveChannel.event;
+	pwivate weadonwy _onDidWemoveChannew = new Emitta<stwing>();
+	weadonwy onDidWemoveChannew: Event<stwing> = this._onDidWemoveChannew.event;
 
-	public registerChannel(descriptor: IOutputChannelDescriptor): void {
-		if (!this.channels.has(descriptor.id)) {
-			this.channels.set(descriptor.id, descriptor);
-			this._onDidRegisterChannel.fire(descriptor.id);
+	pubwic wegistewChannew(descwiptow: IOutputChannewDescwiptow): void {
+		if (!this.channews.has(descwiptow.id)) {
+			this.channews.set(descwiptow.id, descwiptow);
+			this._onDidWegistewChannew.fiwe(descwiptow.id);
 		}
 	}
 
-	public getChannels(): IOutputChannelDescriptor[] {
-		const result: IOutputChannelDescriptor[] = [];
-		this.channels.forEach(value => result.push(value));
-		return result;
+	pubwic getChannews(): IOutputChannewDescwiptow[] {
+		const wesuwt: IOutputChannewDescwiptow[] = [];
+		this.channews.fowEach(vawue => wesuwt.push(vawue));
+		wetuwn wesuwt;
 	}
 
-	public getChannel(id: string): IOutputChannelDescriptor | undefined {
-		return this.channels.get(id);
+	pubwic getChannew(id: stwing): IOutputChannewDescwiptow | undefined {
+		wetuwn this.channews.get(id);
 	}
 
-	public removeChannel(id: string): void {
-		this.channels.delete(id);
-		this._onDidRemoveChannel.fire(id);
+	pubwic wemoveChannew(id: stwing): void {
+		this.channews.dewete(id);
+		this._onDidWemoveChannew.fiwe(id);
 	}
 }
 
-Registry.add(Extensions.OutputChannels, new OutputChannelRegistry());
+Wegistwy.add(Extensions.OutputChannews, new OutputChannewWegistwy());

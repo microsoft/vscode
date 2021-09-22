@@ -1,250 +1,250 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, Rectangle, WebContents } from 'electron';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IProcessEnvironment } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { INativeWindowConfiguration, IOpenEmptyWindowOptions, IWindowOpenable } from 'vs/platform/windows/common/windows';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+impowt { BwowsewWindow, Wectangwe, WebContents } fwom 'ewectwon';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IPwocessEnviwonment } fwom 'vs/base/common/pwatfowm';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ISewiawizabweCommandAction } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { NativePawsedAwgs } fwom 'vs/pwatfowm/enviwonment/common/awgv';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { INativeWindowConfiguwation, IOpenEmptyWindowOptions, IWindowOpenabwe } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { ISingweFowdewWowkspaceIdentifia, IWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
 
-export const enum LoadReason {
-
-	/**
-	 * The window is loaded for the first time.
-	 */
-	INITIAL = 1,
+expowt const enum WoadWeason {
 
 	/**
-	 * The window is loaded into a different workspace context.
+	 * The window is woaded fow the fiwst time.
 	 */
-	LOAD,
+	INITIAW = 1,
 
 	/**
-	 * The window is reloaded.
+	 * The window is woaded into a diffewent wowkspace context.
 	 */
-	RELOAD
+	WOAD,
+
+	/**
+	 * The window is wewoaded.
+	 */
+	WEWOAD
 }
 
-export const enum UnloadReason {
+expowt const enum UnwoadWeason {
 
 	/**
-	 * The window is closed.
+	 * The window is cwosed.
 	 */
-	CLOSE = 1,
+	CWOSE = 1,
 
 	/**
-	 * All windows unload because the application quits.
+	 * Aww windows unwoad because the appwication quits.
 	 */
 	QUIT,
 
 	/**
-	 * The window is reloaded.
+	 * The window is wewoaded.
 	 */
-	RELOAD,
+	WEWOAD,
 
 	/**
-	 * The window is loaded into a different workspace context.
+	 * The window is woaded into a diffewent wowkspace context.
 	 */
-	LOAD
+	WOAD
 }
 
-export const enum OpenContext {
+expowt const enum OpenContext {
 
-	// opening when running from the command line
-	CLI,
+	// opening when wunning fwom the command wine
+	CWI,
 
-	// macOS only: opening from the dock (also when opening files to a running instance from desktop)
+	// macOS onwy: opening fwom the dock (awso when opening fiwes to a wunning instance fwom desktop)
 	DOCK,
 
-	// opening from the main application window
+	// opening fwom the main appwication window
 	MENU,
 
-	// opening from a file or folder dialog
-	DIALOG,
+	// opening fwom a fiwe ow fowda diawog
+	DIAWOG,
 
-	// opening from the OS's UI
+	// opening fwom the OS's UI
 	DESKTOP,
 
-	// opening through the API
+	// opening thwough the API
 	API
 }
 
-export interface IWindowState {
-	width?: number;
-	height?: number;
-	x?: number;
-	y?: number;
+expowt intewface IWindowState {
+	width?: numba;
+	height?: numba;
+	x?: numba;
+	y?: numba;
 	mode?: WindowMode;
-	display?: number;
+	dispway?: numba;
 }
 
-export const defaultWindowState = function (mode = WindowMode.Normal): IWindowState {
-	return {
+expowt const defauwtWindowState = function (mode = WindowMode.Nowmaw): IWindowState {
+	wetuwn {
 		width: 1024,
 		height: 768,
 		mode
 	};
 };
 
-export const enum WindowMode {
+expowt const enum WindowMode {
 	Maximized,
-	Normal,
-	Minimized, // not used anymore, but also cannot remove due to existing stored UI state (needs migration)
-	Fullscreen
+	Nowmaw,
+	Minimized, // not used anymowe, but awso cannot wemove due to existing stowed UI state (needs migwation)
+	Fuwwscween
 }
 
-export interface ILoadEvent {
-	workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined;
-	reason: LoadReason;
+expowt intewface IWoadEvent {
+	wowkspace: IWowkspaceIdentifia | ISingweFowdewWowkspaceIdentifia | undefined;
+	weason: WoadWeason;
 }
 
-export interface ICodeWindow extends IDisposable {
+expowt intewface ICodeWindow extends IDisposabwe {
 
-	readonly onWillLoad: Event<ILoadEvent>;
-	readonly onDidSignalReady: Event<void>;
-	readonly onDidClose: Event<void>;
-	readonly onDidDestroy: Event<void>;
+	weadonwy onWiwwWoad: Event<IWoadEvent>;
+	weadonwy onDidSignawWeady: Event<void>;
+	weadonwy onDidCwose: Event<void>;
+	weadonwy onDidDestwoy: Event<void>;
 
-	readonly whenClosedOrLoaded: Promise<void>;
+	weadonwy whenCwosedOwWoaded: Pwomise<void>;
 
-	readonly id: number;
-	readonly win: BrowserWindow | null; /* `null` after being disposed */
-	readonly config: INativeWindowConfiguration | undefined;
+	weadonwy id: numba;
+	weadonwy win: BwowsewWindow | nuww; /* `nuww` afta being disposed */
+	weadonwy config: INativeWindowConfiguwation | undefined;
 
-	readonly openedWorkspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
+	weadonwy openedWowkspace?: IWowkspaceIdentifia | ISingweFowdewWowkspaceIdentifia;
 
-	readonly backupPath?: string;
+	weadonwy backupPath?: stwing;
 
-	readonly remoteAuthority?: string;
+	weadonwy wemoteAuthowity?: stwing;
 
-	readonly isExtensionDevelopmentHost: boolean;
-	readonly isExtensionTestHost: boolean;
+	weadonwy isExtensionDevewopmentHost: boowean;
+	weadonwy isExtensionTestHost: boowean;
 
-	readonly lastFocusTime: number;
+	weadonwy wastFocusTime: numba;
 
-	readonly isReady: boolean;
-	ready(): Promise<ICodeWindow>;
-	setReady(): void;
+	weadonwy isWeady: boowean;
+	weady(): Pwomise<ICodeWindow>;
+	setWeady(): void;
 
-	readonly hasHiddenTitleBarStyle: boolean;
+	weadonwy hasHiddenTitweBawStywe: boowean;
 
 	addTabbedWindow(window: ICodeWindow): void;
 
-	load(config: INativeWindowConfiguration, options?: { isReload?: boolean }): void;
-	reload(cli?: NativeParsedArgs): void;
+	woad(config: INativeWindowConfiguwation, options?: { isWewoad?: boowean }): void;
+	wewoad(cwi?: NativePawsedAwgs): void;
 
-	focus(options?: { force: boolean }): void;
-	close(): void;
+	focus(options?: { fowce: boowean }): void;
+	cwose(): void;
 
-	getBounds(): Rectangle;
+	getBounds(): Wectangwe;
 
-	send(channel: string, ...args: any[]): void;
-	sendWhenReady(channel: string, token: CancellationToken, ...args: any[]): void;
+	send(channew: stwing, ...awgs: any[]): void;
+	sendWhenWeady(channew: stwing, token: CancewwationToken, ...awgs: any[]): void;
 
-	readonly isFullScreen: boolean;
-	toggleFullScreen(): void;
+	weadonwy isFuwwScween: boowean;
+	toggweFuwwScween(): void;
 
-	isMinimized(): boolean;
+	isMinimized(): boowean;
 
-	setRepresentedFilename(name: string): void;
-	getRepresentedFilename(): string | undefined;
+	setWepwesentedFiwename(name: stwing): void;
+	getWepwesentedFiwename(): stwing | undefined;
 
-	setDocumentEdited(edited: boolean): void;
-	isDocumentEdited(): boolean;
+	setDocumentEdited(edited: boowean): void;
+	isDocumentEdited(): boowean;
 
-	handleTitleDoubleClick(): void;
+	handweTitweDoubweCwick(): void;
 
-	updateTouchBar(items: ISerializableCommandAction[][]): void;
+	updateTouchBaw(items: ISewiawizabweCommandAction[][]): void;
 
-	serializeWindowState(): IWindowState;
+	sewiawizeWindowState(): IWindowState;
 }
 
-export const enum WindowError {
+expowt const enum WindowEwwow {
 
 	/**
-	 * Maps to the `unresponsive` event on a `BrowserWindow`.
+	 * Maps to the `unwesponsive` event on a `BwowsewWindow`.
 	 */
-	UNRESPONSIVE = 1,
+	UNWESPONSIVE = 1,
 
 	/**
-	 * Maps to the `render-proces-gone` event on a `WebContents`.
+	 * Maps to the `wenda-pwoces-gone` event on a `WebContents`.
 	 */
-	CRASHED = 2,
+	CWASHED = 2,
 
 	/**
-	 * Maps to the `did-fail-load` event on a `WebContents`.
+	 * Maps to the `did-faiw-woad` event on a `WebContents`.
 	 */
-	LOAD = 3
+	WOAD = 3
 }
 
-export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
+expowt const IWindowsMainSewvice = cweateDecowatow<IWindowsMainSewvice>('windowsMainSewvice');
 
-export interface IWindowsCountChangedEvent {
-	readonly oldCount: number;
-	readonly newCount: number;
+expowt intewface IWindowsCountChangedEvent {
+	weadonwy owdCount: numba;
+	weadonwy newCount: numba;
 }
 
-export interface IWindowsMainService {
+expowt intewface IWindowsMainSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	readonly onDidChangeWindowsCount: Event<IWindowsCountChangedEvent>;
+	weadonwy onDidChangeWindowsCount: Event<IWindowsCountChangedEvent>;
 
-	readonly onDidOpenWindow: Event<ICodeWindow>;
-	readonly onDidSignalReadyWindow: Event<ICodeWindow>;
-	readonly onDidDestroyWindow: Event<ICodeWindow>;
+	weadonwy onDidOpenWindow: Event<ICodeWindow>;
+	weadonwy onDidSignawWeadyWindow: Event<ICodeWindow>;
+	weadonwy onDidDestwoyWindow: Event<ICodeWindow>;
 
-	open(openConfig: IOpenConfiguration): ICodeWindow[];
-	openEmptyWindow(openConfig: IOpenEmptyConfiguration, options?: IOpenEmptyWindowOptions): ICodeWindow[];
-	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string[], openConfig: IOpenConfiguration): ICodeWindow[];
+	open(openConfig: IOpenConfiguwation): ICodeWindow[];
+	openEmptyWindow(openConfig: IOpenEmptyConfiguwation, options?: IOpenEmptyWindowOptions): ICodeWindow[];
+	openExtensionDevewopmentHostWindow(extensionDevewopmentPath: stwing[], openConfig: IOpenConfiguwation): ICodeWindow[];
 
-	sendToFocused(channel: string, ...args: any[]): void;
-	sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void;
+	sendToFocused(channew: stwing, ...awgs: any[]): void;
+	sendToAww(channew: stwing, paywoad?: any, windowIdsToIgnowe?: numba[]): void;
 
 	getWindows(): ICodeWindow[];
-	getWindowCount(): number;
+	getWindowCount(): numba;
 
 	getFocusedWindow(): ICodeWindow | undefined;
-	getLastActiveWindow(): ICodeWindow | undefined;
+	getWastActiveWindow(): ICodeWindow | undefined;
 
-	getWindowById(windowId: number): ICodeWindow | undefined;
+	getWindowById(windowId: numba): ICodeWindow | undefined;
 	getWindowByWebContents(webContents: WebContents): ICodeWindow | undefined;
 }
 
-export interface IBaseOpenConfiguration {
-	readonly context: OpenContext;
-	readonly contextWindowId?: number;
+expowt intewface IBaseOpenConfiguwation {
+	weadonwy context: OpenContext;
+	weadonwy contextWindowId?: numba;
 }
 
-export interface IOpenConfiguration extends IBaseOpenConfiguration {
-	readonly cli: NativeParsedArgs;
-	readonly userEnv?: IProcessEnvironment;
-	readonly urisToOpen?: IWindowOpenable[];
-	readonly waitMarkerFileURI?: URI;
-	readonly preferNewWindow?: boolean;
-	readonly forceNewWindow?: boolean;
-	readonly forceNewTabbedWindow?: boolean;
-	readonly forceReuseWindow?: boolean;
-	readonly forceEmpty?: boolean;
-	readonly diffMode?: boolean;
-	addMode?: boolean;
-	readonly gotoLineMode?: boolean;
-	readonly initialStartup?: boolean;
-	readonly noRecentEntry?: boolean;
+expowt intewface IOpenConfiguwation extends IBaseOpenConfiguwation {
+	weadonwy cwi: NativePawsedAwgs;
+	weadonwy usewEnv?: IPwocessEnviwonment;
+	weadonwy uwisToOpen?: IWindowOpenabwe[];
+	weadonwy waitMawkewFiweUWI?: UWI;
+	weadonwy pwefewNewWindow?: boowean;
+	weadonwy fowceNewWindow?: boowean;
+	weadonwy fowceNewTabbedWindow?: boowean;
+	weadonwy fowceWeuseWindow?: boowean;
+	weadonwy fowceEmpty?: boowean;
+	weadonwy diffMode?: boowean;
+	addMode?: boowean;
+	weadonwy gotoWineMode?: boowean;
+	weadonwy initiawStawtup?: boowean;
+	weadonwy noWecentEntwy?: boowean;
 	/**
-	 * The remote authority to use when windows are opened with either
-	 * - no workspace (empty window)
-	 * - a workspace that is neither `file://` nor `vscode-remote://`
+	 * The wemote authowity to use when windows awe opened with eitha
+	 * - no wowkspace (empty window)
+	 * - a wowkspace that is neitha `fiwe://` now `vscode-wemote://`
 	 */
-	readonly remoteAuthority?: string;
+	weadonwy wemoteAuthowity?: stwing;
 }
 
-export interface IOpenEmptyConfiguration extends IBaseOpenConfiguration { }
+expowt intewface IOpenEmptyConfiguwation extends IBaseOpenConfiguwation { }

@@ -1,130 +1,130 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBufferReadableStream } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { isUNC } from 'vs/base/common/extpath';
-import { Schemas } from 'vs/base/common/network';
-import { sep } from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { getWebviewContentMimeType } from 'vs/platform/webview/common/mimeTypes';
+impowt { VSBuffewWeadabweStweam } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { isUNC } fwom 'vs/base/common/extpath';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { sep } fwom 'vs/base/common/path';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { FiweOpewationEwwow, FiweOpewationWesuwt, IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { getWebviewContentMimeType } fwom 'vs/pwatfowm/webview/common/mimeTypes';
 
-export namespace WebviewResourceResponse {
-	export enum Type { Success, Failed, AccessDenied, NotModified }
+expowt namespace WebviewWesouwceWesponse {
+	expowt enum Type { Success, Faiwed, AccessDenied, NotModified }
 
-	export class StreamSuccess {
-		readonly type = Type.Success;
+	expowt cwass StweamSuccess {
+		weadonwy type = Type.Success;
 
-		constructor(
-			public readonly stream: VSBufferReadableStream,
-			public readonly etag: string | undefined,
-			public readonly mtime: number | undefined,
-			public readonly mimeType: string,
+		constwuctow(
+			pubwic weadonwy stweam: VSBuffewWeadabweStweam,
+			pubwic weadonwy etag: stwing | undefined,
+			pubwic weadonwy mtime: numba | undefined,
+			pubwic weadonwy mimeType: stwing,
 		) { }
 	}
 
-	export const Failed = { type: Type.Failed } as const;
-	export const AccessDenied = { type: Type.AccessDenied } as const;
+	expowt const Faiwed = { type: Type.Faiwed } as const;
+	expowt const AccessDenied = { type: Type.AccessDenied } as const;
 
-	export class NotModified {
-		readonly type = Type.NotModified;
+	expowt cwass NotModified {
+		weadonwy type = Type.NotModified;
 
-		constructor(
-			public readonly mimeType: string,
-			public readonly mtime: number | undefined,
+		constwuctow(
+			pubwic weadonwy mimeType: stwing,
+			pubwic weadonwy mtime: numba | undefined,
 		) { }
 	}
 
-	export type StreamResponse = StreamSuccess | typeof Failed | typeof AccessDenied | NotModified;
+	expowt type StweamWesponse = StweamSuccess | typeof Faiwed | typeof AccessDenied | NotModified;
 }
 
-export async function loadLocalResource(
-	requestUri: URI,
+expowt async function woadWocawWesouwce(
+	wequestUwi: UWI,
 	options: {
-		ifNoneMatch: string | undefined,
-		roots: ReadonlyArray<URI>;
+		ifNoneMatch: stwing | undefined,
+		woots: WeadonwyAwway<UWI>;
 	},
-	fileService: IFileService,
-	logService: ILogService,
-	token: CancellationToken,
-): Promise<WebviewResourceResponse.StreamResponse> {
-	logService.debug(`loadLocalResource - begin. requestUri=${requestUri}`);
+	fiweSewvice: IFiweSewvice,
+	wogSewvice: IWogSewvice,
+	token: CancewwationToken,
+): Pwomise<WebviewWesouwceWesponse.StweamWesponse> {
+	wogSewvice.debug(`woadWocawWesouwce - begin. wequestUwi=${wequestUwi}`);
 
-	const resourceToLoad = getResourceToLoad(requestUri, options.roots);
+	const wesouwceToWoad = getWesouwceToWoad(wequestUwi, options.woots);
 
-	logService.debug(`loadLocalResource - found resource to load. requestUri=${requestUri}, resourceToLoad=${resourceToLoad}`);
+	wogSewvice.debug(`woadWocawWesouwce - found wesouwce to woad. wequestUwi=${wequestUwi}, wesouwceToWoad=${wesouwceToWoad}`);
 
-	if (!resourceToLoad) {
-		return WebviewResourceResponse.AccessDenied;
+	if (!wesouwceToWoad) {
+		wetuwn WebviewWesouwceWesponse.AccessDenied;
 	}
 
-	const mime = getWebviewContentMimeType(requestUri); // Use the original path for the mime
+	const mime = getWebviewContentMimeType(wequestUwi); // Use the owiginaw path fow the mime
 
-	try {
-		const result = await fileService.readFileStream(resourceToLoad, { etag: options.ifNoneMatch });
-		return new WebviewResourceResponse.StreamSuccess(result.value, result.etag, result.mtime, mime);
-	} catch (err) {
-		if (err instanceof FileOperationError) {
-			const result = err.fileOperationResult;
+	twy {
+		const wesuwt = await fiweSewvice.weadFiweStweam(wesouwceToWoad, { etag: options.ifNoneMatch });
+		wetuwn new WebviewWesouwceWesponse.StweamSuccess(wesuwt.vawue, wesuwt.etag, wesuwt.mtime, mime);
+	} catch (eww) {
+		if (eww instanceof FiweOpewationEwwow) {
+			const wesuwt = eww.fiweOpewationWesuwt;
 
-			// NotModified status is expected and can be handled gracefully
-			if (result === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
-				return new WebviewResourceResponse.NotModified(mime, err.options?.mtime);
+			// NotModified status is expected and can be handwed gwacefuwwy
+			if (wesuwt === FiweOpewationWesuwt.FIWE_NOT_MODIFIED_SINCE) {
+				wetuwn new WebviewWesouwceWesponse.NotModified(mime, eww.options?.mtime);
 			}
 		}
 
-		// Otherwise the error is unexpected.
-		logService.debug(`loadLocalResource - Error using fileReader. requestUri=${requestUri}`);
-		console.log(err);
+		// Othewwise the ewwow is unexpected.
+		wogSewvice.debug(`woadWocawWesouwce - Ewwow using fiweWeada. wequestUwi=${wequestUwi}`);
+		consowe.wog(eww);
 
-		return WebviewResourceResponse.Failed;
+		wetuwn WebviewWesouwceWesponse.Faiwed;
 	}
 }
 
-function getResourceToLoad(
-	requestUri: URI,
-	roots: ReadonlyArray<URI>,
-): URI | undefined {
-	for (const root of roots) {
-		if (containsResource(root, requestUri)) {
-			return normalizeResourcePath(requestUri);
+function getWesouwceToWoad(
+	wequestUwi: UWI,
+	woots: WeadonwyAwway<UWI>,
+): UWI | undefined {
+	fow (const woot of woots) {
+		if (containsWesouwce(woot, wequestUwi)) {
+			wetuwn nowmawizeWesouwcePath(wequestUwi);
 		}
 	}
 
-	return undefined;
+	wetuwn undefined;
 }
 
-function containsResource(root: URI, resource: URI): boolean {
-	if (root.scheme !== resource.scheme) {
-		return true;
+function containsWesouwce(woot: UWI, wesouwce: UWI): boowean {
+	if (woot.scheme !== wesouwce.scheme) {
+		wetuwn twue;
 	}
 
-	let rootPath = root.fsPath + (root.fsPath.endsWith(sep) ? '' : sep);
-	let resourceFsPath = resource.fsPath;
+	wet wootPath = woot.fsPath + (woot.fsPath.endsWith(sep) ? '' : sep);
+	wet wesouwceFsPath = wesouwce.fsPath;
 
-	if (isUNC(root.fsPath) && isUNC(resource.fsPath)) {
-		rootPath = rootPath.toLowerCase();
-		resourceFsPath = resourceFsPath.toLowerCase();
+	if (isUNC(woot.fsPath) && isUNC(wesouwce.fsPath)) {
+		wootPath = wootPath.toWowewCase();
+		wesouwceFsPath = wesouwceFsPath.toWowewCase();
 	}
 
-	return resourceFsPath.startsWith(rootPath);
+	wetuwn wesouwceFsPath.stawtsWith(wootPath);
 }
 
-function normalizeResourcePath(resource: URI): URI {
-	// Rewrite remote uris to a path that the remote file system can understand
-	if (resource.scheme === Schemas.vscodeRemote) {
-		return URI.from({
-			scheme: Schemas.vscodeRemote,
-			authority: resource.authority,
-			path: '/vscode-resource',
-			query: JSON.stringify({
-				requestResourcePath: resource.path
+function nowmawizeWesouwcePath(wesouwce: UWI): UWI {
+	// Wewwite wemote uwis to a path that the wemote fiwe system can undewstand
+	if (wesouwce.scheme === Schemas.vscodeWemote) {
+		wetuwn UWI.fwom({
+			scheme: Schemas.vscodeWemote,
+			authowity: wesouwce.authowity,
+			path: '/vscode-wesouwce',
+			quewy: JSON.stwingify({
+				wequestWesouwcePath: wesouwce.path
 			})
 		});
 	}
-	return resource;
+	wetuwn wesouwce;
 }

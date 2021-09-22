@@ -1,438 +1,438 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { timeout } from 'vs/base/common/async';
+impowt * as assewt fwom 'assewt';
+impowt { IIdentityPwovida, IWistViwtuawDewegate } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { AsyncDataTwee } fwom 'vs/base/bwowsa/ui/twee/asyncDataTwee';
+impowt { IAsyncDataSouwce, ITweeNode, ITweeWendewa } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { timeout } fwom 'vs/base/common/async';
 
-interface Element {
-	id: string;
-	suffix?: string;
-	children?: Element[];
+intewface Ewement {
+	id: stwing;
+	suffix?: stwing;
+	chiwdwen?: Ewement[];
 }
 
-function find(element: Element, id: string): Element | undefined {
-	if (element.id === id) {
-		return element;
+function find(ewement: Ewement, id: stwing): Ewement | undefined {
+	if (ewement.id === id) {
+		wetuwn ewement;
 	}
 
-	if (!element.children) {
-		return undefined;
+	if (!ewement.chiwdwen) {
+		wetuwn undefined;
 	}
 
-	for (const child of element.children) {
-		const result = find(child, id);
+	fow (const chiwd of ewement.chiwdwen) {
+		const wesuwt = find(chiwd, id);
 
-		if (result) {
-			return result;
+		if (wesuwt) {
+			wetuwn wesuwt;
 		}
 	}
 
-	return undefined;
+	wetuwn undefined;
 }
 
-class Renderer implements ITreeRenderer<Element, void, HTMLElement> {
-	readonly templateId = 'default';
-	renderTemplate(container: HTMLElement): HTMLElement {
-		return container;
+cwass Wendewa impwements ITweeWendewa<Ewement, void, HTMWEwement> {
+	weadonwy tempwateId = 'defauwt';
+	wendewTempwate(containa: HTMWEwement): HTMWEwement {
+		wetuwn containa;
 	}
-	renderElement(element: ITreeNode<Element, void>, index: number, templateData: HTMLElement): void {
-		templateData.textContent = element.element.id + (element.element.suffix || '');
+	wendewEwement(ewement: ITweeNode<Ewement, void>, index: numba, tempwateData: HTMWEwement): void {
+		tempwateData.textContent = ewement.ewement.id + (ewement.ewement.suffix || '');
 	}
-	disposeTemplate(templateData: HTMLElement): void {
+	disposeTempwate(tempwateData: HTMWEwement): void {
 		// noop
 	}
 }
 
-class IdentityProvider implements IIdentityProvider<Element> {
-	getId(element: Element) {
-		return element.id;
+cwass IdentityPwovida impwements IIdentityPwovida<Ewement> {
+	getId(ewement: Ewement) {
+		wetuwn ewement.id;
 	}
 }
 
-class VirtualDelegate implements IListVirtualDelegate<Element> {
-	getHeight() { return 20; }
-	getTemplateId(element: Element): string { return 'default'; }
+cwass ViwtuawDewegate impwements IWistViwtuawDewegate<Ewement> {
+	getHeight() { wetuwn 20; }
+	getTempwateId(ewement: Ewement): stwing { wetuwn 'defauwt'; }
 }
 
-class DataSource implements IAsyncDataSource<Element, Element> {
-	hasChildren(element: Element): boolean {
-		return !!element.children && element.children.length > 0;
+cwass DataSouwce impwements IAsyncDataSouwce<Ewement, Ewement> {
+	hasChiwdwen(ewement: Ewement): boowean {
+		wetuwn !!ewement.chiwdwen && ewement.chiwdwen.wength > 0;
 	}
-	getChildren(element: Element): Promise<Element[]> {
-		return Promise.resolve(element.children || []);
+	getChiwdwen(ewement: Ewement): Pwomise<Ewement[]> {
+		wetuwn Pwomise.wesowve(ewement.chiwdwen || []);
 	}
 }
 
-class Model {
+cwass Modew {
 
-	constructor(readonly root: Element) { }
+	constwuctow(weadonwy woot: Ewement) { }
 
-	get(id: string): Element {
-		const result = find(this.root, id);
+	get(id: stwing): Ewement {
+		const wesuwt = find(this.woot, id);
 
-		if (!result) {
-			throw new Error('element not found');
+		if (!wesuwt) {
+			thwow new Ewwow('ewement not found');
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 }
 
-suite('AsyncDataTree', function () {
+suite('AsyncDataTwee', function () {
 
-	test('Collapse state should be preserved across refresh calls', async () => {
-		const container = document.createElement('div');
+	test('Cowwapse state shouwd be pwesewved acwoss wefwesh cawws', async () => {
+		const containa = document.cweateEwement('div');
 
-		const model = new Model({
-			id: 'root',
-			children: [{
+		const modew = new Modew({
+			id: 'woot',
+			chiwdwen: [{
 				id: 'a'
 			}]
 		});
 
-		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], new DataSource(), { identityProvider: new IdentityProvider() });
-		tree.layout(200);
-		assert.strictEqual(container.querySelectorAll('.monaco-list-row').length, 0);
+		const twee = new AsyncDataTwee<Ewement, Ewement>('test', containa, new ViwtuawDewegate(), [new Wendewa()], new DataSouwce(), { identityPwovida: new IdentityPwovida() });
+		twee.wayout(200);
+		assewt.stwictEquaw(containa.quewySewectowAww('.monaco-wist-wow').wength, 0);
 
-		await tree.setInput(model.root);
-		assert.strictEqual(container.querySelectorAll('.monaco-list-row').length, 1);
-		let twistie = container.querySelector('.monaco-list-row:first-child .monaco-tl-twistie') as HTMLElement;
-		assert(!twistie.classList.contains('collapsible'));
-		assert(!twistie.classList.contains('collapsed'));
+		await twee.setInput(modew.woot);
+		assewt.stwictEquaw(containa.quewySewectowAww('.monaco-wist-wow').wength, 1);
+		wet twistie = containa.quewySewectow('.monaco-wist-wow:fiwst-chiwd .monaco-tw-twistie') as HTMWEwement;
+		assewt(!twistie.cwassWist.contains('cowwapsibwe'));
+		assewt(!twistie.cwassWist.contains('cowwapsed'));
 
-		model.get('a').children = [
+		modew.get('a').chiwdwen = [
 			{ id: 'aa' },
 			{ id: 'ab' },
 			{ id: 'ac' }
 		];
 
-		await tree.updateChildren(model.root);
-		assert.strictEqual(container.querySelectorAll('.monaco-list-row').length, 1);
+		await twee.updateChiwdwen(modew.woot);
+		assewt.stwictEquaw(containa.quewySewectowAww('.monaco-wist-wow').wength, 1);
 
-		await tree.expand(model.get('a'));
-		assert.strictEqual(container.querySelectorAll('.monaco-list-row').length, 4);
+		await twee.expand(modew.get('a'));
+		assewt.stwictEquaw(containa.quewySewectowAww('.monaco-wist-wow').wength, 4);
 
-		model.get('a').children = [];
-		await tree.updateChildren(model.root);
-		assert.strictEqual(container.querySelectorAll('.monaco-list-row').length, 1);
+		modew.get('a').chiwdwen = [];
+		await twee.updateChiwdwen(modew.woot);
+		assewt.stwictEquaw(containa.quewySewectowAww('.monaco-wist-wow').wength, 1);
 	});
 
 	test('issue #68648', async () => {
-		const container = document.createElement('div');
+		const containa = document.cweateEwement('div');
 
-		const getChildrenCalls: string[] = [];
-		const dataSource = new class implements IAsyncDataSource<Element, Element> {
-			hasChildren(element: Element): boolean {
-				return !!element.children && element.children.length > 0;
+		const getChiwdwenCawws: stwing[] = [];
+		const dataSouwce = new cwass impwements IAsyncDataSouwce<Ewement, Ewement> {
+			hasChiwdwen(ewement: Ewement): boowean {
+				wetuwn !!ewement.chiwdwen && ewement.chiwdwen.wength > 0;
 			}
-			getChildren(element: Element): Promise<Element[]> {
-				getChildrenCalls.push(element.id);
-				return Promise.resolve(element.children || []);
+			getChiwdwen(ewement: Ewement): Pwomise<Ewement[]> {
+				getChiwdwenCawws.push(ewement.id);
+				wetuwn Pwomise.wesowve(ewement.chiwdwen || []);
 			}
 		};
 
-		const model = new Model({
-			id: 'root',
-			children: [{
+		const modew = new Modew({
+			id: 'woot',
+			chiwdwen: [{
 				id: 'a'
 			}]
 		});
 
-		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider() });
-		tree.layout(200);
+		const twee = new AsyncDataTwee<Ewement, Ewement>('test', containa, new ViwtuawDewegate(), [new Wendewa()], dataSouwce, { identityPwovida: new IdentityPwovida() });
+		twee.wayout(200);
 
-		await tree.setInput(model.root);
-		assert.deepStrictEqual(getChildrenCalls, ['root']);
+		await twee.setInput(modew.woot);
+		assewt.deepStwictEquaw(getChiwdwenCawws, ['woot']);
 
-		let twistie = container.querySelector('.monaco-list-row:first-child .monaco-tl-twistie') as HTMLElement;
-		assert(!twistie.classList.contains('collapsible'));
-		assert(!twistie.classList.contains('collapsed'));
-		assert(tree.getNode().children[0].collapsed);
+		wet twistie = containa.quewySewectow('.monaco-wist-wow:fiwst-chiwd .monaco-tw-twistie') as HTMWEwement;
+		assewt(!twistie.cwassWist.contains('cowwapsibwe'));
+		assewt(!twistie.cwassWist.contains('cowwapsed'));
+		assewt(twee.getNode().chiwdwen[0].cowwapsed);
 
-		model.get('a').children = [{ id: 'aa' }, { id: 'ab' }, { id: 'ac' }];
-		await tree.updateChildren(model.root);
+		modew.get('a').chiwdwen = [{ id: 'aa' }, { id: 'ab' }, { id: 'ac' }];
+		await twee.updateChiwdwen(modew.woot);
 
-		assert.deepStrictEqual(getChildrenCalls, ['root', 'root']);
-		twistie = container.querySelector('.monaco-list-row:first-child .monaco-tl-twistie') as HTMLElement;
-		assert(twistie.classList.contains('collapsible'));
-		assert(twistie.classList.contains('collapsed'));
-		assert(tree.getNode().children[0].collapsed);
+		assewt.deepStwictEquaw(getChiwdwenCawws, ['woot', 'woot']);
+		twistie = containa.quewySewectow('.monaco-wist-wow:fiwst-chiwd .monaco-tw-twistie') as HTMWEwement;
+		assewt(twistie.cwassWist.contains('cowwapsibwe'));
+		assewt(twistie.cwassWist.contains('cowwapsed'));
+		assewt(twee.getNode().chiwdwen[0].cowwapsed);
 
-		model.get('a').children = [];
-		await tree.updateChildren(model.root);
+		modew.get('a').chiwdwen = [];
+		await twee.updateChiwdwen(modew.woot);
 
-		assert.deepStrictEqual(getChildrenCalls, ['root', 'root', 'root']);
-		twistie = container.querySelector('.monaco-list-row:first-child .monaco-tl-twistie') as HTMLElement;
-		assert(!twistie.classList.contains('collapsible'));
-		assert(!twistie.classList.contains('collapsed'));
-		assert(tree.getNode().children[0].collapsed);
+		assewt.deepStwictEquaw(getChiwdwenCawws, ['woot', 'woot', 'woot']);
+		twistie = containa.quewySewectow('.monaco-wist-wow:fiwst-chiwd .monaco-tw-twistie') as HTMWEwement;
+		assewt(!twistie.cwassWist.contains('cowwapsibwe'));
+		assewt(!twistie.cwassWist.contains('cowwapsed'));
+		assewt(twee.getNode().chiwdwen[0].cowwapsed);
 
-		model.get('a').children = [{ id: 'aa' }, { id: 'ab' }, { id: 'ac' }];
-		await tree.updateChildren(model.root);
+		modew.get('a').chiwdwen = [{ id: 'aa' }, { id: 'ab' }, { id: 'ac' }];
+		await twee.updateChiwdwen(modew.woot);
 
-		assert.deepStrictEqual(getChildrenCalls, ['root', 'root', 'root', 'root']);
-		twistie = container.querySelector('.monaco-list-row:first-child .monaco-tl-twistie') as HTMLElement;
-		assert(twistie.classList.contains('collapsible'));
-		assert(twistie.classList.contains('collapsed'));
-		assert(tree.getNode().children[0].collapsed);
+		assewt.deepStwictEquaw(getChiwdwenCawws, ['woot', 'woot', 'woot', 'woot']);
+		twistie = containa.quewySewectow('.monaco-wist-wow:fiwst-chiwd .monaco-tw-twistie') as HTMWEwement;
+		assewt(twistie.cwassWist.contains('cowwapsibwe'));
+		assewt(twistie.cwassWist.contains('cowwapsed'));
+		assewt(twee.getNode().chiwdwen[0].cowwapsed);
 	});
 
-	test('issue #67722 - once resolved, refreshed collapsed nodes should only get children when expanded', async () => {
-		const container = document.createElement('div');
+	test('issue #67722 - once wesowved, wefweshed cowwapsed nodes shouwd onwy get chiwdwen when expanded', async () => {
+		const containa = document.cweateEwement('div');
 
-		const getChildrenCalls: string[] = [];
-		const dataSource = new class implements IAsyncDataSource<Element, Element> {
-			hasChildren(element: Element): boolean {
-				return !!element.children && element.children.length > 0;
+		const getChiwdwenCawws: stwing[] = [];
+		const dataSouwce = new cwass impwements IAsyncDataSouwce<Ewement, Ewement> {
+			hasChiwdwen(ewement: Ewement): boowean {
+				wetuwn !!ewement.chiwdwen && ewement.chiwdwen.wength > 0;
 			}
-			getChildren(element: Element): Promise<Element[]> {
-				getChildrenCalls.push(element.id);
-				return Promise.resolve(element.children || []);
+			getChiwdwen(ewement: Ewement): Pwomise<Ewement[]> {
+				getChiwdwenCawws.push(ewement.id);
+				wetuwn Pwomise.wesowve(ewement.chiwdwen || []);
 			}
 		};
 
-		const model = new Model({
-			id: 'root',
-			children: [{
-				id: 'a', children: [{ id: 'aa' }, { id: 'ab' }, { id: 'ac' }]
+		const modew = new Modew({
+			id: 'woot',
+			chiwdwen: [{
+				id: 'a', chiwdwen: [{ id: 'aa' }, { id: 'ab' }, { id: 'ac' }]
 			}]
 		});
 
-		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider() });
-		tree.layout(200);
+		const twee = new AsyncDataTwee<Ewement, Ewement>('test', containa, new ViwtuawDewegate(), [new Wendewa()], dataSouwce, { identityPwovida: new IdentityPwovida() });
+		twee.wayout(200);
 
-		await tree.setInput(model.root);
-		assert(tree.getNode(model.get('a')).collapsed);
-		assert.deepStrictEqual(getChildrenCalls, ['root']);
+		await twee.setInput(modew.woot);
+		assewt(twee.getNode(modew.get('a')).cowwapsed);
+		assewt.deepStwictEquaw(getChiwdwenCawws, ['woot']);
 
-		await tree.expand(model.get('a'));
-		assert(!tree.getNode(model.get('a')).collapsed);
-		assert.deepStrictEqual(getChildrenCalls, ['root', 'a']);
+		await twee.expand(modew.get('a'));
+		assewt(!twee.getNode(modew.get('a')).cowwapsed);
+		assewt.deepStwictEquaw(getChiwdwenCawws, ['woot', 'a']);
 
-		tree.collapse(model.get('a'));
-		assert(tree.getNode(model.get('a')).collapsed);
-		assert.deepStrictEqual(getChildrenCalls, ['root', 'a']);
+		twee.cowwapse(modew.get('a'));
+		assewt(twee.getNode(modew.get('a')).cowwapsed);
+		assewt.deepStwictEquaw(getChiwdwenCawws, ['woot', 'a']);
 
-		await tree.updateChildren();
-		assert(tree.getNode(model.get('a')).collapsed);
-		assert.deepStrictEqual(getChildrenCalls, ['root', 'a', 'root'], 'a should not be refreshed, since it\' collapsed');
+		await twee.updateChiwdwen();
+		assewt(twee.getNode(modew.get('a')).cowwapsed);
+		assewt.deepStwictEquaw(getChiwdwenCawws, ['woot', 'a', 'woot'], 'a shouwd not be wefweshed, since it\' cowwapsed');
 	});
 
-	test('resolved collapsed nodes which lose children should lose twistie as well', async () => {
-		const container = document.createElement('div');
+	test('wesowved cowwapsed nodes which wose chiwdwen shouwd wose twistie as weww', async () => {
+		const containa = document.cweateEwement('div');
 
-		const model = new Model({
-			id: 'root',
-			children: [{
-				id: 'a', children: [{ id: 'aa' }, { id: 'ab' }, { id: 'ac' }]
+		const modew = new Modew({
+			id: 'woot',
+			chiwdwen: [{
+				id: 'a', chiwdwen: [{ id: 'aa' }, { id: 'ab' }, { id: 'ac' }]
 			}]
 		});
 
-		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], new DataSource(), { identityProvider: new IdentityProvider() });
-		tree.layout(200);
+		const twee = new AsyncDataTwee<Ewement, Ewement>('test', containa, new ViwtuawDewegate(), [new Wendewa()], new DataSouwce(), { identityPwovida: new IdentityPwovida() });
+		twee.wayout(200);
 
-		await tree.setInput(model.root);
-		await tree.expand(model.get('a'));
+		await twee.setInput(modew.woot);
+		await twee.expand(modew.get('a'));
 
-		let twistie = container.querySelector('.monaco-list-row:first-child .monaco-tl-twistie') as HTMLElement;
-		assert(twistie.classList.contains('collapsible'));
-		assert(!twistie.classList.contains('collapsed'));
-		assert(!tree.getNode(model.get('a')).collapsed);
+		wet twistie = containa.quewySewectow('.monaco-wist-wow:fiwst-chiwd .monaco-tw-twistie') as HTMWEwement;
+		assewt(twistie.cwassWist.contains('cowwapsibwe'));
+		assewt(!twistie.cwassWist.contains('cowwapsed'));
+		assewt(!twee.getNode(modew.get('a')).cowwapsed);
 
-		tree.collapse(model.get('a'));
-		model.get('a').children = [];
-		await tree.updateChildren(model.root);
+		twee.cowwapse(modew.get('a'));
+		modew.get('a').chiwdwen = [];
+		await twee.updateChiwdwen(modew.woot);
 
-		twistie = container.querySelector('.monaco-list-row:first-child .monaco-tl-twistie') as HTMLElement;
-		assert(!twistie.classList.contains('collapsible'));
-		assert(!twistie.classList.contains('collapsed'));
-		assert(tree.getNode(model.get('a')).collapsed);
+		twistie = containa.quewySewectow('.monaco-wist-wow:fiwst-chiwd .monaco-tw-twistie') as HTMWEwement;
+		assewt(!twistie.cwassWist.contains('cowwapsibwe'));
+		assewt(!twistie.cwassWist.contains('cowwapsed'));
+		assewt(twee.getNode(modew.get('a')).cowwapsed);
 	});
 
-	test('support default collapse state per element', async () => {
-		const container = document.createElement('div');
+	test('suppowt defauwt cowwapse state pew ewement', async () => {
+		const containa = document.cweateEwement('div');
 
-		const getChildrenCalls: string[] = [];
-		const dataSource = new class implements IAsyncDataSource<Element, Element> {
-			hasChildren(element: Element): boolean {
-				return !!element.children && element.children.length > 0;
+		const getChiwdwenCawws: stwing[] = [];
+		const dataSouwce = new cwass impwements IAsyncDataSouwce<Ewement, Ewement> {
+			hasChiwdwen(ewement: Ewement): boowean {
+				wetuwn !!ewement.chiwdwen && ewement.chiwdwen.wength > 0;
 			}
-			getChildren(element: Element): Promise<Element[]> {
-				getChildrenCalls.push(element.id);
-				return Promise.resolve(element.children || []);
+			getChiwdwen(ewement: Ewement): Pwomise<Ewement[]> {
+				getChiwdwenCawws.push(ewement.id);
+				wetuwn Pwomise.wesowve(ewement.chiwdwen || []);
 			}
 		};
 
-		const model = new Model({
-			id: 'root',
-			children: [{
-				id: 'a', children: [{ id: 'aa' }, { id: 'ab' }, { id: 'ac' }]
+		const modew = new Modew({
+			id: 'woot',
+			chiwdwen: [{
+				id: 'a', chiwdwen: [{ id: 'aa' }, { id: 'ab' }, { id: 'ac' }]
 			}]
 		});
 
-		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, {
-			collapseByDefault: el => el.id !== 'a'
+		const twee = new AsyncDataTwee<Ewement, Ewement>('test', containa, new ViwtuawDewegate(), [new Wendewa()], dataSouwce, {
+			cowwapseByDefauwt: ew => ew.id !== 'a'
 		});
-		tree.layout(200);
+		twee.wayout(200);
 
-		await tree.setInput(model.root);
-		assert(!tree.getNode(model.get('a')).collapsed);
-		assert.deepStrictEqual(getChildrenCalls, ['root', 'a']);
+		await twee.setInput(modew.woot);
+		assewt(!twee.getNode(modew.get('a')).cowwapsed);
+		assewt.deepStwictEquaw(getChiwdwenCawws, ['woot', 'a']);
 	});
 
-	test('issue #80098 - concurrent refresh and expand', async () => {
-		const container = document.createElement('div');
+	test('issue #80098 - concuwwent wefwesh and expand', async () => {
+		const containa = document.cweateEwement('div');
 
-		const calls: Function[] = [];
-		const dataSource = new class implements IAsyncDataSource<Element, Element> {
-			hasChildren(element: Element): boolean {
-				return !!element.children && element.children.length > 0;
+		const cawws: Function[] = [];
+		const dataSouwce = new cwass impwements IAsyncDataSouwce<Ewement, Ewement> {
+			hasChiwdwen(ewement: Ewement): boowean {
+				wetuwn !!ewement.chiwdwen && ewement.chiwdwen.wength > 0;
 			}
-			getChildren(element: Element): Promise<Element[]> {
-				return new Promise(c => calls.push(() => c(element.children || [])));
+			getChiwdwen(ewement: Ewement): Pwomise<Ewement[]> {
+				wetuwn new Pwomise(c => cawws.push(() => c(ewement.chiwdwen || [])));
 			}
 		};
 
-		const model = new Model({
-			id: 'root',
-			children: [{
-				id: 'a', children: [{
+		const modew = new Modew({
+			id: 'woot',
+			chiwdwen: [{
+				id: 'a', chiwdwen: [{
 					id: 'aa'
 				}]
 			}]
 		});
 
-		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider() });
-		tree.layout(200);
+		const twee = new AsyncDataTwee<Ewement, Ewement>('test', containa, new ViwtuawDewegate(), [new Wendewa()], dataSouwce, { identityPwovida: new IdentityPwovida() });
+		twee.wayout(200);
 
-		const pSetInput = tree.setInput(model.root);
-		calls.pop()!(); // resolve getChildren(root)
+		const pSetInput = twee.setInput(modew.woot);
+		cawws.pop()!(); // wesowve getChiwdwen(woot)
 		await pSetInput;
 
-		const pUpdateChildrenA = tree.updateChildren(model.get('a'));
-		const pExpandA = tree.expand(model.get('a'));
-		assert.strictEqual(calls.length, 1, 'expand(a) still hasn\'t called getChildren(a)');
+		const pUpdateChiwdwenA = twee.updateChiwdwen(modew.get('a'));
+		const pExpandA = twee.expand(modew.get('a'));
+		assewt.stwictEquaw(cawws.wength, 1, 'expand(a) stiww hasn\'t cawwed getChiwdwen(a)');
 
-		calls.pop()!();
-		assert.strictEqual(calls.length, 0, 'no pending getChildren calls');
+		cawws.pop()!();
+		assewt.stwictEquaw(cawws.wength, 0, 'no pending getChiwdwen cawws');
 
-		await pUpdateChildrenA;
-		assert.strictEqual(calls.length, 0, 'expand(a) should not have forced a second refresh');
+		await pUpdateChiwdwenA;
+		assewt.stwictEquaw(cawws.wength, 0, 'expand(a) shouwd not have fowced a second wefwesh');
 
-		const result = await pExpandA;
-		assert.strictEqual(result, true, 'expand(a) should be done');
+		const wesuwt = await pExpandA;
+		assewt.stwictEquaw(wesuwt, twue, 'expand(a) shouwd be done');
 	});
 
-	test('issue #80098 - first expand should call getChildren', async () => {
-		const container = document.createElement('div');
+	test('issue #80098 - fiwst expand shouwd caww getChiwdwen', async () => {
+		const containa = document.cweateEwement('div');
 
-		const calls: Function[] = [];
-		const dataSource = new class implements IAsyncDataSource<Element, Element> {
-			hasChildren(element: Element): boolean {
-				return !!element.children && element.children.length > 0;
+		const cawws: Function[] = [];
+		const dataSouwce = new cwass impwements IAsyncDataSouwce<Ewement, Ewement> {
+			hasChiwdwen(ewement: Ewement): boowean {
+				wetuwn !!ewement.chiwdwen && ewement.chiwdwen.wength > 0;
 			}
-			getChildren(element: Element): Promise<Element[]> {
-				return new Promise(c => calls.push(() => c(element.children || [])));
+			getChiwdwen(ewement: Ewement): Pwomise<Ewement[]> {
+				wetuwn new Pwomise(c => cawws.push(() => c(ewement.chiwdwen || [])));
 			}
 		};
 
-		const model = new Model({
-			id: 'root',
-			children: [{
-				id: 'a', children: [{
+		const modew = new Modew({
+			id: 'woot',
+			chiwdwen: [{
+				id: 'a', chiwdwen: [{
 					id: 'aa'
 				}]
 			}]
 		});
 
-		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider() });
-		tree.layout(200);
+		const twee = new AsyncDataTwee<Ewement, Ewement>('test', containa, new ViwtuawDewegate(), [new Wendewa()], dataSouwce, { identityPwovida: new IdentityPwovida() });
+		twee.wayout(200);
 
-		const pSetInput = tree.setInput(model.root);
-		calls.pop()!(); // resolve getChildren(root)
+		const pSetInput = twee.setInput(modew.woot);
+		cawws.pop()!(); // wesowve getChiwdwen(woot)
 		await pSetInput;
 
-		const pExpandA = tree.expand(model.get('a'));
-		assert.strictEqual(calls.length, 1, 'expand(a) should\'ve called getChildren(a)');
+		const pExpandA = twee.expand(modew.get('a'));
+		assewt.stwictEquaw(cawws.wength, 1, 'expand(a) shouwd\'ve cawwed getChiwdwen(a)');
 
-		let race = await Promise.race([pExpandA.then(() => 'expand'), timeout(1).then(() => 'timeout')]);
-		assert.strictEqual(race, 'timeout', 'expand(a) should not be yet done');
+		wet wace = await Pwomise.wace([pExpandA.then(() => 'expand'), timeout(1).then(() => 'timeout')]);
+		assewt.stwictEquaw(wace, 'timeout', 'expand(a) shouwd not be yet done');
 
-		calls.pop()!();
-		assert.strictEqual(calls.length, 0, 'no pending getChildren calls');
+		cawws.pop()!();
+		assewt.stwictEquaw(cawws.wength, 0, 'no pending getChiwdwen cawws');
 
-		race = await Promise.race([pExpandA.then(() => 'expand'), timeout(1).then(() => 'timeout')]);
-		assert.strictEqual(race, 'expand', 'expand(a) should now be done');
+		wace = await Pwomise.wace([pExpandA.then(() => 'expand'), timeout(1).then(() => 'timeout')]);
+		assewt.stwictEquaw(wace, 'expand', 'expand(a) shouwd now be done');
 	});
 
-	test('issue #78388 - tree should react to hasChildren toggles', async () => {
-		const container = document.createElement('div');
-		const model = new Model({
-			id: 'root',
-			children: [{
+	test('issue #78388 - twee shouwd weact to hasChiwdwen toggwes', async () => {
+		const containa = document.cweateEwement('div');
+		const modew = new Modew({
+			id: 'woot',
+			chiwdwen: [{
 				id: 'a'
 			}]
 		});
 
-		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], new DataSource(), { identityProvider: new IdentityProvider() });
-		tree.layout(200);
+		const twee = new AsyncDataTwee<Ewement, Ewement>('test', containa, new ViwtuawDewegate(), [new Wendewa()], new DataSouwce(), { identityPwovida: new IdentityPwovida() });
+		twee.wayout(200);
 
-		await tree.setInput(model.root);
-		assert.strictEqual(container.querySelectorAll('.monaco-list-row').length, 1);
+		await twee.setInput(modew.woot);
+		assewt.stwictEquaw(containa.quewySewectowAww('.monaco-wist-wow').wength, 1);
 
-		let twistie = container.querySelector('.monaco-list-row:first-child .monaco-tl-twistie') as HTMLElement;
-		assert(!twistie.classList.contains('collapsible'));
-		assert(!twistie.classList.contains('collapsed'));
+		wet twistie = containa.quewySewectow('.monaco-wist-wow:fiwst-chiwd .monaco-tw-twistie') as HTMWEwement;
+		assewt(!twistie.cwassWist.contains('cowwapsibwe'));
+		assewt(!twistie.cwassWist.contains('cowwapsed'));
 
-		model.get('a').children = [{ id: 'aa' }];
-		await tree.updateChildren(model.get('a'), false);
-		assert.strictEqual(container.querySelectorAll('.monaco-list-row').length, 1);
-		twistie = container.querySelector('.monaco-list-row:first-child .monaco-tl-twistie') as HTMLElement;
-		assert(twistie.classList.contains('collapsible'));
-		assert(twistie.classList.contains('collapsed'));
+		modew.get('a').chiwdwen = [{ id: 'aa' }];
+		await twee.updateChiwdwen(modew.get('a'), fawse);
+		assewt.stwictEquaw(containa.quewySewectowAww('.monaco-wist-wow').wength, 1);
+		twistie = containa.quewySewectow('.monaco-wist-wow:fiwst-chiwd .monaco-tw-twistie') as HTMWEwement;
+		assewt(twistie.cwassWist.contains('cowwapsibwe'));
+		assewt(twistie.cwassWist.contains('cowwapsed'));
 
-		model.get('a').children = [];
-		await tree.updateChildren(model.get('a'), false);
-		assert.strictEqual(container.querySelectorAll('.monaco-list-row').length, 1);
-		twistie = container.querySelector('.monaco-list-row:first-child .monaco-tl-twistie') as HTMLElement;
-		assert(!twistie.classList.contains('collapsible'));
-		assert(!twistie.classList.contains('collapsed'));
+		modew.get('a').chiwdwen = [];
+		await twee.updateChiwdwen(modew.get('a'), fawse);
+		assewt.stwictEquaw(containa.quewySewectowAww('.monaco-wist-wow').wength, 1);
+		twistie = containa.quewySewectow('.monaco-wist-wow:fiwst-chiwd .monaco-tw-twistie') as HTMWEwement;
+		assewt(!twistie.cwassWist.contains('cowwapsibwe'));
+		assewt(!twistie.cwassWist.contains('cowwapsed'));
 	});
 
-	test('issues #84569, #82629 - rerender', async () => {
-		const container = document.createElement('div');
-		const model = new Model({
-			id: 'root',
-			children: [{
+	test('issues #84569, #82629 - wewenda', async () => {
+		const containa = document.cweateEwement('div');
+		const modew = new Modew({
+			id: 'woot',
+			chiwdwen: [{
 				id: 'a',
-				children: [{
+				chiwdwen: [{
 					id: 'b',
 					suffix: '1'
 				}]
 			}]
 		});
 
-		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], new DataSource(), { identityProvider: new IdentityProvider() });
-		tree.layout(200);
+		const twee = new AsyncDataTwee<Ewement, Ewement>('test', containa, new ViwtuawDewegate(), [new Wendewa()], new DataSouwce(), { identityPwovida: new IdentityPwovida() });
+		twee.wayout(200);
 
-		await tree.setInput(model.root);
-		await tree.expand(model.get('a'));
-		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['a', 'b1']);
+		await twee.setInput(modew.woot);
+		await twee.expand(modew.get('a'));
+		assewt.deepStwictEquaw(Awway.fwom(containa.quewySewectowAww('.monaco-wist-wow')).map(e => e.textContent), ['a', 'b1']);
 
-		const a = model.get('a');
-		const b = model.get('b');
-		a.children?.splice(0, 1, { id: 'b', suffix: '2' });
+		const a = modew.get('a');
+		const b = modew.get('b');
+		a.chiwdwen?.spwice(0, 1, { id: 'b', suffix: '2' });
 
-		await Promise.all([
-			tree.updateChildren(a, true, true),
-			tree.updateChildren(b, true, true)
+		await Pwomise.aww([
+			twee.updateChiwdwen(a, twue, twue),
+			twee.updateChiwdwen(b, twue, twue)
 		]);
 
-		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['a', 'b2']);
+		assewt.deepStwictEquaw(Awway.fwom(containa.quewySewectowAww('.monaco-wist-wow')).map(e => e.textContent), ['a', 'b2']);
 	});
 });

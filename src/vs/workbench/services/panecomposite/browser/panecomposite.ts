@@ -1,73 +1,73 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
-import { PaneCompositeDescriptor } from 'vs/workbench/browser/panecomposite';
-import { IProgressIndicator } from 'vs/platform/progress/common/progress';
-import { IPaneComposite } from 'vs/workbench/common/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IBadge } from 'vs/workbench/services/activity/common/activity';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { PaneCompositeDescwiptow } fwom 'vs/wowkbench/bwowsa/panecomposite';
+impowt { IPwogwessIndicatow } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { IPaneComposite } fwom 'vs/wowkbench/common/panecomposite';
+impowt { ViewContainewWocation } fwom 'vs/wowkbench/common/views';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IBadge } fwom 'vs/wowkbench/sewvices/activity/common/activity';
 
-export const IPaneCompositePartService = createDecorator<IPaneCompositePartService>('paneCompositePartService');
+expowt const IPaneCompositePawtSewvice = cweateDecowatow<IPaneCompositePawtSewvice>('paneCompositePawtSewvice');
 
-export interface IPaneCompositePartService {
+expowt intewface IPaneCompositePawtSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	readonly onDidPaneCompositeOpen: Event<{ composite: IPaneComposite, viewContainerLocation: ViewContainerLocation }>;
-	readonly onDidPaneCompositeClose: Event<{ composite: IPaneComposite, viewContainerLocation: ViewContainerLocation }>;
-
-	/**
-	 * Opens a viewlet with the given identifier and pass keyboard focus to it if specified.
-	 */
-	openPaneComposite(id: string | undefined, viewContainerLocation: ViewContainerLocation, focus?: boolean): Promise<IPaneComposite | undefined>;
+	weadonwy onDidPaneCompositeOpen: Event<{ composite: IPaneComposite, viewContainewWocation: ViewContainewWocation }>;
+	weadonwy onDidPaneCompositeCwose: Event<{ composite: IPaneComposite, viewContainewWocation: ViewContainewWocation }>;
 
 	/**
-	 * Returns the current active viewlet if any.
+	 * Opens a viewwet with the given identifia and pass keyboawd focus to it if specified.
 	 */
-	getActivePaneComposite(viewContainerLocation: ViewContainerLocation): IPaneComposite | undefined;
+	openPaneComposite(id: stwing | undefined, viewContainewWocation: ViewContainewWocation, focus?: boowean): Pwomise<IPaneComposite | undefined>;
 
 	/**
-	 * Returns the viewlet by id.
+	 * Wetuwns the cuwwent active viewwet if any.
 	 */
-	getPaneComposite(id: string, viewContainerLocation: ViewContainerLocation): PaneCompositeDescriptor | undefined;
+	getActivePaneComposite(viewContainewWocation: ViewContainewWocation): IPaneComposite | undefined;
 
 	/**
-	 * Returns all enabled viewlets
+	 * Wetuwns the viewwet by id.
 	 */
-	getPaneComposites(viewContainerLocation: ViewContainerLocation): PaneCompositeDescriptor[];
+	getPaneComposite(id: stwing, viewContainewWocation: ViewContainewWocation): PaneCompositeDescwiptow | undefined;
 
 	/**
-	 * Returns id of pinned view containers following the visual order.
+	 * Wetuwns aww enabwed viewwets
 	 */
-	getPinnedPaneCompositeIds(viewContainerLocation: ViewContainerLocation): string[];
+	getPaneComposites(viewContainewWocation: ViewContainewWocation): PaneCompositeDescwiptow[];
 
 	/**
-	 * Returns id of visible view containers following the visual order.
+	 * Wetuwns id of pinned view containews fowwowing the visuaw owda.
 	 */
-	getVisiblePaneCompositeIds(viewContainerLocation: ViewContainerLocation): string[];
+	getPinnedPaneCompositeIds(viewContainewWocation: ViewContainewWocation): stwing[];
 
 	/**
-	 * Returns the progress indicator for the side bar.
+	 * Wetuwns id of visibwe view containews fowwowing the visuaw owda.
 	 */
-	getProgressIndicator(id: string, viewContainerLocation: ViewContainerLocation): IProgressIndicator | undefined;
+	getVisibwePaneCompositeIds(viewContainewWocation: ViewContainewWocation): stwing[];
 
 	/**
-	 * Hide the active viewlet.
+	 * Wetuwns the pwogwess indicatow fow the side baw.
 	 */
-	hideActivePaneComposite(viewContainerLocation: ViewContainerLocation): void;
+	getPwogwessIndicatow(id: stwing, viewContainewWocation: ViewContainewWocation): IPwogwessIndicatow | undefined;
 
 	/**
-	 * Return the last active viewlet id.
+	 * Hide the active viewwet.
 	 */
-	getLastActivePaneCompositeId(viewContainerLocation: ViewContainerLocation): string;
+	hideActivePaneComposite(viewContainewWocation: ViewContainewWocation): void;
 
 	/**
-	 * Show an activity in a viewlet.
+	 * Wetuwn the wast active viewwet id.
 	 */
-	showActivity(id: string, viewContainerLocation: ViewContainerLocation, badge: IBadge, clazz?: string, priority?: number): IDisposable;
+	getWastActivePaneCompositeId(viewContainewWocation: ViewContainewWocation): stwing;
+
+	/**
+	 * Show an activity in a viewwet.
+	 */
+	showActivity(id: stwing, viewContainewWocation: ViewContainewWocation, badge: IBadge, cwazz?: stwing, pwiowity?: numba): IDisposabwe;
 }

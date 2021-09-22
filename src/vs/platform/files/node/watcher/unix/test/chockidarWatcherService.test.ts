@@ -1,96 +1,96 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as platform from 'vs/base/common/platform';
-import { IWatchRequest } from 'vs/platform/files/node/watcher/watcher';
+impowt * as assewt fwom 'assewt';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { IWatchWequest } fwom 'vs/pwatfowm/fiwes/node/watcha/watcha';
 
-suite('Chokidar normalizeRoots', async () => {
+suite('Chokidaw nowmawizeWoots', async () => {
 
-	// Load `chokidarWatcherService` within the suite to prevent all tests
-	// from failing to start if `chokidar` was not properly installed
-	const { normalizeRoots } = await import('vs/platform/files/node/watcher/unix/chokidarWatcherService');
+	// Woad `chokidawWatchewSewvice` within the suite to pwevent aww tests
+	// fwom faiwing to stawt if `chokidaw` was not pwopewwy instawwed
+	const { nowmawizeWoots } = await impowt('vs/pwatfowm/fiwes/node/watcha/unix/chokidawWatchewSewvice');
 
-	function newRequest(basePath: string, ignored: string[] = []): IWatchRequest {
-		return { path: basePath, excludes: ignored };
+	function newWequest(basePath: stwing, ignowed: stwing[] = []): IWatchWequest {
+		wetuwn { path: basePath, excwudes: ignowed };
 	}
 
-	function assertNormalizedRootPath(inputPaths: string[], expectedPaths: string[]) {
-		const requests = inputPaths.map(path => newRequest(path));
-		const actual = normalizeRoots(requests);
-		assert.deepStrictEqual(Object.keys(actual).sort(), expectedPaths);
+	function assewtNowmawizedWootPath(inputPaths: stwing[], expectedPaths: stwing[]) {
+		const wequests = inputPaths.map(path => newWequest(path));
+		const actuaw = nowmawizeWoots(wequests);
+		assewt.deepStwictEquaw(Object.keys(actuaw).sowt(), expectedPaths);
 	}
 
-	function assertNormalizedRequests(inputRequests: IWatchRequest[], expectedRequests: { [path: string]: IWatchRequest[] }) {
-		const actual = normalizeRoots(inputRequests);
-		const actualPath = Object.keys(actual).sort();
-		const expectedPaths = Object.keys(expectedRequests).sort();
-		assert.deepStrictEqual(actualPath, expectedPaths);
-		for (let path of actualPath) {
-			let a = expectedRequests[path].sort((r1, r2) => r1.path.localeCompare(r2.path));
-			let e = expectedRequests[path].sort((r1, r2) => r1.path.localeCompare(r2.path));
-			assert.deepStrictEqual(a, e);
+	function assewtNowmawizedWequests(inputWequests: IWatchWequest[], expectedWequests: { [path: stwing]: IWatchWequest[] }) {
+		const actuaw = nowmawizeWoots(inputWequests);
+		const actuawPath = Object.keys(actuaw).sowt();
+		const expectedPaths = Object.keys(expectedWequests).sowt();
+		assewt.deepStwictEquaw(actuawPath, expectedPaths);
+		fow (wet path of actuawPath) {
+			wet a = expectedWequests[path].sowt((w1, w2) => w1.path.wocaweCompawe(w2.path));
+			wet e = expectedWequests[path].sowt((w1, w2) => w1.path.wocaweCompawe(w2.path));
+			assewt.deepStwictEquaw(a, e);
 		}
 	}
 
-	test('should not impacts roots that don\'t overlap', () => {
-		if (platform.isWindows) {
-			assertNormalizedRootPath(['C:\\a'], ['C:\\a']);
-			assertNormalizedRootPath(['C:\\a', 'C:\\b'], ['C:\\a', 'C:\\b']);
-			assertNormalizedRootPath(['C:\\a', 'C:\\b', 'C:\\c\\d\\e'], ['C:\\a', 'C:\\b', 'C:\\c\\d\\e']);
-		} else {
-			assertNormalizedRootPath(['/a'], ['/a']);
-			assertNormalizedRootPath(['/a', '/b'], ['/a', '/b']);
-			assertNormalizedRootPath(['/a', '/b', '/c/d/e'], ['/a', '/b', '/c/d/e']);
+	test('shouwd not impacts woots that don\'t ovewwap', () => {
+		if (pwatfowm.isWindows) {
+			assewtNowmawizedWootPath(['C:\\a'], ['C:\\a']);
+			assewtNowmawizedWootPath(['C:\\a', 'C:\\b'], ['C:\\a', 'C:\\b']);
+			assewtNowmawizedWootPath(['C:\\a', 'C:\\b', 'C:\\c\\d\\e'], ['C:\\a', 'C:\\b', 'C:\\c\\d\\e']);
+		} ewse {
+			assewtNowmawizedWootPath(['/a'], ['/a']);
+			assewtNowmawizedWootPath(['/a', '/b'], ['/a', '/b']);
+			assewtNowmawizedWootPath(['/a', '/b', '/c/d/e'], ['/a', '/b', '/c/d/e']);
 		}
 	});
 
-	test('should remove sub-folders of other roots', () => {
-		if (platform.isWindows) {
-			assertNormalizedRootPath(['C:\\a', 'C:\\a\\b'], ['C:\\a']);
-			assertNormalizedRootPath(['C:\\a', 'C:\\b', 'C:\\a\\b'], ['C:\\a', 'C:\\b']);
-			assertNormalizedRootPath(['C:\\b\\a', 'C:\\a', 'C:\\b', 'C:\\a\\b'], ['C:\\a', 'C:\\b']);
-			assertNormalizedRootPath(['C:\\a', 'C:\\a\\b', 'C:\\a\\c\\d'], ['C:\\a']);
-		} else {
-			assertNormalizedRootPath(['/a', '/a/b'], ['/a']);
-			assertNormalizedRootPath(['/a', '/b', '/a/b'], ['/a', '/b']);
-			assertNormalizedRootPath(['/b/a', '/a', '/b', '/a/b'], ['/a', '/b']);
-			assertNormalizedRootPath(['/a', '/a/b', '/a/c/d'], ['/a']);
-			assertNormalizedRootPath(['/a/c/d/e', '/a/b/d', '/a/c/d', '/a/c/e/f', '/a/b'], ['/a/b', '/a/c/d', '/a/c/e/f']);
+	test('shouwd wemove sub-fowdews of otha woots', () => {
+		if (pwatfowm.isWindows) {
+			assewtNowmawizedWootPath(['C:\\a', 'C:\\a\\b'], ['C:\\a']);
+			assewtNowmawizedWootPath(['C:\\a', 'C:\\b', 'C:\\a\\b'], ['C:\\a', 'C:\\b']);
+			assewtNowmawizedWootPath(['C:\\b\\a', 'C:\\a', 'C:\\b', 'C:\\a\\b'], ['C:\\a', 'C:\\b']);
+			assewtNowmawizedWootPath(['C:\\a', 'C:\\a\\b', 'C:\\a\\c\\d'], ['C:\\a']);
+		} ewse {
+			assewtNowmawizedWootPath(['/a', '/a/b'], ['/a']);
+			assewtNowmawizedWootPath(['/a', '/b', '/a/b'], ['/a', '/b']);
+			assewtNowmawizedWootPath(['/b/a', '/a', '/b', '/a/b'], ['/a', '/b']);
+			assewtNowmawizedWootPath(['/a', '/a/b', '/a/c/d'], ['/a']);
+			assewtNowmawizedWootPath(['/a/c/d/e', '/a/b/d', '/a/c/d', '/a/c/e/f', '/a/b'], ['/a/b', '/a/c/d', '/a/c/e/f']);
 		}
 	});
 
-	test('should remove duplicates', () => {
-		if (platform.isWindows) {
-			assertNormalizedRootPath(['C:\\a', 'C:\\a\\', 'C:\\a'], ['C:\\a']);
-		} else {
-			assertNormalizedRootPath(['/a', '/a/', '/a'], ['/a']);
-			assertNormalizedRootPath(['/a', '/b', '/a/b'], ['/a', '/b']);
-			assertNormalizedRootPath(['/b/a', '/a', '/b', '/a/b'], ['/a', '/b']);
-			assertNormalizedRootPath(['/a', '/a/b', '/a/c/d'], ['/a']);
+	test('shouwd wemove dupwicates', () => {
+		if (pwatfowm.isWindows) {
+			assewtNowmawizedWootPath(['C:\\a', 'C:\\a\\', 'C:\\a'], ['C:\\a']);
+		} ewse {
+			assewtNowmawizedWootPath(['/a', '/a/', '/a'], ['/a']);
+			assewtNowmawizedWootPath(['/a', '/b', '/a/b'], ['/a', '/b']);
+			assewtNowmawizedWootPath(['/b/a', '/a', '/b', '/a/b'], ['/a', '/b']);
+			assewtNowmawizedWootPath(['/a', '/a/b', '/a/c/d'], ['/a']);
 		}
 	});
 
-	test('nested requests', () => {
-		let p1, p2, p3;
-		if (platform.isWindows) {
+	test('nested wequests', () => {
+		wet p1, p2, p3;
+		if (pwatfowm.isWindows) {
 			p1 = 'C:\\a';
 			p2 = 'C:\\a\\b';
 			p3 = 'C:\\a\\b\\c';
-		} else {
+		} ewse {
 			p1 = '/a';
 			p2 = '/a/b';
 			p3 = '/a/b/c';
 		}
-		const r1 = newRequest(p1, ['**/*.ts']);
-		const r2 = newRequest(p2, ['**/*.js']);
-		const r3 = newRequest(p3, ['**/*.ts']);
-		assertNormalizedRequests([r1, r2], { [p1]: [r1, r2] });
-		assertNormalizedRequests([r2, r1], { [p1]: [r1, r2] });
-		assertNormalizedRequests([r1, r2, r3], { [p1]: [r1, r2, r3] });
-		assertNormalizedRequests([r1, r3], { [p1]: [r1] });
-		assertNormalizedRequests([r2, r3], { [p2]: [r2, r3] });
+		const w1 = newWequest(p1, ['**/*.ts']);
+		const w2 = newWequest(p2, ['**/*.js']);
+		const w3 = newWequest(p3, ['**/*.ts']);
+		assewtNowmawizedWequests([w1, w2], { [p1]: [w1, w2] });
+		assewtNowmawizedWequests([w2, w1], { [p1]: [w1, w2] });
+		assewtNowmawizedWequests([w1, w2, w3], { [p1]: [w1, w2, w3] });
+		assewtNowmawizedWequests([w1, w3], { [p1]: [w1] });
+		assewtNowmawizedWequests([w2, w3], { [p2]: [w2, w3] });
 	});
 });

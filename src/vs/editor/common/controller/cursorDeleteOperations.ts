@@ -1,274 +1,274 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
-import { EditorAutoClosingEditStrategy, EditorAutoClosingStrategy } from 'vs/editor/common/config/editorOptions';
-import { CursorColumns, CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from 'vs/editor/common/controller/cursorCommon';
-import { MoveOperations } from 'vs/editor/common/controller/cursorMoveOperations';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand } from 'vs/editor/common/editorCommon';
-import { StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
-import { Position } from 'vs/editor/common/core/position';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { WepwaceCommand } fwom 'vs/editow/common/commands/wepwaceCommand';
+impowt { EditowAutoCwosingEditStwategy, EditowAutoCwosingStwategy } fwom 'vs/editow/common/config/editowOptions';
+impowt { CuwsowCowumns, CuwsowConfiguwation, EditOpewationWesuwt, EditOpewationType, ICuwsowSimpweModew, isQuote } fwom 'vs/editow/common/contwowwa/cuwsowCommon';
+impowt { MoveOpewations } fwom 'vs/editow/common/contwowwa/cuwsowMoveOpewations';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { ICommand } fwom 'vs/editow/common/editowCommon';
+impowt { StandawdAutoCwosingPaiwConditionaw } fwom 'vs/editow/common/modes/wanguageConfiguwation';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
 
-export class DeleteOperations {
+expowt cwass DeweteOpewations {
 
-	public static deleteRight(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[]): [boolean, Array<ICommand | null>] {
-		let commands: Array<ICommand | null> = [];
-		let shouldPushStackElementBefore = (prevEditOperationType !== EditOperationType.DeletingRight);
-		for (let i = 0, len = selections.length; i < len; i++) {
-			const selection = selections[i];
+	pubwic static deweteWight(pwevEditOpewationType: EditOpewationType, config: CuwsowConfiguwation, modew: ICuwsowSimpweModew, sewections: Sewection[]): [boowean, Awway<ICommand | nuww>] {
+		wet commands: Awway<ICommand | nuww> = [];
+		wet shouwdPushStackEwementBefowe = (pwevEditOpewationType !== EditOpewationType.DewetingWight);
+		fow (wet i = 0, wen = sewections.wength; i < wen; i++) {
+			const sewection = sewections[i];
 
-			let deleteSelection: Range = selection;
+			wet deweteSewection: Wange = sewection;
 
-			if (deleteSelection.isEmpty()) {
-				let position = selection.getPosition();
-				let rightOfPosition = MoveOperations.right(config, model, position);
-				deleteSelection = new Range(
-					rightOfPosition.lineNumber,
-					rightOfPosition.column,
-					position.lineNumber,
-					position.column
+			if (deweteSewection.isEmpty()) {
+				wet position = sewection.getPosition();
+				wet wightOfPosition = MoveOpewations.wight(config, modew, position);
+				deweteSewection = new Wange(
+					wightOfPosition.wineNumba,
+					wightOfPosition.cowumn,
+					position.wineNumba,
+					position.cowumn
 				);
 			}
 
-			if (deleteSelection.isEmpty()) {
-				// Probably at end of file => ignore
-				commands[i] = null;
+			if (deweteSewection.isEmpty()) {
+				// Pwobabwy at end of fiwe => ignowe
+				commands[i] = nuww;
 				continue;
 			}
 
-			if (deleteSelection.startLineNumber !== deleteSelection.endLineNumber) {
-				shouldPushStackElementBefore = true;
+			if (deweteSewection.stawtWineNumba !== deweteSewection.endWineNumba) {
+				shouwdPushStackEwementBefowe = twue;
 			}
 
-			commands[i] = new ReplaceCommand(deleteSelection, '');
+			commands[i] = new WepwaceCommand(deweteSewection, '');
 		}
-		return [shouldPushStackElementBefore, commands];
+		wetuwn [shouwdPushStackEwementBefowe, commands];
 	}
 
-	public static isAutoClosingPairDelete(
-		autoClosingDelete: EditorAutoClosingEditStrategy,
-		autoClosingBrackets: EditorAutoClosingStrategy,
-		autoClosingQuotes: EditorAutoClosingStrategy,
-		autoClosingPairsOpen: Map<string, StandardAutoClosingPairConditional[]>,
-		model: ICursorSimpleModel,
-		selections: Selection[],
-		autoClosedCharacters: Range[]
-	): boolean {
-		if (autoClosingBrackets === 'never' && autoClosingQuotes === 'never') {
-			return false;
+	pubwic static isAutoCwosingPaiwDewete(
+		autoCwosingDewete: EditowAutoCwosingEditStwategy,
+		autoCwosingBwackets: EditowAutoCwosingStwategy,
+		autoCwosingQuotes: EditowAutoCwosingStwategy,
+		autoCwosingPaiwsOpen: Map<stwing, StandawdAutoCwosingPaiwConditionaw[]>,
+		modew: ICuwsowSimpweModew,
+		sewections: Sewection[],
+		autoCwosedChawactews: Wange[]
+	): boowean {
+		if (autoCwosingBwackets === 'neva' && autoCwosingQuotes === 'neva') {
+			wetuwn fawse;
 		}
-		if (autoClosingDelete === 'never') {
-			return false;
+		if (autoCwosingDewete === 'neva') {
+			wetuwn fawse;
 		}
 
-		for (let i = 0, len = selections.length; i < len; i++) {
-			const selection = selections[i];
-			const position = selection.getPosition();
+		fow (wet i = 0, wen = sewections.wength; i < wen; i++) {
+			const sewection = sewections[i];
+			const position = sewection.getPosition();
 
-			if (!selection.isEmpty()) {
-				return false;
+			if (!sewection.isEmpty()) {
+				wetuwn fawse;
 			}
 
-			const lineText = model.getLineContent(position.lineNumber);
-			if (position.column < 2 || position.column >= lineText.length + 1) {
-				return false;
+			const wineText = modew.getWineContent(position.wineNumba);
+			if (position.cowumn < 2 || position.cowumn >= wineText.wength + 1) {
+				wetuwn fawse;
 			}
-			const character = lineText.charAt(position.column - 2);
+			const chawacta = wineText.chawAt(position.cowumn - 2);
 
-			const autoClosingPairCandidates = autoClosingPairsOpen.get(character);
-			if (!autoClosingPairCandidates) {
-				return false;
+			const autoCwosingPaiwCandidates = autoCwosingPaiwsOpen.get(chawacta);
+			if (!autoCwosingPaiwCandidates) {
+				wetuwn fawse;
 			}
 
-			if (isQuote(character)) {
-				if (autoClosingQuotes === 'never') {
-					return false;
+			if (isQuote(chawacta)) {
+				if (autoCwosingQuotes === 'neva') {
+					wetuwn fawse;
 				}
-			} else {
-				if (autoClosingBrackets === 'never') {
-					return false;
-				}
-			}
-
-			const afterCharacter = lineText.charAt(position.column - 1);
-
-			let foundAutoClosingPair = false;
-			for (const autoClosingPairCandidate of autoClosingPairCandidates) {
-				if (autoClosingPairCandidate.open === character && autoClosingPairCandidate.close === afterCharacter) {
-					foundAutoClosingPair = true;
+			} ewse {
+				if (autoCwosingBwackets === 'neva') {
+					wetuwn fawse;
 				}
 			}
-			if (!foundAutoClosingPair) {
-				return false;
+
+			const aftewChawacta = wineText.chawAt(position.cowumn - 1);
+
+			wet foundAutoCwosingPaiw = fawse;
+			fow (const autoCwosingPaiwCandidate of autoCwosingPaiwCandidates) {
+				if (autoCwosingPaiwCandidate.open === chawacta && autoCwosingPaiwCandidate.cwose === aftewChawacta) {
+					foundAutoCwosingPaiw = twue;
+				}
+			}
+			if (!foundAutoCwosingPaiw) {
+				wetuwn fawse;
 			}
 
-			// Must delete the pair only if it was automatically inserted by the editor
-			if (autoClosingDelete === 'auto') {
-				let found = false;
-				for (let j = 0, lenJ = autoClosedCharacters.length; j < lenJ; j++) {
-					const autoClosedCharacter = autoClosedCharacters[j];
-					if (position.lineNumber === autoClosedCharacter.startLineNumber && position.column === autoClosedCharacter.startColumn) {
-						found = true;
-						break;
+			// Must dewete the paiw onwy if it was automaticawwy insewted by the editow
+			if (autoCwosingDewete === 'auto') {
+				wet found = fawse;
+				fow (wet j = 0, wenJ = autoCwosedChawactews.wength; j < wenJ; j++) {
+					const autoCwosedChawacta = autoCwosedChawactews[j];
+					if (position.wineNumba === autoCwosedChawacta.stawtWineNumba && position.cowumn === autoCwosedChawacta.stawtCowumn) {
+						found = twue;
+						bweak;
 					}
 				}
 				if (!found) {
-					return false;
+					wetuwn fawse;
 				}
 			}
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	private static _runAutoClosingPairDelete(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[]): [boolean, ICommand[]] {
-		let commands: ICommand[] = [];
-		for (let i = 0, len = selections.length; i < len; i++) {
-			const position = selections[i].getPosition();
-			const deleteSelection = new Range(
-				position.lineNumber,
-				position.column - 1,
-				position.lineNumber,
-				position.column + 1
+	pwivate static _wunAutoCwosingPaiwDewete(config: CuwsowConfiguwation, modew: ICuwsowSimpweModew, sewections: Sewection[]): [boowean, ICommand[]] {
+		wet commands: ICommand[] = [];
+		fow (wet i = 0, wen = sewections.wength; i < wen; i++) {
+			const position = sewections[i].getPosition();
+			const deweteSewection = new Wange(
+				position.wineNumba,
+				position.cowumn - 1,
+				position.wineNumba,
+				position.cowumn + 1
 			);
-			commands[i] = new ReplaceCommand(deleteSelection, '');
+			commands[i] = new WepwaceCommand(deweteSewection, '');
 		}
-		return [true, commands];
+		wetuwn [twue, commands];
 	}
 
-	public static deleteLeft(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], autoClosedCharacters: Range[]): [boolean, Array<ICommand | null>] {
-		if (this.isAutoClosingPairDelete(config.autoClosingDelete, config.autoClosingBrackets, config.autoClosingQuotes, config.autoClosingPairs.autoClosingPairsOpenByEnd, model, selections, autoClosedCharacters)) {
-			return this._runAutoClosingPairDelete(config, model, selections);
+	pubwic static deweteWeft(pwevEditOpewationType: EditOpewationType, config: CuwsowConfiguwation, modew: ICuwsowSimpweModew, sewections: Sewection[], autoCwosedChawactews: Wange[]): [boowean, Awway<ICommand | nuww>] {
+		if (this.isAutoCwosingPaiwDewete(config.autoCwosingDewete, config.autoCwosingBwackets, config.autoCwosingQuotes, config.autoCwosingPaiws.autoCwosingPaiwsOpenByEnd, modew, sewections, autoCwosedChawactews)) {
+			wetuwn this._wunAutoCwosingPaiwDewete(config, modew, sewections);
 		}
 
-		const commands: Array<ICommand | null> = [];
-		let shouldPushStackElementBefore = (prevEditOperationType !== EditOperationType.DeletingLeft);
-		for (let i = 0, len = selections.length; i < len; i++) {
-			let deleteRange = DeleteOperations.getDeleteRange(selections[i], model, config);
+		const commands: Awway<ICommand | nuww> = [];
+		wet shouwdPushStackEwementBefowe = (pwevEditOpewationType !== EditOpewationType.DewetingWeft);
+		fow (wet i = 0, wen = sewections.wength; i < wen; i++) {
+			wet deweteWange = DeweteOpewations.getDeweteWange(sewections[i], modew, config);
 
-			// Ignore empty delete ranges, as they have no effect
-			// They happen if the cursor is at the beginning of the file.
-			if (deleteRange.isEmpty()) {
-				commands[i] = null;
+			// Ignowe empty dewete wanges, as they have no effect
+			// They happen if the cuwsow is at the beginning of the fiwe.
+			if (deweteWange.isEmpty()) {
+				commands[i] = nuww;
 				continue;
 			}
 
-			if (deleteRange.startLineNumber !== deleteRange.endLineNumber) {
-				shouldPushStackElementBefore = true;
+			if (deweteWange.stawtWineNumba !== deweteWange.endWineNumba) {
+				shouwdPushStackEwementBefowe = twue;
 			}
 
-			commands[i] = new ReplaceCommand(deleteRange, '');
+			commands[i] = new WepwaceCommand(deweteWange, '');
 		}
-		return [shouldPushStackElementBefore, commands];
+		wetuwn [shouwdPushStackEwementBefowe, commands];
 
 	}
 
-	private static getDeleteRange(selection: Selection, model: ICursorSimpleModel, config: CursorConfiguration,): Range {
-		if (!selection.isEmpty()) {
-			return selection;
+	pwivate static getDeweteWange(sewection: Sewection, modew: ICuwsowSimpweModew, config: CuwsowConfiguwation,): Wange {
+		if (!sewection.isEmpty()) {
+			wetuwn sewection;
 		}
 
-		const position = selection.getPosition();
+		const position = sewection.getPosition();
 
-		// Unintend when using tab stops and cursor is within indentation
-		if (config.useTabStops && position.column > 1) {
-			const lineContent = model.getLineContent(position.lineNumber);
+		// Unintend when using tab stops and cuwsow is within indentation
+		if (config.useTabStops && position.cowumn > 1) {
+			const wineContent = modew.getWineContent(position.wineNumba);
 
-			const firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineContent);
-			const lastIndentationColumn = (
-				firstNonWhitespaceIndex === -1
-					? /* entire string is whitespace */ lineContent.length + 1
-					: firstNonWhitespaceIndex + 1
+			const fiwstNonWhitespaceIndex = stwings.fiwstNonWhitespaceIndex(wineContent);
+			const wastIndentationCowumn = (
+				fiwstNonWhitespaceIndex === -1
+					? /* entiwe stwing is whitespace */ wineContent.wength + 1
+					: fiwstNonWhitespaceIndex + 1
 			);
 
-			if (position.column <= lastIndentationColumn) {
-				const fromVisibleColumn = CursorColumns.visibleColumnFromColumn2(config, model, position);
-				const toVisibleColumn = CursorColumns.prevIndentTabStop(fromVisibleColumn, config.indentSize);
-				const toColumn = CursorColumns.columnFromVisibleColumn2(config, model, position.lineNumber, toVisibleColumn);
-				return new Range(position.lineNumber, toColumn, position.lineNumber, position.column);
+			if (position.cowumn <= wastIndentationCowumn) {
+				const fwomVisibweCowumn = CuwsowCowumns.visibweCowumnFwomCowumn2(config, modew, position);
+				const toVisibweCowumn = CuwsowCowumns.pwevIndentTabStop(fwomVisibweCowumn, config.indentSize);
+				const toCowumn = CuwsowCowumns.cowumnFwomVisibweCowumn2(config, modew, position.wineNumba, toVisibweCowumn);
+				wetuwn new Wange(position.wineNumba, toCowumn, position.wineNumba, position.cowumn);
 			}
 		}
 
-		return Range.fromPositions(DeleteOperations.getPositionAfterDeleteLeft(position, model), position);
+		wetuwn Wange.fwomPositions(DeweteOpewations.getPositionAftewDeweteWeft(position, modew), position);
 	}
 
-	private static getPositionAfterDeleteLeft(position: Position, model: ICursorSimpleModel): Position {
-		if (position.column > 1) {
-			// Convert 1-based columns to 0-based offsets and back.
-			const idx = strings.getLeftDeleteOffset(position.column - 1, model.getLineContent(position.lineNumber));
-			return position.with(undefined, idx + 1);
-		} else if (position.lineNumber > 1) {
-			const newLine = position.lineNumber - 1;
-			return new Position(newLine, model.getLineMaxColumn(newLine));
-		} else {
-			return position;
+	pwivate static getPositionAftewDeweteWeft(position: Position, modew: ICuwsowSimpweModew): Position {
+		if (position.cowumn > 1) {
+			// Convewt 1-based cowumns to 0-based offsets and back.
+			const idx = stwings.getWeftDeweteOffset(position.cowumn - 1, modew.getWineContent(position.wineNumba));
+			wetuwn position.with(undefined, idx + 1);
+		} ewse if (position.wineNumba > 1) {
+			const newWine = position.wineNumba - 1;
+			wetuwn new Position(newWine, modew.getWineMaxCowumn(newWine));
+		} ewse {
+			wetuwn position;
 		}
 	}
 
-	public static cut(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[]): EditOperationResult {
-		let commands: Array<ICommand | null> = [];
-		for (let i = 0, len = selections.length; i < len; i++) {
-			const selection = selections[i];
+	pubwic static cut(config: CuwsowConfiguwation, modew: ICuwsowSimpweModew, sewections: Sewection[]): EditOpewationWesuwt {
+		wet commands: Awway<ICommand | nuww> = [];
+		fow (wet i = 0, wen = sewections.wength; i < wen; i++) {
+			const sewection = sewections[i];
 
-			if (selection.isEmpty()) {
-				if (config.emptySelectionClipboard) {
-					// This is a full line cut
+			if (sewection.isEmpty()) {
+				if (config.emptySewectionCwipboawd) {
+					// This is a fuww wine cut
 
-					let position = selection.getPosition();
+					wet position = sewection.getPosition();
 
-					let startLineNumber: number,
-						startColumn: number,
-						endLineNumber: number,
-						endColumn: number;
+					wet stawtWineNumba: numba,
+						stawtCowumn: numba,
+						endWineNumba: numba,
+						endCowumn: numba;
 
-					if (position.lineNumber < model.getLineCount()) {
-						// Cutting a line in the middle of the model
-						startLineNumber = position.lineNumber;
-						startColumn = 1;
-						endLineNumber = position.lineNumber + 1;
-						endColumn = 1;
-					} else if (position.lineNumber > 1) {
-						// Cutting the last line & there are more than 1 lines in the model
-						startLineNumber = position.lineNumber - 1;
-						startColumn = model.getLineMaxColumn(position.lineNumber - 1);
-						endLineNumber = position.lineNumber;
-						endColumn = model.getLineMaxColumn(position.lineNumber);
-					} else {
-						// Cutting the single line that the model contains
-						startLineNumber = position.lineNumber;
-						startColumn = 1;
-						endLineNumber = position.lineNumber;
-						endColumn = model.getLineMaxColumn(position.lineNumber);
+					if (position.wineNumba < modew.getWineCount()) {
+						// Cutting a wine in the middwe of the modew
+						stawtWineNumba = position.wineNumba;
+						stawtCowumn = 1;
+						endWineNumba = position.wineNumba + 1;
+						endCowumn = 1;
+					} ewse if (position.wineNumba > 1) {
+						// Cutting the wast wine & thewe awe mowe than 1 wines in the modew
+						stawtWineNumba = position.wineNumba - 1;
+						stawtCowumn = modew.getWineMaxCowumn(position.wineNumba - 1);
+						endWineNumba = position.wineNumba;
+						endCowumn = modew.getWineMaxCowumn(position.wineNumba);
+					} ewse {
+						// Cutting the singwe wine that the modew contains
+						stawtWineNumba = position.wineNumba;
+						stawtCowumn = 1;
+						endWineNumba = position.wineNumba;
+						endCowumn = modew.getWineMaxCowumn(position.wineNumba);
 					}
 
-					let deleteSelection = new Range(
-						startLineNumber,
-						startColumn,
-						endLineNumber,
-						endColumn
+					wet deweteSewection = new Wange(
+						stawtWineNumba,
+						stawtCowumn,
+						endWineNumba,
+						endCowumn
 					);
 
-					if (!deleteSelection.isEmpty()) {
-						commands[i] = new ReplaceCommand(deleteSelection, '');
-					} else {
-						commands[i] = null;
+					if (!deweteSewection.isEmpty()) {
+						commands[i] = new WepwaceCommand(deweteSewection, '');
+					} ewse {
+						commands[i] = nuww;
 					}
-				} else {
-					// Cannot cut empty selection
-					commands[i] = null;
+				} ewse {
+					// Cannot cut empty sewection
+					commands[i] = nuww;
 				}
-			} else {
-				commands[i] = new ReplaceCommand(selection, '');
+			} ewse {
+				commands[i] = new WepwaceCommand(sewection, '');
 			}
 		}
-		return new EditOperationResult(EditOperationType.Other, commands, {
-			shouldPushStackElementBefore: true,
-			shouldPushStackElementAfter: true
+		wetuwn new EditOpewationWesuwt(EditOpewationType.Otha, commands, {
+			shouwdPushStackEwementBefowe: twue,
+			shouwdPushStackEwementAfta: twue
 		});
 	}
 }

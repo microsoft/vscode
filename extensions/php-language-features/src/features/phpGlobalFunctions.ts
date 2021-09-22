@@ -1,6031 +1,6031 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-// THIS IS GENERATED FILE. DO NOT MODIFY.
+// THIS IS GENEWATED FIWE. DO NOT MODIFY.
 
-import { IEntries } from './phpGlobals';
+impowt { IEntwies } fwom './phpGwobaws';
 
-export const globalfunctions: IEntries = {
-	debug_backtrace: {
-		description: 'Generates a backtrace',
-		signature: '([ int $options = DEBUG_BACKTRACE_PROVIDE_OBJECT [, int $limit = 0 ]]): array'
+expowt const gwobawfunctions: IEntwies = {
+	debug_backtwace: {
+		descwiption: 'Genewates a backtwace',
+		signatuwe: '([ int $options = DEBUG_BACKTWACE_PWOVIDE_OBJECT [, int $wimit = 0 ]]): awway'
 	},
-	debug_print_backtrace: {
-		description: 'Prints a backtrace',
-		signature: '([ int $options = 0 [, int $limit = 0 ]]): void'
+	debug_pwint_backtwace: {
+		descwiption: 'Pwints a backtwace',
+		signatuwe: '([ int $options = 0 [, int $wimit = 0 ]]): void'
 	},
-	error_clear_last: {
-		description: 'Clear the most recent error',
-		signature: '(void): void'
+	ewwow_cweaw_wast: {
+		descwiption: 'Cweaw the most wecent ewwow',
+		signatuwe: '(void): void'
 	},
-	error_get_last: {
-		description: 'Get the last occurred error',
-		signature: '(void): array'
+	ewwow_get_wast: {
+		descwiption: 'Get the wast occuwwed ewwow',
+		signatuwe: '(void): awway'
 	},
-	error_log: {
-		description: 'Send an error message to the defined error handling routines',
-		signature: '( string $message [, int $message_type = 0 [, string $destination [, string $extra_headers ]]]): bool'
+	ewwow_wog: {
+		descwiption: 'Send an ewwow message to the defined ewwow handwing woutines',
+		signatuwe: '( stwing $message [, int $message_type = 0 [, stwing $destination [, stwing $extwa_headews ]]]): boow'
 	},
-	error_reporting: {
-		description: 'Sets which PHP errors are reported',
-		signature: '([ int $level ]): int'
+	ewwow_wepowting: {
+		descwiption: 'Sets which PHP ewwows awe wepowted',
+		signatuwe: '([ int $wevew ]): int'
 	},
-	restore_error_handler: {
-		description: 'Restores the previous error handler function',
-		signature: '(void): bool'
+	westowe_ewwow_handwa: {
+		descwiption: 'Westowes the pwevious ewwow handwa function',
+		signatuwe: '(void): boow'
 	},
-	restore_exception_handler: {
-		description: 'Restores the previously defined exception handler function',
-		signature: '(void): bool'
+	westowe_exception_handwa: {
+		descwiption: 'Westowes the pweviouswy defined exception handwa function',
+		signatuwe: '(void): boow'
 	},
-	set_error_handler: {
-		description: 'Sets a user-defined error handler function',
-		signature: '( callable $error_handler [, int $error_types = E_ALL | E_STRICT ]): mixed'
+	set_ewwow_handwa: {
+		descwiption: 'Sets a usa-defined ewwow handwa function',
+		signatuwe: '( cawwabwe $ewwow_handwa [, int $ewwow_types = E_AWW | E_STWICT ]): mixed'
 	},
-	set_exception_handler: {
-		description: 'Sets a user-defined exception handler function',
-		signature: '( callable $exception_handler ): callable'
+	set_exception_handwa: {
+		descwiption: 'Sets a usa-defined exception handwa function',
+		signatuwe: '( cawwabwe $exception_handwa ): cawwabwe'
 	},
-	trigger_error: {
-		description: 'Generates a user-level error/warning/notice message',
-		signature: '( string $error_msg [, int $error_type = E_USER_NOTICE ]): bool'
+	twiggew_ewwow: {
+		descwiption: 'Genewates a usa-wevew ewwow/wawning/notice message',
+		signatuwe: '( stwing $ewwow_msg [, int $ewwow_type = E_USEW_NOTICE ]): boow'
 	},
-	user_error: {
-		description: 'Alias of trigger_error',
+	usew_ewwow: {
+		descwiption: 'Awias of twiggew_ewwow',
 	},
-	opcache_compile_file: {
-		description: 'Compiles and caches a PHP script without executing it',
-		signature: '( string $file ): bool'
+	opcache_compiwe_fiwe: {
+		descwiption: 'Compiwes and caches a PHP scwipt without executing it',
+		signatuwe: '( stwing $fiwe ): boow'
 	},
-	opcache_get_configuration: {
-		description: 'Get configuration information about the cache',
-		signature: '(void): array'
+	opcache_get_configuwation: {
+		descwiption: 'Get configuwation infowmation about the cache',
+		signatuwe: '(void): awway'
 	},
 	opcache_get_status: {
-		description: 'Get status information about the cache',
-		signature: '([ bool $get_scripts ]): array'
+		descwiption: 'Get status infowmation about the cache',
+		signatuwe: '([ boow $get_scwipts ]): awway'
 	},
-	opcache_invalidate: {
-		description: 'Invalidates a cached script',
-		signature: '( string $script [, bool $force ]): bool'
+	opcache_invawidate: {
+		descwiption: 'Invawidates a cached scwipt',
+		signatuwe: '( stwing $scwipt [, boow $fowce ]): boow'
 	},
-	opcache_is_script_cached: {
-		description: 'Tells whether a script is cached in OPCache',
-		signature: '( string $file ): bool'
+	opcache_is_scwipt_cached: {
+		descwiption: 'Tewws whetha a scwipt is cached in OPCache',
+		signatuwe: '( stwing $fiwe ): boow'
 	},
-	opcache_reset: {
-		description: 'Resets the contents of the opcode cache',
-		signature: '(void): bool'
+	opcache_weset: {
+		descwiption: 'Wesets the contents of the opcode cache',
+		signatuwe: '(void): boow'
 	},
-	flush: {
-		description: 'Flush system output buffer',
-		signature: '(void): void'
+	fwush: {
+		descwiption: 'Fwush system output buffa',
+		signatuwe: '(void): void'
 	},
-	ob_clean: {
-		description: 'Clean (erase) the output buffer',
-		signature: '(void): void'
+	ob_cwean: {
+		descwiption: 'Cwean (ewase) the output buffa',
+		signatuwe: '(void): void'
 	},
-	ob_end_clean: {
-		description: 'Clean (erase) the output buffer and turn off output buffering',
-		signature: '(void): bool'
+	ob_end_cwean: {
+		descwiption: 'Cwean (ewase) the output buffa and tuwn off output buffewing',
+		signatuwe: '(void): boow'
 	},
-	ob_end_flush: {
-		description: 'Flush (send) the output buffer and turn off output buffering',
-		signature: '(void): bool'
+	ob_end_fwush: {
+		descwiption: 'Fwush (send) the output buffa and tuwn off output buffewing',
+		signatuwe: '(void): boow'
 	},
-	ob_flush: {
-		description: 'Flush (send) the output buffer',
-		signature: '(void): void'
+	ob_fwush: {
+		descwiption: 'Fwush (send) the output buffa',
+		signatuwe: '(void): void'
 	},
-	ob_get_clean: {
-		description: 'Get current buffer contents and delete current output buffer',
-		signature: '(void): string'
+	ob_get_cwean: {
+		descwiption: 'Get cuwwent buffa contents and dewete cuwwent output buffa',
+		signatuwe: '(void): stwing'
 	},
 	ob_get_contents: {
-		description: 'Return the contents of the output buffer',
-		signature: '(void): string'
+		descwiption: 'Wetuwn the contents of the output buffa',
+		signatuwe: '(void): stwing'
 	},
-	ob_get_flush: {
-		description: 'Flush the output buffer, return it as a string and turn off output buffering',
-		signature: '(void): string'
+	ob_get_fwush: {
+		descwiption: 'Fwush the output buffa, wetuwn it as a stwing and tuwn off output buffewing',
+		signatuwe: '(void): stwing'
 	},
-	ob_get_length: {
-		description: 'Return the length of the output buffer',
-		signature: '(void): int'
+	ob_get_wength: {
+		descwiption: 'Wetuwn the wength of the output buffa',
+		signatuwe: '(void): int'
 	},
-	ob_get_level: {
-		description: 'Return the nesting level of the output buffering mechanism',
-		signature: '(void): int'
+	ob_get_wevew: {
+		descwiption: 'Wetuwn the nesting wevew of the output buffewing mechanism',
+		signatuwe: '(void): int'
 	},
 	ob_get_status: {
-		description: 'Get status of output buffers',
-		signature: '([ bool $full_status = FALSE ]): array'
+		descwiption: 'Get status of output buffews',
+		signatuwe: '([ boow $fuww_status = FAWSE ]): awway'
 	},
-	ob_gzhandler: {
-		description: 'ob_start callback function to gzip output buffer',
-		signature: '( string $buffer , int $mode ): string'
+	ob_gzhandwa: {
+		descwiption: 'ob_stawt cawwback function to gzip output buffa',
+		signatuwe: '( stwing $buffa , int $mode ): stwing'
 	},
-	ob_implicit_flush: {
-		description: 'Turn implicit flush on/off',
-		signature: '([ int $flag = 1 ]): void'
+	ob_impwicit_fwush: {
+		descwiption: 'Tuwn impwicit fwush on/off',
+		signatuwe: '([ int $fwag = 1 ]): void'
 	},
-	ob_list_handlers: {
-		description: 'List all output handlers in use',
-		signature: '(void): array'
+	ob_wist_handwews: {
+		descwiption: 'Wist aww output handwews in use',
+		signatuwe: '(void): awway'
 	},
-	ob_start: {
-		description: 'Turn on output buffering',
-		signature: '([ callable $output_callback [, int $chunk_size = 0 [, int $flags ]]]): bool'
+	ob_stawt: {
+		descwiption: 'Tuwn on output buffewing',
+		signatuwe: '([ cawwabwe $output_cawwback [, int $chunk_size = 0 [, int $fwags ]]]): boow'
 	},
-	output_add_rewrite_var: {
-		description: 'Add URL rewriter values',
-		signature: '( string $name , string $value ): bool'
+	output_add_wewwite_vaw: {
+		descwiption: 'Add UWW wewwita vawues',
+		signatuwe: '( stwing $name , stwing $vawue ): boow'
 	},
-	output_reset_rewrite_vars: {
-		description: 'Reset URL rewriter values',
-		signature: '(void): bool'
+	output_weset_wewwite_vaws: {
+		descwiption: 'Weset UWW wewwita vawues',
+		signatuwe: '(void): boow'
 	},
-	assert_options: {
-		description: 'Set/get the various assert flags',
-		signature: '( int $what [, mixed $value ]): mixed'
+	assewt_options: {
+		descwiption: 'Set/get the vawious assewt fwags',
+		signatuwe: '( int $what [, mixed $vawue ]): mixed'
 	},
-	assert: {
-		description: 'Checks if assertion is FALSE',
-		signature: '( mixed $assertion [, string $description [, Throwable $exception ]]): bool'
+	assewt: {
+		descwiption: 'Checks if assewtion is FAWSE',
+		signatuwe: '( mixed $assewtion [, stwing $descwiption [, Thwowabwe $exception ]]): boow'
 	},
-	cli_get_process_title: {
-		description: 'Returns the current process title',
-		signature: '(void): string'
+	cwi_get_pwocess_titwe: {
+		descwiption: 'Wetuwns the cuwwent pwocess titwe',
+		signatuwe: '(void): stwing'
 	},
-	cli_set_process_title: {
-		description: 'Sets the process title',
-		signature: '( string $title ): bool'
+	cwi_set_pwocess_titwe: {
+		descwiption: 'Sets the pwocess titwe',
+		signatuwe: '( stwing $titwe ): boow'
 	},
-	dl: {
-		description: 'Loads a PHP extension at runtime',
-		signature: '( string $library ): bool'
+	dw: {
+		descwiption: 'Woads a PHP extension at wuntime',
+		signatuwe: '( stwing $wibwawy ): boow'
 	},
-	extension_loaded: {
-		description: 'Find out whether an extension is loaded',
-		signature: '( string $name ): bool'
+	extension_woaded: {
+		descwiption: 'Find out whetha an extension is woaded',
+		signatuwe: '( stwing $name ): boow'
 	},
-	gc_collect_cycles: {
-		description: 'Forces collection of any existing garbage cycles',
-		signature: '(void): int'
+	gc_cowwect_cycwes: {
+		descwiption: 'Fowces cowwection of any existing gawbage cycwes',
+		signatuwe: '(void): int'
 	},
-	gc_disable: {
-		description: 'Deactivates the circular reference collector',
-		signature: '(void): void'
+	gc_disabwe: {
+		descwiption: 'Deactivates the ciwcuwaw wefewence cowwectow',
+		signatuwe: '(void): void'
 	},
-	gc_enable: {
-		description: 'Activates the circular reference collector',
-		signature: '(void): void'
+	gc_enabwe: {
+		descwiption: 'Activates the ciwcuwaw wefewence cowwectow',
+		signatuwe: '(void): void'
 	},
-	gc_enabled: {
-		description: 'Returns status of the circular reference collector',
-		signature: '(void): bool'
+	gc_enabwed: {
+		descwiption: 'Wetuwns status of the ciwcuwaw wefewence cowwectow',
+		signatuwe: '(void): boow'
 	},
 	gc_mem_caches: {
-		description: 'Reclaims memory used by the Zend Engine memory manager',
-		signature: '(void): int'
+		descwiption: 'Wecwaims memowy used by the Zend Engine memowy managa',
+		signatuwe: '(void): int'
 	},
 	gc_status: {
-		description: 'Gets information about the garbage collector',
-		signature: '(void): array'
+		descwiption: 'Gets infowmation about the gawbage cowwectow',
+		signatuwe: '(void): awway'
 	},
-	get_cfg_var: {
-		description: 'Gets the value of a PHP configuration option',
-		signature: '( string $option ): mixed'
+	get_cfg_vaw: {
+		descwiption: 'Gets the vawue of a PHP configuwation option',
+		signatuwe: '( stwing $option ): mixed'
 	},
-	get_current_user: {
-		description: 'Gets the name of the owner of the current PHP script',
-		signature: '(void): string'
+	get_cuwwent_usa: {
+		descwiption: 'Gets the name of the owna of the cuwwent PHP scwipt',
+		signatuwe: '(void): stwing'
 	},
 	get_defined_constants: {
-		description: 'Returns an associative array with the names of all the constants and their values',
-		signature: '([ bool $categorize ]): array'
+		descwiption: 'Wetuwns an associative awway with the names of aww the constants and theiw vawues',
+		signatuwe: '([ boow $categowize ]): awway'
 	},
 	get_extension_funcs: {
-		description: 'Returns an array with the names of the functions of a module',
-		signature: '( string $module_name ): array'
+		descwiption: 'Wetuwns an awway with the names of the functions of a moduwe',
+		signatuwe: '( stwing $moduwe_name ): awway'
 	},
-	get_include_path: {
-		description: 'Gets the current include_path configuration option',
-		signature: '(void): string'
+	get_incwude_path: {
+		descwiption: 'Gets the cuwwent incwude_path configuwation option',
+		signatuwe: '(void): stwing'
 	},
-	get_included_files: {
-		description: 'Returns an array with the names of included or required files',
-		signature: '(void): array'
+	get_incwuded_fiwes: {
+		descwiption: 'Wetuwns an awway with the names of incwuded ow wequiwed fiwes',
+		signatuwe: '(void): awway'
 	},
-	get_loaded_extensions: {
-		description: 'Returns an array with the names of all modules compiled and loaded',
-		signature: '([ bool $zend_extensions ]): array'
+	get_woaded_extensions: {
+		descwiption: 'Wetuwns an awway with the names of aww moduwes compiwed and woaded',
+		signatuwe: '([ boow $zend_extensions ]): awway'
 	},
 	get_magic_quotes_gpc: {
-		description: 'Gets the current configuration setting of magic_quotes_gpc',
-		signature: '(void): bool'
+		descwiption: 'Gets the cuwwent configuwation setting of magic_quotes_gpc',
+		signatuwe: '(void): boow'
 	},
-	get_magic_quotes_runtime: {
-		description: 'Gets the current active configuration setting of magic_quotes_runtime',
-		signature: '(void): bool'
+	get_magic_quotes_wuntime: {
+		descwiption: 'Gets the cuwwent active configuwation setting of magic_quotes_wuntime',
+		signatuwe: '(void): boow'
 	},
-	get_required_files: {
-		description: 'Alias of get_included_files',
+	get_wequiwed_fiwes: {
+		descwiption: 'Awias of get_incwuded_fiwes',
 	},
-	get_resources: {
-		description: 'Returns active resources',
-		signature: '([ string $type ]): resource'
+	get_wesouwces: {
+		descwiption: 'Wetuwns active wesouwces',
+		signatuwe: '([ stwing $type ]): wesouwce'
 	},
 	getenv: {
-		description: 'Gets the value of an environment variable',
-		signature: '( string $varname [, bool $local_only ]): array'
+		descwiption: 'Gets the vawue of an enviwonment vawiabwe',
+		signatuwe: '( stwing $vawname [, boow $wocaw_onwy ]): awway'
 	},
-	getlastmod: {
-		description: 'Gets time of last page modification',
-		signature: '(void): int'
+	getwastmod: {
+		descwiption: 'Gets time of wast page modification',
+		signatuwe: '(void): int'
 	},
 	getmygid: {
-		description: 'Get PHP script owner\'s GID',
-		signature: '(void): int'
+		descwiption: 'Get PHP scwipt owna\'s GID',
+		signatuwe: '(void): int'
 	},
 	getmyinode: {
-		description: 'Gets the inode of the current script',
-		signature: '(void): int'
+		descwiption: 'Gets the inode of the cuwwent scwipt',
+		signatuwe: '(void): int'
 	},
 	getmypid: {
-		description: 'Gets PHP\'s process ID',
-		signature: '(void): int'
+		descwiption: 'Gets PHP\'s pwocess ID',
+		signatuwe: '(void): int'
 	},
 	getmyuid: {
-		description: 'Gets PHP script owner\'s UID',
-		signature: '(void): int'
+		descwiption: 'Gets PHP scwipt owna\'s UID',
+		signatuwe: '(void): int'
 	},
 	getopt: {
-		description: 'Gets options from the command line argument list',
-		signature: '( string $options [, array $longopts [, int $optind ]]): array'
+		descwiption: 'Gets options fwom the command wine awgument wist',
+		signatuwe: '( stwing $options [, awway $wongopts [, int $optind ]]): awway'
 	},
-	getrusage: {
-		description: 'Gets the current resource usages',
-		signature: '([ int $who = 0 ]): array'
+	getwusage: {
+		descwiption: 'Gets the cuwwent wesouwce usages',
+		signatuwe: '([ int $who = 0 ]): awway'
 	},
-	ini_alter: {
-		description: 'Alias of ini_set',
+	ini_awta: {
+		descwiption: 'Awias of ini_set',
 	},
-	ini_get_all: {
-		description: 'Gets all configuration options',
-		signature: '([ string $extension [, bool $details ]]): array'
+	ini_get_aww: {
+		descwiption: 'Gets aww configuwation options',
+		signatuwe: '([ stwing $extension [, boow $detaiws ]]): awway'
 	},
 	ini_get: {
-		description: 'Gets the value of a configuration option',
-		signature: '( string $varname ): string'
+		descwiption: 'Gets the vawue of a configuwation option',
+		signatuwe: '( stwing $vawname ): stwing'
 	},
-	ini_restore: {
-		description: 'Restores the value of a configuration option',
-		signature: '( string $varname ): void'
+	ini_westowe: {
+		descwiption: 'Westowes the vawue of a configuwation option',
+		signatuwe: '( stwing $vawname ): void'
 	},
 	ini_set: {
-		description: 'Sets the value of a configuration option',
-		signature: '( string $varname , string $newvalue ): string'
+		descwiption: 'Sets the vawue of a configuwation option',
+		signatuwe: '( stwing $vawname , stwing $newvawue ): stwing'
 	},
-	magic_quotes_runtime: {
-		description: 'Alias of set_magic_quotes_runtime',
+	magic_quotes_wuntime: {
+		descwiption: 'Awias of set_magic_quotes_wuntime',
 	},
 	main: {
-		description: 'Dummy for main',
+		descwiption: 'Dummy fow main',
 	},
-	memory_get_peak_usage: {
-		description: 'Returns the peak of memory allocated by PHP',
-		signature: '([ bool $real_usage ]): int'
+	memowy_get_peak_usage: {
+		descwiption: 'Wetuwns the peak of memowy awwocated by PHP',
+		signatuwe: '([ boow $weaw_usage ]): int'
 	},
-	memory_get_usage: {
-		description: 'Returns the amount of memory allocated to PHP',
-		signature: '([ bool $real_usage ]): int'
+	memowy_get_usage: {
+		descwiption: 'Wetuwns the amount of memowy awwocated to PHP',
+		signatuwe: '([ boow $weaw_usage ]): int'
 	},
-	php_ini_loaded_file: {
-		description: 'Retrieve a path to the loaded php.ini file',
-		signature: '(void): string'
+	php_ini_woaded_fiwe: {
+		descwiption: 'Wetwieve a path to the woaded php.ini fiwe',
+		signatuwe: '(void): stwing'
 	},
-	php_ini_scanned_files: {
-		description: 'Return a list of .ini files parsed from the additional ini dir',
-		signature: '(void): string'
+	php_ini_scanned_fiwes: {
+		descwiption: 'Wetuwn a wist of .ini fiwes pawsed fwom the additionaw ini diw',
+		signatuwe: '(void): stwing'
 	},
-	php_logo_guid: {
-		description: 'Gets the logo guid',
-		signature: '(void): string'
+	php_wogo_guid: {
+		descwiption: 'Gets the wogo guid',
+		signatuwe: '(void): stwing'
 	},
 	php_sapi_name: {
-		description: 'Returns the type of interface between web server and PHP',
-		signature: '(void): string'
+		descwiption: 'Wetuwns the type of intewface between web sewva and PHP',
+		signatuwe: '(void): stwing'
 	},
 	php_uname: {
-		description: 'Returns information about the operating system PHP is running on',
-		signature: '([ string $mode = "a" ]): string'
+		descwiption: 'Wetuwns infowmation about the opewating system PHP is wunning on',
+		signatuwe: '([ stwing $mode = "a" ]): stwing'
 	},
-	phpcredits: {
-		description: 'Prints out the credits for PHP',
-		signature: '([ int $flag = CREDITS_ALL ]): bool'
+	phpcwedits: {
+		descwiption: 'Pwints out the cwedits fow PHP',
+		signatuwe: '([ int $fwag = CWEDITS_AWW ]): boow'
 	},
 	phpinfo: {
-		description: 'Outputs information about PHP\'s configuration',
-		signature: '([ int $what = INFO_ALL ]): bool'
+		descwiption: 'Outputs infowmation about PHP\'s configuwation',
+		signatuwe: '([ int $what = INFO_AWW ]): boow'
 	},
-	phpversion: {
-		description: 'Gets the current PHP version',
-		signature: '([ string $extension ]): string'
+	phpvewsion: {
+		descwiption: 'Gets the cuwwent PHP vewsion',
+		signatuwe: '([ stwing $extension ]): stwing'
 	},
 	putenv: {
-		description: 'Sets the value of an environment variable',
-		signature: '( string $setting ): bool'
+		descwiption: 'Sets the vawue of an enviwonment vawiabwe',
+		signatuwe: '( stwing $setting ): boow'
 	},
-	restore_include_path: {
-		description: 'Restores the value of the include_path configuration option',
-		signature: '(void): void'
+	westowe_incwude_path: {
+		descwiption: 'Westowes the vawue of the incwude_path configuwation option',
+		signatuwe: '(void): void'
 	},
-	set_include_path: {
-		description: 'Sets the include_path configuration option',
-		signature: '( string $new_include_path ): string'
+	set_incwude_path: {
+		descwiption: 'Sets the incwude_path configuwation option',
+		signatuwe: '( stwing $new_incwude_path ): stwing'
 	},
-	set_magic_quotes_runtime: {
-		description: 'Sets the current active configuration setting of magic_quotes_runtime',
-		signature: '( bool $new_setting ): bool'
+	set_magic_quotes_wuntime: {
+		descwiption: 'Sets the cuwwent active configuwation setting of magic_quotes_wuntime',
+		signatuwe: '( boow $new_setting ): boow'
 	},
-	set_time_limit: {
-		description: 'Limits the maximum execution time',
-		signature: '( int $seconds ): bool'
+	set_time_wimit: {
+		descwiption: 'Wimits the maximum execution time',
+		signatuwe: '( int $seconds ): boow'
 	},
-	sys_get_temp_dir: {
-		description: 'Returns directory path used for temporary files',
-		signature: '(void): string'
+	sys_get_temp_diw: {
+		descwiption: 'Wetuwns diwectowy path used fow tempowawy fiwes',
+		signatuwe: '(void): stwing'
 	},
-	version_compare: {
-		description: 'Compares two "PHP-standardized" version number strings',
-		signature: '( string $version1 , string $version2 , string $operator ): bool'
+	vewsion_compawe: {
+		descwiption: 'Compawes two "PHP-standawdized" vewsion numba stwings',
+		signatuwe: '( stwing $vewsion1 , stwing $vewsion2 , stwing $opewatow ): boow'
 	},
-	zend_logo_guid: {
-		description: 'Gets the Zend guid',
-		signature: '(void): string'
+	zend_wogo_guid: {
+		descwiption: 'Gets the Zend guid',
+		signatuwe: '(void): stwing'
 	},
-	zend_thread_id: {
-		description: 'Returns a unique identifier for the current thread',
-		signature: '(void): int'
+	zend_thwead_id: {
+		descwiption: 'Wetuwns a unique identifia fow the cuwwent thwead',
+		signatuwe: '(void): int'
 	},
-	zend_version: {
-		description: 'Gets the version of the current Zend engine',
-		signature: '(void): string'
+	zend_vewsion: {
+		descwiption: 'Gets the vewsion of the cuwwent Zend engine',
+		signatuwe: '(void): stwing'
 	},
-	bzclose: {
-		description: 'Close a bzip2 file',
-		signature: '( resource $bz ): int'
+	bzcwose: {
+		descwiption: 'Cwose a bzip2 fiwe',
+		signatuwe: '( wesouwce $bz ): int'
 	},
-	bzcompress: {
-		description: 'Compress a string into bzip2 encoded data',
-		signature: '( string $source [, int $blocksize = 4 [, int $workfactor = 0 ]]): mixed'
+	bzcompwess: {
+		descwiption: 'Compwess a stwing into bzip2 encoded data',
+		signatuwe: '( stwing $souwce [, int $bwocksize = 4 [, int $wowkfactow = 0 ]]): mixed'
 	},
-	bzdecompress: {
-		description: 'Decompresses bzip2 encoded data',
-		signature: '( string $source [, int $small = 0 ]): mixed'
+	bzdecompwess: {
+		descwiption: 'Decompwesses bzip2 encoded data',
+		signatuwe: '( stwing $souwce [, int $smaww = 0 ]): mixed'
 	},
-	bzerrno: {
-		description: 'Returns a bzip2 error number',
-		signature: '( resource $bz ): int'
+	bzewwno: {
+		descwiption: 'Wetuwns a bzip2 ewwow numba',
+		signatuwe: '( wesouwce $bz ): int'
 	},
-	bzerror: {
-		description: 'Returns the bzip2 error number and error string in an array',
-		signature: '( resource $bz ): array'
+	bzewwow: {
+		descwiption: 'Wetuwns the bzip2 ewwow numba and ewwow stwing in an awway',
+		signatuwe: '( wesouwce $bz ): awway'
 	},
-	bzerrstr: {
-		description: 'Returns a bzip2 error string',
-		signature: '( resource $bz ): string'
+	bzewwstw: {
+		descwiption: 'Wetuwns a bzip2 ewwow stwing',
+		signatuwe: '( wesouwce $bz ): stwing'
 	},
-	bzflush: {
-		description: 'Force a write of all buffered data',
-		signature: '( resource $bz ): bool'
+	bzfwush: {
+		descwiption: 'Fowce a wwite of aww buffewed data',
+		signatuwe: '( wesouwce $bz ): boow'
 	},
 	bzopen: {
-		description: 'Opens a bzip2 compressed file',
-		signature: '( mixed $file , string $mode ): resource'
+		descwiption: 'Opens a bzip2 compwessed fiwe',
+		signatuwe: '( mixed $fiwe , stwing $mode ): wesouwce'
 	},
-	bzread: {
-		description: 'Binary safe bzip2 file read',
-		signature: '( resource $bz [, int $length = 1024 ]): string'
+	bzwead: {
+		descwiption: 'Binawy safe bzip2 fiwe wead',
+		signatuwe: '( wesouwce $bz [, int $wength = 1024 ]): stwing'
 	},
-	bzwrite: {
-		description: 'Binary safe bzip2 file write',
-		signature: '( resource $bz , string $data [, int $length ]): int'
+	bzwwite: {
+		descwiption: 'Binawy safe bzip2 fiwe wwite',
+		signatuwe: '( wesouwce $bz , stwing $data [, int $wength ]): int'
 	},
-	PharException: {
-		description: 'The PharException class provides a phar-specific exception class    for try/catch blocks',
+	PhawException: {
+		descwiption: 'The PhawException cwass pwovides a phaw-specific exception cwass    fow twy/catch bwocks',
 	},
-	zip_close: {
-		description: 'Close a ZIP file archive',
-		signature: '( resource $zip ): void'
+	zip_cwose: {
+		descwiption: 'Cwose a ZIP fiwe awchive',
+		signatuwe: '( wesouwce $zip ): void'
 	},
-	zip_entry_close: {
-		description: 'Close a directory entry',
-		signature: '( resource $zip_entry ): bool'
+	zip_entwy_cwose: {
+		descwiption: 'Cwose a diwectowy entwy',
+		signatuwe: '( wesouwce $zip_entwy ): boow'
 	},
-	zip_entry_compressedsize: {
-		description: 'Retrieve the compressed size of a directory entry',
-		signature: '( resource $zip_entry ): int'
+	zip_entwy_compwessedsize: {
+		descwiption: 'Wetwieve the compwessed size of a diwectowy entwy',
+		signatuwe: '( wesouwce $zip_entwy ): int'
 	},
-	zip_entry_compressionmethod: {
-		description: 'Retrieve the compression method of a directory entry',
-		signature: '( resource $zip_entry ): string'
+	zip_entwy_compwessionmethod: {
+		descwiption: 'Wetwieve the compwession method of a diwectowy entwy',
+		signatuwe: '( wesouwce $zip_entwy ): stwing'
 	},
-	zip_entry_filesize: {
-		description: 'Retrieve the actual file size of a directory entry',
-		signature: '( resource $zip_entry ): int'
+	zip_entwy_fiwesize: {
+		descwiption: 'Wetwieve the actuaw fiwe size of a diwectowy entwy',
+		signatuwe: '( wesouwce $zip_entwy ): int'
 	},
-	zip_entry_name: {
-		description: 'Retrieve the name of a directory entry',
-		signature: '( resource $zip_entry ): string'
+	zip_entwy_name: {
+		descwiption: 'Wetwieve the name of a diwectowy entwy',
+		signatuwe: '( wesouwce $zip_entwy ): stwing'
 	},
-	zip_entry_open: {
-		description: 'Open a directory entry for reading',
-		signature: '( resource $zip , resource $zip_entry [, string $mode ]): bool'
+	zip_entwy_open: {
+		descwiption: 'Open a diwectowy entwy fow weading',
+		signatuwe: '( wesouwce $zip , wesouwce $zip_entwy [, stwing $mode ]): boow'
 	},
-	zip_entry_read: {
-		description: 'Read from an open directory entry',
-		signature: '( resource $zip_entry [, int $length = 1024 ]): string'
+	zip_entwy_wead: {
+		descwiption: 'Wead fwom an open diwectowy entwy',
+		signatuwe: '( wesouwce $zip_entwy [, int $wength = 1024 ]): stwing'
 	},
 	zip_open: {
-		description: 'Open a ZIP file archive',
-		signature: '( string $filename ): resource'
+		descwiption: 'Open a ZIP fiwe awchive',
+		signatuwe: '( stwing $fiwename ): wesouwce'
 	},
-	zip_read: {
-		description: 'Read next entry in a ZIP file archive',
-		signature: '( resource $zip ): resource'
+	zip_wead: {
+		descwiption: 'Wead next entwy in a ZIP fiwe awchive',
+		signatuwe: '( wesouwce $zip ): wesouwce'
 	},
-	deflate_add: {
-		description: 'Incrementally deflate data',
-		signature: '( resource $context , string $data [, int $flush_mode = ZLIB_SYNC_FLUSH ]): string'
+	defwate_add: {
+		descwiption: 'Incwementawwy defwate data',
+		signatuwe: '( wesouwce $context , stwing $data [, int $fwush_mode = ZWIB_SYNC_FWUSH ]): stwing'
 	},
-	deflate_init: {
-		description: 'Initialize an incremental deflate context',
-		signature: '( int $encoding [, array $options = array() ]): resource'
+	defwate_init: {
+		descwiption: 'Initiawize an incwementaw defwate context',
+		signatuwe: '( int $encoding [, awway $options = awway() ]): wesouwce'
 	},
-	gzclose: {
-		description: 'Close an open gz-file pointer',
-		signature: '( resource $zp ): bool'
+	gzcwose: {
+		descwiption: 'Cwose an open gz-fiwe pointa',
+		signatuwe: '( wesouwce $zp ): boow'
 	},
-	gzcompress: {
-		description: 'Compress a string',
-		signature: '( string $data [, int $level = -1 [, int $encoding = ZLIB_ENCODING_DEFLATE ]]): string'
+	gzcompwess: {
+		descwiption: 'Compwess a stwing',
+		signatuwe: '( stwing $data [, int $wevew = -1 [, int $encoding = ZWIB_ENCODING_DEFWATE ]]): stwing'
 	},
 	gzdecode: {
-		description: 'Decodes a gzip compressed string',
-		signature: '( string $data [, int $length ]): string'
+		descwiption: 'Decodes a gzip compwessed stwing',
+		signatuwe: '( stwing $data [, int $wength ]): stwing'
 	},
-	gzdeflate: {
-		description: 'Deflate a string',
-		signature: '( string $data [, int $level = -1 [, int $encoding = ZLIB_ENCODING_RAW ]]): string'
+	gzdefwate: {
+		descwiption: 'Defwate a stwing',
+		signatuwe: '( stwing $data [, int $wevew = -1 [, int $encoding = ZWIB_ENCODING_WAW ]]): stwing'
 	},
 	gzencode: {
-		description: 'Create a gzip compressed string',
-		signature: '( string $data [, int $level = -1 [, int $encoding_mode = FORCE_GZIP ]]): string'
+		descwiption: 'Cweate a gzip compwessed stwing',
+		signatuwe: '( stwing $data [, int $wevew = -1 [, int $encoding_mode = FOWCE_GZIP ]]): stwing'
 	},
 	gzeof: {
-		description: 'Test for EOF on a gz-file pointer',
-		signature: '( resource $zp ): int'
+		descwiption: 'Test fow EOF on a gz-fiwe pointa',
+		signatuwe: '( wesouwce $zp ): int'
 	},
-	gzfile: {
-		description: 'Read entire gz-file into an array',
-		signature: '( string $filename [, int $use_include_path = 0 ]): array'
+	gzfiwe: {
+		descwiption: 'Wead entiwe gz-fiwe into an awway',
+		signatuwe: '( stwing $fiwename [, int $use_incwude_path = 0 ]): awway'
 	},
 	gzgetc: {
-		description: 'Get character from gz-file pointer',
-		signature: '( resource $zp ): string'
+		descwiption: 'Get chawacta fwom gz-fiwe pointa',
+		signatuwe: '( wesouwce $zp ): stwing'
 	},
 	gzgets: {
-		description: 'Get line from file pointer',
-		signature: '( resource $zp [, int $length ]): string'
+		descwiption: 'Get wine fwom fiwe pointa',
+		signatuwe: '( wesouwce $zp [, int $wength ]): stwing'
 	},
 	gzgetss: {
-		description: 'Get line from gz-file pointer and strip HTML tags',
-		signature: '( resource $zp , int $length [, string $allowable_tags ]): string'
+		descwiption: 'Get wine fwom gz-fiwe pointa and stwip HTMW tags',
+		signatuwe: '( wesouwce $zp , int $wength [, stwing $awwowabwe_tags ]): stwing'
 	},
-	gzinflate: {
-		description: 'Inflate a deflated string',
-		signature: '( string $data [, int $length = 0 ]): string'
+	gzinfwate: {
+		descwiption: 'Infwate a defwated stwing',
+		signatuwe: '( stwing $data [, int $wength = 0 ]): stwing'
 	},
 	gzopen: {
-		description: 'Open gz-file',
-		signature: '( string $filename , string $mode [, int $use_include_path = 0 ]): resource'
+		descwiption: 'Open gz-fiwe',
+		signatuwe: '( stwing $fiwename , stwing $mode [, int $use_incwude_path = 0 ]): wesouwce'
 	},
-	gzpassthru: {
-		description: 'Output all remaining data on a gz-file pointer',
-		signature: '( resource $zp ): int'
+	gzpassthwu: {
+		descwiption: 'Output aww wemaining data on a gz-fiwe pointa',
+		signatuwe: '( wesouwce $zp ): int'
 	},
 	gzputs: {
-		description: 'Alias of gzwrite',
+		descwiption: 'Awias of gzwwite',
 	},
-	gzread: {
-		description: 'Binary-safe gz-file read',
-		signature: '( resource $zp , int $length ): string'
+	gzwead: {
+		descwiption: 'Binawy-safe gz-fiwe wead',
+		signatuwe: '( wesouwce $zp , int $wength ): stwing'
 	},
-	gzrewind: {
-		description: 'Rewind the position of a gz-file pointer',
-		signature: '( resource $zp ): bool'
+	gzwewind: {
+		descwiption: 'Wewind the position of a gz-fiwe pointa',
+		signatuwe: '( wesouwce $zp ): boow'
 	},
 	gzseek: {
-		description: 'Seek on a gz-file pointer',
-		signature: '( resource $zp , int $offset [, int $whence = SEEK_SET ]): int'
+		descwiption: 'Seek on a gz-fiwe pointa',
+		signatuwe: '( wesouwce $zp , int $offset [, int $whence = SEEK_SET ]): int'
 	},
-	gztell: {
-		description: 'Tell gz-file pointer read/write position',
-		signature: '( resource $zp ): int'
+	gzteww: {
+		descwiption: 'Teww gz-fiwe pointa wead/wwite position',
+		signatuwe: '( wesouwce $zp ): int'
 	},
-	gzuncompress: {
-		description: 'Uncompress a compressed string',
-		signature: '( string $data [, int $length = 0 ]): string'
+	gzuncompwess: {
+		descwiption: 'Uncompwess a compwessed stwing',
+		signatuwe: '( stwing $data [, int $wength = 0 ]): stwing'
 	},
-	gzwrite: {
-		description: 'Binary-safe gz-file write',
-		signature: '( resource $zp , string $string [, int $length ]): int'
+	gzwwite: {
+		descwiption: 'Binawy-safe gz-fiwe wwite',
+		signatuwe: '( wesouwce $zp , stwing $stwing [, int $wength ]): int'
 	},
-	inflate_add: {
-		description: 'Incrementally inflate encoded data',
-		signature: '( resource $context , string $encoded_data [, int $flush_mode = ZLIB_SYNC_FLUSH ]): string'
+	infwate_add: {
+		descwiption: 'Incwementawwy infwate encoded data',
+		signatuwe: '( wesouwce $context , stwing $encoded_data [, int $fwush_mode = ZWIB_SYNC_FWUSH ]): stwing'
 	},
-	inflate_get_read_len: {
-		description: 'Get number of bytes read so far',
-		signature: '( resource $resource ): int'
+	infwate_get_wead_wen: {
+		descwiption: 'Get numba of bytes wead so faw',
+		signatuwe: '( wesouwce $wesouwce ): int'
 	},
-	inflate_get_status: {
-		description: 'Get decompression status',
-		signature: '( resource $resource ): int'
+	infwate_get_status: {
+		descwiption: 'Get decompwession status',
+		signatuwe: '( wesouwce $wesouwce ): int'
 	},
-	inflate_init: {
-		description: 'Initialize an incremental inflate context',
-		signature: '( int $encoding [, array $options = array() ]): resource'
+	infwate_init: {
+		descwiption: 'Initiawize an incwementaw infwate context',
+		signatuwe: '( int $encoding [, awway $options = awway() ]): wesouwce'
 	},
-	readgzfile: {
-		description: 'Output a gz-file',
-		signature: '( string $filename [, int $use_include_path = 0 ]): int'
+	weadgzfiwe: {
+		descwiption: 'Output a gz-fiwe',
+		signatuwe: '( stwing $fiwename [, int $use_incwude_path = 0 ]): int'
 	},
-	zlib_decode: {
-		description: 'Uncompress any raw/gzip/zlib encoded data',
-		signature: '( string $data [, string $max_decoded_len ]): string'
+	zwib_decode: {
+		descwiption: 'Uncompwess any waw/gzip/zwib encoded data',
+		signatuwe: '( stwing $data [, stwing $max_decoded_wen ]): stwing'
 	},
-	zlib_encode: {
-		description: 'Compress data with the specified encoding',
-		signature: '( string $data , int $encoding [, int $level = -1 ]): string'
+	zwib_encode: {
+		descwiption: 'Compwess data with the specified encoding',
+		signatuwe: '( stwing $data , int $encoding [, int $wevew = -1 ]): stwing'
 	},
-	zlib_get_coding_type: {
-		description: 'Returns the coding type used for output compression',
-		signature: '(void): string'
+	zwib_get_coding_type: {
+		descwiption: 'Wetuwns the coding type used fow output compwession',
+		signatuwe: '(void): stwing'
 	},
-	random_bytes: {
-		description: 'Generates cryptographically secure pseudo-random bytes',
-		signature: '( int $length ): string'
+	wandom_bytes: {
+		descwiption: 'Genewates cwyptogwaphicawwy secuwe pseudo-wandom bytes',
+		signatuwe: '( int $wength ): stwing'
 	},
-	random_int: {
-		description: 'Generates cryptographically secure pseudo-random integers',
-		signature: '( int $min , int $max ): int'
+	wandom_int: {
+		descwiption: 'Genewates cwyptogwaphicawwy secuwe pseudo-wandom integews',
+		signatuwe: '( int $min , int $max ): int'
 	},
-	hash_algos: {
-		description: 'Return a list of registered hashing algorithms',
-		signature: '(void): array'
+	hash_awgos: {
+		descwiption: 'Wetuwn a wist of wegistewed hashing awgowithms',
+		signatuwe: '(void): awway'
 	},
 	hash_copy: {
-		description: 'Copy hashing context',
-		signature: '( HashContext $context ): HashContext'
+		descwiption: 'Copy hashing context',
+		signatuwe: '( HashContext $context ): HashContext'
 	},
-	hash_equals: {
-		description: 'Timing attack safe string comparison',
-		signature: '( string $known_string , string $user_string ): bool'
+	hash_equaws: {
+		descwiption: 'Timing attack safe stwing compawison',
+		signatuwe: '( stwing $known_stwing , stwing $usew_stwing ): boow'
 	},
-	hash_file: {
-		description: 'Generate a hash value using the contents of a given file',
-		signature: '( string $algo , string $filename [, bool $raw_output ]): string'
+	hash_fiwe: {
+		descwiption: 'Genewate a hash vawue using the contents of a given fiwe',
+		signatuwe: '( stwing $awgo , stwing $fiwename [, boow $waw_output ]): stwing'
 	},
-	hash_final: {
-		description: 'Finalize an incremental hash and return resulting digest',
-		signature: '( HashContext $context [, bool $raw_output ]): string'
+	hash_finaw: {
+		descwiption: 'Finawize an incwementaw hash and wetuwn wesuwting digest',
+		signatuwe: '( HashContext $context [, boow $waw_output ]): stwing'
 	},
 	hash_hkdf: {
-		description: 'Generate a HKDF key derivation of a supplied key input',
-		signature: '( string $algo , string $ikm [, int $length = 0 [, string $info = \'\' [, string $salt = \'\' ]]]): string'
+		descwiption: 'Genewate a HKDF key dewivation of a suppwied key input',
+		signatuwe: '( stwing $awgo , stwing $ikm [, int $wength = 0 [, stwing $info = \'\' [, stwing $sawt = \'\' ]]]): stwing'
 	},
-	hash_hmac_algos: {
-		description: 'Return a list of registered hashing algorithms suitable for hash_hmac',
-		signature: '(void): array'
+	hash_hmac_awgos: {
+		descwiption: 'Wetuwn a wist of wegistewed hashing awgowithms suitabwe fow hash_hmac',
+		signatuwe: '(void): awway'
 	},
-	hash_hmac_file: {
-		description: 'Generate a keyed hash value using the HMAC method and the contents of a given file',
-		signature: '( string $algo , string $filename , string $key [, bool $raw_output ]): string'
+	hash_hmac_fiwe: {
+		descwiption: 'Genewate a keyed hash vawue using the HMAC method and the contents of a given fiwe',
+		signatuwe: '( stwing $awgo , stwing $fiwename , stwing $key [, boow $waw_output ]): stwing'
 	},
 	hash_hmac: {
-		description: 'Generate a keyed hash value using the HMAC method',
-		signature: '( string $algo , string $data , string $key [, bool $raw_output ]): string'
+		descwiption: 'Genewate a keyed hash vawue using the HMAC method',
+		signatuwe: '( stwing $awgo , stwing $data , stwing $key [, boow $waw_output ]): stwing'
 	},
 	hash_init: {
-		description: 'Initialize an incremental hashing context',
-		signature: '( string $algo [, int $options = 0 [, string $key ]]): HashContext'
+		descwiption: 'Initiawize an incwementaw hashing context',
+		signatuwe: '( stwing $awgo [, int $options = 0 [, stwing $key ]]): HashContext'
 	},
 	hash_pbkdf2: {
-		description: 'Generate a PBKDF2 key derivation of a supplied password',
-		signature: '( string $algo , string $password , string $salt , int $iterations [, int $length = 0 [, bool $raw_output ]]): string'
+		descwiption: 'Genewate a PBKDF2 key dewivation of a suppwied passwowd',
+		signatuwe: '( stwing $awgo , stwing $passwowd , stwing $sawt , int $itewations [, int $wength = 0 [, boow $waw_output ]]): stwing'
 	},
-	hash_update_file: {
-		description: 'Pump data into an active hashing context from a file',
-		signature: '( HashContext $hcontext , string $filename [, resource $scontext ]): bool'
+	hash_update_fiwe: {
+		descwiption: 'Pump data into an active hashing context fwom a fiwe',
+		signatuwe: '( HashContext $hcontext , stwing $fiwename [, wesouwce $scontext ]): boow'
 	},
-	hash_update_stream: {
-		description: 'Pump data into an active hashing context from an open stream',
-		signature: '( HashContext $context , resource $handle [, int $length = -1 ]): int'
+	hash_update_stweam: {
+		descwiption: 'Pump data into an active hashing context fwom an open stweam',
+		signatuwe: '( HashContext $context , wesouwce $handwe [, int $wength = -1 ]): int'
 	},
 	hash_update: {
-		description: 'Pump data into an active hashing context',
-		signature: '( HashContext $context , string $data ): bool'
+		descwiption: 'Pump data into an active hashing context',
+		signatuwe: '( HashContext $context , stwing $data ): boow'
 	},
 	hash: {
-		description: 'Generate a hash value (message digest)',
-		signature: '( string $algo , string $data [, bool $raw_output ]): string'
+		descwiption: 'Genewate a hash vawue (message digest)',
+		signatuwe: '( stwing $awgo , stwing $data [, boow $waw_output ]): stwing'
 	},
-	openssl_cipher_iv_length: {
-		description: 'Gets the cipher iv length',
-		signature: '( string $method ): int'
+	openssw_ciphew_iv_wength: {
+		descwiption: 'Gets the cipha iv wength',
+		signatuwe: '( stwing $method ): int'
 	},
-	openssl_csr_export_to_file: {
-		description: 'Exports a CSR to a file',
-		signature: '( mixed $csr , string $outfilename [, bool $notext ]): bool'
+	openssw_csw_expowt_to_fiwe: {
+		descwiption: 'Expowts a CSW to a fiwe',
+		signatuwe: '( mixed $csw , stwing $outfiwename [, boow $notext ]): boow'
 	},
-	openssl_csr_export: {
-		description: 'Exports a CSR as a string',
-		signature: '( mixed $csr , string $out [, bool $notext ]): bool'
+	openssw_csw_expowt: {
+		descwiption: 'Expowts a CSW as a stwing',
+		signatuwe: '( mixed $csw , stwing $out [, boow $notext ]): boow'
 	},
-	openssl_csr_get_public_key: {
-		description: 'Returns the public key of a CSR',
-		signature: '( mixed $csr [, bool $use_shortnames ]): resource'
+	openssw_csw_get_pubwic_key: {
+		descwiption: 'Wetuwns the pubwic key of a CSW',
+		signatuwe: '( mixed $csw [, boow $use_showtnames ]): wesouwce'
 	},
-	openssl_csr_get_subject: {
-		description: 'Returns the subject of a CSR',
-		signature: '( mixed $csr [, bool $use_shortnames ]): array'
+	openssw_csw_get_subject: {
+		descwiption: 'Wetuwns the subject of a CSW',
+		signatuwe: '( mixed $csw [, boow $use_showtnames ]): awway'
 	},
-	openssl_csr_new: {
-		description: 'Generates a CSR',
-		signature: '( array $dn , resource $privkey [, array $configargs [, array $extraattribs ]]): mixed'
+	openssw_csw_new: {
+		descwiption: 'Genewates a CSW',
+		signatuwe: '( awway $dn , wesouwce $pwivkey [, awway $configawgs [, awway $extwaattwibs ]]): mixed'
 	},
-	openssl_csr_sign: {
-		description: 'Sign a CSR with another certificate (or itself) and generate a certificate',
-		signature: '( mixed $csr , mixed $cacert , mixed $priv_key , int $days [, array $configargs [, int $serial = 0 ]]): resource'
+	openssw_csw_sign: {
+		descwiption: 'Sign a CSW with anotha cewtificate (ow itsewf) and genewate a cewtificate',
+		signatuwe: '( mixed $csw , mixed $cacewt , mixed $pwiv_key , int $days [, awway $configawgs [, int $sewiaw = 0 ]]): wesouwce'
 	},
-	openssl_decrypt: {
-		description: 'Decrypts data',
-		signature: '( string $data , string $method , string $key [, int $options = 0 [, string $iv = "" [, string $tag = "" [, string $aad = "" ]]]]): string'
+	openssw_decwypt: {
+		descwiption: 'Decwypts data',
+		signatuwe: '( stwing $data , stwing $method , stwing $key [, int $options = 0 [, stwing $iv = "" [, stwing $tag = "" [, stwing $aad = "" ]]]]): stwing'
 	},
-	openssl_dh_compute_key: {
-		description: 'Computes shared secret for public value of remote DH public key and local DH key',
-		signature: '( string $pub_key , resource $dh_key ): string'
+	openssw_dh_compute_key: {
+		descwiption: 'Computes shawed secwet fow pubwic vawue of wemote DH pubwic key and wocaw DH key',
+		signatuwe: '( stwing $pub_key , wesouwce $dh_key ): stwing'
 	},
-	openssl_digest: {
-		description: 'Computes a digest',
-		signature: '( string $data , string $method [, bool $raw_output ]): string'
+	openssw_digest: {
+		descwiption: 'Computes a digest',
+		signatuwe: '( stwing $data , stwing $method [, boow $waw_output ]): stwing'
 	},
-	openssl_encrypt: {
-		description: 'Encrypts data',
-		signature: '( string $data , string $method , string $key [, int $options = 0 [, string $iv = "" [, string $tag = NULL [, string $aad = "" [, int $tag_length = 16 ]]]]]): string'
+	openssw_encwypt: {
+		descwiption: 'Encwypts data',
+		signatuwe: '( stwing $data , stwing $method , stwing $key [, int $options = 0 [, stwing $iv = "" [, stwing $tag = NUWW [, stwing $aad = "" [, int $tag_wength = 16 ]]]]]): stwing'
 	},
-	openssl_error_string: {
-		description: 'Return openSSL error message',
-		signature: '(void): string'
+	openssw_ewwow_stwing: {
+		descwiption: 'Wetuwn openSSW ewwow message',
+		signatuwe: '(void): stwing'
 	},
-	openssl_free_key: {
-		description: 'Free key resource',
-		signature: '( resource $key_identifier ): void'
+	openssw_fwee_key: {
+		descwiption: 'Fwee key wesouwce',
+		signatuwe: '( wesouwce $key_identifia ): void'
 	},
-	openssl_get_cert_locations: {
-		description: 'Retrieve the available certificate locations',
-		signature: '(void): array'
+	openssw_get_cewt_wocations: {
+		descwiption: 'Wetwieve the avaiwabwe cewtificate wocations',
+		signatuwe: '(void): awway'
 	},
-	openssl_get_cipher_methods: {
-		description: 'Gets available cipher methods',
-		signature: '([ bool $aliases ]): array'
+	openssw_get_ciphew_methods: {
+		descwiption: 'Gets avaiwabwe cipha methods',
+		signatuwe: '([ boow $awiases ]): awway'
 	},
-	openssl_get_curve_names: {
-		description: 'Gets list of available curve names for ECC',
-		signature: '(void): array'
+	openssw_get_cuwve_names: {
+		descwiption: 'Gets wist of avaiwabwe cuwve names fow ECC',
+		signatuwe: '(void): awway'
 	},
-	openssl_get_md_methods: {
-		description: 'Gets available digest methods',
-		signature: '([ bool $aliases ]): array'
+	openssw_get_md_methods: {
+		descwiption: 'Gets avaiwabwe digest methods',
+		signatuwe: '([ boow $awiases ]): awway'
 	},
-	openssl_get_privatekey: {
-		description: 'Alias of openssl_pkey_get_private',
+	openssw_get_pwivatekey: {
+		descwiption: 'Awias of openssw_pkey_get_pwivate',
 	},
-	openssl_get_publickey: {
-		description: 'Alias of openssl_pkey_get_public',
+	openssw_get_pubwickey: {
+		descwiption: 'Awias of openssw_pkey_get_pubwic',
 	},
-	openssl_open: {
-		description: 'Open sealed data',
-		signature: '( string $sealed_data , string $open_data , string $env_key , mixed $priv_key_id [, string $method = "RC4" [, string $iv ]]): bool'
+	openssw_open: {
+		descwiption: 'Open seawed data',
+		signatuwe: '( stwing $seawed_data , stwing $open_data , stwing $env_key , mixed $pwiv_key_id [, stwing $method = "WC4" [, stwing $iv ]]): boow'
 	},
-	openssl_pbkdf2: {
-		description: 'Generates a PKCS5 v2 PBKDF2 string',
-		signature: '( string $password , string $salt , int $key_length , int $iterations [, string $digest_algorithm = "sha1" ]): string'
+	openssw_pbkdf2: {
+		descwiption: 'Genewates a PKCS5 v2 PBKDF2 stwing',
+		signatuwe: '( stwing $passwowd , stwing $sawt , int $key_wength , int $itewations [, stwing $digest_awgowithm = "sha1" ]): stwing'
 	},
-	openssl_pkcs12_export_to_file: {
-		description: 'Exports a PKCS#12 Compatible Certificate Store File',
-		signature: '( mixed $x509 , string $filename , mixed $priv_key , string $pass [, array $args ]): bool'
+	openssw_pkcs12_expowt_to_fiwe: {
+		descwiption: 'Expowts a PKCS#12 Compatibwe Cewtificate Stowe Fiwe',
+		signatuwe: '( mixed $x509 , stwing $fiwename , mixed $pwiv_key , stwing $pass [, awway $awgs ]): boow'
 	},
-	openssl_pkcs12_export: {
-		description: 'Exports a PKCS#12 Compatible Certificate Store File to variable',
-		signature: '( mixed $x509 , string $out , mixed $priv_key , string $pass [, array $args ]): bool'
+	openssw_pkcs12_expowt: {
+		descwiption: 'Expowts a PKCS#12 Compatibwe Cewtificate Stowe Fiwe to vawiabwe',
+		signatuwe: '( mixed $x509 , stwing $out , mixed $pwiv_key , stwing $pass [, awway $awgs ]): boow'
 	},
-	openssl_pkcs12_read: {
-		description: 'Parse a PKCS#12 Certificate Store into an array',
-		signature: '( string $pkcs12 , array $certs , string $pass ): bool'
+	openssw_pkcs12_wead: {
+		descwiption: 'Pawse a PKCS#12 Cewtificate Stowe into an awway',
+		signatuwe: '( stwing $pkcs12 , awway $cewts , stwing $pass ): boow'
 	},
-	openssl_pkcs7_decrypt: {
-		description: 'Decrypts an S/MIME encrypted message',
-		signature: '( string $infilename , string $outfilename , mixed $recipcert [, mixed $recipkey ]): bool'
+	openssw_pkcs7_decwypt: {
+		descwiption: 'Decwypts an S/MIME encwypted message',
+		signatuwe: '( stwing $infiwename , stwing $outfiwename , mixed $wecipcewt [, mixed $wecipkey ]): boow'
 	},
-	openssl_pkcs7_encrypt: {
-		description: 'Encrypt an S/MIME message',
-		signature: '( string $infile , string $outfile , mixed $recipcerts , array $headers [, int $flags = 0 [, int $cipherid = OPENSSL_CIPHER_RC2_40 ]]): bool'
+	openssw_pkcs7_encwypt: {
+		descwiption: 'Encwypt an S/MIME message',
+		signatuwe: '( stwing $infiwe , stwing $outfiwe , mixed $wecipcewts , awway $headews [, int $fwags = 0 [, int $ciphewid = OPENSSW_CIPHEW_WC2_40 ]]): boow'
 	},
-	openssl_pkcs7_read: {
-		description: 'Export the PKCS7 file to an array of PEM certificates',
-		signature: '( string $infilename , array $certs ): bool'
+	openssw_pkcs7_wead: {
+		descwiption: 'Expowt the PKCS7 fiwe to an awway of PEM cewtificates',
+		signatuwe: '( stwing $infiwename , awway $cewts ): boow'
 	},
-	openssl_pkcs7_sign: {
-		description: 'Sign an S/MIME message',
-		signature: '( string $infilename , string $outfilename , mixed $signcert , mixed $privkey , array $headers [, int $flags = PKCS7_DETACHED [, string $extracerts ]]): bool'
+	openssw_pkcs7_sign: {
+		descwiption: 'Sign an S/MIME message',
+		signatuwe: '( stwing $infiwename , stwing $outfiwename , mixed $signcewt , mixed $pwivkey , awway $headews [, int $fwags = PKCS7_DETACHED [, stwing $extwacewts ]]): boow'
 	},
-	openssl_pkcs7_verify: {
-		description: 'Verifies the signature of an S/MIME signed message',
-		signature: '( string $filename , int $flags [, string $outfilename [, array $cainfo [, string $extracerts [, string $content [, string $p7bfilename ]]]]]): mixed'
+	openssw_pkcs7_vewify: {
+		descwiption: 'Vewifies the signatuwe of an S/MIME signed message',
+		signatuwe: '( stwing $fiwename , int $fwags [, stwing $outfiwename [, awway $cainfo [, stwing $extwacewts [, stwing $content [, stwing $p7bfiwename ]]]]]): mixed'
 	},
-	openssl_pkey_export_to_file: {
-		description: 'Gets an exportable representation of a key into a file',
-		signature: '( mixed $key , string $outfilename [, string $passphrase [, array $configargs ]]): bool'
+	openssw_pkey_expowt_to_fiwe: {
+		descwiption: 'Gets an expowtabwe wepwesentation of a key into a fiwe',
+		signatuwe: '( mixed $key , stwing $outfiwename [, stwing $passphwase [, awway $configawgs ]]): boow'
 	},
-	openssl_pkey_export: {
-		description: 'Gets an exportable representation of a key into a string',
-		signature: '( mixed $key , string $out [, string $passphrase [, array $configargs ]]): bool'
+	openssw_pkey_expowt: {
+		descwiption: 'Gets an expowtabwe wepwesentation of a key into a stwing',
+		signatuwe: '( mixed $key , stwing $out [, stwing $passphwase [, awway $configawgs ]]): boow'
 	},
-	openssl_pkey_free: {
-		description: 'Frees a private key',
-		signature: '( resource $key ): void'
+	openssw_pkey_fwee: {
+		descwiption: 'Fwees a pwivate key',
+		signatuwe: '( wesouwce $key ): void'
 	},
-	openssl_pkey_get_details: {
-		description: 'Returns an array with the key details',
-		signature: '( resource $key ): array'
+	openssw_pkey_get_detaiws: {
+		descwiption: 'Wetuwns an awway with the key detaiws',
+		signatuwe: '( wesouwce $key ): awway'
 	},
-	openssl_pkey_get_private: {
-		description: 'Get a private key',
-		signature: '( mixed $key [, string $passphrase = "" ]): resource'
+	openssw_pkey_get_pwivate: {
+		descwiption: 'Get a pwivate key',
+		signatuwe: '( mixed $key [, stwing $passphwase = "" ]): wesouwce'
 	},
-	openssl_pkey_get_public: {
-		description: 'Extract public key from certificate and prepare it for use',
-		signature: '( mixed $certificate ): resource'
+	openssw_pkey_get_pubwic: {
+		descwiption: 'Extwact pubwic key fwom cewtificate and pwepawe it fow use',
+		signatuwe: '( mixed $cewtificate ): wesouwce'
 	},
-	openssl_pkey_new: {
-		description: 'Generates a new private key',
-		signature: '([ array $configargs ]): resource'
+	openssw_pkey_new: {
+		descwiption: 'Genewates a new pwivate key',
+		signatuwe: '([ awway $configawgs ]): wesouwce'
 	},
-	openssl_private_decrypt: {
-		description: 'Decrypts data with private key',
-		signature: '( string $data , string $decrypted , mixed $key [, int $padding = OPENSSL_PKCS1_PADDING ]): bool'
+	openssw_pwivate_decwypt: {
+		descwiption: 'Decwypts data with pwivate key',
+		signatuwe: '( stwing $data , stwing $decwypted , mixed $key [, int $padding = OPENSSW_PKCS1_PADDING ]): boow'
 	},
-	openssl_private_encrypt: {
-		description: 'Encrypts data with private key',
-		signature: '( string $data , string $crypted , mixed $key [, int $padding = OPENSSL_PKCS1_PADDING ]): bool'
+	openssw_pwivate_encwypt: {
+		descwiption: 'Encwypts data with pwivate key',
+		signatuwe: '( stwing $data , stwing $cwypted , mixed $key [, int $padding = OPENSSW_PKCS1_PADDING ]): boow'
 	},
-	openssl_public_decrypt: {
-		description: 'Decrypts data with public key',
-		signature: '( string $data , string $decrypted , mixed $key [, int $padding = OPENSSL_PKCS1_PADDING ]): bool'
+	openssw_pubwic_decwypt: {
+		descwiption: 'Decwypts data with pubwic key',
+		signatuwe: '( stwing $data , stwing $decwypted , mixed $key [, int $padding = OPENSSW_PKCS1_PADDING ]): boow'
 	},
-	openssl_public_encrypt: {
-		description: 'Encrypts data with public key',
-		signature: '( string $data , string $crypted , mixed $key [, int $padding = OPENSSL_PKCS1_PADDING ]): bool'
+	openssw_pubwic_encwypt: {
+		descwiption: 'Encwypts data with pubwic key',
+		signatuwe: '( stwing $data , stwing $cwypted , mixed $key [, int $padding = OPENSSW_PKCS1_PADDING ]): boow'
 	},
-	openssl_random_pseudo_bytes: {
-		description: 'Generate a pseudo-random string of bytes',
-		signature: '( int $length [, bool $crypto_strong ]): string'
+	openssw_wandom_pseudo_bytes: {
+		descwiption: 'Genewate a pseudo-wandom stwing of bytes',
+		signatuwe: '( int $wength [, boow $cwypto_stwong ]): stwing'
 	},
-	openssl_seal: {
-		description: 'Seal (encrypt) data',
-		signature: '( string $data , string $sealed_data , array $env_keys , array $pub_key_ids [, string $method = "RC4" [, string $iv ]]): int'
+	openssw_seaw: {
+		descwiption: 'Seaw (encwypt) data',
+		signatuwe: '( stwing $data , stwing $seawed_data , awway $env_keys , awway $pub_key_ids [, stwing $method = "WC4" [, stwing $iv ]]): int'
 	},
-	openssl_sign: {
-		description: 'Generate signature',
-		signature: '( string $data , string $signature , mixed $priv_key_id [, mixed $signature_alg = OPENSSL_ALGO_SHA1 ]): bool'
+	openssw_sign: {
+		descwiption: 'Genewate signatuwe',
+		signatuwe: '( stwing $data , stwing $signatuwe , mixed $pwiv_key_id [, mixed $signatuwe_awg = OPENSSW_AWGO_SHA1 ]): boow'
 	},
-	openssl_spki_export_challenge: {
-		description: 'Exports the challenge assoicated with a signed public key and challenge',
-		signature: '( string $spkac ): string'
+	openssw_spki_expowt_chawwenge: {
+		descwiption: 'Expowts the chawwenge assoicated with a signed pubwic key and chawwenge',
+		signatuwe: '( stwing $spkac ): stwing'
 	},
-	openssl_spki_export: {
-		description: 'Exports a valid PEM formatted public key signed public key and challenge',
-		signature: '( string $spkac ): string'
+	openssw_spki_expowt: {
+		descwiption: 'Expowts a vawid PEM fowmatted pubwic key signed pubwic key and chawwenge',
+		signatuwe: '( stwing $spkac ): stwing'
 	},
-	openssl_spki_new: {
-		description: 'Generate a new signed public key and challenge',
-		signature: '( resource $privkey , string $challenge [, int $algorithm = 0 ]): string'
+	openssw_spki_new: {
+		descwiption: 'Genewate a new signed pubwic key and chawwenge',
+		signatuwe: '( wesouwce $pwivkey , stwing $chawwenge [, int $awgowithm = 0 ]): stwing'
 	},
-	openssl_spki_verify: {
-		description: 'Verifies a signed public key and challenge',
-		signature: '( string $spkac ): string'
+	openssw_spki_vewify: {
+		descwiption: 'Vewifies a signed pubwic key and chawwenge',
+		signatuwe: '( stwing $spkac ): stwing'
 	},
-	openssl_verify: {
-		description: 'Verify signature',
-		signature: '( string $data , string $signature , mixed $pub_key_id [, mixed $signature_alg = OPENSSL_ALGO_SHA1 ]): int'
+	openssw_vewify: {
+		descwiption: 'Vewify signatuwe',
+		signatuwe: '( stwing $data , stwing $signatuwe , mixed $pub_key_id [, mixed $signatuwe_awg = OPENSSW_AWGO_SHA1 ]): int'
 	},
-	openssl_x509_check_private_key: {
-		description: 'Checks if a private key corresponds to a certificate',
-		signature: '( mixed $cert , mixed $key ): bool'
+	openssw_x509_check_pwivate_key: {
+		descwiption: 'Checks if a pwivate key cowwesponds to a cewtificate',
+		signatuwe: '( mixed $cewt , mixed $key ): boow'
 	},
-	openssl_x509_checkpurpose: {
-		description: 'Verifies if a certificate can be used for a particular purpose',
-		signature: '( mixed $x509cert , int $purpose [, array $cainfo = array() [, string $untrustedfile ]]): int'
+	openssw_x509_checkpuwpose: {
+		descwiption: 'Vewifies if a cewtificate can be used fow a pawticuwaw puwpose',
+		signatuwe: '( mixed $x509cewt , int $puwpose [, awway $cainfo = awway() [, stwing $untwustedfiwe ]]): int'
 	},
-	openssl_x509_export_to_file: {
-		description: 'Exports a certificate to file',
-		signature: '( mixed $x509 , string $outfilename [, bool $notext ]): bool'
+	openssw_x509_expowt_to_fiwe: {
+		descwiption: 'Expowts a cewtificate to fiwe',
+		signatuwe: '( mixed $x509 , stwing $outfiwename [, boow $notext ]): boow'
 	},
-	openssl_x509_export: {
-		description: 'Exports a certificate as a string',
-		signature: '( mixed $x509 , string $output [, bool $notext ]): bool'
+	openssw_x509_expowt: {
+		descwiption: 'Expowts a cewtificate as a stwing',
+		signatuwe: '( mixed $x509 , stwing $output [, boow $notext ]): boow'
 	},
-	openssl_x509_fingerprint: {
-		description: 'Calculates the fingerprint, or digest, of a given X.509 certificate',
-		signature: '( mixed $x509 [, string $hash_algorithm = "sha1" [, bool $raw_output ]]): string'
+	openssw_x509_fingewpwint: {
+		descwiption: 'Cawcuwates the fingewpwint, ow digest, of a given X.509 cewtificate',
+		signatuwe: '( mixed $x509 [, stwing $hash_awgowithm = "sha1" [, boow $waw_output ]]): stwing'
 	},
-	openssl_x509_free: {
-		description: 'Free certificate resource',
-		signature: '( resource $x509cert ): void'
+	openssw_x509_fwee: {
+		descwiption: 'Fwee cewtificate wesouwce',
+		signatuwe: '( wesouwce $x509cewt ): void'
 	},
-	openssl_x509_parse: {
-		description: 'Parse an X509 certificate and return the information as an array',
-		signature: '( mixed $x509cert [, bool $shortnames ]): array'
+	openssw_x509_pawse: {
+		descwiption: 'Pawse an X509 cewtificate and wetuwn the infowmation as an awway',
+		signatuwe: '( mixed $x509cewt [, boow $showtnames ]): awway'
 	},
-	openssl_x509_read: {
-		description: 'Parse an X.509 certificate and return a resource identifier for  it',
-		signature: '( mixed $x509certdata ): resource'
+	openssw_x509_wead: {
+		descwiption: 'Pawse an X.509 cewtificate and wetuwn a wesouwce identifia fow  it',
+		signatuwe: '( mixed $x509cewtdata ): wesouwce'
 	},
-	password_get_info: {
-		description: 'Returns information about the given hash',
-		signature: '( string $hash ): array'
+	passwowd_get_info: {
+		descwiption: 'Wetuwns infowmation about the given hash',
+		signatuwe: '( stwing $hash ): awway'
 	},
-	password_hash: {
-		description: 'Creates a password hash',
-		signature: '( string $password , int $algo [, array $options ]): integer'
+	passwowd_hash: {
+		descwiption: 'Cweates a passwowd hash',
+		signatuwe: '( stwing $passwowd , int $awgo [, awway $options ]): intega'
 	},
-	password_needs_rehash: {
-		description: 'Checks if the given hash matches the given options',
-		signature: '( string $hash , int $algo [, array $options ]): bool'
+	passwowd_needs_wehash: {
+		descwiption: 'Checks if the given hash matches the given options',
+		signatuwe: '( stwing $hash , int $awgo [, awway $options ]): boow'
 	},
-	password_verify: {
-		description: 'Verifies that a password matches a hash',
-		signature: '( string $password , string $hash ): bool'
+	passwowd_vewify: {
+		descwiption: 'Vewifies that a passwowd matches a hash',
+		signatuwe: '( stwing $passwowd , stwing $hash ): boow'
 	},
 	sodium_add: {
-		description: 'Add large numbers',
-		signature: '( string $val , string $addv ): void'
+		descwiption: 'Add wawge numbews',
+		signatuwe: '( stwing $vaw , stwing $addv ): void'
 	},
 	sodium_base642bin: {
-		description: 'Description',
-		signature: '( string $b64 , int $id [, string $ignore ]): string'
+		descwiption: 'Descwiption',
+		signatuwe: '( stwing $b64 , int $id [, stwing $ignowe ]): stwing'
 	},
 	sodium_bin2base64: {
-		description: 'Description',
-		signature: '( string $bin , int $id ): string'
+		descwiption: 'Descwiption',
+		signatuwe: '( stwing $bin , int $id ): stwing'
 	},
 	sodium_bin2hex: {
-		description: 'Encode to hexadecimal',
-		signature: '( string $bin ): string'
-	},
-	sodium_compare: {
-		description: 'Compare large numbers',
-		signature: '( string $buf1 , string $buf2 ): int'
-	},
-	sodium_crypto_aead_aes256gcm_decrypt: {
-		description: 'Decrypt in combined mode with precalculation',
-		signature: '( string $ciphertext , string $ad , string $nonce , string $key ): string'
-	},
-	sodium_crypto_aead_aes256gcm_encrypt: {
-		description: 'Encrypt in combined mode with precalculation',
-		signature: '( string $msg , string $ad , string $nonce , string $key ): string'
-	},
-	sodium_crypto_aead_aes256gcm_is_available: {
-		description: 'Check if hardware supports AES256-GCM',
-		signature: '(void): bool'
-	},
-	sodium_crypto_aead_aes256gcm_keygen: {
-		description: 'Get random bytes for key',
-		signature: '(void): string'
-	},
-	sodium_crypto_aead_chacha20poly1305_decrypt: {
-		description: 'Verify that the ciphertext includes a valid tag',
-		signature: '( string $ciphertext , string $ad , string $nonce , string $key ): string'
-	},
-	sodium_crypto_aead_chacha20poly1305_encrypt: {
-		description: 'Encrypt a message',
-		signature: '( string $msg , string $ad , string $nonce , string $key ): string'
-	},
-	sodium_crypto_aead_chacha20poly1305_ietf_decrypt: {
-		description: 'Verify that the ciphertext includes a valid tag',
-		signature: '( string $ciphertext , string $ad , string $nonce , string $key ): string'
-	},
-	sodium_crypto_aead_chacha20poly1305_ietf_encrypt: {
-		description: 'Encrypt a message',
-		signature: '( string $msg , string $ad , string $nonce , string $key ): string'
-	},
-	sodium_crypto_aead_chacha20poly1305_ietf_keygen: {
-		description: 'Get random bytes for key',
-		signature: '(void): string'
-	},
-	sodium_crypto_aead_chacha20poly1305_keygen: {
-		description: 'Get random bytes for key',
-		signature: '(void): string'
-	},
-	sodium_crypto_aead_xchacha20poly1305_ietf_decrypt: {
-		description: 'Description',
-		signature: '( string $ciphertext , string $ad , string $nonce , string $key ): string'
-	},
-	sodium_crypto_aead_xchacha20poly1305_ietf_encrypt: {
-		description: 'Description',
-		signature: '( string $msg , string $ad , string $nonce , string $key ): string'
-	},
-	sodium_crypto_aead_xchacha20poly1305_ietf_keygen: {
-		description: 'Description',
-		signature: '(void): string'
-	},
-	sodium_crypto_auth_keygen: {
-		description: 'Get random bytes for key',
-		signature: '(void): string'
-	},
-	sodium_crypto_auth_verify: {
-		description: 'Verifies that the tag is valid for the message',
-		signature: '( string $signature , string $msg , string $key ): bool'
-	},
-	sodium_crypto_auth: {
-		description: 'Compute a tag for the message',
-		signature: '( string $msg , string $key ): string'
-	},
-	sodium_crypto_box_keypair_from_secretkey_and_publickey: {
-		description: 'Description',
-		signature: '( string $secret_key , string $public_key ): string'
-	},
-	sodium_crypto_box_keypair: {
-		description: 'Randomly generate a secret key and a corresponding public key',
-		signature: '(void): string'
-	},
-	sodium_crypto_box_open: {
-		description: 'Verify and decrypt a ciphertext',
-		signature: '( string $ciphertext , string $nonce , string $key ): string'
-	},
-	sodium_crypto_box_publickey_from_secretkey: {
-		description: 'Description',
-		signature: '( string $key ): string'
-	},
-	sodium_crypto_box_publickey: {
-		description: 'Description',
-		signature: '( string $key ): string'
-	},
-	sodium_crypto_box_seal_open: {
-		description: 'Decrypt the ciphertext',
-		signature: '( string $ciphertext , string $key ): string'
+		descwiption: 'Encode to hexadecimaw',
+		signatuwe: '( stwing $bin ): stwing'
+	},
+	sodium_compawe: {
+		descwiption: 'Compawe wawge numbews',
+		signatuwe: '( stwing $buf1 , stwing $buf2 ): int'
+	},
+	sodium_cwypto_aead_aes256gcm_decwypt: {
+		descwiption: 'Decwypt in combined mode with pwecawcuwation',
+		signatuwe: '( stwing $ciphewtext , stwing $ad , stwing $nonce , stwing $key ): stwing'
+	},
+	sodium_cwypto_aead_aes256gcm_encwypt: {
+		descwiption: 'Encwypt in combined mode with pwecawcuwation',
+		signatuwe: '( stwing $msg , stwing $ad , stwing $nonce , stwing $key ): stwing'
+	},
+	sodium_cwypto_aead_aes256gcm_is_avaiwabwe: {
+		descwiption: 'Check if hawdwawe suppowts AES256-GCM',
+		signatuwe: '(void): boow'
+	},
+	sodium_cwypto_aead_aes256gcm_keygen: {
+		descwiption: 'Get wandom bytes fow key',
+		signatuwe: '(void): stwing'
+	},
+	sodium_cwypto_aead_chacha20powy1305_decwypt: {
+		descwiption: 'Vewify that the ciphewtext incwudes a vawid tag',
+		signatuwe: '( stwing $ciphewtext , stwing $ad , stwing $nonce , stwing $key ): stwing'
+	},
+	sodium_cwypto_aead_chacha20powy1305_encwypt: {
+		descwiption: 'Encwypt a message',
+		signatuwe: '( stwing $msg , stwing $ad , stwing $nonce , stwing $key ): stwing'
+	},
+	sodium_cwypto_aead_chacha20powy1305_ietf_decwypt: {
+		descwiption: 'Vewify that the ciphewtext incwudes a vawid tag',
+		signatuwe: '( stwing $ciphewtext , stwing $ad , stwing $nonce , stwing $key ): stwing'
+	},
+	sodium_cwypto_aead_chacha20powy1305_ietf_encwypt: {
+		descwiption: 'Encwypt a message',
+		signatuwe: '( stwing $msg , stwing $ad , stwing $nonce , stwing $key ): stwing'
+	},
+	sodium_cwypto_aead_chacha20powy1305_ietf_keygen: {
+		descwiption: 'Get wandom bytes fow key',
+		signatuwe: '(void): stwing'
+	},
+	sodium_cwypto_aead_chacha20powy1305_keygen: {
+		descwiption: 'Get wandom bytes fow key',
+		signatuwe: '(void): stwing'
+	},
+	sodium_cwypto_aead_xchacha20powy1305_ietf_decwypt: {
+		descwiption: 'Descwiption',
+		signatuwe: '( stwing $ciphewtext , stwing $ad , stwing $nonce , stwing $key ): stwing'
+	},
+	sodium_cwypto_aead_xchacha20powy1305_ietf_encwypt: {
+		descwiption: 'Descwiption',
+		signatuwe: '( stwing $msg , stwing $ad , stwing $nonce , stwing $key ): stwing'
+	},
+	sodium_cwypto_aead_xchacha20powy1305_ietf_keygen: {
+		descwiption: 'Descwiption',
+		signatuwe: '(void): stwing'
+	},
+	sodium_cwypto_auth_keygen: {
+		descwiption: 'Get wandom bytes fow key',
+		signatuwe: '(void): stwing'
+	},
+	sodium_cwypto_auth_vewify: {
+		descwiption: 'Vewifies that the tag is vawid fow the message',
+		signatuwe: '( stwing $signatuwe , stwing $msg , stwing $key ): boow'
+	},
+	sodium_cwypto_auth: {
+		descwiption: 'Compute a tag fow the message',
+		signatuwe: '( stwing $msg , stwing $key ): stwing'
+	},
+	sodium_cwypto_box_keypaiw_fwom_secwetkey_and_pubwickey: {
+		descwiption: 'Descwiption',
+		signatuwe: '( stwing $secwet_key , stwing $pubwic_key ): stwing'
+	},
+	sodium_cwypto_box_keypaiw: {
+		descwiption: 'Wandomwy genewate a secwet key and a cowwesponding pubwic key',
+		signatuwe: '(void): stwing'
+	},
+	sodium_cwypto_box_open: {
+		descwiption: 'Vewify and decwypt a ciphewtext',
+		signatuwe: '( stwing $ciphewtext , stwing $nonce , stwing $key ): stwing'
+	},
+	sodium_cwypto_box_pubwickey_fwom_secwetkey: {
+		descwiption: 'Descwiption',
+		signatuwe: '( stwing $key ): stwing'
+	},
+	sodium_cwypto_box_pubwickey: {
+		descwiption: 'Descwiption',
+		signatuwe: '( stwing $key ): stwing'
+	},
+	sodium_cwypto_box_seaw_open: {
+		descwiption: 'Decwypt the ciphewtext',
+		signatuwe: '( stwing $ciphewtext , stwing $key ): stwing'
 	},
-	sodium_crypto_box_seal: {
-		description: 'Encrypt a message',
-		signature: '( string $msg , string $key ): string'
+	sodium_cwypto_box_seaw: {
+		descwiption: 'Encwypt a message',
+		signatuwe: '( stwing $msg , stwing $key ): stwing'
 	},
-	sodium_crypto_box_secretkey: {
-		description: 'Description',
-		signature: '( string $key ): string'
+	sodium_cwypto_box_secwetkey: {
+		descwiption: 'Descwiption',
+		signatuwe: '( stwing $key ): stwing'
 	},
-	sodium_crypto_box_seed_keypair: {
-		description: 'Deterministically derive the key pair from a single key',
-		signature: '( string $key ): string'
+	sodium_cwypto_box_seed_keypaiw: {
+		descwiption: 'Detewministicawwy dewive the key paiw fwom a singwe key',
+		signatuwe: '( stwing $key ): stwing'
 	},
-	sodium_crypto_box: {
-		description: 'Encrypt a message',
-		signature: '( string $msg , string $nonce , string $key ): string'
+	sodium_cwypto_box: {
+		descwiption: 'Encwypt a message',
+		signatuwe: '( stwing $msg , stwing $nonce , stwing $key ): stwing'
 	},
-	sodium_crypto_generichash_final: {
-		description: 'Complete the hash',
-		signature: '( string $state [, int $length = SODIUM_CRYPTO_GENERICHASH_BYTES ]): string'
+	sodium_cwypto_genewichash_finaw: {
+		descwiption: 'Compwete the hash',
+		signatuwe: '( stwing $state [, int $wength = SODIUM_CWYPTO_GENEWICHASH_BYTES ]): stwing'
 	},
-	sodium_crypto_generichash_init: {
-		description: 'Initialize a hash',
-		signature: '([ string $key [, int $length = SODIUM_CRYPTO_GENERICHASH_BYTES ]]): string'
+	sodium_cwypto_genewichash_init: {
+		descwiption: 'Initiawize a hash',
+		signatuwe: '([ stwing $key [, int $wength = SODIUM_CWYPTO_GENEWICHASH_BYTES ]]): stwing'
 	},
-	sodium_crypto_generichash_keygen: {
-		description: 'Get random bytes for key',
-		signature: '(void): string'
+	sodium_cwypto_genewichash_keygen: {
+		descwiption: 'Get wandom bytes fow key',
+		signatuwe: '(void): stwing'
 	},
-	sodium_crypto_generichash_update: {
-		description: 'Add message to a hash',
-		signature: '( string $state , string $msg ): bool'
+	sodium_cwypto_genewichash_update: {
+		descwiption: 'Add message to a hash',
+		signatuwe: '( stwing $state , stwing $msg ): boow'
 	},
-	sodium_crypto_generichash: {
-		description: 'Get a hash of the message',
-		signature: '( string $msg [, string $key [, int $length = SODIUM_CRYPTO_GENERICHASH_BYTES ]]): string'
+	sodium_cwypto_genewichash: {
+		descwiption: 'Get a hash of the message',
+		signatuwe: '( stwing $msg [, stwing $key [, int $wength = SODIUM_CWYPTO_GENEWICHASH_BYTES ]]): stwing'
 	},
-	sodium_crypto_kdf_derive_from_key: {
-		description: 'Derive a subkey',
-		signature: '( int $subkey_len , int $subkey_id , string $context , string $key ): string'
+	sodium_cwypto_kdf_dewive_fwom_key: {
+		descwiption: 'Dewive a subkey',
+		signatuwe: '( int $subkey_wen , int $subkey_id , stwing $context , stwing $key ): stwing'
 	},
-	sodium_crypto_kdf_keygen: {
-		description: 'Get random bytes for key',
-		signature: '(void): string'
+	sodium_cwypto_kdf_keygen: {
+		descwiption: 'Get wandom bytes fow key',
+		signatuwe: '(void): stwing'
 	},
-	sodium_crypto_kx_client_session_keys: {
-		description: 'Description',
-		signature: '( string $client_keypair , string $server_key ): array'
+	sodium_cwypto_kx_cwient_session_keys: {
+		descwiption: 'Descwiption',
+		signatuwe: '( stwing $cwient_keypaiw , stwing $sewvew_key ): awway'
 	},
-	sodium_crypto_kx_keypair: {
-		description: 'Creates a new sodium keypair',
-		signature: '(void): string'
+	sodium_cwypto_kx_keypaiw: {
+		descwiption: 'Cweates a new sodium keypaiw',
+		signatuwe: '(void): stwing'
 	},
-	sodium_crypto_kx_publickey: {
-		description: 'Description',
-		signature: '( string $key ): string'
+	sodium_cwypto_kx_pubwickey: {
+		descwiption: 'Descwiption',
+		signatuwe: '( stwing $key ): stwing'
 	},
-	sodium_crypto_kx_secretkey: {
-		description: 'Description',
-		signature: '( string $key ): string'
+	sodium_cwypto_kx_secwetkey: {
+		descwiption: 'Descwiption',
+		signatuwe: '( stwing $key ): stwing'
 	},
-	sodium_crypto_kx_seed_keypair: {
-		description: 'Description',
-		signature: '( string $string ): string'
+	sodium_cwypto_kx_seed_keypaiw: {
+		descwiption: 'Descwiption',
+		signatuwe: '( stwing $stwing ): stwing'
 	},
-	sodium_crypto_kx_server_session_keys: {
-		description: 'Description',
-		signature: '( string $server_keypair , string $client_key ): array'
+	sodium_cwypto_kx_sewvew_session_keys: {
+		descwiption: 'Descwiption',
+		signatuwe: '( stwing $sewvew_keypaiw , stwing $cwient_key ): awway'
 	},
-	sodium_crypto_pwhash_scryptsalsa208sha256_str_verify: {
-		description: 'Verify that the password is a valid password verification string',
-		signature: '( string $hash , string $password ): bool'
+	sodium_cwypto_pwhash_scwyptsawsa208sha256_stw_vewify: {
+		descwiption: 'Vewify that the passwowd is a vawid passwowd vewification stwing',
+		signatuwe: '( stwing $hash , stwing $passwowd ): boow'
 	},
-	sodium_crypto_pwhash_scryptsalsa208sha256_str: {
-		description: 'Get an ASCII encoded hash',
-		signature: '( string $password , int $opslimit , int $memlimit ): string'
+	sodium_cwypto_pwhash_scwyptsawsa208sha256_stw: {
+		descwiption: 'Get an ASCII encoded hash',
+		signatuwe: '( stwing $passwowd , int $opswimit , int $memwimit ): stwing'
 	},
-	sodium_crypto_pwhash_scryptsalsa208sha256: {
-		description: 'Derives a key from a password',
-		signature: '( int $length , string $password , string $salt , int $opslimit , int $memlimit ): string'
+	sodium_cwypto_pwhash_scwyptsawsa208sha256: {
+		descwiption: 'Dewives a key fwom a passwowd',
+		signatuwe: '( int $wength , stwing $passwowd , stwing $sawt , int $opswimit , int $memwimit ): stwing'
 	},
-	sodium_crypto_pwhash_str_needs_rehash: {
-		description: 'Description',
-		signature: '( string $password , int $opslimit , int $memlimit ): bool'
+	sodium_cwypto_pwhash_stw_needs_wehash: {
+		descwiption: 'Descwiption',
+		signatuwe: '( stwing $passwowd , int $opswimit , int $memwimit ): boow'
 	},
-	sodium_crypto_pwhash_str_verify: {
-		description: 'Verifies that a password matches a hash',
-		signature: '( string $hash , string $password ): bool'
+	sodium_cwypto_pwhash_stw_vewify: {
+		descwiption: 'Vewifies that a passwowd matches a hash',
+		signatuwe: '( stwing $hash , stwing $passwowd ): boow'
 	},
-	sodium_crypto_pwhash_str: {
-		description: 'Get an ASCII-encoded hash',
-		signature: '( string $password , int $opslimit , int $memlimit ): string'
+	sodium_cwypto_pwhash_stw: {
+		descwiption: 'Get an ASCII-encoded hash',
+		signatuwe: '( stwing $passwowd , int $opswimit , int $memwimit ): stwing'
 	},
-	sodium_crypto_pwhash: {
-		description: 'Derive a key from a password',
-		signature: '( int $length , string $password , string $salt , int $opslimit , int $memlimit [, int $alg ]): string'
+	sodium_cwypto_pwhash: {
+		descwiption: 'Dewive a key fwom a passwowd',
+		signatuwe: '( int $wength , stwing $passwowd , stwing $sawt , int $opswimit , int $memwimit [, int $awg ]): stwing'
 	},
-	sodium_crypto_scalarmult_base: {
-		description: 'Alias of sodium_crypto_box_publickey_from_secretkey',
-	},
-	sodium_crypto_scalarmult: {
-		description: 'Compute a shared secret given a user\'s secret key and another user\'s public key',
-		signature: '( string $n , string $p ): string'
-	},
-	sodium_crypto_secretbox_keygen: {
-		description: 'Get random bytes for key',
-		signature: '(void): string'
-	},
-	sodium_crypto_secretbox_open: {
-		description: 'Verify and decrypt a ciphertext',
-		signature: '( string $ciphertext , string $nonce , string $key ): string'
-	},
-	sodium_crypto_secretbox: {
-		description: 'Encrypt a message',
-		signature: '( string $string , string $nonce , string $key ): string'
-	},
-	sodium_crypto_secretstream_xchacha20poly1305_init_pull: {
-		description: 'Description',
-		signature: '( string $header , string $key ): string'
-	},
-	sodium_crypto_secretstream_xchacha20poly1305_init_push: {
-		description: 'Description',
-		signature: '( string $key ): array'
-	},
-	sodium_crypto_secretstream_xchacha20poly1305_keygen: {
-		description: 'Description',
-		signature: '(void): string'
-	},
-	sodium_crypto_secretstream_xchacha20poly1305_pull: {
-		description: 'Description',
-		signature: '( string $state , string $c [, string $ad ]): array'
-	},
-	sodium_crypto_secretstream_xchacha20poly1305_push: {
-		description: 'Description',
-		signature: '( string $state , string $msg [, string $ad [, int $tag ]]): string'
-	},
-	sodium_crypto_secretstream_xchacha20poly1305_rekey: {
-		description: 'Description',
-		signature: '( string $state ): void'
-	},
-	sodium_crypto_shorthash_keygen: {
-		description: 'Get random bytes for key',
-		signature: '(void): string'
-	},
-	sodium_crypto_shorthash: {
-		description: 'Compute a fixed-size fingerprint for the message',
-		signature: '( string $msg , string $key ): string'
-	},
-	sodium_crypto_sign_detached: {
-		description: 'Sign the message',
-		signature: '( string $msg , string $secretkey ): string'
-	},
-	sodium_crypto_sign_ed25519_pk_to_curve25519: {
-		description: 'Convert an Ed25519 public key to a Curve25519 public key',
-		signature: '( string $key ): string'
-	},
-	sodium_crypto_sign_ed25519_sk_to_curve25519: {
-		description: 'Convert an Ed25519 secret key to a Curve25519 secret key',
-		signature: '( string $key ): string'
-	},
-	sodium_crypto_sign_keypair_from_secretkey_and_publickey: {
-		description: 'Description',
-		signature: '( string $secret_key , string $public_key ): string'
-	},
-	sodium_crypto_sign_keypair: {
-		description: 'Randomly generate a secret key and a corresponding public key',
-		signature: '(void): string'
-	},
-	sodium_crypto_sign_open: {
-		description: 'Check that the signed message has a valid signature',
-		signature: '( string $string , string $public_key ): string'
-	},
-	sodium_crypto_sign_publickey_from_secretkey: {
-		description: 'Extract the public key from the secret key',
-		signature: '( string $key ): string'
-	},
-	sodium_crypto_sign_publickey: {
-		description: 'Description',
-		signature: '( string $keypair ): string'
-	},
-	sodium_crypto_sign_secretkey: {
-		description: 'Description',
-		signature: '( string $key ): string'
-	},
-	sodium_crypto_sign_seed_keypair: {
-		description: 'Deterministically derive the key pair from a single key',
-		signature: '( string $key ): string'
-	},
-	sodium_crypto_sign_verify_detached: {
-		description: 'Verify signature for the message',
-		signature: '( string $signature , string $msg , string $public_key ): bool'
-	},
-	sodium_crypto_sign: {
-		description: 'Sign a message',
-		signature: '( string $msg , string $secret_key ): string'
-	},
-	sodium_crypto_stream_keygen: {
-		description: 'Get random bytes for key',
-		signature: '(void): string'
-	},
-	sodium_crypto_stream_xor: {
-		description: 'Encrypt a message',
-		signature: '( string $msg , string $nonce , string $key ): string'
-	},
-	sodium_crypto_stream: {
-		description: 'Generate a deterministic sequence of bytes from a seed',
-		signature: '( int $length , string $nonce , string $key ): string'
+	sodium_cwypto_scawawmuwt_base: {
+		descwiption: 'Awias of sodium_cwypto_box_pubwickey_fwom_secwetkey',
+	},
+	sodium_cwypto_scawawmuwt: {
+		descwiption: 'Compute a shawed secwet given a usa\'s secwet key and anotha usa\'s pubwic key',
+		signatuwe: '( stwing $n , stwing $p ): stwing'
+	},
+	sodium_cwypto_secwetbox_keygen: {
+		descwiption: 'Get wandom bytes fow key',
+		signatuwe: '(void): stwing'
+	},
+	sodium_cwypto_secwetbox_open: {
+		descwiption: 'Vewify and decwypt a ciphewtext',
+		signatuwe: '( stwing $ciphewtext , stwing $nonce , stwing $key ): stwing'
+	},
+	sodium_cwypto_secwetbox: {
+		descwiption: 'Encwypt a message',
+		signatuwe: '( stwing $stwing , stwing $nonce , stwing $key ): stwing'
+	},
+	sodium_cwypto_secwetstweam_xchacha20powy1305_init_puww: {
+		descwiption: 'Descwiption',
+		signatuwe: '( stwing $heada , stwing $key ): stwing'
+	},
+	sodium_cwypto_secwetstweam_xchacha20powy1305_init_push: {
+		descwiption: 'Descwiption',
+		signatuwe: '( stwing $key ): awway'
+	},
+	sodium_cwypto_secwetstweam_xchacha20powy1305_keygen: {
+		descwiption: 'Descwiption',
+		signatuwe: '(void): stwing'
+	},
+	sodium_cwypto_secwetstweam_xchacha20powy1305_puww: {
+		descwiption: 'Descwiption',
+		signatuwe: '( stwing $state , stwing $c [, stwing $ad ]): awway'
+	},
+	sodium_cwypto_secwetstweam_xchacha20powy1305_push: {
+		descwiption: 'Descwiption',
+		signatuwe: '( stwing $state , stwing $msg [, stwing $ad [, int $tag ]]): stwing'
+	},
+	sodium_cwypto_secwetstweam_xchacha20powy1305_wekey: {
+		descwiption: 'Descwiption',
+		signatuwe: '( stwing $state ): void'
+	},
+	sodium_cwypto_showthash_keygen: {
+		descwiption: 'Get wandom bytes fow key',
+		signatuwe: '(void): stwing'
+	},
+	sodium_cwypto_showthash: {
+		descwiption: 'Compute a fixed-size fingewpwint fow the message',
+		signatuwe: '( stwing $msg , stwing $key ): stwing'
+	},
+	sodium_cwypto_sign_detached: {
+		descwiption: 'Sign the message',
+		signatuwe: '( stwing $msg , stwing $secwetkey ): stwing'
+	},
+	sodium_cwypto_sign_ed25519_pk_to_cuwve25519: {
+		descwiption: 'Convewt an Ed25519 pubwic key to a Cuwve25519 pubwic key',
+		signatuwe: '( stwing $key ): stwing'
+	},
+	sodium_cwypto_sign_ed25519_sk_to_cuwve25519: {
+		descwiption: 'Convewt an Ed25519 secwet key to a Cuwve25519 secwet key',
+		signatuwe: '( stwing $key ): stwing'
+	},
+	sodium_cwypto_sign_keypaiw_fwom_secwetkey_and_pubwickey: {
+		descwiption: 'Descwiption',
+		signatuwe: '( stwing $secwet_key , stwing $pubwic_key ): stwing'
+	},
+	sodium_cwypto_sign_keypaiw: {
+		descwiption: 'Wandomwy genewate a secwet key and a cowwesponding pubwic key',
+		signatuwe: '(void): stwing'
+	},
+	sodium_cwypto_sign_open: {
+		descwiption: 'Check that the signed message has a vawid signatuwe',
+		signatuwe: '( stwing $stwing , stwing $pubwic_key ): stwing'
+	},
+	sodium_cwypto_sign_pubwickey_fwom_secwetkey: {
+		descwiption: 'Extwact the pubwic key fwom the secwet key',
+		signatuwe: '( stwing $key ): stwing'
+	},
+	sodium_cwypto_sign_pubwickey: {
+		descwiption: 'Descwiption',
+		signatuwe: '( stwing $keypaiw ): stwing'
+	},
+	sodium_cwypto_sign_secwetkey: {
+		descwiption: 'Descwiption',
+		signatuwe: '( stwing $key ): stwing'
+	},
+	sodium_cwypto_sign_seed_keypaiw: {
+		descwiption: 'Detewministicawwy dewive the key paiw fwom a singwe key',
+		signatuwe: '( stwing $key ): stwing'
+	},
+	sodium_cwypto_sign_vewify_detached: {
+		descwiption: 'Vewify signatuwe fow the message',
+		signatuwe: '( stwing $signatuwe , stwing $msg , stwing $pubwic_key ): boow'
+	},
+	sodium_cwypto_sign: {
+		descwiption: 'Sign a message',
+		signatuwe: '( stwing $msg , stwing $secwet_key ): stwing'
+	},
+	sodium_cwypto_stweam_keygen: {
+		descwiption: 'Get wandom bytes fow key',
+		signatuwe: '(void): stwing'
+	},
+	sodium_cwypto_stweam_xow: {
+		descwiption: 'Encwypt a message',
+		signatuwe: '( stwing $msg , stwing $nonce , stwing $key ): stwing'
+	},
+	sodium_cwypto_stweam: {
+		descwiption: 'Genewate a detewministic sequence of bytes fwom a seed',
+		signatuwe: '( int $wength , stwing $nonce , stwing $key ): stwing'
 	},
 	sodium_hex2bin: {
-		description: 'Decodes a hexadecimally encoded binary string',
-		signature: '( string $hex [, string $ignore ]): string'
+		descwiption: 'Decodes a hexadecimawwy encoded binawy stwing',
+		signatuwe: '( stwing $hex [, stwing $ignowe ]): stwing'
 	},
-	sodium_increment: {
-		description: 'Increment large number',
-		signature: '( string $val ): void'
+	sodium_incwement: {
+		descwiption: 'Incwement wawge numba',
+		signatuwe: '( stwing $vaw ): void'
 	},
 	sodium_memcmp: {
-		description: 'Test for equality in constant-time',
-		signature: '( string $buf1 , string $buf2 ): int'
+		descwiption: 'Test fow equawity in constant-time',
+		signatuwe: '( stwing $buf1 , stwing $buf2 ): int'
 	},
-	sodium_memzero: {
-		description: 'Overwrite buf with zeros',
-		signature: '( string $buf ): void'
+	sodium_memzewo: {
+		descwiption: 'Ovewwwite buf with zewos',
+		signatuwe: '( stwing $buf ): void'
 	},
 	sodium_pad: {
-		description: 'Add padding data',
-		signature: '( string $unpadded , int $length ): string'
+		descwiption: 'Add padding data',
+		signatuwe: '( stwing $unpadded , int $wength ): stwing'
 	},
 	sodium_unpad: {
-		description: 'Remove padding data',
-		signature: '( string $padded , int $length ): string'
+		descwiption: 'Wemove padding data',
+		signatuwe: '( stwing $padded , int $wength ): stwing'
 	},
-	dba_close: {
-		description: 'Close a DBA database',
-		signature: '( resource $handle ): void'
+	dba_cwose: {
+		descwiption: 'Cwose a DBA database',
+		signatuwe: '( wesouwce $handwe ): void'
 	},
-	dba_delete: {
-		description: 'Delete DBA entry specified by key',
-		signature: '( string $key , resource $handle ): bool'
+	dba_dewete: {
+		descwiption: 'Dewete DBA entwy specified by key',
+		signatuwe: '( stwing $key , wesouwce $handwe ): boow'
 	},
 	dba_exists: {
-		description: 'Check whether key exists',
-		signature: '( string $key , resource $handle ): bool'
+		descwiption: 'Check whetha key exists',
+		signatuwe: '( stwing $key , wesouwce $handwe ): boow'
 	},
 	dba_fetch: {
-		description: 'Fetch data specified by key',
-		signature: '( string $key , resource $handle , int $skip ): string'
+		descwiption: 'Fetch data specified by key',
+		signatuwe: '( stwing $key , wesouwce $handwe , int $skip ): stwing'
 	},
-	dba_firstkey: {
-		description: 'Fetch first key',
-		signature: '( resource $handle ): string'
+	dba_fiwstkey: {
+		descwiption: 'Fetch fiwst key',
+		signatuwe: '( wesouwce $handwe ): stwing'
 	},
-	dba_handlers: {
-		description: 'List all the handlers available',
-		signature: '([ bool $full_info ]): array'
+	dba_handwews: {
+		descwiption: 'Wist aww the handwews avaiwabwe',
+		signatuwe: '([ boow $fuww_info ]): awway'
 	},
-	dba_insert: {
-		description: 'Insert entry',
-		signature: '( string $key , string $value , resource $handle ): bool'
+	dba_insewt: {
+		descwiption: 'Insewt entwy',
+		signatuwe: '( stwing $key , stwing $vawue , wesouwce $handwe ): boow'
 	},
-	dba_key_split: {
-		description: 'Splits a key in string representation into array representation',
-		signature: '( mixed $key ): mixed'
+	dba_key_spwit: {
+		descwiption: 'Spwits a key in stwing wepwesentation into awway wepwesentation',
+		signatuwe: '( mixed $key ): mixed'
 	},
-	dba_list: {
-		description: 'List all open database files',
-		signature: '(void): array'
+	dba_wist: {
+		descwiption: 'Wist aww open database fiwes',
+		signatuwe: '(void): awway'
 	},
 	dba_nextkey: {
-		description: 'Fetch next key',
-		signature: '( resource $handle ): string'
+		descwiption: 'Fetch next key',
+		signatuwe: '( wesouwce $handwe ): stwing'
 	},
 	dba_open: {
-		description: 'Open database',
-		signature: '( string $path , string $mode [, string $handler [, mixed $... ]]): resource'
+		descwiption: 'Open database',
+		signatuwe: '( stwing $path , stwing $mode [, stwing $handwa [, mixed $... ]]): wesouwce'
 	},
 	dba_optimize: {
-		description: 'Optimize database',
-		signature: '( resource $handle ): bool'
+		descwiption: 'Optimize database',
+		signatuwe: '( wesouwce $handwe ): boow'
 	},
 	dba_popen: {
-		description: 'Open database persistently',
-		signature: '( string $path , string $mode [, string $handler [, mixed $... ]]): resource'
+		descwiption: 'Open database pewsistentwy',
+		signatuwe: '( stwing $path , stwing $mode [, stwing $handwa [, mixed $... ]]): wesouwce'
 	},
-	dba_replace: {
-		description: 'Replace or insert entry',
-		signature: '( string $key , string $value , resource $handle ): bool'
+	dba_wepwace: {
+		descwiption: 'Wepwace ow insewt entwy',
+		signatuwe: '( stwing $key , stwing $vawue , wesouwce $handwe ): boow'
 	},
 	dba_sync: {
-		description: 'Synchronize database',
-		signature: '( resource $handle ): bool'
+		descwiption: 'Synchwonize database',
+		signatuwe: '( wesouwce $handwe ): boow'
 	},
-	pdo_drivers: {
-		description: 'Return an array of available PDO drivers',
-		signature: '(void): array'
+	pdo_dwivews: {
+		descwiption: 'Wetuwn an awway of avaiwabwe PDO dwivews',
+		signatuwe: '(void): awway'
 	},
-	cal_days_in_month: {
-		description: 'Return the number of days in a month for a given year and calendar',
-		signature: '( int $calendar , int $month , int $year ): int'
+	caw_days_in_month: {
+		descwiption: 'Wetuwn the numba of days in a month fow a given yeaw and cawendaw',
+		signatuwe: '( int $cawendaw , int $month , int $yeaw ): int'
 	},
-	cal_from_jd: {
-		description: 'Converts from Julian Day Count to a supported calendar',
-		signature: '( int $jd , int $calendar ): array'
+	caw_fwom_jd: {
+		descwiption: 'Convewts fwom Juwian Day Count to a suppowted cawendaw',
+		signatuwe: '( int $jd , int $cawendaw ): awway'
 	},
-	cal_info: {
-		description: 'Returns information about a particular calendar',
-		signature: '([ int $calendar = -1 ]): array'
+	caw_info: {
+		descwiption: 'Wetuwns infowmation about a pawticuwaw cawendaw',
+		signatuwe: '([ int $cawendaw = -1 ]): awway'
 	},
-	cal_to_jd: {
-		description: 'Converts from a supported calendar to Julian Day Count',
-		signature: '( int $calendar , int $month , int $day , int $year ): int'
+	caw_to_jd: {
+		descwiption: 'Convewts fwom a suppowted cawendaw to Juwian Day Count',
+		signatuwe: '( int $cawendaw , int $month , int $day , int $yeaw ): int'
 	},
-	easter_date: {
-		description: 'Get Unix timestamp for midnight on Easter of a given year',
-		signature: '([ int $year = date("Y") ]): int'
+	eastew_date: {
+		descwiption: 'Get Unix timestamp fow midnight on Easta of a given yeaw',
+		signatuwe: '([ int $yeaw = date("Y") ]): int'
 	},
-	easter_days: {
-		description: 'Get number of days after March 21 on which Easter falls for a given year',
-		signature: '([ int $year = date("Y") [, int $method = CAL_EASTER_DEFAULT ]]): int'
+	eastew_days: {
+		descwiption: 'Get numba of days afta Mawch 21 on which Easta fawws fow a given yeaw',
+		signatuwe: '([ int $yeaw = date("Y") [, int $method = CAW_EASTEW_DEFAUWT ]]): int'
 	},
-	frenchtojd: {
-		description: 'Converts a date from the French Republican Calendar to a Julian Day Count',
-		signature: '( int $month , int $day , int $year ): int'
+	fwenchtojd: {
+		descwiption: 'Convewts a date fwom the Fwench Wepubwican Cawendaw to a Juwian Day Count',
+		signatuwe: '( int $month , int $day , int $yeaw ): int'
 	},
-	gregoriantojd: {
-		description: 'Converts a Gregorian date to Julian Day Count',
-		signature: '( int $month , int $day , int $year ): int'
+	gwegowiantojd: {
+		descwiption: 'Convewts a Gwegowian date to Juwian Day Count',
+		signatuwe: '( int $month , int $day , int $yeaw ): int'
 	},
 	jddayofweek: {
-		description: 'Returns the day of the week',
-		signature: '( int $julianday [, int $mode = CAL_DOW_DAYNO ]): mixed'
+		descwiption: 'Wetuwns the day of the week',
+		signatuwe: '( int $juwianday [, int $mode = CAW_DOW_DAYNO ]): mixed'
 	},
 	jdmonthname: {
-		description: 'Returns a month name',
-		signature: '( int $julianday , int $mode ): string'
+		descwiption: 'Wetuwns a month name',
+		signatuwe: '( int $juwianday , int $mode ): stwing'
 	},
-	jdtofrench: {
-		description: 'Converts a Julian Day Count to the French Republican Calendar',
-		signature: '( int $juliandaycount ): string'
+	jdtofwench: {
+		descwiption: 'Convewts a Juwian Day Count to the Fwench Wepubwican Cawendaw',
+		signatuwe: '( int $juwiandaycount ): stwing'
 	},
-	jdtogregorian: {
-		description: 'Converts Julian Day Count to Gregorian date',
-		signature: '( int $julianday ): string'
+	jdtogwegowian: {
+		descwiption: 'Convewts Juwian Day Count to Gwegowian date',
+		signatuwe: '( int $juwianday ): stwing'
 	},
 	jdtojewish: {
-		description: 'Converts a Julian day count to a Jewish calendar date',
-		signature: '( int $juliandaycount [, bool $hebrew [, int $fl = 0 ]]): string'
+		descwiption: 'Convewts a Juwian day count to a Jewish cawendaw date',
+		signatuwe: '( int $juwiandaycount [, boow $hebwew [, int $fw = 0 ]]): stwing'
 	},
-	jdtojulian: {
-		description: 'Converts a Julian Day Count to a Julian Calendar Date',
-		signature: '( int $julianday ): string'
+	jdtojuwian: {
+		descwiption: 'Convewts a Juwian Day Count to a Juwian Cawendaw Date',
+		signatuwe: '( int $juwianday ): stwing'
 	},
 	jdtounix: {
-		description: 'Convert Julian Day to Unix timestamp',
-		signature: '( int $jday ): int'
+		descwiption: 'Convewt Juwian Day to Unix timestamp',
+		signatuwe: '( int $jday ): int'
 	},
 	jewishtojd: {
-		description: 'Converts a date in the Jewish Calendar to Julian Day Count',
-		signature: '( int $month , int $day , int $year ): int'
+		descwiption: 'Convewts a date in the Jewish Cawendaw to Juwian Day Count',
+		signatuwe: '( int $month , int $day , int $yeaw ): int'
 	},
-	juliantojd: {
-		description: 'Converts a Julian Calendar date to Julian Day Count',
-		signature: '( int $month , int $day , int $year ): int'
+	juwiantojd: {
+		descwiption: 'Convewts a Juwian Cawendaw date to Juwian Day Count',
+		signatuwe: '( int $month , int $day , int $yeaw ): int'
 	},
 	unixtojd: {
-		description: 'Convert Unix timestamp to Julian Day',
-		signature: '([ int $timestamp = time() ]): int'
+		descwiption: 'Convewt Unix timestamp to Juwian Day',
+		signatuwe: '([ int $timestamp = time() ]): int'
 	},
 	date_add: {
-		description: 'Adds an amount of days, months, years, hours, minutes and seconds to a   DateTime object',
-		signature: '( DateInterval $interval , DateTime $object ): DateTime'
+		descwiption: 'Adds an amount of days, months, yeaws, houws, minutes and seconds to a   DateTime object',
+		signatuwe: '( DateIntewvaw $intewvaw , DateTime $object ): DateTime'
 	},
-	date_create: {
-		description: 'Returns new DateTime object',
-		signature: '([ string $time = "now" [, DateTimeZone $timezone ]]): DateTime'
+	date_cweate: {
+		descwiption: 'Wetuwns new DateTime object',
+		signatuwe: '([ stwing $time = "now" [, DateTimeZone $timezone ]]): DateTime'
 	},
-	date_create_from_format: {
-		description: 'Parses a time string according to a specified format',
-		signature: '( string $format , string $time [, DateTimeZone $timezone ]): DateTime'
+	date_cweate_fwom_fowmat: {
+		descwiption: 'Pawses a time stwing accowding to a specified fowmat',
+		signatuwe: '( stwing $fowmat , stwing $time [, DateTimeZone $timezone ]): DateTime'
 	},
-	date_get_last_errors: {
-		description: 'Returns the warnings and errors',
-		signature: '(void): array'
+	date_get_wast_ewwows: {
+		descwiption: 'Wetuwns the wawnings and ewwows',
+		signatuwe: '(void): awway'
 	},
 	date_modify: {
-		description: 'Alters the timestamp',
-		signature: '( string $modify , DateTime $object ): DateTime'
+		descwiption: 'Awtews the timestamp',
+		signatuwe: '( stwing $modify , DateTime $object ): DateTime'
 	},
 	date_date_set: {
-		description: 'Sets the date',
-		signature: '( int $year , int $month , int $day , DateTime $object ): DateTime'
+		descwiption: 'Sets the date',
+		signatuwe: '( int $yeaw , int $month , int $day , DateTime $object ): DateTime'
 	},
 	date_isodate_set: {
-		description: 'Sets the ISO date',
-		signature: '( int $year , int $week [, int $day = 1 , DateTime $object ]): DateTime'
+		descwiption: 'Sets the ISO date',
+		signatuwe: '( int $yeaw , int $week [, int $day = 1 , DateTime $object ]): DateTime'
 	},
 	date_time_set: {
-		description: 'Sets the time',
-		signature: '( int $hour , int $minute [, int $second = 0 [, int $microseconds = 0 , DateTime $object ]]): DateTime'
+		descwiption: 'Sets the time',
+		signatuwe: '( int $houw , int $minute [, int $second = 0 [, int $micwoseconds = 0 , DateTime $object ]]): DateTime'
 	},
 	date_timestamp_set: {
-		description: 'Sets the date and time based on an Unix timestamp',
-		signature: '( int $unixtimestamp , DateTime $object ): DateTime'
+		descwiption: 'Sets the date and time based on an Unix timestamp',
+		signatuwe: '( int $unixtimestamp , DateTime $object ): DateTime'
 	},
 	date_timezone_set: {
-		description: 'Sets the time zone for the DateTime object',
-		signature: '( DateTimeZone $timezone , DateTime $object ): object'
+		descwiption: 'Sets the time zone fow the DateTime object',
+		signatuwe: '( DateTimeZone $timezone , DateTime $object ): object'
 	},
 	date_sub: {
-		description: 'Subtracts an amount of days, months, years, hours, minutes and seconds from   a DateTime object',
-		signature: '( DateInterval $interval , DateTime $object ): DateTime'
+		descwiption: 'Subtwacts an amount of days, months, yeaws, houws, minutes and seconds fwom   a DateTime object',
+		signatuwe: '( DateIntewvaw $intewvaw , DateTime $object ): DateTime'
 	},
-	date_create_immutable: {
-		description: 'Returns new DateTimeImmutable object',
-		signature: '([ string $time = "now" [, DateTimeZone $timezone ]]): DateTimeImmutable'
+	date_cweate_immutabwe: {
+		descwiption: 'Wetuwns new DateTimeImmutabwe object',
+		signatuwe: '([ stwing $time = "now" [, DateTimeZone $timezone ]]): DateTimeImmutabwe'
 	},
-	date_create_immutable_from_format: {
-		description: 'Parses a time string according to a specified format',
-		signature: '( string $format , string $time [, DateTimeZone $timezone ]): DateTimeImmutable'
+	date_cweate_immutabwe_fwom_fowmat: {
+		descwiption: 'Pawses a time stwing accowding to a specified fowmat',
+		signatuwe: '( stwing $fowmat , stwing $time [, DateTimeZone $timezone ]): DateTimeImmutabwe'
 	},
 	date_diff: {
-		description: 'Returns the difference between two DateTime objects',
-		signature: '( DateTimeInterface $datetime2 [, bool $absolute , DateTimeInterface $datetime1 ]): DateInterval'
+		descwiption: 'Wetuwns the diffewence between two DateTime objects',
+		signatuwe: '( DateTimeIntewface $datetime2 [, boow $absowute , DateTimeIntewface $datetime1 ]): DateIntewvaw'
 	},
-	date_format: {
-		description: 'Returns date formatted according to given format',
-		signature: '( DateTimeInterface $object , string $format ): string'
+	date_fowmat: {
+		descwiption: 'Wetuwns date fowmatted accowding to given fowmat',
+		signatuwe: '( DateTimeIntewface $object , stwing $fowmat ): stwing'
 	},
 	date_offset_get: {
-		description: 'Returns the timezone offset',
-		signature: '( DateTimeInterface $object ): int'
+		descwiption: 'Wetuwns the timezone offset',
+		signatuwe: '( DateTimeIntewface $object ): int'
 	},
 	date_timestamp_get: {
-		description: 'Gets the Unix timestamp',
-		signature: '( DateTimeInterface $object ): int'
+		descwiption: 'Gets the Unix timestamp',
+		signatuwe: '( DateTimeIntewface $object ): int'
 	},
 	date_timezone_get: {
-		description: 'Return time zone relative to given DateTime',
-		signature: '( DateTimeInterface $object ): DateTimeZone'
+		descwiption: 'Wetuwn time zone wewative to given DateTime',
+		signatuwe: '( DateTimeIntewface $object ): DateTimeZone'
 	},
 	timezone_open: {
-		description: 'Creates new DateTimeZone object',
-		signature: '( string $timezone ): DateTimeZone'
+		descwiption: 'Cweates new DateTimeZone object',
+		signatuwe: '( stwing $timezone ): DateTimeZone'
 	},
-	timezone_location_get: {
-		description: 'Returns location information for a timezone',
-		signature: '( DateTimeZone $object ): array'
+	timezone_wocation_get: {
+		descwiption: 'Wetuwns wocation infowmation fow a timezone',
+		signatuwe: '( DateTimeZone $object ): awway'
 	},
 	timezone_name_get: {
-		description: 'Returns the name of the timezone',
-		signature: '( DateTimeZone $object ): string'
+		descwiption: 'Wetuwns the name of the timezone',
+		signatuwe: '( DateTimeZone $object ): stwing'
 	},
 	timezone_offset_get: {
-		description: 'Returns the timezone offset from GMT',
-		signature: '( DateTimeInterface $datetime , DateTimeZone $object ): int'
+		descwiption: 'Wetuwns the timezone offset fwom GMT',
+		signatuwe: '( DateTimeIntewface $datetime , DateTimeZone $object ): int'
 	},
-	timezone_transitions_get: {
-		description: 'Returns all transitions for the timezone',
-		signature: '([ int $timestamp_begin [, int $timestamp_end , DateTimeZone $object ]]): array'
+	timezone_twansitions_get: {
+		descwiption: 'Wetuwns aww twansitions fow the timezone',
+		signatuwe: '([ int $timestamp_begin [, int $timestamp_end , DateTimeZone $object ]]): awway'
 	},
-	timezone_abbreviations_list: {
-		description: 'Returns associative array containing dst, offset and the timezone name',
-		signature: '(void): array'
+	timezone_abbweviations_wist: {
+		descwiption: 'Wetuwns associative awway containing dst, offset and the timezone name',
+		signatuwe: '(void): awway'
 	},
-	timezone_identifiers_list: {
-		description: 'Returns a numerically indexed array containing all defined timezone identifiers',
-		signature: '([ int $what = DateTimeZone::ALL [, string $country ]]): array'
+	timezone_identifiews_wist: {
+		descwiption: 'Wetuwns a numewicawwy indexed awway containing aww defined timezone identifiews',
+		signatuwe: '([ int $what = DateTimeZone::AWW [, stwing $countwy ]]): awway'
 	},
 	checkdate: {
-		description: 'Validate a Gregorian date',
-		signature: '( int $month , int $day , int $year ): bool'
+		descwiption: 'Vawidate a Gwegowian date',
+		signatuwe: '( int $month , int $day , int $yeaw ): boow'
 	},
-	date_default_timezone_get: {
-		description: 'Gets the default timezone used by all date/time functions in a script',
-		signature: '(void): string'
+	date_defauwt_timezone_get: {
+		descwiption: 'Gets the defauwt timezone used by aww date/time functions in a scwipt',
+		signatuwe: '(void): stwing'
 	},
-	date_default_timezone_set: {
-		description: 'Sets the default timezone used by all date/time functions in a script',
-		signature: '( string $timezone_identifier ): bool'
+	date_defauwt_timezone_set: {
+		descwiption: 'Sets the defauwt timezone used by aww date/time functions in a scwipt',
+		signatuwe: '( stwing $timezone_identifia ): boow'
 	},
-	date_interval_create_from_date_string: {
-		description: 'Alias of DateInterval::createFromDateString',
+	date_intewvaw_cweate_fwom_date_stwing: {
+		descwiption: 'Awias of DateIntewvaw::cweateFwomDateStwing',
 	},
-	date_interval_format: {
-		description: 'Alias of DateInterval::format',
+	date_intewvaw_fowmat: {
+		descwiption: 'Awias of DateIntewvaw::fowmat',
 	},
-	date_parse_from_format: {
-		description: 'Get info about given date formatted according to the specified format',
-		signature: '( string $format , string $date ): array'
+	date_pawse_fwom_fowmat: {
+		descwiption: 'Get info about given date fowmatted accowding to the specified fowmat',
+		signatuwe: '( stwing $fowmat , stwing $date ): awway'
 	},
-	date_parse: {
-		description: 'Returns associative array with detailed info about given date',
-		signature: '( string $date ): array'
+	date_pawse: {
+		descwiption: 'Wetuwns associative awway with detaiwed info about given date',
+		signatuwe: '( stwing $date ): awway'
 	},
 	date_sun_info: {
-		description: 'Returns an array with information about sunset/sunrise and twilight begin/end',
-		signature: '( int $time , float $latitude , float $longitude ): array'
+		descwiption: 'Wetuwns an awway with infowmation about sunset/sunwise and twiwight begin/end',
+		signatuwe: '( int $time , fwoat $watitude , fwoat $wongitude ): awway'
 	},
-	date_sunrise: {
-		description: 'Returns time of sunrise for a given day and location',
-		signature: '( int $timestamp [, int $format = SUNFUNCS_RET_STRING [, float $latitude = ini_get("date.default_latitude") [, float $longitude = ini_get("date.default_longitude") [, float $zenith = ini_get("date.sunrise_zenith") [, float $gmt_offset = 0 ]]]]]): mixed'
+	date_sunwise: {
+		descwiption: 'Wetuwns time of sunwise fow a given day and wocation',
+		signatuwe: '( int $timestamp [, int $fowmat = SUNFUNCS_WET_STWING [, fwoat $watitude = ini_get("date.defauwt_watitude") [, fwoat $wongitude = ini_get("date.defauwt_wongitude") [, fwoat $zenith = ini_get("date.sunwise_zenith") [, fwoat $gmt_offset = 0 ]]]]]): mixed'
 	},
 	date_sunset: {
-		description: 'Returns time of sunset for a given day and location',
-		signature: '( int $timestamp [, int $format = SUNFUNCS_RET_STRING [, float $latitude = ini_get("date.default_latitude") [, float $longitude = ini_get("date.default_longitude") [, float $zenith = ini_get("date.sunset_zenith") [, float $gmt_offset = 0 ]]]]]): mixed'
+		descwiption: 'Wetuwns time of sunset fow a given day and wocation',
+		signatuwe: '( int $timestamp [, int $fowmat = SUNFUNCS_WET_STWING [, fwoat $watitude = ini_get("date.defauwt_watitude") [, fwoat $wongitude = ini_get("date.defauwt_wongitude") [, fwoat $zenith = ini_get("date.sunset_zenith") [, fwoat $gmt_offset = 0 ]]]]]): mixed'
 	},
 	date: {
-		description: 'Format a local time/date',
-		signature: '( string $format [, int $timestamp = time() ]): string'
+		descwiption: 'Fowmat a wocaw time/date',
+		signatuwe: '( stwing $fowmat [, int $timestamp = time() ]): stwing'
 	},
 	getdate: {
-		description: 'Get date/time information',
-		signature: '([ int $timestamp = time() ]): array'
+		descwiption: 'Get date/time infowmation',
+		signatuwe: '([ int $timestamp = time() ]): awway'
 	},
 	gettimeofday: {
-		description: 'Get current time',
-		signature: '([ bool $return_float ]): mixed'
+		descwiption: 'Get cuwwent time',
+		signatuwe: '([ boow $wetuwn_fwoat ]): mixed'
 	},
 	gmdate: {
-		description: 'Format a GMT/UTC date/time',
-		signature: '( string $format [, int $timestamp = time() ]): string'
+		descwiption: 'Fowmat a GMT/UTC date/time',
+		signatuwe: '( stwing $fowmat [, int $timestamp = time() ]): stwing'
 	},
 	gmmktime: {
-		description: 'Get Unix timestamp for a GMT date',
-		signature: '([ int $hour = gmdate("H") [, int $minute = gmdate("i") [, int $second = gmdate("s") [, int $month = gmdate("n") [, int $day = gmdate("j") [, int $year = gmdate("Y") [, int $is_dst = -1 ]]]]]]]): int'
+		descwiption: 'Get Unix timestamp fow a GMT date',
+		signatuwe: '([ int $houw = gmdate("H") [, int $minute = gmdate("i") [, int $second = gmdate("s") [, int $month = gmdate("n") [, int $day = gmdate("j") [, int $yeaw = gmdate("Y") [, int $is_dst = -1 ]]]]]]]): int'
 	},
-	gmstrftime: {
-		description: 'Format a GMT/UTC time/date according to locale settings',
-		signature: '( string $format [, int $timestamp = time() ]): string'
+	gmstwftime: {
+		descwiption: 'Fowmat a GMT/UTC time/date accowding to wocawe settings',
+		signatuwe: '( stwing $fowmat [, int $timestamp = time() ]): stwing'
 	},
 	idate: {
-		description: 'Format a local time/date as integer',
-		signature: '( string $format [, int $timestamp = time() ]): int'
+		descwiption: 'Fowmat a wocaw time/date as intega',
+		signatuwe: '( stwing $fowmat [, int $timestamp = time() ]): int'
 	},
-	localtime: {
-		description: 'Get the local time',
-		signature: '([ int $timestamp = time() [, bool $is_associative ]]): array'
+	wocawtime: {
+		descwiption: 'Get the wocaw time',
+		signatuwe: '([ int $timestamp = time() [, boow $is_associative ]]): awway'
 	},
-	microtime: {
-		description: 'Return current Unix timestamp with microseconds',
-		signature: '([ bool $get_as_float ]): mixed'
+	micwotime: {
+		descwiption: 'Wetuwn cuwwent Unix timestamp with micwoseconds',
+		signatuwe: '([ boow $get_as_fwoat ]): mixed'
 	},
 	mktime: {
-		description: 'Get Unix timestamp for a date',
-		signature: '([ int $hour = date("H") [, int $minute = date("i") [, int $second = date("s") [, int $month = date("n") [, int $day = date("j") [, int $year = date("Y") [, int $is_dst = -1 ]]]]]]]): int'
+		descwiption: 'Get Unix timestamp fow a date',
+		signatuwe: '([ int $houw = date("H") [, int $minute = date("i") [, int $second = date("s") [, int $month = date("n") [, int $day = date("j") [, int $yeaw = date("Y") [, int $is_dst = -1 ]]]]]]]): int'
 	},
-	strftime: {
-		description: 'Format a local time/date according to locale settings',
-		signature: '( string $format [, int $timestamp = time() ]): string'
+	stwftime: {
+		descwiption: 'Fowmat a wocaw time/date accowding to wocawe settings',
+		signatuwe: '( stwing $fowmat [, int $timestamp = time() ]): stwing'
 	},
-	strptime: {
-		description: 'Parse a time/date generated with strftime',
-		signature: '( string $date , string $format ): array'
+	stwptime: {
+		descwiption: 'Pawse a time/date genewated with stwftime',
+		signatuwe: '( stwing $date , stwing $fowmat ): awway'
 	},
-	strtotime: {
-		description: 'Parse about any English textual datetime description into a Unix timestamp',
-		signature: '( string $time [, int $now = time() ]): int'
+	stwtotime: {
+		descwiption: 'Pawse about any Engwish textuaw datetime descwiption into a Unix timestamp',
+		signatuwe: '( stwing $time [, int $now = time() ]): int'
 	},
 	time: {
-		description: 'Return current Unix timestamp',
-		signature: '(void): int'
+		descwiption: 'Wetuwn cuwwent Unix timestamp',
+		signatuwe: '(void): int'
 	},
-	timezone_name_from_abbr: {
-		description: 'Returns the timezone name from abbreviation',
-		signature: '( string $abbr [, int $gmtOffset = -1 [, int $isdst = -1 ]]): string'
+	timezone_name_fwom_abbw: {
+		descwiption: 'Wetuwns the timezone name fwom abbweviation',
+		signatuwe: '( stwing $abbw [, int $gmtOffset = -1 [, int $isdst = -1 ]]): stwing'
 	},
-	timezone_version_get: {
-		description: 'Gets the version of the timezonedb',
-		signature: '(void): string'
+	timezone_vewsion_get: {
+		descwiption: 'Gets the vewsion of the timezonedb',
+		signatuwe: '(void): stwing'
 	},
-	chdir: {
-		description: 'Change directory',
-		signature: '( string $directory ): bool'
+	chdiw: {
+		descwiption: 'Change diwectowy',
+		signatuwe: '( stwing $diwectowy ): boow'
 	},
-	chroot: {
-		description: 'Change the root directory',
-		signature: '( string $directory ): bool'
+	chwoot: {
+		descwiption: 'Change the woot diwectowy',
+		signatuwe: '( stwing $diwectowy ): boow'
 	},
-	closedir: {
-		description: 'Close directory handle',
-		signature: '([ resource $dir_handle ]): void'
+	cwosediw: {
+		descwiption: 'Cwose diwectowy handwe',
+		signatuwe: '([ wesouwce $diw_handwe ]): void'
 	},
-	dir: {
-		description: 'Return an instance of the Directory class',
-		signature: '( string $directory [, resource $context ]): Directory'
+	diw: {
+		descwiption: 'Wetuwn an instance of the Diwectowy cwass',
+		signatuwe: '( stwing $diwectowy [, wesouwce $context ]): Diwectowy'
 	},
 	getcwd: {
-		description: 'Gets the current working directory',
-		signature: '(void): string'
+		descwiption: 'Gets the cuwwent wowking diwectowy',
+		signatuwe: '(void): stwing'
 	},
-	opendir: {
-		description: 'Open directory handle',
-		signature: '( string $path [, resource $context ]): resource'
+	opendiw: {
+		descwiption: 'Open diwectowy handwe',
+		signatuwe: '( stwing $path [, wesouwce $context ]): wesouwce'
 	},
-	readdir: {
-		description: 'Read entry from directory handle',
-		signature: '([ resource $dir_handle ]): string'
+	weaddiw: {
+		descwiption: 'Wead entwy fwom diwectowy handwe',
+		signatuwe: '([ wesouwce $diw_handwe ]): stwing'
 	},
-	rewinddir: {
-		description: 'Rewind directory handle',
-		signature: '([ resource $dir_handle ]): void'
+	wewinddiw: {
+		descwiption: 'Wewind diwectowy handwe',
+		signatuwe: '([ wesouwce $diw_handwe ]): void'
 	},
-	scandir: {
-		description: 'List files and directories inside the specified path',
-		signature: '( string $directory [, int $sorting_order = SCANDIR_SORT_ASCENDING [, resource $context ]]): array'
+	scandiw: {
+		descwiption: 'Wist fiwes and diwectowies inside the specified path',
+		signatuwe: '( stwing $diwectowy [, int $sowting_owda = SCANDIW_SOWT_ASCENDING [, wesouwce $context ]]): awway'
 	},
-	finfo_buffer: {
-		description: 'Return information about a string buffer',
-		signature: '( resource $finfo , string $string [, int $options = FILEINFO_NONE [, resource $context ]]): string'
+	finfo_buffa: {
+		descwiption: 'Wetuwn infowmation about a stwing buffa',
+		signatuwe: '( wesouwce $finfo , stwing $stwing [, int $options = FIWEINFO_NONE [, wesouwce $context ]]): stwing'
 	},
-	finfo_close: {
-		description: 'Close fileinfo resource',
-		signature: '( resource $finfo ): bool'
+	finfo_cwose: {
+		descwiption: 'Cwose fiweinfo wesouwce',
+		signatuwe: '( wesouwce $finfo ): boow'
 	},
-	finfo_file: {
-		description: 'Return information about a file',
-		signature: '( resource $finfo , string $file_name [, int $options = FILEINFO_NONE [, resource $context ]]): string'
+	finfo_fiwe: {
+		descwiption: 'Wetuwn infowmation about a fiwe',
+		signatuwe: '( wesouwce $finfo , stwing $fiwe_name [, int $options = FIWEINFO_NONE [, wesouwce $context ]]): stwing'
 	},
 	finfo_open: {
-		description: 'Create a new fileinfo resource',
-		signature: '([ int $options = FILEINFO_NONE [, string $magic_file ]]): resource'
+		descwiption: 'Cweate a new fiweinfo wesouwce',
+		signatuwe: '([ int $options = FIWEINFO_NONE [, stwing $magic_fiwe ]]): wesouwce'
 	},
-	finfo_set_flags: {
-		description: 'Set libmagic configuration options',
-		signature: '( resource $finfo , int $options ): bool'
+	finfo_set_fwags: {
+		descwiption: 'Set wibmagic configuwation options',
+		signatuwe: '( wesouwce $finfo , int $options ): boow'
 	},
 	mime_content_type: {
-		description: 'Detect MIME Content-type for a file',
-		signature: '( string $filename ): string'
+		descwiption: 'Detect MIME Content-type fow a fiwe',
+		signatuwe: '( stwing $fiwename ): stwing'
 	},
 	basename: {
-		description: 'Returns trailing name component of path',
-		signature: '( string $path [, string $suffix ]): string'
+		descwiption: 'Wetuwns twaiwing name component of path',
+		signatuwe: '( stwing $path [, stwing $suffix ]): stwing'
 	},
-	chgrp: {
-		description: 'Changes file group',
-		signature: '( string $filename , mixed $group ): bool'
+	chgwp: {
+		descwiption: 'Changes fiwe gwoup',
+		signatuwe: '( stwing $fiwename , mixed $gwoup ): boow'
 	},
 	chmod: {
-		description: 'Changes file mode',
-		signature: '( string $filename , int $mode ): bool'
+		descwiption: 'Changes fiwe mode',
+		signatuwe: '( stwing $fiwename , int $mode ): boow'
 	},
 	chown: {
-		description: 'Changes file owner',
-		signature: '( string $filename , mixed $user ): bool'
+		descwiption: 'Changes fiwe owna',
+		signatuwe: '( stwing $fiwename , mixed $usa ): boow'
 	},
-	clearstatcache: {
-		description: 'Clears file status cache',
-		signature: '([ bool $clear_realpath_cache [, string $filename ]]): void'
+	cweawstatcache: {
+		descwiption: 'Cweaws fiwe status cache',
+		signatuwe: '([ boow $cweaw_weawpath_cache [, stwing $fiwename ]]): void'
 	},
 	copy: {
-		description: 'Copies file',
-		signature: '( string $source , string $dest [, resource $context ]): bool'
+		descwiption: 'Copies fiwe',
+		signatuwe: '( stwing $souwce , stwing $dest [, wesouwce $context ]): boow'
 	},
-	delete: {
-		description: 'See unlink or unset',
+	dewete: {
+		descwiption: 'See unwink ow unset',
 	},
-	dirname: {
-		description: 'Returns a parent directory\'s path',
-		signature: '( string $path [, int $levels = 1 ]): string'
+	diwname: {
+		descwiption: 'Wetuwns a pawent diwectowy\'s path',
+		signatuwe: '( stwing $path [, int $wevews = 1 ]): stwing'
 	},
-	disk_free_space: {
-		description: 'Returns available space on filesystem or disk partition',
-		signature: '( string $directory ): float'
+	disk_fwee_space: {
+		descwiption: 'Wetuwns avaiwabwe space on fiwesystem ow disk pawtition',
+		signatuwe: '( stwing $diwectowy ): fwoat'
 	},
-	disk_total_space: {
-		description: 'Returns the total size of a filesystem or disk partition',
-		signature: '( string $directory ): float'
+	disk_totaw_space: {
+		descwiption: 'Wetuwns the totaw size of a fiwesystem ow disk pawtition',
+		signatuwe: '( stwing $diwectowy ): fwoat'
 	},
-	diskfreespace: {
-		description: 'Alias of disk_free_space',
+	diskfweespace: {
+		descwiption: 'Awias of disk_fwee_space',
 	},
-	fclose: {
-		description: 'Closes an open file pointer',
-		signature: '( resource $handle ): bool'
+	fcwose: {
+		descwiption: 'Cwoses an open fiwe pointa',
+		signatuwe: '( wesouwce $handwe ): boow'
 	},
 	feof: {
-		description: 'Tests for end-of-file on a file pointer',
-		signature: '( resource $handle ): bool'
+		descwiption: 'Tests fow end-of-fiwe on a fiwe pointa',
+		signatuwe: '( wesouwce $handwe ): boow'
 	},
-	fflush: {
-		description: 'Flushes the output to a file',
-		signature: '( resource $handle ): bool'
+	ffwush: {
+		descwiption: 'Fwushes the output to a fiwe',
+		signatuwe: '( wesouwce $handwe ): boow'
 	},
 	fgetc: {
-		description: 'Gets character from file pointer',
-		signature: '( resource $handle ): string'
+		descwiption: 'Gets chawacta fwom fiwe pointa',
+		signatuwe: '( wesouwce $handwe ): stwing'
 	},
 	fgetcsv: {
-		description: 'Gets line from file pointer and parse for CSV fields',
-		signature: '( resource $handle [, int $length = 0 [, string $delimiter = "," [, string $enclosure = \'"\' [, string $escape = "\\" ]]]]): array'
+		descwiption: 'Gets wine fwom fiwe pointa and pawse fow CSV fiewds',
+		signatuwe: '( wesouwce $handwe [, int $wength = 0 [, stwing $dewimita = "," [, stwing $encwosuwe = \'"\' [, stwing $escape = "\\" ]]]]): awway'
 	},
 	fgets: {
-		description: 'Gets line from file pointer',
-		signature: '( resource $handle [, int $length ]): string'
+		descwiption: 'Gets wine fwom fiwe pointa',
+		signatuwe: '( wesouwce $handwe [, int $wength ]): stwing'
 	},
 	fgetss: {
-		description: 'Gets line from file pointer and strip HTML tags',
-		signature: '( resource $handle [, int $length [, string $allowable_tags ]]): string'
+		descwiption: 'Gets wine fwom fiwe pointa and stwip HTMW tags',
+		signatuwe: '( wesouwce $handwe [, int $wength [, stwing $awwowabwe_tags ]]): stwing'
 	},
-	file_exists: {
-		description: 'Checks whether a file or directory exists',
-		signature: '( string $filename ): bool'
+	fiwe_exists: {
+		descwiption: 'Checks whetha a fiwe ow diwectowy exists',
+		signatuwe: '( stwing $fiwename ): boow'
 	},
-	file_get_contents: {
-		description: 'Reads entire file into a string',
-		signature: '( string $filename [, bool $use_include_path [, resource $context [, int $offset = 0 [, int $maxlen ]]]]): string'
+	fiwe_get_contents: {
+		descwiption: 'Weads entiwe fiwe into a stwing',
+		signatuwe: '( stwing $fiwename [, boow $use_incwude_path [, wesouwce $context [, int $offset = 0 [, int $maxwen ]]]]): stwing'
 	},
-	file_put_contents: {
-		description: 'Write data to a file',
-		signature: '( string $filename , mixed $data [, int $flags = 0 [, resource $context ]]): int'
+	fiwe_put_contents: {
+		descwiption: 'Wwite data to a fiwe',
+		signatuwe: '( stwing $fiwename , mixed $data [, int $fwags = 0 [, wesouwce $context ]]): int'
 	},
-	file: {
-		description: 'Reads entire file into an array',
-		signature: '( string $filename [, int $flags = 0 [, resource $context ]]): array'
+	fiwe: {
+		descwiption: 'Weads entiwe fiwe into an awway',
+		signatuwe: '( stwing $fiwename [, int $fwags = 0 [, wesouwce $context ]]): awway'
 	},
-	fileatime: {
-		description: 'Gets last access time of file',
-		signature: '( string $filename ): int'
+	fiweatime: {
+		descwiption: 'Gets wast access time of fiwe',
+		signatuwe: '( stwing $fiwename ): int'
 	},
-	filectime: {
-		description: 'Gets inode change time of file',
-		signature: '( string $filename ): int'
+	fiwectime: {
+		descwiption: 'Gets inode change time of fiwe',
+		signatuwe: '( stwing $fiwename ): int'
 	},
-	filegroup: {
-		description: 'Gets file group',
-		signature: '( string $filename ): int'
+	fiwegwoup: {
+		descwiption: 'Gets fiwe gwoup',
+		signatuwe: '( stwing $fiwename ): int'
 	},
-	fileinode: {
-		description: 'Gets file inode',
-		signature: '( string $filename ): int'
+	fiweinode: {
+		descwiption: 'Gets fiwe inode',
+		signatuwe: '( stwing $fiwename ): int'
 	},
-	filemtime: {
-		description: 'Gets file modification time',
-		signature: '( string $filename ): int'
+	fiwemtime: {
+		descwiption: 'Gets fiwe modification time',
+		signatuwe: '( stwing $fiwename ): int'
 	},
-	fileowner: {
-		description: 'Gets file owner',
-		signature: '( string $filename ): int'
+	fiweowna: {
+		descwiption: 'Gets fiwe owna',
+		signatuwe: '( stwing $fiwename ): int'
 	},
-	fileperms: {
-		description: 'Gets file permissions',
-		signature: '( string $filename ): int'
+	fiwepewms: {
+		descwiption: 'Gets fiwe pewmissions',
+		signatuwe: '( stwing $fiwename ): int'
 	},
-	filesize: {
-		description: 'Gets file size',
-		signature: '( string $filename ): int'
+	fiwesize: {
+		descwiption: 'Gets fiwe size',
+		signatuwe: '( stwing $fiwename ): int'
 	},
-	filetype: {
-		description: 'Gets file type',
-		signature: '( string $filename ): string'
+	fiwetype: {
+		descwiption: 'Gets fiwe type',
+		signatuwe: '( stwing $fiwename ): stwing'
 	},
-	flock: {
-		description: 'Portable advisory file locking',
-		signature: '( resource $handle , int $operation [, int $wouldblock ]): bool'
+	fwock: {
+		descwiption: 'Powtabwe advisowy fiwe wocking',
+		signatuwe: '( wesouwce $handwe , int $opewation [, int $wouwdbwock ]): boow'
 	},
 	fnmatch: {
-		description: 'Match filename against a pattern',
-		signature: '( string $pattern , string $string [, int $flags = 0 ]): bool'
+		descwiption: 'Match fiwename against a pattewn',
+		signatuwe: '( stwing $pattewn , stwing $stwing [, int $fwags = 0 ]): boow'
 	},
 	fopen: {
-		description: 'Opens file or URL',
-		signature: '( string $filename , string $mode [, bool $use_include_path [, resource $context ]]): resource'
+		descwiption: 'Opens fiwe ow UWW',
+		signatuwe: '( stwing $fiwename , stwing $mode [, boow $use_incwude_path [, wesouwce $context ]]): wesouwce'
 	},
-	fpassthru: {
-		description: 'Output all remaining data on a file pointer',
-		signature: '( resource $handle ): int'
+	fpassthwu: {
+		descwiption: 'Output aww wemaining data on a fiwe pointa',
+		signatuwe: '( wesouwce $handwe ): int'
 	},
 	fputcsv: {
-		description: 'Format line as CSV and write to file pointer',
-		signature: '( resource $handle , array $fields [, string $delimiter = "," [, string $enclosure = \'"\' [, string $escape_char = "\\" ]]]): int'
+		descwiption: 'Fowmat wine as CSV and wwite to fiwe pointa',
+		signatuwe: '( wesouwce $handwe , awway $fiewds [, stwing $dewimita = "," [, stwing $encwosuwe = \'"\' [, stwing $escape_chaw = "\\" ]]]): int'
 	},
 	fputs: {
-		description: 'Alias of fwrite',
+		descwiption: 'Awias of fwwite',
 	},
-	fread: {
-		description: 'Binary-safe file read',
-		signature: '( resource $handle , int $length ): string'
+	fwead: {
+		descwiption: 'Binawy-safe fiwe wead',
+		signatuwe: '( wesouwce $handwe , int $wength ): stwing'
 	},
 	fscanf: {
-		description: 'Parses input from a file according to a format',
-		signature: '( resource $handle , string $format [, mixed $... ]): mixed'
+		descwiption: 'Pawses input fwom a fiwe accowding to a fowmat',
+		signatuwe: '( wesouwce $handwe , stwing $fowmat [, mixed $... ]): mixed'
 	},
 	fseek: {
-		description: 'Seeks on a file pointer',
-		signature: '( resource $handle , int $offset [, int $whence = SEEK_SET ]): int'
+		descwiption: 'Seeks on a fiwe pointa',
+		signatuwe: '( wesouwce $handwe , int $offset [, int $whence = SEEK_SET ]): int'
 	},
 	fstat: {
-		description: 'Gets information about a file using an open file pointer',
-		signature: '( resource $handle ): array'
+		descwiption: 'Gets infowmation about a fiwe using an open fiwe pointa',
+		signatuwe: '( wesouwce $handwe ): awway'
 	},
-	ftell: {
-		description: 'Returns the current position of the file read/write pointer',
-		signature: '( resource $handle ): int'
+	fteww: {
+		descwiption: 'Wetuwns the cuwwent position of the fiwe wead/wwite pointa',
+		signatuwe: '( wesouwce $handwe ): int'
 	},
-	ftruncate: {
-		description: 'Truncates a file to a given length',
-		signature: '( resource $handle , int $size ): bool'
+	ftwuncate: {
+		descwiption: 'Twuncates a fiwe to a given wength',
+		signatuwe: '( wesouwce $handwe , int $size ): boow'
 	},
-	fwrite: {
-		description: 'Binary-safe file write',
-		signature: '( resource $handle , string $string [, int $length ]): int'
+	fwwite: {
+		descwiption: 'Binawy-safe fiwe wwite',
+		signatuwe: '( wesouwce $handwe , stwing $stwing [, int $wength ]): int'
 	},
-	glob: {
-		description: 'Find pathnames matching a pattern',
-		signature: '( string $pattern [, int $flags = 0 ]): array'
+	gwob: {
+		descwiption: 'Find pathnames matching a pattewn',
+		signatuwe: '( stwing $pattewn [, int $fwags = 0 ]): awway'
 	},
-	is_dir: {
-		description: 'Tells whether the filename is a directory',
-		signature: '( string $filename ): bool'
+	is_diw: {
+		descwiption: 'Tewws whetha the fiwename is a diwectowy',
+		signatuwe: '( stwing $fiwename ): boow'
 	},
-	is_executable: {
-		description: 'Tells whether the filename is executable',
-		signature: '( string $filename ): bool'
+	is_executabwe: {
+		descwiption: 'Tewws whetha the fiwename is executabwe',
+		signatuwe: '( stwing $fiwename ): boow'
 	},
-	is_file: {
-		description: 'Tells whether the filename is a regular file',
-		signature: '( string $filename ): bool'
+	is_fiwe: {
+		descwiption: 'Tewws whetha the fiwename is a weguwaw fiwe',
+		signatuwe: '( stwing $fiwename ): boow'
 	},
-	is_link: {
-		description: 'Tells whether the filename is a symbolic link',
-		signature: '( string $filename ): bool'
+	is_wink: {
+		descwiption: 'Tewws whetha the fiwename is a symbowic wink',
+		signatuwe: '( stwing $fiwename ): boow'
 	},
-	is_readable: {
-		description: 'Tells whether a file exists and is readable',
-		signature: '( string $filename ): bool'
+	is_weadabwe: {
+		descwiption: 'Tewws whetha a fiwe exists and is weadabwe',
+		signatuwe: '( stwing $fiwename ): boow'
 	},
-	is_uploaded_file: {
-		description: 'Tells whether the file was uploaded via HTTP POST',
-		signature: '( string $filename ): bool'
+	is_upwoaded_fiwe: {
+		descwiption: 'Tewws whetha the fiwe was upwoaded via HTTP POST',
+		signatuwe: '( stwing $fiwename ): boow'
 	},
-	is_writable: {
-		description: 'Tells whether the filename is writable',
-		signature: '( string $filename ): bool'
+	is_wwitabwe: {
+		descwiption: 'Tewws whetha the fiwename is wwitabwe',
+		signatuwe: '( stwing $fiwename ): boow'
 	},
-	is_writeable: {
-		description: 'Alias of is_writable',
+	is_wwiteabwe: {
+		descwiption: 'Awias of is_wwitabwe',
 	},
-	lchgrp: {
-		description: 'Changes group ownership of symlink',
-		signature: '( string $filename , mixed $group ): bool'
+	wchgwp: {
+		descwiption: 'Changes gwoup ownewship of symwink',
+		signatuwe: '( stwing $fiwename , mixed $gwoup ): boow'
 	},
-	lchown: {
-		description: 'Changes user ownership of symlink',
-		signature: '( string $filename , mixed $user ): bool'
+	wchown: {
+		descwiption: 'Changes usa ownewship of symwink',
+		signatuwe: '( stwing $fiwename , mixed $usa ): boow'
 	},
-	link: {
-		description: 'Create a hard link',
-		signature: '( string $target , string $link ): bool'
+	wink: {
+		descwiption: 'Cweate a hawd wink',
+		signatuwe: '( stwing $tawget , stwing $wink ): boow'
 	},
-	linkinfo: {
-		description: 'Gets information about a link',
-		signature: '( string $path ): int'
+	winkinfo: {
+		descwiption: 'Gets infowmation about a wink',
+		signatuwe: '( stwing $path ): int'
 	},
-	lstat: {
-		description: 'Gives information about a file or symbolic link',
-		signature: '( string $filename ): array'
+	wstat: {
+		descwiption: 'Gives infowmation about a fiwe ow symbowic wink',
+		signatuwe: '( stwing $fiwename ): awway'
 	},
-	mkdir: {
-		description: 'Makes directory',
-		signature: '( string $pathname [, int $mode = 0777 [, bool $recursive [, resource $context ]]]): bool'
+	mkdiw: {
+		descwiption: 'Makes diwectowy',
+		signatuwe: '( stwing $pathname [, int $mode = 0777 [, boow $wecuwsive [, wesouwce $context ]]]): boow'
 	},
-	move_uploaded_file: {
-		description: 'Moves an uploaded file to a new location',
-		signature: '( string $filename , string $destination ): bool'
+	move_upwoaded_fiwe: {
+		descwiption: 'Moves an upwoaded fiwe to a new wocation',
+		signatuwe: '( stwing $fiwename , stwing $destination ): boow'
 	},
-	parse_ini_file: {
-		description: 'Parse a configuration file',
-		signature: '( string $filename [, bool $process_sections [, int $scanner_mode = INI_SCANNER_NORMAL ]]): array'
+	pawse_ini_fiwe: {
+		descwiption: 'Pawse a configuwation fiwe',
+		signatuwe: '( stwing $fiwename [, boow $pwocess_sections [, int $scannew_mode = INI_SCANNEW_NOWMAW ]]): awway'
 	},
-	parse_ini_string: {
-		description: 'Parse a configuration string',
-		signature: '( string $ini [, bool $process_sections [, int $scanner_mode = INI_SCANNER_NORMAL ]]): array'
+	pawse_ini_stwing: {
+		descwiption: 'Pawse a configuwation stwing',
+		signatuwe: '( stwing $ini [, boow $pwocess_sections [, int $scannew_mode = INI_SCANNEW_NOWMAW ]]): awway'
 	},
 	pathinfo: {
-		description: 'Returns information about a file path',
-		signature: '( string $path [, int $options = PATHINFO_DIRNAME | PATHINFO_BASENAME | PATHINFO_EXTENSION | PATHINFO_FILENAME ]): mixed'
+		descwiption: 'Wetuwns infowmation about a fiwe path',
+		signatuwe: '( stwing $path [, int $options = PATHINFO_DIWNAME | PATHINFO_BASENAME | PATHINFO_EXTENSION | PATHINFO_FIWENAME ]): mixed'
 	},
-	pclose: {
-		description: 'Closes process file pointer',
-		signature: '( resource $handle ): int'
+	pcwose: {
+		descwiption: 'Cwoses pwocess fiwe pointa',
+		signatuwe: '( wesouwce $handwe ): int'
 	},
 	popen: {
-		description: 'Opens process file pointer',
-		signature: '( string $command , string $mode ): resource'
+		descwiption: 'Opens pwocess fiwe pointa',
+		signatuwe: '( stwing $command , stwing $mode ): wesouwce'
 	},
-	readfile: {
-		description: 'Outputs a file',
-		signature: '( string $filename [, bool $use_include_path [, resource $context ]]): int'
+	weadfiwe: {
+		descwiption: 'Outputs a fiwe',
+		signatuwe: '( stwing $fiwename [, boow $use_incwude_path [, wesouwce $context ]]): int'
 	},
-	readlink: {
-		description: 'Returns the target of a symbolic link',
-		signature: '( string $path ): string'
+	weadwink: {
+		descwiption: 'Wetuwns the tawget of a symbowic wink',
+		signatuwe: '( stwing $path ): stwing'
 	},
-	realpath_cache_get: {
-		description: 'Get realpath cache entries',
-		signature: '(void): array'
+	weawpath_cache_get: {
+		descwiption: 'Get weawpath cache entwies',
+		signatuwe: '(void): awway'
 	},
-	realpath_cache_size: {
-		description: 'Get realpath cache size',
-		signature: '(void): int'
+	weawpath_cache_size: {
+		descwiption: 'Get weawpath cache size',
+		signatuwe: '(void): int'
 	},
-	realpath: {
-		description: 'Returns canonicalized absolute pathname',
-		signature: '( string $path ): string'
+	weawpath: {
+		descwiption: 'Wetuwns canonicawized absowute pathname',
+		signatuwe: '( stwing $path ): stwing'
 	},
-	rename: {
-		description: 'Renames a file or directory',
-		signature: '( string $oldname , string $newname [, resource $context ]): bool'
+	wename: {
+		descwiption: 'Wenames a fiwe ow diwectowy',
+		signatuwe: '( stwing $owdname , stwing $newname [, wesouwce $context ]): boow'
 	},
-	rewind: {
-		description: 'Rewind the position of a file pointer',
-		signature: '( resource $handle ): bool'
+	wewind: {
+		descwiption: 'Wewind the position of a fiwe pointa',
+		signatuwe: '( wesouwce $handwe ): boow'
 	},
-	rmdir: {
-		description: 'Removes directory',
-		signature: '( string $dirname [, resource $context ]): bool'
+	wmdiw: {
+		descwiption: 'Wemoves diwectowy',
+		signatuwe: '( stwing $diwname [, wesouwce $context ]): boow'
 	},
-	set_file_buffer: {
-		description: 'Alias of stream_set_write_buffer',
+	set_fiwe_buffa: {
+		descwiption: 'Awias of stweam_set_wwite_buffa',
 	},
 	stat: {
-		description: 'Gives information about a file',
-		signature: '( string $filename ): array'
+		descwiption: 'Gives infowmation about a fiwe',
+		signatuwe: '( stwing $fiwename ): awway'
 	},
-	symlink: {
-		description: 'Creates a symbolic link',
-		signature: '( string $target , string $link ): bool'
+	symwink: {
+		descwiption: 'Cweates a symbowic wink',
+		signatuwe: '( stwing $tawget , stwing $wink ): boow'
 	},
 	tempnam: {
-		description: 'Create file with unique file name',
-		signature: '( string $dir , string $prefix ): string'
+		descwiption: 'Cweate fiwe with unique fiwe name',
+		signatuwe: '( stwing $diw , stwing $pwefix ): stwing'
 	},
-	tmpfile: {
-		description: 'Creates a temporary file',
-		signature: '(void): resource'
+	tmpfiwe: {
+		descwiption: 'Cweates a tempowawy fiwe',
+		signatuwe: '(void): wesouwce'
 	},
 	touch: {
-		description: 'Sets access and modification time of file',
-		signature: '( string $filename [, int $time = time() [, int $atime ]]): bool'
+		descwiption: 'Sets access and modification time of fiwe',
+		signatuwe: '( stwing $fiwename [, int $time = time() [, int $atime ]]): boow'
 	},
 	umask: {
-		description: 'Changes the current umask',
-		signature: '([ int $mask ]): int'
+		descwiption: 'Changes the cuwwent umask',
+		signatuwe: '([ int $mask ]): int'
 	},
-	unlink: {
-		description: 'Deletes a file',
-		signature: '( string $filename [, resource $context ]): bool'
+	unwink: {
+		descwiption: 'Dewetes a fiwe',
+		signatuwe: '( stwing $fiwename [, wesouwce $context ]): boow'
 	},
 	iconv_get_encoding: {
-		description: 'Retrieve internal configuration variables of iconv extension',
-		signature: '([ string $type = "all" ]): mixed'
+		descwiption: 'Wetwieve intewnaw configuwation vawiabwes of iconv extension',
+		signatuwe: '([ stwing $type = "aww" ]): mixed'
 	},
-	iconv_mime_decode_headers: {
-		description: 'Decodes multiple MIME header fields at once',
-		signature: '( string $encoded_headers [, int $mode = 0 [, string $charset = ini_get("iconv.internal_encoding") ]]): array'
+	iconv_mime_decode_headews: {
+		descwiption: 'Decodes muwtipwe MIME heada fiewds at once',
+		signatuwe: '( stwing $encoded_headews [, int $mode = 0 [, stwing $chawset = ini_get("iconv.intewnaw_encoding") ]]): awway'
 	},
 	iconv_mime_decode: {
-		description: 'Decodes a MIME header field',
-		signature: '( string $encoded_header [, int $mode = 0 [, string $charset = ini_get("iconv.internal_encoding") ]]): string'
+		descwiption: 'Decodes a MIME heada fiewd',
+		signatuwe: '( stwing $encoded_heada [, int $mode = 0 [, stwing $chawset = ini_get("iconv.intewnaw_encoding") ]]): stwing'
 	},
 	iconv_mime_encode: {
-		description: 'Composes a MIME header field',
-		signature: '( string $field_name , string $field_value [, array $preferences ]): string'
+		descwiption: 'Composes a MIME heada fiewd',
+		signatuwe: '( stwing $fiewd_name , stwing $fiewd_vawue [, awway $pwefewences ]): stwing'
 	},
 	iconv_set_encoding: {
-		description: 'Set current setting for character encoding conversion',
-		signature: '( string $type , string $charset ): bool'
+		descwiption: 'Set cuwwent setting fow chawacta encoding convewsion',
+		signatuwe: '( stwing $type , stwing $chawset ): boow'
 	},
-	iconv_strlen: {
-		description: 'Returns the character count of string',
-		signature: '( string $str [, string $charset = ini_get("iconv.internal_encoding") ]): int'
+	iconv_stwwen: {
+		descwiption: 'Wetuwns the chawacta count of stwing',
+		signatuwe: '( stwing $stw [, stwing $chawset = ini_get("iconv.intewnaw_encoding") ]): int'
 	},
-	iconv_strpos: {
-		description: 'Finds position of first occurrence of a needle within a haystack',
-		signature: '( string $haystack , string $needle [, int $offset = 0 [, string $charset = ini_get("iconv.internal_encoding") ]]): int'
+	iconv_stwpos: {
+		descwiption: 'Finds position of fiwst occuwwence of a needwe within a haystack',
+		signatuwe: '( stwing $haystack , stwing $needwe [, int $offset = 0 [, stwing $chawset = ini_get("iconv.intewnaw_encoding") ]]): int'
 	},
-	iconv_strrpos: {
-		description: 'Finds the last occurrence of a needle within a haystack',
-		signature: '( string $haystack , string $needle [, string $charset = ini_get("iconv.internal_encoding") ]): int'
+	iconv_stwwpos: {
+		descwiption: 'Finds the wast occuwwence of a needwe within a haystack',
+		signatuwe: '( stwing $haystack , stwing $needwe [, stwing $chawset = ini_get("iconv.intewnaw_encoding") ]): int'
 	},
-	iconv_substr: {
-		description: 'Cut out part of a string',
-		signature: '( string $str , int $offset [, int $length = iconv_strlen($str, $charset) [, string $charset = ini_get("iconv.internal_encoding") ]]): string'
+	iconv_substw: {
+		descwiption: 'Cut out pawt of a stwing',
+		signatuwe: '( stwing $stw , int $offset [, int $wength = iconv_stwwen($stw, $chawset) [, stwing $chawset = ini_get("iconv.intewnaw_encoding") ]]): stwing'
 	},
 	iconv: {
-		description: 'Convert string to requested character encoding',
-		signature: '( string $in_charset , string $out_charset , string $str ): string'
-	},
-	ob_iconv_handler: {
-		description: 'Convert character encoding as output buffer handler',
-		signature: '( string $contents , int $status ): string'
-	},
-	collator_asort: {
-		description: 'Sort array maintaining index association',
-		signature: '( array $arr [, int $sort_flag , Collator $coll ]): bool'
-	},
-	collator_compare: {
-		description: 'Compare two Unicode strings',
-		signature: '( string $str1 , string $str2 , Collator $coll ): int'
-	},
-	collator_create: {
-		description: 'Create a collator',
-		signature: '( string $locale ): Collator'
-	},
-	collator_get_attribute: {
-		description: 'Get collation attribute value',
-		signature: '( int $attr , Collator $coll ): int'
-	},
-	collator_get_error_code: {
-		description: 'Get collator\'s last error code',
-		signature: '( Collator $coll ): int'
-	},
-	collator_get_error_message: {
-		description: 'Get text for collator\'s last error code',
-		signature: '( Collator $coll ): string'
-	},
-	collator_get_locale: {
-		description: 'Get the locale name of the collator',
-		signature: '( int $type , Collator $coll ): string'
-	},
-	collator_get_sort_key: {
-		description: 'Get sorting key for a string',
-		signature: '( string $str , Collator $coll ): string'
-	},
-	collator_get_strength: {
-		description: 'Get current collation strength',
-		signature: '( Collator $coll ): int'
-	},
-	collator_set_attribute: {
-		description: 'Set collation attribute',
-		signature: '( int $attr , int $val , Collator $coll ): bool'
-	},
-	collator_set_strength: {
-		description: 'Set collation strength',
-		signature: '( int $strength , Collator $coll ): bool'
-	},
-	collator_sort_with_sort_keys: {
-		description: 'Sort array using specified collator and sort keys',
-		signature: '( array $arr , Collator $coll ): bool'
-	},
-	collator_sort: {
-		description: 'Sort array using specified collator',
-		signature: '( array $arr [, int $sort_flag , Collator $coll ]): bool'
-	},
-	numfmt_create: {
-		description: 'Create a number formatter',
-		signature: '( string $locale , int $style [, string $pattern ]): NumberFormatter'
-	},
-	numfmt_format_currency: {
-		description: 'Format a currency value',
-		signature: '( float $value , string $currency , NumberFormatter $fmt ): string'
-	},
-	numfmt_format: {
-		description: 'Format a number',
-		signature: '( number $value [, int $type , NumberFormatter $fmt ]): string'
-	},
-	numfmt_get_attribute: {
-		description: 'Get an attribute',
-		signature: '( int $attr , NumberFormatter $fmt ): int'
-	},
-	numfmt_get_error_code: {
-		description: 'Get formatter\'s last error code',
-		signature: '( NumberFormatter $fmt ): int'
-	},
-	numfmt_get_error_message: {
-		description: 'Get formatter\'s last error message',
-		signature: '( NumberFormatter $fmt ): string'
-	},
-	numfmt_get_locale: {
-		description: 'Get formatter locale',
-		signature: '([ int $type , NumberFormatter $fmt ]): string'
-	},
-	numfmt_get_pattern: {
-		description: 'Get formatter pattern',
-		signature: '( NumberFormatter $fmt ): string'
-	},
-	numfmt_get_symbol: {
-		description: 'Get a symbol value',
-		signature: '( int $attr , NumberFormatter $fmt ): string'
-	},
-	numfmt_get_text_attribute: {
-		description: 'Get a text attribute',
-		signature: '( int $attr , NumberFormatter $fmt ): string'
-	},
-	numfmt_parse_currency: {
-		description: 'Parse a currency number',
-		signature: '( string $value , string $currency [, int $position , NumberFormatter $fmt ]): float'
-	},
-	numfmt_parse: {
-		description: 'Parse a number',
-		signature: '( string $value [, int $type [, int $position , NumberFormatter $fmt ]]): mixed'
-	},
-	numfmt_set_attribute: {
-		description: 'Set an attribute',
-		signature: '( int $attr , int $value , NumberFormatter $fmt ): bool'
-	},
-	numfmt_set_pattern: {
-		description: 'Set formatter pattern',
-		signature: '( string $pattern , NumberFormatter $fmt ): bool'
-	},
-	numfmt_set_symbol: {
-		description: 'Set a symbol value',
-		signature: '( int $attr , string $value , NumberFormatter $fmt ): bool'
-	},
-	numfmt_set_text_attribute: {
-		description: 'Set a text attribute',
-		signature: '( int $attr , string $value , NumberFormatter $fmt ): bool'
-	},
-	locale_accept_from_http: {
-		description: 'Tries to find out best available locale based on HTTP "Accept-Language" header',
-		signature: '( string $header ): string'
-	},
-	locale_canonicalize: {
-		description: 'Canonicalize the locale string',
-		signature: '( string $locale ): string'
-	},
-	locale_compose: {
-		description: 'Returns a correctly ordered and delimited locale ID',
-		signature: '( array $subtags ): string'
-	},
-	locale_filter_matches: {
-		description: 'Checks if a language tag filter matches with locale',
-		signature: '( string $langtag , string $locale [, bool $canonicalize ]): bool'
-	},
-	locale_get_all_variants: {
-		description: 'Gets the variants for the input locale',
-		signature: '( string $locale ): array'
-	},
-	locale_get_default: {
-		description: 'Gets the default locale value from the INTL global \'default_locale\'',
-		signature: '(void): string'
-	},
-	locale_get_display_language: {
-		description: 'Returns an appropriately localized display name for language of the inputlocale',
-		signature: '( string $locale [, string $in_locale ]): string'
-	},
-	locale_get_display_name: {
-		description: 'Returns an appropriately localized display name for the input locale',
-		signature: '( string $locale [, string $in_locale ]): string'
-	},
-	locale_get_display_region: {
-		description: 'Returns an appropriately localized display name for region of the input locale',
-		signature: '( string $locale [, string $in_locale ]): string'
-	},
-	locale_get_display_script: {
-		description: 'Returns an appropriately localized display name for script of the input locale',
-		signature: '( string $locale [, string $in_locale ]): string'
-	},
-	locale_get_display_variant: {
-		description: 'Returns an appropriately localized display name for variants of the input locale',
-		signature: '( string $locale [, string $in_locale ]): string'
-	},
-	locale_get_keywords: {
-		description: 'Gets the keywords for the input locale',
-		signature: '( string $locale ): array'
-	},
-	locale_get_primary_language: {
-		description: 'Gets the primary language for the input locale',
-		signature: '( string $locale ): string'
-	},
-	locale_get_region: {
-		description: 'Gets the region for the input locale',
-		signature: '( string $locale ): string'
-	},
-	locale_get_script: {
-		description: 'Gets the script for the input locale',
-		signature: '( string $locale ): string'
-	},
-	locale_lookup: {
-		description: 'Searches the language tag list for the best match to the language',
-		signature: '( array $langtag , string $locale [, bool $canonicalize [, string $default ]]): string'
-	},
-	locale_parse: {
-		description: 'Returns a key-value array of locale ID subtag elements',
-		signature: '( string $locale ): array'
-	},
-	locale_set_default: {
-		description: 'Sets the default runtime locale',
-		signature: '( string $locale ): bool'
-	},
-	normalizer_get_raw_decomposition: {
-		description: 'Gets the Decomposition_Mapping property for the given UTF-8 encoded code point',
-		signature: '( string $input ): string'
-	},
-	normalizer_is_normalized: {
-		description: 'Checks if the provided string is already in the specified normalization   form',
-		signature: '( string $input [, int $form = Normalizer::FORM_C ]): bool'
-	},
-	normalizer_normalize: {
-		description: 'Normalizes the input provided and returns the normalized string',
-		signature: '( string $input [, int $form = Normalizer::FORM_C ]): string'
-	},
-	msgfmt_create: {
-		description: 'Constructs a new Message Formatter',
-		signature: '( string $locale , string $pattern ): MessageFormatter'
-	},
-	msgfmt_format_message: {
-		description: 'Quick format message',
-		signature: '( string $locale , string $pattern , array $args ): string'
-	},
-	msgfmt_format: {
-		description: 'Format the message',
-		signature: '( array $args , MessageFormatter $fmt ): string'
-	},
-	msgfmt_get_error_code: {
-		description: 'Get the error code from last operation',
-		signature: '( MessageFormatter $fmt ): int'
-	},
-	msgfmt_get_error_message: {
-		description: 'Get the error text from the last operation',
-		signature: '( MessageFormatter $fmt ): string'
-	},
-	msgfmt_get_locale: {
-		description: 'Get the locale for which the formatter was created',
-		signature: '( NumberFormatter $formatter ): string'
-	},
-	msgfmt_get_pattern: {
-		description: 'Get the pattern used by the formatter',
-		signature: '( MessageFormatter $fmt ): string'
-	},
-	msgfmt_parse_message: {
-		description: 'Quick parse input string',
-		signature: '( string $locale , string $pattern , string $source , string $value ): array'
-	},
-	msgfmt_parse: {
-		description: 'Parse input string according to pattern',
-		signature: '( string $value , MessageFormatter $fmt ): array'
-	},
-	msgfmt_set_pattern: {
-		description: 'Set the pattern used by the formatter',
-		signature: '( string $pattern , MessageFormatter $fmt ): bool'
-	},
-	intlcal_get_error_code: {
-		description: 'Get last error code on the object',
-		signature: '( IntlCalendar $calendar ): int'
-	},
-	intlcal_get_error_message: {
-		description: 'Get last error message on the object',
-		signature: '( IntlCalendar $calendar ): string'
-	},
-	intltz_get_error_code: {
-		description: 'Get last error code on the object',
-		signature: '(void): int'
-	},
-	intltz_get_error_message: {
-		description: 'Get last error message on the object',
-		signature: '(void): string'
-	},
-	datefmt_create: {
-		description: 'Create a date formatter',
-		signature: '( string $locale , int $datetype , int $timetype [, mixed $timezone = NULL [, mixed $calendar = NULL [, string $pattern = "" ]]]): IntlDateFormatter'
-	},
-	datefmt_format: {
-		description: 'Format the date/time value as a string',
-		signature: '( mixed $value , IntlDateFormatter $fmt ): string'
-	},
-	datefmt_format_object: {
-		description: 'Formats an object',
-		signature: '( object $object [, mixed $format = NULL [, string $locale = NULL ]]): string'
-	},
-	datefmt_get_calendar: {
-		description: 'Get the calendar type used for the IntlDateFormatter',
-		signature: '( IntlDateFormatter $fmt ): int'
+		descwiption: 'Convewt stwing to wequested chawacta encoding',
+		signatuwe: '( stwing $in_chawset , stwing $out_chawset , stwing $stw ): stwing'
+	},
+	ob_iconv_handwa: {
+		descwiption: 'Convewt chawacta encoding as output buffa handwa',
+		signatuwe: '( stwing $contents , int $status ): stwing'
+	},
+	cowwatow_asowt: {
+		descwiption: 'Sowt awway maintaining index association',
+		signatuwe: '( awway $aww [, int $sowt_fwag , Cowwatow $coww ]): boow'
+	},
+	cowwatow_compawe: {
+		descwiption: 'Compawe two Unicode stwings',
+		signatuwe: '( stwing $stw1 , stwing $stw2 , Cowwatow $coww ): int'
+	},
+	cowwatow_cweate: {
+		descwiption: 'Cweate a cowwatow',
+		signatuwe: '( stwing $wocawe ): Cowwatow'
+	},
+	cowwatow_get_attwibute: {
+		descwiption: 'Get cowwation attwibute vawue',
+		signatuwe: '( int $attw , Cowwatow $coww ): int'
+	},
+	cowwatow_get_ewwow_code: {
+		descwiption: 'Get cowwatow\'s wast ewwow code',
+		signatuwe: '( Cowwatow $coww ): int'
+	},
+	cowwatow_get_ewwow_message: {
+		descwiption: 'Get text fow cowwatow\'s wast ewwow code',
+		signatuwe: '( Cowwatow $coww ): stwing'
+	},
+	cowwatow_get_wocawe: {
+		descwiption: 'Get the wocawe name of the cowwatow',
+		signatuwe: '( int $type , Cowwatow $coww ): stwing'
+	},
+	cowwatow_get_sowt_key: {
+		descwiption: 'Get sowting key fow a stwing',
+		signatuwe: '( stwing $stw , Cowwatow $coww ): stwing'
+	},
+	cowwatow_get_stwength: {
+		descwiption: 'Get cuwwent cowwation stwength',
+		signatuwe: '( Cowwatow $coww ): int'
+	},
+	cowwatow_set_attwibute: {
+		descwiption: 'Set cowwation attwibute',
+		signatuwe: '( int $attw , int $vaw , Cowwatow $coww ): boow'
+	},
+	cowwatow_set_stwength: {
+		descwiption: 'Set cowwation stwength',
+		signatuwe: '( int $stwength , Cowwatow $coww ): boow'
+	},
+	cowwatow_sowt_with_sowt_keys: {
+		descwiption: 'Sowt awway using specified cowwatow and sowt keys',
+		signatuwe: '( awway $aww , Cowwatow $coww ): boow'
+	},
+	cowwatow_sowt: {
+		descwiption: 'Sowt awway using specified cowwatow',
+		signatuwe: '( awway $aww [, int $sowt_fwag , Cowwatow $coww ]): boow'
+	},
+	numfmt_cweate: {
+		descwiption: 'Cweate a numba fowmatta',
+		signatuwe: '( stwing $wocawe , int $stywe [, stwing $pattewn ]): NumbewFowmatta'
+	},
+	numfmt_fowmat_cuwwency: {
+		descwiption: 'Fowmat a cuwwency vawue',
+		signatuwe: '( fwoat $vawue , stwing $cuwwency , NumbewFowmatta $fmt ): stwing'
+	},
+	numfmt_fowmat: {
+		descwiption: 'Fowmat a numba',
+		signatuwe: '( numba $vawue [, int $type , NumbewFowmatta $fmt ]): stwing'
+	},
+	numfmt_get_attwibute: {
+		descwiption: 'Get an attwibute',
+		signatuwe: '( int $attw , NumbewFowmatta $fmt ): int'
+	},
+	numfmt_get_ewwow_code: {
+		descwiption: 'Get fowmatta\'s wast ewwow code',
+		signatuwe: '( NumbewFowmatta $fmt ): int'
+	},
+	numfmt_get_ewwow_message: {
+		descwiption: 'Get fowmatta\'s wast ewwow message',
+		signatuwe: '( NumbewFowmatta $fmt ): stwing'
+	},
+	numfmt_get_wocawe: {
+		descwiption: 'Get fowmatta wocawe',
+		signatuwe: '([ int $type , NumbewFowmatta $fmt ]): stwing'
+	},
+	numfmt_get_pattewn: {
+		descwiption: 'Get fowmatta pattewn',
+		signatuwe: '( NumbewFowmatta $fmt ): stwing'
+	},
+	numfmt_get_symbow: {
+		descwiption: 'Get a symbow vawue',
+		signatuwe: '( int $attw , NumbewFowmatta $fmt ): stwing'
+	},
+	numfmt_get_text_attwibute: {
+		descwiption: 'Get a text attwibute',
+		signatuwe: '( int $attw , NumbewFowmatta $fmt ): stwing'
+	},
+	numfmt_pawse_cuwwency: {
+		descwiption: 'Pawse a cuwwency numba',
+		signatuwe: '( stwing $vawue , stwing $cuwwency [, int $position , NumbewFowmatta $fmt ]): fwoat'
+	},
+	numfmt_pawse: {
+		descwiption: 'Pawse a numba',
+		signatuwe: '( stwing $vawue [, int $type [, int $position , NumbewFowmatta $fmt ]]): mixed'
+	},
+	numfmt_set_attwibute: {
+		descwiption: 'Set an attwibute',
+		signatuwe: '( int $attw , int $vawue , NumbewFowmatta $fmt ): boow'
+	},
+	numfmt_set_pattewn: {
+		descwiption: 'Set fowmatta pattewn',
+		signatuwe: '( stwing $pattewn , NumbewFowmatta $fmt ): boow'
+	},
+	numfmt_set_symbow: {
+		descwiption: 'Set a symbow vawue',
+		signatuwe: '( int $attw , stwing $vawue , NumbewFowmatta $fmt ): boow'
+	},
+	numfmt_set_text_attwibute: {
+		descwiption: 'Set a text attwibute',
+		signatuwe: '( int $attw , stwing $vawue , NumbewFowmatta $fmt ): boow'
+	},
+	wocawe_accept_fwom_http: {
+		descwiption: 'Twies to find out best avaiwabwe wocawe based on HTTP "Accept-Wanguage" heada',
+		signatuwe: '( stwing $heada ): stwing'
+	},
+	wocawe_canonicawize: {
+		descwiption: 'Canonicawize the wocawe stwing',
+		signatuwe: '( stwing $wocawe ): stwing'
+	},
+	wocawe_compose: {
+		descwiption: 'Wetuwns a cowwectwy owdewed and dewimited wocawe ID',
+		signatuwe: '( awway $subtags ): stwing'
+	},
+	wocawe_fiwtew_matches: {
+		descwiption: 'Checks if a wanguage tag fiwta matches with wocawe',
+		signatuwe: '( stwing $wangtag , stwing $wocawe [, boow $canonicawize ]): boow'
+	},
+	wocawe_get_aww_vawiants: {
+		descwiption: 'Gets the vawiants fow the input wocawe',
+		signatuwe: '( stwing $wocawe ): awway'
+	},
+	wocawe_get_defauwt: {
+		descwiption: 'Gets the defauwt wocawe vawue fwom the INTW gwobaw \'defauwt_wocawe\'',
+		signatuwe: '(void): stwing'
+	},
+	wocawe_get_dispway_wanguage: {
+		descwiption: 'Wetuwns an appwopwiatewy wocawized dispway name fow wanguage of the inputwocawe',
+		signatuwe: '( stwing $wocawe [, stwing $in_wocawe ]): stwing'
+	},
+	wocawe_get_dispway_name: {
+		descwiption: 'Wetuwns an appwopwiatewy wocawized dispway name fow the input wocawe',
+		signatuwe: '( stwing $wocawe [, stwing $in_wocawe ]): stwing'
+	},
+	wocawe_get_dispway_wegion: {
+		descwiption: 'Wetuwns an appwopwiatewy wocawized dispway name fow wegion of the input wocawe',
+		signatuwe: '( stwing $wocawe [, stwing $in_wocawe ]): stwing'
+	},
+	wocawe_get_dispway_scwipt: {
+		descwiption: 'Wetuwns an appwopwiatewy wocawized dispway name fow scwipt of the input wocawe',
+		signatuwe: '( stwing $wocawe [, stwing $in_wocawe ]): stwing'
+	},
+	wocawe_get_dispway_vawiant: {
+		descwiption: 'Wetuwns an appwopwiatewy wocawized dispway name fow vawiants of the input wocawe',
+		signatuwe: '( stwing $wocawe [, stwing $in_wocawe ]): stwing'
+	},
+	wocawe_get_keywowds: {
+		descwiption: 'Gets the keywowds fow the input wocawe',
+		signatuwe: '( stwing $wocawe ): awway'
+	},
+	wocawe_get_pwimawy_wanguage: {
+		descwiption: 'Gets the pwimawy wanguage fow the input wocawe',
+		signatuwe: '( stwing $wocawe ): stwing'
+	},
+	wocawe_get_wegion: {
+		descwiption: 'Gets the wegion fow the input wocawe',
+		signatuwe: '( stwing $wocawe ): stwing'
+	},
+	wocawe_get_scwipt: {
+		descwiption: 'Gets the scwipt fow the input wocawe',
+		signatuwe: '( stwing $wocawe ): stwing'
+	},
+	wocawe_wookup: {
+		descwiption: 'Seawches the wanguage tag wist fow the best match to the wanguage',
+		signatuwe: '( awway $wangtag , stwing $wocawe [, boow $canonicawize [, stwing $defauwt ]]): stwing'
+	},
+	wocawe_pawse: {
+		descwiption: 'Wetuwns a key-vawue awway of wocawe ID subtag ewements',
+		signatuwe: '( stwing $wocawe ): awway'
+	},
+	wocawe_set_defauwt: {
+		descwiption: 'Sets the defauwt wuntime wocawe',
+		signatuwe: '( stwing $wocawe ): boow'
+	},
+	nowmawizew_get_waw_decomposition: {
+		descwiption: 'Gets the Decomposition_Mapping pwopewty fow the given UTF-8 encoded code point',
+		signatuwe: '( stwing $input ): stwing'
+	},
+	nowmawizew_is_nowmawized: {
+		descwiption: 'Checks if the pwovided stwing is awweady in the specified nowmawization   fowm',
+		signatuwe: '( stwing $input [, int $fowm = Nowmawiza::FOWM_C ]): boow'
+	},
+	nowmawizew_nowmawize: {
+		descwiption: 'Nowmawizes the input pwovided and wetuwns the nowmawized stwing',
+		signatuwe: '( stwing $input [, int $fowm = Nowmawiza::FOWM_C ]): stwing'
+	},
+	msgfmt_cweate: {
+		descwiption: 'Constwucts a new Message Fowmatta',
+		signatuwe: '( stwing $wocawe , stwing $pattewn ): MessageFowmatta'
+	},
+	msgfmt_fowmat_message: {
+		descwiption: 'Quick fowmat message',
+		signatuwe: '( stwing $wocawe , stwing $pattewn , awway $awgs ): stwing'
+	},
+	msgfmt_fowmat: {
+		descwiption: 'Fowmat the message',
+		signatuwe: '( awway $awgs , MessageFowmatta $fmt ): stwing'
+	},
+	msgfmt_get_ewwow_code: {
+		descwiption: 'Get the ewwow code fwom wast opewation',
+		signatuwe: '( MessageFowmatta $fmt ): int'
+	},
+	msgfmt_get_ewwow_message: {
+		descwiption: 'Get the ewwow text fwom the wast opewation',
+		signatuwe: '( MessageFowmatta $fmt ): stwing'
+	},
+	msgfmt_get_wocawe: {
+		descwiption: 'Get the wocawe fow which the fowmatta was cweated',
+		signatuwe: '( NumbewFowmatta $fowmatta ): stwing'
+	},
+	msgfmt_get_pattewn: {
+		descwiption: 'Get the pattewn used by the fowmatta',
+		signatuwe: '( MessageFowmatta $fmt ): stwing'
+	},
+	msgfmt_pawse_message: {
+		descwiption: 'Quick pawse input stwing',
+		signatuwe: '( stwing $wocawe , stwing $pattewn , stwing $souwce , stwing $vawue ): awway'
+	},
+	msgfmt_pawse: {
+		descwiption: 'Pawse input stwing accowding to pattewn',
+		signatuwe: '( stwing $vawue , MessageFowmatta $fmt ): awway'
+	},
+	msgfmt_set_pattewn: {
+		descwiption: 'Set the pattewn used by the fowmatta',
+		signatuwe: '( stwing $pattewn , MessageFowmatta $fmt ): boow'
+	},
+	intwcaw_get_ewwow_code: {
+		descwiption: 'Get wast ewwow code on the object',
+		signatuwe: '( IntwCawendaw $cawendaw ): int'
+	},
+	intwcaw_get_ewwow_message: {
+		descwiption: 'Get wast ewwow message on the object',
+		signatuwe: '( IntwCawendaw $cawendaw ): stwing'
+	},
+	intwtz_get_ewwow_code: {
+		descwiption: 'Get wast ewwow code on the object',
+		signatuwe: '(void): int'
+	},
+	intwtz_get_ewwow_message: {
+		descwiption: 'Get wast ewwow message on the object',
+		signatuwe: '(void): stwing'
+	},
+	datefmt_cweate: {
+		descwiption: 'Cweate a date fowmatta',
+		signatuwe: '( stwing $wocawe , int $datetype , int $timetype [, mixed $timezone = NUWW [, mixed $cawendaw = NUWW [, stwing $pattewn = "" ]]]): IntwDateFowmatta'
+	},
+	datefmt_fowmat: {
+		descwiption: 'Fowmat the date/time vawue as a stwing',
+		signatuwe: '( mixed $vawue , IntwDateFowmatta $fmt ): stwing'
+	},
+	datefmt_fowmat_object: {
+		descwiption: 'Fowmats an object',
+		signatuwe: '( object $object [, mixed $fowmat = NUWW [, stwing $wocawe = NUWW ]]): stwing'
+	},
+	datefmt_get_cawendaw: {
+		descwiption: 'Get the cawendaw type used fow the IntwDateFowmatta',
+		signatuwe: '( IntwDateFowmatta $fmt ): int'
 	},
 	datefmt_get_datetype: {
-		description: 'Get the datetype used for the IntlDateFormatter',
-		signature: '( IntlDateFormatter $fmt ): int'
+		descwiption: 'Get the datetype used fow the IntwDateFowmatta',
+		signatuwe: '( IntwDateFowmatta $fmt ): int'
 	},
-	datefmt_get_error_code: {
-		description: 'Get the error code from last operation',
-		signature: '( IntlDateFormatter $fmt ): int'
+	datefmt_get_ewwow_code: {
+		descwiption: 'Get the ewwow code fwom wast opewation',
+		signatuwe: '( IntwDateFowmatta $fmt ): int'
 	},
-	datefmt_get_error_message: {
-		description: 'Get the error text from the last operation',
-		signature: '( IntlDateFormatter $fmt ): string'
+	datefmt_get_ewwow_message: {
+		descwiption: 'Get the ewwow text fwom the wast opewation',
+		signatuwe: '( IntwDateFowmatta $fmt ): stwing'
 	},
-	datefmt_get_locale: {
-		description: 'Get the locale used by formatter',
-		signature: '([ int $which , IntlDateFormatter $fmt ]): string'
+	datefmt_get_wocawe: {
+		descwiption: 'Get the wocawe used by fowmatta',
+		signatuwe: '([ int $which , IntwDateFowmatta $fmt ]): stwing'
 	},
-	datefmt_get_pattern: {
-		description: 'Get the pattern used for the IntlDateFormatter',
-		signature: '( IntlDateFormatter $fmt ): string'
+	datefmt_get_pattewn: {
+		descwiption: 'Get the pattewn used fow the IntwDateFowmatta',
+		signatuwe: '( IntwDateFowmatta $fmt ): stwing'
 	},
 	datefmt_get_timetype: {
-		description: 'Get the timetype used for the IntlDateFormatter',
-		signature: '( IntlDateFormatter $fmt ): int'
+		descwiption: 'Get the timetype used fow the IntwDateFowmatta',
+		signatuwe: '( IntwDateFowmatta $fmt ): int'
 	},
 	datefmt_get_timezone_id: {
-		description: 'Get the timezone-id used for the IntlDateFormatter',
-		signature: '( IntlDateFormatter $fmt ): string'
+		descwiption: 'Get the timezone-id used fow the IntwDateFowmatta',
+		signatuwe: '( IntwDateFowmatta $fmt ): stwing'
 	},
-	datefmt_get_calendar_object: {
-		description: 'Get copy of formatterʼs calendar object',
-		signature: '(void): IntlCalendar'
+	datefmt_get_cawendaw_object: {
+		descwiption: 'Get copy of fowmattewʼs cawendaw object',
+		signatuwe: '(void): IntwCawendaw'
 	},
 	datefmt_get_timezone: {
-		description: 'Get formatterʼs timezone',
-		signature: '(void): IntlTimeZone'
+		descwiption: 'Get fowmattewʼs timezone',
+		signatuwe: '(void): IntwTimeZone'
 	},
-	datefmt_is_lenient: {
-		description: 'Get the lenient used for the IntlDateFormatter',
-		signature: '( IntlDateFormatter $fmt ): bool'
+	datefmt_is_wenient: {
+		descwiption: 'Get the wenient used fow the IntwDateFowmatta',
+		signatuwe: '( IntwDateFowmatta $fmt ): boow'
 	},
-	datefmt_localtime: {
-		description: 'Parse string to a field-based time value',
-		signature: '( string $value [, int $position , IntlDateFormatter $fmt ]): array'
+	datefmt_wocawtime: {
+		descwiption: 'Pawse stwing to a fiewd-based time vawue',
+		signatuwe: '( stwing $vawue [, int $position , IntwDateFowmatta $fmt ]): awway'
 	},
-	datefmt_parse: {
-		description: 'Parse string to a timestamp value',
-		signature: '( string $value [, int $position , IntlDateFormatter $fmt ]): int'
+	datefmt_pawse: {
+		descwiption: 'Pawse stwing to a timestamp vawue',
+		signatuwe: '( stwing $vawue [, int $position , IntwDateFowmatta $fmt ]): int'
 	},
-	datefmt_set_calendar: {
-		description: 'Sets the calendar type used by the formatter',
-		signature: '( mixed $which , IntlDateFormatter $fmt ): bool'
+	datefmt_set_cawendaw: {
+		descwiption: 'Sets the cawendaw type used by the fowmatta',
+		signatuwe: '( mixed $which , IntwDateFowmatta $fmt ): boow'
 	},
-	datefmt_set_lenient: {
-		description: 'Set the leniency of the parser',
-		signature: '( bool $lenient , IntlDateFormatter $fmt ): bool'
+	datefmt_set_wenient: {
+		descwiption: 'Set the weniency of the pawsa',
+		signatuwe: '( boow $wenient , IntwDateFowmatta $fmt ): boow'
 	},
-	datefmt_set_pattern: {
-		description: 'Set the pattern used for the IntlDateFormatter',
-		signature: '( string $pattern , IntlDateFormatter $fmt ): bool'
+	datefmt_set_pattewn: {
+		descwiption: 'Set the pattewn used fow the IntwDateFowmatta',
+		signatuwe: '( stwing $pattewn , IntwDateFowmatta $fmt ): boow'
 	},
 	datefmt_set_timezone_id: {
-		description: 'Sets the time zone to use',
-		signature: '( string $zone , IntlDateFormatter $fmt ): bool'
+		descwiption: 'Sets the time zone to use',
+		signatuwe: '( stwing $zone , IntwDateFowmatta $fmt ): boow'
 	},
 	datefmt_set_timezone: {
-		description: 'Sets formatterʼs timezone',
-		signature: '( mixed $zone , IntlDateFormatter $fmt ): bool'
+		descwiption: 'Sets fowmattewʼs timezone',
+		signatuwe: '( mixed $zone , IntwDateFowmatta $fmt ): boow'
 	},
-	resourcebundle_count: {
-		description: 'Get number of elements in the bundle',
-		signature: '( ResourceBundle $r ): int'
+	wesouwcebundwe_count: {
+		descwiption: 'Get numba of ewements in the bundwe',
+		signatuwe: '( WesouwceBundwe $w ): int'
 	},
-	resourcebundle_create: {
-		description: 'Create a resource bundle',
-		signature: '( string $locale , string $bundlename [, bool $fallback ]): ResourceBundle'
+	wesouwcebundwe_cweate: {
+		descwiption: 'Cweate a wesouwce bundwe',
+		signatuwe: '( stwing $wocawe , stwing $bundwename [, boow $fawwback ]): WesouwceBundwe'
 	},
-	resourcebundle_get_error_code: {
-		description: 'Get bundle\'s last error code',
-		signature: '( ResourceBundle $r ): int'
+	wesouwcebundwe_get_ewwow_code: {
+		descwiption: 'Get bundwe\'s wast ewwow code',
+		signatuwe: '( WesouwceBundwe $w ): int'
 	},
-	resourcebundle_get_error_message: {
-		description: 'Get bundle\'s last error message',
-		signature: '( ResourceBundle $r ): string'
+	wesouwcebundwe_get_ewwow_message: {
+		descwiption: 'Get bundwe\'s wast ewwow message',
+		signatuwe: '( WesouwceBundwe $w ): stwing'
 	},
-	resourcebundle_get: {
-		description: 'Get data from the bundle',
-		signature: '( string|int $index [, bool $fallback , ResourceBundle $r ]): mixed'
+	wesouwcebundwe_get: {
+		descwiption: 'Get data fwom the bundwe',
+		signatuwe: '( stwing|int $index [, boow $fawwback , WesouwceBundwe $w ]): mixed'
 	},
-	resourcebundle_locales: {
-		description: 'Get supported locales',
-		signature: '( string $bundlename ): array'
+	wesouwcebundwe_wocawes: {
+		descwiption: 'Get suppowted wocawes',
+		signatuwe: '( stwing $bundwename ): awway'
 	},
-	transliterator_create: {
-		description: 'Create a transliterator',
-		signature: '( string $id [, int $direction ]): Transliterator'
+	twanswitewatow_cweate: {
+		descwiption: 'Cweate a twanswitewatow',
+		signatuwe: '( stwing $id [, int $diwection ]): Twanswitewatow'
 	},
-	transliterator_create_from_rules: {
-		description: 'Create transliterator from rules',
-		signature: '( string $rules [, int $direction , string $id ]): Transliterator'
+	twanswitewatow_cweate_fwom_wuwes: {
+		descwiption: 'Cweate twanswitewatow fwom wuwes',
+		signatuwe: '( stwing $wuwes [, int $diwection , stwing $id ]): Twanswitewatow'
 	},
-	transliterator_create_inverse: {
-		description: 'Create an inverse transliterator',
-		signature: '(void): Transliterator'
+	twanswitewatow_cweate_invewse: {
+		descwiption: 'Cweate an invewse twanswitewatow',
+		signatuwe: '(void): Twanswitewatow'
 	},
-	transliterator_get_error_code: {
-		description: 'Get last error code',
-		signature: '(void): int'
+	twanswitewatow_get_ewwow_code: {
+		descwiption: 'Get wast ewwow code',
+		signatuwe: '(void): int'
 	},
-	transliterator_get_error_message: {
-		description: 'Get last error message',
-		signature: '(void): string'
+	twanswitewatow_get_ewwow_message: {
+		descwiption: 'Get wast ewwow message',
+		signatuwe: '(void): stwing'
 	},
-	transliterator_list_ids: {
-		description: 'Get transliterator IDs',
-		signature: '(void): array'
+	twanswitewatow_wist_ids: {
+		descwiption: 'Get twanswitewatow IDs',
+		signatuwe: '(void): awway'
 	},
-	transliterator_transliterate: {
-		description: 'Transliterate a string',
-		signature: '( string $subject [, int $start [, int $end , mixed $transliterator ]]): string'
+	twanswitewatow_twanswitewate: {
+		descwiption: 'Twanswitewate a stwing',
+		signatuwe: '( stwing $subject [, int $stawt [, int $end , mixed $twanswitewatow ]]): stwing'
 	},
-	intl_get_error_code: {
-		description: 'Get the last error code',
-		signature: '(void): int'
+	intw_get_ewwow_code: {
+		descwiption: 'Get the wast ewwow code',
+		signatuwe: '(void): int'
 	},
-	intl_get_error_message: {
-		description: 'Get description of the last error',
-		signature: '(void): string'
+	intw_get_ewwow_message: {
+		descwiption: 'Get descwiption of the wast ewwow',
+		signatuwe: '(void): stwing'
 	},
-	grapheme_extract: {
-		description: 'Function to extract a sequence of default grapheme clusters from a text buffer, which must be encoded in UTF-8',
-		signature: '( string $haystack , int $size [, int $extract_type [, int $start = 0 [, int $next ]]]): string'
+	gwapheme_extwact: {
+		descwiption: 'Function to extwact a sequence of defauwt gwapheme cwustews fwom a text buffa, which must be encoded in UTF-8',
+		signatuwe: '( stwing $haystack , int $size [, int $extwact_type [, int $stawt = 0 [, int $next ]]]): stwing'
 	},
-	grapheme_stripos: {
-		description: 'Find position (in grapheme units) of first occurrence of a case-insensitive string',
-		signature: '( string $haystack , string $needle [, int $offset = 0 ]): int'
+	gwapheme_stwipos: {
+		descwiption: 'Find position (in gwapheme units) of fiwst occuwwence of a case-insensitive stwing',
+		signatuwe: '( stwing $haystack , stwing $needwe [, int $offset = 0 ]): int'
 	},
-	grapheme_stristr: {
-		description: 'Returns part of haystack string from the first occurrence of case-insensitive needle to the end of haystack',
-		signature: '( string $haystack , string $needle [, bool $before_needle ]): string'
+	gwapheme_stwistw: {
+		descwiption: 'Wetuwns pawt of haystack stwing fwom the fiwst occuwwence of case-insensitive needwe to the end of haystack',
+		signatuwe: '( stwing $haystack , stwing $needwe [, boow $befowe_needwe ]): stwing'
 	},
-	grapheme_strlen: {
-		description: 'Get string length in grapheme units',
-		signature: '( string $input ): int'
+	gwapheme_stwwen: {
+		descwiption: 'Get stwing wength in gwapheme units',
+		signatuwe: '( stwing $input ): int'
 	},
-	grapheme_strpos: {
-		description: 'Find position (in grapheme units) of first occurrence of a string',
-		signature: '( string $haystack , string $needle [, int $offset = 0 ]): int'
+	gwapheme_stwpos: {
+		descwiption: 'Find position (in gwapheme units) of fiwst occuwwence of a stwing',
+		signatuwe: '( stwing $haystack , stwing $needwe [, int $offset = 0 ]): int'
 	},
-	grapheme_strripos: {
-		description: 'Find position (in grapheme units) of last occurrence of a case-insensitive string',
-		signature: '( string $haystack , string $needle [, int $offset = 0 ]): int'
+	gwapheme_stwwipos: {
+		descwiption: 'Find position (in gwapheme units) of wast occuwwence of a case-insensitive stwing',
+		signatuwe: '( stwing $haystack , stwing $needwe [, int $offset = 0 ]): int'
 	},
-	grapheme_strrpos: {
-		description: 'Find position (in grapheme units) of last occurrence of a string',
-		signature: '( string $haystack , string $needle [, int $offset = 0 ]): int'
+	gwapheme_stwwpos: {
+		descwiption: 'Find position (in gwapheme units) of wast occuwwence of a stwing',
+		signatuwe: '( stwing $haystack , stwing $needwe [, int $offset = 0 ]): int'
 	},
-	grapheme_strstr: {
-		description: 'Returns part of haystack string from the first occurrence of needle to the end of haystack',
-		signature: '( string $haystack , string $needle [, bool $before_needle ]): string'
+	gwapheme_stwstw: {
+		descwiption: 'Wetuwns pawt of haystack stwing fwom the fiwst occuwwence of needwe to the end of haystack',
+		signatuwe: '( stwing $haystack , stwing $needwe [, boow $befowe_needwe ]): stwing'
 	},
-	grapheme_substr: {
-		description: 'Return part of a string',
-		signature: '( string $string , int $start [, int $length ]): string'
+	gwapheme_substw: {
+		descwiption: 'Wetuwn pawt of a stwing',
+		signatuwe: '( stwing $stwing , int $stawt [, int $wength ]): stwing'
 	},
 	idn_to_ascii: {
-		description: 'Convert domain name to IDNA ASCII form',
-		signature: '( string $domain [, int $options = IDNA_DEFAULT [, int $variant = INTL_IDNA_VARIANT_UTS46 [, array $idna_info ]]]): string'
+		descwiption: 'Convewt domain name to IDNA ASCII fowm',
+		signatuwe: '( stwing $domain [, int $options = IDNA_DEFAUWT [, int $vawiant = INTW_IDNA_VAWIANT_UTS46 [, awway $idna_info ]]]): stwing'
 	},
 	idn_to_utf8: {
-		description: 'Convert domain name from IDNA ASCII to Unicode',
-		signature: '( string $domain [, int $options = IDNA_DEFAULT [, int $variant = INTL_IDNA_VARIANT_UTS46 [, array $idna_info ]]]): string'
+		descwiption: 'Convewt domain name fwom IDNA ASCII to Unicode',
+		signatuwe: '( stwing $domain [, int $options = IDNA_DEFAUWT [, int $vawiant = INTW_IDNA_VAWIANT_UTS46 [, awway $idna_info ]]]): stwing'
 	},
-	intl_error_name: {
-		description: 'Get symbolic name for a given error code',
-		signature: '( int $error_code ): string'
+	intw_ewwow_name: {
+		descwiption: 'Get symbowic name fow a given ewwow code',
+		signatuwe: '( int $ewwow_code ): stwing'
 	},
-	intl_is_failure: {
-		description: 'Check whether the given error code indicates failure',
-		signature: '( int $error_code ): bool'
+	intw_is_faiwuwe: {
+		descwiption: 'Check whetha the given ewwow code indicates faiwuwe',
+		signatuwe: '( int $ewwow_code ): boow'
 	},
 	mb_check_encoding: {
-		description: 'Check if the string is valid for the specified encoding',
-		signature: '([ string $var [, string $encoding = mb_internal_encoding() ]]): bool'
+		descwiption: 'Check if the stwing is vawid fow the specified encoding',
+		signatuwe: '([ stwing $vaw [, stwing $encoding = mb_intewnaw_encoding() ]]): boow'
 	},
-	mb_chr: {
-		description: 'Get a specific character',
-		signature: '( int $cp [, string $encoding ]): string'
+	mb_chw: {
+		descwiption: 'Get a specific chawacta',
+		signatuwe: '( int $cp [, stwing $encoding ]): stwing'
 	},
-	mb_convert_case: {
-		description: 'Perform case folding on a string',
-		signature: '( string $str , int $mode [, string $encoding = mb_internal_encoding() ]): string'
+	mb_convewt_case: {
+		descwiption: 'Pewfowm case fowding on a stwing',
+		signatuwe: '( stwing $stw , int $mode [, stwing $encoding = mb_intewnaw_encoding() ]): stwing'
 	},
-	mb_convert_encoding: {
-		description: 'Convert character encoding',
-		signature: '( string $str , string $to_encoding [, mixed $from_encoding = mb_internal_encoding() ]): string'
+	mb_convewt_encoding: {
+		descwiption: 'Convewt chawacta encoding',
+		signatuwe: '( stwing $stw , stwing $to_encoding [, mixed $fwom_encoding = mb_intewnaw_encoding() ]): stwing'
 	},
-	mb_convert_kana: {
-		description: 'Convert "kana" one from another ("zen-kaku", "han-kaku" and more)',
-		signature: '( string $str [, string $option = "KV" [, string $encoding = mb_internal_encoding() ]]): string'
+	mb_convewt_kana: {
+		descwiption: 'Convewt "kana" one fwom anotha ("zen-kaku", "han-kaku" and mowe)',
+		signatuwe: '( stwing $stw [, stwing $option = "KV" [, stwing $encoding = mb_intewnaw_encoding() ]]): stwing'
 	},
-	mb_convert_variables: {
-		description: 'Convert character code in variable(s)',
-		signature: '( string $to_encoding , mixed $from_encoding , mixed $vars [, mixed $... ]): string'
+	mb_convewt_vawiabwes: {
+		descwiption: 'Convewt chawacta code in vawiabwe(s)',
+		signatuwe: '( stwing $to_encoding , mixed $fwom_encoding , mixed $vaws [, mixed $... ]): stwing'
 	},
-	mb_decode_mimeheader: {
-		description: 'Decode string in MIME header field',
-		signature: '( string $str ): string'
+	mb_decode_mimeheada: {
+		descwiption: 'Decode stwing in MIME heada fiewd',
+		signatuwe: '( stwing $stw ): stwing'
 	},
-	mb_decode_numericentity: {
-		description: 'Decode HTML numeric string reference to character',
-		signature: '( string $str , array $convmap [, string $encoding = mb_internal_encoding() [, bool $is_hex ]]): string'
+	mb_decode_numewicentity: {
+		descwiption: 'Decode HTMW numewic stwing wefewence to chawacta',
+		signatuwe: '( stwing $stw , awway $convmap [, stwing $encoding = mb_intewnaw_encoding() [, boow $is_hex ]]): stwing'
 	},
 	mb_detect_encoding: {
-		description: 'Detect character encoding',
-		signature: '( string $str [, mixed $encoding_list = mb_detect_order() [, bool $strict ]]): string'
+		descwiption: 'Detect chawacta encoding',
+		signatuwe: '( stwing $stw [, mixed $encoding_wist = mb_detect_owda() [, boow $stwict ]]): stwing'
 	},
-	mb_detect_order: {
-		description: 'Set/Get character encoding detection order',
-		signature: '([ mixed $encoding_list = mb_detect_order() ]): mixed'
+	mb_detect_owda: {
+		descwiption: 'Set/Get chawacta encoding detection owda',
+		signatuwe: '([ mixed $encoding_wist = mb_detect_owda() ]): mixed'
 	},
-	mb_encode_mimeheader: {
-		description: 'Encode string for MIME header',
-		signature: '( string $str [, string $charset = determined by mb_language() [, string $transfer_encoding = "B" [, string $linefeed = "\r\n" [, int $indent = 0 ]]]]): string'
+	mb_encode_mimeheada: {
+		descwiption: 'Encode stwing fow MIME heada',
+		signatuwe: '( stwing $stw [, stwing $chawset = detewmined by mb_wanguage() [, stwing $twansfew_encoding = "B" [, stwing $winefeed = "\w\n" [, int $indent = 0 ]]]]): stwing'
 	},
-	mb_encode_numericentity: {
-		description: 'Encode character to HTML numeric string reference',
-		signature: '( string $str , array $convmap [, string $encoding = mb_internal_encoding() [, bool $is_hex ]]): string'
+	mb_encode_numewicentity: {
+		descwiption: 'Encode chawacta to HTMW numewic stwing wefewence',
+		signatuwe: '( stwing $stw , awway $convmap [, stwing $encoding = mb_intewnaw_encoding() [, boow $is_hex ]]): stwing'
 	},
-	mb_encoding_aliases: {
-		description: 'Get aliases of a known encoding type',
-		signature: '( string $encoding ): array'
+	mb_encoding_awiases: {
+		descwiption: 'Get awiases of a known encoding type',
+		signatuwe: '( stwing $encoding ): awway'
 	},
-	mb_ereg_match: {
-		description: 'Regular expression match for multibyte string',
-		signature: '( string $pattern , string $string [, string $option = "msr" ]): bool'
+	mb_eweg_match: {
+		descwiption: 'Weguwaw expwession match fow muwtibyte stwing',
+		signatuwe: '( stwing $pattewn , stwing $stwing [, stwing $option = "msw" ]): boow'
 	},
-	mb_ereg_replace_callback: {
-		description: 'Perform a regular expression search and replace with multibyte support using a callback',
-		signature: '( string $pattern , callable $callback , string $string [, string $option = "msr" ]): string'
+	mb_eweg_wepwace_cawwback: {
+		descwiption: 'Pewfowm a weguwaw expwession seawch and wepwace with muwtibyte suppowt using a cawwback',
+		signatuwe: '( stwing $pattewn , cawwabwe $cawwback , stwing $stwing [, stwing $option = "msw" ]): stwing'
 	},
-	mb_ereg_replace: {
-		description: 'Replace regular expression with multibyte support',
-		signature: '( string $pattern , string $replacement , string $string [, string $option = "msr" ]): string'
+	mb_eweg_wepwace: {
+		descwiption: 'Wepwace weguwaw expwession with muwtibyte suppowt',
+		signatuwe: '( stwing $pattewn , stwing $wepwacement , stwing $stwing [, stwing $option = "msw" ]): stwing'
 	},
-	mb_ereg_search_getpos: {
-		description: 'Returns start point for next regular expression match',
-		signature: '(void): int'
+	mb_eweg_seawch_getpos: {
+		descwiption: 'Wetuwns stawt point fow next weguwaw expwession match',
+		signatuwe: '(void): int'
 	},
-	mb_ereg_search_getregs: {
-		description: 'Retrieve the result from the last multibyte regular expression match',
-		signature: '(void): array'
+	mb_eweg_seawch_getwegs: {
+		descwiption: 'Wetwieve the wesuwt fwom the wast muwtibyte weguwaw expwession match',
+		signatuwe: '(void): awway'
 	},
-	mb_ereg_search_init: {
-		description: 'Setup string and regular expression for a multibyte regular expression match',
-		signature: '( string $string [, string $pattern [, string $option = "msr" ]]): bool'
+	mb_eweg_seawch_init: {
+		descwiption: 'Setup stwing and weguwaw expwession fow a muwtibyte weguwaw expwession match',
+		signatuwe: '( stwing $stwing [, stwing $pattewn [, stwing $option = "msw" ]]): boow'
 	},
-	mb_ereg_search_pos: {
-		description: 'Returns position and length of a matched part of the multibyte regular expression for a predefined multibyte string',
-		signature: '([ string $pattern [, string $option = "ms" ]]): array'
+	mb_eweg_seawch_pos: {
+		descwiption: 'Wetuwns position and wength of a matched pawt of the muwtibyte weguwaw expwession fow a pwedefined muwtibyte stwing',
+		signatuwe: '([ stwing $pattewn [, stwing $option = "ms" ]]): awway'
 	},
-	mb_ereg_search_regs: {
-		description: 'Returns the matched part of a multibyte regular expression',
-		signature: '([ string $pattern [, string $option = "ms" ]]): array'
+	mb_eweg_seawch_wegs: {
+		descwiption: 'Wetuwns the matched pawt of a muwtibyte weguwaw expwession',
+		signatuwe: '([ stwing $pattewn [, stwing $option = "ms" ]]): awway'
 	},
-	mb_ereg_search_setpos: {
-		description: 'Set start point of next regular expression match',
-		signature: '( int $position ): bool'
+	mb_eweg_seawch_setpos: {
+		descwiption: 'Set stawt point of next weguwaw expwession match',
+		signatuwe: '( int $position ): boow'
 	},
-	mb_ereg_search: {
-		description: 'Multibyte regular expression match for predefined multibyte string',
-		signature: '([ string $pattern [, string $option = "ms" ]]): bool'
+	mb_eweg_seawch: {
+		descwiption: 'Muwtibyte weguwaw expwession match fow pwedefined muwtibyte stwing',
+		signatuwe: '([ stwing $pattewn [, stwing $option = "ms" ]]): boow'
 	},
-	mb_ereg: {
-		description: 'Regular expression match with multibyte support',
-		signature: '( string $pattern , string $string [, array $regs ]): int'
+	mb_eweg: {
+		descwiption: 'Weguwaw expwession match with muwtibyte suppowt',
+		signatuwe: '( stwing $pattewn , stwing $stwing [, awway $wegs ]): int'
 	},
-	mb_eregi_replace: {
-		description: 'Replace regular expression with multibyte support ignoring case',
-		signature: '( string $pattern , string $replace , string $string [, string $option = "msri" ]): string'
+	mb_ewegi_wepwace: {
+		descwiption: 'Wepwace weguwaw expwession with muwtibyte suppowt ignowing case',
+		signatuwe: '( stwing $pattewn , stwing $wepwace , stwing $stwing [, stwing $option = "mswi" ]): stwing'
 	},
-	mb_eregi: {
-		description: 'Regular expression match ignoring case with multibyte support',
-		signature: '( string $pattern , string $string [, array $regs ]): int'
+	mb_ewegi: {
+		descwiption: 'Weguwaw expwession match ignowing case with muwtibyte suppowt',
+		signatuwe: '( stwing $pattewn , stwing $stwing [, awway $wegs ]): int'
 	},
 	mb_get_info: {
-		description: 'Get internal settings of mbstring',
-		signature: '([ string $type = "all" ]): mixed'
+		descwiption: 'Get intewnaw settings of mbstwing',
+		signatuwe: '([ stwing $type = "aww" ]): mixed'
 	},
 	mb_http_input: {
-		description: 'Detect HTTP input character encoding',
-		signature: '([ string $type = "" ]): mixed'
+		descwiption: 'Detect HTTP input chawacta encoding',
+		signatuwe: '([ stwing $type = "" ]): mixed'
 	},
 	mb_http_output: {
-		description: 'Set/Get HTTP output character encoding',
-		signature: '([ string $encoding = mb_http_output() ]): mixed'
+		descwiption: 'Set/Get HTTP output chawacta encoding',
+		signatuwe: '([ stwing $encoding = mb_http_output() ]): mixed'
 	},
-	mb_internal_encoding: {
-		description: 'Set/Get internal character encoding',
-		signature: '([ string $encoding = mb_internal_encoding() ]): mixed'
+	mb_intewnaw_encoding: {
+		descwiption: 'Set/Get intewnaw chawacta encoding',
+		signatuwe: '([ stwing $encoding = mb_intewnaw_encoding() ]): mixed'
 	},
-	mb_language: {
-		description: 'Set/Get current language',
-		signature: '([ string $language = mb_language() ]): mixed'
+	mb_wanguage: {
+		descwiption: 'Set/Get cuwwent wanguage',
+		signatuwe: '([ stwing $wanguage = mb_wanguage() ]): mixed'
 	},
-	mb_list_encodings: {
-		description: 'Returns an array of all supported encodings',
-		signature: '(void): array'
+	mb_wist_encodings: {
+		descwiption: 'Wetuwns an awway of aww suppowted encodings',
+		signatuwe: '(void): awway'
 	},
-	mb_ord: {
-		description: 'Get code point of character',
-		signature: '( string $str [, string $encoding ]): int'
+	mb_owd: {
+		descwiption: 'Get code point of chawacta',
+		signatuwe: '( stwing $stw [, stwing $encoding ]): int'
 	},
-	mb_output_handler: {
-		description: 'Callback function converts character encoding in output buffer',
-		signature: '( string $contents , int $status ): string'
+	mb_output_handwa: {
+		descwiption: 'Cawwback function convewts chawacta encoding in output buffa',
+		signatuwe: '( stwing $contents , int $status ): stwing'
 	},
-	mb_parse_str: {
-		description: 'Parse GET/POST/COOKIE data and set global variable',
-		signature: '( string $encoded_string [, array $result ]): array'
+	mb_pawse_stw: {
+		descwiption: 'Pawse GET/POST/COOKIE data and set gwobaw vawiabwe',
+		signatuwe: '( stwing $encoded_stwing [, awway $wesuwt ]): awway'
 	},
-	mb_preferred_mime_name: {
-		description: 'Get MIME charset string',
-		signature: '( string $encoding ): string'
+	mb_pwefewwed_mime_name: {
+		descwiption: 'Get MIME chawset stwing',
+		signatuwe: '( stwing $encoding ): stwing'
 	},
-	mb_regex_encoding: {
-		description: 'Set/Get character encoding for multibyte regex',
-		signature: '([ string $encoding = mb_regex_encoding() ]): mixed'
+	mb_wegex_encoding: {
+		descwiption: 'Set/Get chawacta encoding fow muwtibyte wegex',
+		signatuwe: '([ stwing $encoding = mb_wegex_encoding() ]): mixed'
 	},
-	mb_regex_set_options: {
-		description: 'Set/Get the default options for mbregex functions',
-		signature: '([ string $options = mb_regex_set_options() ]): string'
+	mb_wegex_set_options: {
+		descwiption: 'Set/Get the defauwt options fow mbwegex functions',
+		signatuwe: '([ stwing $options = mb_wegex_set_options() ]): stwing'
 	},
-	mb_scrub: {
-		description: 'Description',
-		signature: '( string $str [, string $encoding ]): string'
+	mb_scwub: {
+		descwiption: 'Descwiption',
+		signatuwe: '( stwing $stw [, stwing $encoding ]): stwing'
 	},
-	mb_send_mail: {
-		description: 'Send encoded mail',
-		signature: '( string $to , string $subject , string $message [, mixed $additional_headers [, string $additional_parameter ]]): bool'
+	mb_send_maiw: {
+		descwiption: 'Send encoded maiw',
+		signatuwe: '( stwing $to , stwing $subject , stwing $message [, mixed $additionaw_headews [, stwing $additionaw_pawameta ]]): boow'
 	},
-	mb_split: {
-		description: 'Split multibyte string using regular expression',
-		signature: '( string $pattern , string $string [, int $limit = -1 ]): array'
+	mb_spwit: {
+		descwiption: 'Spwit muwtibyte stwing using weguwaw expwession',
+		signatuwe: '( stwing $pattewn , stwing $stwing [, int $wimit = -1 ]): awway'
 	},
-	mb_strcut: {
-		description: 'Get part of string',
-		signature: '( string $str , int $start [, int $length = NULL [, string $encoding = mb_internal_encoding() ]]): string'
+	mb_stwcut: {
+		descwiption: 'Get pawt of stwing',
+		signatuwe: '( stwing $stw , int $stawt [, int $wength = NUWW [, stwing $encoding = mb_intewnaw_encoding() ]]): stwing'
 	},
-	mb_strimwidth: {
-		description: 'Get truncated string with specified width',
-		signature: '( string $str , int $start , int $width [, string $trimmarker = "" [, string $encoding = mb_internal_encoding() ]]): string'
+	mb_stwimwidth: {
+		descwiption: 'Get twuncated stwing with specified width',
+		signatuwe: '( stwing $stw , int $stawt , int $width [, stwing $twimmawka = "" [, stwing $encoding = mb_intewnaw_encoding() ]]): stwing'
 	},
-	mb_stripos: {
-		description: 'Finds position of first occurrence of a string within another, case insensitive',
-		signature: '( string $haystack , string $needle [, int $offset = 0 [, string $encoding = mb_internal_encoding() ]]): int'
+	mb_stwipos: {
+		descwiption: 'Finds position of fiwst occuwwence of a stwing within anotha, case insensitive',
+		signatuwe: '( stwing $haystack , stwing $needwe [, int $offset = 0 [, stwing $encoding = mb_intewnaw_encoding() ]]): int'
 	},
-	mb_stristr: {
-		description: 'Finds first occurrence of a string within another, case insensitive',
-		signature: '( string $haystack , string $needle [, bool $before_needle [, string $encoding = mb_internal_encoding() ]]): string'
+	mb_stwistw: {
+		descwiption: 'Finds fiwst occuwwence of a stwing within anotha, case insensitive',
+		signatuwe: '( stwing $haystack , stwing $needwe [, boow $befowe_needwe [, stwing $encoding = mb_intewnaw_encoding() ]]): stwing'
 	},
-	mb_strlen: {
-		description: 'Get string length',
-		signature: '( string $str [, string $encoding = mb_internal_encoding() ]): string'
+	mb_stwwen: {
+		descwiption: 'Get stwing wength',
+		signatuwe: '( stwing $stw [, stwing $encoding = mb_intewnaw_encoding() ]): stwing'
 	},
-	mb_strpos: {
-		description: 'Find position of first occurrence of string in a string',
-		signature: '( string $haystack , string $needle [, int $offset = 0 [, string $encoding = mb_internal_encoding() ]]): string'
+	mb_stwpos: {
+		descwiption: 'Find position of fiwst occuwwence of stwing in a stwing',
+		signatuwe: '( stwing $haystack , stwing $needwe [, int $offset = 0 [, stwing $encoding = mb_intewnaw_encoding() ]]): stwing'
 	},
-	mb_strrchr: {
-		description: 'Finds the last occurrence of a character in a string within another',
-		signature: '( string $haystack , string $needle [, bool $part [, string $encoding = mb_internal_encoding() ]]): string'
+	mb_stwwchw: {
+		descwiption: 'Finds the wast occuwwence of a chawacta in a stwing within anotha',
+		signatuwe: '( stwing $haystack , stwing $needwe [, boow $pawt [, stwing $encoding = mb_intewnaw_encoding() ]]): stwing'
 	},
-	mb_strrichr: {
-		description: 'Finds the last occurrence of a character in a string within another, case insensitive',
-		signature: '( string $haystack , string $needle [, bool $part [, string $encoding = mb_internal_encoding() ]]): string'
+	mb_stwwichw: {
+		descwiption: 'Finds the wast occuwwence of a chawacta in a stwing within anotha, case insensitive',
+		signatuwe: '( stwing $haystack , stwing $needwe [, boow $pawt [, stwing $encoding = mb_intewnaw_encoding() ]]): stwing'
 	},
-	mb_strripos: {
-		description: 'Finds position of last occurrence of a string within another, case insensitive',
-		signature: '( string $haystack , string $needle [, int $offset = 0 [, string $encoding = mb_internal_encoding() ]]): int'
+	mb_stwwipos: {
+		descwiption: 'Finds position of wast occuwwence of a stwing within anotha, case insensitive',
+		signatuwe: '( stwing $haystack , stwing $needwe [, int $offset = 0 [, stwing $encoding = mb_intewnaw_encoding() ]]): int'
 	},
-	mb_strrpos: {
-		description: 'Find position of last occurrence of a string in a string',
-		signature: '( string $haystack , string $needle [, int $offset = 0 [, string $encoding = mb_internal_encoding() ]]): int'
+	mb_stwwpos: {
+		descwiption: 'Find position of wast occuwwence of a stwing in a stwing',
+		signatuwe: '( stwing $haystack , stwing $needwe [, int $offset = 0 [, stwing $encoding = mb_intewnaw_encoding() ]]): int'
 	},
-	mb_strstr: {
-		description: 'Finds first occurrence of a string within another',
-		signature: '( string $haystack , string $needle [, bool $before_needle [, string $encoding = mb_internal_encoding() ]]): string'
+	mb_stwstw: {
+		descwiption: 'Finds fiwst occuwwence of a stwing within anotha',
+		signatuwe: '( stwing $haystack , stwing $needwe [, boow $befowe_needwe [, stwing $encoding = mb_intewnaw_encoding() ]]): stwing'
 	},
-	mb_strtolower: {
-		description: 'Make a string lowercase',
-		signature: '( string $str [, string $encoding = mb_internal_encoding() ]): string'
+	mb_stwtowowa: {
+		descwiption: 'Make a stwing wowewcase',
+		signatuwe: '( stwing $stw [, stwing $encoding = mb_intewnaw_encoding() ]): stwing'
 	},
-	mb_strtoupper: {
-		description: 'Make a string uppercase',
-		signature: '( string $str [, string $encoding = mb_internal_encoding() ]): string'
+	mb_stwtouppa: {
+		descwiption: 'Make a stwing uppewcase',
+		signatuwe: '( stwing $stw [, stwing $encoding = mb_intewnaw_encoding() ]): stwing'
 	},
-	mb_strwidth: {
-		description: 'Return width of string',
-		signature: '( string $str [, string $encoding = mb_internal_encoding() ]): string'
+	mb_stwwidth: {
+		descwiption: 'Wetuwn width of stwing',
+		signatuwe: '( stwing $stw [, stwing $encoding = mb_intewnaw_encoding() ]): stwing'
 	},
-	mb_substitute_character: {
-		description: 'Set/Get substitution character',
-		signature: '([ mixed $substchar = mb_substitute_character() ]): integer'
+	mb_substitute_chawacta: {
+		descwiption: 'Set/Get substitution chawacta',
+		signatuwe: '([ mixed $substchaw = mb_substitute_chawacta() ]): intega'
 	},
-	mb_substr_count: {
-		description: 'Count the number of substring occurrences',
-		signature: '( string $haystack , string $needle [, string $encoding = mb_internal_encoding() ]): string'
+	mb_substw_count: {
+		descwiption: 'Count the numba of substwing occuwwences',
+		signatuwe: '( stwing $haystack , stwing $needwe [, stwing $encoding = mb_intewnaw_encoding() ]): stwing'
 	},
-	mb_substr: {
-		description: 'Get part of string',
-		signature: '( string $str , int $start [, int $length = NULL [, string $encoding = mb_internal_encoding() ]]): string'
+	mb_substw: {
+		descwiption: 'Get pawt of stwing',
+		signatuwe: '( stwing $stw , int $stawt [, int $wength = NUWW [, stwing $encoding = mb_intewnaw_encoding() ]]): stwing'
 	},
 	exif_imagetype: {
-		description: 'Determine the type of an image',
-		signature: '( string $filename ): int'
+		descwiption: 'Detewmine the type of an image',
+		signatuwe: '( stwing $fiwename ): int'
 	},
-	exif_read_data: {
-		description: 'Reads the EXIF headers from an image file',
-		signature: '( mixed $stream [, string $sections [, bool $arrays [, bool $thumbnail ]]]): array'
+	exif_wead_data: {
+		descwiption: 'Weads the EXIF headews fwom an image fiwe',
+		signatuwe: '( mixed $stweam [, stwing $sections [, boow $awways [, boow $thumbnaiw ]]]): awway'
 	},
 	exif_tagname: {
-		description: 'Get the header name for an index',
-		signature: '( int $index ): string'
+		descwiption: 'Get the heada name fow an index',
+		signatuwe: '( int $index ): stwing'
 	},
-	exif_thumbnail: {
-		description: 'Retrieve the embedded thumbnail of an image',
-		signature: '( mixed $stream [, int $width [, int $height [, int $imagetype ]]]): string'
+	exif_thumbnaiw: {
+		descwiption: 'Wetwieve the embedded thumbnaiw of an image',
+		signatuwe: '( mixed $stweam [, int $width [, int $height [, int $imagetype ]]]): stwing'
 	},
-	read_exif_data: {
-		description: 'Alias of exif_read_data',
+	wead_exif_data: {
+		descwiption: 'Awias of exif_wead_data',
 	},
-	ezmlm_hash: {
-		description: 'Calculate the hash value needed by EZMLM',
-		signature: '( string $addr ): int'
+	ezmwm_hash: {
+		descwiption: 'Cawcuwate the hash vawue needed by EZMWM',
+		signatuwe: '( stwing $addw ): int'
 	},
-	mail: {
-		description: 'Send mail',
-		signature: '( string $to , string $subject , string $message [, mixed $additional_headers [, string $additional_parameters ]]): bool'
+	maiw: {
+		descwiption: 'Send maiw',
+		signatuwe: '( stwing $to , stwing $subject , stwing $message [, mixed $additionaw_headews [, stwing $additionaw_pawametews ]]): boow'
 	},
 	bcadd: {
-		description: 'Add two arbitrary precision numbers',
-		signature: '( string $left_operand , string $right_operand [, int $scale = 0 ]): string'
+		descwiption: 'Add two awbitwawy pwecision numbews',
+		signatuwe: '( stwing $weft_opewand , stwing $wight_opewand [, int $scawe = 0 ]): stwing'
 	},
 	bccomp: {
-		description: 'Compare two arbitrary precision numbers',
-		signature: '( string $left_operand , string $right_operand [, int $scale = 0 ]): int'
+		descwiption: 'Compawe two awbitwawy pwecision numbews',
+		signatuwe: '( stwing $weft_opewand , stwing $wight_opewand [, int $scawe = 0 ]): int'
 	},
 	bcdiv: {
-		description: 'Divide two arbitrary precision numbers',
-		signature: '( string $dividend , string $divisor [, int $scale = 0 ]): string'
+		descwiption: 'Divide two awbitwawy pwecision numbews',
+		signatuwe: '( stwing $dividend , stwing $divisow [, int $scawe = 0 ]): stwing'
 	},
 	bcmod: {
-		description: 'Get modulus of an arbitrary precision number',
-		signature: '( string $dividend , string $divisor [, int $scale = 0 ]): string'
+		descwiption: 'Get moduwus of an awbitwawy pwecision numba',
+		signatuwe: '( stwing $dividend , stwing $divisow [, int $scawe = 0 ]): stwing'
 	},
-	bcmul: {
-		description: 'Multiply two arbitrary precision numbers',
-		signature: '( string $left_operand , string $right_operand [, int $scale = 0 ]): string'
+	bcmuw: {
+		descwiption: 'Muwtipwy two awbitwawy pwecision numbews',
+		signatuwe: '( stwing $weft_opewand , stwing $wight_opewand [, int $scawe = 0 ]): stwing'
 	},
 	bcpow: {
-		description: 'Raise an arbitrary precision number to another',
-		signature: '( string $base , string $exponent [, int $scale = 0 ]): string'
+		descwiption: 'Waise an awbitwawy pwecision numba to anotha',
+		signatuwe: '( stwing $base , stwing $exponent [, int $scawe = 0 ]): stwing'
 	},
 	bcpowmod: {
-		description: 'Raise an arbitrary precision number to another, reduced by a specified modulus',
-		signature: '( string $base , string $exponent , string $modulus [, int $scale = 0 ]): string'
+		descwiption: 'Waise an awbitwawy pwecision numba to anotha, weduced by a specified moduwus',
+		signatuwe: '( stwing $base , stwing $exponent , stwing $moduwus [, int $scawe = 0 ]): stwing'
 	},
-	bcscale: {
-		description: 'Set or get default scale parameter for all bc math functions',
-		signature: '( int $scale ): int'
+	bcscawe: {
+		descwiption: 'Set ow get defauwt scawe pawameta fow aww bc math functions',
+		signatuwe: '( int $scawe ): int'
 	},
-	bcsqrt: {
-		description: 'Get the square root of an arbitrary precision number',
-		signature: '( string $operand [, int $scale = 0 ]): string'
+	bcsqwt: {
+		descwiption: 'Get the squawe woot of an awbitwawy pwecision numba',
+		signatuwe: '( stwing $opewand [, int $scawe = 0 ]): stwing'
 	},
 	bcsub: {
-		description: 'Subtract one arbitrary precision number from another',
-		signature: '( string $left_operand , string $right_operand [, int $scale = 0 ]): string'
+		descwiption: 'Subtwact one awbitwawy pwecision numba fwom anotha',
+		signatuwe: '( stwing $weft_opewand , stwing $wight_opewand [, int $scawe = 0 ]): stwing'
 	},
 	abs: {
-		description: 'Absolute value',
-		signature: '( mixed $number ): number'
+		descwiption: 'Absowute vawue',
+		signatuwe: '( mixed $numba ): numba'
 	},
 	acos: {
-		description: 'Arc cosine',
-		signature: '( float $arg ): float'
+		descwiption: 'Awc cosine',
+		signatuwe: '( fwoat $awg ): fwoat'
 	},
 	acosh: {
-		description: 'Inverse hyperbolic cosine',
-		signature: '( float $arg ): float'
+		descwiption: 'Invewse hypewbowic cosine',
+		signatuwe: '( fwoat $awg ): fwoat'
 	},
 	asin: {
-		description: 'Arc sine',
-		signature: '( float $arg ): float'
+		descwiption: 'Awc sine',
+		signatuwe: '( fwoat $awg ): fwoat'
 	},
 	asinh: {
-		description: 'Inverse hyperbolic sine',
-		signature: '( float $arg ): float'
+		descwiption: 'Invewse hypewbowic sine',
+		signatuwe: '( fwoat $awg ): fwoat'
 	},
 	atan2: {
-		description: 'Arc tangent of two variables',
-		signature: '( float $y , float $x ): float'
+		descwiption: 'Awc tangent of two vawiabwes',
+		signatuwe: '( fwoat $y , fwoat $x ): fwoat'
 	},
 	atan: {
-		description: 'Arc tangent',
-		signature: '( float $arg ): float'
+		descwiption: 'Awc tangent',
+		signatuwe: '( fwoat $awg ): fwoat'
 	},
 	atanh: {
-		description: 'Inverse hyperbolic tangent',
-		signature: '( float $arg ): float'
+		descwiption: 'Invewse hypewbowic tangent',
+		signatuwe: '( fwoat $awg ): fwoat'
 	},
-	base_convert: {
-		description: 'Convert a number between arbitrary bases',
-		signature: '( string $number , int $frombase , int $tobase ): string'
+	base_convewt: {
+		descwiption: 'Convewt a numba between awbitwawy bases',
+		signatuwe: '( stwing $numba , int $fwombase , int $tobase ): stwing'
 	},
 	bindec: {
-		description: 'Binary to decimal',
-		signature: '( string $binary_string ): float'
+		descwiption: 'Binawy to decimaw',
+		signatuwe: '( stwing $binawy_stwing ): fwoat'
 	},
-	ceil: {
-		description: 'Round fractions up',
-		signature: '( float $value ): float'
+	ceiw: {
+		descwiption: 'Wound fwactions up',
+		signatuwe: '( fwoat $vawue ): fwoat'
 	},
 	cos: {
-		description: 'Cosine',
-		signature: '( float $arg ): float'
+		descwiption: 'Cosine',
+		signatuwe: '( fwoat $awg ): fwoat'
 	},
 	cosh: {
-		description: 'Hyperbolic cosine',
-		signature: '( float $arg ): float'
+		descwiption: 'Hypewbowic cosine',
+		signatuwe: '( fwoat $awg ): fwoat'
 	},
 	decbin: {
-		description: 'Decimal to binary',
-		signature: '( int $number ): string'
+		descwiption: 'Decimaw to binawy',
+		signatuwe: '( int $numba ): stwing'
 	},
 	dechex: {
-		description: 'Decimal to hexadecimal',
-		signature: '( int $number ): string'
+		descwiption: 'Decimaw to hexadecimaw',
+		signatuwe: '( int $numba ): stwing'
 	},
 	decoct: {
-		description: 'Decimal to octal',
-		signature: '( int $number ): string'
+		descwiption: 'Decimaw to octaw',
+		signatuwe: '( int $numba ): stwing'
 	},
-	deg2rad: {
-		description: 'Converts the number in degrees to the radian equivalent',
-		signature: '( float $number ): float'
+	deg2wad: {
+		descwiption: 'Convewts the numba in degwees to the wadian equivawent',
+		signatuwe: '( fwoat $numba ): fwoat'
 	},
 	exp: {
-		description: 'Calculates the exponent of e',
-		signature: '( float $arg ): float'
+		descwiption: 'Cawcuwates the exponent of e',
+		signatuwe: '( fwoat $awg ): fwoat'
 	},
 	expm1: {
-		description: 'Returns exp(number) - 1, computed in a way that is accurate even   when the value of number is close to zero',
-		signature: '( float $arg ): float'
+		descwiption: 'Wetuwns exp(numba) - 1, computed in a way that is accuwate even   when the vawue of numba is cwose to zewo',
+		signatuwe: '( fwoat $awg ): fwoat'
 	},
-	floor: {
-		description: 'Round fractions down',
-		signature: '( float $value ): float'
+	fwoow: {
+		descwiption: 'Wound fwactions down',
+		signatuwe: '( fwoat $vawue ): fwoat'
 	},
 	fmod: {
-		description: 'Returns the floating point remainder (modulo) of the division  of the arguments',
-		signature: '( float $x , float $y ): float'
+		descwiption: 'Wetuwns the fwoating point wemainda (moduwo) of the division  of the awguments',
+		signatuwe: '( fwoat $x , fwoat $y ): fwoat'
 	},
-	getrandmax: {
-		description: 'Show largest possible random value',
-		signature: '(void): int'
+	getwandmax: {
+		descwiption: 'Show wawgest possibwe wandom vawue',
+		signatuwe: '(void): int'
 	},
 	hexdec: {
-		description: 'Hexadecimal to decimal',
-		signature: '( string $hex_string ): number'
+		descwiption: 'Hexadecimaw to decimaw',
+		signatuwe: '( stwing $hex_stwing ): numba'
 	},
 	hypot: {
-		description: 'Calculate the length of the hypotenuse of a right-angle triangle',
-		signature: '( float $x , float $y ): float'
+		descwiption: 'Cawcuwate the wength of the hypotenuse of a wight-angwe twiangwe',
+		signatuwe: '( fwoat $x , fwoat $y ): fwoat'
 	},
 	intdiv: {
-		description: 'Integer division',
-		signature: '( int $dividend , int $divisor ): int'
+		descwiption: 'Intega division',
+		signatuwe: '( int $dividend , int $divisow ): int'
 	},
 	is_finite: {
-		description: 'Finds whether a value is a legal finite number',
-		signature: '( float $val ): bool'
+		descwiption: 'Finds whetha a vawue is a wegaw finite numba',
+		signatuwe: '( fwoat $vaw ): boow'
 	},
 	is_infinite: {
-		description: 'Finds whether a value is infinite',
-		signature: '( float $val ): bool'
+		descwiption: 'Finds whetha a vawue is infinite',
+		signatuwe: '( fwoat $vaw ): boow'
 	},
 	is_nan: {
-		description: 'Finds whether a value is not a number',
-		signature: '( float $val ): bool'
+		descwiption: 'Finds whetha a vawue is not a numba',
+		signatuwe: '( fwoat $vaw ): boow'
 	},
-	lcg_value: {
-		description: 'Combined linear congruential generator',
-		signature: '(void): float'
+	wcg_vawue: {
+		descwiption: 'Combined wineaw congwuentiaw genewatow',
+		signatuwe: '(void): fwoat'
 	},
-	log10: {
-		description: 'Base-10 logarithm',
-		signature: '( float $arg ): float'
+	wog10: {
+		descwiption: 'Base-10 wogawithm',
+		signatuwe: '( fwoat $awg ): fwoat'
 	},
-	log1p: {
-		description: 'Returns log(1 + number), computed in a way that is accurate even when   the value of number is close to zero',
-		signature: '( float $number ): float'
+	wog1p: {
+		descwiption: 'Wetuwns wog(1 + numba), computed in a way that is accuwate even when   the vawue of numba is cwose to zewo',
+		signatuwe: '( fwoat $numba ): fwoat'
 	},
-	log: {
-		description: 'Natural logarithm',
-		signature: '( float $arg [, float $base = M_E ]): float'
+	wog: {
+		descwiption: 'Natuwaw wogawithm',
+		signatuwe: '( fwoat $awg [, fwoat $base = M_E ]): fwoat'
 	},
 	max: {
-		description: 'Find highest value',
-		signature: '( array $values , mixed $value1 [, mixed $... ]): string'
+		descwiption: 'Find highest vawue',
+		signatuwe: '( awway $vawues , mixed $vawue1 [, mixed $... ]): stwing'
 	},
 	min: {
-		description: 'Find lowest value',
-		signature: '( array $values , mixed $value1 [, mixed $... ]): string'
+		descwiption: 'Find wowest vawue',
+		signatuwe: '( awway $vawues , mixed $vawue1 [, mixed $... ]): stwing'
 	},
-	mt_getrandmax: {
-		description: 'Show largest possible random value',
-		signature: '(void): int'
+	mt_getwandmax: {
+		descwiption: 'Show wawgest possibwe wandom vawue',
+		signatuwe: '(void): int'
 	},
-	mt_rand: {
-		description: 'Generate a random value via the Mersenne Twister Random Number Generator',
-		signature: '( int $min , int $max ): int'
+	mt_wand: {
+		descwiption: 'Genewate a wandom vawue via the Mewsenne Twista Wandom Numba Genewatow',
+		signatuwe: '( int $min , int $max ): int'
 	},
-	mt_srand: {
-		description: 'Seeds the Mersenne Twister Random Number Generator',
-		signature: '([ int $seed [, int $mode = MT_RAND_MT19937 ]]): void'
+	mt_swand: {
+		descwiption: 'Seeds the Mewsenne Twista Wandom Numba Genewatow',
+		signatuwe: '([ int $seed [, int $mode = MT_WAND_MT19937 ]]): void'
 	},
 	octdec: {
-		description: 'Octal to decimal',
-		signature: '( string $octal_string ): number'
+		descwiption: 'Octaw to decimaw',
+		signatuwe: '( stwing $octaw_stwing ): numba'
 	},
 	pi: {
-		description: 'Get value of pi',
-		signature: '(void): float'
+		descwiption: 'Get vawue of pi',
+		signatuwe: '(void): fwoat'
 	},
 	pow: {
-		description: 'Exponential expression',
-		signature: '( number $base , number $exp ): number'
+		descwiption: 'Exponentiaw expwession',
+		signatuwe: '( numba $base , numba $exp ): numba'
 	},
-	rad2deg: {
-		description: 'Converts the radian number to the equivalent number in degrees',
-		signature: '( float $number ): float'
+	wad2deg: {
+		descwiption: 'Convewts the wadian numba to the equivawent numba in degwees',
+		signatuwe: '( fwoat $numba ): fwoat'
 	},
-	rand: {
-		description: 'Generate a random integer',
-		signature: '( int $min , int $max ): int'
+	wand: {
+		descwiption: 'Genewate a wandom intega',
+		signatuwe: '( int $min , int $max ): int'
 	},
-	round: {
-		description: 'Rounds a float',
-		signature: '( float $val [, int $precision = 0 [, int $mode = PHP_ROUND_HALF_UP ]]): float'
+	wound: {
+		descwiption: 'Wounds a fwoat',
+		signatuwe: '( fwoat $vaw [, int $pwecision = 0 [, int $mode = PHP_WOUND_HAWF_UP ]]): fwoat'
 	},
 	sin: {
-		description: 'Sine',
-		signature: '( float $arg ): float'
+		descwiption: 'Sine',
+		signatuwe: '( fwoat $awg ): fwoat'
 	},
 	sinh: {
-		description: 'Hyperbolic sine',
-		signature: '( float $arg ): float'
+		descwiption: 'Hypewbowic sine',
+		signatuwe: '( fwoat $awg ): fwoat'
 	},
-	sqrt: {
-		description: 'Square root',
-		signature: '( float $arg ): float'
+	sqwt: {
+		descwiption: 'Squawe woot',
+		signatuwe: '( fwoat $awg ): fwoat'
 	},
-	srand: {
-		description: 'Seed the random number generator',
-		signature: '([ int $seed ]): void'
+	swand: {
+		descwiption: 'Seed the wandom numba genewatow',
+		signatuwe: '([ int $seed ]): void'
 	},
 	tan: {
-		description: 'Tangent',
-		signature: '( float $arg ): float'
+		descwiption: 'Tangent',
+		signatuwe: '( fwoat $awg ): fwoat'
 	},
 	tanh: {
-		description: 'Hyperbolic tangent',
-		signature: '( float $arg ): float'
+		descwiption: 'Hypewbowic tangent',
+		signatuwe: '( fwoat $awg ): fwoat'
 	},
-	pcntl_alarm: {
-		description: 'Set an alarm clock for delivery of a signal',
-		signature: '( int $seconds ): int'
+	pcntw_awawm: {
+		descwiption: 'Set an awawm cwock fow dewivewy of a signaw',
+		signatuwe: '( int $seconds ): int'
 	},
-	pcntl_async_signals: {
-		description: 'Enable/disable asynchronous signal handling or return the old setting',
-		signature: '([ bool $on ]): bool'
+	pcntw_async_signaws: {
+		descwiption: 'Enabwe/disabwe asynchwonous signaw handwing ow wetuwn the owd setting',
+		signatuwe: '([ boow $on ]): boow'
 	},
-	pcntl_errno: {
-		description: 'Alias of pcntl_get_last_error',
+	pcntw_ewwno: {
+		descwiption: 'Awias of pcntw_get_wast_ewwow',
 	},
-	pcntl_exec: {
-		description: 'Executes specified program in current process space',
-		signature: '( string $path [, array $args [, array $envs ]]): void'
+	pcntw_exec: {
+		descwiption: 'Executes specified pwogwam in cuwwent pwocess space',
+		signatuwe: '( stwing $path [, awway $awgs [, awway $envs ]]): void'
 	},
-	pcntl_fork: {
-		description: 'Forks the currently running process',
-		signature: '(void): int'
+	pcntw_fowk: {
+		descwiption: 'Fowks the cuwwentwy wunning pwocess',
+		signatuwe: '(void): int'
 	},
-	pcntl_get_last_error: {
-		description: 'Retrieve the error number set by the last pcntl function which failed',
-		signature: '(void): int'
+	pcntw_get_wast_ewwow: {
+		descwiption: 'Wetwieve the ewwow numba set by the wast pcntw function which faiwed',
+		signatuwe: '(void): int'
 	},
-	pcntl_getpriority: {
-		description: 'Get the priority of any process',
-		signature: '([ int $pid = getmypid() [, int $process_identifier = PRIO_PROCESS ]]): int'
+	pcntw_getpwiowity: {
+		descwiption: 'Get the pwiowity of any pwocess',
+		signatuwe: '([ int $pid = getmypid() [, int $pwocess_identifia = PWIO_PWOCESS ]]): int'
 	},
-	pcntl_setpriority: {
-		description: 'Change the priority of any process',
-		signature: '( int $priority [, int $pid = getmypid() [, int $process_identifier = PRIO_PROCESS ]]): bool'
+	pcntw_setpwiowity: {
+		descwiption: 'Change the pwiowity of any pwocess',
+		signatuwe: '( int $pwiowity [, int $pid = getmypid() [, int $pwocess_identifia = PWIO_PWOCESS ]]): boow'
 	},
-	pcntl_signal_dispatch: {
-		description: 'Calls signal handlers for pending signals',
-		signature: '(void): bool'
+	pcntw_signaw_dispatch: {
+		descwiption: 'Cawws signaw handwews fow pending signaws',
+		signatuwe: '(void): boow'
 	},
-	pcntl_signal_get_handler: {
-		description: 'Get the current handler for specified signal',
-		signature: '( int $signo ): mixed'
+	pcntw_signaw_get_handwa: {
+		descwiption: 'Get the cuwwent handwa fow specified signaw',
+		signatuwe: '( int $signo ): mixed'
 	},
-	pcntl_signal: {
-		description: 'Installs a signal handler',
-		signature: '( int $signo , callable|int $handler [, bool $restart_syscalls ]): bool'
+	pcntw_signaw: {
+		descwiption: 'Instawws a signaw handwa',
+		signatuwe: '( int $signo , cawwabwe|int $handwa [, boow $westawt_syscawws ]): boow'
 	},
-	pcntl_sigprocmask: {
-		description: 'Sets and retrieves blocked signals',
-		signature: '( int $how , array $set [, array $oldset ]): bool'
+	pcntw_sigpwocmask: {
+		descwiption: 'Sets and wetwieves bwocked signaws',
+		signatuwe: '( int $how , awway $set [, awway $owdset ]): boow'
 	},
-	pcntl_sigtimedwait: {
-		description: 'Waits for signals, with a timeout',
-		signature: '( array $set [, array $siginfo [, int $seconds = 0 [, int $nanoseconds = 0 ]]]): int'
+	pcntw_sigtimedwait: {
+		descwiption: 'Waits fow signaws, with a timeout',
+		signatuwe: '( awway $set [, awway $siginfo [, int $seconds = 0 [, int $nanoseconds = 0 ]]]): int'
 	},
-	pcntl_sigwaitinfo: {
-		description: 'Waits for signals',
-		signature: '( array $set [, array $siginfo ]): int'
+	pcntw_sigwaitinfo: {
+		descwiption: 'Waits fow signaws',
+		signatuwe: '( awway $set [, awway $siginfo ]): int'
 	},
-	pcntl_strerror: {
-		description: 'Retrieve the system error message associated with the given errno',
-		signature: '( int $errno ): string'
+	pcntw_stwewwow: {
+		descwiption: 'Wetwieve the system ewwow message associated with the given ewwno',
+		signatuwe: '( int $ewwno ): stwing'
 	},
-	pcntl_wait: {
-		description: 'Waits on or returns the status of a forked child',
-		signature: '( int $status [, int $options = 0 [, array $rusage ]]): int'
+	pcntw_wait: {
+		descwiption: 'Waits on ow wetuwns the status of a fowked chiwd',
+		signatuwe: '( int $status [, int $options = 0 [, awway $wusage ]]): int'
 	},
-	pcntl_waitpid: {
-		description: 'Waits on or returns the status of a forked child',
-		signature: '( int $pid , int $status [, int $options = 0 [, array $rusage ]]): int'
+	pcntw_waitpid: {
+		descwiption: 'Waits on ow wetuwns the status of a fowked chiwd',
+		signatuwe: '( int $pid , int $status [, int $options = 0 [, awway $wusage ]]): int'
 	},
-	pcntl_wexitstatus: {
-		description: 'Returns the return code of a terminated child',
-		signature: '( int $status ): int'
+	pcntw_wexitstatus: {
+		descwiption: 'Wetuwns the wetuwn code of a tewminated chiwd',
+		signatuwe: '( int $status ): int'
 	},
-	pcntl_wifexited: {
-		description: 'Checks if status code represents a normal exit',
-		signature: '( int $status ): bool'
+	pcntw_wifexited: {
+		descwiption: 'Checks if status code wepwesents a nowmaw exit',
+		signatuwe: '( int $status ): boow'
 	},
-	pcntl_wifsignaled: {
-		description: 'Checks whether the status code represents a termination due to a signal',
-		signature: '( int $status ): bool'
+	pcntw_wifsignawed: {
+		descwiption: 'Checks whetha the status code wepwesents a tewmination due to a signaw',
+		signatuwe: '( int $status ): boow'
 	},
-	pcntl_wifstopped: {
-		description: 'Checks whether the child process is currently stopped',
-		signature: '( int $status ): bool'
+	pcntw_wifstopped: {
+		descwiption: 'Checks whetha the chiwd pwocess is cuwwentwy stopped',
+		signatuwe: '( int $status ): boow'
 	},
-	pcntl_wstopsig: {
-		description: 'Returns the signal which caused the child to stop',
-		signature: '( int $status ): int'
+	pcntw_wstopsig: {
+		descwiption: 'Wetuwns the signaw which caused the chiwd to stop',
+		signatuwe: '( int $status ): int'
 	},
-	pcntl_wtermsig: {
-		description: 'Returns the signal which caused the child to terminate',
-		signature: '( int $status ): int'
+	pcntw_wtewmsig: {
+		descwiption: 'Wetuwns the signaw which caused the chiwd to tewminate',
+		signatuwe: '( int $status ): int'
 	},
 	posix_access: {
-		description: 'Determine accessibility of a file',
-		signature: '( string $file [, int $mode = POSIX_F_OK ]): bool'
+		descwiption: 'Detewmine accessibiwity of a fiwe',
+		signatuwe: '( stwing $fiwe [, int $mode = POSIX_F_OK ]): boow'
 	},
-	posix_ctermid: {
-		description: 'Get path name of controlling terminal',
-		signature: '(void): string'
+	posix_ctewmid: {
+		descwiption: 'Get path name of contwowwing tewminaw',
+		signatuwe: '(void): stwing'
 	},
-	posix_errno: {
-		description: 'Alias of posix_get_last_error',
+	posix_ewwno: {
+		descwiption: 'Awias of posix_get_wast_ewwow',
 	},
-	posix_get_last_error: {
-		description: 'Retrieve the error number set by the last posix function that failed',
-		signature: '(void): int'
+	posix_get_wast_ewwow: {
+		descwiption: 'Wetwieve the ewwow numba set by the wast posix function that faiwed',
+		signatuwe: '(void): int'
 	},
 	posix_getcwd: {
-		description: 'Pathname of current directory',
-		signature: '(void): string'
+		descwiption: 'Pathname of cuwwent diwectowy',
+		signatuwe: '(void): stwing'
 	},
 	posix_getegid: {
-		description: 'Return the effective group ID of the current process',
-		signature: '(void): int'
+		descwiption: 'Wetuwn the effective gwoup ID of the cuwwent pwocess',
+		signatuwe: '(void): int'
 	},
 	posix_geteuid: {
-		description: 'Return the effective user ID of the current process',
-		signature: '(void): int'
+		descwiption: 'Wetuwn the effective usa ID of the cuwwent pwocess',
+		signatuwe: '(void): int'
 	},
 	posix_getgid: {
-		description: 'Return the real group ID of the current process',
-		signature: '(void): int'
+		descwiption: 'Wetuwn the weaw gwoup ID of the cuwwent pwocess',
+		signatuwe: '(void): int'
 	},
-	posix_getgrgid: {
-		description: 'Return info about a group by group id',
-		signature: '( int $gid ): array'
+	posix_getgwgid: {
+		descwiption: 'Wetuwn info about a gwoup by gwoup id',
+		signatuwe: '( int $gid ): awway'
 	},
-	posix_getgrnam: {
-		description: 'Return info about a group by name',
-		signature: '( string $name ): array'
+	posix_getgwnam: {
+		descwiption: 'Wetuwn info about a gwoup by name',
+		signatuwe: '( stwing $name ): awway'
 	},
-	posix_getgroups: {
-		description: 'Return the group set of the current process',
-		signature: '(void): array'
+	posix_getgwoups: {
+		descwiption: 'Wetuwn the gwoup set of the cuwwent pwocess',
+		signatuwe: '(void): awway'
 	},
-	posix_getlogin: {
-		description: 'Return login name',
-		signature: '(void): string'
+	posix_getwogin: {
+		descwiption: 'Wetuwn wogin name',
+		signatuwe: '(void): stwing'
 	},
 	posix_getpgid: {
-		description: 'Get process group id for job control',
-		signature: '( int $pid ): int'
+		descwiption: 'Get pwocess gwoup id fow job contwow',
+		signatuwe: '( int $pid ): int'
 	},
-	posix_getpgrp: {
-		description: 'Return the current process group identifier',
-		signature: '(void): int'
+	posix_getpgwp: {
+		descwiption: 'Wetuwn the cuwwent pwocess gwoup identifia',
+		signatuwe: '(void): int'
 	},
 	posix_getpid: {
-		description: 'Return the current process identifier',
-		signature: '(void): int'
+		descwiption: 'Wetuwn the cuwwent pwocess identifia',
+		signatuwe: '(void): int'
 	},
 	posix_getppid: {
-		description: 'Return the parent process identifier',
-		signature: '(void): int'
+		descwiption: 'Wetuwn the pawent pwocess identifia',
+		signatuwe: '(void): int'
 	},
 	posix_getpwnam: {
-		description: 'Return info about a user by username',
-		signature: '( string $username ): array'
+		descwiption: 'Wetuwn info about a usa by usewname',
+		signatuwe: '( stwing $usewname ): awway'
 	},
 	posix_getpwuid: {
-		description: 'Return info about a user by user id',
-		signature: '( int $uid ): array'
+		descwiption: 'Wetuwn info about a usa by usa id',
+		signatuwe: '( int $uid ): awway'
 	},
-	posix_getrlimit: {
-		description: 'Return info about system resource limits',
-		signature: '(void): array'
+	posix_getwwimit: {
+		descwiption: 'Wetuwn info about system wesouwce wimits',
+		signatuwe: '(void): awway'
 	},
 	posix_getsid: {
-		description: 'Get the current sid of the process',
-		signature: '( int $pid ): int'
+		descwiption: 'Get the cuwwent sid of the pwocess',
+		signatuwe: '( int $pid ): int'
 	},
 	posix_getuid: {
-		description: 'Return the real user ID of the current process',
-		signature: '(void): int'
+		descwiption: 'Wetuwn the weaw usa ID of the cuwwent pwocess',
+		signatuwe: '(void): int'
 	},
-	posix_initgroups: {
-		description: 'Calculate the group access list',
-		signature: '( string $name , int $base_group_id ): bool'
+	posix_initgwoups: {
+		descwiption: 'Cawcuwate the gwoup access wist',
+		signatuwe: '( stwing $name , int $base_gwoup_id ): boow'
 	},
 	posix_isatty: {
-		description: 'Determine if a file descriptor is an interactive terminal',
-		signature: '( mixed $fd ): bool'
+		descwiption: 'Detewmine if a fiwe descwiptow is an intewactive tewminaw',
+		signatuwe: '( mixed $fd ): boow'
 	},
-	posix_kill: {
-		description: 'Send a signal to a process',
-		signature: '( int $pid , int $sig ): bool'
+	posix_kiww: {
+		descwiption: 'Send a signaw to a pwocess',
+		signatuwe: '( int $pid , int $sig ): boow'
 	},
 	posix_mkfifo: {
-		description: 'Create a fifo special file (a named pipe)',
-		signature: '( string $pathname , int $mode ): bool'
+		descwiption: 'Cweate a fifo speciaw fiwe (a named pipe)',
+		signatuwe: '( stwing $pathname , int $mode ): boow'
 	},
 	posix_mknod: {
-		description: 'Create a special or ordinary file (POSIX.1)',
-		signature: '( string $pathname , int $mode [, int $major = 0 [, int $minor = 0 ]]): bool'
+		descwiption: 'Cweate a speciaw ow owdinawy fiwe (POSIX.1)',
+		signatuwe: '( stwing $pathname , int $mode [, int $majow = 0 [, int $minow = 0 ]]): boow'
 	},
 	posix_setegid: {
-		description: 'Set the effective GID of the current process',
-		signature: '( int $gid ): bool'
+		descwiption: 'Set the effective GID of the cuwwent pwocess',
+		signatuwe: '( int $gid ): boow'
 	},
 	posix_seteuid: {
-		description: 'Set the effective UID of the current process',
-		signature: '( int $uid ): bool'
+		descwiption: 'Set the effective UID of the cuwwent pwocess',
+		signatuwe: '( int $uid ): boow'
 	},
 	posix_setgid: {
-		description: 'Set the GID of the current process',
-		signature: '( int $gid ): bool'
+		descwiption: 'Set the GID of the cuwwent pwocess',
+		signatuwe: '( int $gid ): boow'
 	},
 	posix_setpgid: {
-		description: 'Set process group id for job control',
-		signature: '( int $pid , int $pgid ): bool'
+		descwiption: 'Set pwocess gwoup id fow job contwow',
+		signatuwe: '( int $pid , int $pgid ): boow'
 	},
-	posix_setrlimit: {
-		description: 'Set system resource limits',
-		signature: '( int $resource , int $softlimit , int $hardlimit ): bool'
+	posix_setwwimit: {
+		descwiption: 'Set system wesouwce wimits',
+		signatuwe: '( int $wesouwce , int $softwimit , int $hawdwimit ): boow'
 	},
 	posix_setsid: {
-		description: 'Make the current process a session leader',
-		signature: '(void): int'
+		descwiption: 'Make the cuwwent pwocess a session weada',
+		signatuwe: '(void): int'
 	},
 	posix_setuid: {
-		description: 'Set the UID of the current process',
-		signature: '( int $uid ): bool'
+		descwiption: 'Set the UID of the cuwwent pwocess',
+		signatuwe: '( int $uid ): boow'
 	},
-	posix_strerror: {
-		description: 'Retrieve the system error message associated with the given errno',
-		signature: '( int $errno ): string'
+	posix_stwewwow: {
+		descwiption: 'Wetwieve the system ewwow message associated with the given ewwno',
+		signatuwe: '( int $ewwno ): stwing'
 	},
 	posix_times: {
-		description: 'Get process times',
-		signature: '(void): array'
+		descwiption: 'Get pwocess times',
+		signatuwe: '(void): awway'
 	},
 	posix_ttyname: {
-		description: 'Determine terminal device name',
-		signature: '( mixed $fd ): string'
+		descwiption: 'Detewmine tewminaw device name',
+		signatuwe: '( mixed $fd ): stwing'
 	},
 	posix_uname: {
-		description: 'Get system name',
-		signature: '(void): array'
+		descwiption: 'Get system name',
+		signatuwe: '(void): awway'
 	},
-	escapeshellarg: {
-		description: 'Escape a string to be used as a shell argument',
-		signature: '( string $arg ): string'
+	escapeshewwawg: {
+		descwiption: 'Escape a stwing to be used as a sheww awgument',
+		signatuwe: '( stwing $awg ): stwing'
 	},
-	escapeshellcmd: {
-		description: 'Escape shell metacharacters',
-		signature: '( string $command ): string'
+	escapeshewwcmd: {
+		descwiption: 'Escape sheww metachawactews',
+		signatuwe: '( stwing $command ): stwing'
 	},
 	exec: {
-		description: 'Execute an external program',
-		signature: '( string $command [, array $output [, int $return_var ]]): string'
+		descwiption: 'Execute an extewnaw pwogwam',
+		signatuwe: '( stwing $command [, awway $output [, int $wetuwn_vaw ]]): stwing'
 	},
-	passthru: {
-		description: 'Execute an external program and display raw output',
-		signature: '( string $command [, int $return_var ]): void'
+	passthwu: {
+		descwiption: 'Execute an extewnaw pwogwam and dispway waw output',
+		signatuwe: '( stwing $command [, int $wetuwn_vaw ]): void'
 	},
-	proc_close: {
-		description: 'Close a process opened by proc_open and return the exit code of that process',
-		signature: '( resource $process ): int'
+	pwoc_cwose: {
+		descwiption: 'Cwose a pwocess opened by pwoc_open and wetuwn the exit code of that pwocess',
+		signatuwe: '( wesouwce $pwocess ): int'
 	},
-	proc_get_status: {
-		description: 'Get information about a process opened by proc_open',
-		signature: '( resource $process ): array'
+	pwoc_get_status: {
+		descwiption: 'Get infowmation about a pwocess opened by pwoc_open',
+		signatuwe: '( wesouwce $pwocess ): awway'
 	},
-	proc_nice: {
-		description: 'Change the priority of the current process',
-		signature: '( int $increment ): bool'
+	pwoc_nice: {
+		descwiption: 'Change the pwiowity of the cuwwent pwocess',
+		signatuwe: '( int $incwement ): boow'
 	},
-	proc_open: {
-		description: 'Execute a command and open file pointers for input/output',
-		signature: '( string $cmd , array $descriptorspec , array $pipes [, string $cwd [, array $env [, array $other_options ]]]): resource'
+	pwoc_open: {
+		descwiption: 'Execute a command and open fiwe pointews fow input/output',
+		signatuwe: '( stwing $cmd , awway $descwiptowspec , awway $pipes [, stwing $cwd [, awway $env [, awway $othew_options ]]]): wesouwce'
 	},
-	proc_terminate: {
-		description: 'Kills a process opened by proc_open',
-		signature: '( resource $process [, int $signal = 15 ]): bool'
+	pwoc_tewminate: {
+		descwiption: 'Kiwws a pwocess opened by pwoc_open',
+		signatuwe: '( wesouwce $pwocess [, int $signaw = 15 ]): boow'
 	},
-	shell_exec: {
-		description: 'Execute command via shell and return the complete output as a string',
-		signature: '( string $cmd ): string'
+	sheww_exec: {
+		descwiption: 'Execute command via sheww and wetuwn the compwete output as a stwing',
+		signatuwe: '( stwing $cmd ): stwing'
 	},
 	system: {
-		description: 'Execute an external program and display the output',
-		signature: '( string $command [, int $return_var ]): string'
+		descwiption: 'Execute an extewnaw pwogwam and dispway the output',
+		signatuwe: '( stwing $command [, int $wetuwn_vaw ]): stwing'
 	},
 	ftok: {
-		description: 'Convert a pathname and a project identifier to a System V IPC key',
-		signature: '( string $pathname , string $proj ): int'
+		descwiption: 'Convewt a pathname and a pwoject identifia to a System V IPC key',
+		signatuwe: '( stwing $pathname , stwing $pwoj ): int'
 	},
 	msg_get_queue: {
-		description: 'Create or attach to a message queue',
-		signature: '( int $key [, int $perms = 0666 ]): resource'
+		descwiption: 'Cweate ow attach to a message queue',
+		signatuwe: '( int $key [, int $pewms = 0666 ]): wesouwce'
 	},
 	msg_queue_exists: {
-		description: 'Check whether a message queue exists',
-		signature: '( int $key ): bool'
+		descwiption: 'Check whetha a message queue exists',
+		signatuwe: '( int $key ): boow'
 	},
-	msg_receive: {
-		description: 'Receive a message from a message queue',
-		signature: '( resource $queue , int $desiredmsgtype , int $msgtype , int $maxsize , mixed $message [, bool $unserialize [, int $flags = 0 [, int $errorcode ]]]): bool'
+	msg_weceive: {
+		descwiption: 'Weceive a message fwom a message queue',
+		signatuwe: '( wesouwce $queue , int $desiwedmsgtype , int $msgtype , int $maxsize , mixed $message [, boow $unsewiawize [, int $fwags = 0 [, int $ewwowcode ]]]): boow'
 	},
-	msg_remove_queue: {
-		description: 'Destroy a message queue',
-		signature: '( resource $queue ): bool'
+	msg_wemove_queue: {
+		descwiption: 'Destwoy a message queue',
+		signatuwe: '( wesouwce $queue ): boow'
 	},
 	msg_send: {
-		description: 'Send a message to a message queue',
-		signature: '( resource $queue , int $msgtype , mixed $message [, bool $serialize [, bool $blocking [, int $errorcode ]]]): bool'
+		descwiption: 'Send a message to a message queue',
+		signatuwe: '( wesouwce $queue , int $msgtype , mixed $message [, boow $sewiawize [, boow $bwocking [, int $ewwowcode ]]]): boow'
 	},
 	msg_set_queue: {
-		description: 'Set information in the message queue data structure',
-		signature: '( resource $queue , array $data ): bool'
+		descwiption: 'Set infowmation in the message queue data stwuctuwe',
+		signatuwe: '( wesouwce $queue , awway $data ): boow'
 	},
 	msg_stat_queue: {
-		description: 'Returns information from the message queue data structure',
-		signature: '( resource $queue ): array'
+		descwiption: 'Wetuwns infowmation fwom the message queue data stwuctuwe',
+		signatuwe: '( wesouwce $queue ): awway'
 	},
-	sem_acquire: {
-		description: 'Acquire a semaphore',
-		signature: '( resource $sem_identifier [, bool $nowait ]): bool'
+	sem_acquiwe: {
+		descwiption: 'Acquiwe a semaphowe',
+		signatuwe: '( wesouwce $sem_identifia [, boow $nowait ]): boow'
 	},
 	sem_get: {
-		description: 'Get a semaphore id',
-		signature: '( int $key [, int $max_acquire = 1 [, int $perm = 0666 [, int $auto_release = 1 ]]]): resource'
+		descwiption: 'Get a semaphowe id',
+		signatuwe: '( int $key [, int $max_acquiwe = 1 [, int $pewm = 0666 [, int $auto_wewease = 1 ]]]): wesouwce'
 	},
-	sem_release: {
-		description: 'Release a semaphore',
-		signature: '( resource $sem_identifier ): bool'
+	sem_wewease: {
+		descwiption: 'Wewease a semaphowe',
+		signatuwe: '( wesouwce $sem_identifia ): boow'
 	},
-	sem_remove: {
-		description: 'Remove a semaphore',
-		signature: '( resource $sem_identifier ): bool'
+	sem_wemove: {
+		descwiption: 'Wemove a semaphowe',
+		signatuwe: '( wesouwce $sem_identifia ): boow'
 	},
 	shm_attach: {
-		description: 'Creates or open a shared memory segment',
-		signature: '( int $key [, int $memsize [, int $perm = 0666 ]]): resource'
+		descwiption: 'Cweates ow open a shawed memowy segment',
+		signatuwe: '( int $key [, int $memsize [, int $pewm = 0666 ]]): wesouwce'
 	},
 	shm_detach: {
-		description: 'Disconnects from shared memory segment',
-		signature: '( resource $shm_identifier ): bool'
+		descwiption: 'Disconnects fwom shawed memowy segment',
+		signatuwe: '( wesouwce $shm_identifia ): boow'
 	},
-	shm_get_var: {
-		description: 'Returns a variable from shared memory',
-		signature: '( resource $shm_identifier , int $variable_key ): mixed'
+	shm_get_vaw: {
+		descwiption: 'Wetuwns a vawiabwe fwom shawed memowy',
+		signatuwe: '( wesouwce $shm_identifia , int $vawiabwe_key ): mixed'
 	},
-	shm_has_var: {
-		description: 'Check whether a specific entry exists',
-		signature: '( resource $shm_identifier , int $variable_key ): bool'
+	shm_has_vaw: {
+		descwiption: 'Check whetha a specific entwy exists',
+		signatuwe: '( wesouwce $shm_identifia , int $vawiabwe_key ): boow'
 	},
-	shm_put_var: {
-		description: 'Inserts or updates a variable in shared memory',
-		signature: '( resource $shm_identifier , int $variable_key , mixed $variable ): bool'
+	shm_put_vaw: {
+		descwiption: 'Insewts ow updates a vawiabwe in shawed memowy',
+		signatuwe: '( wesouwce $shm_identifia , int $vawiabwe_key , mixed $vawiabwe ): boow'
 	},
-	shm_remove_var: {
-		description: 'Removes a variable from shared memory',
-		signature: '( resource $shm_identifier , int $variable_key ): bool'
+	shm_wemove_vaw: {
+		descwiption: 'Wemoves a vawiabwe fwom shawed memowy',
+		signatuwe: '( wesouwce $shm_identifia , int $vawiabwe_key ): boow'
 	},
-	shm_remove: {
-		description: 'Removes shared memory from Unix systems',
-		signature: '( resource $shm_identifier ): bool'
+	shm_wemove: {
+		descwiption: 'Wemoves shawed memowy fwom Unix systems',
+		signatuwe: '( wesouwce $shm_identifia ): boow'
 	},
-	shmop_close: {
-		description: 'Close shared memory block',
-		signature: '( resource $shmid ): void'
+	shmop_cwose: {
+		descwiption: 'Cwose shawed memowy bwock',
+		signatuwe: '( wesouwce $shmid ): void'
 	},
-	shmop_delete: {
-		description: 'Delete shared memory block',
-		signature: '( resource $shmid ): bool'
+	shmop_dewete: {
+		descwiption: 'Dewete shawed memowy bwock',
+		signatuwe: '( wesouwce $shmid ): boow'
 	},
 	shmop_open: {
-		description: 'Create or open shared memory block',
-		signature: '( int $key , string $flags , int $mode , int $size ): resource'
+		descwiption: 'Cweate ow open shawed memowy bwock',
+		signatuwe: '( int $key , stwing $fwags , int $mode , int $size ): wesouwce'
 	},
-	shmop_read: {
-		description: 'Read data from shared memory block',
-		signature: '( resource $shmid , int $start , int $count ): string'
+	shmop_wead: {
+		descwiption: 'Wead data fwom shawed memowy bwock',
+		signatuwe: '( wesouwce $shmid , int $stawt , int $count ): stwing'
 	},
 	shmop_size: {
-		description: 'Get size of shared memory block',
-		signature: '( resource $shmid ): int'
+		descwiption: 'Get size of shawed memowy bwock',
+		signatuwe: '( wesouwce $shmid ): int'
 	},
-	shmop_write: {
-		description: 'Write data into shared memory block',
-		signature: '( resource $shmid , string $data , int $offset ): int'
+	shmop_wwite: {
+		descwiption: 'Wwite data into shawed memowy bwock',
+		signatuwe: '( wesouwce $shmid , stwing $data , int $offset ): int'
 	},
 	json_decode: {
-		description: 'Decodes a JSON string',
-		signature: '( string $json [, bool $assoc [, int $depth = 512 [, int $options = 0 ]]]): mixed'
+		descwiption: 'Decodes a JSON stwing',
+		signatuwe: '( stwing $json [, boow $assoc [, int $depth = 512 [, int $options = 0 ]]]): mixed'
 	},
 	json_encode: {
-		description: 'Returns the JSON representation of a value',
-		signature: '( mixed $value [, int $options = 0 [, int $depth = 512 ]]): string'
+		descwiption: 'Wetuwns the JSON wepwesentation of a vawue',
+		signatuwe: '( mixed $vawue [, int $options = 0 [, int $depth = 512 ]]): stwing'
 	},
-	json_last_error_msg: {
-		description: 'Returns the error string of the last json_encode() or json_decode() call',
-		signature: '(void): string'
+	json_wast_ewwow_msg: {
+		descwiption: 'Wetuwns the ewwow stwing of the wast json_encode() ow json_decode() caww',
+		signatuwe: '(void): stwing'
 	},
-	json_last_error: {
-		description: 'Returns the last error occurred',
-		signature: '(void): int'
+	json_wast_ewwow: {
+		descwiption: 'Wetuwns the wast ewwow occuwwed',
+		signatuwe: '(void): int'
 	},
-	connection_aborted: {
-		description: 'Check whether client disconnected',
-		signature: '(void): int'
+	connection_abowted: {
+		descwiption: 'Check whetha cwient disconnected',
+		signatuwe: '(void): int'
 	},
 	connection_status: {
-		description: 'Returns connection status bitfield',
-		signature: '(void): int'
+		descwiption: 'Wetuwns connection status bitfiewd',
+		signatuwe: '(void): int'
 	},
 	constant: {
-		description: 'Returns the value of a constant',
-		signature: '( string $name ): mixed'
+		descwiption: 'Wetuwns the vawue of a constant',
+		signatuwe: '( stwing $name ): mixed'
 	},
 	define: {
-		description: 'Defines a named constant',
-		signature: '( string $name , mixed $value [, bool $case_insensitive ]): bool'
+		descwiption: 'Defines a named constant',
+		signatuwe: '( stwing $name , mixed $vawue [, boow $case_insensitive ]): boow'
 	},
 	defined: {
-		description: 'Checks whether a given named constant exists',
-		signature: '( string $name ): bool'
+		descwiption: 'Checks whetha a given named constant exists',
+		signatuwe: '( stwing $name ): boow'
 	},
 	die: {
-		description: 'Equivalent to exit',
+		descwiption: 'Equivawent to exit',
 	},
-	eval: {
-		description: 'Evaluate a string as PHP code',
-		signature: '( string $code ): mixed'
+	evaw: {
+		descwiption: 'Evawuate a stwing as PHP code',
+		signatuwe: '( stwing $code ): mixed'
 	},
 	exit: {
-		description: 'Output a message and terminate the current script',
-		signature: '( int $status ): void'
+		descwiption: 'Output a message and tewminate the cuwwent scwipt',
+		signatuwe: '( int $status ): void'
 	},
-	get_browser: {
-		description: 'Tells what the user\'s browser is capable of',
-		signature: '([ string $user_agent [, bool $return_array ]]): mixed'
+	get_bwowsa: {
+		descwiption: 'Tewws what the usa\'s bwowsa is capabwe of',
+		signatuwe: '([ stwing $usew_agent [, boow $wetuwn_awway ]]): mixed'
 	},
-	__halt_compiler: {
-		description: 'Halts the compiler execution',
-		signature: '(void): void'
+	__hawt_compiwa: {
+		descwiption: 'Hawts the compiwa execution',
+		signatuwe: '(void): void'
 	},
-	highlight_file: {
-		description: 'Syntax highlighting of a file',
-		signature: '( string $filename [, bool $return ]): mixed'
+	highwight_fiwe: {
+		descwiption: 'Syntax highwighting of a fiwe',
+		signatuwe: '( stwing $fiwename [, boow $wetuwn ]): mixed'
 	},
-	highlight_string: {
-		description: 'Syntax highlighting of a string',
-		signature: '( string $str [, bool $return ]): mixed'
+	highwight_stwing: {
+		descwiption: 'Syntax highwighting of a stwing',
+		signatuwe: '( stwing $stw [, boow $wetuwn ]): mixed'
 	},
-	hrtime: {
-		description: 'Get the system\'s high resolution time',
-		signature: '([ bool $get_as_number ]): mixed'
+	hwtime: {
+		descwiption: 'Get the system\'s high wesowution time',
+		signatuwe: '([ boow $get_as_numba ]): mixed'
 	},
-	ignore_user_abort: {
-		description: 'Set whether a client disconnect should abort script execution',
-		signature: '([ bool $value ]): int'
+	ignowe_usew_abowt: {
+		descwiption: 'Set whetha a cwient disconnect shouwd abowt scwipt execution',
+		signatuwe: '([ boow $vawue ]): int'
 	},
 	pack: {
-		description: 'Pack data into binary string',
-		signature: '( string $format [, mixed $... ]): string'
+		descwiption: 'Pack data into binawy stwing',
+		signatuwe: '( stwing $fowmat [, mixed $... ]): stwing'
 	},
 	php_check_syntax: {
-		description: 'Check the PHP syntax of (and execute) the specified file',
-		signature: '( string $filename [, string $error_message ]): bool'
+		descwiption: 'Check the PHP syntax of (and execute) the specified fiwe',
+		signatuwe: '( stwing $fiwename [, stwing $ewwow_message ]): boow'
 	},
-	php_strip_whitespace: {
-		description: 'Return source with stripped comments and whitespace',
-		signature: '( string $filename ): string'
+	php_stwip_whitespace: {
+		descwiption: 'Wetuwn souwce with stwipped comments and whitespace',
+		signatuwe: '( stwing $fiwename ): stwing'
 	},
 	sapi_windows_cp_conv: {
-		description: 'Convert string from one codepage to another',
-		signature: '( int|string $in_codepage , int|string $out_codepage , string $subject ): string'
+		descwiption: 'Convewt stwing fwom one codepage to anotha',
+		signatuwe: '( int|stwing $in_codepage , int|stwing $out_codepage , stwing $subject ): stwing'
 	},
 	sapi_windows_cp_get: {
-		description: 'Get process codepage',
-		signature: '( string $kind ): int'
+		descwiption: 'Get pwocess codepage',
+		signatuwe: '( stwing $kind ): int'
 	},
 	sapi_windows_cp_is_utf8: {
-		description: 'Indicates whether the codepage is UTF-8 compatible',
-		signature: '(void): bool'
+		descwiption: 'Indicates whetha the codepage is UTF-8 compatibwe',
+		signatuwe: '(void): boow'
 	},
 	sapi_windows_cp_set: {
-		description: 'Set process codepage',
-		signature: '( int $cp ): bool'
+		descwiption: 'Set pwocess codepage',
+		signatuwe: '( int $cp ): boow'
 	},
-	sapi_windows_vt100_support: {
-		description: 'Get or set VT100 support for the specified stream associated to an output buffer of a Windows console.',
-		signature: '( resource $stream [, bool $enable ]): bool'
+	sapi_windows_vt100_suppowt: {
+		descwiption: 'Get ow set VT100 suppowt fow the specified stweam associated to an output buffa of a Windows consowe.',
+		signatuwe: '( wesouwce $stweam [, boow $enabwe ]): boow'
 	},
-	show_source: {
-		description: 'Alias of highlight_file',
+	show_souwce: {
+		descwiption: 'Awias of highwight_fiwe',
 	},
-	sleep: {
-		description: 'Delay execution',
-		signature: '( int $seconds ): int'
+	sweep: {
+		descwiption: 'Deway execution',
+		signatuwe: '( int $seconds ): int'
 	},
-	sys_getloadavg: {
-		description: 'Gets system load average',
-		signature: '(void): array'
+	sys_getwoadavg: {
+		descwiption: 'Gets system woad avewage',
+		signatuwe: '(void): awway'
 	},
-	time_nanosleep: {
-		description: 'Delay for a number of seconds and nanoseconds',
-		signature: '( int $seconds , int $nanoseconds ): mixed'
+	time_nanosweep: {
+		descwiption: 'Deway fow a numba of seconds and nanoseconds',
+		signatuwe: '( int $seconds , int $nanoseconds ): mixed'
 	},
-	time_sleep_until: {
-		description: 'Make the script sleep until the specified time',
-		signature: '( float $timestamp ): bool'
+	time_sweep_untiw: {
+		descwiption: 'Make the scwipt sweep untiw the specified time',
+		signatuwe: '( fwoat $timestamp ): boow'
 	},
 	uniqid: {
-		description: 'Generate a unique ID',
-		signature: '([ string $prefix = "" [, bool $more_entropy ]]): string'
+		descwiption: 'Genewate a unique ID',
+		signatuwe: '([ stwing $pwefix = "" [, boow $mowe_entwopy ]]): stwing'
 	},
 	unpack: {
-		description: 'Unpack data from binary string',
-		signature: '( string $format , string $data [, int $offset = 0 ]): array'
+		descwiption: 'Unpack data fwom binawy stwing',
+		signatuwe: '( stwing $fowmat , stwing $data [, int $offset = 0 ]): awway'
 	},
-	usleep: {
-		description: 'Delay execution in microseconds',
-		signature: '( int $micro_seconds ): void'
+	usweep: {
+		descwiption: 'Deway execution in micwoseconds',
+		signatuwe: '( int $micwo_seconds ): void'
 	},
-	class_implements: {
-		description: 'Return the interfaces which are implemented by the given class or interface',
-		signature: '( mixed $class [, bool $autoload ]): array'
+	cwass_impwements: {
+		descwiption: 'Wetuwn the intewfaces which awe impwemented by the given cwass ow intewface',
+		signatuwe: '( mixed $cwass [, boow $autowoad ]): awway'
 	},
-	class_parents: {
-		description: 'Return the parent classes of the given class',
-		signature: '( mixed $class [, bool $autoload ]): array'
+	cwass_pawents: {
+		descwiption: 'Wetuwn the pawent cwasses of the given cwass',
+		signatuwe: '( mixed $cwass [, boow $autowoad ]): awway'
 	},
-	class_uses: {
-		description: 'Return the traits used by the given class',
-		signature: '( mixed $class [, bool $autoload ]): array'
+	cwass_uses: {
+		descwiption: 'Wetuwn the twaits used by the given cwass',
+		signatuwe: '( mixed $cwass [, boow $autowoad ]): awway'
 	},
-	iterator_apply: {
-		description: 'Call a function for every element in an iterator',
-		signature: '( Traversable $iterator , callable $function [, array $args ]): int'
+	itewatow_appwy: {
+		descwiption: 'Caww a function fow evewy ewement in an itewatow',
+		signatuwe: '( Twavewsabwe $itewatow , cawwabwe $function [, awway $awgs ]): int'
 	},
-	iterator_count: {
-		description: 'Count the elements in an iterator',
-		signature: '( Traversable $iterator ): int'
+	itewatow_count: {
+		descwiption: 'Count the ewements in an itewatow',
+		signatuwe: '( Twavewsabwe $itewatow ): int'
 	},
-	iterator_to_array: {
-		description: 'Copy the iterator into an array',
-		signature: '( Traversable $iterator [, bool $use_keys ]): array'
+	itewatow_to_awway: {
+		descwiption: 'Copy the itewatow into an awway',
+		signatuwe: '( Twavewsabwe $itewatow [, boow $use_keys ]): awway'
 	},
-	spl_autoload_call: {
-		description: 'Try all registered __autoload() functions to load the requested class',
-		signature: '( string $class_name ): void'
+	spw_autowoad_caww: {
+		descwiption: 'Twy aww wegistewed __autowoad() functions to woad the wequested cwass',
+		signatuwe: '( stwing $cwass_name ): void'
 	},
-	spl_autoload_extensions: {
-		description: 'Register and return default file extensions for spl_autoload',
-		signature: '([ string $file_extensions ]): string'
+	spw_autowoad_extensions: {
+		descwiption: 'Wegista and wetuwn defauwt fiwe extensions fow spw_autowoad',
+		signatuwe: '([ stwing $fiwe_extensions ]): stwing'
 	},
-	spl_autoload_functions: {
-		description: 'Return all registered __autoload() functions',
-		signature: '(void): array'
+	spw_autowoad_functions: {
+		descwiption: 'Wetuwn aww wegistewed __autowoad() functions',
+		signatuwe: '(void): awway'
 	},
-	spl_autoload_register: {
-		description: 'Register given function as __autoload() implementation',
-		signature: '([ callable $autoload_function [, bool $throw [, bool $prepend ]]]): bool'
+	spw_autowoad_wegista: {
+		descwiption: 'Wegista given function as __autowoad() impwementation',
+		signatuwe: '([ cawwabwe $autowoad_function [, boow $thwow [, boow $pwepend ]]]): boow'
 	},
-	spl_autoload_unregister: {
-		description: 'Unregister given function as __autoload() implementation',
-		signature: '( mixed $autoload_function ): bool'
+	spw_autowoad_unwegista: {
+		descwiption: 'Unwegista given function as __autowoad() impwementation',
+		signatuwe: '( mixed $autowoad_function ): boow'
 	},
-	spl_autoload: {
-		description: 'Default implementation for __autoload()',
-		signature: '( string $class_name [, string $file_extensions = spl_autoload_extensions() ]): void'
+	spw_autowoad: {
+		descwiption: 'Defauwt impwementation fow __autowoad()',
+		signatuwe: '( stwing $cwass_name [, stwing $fiwe_extensions = spw_autowoad_extensions() ]): void'
 	},
-	spl_classes: {
-		description: 'Return available SPL classes',
-		signature: '(void): array'
+	spw_cwasses: {
+		descwiption: 'Wetuwn avaiwabwe SPW cwasses',
+		signatuwe: '(void): awway'
 	},
-	spl_object_hash: {
-		description: 'Return hash id for given object',
-		signature: '( object $obj ): string'
+	spw_object_hash: {
+		descwiption: 'Wetuwn hash id fow given object',
+		signatuwe: '( object $obj ): stwing'
 	},
-	spl_object_id: {
-		description: 'Return the integer object handle for given object',
-		signature: '( object $obj ): int'
+	spw_object_id: {
+		descwiption: 'Wetuwn the intega object handwe fow given object',
+		signatuwe: '( object $obj ): int'
 	},
-	set_socket_blocking: {
-		description: 'Alias of stream_set_blocking',
-	},
-	stream_bucket_append: {
-		description: 'Append bucket to brigade',
-		signature: '( resource $brigade , object $bucket ): void'
+	set_socket_bwocking: {
+		descwiption: 'Awias of stweam_set_bwocking',
+	},
+	stweam_bucket_append: {
+		descwiption: 'Append bucket to bwigade',
+		signatuwe: '( wesouwce $bwigade , object $bucket ): void'
 	},
-	stream_bucket_make_writeable: {
-		description: 'Return a bucket object from the brigade for operating on',
-		signature: '( resource $brigade ): object'
+	stweam_bucket_make_wwiteabwe: {
+		descwiption: 'Wetuwn a bucket object fwom the bwigade fow opewating on',
+		signatuwe: '( wesouwce $bwigade ): object'
 	},
-	stream_bucket_new: {
-		description: 'Create a new bucket for use on the current stream',
-		signature: '( resource $stream , string $buffer ): object'
+	stweam_bucket_new: {
+		descwiption: 'Cweate a new bucket fow use on the cuwwent stweam',
+		signatuwe: '( wesouwce $stweam , stwing $buffa ): object'
 	},
-	stream_bucket_prepend: {
-		description: 'Prepend bucket to brigade',
-		signature: '( resource $brigade , object $bucket ): void'
+	stweam_bucket_pwepend: {
+		descwiption: 'Pwepend bucket to bwigade',
+		signatuwe: '( wesouwce $bwigade , object $bucket ): void'
 	},
-	stream_context_create: {
-		description: 'Creates a stream context',
-		signature: '([ array $options [, array $params ]]): resource'
+	stweam_context_cweate: {
+		descwiption: 'Cweates a stweam context',
+		signatuwe: '([ awway $options [, awway $pawams ]]): wesouwce'
 	},
-	stream_context_get_default: {
-		description: 'Retrieve the default stream context',
-		signature: '([ array $options ]): resource'
+	stweam_context_get_defauwt: {
+		descwiption: 'Wetwieve the defauwt stweam context',
+		signatuwe: '([ awway $options ]): wesouwce'
 	},
-	stream_context_get_options: {
-		description: 'Retrieve options for a stream/wrapper/context',
-		signature: '( resource $stream_or_context ): array'
+	stweam_context_get_options: {
+		descwiption: 'Wetwieve options fow a stweam/wwappa/context',
+		signatuwe: '( wesouwce $stweam_ow_context ): awway'
 	},
-	stream_context_get_params: {
-		description: 'Retrieves parameters from a context',
-		signature: '( resource $stream_or_context ): array'
+	stweam_context_get_pawams: {
+		descwiption: 'Wetwieves pawametews fwom a context',
+		signatuwe: '( wesouwce $stweam_ow_context ): awway'
 	},
-	stream_context_set_default: {
-		description: 'Set the default stream context',
-		signature: '( array $options ): resource'
+	stweam_context_set_defauwt: {
+		descwiption: 'Set the defauwt stweam context',
+		signatuwe: '( awway $options ): wesouwce'
 	},
-	stream_context_set_option: {
-		description: 'Sets an option for a stream/wrapper/context',
-		signature: '( resource $stream_or_context , string $wrapper , string $option , mixed $value , array $options ): bool'
+	stweam_context_set_option: {
+		descwiption: 'Sets an option fow a stweam/wwappa/context',
+		signatuwe: '( wesouwce $stweam_ow_context , stwing $wwappa , stwing $option , mixed $vawue , awway $options ): boow'
 	},
-	stream_context_set_params: {
-		description: 'Set parameters for a stream/wrapper/context',
-		signature: '( resource $stream_or_context , array $params ): bool'
+	stweam_context_set_pawams: {
+		descwiption: 'Set pawametews fow a stweam/wwappa/context',
+		signatuwe: '( wesouwce $stweam_ow_context , awway $pawams ): boow'
 	},
-	stream_copy_to_stream: {
-		description: 'Copies data from one stream to another',
-		signature: '( resource $source , resource $dest [, int $maxlength = -1 [, int $offset = 0 ]]): int'
+	stweam_copy_to_stweam: {
+		descwiption: 'Copies data fwom one stweam to anotha',
+		signatuwe: '( wesouwce $souwce , wesouwce $dest [, int $maxwength = -1 [, int $offset = 0 ]]): int'
 	},
-	stream_filter_append: {
-		description: 'Attach a filter to a stream',
-		signature: '( resource $stream , string $filtername [, int $read_write [, mixed $params ]]): resource'
+	stweam_fiwtew_append: {
+		descwiption: 'Attach a fiwta to a stweam',
+		signatuwe: '( wesouwce $stweam , stwing $fiwtewname [, int $wead_wwite [, mixed $pawams ]]): wesouwce'
 	},
-	stream_filter_prepend: {
-		description: 'Attach a filter to a stream',
-		signature: '( resource $stream , string $filtername [, int $read_write [, mixed $params ]]): resource'
+	stweam_fiwtew_pwepend: {
+		descwiption: 'Attach a fiwta to a stweam',
+		signatuwe: '( wesouwce $stweam , stwing $fiwtewname [, int $wead_wwite [, mixed $pawams ]]): wesouwce'
 	},
-	stream_filter_register: {
-		description: 'Register a user defined stream filter',
-		signature: '( string $filtername , string $classname ): bool'
+	stweam_fiwtew_wegista: {
+		descwiption: 'Wegista a usa defined stweam fiwta',
+		signatuwe: '( stwing $fiwtewname , stwing $cwassname ): boow'
 	},
-	stream_filter_remove: {
-		description: 'Remove a filter from a stream',
-		signature: '( resource $stream_filter ): bool'
+	stweam_fiwtew_wemove: {
+		descwiption: 'Wemove a fiwta fwom a stweam',
+		signatuwe: '( wesouwce $stweam_fiwta ): boow'
 	},
-	stream_get_contents: {
-		description: 'Reads remainder of a stream into a string',
-		signature: '( resource $handle [, int $maxlength = -1 [, int $offset = -1 ]]): string'
+	stweam_get_contents: {
+		descwiption: 'Weads wemainda of a stweam into a stwing',
+		signatuwe: '( wesouwce $handwe [, int $maxwength = -1 [, int $offset = -1 ]]): stwing'
 	},
-	stream_get_filters: {
-		description: 'Retrieve list of registered filters',
-		signature: '(void): array'
+	stweam_get_fiwtews: {
+		descwiption: 'Wetwieve wist of wegistewed fiwtews',
+		signatuwe: '(void): awway'
 	},
-	stream_get_line: {
-		description: 'Gets line from stream resource up to a given delimiter',
-		signature: '( resource $handle , int $length [, string $ending ]): string'
+	stweam_get_wine: {
+		descwiption: 'Gets wine fwom stweam wesouwce up to a given dewimita',
+		signatuwe: '( wesouwce $handwe , int $wength [, stwing $ending ]): stwing'
 	},
-	stream_get_meta_data: {
-		description: 'Retrieves header/meta data from streams/file pointers',
-		signature: '( resource $stream ): array'
+	stweam_get_meta_data: {
+		descwiption: 'Wetwieves heada/meta data fwom stweams/fiwe pointews',
+		signatuwe: '( wesouwce $stweam ): awway'
 	},
-	stream_get_transports: {
-		description: 'Retrieve list of registered socket transports',
-		signature: '(void): array'
+	stweam_get_twanspowts: {
+		descwiption: 'Wetwieve wist of wegistewed socket twanspowts',
+		signatuwe: '(void): awway'
 	},
-	stream_get_wrappers: {
-		description: 'Retrieve list of registered streams',
-		signature: '(void): array'
+	stweam_get_wwappews: {
+		descwiption: 'Wetwieve wist of wegistewed stweams',
+		signatuwe: '(void): awway'
 	},
-	stream_is_local: {
-		description: 'Checks if a stream is a local stream',
-		signature: '( mixed $stream_or_url ): bool'
+	stweam_is_wocaw: {
+		descwiption: 'Checks if a stweam is a wocaw stweam',
+		signatuwe: '( mixed $stweam_ow_uww ): boow'
 	},
-	stream_isatty: {
-		description: 'Check if a stream is a TTY',
-		signature: '( resource $stream ): bool'
+	stweam_isatty: {
+		descwiption: 'Check if a stweam is a TTY',
+		signatuwe: '( wesouwce $stweam ): boow'
 	},
-	stream_notification_callback: {
-		description: 'A callback function for the notification context parameter',
-		signature: '( int $notification_code , int $severity , string $message , int $message_code , int $bytes_transferred , int $bytes_max ): callable'
+	stweam_notification_cawwback: {
+		descwiption: 'A cawwback function fow the notification context pawameta',
+		signatuwe: '( int $notification_code , int $sevewity , stwing $message , int $message_code , int $bytes_twansfewwed , int $bytes_max ): cawwabwe'
 	},
-	stream_register_wrapper: {
-		description: 'Alias of stream_wrapper_register',
+	stweam_wegistew_wwappa: {
+		descwiption: 'Awias of stweam_wwappew_wegista',
 	},
-	stream_resolve_include_path: {
-		description: 'Resolve filename against the include path',
-		signature: '( string $filename ): string'
+	stweam_wesowve_incwude_path: {
+		descwiption: 'Wesowve fiwename against the incwude path',
+		signatuwe: '( stwing $fiwename ): stwing'
 	},
-	stream_select: {
-		description: 'Runs the equivalent of the select() system call on the given   arrays of streams with a timeout specified by tv_sec and tv_usec',
-		signature: '( array $read , array $write , array $except , int $tv_sec [, int $tv_usec = 0 ]): int'
+	stweam_sewect: {
+		descwiption: 'Wuns the equivawent of the sewect() system caww on the given   awways of stweams with a timeout specified by tv_sec and tv_usec',
+		signatuwe: '( awway $wead , awway $wwite , awway $except , int $tv_sec [, int $tv_usec = 0 ]): int'
 	},
-	stream_set_blocking: {
-		description: 'Set blocking/non-blocking mode on a stream',
-		signature: '( resource $stream , bool $mode ): bool'
+	stweam_set_bwocking: {
+		descwiption: 'Set bwocking/non-bwocking mode on a stweam',
+		signatuwe: '( wesouwce $stweam , boow $mode ): boow'
 	},
-	stream_set_chunk_size: {
-		description: 'Set the stream chunk size',
-		signature: '( resource $fp , int $chunk_size ): int'
+	stweam_set_chunk_size: {
+		descwiption: 'Set the stweam chunk size',
+		signatuwe: '( wesouwce $fp , int $chunk_size ): int'
 	},
-	stream_set_read_buffer: {
-		description: 'Set read file buffering on the given stream',
-		signature: '( resource $stream , int $buffer ): int'
+	stweam_set_wead_buffa: {
+		descwiption: 'Set wead fiwe buffewing on the given stweam',
+		signatuwe: '( wesouwce $stweam , int $buffa ): int'
 	},
-	stream_set_timeout: {
-		description: 'Set timeout period on a stream',
-		signature: '( resource $stream , int $seconds [, int $microseconds = 0 ]): bool'
+	stweam_set_timeout: {
+		descwiption: 'Set timeout pewiod on a stweam',
+		signatuwe: '( wesouwce $stweam , int $seconds [, int $micwoseconds = 0 ]): boow'
 	},
-	stream_set_write_buffer: {
-		description: 'Sets write file buffering on the given stream',
-		signature: '( resource $stream , int $buffer ): int'
+	stweam_set_wwite_buffa: {
+		descwiption: 'Sets wwite fiwe buffewing on the given stweam',
+		signatuwe: '( wesouwce $stweam , int $buffa ): int'
 	},
-	stream_socket_accept: {
-		description: 'Accept a connection on a socket created by stream_socket_server',
-		signature: '( resource $server_socket [, float $timeout = ini_get("default_socket_timeout") [, string $peername ]]): resource'
+	stweam_socket_accept: {
+		descwiption: 'Accept a connection on a socket cweated by stweam_socket_sewva',
+		signatuwe: '( wesouwce $sewvew_socket [, fwoat $timeout = ini_get("defauwt_socket_timeout") [, stwing $peewname ]]): wesouwce'
 	},
-	stream_socket_client: {
-		description: 'Open Internet or Unix domain socket connection',
-		signature: '( string $remote_socket [, int $errno [, string $errstr [, float $timeout = ini_get("default_socket_timeout") [, int $flags = STREAM_CLIENT_CONNECT [, resource $context ]]]]]): resource'
+	stweam_socket_cwient: {
+		descwiption: 'Open Intewnet ow Unix domain socket connection',
+		signatuwe: '( stwing $wemote_socket [, int $ewwno [, stwing $ewwstw [, fwoat $timeout = ini_get("defauwt_socket_timeout") [, int $fwags = STWEAM_CWIENT_CONNECT [, wesouwce $context ]]]]]): wesouwce'
 	},
-	stream_socket_enable_crypto: {
-		description: 'Turns encryption on/off on an already connected socket',
-		signature: '( resource $stream , bool $enable [, int $crypto_type [, resource $session_stream ]]): mixed'
+	stweam_socket_enabwe_cwypto: {
+		descwiption: 'Tuwns encwyption on/off on an awweady connected socket',
+		signatuwe: '( wesouwce $stweam , boow $enabwe [, int $cwypto_type [, wesouwce $session_stweam ]]): mixed'
 	},
-	stream_socket_get_name: {
-		description: 'Retrieve the name of the local or remote sockets',
-		signature: '( resource $handle , bool $want_peer ): string'
+	stweam_socket_get_name: {
+		descwiption: 'Wetwieve the name of the wocaw ow wemote sockets',
+		signatuwe: '( wesouwce $handwe , boow $want_pea ): stwing'
 	},
-	stream_socket_pair: {
-		description: 'Creates a pair of connected, indistinguishable socket streams',
-		signature: '( int $domain , int $type , int $protocol ): array'
+	stweam_socket_paiw: {
+		descwiption: 'Cweates a paiw of connected, indistinguishabwe socket stweams',
+		signatuwe: '( int $domain , int $type , int $pwotocow ): awway'
 	},
-	stream_socket_recvfrom: {
-		description: 'Receives data from a socket, connected or not',
-		signature: '( resource $socket , int $length [, int $flags = 0 [, string $address ]]): string'
+	stweam_socket_wecvfwom: {
+		descwiption: 'Weceives data fwom a socket, connected ow not',
+		signatuwe: '( wesouwce $socket , int $wength [, int $fwags = 0 [, stwing $addwess ]]): stwing'
 	},
-	stream_socket_sendto: {
-		description: 'Sends a message to a socket, whether it is connected or not',
-		signature: '( resource $socket , string $data [, int $flags = 0 [, string $address ]]): int'
+	stweam_socket_sendto: {
+		descwiption: 'Sends a message to a socket, whetha it is connected ow not',
+		signatuwe: '( wesouwce $socket , stwing $data [, int $fwags = 0 [, stwing $addwess ]]): int'
 	},
-	stream_socket_server: {
-		description: 'Create an Internet or Unix domain server socket',
-		signature: '( string $local_socket [, int $errno [, string $errstr [, int $flags = STREAM_SERVER_BIND | STREAM_SERVER_LISTEN [, resource $context ]]]]): resource'
+	stweam_socket_sewva: {
+		descwiption: 'Cweate an Intewnet ow Unix domain sewva socket',
+		signatuwe: '( stwing $wocaw_socket [, int $ewwno [, stwing $ewwstw [, int $fwags = STWEAM_SEWVEW_BIND | STWEAM_SEWVEW_WISTEN [, wesouwce $context ]]]]): wesouwce'
 	},
-	stream_socket_shutdown: {
-		description: 'Shutdown a full-duplex connection',
-		signature: '( resource $stream , int $how ): bool'
+	stweam_socket_shutdown: {
+		descwiption: 'Shutdown a fuww-dupwex connection',
+		signatuwe: '( wesouwce $stweam , int $how ): boow'
 	},
-	stream_supports_lock: {
-		description: 'Tells whether the stream supports locking',
-		signature: '( resource $stream ): bool'
+	stweam_suppowts_wock: {
+		descwiption: 'Tewws whetha the stweam suppowts wocking',
+		signatuwe: '( wesouwce $stweam ): boow'
 	},
-	stream_wrapper_register: {
-		description: 'Register a URL wrapper implemented as a PHP class',
-		signature: '( string $protocol , string $classname [, int $flags = 0 ]): bool'
+	stweam_wwappew_wegista: {
+		descwiption: 'Wegista a UWW wwappa impwemented as a PHP cwass',
+		signatuwe: '( stwing $pwotocow , stwing $cwassname [, int $fwags = 0 ]): boow'
 	},
-	stream_wrapper_restore: {
-		description: 'Restores a previously unregistered built-in wrapper',
-		signature: '( string $protocol ): bool'
+	stweam_wwappew_westowe: {
+		descwiption: 'Westowes a pweviouswy unwegistewed buiwt-in wwappa',
+		signatuwe: '( stwing $pwotocow ): boow'
 	},
-	stream_wrapper_unregister: {
-		description: 'Unregister a URL wrapper',
-		signature: '( string $protocol ): bool'
+	stweam_wwappew_unwegista: {
+		descwiption: 'Unwegista a UWW wwappa',
+		signatuwe: '( stwing $pwotocow ): boow'
 	},
-	token_get_all: {
-		description: 'Split given source into PHP tokens',
-		signature: '( string $source [, int $flags = 0 ]): array'
+	token_get_aww: {
+		descwiption: 'Spwit given souwce into PHP tokens',
+		signatuwe: '( stwing $souwce [, int $fwags = 0 ]): awway'
 	},
 	token_name: {
-		description: 'Get the symbolic name of a given PHP token',
-		signature: '( int $token ): string'
+		descwiption: 'Get the symbowic name of a given PHP token',
+		signatuwe: '( int $token ): stwing'
 	},
 	base64_decode: {
-		description: 'Decodes data encoded with MIME base64',
-		signature: '( string $data [, bool $strict ]): string'
+		descwiption: 'Decodes data encoded with MIME base64',
+		signatuwe: '( stwing $data [, boow $stwict ]): stwing'
 	},
 	base64_encode: {
-		description: 'Encodes data with MIME base64',
-		signature: '( string $data ): string'
+		descwiption: 'Encodes data with MIME base64',
+		signatuwe: '( stwing $data ): stwing'
 	},
-	get_headers: {
-		description: 'Fetches all the headers sent by the server in response to an HTTP request',
-		signature: '( string $url [, int $format = 0 [, resource $context ]]): array'
+	get_headews: {
+		descwiption: 'Fetches aww the headews sent by the sewva in wesponse to an HTTP wequest',
+		signatuwe: '( stwing $uww [, int $fowmat = 0 [, wesouwce $context ]]): awway'
 	},
 	get_meta_tags: {
-		description: 'Extracts all meta tag content attributes from a file and returns an array',
-		signature: '( string $filename [, bool $use_include_path ]): array'
+		descwiption: 'Extwacts aww meta tag content attwibutes fwom a fiwe and wetuwns an awway',
+		signatuwe: '( stwing $fiwename [, boow $use_incwude_path ]): awway'
 	},
-	http_build_query: {
-		description: 'Generate URL-encoded query string',
-		signature: '( mixed $query_data [, string $numeric_prefix [, string $arg_separator [, int $enc_type ]]]): string'
+	http_buiwd_quewy: {
+		descwiption: 'Genewate UWW-encoded quewy stwing',
+		signatuwe: '( mixed $quewy_data [, stwing $numewic_pwefix [, stwing $awg_sepawatow [, int $enc_type ]]]): stwing'
 	},
-	parse_url: {
-		description: 'Parse a URL and return its components',
-		signature: '( string $url [, int $component = -1 ]): mixed'
+	pawse_uww: {
+		descwiption: 'Pawse a UWW and wetuwn its components',
+		signatuwe: '( stwing $uww [, int $component = -1 ]): mixed'
 	},
-	rawurldecode: {
-		description: 'Decode URL-encoded strings',
-		signature: '( string $str ): string'
+	wawuwwdecode: {
+		descwiption: 'Decode UWW-encoded stwings',
+		signatuwe: '( stwing $stw ): stwing'
 	},
-	rawurlencode: {
-		description: 'URL-encode according to RFC 3986',
-		signature: '( string $str ): string'
+	wawuwwencode: {
+		descwiption: 'UWW-encode accowding to WFC 3986',
+		signatuwe: '( stwing $stw ): stwing'
 	},
-	urldecode: {
-		description: 'Decodes URL-encoded string',
-		signature: '( string $str ): string'
+	uwwdecode: {
+		descwiption: 'Decodes UWW-encoded stwing',
+		signatuwe: '( stwing $stw ): stwing'
 	},
-	urlencode: {
-		description: 'URL-encodes string',
-		signature: '( string $str ): string'
+	uwwencode: {
+		descwiption: 'UWW-encodes stwing',
+		signatuwe: '( stwing $stw ): stwing'
 	},
-	curl_close: {
-		description: 'Close a cURL session',
-		signature: '( resource $ch ): void'
+	cuww_cwose: {
+		descwiption: 'Cwose a cUWW session',
+		signatuwe: '( wesouwce $ch ): void'
 	},
-	curl_copy_handle: {
-		description: 'Copy a cURL handle along with all of its preferences',
-		signature: '( resource $ch ): resource'
+	cuww_copy_handwe: {
+		descwiption: 'Copy a cUWW handwe awong with aww of its pwefewences',
+		signatuwe: '( wesouwce $ch ): wesouwce'
 	},
-	curl_errno: {
-		description: 'Return the last error number',
-		signature: '( resource $ch ): int'
+	cuww_ewwno: {
+		descwiption: 'Wetuwn the wast ewwow numba',
+		signatuwe: '( wesouwce $ch ): int'
 	},
-	curl_error: {
-		description: 'Return a string containing the last error for the current session',
-		signature: '( resource $ch ): string'
+	cuww_ewwow: {
+		descwiption: 'Wetuwn a stwing containing the wast ewwow fow the cuwwent session',
+		signatuwe: '( wesouwce $ch ): stwing'
 	},
-	curl_escape: {
-		description: 'URL encodes the given string',
-		signature: '( resource $ch , string $str ): string'
+	cuww_escape: {
+		descwiption: 'UWW encodes the given stwing',
+		signatuwe: '( wesouwce $ch , stwing $stw ): stwing'
 	},
-	curl_exec: {
-		description: 'Perform a cURL session',
-		signature: '( resource $ch ): mixed'
+	cuww_exec: {
+		descwiption: 'Pewfowm a cUWW session',
+		signatuwe: '( wesouwce $ch ): mixed'
 	},
-	curl_file_create: {
-		description: 'Create a CURLFile object',
-		signature: '( string $filename [, string $mimetype [, string $postname ]]): CURLFile'
+	cuww_fiwe_cweate: {
+		descwiption: 'Cweate a CUWWFiwe object',
+		signatuwe: '( stwing $fiwename [, stwing $mimetype [, stwing $postname ]]): CUWWFiwe'
 	},
-	curl_getinfo: {
-		description: 'Get information regarding a specific transfer',
-		signature: '( resource $ch [, int $opt ]): mixed'
+	cuww_getinfo: {
+		descwiption: 'Get infowmation wegawding a specific twansfa',
+		signatuwe: '( wesouwce $ch [, int $opt ]): mixed'
 	},
-	curl_init: {
-		description: 'Initialize a cURL session',
-		signature: '([ string $url ]): resource'
+	cuww_init: {
+		descwiption: 'Initiawize a cUWW session',
+		signatuwe: '([ stwing $uww ]): wesouwce'
 	},
-	curl_multi_add_handle: {
-		description: 'Add a normal cURL handle to a cURL multi handle',
-		signature: '( resource $mh , resource $ch ): int'
+	cuww_muwti_add_handwe: {
+		descwiption: 'Add a nowmaw cUWW handwe to a cUWW muwti handwe',
+		signatuwe: '( wesouwce $mh , wesouwce $ch ): int'
 	},
-	curl_multi_close: {
-		description: 'Close a set of cURL handles',
-		signature: '( resource $mh ): void'
+	cuww_muwti_cwose: {
+		descwiption: 'Cwose a set of cUWW handwes',
+		signatuwe: '( wesouwce $mh ): void'
 	},
-	curl_multi_errno: {
-		description: 'Return the last multi curl error number',
-		signature: '( resource $mh ): int'
+	cuww_muwti_ewwno: {
+		descwiption: 'Wetuwn the wast muwti cuww ewwow numba',
+		signatuwe: '( wesouwce $mh ): int'
 	},
-	curl_multi_exec: {
-		description: 'Run the sub-connections of the current cURL handle',
-		signature: '( resource $mh , int $still_running ): int'
+	cuww_muwti_exec: {
+		descwiption: 'Wun the sub-connections of the cuwwent cUWW handwe',
+		signatuwe: '( wesouwce $mh , int $stiww_wunning ): int'
 	},
-	curl_multi_getcontent: {
-		description: 'Return the content of a cURL handle if CURLOPT_RETURNTRANSFER is set',
-		signature: '( resource $ch ): string'
+	cuww_muwti_getcontent: {
+		descwiption: 'Wetuwn the content of a cUWW handwe if CUWWOPT_WETUWNTWANSFa is set',
+		signatuwe: '( wesouwce $ch ): stwing'
 	},
-	curl_multi_info_read: {
-		description: 'Get information about the current transfers',
-		signature: '( resource $mh [, int $msgs_in_queue ]): array'
+	cuww_muwti_info_wead: {
+		descwiption: 'Get infowmation about the cuwwent twansfews',
+		signatuwe: '( wesouwce $mh [, int $msgs_in_queue ]): awway'
 	},
-	curl_multi_init: {
-		description: 'Returns a new cURL multi handle',
-		signature: '(void): resource'
+	cuww_muwti_init: {
+		descwiption: 'Wetuwns a new cUWW muwti handwe',
+		signatuwe: '(void): wesouwce'
 	},
-	curl_multi_remove_handle: {
-		description: 'Remove a multi handle from a set of cURL handles',
-		signature: '( resource $mh , resource $ch ): int'
+	cuww_muwti_wemove_handwe: {
+		descwiption: 'Wemove a muwti handwe fwom a set of cUWW handwes',
+		signatuwe: '( wesouwce $mh , wesouwce $ch ): int'
 	},
-	curl_multi_select: {
-		description: 'Wait for activity on any curl_multi connection',
-		signature: '( resource $mh [, float $timeout = 1.0 ]): int'
+	cuww_muwti_sewect: {
+		descwiption: 'Wait fow activity on any cuww_muwti connection',
+		signatuwe: '( wesouwce $mh [, fwoat $timeout = 1.0 ]): int'
 	},
-	curl_multi_setopt: {
-		description: 'Set an option for the cURL multi handle',
-		signature: '( resource $mh , int $option , mixed $value ): bool'
+	cuww_muwti_setopt: {
+		descwiption: 'Set an option fow the cUWW muwti handwe',
+		signatuwe: '( wesouwce $mh , int $option , mixed $vawue ): boow'
 	},
-	curl_multi_strerror: {
-		description: 'Return string describing error code',
-		signature: '( int $errornum ): string'
+	cuww_muwti_stwewwow: {
+		descwiption: 'Wetuwn stwing descwibing ewwow code',
+		signatuwe: '( int $ewwownum ): stwing'
 	},
-	curl_pause: {
-		description: 'Pause and unpause a connection',
-		signature: '( resource $ch , int $bitmask ): int'
+	cuww_pause: {
+		descwiption: 'Pause and unpause a connection',
+		signatuwe: '( wesouwce $ch , int $bitmask ): int'
 	},
-	curl_reset: {
-		description: 'Reset all options of a libcurl session handle',
-		signature: '( resource $ch ): void'
+	cuww_weset: {
+		descwiption: 'Weset aww options of a wibcuww session handwe',
+		signatuwe: '( wesouwce $ch ): void'
 	},
-	curl_setopt_array: {
-		description: 'Set multiple options for a cURL transfer',
-		signature: '( resource $ch , array $options ): bool'
+	cuww_setopt_awway: {
+		descwiption: 'Set muwtipwe options fow a cUWW twansfa',
+		signatuwe: '( wesouwce $ch , awway $options ): boow'
 	},
-	curl_setopt: {
-		description: 'Set an option for a cURL transfer',
-		signature: '( resource $ch , int $option , mixed $value ): bool'
+	cuww_setopt: {
+		descwiption: 'Set an option fow a cUWW twansfa',
+		signatuwe: '( wesouwce $ch , int $option , mixed $vawue ): boow'
 	},
-	curl_share_close: {
-		description: 'Close a cURL share handle',
-		signature: '( resource $sh ): void'
+	cuww_shawe_cwose: {
+		descwiption: 'Cwose a cUWW shawe handwe',
+		signatuwe: '( wesouwce $sh ): void'
 	},
-	curl_share_errno: {
-		description: 'Return the last share curl error number',
-		signature: '( resource $sh ): int'
+	cuww_shawe_ewwno: {
+		descwiption: 'Wetuwn the wast shawe cuww ewwow numba',
+		signatuwe: '( wesouwce $sh ): int'
 	},
-	curl_share_init: {
-		description: 'Initialize a cURL share handle',
-		signature: '(void): resource'
+	cuww_shawe_init: {
+		descwiption: 'Initiawize a cUWW shawe handwe',
+		signatuwe: '(void): wesouwce'
 	},
-	curl_share_setopt: {
-		description: 'Set an option for a cURL share handle',
-		signature: '( resource $sh , int $option , string $value ): bool'
+	cuww_shawe_setopt: {
+		descwiption: 'Set an option fow a cUWW shawe handwe',
+		signatuwe: '( wesouwce $sh , int $option , stwing $vawue ): boow'
 	},
-	curl_share_strerror: {
-		description: 'Return string describing the given error code',
-		signature: '( int $errornum ): string'
+	cuww_shawe_stwewwow: {
+		descwiption: 'Wetuwn stwing descwibing the given ewwow code',
+		signatuwe: '( int $ewwownum ): stwing'
 	},
-	curl_strerror: {
-		description: 'Return string describing the given error code',
-		signature: '( int $errornum ): string'
+	cuww_stwewwow: {
+		descwiption: 'Wetuwn stwing descwibing the given ewwow code',
+		signatuwe: '( int $ewwownum ): stwing'
 	},
-	curl_unescape: {
-		description: 'Decodes the given URL encoded string',
-		signature: '( resource $ch , string $str ): string'
+	cuww_unescape: {
+		descwiption: 'Decodes the given UWW encoded stwing',
+		signatuwe: '( wesouwce $ch , stwing $stw ): stwing'
 	},
-	curl_version: {
-		description: 'Gets cURL version information',
-		signature: '([ int $age = CURLVERSION_NOW ]): array'
+	cuww_vewsion: {
+		descwiption: 'Gets cUWW vewsion infowmation',
+		signatuwe: '([ int $age = CUWWVEWSION_NOW ]): awway'
 	},
-	ftp_alloc: {
-		description: 'Allocates space for a file to be uploaded',
-		signature: '( resource $ftp_stream , int $filesize [, string $result ]): bool'
+	ftp_awwoc: {
+		descwiption: 'Awwocates space fow a fiwe to be upwoaded',
+		signatuwe: '( wesouwce $ftp_stweam , int $fiwesize [, stwing $wesuwt ]): boow'
 	},
 	ftp_append: {
-		description: 'Append the contents of a file to another file on the FTP server',
-		signature: '( resource $ftp , string $remote_file , string $local_file [, int $mode ]): bool'
+		descwiption: 'Append the contents of a fiwe to anotha fiwe on the FTP sewva',
+		signatuwe: '( wesouwce $ftp , stwing $wemote_fiwe , stwing $wocaw_fiwe [, int $mode ]): boow'
 	},
 	ftp_cdup: {
-		description: 'Changes to the parent directory',
-		signature: '( resource $ftp_stream ): bool'
+		descwiption: 'Changes to the pawent diwectowy',
+		signatuwe: '( wesouwce $ftp_stweam ): boow'
 	},
-	ftp_chdir: {
-		description: 'Changes the current directory on a FTP server',
-		signature: '( resource $ftp_stream , string $directory ): bool'
+	ftp_chdiw: {
+		descwiption: 'Changes the cuwwent diwectowy on a FTP sewva',
+		signatuwe: '( wesouwce $ftp_stweam , stwing $diwectowy ): boow'
 	},
 	ftp_chmod: {
-		description: 'Set permissions on a file via FTP',
-		signature: '( resource $ftp_stream , int $mode , string $filename ): int'
+		descwiption: 'Set pewmissions on a fiwe via FTP',
+		signatuwe: '( wesouwce $ftp_stweam , int $mode , stwing $fiwename ): int'
 	},
-	ftp_close: {
-		description: 'Closes an FTP connection',
-		signature: '( resource $ftp_stream ): resource'
+	ftp_cwose: {
+		descwiption: 'Cwoses an FTP connection',
+		signatuwe: '( wesouwce $ftp_stweam ): wesouwce'
 	},
 	ftp_connect: {
-		description: 'Opens an FTP connection',
-		signature: '( string $host [, int $port = 21 [, int $timeout = 90 ]]): resource'
+		descwiption: 'Opens an FTP connection',
+		signatuwe: '( stwing $host [, int $powt = 21 [, int $timeout = 90 ]]): wesouwce'
 	},
-	ftp_delete: {
-		description: 'Deletes a file on the FTP server',
-		signature: '( resource $ftp_stream , string $path ): bool'
+	ftp_dewete: {
+		descwiption: 'Dewetes a fiwe on the FTP sewva',
+		signatuwe: '( wesouwce $ftp_stweam , stwing $path ): boow'
 	},
 	ftp_exec: {
-		description: 'Requests execution of a command on the FTP server',
-		signature: '( resource $ftp_stream , string $command ): bool'
+		descwiption: 'Wequests execution of a command on the FTP sewva',
+		signatuwe: '( wesouwce $ftp_stweam , stwing $command ): boow'
 	},
 	ftp_fget: {
-		description: 'Downloads a file from the FTP server and saves to an open file',
-		signature: '( resource $ftp_stream , resource $handle , string $remote_file [, int $mode [, int $resumepos = 0 ]]): bool'
+		descwiption: 'Downwoads a fiwe fwom the FTP sewva and saves to an open fiwe',
+		signatuwe: '( wesouwce $ftp_stweam , wesouwce $handwe , stwing $wemote_fiwe [, int $mode [, int $wesumepos = 0 ]]): boow'
 	},
 	ftp_fput: {
-		description: 'Uploads from an open file to the FTP server',
-		signature: '( resource $ftp_stream , string $remote_file , resource $handle [, int $mode [, int $startpos = 0 ]]): bool'
+		descwiption: 'Upwoads fwom an open fiwe to the FTP sewva',
+		signatuwe: '( wesouwce $ftp_stweam , stwing $wemote_fiwe , wesouwce $handwe [, int $mode [, int $stawtpos = 0 ]]): boow'
 	},
 	ftp_get_option: {
-		description: 'Retrieves various runtime behaviours of the current FTP stream',
-		signature: '( resource $ftp_stream , int $option ): mixed'
+		descwiption: 'Wetwieves vawious wuntime behaviouws of the cuwwent FTP stweam',
+		signatuwe: '( wesouwce $ftp_stweam , int $option ): mixed'
 	},
 	ftp_get: {
-		description: 'Downloads a file from the FTP server',
-		signature: '( resource $ftp_stream , string $local_file , string $remote_file [, int $mode [, int $resumepos = 0 ]]): bool'
+		descwiption: 'Downwoads a fiwe fwom the FTP sewva',
+		signatuwe: '( wesouwce $ftp_stweam , stwing $wocaw_fiwe , stwing $wemote_fiwe [, int $mode [, int $wesumepos = 0 ]]): boow'
 	},
-	ftp_login: {
-		description: 'Logs in to an FTP connection',
-		signature: '( resource $ftp_stream , string $username , string $password ): bool'
+	ftp_wogin: {
+		descwiption: 'Wogs in to an FTP connection',
+		signatuwe: '( wesouwce $ftp_stweam , stwing $usewname , stwing $passwowd ): boow'
 	},
 	ftp_mdtm: {
-		description: 'Returns the last modified time of the given file',
-		signature: '( resource $ftp_stream , string $remote_file ): int'
+		descwiption: 'Wetuwns the wast modified time of the given fiwe',
+		signatuwe: '( wesouwce $ftp_stweam , stwing $wemote_fiwe ): int'
 	},
-	ftp_mkdir: {
-		description: 'Creates a directory',
-		signature: '( resource $ftp_stream , string $directory ): string'
+	ftp_mkdiw: {
+		descwiption: 'Cweates a diwectowy',
+		signatuwe: '( wesouwce $ftp_stweam , stwing $diwectowy ): stwing'
 	},
-	ftp_mlsd: {
-		description: 'Returns a list of files in the given directory',
-		signature: '( resource $ftp_stream , string $directory ): array'
+	ftp_mwsd: {
+		descwiption: 'Wetuwns a wist of fiwes in the given diwectowy',
+		signatuwe: '( wesouwce $ftp_stweam , stwing $diwectowy ): awway'
 	},
 	ftp_nb_continue: {
-		description: 'Continues retrieving/sending a file (non-blocking)',
-		signature: '( resource $ftp_stream ): int'
+		descwiption: 'Continues wetwieving/sending a fiwe (non-bwocking)',
+		signatuwe: '( wesouwce $ftp_stweam ): int'
 	},
 	ftp_nb_fget: {
-		description: 'Retrieves a file from the FTP server and writes it to an open file (non-blocking)',
-		signature: '( resource $ftp_stream , resource $handle , string $remote_file [, int $mode [, int $resumepos = 0 ]]): int'
+		descwiption: 'Wetwieves a fiwe fwom the FTP sewva and wwites it to an open fiwe (non-bwocking)',
+		signatuwe: '( wesouwce $ftp_stweam , wesouwce $handwe , stwing $wemote_fiwe [, int $mode [, int $wesumepos = 0 ]]): int'
 	},
 	ftp_nb_fput: {
-		description: 'Stores a file from an open file to the FTP server (non-blocking)',
-		signature: '( resource $ftp_stream , string $remote_file , resource $handle [, int $mode [, int $startpos = 0 ]]): int'
+		descwiption: 'Stowes a fiwe fwom an open fiwe to the FTP sewva (non-bwocking)',
+		signatuwe: '( wesouwce $ftp_stweam , stwing $wemote_fiwe , wesouwce $handwe [, int $mode [, int $stawtpos = 0 ]]): int'
 	},
 	ftp_nb_get: {
-		description: 'Retrieves a file from the FTP server and writes it to a local file (non-blocking)',
-		signature: '( resource $ftp_stream , string $local_file , string $remote_file [, int $mode [, int $resumepos = 0 ]]): int'
+		descwiption: 'Wetwieves a fiwe fwom the FTP sewva and wwites it to a wocaw fiwe (non-bwocking)',
+		signatuwe: '( wesouwce $ftp_stweam , stwing $wocaw_fiwe , stwing $wemote_fiwe [, int $mode [, int $wesumepos = 0 ]]): int'
 	},
 	ftp_nb_put: {
-		description: 'Stores a file on the FTP server (non-blocking)',
-		signature: '( resource $ftp_stream , string $remote_file , string $local_file [, int $mode [, int $startpos = 0 ]]): int'
+		descwiption: 'Stowes a fiwe on the FTP sewva (non-bwocking)',
+		signatuwe: '( wesouwce $ftp_stweam , stwing $wemote_fiwe , stwing $wocaw_fiwe [, int $mode [, int $stawtpos = 0 ]]): int'
 	},
-	ftp_nlist: {
-		description: 'Returns a list of files in the given directory',
-		signature: '( resource $ftp_stream , string $directory ): array'
+	ftp_nwist: {
+		descwiption: 'Wetuwns a wist of fiwes in the given diwectowy',
+		signatuwe: '( wesouwce $ftp_stweam , stwing $diwectowy ): awway'
 	},
 	ftp_pasv: {
-		description: 'Turns passive mode on or off',
-		signature: '( resource $ftp_stream , bool $pasv ): bool'
+		descwiption: 'Tuwns passive mode on ow off',
+		signatuwe: '( wesouwce $ftp_stweam , boow $pasv ): boow'
 	},
 	ftp_put: {
-		description: 'Uploads a file to the FTP server',
-		signature: '( resource $ftp_stream , string $remote_file , string $local_file [, int $mode [, int $startpos = 0 ]]): bool'
+		descwiption: 'Upwoads a fiwe to the FTP sewva',
+		signatuwe: '( wesouwce $ftp_stweam , stwing $wemote_fiwe , stwing $wocaw_fiwe [, int $mode [, int $stawtpos = 0 ]]): boow'
 	},
 	ftp_pwd: {
-		description: 'Returns the current directory name',
-		signature: '( resource $ftp_stream ): string'
+		descwiption: 'Wetuwns the cuwwent diwectowy name',
+		signatuwe: '( wesouwce $ftp_stweam ): stwing'
 	},
 	ftp_quit: {
-		description: 'Alias of ftp_close',
+		descwiption: 'Awias of ftp_cwose',
 	},
-	ftp_raw: {
-		description: 'Sends an arbitrary command to an FTP server',
-		signature: '( resource $ftp_stream , string $command ): array'
+	ftp_waw: {
+		descwiption: 'Sends an awbitwawy command to an FTP sewva',
+		signatuwe: '( wesouwce $ftp_stweam , stwing $command ): awway'
 	},
-	ftp_rawlist: {
-		description: 'Returns a detailed list of files in the given directory',
-		signature: '( resource $ftp_stream , string $directory [, bool $recursive ]): array'
+	ftp_wawwist: {
+		descwiption: 'Wetuwns a detaiwed wist of fiwes in the given diwectowy',
+		signatuwe: '( wesouwce $ftp_stweam , stwing $diwectowy [, boow $wecuwsive ]): awway'
 	},
-	ftp_rename: {
-		description: 'Renames a file or a directory on the FTP server',
-		signature: '( resource $ftp_stream , string $oldname , string $newname ): bool'
+	ftp_wename: {
+		descwiption: 'Wenames a fiwe ow a diwectowy on the FTP sewva',
+		signatuwe: '( wesouwce $ftp_stweam , stwing $owdname , stwing $newname ): boow'
 	},
-	ftp_rmdir: {
-		description: 'Removes a directory',
-		signature: '( resource $ftp_stream , string $directory ): bool'
+	ftp_wmdiw: {
+		descwiption: 'Wemoves a diwectowy',
+		signatuwe: '( wesouwce $ftp_stweam , stwing $diwectowy ): boow'
 	},
 	ftp_set_option: {
-		description: 'Set miscellaneous runtime FTP options',
-		signature: '( resource $ftp_stream , int $option , mixed $value ): bool'
+		descwiption: 'Set miscewwaneous wuntime FTP options',
+		signatuwe: '( wesouwce $ftp_stweam , int $option , mixed $vawue ): boow'
 	},
 	ftp_site: {
-		description: 'Sends a SITE command to the server',
-		signature: '( resource $ftp_stream , string $command ): bool'
+		descwiption: 'Sends a SITE command to the sewva',
+		signatuwe: '( wesouwce $ftp_stweam , stwing $command ): boow'
 	},
 	ftp_size: {
-		description: 'Returns the size of the given file',
-		signature: '( resource $ftp_stream , string $remote_file ): int'
+		descwiption: 'Wetuwns the size of the given fiwe',
+		signatuwe: '( wesouwce $ftp_stweam , stwing $wemote_fiwe ): int'
 	},
-	ftp_ssl_connect: {
-		description: 'Opens a Secure SSL-FTP connection',
-		signature: '( string $host [, int $port = 21 [, int $timeout = 90 ]]): resource'
+	ftp_ssw_connect: {
+		descwiption: 'Opens a Secuwe SSW-FTP connection',
+		signatuwe: '( stwing $host [, int $powt = 21 [, int $timeout = 90 ]]): wesouwce'
 	},
 	ftp_systype: {
-		description: 'Returns the system type identifier of the remote FTP server',
-		signature: '( resource $ftp_stream ): string'
+		descwiption: 'Wetuwns the system type identifia of the wemote FTP sewva',
+		signatuwe: '( wesouwce $ftp_stweam ): stwing'
 	},
-	checkdnsrr: {
-		description: 'Check DNS records corresponding to a given Internet host name or IP address',
-		signature: '( string $host [, string $type = "MX" ]): bool'
+	checkdnsww: {
+		descwiption: 'Check DNS wecowds cowwesponding to a given Intewnet host name ow IP addwess',
+		signatuwe: '( stwing $host [, stwing $type = "MX" ]): boow'
 	},
-	closelog: {
-		description: 'Close connection to system logger',
-		signature: '(void): bool'
+	cwosewog: {
+		descwiption: 'Cwose connection to system wogga',
+		signatuwe: '(void): boow'
 	},
-	define_syslog_variables: {
-		description: 'Initializes all syslog related variables',
-		signature: '(void): void'
+	define_syswog_vawiabwes: {
+		descwiption: 'Initiawizes aww syswog wewated vawiabwes',
+		signatuwe: '(void): void'
 	},
-	dns_check_record: {
-		description: 'Alias of checkdnsrr',
+	dns_check_wecowd: {
+		descwiption: 'Awias of checkdnsww',
 	},
 	dns_get_mx: {
-		description: 'Alias of getmxrr',
+		descwiption: 'Awias of getmxww',
 	},
-	dns_get_record: {
-		description: 'Fetch DNS Resource Records associated with a hostname',
-		signature: '( string $hostname [, int $type = DNS_ANY [, array $authns [, array $addtl [, bool $raw ]]]]): array'
+	dns_get_wecowd: {
+		descwiption: 'Fetch DNS Wesouwce Wecowds associated with a hostname',
+		signatuwe: '( stwing $hostname [, int $type = DNS_ANY [, awway $authns [, awway $addtw [, boow $waw ]]]]): awway'
 	},
 	fsockopen: {
-		description: 'Open Internet or Unix domain socket connection',
-		signature: '( string $hostname [, int $port = -1 [, int $errno [, string $errstr [, float $timeout = ini_get("default_socket_timeout") ]]]]): resource'
+		descwiption: 'Open Intewnet ow Unix domain socket connection',
+		signatuwe: '( stwing $hostname [, int $powt = -1 [, int $ewwno [, stwing $ewwstw [, fwoat $timeout = ini_get("defauwt_socket_timeout") ]]]]): wesouwce'
 	},
-	gethostbyaddr: {
-		description: 'Get the Internet host name corresponding to a given IP address',
-		signature: '( string $ip_address ): string'
+	gethostbyaddw: {
+		descwiption: 'Get the Intewnet host name cowwesponding to a given IP addwess',
+		signatuwe: '( stwing $ip_addwess ): stwing'
 	},
 	gethostbyname: {
-		description: 'Get the IPv4 address corresponding to a given Internet host name',
-		signature: '( string $hostname ): string'
+		descwiption: 'Get the IPv4 addwess cowwesponding to a given Intewnet host name',
+		signatuwe: '( stwing $hostname ): stwing'
 	},
-	gethostbynamel: {
-		description: 'Get a list of IPv4 addresses corresponding to a given Internet host   name',
-		signature: '( string $hostname ): array'
+	gethostbynamew: {
+		descwiption: 'Get a wist of IPv4 addwesses cowwesponding to a given Intewnet host   name',
+		signatuwe: '( stwing $hostname ): awway'
 	},
 	gethostname: {
-		description: 'Gets the host name',
-		signature: '(void): string'
+		descwiption: 'Gets the host name',
+		signatuwe: '(void): stwing'
 	},
-	getmxrr: {
-		description: 'Get MX records corresponding to a given Internet host name',
-		signature: '( string $hostname , array $mxhosts [, array $weight ]): bool'
+	getmxww: {
+		descwiption: 'Get MX wecowds cowwesponding to a given Intewnet host name',
+		signatuwe: '( stwing $hostname , awway $mxhosts [, awway $weight ]): boow'
 	},
-	getprotobyname: {
-		description: 'Get protocol number associated with protocol name',
-		signature: '( string $name ): int'
+	getpwotobyname: {
+		descwiption: 'Get pwotocow numba associated with pwotocow name',
+		signatuwe: '( stwing $name ): int'
 	},
-	getprotobynumber: {
-		description: 'Get protocol name associated with protocol number',
-		signature: '( int $number ): string'
+	getpwotobynumba: {
+		descwiption: 'Get pwotocow name associated with pwotocow numba',
+		signatuwe: '( int $numba ): stwing'
 	},
-	getservbyname: {
-		description: 'Get port number associated with an Internet service and protocol',
-		signature: '( string $service , string $protocol ): int'
+	getsewvbyname: {
+		descwiption: 'Get powt numba associated with an Intewnet sewvice and pwotocow',
+		signatuwe: '( stwing $sewvice , stwing $pwotocow ): int'
 	},
-	getservbyport: {
-		description: 'Get Internet service which corresponds to port and protocol',
-		signature: '( int $port , string $protocol ): string'
+	getsewvbypowt: {
+		descwiption: 'Get Intewnet sewvice which cowwesponds to powt and pwotocow',
+		signatuwe: '( int $powt , stwing $pwotocow ): stwing'
 	},
-	header_register_callback: {
-		description: 'Call a header function',
-		signature: '( callable $callback ): bool'
+	headew_wegistew_cawwback: {
+		descwiption: 'Caww a heada function',
+		signatuwe: '( cawwabwe $cawwback ): boow'
 	},
-	header_remove: {
-		description: 'Remove previously set headers',
-		signature: '([ string $name ]): void'
+	headew_wemove: {
+		descwiption: 'Wemove pweviouswy set headews',
+		signatuwe: '([ stwing $name ]): void'
 	},
-	header: {
-		description: 'Send a raw HTTP header',
-		signature: '( string $header [, bool $replace [, int $http_response_code ]]): void'
+	heada: {
+		descwiption: 'Send a waw HTTP heada',
+		signatuwe: '( stwing $heada [, boow $wepwace [, int $http_wesponse_code ]]): void'
 	},
-	headers_list: {
-		description: 'Returns a list of response headers sent (or ready to send)',
-		signature: '(void): array'
+	headews_wist: {
+		descwiption: 'Wetuwns a wist of wesponse headews sent (ow weady to send)',
+		signatuwe: '(void): awway'
 	},
-	headers_sent: {
-		description: 'Checks if or where headers have been sent',
-		signature: '([ string $file [, int $line ]]): bool'
+	headews_sent: {
+		descwiption: 'Checks if ow whewe headews have been sent',
+		signatuwe: '([ stwing $fiwe [, int $wine ]]): boow'
 	},
-	http_response_code: {
-		description: 'Get or Set the HTTP response code',
-		signature: '([ int $response_code ]): mixed'
+	http_wesponse_code: {
+		descwiption: 'Get ow Set the HTTP wesponse code',
+		signatuwe: '([ int $wesponse_code ]): mixed'
 	},
 	inet_ntop: {
-		description: 'Converts a packed internet address to a human readable representation',
-		signature: '( string $in_addr ): string'
+		descwiption: 'Convewts a packed intewnet addwess to a human weadabwe wepwesentation',
+		signatuwe: '( stwing $in_addw ): stwing'
 	},
 	inet_pton: {
-		description: 'Converts a human readable IP address to its packed in_addr representation',
-		signature: '( string $address ): string'
+		descwiption: 'Convewts a human weadabwe IP addwess to its packed in_addw wepwesentation',
+		signatuwe: '( stwing $addwess ): stwing'
 	},
-	ip2long: {
-		description: 'Converts a string containing an (IPv4) Internet Protocol dotted address into a long integer',
-		signature: '( string $ip_address ): int'
+	ip2wong: {
+		descwiption: 'Convewts a stwing containing an (IPv4) Intewnet Pwotocow dotted addwess into a wong intega',
+		signatuwe: '( stwing $ip_addwess ): int'
 	},
-	long2ip: {
-		description: 'Converts an long integer address into a string in (IPv4) Internet standard dotted format',
-		signature: '( int $proper_address ): string'
+	wong2ip: {
+		descwiption: 'Convewts an wong intega addwess into a stwing in (IPv4) Intewnet standawd dotted fowmat',
+		signatuwe: '( int $pwopew_addwess ): stwing'
 	},
-	openlog: {
-		description: 'Open connection to system logger',
-		signature: '( string $ident , int $option , int $facility ): bool'
+	openwog: {
+		descwiption: 'Open connection to system wogga',
+		signatuwe: '( stwing $ident , int $option , int $faciwity ): boow'
 	},
 	pfsockopen: {
-		description: 'Open persistent Internet or Unix domain socket connection',
-		signature: '( string $hostname [, int $port = -1 [, int $errno [, string $errstr [, float $timeout = ini_get("default_socket_timeout") ]]]]): resource'
+		descwiption: 'Open pewsistent Intewnet ow Unix domain socket connection',
+		signatuwe: '( stwing $hostname [, int $powt = -1 [, int $ewwno [, stwing $ewwstw [, fwoat $timeout = ini_get("defauwt_socket_timeout") ]]]]): wesouwce'
 	},
 	setcookie: {
-		description: 'Send a cookie',
-		signature: '( string $name [, string $value = "" [, int $expires = 0 [, string $path = "" [, string $domain = "" [, bool $secure [, bool $httponly [, array $options = [] ]]]]]]]): bool'
+		descwiption: 'Send a cookie',
+		signatuwe: '( stwing $name [, stwing $vawue = "" [, int $expiwes = 0 [, stwing $path = "" [, stwing $domain = "" [, boow $secuwe [, boow $httponwy [, awway $options = [] ]]]]]]]): boow'
 	},
-	setrawcookie: {
-		description: 'Send a cookie without urlencoding the cookie value',
-		signature: '( string $name [, string $value [, int $expires = 0 [, string $path [, string $domain [, bool $secure [, bool $httponly [, array $options = [] ]]]]]]]): bool'
+	setwawcookie: {
+		descwiption: 'Send a cookie without uwwencoding the cookie vawue',
+		signatuwe: '( stwing $name [, stwing $vawue [, int $expiwes = 0 [, stwing $path [, stwing $domain [, boow $secuwe [, boow $httponwy [, awway $options = [] ]]]]]]]): boow'
 	},
 	socket_get_status: {
-		description: 'Alias of stream_get_meta_data',
+		descwiption: 'Awias of stweam_get_meta_data',
 	},
-	socket_set_blocking: {
-		description: 'Alias of stream_set_blocking',
+	socket_set_bwocking: {
+		descwiption: 'Awias of stweam_set_bwocking',
 	},
 	socket_set_timeout: {
-		description: 'Alias of stream_set_timeout',
+		descwiption: 'Awias of stweam_set_timeout',
 	},
-	syslog: {
-		description: 'Generate a system log message',
-		signature: '( int $priority , string $message ): bool'
+	syswog: {
+		descwiption: 'Genewate a system wog message',
+		signatuwe: '( int $pwiowity , stwing $message ): boow'
 	},
 	socket_accept: {
-		description: 'Accepts a connection on a socket',
-		signature: '( resource $socket ): resource'
+		descwiption: 'Accepts a connection on a socket',
+		signatuwe: '( wesouwce $socket ): wesouwce'
 	},
-	socket_addrinfo_bind: {
-		description: 'Create and bind to a socket from a given addrinfo',
-		signature: '( resource $addr ): resource'
+	socket_addwinfo_bind: {
+		descwiption: 'Cweate and bind to a socket fwom a given addwinfo',
+		signatuwe: '( wesouwce $addw ): wesouwce'
 	},
-	socket_addrinfo_connect: {
-		description: 'Create and connect to a socket from a given addrinfo',
-		signature: '( resource $addr ): resource'
+	socket_addwinfo_connect: {
+		descwiption: 'Cweate and connect to a socket fwom a given addwinfo',
+		signatuwe: '( wesouwce $addw ): wesouwce'
 	},
-	socket_addrinfo_explain: {
-		description: 'Get information about addrinfo',
-		signature: '( resource $addr ): array'
+	socket_addwinfo_expwain: {
+		descwiption: 'Get infowmation about addwinfo',
+		signatuwe: '( wesouwce $addw ): awway'
 	},
-	socket_addrinfo_lookup: {
-		description: 'Get array with contents of getaddrinfo about the given hostname',
-		signature: '( string $host [, string $service [, array $hints ]]): array'
+	socket_addwinfo_wookup: {
+		descwiption: 'Get awway with contents of getaddwinfo about the given hostname',
+		signatuwe: '( stwing $host [, stwing $sewvice [, awway $hints ]]): awway'
 	},
 	socket_bind: {
-		description: 'Binds a name to a socket',
-		signature: '( resource $socket , string $address [, int $port = 0 ]): bool'
+		descwiption: 'Binds a name to a socket',
+		signatuwe: '( wesouwce $socket , stwing $addwess [, int $powt = 0 ]): boow'
 	},
-	socket_clear_error: {
-		description: 'Clears the error on the socket or the last error code',
-		signature: '([ resource $socket ]): void'
+	socket_cweaw_ewwow: {
+		descwiption: 'Cweaws the ewwow on the socket ow the wast ewwow code',
+		signatuwe: '([ wesouwce $socket ]): void'
 	},
-	socket_close: {
-		description: 'Closes a socket resource',
-		signature: '( resource $socket ): void'
+	socket_cwose: {
+		descwiption: 'Cwoses a socket wesouwce',
+		signatuwe: '( wesouwce $socket ): void'
 	},
 	socket_cmsg_space: {
-		description: 'Calculate message buffer size',
-		signature: '( int $level , int $type [, int $n = 0 ]): int'
+		descwiption: 'Cawcuwate message buffa size',
+		signatuwe: '( int $wevew , int $type [, int $n = 0 ]): int'
 	},
 	socket_connect: {
-		description: 'Initiates a connection on a socket',
-		signature: '( resource $socket , string $address [, int $port = 0 ]): bool'
+		descwiption: 'Initiates a connection on a socket',
+		signatuwe: '( wesouwce $socket , stwing $addwess [, int $powt = 0 ]): boow'
 	},
-	socket_create_listen: {
-		description: 'Opens a socket on port to accept connections',
-		signature: '( int $port [, int $backlog = 128 ]): resource'
+	socket_cweate_wisten: {
+		descwiption: 'Opens a socket on powt to accept connections',
+		signatuwe: '( int $powt [, int $backwog = 128 ]): wesouwce'
 	},
-	socket_create_pair: {
-		description: 'Creates a pair of indistinguishable sockets and stores them in an array',
-		signature: '( int $domain , int $type , int $protocol , array $fd ): bool'
+	socket_cweate_paiw: {
+		descwiption: 'Cweates a paiw of indistinguishabwe sockets and stowes them in an awway',
+		signatuwe: '( int $domain , int $type , int $pwotocow , awway $fd ): boow'
 	},
-	socket_create: {
-		description: 'Create a socket (endpoint for communication)',
-		signature: '( int $domain , int $type , int $protocol ): resource'
+	socket_cweate: {
+		descwiption: 'Cweate a socket (endpoint fow communication)',
+		signatuwe: '( int $domain , int $type , int $pwotocow ): wesouwce'
 	},
-	socket_export_stream: {
-		description: 'Export a socket extension resource into a stream that encapsulates a socket',
-		signature: '( resource $socket ): resource'
+	socket_expowt_stweam: {
+		descwiption: 'Expowt a socket extension wesouwce into a stweam that encapsuwates a socket',
+		signatuwe: '( wesouwce $socket ): wesouwce'
 	},
 	socket_get_option: {
-		description: 'Gets socket options for the socket',
-		signature: '( resource $socket , int $level , int $optname ): mixed'
+		descwiption: 'Gets socket options fow the socket',
+		signatuwe: '( wesouwce $socket , int $wevew , int $optname ): mixed'
 	},
 	socket_getopt: {
-		description: 'Alias of socket_get_option',
+		descwiption: 'Awias of socket_get_option',
 	},
-	socket_getpeername: {
-		description: 'Queries the remote side of the given socket which may either result in host/port or in a Unix filesystem path, dependent on its type',
-		signature: '( resource $socket , string $address [, int $port ]): bool'
+	socket_getpeewname: {
+		descwiption: 'Quewies the wemote side of the given socket which may eitha wesuwt in host/powt ow in a Unix fiwesystem path, dependent on its type',
+		signatuwe: '( wesouwce $socket , stwing $addwess [, int $powt ]): boow'
 	},
 	socket_getsockname: {
-		description: 'Queries the local side of the given socket which may either result in host/port or in a Unix filesystem path, dependent on its type',
-		signature: '( resource $socket , string $addr [, int $port ]): bool'
+		descwiption: 'Quewies the wocaw side of the given socket which may eitha wesuwt in host/powt ow in a Unix fiwesystem path, dependent on its type',
+		signatuwe: '( wesouwce $socket , stwing $addw [, int $powt ]): boow'
 	},
-	socket_import_stream: {
-		description: 'Import a stream',
-		signature: '( resource $stream ): resource'
+	socket_impowt_stweam: {
+		descwiption: 'Impowt a stweam',
+		signatuwe: '( wesouwce $stweam ): wesouwce'
 	},
-	socket_last_error: {
-		description: 'Returns the last error on the socket',
-		signature: '([ resource $socket ]): int'
+	socket_wast_ewwow: {
+		descwiption: 'Wetuwns the wast ewwow on the socket',
+		signatuwe: '([ wesouwce $socket ]): int'
 	},
-	socket_listen: {
-		description: 'Listens for a connection on a socket',
-		signature: '( resource $socket [, int $backlog = 0 ]): bool'
+	socket_wisten: {
+		descwiption: 'Wistens fow a connection on a socket',
+		signatuwe: '( wesouwce $socket [, int $backwog = 0 ]): boow'
 	},
-	socket_read: {
-		description: 'Reads a maximum of length bytes from a socket',
-		signature: '( resource $socket , int $length [, int $type = PHP_BINARY_READ ]): string'
+	socket_wead: {
+		descwiption: 'Weads a maximum of wength bytes fwom a socket',
+		signatuwe: '( wesouwce $socket , int $wength [, int $type = PHP_BINAWY_WEAD ]): stwing'
 	},
-	socket_recv: {
-		description: 'Receives data from a connected socket',
-		signature: '( resource $socket , string $buf , int $len , int $flags ): int'
+	socket_wecv: {
+		descwiption: 'Weceives data fwom a connected socket',
+		signatuwe: '( wesouwce $socket , stwing $buf , int $wen , int $fwags ): int'
 	},
-	socket_recvfrom: {
-		description: 'Receives data from a socket whether or not it is connection-oriented',
-		signature: '( resource $socket , string $buf , int $len , int $flags , string $name [, int $port ]): int'
+	socket_wecvfwom: {
+		descwiption: 'Weceives data fwom a socket whetha ow not it is connection-owiented',
+		signatuwe: '( wesouwce $socket , stwing $buf , int $wen , int $fwags , stwing $name [, int $powt ]): int'
 	},
-	socket_recvmsg: {
-		description: 'Read a message',
-		signature: '( resource $socket , array $message [, int $flags = 0 ]): int'
+	socket_wecvmsg: {
+		descwiption: 'Wead a message',
+		signatuwe: '( wesouwce $socket , awway $message [, int $fwags = 0 ]): int'
 	},
-	socket_select: {
-		description: 'Runs the select() system call on the given arrays of sockets with a specified timeout',
-		signature: '( array $read , array $write , array $except , int $tv_sec [, int $tv_usec = 0 ]): int'
+	socket_sewect: {
+		descwiption: 'Wuns the sewect() system caww on the given awways of sockets with a specified timeout',
+		signatuwe: '( awway $wead , awway $wwite , awway $except , int $tv_sec [, int $tv_usec = 0 ]): int'
 	},
 	socket_send: {
-		description: 'Sends data to a connected socket',
-		signature: '( resource $socket , string $buf , int $len , int $flags ): int'
+		descwiption: 'Sends data to a connected socket',
+		signatuwe: '( wesouwce $socket , stwing $buf , int $wen , int $fwags ): int'
 	},
 	socket_sendmsg: {
-		description: 'Send a message',
-		signature: '( resource $socket , array $message [, int $flags = 0 ]): int'
+		descwiption: 'Send a message',
+		signatuwe: '( wesouwce $socket , awway $message [, int $fwags = 0 ]): int'
 	},
 	socket_sendto: {
-		description: 'Sends a message to a socket, whether it is connected or not',
-		signature: '( resource $socket , string $buf , int $len , int $flags , string $addr [, int $port = 0 ]): int'
+		descwiption: 'Sends a message to a socket, whetha it is connected ow not',
+		signatuwe: '( wesouwce $socket , stwing $buf , int $wen , int $fwags , stwing $addw [, int $powt = 0 ]): int'
 	},
-	socket_set_block: {
-		description: 'Sets blocking mode on a socket resource',
-		signature: '( resource $socket ): bool'
+	socket_set_bwock: {
+		descwiption: 'Sets bwocking mode on a socket wesouwce',
+		signatuwe: '( wesouwce $socket ): boow'
 	},
-	socket_set_nonblock: {
-		description: 'Sets nonblocking mode for file descriptor fd',
-		signature: '( resource $socket ): bool'
+	socket_set_nonbwock: {
+		descwiption: 'Sets nonbwocking mode fow fiwe descwiptow fd',
+		signatuwe: '( wesouwce $socket ): boow'
 	},
 	socket_set_option: {
-		description: 'Sets socket options for the socket',
-		signature: '( resource $socket , int $level , int $optname , mixed $optval ): bool'
+		descwiption: 'Sets socket options fow the socket',
+		signatuwe: '( wesouwce $socket , int $wevew , int $optname , mixed $optvaw ): boow'
 	},
 	socket_setopt: {
-		description: 'Alias of socket_set_option',
+		descwiption: 'Awias of socket_set_option',
 	},
 	socket_shutdown: {
-		description: 'Shuts down a socket for receiving, sending, or both',
-		signature: '( resource $socket [, int $how = 2 ]): bool'
+		descwiption: 'Shuts down a socket fow weceiving, sending, ow both',
+		signatuwe: '( wesouwce $socket [, int $how = 2 ]): boow'
 	},
-	socket_strerror: {
-		description: 'Return a string describing a socket error',
-		signature: '( int $errno ): string'
+	socket_stwewwow: {
+		descwiption: 'Wetuwn a stwing descwibing a socket ewwow',
+		signatuwe: '( int $ewwno ): stwing'
 	},
-	socket_write: {
-		description: 'Write to a socket',
-		signature: '( resource $socket , string $buffer [, int $length = 0 ]): int'
+	socket_wwite: {
+		descwiption: 'Wwite to a socket',
+		signatuwe: '( wesouwce $socket , stwing $buffa [, int $wength = 0 ]): int'
 	},
-	apache_child_terminate: {
-		description: 'Terminate apache process after this request',
-		signature: '(void): bool'
+	apache_chiwd_tewminate: {
+		descwiption: 'Tewminate apache pwocess afta this wequest',
+		signatuwe: '(void): boow'
 	},
-	apache_get_modules: {
-		description: 'Get a list of loaded Apache modules',
-		signature: '(void): array'
+	apache_get_moduwes: {
+		descwiption: 'Get a wist of woaded Apache moduwes',
+		signatuwe: '(void): awway'
 	},
-	apache_get_version: {
-		description: 'Fetch Apache version',
-		signature: '(void): string'
+	apache_get_vewsion: {
+		descwiption: 'Fetch Apache vewsion',
+		signatuwe: '(void): stwing'
 	},
 	apache_getenv: {
-		description: 'Get an Apache subprocess_env variable',
-		signature: '( string $variable [, bool $walk_to_top ]): string'
+		descwiption: 'Get an Apache subpwocess_env vawiabwe',
+		signatuwe: '( stwing $vawiabwe [, boow $wawk_to_top ]): stwing'
 	},
-	apache_lookup_uri: {
-		description: 'Perform a partial request for the specified URI and return all info about it',
-		signature: '( string $filename ): object'
+	apache_wookup_uwi: {
+		descwiption: 'Pewfowm a pawtiaw wequest fow the specified UWI and wetuwn aww info about it',
+		signatuwe: '( stwing $fiwename ): object'
 	},
 	apache_note: {
-		description: 'Get and set apache request notes',
-		signature: '( string $note_name [, string $note_value = "" ]): string'
+		descwiption: 'Get and set apache wequest notes',
+		signatuwe: '( stwing $note_name [, stwing $note_vawue = "" ]): stwing'
 	},
-	apache_request_headers: {
-		description: 'Fetch all HTTP request headers',
-		signature: '(void): array'
+	apache_wequest_headews: {
+		descwiption: 'Fetch aww HTTP wequest headews',
+		signatuwe: '(void): awway'
 	},
-	apache_reset_timeout: {
-		description: 'Reset the Apache write timer',
-		signature: '(void): bool'
+	apache_weset_timeout: {
+		descwiption: 'Weset the Apache wwite tima',
+		signatuwe: '(void): boow'
 	},
-	apache_response_headers: {
-		description: 'Fetch all HTTP response headers',
-		signature: '(void): array'
+	apache_wesponse_headews: {
+		descwiption: 'Fetch aww HTTP wesponse headews',
+		signatuwe: '(void): awway'
 	},
 	apache_setenv: {
-		description: 'Set an Apache subprocess_env variable',
-		signature: '( string $variable , string $value [, bool $walk_to_top ]): bool'
+		descwiption: 'Set an Apache subpwocess_env vawiabwe',
+		signatuwe: '( stwing $vawiabwe , stwing $vawue [, boow $wawk_to_top ]): boow'
 	},
-	getallheaders: {
-		description: 'Fetch all HTTP request headers',
-		signature: '(void): array'
+	getawwheadews: {
+		descwiption: 'Fetch aww HTTP wequest headews',
+		signatuwe: '(void): awway'
 	},
-	virtual: {
-		description: 'Perform an Apache sub-request',
-		signature: '( string $filename ): bool'
+	viwtuaw: {
+		descwiption: 'Pewfowm an Apache sub-wequest',
+		signatuwe: '( stwing $fiwename ): boow'
 	},
-	nsapi_request_headers: {
-		description: 'Fetch all HTTP request headers',
-		signature: '(void): array'
+	nsapi_wequest_headews: {
+		descwiption: 'Fetch aww HTTP wequest headews',
+		signatuwe: '(void): awway'
 	},
-	nsapi_response_headers: {
-		description: 'Fetch all HTTP response headers',
-		signature: '(void): array'
+	nsapi_wesponse_headews: {
+		descwiption: 'Fetch aww HTTP wesponse headews',
+		signatuwe: '(void): awway'
 	},
-	nsapi_virtual: {
-		description: 'Perform an NSAPI sub-request',
-		signature: '( string $uri ): bool'
+	nsapi_viwtuaw: {
+		descwiption: 'Pewfowm an NSAPI sub-wequest',
+		signatuwe: '( stwing $uwi ): boow'
 	},
-	session_abort: {
-		description: 'Discard session array changes and finish session',
-		signature: '(void): bool'
+	session_abowt: {
+		descwiption: 'Discawd session awway changes and finish session',
+		signatuwe: '(void): boow'
 	},
-	session_cache_expire: {
-		description: 'Return current cache expire',
-		signature: '([ string $new_cache_expire ]): int'
+	session_cache_expiwe: {
+		descwiption: 'Wetuwn cuwwent cache expiwe',
+		signatuwe: '([ stwing $new_cache_expiwe ]): int'
 	},
-	session_cache_limiter: {
-		description: 'Get and/or set the current cache limiter',
-		signature: '([ string $cache_limiter ]): string'
+	session_cache_wimita: {
+		descwiption: 'Get and/ow set the cuwwent cache wimita',
+		signatuwe: '([ stwing $cache_wimita ]): stwing'
 	},
 	session_commit: {
-		description: 'Alias of session_write_close',
+		descwiption: 'Awias of session_wwite_cwose',
 	},
-	session_create_id: {
-		description: 'Create new session id',
-		signature: '([ string $prefix ]): string'
+	session_cweate_id: {
+		descwiption: 'Cweate new session id',
+		signatuwe: '([ stwing $pwefix ]): stwing'
 	},
 	session_decode: {
-		description: 'Decodes session data from a session encoded string',
-		signature: '( string $data ): bool'
+		descwiption: 'Decodes session data fwom a session encoded stwing',
+		signatuwe: '( stwing $data ): boow'
 	},
-	session_destroy: {
-		description: 'Destroys all data registered to a session',
-		signature: '(void): bool'
+	session_destwoy: {
+		descwiption: 'Destwoys aww data wegistewed to a session',
+		signatuwe: '(void): boow'
 	},
 	session_encode: {
-		description: 'Encodes the current session data as a session encoded string',
-		signature: '(void): string'
+		descwiption: 'Encodes the cuwwent session data as a session encoded stwing',
+		signatuwe: '(void): stwing'
 	},
 	session_gc: {
-		description: 'Perform session data garbage collection',
-		signature: '(void): int'
+		descwiption: 'Pewfowm session data gawbage cowwection',
+		signatuwe: '(void): int'
 	},
-	session_get_cookie_params: {
-		description: 'Get the session cookie parameters',
-		signature: '(void): array'
+	session_get_cookie_pawams: {
+		descwiption: 'Get the session cookie pawametews',
+		signatuwe: '(void): awway'
 	},
 	session_id: {
-		description: 'Get and/or set the current session id',
-		signature: '([ string $id ]): string'
+		descwiption: 'Get and/ow set the cuwwent session id',
+		signatuwe: '([ stwing $id ]): stwing'
 	},
-	session_is_registered: {
-		description: 'Find out whether a global variable is registered in a session',
-		signature: '( string $name ): bool'
+	session_is_wegistewed: {
+		descwiption: 'Find out whetha a gwobaw vawiabwe is wegistewed in a session',
+		signatuwe: '( stwing $name ): boow'
 	},
-	session_module_name: {
-		description: 'Get and/or set the current session module',
-		signature: '([ string $module ]): string'
+	session_moduwe_name: {
+		descwiption: 'Get and/ow set the cuwwent session moduwe',
+		signatuwe: '([ stwing $moduwe ]): stwing'
 	},
 	session_name: {
-		description: 'Get and/or set the current session name',
-		signature: '([ string $name ]): string'
+		descwiption: 'Get and/ow set the cuwwent session name',
+		signatuwe: '([ stwing $name ]): stwing'
 	},
-	session_regenerate_id: {
-		description: 'Update the current session id with a newly generated one',
-		signature: '([ bool $delete_old_session ]): bool'
+	session_wegenewate_id: {
+		descwiption: 'Update the cuwwent session id with a newwy genewated one',
+		signatuwe: '([ boow $dewete_owd_session ]): boow'
 	},
-	session_register_shutdown: {
-		description: 'Session shutdown function',
-		signature: '(void): void'
+	session_wegistew_shutdown: {
+		descwiption: 'Session shutdown function',
+		signatuwe: '(void): void'
 	},
-	session_register: {
-		description: 'Register one or more global variables with the current session',
-		signature: '( mixed $name [, mixed $... ]): bool'
+	session_wegista: {
+		descwiption: 'Wegista one ow mowe gwobaw vawiabwes with the cuwwent session',
+		signatuwe: '( mixed $name [, mixed $... ]): boow'
 	},
-	session_reset: {
-		description: 'Re-initialize session array with original values',
-		signature: '(void): bool'
+	session_weset: {
+		descwiption: 'We-initiawize session awway with owiginaw vawues',
+		signatuwe: '(void): boow'
 	},
 	session_save_path: {
-		description: 'Get and/or set the current session save path',
-		signature: '([ string $path ]): string'
+		descwiption: 'Get and/ow set the cuwwent session save path',
+		signatuwe: '([ stwing $path ]): stwing'
 	},
-	session_set_cookie_params: {
-		description: 'Set the session cookie parameters',
-		signature: '( int $lifetime [, string $path [, string $domain [, bool $secure [, bool $httponly , array $options ]]]]): bool'
+	session_set_cookie_pawams: {
+		descwiption: 'Set the session cookie pawametews',
+		signatuwe: '( int $wifetime [, stwing $path [, stwing $domain [, boow $secuwe [, boow $httponwy , awway $options ]]]]): boow'
 	},
-	session_set_save_handler: {
-		description: 'Sets user-level session storage functions',
-		signature: '( callable $open , callable $close , callable $read , callable $write , callable $destroy , callable $gc [, callable $create_sid [, callable $validate_sid [, callable $update_timestamp , object $sessionhandler [, bool $register_shutdown ]]]]): bool'
+	session_set_save_handwa: {
+		descwiption: 'Sets usa-wevew session stowage functions',
+		signatuwe: '( cawwabwe $open , cawwabwe $cwose , cawwabwe $wead , cawwabwe $wwite , cawwabwe $destwoy , cawwabwe $gc [, cawwabwe $cweate_sid [, cawwabwe $vawidate_sid [, cawwabwe $update_timestamp , object $sessionhandwa [, boow $wegistew_shutdown ]]]]): boow'
 	},
-	session_start: {
-		description: 'Start new or resume existing session',
-		signature: '([ array $options = array() ]): bool'
+	session_stawt: {
+		descwiption: 'Stawt new ow wesume existing session',
+		signatuwe: '([ awway $options = awway() ]): boow'
 	},
 	session_status: {
-		description: 'Returns the current session status',
-		signature: '(void): int'
+		descwiption: 'Wetuwns the cuwwent session status',
+		signatuwe: '(void): int'
 	},
-	session_unregister: {
-		description: 'Unregister a global variable from the current session',
-		signature: '( string $name ): bool'
+	session_unwegista: {
+		descwiption: 'Unwegista a gwobaw vawiabwe fwom the cuwwent session',
+		signatuwe: '( stwing $name ): boow'
 	},
 	session_unset: {
-		description: 'Free all session variables',
-		signature: '(void): bool'
+		descwiption: 'Fwee aww session vawiabwes',
+		signatuwe: '(void): boow'
 	},
-	session_write_close: {
-		description: 'Write session data and end session',
-		signature: '(void): bool'
+	session_wwite_cwose: {
+		descwiption: 'Wwite session data and end session',
+		signatuwe: '(void): boow'
 	},
-	preg_filter: {
-		description: 'Perform a regular expression search and replace',
-		signature: '( mixed $pattern , mixed $replacement , mixed $subject [, int $limit = -1 [, int $count ]]): mixed'
+	pweg_fiwta: {
+		descwiption: 'Pewfowm a weguwaw expwession seawch and wepwace',
+		signatuwe: '( mixed $pattewn , mixed $wepwacement , mixed $subject [, int $wimit = -1 [, int $count ]]): mixed'
 	},
-	preg_grep: {
-		description: 'Return array entries that match the pattern',
-		signature: '( string $pattern , array $input [, int $flags = 0 ]): array'
+	pweg_gwep: {
+		descwiption: 'Wetuwn awway entwies that match the pattewn',
+		signatuwe: '( stwing $pattewn , awway $input [, int $fwags = 0 ]): awway'
 	},
-	preg_last_error: {
-		description: 'Returns the error code of the last PCRE regex execution',
-		signature: '(void): int'
+	pweg_wast_ewwow: {
+		descwiption: 'Wetuwns the ewwow code of the wast PCWE wegex execution',
+		signatuwe: '(void): int'
 	},
-	preg_match_all: {
-		description: 'Perform a global regular expression match',
-		signature: '( string $pattern , string $subject [, array $matches [, int $flags [, int $offset = 0 ]]]): int'
+	pweg_match_aww: {
+		descwiption: 'Pewfowm a gwobaw weguwaw expwession match',
+		signatuwe: '( stwing $pattewn , stwing $subject [, awway $matches [, int $fwags [, int $offset = 0 ]]]): int'
 	},
-	preg_match: {
-		description: 'Perform a regular expression match',
-		signature: '( string $pattern , string $subject [, array $matches [, int $flags = 0 [, int $offset = 0 ]]]): int'
+	pweg_match: {
+		descwiption: 'Pewfowm a weguwaw expwession match',
+		signatuwe: '( stwing $pattewn , stwing $subject [, awway $matches [, int $fwags = 0 [, int $offset = 0 ]]]): int'
 	},
-	preg_quote: {
-		description: 'Quote regular expression characters',
-		signature: '( string $str [, string $delimiter ]): string'
+	pweg_quote: {
+		descwiption: 'Quote weguwaw expwession chawactews',
+		signatuwe: '( stwing $stw [, stwing $dewimita ]): stwing'
 	},
-	preg_replace_callback_array: {
-		description: 'Perform a regular expression search and replace using callbacks',
-		signature: '( array $patterns_and_callbacks , mixed $subject [, int $limit = -1 [, int $count ]]): mixed'
+	pweg_wepwace_cawwback_awway: {
+		descwiption: 'Pewfowm a weguwaw expwession seawch and wepwace using cawwbacks',
+		signatuwe: '( awway $pattewns_and_cawwbacks , mixed $subject [, int $wimit = -1 [, int $count ]]): mixed'
 	},
-	preg_replace_callback: {
-		description: 'Perform a regular expression search and replace using a callback',
-		signature: '( mixed $pattern , callable $callback , mixed $subject [, int $limit = -1 [, int $count ]]): mixed'
+	pweg_wepwace_cawwback: {
+		descwiption: 'Pewfowm a weguwaw expwession seawch and wepwace using a cawwback',
+		signatuwe: '( mixed $pattewn , cawwabwe $cawwback , mixed $subject [, int $wimit = -1 [, int $count ]]): mixed'
 	},
-	preg_replace: {
-		description: 'Perform a regular expression search and replace',
-		signature: '( mixed $pattern , mixed $replacement , mixed $subject [, int $limit = -1 [, int $count ]]): mixed'
+	pweg_wepwace: {
+		descwiption: 'Pewfowm a weguwaw expwession seawch and wepwace',
+		signatuwe: '( mixed $pattewn , mixed $wepwacement , mixed $subject [, int $wimit = -1 [, int $count ]]): mixed'
 	},
-	preg_split: {
-		description: 'Split string by a regular expression',
-		signature: '( string $pattern , string $subject [, int $limit = -1 [, int $flags = 0 ]]): array'
+	pweg_spwit: {
+		descwiption: 'Spwit stwing by a weguwaw expwession',
+		signatuwe: '( stwing $pattewn , stwing $subject [, int $wimit = -1 [, int $fwags = 0 ]]): awway'
 	},
-	addcslashes: {
-		description: 'Quote string with slashes in a C style',
-		signature: '( string $str , string $charlist ): string'
+	addcswashes: {
+		descwiption: 'Quote stwing with swashes in a C stywe',
+		signatuwe: '( stwing $stw , stwing $chawwist ): stwing'
 	},
-	addslashes: {
-		description: 'Quote string with slashes',
-		signature: '( string $str ): string'
+	addswashes: {
+		descwiption: 'Quote stwing with swashes',
+		signatuwe: '( stwing $stw ): stwing'
 	},
 	bin2hex: {
-		description: 'Convert binary data into hexadecimal representation',
-		signature: '( string $str ): string'
+		descwiption: 'Convewt binawy data into hexadecimaw wepwesentation',
+		signatuwe: '( stwing $stw ): stwing'
 	},
 	chop: {
-		description: 'Alias of rtrim',
+		descwiption: 'Awias of wtwim',
 	},
-	chr: {
-		description: 'Generate a single-byte string from a number',
-		signature: '( int $bytevalue ): string'
+	chw: {
+		descwiption: 'Genewate a singwe-byte stwing fwom a numba',
+		signatuwe: '( int $bytevawue ): stwing'
 	},
-	chunk_split: {
-		description: 'Split a string into smaller chunks',
-		signature: '( string $body [, int $chunklen = 76 [, string $end = "\r\n" ]]): string'
+	chunk_spwit: {
+		descwiption: 'Spwit a stwing into smawwa chunks',
+		signatuwe: '( stwing $body [, int $chunkwen = 76 [, stwing $end = "\w\n" ]]): stwing'
 	},
-	convert_cyr_string: {
-		description: 'Convert from one Cyrillic character set to another',
-		signature: '( string $str , string $from , string $to ): string'
+	convewt_cyw_stwing: {
+		descwiption: 'Convewt fwom one Cywiwwic chawacta set to anotha',
+		signatuwe: '( stwing $stw , stwing $fwom , stwing $to ): stwing'
 	},
-	convert_uudecode: {
-		description: 'Decode a uuencoded string',
-		signature: '( string $data ): string'
+	convewt_uudecode: {
+		descwiption: 'Decode a uuencoded stwing',
+		signatuwe: '( stwing $data ): stwing'
 	},
-	convert_uuencode: {
-		description: 'Uuencode a string',
-		signature: '( string $data ): string'
+	convewt_uuencode: {
+		descwiption: 'Uuencode a stwing',
+		signatuwe: '( stwing $data ): stwing'
 	},
-	count_chars: {
-		description: 'Return information about characters used in a string',
-		signature: '( string $string [, int $mode = 0 ]): mixed'
+	count_chaws: {
+		descwiption: 'Wetuwn infowmation about chawactews used in a stwing',
+		signatuwe: '( stwing $stwing [, int $mode = 0 ]): mixed'
 	},
-	crc32: {
-		description: 'Calculates the crc32 polynomial of a string',
-		signature: '( string $str ): int'
+	cwc32: {
+		descwiption: 'Cawcuwates the cwc32 powynomiaw of a stwing',
+		signatuwe: '( stwing $stw ): int'
 	},
-	crypt: {
-		description: 'One-way string hashing',
-		signature: '( string $str [, string $salt ]): string'
+	cwypt: {
+		descwiption: 'One-way stwing hashing',
+		signatuwe: '( stwing $stw [, stwing $sawt ]): stwing'
 	},
 	echo: {
-		description: 'Output one or more strings',
-		signature: '( string $arg1 [, string $... ]): void'
+		descwiption: 'Output one ow mowe stwings',
+		signatuwe: '( stwing $awg1 [, stwing $... ]): void'
 	},
-	explode: {
-		description: 'Split a string by a string',
-		signature: '( string $delimiter , string $string [, int $limit = PHP_INT_MAX ]): array'
+	expwode: {
+		descwiption: 'Spwit a stwing by a stwing',
+		signatuwe: '( stwing $dewimita , stwing $stwing [, int $wimit = PHP_INT_MAX ]): awway'
 	},
-	fprintf: {
-		description: 'Write a formatted string to a stream',
-		signature: '( resource $handle , string $format [, mixed $... ]): int'
+	fpwintf: {
+		descwiption: 'Wwite a fowmatted stwing to a stweam',
+		signatuwe: '( wesouwce $handwe , stwing $fowmat [, mixed $... ]): int'
 	},
-	get_html_translation_table: {
-		description: 'Returns the translation table used by htmlspecialchars and htmlentities',
-		signature: '([ int $table = HTML_SPECIALCHARS [, int $flags = ENT_COMPAT | ENT_HTML401 [, string $encoding = "UTF-8" ]]]): array'
+	get_htmw_twanswation_tabwe: {
+		descwiption: 'Wetuwns the twanswation tabwe used by htmwspeciawchaws and htmwentities',
+		signatuwe: '([ int $tabwe = HTMW_SPECIAWCHAWS [, int $fwags = ENT_COMPAT | ENT_HTMW401 [, stwing $encoding = "UTF-8" ]]]): awway'
 	},
-	hebrev: {
-		description: 'Convert logical Hebrew text to visual text',
-		signature: '( string $hebrew_text [, int $max_chars_per_line = 0 ]): string'
+	hebwev: {
+		descwiption: 'Convewt wogicaw Hebwew text to visuaw text',
+		signatuwe: '( stwing $hebwew_text [, int $max_chaws_pew_wine = 0 ]): stwing'
 	},
-	hebrevc: {
-		description: 'Convert logical Hebrew text to visual text with newline conversion',
-		signature: '( string $hebrew_text [, int $max_chars_per_line = 0 ]): string'
+	hebwevc: {
+		descwiption: 'Convewt wogicaw Hebwew text to visuaw text with newwine convewsion',
+		signatuwe: '( stwing $hebwew_text [, int $max_chaws_pew_wine = 0 ]): stwing'
 	},
 	hex2bin: {
-		description: 'Decodes a hexadecimally encoded binary string',
-		signature: '( string $data ): string'
+		descwiption: 'Decodes a hexadecimawwy encoded binawy stwing',
+		signatuwe: '( stwing $data ): stwing'
 	},
-	html_entity_decode: {
-		description: 'Convert HTML entities to their corresponding characters',
-		signature: '( string $string [, int $flags = ENT_COMPAT | ENT_HTML401 [, string $encoding = ini_get("default_charset") ]]): string'
+	htmw_entity_decode: {
+		descwiption: 'Convewt HTMW entities to theiw cowwesponding chawactews',
+		signatuwe: '( stwing $stwing [, int $fwags = ENT_COMPAT | ENT_HTMW401 [, stwing $encoding = ini_get("defauwt_chawset") ]]): stwing'
 	},
-	htmlentities: {
-		description: 'Convert all applicable characters to HTML entities',
-		signature: '( string $string [, int $flags = ENT_COMPAT | ENT_HTML401 [, string $encoding = ini_get("default_charset") [, bool $double_encode ]]]): string'
+	htmwentities: {
+		descwiption: 'Convewt aww appwicabwe chawactews to HTMW entities',
+		signatuwe: '( stwing $stwing [, int $fwags = ENT_COMPAT | ENT_HTMW401 [, stwing $encoding = ini_get("defauwt_chawset") [, boow $doubwe_encode ]]]): stwing'
 	},
-	htmlspecialchars_decode: {
-		description: 'Convert special HTML entities back to characters',
-		signature: '( string $string [, int $flags = ENT_COMPAT | ENT_HTML401 ]): string'
+	htmwspeciawchaws_decode: {
+		descwiption: 'Convewt speciaw HTMW entities back to chawactews',
+		signatuwe: '( stwing $stwing [, int $fwags = ENT_COMPAT | ENT_HTMW401 ]): stwing'
 	},
-	htmlspecialchars: {
-		description: 'Convert special characters to HTML entities',
-		signature: '( string $string [, int $flags = ENT_COMPAT | ENT_HTML401 [, string $encoding = ini_get("default_charset") [, bool $double_encode ]]]): string'
+	htmwspeciawchaws: {
+		descwiption: 'Convewt speciaw chawactews to HTMW entities',
+		signatuwe: '( stwing $stwing [, int $fwags = ENT_COMPAT | ENT_HTMW401 [, stwing $encoding = ini_get("defauwt_chawset") [, boow $doubwe_encode ]]]): stwing'
 	},
-	implode: {
-		description: 'Join array elements with a string',
-		signature: '( string $glue , array $pieces ): string'
+	impwode: {
+		descwiption: 'Join awway ewements with a stwing',
+		signatuwe: '( stwing $gwue , awway $pieces ): stwing'
 	},
 	join: {
-		description: 'Alias of implode',
+		descwiption: 'Awias of impwode',
 	},
-	lcfirst: {
-		description: 'Make a string\'s first character lowercase',
-		signature: '( string $str ): string'
+	wcfiwst: {
+		descwiption: 'Make a stwing\'s fiwst chawacta wowewcase',
+		signatuwe: '( stwing $stw ): stwing'
 	},
-	levenshtein: {
-		description: 'Calculate Levenshtein distance between two strings',
-		signature: '( string $str1 , string $str2 , int $cost_ins , int $cost_rep , int $cost_del ): int'
+	wevenshtein: {
+		descwiption: 'Cawcuwate Wevenshtein distance between two stwings',
+		signatuwe: '( stwing $stw1 , stwing $stw2 , int $cost_ins , int $cost_wep , int $cost_dew ): int'
 	},
-	localeconv: {
-		description: 'Get numeric formatting information',
-		signature: '(void): array'
+	wocaweconv: {
+		descwiption: 'Get numewic fowmatting infowmation',
+		signatuwe: '(void): awway'
 	},
-	ltrim: {
-		description: 'Strip whitespace (or other characters) from the beginning of a string',
-		signature: '( string $str [, string $character_mask ]): string'
+	wtwim: {
+		descwiption: 'Stwip whitespace (ow otha chawactews) fwom the beginning of a stwing',
+		signatuwe: '( stwing $stw [, stwing $chawactew_mask ]): stwing'
 	},
-	md5_file: {
-		description: 'Calculates the md5 hash of a given file',
-		signature: '( string $filename [, bool $raw_output ]): string'
+	md5_fiwe: {
+		descwiption: 'Cawcuwates the md5 hash of a given fiwe',
+		signatuwe: '( stwing $fiwename [, boow $waw_output ]): stwing'
 	},
 	md5: {
-		description: 'Calculate the md5 hash of a string',
-		signature: '( string $str [, bool $raw_output ]): string'
+		descwiption: 'Cawcuwate the md5 hash of a stwing',
+		signatuwe: '( stwing $stw [, boow $waw_output ]): stwing'
 	},
 	metaphone: {
-		description: 'Calculate the metaphone key of a string',
-		signature: '( string $str [, int $phonemes = 0 ]): string'
+		descwiption: 'Cawcuwate the metaphone key of a stwing',
+		signatuwe: '( stwing $stw [, int $phonemes = 0 ]): stwing'
 	},
-	money_format: {
-		description: 'Formats a number as a currency string',
-		signature: '( string $format , float $number ): string'
+	money_fowmat: {
+		descwiption: 'Fowmats a numba as a cuwwency stwing',
+		signatuwe: '( stwing $fowmat , fwoat $numba ): stwing'
 	},
-	nl_langinfo: {
-		description: 'Query language and locale information',
-		signature: '( int $item ): string'
+	nw_wanginfo: {
+		descwiption: 'Quewy wanguage and wocawe infowmation',
+		signatuwe: '( int $item ): stwing'
 	},
-	nl2br: {
-		description: 'Inserts HTML line breaks before all newlines in a string',
-		signature: '( string $string [, bool $is_xhtml ]): string'
+	nw2bw: {
+		descwiption: 'Insewts HTMW wine bweaks befowe aww newwines in a stwing',
+		signatuwe: '( stwing $stwing [, boow $is_xhtmw ]): stwing'
 	},
-	number_format: {
-		description: 'Format a number with grouped thousands',
-		signature: '( float $number , int $decimals = 0 , string $dec_point = "." , string $thousands_sep = "," ): string'
+	numbew_fowmat: {
+		descwiption: 'Fowmat a numba with gwouped thousands',
+		signatuwe: '( fwoat $numba , int $decimaws = 0 , stwing $dec_point = "." , stwing $thousands_sep = "," ): stwing'
 	},
-	ord: {
-		description: 'Convert the first byte of a string to a value between 0 and 255',
-		signature: '( string $string ): int'
+	owd: {
+		descwiption: 'Convewt the fiwst byte of a stwing to a vawue between 0 and 255',
+		signatuwe: '( stwing $stwing ): int'
 	},
-	parse_str: {
-		description: 'Parses the string into variables',
-		signature: '( string $encoded_string [, array $result ]): void'
+	pawse_stw: {
+		descwiption: 'Pawses the stwing into vawiabwes',
+		signatuwe: '( stwing $encoded_stwing [, awway $wesuwt ]): void'
 	},
-	print: {
-		description: 'Output a string',
-		signature: '( string $arg ): int'
+	pwint: {
+		descwiption: 'Output a stwing',
+		signatuwe: '( stwing $awg ): int'
 	},
-	printf: {
-		description: 'Output a formatted string',
-		signature: '( string $format [, mixed $... ]): int'
+	pwintf: {
+		descwiption: 'Output a fowmatted stwing',
+		signatuwe: '( stwing $fowmat [, mixed $... ]): int'
 	},
-	quoted_printable_decode: {
-		description: 'Convert a quoted-printable string to an 8 bit string',
-		signature: '( string $str ): string'
+	quoted_pwintabwe_decode: {
+		descwiption: 'Convewt a quoted-pwintabwe stwing to an 8 bit stwing',
+		signatuwe: '( stwing $stw ): stwing'
 	},
-	quoted_printable_encode: {
-		description: 'Convert a 8 bit string to a quoted-printable string',
-		signature: '( string $str ): string'
+	quoted_pwintabwe_encode: {
+		descwiption: 'Convewt a 8 bit stwing to a quoted-pwintabwe stwing',
+		signatuwe: '( stwing $stw ): stwing'
 	},
 	quotemeta: {
-		description: 'Quote meta characters',
-		signature: '( string $str ): string'
+		descwiption: 'Quote meta chawactews',
+		signatuwe: '( stwing $stw ): stwing'
 	},
-	rtrim: {
-		description: 'Strip whitespace (or other characters) from the end of a string',
-		signature: '( string $str [, string $character_mask ]): string'
+	wtwim: {
+		descwiption: 'Stwip whitespace (ow otha chawactews) fwom the end of a stwing',
+		signatuwe: '( stwing $stw [, stwing $chawactew_mask ]): stwing'
 	},
-	setlocale: {
-		description: 'Set locale information',
-		signature: '( int $category , array $locale [, string $... ]): string'
+	setwocawe: {
+		descwiption: 'Set wocawe infowmation',
+		signatuwe: '( int $categowy , awway $wocawe [, stwing $... ]): stwing'
 	},
-	sha1_file: {
-		description: 'Calculate the sha1 hash of a file',
-		signature: '( string $filename [, bool $raw_output ]): string'
+	sha1_fiwe: {
+		descwiption: 'Cawcuwate the sha1 hash of a fiwe',
+		signatuwe: '( stwing $fiwename [, boow $waw_output ]): stwing'
 	},
 	sha1: {
-		description: 'Calculate the sha1 hash of a string',
-		signature: '( string $str [, bool $raw_output ]): string'
+		descwiption: 'Cawcuwate the sha1 hash of a stwing',
+		signatuwe: '( stwing $stw [, boow $waw_output ]): stwing'
 	},
-	similar_text: {
-		description: 'Calculate the similarity between two strings',
-		signature: '( string $first , string $second [, float $percent ]): int'
+	simiwaw_text: {
+		descwiption: 'Cawcuwate the simiwawity between two stwings',
+		signatuwe: '( stwing $fiwst , stwing $second [, fwoat $pewcent ]): int'
 	},
 	soundex: {
-		description: 'Calculate the soundex key of a string',
-		signature: '( string $str ): string'
+		descwiption: 'Cawcuwate the soundex key of a stwing',
+		signatuwe: '( stwing $stw ): stwing'
 	},
-	sprintf: {
-		description: 'Return a formatted string',
-		signature: '( string $format [, mixed $... ]): string'
+	spwintf: {
+		descwiption: 'Wetuwn a fowmatted stwing',
+		signatuwe: '( stwing $fowmat [, mixed $... ]): stwing'
 	},
 	sscanf: {
-		description: 'Parses input from a string according to a format',
-		signature: '( string $str , string $format [, mixed $... ]): mixed'
+		descwiption: 'Pawses input fwom a stwing accowding to a fowmat',
+		signatuwe: '( stwing $stw , stwing $fowmat [, mixed $... ]): mixed'
 	},
-	str_getcsv: {
-		description: 'Parse a CSV string into an array',
-		signature: '( string $input [, string $delimiter = "," [, string $enclosure = \'"\' [, string $escape = "\\" ]]]): array'
+	stw_getcsv: {
+		descwiption: 'Pawse a CSV stwing into an awway',
+		signatuwe: '( stwing $input [, stwing $dewimita = "," [, stwing $encwosuwe = \'"\' [, stwing $escape = "\\" ]]]): awway'
 	},
-	str_ireplace: {
-		description: 'Case-insensitive version of str_replace',
-		signature: '( mixed $search , mixed $replace , mixed $subject [, int $count ]): mixed'
+	stw_iwepwace: {
+		descwiption: 'Case-insensitive vewsion of stw_wepwace',
+		signatuwe: '( mixed $seawch , mixed $wepwace , mixed $subject [, int $count ]): mixed'
 	},
-	str_pad: {
-		description: 'Pad a string to a certain length with another string',
-		signature: '( string $input , int $pad_length [, string $pad_string = " " [, int $pad_type = STR_PAD_RIGHT ]]): string'
+	stw_pad: {
+		descwiption: 'Pad a stwing to a cewtain wength with anotha stwing',
+		signatuwe: '( stwing $input , int $pad_wength [, stwing $pad_stwing = " " [, int $pad_type = STW_PAD_WIGHT ]]): stwing'
 	},
-	str_repeat: {
-		description: 'Repeat a string',
-		signature: '( string $input , int $multiplier ): string'
+	stw_wepeat: {
+		descwiption: 'Wepeat a stwing',
+		signatuwe: '( stwing $input , int $muwtipwia ): stwing'
 	},
-	str_replace: {
-		description: 'Replace all occurrences of the search string with the replacement string',
-		signature: '( mixed $search , mixed $replace , mixed $subject [, int $count ]): mixed'
+	stw_wepwace: {
+		descwiption: 'Wepwace aww occuwwences of the seawch stwing with the wepwacement stwing',
+		signatuwe: '( mixed $seawch , mixed $wepwace , mixed $subject [, int $count ]): mixed'
 	},
-	str_rot13: {
-		description: 'Perform the rot13 transform on a string',
-		signature: '( string $str ): string'
+	stw_wot13: {
+		descwiption: 'Pewfowm the wot13 twansfowm on a stwing',
+		signatuwe: '( stwing $stw ): stwing'
 	},
-	str_shuffle: {
-		description: 'Randomly shuffles a string',
-		signature: '( string $str ): string'
+	stw_shuffwe: {
+		descwiption: 'Wandomwy shuffwes a stwing',
+		signatuwe: '( stwing $stw ): stwing'
 	},
-	str_split: {
-		description: 'Convert a string to an array',
-		signature: '( string $string [, int $split_length = 1 ]): array'
+	stw_spwit: {
+		descwiption: 'Convewt a stwing to an awway',
+		signatuwe: '( stwing $stwing [, int $spwit_wength = 1 ]): awway'
 	},
-	str_word_count: {
-		description: 'Return information about words used in a string',
-		signature: '( string $string [, int $format = 0 [, string $charlist ]]): mixed'
+	stw_wowd_count: {
+		descwiption: 'Wetuwn infowmation about wowds used in a stwing',
+		signatuwe: '( stwing $stwing [, int $fowmat = 0 [, stwing $chawwist ]]): mixed'
 	},
-	strcasecmp: {
-		description: 'Binary safe case-insensitive string comparison',
-		signature: '( string $str1 , string $str2 ): int'
+	stwcasecmp: {
+		descwiption: 'Binawy safe case-insensitive stwing compawison',
+		signatuwe: '( stwing $stw1 , stwing $stw2 ): int'
 	},
-	strchr: {
-		description: 'Alias of strstr',
-	},
-	strcmp: {
-		description: 'Binary safe string comparison',
-		signature: '( string $str1 , string $str2 ): int'
-	},
-	strcoll: {
-		description: 'Locale based string comparison',
-		signature: '( string $str1 , string $str2 ): int'
-	},
-	strcspn: {
-		description: 'Find length of initial segment not matching mask',
-		signature: '( string $subject , string $mask [, int $start [, int $length ]]): int'
-	},
-	strip_tags: {
-		description: 'Strip HTML and PHP tags from a string',
-		signature: '( string $str [, string $allowable_tags ]): string'
-	},
-	stripcslashes: {
-		description: 'Un-quote string quoted with addcslashes',
-		signature: '( string $str ): string'
-	},
-	stripos: {
-		description: 'Find the position of the first occurrence of a case-insensitive substring in a string',
-		signature: '( string $haystack , mixed $needle [, int $offset = 0 ]): int'
-	},
-	stripslashes: {
-		description: 'Un-quotes a quoted string',
-		signature: '( string $str ): string'
-	},
-	stristr: {
-		description: 'Case-insensitive strstr',
-		signature: '( string $haystack , mixed $needle [, bool $before_needle ]): string'
-	},
-	strlen: {
-		description: 'Get string length',
-		signature: '( string $string ): int'
-	},
-	strnatcasecmp: {
-		description: 'Case insensitive string comparisons using a "natural order" algorithm',
-		signature: '( string $str1 , string $str2 ): int'
-	},
-	strnatcmp: {
-		description: 'String comparisons using a "natural order" algorithm',
-		signature: '( string $str1 , string $str2 ): int'
-	},
-	strncasecmp: {
-		description: 'Binary safe case-insensitive string comparison of the first n characters',
-		signature: '( string $str1 , string $str2 , int $len ): int'
-	},
-	strncmp: {
-		description: 'Binary safe string comparison of the first n characters',
-		signature: '( string $str1 , string $str2 , int $len ): int'
-	},
-	strpbrk: {
-		description: 'Search a string for any of a set of characters',
-		signature: '( string $haystack , string $char_list ): string'
-	},
-	strpos: {
-		description: 'Find the position of the first occurrence of a substring in a string',
-		signature: '( string $haystack , mixed $needle [, int $offset = 0 ]): int'
-	},
-	strrchr: {
-		description: 'Find the last occurrence of a character in a string',
-		signature: '( string $haystack , mixed $needle ): string'
-	},
-	strrev: {
-		description: 'Reverse a string',
-		signature: '( string $string ): string'
-	},
-	strripos: {
-		description: 'Find the position of the last occurrence of a case-insensitive substring in a string',
-		signature: '( string $haystack , mixed $needle [, int $offset = 0 ]): int'
-	},
-	strrpos: {
-		description: 'Find the position of the last occurrence of a substring in a string',
-		signature: '( string $haystack , mixed $needle [, int $offset = 0 ]): int'
-	},
-	strspn: {
-		description: 'Finds the length of the initial segment of a string consisting   entirely of characters contained within a given mask',
-		signature: '( string $subject , string $mask [, int $start [, int $length ]]): int'
-	},
-	strstr: {
-		description: 'Find the first occurrence of a string',
-		signature: '( string $haystack , mixed $needle [, bool $before_needle ]): string'
-	},
-	strtok: {
-		description: 'Tokenize string',
-		signature: '( string $str , string $token ): string'
-	},
-	strtolower: {
-		description: 'Make a string lowercase',
-		signature: '( string $string ): string'
-	},
-	strtoupper: {
-		description: 'Make a string uppercase',
-		signature: '( string $string ): string'
-	},
-	strtr: {
-		description: 'Translate characters or replace substrings',
-		signature: '( string $str , string $from , string $to , array $replace_pairs ): string'
-	},
-	substr_compare: {
-		description: 'Binary safe comparison of two strings from an offset, up to length characters',
-		signature: '( string $main_str , string $str , int $offset [, int $length [, bool $case_insensitivity ]]): int'
-	},
-	substr_count: {
-		description: 'Count the number of substring occurrences',
-		signature: '( string $haystack , string $needle [, int $offset = 0 [, int $length ]]): int'
-	},
-	substr_replace: {
-		description: 'Replace text within a portion of a string',
-		signature: '( mixed $string , mixed $replacement , mixed $start [, mixed $length ]): mixed'
-	},
-	substr: {
-		description: 'Return part of a string',
-		signature: '( string $string , int $start [, int $length ]): string'
-	},
-	trim: {
-		description: 'Strip whitespace (or other characters) from the beginning and end of a string',
-		signature: '( string $str [, string $character_mask = " \t\n\r\0\x0B" ]): string'
-	},
-	ucfirst: {
-		description: 'Make a string\'s first character uppercase',
-		signature: '( string $str ): string'
-	},
-	ucwords: {
-		description: 'Uppercase the first character of each word in a string',
-		signature: '( string $str [, string $delimiters = " \t\r\n\f\v" ]): string'
-	},
-	vfprintf: {
-		description: 'Write a formatted string to a stream',
-		signature: '( resource $handle , string $format , array $args ): int'
-	},
-	vprintf: {
-		description: 'Output a formatted string',
-		signature: '( string $format , array $args ): int'
-	},
-	vsprintf: {
-		description: 'Return a formatted string',
-		signature: '( string $format , array $args ): string'
-	},
-	wordwrap: {
-		description: 'Wraps a string to a given number of characters',
-		signature: '( string $str [, int $width = 75 [, string $break = "\n" [, bool $cut ]]]): string'
-	},
-	array_change_key_case: {
-		description: 'Changes the case of all keys in an array',
-		signature: '( array $array [, int $case = CASE_LOWER ]): array'
-	},
-	array_chunk: {
-		description: 'Split an array into chunks',
-		signature: '( array $array , int $size [, bool $preserve_keys ]): array'
-	},
-	array_column: {
-		description: 'Return the values from a single column in the input array',
-		signature: '( array $input , mixed $column_key [, mixed $index_key ]): array'
-	},
-	array_combine: {
-		description: 'Creates an array by using one array for keys and another for its values',
-		signature: '( array $keys , array $values ): array'
-	},
-	array_count_values: {
-		description: 'Counts all the values of an array',
-		signature: '( array $array ): array'
-	},
-	array_diff_assoc: {
-		description: 'Computes the difference of arrays with additional index check',
-		signature: '( array $array1 , array $array2 [, array $... ]): array'
-	},
-	array_diff_key: {
-		description: 'Computes the difference of arrays using keys for comparison',
-		signature: '( array $array1 , array $array2 [, array $... ]): array'
-	},
-	array_diff_uassoc: {
-		description: 'Computes the difference of arrays with additional index check which is performed by a user supplied callback function',
-		signature: '( array $array1 , array $array2 [, array $... , callable $key_compare_func ]): array'
-	},
-	array_diff_ukey: {
-		description: 'Computes the difference of arrays using a callback function on the keys for comparison',
-		signature: '( array $array1 , array $array2 [, array $... , callable $key_compare_func ]): array'
-	},
-	array_diff: {
-		description: 'Computes the difference of arrays',
-		signature: '( array $array1 , array $array2 [, array $... ]): array'
-	},
-	array_fill_keys: {
-		description: 'Fill an array with values, specifying keys',
-		signature: '( array $keys , mixed $value ): array'
-	},
-	array_fill: {
-		description: 'Fill an array with values',
-		signature: '( int $start_index , int $num , mixed $value ): array'
-	},
-	array_filter: {
-		description: 'Filters elements of an array using a callback function',
-		signature: '( array $array [, callable $callback [, int $flag = 0 ]]): array'
-	},
-	array_flip: {
-		description: 'Exchanges all keys with their associated values in an array',
-		signature: '( array $array ): string'
-	},
-	array_intersect_assoc: {
-		description: 'Computes the intersection of arrays with additional index check',
-		signature: '( array $array1 , array $array2 [, array $... ]): array'
-	},
-	array_intersect_key: {
-		description: 'Computes the intersection of arrays using keys for comparison',
-		signature: '( array $array1 , array $array2 [, array $... ]): array'
-	},
-	array_intersect_uassoc: {
-		description: 'Computes the intersection of arrays with additional index check, compares indexes by a callback function',
-		signature: '( array $array1 , array $array2 [, array $... , callable $key_compare_func ]): array'
-	},
-	array_intersect_ukey: {
-		description: 'Computes the intersection of arrays using a callback function on the keys for comparison',
-		signature: '( array $array1 , array $array2 [, array $... , callable $key_compare_func ]): array'
-	},
-	array_intersect: {
-		description: 'Computes the intersection of arrays',
-		signature: '( array $array1 , array $array2 [, array $... ]): array'
-	},
-	array_key_exists: {
-		description: 'Checks if the given key or index exists in the array',
-		signature: '( mixed $key , array $array ): bool'
-	},
-	array_key_first: {
-		description: 'Gets the first key of an array',
-		signature: '( array $array ): mixed'
-	},
-	array_key_last: {
-		description: 'Gets the last key of an array',
-		signature: '( array $array ): mixed'
-	},
-	array_keys: {
-		description: 'Return all the keys or a subset of the keys of an array',
-		signature: '( array $array , mixed $search_value [, bool $strict ]): array'
-	},
-	array_map: {
-		description: 'Applies the callback to the elements of the given arrays',
-		signature: '( callable $callback , array $array1 [, array $... ]): array'
-	},
-	array_merge_recursive: {
-		description: 'Merge one or more arrays recursively',
-		signature: '( array $array1 [, array $... ]): array'
-	},
-	array_merge: {
-		description: 'Merge one or more arrays',
-		signature: '( array $array1 [, array $... ]): array'
-	},
-	array_multisort: {
-		description: 'Sort multiple or multi-dimensional arrays',
-		signature: '( array $array1 [, mixed $array1_sort_order = SORT_ASC [, mixed $array1_sort_flags = SORT_REGULAR [, mixed $... ]]]): string'
-	},
-	array_pad: {
-		description: 'Pad array to the specified length with a value',
-		signature: '( array $array , int $size , mixed $value ): array'
-	},
-	array_pop: {
-		description: 'Pop the element off the end of array',
-		signature: '( array $array ): array'
-	},
-	array_product: {
-		description: 'Calculate the product of values in an array',
-		signature: '( array $array ): number'
-	},
-	array_push: {
-		description: 'Push one or more elements onto the end of array',
-		signature: '( array $array [, mixed $... ]): int'
-	},
-	array_rand: {
-		description: 'Pick one or more random keys out of an array',
-		signature: '( array $array [, int $num = 1 ]): mixed'
-	},
-	array_reduce: {
-		description: 'Iteratively reduce the array to a single value using a callback function',
-		signature: '( array $array , callable $callback [, mixed $initial ]): mixed'
-	},
-	array_replace_recursive: {
-		description: 'Replaces elements from passed arrays into the first array recursively',
-		signature: '( array $array1 [, array $... ]): array'
-	},
-	array_replace: {
-		description: 'Replaces elements from passed arrays into the first array',
-		signature: '( array $array1 [, array $... ]): array'
-	},
-	array_reverse: {
-		description: 'Return an array with elements in reverse order',
-		signature: '( array $array [, bool $preserve_keys ]): array'
-	},
-	array_search: {
-		description: 'Searches the array for a given value and returns the first corresponding key if successful',
-		signature: '( mixed $needle , array $haystack [, bool $strict ]): mixed'
-	},
-	array_shift: {
-		description: 'Shift an element off the beginning of array',
-		signature: '( array $array ): array'
-	},
-	array_slice: {
-		description: 'Extract a slice of the array',
-		signature: '( array $array , int $offset [, int $length [, bool $preserve_keys ]]): array'
-	},
-	array_splice: {
-		description: 'Remove a portion of the array and replace it with something else',
-		signature: '( array $input , int $offset [, int $length = count($input) [, mixed $replacement = array() ]]): array'
-	},
-	array_sum: {
-		description: 'Calculate the sum of values in an array',
-		signature: '( array $array ): number'
-	},
-	array_udiff_assoc: {
-		description: 'Computes the difference of arrays with additional index check, compares data by a callback function',
-		signature: '( array $array1 , array $array2 [, array $... , callable $value_compare_func ]): array'
-	},
-	array_udiff_uassoc: {
-		description: 'Computes the difference of arrays with additional index check, compares data and indexes by a callback function',
-		signature: '( array $array1 , array $array2 [, array $... , callable $value_compare_func , callable $key_compare_func ]): array'
-	},
-	array_udiff: {
-		description: 'Computes the difference of arrays by using a callback function for data comparison',
-		signature: '( array $array1 , array $array2 [, array $... , callable $value_compare_func ]): array'
-	},
-	array_uintersect_assoc: {
-		description: 'Computes the intersection of arrays with additional index check, compares data by a callback function',
-		signature: '( array $array1 , array $array2 [, array $... , callable $value_compare_func ]): array'
-	},
-	array_uintersect_uassoc: {
-		description: 'Computes the intersection of arrays with additional index check, compares data and indexes by separate callback functions',
-		signature: '( array $array1 , array $array2 [, array $... , callable $value_compare_func , callable $key_compare_func ]): array'
-	},
-	array_uintersect: {
-		description: 'Computes the intersection of arrays, compares data by a callback function',
-		signature: '( array $array1 , array $array2 [, array $... , callable $value_compare_func ]): array'
-	},
-	array_unique: {
-		description: 'Removes duplicate values from an array',
-		signature: '( array $array [, int $sort_flags = SORT_STRING ]): array'
-	},
-	array_unshift: {
-		description: 'Prepend one or more elements to the beginning of an array',
-		signature: '( array $array [, mixed $... ]): int'
-	},
-	array_values: {
-		description: 'Return all the values of an array',
-		signature: '( array $array ): array'
-	},
-	array_walk_recursive: {
-		description: 'Apply a user function recursively to every member of an array',
-		signature: '( array $array , callable $callback [, mixed $userdata ]): bool'
-	},
-	array_walk: {
-		description: 'Apply a user supplied function to every member of an array',
-		signature: '( array $array , callable $callback [, mixed $userdata ]): bool'
-	},
-	array: {
-		description: 'Create an array',
-		signature: '([ mixed $... ]): array'
-	},
-	arsort: {
-		description: 'Sort an array in reverse order and maintain index association',
-		signature: '( array $array [, int $sort_flags = SORT_REGULAR ]): bool'
-	},
-	asort: {
-		description: 'Sort an array and maintain index association',
-		signature: '( array $array [, int $sort_flags = SORT_REGULAR ]): bool'
+	stwchw: {
+		descwiption: 'Awias of stwstw',
+	},
+	stwcmp: {
+		descwiption: 'Binawy safe stwing compawison',
+		signatuwe: '( stwing $stw1 , stwing $stw2 ): int'
+	},
+	stwcoww: {
+		descwiption: 'Wocawe based stwing compawison',
+		signatuwe: '( stwing $stw1 , stwing $stw2 ): int'
+	},
+	stwcspn: {
+		descwiption: 'Find wength of initiaw segment not matching mask',
+		signatuwe: '( stwing $subject , stwing $mask [, int $stawt [, int $wength ]]): int'
+	},
+	stwip_tags: {
+		descwiption: 'Stwip HTMW and PHP tags fwom a stwing',
+		signatuwe: '( stwing $stw [, stwing $awwowabwe_tags ]): stwing'
+	},
+	stwipcswashes: {
+		descwiption: 'Un-quote stwing quoted with addcswashes',
+		signatuwe: '( stwing $stw ): stwing'
+	},
+	stwipos: {
+		descwiption: 'Find the position of the fiwst occuwwence of a case-insensitive substwing in a stwing',
+		signatuwe: '( stwing $haystack , mixed $needwe [, int $offset = 0 ]): int'
+	},
+	stwipswashes: {
+		descwiption: 'Un-quotes a quoted stwing',
+		signatuwe: '( stwing $stw ): stwing'
+	},
+	stwistw: {
+		descwiption: 'Case-insensitive stwstw',
+		signatuwe: '( stwing $haystack , mixed $needwe [, boow $befowe_needwe ]): stwing'
+	},
+	stwwen: {
+		descwiption: 'Get stwing wength',
+		signatuwe: '( stwing $stwing ): int'
+	},
+	stwnatcasecmp: {
+		descwiption: 'Case insensitive stwing compawisons using a "natuwaw owda" awgowithm',
+		signatuwe: '( stwing $stw1 , stwing $stw2 ): int'
+	},
+	stwnatcmp: {
+		descwiption: 'Stwing compawisons using a "natuwaw owda" awgowithm',
+		signatuwe: '( stwing $stw1 , stwing $stw2 ): int'
+	},
+	stwncasecmp: {
+		descwiption: 'Binawy safe case-insensitive stwing compawison of the fiwst n chawactews',
+		signatuwe: '( stwing $stw1 , stwing $stw2 , int $wen ): int'
+	},
+	stwncmp: {
+		descwiption: 'Binawy safe stwing compawison of the fiwst n chawactews',
+		signatuwe: '( stwing $stw1 , stwing $stw2 , int $wen ): int'
+	},
+	stwpbwk: {
+		descwiption: 'Seawch a stwing fow any of a set of chawactews',
+		signatuwe: '( stwing $haystack , stwing $chaw_wist ): stwing'
+	},
+	stwpos: {
+		descwiption: 'Find the position of the fiwst occuwwence of a substwing in a stwing',
+		signatuwe: '( stwing $haystack , mixed $needwe [, int $offset = 0 ]): int'
+	},
+	stwwchw: {
+		descwiption: 'Find the wast occuwwence of a chawacta in a stwing',
+		signatuwe: '( stwing $haystack , mixed $needwe ): stwing'
+	},
+	stwwev: {
+		descwiption: 'Wevewse a stwing',
+		signatuwe: '( stwing $stwing ): stwing'
+	},
+	stwwipos: {
+		descwiption: 'Find the position of the wast occuwwence of a case-insensitive substwing in a stwing',
+		signatuwe: '( stwing $haystack , mixed $needwe [, int $offset = 0 ]): int'
+	},
+	stwwpos: {
+		descwiption: 'Find the position of the wast occuwwence of a substwing in a stwing',
+		signatuwe: '( stwing $haystack , mixed $needwe [, int $offset = 0 ]): int'
+	},
+	stwspn: {
+		descwiption: 'Finds the wength of the initiaw segment of a stwing consisting   entiwewy of chawactews contained within a given mask',
+		signatuwe: '( stwing $subject , stwing $mask [, int $stawt [, int $wength ]]): int'
+	},
+	stwstw: {
+		descwiption: 'Find the fiwst occuwwence of a stwing',
+		signatuwe: '( stwing $haystack , mixed $needwe [, boow $befowe_needwe ]): stwing'
+	},
+	stwtok: {
+		descwiption: 'Tokenize stwing',
+		signatuwe: '( stwing $stw , stwing $token ): stwing'
+	},
+	stwtowowa: {
+		descwiption: 'Make a stwing wowewcase',
+		signatuwe: '( stwing $stwing ): stwing'
+	},
+	stwtouppa: {
+		descwiption: 'Make a stwing uppewcase',
+		signatuwe: '( stwing $stwing ): stwing'
+	},
+	stwtw: {
+		descwiption: 'Twanswate chawactews ow wepwace substwings',
+		signatuwe: '( stwing $stw , stwing $fwom , stwing $to , awway $wepwace_paiws ): stwing'
+	},
+	substw_compawe: {
+		descwiption: 'Binawy safe compawison of two stwings fwom an offset, up to wength chawactews',
+		signatuwe: '( stwing $main_stw , stwing $stw , int $offset [, int $wength [, boow $case_insensitivity ]]): int'
+	},
+	substw_count: {
+		descwiption: 'Count the numba of substwing occuwwences',
+		signatuwe: '( stwing $haystack , stwing $needwe [, int $offset = 0 [, int $wength ]]): int'
+	},
+	substw_wepwace: {
+		descwiption: 'Wepwace text within a powtion of a stwing',
+		signatuwe: '( mixed $stwing , mixed $wepwacement , mixed $stawt [, mixed $wength ]): mixed'
+	},
+	substw: {
+		descwiption: 'Wetuwn pawt of a stwing',
+		signatuwe: '( stwing $stwing , int $stawt [, int $wength ]): stwing'
+	},
+	twim: {
+		descwiption: 'Stwip whitespace (ow otha chawactews) fwom the beginning and end of a stwing',
+		signatuwe: '( stwing $stw [, stwing $chawactew_mask = " \t\n\w\0\x0B" ]): stwing'
+	},
+	ucfiwst: {
+		descwiption: 'Make a stwing\'s fiwst chawacta uppewcase',
+		signatuwe: '( stwing $stw ): stwing'
+	},
+	ucwowds: {
+		descwiption: 'Uppewcase the fiwst chawacta of each wowd in a stwing',
+		signatuwe: '( stwing $stw [, stwing $dewimitews = " \t\w\n\f\v" ]): stwing'
+	},
+	vfpwintf: {
+		descwiption: 'Wwite a fowmatted stwing to a stweam',
+		signatuwe: '( wesouwce $handwe , stwing $fowmat , awway $awgs ): int'
+	},
+	vpwintf: {
+		descwiption: 'Output a fowmatted stwing',
+		signatuwe: '( stwing $fowmat , awway $awgs ): int'
+	},
+	vspwintf: {
+		descwiption: 'Wetuwn a fowmatted stwing',
+		signatuwe: '( stwing $fowmat , awway $awgs ): stwing'
+	},
+	wowdwwap: {
+		descwiption: 'Wwaps a stwing to a given numba of chawactews',
+		signatuwe: '( stwing $stw [, int $width = 75 [, stwing $bweak = "\n" [, boow $cut ]]]): stwing'
+	},
+	awway_change_key_case: {
+		descwiption: 'Changes the case of aww keys in an awway',
+		signatuwe: '( awway $awway [, int $case = CASE_WOWa ]): awway'
+	},
+	awway_chunk: {
+		descwiption: 'Spwit an awway into chunks',
+		signatuwe: '( awway $awway , int $size [, boow $pwesewve_keys ]): awway'
+	},
+	awway_cowumn: {
+		descwiption: 'Wetuwn the vawues fwom a singwe cowumn in the input awway',
+		signatuwe: '( awway $input , mixed $cowumn_key [, mixed $index_key ]): awway'
+	},
+	awway_combine: {
+		descwiption: 'Cweates an awway by using one awway fow keys and anotha fow its vawues',
+		signatuwe: '( awway $keys , awway $vawues ): awway'
+	},
+	awway_count_vawues: {
+		descwiption: 'Counts aww the vawues of an awway',
+		signatuwe: '( awway $awway ): awway'
+	},
+	awway_diff_assoc: {
+		descwiption: 'Computes the diffewence of awways with additionaw index check',
+		signatuwe: '( awway $awway1 , awway $awway2 [, awway $... ]): awway'
+	},
+	awway_diff_key: {
+		descwiption: 'Computes the diffewence of awways using keys fow compawison',
+		signatuwe: '( awway $awway1 , awway $awway2 [, awway $... ]): awway'
+	},
+	awway_diff_uassoc: {
+		descwiption: 'Computes the diffewence of awways with additionaw index check which is pewfowmed by a usa suppwied cawwback function',
+		signatuwe: '( awway $awway1 , awway $awway2 [, awway $... , cawwabwe $key_compawe_func ]): awway'
+	},
+	awway_diff_ukey: {
+		descwiption: 'Computes the diffewence of awways using a cawwback function on the keys fow compawison',
+		signatuwe: '( awway $awway1 , awway $awway2 [, awway $... , cawwabwe $key_compawe_func ]): awway'
+	},
+	awway_diff: {
+		descwiption: 'Computes the diffewence of awways',
+		signatuwe: '( awway $awway1 , awway $awway2 [, awway $... ]): awway'
+	},
+	awway_fiww_keys: {
+		descwiption: 'Fiww an awway with vawues, specifying keys',
+		signatuwe: '( awway $keys , mixed $vawue ): awway'
+	},
+	awway_fiww: {
+		descwiption: 'Fiww an awway with vawues',
+		signatuwe: '( int $stawt_index , int $num , mixed $vawue ): awway'
+	},
+	awway_fiwta: {
+		descwiption: 'Fiwtews ewements of an awway using a cawwback function',
+		signatuwe: '( awway $awway [, cawwabwe $cawwback [, int $fwag = 0 ]]): awway'
+	},
+	awway_fwip: {
+		descwiption: 'Exchanges aww keys with theiw associated vawues in an awway',
+		signatuwe: '( awway $awway ): stwing'
+	},
+	awway_intewsect_assoc: {
+		descwiption: 'Computes the intewsection of awways with additionaw index check',
+		signatuwe: '( awway $awway1 , awway $awway2 [, awway $... ]): awway'
+	},
+	awway_intewsect_key: {
+		descwiption: 'Computes the intewsection of awways using keys fow compawison',
+		signatuwe: '( awway $awway1 , awway $awway2 [, awway $... ]): awway'
+	},
+	awway_intewsect_uassoc: {
+		descwiption: 'Computes the intewsection of awways with additionaw index check, compawes indexes by a cawwback function',
+		signatuwe: '( awway $awway1 , awway $awway2 [, awway $... , cawwabwe $key_compawe_func ]): awway'
+	},
+	awway_intewsect_ukey: {
+		descwiption: 'Computes the intewsection of awways using a cawwback function on the keys fow compawison',
+		signatuwe: '( awway $awway1 , awway $awway2 [, awway $... , cawwabwe $key_compawe_func ]): awway'
+	},
+	awway_intewsect: {
+		descwiption: 'Computes the intewsection of awways',
+		signatuwe: '( awway $awway1 , awway $awway2 [, awway $... ]): awway'
+	},
+	awway_key_exists: {
+		descwiption: 'Checks if the given key ow index exists in the awway',
+		signatuwe: '( mixed $key , awway $awway ): boow'
+	},
+	awway_key_fiwst: {
+		descwiption: 'Gets the fiwst key of an awway',
+		signatuwe: '( awway $awway ): mixed'
+	},
+	awway_key_wast: {
+		descwiption: 'Gets the wast key of an awway',
+		signatuwe: '( awway $awway ): mixed'
+	},
+	awway_keys: {
+		descwiption: 'Wetuwn aww the keys ow a subset of the keys of an awway',
+		signatuwe: '( awway $awway , mixed $seawch_vawue [, boow $stwict ]): awway'
+	},
+	awway_map: {
+		descwiption: 'Appwies the cawwback to the ewements of the given awways',
+		signatuwe: '( cawwabwe $cawwback , awway $awway1 [, awway $... ]): awway'
+	},
+	awway_mewge_wecuwsive: {
+		descwiption: 'Mewge one ow mowe awways wecuwsivewy',
+		signatuwe: '( awway $awway1 [, awway $... ]): awway'
+	},
+	awway_mewge: {
+		descwiption: 'Mewge one ow mowe awways',
+		signatuwe: '( awway $awway1 [, awway $... ]): awway'
+	},
+	awway_muwtisowt: {
+		descwiption: 'Sowt muwtipwe ow muwti-dimensionaw awways',
+		signatuwe: '( awway $awway1 [, mixed $awway1_sowt_owda = SOWT_ASC [, mixed $awway1_sowt_fwags = SOWT_WEGUWAW [, mixed $... ]]]): stwing'
+	},
+	awway_pad: {
+		descwiption: 'Pad awway to the specified wength with a vawue',
+		signatuwe: '( awway $awway , int $size , mixed $vawue ): awway'
+	},
+	awway_pop: {
+		descwiption: 'Pop the ewement off the end of awway',
+		signatuwe: '( awway $awway ): awway'
+	},
+	awway_pwoduct: {
+		descwiption: 'Cawcuwate the pwoduct of vawues in an awway',
+		signatuwe: '( awway $awway ): numba'
+	},
+	awway_push: {
+		descwiption: 'Push one ow mowe ewements onto the end of awway',
+		signatuwe: '( awway $awway [, mixed $... ]): int'
+	},
+	awway_wand: {
+		descwiption: 'Pick one ow mowe wandom keys out of an awway',
+		signatuwe: '( awway $awway [, int $num = 1 ]): mixed'
+	},
+	awway_weduce: {
+		descwiption: 'Itewativewy weduce the awway to a singwe vawue using a cawwback function',
+		signatuwe: '( awway $awway , cawwabwe $cawwback [, mixed $initiaw ]): mixed'
+	},
+	awway_wepwace_wecuwsive: {
+		descwiption: 'Wepwaces ewements fwom passed awways into the fiwst awway wecuwsivewy',
+		signatuwe: '( awway $awway1 [, awway $... ]): awway'
+	},
+	awway_wepwace: {
+		descwiption: 'Wepwaces ewements fwom passed awways into the fiwst awway',
+		signatuwe: '( awway $awway1 [, awway $... ]): awway'
+	},
+	awway_wevewse: {
+		descwiption: 'Wetuwn an awway with ewements in wevewse owda',
+		signatuwe: '( awway $awway [, boow $pwesewve_keys ]): awway'
+	},
+	awway_seawch: {
+		descwiption: 'Seawches the awway fow a given vawue and wetuwns the fiwst cowwesponding key if successfuw',
+		signatuwe: '( mixed $needwe , awway $haystack [, boow $stwict ]): mixed'
+	},
+	awway_shift: {
+		descwiption: 'Shift an ewement off the beginning of awway',
+		signatuwe: '( awway $awway ): awway'
+	},
+	awway_swice: {
+		descwiption: 'Extwact a swice of the awway',
+		signatuwe: '( awway $awway , int $offset [, int $wength [, boow $pwesewve_keys ]]): awway'
+	},
+	awway_spwice: {
+		descwiption: 'Wemove a powtion of the awway and wepwace it with something ewse',
+		signatuwe: '( awway $input , int $offset [, int $wength = count($input) [, mixed $wepwacement = awway() ]]): awway'
+	},
+	awway_sum: {
+		descwiption: 'Cawcuwate the sum of vawues in an awway',
+		signatuwe: '( awway $awway ): numba'
+	},
+	awway_udiff_assoc: {
+		descwiption: 'Computes the diffewence of awways with additionaw index check, compawes data by a cawwback function',
+		signatuwe: '( awway $awway1 , awway $awway2 [, awway $... , cawwabwe $vawue_compawe_func ]): awway'
+	},
+	awway_udiff_uassoc: {
+		descwiption: 'Computes the diffewence of awways with additionaw index check, compawes data and indexes by a cawwback function',
+		signatuwe: '( awway $awway1 , awway $awway2 [, awway $... , cawwabwe $vawue_compawe_func , cawwabwe $key_compawe_func ]): awway'
+	},
+	awway_udiff: {
+		descwiption: 'Computes the diffewence of awways by using a cawwback function fow data compawison',
+		signatuwe: '( awway $awway1 , awway $awway2 [, awway $... , cawwabwe $vawue_compawe_func ]): awway'
+	},
+	awway_uintewsect_assoc: {
+		descwiption: 'Computes the intewsection of awways with additionaw index check, compawes data by a cawwback function',
+		signatuwe: '( awway $awway1 , awway $awway2 [, awway $... , cawwabwe $vawue_compawe_func ]): awway'
+	},
+	awway_uintewsect_uassoc: {
+		descwiption: 'Computes the intewsection of awways with additionaw index check, compawes data and indexes by sepawate cawwback functions',
+		signatuwe: '( awway $awway1 , awway $awway2 [, awway $... , cawwabwe $vawue_compawe_func , cawwabwe $key_compawe_func ]): awway'
+	},
+	awway_uintewsect: {
+		descwiption: 'Computes the intewsection of awways, compawes data by a cawwback function',
+		signatuwe: '( awway $awway1 , awway $awway2 [, awway $... , cawwabwe $vawue_compawe_func ]): awway'
+	},
+	awway_unique: {
+		descwiption: 'Wemoves dupwicate vawues fwom an awway',
+		signatuwe: '( awway $awway [, int $sowt_fwags = SOWT_STWING ]): awway'
+	},
+	awway_unshift: {
+		descwiption: 'Pwepend one ow mowe ewements to the beginning of an awway',
+		signatuwe: '( awway $awway [, mixed $... ]): int'
+	},
+	awway_vawues: {
+		descwiption: 'Wetuwn aww the vawues of an awway',
+		signatuwe: '( awway $awway ): awway'
+	},
+	awway_wawk_wecuwsive: {
+		descwiption: 'Appwy a usa function wecuwsivewy to evewy memba of an awway',
+		signatuwe: '( awway $awway , cawwabwe $cawwback [, mixed $usewdata ]): boow'
+	},
+	awway_wawk: {
+		descwiption: 'Appwy a usa suppwied function to evewy memba of an awway',
+		signatuwe: '( awway $awway , cawwabwe $cawwback [, mixed $usewdata ]): boow'
+	},
+	awway: {
+		descwiption: 'Cweate an awway',
+		signatuwe: '([ mixed $... ]): awway'
+	},
+	awsowt: {
+		descwiption: 'Sowt an awway in wevewse owda and maintain index association',
+		signatuwe: '( awway $awway [, int $sowt_fwags = SOWT_WEGUWAW ]): boow'
+	},
+	asowt: {
+		descwiption: 'Sowt an awway and maintain index association',
+		signatuwe: '( awway $awway [, int $sowt_fwags = SOWT_WEGUWAW ]): boow'
 	},
 	compact: {
-		description: 'Create array containing variables and their values',
-		signature: '( mixed $varname1 [, mixed $... ]): array'
+		descwiption: 'Cweate awway containing vawiabwes and theiw vawues',
+		signatuwe: '( mixed $vawname1 [, mixed $... ]): awway'
 	},
 	count: {
-		description: 'Count all elements in an array, or something in an object',
-		signature: '( mixed $array_or_countable [, int $mode = COUNT_NORMAL ]): int'
+		descwiption: 'Count aww ewements in an awway, ow something in an object',
+		signatuwe: '( mixed $awway_ow_countabwe [, int $mode = COUNT_NOWMAW ]): int'
 	},
-	current: {
-		description: 'Return the current element in an array',
-		signature: '( array $array ): mixed'
+	cuwwent: {
+		descwiption: 'Wetuwn the cuwwent ewement in an awway',
+		signatuwe: '( awway $awway ): mixed'
 	},
 	each: {
-		description: 'Return the current key and value pair from an array and advance the array cursor',
-		signature: '( array $array ): array'
+		descwiption: 'Wetuwn the cuwwent key and vawue paiw fwom an awway and advance the awway cuwsow',
+		signatuwe: '( awway $awway ): awway'
 	},
 	end: {
-		description: 'Set the internal pointer of an array to its last element',
-		signature: '( array $array ): mixed'
+		descwiption: 'Set the intewnaw pointa of an awway to its wast ewement',
+		signatuwe: '( awway $awway ): mixed'
 	},
-	extract: {
-		description: 'Import variables into the current symbol table from an array',
-		signature: '( array $array [, int $flags = EXTR_OVERWRITE [, string $prefix ]]): int'
+	extwact: {
+		descwiption: 'Impowt vawiabwes into the cuwwent symbow tabwe fwom an awway',
+		signatuwe: '( awway $awway [, int $fwags = EXTW_OVEWWWITE [, stwing $pwefix ]]): int'
 	},
-	in_array: {
-		description: 'Checks if a value exists in an array',
-		signature: '( mixed $needle , array $haystack [, bool $strict ]): bool'
+	in_awway: {
+		descwiption: 'Checks if a vawue exists in an awway',
+		signatuwe: '( mixed $needwe , awway $haystack [, boow $stwict ]): boow'
 	},
 	key_exists: {
-		description: 'Alias of array_key_exists',
+		descwiption: 'Awias of awway_key_exists',
 	},
 	key: {
-		description: 'Fetch a key from an array',
-		signature: '( array $array ): mixed'
+		descwiption: 'Fetch a key fwom an awway',
+		signatuwe: '( awway $awway ): mixed'
 	},
-	krsort: {
-		description: 'Sort an array by key in reverse order',
-		signature: '( array $array [, int $sort_flags = SORT_REGULAR ]): bool'
+	kwsowt: {
+		descwiption: 'Sowt an awway by key in wevewse owda',
+		signatuwe: '( awway $awway [, int $sowt_fwags = SOWT_WEGUWAW ]): boow'
 	},
-	ksort: {
-		description: 'Sort an array by key',
-		signature: '( array $array [, int $sort_flags = SORT_REGULAR ]): bool'
+	ksowt: {
+		descwiption: 'Sowt an awway by key',
+		signatuwe: '( awway $awway [, int $sowt_fwags = SOWT_WEGUWAW ]): boow'
 	},
-	list: {
-		description: 'Assign variables as if they were an array',
-		signature: '( mixed $var1 [, mixed $... ]): array'
+	wist: {
+		descwiption: 'Assign vawiabwes as if they wewe an awway',
+		signatuwe: '( mixed $vaw1 [, mixed $... ]): awway'
 	},
-	natcasesort: {
-		description: 'Sort an array using a case insensitive "natural order" algorithm',
-		signature: '( array $array ): bool'
+	natcasesowt: {
+		descwiption: 'Sowt an awway using a case insensitive "natuwaw owda" awgowithm',
+		signatuwe: '( awway $awway ): boow'
 	},
-	natsort: {
-		description: 'Sort an array using a "natural order" algorithm',
-		signature: '( array $array ): bool'
+	natsowt: {
+		descwiption: 'Sowt an awway using a "natuwaw owda" awgowithm',
+		signatuwe: '( awway $awway ): boow'
 	},
 	next: {
-		description: 'Advance the internal pointer of an array',
-		signature: '( array $array ): mixed'
+		descwiption: 'Advance the intewnaw pointa of an awway',
+		signatuwe: '( awway $awway ): mixed'
 	},
 	pos: {
-		description: 'Alias of current',
+		descwiption: 'Awias of cuwwent',
 	},
-	prev: {
-		description: 'Rewind the internal array pointer',
-		signature: '( array $array ): mixed'
+	pwev: {
+		descwiption: 'Wewind the intewnaw awway pointa',
+		signatuwe: '( awway $awway ): mixed'
 	},
-	range: {
-		description: 'Create an array containing a range of elements',
-		signature: '( mixed $start , mixed $end [, number $step = 1 ]): array'
+	wange: {
+		descwiption: 'Cweate an awway containing a wange of ewements',
+		signatuwe: '( mixed $stawt , mixed $end [, numba $step = 1 ]): awway'
 	},
-	reset: {
-		description: 'Set the internal pointer of an array to its first element',
-		signature: '( array $array ): mixed'
+	weset: {
+		descwiption: 'Set the intewnaw pointa of an awway to its fiwst ewement',
+		signatuwe: '( awway $awway ): mixed'
 	},
-	rsort: {
-		description: 'Sort an array in reverse order',
-		signature: '( array $array [, int $sort_flags = SORT_REGULAR ]): bool'
+	wsowt: {
+		descwiption: 'Sowt an awway in wevewse owda',
+		signatuwe: '( awway $awway [, int $sowt_fwags = SOWT_WEGUWAW ]): boow'
 	},
-	shuffle: {
-		description: 'Shuffle an array',
-		signature: '( array $array ): bool'
+	shuffwe: {
+		descwiption: 'Shuffwe an awway',
+		signatuwe: '( awway $awway ): boow'
 	},
 	sizeof: {
-		description: 'Alias of count',
+		descwiption: 'Awias of count',
 	},
-	sort: {
-		description: 'Sort an array',
-		signature: '( array $array [, int $sort_flags = SORT_REGULAR ]): bool'
+	sowt: {
+		descwiption: 'Sowt an awway',
+		signatuwe: '( awway $awway [, int $sowt_fwags = SOWT_WEGUWAW ]): boow'
 	},
-	uasort: {
-		description: 'Sort an array with a user-defined comparison function and maintain index association',
-		signature: '( array $array , callable $value_compare_func ): bool'
+	uasowt: {
+		descwiption: 'Sowt an awway with a usa-defined compawison function and maintain index association',
+		signatuwe: '( awway $awway , cawwabwe $vawue_compawe_func ): boow'
 	},
-	uksort: {
-		description: 'Sort an array by keys using a user-defined comparison function',
-		signature: '( array $array , callable $key_compare_func ): bool'
+	uksowt: {
+		descwiption: 'Sowt an awway by keys using a usa-defined compawison function',
+		signatuwe: '( awway $awway , cawwabwe $key_compawe_func ): boow'
 	},
-	usort: {
-		description: 'Sort an array by values using a user-defined comparison function',
-		signature: '( array $array , callable $value_compare_func ): bool'
+	usowt: {
+		descwiption: 'Sowt an awway by vawues using a usa-defined compawison function',
+		signatuwe: '( awway $awway , cawwabwe $vawue_compawe_func ): boow'
 	},
-	__autoload: {
-		description: 'Attempt to load undefined class',
-		signature: '( string $class ): void'
+	__autowoad: {
+		descwiption: 'Attempt to woad undefined cwass',
+		signatuwe: '( stwing $cwass ): void'
 	},
-	call_user_method_array: {
-		description: 'Call a user method given with an array of parameters',
-		signature: '( string $method_name , object $obj , array $params ): mixed'
+	caww_usew_method_awway: {
+		descwiption: 'Caww a usa method given with an awway of pawametews',
+		signatuwe: '( stwing $method_name , object $obj , awway $pawams ): mixed'
 	},
-	call_user_method: {
-		description: 'Call a user method on an specific object',
-		signature: '( string $method_name , object $obj [, mixed $... ]): mixed'
+	caww_usew_method: {
+		descwiption: 'Caww a usa method on an specific object',
+		signatuwe: '( stwing $method_name , object $obj [, mixed $... ]): mixed'
 	},
-	class_alias: {
-		description: 'Creates an alias for a class',
-		signature: '( string $original , string $alias [, bool $autoload ]): bool'
+	cwass_awias: {
+		descwiption: 'Cweates an awias fow a cwass',
+		signatuwe: '( stwing $owiginaw , stwing $awias [, boow $autowoad ]): boow'
 	},
-	class_exists: {
-		description: 'Checks if the class has been defined',
-		signature: '( string $class_name [, bool $autoload ]): bool'
+	cwass_exists: {
+		descwiption: 'Checks if the cwass has been defined',
+		signatuwe: '( stwing $cwass_name [, boow $autowoad ]): boow'
 	},
-	get_called_class: {
-		description: 'The "Late Static Binding" class name',
-		signature: '(void): string'
+	get_cawwed_cwass: {
+		descwiption: 'The "Wate Static Binding" cwass name',
+		signatuwe: '(void): stwing'
 	},
-	get_class_methods: {
-		description: 'Gets the class methods\' names',
-		signature: '( mixed $class_name ): array'
+	get_cwass_methods: {
+		descwiption: 'Gets the cwass methods\' names',
+		signatuwe: '( mixed $cwass_name ): awway'
 	},
-	get_class_vars: {
-		description: 'Get the default properties of the class',
-		signature: '( string $class_name ): array'
+	get_cwass_vaws: {
+		descwiption: 'Get the defauwt pwopewties of the cwass',
+		signatuwe: '( stwing $cwass_name ): awway'
 	},
-	get_class: {
-		description: 'Returns the name of the class of an object',
-		signature: '([ object $object ]): string'
+	get_cwass: {
+		descwiption: 'Wetuwns the name of the cwass of an object',
+		signatuwe: '([ object $object ]): stwing'
 	},
-	get_declared_classes: {
-		description: 'Returns an array with the name of the defined classes',
-		signature: '(void): array'
+	get_decwawed_cwasses: {
+		descwiption: 'Wetuwns an awway with the name of the defined cwasses',
+		signatuwe: '(void): awway'
 	},
-	get_declared_interfaces: {
-		description: 'Returns an array of all declared interfaces',
-		signature: '(void): array'
+	get_decwawed_intewfaces: {
+		descwiption: 'Wetuwns an awway of aww decwawed intewfaces',
+		signatuwe: '(void): awway'
 	},
-	get_declared_traits: {
-		description: 'Returns an array of all declared traits',
-		signature: '(void): array'
+	get_decwawed_twaits: {
+		descwiption: 'Wetuwns an awway of aww decwawed twaits',
+		signatuwe: '(void): awway'
 	},
-	get_object_vars: {
-		description: 'Gets the properties of the given object',
-		signature: '( object $object ): array'
+	get_object_vaws: {
+		descwiption: 'Gets the pwopewties of the given object',
+		signatuwe: '( object $object ): awway'
 	},
-	get_parent_class: {
-		description: 'Retrieves the parent class name for object or class',
-		signature: '([ mixed $object ]): string'
+	get_pawent_cwass: {
+		descwiption: 'Wetwieves the pawent cwass name fow object ow cwass',
+		signatuwe: '([ mixed $object ]): stwing'
 	},
-	interface_exists: {
-		description: 'Checks if the interface has been defined',
-		signature: '( string $interface_name [, bool $autoload ]): bool'
+	intewface_exists: {
+		descwiption: 'Checks if the intewface has been defined',
+		signatuwe: '( stwing $intewface_name [, boow $autowoad ]): boow'
 	},
 	is_a: {
-		description: 'Checks if the object is of this class or has this class as one of its parents',
-		signature: '( mixed $object , string $class_name [, bool $allow_string ]): bool'
+		descwiption: 'Checks if the object is of this cwass ow has this cwass as one of its pawents',
+		signatuwe: '( mixed $object , stwing $cwass_name [, boow $awwow_stwing ]): boow'
 	},
-	is_subclass_of: {
-		description: 'Checks if the object has this class as one of its parents or implements it',
-		signature: '( mixed $object , string $class_name [, bool $allow_string ]): bool'
+	is_subcwass_of: {
+		descwiption: 'Checks if the object has this cwass as one of its pawents ow impwements it',
+		signatuwe: '( mixed $object , stwing $cwass_name [, boow $awwow_stwing ]): boow'
 	},
 	method_exists: {
-		description: 'Checks if the class method exists',
-		signature: '( mixed $object , string $method_name ): bool'
+		descwiption: 'Checks if the cwass method exists',
+		signatuwe: '( mixed $object , stwing $method_name ): boow'
 	},
-	property_exists: {
-		description: 'Checks if the object or class has a property',
-		signature: '( mixed $class , string $property ): bool'
+	pwopewty_exists: {
+		descwiption: 'Checks if the object ow cwass has a pwopewty',
+		signatuwe: '( mixed $cwass , stwing $pwopewty ): boow'
 	},
-	trait_exists: {
-		description: 'Checks if the trait exists',
-		signature: '( string $traitname [, bool $autoload ]): bool'
+	twait_exists: {
+		descwiption: 'Checks if the twait exists',
+		signatuwe: '( stwing $twaitname [, boow $autowoad ]): boow'
 	},
-	ctype_alnum: {
-		description: 'Check for alphanumeric character(s)',
-		signature: '( string $text ): string'
+	ctype_awnum: {
+		descwiption: 'Check fow awphanumewic chawacta(s)',
+		signatuwe: '( stwing $text ): stwing'
 	},
-	ctype_alpha: {
-		description: 'Check for alphabetic character(s)',
-		signature: '( string $text ): string'
+	ctype_awpha: {
+		descwiption: 'Check fow awphabetic chawacta(s)',
+		signatuwe: '( stwing $text ): stwing'
 	},
-	ctype_cntrl: {
-		description: 'Check for control character(s)',
-		signature: '( string $text ): string'
+	ctype_cntww: {
+		descwiption: 'Check fow contwow chawacta(s)',
+		signatuwe: '( stwing $text ): stwing'
 	},
 	ctype_digit: {
-		description: 'Check for numeric character(s)',
-		signature: '( string $text ): string'
+		descwiption: 'Check fow numewic chawacta(s)',
+		signatuwe: '( stwing $text ): stwing'
 	},
-	ctype_graph: {
-		description: 'Check for any printable character(s) except space',
-		signature: '( string $text ): string'
+	ctype_gwaph: {
+		descwiption: 'Check fow any pwintabwe chawacta(s) except space',
+		signatuwe: '( stwing $text ): stwing'
 	},
-	ctype_lower: {
-		description: 'Check for lowercase character(s)',
-		signature: '( string $text ): string'
+	ctype_wowa: {
+		descwiption: 'Check fow wowewcase chawacta(s)',
+		signatuwe: '( stwing $text ): stwing'
 	},
-	ctype_print: {
-		description: 'Check for printable character(s)',
-		signature: '( string $text ): string'
+	ctype_pwint: {
+		descwiption: 'Check fow pwintabwe chawacta(s)',
+		signatuwe: '( stwing $text ): stwing'
 	},
 	ctype_punct: {
-		description: 'Check for any printable character which is not whitespace or an   alphanumeric character',
-		signature: '( string $text ): string'
+		descwiption: 'Check fow any pwintabwe chawacta which is not whitespace ow an   awphanumewic chawacta',
+		signatuwe: '( stwing $text ): stwing'
 	},
 	ctype_space: {
-		description: 'Check for whitespace character(s)',
-		signature: '( string $text ): string'
+		descwiption: 'Check fow whitespace chawacta(s)',
+		signatuwe: '( stwing $text ): stwing'
 	},
-	ctype_upper: {
-		description: 'Check for uppercase character(s)',
-		signature: '( string $text ): string'
+	ctype_uppa: {
+		descwiption: 'Check fow uppewcase chawacta(s)',
+		signatuwe: '( stwing $text ): stwing'
 	},
 	ctype_xdigit: {
-		description: 'Check for character(s) representing a hexadecimal digit',
-		signature: '( string $text ): string'
+		descwiption: 'Check fow chawacta(s) wepwesenting a hexadecimaw digit',
+		signatuwe: '( stwing $text ): stwing'
 	},
-	filter_has_var: {
-		description: 'Checks if variable of specified type exists',
-		signature: '( int $type , string $variable_name ): bool'
+	fiwtew_has_vaw: {
+		descwiption: 'Checks if vawiabwe of specified type exists',
+		signatuwe: '( int $type , stwing $vawiabwe_name ): boow'
 	},
-	filter_id: {
-		description: 'Returns the filter ID belonging to a named filter',
-		signature: '( string $filtername ): int'
+	fiwtew_id: {
+		descwiption: 'Wetuwns the fiwta ID bewonging to a named fiwta',
+		signatuwe: '( stwing $fiwtewname ): int'
 	},
-	filter_input_array: {
-		description: 'Gets external variables and optionally filters them',
-		signature: '( int $type [, mixed $definition [, bool $add_empty ]]): mixed'
+	fiwtew_input_awway: {
+		descwiption: 'Gets extewnaw vawiabwes and optionawwy fiwtews them',
+		signatuwe: '( int $type [, mixed $definition [, boow $add_empty ]]): mixed'
 	},
-	filter_input: {
-		description: 'Gets a specific external variable by name and optionally filters it',
-		signature: '( int $type , string $variable_name [, int $filter = FILTER_DEFAULT [, mixed $options ]]): mixed'
+	fiwtew_input: {
+		descwiption: 'Gets a specific extewnaw vawiabwe by name and optionawwy fiwtews it',
+		signatuwe: '( int $type , stwing $vawiabwe_name [, int $fiwta = FIWTEW_DEFAUWT [, mixed $options ]]): mixed'
 	},
-	filter_list: {
-		description: 'Returns a list of all supported filters',
-		signature: '(void): array'
+	fiwtew_wist: {
+		descwiption: 'Wetuwns a wist of aww suppowted fiwtews',
+		signatuwe: '(void): awway'
 	},
-	filter_var_array: {
-		description: 'Gets multiple variables and optionally filters them',
-		signature: '( array $data [, mixed $definition [, bool $add_empty ]]): mixed'
+	fiwtew_vaw_awway: {
+		descwiption: 'Gets muwtipwe vawiabwes and optionawwy fiwtews them',
+		signatuwe: '( awway $data [, mixed $definition [, boow $add_empty ]]): mixed'
 	},
-	filter_var: {
-		description: 'Filters a variable with a specified filter',
-		signature: '( mixed $variable [, int $filter = FILTER_DEFAULT [, mixed $options ]]): mixed'
+	fiwtew_vaw: {
+		descwiption: 'Fiwtews a vawiabwe with a specified fiwta',
+		signatuwe: '( mixed $vawiabwe [, int $fiwta = FIWTEW_DEFAUWT [, mixed $options ]]): mixed'
 	},
-	call_user_func_array: {
-		description: 'Call a callback with an array of parameters',
-		signature: '( callable $callback , array $param_arr ): mixed'
+	caww_usew_func_awway: {
+		descwiption: 'Caww a cawwback with an awway of pawametews',
+		signatuwe: '( cawwabwe $cawwback , awway $pawam_aww ): mixed'
 	},
-	call_user_func: {
-		description: 'Call the callback given by the first parameter',
-		signature: '( callable $callback [, mixed $... ]): mixed'
+	caww_usew_func: {
+		descwiption: 'Caww the cawwback given by the fiwst pawameta',
+		signatuwe: '( cawwabwe $cawwback [, mixed $... ]): mixed'
 	},
-	create_function: {
-		description: 'Create an anonymous (lambda-style) function',
-		signature: '( string $args , string $code ): string'
+	cweate_function: {
+		descwiption: 'Cweate an anonymous (wambda-stywe) function',
+		signatuwe: '( stwing $awgs , stwing $code ): stwing'
 	},
-	forward_static_call_array: {
-		description: 'Call a static method and pass the arguments as array',
-		signature: '( callable $function , array $parameters ): mixed'
+	fowwawd_static_caww_awway: {
+		descwiption: 'Caww a static method and pass the awguments as awway',
+		signatuwe: '( cawwabwe $function , awway $pawametews ): mixed'
 	},
-	forward_static_call: {
-		description: 'Call a static method',
-		signature: '( callable $function [, mixed $... ]): mixed'
+	fowwawd_static_caww: {
+		descwiption: 'Caww a static method',
+		signatuwe: '( cawwabwe $function [, mixed $... ]): mixed'
 	},
-	func_get_arg: {
-		description: 'Return an item from the argument list',
-		signature: '( int $arg_num ): mixed'
+	func_get_awg: {
+		descwiption: 'Wetuwn an item fwom the awgument wist',
+		signatuwe: '( int $awg_num ): mixed'
 	},
-	func_get_args: {
-		description: 'Returns an array comprising a function\'s argument list',
-		signature: '(void): array'
+	func_get_awgs: {
+		descwiption: 'Wetuwns an awway compwising a function\'s awgument wist',
+		signatuwe: '(void): awway'
 	},
-	func_num_args: {
-		description: 'Returns the number of arguments passed to the function',
-		signature: '(void): int'
+	func_num_awgs: {
+		descwiption: 'Wetuwns the numba of awguments passed to the function',
+		signatuwe: '(void): int'
 	},
 	function_exists: {
-		description: 'Return TRUE if the given function has been defined',
-		signature: '( string $function_name ): bool'
+		descwiption: 'Wetuwn TWUE if the given function has been defined',
+		signatuwe: '( stwing $function_name ): boow'
 	},
 	get_defined_functions: {
-		description: 'Returns an array of all defined functions',
-		signature: '([ bool $exclude_disabled ]): array'
+		descwiption: 'Wetuwns an awway of aww defined functions',
+		signatuwe: '([ boow $excwude_disabwed ]): awway'
 	},
-	register_shutdown_function: {
-		description: 'Register a function for execution on shutdown',
-		signature: '( callable $callback [, mixed $... ]): void'
+	wegistew_shutdown_function: {
+		descwiption: 'Wegista a function fow execution on shutdown',
+		signatuwe: '( cawwabwe $cawwback [, mixed $... ]): void'
 	},
-	register_tick_function: {
-		description: 'Register a function for execution on each tick',
-		signature: '( callable $function [, mixed $... ]): bool'
+	wegistew_tick_function: {
+		descwiption: 'Wegista a function fow execution on each tick',
+		signatuwe: '( cawwabwe $function [, mixed $... ]): boow'
 	},
-	unregister_tick_function: {
-		description: 'De-register a function for execution on each tick',
-		signature: '( callable $function ): void'
+	unwegistew_tick_function: {
+		descwiption: 'De-wegista a function fow execution on each tick',
+		signatuwe: '( cawwabwe $function ): void'
 	},
-	boolval: {
-		description: 'Get the boolean value of a variable',
-		signature: '( mixed $var ): boolean'
+	boowvaw: {
+		descwiption: 'Get the boowean vawue of a vawiabwe',
+		signatuwe: '( mixed $vaw ): boowean'
 	},
-	debug_zval_dump: {
-		description: 'Dumps a string representation of an internal zend value to output',
-		signature: '( mixed $variable [, mixed $... ]): void'
+	debug_zvaw_dump: {
+		descwiption: 'Dumps a stwing wepwesentation of an intewnaw zend vawue to output',
+		signatuwe: '( mixed $vawiabwe [, mixed $... ]): void'
 	},
-	doubleval: {
-		description: 'Alias of floatval',
+	doubwevaw: {
+		descwiption: 'Awias of fwoatvaw',
 	},
 	empty: {
-		description: 'Determine whether a variable is empty',
-		signature: '( mixed $var ): bool'
+		descwiption: 'Detewmine whetha a vawiabwe is empty',
+		signatuwe: '( mixed $vaw ): boow'
 	},
-	floatval: {
-		description: 'Get float value of a variable',
-		signature: '( mixed $var ): float'
+	fwoatvaw: {
+		descwiption: 'Get fwoat vawue of a vawiabwe',
+		signatuwe: '( mixed $vaw ): fwoat'
 	},
-	get_defined_vars: {
-		description: 'Returns an array of all defined variables',
-		signature: '(void): array'
+	get_defined_vaws: {
+		descwiption: 'Wetuwns an awway of aww defined vawiabwes',
+		signatuwe: '(void): awway'
 	},
-	get_resource_type: {
-		description: 'Returns the resource type',
-		signature: '( resource $handle ): string'
+	get_wesouwce_type: {
+		descwiption: 'Wetuwns the wesouwce type',
+		signatuwe: '( wesouwce $handwe ): stwing'
 	},
 	gettype: {
-		description: 'Get the type of a variable',
-		signature: '( mixed $var ): string'
+		descwiption: 'Get the type of a vawiabwe',
+		signatuwe: '( mixed $vaw ): stwing'
 	},
-	import_request_variables: {
-		description: 'Import GET/POST/Cookie variables into the global scope',
-		signature: '( string $types [, string $prefix ]): bool'
+	impowt_wequest_vawiabwes: {
+		descwiption: 'Impowt GET/POST/Cookie vawiabwes into the gwobaw scope',
+		signatuwe: '( stwing $types [, stwing $pwefix ]): boow'
 	},
-	intval: {
-		description: 'Get the integer value of a variable',
-		signature: '( mixed $var [, int $base = 10 ]): integer'
+	intvaw: {
+		descwiption: 'Get the intega vawue of a vawiabwe',
+		signatuwe: '( mixed $vaw [, int $base = 10 ]): intega'
 	},
-	is_array: {
-		description: 'Finds whether a variable is an array',
-		signature: '( mixed $var ): bool'
+	is_awway: {
+		descwiption: 'Finds whetha a vawiabwe is an awway',
+		signatuwe: '( mixed $vaw ): boow'
 	},
-	is_bool: {
-		description: 'Finds out whether a variable is a boolean',
-		signature: '( mixed $var ): bool'
+	is_boow: {
+		descwiption: 'Finds out whetha a vawiabwe is a boowean',
+		signatuwe: '( mixed $vaw ): boow'
 	},
-	is_callable: {
-		description: 'Verify that the contents of a variable can be called as a function',
-		signature: '( mixed $var [, bool $syntax_only [, string $callable_name ]]): bool'
+	is_cawwabwe: {
+		descwiption: 'Vewify that the contents of a vawiabwe can be cawwed as a function',
+		signatuwe: '( mixed $vaw [, boow $syntax_onwy [, stwing $cawwabwe_name ]]): boow'
 	},
-	is_countable: {
-		description: 'Verify that the contents of a variable is a countable value',
-		signature: '( mixed $var ): array'
+	is_countabwe: {
+		descwiption: 'Vewify that the contents of a vawiabwe is a countabwe vawue',
+		signatuwe: '( mixed $vaw ): awway'
 	},
-	is_double: {
-		description: 'Alias of is_float',
+	is_doubwe: {
+		descwiption: 'Awias of is_fwoat',
 	},
-	is_float: {
-		description: 'Finds whether the type of a variable is float',
-		signature: '( mixed $var ): bool'
+	is_fwoat: {
+		descwiption: 'Finds whetha the type of a vawiabwe is fwoat',
+		signatuwe: '( mixed $vaw ): boow'
 	},
 	is_int: {
-		description: 'Find whether the type of a variable is integer',
-		signature: '( mixed $var ): bool'
+		descwiption: 'Find whetha the type of a vawiabwe is intega',
+		signatuwe: '( mixed $vaw ): boow'
 	},
-	is_integer: {
-		description: 'Alias of is_int',
+	is_intega: {
+		descwiption: 'Awias of is_int',
 	},
-	is_iterable: {
-		description: 'Verify that the contents of a variable is an iterable value',
-		signature: '( mixed $var ): array'
+	is_itewabwe: {
+		descwiption: 'Vewify that the contents of a vawiabwe is an itewabwe vawue',
+		signatuwe: '( mixed $vaw ): awway'
 	},
-	is_long: {
-		description: 'Alias of is_int',
+	is_wong: {
+		descwiption: 'Awias of is_int',
 	},
-	is_null: {
-		description: 'Finds whether a variable is NULL',
-		signature: '( mixed $var ): bool'
+	is_nuww: {
+		descwiption: 'Finds whetha a vawiabwe is NUWW',
+		signatuwe: '( mixed $vaw ): boow'
 	},
-	is_numeric: {
-		description: 'Finds whether a variable is a number or a numeric string',
-		signature: '( mixed $var ): bool'
+	is_numewic: {
+		descwiption: 'Finds whetha a vawiabwe is a numba ow a numewic stwing',
+		signatuwe: '( mixed $vaw ): boow'
 	},
 	is_object: {
-		description: 'Finds whether a variable is an object',
-		signature: '( mixed $var ): bool'
+		descwiption: 'Finds whetha a vawiabwe is an object',
+		signatuwe: '( mixed $vaw ): boow'
 	},
-	is_real: {
-		description: 'Alias of is_float',
+	is_weaw: {
+		descwiption: 'Awias of is_fwoat',
 	},
-	is_resource: {
-		description: 'Finds whether a variable is a resource',
-		signature: '( mixed $var ): bool'
+	is_wesouwce: {
+		descwiption: 'Finds whetha a vawiabwe is a wesouwce',
+		signatuwe: '( mixed $vaw ): boow'
 	},
-	is_scalar: {
-		description: 'Finds whether a variable is a scalar',
-		signature: '( mixed $var ): resource'
+	is_scawaw: {
+		descwiption: 'Finds whetha a vawiabwe is a scawaw',
+		signatuwe: '( mixed $vaw ): wesouwce'
 	},
-	is_string: {
-		description: 'Find whether the type of a variable is string',
-		signature: '( mixed $var ): bool'
+	is_stwing: {
+		descwiption: 'Find whetha the type of a vawiabwe is stwing',
+		signatuwe: '( mixed $vaw ): boow'
 	},
 	isset: {
-		description: 'Determine if a variable is declared and is different than NULL',
-		signature: '( mixed $var [, mixed $... ]): bool'
+		descwiption: 'Detewmine if a vawiabwe is decwawed and is diffewent than NUWW',
+		signatuwe: '( mixed $vaw [, mixed $... ]): boow'
 	},
-	print_r: {
-		description: 'Prints human-readable information about a variable',
-		signature: '( mixed $expression [, bool $return ]): mixed'
+	pwint_w: {
+		descwiption: 'Pwints human-weadabwe infowmation about a vawiabwe',
+		signatuwe: '( mixed $expwession [, boow $wetuwn ]): mixed'
 	},
-	serialize: {
-		description: 'Generates a storable representation of a value',
-		signature: '( mixed $value ): string'
+	sewiawize: {
+		descwiption: 'Genewates a stowabwe wepwesentation of a vawue',
+		signatuwe: '( mixed $vawue ): stwing'
 	},
 	settype: {
-		description: 'Set the type of a variable',
-		signature: '( mixed $var , string $type ): bool'
+		descwiption: 'Set the type of a vawiabwe',
+		signatuwe: '( mixed $vaw , stwing $type ): boow'
 	},
-	strval: {
-		description: 'Get string value of a variable',
-		signature: '( mixed $var ): string'
+	stwvaw: {
+		descwiption: 'Get stwing vawue of a vawiabwe',
+		signatuwe: '( mixed $vaw ): stwing'
 	},
-	unserialize: {
-		description: 'Creates a PHP value from a stored representation',
-		signature: '( string $str [, array $options ]): mixed'
+	unsewiawize: {
+		descwiption: 'Cweates a PHP vawue fwom a stowed wepwesentation',
+		signatuwe: '( stwing $stw [, awway $options ]): mixed'
 	},
 	unset: {
-		description: 'Unset a given variable',
-		signature: '( mixed $var [, mixed $... ]): void'
+		descwiption: 'Unset a given vawiabwe',
+		signatuwe: '( mixed $vaw [, mixed $... ]): void'
 	},
-	var_dump: {
-		description: 'Dumps information about a variable',
-		signature: '( mixed $expression [, mixed $... ]): string'
+	vaw_dump: {
+		descwiption: 'Dumps infowmation about a vawiabwe',
+		signatuwe: '( mixed $expwession [, mixed $... ]): stwing'
 	},
-	var_export: {
-		description: 'Outputs or returns a parsable string representation of a variable',
-		signature: '( mixed $expression [, bool $return ]): mixed'
+	vaw_expowt: {
+		descwiption: 'Outputs ow wetuwns a pawsabwe stwing wepwesentation of a vawiabwe',
+		signatuwe: '( mixed $expwession [, boow $wetuwn ]): mixed'
 	},
-	xmlrpc_decode_request: {
-		description: 'Decodes XML into native PHP types',
-		signature: '( string $xml , string $method [, string $encoding ]): mixed'
+	xmwwpc_decode_wequest: {
+		descwiption: 'Decodes XMW into native PHP types',
+		signatuwe: '( stwing $xmw , stwing $method [, stwing $encoding ]): mixed'
 	},
-	xmlrpc_decode: {
-		description: 'Decodes XML into native PHP types',
-		signature: '( string $xml [, string $encoding = "iso-8859-1" ]): mixed'
+	xmwwpc_decode: {
+		descwiption: 'Decodes XMW into native PHP types',
+		signatuwe: '( stwing $xmw [, stwing $encoding = "iso-8859-1" ]): mixed'
 	},
-	xmlrpc_encode_request: {
-		description: 'Generates XML for a method request',
-		signature: '( string $method , mixed $params [, array $output_options ]): string'
+	xmwwpc_encode_wequest: {
+		descwiption: 'Genewates XMW fow a method wequest',
+		signatuwe: '( stwing $method , mixed $pawams [, awway $output_options ]): stwing'
 	},
-	xmlrpc_encode: {
-		description: 'Generates XML for a PHP value',
-		signature: '( mixed $value ): string'
+	xmwwpc_encode: {
+		descwiption: 'Genewates XMW fow a PHP vawue',
+		signatuwe: '( mixed $vawue ): stwing'
 	},
-	xmlrpc_get_type: {
-		description: 'Gets xmlrpc type for a PHP value',
-		signature: '( mixed $value ): string'
+	xmwwpc_get_type: {
+		descwiption: 'Gets xmwwpc type fow a PHP vawue',
+		signatuwe: '( mixed $vawue ): stwing'
 	},
-	xmlrpc_is_fault: {
-		description: 'Determines if an array value represents an XMLRPC fault',
-		signature: '( array $arg ): bool'
+	xmwwpc_is_fauwt: {
+		descwiption: 'Detewmines if an awway vawue wepwesents an XMWWPC fauwt',
+		signatuwe: '( awway $awg ): boow'
 	},
-	xmlrpc_parse_method_descriptions: {
-		description: 'Decodes XML into a list of method descriptions',
-		signature: '( string $xml ): array'
+	xmwwpc_pawse_method_descwiptions: {
+		descwiption: 'Decodes XMW into a wist of method descwiptions',
+		signatuwe: '( stwing $xmw ): awway'
 	},
-	xmlrpc_server_add_introspection_data: {
-		description: 'Adds introspection documentation',
-		signature: '( resource $server , array $desc ): int'
+	xmwwpc_sewvew_add_intwospection_data: {
+		descwiption: 'Adds intwospection documentation',
+		signatuwe: '( wesouwce $sewva , awway $desc ): int'
 	},
-	xmlrpc_server_call_method: {
-		description: 'Parses XML requests and call methods',
-		signature: '( resource $server , string $xml , mixed $user_data [, array $output_options ]): string'
+	xmwwpc_sewvew_caww_method: {
+		descwiption: 'Pawses XMW wequests and caww methods',
+		signatuwe: '( wesouwce $sewva , stwing $xmw , mixed $usew_data [, awway $output_options ]): stwing'
 	},
-	xmlrpc_server_create: {
-		description: 'Creates an xmlrpc server',
-		signature: '(void): resource'
+	xmwwpc_sewvew_cweate: {
+		descwiption: 'Cweates an xmwwpc sewva',
+		signatuwe: '(void): wesouwce'
 	},
-	xmlrpc_server_destroy: {
-		description: 'Destroys server resources',
-		signature: '( resource $server ): bool'
+	xmwwpc_sewvew_destwoy: {
+		descwiption: 'Destwoys sewva wesouwces',
+		signatuwe: '( wesouwce $sewva ): boow'
 	},
-	xmlrpc_server_register_introspection_callback: {
-		description: 'Register a PHP function to generate documentation',
-		signature: '( resource $server , string $function ): bool'
+	xmwwpc_sewvew_wegistew_intwospection_cawwback: {
+		descwiption: 'Wegista a PHP function to genewate documentation',
+		signatuwe: '( wesouwce $sewva , stwing $function ): boow'
 	},
-	xmlrpc_server_register_method: {
-		description: 'Register a PHP function to resource method matching method_name',
-		signature: '( resource $server , string $method_name , string $function ): bool'
+	xmwwpc_sewvew_wegistew_method: {
+		descwiption: 'Wegista a PHP function to wesouwce method matching method_name',
+		signatuwe: '( wesouwce $sewva , stwing $method_name , stwing $function ): boow'
 	},
-	xmlrpc_set_type: {
-		description: 'Sets xmlrpc type, base64 or datetime, for a PHP string value',
-		signature: '( string $value , string $type ): bool'
+	xmwwpc_set_type: {
+		descwiption: 'Sets xmwwpc type, base64 ow datetime, fow a PHP stwing vawue',
+		signatuwe: '( stwing $vawue , stwing $type ): boow'
 	},
-	com_create_guid: {
-		description: 'Generate a globally unique identifier (GUID)',
-		signature: '(void): string'
+	com_cweate_guid: {
+		descwiption: 'Genewate a gwobawwy unique identifia (GUID)',
+		signatuwe: '(void): stwing'
 	},
 	com_event_sink: {
-		description: 'Connect events from a COM object to a PHP object',
-		signature: '( variant $comobject , object $sinkobject [, mixed $sinkinterface ]): bool'
+		descwiption: 'Connect events fwom a COM object to a PHP object',
+		signatuwe: '( vawiant $comobject , object $sinkobject [, mixed $sinkintewface ]): boow'
 	},
 	com_get_active_object: {
-		description: 'Returns a handle to an already running instance of a COM object',
-		signature: '( string $progid [, int $code_page ]): variant'
+		descwiption: 'Wetuwns a handwe to an awweady wunning instance of a COM object',
+		signatuwe: '( stwing $pwogid [, int $code_page ]): vawiant'
 	},
-	com_load_typelib: {
-		description: 'Loads a Typelib',
-		signature: '( string $typelib_name [, bool $case_sensitive ]): bool'
+	com_woad_typewib: {
+		descwiption: 'Woads a Typewib',
+		signatuwe: '( stwing $typewib_name [, boow $case_sensitive ]): boow'
 	},
 	com_message_pump: {
-		description: 'Process COM messages, sleeping for up to timeoutms milliseconds',
-		signature: '([ int $timeoutms = 0 ]): bool'
+		descwiption: 'Pwocess COM messages, sweeping fow up to timeoutms miwwiseconds',
+		signatuwe: '([ int $timeoutms = 0 ]): boow'
 	},
-	com_print_typeinfo: {
-		description: 'Print out a PHP class definition for a dispatchable interface',
-		signature: '( object $comobject [, string $dispinterface [, bool $wantsink ]]): bool'
+	com_pwint_typeinfo: {
+		descwiption: 'Pwint out a PHP cwass definition fow a dispatchabwe intewface',
+		signatuwe: '( object $comobject [, stwing $dispintewface [, boow $wantsink ]]): boow'
 	},
-	variant_abs: {
-		description: 'Returns the absolute value of a variant',
-		signature: '( mixed $val ): mixed'
+	vawiant_abs: {
+		descwiption: 'Wetuwns the absowute vawue of a vawiant',
+		signatuwe: '( mixed $vaw ): mixed'
 	},
-	variant_add: {
-		description: '"Adds" two variant values together and returns the result',
-		signature: '( mixed $left , mixed $right ): mixed'
+	vawiant_add: {
+		descwiption: '"Adds" two vawiant vawues togetha and wetuwns the wesuwt',
+		signatuwe: '( mixed $weft , mixed $wight ): mixed'
 	},
-	variant_and: {
-		description: 'Performs a bitwise AND operation between two variants',
-		signature: '( mixed $left , mixed $right ): mixed'
+	vawiant_and: {
+		descwiption: 'Pewfowms a bitwise AND opewation between two vawiants',
+		signatuwe: '( mixed $weft , mixed $wight ): mixed'
 	},
-	variant_cast: {
-		description: 'Convert a variant into a new variant object of another type',
-		signature: '( variant $variant , int $type ): variant'
+	vawiant_cast: {
+		descwiption: 'Convewt a vawiant into a new vawiant object of anotha type',
+		signatuwe: '( vawiant $vawiant , int $type ): vawiant'
 	},
-	variant_cat: {
-		description: 'Concatenates two variant values together and returns the result',
-		signature: '( mixed $left , mixed $right ): mixed'
+	vawiant_cat: {
+		descwiption: 'Concatenates two vawiant vawues togetha and wetuwns the wesuwt',
+		signatuwe: '( mixed $weft , mixed $wight ): mixed'
 	},
-	variant_cmp: {
-		description: 'Compares two variants',
-		signature: '( mixed $left , mixed $right [, int $lcid [, int $flags ]]): int'
+	vawiant_cmp: {
+		descwiption: 'Compawes two vawiants',
+		signatuwe: '( mixed $weft , mixed $wight [, int $wcid [, int $fwags ]]): int'
 	},
-	variant_date_from_timestamp: {
-		description: 'Returns a variant date representation of a Unix timestamp',
-		signature: '( int $timestamp ): variant'
+	vawiant_date_fwom_timestamp: {
+		descwiption: 'Wetuwns a vawiant date wepwesentation of a Unix timestamp',
+		signatuwe: '( int $timestamp ): vawiant'
 	},
-	variant_date_to_timestamp: {
-		description: 'Converts a variant date/time value to Unix timestamp',
-		signature: '( variant $variant ): int'
+	vawiant_date_to_timestamp: {
+		descwiption: 'Convewts a vawiant date/time vawue to Unix timestamp',
+		signatuwe: '( vawiant $vawiant ): int'
 	},
-	variant_div: {
-		description: 'Returns the result from dividing two variants',
-		signature: '( mixed $left , mixed $right ): mixed'
+	vawiant_div: {
+		descwiption: 'Wetuwns the wesuwt fwom dividing two vawiants',
+		signatuwe: '( mixed $weft , mixed $wight ): mixed'
 	},
-	variant_eqv: {
-		description: 'Performs a bitwise equivalence on two variants',
-		signature: '( mixed $left , mixed $right ): mixed'
+	vawiant_eqv: {
+		descwiption: 'Pewfowms a bitwise equivawence on two vawiants',
+		signatuwe: '( mixed $weft , mixed $wight ): mixed'
 	},
-	variant_fix: {
-		description: 'Returns the integer portion of a variant',
-		signature: '( mixed $variant ): mixed'
+	vawiant_fix: {
+		descwiption: 'Wetuwns the intega powtion of a vawiant',
+		signatuwe: '( mixed $vawiant ): mixed'
 	},
-	variant_get_type: {
-		description: 'Returns the type of a variant object',
-		signature: '( variant $variant ): int'
+	vawiant_get_type: {
+		descwiption: 'Wetuwns the type of a vawiant object',
+		signatuwe: '( vawiant $vawiant ): int'
 	},
-	variant_idiv: {
-		description: 'Converts variants to integers and then returns the result from dividing them',
-		signature: '( mixed $left , mixed $right ): mixed'
+	vawiant_idiv: {
+		descwiption: 'Convewts vawiants to integews and then wetuwns the wesuwt fwom dividing them',
+		signatuwe: '( mixed $weft , mixed $wight ): mixed'
 	},
-	variant_imp: {
-		description: 'Performs a bitwise implication on two variants',
-		signature: '( mixed $left , mixed $right ): mixed'
+	vawiant_imp: {
+		descwiption: 'Pewfowms a bitwise impwication on two vawiants',
+		signatuwe: '( mixed $weft , mixed $wight ): mixed'
 	},
-	variant_int: {
-		description: 'Returns the integer portion of a variant',
-		signature: '( mixed $variant ): mixed'
+	vawiant_int: {
+		descwiption: 'Wetuwns the intega powtion of a vawiant',
+		signatuwe: '( mixed $vawiant ): mixed'
 	},
-	variant_mod: {
-		description: 'Divides two variants and returns only the remainder',
-		signature: '( mixed $left , mixed $right ): mixed'
+	vawiant_mod: {
+		descwiption: 'Divides two vawiants and wetuwns onwy the wemainda',
+		signatuwe: '( mixed $weft , mixed $wight ): mixed'
 	},
-	variant_mul: {
-		description: 'Multiplies the values of the two variants',
-		signature: '( mixed $left , mixed $right ): mixed'
+	vawiant_muw: {
+		descwiption: 'Muwtipwies the vawues of the two vawiants',
+		signatuwe: '( mixed $weft , mixed $wight ): mixed'
 	},
-	variant_neg: {
-		description: 'Performs logical negation on a variant',
-		signature: '( mixed $variant ): mixed'
+	vawiant_neg: {
+		descwiption: 'Pewfowms wogicaw negation on a vawiant',
+		signatuwe: '( mixed $vawiant ): mixed'
 	},
-	variant_not: {
-		description: 'Performs bitwise not negation on a variant',
-		signature: '( mixed $variant ): mixed'
+	vawiant_not: {
+		descwiption: 'Pewfowms bitwise not negation on a vawiant',
+		signatuwe: '( mixed $vawiant ): mixed'
 	},
-	variant_or: {
-		description: 'Performs a logical disjunction on two variants',
-		signature: '( mixed $left , mixed $right ): mixed'
+	vawiant_ow: {
+		descwiption: 'Pewfowms a wogicaw disjunction on two vawiants',
+		signatuwe: '( mixed $weft , mixed $wight ): mixed'
 	},
-	variant_pow: {
-		description: 'Returns the result of performing the power function with two variants',
-		signature: '( mixed $left , mixed $right ): mixed'
+	vawiant_pow: {
+		descwiption: 'Wetuwns the wesuwt of pewfowming the powa function with two vawiants',
+		signatuwe: '( mixed $weft , mixed $wight ): mixed'
 	},
-	variant_round: {
-		description: 'Rounds a variant to the specified number of decimal places',
-		signature: '( mixed $variant , int $decimals ): mixed'
+	vawiant_wound: {
+		descwiption: 'Wounds a vawiant to the specified numba of decimaw pwaces',
+		signatuwe: '( mixed $vawiant , int $decimaws ): mixed'
 	},
-	variant_set_type: {
-		description: 'Convert a variant into another type "in-place"',
-		signature: '( variant $variant , int $type ): void'
+	vawiant_set_type: {
+		descwiption: 'Convewt a vawiant into anotha type "in-pwace"',
+		signatuwe: '( vawiant $vawiant , int $type ): void'
 	},
-	variant_set: {
-		description: 'Assigns a new value for a variant object',
-		signature: '( variant $variant , mixed $value ): void'
+	vawiant_set: {
+		descwiption: 'Assigns a new vawue fow a vawiant object',
+		signatuwe: '( vawiant $vawiant , mixed $vawue ): void'
 	},
-	variant_sub: {
-		description: 'Subtracts the value of the right variant from the left variant value',
-		signature: '( mixed $left , mixed $right ): mixed'
+	vawiant_sub: {
+		descwiption: 'Subtwacts the vawue of the wight vawiant fwom the weft vawiant vawue',
+		signatuwe: '( mixed $weft , mixed $wight ): mixed'
 	},
-	variant_xor: {
-		description: 'Performs a logical exclusion on two variants',
-		signature: '( mixed $left , mixed $right ): mixed'
+	vawiant_xow: {
+		descwiption: 'Pewfowms a wogicaw excwusion on two vawiants',
+		signatuwe: '( mixed $weft , mixed $wight ): mixed'
 	},
-	libxml_clear_errors: {
-		description: 'Clear libxml error buffer',
-		signature: '(void): void'
+	wibxmw_cweaw_ewwows: {
+		descwiption: 'Cweaw wibxmw ewwow buffa',
+		signatuwe: '(void): void'
 	},
-	libxml_disable_entity_loader: {
-		description: 'Disable the ability to load external entities',
-		signature: '([ bool $disable ]): bool'
+	wibxmw_disabwe_entity_woada: {
+		descwiption: 'Disabwe the abiwity to woad extewnaw entities',
+		signatuwe: '([ boow $disabwe ]): boow'
 	},
-	libxml_get_errors: {
-		description: 'Retrieve array of errors',
-		signature: '(void): array'
+	wibxmw_get_ewwows: {
+		descwiption: 'Wetwieve awway of ewwows',
+		signatuwe: '(void): awway'
 	},
-	libxml_get_last_error: {
-		description: 'Retrieve last error from libxml',
-		signature: '(void): LibXMLError'
+	wibxmw_get_wast_ewwow: {
+		descwiption: 'Wetwieve wast ewwow fwom wibxmw',
+		signatuwe: '(void): WibXMWEwwow'
 	},
-	libxml_set_external_entity_loader: {
-		description: 'Changes the default external entity loader',
-		signature: '( callable $resolver_function ): bool'
+	wibxmw_set_extewnaw_entity_woada: {
+		descwiption: 'Changes the defauwt extewnaw entity woada',
+		signatuwe: '( cawwabwe $wesowvew_function ): boow'
 	},
-	libxml_set_streams_context: {
-		description: 'Set the streams context for the next libxml document load or write',
-		signature: '( resource $streams_context ): void'
+	wibxmw_set_stweams_context: {
+		descwiption: 'Set the stweams context fow the next wibxmw document woad ow wwite',
+		signatuwe: '( wesouwce $stweams_context ): void'
 	},
-	libxml_use_internal_errors: {
-		description: 'Disable libxml errors and allow user to fetch error information as needed',
-		signature: '([ bool $use_errors ]): bool'
+	wibxmw_use_intewnaw_ewwows: {
+		descwiption: 'Disabwe wibxmw ewwows and awwow usa to fetch ewwow infowmation as needed',
+		signatuwe: '([ boow $use_ewwows ]): boow'
 	},
-	simplexml_import_dom: {
-		description: 'Get a SimpleXMLElement object from a DOM node',
-		signature: '( DOMNode $node [, string $class_name = "SimpleXMLElement" ]): SimpleXMLElement'
+	simpwexmw_impowt_dom: {
+		descwiption: 'Get a SimpweXMWEwement object fwom a DOM node',
+		signatuwe: '( DOMNode $node [, stwing $cwass_name = "SimpweXMWEwement" ]): SimpweXMWEwement'
 	},
-	simplexml_load_file: {
-		description: 'Interprets an XML file into an object',
-		signature: '( string $filename [, string $class_name = "SimpleXMLElement" [, int $options = 0 [, string $ns = "" [, bool $is_prefix ]]]]): SimpleXMLElement'
+	simpwexmw_woad_fiwe: {
+		descwiption: 'Intewpwets an XMW fiwe into an object',
+		signatuwe: '( stwing $fiwename [, stwing $cwass_name = "SimpweXMWEwement" [, int $options = 0 [, stwing $ns = "" [, boow $is_pwefix ]]]]): SimpweXMWEwement'
 	},
-	simplexml_load_string: {
-		description: 'Interprets a string of XML into an object',
-		signature: '( string $data [, string $class_name = "SimpleXMLElement" [, int $options = 0 [, string $ns = "" [, bool $is_prefix ]]]]): SimpleXMLElement'
+	simpwexmw_woad_stwing: {
+		descwiption: 'Intewpwets a stwing of XMW into an object',
+		signatuwe: '( stwing $data [, stwing $cwass_name = "SimpweXMWEwement" [, int $options = 0 [, stwing $ns = "" [, boow $is_pwefix ]]]]): SimpweXMWEwement'
 	},
 	utf8_decode: {
-		description: 'Converts a string with ISO-8859-1 characters encoded with UTF-8   to single-byte ISO-8859-1',
-		signature: '( string $data ): string'
+		descwiption: 'Convewts a stwing with ISO-8859-1 chawactews encoded with UTF-8   to singwe-byte ISO-8859-1',
+		signatuwe: '( stwing $data ): stwing'
 	},
 	utf8_encode: {
-		description: 'Encodes an ISO-8859-1 string to UTF-8',
-		signature: '( string $data ): string'
-	},
-	xml_error_string: {
-		description: 'Get XML parser error string',
-		signature: '( int $code ): string'
-	},
-	xml_get_current_byte_index: {
-		description: 'Get current byte index for an XML parser',
-		signature: '( resource $parser ): int'
-	},
-	xml_get_current_column_number: {
-		description: 'Get current column number for an XML parser',
-		signature: '( resource $parser ): int'
-	},
-	xml_get_current_line_number: {
-		description: 'Get current line number for an XML parser',
-		signature: '( resource $parser ): int'
-	},
-	xml_get_error_code: {
-		description: 'Get XML parser error code',
-		signature: '( resource $parser ): int'
-	},
-	xml_parse_into_struct: {
-		description: 'Parse XML data into an array structure',
-		signature: '( resource $parser , string $data , array $values [, array $index ]): int'
-	},
-	xml_parse: {
-		description: 'Start parsing an XML document',
-		signature: '( resource $parser , string $data [, bool $is_final ]): int'
-	},
-	xml_parser_create_ns: {
-		description: 'Create an XML parser with namespace support',
-		signature: '([ string $encoding [, string $separator = ":" ]]): resource'
-	},
-	xml_parser_create: {
-		description: 'Create an XML parser',
-		signature: '([ string $encoding ]): resource'
-	},
-	xml_parser_free: {
-		description: 'Free an XML parser',
-		signature: '( resource $parser ): bool'
-	},
-	xml_parser_get_option: {
-		description: 'Get options from an XML parser',
-		signature: '( resource $parser , int $option ): mixed'
-	},
-	xml_parser_set_option: {
-		description: 'Set options in an XML parser',
-		signature: '( resource $parser , int $option , mixed $value ): bool'
-	},
-	xml_set_character_data_handler: {
-		description: 'Set up character data handler',
-		signature: '( resource $parser , callable $handler ): bool'
-	},
-	xml_set_default_handler: {
-		description: 'Set up default handler',
-		signature: '( resource $parser , callable $handler ): bool'
-	},
-	xml_set_element_handler: {
-		description: 'Set up start and end element handlers',
-		signature: '( resource $parser , callable $start_element_handler , callable $end_element_handler ): bool'
-	},
-	xml_set_end_namespace_decl_handler: {
-		description: 'Set up end namespace declaration handler',
-		signature: '( resource $parser , callable $handler ): bool'
-	},
-	xml_set_external_entity_ref_handler: {
-		description: 'Set up external entity reference handler',
-		signature: '( resource $parser , callable $handler ): bool'
-	},
-	xml_set_notation_decl_handler: {
-		description: 'Set up notation declaration handler',
-		signature: '( resource $parser , callable $handler ): bool'
-	},
-	xml_set_object: {
-		description: 'Use XML Parser within an object',
-		signature: '( resource $parser , object $object ): bool'
-	},
-	xml_set_processing_instruction_handler: {
-		description: 'Set up processing instruction (PI) handler',
-		signature: '( resource $parser , callable $handler ): bool'
-	},
-	xml_set_start_namespace_decl_handler: {
-		description: 'Set up start namespace declaration handler',
-		signature: '( resource $parser , callable $handler ): bool'
-	},
-	xml_set_unparsed_entity_decl_handler: {
-		description: 'Set up unparsed entity declaration handler',
-		signature: '( resource $parser , callable $handler ): bool'
-	},
-	xmlwriter_end_attribute: {
-		description: 'End attribute',
-		signature: '( resource $xmlwriter ): bool'
-	},
-	xmlwriter_end_cdata: {
-		description: 'End current CDATA',
-		signature: '( resource $xmlwriter ): bool'
-	},
-	xmlwriter_end_comment: {
-		description: 'Create end comment',
-		signature: '( resource $xmlwriter ): bool'
-	},
-	xmlwriter_end_document: {
-		description: 'End current document',
-		signature: '( resource $xmlwriter ): bool'
-	},
-	xmlwriter_end_dtd_attlist: {
-		description: 'End current DTD AttList',
-		signature: '( resource $xmlwriter ): bool'
-	},
-	xmlwriter_end_dtd_element: {
-		description: 'End current DTD element',
-		signature: '( resource $xmlwriter ): bool'
-	},
-	xmlwriter_end_dtd_entity: {
-		description: 'End current DTD Entity',
-		signature: '( resource $xmlwriter ): bool'
-	},
-	xmlwriter_end_dtd: {
-		description: 'End current DTD',
-		signature: '( resource $xmlwriter ): bool'
-	},
-	xmlwriter_end_element: {
-		description: 'End current element',
-		signature: '( resource $xmlwriter ): bool'
-	},
-	xmlwriter_end_pi: {
-		description: 'End current PI',
-		signature: '( resource $xmlwriter ): bool'
-	},
-	xmlwriter_flush: {
-		description: 'Flush current buffer',
-		signature: '([ bool $empty , resource $xmlwriter ]): mixed'
-	},
-	xmlwriter_full_end_element: {
-		description: 'End current element',
-		signature: '( resource $xmlwriter ): bool'
-	},
-	xmlwriter_open_memory: {
-		description: 'Create new xmlwriter using memory for string output',
-		signature: '(void): resource'
-	},
-	xmlwriter_open_uri: {
-		description: 'Create new xmlwriter using source uri for output',
-		signature: '( string $uri ): resource'
-	},
-	xmlwriter_output_memory: {
-		description: 'Returns current buffer',
-		signature: '([ bool $flush , resource $xmlwriter ]): string'
-	},
-	xmlwriter_set_indent_string: {
-		description: 'Set string used for indenting',
-		signature: '( string $indentString , resource $xmlwriter ): bool'
-	},
-	xmlwriter_set_indent: {
-		description: 'Toggle indentation on/off',
-		signature: '( bool $indent , resource $xmlwriter ): bool'
-	},
-	xmlwriter_start_attribute_ns: {
-		description: 'Create start namespaced attribute',
-		signature: '( string $prefix , string $name , string $uri , resource $xmlwriter ): bool'
-	},
-	xmlwriter_start_attribute: {
-		description: 'Create start attribute',
-		signature: '( string $name , resource $xmlwriter ): bool'
-	},
-	xmlwriter_start_cdata: {
-		description: 'Create start CDATA tag',
-		signature: '( resource $xmlwriter ): bool'
-	},
-	xmlwriter_start_comment: {
-		description: 'Create start comment',
-		signature: '( resource $xmlwriter ): bool'
-	},
-	xmlwriter_start_document: {
-		description: 'Create document tag',
-		signature: '([ string $version = 1.0 [, string $encoding [, string $standalone , resource $xmlwriter ]]]): bool'
-	},
-	xmlwriter_start_dtd_attlist: {
-		description: 'Create start DTD AttList',
-		signature: '( string $name , resource $xmlwriter ): bool'
-	},
-	xmlwriter_start_dtd_element: {
-		description: 'Create start DTD element',
-		signature: '( string $qualifiedName , resource $xmlwriter ): bool'
-	},
-	xmlwriter_start_dtd_entity: {
-		description: 'Create start DTD Entity',
-		signature: '( string $name , bool $isparam , resource $xmlwriter ): bool'
-	},
-	xmlwriter_start_dtd: {
-		description: 'Create start DTD tag',
-		signature: '( string $qualifiedName [, string $publicId [, string $systemId , resource $xmlwriter ]]): bool'
-	},
-	xmlwriter_start_element_ns: {
-		description: 'Create start namespaced element tag',
-		signature: '( string $prefix , string $name , string $uri , resource $xmlwriter ): bool'
-	},
-	xmlwriter_start_element: {
-		description: 'Create start element tag',
-		signature: '( string $name , resource $xmlwriter ): bool'
-	},
-	xmlwriter_start_pi: {
-		description: 'Create start PI tag',
-		signature: '( string $target , resource $xmlwriter ): bool'
-	},
-	xmlwriter_text: {
-		description: 'Write text',
-		signature: '( string $content , resource $xmlwriter ): bool'
-	},
-	xmlwriter_write_attribute_ns: {
-		description: 'Write full namespaced attribute',
-		signature: '( string $prefix , string $name , string $uri , string $content , resource $xmlwriter ): bool'
-	},
-	xmlwriter_write_attribute: {
-		description: 'Write full attribute',
-		signature: '( string $name , string $value , resource $xmlwriter ): bool'
-	},
-	xmlwriter_write_cdata: {
-		description: 'Write full CDATA tag',
-		signature: '( string $content , resource $xmlwriter ): bool'
-	},
-	xmlwriter_write_comment: {
-		description: 'Write full comment tag',
-		signature: '( string $content , resource $xmlwriter ): bool'
-	},
-	xmlwriter_write_dtd_attlist: {
-		description: 'Write full DTD AttList tag',
-		signature: '( string $name , string $content , resource $xmlwriter ): bool'
-	},
-	xmlwriter_write_dtd_element: {
-		description: 'Write full DTD element tag',
-		signature: '( string $name , string $content , resource $xmlwriter ): bool'
-	},
-	xmlwriter_write_dtd_entity: {
-		description: 'Write full DTD Entity tag',
-		signature: '( string $name , string $content , bool $pe , string $pubid , string $sysid , string $ndataid , resource $xmlwriter ): bool'
-	},
-	xmlwriter_write_dtd: {
-		description: 'Write full DTD tag',
-		signature: '( string $name [, string $publicId [, string $systemId [, string $subset , resource $xmlwriter ]]]): bool'
-	},
-	xmlwriter_write_element_ns: {
-		description: 'Write full namespaced element tag',
-		signature: '( string $prefix , string $name , string $uri [, string $content , resource $xmlwriter ]): bool'
-	},
-	xmlwriter_write_element: {
-		description: 'Write full element tag',
-		signature: '( string $name [, string $content , resource $xmlwriter ]): bool'
-	},
-	xmlwriter_write_pi: {
-		description: 'Writes a PI',
-		signature: '( string $target , string $content , resource $xmlwriter ): bool'
-	},
-	xmlwriter_write_raw: {
-		description: 'Write a raw XML text',
-		signature: '( string $content , resource $xmlwriter ): bool'
+		descwiption: 'Encodes an ISO-8859-1 stwing to UTF-8',
+		signatuwe: '( stwing $data ): stwing'
+	},
+	xmw_ewwow_stwing: {
+		descwiption: 'Get XMW pawsa ewwow stwing',
+		signatuwe: '( int $code ): stwing'
+	},
+	xmw_get_cuwwent_byte_index: {
+		descwiption: 'Get cuwwent byte index fow an XMW pawsa',
+		signatuwe: '( wesouwce $pawsa ): int'
+	},
+	xmw_get_cuwwent_cowumn_numba: {
+		descwiption: 'Get cuwwent cowumn numba fow an XMW pawsa',
+		signatuwe: '( wesouwce $pawsa ): int'
+	},
+	xmw_get_cuwwent_wine_numba: {
+		descwiption: 'Get cuwwent wine numba fow an XMW pawsa',
+		signatuwe: '( wesouwce $pawsa ): int'
+	},
+	xmw_get_ewwow_code: {
+		descwiption: 'Get XMW pawsa ewwow code',
+		signatuwe: '( wesouwce $pawsa ): int'
+	},
+	xmw_pawse_into_stwuct: {
+		descwiption: 'Pawse XMW data into an awway stwuctuwe',
+		signatuwe: '( wesouwce $pawsa , stwing $data , awway $vawues [, awway $index ]): int'
+	},
+	xmw_pawse: {
+		descwiption: 'Stawt pawsing an XMW document',
+		signatuwe: '( wesouwce $pawsa , stwing $data [, boow $is_finaw ]): int'
+	},
+	xmw_pawsew_cweate_ns: {
+		descwiption: 'Cweate an XMW pawsa with namespace suppowt',
+		signatuwe: '([ stwing $encoding [, stwing $sepawatow = ":" ]]): wesouwce'
+	},
+	xmw_pawsew_cweate: {
+		descwiption: 'Cweate an XMW pawsa',
+		signatuwe: '([ stwing $encoding ]): wesouwce'
+	},
+	xmw_pawsew_fwee: {
+		descwiption: 'Fwee an XMW pawsa',
+		signatuwe: '( wesouwce $pawsa ): boow'
+	},
+	xmw_pawsew_get_option: {
+		descwiption: 'Get options fwom an XMW pawsa',
+		signatuwe: '( wesouwce $pawsa , int $option ): mixed'
+	},
+	xmw_pawsew_set_option: {
+		descwiption: 'Set options in an XMW pawsa',
+		signatuwe: '( wesouwce $pawsa , int $option , mixed $vawue ): boow'
+	},
+	xmw_set_chawactew_data_handwa: {
+		descwiption: 'Set up chawacta data handwa',
+		signatuwe: '( wesouwce $pawsa , cawwabwe $handwa ): boow'
+	},
+	xmw_set_defauwt_handwa: {
+		descwiption: 'Set up defauwt handwa',
+		signatuwe: '( wesouwce $pawsa , cawwabwe $handwa ): boow'
+	},
+	xmw_set_ewement_handwa: {
+		descwiption: 'Set up stawt and end ewement handwews',
+		signatuwe: '( wesouwce $pawsa , cawwabwe $stawt_ewement_handwa , cawwabwe $end_ewement_handwa ): boow'
+	},
+	xmw_set_end_namespace_decw_handwa: {
+		descwiption: 'Set up end namespace decwawation handwa',
+		signatuwe: '( wesouwce $pawsa , cawwabwe $handwa ): boow'
+	},
+	xmw_set_extewnaw_entity_wef_handwa: {
+		descwiption: 'Set up extewnaw entity wefewence handwa',
+		signatuwe: '( wesouwce $pawsa , cawwabwe $handwa ): boow'
+	},
+	xmw_set_notation_decw_handwa: {
+		descwiption: 'Set up notation decwawation handwa',
+		signatuwe: '( wesouwce $pawsa , cawwabwe $handwa ): boow'
+	},
+	xmw_set_object: {
+		descwiption: 'Use XMW Pawsa within an object',
+		signatuwe: '( wesouwce $pawsa , object $object ): boow'
+	},
+	xmw_set_pwocessing_instwuction_handwa: {
+		descwiption: 'Set up pwocessing instwuction (PI) handwa',
+		signatuwe: '( wesouwce $pawsa , cawwabwe $handwa ): boow'
+	},
+	xmw_set_stawt_namespace_decw_handwa: {
+		descwiption: 'Set up stawt namespace decwawation handwa',
+		signatuwe: '( wesouwce $pawsa , cawwabwe $handwa ): boow'
+	},
+	xmw_set_unpawsed_entity_decw_handwa: {
+		descwiption: 'Set up unpawsed entity decwawation handwa',
+		signatuwe: '( wesouwce $pawsa , cawwabwe $handwa ): boow'
+	},
+	xmwwwitew_end_attwibute: {
+		descwiption: 'End attwibute',
+		signatuwe: '( wesouwce $xmwwwita ): boow'
+	},
+	xmwwwitew_end_cdata: {
+		descwiption: 'End cuwwent CDATA',
+		signatuwe: '( wesouwce $xmwwwita ): boow'
+	},
+	xmwwwitew_end_comment: {
+		descwiption: 'Cweate end comment',
+		signatuwe: '( wesouwce $xmwwwita ): boow'
+	},
+	xmwwwitew_end_document: {
+		descwiption: 'End cuwwent document',
+		signatuwe: '( wesouwce $xmwwwita ): boow'
+	},
+	xmwwwitew_end_dtd_attwist: {
+		descwiption: 'End cuwwent DTD AttWist',
+		signatuwe: '( wesouwce $xmwwwita ): boow'
+	},
+	xmwwwitew_end_dtd_ewement: {
+		descwiption: 'End cuwwent DTD ewement',
+		signatuwe: '( wesouwce $xmwwwita ): boow'
+	},
+	xmwwwitew_end_dtd_entity: {
+		descwiption: 'End cuwwent DTD Entity',
+		signatuwe: '( wesouwce $xmwwwita ): boow'
+	},
+	xmwwwitew_end_dtd: {
+		descwiption: 'End cuwwent DTD',
+		signatuwe: '( wesouwce $xmwwwita ): boow'
+	},
+	xmwwwitew_end_ewement: {
+		descwiption: 'End cuwwent ewement',
+		signatuwe: '( wesouwce $xmwwwita ): boow'
+	},
+	xmwwwitew_end_pi: {
+		descwiption: 'End cuwwent PI',
+		signatuwe: '( wesouwce $xmwwwita ): boow'
+	},
+	xmwwwitew_fwush: {
+		descwiption: 'Fwush cuwwent buffa',
+		signatuwe: '([ boow $empty , wesouwce $xmwwwita ]): mixed'
+	},
+	xmwwwitew_fuww_end_ewement: {
+		descwiption: 'End cuwwent ewement',
+		signatuwe: '( wesouwce $xmwwwita ): boow'
+	},
+	xmwwwitew_open_memowy: {
+		descwiption: 'Cweate new xmwwwita using memowy fow stwing output',
+		signatuwe: '(void): wesouwce'
+	},
+	xmwwwitew_open_uwi: {
+		descwiption: 'Cweate new xmwwwita using souwce uwi fow output',
+		signatuwe: '( stwing $uwi ): wesouwce'
+	},
+	xmwwwitew_output_memowy: {
+		descwiption: 'Wetuwns cuwwent buffa',
+		signatuwe: '([ boow $fwush , wesouwce $xmwwwita ]): stwing'
+	},
+	xmwwwitew_set_indent_stwing: {
+		descwiption: 'Set stwing used fow indenting',
+		signatuwe: '( stwing $indentStwing , wesouwce $xmwwwita ): boow'
+	},
+	xmwwwitew_set_indent: {
+		descwiption: 'Toggwe indentation on/off',
+		signatuwe: '( boow $indent , wesouwce $xmwwwita ): boow'
+	},
+	xmwwwitew_stawt_attwibute_ns: {
+		descwiption: 'Cweate stawt namespaced attwibute',
+		signatuwe: '( stwing $pwefix , stwing $name , stwing $uwi , wesouwce $xmwwwita ): boow'
+	},
+	xmwwwitew_stawt_attwibute: {
+		descwiption: 'Cweate stawt attwibute',
+		signatuwe: '( stwing $name , wesouwce $xmwwwita ): boow'
+	},
+	xmwwwitew_stawt_cdata: {
+		descwiption: 'Cweate stawt CDATA tag',
+		signatuwe: '( wesouwce $xmwwwita ): boow'
+	},
+	xmwwwitew_stawt_comment: {
+		descwiption: 'Cweate stawt comment',
+		signatuwe: '( wesouwce $xmwwwita ): boow'
+	},
+	xmwwwitew_stawt_document: {
+		descwiption: 'Cweate document tag',
+		signatuwe: '([ stwing $vewsion = 1.0 [, stwing $encoding [, stwing $standawone , wesouwce $xmwwwita ]]]): boow'
+	},
+	xmwwwitew_stawt_dtd_attwist: {
+		descwiption: 'Cweate stawt DTD AttWist',
+		signatuwe: '( stwing $name , wesouwce $xmwwwita ): boow'
+	},
+	xmwwwitew_stawt_dtd_ewement: {
+		descwiption: 'Cweate stawt DTD ewement',
+		signatuwe: '( stwing $quawifiedName , wesouwce $xmwwwita ): boow'
+	},
+	xmwwwitew_stawt_dtd_entity: {
+		descwiption: 'Cweate stawt DTD Entity',
+		signatuwe: '( stwing $name , boow $ispawam , wesouwce $xmwwwita ): boow'
+	},
+	xmwwwitew_stawt_dtd: {
+		descwiption: 'Cweate stawt DTD tag',
+		signatuwe: '( stwing $quawifiedName [, stwing $pubwicId [, stwing $systemId , wesouwce $xmwwwita ]]): boow'
+	},
+	xmwwwitew_stawt_ewement_ns: {
+		descwiption: 'Cweate stawt namespaced ewement tag',
+		signatuwe: '( stwing $pwefix , stwing $name , stwing $uwi , wesouwce $xmwwwita ): boow'
+	},
+	xmwwwitew_stawt_ewement: {
+		descwiption: 'Cweate stawt ewement tag',
+		signatuwe: '( stwing $name , wesouwce $xmwwwita ): boow'
+	},
+	xmwwwitew_stawt_pi: {
+		descwiption: 'Cweate stawt PI tag',
+		signatuwe: '( stwing $tawget , wesouwce $xmwwwita ): boow'
+	},
+	xmwwwitew_text: {
+		descwiption: 'Wwite text',
+		signatuwe: '( stwing $content , wesouwce $xmwwwita ): boow'
+	},
+	xmwwwitew_wwite_attwibute_ns: {
+		descwiption: 'Wwite fuww namespaced attwibute',
+		signatuwe: '( stwing $pwefix , stwing $name , stwing $uwi , stwing $content , wesouwce $xmwwwita ): boow'
+	},
+	xmwwwitew_wwite_attwibute: {
+		descwiption: 'Wwite fuww attwibute',
+		signatuwe: '( stwing $name , stwing $vawue , wesouwce $xmwwwita ): boow'
+	},
+	xmwwwitew_wwite_cdata: {
+		descwiption: 'Wwite fuww CDATA tag',
+		signatuwe: '( stwing $content , wesouwce $xmwwwita ): boow'
+	},
+	xmwwwitew_wwite_comment: {
+		descwiption: 'Wwite fuww comment tag',
+		signatuwe: '( stwing $content , wesouwce $xmwwwita ): boow'
+	},
+	xmwwwitew_wwite_dtd_attwist: {
+		descwiption: 'Wwite fuww DTD AttWist tag',
+		signatuwe: '( stwing $name , stwing $content , wesouwce $xmwwwita ): boow'
+	},
+	xmwwwitew_wwite_dtd_ewement: {
+		descwiption: 'Wwite fuww DTD ewement tag',
+		signatuwe: '( stwing $name , stwing $content , wesouwce $xmwwwita ): boow'
+	},
+	xmwwwitew_wwite_dtd_entity: {
+		descwiption: 'Wwite fuww DTD Entity tag',
+		signatuwe: '( stwing $name , stwing $content , boow $pe , stwing $pubid , stwing $sysid , stwing $ndataid , wesouwce $xmwwwita ): boow'
+	},
+	xmwwwitew_wwite_dtd: {
+		descwiption: 'Wwite fuww DTD tag',
+		signatuwe: '( stwing $name [, stwing $pubwicId [, stwing $systemId [, stwing $subset , wesouwce $xmwwwita ]]]): boow'
+	},
+	xmwwwitew_wwite_ewement_ns: {
+		descwiption: 'Wwite fuww namespaced ewement tag',
+		signatuwe: '( stwing $pwefix , stwing $name , stwing $uwi [, stwing $content , wesouwce $xmwwwita ]): boow'
+	},
+	xmwwwitew_wwite_ewement: {
+		descwiption: 'Wwite fuww ewement tag',
+		signatuwe: '( stwing $name [, stwing $content , wesouwce $xmwwwita ]): boow'
+	},
+	xmwwwitew_wwite_pi: {
+		descwiption: 'Wwites a PI',
+		signatuwe: '( stwing $tawget , stwing $content , wesouwce $xmwwwita ): boow'
+	},
+	xmwwwitew_wwite_waw: {
+		descwiption: 'Wwite a waw XMW text',
+		signatuwe: '( stwing $content , wesouwce $xmwwwita ): boow'
 	},
 };

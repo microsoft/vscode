@@ -1,10 +1,10 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUpdateService } from 'vs/platform/update/common/update';
-import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
-import { UpdateChannelClient } from 'vs/platform/update/common/updateIpc';
+impowt { IUpdateSewvice } fwom 'vs/pwatfowm/update/common/update';
+impowt { wegistewMainPwocessWemoteSewvice } fwom 'vs/pwatfowm/ipc/ewectwon-sandbox/sewvices';
+impowt { UpdateChannewCwient } fwom 'vs/pwatfowm/update/common/updateIpc';
 
-registerMainProcessRemoteService(IUpdateService, 'update', { channelClientCtor: UpdateChannelClient });
+wegistewMainPwocessWemoteSewvice(IUpdateSewvice, 'update', { channewCwientCtow: UpdateChannewCwient });

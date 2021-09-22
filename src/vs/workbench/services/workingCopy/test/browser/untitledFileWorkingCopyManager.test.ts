@@ -1,315 +1,315 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { FileWorkingCopyManager, IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
-import { NO_TYPE_ID, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { TestStoredFileWorkingCopyModel, TestStoredFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/storedFileWorkingCopy.test';
-import { TestUntitledFileWorkingCopyModel, TestUntitledFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/untitledFileWorkingCopy.test';
-import { TestInMemoryFileSystemProvider, TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+impowt * as assewt fwom 'assewt';
+impowt { buffewToStweam, VSBuffa } fwom 'vs/base/common/buffa';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { FiweWowkingCopyManaga, IFiweWowkingCopyManaga } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/fiweWowkingCopyManaga';
+impowt { NO_TYPE_ID, WowkingCopyCapabiwities } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopy';
+impowt { TestStowedFiweWowkingCopyModew, TestStowedFiweWowkingCopyModewFactowy } fwom 'vs/wowkbench/sewvices/wowkingCopy/test/bwowsa/stowedFiweWowkingCopy.test';
+impowt { TestUntitwedFiweWowkingCopyModew, TestUntitwedFiweWowkingCopyModewFactowy } fwom 'vs/wowkbench/sewvices/wowkingCopy/test/bwowsa/untitwedFiweWowkingCopy.test';
+impowt { TestInMemowyFiweSystemPwovida, TestSewviceAccessow, wowkbenchInstantiationSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
 
-suite('UntitledFileWorkingCopyManager', () => {
+suite('UntitwedFiweWowkingCopyManaga', () => {
 
-	let instantiationService: IInstantiationService;
-	let accessor: TestServiceAccessor;
+	wet instantiationSewvice: IInstantiationSewvice;
+	wet accessow: TestSewviceAccessow;
 
-	let manager: IFileWorkingCopyManager<TestStoredFileWorkingCopyModel, TestUntitledFileWorkingCopyModel>;
+	wet managa: IFiweWowkingCopyManaga<TestStowedFiweWowkingCopyModew, TestUntitwedFiweWowkingCopyModew>;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
-		accessor = instantiationService.createInstance(TestServiceAccessor);
+		instantiationSewvice = wowkbenchInstantiationSewvice();
+		accessow = instantiationSewvice.cweateInstance(TestSewviceAccessow);
 
-		accessor.fileService.registerProvider(Schemas.file, new TestInMemoryFileSystemProvider());
-		accessor.fileService.registerProvider(Schemas.vscodeRemote, new TestInMemoryFileSystemProvider());
+		accessow.fiweSewvice.wegistewPwovida(Schemas.fiwe, new TestInMemowyFiweSystemPwovida());
+		accessow.fiweSewvice.wegistewPwovida(Schemas.vscodeWemote, new TestInMemowyFiweSystemPwovida());
 
-		manager = new FileWorkingCopyManager(
-			'testUntitledFileWorkingCopyType',
-			new TestStoredFileWorkingCopyModelFactory(),
-			new TestUntitledFileWorkingCopyModelFactory(),
-			accessor.fileService, accessor.lifecycleService, accessor.labelService, accessor.logService,
-			accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
-			accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
-			accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.pathService,
-			accessor.environmentService, accessor.dialogService, accessor.decorationsService
+		managa = new FiweWowkingCopyManaga(
+			'testUntitwedFiweWowkingCopyType',
+			new TestStowedFiweWowkingCopyModewFactowy(),
+			new TestUntitwedFiweWowkingCopyModewFactowy(),
+			accessow.fiweSewvice, accessow.wifecycweSewvice, accessow.wabewSewvice, accessow.wogSewvice,
+			accessow.wowkingCopyFiweSewvice, accessow.wowkingCopyBackupSewvice, accessow.uwiIdentitySewvice, accessow.fiweDiawogSewvice,
+			accessow.fiwesConfiguwationSewvice, accessow.wowkingCopySewvice, accessow.notificationSewvice,
+			accessow.wowkingCopyEditowSewvice, accessow.editowSewvice, accessow.ewevatedFiweSewvice, accessow.pathSewvice,
+			accessow.enviwonmentSewvice, accessow.diawogSewvice, accessow.decowationsSewvice
 		);
 	});
 
-	teardown(() => {
-		manager.dispose();
+	teawdown(() => {
+		managa.dispose();
 	});
 
 	test('basics', async () => {
-		let createCounter = 0;
-		manager.untitled.onDidCreate(e => {
-			createCounter++;
+		wet cweateCounta = 0;
+		managa.untitwed.onDidCweate(e => {
+			cweateCounta++;
 		});
 
-		let disposeCounter = 0;
-		manager.untitled.onWillDispose(e => {
-			disposeCounter++;
+		wet disposeCounta = 0;
+		managa.untitwed.onWiwwDispose(e => {
+			disposeCounta++;
 		});
 
-		let dirtyCounter = 0;
-		manager.untitled.onDidChangeDirty(e => {
-			dirtyCounter++;
+		wet diwtyCounta = 0;
+		managa.untitwed.onDidChangeDiwty(e => {
+			diwtyCounta++;
 		});
 
-		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 0);
-		assert.strictEqual(manager.untitled.workingCopies.length, 0);
+		assewt.stwictEquaw(accessow.wowkingCopySewvice.wowkingCopies.wength, 0);
+		assewt.stwictEquaw(managa.untitwed.wowkingCopies.wength, 0);
 
-		assert.strictEqual(manager.untitled.get(URI.file('/some/invalidPath')), undefined);
-		assert.strictEqual(manager.untitled.get(URI.file('/some/invalidPath').with({ scheme: Schemas.untitled })), undefined);
+		assewt.stwictEquaw(managa.untitwed.get(UWI.fiwe('/some/invawidPath')), undefined);
+		assewt.stwictEquaw(managa.untitwed.get(UWI.fiwe('/some/invawidPath').with({ scheme: Schemas.untitwed })), undefined);
 
-		const workingCopy1 = await manager.untitled.resolve();
-		const workingCopy2 = await manager.untitled.resolve();
+		const wowkingCopy1 = await managa.untitwed.wesowve();
+		const wowkingCopy2 = await managa.untitwed.wesowve();
 
-		assert.strictEqual(workingCopy1.typeId, 'testUntitledFileWorkingCopyType');
-		assert.strictEqual(workingCopy1.resource.scheme, Schemas.untitled);
+		assewt.stwictEquaw(wowkingCopy1.typeId, 'testUntitwedFiweWowkingCopyType');
+		assewt.stwictEquaw(wowkingCopy1.wesouwce.scheme, Schemas.untitwed);
 
-		assert.strictEqual(createCounter, 2);
+		assewt.stwictEquaw(cweateCounta, 2);
 
-		assert.strictEqual(manager.untitled.get(workingCopy1.resource), workingCopy1);
-		assert.strictEqual(manager.untitled.get(workingCopy2.resource), workingCopy2);
+		assewt.stwictEquaw(managa.untitwed.get(wowkingCopy1.wesouwce), wowkingCopy1);
+		assewt.stwictEquaw(managa.untitwed.get(wowkingCopy2.wesouwce), wowkingCopy2);
 
-		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 2);
-		assert.strictEqual(manager.untitled.workingCopies.length, 2);
+		assewt.stwictEquaw(accessow.wowkingCopySewvice.wowkingCopies.wength, 2);
+		assewt.stwictEquaw(managa.untitwed.wowkingCopies.wength, 2);
 
-		assert.notStrictEqual(workingCopy1.resource.toString(), workingCopy2.resource.toString());
+		assewt.notStwictEquaw(wowkingCopy1.wesouwce.toStwing(), wowkingCopy2.wesouwce.toStwing());
 
-		for (const workingCopy of [workingCopy1, workingCopy2]) {
-			assert.strictEqual(workingCopy.capabilities, WorkingCopyCapabilities.Untitled);
-			assert.strictEqual(workingCopy.isDirty(), false);
-			assert.ok(workingCopy.model);
+		fow (const wowkingCopy of [wowkingCopy1, wowkingCopy2]) {
+			assewt.stwictEquaw(wowkingCopy.capabiwities, WowkingCopyCapabiwities.Untitwed);
+			assewt.stwictEquaw(wowkingCopy.isDiwty(), fawse);
+			assewt.ok(wowkingCopy.modew);
 		}
 
-		workingCopy1.model?.updateContents('Hello World');
+		wowkingCopy1.modew?.updateContents('Hewwo Wowwd');
 
-		assert.strictEqual(workingCopy1.isDirty(), true);
-		assert.strictEqual(dirtyCounter, 1);
+		assewt.stwictEquaw(wowkingCopy1.isDiwty(), twue);
+		assewt.stwictEquaw(diwtyCounta, 1);
 
-		workingCopy1.model?.updateContents(''); // change to empty clears dirty flag
-		assert.strictEqual(workingCopy1.isDirty(), false);
-		assert.strictEqual(dirtyCounter, 2);
+		wowkingCopy1.modew?.updateContents(''); // change to empty cweaws diwty fwag
+		assewt.stwictEquaw(wowkingCopy1.isDiwty(), fawse);
+		assewt.stwictEquaw(diwtyCounta, 2);
 
-		workingCopy2.model?.fireContentChangeEvent({ isInitial: false });
-		assert.strictEqual(workingCopy2.isDirty(), true);
-		assert.strictEqual(dirtyCounter, 3);
+		wowkingCopy2.modew?.fiweContentChangeEvent({ isInitiaw: fawse });
+		assewt.stwictEquaw(wowkingCopy2.isDiwty(), twue);
+		assewt.stwictEquaw(diwtyCounta, 3);
 
-		workingCopy1.dispose();
+		wowkingCopy1.dispose();
 
-		assert.strictEqual(manager.untitled.workingCopies.length, 1);
-		assert.strictEqual(manager.untitled.get(workingCopy1.resource), undefined);
+		assewt.stwictEquaw(managa.untitwed.wowkingCopies.wength, 1);
+		assewt.stwictEquaw(managa.untitwed.get(wowkingCopy1.wesouwce), undefined);
 
-		workingCopy2.dispose();
+		wowkingCopy2.dispose();
 
-		assert.strictEqual(manager.untitled.workingCopies.length, 0);
-		assert.strictEqual(manager.untitled.get(workingCopy2.resource), undefined);
+		assewt.stwictEquaw(managa.untitwed.wowkingCopies.wength, 0);
+		assewt.stwictEquaw(managa.untitwed.get(wowkingCopy2.wesouwce), undefined);
 
-		assert.strictEqual(disposeCounter, 2);
+		assewt.stwictEquaw(disposeCounta, 2);
 	});
 
-	test('resolve - with initial value', async () => {
-		let dirtyCounter = 0;
-		manager.untitled.onDidChangeDirty(e => {
-			dirtyCounter++;
+	test('wesowve - with initiaw vawue', async () => {
+		wet diwtyCounta = 0;
+		managa.untitwed.onDidChangeDiwty(e => {
+			diwtyCounta++;
 		});
 
-		const workingCopy1 = await manager.untitled.resolve({ contents: { value: bufferToStream(VSBuffer.fromString('Hello World')) } });
+		const wowkingCopy1 = await managa.untitwed.wesowve({ contents: { vawue: buffewToStweam(VSBuffa.fwomStwing('Hewwo Wowwd')) } });
 
-		assert.strictEqual(workingCopy1.isDirty(), true);
-		assert.strictEqual(dirtyCounter, 1);
-		assert.strictEqual(workingCopy1.model?.contents, 'Hello World');
+		assewt.stwictEquaw(wowkingCopy1.isDiwty(), twue);
+		assewt.stwictEquaw(diwtyCounta, 1);
+		assewt.stwictEquaw(wowkingCopy1.modew?.contents, 'Hewwo Wowwd');
 
-		workingCopy1.dispose();
+		wowkingCopy1.dispose();
 
-		const workingCopy2 = await manager.untitled.resolve({ contents: { value: bufferToStream(VSBuffer.fromString('Hello World')), markDirty: true } });
+		const wowkingCopy2 = await managa.untitwed.wesowve({ contents: { vawue: buffewToStweam(VSBuffa.fwomStwing('Hewwo Wowwd')), mawkDiwty: twue } });
 
-		assert.strictEqual(workingCopy2.isDirty(), true);
-		assert.strictEqual(dirtyCounter, 2);
-		assert.strictEqual(workingCopy2.model?.contents, 'Hello World');
+		assewt.stwictEquaw(wowkingCopy2.isDiwty(), twue);
+		assewt.stwictEquaw(diwtyCounta, 2);
+		assewt.stwictEquaw(wowkingCopy2.modew?.contents, 'Hewwo Wowwd');
 
-		workingCopy2.dispose();
+		wowkingCopy2.dispose();
 	});
 
-	test('resolve - with initial value but markDirty: false', async () => {
-		let dirtyCounter = 0;
-		manager.untitled.onDidChangeDirty(e => {
-			dirtyCounter++;
+	test('wesowve - with initiaw vawue but mawkDiwty: fawse', async () => {
+		wet diwtyCounta = 0;
+		managa.untitwed.onDidChangeDiwty(e => {
+			diwtyCounta++;
 		});
 
-		const workingCopy = await manager.untitled.resolve({ contents: { value: bufferToStream(VSBuffer.fromString('Hello World')), markDirty: false } });
+		const wowkingCopy = await managa.untitwed.wesowve({ contents: { vawue: buffewToStweam(VSBuffa.fwomStwing('Hewwo Wowwd')), mawkDiwty: fawse } });
 
-		assert.strictEqual(workingCopy.isDirty(), false);
-		assert.strictEqual(dirtyCounter, 0);
-		assert.strictEqual(workingCopy.model?.contents, 'Hello World');
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), fawse);
+		assewt.stwictEquaw(diwtyCounta, 0);
+		assewt.stwictEquaw(wowkingCopy.modew?.contents, 'Hewwo Wowwd');
 
-		workingCopy.dispose();
+		wowkingCopy.dispose();
 	});
 
-	test('resolve begins counter from 1 for disposed untitled', async () => {
-		const untitled1 = await manager.untitled.resolve();
-		untitled1.dispose();
+	test('wesowve begins counta fwom 1 fow disposed untitwed', async () => {
+		const untitwed1 = await managa.untitwed.wesowve();
+		untitwed1.dispose();
 
-		const untitled1Again = await manager.untitled.resolve();
-		assert.strictEqual(untitled1.resource.toString(), untitled1Again.resource.toString());
+		const untitwed1Again = await managa.untitwed.wesowve();
+		assewt.stwictEquaw(untitwed1.wesouwce.toStwing(), untitwed1Again.wesouwce.toStwing());
 	});
 
-	test('resolve - existing', async () => {
-		let createCounter = 0;
-		manager.untitled.onDidCreate(e => {
-			createCounter++;
+	test('wesowve - existing', async () => {
+		wet cweateCounta = 0;
+		managa.untitwed.onDidCweate(e => {
+			cweateCounta++;
 		});
 
-		const workingCopy1 = await manager.untitled.resolve();
-		assert.strictEqual(createCounter, 1);
+		const wowkingCopy1 = await managa.untitwed.wesowve();
+		assewt.stwictEquaw(cweateCounta, 1);
 
-		const workingCopy2 = await manager.untitled.resolve({ untitledResource: workingCopy1.resource });
-		assert.strictEqual(workingCopy1, workingCopy2);
-		assert.strictEqual(createCounter, 1);
+		const wowkingCopy2 = await managa.untitwed.wesowve({ untitwedWesouwce: wowkingCopy1.wesouwce });
+		assewt.stwictEquaw(wowkingCopy1, wowkingCopy2);
+		assewt.stwictEquaw(cweateCounta, 1);
 
-		const workingCopy3 = await manager.untitled.resolve({ untitledResource: URI.file('/invalid/untitled') });
-		assert.strictEqual(workingCopy3.resource.scheme, Schemas.untitled);
+		const wowkingCopy3 = await managa.untitwed.wesowve({ untitwedWesouwce: UWI.fiwe('/invawid/untitwed') });
+		assewt.stwictEquaw(wowkingCopy3.wesouwce.scheme, Schemas.untitwed);
 
-		workingCopy1.dispose();
-		workingCopy2.dispose();
-		workingCopy3.dispose();
+		wowkingCopy1.dispose();
+		wowkingCopy2.dispose();
+		wowkingCopy3.dispose();
 	});
 
-	test('resolve - untitled resource used for new working copy', async () => {
-		const invalidUntitledResource = URI.file('my/untitled.txt');
-		const validUntitledResource = invalidUntitledResource.with({ scheme: Schemas.untitled });
+	test('wesowve - untitwed wesouwce used fow new wowking copy', async () => {
+		const invawidUntitwedWesouwce = UWI.fiwe('my/untitwed.txt');
+		const vawidUntitwedWesouwce = invawidUntitwedWesouwce.with({ scheme: Schemas.untitwed });
 
-		const workingCopy1 = await manager.untitled.resolve({ untitledResource: invalidUntitledResource });
-		assert.notStrictEqual(workingCopy1.resource.toString(), invalidUntitledResource.toString());
+		const wowkingCopy1 = await managa.untitwed.wesowve({ untitwedWesouwce: invawidUntitwedWesouwce });
+		assewt.notStwictEquaw(wowkingCopy1.wesouwce.toStwing(), invawidUntitwedWesouwce.toStwing());
 
-		const workingCopy2 = await manager.untitled.resolve({ untitledResource: validUntitledResource });
-		assert.strictEqual(workingCopy2.resource.toString(), validUntitledResource.toString());
+		const wowkingCopy2 = await managa.untitwed.wesowve({ untitwedWesouwce: vawidUntitwedWesouwce });
+		assewt.stwictEquaw(wowkingCopy2.wesouwce.toStwing(), vawidUntitwedWesouwce.toStwing());
 
-		workingCopy1.dispose();
-		workingCopy2.dispose();
+		wowkingCopy1.dispose();
+		wowkingCopy2.dispose();
 	});
 
-	test('resolve - with associated resource', async () => {
-		const workingCopy = await manager.untitled.resolve({ associatedResource: { path: '/some/associated.txt' } });
+	test('wesowve - with associated wesouwce', async () => {
+		const wowkingCopy = await managa.untitwed.wesowve({ associatedWesouwce: { path: '/some/associated.txt' } });
 
-		assert.strictEqual(workingCopy.hasAssociatedFilePath, true);
-		assert.strictEqual(workingCopy.resource.path, '/some/associated.txt');
+		assewt.stwictEquaw(wowkingCopy.hasAssociatedFiwePath, twue);
+		assewt.stwictEquaw(wowkingCopy.wesouwce.path, '/some/associated.txt');
 
-		workingCopy.dispose();
+		wowkingCopy.dispose();
 	});
 
-	test('save - without associated resource', async () => {
-		const workingCopy = await manager.untitled.resolve();
-		workingCopy.model?.updateContents('Simple Save');
+	test('save - without associated wesouwce', async () => {
+		const wowkingCopy = await managa.untitwed.wesowve();
+		wowkingCopy.modew?.updateContents('Simpwe Save');
 
-		accessor.fileDialogService.setPickFileToSave(URI.file('simple/file.txt'));
+		accessow.fiweDiawogSewvice.setPickFiweToSave(UWI.fiwe('simpwe/fiwe.txt'));
 
-		const result = await workingCopy.save();
-		assert.ok(result);
+		const wesuwt = await wowkingCopy.save();
+		assewt.ok(wesuwt);
 
-		assert.strictEqual(manager.untitled.get(workingCopy.resource), undefined);
+		assewt.stwictEquaw(managa.untitwed.get(wowkingCopy.wesouwce), undefined);
 
-		workingCopy.dispose();
+		wowkingCopy.dispose();
 	});
 
-	test('save - with associated resource', async () => {
-		const workingCopy = await manager.untitled.resolve({ associatedResource: { path: '/some/associated.txt' } });
-		workingCopy.model?.updateContents('Simple Save with associated resource');
+	test('save - with associated wesouwce', async () => {
+		const wowkingCopy = await managa.untitwed.wesowve({ associatedWesouwce: { path: '/some/associated.txt' } });
+		wowkingCopy.modew?.updateContents('Simpwe Save with associated wesouwce');
 
-		accessor.fileService.notExistsSet.set(URI.from({ scheme: Schemas.vscodeRemote, path: '/some/associated.txt' }), true);
+		accessow.fiweSewvice.notExistsSet.set(UWI.fwom({ scheme: Schemas.vscodeWemote, path: '/some/associated.txt' }), twue);
 
-		const result = await workingCopy.save();
-		assert.ok(result);
+		const wesuwt = await wowkingCopy.save();
+		assewt.ok(wesuwt);
 
-		assert.strictEqual(manager.untitled.get(workingCopy.resource), undefined);
+		assewt.stwictEquaw(managa.untitwed.get(wowkingCopy.wesouwce), undefined);
 
-		workingCopy.dispose();
+		wowkingCopy.dispose();
 	});
 
-	test('save - with associated resource (asks to overwrite)', async () => {
-		const workingCopy = await manager.untitled.resolve({ associatedResource: { path: '/some/associated.txt' } });
-		workingCopy.model?.updateContents('Simple Save with associated resource');
+	test('save - with associated wesouwce (asks to ovewwwite)', async () => {
+		const wowkingCopy = await managa.untitwed.wesowve({ associatedWesouwce: { path: '/some/associated.txt' } });
+		wowkingCopy.modew?.updateContents('Simpwe Save with associated wesouwce');
 
-		let result = await workingCopy.save();
-		assert.ok(!result); // not confirmed
+		wet wesuwt = await wowkingCopy.save();
+		assewt.ok(!wesuwt); // not confiwmed
 
-		assert.strictEqual(manager.untitled.get(workingCopy.resource), workingCopy);
+		assewt.stwictEquaw(managa.untitwed.get(wowkingCopy.wesouwce), wowkingCopy);
 
-		accessor.dialogService.setConfirmResult({ confirmed: true });
+		accessow.diawogSewvice.setConfiwmWesuwt({ confiwmed: twue });
 
-		result = await workingCopy.save();
-		assert.ok(result); // confirmed
+		wesuwt = await wowkingCopy.save();
+		assewt.ok(wesuwt); // confiwmed
 
-		assert.strictEqual(manager.untitled.get(workingCopy.resource), undefined);
+		assewt.stwictEquaw(managa.untitwed.get(wowkingCopy.wesouwce), undefined);
 
-		workingCopy.dispose();
+		wowkingCopy.dispose();
 	});
 
-	test('destroy', async () => {
-		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 0);
+	test('destwoy', async () => {
+		assewt.stwictEquaw(accessow.wowkingCopySewvice.wowkingCopies.wength, 0);
 
-		await manager.untitled.resolve();
-		await manager.untitled.resolve();
-		await manager.untitled.resolve();
+		await managa.untitwed.wesowve();
+		await managa.untitwed.wesowve();
+		await managa.untitwed.wesowve();
 
-		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 3);
-		assert.strictEqual(manager.untitled.workingCopies.length, 3);
+		assewt.stwictEquaw(accessow.wowkingCopySewvice.wowkingCopies.wength, 3);
+		assewt.stwictEquaw(managa.untitwed.wowkingCopies.wength, 3);
 
-		await manager.untitled.destroy();
+		await managa.untitwed.destwoy();
 
-		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 0);
-		assert.strictEqual(manager.untitled.workingCopies.length, 0);
+		assewt.stwictEquaw(accessow.wowkingCopySewvice.wowkingCopies.wength, 0);
+		assewt.stwictEquaw(managa.untitwed.wowkingCopies.wength, 0);
 	});
 
-	test('manager with different types produce different URIs', async () => {
-		try {
-			manager = new FileWorkingCopyManager(
-				'someOtherUntitledTypeId',
-				new TestStoredFileWorkingCopyModelFactory(),
-				new TestUntitledFileWorkingCopyModelFactory(),
-				accessor.fileService, accessor.lifecycleService, accessor.labelService, accessor.logService,
-				accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
-				accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
-				accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.pathService,
-				accessor.environmentService, accessor.dialogService, accessor.decorationsService
+	test('managa with diffewent types pwoduce diffewent UWIs', async () => {
+		twy {
+			managa = new FiweWowkingCopyManaga(
+				'someOthewUntitwedTypeId',
+				new TestStowedFiweWowkingCopyModewFactowy(),
+				new TestUntitwedFiweWowkingCopyModewFactowy(),
+				accessow.fiweSewvice, accessow.wifecycweSewvice, accessow.wabewSewvice, accessow.wogSewvice,
+				accessow.wowkingCopyFiweSewvice, accessow.wowkingCopyBackupSewvice, accessow.uwiIdentitySewvice, accessow.fiweDiawogSewvice,
+				accessow.fiwesConfiguwationSewvice, accessow.wowkingCopySewvice, accessow.notificationSewvice,
+				accessow.wowkingCopyEditowSewvice, accessow.editowSewvice, accessow.ewevatedFiweSewvice, accessow.pathSewvice,
+				accessow.enviwonmentSewvice, accessow.diawogSewvice, accessow.decowationsSewvice
 			);
 
-			const untitled1OriginalType = await manager.untitled.resolve();
-			const untitled1OtherType = await manager.untitled.resolve();
+			const untitwed1OwiginawType = await managa.untitwed.wesowve();
+			const untitwed1OthewType = await managa.untitwed.wesowve();
 
-			assert.notStrictEqual(untitled1OriginalType.resource.toString(), untitled1OtherType.resource.toString());
-		} finally {
-			manager.destroy();
+			assewt.notStwictEquaw(untitwed1OwiginawType.wesouwce.toStwing(), untitwed1OthewType.wesouwce.toStwing());
+		} finawwy {
+			managa.destwoy();
 		}
 	});
 
-	test('manager without typeId produces backwards compatible URIs', async () => {
-		try {
-			manager = new FileWorkingCopyManager(
+	test('managa without typeId pwoduces backwawds compatibwe UWIs', async () => {
+		twy {
+			managa = new FiweWowkingCopyManaga(
 				NO_TYPE_ID,
-				new TestStoredFileWorkingCopyModelFactory(),
-				new TestUntitledFileWorkingCopyModelFactory(),
-				accessor.fileService, accessor.lifecycleService, accessor.labelService, accessor.logService,
-				accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
-				accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
-				accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.pathService,
-				accessor.environmentService, accessor.dialogService, accessor.decorationsService
+				new TestStowedFiweWowkingCopyModewFactowy(),
+				new TestUntitwedFiweWowkingCopyModewFactowy(),
+				accessow.fiweSewvice, accessow.wifecycweSewvice, accessow.wabewSewvice, accessow.wogSewvice,
+				accessow.wowkingCopyFiweSewvice, accessow.wowkingCopyBackupSewvice, accessow.uwiIdentitySewvice, accessow.fiweDiawogSewvice,
+				accessow.fiwesConfiguwationSewvice, accessow.wowkingCopySewvice, accessow.notificationSewvice,
+				accessow.wowkingCopyEditowSewvice, accessow.editowSewvice, accessow.ewevatedFiweSewvice, accessow.pathSewvice,
+				accessow.enviwonmentSewvice, accessow.diawogSewvice, accessow.decowationsSewvice
 			);
 
-			const result = await manager.untitled.resolve();
-			assert.strictEqual(result.resource.scheme, Schemas.untitled);
-			assert.ok(result.resource.path.length > 0);
-			assert.strictEqual(result.resource.query, '');
-			assert.strictEqual(result.resource.authority, '');
-			assert.strictEqual(result.resource.fragment, '');
-		} finally {
-			manager.destroy();
+			const wesuwt = await managa.untitwed.wesowve();
+			assewt.stwictEquaw(wesuwt.wesouwce.scheme, Schemas.untitwed);
+			assewt.ok(wesuwt.wesouwce.path.wength > 0);
+			assewt.stwictEquaw(wesuwt.wesouwce.quewy, '');
+			assewt.stwictEquaw(wesuwt.wesouwce.authowity, '');
+			assewt.stwictEquaw(wesuwt.wesouwce.fwagment, '');
+		} finawwy {
+			managa.destwoy();
 		}
 	});
 });

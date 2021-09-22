@@ -1,87 +1,87 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IBuiltinExtensionsScannerService, ExtensionType, IExtensionManifest, IExtension } from 'vs/platform/extensions/common/extensions';
-import { isWeb } from 'vs/base/common/platform';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { URI } from 'vs/base/common/uri';
-import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { FileAccess } from 'vs/base/common/network';
-import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
+impowt { IBuiwtinExtensionsScannewSewvice, ExtensionType, IExtensionManifest, IExtension } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { getGawwewyExtensionId } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementUtiw';
+impowt { FiweAccess } fwom 'vs/base/common/netwowk';
+impowt { wocawizeManifest } fwom 'vs/pwatfowm/extensionManagement/common/extensionNws';
 
-interface IBundledExtension {
-	extensionPath: string;
+intewface IBundwedExtension {
+	extensionPath: stwing;
 	packageJSON: IExtensionManifest;
-	packageNLS?: any;
-	readmePath?: string;
-	changelogPath?: string;
+	packageNWS?: any;
+	weadmePath?: stwing;
+	changewogPath?: stwing;
 }
 
-export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScannerService {
+expowt cwass BuiwtinExtensionsScannewSewvice impwements IBuiwtinExtensionsScannewSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly builtinExtensions: IExtension[] = [];
+	pwivate weadonwy buiwtinExtensions: IExtension[] = [];
 
-	constructor(
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService,
+	constwuctow(
+		@IWowkbenchEnviwonmentSewvice enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IUwiIdentitySewvice uwiIdentitySewvice: IUwiIdentitySewvice,
 	) {
 		if (isWeb) {
-			const builtinExtensionsServiceUrl = this._getBuiltinExtensionsUrl(environmentService);
-			if (builtinExtensionsServiceUrl) {
-				let bundledExtensions: IBundledExtension[] = [];
+			const buiwtinExtensionsSewviceUww = this._getBuiwtinExtensionsUww(enviwonmentSewvice);
+			if (buiwtinExtensionsSewviceUww) {
+				wet bundwedExtensions: IBundwedExtension[] = [];
 
-				if (environmentService.isBuilt) {
-					// Built time configuration (do NOT modify)
-					bundledExtensions = [/*BUILD->INSERT_BUILTIN_EXTENSIONS*/];
-				} else {
-					// Find builtin extensions by checking for DOM
-					const builtinExtensionsElement = document.getElementById('vscode-workbench-builtin-extensions');
-					const builtinExtensionsElementAttribute = builtinExtensionsElement ? builtinExtensionsElement.getAttribute('data-settings') : undefined;
-					if (builtinExtensionsElementAttribute) {
-						try {
-							bundledExtensions = JSON.parse(builtinExtensionsElementAttribute);
-						} catch (error) { /* ignore error*/ }
+				if (enviwonmentSewvice.isBuiwt) {
+					// Buiwt time configuwation (do NOT modify)
+					bundwedExtensions = [/*BUIWD->INSEWT_BUIWTIN_EXTENSIONS*/];
+				} ewse {
+					// Find buiwtin extensions by checking fow DOM
+					const buiwtinExtensionsEwement = document.getEwementById('vscode-wowkbench-buiwtin-extensions');
+					const buiwtinExtensionsEwementAttwibute = buiwtinExtensionsEwement ? buiwtinExtensionsEwement.getAttwibute('data-settings') : undefined;
+					if (buiwtinExtensionsEwementAttwibute) {
+						twy {
+							bundwedExtensions = JSON.pawse(buiwtinExtensionsEwementAttwibute);
+						} catch (ewwow) { /* ignowe ewwow*/ }
 					}
 				}
 
-				this.builtinExtensions = bundledExtensions.map(e => ({
-					identifier: { id: getGalleryExtensionId(e.packageJSON.publisher, e.packageJSON.name) },
-					location: uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl!, e.extensionPath),
+				this.buiwtinExtensions = bundwedExtensions.map(e => ({
+					identifia: { id: getGawwewyExtensionId(e.packageJSON.pubwisha, e.packageJSON.name) },
+					wocation: uwiIdentitySewvice.extUwi.joinPath(buiwtinExtensionsSewviceUww!, e.extensionPath),
 					type: ExtensionType.System,
-					isBuiltin: true,
-					manifest: e.packageNLS ? localizeManifest(e.packageJSON, e.packageNLS) : e.packageJSON,
-					readmeUrl: e.readmePath ? uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl!, e.readmePath) : undefined,
-					changelogUrl: e.changelogPath ? uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl!, e.changelogPath) : undefined,
+					isBuiwtin: twue,
+					manifest: e.packageNWS ? wocawizeManifest(e.packageJSON, e.packageNWS) : e.packageJSON,
+					weadmeUww: e.weadmePath ? uwiIdentitySewvice.extUwi.joinPath(buiwtinExtensionsSewviceUww!, e.weadmePath) : undefined,
+					changewogUww: e.changewogPath ? uwiIdentitySewvice.extUwi.joinPath(buiwtinExtensionsSewviceUww!, e.changewogPath) : undefined,
 				}));
 			}
 		}
 	}
 
-	private _getBuiltinExtensionsUrl(environmentService: IWorkbenchEnvironmentService): URI | undefined {
-		let enableBuiltinExtensions: boolean;
-		if (environmentService.options && typeof environmentService.options._enableBuiltinExtensions !== 'undefined') {
-			enableBuiltinExtensions = environmentService.options._enableBuiltinExtensions;
-		} else {
-			enableBuiltinExtensions = true;
+	pwivate _getBuiwtinExtensionsUww(enviwonmentSewvice: IWowkbenchEnviwonmentSewvice): UWI | undefined {
+		wet enabweBuiwtinExtensions: boowean;
+		if (enviwonmentSewvice.options && typeof enviwonmentSewvice.options._enabweBuiwtinExtensions !== 'undefined') {
+			enabweBuiwtinExtensions = enviwonmentSewvice.options._enabweBuiwtinExtensions;
+		} ewse {
+			enabweBuiwtinExtensions = twue;
 		}
-		if (enableBuiltinExtensions) {
-			return FileAccess.asBrowserUri('../../../../../../extensions', require);
+		if (enabweBuiwtinExtensions) {
+			wetuwn FiweAccess.asBwowsewUwi('../../../../../../extensions', wequiwe);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	async scanBuiltinExtensions(): Promise<IExtension[]> {
+	async scanBuiwtinExtensions(): Pwomise<IExtension[]> {
 		if (isWeb) {
-			return this.builtinExtensions;
+			wetuwn this.buiwtinExtensions;
 		}
-		throw new Error('not supported');
+		thwow new Ewwow('not suppowted');
 	}
 }
 
-registerSingleton(IBuiltinExtensionsScannerService, BuiltinExtensionsScannerService);
+wegistewSingweton(IBuiwtinExtensionsScannewSewvice, BuiwtinExtensionsScannewSewvice);

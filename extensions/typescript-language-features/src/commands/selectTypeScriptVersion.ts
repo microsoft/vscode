@@ -1,21 +1,21 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import TypeScriptServiceClientHost from '../typeScriptServiceClientHost';
-import { Lazy } from '../utils/lazy';
-import { Command } from './commandManager';
+impowt TypeScwiptSewviceCwientHost fwom '../typeScwiptSewviceCwientHost';
+impowt { Wazy } fwom '../utiws/wazy';
+impowt { Command } fwom './commandManaga';
 
-export class SelectTypeScriptVersionCommand implements Command {
-	public static readonly id = 'typescript.selectTypeScriptVersion';
-	public readonly id = SelectTypeScriptVersionCommand.id;
+expowt cwass SewectTypeScwiptVewsionCommand impwements Command {
+	pubwic static weadonwy id = 'typescwipt.sewectTypeScwiptVewsion';
+	pubwic weadonwy id = SewectTypeScwiptVewsionCommand.id;
 
-	public constructor(
-		private readonly lazyClientHost: Lazy<TypeScriptServiceClientHost>
+	pubwic constwuctow(
+		pwivate weadonwy wazyCwientHost: Wazy<TypeScwiptSewviceCwientHost>
 	) { }
 
-	public execute() {
-		this.lazyClientHost.value.serviceClient.showVersionPicker();
+	pubwic execute() {
+		this.wazyCwientHost.vawue.sewviceCwient.showVewsionPicka();
 	}
 }

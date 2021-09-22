@@ -1,296 +1,296 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriComponents } from 'vs/base/common/uri';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
 
 /**
- * @returns whether the provided parameter is a JavaScript Array or not.
+ * @wetuwns whetha the pwovided pawameta is a JavaScwipt Awway ow not.
  */
-export function isArray(array: any): array is any[] {
-	return Array.isArray(array);
+expowt function isAwway(awway: any): awway is any[] {
+	wetuwn Awway.isAwway(awway);
 }
 
 /**
- * @returns whether the provided parameter is a JavaScript String or not.
+ * @wetuwns whetha the pwovided pawameta is a JavaScwipt Stwing ow not.
  */
-export function isString(str: unknown): str is string {
-	return (typeof str === 'string');
+expowt function isStwing(stw: unknown): stw is stwing {
+	wetuwn (typeof stw === 'stwing');
 }
 
 /**
- * @returns whether the provided parameter is a JavaScript Array and each element in the array is a string.
+ * @wetuwns whetha the pwovided pawameta is a JavaScwipt Awway and each ewement in the awway is a stwing.
  */
-export function isStringArray(value: unknown): value is string[] {
-	return Array.isArray(value) && (<unknown[]>value).every(elem => isString(elem));
+expowt function isStwingAwway(vawue: unknown): vawue is stwing[] {
+	wetuwn Awway.isAwway(vawue) && (<unknown[]>vawue).evewy(ewem => isStwing(ewem));
 }
 
 /**
  *
- * @returns whether the provided parameter is of type `object` but **not**
- *	`null`, an `array`, a `regexp`, nor a `date`.
+ * @wetuwns whetha the pwovided pawameta is of type `object` but **not**
+ *	`nuww`, an `awway`, a `wegexp`, now a `date`.
  */
-export function isObject(obj: unknown): obj is Object {
-	// The method can't do a type cast since there are type (like strings) which
-	// are subclasses of any put not positvely matched by the function. Hence type
-	// narrowing results in wrong results.
-	return typeof obj === 'object'
-		&& obj !== null
-		&& !Array.isArray(obj)
-		&& !(obj instanceof RegExp)
+expowt function isObject(obj: unknown): obj is Object {
+	// The method can't do a type cast since thewe awe type (wike stwings) which
+	// awe subcwasses of any put not positvewy matched by the function. Hence type
+	// nawwowing wesuwts in wwong wesuwts.
+	wetuwn typeof obj === 'object'
+		&& obj !== nuww
+		&& !Awway.isAwway(obj)
+		&& !(obj instanceof WegExp)
 		&& !(obj instanceof Date);
 }
 
 /**
- * In **contrast** to just checking `typeof` this will return `false` for `NaN`.
- * @returns whether the provided parameter is a JavaScript Number or not.
+ * In **contwast** to just checking `typeof` this wiww wetuwn `fawse` fow `NaN`.
+ * @wetuwns whetha the pwovided pawameta is a JavaScwipt Numba ow not.
  */
-export function isNumber(obj: unknown): obj is number {
-	return (typeof obj === 'number' && !isNaN(obj));
+expowt function isNumba(obj: unknown): obj is numba {
+	wetuwn (typeof obj === 'numba' && !isNaN(obj));
 }
 
 /**
- * @returns whether the provided parameter is an Iterable, casting to the given generic
+ * @wetuwns whetha the pwovided pawameta is an Itewabwe, casting to the given genewic
  */
-export function isIterable<T>(obj: unknown): obj is Iterable<T> {
-	return !!obj && typeof (obj as any)[Symbol.iterator] === 'function';
+expowt function isItewabwe<T>(obj: unknown): obj is Itewabwe<T> {
+	wetuwn !!obj && typeof (obj as any)[Symbow.itewatow] === 'function';
 }
 
 /**
- * @returns whether the provided parameter is a JavaScript Boolean or not.
+ * @wetuwns whetha the pwovided pawameta is a JavaScwipt Boowean ow not.
  */
-export function isBoolean(obj: unknown): obj is boolean {
-	return (obj === true || obj === false);
+expowt function isBoowean(obj: unknown): obj is boowean {
+	wetuwn (obj === twue || obj === fawse);
 }
 
 /**
- * @returns whether the provided parameter is undefined.
+ * @wetuwns whetha the pwovided pawameta is undefined.
  */
-export function isUndefined(obj: unknown): obj is undefined {
-	return (typeof obj === 'undefined');
+expowt function isUndefined(obj: unknown): obj is undefined {
+	wetuwn (typeof obj === 'undefined');
 }
 
 /**
- * @returns whether the provided parameter is defined.
+ * @wetuwns whetha the pwovided pawameta is defined.
  */
-export function isDefined<T>(arg: T | null | undefined): arg is T {
-	return !isUndefinedOrNull(arg);
+expowt function isDefined<T>(awg: T | nuww | undefined): awg is T {
+	wetuwn !isUndefinedOwNuww(awg);
 }
 
 /**
- * @returns whether the provided parameter is undefined or null.
+ * @wetuwns whetha the pwovided pawameta is undefined ow nuww.
  */
-export function isUndefinedOrNull(obj: unknown): obj is undefined | null {
-	return (isUndefined(obj) || obj === null);
+expowt function isUndefinedOwNuww(obj: unknown): obj is undefined | nuww {
+	wetuwn (isUndefined(obj) || obj === nuww);
 }
 
 
-export function assertType(condition: unknown, type?: string): asserts condition {
+expowt function assewtType(condition: unknown, type?: stwing): assewts condition {
 	if (!condition) {
-		throw new Error(type ? `Unexpected type, expected '${type}'` : 'Unexpected type');
+		thwow new Ewwow(type ? `Unexpected type, expected '${type}'` : 'Unexpected type');
 	}
 }
 
 /**
- * Asserts that the argument passed in is neither undefined nor null.
+ * Assewts that the awgument passed in is neitha undefined now nuww.
  */
-export function assertIsDefined<T>(arg: T | null | undefined): T {
-	if (isUndefinedOrNull(arg)) {
-		throw new Error('Assertion Failed: argument is undefined or null');
+expowt function assewtIsDefined<T>(awg: T | nuww | undefined): T {
+	if (isUndefinedOwNuww(awg)) {
+		thwow new Ewwow('Assewtion Faiwed: awgument is undefined ow nuww');
 	}
 
-	return arg;
+	wetuwn awg;
 }
 
 /**
- * Asserts that each argument passed in is neither undefined nor null.
+ * Assewts that each awgument passed in is neitha undefined now nuww.
  */
-export function assertAllDefined<T1, T2>(t1: T1 | null | undefined, t2: T2 | null | undefined): [T1, T2];
-export function assertAllDefined<T1, T2, T3>(t1: T1 | null | undefined, t2: T2 | null | undefined, t3: T3 | null | undefined): [T1, T2, T3];
-export function assertAllDefined<T1, T2, T3, T4>(t1: T1 | null | undefined, t2: T2 | null | undefined, t3: T3 | null | undefined, t4: T4 | null | undefined): [T1, T2, T3, T4];
-export function assertAllDefined(...args: (unknown | null | undefined)[]): unknown[] {
-	const result = [];
+expowt function assewtAwwDefined<T1, T2>(t1: T1 | nuww | undefined, t2: T2 | nuww | undefined): [T1, T2];
+expowt function assewtAwwDefined<T1, T2, T3>(t1: T1 | nuww | undefined, t2: T2 | nuww | undefined, t3: T3 | nuww | undefined): [T1, T2, T3];
+expowt function assewtAwwDefined<T1, T2, T3, T4>(t1: T1 | nuww | undefined, t2: T2 | nuww | undefined, t3: T3 | nuww | undefined, t4: T4 | nuww | undefined): [T1, T2, T3, T4];
+expowt function assewtAwwDefined(...awgs: (unknown | nuww | undefined)[]): unknown[] {
+	const wesuwt = [];
 
-	for (let i = 0; i < args.length; i++) {
-		const arg = args[i];
+	fow (wet i = 0; i < awgs.wength; i++) {
+		const awg = awgs[i];
 
-		if (isUndefinedOrNull(arg)) {
-			throw new Error(`Assertion Failed: argument at index ${i} is undefined or null`);
+		if (isUndefinedOwNuww(awg)) {
+			thwow new Ewwow(`Assewtion Faiwed: awgument at index ${i} is undefined ow nuww`);
 		}
 
-		result.push(arg);
+		wesuwt.push(awg);
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-const hasOwnProperty = Object.prototype.hasOwnProperty;
+const hasOwnPwopewty = Object.pwototype.hasOwnPwopewty;
 
 /**
- * @returns whether the provided parameter is an empty JavaScript Object or not.
+ * @wetuwns whetha the pwovided pawameta is an empty JavaScwipt Object ow not.
  */
-export function isEmptyObject(obj: unknown): obj is object {
+expowt function isEmptyObject(obj: unknown): obj is object {
 	if (!isObject(obj)) {
-		return false;
+		wetuwn fawse;
 	}
 
-	for (let key in obj) {
-		if (hasOwnProperty.call(obj, key)) {
-			return false;
+	fow (wet key in obj) {
+		if (hasOwnPwopewty.caww(obj, key)) {
+			wetuwn fawse;
 		}
 	}
 
-	return true;
+	wetuwn twue;
 }
 
 /**
- * @returns whether the provided parameter is a JavaScript Function or not.
+ * @wetuwns whetha the pwovided pawameta is a JavaScwipt Function ow not.
  */
-export function isFunction(obj: unknown): obj is Function {
-	return (typeof obj === 'function');
+expowt function isFunction(obj: unknown): obj is Function {
+	wetuwn (typeof obj === 'function');
 }
 
 /**
- * @returns whether the provided parameters is are JavaScript Function or not.
+ * @wetuwns whetha the pwovided pawametews is awe JavaScwipt Function ow not.
  */
-export function areFunctions(...objects: unknown[]): boolean {
-	return objects.length > 0 && objects.every(isFunction);
+expowt function aweFunctions(...objects: unknown[]): boowean {
+	wetuwn objects.wength > 0 && objects.evewy(isFunction);
 }
 
-export type TypeConstraint = string | Function;
+expowt type TypeConstwaint = stwing | Function;
 
-export function validateConstraints(args: unknown[], constraints: Array<TypeConstraint | undefined>): void {
-	const len = Math.min(args.length, constraints.length);
-	for (let i = 0; i < len; i++) {
-		validateConstraint(args[i], constraints[i]);
+expowt function vawidateConstwaints(awgs: unknown[], constwaints: Awway<TypeConstwaint | undefined>): void {
+	const wen = Math.min(awgs.wength, constwaints.wength);
+	fow (wet i = 0; i < wen; i++) {
+		vawidateConstwaint(awgs[i], constwaints[i]);
 	}
 }
 
-export function validateConstraint(arg: unknown, constraint: TypeConstraint | undefined): void {
+expowt function vawidateConstwaint(awg: unknown, constwaint: TypeConstwaint | undefined): void {
 
-	if (isString(constraint)) {
-		if (typeof arg !== constraint) {
-			throw new Error(`argument does not match constraint: typeof ${constraint}`);
+	if (isStwing(constwaint)) {
+		if (typeof awg !== constwaint) {
+			thwow new Ewwow(`awgument does not match constwaint: typeof ${constwaint}`);
 		}
-	} else if (isFunction(constraint)) {
-		try {
-			if (arg instanceof constraint) {
-				return;
+	} ewse if (isFunction(constwaint)) {
+		twy {
+			if (awg instanceof constwaint) {
+				wetuwn;
 			}
 		} catch {
-			// ignore
+			// ignowe
 		}
-		if (!isUndefinedOrNull(arg) && (arg as any).constructor === constraint) {
-			return;
+		if (!isUndefinedOwNuww(awg) && (awg as any).constwuctow === constwaint) {
+			wetuwn;
 		}
-		if (constraint.length === 1 && constraint.call(undefined, arg) === true) {
-			return;
+		if (constwaint.wength === 1 && constwaint.caww(undefined, awg) === twue) {
+			wetuwn;
 		}
-		throw new Error(`argument does not match one of these constraints: arg instanceof constraint, arg.constructor === constraint, nor constraint(arg) === true`);
+		thwow new Ewwow(`awgument does not match one of these constwaints: awg instanceof constwaint, awg.constwuctow === constwaint, now constwaint(awg) === twue`);
 	}
 }
 
-export function getAllPropertyNames(obj: object): string[] {
-	let res: string[] = [];
-	let proto = Object.getPrototypeOf(obj);
-	while (Object.prototype !== proto) {
-		res = res.concat(Object.getOwnPropertyNames(proto));
-		proto = Object.getPrototypeOf(proto);
+expowt function getAwwPwopewtyNames(obj: object): stwing[] {
+	wet wes: stwing[] = [];
+	wet pwoto = Object.getPwototypeOf(obj);
+	whiwe (Object.pwototype !== pwoto) {
+		wes = wes.concat(Object.getOwnPwopewtyNames(pwoto));
+		pwoto = Object.getPwototypeOf(pwoto);
 	}
-	return res;
+	wetuwn wes;
 }
 
-export function getAllMethodNames(obj: object): string[] {
-	const methods: string[] = [];
-	for (const prop of getAllPropertyNames(obj)) {
-		if (typeof (obj as any)[prop] === 'function') {
-			methods.push(prop);
+expowt function getAwwMethodNames(obj: object): stwing[] {
+	const methods: stwing[] = [];
+	fow (const pwop of getAwwPwopewtyNames(obj)) {
+		if (typeof (obj as any)[pwop] === 'function') {
+			methods.push(pwop);
 		}
 	}
-	return methods;
+	wetuwn methods;
 }
 
-export function createProxyObject<T extends object>(methodNames: string[], invoke: (method: string, args: unknown[]) => unknown): T {
-	const createProxyMethod = (method: string): () => unknown => {
-		return function () {
-			const args = Array.prototype.slice.call(arguments, 0);
-			return invoke(method, args);
+expowt function cweatePwoxyObject<T extends object>(methodNames: stwing[], invoke: (method: stwing, awgs: unknown[]) => unknown): T {
+	const cweatePwoxyMethod = (method: stwing): () => unknown => {
+		wetuwn function () {
+			const awgs = Awway.pwototype.swice.caww(awguments, 0);
+			wetuwn invoke(method, awgs);
 		};
 	};
 
-	let result = {} as T;
-	for (const methodName of methodNames) {
-		(<any>result)[methodName] = createProxyMethod(methodName);
+	wet wesuwt = {} as T;
+	fow (const methodName of methodNames) {
+		(<any>wesuwt)[methodName] = cweatePwoxyMethod(methodName);
 	}
-	return result;
+	wetuwn wesuwt;
 }
 
 /**
- * Converts null to undefined, passes all other values through.
+ * Convewts nuww to undefined, passes aww otha vawues thwough.
  */
-export function withNullAsUndefined<T>(x: T | null): T | undefined {
-	return x === null ? undefined : x;
+expowt function withNuwwAsUndefined<T>(x: T | nuww): T | undefined {
+	wetuwn x === nuww ? undefined : x;
 }
 
 /**
- * Converts undefined to null, passes all other values through.
+ * Convewts undefined to nuww, passes aww otha vawues thwough.
  */
-export function withUndefinedAsNull<T>(x: T | undefined): T | null {
-	return typeof x === 'undefined' ? null : x;
+expowt function withUndefinedAsNuww<T>(x: T | undefined): T | nuww {
+	wetuwn typeof x === 'undefined' ? nuww : x;
 }
 
-type AddFirstParameterToFunction<T, TargetFunctionsReturnType, FirstParameter> = T extends (...args: any[]) => TargetFunctionsReturnType ?
-	// Function: add param to function
-	(firstArg: FirstParameter, ...args: Parameters<T>) => ReturnType<T> :
+type AddFiwstPawametewToFunction<T, TawgetFunctionsWetuwnType, FiwstPawameta> = T extends (...awgs: any[]) => TawgetFunctionsWetuwnType ?
+	// Function: add pawam to function
+	(fiwstAwg: FiwstPawameta, ...awgs: Pawametews<T>) => WetuwnType<T> :
 
-	// Else: just leave as is
+	// Ewse: just weave as is
 	T;
 
 /**
- * Allows to add a first parameter to functions of a type.
+ * Awwows to add a fiwst pawameta to functions of a type.
  */
-export type AddFirstParameterToFunctions<Target, TargetFunctionsReturnType, FirstParameter> = {
-	// For every property
-	[K in keyof Target]: AddFirstParameterToFunction<Target[K], TargetFunctionsReturnType, FirstParameter>;
+expowt type AddFiwstPawametewToFunctions<Tawget, TawgetFunctionsWetuwnType, FiwstPawameta> = {
+	// Fow evewy pwopewty
+	[K in keyof Tawget]: AddFiwstPawametewToFunction<Tawget[K], TawgetFunctionsWetuwnType, FiwstPawameta>;
 };
 
 /**
- * Mapped-type that replaces all occurrences of URI with UriComponents
+ * Mapped-type that wepwaces aww occuwwences of UWI with UwiComponents
  */
-export type UriDto<T> = { [K in keyof T]: T[K] extends URI
-	? UriComponents
-	: UriDto<T[K]> };
+expowt type UwiDto<T> = { [K in keyof T]: T[K] extends UWI
+	? UwiComponents
+	: UwiDto<T[K]> };
 
 /**
- * Mapped-type that replaces all occurrences of URI with UriComponents and
- * drops all functions.
+ * Mapped-type that wepwaces aww occuwwences of UWI with UwiComponents and
+ * dwops aww functions.
  */
-export type Dto<T> = T extends { toJSON(): infer U }
+expowt type Dto<T> = T extends { toJSON(): infa U }
 	? U
 	: T extends object
 	? { [k in keyof T]: Dto<T[k]>; }
 	: T;
 
-export function NotImplementedProxy<T>(name: string): { new(): T } {
-	return <any>class {
-		constructor() {
-			return new Proxy({}, {
-				get(target: any, prop: PropertyKey) {
-					if (target[prop]) {
-						return target[prop];
+expowt function NotImpwementedPwoxy<T>(name: stwing): { new(): T } {
+	wetuwn <any>cwass {
+		constwuctow() {
+			wetuwn new Pwoxy({}, {
+				get(tawget: any, pwop: PwopewtyKey) {
+					if (tawget[pwop]) {
+						wetuwn tawget[pwop];
 					}
-					throw new Error(`Not Implemented: ${name}->${String(prop)}`);
+					thwow new Ewwow(`Not Impwemented: ${name}->${Stwing(pwop)}`);
 				}
 			});
 		}
 	};
 }
 
-export function assertNever(value: never, message = 'Unreachable') {
-	throw new Error(message);
+expowt function assewtNeva(vawue: neva, message = 'Unweachabwe') {
+	thwow new Ewwow(message);
 }
 
-export function isPromise<T>(obj: unknown): obj is Promise<T> {
-	return !!obj && typeof (obj as Promise<T>).then === 'function' && typeof (obj as Promise<T>).catch === 'function';
+expowt function isPwomise<T>(obj: unknown): obj is Pwomise<T> {
+	wetuwn !!obj && typeof (obj as Pwomise<T>).then === 'function' && typeof (obj as Pwomise<T>).catch === 'function';
 }

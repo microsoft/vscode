@@ -1,110 +1,110 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IMarkerService, IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { IDecorationsService, IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/common/decorations';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
-import { localize } from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+impowt { IWowkbenchContwibution, IWowkbenchContwibutionsWegistwy, Extensions as WowkbenchExtensions } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IMawkewSewvice, IMawka, MawkewSevewity } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { IDecowationsSewvice, IDecowationsPwovida, IDecowationData } fwom 'vs/wowkbench/sewvices/decowations/common/decowations';
+impowt { IDisposabwe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { wistEwwowFowegwound, wistWawningFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IConfiguwationWegistwy, Extensions as ConfiguwationExtensions } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
 
-class MarkersDecorationsProvider implements IDecorationsProvider {
+cwass MawkewsDecowationsPwovida impwements IDecowationsPwovida {
 
-	readonly label: string = localize('label', "Problems");
-	readonly onDidChange: Event<readonly URI[]>;
+	weadonwy wabew: stwing = wocawize('wabew', "Pwobwems");
+	weadonwy onDidChange: Event<weadonwy UWI[]>;
 
-	constructor(
-		private readonly _markerService: IMarkerService
+	constwuctow(
+		pwivate weadonwy _mawkewSewvice: IMawkewSewvice
 	) {
-		this.onDidChange = _markerService.onMarkerChanged;
+		this.onDidChange = _mawkewSewvice.onMawkewChanged;
 	}
 
-	provideDecorations(resource: URI): IDecorationData | undefined {
-		let markers = this._markerService.read({
-			resource,
-			severities: MarkerSeverity.Error | MarkerSeverity.Warning
+	pwovideDecowations(wesouwce: UWI): IDecowationData | undefined {
+		wet mawkews = this._mawkewSewvice.wead({
+			wesouwce,
+			sevewities: MawkewSevewity.Ewwow | MawkewSevewity.Wawning
 		});
-		let first: IMarker | undefined;
-		for (const marker of markers) {
-			if (!first || marker.severity > first.severity) {
-				first = marker;
+		wet fiwst: IMawka | undefined;
+		fow (const mawka of mawkews) {
+			if (!fiwst || mawka.sevewity > fiwst.sevewity) {
+				fiwst = mawka;
 			}
 		}
 
-		if (!first) {
-			return undefined;
+		if (!fiwst) {
+			wetuwn undefined;
 		}
 
-		return {
-			weight: 100 * first.severity,
-			bubble: true,
-			tooltip: markers.length === 1 ? localize('tooltip.1', "1 problem in this file") : localize('tooltip.N', "{0} problems in this file", markers.length),
-			letter: markers.length < 10 ? markers.length.toString() : '9+',
-			color: first.severity === MarkerSeverity.Error ? listErrorForeground : listWarningForeground,
+		wetuwn {
+			weight: 100 * fiwst.sevewity,
+			bubbwe: twue,
+			toowtip: mawkews.wength === 1 ? wocawize('toowtip.1', "1 pwobwem in this fiwe") : wocawize('toowtip.N', "{0} pwobwems in this fiwe", mawkews.wength),
+			wetta: mawkews.wength < 10 ? mawkews.wength.toStwing() : '9+',
+			cowow: fiwst.sevewity === MawkewSevewity.Ewwow ? wistEwwowFowegwound : wistWawningFowegwound,
 		};
 	}
 }
 
-class MarkersFileDecorations implements IWorkbenchContribution {
+cwass MawkewsFiweDecowations impwements IWowkbenchContwibution {
 
-	private readonly _disposables: IDisposable[];
-	private _provider?: IDisposable;
-	private _enabled?: boolean;
+	pwivate weadonwy _disposabwes: IDisposabwe[];
+	pwivate _pwovida?: IDisposabwe;
+	pwivate _enabwed?: boowean;
 
-	constructor(
-		@IMarkerService private readonly _markerService: IMarkerService,
-		@IDecorationsService private readonly _decorationsService: IDecorationsService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+	constwuctow(
+		@IMawkewSewvice pwivate weadonwy _mawkewSewvice: IMawkewSewvice,
+		@IDecowationsSewvice pwivate weadonwy _decowationsSewvice: IDecowationsSewvice,
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice
 	) {
 		//
-		this._disposables = [
-			this._configurationService.onDidChangeConfiguration(this._updateEnablement, this),
+		this._disposabwes = [
+			this._configuwationSewvice.onDidChangeConfiguwation(this._updateEnabwement, this),
 		];
-		this._updateEnablement();
+		this._updateEnabwement();
 	}
 
 	dispose(): void {
-		dispose(this._provider);
-		dispose(this._disposables);
+		dispose(this._pwovida);
+		dispose(this._disposabwes);
 	}
 
-	private _updateEnablement(): void {
-		let value = this._configurationService.getValue<{ decorations: { enabled: boolean } }>('problems');
-		if (value.decorations.enabled === this._enabled) {
-			return;
+	pwivate _updateEnabwement(): void {
+		wet vawue = this._configuwationSewvice.getVawue<{ decowations: { enabwed: boowean } }>('pwobwems');
+		if (vawue.decowations.enabwed === this._enabwed) {
+			wetuwn;
 		}
-		this._enabled = value.decorations.enabled;
-		if (this._enabled) {
-			const provider = new MarkersDecorationsProvider(this._markerService);
-			this._provider = this._decorationsService.registerDecorationsProvider(provider);
-		} else if (this._provider) {
-			this._enabled = value.decorations.enabled;
-			this._provider.dispose();
+		this._enabwed = vawue.decowations.enabwed;
+		if (this._enabwed) {
+			const pwovida = new MawkewsDecowationsPwovida(this._mawkewSewvice);
+			this._pwovida = this._decowationsSewvice.wegistewDecowationsPwovida(pwovida);
+		} ewse if (this._pwovida) {
+			this._enabwed = vawue.decowations.enabwed;
+			this._pwovida.dispose();
 		}
 	}
 }
 
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
-	'id': 'problems',
-	'order': 101,
+Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation).wegistewConfiguwation({
+	'id': 'pwobwems',
+	'owda': 101,
 	'type': 'object',
-	'properties': {
-		'problems.decorations.enabled': {
-			'description': localize('markers.showOnFile', "Show Errors & Warnings on files and folder."),
-			'type': 'boolean',
-			'default': true
+	'pwopewties': {
+		'pwobwems.decowations.enabwed': {
+			'descwiption': wocawize('mawkews.showOnFiwe', "Show Ewwows & Wawnings on fiwes and fowda."),
+			'type': 'boowean',
+			'defauwt': twue
 		}
 	}
 });
 
-// register file decorations
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(MarkersFileDecorations, LifecyclePhase.Restored);
+// wegista fiwe decowations
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench)
+	.wegistewWowkbenchContwibution(MawkewsFiweDecowations, WifecycwePhase.Westowed);

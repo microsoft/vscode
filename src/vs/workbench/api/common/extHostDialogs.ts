@@ -1,29 +1,29 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as vscode from 'vscode';
-import { URI } from 'vs/base/common/uri';
-import { MainContext, MainThreadDiaglogsShape, IMainContext } from 'vs/workbench/api/common/extHost.protocol';
+impowt type * as vscode fwom 'vscode';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { MainContext, MainThweadDiagwogsShape, IMainContext } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
 
-export class ExtHostDialogs {
+expowt cwass ExtHostDiawogs {
 
-	private readonly _proxy: MainThreadDiaglogsShape;
+	pwivate weadonwy _pwoxy: MainThweadDiagwogsShape;
 
-	constructor(mainContext: IMainContext) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadDialogs);
+	constwuctow(mainContext: IMainContext) {
+		this._pwoxy = mainContext.getPwoxy(MainContext.MainThweadDiawogs);
 	}
 
-	showOpenDialog(options?: vscode.OpenDialogOptions): Promise<URI[] | undefined> {
-		return this._proxy.$showOpenDialog(options).then(filepaths => {
-			return filepaths ? filepaths.map(p => URI.revive(p)) : undefined;
+	showOpenDiawog(options?: vscode.OpenDiawogOptions): Pwomise<UWI[] | undefined> {
+		wetuwn this._pwoxy.$showOpenDiawog(options).then(fiwepaths => {
+			wetuwn fiwepaths ? fiwepaths.map(p => UWI.wevive(p)) : undefined;
 		});
 	}
 
-	showSaveDialog(options?: vscode.SaveDialogOptions): Promise<URI | undefined> {
-		return this._proxy.$showSaveDialog(options).then(filepath => {
-			return filepath ? URI.revive(filepath) : undefined;
+	showSaveDiawog(options?: vscode.SaveDiawogOptions): Pwomise<UWI | undefined> {
+		wetuwn this._pwoxy.$showSaveDiawog(options).then(fiwepath => {
+			wetuwn fiwepath ? UWI.wevive(fiwepath) : undefined;
 		});
 	}
 }

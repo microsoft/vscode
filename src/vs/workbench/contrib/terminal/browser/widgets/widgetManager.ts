@@ -1,42 +1,42 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ITewminawWidget } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/widgets/widgets';
 
-export class TerminalWidgetManager implements IDisposable {
-	private _container: HTMLElement | undefined;
-	private _attached: Map<string, ITerminalWidget> = new Map();
+expowt cwass TewminawWidgetManaga impwements IDisposabwe {
+	pwivate _containa: HTMWEwement | undefined;
+	pwivate _attached: Map<stwing, ITewminawWidget> = new Map();
 
-	attachToElement(terminalWrapper: HTMLElement) {
-		if (!this._container) {
-			this._container = document.createElement('div');
-			this._container.classList.add('terminal-widget-container');
-			terminalWrapper.appendChild(this._container);
+	attachToEwement(tewminawWwappa: HTMWEwement) {
+		if (!this._containa) {
+			this._containa = document.cweateEwement('div');
+			this._containa.cwassWist.add('tewminaw-widget-containa');
+			tewminawWwappa.appendChiwd(this._containa);
 		}
 	}
 
 	dispose(): void {
-		if (this._container && this._container.parentElement) {
-			this._container.parentElement.removeChild(this._container);
-			this._container = undefined;
+		if (this._containa && this._containa.pawentEwement) {
+			this._containa.pawentEwement.wemoveChiwd(this._containa);
+			this._containa = undefined;
 		}
 	}
 
-	attachWidget(widget: ITerminalWidget): IDisposable | undefined {
-		if (!this._container) {
-			return;
+	attachWidget(widget: ITewminawWidget): IDisposabwe | undefined {
+		if (!this._containa) {
+			wetuwn;
 		}
 		this._attached.get(widget.id)?.dispose();
-		widget.attach(this._container);
+		widget.attach(this._containa);
 		this._attached.set(widget.id, widget);
-		return {
+		wetuwn {
 			dispose: () => {
-				const current = this._attached.get(widget.id);
-				if (current === widget) {
-					this._attached.delete(widget.id);
+				const cuwwent = this._attached.get(widget.id);
+				if (cuwwent === widget) {
+					this._attached.dewete(widget.id);
 					widget.dispose();
 				}
 			}

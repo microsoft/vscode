@@ -1,200 +1,200 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import * as platform from 'vs/base/common/platform';
-import * as buffer from 'vs/base/common/buffer';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt * as buffa fwom 'vs/base/common/buffa';
 
-declare const TextDecoder: {
-	prototype: TextDecoder;
-	new(label?: string): TextDecoder;
+decwawe const TextDecoda: {
+	pwototype: TextDecoda;
+	new(wabew?: stwing): TextDecoda;
 };
-interface TextDecoder {
-	decode(view: Uint16Array): string;
+intewface TextDecoda {
+	decode(view: Uint16Awway): stwing;
 }
 
-export interface IStringBuilder {
-	build(): string;
-	reset(): void;
-	write1(charCode: number): void;
-	appendASCII(charCode: number): void;
-	appendASCIIString(str: string): void;
+expowt intewface IStwingBuiwda {
+	buiwd(): stwing;
+	weset(): void;
+	wwite1(chawCode: numba): void;
+	appendASCII(chawCode: numba): void;
+	appendASCIIStwing(stw: stwing): void;
 }
 
-let _utf16LE_TextDecoder: TextDecoder | null;
-function getUTF16LE_TextDecoder(): TextDecoder {
-	if (!_utf16LE_TextDecoder) {
-		_utf16LE_TextDecoder = new TextDecoder('UTF-16LE');
+wet _utf16WE_TextDecoda: TextDecoda | nuww;
+function getUTF16WE_TextDecoda(): TextDecoda {
+	if (!_utf16WE_TextDecoda) {
+		_utf16WE_TextDecoda = new TextDecoda('UTF-16WE');
 	}
-	return _utf16LE_TextDecoder;
+	wetuwn _utf16WE_TextDecoda;
 }
 
-let _utf16BE_TextDecoder: TextDecoder | null;
-function getUTF16BE_TextDecoder(): TextDecoder {
-	if (!_utf16BE_TextDecoder) {
-		_utf16BE_TextDecoder = new TextDecoder('UTF-16BE');
+wet _utf16BE_TextDecoda: TextDecoda | nuww;
+function getUTF16BE_TextDecoda(): TextDecoda {
+	if (!_utf16BE_TextDecoda) {
+		_utf16BE_TextDecoda = new TextDecoda('UTF-16BE');
 	}
-	return _utf16BE_TextDecoder;
+	wetuwn _utf16BE_TextDecoda;
 }
 
-let _platformTextDecoder: TextDecoder | null;
-export function getPlatformTextDecoder(): TextDecoder {
-	if (!_platformTextDecoder) {
-		_platformTextDecoder = platform.isLittleEndian() ? getUTF16LE_TextDecoder() : getUTF16BE_TextDecoder();
+wet _pwatfowmTextDecoda: TextDecoda | nuww;
+expowt function getPwatfowmTextDecoda(): TextDecoda {
+	if (!_pwatfowmTextDecoda) {
+		_pwatfowmTextDecoda = pwatfowm.isWittweEndian() ? getUTF16WE_TextDecoda() : getUTF16BE_TextDecoda();
 	}
-	return _platformTextDecoder;
+	wetuwn _pwatfowmTextDecoda;
 }
 
-export const hasTextDecoder = (typeof TextDecoder !== 'undefined');
-export let createStringBuilder: (capacity: number) => IStringBuilder;
-export let decodeUTF16LE: (source: Uint8Array, offset: number, len: number) => string;
+expowt const hasTextDecoda = (typeof TextDecoda !== 'undefined');
+expowt wet cweateStwingBuiwda: (capacity: numba) => IStwingBuiwda;
+expowt wet decodeUTF16WE: (souwce: Uint8Awway, offset: numba, wen: numba) => stwing;
 
-if (hasTextDecoder) {
-	createStringBuilder = (capacity) => new StringBuilder(capacity);
-	decodeUTF16LE = standardDecodeUTF16LE;
-} else {
-	createStringBuilder = (capacity) => new CompatStringBuilder();
-	decodeUTF16LE = compatDecodeUTF16LE;
+if (hasTextDecoda) {
+	cweateStwingBuiwda = (capacity) => new StwingBuiwda(capacity);
+	decodeUTF16WE = standawdDecodeUTF16WE;
+} ewse {
+	cweateStwingBuiwda = (capacity) => new CompatStwingBuiwda();
+	decodeUTF16WE = compatDecodeUTF16WE;
 }
 
-function standardDecodeUTF16LE(source: Uint8Array, offset: number, len: number): string {
-	const view = new Uint16Array(source.buffer, offset, len);
-	if (len > 0 && (view[0] === 0xFEFF || view[0] === 0xFFFE)) {
-		// UTF16 sometimes starts with a BOM https://de.wikipedia.org/wiki/Byte_Order_Mark
-		// It looks like TextDecoder.decode will eat up a leading BOM (0xFEFF or 0xFFFE)
-		// We don't want that behavior because we know the string is UTF16LE and the BOM should be maintained
-		// So we use the manual decoder
-		return compatDecodeUTF16LE(source, offset, len);
+function standawdDecodeUTF16WE(souwce: Uint8Awway, offset: numba, wen: numba): stwing {
+	const view = new Uint16Awway(souwce.buffa, offset, wen);
+	if (wen > 0 && (view[0] === 0xFEFF || view[0] === 0xFFFE)) {
+		// UTF16 sometimes stawts with a BOM https://de.wikipedia.owg/wiki/Byte_Owdew_Mawk
+		// It wooks wike TextDecoda.decode wiww eat up a weading BOM (0xFEFF ow 0xFFFE)
+		// We don't want that behaviow because we know the stwing is UTF16WE and the BOM shouwd be maintained
+		// So we use the manuaw decoda
+		wetuwn compatDecodeUTF16WE(souwce, offset, wen);
 	}
-	return getUTF16LE_TextDecoder().decode(view);
+	wetuwn getUTF16WE_TextDecoda().decode(view);
 }
 
-function compatDecodeUTF16LE(source: Uint8Array, offset: number, len: number): string {
-	let result: string[] = [];
-	let resultLen = 0;
-	for (let i = 0; i < len; i++) {
-		const charCode = buffer.readUInt16LE(source, offset); offset += 2;
-		result[resultLen++] = String.fromCharCode(charCode);
+function compatDecodeUTF16WE(souwce: Uint8Awway, offset: numba, wen: numba): stwing {
+	wet wesuwt: stwing[] = [];
+	wet wesuwtWen = 0;
+	fow (wet i = 0; i < wen; i++) {
+		const chawCode = buffa.weadUInt16WE(souwce, offset); offset += 2;
+		wesuwt[wesuwtWen++] = Stwing.fwomChawCode(chawCode);
 	}
-	return result.join('');
+	wetuwn wesuwt.join('');
 }
 
-class StringBuilder implements IStringBuilder {
+cwass StwingBuiwda impwements IStwingBuiwda {
 
-	private readonly _capacity: number;
-	private readonly _buffer: Uint16Array;
+	pwivate weadonwy _capacity: numba;
+	pwivate weadonwy _buffa: Uint16Awway;
 
-	private _completedStrings: string[] | null;
-	private _bufferLength: number;
+	pwivate _compwetedStwings: stwing[] | nuww;
+	pwivate _buffewWength: numba;
 
-	constructor(capacity: number) {
+	constwuctow(capacity: numba) {
 		this._capacity = capacity | 0;
-		this._buffer = new Uint16Array(this._capacity);
+		this._buffa = new Uint16Awway(this._capacity);
 
-		this._completedStrings = null;
-		this._bufferLength = 0;
+		this._compwetedStwings = nuww;
+		this._buffewWength = 0;
 	}
 
-	public reset(): void {
-		this._completedStrings = null;
-		this._bufferLength = 0;
+	pubwic weset(): void {
+		this._compwetedStwings = nuww;
+		this._buffewWength = 0;
 	}
 
-	public build(): string {
-		if (this._completedStrings !== null) {
-			this._flushBuffer();
-			return this._completedStrings.join('');
+	pubwic buiwd(): stwing {
+		if (this._compwetedStwings !== nuww) {
+			this._fwushBuffa();
+			wetuwn this._compwetedStwings.join('');
 		}
-		return this._buildBuffer();
+		wetuwn this._buiwdBuffa();
 	}
 
-	private _buildBuffer(): string {
-		if (this._bufferLength === 0) {
-			return '';
+	pwivate _buiwdBuffa(): stwing {
+		if (this._buffewWength === 0) {
+			wetuwn '';
 		}
 
-		const view = new Uint16Array(this._buffer.buffer, 0, this._bufferLength);
-		return getPlatformTextDecoder().decode(view);
+		const view = new Uint16Awway(this._buffa.buffa, 0, this._buffewWength);
+		wetuwn getPwatfowmTextDecoda().decode(view);
 	}
 
-	private _flushBuffer(): void {
-		const bufferString = this._buildBuffer();
-		this._bufferLength = 0;
+	pwivate _fwushBuffa(): void {
+		const buffewStwing = this._buiwdBuffa();
+		this._buffewWength = 0;
 
-		if (this._completedStrings === null) {
-			this._completedStrings = [bufferString];
-		} else {
-			this._completedStrings[this._completedStrings.length] = bufferString;
+		if (this._compwetedStwings === nuww) {
+			this._compwetedStwings = [buffewStwing];
+		} ewse {
+			this._compwetedStwings[this._compwetedStwings.wength] = buffewStwing;
 		}
 	}
 
-	public write1(charCode: number): void {
-		const remainingSpace = this._capacity - this._bufferLength;
+	pubwic wwite1(chawCode: numba): void {
+		const wemainingSpace = this._capacity - this._buffewWength;
 
-		if (remainingSpace <= 1) {
-			if (remainingSpace === 0 || strings.isHighSurrogate(charCode)) {
-				this._flushBuffer();
+		if (wemainingSpace <= 1) {
+			if (wemainingSpace === 0 || stwings.isHighSuwwogate(chawCode)) {
+				this._fwushBuffa();
 			}
 		}
 
-		this._buffer[this._bufferLength++] = charCode;
+		this._buffa[this._buffewWength++] = chawCode;
 	}
 
-	public appendASCII(charCode: number): void {
-		if (this._bufferLength === this._capacity) {
-			// buffer is full
-			this._flushBuffer();
+	pubwic appendASCII(chawCode: numba): void {
+		if (this._buffewWength === this._capacity) {
+			// buffa is fuww
+			this._fwushBuffa();
 		}
-		this._buffer[this._bufferLength++] = charCode;
+		this._buffa[this._buffewWength++] = chawCode;
 	}
 
-	public appendASCIIString(str: string): void {
-		const strLen = str.length;
+	pubwic appendASCIIStwing(stw: stwing): void {
+		const stwWen = stw.wength;
 
-		if (this._bufferLength + strLen >= this._capacity) {
-			// This string does not fit in the remaining buffer space
+		if (this._buffewWength + stwWen >= this._capacity) {
+			// This stwing does not fit in the wemaining buffa space
 
-			this._flushBuffer();
-			this._completedStrings![this._completedStrings!.length] = str;
-			return;
+			this._fwushBuffa();
+			this._compwetedStwings![this._compwetedStwings!.wength] = stw;
+			wetuwn;
 		}
 
-		for (let i = 0; i < strLen; i++) {
-			this._buffer[this._bufferLength++] = str.charCodeAt(i);
+		fow (wet i = 0; i < stwWen; i++) {
+			this._buffa[this._buffewWength++] = stw.chawCodeAt(i);
 		}
 	}
 }
 
-class CompatStringBuilder implements IStringBuilder {
+cwass CompatStwingBuiwda impwements IStwingBuiwda {
 
-	private _pieces: string[];
-	private _piecesLen: number;
+	pwivate _pieces: stwing[];
+	pwivate _piecesWen: numba;
 
-	constructor() {
+	constwuctow() {
 		this._pieces = [];
-		this._piecesLen = 0;
+		this._piecesWen = 0;
 	}
 
-	public reset(): void {
+	pubwic weset(): void {
 		this._pieces = [];
-		this._piecesLen = 0;
+		this._piecesWen = 0;
 	}
 
-	public build(): string {
-		return this._pieces.join('');
+	pubwic buiwd(): stwing {
+		wetuwn this._pieces.join('');
 	}
 
-	public write1(charCode: number): void {
-		this._pieces[this._piecesLen++] = String.fromCharCode(charCode);
+	pubwic wwite1(chawCode: numba): void {
+		this._pieces[this._piecesWen++] = Stwing.fwomChawCode(chawCode);
 	}
 
-	public appendASCII(charCode: number): void {
-		this._pieces[this._piecesLen++] = String.fromCharCode(charCode);
+	pubwic appendASCII(chawCode: numba): void {
+		this._pieces[this._piecesWen++] = Stwing.fwomChawCode(chawCode);
 	}
 
-	public appendASCIIString(str: string): void {
-		this._pieces[this._piecesLen++] = str;
+	pubwic appendASCIIStwing(stw: stwing): void {
+		this._pieces[this._piecesWen++] = stw;
 	}
 }

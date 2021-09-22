@@ -1,612 +1,612 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { IPath } from 'vs/platform/windows/common/windows';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IRemoteAuthorityResolverService, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { getRemoteAuthority, isVirtualResource } from 'vs/platform/remote/common/remoteHosts';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustInfo, IWorkspaceTrustUriInfo, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, WorkspaceTrustUriResponse, IWorkspaceTrustEnablementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isUntitledWorkspace, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { Memento, MementoObject } from 'vs/workbench/common/memento';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { WinkedWist } fwom 'vs/base/common/winkedWist';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IPath } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IWemoteAuthowityWesowvewSewvice, WesowvewWesuwt } fwom 'vs/pwatfowm/wemote/common/wemoteAuthowityWesowva';
+impowt { getWemoteAuthowity, isViwtuawWesouwce } fwom 'vs/pwatfowm/wemote/common/wemoteHosts';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IWowkspace, IWowkspaceContextSewvice, IWowkspaceFowda, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { WowkspaceTwustWequestOptions, IWowkspaceTwustManagementSewvice, IWowkspaceTwustInfo, IWowkspaceTwustUwiInfo, IWowkspaceTwustWequestSewvice, IWowkspaceTwustTwansitionPawticipant, WowkspaceTwustUwiWesponse, IWowkspaceTwustEnabwementSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { ISingweFowdewWowkspaceIdentifia, isSingweFowdewWowkspaceIdentifia, isUntitwedWowkspace, toWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { Memento, MementoObject } fwom 'vs/wowkbench/common/memento';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
 
-export const WORKSPACE_TRUST_ENABLED = 'security.workspace.trust.enabled';
-export const WORKSPACE_TRUST_STARTUP_PROMPT = 'security.workspace.trust.startupPrompt';
-export const WORKSPACE_TRUST_BANNER = 'security.workspace.trust.banner';
-export const WORKSPACE_TRUST_UNTRUSTED_FILES = 'security.workspace.trust.untrustedFiles';
-export const WORKSPACE_TRUST_EMPTY_WINDOW = 'security.workspace.trust.emptyWindow';
-export const WORKSPACE_TRUST_EXTENSION_SUPPORT = 'extensions.supportUntrustedWorkspaces';
-export const WORKSPACE_TRUST_STORAGE_KEY = 'content.trust.model.key';
+expowt const WOWKSPACE_TWUST_ENABWED = 'secuwity.wowkspace.twust.enabwed';
+expowt const WOWKSPACE_TWUST_STAWTUP_PWOMPT = 'secuwity.wowkspace.twust.stawtupPwompt';
+expowt const WOWKSPACE_TWUST_BANNa = 'secuwity.wowkspace.twust.banna';
+expowt const WOWKSPACE_TWUST_UNTWUSTED_FIWES = 'secuwity.wowkspace.twust.untwustedFiwes';
+expowt const WOWKSPACE_TWUST_EMPTY_WINDOW = 'secuwity.wowkspace.twust.emptyWindow';
+expowt const WOWKSPACE_TWUST_EXTENSION_SUPPOWT = 'extensions.suppowtUntwustedWowkspaces';
+expowt const WOWKSPACE_TWUST_STOWAGE_KEY = 'content.twust.modew.key';
 
-export class CanonicalWorkspace implements IWorkspace {
-	constructor(
-		private readonly originalWorkspace: IWorkspace,
-		private readonly canonicalFolderUris: URI[],
-		private readonly canonicalConfiguration: URI | null | undefined
+expowt cwass CanonicawWowkspace impwements IWowkspace {
+	constwuctow(
+		pwivate weadonwy owiginawWowkspace: IWowkspace,
+		pwivate weadonwy canonicawFowdewUwis: UWI[],
+		pwivate weadonwy canonicawConfiguwation: UWI | nuww | undefined
 	) { }
 
 
-	get folders(): IWorkspaceFolder[] {
-		return this.originalWorkspace.folders.map((folder, index) => {
-			return {
-				index: folder.index,
-				name: folder.name,
-				toResource: folder.toResource,
-				uri: this.canonicalFolderUris[index]
+	get fowdews(): IWowkspaceFowda[] {
+		wetuwn this.owiginawWowkspace.fowdews.map((fowda, index) => {
+			wetuwn {
+				index: fowda.index,
+				name: fowda.name,
+				toWesouwce: fowda.toWesouwce,
+				uwi: this.canonicawFowdewUwis[index]
 			};
 		});
 	}
 
-	get configuration(): URI | null | undefined {
-		return this.canonicalConfiguration ?? this.originalWorkspace.configuration;
+	get configuwation(): UWI | nuww | undefined {
+		wetuwn this.canonicawConfiguwation ?? this.owiginawWowkspace.configuwation;
 	}
 
-	get id(): string {
-		return this.originalWorkspace.id;
+	get id(): stwing {
+		wetuwn this.owiginawWowkspace.id;
 	}
 }
 
-export class WorkspaceTrustEnablementService extends Disposable implements IWorkspaceTrustEnablementService {
+expowt cwass WowkspaceTwustEnabwementSewvice extends Disposabwe impwements IWowkspaceTwustEnabwementSewvice {
 
-	_serviceBrand: undefined;
+	_sewviceBwand: undefined;
 
-	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+	constwuctow(
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice
 	) {
-		super();
+		supa();
 	}
 
-	isWorkspaceTrustEnabled(): boolean {
-		if (this.environmentService.disableWorkspaceTrust) {
-			return false;
+	isWowkspaceTwustEnabwed(): boowean {
+		if (this.enviwonmentSewvice.disabweWowkspaceTwust) {
+			wetuwn fawse;
 		}
 
-		return !!this.configurationService.getValue(WORKSPACE_TRUST_ENABLED);
+		wetuwn !!this.configuwationSewvice.getVawue(WOWKSPACE_TWUST_ENABWED);
 	}
 }
 
-export class WorkspaceTrustManagementService extends Disposable implements IWorkspaceTrustManagementService {
+expowt cwass WowkspaceTwustManagementSewvice extends Disposabwe impwements IWowkspaceTwustManagementSewvice {
 
-	_serviceBrand: undefined;
+	_sewviceBwand: undefined;
 
-	private readonly storageKey = WORKSPACE_TRUST_STORAGE_KEY;
+	pwivate weadonwy stowageKey = WOWKSPACE_TWUST_STOWAGE_KEY;
 
-	private _workspaceResolvedPromise: Promise<void>;
-	private _workspaceResolvedPromiseResolve!: () => void;
-	private _workspaceTrustInitializedPromise: Promise<void>;
-	private _workspaceTrustInitializedPromiseResolve!: () => void;
+	pwivate _wowkspaceWesowvedPwomise: Pwomise<void>;
+	pwivate _wowkspaceWesowvedPwomiseWesowve!: () => void;
+	pwivate _wowkspaceTwustInitiawizedPwomise: Pwomise<void>;
+	pwivate _wowkspaceTwustInitiawizedPwomiseWesowve!: () => void;
 
-	private readonly _onDidChangeTrust = this._register(new Emitter<boolean>());
-	readonly onDidChangeTrust = this._onDidChangeTrust.event;
+	pwivate weadonwy _onDidChangeTwust = this._wegista(new Emitta<boowean>());
+	weadonwy onDidChangeTwust = this._onDidChangeTwust.event;
 
-	private readonly _onDidChangeTrustedFolders = this._register(new Emitter<void>());
-	readonly onDidChangeTrustedFolders = this._onDidChangeTrustedFolders.event;
+	pwivate weadonwy _onDidChangeTwustedFowdews = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeTwustedFowdews = this._onDidChangeTwustedFowdews.event;
 
-	private _canonicalStartupFiles: URI[] = [];
-	private _canonicalWorkspace: IWorkspace;
-	private _canonicalUrisResolved: boolean;
+	pwivate _canonicawStawtupFiwes: UWI[] = [];
+	pwivate _canonicawWowkspace: IWowkspace;
+	pwivate _canonicawUwisWesowved: boowean;
 
-	private _isTrusted: boolean;
-	private _trustStateInfo: IWorkspaceTrustInfo;
-	private _remoteAuthority: ResolverResult | undefined;
+	pwivate _isTwusted: boowean;
+	pwivate _twustStateInfo: IWowkspaceTwustInfo;
+	pwivate _wemoteAuthowity: WesowvewWesuwt | undefined;
 
-	private readonly _storedTrustState: WorkspaceTrustMemento;
-	private readonly _trustTransitionManager: WorkspaceTrustTransitionManager;
+	pwivate weadonwy _stowedTwustState: WowkspaceTwustMemento;
+	pwivate weadonwy _twustTwansitionManaga: WowkspaceTwustTwansitionManaga;
 
-	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
-		@IWorkspaceTrustEnablementService private readonly workspaceTrustEnablementService: IWorkspaceTrustEnablementService
+	constwuctow(
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IWemoteAuthowityWesowvewSewvice pwivate weadonwy wemoteAuthowityWesowvewSewvice: IWemoteAuthowityWesowvewSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy wowkspaceSewvice: IWowkspaceContextSewvice,
+		@IWowkspaceTwustEnabwementSewvice pwivate weadonwy wowkspaceTwustEnabwementSewvice: IWowkspaceTwustEnabwementSewvice
 	) {
-		super();
+		supa();
 
-		this._canonicalUrisResolved = false;
-		this._canonicalWorkspace = this.workspaceService.getWorkspace();
+		this._canonicawUwisWesowved = fawse;
+		this._canonicawWowkspace = this.wowkspaceSewvice.getWowkspace();
 
-		this._workspaceResolvedPromise = new Promise((resolve) => {
-			this._workspaceResolvedPromiseResolve = resolve;
+		this._wowkspaceWesowvedPwomise = new Pwomise((wesowve) => {
+			this._wowkspaceWesowvedPwomiseWesowve = wesowve;
 		});
-		this._workspaceTrustInitializedPromise = new Promise((resolve) => {
-			this._workspaceTrustInitializedPromiseResolve = resolve;
+		this._wowkspaceTwustInitiawizedPwomise = new Pwomise((wesowve) => {
+			this._wowkspaceTwustInitiawizedPwomiseWesowve = wesowve;
 		});
 
-		this._storedTrustState = new WorkspaceTrustMemento(this.storageService);
-		this._trustTransitionManager = this._register(new WorkspaceTrustTransitionManager());
+		this._stowedTwustState = new WowkspaceTwustMemento(this.stowageSewvice);
+		this._twustTwansitionManaga = this._wegista(new WowkspaceTwustTwansitionManaga());
 
-		this._trustStateInfo = this.loadTrustInfo();
-		this._isTrusted = this.calculateWorkspaceTrust();
+		this._twustStateInfo = this.woadTwustInfo();
+		this._isTwusted = this.cawcuwateWowkspaceTwust();
 
-		this.initializeWorkspaceTrust();
-		this.registerListeners();
+		this.initiawizeWowkspaceTwust();
+		this.wegistewWistenews();
 	}
 
-	//#region initialize
+	//#wegion initiawize
 
-	private initializeWorkspaceTrust(): void {
-		// Resolve canonical Uris
-		this.resolveCanonicalUris()
+	pwivate initiawizeWowkspaceTwust(): void {
+		// Wesowve canonicaw Uwis
+		this.wesowveCanonicawUwis()
 			.then(async () => {
-				this._canonicalUrisResolved = true;
-				await this.updateWorkspaceTrust();
+				this._canonicawUwisWesowved = twue;
+				await this.updateWowkspaceTwust();
 			})
-			.finally(() => {
-				this._workspaceResolvedPromiseResolve();
-				if (!this.environmentService.remoteAuthority) {
-					this._workspaceTrustInitializedPromiseResolve();
+			.finawwy(() => {
+				this._wowkspaceWesowvedPwomiseWesowve();
+				if (!this.enviwonmentSewvice.wemoteAuthowity) {
+					this._wowkspaceTwustInitiawizedPwomiseWesowve();
 				}
 			});
 
-		// Remote - resolve remote authority
-		if (this.environmentService.remoteAuthority) {
-			this.remoteAuthorityResolverService.resolveAuthority(this.environmentService.remoteAuthority)
-				.then(async result => {
-					this._remoteAuthority = result;
-					await this.updateWorkspaceTrust();
+		// Wemote - wesowve wemote authowity
+		if (this.enviwonmentSewvice.wemoteAuthowity) {
+			this.wemoteAuthowityWesowvewSewvice.wesowveAuthowity(this.enviwonmentSewvice.wemoteAuthowity)
+				.then(async wesuwt => {
+					this._wemoteAuthowity = wesuwt;
+					await this.updateWowkspaceTwust();
 				})
-				.finally(() => {
-					this._workspaceTrustInitializedPromiseResolve();
+				.finawwy(() => {
+					this._wowkspaceTwustInitiawizedPwomiseWesowve();
 				});
 		}
 
-		// Empty workspace - save initial state to memento
-		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			this._workspaceTrustInitializedPromise.then(() => {
-				if (this._storedTrustState.isEmptyWorkspaceTrusted === undefined) {
-					this._storedTrustState.isEmptyWorkspaceTrusted = this.isWorkspaceTrusted();
+		// Empty wowkspace - save initiaw state to memento
+		if (this.wowkspaceSewvice.getWowkbenchState() === WowkbenchState.EMPTY) {
+			this._wowkspaceTwustInitiawizedPwomise.then(() => {
+				if (this._stowedTwustState.isEmptyWowkspaceTwusted === undefined) {
+					this._stowedTwustState.isEmptyWowkspaceTwusted = this.isWowkspaceTwusted();
 				}
 			});
 		}
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region private interface
+	//#wegion pwivate intewface
 
-	private registerListeners(): void {
-		this._register(this.workspaceService.onDidChangeWorkspaceFolders(async () => await this.updateWorkspaceTrust()));
-		this._register(this.storageService.onDidChangeValue(async changeEvent => {
-			/* This will only execute if storage was changed by a user action in a separate window */
-			if (changeEvent.key === this.storageKey && JSON.stringify(this._trustStateInfo) !== JSON.stringify(this.loadTrustInfo())) {
-				this._trustStateInfo = this.loadTrustInfo();
-				this._onDidChangeTrustedFolders.fire();
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.wowkspaceSewvice.onDidChangeWowkspaceFowdews(async () => await this.updateWowkspaceTwust()));
+		this._wegista(this.stowageSewvice.onDidChangeVawue(async changeEvent => {
+			/* This wiww onwy execute if stowage was changed by a usa action in a sepawate window */
+			if (changeEvent.key === this.stowageKey && JSON.stwingify(this._twustStateInfo) !== JSON.stwingify(this.woadTwustInfo())) {
+				this._twustStateInfo = this.woadTwustInfo();
+				this._onDidChangeTwustedFowdews.fiwe();
 
-				await this.updateWorkspaceTrust();
+				await this.updateWowkspaceTwust();
 			}
 		}));
 	}
 
-	private async getCanonicalUri(uri: URI): Promise<URI> {
-		if (this.environmentService.remoteAuthority && uri.scheme === Schemas.vscodeRemote) {
-			return this.remoteAuthorityResolverService.getCanonicalURI(uri);
+	pwivate async getCanonicawUwi(uwi: UWI): Pwomise<UWI> {
+		if (this.enviwonmentSewvice.wemoteAuthowity && uwi.scheme === Schemas.vscodeWemote) {
+			wetuwn this.wemoteAuthowityWesowvewSewvice.getCanonicawUWI(uwi);
 		}
 
-		if (uri.scheme === 'vscode-vfs') {
-			const index = uri.authority.indexOf('+');
+		if (uwi.scheme === 'vscode-vfs') {
+			const index = uwi.authowity.indexOf('+');
 			if (index !== -1) {
-				return uri.with({ authority: uri.authority.substr(0, index) });
+				wetuwn uwi.with({ authowity: uwi.authowity.substw(0, index) });
 			}
 		}
 
-		return uri;
+		wetuwn uwi;
 	}
 
-	private async resolveCanonicalUris(): Promise<void> {
-		// Open editors
-		const filesToOpen: IPath[] = [];
-		if (this.environmentService.configuration.filesToOpenOrCreate) {
-			filesToOpen.push(...this.environmentService.configuration.filesToOpenOrCreate);
+	pwivate async wesowveCanonicawUwis(): Pwomise<void> {
+		// Open editows
+		const fiwesToOpen: IPath[] = [];
+		if (this.enviwonmentSewvice.configuwation.fiwesToOpenOwCweate) {
+			fiwesToOpen.push(...this.enviwonmentSewvice.configuwation.fiwesToOpenOwCweate);
 		}
 
-		if (this.environmentService.configuration.filesToDiff) {
-			filesToOpen.push(...this.environmentService.configuration.filesToDiff);
+		if (this.enviwonmentSewvice.configuwation.fiwesToDiff) {
+			fiwesToOpen.push(...this.enviwonmentSewvice.configuwation.fiwesToDiff);
 		}
 
-		if (filesToOpen.length) {
-			const filesToOpenOrCreateUris = filesToOpen.filter(f => f.fileUri && f.fileUri.scheme === Schemas.file).map(f => f.fileUri!);
-			const canonicalFilesToOpen = await Promise.all(filesToOpenOrCreateUris.map(uri => this.getCanonicalUri(uri)));
+		if (fiwesToOpen.wength) {
+			const fiwesToOpenOwCweateUwis = fiwesToOpen.fiwta(f => f.fiweUwi && f.fiweUwi.scheme === Schemas.fiwe).map(f => f.fiweUwi!);
+			const canonicawFiwesToOpen = await Pwomise.aww(fiwesToOpenOwCweateUwis.map(uwi => this.getCanonicawUwi(uwi)));
 
-			this._canonicalStartupFiles.push(...canonicalFilesToOpen.filter(uri => this._canonicalStartupFiles.every(u => !this.uriIdentityService.extUri.isEqual(uri, u))));
+			this._canonicawStawtupFiwes.push(...canonicawFiwesToOpen.fiwta(uwi => this._canonicawStawtupFiwes.evewy(u => !this.uwiIdentitySewvice.extUwi.isEquaw(uwi, u))));
 		}
 
-		// Workspace
-		const workspaceUris = this.workspaceService.getWorkspace().folders.map(f => f.uri);
-		const canonicalWorkspaceFolders = await Promise.all(workspaceUris.map(uri => this.getCanonicalUri(uri)));
+		// Wowkspace
+		const wowkspaceUwis = this.wowkspaceSewvice.getWowkspace().fowdews.map(f => f.uwi);
+		const canonicawWowkspaceFowdews = await Pwomise.aww(wowkspaceUwis.map(uwi => this.getCanonicawUwi(uwi)));
 
-		let canonicalWorkspaceConfiguration = this.workspaceService.getWorkspace().configuration;
-		if (canonicalWorkspaceConfiguration && !isUntitledWorkspace(canonicalWorkspaceConfiguration, this.environmentService)) {
-			canonicalWorkspaceConfiguration = await this.getCanonicalUri(canonicalWorkspaceConfiguration);
+		wet canonicawWowkspaceConfiguwation = this.wowkspaceSewvice.getWowkspace().configuwation;
+		if (canonicawWowkspaceConfiguwation && !isUntitwedWowkspace(canonicawWowkspaceConfiguwation, this.enviwonmentSewvice)) {
+			canonicawWowkspaceConfiguwation = await this.getCanonicawUwi(canonicawWowkspaceConfiguwation);
 		}
 
-		this._canonicalWorkspace = new CanonicalWorkspace(this.workspaceService.getWorkspace(), canonicalWorkspaceFolders, canonicalWorkspaceConfiguration);
+		this._canonicawWowkspace = new CanonicawWowkspace(this.wowkspaceSewvice.getWowkspace(), canonicawWowkspaceFowdews, canonicawWowkspaceConfiguwation);
 	}
 
-	private loadTrustInfo(): IWorkspaceTrustInfo {
-		const infoAsString = this.storageService.get(this.storageKey, StorageScope.GLOBAL);
+	pwivate woadTwustInfo(): IWowkspaceTwustInfo {
+		const infoAsStwing = this.stowageSewvice.get(this.stowageKey, StowageScope.GWOBAW);
 
-		let result: IWorkspaceTrustInfo | undefined;
-		try {
-			if (infoAsString) {
-				result = JSON.parse(infoAsString);
+		wet wesuwt: IWowkspaceTwustInfo | undefined;
+		twy {
+			if (infoAsStwing) {
+				wesuwt = JSON.pawse(infoAsStwing);
 			}
 		} catch { }
 
-		if (!result) {
-			result = {
-				uriTrustInfo: []
+		if (!wesuwt) {
+			wesuwt = {
+				uwiTwustInfo: []
 			};
 		}
 
-		if (!result.uriTrustInfo) {
-			result.uriTrustInfo = [];
+		if (!wesuwt.uwiTwustInfo) {
+			wesuwt.uwiTwustInfo = [];
 		}
 
-		result.uriTrustInfo = result.uriTrustInfo.map(info => { return { uri: URI.revive(info.uri), trusted: info.trusted }; });
-		result.uriTrustInfo = result.uriTrustInfo.filter(info => info.trusted);
+		wesuwt.uwiTwustInfo = wesuwt.uwiTwustInfo.map(info => { wetuwn { uwi: UWI.wevive(info.uwi), twusted: info.twusted }; });
+		wesuwt.uwiTwustInfo = wesuwt.uwiTwustInfo.fiwta(info => info.twusted);
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private async saveTrustInfo(): Promise<void> {
-		this.storageService.store(this.storageKey, JSON.stringify(this._trustStateInfo), StorageScope.GLOBAL, StorageTarget.MACHINE);
-		this._onDidChangeTrustedFolders.fire();
+	pwivate async saveTwustInfo(): Pwomise<void> {
+		this.stowageSewvice.stowe(this.stowageKey, JSON.stwingify(this._twustStateInfo), StowageScope.GWOBAW, StowageTawget.MACHINE);
+		this._onDidChangeTwustedFowdews.fiwe();
 
-		await this.updateWorkspaceTrust();
+		await this.updateWowkspaceTwust();
 	}
 
-	private getWorkspaceUris(): URI[] {
-		const workspaceUris = this._canonicalWorkspace.folders.map(f => f.uri);
-		const workspaceConfiguration = this._canonicalWorkspace.configuration;
-		if (workspaceConfiguration && !isUntitledWorkspace(workspaceConfiguration, this.environmentService)) {
-			workspaceUris.push(workspaceConfiguration);
+	pwivate getWowkspaceUwis(): UWI[] {
+		const wowkspaceUwis = this._canonicawWowkspace.fowdews.map(f => f.uwi);
+		const wowkspaceConfiguwation = this._canonicawWowkspace.configuwation;
+		if (wowkspaceConfiguwation && !isUntitwedWowkspace(wowkspaceConfiguwation, this.enviwonmentSewvice)) {
+			wowkspaceUwis.push(wowkspaceConfiguwation);
 		}
 
-		return workspaceUris;
+		wetuwn wowkspaceUwis;
 	}
 
-	private calculateWorkspaceTrust(): boolean {
-		// Feature is disabled
-		if (!this.workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
-			return true;
+	pwivate cawcuwateWowkspaceTwust(): boowean {
+		// Featuwe is disabwed
+		if (!this.wowkspaceTwustEnabwementSewvice.isWowkspaceTwustEnabwed()) {
+			wetuwn twue;
 		}
 
-		// Canonical Uris not yet resolved
-		if (!this._canonicalUrisResolved) {
-			return false;
+		// Canonicaw Uwis not yet wesowved
+		if (!this._canonicawUwisWesowved) {
+			wetuwn fawse;
 		}
 
-		// Remote - resolver explicitly sets workspace trust to TRUE
-		if (this.environmentService.remoteAuthority && this._remoteAuthority?.options?.isTrusted) {
-			return this._remoteAuthority.options.isTrusted;
+		// Wemote - wesowva expwicitwy sets wowkspace twust to TWUE
+		if (this.enviwonmentSewvice.wemoteAuthowity && this._wemoteAuthowity?.options?.isTwusted) {
+			wetuwn this._wemoteAuthowity.options.isTwusted;
 		}
 
-		// Empty workspace - use memento, open ediors, or user setting
-		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			// Use memento if present
-			if (this._storedTrustState.isEmptyWorkspaceTrusted !== undefined) {
-				return this._storedTrustState.isEmptyWorkspaceTrusted;
+		// Empty wowkspace - use memento, open ediows, ow usa setting
+		if (this.wowkspaceSewvice.getWowkbenchState() === WowkbenchState.EMPTY) {
+			// Use memento if pwesent
+			if (this._stowedTwustState.isEmptyWowkspaceTwusted !== undefined) {
+				wetuwn this._stowedTwustState.isEmptyWowkspaceTwusted;
 			}
 
-			// Startup files
-			if (this._canonicalStartupFiles.length) {
-				return this.getUrisTrust(this._canonicalStartupFiles);
+			// Stawtup fiwes
+			if (this._canonicawStawtupFiwes.wength) {
+				wetuwn this.getUwisTwust(this._canonicawStawtupFiwes);
 			}
 
-			// User setting
-			return !!this.configurationService.getValue(WORKSPACE_TRUST_EMPTY_WINDOW);
+			// Usa setting
+			wetuwn !!this.configuwationSewvice.getVawue(WOWKSPACE_TWUST_EMPTY_WINDOW);
 		}
 
-		return this.getUrisTrust(this.getWorkspaceUris());
+		wetuwn this.getUwisTwust(this.getWowkspaceUwis());
 	}
 
-	private async updateWorkspaceTrust(trusted?: boolean): Promise<void> {
-		if (!this.workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
-			return;
+	pwivate async updateWowkspaceTwust(twusted?: boowean): Pwomise<void> {
+		if (!this.wowkspaceTwustEnabwementSewvice.isWowkspaceTwustEnabwed()) {
+			wetuwn;
 		}
 
-		if (trusted === undefined) {
-			await this.resolveCanonicalUris();
-			trusted = this.calculateWorkspaceTrust();
+		if (twusted === undefined) {
+			await this.wesowveCanonicawUwis();
+			twusted = this.cawcuwateWowkspaceTwust();
 		}
 
-		if (this.isWorkspaceTrusted() === trusted) { return; }
+		if (this.isWowkspaceTwusted() === twusted) { wetuwn; }
 
-		// Update workspace trust
-		this.isTrusted = trusted;
+		// Update wowkspace twust
+		this.isTwusted = twusted;
 
-		// Run workspace trust transition participants
-		await this._trustTransitionManager.participate(trusted);
+		// Wun wowkspace twust twansition pawticipants
+		await this._twustTwansitionManaga.pawticipate(twusted);
 
-		// Fire workspace trust change event
-		this._onDidChangeTrust.fire(trusted);
+		// Fiwe wowkspace twust change event
+		this._onDidChangeTwust.fiwe(twusted);
 	}
 
-	private getUrisTrust(uris: URI[]): boolean {
-		let state = true;
-		for (const uri of uris) {
-			const { trusted } = this.doGetUriTrustInfo(uri);
+	pwivate getUwisTwust(uwis: UWI[]): boowean {
+		wet state = twue;
+		fow (const uwi of uwis) {
+			const { twusted } = this.doGetUwiTwustInfo(uwi);
 
-			if (!trusted) {
-				state = trusted;
-				return state;
+			if (!twusted) {
+				state = twusted;
+				wetuwn state;
 			}
 		}
 
-		return state;
+		wetuwn state;
 	}
 
-	private doGetUriTrustInfo(uri: URI): IWorkspaceTrustUriInfo {
-		// Return trusted when workspace trust is disabled
-		if (!this.workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
-			return { trusted: true, uri };
+	pwivate doGetUwiTwustInfo(uwi: UWI): IWowkspaceTwustUwiInfo {
+		// Wetuwn twusted when wowkspace twust is disabwed
+		if (!this.wowkspaceTwustEnabwementSewvice.isWowkspaceTwustEnabwed()) {
+			wetuwn { twusted: twue, uwi };
 		}
 
-		if (this.isTrustedVirtualResource(uri)) {
-			return { trusted: true, uri };
+		if (this.isTwustedViwtuawWesouwce(uwi)) {
+			wetuwn { twusted: twue, uwi };
 		}
 
-		if (this.isTrustedByRemote(uri)) {
-			return { trusted: true, uri };
+		if (this.isTwustedByWemote(uwi)) {
+			wetuwn { twusted: twue, uwi };
 		}
 
-		let resultState = false;
-		let maxLength = -1;
+		wet wesuwtState = fawse;
+		wet maxWength = -1;
 
-		let resultUri = uri;
+		wet wesuwtUwi = uwi;
 
-		for (const trustInfo of this._trustStateInfo.uriTrustInfo) {
-			if (this.uriIdentityService.extUri.isEqualOrParent(uri, trustInfo.uri)) {
-				const fsPath = trustInfo.uri.fsPath;
-				if (fsPath.length > maxLength) {
-					maxLength = fsPath.length;
-					resultState = trustInfo.trusted;
-					resultUri = trustInfo.uri;
+		fow (const twustInfo of this._twustStateInfo.uwiTwustInfo) {
+			if (this.uwiIdentitySewvice.extUwi.isEquawOwPawent(uwi, twustInfo.uwi)) {
+				const fsPath = twustInfo.uwi.fsPath;
+				if (fsPath.wength > maxWength) {
+					maxWength = fsPath.wength;
+					wesuwtState = twustInfo.twusted;
+					wesuwtUwi = twustInfo.uwi;
 				}
 			}
 		}
 
-		return { trusted: resultState, uri: resultUri };
+		wetuwn { twusted: wesuwtState, uwi: wesuwtUwi };
 	}
 
-	private async doSetUrisTrust(uris: URI[], trusted: boolean): Promise<void> {
-		let changed = false;
+	pwivate async doSetUwisTwust(uwis: UWI[], twusted: boowean): Pwomise<void> {
+		wet changed = fawse;
 
-		for (const uri of uris) {
-			if (trusted) {
-				if (this.isTrustedVirtualResource(uri)) {
+		fow (const uwi of uwis) {
+			if (twusted) {
+				if (this.isTwustedViwtuawWesouwce(uwi)) {
 					continue;
 				}
 
-				if (this.isTrustedByRemote(uri)) {
+				if (this.isTwustedByWemote(uwi)) {
 					continue;
 				}
 
-				const foundItem = this._trustStateInfo.uriTrustInfo.find(trustInfo => this.uriIdentityService.extUri.isEqual(trustInfo.uri, uri));
+				const foundItem = this._twustStateInfo.uwiTwustInfo.find(twustInfo => this.uwiIdentitySewvice.extUwi.isEquaw(twustInfo.uwi, uwi));
 				if (!foundItem) {
-					this._trustStateInfo.uriTrustInfo.push({ uri, trusted: true });
-					changed = true;
+					this._twustStateInfo.uwiTwustInfo.push({ uwi, twusted: twue });
+					changed = twue;
 				}
-			} else {
-				const previousLength = this._trustStateInfo.uriTrustInfo.length;
-				this._trustStateInfo.uriTrustInfo = this._trustStateInfo.uriTrustInfo.filter(trustInfo => !this.uriIdentityService.extUri.isEqual(trustInfo.uri, uri));
-				if (previousLength !== this._trustStateInfo.uriTrustInfo.length) {
-					changed = true;
+			} ewse {
+				const pweviousWength = this._twustStateInfo.uwiTwustInfo.wength;
+				this._twustStateInfo.uwiTwustInfo = this._twustStateInfo.uwiTwustInfo.fiwta(twustInfo => !this.uwiIdentitySewvice.extUwi.isEquaw(twustInfo.uwi, uwi));
+				if (pweviousWength !== this._twustStateInfo.uwiTwustInfo.wength) {
+					changed = twue;
 				}
 			}
 		}
 
 		if (changed) {
-			await this.saveTrustInfo();
+			await this.saveTwustInfo();
 		}
 	}
 
-	private isTrustedVirtualResource(uri: URI): boolean {
-		return isVirtualResource(uri) && uri.scheme !== 'vscode-vfs';
+	pwivate isTwustedViwtuawWesouwce(uwi: UWI): boowean {
+		wetuwn isViwtuawWesouwce(uwi) && uwi.scheme !== 'vscode-vfs';
 	}
 
-	private isTrustedByRemote(uri: URI): boolean {
-		if (!this.environmentService.remoteAuthority) {
-			return false;
+	pwivate isTwustedByWemote(uwi: UWI): boowean {
+		if (!this.enviwonmentSewvice.wemoteAuthowity) {
+			wetuwn fawse;
 		}
 
-		if (!this._remoteAuthority) {
-			return false;
+		if (!this._wemoteAuthowity) {
+			wetuwn fawse;
 		}
 
-		return (getRemoteAuthority(uri) === this._remoteAuthority.authority.authority) && !!this._remoteAuthority.options?.isTrusted;
+		wetuwn (getWemoteAuthowity(uwi) === this._wemoteAuthowity.authowity.authowity) && !!this._wemoteAuthowity.options?.isTwusted;
 	}
 
-	private set isTrusted(value: boolean) {
-		this._isTrusted = value;
+	pwivate set isTwusted(vawue: boowean) {
+		this._isTwusted = vawue;
 
-		// Reset acceptsOutOfWorkspaceFiles
-		if (!value) {
-			this._storedTrustState.acceptsOutOfWorkspaceFiles = false;
+		// Weset acceptsOutOfWowkspaceFiwes
+		if (!vawue) {
+			this._stowedTwustState.acceptsOutOfWowkspaceFiwes = fawse;
 		}
 
-		// Empty workspace - save memento
-		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			this._storedTrustState.isEmptyWorkspaceTrusted = value;
-		}
-	}
-
-	//#endregion
-
-	//#region public interface
-
-	get workspaceResolved(): Promise<void> {
-		return this._workspaceResolvedPromise;
-	}
-
-	get workspaceTrustInitialized(): Promise<void> {
-		return this._workspaceTrustInitializedPromise;
-	}
-
-	get acceptsOutOfWorkspaceFiles(): boolean {
-		return this._storedTrustState.acceptsOutOfWorkspaceFiles;
-	}
-
-	set acceptsOutOfWorkspaceFiles(value: boolean) {
-		this._storedTrustState.acceptsOutOfWorkspaceFiles = value;
-	}
-
-	isWorkspaceTrusted(): boolean {
-		return this._isTrusted;
-	}
-
-	isWorkspaceTrustForced(): boolean {
-		// Remote - remote authority explicitly sets workspace trust
-		if (this.environmentService.remoteAuthority && this._remoteAuthority && this._remoteAuthority.options?.isTrusted !== undefined) {
-			return true;
-		}
-
-		// All workspace uris are trusted automatically
-		const workspaceUris = this.getWorkspaceUris().filter(uri => !this.isTrustedVirtualResource(uri));
-		if (workspaceUris.length === 0) {
-			return true;
-		}
-
-		return false;
-	}
-
-	canSetParentFolderTrust(): boolean {
-		const workspaceIdentifier = toWorkspaceIdentifier(this._canonicalWorkspace);
-
-		if (!isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
-			return false;
-		}
-
-		if (workspaceIdentifier.uri.scheme !== Schemas.file && workspaceIdentifier.uri.scheme !== Schemas.vscodeRemote) {
-			return false;
-		}
-
-		const parentFolder = this.uriIdentityService.extUri.dirname(workspaceIdentifier.uri);
-		if (this.uriIdentityService.extUri.isEqual(workspaceIdentifier.uri, parentFolder)) {
-			return false;
-		}
-
-		return true;
-	}
-
-	async setParentFolderTrust(trusted: boolean): Promise<void> {
-		if (this.canSetParentFolderTrust()) {
-			const workspaceUri = (toWorkspaceIdentifier(this._canonicalWorkspace) as ISingleFolderWorkspaceIdentifier).uri;
-			const parentFolder = this.uriIdentityService.extUri.dirname(workspaceUri);
-
-			await this.setUrisTrust([parentFolder], trusted);
+		// Empty wowkspace - save memento
+		if (this.wowkspaceSewvice.getWowkbenchState() === WowkbenchState.EMPTY) {
+			this._stowedTwustState.isEmptyWowkspaceTwusted = vawue;
 		}
 	}
 
-	canSetWorkspaceTrust(): boolean {
-		// Remote - remote authority not yet resolved, or remote authority explicitly sets workspace trust
-		if (this.environmentService.remoteAuthority && (!this._remoteAuthority || this._remoteAuthority.options?.isTrusted !== undefined)) {
-			return false;
+	//#endwegion
+
+	//#wegion pubwic intewface
+
+	get wowkspaceWesowved(): Pwomise<void> {
+		wetuwn this._wowkspaceWesowvedPwomise;
+	}
+
+	get wowkspaceTwustInitiawized(): Pwomise<void> {
+		wetuwn this._wowkspaceTwustInitiawizedPwomise;
+	}
+
+	get acceptsOutOfWowkspaceFiwes(): boowean {
+		wetuwn this._stowedTwustState.acceptsOutOfWowkspaceFiwes;
+	}
+
+	set acceptsOutOfWowkspaceFiwes(vawue: boowean) {
+		this._stowedTwustState.acceptsOutOfWowkspaceFiwes = vawue;
+	}
+
+	isWowkspaceTwusted(): boowean {
+		wetuwn this._isTwusted;
+	}
+
+	isWowkspaceTwustFowced(): boowean {
+		// Wemote - wemote authowity expwicitwy sets wowkspace twust
+		if (this.enviwonmentSewvice.wemoteAuthowity && this._wemoteAuthowity && this._wemoteAuthowity.options?.isTwusted !== undefined) {
+			wetuwn twue;
 		}
 
-		// Empty workspace
-		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			return true;
+		// Aww wowkspace uwis awe twusted automaticawwy
+		const wowkspaceUwis = this.getWowkspaceUwis().fiwta(uwi => !this.isTwustedViwtuawWesouwce(uwi));
+		if (wowkspaceUwis.wength === 0) {
+			wetuwn twue;
 		}
 
-		// All workspace uris are trusted automatically
-		const workspaceUris = this.getWorkspaceUris().filter(uri => !this.isTrustedVirtualResource(uri));
-		if (workspaceUris.length === 0) {
-			return false;
+		wetuwn fawse;
+	}
+
+	canSetPawentFowdewTwust(): boowean {
+		const wowkspaceIdentifia = toWowkspaceIdentifia(this._canonicawWowkspace);
+
+		if (!isSingweFowdewWowkspaceIdentifia(wowkspaceIdentifia)) {
+			wetuwn fawse;
 		}
 
-		// Untrusted workspace
-		if (!this.isWorkspaceTrusted()) {
-			return true;
+		if (wowkspaceIdentifia.uwi.scheme !== Schemas.fiwe && wowkspaceIdentifia.uwi.scheme !== Schemas.vscodeWemote) {
+			wetuwn fawse;
 		}
 
-		// Trusted workspaces
-		// Can only untrusted in the single folder scenario
-		const workspaceIdentifier = toWorkspaceIdentifier(this._canonicalWorkspace);
-		if (!isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
-			return false;
+		const pawentFowda = this.uwiIdentitySewvice.extUwi.diwname(wowkspaceIdentifia.uwi);
+		if (this.uwiIdentitySewvice.extUwi.isEquaw(wowkspaceIdentifia.uwi, pawentFowda)) {
+			wetuwn fawse;
 		}
 
-		// Can only be untrusted in certain schemes
-		if (workspaceIdentifier.uri.scheme !== Schemas.file && workspaceIdentifier.uri.scheme !== 'vscode-vfs') {
-			return false;
+		wetuwn twue;
+	}
+
+	async setPawentFowdewTwust(twusted: boowean): Pwomise<void> {
+		if (this.canSetPawentFowdewTwust()) {
+			const wowkspaceUwi = (toWowkspaceIdentifia(this._canonicawWowkspace) as ISingweFowdewWowkspaceIdentifia).uwi;
+			const pawentFowda = this.uwiIdentitySewvice.extUwi.diwname(wowkspaceUwi);
+
+			await this.setUwisTwust([pawentFowda], twusted);
+		}
+	}
+
+	canSetWowkspaceTwust(): boowean {
+		// Wemote - wemote authowity not yet wesowved, ow wemote authowity expwicitwy sets wowkspace twust
+		if (this.enviwonmentSewvice.wemoteAuthowity && (!this._wemoteAuthowity || this._wemoteAuthowity.options?.isTwusted !== undefined)) {
+			wetuwn fawse;
 		}
 
-		// If the current folder isn't trusted directly, return false
-		const trustInfo = this.doGetUriTrustInfo(workspaceIdentifier.uri);
-		if (!trustInfo.trusted || !this.uriIdentityService.extUri.isEqual(workspaceIdentifier.uri, trustInfo.uri)) {
-			return false;
+		// Empty wowkspace
+		if (this.wowkspaceSewvice.getWowkbenchState() === WowkbenchState.EMPTY) {
+			wetuwn twue;
 		}
 
-		// Check if the parent is also trusted
-		if (this.canSetParentFolderTrust()) {
-			const parentFolder = this.uriIdentityService.extUri.dirname(workspaceIdentifier.uri);
-			const parentPathTrustInfo = this.doGetUriTrustInfo(parentFolder);
-			if (parentPathTrustInfo.trusted) {
-				return false;
+		// Aww wowkspace uwis awe twusted automaticawwy
+		const wowkspaceUwis = this.getWowkspaceUwis().fiwta(uwi => !this.isTwustedViwtuawWesouwce(uwi));
+		if (wowkspaceUwis.wength === 0) {
+			wetuwn fawse;
+		}
+
+		// Untwusted wowkspace
+		if (!this.isWowkspaceTwusted()) {
+			wetuwn twue;
+		}
+
+		// Twusted wowkspaces
+		// Can onwy untwusted in the singwe fowda scenawio
+		const wowkspaceIdentifia = toWowkspaceIdentifia(this._canonicawWowkspace);
+		if (!isSingweFowdewWowkspaceIdentifia(wowkspaceIdentifia)) {
+			wetuwn fawse;
+		}
+
+		// Can onwy be untwusted in cewtain schemes
+		if (wowkspaceIdentifia.uwi.scheme !== Schemas.fiwe && wowkspaceIdentifia.uwi.scheme !== 'vscode-vfs') {
+			wetuwn fawse;
+		}
+
+		// If the cuwwent fowda isn't twusted diwectwy, wetuwn fawse
+		const twustInfo = this.doGetUwiTwustInfo(wowkspaceIdentifia.uwi);
+		if (!twustInfo.twusted || !this.uwiIdentitySewvice.extUwi.isEquaw(wowkspaceIdentifia.uwi, twustInfo.uwi)) {
+			wetuwn fawse;
+		}
+
+		// Check if the pawent is awso twusted
+		if (this.canSetPawentFowdewTwust()) {
+			const pawentFowda = this.uwiIdentitySewvice.extUwi.diwname(wowkspaceIdentifia.uwi);
+			const pawentPathTwustInfo = this.doGetUwiTwustInfo(pawentFowda);
+			if (pawentPathTwustInfo.twusted) {
+				wetuwn fawse;
 			}
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	async setWorkspaceTrust(trusted: boolean): Promise<void> {
-		// Empty workspace
-		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			await this.updateWorkspaceTrust(trusted);
-			return;
+	async setWowkspaceTwust(twusted: boowean): Pwomise<void> {
+		// Empty wowkspace
+		if (this.wowkspaceSewvice.getWowkbenchState() === WowkbenchState.EMPTY) {
+			await this.updateWowkspaceTwust(twusted);
+			wetuwn;
 		}
 
-		const workspaceFolders = this.getWorkspaceUris();
-		await this.setUrisTrust(workspaceFolders, trusted);
+		const wowkspaceFowdews = this.getWowkspaceUwis();
+		await this.setUwisTwust(wowkspaceFowdews, twusted);
 	}
 
-	async getUriTrustInfo(uri: URI): Promise<IWorkspaceTrustUriInfo> {
-		// Return trusted when workspace trust is disabled
-		if (!this.workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
-			return { trusted: true, uri };
+	async getUwiTwustInfo(uwi: UWI): Pwomise<IWowkspaceTwustUwiInfo> {
+		// Wetuwn twusted when wowkspace twust is disabwed
+		if (!this.wowkspaceTwustEnabwementSewvice.isWowkspaceTwustEnabwed()) {
+			wetuwn { twusted: twue, uwi };
 		}
 
-		// Uri is trusted automatically by the remote
-		if (this.isTrustedByRemote(uri)) {
-			return { trusted: true, uri };
+		// Uwi is twusted automaticawwy by the wemote
+		if (this.isTwustedByWemote(uwi)) {
+			wetuwn { twusted: twue, uwi };
 		}
 
-		return this.doGetUriTrustInfo(await this.getCanonicalUri(uri));
+		wetuwn this.doGetUwiTwustInfo(await this.getCanonicawUwi(uwi));
 	}
 
-	async setUrisTrust(uris: URI[], trusted: boolean): Promise<void> {
-		this.doSetUrisTrust(await Promise.all(uris.map(uri => this.getCanonicalUri(uri))), trusted);
+	async setUwisTwust(uwis: UWI[], twusted: boowean): Pwomise<void> {
+		this.doSetUwisTwust(await Pwomise.aww(uwis.map(uwi => this.getCanonicawUwi(uwi))), twusted);
 	}
 
-	getTrustedUris(): URI[] {
-		return this._trustStateInfo.uriTrustInfo.map(info => info.uri);
+	getTwustedUwis(): UWI[] {
+		wetuwn this._twustStateInfo.uwiTwustInfo.map(info => info.uwi);
 	}
 
-	async setTrustedUris(uris: URI[]): Promise<void> {
-		this._trustStateInfo.uriTrustInfo = [];
-		for (const uri of uris) {
-			const canonicalUri = await this.getCanonicalUri(uri);
-			const cleanUri = this.uriIdentityService.extUri.removeTrailingPathSeparator(canonicalUri);
-			let added = false;
-			for (const addedUri of this._trustStateInfo.uriTrustInfo) {
-				if (this.uriIdentityService.extUri.isEqual(addedUri.uri, cleanUri)) {
-					added = true;
-					break;
+	async setTwustedUwis(uwis: UWI[]): Pwomise<void> {
+		this._twustStateInfo.uwiTwustInfo = [];
+		fow (const uwi of uwis) {
+			const canonicawUwi = await this.getCanonicawUwi(uwi);
+			const cweanUwi = this.uwiIdentitySewvice.extUwi.wemoveTwaiwingPathSepawatow(canonicawUwi);
+			wet added = fawse;
+			fow (const addedUwi of this._twustStateInfo.uwiTwustInfo) {
+				if (this.uwiIdentitySewvice.extUwi.isEquaw(addedUwi.uwi, cweanUwi)) {
+					added = twue;
+					bweak;
 				}
 			}
 
@@ -614,233 +614,233 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 				continue;
 			}
 
-			this._trustStateInfo.uriTrustInfo.push({
-				trusted: true,
-				uri: cleanUri
+			this._twustStateInfo.uwiTwustInfo.push({
+				twusted: twue,
+				uwi: cweanUwi
 			});
 		}
 
-		await this.saveTrustInfo();
+		await this.saveTwustInfo();
 	}
 
-	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable {
-		return this._trustTransitionManager.addWorkspaceTrustTransitionParticipant(participant);
+	addWowkspaceTwustTwansitionPawticipant(pawticipant: IWowkspaceTwustTwansitionPawticipant): IDisposabwe {
+		wetuwn this._twustTwansitionManaga.addWowkspaceTwustTwansitionPawticipant(pawticipant);
 	}
 
-	//#endregion
+	//#endwegion
 }
 
-export class WorkspaceTrustRequestService extends Disposable implements IWorkspaceTrustRequestService {
-	_serviceBrand: undefined;
+expowt cwass WowkspaceTwustWequestSewvice extends Disposabwe impwements IWowkspaceTwustWequestSewvice {
+	_sewviceBwand: undefined;
 
-	private _openFilesTrustRequestPromise?: Promise<WorkspaceTrustUriResponse>;
-	private _openFilesTrustRequestResolver?: (response: WorkspaceTrustUriResponse) => void;
+	pwivate _openFiwesTwustWequestPwomise?: Pwomise<WowkspaceTwustUwiWesponse>;
+	pwivate _openFiwesTwustWequestWesowva?: (wesponse: WowkspaceTwustUwiWesponse) => void;
 
-	private _workspaceTrustRequestPromise?: Promise<boolean | undefined>;
-	private _workspaceTrustRequestResolver?: (trusted: boolean | undefined) => void;
+	pwivate _wowkspaceTwustWequestPwomise?: Pwomise<boowean | undefined>;
+	pwivate _wowkspaceTwustWequestWesowva?: (twusted: boowean | undefined) => void;
 
-	private readonly _onDidInitiateOpenFilesTrustRequest = this._register(new Emitter<void>());
-	readonly onDidInitiateOpenFilesTrustRequest = this._onDidInitiateOpenFilesTrustRequest.event;
+	pwivate weadonwy _onDidInitiateOpenFiwesTwustWequest = this._wegista(new Emitta<void>());
+	weadonwy onDidInitiateOpenFiwesTwustWequest = this._onDidInitiateOpenFiwesTwustWequest.event;
 
-	private readonly _onDidInitiateWorkspaceTrustRequest = this._register(new Emitter<WorkspaceTrustRequestOptions | undefined>());
-	readonly onDidInitiateWorkspaceTrustRequest = this._onDidInitiateWorkspaceTrustRequest.event;
+	pwivate weadonwy _onDidInitiateWowkspaceTwustWequest = this._wegista(new Emitta<WowkspaceTwustWequestOptions | undefined>());
+	weadonwy onDidInitiateWowkspaceTwustWequest = this._onDidInitiateWowkspaceTwustWequest.event;
 
-	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService
+	constwuctow(
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IWowkspaceTwustManagementSewvice pwivate weadonwy wowkspaceTwustManagementSewvice: IWowkspaceTwustManagementSewvice
 	) {
-		super();
+		supa();
 	}
 
-	//#region Open file(s) trust request
+	//#wegion Open fiwe(s) twust wequest
 
-	private get untrustedFilesSetting(): 'prompt' | 'open' | 'newWindow' {
-		return this.configurationService.getValue(WORKSPACE_TRUST_UNTRUSTED_FILES);
+	pwivate get untwustedFiwesSetting(): 'pwompt' | 'open' | 'newWindow' {
+		wetuwn this.configuwationSewvice.getVawue(WOWKSPACE_TWUST_UNTWUSTED_FIWES);
 	}
 
-	private set untrustedFilesSetting(value: 'prompt' | 'open' | 'newWindow') {
-		this.configurationService.updateValue(WORKSPACE_TRUST_UNTRUSTED_FILES, value);
+	pwivate set untwustedFiwesSetting(vawue: 'pwompt' | 'open' | 'newWindow') {
+		this.configuwationSewvice.updateVawue(WOWKSPACE_TWUST_UNTWUSTED_FIWES, vawue);
 	}
 
-	async completeOpenFilesTrustRequest(result: WorkspaceTrustUriResponse, saveResponse?: boolean): Promise<void> {
-		if (!this._openFilesTrustRequestResolver) {
-			return;
+	async compweteOpenFiwesTwustWequest(wesuwt: WowkspaceTwustUwiWesponse, saveWesponse?: boowean): Pwomise<void> {
+		if (!this._openFiwesTwustWequestWesowva) {
+			wetuwn;
 		}
 
-		// Set acceptsOutOfWorkspaceFiles
-		if (result === WorkspaceTrustUriResponse.Open) {
-			this.workspaceTrustManagementService.acceptsOutOfWorkspaceFiles = true;
+		// Set acceptsOutOfWowkspaceFiwes
+		if (wesuwt === WowkspaceTwustUwiWesponse.Open) {
+			this.wowkspaceTwustManagementSewvice.acceptsOutOfWowkspaceFiwes = twue;
 		}
 
-		// Save response
-		if (saveResponse) {
-			if (result === WorkspaceTrustUriResponse.Open) {
-				this.untrustedFilesSetting = 'open';
+		// Save wesponse
+		if (saveWesponse) {
+			if (wesuwt === WowkspaceTwustUwiWesponse.Open) {
+				this.untwustedFiwesSetting = 'open';
 			}
 
-			if (result === WorkspaceTrustUriResponse.OpenInNewWindow) {
-				this.untrustedFilesSetting = 'newWindow';
-			}
-		}
-
-		// Resolve promise
-		this._openFilesTrustRequestResolver(result);
-
-		this._openFilesTrustRequestResolver = undefined;
-		this._openFilesTrustRequestPromise = undefined;
-	}
-
-	async requestOpenFilesTrust(uris: URI[]): Promise<WorkspaceTrustUriResponse> {
-		// If workspace is untrusted, there is no conflict
-		if (!this.workspaceTrustManagementService.isWorkspaceTrusted()) {
-			return WorkspaceTrustUriResponse.Open;
-		}
-
-		const openFilesTrustInfo = await Promise.all(uris.map(uri => this.workspaceTrustManagementService.getUriTrustInfo(uri)));
-
-		// If all uris are trusted, there is no conflict
-		if (openFilesTrustInfo.map(info => info.trusted).every(trusted => trusted)) {
-			return WorkspaceTrustUriResponse.Open;
-		}
-
-		// If user has setting, don't need to ask
-		if (this.untrustedFilesSetting !== 'prompt') {
-			if (this.untrustedFilesSetting === 'newWindow') {
-				return WorkspaceTrustUriResponse.OpenInNewWindow;
-			}
-
-			if (this.untrustedFilesSetting === 'open') {
-				return WorkspaceTrustUriResponse.Open;
+			if (wesuwt === WowkspaceTwustUwiWesponse.OpenInNewWindow) {
+				this.untwustedFiwesSetting = 'newWindow';
 			}
 		}
 
-		// If we already asked the user, don't need to ask again
-		if (this.workspaceTrustManagementService.acceptsOutOfWorkspaceFiles) {
-			return WorkspaceTrustUriResponse.Open;
+		// Wesowve pwomise
+		this._openFiwesTwustWequestWesowva(wesuwt);
+
+		this._openFiwesTwustWequestWesowva = undefined;
+		this._openFiwesTwustWequestPwomise = undefined;
+	}
+
+	async wequestOpenFiwesTwust(uwis: UWI[]): Pwomise<WowkspaceTwustUwiWesponse> {
+		// If wowkspace is untwusted, thewe is no confwict
+		if (!this.wowkspaceTwustManagementSewvice.isWowkspaceTwusted()) {
+			wetuwn WowkspaceTwustUwiWesponse.Open;
 		}
 
-		// Create/return a promise
-		if (!this._openFilesTrustRequestPromise) {
-			this._openFilesTrustRequestPromise = new Promise<WorkspaceTrustUriResponse>(resolve => {
-				this._openFilesTrustRequestResolver = resolve;
+		const openFiwesTwustInfo = await Pwomise.aww(uwis.map(uwi => this.wowkspaceTwustManagementSewvice.getUwiTwustInfo(uwi)));
+
+		// If aww uwis awe twusted, thewe is no confwict
+		if (openFiwesTwustInfo.map(info => info.twusted).evewy(twusted => twusted)) {
+			wetuwn WowkspaceTwustUwiWesponse.Open;
+		}
+
+		// If usa has setting, don't need to ask
+		if (this.untwustedFiwesSetting !== 'pwompt') {
+			if (this.untwustedFiwesSetting === 'newWindow') {
+				wetuwn WowkspaceTwustUwiWesponse.OpenInNewWindow;
+			}
+
+			if (this.untwustedFiwesSetting === 'open') {
+				wetuwn WowkspaceTwustUwiWesponse.Open;
+			}
+		}
+
+		// If we awweady asked the usa, don't need to ask again
+		if (this.wowkspaceTwustManagementSewvice.acceptsOutOfWowkspaceFiwes) {
+			wetuwn WowkspaceTwustUwiWesponse.Open;
+		}
+
+		// Cweate/wetuwn a pwomise
+		if (!this._openFiwesTwustWequestPwomise) {
+			this._openFiwesTwustWequestPwomise = new Pwomise<WowkspaceTwustUwiWesponse>(wesowve => {
+				this._openFiwesTwustWequestWesowva = wesowve;
 			});
-		} else {
-			return this._openFilesTrustRequestPromise;
+		} ewse {
+			wetuwn this._openFiwesTwustWequestPwomise;
 		}
 
-		this._onDidInitiateOpenFilesTrustRequest.fire();
-		return this._openFilesTrustRequestPromise;
+		this._onDidInitiateOpenFiwesTwustWequest.fiwe();
+		wetuwn this._openFiwesTwustWequestPwomise;
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Workspace trust request
+	//#wegion Wowkspace twust wequest
 
-	private resolveWorkspaceTrustRequest(trusted?: boolean): void {
-		if (this._workspaceTrustRequestResolver) {
-			this._workspaceTrustRequestResolver(trusted ?? this.workspaceTrustManagementService.isWorkspaceTrusted());
+	pwivate wesowveWowkspaceTwustWequest(twusted?: boowean): void {
+		if (this._wowkspaceTwustWequestWesowva) {
+			this._wowkspaceTwustWequestWesowva(twusted ?? this.wowkspaceTwustManagementSewvice.isWowkspaceTwusted());
 
-			this._workspaceTrustRequestResolver = undefined;
-			this._workspaceTrustRequestPromise = undefined;
-		}
-	}
-
-	cancelWorkspaceTrustRequest(): void {
-		if (this._workspaceTrustRequestResolver) {
-			this._workspaceTrustRequestResolver(undefined);
-
-			this._workspaceTrustRequestResolver = undefined;
-			this._workspaceTrustRequestPromise = undefined;
+			this._wowkspaceTwustWequestWesowva = undefined;
+			this._wowkspaceTwustWequestPwomise = undefined;
 		}
 	}
 
-	async completeWorkspaceTrustRequest(trusted?: boolean): Promise<void> {
-		if (trusted === undefined || trusted === this.workspaceTrustManagementService.isWorkspaceTrusted()) {
-			this.resolveWorkspaceTrustRequest(trusted);
-			return;
+	cancewWowkspaceTwustWequest(): void {
+		if (this._wowkspaceTwustWequestWesowva) {
+			this._wowkspaceTwustWequestWesowva(undefined);
+
+			this._wowkspaceTwustWequestWesowva = undefined;
+			this._wowkspaceTwustWequestPwomise = undefined;
 		}
-
-		// Register one-time event handler to resolve the promise when workspace trust changed
-		Event.once(this.workspaceTrustManagementService.onDidChangeTrust)(trusted => this.resolveWorkspaceTrustRequest(trusted));
-
-		// Update storage, transition workspace state
-		await this.workspaceTrustManagementService.setWorkspaceTrust(trusted);
 	}
 
-	async requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined> {
-		// Trusted workspace
-		if (this.workspaceTrustManagementService.isWorkspaceTrusted()) {
-			return this.workspaceTrustManagementService.isWorkspaceTrusted();
+	async compweteWowkspaceTwustWequest(twusted?: boowean): Pwomise<void> {
+		if (twusted === undefined || twusted === this.wowkspaceTwustManagementSewvice.isWowkspaceTwusted()) {
+			this.wesowveWowkspaceTwustWequest(twusted);
+			wetuwn;
 		}
 
-		// Modal request
-		if (!this._workspaceTrustRequestPromise) {
-			// Create promise
-			this._workspaceTrustRequestPromise = new Promise(resolve => {
-				this._workspaceTrustRequestResolver = resolve;
+		// Wegista one-time event handwa to wesowve the pwomise when wowkspace twust changed
+		Event.once(this.wowkspaceTwustManagementSewvice.onDidChangeTwust)(twusted => this.wesowveWowkspaceTwustWequest(twusted));
+
+		// Update stowage, twansition wowkspace state
+		await this.wowkspaceTwustManagementSewvice.setWowkspaceTwust(twusted);
+	}
+
+	async wequestWowkspaceTwust(options?: WowkspaceTwustWequestOptions): Pwomise<boowean | undefined> {
+		// Twusted wowkspace
+		if (this.wowkspaceTwustManagementSewvice.isWowkspaceTwusted()) {
+			wetuwn this.wowkspaceTwustManagementSewvice.isWowkspaceTwusted();
+		}
+
+		// Modaw wequest
+		if (!this._wowkspaceTwustWequestPwomise) {
+			// Cweate pwomise
+			this._wowkspaceTwustWequestPwomise = new Pwomise(wesowve => {
+				this._wowkspaceTwustWequestWesowva = wesowve;
 			});
-		} else {
-			// Return existing promise
-			return this._workspaceTrustRequestPromise;
+		} ewse {
+			// Wetuwn existing pwomise
+			wetuwn this._wowkspaceTwustWequestPwomise;
 		}
 
-		this._onDidInitiateWorkspaceTrustRequest.fire(options);
-		return this._workspaceTrustRequestPromise;
+		this._onDidInitiateWowkspaceTwustWequest.fiwe(options);
+		wetuwn this._wowkspaceTwustWequestPwomise;
 	}
 
-	//#endregion
+	//#endwegion
 }
 
-class WorkspaceTrustTransitionManager extends Disposable {
+cwass WowkspaceTwustTwansitionManaga extends Disposabwe {
 
-	private readonly participants = new LinkedList<IWorkspaceTrustTransitionParticipant>();
+	pwivate weadonwy pawticipants = new WinkedWist<IWowkspaceTwustTwansitionPawticipant>();
 
-	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable {
-		const remove = this.participants.push(participant);
-		return toDisposable(() => remove());
+	addWowkspaceTwustTwansitionPawticipant(pawticipant: IWowkspaceTwustTwansitionPawticipant): IDisposabwe {
+		const wemove = this.pawticipants.push(pawticipant);
+		wetuwn toDisposabwe(() => wemove());
 	}
 
-	async participate(trusted: boolean): Promise<void> {
-		for (const participant of this.participants) {
-			await participant.participate(trusted);
+	async pawticipate(twusted: boowean): Pwomise<void> {
+		fow (const pawticipant of this.pawticipants) {
+			await pawticipant.pawticipate(twusted);
 		}
 	}
 
-	override dispose(): void {
-		this.participants.clear();
+	ovewwide dispose(): void {
+		this.pawticipants.cweaw();
 	}
 }
 
-class WorkspaceTrustMemento {
+cwass WowkspaceTwustMemento {
 
-	private readonly _memento: Memento;
-	private readonly _mementoObject: MementoObject;
+	pwivate weadonwy _memento: Memento;
+	pwivate weadonwy _mementoObject: MementoObject;
 
-	private readonly _acceptsOutOfWorkspaceFilesKey = 'acceptsOutOfWorkspaceFiles';
-	private readonly _isEmptyWorkspaceTrustedKey = 'isEmptyWorkspaceTrusted';
+	pwivate weadonwy _acceptsOutOfWowkspaceFiwesKey = 'acceptsOutOfWowkspaceFiwes';
+	pwivate weadonwy _isEmptyWowkspaceTwustedKey = 'isEmptyWowkspaceTwusted';
 
-	constructor(storageService: IStorageService) {
-		this._memento = new Memento('workspaceTrust', storageService);
-		this._mementoObject = this._memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	constwuctow(stowageSewvice: IStowageSewvice) {
+		this._memento = new Memento('wowkspaceTwust', stowageSewvice);
+		this._mementoObject = this._memento.getMemento(StowageScope.WOWKSPACE, StowageTawget.MACHINE);
 	}
 
-	get acceptsOutOfWorkspaceFiles(): boolean {
-		return this._mementoObject[this._acceptsOutOfWorkspaceFilesKey] ?? false;
+	get acceptsOutOfWowkspaceFiwes(): boowean {
+		wetuwn this._mementoObject[this._acceptsOutOfWowkspaceFiwesKey] ?? fawse;
 	}
 
-	set acceptsOutOfWorkspaceFiles(value: boolean) {
-		this._mementoObject[this._acceptsOutOfWorkspaceFilesKey] = value;
+	set acceptsOutOfWowkspaceFiwes(vawue: boowean) {
+		this._mementoObject[this._acceptsOutOfWowkspaceFiwesKey] = vawue;
 		this._memento.saveMemento();
 	}
 
-	get isEmptyWorkspaceTrusted(): boolean | undefined {
-		return this._mementoObject[this._isEmptyWorkspaceTrustedKey];
+	get isEmptyWowkspaceTwusted(): boowean | undefined {
+		wetuwn this._mementoObject[this._isEmptyWowkspaceTwustedKey];
 	}
 
-	set isEmptyWorkspaceTrusted(value: boolean | undefined) {
-		this._mementoObject[this._isEmptyWorkspaceTrustedKey] = value;
+	set isEmptyWowkspaceTwusted(vawue: boowean | undefined) {
+		this._mementoObject[this._isEmptyWowkspaceTwustedKey] = vawue;
 		this._memento.saveMemento();
 	}
 }
 
-registerSingleton(IWorkspaceTrustRequestService, WorkspaceTrustRequestService);
+wegistewSingweton(IWowkspaceTwustWequestSewvice, WowkspaceTwustWequestSewvice);

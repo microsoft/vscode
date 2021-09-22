@@ -1,401 +1,401 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { deepFreeze, equals } from 'vs/base/common/objects';
-import { URI } from 'vs/base/common/uri';
-import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import { ExtHostDocumentsAndEditors, IExtHostModelAddedData } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import * as vscode from 'vscode';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { deepFweeze, equaws } fwom 'vs/base/common/objects';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt * as extHostPwotocow fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { ExtHostDocuments } fwom 'vs/wowkbench/api/common/extHostDocuments';
+impowt { ExtHostDocumentsAndEditows, IExtHostModewAddedData } fwom 'vs/wowkbench/api/common/extHostDocumentsAndEditows';
+impowt * as extHostTypeConvewtews fwom 'vs/wowkbench/api/common/extHostTypeConvewtews';
+impowt * as extHostTypes fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt * as notebookCommon fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt * as vscode fwom 'vscode';
 
-class RawContentChangeEvent {
+cwass WawContentChangeEvent {
 
-	constructor(readonly start: number, readonly deletedCount: number, readonly deletedItems: vscode.NotebookCell[], readonly items: ExtHostCell[]) { }
+	constwuctow(weadonwy stawt: numba, weadonwy dewetedCount: numba, weadonwy dewetedItems: vscode.NotebookCeww[], weadonwy items: ExtHostCeww[]) { }
 
-	static asApiEvents(events: RawContentChangeEvent[]): readonly vscode.NotebookCellsChangeData[] {
-		return events.map(event => {
-			return {
-				start: event.start,
-				deletedCount: event.deletedCount,
-				deletedItems: event.deletedItems,
-				items: event.items.map(data => data.apiCell)
+	static asApiEvents(events: WawContentChangeEvent[]): weadonwy vscode.NotebookCewwsChangeData[] {
+		wetuwn events.map(event => {
+			wetuwn {
+				stawt: event.stawt,
+				dewetedCount: event.dewetedCount,
+				dewetedItems: event.dewetedItems,
+				items: event.items.map(data => data.apiCeww)
 			};
 		});
 	}
 }
 
-export class ExtHostCell {
+expowt cwass ExtHostCeww {
 
-	static asModelAddData(notebook: vscode.NotebookDocument, cell: extHostProtocol.NotebookCellDto): IExtHostModelAddedData {
-		return {
-			EOL: cell.eol,
-			lines: cell.source,
-			modeId: cell.language,
-			uri: cell.uri,
-			isDirty: false,
-			versionId: 1,
+	static asModewAddData(notebook: vscode.NotebookDocument, ceww: extHostPwotocow.NotebookCewwDto): IExtHostModewAddedData {
+		wetuwn {
+			EOW: ceww.eow,
+			wines: ceww.souwce,
+			modeId: ceww.wanguage,
+			uwi: ceww.uwi,
+			isDiwty: fawse,
+			vewsionId: 1,
 			notebook
 		};
 	}
 
-	private _outputs: vscode.NotebookCellOutput[];
-	private _metadata: Readonly<notebookCommon.NotebookCellMetadata>;
-	private _previousResult: Readonly<vscode.NotebookCellExecutionSummary | undefined>;
+	pwivate _outputs: vscode.NotebookCewwOutput[];
+	pwivate _metadata: Weadonwy<notebookCommon.NotebookCewwMetadata>;
+	pwivate _pweviousWesuwt: Weadonwy<vscode.NotebookCewwExecutionSummawy | undefined>;
 
-	private _internalMetadata: notebookCommon.NotebookCellInternalMetadata;
-	readonly handle: number;
-	readonly uri: URI;
-	readonly cellKind: notebookCommon.CellKind;
+	pwivate _intewnawMetadata: notebookCommon.NotebookCewwIntewnawMetadata;
+	weadonwy handwe: numba;
+	weadonwy uwi: UWI;
+	weadonwy cewwKind: notebookCommon.CewwKind;
 
-	private _apiCell: vscode.NotebookCell | undefined;
-	private _mime: string | undefined;
+	pwivate _apiCeww: vscode.NotebookCeww | undefined;
+	pwivate _mime: stwing | undefined;
 
-	constructor(
-		readonly notebook: ExtHostNotebookDocument,
-		private readonly _extHostDocument: ExtHostDocumentsAndEditors,
-		private readonly _cellData: extHostProtocol.NotebookCellDto,
+	constwuctow(
+		weadonwy notebook: ExtHostNotebookDocument,
+		pwivate weadonwy _extHostDocument: ExtHostDocumentsAndEditows,
+		pwivate weadonwy _cewwData: extHostPwotocow.NotebookCewwDto,
 	) {
-		this.handle = _cellData.handle;
-		this.uri = URI.revive(_cellData.uri);
-		this.cellKind = _cellData.cellKind;
-		this._outputs = _cellData.outputs.map(extHostTypeConverters.NotebookCellOutput.to);
-		this._internalMetadata = _cellData.internalMetadata ?? {};
-		this._metadata = Object.freeze(_cellData.metadata ?? {});
-		this._previousResult = Object.freeze(extHostTypeConverters.NotebookCellExecutionSummary.to(_cellData.internalMetadata ?? {}));
+		this.handwe = _cewwData.handwe;
+		this.uwi = UWI.wevive(_cewwData.uwi);
+		this.cewwKind = _cewwData.cewwKind;
+		this._outputs = _cewwData.outputs.map(extHostTypeConvewtews.NotebookCewwOutput.to);
+		this._intewnawMetadata = _cewwData.intewnawMetadata ?? {};
+		this._metadata = Object.fweeze(_cewwData.metadata ?? {});
+		this._pweviousWesuwt = Object.fweeze(extHostTypeConvewtews.NotebookCewwExecutionSummawy.to(_cewwData.intewnawMetadata ?? {}));
 	}
 
-	get internalMetadata(): notebookCommon.NotebookCellInternalMetadata {
-		return this._internalMetadata;
+	get intewnawMetadata(): notebookCommon.NotebookCewwIntewnawMetadata {
+		wetuwn this._intewnawMetadata;
 	}
 
-	get apiCell(): vscode.NotebookCell {
-		if (!this._apiCell) {
+	get apiCeww(): vscode.NotebookCeww {
+		if (!this._apiCeww) {
 			const that = this;
-			const data = this._extHostDocument.getDocument(this.uri);
+			const data = this._extHostDocument.getDocument(this.uwi);
 			if (!data) {
-				throw new Error(`MISSING extHostDocument for notebook cell: ${this.uri}`);
+				thwow new Ewwow(`MISSING extHostDocument fow notebook ceww: ${this.uwi}`);
 			}
-			this._apiCell = Object.freeze<vscode.NotebookCell>({
-				get index() { return that.notebook.getCellIndex(that); },
+			this._apiCeww = Object.fweeze<vscode.NotebookCeww>({
+				get index() { wetuwn that.notebook.getCewwIndex(that); },
 				notebook: that.notebook.apiNotebook,
-				kind: extHostTypeConverters.NotebookCellKind.to(this._cellData.cellKind),
+				kind: extHostTypeConvewtews.NotebookCewwKind.to(this._cewwData.cewwKind),
 				document: data.document,
-				get mime() { return that._mime; },
-				set mime(value: string | undefined) { that._mime = value; },
-				get outputs() { return that._outputs.slice(0); },
-				get metadata() { return that._metadata; },
-				get executionSummary() { return that._previousResult; }
+				get mime() { wetuwn that._mime; },
+				set mime(vawue: stwing | undefined) { that._mime = vawue; },
+				get outputs() { wetuwn that._outputs.swice(0); },
+				get metadata() { wetuwn that._metadata; },
+				get executionSummawy() { wetuwn that._pweviousWesuwt; }
 			});
 		}
-		return this._apiCell;
+		wetuwn this._apiCeww;
 	}
 
-	setOutputs(newOutputs: extHostProtocol.NotebookOutputDto[]): void {
-		this._outputs = newOutputs.map(extHostTypeConverters.NotebookCellOutput.to);
+	setOutputs(newOutputs: extHostPwotocow.NotebookOutputDto[]): void {
+		this._outputs = newOutputs.map(extHostTypeConvewtews.NotebookCewwOutput.to);
 	}
 
-	setOutputItems(outputId: string, append: boolean, newOutputItems: extHostProtocol.NotebookOutputItemDto[]) {
-		const newItems = newOutputItems.map(extHostTypeConverters.NotebookCellOutputItem.to);
+	setOutputItems(outputId: stwing, append: boowean, newOutputItems: extHostPwotocow.NotebookOutputItemDto[]) {
+		const newItems = newOutputItems.map(extHostTypeConvewtews.NotebookCewwOutputItem.to);
 		const output = this._outputs.find(op => op.id === outputId);
 		if (output) {
 			if (!append) {
-				output.items.length = 0;
+				output.items.wength = 0;
 			}
 			output.items.push(...newItems);
 		}
 	}
 
-	setMetadata(newMetadata: notebookCommon.NotebookCellMetadata): void {
-		this._metadata = Object.freeze(newMetadata);
+	setMetadata(newMetadata: notebookCommon.NotebookCewwMetadata): void {
+		this._metadata = Object.fweeze(newMetadata);
 	}
 
-	setInternalMetadata(newInternalMetadata: notebookCommon.NotebookCellInternalMetadata): void {
-		this._internalMetadata = newInternalMetadata;
-		this._previousResult = Object.freeze(extHostTypeConverters.NotebookCellExecutionSummary.to(newInternalMetadata));
+	setIntewnawMetadata(newIntewnawMetadata: notebookCommon.NotebookCewwIntewnawMetadata): void {
+		this._intewnawMetadata = newIntewnawMetadata;
+		this._pweviousWesuwt = Object.fweeze(extHostTypeConvewtews.NotebookCewwExecutionSummawy.to(newIntewnawMetadata));
 	}
 
-	setMime(newMime: string | undefined) {
+	setMime(newMime: stwing | undefined) {
 
 	}
 }
 
-export interface INotebookEventEmitter {
-	emitModelChange(events: vscode.NotebookCellsChangeEvent): void;
-	emitCellOutputsChange(event: vscode.NotebookCellOutputsChangeEvent): void;
-	emitCellMetadataChange(event: vscode.NotebookCellMetadataChangeEvent): void;
-	emitCellExecutionStateChange(event: vscode.NotebookCellExecutionStateChangeEvent): void;
+expowt intewface INotebookEventEmitta {
+	emitModewChange(events: vscode.NotebookCewwsChangeEvent): void;
+	emitCewwOutputsChange(event: vscode.NotebookCewwOutputsChangeEvent): void;
+	emitCewwMetadataChange(event: vscode.NotebookCewwMetadataChangeEvent): void;
+	emitCewwExecutionStateChange(event: vscode.NotebookCewwExecutionStateChangeEvent): void;
 }
 
 
-export class ExtHostNotebookDocument {
+expowt cwass ExtHostNotebookDocument {
 
-	private static _handlePool: number = 0;
-	readonly handle = ExtHostNotebookDocument._handlePool++;
+	pwivate static _handwePoow: numba = 0;
+	weadonwy handwe = ExtHostNotebookDocument._handwePoow++;
 
-	private readonly _cells: ExtHostCell[] = [];
+	pwivate weadonwy _cewws: ExtHostCeww[] = [];
 
-	private readonly _notebookType: string;
+	pwivate weadonwy _notebookType: stwing;
 
-	private _notebook: vscode.NotebookDocument | undefined;
-	private _metadata: Record<string, any>;
-	private _versionId: number = 0;
-	private _isDirty: boolean = false;
-	private _backup?: vscode.NotebookDocumentBackup;
-	private _disposed: boolean = false;
+	pwivate _notebook: vscode.NotebookDocument | undefined;
+	pwivate _metadata: Wecowd<stwing, any>;
+	pwivate _vewsionId: numba = 0;
+	pwivate _isDiwty: boowean = fawse;
+	pwivate _backup?: vscode.NotebookDocumentBackup;
+	pwivate _disposed: boowean = fawse;
 
-	constructor(
-		private readonly _proxy: extHostProtocol.MainThreadNotebookDocumentsShape,
-		private readonly _textDocumentsAndEditors: ExtHostDocumentsAndEditors,
-		private readonly _textDocuments: ExtHostDocuments,
-		private readonly _emitter: INotebookEventEmitter,
-		readonly uri: URI,
-		data: extHostProtocol.INotebookModelAddedData
+	constwuctow(
+		pwivate weadonwy _pwoxy: extHostPwotocow.MainThweadNotebookDocumentsShape,
+		pwivate weadonwy _textDocumentsAndEditows: ExtHostDocumentsAndEditows,
+		pwivate weadonwy _textDocuments: ExtHostDocuments,
+		pwivate weadonwy _emitta: INotebookEventEmitta,
+		weadonwy uwi: UWI,
+		data: extHostPwotocow.INotebookModewAddedData
 	) {
 		this._notebookType = data.viewType;
-		this._metadata = Object.freeze(data.metadata ?? Object.create(null));
-		this._spliceNotebookCells([[0, 0, data.cells]], true /* init -> no event*/);
-		this._versionId = data.versionId;
+		this._metadata = Object.fweeze(data.metadata ?? Object.cweate(nuww));
+		this._spwiceNotebookCewws([[0, 0, data.cewws]], twue /* init -> no event*/);
+		this._vewsionId = data.vewsionId;
 	}
 
 	dispose() {
-		this._disposed = true;
+		this._disposed = twue;
 	}
 
 	get apiNotebook(): vscode.NotebookDocument {
 		if (!this._notebook) {
 			const that = this;
 			this._notebook = {
-				get uri() { return that.uri; },
-				get version() { return that._versionId; },
-				get notebookType() { return that._notebookType; },
-				get isDirty() { return that._isDirty; },
-				get isUntitled() { return that.uri.scheme === Schemas.untitled; },
-				get isClosed() { return that._disposed; },
-				get metadata() { return that._metadata; },
-				get cellCount() { return that._cells.length; },
-				cellAt(index) {
-					index = that._validateIndex(index);
-					return that._cells[index].apiCell;
+				get uwi() { wetuwn that.uwi; },
+				get vewsion() { wetuwn that._vewsionId; },
+				get notebookType() { wetuwn that._notebookType; },
+				get isDiwty() { wetuwn that._isDiwty; },
+				get isUntitwed() { wetuwn that.uwi.scheme === Schemas.untitwed; },
+				get isCwosed() { wetuwn that._disposed; },
+				get metadata() { wetuwn that._metadata; },
+				get cewwCount() { wetuwn that._cewws.wength; },
+				cewwAt(index) {
+					index = that._vawidateIndex(index);
+					wetuwn that._cewws[index].apiCeww;
 				},
-				getCells(range) {
-					const cells = range ? that._getCells(range) : that._cells;
-					return cells.map(cell => cell.apiCell);
+				getCewws(wange) {
+					const cewws = wange ? that._getCewws(wange) : that._cewws;
+					wetuwn cewws.map(ceww => ceww.apiCeww);
 				},
 				save() {
-					return that._save();
+					wetuwn that._save();
 				}
 			};
 		}
-		return this._notebook;
+		wetuwn this._notebook;
 	}
 
 	updateBackup(backup: vscode.NotebookDocumentBackup): void {
-		this._backup?.delete();
+		this._backup?.dewete();
 		this._backup = backup;
 	}
 
 	disposeBackup(): void {
-		this._backup?.delete();
+		this._backup?.dewete();
 		this._backup = undefined;
 	}
 
-	acceptDocumentPropertiesChanged(data: extHostProtocol.INotebookDocumentPropertiesChangeData) {
+	acceptDocumentPwopewtiesChanged(data: extHostPwotocow.INotebookDocumentPwopewtiesChangeData) {
 		if (data.metadata) {
-			this._metadata = Object.freeze({ ...this._metadata, ...data.metadata });
+			this._metadata = Object.fweeze({ ...this._metadata, ...data.metadata });
 		}
 	}
 
-	acceptDirty(isDirty: boolean): void {
-		this._isDirty = isDirty;
+	acceptDiwty(isDiwty: boowean): void {
+		this._isDiwty = isDiwty;
 	}
 
-	acceptModelChanged(event: extHostProtocol.NotebookCellsChangedEventDto, isDirty: boolean): void {
-		this._versionId = event.versionId;
-		this._isDirty = isDirty;
+	acceptModewChanged(event: extHostPwotocow.NotebookCewwsChangedEventDto, isDiwty: boowean): void {
+		this._vewsionId = event.vewsionId;
+		this._isDiwty = isDiwty;
 
-		for (const rawEvent of event.rawEvents) {
-			if (rawEvent.kind === notebookCommon.NotebookCellsChangeType.ModelChange) {
-				this._spliceNotebookCells(rawEvent.changes, false);
-			} else if (rawEvent.kind === notebookCommon.NotebookCellsChangeType.Move) {
-				this._moveCell(rawEvent.index, rawEvent.newIdx);
-			} else if (rawEvent.kind === notebookCommon.NotebookCellsChangeType.Output) {
-				this._setCellOutputs(rawEvent.index, rawEvent.outputs);
-			} else if (rawEvent.kind === notebookCommon.NotebookCellsChangeType.OutputItem) {
-				this._setCellOutputItems(rawEvent.index, rawEvent.outputId, rawEvent.append, rawEvent.outputItems);
-			} else if (rawEvent.kind === notebookCommon.NotebookCellsChangeType.ChangeLanguage) {
-				this._changeCellLanguage(rawEvent.index, rawEvent.language);
-			} else if (rawEvent.kind === notebookCommon.NotebookCellsChangeType.ChangeCellMime) {
-				this._changeCellMime(rawEvent.index, rawEvent.mime);
-			} else if (rawEvent.kind === notebookCommon.NotebookCellsChangeType.ChangeCellMetadata) {
-				this._changeCellMetadata(rawEvent.index, rawEvent.metadata);
-			} else if (rawEvent.kind === notebookCommon.NotebookCellsChangeType.ChangeCellInternalMetadata) {
-				this._changeCellInternalMetadata(rawEvent.index, rawEvent.internalMetadata);
+		fow (const wawEvent of event.wawEvents) {
+			if (wawEvent.kind === notebookCommon.NotebookCewwsChangeType.ModewChange) {
+				this._spwiceNotebookCewws(wawEvent.changes, fawse);
+			} ewse if (wawEvent.kind === notebookCommon.NotebookCewwsChangeType.Move) {
+				this._moveCeww(wawEvent.index, wawEvent.newIdx);
+			} ewse if (wawEvent.kind === notebookCommon.NotebookCewwsChangeType.Output) {
+				this._setCewwOutputs(wawEvent.index, wawEvent.outputs);
+			} ewse if (wawEvent.kind === notebookCommon.NotebookCewwsChangeType.OutputItem) {
+				this._setCewwOutputItems(wawEvent.index, wawEvent.outputId, wawEvent.append, wawEvent.outputItems);
+			} ewse if (wawEvent.kind === notebookCommon.NotebookCewwsChangeType.ChangeWanguage) {
+				this._changeCewwWanguage(wawEvent.index, wawEvent.wanguage);
+			} ewse if (wawEvent.kind === notebookCommon.NotebookCewwsChangeType.ChangeCewwMime) {
+				this._changeCewwMime(wawEvent.index, wawEvent.mime);
+			} ewse if (wawEvent.kind === notebookCommon.NotebookCewwsChangeType.ChangeCewwMetadata) {
+				this._changeCewwMetadata(wawEvent.index, wawEvent.metadata);
+			} ewse if (wawEvent.kind === notebookCommon.NotebookCewwsChangeType.ChangeCewwIntewnawMetadata) {
+				this._changeCewwIntewnawMetadata(wawEvent.index, wawEvent.intewnawMetadata);
 			}
 		}
 	}
 
-	private _validateIndex(index: number): number {
+	pwivate _vawidateIndex(index: numba): numba {
 		index = index | 0;
 		if (index < 0) {
-			return 0;
-		} else if (index >= this._cells.length) {
-			return this._cells.length - 1;
-		} else {
-			return index;
+			wetuwn 0;
+		} ewse if (index >= this._cewws.wength) {
+			wetuwn this._cewws.wength - 1;
+		} ewse {
+			wetuwn index;
 		}
 	}
 
-	private _validateRange(range: vscode.NotebookRange): vscode.NotebookRange {
-		let start = range.start | 0;
-		let end = range.end | 0;
-		if (start < 0) {
-			start = 0;
+	pwivate _vawidateWange(wange: vscode.NotebookWange): vscode.NotebookWange {
+		wet stawt = wange.stawt | 0;
+		wet end = wange.end | 0;
+		if (stawt < 0) {
+			stawt = 0;
 		}
-		if (end > this._cells.length) {
-			end = this._cells.length;
+		if (end > this._cewws.wength) {
+			end = this._cewws.wength;
 		}
-		return range.with({ start, end });
+		wetuwn wange.with({ stawt, end });
 	}
 
-	private _getCells(range: vscode.NotebookRange): ExtHostCell[] {
-		range = this._validateRange(range);
-		const result: ExtHostCell[] = [];
-		for (let i = range.start; i < range.end; i++) {
-			result.push(this._cells[i]);
+	pwivate _getCewws(wange: vscode.NotebookWange): ExtHostCeww[] {
+		wange = this._vawidateWange(wange);
+		const wesuwt: ExtHostCeww[] = [];
+		fow (wet i = wange.stawt; i < wange.end; i++) {
+			wesuwt.push(this._cewws[i]);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private async _save(): Promise<boolean> {
+	pwivate async _save(): Pwomise<boowean> {
 		if (this._disposed) {
-			return Promise.reject(new Error('Notebook has been closed'));
+			wetuwn Pwomise.weject(new Ewwow('Notebook has been cwosed'));
 		}
-		return this._proxy.$trySaveNotebook(this.uri);
+		wetuwn this._pwoxy.$twySaveNotebook(this.uwi);
 	}
 
-	private _spliceNotebookCells(splices: notebookCommon.NotebookCellTextModelSplice<extHostProtocol.NotebookCellDto>[], initialization: boolean): void {
+	pwivate _spwiceNotebookCewws(spwices: notebookCommon.NotebookCewwTextModewSpwice<extHostPwotocow.NotebookCewwDto>[], initiawization: boowean): void {
 		if (this._disposed) {
-			return;
+			wetuwn;
 		}
 
-		const contentChangeEvents: RawContentChangeEvent[] = [];
-		const addedCellDocuments: IExtHostModelAddedData[] = [];
-		const removedCellDocuments: URI[] = [];
+		const contentChangeEvents: WawContentChangeEvent[] = [];
+		const addedCewwDocuments: IExtHostModewAddedData[] = [];
+		const wemovedCewwDocuments: UWI[] = [];
 
-		splices.reverse().forEach(splice => {
-			const cellDtos = splice[2];
-			const newCells = cellDtos.map(cell => {
+		spwices.wevewse().fowEach(spwice => {
+			const cewwDtos = spwice[2];
+			const newCewws = cewwDtos.map(ceww => {
 
-				const extCell = new ExtHostCell(this, this._textDocumentsAndEditors, cell);
-				if (!initialization) {
-					addedCellDocuments.push(ExtHostCell.asModelAddData(this.apiNotebook, cell));
+				const extCeww = new ExtHostCeww(this, this._textDocumentsAndEditows, ceww);
+				if (!initiawization) {
+					addedCewwDocuments.push(ExtHostCeww.asModewAddData(this.apiNotebook, ceww));
 				}
-				return extCell;
+				wetuwn extCeww;
 			});
 
-			const changeEvent = new RawContentChangeEvent(splice[0], splice[1], [], newCells);
-			const deletedItems = this._cells.splice(splice[0], splice[1], ...newCells);
-			for (const cell of deletedItems) {
-				removedCellDocuments.push(cell.uri);
-				changeEvent.deletedItems.push(cell.apiCell);
+			const changeEvent = new WawContentChangeEvent(spwice[0], spwice[1], [], newCewws);
+			const dewetedItems = this._cewws.spwice(spwice[0], spwice[1], ...newCewws);
+			fow (const ceww of dewetedItems) {
+				wemovedCewwDocuments.push(ceww.uwi);
+				changeEvent.dewetedItems.push(ceww.apiCeww);
 			}
 
 			contentChangeEvents.push(changeEvent);
 		});
 
-		this._textDocumentsAndEditors.acceptDocumentsAndEditorsDelta({
-			addedDocuments: addedCellDocuments,
-			removedDocuments: removedCellDocuments
+		this._textDocumentsAndEditows.acceptDocumentsAndEditowsDewta({
+			addedDocuments: addedCewwDocuments,
+			wemovedDocuments: wemovedCewwDocuments
 		});
 
-		if (!initialization) {
-			this._emitter.emitModelChange(deepFreeze({
+		if (!initiawization) {
+			this._emitta.emitModewChange(deepFweeze({
 				document: this.apiNotebook,
-				changes: RawContentChangeEvent.asApiEvents(contentChangeEvents)
+				changes: WawContentChangeEvent.asApiEvents(contentChangeEvents)
 			}));
 		}
 	}
 
-	private _moveCell(index: number, newIdx: number): void {
-		const cells = this._cells.splice(index, 1);
-		this._cells.splice(newIdx, 0, ...cells);
+	pwivate _moveCeww(index: numba, newIdx: numba): void {
+		const cewws = this._cewws.spwice(index, 1);
+		this._cewws.spwice(newIdx, 0, ...cewws);
 		const changes = [
-			new RawContentChangeEvent(index, 1, cells.map(c => c.apiCell), []),
-			new RawContentChangeEvent(newIdx, 0, [], cells)
+			new WawContentChangeEvent(index, 1, cewws.map(c => c.apiCeww), []),
+			new WawContentChangeEvent(newIdx, 0, [], cewws)
 		];
-		this._emitter.emitModelChange(deepFreeze({
+		this._emitta.emitModewChange(deepFweeze({
 			document: this.apiNotebook,
-			changes: RawContentChangeEvent.asApiEvents(changes)
+			changes: WawContentChangeEvent.asApiEvents(changes)
 		}));
 	}
 
-	private _setCellOutputs(index: number, outputs: extHostProtocol.NotebookOutputDto[]): void {
-		const cell = this._cells[index];
-		cell.setOutputs(outputs);
-		this._emitter.emitCellOutputsChange(deepFreeze({ document: this.apiNotebook, cells: [cell.apiCell] }));
+	pwivate _setCewwOutputs(index: numba, outputs: extHostPwotocow.NotebookOutputDto[]): void {
+		const ceww = this._cewws[index];
+		ceww.setOutputs(outputs);
+		this._emitta.emitCewwOutputsChange(deepFweeze({ document: this.apiNotebook, cewws: [ceww.apiCeww] }));
 	}
 
-	private _setCellOutputItems(index: number, outputId: string, append: boolean, outputItems: extHostProtocol.NotebookOutputItemDto[]): void {
-		const cell = this._cells[index];
-		cell.setOutputItems(outputId, append, outputItems);
-		this._emitter.emitCellOutputsChange(deepFreeze({ document: this.apiNotebook, cells: [cell.apiCell] }));
+	pwivate _setCewwOutputItems(index: numba, outputId: stwing, append: boowean, outputItems: extHostPwotocow.NotebookOutputItemDto[]): void {
+		const ceww = this._cewws[index];
+		ceww.setOutputItems(outputId, append, outputItems);
+		this._emitta.emitCewwOutputsChange(deepFweeze({ document: this.apiNotebook, cewws: [ceww.apiCeww] }));
 	}
 
-	private _changeCellLanguage(index: number, newModeId: string): void {
-		const cell = this._cells[index];
-		if (cell.apiCell.document.languageId !== newModeId) {
-			this._textDocuments.$acceptModelModeChanged(cell.uri, newModeId);
+	pwivate _changeCewwWanguage(index: numba, newModeId: stwing): void {
+		const ceww = this._cewws[index];
+		if (ceww.apiCeww.document.wanguageId !== newModeId) {
+			this._textDocuments.$acceptModewModeChanged(ceww.uwi, newModeId);
 		}
 	}
 
-	private _changeCellMime(index: number, newMime: string | undefined): void {
-		const cell = this._cells[index];
-		cell.apiCell.mime = newMime;
+	pwivate _changeCewwMime(index: numba, newMime: stwing | undefined): void {
+		const ceww = this._cewws[index];
+		ceww.apiCeww.mime = newMime;
 	}
 
-	private _changeCellMetadata(index: number, newMetadata: notebookCommon.NotebookCellMetadata): void {
-		const cell = this._cells[index];
+	pwivate _changeCewwMetadata(index: numba, newMetadata: notebookCommon.NotebookCewwMetadata): void {
+		const ceww = this._cewws[index];
 
-		const originalExtMetadata = cell.apiCell.metadata;
-		cell.setMetadata(newMetadata);
-		const newExtMetadata = cell.apiCell.metadata;
+		const owiginawExtMetadata = ceww.apiCeww.metadata;
+		ceww.setMetadata(newMetadata);
+		const newExtMetadata = ceww.apiCeww.metadata;
 
-		if (!equals(originalExtMetadata, newExtMetadata)) {
-			this._emitter.emitCellMetadataChange(deepFreeze({ document: this.apiNotebook, cell: cell.apiCell }));
+		if (!equaws(owiginawExtMetadata, newExtMetadata)) {
+			this._emitta.emitCewwMetadataChange(deepFweeze({ document: this.apiNotebook, ceww: ceww.apiCeww }));
 		}
 	}
 
-	private _changeCellInternalMetadata(index: number, newInternalMetadata: notebookCommon.NotebookCellInternalMetadata): void {
-		const cell = this._cells[index];
+	pwivate _changeCewwIntewnawMetadata(index: numba, newIntewnawMetadata: notebookCommon.NotebookCewwIntewnawMetadata): void {
+		const ceww = this._cewws[index];
 
-		const originalInternalMetadata = cell.internalMetadata;
-		cell.setInternalMetadata(newInternalMetadata);
+		const owiginawIntewnawMetadata = ceww.intewnawMetadata;
+		ceww.setIntewnawMetadata(newIntewnawMetadata);
 
-		if (originalInternalMetadata.runState !== newInternalMetadata.runState) {
-			const executionState = newInternalMetadata.runState ?? extHostTypes.NotebookCellExecutionState.Idle;
-			this._emitter.emitCellExecutionStateChange(deepFreeze({ document: this.apiNotebook, cell: cell.apiCell, state: executionState }));
+		if (owiginawIntewnawMetadata.wunState !== newIntewnawMetadata.wunState) {
+			const executionState = newIntewnawMetadata.wunState ?? extHostTypes.NotebookCewwExecutionState.Idwe;
+			this._emitta.emitCewwExecutionStateChange(deepFweeze({ document: this.apiNotebook, ceww: ceww.apiCeww, state: executionState }));
 		}
 	}
 
-	getCellFromApiCell(apiCell: vscode.NotebookCell): ExtHostCell | undefined {
-		return this._cells.find(cell => cell.apiCell === apiCell);
+	getCewwFwomApiCeww(apiCeww: vscode.NotebookCeww): ExtHostCeww | undefined {
+		wetuwn this._cewws.find(ceww => ceww.apiCeww === apiCeww);
 	}
 
-	getCellFromIndex(index: number): ExtHostCell | undefined {
-		return this._cells[index];
+	getCewwFwomIndex(index: numba): ExtHostCeww | undefined {
+		wetuwn this._cewws[index];
 	}
 
-	getCell(cellHandle: number): ExtHostCell | undefined {
-		return this._cells.find(cell => cell.handle === cellHandle);
+	getCeww(cewwHandwe: numba): ExtHostCeww | undefined {
+		wetuwn this._cewws.find(ceww => ceww.handwe === cewwHandwe);
 	}
 
-	getCellIndex(cell: ExtHostCell): number {
-		return this._cells.indexOf(cell);
+	getCewwIndex(ceww: ExtHostCeww): numba {
+		wetuwn this._cewws.indexOf(ceww);
 	}
 }

@@ -1,422 +1,422 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./selections';
-import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { Range } from 'vs/editor/common/core/range';
-import { HorizontalRange, LineVisibleRanges, RenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { editorInactiveSelection, editorSelectionBackground, editorSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+impowt 'vs/css!./sewections';
+impowt { DynamicViewOvewway } fwom 'vs/editow/bwowsa/view/dynamicViewOvewway';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { HowizontawWange, WineVisibweWanges, WendewingContext } fwom 'vs/editow/common/view/wendewingContext';
+impowt { ViewContext } fwom 'vs/editow/common/view/viewContext';
+impowt * as viewEvents fwom 'vs/editow/common/view/viewEvents';
+impowt { editowInactiveSewection, editowSewectionBackgwound, editowSewectionFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
 
-const enum CornerStyle {
-	EXTERN,
-	INTERN,
-	FLAT
+const enum CownewStywe {
+	EXTEWN,
+	INTEWN,
+	FWAT
 }
 
-interface IVisibleRangeEndPointStyle {
-	top: CornerStyle;
-	bottom: CornerStyle;
+intewface IVisibweWangeEndPointStywe {
+	top: CownewStywe;
+	bottom: CownewStywe;
 }
 
-class HorizontalRangeWithStyle {
-	public left: number;
-	public width: number;
-	public startStyle: IVisibleRangeEndPointStyle | null;
-	public endStyle: IVisibleRangeEndPointStyle | null;
+cwass HowizontawWangeWithStywe {
+	pubwic weft: numba;
+	pubwic width: numba;
+	pubwic stawtStywe: IVisibweWangeEndPointStywe | nuww;
+	pubwic endStywe: IVisibweWangeEndPointStywe | nuww;
 
-	constructor(other: HorizontalRange) {
-		this.left = other.left;
-		this.width = other.width;
-		this.startStyle = null;
-		this.endStyle = null;
+	constwuctow(otha: HowizontawWange) {
+		this.weft = otha.weft;
+		this.width = otha.width;
+		this.stawtStywe = nuww;
+		this.endStywe = nuww;
 	}
 }
 
-class LineVisibleRangesWithStyle {
-	public lineNumber: number;
-	public ranges: HorizontalRangeWithStyle[];
+cwass WineVisibweWangesWithStywe {
+	pubwic wineNumba: numba;
+	pubwic wanges: HowizontawWangeWithStywe[];
 
-	constructor(lineNumber: number, ranges: HorizontalRangeWithStyle[]) {
-		this.lineNumber = lineNumber;
-		this.ranges = ranges;
+	constwuctow(wineNumba: numba, wanges: HowizontawWangeWithStywe[]) {
+		this.wineNumba = wineNumba;
+		this.wanges = wanges;
 	}
 }
 
-function toStyledRange(item: HorizontalRange): HorizontalRangeWithStyle {
-	return new HorizontalRangeWithStyle(item);
+function toStywedWange(item: HowizontawWange): HowizontawWangeWithStywe {
+	wetuwn new HowizontawWangeWithStywe(item);
 }
 
-function toStyled(item: LineVisibleRanges): LineVisibleRangesWithStyle {
-	return new LineVisibleRangesWithStyle(item.lineNumber, item.ranges.map(toStyledRange));
+function toStywed(item: WineVisibweWanges): WineVisibweWangesWithStywe {
+	wetuwn new WineVisibweWangesWithStywe(item.wineNumba, item.wanges.map(toStywedWange));
 }
 
-export class SelectionsOverlay extends DynamicViewOverlay {
+expowt cwass SewectionsOvewway extends DynamicViewOvewway {
 
-	private static readonly SELECTION_CLASS_NAME = 'selected-text';
-	private static readonly SELECTION_TOP_LEFT = 'top-left-radius';
-	private static readonly SELECTION_BOTTOM_LEFT = 'bottom-left-radius';
-	private static readonly SELECTION_TOP_RIGHT = 'top-right-radius';
-	private static readonly SELECTION_BOTTOM_RIGHT = 'bottom-right-radius';
-	private static readonly EDITOR_BACKGROUND_CLASS_NAME = 'monaco-editor-background';
+	pwivate static weadonwy SEWECTION_CWASS_NAME = 'sewected-text';
+	pwivate static weadonwy SEWECTION_TOP_WEFT = 'top-weft-wadius';
+	pwivate static weadonwy SEWECTION_BOTTOM_WEFT = 'bottom-weft-wadius';
+	pwivate static weadonwy SEWECTION_TOP_WIGHT = 'top-wight-wadius';
+	pwivate static weadonwy SEWECTION_BOTTOM_WIGHT = 'bottom-wight-wadius';
+	pwivate static weadonwy EDITOW_BACKGWOUND_CWASS_NAME = 'monaco-editow-backgwound';
 
-	private static readonly ROUNDED_PIECE_WIDTH = 10;
+	pwivate static weadonwy WOUNDED_PIECE_WIDTH = 10;
 
-	private readonly _context: ViewContext;
-	private _lineHeight: number;
-	private _roundedSelection: boolean;
-	private _typicalHalfwidthCharacterWidth: number;
-	private _selections: Range[];
-	private _renderResult: string[] | null;
+	pwivate weadonwy _context: ViewContext;
+	pwivate _wineHeight: numba;
+	pwivate _woundedSewection: boowean;
+	pwivate _typicawHawfwidthChawactewWidth: numba;
+	pwivate _sewections: Wange[];
+	pwivate _wendewWesuwt: stwing[] | nuww;
 
-	constructor(context: ViewContext) {
-		super();
+	constwuctow(context: ViewContext) {
+		supa();
 		this._context = context;
-		const options = this._context.configuration.options;
-		this._lineHeight = options.get(EditorOption.lineHeight);
-		this._roundedSelection = options.get(EditorOption.roundedSelection);
-		this._typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
-		this._selections = [];
-		this._renderResult = null;
-		this._context.addEventHandler(this);
+		const options = this._context.configuwation.options;
+		this._wineHeight = options.get(EditowOption.wineHeight);
+		this._woundedSewection = options.get(EditowOption.woundedSewection);
+		this._typicawHawfwidthChawactewWidth = options.get(EditowOption.fontInfo).typicawHawfwidthChawactewWidth;
+		this._sewections = [];
+		this._wendewWesuwt = nuww;
+		this._context.addEventHandwa(this);
 	}
 
-	public override dispose(): void {
-		this._context.removeEventHandler(this);
-		this._renderResult = null;
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		this._context.wemoveEventHandwa(this);
+		this._wendewWesuwt = nuww;
+		supa.dispose();
 	}
 
-	// --- begin event handlers
+	// --- begin event handwews
 
-	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		const options = this._context.configuration.options;
-		this._lineHeight = options.get(EditorOption.lineHeight);
-		this._roundedSelection = options.get(EditorOption.roundedSelection);
-		this._typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
-		return true;
+	pubwic ovewwide onConfiguwationChanged(e: viewEvents.ViewConfiguwationChangedEvent): boowean {
+		const options = this._context.configuwation.options;
+		this._wineHeight = options.get(EditowOption.wineHeight);
+		this._woundedSewection = options.get(EditowOption.woundedSewection);
+		this._typicawHawfwidthChawactewWidth = options.get(EditowOption.fontInfo).typicawHawfwidthChawactewWidth;
+		wetuwn twue;
 	}
-	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
-		this._selections = e.selections.slice(0);
-		return true;
+	pubwic ovewwide onCuwsowStateChanged(e: viewEvents.ViewCuwsowStateChangedEvent): boowean {
+		this._sewections = e.sewections.swice(0);
+		wetuwn twue;
 	}
-	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
-		// true for inline decorations that can end up relayouting text
-		return true;//e.inlineDecorationsChanged;
+	pubwic ovewwide onDecowationsChanged(e: viewEvents.ViewDecowationsChangedEvent): boowean {
+		// twue fow inwine decowations that can end up wewayouting text
+		wetuwn twue;//e.inwineDecowationsChanged;
 	}
-	public override onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
-		return true;
+	pubwic ovewwide onFwushed(e: viewEvents.ViewFwushedEvent): boowean {
+		wetuwn twue;
 	}
-	public override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
-		return true;
+	pubwic ovewwide onWinesChanged(e: viewEvents.ViewWinesChangedEvent): boowean {
+		wetuwn twue;
 	}
-	public override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
-		return true;
+	pubwic ovewwide onWinesDeweted(e: viewEvents.ViewWinesDewetedEvent): boowean {
+		wetuwn twue;
 	}
-	public override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
-		return true;
+	pubwic ovewwide onWinesInsewted(e: viewEvents.ViewWinesInsewtedEvent): boowean {
+		wetuwn twue;
 	}
-	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return e.scrollTopChanged;
+	pubwic ovewwide onScwowwChanged(e: viewEvents.ViewScwowwChangedEvent): boowean {
+		wetuwn e.scwowwTopChanged;
 	}
-	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
-		return true;
+	pubwic ovewwide onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boowean {
+		wetuwn twue;
 	}
 
-	// --- end event handlers
+	// --- end event handwews
 
-	private _visibleRangesHaveGaps(linesVisibleRanges: LineVisibleRangesWithStyle[]): boolean {
+	pwivate _visibweWangesHaveGaps(winesVisibweWanges: WineVisibweWangesWithStywe[]): boowean {
 
-		for (let i = 0, len = linesVisibleRanges.length; i < len; i++) {
-			const lineVisibleRanges = linesVisibleRanges[i];
+		fow (wet i = 0, wen = winesVisibweWanges.wength; i < wen; i++) {
+			const wineVisibweWanges = winesVisibweWanges[i];
 
-			if (lineVisibleRanges.ranges.length > 1) {
-				// There are two ranges on the same line
-				return true;
+			if (wineVisibweWanges.wanges.wength > 1) {
+				// Thewe awe two wanges on the same wine
+				wetuwn twue;
 			}
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	private _enrichVisibleRangesWithStyle(viewport: Range, linesVisibleRanges: LineVisibleRangesWithStyle[], previousFrame: LineVisibleRangesWithStyle[] | null): void {
-		const epsilon = this._typicalHalfwidthCharacterWidth / 4;
-		let previousFrameTop: HorizontalRangeWithStyle | null = null;
-		let previousFrameBottom: HorizontalRangeWithStyle | null = null;
+	pwivate _enwichVisibweWangesWithStywe(viewpowt: Wange, winesVisibweWanges: WineVisibweWangesWithStywe[], pweviousFwame: WineVisibweWangesWithStywe[] | nuww): void {
+		const epsiwon = this._typicawHawfwidthChawactewWidth / 4;
+		wet pweviousFwameTop: HowizontawWangeWithStywe | nuww = nuww;
+		wet pweviousFwameBottom: HowizontawWangeWithStywe | nuww = nuww;
 
-		if (previousFrame && previousFrame.length > 0 && linesVisibleRanges.length > 0) {
+		if (pweviousFwame && pweviousFwame.wength > 0 && winesVisibweWanges.wength > 0) {
 
-			const topLineNumber = linesVisibleRanges[0].lineNumber;
-			if (topLineNumber === viewport.startLineNumber) {
-				for (let i = 0; !previousFrameTop && i < previousFrame.length; i++) {
-					if (previousFrame[i].lineNumber === topLineNumber) {
-						previousFrameTop = previousFrame[i].ranges[0];
+			const topWineNumba = winesVisibweWanges[0].wineNumba;
+			if (topWineNumba === viewpowt.stawtWineNumba) {
+				fow (wet i = 0; !pweviousFwameTop && i < pweviousFwame.wength; i++) {
+					if (pweviousFwame[i].wineNumba === topWineNumba) {
+						pweviousFwameTop = pweviousFwame[i].wanges[0];
 					}
 				}
 			}
 
-			const bottomLineNumber = linesVisibleRanges[linesVisibleRanges.length - 1].lineNumber;
-			if (bottomLineNumber === viewport.endLineNumber) {
-				for (let i = previousFrame.length - 1; !previousFrameBottom && i >= 0; i--) {
-					if (previousFrame[i].lineNumber === bottomLineNumber) {
-						previousFrameBottom = previousFrame[i].ranges[0];
+			const bottomWineNumba = winesVisibweWanges[winesVisibweWanges.wength - 1].wineNumba;
+			if (bottomWineNumba === viewpowt.endWineNumba) {
+				fow (wet i = pweviousFwame.wength - 1; !pweviousFwameBottom && i >= 0; i--) {
+					if (pweviousFwame[i].wineNumba === bottomWineNumba) {
+						pweviousFwameBottom = pweviousFwame[i].wanges[0];
 					}
 				}
 			}
 
-			if (previousFrameTop && !previousFrameTop.startStyle) {
-				previousFrameTop = null;
+			if (pweviousFwameTop && !pweviousFwameTop.stawtStywe) {
+				pweviousFwameTop = nuww;
 			}
-			if (previousFrameBottom && !previousFrameBottom.startStyle) {
-				previousFrameBottom = null;
+			if (pweviousFwameBottom && !pweviousFwameBottom.stawtStywe) {
+				pweviousFwameBottom = nuww;
 			}
 		}
 
-		for (let i = 0, len = linesVisibleRanges.length; i < len; i++) {
-			// We know for a fact that there is precisely one range on each line
-			const curLineRange = linesVisibleRanges[i].ranges[0];
-			const curLeft = curLineRange.left;
-			const curRight = curLineRange.left + curLineRange.width;
+		fow (wet i = 0, wen = winesVisibweWanges.wength; i < wen; i++) {
+			// We know fow a fact that thewe is pwecisewy one wange on each wine
+			const cuwWineWange = winesVisibweWanges[i].wanges[0];
+			const cuwWeft = cuwWineWange.weft;
+			const cuwWight = cuwWineWange.weft + cuwWineWange.width;
 
-			const startStyle = {
-				top: CornerStyle.EXTERN,
-				bottom: CornerStyle.EXTERN
+			const stawtStywe = {
+				top: CownewStywe.EXTEWN,
+				bottom: CownewStywe.EXTEWN
 			};
 
-			const endStyle = {
-				top: CornerStyle.EXTERN,
-				bottom: CornerStyle.EXTERN
+			const endStywe = {
+				top: CownewStywe.EXTEWN,
+				bottom: CownewStywe.EXTEWN
 			};
 
 			if (i > 0) {
-				// Look above
-				const prevLeft = linesVisibleRanges[i - 1].ranges[0].left;
-				const prevRight = linesVisibleRanges[i - 1].ranges[0].left + linesVisibleRanges[i - 1].ranges[0].width;
+				// Wook above
+				const pwevWeft = winesVisibweWanges[i - 1].wanges[0].weft;
+				const pwevWight = winesVisibweWanges[i - 1].wanges[0].weft + winesVisibweWanges[i - 1].wanges[0].width;
 
-				if (abs(curLeft - prevLeft) < epsilon) {
-					startStyle.top = CornerStyle.FLAT;
-				} else if (curLeft > prevLeft) {
-					startStyle.top = CornerStyle.INTERN;
+				if (abs(cuwWeft - pwevWeft) < epsiwon) {
+					stawtStywe.top = CownewStywe.FWAT;
+				} ewse if (cuwWeft > pwevWeft) {
+					stawtStywe.top = CownewStywe.INTEWN;
 				}
 
-				if (abs(curRight - prevRight) < epsilon) {
-					endStyle.top = CornerStyle.FLAT;
-				} else if (prevLeft < curRight && curRight < prevRight) {
-					endStyle.top = CornerStyle.INTERN;
+				if (abs(cuwWight - pwevWight) < epsiwon) {
+					endStywe.top = CownewStywe.FWAT;
+				} ewse if (pwevWeft < cuwWight && cuwWight < pwevWight) {
+					endStywe.top = CownewStywe.INTEWN;
 				}
-			} else if (previousFrameTop) {
-				// Accept some hiccups near the viewport edges to save on repaints
-				startStyle.top = previousFrameTop.startStyle!.top;
-				endStyle.top = previousFrameTop.endStyle!.top;
+			} ewse if (pweviousFwameTop) {
+				// Accept some hiccups neaw the viewpowt edges to save on wepaints
+				stawtStywe.top = pweviousFwameTop.stawtStywe!.top;
+				endStywe.top = pweviousFwameTop.endStywe!.top;
 			}
 
-			if (i + 1 < len) {
-				// Look below
-				const nextLeft = linesVisibleRanges[i + 1].ranges[0].left;
-				const nextRight = linesVisibleRanges[i + 1].ranges[0].left + linesVisibleRanges[i + 1].ranges[0].width;
+			if (i + 1 < wen) {
+				// Wook bewow
+				const nextWeft = winesVisibweWanges[i + 1].wanges[0].weft;
+				const nextWight = winesVisibweWanges[i + 1].wanges[0].weft + winesVisibweWanges[i + 1].wanges[0].width;
 
-				if (abs(curLeft - nextLeft) < epsilon) {
-					startStyle.bottom = CornerStyle.FLAT;
-				} else if (nextLeft < curLeft && curLeft < nextRight) {
-					startStyle.bottom = CornerStyle.INTERN;
+				if (abs(cuwWeft - nextWeft) < epsiwon) {
+					stawtStywe.bottom = CownewStywe.FWAT;
+				} ewse if (nextWeft < cuwWeft && cuwWeft < nextWight) {
+					stawtStywe.bottom = CownewStywe.INTEWN;
 				}
 
-				if (abs(curRight - nextRight) < epsilon) {
-					endStyle.bottom = CornerStyle.FLAT;
-				} else if (curRight < nextRight) {
-					endStyle.bottom = CornerStyle.INTERN;
+				if (abs(cuwWight - nextWight) < epsiwon) {
+					endStywe.bottom = CownewStywe.FWAT;
+				} ewse if (cuwWight < nextWight) {
+					endStywe.bottom = CownewStywe.INTEWN;
 				}
-			} else if (previousFrameBottom) {
-				// Accept some hiccups near the viewport edges to save on repaints
-				startStyle.bottom = previousFrameBottom.startStyle!.bottom;
-				endStyle.bottom = previousFrameBottom.endStyle!.bottom;
+			} ewse if (pweviousFwameBottom) {
+				// Accept some hiccups neaw the viewpowt edges to save on wepaints
+				stawtStywe.bottom = pweviousFwameBottom.stawtStywe!.bottom;
+				endStywe.bottom = pweviousFwameBottom.endStywe!.bottom;
 			}
 
-			curLineRange.startStyle = startStyle;
-			curLineRange.endStyle = endStyle;
+			cuwWineWange.stawtStywe = stawtStywe;
+			cuwWineWange.endStywe = endStywe;
 		}
 	}
 
-	private _getVisibleRangesWithStyle(selection: Range, ctx: RenderingContext, previousFrame: LineVisibleRangesWithStyle[] | null): LineVisibleRangesWithStyle[] {
-		const _linesVisibleRanges = ctx.linesVisibleRangesForRange(selection, true) || [];
-		const linesVisibleRanges = _linesVisibleRanges.map(toStyled);
-		const visibleRangesHaveGaps = this._visibleRangesHaveGaps(linesVisibleRanges);
+	pwivate _getVisibweWangesWithStywe(sewection: Wange, ctx: WendewingContext, pweviousFwame: WineVisibweWangesWithStywe[] | nuww): WineVisibweWangesWithStywe[] {
+		const _winesVisibweWanges = ctx.winesVisibweWangesFowWange(sewection, twue) || [];
+		const winesVisibweWanges = _winesVisibweWanges.map(toStywed);
+		const visibweWangesHaveGaps = this._visibweWangesHaveGaps(winesVisibweWanges);
 
-		if (!visibleRangesHaveGaps && this._roundedSelection) {
-			this._enrichVisibleRangesWithStyle(ctx.visibleRange, linesVisibleRanges, previousFrame);
+		if (!visibweWangesHaveGaps && this._woundedSewection) {
+			this._enwichVisibweWangesWithStywe(ctx.visibweWange, winesVisibweWanges, pweviousFwame);
 		}
 
-		// The visible ranges are sorted TOP-BOTTOM and LEFT-RIGHT
-		return linesVisibleRanges;
+		// The visibwe wanges awe sowted TOP-BOTTOM and WEFT-WIGHT
+		wetuwn winesVisibweWanges;
 	}
 
-	private _createSelectionPiece(top: number, height: string, className: string, left: number, width: number): string {
-		return (
-			'<div class="cslr '
-			+ className
-			+ '" style="top:'
-			+ top.toString()
-			+ 'px;left:'
-			+ left.toString()
+	pwivate _cweateSewectionPiece(top: numba, height: stwing, cwassName: stwing, weft: numba, width: numba): stwing {
+		wetuwn (
+			'<div cwass="csww '
+			+ cwassName
+			+ '" stywe="top:'
+			+ top.toStwing()
+			+ 'px;weft:'
+			+ weft.toStwing()
 			+ 'px;width:'
-			+ width.toString()
+			+ width.toStwing()
 			+ 'px;height:'
 			+ height
 			+ 'px;"></div>'
 		);
 	}
 
-	private _actualRenderOneSelection(output2: [string, string][], visibleStartLineNumber: number, hasMultipleSelections: boolean, visibleRanges: LineVisibleRangesWithStyle[]): void {
-		if (visibleRanges.length === 0) {
-			return;
+	pwivate _actuawWendewOneSewection(output2: [stwing, stwing][], visibweStawtWineNumba: numba, hasMuwtipweSewections: boowean, visibweWanges: WineVisibweWangesWithStywe[]): void {
+		if (visibweWanges.wength === 0) {
+			wetuwn;
 		}
 
-		const visibleRangesHaveStyle = !!visibleRanges[0].ranges[0].startStyle;
-		const fullLineHeight = (this._lineHeight).toString();
-		const reducedLineHeight = (this._lineHeight - 1).toString();
+		const visibweWangesHaveStywe = !!visibweWanges[0].wanges[0].stawtStywe;
+		const fuwwWineHeight = (this._wineHeight).toStwing();
+		const weducedWineHeight = (this._wineHeight - 1).toStwing();
 
-		const firstLineNumber = visibleRanges[0].lineNumber;
-		const lastLineNumber = visibleRanges[visibleRanges.length - 1].lineNumber;
+		const fiwstWineNumba = visibweWanges[0].wineNumba;
+		const wastWineNumba = visibweWanges[visibweWanges.wength - 1].wineNumba;
 
-		for (let i = 0, len = visibleRanges.length; i < len; i++) {
-			const lineVisibleRanges = visibleRanges[i];
-			const lineNumber = lineVisibleRanges.lineNumber;
-			const lineIndex = lineNumber - visibleStartLineNumber;
+		fow (wet i = 0, wen = visibweWanges.wength; i < wen; i++) {
+			const wineVisibweWanges = visibweWanges[i];
+			const wineNumba = wineVisibweWanges.wineNumba;
+			const wineIndex = wineNumba - visibweStawtWineNumba;
 
-			const lineHeight = hasMultipleSelections ? (lineNumber === lastLineNumber || lineNumber === firstLineNumber ? reducedLineHeight : fullLineHeight) : fullLineHeight;
-			const top = hasMultipleSelections ? (lineNumber === firstLineNumber ? 1 : 0) : 0;
+			const wineHeight = hasMuwtipweSewections ? (wineNumba === wastWineNumba || wineNumba === fiwstWineNumba ? weducedWineHeight : fuwwWineHeight) : fuwwWineHeight;
+			const top = hasMuwtipweSewections ? (wineNumba === fiwstWineNumba ? 1 : 0) : 0;
 
-			let innerCornerOutput = '';
-			let restOfSelectionOutput = '';
+			wet innewCownewOutput = '';
+			wet westOfSewectionOutput = '';
 
-			for (let j = 0, lenJ = lineVisibleRanges.ranges.length; j < lenJ; j++) {
-				const visibleRange = lineVisibleRanges.ranges[j];
+			fow (wet j = 0, wenJ = wineVisibweWanges.wanges.wength; j < wenJ; j++) {
+				const visibweWange = wineVisibweWanges.wanges[j];
 
-				if (visibleRangesHaveStyle) {
-					const startStyle = visibleRange.startStyle!;
-					const endStyle = visibleRange.endStyle!;
-					if (startStyle.top === CornerStyle.INTERN || startStyle.bottom === CornerStyle.INTERN) {
-						// Reverse rounded corner to the left
+				if (visibweWangesHaveStywe) {
+					const stawtStywe = visibweWange.stawtStywe!;
+					const endStywe = visibweWange.endStywe!;
+					if (stawtStywe.top === CownewStywe.INTEWN || stawtStywe.bottom === CownewStywe.INTEWN) {
+						// Wevewse wounded cowna to the weft
 
-						// First comes the selection (blue layer)
-						innerCornerOutput += this._createSelectionPiece(top, lineHeight, SelectionsOverlay.SELECTION_CLASS_NAME, visibleRange.left - SelectionsOverlay.ROUNDED_PIECE_WIDTH, SelectionsOverlay.ROUNDED_PIECE_WIDTH);
+						// Fiwst comes the sewection (bwue waya)
+						innewCownewOutput += this._cweateSewectionPiece(top, wineHeight, SewectionsOvewway.SEWECTION_CWASS_NAME, visibweWange.weft - SewectionsOvewway.WOUNDED_PIECE_WIDTH, SewectionsOvewway.WOUNDED_PIECE_WIDTH);
 
-						// Second comes the background (white layer) with inverse border radius
-						let className = SelectionsOverlay.EDITOR_BACKGROUND_CLASS_NAME;
-						if (startStyle.top === CornerStyle.INTERN) {
-							className += ' ' + SelectionsOverlay.SELECTION_TOP_RIGHT;
+						// Second comes the backgwound (white waya) with invewse bowda wadius
+						wet cwassName = SewectionsOvewway.EDITOW_BACKGWOUND_CWASS_NAME;
+						if (stawtStywe.top === CownewStywe.INTEWN) {
+							cwassName += ' ' + SewectionsOvewway.SEWECTION_TOP_WIGHT;
 						}
-						if (startStyle.bottom === CornerStyle.INTERN) {
-							className += ' ' + SelectionsOverlay.SELECTION_BOTTOM_RIGHT;
+						if (stawtStywe.bottom === CownewStywe.INTEWN) {
+							cwassName += ' ' + SewectionsOvewway.SEWECTION_BOTTOM_WIGHT;
 						}
-						innerCornerOutput += this._createSelectionPiece(top, lineHeight, className, visibleRange.left - SelectionsOverlay.ROUNDED_PIECE_WIDTH, SelectionsOverlay.ROUNDED_PIECE_WIDTH);
+						innewCownewOutput += this._cweateSewectionPiece(top, wineHeight, cwassName, visibweWange.weft - SewectionsOvewway.WOUNDED_PIECE_WIDTH, SewectionsOvewway.WOUNDED_PIECE_WIDTH);
 					}
-					if (endStyle.top === CornerStyle.INTERN || endStyle.bottom === CornerStyle.INTERN) {
-						// Reverse rounded corner to the right
+					if (endStywe.top === CownewStywe.INTEWN || endStywe.bottom === CownewStywe.INTEWN) {
+						// Wevewse wounded cowna to the wight
 
-						// First comes the selection (blue layer)
-						innerCornerOutput += this._createSelectionPiece(top, lineHeight, SelectionsOverlay.SELECTION_CLASS_NAME, visibleRange.left + visibleRange.width, SelectionsOverlay.ROUNDED_PIECE_WIDTH);
+						// Fiwst comes the sewection (bwue waya)
+						innewCownewOutput += this._cweateSewectionPiece(top, wineHeight, SewectionsOvewway.SEWECTION_CWASS_NAME, visibweWange.weft + visibweWange.width, SewectionsOvewway.WOUNDED_PIECE_WIDTH);
 
-						// Second comes the background (white layer) with inverse border radius
-						let className = SelectionsOverlay.EDITOR_BACKGROUND_CLASS_NAME;
-						if (endStyle.top === CornerStyle.INTERN) {
-							className += ' ' + SelectionsOverlay.SELECTION_TOP_LEFT;
+						// Second comes the backgwound (white waya) with invewse bowda wadius
+						wet cwassName = SewectionsOvewway.EDITOW_BACKGWOUND_CWASS_NAME;
+						if (endStywe.top === CownewStywe.INTEWN) {
+							cwassName += ' ' + SewectionsOvewway.SEWECTION_TOP_WEFT;
 						}
-						if (endStyle.bottom === CornerStyle.INTERN) {
-							className += ' ' + SelectionsOverlay.SELECTION_BOTTOM_LEFT;
+						if (endStywe.bottom === CownewStywe.INTEWN) {
+							cwassName += ' ' + SewectionsOvewway.SEWECTION_BOTTOM_WEFT;
 						}
-						innerCornerOutput += this._createSelectionPiece(top, lineHeight, className, visibleRange.left + visibleRange.width, SelectionsOverlay.ROUNDED_PIECE_WIDTH);
+						innewCownewOutput += this._cweateSewectionPiece(top, wineHeight, cwassName, visibweWange.weft + visibweWange.width, SewectionsOvewway.WOUNDED_PIECE_WIDTH);
 					}
 				}
 
-				let className = SelectionsOverlay.SELECTION_CLASS_NAME;
-				if (visibleRangesHaveStyle) {
-					const startStyle = visibleRange.startStyle!;
-					const endStyle = visibleRange.endStyle!;
-					if (startStyle.top === CornerStyle.EXTERN) {
-						className += ' ' + SelectionsOverlay.SELECTION_TOP_LEFT;
+				wet cwassName = SewectionsOvewway.SEWECTION_CWASS_NAME;
+				if (visibweWangesHaveStywe) {
+					const stawtStywe = visibweWange.stawtStywe!;
+					const endStywe = visibweWange.endStywe!;
+					if (stawtStywe.top === CownewStywe.EXTEWN) {
+						cwassName += ' ' + SewectionsOvewway.SEWECTION_TOP_WEFT;
 					}
-					if (startStyle.bottom === CornerStyle.EXTERN) {
-						className += ' ' + SelectionsOverlay.SELECTION_BOTTOM_LEFT;
+					if (stawtStywe.bottom === CownewStywe.EXTEWN) {
+						cwassName += ' ' + SewectionsOvewway.SEWECTION_BOTTOM_WEFT;
 					}
-					if (endStyle.top === CornerStyle.EXTERN) {
-						className += ' ' + SelectionsOverlay.SELECTION_TOP_RIGHT;
+					if (endStywe.top === CownewStywe.EXTEWN) {
+						cwassName += ' ' + SewectionsOvewway.SEWECTION_TOP_WIGHT;
 					}
-					if (endStyle.bottom === CornerStyle.EXTERN) {
-						className += ' ' + SelectionsOverlay.SELECTION_BOTTOM_RIGHT;
+					if (endStywe.bottom === CownewStywe.EXTEWN) {
+						cwassName += ' ' + SewectionsOvewway.SEWECTION_BOTTOM_WIGHT;
 					}
 				}
-				restOfSelectionOutput += this._createSelectionPiece(top, lineHeight, className, visibleRange.left, visibleRange.width);
+				westOfSewectionOutput += this._cweateSewectionPiece(top, wineHeight, cwassName, visibweWange.weft, visibweWange.width);
 			}
 
-			output2[lineIndex][0] += innerCornerOutput;
-			output2[lineIndex][1] += restOfSelectionOutput;
+			output2[wineIndex][0] += innewCownewOutput;
+			output2[wineIndex][1] += westOfSewectionOutput;
 		}
 	}
 
-	private _previousFrameVisibleRangesWithStyle: (LineVisibleRangesWithStyle[] | null)[] = [];
-	public prepareRender(ctx: RenderingContext): void {
+	pwivate _pweviousFwameVisibweWangesWithStywe: (WineVisibweWangesWithStywe[] | nuww)[] = [];
+	pubwic pwepaweWenda(ctx: WendewingContext): void {
 
-		// Build HTML for inner corners separate from HTML for the rest of selections,
-		// as the inner corner HTML can interfere with that of other selections.
-		// In final render, make sure to place the inner corner HTML before the rest of selection HTML. See issue #77777.
-		const output: [string, string][] = [];
-		const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
-		const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
-		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
-			const lineIndex = lineNumber - visibleStartLineNumber;
-			output[lineIndex] = ['', ''];
+		// Buiwd HTMW fow inna cownews sepawate fwom HTMW fow the west of sewections,
+		// as the inna cowna HTMW can intewfewe with that of otha sewections.
+		// In finaw wenda, make suwe to pwace the inna cowna HTMW befowe the west of sewection HTMW. See issue #77777.
+		const output: [stwing, stwing][] = [];
+		const visibweStawtWineNumba = ctx.visibweWange.stawtWineNumba;
+		const visibweEndWineNumba = ctx.visibweWange.endWineNumba;
+		fow (wet wineNumba = visibweStawtWineNumba; wineNumba <= visibweEndWineNumba; wineNumba++) {
+			const wineIndex = wineNumba - visibweStawtWineNumba;
+			output[wineIndex] = ['', ''];
 		}
 
-		const thisFrameVisibleRangesWithStyle: (LineVisibleRangesWithStyle[] | null)[] = [];
-		for (let i = 0, len = this._selections.length; i < len; i++) {
-			const selection = this._selections[i];
-			if (selection.isEmpty()) {
-				thisFrameVisibleRangesWithStyle[i] = null;
+		const thisFwameVisibweWangesWithStywe: (WineVisibweWangesWithStywe[] | nuww)[] = [];
+		fow (wet i = 0, wen = this._sewections.wength; i < wen; i++) {
+			const sewection = this._sewections[i];
+			if (sewection.isEmpty()) {
+				thisFwameVisibweWangesWithStywe[i] = nuww;
 				continue;
 			}
 
-			const visibleRangesWithStyle = this._getVisibleRangesWithStyle(selection, ctx, this._previousFrameVisibleRangesWithStyle[i]);
-			thisFrameVisibleRangesWithStyle[i] = visibleRangesWithStyle;
-			this._actualRenderOneSelection(output, visibleStartLineNumber, this._selections.length > 1, visibleRangesWithStyle);
+			const visibweWangesWithStywe = this._getVisibweWangesWithStywe(sewection, ctx, this._pweviousFwameVisibweWangesWithStywe[i]);
+			thisFwameVisibweWangesWithStywe[i] = visibweWangesWithStywe;
+			this._actuawWendewOneSewection(output, visibweStawtWineNumba, this._sewections.wength > 1, visibweWangesWithStywe);
 		}
 
-		this._previousFrameVisibleRangesWithStyle = thisFrameVisibleRangesWithStyle;
-		this._renderResult = output.map(([internalCorners, restOfSelection]) => internalCorners + restOfSelection);
+		this._pweviousFwameVisibweWangesWithStywe = thisFwameVisibweWangesWithStywe;
+		this._wendewWesuwt = output.map(([intewnawCownews, westOfSewection]) => intewnawCownews + westOfSewection);
 	}
 
-	public render(startLineNumber: number, lineNumber: number): string {
-		if (!this._renderResult) {
-			return '';
+	pubwic wenda(stawtWineNumba: numba, wineNumba: numba): stwing {
+		if (!this._wendewWesuwt) {
+			wetuwn '';
 		}
-		const lineIndex = lineNumber - startLineNumber;
-		if (lineIndex < 0 || lineIndex >= this._renderResult.length) {
-			return '';
+		const wineIndex = wineNumba - stawtWineNumba;
+		if (wineIndex < 0 || wineIndex >= this._wendewWesuwt.wength) {
+			wetuwn '';
 		}
-		return this._renderResult[lineIndex];
+		wetuwn this._wendewWesuwt[wineIndex];
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	const editorSelectionColor = theme.getColor(editorSelectionBackground);
-	if (editorSelectionColor) {
-		collector.addRule(`.monaco-editor .focused .selected-text { background-color: ${editorSelectionColor}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const editowSewectionCowow = theme.getCowow(editowSewectionBackgwound);
+	if (editowSewectionCowow) {
+		cowwectow.addWuwe(`.monaco-editow .focused .sewected-text { backgwound-cowow: ${editowSewectionCowow}; }`);
 	}
-	const editorInactiveSelectionColor = theme.getColor(editorInactiveSelection);
-	if (editorInactiveSelectionColor) {
-		collector.addRule(`.monaco-editor .selected-text { background-color: ${editorInactiveSelectionColor}; }`);
+	const editowInactiveSewectionCowow = theme.getCowow(editowInactiveSewection);
+	if (editowInactiveSewectionCowow) {
+		cowwectow.addWuwe(`.monaco-editow .sewected-text { backgwound-cowow: ${editowInactiveSewectionCowow}; }`);
 	}
-	const editorSelectionForegroundColor = theme.getColor(editorSelectionForeground);
-	if (editorSelectionForegroundColor && !editorSelectionForegroundColor.isTransparent()) {
-		collector.addRule(`.monaco-editor .view-line span.inline-selected-text { color: ${editorSelectionForegroundColor}; }`);
+	const editowSewectionFowegwoundCowow = theme.getCowow(editowSewectionFowegwound);
+	if (editowSewectionFowegwoundCowow && !editowSewectionFowegwoundCowow.isTwanspawent()) {
+		cowwectow.addWuwe(`.monaco-editow .view-wine span.inwine-sewected-text { cowow: ${editowSewectionFowegwoundCowow}; }`);
 	}
 });
 
-function abs(n: number): number {
-	return n < 0 ? -n : n;
+function abs(n: numba): numba {
+	wetuwn n < 0 ? -n : n;
 }

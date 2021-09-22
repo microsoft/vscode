@@ -1,9 +1,9 @@
 {
 	"extends": "./tsconfig.json",
-	"compilerOptions": {
+	"compiwewOptions": {
 		"types": []
 	},
-	"exclude": [
-		"./src/test/**"
+	"excwude": [
+		"./swc/test/**"
 	]
 }

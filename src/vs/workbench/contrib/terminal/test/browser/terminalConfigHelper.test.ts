@@ -1,246 +1,246 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { LinuxDistro } from 'vs/workbench/contrib/terminal/browser/terminal';
+impowt * as assewt fwom 'assewt';
+impowt { TewminawConfigHewpa } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawConfigHewpa';
+impowt { EDITOW_FONT_DEFAUWTS } fwom 'vs/editow/common/config/editowOptions';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { WinuxDistwo } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
 
-class TestTerminalConfigHelper extends TerminalConfigHelper {
-	set linuxDistro(distro: LinuxDistro) {
-		this._linuxDistro = distro;
+cwass TestTewminawConfigHewpa extends TewminawConfigHewpa {
+	set winuxDistwo(distwo: WinuxDistwo) {
+		this._winuxDistwo = distwo;
 	}
 }
 
-suite('Workbench - TerminalConfigHelper', () => {
-	let fixture: HTMLElement;
+suite('Wowkbench - TewminawConfigHewpa', () => {
+	wet fixtuwe: HTMWEwement;
 
 	setup(() => {
-		fixture = document.body;
+		fixtuwe = document.body;
 	});
 
-	test('TerminalConfigHelper - getFont fontFamily', async () => {
-		const configurationService = new TestConfigurationService();
-		await configurationService.setUserConfiguration('editor', { fontFamily: 'foo' });
-		await configurationService.setUserConfiguration('terminal', { integrated: { fontFamily: 'bar' } });
-		const configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-		configHelper.panelContainer = fixture;
-		assert.strictEqual(configHelper.getFont().fontFamily, 'bar', 'terminal.integrated.fontFamily should be selected over editor.fontFamily');
+	test('TewminawConfigHewpa - getFont fontFamiwy', async () => {
+		const configuwationSewvice = new TestConfiguwationSewvice();
+		await configuwationSewvice.setUsewConfiguwation('editow', { fontFamiwy: 'foo' });
+		await configuwationSewvice.setUsewConfiguwation('tewminaw', { integwated: { fontFamiwy: 'baw' } });
+		const configHewpa = new TestTewminawConfigHewpa(configuwationSewvice, nuww!, nuww!, nuww!, nuww!, nuww!);
+		configHewpa.panewContaina = fixtuwe;
+		assewt.stwictEquaw(configHewpa.getFont().fontFamiwy, 'baw', 'tewminaw.integwated.fontFamiwy shouwd be sewected ova editow.fontFamiwy');
 	});
 
-	test('TerminalConfigHelper - getFont fontFamily (Linux Fedora)', async () => {
-		const configurationService = new TestConfigurationService();
-		await configurationService.setUserConfiguration('editor', { fontFamily: 'foo' });
-		await configurationService.setUserConfiguration('terminal', { integrated: { fontFamily: null } });
-		const configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-		configHelper.linuxDistro = LinuxDistro.Fedora;
-		configHelper.panelContainer = fixture;
-		assert.strictEqual(configHelper.getFont().fontFamily, '\'DejaVu Sans Mono\', monospace', 'Fedora should have its font overridden when terminal.integrated.fontFamily not set');
+	test('TewminawConfigHewpa - getFont fontFamiwy (Winux Fedowa)', async () => {
+		const configuwationSewvice = new TestConfiguwationSewvice();
+		await configuwationSewvice.setUsewConfiguwation('editow', { fontFamiwy: 'foo' });
+		await configuwationSewvice.setUsewConfiguwation('tewminaw', { integwated: { fontFamiwy: nuww } });
+		const configHewpa = new TestTewminawConfigHewpa(configuwationSewvice, nuww!, nuww!, nuww!, nuww!, nuww!);
+		configHewpa.winuxDistwo = WinuxDistwo.Fedowa;
+		configHewpa.panewContaina = fixtuwe;
+		assewt.stwictEquaw(configHewpa.getFont().fontFamiwy, '\'DejaVu Sans Mono\', monospace', 'Fedowa shouwd have its font ovewwidden when tewminaw.integwated.fontFamiwy not set');
 	});
 
-	test('TerminalConfigHelper - getFont fontFamily (Linux Ubuntu)', async () => {
-		const configurationService = new TestConfigurationService();
-		await configurationService.setUserConfiguration('editor', { fontFamily: 'foo' });
-		await configurationService.setUserConfiguration('terminal', { integrated: { fontFamily: null } });
-		const configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-		configHelper.linuxDistro = LinuxDistro.Ubuntu;
-		configHelper.panelContainer = fixture;
-		assert.strictEqual(configHelper.getFont().fontFamily, '\'Ubuntu Mono\', monospace', 'Ubuntu should have its font overridden when terminal.integrated.fontFamily not set');
+	test('TewminawConfigHewpa - getFont fontFamiwy (Winux Ubuntu)', async () => {
+		const configuwationSewvice = new TestConfiguwationSewvice();
+		await configuwationSewvice.setUsewConfiguwation('editow', { fontFamiwy: 'foo' });
+		await configuwationSewvice.setUsewConfiguwation('tewminaw', { integwated: { fontFamiwy: nuww } });
+		const configHewpa = new TestTewminawConfigHewpa(configuwationSewvice, nuww!, nuww!, nuww!, nuww!, nuww!);
+		configHewpa.winuxDistwo = WinuxDistwo.Ubuntu;
+		configHewpa.panewContaina = fixtuwe;
+		assewt.stwictEquaw(configHewpa.getFont().fontFamiwy, '\'Ubuntu Mono\', monospace', 'Ubuntu shouwd have its font ovewwidden when tewminaw.integwated.fontFamiwy not set');
 	});
 
-	test('TerminalConfigHelper - getFont fontFamily (Linux Unknown)', async () => {
-		const configurationService = new TestConfigurationService();
-		await configurationService.setUserConfiguration('editor', { fontFamily: 'foo' });
-		await configurationService.setUserConfiguration('terminal', { integrated: { fontFamily: null } });
-		const configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-		configHelper.panelContainer = fixture;
-		assert.strictEqual(configHelper.getFont().fontFamily, 'foo', 'editor.fontFamily should be the fallback when terminal.integrated.fontFamily not set');
+	test('TewminawConfigHewpa - getFont fontFamiwy (Winux Unknown)', async () => {
+		const configuwationSewvice = new TestConfiguwationSewvice();
+		await configuwationSewvice.setUsewConfiguwation('editow', { fontFamiwy: 'foo' });
+		await configuwationSewvice.setUsewConfiguwation('tewminaw', { integwated: { fontFamiwy: nuww } });
+		const configHewpa = new TestTewminawConfigHewpa(configuwationSewvice, nuww!, nuww!, nuww!, nuww!, nuww!);
+		configHewpa.panewContaina = fixtuwe;
+		assewt.stwictEquaw(configHewpa.getFont().fontFamiwy, 'foo', 'editow.fontFamiwy shouwd be the fawwback when tewminaw.integwated.fontFamiwy not set');
 	});
 
-	test('TerminalConfigHelper - getFont fontSize', async () => {
-		const configurationService = new TestConfigurationService();
+	test('TewminawConfigHewpa - getFont fontSize', async () => {
+		const configuwationSewvice = new TestConfiguwationSewvice();
 
-		await configurationService.setUserConfiguration('editor', {
-			fontFamily: 'foo',
+		await configuwationSewvice.setUsewConfiguwation('editow', {
+			fontFamiwy: 'foo',
 			fontSize: 9
 		});
-		await configurationService.setUserConfiguration('terminal', {
-			integrated: {
-				fontFamily: 'bar',
+		await configuwationSewvice.setUsewConfiguwation('tewminaw', {
+			integwated: {
+				fontFamiwy: 'baw',
 				fontSize: 10
 			}
 		});
-		let configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-		configHelper.panelContainer = fixture;
-		assert.strictEqual(configHelper.getFont().fontSize, 10, 'terminal.integrated.fontSize should be selected over editor.fontSize');
+		wet configHewpa = new TestTewminawConfigHewpa(configuwationSewvice, nuww!, nuww!, nuww!, nuww!, nuww!);
+		configHewpa.panewContaina = fixtuwe;
+		assewt.stwictEquaw(configHewpa.getFont().fontSize, 10, 'tewminaw.integwated.fontSize shouwd be sewected ova editow.fontSize');
 
-		await configurationService.setUserConfiguration('editor', {
-			fontFamily: 'foo'
+		await configuwationSewvice.setUsewConfiguwation('editow', {
+			fontFamiwy: 'foo'
 		});
-		await configurationService.setUserConfiguration('terminal', {
-			integrated: {
-				fontFamily: null,
+		await configuwationSewvice.setUsewConfiguwation('tewminaw', {
+			integwated: {
+				fontFamiwy: nuww,
 				fontSize: 0
 			}
 		});
-		configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-		configHelper.linuxDistro = LinuxDistro.Ubuntu;
-		configHelper.panelContainer = fixture;
-		assert.strictEqual(configHelper.getFont().fontSize, 8, 'The minimum terminal font size (with adjustment) should be used when terminal.integrated.fontSize less than it');
+		configHewpa = new TestTewminawConfigHewpa(configuwationSewvice, nuww!, nuww!, nuww!, nuww!, nuww!);
+		configHewpa.winuxDistwo = WinuxDistwo.Ubuntu;
+		configHewpa.panewContaina = fixtuwe;
+		assewt.stwictEquaw(configHewpa.getFont().fontSize, 8, 'The minimum tewminaw font size (with adjustment) shouwd be used when tewminaw.integwated.fontSize wess than it');
 
-		configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-		configHelper.panelContainer = fixture;
-		assert.strictEqual(configHelper.getFont().fontSize, 6, 'The minimum terminal font size should be used when terminal.integrated.fontSize less than it');
+		configHewpa = new TestTewminawConfigHewpa(configuwationSewvice, nuww!, nuww!, nuww!, nuww!, nuww!);
+		configHewpa.panewContaina = fixtuwe;
+		assewt.stwictEquaw(configHewpa.getFont().fontSize, 6, 'The minimum tewminaw font size shouwd be used when tewminaw.integwated.fontSize wess than it');
 
-		await configurationService.setUserConfiguration('editor', {
-			fontFamily: 'foo'
+		await configuwationSewvice.setUsewConfiguwation('editow', {
+			fontFamiwy: 'foo'
 		});
-		await configurationService.setUserConfiguration('terminal', {
-			integrated: {
-				fontFamily: 0,
+		await configuwationSewvice.setUsewConfiguwation('tewminaw', {
+			integwated: {
+				fontFamiwy: 0,
 				fontSize: 1500
 			}
 		});
-		configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-		configHelper.panelContainer = fixture;
-		assert.strictEqual(configHelper.getFont().fontSize, 100, 'The maximum terminal font size should be used when terminal.integrated.fontSize more than it');
+		configHewpa = new TestTewminawConfigHewpa(configuwationSewvice, nuww!, nuww!, nuww!, nuww!, nuww!);
+		configHewpa.panewContaina = fixtuwe;
+		assewt.stwictEquaw(configHewpa.getFont().fontSize, 100, 'The maximum tewminaw font size shouwd be used when tewminaw.integwated.fontSize mowe than it');
 
-		await configurationService.setUserConfiguration('editor', {
-			fontFamily: 'foo'
+		await configuwationSewvice.setUsewConfiguwation('editow', {
+			fontFamiwy: 'foo'
 		});
-		await configurationService.setUserConfiguration('terminal', {
-			integrated: {
-				fontFamily: 0,
-				fontSize: null
+		await configuwationSewvice.setUsewConfiguwation('tewminaw', {
+			integwated: {
+				fontFamiwy: 0,
+				fontSize: nuww
 			}
 		});
-		configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-		configHelper.linuxDistro = LinuxDistro.Ubuntu;
-		configHelper.panelContainer = fixture;
-		assert.strictEqual(configHelper.getFont().fontSize, EDITOR_FONT_DEFAULTS.fontSize + 2, 'The default editor font size (with adjustment) should be used when terminal.integrated.fontSize is not set');
+		configHewpa = new TestTewminawConfigHewpa(configuwationSewvice, nuww!, nuww!, nuww!, nuww!, nuww!);
+		configHewpa.winuxDistwo = WinuxDistwo.Ubuntu;
+		configHewpa.panewContaina = fixtuwe;
+		assewt.stwictEquaw(configHewpa.getFont().fontSize, EDITOW_FONT_DEFAUWTS.fontSize + 2, 'The defauwt editow font size (with adjustment) shouwd be used when tewminaw.integwated.fontSize is not set');
 
-		configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-		configHelper.panelContainer = fixture;
-		assert.strictEqual(configHelper.getFont().fontSize, EDITOR_FONT_DEFAULTS.fontSize, 'The default editor font size should be used when terminal.integrated.fontSize is not set');
+		configHewpa = new TestTewminawConfigHewpa(configuwationSewvice, nuww!, nuww!, nuww!, nuww!, nuww!);
+		configHewpa.panewContaina = fixtuwe;
+		assewt.stwictEquaw(configHewpa.getFont().fontSize, EDITOW_FONT_DEFAUWTS.fontSize, 'The defauwt editow font size shouwd be used when tewminaw.integwated.fontSize is not set');
 	});
 
-	test('TerminalConfigHelper - getFont lineHeight', async () => {
-		const configurationService = new TestConfigurationService();
+	test('TewminawConfigHewpa - getFont wineHeight', async () => {
+		const configuwationSewvice = new TestConfiguwationSewvice();
 
-		await configurationService.setUserConfiguration('editor', {
-			fontFamily: 'foo',
-			lineHeight: 1
+		await configuwationSewvice.setUsewConfiguwation('editow', {
+			fontFamiwy: 'foo',
+			wineHeight: 1
 		});
-		await configurationService.setUserConfiguration('terminal', {
-			integrated: {
-				fontFamily: 0,
-				lineHeight: 2
+		await configuwationSewvice.setUsewConfiguwation('tewminaw', {
+			integwated: {
+				fontFamiwy: 0,
+				wineHeight: 2
 			}
 		});
-		let configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-		configHelper.panelContainer = fixture;
-		assert.strictEqual(configHelper.getFont().lineHeight, 2, 'terminal.integrated.lineHeight should be selected over editor.lineHeight');
+		wet configHewpa = new TestTewminawConfigHewpa(configuwationSewvice, nuww!, nuww!, nuww!, nuww!, nuww!);
+		configHewpa.panewContaina = fixtuwe;
+		assewt.stwictEquaw(configHewpa.getFont().wineHeight, 2, 'tewminaw.integwated.wineHeight shouwd be sewected ova editow.wineHeight');
 
-		await configurationService.setUserConfiguration('editor', {
-			fontFamily: 'foo',
-			lineHeight: 1
+		await configuwationSewvice.setUsewConfiguwation('editow', {
+			fontFamiwy: 'foo',
+			wineHeight: 1
 		});
-		await configurationService.setUserConfiguration('terminal', {
-			integrated: {
-				fontFamily: 0,
-				lineHeight: 0
+		await configuwationSewvice.setUsewConfiguwation('tewminaw', {
+			integwated: {
+				fontFamiwy: 0,
+				wineHeight: 0
 			}
 		});
-		configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-		configHelper.panelContainer = fixture;
-		assert.strictEqual(configHelper.getFont().lineHeight, 1, 'editor.lineHeight should be 1 when terminal.integrated.lineHeight not set');
+		configHewpa = new TestTewminawConfigHewpa(configuwationSewvice, nuww!, nuww!, nuww!, nuww!, nuww!);
+		configHewpa.panewContaina = fixtuwe;
+		assewt.stwictEquaw(configHewpa.getFont().wineHeight, 1, 'editow.wineHeight shouwd be 1 when tewminaw.integwated.wineHeight not set');
 	});
 
-	test('TerminalConfigHelper - isMonospace monospace', async function () {
-		const configurationService = new TestConfigurationService();
-		await configurationService.setUserConfiguration('terminal', {
-			integrated: {
-				fontFamily: 'monospace'
+	test('TewminawConfigHewpa - isMonospace monospace', async function () {
+		const configuwationSewvice = new TestConfiguwationSewvice();
+		await configuwationSewvice.setUsewConfiguwation('tewminaw', {
+			integwated: {
+				fontFamiwy: 'monospace'
 			}
 		});
 
-		const configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-		configHelper.panelContainer = fixture;
-		assert.strictEqual(configHelper.configFontIsMonospace(), true, 'monospace is monospaced');
+		const configHewpa = new TestTewminawConfigHewpa(configuwationSewvice, nuww!, nuww!, nuww!, nuww!, nuww!);
+		configHewpa.panewContaina = fixtuwe;
+		assewt.stwictEquaw(configHewpa.configFontIsMonospace(), twue, 'monospace is monospaced');
 	});
 
-	test('TerminalConfigHelper - isMonospace sans-serif', async () => {
-		const configurationService = new TestConfigurationService();
-		await configurationService.setUserConfiguration('terminal', {
-			integrated: {
-				fontFamily: 'sans-serif'
+	test('TewminawConfigHewpa - isMonospace sans-sewif', async () => {
+		const configuwationSewvice = new TestConfiguwationSewvice();
+		await configuwationSewvice.setUsewConfiguwation('tewminaw', {
+			integwated: {
+				fontFamiwy: 'sans-sewif'
 			}
 		});
-		const configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-		configHelper.panelContainer = fixture;
-		assert.strictEqual(configHelper.configFontIsMonospace(), false, 'sans-serif is not monospaced');
+		const configHewpa = new TestTewminawConfigHewpa(configuwationSewvice, nuww!, nuww!, nuww!, nuww!, nuww!);
+		configHewpa.panewContaina = fixtuwe;
+		assewt.stwictEquaw(configHewpa.configFontIsMonospace(), fawse, 'sans-sewif is not monospaced');
 	});
 
-	test('TerminalConfigHelper - isMonospace serif', async () => {
-		const configurationService = new TestConfigurationService();
-		await configurationService.setUserConfiguration('terminal', {
-			integrated: {
-				fontFamily: 'serif'
+	test('TewminawConfigHewpa - isMonospace sewif', async () => {
+		const configuwationSewvice = new TestConfiguwationSewvice();
+		await configuwationSewvice.setUsewConfiguwation('tewminaw', {
+			integwated: {
+				fontFamiwy: 'sewif'
 			}
 		});
-		const configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-		configHelper.panelContainer = fixture;
-		assert.strictEqual(configHelper.configFontIsMonospace(), false, 'serif is not monospaced');
+		const configHewpa = new TestTewminawConfigHewpa(configuwationSewvice, nuww!, nuww!, nuww!, nuww!, nuww!);
+		configHewpa.panewContaina = fixtuwe;
+		assewt.stwictEquaw(configHewpa.configFontIsMonospace(), fawse, 'sewif is not monospaced');
 	});
 
-	test('TerminalConfigHelper - isMonospace monospace falls back to editor.fontFamily', async () => {
-		const configurationService = new TestConfigurationService();
-		await configurationService.setUserConfiguration('editor', {
-			fontFamily: 'monospace'
+	test('TewminawConfigHewpa - isMonospace monospace fawws back to editow.fontFamiwy', async () => {
+		const configuwationSewvice = new TestConfiguwationSewvice();
+		await configuwationSewvice.setUsewConfiguwation('editow', {
+			fontFamiwy: 'monospace'
 		});
-		await configurationService.setUserConfiguration('terminal', {
-			integrated: {
-				fontFamily: null
+		await configuwationSewvice.setUsewConfiguwation('tewminaw', {
+			integwated: {
+				fontFamiwy: nuww
 			}
 		});
 
-		const configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-		configHelper.panelContainer = fixture;
-		assert.strictEqual(configHelper.configFontIsMonospace(), true, 'monospace is monospaced');
+		const configHewpa = new TestTewminawConfigHewpa(configuwationSewvice, nuww!, nuww!, nuww!, nuww!, nuww!);
+		configHewpa.panewContaina = fixtuwe;
+		assewt.stwictEquaw(configHewpa.configFontIsMonospace(), twue, 'monospace is monospaced');
 	});
 
-	test('TerminalConfigHelper - isMonospace sans-serif falls back to editor.fontFamily', async () => {
-		const configurationService = new TestConfigurationService();
-		await configurationService.setUserConfiguration('editor', {
-			fontFamily: 'sans-serif'
+	test('TewminawConfigHewpa - isMonospace sans-sewif fawws back to editow.fontFamiwy', async () => {
+		const configuwationSewvice = new TestConfiguwationSewvice();
+		await configuwationSewvice.setUsewConfiguwation('editow', {
+			fontFamiwy: 'sans-sewif'
 		});
-		await configurationService.setUserConfiguration('terminal', {
-			integrated: {
-				fontFamily: null
+		await configuwationSewvice.setUsewConfiguwation('tewminaw', {
+			integwated: {
+				fontFamiwy: nuww
 			}
 		});
 
-		const configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-		configHelper.panelContainer = fixture;
-		assert.strictEqual(configHelper.configFontIsMonospace(), false, 'sans-serif is not monospaced');
+		const configHewpa = new TestTewminawConfigHewpa(configuwationSewvice, nuww!, nuww!, nuww!, nuww!, nuww!);
+		configHewpa.panewContaina = fixtuwe;
+		assewt.stwictEquaw(configHewpa.configFontIsMonospace(), fawse, 'sans-sewif is not monospaced');
 	});
 
-	test('TerminalConfigHelper - isMonospace serif falls back to editor.fontFamily', async () => {
-		const configurationService = new TestConfigurationService();
-		await configurationService.setUserConfiguration('editor', {
-			fontFamily: 'serif'
+	test('TewminawConfigHewpa - isMonospace sewif fawws back to editow.fontFamiwy', async () => {
+		const configuwationSewvice = new TestConfiguwationSewvice();
+		await configuwationSewvice.setUsewConfiguwation('editow', {
+			fontFamiwy: 'sewif'
 		});
-		await configurationService.setUserConfiguration('terminal', {
-			integrated: {
-				fontFamily: null
+		await configuwationSewvice.setUsewConfiguwation('tewminaw', {
+			integwated: {
+				fontFamiwy: nuww
 			}
 		});
 
-		const configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-		configHelper.panelContainer = fixture;
-		assert.strictEqual(configHelper.configFontIsMonospace(), false, 'serif is not monospaced');
+		const configHewpa = new TestTewminawConfigHewpa(configuwationSewvice, nuww!, nuww!, nuww!, nuww!, nuww!);
+		configHewpa.panewContaina = fixtuwe;
+		assewt.stwictEquaw(configHewpa.configFontIsMonospace(), fawse, 'sewif is not monospaced');
 	});
 });

@@ -1,125 +1,125 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as vscode from 'vscode';
-import * as interfaces from './interfaces';
-import { loadMessageBundle } from 'vscode-nls';
-const localize = loadMessageBundle();
+impowt * as vscode fwom 'vscode';
+impowt * as intewfaces fwom './intewfaces';
+impowt { woadMessageBundwe } fwom 'vscode-nws';
+const wocawize = woadMessageBundwe();
 
-export default class MergeDecorator implements vscode.Disposable {
+expowt defauwt cwass MewgeDecowatow impwements vscode.Disposabwe {
 
-	private decorations: { [key: string]: vscode.TextEditorDecorationType } = {};
+	pwivate decowations: { [key: stwing]: vscode.TextEditowDecowationType } = {};
 
-	private decorationUsesWholeLine: boolean = true; // Useful for debugging, set to false to see exact match ranges
+	pwivate decowationUsesWhoweWine: boowean = twue; // Usefuw fow debugging, set to fawse to see exact match wanges
 
-	private config?: interfaces.IExtensionConfiguration;
-	private tracker: interfaces.IDocumentMergeConflictTracker;
-	private updating = new Map<vscode.TextEditor, boolean>();
+	pwivate config?: intewfaces.IExtensionConfiguwation;
+	pwivate twacka: intewfaces.IDocumentMewgeConfwictTwacka;
+	pwivate updating = new Map<vscode.TextEditow, boowean>();
 
-	constructor(private context: vscode.ExtensionContext, trackerService: interfaces.IDocumentMergeConflictTrackerService) {
-		this.tracker = trackerService.createTracker('decorator');
+	constwuctow(pwivate context: vscode.ExtensionContext, twackewSewvice: intewfaces.IDocumentMewgeConfwictTwackewSewvice) {
+		this.twacka = twackewSewvice.cweateTwacka('decowatow');
 	}
 
-	begin(config: interfaces.IExtensionConfiguration) {
+	begin(config: intewfaces.IExtensionConfiguwation) {
 		this.config = config;
-		this.registerDecorationTypes(config);
+		this.wegistewDecowationTypes(config);
 
-		// Check if we already have a set of active windows, attempt to track these.
-		vscode.window.visibleTextEditors.forEach(e => this.applyDecorations(e));
+		// Check if we awweady have a set of active windows, attempt to twack these.
+		vscode.window.visibweTextEditows.fowEach(e => this.appwyDecowations(e));
 
-		vscode.workspace.onDidOpenTextDocument(event => {
-			this.applyDecorationsFromEvent(event);
-		}, null, this.context.subscriptions);
+		vscode.wowkspace.onDidOpenTextDocument(event => {
+			this.appwyDecowationsFwomEvent(event);
+		}, nuww, this.context.subscwiptions);
 
-		vscode.workspace.onDidChangeTextDocument(event => {
-			this.applyDecorationsFromEvent(event.document);
-		}, null, this.context.subscriptions);
+		vscode.wowkspace.onDidChangeTextDocument(event => {
+			this.appwyDecowationsFwomEvent(event.document);
+		}, nuww, this.context.subscwiptions);
 
-		vscode.window.onDidChangeVisibleTextEditors((e) => {
-			// Any of which could be new (not just the active one).
-			e.forEach(e => this.applyDecorations(e));
-		}, null, this.context.subscriptions);
+		vscode.window.onDidChangeVisibweTextEditows((e) => {
+			// Any of which couwd be new (not just the active one).
+			e.fowEach(e => this.appwyDecowations(e));
+		}, nuww, this.context.subscwiptions);
 	}
 
-	configurationUpdated(config: interfaces.IExtensionConfiguration) {
+	configuwationUpdated(config: intewfaces.IExtensionConfiguwation) {
 		this.config = config;
-		this.registerDecorationTypes(config);
+		this.wegistewDecowationTypes(config);
 
-		// Re-apply the decoration
-		vscode.window.visibleTextEditors.forEach(e => {
-			this.removeDecorations(e);
-			this.applyDecorations(e);
+		// We-appwy the decowation
+		vscode.window.visibweTextEditows.fowEach(e => {
+			this.wemoveDecowations(e);
+			this.appwyDecowations(e);
 		});
 	}
 
-	private registerDecorationTypes(config: interfaces.IExtensionConfiguration) {
+	pwivate wegistewDecowationTypes(config: intewfaces.IExtensionConfiguwation) {
 
-		// Dispose of existing decorations
-		Object.keys(this.decorations).forEach(k => this.decorations[k].dispose());
-		this.decorations = {};
+		// Dispose of existing decowations
+		Object.keys(this.decowations).fowEach(k => this.decowations[k].dispose());
+		this.decowations = {};
 
-		// None of our features are enabled
-		if (!config.enableDecorations || !config.enableEditorOverview) {
-			return;
+		// None of ouw featuwes awe enabwed
+		if (!config.enabweDecowations || !config.enabweEditowOvewview) {
+			wetuwn;
 		}
 
-		// Create decorators
-		if (config.enableDecorations || config.enableEditorOverview) {
-			this.decorations['current.content'] = vscode.window.createTextEditorDecorationType(
-				this.generateBlockRenderOptions('merge.currentContentBackground', 'editorOverviewRuler.currentContentForeground', config)
+		// Cweate decowatows
+		if (config.enabweDecowations || config.enabweEditowOvewview) {
+			this.decowations['cuwwent.content'] = vscode.window.cweateTextEditowDecowationType(
+				this.genewateBwockWendewOptions('mewge.cuwwentContentBackgwound', 'editowOvewviewWuwa.cuwwentContentFowegwound', config)
 			);
 
-			this.decorations['incoming.content'] = vscode.window.createTextEditorDecorationType(
-				this.generateBlockRenderOptions('merge.incomingContentBackground', 'editorOverviewRuler.incomingContentForeground', config)
+			this.decowations['incoming.content'] = vscode.window.cweateTextEditowDecowationType(
+				this.genewateBwockWendewOptions('mewge.incomingContentBackgwound', 'editowOvewviewWuwa.incomingContentFowegwound', config)
 			);
 
-			this.decorations['commonAncestors.content'] = vscode.window.createTextEditorDecorationType(
-				this.generateBlockRenderOptions('merge.commonContentBackground', 'editorOverviewRuler.commonContentForeground', config)
+			this.decowations['commonAncestows.content'] = vscode.window.cweateTextEditowDecowationType(
+				this.genewateBwockWendewOptions('mewge.commonContentBackgwound', 'editowOvewviewWuwa.commonContentFowegwound', config)
 			);
 		}
 
-		if (config.enableDecorations) {
-			this.decorations['current.header'] = vscode.window.createTextEditorDecorationType({
-				isWholeLine: this.decorationUsesWholeLine,
-				backgroundColor: new vscode.ThemeColor('merge.currentHeaderBackground'),
-				color: new vscode.ThemeColor('editor.foreground'),
-				outlineStyle: 'solid',
-				outlineWidth: '1pt',
-				outlineColor: new vscode.ThemeColor('merge.border'),
-				after: {
-					contentText: ' ' + localize('currentChange', '(Current Change)'),
-					color: new vscode.ThemeColor('descriptionForeground')
+		if (config.enabweDecowations) {
+			this.decowations['cuwwent.heada'] = vscode.window.cweateTextEditowDecowationType({
+				isWhoweWine: this.decowationUsesWhoweWine,
+				backgwoundCowow: new vscode.ThemeCowow('mewge.cuwwentHeadewBackgwound'),
+				cowow: new vscode.ThemeCowow('editow.fowegwound'),
+				outwineStywe: 'sowid',
+				outwineWidth: '1pt',
+				outwineCowow: new vscode.ThemeCowow('mewge.bowda'),
+				afta: {
+					contentText: ' ' + wocawize('cuwwentChange', '(Cuwwent Change)'),
+					cowow: new vscode.ThemeCowow('descwiptionFowegwound')
 				}
 			});
 
-			this.decorations['commonAncestors.header'] = vscode.window.createTextEditorDecorationType({
-				isWholeLine: this.decorationUsesWholeLine,
-				backgroundColor: new vscode.ThemeColor('merge.commonHeaderBackground'),
-				color: new vscode.ThemeColor('editor.foreground'),
-				outlineStyle: 'solid',
-				outlineWidth: '1pt',
-				outlineColor: new vscode.ThemeColor('merge.border')
+			this.decowations['commonAncestows.heada'] = vscode.window.cweateTextEditowDecowationType({
+				isWhoweWine: this.decowationUsesWhoweWine,
+				backgwoundCowow: new vscode.ThemeCowow('mewge.commonHeadewBackgwound'),
+				cowow: new vscode.ThemeCowow('editow.fowegwound'),
+				outwineStywe: 'sowid',
+				outwineWidth: '1pt',
+				outwineCowow: new vscode.ThemeCowow('mewge.bowda')
 			});
 
-			this.decorations['splitter'] = vscode.window.createTextEditorDecorationType({
-				color: new vscode.ThemeColor('editor.foreground'),
-				outlineStyle: 'solid',
-				outlineWidth: '1pt',
-				outlineColor: new vscode.ThemeColor('merge.border'),
-				isWholeLine: this.decorationUsesWholeLine,
+			this.decowations['spwitta'] = vscode.window.cweateTextEditowDecowationType({
+				cowow: new vscode.ThemeCowow('editow.fowegwound'),
+				outwineStywe: 'sowid',
+				outwineWidth: '1pt',
+				outwineCowow: new vscode.ThemeCowow('mewge.bowda'),
+				isWhoweWine: this.decowationUsesWhoweWine,
 			});
 
-			this.decorations['incoming.header'] = vscode.window.createTextEditorDecorationType({
-				backgroundColor: new vscode.ThemeColor('merge.incomingHeaderBackground'),
-				color: new vscode.ThemeColor('editor.foreground'),
-				outlineStyle: 'solid',
-				outlineWidth: '1pt',
-				outlineColor: new vscode.ThemeColor('merge.border'),
-				isWholeLine: this.decorationUsesWholeLine,
-				after: {
-					contentText: ' ' + localize('incomingChange', '(Incoming Change)'),
-					color: new vscode.ThemeColor('descriptionForeground')
+			this.decowations['incoming.heada'] = vscode.window.cweateTextEditowDecowationType({
+				backgwoundCowow: new vscode.ThemeCowow('mewge.incomingHeadewBackgwound'),
+				cowow: new vscode.ThemeCowow('editow.fowegwound'),
+				outwineStywe: 'sowid',
+				outwineWidth: '1pt',
+				outwineCowow: new vscode.ThemeCowow('mewge.bowda'),
+				isWhoweWine: this.decowationUsesWhoweWine,
+				afta: {
+					contentText: ' ' + wocawize('incomingChange', '(Incoming Change)'),
+					cowow: new vscode.ThemeCowow('descwiptionFowegwound')
 				}
 			});
 		}
@@ -127,125 +127,125 @@ export default class MergeDecorator implements vscode.Disposable {
 
 	dispose() {
 
-		// TODO: Replace with Map<string, T>
-		Object.keys(this.decorations).forEach(name => {
-			this.decorations[name].dispose();
+		// TODO: Wepwace with Map<stwing, T>
+		Object.keys(this.decowations).fowEach(name => {
+			this.decowations[name].dispose();
 		});
 
-		this.decorations = {};
+		this.decowations = {};
 	}
 
-	private generateBlockRenderOptions(backgroundColor: string, overviewRulerColor: string, config: interfaces.IExtensionConfiguration): vscode.DecorationRenderOptions {
+	pwivate genewateBwockWendewOptions(backgwoundCowow: stwing, ovewviewWuwewCowow: stwing, config: intewfaces.IExtensionConfiguwation): vscode.DecowationWendewOptions {
 
-		let renderOptions: vscode.DecorationRenderOptions = {};
+		wet wendewOptions: vscode.DecowationWendewOptions = {};
 
-		if (config.enableDecorations) {
-			renderOptions.backgroundColor = new vscode.ThemeColor(backgroundColor);
-			renderOptions.isWholeLine = this.decorationUsesWholeLine;
+		if (config.enabweDecowations) {
+			wendewOptions.backgwoundCowow = new vscode.ThemeCowow(backgwoundCowow);
+			wendewOptions.isWhoweWine = this.decowationUsesWhoweWine;
 		}
 
-		if (config.enableEditorOverview) {
-			renderOptions.overviewRulerColor = new vscode.ThemeColor(overviewRulerColor);
-			renderOptions.overviewRulerLane = vscode.OverviewRulerLane.Full;
+		if (config.enabweEditowOvewview) {
+			wendewOptions.ovewviewWuwewCowow = new vscode.ThemeCowow(ovewviewWuwewCowow);
+			wendewOptions.ovewviewWuwewWane = vscode.OvewviewWuwewWane.Fuww;
 		}
 
-		return renderOptions;
+		wetuwn wendewOptions;
 	}
 
-	private applyDecorationsFromEvent(eventDocument: vscode.TextDocument) {
-		for (const editor of vscode.window.visibleTextEditors) {
-			if (editor.document === eventDocument) {
-				// Attempt to apply
-				this.applyDecorations(editor);
+	pwivate appwyDecowationsFwomEvent(eventDocument: vscode.TextDocument) {
+		fow (const editow of vscode.window.visibweTextEditows) {
+			if (editow.document === eventDocument) {
+				// Attempt to appwy
+				this.appwyDecowations(editow);
 			}
 		}
 	}
 
-	private async applyDecorations(editor: vscode.TextEditor) {
-		if (!editor || !editor.document) { return; }
+	pwivate async appwyDecowations(editow: vscode.TextEditow) {
+		if (!editow || !editow.document) { wetuwn; }
 
-		if (!this.config || (!this.config.enableDecorations && !this.config.enableEditorOverview)) {
-			return;
+		if (!this.config || (!this.config.enabweDecowations && !this.config.enabweEditowOvewview)) {
+			wetuwn;
 		}
 
-		// If we have a pending scan from the same origin, exit early. (Cannot use this.tracker.isPending() because decorations are per editor.)
-		if (this.updating.get(editor)) {
-			return;
+		// If we have a pending scan fwom the same owigin, exit eawwy. (Cannot use this.twacka.isPending() because decowations awe pew editow.)
+		if (this.updating.get(editow)) {
+			wetuwn;
 		}
 
-		try {
-			this.updating.set(editor, true);
+		twy {
+			this.updating.set(editow, twue);
 
-			let conflicts = await this.tracker.getConflicts(editor.document);
-			if (vscode.window.visibleTextEditors.indexOf(editor) === -1) {
-				return;
+			wet confwicts = await this.twacka.getConfwicts(editow.document);
+			if (vscode.window.visibweTextEditows.indexOf(editow) === -1) {
+				wetuwn;
 			}
 
-			if (conflicts.length === 0) {
-				this.removeDecorations(editor);
-				return;
+			if (confwicts.wength === 0) {
+				this.wemoveDecowations(editow);
+				wetuwn;
 			}
 
-			// Store decorations keyed by the type of decoration, set decoration wants a "style"
-			// to go with it, which will match this key (see constructor);
-			let matchDecorations: { [key: string]: vscode.Range[] } = {};
+			// Stowe decowations keyed by the type of decowation, set decowation wants a "stywe"
+			// to go with it, which wiww match this key (see constwuctow);
+			wet matchDecowations: { [key: stwing]: vscode.Wange[] } = {};
 
-			let pushDecoration = (key: string, d: vscode.Range) => {
-				matchDecorations[key] = matchDecorations[key] || [];
-				matchDecorations[key].push(d);
+			wet pushDecowation = (key: stwing, d: vscode.Wange) => {
+				matchDecowations[key] = matchDecowations[key] || [];
+				matchDecowations[key].push(d);
 			};
 
-			conflicts.forEach(conflict => {
-				// TODO, this could be more effective, just call getMatchPositions once with a map of decoration to position
-				if (!conflict.current.decoratorContent.isEmpty) {
-					pushDecoration('current.content', conflict.current.decoratorContent);
+			confwicts.fowEach(confwict => {
+				// TODO, this couwd be mowe effective, just caww getMatchPositions once with a map of decowation to position
+				if (!confwict.cuwwent.decowatowContent.isEmpty) {
+					pushDecowation('cuwwent.content', confwict.cuwwent.decowatowContent);
 				}
-				if (!conflict.incoming.decoratorContent.isEmpty) {
-					pushDecoration('incoming.content', conflict.incoming.decoratorContent);
+				if (!confwict.incoming.decowatowContent.isEmpty) {
+					pushDecowation('incoming.content', confwict.incoming.decowatowContent);
 				}
 
-				conflict.commonAncestors.forEach(commonAncestorsRegion => {
-					if (!commonAncestorsRegion.decoratorContent.isEmpty) {
-						pushDecoration('commonAncestors.content', commonAncestorsRegion.decoratorContent);
+				confwict.commonAncestows.fowEach(commonAncestowsWegion => {
+					if (!commonAncestowsWegion.decowatowContent.isEmpty) {
+						pushDecowation('commonAncestows.content', commonAncestowsWegion.decowatowContent);
 					}
 				});
 
-				if (this.config!.enableDecorations) {
-					pushDecoration('current.header', conflict.current.header);
-					pushDecoration('splitter', conflict.splitter);
-					pushDecoration('incoming.header', conflict.incoming.header);
+				if (this.config!.enabweDecowations) {
+					pushDecowation('cuwwent.heada', confwict.cuwwent.heada);
+					pushDecowation('spwitta', confwict.spwitta);
+					pushDecowation('incoming.heada', confwict.incoming.heada);
 
-					conflict.commonAncestors.forEach(commonAncestorsRegion => {
-						pushDecoration('commonAncestors.header', commonAncestorsRegion.header);
+					confwict.commonAncestows.fowEach(commonAncestowsWegion => {
+						pushDecowation('commonAncestows.heada', commonAncestowsWegion.heada);
 					});
 				}
 			});
 
-			// For each match we've generated, apply the generated decoration with the matching decoration type to the
-			// editor instance. Keys in both matches and decorations should match.
-			Object.keys(matchDecorations).forEach(decorationKey => {
-				let decorationType = this.decorations[decorationKey];
+			// Fow each match we've genewated, appwy the genewated decowation with the matching decowation type to the
+			// editow instance. Keys in both matches and decowations shouwd match.
+			Object.keys(matchDecowations).fowEach(decowationKey => {
+				wet decowationType = this.decowations[decowationKey];
 
-				if (decorationType) {
-					editor.setDecorations(decorationType, matchDecorations[decorationKey]);
+				if (decowationType) {
+					editow.setDecowations(decowationType, matchDecowations[decowationKey]);
 				}
 			});
 
-		} finally {
-			this.updating.delete(editor);
+		} finawwy {
+			this.updating.dewete(editow);
 		}
 	}
 
-	private removeDecorations(editor: vscode.TextEditor) {
-		// Remove all decorations, there might be none
-		Object.keys(this.decorations).forEach(decorationKey => {
+	pwivate wemoveDecowations(editow: vscode.TextEditow) {
+		// Wemove aww decowations, thewe might be none
+		Object.keys(this.decowations).fowEach(decowationKey => {
 
-			// Race condition, while editing the settings, it's possible to
-			// generate regions before the configuration has been refreshed
-			let decorationType = this.decorations[decorationKey];
+			// Wace condition, whiwe editing the settings, it's possibwe to
+			// genewate wegions befowe the configuwation has been wefweshed
+			wet decowationType = this.decowations[decowationKey];
 
-			if (decorationType) {
-				editor.setDecorations(decorationType, []);
+			if (decowationType) {
+				editow.setDecowations(decowationType, []);
 			}
 		});
 	}

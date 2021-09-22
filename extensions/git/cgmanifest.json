@@ -1,66 +1,66 @@
 {
-	"registrations": [
+	"wegistwations": [
 		{
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "textmate/git.tmbundle",
-					"repositoryUrl": "https://github.com/textmate/git.tmbundle",
+					"name": "textmate/git.tmbundwe",
+					"wepositowyUww": "https://github.com/textmate/git.tmbundwe",
 					"commitHash": "5870cf3f8abad3a6637bdf69250b5d2ded427dc4"
 				}
 			},
-			"licenseDetail": [
-				"Copyright (c) 2008 Tim Harper",
+			"wicenseDetaiw": [
+				"Copywight (c) 2008 Tim Hawpa",
 				"",
-				"Permission is hereby granted, free of charge, to any person obtaining",
-				"a copy of this software and associated documentation files (the\"",
-				"Software\"), to deal in the Software without restriction, including",
-				"without limitation the rights to use, copy, modify, merge, publish,",
-				"distribute, sublicense, and/or sell copies of the Software, and to",
-				"permit persons to whom the Software is furnished to do so, subject to",
-				"the following conditions:",
+				"Pewmission is heweby gwanted, fwee of chawge, to any pewson obtaining",
+				"a copy of this softwawe and associated documentation fiwes (the\"",
+				"Softwawe\"), to deaw in the Softwawe without westwiction, incwuding",
+				"without wimitation the wights to use, copy, modify, mewge, pubwish,",
+				"distwibute, subwicense, and/ow seww copies of the Softwawe, and to",
+				"pewmit pewsons to whom the Softwawe is fuwnished to do so, subject to",
+				"the fowwowing conditions:",
 				"",
-				"The above copyright notice and this permission notice shall be",
-				"included in all copies or substantial portions of the Software.",
+				"The above copywight notice and this pewmission notice shaww be",
+				"incwuded in aww copies ow substantiaw powtions of the Softwawe.",
 				"",
-				"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND,",
-				"EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF",
-				"MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND",
-				"NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE",
-				"LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION",
-				"OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION",
-				"WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."
+				"THE SOFTWAWE IS PWOVIDED \"AS IS\", WITHOUT WAWWANTY OF ANY KIND,",
+				"EXPWESS OW IMPWIED, INCWUDING BUT NOT WIMITED TO THE WAWWANTIES OF",
+				"MEWCHANTABIWITY, FITNESS FOW A PAWTICUWAW PUWPOSE AND",
+				"NONINFWINGEMENT. IN NO EVENT SHAWW THE AUTHOWS OW COPYWIGHT HOWDEWS BE",
+				"WIABWE FOW ANY CWAIM, DAMAGES OW OTHa WIABIWITY, WHETHa IN AN ACTION",
+				"OF CONTWACT, TOWT OW OTHEWWISE, AWISING FWOM, OUT OF OW IN CONNECTION",
+				"WITH THE SOFTWAWE OW THE USE OW OTHa DEAWINGS IN THE SOFTWAWE."
 			],
-			"license": "MIT",
-			"version": "0.0.0"
+			"wicense": "MIT",
+			"vewsion": "0.0.0"
 		},
 		{
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "textmate/diff.tmbundle",
-					"repositoryUrl": "https://github.com/textmate/diff.tmbundle",
+					"name": "textmate/diff.tmbundwe",
+					"wepositowyUww": "https://github.com/textmate/diff.tmbundwe",
 					"commitHash": "0593bb775eab1824af97ef2172fd38822abd97d7"
 				}
 			},
-			"licenseDetail": [
-				"Copyright (c) textmate-diff.tmbundle project authors",
+			"wicenseDetaiw": [
+				"Copywight (c) textmate-diff.tmbundwe pwoject authows",
 				"",
-				"If not otherwise specified (see below), files in this repository fall under the following license:",
+				"If not othewwise specified (see bewow), fiwes in this wepositowy faww unda the fowwowing wicense:",
 				"",
-				"Permission to copy, use, modify, sell and distribute this",
-				"software is granted. This software is provided \"as is\" without",
-				"express or implied warranty, and with no claim as to its",
-				"suitability for any purpose.",
+				"Pewmission to copy, use, modify, seww and distwibute this",
+				"softwawe is gwanted. This softwawe is pwovided \"as is\" without",
+				"expwess ow impwied wawwanty, and with no cwaim as to its",
+				"suitabiwity fow any puwpose.",
 				"",
-				"An exception is made for files in readable text which contain their own license information,",
-				"or files where an accompanying file exists (in the same directory) with a \"-license\" suffix added",
-				"to the base-name name of the original file, and an extension of txt, html, or similar. For example",
-				"\"tidy\" is accompanied by \"tidy-license.txt\"."
+				"An exception is made fow fiwes in weadabwe text which contain theiw own wicense infowmation,",
+				"ow fiwes whewe an accompanying fiwe exists (in the same diwectowy) with a \"-wicense\" suffix added",
+				"to the base-name name of the owiginaw fiwe, and an extension of txt, htmw, ow simiwaw. Fow exampwe",
+				"\"tidy\" is accompanied by \"tidy-wicense.txt\"."
 			],
-			"license": "TextMate Bundle License",
-			"version": "0.0.0"
+			"wicense": "TextMate Bundwe Wicense",
+			"vewsion": "0.0.0"
 		}
 	],
-	"version": 1
+	"vewsion": 1
 }

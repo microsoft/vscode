@@ -1,48 +1,48 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
-import { ServerResponse } from '../typescriptService';
+impowt * as vscode fwom 'vscode';
+impowt type * as Pwoto fwom '../pwotocow';
+impowt { SewvewWesponse } fwom '../typescwiptSewvice';
 
-type Resolve<T extends Proto.Response> = () => Promise<ServerResponse.Response<T>>;
+type Wesowve<T extends Pwoto.Wesponse> = () => Pwomise<SewvewWesponse.Wesponse<T>>;
 
 /**
- * Caches a class of TS Server request based on document.
+ * Caches a cwass of TS Sewva wequest based on document.
  */
-export class CachedResponse<T extends Proto.Response> {
-	private response?: Promise<ServerResponse.Response<T>>;
-	private version: number = -1;
-	private document: string = '';
+expowt cwass CachedWesponse<T extends Pwoto.Wesponse> {
+	pwivate wesponse?: Pwomise<SewvewWesponse.Wesponse<T>>;
+	pwivate vewsion: numba = -1;
+	pwivate document: stwing = '';
 
 	/**
-	 * Execute a request. May return cached value or resolve the new value
+	 * Execute a wequest. May wetuwn cached vawue ow wesowve the new vawue
 	 *
-	 * Caller must ensure that all input `resolve` functions return equivilent results (keyed only off of document).
+	 * Cawwa must ensuwe that aww input `wesowve` functions wetuwn equiviwent wesuwts (keyed onwy off of document).
 	 */
-	public execute(
+	pubwic execute(
 		document: vscode.TextDocument,
-		resolve: Resolve<T>
-	): Promise<ServerResponse.Response<T>> {
-		if (this.response && this.matches(document)) {
-			// Chain so that on cancellation we fall back to the next resolve
-			return this.response = this.response.then(result => result.type === 'cancelled' ? resolve() : result);
+		wesowve: Wesowve<T>
+	): Pwomise<SewvewWesponse.Wesponse<T>> {
+		if (this.wesponse && this.matches(document)) {
+			// Chain so that on cancewwation we faww back to the next wesowve
+			wetuwn this.wesponse = this.wesponse.then(wesuwt => wesuwt.type === 'cancewwed' ? wesowve() : wesuwt);
 		}
-		return this.reset(document, resolve);
+		wetuwn this.weset(document, wesowve);
 	}
 
-	private matches(document: vscode.TextDocument): boolean {
-		return this.version === document.version && this.document === document.uri.toString();
+	pwivate matches(document: vscode.TextDocument): boowean {
+		wetuwn this.vewsion === document.vewsion && this.document === document.uwi.toStwing();
 	}
 
-	private async reset(
+	pwivate async weset(
 		document: vscode.TextDocument,
-		resolve: Resolve<T>
-	): Promise<ServerResponse.Response<T>> {
-		this.version = document.version;
-		this.document = document.uri.toString();
-		return this.response = resolve();
+		wesowve: Wesowve<T>
+	): Pwomise<SewvewWesponse.Wesponse<T>> {
+		this.vewsion = document.vewsion;
+		this.document = document.uwi.toStwing();
+		wetuwn this.wesponse = wesowve();
 	}
 }

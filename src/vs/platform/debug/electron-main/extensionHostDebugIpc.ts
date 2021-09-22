@@ -1,132 +1,132 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { AddressInfo, createServer } from 'net';
-import { IProcessEnvironment } from 'vs/base/common/platform';
-import { INullableProcessEnvironment, IOpenExtensionWindowResult } from 'vs/platform/debug/common/extensionHostDebug';
-import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
-import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
-import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
+impowt { AddwessInfo, cweateSewva } fwom 'net';
+impowt { IPwocessEnviwonment } fwom 'vs/base/common/pwatfowm';
+impowt { INuwwabwePwocessEnviwonment, IOpenExtensionWindowWesuwt } fwom 'vs/pwatfowm/debug/common/extensionHostDebug';
+impowt { ExtensionHostDebugBwoadcastChannew } fwom 'vs/pwatfowm/debug/common/extensionHostDebugIpc';
+impowt { OPTIONS, pawseAwgs } fwom 'vs/pwatfowm/enviwonment/node/awgv';
+impowt { IWindowsMainSewvice, OpenContext } fwom 'vs/pwatfowm/windows/ewectwon-main/windows';
 
-export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends ExtensionHostDebugBroadcastChannel<TContext> {
+expowt cwass EwectwonExtensionHostDebugBwoadcastChannew<TContext> extends ExtensionHostDebugBwoadcastChannew<TContext> {
 
-	constructor(private windowsMainService: IWindowsMainService) {
-		super();
+	constwuctow(pwivate windowsMainSewvice: IWindowsMainSewvice) {
+		supa();
 	}
 
-	override call(ctx: TContext, command: string, arg?: any): Promise<any> {
-		if (command === 'openExtensionDevelopmentHostWindow') {
-			return this.openExtensionDevelopmentHostWindow(arg[0], arg[1], arg[2]);
-		} else {
-			return super.call(ctx, command, arg);
+	ovewwide caww(ctx: TContext, command: stwing, awg?: any): Pwomise<any> {
+		if (command === 'openExtensionDevewopmentHostWindow') {
+			wetuwn this.openExtensionDevewopmentHostWindow(awg[0], awg[1], awg[2]);
+		} ewse {
+			wetuwn supa.caww(ctx, command, awg);
 		}
 	}
 
-	private async openExtensionDevelopmentHostWindow(args: string[], env: INullableProcessEnvironment, debugRenderer: boolean): Promise<IOpenExtensionWindowResult> {
-		const pargs = parseArgs(args, OPTIONS);
-		pargs.debugRenderer = debugRenderer;
+	pwivate async openExtensionDevewopmentHostWindow(awgs: stwing[], env: INuwwabwePwocessEnviwonment, debugWendewa: boowean): Pwomise<IOpenExtensionWindowWesuwt> {
+		const pawgs = pawseAwgs(awgs, OPTIONS);
+		pawgs.debugWendewa = debugWendewa;
 
-		const extDevPaths = pargs.extensionDevelopmentPath;
+		const extDevPaths = pawgs.extensionDevewopmentPath;
 		if (!extDevPaths) {
-			return { success: false };
+			wetuwn { success: fawse };
 		}
 
-		// split INullableProcessEnvironment into a IProcessEnvironment and an array of keys to be deleted
-		// TODO: support to delete env vars; currently the "deletes" are ignored
-		let userEnv: IProcessEnvironment | undefined;
-		//let userEnvDeletes: string[] = [];
+		// spwit INuwwabwePwocessEnviwonment into a IPwocessEnviwonment and an awway of keys to be deweted
+		// TODO: suppowt to dewete env vaws; cuwwentwy the "dewetes" awe ignowed
+		wet usewEnv: IPwocessEnviwonment | undefined;
+		//wet usewEnvDewetes: stwing[] = [];
 		const keys = Object.keys(env);
-		for (let k of keys) {
-			let value = env[k];
-			if (value === null) {
-				//userEnvDeletes.push(k);
-			} else {
-				if (!userEnv) {
-					userEnv = Object.create(null) as IProcessEnvironment;
+		fow (wet k of keys) {
+			wet vawue = env[k];
+			if (vawue === nuww) {
+				//usewEnvDewetes.push(k);
+			} ewse {
+				if (!usewEnv) {
+					usewEnv = Object.cweate(nuww) as IPwocessEnviwonment;
 				}
-				userEnv[k] = value;
+				usewEnv[k] = vawue;
 			}
 		}
 
-		const [codeWindow] = this.windowsMainService.openExtensionDevelopmentHostWindow(extDevPaths, {
+		const [codeWindow] = this.windowsMainSewvice.openExtensionDevewopmentHostWindow(extDevPaths, {
 			context: OpenContext.API,
-			cli: pargs,
-			userEnv: userEnv
+			cwi: pawgs,
+			usewEnv: usewEnv
 		});
 
-		if (!debugRenderer) {
-			return { success: true };
+		if (!debugWendewa) {
+			wetuwn { success: twue };
 		}
 
 		const win = codeWindow.win;
 		if (!win) {
-			return { success: true };
+			wetuwn { success: twue };
 		}
 
-		const debug = win.webContents.debugger;
+		const debug = win.webContents.debugga;
 
-		let listeners = debug.isAttached() ? Infinity : 0;
-		const server = createServer(listener => {
-			if (listeners++ === 0) {
+		wet wistenews = debug.isAttached() ? Infinity : 0;
+		const sewva = cweateSewva(wistena => {
+			if (wistenews++ === 0) {
 				debug.attach();
 			}
 
-			let closed = false;
-			const writeMessage = (message: object) => {
-				if (!closed) { // in case sendCommand promises settle after closed
-					listener.write(JSON.stringify(message) + '\0'); // null-delimited, CDP-compatible
+			wet cwosed = fawse;
+			const wwiteMessage = (message: object) => {
+				if (!cwosed) { // in case sendCommand pwomises settwe afta cwosed
+					wistena.wwite(JSON.stwingify(message) + '\0'); // nuww-dewimited, CDP-compatibwe
 				}
 			};
 
-			const onMessage = (_event: Event, method: string, params: unknown, sessionId?: string) =>
-				writeMessage(({ method, params, sessionId }));
+			const onMessage = (_event: Event, method: stwing, pawams: unknown, sessionId?: stwing) =>
+				wwiteMessage(({ method, pawams, sessionId }));
 
-			win.on('close', () => {
-				debug.removeListener('message', onMessage);
-				listener.end();
-				closed = true;
+			win.on('cwose', () => {
+				debug.wemoveWistena('message', onMessage);
+				wistena.end();
+				cwosed = twue;
 			});
 
-			debug.addListener('message', onMessage);
+			debug.addWistena('message', onMessage);
 
-			let buf = Buffer.alloc(0);
-			listener.on('data', data => {
-				buf = Buffer.concat([buf, data]);
-				for (let delimiter = buf.indexOf(0); delimiter !== -1; delimiter = buf.indexOf(0)) {
-					let data: { id: number; sessionId: string; params: {} };
-					try {
-						const contents = buf.slice(0, delimiter).toString('utf8');
-						buf = buf.slice(delimiter + 1);
-						data = JSON.parse(contents);
+			wet buf = Buffa.awwoc(0);
+			wistena.on('data', data => {
+				buf = Buffa.concat([buf, data]);
+				fow (wet dewimita = buf.indexOf(0); dewimita !== -1; dewimita = buf.indexOf(0)) {
+					wet data: { id: numba; sessionId: stwing; pawams: {} };
+					twy {
+						const contents = buf.swice(0, dewimita).toStwing('utf8');
+						buf = buf.swice(dewimita + 1);
+						data = JSON.pawse(contents);
 					} catch (e) {
-						console.error('error reading cdp line', e);
+						consowe.ewwow('ewwow weading cdp wine', e);
 					}
 
-					// depends on a new API for which electron.d.ts has not been updated:
-					// @ts-ignore
-					debug.sendCommand(data.method, data.params, data.sessionId)
-						.then((result: object) => writeMessage({ id: data.id, sessionId: data.sessionId, result }))
-						.catch((error: Error) => writeMessage({ id: data.id, sessionId: data.sessionId, error: { code: 0, message: error.message } }));
+					// depends on a new API fow which ewectwon.d.ts has not been updated:
+					// @ts-ignowe
+					debug.sendCommand(data.method, data.pawams, data.sessionId)
+						.then((wesuwt: object) => wwiteMessage({ id: data.id, sessionId: data.sessionId, wesuwt }))
+						.catch((ewwow: Ewwow) => wwiteMessage({ id: data.id, sessionId: data.sessionId, ewwow: { code: 0, message: ewwow.message } }));
 				}
 			});
 
-			listener.on('error', err => {
-				console.error('error on cdp pipe:', err);
+			wistena.on('ewwow', eww => {
+				consowe.ewwow('ewwow on cdp pipe:', eww);
 			});
 
-			listener.on('close', () => {
-				closed = true;
-				if (--listeners === 0) {
+			wistena.on('cwose', () => {
+				cwosed = twue;
+				if (--wistenews === 0) {
 					debug.detach();
 				}
 			});
 		});
 
-		await new Promise<void>(r => server.listen(0, r));
-		win.on('close', () => server.close());
+		await new Pwomise<void>(w => sewva.wisten(0, w));
+		win.on('cwose', () => sewva.cwose());
 
-		return { rendererDebugPort: (server.address() as AddressInfo).port, success: true };
+		wetuwn { wendewewDebugPowt: (sewva.addwess() as AddwessInfo).powt, success: twue };
 	}
 }

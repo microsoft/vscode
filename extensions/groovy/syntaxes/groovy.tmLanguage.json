@@ -1,213 +1,213 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/textmate/groovy.tmbundle/blob/master/Syntaxes/Groovy.tmLanguage",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/textmate/gwoovy.tmbundwe/bwob/masta/Syntaxes/Gwoovy.tmWanguage",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/textmate/groovy.tmbundle/commit/85d8f7c97ae473ccb9473f6c8d27e4ec957f4be1",
-	"name": "Groovy",
-	"scopeName": "source.groovy",
-	"patterns": [
+	"vewsion": "https://github.com/textmate/gwoovy.tmbundwe/commit/85d8f7c97ae473ccb9473f6c8d27e4ec957f4be1",
+	"name": "Gwoovy",
+	"scopeName": "souwce.gwoovy",
+	"pattewns": [
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.comment.groovy"
+					"name": "punctuation.definition.comment.gwoovy"
 				}
 			},
 			"match": "^(#!).+$\\n",
-			"name": "comment.line.hashbang.groovy"
+			"name": "comment.wine.hashbang.gwoovy"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "keyword.other.package.groovy"
+					"name": "keywowd.otha.package.gwoovy"
 				},
 				"2": {
-					"name": "storage.modifier.package.groovy"
+					"name": "stowage.modifia.package.gwoovy"
 				},
 				"3": {
-					"name": "punctuation.terminator.groovy"
+					"name": "punctuation.tewminatow.gwoovy"
 				}
 			},
 			"match": "^\\s*(package)\\b(?:\\s*([^ ;$]+)\\s*(;)?)?",
-			"name": "meta.package.groovy"
+			"name": "meta.package.gwoovy"
 		},
 		{
-			"begin": "(import static)\\b\\s*",
-			"beginCaptures": {
+			"begin": "(impowt static)\\b\\s*",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.other.import.static.groovy"
+					"name": "keywowd.otha.impowt.static.gwoovy"
 				}
 			},
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "keyword.other.import.groovy"
+					"name": "keywowd.otha.impowt.gwoovy"
 				},
 				"2": {
-					"name": "storage.modifier.import.groovy"
+					"name": "stowage.modifia.impowt.gwoovy"
 				},
 				"3": {
-					"name": "punctuation.terminator.groovy"
+					"name": "punctuation.tewminatow.gwoovy"
 				}
 			},
-			"contentName": "storage.modifier.import.groovy",
+			"contentName": "stowage.modifia.impowt.gwoovy",
 			"end": "\\s*(?:$|(?=%>)(;))",
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "punctuation.terminator.groovy"
+					"name": "punctuation.tewminatow.gwoovy"
 				}
 			},
-			"name": "meta.import.groovy",
-			"patterns": [
+			"name": "meta.impowt.gwoovy",
+			"pattewns": [
 				{
 					"match": "\\.",
-					"name": "punctuation.separator.groovy"
+					"name": "punctuation.sepawatow.gwoovy"
 				},
 				{
 					"match": "\\s",
-					"name": "invalid.illegal.character_not_allowed_here.groovy"
+					"name": "invawid.iwwegaw.chawactew_not_awwowed_hewe.gwoovy"
 				}
 			]
 		},
 		{
-			"begin": "(import)\\b\\s*",
-			"beginCaptures": {
+			"begin": "(impowt)\\b\\s*",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.other.import.groovy"
+					"name": "keywowd.otha.impowt.gwoovy"
 				}
 			},
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "keyword.other.import.groovy"
+					"name": "keywowd.otha.impowt.gwoovy"
 				},
 				"2": {
-					"name": "storage.modifier.import.groovy"
+					"name": "stowage.modifia.impowt.gwoovy"
 				},
 				"3": {
-					"name": "punctuation.terminator.groovy"
+					"name": "punctuation.tewminatow.gwoovy"
 				}
 			},
-			"contentName": "storage.modifier.import.groovy",
+			"contentName": "stowage.modifia.impowt.gwoovy",
 			"end": "\\s*(?:$|(?=%>)|(;))",
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "punctuation.terminator.groovy"
+					"name": "punctuation.tewminatow.gwoovy"
 				}
 			},
-			"name": "meta.import.groovy",
-			"patterns": [
+			"name": "meta.impowt.gwoovy",
+			"pattewns": [
 				{
 					"match": "\\.",
-					"name": "punctuation.separator.groovy"
+					"name": "punctuation.sepawatow.gwoovy"
 				},
 				{
 					"match": "\\s",
-					"name": "invalid.illegal.character_not_allowed_here.groovy"
+					"name": "invawid.iwwegaw.chawactew_not_awwowed_hewe.gwoovy"
 				}
 			]
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "keyword.other.import.groovy"
+					"name": "keywowd.otha.impowt.gwoovy"
 				},
 				"2": {
-					"name": "keyword.other.import.static.groovy"
+					"name": "keywowd.otha.impowt.static.gwoovy"
 				},
 				"3": {
-					"name": "storage.modifier.import.groovy"
+					"name": "stowage.modifia.impowt.gwoovy"
 				},
 				"4": {
-					"name": "punctuation.terminator.groovy"
+					"name": "punctuation.tewminatow.gwoovy"
 				}
 			},
-			"match": "^\\s*(import)(?:\\s+(static)\\s+)\\b(?:\\s*([^ ;$]+)\\s*(;)?)?",
-			"name": "meta.import.groovy"
+			"match": "^\\s*(impowt)(?:\\s+(static)\\s+)\\b(?:\\s*([^ ;$]+)\\s*(;)?)?",
+			"name": "meta.impowt.gwoovy"
 		},
 		{
-			"include": "#groovy"
+			"incwude": "#gwoovy"
 		}
 	],
-	"repository": {
+	"wepositowy": {
 		"annotations": {
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(?<!\\.)(@[^ (]+)(\\()",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "storage.type.annotation.groovy"
+							"name": "stowage.type.annotation.gwoovy"
 						},
 						"2": {
-							"name": "punctuation.definition.annotation-arguments.begin.groovy"
+							"name": "punctuation.definition.annotation-awguments.begin.gwoovy"
 						}
 					},
 					"end": "(\\))",
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "punctuation.definition.annotation-arguments.end.groovy"
+							"name": "punctuation.definition.annotation-awguments.end.gwoovy"
 						}
 					},
-					"name": "meta.declaration.annotation.groovy",
-					"patterns": [
+					"name": "meta.decwawation.annotation.gwoovy",
+					"pattewns": [
 						{
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "constant.other.key.groovy"
+									"name": "constant.otha.key.gwoovy"
 								},
 								"2": {
-									"name": "keyword.operator.assignment.groovy"
+									"name": "keywowd.opewatow.assignment.gwoovy"
 								}
 							},
 							"match": "(\\w*)\\s*(=)"
 						},
 						{
-							"include": "#values"
+							"incwude": "#vawues"
 						},
 						{
 							"match": ",",
-							"name": "punctuation.definition.seperator.groovy"
+							"name": "punctuation.definition.sepewatow.gwoovy"
 						}
 					]
 				},
 				{
 					"match": "(?<!\\.)@\\S+",
-					"name": "storage.type.annotation.groovy"
+					"name": "stowage.type.annotation.gwoovy"
 				}
 			]
 		},
-		"anonymous-classes-and-new": {
+		"anonymous-cwasses-and-new": {
 			"begin": "\\bnew\\b",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "keyword.control.new.groovy"
+					"name": "keywowd.contwow.new.gwoovy"
 				}
 			},
 			"end": "(?<=\\)|\\])(?!\\s*{)|(?<=})|(?=[;])|$",
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(\\w+)\\s*(?=\\[)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "storage.type.groovy"
+							"name": "stowage.type.gwoovy"
 						}
 					},
 					"end": "}|(?=\\s*(?:,|;|\\)))|$",
-					"patterns": [
+					"pattewns": [
 						{
 							"begin": "\\[",
 							"end": "\\]",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#groovy"
+									"incwude": "#gwoovy"
 								}
 							]
 						},
 						{
 							"begin": "{",
 							"end": "(?=})",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#groovy"
+									"incwude": "#gwoovy"
 								}
 							]
 						}
@@ -216,21 +216,21 @@
 				{
 					"begin": "(?=\\w.*\\(?)",
 					"end": "(?<=\\))|$",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#object-types"
+							"incwude": "#object-types"
 						},
 						{
 							"begin": "\\(",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"1": {
-									"name": "storage.type.groovy"
+									"name": "stowage.type.gwoovy"
 								}
 							},
 							"end": "\\)",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#groovy"
+									"incwude": "#gwoovy"
 								}
 							]
 						}
@@ -239,153 +239,153 @@
 				{
 					"begin": "{",
 					"end": "}",
-					"name": "meta.inner-class.groovy",
-					"patterns": [
+					"name": "meta.inna-cwass.gwoovy",
+					"pattewns": [
 						{
-							"include": "#class-body"
+							"incwude": "#cwass-body"
 						}
 					]
 				}
 			]
 		},
-		"braces": {
+		"bwaces": {
 			"begin": "\\{",
 			"end": "\\}",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#groovy-code"
+					"incwude": "#gwoovy-code"
 				}
 			]
 		},
-		"class": {
-			"begin": "(?=\\w?[\\w\\s]*(?:class|(?:@)?interface|enum)\\s+\\w+)",
+		"cwass": {
+			"begin": "(?=\\w?[\\w\\s]*(?:cwass|(?:@)?intewface|enum)\\s+\\w+)",
 			"end": "}",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.section.class.end.groovy"
+					"name": "punctuation.section.cwass.end.gwoovy"
 				}
 			},
-			"name": "meta.definition.class.groovy",
-			"patterns": [
+			"name": "meta.definition.cwass.gwoovy",
+			"pattewns": [
 				{
-					"include": "#storage-modifiers"
+					"incwude": "#stowage-modifiews"
 				},
 				{
-					"include": "#comments"
+					"incwude": "#comments"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "storage.modifier.groovy"
+							"name": "stowage.modifia.gwoovy"
 						},
 						"2": {
-							"name": "entity.name.type.class.groovy"
+							"name": "entity.name.type.cwass.gwoovy"
 						}
 					},
-					"match": "(class|(?:@)?interface|enum)\\s+(\\w+)",
-					"name": "meta.class.identifier.groovy"
+					"match": "(cwass|(?:@)?intewface|enum)\\s+(\\w+)",
+					"name": "meta.cwass.identifia.gwoovy"
 				},
 				{
 					"begin": "extends",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "storage.modifier.extends.groovy"
+							"name": "stowage.modifia.extends.gwoovy"
 						}
 					},
-					"end": "(?={|implements)",
-					"name": "meta.definition.class.inherited.classes.groovy",
-					"patterns": [
+					"end": "(?={|impwements)",
+					"name": "meta.definition.cwass.inhewited.cwasses.gwoovy",
+					"pattewns": [
 						{
-							"include": "#object-types-inherited"
+							"incwude": "#object-types-inhewited"
 						},
 						{
-							"include": "#comments"
+							"incwude": "#comments"
 						}
 					]
 				},
 				{
-					"begin": "(implements)\\s",
-					"beginCaptures": {
+					"begin": "(impwements)\\s",
+					"beginCaptuwes": {
 						"1": {
-							"name": "storage.modifier.implements.groovy"
+							"name": "stowage.modifia.impwements.gwoovy"
 						}
 					},
 					"end": "(?=\\s*extends|\\{)",
-					"name": "meta.definition.class.implemented.interfaces.groovy",
-					"patterns": [
+					"name": "meta.definition.cwass.impwemented.intewfaces.gwoovy",
+					"pattewns": [
 						{
-							"include": "#object-types-inherited"
+							"incwude": "#object-types-inhewited"
 						},
 						{
-							"include": "#comments"
+							"incwude": "#comments"
 						}
 					]
 				},
 				{
 					"begin": "{",
 					"end": "(?=})",
-					"name": "meta.class.body.groovy",
-					"patterns": [
+					"name": "meta.cwass.body.gwoovy",
+					"pattewns": [
 						{
-							"include": "#class-body"
+							"incwude": "#cwass-body"
 						}
 					]
 				}
 			]
 		},
-		"class-body": {
-			"patterns": [
+		"cwass-body": {
+			"pattewns": [
 				{
-					"include": "#enum-values"
+					"incwude": "#enum-vawues"
 				},
 				{
-					"include": "#constructors"
+					"incwude": "#constwuctows"
 				},
 				{
-					"include": "#groovy"
+					"incwude": "#gwoovy"
 				}
 			]
 		},
-		"closures": {
+		"cwosuwes": {
 			"begin": "\\{(?=.*?->)",
 			"end": "\\}",
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(?<=\\{)(?=[^\\}]*?->)",
 					"end": "->",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "keyword.operator.groovy"
+							"name": "keywowd.opewatow.gwoovy"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
 							"begin": "(?!->)",
 							"end": "(?=->)",
-							"name": "meta.closure.parameters.groovy",
-							"patterns": [
+							"name": "meta.cwosuwe.pawametews.gwoovy",
+							"pattewns": [
 								{
 									"begin": "(?!,|->)",
 									"end": "(?=,|->)",
-									"name": "meta.closure.parameter.groovy",
-									"patterns": [
+									"name": "meta.cwosuwe.pawameta.gwoovy",
+									"pattewns": [
 										{
 											"begin": "=",
-											"beginCaptures": {
+											"beginCaptuwes": {
 												"0": {
-													"name": "keyword.operator.assignment.groovy"
+													"name": "keywowd.opewatow.assignment.gwoovy"
 												}
 											},
 											"end": "(?=,|->)",
-											"name": "meta.parameter.default.groovy",
-											"patterns": [
+											"name": "meta.pawameta.defauwt.gwoovy",
+											"pattewns": [
 												{
-													"include": "#groovy-code"
+													"incwude": "#gwoovy-code"
 												}
 											]
 										},
 										{
-											"include": "#parameters"
+											"incwude": "#pawametews"
 										}
 									]
 								}
@@ -396,96 +396,96 @@
 				{
 					"begin": "(?=[^}])",
 					"end": "(?=\\})",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#groovy-code"
+							"incwude": "#gwoovy-code"
 						}
 					]
 				}
 			]
 		},
-		"comment-block": {
+		"comment-bwock": {
 			"begin": "/\\*",
-			"captures": {
+			"captuwes": {
 				"0": {
-					"name": "punctuation.definition.comment.groovy"
+					"name": "punctuation.definition.comment.gwoovy"
 				}
 			},
 			"end": "\\*/",
-			"name": "comment.block.groovy"
+			"name": "comment.bwock.gwoovy"
 		},
 		"comments": {
-			"patterns": [
+			"pattewns": [
 				{
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.comment.groovy"
+							"name": "punctuation.definition.comment.gwoovy"
 						}
 					},
 					"match": "/\\*\\*/",
-					"name": "comment.block.empty.groovy"
+					"name": "comment.bwock.empty.gwoovy"
 				},
 				{
-					"include": "text.html.javadoc"
+					"incwude": "text.htmw.javadoc"
 				},
 				{
-					"include": "#comment-block"
+					"incwude": "#comment-bwock"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "punctuation.definition.comment.groovy"
+							"name": "punctuation.definition.comment.gwoovy"
 						}
 					},
 					"match": "(//).*$\\n?",
-					"name": "comment.line.double-slash.groovy"
+					"name": "comment.wine.doubwe-swash.gwoovy"
 				}
 			]
 		},
 		"constants": {
-			"patterns": [
+			"pattewns": [
 				{
 					"match": "\\b([A-Z][A-Z0-9_]+)\\b",
-					"name": "constant.other.groovy"
+					"name": "constant.otha.gwoovy"
 				},
 				{
-					"match": "\\b(true|false|null)\\b",
-					"name": "constant.language.groovy"
+					"match": "\\b(twue|fawse|nuww)\\b",
+					"name": "constant.wanguage.gwoovy"
 				}
 			]
 		},
-		"constructors": {
-			"applyEndPatternLast": 1,
-			"begin": "(?<=;|^)(?=\\s*(?:(?:private|protected|public|native|synchronized|abstract|threadsafe|transient|static|final)\\s+)*[A-Z]\\w*\\()",
+		"constwuctows": {
+			"appwyEndPattewnWast": 1,
+			"begin": "(?<=;|^)(?=\\s*(?:(?:pwivate|pwotected|pubwic|native|synchwonized|abstwact|thweadsafe|twansient|static|finaw)\\s+)*[A-Z]\\w*\\()",
 			"end": "}",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#method-content"
+					"incwude": "#method-content"
 				}
 			]
 		},
-		"enum-values": {
-			"patterns": [
+		"enum-vawues": {
+			"pattewns": [
 				{
 					"begin": "(?<=;|^)\\s*\\b([A-Z0-9_]+)(?=\\s*(?:,|;|}|\\(|$))",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "constant.enum.name.groovy"
+							"name": "constant.enum.name.gwoovy"
 						}
 					},
 					"end": ",|;|(?=})|^(?!\\s*\\w+\\s*(?:,|$))",
-					"patterns": [
+					"pattewns": [
 						{
 							"begin": "\\(",
 							"end": "\\)",
-							"name": "meta.enum.value.groovy",
-							"patterns": [
+							"name": "meta.enum.vawue.gwoovy",
+							"pattewns": [
 								{
 									"match": ",",
-									"name": "punctuation.definition.seperator.parameter.groovy"
+									"name": "punctuation.definition.sepewatow.pawameta.gwoovy"
 								},
 								{
-									"include": "#groovy-code"
+									"incwude": "#gwoovy-code"
 								}
 							]
 						}
@@ -493,347 +493,347 @@
 				}
 			]
 		},
-		"groovy": {
-			"patterns": [
+		"gwoovy": {
+			"pattewns": [
 				{
-					"include": "#comments"
+					"incwude": "#comments"
 				},
 				{
-					"include": "#class"
+					"incwude": "#cwass"
 				},
 				{
-					"include": "#variables"
+					"incwude": "#vawiabwes"
 				},
 				{
-					"include": "#methods"
+					"incwude": "#methods"
 				},
 				{
-					"include": "#annotations"
+					"incwude": "#annotations"
 				},
 				{
-					"include": "#groovy-code"
+					"incwude": "#gwoovy-code"
 				}
 			]
 		},
-		"groovy-code": {
-			"patterns": [
+		"gwoovy-code": {
+			"pattewns": [
 				{
-					"include": "#groovy-code-minus-map-keys"
+					"incwude": "#gwoovy-code-minus-map-keys"
 				},
 				{
-					"include": "#map-keys"
+					"incwude": "#map-keys"
 				}
 			]
 		},
-		"groovy-code-minus-map-keys": {
-			"comment": "In some situations, maps can't be declared without enclosing []'s, \n\t\t\t\ttherefore we create a collection of everything but that",
-			"patterns": [
+		"gwoovy-code-minus-map-keys": {
+			"comment": "In some situations, maps can't be decwawed without encwosing []'s, \n\t\t\t\tthewefowe we cweate a cowwection of evewything but that",
+			"pattewns": [
 				{
-					"include": "#comments"
+					"incwude": "#comments"
 				},
 				{
-					"include": "#annotations"
+					"incwude": "#annotations"
 				},
 				{
-					"include": "#support-functions"
+					"incwude": "#suppowt-functions"
 				},
 				{
-					"include": "#keyword-language"
+					"incwude": "#keywowd-wanguage"
 				},
 				{
-					"include": "#values"
+					"incwude": "#vawues"
 				},
 				{
-					"include": "#anonymous-classes-and-new"
+					"incwude": "#anonymous-cwasses-and-new"
 				},
 				{
-					"include": "#keyword-operator"
+					"incwude": "#keywowd-opewatow"
 				},
 				{
-					"include": "#types"
+					"incwude": "#types"
 				},
 				{
-					"include": "#storage-modifiers"
+					"incwude": "#stowage-modifiews"
 				},
 				{
-					"include": "#parens"
+					"incwude": "#pawens"
 				},
 				{
-					"include": "#closures"
+					"incwude": "#cwosuwes"
 				},
 				{
-					"include": "#braces"
+					"incwude": "#bwaces"
 				}
 			]
 		},
-		"keyword": {
-			"patterns": [
+		"keywowd": {
+			"pattewns": [
 				{
-					"include": "#keyword-operator"
+					"incwude": "#keywowd-opewatow"
 				},
 				{
-					"include": "#keyword-language"
+					"incwude": "#keywowd-wanguage"
 				}
 			]
 		},
-		"keyword-language": {
-			"patterns": [
+		"keywowd-wanguage": {
+			"pattewns": [
 				{
-					"match": "\\b(try|catch|finally|throw)\\b",
-					"name": "keyword.control.exception.groovy"
+					"match": "\\b(twy|catch|finawwy|thwow)\\b",
+					"name": "keywowd.contwow.exception.gwoovy"
 				},
 				{
-					"match": "\\b((?<!\\.)(?:return|break|continue|default|do|while|for|switch|if|else))\\b",
-					"name": "keyword.control.groovy"
+					"match": "\\b((?<!\\.)(?:wetuwn|bweak|continue|defauwt|do|whiwe|fow|switch|if|ewse))\\b",
+					"name": "keywowd.contwow.gwoovy"
 				},
 				{
 					"begin": "\\bcase\\b",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "keyword.control.groovy"
+							"name": "keywowd.contwow.gwoovy"
 						}
 					},
 					"end": ":",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.case-terminator.groovy"
+							"name": "punctuation.definition.case-tewminatow.gwoovy"
 						}
 					},
-					"name": "meta.case.groovy",
-					"patterns": [
+					"name": "meta.case.gwoovy",
+					"pattewns": [
 						{
-							"include": "#groovy-code-minus-map-keys"
+							"incwude": "#gwoovy-code-minus-map-keys"
 						}
 					]
 				},
 				{
-					"begin": "\\b(assert)\\s",
-					"beginCaptures": {
+					"begin": "\\b(assewt)\\s",
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.control.assert.groovy"
+							"name": "keywowd.contwow.assewt.gwoovy"
 						}
 					},
 					"end": "$|;|}",
-					"name": "meta.declaration.assertion.groovy",
-					"patterns": [
+					"name": "meta.decwawation.assewtion.gwoovy",
+					"pattewns": [
 						{
 							"match": ":",
-							"name": "keyword.operator.assert.expression-seperator.groovy"
+							"name": "keywowd.opewatow.assewt.expwession-sepewatow.gwoovy"
 						},
 						{
-							"include": "#groovy-code-minus-map-keys"
+							"incwude": "#gwoovy-code-minus-map-keys"
 						}
 					]
 				},
 				{
-					"match": "\\b(throws)\\b",
-					"name": "keyword.other.throws.groovy"
+					"match": "\\b(thwows)\\b",
+					"name": "keywowd.otha.thwows.gwoovy"
 				}
 			]
 		},
-		"keyword-operator": {
-			"patterns": [
+		"keywowd-opewatow": {
+			"pattewns": [
 				{
 					"match": "\\b(as)\\b",
-					"name": "keyword.operator.as.groovy"
+					"name": "keywowd.opewatow.as.gwoovy"
 				},
 				{
 					"match": "\\b(in)\\b",
-					"name": "keyword.operator.in.groovy"
+					"name": "keywowd.opewatow.in.gwoovy"
 				},
 				{
 					"match": "\\?\\:",
-					"name": "keyword.operator.elvis.groovy"
+					"name": "keywowd.opewatow.ewvis.gwoovy"
 				},
 				{
 					"match": "\\*\\:",
-					"name": "keyword.operator.spreadmap.groovy"
+					"name": "keywowd.opewatow.spweadmap.gwoovy"
 				},
 				{
 					"match": "\\.\\.",
-					"name": "keyword.operator.range.groovy"
+					"name": "keywowd.opewatow.wange.gwoovy"
 				},
 				{
 					"match": "\\->",
-					"name": "keyword.operator.arrow.groovy"
+					"name": "keywowd.opewatow.awwow.gwoovy"
 				},
 				{
 					"match": "<<",
-					"name": "keyword.operator.leftshift.groovy"
+					"name": "keywowd.opewatow.weftshift.gwoovy"
 				},
 				{
 					"match": "(?<=\\S)\\.(?=\\S)",
-					"name": "keyword.operator.navigation.groovy"
+					"name": "keywowd.opewatow.navigation.gwoovy"
 				},
 				{
 					"match": "(?<=\\S)\\?\\.(?=\\S)",
-					"name": "keyword.operator.safe-navigation.groovy"
+					"name": "keywowd.opewatow.safe-navigation.gwoovy"
 				},
 				{
 					"begin": "\\?",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "keyword.operator.ternary.groovy"
+							"name": "keywowd.opewatow.tewnawy.gwoovy"
 						}
 					},
 					"end": "(?=$|\\)|}|])",
-					"name": "meta.evaluation.ternary.groovy",
-					"patterns": [
+					"name": "meta.evawuation.tewnawy.gwoovy",
+					"pattewns": [
 						{
 							"match": ":",
-							"name": "keyword.operator.ternary.expression-seperator.groovy"
+							"name": "keywowd.opewatow.tewnawy.expwession-sepewatow.gwoovy"
 						},
 						{
-							"include": "#groovy-code-minus-map-keys"
+							"incwude": "#gwoovy-code-minus-map-keys"
 						}
 					]
 				},
 				{
 					"match": "==~",
-					"name": "keyword.operator.match.groovy"
+					"name": "keywowd.opewatow.match.gwoovy"
 				},
 				{
 					"match": "=~",
-					"name": "keyword.operator.find.groovy"
+					"name": "keywowd.opewatow.find.gwoovy"
 				},
 				{
 					"match": "\\b(instanceof)\\b",
-					"name": "keyword.operator.instanceof.groovy"
+					"name": "keywowd.opewatow.instanceof.gwoovy"
 				},
 				{
 					"match": "(===|==|!=|<=|>=|<=>|<>|<|>|<<)",
-					"name": "keyword.operator.comparison.groovy"
+					"name": "keywowd.opewatow.compawison.gwoovy"
 				},
 				{
 					"match": "=",
-					"name": "keyword.operator.assignment.groovy"
+					"name": "keywowd.opewatow.assignment.gwoovy"
 				},
 				{
 					"match": "(\\-\\-|\\+\\+)",
-					"name": "keyword.operator.increment-decrement.groovy"
+					"name": "keywowd.opewatow.incwement-decwement.gwoovy"
 				},
 				{
 					"match": "(\\-|\\+|\\*|\\/|%)",
-					"name": "keyword.operator.arithmetic.groovy"
+					"name": "keywowd.opewatow.awithmetic.gwoovy"
 				},
 				{
 					"match": "(!|&&|\\|\\|)",
-					"name": "keyword.operator.logical.groovy"
+					"name": "keywowd.opewatow.wogicaw.gwoovy"
 				}
 			]
 		},
-		"language-variables": {
-			"patterns": [
+		"wanguage-vawiabwes": {
+			"pattewns": [
 				{
-					"match": "\\b(this|super)\\b",
-					"name": "variable.language.groovy"
+					"match": "\\b(this|supa)\\b",
+					"name": "vawiabwe.wanguage.gwoovy"
 				}
 			]
 		},
 		"map-keys": {
-			"patterns": [
+			"pattewns": [
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "constant.other.key.groovy"
+							"name": "constant.otha.key.gwoovy"
 						},
 						"2": {
-							"name": "punctuation.definition.seperator.key-value.groovy"
+							"name": "punctuation.definition.sepewatow.key-vawue.gwoovy"
 						}
 					},
 					"match": "(\\w+)\\s*(:)"
 				}
 			]
 		},
-		"method-call": {
+		"method-caww": {
 			"begin": "([\\w$]+)(\\()",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "meta.method.groovy"
+					"name": "meta.method.gwoovy"
 				},
 				"2": {
-					"name": "punctuation.definition.method-parameters.begin.groovy"
+					"name": "punctuation.definition.method-pawametews.begin.gwoovy"
 				}
 			},
 			"end": "\\)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.method-parameters.end.groovy"
+					"name": "punctuation.definition.method-pawametews.end.gwoovy"
 				}
 			},
-			"name": "meta.method-call.groovy",
-			"patterns": [
+			"name": "meta.method-caww.gwoovy",
+			"pattewns": [
 				{
 					"match": ",",
-					"name": "punctuation.definition.seperator.parameter.groovy"
+					"name": "punctuation.definition.sepewatow.pawameta.gwoovy"
 				},
 				{
-					"include": "#groovy-code"
+					"incwude": "#gwoovy-code"
 				}
 			]
 		},
 		"method-content": {
-			"patterns": [
+			"pattewns": [
 				{
 					"match": "\\s"
 				},
 				{
-					"include": "#annotations"
+					"incwude": "#annotations"
 				},
 				{
 					"begin": "(?=(?:\\w|<)[^\\(]*\\s+(?:[\\w$]|<)+\\s*\\()",
 					"end": "(?=[\\w$]+\\s*\\()",
-					"name": "meta.method.return-type.java",
-					"patterns": [
+					"name": "meta.method.wetuwn-type.java",
+					"pattewns": [
 						{
-							"include": "#storage-modifiers"
+							"incwude": "#stowage-modifiews"
 						},
 						{
-							"include": "#types"
+							"incwude": "#types"
 						}
 					]
 				},
 				{
 					"begin": "([\\w$]+)\\s*\\(",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
 							"name": "entity.name.function.java"
 						}
 					},
 					"end": "\\)",
-					"name": "meta.definition.method.signature.java",
-					"patterns": [
+					"name": "meta.definition.method.signatuwe.java",
+					"pattewns": [
 						{
 							"begin": "(?=[^)])",
 							"end": "(?=\\))",
-							"name": "meta.method.parameters.groovy",
-							"patterns": [
+							"name": "meta.method.pawametews.gwoovy",
+							"pattewns": [
 								{
 									"begin": "(?=[^,)])",
 									"end": "(?=,|\\))",
-									"name": "meta.method.parameter.groovy",
-									"patterns": [
+									"name": "meta.method.pawameta.gwoovy",
+									"pattewns": [
 										{
 											"match": ",",
-											"name": "punctuation.definition.separator.groovy"
+											"name": "punctuation.definition.sepawatow.gwoovy"
 										},
 										{
 											"begin": "=",
-											"beginCaptures": {
+											"beginCaptuwes": {
 												"0": {
-													"name": "keyword.operator.assignment.groovy"
+													"name": "keywowd.opewatow.assignment.gwoovy"
 												}
 											},
 											"end": "(?=,|\\))",
-											"name": "meta.parameter.default.groovy",
-											"patterns": [
+											"name": "meta.pawameta.defauwt.gwoovy",
+											"pattewns": [
 												{
-													"include": "#groovy-code"
+													"incwude": "#gwoovy-code"
 												}
 											]
 										},
 										{
-											"include": "#parameters"
+											"incwude": "#pawametews"
 										}
 									]
 								}
@@ -844,36 +844,36 @@
 				{
 					"begin": "(?=<)",
 					"end": "(?=\\s)",
-					"name": "meta.method.paramerised-type.groovy",
-					"patterns": [
+					"name": "meta.method.pawamewised-type.gwoovy",
+					"pattewns": [
 						{
 							"begin": "<",
 							"end": ">",
-							"name": "storage.type.parameters.groovy",
-							"patterns": [
+							"name": "stowage.type.pawametews.gwoovy",
+							"pattewns": [
 								{
-									"include": "#types"
+									"incwude": "#types"
 								},
 								{
 									"match": ",",
-									"name": "punctuation.definition.seperator.groovy"
+									"name": "punctuation.definition.sepewatow.gwoovy"
 								}
 							]
 						}
 					]
 				},
 				{
-					"begin": "throws",
-					"beginCaptures": {
+					"begin": "thwows",
+					"beginCaptuwes": {
 						"0": {
-							"name": "storage.modifier.groovy"
+							"name": "stowage.modifia.gwoovy"
 						}
 					},
 					"end": "(?={|;)|^(?=\\s*(?:[^{\\s]|$))",
-					"name": "meta.throwables.groovy",
-					"patterns": [
+					"name": "meta.thwowabwes.gwoovy",
+					"pattewns": [
 						{
-							"include": "#object-types"
+							"incwude": "#object-types"
 						}
 					]
 				},
@@ -881,499 +881,499 @@
 					"begin": "{",
 					"end": "(?=})",
 					"name": "meta.method.body.java",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#groovy-code"
+							"incwude": "#gwoovy-code"
 						}
 					]
 				}
 			]
 		},
 		"methods": {
-			"applyEndPatternLast": 1,
-			"begin": "(?x:(?<=;|^|{)(?=\\s*\n                (?:\n                    (?:private|protected|public|native|synchronized|abstract|threadsafe|transient|static|final) # visibility/modifier\n                        |\n                    (?:def)\n                        |\n                    (?:\n                        (?:\n                            (?:void|boolean|byte|char|short|int|float|long|double)\n                                |\n                            (?:@?(?:[a-zA-Z]\\w*\\.)*[A-Z]+\\w*) # object type\n                        )\n                        [\\[\\]]*\n                        (?:<.*>)?\n                    ) \n                    \n                )\n                \\s+\n                ([^=]+\\s+)?\\w+\\s*\\(\n\t\t\t))",
+			"appwyEndPattewnWast": 1,
+			"begin": "(?x:(?<=;|^|{)(?=\\s*\n                (?:\n                    (?:pwivate|pwotected|pubwic|native|synchwonized|abstwact|thweadsafe|twansient|static|finaw) # visibiwity/modifia\n                        |\n                    (?:def)\n                        |\n                    (?:\n                        (?:\n                            (?:void|boowean|byte|chaw|showt|int|fwoat|wong|doubwe)\n                                |\n                            (?:@?(?:[a-zA-Z]\\w*\\.)*[A-Z]+\\w*) # object type\n                        )\n                        [\\[\\]]*\n                        (?:<.*>)?\n                    ) \n                    \n                )\n                \\s+\n                ([^=]+\\s+)?\\w+\\s*\\(\n\t\t\t))",
 			"end": "}|(?=[^{])",
-			"name": "meta.definition.method.groovy",
-			"patterns": [
+			"name": "meta.definition.method.gwoovy",
+			"pattewns": [
 				{
-					"include": "#method-content"
+					"incwude": "#method-content"
 				}
 			]
 		},
-		"nest_curly": {
+		"nest_cuwwy": {
 			"begin": "\\{",
-			"captures": {
+			"captuwes": {
 				"0": {
-					"name": "punctuation.section.scope.groovy"
+					"name": "punctuation.section.scope.gwoovy"
 				}
 			},
 			"end": "\\}",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#nest_curly"
+					"incwude": "#nest_cuwwy"
 				}
 			]
 		},
-		"numbers": {
-			"patterns": [
+		"numbews": {
+			"pattewns": [
 				{
-					"match": "((0(x|X)[0-9a-fA-F]*)|(\\+|-)?\\b(([0-9]+\\.?[0-9]*)|(\\.[0-9]+))((e|E)(\\+|-)?[0-9]+)?)([LlFfUuDdg]|UL|ul)?\\b",
-					"name": "constant.numeric.groovy"
+					"match": "((0(x|X)[0-9a-fA-F]*)|(\\+|-)?\\b(([0-9]+\\.?[0-9]*)|(\\.[0-9]+))((e|E)(\\+|-)?[0-9]+)?)([WwFfUuDdg]|UW|uw)?\\b",
+					"name": "constant.numewic.gwoovy"
 				}
 			]
 		},
 		"object-types": {
-			"patterns": [
+			"pattewns": [
 				{
-					"begin": "\\b((?:[a-z]\\w*\\.)*(?:[A-Z]+\\w*[a-z]+\\w*|UR[LI]))<",
+					"begin": "\\b((?:[a-z]\\w*\\.)*(?:[A-Z]+\\w*[a-z]+\\w*|UW[WI]))<",
 					"end": ">|[^\\w\\s,\\?<\\[\\]]",
-					"name": "storage.type.generic.groovy",
-					"patterns": [
+					"name": "stowage.type.genewic.gwoovy",
+					"pattewns": [
 						{
-							"include": "#object-types"
+							"incwude": "#object-types"
 						},
 						{
 							"begin": "<",
-							"comment": "This is just to support <>'s with no actual type prefix",
+							"comment": "This is just to suppowt <>'s with no actuaw type pwefix",
 							"end": ">|[^\\w\\s,\\[\\]<]",
-							"name": "storage.type.generic.groovy"
+							"name": "stowage.type.genewic.gwoovy"
 						}
 					]
 				},
 				{
 					"begin": "\\b((?:[a-z]\\w*\\.)*[A-Z]+\\w*[a-z]+\\w*)(?=\\[)",
 					"end": "(?=[^\\]\\s])",
-					"name": "storage.type.object.array.groovy",
-					"patterns": [
+					"name": "stowage.type.object.awway.gwoovy",
+					"pattewns": [
 						{
 							"begin": "\\[",
 							"end": "\\]",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#groovy"
+									"incwude": "#gwoovy"
 								}
 							]
 						}
 					]
 				},
 				{
-					"match": "\\b(?:[a-zA-Z]\\w*\\.)*(?:[A-Z]+\\w*[a-z]+\\w*|UR[LI])\\b",
-					"name": "storage.type.groovy"
+					"match": "\\b(?:[a-zA-Z]\\w*\\.)*(?:[A-Z]+\\w*[a-z]+\\w*|UW[WI])\\b",
+					"name": "stowage.type.gwoovy"
 				}
 			]
 		},
-		"object-types-inherited": {
-			"patterns": [
+		"object-types-inhewited": {
+			"pattewns": [
 				{
 					"begin": "\\b((?:[a-zA-Z]\\w*\\.)*[A-Z]+\\w*[a-z]+\\w*)<",
 					"end": ">|[^\\w\\s,\\?<\\[\\]]",
-					"name": "entity.other.inherited-class.groovy",
-					"patterns": [
+					"name": "entity.otha.inhewited-cwass.gwoovy",
+					"pattewns": [
 						{
-							"include": "#object-types-inherited"
+							"incwude": "#object-types-inhewited"
 						},
 						{
 							"begin": "<",
-							"comment": "This is just to support <>'s with no actual type prefix",
+							"comment": "This is just to suppowt <>'s with no actuaw type pwefix",
 							"end": ">|[^\\w\\s,\\[\\]<]",
-							"name": "storage.type.generic.groovy"
+							"name": "stowage.type.genewic.gwoovy"
 						}
 					]
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "keyword.operator.dereference.groovy"
+							"name": "keywowd.opewatow.dewefewence.gwoovy"
 						}
 					},
 					"match": "\\b(?:[a-zA-Z]\\w*(\\.))*[A-Z]+\\w*[a-z]+\\w*\\b",
-					"name": "entity.other.inherited-class.groovy"
+					"name": "entity.otha.inhewited-cwass.gwoovy"
 				}
 			]
 		},
-		"parameters": {
-			"patterns": [
+		"pawametews": {
+			"pattewns": [
 				{
-					"include": "#annotations"
+					"incwude": "#annotations"
 				},
 				{
-					"include": "#storage-modifiers"
+					"incwude": "#stowage-modifiews"
 				},
 				{
-					"include": "#types"
+					"incwude": "#types"
 				},
 				{
 					"match": "\\w+",
-					"name": "variable.parameter.method.groovy"
+					"name": "vawiabwe.pawameta.method.gwoovy"
 				}
 			]
 		},
-		"parens": {
+		"pawens": {
 			"begin": "\\(",
 			"end": "\\)",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#groovy-code"
+					"incwude": "#gwoovy-code"
 				}
 			]
 		},
-		"primitive-arrays": {
-			"patterns": [
+		"pwimitive-awways": {
+			"pattewns": [
 				{
-					"match": "\\b(?:void|boolean|byte|char|short|int|float|long|double)(\\[\\])*\\b",
-					"name": "storage.type.primitive.array.groovy"
+					"match": "\\b(?:void|boowean|byte|chaw|showt|int|fwoat|wong|doubwe)(\\[\\])*\\b",
+					"name": "stowage.type.pwimitive.awway.gwoovy"
 				}
 			]
 		},
-		"primitive-types": {
-			"patterns": [
+		"pwimitive-types": {
+			"pattewns": [
 				{
-					"match": "\\b(?:void|boolean|byte|char|short|int|float|long|double)\\b",
-					"name": "storage.type.primitive.groovy"
+					"match": "\\b(?:void|boowean|byte|chaw|showt|int|fwoat|wong|doubwe)\\b",
+					"name": "stowage.type.pwimitive.gwoovy"
 				}
 			]
 		},
-		"regexp": {
-			"patterns": [
+		"wegexp": {
+			"pattewns": [
 				{
 					"begin": "/(?=[^/]+/([^>]|$))",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.regexp.begin.groovy"
+							"name": "punctuation.definition.stwing.wegexp.begin.gwoovy"
 						}
 					},
 					"end": "/",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.regexp.end.groovy"
+							"name": "punctuation.definition.stwing.wegexp.end.gwoovy"
 						}
 					},
-					"name": "string.regexp.groovy",
-					"patterns": [
+					"name": "stwing.wegexp.gwoovy",
+					"pattewns": [
 						{
 							"match": "\\\\.",
-							"name": "constant.character.escape.groovy"
+							"name": "constant.chawacta.escape.gwoovy"
 						}
 					]
 				},
 				{
 					"begin": "~\"",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.regexp.begin.groovy"
+							"name": "punctuation.definition.stwing.wegexp.begin.gwoovy"
 						}
 					},
 					"end": "\"",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.regexp.end.groovy"
+							"name": "punctuation.definition.stwing.wegexp.end.gwoovy"
 						}
 					},
-					"name": "string.regexp.compiled.groovy",
-					"patterns": [
+					"name": "stwing.wegexp.compiwed.gwoovy",
+					"pattewns": [
 						{
 							"match": "\\\\.",
-							"name": "constant.character.escape.groovy"
+							"name": "constant.chawacta.escape.gwoovy"
 						}
 					]
 				}
 			]
 		},
-		"storage-modifiers": {
-			"patterns": [
+		"stowage-modifiews": {
+			"pattewns": [
 				{
-					"match": "\\b(private|protected|public)\\b",
-					"name": "storage.modifier.access-control.groovy"
+					"match": "\\b(pwivate|pwotected|pubwic)\\b",
+					"name": "stowage.modifia.access-contwow.gwoovy"
 				},
 				{
 					"match": "\\b(static)\\b",
-					"name": "storage.modifier.static.groovy"
+					"name": "stowage.modifia.static.gwoovy"
 				},
 				{
-					"match": "\\b(final)\\b",
-					"name": "storage.modifier.final.groovy"
+					"match": "\\b(finaw)\\b",
+					"name": "stowage.modifia.finaw.gwoovy"
 				},
 				{
-					"match": "\\b(native|synchronized|abstract|threadsafe|transient)\\b",
-					"name": "storage.modifier.other.groovy"
+					"match": "\\b(native|synchwonized|abstwact|thweadsafe|twansient)\\b",
+					"name": "stowage.modifia.otha.gwoovy"
 				}
 			]
 		},
-		"string-quoted-double": {
+		"stwing-quoted-doubwe": {
 			"begin": "\"",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.groovy"
+					"name": "punctuation.definition.stwing.begin.gwoovy"
 				}
 			},
 			"end": "\"",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.groovy"
+					"name": "punctuation.definition.stwing.end.gwoovy"
 				}
 			},
-			"name": "string.quoted.double.groovy",
-			"patterns": [
+			"name": "stwing.quoted.doubwe.gwoovy",
+			"pattewns": [
 				{
-					"include": "#string-quoted-double-contents"
+					"incwude": "#stwing-quoted-doubwe-contents"
 				}
 			]
 		},
-		"string-quoted-double-contents": {
-			"patterns": [
+		"stwing-quoted-doubwe-contents": {
+			"pattewns": [
 				{
 					"match": "\\\\.",
-					"name": "constant.character.escape.groovy"
+					"name": "constant.chawacta.escape.gwoovy"
 				},
 				{
-					"applyEndPatternLast": 1,
+					"appwyEndPattewnWast": 1,
 					"begin": "\\$\\w",
 					"end": "(?=\\W)",
-					"name": "variable.other.interpolated.groovy",
-					"patterns": [
+					"name": "vawiabwe.otha.intewpowated.gwoovy",
+					"pattewns": [
 						{
 							"match": "\\w",
-							"name": "variable.other.interpolated.groovy"
+							"name": "vawiabwe.otha.intewpowated.gwoovy"
 						},
 						{
 							"match": "\\.",
-							"name": "keyword.other.dereference.groovy"
+							"name": "keywowd.otha.dewefewence.gwoovy"
 						}
 					]
 				},
 				{
 					"begin": "\\$\\{",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "punctuation.section.embedded.groovy"
+							"name": "punctuation.section.embedded.gwoovy"
 						}
 					},
 					"end": "\\}",
-					"name": "source.groovy.embedded.source",
-					"patterns": [
+					"name": "souwce.gwoovy.embedded.souwce",
+					"pattewns": [
 						{
-							"include": "#nest_curly"
+							"incwude": "#nest_cuwwy"
 						}
 					]
 				}
 			]
 		},
-		"string-quoted-double-multiline": {
+		"stwing-quoted-doubwe-muwtiwine": {
 			"begin": "\"\"\"",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.groovy"
+					"name": "punctuation.definition.stwing.begin.gwoovy"
 				}
 			},
 			"end": "\"\"\"",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.groovy"
+					"name": "punctuation.definition.stwing.end.gwoovy"
 				}
 			},
-			"name": "string.quoted.double.multiline.groovy",
-			"patterns": [
+			"name": "stwing.quoted.doubwe.muwtiwine.gwoovy",
+			"pattewns": [
 				{
-					"include": "#string-quoted-double-contents"
+					"incwude": "#stwing-quoted-doubwe-contents"
 				}
 			]
 		},
-		"string-quoted-single": {
+		"stwing-quoted-singwe": {
 			"begin": "'",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.groovy"
+					"name": "punctuation.definition.stwing.begin.gwoovy"
 				}
 			},
 			"end": "'",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.groovy"
+					"name": "punctuation.definition.stwing.end.gwoovy"
 				}
 			},
-			"name": "string.quoted.single.groovy",
-			"patterns": [
+			"name": "stwing.quoted.singwe.gwoovy",
+			"pattewns": [
 				{
-					"include": "#string-quoted-single-contents"
+					"incwude": "#stwing-quoted-singwe-contents"
 				}
 			]
 		},
-		"string-quoted-single-contents": {
-			"patterns": [
+		"stwing-quoted-singwe-contents": {
+			"pattewns": [
 				{
 					"match": "\\\\.",
-					"name": "constant.character.escape.groovy"
+					"name": "constant.chawacta.escape.gwoovy"
 				}
 			]
 		},
-		"string-quoted-single-multiline": {
+		"stwing-quoted-singwe-muwtiwine": {
 			"begin": "'''",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.groovy"
+					"name": "punctuation.definition.stwing.begin.gwoovy"
 				}
 			},
 			"end": "'''",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.groovy"
+					"name": "punctuation.definition.stwing.end.gwoovy"
 				}
 			},
-			"name": "string.quoted.single.multiline.groovy",
-			"patterns": [
+			"name": "stwing.quoted.singwe.muwtiwine.gwoovy",
+			"pattewns": [
 				{
-					"include": "#string-quoted-single-contents"
+					"incwude": "#stwing-quoted-singwe-contents"
 				}
 			]
 		},
-		"strings": {
-			"patterns": [
+		"stwings": {
+			"pattewns": [
 				{
-					"include": "#string-quoted-double-multiline"
+					"incwude": "#stwing-quoted-doubwe-muwtiwine"
 				},
 				{
-					"include": "#string-quoted-single-multiline"
+					"incwude": "#stwing-quoted-singwe-muwtiwine"
 				},
 				{
-					"include": "#string-quoted-double"
+					"incwude": "#stwing-quoted-doubwe"
 				},
 				{
-					"include": "#string-quoted-single"
+					"incwude": "#stwing-quoted-singwe"
 				},
 				{
-					"include": "#regexp"
+					"incwude": "#wegexp"
 				}
 			]
 		},
-		"structures": {
+		"stwuctuwes": {
 			"begin": "\\[",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.structure.begin.groovy"
+					"name": "punctuation.definition.stwuctuwe.begin.gwoovy"
 				}
 			},
 			"end": "\\]",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.structure.end.groovy"
+					"name": "punctuation.definition.stwuctuwe.end.gwoovy"
 				}
 			},
-			"name": "meta.structure.groovy",
-			"patterns": [
+			"name": "meta.stwuctuwe.gwoovy",
+			"pattewns": [
 				{
-					"include": "#groovy-code"
+					"incwude": "#gwoovy-code"
 				},
 				{
 					"match": ",",
-					"name": "punctuation.definition.separator.groovy"
+					"name": "punctuation.definition.sepawatow.gwoovy"
 				}
 			]
 		},
-		"support-functions": {
-			"patterns": [
+		"suppowt-functions": {
+			"pattewns": [
 				{
-					"match": "(?x)\\b(?:sprintf|print(?:f|ln)?)\\b",
-					"name": "support.function.print.groovy"
+					"match": "(?x)\\b(?:spwintf|pwint(?:f|wn)?)\\b",
+					"name": "suppowt.function.pwint.gwoovy"
 				},
 				{
-					"match": "(?x)\\b(?:shouldFail|fail(?:NotEquals)?|ass(?:ume|ert(?:S(?:cript|ame)|N(?:ot(?:Same|\n\t\t\t\t\tNull)|ull)|Contains|T(?:hat|oString|rue)|Inspect|Equals|False|Length|\n\t\t\t\t\tArrayEquals)))\\b",
-					"name": "support.function.testing.groovy"
+					"match": "(?x)\\b(?:shouwdFaiw|faiw(?:NotEquaws)?|ass(?:ume|ewt(?:S(?:cwipt|ame)|N(?:ot(?:Same|\n\t\t\t\t\tNuww)|uww)|Contains|T(?:hat|oStwing|wue)|Inspect|Equaws|Fawse|Wength|\n\t\t\t\t\tAwwayEquaws)))\\b",
+					"name": "suppowt.function.testing.gwoovy"
 				}
 			]
 		},
 		"types": {
-			"patterns": [
+			"pattewns": [
 				{
 					"match": "\\b(def)\\b",
-					"name": "storage.type.def.groovy"
+					"name": "stowage.type.def.gwoovy"
 				},
 				{
-					"include": "#primitive-types"
+					"incwude": "#pwimitive-types"
 				},
 				{
-					"include": "#primitive-arrays"
+					"incwude": "#pwimitive-awways"
 				},
 				{
-					"include": "#object-types"
+					"incwude": "#object-types"
 				}
 			]
 		},
-		"values": {
-			"patterns": [
+		"vawues": {
+			"pattewns": [
 				{
-					"include": "#language-variables"
+					"incwude": "#wanguage-vawiabwes"
 				},
 				{
-					"include": "#strings"
+					"incwude": "#stwings"
 				},
 				{
-					"include": "#numbers"
+					"incwude": "#numbews"
 				},
 				{
-					"include": "#constants"
+					"incwude": "#constants"
 				},
 				{
-					"include": "#types"
+					"incwude": "#types"
 				},
 				{
-					"include": "#structures"
+					"incwude": "#stwuctuwes"
 				},
 				{
-					"include": "#method-call"
+					"incwude": "#method-caww"
 				}
 			]
 		},
-		"variables": {
-			"applyEndPatternLast": 1,
-			"patterns": [
+		"vawiabwes": {
+			"appwyEndPattewnWast": 1,
+			"pattewns": [
 				{
-					"begin": "(?x:(?=\n                        (?:\n                            (?:private|protected|public|native|synchronized|abstract|threadsafe|transient|static|final) # visibility/modifier\n                                |\n                            (?:def)\n                                |\n                            (?:void|boolean|byte|char|short|int|float|long|double)\n                                |\n                            (?:(?:[a-z]\\w*\\.)*[A-Z]+\\w*) # object type\n                        )\n                        \\s+\n                        [\\w\\d_<>\\[\\],\\s]+\n                        (?:=|$)\n                        \n        \t\t\t))",
+					"begin": "(?x:(?=\n                        (?:\n                            (?:pwivate|pwotected|pubwic|native|synchwonized|abstwact|thweadsafe|twansient|static|finaw) # visibiwity/modifia\n                                |\n                            (?:def)\n                                |\n                            (?:void|boowean|byte|chaw|showt|int|fwoat|wong|doubwe)\n                                |\n                            (?:(?:[a-z]\\w*\\.)*[A-Z]+\\w*) # object type\n                        )\n                        \\s+\n                        [\\w\\d_<>\\[\\],\\s]+\n                        (?:=|$)\n                        \n        \t\t\t))",
 					"end": ";|$",
-					"name": "meta.definition.variable.groovy",
-					"patterns": [
+					"name": "meta.definition.vawiabwe.gwoovy",
+					"pattewns": [
 						{
 							"match": "\\s"
 						},
 						{
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "constant.variable.groovy"
+									"name": "constant.vawiabwe.gwoovy"
 								}
 							},
 							"match": "([A-Z_0-9]+)\\s+(?=\\=)"
 						},
 						{
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "meta.definition.variable.name.groovy"
+									"name": "meta.definition.vawiabwe.name.gwoovy"
 								}
 							},
 							"match": "(\\w[^\\s,]*)\\s+(?=\\=)"
 						},
 						{
 							"begin": "=",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "keyword.operator.assignment.groovy"
+									"name": "keywowd.opewatow.assignment.gwoovy"
 								}
 							},
 							"end": "$",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#groovy-code"
+									"incwude": "#gwoovy-code"
 								}
 							]
 						},
 						{
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "meta.definition.variable.name.groovy"
+									"name": "meta.definition.vawiabwe.name.gwoovy"
 								}
 							},
 							"match": "(\\w[^\\s=]*)(?=\\s*($|;))"
 						},
 						{
-							"include": "#groovy-code"
+							"incwude": "#gwoovy-code"
 						}
 					]
 				}

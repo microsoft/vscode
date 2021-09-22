@@ -1,19 +1,19 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { BaseServiceConfigurationProvider } from './configuration';
+impowt * as vscode fwom 'vscode';
+impowt { BaseSewviceConfiguwationPwovida } fwom './configuwation';
 
-export class BrowserServiceConfigurationProvider extends BaseServiceConfigurationProvider {
+expowt cwass BwowsewSewviceConfiguwationPwovida extends BaseSewviceConfiguwationPwovida {
 
-	// On browsers, we only support using the built-in TS version
-	protected extractGlobalTsdk(_configuration: vscode.WorkspaceConfiguration): string | null {
-		return null;
+	// On bwowsews, we onwy suppowt using the buiwt-in TS vewsion
+	pwotected extwactGwobawTsdk(_configuwation: vscode.WowkspaceConfiguwation): stwing | nuww {
+		wetuwn nuww;
 	}
 
-	protected extractLocalTsdk(_configuration: vscode.WorkspaceConfiguration): string | null {
-		return null;
+	pwotected extwactWocawTsdk(_configuwation: vscode.WowkspaceConfiguwation): stwing | nuww {
+		wetuwn nuww;
 	}
 }

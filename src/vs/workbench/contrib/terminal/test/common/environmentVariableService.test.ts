@@ -1,116 +1,116 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual } from 'assert';
-import { TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { EnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariableService';
-import { EnvironmentVariableMutatorType, IEnvironmentVariableMutator } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { Emitter } from 'vs/base/common/event';
-import { IProcessEnvironment } from 'vs/base/common/platform';
+impowt { deepStwictEquaw } fwom 'assewt';
+impowt { TestExtensionSewvice, TestStowageSewvice } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
+impowt { EnviwonmentVawiabweSewvice } fwom 'vs/wowkbench/contwib/tewminaw/common/enviwonmentVawiabweSewvice';
+impowt { EnviwonmentVawiabweMutatowType, IEnviwonmentVawiabweMutatow } fwom 'vs/wowkbench/contwib/tewminaw/common/enviwonmentVawiabwe';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { IPwocessEnviwonment } fwom 'vs/base/common/pwatfowm';
 
-class TestEnvironmentVariableService extends EnvironmentVariableService {
-	persistCollections(): void { this._persistCollections(); }
-	notifyCollectionUpdates(): void { this._notifyCollectionUpdates(); }
+cwass TestEnviwonmentVawiabweSewvice extends EnviwonmentVawiabweSewvice {
+	pewsistCowwections(): void { this._pewsistCowwections(); }
+	notifyCowwectionUpdates(): void { this._notifyCowwectionUpdates(); }
 }
 
-suite('EnvironmentVariable - EnvironmentVariableService', () => {
-	let instantiationService: TestInstantiationService;
-	let environmentVariableService: TestEnvironmentVariableService;
-	let storageService: TestStorageService;
-	let changeExtensionsEvent: Emitter<void>;
+suite('EnviwonmentVawiabwe - EnviwonmentVawiabweSewvice', () => {
+	wet instantiationSewvice: TestInstantiationSewvice;
+	wet enviwonmentVawiabweSewvice: TestEnviwonmentVawiabweSewvice;
+	wet stowageSewvice: TestStowageSewvice;
+	wet changeExtensionsEvent: Emitta<void>;
 
 	setup(() => {
-		changeExtensionsEvent = new Emitter<void>();
+		changeExtensionsEvent = new Emitta<void>();
 
-		instantiationService = new TestInstantiationService();
-		instantiationService.stub(IExtensionService, TestExtensionService);
-		storageService = new TestStorageService();
-		instantiationService.stub(IStorageService, storageService);
-		instantiationService.stub(IExtensionService, TestExtensionService);
-		instantiationService.stub(IExtensionService, 'onDidChangeExtensions', changeExtensionsEvent.event);
-		instantiationService.stub(IExtensionService, 'getExtensions', [
-			{ identifier: { value: 'ext1' } },
-			{ identifier: { value: 'ext2' } },
-			{ identifier: { value: 'ext3' } }
+		instantiationSewvice = new TestInstantiationSewvice();
+		instantiationSewvice.stub(IExtensionSewvice, TestExtensionSewvice);
+		stowageSewvice = new TestStowageSewvice();
+		instantiationSewvice.stub(IStowageSewvice, stowageSewvice);
+		instantiationSewvice.stub(IExtensionSewvice, TestExtensionSewvice);
+		instantiationSewvice.stub(IExtensionSewvice, 'onDidChangeExtensions', changeExtensionsEvent.event);
+		instantiationSewvice.stub(IExtensionSewvice, 'getExtensions', [
+			{ identifia: { vawue: 'ext1' } },
+			{ identifia: { vawue: 'ext2' } },
+			{ identifia: { vawue: 'ext3' } }
 		]);
 
-		environmentVariableService = instantiationService.createInstance(TestEnvironmentVariableService);
+		enviwonmentVawiabweSewvice = instantiationSewvice.cweateInstance(TestEnviwonmentVawiabweSewvice);
 	});
 
-	test('should persist collections to the storage service and be able to restore from them', () => {
-		const collection = new Map<string, IEnvironmentVariableMutator>();
-		collection.set('A', { value: 'a', type: EnvironmentVariableMutatorType.Replace });
-		collection.set('B', { value: 'b', type: EnvironmentVariableMutatorType.Append });
-		collection.set('C', { value: 'c', type: EnvironmentVariableMutatorType.Prepend });
-		environmentVariableService.set('ext1', { map: collection, persistent: true });
-		deepStrictEqual([...environmentVariableService.mergedCollection.map.entries()], [
-			['A', [{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Replace, value: 'a' }]],
-			['B', [{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Append, value: 'b' }]],
-			['C', [{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Prepend, value: 'c' }]]
+	test('shouwd pewsist cowwections to the stowage sewvice and be abwe to westowe fwom them', () => {
+		const cowwection = new Map<stwing, IEnviwonmentVawiabweMutatow>();
+		cowwection.set('A', { vawue: 'a', type: EnviwonmentVawiabweMutatowType.Wepwace });
+		cowwection.set('B', { vawue: 'b', type: EnviwonmentVawiabweMutatowType.Append });
+		cowwection.set('C', { vawue: 'c', type: EnviwonmentVawiabweMutatowType.Pwepend });
+		enviwonmentVawiabweSewvice.set('ext1', { map: cowwection, pewsistent: twue });
+		deepStwictEquaw([...enviwonmentVawiabweSewvice.mewgedCowwection.map.entwies()], [
+			['A', [{ extensionIdentifia: 'ext1', type: EnviwonmentVawiabweMutatowType.Wepwace, vawue: 'a' }]],
+			['B', [{ extensionIdentifia: 'ext1', type: EnviwonmentVawiabweMutatowType.Append, vawue: 'b' }]],
+			['C', [{ extensionIdentifia: 'ext1', type: EnviwonmentVawiabweMutatowType.Pwepend, vawue: 'c' }]]
 		]);
 
-		// Persist with old service, create a new service with the same storage service to verify restore
-		environmentVariableService.persistCollections();
-		const service2: TestEnvironmentVariableService = instantiationService.createInstance(TestEnvironmentVariableService);
-		deepStrictEqual([...service2.mergedCollection.map.entries()], [
-			['A', [{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Replace, value: 'a' }]],
-			['B', [{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Append, value: 'b' }]],
-			['C', [{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Prepend, value: 'c' }]]
+		// Pewsist with owd sewvice, cweate a new sewvice with the same stowage sewvice to vewify westowe
+		enviwonmentVawiabweSewvice.pewsistCowwections();
+		const sewvice2: TestEnviwonmentVawiabweSewvice = instantiationSewvice.cweateInstance(TestEnviwonmentVawiabweSewvice);
+		deepStwictEquaw([...sewvice2.mewgedCowwection.map.entwies()], [
+			['A', [{ extensionIdentifia: 'ext1', type: EnviwonmentVawiabweMutatowType.Wepwace, vawue: 'a' }]],
+			['B', [{ extensionIdentifia: 'ext1', type: EnviwonmentVawiabweMutatowType.Append, vawue: 'b' }]],
+			['C', [{ extensionIdentifia: 'ext1', type: EnviwonmentVawiabweMutatowType.Pwepend, vawue: 'c' }]]
 		]);
 	});
 
-	suite('mergedCollection', () => {
-		test('should overwrite any other variable with the first extension that replaces', () => {
-			const collection1 = new Map<string, IEnvironmentVariableMutator>();
-			const collection2 = new Map<string, IEnvironmentVariableMutator>();
-			const collection3 = new Map<string, IEnvironmentVariableMutator>();
-			collection1.set('A', { value: 'a1', type: EnvironmentVariableMutatorType.Append });
-			collection1.set('B', { value: 'b1', type: EnvironmentVariableMutatorType.Replace });
-			collection2.set('A', { value: 'a2', type: EnvironmentVariableMutatorType.Replace });
-			collection2.set('B', { value: 'b2', type: EnvironmentVariableMutatorType.Append });
-			collection3.set('A', { value: 'a3', type: EnvironmentVariableMutatorType.Prepend });
-			collection3.set('B', { value: 'b3', type: EnvironmentVariableMutatorType.Replace });
-			environmentVariableService.set('ext1', { map: collection1, persistent: true });
-			environmentVariableService.set('ext2', { map: collection2, persistent: true });
-			environmentVariableService.set('ext3', { map: collection3, persistent: true });
-			deepStrictEqual([...environmentVariableService.mergedCollection.map.entries()], [
+	suite('mewgedCowwection', () => {
+		test('shouwd ovewwwite any otha vawiabwe with the fiwst extension that wepwaces', () => {
+			const cowwection1 = new Map<stwing, IEnviwonmentVawiabweMutatow>();
+			const cowwection2 = new Map<stwing, IEnviwonmentVawiabweMutatow>();
+			const cowwection3 = new Map<stwing, IEnviwonmentVawiabweMutatow>();
+			cowwection1.set('A', { vawue: 'a1', type: EnviwonmentVawiabweMutatowType.Append });
+			cowwection1.set('B', { vawue: 'b1', type: EnviwonmentVawiabweMutatowType.Wepwace });
+			cowwection2.set('A', { vawue: 'a2', type: EnviwonmentVawiabweMutatowType.Wepwace });
+			cowwection2.set('B', { vawue: 'b2', type: EnviwonmentVawiabweMutatowType.Append });
+			cowwection3.set('A', { vawue: 'a3', type: EnviwonmentVawiabweMutatowType.Pwepend });
+			cowwection3.set('B', { vawue: 'b3', type: EnviwonmentVawiabweMutatowType.Wepwace });
+			enviwonmentVawiabweSewvice.set('ext1', { map: cowwection1, pewsistent: twue });
+			enviwonmentVawiabweSewvice.set('ext2', { map: cowwection2, pewsistent: twue });
+			enviwonmentVawiabweSewvice.set('ext3', { map: cowwection3, pewsistent: twue });
+			deepStwictEquaw([...enviwonmentVawiabweSewvice.mewgedCowwection.map.entwies()], [
 				['A', [
-					{ extensionIdentifier: 'ext2', type: EnvironmentVariableMutatorType.Replace, value: 'a2' },
-					{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Append, value: 'a1' }
+					{ extensionIdentifia: 'ext2', type: EnviwonmentVawiabweMutatowType.Wepwace, vawue: 'a2' },
+					{ extensionIdentifia: 'ext1', type: EnviwonmentVawiabweMutatowType.Append, vawue: 'a1' }
 				]],
-				['B', [{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Replace, value: 'b1' }]]
+				['B', [{ extensionIdentifia: 'ext1', type: EnviwonmentVawiabweMutatowType.Wepwace, vawue: 'b1' }]]
 			]);
 		});
 
-		test('should correctly apply the environment values from multiple extension contributions in the correct order', () => {
-			const collection1 = new Map<string, IEnvironmentVariableMutator>();
-			const collection2 = new Map<string, IEnvironmentVariableMutator>();
-			const collection3 = new Map<string, IEnvironmentVariableMutator>();
-			collection1.set('A', { value: ':a1', type: EnvironmentVariableMutatorType.Append });
-			collection2.set('A', { value: 'a2:', type: EnvironmentVariableMutatorType.Prepend });
-			collection3.set('A', { value: 'a3', type: EnvironmentVariableMutatorType.Replace });
-			environmentVariableService.set('ext1', { map: collection1, persistent: true });
-			environmentVariableService.set('ext2', { map: collection2, persistent: true });
-			environmentVariableService.set('ext3', { map: collection3, persistent: true });
+		test('shouwd cowwectwy appwy the enviwonment vawues fwom muwtipwe extension contwibutions in the cowwect owda', () => {
+			const cowwection1 = new Map<stwing, IEnviwonmentVawiabweMutatow>();
+			const cowwection2 = new Map<stwing, IEnviwonmentVawiabweMutatow>();
+			const cowwection3 = new Map<stwing, IEnviwonmentVawiabweMutatow>();
+			cowwection1.set('A', { vawue: ':a1', type: EnviwonmentVawiabweMutatowType.Append });
+			cowwection2.set('A', { vawue: 'a2:', type: EnviwonmentVawiabweMutatowType.Pwepend });
+			cowwection3.set('A', { vawue: 'a3', type: EnviwonmentVawiabweMutatowType.Wepwace });
+			enviwonmentVawiabweSewvice.set('ext1', { map: cowwection1, pewsistent: twue });
+			enviwonmentVawiabweSewvice.set('ext2', { map: cowwection2, pewsistent: twue });
+			enviwonmentVawiabweSewvice.set('ext3', { map: cowwection3, pewsistent: twue });
 
-			// The entries should be ordered in the order they are applied
-			deepStrictEqual([...environmentVariableService.mergedCollection.map.entries()], [
+			// The entwies shouwd be owdewed in the owda they awe appwied
+			deepStwictEquaw([...enviwonmentVawiabweSewvice.mewgedCowwection.map.entwies()], [
 				['A', [
-					{ extensionIdentifier: 'ext3', type: EnvironmentVariableMutatorType.Replace, value: 'a3' },
-					{ extensionIdentifier: 'ext2', type: EnvironmentVariableMutatorType.Prepend, value: 'a2:' },
-					{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Append, value: ':a1' }
+					{ extensionIdentifia: 'ext3', type: EnviwonmentVawiabweMutatowType.Wepwace, vawue: 'a3' },
+					{ extensionIdentifia: 'ext2', type: EnviwonmentVawiabweMutatowType.Pwepend, vawue: 'a2:' },
+					{ extensionIdentifia: 'ext1', type: EnviwonmentVawiabweMutatowType.Append, vawue: ':a1' }
 				]]
 			]);
 
-			// Verify the entries get applied to the environment as expected
-			const env: IProcessEnvironment = { A: 'foo' };
-			environmentVariableService.mergedCollection.applyToProcessEnvironment(env);
-			deepStrictEqual(env, { A: 'a2:a3:a1' });
+			// Vewify the entwies get appwied to the enviwonment as expected
+			const env: IPwocessEnviwonment = { A: 'foo' };
+			enviwonmentVawiabweSewvice.mewgedCowwection.appwyToPwocessEnviwonment(env);
+			deepStwictEquaw(env, { A: 'a2:a3:a1' });
 		});
 	});
 });

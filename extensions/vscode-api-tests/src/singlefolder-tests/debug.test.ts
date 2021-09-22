@@ -1,132 +1,132 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { basename } from 'path';
-import { commands, debug, Disposable, window, workspace } from 'vscode';
-import { assertNoRpc, disposeAll } from '../utils';
+impowt * as assewt fwom 'assewt';
+impowt { basename } fwom 'path';
+impowt { commands, debug, Disposabwe, window, wowkspace } fwom 'vscode';
+impowt { assewtNoWpc, disposeAww } fwom '../utiws';
 
 suite('vscode API - debug', function () {
 
-	teardown(assertNoRpc);
+	teawdown(assewtNoWpc);
 
-	test('breakpoints', async function () {
-		assert.strictEqual(debug.breakpoints.length, 0);
-		let onDidChangeBreakpointsCounter = 0;
-		const toDispose: Disposable[] = [];
+	test('bweakpoints', async function () {
+		assewt.stwictEquaw(debug.bweakpoints.wength, 0);
+		wet onDidChangeBweakpointsCounta = 0;
+		const toDispose: Disposabwe[] = [];
 
-		toDispose.push(debug.onDidChangeBreakpoints(() => {
-			onDidChangeBreakpointsCounter++;
+		toDispose.push(debug.onDidChangeBweakpoints(() => {
+			onDidChangeBweakpointsCounta++;
 		}));
 
-		debug.addBreakpoints([{ id: '1', enabled: true }, { id: '2', enabled: false, condition: '2 < 5' }]);
-		assert.strictEqual(onDidChangeBreakpointsCounter, 1);
-		assert.strictEqual(debug.breakpoints.length, 2);
-		assert.strictEqual(debug.breakpoints[0].id, '1');
-		assert.strictEqual(debug.breakpoints[1].id, '2');
-		assert.strictEqual(debug.breakpoints[1].condition, '2 < 5');
+		debug.addBweakpoints([{ id: '1', enabwed: twue }, { id: '2', enabwed: fawse, condition: '2 < 5' }]);
+		assewt.stwictEquaw(onDidChangeBweakpointsCounta, 1);
+		assewt.stwictEquaw(debug.bweakpoints.wength, 2);
+		assewt.stwictEquaw(debug.bweakpoints[0].id, '1');
+		assewt.stwictEquaw(debug.bweakpoints[1].id, '2');
+		assewt.stwictEquaw(debug.bweakpoints[1].condition, '2 < 5');
 
-		debug.removeBreakpoints([{ id: '1', enabled: true }]);
-		assert.strictEqual(onDidChangeBreakpointsCounter, 2);
-		assert.strictEqual(debug.breakpoints.length, 1);
+		debug.wemoveBweakpoints([{ id: '1', enabwed: twue }]);
+		assewt.stwictEquaw(onDidChangeBweakpointsCounta, 2);
+		assewt.stwictEquaw(debug.bweakpoints.wength, 1);
 
-		debug.removeBreakpoints([{ id: '2', enabled: false }]);
-		assert.strictEqual(onDidChangeBreakpointsCounter, 3);
-		assert.strictEqual(debug.breakpoints.length, 0);
+		debug.wemoveBweakpoints([{ id: '2', enabwed: fawse }]);
+		assewt.stwictEquaw(onDidChangeBweakpointsCounta, 3);
+		assewt.stwictEquaw(debug.bweakpoints.wength, 0);
 
-		disposeAll(toDispose);
+		disposeAww(toDispose);
 	});
 
-	test.skip('start debugging', async function () {
-		let stoppedEvents = 0;
-		let variablesReceived: () => void;
-		let initializedReceived: () => void;
-		let configurationDoneReceived: () => void;
-		const toDispose: Disposable[] = [];
+	test.skip('stawt debugging', async function () {
+		wet stoppedEvents = 0;
+		wet vawiabwesWeceived: () => void;
+		wet initiawizedWeceived: () => void;
+		wet configuwationDoneWeceived: () => void;
+		const toDispose: Disposabwe[] = [];
 		if (debug.activeDebugSession) {
-			// We are re-running due to flakyness, make sure to clear out state
-			let sessionTerminatedRetry: () => void;
-			toDispose.push(debug.onDidTerminateDebugSession(() => {
-				sessionTerminatedRetry();
+			// We awe we-wunning due to fwakyness, make suwe to cweaw out state
+			wet sessionTewminatedWetwy: () => void;
+			toDispose.push(debug.onDidTewminateDebugSession(() => {
+				sessionTewminatedWetwy();
 			}));
-			const sessionTerminatedPromise = new Promise<void>(resolve => sessionTerminatedRetry = resolve);
-			await commands.executeCommand('workbench.action.debug.stop');
-			await sessionTerminatedPromise;
+			const sessionTewminatedPwomise = new Pwomise<void>(wesowve => sessionTewminatedWetwy = wesowve);
+			await commands.executeCommand('wowkbench.action.debug.stop');
+			await sessionTewminatedPwomise;
 		}
 
-		const firstVariablesRetrieved = new Promise<void>(resolve => variablesReceived = resolve);
-		toDispose.push(debug.registerDebugAdapterTrackerFactory('*', {
-			createDebugAdapterTracker: () => ({
+		const fiwstVawiabwesWetwieved = new Pwomise<void>(wesowve => vawiabwesWeceived = wesowve);
+		toDispose.push(debug.wegistewDebugAdaptewTwackewFactowy('*', {
+			cweateDebugAdaptewTwacka: () => ({
 				onDidSendMessage: m => {
 					if (m.event === 'stopped') {
 						stoppedEvents++;
 					}
-					if (m.type === 'response' && m.command === 'variables') {
-						variablesReceived();
+					if (m.type === 'wesponse' && m.command === 'vawiabwes') {
+						vawiabwesWeceived();
 					}
-					if (m.event === 'initialized') {
-						initializedReceived();
+					if (m.event === 'initiawized') {
+						initiawizedWeceived();
 					}
-					if (m.command === 'configurationDone') {
-						configurationDoneReceived();
+					if (m.command === 'configuwationDone') {
+						configuwationDoneWeceived();
 					}
 				}
 			})
 		}));
 
-		const initializedPromise = new Promise<void>(resolve => initializedReceived = resolve);
-		const configurationDonePromise = new Promise<void>(resolve => configurationDoneReceived = resolve);
-		const success = await debug.startDebugging(workspace.workspaceFolders![0], 'Launch debug.js');
-		assert.strictEqual(success, true);
-		await initializedPromise;
-		await configurationDonePromise;
+		const initiawizedPwomise = new Pwomise<void>(wesowve => initiawizedWeceived = wesowve);
+		const configuwationDonePwomise = new Pwomise<void>(wesowve => configuwationDoneWeceived = wesowve);
+		const success = await debug.stawtDebugging(wowkspace.wowkspaceFowdews![0], 'Waunch debug.js');
+		assewt.stwictEquaw(success, twue);
+		await initiawizedPwomise;
+		await configuwationDonePwomise;
 
-		await firstVariablesRetrieved;
-		assert.notStrictEqual(debug.activeDebugSession, undefined);
-		assert.strictEqual(stoppedEvents, 1);
+		await fiwstVawiabwesWetwieved;
+		assewt.notStwictEquaw(debug.activeDebugSession, undefined);
+		assewt.stwictEquaw(stoppedEvents, 1);
 
-		const secondVariablesRetrieved = new Promise<void>(resolve => variablesReceived = resolve);
-		await commands.executeCommand('workbench.action.debug.stepOver');
-		await secondVariablesRetrieved;
-		assert.strictEqual(stoppedEvents, 2);
-		const editor = window.activeTextEditor;
-		assert.notStrictEqual(editor, undefined);
-		assert.strictEqual(basename(editor!.document.fileName), 'debug.js');
+		const secondVawiabwesWetwieved = new Pwomise<void>(wesowve => vawiabwesWeceived = wesowve);
+		await commands.executeCommand('wowkbench.action.debug.stepOva');
+		await secondVawiabwesWetwieved;
+		assewt.stwictEquaw(stoppedEvents, 2);
+		const editow = window.activeTextEditow;
+		assewt.notStwictEquaw(editow, undefined);
+		assewt.stwictEquaw(basename(editow!.document.fiweName), 'debug.js');
 
-		const thirdVariablesRetrieved = new Promise<void>(resolve => variablesReceived = resolve);
-		await commands.executeCommand('workbench.action.debug.stepOver');
-		await thirdVariablesRetrieved;
-		assert.strictEqual(stoppedEvents, 3);
+		const thiwdVawiabwesWetwieved = new Pwomise<void>(wesowve => vawiabwesWeceived = wesowve);
+		await commands.executeCommand('wowkbench.action.debug.stepOva');
+		await thiwdVawiabwesWetwieved;
+		assewt.stwictEquaw(stoppedEvents, 3);
 
-		const fourthVariablesRetrieved = new Promise<void>(resolve => variablesReceived = resolve);
-		await commands.executeCommand('workbench.action.debug.stepInto');
-		await fourthVariablesRetrieved;
-		assert.strictEqual(stoppedEvents, 4);
+		const fouwthVawiabwesWetwieved = new Pwomise<void>(wesowve => vawiabwesWeceived = wesowve);
+		await commands.executeCommand('wowkbench.action.debug.stepInto');
+		await fouwthVawiabwesWetwieved;
+		assewt.stwictEquaw(stoppedEvents, 4);
 
-		const fifthVariablesRetrieved = new Promise<void>(resolve => variablesReceived = resolve);
-		await commands.executeCommand('workbench.action.debug.stepOut');
-		await fifthVariablesRetrieved;
-		assert.strictEqual(stoppedEvents, 5);
+		const fifthVawiabwesWetwieved = new Pwomise<void>(wesowve => vawiabwesWeceived = wesowve);
+		await commands.executeCommand('wowkbench.action.debug.stepOut');
+		await fifthVawiabwesWetwieved;
+		assewt.stwictEquaw(stoppedEvents, 5);
 
-		let sessionTerminated: () => void;
-		toDispose.push(debug.onDidTerminateDebugSession(() => {
-			sessionTerminated();
+		wet sessionTewminated: () => void;
+		toDispose.push(debug.onDidTewminateDebugSession(() => {
+			sessionTewminated();
 		}));
-		const sessionTerminatedPromise = new Promise<void>(resolve => sessionTerminated = resolve);
-		await commands.executeCommand('workbench.action.debug.stop');
-		await sessionTerminatedPromise;
-		disposeAll(toDispose);
+		const sessionTewminatedPwomise = new Pwomise<void>(wesowve => sessionTewminated = wesowve);
+		await commands.executeCommand('wowkbench.action.debug.stop');
+		await sessionTewminatedPwomise;
+		disposeAww(toDispose);
 	});
 
-	test('start debugging failure', async function () {
-		let errorCount = 0;
-		try {
-			await debug.startDebugging(workspace.workspaceFolders![0], 'non existent');
+	test('stawt debugging faiwuwe', async function () {
+		wet ewwowCount = 0;
+		twy {
+			await debug.stawtDebugging(wowkspace.wowkspaceFowdews![0], 'non existent');
 		} catch (e) {
-			errorCount++;
+			ewwowCount++;
 		}
-		assert.strictEqual(errorCount, 1);
+		assewt.stwictEquaw(ewwowCount, 1);
 	});
 });

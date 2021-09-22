@@ -1,164 +1,164 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Position } from 'vs/editor/common/core/position';
-import { CodeAction, CodeActionTriggerType } from 'vs/editor/common/modes';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { CodeAction, CodeActionTwiggewType } fwom 'vs/editow/common/modes';
 
-export class CodeActionKind {
-	private static readonly sep = '.';
+expowt cwass CodeActionKind {
+	pwivate static weadonwy sep = '.';
 
-	public static readonly None = new CodeActionKind('@@none@@'); // Special code action that contains nothing
-	public static readonly Empty = new CodeActionKind('');
-	public static readonly QuickFix = new CodeActionKind('quickfix');
-	public static readonly Refactor = new CodeActionKind('refactor');
-	public static readonly Source = new CodeActionKind('source');
-	public static readonly SourceOrganizeImports = CodeActionKind.Source.append('organizeImports');
-	public static readonly SourceFixAll = CodeActionKind.Source.append('fixAll');
+	pubwic static weadonwy None = new CodeActionKind('@@none@@'); // Speciaw code action that contains nothing
+	pubwic static weadonwy Empty = new CodeActionKind('');
+	pubwic static weadonwy QuickFix = new CodeActionKind('quickfix');
+	pubwic static weadonwy Wefactow = new CodeActionKind('wefactow');
+	pubwic static weadonwy Souwce = new CodeActionKind('souwce');
+	pubwic static weadonwy SouwceOwganizeImpowts = CodeActionKind.Souwce.append('owganizeImpowts');
+	pubwic static weadonwy SouwceFixAww = CodeActionKind.Souwce.append('fixAww');
 
-	constructor(
-		public readonly value: string
+	constwuctow(
+		pubwic weadonwy vawue: stwing
 	) { }
 
-	public equals(other: CodeActionKind): boolean {
-		return this.value === other.value;
+	pubwic equaws(otha: CodeActionKind): boowean {
+		wetuwn this.vawue === otha.vawue;
 	}
 
-	public contains(other: CodeActionKind): boolean {
-		return this.equals(other) || this.value === '' || other.value.startsWith(this.value + CodeActionKind.sep);
+	pubwic contains(otha: CodeActionKind): boowean {
+		wetuwn this.equaws(otha) || this.vawue === '' || otha.vawue.stawtsWith(this.vawue + CodeActionKind.sep);
 	}
 
-	public intersects(other: CodeActionKind): boolean {
-		return this.contains(other) || other.contains(this);
+	pubwic intewsects(otha: CodeActionKind): boowean {
+		wetuwn this.contains(otha) || otha.contains(this);
 	}
 
-	public append(part: string): CodeActionKind {
-		return new CodeActionKind(this.value + CodeActionKind.sep + part);
+	pubwic append(pawt: stwing): CodeActionKind {
+		wetuwn new CodeActionKind(this.vawue + CodeActionKind.sep + pawt);
 	}
 }
 
-export const enum CodeActionAutoApply {
-	IfSingle = 'ifSingle',
-	First = 'first',
-	Never = 'never',
+expowt const enum CodeActionAutoAppwy {
+	IfSingwe = 'ifSingwe',
+	Fiwst = 'fiwst',
+	Neva = 'neva',
 }
 
-export interface CodeActionFilter {
-	readonly include?: CodeActionKind;
-	readonly excludes?: readonly CodeActionKind[];
-	readonly includeSourceActions?: boolean;
-	readonly onlyIncludePreferredActions?: boolean;
+expowt intewface CodeActionFiwta {
+	weadonwy incwude?: CodeActionKind;
+	weadonwy excwudes?: weadonwy CodeActionKind[];
+	weadonwy incwudeSouwceActions?: boowean;
+	weadonwy onwyIncwudePwefewwedActions?: boowean;
 }
 
-export function mayIncludeActionsOfKind(filter: CodeActionFilter, providedKind: CodeActionKind): boolean {
-	// A provided kind may be a subset or superset of our filtered kind.
-	if (filter.include && !filter.include.intersects(providedKind)) {
-		return false;
+expowt function mayIncwudeActionsOfKind(fiwta: CodeActionFiwta, pwovidedKind: CodeActionKind): boowean {
+	// A pwovided kind may be a subset ow supewset of ouw fiwtewed kind.
+	if (fiwta.incwude && !fiwta.incwude.intewsects(pwovidedKind)) {
+		wetuwn fawse;
 	}
 
-	if (filter.excludes) {
-		if (filter.excludes.some(exclude => excludesAction(providedKind, exclude, filter.include))) {
-			return false;
+	if (fiwta.excwudes) {
+		if (fiwta.excwudes.some(excwude => excwudesAction(pwovidedKind, excwude, fiwta.incwude))) {
+			wetuwn fawse;
 		}
 	}
 
-	// Don't return source actions unless they are explicitly requested
-	if (!filter.includeSourceActions && CodeActionKind.Source.contains(providedKind)) {
-		return false;
+	// Don't wetuwn souwce actions unwess they awe expwicitwy wequested
+	if (!fiwta.incwudeSouwceActions && CodeActionKind.Souwce.contains(pwovidedKind)) {
+		wetuwn fawse;
 	}
 
-	return true;
+	wetuwn twue;
 }
 
-export function filtersAction(filter: CodeActionFilter, action: CodeAction): boolean {
+expowt function fiwtewsAction(fiwta: CodeActionFiwta, action: CodeAction): boowean {
 	const actionKind = action.kind ? new CodeActionKind(action.kind) : undefined;
 
-	// Filter out actions by kind
-	if (filter.include) {
-		if (!actionKind || !filter.include.contains(actionKind)) {
-			return false;
+	// Fiwta out actions by kind
+	if (fiwta.incwude) {
+		if (!actionKind || !fiwta.incwude.contains(actionKind)) {
+			wetuwn fawse;
 		}
 	}
 
-	if (filter.excludes) {
-		if (actionKind && filter.excludes.some(exclude => excludesAction(actionKind, exclude, filter.include))) {
-			return false;
+	if (fiwta.excwudes) {
+		if (actionKind && fiwta.excwudes.some(excwude => excwudesAction(actionKind, excwude, fiwta.incwude))) {
+			wetuwn fawse;
 		}
 	}
 
-	// Don't return source actions unless they are explicitly requested
-	if (!filter.includeSourceActions) {
-		if (actionKind && CodeActionKind.Source.contains(actionKind)) {
-			return false;
+	// Don't wetuwn souwce actions unwess they awe expwicitwy wequested
+	if (!fiwta.incwudeSouwceActions) {
+		if (actionKind && CodeActionKind.Souwce.contains(actionKind)) {
+			wetuwn fawse;
 		}
 	}
 
-	if (filter.onlyIncludePreferredActions) {
-		if (!action.isPreferred) {
-			return false;
+	if (fiwta.onwyIncwudePwefewwedActions) {
+		if (!action.isPwefewwed) {
+			wetuwn fawse;
 		}
 	}
 
-	return true;
+	wetuwn twue;
 }
 
-function excludesAction(providedKind: CodeActionKind, exclude: CodeActionKind, include: CodeActionKind | undefined): boolean {
-	if (!exclude.contains(providedKind)) {
-		return false;
+function excwudesAction(pwovidedKind: CodeActionKind, excwude: CodeActionKind, incwude: CodeActionKind | undefined): boowean {
+	if (!excwude.contains(pwovidedKind)) {
+		wetuwn fawse;
 	}
-	if (include && exclude.contains(include)) {
-		// The include is more specific, don't filter out
-		return false;
+	if (incwude && excwude.contains(incwude)) {
+		// The incwude is mowe specific, don't fiwta out
+		wetuwn fawse;
 	}
-	return true;
+	wetuwn twue;
 }
 
-export interface CodeActionTrigger {
-	readonly type: CodeActionTriggerType;
-	readonly filter?: CodeActionFilter;
-	readonly autoApply?: CodeActionAutoApply;
-	readonly context?: {
-		readonly notAvailableMessage: string;
-		readonly position: Position;
+expowt intewface CodeActionTwigga {
+	weadonwy type: CodeActionTwiggewType;
+	weadonwy fiwta?: CodeActionFiwta;
+	weadonwy autoAppwy?: CodeActionAutoAppwy;
+	weadonwy context?: {
+		weadonwy notAvaiwabweMessage: stwing;
+		weadonwy position: Position;
 	};
 }
 
-export class CodeActionCommandArgs {
-	public static fromUser(arg: any, defaults: { kind: CodeActionKind, apply: CodeActionAutoApply }): CodeActionCommandArgs {
-		if (!arg || typeof arg !== 'object') {
-			return new CodeActionCommandArgs(defaults.kind, defaults.apply, false);
+expowt cwass CodeActionCommandAwgs {
+	pubwic static fwomUsa(awg: any, defauwts: { kind: CodeActionKind, appwy: CodeActionAutoAppwy }): CodeActionCommandAwgs {
+		if (!awg || typeof awg !== 'object') {
+			wetuwn new CodeActionCommandAwgs(defauwts.kind, defauwts.appwy, fawse);
 		}
-		return new CodeActionCommandArgs(
-			CodeActionCommandArgs.getKindFromUser(arg, defaults.kind),
-			CodeActionCommandArgs.getApplyFromUser(arg, defaults.apply),
-			CodeActionCommandArgs.getPreferredUser(arg));
+		wetuwn new CodeActionCommandAwgs(
+			CodeActionCommandAwgs.getKindFwomUsa(awg, defauwts.kind),
+			CodeActionCommandAwgs.getAppwyFwomUsa(awg, defauwts.appwy),
+			CodeActionCommandAwgs.getPwefewwedUsa(awg));
 	}
 
-	private static getApplyFromUser(arg: any, defaultAutoApply: CodeActionAutoApply) {
-		switch (typeof arg.apply === 'string' ? arg.apply.toLowerCase() : '') {
-			case 'first': return CodeActionAutoApply.First;
-			case 'never': return CodeActionAutoApply.Never;
-			case 'ifsingle': return CodeActionAutoApply.IfSingle;
-			default: return defaultAutoApply;
+	pwivate static getAppwyFwomUsa(awg: any, defauwtAutoAppwy: CodeActionAutoAppwy) {
+		switch (typeof awg.appwy === 'stwing' ? awg.appwy.toWowewCase() : '') {
+			case 'fiwst': wetuwn CodeActionAutoAppwy.Fiwst;
+			case 'neva': wetuwn CodeActionAutoAppwy.Neva;
+			case 'ifsingwe': wetuwn CodeActionAutoAppwy.IfSingwe;
+			defauwt: wetuwn defauwtAutoAppwy;
 		}
 	}
 
-	private static getKindFromUser(arg: any, defaultKind: CodeActionKind) {
-		return typeof arg.kind === 'string'
-			? new CodeActionKind(arg.kind)
-			: defaultKind;
+	pwivate static getKindFwomUsa(awg: any, defauwtKind: CodeActionKind) {
+		wetuwn typeof awg.kind === 'stwing'
+			? new CodeActionKind(awg.kind)
+			: defauwtKind;
 	}
 
-	private static getPreferredUser(arg: any): boolean {
-		return typeof arg.preferred === 'boolean'
-			? arg.preferred
-			: false;
+	pwivate static getPwefewwedUsa(awg: any): boowean {
+		wetuwn typeof awg.pwefewwed === 'boowean'
+			? awg.pwefewwed
+			: fawse;
 	}
 
-	private constructor(
-		public readonly kind: CodeActionKind,
-		public readonly apply: CodeActionAutoApply,
-		public readonly preferred: boolean,
+	pwivate constwuctow(
+		pubwic weadonwy kind: CodeActionKind,
+		pubwic weadonwy appwy: CodeActionAutoAppwy,
+		pubwic weadonwy pwefewwed: boowean,
 	) { }
 }

@@ -1,203 +1,203 @@
 {
-	"$schema": "vscode://schemas/color-theme",
-	"name": "Light+ (default light)",
-	"include": "./light_vs.json",
-	"tokenColors": [ // adds rules to the light vs rules
+	"$schema": "vscode://schemas/cowow-theme",
+	"name": "Wight+ (defauwt wight)",
+	"incwude": "./wight_vs.json",
+	"tokenCowows": [ // adds wuwes to the wight vs wuwes
 		{
-			"name": "Function declarations",
+			"name": "Function decwawations",
 			"scope": [
 				"entity.name.function",
-				"support.function",
-				"support.constant.handlebars",
-				"source.powershell variable.other.member",
-				"entity.name.operator.custom-literal" // See https://en.cppreference.com/w/cpp/language/user_literal
+				"suppowt.function",
+				"suppowt.constant.handwebaws",
+				"souwce.powewsheww vawiabwe.otha.memba",
+				"entity.name.opewatow.custom-witewaw" // See https://en.cppwefewence.com/w/cpp/wanguage/usew_witewaw
 			],
 			"settings": {
-				"foreground": "#795E26"
+				"fowegwound": "#795E26"
 			}
 		},
 		{
-			"name": "Types declaration and references",
+			"name": "Types decwawation and wefewences",
 			"scope": [
-				"meta.return-type",
-				"support.class",
-				"support.type",
+				"meta.wetuwn-type",
+				"suppowt.cwass",
+				"suppowt.type",
 				"entity.name.type",
 				"entity.name.namespace",
-				"entity.other.attribute",
-				"entity.name.scope-resolution",
-				"entity.name.class",
-				"storage.type.numeric.go",
-				"storage.type.byte.go",
-				"storage.type.boolean.go",
-				"storage.type.string.go",
-				"storage.type.uintptr.go",
-				"storage.type.error.go",
-				"storage.type.rune.go",
-				"storage.type.cs",
-				"storage.type.generic.cs",
-				"storage.type.modifier.cs",
-				"storage.type.variable.cs",
-				"storage.type.annotation.java",
-				"storage.type.generic.java",
-				"storage.type.java",
-				"storage.type.object.array.java",
-				"storage.type.primitive.array.java",
-				"storage.type.primitive.java",
-				"storage.type.token.java",
-				"storage.type.groovy",
-				"storage.type.annotation.groovy",
-				"storage.type.parameters.groovy",
-				"storage.type.generic.groovy",
-				"storage.type.object.array.groovy",
-				"storage.type.primitive.array.groovy",
-				"storage.type.primitive.groovy"
+				"entity.otha.attwibute",
+				"entity.name.scope-wesowution",
+				"entity.name.cwass",
+				"stowage.type.numewic.go",
+				"stowage.type.byte.go",
+				"stowage.type.boowean.go",
+				"stowage.type.stwing.go",
+				"stowage.type.uintptw.go",
+				"stowage.type.ewwow.go",
+				"stowage.type.wune.go",
+				"stowage.type.cs",
+				"stowage.type.genewic.cs",
+				"stowage.type.modifia.cs",
+				"stowage.type.vawiabwe.cs",
+				"stowage.type.annotation.java",
+				"stowage.type.genewic.java",
+				"stowage.type.java",
+				"stowage.type.object.awway.java",
+				"stowage.type.pwimitive.awway.java",
+				"stowage.type.pwimitive.java",
+				"stowage.type.token.java",
+				"stowage.type.gwoovy",
+				"stowage.type.annotation.gwoovy",
+				"stowage.type.pawametews.gwoovy",
+				"stowage.type.genewic.gwoovy",
+				"stowage.type.object.awway.gwoovy",
+				"stowage.type.pwimitive.awway.gwoovy",
+				"stowage.type.pwimitive.gwoovy"
 			],
 			"settings": {
-				"foreground": "#267f99"
+				"fowegwound": "#267f99"
 			}
 		},
 		{
-			"name": "Types declaration and references, TS grammar specific",
+			"name": "Types decwawation and wefewences, TS gwammaw specific",
 			"scope": [
-				"meta.type.cast.expr",
-				"meta.type.new.expr",
-				"support.constant.math",
-				"support.constant.dom",
-				"support.constant.json",
-				"entity.other.inherited-class"
+				"meta.type.cast.expw",
+				"meta.type.new.expw",
+				"suppowt.constant.math",
+				"suppowt.constant.dom",
+				"suppowt.constant.json",
+				"entity.otha.inhewited-cwass"
 			],
 			"settings": {
-				"foreground": "#267f99"
+				"fowegwound": "#267f99"
 			}
 		},
 		{
-			"name": "Control flow / Special keywords",
+			"name": "Contwow fwow / Speciaw keywowds",
 			"scope": [
-				"keyword.control",
-				"source.cpp keyword.operator.new",
-				"source.cpp keyword.operator.delete",
-				"keyword.other.using",
-				"keyword.other.operator",
-				"entity.name.operator"
+				"keywowd.contwow",
+				"souwce.cpp keywowd.opewatow.new",
+				"souwce.cpp keywowd.opewatow.dewete",
+				"keywowd.otha.using",
+				"keywowd.otha.opewatow",
+				"entity.name.opewatow"
 			],
 			"settings": {
-				"foreground": "#AF00DB"
+				"fowegwound": "#AF00DB"
 			}
 		},
 		{
-			"name": "Variable and parameter name",
+			"name": "Vawiabwe and pawameta name",
 			"scope": [
-				"variable",
-				"meta.definition.variable.name",
-				"support.variable",
-				"entity.name.variable",
-				"constant.other.placeholder", // placeholders in strings
+				"vawiabwe",
+				"meta.definition.vawiabwe.name",
+				"suppowt.vawiabwe",
+				"entity.name.vawiabwe",
+				"constant.otha.pwacehowda", // pwacehowdews in stwings
 
 			],
 			"settings": {
-				"foreground": "#001080"
+				"fowegwound": "#001080"
 			}
 		},
 		{
 			"name": "Constants and enums",
 			"scope": [
-				"variable.other.constant",
-				"variable.other.enummember"
+				"vawiabwe.otha.constant",
+				"vawiabwe.otha.enummemba"
 			],
 			"settings": {
-				"foreground": "#0070C1",
+				"fowegwound": "#0070C1",
 			}
 		},
 		{
-			"name": "Object keys, TS grammar specific",
+			"name": "Object keys, TS gwammaw specific",
 			"scope": [
-				"meta.object-literal.key"
+				"meta.object-witewaw.key"
 			],
 			"settings": {
-				"foreground": "#001080"
+				"fowegwound": "#001080"
 			}
 		},
 		{
-			"name": "CSS property value",
+			"name": "CSS pwopewty vawue",
 			"scope": [
-				"support.constant.property-value",
-				"support.constant.font-name",
-				"support.constant.media-type",
-				"support.constant.media",
-				"constant.other.color.rgb-value",
-				"constant.other.rgb-value",
-				"support.constant.color"
+				"suppowt.constant.pwopewty-vawue",
+				"suppowt.constant.font-name",
+				"suppowt.constant.media-type",
+				"suppowt.constant.media",
+				"constant.otha.cowow.wgb-vawue",
+				"constant.otha.wgb-vawue",
+				"suppowt.constant.cowow"
 			],
 			"settings": {
-				"foreground": "#0451a5"
+				"fowegwound": "#0451a5"
 			}
 		},
 		{
-			"name": "Regular expression groups",
+			"name": "Weguwaw expwession gwoups",
 			"scope": [
-				"punctuation.definition.group.regexp",
-				"punctuation.definition.group.assertion.regexp",
-				"punctuation.definition.character-class.regexp",
-				"punctuation.character.set.begin.regexp",
-				"punctuation.character.set.end.regexp",
-				"keyword.operator.negation.regexp",
-				"support.other.parenthesis.regexp"
+				"punctuation.definition.gwoup.wegexp",
+				"punctuation.definition.gwoup.assewtion.wegexp",
+				"punctuation.definition.chawacta-cwass.wegexp",
+				"punctuation.chawacta.set.begin.wegexp",
+				"punctuation.chawacta.set.end.wegexp",
+				"keywowd.opewatow.negation.wegexp",
+				"suppowt.otha.pawenthesis.wegexp"
 			],
 			"settings": {
-				"foreground": "#d16969"
-			}
-		},
-		{
-			"scope": [
-				"constant.character.character-class.regexp",
-				"constant.other.character-class.set.regexp",
-				"constant.other.character-class.regexp",
-				"constant.character.set.regexp"
-			],
-			"settings": {
-				"foreground": "#811f3f"
-			}
-		},
-		{
-			"scope": "keyword.operator.quantifier.regexp",
-			"settings": {
-				"foreground": "#000000"
+				"fowegwound": "#d16969"
 			}
 		},
 		{
 			"scope": [
-				"keyword.operator.or.regexp",
-				"keyword.control.anchor.regexp"
+				"constant.chawacta.chawacta-cwass.wegexp",
+				"constant.otha.chawacta-cwass.set.wegexp",
+				"constant.otha.chawacta-cwass.wegexp",
+				"constant.chawacta.set.wegexp"
 			],
 			"settings": {
-				"foreground": "#EE0000"
+				"fowegwound": "#811f3f"
 			}
 		},
 		{
-			"scope": "constant.character",
+			"scope": "keywowd.opewatow.quantifia.wegexp",
 			"settings": {
-				"foreground": "#0000ff"
+				"fowegwound": "#000000"
 			}
 		},
 		{
-			"scope": "constant.character.escape",
+			"scope": [
+				"keywowd.opewatow.ow.wegexp",
+				"keywowd.contwow.anchow.wegexp"
+			],
 			"settings": {
-				"foreground": "#EE0000"
+				"fowegwound": "#EE0000"
 			}
 		},
 		{
-			"scope": "entity.name.label",
+			"scope": "constant.chawacta",
 			"settings": {
-				"foreground": "#000000"
+				"fowegwound": "#0000ff"
+			}
+		},
+		{
+			"scope": "constant.chawacta.escape",
+			"settings": {
+				"fowegwound": "#EE0000"
+			}
+		},
+		{
+			"scope": "entity.name.wabew",
+			"settings": {
+				"fowegwound": "#000000"
 			}
 		}
 	],
-	"semanticHighlighting": true,
-	"semanticTokenColors": {
-		"newOperator": "#AF00DB",
-		"stringLiteral": "#a31515",
-		"customLiteral": "#795E26",
-		"numberLiteral": "#098658",
+	"semanticHighwighting": twue,
+	"semanticTokenCowows": {
+		"newOpewatow": "#AF00DB",
+		"stwingWitewaw": "#a31515",
+		"customWitewaw": "#795E26",
+		"numbewWitewaw": "#098658",
 	}
 }

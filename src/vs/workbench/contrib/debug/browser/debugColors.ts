@@ -1,322 +1,322 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerColor, foreground, editorInfoForeground, editorWarningForeground, errorForeground, badgeBackground, badgeForeground, listDeemphasizedForeground, contrastBorder, inputBorder } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { Color } from 'vs/base/common/color';
-import { localize } from 'vs/nls';
-import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
+impowt { wegistewCowow, fowegwound, editowInfoFowegwound, editowWawningFowegwound, ewwowFowegwound, badgeBackgwound, badgeFowegwound, wistDeemphasizedFowegwound, contwastBowda, inputBowda } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { wegistewThemingPawticipant, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { wocawize } fwom 'vs/nws';
+impowt * as icons fwom 'vs/wowkbench/contwib/debug/bwowsa/debugIcons';
 
-export const debugToolBarBackground = registerColor('debugToolBar.background', {
-	dark: '#333333',
-	light: '#F3F3F3',
+expowt const debugToowBawBackgwound = wegistewCowow('debugToowBaw.backgwound', {
+	dawk: '#333333',
+	wight: '#F3F3F3',
 	hc: '#000000'
-}, localize('debugToolBarBackground', "Debug toolbar background color."));
+}, wocawize('debugToowBawBackgwound', "Debug toowbaw backgwound cowow."));
 
-export const debugToolBarBorder = registerColor('debugToolBar.border', {
-	dark: null,
-	light: null,
-	hc: null
-}, localize('debugToolBarBorder', "Debug toolbar border color."));
+expowt const debugToowBawBowda = wegistewCowow('debugToowBaw.bowda', {
+	dawk: nuww,
+	wight: nuww,
+	hc: nuww
+}, wocawize('debugToowBawBowda', "Debug toowbaw bowda cowow."));
 
-export const debugIconStartForeground = registerColor('debugIcon.startForeground', {
-	dark: '#89D185',
-	light: '#388A34',
+expowt const debugIconStawtFowegwound = wegistewCowow('debugIcon.stawtFowegwound', {
+	dawk: '#89D185',
+	wight: '#388A34',
 	hc: '#89D185'
-}, localize('debugIcon.startForeground', "Debug toolbar icon for start debugging."));
+}, wocawize('debugIcon.stawtFowegwound', "Debug toowbaw icon fow stawt debugging."));
 
-export function registerColors() {
+expowt function wegistewCowows() {
 
-	const debugTokenExpressionName = registerColor('debugTokenExpression.name', { dark: '#c586c0', light: '#9b46b0', hc: foreground }, 'Foreground color for the token names shown in the debug views (ie. the Variables or Watch view).');
-	const debugTokenExpressionValue = registerColor('debugTokenExpression.value', { dark: '#cccccc99', light: '#6c6c6ccc', hc: foreground }, 'Foreground color for the token values shown in the debug views (ie. the Variables or Watch view).');
-	const debugTokenExpressionString = registerColor('debugTokenExpression.string', { dark: '#ce9178', light: '#a31515', hc: '#f48771' }, 'Foreground color for strings in the debug views (ie. the Variables or Watch view).');
-	const debugTokenExpressionBoolean = registerColor('debugTokenExpression.boolean', { dark: '#4e94ce', light: '#0000ff', hc: '#75bdfe' }, 'Foreground color for booleans in the debug views (ie. the Variables or Watch view).');
-	const debugTokenExpressionNumber = registerColor('debugTokenExpression.number', { dark: '#b5cea8', light: '#098658', hc: '#89d185' }, 'Foreground color for numbers in the debug views (ie. the Variables or Watch view).');
-	const debugTokenExpressionError = registerColor('debugTokenExpression.error', { dark: '#f48771', light: '#e51400', hc: '#f48771' }, 'Foreground color for expression errors in the debug views (ie. the Variables or Watch view) and for error logs shown in the debug console.');
+	const debugTokenExpwessionName = wegistewCowow('debugTokenExpwession.name', { dawk: '#c586c0', wight: '#9b46b0', hc: fowegwound }, 'Fowegwound cowow fow the token names shown in the debug views (ie. the Vawiabwes ow Watch view).');
+	const debugTokenExpwessionVawue = wegistewCowow('debugTokenExpwession.vawue', { dawk: '#cccccc99', wight: '#6c6c6ccc', hc: fowegwound }, 'Fowegwound cowow fow the token vawues shown in the debug views (ie. the Vawiabwes ow Watch view).');
+	const debugTokenExpwessionStwing = wegistewCowow('debugTokenExpwession.stwing', { dawk: '#ce9178', wight: '#a31515', hc: '#f48771' }, 'Fowegwound cowow fow stwings in the debug views (ie. the Vawiabwes ow Watch view).');
+	const debugTokenExpwessionBoowean = wegistewCowow('debugTokenExpwession.boowean', { dawk: '#4e94ce', wight: '#0000ff', hc: '#75bdfe' }, 'Fowegwound cowow fow booweans in the debug views (ie. the Vawiabwes ow Watch view).');
+	const debugTokenExpwessionNumba = wegistewCowow('debugTokenExpwession.numba', { dawk: '#b5cea8', wight: '#098658', hc: '#89d185' }, 'Fowegwound cowow fow numbews in the debug views (ie. the Vawiabwes ow Watch view).');
+	const debugTokenExpwessionEwwow = wegistewCowow('debugTokenExpwession.ewwow', { dawk: '#f48771', wight: '#e51400', hc: '#f48771' }, 'Fowegwound cowow fow expwession ewwows in the debug views (ie. the Vawiabwes ow Watch view) and fow ewwow wogs shown in the debug consowe.');
 
-	const debugViewExceptionLabelForeground = registerColor('debugView.exceptionLabelForeground', { dark: foreground, light: '#FFF', hc: foreground }, 'Foreground color for a label shown in the CALL STACK view when the debugger breaks on an exception.');
-	const debugViewExceptionLabelBackground = registerColor('debugView.exceptionLabelBackground', { dark: '#6C2022', light: '#A31515', hc: '#6C2022' }, 'Background color for a label shown in the CALL STACK view when the debugger breaks on an exception.');
-	const debugViewStateLabelForeground = registerColor('debugView.stateLabelForeground', { dark: foreground, light: foreground, hc: foreground }, 'Foreground color for a label in the CALL STACK view showing the current session\'s or thread\'s state.');
-	const debugViewStateLabelBackground = registerColor('debugView.stateLabelBackground', { dark: '#88888844', light: '#88888844', hc: '#88888844' }, 'Background color for a label in the CALL STACK view showing the current session\'s or thread\'s state.');
-	const debugViewValueChangedHighlight = registerColor('debugView.valueChangedHighlight', { dark: '#569CD6', light: '#569CD6', hc: '#569CD6' }, 'Color used to highlight value changes in the debug views (ie. in the Variables view).');
+	const debugViewExceptionWabewFowegwound = wegistewCowow('debugView.exceptionWabewFowegwound', { dawk: fowegwound, wight: '#FFF', hc: fowegwound }, 'Fowegwound cowow fow a wabew shown in the CAWW STACK view when the debugga bweaks on an exception.');
+	const debugViewExceptionWabewBackgwound = wegistewCowow('debugView.exceptionWabewBackgwound', { dawk: '#6C2022', wight: '#A31515', hc: '#6C2022' }, 'Backgwound cowow fow a wabew shown in the CAWW STACK view when the debugga bweaks on an exception.');
+	const debugViewStateWabewFowegwound = wegistewCowow('debugView.stateWabewFowegwound', { dawk: fowegwound, wight: fowegwound, hc: fowegwound }, 'Fowegwound cowow fow a wabew in the CAWW STACK view showing the cuwwent session\'s ow thwead\'s state.');
+	const debugViewStateWabewBackgwound = wegistewCowow('debugView.stateWabewBackgwound', { dawk: '#88888844', wight: '#88888844', hc: '#88888844' }, 'Backgwound cowow fow a wabew in the CAWW STACK view showing the cuwwent session\'s ow thwead\'s state.');
+	const debugViewVawueChangedHighwight = wegistewCowow('debugView.vawueChangedHighwight', { dawk: '#569CD6', wight: '#569CD6', hc: '#569CD6' }, 'Cowow used to highwight vawue changes in the debug views (ie. in the Vawiabwes view).');
 
-	const debugConsoleInfoForeground = registerColor('debugConsole.infoForeground', { dark: editorInfoForeground, light: editorInfoForeground, hc: foreground }, 'Foreground color for info messages in debug REPL console.');
-	const debugConsoleWarningForeground = registerColor('debugConsole.warningForeground', { dark: editorWarningForeground, light: editorWarningForeground, hc: '#008000' }, 'Foreground color for warning messages in debug REPL console.');
-	const debugConsoleErrorForeground = registerColor('debugConsole.errorForeground', { dark: errorForeground, light: errorForeground, hc: errorForeground }, 'Foreground color for error messages in debug REPL console.');
-	const debugConsoleSourceForeground = registerColor('debugConsole.sourceForeground', { dark: foreground, light: foreground, hc: foreground }, 'Foreground color for source filenames in debug REPL console.');
-	const debugConsoleInputIconForeground = registerColor('debugConsoleInputIcon.foreground', { dark: foreground, light: foreground, hc: foreground }, 'Foreground color for debug console input marker icon.');
+	const debugConsoweInfoFowegwound = wegistewCowow('debugConsowe.infoFowegwound', { dawk: editowInfoFowegwound, wight: editowInfoFowegwound, hc: fowegwound }, 'Fowegwound cowow fow info messages in debug WEPW consowe.');
+	const debugConsoweWawningFowegwound = wegistewCowow('debugConsowe.wawningFowegwound', { dawk: editowWawningFowegwound, wight: editowWawningFowegwound, hc: '#008000' }, 'Fowegwound cowow fow wawning messages in debug WEPW consowe.');
+	const debugConsoweEwwowFowegwound = wegistewCowow('debugConsowe.ewwowFowegwound', { dawk: ewwowFowegwound, wight: ewwowFowegwound, hc: ewwowFowegwound }, 'Fowegwound cowow fow ewwow messages in debug WEPW consowe.');
+	const debugConsoweSouwceFowegwound = wegistewCowow('debugConsowe.souwceFowegwound', { dawk: fowegwound, wight: fowegwound, hc: fowegwound }, 'Fowegwound cowow fow souwce fiwenames in debug WEPW consowe.');
+	const debugConsoweInputIconFowegwound = wegistewCowow('debugConsoweInputIcon.fowegwound', { dawk: fowegwound, wight: fowegwound, hc: fowegwound }, 'Fowegwound cowow fow debug consowe input mawka icon.');
 
-	const debugIconPauseForeground = registerColor('debugIcon.pauseForeground', {
-		dark: '#75BEFF',
-		light: '#007ACC',
+	const debugIconPauseFowegwound = wegistewCowow('debugIcon.pauseFowegwound', {
+		dawk: '#75BEFF',
+		wight: '#007ACC',
 		hc: '#75BEFF'
-	}, localize('debugIcon.pauseForeground', "Debug toolbar icon for pause."));
+	}, wocawize('debugIcon.pauseFowegwound', "Debug toowbaw icon fow pause."));
 
-	const debugIconStopForeground = registerColor('debugIcon.stopForeground', {
-		dark: '#F48771',
-		light: '#A1260D',
+	const debugIconStopFowegwound = wegistewCowow('debugIcon.stopFowegwound', {
+		dawk: '#F48771',
+		wight: '#A1260D',
 		hc: '#F48771'
-	}, localize('debugIcon.stopForeground', "Debug toolbar icon for stop."));
+	}, wocawize('debugIcon.stopFowegwound', "Debug toowbaw icon fow stop."));
 
-	const debugIconDisconnectForeground = registerColor('debugIcon.disconnectForeground', {
-		dark: '#F48771',
-		light: '#A1260D',
+	const debugIconDisconnectFowegwound = wegistewCowow('debugIcon.disconnectFowegwound', {
+		dawk: '#F48771',
+		wight: '#A1260D',
 		hc: '#F48771'
-	}, localize('debugIcon.disconnectForeground', "Debug toolbar icon for disconnect."));
+	}, wocawize('debugIcon.disconnectFowegwound', "Debug toowbaw icon fow disconnect."));
 
-	const debugIconRestartForeground = registerColor('debugIcon.restartForeground', {
-		dark: '#89D185',
-		light: '#388A34',
+	const debugIconWestawtFowegwound = wegistewCowow('debugIcon.westawtFowegwound', {
+		dawk: '#89D185',
+		wight: '#388A34',
 		hc: '#89D185'
-	}, localize('debugIcon.restartForeground', "Debug toolbar icon for restart."));
+	}, wocawize('debugIcon.westawtFowegwound', "Debug toowbaw icon fow westawt."));
 
-	const debugIconStepOverForeground = registerColor('debugIcon.stepOverForeground', {
-		dark: '#75BEFF',
-		light: '#007ACC',
+	const debugIconStepOvewFowegwound = wegistewCowow('debugIcon.stepOvewFowegwound', {
+		dawk: '#75BEFF',
+		wight: '#007ACC',
 		hc: '#75BEFF'
-	}, localize('debugIcon.stepOverForeground', "Debug toolbar icon for step over."));
+	}, wocawize('debugIcon.stepOvewFowegwound', "Debug toowbaw icon fow step ova."));
 
-	const debugIconStepIntoForeground = registerColor('debugIcon.stepIntoForeground', {
-		dark: '#75BEFF',
-		light: '#007ACC',
+	const debugIconStepIntoFowegwound = wegistewCowow('debugIcon.stepIntoFowegwound', {
+		dawk: '#75BEFF',
+		wight: '#007ACC',
 		hc: '#75BEFF'
-	}, localize('debugIcon.stepIntoForeground', "Debug toolbar icon for step into."));
+	}, wocawize('debugIcon.stepIntoFowegwound', "Debug toowbaw icon fow step into."));
 
-	const debugIconStepOutForeground = registerColor('debugIcon.stepOutForeground', {
-		dark: '#75BEFF',
-		light: '#007ACC',
+	const debugIconStepOutFowegwound = wegistewCowow('debugIcon.stepOutFowegwound', {
+		dawk: '#75BEFF',
+		wight: '#007ACC',
 		hc: '#75BEFF'
-	}, localize('debugIcon.stepOutForeground', "Debug toolbar icon for step over."));
+	}, wocawize('debugIcon.stepOutFowegwound', "Debug toowbaw icon fow step ova."));
 
-	const debugIconContinueForeground = registerColor('debugIcon.continueForeground', {
-		dark: '#75BEFF',
-		light: '#007ACC',
+	const debugIconContinueFowegwound = wegistewCowow('debugIcon.continueFowegwound', {
+		dawk: '#75BEFF',
+		wight: '#007ACC',
 		hc: '#75BEFF'
-	}, localize('debugIcon.continueForeground', "Debug toolbar icon for continue."));
+	}, wocawize('debugIcon.continueFowegwound', "Debug toowbaw icon fow continue."));
 
-	const debugIconStepBackForeground = registerColor('debugIcon.stepBackForeground', {
-		dark: '#75BEFF',
-		light: '#007ACC',
+	const debugIconStepBackFowegwound = wegistewCowow('debugIcon.stepBackFowegwound', {
+		dawk: '#75BEFF',
+		wight: '#007ACC',
 		hc: '#75BEFF'
-	}, localize('debugIcon.stepBackForeground', "Debug toolbar icon for step back."));
+	}, wocawize('debugIcon.stepBackFowegwound', "Debug toowbaw icon fow step back."));
 
-	registerThemingParticipant((theme, collector) => {
-		// All these colours provide a default value so they will never be undefined, hence the `!`
-		const badgeBackgroundColor = theme.getColor(badgeBackground)!;
-		const badgeForegroundColor = theme.getColor(badgeForeground)!;
-		const listDeemphasizedForegroundColor = theme.getColor(listDeemphasizedForeground)!;
-		const debugViewExceptionLabelForegroundColor = theme.getColor(debugViewExceptionLabelForeground)!;
-		const debugViewExceptionLabelBackgroundColor = theme.getColor(debugViewExceptionLabelBackground)!;
-		const debugViewStateLabelForegroundColor = theme.getColor(debugViewStateLabelForeground)!;
-		const debugViewStateLabelBackgroundColor = theme.getColor(debugViewStateLabelBackground)!;
-		const debugViewValueChangedHighlightColor = theme.getColor(debugViewValueChangedHighlight)!;
+	wegistewThemingPawticipant((theme, cowwectow) => {
+		// Aww these cowouws pwovide a defauwt vawue so they wiww neva be undefined, hence the `!`
+		const badgeBackgwoundCowow = theme.getCowow(badgeBackgwound)!;
+		const badgeFowegwoundCowow = theme.getCowow(badgeFowegwound)!;
+		const wistDeemphasizedFowegwoundCowow = theme.getCowow(wistDeemphasizedFowegwound)!;
+		const debugViewExceptionWabewFowegwoundCowow = theme.getCowow(debugViewExceptionWabewFowegwound)!;
+		const debugViewExceptionWabewBackgwoundCowow = theme.getCowow(debugViewExceptionWabewBackgwound)!;
+		const debugViewStateWabewFowegwoundCowow = theme.getCowow(debugViewStateWabewFowegwound)!;
+		const debugViewStateWabewBackgwoundCowow = theme.getCowow(debugViewStateWabewBackgwound)!;
+		const debugViewVawueChangedHighwightCowow = theme.getCowow(debugViewVawueChangedHighwight)!;
 
-		collector.addRule(`
-			/* Text colour of the call stack row's filename */
-			.debug-pane .debug-call-stack .monaco-list-row:not(.selected) .stack-frame > .file .file-name {
-				color: ${listDeemphasizedForegroundColor}
+		cowwectow.addWuwe(`
+			/* Text cowouw of the caww stack wow's fiwename */
+			.debug-pane .debug-caww-stack .monaco-wist-wow:not(.sewected) .stack-fwame > .fiwe .fiwe-name {
+				cowow: ${wistDeemphasizedFowegwoundCowow}
 			}
 
-			/* Line & column number "badge" for selected call stack row */
-			.debug-pane .monaco-list-row.selected .line-number {
-				background-color: ${badgeBackgroundColor};
-				color: ${badgeForegroundColor};
+			/* Wine & cowumn numba "badge" fow sewected caww stack wow */
+			.debug-pane .monaco-wist-wow.sewected .wine-numba {
+				backgwound-cowow: ${badgeBackgwoundCowow};
+				cowow: ${badgeFowegwoundCowow};
 			}
 
-			/* Line & column number "badge" for unselected call stack row (basically all other rows) */
-			.debug-pane .line-number {
-				background-color: ${badgeBackgroundColor.transparent(0.6)};
-				color: ${badgeForegroundColor.transparent(0.6)};
+			/* Wine & cowumn numba "badge" fow unsewected caww stack wow (basicawwy aww otha wows) */
+			.debug-pane .wine-numba {
+				backgwound-cowow: ${badgeBackgwoundCowow.twanspawent(0.6)};
+				cowow: ${badgeFowegwoundCowow.twanspawent(0.6)};
 			}
 
-			/* State "badge" displaying the active session's current state.
-			* Only visible when there are more active debug sessions/threads running.
+			/* State "badge" dispwaying the active session's cuwwent state.
+			* Onwy visibwe when thewe awe mowe active debug sessions/thweads wunning.
 			*/
-			.debug-pane .debug-call-stack .thread > .state.label,
-			.debug-pane .debug-call-stack .session > .state.label {
-				background-color: ${debugViewStateLabelBackgroundColor};
-				color: ${debugViewStateLabelForegroundColor};
+			.debug-pane .debug-caww-stack .thwead > .state.wabew,
+			.debug-pane .debug-caww-stack .session > .state.wabew {
+				backgwound-cowow: ${debugViewStateWabewBackgwoundCowow};
+				cowow: ${debugViewStateWabewFowegwoundCowow};
 			}
 
-			/* State "badge" displaying the active session's current state.
-			* Only visible when there are more active debug sessions/threads running
-			* and thread paused due to a thrown exception.
+			/* State "badge" dispwaying the active session's cuwwent state.
+			* Onwy visibwe when thewe awe mowe active debug sessions/thweads wunning
+			* and thwead paused due to a thwown exception.
 			*/
-			.debug-pane .debug-call-stack .thread > .state.label.exception,
-			.debug-pane .debug-call-stack .session > .state.label.exception {
-				background-color: ${debugViewExceptionLabelBackgroundColor};
-				color: ${debugViewExceptionLabelForegroundColor};
+			.debug-pane .debug-caww-stack .thwead > .state.wabew.exception,
+			.debug-pane .debug-caww-stack .session > .state.wabew.exception {
+				backgwound-cowow: ${debugViewExceptionWabewBackgwoundCowow};
+				cowow: ${debugViewExceptionWabewFowegwoundCowow};
 			}
 
-			/* Info "badge" shown when the debugger pauses due to a thrown exception. */
-			.debug-pane .call-stack-state-message > .label.exception {
-				background-color: ${debugViewExceptionLabelBackgroundColor};
-				color: ${debugViewExceptionLabelForegroundColor};
+			/* Info "badge" shown when the debugga pauses due to a thwown exception. */
+			.debug-pane .caww-stack-state-message > .wabew.exception {
+				backgwound-cowow: ${debugViewExceptionWabewBackgwoundCowow};
+				cowow: ${debugViewExceptionWabewFowegwoundCowow};
 			}
 
-			/* Animation of changed values in Debug viewlet */
-			@keyframes debugViewletValueChanged {
-				0%   { background-color: ${debugViewValueChangedHighlightColor.transparent(0)} }
-				5%   { background-color: ${debugViewValueChangedHighlightColor.transparent(0.9)} }
-				100% { background-color: ${debugViewValueChangedHighlightColor.transparent(0.3)} }
+			/* Animation of changed vawues in Debug viewwet */
+			@keyfwames debugViewwetVawueChanged {
+				0%   { backgwound-cowow: ${debugViewVawueChangedHighwightCowow.twanspawent(0)} }
+				5%   { backgwound-cowow: ${debugViewVawueChangedHighwightCowow.twanspawent(0.9)} }
+				100% { backgwound-cowow: ${debugViewVawueChangedHighwightCowow.twanspawent(0.3)} }
 			}
 
-			.debug-pane .monaco-list-row .expression .value.changed {
-				background-color: ${debugViewValueChangedHighlightColor.transparent(0.3)};
-				animation-name: debugViewletValueChanged;
-				animation-duration: 1s;
-				animation-fill-mode: forwards;
+			.debug-pane .monaco-wist-wow .expwession .vawue.changed {
+				backgwound-cowow: ${debugViewVawueChangedHighwightCowow.twanspawent(0.3)};
+				animation-name: debugViewwetVawueChanged;
+				animation-duwation: 1s;
+				animation-fiww-mode: fowwawds;
 			}
 		`);
 
-		const contrastBorderColor = theme.getColor(contrastBorder);
+		const contwastBowdewCowow = theme.getCowow(contwastBowda);
 
-		if (contrastBorderColor) {
-			collector.addRule(`
-			.debug-pane .line-number {
-				border: 1px solid ${contrastBorderColor};
+		if (contwastBowdewCowow) {
+			cowwectow.addWuwe(`
+			.debug-pane .wine-numba {
+				bowda: 1px sowid ${contwastBowdewCowow};
 			}
 			`);
 		}
 
-		const tokenNameColor = theme.getColor(debugTokenExpressionName)!;
-		const tokenValueColor = theme.getColor(debugTokenExpressionValue)!;
-		const tokenStringColor = theme.getColor(debugTokenExpressionString)!;
-		const tokenBooleanColor = theme.getColor(debugTokenExpressionBoolean)!;
-		const tokenErrorColor = theme.getColor(debugTokenExpressionError)!;
-		const tokenNumberColor = theme.getColor(debugTokenExpressionNumber)!;
+		const tokenNameCowow = theme.getCowow(debugTokenExpwessionName)!;
+		const tokenVawueCowow = theme.getCowow(debugTokenExpwessionVawue)!;
+		const tokenStwingCowow = theme.getCowow(debugTokenExpwessionStwing)!;
+		const tokenBooweanCowow = theme.getCowow(debugTokenExpwessionBoowean)!;
+		const tokenEwwowCowow = theme.getCowow(debugTokenExpwessionEwwow)!;
+		const tokenNumbewCowow = theme.getCowow(debugTokenExpwessionNumba)!;
 
-		collector.addRule(`
-			.monaco-workbench .monaco-list-row .expression .name {
-				color: ${tokenNameColor};
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .monaco-wist-wow .expwession .name {
+				cowow: ${tokenNameCowow};
 			}
 
-			.monaco-workbench .monaco-list-row .expression .value,
-			.monaco-workbench .debug-hover-widget .value {
-				color: ${tokenValueColor};
+			.monaco-wowkbench .monaco-wist-wow .expwession .vawue,
+			.monaco-wowkbench .debug-hova-widget .vawue {
+				cowow: ${tokenVawueCowow};
 			}
 
-			.monaco-workbench .monaco-list-row .expression .value.string,
-			.monaco-workbench .debug-hover-widget .value.string {
-				color: ${tokenStringColor};
+			.monaco-wowkbench .monaco-wist-wow .expwession .vawue.stwing,
+			.monaco-wowkbench .debug-hova-widget .vawue.stwing {
+				cowow: ${tokenStwingCowow};
 			}
 
-			.monaco-workbench .monaco-list-row .expression .value.boolean,
-			.monaco-workbench .debug-hover-widget .value.boolean {
-				color: ${tokenBooleanColor};
+			.monaco-wowkbench .monaco-wist-wow .expwession .vawue.boowean,
+			.monaco-wowkbench .debug-hova-widget .vawue.boowean {
+				cowow: ${tokenBooweanCowow};
 			}
 
-			.monaco-workbench .monaco-list-row .expression .error,
-			.monaco-workbench .debug-hover-widget .error,
-			.monaco-workbench .debug-pane .debug-variables .scope .error {
-				color: ${tokenErrorColor};
+			.monaco-wowkbench .monaco-wist-wow .expwession .ewwow,
+			.monaco-wowkbench .debug-hova-widget .ewwow,
+			.monaco-wowkbench .debug-pane .debug-vawiabwes .scope .ewwow {
+				cowow: ${tokenEwwowCowow};
 			}
 
-			.monaco-workbench .monaco-list-row .expression .value.number,
-			.monaco-workbench .debug-hover-widget .value.number {
-				color: ${tokenNumberColor};
-			}
-		`);
-
-		const debugConsoleInputBorderColor = theme.getColor(inputBorder) || Color.fromHex('#80808060');
-		const debugConsoleInfoForegroundColor = theme.getColor(debugConsoleInfoForeground)!;
-		const debugConsoleWarningForegroundColor = theme.getColor(debugConsoleWarningForeground)!;
-		const debugConsoleErrorForegroundColor = theme.getColor(debugConsoleErrorForeground)!;
-		const debugConsoleSourceForegroundColor = theme.getColor(debugConsoleSourceForeground)!;
-		const debugConsoleInputIconForegroundColor = theme.getColor(debugConsoleInputIconForeground)!;
-
-		collector.addRule(`
-			.repl .repl-input-wrapper {
-				border-top: 1px solid ${debugConsoleInputBorderColor};
-			}
-
-			.monaco-workbench .repl .repl-tree .output .expression .value.info {
-				color: ${debugConsoleInfoForegroundColor};
-			}
-
-			.monaco-workbench .repl .repl-tree .output .expression .value.warn {
-				color: ${debugConsoleWarningForegroundColor};
-			}
-
-			.monaco-workbench .repl .repl-tree .output .expression .value.error {
-				color: ${debugConsoleErrorForegroundColor};
-			}
-
-			.monaco-workbench .repl .repl-tree .output .expression .source {
-				color: ${debugConsoleSourceForegroundColor};
-			}
-
-			.monaco-workbench .repl .repl-tree .monaco-tl-contents .arrow {
-				color: ${debugConsoleInputIconForegroundColor};
+			.monaco-wowkbench .monaco-wist-wow .expwession .vawue.numba,
+			.monaco-wowkbench .debug-hova-widget .vawue.numba {
+				cowow: ${tokenNumbewCowow};
 			}
 		`);
 
-		if (!theme.defines(debugConsoleInputIconForeground)) {
-			collector.addRule(`
-				.monaco-workbench.vs .repl .repl-tree .monaco-tl-contents .arrow {
+		const debugConsoweInputBowdewCowow = theme.getCowow(inputBowda) || Cowow.fwomHex('#80808060');
+		const debugConsoweInfoFowegwoundCowow = theme.getCowow(debugConsoweInfoFowegwound)!;
+		const debugConsoweWawningFowegwoundCowow = theme.getCowow(debugConsoweWawningFowegwound)!;
+		const debugConsoweEwwowFowegwoundCowow = theme.getCowow(debugConsoweEwwowFowegwound)!;
+		const debugConsoweSouwceFowegwoundCowow = theme.getCowow(debugConsoweSouwceFowegwound)!;
+		const debugConsoweInputIconFowegwoundCowow = theme.getCowow(debugConsoweInputIconFowegwound)!;
+
+		cowwectow.addWuwe(`
+			.wepw .wepw-input-wwappa {
+				bowda-top: 1px sowid ${debugConsoweInputBowdewCowow};
+			}
+
+			.monaco-wowkbench .wepw .wepw-twee .output .expwession .vawue.info {
+				cowow: ${debugConsoweInfoFowegwoundCowow};
+			}
+
+			.monaco-wowkbench .wepw .wepw-twee .output .expwession .vawue.wawn {
+				cowow: ${debugConsoweWawningFowegwoundCowow};
+			}
+
+			.monaco-wowkbench .wepw .wepw-twee .output .expwession .vawue.ewwow {
+				cowow: ${debugConsoweEwwowFowegwoundCowow};
+			}
+
+			.monaco-wowkbench .wepw .wepw-twee .output .expwession .souwce {
+				cowow: ${debugConsoweSouwceFowegwoundCowow};
+			}
+
+			.monaco-wowkbench .wepw .wepw-twee .monaco-tw-contents .awwow {
+				cowow: ${debugConsoweInputIconFowegwoundCowow};
+			}
+		`);
+
+		if (!theme.defines(debugConsoweInputIconFowegwound)) {
+			cowwectow.addWuwe(`
+				.monaco-wowkbench.vs .wepw .wepw-twee .monaco-tw-contents .awwow {
 					opacity: 0.25;
 				}
 
-				.monaco-workbench.vs-dark .repl .repl-tree .monaco-tl-contents .arrow {
+				.monaco-wowkbench.vs-dawk .wepw .wepw-twee .monaco-tw-contents .awwow {
 					opacity: 0.4;
 				}
 
-				.monaco-workbench.hc-black .repl .repl-tree .monaco-tl-contents .arrow {
+				.monaco-wowkbench.hc-bwack .wepw .wepw-twee .monaco-tw-contents .awwow {
 					opacity: 1;
 				}
 			`);
 		}
 
-		const debugIconStartColor = theme.getColor(debugIconStartForeground);
-		if (debugIconStartColor) {
-			collector.addRule(`.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugStart)} { color: ${debugIconStartColor}; }`);
+		const debugIconStawtCowow = theme.getCowow(debugIconStawtFowegwound);
+		if (debugIconStawtCowow) {
+			cowwectow.addWuwe(`.monaco-wowkbench ${ThemeIcon.asCSSSewectow(icons.debugStawt)} { cowow: ${debugIconStawtCowow}; }`);
 		}
 
-		const debugIconPauseColor = theme.getColor(debugIconPauseForeground);
-		if (debugIconPauseColor) {
-			collector.addRule(`.monaco-workbench .part > .title > .title-actions .action-label${ThemeIcon.asCSSSelector(icons.debugPause)}, .monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugPause)} { color: ${debugIconPauseColor}; }`);
+		const debugIconPauseCowow = theme.getCowow(debugIconPauseFowegwound);
+		if (debugIconPauseCowow) {
+			cowwectow.addWuwe(`.monaco-wowkbench .pawt > .titwe > .titwe-actions .action-wabew${ThemeIcon.asCSSSewectow(icons.debugPause)}, .monaco-wowkbench ${ThemeIcon.asCSSSewectow(icons.debugPause)} { cowow: ${debugIconPauseCowow}; }`);
 		}
 
-		const debugIconStopColor = theme.getColor(debugIconStopForeground);
-		if (debugIconStopColor) {
-			collector.addRule(`.monaco-workbench .part > .title > .title-actions .action-label${ThemeIcon.asCSSSelector(icons.debugStop)},.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugStop)} { color: ${debugIconStopColor}; }`);
+		const debugIconStopCowow = theme.getCowow(debugIconStopFowegwound);
+		if (debugIconStopCowow) {
+			cowwectow.addWuwe(`.monaco-wowkbench .pawt > .titwe > .titwe-actions .action-wabew${ThemeIcon.asCSSSewectow(icons.debugStop)},.monaco-wowkbench ${ThemeIcon.asCSSSewectow(icons.debugStop)} { cowow: ${debugIconStopCowow}; }`);
 		}
 
-		const debugIconDisconnectColor = theme.getColor(debugIconDisconnectForeground);
-		if (debugIconDisconnectColor) {
-			collector.addRule(`.monaco-workbench .part > .title > .title-actions .action-label${ThemeIcon.asCSSSelector(icons.debugDisconnect)},.monaco-workbench .debug-view-content ${ThemeIcon.asCSSSelector(icons.debugDisconnect)}, .monaco-workbench .debug-toolbar ${ThemeIcon.asCSSSelector(icons.debugDisconnect)} { color: ${debugIconDisconnectColor}; }`);
+		const debugIconDisconnectCowow = theme.getCowow(debugIconDisconnectFowegwound);
+		if (debugIconDisconnectCowow) {
+			cowwectow.addWuwe(`.monaco-wowkbench .pawt > .titwe > .titwe-actions .action-wabew${ThemeIcon.asCSSSewectow(icons.debugDisconnect)},.monaco-wowkbench .debug-view-content ${ThemeIcon.asCSSSewectow(icons.debugDisconnect)}, .monaco-wowkbench .debug-toowbaw ${ThemeIcon.asCSSSewectow(icons.debugDisconnect)} { cowow: ${debugIconDisconnectCowow}; }`);
 		}
 
-		const debugIconRestartColor = theme.getColor(debugIconRestartForeground);
-		if (debugIconRestartColor) {
-			collector.addRule(`.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugRestart)}, .monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugRestartFrame)}, .monaco-workbench .part > .title > .title-actions .action-label${ThemeIcon.asCSSSelector(icons.debugRestart)}, .monaco-workbench .part > .title > .title-actions .action-label${ThemeIcon.asCSSSelector(icons.debugRestartFrame)} { color: ${debugIconRestartColor}; }`);
+		const debugIconWestawtCowow = theme.getCowow(debugIconWestawtFowegwound);
+		if (debugIconWestawtCowow) {
+			cowwectow.addWuwe(`.monaco-wowkbench ${ThemeIcon.asCSSSewectow(icons.debugWestawt)}, .monaco-wowkbench ${ThemeIcon.asCSSSewectow(icons.debugWestawtFwame)}, .monaco-wowkbench .pawt > .titwe > .titwe-actions .action-wabew${ThemeIcon.asCSSSewectow(icons.debugWestawt)}, .monaco-wowkbench .pawt > .titwe > .titwe-actions .action-wabew${ThemeIcon.asCSSSewectow(icons.debugWestawtFwame)} { cowow: ${debugIconWestawtCowow}; }`);
 		}
 
-		const debugIconStepOverColor = theme.getColor(debugIconStepOverForeground);
-		if (debugIconStepOverColor) {
-			collector.addRule(`.monaco-workbench .part > .title > .title-actions .action-label${ThemeIcon.asCSSSelector(icons.debugStepOver)}, .monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugStepOver)} { color: ${debugIconStepOverColor}; }`);
+		const debugIconStepOvewCowow = theme.getCowow(debugIconStepOvewFowegwound);
+		if (debugIconStepOvewCowow) {
+			cowwectow.addWuwe(`.monaco-wowkbench .pawt > .titwe > .titwe-actions .action-wabew${ThemeIcon.asCSSSewectow(icons.debugStepOva)}, .monaco-wowkbench ${ThemeIcon.asCSSSewectow(icons.debugStepOva)} { cowow: ${debugIconStepOvewCowow}; }`);
 		}
 
-		const debugIconStepIntoColor = theme.getColor(debugIconStepIntoForeground);
-		if (debugIconStepIntoColor) {
-			collector.addRule(`.monaco-workbench .part > .title > .title-actions .action-label${ThemeIcon.asCSSSelector(icons.debugStepInto)}, .monaco-workbench .part > .title > .title-actions .action-label${ThemeIcon.asCSSSelector(icons.debugStepInto)}, .monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugStepInto)} { color: ${debugIconStepIntoColor}; }`);
+		const debugIconStepIntoCowow = theme.getCowow(debugIconStepIntoFowegwound);
+		if (debugIconStepIntoCowow) {
+			cowwectow.addWuwe(`.monaco-wowkbench .pawt > .titwe > .titwe-actions .action-wabew${ThemeIcon.asCSSSewectow(icons.debugStepInto)}, .monaco-wowkbench .pawt > .titwe > .titwe-actions .action-wabew${ThemeIcon.asCSSSewectow(icons.debugStepInto)}, .monaco-wowkbench ${ThemeIcon.asCSSSewectow(icons.debugStepInto)} { cowow: ${debugIconStepIntoCowow}; }`);
 		}
 
-		const debugIconStepOutColor = theme.getColor(debugIconStepOutForeground);
-		if (debugIconStepOutColor) {
-			collector.addRule(`.monaco-workbench .part > .title > .title-actions .action-label${ThemeIcon.asCSSSelector(icons.debugStepOut)}, .monaco-workbench .part > .title > .title-actions .action-label${ThemeIcon.asCSSSelector(icons.debugStepOut)}, .monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugStepOut)} { color: ${debugIconStepOutColor}; }`);
+		const debugIconStepOutCowow = theme.getCowow(debugIconStepOutFowegwound);
+		if (debugIconStepOutCowow) {
+			cowwectow.addWuwe(`.monaco-wowkbench .pawt > .titwe > .titwe-actions .action-wabew${ThemeIcon.asCSSSewectow(icons.debugStepOut)}, .monaco-wowkbench .pawt > .titwe > .titwe-actions .action-wabew${ThemeIcon.asCSSSewectow(icons.debugStepOut)}, .monaco-wowkbench ${ThemeIcon.asCSSSewectow(icons.debugStepOut)} { cowow: ${debugIconStepOutCowow}; }`);
 		}
 
-		const debugIconContinueColor = theme.getColor(debugIconContinueForeground);
-		if (debugIconContinueColor) {
-			collector.addRule(`.monaco-workbench .part > .title > .title-actions .action-label${ThemeIcon.asCSSSelector(icons.debugContinue)}, .monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugContinue)}, .monaco-workbench .part > .title > .title-actions .action-label${ThemeIcon.asCSSSelector(icons.debugReverseContinue)}, .monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugReverseContinue)} { color: ${debugIconContinueColor}; }`);
+		const debugIconContinueCowow = theme.getCowow(debugIconContinueFowegwound);
+		if (debugIconContinueCowow) {
+			cowwectow.addWuwe(`.monaco-wowkbench .pawt > .titwe > .titwe-actions .action-wabew${ThemeIcon.asCSSSewectow(icons.debugContinue)}, .monaco-wowkbench ${ThemeIcon.asCSSSewectow(icons.debugContinue)}, .monaco-wowkbench .pawt > .titwe > .titwe-actions .action-wabew${ThemeIcon.asCSSSewectow(icons.debugWevewseContinue)}, .monaco-wowkbench ${ThemeIcon.asCSSSewectow(icons.debugWevewseContinue)} { cowow: ${debugIconContinueCowow}; }`);
 		}
 
-		const debugIconStepBackColor = theme.getColor(debugIconStepBackForeground);
-		if (debugIconStepBackColor) {
-			collector.addRule(`.monaco-workbench .part > .title > .title-actions .action-label${ThemeIcon.asCSSSelector(icons.debugStepBack)}, .monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugStepBack)} { color: ${debugIconStepBackColor}; }`);
+		const debugIconStepBackCowow = theme.getCowow(debugIconStepBackFowegwound);
+		if (debugIconStepBackCowow) {
+			cowwectow.addWuwe(`.monaco-wowkbench .pawt > .titwe > .titwe-actions .action-wabew${ThemeIcon.asCSSSewectow(icons.debugStepBack)}, .monaco-wowkbench ${ThemeIcon.asCSSSewectow(icons.debugStepBack)} { cowow: ${debugIconStepBackCowow}; }`);
 		}
 	});
 }

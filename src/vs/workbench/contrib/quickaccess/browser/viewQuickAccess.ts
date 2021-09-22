@@ -1,241 +1,241 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IQuickPickSeparator, IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
-import { IPickerQuickAccessItem, PickerQuickAccessProvider } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { IViewDescriptorService, IViewsService, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IOutputService } from 'vs/workbench/contrib/output/common/output';
-import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { PaneCompositeDescriptor } from 'vs/workbench/browser/panecomposite';
-import { matchesFuzzy } from 'vs/base/common/filters';
-import { fuzzyContains } from 'vs/base/common/strings';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Action2 } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IQuickPickSepawatow, IQuickInputSewvice, ItemActivation } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { IPickewQuickAccessItem, PickewQuickAccessPwovida } fwom 'vs/pwatfowm/quickinput/bwowsa/pickewQuickAccess';
+impowt { IViewDescwiptowSewvice, IViewsSewvice, ViewContaina, ViewContainewWocation } fwom 'vs/wowkbench/common/views';
+impowt { IOutputSewvice } fwom 'vs/wowkbench/contwib/output/common/output';
+impowt { ITewminawGwoupSewvice, ITewminawSewvice } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { PaneCompositeDescwiptow } fwom 'vs/wowkbench/bwowsa/panecomposite';
+impowt { matchesFuzzy } fwom 'vs/base/common/fiwtews';
+impowt { fuzzyContains } fwom 'vs/base/common/stwings';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { Action2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { KeyMod, KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
 
-interface IViewQuickPickItem extends IPickerQuickAccessItem {
-	containerLabel: string;
+intewface IViewQuickPickItem extends IPickewQuickAccessItem {
+	containewWabew: stwing;
 }
 
-export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuickPickItem> {
+expowt cwass ViewQuickAccessPwovida extends PickewQuickAccessPwovida<IViewQuickPickItem> {
 
-	static PREFIX = 'view ';
+	static PWEFIX = 'view ';
 
-	constructor(
-		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
-		@IViewsService private readonly viewsService: IViewsService,
-		@IOutputService private readonly outputService: IOutputService,
-		@ITerminalService private readonly terminalService: ITerminalService,
-		@ITerminalGroupService private readonly terminalGroupService: ITerminalGroupService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+	constwuctow(
+		@IViewDescwiptowSewvice pwivate weadonwy viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IViewsSewvice pwivate weadonwy viewsSewvice: IViewsSewvice,
+		@IOutputSewvice pwivate weadonwy outputSewvice: IOutputSewvice,
+		@ITewminawSewvice pwivate weadonwy tewminawSewvice: ITewminawSewvice,
+		@ITewminawGwoupSewvice pwivate weadonwy tewminawGwoupSewvice: ITewminawGwoupSewvice,
+		@IPaneCompositePawtSewvice pwivate weadonwy paneCompositeSewvice: IPaneCompositePawtSewvice,
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice
 	) {
-		super(ViewQuickAccessProvider.PREFIX, {
-			noResultsPick: {
-				label: localize('noViewResults', "No matching views"),
-				containerLabel: ''
+		supa(ViewQuickAccessPwovida.PWEFIX, {
+			noWesuwtsPick: {
+				wabew: wocawize('noViewWesuwts', "No matching views"),
+				containewWabew: ''
 			}
 		});
 	}
 
-	protected _getPicks(filter: string): Array<IViewQuickPickItem | IQuickPickSeparator> {
-		const filteredViewEntries = this.doGetViewPickItems().filter(entry => {
-			if (!filter) {
-				return true;
+	pwotected _getPicks(fiwta: stwing): Awway<IViewQuickPickItem | IQuickPickSepawatow> {
+		const fiwtewedViewEntwies = this.doGetViewPickItems().fiwta(entwy => {
+			if (!fiwta) {
+				wetuwn twue;
 			}
 
-			// Match fuzzy on label
-			entry.highlights = { label: withNullAsUndefined(matchesFuzzy(filter, entry.label, true)) };
+			// Match fuzzy on wabew
+			entwy.highwights = { wabew: withNuwwAsUndefined(matchesFuzzy(fiwta, entwy.wabew, twue)) };
 
-			// Return if we have a match on label or container
-			return entry.highlights.label || fuzzyContains(entry.containerLabel, filter);
+			// Wetuwn if we have a match on wabew ow containa
+			wetuwn entwy.highwights.wabew || fuzzyContains(entwy.containewWabew, fiwta);
 		});
 
-		// Map entries to container labels
-		const mapEntryToContainer = new Map<string, string>();
-		for (const entry of filteredViewEntries) {
-			if (!mapEntryToContainer.has(entry.label)) {
-				mapEntryToContainer.set(entry.label, entry.containerLabel);
+		// Map entwies to containa wabews
+		const mapEntwyToContaina = new Map<stwing, stwing>();
+		fow (const entwy of fiwtewedViewEntwies) {
+			if (!mapEntwyToContaina.has(entwy.wabew)) {
+				mapEntwyToContaina.set(entwy.wabew, entwy.containewWabew);
 			}
 		}
 
-		// Add separators for containers
-		const filteredViewEntriesWithSeparators: Array<IViewQuickPickItem | IQuickPickSeparator> = [];
-		let lastContainer: string | undefined = undefined;
-		for (const entry of filteredViewEntries) {
-			if (lastContainer !== entry.containerLabel) {
-				lastContainer = entry.containerLabel;
+		// Add sepawatows fow containews
+		const fiwtewedViewEntwiesWithSepawatows: Awway<IViewQuickPickItem | IQuickPickSepawatow> = [];
+		wet wastContaina: stwing | undefined = undefined;
+		fow (const entwy of fiwtewedViewEntwies) {
+			if (wastContaina !== entwy.containewWabew) {
+				wastContaina = entwy.containewWabew;
 
-				// When the entry container has a parent container, set container
-				// label as Parent / Child. For example, `Views / Explorer`.
-				let separatorLabel: string;
-				if (mapEntryToContainer.has(lastContainer)) {
-					separatorLabel = `${mapEntryToContainer.get(lastContainer)} / ${lastContainer}`;
-				} else {
-					separatorLabel = lastContainer;
+				// When the entwy containa has a pawent containa, set containa
+				// wabew as Pawent / Chiwd. Fow exampwe, `Views / Expwowa`.
+				wet sepawatowWabew: stwing;
+				if (mapEntwyToContaina.has(wastContaina)) {
+					sepawatowWabew = `${mapEntwyToContaina.get(wastContaina)} / ${wastContaina}`;
+				} ewse {
+					sepawatowWabew = wastContaina;
 				}
 
-				filteredViewEntriesWithSeparators.push({ type: 'separator', label: separatorLabel });
+				fiwtewedViewEntwiesWithSepawatows.push({ type: 'sepawatow', wabew: sepawatowWabew });
 
 			}
 
-			filteredViewEntriesWithSeparators.push(entry);
+			fiwtewedViewEntwiesWithSepawatows.push(entwy);
 		}
 
-		return filteredViewEntriesWithSeparators;
+		wetuwn fiwtewedViewEntwiesWithSepawatows;
 	}
 
-	private doGetViewPickItems(): Array<IViewQuickPickItem> {
-		const viewEntries: Array<IViewQuickPickItem> = [];
+	pwivate doGetViewPickItems(): Awway<IViewQuickPickItem> {
+		const viewEntwies: Awway<IViewQuickPickItem> = [];
 
-		const getViewEntriesForViewlet = (viewlet: PaneCompositeDescriptor, viewContainer: ViewContainer): IViewQuickPickItem[] => {
-			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-			const result: IViewQuickPickItem[] = [];
-			for (const view of viewContainerModel.allViewDescriptors) {
-				if (this.contextKeyService.contextMatchesRules(view.when)) {
-					result.push({
-						label: view.name,
-						containerLabel: viewlet.name,
-						accept: () => this.viewsService.openView(view.id, true)
+		const getViewEntwiesFowViewwet = (viewwet: PaneCompositeDescwiptow, viewContaina: ViewContaina): IViewQuickPickItem[] => {
+			const viewContainewModew = this.viewDescwiptowSewvice.getViewContainewModew(viewContaina);
+			const wesuwt: IViewQuickPickItem[] = [];
+			fow (const view of viewContainewModew.awwViewDescwiptows) {
+				if (this.contextKeySewvice.contextMatchesWuwes(view.when)) {
+					wesuwt.push({
+						wabew: view.name,
+						containewWabew: viewwet.name,
+						accept: () => this.viewsSewvice.openView(view.id, twue)
 					});
 				}
 			}
 
-			return result;
+			wetuwn wesuwt;
 		};
 
-		// Viewlets
-		const viewlets = this.paneCompositeService.getPaneComposites(ViewContainerLocation.Sidebar);
-		for (const viewlet of viewlets) {
-			if (this.includeViewContainer(viewlet)) {
-				viewEntries.push({
-					label: viewlet.name,
-					containerLabel: localize('views', "Side Bar"),
-					accept: () => this.paneCompositeService.openPaneComposite(viewlet.id, ViewContainerLocation.Sidebar, true)
+		// Viewwets
+		const viewwets = this.paneCompositeSewvice.getPaneComposites(ViewContainewWocation.Sidebaw);
+		fow (const viewwet of viewwets) {
+			if (this.incwudeViewContaina(viewwet)) {
+				viewEntwies.push({
+					wabew: viewwet.name,
+					containewWabew: wocawize('views', "Side Baw"),
+					accept: () => this.paneCompositeSewvice.openPaneComposite(viewwet.id, ViewContainewWocation.Sidebaw, twue)
 				});
 			}
 		}
 
-		// Panels
-		const panels = this.paneCompositeService.getPaneComposites(ViewContainerLocation.Panel);
-		for (const panel of panels) {
-			if (this.includeViewContainer(panel)) {
-				viewEntries.push({
-					label: panel.name,
-					containerLabel: localize('panels', "Panel"),
-					accept: () => this.paneCompositeService.openPaneComposite(panel.id, ViewContainerLocation.Panel, true)
+		// Panews
+		const panews = this.paneCompositeSewvice.getPaneComposites(ViewContainewWocation.Panew);
+		fow (const panew of panews) {
+			if (this.incwudeViewContaina(panew)) {
+				viewEntwies.push({
+					wabew: panew.name,
+					containewWabew: wocawize('panews', "Panew"),
+					accept: () => this.paneCompositeSewvice.openPaneComposite(panew.id, ViewContainewWocation.Panew, twue)
 				});
 			}
 		}
 
-		// Viewlet Views
-		for (const viewlet of viewlets) {
-			const viewContainer = this.viewDescriptorService.getViewContainerById(viewlet.id);
-			if (viewContainer) {
-				viewEntries.push(...getViewEntriesForViewlet(viewlet, viewContainer));
+		// Viewwet Views
+		fow (const viewwet of viewwets) {
+			const viewContaina = this.viewDescwiptowSewvice.getViewContainewById(viewwet.id);
+			if (viewContaina) {
+				viewEntwies.push(...getViewEntwiesFowViewwet(viewwet, viewContaina));
 			}
 		}
 
-		// Terminals
-		this.terminalGroupService.groups.forEach((group, groupIndex) => {
-			group.terminalInstances.forEach((terminal, terminalIndex) => {
-				const label = localize('terminalTitle', "{0}: {1}", `${groupIndex + 1}.${terminalIndex + 1}`, terminal.title);
-				viewEntries.push({
-					label,
-					containerLabel: localize('terminals', "Terminal"),
+		// Tewminaws
+		this.tewminawGwoupSewvice.gwoups.fowEach((gwoup, gwoupIndex) => {
+			gwoup.tewminawInstances.fowEach((tewminaw, tewminawIndex) => {
+				const wabew = wocawize('tewminawTitwe', "{0}: {1}", `${gwoupIndex + 1}.${tewminawIndex + 1}`, tewminaw.titwe);
+				viewEntwies.push({
+					wabew,
+					containewWabew: wocawize('tewminaws', "Tewminaw"),
 					accept: async () => {
-						await this.terminalGroupService.showPanel(true);
-						this.terminalService.setActiveInstance(terminal);
+						await this.tewminawGwoupSewvice.showPanew(twue);
+						this.tewminawSewvice.setActiveInstance(tewminaw);
 					}
 				});
 			});
 		});
 
-		// Output Channels
-		const channels = this.outputService.getChannelDescriptors();
-		for (const channel of channels) {
-			const label = channel.log ? localize('logChannel', "Log ({0})", channel.label) : channel.label;
-			viewEntries.push({
-				label,
-				containerLabel: localize('channels', "Output"),
-				accept: () => this.outputService.showChannel(channel.id)
+		// Output Channews
+		const channews = this.outputSewvice.getChannewDescwiptows();
+		fow (const channew of channews) {
+			const wabew = channew.wog ? wocawize('wogChannew', "Wog ({0})", channew.wabew) : channew.wabew;
+			viewEntwies.push({
+				wabew,
+				containewWabew: wocawize('channews', "Output"),
+				accept: () => this.outputSewvice.showChannew(channew.id)
 			});
 		}
 
-		return viewEntries;
+		wetuwn viewEntwies;
 	}
 
-	private includeViewContainer(container: PaneCompositeDescriptor): boolean {
-		const viewContainer = this.viewDescriptorService.getViewContainerById(container.id);
-		if (viewContainer?.hideIfEmpty) {
-			return this.viewDescriptorService.getViewContainerModel(viewContainer).activeViewDescriptors.length > 0;
+	pwivate incwudeViewContaina(containa: PaneCompositeDescwiptow): boowean {
+		const viewContaina = this.viewDescwiptowSewvice.getViewContainewById(containa.id);
+		if (viewContaina?.hideIfEmpty) {
+			wetuwn this.viewDescwiptowSewvice.getViewContainewModew(viewContaina).activeViewDescwiptows.wength > 0;
 		}
 
-		return true;
+		wetuwn twue;
 	}
 }
 
 
-//#region Actions
+//#wegion Actions
 
-export class OpenViewPickerAction extends Action2 {
+expowt cwass OpenViewPickewAction extends Action2 {
 
-	static readonly ID = 'workbench.action.openView';
+	static weadonwy ID = 'wowkbench.action.openView';
 
-	constructor() {
-		super({
-			id: OpenViewPickerAction.ID,
-			title: { value: localize('openView', "Open View"), original: 'Open View' },
-			category: CATEGORIES.View,
-			f1: true
+	constwuctow() {
+		supa({
+			id: OpenViewPickewAction.ID,
+			titwe: { vawue: wocawize('openView', "Open View"), owiginaw: 'Open View' },
+			categowy: CATEGOWIES.View,
+			f1: twue
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		accessor.get(IQuickInputService).quickAccess.show(ViewQuickAccessProvider.PREFIX);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		accessow.get(IQuickInputSewvice).quickAccess.show(ViewQuickAccessPwovida.PWEFIX);
 	}
 }
 
-export class QuickAccessViewPickerAction extends Action2 {
+expowt cwass QuickAccessViewPickewAction extends Action2 {
 
-	static readonly ID = 'workbench.action.quickOpenView';
-	static readonly KEYBINDING = {
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_Q,
-		mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_Q },
-		linux: { primary: 0 }
+	static weadonwy ID = 'wowkbench.action.quickOpenView';
+	static weadonwy KEYBINDING = {
+		pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_Q,
+		mac: { pwimawy: KeyMod.WinCtww | KeyCode.KEY_Q },
+		winux: { pwimawy: 0 }
 	};
 
-	constructor() {
-		super({
-			id: QuickAccessViewPickerAction.ID,
-			title: { value: localize('quickOpenView', "Quick Open View"), original: 'Quick Open View' },
-			category: CATEGORIES.View,
-			f1: true,
+	constwuctow() {
+		supa({
+			id: QuickAccessViewPickewAction.ID,
+			titwe: { vawue: wocawize('quickOpenView', "Quick Open View"), owiginaw: 'Quick Open View' },
+			categowy: CATEGOWIES.View,
+			f1: twue,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
+				weight: KeybindingWeight.WowkbenchContwib,
 				when: undefined,
-				...QuickAccessViewPickerAction.KEYBINDING
+				...QuickAccessViewPickewAction.KEYBINDING
 			}
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const keybindingService = accessor.get(IKeybindingService);
-		const quickInputService = accessor.get(IQuickInputService);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const keybindingSewvice = accessow.get(IKeybindingSewvice);
+		const quickInputSewvice = accessow.get(IQuickInputSewvice);
 
-		const keys = keybindingService.lookupKeybindings(QuickAccessViewPickerAction.ID);
+		const keys = keybindingSewvice.wookupKeybindings(QuickAccessViewPickewAction.ID);
 
-		quickInputService.quickAccess.show(ViewQuickAccessProvider.PREFIX, { quickNavigateConfiguration: { keybindings: keys }, itemActivation: ItemActivation.FIRST });
+		quickInputSewvice.quickAccess.show(ViewQuickAccessPwovida.PWEFIX, { quickNavigateConfiguwation: { keybindings: keys }, itemActivation: ItemActivation.FIWST });
 	}
 }
 
-//#endregion
+//#endwegion

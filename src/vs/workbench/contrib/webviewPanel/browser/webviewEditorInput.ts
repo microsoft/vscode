@@ -1,119 +1,119 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { EditorInputCapabilities, GroupIdentifier, IUntypedEditorInput, Verbosity } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewIconManager, WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { EditowInputCapabiwities, GwoupIdentifia, IUntypedEditowInput, Vewbosity } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { WebviewOvewway } fwom 'vs/wowkbench/contwib/webview/bwowsa/webview';
+impowt { WebviewIconManaga, WebviewIcons } fwom 'vs/wowkbench/contwib/webviewPanew/bwowsa/webviewIconManaga';
 
-export class WebviewInput extends EditorInput {
+expowt cwass WebviewInput extends EditowInput {
 
-	public static typeId = 'workbench.editors.webviewInput';
+	pubwic static typeId = 'wowkbench.editows.webviewInput';
 
-	public override get typeId(): string {
-		return WebviewInput.typeId;
+	pubwic ovewwide get typeId(): stwing {
+		wetuwn WebviewInput.typeId;
 	}
 
-	public override get editorId(): string {
-		return this.viewType;
+	pubwic ovewwide get editowId(): stwing {
+		wetuwn this.viewType;
 	}
 
-	public override get capabilities(): EditorInputCapabilities {
-		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton;
+	pubwic ovewwide get capabiwities(): EditowInputCapabiwities {
+		wetuwn EditowInputCapabiwities.Weadonwy | EditowInputCapabiwities.Singweton;
 	}
 
-	private _name: string;
-	private _iconPath?: WebviewIcons;
-	private _group?: GroupIdentifier;
+	pwivate _name: stwing;
+	pwivate _iconPath?: WebviewIcons;
+	pwivate _gwoup?: GwoupIdentifia;
 
-	private _webview: WebviewOverlay;
+	pwivate _webview: WebviewOvewway;
 
-	private _hasTransfered = false;
+	pwivate _hasTwansfewed = fawse;
 
-	get resource() {
-		return URI.from({
-			scheme: Schemas.webviewPanel,
-			path: `webview-panel/webview-${this.id}`
+	get wesouwce() {
+		wetuwn UWI.fwom({
+			scheme: Schemas.webviewPanew,
+			path: `webview-panew/webview-${this.id}`
 		});
 	}
 
-	constructor(
-		public readonly id: string,
-		public readonly viewType: string,
-		name: string,
-		webview: WebviewOverlay,
-		private readonly _iconManager: WebviewIconManager,
+	constwuctow(
+		pubwic weadonwy id: stwing,
+		pubwic weadonwy viewType: stwing,
+		name: stwing,
+		webview: WebviewOvewway,
+		pwivate weadonwy _iconManaga: WebviewIconManaga,
 	) {
-		super();
+		supa();
 		this._name = name;
 		this._webview = webview;
 	}
 
-	override dispose() {
+	ovewwide dispose() {
 		if (!this.isDisposed()) {
-			if (!this._hasTransfered) {
+			if (!this._hasTwansfewed) {
 				this._webview?.dispose();
 			}
 		}
-		super.dispose();
+		supa.dispose();
 	}
 
-	public override getName(): string {
-		return this._name;
+	pubwic ovewwide getName(): stwing {
+		wetuwn this._name;
 	}
 
-	public override getTitle(_verbosity?: Verbosity): string {
-		return this.getName();
+	pubwic ovewwide getTitwe(_vewbosity?: Vewbosity): stwing {
+		wetuwn this.getName();
 	}
 
-	public override getDescription(): string | undefined {
-		return undefined;
+	pubwic ovewwide getDescwiption(): stwing | undefined {
+		wetuwn undefined;
 	}
 
-	public setName(value: string): void {
-		this._name = value;
-		this._onDidChangeLabel.fire();
+	pubwic setName(vawue: stwing): void {
+		this._name = vawue;
+		this._onDidChangeWabew.fiwe();
 	}
 
-	public get webview(): WebviewOverlay {
-		return this._webview;
+	pubwic get webview(): WebviewOvewway {
+		wetuwn this._webview;
 	}
 
-	public get extension() {
-		return this.webview.extension;
+	pubwic get extension() {
+		wetuwn this.webview.extension;
 	}
 
-	public get iconPath() {
-		return this._iconPath;
+	pubwic get iconPath() {
+		wetuwn this._iconPath;
 	}
 
-	public set iconPath(value: WebviewIcons | undefined) {
-		this._iconPath = value;
-		this._iconManager.setIcons(this.id, value);
+	pubwic set iconPath(vawue: WebviewIcons | undefined) {
+		this._iconPath = vawue;
+		this._iconManaga.setIcons(this.id, vawue);
 	}
 
-	public override matches(other: EditorInput | IUntypedEditorInput): boolean {
-		return super.matches(other) || other === this;
+	pubwic ovewwide matches(otha: EditowInput | IUntypedEditowInput): boowean {
+		wetuwn supa.matches(otha) || otha === this;
 	}
 
-	public get group(): GroupIdentifier | undefined {
-		return this._group;
+	pubwic get gwoup(): GwoupIdentifia | undefined {
+		wetuwn this._gwoup;
 	}
 
-	public updateGroup(group: GroupIdentifier): void {
-		this._group = group;
+	pubwic updateGwoup(gwoup: GwoupIdentifia): void {
+		this._gwoup = gwoup;
 	}
 
-	protected transfer(other: WebviewInput): WebviewInput | undefined {
-		if (this._hasTransfered) {
-			return undefined;
+	pwotected twansfa(otha: WebviewInput): WebviewInput | undefined {
+		if (this._hasTwansfewed) {
+			wetuwn undefined;
 		}
-		this._hasTransfered = true;
-		other._webview = this._webview;
-		return other;
+		this._hasTwansfewed = twue;
+		otha._webview = this._webview;
+		wetuwn otha;
 	}
 }

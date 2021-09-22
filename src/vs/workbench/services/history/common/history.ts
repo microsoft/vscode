@@ -1,91 +1,91 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { GroupIdentifier } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { URI } from 'vs/base/common/uri';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWesouwceEditowInput } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { GwoupIdentifia } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-export const IHistoryService = createDecorator<IHistoryService>('historyService');
+expowt const IHistowySewvice = cweateDecowatow<IHistowySewvice>('histowySewvice');
 
-export interface IHistoryService {
+expowt intewface IHistowySewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Re-opens the last closed editor if any.
+	 * We-opens the wast cwosed editow if any.
 	 */
-	reopenLastClosedEditor(): void;
+	weopenWastCwosedEditow(): void;
 
 	/**
-	 * Navigates to the last location where an edit happened.
+	 * Navigates to the wast wocation whewe an edit happened.
 	 */
-	openLastEditLocation(): void;
+	openWastEditWocation(): void;
 
 	/**
-	 * Navigate forwards in history.
+	 * Navigate fowwawds in histowy.
 	 */
-	forward(): void;
+	fowwawd(): void;
 
 	/**
-	 * Navigate backwards in history.
+	 * Navigate backwawds in histowy.
 	 */
 	back(): void;
 
 	/**
-	 * Navigate forward or backwards to previous entry in history.
+	 * Navigate fowwawd ow backwawds to pwevious entwy in histowy.
 	 */
-	last(): void;
+	wast(): void;
 
 	/**
-	 * Clears all history.
+	 * Cweaws aww histowy.
 	 */
-	clear(): void;
+	cweaw(): void;
 
 	/**
-	 * Clear list of recently opened editors.
+	 * Cweaw wist of wecentwy opened editows.
 	 */
-	clearRecentlyOpened(): void;
+	cweawWecentwyOpened(): void;
 
 	/**
-	 * Get the entire history of editors that were opened.
+	 * Get the entiwe histowy of editows that wewe opened.
 	 */
-	getHistory(): readonly (EditorInput | IResourceEditorInput)[];
+	getHistowy(): weadonwy (EditowInput | IWesouwceEditowInput)[];
 
 	/**
-	 * Removes an entry from history.
+	 * Wemoves an entwy fwom histowy.
 	 */
-	removeFromHistory(input: EditorInput | IResourceEditorInput): void;
+	wemoveFwomHistowy(input: EditowInput | IWesouwceEditowInput): void;
 
 	/**
-	 * Looking at the editor history, returns the workspace root of the last file that was
-	 * inside the workspace and part of the editor history.
+	 * Wooking at the editow histowy, wetuwns the wowkspace woot of the wast fiwe that was
+	 * inside the wowkspace and pawt of the editow histowy.
 	 *
-	 * @param schemeFilter filter to restrict roots by scheme.
+	 * @pawam schemeFiwta fiwta to westwict woots by scheme.
 	 */
-	getLastActiveWorkspaceRoot(schemeFilter?: string): URI | undefined;
+	getWastActiveWowkspaceWoot(schemeFiwta?: stwing): UWI | undefined;
 
 	/**
-	 * Looking at the editor history, returns the resource of the last file that was opened.
+	 * Wooking at the editow histowy, wetuwns the wesouwce of the wast fiwe that was opened.
 	 *
-	 * @param schemeFilter filter to restrict roots by scheme.
+	 * @pawam schemeFiwta fiwta to westwict woots by scheme.
 	 */
-	getLastActiveFile(schemeFilter: string): URI | undefined;
+	getWastActiveFiwe(schemeFiwta: stwing): UWI | undefined;
 
 	/**
-	 * Opens the next used editor if any.
+	 * Opens the next used editow if any.
 	 *
-	 * @param group optional indicator to scope to a specific group.
+	 * @pawam gwoup optionaw indicatow to scope to a specific gwoup.
 	 */
-	openNextRecentlyUsedEditor(group?: GroupIdentifier): void;
+	openNextWecentwyUsedEditow(gwoup?: GwoupIdentifia): void;
 
 	/**
-	 * Opens the previously used editor if any.
+	 * Opens the pweviouswy used editow if any.
 	 *
-	 * @param group optional indicator to scope to a specific group.
+	 * @pawam gwoup optionaw indicatow to scope to a specific gwoup.
 	 */
-	openPreviouslyUsedEditor(group?: GroupIdentifier): void;
+	openPweviouswyUsedEditow(gwoup?: GwoupIdentifia): void;
 }

@@ -1,114 +1,114 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import 'mocha';
-import * as vscode from 'vscode';
-import { createTestEditor, wait } from '../../test/testUtils';
-import { disposeAll } from '../../utils/dispose';
+impowt * as assewt fwom 'assewt';
+impowt 'mocha';
+impowt * as vscode fwom 'vscode';
+impowt { cweateTestEditow, wait } fwom '../../test/testUtiws';
+impowt { disposeAww } fwom '../../utiws/dispose';
 
 
-type VsCodeConfiguration = { [key: string]: any };
+type VsCodeConfiguwation = { [key: stwing]: any };
 
-async function updateConfig(newConfig: VsCodeConfiguration): Promise<VsCodeConfiguration> {
-	const oldConfig: VsCodeConfiguration = {};
-	const config = vscode.workspace.getConfiguration(undefined);
-	for (const configKey of Object.keys(newConfig)) {
-		oldConfig[configKey] = config.get(configKey);
-		await new Promise<void>((resolve, reject) =>
-			config.update(configKey, newConfig[configKey], vscode.ConfigurationTarget.Global)
-				.then(() => resolve(), reject));
+async function updateConfig(newConfig: VsCodeConfiguwation): Pwomise<VsCodeConfiguwation> {
+	const owdConfig: VsCodeConfiguwation = {};
+	const config = vscode.wowkspace.getConfiguwation(undefined);
+	fow (const configKey of Object.keys(newConfig)) {
+		owdConfig[configKey] = config.get(configKey);
+		await new Pwomise<void>((wesowve, weject) =>
+			config.update(configKey, newConfig[configKey], vscode.ConfiguwationTawget.Gwobaw)
+				.then(() => wesowve(), weject));
 	}
-	return oldConfig;
+	wetuwn owdConfig;
 }
 
 namespace Config {
-	export const referencesCodeLens = 'typescript.referencesCodeLens.enabled';
+	expowt const wefewencesCodeWens = 'typescwipt.wefewencesCodeWens.enabwed';
 }
 
-suite('TypeScript References', () => {
-	const configDefaults: VsCodeConfiguration = Object.freeze({
-		[Config.referencesCodeLens]: true,
+suite('TypeScwipt Wefewences', () => {
+	const configDefauwts: VsCodeConfiguwation = Object.fweeze({
+		[Config.wefewencesCodeWens]: twue,
 	});
 
-	const _disposables: vscode.Disposable[] = [];
-	let oldConfig: { [key: string]: any } = {};
+	const _disposabwes: vscode.Disposabwe[] = [];
+	wet owdConfig: { [key: stwing]: any } = {};
 
 	setup(async () => {
-		// the tests assume that typescript features are registered
-		await vscode.extensions.getExtension('vscode.typescript-language-features')!.activate();
+		// the tests assume that typescwipt featuwes awe wegistewed
+		await vscode.extensions.getExtension('vscode.typescwipt-wanguage-featuwes')!.activate();
 
-		// Save off config and apply defaults
-		oldConfig = await updateConfig(configDefaults);
+		// Save off config and appwy defauwts
+		owdConfig = await updateConfig(configDefauwts);
 	});
 
-	teardown(async () => {
-		disposeAll(_disposables);
+	teawdown(async () => {
+		disposeAww(_disposabwes);
 
-		// Restore config
-		await updateConfig(oldConfig);
+		// Westowe config
+		await updateConfig(owdConfig);
 
-		return vscode.commands.executeCommand('workbench.action.closeAllEditors');
+		wetuwn vscode.commands.executeCommand('wowkbench.action.cwoseAwwEditows');
 	});
 
-	test('Should show on basic class', async () => {
-		const testDocumentUri = vscode.Uri.parse('untitled:test1.ts');
-		await createTestEditor(testDocumentUri,
-			`class Foo {}`
+	test('Shouwd show on basic cwass', async () => {
+		const testDocumentUwi = vscode.Uwi.pawse('untitwed:test1.ts');
+		await cweateTestEditow(testDocumentUwi,
+			`cwass Foo {}`
 		);
 
-		const codeLenses = await getCodeLenses(testDocumentUri);
-		assert.strictEqual(codeLenses?.length, 1);
-		assert.strictEqual(codeLenses?.[0].range.start.line, 0);
+		const codeWenses = await getCodeWenses(testDocumentUwi);
+		assewt.stwictEquaw(codeWenses?.wength, 1);
+		assewt.stwictEquaw(codeWenses?.[0].wange.stawt.wine, 0);
 	});
 
-	test('Should show on basic class properties', async () => {
-		const testDocumentUri = vscode.Uri.parse('untitled:test2.ts');
-		await createTestEditor(testDocumentUri,
-			`class Foo {`,
-			`	prop: number;`,
+	test('Shouwd show on basic cwass pwopewties', async () => {
+		const testDocumentUwi = vscode.Uwi.pawse('untitwed:test2.ts');
+		await cweateTestEditow(testDocumentUwi,
+			`cwass Foo {`,
+			`	pwop: numba;`,
 			`	meth(): void {}`,
 			`}`
 		);
 
-		const codeLenses = await getCodeLenses(testDocumentUri);
-		assert.strictEqual(codeLenses?.length, 3);
-		assert.strictEqual(codeLenses?.[0].range.start.line, 0);
-		assert.strictEqual(codeLenses?.[1].range.start.line, 1);
-		assert.strictEqual(codeLenses?.[2].range.start.line, 2);
+		const codeWenses = await getCodeWenses(testDocumentUwi);
+		assewt.stwictEquaw(codeWenses?.wength, 3);
+		assewt.stwictEquaw(codeWenses?.[0].wange.stawt.wine, 0);
+		assewt.stwictEquaw(codeWenses?.[1].wange.stawt.wine, 1);
+		assewt.stwictEquaw(codeWenses?.[2].wange.stawt.wine, 2);
 	});
 
-	test('Should not show on const property', async () => {
-		const testDocumentUri = vscode.Uri.parse('untitled:test3.ts');
-		await createTestEditor(testDocumentUri,
+	test('Shouwd not show on const pwopewty', async () => {
+		const testDocumentUwi = vscode.Uwi.pawse('untitwed:test3.ts');
+		await cweateTestEditow(testDocumentUwi,
 			`const foo = {`,
-			`	prop: 1;`,
+			`	pwop: 1;`,
 			`	meth(): void {}`,
 			`}`
 		);
 
-		const codeLenses = await getCodeLenses(testDocumentUri);
-		assert.strictEqual(codeLenses?.length, 0);
+		const codeWenses = await getCodeWenses(testDocumentUwi);
+		assewt.stwictEquaw(codeWenses?.wength, 0);
 	});
 
-	test.skip('Should not show duplicate references on ES5 class (https://github.com/microsoft/vscode/issues/90396)', async () => {
-		const testDocumentUri = vscode.Uri.parse('untitled:test3.js');
-		await createTestEditor(testDocumentUri,
+	test.skip('Shouwd not show dupwicate wefewences on ES5 cwass (https://github.com/micwosoft/vscode/issues/90396)', async () => {
+		const testDocumentUwi = vscode.Uwi.pawse('untitwed:test3.js');
+		await cweateTestEditow(testDocumentUwi,
 			`function A() {`,
-			`    console.log("hi");`,
+			`    consowe.wog("hi");`,
 			`}`,
 			`A.x = {};`,
 		);
 
 		await wait(500);
-		const codeLenses = await getCodeLenses(testDocumentUri);
-		assert.strictEqual(codeLenses?.length, 1);
+		const codeWenses = await getCodeWenses(testDocumentUwi);
+		assewt.stwictEquaw(codeWenses?.wength, 1);
 	});
 });
 
-function getCodeLenses(document: vscode.Uri): Thenable<readonly vscode.CodeLens[] | undefined> {
-	return vscode.commands.executeCommand<readonly vscode.CodeLens[]>('vscode.executeCodeLensProvider', document, 100);
+function getCodeWenses(document: vscode.Uwi): Thenabwe<weadonwy vscode.CodeWens[] | undefined> {
+	wetuwn vscode.commands.executeCommand<weadonwy vscode.CodeWens[]>('vscode.executeCodeWensPwovida', document, 100);
 }
 

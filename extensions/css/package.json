@@ -1,21 +1,21 @@
 {
   "name": "css",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "0.10.x"
   },
-  "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin atom/language-css grammars/css.cson ./syntaxes/css.tmLanguage.json"
+  "scwipts": {
+    "update-gwammaw": "node ../node_moduwes/vscode-gwammaw-updata/bin atom/wanguage-css gwammaws/css.cson ./syntaxes/css.tmWanguage.json"
   },
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
         "id": "css",
-        "aliases": [
+        "awiases": [
           "CSS",
           "css"
         ],
@@ -25,22 +25,22 @@
         "mimetypes": [
           "text/css"
         ],
-        "configuration": "./language-configuration.json"
+        "configuwation": "./wanguage-configuwation.json"
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "css",
-        "scopeName": "source.css",
-        "path": "./syntaxes/css.tmLanguage.json",
+        "wanguage": "css",
+        "scopeName": "souwce.css",
+        "path": "./syntaxes/css.tmWanguage.json",
         "tokenTypes": {
-          "meta.function.url string.quoted": "other"
+          "meta.function.uww stwing.quoted": "otha"
         }
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

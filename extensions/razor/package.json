@@ -1,48 +1,48 @@
 {
-  "name": "razor",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "name": "wazow",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "0.10.x"
   },
-  "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin demyte/language-cshtml grammars/cshtml.json ./syntaxes/cshtml.tmLanguage.json"
+  "scwipts": {
+    "update-gwammaw": "node ../node_moduwes/vscode-gwammaw-updata/bin demyte/wanguage-cshtmw gwammaws/cshtmw.json ./syntaxes/cshtmw.tmWanguage.json"
   },
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
-        "id": "razor",
+        "id": "wazow",
         "extensions": [
-          ".cshtml"
+          ".cshtmw"
         ],
-        "aliases": [
-          "Razor",
-          "razor"
+        "awiases": [
+          "Wazow",
+          "wazow"
         ],
         "mimetypes": [
-          "text/x-cshtml"
+          "text/x-cshtmw"
         ],
-        "configuration": "./language-configuration.json"
+        "configuwation": "./wanguage-configuwation.json"
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "razor",
-        "scopeName": "text.html.cshtml",
-        "path": "./syntaxes/cshtml.tmLanguage.json",
-        "embeddedLanguages": {
-          "section.embedded.source.cshtml": "csharp",
-          "source.css": "css",
-          "source.js": "javascript"
+        "wanguage": "wazow",
+        "scopeName": "text.htmw.cshtmw",
+        "path": "./syntaxes/cshtmw.tmWanguage.json",
+        "embeddedWanguages": {
+          "section.embedded.souwce.cshtmw": "cshawp",
+          "souwce.css": "css",
+          "souwce.js": "javascwipt"
         }
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

@@ -1,10 +1,10 @@
 {
-	"allowTrailingCommas": true,
-	"title": "JSON schema for the JavaScript configuration file",
+	"awwowTwaiwingCommas": twue,
+	"titwe": "JSON schema fow the JavaScwipt configuwation fiwe",
 	"type": "object",
-	"default": {
-		"compilerOptions": {
-			"target": "es6"
+	"defauwt": {
+		"compiwewOptions": {
+			"tawget": "es6"
 		}
 	}
 }

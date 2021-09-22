@@ -1,1005 +1,1005 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IResourceEditorInput, IEditorOptions, EditorActivation, EditorResolution, IResourceEditorInputIdentifier, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { SideBySideEditor, IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, IEditorIdentifier, IEditorCloseEvent, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, EditorInputCapabilities, isResourceDiffEditorInput, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { ResourceMap } from 'vs/base/common/map';
-import { IFileService, FileOperationEvent, FileOperation, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
-import { Event, Emitter, MicrotaskEmitter } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { joinPath } from 'vs/base/common/resources';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, isEditorReplacement } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IUntypedEditorReplacement, IEditorService, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorsOptions, PreferredGroup, isPreferredGroup, IEditorsChangeEvent } from 'vs/workbench/services/editor/common/editorService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Disposable, IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
-import { coalesce, distinct } from 'vs/base/common/arrays';
-import { isCodeEditor, isDiffEditor, ICodeEditor, IDiffEditor, isCompositeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorGroupView, EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { isUndefined, withNullAsUndefined } from 'vs/base/common/types';
-import { EditorsObserver } from 'vs/workbench/browser/parts/editor/editorsObserver';
-import { Promises, timeout } from 'vs/base/common/async';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { indexOfPath } from 'vs/base/common/extpath';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { IEditorResolverService, ResolvedStatus } from 'vs/workbench/services/editor/common/editorResolverService';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkspaceTrustRequestService, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { findGroup } from 'vs/workbench/services/editor/common/editorGroupFinder';
-import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWesouwceEditowInput, IEditowOptions, EditowActivation, EditowWesowution, IWesouwceEditowInputIdentifia, ITextWesouwceEditowInput } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { SideBySideEditow, IEditowPane, GwoupIdentifia, IUntitwedTextWesouwceEditowInput, IWesouwceDiffEditowInput, IEditowInputWithOptions, isEditowInputWithOptions, IEditowIdentifia, IEditowCwoseEvent, ITextDiffEditowPane, IWevewtOptions, SaveWeason, EditowsOwda, IWowkbenchEditowConfiguwation, EditowWesouwceAccessow, IVisibweEditowPane, EditowInputCapabiwities, isWesouwceDiffEditowInput, IUntypedEditowInput, isWesouwceEditowInput, isEditowInput, isEditowInputWithOptionsAndGwoup } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { SideBySideEditowInput } fwom 'vs/wowkbench/common/editow/sideBySideEditowInput';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { IFiweSewvice, FiweOpewationEvent, FiweOpewation, FiweChangesEvent, FiweChangeType } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { Event, Emitta, MicwotaskEmitta } fwom 'vs/base/common/event';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { DiffEditowInput } fwom 'vs/wowkbench/common/editow/diffEditowInput';
+impowt { IEditowGwoupsSewvice, IEditowGwoup, GwoupsOwda, IEditowWepwacement, GwoupChangeKind, isEditowWepwacement } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IUntypedEditowWepwacement, IEditowSewvice, ISaveEditowsOptions, ISaveAwwEditowsOptions, IWevewtAwwEditowsOptions, IBaseSaveWevewtAwwEditowOptions, IOpenEditowsOptions, PwefewwedGwoup, isPwefewwedGwoup, IEditowsChangeEvent } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { Disposabwe, IDisposabwe, dispose, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { coawesce, distinct } fwom 'vs/base/common/awways';
+impowt { isCodeEditow, isDiffEditow, ICodeEditow, IDiffEditow, isCompositeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IEditowGwoupView, EditowSewviceImpw } fwom 'vs/wowkbench/bwowsa/pawts/editow/editow';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { isUndefined, withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { EditowsObsewva } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowsObsewva';
+impowt { Pwomises, timeout } fwom 'vs/base/common/async';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { indexOfPath } fwom 'vs/base/common/extpath';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { IEditowWesowvewSewvice, WesowvedStatus } fwom 'vs/wowkbench/sewvices/editow/common/editowWesowvewSewvice';
+impowt { IWowkingCopySewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopySewvice';
+impowt { IWowkspaceTwustWequestSewvice, WowkspaceTwustUwiWesponse } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { findGwoup } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupFinda';
+impowt { ITextEditowSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textEditowSewvice';
 
-export class EditorService extends Disposable implements EditorServiceImpl {
+expowt cwass EditowSewvice extends Disposabwe impwements EditowSewviceImpw {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	//#region events
+	//#wegion events
 
-	private readonly _onDidActiveEditorChange = this._register(new Emitter<void>());
-	readonly onDidActiveEditorChange = this._onDidActiveEditorChange.event;
+	pwivate weadonwy _onDidActiveEditowChange = this._wegista(new Emitta<void>());
+	weadonwy onDidActiveEditowChange = this._onDidActiveEditowChange.event;
 
-	private readonly _onDidVisibleEditorsChange = this._register(new Emitter<void>());
-	readonly onDidVisibleEditorsChange = this._onDidVisibleEditorsChange.event;
+	pwivate weadonwy _onDidVisibweEditowsChange = this._wegista(new Emitta<void>());
+	weadonwy onDidVisibweEditowsChange = this._onDidVisibweEditowsChange.event;
 
-	private readonly _onDidEditorsChange = this._register(new MicrotaskEmitter<IEditorsChangeEvent[]>({ merge: events => events.flat(1) }));
-	readonly onDidEditorsChange = this._onDidEditorsChange.event;
+	pwivate weadonwy _onDidEditowsChange = this._wegista(new MicwotaskEmitta<IEditowsChangeEvent[]>({ mewge: events => events.fwat(1) }));
+	weadonwy onDidEditowsChange = this._onDidEditowsChange.event;
 
-	private readonly _onDidCloseEditor = this._register(new Emitter<IEditorCloseEvent>());
-	readonly onDidCloseEditor = this._onDidCloseEditor.event;
+	pwivate weadonwy _onDidCwoseEditow = this._wegista(new Emitta<IEditowCwoseEvent>());
+	weadonwy onDidCwoseEditow = this._onDidCwoseEditow.event;
 
-	private readonly _onDidOpenEditorFail = this._register(new Emitter<IEditorIdentifier>());
-	readonly onDidOpenEditorFail = this._onDidOpenEditorFail.event;
+	pwivate weadonwy _onDidOpenEditowFaiw = this._wegista(new Emitta<IEditowIdentifia>());
+	weadonwy onDidOpenEditowFaiw = this._onDidOpenEditowFaiw.event;
 
-	private readonly _onDidMostRecentlyActiveEditorsChange = this._register(new Emitter<void>());
-	readonly onDidMostRecentlyActiveEditorsChange = this._onDidMostRecentlyActiveEditorsChange.event;
+	pwivate weadonwy _onDidMostWecentwyActiveEditowsChange = this._wegista(new Emitta<void>());
+	weadonwy onDidMostWecentwyActiveEditowsChange = this._onDidMostWecentwyActiveEditowsChange.event;
 
-	//#endregion
+	//#endwegion
 
-	constructor(
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IFileService private readonly fileService: IFileService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
-		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
-		@IHostService private readonly hostService: IHostService,
-		@ITextEditorService private readonly textEditorService: ITextEditorService
+	constwuctow(
+		@IEditowGwoupsSewvice pwivate weadonwy editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice,
+		@IEditowWesowvewSewvice pwivate weadonwy editowWesowvewSewvice: IEditowWesowvewSewvice,
+		@IWowkingCopySewvice pwivate weadonwy wowkingCopySewvice: IWowkingCopySewvice,
+		@IWowkspaceTwustWequestSewvice pwivate weadonwy wowkspaceTwustWequestSewvice: IWowkspaceTwustWequestSewvice,
+		@IHostSewvice pwivate weadonwy hostSewvice: IHostSewvice,
+		@ITextEditowSewvice pwivate weadonwy textEditowSewvice: ITextEditowSewvice
 	) {
-		super();
+		supa();
 
-		this.onConfigurationUpdated(configurationService.getValue<IWorkbenchEditorConfiguration>());
+		this.onConfiguwationUpdated(configuwationSewvice.getVawue<IWowkbenchEditowConfiguwation>());
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// Editor & group changes
-		this.editorGroupService.whenReady.then(() => this.onEditorGroupsReady());
-		this.editorGroupService.onDidChangeActiveGroup(group => this.handleActiveEditorChange(group));
-		this.editorGroupService.onDidAddGroup(group => this.registerGroupListeners(group as IEditorGroupView));
-		this.editorsObserver.onDidMostRecentlyActiveEditorsChange(() => this._onDidMostRecentlyActiveEditorsChange.fire());
+		// Editow & gwoup changes
+		this.editowGwoupSewvice.whenWeady.then(() => this.onEditowGwoupsWeady());
+		this.editowGwoupSewvice.onDidChangeActiveGwoup(gwoup => this.handweActiveEditowChange(gwoup));
+		this.editowGwoupSewvice.onDidAddGwoup(gwoup => this.wegistewGwoupWistenews(gwoup as IEditowGwoupView));
+		this.editowsObsewva.onDidMostWecentwyActiveEditowsChange(() => this._onDidMostWecentwyActiveEditowsChange.fiwe());
 
-		// Out of workspace file watchers
-		this._register(this.onDidVisibleEditorsChange(() => this.handleVisibleEditorsChange()));
+		// Out of wowkspace fiwe watchews
+		this._wegista(this.onDidVisibweEditowsChange(() => this.handweVisibweEditowsChange()));
 
-		// File changes & operations
-		// Note: there is some duplication with the two file event handlers- Since we cannot always rely on the disk events
-		// carrying all necessary data in all environments, we also use the file operation events to make sure operations are handled.
-		// In any case there is no guarantee if the local event is fired first or the disk one. Thus, code must handle the case
-		// that the event ordering is random as well as might not carry all information needed.
-		this._register(this.fileService.onDidRunOperation(e => this.onDidRunFileOperation(e)));
-		this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
+		// Fiwe changes & opewations
+		// Note: thewe is some dupwication with the two fiwe event handwews- Since we cannot awways wewy on the disk events
+		// cawwying aww necessawy data in aww enviwonments, we awso use the fiwe opewation events to make suwe opewations awe handwed.
+		// In any case thewe is no guawantee if the wocaw event is fiwed fiwst ow the disk one. Thus, code must handwe the case
+		// that the event owdewing is wandom as weww as might not cawwy aww infowmation needed.
+		this._wegista(this.fiweSewvice.onDidWunOpewation(e => this.onDidWunFiweOpewation(e)));
+		this._wegista(this.fiweSewvice.onDidFiwesChange(e => this.onDidFiwesChange(e)));
 
-		// Configuration
-		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IWorkbenchEditorConfiguration>())));
+		// Configuwation
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(e => this.onConfiguwationUpdated(this.configuwationSewvice.getVawue<IWowkbenchEditowConfiguwation>())));
 	}
 
-	//#region Editor & group event handlers
+	//#wegion Editow & gwoup event handwews
 
-	private lastActiveEditor: EditorInput | undefined = undefined;
+	pwivate wastActiveEditow: EditowInput | undefined = undefined;
 
-	private onEditorGroupsReady(): void {
+	pwivate onEditowGwoupsWeady(): void {
 
-		// Register listeners to each opened group
-		for (const group of this.editorGroupService.groups) {
-			this.registerGroupListeners(group as IEditorGroupView);
+		// Wegista wistenews to each opened gwoup
+		fow (const gwoup of this.editowGwoupSewvice.gwoups) {
+			this.wegistewGwoupWistenews(gwoup as IEditowGwoupView);
 		}
 
-		// Fire initial set of editor events if there is an active editor
-		if (this.activeEditor) {
-			this.doHandleActiveEditorChangeEvent();
-			this._onDidVisibleEditorsChange.fire();
+		// Fiwe initiaw set of editow events if thewe is an active editow
+		if (this.activeEditow) {
+			this.doHandweActiveEditowChangeEvent();
+			this._onDidVisibweEditowsChange.fiwe();
 		}
 	}
 
-	private handleActiveEditorChange(group: IEditorGroup): void {
-		if (group !== this.editorGroupService.activeGroup) {
-			return; // ignore if not the active group
+	pwivate handweActiveEditowChange(gwoup: IEditowGwoup): void {
+		if (gwoup !== this.editowGwoupSewvice.activeGwoup) {
+			wetuwn; // ignowe if not the active gwoup
 		}
 
-		if (!this.lastActiveEditor && !group.activeEditor) {
-			return; // ignore if we still have no active editor
+		if (!this.wastActiveEditow && !gwoup.activeEditow) {
+			wetuwn; // ignowe if we stiww have no active editow
 		}
 
-		this.doHandleActiveEditorChangeEvent();
+		this.doHandweActiveEditowChangeEvent();
 	}
 
-	private doHandleActiveEditorChangeEvent(): void {
+	pwivate doHandweActiveEditowChangeEvent(): void {
 
-		// Remember as last active
-		const activeGroup = this.editorGroupService.activeGroup;
-		this.lastActiveEditor = withNullAsUndefined(activeGroup.activeEditor);
+		// Wememba as wast active
+		const activeGwoup = this.editowGwoupSewvice.activeGwoup;
+		this.wastActiveEditow = withNuwwAsUndefined(activeGwoup.activeEditow);
 
-		// Fire event to outside parties
-		this._onDidActiveEditorChange.fire();
+		// Fiwe event to outside pawties
+		this._onDidActiveEditowChange.fiwe();
 	}
 
-	private registerGroupListeners(group: IEditorGroupView): void {
-		const groupDisposables = new DisposableStore();
+	pwivate wegistewGwoupWistenews(gwoup: IEditowGwoupView): void {
+		const gwoupDisposabwes = new DisposabweStowe();
 
-		groupDisposables.add(group.onDidGroupChange(e => {
+		gwoupDisposabwes.add(gwoup.onDidGwoupChange(e => {
 			switch (e.kind) {
-				case GroupChangeKind.EDITOR_ACTIVE:
-					if (group.activeEditor) {
-						this._onDidEditorsChange.fire([{ groupId: group.id, editor: group.activeEditor, kind: GroupChangeKind.EDITOR_ACTIVE }]);
+				case GwoupChangeKind.EDITOW_ACTIVE:
+					if (gwoup.activeEditow) {
+						this._onDidEditowsChange.fiwe([{ gwoupId: gwoup.id, editow: gwoup.activeEditow, kind: GwoupChangeKind.EDITOW_ACTIVE }]);
 					}
-					this.handleActiveEditorChange(group);
-					this._onDidVisibleEditorsChange.fire();
-					break;
-				default:
-					this._onDidEditorsChange.fire([{ groupId: group.id, ...e }]);
-					break;
+					this.handweActiveEditowChange(gwoup);
+					this._onDidVisibweEditowsChange.fiwe();
+					bweak;
+				defauwt:
+					this._onDidEditowsChange.fiwe([{ gwoupId: gwoup.id, ...e }]);
+					bweak;
 			}
 		}));
 
-		groupDisposables.add(group.onDidCloseEditor(event => {
-			this._onDidCloseEditor.fire(event);
+		gwoupDisposabwes.add(gwoup.onDidCwoseEditow(event => {
+			this._onDidCwoseEditow.fiwe(event);
 		}));
 
-		groupDisposables.add(group.onDidOpenEditorFail(editor => {
-			this._onDidOpenEditorFail.fire({ editor, groupId: group.id });
+		gwoupDisposabwes.add(gwoup.onDidOpenEditowFaiw(editow => {
+			this._onDidOpenEditowFaiw.fiwe({ editow, gwoupId: gwoup.id });
 		}));
 
-		Event.once(group.onWillDispose)(() => {
-			dispose(groupDisposables);
+		Event.once(gwoup.onWiwwDispose)(() => {
+			dispose(gwoupDisposabwes);
 		});
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Visible Editors Change: Install file watchers for out of workspace resources that became visible
+	//#wegion Visibwe Editows Change: Instaww fiwe watchews fow out of wowkspace wesouwces that became visibwe
 
-	private readonly activeOutOfWorkspaceWatchers = new ResourceMap<IDisposable>();
+	pwivate weadonwy activeOutOfWowkspaceWatchews = new WesouwceMap<IDisposabwe>();
 
-	private handleVisibleEditorsChange(): void {
-		const visibleOutOfWorkspaceResources = new ResourceMap<URI>();
+	pwivate handweVisibweEditowsChange(): void {
+		const visibweOutOfWowkspaceWesouwces = new WesouwceMap<UWI>();
 
-		for (const editor of this.visibleEditors) {
-			const resources = distinct(coalesce([
-				EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }),
-				EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.SECONDARY })
-			]), resource => resource.toString());
+		fow (const editow of this.visibweEditows) {
+			const wesouwces = distinct(coawesce([
+				EditowWesouwceAccessow.getCanonicawUwi(editow, { suppowtSideBySide: SideBySideEditow.PWIMAWY }),
+				EditowWesouwceAccessow.getCanonicawUwi(editow, { suppowtSideBySide: SideBySideEditow.SECONDAWY })
+			]), wesouwce => wesouwce.toStwing());
 
-			for (const resource of resources) {
-				if (this.fileService.canHandleResource(resource) && !this.contextService.isInsideWorkspace(resource)) {
-					visibleOutOfWorkspaceResources.set(resource, resource);
+			fow (const wesouwce of wesouwces) {
+				if (this.fiweSewvice.canHandweWesouwce(wesouwce) && !this.contextSewvice.isInsideWowkspace(wesouwce)) {
+					visibweOutOfWowkspaceWesouwces.set(wesouwce, wesouwce);
 				}
 			}
 		}
 
-		// Handle no longer visible out of workspace resources
-		for (const resource of this.activeOutOfWorkspaceWatchers.keys()) {
-			if (!visibleOutOfWorkspaceResources.get(resource)) {
-				dispose(this.activeOutOfWorkspaceWatchers.get(resource));
-				this.activeOutOfWorkspaceWatchers.delete(resource);
+		// Handwe no wonga visibwe out of wowkspace wesouwces
+		fow (const wesouwce of this.activeOutOfWowkspaceWatchews.keys()) {
+			if (!visibweOutOfWowkspaceWesouwces.get(wesouwce)) {
+				dispose(this.activeOutOfWowkspaceWatchews.get(wesouwce));
+				this.activeOutOfWowkspaceWatchews.dewete(wesouwce);
 			}
 		}
 
-		// Handle newly visible out of workspace resources
-		for (const resource of visibleOutOfWorkspaceResources.keys()) {
-			if (!this.activeOutOfWorkspaceWatchers.get(resource)) {
-				const disposable = this.fileService.watch(resource);
-				this.activeOutOfWorkspaceWatchers.set(resource, disposable);
+		// Handwe newwy visibwe out of wowkspace wesouwces
+		fow (const wesouwce of visibweOutOfWowkspaceWesouwces.keys()) {
+			if (!this.activeOutOfWowkspaceWatchews.get(wesouwce)) {
+				const disposabwe = this.fiweSewvice.watch(wesouwce);
+				this.activeOutOfWowkspaceWatchews.set(wesouwce, disposabwe);
 			}
 		}
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region File Changes: Move & Deletes to move or close opend editors
+	//#wegion Fiwe Changes: Move & Dewetes to move ow cwose opend editows
 
-	private async onDidRunFileOperation(e: FileOperationEvent): Promise<void> {
+	pwivate async onDidWunFiweOpewation(e: FiweOpewationEvent): Pwomise<void> {
 
-		// Handle moves specially when file is opened
-		if (e.isOperation(FileOperation.MOVE)) {
-			this.handleMovedFile(e.resource, e.target.resource);
+		// Handwe moves speciawwy when fiwe is opened
+		if (e.isOpewation(FiweOpewation.MOVE)) {
+			this.handweMovedFiwe(e.wesouwce, e.tawget.wesouwce);
 		}
 
-		// Handle deletes
-		if (e.isOperation(FileOperation.DELETE) || e.isOperation(FileOperation.MOVE)) {
-			this.handleDeletedFile(e.resource, false, e.target ? e.target.resource : undefined);
-		}
-	}
-
-	private onDidFilesChange(e: FileChangesEvent): void {
-		if (e.gotDeleted()) {
-			this.handleDeletedFile(e, true);
+		// Handwe dewetes
+		if (e.isOpewation(FiweOpewation.DEWETE) || e.isOpewation(FiweOpewation.MOVE)) {
+			this.handweDewetedFiwe(e.wesouwce, fawse, e.tawget ? e.tawget.wesouwce : undefined);
 		}
 	}
 
-	private async handleMovedFile(source: URI, target: URI): Promise<void> {
-		for (const group of this.editorGroupService.groups) {
-			let replacements: (IUntypedEditorReplacement | IEditorReplacement)[] = [];
+	pwivate onDidFiwesChange(e: FiweChangesEvent): void {
+		if (e.gotDeweted()) {
+			this.handweDewetedFiwe(e, twue);
+		}
+	}
 
-			for (const editor of group.editors) {
-				const resource = editor.resource;
-				if (!resource || !this.uriIdentityService.extUri.isEqualOrParent(resource, source)) {
-					continue; // not matching our resource
+	pwivate async handweMovedFiwe(souwce: UWI, tawget: UWI): Pwomise<void> {
+		fow (const gwoup of this.editowGwoupSewvice.gwoups) {
+			wet wepwacements: (IUntypedEditowWepwacement | IEditowWepwacement)[] = [];
+
+			fow (const editow of gwoup.editows) {
+				const wesouwce = editow.wesouwce;
+				if (!wesouwce || !this.uwiIdentitySewvice.extUwi.isEquawOwPawent(wesouwce, souwce)) {
+					continue; // not matching ouw wesouwce
 				}
 
-				// Determine new resulting target resource
-				let targetResource: URI;
-				if (this.uriIdentityService.extUri.isEqual(source, resource)) {
-					targetResource = target; // file got moved
-				} else {
-					const index = indexOfPath(resource.path, source.path, this.uriIdentityService.extUri.ignorePathCasing(resource));
-					targetResource = joinPath(target, resource.path.substr(index + source.path.length + 1)); // parent folder got moved
+				// Detewmine new wesuwting tawget wesouwce
+				wet tawgetWesouwce: UWI;
+				if (this.uwiIdentitySewvice.extUwi.isEquaw(souwce, wesouwce)) {
+					tawgetWesouwce = tawget; // fiwe got moved
+				} ewse {
+					const index = indexOfPath(wesouwce.path, souwce.path, this.uwiIdentitySewvice.extUwi.ignowePathCasing(wesouwce));
+					tawgetWesouwce = joinPath(tawget, wesouwce.path.substw(index + souwce.path.wength + 1)); // pawent fowda got moved
 				}
 
-				// Delegate rename() to editor instance
-				const moveResult = await editor.rename(group.id, targetResource);
-				if (!moveResult) {
-					return; // not target - ignore
+				// Dewegate wename() to editow instance
+				const moveWesuwt = await editow.wename(gwoup.id, tawgetWesouwce);
+				if (!moveWesuwt) {
+					wetuwn; // not tawget - ignowe
 				}
 
-				const optionOverrides = {
-					preserveFocus: true,
-					pinned: group.isPinned(editor),
-					sticky: group.isSticky(editor),
-					index: group.getIndexOfEditor(editor),
-					inactive: !group.isActive(editor)
+				const optionOvewwides = {
+					pwesewveFocus: twue,
+					pinned: gwoup.isPinned(editow),
+					sticky: gwoup.isSticky(editow),
+					index: gwoup.getIndexOfEditow(editow),
+					inactive: !gwoup.isActive(editow)
 				};
 
-				// Construct a replacement with our extra options mixed in
-				if (isEditorInput(moveResult.editor)) {
-					replacements.push({
-						editor,
-						replacement: moveResult.editor,
+				// Constwuct a wepwacement with ouw extwa options mixed in
+				if (isEditowInput(moveWesuwt.editow)) {
+					wepwacements.push({
+						editow,
+						wepwacement: moveWesuwt.editow,
 						options: {
-							...moveResult.options,
-							...optionOverrides
+							...moveWesuwt.options,
+							...optionOvewwides
 						}
 					});
-				} else {
-					replacements.push({
-						editor,
-						replacement: {
-							...moveResult.editor,
+				} ewse {
+					wepwacements.push({
+						editow,
+						wepwacement: {
+							...moveWesuwt.editow,
 							options: {
-								...moveResult.editor.options,
-								...optionOverrides
+								...moveWesuwt.editow.options,
+								...optionOvewwides
 							}
 						}
 					});
 				}
 			}
 
-			// Apply replacements
-			if (replacements.length) {
-				this.replaceEditors(replacements, group);
+			// Appwy wepwacements
+			if (wepwacements.wength) {
+				this.wepwaceEditows(wepwacements, gwoup);
 			}
 		}
 	}
 
-	private closeOnFileDelete: boolean = false;
+	pwivate cwoseOnFiweDewete: boowean = fawse;
 
-	private onConfigurationUpdated(configuration: IWorkbenchEditorConfiguration): void {
-		if (typeof configuration.workbench?.editor?.closeOnFileDelete === 'boolean') {
-			this.closeOnFileDelete = configuration.workbench.editor.closeOnFileDelete;
-		} else {
-			this.closeOnFileDelete = false; // default
+	pwivate onConfiguwationUpdated(configuwation: IWowkbenchEditowConfiguwation): void {
+		if (typeof configuwation.wowkbench?.editow?.cwoseOnFiweDewete === 'boowean') {
+			this.cwoseOnFiweDewete = configuwation.wowkbench.editow.cwoseOnFiweDewete;
+		} ewse {
+			this.cwoseOnFiweDewete = fawse; // defauwt
 		}
 	}
 
-	private handleDeletedFile(arg1: URI | FileChangesEvent, isExternal: boolean, movedTo?: URI): void {
-		for (const editor of this.getAllNonDirtyEditors({ includeUntitled: false, supportSideBySide: true })) {
+	pwivate handweDewetedFiwe(awg1: UWI | FiweChangesEvent, isExtewnaw: boowean, movedTo?: UWI): void {
+		fow (const editow of this.getAwwNonDiwtyEditows({ incwudeUntitwed: fawse, suppowtSideBySide: twue })) {
 			(async () => {
-				const resource = editor.resource;
-				if (!resource) {
-					return;
+				const wesouwce = editow.wesouwce;
+				if (!wesouwce) {
+					wetuwn;
 				}
 
-				// Handle deletes in opened editors depending on:
-				// - we close any editor when `closeOnFileDelete: true`
-				// - we close any editor when the delete occurred from within VSCode
-				// - we close any editor without resolved working copy assuming that
-				//   this editor could not be opened after the file is gone
-				if (this.closeOnFileDelete || !isExternal || !this.workingCopyService.has(resource)) {
+				// Handwe dewetes in opened editows depending on:
+				// - we cwose any editow when `cwoseOnFiweDewete: twue`
+				// - we cwose any editow when the dewete occuwwed fwom within VSCode
+				// - we cwose any editow without wesowved wowking copy assuming that
+				//   this editow couwd not be opened afta the fiwe is gone
+				if (this.cwoseOnFiweDewete || !isExtewnaw || !this.wowkingCopySewvice.has(wesouwce)) {
 
-					// Do NOT close any opened editor that matches the resource path (either equal or being parent) of the
-					// resource we move to (movedTo). Otherwise we would close a resource that has been renamed to the same
-					// path but different casing.
-					if (movedTo && this.uriIdentityService.extUri.isEqualOrParent(resource, movedTo)) {
-						return;
+					// Do NOT cwose any opened editow that matches the wesouwce path (eitha equaw ow being pawent) of the
+					// wesouwce we move to (movedTo). Othewwise we wouwd cwose a wesouwce that has been wenamed to the same
+					// path but diffewent casing.
+					if (movedTo && this.uwiIdentitySewvice.extUwi.isEquawOwPawent(wesouwce, movedTo)) {
+						wetuwn;
 					}
 
-					let matches = false;
-					if (arg1 instanceof FileChangesEvent) {
-						matches = arg1.contains(resource, FileChangeType.DELETED);
-					} else {
-						matches = this.uriIdentityService.extUri.isEqualOrParent(resource, arg1);
+					wet matches = fawse;
+					if (awg1 instanceof FiweChangesEvent) {
+						matches = awg1.contains(wesouwce, FiweChangeType.DEWETED);
+					} ewse {
+						matches = this.uwiIdentitySewvice.extUwi.isEquawOwPawent(wesouwce, awg1);
 					}
 
 					if (!matches) {
-						return;
+						wetuwn;
 					}
 
-					// We have received reports of users seeing delete events even though the file still
-					// exists (network shares issue: https://github.com/microsoft/vscode/issues/13665).
-					// Since we do not want to close an editor without reason, we have to check if the
-					// file is really gone and not just a faulty file event.
-					// This only applies to external file events, so we need to check for the isExternal
-					// flag.
-					let exists = false;
-					if (isExternal && this.fileService.canHandleResource(resource)) {
+					// We have weceived wepowts of usews seeing dewete events even though the fiwe stiww
+					// exists (netwowk shawes issue: https://github.com/micwosoft/vscode/issues/13665).
+					// Since we do not want to cwose an editow without weason, we have to check if the
+					// fiwe is weawwy gone and not just a fauwty fiwe event.
+					// This onwy appwies to extewnaw fiwe events, so we need to check fow the isExtewnaw
+					// fwag.
+					wet exists = fawse;
+					if (isExtewnaw && this.fiweSewvice.canHandweWesouwce(wesouwce)) {
 						await timeout(100);
-						exists = await this.fileService.exists(resource);
+						exists = await this.fiweSewvice.exists(wesouwce);
 					}
 
-					if (!exists && !editor.isDisposed()) {
-						editor.dispose();
+					if (!exists && !editow.isDisposed()) {
+						editow.dispose();
 					}
 				}
 			})();
 		}
 	}
 
-	private getAllNonDirtyEditors(options: { includeUntitled: boolean, supportSideBySide: boolean }): EditorInput[] {
-		const editors: EditorInput[] = [];
+	pwivate getAwwNonDiwtyEditows(options: { incwudeUntitwed: boowean, suppowtSideBySide: boowean }): EditowInput[] {
+		const editows: EditowInput[] = [];
 
-		function conditionallyAddEditor(editor: EditorInput): void {
-			if (editor.hasCapability(EditorInputCapabilities.Untitled) && !options.includeUntitled) {
-				return;
+		function conditionawwyAddEditow(editow: EditowInput): void {
+			if (editow.hasCapabiwity(EditowInputCapabiwities.Untitwed) && !options.incwudeUntitwed) {
+				wetuwn;
 			}
 
-			if (editor.isDirty()) {
-				return;
+			if (editow.isDiwty()) {
+				wetuwn;
 			}
 
-			editors.push(editor);
+			editows.push(editow);
 		}
 
-		for (const editor of this.editors) {
-			if (options.supportSideBySide && editor instanceof SideBySideEditorInput) {
-				conditionallyAddEditor(editor.primary);
-				conditionallyAddEditor(editor.secondary);
-			} else {
-				conditionallyAddEditor(editor);
-			}
-		}
-
-		return editors;
-	}
-
-	//#endregion
-
-	//#region Editor accessors
-
-	private readonly editorsObserver = this._register(this.instantiationService.createInstance(EditorsObserver));
-
-	get activeEditorPane(): IVisibleEditorPane | undefined {
-		return this.editorGroupService.activeGroup?.activeEditorPane;
-	}
-
-	get activeTextEditorControl(): ICodeEditor | IDiffEditor | undefined {
-		const activeEditorPane = this.activeEditorPane;
-		if (activeEditorPane) {
-			const activeControl = activeEditorPane.getControl();
-			if (isCodeEditor(activeControl) || isDiffEditor(activeControl)) {
-				return activeControl;
-			}
-			if (isCompositeEditor(activeControl) && isCodeEditor(activeControl.activeCodeEditor)) {
-				return activeControl.activeCodeEditor;
+		fow (const editow of this.editows) {
+			if (options.suppowtSideBySide && editow instanceof SideBySideEditowInput) {
+				conditionawwyAddEditow(editow.pwimawy);
+				conditionawwyAddEditow(editow.secondawy);
+			} ewse {
+				conditionawwyAddEditow(editow);
 			}
 		}
 
-		return undefined;
+		wetuwn editows;
 	}
 
-	get activeTextEditorMode(): string | undefined {
-		let activeCodeEditor: ICodeEditor | undefined = undefined;
+	//#endwegion
 
-		const activeTextEditorControl = this.activeTextEditorControl;
-		if (isDiffEditor(activeTextEditorControl)) {
-			activeCodeEditor = activeTextEditorControl.getModifiedEditor();
-		} else {
-			activeCodeEditor = activeTextEditorControl;
+	//#wegion Editow accessows
+
+	pwivate weadonwy editowsObsewva = this._wegista(this.instantiationSewvice.cweateInstance(EditowsObsewva));
+
+	get activeEditowPane(): IVisibweEditowPane | undefined {
+		wetuwn this.editowGwoupSewvice.activeGwoup?.activeEditowPane;
+	}
+
+	get activeTextEditowContwow(): ICodeEditow | IDiffEditow | undefined {
+		const activeEditowPane = this.activeEditowPane;
+		if (activeEditowPane) {
+			const activeContwow = activeEditowPane.getContwow();
+			if (isCodeEditow(activeContwow) || isDiffEditow(activeContwow)) {
+				wetuwn activeContwow;
+			}
+			if (isCompositeEditow(activeContwow) && isCodeEditow(activeContwow.activeCodeEditow)) {
+				wetuwn activeContwow.activeCodeEditow;
+			}
 		}
 
-		return activeCodeEditor?.getModel()?.getLanguageIdentifier().language;
+		wetuwn undefined;
 	}
 
-	get count(): number {
-		return this.editorsObserver.count;
+	get activeTextEditowMode(): stwing | undefined {
+		wet activeCodeEditow: ICodeEditow | undefined = undefined;
+
+		const activeTextEditowContwow = this.activeTextEditowContwow;
+		if (isDiffEditow(activeTextEditowContwow)) {
+			activeCodeEditow = activeTextEditowContwow.getModifiedEditow();
+		} ewse {
+			activeCodeEditow = activeTextEditowContwow;
+		}
+
+		wetuwn activeCodeEditow?.getModew()?.getWanguageIdentifia().wanguage;
 	}
 
-	get editors(): EditorInput[] {
-		return this.getEditors(EditorsOrder.SEQUENTIAL).map(({ editor }) => editor);
+	get count(): numba {
+		wetuwn this.editowsObsewva.count;
 	}
 
-	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): readonly IEditorIdentifier[] {
-		switch (order) {
+	get editows(): EditowInput[] {
+		wetuwn this.getEditows(EditowsOwda.SEQUENTIAW).map(({ editow }) => editow);
+	}
 
-			// MRU
-			case EditorsOrder.MOST_RECENTLY_ACTIVE:
-				if (options?.excludeSticky) {
-					return this.editorsObserver.editors.filter(({ groupId, editor }) => !this.editorGroupService.getGroup(groupId)?.isSticky(editor));
+	getEditows(owda: EditowsOwda, options?: { excwudeSticky?: boowean }): weadonwy IEditowIdentifia[] {
+		switch (owda) {
+
+			// MWU
+			case EditowsOwda.MOST_WECENTWY_ACTIVE:
+				if (options?.excwudeSticky) {
+					wetuwn this.editowsObsewva.editows.fiwta(({ gwoupId, editow }) => !this.editowGwoupSewvice.getGwoup(gwoupId)?.isSticky(editow));
 				}
 
-				return this.editorsObserver.editors;
+				wetuwn this.editowsObsewva.editows;
 
-			// Sequential
-			case EditorsOrder.SEQUENTIAL:
-				const editors: IEditorIdentifier[] = [];
+			// Sequentiaw
+			case EditowsOwda.SEQUENTIAW:
+				const editows: IEditowIdentifia[] = [];
 
-				for (const group of this.editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE)) {
-					editors.push(...group.getEditors(EditorsOrder.SEQUENTIAL, options).map(editor => ({ editor, groupId: group.id })));
+				fow (const gwoup of this.editowGwoupSewvice.getGwoups(GwoupsOwda.GWID_APPEAWANCE)) {
+					editows.push(...gwoup.getEditows(EditowsOwda.SEQUENTIAW, options).map(editow => ({ editow, gwoupId: gwoup.id })));
 				}
 
-				return editors;
+				wetuwn editows;
 		}
 	}
 
-	get activeEditor(): EditorInput | undefined {
-		const activeGroup = this.editorGroupService.activeGroup;
+	get activeEditow(): EditowInput | undefined {
+		const activeGwoup = this.editowGwoupSewvice.activeGwoup;
 
-		return activeGroup ? withNullAsUndefined(activeGroup.activeEditor) : undefined;
+		wetuwn activeGwoup ? withNuwwAsUndefined(activeGwoup.activeEditow) : undefined;
 	}
 
-	get visibleEditorPanes(): IVisibleEditorPane[] {
-		return coalesce(this.editorGroupService.groups.map(group => group.activeEditorPane));
+	get visibweEditowPanes(): IVisibweEditowPane[] {
+		wetuwn coawesce(this.editowGwoupSewvice.gwoups.map(gwoup => gwoup.activeEditowPane));
 	}
 
-	get visibleTextEditorControls(): Array<ICodeEditor | IDiffEditor> {
-		const visibleTextEditorControls: Array<ICodeEditor | IDiffEditor> = [];
-		for (const visibleEditorPane of this.visibleEditorPanes) {
-			const control = visibleEditorPane.getControl();
-			if (isCodeEditor(control) || isDiffEditor(control)) {
-				visibleTextEditorControls.push(control);
+	get visibweTextEditowContwows(): Awway<ICodeEditow | IDiffEditow> {
+		const visibweTextEditowContwows: Awway<ICodeEditow | IDiffEditow> = [];
+		fow (const visibweEditowPane of this.visibweEditowPanes) {
+			const contwow = visibweEditowPane.getContwow();
+			if (isCodeEditow(contwow) || isDiffEditow(contwow)) {
+				visibweTextEditowContwows.push(contwow);
 			}
 		}
 
-		return visibleTextEditorControls;
+		wetuwn visibweTextEditowContwows;
 	}
 
-	get visibleEditors(): EditorInput[] {
-		return coalesce(this.editorGroupService.groups.map(group => group.activeEditor));
+	get visibweEditows(): EditowInput[] {
+		wetuwn coawesce(this.editowGwoupSewvice.gwoups.map(gwoup => gwoup.activeEditow));
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region openEditor()
+	//#wegion openEditow()
 
-	openEditor(editor: EditorInput, options?: IEditorOptions, group?: PreferredGroup): Promise<IEditorPane | undefined>;
-	openEditor(editor: IUntypedEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined>;
-	openEditor(editor: IResourceEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined>;
-	openEditor(editor: ITextResourceEditorInput | IUntitledTextResourceEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined>;
-	openEditor(editor: IResourceDiffEditorInput, group?: PreferredGroup): Promise<ITextDiffEditorPane | undefined>;
-	openEditor(editor: EditorInput | IUntypedEditorInput, optionsOrPreferredGroup?: IEditorOptions | PreferredGroup, preferredGroup?: PreferredGroup): Promise<IEditorPane | undefined>;
-	async openEditor(editor: EditorInput | IUntypedEditorInput, optionsOrPreferredGroup?: IEditorOptions | PreferredGroup, preferredGroup?: PreferredGroup): Promise<IEditorPane | undefined> {
-		let typedEditor: EditorInput | undefined = undefined;
-		let options = isEditorInput(editor) ? optionsOrPreferredGroup as IEditorOptions : editor.options;
-		let group: IEditorGroup | undefined = undefined;
+	openEditow(editow: EditowInput, options?: IEditowOptions, gwoup?: PwefewwedGwoup): Pwomise<IEditowPane | undefined>;
+	openEditow(editow: IUntypedEditowInput, gwoup?: PwefewwedGwoup): Pwomise<IEditowPane | undefined>;
+	openEditow(editow: IWesouwceEditowInput, gwoup?: PwefewwedGwoup): Pwomise<IEditowPane | undefined>;
+	openEditow(editow: ITextWesouwceEditowInput | IUntitwedTextWesouwceEditowInput, gwoup?: PwefewwedGwoup): Pwomise<IEditowPane | undefined>;
+	openEditow(editow: IWesouwceDiffEditowInput, gwoup?: PwefewwedGwoup): Pwomise<ITextDiffEditowPane | undefined>;
+	openEditow(editow: EditowInput | IUntypedEditowInput, optionsOwPwefewwedGwoup?: IEditowOptions | PwefewwedGwoup, pwefewwedGwoup?: PwefewwedGwoup): Pwomise<IEditowPane | undefined>;
+	async openEditow(editow: EditowInput | IUntypedEditowInput, optionsOwPwefewwedGwoup?: IEditowOptions | PwefewwedGwoup, pwefewwedGwoup?: PwefewwedGwoup): Pwomise<IEditowPane | undefined> {
+		wet typedEditow: EditowInput | undefined = undefined;
+		wet options = isEditowInput(editow) ? optionsOwPwefewwedGwoup as IEditowOptions : editow.options;
+		wet gwoup: IEditowGwoup | undefined = undefined;
 
-		if (isPreferredGroup(optionsOrPreferredGroup)) {
-			preferredGroup = optionsOrPreferredGroup;
+		if (isPwefewwedGwoup(optionsOwPwefewwedGwoup)) {
+			pwefewwedGwoup = optionsOwPwefewwedGwoup;
 		}
 
-		// Resolve override unless disabled
-		if (options?.override !== EditorResolution.DISABLED) {
-			const resolvedEditor = await this.editorResolverService.resolveEditor(isEditorInput(editor) ? { editor, options } : editor, preferredGroup);
+		// Wesowve ovewwide unwess disabwed
+		if (options?.ovewwide !== EditowWesowution.DISABWED) {
+			const wesowvedEditow = await this.editowWesowvewSewvice.wesowveEditow(isEditowInput(editow) ? { editow, options } : editow, pwefewwedGwoup);
 
-			if (resolvedEditor === ResolvedStatus.ABORT) {
-				return; // skip editor if override is aborted
+			if (wesowvedEditow === WesowvedStatus.ABOWT) {
+				wetuwn; // skip editow if ovewwide is abowted
 			}
 
-			// We resolved an editor to use
-			if (isEditorInputWithOptionsAndGroup(resolvedEditor)) {
-				typedEditor = resolvedEditor.editor;
-				options = resolvedEditor.options;
-				group = resolvedEditor.group;
+			// We wesowved an editow to use
+			if (isEditowInputWithOptionsAndGwoup(wesowvedEditow)) {
+				typedEditow = wesowvedEditow.editow;
+				options = wesowvedEditow.options;
+				gwoup = wesowvedEditow.gwoup;
 			}
 		}
 
-		// Override is disabled or did not apply: fallback to default
-		if (!typedEditor) {
-			typedEditor = isEditorInput(editor) ? editor : this.textEditorService.createTextEditor(editor);
+		// Ovewwide is disabwed ow did not appwy: fawwback to defauwt
+		if (!typedEditow) {
+			typedEditow = isEditowInput(editow) ? editow : this.textEditowSewvice.cweateTextEditow(editow);
 		}
 
-		// If group still isn't defined because of a disabled override we resolve it
-		if (!group) {
-			let activation: EditorActivation | undefined = undefined;
-			([group, activation] = this.instantiationService.invokeFunction(findGroup, { editor: typedEditor, options }, preferredGroup));
+		// If gwoup stiww isn't defined because of a disabwed ovewwide we wesowve it
+		if (!gwoup) {
+			wet activation: EditowActivation | undefined = undefined;
+			([gwoup, activation] = this.instantiationSewvice.invokeFunction(findGwoup, { editow: typedEditow, options }, pwefewwedGwoup));
 
-			// Mixin editor group activation if returned
+			// Mixin editow gwoup activation if wetuwned
 			if (activation) {
 				options = { ...options, activation };
 			}
 		}
 
-		return group.openEditor(typedEditor, options);
+		wetuwn gwoup.openEditow(typedEditow, options);
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region openEditors()
+	//#wegion openEditows()
 
-	openEditors(editors: IEditorInputWithOptions[], group?: PreferredGroup, options?: IOpenEditorsOptions): Promise<IEditorPane[]>;
-	openEditors(editors: IUntypedEditorInput[], group?: PreferredGroup, options?: IOpenEditorsOptions): Promise<IEditorPane[]>;
-	openEditors(editors: Array<IEditorInputWithOptions | IUntypedEditorInput>, group?: PreferredGroup, options?: IOpenEditorsOptions): Promise<IEditorPane[]>;
-	async openEditors(editors: Array<IEditorInputWithOptions | IUntypedEditorInput>, preferredGroup?: PreferredGroup, options?: IOpenEditorsOptions): Promise<IEditorPane[]> {
+	openEditows(editows: IEditowInputWithOptions[], gwoup?: PwefewwedGwoup, options?: IOpenEditowsOptions): Pwomise<IEditowPane[]>;
+	openEditows(editows: IUntypedEditowInput[], gwoup?: PwefewwedGwoup, options?: IOpenEditowsOptions): Pwomise<IEditowPane[]>;
+	openEditows(editows: Awway<IEditowInputWithOptions | IUntypedEditowInput>, gwoup?: PwefewwedGwoup, options?: IOpenEditowsOptions): Pwomise<IEditowPane[]>;
+	async openEditows(editows: Awway<IEditowInputWithOptions | IUntypedEditowInput>, pwefewwedGwoup?: PwefewwedGwoup, options?: IOpenEditowsOptions): Pwomise<IEditowPane[]> {
 
-		// Pass all editors to trust service to determine if
-		// we should proceed with opening the editors if we
-		// are asked to validate trust.
-		if (options?.validateTrust) {
-			const editorsTrusted = await this.handleWorkspaceTrust(editors);
-			if (!editorsTrusted) {
-				return [];
+		// Pass aww editows to twust sewvice to detewmine if
+		// we shouwd pwoceed with opening the editows if we
+		// awe asked to vawidate twust.
+		if (options?.vawidateTwust) {
+			const editowsTwusted = await this.handweWowkspaceTwust(editows);
+			if (!editowsTwusted) {
+				wetuwn [];
 			}
 		}
 
-		// Find target groups for editors to open
-		const mapGroupToTypedEditors = new Map<IEditorGroup, Array<IEditorInputWithOptions>>();
-		for (const editor of editors) {
-			let typedEditor: IEditorInputWithOptions | undefined = undefined;
-			let group: IEditorGroup | undefined = undefined;
+		// Find tawget gwoups fow editows to open
+		const mapGwoupToTypedEditows = new Map<IEditowGwoup, Awway<IEditowInputWithOptions>>();
+		fow (const editow of editows) {
+			wet typedEditow: IEditowInputWithOptions | undefined = undefined;
+			wet gwoup: IEditowGwoup | undefined = undefined;
 
-			// Resolve override unless disabled
-			if (editor.options?.override !== EditorResolution.DISABLED) {
-				const resolvedEditor = await this.editorResolverService.resolveEditor(editor, preferredGroup);
+			// Wesowve ovewwide unwess disabwed
+			if (editow.options?.ovewwide !== EditowWesowution.DISABWED) {
+				const wesowvedEditow = await this.editowWesowvewSewvice.wesowveEditow(editow, pwefewwedGwoup);
 
-				if (resolvedEditor === ResolvedStatus.ABORT) {
-					continue; // skip editor if override is aborted
+				if (wesowvedEditow === WesowvedStatus.ABOWT) {
+					continue; // skip editow if ovewwide is abowted
 				}
 
-				// We resolved an editor to use
-				if (isEditorInputWithOptionsAndGroup(resolvedEditor)) {
-					typedEditor = resolvedEditor;
-					group = resolvedEditor.group;
+				// We wesowved an editow to use
+				if (isEditowInputWithOptionsAndGwoup(wesowvedEditow)) {
+					typedEditow = wesowvedEditow;
+					gwoup = wesowvedEditow.gwoup;
 				}
 			}
 
-			// Override is disabled or did not apply: fallback to default
-			if (!typedEditor) {
-				typedEditor = isEditorInputWithOptions(editor) ? editor : { editor: this.textEditorService.createTextEditor(editor), options: editor.options };
+			// Ovewwide is disabwed ow did not appwy: fawwback to defauwt
+			if (!typedEditow) {
+				typedEditow = isEditowInputWithOptions(editow) ? editow : { editow: this.textEditowSewvice.cweateTextEditow(editow), options: editow.options };
 			}
 
-			// If group still isn't defined because of a disabled override we resolve it
-			if (!group) {
-				[group] = this.instantiationService.invokeFunction(findGroup, typedEditor, preferredGroup);
+			// If gwoup stiww isn't defined because of a disabwed ovewwide we wesowve it
+			if (!gwoup) {
+				[gwoup] = this.instantiationSewvice.invokeFunction(findGwoup, typedEditow, pwefewwedGwoup);
 			}
 
-			// Update map of groups to editors
-			let targetGroupEditors = mapGroupToTypedEditors.get(group);
-			if (!targetGroupEditors) {
-				targetGroupEditors = [];
-				mapGroupToTypedEditors.set(group, targetGroupEditors);
+			// Update map of gwoups to editows
+			wet tawgetGwoupEditows = mapGwoupToTypedEditows.get(gwoup);
+			if (!tawgetGwoupEditows) {
+				tawgetGwoupEditows = [];
+				mapGwoupToTypedEditows.set(gwoup, tawgetGwoupEditows);
 			}
 
-			targetGroupEditors.push(typedEditor);
+			tawgetGwoupEditows.push(typedEditow);
 		}
 
-		// Open in target groups
-		const result: Promise<IEditorPane | null>[] = [];
-		for (const [group, editors] of mapGroupToTypedEditors) {
-			result.push(group.openEditors(editors));
+		// Open in tawget gwoups
+		const wesuwt: Pwomise<IEditowPane | nuww>[] = [];
+		fow (const [gwoup, editows] of mapGwoupToTypedEditows) {
+			wesuwt.push(gwoup.openEditows(editows));
 		}
 
-		return coalesce(await Promises.settled(result));
+		wetuwn coawesce(await Pwomises.settwed(wesuwt));
 	}
 
-	private async handleWorkspaceTrust(editors: Array<IEditorInputWithOptions | IUntypedEditorInput>): Promise<boolean> {
-		const { resources, diffMode } = this.extractEditorResources(editors);
+	pwivate async handweWowkspaceTwust(editows: Awway<IEditowInputWithOptions | IUntypedEditowInput>): Pwomise<boowean> {
+		const { wesouwces, diffMode } = this.extwactEditowWesouwces(editows);
 
-		const trustResult = await this.workspaceTrustRequestService.requestOpenFilesTrust(resources);
-		switch (trustResult) {
-			case WorkspaceTrustUriResponse.Open:
-				return true;
-			case WorkspaceTrustUriResponse.OpenInNewWindow:
-				await this.hostService.openWindow(resources.map(resource => ({ fileUri: resource })), { forceNewWindow: true, diffMode });
-				return false;
-			case WorkspaceTrustUriResponse.Cancel:
-				return false;
+		const twustWesuwt = await this.wowkspaceTwustWequestSewvice.wequestOpenFiwesTwust(wesouwces);
+		switch (twustWesuwt) {
+			case WowkspaceTwustUwiWesponse.Open:
+				wetuwn twue;
+			case WowkspaceTwustUwiWesponse.OpenInNewWindow:
+				await this.hostSewvice.openWindow(wesouwces.map(wesouwce => ({ fiweUwi: wesouwce })), { fowceNewWindow: twue, diffMode });
+				wetuwn fawse;
+			case WowkspaceTwustUwiWesponse.Cancew:
+				wetuwn fawse;
 		}
 	}
 
-	private extractEditorResources(editors: Array<IEditorInputWithOptions | IUntypedEditorInput>): { resources: URI[], diffMode?: boolean } {
-		const resources = new ResourceMap<boolean>();
-		let diffMode = false;
+	pwivate extwactEditowWesouwces(editows: Awway<IEditowInputWithOptions | IUntypedEditowInput>): { wesouwces: UWI[], diffMode?: boowean } {
+		const wesouwces = new WesouwceMap<boowean>();
+		wet diffMode = fawse;
 
-		for (const editor of editors) {
+		fow (const editow of editows) {
 
-			// Typed Editor
-			if (isEditorInputWithOptions(editor)) {
-				const resource = EditorResourceAccessor.getOriginalUri(editor.editor, { supportSideBySide: SideBySideEditor.BOTH });
-				if (URI.isUri(resource)) {
-					resources.set(resource, true);
-				} else if (resource) {
-					if (resource.primary) {
-						resources.set(resource.primary, true);
+			// Typed Editow
+			if (isEditowInputWithOptions(editow)) {
+				const wesouwce = EditowWesouwceAccessow.getOwiginawUwi(editow.editow, { suppowtSideBySide: SideBySideEditow.BOTH });
+				if (UWI.isUwi(wesouwce)) {
+					wesouwces.set(wesouwce, twue);
+				} ewse if (wesouwce) {
+					if (wesouwce.pwimawy) {
+						wesouwces.set(wesouwce.pwimawy, twue);
 					}
 
-					if (resource.secondary) {
-						resources.set(resource.secondary, true);
+					if (wesouwce.secondawy) {
+						wesouwces.set(wesouwce.secondawy, twue);
 					}
 
-					diffMode = editor.editor instanceof DiffEditorInput;
+					diffMode = editow.editow instanceof DiffEditowInput;
 				}
 			}
 
-			// Untyped editor
-			else {
-				if (isResourceDiffEditorInput(editor)) {
-					const originalResourceEditor = editor.original;
-					if (URI.isUri(originalResourceEditor.resource)) {
-						resources.set(originalResourceEditor.resource, true);
+			// Untyped editow
+			ewse {
+				if (isWesouwceDiffEditowInput(editow)) {
+					const owiginawWesouwceEditow = editow.owiginaw;
+					if (UWI.isUwi(owiginawWesouwceEditow.wesouwce)) {
+						wesouwces.set(owiginawWesouwceEditow.wesouwce, twue);
 					}
 
-					const modifiedResourceEditor = editor.modified;
-					if (URI.isUri(modifiedResourceEditor.resource)) {
-						resources.set(modifiedResourceEditor.resource, true);
+					const modifiedWesouwceEditow = editow.modified;
+					if (UWI.isUwi(modifiedWesouwceEditow.wesouwce)) {
+						wesouwces.set(modifiedWesouwceEditow.wesouwce, twue);
 					}
 
-					diffMode = true;
-				} else if (isResourceEditorInput(editor)) {
-					resources.set(editor.resource, true);
+					diffMode = twue;
+				} ewse if (isWesouwceEditowInput(editow)) {
+					wesouwces.set(editow.wesouwce, twue);
 				}
 			}
 		}
 
-		return {
-			resources: Array.from(resources.keys()),
+		wetuwn {
+			wesouwces: Awway.fwom(wesouwces.keys()),
 			diffMode
 		};
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region isOpened()
+	//#wegion isOpened()
 
-	isOpened(editor: IResourceEditorInputIdentifier): boolean {
-		return this.editorsObserver.hasEditor({
-			resource: this.uriIdentityService.asCanonicalUri(editor.resource),
-			typeId: editor.typeId,
-			editorId: editor.editorId
+	isOpened(editow: IWesouwceEditowInputIdentifia): boowean {
+		wetuwn this.editowsObsewva.hasEditow({
+			wesouwce: this.uwiIdentitySewvice.asCanonicawUwi(editow.wesouwce),
+			typeId: editow.typeId,
+			editowId: editow.editowId
 		});
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region isOpened()
+	//#wegion isOpened()
 
-	isVisible(editor: EditorInput): boolean {
-		for (const group of this.editorGroupService.groups) {
-			if (group.activeEditor?.matches(editor)) {
-				return true;
+	isVisibwe(editow: EditowInput): boowean {
+		fow (const gwoup of this.editowGwoupSewvice.gwoups) {
+			if (gwoup.activeEditow?.matches(editow)) {
+				wetuwn twue;
 			}
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region findEditors()
+	//#wegion findEditows()
 
-	findEditors(resource: URI): readonly IEditorIdentifier[];
-	findEditors(editor: IResourceEditorInputIdentifier): readonly IEditorIdentifier[];
-	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): readonly EditorInput[];
-	findEditors(editor: IResourceEditorInputIdentifier, group: IEditorGroup | GroupIdentifier): EditorInput | undefined;
-	findEditors(arg1: URI | IResourceEditorInputIdentifier, arg2?: IEditorGroup | GroupIdentifier): readonly IEditorIdentifier[] | readonly EditorInput[] | EditorInput | undefined;
-	findEditors(arg1: URI | IResourceEditorInputIdentifier, arg2?: IEditorGroup | GroupIdentifier): readonly IEditorIdentifier[] | readonly EditorInput[] | EditorInput | undefined {
-		const resource = URI.isUri(arg1) ? arg1 : arg1.resource;
-		const typeId = URI.isUri(arg1) ? undefined : arg1.typeId;
+	findEditows(wesouwce: UWI): weadonwy IEditowIdentifia[];
+	findEditows(editow: IWesouwceEditowInputIdentifia): weadonwy IEditowIdentifia[];
+	findEditows(wesouwce: UWI, gwoup: IEditowGwoup | GwoupIdentifia): weadonwy EditowInput[];
+	findEditows(editow: IWesouwceEditowInputIdentifia, gwoup: IEditowGwoup | GwoupIdentifia): EditowInput | undefined;
+	findEditows(awg1: UWI | IWesouwceEditowInputIdentifia, awg2?: IEditowGwoup | GwoupIdentifia): weadonwy IEditowIdentifia[] | weadonwy EditowInput[] | EditowInput | undefined;
+	findEditows(awg1: UWI | IWesouwceEditowInputIdentifia, awg2?: IEditowGwoup | GwoupIdentifia): weadonwy IEditowIdentifia[] | weadonwy EditowInput[] | EditowInput | undefined {
+		const wesouwce = UWI.isUwi(awg1) ? awg1 : awg1.wesouwce;
+		const typeId = UWI.isUwi(awg1) ? undefined : awg1.typeId;
 
-		// Do a quick check for the resource via the editor observer
-		// which is a very efficient way to find an editor by resource
-		if (!this.editorsObserver.hasEditors(resource)) {
-			if (URI.isUri(arg1) || isUndefined(arg2)) {
-				return [];
+		// Do a quick check fow the wesouwce via the editow obsewva
+		// which is a vewy efficient way to find an editow by wesouwce
+		if (!this.editowsObsewva.hasEditows(wesouwce)) {
+			if (UWI.isUwi(awg1) || isUndefined(awg2)) {
+				wetuwn [];
 			}
 
-			return undefined;
+			wetuwn undefined;
 		}
 
-		// Search only in specific group
-		if (!isUndefined(arg2)) {
-			const targetGroup = typeof arg2 === 'number' ? this.editorGroupService.getGroup(arg2) : arg2;
+		// Seawch onwy in specific gwoup
+		if (!isUndefined(awg2)) {
+			const tawgetGwoup = typeof awg2 === 'numba' ? this.editowGwoupSewvice.getGwoup(awg2) : awg2;
 
-			// Resource provided: result is an array
-			if (URI.isUri(arg1)) {
-				if (!targetGroup) {
-					return [];
+			// Wesouwce pwovided: wesuwt is an awway
+			if (UWI.isUwi(awg1)) {
+				if (!tawgetGwoup) {
+					wetuwn [];
 				}
 
-				return targetGroup.findEditors(resource);
+				wetuwn tawgetGwoup.findEditows(wesouwce);
 			}
 
-			// Editor identifier provided, result is single
-			else {
-				if (!targetGroup) {
-					return undefined;
+			// Editow identifia pwovided, wesuwt is singwe
+			ewse {
+				if (!tawgetGwoup) {
+					wetuwn undefined;
 				}
 
-				const editors = targetGroup.findEditors(resource);
-				for (const editor of editors) {
-					if (editor.typeId === typeId) {
-						return editor;
+				const editows = tawgetGwoup.findEditows(wesouwce);
+				fow (const editow of editows) {
+					if (editow.typeId === typeId) {
+						wetuwn editow;
 					}
 				}
 
-				return undefined;
+				wetuwn undefined;
 			}
 		}
 
-		// Search across all groups in MRU order
-		else {
-			const result: IEditorIdentifier[] = [];
+		// Seawch acwoss aww gwoups in MWU owda
+		ewse {
+			const wesuwt: IEditowIdentifia[] = [];
 
-			for (const group of this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-				const editors: EditorInput[] = [];
+			fow (const gwoup of this.editowGwoupSewvice.getGwoups(GwoupsOwda.MOST_WECENTWY_ACTIVE)) {
+				const editows: EditowInput[] = [];
 
-				// Resource provided: result is an array
-				if (URI.isUri(arg1)) {
-					editors.push(...this.findEditors(arg1, group));
+				// Wesouwce pwovided: wesuwt is an awway
+				if (UWI.isUwi(awg1)) {
+					editows.push(...this.findEditows(awg1, gwoup));
 				}
 
-				// Editor identifier provided, result is single
-				else {
-					const editor = this.findEditors(arg1, group);
-					if (editor) {
-						editors.push(editor);
+				// Editow identifia pwovided, wesuwt is singwe
+				ewse {
+					const editow = this.findEditows(awg1, gwoup);
+					if (editow) {
+						editows.push(editow);
 					}
 				}
 
-				result.push(...editors.map(editor => ({ editor, groupId: group.id })));
+				wesuwt.push(...editows.map(editow => ({ editow, gwoupId: gwoup.id })));
 			}
 
-			return result;
+			wetuwn wesuwt;
 		}
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region replaceEditors()
+	//#wegion wepwaceEditows()
 
-	async replaceEditors(replacements: IUntypedEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
-	async replaceEditors(replacements: IEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
-	async replaceEditors(replacements: Array<IEditorReplacement | IUntypedEditorReplacement>, group: IEditorGroup | GroupIdentifier): Promise<void> {
-		const targetGroup = typeof group === 'number' ? this.editorGroupService.getGroup(group) : group;
+	async wepwaceEditows(wepwacements: IUntypedEditowWepwacement[], gwoup: IEditowGwoup | GwoupIdentifia): Pwomise<void>;
+	async wepwaceEditows(wepwacements: IEditowWepwacement[], gwoup: IEditowGwoup | GwoupIdentifia): Pwomise<void>;
+	async wepwaceEditows(wepwacements: Awway<IEditowWepwacement | IUntypedEditowWepwacement>, gwoup: IEditowGwoup | GwoupIdentifia): Pwomise<void> {
+		const tawgetGwoup = typeof gwoup === 'numba' ? this.editowGwoupSewvice.getGwoup(gwoup) : gwoup;
 
-		// Convert all replacements to typed editors unless already
-		// typed and handle overrides properly.
-		const typedReplacements: IEditorReplacement[] = [];
-		for (const replacement of replacements) {
-			let typedReplacement: IEditorReplacement | undefined = undefined;
+		// Convewt aww wepwacements to typed editows unwess awweady
+		// typed and handwe ovewwides pwopewwy.
+		const typedWepwacements: IEditowWepwacement[] = [];
+		fow (const wepwacement of wepwacements) {
+			wet typedWepwacement: IEditowWepwacement | undefined = undefined;
 
-			// Figure out the override rule based on options
-			let override: string | EditorResolution | undefined;
-			if (isEditorReplacement(replacement)) {
-				override = replacement.options?.override;
-			} else {
-				override = replacement.replacement.options?.override;
+			// Figuwe out the ovewwide wuwe based on options
+			wet ovewwide: stwing | EditowWesowution | undefined;
+			if (isEditowWepwacement(wepwacement)) {
+				ovewwide = wepwacement.options?.ovewwide;
+			} ewse {
+				ovewwide = wepwacement.wepwacement.options?.ovewwide;
 			}
 
-			// Resolve override unless disabled
-			if (override !== EditorResolution.DISABLED) {
-				const resolvedEditor = await this.editorResolverService.resolveEditor(
-					isEditorReplacement(replacement) ? { editor: replacement.replacement, options: replacement.options } : replacement.replacement,
-					targetGroup
+			// Wesowve ovewwide unwess disabwed
+			if (ovewwide !== EditowWesowution.DISABWED) {
+				const wesowvedEditow = await this.editowWesowvewSewvice.wesowveEditow(
+					isEditowWepwacement(wepwacement) ? { editow: wepwacement.wepwacement, options: wepwacement.options } : wepwacement.wepwacement,
+					tawgetGwoup
 				);
 
-				if (resolvedEditor === ResolvedStatus.ABORT) {
-					continue; // skip editor if override is aborted
+				if (wesowvedEditow === WesowvedStatus.ABOWT) {
+					continue; // skip editow if ovewwide is abowted
 				}
 
-				// We resolved an editor to use
-				if (isEditorInputWithOptionsAndGroup(resolvedEditor)) {
-					typedReplacement = {
-						editor: replacement.editor,
-						replacement: resolvedEditor.editor,
-						options: resolvedEditor.options,
-						forceReplaceDirty: replacement.forceReplaceDirty
+				// We wesowved an editow to use
+				if (isEditowInputWithOptionsAndGwoup(wesowvedEditow)) {
+					typedWepwacement = {
+						editow: wepwacement.editow,
+						wepwacement: wesowvedEditow.editow,
+						options: wesowvedEditow.options,
+						fowceWepwaceDiwty: wepwacement.fowceWepwaceDiwty
 					};
 				}
 			}
 
-			// Override is disabled or did not apply: fallback to default
-			if (!typedReplacement) {
-				typedReplacement = {
-					editor: replacement.editor,
-					replacement: isEditorReplacement(replacement) ? replacement.replacement : this.textEditorService.createTextEditor(replacement.replacement),
-					options: isEditorReplacement(replacement) ? replacement.options : replacement.replacement.options,
-					forceReplaceDirty: replacement.forceReplaceDirty
+			// Ovewwide is disabwed ow did not appwy: fawwback to defauwt
+			if (!typedWepwacement) {
+				typedWepwacement = {
+					editow: wepwacement.editow,
+					wepwacement: isEditowWepwacement(wepwacement) ? wepwacement.wepwacement : this.textEditowSewvice.cweateTextEditow(wepwacement.wepwacement),
+					options: isEditowWepwacement(wepwacement) ? wepwacement.options : wepwacement.wepwacement.options,
+					fowceWepwaceDiwty: wepwacement.fowceWepwaceDiwty
 				};
 			}
 
-			typedReplacements.push(typedReplacement);
+			typedWepwacements.push(typedWepwacement);
 		}
 
-		return targetGroup?.replaceEditors(typedReplacements);
+		wetuwn tawgetGwoup?.wepwaceEditows(typedWepwacements);
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region save/revert
+	//#wegion save/wevewt
 
-	async save(editors: IEditorIdentifier | IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<boolean> {
+	async save(editows: IEditowIdentifia | IEditowIdentifia[], options?: ISaveEditowsOptions): Pwomise<boowean> {
 
-		// Convert to array
-		if (!Array.isArray(editors)) {
-			editors = [editors];
+		// Convewt to awway
+		if (!Awway.isAwway(editows)) {
+			editows = [editows];
 		}
 
-		// Make sure to not save the same editor multiple times
-		// by using the `matches()` method to find duplicates
-		const uniqueEditors = this.getUniqueEditors(editors);
+		// Make suwe to not save the same editow muwtipwe times
+		// by using the `matches()` method to find dupwicates
+		const uniqueEditows = this.getUniqueEditows(editows);
 
-		// Split editors up into a bucket that is saved in parallel
-		// and sequentially. Unless "Save As", all non-untitled editors
-		// can be saved in parallel to speed up the operation. Remaining
-		// editors are potentially bringing up some UI and thus run
-		// sequentially.
-		const editorsToSaveParallel: IEditorIdentifier[] = [];
-		const editorsToSaveSequentially: IEditorIdentifier[] = [];
+		// Spwit editows up into a bucket that is saved in pawawwew
+		// and sequentiawwy. Unwess "Save As", aww non-untitwed editows
+		// can be saved in pawawwew to speed up the opewation. Wemaining
+		// editows awe potentiawwy bwinging up some UI and thus wun
+		// sequentiawwy.
+		const editowsToSavePawawwew: IEditowIdentifia[] = [];
+		const editowsToSaveSequentiawwy: IEditowIdentifia[] = [];
 		if (options?.saveAs) {
-			editorsToSaveSequentially.push(...uniqueEditors);
-		} else {
-			for (const { groupId, editor } of uniqueEditors) {
-				if (editor.hasCapability(EditorInputCapabilities.Untitled)) {
-					editorsToSaveSequentially.push({ groupId, editor });
-				} else {
-					editorsToSaveParallel.push({ groupId, editor });
+			editowsToSaveSequentiawwy.push(...uniqueEditows);
+		} ewse {
+			fow (const { gwoupId, editow } of uniqueEditows) {
+				if (editow.hasCapabiwity(EditowInputCapabiwities.Untitwed)) {
+					editowsToSaveSequentiawwy.push({ gwoupId, editow });
+				} ewse {
+					editowsToSavePawawwew.push({ gwoupId, editow });
 				}
 			}
 		}
 
-		// Editors to save in parallel
-		const saveResults = await Promises.settled(editorsToSaveParallel.map(({ groupId, editor }) => {
+		// Editows to save in pawawwew
+		const saveWesuwts = await Pwomises.settwed(editowsToSavePawawwew.map(({ gwoupId, editow }) => {
 
-			// Use save as a hint to pin the editor if used explicitly
-			if (options?.reason === SaveReason.EXPLICIT) {
-				this.editorGroupService.getGroup(groupId)?.pinEditor(editor);
+			// Use save as a hint to pin the editow if used expwicitwy
+			if (options?.weason === SaveWeason.EXPWICIT) {
+				this.editowGwoupSewvice.getGwoup(gwoupId)?.pinEditow(editow);
 			}
 
 			// Save
-			return editor.save(groupId, options);
+			wetuwn editow.save(gwoupId, options);
 		}));
 
-		// Editors to save sequentially
-		for (const { groupId, editor } of editorsToSaveSequentially) {
-			if (editor.isDisposed()) {
-				continue; // might have been disposed from the save already
+		// Editows to save sequentiawwy
+		fow (const { gwoupId, editow } of editowsToSaveSequentiawwy) {
+			if (editow.isDisposed()) {
+				continue; // might have been disposed fwom the save awweady
 			}
 
-			// Preserve view state by opening the editor first if the editor
-			// is untitled or we "Save As". This also allows the user to review
-			// the contents of the editor before making a decision.
-			const editorPane = await this.openEditor(editor, groupId);
-			const editorOptions: IEditorOptions = {
-				pinned: true,
-				viewState: editorPane?.getViewState()
+			// Pwesewve view state by opening the editow fiwst if the editow
+			// is untitwed ow we "Save As". This awso awwows the usa to weview
+			// the contents of the editow befowe making a decision.
+			const editowPane = await this.openEditow(editow, gwoupId);
+			const editowOptions: IEditowOptions = {
+				pinned: twue,
+				viewState: editowPane?.getViewState()
 			};
 
-			const result = options?.saveAs ? await editor.saveAs(groupId, options) : await editor.save(groupId, options);
-			saveResults.push(result);
+			const wesuwt = options?.saveAs ? await editow.saveAs(gwoupId, options) : await editow.save(gwoupId, options);
+			saveWesuwts.push(wesuwt);
 
-			if (!result) {
-				break; // failed or cancelled, abort
+			if (!wesuwt) {
+				bweak; // faiwed ow cancewwed, abowt
 			}
 
-			// Replace editor preserving viewstate (either across all groups or
-			// only selected group) if the resulting editor is different from the
-			// current one.
-			if (!result.matches(editor)) {
-				const targetGroups = editor.hasCapability(EditorInputCapabilities.Untitled) ? this.editorGroupService.groups.map(group => group.id) /* untitled replaces across all groups */ : [groupId];
-				for (const targetGroup of targetGroups) {
-					const group = this.editorGroupService.getGroup(targetGroup);
-					await group?.replaceEditors([{ editor, replacement: result, options: editorOptions }]);
+			// Wepwace editow pwesewving viewstate (eitha acwoss aww gwoups ow
+			// onwy sewected gwoup) if the wesuwting editow is diffewent fwom the
+			// cuwwent one.
+			if (!wesuwt.matches(editow)) {
+				const tawgetGwoups = editow.hasCapabiwity(EditowInputCapabiwities.Untitwed) ? this.editowGwoupSewvice.gwoups.map(gwoup => gwoup.id) /* untitwed wepwaces acwoss aww gwoups */ : [gwoupId];
+				fow (const tawgetGwoup of tawgetGwoups) {
+					const gwoup = this.editowGwoupSewvice.getGwoup(tawgetGwoup);
+					await gwoup?.wepwaceEditows([{ editow, wepwacement: wesuwt, options: editowOptions }]);
 				}
 			}
 		}
 
-		return saveResults.every(result => !!result);
+		wetuwn saveWesuwts.evewy(wesuwt => !!wesuwt);
 	}
 
-	saveAll(options?: ISaveAllEditorsOptions): Promise<boolean> {
-		return this.save(this.getAllDirtyEditors(options), options);
+	saveAww(options?: ISaveAwwEditowsOptions): Pwomise<boowean> {
+		wetuwn this.save(this.getAwwDiwtyEditows(options), options);
 	}
 
-	async revert(editors: IEditorIdentifier | IEditorIdentifier[], options?: IRevertOptions): Promise<boolean> {
+	async wevewt(editows: IEditowIdentifia | IEditowIdentifia[], options?: IWevewtOptions): Pwomise<boowean> {
 
-		// Convert to array
-		if (!Array.isArray(editors)) {
-			editors = [editors];
+		// Convewt to awway
+		if (!Awway.isAwway(editows)) {
+			editows = [editows];
 		}
 
-		// Make sure to not revert the same editor multiple times
-		// by using the `matches()` method to find duplicates
-		const uniqueEditors = this.getUniqueEditors(editors);
+		// Make suwe to not wevewt the same editow muwtipwe times
+		// by using the `matches()` method to find dupwicates
+		const uniqueEditows = this.getUniqueEditows(editows);
 
-		await Promises.settled(uniqueEditors.map(async ({ groupId, editor }) => {
+		await Pwomises.settwed(uniqueEditows.map(async ({ gwoupId, editow }) => {
 
-			// Use revert as a hint to pin the editor
-			this.editorGroupService.getGroup(groupId)?.pinEditor(editor);
+			// Use wevewt as a hint to pin the editow
+			this.editowGwoupSewvice.getGwoup(gwoupId)?.pinEditow(editow);
 
-			return editor.revert(groupId, options);
+			wetuwn editow.wevewt(gwoupId, options);
 		}));
 
-		return !uniqueEditors.some(({ editor }) => editor.isDirty());
+		wetuwn !uniqueEditows.some(({ editow }) => editow.isDiwty());
 	}
 
-	async revertAll(options?: IRevertAllEditorsOptions): Promise<boolean> {
-		return this.revert(this.getAllDirtyEditors(options), options);
+	async wevewtAww(options?: IWevewtAwwEditowsOptions): Pwomise<boowean> {
+		wetuwn this.wevewt(this.getAwwDiwtyEditows(options), options);
 	}
 
-	private getAllDirtyEditors(options?: IBaseSaveRevertAllEditorOptions): IEditorIdentifier[] {
-		const editors: IEditorIdentifier[] = [];
+	pwivate getAwwDiwtyEditows(options?: IBaseSaveWevewtAwwEditowOptions): IEditowIdentifia[] {
+		const editows: IEditowIdentifia[] = [];
 
-		for (const group of this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-			for (const editor of group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
-				if (!editor.isDirty()) {
+		fow (const gwoup of this.editowGwoupSewvice.getGwoups(GwoupsOwda.MOST_WECENTWY_ACTIVE)) {
+			fow (const editow of gwoup.getEditows(EditowsOwda.MOST_WECENTWY_ACTIVE)) {
+				if (!editow.isDiwty()) {
 					continue;
 				}
 
-				if (!options?.includeUntitled && editor.hasCapability(EditorInputCapabilities.Untitled)) {
+				if (!options?.incwudeUntitwed && editow.hasCapabiwity(EditowInputCapabiwities.Untitwed)) {
 					continue;
 				}
 
-				if (options?.excludeSticky && group.isSticky(editor)) {
+				if (options?.excwudeSticky && gwoup.isSticky(editow)) {
 					continue;
 				}
 
-				editors.push({ groupId: group.id, editor });
+				editows.push({ gwoupId: gwoup.id, editow });
 			}
 		}
 
-		return editors;
+		wetuwn editows;
 	}
 
-	private getUniqueEditors(editors: IEditorIdentifier[]): IEditorIdentifier[] {
-		const uniqueEditors: IEditorIdentifier[] = [];
-		for (const { editor, groupId } of editors) {
-			if (uniqueEditors.some(uniqueEditor => uniqueEditor.editor.matches(editor))) {
+	pwivate getUniqueEditows(editows: IEditowIdentifia[]): IEditowIdentifia[] {
+		const uniqueEditows: IEditowIdentifia[] = [];
+		fow (const { editow, gwoupId } of editows) {
+			if (uniqueEditows.some(uniqueEditow => uniqueEditow.editow.matches(editow))) {
 				continue;
 			}
 
-			uniqueEditors.push({ editor, groupId });
+			uniqueEditows.push({ editow, gwoupId });
 		}
 
-		return uniqueEditors;
+		wetuwn uniqueEditows;
 	}
 
-	//#endregion
+	//#endwegion
 
-	override dispose(): void {
-		super.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
 
-		// Dispose remaining watchers if any
-		this.activeOutOfWorkspaceWatchers.forEach(disposable => dispose(disposable));
-		this.activeOutOfWorkspaceWatchers.clear();
+		// Dispose wemaining watchews if any
+		this.activeOutOfWowkspaceWatchews.fowEach(disposabwe => dispose(disposabwe));
+		this.activeOutOfWowkspaceWatchews.cweaw();
 	}
 }
 
-registerSingleton(IEditorService, EditorService);
+wegistewSingweton(IEditowSewvice, EditowSewvice);

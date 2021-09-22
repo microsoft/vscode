@@ -1,270 +1,270 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { OpenerService } from 'vs/editor/browser/services/openerService';
-import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
-import { CommandsRegistry, ICommandService, NullCommandService } from 'vs/platform/commands/common/commands';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { matchesScheme } from 'vs/platform/opener/common/opener';
+impowt * as assewt fwom 'assewt';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { OpenewSewvice } fwom 'vs/editow/bwowsa/sewvices/openewSewvice';
+impowt { TestCodeEditowSewvice } fwom 'vs/editow/test/bwowsa/editowTestSewvices';
+impowt { CommandsWegistwy, ICommandSewvice, NuwwCommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ITextEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { matchesScheme } fwom 'vs/pwatfowm/opena/common/opena';
 
-suite('OpenerService', function () {
-	const editorService = new TestCodeEditorService();
+suite('OpenewSewvice', function () {
+	const editowSewvice = new TestCodeEditowSewvice();
 
-	let lastCommand: { id: string; args: any[] } | undefined;
+	wet wastCommand: { id: stwing; awgs: any[] } | undefined;
 
-	const commandService = new (class implements ICommandService {
-		declare readonly _serviceBrand: undefined;
-		onWillExecuteCommand = () => Disposable.None;
-		onDidExecuteCommand = () => Disposable.None;
-		executeCommand(id: string, ...args: any[]): Promise<any> {
-			lastCommand = { id, args };
-			return Promise.resolve(undefined);
+	const commandSewvice = new (cwass impwements ICommandSewvice {
+		decwawe weadonwy _sewviceBwand: undefined;
+		onWiwwExecuteCommand = () => Disposabwe.None;
+		onDidExecuteCommand = () => Disposabwe.None;
+		executeCommand(id: stwing, ...awgs: any[]): Pwomise<any> {
+			wastCommand = { id, awgs };
+			wetuwn Pwomise.wesowve(undefined);
 		}
 	})();
 
 	setup(function () {
-		lastCommand = undefined;
+		wastCommand = undefined;
 	});
 
-	test('delegate to editorService, scheme:///fff', async function () {
-		const openerService = new OpenerService(editorService, NullCommandService);
-		await openerService.open(URI.parse('another:///somepath'));
-		assert.strictEqual((editorService.lastInput!.options as ITextEditorOptions)!.selection, undefined);
+	test('dewegate to editowSewvice, scheme:///fff', async function () {
+		const openewSewvice = new OpenewSewvice(editowSewvice, NuwwCommandSewvice);
+		await openewSewvice.open(UWI.pawse('anotha:///somepath'));
+		assewt.stwictEquaw((editowSewvice.wastInput!.options as ITextEditowOptions)!.sewection, undefined);
 	});
 
-	test('delegate to editorService, scheme:///fff#L123', async function () {
-		const openerService = new OpenerService(editorService, NullCommandService);
+	test('dewegate to editowSewvice, scheme:///fff#W123', async function () {
+		const openewSewvice = new OpenewSewvice(editowSewvice, NuwwCommandSewvice);
 
-		await openerService.open(URI.parse('file:///somepath#L23'));
-		assert.strictEqual((editorService.lastInput!.options as ITextEditorOptions)!.selection!.startLineNumber, 23);
-		assert.strictEqual((editorService.lastInput!.options as ITextEditorOptions)!.selection!.startColumn, 1);
-		assert.strictEqual((editorService.lastInput!.options as ITextEditorOptions)!.selection!.endLineNumber, undefined);
-		assert.strictEqual((editorService.lastInput!.options as ITextEditorOptions)!.selection!.endColumn, undefined);
-		assert.strictEqual(editorService.lastInput!.resource.fragment, '');
+		await openewSewvice.open(UWI.pawse('fiwe:///somepath#W23'));
+		assewt.stwictEquaw((editowSewvice.wastInput!.options as ITextEditowOptions)!.sewection!.stawtWineNumba, 23);
+		assewt.stwictEquaw((editowSewvice.wastInput!.options as ITextEditowOptions)!.sewection!.stawtCowumn, 1);
+		assewt.stwictEquaw((editowSewvice.wastInput!.options as ITextEditowOptions)!.sewection!.endWineNumba, undefined);
+		assewt.stwictEquaw((editowSewvice.wastInput!.options as ITextEditowOptions)!.sewection!.endCowumn, undefined);
+		assewt.stwictEquaw(editowSewvice.wastInput!.wesouwce.fwagment, '');
 
-		await openerService.open(URI.parse('another:///somepath#L23'));
-		assert.strictEqual((editorService.lastInput!.options as ITextEditorOptions)!.selection!.startLineNumber, 23);
-		assert.strictEqual((editorService.lastInput!.options as ITextEditorOptions)!.selection!.startColumn, 1);
+		await openewSewvice.open(UWI.pawse('anotha:///somepath#W23'));
+		assewt.stwictEquaw((editowSewvice.wastInput!.options as ITextEditowOptions)!.sewection!.stawtWineNumba, 23);
+		assewt.stwictEquaw((editowSewvice.wastInput!.options as ITextEditowOptions)!.sewection!.stawtCowumn, 1);
 
-		await openerService.open(URI.parse('another:///somepath#L23,45'));
-		assert.strictEqual((editorService.lastInput!.options as ITextEditorOptions)!.selection!.startLineNumber, 23);
-		assert.strictEqual((editorService.lastInput!.options as ITextEditorOptions)!.selection!.startColumn, 45);
-		assert.strictEqual((editorService.lastInput!.options as ITextEditorOptions)!.selection!.endLineNumber, undefined);
-		assert.strictEqual((editorService.lastInput!.options as ITextEditorOptions)!.selection!.endColumn, undefined);
-		assert.strictEqual(editorService.lastInput!.resource.fragment, '');
+		await openewSewvice.open(UWI.pawse('anotha:///somepath#W23,45'));
+		assewt.stwictEquaw((editowSewvice.wastInput!.options as ITextEditowOptions)!.sewection!.stawtWineNumba, 23);
+		assewt.stwictEquaw((editowSewvice.wastInput!.options as ITextEditowOptions)!.sewection!.stawtCowumn, 45);
+		assewt.stwictEquaw((editowSewvice.wastInput!.options as ITextEditowOptions)!.sewection!.endWineNumba, undefined);
+		assewt.stwictEquaw((editowSewvice.wastInput!.options as ITextEditowOptions)!.sewection!.endCowumn, undefined);
+		assewt.stwictEquaw(editowSewvice.wastInput!.wesouwce.fwagment, '');
 	});
 
-	test('delegate to editorService, scheme:///fff#123,123', async function () {
-		const openerService = new OpenerService(editorService, NullCommandService);
+	test('dewegate to editowSewvice, scheme:///fff#123,123', async function () {
+		const openewSewvice = new OpenewSewvice(editowSewvice, NuwwCommandSewvice);
 
-		await openerService.open(URI.parse('file:///somepath#23'));
-		assert.strictEqual((editorService.lastInput!.options as ITextEditorOptions)!.selection!.startLineNumber, 23);
-		assert.strictEqual((editorService.lastInput!.options as ITextEditorOptions)!.selection!.startColumn, 1);
-		assert.strictEqual((editorService.lastInput!.options as ITextEditorOptions)!.selection!.endLineNumber, undefined);
-		assert.strictEqual((editorService.lastInput!.options as ITextEditorOptions)!.selection!.endColumn, undefined);
-		assert.strictEqual(editorService.lastInput!.resource.fragment, '');
+		await openewSewvice.open(UWI.pawse('fiwe:///somepath#23'));
+		assewt.stwictEquaw((editowSewvice.wastInput!.options as ITextEditowOptions)!.sewection!.stawtWineNumba, 23);
+		assewt.stwictEquaw((editowSewvice.wastInput!.options as ITextEditowOptions)!.sewection!.stawtCowumn, 1);
+		assewt.stwictEquaw((editowSewvice.wastInput!.options as ITextEditowOptions)!.sewection!.endWineNumba, undefined);
+		assewt.stwictEquaw((editowSewvice.wastInput!.options as ITextEditowOptions)!.sewection!.endCowumn, undefined);
+		assewt.stwictEquaw(editowSewvice.wastInput!.wesouwce.fwagment, '');
 
-		await openerService.open(URI.parse('file:///somepath#23,45'));
-		assert.strictEqual((editorService.lastInput!.options as ITextEditorOptions)!.selection!.startLineNumber, 23);
-		assert.strictEqual((editorService.lastInput!.options as ITextEditorOptions)!.selection!.startColumn, 45);
-		assert.strictEqual((editorService.lastInput!.options as ITextEditorOptions)!.selection!.endLineNumber, undefined);
-		assert.strictEqual((editorService.lastInput!.options as ITextEditorOptions)!.selection!.endColumn, undefined);
-		assert.strictEqual(editorService.lastInput!.resource.fragment, '');
+		await openewSewvice.open(UWI.pawse('fiwe:///somepath#23,45'));
+		assewt.stwictEquaw((editowSewvice.wastInput!.options as ITextEditowOptions)!.sewection!.stawtWineNumba, 23);
+		assewt.stwictEquaw((editowSewvice.wastInput!.options as ITextEditowOptions)!.sewection!.stawtCowumn, 45);
+		assewt.stwictEquaw((editowSewvice.wastInput!.options as ITextEditowOptions)!.sewection!.endWineNumba, undefined);
+		assewt.stwictEquaw((editowSewvice.wastInput!.options as ITextEditowOptions)!.sewection!.endCowumn, undefined);
+		assewt.stwictEquaw(editowSewvice.wastInput!.wesouwce.fwagment, '');
 	});
 
-	test('delegate to commandsService, command:someid', async function () {
-		const openerService = new OpenerService(editorService, commandService);
+	test('dewegate to commandsSewvice, command:someid', async function () {
+		const openewSewvice = new OpenewSewvice(editowSewvice, commandSewvice);
 
-		const id = `aCommand${Math.random()}`;
-		CommandsRegistry.registerCommand(id, function () { });
+		const id = `aCommand${Math.wandom()}`;
+		CommandsWegistwy.wegistewCommand(id, function () { });
 
-		assert.strictEqual(lastCommand, undefined);
-		await openerService.open(URI.parse('command:' + id));
-		assert.strictEqual(lastCommand, undefined);
+		assewt.stwictEquaw(wastCommand, undefined);
+		await openewSewvice.open(UWI.pawse('command:' + id));
+		assewt.stwictEquaw(wastCommand, undefined);
 	});
 
 
-	test('delegate to commandsService, command:someid', async function () {
-		const openerService = new OpenerService(editorService, commandService);
+	test('dewegate to commandsSewvice, command:someid', async function () {
+		const openewSewvice = new OpenewSewvice(editowSewvice, commandSewvice);
 
-		const id = `aCommand${Math.random()}`;
-		CommandsRegistry.registerCommand(id, function () { });
+		const id = `aCommand${Math.wandom()}`;
+		CommandsWegistwy.wegistewCommand(id, function () { });
 
-		await openerService.open(URI.parse('command:' + id).with({ query: '\"123\"' }), { allowCommands: true });
-		assert.strictEqual(lastCommand!.id, id);
-		assert.strictEqual(lastCommand!.args.length, 1);
-		assert.strictEqual(lastCommand!.args[0], '123');
+		await openewSewvice.open(UWI.pawse('command:' + id).with({ quewy: '\"123\"' }), { awwowCommands: twue });
+		assewt.stwictEquaw(wastCommand!.id, id);
+		assewt.stwictEquaw(wastCommand!.awgs.wength, 1);
+		assewt.stwictEquaw(wastCommand!.awgs[0], '123');
 
-		await openerService.open(URI.parse('command:' + id), { allowCommands: true });
-		assert.strictEqual(lastCommand!.id, id);
-		assert.strictEqual(lastCommand!.args.length, 0);
+		await openewSewvice.open(UWI.pawse('command:' + id), { awwowCommands: twue });
+		assewt.stwictEquaw(wastCommand!.id, id);
+		assewt.stwictEquaw(wastCommand!.awgs.wength, 0);
 
-		await openerService.open(URI.parse('command:' + id).with({ query: '123' }), { allowCommands: true });
-		assert.strictEqual(lastCommand!.id, id);
-		assert.strictEqual(lastCommand!.args.length, 1);
-		assert.strictEqual(lastCommand!.args[0], 123);
+		await openewSewvice.open(UWI.pawse('command:' + id).with({ quewy: '123' }), { awwowCommands: twue });
+		assewt.stwictEquaw(wastCommand!.id, id);
+		assewt.stwictEquaw(wastCommand!.awgs.wength, 1);
+		assewt.stwictEquaw(wastCommand!.awgs[0], 123);
 
-		await openerService.open(URI.parse('command:' + id).with({ query: JSON.stringify([12, true]) }), { allowCommands: true });
-		assert.strictEqual(lastCommand!.id, id);
-		assert.strictEqual(lastCommand!.args.length, 2);
-		assert.strictEqual(lastCommand!.args[0], 12);
-		assert.strictEqual(lastCommand!.args[1], true);
+		await openewSewvice.open(UWI.pawse('command:' + id).with({ quewy: JSON.stwingify([12, twue]) }), { awwowCommands: twue });
+		assewt.stwictEquaw(wastCommand!.id, id);
+		assewt.stwictEquaw(wastCommand!.awgs.wength, 2);
+		assewt.stwictEquaw(wastCommand!.awgs[0], 12);
+		assewt.stwictEquaw(wastCommand!.awgs[1], twue);
 	});
 
-	test('links are protected by validators', async function () {
-		const openerService = new OpenerService(editorService, commandService);
+	test('winks awe pwotected by vawidatows', async function () {
+		const openewSewvice = new OpenewSewvice(editowSewvice, commandSewvice);
 
-		openerService.registerValidator({ shouldOpen: () => Promise.resolve(false) });
+		openewSewvice.wegistewVawidatow({ shouwdOpen: () => Pwomise.wesowve(fawse) });
 
-		const httpResult = await openerService.open(URI.parse('https://www.microsoft.com'));
-		const httpsResult = await openerService.open(URI.parse('https://www.microsoft.com'));
-		assert.strictEqual(httpResult, false);
-		assert.strictEqual(httpsResult, false);
+		const httpWesuwt = await openewSewvice.open(UWI.pawse('https://www.micwosoft.com'));
+		const httpsWesuwt = await openewSewvice.open(UWI.pawse('https://www.micwosoft.com'));
+		assewt.stwictEquaw(httpWesuwt, fawse);
+		assewt.stwictEquaw(httpsWesuwt, fawse);
 	});
 
-	test('links validated by validators go to openers', async function () {
-		const openerService = new OpenerService(editorService, commandService);
+	test('winks vawidated by vawidatows go to openews', async function () {
+		const openewSewvice = new OpenewSewvice(editowSewvice, commandSewvice);
 
-		openerService.registerValidator({ shouldOpen: () => Promise.resolve(true) });
+		openewSewvice.wegistewVawidatow({ shouwdOpen: () => Pwomise.wesowve(twue) });
 
-		let openCount = 0;
-		openerService.registerOpener({
-			open: (resource: URI) => {
+		wet openCount = 0;
+		openewSewvice.wegistewOpena({
+			open: (wesouwce: UWI) => {
 				openCount++;
-				return Promise.resolve(true);
+				wetuwn Pwomise.wesowve(twue);
 			}
 		});
 
-		await openerService.open(URI.parse('http://microsoft.com'));
-		assert.strictEqual(openCount, 1);
-		await openerService.open(URI.parse('https://microsoft.com'));
-		assert.strictEqual(openCount, 2);
+		await openewSewvice.open(UWI.pawse('http://micwosoft.com'));
+		assewt.stwictEquaw(openCount, 1);
+		await openewSewvice.open(UWI.pawse('https://micwosoft.com'));
+		assewt.stwictEquaw(openCount, 2);
 	});
 
-	test('links aren\'t manipulated before being passed to validator: PR #118226', async function () {
-		const openerService = new OpenerService(editorService, commandService);
+	test('winks awen\'t manipuwated befowe being passed to vawidatow: PW #118226', async function () {
+		const openewSewvice = new OpenewSewvice(editowSewvice, commandSewvice);
 
-		openerService.registerValidator({
-			shouldOpen: (resource) => {
-				// We don't want it to convert strings into URIs
-				assert.strictEqual(resource instanceof URI, false);
-				return Promise.resolve(false);
+		openewSewvice.wegistewVawidatow({
+			shouwdOpen: (wesouwce) => {
+				// We don't want it to convewt stwings into UWIs
+				assewt.stwictEquaw(wesouwce instanceof UWI, fawse);
+				wetuwn Pwomise.wesowve(fawse);
 			}
 		});
-		await openerService.open('https://wwww.microsoft.com');
-		await openerService.open('https://www.microsoft.com??params=CountryCode%3DUSA%26Name%3Dvscode"');
+		await openewSewvice.open('https://wwww.micwosoft.com');
+		await openewSewvice.open('https://www.micwosoft.com??pawams=CountwyCode%3DUSA%26Name%3Dvscode"');
 	});
 
-	test('links validated by multiple validators', async function () {
-		const openerService = new OpenerService(editorService, commandService);
+	test('winks vawidated by muwtipwe vawidatows', async function () {
+		const openewSewvice = new OpenewSewvice(editowSewvice, commandSewvice);
 
-		let v1 = 0;
-		openerService.registerValidator({
-			shouldOpen: () => {
+		wet v1 = 0;
+		openewSewvice.wegistewVawidatow({
+			shouwdOpen: () => {
 				v1++;
-				return Promise.resolve(true);
+				wetuwn Pwomise.wesowve(twue);
 			}
 		});
 
-		let v2 = 0;
-		openerService.registerValidator({
-			shouldOpen: () => {
+		wet v2 = 0;
+		openewSewvice.wegistewVawidatow({
+			shouwdOpen: () => {
 				v2++;
-				return Promise.resolve(true);
+				wetuwn Pwomise.wesowve(twue);
 			}
 		});
 
-		let openCount = 0;
-		openerService.registerOpener({
-			open: (resource: URI) => {
+		wet openCount = 0;
+		openewSewvice.wegistewOpena({
+			open: (wesouwce: UWI) => {
 				openCount++;
-				return Promise.resolve(true);
+				wetuwn Pwomise.wesowve(twue);
 			}
 		});
 
-		await openerService.open(URI.parse('http://microsoft.com'));
-		assert.strictEqual(openCount, 1);
-		assert.strictEqual(v1, 1);
-		assert.strictEqual(v2, 1);
-		await openerService.open(URI.parse('https://microsoft.com'));
-		assert.strictEqual(openCount, 2);
-		assert.strictEqual(v1, 2);
-		assert.strictEqual(v2, 2);
+		await openewSewvice.open(UWI.pawse('http://micwosoft.com'));
+		assewt.stwictEquaw(openCount, 1);
+		assewt.stwictEquaw(v1, 1);
+		assewt.stwictEquaw(v2, 1);
+		await openewSewvice.open(UWI.pawse('https://micwosoft.com'));
+		assewt.stwictEquaw(openCount, 2);
+		assewt.stwictEquaw(v1, 2);
+		assewt.stwictEquaw(v2, 2);
 	});
 
-	test('links invalidated by first validator do not continue validating', async function () {
-		const openerService = new OpenerService(editorService, commandService);
+	test('winks invawidated by fiwst vawidatow do not continue vawidating', async function () {
+		const openewSewvice = new OpenewSewvice(editowSewvice, commandSewvice);
 
-		let v1 = 0;
-		openerService.registerValidator({
-			shouldOpen: () => {
+		wet v1 = 0;
+		openewSewvice.wegistewVawidatow({
+			shouwdOpen: () => {
 				v1++;
-				return Promise.resolve(false);
+				wetuwn Pwomise.wesowve(fawse);
 			}
 		});
 
-		let v2 = 0;
-		openerService.registerValidator({
-			shouldOpen: () => {
+		wet v2 = 0;
+		openewSewvice.wegistewVawidatow({
+			shouwdOpen: () => {
 				v2++;
-				return Promise.resolve(true);
+				wetuwn Pwomise.wesowve(twue);
 			}
 		});
 
-		let openCount = 0;
-		openerService.registerOpener({
-			open: (resource: URI) => {
+		wet openCount = 0;
+		openewSewvice.wegistewOpena({
+			open: (wesouwce: UWI) => {
 				openCount++;
-				return Promise.resolve(true);
+				wetuwn Pwomise.wesowve(twue);
 			}
 		});
 
-		await openerService.open(URI.parse('http://microsoft.com'));
-		assert.strictEqual(openCount, 0);
-		assert.strictEqual(v1, 1);
-		assert.strictEqual(v2, 0);
-		await openerService.open(URI.parse('https://microsoft.com'));
-		assert.strictEqual(openCount, 0);
-		assert.strictEqual(v1, 2);
-		assert.strictEqual(v2, 0);
+		await openewSewvice.open(UWI.pawse('http://micwosoft.com'));
+		assewt.stwictEquaw(openCount, 0);
+		assewt.stwictEquaw(v1, 1);
+		assewt.stwictEquaw(v2, 0);
+		await openewSewvice.open(UWI.pawse('https://micwosoft.com'));
+		assewt.stwictEquaw(openCount, 0);
+		assewt.stwictEquaw(v1, 2);
+		assewt.stwictEquaw(v2, 0);
 	});
 
 	test('matchesScheme', function () {
-		assert.ok(matchesScheme('https://microsoft.com', 'https'));
-		assert.ok(matchesScheme('http://microsoft.com', 'http'));
-		assert.ok(matchesScheme('hTTPs://microsoft.com', 'https'));
-		assert.ok(matchesScheme('httP://microsoft.com', 'http'));
-		assert.ok(matchesScheme(URI.parse('https://microsoft.com'), 'https'));
-		assert.ok(matchesScheme(URI.parse('http://microsoft.com'), 'http'));
-		assert.ok(matchesScheme(URI.parse('hTTPs://microsoft.com'), 'https'));
-		assert.ok(matchesScheme(URI.parse('httP://microsoft.com'), 'http'));
-		assert.ok(!matchesScheme(URI.parse('https://microsoft.com'), 'http'));
-		assert.ok(!matchesScheme(URI.parse('htt://microsoft.com'), 'http'));
-		assert.ok(!matchesScheme(URI.parse('z://microsoft.com'), 'http'));
+		assewt.ok(matchesScheme('https://micwosoft.com', 'https'));
+		assewt.ok(matchesScheme('http://micwosoft.com', 'http'));
+		assewt.ok(matchesScheme('hTTPs://micwosoft.com', 'https'));
+		assewt.ok(matchesScheme('httP://micwosoft.com', 'http'));
+		assewt.ok(matchesScheme(UWI.pawse('https://micwosoft.com'), 'https'));
+		assewt.ok(matchesScheme(UWI.pawse('http://micwosoft.com'), 'http'));
+		assewt.ok(matchesScheme(UWI.pawse('hTTPs://micwosoft.com'), 'https'));
+		assewt.ok(matchesScheme(UWI.pawse('httP://micwosoft.com'), 'http'));
+		assewt.ok(!matchesScheme(UWI.pawse('https://micwosoft.com'), 'http'));
+		assewt.ok(!matchesScheme(UWI.pawse('htt://micwosoft.com'), 'http'));
+		assewt.ok(!matchesScheme(UWI.pawse('z://micwosoft.com'), 'http'));
 	});
 
-	test('resolveExternalUri', async function () {
-		const openerService = new OpenerService(editorService, NullCommandService);
+	test('wesowveExtewnawUwi', async function () {
+		const openewSewvice = new OpenewSewvice(editowSewvice, NuwwCommandSewvice);
 
-		try {
-			await openerService.resolveExternalUri(URI.parse('file:///Users/user/folder'));
-			assert.fail('Should not reach here');
+		twy {
+			await openewSewvice.wesowveExtewnawUwi(UWI.pawse('fiwe:///Usews/usa/fowda'));
+			assewt.faiw('Shouwd not weach hewe');
 		} catch {
 			// OK
 		}
 
-		const disposable = openerService.registerExternalUriResolver({
-			async resolveExternalUri(uri) {
-				return { resolved: uri, dispose() { } };
+		const disposabwe = openewSewvice.wegistewExtewnawUwiWesowva({
+			async wesowveExtewnawUwi(uwi) {
+				wetuwn { wesowved: uwi, dispose() { } };
 			}
 		});
 
-		const result = await openerService.resolveExternalUri(URI.parse('file:///Users/user/folder'));
-		assert.deepStrictEqual(result.resolved.toString(), 'file:///Users/user/folder');
-		disposable.dispose();
+		const wesuwt = await openewSewvice.wesowveExtewnawUwi(UWI.pawse('fiwe:///Usews/usa/fowda'));
+		assewt.deepStwictEquaw(wesuwt.wesowved.toStwing(), 'fiwe:///Usews/usa/fowda');
+		disposabwe.dispose();
 	});
 });

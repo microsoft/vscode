@@ -1,180 +1,180 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { localize } from 'vs/nls';
-import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { OpenGettingStarted } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Action2, MenuId, MenuWegistwy, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { NOTEBOOK_ACTIONS_CATEGOWY } fwom 'vs/wowkbench/contwib/notebook/bwowsa/contwowwa/coweActions';
+impowt { NOTEBOOK_EDITOW_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOW } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { OpenGettingStawted } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { IPwefewencesSewvice } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewences';
 
-registerAction2(class NotebookConfigureLayoutAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.notebook.layout.select',
-			title: localize('workbench.notebook.layout.select.label', "Select between Notebook Layouts"),
-			f1: true,
-			precondition: ContextKeyExpr.equals(`config.${OpenGettingStarted}`, true),
-			category: NOTEBOOK_ACTIONS_CATEGORY,
+wegistewAction2(cwass NotebookConfiguweWayoutAction extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'wowkbench.notebook.wayout.sewect',
+			titwe: wocawize('wowkbench.notebook.wayout.sewect.wabew', "Sewect between Notebook Wayouts"),
+			f1: twue,
+			pwecondition: ContextKeyExpw.equaws(`config.${OpenGettingStawted}`, twue),
+			categowy: NOTEBOOK_ACTIONS_CATEGOWY,
 			menu: [
 				{
-					id: MenuId.EditorTitle,
-					group: 'notebookLayout',
-					when: ContextKeyExpr.and(
-						NOTEBOOK_IS_ACTIVE_EDITOR,
-						ContextKeyExpr.notEquals('config.notebook.globalToolbar', true),
-						ContextKeyExpr.equals(`config.${OpenGettingStarted}`, true)
+					id: MenuId.EditowTitwe,
+					gwoup: 'notebookWayout',
+					when: ContextKeyExpw.and(
+						NOTEBOOK_IS_ACTIVE_EDITOW,
+						ContextKeyExpw.notEquaws('config.notebook.gwobawToowbaw', twue),
+						ContextKeyExpw.equaws(`config.${OpenGettingStawted}`, twue)
 					),
-					order: 0
+					owda: 0
 				},
 				{
-					id: MenuId.NotebookToolbar,
-					group: 'notebookLayout',
-					when: ContextKeyExpr.and(
-						ContextKeyExpr.equals('config.notebook.globalToolbar', true),
-						ContextKeyExpr.equals(`config.${OpenGettingStarted}`, true)
+					id: MenuId.NotebookToowbaw,
+					gwoup: 'notebookWayout',
+					when: ContextKeyExpw.and(
+						ContextKeyExpw.equaws('config.notebook.gwobawToowbaw', twue),
+						ContextKeyExpw.equaws(`config.${OpenGettingStawted}`, twue)
 					),
-					order: 0
+					owda: 0
 				}
 			]
 		});
 	}
-	run(accessor: ServicesAccessor): void {
-		accessor.get(ICommandService).executeCommand('workbench.action.openWalkthrough', { category: 'notebooks', step: 'notebookProfile' }, true);
+	wun(accessow: SewvicesAccessow): void {
+		accessow.get(ICommandSewvice).executeCommand('wowkbench.action.openWawkthwough', { categowy: 'notebooks', step: 'notebookPwofiwe' }, twue);
 	}
 });
 
-registerAction2(class NotebookConfigureLayoutAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.notebook.layout.configure',
-			title: localize('workbench.notebook.layout.configure.label', "Customize Notebook Layout"),
-			f1: true,
-			category: NOTEBOOK_ACTIONS_CATEGORY,
+wegistewAction2(cwass NotebookConfiguweWayoutAction extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'wowkbench.notebook.wayout.configuwe',
+			titwe: wocawize('wowkbench.notebook.wayout.configuwe.wabew', "Customize Notebook Wayout"),
+			f1: twue,
+			categowy: NOTEBOOK_ACTIONS_CATEGOWY,
 			menu: [
 				{
-					id: MenuId.NotebookToolbar,
-					group: 'notebookLayout',
-					when: ContextKeyExpr.equals('config.notebook.globalToolbar', true),
-					order: 1
+					id: MenuId.NotebookToowbaw,
+					gwoup: 'notebookWayout',
+					when: ContextKeyExpw.equaws('config.notebook.gwobawToowbaw', twue),
+					owda: 1
 				}
 			]
 		});
 	}
-	run(accessor: ServicesAccessor): void {
-		accessor.get(IPreferencesService).openSettings({ jsonEditor: false, query: '@tag:notebookLayout' });
+	wun(accessow: SewvicesAccessow): void {
+		accessow.get(IPwefewencesSewvice).openSettings({ jsonEditow: fawse, quewy: '@tag:notebookWayout' });
 	}
 });
 
-registerAction2(class NotebookConfigureLayoutFromEditorTitle extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.notebook.layout.configure.editorTitle',
-			title: localize('workbench.notebook.layout.configure.label', "Customize Notebook Layout"),
-			f1: false,
-			category: NOTEBOOK_ACTIONS_CATEGORY,
+wegistewAction2(cwass NotebookConfiguweWayoutFwomEditowTitwe extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'wowkbench.notebook.wayout.configuwe.editowTitwe',
+			titwe: wocawize('wowkbench.notebook.wayout.configuwe.wabew', "Customize Notebook Wayout"),
+			f1: fawse,
+			categowy: NOTEBOOK_ACTIONS_CATEGOWY,
 			menu: [
 				{
-					id: MenuId.NotebookEditorLayoutConfigure,
-					group: 'notebookLayout',
-					when: NOTEBOOK_IS_ACTIVE_EDITOR,
-					order: 1
+					id: MenuId.NotebookEditowWayoutConfiguwe,
+					gwoup: 'notebookWayout',
+					when: NOTEBOOK_IS_ACTIVE_EDITOW,
+					owda: 1
 				}
 			]
 		});
 	}
-	run(accessor: ServicesAccessor): void {
-		accessor.get(IPreferencesService).openSettings({ jsonEditor: false, query: '@tag:notebookLayout' });
+	wun(accessow: SewvicesAccessow): void {
+		accessow.get(IPwefewencesSewvice).openSettings({ jsonEditow: fawse, quewy: '@tag:notebookWayout' });
 	}
 });
 
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-	submenu: MenuId.NotebookEditorLayoutConfigure,
-	rememberDefaultAction: false,
-	title: { value: localize('customizeNotebook', "Customize Notebook..."), original: 'Customize Notebook...', },
-	icon: Codicon.gear,
-	group: 'navigation',
-	order: -1,
-	when: NOTEBOOK_IS_ACTIVE_EDITOR
+MenuWegistwy.appendMenuItem(MenuId.EditowTitwe, {
+	submenu: MenuId.NotebookEditowWayoutConfiguwe,
+	wemembewDefauwtAction: fawse,
+	titwe: { vawue: wocawize('customizeNotebook', "Customize Notebook..."), owiginaw: 'Customize Notebook...', },
+	icon: Codicon.geaw,
+	gwoup: 'navigation',
+	owda: -1,
+	when: NOTEBOOK_IS_ACTIVE_EDITOW
 });
 
-registerAction2(class ToggleLineNumberFromEditorTitle extends Action2 {
-	constructor() {
-		super({
-			id: 'notebook.toggleLineNumbersFromEditorTitle',
-			title: { value: localize('notebook.toggleLineNumbers', "Toggle Notebook Line Numbers"), original: 'Toggle Notebook Line Numbers' },
-			precondition: NOTEBOOK_EDITOR_FOCUSED,
+wegistewAction2(cwass ToggweWineNumbewFwomEditowTitwe extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'notebook.toggweWineNumbewsFwomEditowTitwe',
+			titwe: { vawue: wocawize('notebook.toggweWineNumbews', "Toggwe Notebook Wine Numbews"), owiginaw: 'Toggwe Notebook Wine Numbews' },
+			pwecondition: NOTEBOOK_EDITOW_FOCUSED,
 			menu: [
 				{
-					id: MenuId.NotebookEditorLayoutConfigure,
-					group: 'notebookLayoutDetails',
-					order: 1,
-					when: NOTEBOOK_IS_ACTIVE_EDITOR
+					id: MenuId.NotebookEditowWayoutConfiguwe,
+					gwoup: 'notebookWayoutDetaiws',
+					owda: 1,
+					when: NOTEBOOK_IS_ACTIVE_EDITOW
 				}],
-			category: NOTEBOOK_ACTIONS_CATEGORY,
-			f1: true,
-			toggled: {
-				condition: ContextKeyExpr.notEquals('config.notebook.lineNumbers', 'off'),
-				title: { value: localize('notebook.showLineNumbers', "Show Notebook Line Numbers"), original: 'Show Notebook Line Numbers' },
+			categowy: NOTEBOOK_ACTIONS_CATEGOWY,
+			f1: twue,
+			toggwed: {
+				condition: ContextKeyExpw.notEquaws('config.notebook.wineNumbews', 'off'),
+				titwe: { vawue: wocawize('notebook.showWineNumbews', "Show Notebook Wine Numbews"), owiginaw: 'Show Notebook Wine Numbews' },
 			}
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		return accessor.get(ICommandService).executeCommand('notebook.toggleLineNumbers');
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		wetuwn accessow.get(ICommandSewvice).executeCommand('notebook.toggweWineNumbews');
 	}
 });
 
-registerAction2(class ToggleCellToolbarPositionFromEditorTitle extends Action2 {
-	constructor() {
-		super({
-			id: 'notebook.toggleCellToolbarPositionFromEditorTitle',
-			title: { value: localize('notebook.toggleCellToolbarPosition', "Toggle Cell Toolbar Position"), original: 'Toggle Cell Toolbar Position' },
+wegistewAction2(cwass ToggweCewwToowbawPositionFwomEditowTitwe extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'notebook.toggweCewwToowbawPositionFwomEditowTitwe',
+			titwe: { vawue: wocawize('notebook.toggweCewwToowbawPosition', "Toggwe Ceww Toowbaw Position"), owiginaw: 'Toggwe Ceww Toowbaw Position' },
 			menu: [{
-				id: MenuId.NotebookEditorLayoutConfigure,
-				group: 'notebookLayoutDetails',
-				order: 3
+				id: MenuId.NotebookEditowWayoutConfiguwe,
+				gwoup: 'notebookWayoutDetaiws',
+				owda: 3
 			}],
-			category: NOTEBOOK_ACTIONS_CATEGORY,
-			f1: false
+			categowy: NOTEBOOK_ACTIONS_CATEGOWY,
+			f1: fawse
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		return accessor.get(ICommandService).executeCommand('notebook.toggleCellToolbarPosition', ...args);
+	async wun(accessow: SewvicesAccessow, ...awgs: any[]): Pwomise<void> {
+		wetuwn accessow.get(ICommandSewvice).executeCommand('notebook.toggweCewwToowbawPosition', ...awgs);
 	}
 });
 
-registerAction2(class ToggleBreadcrumbFromEditorTitle extends Action2 {
-	constructor() {
-		super({
-			id: 'breadcrumbs.toggleFromEditorTitle',
-			title: { value: localize('notebook.toggleBreadcrumb', "Toggle Breadcrumbs"), original: 'Toggle Breadcrumbs' },
+wegistewAction2(cwass ToggweBweadcwumbFwomEditowTitwe extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'bweadcwumbs.toggweFwomEditowTitwe',
+			titwe: { vawue: wocawize('notebook.toggweBweadcwumb', "Toggwe Bweadcwumbs"), owiginaw: 'Toggwe Bweadcwumbs' },
 			menu: [{
-				id: MenuId.NotebookEditorLayoutConfigure,
-				group: 'notebookLayoutDetails',
-				order: 2
+				id: MenuId.NotebookEditowWayoutConfiguwe,
+				gwoup: 'notebookWayoutDetaiws',
+				owda: 2
 			}],
-			f1: false
+			f1: fawse
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		return accessor.get(ICommandService).executeCommand('breadcrumbs.toggle');
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		wetuwn accessow.get(ICommandSewvice).executeCommand('bweadcwumbs.toggwe');
 	}
 });
 
-MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
+MenuWegistwy.appendMenuItem(MenuId.NotebookToowbaw, {
 	command: {
-		id: 'breadcrumbs.toggle',
-		title: { value: localize('cmd.toggle', "Toggle Breadcrumbs"), original: 'Toggle Breadcrumbs' },
+		id: 'bweadcwumbs.toggwe',
+		titwe: { vawue: wocawize('cmd.toggwe', "Toggwe Bweadcwumbs"), owiginaw: 'Toggwe Bweadcwumbs' },
 	},
-	group: 'notebookLayout',
-	order: 2
+	gwoup: 'notebookWayout',
+	owda: 2
 });

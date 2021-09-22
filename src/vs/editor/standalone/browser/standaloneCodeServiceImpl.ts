@@ -1,103 +1,103 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { windowOpenNoOpener } from 'vs/base/browser/dom';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { CodeEditorServiceImpl, GlobalStyleSheet } from 'vs/editor/browser/services/codeEditorServiceImpl';
-import { IRange } from 'vs/editor/common/core/range';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IResourceEditorInput, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+impowt { windowOpenNoOpena } fwom 'vs/base/bwowsa/dom';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { CodeEditowSewviceImpw, GwobawStyweSheet } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewviceImpw';
+impowt { IWange } fwom 'vs/editow/common/cowe/wange';
+impowt { ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IWesouwceEditowInput, ITextWesouwceEditowInput } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-export class StandaloneCodeEditorServiceImpl extends CodeEditorServiceImpl {
+expowt cwass StandawoneCodeEditowSewviceImpw extends CodeEditowSewviceImpw {
 
-	private readonly _editorIsOpen: IContextKey<boolean>;
-	private _activeCodeEditor: ICodeEditor | null;
+	pwivate weadonwy _editowIsOpen: IContextKey<boowean>;
+	pwivate _activeCodeEditow: ICodeEditow | nuww;
 
-	constructor(
-		styleSheet: GlobalStyleSheet | null,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService,
+	constwuctow(
+		styweSheet: GwobawStyweSheet | nuww,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
 	) {
-		super(styleSheet, themeService);
-		this.onCodeEditorAdd(() => this._checkContextKey());
-		this.onCodeEditorRemove(() => this._checkContextKey());
-		this._editorIsOpen = contextKeyService.createKey('editorIsOpen', false);
-		this._activeCodeEditor = null;
+		supa(styweSheet, themeSewvice);
+		this.onCodeEditowAdd(() => this._checkContextKey());
+		this.onCodeEditowWemove(() => this._checkContextKey());
+		this._editowIsOpen = contextKeySewvice.cweateKey('editowIsOpen', fawse);
+		this._activeCodeEditow = nuww;
 	}
 
-	private _checkContextKey(): void {
-		let hasCodeEditor = false;
-		for (const editor of this.listCodeEditors()) {
-			if (!editor.isSimpleWidget) {
-				hasCodeEditor = true;
-				break;
+	pwivate _checkContextKey(): void {
+		wet hasCodeEditow = fawse;
+		fow (const editow of this.wistCodeEditows()) {
+			if (!editow.isSimpweWidget) {
+				hasCodeEditow = twue;
+				bweak;
 			}
 		}
-		this._editorIsOpen.set(hasCodeEditor);
+		this._editowIsOpen.set(hasCodeEditow);
 	}
 
-	public setActiveCodeEditor(activeCodeEditor: ICodeEditor | null): void {
-		this._activeCodeEditor = activeCodeEditor;
+	pubwic setActiveCodeEditow(activeCodeEditow: ICodeEditow | nuww): void {
+		this._activeCodeEditow = activeCodeEditow;
 	}
 
-	public getActiveCodeEditor(): ICodeEditor | null {
-		return this._activeCodeEditor;
+	pubwic getActiveCodeEditow(): ICodeEditow | nuww {
+		wetuwn this._activeCodeEditow;
 	}
 
-	public openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
-		if (!source) {
-			return Promise.resolve(null);
+	pubwic openCodeEditow(input: IWesouwceEditowInput, souwce: ICodeEditow | nuww, sideBySide?: boowean): Pwomise<ICodeEditow | nuww> {
+		if (!souwce) {
+			wetuwn Pwomise.wesowve(nuww);
 		}
 
-		return Promise.resolve(this.doOpenEditor(source, input));
+		wetuwn Pwomise.wesowve(this.doOpenEditow(souwce, input));
 	}
 
-	private doOpenEditor(editor: ICodeEditor, input: ITextResourceEditorInput): ICodeEditor | null {
-		const model = this.findModel(editor, input.resource);
-		if (!model) {
-			if (input.resource) {
+	pwivate doOpenEditow(editow: ICodeEditow, input: ITextWesouwceEditowInput): ICodeEditow | nuww {
+		const modew = this.findModew(editow, input.wesouwce);
+		if (!modew) {
+			if (input.wesouwce) {
 
-				const schema = input.resource.scheme;
+				const schema = input.wesouwce.scheme;
 				if (schema === Schemas.http || schema === Schemas.https) {
-					// This is a fully qualified http or https URL
-					windowOpenNoOpener(input.resource.toString());
-					return editor;
+					// This is a fuwwy quawified http ow https UWW
+					windowOpenNoOpena(input.wesouwce.toStwing());
+					wetuwn editow;
 				}
 			}
-			return null;
+			wetuwn nuww;
 		}
 
-		const selection = <IRange>(input.options ? input.options.selection : null);
-		if (selection) {
-			if (typeof selection.endLineNumber === 'number' && typeof selection.endColumn === 'number') {
-				editor.setSelection(selection);
-				editor.revealRangeInCenter(selection, ScrollType.Immediate);
-			} else {
+		const sewection = <IWange>(input.options ? input.options.sewection : nuww);
+		if (sewection) {
+			if (typeof sewection.endWineNumba === 'numba' && typeof sewection.endCowumn === 'numba') {
+				editow.setSewection(sewection);
+				editow.weveawWangeInCenta(sewection, ScwowwType.Immediate);
+			} ewse {
 				const pos = {
-					lineNumber: selection.startLineNumber,
-					column: selection.startColumn
+					wineNumba: sewection.stawtWineNumba,
+					cowumn: sewection.stawtCowumn
 				};
-				editor.setPosition(pos);
-				editor.revealPositionInCenter(pos, ScrollType.Immediate);
+				editow.setPosition(pos);
+				editow.weveawPositionInCenta(pos, ScwowwType.Immediate);
 			}
 		}
 
-		return editor;
+		wetuwn editow;
 	}
 
-	private findModel(editor: ICodeEditor, resource: URI): ITextModel | null {
-		const model = editor.getModel();
-		if (model && model.uri.toString() !== resource.toString()) {
-			return null;
+	pwivate findModew(editow: ICodeEditow, wesouwce: UWI): ITextModew | nuww {
+		const modew = editow.getModew();
+		if (modew && modew.uwi.toStwing() !== wesouwce.toStwing()) {
+			wetuwn nuww;
 		}
 
-		return model;
+		wetuwn modew;
 	}
 }

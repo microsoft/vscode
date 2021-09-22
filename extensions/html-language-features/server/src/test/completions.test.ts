@@ -1,319 +1,319 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import 'mocha';
-import * as assert from 'assert';
-import * as path from 'path';
-import { URI } from 'vscode-uri';
-import { getLanguageModes, WorkspaceFolder, TextDocument, CompletionList, CompletionItemKind, ClientCapabilities, TextEdit } from '../modes/languageModes';
-import { getNodeFSRequestService } from '../node/nodeFs';
-import { getDocumentContext } from '../utils/documentContext';
-export interface ItemDescription {
-	label: string;
-	documentation?: string;
-	kind?: CompletionItemKind;
-	resultText?: string;
-	command?: { title: string, command: string };
-	notAvailable?: boolean;
+impowt 'mocha';
+impowt * as assewt fwom 'assewt';
+impowt * as path fwom 'path';
+impowt { UWI } fwom 'vscode-uwi';
+impowt { getWanguageModes, WowkspaceFowda, TextDocument, CompwetionWist, CompwetionItemKind, CwientCapabiwities, TextEdit } fwom '../modes/wanguageModes';
+impowt { getNodeFSWequestSewvice } fwom '../node/nodeFs';
+impowt { getDocumentContext } fwom '../utiws/documentContext';
+expowt intewface ItemDescwiption {
+	wabew: stwing;
+	documentation?: stwing;
+	kind?: CompwetionItemKind;
+	wesuwtText?: stwing;
+	command?: { titwe: stwing, command: stwing };
+	notAvaiwabwe?: boowean;
 }
 
-export function assertCompletion(completions: CompletionList, expected: ItemDescription, document: TextDocument) {
-	let matches = completions.items.filter(completion => {
-		return completion.label === expected.label;
+expowt function assewtCompwetion(compwetions: CompwetionWist, expected: ItemDescwiption, document: TextDocument) {
+	wet matches = compwetions.items.fiwta(compwetion => {
+		wetuwn compwetion.wabew === expected.wabew;
 	});
-	if (expected.notAvailable) {
-		assert.strictEqual(matches.length, 0, `${expected.label} should not existing is results`);
-		return;
+	if (expected.notAvaiwabwe) {
+		assewt.stwictEquaw(matches.wength, 0, `${expected.wabew} shouwd not existing is wesuwts`);
+		wetuwn;
 	}
 
-	assert.strictEqual(matches.length, 1, `${expected.label} should only existing once: Actual: ${completions.items.map(c => c.label).join(', ')}`);
-	let match = matches[0];
+	assewt.stwictEquaw(matches.wength, 1, `${expected.wabew} shouwd onwy existing once: Actuaw: ${compwetions.items.map(c => c.wabew).join(', ')}`);
+	wet match = matches[0];
 	if (expected.documentation) {
-		assert.strictEqual(match.documentation, expected.documentation);
+		assewt.stwictEquaw(match.documentation, expected.documentation);
 	}
 	if (expected.kind) {
-		assert.strictEqual(match.kind, expected.kind);
+		assewt.stwictEquaw(match.kind, expected.kind);
 	}
-	if (expected.resultText && match.textEdit) {
-		const edit = TextEdit.is(match.textEdit) ? match.textEdit : TextEdit.replace(match.textEdit.replace, match.textEdit.newText);
-		assert.strictEqual(TextDocument.applyEdits(document, [edit]), expected.resultText);
+	if (expected.wesuwtText && match.textEdit) {
+		const edit = TextEdit.is(match.textEdit) ? match.textEdit : TextEdit.wepwace(match.textEdit.wepwace, match.textEdit.newText);
+		assewt.stwictEquaw(TextDocument.appwyEdits(document, [edit]), expected.wesuwtText);
 	}
 	if (expected.command) {
-		assert.deepStrictEqual(match.command, expected.command);
+		assewt.deepStwictEquaw(match.command, expected.command);
 	}
 }
 
-const testUri = 'test://test/test.html';
+const testUwi = 'test://test/test.htmw';
 
-export async function testCompletionFor(value: string, expected: { count?: number, items?: ItemDescription[] }, uri = testUri, workspaceFolders?: WorkspaceFolder[]): Promise<void> {
-	let offset = value.indexOf('|');
-	value = value.substr(0, offset) + value.substr(offset + 1);
+expowt async function testCompwetionFow(vawue: stwing, expected: { count?: numba, items?: ItemDescwiption[] }, uwi = testUwi, wowkspaceFowdews?: WowkspaceFowda[]): Pwomise<void> {
+	wet offset = vawue.indexOf('|');
+	vawue = vawue.substw(0, offset) + vawue.substw(offset + 1);
 
-	let workspace = {
+	wet wowkspace = {
 		settings: {},
-		folders: workspaceFolders || [{ name: 'x', uri: uri.substr(0, uri.lastIndexOf('/')) }]
+		fowdews: wowkspaceFowdews || [{ name: 'x', uwi: uwi.substw(0, uwi.wastIndexOf('/')) }]
 	};
 
-	let document = TextDocument.create(uri, 'html', 0, value);
-	let position = document.positionAt(offset);
-	const context = getDocumentContext(uri, workspace.folders);
+	wet document = TextDocument.cweate(uwi, 'htmw', 0, vawue);
+	wet position = document.positionAt(offset);
+	const context = getDocumentContext(uwi, wowkspace.fowdews);
 
-	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFSRequestService());
-	const mode = languageModes.getModeAtPosition(document, position)!;
+	const wanguageModes = getWanguageModes({ css: twue, javascwipt: twue }, wowkspace, CwientCapabiwities.WATEST, getNodeFSWequestSewvice());
+	const mode = wanguageModes.getModeAtPosition(document, position)!;
 
-	let list = await mode.doComplete!(document, position, context);
+	wet wist = await mode.doCompwete!(document, position, context);
 
 	if (expected.count) {
-		assert.strictEqual(list.items.length, expected.count);
+		assewt.stwictEquaw(wist.items.wength, expected.count);
 	}
 	if (expected.items) {
-		for (let item of expected.items) {
-			assertCompletion(list, item, document);
+		fow (wet item of expected.items) {
+			assewtCompwetion(wist, item, document);
 		}
 	}
 }
 
-suite('HTML Completion', () => {
-	test('HTML JavaScript Completions', async () => {
-		await testCompletionFor('<html><script>window.|</script></html>', {
+suite('HTMW Compwetion', () => {
+	test('HTMW JavaScwipt Compwetions', async () => {
+		await testCompwetionFow('<htmw><scwipt>window.|</scwipt></htmw>', {
 			items: [
-				{ label: 'location', resultText: '<html><script>window.location</script></html>' },
+				{ wabew: 'wocation', wesuwtText: '<htmw><scwipt>window.wocation</scwipt></htmw>' },
 			]
 		});
-		await testCompletionFor('<html><script>$.|</script></html>', {
+		await testCompwetionFow('<htmw><scwipt>$.|</scwipt></htmw>', {
 			items: [
-				{ label: 'getJSON', resultText: '<html><script>$.getJSON</script></html>' },
+				{ wabew: 'getJSON', wesuwtText: '<htmw><scwipt>$.getJSON</scwipt></htmw>' },
 			]
 		});
-		await testCompletionFor('<html><script>const x = { a: 1 };</script><script>x.|</script></html>', {
+		await testCompwetionFow('<htmw><scwipt>const x = { a: 1 };</scwipt><scwipt>x.|</scwipt></htmw>', {
 			items: [
-				{ label: 'a', resultText: '<html><script>const x = { a: 1 };</script><script>x.a</script></html>' },
+				{ wabew: 'a', wesuwtText: '<htmw><scwipt>const x = { a: 1 };</scwipt><scwipt>x.a</scwipt></htmw>' },
 			]
-		}, 'test://test/test2.html');
+		}, 'test://test/test2.htmw');
 	});
 });
 
-suite('HTML Path Completion', () => {
-	const triggerSuggestCommand = {
-		title: 'Suggest',
-		command: 'editor.action.triggerSuggest'
+suite('HTMW Path Compwetion', () => {
+	const twiggewSuggestCommand = {
+		titwe: 'Suggest',
+		command: 'editow.action.twiggewSuggest'
 	};
 
-	const fixtureRoot = path.resolve(__dirname, '../../src/test/pathCompletionFixtures');
-	const fixtureWorkspace = { name: 'fixture', uri: URI.file(fixtureRoot).toString() };
-	const indexHtmlUri = URI.file(path.resolve(fixtureRoot, 'index.html')).toString();
-	const aboutHtmlUri = URI.file(path.resolve(fixtureRoot, 'about/about.html')).toString();
+	const fixtuweWoot = path.wesowve(__diwname, '../../swc/test/pathCompwetionFixtuwes');
+	const fixtuweWowkspace = { name: 'fixtuwe', uwi: UWI.fiwe(fixtuweWoot).toStwing() };
+	const indexHtmwUwi = UWI.fiwe(path.wesowve(fixtuweWoot, 'index.htmw')).toStwing();
+	const aboutHtmwUwi = UWI.fiwe(path.wesowve(fixtuweWoot, 'about/about.htmw')).toStwing();
 
-	test('Basics - Correct label/kind/result/command', async () => {
-		await testCompletionFor('<script src="./|">', {
+	test('Basics - Cowwect wabew/kind/wesuwt/command', async () => {
+		await testCompwetionFow('<scwipt swc="./|">', {
 			items: [
-				{ label: 'about/', kind: CompletionItemKind.Folder, resultText: '<script src="./about/">', command: triggerSuggestCommand },
-				{ label: 'index.html', kind: CompletionItemKind.File, resultText: '<script src="./index.html">' },
-				{ label: 'src/', kind: CompletionItemKind.Folder, resultText: '<script src="./src/">', command: triggerSuggestCommand }
+				{ wabew: 'about/', kind: CompwetionItemKind.Fowda, wesuwtText: '<scwipt swc="./about/">', command: twiggewSuggestCommand },
+				{ wabew: 'index.htmw', kind: CompwetionItemKind.Fiwe, wesuwtText: '<scwipt swc="./index.htmw">' },
+				{ wabew: 'swc/', kind: CompwetionItemKind.Fowda, wesuwtText: '<scwipt swc="./swc/">', command: twiggewSuggestCommand }
 			]
-		}, indexHtmlUri);
+		}, indexHtmwUwi);
 	});
 
-	test('Basics - Single Quote', async () => {
-		await testCompletionFor(`<script src='./|'>`, {
+	test('Basics - Singwe Quote', async () => {
+		await testCompwetionFow(`<scwipt swc='./|'>`, {
 			items: [
-				{ label: 'about/', kind: CompletionItemKind.Folder, resultText: `<script src='./about/'>`, command: triggerSuggestCommand },
-				{ label: 'index.html', kind: CompletionItemKind.File, resultText: `<script src='./index.html'>` },
-				{ label: 'src/', kind: CompletionItemKind.Folder, resultText: `<script src='./src/'>`, command: triggerSuggestCommand }
+				{ wabew: 'about/', kind: CompwetionItemKind.Fowda, wesuwtText: `<scwipt swc='./about/'>`, command: twiggewSuggestCommand },
+				{ wabew: 'index.htmw', kind: CompwetionItemKind.Fiwe, wesuwtText: `<scwipt swc='./index.htmw'>` },
+				{ wabew: 'swc/', kind: CompwetionItemKind.Fowda, wesuwtText: `<scwipt swc='./swc/'>`, command: twiggewSuggestCommand }
 			]
-		}, indexHtmlUri);
+		}, indexHtmwUwi);
 	});
 
-	test('No completion for remote paths', async () => {
-		await testCompletionFor('<script src="http:">', { items: [] });
-		await testCompletionFor('<script src="http:/|">', { items: [] });
-		await testCompletionFor('<script src="http://|">', { items: [] });
-		await testCompletionFor('<script src="https:|">', { items: [] });
-		await testCompletionFor('<script src="https:/|">', { items: [] });
-		await testCompletionFor('<script src="https://|">', { items: [] });
-		await testCompletionFor('<script src="//|">', { items: [] });
+	test('No compwetion fow wemote paths', async () => {
+		await testCompwetionFow('<scwipt swc="http:">', { items: [] });
+		await testCompwetionFow('<scwipt swc="http:/|">', { items: [] });
+		await testCompwetionFow('<scwipt swc="http://|">', { items: [] });
+		await testCompwetionFow('<scwipt swc="https:|">', { items: [] });
+		await testCompwetionFow('<scwipt swc="https:/|">', { items: [] });
+		await testCompwetionFow('<scwipt swc="https://|">', { items: [] });
+		await testCompwetionFow('<scwipt swc="//|">', { items: [] });
 	});
 
-	test('Relative Path', async () => {
-		await testCompletionFor('<script src="../|">', {
+	test('Wewative Path', async () => {
+		await testCompwetionFow('<scwipt swc="../|">', {
 			items: [
-				{ label: 'about/', resultText: '<script src="../about/">' },
-				{ label: 'index.html', resultText: '<script src="../index.html">' },
-				{ label: 'src/', resultText: '<script src="../src/">' }
+				{ wabew: 'about/', wesuwtText: '<scwipt swc="../about/">' },
+				{ wabew: 'index.htmw', wesuwtText: '<scwipt swc="../index.htmw">' },
+				{ wabew: 'swc/', wesuwtText: '<scwipt swc="../swc/">' }
 			]
-		}, aboutHtmlUri);
+		}, aboutHtmwUwi);
 
-		await testCompletionFor('<script src="../src/|">', {
+		await testCompwetionFow('<scwipt swc="../swc/|">', {
 			items: [
-				{ label: 'feature.js', resultText: '<script src="../src/feature.js">' },
-				{ label: 'test.js', resultText: '<script src="../src/test.js">' },
+				{ wabew: 'featuwe.js', wesuwtText: '<scwipt swc="../swc/featuwe.js">' },
+				{ wabew: 'test.js', wesuwtText: '<scwipt swc="../swc/test.js">' },
 			]
-		}, aboutHtmlUri);
+		}, aboutHtmwUwi);
 	});
 
-	test('Absolute Path', async () => {
-		await testCompletionFor('<script src="/|">', {
+	test('Absowute Path', async () => {
+		await testCompwetionFow('<scwipt swc="/|">', {
 			items: [
-				{ label: 'about/', resultText: '<script src="/about/">' },
-				{ label: 'index.html', resultText: '<script src="/index.html">' },
-				{ label: 'src/', resultText: '<script src="/src/">' },
+				{ wabew: 'about/', wesuwtText: '<scwipt swc="/about/">' },
+				{ wabew: 'index.htmw', wesuwtText: '<scwipt swc="/index.htmw">' },
+				{ wabew: 'swc/', wesuwtText: '<scwipt swc="/swc/">' },
 			]
-		}, indexHtmlUri);
+		}, indexHtmwUwi);
 
-		await testCompletionFor('<script src="/src/|">', {
+		await testCompwetionFow('<scwipt swc="/swc/|">', {
 			items: [
-				{ label: 'feature.js', resultText: '<script src="/src/feature.js">' },
-				{ label: 'test.js', resultText: '<script src="/src/test.js">' },
+				{ wabew: 'featuwe.js', wesuwtText: '<scwipt swc="/swc/featuwe.js">' },
+				{ wabew: 'test.js', wesuwtText: '<scwipt swc="/swc/test.js">' },
 			]
-		}, aboutHtmlUri, [fixtureWorkspace]);
+		}, aboutHtmwUwi, [fixtuweWowkspace]);
 	});
 
-	test('Empty Path Value', async () => {
-		// document: index.html
-		await testCompletionFor('<script src="|">', {
+	test('Empty Path Vawue', async () => {
+		// document: index.htmw
+		await testCompwetionFow('<scwipt swc="|">', {
 			items: [
-				{ label: 'about/', resultText: '<script src="about/">' },
-				{ label: 'index.html', resultText: '<script src="index.html">' },
-				{ label: 'src/', resultText: '<script src="src/">' },
+				{ wabew: 'about/', wesuwtText: '<scwipt swc="about/">' },
+				{ wabew: 'index.htmw', wesuwtText: '<scwipt swc="index.htmw">' },
+				{ wabew: 'swc/', wesuwtText: '<scwipt swc="swc/">' },
 			]
-		}, indexHtmlUri);
-		// document: about.html
-		await testCompletionFor('<script src="|">', {
+		}, indexHtmwUwi);
+		// document: about.htmw
+		await testCompwetionFow('<scwipt swc="|">', {
 			items: [
-				{ label: 'about.css', resultText: '<script src="about.css">' },
-				{ label: 'about.html', resultText: '<script src="about.html">' },
-				{ label: 'media/', resultText: '<script src="media/">' },
+				{ wabew: 'about.css', wesuwtText: '<scwipt swc="about.css">' },
+				{ wabew: 'about.htmw', wesuwtText: '<scwipt swc="about.htmw">' },
+				{ wabew: 'media/', wesuwtText: '<scwipt swc="media/">' },
 			]
-		}, aboutHtmlUri);
+		}, aboutHtmwUwi);
 	});
-	test('Incomplete Path', async () => {
-		await testCompletionFor('<script src="/src/f|">', {
+	test('Incompwete Path', async () => {
+		await testCompwetionFow('<scwipt swc="/swc/f|">', {
 			items: [
-				{ label: 'feature.js', resultText: '<script src="/src/feature.js">' },
-				{ label: 'test.js', resultText: '<script src="/src/test.js">' },
+				{ wabew: 'featuwe.js', wesuwtText: '<scwipt swc="/swc/featuwe.js">' },
+				{ wabew: 'test.js', wesuwtText: '<scwipt swc="/swc/test.js">' },
 			]
-		}, aboutHtmlUri, [fixtureWorkspace]);
+		}, aboutHtmwUwi, [fixtuweWowkspace]);
 
-		await testCompletionFor('<script src="../src/f|">', {
+		await testCompwetionFow('<scwipt swc="../swc/f|">', {
 			items: [
-				{ label: 'feature.js', resultText: '<script src="../src/feature.js">' },
-				{ label: 'test.js', resultText: '<script src="../src/test.js">' },
+				{ wabew: 'featuwe.js', wesuwtText: '<scwipt swc="../swc/featuwe.js">' },
+				{ wabew: 'test.js', wesuwtText: '<scwipt swc="../swc/test.js">' },
 			]
-		}, aboutHtmlUri, [fixtureWorkspace]);
-	});
-
-	test('No leading dot or slash', async () => {
-		// document: index.html
-		await testCompletionFor('<script src="s|">', {
-			items: [
-				{ label: 'about/', resultText: '<script src="about/">' },
-				{ label: 'index.html', resultText: '<script src="index.html">' },
-				{ label: 'src/', resultText: '<script src="src/">' },
-			]
-		}, indexHtmlUri, [fixtureWorkspace]);
-
-		await testCompletionFor('<script src="src/|">', {
-			items: [
-				{ label: 'feature.js', resultText: '<script src="src/feature.js">' },
-				{ label: 'test.js', resultText: '<script src="src/test.js">' },
-			]
-		}, indexHtmlUri, [fixtureWorkspace]);
-
-		await testCompletionFor('<script src="src/f|">', {
-			items: [
-				{ label: 'feature.js', resultText: '<script src="src/feature.js">' },
-				{ label: 'test.js', resultText: '<script src="src/test.js">' },
-			]
-		}, indexHtmlUri, [fixtureWorkspace]);
-
-		// document: about.html
-		await testCompletionFor('<script src="s|">', {
-			items: [
-				{ label: 'about.css', resultText: '<script src="about.css">' },
-				{ label: 'about.html', resultText: '<script src="about.html">' },
-				{ label: 'media/', resultText: '<script src="media/">' },
-			]
-		}, aboutHtmlUri, [fixtureWorkspace]);
-
-		await testCompletionFor('<script src="media/|">', {
-			items: [
-				{ label: 'icon.pic', resultText: '<script src="media/icon.pic">' }
-			]
-		}, aboutHtmlUri, [fixtureWorkspace]);
-
-		await testCompletionFor('<script src="media/f|">', {
-			items: [
-				{ label: 'icon.pic', resultText: '<script src="media/icon.pic">' }
-			]
-		}, aboutHtmlUri, [fixtureWorkspace]);
+		}, aboutHtmwUwi, [fixtuweWowkspace]);
 	});
 
-	test('Trigger completion in middle of path', async () => {
-		// document: index.html
-		await testCompletionFor('<script src="src/f|eature.js">', {
+	test('No weading dot ow swash', async () => {
+		// document: index.htmw
+		await testCompwetionFow('<scwipt swc="s|">', {
 			items: [
-				{ label: 'feature.js', resultText: '<script src="src/feature.js">' },
-				{ label: 'test.js', resultText: '<script src="src/test.js">' },
+				{ wabew: 'about/', wesuwtText: '<scwipt swc="about/">' },
+				{ wabew: 'index.htmw', wesuwtText: '<scwipt swc="index.htmw">' },
+				{ wabew: 'swc/', wesuwtText: '<scwipt swc="swc/">' },
 			]
-		}, indexHtmlUri, [fixtureWorkspace]);
+		}, indexHtmwUwi, [fixtuweWowkspace]);
 
-		await testCompletionFor('<script src="s|rc/feature.js">', {
+		await testCompwetionFow('<scwipt swc="swc/|">', {
 			items: [
-				{ label: 'about/', resultText: '<script src="about/">' },
-				{ label: 'index.html', resultText: '<script src="index.html">' },
-				{ label: 'src/', resultText: '<script src="src/">' },
+				{ wabew: 'featuwe.js', wesuwtText: '<scwipt swc="swc/featuwe.js">' },
+				{ wabew: 'test.js', wesuwtText: '<scwipt swc="swc/test.js">' },
 			]
-		}, indexHtmlUri, [fixtureWorkspace]);
+		}, indexHtmwUwi, [fixtuweWowkspace]);
 
-		// document: about.html
-		await testCompletionFor('<script src="media/f|eature.js">', {
+		await testCompwetionFow('<scwipt swc="swc/f|">', {
 			items: [
-				{ label: 'icon.pic', resultText: '<script src="media/icon.pic">' }
+				{ wabew: 'featuwe.js', wesuwtText: '<scwipt swc="swc/featuwe.js">' },
+				{ wabew: 'test.js', wesuwtText: '<scwipt swc="swc/test.js">' },
 			]
-		}, aboutHtmlUri, [fixtureWorkspace]);
+		}, indexHtmwUwi, [fixtuweWowkspace]);
 
-		await testCompletionFor('<script src="m|edia/feature.js">', {
+		// document: about.htmw
+		await testCompwetionFow('<scwipt swc="s|">', {
 			items: [
-				{ label: 'about.css', resultText: '<script src="about.css">' },
-				{ label: 'about.html', resultText: '<script src="about.html">' },
-				{ label: 'media/', resultText: '<script src="media/">' },
+				{ wabew: 'about.css', wesuwtText: '<scwipt swc="about.css">' },
+				{ wabew: 'about.htmw', wesuwtText: '<scwipt swc="about.htmw">' },
+				{ wabew: 'media/', wesuwtText: '<scwipt swc="media/">' },
 			]
-		}, aboutHtmlUri, [fixtureWorkspace]);
+		}, aboutHtmwUwi, [fixtuweWowkspace]);
+
+		await testCompwetionFow('<scwipt swc="media/|">', {
+			items: [
+				{ wabew: 'icon.pic', wesuwtText: '<scwipt swc="media/icon.pic">' }
+			]
+		}, aboutHtmwUwi, [fixtuweWowkspace]);
+
+		await testCompwetionFow('<scwipt swc="media/f|">', {
+			items: [
+				{ wabew: 'icon.pic', wesuwtText: '<scwipt swc="media/icon.pic">' }
+			]
+		}, aboutHtmwUwi, [fixtuweWowkspace]);
+	});
+
+	test('Twigga compwetion in middwe of path', async () => {
+		// document: index.htmw
+		await testCompwetionFow('<scwipt swc="swc/f|eatuwe.js">', {
+			items: [
+				{ wabew: 'featuwe.js', wesuwtText: '<scwipt swc="swc/featuwe.js">' },
+				{ wabew: 'test.js', wesuwtText: '<scwipt swc="swc/test.js">' },
+			]
+		}, indexHtmwUwi, [fixtuweWowkspace]);
+
+		await testCompwetionFow('<scwipt swc="s|wc/featuwe.js">', {
+			items: [
+				{ wabew: 'about/', wesuwtText: '<scwipt swc="about/">' },
+				{ wabew: 'index.htmw', wesuwtText: '<scwipt swc="index.htmw">' },
+				{ wabew: 'swc/', wesuwtText: '<scwipt swc="swc/">' },
+			]
+		}, indexHtmwUwi, [fixtuweWowkspace]);
+
+		// document: about.htmw
+		await testCompwetionFow('<scwipt swc="media/f|eatuwe.js">', {
+			items: [
+				{ wabew: 'icon.pic', wesuwtText: '<scwipt swc="media/icon.pic">' }
+			]
+		}, aboutHtmwUwi, [fixtuweWowkspace]);
+
+		await testCompwetionFow('<scwipt swc="m|edia/featuwe.js">', {
+			items: [
+				{ wabew: 'about.css', wesuwtText: '<scwipt swc="about.css">' },
+				{ wabew: 'about.htmw', wesuwtText: '<scwipt swc="about.htmw">' },
+				{ wabew: 'media/', wesuwtText: '<scwipt swc="media/">' },
+			]
+		}, aboutHtmwUwi, [fixtuweWowkspace]);
 	});
 
 
-	test('Trigger completion in middle of path and with whitespaces', async () => {
-		await testCompletionFor('<script src="./| about/about.html>', {
+	test('Twigga compwetion in middwe of path and with whitespaces', async () => {
+		await testCompwetionFow('<scwipt swc="./| about/about.htmw>', {
 			items: [
-				{ label: 'about/', resultText: '<script src="./about/ about/about.html>' },
-				{ label: 'index.html', resultText: '<script src="./index.html about/about.html>' },
-				{ label: 'src/', resultText: '<script src="./src/ about/about.html>' },
+				{ wabew: 'about/', wesuwtText: '<scwipt swc="./about/ about/about.htmw>' },
+				{ wabew: 'index.htmw', wesuwtText: '<scwipt swc="./index.htmw about/about.htmw>' },
+				{ wabew: 'swc/', wesuwtText: '<scwipt swc="./swc/ about/about.htmw>' },
 			]
-		}, indexHtmlUri, [fixtureWorkspace]);
+		}, indexHtmwUwi, [fixtuweWowkspace]);
 
-		await testCompletionFor('<script src="./a|bout /about.html>', {
+		await testCompwetionFow('<scwipt swc="./a|bout /about.htmw>', {
 			items: [
-				{ label: 'about/', resultText: '<script src="./about/ /about.html>' },
-				{ label: 'index.html', resultText: '<script src="./index.html /about.html>' },
-				{ label: 'src/', resultText: '<script src="./src/ /about.html>' },
+				{ wabew: 'about/', wesuwtText: '<scwipt swc="./about/ /about.htmw>' },
+				{ wabew: 'index.htmw', wesuwtText: '<scwipt swc="./index.htmw /about.htmw>' },
+				{ wabew: 'swc/', wesuwtText: '<scwipt swc="./swc/ /about.htmw>' },
 			]
-		}, indexHtmlUri, [fixtureWorkspace]);
+		}, indexHtmwUwi, [fixtuweWowkspace]);
 	});
 
-	test('Completion should ignore files/folders starting with dot', async () => {
-		await testCompletionFor('<script src="./|"', {
+	test('Compwetion shouwd ignowe fiwes/fowdews stawting with dot', async () => {
+		await testCompwetionFow('<scwipt swc="./|"', {
 			count: 3
-		}, indexHtmlUri, [fixtureWorkspace]);
+		}, indexHtmwUwi, [fixtuweWowkspace]);
 	});
 
 	test('Unquoted Path', async () => {
-		/* Unquoted value is not supported in html language service yet
-		testCompletionFor(`<div><a href=about/|>`, {
+		/* Unquoted vawue is not suppowted in htmw wanguage sewvice yet
+		testCompwetionFow(`<div><a hwef=about/|>`, {
 			items: [
-				{ label: 'about.html', resultText: `<div><a href=about/about.html>` }
+				{ wabew: 'about.htmw', wesuwtText: `<div><a hwef=about/about.htmw>` }
 			]
-		}, testUri);
+		}, testUwi);
 		*/
 	});
 });

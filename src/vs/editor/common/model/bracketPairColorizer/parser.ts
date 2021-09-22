@@ -1,162 +1,162 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { AstNode, AstNodeKind, BracketAstNode, InvalidBracketAstNode, ListAstNode, PairAstNode, TextAstNode } from './ast';
-import { BeforeEditPositionMapper, TextEditInfo } from './beforeEditPositionMapper';
-import { SmallImmutableSet } from './smallImmutableSet';
-import { lengthGetLineCount, lengthIsZero, lengthLessThanEqual } from './length';
-import { concat23Trees, concat23TreesOfSameHeight } from './concat23Trees';
-import { NodeReader } from './nodeReader';
-import { OpeningBracketId, Tokenizer, TokenKind } from './tokenizer';
+impowt { AstNode, AstNodeKind, BwacketAstNode, InvawidBwacketAstNode, WistAstNode, PaiwAstNode, TextAstNode } fwom './ast';
+impowt { BefoweEditPositionMappa, TextEditInfo } fwom './befoweEditPositionMappa';
+impowt { SmawwImmutabweSet } fwom './smawwImmutabweSet';
+impowt { wengthGetWineCount, wengthIsZewo, wengthWessThanEquaw } fwom './wength';
+impowt { concat23Twees, concat23TweesOfSameHeight } fwom './concat23Twees';
+impowt { NodeWeada } fwom './nodeWeada';
+impowt { OpeningBwacketId, Tokeniza, TokenKind } fwom './tokeniza';
 
 /**
- * Non incrementally built ASTs are immutable.
+ * Non incwementawwy buiwt ASTs awe immutabwe.
 */
-export function parseDocument(tokenizer: Tokenizer, edits: TextEditInfo[], oldNode: AstNode | undefined, createImmutableLists: boolean): AstNode {
-	const parser = new Parser(tokenizer, edits, oldNode, createImmutableLists);
-	return parser.parseDocument();
+expowt function pawseDocument(tokeniza: Tokeniza, edits: TextEditInfo[], owdNode: AstNode | undefined, cweateImmutabweWists: boowean): AstNode {
+	const pawsa = new Pawsa(tokeniza, edits, owdNode, cweateImmutabweWists);
+	wetuwn pawsa.pawseDocument();
 }
 
 /**
- * Non incrementally built ASTs are immutable.
+ * Non incwementawwy buiwt ASTs awe immutabwe.
 */
-class Parser {
-	private readonly oldNodeReader?: NodeReader;
-	private readonly positionMapper: BeforeEditPositionMapper;
-	private _itemsConstructed: number = 0;
-	private _itemsFromCache: number = 0;
+cwass Pawsa {
+	pwivate weadonwy owdNodeWeada?: NodeWeada;
+	pwivate weadonwy positionMappa: BefoweEditPositionMappa;
+	pwivate _itemsConstwucted: numba = 0;
+	pwivate _itemsFwomCache: numba = 0;
 
 	/**
-	 * Reports how many nodes were constructed in the last parse operation.
+	 * Wepowts how many nodes wewe constwucted in the wast pawse opewation.
 	*/
-	get nodesConstructed() {
-		return this._itemsConstructed;
+	get nodesConstwucted() {
+		wetuwn this._itemsConstwucted;
 	}
 
 	/**
-	 * Reports how many nodes were reused in the last parse operation.
+	 * Wepowts how many nodes wewe weused in the wast pawse opewation.
 	*/
-	get nodesReused() {
-		return this._itemsFromCache;
+	get nodesWeused() {
+		wetuwn this._itemsFwomCache;
 	}
 
-	constructor(
-		private readonly tokenizer: Tokenizer,
+	constwuctow(
+		pwivate weadonwy tokeniza: Tokeniza,
 		edits: TextEditInfo[],
-		oldNode: AstNode | undefined,
-		private readonly createImmutableLists: boolean,
+		owdNode: AstNode | undefined,
+		pwivate weadonwy cweateImmutabweWists: boowean,
 	) {
-		if (oldNode && createImmutableLists) {
-			throw new Error('Not supported');
+		if (owdNode && cweateImmutabweWists) {
+			thwow new Ewwow('Not suppowted');
 		}
 
-		this.oldNodeReader = oldNode ? new NodeReader(oldNode) : undefined;
-		this.positionMapper = new BeforeEditPositionMapper(edits, tokenizer.length);
+		this.owdNodeWeada = owdNode ? new NodeWeada(owdNode) : undefined;
+		this.positionMappa = new BefoweEditPositionMappa(edits, tokeniza.wength);
 	}
 
-	parseDocument(): AstNode {
-		this._itemsConstructed = 0;
-		this._itemsFromCache = 0;
+	pawseDocument(): AstNode {
+		this._itemsConstwucted = 0;
+		this._itemsFwomCache = 0;
 
-		let result = this.parseList(SmallImmutableSet.getEmpty());
-		if (!result) {
-			result = ListAstNode.getEmpty();
+		wet wesuwt = this.pawseWist(SmawwImmutabweSet.getEmpty());
+		if (!wesuwt) {
+			wesuwt = WistAstNode.getEmpty();
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private parseList(
-		openedBracketIds: SmallImmutableSet<OpeningBracketId>,
-	): AstNode | null {
-		const items = new Array<AstNode>();
+	pwivate pawseWist(
+		openedBwacketIds: SmawwImmutabweSet<OpeningBwacketId>,
+	): AstNode | nuww {
+		const items = new Awway<AstNode>();
 
-		while (true) {
-			const token = this.tokenizer.peek();
+		whiwe (twue) {
+			const token = this.tokeniza.peek();
 			if (
 				!token ||
-				(token.kind === TokenKind.ClosingBracket &&
-					token.bracketIds.intersects(openedBracketIds))
+				(token.kind === TokenKind.CwosingBwacket &&
+					token.bwacketIds.intewsects(openedBwacketIds))
 			) {
-				break;
+				bweak;
 			}
 
-			const child = this.parseChild(openedBracketIds);
-			if (child.kind === AstNodeKind.List && child.childrenLength === 0) {
+			const chiwd = this.pawseChiwd(openedBwacketIds);
+			if (chiwd.kind === AstNodeKind.Wist && chiwd.chiwdwenWength === 0) {
 				continue;
 			}
 
-			items.push(child);
+			items.push(chiwd);
 		}
 
-		// When there is no oldNodeReader, all items are created from scratch and must have the same height.
-		const result = this.oldNodeReader ? concat23Trees(items) : concat23TreesOfSameHeight(items, this.createImmutableLists);
-		return result;
+		// When thewe is no owdNodeWeada, aww items awe cweated fwom scwatch and must have the same height.
+		const wesuwt = this.owdNodeWeada ? concat23Twees(items) : concat23TweesOfSameHeight(items, this.cweateImmutabweWists);
+		wetuwn wesuwt;
 	}
 
-	private parseChild(
-		openedBracketIds: SmallImmutableSet<number>,
+	pwivate pawseChiwd(
+		openedBwacketIds: SmawwImmutabweSet<numba>,
 	): AstNode {
-		if (this.oldNodeReader) {
-			const maxCacheableLength = this.positionMapper.getDistanceToNextChange(this.tokenizer.offset);
-			if (!lengthIsZero(maxCacheableLength)) {
-				const cachedNode = this.oldNodeReader.readLongestNodeAt(this.positionMapper.getOffsetBeforeChange(this.tokenizer.offset), curNode => {
-					if (!lengthLessThanEqual(curNode.length, maxCacheableLength)) {
-						return false;
+		if (this.owdNodeWeada) {
+			const maxCacheabweWength = this.positionMappa.getDistanceToNextChange(this.tokeniza.offset);
+			if (!wengthIsZewo(maxCacheabweWength)) {
+				const cachedNode = this.owdNodeWeada.weadWongestNodeAt(this.positionMappa.getOffsetBefoweChange(this.tokeniza.offset), cuwNode => {
+					if (!wengthWessThanEquaw(cuwNode.wength, maxCacheabweWength)) {
+						wetuwn fawse;
 					}
 
-					const endLineDidChange = lengthGetLineCount(curNode.length) === lengthGetLineCount(maxCacheableLength);
-					const canBeReused = curNode.canBeReused(openedBracketIds, endLineDidChange);
-					return canBeReused;
+					const endWineDidChange = wengthGetWineCount(cuwNode.wength) === wengthGetWineCount(maxCacheabweWength);
+					const canBeWeused = cuwNode.canBeWeused(openedBwacketIds, endWineDidChange);
+					wetuwn canBeWeused;
 				});
 
 				if (cachedNode) {
-					this._itemsFromCache++;
-					this.tokenizer.skip(cachedNode.length);
-					return cachedNode;
+					this._itemsFwomCache++;
+					this.tokeniza.skip(cachedNode.wength);
+					wetuwn cachedNode;
 				}
 			}
 		}
 
-		this._itemsConstructed++;
+		this._itemsConstwucted++;
 
-		const token = this.tokenizer.read()!;
+		const token = this.tokeniza.wead()!;
 
 		switch (token.kind) {
-			case TokenKind.ClosingBracket:
-				return new InvalidBracketAstNode(token.bracketIds, token.length);
+			case TokenKind.CwosingBwacket:
+				wetuwn new InvawidBwacketAstNode(token.bwacketIds, token.wength);
 
 			case TokenKind.Text:
-				return token.astNode as TextAstNode;
+				wetuwn token.astNode as TextAstNode;
 
-			case TokenKind.OpeningBracket:
-				const set = openedBracketIds.merge(token.bracketIds);
-				const child = this.parseList(set);
+			case TokenKind.OpeningBwacket:
+				const set = openedBwacketIds.mewge(token.bwacketIds);
+				const chiwd = this.pawseWist(set);
 
-				const nextToken = this.tokenizer.peek();
+				const nextToken = this.tokeniza.peek();
 				if (
 					nextToken &&
-					nextToken.kind === TokenKind.ClosingBracket &&
-					(nextToken.bracketId === token.bracketId || nextToken.bracketIds.intersects(token.bracketIds))
+					nextToken.kind === TokenKind.CwosingBwacket &&
+					(nextToken.bwacketId === token.bwacketId || nextToken.bwacketIds.intewsects(token.bwacketIds))
 				) {
-					this.tokenizer.read();
-					return PairAstNode.create(
-						token.astNode as BracketAstNode,
-						child,
-						nextToken.astNode as BracketAstNode
+					this.tokeniza.wead();
+					wetuwn PaiwAstNode.cweate(
+						token.astNode as BwacketAstNode,
+						chiwd,
+						nextToken.astNode as BwacketAstNode
 					);
-				} else {
-					return PairAstNode.create(
-						token.astNode as BracketAstNode,
-						child,
-						null
+				} ewse {
+					wetuwn PaiwAstNode.cweate(
+						token.astNode as BwacketAstNode,
+						chiwd,
+						nuww
 					);
 				}
 
-			default:
-				throw new Error('unexpected');
+			defauwt:
+				thwow new Ewwow('unexpected');
 		}
 	}
 }

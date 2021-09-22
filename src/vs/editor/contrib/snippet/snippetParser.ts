@@ -1,1081 +1,1081 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
 
-export const enum TokenType {
-	Dollar,
-	Colon,
+expowt const enum TokenType {
+	Dowwaw,
+	Cowon,
 	Comma,
-	CurlyOpen,
-	CurlyClose,
-	Backslash,
-	Forwardslash,
+	CuwwyOpen,
+	CuwwyCwose,
+	Backswash,
+	Fowwawdswash,
 	Pipe,
 	Int,
-	VariableName,
-	Format,
-	Plus,
+	VawiabweName,
+	Fowmat,
+	Pwus,
 	Dash,
-	QuestionMark,
+	QuestionMawk,
 	EOF
 }
 
-export interface Token {
+expowt intewface Token {
 	type: TokenType;
-	pos: number;
-	len: number;
+	pos: numba;
+	wen: numba;
 }
 
 
-export class Scanner {
+expowt cwass Scanna {
 
-	private static _table: { [ch: number]: TokenType } = {
-		[CharCode.DollarSign]: TokenType.Dollar,
-		[CharCode.Colon]: TokenType.Colon,
-		[CharCode.Comma]: TokenType.Comma,
-		[CharCode.OpenCurlyBrace]: TokenType.CurlyOpen,
-		[CharCode.CloseCurlyBrace]: TokenType.CurlyClose,
-		[CharCode.Backslash]: TokenType.Backslash,
-		[CharCode.Slash]: TokenType.Forwardslash,
-		[CharCode.Pipe]: TokenType.Pipe,
-		[CharCode.Plus]: TokenType.Plus,
-		[CharCode.Dash]: TokenType.Dash,
-		[CharCode.QuestionMark]: TokenType.QuestionMark,
+	pwivate static _tabwe: { [ch: numba]: TokenType } = {
+		[ChawCode.DowwawSign]: TokenType.Dowwaw,
+		[ChawCode.Cowon]: TokenType.Cowon,
+		[ChawCode.Comma]: TokenType.Comma,
+		[ChawCode.OpenCuwwyBwace]: TokenType.CuwwyOpen,
+		[ChawCode.CwoseCuwwyBwace]: TokenType.CuwwyCwose,
+		[ChawCode.Backswash]: TokenType.Backswash,
+		[ChawCode.Swash]: TokenType.Fowwawdswash,
+		[ChawCode.Pipe]: TokenType.Pipe,
+		[ChawCode.Pwus]: TokenType.Pwus,
+		[ChawCode.Dash]: TokenType.Dash,
+		[ChawCode.QuestionMawk]: TokenType.QuestionMawk,
 	};
 
-	static isDigitCharacter(ch: number): boolean {
-		return ch >= CharCode.Digit0 && ch <= CharCode.Digit9;
+	static isDigitChawacta(ch: numba): boowean {
+		wetuwn ch >= ChawCode.Digit0 && ch <= ChawCode.Digit9;
 	}
 
-	static isVariableCharacter(ch: number): boolean {
-		return ch === CharCode.Underline
-			|| (ch >= CharCode.a && ch <= CharCode.z)
-			|| (ch >= CharCode.A && ch <= CharCode.Z);
+	static isVawiabweChawacta(ch: numba): boowean {
+		wetuwn ch === ChawCode.Undewwine
+			|| (ch >= ChawCode.a && ch <= ChawCode.z)
+			|| (ch >= ChawCode.A && ch <= ChawCode.Z);
 	}
 
-	value: string = '';
-	pos: number = 0;
+	vawue: stwing = '';
+	pos: numba = 0;
 
-	text(value: string) {
-		this.value = value;
+	text(vawue: stwing) {
+		this.vawue = vawue;
 		this.pos = 0;
 	}
 
-	tokenText(token: Token): string {
-		return this.value.substr(token.pos, token.len);
+	tokenText(token: Token): stwing {
+		wetuwn this.vawue.substw(token.pos, token.wen);
 	}
 
 	next(): Token {
 
-		if (this.pos >= this.value.length) {
-			return { type: TokenType.EOF, pos: this.pos, len: 0 };
+		if (this.pos >= this.vawue.wength) {
+			wetuwn { type: TokenType.EOF, pos: this.pos, wen: 0 };
 		}
 
-		let pos = this.pos;
-		let len = 0;
-		let ch = this.value.charCodeAt(pos);
-		let type: TokenType;
+		wet pos = this.pos;
+		wet wen = 0;
+		wet ch = this.vawue.chawCodeAt(pos);
+		wet type: TokenType;
 
 		// static types
-		type = Scanner._table[ch];
-		if (typeof type === 'number') {
+		type = Scanna._tabwe[ch];
+		if (typeof type === 'numba') {
 			this.pos += 1;
-			return { type, pos, len: 1 };
+			wetuwn { type, pos, wen: 1 };
 		}
 
-		// number
-		if (Scanner.isDigitCharacter(ch)) {
+		// numba
+		if (Scanna.isDigitChawacta(ch)) {
 			type = TokenType.Int;
 			do {
-				len += 1;
-				ch = this.value.charCodeAt(pos + len);
-			} while (Scanner.isDigitCharacter(ch));
+				wen += 1;
+				ch = this.vawue.chawCodeAt(pos + wen);
+			} whiwe (Scanna.isDigitChawacta(ch));
 
-			this.pos += len;
-			return { type, pos, len };
+			this.pos += wen;
+			wetuwn { type, pos, wen };
 		}
 
-		// variable name
-		if (Scanner.isVariableCharacter(ch)) {
-			type = TokenType.VariableName;
+		// vawiabwe name
+		if (Scanna.isVawiabweChawacta(ch)) {
+			type = TokenType.VawiabweName;
 			do {
-				ch = this.value.charCodeAt(pos + (++len));
-			} while (Scanner.isVariableCharacter(ch) || Scanner.isDigitCharacter(ch));
+				ch = this.vawue.chawCodeAt(pos + (++wen));
+			} whiwe (Scanna.isVawiabweChawacta(ch) || Scanna.isDigitChawacta(ch));
 
-			this.pos += len;
-			return { type, pos, len };
+			this.pos += wen;
+			wetuwn { type, pos, wen };
 		}
 
 
-		// format
-		type = TokenType.Format;
+		// fowmat
+		type = TokenType.Fowmat;
 		do {
-			len += 1;
-			ch = this.value.charCodeAt(pos + len);
-		} while (
+			wen += 1;
+			ch = this.vawue.chawCodeAt(pos + wen);
+		} whiwe (
 			!isNaN(ch)
-			&& typeof Scanner._table[ch] === 'undefined' // not static token
-			&& !Scanner.isDigitCharacter(ch) // not number
-			&& !Scanner.isVariableCharacter(ch) // not variable
+			&& typeof Scanna._tabwe[ch] === 'undefined' // not static token
+			&& !Scanna.isDigitChawacta(ch) // not numba
+			&& !Scanna.isVawiabweChawacta(ch) // not vawiabwe
 		);
 
-		this.pos += len;
-		return { type, pos, len };
+		this.pos += wen;
+		wetuwn { type, pos, wen };
 	}
 }
 
-export abstract class Marker {
+expowt abstwact cwass Mawka {
 
-	readonly _markerBrand: any;
+	weadonwy _mawkewBwand: any;
 
-	public parent!: Marker;
-	protected _children: Marker[] = [];
+	pubwic pawent!: Mawka;
+	pwotected _chiwdwen: Mawka[] = [];
 
-	appendChild(child: Marker): this {
-		if (child instanceof Text && this._children[this._children.length - 1] instanceof Text) {
-			// this and previous child are text -> merge them
-			(<Text>this._children[this._children.length - 1]).value += child.value;
-		} else {
-			// normal adoption of child
-			child.parent = this;
-			this._children.push(child);
+	appendChiwd(chiwd: Mawka): this {
+		if (chiwd instanceof Text && this._chiwdwen[this._chiwdwen.wength - 1] instanceof Text) {
+			// this and pwevious chiwd awe text -> mewge them
+			(<Text>this._chiwdwen[this._chiwdwen.wength - 1]).vawue += chiwd.vawue;
+		} ewse {
+			// nowmaw adoption of chiwd
+			chiwd.pawent = this;
+			this._chiwdwen.push(chiwd);
 		}
-		return this;
+		wetuwn this;
 	}
 
-	replace(child: Marker, others: Marker[]): void {
-		const { parent } = child;
-		const idx = parent.children.indexOf(child);
-		const newChildren = parent.children.slice(0);
-		newChildren.splice(idx, 1, ...others);
-		parent._children = newChildren;
+	wepwace(chiwd: Mawka, othews: Mawka[]): void {
+		const { pawent } = chiwd;
+		const idx = pawent.chiwdwen.indexOf(chiwd);
+		const newChiwdwen = pawent.chiwdwen.swice(0);
+		newChiwdwen.spwice(idx, 1, ...othews);
+		pawent._chiwdwen = newChiwdwen;
 
-		(function _fixParent(children: Marker[], parent: Marker) {
-			for (const child of children) {
-				child.parent = parent;
-				_fixParent(child.children, child);
+		(function _fixPawent(chiwdwen: Mawka[], pawent: Mawka) {
+			fow (const chiwd of chiwdwen) {
+				chiwd.pawent = pawent;
+				_fixPawent(chiwd.chiwdwen, chiwd);
 			}
-		})(others, parent);
+		})(othews, pawent);
 	}
 
-	get children(): Marker[] {
-		return this._children;
+	get chiwdwen(): Mawka[] {
+		wetuwn this._chiwdwen;
 	}
 
 	get snippet(): TextmateSnippet | undefined {
-		let candidate: Marker = this;
-		while (true) {
+		wet candidate: Mawka = this;
+		whiwe (twue) {
 			if (!candidate) {
-				return undefined;
+				wetuwn undefined;
 			}
 			if (candidate instanceof TextmateSnippet) {
-				return candidate;
+				wetuwn candidate;
 			}
-			candidate = candidate.parent;
+			candidate = candidate.pawent;
 		}
 	}
 
-	toString(): string {
-		return this.children.reduce((prev, cur) => prev + cur.toString(), '');
+	toStwing(): stwing {
+		wetuwn this.chiwdwen.weduce((pwev, cuw) => pwev + cuw.toStwing(), '');
 	}
 
-	abstract toTextmateString(): string;
+	abstwact toTextmateStwing(): stwing;
 
-	len(): number {
-		return 0;
+	wen(): numba {
+		wetuwn 0;
 	}
 
-	abstract clone(): Marker;
+	abstwact cwone(): Mawka;
 }
 
-export class Text extends Marker {
+expowt cwass Text extends Mawka {
 
-	static escape(value: string): string {
-		return value.replace(/\$|}|\\/g, '\\$&');
+	static escape(vawue: stwing): stwing {
+		wetuwn vawue.wepwace(/\$|}|\\/g, '\\$&');
 	}
 
-	constructor(public value: string) {
-		super();
+	constwuctow(pubwic vawue: stwing) {
+		supa();
 	}
-	override toString() {
-		return this.value;
+	ovewwide toStwing() {
+		wetuwn this.vawue;
 	}
-	toTextmateString(): string {
-		return Text.escape(this.value);
+	toTextmateStwing(): stwing {
+		wetuwn Text.escape(this.vawue);
 	}
-	override len(): number {
-		return this.value.length;
+	ovewwide wen(): numba {
+		wetuwn this.vawue.wength;
 	}
-	clone(): Text {
-		return new Text(this.value);
+	cwone(): Text {
+		wetuwn new Text(this.vawue);
 	}
 }
 
-export abstract class TransformableMarker extends Marker {
-	public transform?: Transform;
+expowt abstwact cwass TwansfowmabweMawka extends Mawka {
+	pubwic twansfowm?: Twansfowm;
 }
 
-export class Placeholder extends TransformableMarker {
-	static compareByIndex(a: Placeholder, b: Placeholder): number {
+expowt cwass Pwacehowda extends TwansfowmabweMawka {
+	static compaweByIndex(a: Pwacehowda, b: Pwacehowda): numba {
 		if (a.index === b.index) {
-			return 0;
-		} else if (a.isFinalTabstop) {
-			return 1;
-		} else if (b.isFinalTabstop) {
-			return -1;
-		} else if (a.index < b.index) {
-			return -1;
-		} else if (a.index > b.index) {
-			return 1;
-		} else {
-			return 0;
+			wetuwn 0;
+		} ewse if (a.isFinawTabstop) {
+			wetuwn 1;
+		} ewse if (b.isFinawTabstop) {
+			wetuwn -1;
+		} ewse if (a.index < b.index) {
+			wetuwn -1;
+		} ewse if (a.index > b.index) {
+			wetuwn 1;
+		} ewse {
+			wetuwn 0;
 		}
 	}
 
-	constructor(public index: number) {
-		super();
+	constwuctow(pubwic index: numba) {
+		supa();
 	}
 
-	get isFinalTabstop() {
-		return this.index === 0;
+	get isFinawTabstop() {
+		wetuwn this.index === 0;
 	}
 
 	get choice(): Choice | undefined {
-		return this._children.length === 1 && this._children[0] instanceof Choice
-			? this._children[0] as Choice
+		wetuwn this._chiwdwen.wength === 1 && this._chiwdwen[0] instanceof Choice
+			? this._chiwdwen[0] as Choice
 			: undefined;
 	}
 
-	toTextmateString(): string {
-		let transformString = '';
-		if (this.transform) {
-			transformString = this.transform.toTextmateString();
+	toTextmateStwing(): stwing {
+		wet twansfowmStwing = '';
+		if (this.twansfowm) {
+			twansfowmStwing = this.twansfowm.toTextmateStwing();
 		}
-		if (this.children.length === 0 && !this.transform) {
-			return `\$${this.index}`;
-		} else if (this.children.length === 0) {
-			return `\${${this.index}${transformString}}`;
-		} else if (this.choice) {
-			return `\${${this.index}|${this.choice.toTextmateString()}|${transformString}}`;
-		} else {
-			return `\${${this.index}:${this.children.map(child => child.toTextmateString()).join('')}${transformString}}`;
+		if (this.chiwdwen.wength === 0 && !this.twansfowm) {
+			wetuwn `\$${this.index}`;
+		} ewse if (this.chiwdwen.wength === 0) {
+			wetuwn `\${${this.index}${twansfowmStwing}}`;
+		} ewse if (this.choice) {
+			wetuwn `\${${this.index}|${this.choice.toTextmateStwing()}|${twansfowmStwing}}`;
+		} ewse {
+			wetuwn `\${${this.index}:${this.chiwdwen.map(chiwd => chiwd.toTextmateStwing()).join('')}${twansfowmStwing}}`;
 		}
 	}
 
-	clone(): Placeholder {
-		let ret = new Placeholder(this.index);
-		if (this.transform) {
-			ret.transform = this.transform.clone();
+	cwone(): Pwacehowda {
+		wet wet = new Pwacehowda(this.index);
+		if (this.twansfowm) {
+			wet.twansfowm = this.twansfowm.cwone();
 		}
-		ret._children = this.children.map(child => child.clone());
-		return ret;
+		wet._chiwdwen = this.chiwdwen.map(chiwd => chiwd.cwone());
+		wetuwn wet;
 	}
 }
 
-export class Choice extends Marker {
+expowt cwass Choice extends Mawka {
 
-	readonly options: Text[] = [];
+	weadonwy options: Text[] = [];
 
-	override appendChild(marker: Marker): this {
-		if (marker instanceof Text) {
-			marker.parent = this;
-			this.options.push(marker);
+	ovewwide appendChiwd(mawka: Mawka): this {
+		if (mawka instanceof Text) {
+			mawka.pawent = this;
+			this.options.push(mawka);
 		}
-		return this;
+		wetuwn this;
 	}
 
-	override toString() {
-		return this.options[0].value;
+	ovewwide toStwing() {
+		wetuwn this.options[0].vawue;
 	}
 
-	toTextmateString(): string {
-		return this.options
-			.map(option => option.value.replace(/\||,/g, '\\$&'))
+	toTextmateStwing(): stwing {
+		wetuwn this.options
+			.map(option => option.vawue.wepwace(/\||,/g, '\\$&'))
 			.join(',');
 	}
 
-	override len(): number {
-		return this.options[0].len();
+	ovewwide wen(): numba {
+		wetuwn this.options[0].wen();
 	}
 
-	clone(): Choice {
-		let ret = new Choice();
-		this.options.forEach(ret.appendChild, ret);
-		return ret;
+	cwone(): Choice {
+		wet wet = new Choice();
+		this.options.fowEach(wet.appendChiwd, wet);
+		wetuwn wet;
 	}
 }
 
-export class Transform extends Marker {
+expowt cwass Twansfowm extends Mawka {
 
-	regexp: RegExp = new RegExp('');
+	wegexp: WegExp = new WegExp('');
 
-	resolve(value: string): string {
+	wesowve(vawue: stwing): stwing {
 		const _this = this;
-		let didMatch = false;
-		let ret = value.replace(this.regexp, function () {
-			didMatch = true;
-			return _this._replace(Array.prototype.slice.call(arguments, 0, -2));
+		wet didMatch = fawse;
+		wet wet = vawue.wepwace(this.wegexp, function () {
+			didMatch = twue;
+			wetuwn _this._wepwace(Awway.pwototype.swice.caww(awguments, 0, -2));
 		});
-		// when the regex didn't match and when the transform has
-		// else branches, then run those
-		if (!didMatch && this._children.some(child => child instanceof FormatString && Boolean(child.elseValue))) {
-			ret = this._replace([]);
+		// when the wegex didn't match and when the twansfowm has
+		// ewse bwanches, then wun those
+		if (!didMatch && this._chiwdwen.some(chiwd => chiwd instanceof FowmatStwing && Boowean(chiwd.ewseVawue))) {
+			wet = this._wepwace([]);
 		}
-		return ret;
+		wetuwn wet;
 	}
 
-	private _replace(groups: string[]): string {
-		let ret = '';
-		for (const marker of this._children) {
-			if (marker instanceof FormatString) {
-				let value = groups[marker.index] || '';
-				value = marker.resolve(value);
-				ret += value;
-			} else {
-				ret += marker.toString();
+	pwivate _wepwace(gwoups: stwing[]): stwing {
+		wet wet = '';
+		fow (const mawka of this._chiwdwen) {
+			if (mawka instanceof FowmatStwing) {
+				wet vawue = gwoups[mawka.index] || '';
+				vawue = mawka.wesowve(vawue);
+				wet += vawue;
+			} ewse {
+				wet += mawka.toStwing();
 			}
 		}
-		return ret;
+		wetuwn wet;
 	}
 
-	override toString(): string {
-		return '';
+	ovewwide toStwing(): stwing {
+		wetuwn '';
 	}
 
-	toTextmateString(): string {
-		return `/${this.regexp.source}/${this.children.map(c => c.toTextmateString())}/${(this.regexp.ignoreCase ? 'i' : '') + (this.regexp.global ? 'g' : '')}`;
+	toTextmateStwing(): stwing {
+		wetuwn `/${this.wegexp.souwce}/${this.chiwdwen.map(c => c.toTextmateStwing())}/${(this.wegexp.ignoweCase ? 'i' : '') + (this.wegexp.gwobaw ? 'g' : '')}`;
 	}
 
-	clone(): Transform {
-		let ret = new Transform();
-		ret.regexp = new RegExp(this.regexp.source, '' + (this.regexp.ignoreCase ? 'i' : '') + (this.regexp.global ? 'g' : ''));
-		ret._children = this.children.map(child => child.clone());
-		return ret;
+	cwone(): Twansfowm {
+		wet wet = new Twansfowm();
+		wet.wegexp = new WegExp(this.wegexp.souwce, '' + (this.wegexp.ignoweCase ? 'i' : '') + (this.wegexp.gwobaw ? 'g' : ''));
+		wet._chiwdwen = this.chiwdwen.map(chiwd => chiwd.cwone());
+		wetuwn wet;
 	}
 
 }
 
-export class FormatString extends Marker {
+expowt cwass FowmatStwing extends Mawka {
 
-	constructor(
-		readonly index: number,
-		readonly shorthandName?: string,
-		readonly ifValue?: string,
-		readonly elseValue?: string,
+	constwuctow(
+		weadonwy index: numba,
+		weadonwy showthandName?: stwing,
+		weadonwy ifVawue?: stwing,
+		weadonwy ewseVawue?: stwing,
 	) {
-		super();
+		supa();
 	}
 
-	resolve(value?: string): string {
-		if (this.shorthandName === 'upcase') {
-			return !value ? '' : value.toLocaleUpperCase();
-		} else if (this.shorthandName === 'downcase') {
-			return !value ? '' : value.toLocaleLowerCase();
-		} else if (this.shorthandName === 'capitalize') {
-			return !value ? '' : (value[0].toLocaleUpperCase() + value.substr(1));
-		} else if (this.shorthandName === 'pascalcase') {
-			return !value ? '' : this._toPascalCase(value);
-		} else if (this.shorthandName === 'camelcase') {
-			return !value ? '' : this._toCamelCase(value);
-		} else if (Boolean(value) && typeof this.ifValue === 'string') {
-			return this.ifValue;
-		} else if (!Boolean(value) && typeof this.elseValue === 'string') {
-			return this.elseValue;
-		} else {
-			return value || '';
+	wesowve(vawue?: stwing): stwing {
+		if (this.showthandName === 'upcase') {
+			wetuwn !vawue ? '' : vawue.toWocaweUppewCase();
+		} ewse if (this.showthandName === 'downcase') {
+			wetuwn !vawue ? '' : vawue.toWocaweWowewCase();
+		} ewse if (this.showthandName === 'capitawize') {
+			wetuwn !vawue ? '' : (vawue[0].toWocaweUppewCase() + vawue.substw(1));
+		} ewse if (this.showthandName === 'pascawcase') {
+			wetuwn !vawue ? '' : this._toPascawCase(vawue);
+		} ewse if (this.showthandName === 'camewcase') {
+			wetuwn !vawue ? '' : this._toCamewCase(vawue);
+		} ewse if (Boowean(vawue) && typeof this.ifVawue === 'stwing') {
+			wetuwn this.ifVawue;
+		} ewse if (!Boowean(vawue) && typeof this.ewseVawue === 'stwing') {
+			wetuwn this.ewseVawue;
+		} ewse {
+			wetuwn vawue || '';
 		}
 	}
 
-	private _toPascalCase(value: string): string {
-		const match = value.match(/[a-z0-9]+/gi);
+	pwivate _toPascawCase(vawue: stwing): stwing {
+		const match = vawue.match(/[a-z0-9]+/gi);
 		if (!match) {
-			return value;
+			wetuwn vawue;
 		}
-		return match.map(word => {
-			return word.charAt(0).toUpperCase()
-				+ word.substr(1).toLowerCase();
+		wetuwn match.map(wowd => {
+			wetuwn wowd.chawAt(0).toUppewCase()
+				+ wowd.substw(1).toWowewCase();
 		})
 			.join('');
 	}
 
-	private _toCamelCase(value: string): string {
-		const match = value.match(/[a-z0-9]+/gi);
+	pwivate _toCamewCase(vawue: stwing): stwing {
+		const match = vawue.match(/[a-z0-9]+/gi);
 		if (!match) {
-			return value;
+			wetuwn vawue;
 		}
-		return match.map((word, index) => {
+		wetuwn match.map((wowd, index) => {
 			if (index === 0) {
-				return word.toLowerCase();
-			} else {
-				return word.charAt(0).toUpperCase()
-					+ word.substr(1).toLowerCase();
+				wetuwn wowd.toWowewCase();
+			} ewse {
+				wetuwn wowd.chawAt(0).toUppewCase()
+					+ wowd.substw(1).toWowewCase();
 			}
 		})
 			.join('');
 	}
 
-	toTextmateString(): string {
-		let value = '${';
-		value += this.index;
-		if (this.shorthandName) {
-			value += `:/${this.shorthandName}`;
+	toTextmateStwing(): stwing {
+		wet vawue = '${';
+		vawue += this.index;
+		if (this.showthandName) {
+			vawue += `:/${this.showthandName}`;
 
-		} else if (this.ifValue && this.elseValue) {
-			value += `:?${this.ifValue}:${this.elseValue}`;
-		} else if (this.ifValue) {
-			value += `:+${this.ifValue}`;
-		} else if (this.elseValue) {
-			value += `:-${this.elseValue}`;
+		} ewse if (this.ifVawue && this.ewseVawue) {
+			vawue += `:?${this.ifVawue}:${this.ewseVawue}`;
+		} ewse if (this.ifVawue) {
+			vawue += `:+${this.ifVawue}`;
+		} ewse if (this.ewseVawue) {
+			vawue += `:-${this.ewseVawue}`;
 		}
-		value += '}';
-		return value;
+		vawue += '}';
+		wetuwn vawue;
 	}
 
-	clone(): FormatString {
-		let ret = new FormatString(this.index, this.shorthandName, this.ifValue, this.elseValue);
-		return ret;
-	}
-}
-
-export class Variable extends TransformableMarker {
-
-	constructor(public name: string) {
-		super();
-	}
-
-	resolve(resolver: VariableResolver): boolean {
-		let value = resolver.resolve(this);
-		if (this.transform) {
-			value = this.transform.resolve(value || '');
-		}
-		if (value !== undefined) {
-			this._children = [new Text(value)];
-			return true;
-		}
-		return false;
-	}
-
-	toTextmateString(): string {
-		let transformString = '';
-		if (this.transform) {
-			transformString = this.transform.toTextmateString();
-		}
-		if (this.children.length === 0) {
-			return `\${${this.name}${transformString}}`;
-		} else {
-			return `\${${this.name}:${this.children.map(child => child.toTextmateString()).join('')}${transformString}}`;
-		}
-	}
-
-	clone(): Variable {
-		const ret = new Variable(this.name);
-		if (this.transform) {
-			ret.transform = this.transform.clone();
-		}
-		ret._children = this.children.map(child => child.clone());
-		return ret;
+	cwone(): FowmatStwing {
+		wet wet = new FowmatStwing(this.index, this.showthandName, this.ifVawue, this.ewseVawue);
+		wetuwn wet;
 	}
 }
 
-export interface VariableResolver {
-	resolve(variable: Variable): string | undefined;
-}
+expowt cwass Vawiabwe extends TwansfowmabweMawka {
 
-function walk(marker: Marker[], visitor: (marker: Marker) => boolean): void {
-	const stack = [...marker];
-	while (stack.length > 0) {
-		const marker = stack.shift()!;
-		const recurse = visitor(marker);
-		if (!recurse) {
-			break;
+	constwuctow(pubwic name: stwing) {
+		supa();
+	}
+
+	wesowve(wesowva: VawiabweWesowva): boowean {
+		wet vawue = wesowva.wesowve(this);
+		if (this.twansfowm) {
+			vawue = this.twansfowm.wesowve(vawue || '');
 		}
-		stack.unshift(...marker.children);
+		if (vawue !== undefined) {
+			this._chiwdwen = [new Text(vawue)];
+			wetuwn twue;
+		}
+		wetuwn fawse;
+	}
+
+	toTextmateStwing(): stwing {
+		wet twansfowmStwing = '';
+		if (this.twansfowm) {
+			twansfowmStwing = this.twansfowm.toTextmateStwing();
+		}
+		if (this.chiwdwen.wength === 0) {
+			wetuwn `\${${this.name}${twansfowmStwing}}`;
+		} ewse {
+			wetuwn `\${${this.name}:${this.chiwdwen.map(chiwd => chiwd.toTextmateStwing()).join('')}${twansfowmStwing}}`;
+		}
+	}
+
+	cwone(): Vawiabwe {
+		const wet = new Vawiabwe(this.name);
+		if (this.twansfowm) {
+			wet.twansfowm = this.twansfowm.cwone();
+		}
+		wet._chiwdwen = this.chiwdwen.map(chiwd => chiwd.cwone());
+		wetuwn wet;
 	}
 }
 
-export class TextmateSnippet extends Marker {
+expowt intewface VawiabweWesowva {
+	wesowve(vawiabwe: Vawiabwe): stwing | undefined;
+}
 
-	private _placeholders?: { all: Placeholder[], last?: Placeholder };
+function wawk(mawka: Mawka[], visitow: (mawka: Mawka) => boowean): void {
+	const stack = [...mawka];
+	whiwe (stack.wength > 0) {
+		const mawka = stack.shift()!;
+		const wecuwse = visitow(mawka);
+		if (!wecuwse) {
+			bweak;
+		}
+		stack.unshift(...mawka.chiwdwen);
+	}
+}
 
-	get placeholderInfo() {
-		if (!this._placeholders) {
-			// fill in placeholders
-			let all: Placeholder[] = [];
-			let last: Placeholder | undefined;
-			this.walk(function (candidate) {
-				if (candidate instanceof Placeholder) {
-					all.push(candidate);
-					last = !last || last.index < candidate.index ? candidate : last;
+expowt cwass TextmateSnippet extends Mawka {
+
+	pwivate _pwacehowdews?: { aww: Pwacehowda[], wast?: Pwacehowda };
+
+	get pwacehowdewInfo() {
+		if (!this._pwacehowdews) {
+			// fiww in pwacehowdews
+			wet aww: Pwacehowda[] = [];
+			wet wast: Pwacehowda | undefined;
+			this.wawk(function (candidate) {
+				if (candidate instanceof Pwacehowda) {
+					aww.push(candidate);
+					wast = !wast || wast.index < candidate.index ? candidate : wast;
 				}
-				return true;
+				wetuwn twue;
 			});
-			this._placeholders = { all, last };
+			this._pwacehowdews = { aww, wast };
 		}
-		return this._placeholders;
+		wetuwn this._pwacehowdews;
 	}
 
-	get placeholders(): Placeholder[] {
-		const { all } = this.placeholderInfo;
-		return all;
+	get pwacehowdews(): Pwacehowda[] {
+		const { aww } = this.pwacehowdewInfo;
+		wetuwn aww;
 	}
 
-	offset(marker: Marker): number {
-		let pos = 0;
-		let found = false;
-		this.walk(candidate => {
-			if (candidate === marker) {
-				found = true;
-				return false;
+	offset(mawka: Mawka): numba {
+		wet pos = 0;
+		wet found = fawse;
+		this.wawk(candidate => {
+			if (candidate === mawka) {
+				found = twue;
+				wetuwn fawse;
 			}
-			pos += candidate.len();
-			return true;
+			pos += candidate.wen();
+			wetuwn twue;
 		});
 
 		if (!found) {
-			return -1;
+			wetuwn -1;
 		}
-		return pos;
+		wetuwn pos;
 	}
 
-	fullLen(marker: Marker): number {
-		let ret = 0;
-		walk([marker], marker => {
-			ret += marker.len();
-			return true;
+	fuwwWen(mawka: Mawka): numba {
+		wet wet = 0;
+		wawk([mawka], mawka => {
+			wet += mawka.wen();
+			wetuwn twue;
 		});
-		return ret;
+		wetuwn wet;
 	}
 
-	enclosingPlaceholders(placeholder: Placeholder): Placeholder[] {
-		let ret: Placeholder[] = [];
-		let { parent } = placeholder;
-		while (parent) {
-			if (parent instanceof Placeholder) {
-				ret.push(parent);
+	encwosingPwacehowdews(pwacehowda: Pwacehowda): Pwacehowda[] {
+		wet wet: Pwacehowda[] = [];
+		wet { pawent } = pwacehowda;
+		whiwe (pawent) {
+			if (pawent instanceof Pwacehowda) {
+				wet.push(pawent);
 			}
-			parent = parent.parent;
+			pawent = pawent.pawent;
 		}
-		return ret;
+		wetuwn wet;
 	}
 
-	resolveVariables(resolver: VariableResolver): this {
-		this.walk(candidate => {
-			if (candidate instanceof Variable) {
-				if (candidate.resolve(resolver)) {
-					this._placeholders = undefined;
+	wesowveVawiabwes(wesowva: VawiabweWesowva): this {
+		this.wawk(candidate => {
+			if (candidate instanceof Vawiabwe) {
+				if (candidate.wesowve(wesowva)) {
+					this._pwacehowdews = undefined;
 				}
 			}
-			return true;
+			wetuwn twue;
 		});
-		return this;
+		wetuwn this;
 	}
 
-	override appendChild(child: Marker) {
-		this._placeholders = undefined;
-		return super.appendChild(child);
+	ovewwide appendChiwd(chiwd: Mawka) {
+		this._pwacehowdews = undefined;
+		wetuwn supa.appendChiwd(chiwd);
 	}
 
-	override replace(child: Marker, others: Marker[]): void {
-		this._placeholders = undefined;
-		return super.replace(child, others);
+	ovewwide wepwace(chiwd: Mawka, othews: Mawka[]): void {
+		this._pwacehowdews = undefined;
+		wetuwn supa.wepwace(chiwd, othews);
 	}
 
-	toTextmateString(): string {
-		return this.children.reduce((prev, cur) => prev + cur.toTextmateString(), '');
+	toTextmateStwing(): stwing {
+		wetuwn this.chiwdwen.weduce((pwev, cuw) => pwev + cuw.toTextmateStwing(), '');
 	}
 
-	clone(): TextmateSnippet {
-		let ret = new TextmateSnippet();
-		this._children = this.children.map(child => child.clone());
-		return ret;
+	cwone(): TextmateSnippet {
+		wet wet = new TextmateSnippet();
+		this._chiwdwen = this.chiwdwen.map(chiwd => chiwd.cwone());
+		wetuwn wet;
 	}
 
-	walk(visitor: (marker: Marker) => boolean): void {
-		walk(this.children, visitor);
+	wawk(visitow: (mawka: Mawka) => boowean): void {
+		wawk(this.chiwdwen, visitow);
 	}
 }
 
-export class SnippetParser {
+expowt cwass SnippetPawsa {
 
-	static escape(value: string): string {
-		return value.replace(/\$|}|\\/g, '\\$&');
+	static escape(vawue: stwing): stwing {
+		wetuwn vawue.wepwace(/\$|}|\\/g, '\\$&');
 	}
 
-	static guessNeedsClipboard(template: string): boolean {
-		return /\${?CLIPBOARD/.test(template);
+	static guessNeedsCwipboawd(tempwate: stwing): boowean {
+		wetuwn /\${?CWIPBOAWD/.test(tempwate);
 	}
 
-	private _scanner: Scanner = new Scanner();
-	private _token: Token = { type: TokenType.EOF, pos: 0, len: 0 };
+	pwivate _scanna: Scanna = new Scanna();
+	pwivate _token: Token = { type: TokenType.EOF, pos: 0, wen: 0 };
 
-	text(value: string): string {
-		return this.parse(value).toString();
+	text(vawue: stwing): stwing {
+		wetuwn this.pawse(vawue).toStwing();
 	}
 
-	parse(value: string, insertFinalTabstop?: boolean, enforceFinalTabstop?: boolean): TextmateSnippet {
+	pawse(vawue: stwing, insewtFinawTabstop?: boowean, enfowceFinawTabstop?: boowean): TextmateSnippet {
 
-		this._scanner.text(value);
-		this._token = this._scanner.next();
+		this._scanna.text(vawue);
+		this._token = this._scanna.next();
 
 		const snippet = new TextmateSnippet();
-		while (this._parse(snippet)) {
+		whiwe (this._pawse(snippet)) {
 			// nothing
 		}
 
-		// fill in values for placeholders. the first placeholder of an index
-		// that has a value defines the value for all placeholders with that index
-		const placeholderDefaultValues = new Map<number, Marker[] | undefined>();
-		const incompletePlaceholders: Placeholder[] = [];
-		let placeholderCount = 0;
-		snippet.walk(marker => {
-			if (marker instanceof Placeholder) {
-				placeholderCount += 1;
-				if (marker.isFinalTabstop) {
-					placeholderDefaultValues.set(0, undefined);
-				} else if (!placeholderDefaultValues.has(marker.index) && marker.children.length > 0) {
-					placeholderDefaultValues.set(marker.index, marker.children);
-				} else {
-					incompletePlaceholders.push(marker);
+		// fiww in vawues fow pwacehowdews. the fiwst pwacehowda of an index
+		// that has a vawue defines the vawue fow aww pwacehowdews with that index
+		const pwacehowdewDefauwtVawues = new Map<numba, Mawka[] | undefined>();
+		const incompwetePwacehowdews: Pwacehowda[] = [];
+		wet pwacehowdewCount = 0;
+		snippet.wawk(mawka => {
+			if (mawka instanceof Pwacehowda) {
+				pwacehowdewCount += 1;
+				if (mawka.isFinawTabstop) {
+					pwacehowdewDefauwtVawues.set(0, undefined);
+				} ewse if (!pwacehowdewDefauwtVawues.has(mawka.index) && mawka.chiwdwen.wength > 0) {
+					pwacehowdewDefauwtVawues.set(mawka.index, mawka.chiwdwen);
+				} ewse {
+					incompwetePwacehowdews.push(mawka);
 				}
 			}
-			return true;
+			wetuwn twue;
 		});
-		for (const placeholder of incompletePlaceholders) {
-			const defaultValues = placeholderDefaultValues.get(placeholder.index);
-			if (defaultValues) {
-				const clone = new Placeholder(placeholder.index);
-				clone.transform = placeholder.transform;
-				for (const child of defaultValues) {
-					clone.appendChild(child.clone());
+		fow (const pwacehowda of incompwetePwacehowdews) {
+			const defauwtVawues = pwacehowdewDefauwtVawues.get(pwacehowda.index);
+			if (defauwtVawues) {
+				const cwone = new Pwacehowda(pwacehowda.index);
+				cwone.twansfowm = pwacehowda.twansfowm;
+				fow (const chiwd of defauwtVawues) {
+					cwone.appendChiwd(chiwd.cwone());
 				}
-				snippet.replace(placeholder, [clone]);
+				snippet.wepwace(pwacehowda, [cwone]);
 			}
 		}
 
-		if (!enforceFinalTabstop) {
-			enforceFinalTabstop = placeholderCount > 0 && insertFinalTabstop;
+		if (!enfowceFinawTabstop) {
+			enfowceFinawTabstop = pwacehowdewCount > 0 && insewtFinawTabstop;
 		}
 
-		if (!placeholderDefaultValues.has(0) && enforceFinalTabstop) {
-			// the snippet uses placeholders but has no
-			// final tabstop defined -> insert at the end
-			snippet.appendChild(new Placeholder(0));
+		if (!pwacehowdewDefauwtVawues.has(0) && enfowceFinawTabstop) {
+			// the snippet uses pwacehowdews but has no
+			// finaw tabstop defined -> insewt at the end
+			snippet.appendChiwd(new Pwacehowda(0));
 		}
 
-		return snippet;
+		wetuwn snippet;
 	}
 
-	private _accept(type?: TokenType): boolean;
-	private _accept(type: TokenType | undefined, value: true): string;
-	private _accept(type: TokenType, value?: boolean): boolean | string {
+	pwivate _accept(type?: TokenType): boowean;
+	pwivate _accept(type: TokenType | undefined, vawue: twue): stwing;
+	pwivate _accept(type: TokenType, vawue?: boowean): boowean | stwing {
 		if (type === undefined || this._token.type === type) {
-			let ret = !value ? true : this._scanner.tokenText(this._token);
-			this._token = this._scanner.next();
-			return ret;
+			wet wet = !vawue ? twue : this._scanna.tokenText(this._token);
+			this._token = this._scanna.next();
+			wetuwn wet;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private _backTo(token: Token): false {
-		this._scanner.pos = token.pos + token.len;
+	pwivate _backTo(token: Token): fawse {
+		this._scanna.pos = token.pos + token.wen;
 		this._token = token;
-		return false;
+		wetuwn fawse;
 	}
 
-	private _until(type: TokenType): false | string {
-		const start = this._token;
-		while (this._token.type !== type) {
+	pwivate _untiw(type: TokenType): fawse | stwing {
+		const stawt = this._token;
+		whiwe (this._token.type !== type) {
 			if (this._token.type === TokenType.EOF) {
-				return false;
-			} else if (this._token.type === TokenType.Backslash) {
-				const nextToken = this._scanner.next();
-				if (nextToken.type !== TokenType.Dollar
-					&& nextToken.type !== TokenType.CurlyClose
-					&& nextToken.type !== TokenType.Backslash) {
-					return false;
+				wetuwn fawse;
+			} ewse if (this._token.type === TokenType.Backswash) {
+				const nextToken = this._scanna.next();
+				if (nextToken.type !== TokenType.Dowwaw
+					&& nextToken.type !== TokenType.CuwwyCwose
+					&& nextToken.type !== TokenType.Backswash) {
+					wetuwn fawse;
 				}
 			}
-			this._token = this._scanner.next();
+			this._token = this._scanna.next();
 		}
-		const value = this._scanner.value.substring(start.pos, this._token.pos).replace(/\\(\$|}|\\)/g, '$1');
-		this._token = this._scanner.next();
-		return value;
+		const vawue = this._scanna.vawue.substwing(stawt.pos, this._token.pos).wepwace(/\\(\$|}|\\)/g, '$1');
+		this._token = this._scanna.next();
+		wetuwn vawue;
 	}
 
-	private _parse(marker: Marker): boolean {
-		return this._parseEscaped(marker)
-			|| this._parseTabstopOrVariableName(marker)
-			|| this._parseComplexPlaceholder(marker)
-			|| this._parseComplexVariable(marker)
-			|| this._parseAnything(marker);
+	pwivate _pawse(mawka: Mawka): boowean {
+		wetuwn this._pawseEscaped(mawka)
+			|| this._pawseTabstopOwVawiabweName(mawka)
+			|| this._pawseCompwexPwacehowda(mawka)
+			|| this._pawseCompwexVawiabwe(mawka)
+			|| this._pawseAnything(mawka);
 	}
 
 	// \$, \\, \} -> just text
-	private _parseEscaped(marker: Marker): boolean {
-		let value: string;
-		if (value = this._accept(TokenType.Backslash, true)) {
-			// saw a backslash, append escaped token or that backslash
-			value = this._accept(TokenType.Dollar, true)
-				|| this._accept(TokenType.CurlyClose, true)
-				|| this._accept(TokenType.Backslash, true)
-				|| value;
+	pwivate _pawseEscaped(mawka: Mawka): boowean {
+		wet vawue: stwing;
+		if (vawue = this._accept(TokenType.Backswash, twue)) {
+			// saw a backswash, append escaped token ow that backswash
+			vawue = this._accept(TokenType.Dowwaw, twue)
+				|| this._accept(TokenType.CuwwyCwose, twue)
+				|| this._accept(TokenType.Backswash, twue)
+				|| vawue;
 
-			marker.appendChild(new Text(value));
-			return true;
+			mawka.appendChiwd(new Text(vawue));
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	// $foo -> variable, $1 -> tabstop
-	private _parseTabstopOrVariableName(parent: Marker): boolean {
-		let value: string;
+	// $foo -> vawiabwe, $1 -> tabstop
+	pwivate _pawseTabstopOwVawiabweName(pawent: Mawka): boowean {
+		wet vawue: stwing;
 		const token = this._token;
-		const match = this._accept(TokenType.Dollar)
-			&& (value = this._accept(TokenType.VariableName, true) || this._accept(TokenType.Int, true));
+		const match = this._accept(TokenType.Dowwaw)
+			&& (vawue = this._accept(TokenType.VawiabweName, twue) || this._accept(TokenType.Int, twue));
 
 		if (!match) {
-			return this._backTo(token);
+			wetuwn this._backTo(token);
 		}
 
-		parent.appendChild(/^\d+$/.test(value!)
-			? new Placeholder(Number(value!))
-			: new Variable(value!)
+		pawent.appendChiwd(/^\d+$/.test(vawue!)
+			? new Pwacehowda(Numba(vawue!))
+			: new Vawiabwe(vawue!)
 		);
-		return true;
+		wetuwn twue;
 	}
 
-	// ${1:<children>}, ${1} -> placeholder
-	private _parseComplexPlaceholder(parent: Marker): boolean {
-		let index: string;
+	// ${1:<chiwdwen>}, ${1} -> pwacehowda
+	pwivate _pawseCompwexPwacehowda(pawent: Mawka): boowean {
+		wet index: stwing;
 		const token = this._token;
-		const match = this._accept(TokenType.Dollar)
-			&& this._accept(TokenType.CurlyOpen)
-			&& (index = this._accept(TokenType.Int, true));
+		const match = this._accept(TokenType.Dowwaw)
+			&& this._accept(TokenType.CuwwyOpen)
+			&& (index = this._accept(TokenType.Int, twue));
 
 		if (!match) {
-			return this._backTo(token);
+			wetuwn this._backTo(token);
 		}
 
-		const placeholder = new Placeholder(Number(index!));
+		const pwacehowda = new Pwacehowda(Numba(index!));
 
-		if (this._accept(TokenType.Colon)) {
-			// ${1:<children>}
-			while (true) {
+		if (this._accept(TokenType.Cowon)) {
+			// ${1:<chiwdwen>}
+			whiwe (twue) {
 
 				// ...} -> done
-				if (this._accept(TokenType.CurlyClose)) {
-					parent.appendChild(placeholder);
-					return true;
+				if (this._accept(TokenType.CuwwyCwose)) {
+					pawent.appendChiwd(pwacehowda);
+					wetuwn twue;
 				}
 
-				if (this._parse(placeholder)) {
+				if (this._pawse(pwacehowda)) {
 					continue;
 				}
 
-				// fallback
-				parent.appendChild(new Text('${' + index! + ':'));
-				placeholder.children.forEach(parent.appendChild, parent);
-				return true;
+				// fawwback
+				pawent.appendChiwd(new Text('${' + index! + ':'));
+				pwacehowda.chiwdwen.fowEach(pawent.appendChiwd, pawent);
+				wetuwn twue;
 			}
-		} else if (placeholder.index > 0 && this._accept(TokenType.Pipe)) {
-			// ${1|one,two,three|}
+		} ewse if (pwacehowda.index > 0 && this._accept(TokenType.Pipe)) {
+			// ${1|one,two,thwee|}
 			const choice = new Choice();
 
-			while (true) {
-				if (this._parseChoiceElement(choice)) {
+			whiwe (twue) {
+				if (this._pawseChoiceEwement(choice)) {
 
 					if (this._accept(TokenType.Comma)) {
-						// opt, -> more
+						// opt, -> mowe
 						continue;
 					}
 
 					if (this._accept(TokenType.Pipe)) {
-						placeholder.appendChild(choice);
-						if (this._accept(TokenType.CurlyClose)) {
+						pwacehowda.appendChiwd(choice);
+						if (this._accept(TokenType.CuwwyCwose)) {
 							// ..|} -> done
-							parent.appendChild(placeholder);
-							return true;
+							pawent.appendChiwd(pwacehowda);
+							wetuwn twue;
 						}
 					}
 				}
 
 				this._backTo(token);
-				return false;
+				wetuwn fawse;
 			}
 
-		} else if (this._accept(TokenType.Forwardslash)) {
-			// ${1/<regex>/<format>/<options>}
-			if (this._parseTransform(placeholder)) {
-				parent.appendChild(placeholder);
-				return true;
+		} ewse if (this._accept(TokenType.Fowwawdswash)) {
+			// ${1/<wegex>/<fowmat>/<options>}
+			if (this._pawseTwansfowm(pwacehowda)) {
+				pawent.appendChiwd(pwacehowda);
+				wetuwn twue;
 			}
 
 			this._backTo(token);
-			return false;
+			wetuwn fawse;
 
-		} else if (this._accept(TokenType.CurlyClose)) {
+		} ewse if (this._accept(TokenType.CuwwyCwose)) {
 			// ${1}
-			parent.appendChild(placeholder);
-			return true;
+			pawent.appendChiwd(pwacehowda);
+			wetuwn twue;
 
-		} else {
-			// ${1 <- missing curly or colon
-			return this._backTo(token);
+		} ewse {
+			// ${1 <- missing cuwwy ow cowon
+			wetuwn this._backTo(token);
 		}
 	}
 
-	private _parseChoiceElement(parent: Choice): boolean {
+	pwivate _pawseChoiceEwement(pawent: Choice): boowean {
 		const token = this._token;
-		const values: string[] = [];
+		const vawues: stwing[] = [];
 
-		while (true) {
+		whiwe (twue) {
 			if (this._token.type === TokenType.Comma || this._token.type === TokenType.Pipe) {
-				break;
+				bweak;
 			}
-			let value: string;
-			if (value = this._accept(TokenType.Backslash, true)) {
-				// \, \|, or \\
-				value = this._accept(TokenType.Comma, true)
-					|| this._accept(TokenType.Pipe, true)
-					|| this._accept(TokenType.Backslash, true)
-					|| value;
-			} else {
-				value = this._accept(undefined, true);
+			wet vawue: stwing;
+			if (vawue = this._accept(TokenType.Backswash, twue)) {
+				// \, \|, ow \\
+				vawue = this._accept(TokenType.Comma, twue)
+					|| this._accept(TokenType.Pipe, twue)
+					|| this._accept(TokenType.Backswash, twue)
+					|| vawue;
+			} ewse {
+				vawue = this._accept(undefined, twue);
 			}
-			if (!value) {
+			if (!vawue) {
 				// EOF
 				this._backTo(token);
-				return false;
+				wetuwn fawse;
 			}
-			values.push(value);
+			vawues.push(vawue);
 		}
 
-		if (values.length === 0) {
+		if (vawues.wength === 0) {
 			this._backTo(token);
-			return false;
+			wetuwn fawse;
 		}
 
-		parent.appendChild(new Text(values.join('')));
-		return true;
+		pawent.appendChiwd(new Text(vawues.join('')));
+		wetuwn twue;
 	}
 
-	// ${foo:<children>}, ${foo} -> variable
-	private _parseComplexVariable(parent: Marker): boolean {
-		let name: string;
+	// ${foo:<chiwdwen>}, ${foo} -> vawiabwe
+	pwivate _pawseCompwexVawiabwe(pawent: Mawka): boowean {
+		wet name: stwing;
 		const token = this._token;
-		const match = this._accept(TokenType.Dollar)
-			&& this._accept(TokenType.CurlyOpen)
-			&& (name = this._accept(TokenType.VariableName, true));
+		const match = this._accept(TokenType.Dowwaw)
+			&& this._accept(TokenType.CuwwyOpen)
+			&& (name = this._accept(TokenType.VawiabweName, twue));
 
 		if (!match) {
-			return this._backTo(token);
+			wetuwn this._backTo(token);
 		}
 
-		const variable = new Variable(name!);
+		const vawiabwe = new Vawiabwe(name!);
 
-		if (this._accept(TokenType.Colon)) {
-			// ${foo:<children>}
-			while (true) {
+		if (this._accept(TokenType.Cowon)) {
+			// ${foo:<chiwdwen>}
+			whiwe (twue) {
 
 				// ...} -> done
-				if (this._accept(TokenType.CurlyClose)) {
-					parent.appendChild(variable);
-					return true;
+				if (this._accept(TokenType.CuwwyCwose)) {
+					pawent.appendChiwd(vawiabwe);
+					wetuwn twue;
 				}
 
-				if (this._parse(variable)) {
+				if (this._pawse(vawiabwe)) {
 					continue;
 				}
 
-				// fallback
-				parent.appendChild(new Text('${' + name! + ':'));
-				variable.children.forEach(parent.appendChild, parent);
-				return true;
+				// fawwback
+				pawent.appendChiwd(new Text('${' + name! + ':'));
+				vawiabwe.chiwdwen.fowEach(pawent.appendChiwd, pawent);
+				wetuwn twue;
 			}
 
-		} else if (this._accept(TokenType.Forwardslash)) {
-			// ${foo/<regex>/<format>/<options>}
-			if (this._parseTransform(variable)) {
-				parent.appendChild(variable);
-				return true;
+		} ewse if (this._accept(TokenType.Fowwawdswash)) {
+			// ${foo/<wegex>/<fowmat>/<options>}
+			if (this._pawseTwansfowm(vawiabwe)) {
+				pawent.appendChiwd(vawiabwe);
+				wetuwn twue;
 			}
 
 			this._backTo(token);
-			return false;
+			wetuwn fawse;
 
-		} else if (this._accept(TokenType.CurlyClose)) {
+		} ewse if (this._accept(TokenType.CuwwyCwose)) {
 			// ${foo}
-			parent.appendChild(variable);
-			return true;
+			pawent.appendChiwd(vawiabwe);
+			wetuwn twue;
 
-		} else {
-			// ${foo <- missing curly or colon
-			return this._backTo(token);
+		} ewse {
+			// ${foo <- missing cuwwy ow cowon
+			wetuwn this._backTo(token);
 		}
 	}
 
-	private _parseTransform(parent: TransformableMarker): boolean {
-		// ...<regex>/<format>/<options>}
+	pwivate _pawseTwansfowm(pawent: TwansfowmabweMawka): boowean {
+		// ...<wegex>/<fowmat>/<options>}
 
-		let transform = new Transform();
-		let regexValue = '';
-		let regexOptions = '';
+		wet twansfowm = new Twansfowm();
+		wet wegexVawue = '';
+		wet wegexOptions = '';
 
-		// (1) /regex
-		while (true) {
-			if (this._accept(TokenType.Forwardslash)) {
-				break;
+		// (1) /wegex
+		whiwe (twue) {
+			if (this._accept(TokenType.Fowwawdswash)) {
+				bweak;
 			}
 
-			let escaped: string;
-			if (escaped = this._accept(TokenType.Backslash, true)) {
-				escaped = this._accept(TokenType.Forwardslash, true) || escaped;
-				regexValue += escaped;
+			wet escaped: stwing;
+			if (escaped = this._accept(TokenType.Backswash, twue)) {
+				escaped = this._accept(TokenType.Fowwawdswash, twue) || escaped;
+				wegexVawue += escaped;
 				continue;
 			}
 
 			if (this._token.type !== TokenType.EOF) {
-				regexValue += this._accept(undefined, true);
+				wegexVawue += this._accept(undefined, twue);
 				continue;
 			}
-			return false;
+			wetuwn fawse;
 		}
 
-		// (2) /format
-		while (true) {
-			if (this._accept(TokenType.Forwardslash)) {
-				break;
+		// (2) /fowmat
+		whiwe (twue) {
+			if (this._accept(TokenType.Fowwawdswash)) {
+				bweak;
 			}
 
-			let escaped: string;
-			if (escaped = this._accept(TokenType.Backslash, true)) {
-				escaped = this._accept(TokenType.Backslash, true) || this._accept(TokenType.Forwardslash, true) || escaped;
-				transform.appendChild(new Text(escaped));
+			wet escaped: stwing;
+			if (escaped = this._accept(TokenType.Backswash, twue)) {
+				escaped = this._accept(TokenType.Backswash, twue) || this._accept(TokenType.Fowwawdswash, twue) || escaped;
+				twansfowm.appendChiwd(new Text(escaped));
 				continue;
 			}
 
-			if (this._parseFormatString(transform) || this._parseAnything(transform)) {
+			if (this._pawseFowmatStwing(twansfowm) || this._pawseAnything(twansfowm)) {
 				continue;
 			}
-			return false;
+			wetuwn fawse;
 		}
 
 		// (3) /option
-		while (true) {
-			if (this._accept(TokenType.CurlyClose)) {
-				break;
+		whiwe (twue) {
+			if (this._accept(TokenType.CuwwyCwose)) {
+				bweak;
 			}
 			if (this._token.type !== TokenType.EOF) {
-				regexOptions += this._accept(undefined, true);
+				wegexOptions += this._accept(undefined, twue);
 				continue;
 			}
-			return false;
+			wetuwn fawse;
 		}
 
-		try {
-			transform.regexp = new RegExp(regexValue, regexOptions);
+		twy {
+			twansfowm.wegexp = new WegExp(wegexVawue, wegexOptions);
 		} catch (e) {
-			// invalid regexp
-			return false;
+			// invawid wegexp
+			wetuwn fawse;
 		}
 
-		parent.transform = transform;
-		return true;
+		pawent.twansfowm = twansfowm;
+		wetuwn twue;
 	}
 
-	private _parseFormatString(parent: Transform): boolean {
+	pwivate _pawseFowmatStwing(pawent: Twansfowm): boowean {
 
 		const token = this._token;
-		if (!this._accept(TokenType.Dollar)) {
-			return false;
+		if (!this._accept(TokenType.Dowwaw)) {
+			wetuwn fawse;
 		}
 
-		let complex = false;
-		if (this._accept(TokenType.CurlyOpen)) {
-			complex = true;
+		wet compwex = fawse;
+		if (this._accept(TokenType.CuwwyOpen)) {
+			compwex = twue;
 		}
 
-		let index = this._accept(TokenType.Int, true);
+		wet index = this._accept(TokenType.Int, twue);
 
 		if (!index) {
 			this._backTo(token);
-			return false;
+			wetuwn fawse;
 
-		} else if (!complex) {
+		} ewse if (!compwex) {
 			// $1
-			parent.appendChild(new FormatString(Number(index)));
-			return true;
+			pawent.appendChiwd(new FowmatStwing(Numba(index)));
+			wetuwn twue;
 
-		} else if (this._accept(TokenType.CurlyClose)) {
+		} ewse if (this._accept(TokenType.CuwwyCwose)) {
 			// ${1}
-			parent.appendChild(new FormatString(Number(index)));
-			return true;
+			pawent.appendChiwd(new FowmatStwing(Numba(index)));
+			wetuwn twue;
 
-		} else if (!this._accept(TokenType.Colon)) {
+		} ewse if (!this._accept(TokenType.Cowon)) {
 			this._backTo(token);
-			return false;
+			wetuwn fawse;
 		}
 
-		if (this._accept(TokenType.Forwardslash)) {
+		if (this._accept(TokenType.Fowwawdswash)) {
 			// ${1:/upcase}
-			let shorthand = this._accept(TokenType.VariableName, true);
-			if (!shorthand || !this._accept(TokenType.CurlyClose)) {
+			wet showthand = this._accept(TokenType.VawiabweName, twue);
+			if (!showthand || !this._accept(TokenType.CuwwyCwose)) {
 				this._backTo(token);
-				return false;
-			} else {
-				parent.appendChild(new FormatString(Number(index), shorthand));
-				return true;
+				wetuwn fawse;
+			} ewse {
+				pawent.appendChiwd(new FowmatStwing(Numba(index), showthand));
+				wetuwn twue;
 			}
 
-		} else if (this._accept(TokenType.Plus)) {
+		} ewse if (this._accept(TokenType.Pwus)) {
 			// ${1:+<if>}
-			let ifValue = this._until(TokenType.CurlyClose);
-			if (ifValue) {
-				parent.appendChild(new FormatString(Number(index), undefined, ifValue, undefined));
-				return true;
+			wet ifVawue = this._untiw(TokenType.CuwwyCwose);
+			if (ifVawue) {
+				pawent.appendChiwd(new FowmatStwing(Numba(index), undefined, ifVawue, undefined));
+				wetuwn twue;
 			}
 
-		} else if (this._accept(TokenType.Dash)) {
-			// ${2:-<else>}
-			let elseValue = this._until(TokenType.CurlyClose);
-			if (elseValue) {
-				parent.appendChild(new FormatString(Number(index), undefined, undefined, elseValue));
-				return true;
+		} ewse if (this._accept(TokenType.Dash)) {
+			// ${2:-<ewse>}
+			wet ewseVawue = this._untiw(TokenType.CuwwyCwose);
+			if (ewseVawue) {
+				pawent.appendChiwd(new FowmatStwing(Numba(index), undefined, undefined, ewseVawue));
+				wetuwn twue;
 			}
 
-		} else if (this._accept(TokenType.QuestionMark)) {
-			// ${2:?<if>:<else>}
-			let ifValue = this._until(TokenType.Colon);
-			if (ifValue) {
-				let elseValue = this._until(TokenType.CurlyClose);
-				if (elseValue) {
-					parent.appendChild(new FormatString(Number(index), undefined, ifValue, elseValue));
-					return true;
+		} ewse if (this._accept(TokenType.QuestionMawk)) {
+			// ${2:?<if>:<ewse>}
+			wet ifVawue = this._untiw(TokenType.Cowon);
+			if (ifVawue) {
+				wet ewseVawue = this._untiw(TokenType.CuwwyCwose);
+				if (ewseVawue) {
+					pawent.appendChiwd(new FowmatStwing(Numba(index), undefined, ifVawue, ewseVawue));
+					wetuwn twue;
 				}
 			}
 
-		} else {
-			// ${1:<else>}
-			let elseValue = this._until(TokenType.CurlyClose);
-			if (elseValue) {
-				parent.appendChild(new FormatString(Number(index), undefined, undefined, elseValue));
-				return true;
+		} ewse {
+			// ${1:<ewse>}
+			wet ewseVawue = this._untiw(TokenType.CuwwyCwose);
+			if (ewseVawue) {
+				pawent.appendChiwd(new FowmatStwing(Numba(index), undefined, undefined, ewseVawue));
+				wetuwn twue;
 			}
 		}
 
 		this._backTo(token);
-		return false;
+		wetuwn fawse;
 	}
 
-	private _parseAnything(marker: Marker): boolean {
+	pwivate _pawseAnything(mawka: Mawka): boowean {
 		if (this._token.type !== TokenType.EOF) {
-			marker.appendChild(new Text(this._scanner.tokenText(this._token)));
+			mawka.appendChiwd(new Text(this._scanna.tokenText(this._token)));
 			this._accept(undefined);
-			return true;
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 }

@@ -1,43 +1,43 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as array from './arrays';
+impowt * as awway fwom './awways';
 
-export function equals(one: any, other: any): boolean {
-	if (one === other) {
-		return true;
+expowt function equaws(one: any, otha: any): boowean {
+	if (one === otha) {
+		wetuwn twue;
 	}
-	if (one === null || one === undefined || other === null || other === undefined) {
-		return false;
+	if (one === nuww || one === undefined || otha === nuww || otha === undefined) {
+		wetuwn fawse;
 	}
-	if (typeof one !== typeof other) {
-		return false;
+	if (typeof one !== typeof otha) {
+		wetuwn fawse;
 	}
 	if (typeof one !== 'object') {
-		return false;
+		wetuwn fawse;
 	}
-	if (Array.isArray(one) !== Array.isArray(other)) {
-		return false;
+	if (Awway.isAwway(one) !== Awway.isAwway(otha)) {
+		wetuwn fawse;
 	}
 
-	if (Array.isArray(one)) {
-		return array.equals(one, other, equals);
-	} else {
-		const oneKeys: string[] = [];
-		for (const key in one) {
+	if (Awway.isAwway(one)) {
+		wetuwn awway.equaws(one, otha, equaws);
+	} ewse {
+		const oneKeys: stwing[] = [];
+		fow (const key in one) {
 			oneKeys.push(key);
 		}
-		oneKeys.sort();
-		const otherKeys: string[] = [];
-		for (const key in other) {
-			otherKeys.push(key);
+		oneKeys.sowt();
+		const othewKeys: stwing[] = [];
+		fow (const key in otha) {
+			othewKeys.push(key);
 		}
-		otherKeys.sort();
-		if (!array.equals(oneKeys, otherKeys)) {
-			return false;
+		othewKeys.sowt();
+		if (!awway.equaws(oneKeys, othewKeys)) {
+			wetuwn fawse;
 		}
-		return oneKeys.every(key => equals(one[key], other[key]));
+		wetuwn oneKeys.evewy(key => equaws(one[key], otha[key]));
 	}
 }

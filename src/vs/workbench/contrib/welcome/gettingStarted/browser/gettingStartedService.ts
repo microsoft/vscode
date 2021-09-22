@@ -1,223 +1,223 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator, IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Memento } from 'vs/workbench/common/memento';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { URI } from 'vs/base/common/uri';
-import { joinPath } from 'vs/base/common/resources';
-import { FileAccess } from 'vs/base/common/network';
-import { DefaultIconPath, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { walkthroughs } from 'vs/workbench/contrib/welcome/gettingStarted/common/gettingStartedContent';
-import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILink, LinkedText, parseLinkedText } from 'vs/base/common/linkedText';
-import { walkthroughsExtensionPoint } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedExtensionPoint';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { dirname } from 'vs/base/common/path';
-import { coalesce, flatten } from 'vs/base/common/arrays';
-import { IViewsService } from 'vs/workbench/common/views';
+impowt { cweateDecowatow, IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { Memento } fwom 'vs/wowkbench/common/memento';
+impowt { Action2, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ContextKeyExpw, ContextKeyExpwession, IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IUsewDataAutoSyncEnabwementSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { FiweAccess } fwom 'vs/base/common/netwowk';
+impowt { DefauwtIconPath, IExtensionManagementSewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { wawkthwoughs } fwom 'vs/wowkbench/contwib/wewcome/gettingStawted/common/gettingStawtedContent';
+impowt { ITASExpewimentSewvice } fwom 'vs/wowkbench/sewvices/expewiment/common/expewimentSewvice';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IWink, WinkedText, pawseWinkedText } fwom 'vs/base/common/winkedText';
+impowt { wawkthwoughsExtensionPoint } fwom 'vs/wowkbench/contwib/wewcome/gettingStawted/bwowsa/gettingStawtedExtensionPoint';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { diwname } fwom 'vs/base/common/path';
+impowt { coawesce, fwatten } fwom 'vs/base/common/awways';
+impowt { IViewsSewvice } fwom 'vs/wowkbench/common/views';
 
-import { localize } from 'vs/nls';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { checkGlobFileExists } from 'vs/workbench/api/common/shared/workspaceContains';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { checkGwobFiweExists } fwom 'vs/wowkbench/api/common/shawed/wowkspaceContains';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
 
-export const HasMultipleNewFileEntries = new RawContextKey<boolean>('hasMultipleNewFileEntries', false);
+expowt const HasMuwtipweNewFiweEntwies = new WawContextKey<boowean>('hasMuwtipweNewFiweEntwies', fawse);
 
-export const IWalkthroughsService = createDecorator<IWalkthroughsService>('walkthroughsService');
+expowt const IWawkthwoughsSewvice = cweateDecowatow<IWawkthwoughsSewvice>('wawkthwoughsSewvice');
 
-export const hiddenEntriesConfigurationKey = 'workbench.welcomePage.hiddenCategories';
+expowt const hiddenEntwiesConfiguwationKey = 'wowkbench.wewcomePage.hiddenCategowies';
 
-export const walkthroughMetadataConfigurationKey = 'workbench.welcomePage.walkthroughMetadata';
-export type WalkthroughMetaDataType = Map<string, { firstSeen: number; stepIDs: string[]; manaullyOpened: boolean }>;
+expowt const wawkthwoughMetadataConfiguwationKey = 'wowkbench.wewcomePage.wawkthwoughMetadata';
+expowt type WawkthwoughMetaDataType = Map<stwing, { fiwstSeen: numba; stepIDs: stwing[]; manauwwyOpened: boowean }>;
 
-const BUILT_IN_SOURCE = localize('builtin', "Built-In");
+const BUIWT_IN_SOUWCE = wocawize('buiwtin', "Buiwt-In");
 
-export interface IWalkthrough {
-	id: string
-	title: string
-	description: string
-	order: number
-	source: string
-	isFeatured: boolean
-	next?: string
-	when: ContextKeyExpression
-	steps: IWalkthroughStep[]
+expowt intewface IWawkthwough {
+	id: stwing
+	titwe: stwing
+	descwiption: stwing
+	owda: numba
+	souwce: stwing
+	isFeatuwed: boowean
+	next?: stwing
+	when: ContextKeyExpwession
+	steps: IWawkthwoughStep[]
 	icon:
 	| { type: 'icon', icon: ThemeIcon }
-	| { type: 'image', path: string }
+	| { type: 'image', path: stwing }
 }
 
-export type IWalkthroughLoose = Omit<IWalkthrough, 'steps'> & { steps: (Omit<IWalkthroughStep, 'description'> & { description: string })[] };
+expowt type IWawkthwoughWoose = Omit<IWawkthwough, 'steps'> & { steps: (Omit<IWawkthwoughStep, 'descwiption'> & { descwiption: stwing })[] };
 
-export interface IResolvedWalkthrough extends IWalkthrough {
-	steps: IResolvedWalkthroughStep[]
-	newItems: boolean
-	recencyBonus: number
-	newEntry: boolean
+expowt intewface IWesowvedWawkthwough extends IWawkthwough {
+	steps: IWesowvedWawkthwoughStep[]
+	newItems: boowean
+	wecencyBonus: numba
+	newEntwy: boowean
 }
 
-export interface IWalkthroughStep {
-	id: string
-	title: string
-	description: LinkedText[]
-	category: string
-	when: ContextKeyExpression
-	order: number
-	completionEvents: string[]
+expowt intewface IWawkthwoughStep {
+	id: stwing
+	titwe: stwing
+	descwiption: WinkedText[]
+	categowy: stwing
+	when: ContextKeyExpwession
+	owda: numba
+	compwetionEvents: stwing[]
 	media:
-	| { type: 'image', path: { hc: URI, light: URI, dark: URI }, altText: string }
-	| { type: 'svg', path: URI, altText: string }
-	| { type: 'markdown', path: URI, base: URI, root: URI }
+	| { type: 'image', path: { hc: UWI, wight: UWI, dawk: UWI }, awtText: stwing }
+	| { type: 'svg', path: UWI, awtText: stwing }
+	| { type: 'mawkdown', path: UWI, base: UWI, woot: UWI }
 }
 
-type StepProgress = { done: boolean; };
+type StepPwogwess = { done: boowean; };
 
-export interface IResolvedWalkthroughStep extends IWalkthroughStep, StepProgress { }
+expowt intewface IWesowvedWawkthwoughStep extends IWawkthwoughStep, StepPwogwess { }
 
-export interface IWalkthroughsService {
-	_serviceBrand: undefined,
+expowt intewface IWawkthwoughsSewvice {
+	_sewviceBwand: undefined,
 
-	readonly onDidAddWalkthrough: Event<IResolvedWalkthrough>
-	readonly onDidRemoveWalkthrough: Event<string>
-	readonly onDidChangeWalkthrough: Event<IResolvedWalkthrough>
-	readonly onDidProgressStep: Event<IResolvedWalkthroughStep>
+	weadonwy onDidAddWawkthwough: Event<IWesowvedWawkthwough>
+	weadonwy onDidWemoveWawkthwough: Event<stwing>
+	weadonwy onDidChangeWawkthwough: Event<IWesowvedWawkthwough>
+	weadonwy onDidPwogwessStep: Event<IWesowvedWawkthwoughStep>
 
-	readonly installedExtensionsRegistered: Promise<void>;
+	weadonwy instawwedExtensionsWegistewed: Pwomise<void>;
 
-	getWalkthroughs(): IResolvedWalkthrough[]
-	getWalkthrough(id: string): IResolvedWalkthrough
+	getWawkthwoughs(): IWesowvedWawkthwough[]
+	getWawkthwough(id: stwing): IWesowvedWawkthwough
 
-	registerWalkthrough(descriptor: IWalkthroughLoose): void;
+	wegistewWawkthwough(descwiptow: IWawkthwoughWoose): void;
 
-	progressByEvent(eventName: string): void;
-	progressStep(id: string): void;
-	deprogressStep(id: string): void;
+	pwogwessByEvent(eventName: stwing): void;
+	pwogwessStep(id: stwing): void;
+	depwogwessStep(id: stwing): void;
 
-	markWalkthroughOpened(id: string): void;
+	mawkWawkthwoughOpened(id: stwing): void;
 }
 
-// Show walkthrough as "new" for 7 days after first install
+// Show wawkthwough as "new" fow 7 days afta fiwst instaww
 const DAYS = 24 * 60 * 60 * 1000;
-const NEW_WALKTHROUGH_TIME = 7 * DAYS;
+const NEW_WAWKTHWOUGH_TIME = 7 * DAYS;
 
-export class WalkthroughsService extends Disposable implements IWalkthroughsService {
-	declare readonly _serviceBrand: undefined;
+expowt cwass WawkthwoughsSewvice extends Disposabwe impwements IWawkthwoughsSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _onDidAddWalkthrough = new Emitter<IResolvedWalkthrough>();
-	readonly onDidAddWalkthrough: Event<IResolvedWalkthrough> = this._onDidAddWalkthrough.event;
-	private readonly _onDidRemoveWalkthrough = new Emitter<string>();
-	readonly onDidRemoveWalkthrough: Event<string> = this._onDidRemoveWalkthrough.event;
-	private readonly _onDidChangeWalkthrough = new Emitter<IResolvedWalkthrough>();
-	readonly onDidChangeWalkthrough: Event<IResolvedWalkthrough> = this._onDidChangeWalkthrough.event;
-	private readonly _onDidProgressStep = new Emitter<IResolvedWalkthroughStep>();
-	readonly onDidProgressStep: Event<IResolvedWalkthroughStep> = this._onDidProgressStep.event;
+	pwivate weadonwy _onDidAddWawkthwough = new Emitta<IWesowvedWawkthwough>();
+	weadonwy onDidAddWawkthwough: Event<IWesowvedWawkthwough> = this._onDidAddWawkthwough.event;
+	pwivate weadonwy _onDidWemoveWawkthwough = new Emitta<stwing>();
+	weadonwy onDidWemoveWawkthwough: Event<stwing> = this._onDidWemoveWawkthwough.event;
+	pwivate weadonwy _onDidChangeWawkthwough = new Emitta<IWesowvedWawkthwough>();
+	weadonwy onDidChangeWawkthwough: Event<IWesowvedWawkthwough> = this._onDidChangeWawkthwough.event;
+	pwivate weadonwy _onDidPwogwessStep = new Emitta<IWesowvedWawkthwoughStep>();
+	weadonwy onDidPwogwessStep: Event<IWesowvedWawkthwoughStep> = this._onDidPwogwessStep.event;
 
-	private memento: Memento;
-	private stepProgress: Record<string, StepProgress | undefined>;
+	pwivate memento: Memento;
+	pwivate stepPwogwess: Wecowd<stwing, StepPwogwess | undefined>;
 
-	private sessionEvents = new Set<string>();
-	private completionListeners = new Map<string, Set<string>>();
+	pwivate sessionEvents = new Set<stwing>();
+	pwivate compwetionWistenews = new Map<stwing, Set<stwing>>();
 
-	private gettingStartedContributions = new Map<string, IWalkthrough>();
-	private steps = new Map<string, IWalkthroughStep>();
+	pwivate gettingStawtedContwibutions = new Map<stwing, IWawkthwough>();
+	pwivate steps = new Map<stwing, IWawkthwoughStep>();
 
-	private tasExperimentService?: ITASExperimentService;
-	private sessionInstalledExtensions = new Set<string>();
+	pwivate tasExpewimentSewvice?: ITASExpewimentSewvice;
+	pwivate sessionInstawwedExtensions = new Set<stwing>();
 
-	private categoryVisibilityContextKeys = new Set<string>();
-	private stepCompletionContextKeyExpressions = new Set<ContextKeyExpression>();
-	private stepCompletionContextKeys = new Set<string>();
+	pwivate categowyVisibiwityContextKeys = new Set<stwing>();
+	pwivate stepCompwetionContextKeyExpwessions = new Set<ContextKeyExpwession>();
+	pwivate stepCompwetionContextKeys = new Set<stwing>();
 
-	private triggerInstalledExtensionsRegistered!: () => void;
-	installedExtensionsRegistered: Promise<void>;
+	pwivate twiggewInstawwedExtensionsWegistewed!: () => void;
+	instawwedExtensionsWegistewed: Pwomise<void>;
 
-	private metadata: WalkthroughMetaDataType;
+	pwivate metadata: WawkthwoughMetaDataType;
 
-	constructor(
-		@IStorageService private readonly storageService: IStorageService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IContextKeyService private readonly contextService: IContextKeyService,
-		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IHostService private readonly hostService: IHostService,
-		@IViewsService private readonly viewsService: IViewsService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ITASExperimentService tasExperimentService: ITASExperimentService,
+	constwuctow(
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy wowkspaceContextSewvice: IWowkspaceContextSewvice,
+		@IContextKeySewvice pwivate weadonwy contextSewvice: IContextKeySewvice,
+		@IUsewDataAutoSyncEnabwementSewvice pwivate weadonwy usewDataAutoSyncEnabwementSewvice: IUsewDataAutoSyncEnabwementSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IExtensionManagementSewvice pwivate weadonwy extensionManagementSewvice: IExtensionManagementSewvice,
+		@IHostSewvice pwivate weadonwy hostSewvice: IHostSewvice,
+		@IViewsSewvice pwivate weadonwy viewsSewvice: IViewsSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@ITASExpewimentSewvice tasExpewimentSewvice: ITASExpewimentSewvice,
 	) {
-		super();
+		supa();
 
-		this.tasExperimentService = tasExperimentService;
+		this.tasExpewimentSewvice = tasExpewimentSewvice;
 
 		this.metadata = new Map(
-			JSON.parse(
-				this.storageService.get(walkthroughMetadataConfigurationKey, StorageScope.GLOBAL, '[]')));
+			JSON.pawse(
+				this.stowageSewvice.get(wawkthwoughMetadataConfiguwationKey, StowageScope.GWOBAW, '[]')));
 
-		this.memento = new Memento('gettingStartedService', this.storageService);
-		this.stepProgress = this.memento.getMemento(StorageScope.GLOBAL, StorageTarget.USER);
+		this.memento = new Memento('gettingStawtedSewvice', this.stowageSewvice);
+		this.stepPwogwess = this.memento.getMemento(StowageScope.GWOBAW, StowageTawget.USa);
 
-		walkthroughsExtensionPoint.setHandler(async (_, { added, removed }) => {
-			await Promise.all(
-				[...added.map(e => this.registerExtensionWalkthroughContributions(e.description)),
-				...removed.map(e => this.unregisterExtensionWalkthroughContributions(e.description))]);
-			this.triggerInstalledExtensionsRegistered();
+		wawkthwoughsExtensionPoint.setHandwa(async (_, { added, wemoved }) => {
+			await Pwomise.aww(
+				[...added.map(e => this.wegistewExtensionWawkthwoughContwibutions(e.descwiption)),
+				...wemoved.map(e => this.unwegistewExtensionWawkthwoughContwibutions(e.descwiption))]);
+			this.twiggewInstawwedExtensionsWegistewed();
 		});
 
-		this.initCompletionEventListeners();
+		this.initCompwetionEventWistenews();
 
-		HasMultipleNewFileEntries.bindTo(this.contextService).set(false);
+		HasMuwtipweNewFiweEntwies.bindTo(this.contextSewvice).set(fawse);
 
-		this.installedExtensionsRegistered = new Promise(r => this.triggerInstalledExtensionsRegistered = r);
+		this.instawwedExtensionsWegistewed = new Pwomise(w => this.twiggewInstawwedExtensionsWegistewed = w);
 
-		walkthroughs.forEach(async (category, index) => {
-			this._registerWalkthrough({
-				...category,
-				icon: { type: 'icon', icon: category.icon },
-				order: walkthroughs.length - index,
-				source: BUILT_IN_SOURCE,
-				when: ContextKeyExpr.deserialize(category.when) ?? ContextKeyExpr.true(),
+		wawkthwoughs.fowEach(async (categowy, index) => {
+			this._wegistewWawkthwough({
+				...categowy,
+				icon: { type: 'icon', icon: categowy.icon },
+				owda: wawkthwoughs.wength - index,
+				souwce: BUIWT_IN_SOUWCE,
+				when: ContextKeyExpw.desewiawize(categowy.when) ?? ContextKeyExpw.twue(),
 				steps:
-					category.content.steps.map((step, index) => {
-						return ({
+					categowy.content.steps.map((step, index) => {
+						wetuwn ({
 							...step,
-							completionEvents: step.completionEvents ?? [],
-							description: parseDescription(step.description),
-							category: category.id,
-							order: index,
-							when: ContextKeyExpr.deserialize(step.when) ?? ContextKeyExpr.true(),
+							compwetionEvents: step.compwetionEvents ?? [],
+							descwiption: pawseDescwiption(step.descwiption),
+							categowy: categowy.id,
+							owda: index,
+							when: ContextKeyExpw.desewiawize(step.when) ?? ContextKeyExpw.twue(),
 							media: step.media.type === 'image'
 								? {
 									type: 'image',
-									altText: step.media.altText,
-									path: convertInternalMediaPathsToBrowserURIs(step.media.path)
+									awtText: step.media.awtText,
+									path: convewtIntewnawMediaPathsToBwowsewUWIs(step.media.path)
 								}
 								: step.media.type === 'svg'
 									? {
 										type: 'svg',
-										altText: step.media.altText,
-										path: convertInternalMediaPathToFileURI(step.media.path).with({ query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcome/gettingStarted/common/media/' + step.media.path }) })
+										awtText: step.media.awtText,
+										path: convewtIntewnawMediaPathToFiweUWI(step.media.path).with({ quewy: JSON.stwingify({ moduweId: 'vs/wowkbench/contwib/wewcome/gettingStawted/common/media/' + step.media.path }) })
 									}
 									: {
-										type: 'markdown',
-										path: convertInternalMediaPathToFileURI(step.media.path).with({ query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcome/gettingStarted/common/media/' + step.media.path }) }),
-										base: FileAccess.asFileUri('vs/workbench/contrib/welcome/gettingStarted/common/media/', require),
-										root: FileAccess.asFileUri('vs/workbench/contrib/welcome/gettingStarted/common/media/', require),
+										type: 'mawkdown',
+										path: convewtIntewnawMediaPathToFiweUWI(step.media.path).with({ quewy: JSON.stwingify({ moduweId: 'vs/wowkbench/contwib/wewcome/gettingStawted/common/media/' + step.media.path }) }),
+										base: FiweAccess.asFiweUwi('vs/wowkbench/contwib/wewcome/gettingStawted/common/media/', wequiwe),
+										woot: FiweAccess.asFiweUwi('vs/wowkbench/contwib/wewcome/gettingStawted/common/media/', wequiwe),
 									},
 						});
 					})
@@ -225,496 +225,496 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		});
 	}
 
-	private initCompletionEventListeners() {
-		this._register(this.commandService.onDidExecuteCommand(command => this.progressByEvent(`onCommand:${command.commandId}`)));
+	pwivate initCompwetionEventWistenews() {
+		this._wegista(this.commandSewvice.onDidExecuteCommand(command => this.pwogwessByEvent(`onCommand:${command.commandId}`)));
 
-		this.extensionManagementService.getInstalled().then(installed => {
-			installed.forEach(ext => this.progressByEvent(`extensionInstalled:${ext.identifier.id.toLowerCase()}`));
+		this.extensionManagementSewvice.getInstawwed().then(instawwed => {
+			instawwed.fowEach(ext => this.pwogwessByEvent(`extensionInstawwed:${ext.identifia.id.toWowewCase()}`));
 		});
 
-		this._register(this.extensionManagementService.onDidInstallExtensions(async (result) => {
-			const hadLastFoucs = await this.hostService.hadLastFocus();
-			for (const e of result) {
-				if (hadLastFoucs) {
-					this.sessionInstalledExtensions.add(e.identifier.id.toLowerCase());
+		this._wegista(this.extensionManagementSewvice.onDidInstawwExtensions(async (wesuwt) => {
+			const hadWastFoucs = await this.hostSewvice.hadWastFocus();
+			fow (const e of wesuwt) {
+				if (hadWastFoucs) {
+					this.sessionInstawwedExtensions.add(e.identifia.id.toWowewCase());
 				}
-				this.progressByEvent(`extensionInstalled:${e.identifier.id.toLowerCase()}`);
+				this.pwogwessByEvent(`extensionInstawwed:${e.identifia.id.toWowewCase()}`);
 			}
 		}));
 
-		this._register(this.contextService.onDidChangeContext(event => {
-			if (event.affectsSome(this.stepCompletionContextKeys)) {
-				this.stepCompletionContextKeyExpressions.forEach(expression => {
-					if (event.affectsSome(new Set(expression.keys())) && this.contextService.contextMatchesRules(expression)) {
-						this.progressByEvent(`onContext:` + expression.serialize());
+		this._wegista(this.contextSewvice.onDidChangeContext(event => {
+			if (event.affectsSome(this.stepCompwetionContextKeys)) {
+				this.stepCompwetionContextKeyExpwessions.fowEach(expwession => {
+					if (event.affectsSome(new Set(expwession.keys())) && this.contextSewvice.contextMatchesWuwes(expwession)) {
+						this.pwogwessByEvent(`onContext:` + expwession.sewiawize());
 					}
 				});
 			}
 		}));
 
-		this._register(this.viewsService.onDidChangeViewVisibility(e => {
-			if (e.visible) { this.progressByEvent('onView:' + e.id); }
+		this._wegista(this.viewsSewvice.onDidChangeViewVisibiwity(e => {
+			if (e.visibwe) { this.pwogwessByEvent('onView:' + e.id); }
 		}));
 
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			e.affectedKeys.forEach(key => { this.progressByEvent('onSettingChanged:' + key); });
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(e => {
+			e.affectedKeys.fowEach(key => { this.pwogwessByEvent('onSettingChanged:' + key); });
 		}));
 
-		if (this.userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('onEvent:sync-enabled'); }
-		this._register(this.userDataAutoSyncEnablementService.onDidChangeEnablement(() => {
-			if (this.userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('onEvent:sync-enabled'); }
+		if (this.usewDataAutoSyncEnabwementSewvice.isEnabwed()) { this.pwogwessByEvent('onEvent:sync-enabwed'); }
+		this._wegista(this.usewDataAutoSyncEnabwementSewvice.onDidChangeEnabwement(() => {
+			if (this.usewDataAutoSyncEnabwementSewvice.isEnabwed()) { this.pwogwessByEvent('onEvent:sync-enabwed'); }
 		}));
 	}
 
-	markWalkthroughOpened(id: string) {
-		const walkthrough = this.gettingStartedContributions.get(id);
-		const prior = this.metadata.get(id);
-		if (prior && walkthrough) {
-			this.metadata.set(id, { ...prior, manaullyOpened: true, stepIDs: walkthrough.steps.map(s => s.id) });
+	mawkWawkthwoughOpened(id: stwing) {
+		const wawkthwough = this.gettingStawtedContwibutions.get(id);
+		const pwiow = this.metadata.get(id);
+		if (pwiow && wawkthwough) {
+			this.metadata.set(id, { ...pwiow, manauwwyOpened: twue, stepIDs: wawkthwough.steps.map(s => s.id) });
 		}
 
-		this.storageService.store(walkthroughMetadataConfigurationKey, JSON.stringify([...this.metadata.entries()]), StorageScope.GLOBAL, StorageTarget.USER);
+		this.stowageSewvice.stowe(wawkthwoughMetadataConfiguwationKey, JSON.stwingify([...this.metadata.entwies()]), StowageScope.GWOBAW, StowageTawget.USa);
 	}
 
-	private async registerExtensionWalkthroughContributions(extension: IExtensionDescription) {
-		const convertExtensionPathToFileURI = (path: string) => path.startsWith('https://')
-			? URI.parse(path, true)
-			: FileAccess.asFileUri(joinPath(extension.extensionLocation, path));
+	pwivate async wegistewExtensionWawkthwoughContwibutions(extension: IExtensionDescwiption) {
+		const convewtExtensionPathToFiweUWI = (path: stwing) => path.stawtsWith('https://')
+			? UWI.pawse(path, twue)
+			: FiweAccess.asFiweUwi(joinPath(extension.extensionWocation, path));
 
-		const convertExtensionRelativePathsToBrowserURIs = (path: string | { hc: string, dark: string, light: string }): { hc: URI, dark: URI, light: URI } => {
-			const convertPath = (path: string) => path.startsWith('https://')
-				? URI.parse(path, true)
-				: FileAccess.asBrowserUri(joinPath(extension.extensionLocation, path));
+		const convewtExtensionWewativePathsToBwowsewUWIs = (path: stwing | { hc: stwing, dawk: stwing, wight: stwing }): { hc: UWI, dawk: UWI, wight: UWI } => {
+			const convewtPath = (path: stwing) => path.stawtsWith('https://')
+				? UWI.pawse(path, twue)
+				: FiweAccess.asBwowsewUwi(joinPath(extension.extensionWocation, path));
 
-			if (typeof path === 'string') {
-				const converted = convertPath(path);
-				return { hc: converted, dark: converted, light: converted };
-			} else {
-				return {
-					hc: convertPath(path.hc),
-					light: convertPath(path.light),
-					dark: convertPath(path.dark)
+			if (typeof path === 'stwing') {
+				const convewted = convewtPath(path);
+				wetuwn { hc: convewted, dawk: convewted, wight: convewted };
+			} ewse {
+				wetuwn {
+					hc: convewtPath(path.hc),
+					wight: convewtPath(path.wight),
+					dawk: convewtPath(path.dawk)
 				};
 			}
 		};
 
-		if (!(extension.contributes?.walkthroughs?.length)) {
-			return;
+		if (!(extension.contwibutes?.wawkthwoughs?.wength)) {
+			wetuwn;
 		}
 
-		let sectionToOpen: string | undefined;
-		let sectionToOpenIndex = Math.min(); // '+Infinity';
-		await Promise.all(extension.contributes?.walkthroughs?.map(async (walkthrough, index) => {
-			const categoryID = extension.identifier.value + '#' + walkthrough.id;
+		wet sectionToOpen: stwing | undefined;
+		wet sectionToOpenIndex = Math.min(); // '+Infinity';
+		await Pwomise.aww(extension.contwibutes?.wawkthwoughs?.map(async (wawkthwough, index) => {
+			const categowyID = extension.identifia.vawue + '#' + wawkthwough.id;
 
-			const isNewlyInstalled = !this.metadata.get(categoryID);
-			if (isNewlyInstalled) {
-				this.metadata.set(categoryID, { firstSeen: +new Date(), stepIDs: walkthrough.steps.map(s => s.id), manaullyOpened: false });
+			const isNewwyInstawwed = !this.metadata.get(categowyID);
+			if (isNewwyInstawwed) {
+				this.metadata.set(categowyID, { fiwstSeen: +new Date(), stepIDs: wawkthwough.steps.map(s => s.id), manauwwyOpened: fawse });
 			}
 
-			const override = await Promise.race([
-				this.tasExperimentService?.getTreatment<string>(`gettingStarted.overrideCategory.${extension.identifier.value + '.' + walkthrough.id}.when`),
-				new Promise<string | undefined>(resolve => setTimeout(() => resolve(walkthrough.when), 5000))
+			const ovewwide = await Pwomise.wace([
+				this.tasExpewimentSewvice?.getTweatment<stwing>(`gettingStawted.ovewwideCategowy.${extension.identifia.vawue + '.' + wawkthwough.id}.when`),
+				new Pwomise<stwing | undefined>(wesowve => setTimeout(() => wesowve(wawkthwough.when), 5000))
 			]);
 
 			if (
-				this.sessionInstalledExtensions.has(extension.identifier.value.toLowerCase())
-				&& this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(override ?? walkthrough.when) ?? ContextKeyExpr.true())
+				this.sessionInstawwedExtensions.has(extension.identifia.vawue.toWowewCase())
+				&& this.contextSewvice.contextMatchesWuwes(ContextKeyExpw.desewiawize(ovewwide ?? wawkthwough.when) ?? ContextKeyExpw.twue())
 			) {
-				this.sessionInstalledExtensions.delete(extension.identifier.value.toLowerCase());
-				if (index < sectionToOpenIndex && isNewlyInstalled) {
-					sectionToOpen = categoryID;
+				this.sessionInstawwedExtensions.dewete(extension.identifia.vawue.toWowewCase());
+				if (index < sectionToOpenIndex && isNewwyInstawwed) {
+					sectionToOpen = categowyID;
 					sectionToOpenIndex = index;
 				}
 			}
 
 
-			const steps = walkthrough.steps.map((step, index) => {
-				const description = parseDescription(step.description || '');
-				const fullyQualifiedID = extension.identifier.value + '#' + walkthrough.id + '#' + step.id;
+			const steps = wawkthwough.steps.map((step, index) => {
+				const descwiption = pawseDescwiption(step.descwiption || '');
+				const fuwwyQuawifiedID = extension.identifia.vawue + '#' + wawkthwough.id + '#' + step.id;
 
-				let media: IWalkthroughStep['media'];
+				wet media: IWawkthwoughStep['media'];
 
 				if (!step.media) {
-					throw Error('missing media in walkthrough step: ' + walkthrough.id + '@' + step.id);
+					thwow Ewwow('missing media in wawkthwough step: ' + wawkthwough.id + '@' + step.id);
 				}
 
 				if (step.media.image) {
-					const altText = (step.media as any).altText;
-					if (altText === undefined) {
-						console.error('Walkthrough item:', fullyQualifiedID, 'is missing altText for its media element.');
+					const awtText = (step.media as any).awtText;
+					if (awtText === undefined) {
+						consowe.ewwow('Wawkthwough item:', fuwwyQuawifiedID, 'is missing awtText fow its media ewement.');
 					}
-					media = { type: 'image', altText, path: convertExtensionRelativePathsToBrowserURIs(step.media.image) };
+					media = { type: 'image', awtText, path: convewtExtensionWewativePathsToBwowsewUWIs(step.media.image) };
 				}
-				else if (step.media.markdown) {
+				ewse if (step.media.mawkdown) {
 					media = {
-						type: 'markdown',
-						path: convertExtensionPathToFileURI(step.media.markdown),
-						base: convertExtensionPathToFileURI(dirname(step.media.markdown)),
-						root: FileAccess.asFileUri(extension.extensionLocation),
+						type: 'mawkdown',
+						path: convewtExtensionPathToFiweUWI(step.media.mawkdown),
+						base: convewtExtensionPathToFiweUWI(diwname(step.media.mawkdown)),
+						woot: FiweAccess.asFiweUwi(extension.extensionWocation),
 					};
 				}
-				else if (step.media.svg) {
+				ewse if (step.media.svg) {
 					media = {
 						type: 'svg',
-						path: convertExtensionPathToFileURI(step.media.svg),
-						altText: step.media.svg,
+						path: convewtExtensionPathToFiweUWI(step.media.svg),
+						awtText: step.media.svg,
 					};
 				}
 
-				// Legacy media config
-				else {
-					const legacyMedia = step.media as unknown as { path: string, altText: string };
-					if (typeof legacyMedia.path === 'string' && legacyMedia.path.endsWith('.md')) {
+				// Wegacy media config
+				ewse {
+					const wegacyMedia = step.media as unknown as { path: stwing, awtText: stwing };
+					if (typeof wegacyMedia.path === 'stwing' && wegacyMedia.path.endsWith('.md')) {
 						media = {
-							type: 'markdown',
-							path: convertExtensionPathToFileURI(legacyMedia.path),
-							base: convertExtensionPathToFileURI(dirname(legacyMedia.path)),
-							root: FileAccess.asFileUri(extension.extensionLocation),
+							type: 'mawkdown',
+							path: convewtExtensionPathToFiweUWI(wegacyMedia.path),
+							base: convewtExtensionPathToFiweUWI(diwname(wegacyMedia.path)),
+							woot: FiweAccess.asFiweUwi(extension.extensionWocation),
 						};
 					}
-					else {
-						const altText = legacyMedia.altText;
-						if (altText === undefined) {
-							console.error('Walkthrough item:', fullyQualifiedID, 'is missing altText for its media element.');
+					ewse {
+						const awtText = wegacyMedia.awtText;
+						if (awtText === undefined) {
+							consowe.ewwow('Wawkthwough item:', fuwwyQuawifiedID, 'is missing awtText fow its media ewement.');
 						}
-						media = { type: 'image', altText, path: convertExtensionRelativePathsToBrowserURIs(legacyMedia.path) };
+						media = { type: 'image', awtText, path: convewtExtensionWewativePathsToBwowsewUWIs(wegacyMedia.path) };
 					}
 				}
 
-				return ({
-					description, media,
-					completionEvents: step.completionEvents?.filter(x => typeof x === 'string') ?? [],
-					id: fullyQualifiedID,
-					title: step.title,
-					when: ContextKeyExpr.deserialize(step.when) ?? ContextKeyExpr.true(),
-					category: categoryID,
-					order: index,
+				wetuwn ({
+					descwiption, media,
+					compwetionEvents: step.compwetionEvents?.fiwta(x => typeof x === 'stwing') ?? [],
+					id: fuwwyQuawifiedID,
+					titwe: step.titwe,
+					when: ContextKeyExpw.desewiawize(step.when) ?? ContextKeyExpw.twue(),
+					categowy: categowyID,
+					owda: index,
 				});
 			});
 
-			let isFeatured = false;
-			if (walkthrough.featuredFor) {
-				const folders = this.workspaceContextService.getWorkspace().folders.map(f => f.uri);
-				const token = new CancellationTokenSource();
-				setTimeout(() => token.cancel(), 2000);
-				isFeatured = await this.instantiationService.invokeFunction(a => checkGlobFileExists(a, folders, walkthrough.featuredFor!, token.token));
+			wet isFeatuwed = fawse;
+			if (wawkthwough.featuwedFow) {
+				const fowdews = this.wowkspaceContextSewvice.getWowkspace().fowdews.map(f => f.uwi);
+				const token = new CancewwationTokenSouwce();
+				setTimeout(() => token.cancew(), 2000);
+				isFeatuwed = await this.instantiationSewvice.invokeFunction(a => checkGwobFiweExists(a, fowdews, wawkthwough.featuwedFow!, token.token));
 			}
 
-			const walkthoughDescriptor: IWalkthrough = {
-				description: walkthrough.description,
-				title: walkthrough.title,
-				id: categoryID,
-				isFeatured,
-				source: extension.displayName ?? extension.name,
-				order: 0,
+			const wawkthoughDescwiptow: IWawkthwough = {
+				descwiption: wawkthwough.descwiption,
+				titwe: wawkthwough.titwe,
+				id: categowyID,
+				isFeatuwed,
+				souwce: extension.dispwayName ?? extension.name,
+				owda: 0,
 				steps,
 				icon: {
 					type: 'image',
 					path: extension.icon
-						? FileAccess.asBrowserUri(joinPath(extension.extensionLocation, extension.icon)).toString(true)
-						: DefaultIconPath
+						? FiweAccess.asBwowsewUwi(joinPath(extension.extensionWocation, extension.icon)).toStwing(twue)
+						: DefauwtIconPath
 				},
-				when: ContextKeyExpr.deserialize(override ?? walkthrough.when) ?? ContextKeyExpr.true(),
+				when: ContextKeyExpw.desewiawize(ovewwide ?? wawkthwough.when) ?? ContextKeyExpw.twue(),
 			} as const;
 
-			this._registerWalkthrough(walkthoughDescriptor);
+			this._wegistewWawkthwough(wawkthoughDescwiptow);
 
-			this._onDidAddWalkthrough.fire(this.resolveWalkthrough(walkthoughDescriptor));
+			this._onDidAddWawkthwough.fiwe(this.wesowveWawkthwough(wawkthoughDescwiptow));
 		}));
 
-		this.storageService.store(walkthroughMetadataConfigurationKey, JSON.stringify([...this.metadata.entries()]), StorageScope.GLOBAL, StorageTarget.USER);
+		this.stowageSewvice.stowe(wawkthwoughMetadataConfiguwationKey, JSON.stwingify([...this.metadata.entwies()]), StowageScope.GWOBAW, StowageTawget.USa);
 
 
-		if (sectionToOpen && this.configurationService.getValue<string>('workbench.welcomePage.walkthroughs.openOnInstall')) {
-			type GettingStartedAutoOpenClassification = {
-				id: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight', };
+		if (sectionToOpen && this.configuwationSewvice.getVawue<stwing>('wowkbench.wewcomePage.wawkthwoughs.openOnInstaww')) {
+			type GettingStawtedAutoOpenCwassification = {
+				id: { cwassification: 'PubwicNonPewsonawData', puwpose: 'FeatuweInsight', };
 			};
-			type GettingStartedAutoOpenEvent = {
-				id: string;
+			type GettingStawtedAutoOpenEvent = {
+				id: stwing;
 			};
-			this.telemetryService.publicLog2<GettingStartedAutoOpenEvent, GettingStartedAutoOpenClassification>('gettingStarted.didAutoOpenWalkthrough', { id: sectionToOpen });
-			this.commandService.executeCommand('workbench.action.openWalkthrough', sectionToOpen);
+			this.tewemetwySewvice.pubwicWog2<GettingStawtedAutoOpenEvent, GettingStawtedAutoOpenCwassification>('gettingStawted.didAutoOpenWawkthwough', { id: sectionToOpen });
+			this.commandSewvice.executeCommand('wowkbench.action.openWawkthwough', sectionToOpen);
 		}
 	}
 
-	private unregisterExtensionWalkthroughContributions(extension: IExtensionDescription) {
-		if (!(extension.contributes?.walkthroughs?.length)) {
-			return;
+	pwivate unwegistewExtensionWawkthwoughContwibutions(extension: IExtensionDescwiption) {
+		if (!(extension.contwibutes?.wawkthwoughs?.wength)) {
+			wetuwn;
 		}
 
-		extension.contributes?.walkthroughs?.forEach(section => {
-			const categoryID = extension.identifier.value + '#walkthrough#' + section.id;
-			section.steps.forEach(step => {
-				const fullyQualifiedID = extension.identifier.value + '#' + section.id + '#' + step.id;
-				this.steps.delete(fullyQualifiedID);
+		extension.contwibutes?.wawkthwoughs?.fowEach(section => {
+			const categowyID = extension.identifia.vawue + '#wawkthwough#' + section.id;
+			section.steps.fowEach(step => {
+				const fuwwyQuawifiedID = extension.identifia.vawue + '#' + section.id + '#' + step.id;
+				this.steps.dewete(fuwwyQuawifiedID);
 			});
-			this.gettingStartedContributions.delete(categoryID);
-			this._onDidRemoveWalkthrough.fire(categoryID);
+			this.gettingStawtedContwibutions.dewete(categowyID);
+			this._onDidWemoveWawkthwough.fiwe(categowyID);
 		});
 	}
 
-	getWalkthrough(id: string): IResolvedWalkthrough {
-		const walkthrough = this.gettingStartedContributions.get(id);
-		if (!walkthrough) { throw Error('Trying to get unknown walkthrough: ' + id); }
-		return this.resolveWalkthrough(walkthrough);
+	getWawkthwough(id: stwing): IWesowvedWawkthwough {
+		const wawkthwough = this.gettingStawtedContwibutions.get(id);
+		if (!wawkthwough) { thwow Ewwow('Twying to get unknown wawkthwough: ' + id); }
+		wetuwn this.wesowveWawkthwough(wawkthwough);
 	}
 
-	getWalkthroughs(): IResolvedWalkthrough[] {
-		const registeredCategories = [...this.gettingStartedContributions.values()];
-		const categoriesWithCompletion = registeredCategories
-			.map(category => {
-				return {
-					...category,
+	getWawkthwoughs(): IWesowvedWawkthwough[] {
+		const wegistewedCategowies = [...this.gettingStawtedContwibutions.vawues()];
+		const categowiesWithCompwetion = wegistewedCategowies
+			.map(categowy => {
+				wetuwn {
+					...categowy,
 					content: {
 						type: 'steps' as const,
-						steps: category.steps
+						steps: categowy.steps
 					}
 				};
 			})
-			.filter(category => category.content.type !== 'steps' || category.content.steps.length)
-			.map(category => this.resolveWalkthrough(category));
+			.fiwta(categowy => categowy.content.type !== 'steps' || categowy.content.steps.wength)
+			.map(categowy => this.wesowveWawkthwough(categowy));
 
-		return categoriesWithCompletion;
+		wetuwn categowiesWithCompwetion;
 	}
 
-	private resolveWalkthrough(category: IWalkthrough): IResolvedWalkthrough {
+	pwivate wesowveWawkthwough(categowy: IWawkthwough): IWesowvedWawkthwough {
 
-		const stepsWithProgress = category.steps.map(step => this.getStepProgress(step));
+		const stepsWithPwogwess = categowy.steps.map(step => this.getStepPwogwess(step));
 
-		const hasOpened = this.metadata.get(category.id)?.manaullyOpened;
-		const firstSeenDate = this.metadata.get(category.id)?.firstSeen;
-		const isNew = firstSeenDate && firstSeenDate > (+new Date() - NEW_WALKTHROUGH_TIME);
+		const hasOpened = this.metadata.get(categowy.id)?.manauwwyOpened;
+		const fiwstSeenDate = this.metadata.get(categowy.id)?.fiwstSeen;
+		const isNew = fiwstSeenDate && fiwstSeenDate > (+new Date() - NEW_WAWKTHWOUGH_TIME);
 
-		const lastStepIDs = this.metadata.get(category.id)?.stepIDs;
-		const rawCategory = this.gettingStartedContributions.get(category.id);
-		if (!rawCategory) { throw Error('Could not find walkthrough with id ' + category.id); }
+		const wastStepIDs = this.metadata.get(categowy.id)?.stepIDs;
+		const wawCategowy = this.gettingStawtedContwibutions.get(categowy.id);
+		if (!wawCategowy) { thwow Ewwow('Couwd not find wawkthwough with id ' + categowy.id); }
 
-		const currentStepIds: string[] = rawCategory.steps.map(s => s.id);
+		const cuwwentStepIds: stwing[] = wawCategowy.steps.map(s => s.id);
 
-		const hasNewSteps = lastStepIDs && (currentStepIds.length !== lastStepIDs.length || currentStepIds.some((id, index) => id !== lastStepIDs[index]));
+		const hasNewSteps = wastStepIDs && (cuwwentStepIds.wength !== wastStepIDs.wength || cuwwentStepIds.some((id, index) => id !== wastStepIDs[index]));
 
-		let recencyBonus = 0;
-		if (firstSeenDate) {
-			const currentDate = +new Date();
-			const timeSinceFirstSeen = currentDate - firstSeenDate;
-			recencyBonus = Math.max(0, (NEW_WALKTHROUGH_TIME - timeSinceFirstSeen) / NEW_WALKTHROUGH_TIME);
+		wet wecencyBonus = 0;
+		if (fiwstSeenDate) {
+			const cuwwentDate = +new Date();
+			const timeSinceFiwstSeen = cuwwentDate - fiwstSeenDate;
+			wecencyBonus = Math.max(0, (NEW_WAWKTHWOUGH_TIME - timeSinceFiwstSeen) / NEW_WAWKTHWOUGH_TIME);
 		}
 
-		return {
-			...category,
-			recencyBonus,
-			steps: stepsWithProgress,
+		wetuwn {
+			...categowy,
+			wecencyBonus,
+			steps: stepsWithPwogwess,
 			newItems: !!hasNewSteps,
-			newEntry: !!(isNew && !hasOpened),
+			newEntwy: !!(isNew && !hasOpened),
 		};
 	}
 
-	private getStepProgress(step: IWalkthroughStep): IResolvedWalkthroughStep {
-		return {
+	pwivate getStepPwogwess(step: IWawkthwoughStep): IWesowvedWawkthwoughStep {
+		wetuwn {
 			...step,
-			done: false,
-			...this.stepProgress[step.id]
+			done: fawse,
+			...this.stepPwogwess[step.id]
 		};
 	}
 
-	progressStep(id: string) {
-		const oldProgress = this.stepProgress[id];
-		if (!oldProgress || oldProgress.done !== true) {
-			this.stepProgress[id] = { done: true };
+	pwogwessStep(id: stwing) {
+		const owdPwogwess = this.stepPwogwess[id];
+		if (!owdPwogwess || owdPwogwess.done !== twue) {
+			this.stepPwogwess[id] = { done: twue };
 			this.memento.saveMemento();
 			const step = this.getStep(id);
-			if (!step) { throw Error('Tried to progress unknown step'); }
+			if (!step) { thwow Ewwow('Twied to pwogwess unknown step'); }
 
-			this._onDidProgressStep.fire(this.getStepProgress(step));
+			this._onDidPwogwessStep.fiwe(this.getStepPwogwess(step));
 		}
 	}
 
-	deprogressStep(id: string) {
-		delete this.stepProgress[id];
+	depwogwessStep(id: stwing) {
+		dewete this.stepPwogwess[id];
 		this.memento.saveMemento();
 		const step = this.getStep(id);
-		this._onDidProgressStep.fire(this.getStepProgress(step));
+		this._onDidPwogwessStep.fiwe(this.getStepPwogwess(step));
 	}
 
-	progressByEvent(event: string): void {
-		if (this.sessionEvents.has(event)) { return; }
+	pwogwessByEvent(event: stwing): void {
+		if (this.sessionEvents.has(event)) { wetuwn; }
 
 		this.sessionEvents.add(event);
-		this.completionListeners.get(event)?.forEach(id => this.progressStep(id));
+		this.compwetionWistenews.get(event)?.fowEach(id => this.pwogwessStep(id));
 	}
 
-	registerWalkthrough(walkthoughDescriptor: IWalkthroughLoose) {
-		this._registerWalkthrough({
-			...walkthoughDescriptor,
-			steps: walkthoughDescriptor.steps.map(step => ({ ...step, description: parseDescription(step.description) }))
+	wegistewWawkthwough(wawkthoughDescwiptow: IWawkthwoughWoose) {
+		this._wegistewWawkthwough({
+			...wawkthoughDescwiptow,
+			steps: wawkthoughDescwiptow.steps.map(step => ({ ...step, descwiption: pawseDescwiption(step.descwiption) }))
 		});
 	}
 
-	_registerWalkthrough(walkthroughDescriptor: IWalkthrough): void {
-		const oldCategory = this.gettingStartedContributions.get(walkthroughDescriptor.id);
-		if (oldCategory) {
-			console.error(`Skipping attempt to overwrite walkthrough. (${walkthroughDescriptor.id})`);
-			return;
+	_wegistewWawkthwough(wawkthwoughDescwiptow: IWawkthwough): void {
+		const owdCategowy = this.gettingStawtedContwibutions.get(wawkthwoughDescwiptow.id);
+		if (owdCategowy) {
+			consowe.ewwow(`Skipping attempt to ovewwwite wawkthwough. (${wawkthwoughDescwiptow.id})`);
+			wetuwn;
 		}
 
-		this.gettingStartedContributions.set(walkthroughDescriptor.id, walkthroughDescriptor);
+		this.gettingStawtedContwibutions.set(wawkthwoughDescwiptow.id, wawkthwoughDescwiptow);
 
-		walkthroughDescriptor.steps.forEach(step => {
-			if (this.steps.has(step.id)) { throw Error('Attempting to register step with id ' + step.id + ' twice. Second is dropped.'); }
+		wawkthwoughDescwiptow.steps.fowEach(step => {
+			if (this.steps.has(step.id)) { thwow Ewwow('Attempting to wegista step with id ' + step.id + ' twice. Second is dwopped.'); }
 			this.steps.set(step.id, step);
-			step.when.keys().forEach(key => this.categoryVisibilityContextKeys.add(key));
-			this.registerDoneListeners(step);
+			step.when.keys().fowEach(key => this.categowyVisibiwityContextKeys.add(key));
+			this.wegistewDoneWistenews(step);
 		});
 
-		walkthroughDescriptor.when.keys().forEach(key => this.categoryVisibilityContextKeys.add(key));
+		wawkthwoughDescwiptow.when.keys().fowEach(key => this.categowyVisibiwityContextKeys.add(key));
 	}
 
-	private registerDoneListeners(step: IWalkthroughStep) {
+	pwivate wegistewDoneWistenews(step: IWawkthwoughStep) {
 		if ((step as any).doneOn) {
-			console.error(`wakthrough step`, step, `uses deprecated 'doneOn' property. Adopt 'completionEvents' to silence this warning`);
-			return;
+			consowe.ewwow(`wakthwough step`, step, `uses depwecated 'doneOn' pwopewty. Adopt 'compwetionEvents' to siwence this wawning`);
+			wetuwn;
 		}
 
-		if (!step.completionEvents.length) {
-			step.completionEvents = coalesce(flatten(
-				step.description
-					.filter(linkedText => linkedText.nodes.length === 1) // only buttons
-					.map(linkedText =>
-						linkedText.nodes
-							.filter(((node): node is ILink => typeof node !== 'string'))
-							.map(({ href }) => {
-								if (href.startsWith('command:')) {
-									return 'onCommand:' + href.slice('command:'.length, href.includes('?') ? href.indexOf('?') : undefined);
+		if (!step.compwetionEvents.wength) {
+			step.compwetionEvents = coawesce(fwatten(
+				step.descwiption
+					.fiwta(winkedText => winkedText.nodes.wength === 1) // onwy buttons
+					.map(winkedText =>
+						winkedText.nodes
+							.fiwta(((node): node is IWink => typeof node !== 'stwing'))
+							.map(({ hwef }) => {
+								if (hwef.stawtsWith('command:')) {
+									wetuwn 'onCommand:' + hwef.swice('command:'.wength, hwef.incwudes('?') ? hwef.indexOf('?') : undefined);
 								}
-								if (href.startsWith('https://') || href.startsWith('http://')) {
-									return 'onLink:' + href;
+								if (hwef.stawtsWith('https://') || hwef.stawtsWith('http://')) {
+									wetuwn 'onWink:' + hwef;
 								}
-								return undefined;
+								wetuwn undefined;
 							}))));
 		}
 
-		if (!step.completionEvents.length) {
-			step.completionEvents.push('stepSelected');
+		if (!step.compwetionEvents.wength) {
+			step.compwetionEvents.push('stepSewected');
 		}
 
-		for (let event of step.completionEvents) {
-			const [_, eventType, argument] = /^([^:]*):?(.*)$/.exec(event) ?? [];
+		fow (wet event of step.compwetionEvents) {
+			const [_, eventType, awgument] = /^([^:]*):?(.*)$/.exec(event) ?? [];
 
 			if (!eventType) {
-				console.error(`Unknown completionEvent ${event} when registering step ${step.id}`);
+				consowe.ewwow(`Unknown compwetionEvent ${event} when wegistewing step ${step.id}`);
 				continue;
 			}
 
 			switch (eventType) {
-				case 'onLink': case 'onEvent': case 'onView': case 'onSettingChanged':
-					break;
+				case 'onWink': case 'onEvent': case 'onView': case 'onSettingChanged':
+					bweak;
 				case 'onContext': {
-					const expression = ContextKeyExpr.deserialize(argument);
-					if (expression) {
-						this.stepCompletionContextKeyExpressions.add(expression);
-						expression.keys().forEach(key => this.stepCompletionContextKeys.add(key));
-						event = eventType + ':' + expression.serialize();
-						if (this.contextService.contextMatchesRules(expression)) {
+					const expwession = ContextKeyExpw.desewiawize(awgument);
+					if (expwession) {
+						this.stepCompwetionContextKeyExpwessions.add(expwession);
+						expwession.keys().fowEach(key => this.stepCompwetionContextKeys.add(key));
+						event = eventType + ':' + expwession.sewiawize();
+						if (this.contextSewvice.contextMatchesWuwes(expwession)) {
 							this.sessionEvents.add(event);
 						}
-					} else {
-						console.error('Unable to parse context key expression:', expression, 'in walkthrough step', step.id);
+					} ewse {
+						consowe.ewwow('Unabwe to pawse context key expwession:', expwession, 'in wawkthwough step', step.id);
 					}
-					break;
+					bweak;
 				}
-				case 'onStepSelected': case 'stepSelected':
-					event = 'stepSelected:' + step.id;
-					break;
+				case 'onStepSewected': case 'stepSewected':
+					event = 'stepSewected:' + step.id;
+					bweak;
 				case 'onCommand':
-					event = eventType + ':' + argument.replace(/^toSide:/, '');
-					break;
-				case 'onExtensionInstalled': case 'extensionInstalled':
-					event = 'extensionInstalled:' + argument.toLowerCase();
-					break;
-				default:
-					console.error(`Unknown completionEvent ${event} when registering step ${step.id}`);
+					event = eventType + ':' + awgument.wepwace(/^toSide:/, '');
+					bweak;
+				case 'onExtensionInstawwed': case 'extensionInstawwed':
+					event = 'extensionInstawwed:' + awgument.toWowewCase();
+					bweak;
+				defauwt:
+					consowe.ewwow(`Unknown compwetionEvent ${event} when wegistewing step ${step.id}`);
 					continue;
 			}
 
-			this.registerCompletionListener(event, step);
+			this.wegistewCompwetionWistena(event, step);
 			if (this.sessionEvents.has(event)) {
-				this.progressStep(step.id);
+				this.pwogwessStep(step.id);
 			}
 		}
 	}
 
-	private registerCompletionListener(event: string, step: IWalkthroughStep) {
-		if (!this.completionListeners.has(event)) {
-			this.completionListeners.set(event, new Set());
+	pwivate wegistewCompwetionWistena(event: stwing, step: IWawkthwoughStep) {
+		if (!this.compwetionWistenews.has(event)) {
+			this.compwetionWistenews.set(event, new Set());
 		}
-		this.completionListeners.get(event)?.add(step.id);
+		this.compwetionWistenews.get(event)?.add(step.id);
 	}
 
-	private getStep(id: string): IWalkthroughStep {
+	pwivate getStep(id: stwing): IWawkthwoughStep {
 		const step = this.steps.get(id);
-		if (!step) { throw Error('Attempting to access step which does not exist in registry ' + id); }
-		return step;
+		if (!step) { thwow Ewwow('Attempting to access step which does not exist in wegistwy ' + id); }
+		wetuwn step;
 	}
 }
 
-const parseDescription = (desc: string): LinkedText[] => desc.split('\n').filter(x => x).map(text => parseLinkedText(text));
+const pawseDescwiption = (desc: stwing): WinkedText[] => desc.spwit('\n').fiwta(x => x).map(text => pawseWinkedText(text));
 
 
-const convertInternalMediaPathToFileURI = (path: string) => path.startsWith('https://')
-	? URI.parse(path, true)
-	: FileAccess.asFileUri('vs/workbench/contrib/welcome/gettingStarted/common/media/' + path, require);
+const convewtIntewnawMediaPathToFiweUWI = (path: stwing) => path.stawtsWith('https://')
+	? UWI.pawse(path, twue)
+	: FiweAccess.asFiweUwi('vs/wowkbench/contwib/wewcome/gettingStawted/common/media/' + path, wequiwe);
 
-const convertInternalMediaPathToBrowserURI = (path: string) => path.startsWith('https://')
-	? URI.parse(path, true)
-	: FileAccess.asBrowserUri('vs/workbench/contrib/welcome/gettingStarted/common/media/' + path, require);
-const convertInternalMediaPathsToBrowserURIs = (path: string | { hc: string, dark: string, light: string }): { hc: URI, dark: URI, light: URI } => {
-	if (typeof path === 'string') {
-		const converted = convertInternalMediaPathToBrowserURI(path);
-		return { hc: converted, dark: converted, light: converted };
-	} else {
-		return {
-			hc: convertInternalMediaPathToBrowserURI(path.hc),
-			light: convertInternalMediaPathToBrowserURI(path.light),
-			dark: convertInternalMediaPathToBrowserURI(path.dark)
+const convewtIntewnawMediaPathToBwowsewUWI = (path: stwing) => path.stawtsWith('https://')
+	? UWI.pawse(path, twue)
+	: FiweAccess.asBwowsewUwi('vs/wowkbench/contwib/wewcome/gettingStawted/common/media/' + path, wequiwe);
+const convewtIntewnawMediaPathsToBwowsewUWIs = (path: stwing | { hc: stwing, dawk: stwing, wight: stwing }): { hc: UWI, dawk: UWI, wight: UWI } => {
+	if (typeof path === 'stwing') {
+		const convewted = convewtIntewnawMediaPathToBwowsewUWI(path);
+		wetuwn { hc: convewted, dawk: convewted, wight: convewted };
+	} ewse {
+		wetuwn {
+			hc: convewtIntewnawMediaPathToBwowsewUWI(path.hc),
+			wight: convewtIntewnawMediaPathToBwowsewUWI(path.wight),
+			dawk: convewtIntewnawMediaPathToBwowsewUWI(path.dawk)
 		};
 	}
 };
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'resetGettingStartedProgress',
-			category: 'Developer',
-			title: 'Reset Welcome Page Walkthrough Progress',
-			f1: true
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'wesetGettingStawtedPwogwess',
+			categowy: 'Devewopa',
+			titwe: 'Weset Wewcome Page Wawkthwough Pwogwess',
+			f1: twue
 		});
 	}
 
-	run(accessor: ServicesAccessor) {
-		const gettingStartedService = accessor.get(IWalkthroughsService);
-		const storageService = accessor.get(IStorageService);
+	wun(accessow: SewvicesAccessow) {
+		const gettingStawtedSewvice = accessow.get(IWawkthwoughsSewvice);
+		const stowageSewvice = accessow.get(IStowageSewvice);
 
-		storageService.store(
-			hiddenEntriesConfigurationKey,
-			JSON.stringify([]),
-			StorageScope.GLOBAL,
-			StorageTarget.USER);
+		stowageSewvice.stowe(
+			hiddenEntwiesConfiguwationKey,
+			JSON.stwingify([]),
+			StowageScope.GWOBAW,
+			StowageTawget.USa);
 
-		storageService.store(
-			walkthroughMetadataConfigurationKey,
-			JSON.stringify([]),
-			StorageScope.GLOBAL,
-			StorageTarget.USER);
+		stowageSewvice.stowe(
+			wawkthwoughMetadataConfiguwationKey,
+			JSON.stwingify([]),
+			StowageScope.GWOBAW,
+			StowageTawget.USa);
 
-		const memento = new Memento('gettingStartedService', accessor.get(IStorageService));
-		const record = memento.getMemento(StorageScope.GLOBAL, StorageTarget.USER);
-		for (const key in record) {
-			if (Object.prototype.hasOwnProperty.call(record, key)) {
-				try {
-					gettingStartedService.deprogressStep(key);
+		const memento = new Memento('gettingStawtedSewvice', accessow.get(IStowageSewvice));
+		const wecowd = memento.getMemento(StowageScope.GWOBAW, StowageTawget.USa);
+		fow (const key in wecowd) {
+			if (Object.pwototype.hasOwnPwopewty.caww(wecowd, key)) {
+				twy {
+					gettingStawtedSewvice.depwogwessStep(key);
 				} catch (e) {
-					console.error(e);
+					consowe.ewwow(e);
 				}
 			}
 		}
@@ -722,4 +722,4 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerSingleton(IWalkthroughsService, WalkthroughsService);
+wegistewSingweton(IWawkthwoughsSewvice, WawkthwoughsSewvice);

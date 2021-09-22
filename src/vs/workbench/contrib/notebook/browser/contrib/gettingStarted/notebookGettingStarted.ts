@@ -1,73 +1,73 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { Memento } from 'vs/workbench/common/memento';
-import { HAS_OPENED_NOTEBOOK } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { OpenGettingStarted } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Action2, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ContextKeyExpw, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibution, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { Memento } fwom 'vs/wowkbench/common/memento';
+impowt { HAS_OPENED_NOTEBOOK } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { OpenGettingStawted } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { NotebookEditowInput } fwom 'vs/wowkbench/contwib/notebook/common/notebookEditowInput';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
 
 const hasOpenedNotebookKey = 'hasOpenedNotebook';
-const hasShownGettingStartedKey = 'hasShownNotebookGettingStarted';
+const hasShownGettingStawtedKey = 'hasShownNotebookGettingStawted';
 
 /**
- * Sets a context key when a notebook has ever been opened by the user
+ * Sets a context key when a notebook has eva been opened by the usa
  */
-export class NotebookGettingStarted extends Disposable implements IWorkbenchContribution {
+expowt cwass NotebookGettingStawted extends Disposabwe impwements IWowkbenchContwibution {
 
-	constructor(
-		@IEditorService _editorService: IEditorService,
-		@IStorageService _storageService: IStorageService,
-		@IContextKeyService _contextKeyService: IContextKeyService,
-		@ICommandService _commandService: ICommandService,
-		@IConfigurationService _configurationService: IConfigurationService,
+	constwuctow(
+		@IEditowSewvice _editowSewvice: IEditowSewvice,
+		@IStowageSewvice _stowageSewvice: IStowageSewvice,
+		@IContextKeySewvice _contextKeySewvice: IContextKeySewvice,
+		@ICommandSewvice _commandSewvice: ICommandSewvice,
+		@IConfiguwationSewvice _configuwationSewvice: IConfiguwationSewvice,
 	) {
-		super();
+		supa();
 
-		const hasOpenedNotebook = HAS_OPENED_NOTEBOOK.bindTo(_contextKeyService);
-		const memento = new Memento('notebookGettingStarted2', _storageService);
-		const storedValue = memento.getMemento(StorageScope.GLOBAL, StorageTarget.USER);
-		if (storedValue[hasOpenedNotebookKey]) {
-			hasOpenedNotebook.set(true);
+		const hasOpenedNotebook = HAS_OPENED_NOTEBOOK.bindTo(_contextKeySewvice);
+		const memento = new Memento('notebookGettingStawted2', _stowageSewvice);
+		const stowedVawue = memento.getMemento(StowageScope.GWOBAW, StowageTawget.USa);
+		if (stowedVawue[hasOpenedNotebookKey]) {
+			hasOpenedNotebook.set(twue);
 		}
 
-		const needToShowGettingStarted = _configurationService.getValue(OpenGettingStarted) && !storedValue[hasShownGettingStartedKey];
-		if (!storedValue[hasOpenedNotebookKey] || needToShowGettingStarted) {
+		const needToShowGettingStawted = _configuwationSewvice.getVawue(OpenGettingStawted) && !stowedVawue[hasShownGettingStawtedKey];
+		if (!stowedVawue[hasOpenedNotebookKey] || needToShowGettingStawted) {
 			const onDidOpenNotebook = () => {
-				hasOpenedNotebook.set(true);
-				storedValue[hasOpenedNotebookKey] = true;
+				hasOpenedNotebook.set(twue);
+				stowedVawue[hasOpenedNotebookKey] = twue;
 
-				if (needToShowGettingStarted) {
-					_commandService.executeCommand('workbench.action.openWalkthrough', { category: 'notebooks', step: 'notebookProfile' }, true);
-					storedValue[hasShownGettingStartedKey] = true;
+				if (needToShowGettingStawted) {
+					_commandSewvice.executeCommand('wowkbench.action.openWawkthwough', { categowy: 'notebooks', step: 'notebookPwofiwe' }, twue);
+					stowedVawue[hasShownGettingStawtedKey] = twue;
 				}
 
 				memento.saveMemento();
 			};
 
-			if (_editorService.activeEditor?.typeId === NotebookEditorInput.ID) {
-				// active editor is notebook
+			if (_editowSewvice.activeEditow?.typeId === NotebookEditowInput.ID) {
+				// active editow is notebook
 				onDidOpenNotebook();
-				return;
+				wetuwn;
 			}
 
-			const listener = this._register(_editorService.onDidActiveEditorChange(() => {
-				if (_editorService.activeEditor?.typeId === NotebookEditorInput.ID) {
-					listener.dispose();
+			const wistena = this._wegista(_editowSewvice.onDidActiveEditowChange(() => {
+				if (_editowSewvice.activeEditow?.typeId === NotebookEditowInput.ID) {
+					wistena.dispose();
 					onDidOpenNotebook();
 				}
 			}));
@@ -75,24 +75,24 @@ export class NotebookGettingStarted extends Disposable implements IWorkbenchCont
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NotebookGettingStarted, LifecyclePhase.Restored);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(NotebookGettingStawted, WifecycwePhase.Westowed);
 
-registerAction2(class NotebookClearNotebookLayoutAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.notebook.layout.gettingStarted',
-			title: localize('workbench.notebook.layout.gettingStarted.label', "Reset notebook getting started"),
-			f1: true,
-			precondition: ContextKeyExpr.equals(`config.${OpenGettingStarted}`, true),
-			category: CATEGORIES.Developer,
+wegistewAction2(cwass NotebookCweawNotebookWayoutAction extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'wowkbench.notebook.wayout.gettingStawted',
+			titwe: wocawize('wowkbench.notebook.wayout.gettingStawted.wabew', "Weset notebook getting stawted"),
+			f1: twue,
+			pwecondition: ContextKeyExpw.equaws(`config.${OpenGettingStawted}`, twue),
+			categowy: CATEGOWIES.Devewopa,
 		});
 	}
-	run(accessor: ServicesAccessor): void {
-		const storageService = accessor.get(IStorageService);
-		const memento = new Memento('notebookGettingStarted', storageService);
+	wun(accessow: SewvicesAccessow): void {
+		const stowageSewvice = accessow.get(IStowageSewvice);
+		const memento = new Memento('notebookGettingStawted', stowageSewvice);
 
-		const storedValue = memento.getMemento(StorageScope.GLOBAL, StorageTarget.USER);
-		storedValue[hasOpenedNotebookKey] = undefined;
+		const stowedVawue = memento.getMemento(StowageScope.GWOBAW, StowageTawget.USa);
+		stowedVawue[hasOpenedNotebookKey] = undefined;
 		memento.saveMemento();
 	}
 });

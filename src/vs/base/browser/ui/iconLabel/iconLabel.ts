@@ -1,309 +1,309 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { setupCustomHover, setupNativeHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IMatch } from 'vs/base/common/filters';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { equals } from 'vs/base/common/objects';
-import { Range } from 'vs/base/common/range';
-import 'vs/css!./iconlabel';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { HighwightedWabew } fwom 'vs/base/bwowsa/ui/highwightedwabew/highwightedWabew';
+impowt { IHovewDewegate } fwom 'vs/base/bwowsa/ui/iconWabew/iconHovewDewegate';
+impowt { setupCustomHova, setupNativeHova } fwom 'vs/base/bwowsa/ui/iconWabew/iconWabewHova';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IMatch } fwom 'vs/base/common/fiwtews';
+impowt { IMawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { equaws } fwom 'vs/base/common/objects';
+impowt { Wange } fwom 'vs/base/common/wange';
+impowt 'vs/css!./iconwabew';
 
-export interface IIconLabelCreationOptions {
-	supportHighlights?: boolean;
-	supportDescriptionHighlights?: boolean;
-	supportIcons?: boolean;
-	hoverDelegate?: IHoverDelegate;
+expowt intewface IIconWabewCweationOptions {
+	suppowtHighwights?: boowean;
+	suppowtDescwiptionHighwights?: boowean;
+	suppowtIcons?: boowean;
+	hovewDewegate?: IHovewDewegate;
 }
 
-export interface IIconLabelMarkdownString {
-	markdown: IMarkdownString | string | HTMLElement | undefined | ((token: CancellationToken) => Promise<IMarkdownString | string | undefined>);
-	markdownNotSupportedFallback: string | undefined;
+expowt intewface IIconWabewMawkdownStwing {
+	mawkdown: IMawkdownStwing | stwing | HTMWEwement | undefined | ((token: CancewwationToken) => Pwomise<IMawkdownStwing | stwing | undefined>);
+	mawkdownNotSuppowtedFawwback: stwing | undefined;
 }
 
-export interface IIconLabelValueOptions {
-	title?: string | IIconLabelMarkdownString;
-	descriptionTitle?: string;
-	hideIcon?: boolean;
-	extraClasses?: string[];
-	italic?: boolean;
-	strikethrough?: boolean;
+expowt intewface IIconWabewVawueOptions {
+	titwe?: stwing | IIconWabewMawkdownStwing;
+	descwiptionTitwe?: stwing;
+	hideIcon?: boowean;
+	extwaCwasses?: stwing[];
+	itawic?: boowean;
+	stwikethwough?: boowean;
 	matches?: IMatch[];
-	labelEscapeNewLines?: boolean;
-	descriptionMatches?: IMatch[];
-	readonly separator?: string;
-	readonly domId?: string;
+	wabewEscapeNewWines?: boowean;
+	descwiptionMatches?: IMatch[];
+	weadonwy sepawatow?: stwing;
+	weadonwy domId?: stwing;
 }
 
-class FastLabelNode {
-	private disposed: boolean | undefined;
-	private _textContent: string | undefined;
-	private _className: string | undefined;
-	private _empty: boolean | undefined;
+cwass FastWabewNode {
+	pwivate disposed: boowean | undefined;
+	pwivate _textContent: stwing | undefined;
+	pwivate _cwassName: stwing | undefined;
+	pwivate _empty: boowean | undefined;
 
-	constructor(private _element: HTMLElement) {
+	constwuctow(pwivate _ewement: HTMWEwement) {
 	}
 
-	get element(): HTMLElement {
-		return this._element;
+	get ewement(): HTMWEwement {
+		wetuwn this._ewement;
 	}
 
-	set textContent(content: string) {
+	set textContent(content: stwing) {
 		if (this.disposed || content === this._textContent) {
-			return;
+			wetuwn;
 		}
 
 		this._textContent = content;
-		this._element.textContent = content;
+		this._ewement.textContent = content;
 	}
 
-	set className(className: string) {
-		if (this.disposed || className === this._className) {
-			return;
+	set cwassName(cwassName: stwing) {
+		if (this.disposed || cwassName === this._cwassName) {
+			wetuwn;
 		}
 
-		this._className = className;
-		this._element.className = className;
+		this._cwassName = cwassName;
+		this._ewement.cwassName = cwassName;
 	}
 
-	set empty(empty: boolean) {
+	set empty(empty: boowean) {
 		if (this.disposed || empty === this._empty) {
-			return;
+			wetuwn;
 		}
 
 		this._empty = empty;
-		this._element.style.marginLeft = empty ? '0' : '';
+		this._ewement.stywe.mawginWeft = empty ? '0' : '';
 	}
 
 	dispose(): void {
-		this.disposed = true;
+		this.disposed = twue;
 	}
 }
 
-export class IconLabel extends Disposable {
+expowt cwass IconWabew extends Disposabwe {
 
-	private readonly domNode: FastLabelNode;
+	pwivate weadonwy domNode: FastWabewNode;
 
-	private readonly nameNode: Label | LabelWithHighlights;
+	pwivate weadonwy nameNode: Wabew | WabewWithHighwights;
 
-	private readonly descriptionContainer: FastLabelNode;
-	private descriptionNode: FastLabelNode | HighlightedLabel | undefined;
-	private readonly descriptionNodeFactory: () => FastLabelNode | HighlightedLabel;
+	pwivate weadonwy descwiptionContaina: FastWabewNode;
+	pwivate descwiptionNode: FastWabewNode | HighwightedWabew | undefined;
+	pwivate weadonwy descwiptionNodeFactowy: () => FastWabewNode | HighwightedWabew;
 
-	private readonly labelContainer: HTMLElement;
+	pwivate weadonwy wabewContaina: HTMWEwement;
 
-	private readonly hoverDelegate: IHoverDelegate | undefined;
-	private readonly customHovers: Map<HTMLElement, IDisposable> = new Map();
+	pwivate weadonwy hovewDewegate: IHovewDewegate | undefined;
+	pwivate weadonwy customHovews: Map<HTMWEwement, IDisposabwe> = new Map();
 
-	constructor(container: HTMLElement, options?: IIconLabelCreationOptions) {
-		super();
+	constwuctow(containa: HTMWEwement, options?: IIconWabewCweationOptions) {
+		supa();
 
-		this.domNode = this._register(new FastLabelNode(dom.append(container, dom.$('.monaco-icon-label'))));
+		this.domNode = this._wegista(new FastWabewNode(dom.append(containa, dom.$('.monaco-icon-wabew'))));
 
-		this.labelContainer = dom.append(this.domNode.element, dom.$('.monaco-icon-label-container'));
+		this.wabewContaina = dom.append(this.domNode.ewement, dom.$('.monaco-icon-wabew-containa'));
 
-		const nameContainer = dom.append(this.labelContainer, dom.$('span.monaco-icon-name-container'));
-		this.descriptionContainer = this._register(new FastLabelNode(dom.append(this.labelContainer, dom.$('span.monaco-icon-description-container'))));
+		const nameContaina = dom.append(this.wabewContaina, dom.$('span.monaco-icon-name-containa'));
+		this.descwiptionContaina = this._wegista(new FastWabewNode(dom.append(this.wabewContaina, dom.$('span.monaco-icon-descwiption-containa'))));
 
-		if (options?.supportHighlights || options?.supportIcons) {
-			this.nameNode = new LabelWithHighlights(nameContainer, !!options.supportIcons);
-		} else {
-			this.nameNode = new Label(nameContainer);
+		if (options?.suppowtHighwights || options?.suppowtIcons) {
+			this.nameNode = new WabewWithHighwights(nameContaina, !!options.suppowtIcons);
+		} ewse {
+			this.nameNode = new Wabew(nameContaina);
 		}
 
-		if (options?.supportDescriptionHighlights) {
-			this.descriptionNodeFactory = () => new HighlightedLabel(dom.append(this.descriptionContainer.element, dom.$('span.label-description')), !!options.supportIcons);
-		} else {
-			this.descriptionNodeFactory = () => this._register(new FastLabelNode(dom.append(this.descriptionContainer.element, dom.$('span.label-description'))));
+		if (options?.suppowtDescwiptionHighwights) {
+			this.descwiptionNodeFactowy = () => new HighwightedWabew(dom.append(this.descwiptionContaina.ewement, dom.$('span.wabew-descwiption')), !!options.suppowtIcons);
+		} ewse {
+			this.descwiptionNodeFactowy = () => this._wegista(new FastWabewNode(dom.append(this.descwiptionContaina.ewement, dom.$('span.wabew-descwiption'))));
 		}
 
-		this.hoverDelegate = options?.hoverDelegate;
+		this.hovewDewegate = options?.hovewDewegate;
 	}
 
-	get element(): HTMLElement {
-		return this.domNode.element;
+	get ewement(): HTMWEwement {
+		wetuwn this.domNode.ewement;
 	}
 
-	setLabel(label: string | string[], description?: string, options?: IIconLabelValueOptions): void {
-		const classes = ['monaco-icon-label'];
+	setWabew(wabew: stwing | stwing[], descwiption?: stwing, options?: IIconWabewVawueOptions): void {
+		const cwasses = ['monaco-icon-wabew'];
 		if (options) {
-			if (options.extraClasses) {
-				classes.push(...options.extraClasses);
+			if (options.extwaCwasses) {
+				cwasses.push(...options.extwaCwasses);
 			}
 
-			if (options.italic) {
-				classes.push('italic');
+			if (options.itawic) {
+				cwasses.push('itawic');
 			}
 
-			if (options.strikethrough) {
-				classes.push('strikethrough');
-			}
-		}
-
-		this.domNode.className = classes.join(' ');
-		this.setupHover(this.labelContainer, options?.title);
-
-		this.nameNode.setLabel(label, options);
-
-		if (description || this.descriptionNode) {
-			if (!this.descriptionNode) {
-				this.descriptionNode = this.descriptionNodeFactory(); // description node is created lazily on demand
-			}
-
-			if (this.descriptionNode instanceof HighlightedLabel) {
-				this.descriptionNode.set(description || '', options ? options.descriptionMatches : undefined);
-				this.setupHover(this.descriptionNode.element, options?.descriptionTitle);
-			} else {
-				this.descriptionNode.textContent = description || '';
-				this.setupHover(this.descriptionNode.element, options?.descriptionTitle || '');
-				this.descriptionNode.empty = !description;
+			if (options.stwikethwough) {
+				cwasses.push('stwikethwough');
 			}
 		}
-	}
 
-	private setupHover(htmlElement: HTMLElement, tooltip: string | IIconLabelMarkdownString | undefined): void {
-		const previousCustomHover = this.customHovers.get(htmlElement);
-		if (previousCustomHover) {
-			previousCustomHover.dispose();
-			this.customHovers.delete(htmlElement);
-		}
+		this.domNode.cwassName = cwasses.join(' ');
+		this.setupHova(this.wabewContaina, options?.titwe);
 
-		if (!tooltip) {
-			htmlElement.removeAttribute('title');
-			return;
-		}
+		this.nameNode.setWabew(wabew, options);
 
-		if (!this.hoverDelegate) {
-			setupNativeHover(htmlElement, tooltip);
-		} else {
-			const hoverDisposable = setupCustomHover(this.hoverDelegate, htmlElement, tooltip);
-			if (hoverDisposable) {
-				this.customHovers.set(htmlElement, hoverDisposable);
+		if (descwiption || this.descwiptionNode) {
+			if (!this.descwiptionNode) {
+				this.descwiptionNode = this.descwiptionNodeFactowy(); // descwiption node is cweated waziwy on demand
+			}
+
+			if (this.descwiptionNode instanceof HighwightedWabew) {
+				this.descwiptionNode.set(descwiption || '', options ? options.descwiptionMatches : undefined);
+				this.setupHova(this.descwiptionNode.ewement, options?.descwiptionTitwe);
+			} ewse {
+				this.descwiptionNode.textContent = descwiption || '';
+				this.setupHova(this.descwiptionNode.ewement, options?.descwiptionTitwe || '');
+				this.descwiptionNode.empty = !descwiption;
 			}
 		}
 	}
 
-	public override dispose() {
-		super.dispose();
-		for (const disposable of this.customHovers.values()) {
-			disposable.dispose();
+	pwivate setupHova(htmwEwement: HTMWEwement, toowtip: stwing | IIconWabewMawkdownStwing | undefined): void {
+		const pweviousCustomHova = this.customHovews.get(htmwEwement);
+		if (pweviousCustomHova) {
+			pweviousCustomHova.dispose();
+			this.customHovews.dewete(htmwEwement);
 		}
-		this.customHovers.clear();
+
+		if (!toowtip) {
+			htmwEwement.wemoveAttwibute('titwe');
+			wetuwn;
+		}
+
+		if (!this.hovewDewegate) {
+			setupNativeHova(htmwEwement, toowtip);
+		} ewse {
+			const hovewDisposabwe = setupCustomHova(this.hovewDewegate, htmwEwement, toowtip);
+			if (hovewDisposabwe) {
+				this.customHovews.set(htmwEwement, hovewDisposabwe);
+			}
+		}
+	}
+
+	pubwic ovewwide dispose() {
+		supa.dispose();
+		fow (const disposabwe of this.customHovews.vawues()) {
+			disposabwe.dispose();
+		}
+		this.customHovews.cweaw();
 	}
 }
 
-class Label {
+cwass Wabew {
 
-	private label: string | string[] | undefined = undefined;
-	private singleLabel: HTMLElement | undefined = undefined;
-	private options: IIconLabelValueOptions | undefined;
+	pwivate wabew: stwing | stwing[] | undefined = undefined;
+	pwivate singweWabew: HTMWEwement | undefined = undefined;
+	pwivate options: IIconWabewVawueOptions | undefined;
 
-	constructor(private container: HTMLElement) { }
+	constwuctow(pwivate containa: HTMWEwement) { }
 
-	setLabel(label: string | string[], options?: IIconLabelValueOptions): void {
-		if (this.label === label && equals(this.options, options)) {
-			return;
+	setWabew(wabew: stwing | stwing[], options?: IIconWabewVawueOptions): void {
+		if (this.wabew === wabew && equaws(this.options, options)) {
+			wetuwn;
 		}
 
-		this.label = label;
+		this.wabew = wabew;
 		this.options = options;
 
-		if (typeof label === 'string') {
-			if (!this.singleLabel) {
-				this.container.innerText = '';
-				this.container.classList.remove('multiple');
-				this.singleLabel = dom.append(this.container, dom.$('a.label-name', { id: options?.domId }));
+		if (typeof wabew === 'stwing') {
+			if (!this.singweWabew) {
+				this.containa.innewText = '';
+				this.containa.cwassWist.wemove('muwtipwe');
+				this.singweWabew = dom.append(this.containa, dom.$('a.wabew-name', { id: options?.domId }));
 			}
 
-			this.singleLabel.textContent = label;
-		} else {
-			this.container.innerText = '';
-			this.container.classList.add('multiple');
-			this.singleLabel = undefined;
+			this.singweWabew.textContent = wabew;
+		} ewse {
+			this.containa.innewText = '';
+			this.containa.cwassWist.add('muwtipwe');
+			this.singweWabew = undefined;
 
-			for (let i = 0; i < label.length; i++) {
-				const l = label[i];
+			fow (wet i = 0; i < wabew.wength; i++) {
+				const w = wabew[i];
 				const id = options?.domId && `${options?.domId}_${i}`;
 
-				dom.append(this.container, dom.$('a.label-name', { id, 'data-icon-label-count': label.length, 'data-icon-label-index': i, 'role': 'treeitem' }, l));
+				dom.append(this.containa, dom.$('a.wabew-name', { id, 'data-icon-wabew-count': wabew.wength, 'data-icon-wabew-index': i, 'wowe': 'tweeitem' }, w));
 
-				if (i < label.length - 1) {
-					dom.append(this.container, dom.$('span.label-separator', undefined, options?.separator || '/'));
+				if (i < wabew.wength - 1) {
+					dom.append(this.containa, dom.$('span.wabew-sepawatow', undefined, options?.sepawatow || '/'));
 				}
 			}
 		}
 	}
 }
 
-function splitMatches(labels: string[], separator: string, matches: IMatch[] | undefined): IMatch[][] | undefined {
+function spwitMatches(wabews: stwing[], sepawatow: stwing, matches: IMatch[] | undefined): IMatch[][] | undefined {
 	if (!matches) {
-		return undefined;
+		wetuwn undefined;
 	}
 
-	let labelStart = 0;
+	wet wabewStawt = 0;
 
-	return labels.map(label => {
-		const labelRange = { start: labelStart, end: labelStart + label.length };
+	wetuwn wabews.map(wabew => {
+		const wabewWange = { stawt: wabewStawt, end: wabewStawt + wabew.wength };
 
-		const result = matches
-			.map(match => Range.intersect(labelRange, match))
-			.filter(range => !Range.isEmpty(range))
-			.map(({ start, end }) => ({ start: start - labelStart, end: end - labelStart }));
+		const wesuwt = matches
+			.map(match => Wange.intewsect(wabewWange, match))
+			.fiwta(wange => !Wange.isEmpty(wange))
+			.map(({ stawt, end }) => ({ stawt: stawt - wabewStawt, end: end - wabewStawt }));
 
-		labelStart = labelRange.end + separator.length;
-		return result;
+		wabewStawt = wabewWange.end + sepawatow.wength;
+		wetuwn wesuwt;
 	});
 }
 
-class LabelWithHighlights {
+cwass WabewWithHighwights {
 
-	private label: string | string[] | undefined = undefined;
-	private singleLabel: HighlightedLabel | undefined = undefined;
-	private options: IIconLabelValueOptions | undefined;
+	pwivate wabew: stwing | stwing[] | undefined = undefined;
+	pwivate singweWabew: HighwightedWabew | undefined = undefined;
+	pwivate options: IIconWabewVawueOptions | undefined;
 
-	constructor(private container: HTMLElement, private supportIcons: boolean) { }
+	constwuctow(pwivate containa: HTMWEwement, pwivate suppowtIcons: boowean) { }
 
-	setLabel(label: string | string[], options?: IIconLabelValueOptions): void {
-		if (this.label === label && equals(this.options, options)) {
-			return;
+	setWabew(wabew: stwing | stwing[], options?: IIconWabewVawueOptions): void {
+		if (this.wabew === wabew && equaws(this.options, options)) {
+			wetuwn;
 		}
 
-		this.label = label;
+		this.wabew = wabew;
 		this.options = options;
 
-		if (typeof label === 'string') {
-			if (!this.singleLabel) {
-				this.container.innerText = '';
-				this.container.classList.remove('multiple');
-				this.singleLabel = new HighlightedLabel(dom.append(this.container, dom.$('a.label-name', { id: options?.domId })), this.supportIcons);
+		if (typeof wabew === 'stwing') {
+			if (!this.singweWabew) {
+				this.containa.innewText = '';
+				this.containa.cwassWist.wemove('muwtipwe');
+				this.singweWabew = new HighwightedWabew(dom.append(this.containa, dom.$('a.wabew-name', { id: options?.domId })), this.suppowtIcons);
 			}
 
-			this.singleLabel.set(label, options?.matches, undefined, options?.labelEscapeNewLines);
-		} else {
-			this.container.innerText = '';
-			this.container.classList.add('multiple');
-			this.singleLabel = undefined;
+			this.singweWabew.set(wabew, options?.matches, undefined, options?.wabewEscapeNewWines);
+		} ewse {
+			this.containa.innewText = '';
+			this.containa.cwassWist.add('muwtipwe');
+			this.singweWabew = undefined;
 
-			const separator = options?.separator || '/';
-			const matches = splitMatches(label, separator, options?.matches);
+			const sepawatow = options?.sepawatow || '/';
+			const matches = spwitMatches(wabew, sepawatow, options?.matches);
 
-			for (let i = 0; i < label.length; i++) {
-				const l = label[i];
+			fow (wet i = 0; i < wabew.wength; i++) {
+				const w = wabew[i];
 				const m = matches ? matches[i] : undefined;
 				const id = options?.domId && `${options?.domId}_${i}`;
 
-				const name = dom.$('a.label-name', { id, 'data-icon-label-count': label.length, 'data-icon-label-index': i, 'role': 'treeitem' });
-				const highlightedLabel = new HighlightedLabel(dom.append(this.container, name), this.supportIcons);
-				highlightedLabel.set(l, m, undefined, options?.labelEscapeNewLines);
+				const name = dom.$('a.wabew-name', { id, 'data-icon-wabew-count': wabew.wength, 'data-icon-wabew-index': i, 'wowe': 'tweeitem' });
+				const highwightedWabew = new HighwightedWabew(dom.append(this.containa, name), this.suppowtIcons);
+				highwightedWabew.set(w, m, undefined, options?.wabewEscapeNewWines);
 
-				if (i < label.length - 1) {
-					dom.append(name, dom.$('span.label-separator', undefined, separator));
+				if (i < wabew.wength - 1) {
+					dom.append(name, dom.$('span.wabew-sepawatow', undefined, sepawatow));
 				}
 			}
 		}

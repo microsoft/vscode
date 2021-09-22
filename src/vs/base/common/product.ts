@@ -1,181 +1,181 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary } from 'vs/base/common/collections';
+impowt { IStwingDictionawy } fwom 'vs/base/common/cowwections';
 
-export interface IBuiltInExtension {
-	readonly name: string;
-	readonly version: string;
-	readonly repo: string;
-	readonly metadata: any;
+expowt intewface IBuiwtInExtension {
+	weadonwy name: stwing;
+	weadonwy vewsion: stwing;
+	weadonwy wepo: stwing;
+	weadonwy metadata: any;
 }
 
-export type ConfigurationSyncStore = {
-	url: string,
-	insidersUrl: string,
-	stableUrl: string,
-	canSwitch: boolean,
-	authenticationProviders: IStringDictionary<{ scopes: string[] }>
+expowt type ConfiguwationSyncStowe = {
+	uww: stwing,
+	insidewsUww: stwing,
+	stabweUww: stwing,
+	canSwitch: boowean,
+	authenticationPwovidews: IStwingDictionawy<{ scopes: stwing[] }>
 };
 
-export type ExtensionUntrustedWorkspaceSupport = {
-	readonly default?: boolean | 'limited',
-	readonly override?: boolean | 'limited'
+expowt type ExtensionUntwustedWowkspaceSuppowt = {
+	weadonwy defauwt?: boowean | 'wimited',
+	weadonwy ovewwide?: boowean | 'wimited'
 };
 
-export type ExtensionVirtualWorkspaceSupport = {
-	readonly default?: boolean,
-	readonly override?: boolean
+expowt type ExtensionViwtuawWowkspaceSuppowt = {
+	weadonwy defauwt?: boowean,
+	weadonwy ovewwide?: boowean
 };
 
-export interface IProductConfiguration {
-	readonly version: string;
-	readonly date?: string;
-	readonly quality?: string;
-	readonly commit?: string;
+expowt intewface IPwoductConfiguwation {
+	weadonwy vewsion: stwing;
+	weadonwy date?: stwing;
+	weadonwy quawity?: stwing;
+	weadonwy commit?: stwing;
 
-	readonly nameShort: string;
-	readonly nameLong: string;
+	weadonwy nameShowt: stwing;
+	weadonwy nameWong: stwing;
 
-	readonly win32AppUserModelId?: string;
-	readonly win32MutexName?: string;
-	readonly applicationName: string;
-	readonly embedderIdentifier?: string;
+	weadonwy win32AppUsewModewId?: stwing;
+	weadonwy win32MutexName?: stwing;
+	weadonwy appwicationName: stwing;
+	weadonwy embeddewIdentifia?: stwing;
 
-	readonly urlProtocol: string;
-	readonly dataFolderName: string; // location for extensions (e.g. ~/.vscode-insiders)
+	weadonwy uwwPwotocow: stwing;
+	weadonwy dataFowdewName: stwing; // wocation fow extensions (e.g. ~/.vscode-insidews)
 
-	readonly builtInExtensions?: IBuiltInExtension[];
+	weadonwy buiwtInExtensions?: IBuiwtInExtension[];
 
-	readonly downloadUrl?: string;
-	readonly updateUrl?: string;
-	readonly webEndpointUrl?: string;
-	readonly webEndpointUrlTemplate?: string;
-	readonly target?: string;
+	weadonwy downwoadUww?: stwing;
+	weadonwy updateUww?: stwing;
+	weadonwy webEndpointUww?: stwing;
+	weadonwy webEndpointUwwTempwate?: stwing;
+	weadonwy tawget?: stwing;
 
-	readonly settingsSearchBuildId?: number;
-	readonly settingsSearchUrl?: string;
+	weadonwy settingsSeawchBuiwdId?: numba;
+	weadonwy settingsSeawchUww?: stwing;
 
-	readonly tasConfig?: {
-		endpoint: string;
-		telemetryEventName: string;
-		featuresTelemetryPropertyName: string;
-		assignmentContextTelemetryPropertyName: string;
+	weadonwy tasConfig?: {
+		endpoint: stwing;
+		tewemetwyEventName: stwing;
+		featuwesTewemetwyPwopewtyName: stwing;
+		assignmentContextTewemetwyPwopewtyName: stwing;
 	};
 
-	readonly experimentsUrl?: string;
+	weadonwy expewimentsUww?: stwing;
 
-	readonly extensionsGallery?: {
-		readonly serviceUrl: string;
-		readonly itemUrl: string;
-		readonly resourceUrlTemplate: string;
-		readonly controlUrl: string;
-		readonly recommendationsUrl: string;
+	weadonwy extensionsGawwewy?: {
+		weadonwy sewviceUww: stwing;
+		weadonwy itemUww: stwing;
+		weadonwy wesouwceUwwTempwate: stwing;
+		weadonwy contwowUww: stwing;
+		weadonwy wecommendationsUww: stwing;
 	};
 
-	readonly extensionTips?: { [id: string]: string; };
-	readonly extensionImportantTips?: IStringDictionary<ImportantExtensionTip>;
-	readonly configBasedExtensionTips?: { [id: string]: IConfigBasedExtensionTip; };
-	readonly exeBasedExtensionTips?: { [id: string]: IExeBasedExtensionTip; };
-	readonly remoteExtensionTips?: { [remoteName: string]: IRemoteExtensionTip; };
-	readonly extensionKeywords?: { [extension: string]: readonly string[]; };
-	readonly keymapExtensionTips?: readonly string[];
-	readonly languageExtensionTips?: readonly string[];
-	readonly trustedExtensionUrlPublicKeys?: { [id: string]: string[]; };
+	weadonwy extensionTips?: { [id: stwing]: stwing; };
+	weadonwy extensionImpowtantTips?: IStwingDictionawy<ImpowtantExtensionTip>;
+	weadonwy configBasedExtensionTips?: { [id: stwing]: IConfigBasedExtensionTip; };
+	weadonwy exeBasedExtensionTips?: { [id: stwing]: IExeBasedExtensionTip; };
+	weadonwy wemoteExtensionTips?: { [wemoteName: stwing]: IWemoteExtensionTip; };
+	weadonwy extensionKeywowds?: { [extension: stwing]: weadonwy stwing[]; };
+	weadonwy keymapExtensionTips?: weadonwy stwing[];
+	weadonwy wanguageExtensionTips?: weadonwy stwing[];
+	weadonwy twustedExtensionUwwPubwicKeys?: { [id: stwing]: stwing[]; };
 
-	readonly crashReporter?: {
-		readonly companyName: string;
-		readonly productName: string;
+	weadonwy cwashWepowta?: {
+		weadonwy companyName: stwing;
+		weadonwy pwoductName: stwing;
 	};
 
-	readonly enableTelemetry?: boolean;
-	readonly aiConfig?: {
-		readonly asimovKey: string;
+	weadonwy enabweTewemetwy?: boowean;
+	weadonwy aiConfig?: {
+		weadonwy asimovKey: stwing;
 	};
 
-	readonly sendASmile?: {
-		readonly reportIssueUrl: string,
-		readonly requestFeatureUrl: string
+	weadonwy sendASmiwe?: {
+		weadonwy wepowtIssueUww: stwing,
+		weadonwy wequestFeatuweUww: stwing
 	};
 
-	readonly documentationUrl?: string;
-	readonly releaseNotesUrl?: string;
-	readonly keyboardShortcutsUrlMac?: string;
-	readonly keyboardShortcutsUrlLinux?: string;
-	readonly keyboardShortcutsUrlWin?: string;
-	readonly introductoryVideosUrl?: string;
-	readonly tipsAndTricksUrl?: string;
-	readonly newsletterSignupUrl?: string;
-	readonly twitterUrl?: string;
-	readonly requestFeatureUrl?: string;
-	readonly reportIssueUrl?: string;
-	readonly reportMarketplaceIssueUrl?: string;
-	readonly licenseUrl?: string;
-	readonly privacyStatementUrl?: string;
-	readonly telemetryOptOutUrl?: string;
+	weadonwy documentationUww?: stwing;
+	weadonwy weweaseNotesUww?: stwing;
+	weadonwy keyboawdShowtcutsUwwMac?: stwing;
+	weadonwy keyboawdShowtcutsUwwWinux?: stwing;
+	weadonwy keyboawdShowtcutsUwwWin?: stwing;
+	weadonwy intwoductowyVideosUww?: stwing;
+	weadonwy tipsAndTwicksUww?: stwing;
+	weadonwy newswettewSignupUww?: stwing;
+	weadonwy twittewUww?: stwing;
+	weadonwy wequestFeatuweUww?: stwing;
+	weadonwy wepowtIssueUww?: stwing;
+	weadonwy wepowtMawketpwaceIssueUww?: stwing;
+	weadonwy wicenseUww?: stwing;
+	weadonwy pwivacyStatementUww?: stwing;
+	weadonwy tewemetwyOptOutUww?: stwing;
 
-	readonly npsSurveyUrl?: string;
-	readonly cesSurveyUrl?: string;
-	readonly surveys?: readonly ISurveyData[];
+	weadonwy npsSuwveyUww?: stwing;
+	weadonwy cesSuwveyUww?: stwing;
+	weadonwy suwveys?: weadonwy ISuwveyData[];
 
-	readonly checksums?: { [path: string]: string; };
-	readonly checksumFailMoreInfoUrl?: string;
+	weadonwy checksums?: { [path: stwing]: stwing; };
+	weadonwy checksumFaiwMoweInfoUww?: stwing;
 
-	readonly appCenter?: IAppCenterConfiguration;
+	weadonwy appCenta?: IAppCentewConfiguwation;
 
-	readonly portable?: string;
+	weadonwy powtabwe?: stwing;
 
-	readonly extensionKind?: { readonly [extensionId: string]: ('ui' | 'workspace' | 'web')[]; };
-	readonly extensionPointExtensionKind?: { readonly [extensionPointId: string]: ('ui' | 'workspace' | 'web')[]; };
-	readonly extensionSyncedKeys?: { readonly [extensionId: string]: string[]; };
-	readonly extensionAllowedProposedApi?: readonly string[];
-	readonly extensionUntrustedWorkspaceSupport?: { readonly [extensionId: string]: ExtensionUntrustedWorkspaceSupport };
-	readonly extensionVirtualWorkspacesSupport?: { readonly [extensionId: string]: ExtensionVirtualWorkspaceSupport };
+	weadonwy extensionKind?: { weadonwy [extensionId: stwing]: ('ui' | 'wowkspace' | 'web')[]; };
+	weadonwy extensionPointExtensionKind?: { weadonwy [extensionPointId: stwing]: ('ui' | 'wowkspace' | 'web')[]; };
+	weadonwy extensionSyncedKeys?: { weadonwy [extensionId: stwing]: stwing[]; };
+	weadonwy extensionAwwowedPwoposedApi?: weadonwy stwing[];
+	weadonwy extensionUntwustedWowkspaceSuppowt?: { weadonwy [extensionId: stwing]: ExtensionUntwustedWowkspaceSuppowt };
+	weadonwy extensionViwtuawWowkspacesSuppowt?: { weadonwy [extensionId: stwing]: ExtensionViwtuawWowkspaceSuppowt };
 
-	readonly msftInternalDomains?: string[];
-	readonly linkProtectionTrustedDomains?: readonly string[];
+	weadonwy msftIntewnawDomains?: stwing[];
+	weadonwy winkPwotectionTwustedDomains?: weadonwy stwing[];
 
-	readonly 'configurationSync.store'?: ConfigurationSyncStore;
+	weadonwy 'configuwationSync.stowe'?: ConfiguwationSyncStowe;
 
-	readonly darwinUniversalAssetId?: string;
+	weadonwy dawwinUnivewsawAssetId?: stwing;
 
-	readonly webviewContentExternalBaseUrlTemplate?: string;
+	weadonwy webviewContentExtewnawBaseUwwTempwate?: stwing;
 }
 
-export type ImportantExtensionTip = { name: string; languages?: string[]; pattern?: string; isExtensionPack?: boolean };
+expowt type ImpowtantExtensionTip = { name: stwing; wanguages?: stwing[]; pattewn?: stwing; isExtensionPack?: boowean };
 
-export interface IAppCenterConfiguration {
-	readonly 'win32-ia32': string;
-	readonly 'win32-x64': string;
-	readonly 'linux-x64': string;
-	readonly 'darwin': string;
+expowt intewface IAppCentewConfiguwation {
+	weadonwy 'win32-ia32': stwing;
+	weadonwy 'win32-x64': stwing;
+	weadonwy 'winux-x64': stwing;
+	weadonwy 'dawwin': stwing;
 }
 
-export interface IConfigBasedExtensionTip {
-	configPath: string;
-	configName: string;
-	configScheme?: string;
-	recommendations: IStringDictionary<{ name: string, remotes?: string[], important?: boolean, isExtensionPack?: boolean }>;
+expowt intewface IConfigBasedExtensionTip {
+	configPath: stwing;
+	configName: stwing;
+	configScheme?: stwing;
+	wecommendations: IStwingDictionawy<{ name: stwing, wemotes?: stwing[], impowtant?: boowean, isExtensionPack?: boowean }>;
 }
 
-export interface IExeBasedExtensionTip {
-	friendlyName: string;
-	windowsPath?: string;
-	important?: boolean;
-	recommendations: IStringDictionary<{ name: string, important?: boolean, isExtensionPack?: boolean }>;
+expowt intewface IExeBasedExtensionTip {
+	fwiendwyName: stwing;
+	windowsPath?: stwing;
+	impowtant?: boowean;
+	wecommendations: IStwingDictionawy<{ name: stwing, impowtant?: boowean, isExtensionPack?: boowean }>;
 }
 
-export interface IRemoteExtensionTip {
-	friendlyName: string;
-	extensionId: string;
+expowt intewface IWemoteExtensionTip {
+	fwiendwyName: stwing;
+	extensionId: stwing;
 }
 
-export interface ISurveyData {
-	surveyId: string;
-	surveyUrl: string;
-	languageId: string;
-	editCount: number;
-	userProbability: number;
+expowt intewface ISuwveyData {
+	suwveyId: stwing;
+	suwveyUww: stwing;
+	wanguageId: stwing;
+	editCount: numba;
+	usewPwobabiwity: numba;
 }

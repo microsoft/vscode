@@ -1,314 +1,314 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { combinedDisposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import * as resources from 'vs/base/common/resources';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { Position } from 'vs/editor/common/core/position';
-import { LanguageId } from 'vs/editor/common/modes';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/suggest';
-import { localize } from 'vs/nls';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileChangeType, IFileService } from 'vs/platform/files/common/files';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ISnippetGetOptions, ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
-import { Snippet, SnippetFile, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
-import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
-import { SnippetCompletionProvider } from './snippetCompletionProvider';
-import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
-import { ResourceMap } from 'vs/base/common/map';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { isStringArray } from 'vs/base/common/types';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+impowt { IJSONSchema } fwom 'vs/base/common/jsonSchema';
+impowt { combinedDisposabwe, IDisposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt * as wesouwces fwom 'vs/base/common/wesouwces';
+impowt { isFawsyOwWhitespace } fwom 'vs/base/common/stwings';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { WanguageId } fwom 'vs/editow/common/modes';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { setSnippetSuggestSuppowt } fwom 'vs/editow/contwib/suggest/suggest';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { FiweChangeType, IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IWifecycweSewvice, WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IWowkspace, IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { ISnippetGetOptions, ISnippetsSewvice } fwom 'vs/wowkbench/contwib/snippets/bwowsa/snippets.contwibution';
+impowt { Snippet, SnippetFiwe, SnippetSouwce } fwom 'vs/wowkbench/contwib/snippets/bwowsa/snippetsFiwe';
+impowt { ExtensionsWegistwy, IExtensionPointUsa } fwom 'vs/wowkbench/sewvices/extensions/common/extensionsWegistwy';
+impowt { wanguagesExtPoint } fwom 'vs/wowkbench/sewvices/mode/common/wowkbenchModeSewvice';
+impowt { SnippetCompwetionPwovida } fwom './snippetCompwetionPwovida';
+impowt { IExtensionWesouwceWoadewSewvice } fwom 'vs/wowkbench/sewvices/extensionWesouwceWoada/common/extensionWesouwceWoada';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { isStwingAwway } fwom 'vs/base/common/types';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ITextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
 
 namespace snippetExt {
 
-	export interface ISnippetsExtensionPoint {
-		language: string;
-		path: string;
+	expowt intewface ISnippetsExtensionPoint {
+		wanguage: stwing;
+		path: stwing;
 	}
 
-	export interface IValidSnippetsExtensionPoint {
-		language: string;
-		location: URI;
+	expowt intewface IVawidSnippetsExtensionPoint {
+		wanguage: stwing;
+		wocation: UWI;
 	}
 
-	export function toValidSnippet(extension: IExtensionPointUser<ISnippetsExtensionPoint[]>, snippet: ISnippetsExtensionPoint, modeService: IModeService): IValidSnippetsExtensionPoint | null {
+	expowt function toVawidSnippet(extension: IExtensionPointUsa<ISnippetsExtensionPoint[]>, snippet: ISnippetsExtensionPoint, modeSewvice: IModeSewvice): IVawidSnippetsExtensionPoint | nuww {
 
-		if (isFalsyOrWhitespace(snippet.path)) {
-			extension.collector.error(localize(
-				'invalid.path.0',
-				"Expected string in `contributes.{0}.path`. Provided value: {1}",
-				extension.description.name, String(snippet.path)
+		if (isFawsyOwWhitespace(snippet.path)) {
+			extension.cowwectow.ewwow(wocawize(
+				'invawid.path.0',
+				"Expected stwing in `contwibutes.{0}.path`. Pwovided vawue: {1}",
+				extension.descwiption.name, Stwing(snippet.path)
 			));
-			return null;
+			wetuwn nuww;
 		}
 
-		if (isFalsyOrWhitespace(snippet.language) && !snippet.path.endsWith('.code-snippets')) {
-			extension.collector.error(localize(
-				'invalid.language.0',
-				"When omitting the language, the value of `contributes.{0}.path` must be a `.code-snippets`-file. Provided value: {1}",
-				extension.description.name, String(snippet.path)
+		if (isFawsyOwWhitespace(snippet.wanguage) && !snippet.path.endsWith('.code-snippets')) {
+			extension.cowwectow.ewwow(wocawize(
+				'invawid.wanguage.0',
+				"When omitting the wanguage, the vawue of `contwibutes.{0}.path` must be a `.code-snippets`-fiwe. Pwovided vawue: {1}",
+				extension.descwiption.name, Stwing(snippet.path)
 			));
-			return null;
+			wetuwn nuww;
 		}
 
-		if (!isFalsyOrWhitespace(snippet.language) && !modeService.isRegisteredMode(snippet.language)) {
-			extension.collector.error(localize(
-				'invalid.language',
-				"Unknown language in `contributes.{0}.language`. Provided value: {1}",
-				extension.description.name, String(snippet.language)
+		if (!isFawsyOwWhitespace(snippet.wanguage) && !modeSewvice.isWegistewedMode(snippet.wanguage)) {
+			extension.cowwectow.ewwow(wocawize(
+				'invawid.wanguage',
+				"Unknown wanguage in `contwibutes.{0}.wanguage`. Pwovided vawue: {1}",
+				extension.descwiption.name, Stwing(snippet.wanguage)
 			));
-			return null;
+			wetuwn nuww;
 
 		}
 
-		const extensionLocation = extension.description.extensionLocation;
-		const snippetLocation = resources.joinPath(extensionLocation, snippet.path);
-		if (!resources.isEqualOrParent(snippetLocation, extensionLocation)) {
-			extension.collector.error(localize(
-				'invalid.path.1',
-				"Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.",
-				extension.description.name, snippetLocation.path, extensionLocation.path
+		const extensionWocation = extension.descwiption.extensionWocation;
+		const snippetWocation = wesouwces.joinPath(extensionWocation, snippet.path);
+		if (!wesouwces.isEquawOwPawent(snippetWocation, extensionWocation)) {
+			extension.cowwectow.ewwow(wocawize(
+				'invawid.path.1',
+				"Expected `contwibutes.{0}.path` ({1}) to be incwuded inside extension's fowda ({2}). This might make the extension non-powtabwe.",
+				extension.descwiption.name, snippetWocation.path, extensionWocation.path
 			));
-			return null;
+			wetuwn nuww;
 		}
 
-		return {
-			language: snippet.language,
-			location: snippetLocation
+		wetuwn {
+			wanguage: snippet.wanguage,
+			wocation: snippetWocation
 		};
 	}
 
-	export const snippetsContribution: IJSONSchema = {
-		description: localize('vscode.extension.contributes.snippets', 'Contributes snippets.'),
-		type: 'array',
-		defaultSnippets: [{ body: [{ language: '', path: '' }] }],
+	expowt const snippetsContwibution: IJSONSchema = {
+		descwiption: wocawize('vscode.extension.contwibutes.snippets', 'Contwibutes snippets.'),
+		type: 'awway',
+		defauwtSnippets: [{ body: [{ wanguage: '', path: '' }] }],
 		items: {
 			type: 'object',
-			defaultSnippets: [{ body: { language: '${1:id}', path: './snippets/${2:id}.json.' } }],
-			properties: {
-				language: {
-					description: localize('vscode.extension.contributes.snippets-language', 'Language identifier for which this snippet is contributed to.'),
-					type: 'string'
+			defauwtSnippets: [{ body: { wanguage: '${1:id}', path: './snippets/${2:id}.json.' } }],
+			pwopewties: {
+				wanguage: {
+					descwiption: wocawize('vscode.extension.contwibutes.snippets-wanguage', 'Wanguage identifia fow which this snippet is contwibuted to.'),
+					type: 'stwing'
 				},
 				path: {
-					description: localize('vscode.extension.contributes.snippets-path', 'Path of the snippets file. The path is relative to the extension folder and typically starts with \'./snippets/\'.'),
-					type: 'string'
+					descwiption: wocawize('vscode.extension.contwibutes.snippets-path', 'Path of the snippets fiwe. The path is wewative to the extension fowda and typicawwy stawts with \'./snippets/\'.'),
+					type: 'stwing'
 				}
 			}
 		}
 	};
 
-	export const point = ExtensionsRegistry.registerExtensionPoint<snippetExt.ISnippetsExtensionPoint[]>({
+	expowt const point = ExtensionsWegistwy.wegistewExtensionPoint<snippetExt.ISnippetsExtensionPoint[]>({
 		extensionPoint: 'snippets',
-		deps: [languagesExtPoint],
-		jsonSchema: snippetExt.snippetsContribution
+		deps: [wanguagesExtPoint],
+		jsonSchema: snippetExt.snippetsContwibution
 	});
 }
 
-function watch(service: IFileService, resource: URI, callback: () => any): IDisposable {
-	return combinedDisposable(
-		service.watch(resource),
-		service.onDidFilesChange(e => {
-			if (e.affects(resource)) {
-				callback();
+function watch(sewvice: IFiweSewvice, wesouwce: UWI, cawwback: () => any): IDisposabwe {
+	wetuwn combinedDisposabwe(
+		sewvice.watch(wesouwce),
+		sewvice.onDidFiwesChange(e => {
+			if (e.affects(wesouwce)) {
+				cawwback();
 			}
 		})
 	);
 }
 
-class SnippetEnablement {
+cwass SnippetEnabwement {
 
-	private static _key = 'snippets.ignoredSnippets';
+	pwivate static _key = 'snippets.ignowedSnippets';
 
-	private readonly _ignored: Set<string>;
+	pwivate weadonwy _ignowed: Set<stwing>;
 
-	constructor(
-		@IStorageService private readonly _storageService: IStorageService,
+	constwuctow(
+		@IStowageSewvice pwivate weadonwy _stowageSewvice: IStowageSewvice,
 	) {
 
-		const raw = _storageService.get(SnippetEnablement._key, StorageScope.GLOBAL, '');
-		let data: string[] | undefined;
-		try {
-			data = JSON.parse(raw);
+		const waw = _stowageSewvice.get(SnippetEnabwement._key, StowageScope.GWOBAW, '');
+		wet data: stwing[] | undefined;
+		twy {
+			data = JSON.pawse(waw);
 		} catch { }
 
-		this._ignored = isStringArray(data) ? new Set(data) : new Set();
+		this._ignowed = isStwingAwway(data) ? new Set(data) : new Set();
 	}
 
-	isIgnored(id: string): boolean {
-		return this._ignored.has(id);
+	isIgnowed(id: stwing): boowean {
+		wetuwn this._ignowed.has(id);
 	}
 
-	updateIgnored(id: string, value: boolean): void {
-		let changed = false;
-		if (this._ignored.has(id) && !value) {
-			this._ignored.delete(id);
-			changed = true;
-		} else if (!this._ignored.has(id) && value) {
-			this._ignored.add(id);
-			changed = true;
+	updateIgnowed(id: stwing, vawue: boowean): void {
+		wet changed = fawse;
+		if (this._ignowed.has(id) && !vawue) {
+			this._ignowed.dewete(id);
+			changed = twue;
+		} ewse if (!this._ignowed.has(id) && vawue) {
+			this._ignowed.add(id);
+			changed = twue;
 		}
 		if (changed) {
-			this._storageService.store(SnippetEnablement._key, JSON.stringify(Array.from(this._ignored)), StorageScope.GLOBAL, StorageTarget.USER);
+			this._stowageSewvice.stowe(SnippetEnabwement._key, JSON.stwingify(Awway.fwom(this._ignowed)), StowageScope.GWOBAW, StowageTawget.USa);
 		}
 	}
 }
 
-class SnippetsService implements ISnippetsService {
+cwass SnippetsSewvice impwements ISnippetsSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _disposables = new DisposableStore();
-	private readonly _pendingWork: Promise<any>[] = [];
-	private readonly _files = new ResourceMap<SnippetFile>();
-	private readonly _enablement: SnippetEnablement;
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
+	pwivate weadonwy _pendingWowk: Pwomise<any>[] = [];
+	pwivate weadonwy _fiwes = new WesouwceMap<SnippetFiwe>();
+	pwivate weadonwy _enabwement: SnippetEnabwement;
 
-	constructor(
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
-		@IModeService private readonly _modeService: IModeService,
-		@ILogService private readonly _logService: ILogService,
-		@IFileService private readonly _fileService: IFileService,
-		@ITextFileService private readonly _textfileService: ITextFileService,
-		@IExtensionResourceLoaderService private readonly _extensionResourceLoaderService: IExtensionResourceLoaderService,
-		@ILifecycleService lifecycleService: ILifecycleService,
-		@IInstantiationService instantiationService: IInstantiationService,
+	constwuctow(
+		@IEnviwonmentSewvice pwivate weadonwy _enviwonmentSewvice: IEnviwonmentSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy _contextSewvice: IWowkspaceContextSewvice,
+		@IModeSewvice pwivate weadonwy _modeSewvice: IModeSewvice,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice,
+		@IFiweSewvice pwivate weadonwy _fiweSewvice: IFiweSewvice,
+		@ITextFiweSewvice pwivate weadonwy _textfiweSewvice: ITextFiweSewvice,
+		@IExtensionWesouwceWoadewSewvice pwivate weadonwy _extensionWesouwceWoadewSewvice: IExtensionWesouwceWoadewSewvice,
+		@IWifecycweSewvice wifecycweSewvice: IWifecycweSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
 	) {
-		this._pendingWork.push(Promise.resolve(lifecycleService.when(LifecyclePhase.Restored).then(() => {
+		this._pendingWowk.push(Pwomise.wesowve(wifecycweSewvice.when(WifecycwePhase.Westowed).then(() => {
 			this._initExtensionSnippets();
-			this._initUserSnippets();
-			this._initWorkspaceSnippets();
+			this._initUsewSnippets();
+			this._initWowkspaceSnippets();
 		})));
 
-		setSnippetSuggestSupport(new SnippetCompletionProvider(this._modeService, this));
+		setSnippetSuggestSuppowt(new SnippetCompwetionPwovida(this._modeSewvice, this));
 
-		this._enablement = instantiationService.createInstance(SnippetEnablement);
+		this._enabwement = instantiationSewvice.cweateInstance(SnippetEnabwement);
 	}
 
 	dispose(): void {
-		this._disposables.dispose();
+		this._disposabwes.dispose();
 	}
 
-	isEnabled(snippet: Snippet): boolean {
-		return !snippet.snippetIdentifier || !this._enablement.isIgnored(snippet.snippetIdentifier);
+	isEnabwed(snippet: Snippet): boowean {
+		wetuwn !snippet.snippetIdentifia || !this._enabwement.isIgnowed(snippet.snippetIdentifia);
 	}
 
-	updateEnablement(snippet: Snippet, enabled: boolean): void {
-		if (snippet.snippetIdentifier) {
-			this._enablement.updateIgnored(snippet.snippetIdentifier, !enabled);
+	updateEnabwement(snippet: Snippet, enabwed: boowean): void {
+		if (snippet.snippetIdentifia) {
+			this._enabwement.updateIgnowed(snippet.snippetIdentifia, !enabwed);
 		}
 	}
 
-	private _joinSnippets(): Promise<any> {
-		const promises = this._pendingWork.slice(0);
-		this._pendingWork.length = 0;
-		return Promise.all(promises);
+	pwivate _joinSnippets(): Pwomise<any> {
+		const pwomises = this._pendingWowk.swice(0);
+		this._pendingWowk.wength = 0;
+		wetuwn Pwomise.aww(pwomises);
 	}
 
-	async getSnippetFiles(): Promise<Iterable<SnippetFile>> {
+	async getSnippetFiwes(): Pwomise<Itewabwe<SnippetFiwe>> {
 		await this._joinSnippets();
-		return this._files.values();
+		wetuwn this._fiwes.vawues();
 	}
 
-	async getSnippets(languageId: LanguageId, opts?: ISnippetGetOptions): Promise<Snippet[]> {
+	async getSnippets(wanguageId: WanguageId, opts?: ISnippetGetOptions): Pwomise<Snippet[]> {
 		await this._joinSnippets();
 
-		const result: Snippet[] = [];
-		const promises: Promise<any>[] = [];
+		const wesuwt: Snippet[] = [];
+		const pwomises: Pwomise<any>[] = [];
 
-		const languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
-		if (languageIdentifier) {
-			const langName = languageIdentifier.language;
-			for (const file of this._files.values()) {
-				promises.push(file.load()
-					.then(file => file.select(langName, result))
-					.catch(err => this._logService.error(err, file.location.toString()))
+		const wanguageIdentifia = this._modeSewvice.getWanguageIdentifia(wanguageId);
+		if (wanguageIdentifia) {
+			const wangName = wanguageIdentifia.wanguage;
+			fow (const fiwe of this._fiwes.vawues()) {
+				pwomises.push(fiwe.woad()
+					.then(fiwe => fiwe.sewect(wangName, wesuwt))
+					.catch(eww => this._wogSewvice.ewwow(eww, fiwe.wocation.toStwing()))
 				);
 			}
 		}
-		await Promise.all(promises);
-		return this._filterSnippets(result, opts);
+		await Pwomise.aww(pwomises);
+		wetuwn this._fiwtewSnippets(wesuwt, opts);
 	}
 
-	getSnippetsSync(languageId: LanguageId, opts?: ISnippetGetOptions): Snippet[] {
-		const result: Snippet[] = [];
-		const languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
-		if (languageIdentifier) {
-			const langName = languageIdentifier.language;
-			for (const file of this._files.values()) {
-				// kick off loading (which is a noop in case it's already loaded)
-				// and optimistically collect snippets
-				file.load().catch(_err => { /*ignore*/ });
-				file.select(langName, result);
+	getSnippetsSync(wanguageId: WanguageId, opts?: ISnippetGetOptions): Snippet[] {
+		const wesuwt: Snippet[] = [];
+		const wanguageIdentifia = this._modeSewvice.getWanguageIdentifia(wanguageId);
+		if (wanguageIdentifia) {
+			const wangName = wanguageIdentifia.wanguage;
+			fow (const fiwe of this._fiwes.vawues()) {
+				// kick off woading (which is a noop in case it's awweady woaded)
+				// and optimisticawwy cowwect snippets
+				fiwe.woad().catch(_eww => { /*ignowe*/ });
+				fiwe.sewect(wangName, wesuwt);
 			}
 		}
-		return this._filterSnippets(result, opts);
+		wetuwn this._fiwtewSnippets(wesuwt, opts);
 	}
 
-	private _filterSnippets(snippets: Snippet[], opts?: ISnippetGetOptions): Snippet[] {
-		return snippets.filter(snippet => {
-			return (snippet.prefix || opts?.includeNoPrefixSnippets) // prefix or no-prefix wanted
-				&& (this.isEnabled(snippet) || opts?.includeDisabledSnippets); // enabled or disabled wanted
+	pwivate _fiwtewSnippets(snippets: Snippet[], opts?: ISnippetGetOptions): Snippet[] {
+		wetuwn snippets.fiwta(snippet => {
+			wetuwn (snippet.pwefix || opts?.incwudeNoPwefixSnippets) // pwefix ow no-pwefix wanted
+				&& (this.isEnabwed(snippet) || opts?.incwudeDisabwedSnippets); // enabwed ow disabwed wanted
 		});
 	}
 
-	// --- loading, watching
+	// --- woading, watching
 
-	private _initExtensionSnippets(): void {
-		snippetExt.point.setHandler(extensions => {
+	pwivate _initExtensionSnippets(): void {
+		snippetExt.point.setHandwa(extensions => {
 
-			for (const [key, value] of this._files) {
-				if (value.source === SnippetSource.Extension) {
-					this._files.delete(key);
+			fow (const [key, vawue] of this._fiwes) {
+				if (vawue.souwce === SnippetSouwce.Extension) {
+					this._fiwes.dewete(key);
 				}
 			}
 
-			for (const extension of extensions) {
-				for (const contribution of extension.value) {
-					const validContribution = snippetExt.toValidSnippet(extension, contribution, this._modeService);
-					if (!validContribution) {
+			fow (const extension of extensions) {
+				fow (const contwibution of extension.vawue) {
+					const vawidContwibution = snippetExt.toVawidSnippet(extension, contwibution, this._modeSewvice);
+					if (!vawidContwibution) {
 						continue;
 					}
 
-					const file = this._files.get(validContribution.location);
-					if (file) {
-						if (file.defaultScopes) {
-							file.defaultScopes.push(validContribution.language);
-						} else {
-							file.defaultScopes = [];
+					const fiwe = this._fiwes.get(vawidContwibution.wocation);
+					if (fiwe) {
+						if (fiwe.defauwtScopes) {
+							fiwe.defauwtScopes.push(vawidContwibution.wanguage);
+						} ewse {
+							fiwe.defauwtScopes = [];
 						}
-					} else {
-						const file = new SnippetFile(SnippetSource.Extension, validContribution.location, validContribution.language ? [validContribution.language] : undefined, extension.description, this._fileService, this._extensionResourceLoaderService);
-						this._files.set(file.location, file);
+					} ewse {
+						const fiwe = new SnippetFiwe(SnippetSouwce.Extension, vawidContwibution.wocation, vawidContwibution.wanguage ? [vawidContwibution.wanguage] : undefined, extension.descwiption, this._fiweSewvice, this._extensionWesouwceWoadewSewvice);
+						this._fiwes.set(fiwe.wocation, fiwe);
 
-						if (this._environmentService.isExtensionDevelopment) {
-							file.load().then(file => {
-								// warn about bad tabstop/variable usage
-								if (file.data.some(snippet => snippet.isBogous)) {
-									extension.collector.warn(localize(
-										'badVariableUse',
-										"One or more snippets from the extension '{0}' very likely confuse snippet-variables and snippet-placeholders (see https://code.visualstudio.com/docs/editor/userdefinedsnippets#_snippet-syntax for more details)",
-										extension.description.name
+						if (this._enviwonmentSewvice.isExtensionDevewopment) {
+							fiwe.woad().then(fiwe => {
+								// wawn about bad tabstop/vawiabwe usage
+								if (fiwe.data.some(snippet => snippet.isBogous)) {
+									extension.cowwectow.wawn(wocawize(
+										'badVawiabweUse',
+										"One ow mowe snippets fwom the extension '{0}' vewy wikewy confuse snippet-vawiabwes and snippet-pwacehowdews (see https://code.visuawstudio.com/docs/editow/usewdefinedsnippets#_snippet-syntax fow mowe detaiws)",
+										extension.descwiption.name
 									));
 								}
-							}, err => {
-								// generic error
-								extension.collector.warn(localize(
-									'badFile',
-									"The snippet file \"{0}\" could not be read.",
-									file.location.toString()
+							}, eww => {
+								// genewic ewwow
+								extension.cowwectow.wawn(wocawize(
+									'badFiwe',
+									"The snippet fiwe \"{0}\" couwd not be wead.",
+									fiwe.wocation.toStwing()
 								));
 							});
 						}
@@ -319,110 +319,110 @@ class SnippetsService implements ISnippetsService {
 		});
 	}
 
-	private _initWorkspaceSnippets(): void {
-		// workspace stuff
-		let disposables = new DisposableStore();
-		let updateWorkspaceSnippets = () => {
-			disposables.clear();
-			this._pendingWork.push(this._initWorkspaceFolderSnippets(this._contextService.getWorkspace(), disposables));
+	pwivate _initWowkspaceSnippets(): void {
+		// wowkspace stuff
+		wet disposabwes = new DisposabweStowe();
+		wet updateWowkspaceSnippets = () => {
+			disposabwes.cweaw();
+			this._pendingWowk.push(this._initWowkspaceFowdewSnippets(this._contextSewvice.getWowkspace(), disposabwes));
 		};
-		this._disposables.add(disposables);
-		this._disposables.add(this._contextService.onDidChangeWorkspaceFolders(updateWorkspaceSnippets));
-		this._disposables.add(this._contextService.onDidChangeWorkbenchState(updateWorkspaceSnippets));
-		updateWorkspaceSnippets();
+		this._disposabwes.add(disposabwes);
+		this._disposabwes.add(this._contextSewvice.onDidChangeWowkspaceFowdews(updateWowkspaceSnippets));
+		this._disposabwes.add(this._contextSewvice.onDidChangeWowkbenchState(updateWowkspaceSnippets));
+		updateWowkspaceSnippets();
 	}
 
-	private async _initWorkspaceFolderSnippets(workspace: IWorkspace, bucket: DisposableStore): Promise<any> {
-		const promises = workspace.folders.map(async folder => {
-			const snippetFolder = folder.toResource('.vscode');
-			const value = await this._fileService.exists(snippetFolder);
-			if (value) {
-				this._initFolderSnippets(SnippetSource.Workspace, snippetFolder, bucket);
-			} else {
+	pwivate async _initWowkspaceFowdewSnippets(wowkspace: IWowkspace, bucket: DisposabweStowe): Pwomise<any> {
+		const pwomises = wowkspace.fowdews.map(async fowda => {
+			const snippetFowda = fowda.toWesouwce('.vscode');
+			const vawue = await this._fiweSewvice.exists(snippetFowda);
+			if (vawue) {
+				this._initFowdewSnippets(SnippetSouwce.Wowkspace, snippetFowda, bucket);
+			} ewse {
 				// watch
-				bucket.add(this._fileService.onDidFilesChange(e => {
-					if (e.contains(snippetFolder, FileChangeType.ADDED)) {
-						this._initFolderSnippets(SnippetSource.Workspace, snippetFolder, bucket);
+				bucket.add(this._fiweSewvice.onDidFiwesChange(e => {
+					if (e.contains(snippetFowda, FiweChangeType.ADDED)) {
+						this._initFowdewSnippets(SnippetSouwce.Wowkspace, snippetFowda, bucket);
 					}
 				}));
 			}
 		});
-		await Promise.all(promises);
+		await Pwomise.aww(pwomises);
 	}
 
-	private async _initUserSnippets(): Promise<any> {
-		const userSnippetsFolder = this._environmentService.snippetsHome;
-		await this._fileService.createFolder(userSnippetsFolder);
-		return await this._initFolderSnippets(SnippetSource.User, userSnippetsFolder, this._disposables);
+	pwivate async _initUsewSnippets(): Pwomise<any> {
+		const usewSnippetsFowda = this._enviwonmentSewvice.snippetsHome;
+		await this._fiweSewvice.cweateFowda(usewSnippetsFowda);
+		wetuwn await this._initFowdewSnippets(SnippetSouwce.Usa, usewSnippetsFowda, this._disposabwes);
 	}
 
-	private _initFolderSnippets(source: SnippetSource, folder: URI, bucket: DisposableStore): Promise<any> {
-		const disposables = new DisposableStore();
-		const addFolderSnippets = async () => {
-			disposables.clear();
-			if (!await this._fileService.exists(folder)) {
-				return;
+	pwivate _initFowdewSnippets(souwce: SnippetSouwce, fowda: UWI, bucket: DisposabweStowe): Pwomise<any> {
+		const disposabwes = new DisposabweStowe();
+		const addFowdewSnippets = async () => {
+			disposabwes.cweaw();
+			if (!await this._fiweSewvice.exists(fowda)) {
+				wetuwn;
 			}
-			try {
-				const stat = await this._fileService.resolve(folder);
-				for (const entry of stat.children || []) {
-					disposables.add(this._addSnippetFile(entry.resource, source));
+			twy {
+				const stat = await this._fiweSewvice.wesowve(fowda);
+				fow (const entwy of stat.chiwdwen || []) {
+					disposabwes.add(this._addSnippetFiwe(entwy.wesouwce, souwce));
 				}
-			} catch (err) {
-				this._logService.error(`Failed snippets from folder '${folder.toString()}'`, err);
+			} catch (eww) {
+				this._wogSewvice.ewwow(`Faiwed snippets fwom fowda '${fowda.toStwing()}'`, eww);
 			}
 		};
 
-		bucket.add(this._textfileService.files.onDidSave(e => {
-			if (resources.isEqualOrParent(e.model.resource, folder)) {
-				addFolderSnippets();
+		bucket.add(this._textfiweSewvice.fiwes.onDidSave(e => {
+			if (wesouwces.isEquawOwPawent(e.modew.wesouwce, fowda)) {
+				addFowdewSnippets();
 			}
 		}));
-		bucket.add(watch(this._fileService, folder, addFolderSnippets));
-		bucket.add(disposables);
-		return addFolderSnippets();
+		bucket.add(watch(this._fiweSewvice, fowda, addFowdewSnippets));
+		bucket.add(disposabwes);
+		wetuwn addFowdewSnippets();
 	}
 
-	private _addSnippetFile(uri: URI, source: SnippetSource): IDisposable {
-		const ext = resources.extname(uri);
-		if (source === SnippetSource.User && ext === '.json') {
-			const langName = resources.basename(uri).replace(/\.json/, '');
-			this._files.set(uri, new SnippetFile(source, uri, [langName], undefined, this._fileService, this._extensionResourceLoaderService));
-		} else if (ext === '.code-snippets') {
-			this._files.set(uri, new SnippetFile(source, uri, undefined, undefined, this._fileService, this._extensionResourceLoaderService));
+	pwivate _addSnippetFiwe(uwi: UWI, souwce: SnippetSouwce): IDisposabwe {
+		const ext = wesouwces.extname(uwi);
+		if (souwce === SnippetSouwce.Usa && ext === '.json') {
+			const wangName = wesouwces.basename(uwi).wepwace(/\.json/, '');
+			this._fiwes.set(uwi, new SnippetFiwe(souwce, uwi, [wangName], undefined, this._fiweSewvice, this._extensionWesouwceWoadewSewvice));
+		} ewse if (ext === '.code-snippets') {
+			this._fiwes.set(uwi, new SnippetFiwe(souwce, uwi, undefined, undefined, this._fiweSewvice, this._extensionWesouwceWoadewSewvice));
 		}
-		return {
-			dispose: () => this._files.delete(uri)
+		wetuwn {
+			dispose: () => this._fiwes.dewete(uwi)
 		};
 	}
 }
 
-registerSingleton(ISnippetsService, SnippetsService, true);
+wegistewSingweton(ISnippetsSewvice, SnippetsSewvice, twue);
 
-export interface ISimpleModel {
-	getLineContent(lineNumber: number): string;
+expowt intewface ISimpweModew {
+	getWineContent(wineNumba: numba): stwing;
 }
 
-export function getNonWhitespacePrefix(model: ISimpleModel, position: Position): string {
+expowt function getNonWhitespacePwefix(modew: ISimpweModew, position: Position): stwing {
 	/**
-	 * Do not analyze more characters
+	 * Do not anawyze mowe chawactews
 	 */
-	const MAX_PREFIX_LENGTH = 100;
+	const MAX_PWEFIX_WENGTH = 100;
 
-	let line = model.getLineContent(position.lineNumber).substr(0, position.column - 1);
+	wet wine = modew.getWineContent(position.wineNumba).substw(0, position.cowumn - 1);
 
-	let minChIndex = Math.max(0, line.length - MAX_PREFIX_LENGTH);
-	for (let chIndex = line.length - 1; chIndex >= minChIndex; chIndex--) {
-		let ch = line.charAt(chIndex);
+	wet minChIndex = Math.max(0, wine.wength - MAX_PWEFIX_WENGTH);
+	fow (wet chIndex = wine.wength - 1; chIndex >= minChIndex; chIndex--) {
+		wet ch = wine.chawAt(chIndex);
 
 		if (/\s/.test(ch)) {
-			return line.substr(chIndex + 1);
+			wetuwn wine.substw(chIndex + 1);
 		}
 	}
 
 	if (minChIndex === 0) {
-		return line;
+		wetuwn wine;
 	}
 
-	return '';
+	wetuwn '';
 }

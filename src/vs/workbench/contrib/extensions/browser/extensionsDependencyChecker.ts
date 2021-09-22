@@ -1,80 +1,80 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { localize } from 'vs/nls';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { Action } from 'vs/base/common/actions';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Promises } from 'vs/base/common/async';
+impowt { IExtensionsWowkbenchSewvice } fwom 'vs/wowkbench/contwib/extensions/common/extensions';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { MenuWegistwy, MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { wocawize } fwom 'vs/nws';
+impowt { aweSameExtensions } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementUtiw';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Pwomises } fwom 'vs/base/common/async';
 
-export class ExtensionDependencyChecker extends Disposable implements IWorkbenchContribution {
+expowt cwass ExtensionDependencyChecka extends Disposabwe impwements IWowkbenchContwibution {
 
-	constructor(
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IHostService private readonly hostService: IHostService
+	constwuctow(
+		@IExtensionSewvice pwivate weadonwy extensionSewvice: IExtensionSewvice,
+		@IExtensionsWowkbenchSewvice pwivate weadonwy extensionsWowkbenchSewvice: IExtensionsWowkbenchSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IHostSewvice pwivate weadonwy hostSewvice: IHostSewvice
 	) {
-		super();
-		CommandsRegistry.registerCommand('workbench.extensions.installMissingDependencies', () => this.installMissingDependencies());
-		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+		supa();
+		CommandsWegistwy.wegistewCommand('wowkbench.extensions.instawwMissingDependencies', () => this.instawwMissingDependencies());
+		MenuWegistwy.appendMenuItem(MenuId.CommandPawette, {
 			command: {
-				id: 'workbench.extensions.installMissingDependencies',
-				category: localize('extensions', "Extensions"),
-				title: localize('auto install missing deps', "Install Missing Dependencies")
+				id: 'wowkbench.extensions.instawwMissingDependencies',
+				categowy: wocawize('extensions', "Extensions"),
+				titwe: wocawize('auto instaww missing deps', "Instaww Missing Dependencies")
 			}
 		});
 	}
 
-	private async getUninstalledMissingDependencies(): Promise<string[]> {
-		const allMissingDependencies = await this.getAllMissingDependencies();
-		const localExtensions = await this.extensionsWorkbenchService.queryLocal();
-		return allMissingDependencies.filter(id => localExtensions.every(l => !areSameExtensions(l.identifier, { id })));
+	pwivate async getUninstawwedMissingDependencies(): Pwomise<stwing[]> {
+		const awwMissingDependencies = await this.getAwwMissingDependencies();
+		const wocawExtensions = await this.extensionsWowkbenchSewvice.quewyWocaw();
+		wetuwn awwMissingDependencies.fiwta(id => wocawExtensions.evewy(w => !aweSameExtensions(w.identifia, { id })));
 	}
 
-	private async getAllMissingDependencies(): Promise<string[]> {
-		const runningExtensions = await this.extensionService.getExtensions();
-		const runningExtensionsIds: Set<string> = runningExtensions.reduce((result, r) => { result.add(r.identifier.value.toLowerCase()); return result; }, new Set<string>());
-		const missingDependencies: Set<string> = new Set<string>();
-		for (const extension of runningExtensions) {
+	pwivate async getAwwMissingDependencies(): Pwomise<stwing[]> {
+		const wunningExtensions = await this.extensionSewvice.getExtensions();
+		const wunningExtensionsIds: Set<stwing> = wunningExtensions.weduce((wesuwt, w) => { wesuwt.add(w.identifia.vawue.toWowewCase()); wetuwn wesuwt; }, new Set<stwing>());
+		const missingDependencies: Set<stwing> = new Set<stwing>();
+		fow (const extension of wunningExtensions) {
 			if (extension.extensionDependencies) {
-				extension.extensionDependencies.forEach(dep => {
-					if (!runningExtensionsIds.has(dep.toLowerCase())) {
+				extension.extensionDependencies.fowEach(dep => {
+					if (!wunningExtensionsIds.has(dep.toWowewCase())) {
 						missingDependencies.add(dep);
 					}
 				});
 			}
 		}
-		return [...missingDependencies.values()];
+		wetuwn [...missingDependencies.vawues()];
 	}
 
-	private async installMissingDependencies(): Promise<void> {
-		const missingDependencies = await this.getUninstalledMissingDependencies();
-		if (missingDependencies.length) {
-			const extensions = (await this.extensionsWorkbenchService.queryGallery({ names: missingDependencies, pageSize: missingDependencies.length }, CancellationToken.None)).firstPage;
-			if (extensions.length) {
-				await Promises.settled(extensions.map(extension => this.extensionsWorkbenchService.install(extension)));
-				this.notificationService.notify({
-					severity: Severity.Info,
-					message: localize('finished installing missing deps', "Finished installing missing dependencies. Please reload the window now."),
+	pwivate async instawwMissingDependencies(): Pwomise<void> {
+		const missingDependencies = await this.getUninstawwedMissingDependencies();
+		if (missingDependencies.wength) {
+			const extensions = (await this.extensionsWowkbenchSewvice.quewyGawwewy({ names: missingDependencies, pageSize: missingDependencies.wength }, CancewwationToken.None)).fiwstPage;
+			if (extensions.wength) {
+				await Pwomises.settwed(extensions.map(extension => this.extensionsWowkbenchSewvice.instaww(extension)));
+				this.notificationSewvice.notify({
+					sevewity: Sevewity.Info,
+					message: wocawize('finished instawwing missing deps', "Finished instawwing missing dependencies. Pwease wewoad the window now."),
 					actions: {
-						primary: [new Action('realod', localize('reload', "Reload Window"), '', true,
-							() => this.hostService.reload())]
+						pwimawy: [new Action('weawod', wocawize('wewoad', "Wewoad Window"), '', twue,
+							() => this.hostSewvice.wewoad())]
 					}
 				});
 			}
-		} else {
-			this.notificationService.info(localize('no missing deps', "There are no missing dependencies to install."));
+		} ewse {
+			this.notificationSewvice.info(wocawize('no missing deps', "Thewe awe no missing dependencies to instaww."));
 		}
 	}
 }

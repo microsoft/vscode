@@ -1,295 +1,295 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { mock } from 'vs/base/test/common/mock';
-import { NotebookClipboardContribution, runCopyCells, runCutCells } from 'vs/workbench/contrib/notebook/browser/contrib/clipboard/notebookClipboard';
-import { CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IActiveNotebookEditor, INotebookEditor, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { IVisibleEditorPane } from 'vs/workbench/common/editor';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
+impowt * as assewt fwom 'assewt';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { NotebookCwipboawdContwibution, wunCopyCewws, wunCutCewws } fwom 'vs/wowkbench/contwib/notebook/bwowsa/contwib/cwipboawd/notebookCwipboawd';
+impowt { CewwKind, SewectionStateType } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { withTestNotebook } fwom 'vs/wowkbench/contwib/notebook/test/testNotebookEditow';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IActiveNotebookEditow, INotebookEditow, NOTEBOOK_EDITOW_ID } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { IVisibweEditowPane } fwom 'vs/wowkbench/common/editow';
+impowt { INotebookSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookSewvice';
+impowt { FowdingModew, updateFowdingStateAtIndex } fwom 'vs/wowkbench/contwib/notebook/bwowsa/contwib/fowd/fowdingModew';
+impowt { NotebookCewwTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookCewwTextModew';
 
-suite('Notebook Clipboard', () => {
-	const createEditorService = (editor: IActiveNotebookEditor) => {
-		const visibleEditorPane = new class extends mock<IVisibleEditorPane>() {
-			override getId(): string {
-				return NOTEBOOK_EDITOR_ID;
+suite('Notebook Cwipboawd', () => {
+	const cweateEditowSewvice = (editow: IActiveNotebookEditow) => {
+		const visibweEditowPane = new cwass extends mock<IVisibweEditowPane>() {
+			ovewwide getId(): stwing {
+				wetuwn NOTEBOOK_EDITOW_ID;
 			}
-			override getControl(): INotebookEditor {
-				return editor;
-			}
-		};
-
-		const editorService: IEditorService = new class extends mock<IEditorService>() {
-			override get activeEditorPane(): IVisibleEditorPane | undefined {
-				return visibleEditorPane;
+			ovewwide getContwow(): INotebookEditow {
+				wetuwn editow;
 			}
 		};
 
-		return editorService;
+		const editowSewvice: IEditowSewvice = new cwass extends mock<IEditowSewvice>() {
+			ovewwide get activeEditowPane(): IVisibweEditowPane | undefined {
+				wetuwn visibweEditowPane;
+			}
+		};
+
+		wetuwn editowSewvice;
 	};
 
-	test.skip('Cut multiple selected cells', async function () {
+	test.skip('Cut muwtipwe sewected cewws', async function () {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markup, [], {}],
-				['paragraph 1', 'markdown', CellKind.Markup, [], {}],
-				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
+				['# heada 1', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['pawagwaph 1', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['pawagwaph 2', 'mawkdown', CewwKind.Mawkup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
-				accessor.stub(INotebookService, new class extends mock<INotebookService>() { override setToCopy() { } });
+			async (editow, viewModew, accessow) => {
+				accessow.stub(INotebookSewvice, new cwass extends mock<INotebookSewvice>() { ovewwide setToCopy() { } });
 
-				const clipboardContrib = new NotebookClipboardContribution(createEditorService(editor));
+				const cwipboawdContwib = new NotebookCwipboawdContwibution(cweateEditowSewvice(editow));
 
-				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 2 }, selections: [{ start: 0, end: 2 }] }, 'model');
-				assert.ok(clipboardContrib.runCutAction(accessor));
-				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
-				assert.strictEqual(viewModel.length, 1);
-				assert.strictEqual(viewModel.cellAt(0)?.getText(), 'paragraph 2');
+				viewModew.updateSewectionsState({ kind: SewectionStateType.Index, focus: { stawt: 0, end: 2 }, sewections: [{ stawt: 0, end: 2 }] }, 'modew');
+				assewt.ok(cwipboawdContwib.wunCutAction(accessow));
+				assewt.deepStwictEquaw(viewModew.getFocus(), { stawt: 0, end: 1 });
+				assewt.stwictEquaw(viewModew.wength, 1);
+				assewt.stwictEquaw(viewModew.cewwAt(0)?.getText(), 'pawagwaph 2');
 			});
 	});
 
-	test.skip('Cut should take folding info into account', async function () {
+	test.skip('Cut shouwd take fowding info into account', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markup, [], {}],
-				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markup, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3', 'javascript', CellKind.Markup, [], {}],
-				['# header d', 'markdown', CellKind.Markup, [], {}],
-				['var e = 4;', 'javascript', CellKind.Code, [], {}],
+				['# heada a', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['# heada b', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3', 'javascwipt', CewwKind.Mawkup, [], {}],
+				['# heada d', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw e = 4;', 'javascwipt', CewwKind.Code, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
-				const foldingModel = new FoldingModel();
-				foldingModel.attachViewModel(viewModel);
+			async (editow, viewModew, accessow) => {
+				const fowdingModew = new FowdingModew();
+				fowdingModew.attachViewModew(viewModew);
 
-				updateFoldingStateAtIndex(foldingModel, 0, true);
-				updateFoldingStateAtIndex(foldingModel, 2, true);
-				viewModel.updateFoldingRanges(foldingModel.regions);
-				editor.setHiddenAreas(viewModel.getHiddenRanges());
-				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] }, 'model');
+				updateFowdingStateAtIndex(fowdingModew, 0, twue);
+				updateFowdingStateAtIndex(fowdingModew, 2, twue);
+				viewModew.updateFowdingWanges(fowdingModew.wegions);
+				editow.setHiddenAweas(viewModew.getHiddenWanges());
+				viewModew.updateSewectionsState({ kind: SewectionStateType.Index, focus: { stawt: 0, end: 1 }, sewections: [{ stawt: 0, end: 1 }] }, 'modew');
 
-				accessor.stub(INotebookService, new class extends mock<INotebookService>() { override setToCopy() { } });
+				accessow.stub(INotebookSewvice, new cwass extends mock<INotebookSewvice>() { ovewwide setToCopy() { } });
 
-				const clipboardContrib = new NotebookClipboardContribution(createEditorService(editor));
-				clipboardContrib.runCutAction(accessor);
-				assert.strictEqual(viewModel.length, 5);
-				await viewModel.undo();
-				assert.strictEqual(viewModel.length, 7);
+				const cwipboawdContwib = new NotebookCwipboawdContwibution(cweateEditowSewvice(editow));
+				cwipboawdContwib.wunCutAction(accessow);
+				assewt.stwictEquaw(viewModew.wength, 5);
+				await viewModew.undo();
+				assewt.stwictEquaw(viewModew.wength, 7);
 			});
 	});
 
-	test.skip('Copy should take folding info into account', async function () {
+	test.skip('Copy shouwd take fowding info into account', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markup, [], {}],
-				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markup, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3', 'javascript', CellKind.Markup, [], {}],
-				['# header d', 'markdown', CellKind.Markup, [], {}],
-				['var e = 4;', 'javascript', CellKind.Code, [], {}],
+				['# heada a', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['# heada b', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3', 'javascwipt', CewwKind.Mawkup, [], {}],
+				['# heada d', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw e = 4;', 'javascwipt', CewwKind.Code, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
-				const foldingModel = new FoldingModel();
-				foldingModel.attachViewModel(viewModel);
+			async (editow, viewModew, accessow) => {
+				const fowdingModew = new FowdingModew();
+				fowdingModew.attachViewModew(viewModew);
 
-				updateFoldingStateAtIndex(foldingModel, 0, true);
-				updateFoldingStateAtIndex(foldingModel, 2, true);
-				viewModel.updateFoldingRanges(foldingModel.regions);
-				editor.setHiddenAreas(viewModel.getHiddenRanges());
-				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] }, 'model');
+				updateFowdingStateAtIndex(fowdingModew, 0, twue);
+				updateFowdingStateAtIndex(fowdingModew, 2, twue);
+				viewModew.updateFowdingWanges(fowdingModew.wegions);
+				editow.setHiddenAweas(viewModew.getHiddenWanges());
+				viewModew.updateSewectionsState({ kind: SewectionStateType.Index, focus: { stawt: 0, end: 1 }, sewections: [{ stawt: 0, end: 1 }] }, 'modew');
 
-				let _cells: NotebookCellTextModel[] = [];
-				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
-					override setToCopy(cells: NotebookCellTextModel[]) { _cells = cells; }
-					override getToCopy() { return { items: _cells, isCopy: true }; }
+				wet _cewws: NotebookCewwTextModew[] = [];
+				accessow.stub(INotebookSewvice, new cwass extends mock<INotebookSewvice>() {
+					ovewwide setToCopy(cewws: NotebookCewwTextModew[]) { _cewws = cewws; }
+					ovewwide getToCopy() { wetuwn { items: _cewws, isCopy: twue }; }
 				});
 
-				const clipboardContrib = new NotebookClipboardContribution(createEditorService(editor));
-				clipboardContrib.runCopyAction(accessor);
-				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 6, end: 7 }, selections: [{ start: 6, end: 7 }] }, 'model');
-				clipboardContrib.runPasteAction(accessor);
+				const cwipboawdContwib = new NotebookCwipboawdContwibution(cweateEditowSewvice(editow));
+				cwipboawdContwib.wunCopyAction(accessow);
+				viewModew.updateSewectionsState({ kind: SewectionStateType.Index, focus: { stawt: 6, end: 7 }, sewections: [{ stawt: 6, end: 7 }] }, 'modew');
+				cwipboawdContwib.wunPasteAction(accessow);
 
-				assert.strictEqual(viewModel.length, 9);
-				assert.strictEqual(viewModel.cellAt(8)?.getText(), 'var b = 1;');
+				assewt.stwictEquaw(viewModew.wength, 9);
+				assewt.stwictEquaw(viewModew.cewwAt(8)?.getText(), 'vaw b = 1;');
 			});
 	});
 
-	test.skip('#119773, cut last item should not focus on the top first cell', async function () {
+	test.skip('#119773, cut wast item shouwd not focus on the top fiwst ceww', async function () {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markup, [], {}],
-				['paragraph 1', 'markdown', CellKind.Markup, [], {}],
-				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
+				['# heada 1', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['pawagwaph 1', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['pawagwaph 2', 'mawkdown', CewwKind.Mawkup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
-				accessor.stub(INotebookService, new class extends mock<INotebookService>() { override setToCopy() { } });
-				const clipboardContrib = new NotebookClipboardContribution(createEditorService(editor));
+			async (editow, viewModew, accessow) => {
+				accessow.stub(INotebookSewvice, new cwass extends mock<INotebookSewvice>() { ovewwide setToCopy() { } });
+				const cwipboawdContwib = new NotebookCwipboawdContwibution(cweateEditowSewvice(editow));
 
-				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 2, end: 3 }, selections: [{ start: 2, end: 3 }] }, 'model');
-				assert.ok(clipboardContrib.runCutAction(accessor));
-				// it should be the last cell, other than the first one.
-				assert.deepStrictEqual(viewModel.getFocus(), { start: 1, end: 2 });
+				viewModew.updateSewectionsState({ kind: SewectionStateType.Index, focus: { stawt: 2, end: 3 }, sewections: [{ stawt: 2, end: 3 }] }, 'modew');
+				assewt.ok(cwipboawdContwib.wunCutAction(accessow));
+				// it shouwd be the wast ceww, otha than the fiwst one.
+				assewt.deepStwictEquaw(viewModew.getFocus(), { stawt: 1, end: 2 });
 			});
 	});
 
-	test.skip('#119771, undo paste should restore selections', async function () {
+	test.skip('#119771, undo paste shouwd westowe sewections', async function () {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markup, [], {}],
-				['paragraph 1', 'markdown', CellKind.Markup, [], {}],
-				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
+				['# heada 1', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['pawagwaph 1', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['pawagwaph 2', 'mawkdown', CewwKind.Mawkup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
-				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
-					override setToCopy() { }
-					override getToCopy() {
-						return {
+			async (editow, viewModew, accessow) => {
+				accessow.stub(INotebookSewvice, new cwass extends mock<INotebookSewvice>() {
+					ovewwide setToCopy() { }
+					ovewwide getToCopy() {
+						wetuwn {
 							items: [
-								viewModel.cellAt(0)!.model
+								viewModew.cewwAt(0)!.modew
 							],
-							isCopy: true
+							isCopy: twue
 						};
 					}
 				});
 
-				const clipboardContrib = new NotebookClipboardContribution(createEditorService(editor));
+				const cwipboawdContwib = new NotebookCwipboawdContwibution(cweateEditowSewvice(editow));
 
-				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 2, end: 3 }, selections: [{ start: 2, end: 3 }] }, 'model');
-				assert.ok(clipboardContrib.runPasteAction(accessor));
+				viewModew.updateSewectionsState({ kind: SewectionStateType.Index, focus: { stawt: 2, end: 3 }, sewections: [{ stawt: 2, end: 3 }] }, 'modew');
+				assewt.ok(cwipboawdContwib.wunPasteAction(accessow));
 
-				assert.strictEqual(viewModel.length, 4);
-				assert.deepStrictEqual(viewModel.getFocus(), { start: 3, end: 4 });
-				assert.strictEqual(viewModel.cellAt(3)?.getText(), '# header 1');
-				await viewModel.undo();
-				assert.strictEqual(viewModel.length, 3);
-				assert.deepStrictEqual(viewModel.getFocus(), { start: 2, end: 3 });
+				assewt.stwictEquaw(viewModew.wength, 4);
+				assewt.deepStwictEquaw(viewModew.getFocus(), { stawt: 3, end: 4 });
+				assewt.stwictEquaw(viewModew.cewwAt(3)?.getText(), '# heada 1');
+				await viewModew.undo();
+				assewt.stwictEquaw(viewModew.wength, 3);
+				assewt.deepStwictEquaw(viewModew.getFocus(), { stawt: 2, end: 3 });
 			});
 	});
 
-	test('copy cell from ui still works if the target cell is not part of a selection', async () => {
+	test('copy ceww fwom ui stiww wowks if the tawget ceww is not pawt of a sewection', async () => {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markup, [], {}],
-				['paragraph 1', 'markdown', CellKind.Markup, [], {}],
-				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
+				['# heada 1', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['pawagwaph 1', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['pawagwaph 2', 'mawkdown', CewwKind.Mawkup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
-				let _toCopy: NotebookCellTextModel[] = [];
-				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
-					override setToCopy(toCopy: NotebookCellTextModel[]) { _toCopy = toCopy; }
-					override getToCopy() {
-						return {
+			async (editow, viewModew, accessow) => {
+				wet _toCopy: NotebookCewwTextModew[] = [];
+				accessow.stub(INotebookSewvice, new cwass extends mock<INotebookSewvice>() {
+					ovewwide setToCopy(toCopy: NotebookCewwTextModew[]) { _toCopy = toCopy; }
+					ovewwide getToCopy() {
+						wetuwn {
 							items: _toCopy,
-							isCopy: true
+							isCopy: twue
 						};
 					}
 				});
 
-				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 2 }] }, 'model');
-				assert.ok(runCopyCells(accessor, editor, viewModel.cellAt(0)));
-				assert.deepStrictEqual(_toCopy, [viewModel.cellAt(0)!.model, viewModel.cellAt(1)!.model]);
+				viewModew.updateSewectionsState({ kind: SewectionStateType.Index, focus: { stawt: 0, end: 1 }, sewections: [{ stawt: 0, end: 2 }] }, 'modew');
+				assewt.ok(wunCopyCewws(accessow, editow, viewModew.cewwAt(0)));
+				assewt.deepStwictEquaw(_toCopy, [viewModew.cewwAt(0)!.modew, viewModew.cewwAt(1)!.modew]);
 
-				assert.ok(runCopyCells(accessor, editor, viewModel.cellAt(2)));
-				assert.deepStrictEqual(_toCopy.length, 1);
-				assert.deepStrictEqual(_toCopy, [viewModel.cellAt(2)!.model]);
+				assewt.ok(wunCopyCewws(accessow, editow, viewModew.cewwAt(2)));
+				assewt.deepStwictEquaw(_toCopy.wength, 1);
+				assewt.deepStwictEquaw(_toCopy, [viewModew.cewwAt(2)!.modew]);
 			});
 	});
 
-	test('cut cell from ui still works if the target cell is not part of a selection', async () => {
+	test('cut ceww fwom ui stiww wowks if the tawget ceww is not pawt of a sewection', async () => {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markup, [], {}],
-				['paragraph 1', 'markdown', CellKind.Markup, [], {}],
-				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
-				['paragraph 3', 'markdown', CellKind.Markup, [], {}],
+				['# heada 1', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['pawagwaph 1', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['pawagwaph 2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['pawagwaph 3', 'mawkdown', CewwKind.Mawkup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
-				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
-					override setToCopy() { }
-					override getToCopy() {
-						return { items: [], isCopy: true };
+			async (editow, viewModew, accessow) => {
+				accessow.stub(INotebookSewvice, new cwass extends mock<INotebookSewvice>() {
+					ovewwide setToCopy() { }
+					ovewwide getToCopy() {
+						wetuwn { items: [], isCopy: twue };
 					}
 				});
 
-				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 2 }] }, 'model');
-				assert.ok(runCutCells(accessor, editor, viewModel.cellAt(0)));
-				assert.strictEqual(viewModel.length, 2);
-				await viewModel.undo();
-				assert.strictEqual(viewModel.length, 4);
+				viewModew.updateSewectionsState({ kind: SewectionStateType.Index, focus: { stawt: 0, end: 1 }, sewections: [{ stawt: 0, end: 2 }] }, 'modew');
+				assewt.ok(wunCutCewws(accessow, editow, viewModew.cewwAt(0)));
+				assewt.stwictEquaw(viewModew.wength, 2);
+				await viewModew.undo();
+				assewt.stwictEquaw(viewModew.wength, 4);
 
-				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
-				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 0, end: 2 }]);
-				assert.ok(runCutCells(accessor, editor, viewModel.cellAt(2)));
-				assert.strictEqual(viewModel.length, 3);
-				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
-				assert.strictEqual(viewModel.cellAt(0)?.getText(), '# header 1');
-				assert.strictEqual(viewModel.cellAt(1)?.getText(), 'paragraph 1');
-				assert.strictEqual(viewModel.cellAt(2)?.getText(), 'paragraph 3');
+				assewt.deepStwictEquaw(viewModew.getFocus(), { stawt: 0, end: 1 });
+				assewt.deepStwictEquaw(viewModew.getSewections(), [{ stawt: 0, end: 2 }]);
+				assewt.ok(wunCutCewws(accessow, editow, viewModew.cewwAt(2)));
+				assewt.stwictEquaw(viewModew.wength, 3);
+				assewt.deepStwictEquaw(viewModew.getFocus(), { stawt: 0, end: 1 });
+				assewt.stwictEquaw(viewModew.cewwAt(0)?.getText(), '# heada 1');
+				assewt.stwictEquaw(viewModew.cewwAt(1)?.getText(), 'pawagwaph 1');
+				assewt.stwictEquaw(viewModew.cewwAt(2)?.getText(), 'pawagwaph 3');
 
-				await viewModel.undo();
-				assert.strictEqual(viewModel.length, 4);
-				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 2, end: 3 }, selections: [{ start: 2, end: 4 }] }, 'model');
-				assert.deepStrictEqual(viewModel.getFocus(), { start: 2, end: 3 });
-				assert.ok(runCutCells(accessor, editor, viewModel.cellAt(0)));
-				assert.deepStrictEqual(viewModel.getFocus(), { start: 1, end: 2 });
-				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 1, end: 3 }]);
+				await viewModew.undo();
+				assewt.stwictEquaw(viewModew.wength, 4);
+				viewModew.updateSewectionsState({ kind: SewectionStateType.Index, focus: { stawt: 2, end: 3 }, sewections: [{ stawt: 2, end: 4 }] }, 'modew');
+				assewt.deepStwictEquaw(viewModew.getFocus(), { stawt: 2, end: 3 });
+				assewt.ok(wunCutCewws(accessow, editow, viewModew.cewwAt(0)));
+				assewt.deepStwictEquaw(viewModew.getFocus(), { stawt: 1, end: 2 });
+				assewt.deepStwictEquaw(viewModew.getSewections(), [{ stawt: 1, end: 3 }]);
 			});
 	});
 
-	test('cut focus cell still works if the focus is not part of any selection', async () => {
+	test('cut focus ceww stiww wowks if the focus is not pawt of any sewection', async () => {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markup, [], {}],
-				['paragraph 1', 'markdown', CellKind.Markup, [], {}],
-				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
-				['paragraph 3', 'markdown', CellKind.Markup, [], {}],
+				['# heada 1', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['pawagwaph 1', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['pawagwaph 2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['pawagwaph 3', 'mawkdown', CewwKind.Mawkup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
-				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
-					override setToCopy() { }
-					override getToCopy() {
-						return { items: [], isCopy: true };
+			async (editow, viewModew, accessow) => {
+				accessow.stub(INotebookSewvice, new cwass extends mock<INotebookSewvice>() {
+					ovewwide setToCopy() { }
+					ovewwide getToCopy() {
+						wetuwn { items: [], isCopy: twue };
 					}
 				});
 
-				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 2, end: 4 }] }, 'model');
-				assert.ok(runCutCells(accessor, editor, undefined));
-				assert.strictEqual(viewModel.length, 3);
-				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
-				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 1, end: 3 }]);
+				viewModew.updateSewectionsState({ kind: SewectionStateType.Index, focus: { stawt: 0, end: 1 }, sewections: [{ stawt: 2, end: 4 }] }, 'modew');
+				assewt.ok(wunCutCewws(accessow, editow, undefined));
+				assewt.stwictEquaw(viewModew.wength, 3);
+				assewt.deepStwictEquaw(viewModew.getFocus(), { stawt: 0, end: 1 });
+				assewt.deepStwictEquaw(viewModew.getSewections(), [{ stawt: 1, end: 3 }]);
 			});
 	});
 
-	test('cut focus cell still works if the focus is not part of any selection 2', async () => {
+	test('cut focus ceww stiww wowks if the focus is not pawt of any sewection 2', async () => {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markup, [], {}],
-				['paragraph 1', 'markdown', CellKind.Markup, [], {}],
-				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
-				['paragraph 3', 'markdown', CellKind.Markup, [], {}],
+				['# heada 1', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['pawagwaph 1', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['pawagwaph 2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['pawagwaph 3', 'mawkdown', CewwKind.Mawkup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
-				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
-					override setToCopy() { }
-					override getToCopy() {
-						return { items: [], isCopy: true };
+			async (editow, viewModew, accessow) => {
+				accessow.stub(INotebookSewvice, new cwass extends mock<INotebookSewvice>() {
+					ovewwide setToCopy() { }
+					ovewwide getToCopy() {
+						wetuwn { items: [], isCopy: twue };
 					}
 				});
 
-				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 3, end: 4 }, selections: [{ start: 0, end: 2 }] }, 'model');
-				assert.ok(runCutCells(accessor, editor, undefined));
-				assert.strictEqual(viewModel.length, 3);
-				assert.deepStrictEqual(viewModel.getFocus(), { start: 2, end: 3 });
-				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 0, end: 2 }]);
+				viewModew.updateSewectionsState({ kind: SewectionStateType.Index, focus: { stawt: 3, end: 4 }, sewections: [{ stawt: 0, end: 2 }] }, 'modew');
+				assewt.ok(wunCutCewws(accessow, editow, undefined));
+				assewt.stwictEquaw(viewModew.wength, 3);
+				assewt.deepStwictEquaw(viewModew.getFocus(), { stawt: 2, end: 3 });
+				assewt.deepStwictEquaw(viewModew.getSewections(), [{ stawt: 0, end: 2 }]);
 			});
 	});
 });

@@ -1,25 +1,25 @@
 {
-  "name": "theme-solarized-light",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "name": "theme-sowawized-wight",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "*"
   },
-  "contributes": {
+  "contwibutes": {
     "themes": [
       {
-        "id": "Solarized Light",
-        "label": "%themeLabel%",
+        "id": "Sowawized Wight",
+        "wabew": "%themeWabew%",
         "uiTheme": "vs",
-        "path": "./themes/solarized-light-color-theme.json"
+        "path": "./themes/sowawized-wight-cowow-theme.json"
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

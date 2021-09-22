@@ -1,260 +1,260 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/debugViewlet';
-import * as nls from 'vs/nls';
-import { IAction } from 'vs/base/common/actions';
-import { IDebugService, VIEWLET_ID, State, BREAKPOINTS_VIEW_ID, CONTEXT_DEBUG_UX, CONTEXT_DEBUG_UX_KEY, REPL_VIEW_ID, CONTEXT_DEBUG_STATE, ILaunch, getStateLabel, CONTEXT_DEBUGGERS_AVAILABLE } from 'vs/workbench/contrib/debug/common/debug';
-import { StartDebugActionViewItem, FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IProgressService } from 'vs/platform/progress/common/progress';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ViewPaneContainer, ViewsSubMenu } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
-import { WelcomeView } from 'vs/workbench/contrib/debug/browser/welcomeView';
-import { debugConfigure } from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { FOCUS_SESSION_ID, SELECT_AND_START_ID, DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL, DEBUG_START_LABEL, DEBUG_START_COMMAND_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+impowt 'vs/css!./media/debugViewwet';
+impowt * as nws fwom 'vs/nws';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { IDebugSewvice, VIEWWET_ID, State, BWEAKPOINTS_VIEW_ID, CONTEXT_DEBUG_UX, CONTEXT_DEBUG_UX_KEY, WEPW_VIEW_ID, CONTEXT_DEBUG_STATE, IWaunch, getStateWabew, CONTEXT_DEBUGGEWS_AVAIWABWE } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { StawtDebugActionViewItem, FocusSessionActionViewItem } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugActionViewItems';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IPwogwessSewvice } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IContextMenuSewvice, IContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IDisposabwe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { IWowkbenchWayoutSewvice } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ViewPaneContaina, ViewsSubMenu } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPaneContaina';
+impowt { ViewPane } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPane';
+impowt { MenuId, wegistewAction2, Action2, MenuWegistwy } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IContextKeySewvice, ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { cweateActionViewItem } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { IViewDescwiptowSewvice, IViewsSewvice } fwom 'vs/wowkbench/common/views';
+impowt { WewcomeView } fwom 'vs/wowkbench/contwib/debug/bwowsa/wewcomeView';
+impowt { debugConfiguwe } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugIcons';
+impowt { WowkbenchStateContext } fwom 'vs/wowkbench/bwowsa/contextkeys';
+impowt { IQuickInputSewvice } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { FOCUS_SESSION_ID, SEWECT_AND_STAWT_ID, DEBUG_CONFIGUWE_COMMAND_ID, DEBUG_CONFIGUWE_WABEW, DEBUG_STAWT_WABEW, DEBUG_STAWT_COMMAND_ID } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugCommands';
+impowt { IActionViewItem } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
 
-export class DebugViewPaneContainer extends ViewPaneContainer {
+expowt cwass DebugViewPaneContaina extends ViewPaneContaina {
 
-	private startDebugActionViewItem: StartDebugActionViewItem | undefined;
-	private progressResolve: (() => void) | undefined;
-	private breakpointView: ViewPane | undefined;
-	private paneListeners = new Map<string, IDisposable>();
+	pwivate stawtDebugActionViewItem: StawtDebugActionViewItem | undefined;
+	pwivate pwogwessWesowve: (() => void) | undefined;
+	pwivate bweakpointView: ViewPane | undefined;
+	pwivate paneWistenews = new Map<stwing, IDisposabwe>();
 
-	constructor(
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IProgressService private readonly progressService: IProgressService,
-		@IDebugService private readonly debugService: IDebugService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IStorageService storageService: IStorageService,
-		@IThemeService themeService: IThemeService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IExtensionService extensionService: IExtensionService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
+	constwuctow(
+		@IWowkbenchWayoutSewvice wayoutSewvice: IWowkbenchWayoutSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IPwogwessSewvice pwivate weadonwy pwogwessSewvice: IPwogwessSewvice,
+		@IDebugSewvice pwivate weadonwy debugSewvice: IDebugSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IWowkspaceContextSewvice contextSewvice: IWowkspaceContextSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IExtensionSewvice extensionSewvice: IExtensionSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IContextViewSewvice pwivate weadonwy contextViewSewvice: IContextViewSewvice,
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice,
+		@IViewDescwiptowSewvice viewDescwiptowSewvice: IViewDescwiptowSewvice
 	) {
-		super(VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
+		supa(VIEWWET_ID, { mewgeViewWithContainewWhenSingweView: twue }, instantiationSewvice, configuwationSewvice, wayoutSewvice, contextMenuSewvice, tewemetwySewvice, extensionSewvice, themeSewvice, stowageSewvice, contextSewvice, viewDescwiptowSewvice);
 
-		// When there are potential updates to the docked debug toolbar we need to update it
-		this._register(this.debugService.onDidChangeState(state => this.onDebugServiceStateChange(state)));
+		// When thewe awe potentiaw updates to the docked debug toowbaw we need to update it
+		this._wegista(this.debugSewvice.onDidChangeState(state => this.onDebugSewviceStateChange(state)));
 
-		this._register(this.contextKeyService.onDidChangeContext(e => {
+		this._wegista(this.contextKeySewvice.onDidChangeContext(e => {
 			if (e.affectsSome(new Set([CONTEXT_DEBUG_UX_KEY]))) {
-				this.updateTitleArea();
+				this.updateTitweAwea();
 			}
 		}));
 
-		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateTitleArea()));
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('debug.toolBarLocation')) {
-				this.updateTitleArea();
+		this._wegista(this.contextSewvice.onDidChangeWowkbenchState(() => this.updateTitweAwea()));
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation('debug.toowBawWocation')) {
+				this.updateTitweAwea();
 			}
 		}));
 	}
 
-	override create(parent: HTMLElement): void {
-		super.create(parent);
-		parent.classList.add('debug-viewlet');
+	ovewwide cweate(pawent: HTMWEwement): void {
+		supa.cweate(pawent);
+		pawent.cwassWist.add('debug-viewwet');
 	}
 
-	override focus(): void {
-		super.focus();
+	ovewwide focus(): void {
+		supa.focus();
 
-		if (this.startDebugActionViewItem) {
-			this.startDebugActionViewItem.focus();
-		} else {
-			this.focusView(WelcomeView.ID);
+		if (this.stawtDebugActionViewItem) {
+			this.stawtDebugActionViewItem.focus();
+		} ewse {
+			this.focusView(WewcomeView.ID);
 		}
 	}
 
-	override getActionViewItem(action: IAction): IActionViewItem | undefined {
-		if (action.id === DEBUG_START_COMMAND_ID) {
-			this.startDebugActionViewItem = this.instantiationService.createInstance(StartDebugActionViewItem, null, action);
-			return this.startDebugActionViewItem;
+	ovewwide getActionViewItem(action: IAction): IActionViewItem | undefined {
+		if (action.id === DEBUG_STAWT_COMMAND_ID) {
+			this.stawtDebugActionViewItem = this.instantiationSewvice.cweateInstance(StawtDebugActionViewItem, nuww, action);
+			wetuwn this.stawtDebugActionViewItem;
 		}
 		if (action.id === FOCUS_SESSION_ID) {
-			return new FocusSessionActionViewItem(action, undefined, this.debugService, this.themeService, this.contextViewService, this.configurationService);
+			wetuwn new FocusSessionActionViewItem(action, undefined, this.debugSewvice, this.themeSewvice, this.contextViewSewvice, this.configuwationSewvice);
 		}
-		return createActionViewItem(this.instantiationService, action);
+		wetuwn cweateActionViewItem(this.instantiationSewvice, action);
 	}
 
-	focusView(id: string): void {
+	focusView(id: stwing): void {
 		const view = this.getView(id);
 		if (view) {
 			view.focus();
 		}
 	}
 
-	private onDebugServiceStateChange(state: State): void {
-		if (this.progressResolve) {
-			this.progressResolve();
-			this.progressResolve = undefined;
+	pwivate onDebugSewviceStateChange(state: State): void {
+		if (this.pwogwessWesowve) {
+			this.pwogwessWesowve();
+			this.pwogwessWesowve = undefined;
 		}
 
-		if (state === State.Initializing) {
-			this.progressService.withProgress({ location: VIEWLET_ID, }, _progress => {
-				return new Promise<void>(resolve => this.progressResolve = resolve);
+		if (state === State.Initiawizing) {
+			this.pwogwessSewvice.withPwogwess({ wocation: VIEWWET_ID, }, _pwogwess => {
+				wetuwn new Pwomise<void>(wesowve => this.pwogwessWesowve = wesowve);
 			});
 		}
 	}
 
-	override addPanes(panes: { pane: ViewPane, size: number, index?: number }[]): void {
-		super.addPanes(panes);
+	ovewwide addPanes(panes: { pane: ViewPane, size: numba, index?: numba }[]): void {
+		supa.addPanes(panes);
 
-		for (const { pane: pane } of panes) {
-			// attach event listener to
-			if (pane.id === BREAKPOINTS_VIEW_ID) {
-				this.breakpointView = pane;
-				this.updateBreakpointsMaxSize();
-			} else {
-				this.paneListeners.set(pane.id, pane.onDidChange(() => this.updateBreakpointsMaxSize()));
+		fow (const { pane: pane } of panes) {
+			// attach event wistena to
+			if (pane.id === BWEAKPOINTS_VIEW_ID) {
+				this.bweakpointView = pane;
+				this.updateBweakpointsMaxSize();
+			} ewse {
+				this.paneWistenews.set(pane.id, pane.onDidChange(() => this.updateBweakpointsMaxSize()));
 			}
 		}
 	}
 
-	override removePanes(panes: ViewPane[]): void {
-		super.removePanes(panes);
-		for (const pane of panes) {
-			dispose(this.paneListeners.get(pane.id));
-			this.paneListeners.delete(pane.id);
+	ovewwide wemovePanes(panes: ViewPane[]): void {
+		supa.wemovePanes(panes);
+		fow (const pane of panes) {
+			dispose(this.paneWistenews.get(pane.id));
+			this.paneWistenews.dewete(pane.id);
 		}
 	}
 
-	private updateBreakpointsMaxSize(): void {
-		if (this.breakpointView) {
-			// We need to update the breakpoints view since all other views are collapsed #25384
-			const allOtherCollapsed = this.panes.every(view => !view.isExpanded() || view === this.breakpointView);
-			this.breakpointView.maximumBodySize = allOtherCollapsed ? Number.POSITIVE_INFINITY : this.breakpointView.minimumBodySize;
+	pwivate updateBweakpointsMaxSize(): void {
+		if (this.bweakpointView) {
+			// We need to update the bweakpoints view since aww otha views awe cowwapsed #25384
+			const awwOthewCowwapsed = this.panes.evewy(view => !view.isExpanded() || view === this.bweakpointView);
+			this.bweakpointView.maximumBodySize = awwOthewCowwapsed ? Numba.POSITIVE_INFINITY : this.bweakpointView.minimumBodySize;
 		}
 	}
 }
 
-MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
-	when: ContextKeyExpr.and(ContextKeyExpr.equals('viewContainer', VIEWLET_ID), CONTEXT_DEBUG_UX.notEqualsTo('simple'), WorkbenchStateContext.notEqualsTo('empty'),
-		ContextKeyExpr.or(CONTEXT_DEBUG_STATE.isEqualTo('inactive'), ContextKeyExpr.notEquals('config.debug.toolBarLocation', 'docked'))),
-	order: 10,
-	group: 'navigation',
+MenuWegistwy.appendMenuItem(MenuId.ViewContainewTitwe, {
+	when: ContextKeyExpw.and(ContextKeyExpw.equaws('viewContaina', VIEWWET_ID), CONTEXT_DEBUG_UX.notEquawsTo('simpwe'), WowkbenchStateContext.notEquawsTo('empty'),
+		ContextKeyExpw.ow(CONTEXT_DEBUG_STATE.isEquawTo('inactive'), ContextKeyExpw.notEquaws('config.debug.toowBawWocation', 'docked'))),
+	owda: 10,
+	gwoup: 'navigation',
 	command: {
-		precondition: CONTEXT_DEBUG_STATE.notEqualsTo(getStateLabel(State.Initializing)),
-		id: DEBUG_START_COMMAND_ID,
-		title: DEBUG_START_LABEL
+		pwecondition: CONTEXT_DEBUG_STATE.notEquawsTo(getStateWabew(State.Initiawizing)),
+		id: DEBUG_STAWT_COMMAND_ID,
+		titwe: DEBUG_STAWT_WABEW
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: DEBUG_CONFIGURE_COMMAND_ID,
-			title: {
-				value: DEBUG_CONFIGURE_LABEL,
-				original: 'Open \'launch.json\'',
-				mnemonicTitle: nls.localize({ key: 'miOpenConfigurations', comment: ['&& denotes a mnemonic'] }, "Open &&Configurations")
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: DEBUG_CONFIGUWE_COMMAND_ID,
+			titwe: {
+				vawue: DEBUG_CONFIGUWE_WABEW,
+				owiginaw: 'Open \'waunch.json\'',
+				mnemonicTitwe: nws.wocawize({ key: 'miOpenConfiguwations', comment: ['&& denotes a mnemonic'] }, "Open &&Configuwations")
 			},
-			f1: true,
-			icon: debugConfigure,
-			precondition: CONTEXT_DEBUG_UX.notEqualsTo('simple'),
+			f1: twue,
+			icon: debugConfiguwe,
+			pwecondition: CONTEXT_DEBUG_UX.notEquawsTo('simpwe'),
 			menu: [{
-				id: MenuId.ViewContainerTitle,
-				group: 'navigation',
-				order: 20,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('viewContainer', VIEWLET_ID), CONTEXT_DEBUG_UX.notEqualsTo('simple'), WorkbenchStateContext.notEqualsTo('empty'),
-					ContextKeyExpr.or(CONTEXT_DEBUG_STATE.isEqualTo('inactive'), ContextKeyExpr.notEquals('config.debug.toolBarLocation', 'docked')))
+				id: MenuId.ViewContainewTitwe,
+				gwoup: 'navigation',
+				owda: 20,
+				when: ContextKeyExpw.and(ContextKeyExpw.equaws('viewContaina', VIEWWET_ID), CONTEXT_DEBUG_UX.notEquawsTo('simpwe'), WowkbenchStateContext.notEquawsTo('empty'),
+					ContextKeyExpw.ow(CONTEXT_DEBUG_STATE.isEquawTo('inactive'), ContextKeyExpw.notEquaws('config.debug.toowBawWocation', 'docked')))
 			}, {
-				id: MenuId.ViewContainerTitle,
-				order: 20,
-				// Show in debug viewlet secondary actions when debugging and debug toolbar is docked
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('viewContainer', VIEWLET_ID), CONTEXT_DEBUG_STATE.notEqualsTo('inactive'), ContextKeyExpr.equals('config.debug.toolBarLocation', 'docked'))
+				id: MenuId.ViewContainewTitwe,
+				owda: 20,
+				// Show in debug viewwet secondawy actions when debugging and debug toowbaw is docked
+				when: ContextKeyExpw.and(ContextKeyExpw.equaws('viewContaina', VIEWWET_ID), CONTEXT_DEBUG_STATE.notEquawsTo('inactive'), ContextKeyExpw.equaws('config.debug.toowBawWocation', 'docked'))
 			}, {
-				id: MenuId.MenubarDebugMenu,
-				group: '2_configuration',
-				order: 1,
-				when: CONTEXT_DEBUGGERS_AVAILABLE
+				id: MenuId.MenubawDebugMenu,
+				gwoup: '2_configuwation',
+				owda: 1,
+				when: CONTEXT_DEBUGGEWS_AVAIWABWE
 			}]
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const debugService = accessor.get(IDebugService);
-		const quickInputService = accessor.get(IQuickInputService);
-		const configurationManager = debugService.getConfigurationManager();
-		let launch: ILaunch | undefined;
-		if (configurationManager.selectedConfiguration.name) {
-			launch = configurationManager.selectedConfiguration.launch;
-		} else {
-			const launches = configurationManager.getLaunches().filter(l => !l.hidden);
-			if (launches.length === 1) {
-				launch = launches[0];
-			} else {
-				const picks = launches.map(l => ({ label: l.name, launch: l }));
-				const picked = await quickInputService.pick<{ label: string, launch: ILaunch }>(picks, {
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const debugSewvice = accessow.get(IDebugSewvice);
+		const quickInputSewvice = accessow.get(IQuickInputSewvice);
+		const configuwationManaga = debugSewvice.getConfiguwationManaga();
+		wet waunch: IWaunch | undefined;
+		if (configuwationManaga.sewectedConfiguwation.name) {
+			waunch = configuwationManaga.sewectedConfiguwation.waunch;
+		} ewse {
+			const waunches = configuwationManaga.getWaunches().fiwta(w => !w.hidden);
+			if (waunches.wength === 1) {
+				waunch = waunches[0];
+			} ewse {
+				const picks = waunches.map(w => ({ wabew: w.name, waunch: w }));
+				const picked = await quickInputSewvice.pick<{ wabew: stwing, waunch: IWaunch }>(picks, {
 					activeItem: picks[0],
-					placeHolder: nls.localize({ key: 'selectWorkspaceFolder', comment: ['User picks a workspace folder or a workspace configuration file here. Workspace configuration files can contain settings and thus a launch.json configuration can be written into one.'] }, "Select a workspace folder to create a launch.json file in or add it to the workspace config file")
+					pwaceHowda: nws.wocawize({ key: 'sewectWowkspaceFowda', comment: ['Usa picks a wowkspace fowda ow a wowkspace configuwation fiwe hewe. Wowkspace configuwation fiwes can contain settings and thus a waunch.json configuwation can be wwitten into one.'] }, "Sewect a wowkspace fowda to cweate a waunch.json fiwe in ow add it to the wowkspace config fiwe")
 				});
 				if (picked) {
-					launch = picked.launch;
+					waunch = picked.waunch;
 				}
 			}
 		}
 
-		if (launch) {
-			await launch.openConfigFile(false);
+		if (waunch) {
+			await waunch.openConfigFiwe(fawse);
 		}
 	}
 });
 
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'debug.toggleReplIgnoreFocus',
-			title: nls.localize('debugPanel', "Debug Console"),
-			toggled: ContextKeyExpr.has(`view.${REPL_VIEW_ID}.visible`),
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'debug.toggweWepwIgnoweFocus',
+			titwe: nws.wocawize('debugPanew', "Debug Consowe"),
+			toggwed: ContextKeyExpw.has(`view.${WEPW_VIEW_ID}.visibwe`),
 			menu: [{
 				id: ViewsSubMenu,
-				group: '3_toggleRepl',
-				order: 30,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('viewContainer', VIEWLET_ID))
+				gwoup: '3_toggweWepw',
+				owda: 30,
+				when: ContextKeyExpw.and(ContextKeyExpw.equaws('viewContaina', VIEWWET_ID))
 			}]
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-		if (viewsService.isViewVisible(REPL_VIEW_ID)) {
-			viewsService.closeView(REPL_VIEW_ID);
-		} else {
-			await viewsService.openView(REPL_VIEW_ID);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const viewsSewvice = accessow.get(IViewsSewvice);
+		if (viewsSewvice.isViewVisibwe(WEPW_VIEW_ID)) {
+			viewsSewvice.cwoseView(WEPW_VIEW_ID);
+		} ewse {
+			await viewsSewvice.openView(WEPW_VIEW_ID);
 		}
 	}
 });
 
-MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
-	when: ContextKeyExpr.and(ContextKeyExpr.equals('viewContainer', VIEWLET_ID), CONTEXT_DEBUG_STATE.notEqualsTo('inactive'), ContextKeyExpr.equals('config.debug.toolBarLocation', 'docked')),
-	order: 10,
+MenuWegistwy.appendMenuItem(MenuId.ViewContainewTitwe, {
+	when: ContextKeyExpw.and(ContextKeyExpw.equaws('viewContaina', VIEWWET_ID), CONTEXT_DEBUG_STATE.notEquawsTo('inactive'), ContextKeyExpw.equaws('config.debug.toowBawWocation', 'docked')),
+	owda: 10,
 	command: {
-		id: SELECT_AND_START_ID,
-		title: nls.localize('startAdditionalSession', "Start Additional Session"),
+		id: SEWECT_AND_STAWT_ID,
+		titwe: nws.wocawize('stawtAdditionawSession', "Stawt Additionaw Session"),
 	}
 });

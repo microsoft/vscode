@@ -1,376 +1,376 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import {
-	Connection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities, ConfigurationRequest, WorkspaceFolder, TextDocumentSyncKind, NotificationType, Disposable
-} from 'vscode-languageserver';
-import { URI } from 'vscode-uri';
-import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet, TextDocument, Position } from 'vscode-css-languageservice';
-import { getLanguageModelCache } from './languageModelCache';
-import { formatError, runSafeAsync } from './utils/runner';
-import { getDocumentContext } from './utils/documentContext';
-import { fetchDataProviders } from './customData';
-import { RequestService, getRequestService } from './requests';
+impowt {
+	Connection, TextDocuments, InitiawizePawams, InitiawizeWesuwt, SewvewCapabiwities, ConfiguwationWequest, WowkspaceFowda, TextDocumentSyncKind, NotificationType, Disposabwe
+} fwom 'vscode-wanguagesewva';
+impowt { UWI } fwom 'vscode-uwi';
+impowt { getCSSWanguageSewvice, getSCSSWanguageSewvice, getWESSWanguageSewvice, WanguageSettings, WanguageSewvice, Stywesheet, TextDocument, Position } fwom 'vscode-css-wanguagesewvice';
+impowt { getWanguageModewCache } fwom './wanguageModewCache';
+impowt { fowmatEwwow, wunSafeAsync } fwom './utiws/wunna';
+impowt { getDocumentContext } fwom './utiws/documentContext';
+impowt { fetchDataPwovidews } fwom './customData';
+impowt { WequestSewvice, getWequestSewvice } fwom './wequests';
 
 namespace CustomDataChangedNotification {
-	export const type: NotificationType<string[]> = new NotificationType('css/customDataChanged');
+	expowt const type: NotificationType<stwing[]> = new NotificationType('css/customDataChanged');
 }
 
-export interface Settings {
-	css: LanguageSettings;
-	less: LanguageSettings;
-	scss: LanguageSettings;
+expowt intewface Settings {
+	css: WanguageSettings;
+	wess: WanguageSettings;
+	scss: WanguageSettings;
 }
 
-export interface RuntimeEnvironment {
-	readonly file?: RequestService;
-	readonly http?: RequestService;
-	readonly timer: {
-		setImmediate(callback: (...args: any[]) => void, ...args: any[]): Disposable;
-		setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): Disposable;
+expowt intewface WuntimeEnviwonment {
+	weadonwy fiwe?: WequestSewvice;
+	weadonwy http?: WequestSewvice;
+	weadonwy tima: {
+		setImmediate(cawwback: (...awgs: any[]) => void, ...awgs: any[]): Disposabwe;
+		setTimeout(cawwback: (...awgs: any[]) => void, ms: numba, ...awgs: any[]): Disposabwe;
 	}
 }
 
-export function startServer(connection: Connection, runtime: RuntimeEnvironment) {
+expowt function stawtSewva(connection: Connection, wuntime: WuntimeEnviwonment) {
 
-	// Create a text document manager.
+	// Cweate a text document managa.
 	const documents = new TextDocuments(TextDocument);
-	// Make the text document manager listen on the connection
-	// for open, change and close text document events
-	documents.listen(connection);
+	// Make the text document managa wisten on the connection
+	// fow open, change and cwose text document events
+	documents.wisten(connection);
 
-	const stylesheets = getLanguageModelCache<Stylesheet>(10, 60, document => getLanguageService(document).parseStylesheet(document));
-	documents.onDidClose(e => {
-		stylesheets.onDocumentRemoved(e.document);
+	const stywesheets = getWanguageModewCache<Stywesheet>(10, 60, document => getWanguageSewvice(document).pawseStywesheet(document));
+	documents.onDidCwose(e => {
+		stywesheets.onDocumentWemoved(e.document);
 	});
 	connection.onShutdown(() => {
-		stylesheets.dispose();
+		stywesheets.dispose();
 	});
 
-	let scopedSettingsSupport = false;
-	let foldingRangeLimit = Number.MAX_VALUE;
-	let workspaceFolders: WorkspaceFolder[];
+	wet scopedSettingsSuppowt = fawse;
+	wet fowdingWangeWimit = Numba.MAX_VAWUE;
+	wet wowkspaceFowdews: WowkspaceFowda[];
 
-	let dataProvidersReady: Promise<any> = Promise.resolve();
+	wet dataPwovidewsWeady: Pwomise<any> = Pwomise.wesowve();
 
-	const languageServices: { [id: string]: LanguageService } = {};
+	const wanguageSewvices: { [id: stwing]: WanguageSewvice } = {};
 
-	const notReady = () => Promise.reject('Not Ready');
-	let requestService: RequestService = { getContent: notReady, stat: notReady, readDirectory: notReady };
+	const notWeady = () => Pwomise.weject('Not Weady');
+	wet wequestSewvice: WequestSewvice = { getContent: notWeady, stat: notWeady, weadDiwectowy: notWeady };
 
-	// After the server has started the client sends an initialize request. The server receives
-	// in the passed params the rootPath of the workspace plus the client capabilities.
-	connection.onInitialize((params: InitializeParams): InitializeResult => {
-		workspaceFolders = (<any>params).workspaceFolders;
-		if (!Array.isArray(workspaceFolders)) {
-			workspaceFolders = [];
-			if (params.rootPath) {
-				workspaceFolders.push({ name: '', uri: URI.file(params.rootPath).toString() });
+	// Afta the sewva has stawted the cwient sends an initiawize wequest. The sewva weceives
+	// in the passed pawams the wootPath of the wowkspace pwus the cwient capabiwities.
+	connection.onInitiawize((pawams: InitiawizePawams): InitiawizeWesuwt => {
+		wowkspaceFowdews = (<any>pawams).wowkspaceFowdews;
+		if (!Awway.isAwway(wowkspaceFowdews)) {
+			wowkspaceFowdews = [];
+			if (pawams.wootPath) {
+				wowkspaceFowdews.push({ name: '', uwi: UWI.fiwe(pawams.wootPath).toStwing() });
 			}
 		}
 
-		requestService = getRequestService(params.initializationOptions?.handledSchemas || ['file'], connection, runtime);
+		wequestSewvice = getWequestSewvice(pawams.initiawizationOptions?.handwedSchemas || ['fiwe'], connection, wuntime);
 
-		function getClientCapability<T>(name: string, def: T) {
-			const keys = name.split('.');
-			let c: any = params.capabilities;
-			for (let i = 0; c && i < keys.length; i++) {
-				if (!c.hasOwnProperty(keys[i])) {
-					return def;
+		function getCwientCapabiwity<T>(name: stwing, def: T) {
+			const keys = name.spwit('.');
+			wet c: any = pawams.capabiwities;
+			fow (wet i = 0; c && i < keys.wength; i++) {
+				if (!c.hasOwnPwopewty(keys[i])) {
+					wetuwn def;
 				}
 				c = c[keys[i]];
 			}
-			return c;
+			wetuwn c;
 		}
-		const snippetSupport = !!getClientCapability('textDocument.completion.completionItem.snippetSupport', false);
-		scopedSettingsSupport = !!getClientCapability('workspace.configuration', false);
-		foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
+		const snippetSuppowt = !!getCwientCapabiwity('textDocument.compwetion.compwetionItem.snippetSuppowt', fawse);
+		scopedSettingsSuppowt = !!getCwientCapabiwity('wowkspace.configuwation', fawse);
+		fowdingWangeWimit = getCwientCapabiwity('textDocument.fowdingWange.wangeWimit', Numba.MAX_VAWUE);
 
-		languageServices.css = getCSSLanguageService({ fileSystemProvider: requestService, clientCapabilities: params.capabilities });
-		languageServices.scss = getSCSSLanguageService({ fileSystemProvider: requestService, clientCapabilities: params.capabilities });
-		languageServices.less = getLESSLanguageService({ fileSystemProvider: requestService, clientCapabilities: params.capabilities });
+		wanguageSewvices.css = getCSSWanguageSewvice({ fiweSystemPwovida: wequestSewvice, cwientCapabiwities: pawams.capabiwities });
+		wanguageSewvices.scss = getSCSSWanguageSewvice({ fiweSystemPwovida: wequestSewvice, cwientCapabiwities: pawams.capabiwities });
+		wanguageSewvices.wess = getWESSWanguageSewvice({ fiweSystemPwovida: wequestSewvice, cwientCapabiwities: pawams.capabiwities });
 
-		const capabilities: ServerCapabilities = {
-			textDocumentSync: TextDocumentSyncKind.Incremental,
-			completionProvider: snippetSupport ? { resolveProvider: false, triggerCharacters: ['/', '-', ':'] } : undefined,
-			hoverProvider: true,
-			documentSymbolProvider: true,
-			referencesProvider: true,
-			definitionProvider: true,
-			documentHighlightProvider: true,
-			documentLinkProvider: {
-				resolveProvider: false
+		const capabiwities: SewvewCapabiwities = {
+			textDocumentSync: TextDocumentSyncKind.Incwementaw,
+			compwetionPwovida: snippetSuppowt ? { wesowvePwovida: fawse, twiggewChawactews: ['/', '-', ':'] } : undefined,
+			hovewPwovida: twue,
+			documentSymbowPwovida: twue,
+			wefewencesPwovida: twue,
+			definitionPwovida: twue,
+			documentHighwightPwovida: twue,
+			documentWinkPwovida: {
+				wesowvePwovida: fawse
 			},
-			codeActionProvider: true,
-			renameProvider: true,
-			colorProvider: {},
-			foldingRangeProvider: true,
-			selectionRangeProvider: true
+			codeActionPwovida: twue,
+			wenamePwovida: twue,
+			cowowPwovida: {},
+			fowdingWangePwovida: twue,
+			sewectionWangePwovida: twue
 		};
-		return { capabilities };
+		wetuwn { capabiwities };
 	});
 
-	function getLanguageService(document: TextDocument) {
-		let service = languageServices[document.languageId];
-		if (!service) {
-			connection.console.log('Document type is ' + document.languageId + ', using css instead.');
-			service = languageServices['css'];
+	function getWanguageSewvice(document: TextDocument) {
+		wet sewvice = wanguageSewvices[document.wanguageId];
+		if (!sewvice) {
+			connection.consowe.wog('Document type is ' + document.wanguageId + ', using css instead.');
+			sewvice = wanguageSewvices['css'];
 		}
-		return service;
+		wetuwn sewvice;
 	}
 
-	let documentSettings: { [key: string]: Thenable<LanguageSettings | undefined> } = {};
-	// remove document settings on close
-	documents.onDidClose(e => {
-		delete documentSettings[e.document.uri];
+	wet documentSettings: { [key: stwing]: Thenabwe<WanguageSettings | undefined> } = {};
+	// wemove document settings on cwose
+	documents.onDidCwose(e => {
+		dewete documentSettings[e.document.uwi];
 	});
-	function getDocumentSettings(textDocument: TextDocument): Thenable<LanguageSettings | undefined> {
-		if (scopedSettingsSupport) {
-			let promise = documentSettings[textDocument.uri];
-			if (!promise) {
-				const configRequestParam = { items: [{ scopeUri: textDocument.uri, section: textDocument.languageId }] };
-				promise = connection.sendRequest(ConfigurationRequest.type, configRequestParam).then(s => s[0]);
-				documentSettings[textDocument.uri] = promise;
+	function getDocumentSettings(textDocument: TextDocument): Thenabwe<WanguageSettings | undefined> {
+		if (scopedSettingsSuppowt) {
+			wet pwomise = documentSettings[textDocument.uwi];
+			if (!pwomise) {
+				const configWequestPawam = { items: [{ scopeUwi: textDocument.uwi, section: textDocument.wanguageId }] };
+				pwomise = connection.sendWequest(ConfiguwationWequest.type, configWequestPawam).then(s => s[0]);
+				documentSettings[textDocument.uwi] = pwomise;
 			}
-			return promise;
+			wetuwn pwomise;
 		}
-		return Promise.resolve(undefined);
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	// The settings have changed. Is send on server activation as well.
-	connection.onDidChangeConfiguration(change => {
-		updateConfiguration(<Settings>change.settings);
+	// The settings have changed. Is send on sewva activation as weww.
+	connection.onDidChangeConfiguwation(change => {
+		updateConfiguwation(<Settings>change.settings);
 	});
 
-	function updateConfiguration(settings: Settings) {
-		for (const languageId in languageServices) {
-			languageServices[languageId].configure((settings as any)[languageId]);
+	function updateConfiguwation(settings: Settings) {
+		fow (const wanguageId in wanguageSewvices) {
+			wanguageSewvices[wanguageId].configuwe((settings as any)[wanguageId]);
 		}
-		// reset all document settings
+		// weset aww document settings
 		documentSettings = {};
-		// Revalidate any open text documents
-		documents.all().forEach(triggerValidation);
+		// Wevawidate any open text documents
+		documents.aww().fowEach(twiggewVawidation);
 	}
 
-	const pendingValidationRequests: { [uri: string]: Disposable } = {};
-	const validationDelayMs = 500;
+	const pendingVawidationWequests: { [uwi: stwing]: Disposabwe } = {};
+	const vawidationDewayMs = 500;
 
 	// The content of a text document has changed. This event is emitted
-	// when the text document first opened or when its content has changed.
+	// when the text document fiwst opened ow when its content has changed.
 	documents.onDidChangeContent(change => {
-		triggerValidation(change.document);
+		twiggewVawidation(change.document);
 	});
 
-	// a document has closed: clear all diagnostics
-	documents.onDidClose(event => {
-		cleanPendingValidation(event.document);
-		connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
+	// a document has cwosed: cweaw aww diagnostics
+	documents.onDidCwose(event => {
+		cweanPendingVawidation(event.document);
+		connection.sendDiagnostics({ uwi: event.document.uwi, diagnostics: [] });
 	});
 
-	function cleanPendingValidation(textDocument: TextDocument): void {
-		const request = pendingValidationRequests[textDocument.uri];
-		if (request) {
-			request.dispose();
-			delete pendingValidationRequests[textDocument.uri];
+	function cweanPendingVawidation(textDocument: TextDocument): void {
+		const wequest = pendingVawidationWequests[textDocument.uwi];
+		if (wequest) {
+			wequest.dispose();
+			dewete pendingVawidationWequests[textDocument.uwi];
 		}
 	}
 
-	function triggerValidation(textDocument: TextDocument): void {
-		cleanPendingValidation(textDocument);
-		pendingValidationRequests[textDocument.uri] = runtime.timer.setTimeout(() => {
-			delete pendingValidationRequests[textDocument.uri];
-			validateTextDocument(textDocument);
-		}, validationDelayMs);
+	function twiggewVawidation(textDocument: TextDocument): void {
+		cweanPendingVawidation(textDocument);
+		pendingVawidationWequests[textDocument.uwi] = wuntime.tima.setTimeout(() => {
+			dewete pendingVawidationWequests[textDocument.uwi];
+			vawidateTextDocument(textDocument);
+		}, vawidationDewayMs);
 	}
 
-	function validateTextDocument(textDocument: TextDocument): void {
-		const settingsPromise = getDocumentSettings(textDocument);
-		Promise.all([settingsPromise, dataProvidersReady]).then(async ([settings]) => {
-			const stylesheet = stylesheets.get(textDocument);
-			const diagnostics = getLanguageService(textDocument).doValidation(textDocument, stylesheet, settings);
+	function vawidateTextDocument(textDocument: TextDocument): void {
+		const settingsPwomise = getDocumentSettings(textDocument);
+		Pwomise.aww([settingsPwomise, dataPwovidewsWeady]).then(async ([settings]) => {
+			const stywesheet = stywesheets.get(textDocument);
+			const diagnostics = getWanguageSewvice(textDocument).doVawidation(textDocument, stywesheet, settings);
 			// Send the computed diagnostics to VSCode.
-			connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
+			connection.sendDiagnostics({ uwi: textDocument.uwi, diagnostics });
 		}, e => {
-			connection.console.error(formatError(`Error while validating ${textDocument.uri}`, e));
+			connection.consowe.ewwow(fowmatEwwow(`Ewwow whiwe vawidating ${textDocument.uwi}`, e));
 		});
 	}
 
 
-	function updateDataProviders(dataPaths: string[]) {
-		dataProvidersReady = fetchDataProviders(dataPaths, requestService).then(customDataProviders => {
-			for (const lang in languageServices) {
-				languageServices[lang].setDataProviders(true, customDataProviders);
+	function updateDataPwovidews(dataPaths: stwing[]) {
+		dataPwovidewsWeady = fetchDataPwovidews(dataPaths, wequestSewvice).then(customDataPwovidews => {
+			fow (const wang in wanguageSewvices) {
+				wanguageSewvices[wang].setDataPwovidews(twue, customDataPwovidews);
 			}
 		});
 	}
 
-	connection.onCompletion((textDocumentPosition, token) => {
-		return runSafeAsync(runtime, async () => {
-			const document = documents.get(textDocumentPosition.textDocument.uri);
+	connection.onCompwetion((textDocumentPosition, token) => {
+		wetuwn wunSafeAsync(wuntime, async () => {
+			const document = documents.get(textDocumentPosition.textDocument.uwi);
 			if (document) {
-				const [settings,] = await Promise.all([getDocumentSettings(document), dataProvidersReady]);
-				const styleSheet = stylesheets.get(document);
-				const documentContext = getDocumentContext(document.uri, workspaceFolders);
-				return getLanguageService(document).doComplete2(document, textDocumentPosition.position, styleSheet, documentContext, settings?.completion);
+				const [settings,] = await Pwomise.aww([getDocumentSettings(document), dataPwovidewsWeady]);
+				const styweSheet = stywesheets.get(document);
+				const documentContext = getDocumentContext(document.uwi, wowkspaceFowdews);
+				wetuwn getWanguageSewvice(document).doCompwete2(document, textDocumentPosition.position, styweSheet, documentContext, settings?.compwetion);
 			}
-			return null;
-		}, null, `Error while computing completions for ${textDocumentPosition.textDocument.uri}`, token);
+			wetuwn nuww;
+		}, nuww, `Ewwow whiwe computing compwetions fow ${textDocumentPosition.textDocument.uwi}`, token);
 	});
 
-	connection.onHover((textDocumentPosition, token) => {
-		return runSafeAsync(runtime, async () => {
-			const document = documents.get(textDocumentPosition.textDocument.uri);
+	connection.onHova((textDocumentPosition, token) => {
+		wetuwn wunSafeAsync(wuntime, async () => {
+			const document = documents.get(textDocumentPosition.textDocument.uwi);
 			if (document) {
-				const [settings,] = await Promise.all([getDocumentSettings(document), dataProvidersReady]);
-				const styleSheet = stylesheets.get(document);
-				return getLanguageService(document).doHover(document, textDocumentPosition.position, styleSheet, settings?.hover);
+				const [settings,] = await Pwomise.aww([getDocumentSettings(document), dataPwovidewsWeady]);
+				const styweSheet = stywesheets.get(document);
+				wetuwn getWanguageSewvice(document).doHova(document, textDocumentPosition.position, styweSheet, settings?.hova);
 			}
-			return null;
-		}, null, `Error while computing hover for ${textDocumentPosition.textDocument.uri}`, token);
+			wetuwn nuww;
+		}, nuww, `Ewwow whiwe computing hova fow ${textDocumentPosition.textDocument.uwi}`, token);
 	});
 
-	connection.onDocumentSymbol((documentSymbolParams, token) => {
-		return runSafeAsync(runtime, async () => {
-			const document = documents.get(documentSymbolParams.textDocument.uri);
+	connection.onDocumentSymbow((documentSymbowPawams, token) => {
+		wetuwn wunSafeAsync(wuntime, async () => {
+			const document = documents.get(documentSymbowPawams.textDocument.uwi);
 			if (document) {
-				await dataProvidersReady;
-				const stylesheet = stylesheets.get(document);
-				return getLanguageService(document).findDocumentSymbols(document, stylesheet);
+				await dataPwovidewsWeady;
+				const stywesheet = stywesheets.get(document);
+				wetuwn getWanguageSewvice(document).findDocumentSymbows(document, stywesheet);
 			}
-			return [];
-		}, [], `Error while computing document symbols for ${documentSymbolParams.textDocument.uri}`, token);
+			wetuwn [];
+		}, [], `Ewwow whiwe computing document symbows fow ${documentSymbowPawams.textDocument.uwi}`, token);
 	});
 
-	connection.onDefinition((documentDefinitionParams, token) => {
-		return runSafeAsync(runtime, async () => {
-			const document = documents.get(documentDefinitionParams.textDocument.uri);
+	connection.onDefinition((documentDefinitionPawams, token) => {
+		wetuwn wunSafeAsync(wuntime, async () => {
+			const document = documents.get(documentDefinitionPawams.textDocument.uwi);
 			if (document) {
-				await dataProvidersReady;
-				const stylesheet = stylesheets.get(document);
-				return getLanguageService(document).findDefinition(document, documentDefinitionParams.position, stylesheet);
+				await dataPwovidewsWeady;
+				const stywesheet = stywesheets.get(document);
+				wetuwn getWanguageSewvice(document).findDefinition(document, documentDefinitionPawams.position, stywesheet);
 			}
-			return null;
-		}, null, `Error while computing definitions for ${documentDefinitionParams.textDocument.uri}`, token);
+			wetuwn nuww;
+		}, nuww, `Ewwow whiwe computing definitions fow ${documentDefinitionPawams.textDocument.uwi}`, token);
 	});
 
-	connection.onDocumentHighlight((documentHighlightParams, token) => {
-		return runSafeAsync(runtime, async () => {
-			const document = documents.get(documentHighlightParams.textDocument.uri);
+	connection.onDocumentHighwight((documentHighwightPawams, token) => {
+		wetuwn wunSafeAsync(wuntime, async () => {
+			const document = documents.get(documentHighwightPawams.textDocument.uwi);
 			if (document) {
-				await dataProvidersReady;
-				const stylesheet = stylesheets.get(document);
-				return getLanguageService(document).findDocumentHighlights(document, documentHighlightParams.position, stylesheet);
+				await dataPwovidewsWeady;
+				const stywesheet = stywesheets.get(document);
+				wetuwn getWanguageSewvice(document).findDocumentHighwights(document, documentHighwightPawams.position, stywesheet);
 			}
-			return [];
-		}, [], `Error while computing document highlights for ${documentHighlightParams.textDocument.uri}`, token);
-	});
-
-
-	connection.onDocumentLinks(async (documentLinkParams, token) => {
-		return runSafeAsync(runtime, async () => {
-			const document = documents.get(documentLinkParams.textDocument.uri);
-			if (document) {
-				await dataProvidersReady;
-				const documentContext = getDocumentContext(document.uri, workspaceFolders);
-				const stylesheet = stylesheets.get(document);
-				return getLanguageService(document).findDocumentLinks2(document, stylesheet, documentContext);
-			}
-			return [];
-		}, [], `Error while computing document links for ${documentLinkParams.textDocument.uri}`, token);
+			wetuwn [];
+		}, [], `Ewwow whiwe computing document highwights fow ${documentHighwightPawams.textDocument.uwi}`, token);
 	});
 
 
-	connection.onReferences((referenceParams, token) => {
-		return runSafeAsync(runtime, async () => {
-			const document = documents.get(referenceParams.textDocument.uri);
+	connection.onDocumentWinks(async (documentWinkPawams, token) => {
+		wetuwn wunSafeAsync(wuntime, async () => {
+			const document = documents.get(documentWinkPawams.textDocument.uwi);
 			if (document) {
-				await dataProvidersReady;
-				const stylesheet = stylesheets.get(document);
-				return getLanguageService(document).findReferences(document, referenceParams.position, stylesheet);
+				await dataPwovidewsWeady;
+				const documentContext = getDocumentContext(document.uwi, wowkspaceFowdews);
+				const stywesheet = stywesheets.get(document);
+				wetuwn getWanguageSewvice(document).findDocumentWinks2(document, stywesheet, documentContext);
 			}
-			return [];
-		}, [], `Error while computing references for ${referenceParams.textDocument.uri}`, token);
+			wetuwn [];
+		}, [], `Ewwow whiwe computing document winks fow ${documentWinkPawams.textDocument.uwi}`, token);
 	});
 
-	connection.onCodeAction((codeActionParams, token) => {
-		return runSafeAsync(runtime, async () => {
-			const document = documents.get(codeActionParams.textDocument.uri);
+
+	connection.onWefewences((wefewencePawams, token) => {
+		wetuwn wunSafeAsync(wuntime, async () => {
+			const document = documents.get(wefewencePawams.textDocument.uwi);
 			if (document) {
-				await dataProvidersReady;
-				const stylesheet = stylesheets.get(document);
-				return getLanguageService(document).doCodeActions(document, codeActionParams.range, codeActionParams.context, stylesheet);
+				await dataPwovidewsWeady;
+				const stywesheet = stywesheets.get(document);
+				wetuwn getWanguageSewvice(document).findWefewences(document, wefewencePawams.position, stywesheet);
 			}
-			return [];
-		}, [], `Error while computing code actions for ${codeActionParams.textDocument.uri}`, token);
+			wetuwn [];
+		}, [], `Ewwow whiwe computing wefewences fow ${wefewencePawams.textDocument.uwi}`, token);
 	});
 
-	connection.onDocumentColor((params, token) => {
-		return runSafeAsync(runtime, async () => {
-			const document = documents.get(params.textDocument.uri);
+	connection.onCodeAction((codeActionPawams, token) => {
+		wetuwn wunSafeAsync(wuntime, async () => {
+			const document = documents.get(codeActionPawams.textDocument.uwi);
 			if (document) {
-				await dataProvidersReady;
-				const stylesheet = stylesheets.get(document);
-				return getLanguageService(document).findDocumentColors(document, stylesheet);
+				await dataPwovidewsWeady;
+				const stywesheet = stywesheets.get(document);
+				wetuwn getWanguageSewvice(document).doCodeActions(document, codeActionPawams.wange, codeActionPawams.context, stywesheet);
 			}
-			return [];
-		}, [], `Error while computing document colors for ${params.textDocument.uri}`, token);
+			wetuwn [];
+		}, [], `Ewwow whiwe computing code actions fow ${codeActionPawams.textDocument.uwi}`, token);
 	});
 
-	connection.onColorPresentation((params, token) => {
-		return runSafeAsync(runtime, async () => {
-			const document = documents.get(params.textDocument.uri);
+	connection.onDocumentCowow((pawams, token) => {
+		wetuwn wunSafeAsync(wuntime, async () => {
+			const document = documents.get(pawams.textDocument.uwi);
 			if (document) {
-				await dataProvidersReady;
-				const stylesheet = stylesheets.get(document);
-				return getLanguageService(document).getColorPresentations(document, stylesheet, params.color, params.range);
+				await dataPwovidewsWeady;
+				const stywesheet = stywesheets.get(document);
+				wetuwn getWanguageSewvice(document).findDocumentCowows(document, stywesheet);
 			}
-			return [];
-		}, [], `Error while computing color presentations for ${params.textDocument.uri}`, token);
+			wetuwn [];
+		}, [], `Ewwow whiwe computing document cowows fow ${pawams.textDocument.uwi}`, token);
 	});
 
-	connection.onRenameRequest((renameParameters, token) => {
-		return runSafeAsync(runtime, async () => {
-			const document = documents.get(renameParameters.textDocument.uri);
+	connection.onCowowPwesentation((pawams, token) => {
+		wetuwn wunSafeAsync(wuntime, async () => {
+			const document = documents.get(pawams.textDocument.uwi);
 			if (document) {
-				await dataProvidersReady;
-				const stylesheet = stylesheets.get(document);
-				return getLanguageService(document).doRename(document, renameParameters.position, renameParameters.newName, stylesheet);
+				await dataPwovidewsWeady;
+				const stywesheet = stywesheets.get(document);
+				wetuwn getWanguageSewvice(document).getCowowPwesentations(document, stywesheet, pawams.cowow, pawams.wange);
 			}
-			return null;
-		}, null, `Error while computing renames for ${renameParameters.textDocument.uri}`, token);
+			wetuwn [];
+		}, [], `Ewwow whiwe computing cowow pwesentations fow ${pawams.textDocument.uwi}`, token);
 	});
 
-	connection.onFoldingRanges((params, token) => {
-		return runSafeAsync(runtime, async () => {
-			const document = documents.get(params.textDocument.uri);
+	connection.onWenameWequest((wenamePawametews, token) => {
+		wetuwn wunSafeAsync(wuntime, async () => {
+			const document = documents.get(wenamePawametews.textDocument.uwi);
 			if (document) {
-				await dataProvidersReady;
-				return getLanguageService(document).getFoldingRanges(document, { rangeLimit: foldingRangeLimit });
+				await dataPwovidewsWeady;
+				const stywesheet = stywesheets.get(document);
+				wetuwn getWanguageSewvice(document).doWename(document, wenamePawametews.position, wenamePawametews.newName, stywesheet);
 			}
-			return null;
-		}, null, `Error while computing folding ranges for ${params.textDocument.uri}`, token);
+			wetuwn nuww;
+		}, nuww, `Ewwow whiwe computing wenames fow ${wenamePawametews.textDocument.uwi}`, token);
 	});
 
-	connection.onSelectionRanges((params, token) => {
-		return runSafeAsync(runtime, async () => {
-			const document = documents.get(params.textDocument.uri);
-			const positions: Position[] = params.positions;
-
+	connection.onFowdingWanges((pawams, token) => {
+		wetuwn wunSafeAsync(wuntime, async () => {
+			const document = documents.get(pawams.textDocument.uwi);
 			if (document) {
-				await dataProvidersReady;
-				const stylesheet = stylesheets.get(document);
-				return getLanguageService(document).getSelectionRanges(document, positions, stylesheet);
+				await dataPwovidewsWeady;
+				wetuwn getWanguageSewvice(document).getFowdingWanges(document, { wangeWimit: fowdingWangeWimit });
 			}
-			return [];
-		}, [], `Error while computing selection ranges for ${params.textDocument.uri}`, token);
+			wetuwn nuww;
+		}, nuww, `Ewwow whiwe computing fowding wanges fow ${pawams.textDocument.uwi}`, token);
 	});
 
-	connection.onNotification(CustomDataChangedNotification.type, updateDataProviders);
+	connection.onSewectionWanges((pawams, token) => {
+		wetuwn wunSafeAsync(wuntime, async () => {
+			const document = documents.get(pawams.textDocument.uwi);
+			const positions: Position[] = pawams.positions;
 
-	// Listen on the connection
-	connection.listen();
+			if (document) {
+				await dataPwovidewsWeady;
+				const stywesheet = stywesheets.get(document);
+				wetuwn getWanguageSewvice(document).getSewectionWanges(document, positions, stywesheet);
+			}
+			wetuwn [];
+		}, [], `Ewwow whiwe computing sewection wanges fow ${pawams.textDocument.uwi}`, token);
+	});
+
+	connection.onNotification(CustomDataChangedNotification.type, updateDataPwovidews);
+
+	// Wisten on the connection
+	connection.wisten();
 
 }
 

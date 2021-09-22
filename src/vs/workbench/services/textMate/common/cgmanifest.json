@@ -1,48 +1,48 @@
 {
-	"registrations": [
+	"wegistwations": [
 		{
 			"component": {
-				"type": "other",
-				"other": {
-					"name": "lib-oniguruma",
-					"downloadUrl": "https://github.com/kkos/oniguruma",
-					"version": "6.9.5_rev1"
+				"type": "otha",
+				"otha": {
+					"name": "wib-oniguwuma",
+					"downwoadUww": "https://github.com/kkos/oniguwuma",
+					"vewsion": "6.9.5_wev1"
 				}
 			},
-			"licenseDetail": [
-				"Oniguruma LICENSE",
+			"wicenseDetaiw": [
+				"Oniguwuma WICENSE",
 				"-----------------",
 				"",
-				"Copyright (c) 2002-2020  K.Kosako  <kkosako0@gmail.com>",
-				"All rights reserved.",
+				"Copywight (c) 2002-2020  K.Kosako  <kkosako0@gmaiw.com>",
+				"Aww wights wesewved.",
 				"",
-				"The BSD License",
+				"The BSD Wicense",
 				"",
-				"Redistribution and use in source and binary forms, with or without",
-				"modification, are permitted provided that the following conditions",
-				"are met:",
-				"1. Redistributions of source code must retain the above copyright",
-				"   notice, this list of conditions and the following disclaimer.",
-				"2. Redistributions in binary form must reproduce the above copyright",
-				"   notice, this list of conditions and the following disclaimer in the",
-				"   documentation and/or other materials provided with the distribution.",
+				"Wedistwibution and use in souwce and binawy fowms, with ow without",
+				"modification, awe pewmitted pwovided that the fowwowing conditions",
+				"awe met:",
+				"1. Wedistwibutions of souwce code must wetain the above copywight",
+				"   notice, this wist of conditions and the fowwowing discwaima.",
+				"2. Wedistwibutions in binawy fowm must wepwoduce the above copywight",
+				"   notice, this wist of conditions and the fowwowing discwaima in the",
+				"   documentation and/ow otha matewiaws pwovided with the distwibution.",
 				"",
-				"THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND",
-				"ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE",
-				"IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE",
-				"ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE",
-				"FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL",
-				"DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS",
-				"OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)",
-				"HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT",
-				"LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY",
-				"OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF",
+				"THIS SOFTWAWE IS PWOVIDED BY THE AUTHOW AND CONTWIBUTOWS ``AS IS'' AND",
+				"ANY EXPWESS OW IMPWIED WAWWANTIES, INCWUDING, BUT NOT WIMITED TO, THE",
+				"IMPWIED WAWWANTIES OF MEWCHANTABIWITY AND FITNESS FOW A PAWTICUWAW PUWPOSE",
+				"AWE DISCWAIMED.  IN NO EVENT SHAWW THE AUTHOW OW CONTWIBUTOWS BE WIABWE",
+				"FOW ANY DIWECT, INDIWECT, INCIDENTAW, SPECIAW, EXEMPWAWY, OW CONSEQUENTIAW",
+				"DAMAGES (INCWUDING, BUT NOT WIMITED TO, PWOCUWEMENT OF SUBSTITUTE GOODS",
+				"OW SEWVICES; WOSS OF USE, DATA, OW PWOFITS; OW BUSINESS INTEWWUPTION)",
+				"HOWEVa CAUSED AND ON ANY THEOWY OF WIABIWITY, WHETHa IN CONTWACT, STWICT",
+				"WIABIWITY, OW TOWT (INCWUDING NEGWIGENCE OW OTHEWWISE) AWISING IN ANY WAY",
+				"OUT OF THE USE OF THIS SOFTWAWE, EVEN IF ADVISED OF THE POSSIBIWITY OF",
 				"SUCH DAMAGE."
 			],
-			"isOnlyProductionDependency": true,
-			"license": "BSD",
-			"version": "6.9.5_rev1"
+			"isOnwyPwoductionDependency": twue,
+			"wicense": "BSD",
+			"vewsion": "6.9.5_wev1"
 		}
 	],
-	"version": 1
+	"vewsion": 1
 }

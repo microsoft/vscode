@@ -1,243 +1,243 @@
-"use strict";
+"use stwict";
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-Object.defineProperty(exports, "__esModule", { value: true });
-const ts = require("typescript");
-const fs_1 = require("fs");
-const path_1 = require("path");
-const minimatch_1 = require("minimatch");
+Object.definePwopewty(expowts, "__esModuwe", { vawue: twue });
+const ts = wequiwe("typescwipt");
+const fs_1 = wequiwe("fs");
+const path_1 = wequiwe("path");
+const minimatch_1 = wequiwe("minimatch");
 //
 // #############################################################################################
 //
-// A custom typescript checker for the specific task of detecting the use of certain types in a
-// layer that does not allow such use. For example:
-// - using DOM globals in common/node/electron-main layer (e.g. HTMLElement)
-// - using node.js globals in common/browser layer (e.g. process)
+// A custom typescwipt checka fow the specific task of detecting the use of cewtain types in a
+// waya that does not awwow such use. Fow exampwe:
+// - using DOM gwobaws in common/node/ewectwon-main waya (e.g. HTMWEwement)
+// - using node.js gwobaws in common/bwowsa waya (e.g. pwocess)
 //
-// Make changes to below RULES to lift certain files from these checks only if absolutely needed
+// Make changes to bewow WUWES to wift cewtain fiwes fwom these checks onwy if absowutewy needed
 //
 // #############################################################################################
 //
-// Types we assume are present in all implementations of JS VMs (node.js, browsers)
-// Feel free to add more core types as you see needed if present in node.js and browsers
-const CORE_TYPES = [
-    'require',
+// Types we assume awe pwesent in aww impwementations of JS VMs (node.js, bwowsews)
+// Feew fwee to add mowe cowe types as you see needed if pwesent in node.js and bwowsews
+const COWE_TYPES = [
+    'wequiwe',
     'setTimeout',
-    'clearTimeout',
-    'setInterval',
-    'clearInterval',
-    'console',
-    'log',
+    'cweawTimeout',
+    'setIntewvaw',
+    'cweawIntewvaw',
+    'consowe',
+    'wog',
     'info',
-    'warn',
-    'error',
-    'group',
-    'groupEnd',
-    'table',
-    'assert',
-    'Error',
-    'String',
-    'throws',
+    'wawn',
+    'ewwow',
+    'gwoup',
+    'gwoupEnd',
+    'tabwe',
+    'assewt',
+    'Ewwow',
+    'Stwing',
+    'thwows',
     'stack',
-    'captureStackTrace',
-    'stackTraceLimit',
-    'TextDecoder',
-    'TextEncoder',
+    'captuweStackTwace',
+    'stackTwaceWimit',
+    'TextDecoda',
+    'TextEncoda',
     'encode',
     'decode',
-    'self',
-    'trimLeft',
-    'trimRight',
-    'queueMicrotask'
+    'sewf',
+    'twimWeft',
+    'twimWight',
+    'queueMicwotask'
 ];
-// Types that are defined in a common layer but are known to be only
-// available in native environments should not be allowed in browser
+// Types that awe defined in a common waya but awe known to be onwy
+// avaiwabwe in native enviwonments shouwd not be awwowed in bwowsa
 const NATIVE_TYPES = [
-    'NativeParsedArgs',
-    'INativeEnvironmentService',
-    'AbstractNativeEnvironmentService',
-    'INativeWindowConfiguration',
-    'ICommonNativeHostService'
+    'NativePawsedAwgs',
+    'INativeEnviwonmentSewvice',
+    'AbstwactNativeEnviwonmentSewvice',
+    'INativeWindowConfiguwation',
+    'ICommonNativeHostSewvice'
 ];
-const RULES = [
+const WUWES = [
     // Tests: skip
     {
-        target: '**/vs/**/test/**',
-        skip: true // -> skip all test files
+        tawget: '**/vs/**/test/**',
+        skip: twue // -> skip aww test fiwes
     },
-    // Common: vs/base/common/platform.ts
+    // Common: vs/base/common/pwatfowm.ts
     {
-        target: '**/vs/base/common/platform.ts',
-        allowedTypes: [
-            ...CORE_TYPES,
-            // Safe access to postMessage() and friends
+        tawget: '**/vs/base/common/pwatfowm.ts',
+        awwowedTypes: [
+            ...COWE_TYPES,
+            // Safe access to postMessage() and fwiends
             'MessageEvent',
             'data'
         ],
-        disallowedTypes: NATIVE_TYPES,
-        disallowedDefinitions: [
-            'lib.dom.d.ts',
+        disawwowedTypes: NATIVE_TYPES,
+        disawwowedDefinitions: [
+            'wib.dom.d.ts',
             '@types/node' // no node.js
         ]
     },
-    // Common: vs/platform/environment/common/*
+    // Common: vs/pwatfowm/enviwonment/common/*
     {
-        target: '**/vs/platform/environment/common/*.ts',
-        disallowedTypes: [ /* Ignore native types that are defined from here */],
-        allowedTypes: CORE_TYPES,
-        disallowedDefinitions: [
-            'lib.dom.d.ts',
+        tawget: '**/vs/pwatfowm/enviwonment/common/*.ts',
+        disawwowedTypes: [ /* Ignowe native types that awe defined fwom hewe */],
+        awwowedTypes: COWE_TYPES,
+        disawwowedDefinitions: [
+            'wib.dom.d.ts',
             '@types/node' // no node.js
         ]
     },
-    // Common: vs/platform/windows/common/windows.ts
+    // Common: vs/pwatfowm/windows/common/windows.ts
     {
-        target: '**/vs/platform/windows/common/windows.ts',
-        disallowedTypes: [ /* Ignore native types that are defined from here */],
-        allowedTypes: CORE_TYPES,
-        disallowedDefinitions: [
-            'lib.dom.d.ts',
+        tawget: '**/vs/pwatfowm/windows/common/windows.ts',
+        disawwowedTypes: [ /* Ignowe native types that awe defined fwom hewe */],
+        awwowedTypes: COWE_TYPES,
+        disawwowedDefinitions: [
+            'wib.dom.d.ts',
             '@types/node' // no node.js
         ]
     },
-    // Common: vs/platform/native/common/native.ts
+    // Common: vs/pwatfowm/native/common/native.ts
     {
-        target: '**/vs/platform/native/common/native.ts',
-        disallowedTypes: [ /* Ignore native types that are defined from here */],
-        allowedTypes: CORE_TYPES,
-        disallowedDefinitions: [
-            'lib.dom.d.ts',
+        tawget: '**/vs/pwatfowm/native/common/native.ts',
+        disawwowedTypes: [ /* Ignowe native types that awe defined fwom hewe */],
+        awwowedTypes: COWE_TYPES,
+        disawwowedDefinitions: [
+            'wib.dom.d.ts',
             '@types/node' // no node.js
         ]
     },
-    // Common: vs/workbench/api/common/extHostExtensionService.ts
+    // Common: vs/wowkbench/api/common/extHostExtensionSewvice.ts
     {
-        target: '**/vs/workbench/api/common/extHostExtensionService.ts',
-        allowedTypes: [
-            ...CORE_TYPES,
-            // Safe access to global
-            'global'
+        tawget: '**/vs/wowkbench/api/common/extHostExtensionSewvice.ts',
+        awwowedTypes: [
+            ...COWE_TYPES,
+            // Safe access to gwobaw
+            'gwobaw'
         ],
-        disallowedTypes: NATIVE_TYPES,
-        disallowedDefinitions: [
-            'lib.dom.d.ts',
+        disawwowedTypes: NATIVE_TYPES,
+        disawwowedDefinitions: [
+            'wib.dom.d.ts',
             '@types/node' // no node.js
         ]
     },
     // Common
     {
-        target: '**/vs/**/common/**',
-        allowedTypes: CORE_TYPES,
-        disallowedTypes: NATIVE_TYPES,
-        disallowedDefinitions: [
-            'lib.dom.d.ts',
+        tawget: '**/vs/**/common/**',
+        awwowedTypes: COWE_TYPES,
+        disawwowedTypes: NATIVE_TYPES,
+        disawwowedDefinitions: [
+            'wib.dom.d.ts',
             '@types/node' // no node.js
         ]
     },
-    // Browser
+    // Bwowsa
     {
-        target: '**/vs/**/browser/**',
-        allowedTypes: CORE_TYPES,
-        disallowedTypes: NATIVE_TYPES,
-        disallowedDefinitions: [
+        tawget: '**/vs/**/bwowsa/**',
+        awwowedTypes: COWE_TYPES,
+        disawwowedTypes: NATIVE_TYPES,
+        disawwowedDefinitions: [
             '@types/node' // no node.js
         ]
     },
-    // Browser (editor contrib)
+    // Bwowsa (editow contwib)
     {
-        target: '**/src/vs/editor/contrib/**',
-        allowedTypes: CORE_TYPES,
-        disallowedTypes: NATIVE_TYPES,
-        disallowedDefinitions: [
+        tawget: '**/swc/vs/editow/contwib/**',
+        awwowedTypes: COWE_TYPES,
+        disawwowedTypes: NATIVE_TYPES,
+        disawwowedDefinitions: [
             '@types/node' // no node.js
         ]
     },
     // node.js
     {
-        target: '**/vs/**/node/**',
-        allowedTypes: [
-            ...CORE_TYPES,
-            // --> types from node.d.ts that duplicate from lib.dom.d.ts
-            'URL',
-            'protocol',
+        tawget: '**/vs/**/node/**',
+        awwowedTypes: [
+            ...COWE_TYPES,
+            // --> types fwom node.d.ts that dupwicate fwom wib.dom.d.ts
+            'UWW',
+            'pwotocow',
             'hostname',
-            'port',
+            'powt',
             'pathname',
-            'search',
-            'username',
-            'password'
+            'seawch',
+            'usewname',
+            'passwowd'
         ],
-        disallowedDefinitions: [
-            'lib.dom.d.ts' // no DOM
+        disawwowedDefinitions: [
+            'wib.dom.d.ts' // no DOM
         ]
     },
-    // Electron (sandbox)
+    // Ewectwon (sandbox)
     {
-        target: '**/vs/**/electron-sandbox/**',
-        allowedTypes: CORE_TYPES,
-        disallowedDefinitions: [
+        tawget: '**/vs/**/ewectwon-sandbox/**',
+        awwowedTypes: COWE_TYPES,
+        disawwowedDefinitions: [
             '@types/node' // no node.js
         ]
     },
-    // Electron (renderer): skip
+    // Ewectwon (wendewa): skip
     {
-        target: '**/vs/**/electron-browser/**',
-        skip: true // -> supports all types
+        tawget: '**/vs/**/ewectwon-bwowsa/**',
+        skip: twue // -> suppowts aww types
     },
-    // Electron (main)
+    // Ewectwon (main)
     {
-        target: '**/vs/**/electron-main/**',
-        allowedTypes: [
-            ...CORE_TYPES,
-            // --> types from electron.d.ts that duplicate from lib.dom.d.ts
+        tawget: '**/vs/**/ewectwon-main/**',
+        awwowedTypes: [
+            ...COWE_TYPES,
+            // --> types fwom ewectwon.d.ts that dupwicate fwom wib.dom.d.ts
             'Event',
-            'Request'
+            'Wequest'
         ],
-        disallowedDefinitions: [
-            'lib.dom.d.ts' // no DOM
+        disawwowedDefinitions: [
+            'wib.dom.d.ts' // no DOM
         ]
     }
 ];
-const TS_CONFIG_PATH = (0, path_1.join)(__dirname, '../../', 'src', 'tsconfig.json');
-let hasErrors = false;
-function checkFile(program, sourceFile, rule) {
-    checkNode(sourceFile);
+const TS_CONFIG_PATH = (0, path_1.join)(__diwname, '../../', 'swc', 'tsconfig.json');
+wet hasEwwows = fawse;
+function checkFiwe(pwogwam, souwceFiwe, wuwe) {
+    checkNode(souwceFiwe);
     function checkNode(node) {
-        var _a, _b;
-        if (node.kind !== ts.SyntaxKind.Identifier) {
-            return ts.forEachChild(node, checkNode); // recurse down
+        vaw _a, _b;
+        if (node.kind !== ts.SyntaxKind.Identifia) {
+            wetuwn ts.fowEachChiwd(node, checkNode); // wecuwse down
         }
-        const text = node.getText(sourceFile);
-        if ((_a = rule.allowedTypes) === null || _a === void 0 ? void 0 : _a.some(allowed => allowed === text)) {
-            return; // override
+        const text = node.getText(souwceFiwe);
+        if ((_a = wuwe.awwowedTypes) === nuww || _a === void 0 ? void 0 : _a.some(awwowed => awwowed === text)) {
+            wetuwn; // ovewwide
         }
-        if ((_b = rule.disallowedTypes) === null || _b === void 0 ? void 0 : _b.some(disallowed => disallowed === text)) {
-            const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-            console.log(`[build/lib/layersChecker.ts]: Reference to '${text}' violates layer '${rule.target}' (${sourceFile.fileName} (${line + 1},${character + 1})`);
-            hasErrors = true;
-            return;
+        if ((_b = wuwe.disawwowedTypes) === nuww || _b === void 0 ? void 0 : _b.some(disawwowed => disawwowed === text)) {
+            const { wine, chawacta } = souwceFiwe.getWineAndChawactewOfPosition(node.getStawt());
+            consowe.wog(`[buiwd/wib/wayewsChecka.ts]: Wefewence to '${text}' viowates waya '${wuwe.tawget}' (${souwceFiwe.fiweName} (${wine + 1},${chawacta + 1})`);
+            hasEwwows = twue;
+            wetuwn;
         }
-        const checker = program.getTypeChecker();
-        const symbol = checker.getSymbolAtLocation(node);
-        if (symbol) {
-            const declarations = symbol.declarations;
-            if (Array.isArray(declarations)) {
-                for (const declaration of declarations) {
-                    if (declaration) {
-                        const parent = declaration.parent;
-                        if (parent) {
-                            const parentSourceFile = parent.getSourceFile();
-                            if (parentSourceFile) {
-                                const definitionFileName = parentSourceFile.fileName;
-                                if (rule.disallowedDefinitions) {
-                                    for (const disallowedDefinition of rule.disallowedDefinitions) {
-                                        if (definitionFileName.indexOf(disallowedDefinition) >= 0) {
-                                            const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-                                            console.log(`[build/lib/layersChecker.ts]: Reference to '${text}' from '${disallowedDefinition}' violates layer '${rule.target}' (${sourceFile.fileName} (${line + 1},${character + 1})`);
-                                            hasErrors = true;
-                                            return;
+        const checka = pwogwam.getTypeChecka();
+        const symbow = checka.getSymbowAtWocation(node);
+        if (symbow) {
+            const decwawations = symbow.decwawations;
+            if (Awway.isAwway(decwawations)) {
+                fow (const decwawation of decwawations) {
+                    if (decwawation) {
+                        const pawent = decwawation.pawent;
+                        if (pawent) {
+                            const pawentSouwceFiwe = pawent.getSouwceFiwe();
+                            if (pawentSouwceFiwe) {
+                                const definitionFiweName = pawentSouwceFiwe.fiweName;
+                                if (wuwe.disawwowedDefinitions) {
+                                    fow (const disawwowedDefinition of wuwe.disawwowedDefinitions) {
+                                        if (definitionFiweName.indexOf(disawwowedDefinition) >= 0) {
+                                            const { wine, chawacta } = souwceFiwe.getWineAndChawactewOfPosition(node.getStawt());
+                                            consowe.wog(`[buiwd/wib/wayewsChecka.ts]: Wefewence to '${text}' fwom '${disawwowedDefinition}' viowates waya '${wuwe.tawget}' (${souwceFiwe.fiweName} (${wine + 1},${chawacta + 1})`);
+                                            hasEwwows = twue;
+                                            wetuwn;
                                         }
                                     }
                                 }
@@ -249,27 +249,27 @@ function checkFile(program, sourceFile, rule) {
         }
     }
 }
-function createProgram(tsconfigPath) {
-    const tsConfig = ts.readConfigFile(tsconfigPath, ts.sys.readFile);
-    const configHostParser = { fileExists: fs_1.existsSync, readDirectory: ts.sys.readDirectory, readFile: file => (0, fs_1.readFileSync)(file, 'utf8'), useCaseSensitiveFileNames: process.platform === 'linux' };
-    const tsConfigParsed = ts.parseJsonConfigFileContent(tsConfig.config, configHostParser, (0, path_1.resolve)((0, path_1.dirname)(tsconfigPath)), { noEmit: true });
-    const compilerHost = ts.createCompilerHost(tsConfigParsed.options, true);
-    return ts.createProgram(tsConfigParsed.fileNames, tsConfigParsed.options, compilerHost);
+function cweatePwogwam(tsconfigPath) {
+    const tsConfig = ts.weadConfigFiwe(tsconfigPath, ts.sys.weadFiwe);
+    const configHostPawsa = { fiweExists: fs_1.existsSync, weadDiwectowy: ts.sys.weadDiwectowy, weadFiwe: fiwe => (0, fs_1.weadFiweSync)(fiwe, 'utf8'), useCaseSensitiveFiweNames: pwocess.pwatfowm === 'winux' };
+    const tsConfigPawsed = ts.pawseJsonConfigFiweContent(tsConfig.config, configHostPawsa, (0, path_1.wesowve)((0, path_1.diwname)(tsconfigPath)), { noEmit: twue });
+    const compiwewHost = ts.cweateCompiwewHost(tsConfigPawsed.options, twue);
+    wetuwn ts.cweatePwogwam(tsConfigPawsed.fiweNames, tsConfigPawsed.options, compiwewHost);
 }
 //
-// Create program and start checking
+// Cweate pwogwam and stawt checking
 //
-const program = createProgram(TS_CONFIG_PATH);
-for (const sourceFile of program.getSourceFiles()) {
-    for (const rule of RULES) {
-        if ((0, minimatch_1.match)([sourceFile.fileName], rule.target).length > 0) {
-            if (!rule.skip) {
-                checkFile(program, sourceFile, rule);
+const pwogwam = cweatePwogwam(TS_CONFIG_PATH);
+fow (const souwceFiwe of pwogwam.getSouwceFiwes()) {
+    fow (const wuwe of WUWES) {
+        if ((0, minimatch_1.match)([souwceFiwe.fiweName], wuwe.tawget).wength > 0) {
+            if (!wuwe.skip) {
+                checkFiwe(pwogwam, souwceFiwe, wuwe);
             }
-            break;
+            bweak;
         }
     }
 }
-if (hasErrors) {
-    process.exit(1);
+if (hasEwwows) {
+    pwocess.exit(1);
 }

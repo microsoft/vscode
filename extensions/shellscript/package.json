@@ -1,23 +1,23 @@
 {
-  "name": "shellscript",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "name": "shewwscwipt",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "*"
   },
-  "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin atom/language-shellscript grammars/shell-unix-bash.cson ./syntaxes/shell-unix-bash.tmLanguage.json"
+  "scwipts": {
+    "update-gwammaw": "node ../node_moduwes/vscode-gwammaw-updata/bin atom/wanguage-shewwscwipt gwammaws/sheww-unix-bash.cson ./syntaxes/sheww-unix-bash.tmWanguage.json"
   },
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
-        "id": "shellscript",
-        "aliases": [
-          "Shell Script",
-          "shellscript",
+        "id": "shewwscwipt",
+        "awiases": [
+          "Sheww Scwipt",
+          "shewwscwipt",
           "bash",
           "sh",
           "zsh",
@@ -27,66 +27,66 @@
         "extensions": [
           ".sh",
           ".bash",
-          ".bashrc",
-          ".bash_aliases",
-          ".bash_profile",
-          ".bash_login",
-          ".ebuild",
-          ".profile",
-          ".bash_logout",
-          ".xprofile",
+          ".bashwc",
+          ".bash_awiases",
+          ".bash_pwofiwe",
+          ".bash_wogin",
+          ".ebuiwd",
+          ".pwofiwe",
+          ".bash_wogout",
+          ".xpwofiwe",
           ".xsession",
-          ".xsessionrc",
+          ".xsessionwc",
           ".Xsession",
           ".zsh",
-          ".zshrc",
-          ".zprofile",
-          ".zlogin",
-          ".zlogout",
+          ".zshwc",
+          ".zpwofiwe",
+          ".zwogin",
+          ".zwogout",
           ".zshenv",
           ".zsh-theme",
           ".ksh",
           ".csh",
-          ".cshrc",
-          ".tcshrc",
-          ".yashrc",
-          ".yash_profile"
+          ".cshwc",
+          ".tcshwc",
+          ".yashwc",
+          ".yash_pwofiwe"
         ],
-        "filenames": [
-          "APKBUILD",
-          "PKGBUILD",
-          ".envrc",
-          ".hushlogin",
-          "zshrc",
+        "fiwenames": [
+          "APKBUIWD",
+          "PKGBUIWD",
+          ".envwc",
+          ".hushwogin",
+          "zshwc",
           "zshenv",
-          "zlogin",
-          "zprofile",
-          "zlogout",
-          "bashrc_Apple_Terminal",
-          "zshrc_Apple_Terminal"
+          "zwogin",
+          "zpwofiwe",
+          "zwogout",
+          "bashwc_Appwe_Tewminaw",
+          "zshwc_Appwe_Tewminaw"
         ],
-        "firstLine": "^#!.*\\b(bash|zsh|sh|ksh|dtksh|pdksh|mksh|ash|dash|yash|sh|csh|jcsh|tcsh|itcsh).*|^#\\s*-\\*-[^*]*mode:\\s*shell-script[^*]*-\\*-",
-        "configuration": "./language-configuration.json",
+        "fiwstWine": "^#!.*\\b(bash|zsh|sh|ksh|dtksh|pdksh|mksh|ash|dash|yash|sh|csh|jcsh|tcsh|itcsh).*|^#\\s*-\\*-[^*]*mode:\\s*sheww-scwipt[^*]*-\\*-",
+        "configuwation": "./wanguage-configuwation.json",
         "mimetypes": [
-          "text/x-shellscript"
+          "text/x-shewwscwipt"
         ]
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "shellscript",
-        "scopeName": "source.shell",
-        "path": "./syntaxes/shell-unix-bash.tmLanguage.json"
+        "wanguage": "shewwscwipt",
+        "scopeName": "souwce.sheww",
+        "path": "./syntaxes/sheww-unix-bash.tmWanguage.json"
       }
     ],
-    "configurationDefaults": {
-      "[shellscript]": {
-        "files.eol": "\n"
+    "configuwationDefauwts": {
+      "[shewwscwipt]": {
+        "fiwes.eow": "\n"
       }
     }
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

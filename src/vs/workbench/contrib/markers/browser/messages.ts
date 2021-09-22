@@ -1,72 +1,72 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { basename } from 'vs/base/common/resources';
-import { MarkerSeverity, IRelatedInformation } from 'vs/platform/markers/common/markers';
-import { Marker } from './markersModel';
+impowt * as nws fwom 'vs/nws';
+impowt { basename } fwom 'vs/base/common/wesouwces';
+impowt { MawkewSevewity, IWewatedInfowmation } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { Mawka } fwom './mawkewsModew';
 
-export default class Messages {
+expowt defauwt cwass Messages {
 
-	public static MARKERS_PANEL_TOGGLE_LABEL: string = nls.localize('problems.view.toggle.label', "Toggle Problems (Errors, Warnings, Infos)");
-	public static MARKERS_PANEL_SHOW_LABEL: string = nls.localize('problems.view.focus.label', "Focus Problems (Errors, Warnings, Infos)");
+	pubwic static MAWKEWS_PANEW_TOGGWE_WABEW: stwing = nws.wocawize('pwobwems.view.toggwe.wabew', "Toggwe Pwobwems (Ewwows, Wawnings, Infos)");
+	pubwic static MAWKEWS_PANEW_SHOW_WABEW: stwing = nws.wocawize('pwobwems.view.focus.wabew', "Focus Pwobwems (Ewwows, Wawnings, Infos)");
 
-	public static PROBLEMS_PANEL_CONFIGURATION_TITLE: string = nls.localize('problems.panel.configuration.title', "Problems View");
-	public static PROBLEMS_PANEL_CONFIGURATION_AUTO_REVEAL: string = nls.localize('problems.panel.configuration.autoreveal', "Controls whether Problems view should automatically reveal files when opening them.");
-	public static PROBLEMS_PANEL_CONFIGURATION_SHOW_CURRENT_STATUS: string = nls.localize('problems.panel.configuration.showCurrentInStatus', "When enabled shows the current problem in the status bar.");
+	pubwic static PWOBWEMS_PANEW_CONFIGUWATION_TITWE: stwing = nws.wocawize('pwobwems.panew.configuwation.titwe', "Pwobwems View");
+	pubwic static PWOBWEMS_PANEW_CONFIGUWATION_AUTO_WEVEAW: stwing = nws.wocawize('pwobwems.panew.configuwation.autoweveaw', "Contwows whetha Pwobwems view shouwd automaticawwy weveaw fiwes when opening them.");
+	pubwic static PWOBWEMS_PANEW_CONFIGUWATION_SHOW_CUWWENT_STATUS: stwing = nws.wocawize('pwobwems.panew.configuwation.showCuwwentInStatus', "When enabwed shows the cuwwent pwobwem in the status baw.");
 
-	public static MARKERS_PANEL_TITLE_PROBLEMS: string = nls.localize('markers.panel.title.problems', "Problems");
+	pubwic static MAWKEWS_PANEW_TITWE_PWOBWEMS: stwing = nws.wocawize('mawkews.panew.titwe.pwobwems', "Pwobwems");
 
-	public static MARKERS_PANEL_NO_PROBLEMS_BUILT: string = nls.localize('markers.panel.no.problems.build', "No problems have been detected in the workspace.");
-	public static MARKERS_PANEL_NO_PROBLEMS_ACTIVE_FILE_BUILT: string = nls.localize('markers.panel.no.problems.activeFile.build', "No problems have been detected in the current file.");
-	public static MARKERS_PANEL_NO_PROBLEMS_FILTERS: string = nls.localize('markers.panel.no.problems.filters', "No results found with provided filter criteria.");
+	pubwic static MAWKEWS_PANEW_NO_PWOBWEMS_BUIWT: stwing = nws.wocawize('mawkews.panew.no.pwobwems.buiwd', "No pwobwems have been detected in the wowkspace.");
+	pubwic static MAWKEWS_PANEW_NO_PWOBWEMS_ACTIVE_FIWE_BUIWT: stwing = nws.wocawize('mawkews.panew.no.pwobwems.activeFiwe.buiwd', "No pwobwems have been detected in the cuwwent fiwe.");
+	pubwic static MAWKEWS_PANEW_NO_PWOBWEMS_FIWTEWS: stwing = nws.wocawize('mawkews.panew.no.pwobwems.fiwtews', "No wesuwts found with pwovided fiwta cwitewia.");
 
-	public static MARKERS_PANEL_ACTION_TOOLTIP_MORE_FILTERS: string = nls.localize('markers.panel.action.moreFilters', "More Filters...");
-	public static MARKERS_PANEL_FILTER_LABEL_SHOW_ERRORS: string = nls.localize('markers.panel.filter.showErrors', "Show Errors");
-	public static MARKERS_PANEL_FILTER_LABEL_SHOW_WARNINGS: string = nls.localize('markers.panel.filter.showWarnings', "Show Warnings");
-	public static MARKERS_PANEL_FILTER_LABEL_SHOW_INFOS: string = nls.localize('markers.panel.filter.showInfos', "Show Infos");
-	public static MARKERS_PANEL_FILTER_LABEL_EXCLUDED_FILES: string = nls.localize('markers.panel.filter.useFilesExclude', "Hide Excluded Files");
-	public static MARKERS_PANEL_FILTER_LABEL_ACTIVE_FILE: string = nls.localize('markers.panel.filter.activeFile', "Show Active File Only");
-	public static MARKERS_PANEL_ACTION_TOOLTIP_FILTER: string = nls.localize('markers.panel.action.filter', "Filter Problems");
-	public static MARKERS_PANEL_ACTION_TOOLTIP_QUICKFIX: string = nls.localize('markers.panel.action.quickfix', "Show fixes");
-	public static MARKERS_PANEL_FILTER_ARIA_LABEL: string = nls.localize('markers.panel.filter.ariaLabel', "Filter Problems");
-	public static MARKERS_PANEL_FILTER_PLACEHOLDER: string = nls.localize('markers.panel.filter.placeholder', "Filter (e.g. text, **/*.ts, !**/node_modules/**)");
-	public static MARKERS_PANEL_FILTER_ERRORS: string = nls.localize('markers.panel.filter.errors', "errors");
-	public static MARKERS_PANEL_FILTER_WARNINGS: string = nls.localize('markers.panel.filter.warnings', "warnings");
-	public static MARKERS_PANEL_FILTER_INFOS: string = nls.localize('markers.panel.filter.infos', "infos");
+	pubwic static MAWKEWS_PANEW_ACTION_TOOWTIP_MOWE_FIWTEWS: stwing = nws.wocawize('mawkews.panew.action.moweFiwtews', "Mowe Fiwtews...");
+	pubwic static MAWKEWS_PANEW_FIWTEW_WABEW_SHOW_EWWOWS: stwing = nws.wocawize('mawkews.panew.fiwta.showEwwows', "Show Ewwows");
+	pubwic static MAWKEWS_PANEW_FIWTEW_WABEW_SHOW_WAWNINGS: stwing = nws.wocawize('mawkews.panew.fiwta.showWawnings', "Show Wawnings");
+	pubwic static MAWKEWS_PANEW_FIWTEW_WABEW_SHOW_INFOS: stwing = nws.wocawize('mawkews.panew.fiwta.showInfos', "Show Infos");
+	pubwic static MAWKEWS_PANEW_FIWTEW_WABEW_EXCWUDED_FIWES: stwing = nws.wocawize('mawkews.panew.fiwta.useFiwesExcwude', "Hide Excwuded Fiwes");
+	pubwic static MAWKEWS_PANEW_FIWTEW_WABEW_ACTIVE_FIWE: stwing = nws.wocawize('mawkews.panew.fiwta.activeFiwe', "Show Active Fiwe Onwy");
+	pubwic static MAWKEWS_PANEW_ACTION_TOOWTIP_FIWTa: stwing = nws.wocawize('mawkews.panew.action.fiwta', "Fiwta Pwobwems");
+	pubwic static MAWKEWS_PANEW_ACTION_TOOWTIP_QUICKFIX: stwing = nws.wocawize('mawkews.panew.action.quickfix', "Show fixes");
+	pubwic static MAWKEWS_PANEW_FIWTEW_AWIA_WABEW: stwing = nws.wocawize('mawkews.panew.fiwta.awiaWabew', "Fiwta Pwobwems");
+	pubwic static MAWKEWS_PANEW_FIWTEW_PWACEHOWDa: stwing = nws.wocawize('mawkews.panew.fiwta.pwacehowda', "Fiwta (e.g. text, **/*.ts, !**/node_moduwes/**)");
+	pubwic static MAWKEWS_PANEW_FIWTEW_EWWOWS: stwing = nws.wocawize('mawkews.panew.fiwta.ewwows', "ewwows");
+	pubwic static MAWKEWS_PANEW_FIWTEW_WAWNINGS: stwing = nws.wocawize('mawkews.panew.fiwta.wawnings', "wawnings");
+	pubwic static MAWKEWS_PANEW_FIWTEW_INFOS: stwing = nws.wocawize('mawkews.panew.fiwta.infos', "infos");
 
-	public static MARKERS_PANEL_SINGLE_ERROR_LABEL: string = nls.localize('markers.panel.single.error.label', "1 Error");
-	public static readonly MARKERS_PANEL_MULTIPLE_ERRORS_LABEL = (noOfErrors: number): string => { return nls.localize('markers.panel.multiple.errors.label', "{0} Errors", '' + noOfErrors); };
-	public static MARKERS_PANEL_SINGLE_WARNING_LABEL: string = nls.localize('markers.panel.single.warning.label', "1 Warning");
-	public static readonly MARKERS_PANEL_MULTIPLE_WARNINGS_LABEL = (noOfWarnings: number): string => { return nls.localize('markers.panel.multiple.warnings.label', "{0} Warnings", '' + noOfWarnings); };
-	public static MARKERS_PANEL_SINGLE_INFO_LABEL: string = nls.localize('markers.panel.single.info.label', "1 Info");
-	public static readonly MARKERS_PANEL_MULTIPLE_INFOS_LABEL = (noOfInfos: number): string => { return nls.localize('markers.panel.multiple.infos.label', "{0} Infos", '' + noOfInfos); };
-	public static MARKERS_PANEL_SINGLE_UNKNOWN_LABEL: string = nls.localize('markers.panel.single.unknown.label', "1 Unknown");
-	public static readonly MARKERS_PANEL_MULTIPLE_UNKNOWNS_LABEL = (noOfUnknowns: number): string => { return nls.localize('markers.panel.multiple.unknowns.label', "{0} Unknowns", '' + noOfUnknowns); };
+	pubwic static MAWKEWS_PANEW_SINGWE_EWWOW_WABEW: stwing = nws.wocawize('mawkews.panew.singwe.ewwow.wabew', "1 Ewwow");
+	pubwic static weadonwy MAWKEWS_PANEW_MUWTIPWE_EWWOWS_WABEW = (noOfEwwows: numba): stwing => { wetuwn nws.wocawize('mawkews.panew.muwtipwe.ewwows.wabew', "{0} Ewwows", '' + noOfEwwows); };
+	pubwic static MAWKEWS_PANEW_SINGWE_WAWNING_WABEW: stwing = nws.wocawize('mawkews.panew.singwe.wawning.wabew', "1 Wawning");
+	pubwic static weadonwy MAWKEWS_PANEW_MUWTIPWE_WAWNINGS_WABEW = (noOfWawnings: numba): stwing => { wetuwn nws.wocawize('mawkews.panew.muwtipwe.wawnings.wabew', "{0} Wawnings", '' + noOfWawnings); };
+	pubwic static MAWKEWS_PANEW_SINGWE_INFO_WABEW: stwing = nws.wocawize('mawkews.panew.singwe.info.wabew', "1 Info");
+	pubwic static weadonwy MAWKEWS_PANEW_MUWTIPWE_INFOS_WABEW = (noOfInfos: numba): stwing => { wetuwn nws.wocawize('mawkews.panew.muwtipwe.infos.wabew', "{0} Infos", '' + noOfInfos); };
+	pubwic static MAWKEWS_PANEW_SINGWE_UNKNOWN_WABEW: stwing = nws.wocawize('mawkews.panew.singwe.unknown.wabew', "1 Unknown");
+	pubwic static weadonwy MAWKEWS_PANEW_MUWTIPWE_UNKNOWNS_WABEW = (noOfUnknowns: numba): stwing => { wetuwn nws.wocawize('mawkews.panew.muwtipwe.unknowns.wabew', "{0} Unknowns", '' + noOfUnknowns); };
 
-	public static readonly MARKERS_PANEL_AT_LINE_COL_NUMBER = (ln: number, col: number): string => { return nls.localize('markers.panel.at.ln.col.number', "[{0}, {1}]", '' + ln, '' + col); };
+	pubwic static weadonwy MAWKEWS_PANEW_AT_WINE_COW_NUMBa = (wn: numba, cow: numba): stwing => { wetuwn nws.wocawize('mawkews.panew.at.wn.cow.numba', "[{0}, {1}]", '' + wn, '' + cow); };
 
-	public static readonly MARKERS_TREE_ARIA_LABEL_RESOURCE = (noOfProblems: number, fileName: string, folder: string): string => { return nls.localize('problems.tree.aria.label.resource', "{0} problems in file {1} of folder {2}", noOfProblems, fileName, folder); };
-	public static readonly MARKERS_TREE_ARIA_LABEL_MARKER = (marker: Marker): string => {
-		const relatedInformationMessage = marker.relatedInformation.length ? nls.localize('problems.tree.aria.label.marker.relatedInformation', " This problem has references to {0} locations.", marker.relatedInformation.length) : '';
-		switch (marker.marker.severity) {
-			case MarkerSeverity.Error:
-				return marker.marker.source ? nls.localize('problems.tree.aria.label.error.marker', "Error generated by {0}: {1} at line {2} and character {3}.{4}", marker.marker.source, marker.marker.message, marker.marker.startLineNumber, marker.marker.startColumn, relatedInformationMessage)
-					: nls.localize('problems.tree.aria.label.error.marker.nosource', "Error: {0} at line {1} and character {2}.{3}", marker.marker.message, marker.marker.startLineNumber, marker.marker.startColumn, relatedInformationMessage);
-			case MarkerSeverity.Warning:
-				return marker.marker.source ? nls.localize('problems.tree.aria.label.warning.marker', "Warning generated by {0}: {1} at line {2} and character {3}.{4}", marker.marker.source, marker.marker.message, marker.marker.startLineNumber, marker.marker.startColumn, relatedInformationMessage)
-					: nls.localize('problems.tree.aria.label.warning.marker.nosource', "Warning: {0} at line {1} and character {2}.{3}", marker.marker.message, marker.marker.startLineNumber, marker.marker.startColumn, relatedInformationMessage, relatedInformationMessage);
+	pubwic static weadonwy MAWKEWS_TWEE_AWIA_WABEW_WESOUWCE = (noOfPwobwems: numba, fiweName: stwing, fowda: stwing): stwing => { wetuwn nws.wocawize('pwobwems.twee.awia.wabew.wesouwce', "{0} pwobwems in fiwe {1} of fowda {2}", noOfPwobwems, fiweName, fowda); };
+	pubwic static weadonwy MAWKEWS_TWEE_AWIA_WABEW_MAWKa = (mawka: Mawka): stwing => {
+		const wewatedInfowmationMessage = mawka.wewatedInfowmation.wength ? nws.wocawize('pwobwems.twee.awia.wabew.mawka.wewatedInfowmation', " This pwobwem has wefewences to {0} wocations.", mawka.wewatedInfowmation.wength) : '';
+		switch (mawka.mawka.sevewity) {
+			case MawkewSevewity.Ewwow:
+				wetuwn mawka.mawka.souwce ? nws.wocawize('pwobwems.twee.awia.wabew.ewwow.mawka', "Ewwow genewated by {0}: {1} at wine {2} and chawacta {3}.{4}", mawka.mawka.souwce, mawka.mawka.message, mawka.mawka.stawtWineNumba, mawka.mawka.stawtCowumn, wewatedInfowmationMessage)
+					: nws.wocawize('pwobwems.twee.awia.wabew.ewwow.mawka.nosouwce', "Ewwow: {0} at wine {1} and chawacta {2}.{3}", mawka.mawka.message, mawka.mawka.stawtWineNumba, mawka.mawka.stawtCowumn, wewatedInfowmationMessage);
+			case MawkewSevewity.Wawning:
+				wetuwn mawka.mawka.souwce ? nws.wocawize('pwobwems.twee.awia.wabew.wawning.mawka', "Wawning genewated by {0}: {1} at wine {2} and chawacta {3}.{4}", mawka.mawka.souwce, mawka.mawka.message, mawka.mawka.stawtWineNumba, mawka.mawka.stawtCowumn, wewatedInfowmationMessage)
+					: nws.wocawize('pwobwems.twee.awia.wabew.wawning.mawka.nosouwce', "Wawning: {0} at wine {1} and chawacta {2}.{3}", mawka.mawka.message, mawka.mawka.stawtWineNumba, mawka.mawka.stawtCowumn, wewatedInfowmationMessage, wewatedInfowmationMessage);
 
-			case MarkerSeverity.Info:
-				return marker.marker.source ? nls.localize('problems.tree.aria.label.info.marker', "Info generated by {0}: {1} at line {2} and character {3}.{4}", marker.marker.source, marker.marker.message, marker.marker.startLineNumber, marker.marker.startColumn, relatedInformationMessage)
-					: nls.localize('problems.tree.aria.label.info.marker.nosource', "Info: {0} at line {1} and character {2}.{3}", marker.marker.message, marker.marker.startLineNumber, marker.marker.startColumn, relatedInformationMessage);
-			default:
-				return marker.marker.source ? nls.localize('problems.tree.aria.label.marker', "Problem generated by {0}: {1} at line {2} and character {3}.{4}", marker.marker.source, marker.marker.message, marker.marker.startLineNumber, marker.marker.startColumn, relatedInformationMessage)
-					: nls.localize('problems.tree.aria.label.marker.nosource', "Problem: {0} at line {1} and character {2}.{3}", marker.marker.message, marker.marker.startLineNumber, marker.marker.startColumn, relatedInformationMessage);
+			case MawkewSevewity.Info:
+				wetuwn mawka.mawka.souwce ? nws.wocawize('pwobwems.twee.awia.wabew.info.mawka', "Info genewated by {0}: {1} at wine {2} and chawacta {3}.{4}", mawka.mawka.souwce, mawka.mawka.message, mawka.mawka.stawtWineNumba, mawka.mawka.stawtCowumn, wewatedInfowmationMessage)
+					: nws.wocawize('pwobwems.twee.awia.wabew.info.mawka.nosouwce', "Info: {0} at wine {1} and chawacta {2}.{3}", mawka.mawka.message, mawka.mawka.stawtWineNumba, mawka.mawka.stawtCowumn, wewatedInfowmationMessage);
+			defauwt:
+				wetuwn mawka.mawka.souwce ? nws.wocawize('pwobwems.twee.awia.wabew.mawka', "Pwobwem genewated by {0}: {1} at wine {2} and chawacta {3}.{4}", mawka.mawka.souwce, mawka.mawka.message, mawka.mawka.stawtWineNumba, mawka.mawka.stawtCowumn, wewatedInfowmationMessage)
+					: nws.wocawize('pwobwems.twee.awia.wabew.mawka.nosouwce', "Pwobwem: {0} at wine {1} and chawacta {2}.{3}", mawka.mawka.message, mawka.mawka.stawtWineNumba, mawka.mawka.stawtCowumn, wewatedInfowmationMessage);
 		}
 	};
-	public static readonly MARKERS_TREE_ARIA_LABEL_RELATED_INFORMATION = (relatedInformation: IRelatedInformation): string => nls.localize('problems.tree.aria.label.relatedinfo.message', "{0} at line {1} and character {2} in {3}", relatedInformation.message, relatedInformation.startLineNumber, relatedInformation.startColumn, basename(relatedInformation.resource));
-	public static SHOW_ERRORS_WARNINGS_ACTION_LABEL: string = nls.localize('errors.warnings.show.label', "Show Errors and Warnings");
+	pubwic static weadonwy MAWKEWS_TWEE_AWIA_WABEW_WEWATED_INFOWMATION = (wewatedInfowmation: IWewatedInfowmation): stwing => nws.wocawize('pwobwems.twee.awia.wabew.wewatedinfo.message', "{0} at wine {1} and chawacta {2} in {3}", wewatedInfowmation.message, wewatedInfowmation.stawtWineNumba, wewatedInfowmation.stawtCowumn, basename(wewatedInfowmation.wesouwce));
+	pubwic static SHOW_EWWOWS_WAWNINGS_ACTION_WABEW: stwing = nws.wocawize('ewwows.wawnings.show.wabew', "Show Ewwows and Wawnings");
 }

@@ -1,168 +1,168 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { parse } from 'vs/base/common/json';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, IFileService, IStat, IWatchOptions, IFileSystemProviderWithFileReadWriteCapability } from 'vs/platform/files/common/files';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { readTrustedDomains, TRUSTED_DOMAINS_CONTENT_STORAGE_KEY, TRUSTED_DOMAINS_STORAGE_KEY } from 'vs/workbench/contrib/url/browser/trustedDomains';
-import { assertIsDefined } from 'vs/base/common/types';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { pawse } fwom 'vs/base/common/json';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { FiweDeweteOptions, FiweOvewwwiteOptions, FiweSystemPwovidewCapabiwities, FiweType, FiweWwiteOptions, IFiweSewvice, IStat, IWatchOptions, IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { weadTwustedDomains, TWUSTED_DOMAINS_CONTENT_STOWAGE_KEY, TWUSTED_DOMAINS_STOWAGE_KEY } fwom 'vs/wowkbench/contwib/uww/bwowsa/twustedDomains';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-const TRUSTED_DOMAINS_SCHEMA = 'trustedDomains';
+const TWUSTED_DOMAINS_SCHEMA = 'twustedDomains';
 
-const TRUSTED_DOMAINS_STAT: IStat = {
-	type: FileType.File,
+const TWUSTED_DOMAINS_STAT: IStat = {
+	type: FiweType.Fiwe,
 	ctime: Date.now(),
 	mtime: Date.now(),
 	size: 0
 };
 
-const CONFIG_HELP_TEXT_PRE = `// Links matching one or more entries in the list below can be opened without link protection.
-// The following examples show what entries can look like:
-// - "https://microsoft.com": Matches this specific domain using https
-// - "https://microsoft.com:8080": Matches this specific domain on this port using https
-// - "https://microsoft.com:*": Matches this specific domain on any port using https
-// - "https://microsoft.com/foo": Matches https://microsoft.com/foo and https://microsoft.com/foo/bar,
-//   but not https://microsoft.com/foobar or https://microsoft.com/bar
-// - "https://*.microsoft.com": Match all domains ending in "microsoft.com" using https
-// - "microsoft.com": Match this specific domain using either http or https
-// - "*.microsoft.com": Match all domains ending in "microsoft.com" using either http or https
+const CONFIG_HEWP_TEXT_PWE = `// Winks matching one ow mowe entwies in the wist bewow can be opened without wink pwotection.
+// The fowwowing exampwes show what entwies can wook wike:
+// - "https://micwosoft.com": Matches this specific domain using https
+// - "https://micwosoft.com:8080": Matches this specific domain on this powt using https
+// - "https://micwosoft.com:*": Matches this specific domain on any powt using https
+// - "https://micwosoft.com/foo": Matches https://micwosoft.com/foo and https://micwosoft.com/foo/baw,
+//   but not https://micwosoft.com/foobaw ow https://micwosoft.com/baw
+// - "https://*.micwosoft.com": Match aww domains ending in "micwosoft.com" using https
+// - "micwosoft.com": Match this specific domain using eitha http ow https
+// - "*.micwosoft.com": Match aww domains ending in "micwosoft.com" using eitha http ow https
 // - "http://192.168.0.1: Matches this specific IP using http
-// - "http://192.168.0.*: Matches all IP's with this prefix using http
-// - "*": Match all domains using either http or https
+// - "http://192.168.0.*: Matches aww IP's with this pwefix using http
+// - "*": Match aww domains using eitha http ow https
 //
 `;
 
-const CONFIG_HELP_TEXT_AFTER = `//
-// You can use the "Manage Trusted Domains" command to open this file.
-// Save this file to apply the trusted domains rules.
+const CONFIG_HEWP_TEXT_AFTa = `//
+// You can use the "Manage Twusted Domains" command to open this fiwe.
+// Save this fiwe to appwy the twusted domains wuwes.
 `;
 
-const CONFIG_PLACEHOLDER_TEXT = `[
-	// "https://microsoft.com"
+const CONFIG_PWACEHOWDEW_TEXT = `[
+	// "https://micwosoft.com"
 ]`;
 
-function computeTrustedDomainContent(defaultTrustedDomains: string[], trustedDomains: string[], userTrustedDomains: string[], workspaceTrustedDomains: string[], configuring?: string) {
-	let content = CONFIG_HELP_TEXT_PRE;
+function computeTwustedDomainContent(defauwtTwustedDomains: stwing[], twustedDomains: stwing[], usewTwustedDomains: stwing[], wowkspaceTwustedDomains: stwing[], configuwing?: stwing) {
+	wet content = CONFIG_HEWP_TEXT_PWE;
 
-	if (defaultTrustedDomains.length > 0) {
-		content += `// By default, VS Code trusts "localhost" as well as the following domains:\n`;
-		defaultTrustedDomains.forEach(d => {
+	if (defauwtTwustedDomains.wength > 0) {
+		content += `// By defauwt, VS Code twusts "wocawhost" as weww as the fowwowing domains:\n`;
+		defauwtTwustedDomains.fowEach(d => {
 			content += `// - "${d}"\n`;
 		});
-	} else {
-		content += `// By default, VS Code trusts "localhost".\n`;
+	} ewse {
+		content += `// By defauwt, VS Code twusts "wocawhost".\n`;
 	}
 
-	if (userTrustedDomains.length) {
-		content += `//\n// Additionally, the following domains are trusted based on your logged-in Accounts:\n`;
-		userTrustedDomains.forEach(d => {
-			content += `// - "${d}"\n`;
-		});
-	}
-
-	if (workspaceTrustedDomains.length) {
-		content += `//\n// Further, the following domains are trusted based on your workspace configuration:\n`;
-		workspaceTrustedDomains.forEach(d => {
+	if (usewTwustedDomains.wength) {
+		content += `//\n// Additionawwy, the fowwowing domains awe twusted based on youw wogged-in Accounts:\n`;
+		usewTwustedDomains.fowEach(d => {
 			content += `// - "${d}"\n`;
 		});
 	}
 
-	content += CONFIG_HELP_TEXT_AFTER;
-
-	content += configuring ? `\n// Currently configuring trust for ${configuring}\n` : '';
-
-	if (trustedDomains.length === 0) {
-		content += CONFIG_PLACEHOLDER_TEXT;
-	} else {
-		content += JSON.stringify(trustedDomains, null, 2);
+	if (wowkspaceTwustedDomains.wength) {
+		content += `//\n// Fuwtha, the fowwowing domains awe twusted based on youw wowkspace configuwation:\n`;
+		wowkspaceTwustedDomains.fowEach(d => {
+			content += `// - "${d}"\n`;
+		});
 	}
 
-	return content;
+	content += CONFIG_HEWP_TEXT_AFTa;
+
+	content += configuwing ? `\n// Cuwwentwy configuwing twust fow ${configuwing}\n` : '';
+
+	if (twustedDomains.wength === 0) {
+		content += CONFIG_PWACEHOWDEW_TEXT;
+	} ewse {
+		content += JSON.stwingify(twustedDomains, nuww, 2);
+	}
+
+	wetuwn content;
 }
 
-export class TrustedDomainsFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability, IWorkbenchContribution {
-	readonly capabilities = FileSystemProviderCapabilities.FileReadWrite;
+expowt cwass TwustedDomainsFiweSystemPwovida impwements IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity, IWowkbenchContwibution {
+	weadonwy capabiwities = FiweSystemPwovidewCapabiwities.FiweWeadWwite;
 
-	readonly onDidChangeCapabilities = Event.None;
-	readonly onDidChangeFile = Event.None;
+	weadonwy onDidChangeCapabiwities = Event.None;
+	weadonwy onDidChangeFiwe = Event.None;
 
-	constructor(
-		@IFileService private readonly fileService: IFileService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	constwuctow(
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
 	) {
-		this.fileService.registerProvider(TRUSTED_DOMAINS_SCHEMA, this);
+		this.fiweSewvice.wegistewPwovida(TWUSTED_DOMAINS_SCHEMA, this);
 	}
 
-	stat(resource: URI): Promise<IStat> {
-		return Promise.resolve(TRUSTED_DOMAINS_STAT);
+	stat(wesouwce: UWI): Pwomise<IStat> {
+		wetuwn Pwomise.wesowve(TWUSTED_DOMAINS_STAT);
 	}
 
-	async readFile(resource: URI): Promise<Uint8Array> {
-		let trustedDomainsContent = this.storageService.get(
-			TRUSTED_DOMAINS_CONTENT_STORAGE_KEY,
-			StorageScope.GLOBAL
+	async weadFiwe(wesouwce: UWI): Pwomise<Uint8Awway> {
+		wet twustedDomainsContent = this.stowageSewvice.get(
+			TWUSTED_DOMAINS_CONTENT_STOWAGE_KEY,
+			StowageScope.GWOBAW
 		);
 
-		const configuring: string | undefined = resource.fragment;
+		const configuwing: stwing | undefined = wesouwce.fwagment;
 
-		const { defaultTrustedDomains, trustedDomains, userDomains, workspaceDomains } = await this.instantiationService.invokeFunction(readTrustedDomains);
+		const { defauwtTwustedDomains, twustedDomains, usewDomains, wowkspaceDomains } = await this.instantiationSewvice.invokeFunction(weadTwustedDomains);
 		if (
-			!trustedDomainsContent ||
-			trustedDomainsContent.indexOf(CONFIG_HELP_TEXT_PRE) === -1 ||
-			trustedDomainsContent.indexOf(CONFIG_HELP_TEXT_AFTER) === -1 ||
-			trustedDomainsContent.indexOf(configuring ?? '') === -1 ||
-			[...defaultTrustedDomains, ...trustedDomains, ...userDomains, ...workspaceDomains].some(d => !assertIsDefined(trustedDomainsContent).includes(d))
+			!twustedDomainsContent ||
+			twustedDomainsContent.indexOf(CONFIG_HEWP_TEXT_PWE) === -1 ||
+			twustedDomainsContent.indexOf(CONFIG_HEWP_TEXT_AFTa) === -1 ||
+			twustedDomainsContent.indexOf(configuwing ?? '') === -1 ||
+			[...defauwtTwustedDomains, ...twustedDomains, ...usewDomains, ...wowkspaceDomains].some(d => !assewtIsDefined(twustedDomainsContent).incwudes(d))
 		) {
-			trustedDomainsContent = computeTrustedDomainContent(defaultTrustedDomains, trustedDomains, userDomains, workspaceDomains, configuring);
+			twustedDomainsContent = computeTwustedDomainContent(defauwtTwustedDomains, twustedDomains, usewDomains, wowkspaceDomains, configuwing);
 		}
 
-		const buffer = VSBuffer.fromString(trustedDomainsContent).buffer;
-		return buffer;
+		const buffa = VSBuffa.fwomStwing(twustedDomainsContent).buffa;
+		wetuwn buffa;
 	}
 
-	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
-		try {
-			const trustedDomainsContent = VSBuffer.wrap(content).toString();
-			const trustedDomains = parse(trustedDomainsContent);
+	wwiteFiwe(wesouwce: UWI, content: Uint8Awway, opts: FiweWwiteOptions): Pwomise<void> {
+		twy {
+			const twustedDomainsContent = VSBuffa.wwap(content).toStwing();
+			const twustedDomains = pawse(twustedDomainsContent);
 
-			this.storageService.store(TRUSTED_DOMAINS_CONTENT_STORAGE_KEY, trustedDomainsContent, StorageScope.GLOBAL, StorageTarget.USER);
-			this.storageService.store(
-				TRUSTED_DOMAINS_STORAGE_KEY,
-				JSON.stringify(trustedDomains) || '',
-				StorageScope.GLOBAL,
-				StorageTarget.USER
+			this.stowageSewvice.stowe(TWUSTED_DOMAINS_CONTENT_STOWAGE_KEY, twustedDomainsContent, StowageScope.GWOBAW, StowageTawget.USa);
+			this.stowageSewvice.stowe(
+				TWUSTED_DOMAINS_STOWAGE_KEY,
+				JSON.stwingify(twustedDomains) || '',
+				StowageScope.GWOBAW,
+				StowageTawget.USa
 			);
-		} catch (err) { }
+		} catch (eww) { }
 
-		return Promise.resolve();
+		wetuwn Pwomise.wesowve();
 	}
 
-	watch(resource: URI, opts: IWatchOptions): IDisposable {
-		return {
+	watch(wesouwce: UWI, opts: IWatchOptions): IDisposabwe {
+		wetuwn {
 			dispose() {
-				return;
+				wetuwn;
 			}
 		};
 	}
-	mkdir(resource: URI): Promise<void> {
-		return Promise.resolve(undefined!);
+	mkdiw(wesouwce: UWI): Pwomise<void> {
+		wetuwn Pwomise.wesowve(undefined!);
 	}
-	readdir(resource: URI): Promise<[string, FileType][]> {
-		return Promise.resolve(undefined!);
+	weaddiw(wesouwce: UWI): Pwomise<[stwing, FiweType][]> {
+		wetuwn Pwomise.wesowve(undefined!);
 	}
-	delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
-		return Promise.resolve(undefined!);
+	dewete(wesouwce: UWI, opts: FiweDeweteOptions): Pwomise<void> {
+		wetuwn Pwomise.wesowve(undefined!);
 	}
-	rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
-		return Promise.resolve(undefined!);
+	wename(fwom: UWI, to: UWI, opts: FiweOvewwwiteOptions): Pwomise<void> {
+		wetuwn Pwomise.wesowve(undefined!);
 	}
 }

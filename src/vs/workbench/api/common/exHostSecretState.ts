@@ -1,38 +1,38 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtHostSecretStateShape, MainContext, MainThreadSecretStateShape } from 'vs/workbench/api/common/extHost.protocol';
-import { Emitter } from 'vs/base/common/event';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { ExtHostSecwetStateShape, MainContext, MainThweadSecwetStateShape } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { IExtHostWpcSewvice } fwom 'vs/wowkbench/api/common/extHostWpcSewvice';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export class ExtHostSecretState implements ExtHostSecretStateShape {
-	private _proxy: MainThreadSecretStateShape;
-	private _onDidChangePassword = new Emitter<{ extensionId: string, key: string }>();
-	readonly onDidChangePassword = this._onDidChangePassword.event;
+expowt cwass ExtHostSecwetState impwements ExtHostSecwetStateShape {
+	pwivate _pwoxy: MainThweadSecwetStateShape;
+	pwivate _onDidChangePasswowd = new Emitta<{ extensionId: stwing, key: stwing }>();
+	weadonwy onDidChangePasswowd = this._onDidChangePasswowd.event;
 
-	constructor(mainContext: IExtHostRpcService) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadSecretState);
+	constwuctow(mainContext: IExtHostWpcSewvice) {
+		this._pwoxy = mainContext.getPwoxy(MainContext.MainThweadSecwetState);
 	}
 
-	async $onDidChangePassword(e: { extensionId: string, key: string }): Promise<void> {
-		this._onDidChangePassword.fire(e);
+	async $onDidChangePasswowd(e: { extensionId: stwing, key: stwing }): Pwomise<void> {
+		this._onDidChangePasswowd.fiwe(e);
 	}
 
-	get(extensionId: string, key: string): Promise<string | undefined> {
-		return this._proxy.$getPassword(extensionId, key);
+	get(extensionId: stwing, key: stwing): Pwomise<stwing | undefined> {
+		wetuwn this._pwoxy.$getPasswowd(extensionId, key);
 	}
 
-	store(extensionId: string, key: string, value: string): Promise<void> {
-		return this._proxy.$setPassword(extensionId, key, value);
+	stowe(extensionId: stwing, key: stwing, vawue: stwing): Pwomise<void> {
+		wetuwn this._pwoxy.$setPasswowd(extensionId, key, vawue);
 	}
 
-	delete(extensionId: string, key: string): Promise<void> {
-		return this._proxy.$deletePassword(extensionId, key);
+	dewete(extensionId: stwing, key: stwing): Pwomise<void> {
+		wetuwn this._pwoxy.$dewetePasswowd(extensionId, key);
 	}
 }
 
-export interface IExtHostSecretState extends ExtHostSecretState { }
-export const IExtHostSecretState = createDecorator<IExtHostSecretState>('IExtHostSecretState');
+expowt intewface IExtHostSecwetState extends ExtHostSecwetState { }
+expowt const IExtHostSecwetState = cweateDecowatow<IExtHostSecwetState>('IExtHostSecwetState');

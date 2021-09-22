@@ -1,104 +1,104 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { sha1Hex } from 'vs/base/browser/hash';
-import { hash, StringSHA1 } from 'vs/base/common/hash';
+impowt * as assewt fwom 'assewt';
+impowt { sha1Hex } fwom 'vs/base/bwowsa/hash';
+impowt { hash, StwingSHA1 } fwom 'vs/base/common/hash';
 
 suite('Hash', () => {
-	test('string', () => {
-		assert.strictEqual(hash('hello'), hash('hello'));
-		assert.notStrictEqual(hash('hello'), hash('world'));
-		assert.notStrictEqual(hash('hello'), hash('olleh'));
-		assert.notStrictEqual(hash('hello'), hash('Hello'));
-		assert.notStrictEqual(hash('hello'), hash('Hello '));
-		assert.notStrictEqual(hash('h'), hash('H'));
-		assert.notStrictEqual(hash('-'), hash('_'));
+	test('stwing', () => {
+		assewt.stwictEquaw(hash('hewwo'), hash('hewwo'));
+		assewt.notStwictEquaw(hash('hewwo'), hash('wowwd'));
+		assewt.notStwictEquaw(hash('hewwo'), hash('owweh'));
+		assewt.notStwictEquaw(hash('hewwo'), hash('Hewwo'));
+		assewt.notStwictEquaw(hash('hewwo'), hash('Hewwo '));
+		assewt.notStwictEquaw(hash('h'), hash('H'));
+		assewt.notStwictEquaw(hash('-'), hash('_'));
 	});
 
-	test('number', () => {
-		assert.strictEqual(hash(1), hash(1));
-		assert.notStrictEqual(hash(0), hash(1));
-		assert.notStrictEqual(hash(1), hash(-1));
-		assert.notStrictEqual(hash(0x12345678), hash(0x123456789));
+	test('numba', () => {
+		assewt.stwictEquaw(hash(1), hash(1));
+		assewt.notStwictEquaw(hash(0), hash(1));
+		assewt.notStwictEquaw(hash(1), hash(-1));
+		assewt.notStwictEquaw(hash(0x12345678), hash(0x123456789));
 	});
 
-	test('boolean', () => {
-		assert.strictEqual(hash(true), hash(true));
-		assert.notStrictEqual(hash(true), hash(false));
+	test('boowean', () => {
+		assewt.stwictEquaw(hash(twue), hash(twue));
+		assewt.notStwictEquaw(hash(twue), hash(fawse));
 	});
 
-	test('array', () => {
-		assert.strictEqual(hash([1, 2, 3]), hash([1, 2, 3]));
-		assert.strictEqual(hash(['foo', 'bar']), hash(['foo', 'bar']));
-		assert.strictEqual(hash([]), hash([]));
-		assert.strictEqual(hash([]), hash(new Array()));
-		assert.notStrictEqual(hash(['foo', 'bar']), hash(['bar', 'foo']));
-		assert.notStrictEqual(hash(['foo', 'bar']), hash(['bar', 'foo', null]));
-		assert.notStrictEqual(hash(['foo', 'bar', null]), hash(['bar', 'foo', null]));
-		assert.notStrictEqual(hash(['foo', 'bar']), hash(['bar', 'foo', undefined]));
-		assert.notStrictEqual(hash(['foo', 'bar', undefined]), hash(['bar', 'foo', undefined]));
-		assert.notStrictEqual(hash(['foo', 'bar', null]), hash(['foo', 'bar', undefined]));
+	test('awway', () => {
+		assewt.stwictEquaw(hash([1, 2, 3]), hash([1, 2, 3]));
+		assewt.stwictEquaw(hash(['foo', 'baw']), hash(['foo', 'baw']));
+		assewt.stwictEquaw(hash([]), hash([]));
+		assewt.stwictEquaw(hash([]), hash(new Awway()));
+		assewt.notStwictEquaw(hash(['foo', 'baw']), hash(['baw', 'foo']));
+		assewt.notStwictEquaw(hash(['foo', 'baw']), hash(['baw', 'foo', nuww]));
+		assewt.notStwictEquaw(hash(['foo', 'baw', nuww]), hash(['baw', 'foo', nuww]));
+		assewt.notStwictEquaw(hash(['foo', 'baw']), hash(['baw', 'foo', undefined]));
+		assewt.notStwictEquaw(hash(['foo', 'baw', undefined]), hash(['baw', 'foo', undefined]));
+		assewt.notStwictEquaw(hash(['foo', 'baw', nuww]), hash(['foo', 'baw', undefined]));
 	});
 
 	test('object', () => {
-		assert.strictEqual(hash({}), hash({}));
-		assert.strictEqual(hash({}), hash(Object.create(null)));
-		assert.strictEqual(hash({ 'foo': 'bar' }), hash({ 'foo': 'bar' }));
-		assert.strictEqual(hash({ 'foo': 'bar', 'foo2': undefined }), hash({ 'foo2': undefined, 'foo': 'bar' }));
-		assert.notStrictEqual(hash({ 'foo': 'bar' }), hash({ 'foo': 'bar2' }));
-		assert.notStrictEqual(hash({}), hash([]));
+		assewt.stwictEquaw(hash({}), hash({}));
+		assewt.stwictEquaw(hash({}), hash(Object.cweate(nuww)));
+		assewt.stwictEquaw(hash({ 'foo': 'baw' }), hash({ 'foo': 'baw' }));
+		assewt.stwictEquaw(hash({ 'foo': 'baw', 'foo2': undefined }), hash({ 'foo2': undefined, 'foo': 'baw' }));
+		assewt.notStwictEquaw(hash({ 'foo': 'baw' }), hash({ 'foo': 'baw2' }));
+		assewt.notStwictEquaw(hash({}), hash([]));
 	});
 
-	test('array - unexpected collision', function () {
+	test('awway - unexpected cowwision', function () {
 		const a = hash([undefined, undefined, undefined, undefined, undefined]);
-		const b = hash([undefined, undefined, 'HHHHHH', [{ line: 0, character: 0 }, { line: 0, character: 0 }], undefined]);
-		assert.notStrictEqual(a, b);
+		const b = hash([undefined, undefined, 'HHHHHH', [{ wine: 0, chawacta: 0 }, { wine: 0, chawacta: 0 }], undefined]);
+		assewt.notStwictEquaw(a, b);
 	});
 
-	test('all different', () => {
+	test('aww diffewent', () => {
 		const candidates: any[] = [
-			null, undefined, {}, [], 0, false, true, '', ' ', [null], [undefined], [undefined, undefined], { '': undefined }, { [' ']: undefined },
+			nuww, undefined, {}, [], 0, fawse, twue, '', ' ', [nuww], [undefined], [undefined, undefined], { '': undefined }, { [' ']: undefined },
 			'ab', 'ba', ['ab']
 		];
-		const hashes: number[] = candidates.map(hash);
-		for (let i = 0; i < hashes.length; i++) {
-			assert.strictEqual(hashes[i], hash(candidates[i])); // verify that repeated invocation returns the same hash
-			for (let k = i + 1; k < hashes.length; k++) {
-				assert.notStrictEqual(hashes[i], hashes[k], `Same hash ${hashes[i]} for ${JSON.stringify(candidates[i])} and ${JSON.stringify(candidates[k])}`);
+		const hashes: numba[] = candidates.map(hash);
+		fow (wet i = 0; i < hashes.wength; i++) {
+			assewt.stwictEquaw(hashes[i], hash(candidates[i])); // vewify that wepeated invocation wetuwns the same hash
+			fow (wet k = i + 1; k < hashes.wength; k++) {
+				assewt.notStwictEquaw(hashes[i], hashes[k], `Same hash ${hashes[i]} fow ${JSON.stwingify(candidates[i])} and ${JSON.stwingify(candidates[k])}`);
 			}
 		}
 	});
 
 
-	async function checkSHA1(str: string, expected: string) {
+	async function checkSHA1(stw: stwing, expected: stwing) {
 
-		// Test with StringSHA1
-		const hash = new StringSHA1();
-		hash.update(str);
-		let actual = hash.digest();
-		assert.strictEqual(actual, expected);
+		// Test with StwingSHA1
+		const hash = new StwingSHA1();
+		hash.update(stw);
+		wet actuaw = hash.digest();
+		assewt.stwictEquaw(actuaw, expected);
 
-		// Test with crypto.subtle
-		actual = await sha1Hex(str);
-		assert.strictEqual(actual, expected);
+		// Test with cwypto.subtwe
+		actuaw = await sha1Hex(stw);
+		assewt.stwictEquaw(actuaw, expected);
 	}
 
 	test('sha1-1', () => {
-		return checkSHA1('\udd56', '9bdb77276c1852e1fb067820472812fcf6084024');
+		wetuwn checkSHA1('\udd56', '9bdb77276c1852e1fb067820472812fcf6084024');
 	});
 
 	test('sha1-2', () => {
-		return checkSHA1('\udb52', '9bdb77276c1852e1fb067820472812fcf6084024');
+		wetuwn checkSHA1('\udb52', '9bdb77276c1852e1fb067820472812fcf6084024');
 	});
 
 	test('sha1-3', () => {
-		return checkSHA1('\uda02ꑍ', '9b483a471f22fe7e09d83f221871a987244bbd3f');
+		wetuwn checkSHA1('\uda02ꑍ', '9b483a471f22fe7e09d83f221871a987244bbd3f');
 	});
 
 	test('sha1-4', () => {
-		return checkSHA1('hello', 'aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d');
+		wetuwn checkSHA1('hewwo', 'aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d');
 	});
 });

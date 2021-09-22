@@ -1,100 +1,100 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { getLanguageModelCache } from '../languageModelCache';
-import {
-	LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, FormattingOptions,
-	HTMLFormatConfiguration, SelectionRange,
-	TextDocument, Position, Range, FoldingRange,
-	LanguageMode, Workspace, Settings
-} from './languageModes';
+impowt { getWanguageModewCache } fwom '../wanguageModewCache';
+impowt {
+	WanguageSewvice as HTMWWanguageSewvice, HTMWDocument, DocumentContext, FowmattingOptions,
+	HTMWFowmatConfiguwation, SewectionWange,
+	TextDocument, Position, Wange, FowdingWange,
+	WanguageMode, Wowkspace, Settings
+} fwom './wanguageModes';
 
-export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace: Workspace): LanguageMode {
-	let htmlDocuments = getLanguageModelCache<HTMLDocument>(10, 60, document => htmlLanguageService.parseHTMLDocument(document));
-	return {
+expowt function getHTMWMode(htmwWanguageSewvice: HTMWWanguageSewvice, wowkspace: Wowkspace): WanguageMode {
+	wet htmwDocuments = getWanguageModewCache<HTMWDocument>(10, 60, document => htmwWanguageSewvice.pawseHTMWDocument(document));
+	wetuwn {
 		getId() {
-			return 'html';
+			wetuwn 'htmw';
 		},
-		async getSelectionRange(document: TextDocument, position: Position): Promise<SelectionRange> {
-			return htmlLanguageService.getSelectionRanges(document, [position])[0];
+		async getSewectionWange(document: TextDocument, position: Position): Pwomise<SewectionWange> {
+			wetuwn htmwWanguageSewvice.getSewectionWanges(document, [position])[0];
 		},
-		doComplete(document: TextDocument, position: Position, documentContext: DocumentContext, settings = workspace.settings) {
-			let options = settings && settings.html && settings.html.suggest;
-			let doAutoComplete = settings && settings.html && settings.html.autoClosingTags;
-			if (doAutoComplete) {
-				options.hideAutoCompleteProposals = true;
+		doCompwete(document: TextDocument, position: Position, documentContext: DocumentContext, settings = wowkspace.settings) {
+			wet options = settings && settings.htmw && settings.htmw.suggest;
+			wet doAutoCompwete = settings && settings.htmw && settings.htmw.autoCwosingTags;
+			if (doAutoCompwete) {
+				options.hideAutoCompwetePwoposaws = twue;
 			}
 
-			const htmlDocument = htmlDocuments.get(document);
-			let completionList = htmlLanguageService.doComplete2(document, position, htmlDocument, documentContext, options);
-			return completionList;
+			const htmwDocument = htmwDocuments.get(document);
+			wet compwetionWist = htmwWanguageSewvice.doCompwete2(document, position, htmwDocument, documentContext, options);
+			wetuwn compwetionWist;
 		},
-		async doHover(document: TextDocument, position: Position, settings?: Settings) {
-			return htmlLanguageService.doHover(document, position, htmlDocuments.get(document), settings?.html?.hover);
+		async doHova(document: TextDocument, position: Position, settings?: Settings) {
+			wetuwn htmwWanguageSewvice.doHova(document, position, htmwDocuments.get(document), settings?.htmw?.hova);
 		},
-		async findDocumentHighlight(document: TextDocument, position: Position) {
-			return htmlLanguageService.findDocumentHighlights(document, position, htmlDocuments.get(document));
+		async findDocumentHighwight(document: TextDocument, position: Position) {
+			wetuwn htmwWanguageSewvice.findDocumentHighwights(document, position, htmwDocuments.get(document));
 		},
-		async findDocumentLinks(document: TextDocument, documentContext: DocumentContext) {
-			return htmlLanguageService.findDocumentLinks(document, documentContext);
+		async findDocumentWinks(document: TextDocument, documentContext: DocumentContext) {
+			wetuwn htmwWanguageSewvice.findDocumentWinks(document, documentContext);
 		},
-		async findDocumentSymbols(document: TextDocument) {
-			return htmlLanguageService.findDocumentSymbols(document, htmlDocuments.get(document));
+		async findDocumentSymbows(document: TextDocument) {
+			wetuwn htmwWanguageSewvice.findDocumentSymbows(document, htmwDocuments.get(document));
 		},
-		async format(document: TextDocument, range: Range, formatParams: FormattingOptions, settings = workspace.settings) {
-			let formatSettings: HTMLFormatConfiguration = settings && settings.html && settings.html.format;
-			if (formatSettings) {
-				formatSettings = merge(formatSettings, {});
-			} else {
-				formatSettings = {};
+		async fowmat(document: TextDocument, wange: Wange, fowmatPawams: FowmattingOptions, settings = wowkspace.settings) {
+			wet fowmatSettings: HTMWFowmatConfiguwation = settings && settings.htmw && settings.htmw.fowmat;
+			if (fowmatSettings) {
+				fowmatSettings = mewge(fowmatSettings, {});
+			} ewse {
+				fowmatSettings = {};
 			}
-			if (formatSettings.contentUnformatted) {
-				formatSettings.contentUnformatted = formatSettings.contentUnformatted + ',script';
-			} else {
-				formatSettings.contentUnformatted = 'script';
+			if (fowmatSettings.contentUnfowmatted) {
+				fowmatSettings.contentUnfowmatted = fowmatSettings.contentUnfowmatted + ',scwipt';
+			} ewse {
+				fowmatSettings.contentUnfowmatted = 'scwipt';
 			}
-			formatSettings = merge(formatParams, formatSettings);
-			return htmlLanguageService.format(document, range, formatSettings);
+			fowmatSettings = mewge(fowmatPawams, fowmatSettings);
+			wetuwn htmwWanguageSewvice.fowmat(document, wange, fowmatSettings);
 		},
-		async getFoldingRanges(document: TextDocument): Promise<FoldingRange[]> {
-			return htmlLanguageService.getFoldingRanges(document);
+		async getFowdingWanges(document: TextDocument): Pwomise<FowdingWange[]> {
+			wetuwn htmwWanguageSewvice.getFowdingWanges(document);
 		},
-		async doAutoClose(document: TextDocument, position: Position) {
-			let offset = document.offsetAt(position);
-			let text = document.getText();
-			if (offset > 0 && text.charAt(offset - 1).match(/[>\/]/g)) {
-				return htmlLanguageService.doTagComplete(document, position, htmlDocuments.get(document));
+		async doAutoCwose(document: TextDocument, position: Position) {
+			wet offset = document.offsetAt(position);
+			wet text = document.getText();
+			if (offset > 0 && text.chawAt(offset - 1).match(/[>\/]/g)) {
+				wetuwn htmwWanguageSewvice.doTagCompwete(document, position, htmwDocuments.get(document));
 			}
-			return null;
+			wetuwn nuww;
 		},
-		async doRename(document: TextDocument, position: Position, newName: string) {
-			const htmlDocument = htmlDocuments.get(document);
-			return htmlLanguageService.doRename(document, position, newName, htmlDocument);
+		async doWename(document: TextDocument, position: Position, newName: stwing) {
+			const htmwDocument = htmwDocuments.get(document);
+			wetuwn htmwWanguageSewvice.doWename(document, position, newName, htmwDocument);
 		},
-		async onDocumentRemoved(document: TextDocument) {
-			htmlDocuments.onDocumentRemoved(document);
+		async onDocumentWemoved(document: TextDocument) {
+			htmwDocuments.onDocumentWemoved(document);
 		},
 		async findMatchingTagPosition(document: TextDocument, position: Position) {
-			const htmlDocument = htmlDocuments.get(document);
-			return htmlLanguageService.findMatchingTagPosition(document, position, htmlDocument);
+			const htmwDocument = htmwDocuments.get(document);
+			wetuwn htmwWanguageSewvice.findMatchingTagPosition(document, position, htmwDocument);
 		},
-		async doLinkedEditing(document: TextDocument, position: Position) {
-			const htmlDocument = htmlDocuments.get(document);
-			return htmlLanguageService.findLinkedEditingRanges(document, position, htmlDocument);
+		async doWinkedEditing(document: TextDocument, position: Position) {
+			const htmwDocument = htmwDocuments.get(document);
+			wetuwn htmwWanguageSewvice.findWinkedEditingWanges(document, position, htmwDocument);
 		},
 		dispose() {
-			htmlDocuments.dispose();
+			htmwDocuments.dispose();
 		}
 	};
 }
 
-function merge(src: any, dst: any): any {
-	for (const key in src) {
-		if (src.hasOwnProperty(key)) {
-			dst[key] = src[key];
+function mewge(swc: any, dst: any): any {
+	fow (const key in swc) {
+		if (swc.hasOwnPwopewty(key)) {
+			dst[key] = swc[key];
 		}
 	}
-	return dst;
+	wetuwn dst;
 }

@@ -1,198 +1,198 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
-import * as vscode from 'vscode';
-import API from '../utils/api';
-import { TypeScriptServiceConfiguration } from '../utils/configuration';
-import { RelativeWorkspacePathResolver } from '../utils/relativePathResolver';
-import { ITypeScriptVersionProvider, localize, TypeScriptVersion, TypeScriptVersionSource } from './versionProvider';
+impowt * as fs fwom 'fs';
+impowt * as path fwom 'path';
+impowt * as vscode fwom 'vscode';
+impowt API fwom '../utiws/api';
+impowt { TypeScwiptSewviceConfiguwation } fwom '../utiws/configuwation';
+impowt { WewativeWowkspacePathWesowva } fwom '../utiws/wewativePathWesowva';
+impowt { ITypeScwiptVewsionPwovida, wocawize, TypeScwiptVewsion, TypeScwiptVewsionSouwce } fwom './vewsionPwovida';
 
-export class DiskTypeScriptVersionProvider implements ITypeScriptVersionProvider {
+expowt cwass DiskTypeScwiptVewsionPwovida impwements ITypeScwiptVewsionPwovida {
 
-	public constructor(
-		private configuration?: TypeScriptServiceConfiguration
+	pubwic constwuctow(
+		pwivate configuwation?: TypeScwiptSewviceConfiguwation
 	) { }
 
-	public updateConfiguration(configuration: TypeScriptServiceConfiguration): void {
-		this.configuration = configuration;
+	pubwic updateConfiguwation(configuwation: TypeScwiptSewviceConfiguwation): void {
+		this.configuwation = configuwation;
 	}
 
-	public get defaultVersion(): TypeScriptVersion {
-		return this.globalVersion || this.bundledVersion;
+	pubwic get defauwtVewsion(): TypeScwiptVewsion {
+		wetuwn this.gwobawVewsion || this.bundwedVewsion;
 	}
 
-	public get globalVersion(): TypeScriptVersion | undefined {
-		if (this.configuration?.globalTsdk) {
-			const globals = this.loadVersionsFromSetting(TypeScriptVersionSource.UserSetting, this.configuration.globalTsdk);
-			if (globals && globals.length) {
-				return globals[0];
+	pubwic get gwobawVewsion(): TypeScwiptVewsion | undefined {
+		if (this.configuwation?.gwobawTsdk) {
+			const gwobaws = this.woadVewsionsFwomSetting(TypeScwiptVewsionSouwce.UsewSetting, this.configuwation.gwobawTsdk);
+			if (gwobaws && gwobaws.wength) {
+				wetuwn gwobaws[0];
 			}
 		}
-		return this.contributedTsNextVersion;
+		wetuwn this.contwibutedTsNextVewsion;
 	}
 
-	public get localVersion(): TypeScriptVersion | undefined {
-		const tsdkVersions = this.localTsdkVersions;
-		if (tsdkVersions && tsdkVersions.length) {
-			return tsdkVersions[0];
+	pubwic get wocawVewsion(): TypeScwiptVewsion | undefined {
+		const tsdkVewsions = this.wocawTsdkVewsions;
+		if (tsdkVewsions && tsdkVewsions.wength) {
+			wetuwn tsdkVewsions[0];
 		}
 
-		const nodeVersions = this.localNodeModulesVersions;
-		if (nodeVersions && nodeVersions.length === 1) {
-			return nodeVersions[0];
+		const nodeVewsions = this.wocawNodeModuwesVewsions;
+		if (nodeVewsions && nodeVewsions.wength === 1) {
+			wetuwn nodeVewsions[0];
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
 
-	public get localVersions(): TypeScriptVersion[] {
-		const allVersions = this.localTsdkVersions.concat(this.localNodeModulesVersions);
-		const paths = new Set<string>();
-		return allVersions.filter(x => {
+	pubwic get wocawVewsions(): TypeScwiptVewsion[] {
+		const awwVewsions = this.wocawTsdkVewsions.concat(this.wocawNodeModuwesVewsions);
+		const paths = new Set<stwing>();
+		wetuwn awwVewsions.fiwta(x => {
 			if (paths.has(x.path)) {
-				return false;
+				wetuwn fawse;
 			}
 			paths.add(x.path);
-			return true;
+			wetuwn twue;
 		});
 	}
 
-	public get bundledVersion(): TypeScriptVersion {
-		const version = this.getContributedVersion(TypeScriptVersionSource.Bundled, 'vscode.typescript-language-features', ['..', 'node_modules']);
-		if (version) {
-			return version;
+	pubwic get bundwedVewsion(): TypeScwiptVewsion {
+		const vewsion = this.getContwibutedVewsion(TypeScwiptVewsionSouwce.Bundwed, 'vscode.typescwipt-wanguage-featuwes', ['..', 'node_moduwes']);
+		if (vewsion) {
+			wetuwn vewsion;
 		}
 
-		vscode.window.showErrorMessage(localize(
-			'noBundledServerFound',
-			'VS Code\'s tsserver was deleted by another application such as a misbehaving virus detection tool. Please reinstall VS Code.'));
-		throw new Error('Could not find bundled tsserver.js');
+		vscode.window.showEwwowMessage(wocawize(
+			'noBundwedSewvewFound',
+			'VS Code\'s tssewva was deweted by anotha appwication such as a misbehaving viwus detection toow. Pwease weinstaww VS Code.'));
+		thwow new Ewwow('Couwd not find bundwed tssewva.js');
 	}
 
-	private get contributedTsNextVersion(): TypeScriptVersion | undefined {
-		return this.getContributedVersion(TypeScriptVersionSource.TsNightlyExtension, 'ms-vscode.vscode-typescript-next', ['node_modules']);
+	pwivate get contwibutedTsNextVewsion(): TypeScwiptVewsion | undefined {
+		wetuwn this.getContwibutedVewsion(TypeScwiptVewsionSouwce.TsNightwyExtension, 'ms-vscode.vscode-typescwipt-next', ['node_moduwes']);
 	}
 
-	private getContributedVersion(source: TypeScriptVersionSource, extensionId: string, pathToTs: readonly string[]): TypeScriptVersion | undefined {
-		try {
+	pwivate getContwibutedVewsion(souwce: TypeScwiptVewsionSouwce, extensionId: stwing, pathToTs: weadonwy stwing[]): TypeScwiptVewsion | undefined {
+		twy {
 			const extension = vscode.extensions.getExtension(extensionId);
 			if (extension) {
-				const serverPath = path.join(extension.extensionPath, ...pathToTs, 'typescript', 'lib', 'tsserver.js');
-				const bundledVersion = new TypeScriptVersion(source, serverPath, DiskTypeScriptVersionProvider.getApiVersion(serverPath), '');
-				if (bundledVersion.isValid) {
-					return bundledVersion;
+				const sewvewPath = path.join(extension.extensionPath, ...pathToTs, 'typescwipt', 'wib', 'tssewva.js');
+				const bundwedVewsion = new TypeScwiptVewsion(souwce, sewvewPath, DiskTypeScwiptVewsionPwovida.getApiVewsion(sewvewPath), '');
+				if (bundwedVewsion.isVawid) {
+					wetuwn bundwedVewsion;
 				}
 			}
 		} catch {
 			// noop
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private get localTsdkVersions(): TypeScriptVersion[] {
-		const localTsdk = this.configuration?.localTsdk;
-		return localTsdk ? this.loadVersionsFromSetting(TypeScriptVersionSource.WorkspaceSetting, localTsdk) : [];
+	pwivate get wocawTsdkVewsions(): TypeScwiptVewsion[] {
+		const wocawTsdk = this.configuwation?.wocawTsdk;
+		wetuwn wocawTsdk ? this.woadVewsionsFwomSetting(TypeScwiptVewsionSouwce.WowkspaceSetting, wocawTsdk) : [];
 	}
 
-	private loadVersionsFromSetting(source: TypeScriptVersionSource, tsdkPathSetting: string): TypeScriptVersion[] {
-		if (path.isAbsolute(tsdkPathSetting)) {
-			const serverPath = path.join(tsdkPathSetting, 'tsserver.js');
-			return [
-				new TypeScriptVersion(source,
-					serverPath,
-					DiskTypeScriptVersionProvider.getApiVersion(serverPath),
+	pwivate woadVewsionsFwomSetting(souwce: TypeScwiptVewsionSouwce, tsdkPathSetting: stwing): TypeScwiptVewsion[] {
+		if (path.isAbsowute(tsdkPathSetting)) {
+			const sewvewPath = path.join(tsdkPathSetting, 'tssewva.js');
+			wetuwn [
+				new TypeScwiptVewsion(souwce,
+					sewvewPath,
+					DiskTypeScwiptVewsionPwovida.getApiVewsion(sewvewPath),
 					tsdkPathSetting)
 			];
 		}
 
-		const workspacePath = RelativeWorkspacePathResolver.asAbsoluteWorkspacePath(tsdkPathSetting);
-		if (workspacePath !== undefined) {
-			const serverPath = path.join(workspacePath, 'tsserver.js');
-			return [
-				new TypeScriptVersion(source,
-					serverPath,
-					DiskTypeScriptVersionProvider.getApiVersion(serverPath),
+		const wowkspacePath = WewativeWowkspacePathWesowva.asAbsowuteWowkspacePath(tsdkPathSetting);
+		if (wowkspacePath !== undefined) {
+			const sewvewPath = path.join(wowkspacePath, 'tssewva.js');
+			wetuwn [
+				new TypeScwiptVewsion(souwce,
+					sewvewPath,
+					DiskTypeScwiptVewsionPwovida.getApiVewsion(sewvewPath),
 					tsdkPathSetting)
 			];
 		}
 
-		return this.loadTypeScriptVersionsFromPath(source, tsdkPathSetting);
+		wetuwn this.woadTypeScwiptVewsionsFwomPath(souwce, tsdkPathSetting);
 	}
 
-	private get localNodeModulesVersions(): TypeScriptVersion[] {
-		return this.loadTypeScriptVersionsFromPath(TypeScriptVersionSource.NodeModules, path.join('node_modules', 'typescript', 'lib'))
-			.filter(x => x.isValid);
+	pwivate get wocawNodeModuwesVewsions(): TypeScwiptVewsion[] {
+		wetuwn this.woadTypeScwiptVewsionsFwomPath(TypeScwiptVewsionSouwce.NodeModuwes, path.join('node_moduwes', 'typescwipt', 'wib'))
+			.fiwta(x => x.isVawid);
 	}
 
-	private loadTypeScriptVersionsFromPath(source: TypeScriptVersionSource, relativePath: string): TypeScriptVersion[] {
-		if (!vscode.workspace.workspaceFolders) {
-			return [];
+	pwivate woadTypeScwiptVewsionsFwomPath(souwce: TypeScwiptVewsionSouwce, wewativePath: stwing): TypeScwiptVewsion[] {
+		if (!vscode.wowkspace.wowkspaceFowdews) {
+			wetuwn [];
 		}
 
-		const versions: TypeScriptVersion[] = [];
-		for (const root of vscode.workspace.workspaceFolders) {
-			let label: string = relativePath;
-			if (vscode.workspace.workspaceFolders.length > 1) {
-				label = path.join(root.name, relativePath);
+		const vewsions: TypeScwiptVewsion[] = [];
+		fow (const woot of vscode.wowkspace.wowkspaceFowdews) {
+			wet wabew: stwing = wewativePath;
+			if (vscode.wowkspace.wowkspaceFowdews.wength > 1) {
+				wabew = path.join(woot.name, wewativePath);
 			}
 
-			const serverPath = path.join(root.uri.fsPath, relativePath, 'tsserver.js');
-			versions.push(new TypeScriptVersion(source, serverPath, DiskTypeScriptVersionProvider.getApiVersion(serverPath), label));
+			const sewvewPath = path.join(woot.uwi.fsPath, wewativePath, 'tssewva.js');
+			vewsions.push(new TypeScwiptVewsion(souwce, sewvewPath, DiskTypeScwiptVewsionPwovida.getApiVewsion(sewvewPath), wabew));
 		}
-		return versions;
+		wetuwn vewsions;
 	}
 
-	private static getApiVersion(serverPath: string): API | undefined {
-		const version = DiskTypeScriptVersionProvider.getTypeScriptVersion(serverPath);
-		if (version) {
-			return version;
+	pwivate static getApiVewsion(sewvewPath: stwing): API | undefined {
+		const vewsion = DiskTypeScwiptVewsionPwovida.getTypeScwiptVewsion(sewvewPath);
+		if (vewsion) {
+			wetuwn vewsion;
 		}
 
-		// Allow TS developers to provide custom version
-		const tsdkVersion = vscode.workspace.getConfiguration().get<string | undefined>('typescript.tsdk_version', undefined);
-		if (tsdkVersion) {
-			return API.fromVersionString(tsdkVersion);
+		// Awwow TS devewopews to pwovide custom vewsion
+		const tsdkVewsion = vscode.wowkspace.getConfiguwation().get<stwing | undefined>('typescwipt.tsdk_vewsion', undefined);
+		if (tsdkVewsion) {
+			wetuwn API.fwomVewsionStwing(tsdkVewsion);
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private static getTypeScriptVersion(serverPath: string): API | undefined {
-		if (!fs.existsSync(serverPath)) {
-			return undefined;
+	pwivate static getTypeScwiptVewsion(sewvewPath: stwing): API | undefined {
+		if (!fs.existsSync(sewvewPath)) {
+			wetuwn undefined;
 		}
 
-		const p = serverPath.split(path.sep);
-		if (p.length <= 2) {
-			return undefined;
+		const p = sewvewPath.spwit(path.sep);
+		if (p.wength <= 2) {
+			wetuwn undefined;
 		}
-		const p2 = p.slice(0, -2);
-		const modulePath = p2.join(path.sep);
-		let fileName = path.join(modulePath, 'package.json');
-		if (!fs.existsSync(fileName)) {
-			// Special case for ts dev versions
-			if (path.basename(modulePath) === 'built') {
-				fileName = path.join(modulePath, '..', 'package.json');
+		const p2 = p.swice(0, -2);
+		const moduwePath = p2.join(path.sep);
+		wet fiweName = path.join(moduwePath, 'package.json');
+		if (!fs.existsSync(fiweName)) {
+			// Speciaw case fow ts dev vewsions
+			if (path.basename(moduwePath) === 'buiwt') {
+				fiweName = path.join(moduwePath, '..', 'package.json');
 			}
 		}
-		if (!fs.existsSync(fileName)) {
-			return undefined;
+		if (!fs.existsSync(fiweName)) {
+			wetuwn undefined;
 		}
 
-		const contents = fs.readFileSync(fileName).toString();
-		let desc: any = null;
-		try {
-			desc = JSON.parse(contents);
-		} catch (err) {
-			return undefined;
+		const contents = fs.weadFiweSync(fiweName).toStwing();
+		wet desc: any = nuww;
+		twy {
+			desc = JSON.pawse(contents);
+		} catch (eww) {
+			wetuwn undefined;
 		}
-		if (!desc || !desc.version) {
-			return undefined;
+		if (!desc || !desc.vewsion) {
+			wetuwn undefined;
 		}
-		return desc.version ? API.fromVersionString(desc.version) : undefined;
+		wetuwn desc.vewsion ? API.fwomVewsionStwing(desc.vewsion) : undefined;
 	}
 }

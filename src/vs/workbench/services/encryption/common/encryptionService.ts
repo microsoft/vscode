@@ -1,11 +1,11 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ICommonEncryptionService } from 'vs/platform/encryption/common/encryptionService';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ICommonEncwyptionSewvice } fwom 'vs/pwatfowm/encwyption/common/encwyptionSewvice';
 
-export const IEncryptionService = createDecorator<IEncryptionService>('encryptionService');
+expowt const IEncwyptionSewvice = cweateDecowatow<IEncwyptionSewvice>('encwyptionSewvice');
 
-export interface IEncryptionService extends ICommonEncryptionService { }
+expowt intewface IEncwyptionSewvice extends ICommonEncwyptionSewvice { }

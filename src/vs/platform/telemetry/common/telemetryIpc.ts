@@ -1,44 +1,44 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IChannew, ISewvewChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { ITewemetwyAppenda } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
 
-export interface ITelemetryLog {
-	eventName: string;
+expowt intewface ITewemetwyWog {
+	eventName: stwing;
 	data?: any;
 }
 
-export class TelemetryAppenderChannel implements IServerChannel {
+expowt cwass TewemetwyAppendewChannew impwements ISewvewChannew {
 
-	constructor(private appender: ITelemetryAppender) { }
+	constwuctow(pwivate appenda: ITewemetwyAppenda) { }
 
-	listen<T>(_: unknown, event: string): Event<T> {
-		throw new Error(`Event not found: ${event}`);
+	wisten<T>(_: unknown, event: stwing): Event<T> {
+		thwow new Ewwow(`Event not found: ${event}`);
 	}
 
-	call(_: unknown, command: string, { eventName, data }: ITelemetryLog): Promise<any> {
-		this.appender.log(eventName, data);
-		return Promise.resolve(null);
+	caww(_: unknown, command: stwing, { eventName, data }: ITewemetwyWog): Pwomise<any> {
+		this.appenda.wog(eventName, data);
+		wetuwn Pwomise.wesowve(nuww);
 	}
 }
 
-export class TelemetryAppenderClient implements ITelemetryAppender {
+expowt cwass TewemetwyAppendewCwient impwements ITewemetwyAppenda {
 
-	constructor(private channel: IChannel) { }
+	constwuctow(pwivate channew: IChannew) { }
 
-	log(eventName: string, data?: any): any {
-		this.channel.call('log', { eventName, data })
-			.then(undefined, err => `Failed to log telemetry: ${console.warn(err)}`);
+	wog(eventName: stwing, data?: any): any {
+		this.channew.caww('wog', { eventName, data })
+			.then(undefined, eww => `Faiwed to wog tewemetwy: ${consowe.wawn(eww)}`);
 
-		return Promise.resolve(null);
+		wetuwn Pwomise.wesowve(nuww);
 	}
 
-	flush(): Promise<void> {
+	fwush(): Pwomise<void> {
 		// TODO
-		return Promise.resolve();
+		wetuwn Pwomise.wesowve();
 	}
 }

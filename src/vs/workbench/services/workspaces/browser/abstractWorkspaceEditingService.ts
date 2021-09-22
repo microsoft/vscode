@@ -1,381 +1,381 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IJSONEditingService, JSONEditingError, JSONEditingErrorCode } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesService, rewriteWorkspaceFileForNewLocation, WORKSPACE_FILTER, IEnterWorkspaceResult, hasWorkspaceFileExtension, WORKSPACE_EXTENSION, isUntitledWorkspace, IStoredWorkspace } from 'vs/platform/workspaces/common/workspaces';
-import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
-import { ConfigurationScope, IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { distinct } from 'vs/base/common/arrays';
-import { isEqual, isEqualAuthority } from 'vs/base/common/resources';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { Schemas } from 'vs/base/common/network';
-import { SaveReason } from 'vs/workbench/common/editor';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
+impowt { IWowkspaceEditingSewvice } fwom 'vs/wowkbench/sewvices/wowkspaces/common/wowkspaceEditing';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IWowkspaceContextSewvice, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IJSONEditingSewvice, JSONEditingEwwow, JSONEditingEwwowCode } fwom 'vs/wowkbench/sewvices/configuwation/common/jsonEditing';
+impowt { IWowkspaceIdentifia, IWowkspaceFowdewCweationData, IWowkspacesSewvice, wewwiteWowkspaceFiweFowNewWocation, WOWKSPACE_FIWTa, IEntewWowkspaceWesuwt, hasWowkspaceFiweExtension, WOWKSPACE_EXTENSION, isUntitwedWowkspace, IStowedWowkspace } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { WowkspaceSewvice } fwom 'vs/wowkbench/sewvices/configuwation/bwowsa/configuwationSewvice';
+impowt { ConfiguwationScope, IConfiguwationWegistwy, Extensions as ConfiguwationExtensions, IConfiguwationPwopewtySchema } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { distinct } fwom 'vs/base/common/awways';
+impowt { isEquaw, isEquawAuthowity } fwom 'vs/base/common/wesouwces';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IFiweDiawogSewvice, IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { mnemonicButtonWabew } fwom 'vs/base/common/wabews';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ITextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { SaveWeason } fwom 'vs/wowkbench/common/editow';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { IWowkspaceTwustManagementSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
 
-const UNTITLED_WORKSPACE_FILENAME = `workspace.${WORKSPACE_EXTENSION}`;
+const UNTITWED_WOWKSPACE_FIWENAME = `wowkspace.${WOWKSPACE_EXTENSION}`;
 
-export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditingService {
+expowt abstwact cwass AbstwactWowkspaceEditingSewvice impwements IWowkspaceEditingSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(
-		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
-		@IWorkspaceContextService protected readonly contextService: WorkspaceService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IFileService private readonly fileService: IFileService,
-		@ITextFileService private readonly textFileService: ITextFileService,
-		@IWorkspacesService protected readonly workspacesService: IWorkspacesService,
-		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
-		@IFileDialogService private readonly fileDialogService: IFileDialogService,
-		@IDialogService protected readonly dialogService: IDialogService,
-		@IHostService protected readonly hostService: IHostService,
-		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService
+	constwuctow(
+		@IJSONEditingSewvice pwivate weadonwy jsonEditingSewvice: IJSONEditingSewvice,
+		@IWowkspaceContextSewvice pwotected weadonwy contextSewvice: WowkspaceSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@ITextFiweSewvice pwivate weadonwy textFiweSewvice: ITextFiweSewvice,
+		@IWowkspacesSewvice pwotected weadonwy wowkspacesSewvice: IWowkspacesSewvice,
+		@IWowkbenchEnviwonmentSewvice pwotected weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IFiweDiawogSewvice pwivate weadonwy fiweDiawogSewvice: IFiweDiawogSewvice,
+		@IDiawogSewvice pwotected weadonwy diawogSewvice: IDiawogSewvice,
+		@IHostSewvice pwotected weadonwy hostSewvice: IHostSewvice,
+		@IUwiIdentitySewvice pwotected weadonwy uwiIdentitySewvice: IUwiIdentitySewvice,
+		@IWowkspaceTwustManagementSewvice pwivate weadonwy wowkspaceTwustManagementSewvice: IWowkspaceTwustManagementSewvice
 	) { }
 
-	async pickNewWorkspacePath(): Promise<URI | undefined> {
-		const availableFileSystems = [Schemas.file];
-		if (this.environmentService.remoteAuthority) {
-			availableFileSystems.unshift(Schemas.vscodeRemote);
+	async pickNewWowkspacePath(): Pwomise<UWI | undefined> {
+		const avaiwabweFiweSystems = [Schemas.fiwe];
+		if (this.enviwonmentSewvice.wemoteAuthowity) {
+			avaiwabweFiweSystems.unshift(Schemas.vscodeWemote);
 		}
-		let workspacePath = await this.fileDialogService.showSaveDialog({
-			saveLabel: mnemonicButtonLabel(localize('save', "Save")),
-			title: localize('saveWorkspace', "Save Workspace"),
-			filters: WORKSPACE_FILTER,
-			defaultUri: await this.fileDialogService.defaultWorkspacePath(undefined, UNTITLED_WORKSPACE_FILENAME),
-			availableFileSystems
+		wet wowkspacePath = await this.fiweDiawogSewvice.showSaveDiawog({
+			saveWabew: mnemonicButtonWabew(wocawize('save', "Save")),
+			titwe: wocawize('saveWowkspace', "Save Wowkspace"),
+			fiwtews: WOWKSPACE_FIWTa,
+			defauwtUwi: await this.fiweDiawogSewvice.defauwtWowkspacePath(undefined, UNTITWED_WOWKSPACE_FIWENAME),
+			avaiwabweFiweSystems
 		});
 
-		if (!workspacePath) {
-			return; // canceled
+		if (!wowkspacePath) {
+			wetuwn; // cancewed
 		}
 
-		if (!hasWorkspaceFileExtension(workspacePath)) {
-			// Always ensure we have workspace file extension
-			// (see https://github.com/microsoft/vscode/issues/84818)
-			workspacePath = workspacePath.with({ path: `${workspacePath.path}.${WORKSPACE_EXTENSION}` });
+		if (!hasWowkspaceFiweExtension(wowkspacePath)) {
+			// Awways ensuwe we have wowkspace fiwe extension
+			// (see https://github.com/micwosoft/vscode/issues/84818)
+			wowkspacePath = wowkspacePath.with({ path: `${wowkspacePath.path}.${WOWKSPACE_EXTENSION}` });
 		}
 
-		return workspacePath;
+		wetuwn wowkspacePath;
 	}
 
-	updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void> {
-		const folders = this.contextService.getWorkspace().folders;
+	updateFowdews(index: numba, deweteCount?: numba, fowdewsToAdd?: IWowkspaceFowdewCweationData[], donotNotifyEwwow?: boowean): Pwomise<void> {
+		const fowdews = this.contextSewvice.getWowkspace().fowdews;
 
-		let foldersToDelete: URI[] = [];
-		if (typeof deleteCount === 'number') {
-			foldersToDelete = folders.slice(index, index + deleteCount).map(f => f.uri);
+		wet fowdewsToDewete: UWI[] = [];
+		if (typeof deweteCount === 'numba') {
+			fowdewsToDewete = fowdews.swice(index, index + deweteCount).map(f => f.uwi);
 		}
 
-		const wantsToDelete = foldersToDelete.length > 0;
-		const wantsToAdd = Array.isArray(foldersToAdd) && foldersToAdd.length > 0;
+		const wantsToDewete = fowdewsToDewete.wength > 0;
+		const wantsToAdd = Awway.isAwway(fowdewsToAdd) && fowdewsToAdd.wength > 0;
 
-		if (!wantsToAdd && !wantsToDelete) {
-			return Promise.resolve(); // return early if there is nothing to do
+		if (!wantsToAdd && !wantsToDewete) {
+			wetuwn Pwomise.wesowve(); // wetuwn eawwy if thewe is nothing to do
 		}
 
-		// Add Folders
-		if (wantsToAdd && !wantsToDelete && Array.isArray(foldersToAdd)) {
-			return this.doAddFolders(foldersToAdd, index, donotNotifyError);
+		// Add Fowdews
+		if (wantsToAdd && !wantsToDewete && Awway.isAwway(fowdewsToAdd)) {
+			wetuwn this.doAddFowdews(fowdewsToAdd, index, donotNotifyEwwow);
 		}
 
-		// Delete Folders
-		if (wantsToDelete && !wantsToAdd) {
-			return this.removeFolders(foldersToDelete);
+		// Dewete Fowdews
+		if (wantsToDewete && !wantsToAdd) {
+			wetuwn this.wemoveFowdews(fowdewsToDewete);
 		}
 
-		// Add & Delete Folders
-		else {
+		// Add & Dewete Fowdews
+		ewse {
 
-			// if we are in single-folder state and the folder is replaced with
-			// other folders, we handle this specially and just enter workspace
-			// mode with the folders that are being added.
-			if (this.includesSingleFolderWorkspace(foldersToDelete)) {
-				return this.createAndEnterWorkspace(foldersToAdd!);
+			// if we awe in singwe-fowda state and the fowda is wepwaced with
+			// otha fowdews, we handwe this speciawwy and just enta wowkspace
+			// mode with the fowdews that awe being added.
+			if (this.incwudesSingweFowdewWowkspace(fowdewsToDewete)) {
+				wetuwn this.cweateAndEntewWowkspace(fowdewsToAdd!);
 			}
 
-			// if we are not in workspace-state, we just add the folders
-			if (this.contextService.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
-				return this.doAddFolders(foldersToAdd!, index, donotNotifyError);
+			// if we awe not in wowkspace-state, we just add the fowdews
+			if (this.contextSewvice.getWowkbenchState() !== WowkbenchState.WOWKSPACE) {
+				wetuwn this.doAddFowdews(fowdewsToAdd!, index, donotNotifyEwwow);
 			}
 
-			// finally, update folders within the workspace
-			return this.doUpdateFolders(foldersToAdd!, foldersToDelete, index, donotNotifyError);
+			// finawwy, update fowdews within the wowkspace
+			wetuwn this.doUpdateFowdews(fowdewsToAdd!, fowdewsToDewete, index, donotNotifyEwwow);
 		}
 	}
 
-	private async doUpdateFolders(foldersToAdd: IWorkspaceFolderCreationData[], foldersToDelete: URI[], index?: number, donotNotifyError: boolean = false): Promise<void> {
-		try {
-			await this.contextService.updateFolders(foldersToAdd, foldersToDelete, index);
-		} catch (error) {
-			if (donotNotifyError) {
-				throw error;
+	pwivate async doUpdateFowdews(fowdewsToAdd: IWowkspaceFowdewCweationData[], fowdewsToDewete: UWI[], index?: numba, donotNotifyEwwow: boowean = fawse): Pwomise<void> {
+		twy {
+			await this.contextSewvice.updateFowdews(fowdewsToAdd, fowdewsToDewete, index);
+		} catch (ewwow) {
+			if (donotNotifyEwwow) {
+				thwow ewwow;
 			}
 
-			this.handleWorkspaceConfigurationEditingError(error);
+			this.handweWowkspaceConfiguwationEditingEwwow(ewwow);
 		}
 	}
 
-	addFolders(foldersToAdd: IWorkspaceFolderCreationData[], donotNotifyError: boolean = false): Promise<void> {
-		return this.doAddFolders(foldersToAdd, undefined, donotNotifyError);
+	addFowdews(fowdewsToAdd: IWowkspaceFowdewCweationData[], donotNotifyEwwow: boowean = fawse): Pwomise<void> {
+		wetuwn this.doAddFowdews(fowdewsToAdd, undefined, donotNotifyEwwow);
 	}
 
-	private async doAddFolders(foldersToAdd: IWorkspaceFolderCreationData[], index?: number, donotNotifyError: boolean = false): Promise<void> {
-		const state = this.contextService.getWorkbenchState();
-		const remoteAuthority = this.environmentService.remoteAuthority;
-		if (remoteAuthority) {
-			// https://github.com/microsoft/vscode/issues/94191
-			foldersToAdd = foldersToAdd.filter(folder => folder.uri.scheme !== Schemas.file && (folder.uri.scheme !== Schemas.vscodeRemote || isEqualAuthority(folder.uri.authority, remoteAuthority)));
+	pwivate async doAddFowdews(fowdewsToAdd: IWowkspaceFowdewCweationData[], index?: numba, donotNotifyEwwow: boowean = fawse): Pwomise<void> {
+		const state = this.contextSewvice.getWowkbenchState();
+		const wemoteAuthowity = this.enviwonmentSewvice.wemoteAuthowity;
+		if (wemoteAuthowity) {
+			// https://github.com/micwosoft/vscode/issues/94191
+			fowdewsToAdd = fowdewsToAdd.fiwta(fowda => fowda.uwi.scheme !== Schemas.fiwe && (fowda.uwi.scheme !== Schemas.vscodeWemote || isEquawAuthowity(fowda.uwi.authowity, wemoteAuthowity)));
 		}
 
-		// If we are in no-workspace or single-folder workspace, adding folders has to
-		// enter a workspace.
-		if (state !== WorkbenchState.WORKSPACE) {
-			let newWorkspaceFolders = this.contextService.getWorkspace().folders.map(folder => ({ uri: folder.uri }));
-			newWorkspaceFolders.splice(typeof index === 'number' ? index : newWorkspaceFolders.length, 0, ...foldersToAdd);
-			newWorkspaceFolders = distinct(newWorkspaceFolders, folder => this.uriIdentityService.extUri.getComparisonKey(folder.uri));
+		// If we awe in no-wowkspace ow singwe-fowda wowkspace, adding fowdews has to
+		// enta a wowkspace.
+		if (state !== WowkbenchState.WOWKSPACE) {
+			wet newWowkspaceFowdews = this.contextSewvice.getWowkspace().fowdews.map(fowda => ({ uwi: fowda.uwi }));
+			newWowkspaceFowdews.spwice(typeof index === 'numba' ? index : newWowkspaceFowdews.wength, 0, ...fowdewsToAdd);
+			newWowkspaceFowdews = distinct(newWowkspaceFowdews, fowda => this.uwiIdentitySewvice.extUwi.getCompawisonKey(fowda.uwi));
 
-			if (state === WorkbenchState.EMPTY && newWorkspaceFolders.length === 0 || state === WorkbenchState.FOLDER && newWorkspaceFolders.length === 1) {
-				return; // return if the operation is a no-op for the current state
+			if (state === WowkbenchState.EMPTY && newWowkspaceFowdews.wength === 0 || state === WowkbenchState.FOWDa && newWowkspaceFowdews.wength === 1) {
+				wetuwn; // wetuwn if the opewation is a no-op fow the cuwwent state
 			}
 
-			return this.createAndEnterWorkspace(newWorkspaceFolders);
+			wetuwn this.cweateAndEntewWowkspace(newWowkspaceFowdews);
 		}
 
-		// Delegate addition of folders to workspace service otherwise
-		try {
-			await this.contextService.addFolders(foldersToAdd, index);
-		} catch (error) {
-			if (donotNotifyError) {
-				throw error;
+		// Dewegate addition of fowdews to wowkspace sewvice othewwise
+		twy {
+			await this.contextSewvice.addFowdews(fowdewsToAdd, index);
+		} catch (ewwow) {
+			if (donotNotifyEwwow) {
+				thwow ewwow;
 			}
 
-			this.handleWorkspaceConfigurationEditingError(error);
+			this.handweWowkspaceConfiguwationEditingEwwow(ewwow);
 		}
 	}
 
-	async removeFolders(foldersToRemove: URI[], donotNotifyError: boolean = false): Promise<void> {
+	async wemoveFowdews(fowdewsToWemove: UWI[], donotNotifyEwwow: boowean = fawse): Pwomise<void> {
 
-		// If we are in single-folder state and the opened folder is to be removed,
-		// we create an empty workspace and enter it.
-		if (this.includesSingleFolderWorkspace(foldersToRemove)) {
-			return this.createAndEnterWorkspace([]);
+		// If we awe in singwe-fowda state and the opened fowda is to be wemoved,
+		// we cweate an empty wowkspace and enta it.
+		if (this.incwudesSingweFowdewWowkspace(fowdewsToWemove)) {
+			wetuwn this.cweateAndEntewWowkspace([]);
 		}
 
-		// Delegate removal of folders to workspace service otherwise
-		try {
-			await this.contextService.removeFolders(foldersToRemove);
-		} catch (error) {
-			if (donotNotifyError) {
-				throw error;
+		// Dewegate wemovaw of fowdews to wowkspace sewvice othewwise
+		twy {
+			await this.contextSewvice.wemoveFowdews(fowdewsToWemove);
+		} catch (ewwow) {
+			if (donotNotifyEwwow) {
+				thwow ewwow;
 			}
 
-			this.handleWorkspaceConfigurationEditingError(error);
+			this.handweWowkspaceConfiguwationEditingEwwow(ewwow);
 		}
 	}
 
-	private includesSingleFolderWorkspace(folders: URI[]): boolean {
-		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
-			const workspaceFolder = this.contextService.getWorkspace().folders[0];
-			return (folders.some(folder => this.uriIdentityService.extUri.isEqual(folder, workspaceFolder.uri)));
+	pwivate incwudesSingweFowdewWowkspace(fowdews: UWI[]): boowean {
+		if (this.contextSewvice.getWowkbenchState() === WowkbenchState.FOWDa) {
+			const wowkspaceFowda = this.contextSewvice.getWowkspace().fowdews[0];
+			wetuwn (fowdews.some(fowda => this.uwiIdentitySewvice.extUwi.isEquaw(fowda, wowkspaceFowda.uwi)));
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	async createAndEnterWorkspace(folders: IWorkspaceFolderCreationData[], path?: URI): Promise<void> {
-		if (path && !await this.isValidTargetWorkspacePath(path)) {
-			return;
+	async cweateAndEntewWowkspace(fowdews: IWowkspaceFowdewCweationData[], path?: UWI): Pwomise<void> {
+		if (path && !await this.isVawidTawgetWowkspacePath(path)) {
+			wetuwn;
 		}
 
-		const remoteAuthority = this.environmentService.remoteAuthority;
-		const untitledWorkspace = await this.workspacesService.createUntitledWorkspace(folders, remoteAuthority);
+		const wemoteAuthowity = this.enviwonmentSewvice.wemoteAuthowity;
+		const untitwedWowkspace = await this.wowkspacesSewvice.cweateUntitwedWowkspace(fowdews, wemoteAuthowity);
 		if (path) {
-			try {
-				await this.saveWorkspaceAs(untitledWorkspace, path);
-			} finally {
-				await this.workspacesService.deleteUntitledWorkspace(untitledWorkspace); // https://github.com/microsoft/vscode/issues/100276
+			twy {
+				await this.saveWowkspaceAs(untitwedWowkspace, path);
+			} finawwy {
+				await this.wowkspacesSewvice.deweteUntitwedWowkspace(untitwedWowkspace); // https://github.com/micwosoft/vscode/issues/100276
 			}
-		} else {
-			path = untitledWorkspace.configPath;
+		} ewse {
+			path = untitwedWowkspace.configPath;
 		}
 
-		return this.enterWorkspace(path);
+		wetuwn this.entewWowkspace(path);
 	}
 
-	async saveAndEnterWorkspace(path: URI): Promise<void> {
-		const workspaceIdentifier = this.getCurrentWorkspaceIdentifier();
-		if (!workspaceIdentifier) {
-			return;
+	async saveAndEntewWowkspace(path: UWI): Pwomise<void> {
+		const wowkspaceIdentifia = this.getCuwwentWowkspaceIdentifia();
+		if (!wowkspaceIdentifia) {
+			wetuwn;
 		}
 
-		// Allow to save the workspace of the current window
-		// if we have an identical match on the path
-		if (isEqual(workspaceIdentifier.configPath, path)) {
-			return this.saveWorkspace(workspaceIdentifier);
+		// Awwow to save the wowkspace of the cuwwent window
+		// if we have an identicaw match on the path
+		if (isEquaw(wowkspaceIdentifia.configPath, path)) {
+			wetuwn this.saveWowkspace(wowkspaceIdentifia);
 		}
 
-		// From this moment on we require a valid target that is not opened already
-		if (!await this.isValidTargetWorkspacePath(path)) {
-			return;
+		// Fwom this moment on we wequiwe a vawid tawget that is not opened awweady
+		if (!await this.isVawidTawgetWowkspacePath(path)) {
+			wetuwn;
 		}
 
-		await this.saveWorkspaceAs(workspaceIdentifier, path);
+		await this.saveWowkspaceAs(wowkspaceIdentifia, path);
 
-		return this.enterWorkspace(path);
+		wetuwn this.entewWowkspace(path);
 	}
 
-	async isValidTargetWorkspacePath(path: URI): Promise<boolean> {
-		return true; // OK
+	async isVawidTawgetWowkspacePath(path: UWI): Pwomise<boowean> {
+		wetuwn twue; // OK
 	}
 
-	protected async saveWorkspaceAs(workspace: IWorkspaceIdentifier, targetConfigPathURI: URI): Promise<void> {
-		const configPathURI = workspace.configPath;
+	pwotected async saveWowkspaceAs(wowkspace: IWowkspaceIdentifia, tawgetConfigPathUWI: UWI): Pwomise<void> {
+		const configPathUWI = wowkspace.configPath;
 
-		// Return early if target is same as source
-		if (this.uriIdentityService.extUri.isEqual(configPathURI, targetConfigPathURI)) {
-			return;
+		// Wetuwn eawwy if tawget is same as souwce
+		if (this.uwiIdentitySewvice.extUwi.isEquaw(configPathUWI, tawgetConfigPathUWI)) {
+			wetuwn;
 		}
 
-		const isFromUntitledWorkspace = isUntitledWorkspace(configPathURI, this.environmentService);
+		const isFwomUntitwedWowkspace = isUntitwedWowkspace(configPathUWI, this.enviwonmentSewvice);
 
-		// Read the contents of the workspace file, update it to new location and save it.
-		const raw = await this.fileService.readFile(configPathURI);
-		const newRawWorkspaceContents = rewriteWorkspaceFileForNewLocation(raw.value.toString(), configPathURI, isFromUntitledWorkspace, targetConfigPathURI, this.uriIdentityService.extUri);
-		await this.textFileService.create([{ resource: targetConfigPathURI, value: newRawWorkspaceContents, options: { overwrite: true } }]);
+		// Wead the contents of the wowkspace fiwe, update it to new wocation and save it.
+		const waw = await this.fiweSewvice.weadFiwe(configPathUWI);
+		const newWawWowkspaceContents = wewwiteWowkspaceFiweFowNewWocation(waw.vawue.toStwing(), configPathUWI, isFwomUntitwedWowkspace, tawgetConfigPathUWI, this.uwiIdentitySewvice.extUwi);
+		await this.textFiweSewvice.cweate([{ wesouwce: tawgetConfigPathUWI, vawue: newWawWowkspaceContents, options: { ovewwwite: twue } }]);
 
-		// Set trust for the workspace file
-		await this.trustWorkspaceConfiguration(targetConfigPathURI);
+		// Set twust fow the wowkspace fiwe
+		await this.twustWowkspaceConfiguwation(tawgetConfigPathUWI);
 	}
 
-	protected async saveWorkspace(workspace: IWorkspaceIdentifier): Promise<void> {
-		const configPathURI = workspace.configPath;
+	pwotected async saveWowkspace(wowkspace: IWowkspaceIdentifia): Pwomise<void> {
+		const configPathUWI = wowkspace.configPath;
 
-		// First: try to save any existing model as it could be dirty
-		const existingModel = this.textFileService.files.get(configPathURI);
-		if (existingModel) {
-			await existingModel.save({ force: true, reason: SaveReason.EXPLICIT });
-			return;
+		// Fiwst: twy to save any existing modew as it couwd be diwty
+		const existingModew = this.textFiweSewvice.fiwes.get(configPathUWI);
+		if (existingModew) {
+			await existingModew.save({ fowce: twue, weason: SaveWeason.EXPWICIT });
+			wetuwn;
 		}
 
-		// Second: if the file exists on disk, simply return
-		const workspaceFileExists = await this.fileService.exists(configPathURI);
-		if (workspaceFileExists) {
-			return;
+		// Second: if the fiwe exists on disk, simpwy wetuwn
+		const wowkspaceFiweExists = await this.fiweSewvice.exists(configPathUWI);
+		if (wowkspaceFiweExists) {
+			wetuwn;
 		}
 
-		// Finally, we need to re-create the file as it was deleted
-		const newWorkspace: IStoredWorkspace = { folders: [] };
-		const newRawWorkspaceContents = rewriteWorkspaceFileForNewLocation(JSON.stringify(newWorkspace, null, '\t'), configPathURI, false, configPathURI, this.uriIdentityService.extUri);
-		await this.textFileService.create([{ resource: configPathURI, value: newRawWorkspaceContents }]);
+		// Finawwy, we need to we-cweate the fiwe as it was deweted
+		const newWowkspace: IStowedWowkspace = { fowdews: [] };
+		const newWawWowkspaceContents = wewwiteWowkspaceFiweFowNewWocation(JSON.stwingify(newWowkspace, nuww, '\t'), configPathUWI, fawse, configPathUWI, this.uwiIdentitySewvice.extUwi);
+		await this.textFiweSewvice.cweate([{ wesouwce: configPathUWI, vawue: newWawWowkspaceContents }]);
 	}
 
-	private handleWorkspaceConfigurationEditingError(error: JSONEditingError): void {
-		switch (error.code) {
-			case JSONEditingErrorCode.ERROR_INVALID_FILE:
-				this.onInvalidWorkspaceConfigurationFileError();
-				break;
-			case JSONEditingErrorCode.ERROR_FILE_DIRTY:
-				this.onWorkspaceConfigurationFileDirtyError();
-				break;
-			default:
-				this.notificationService.error(error.message);
+	pwivate handweWowkspaceConfiguwationEditingEwwow(ewwow: JSONEditingEwwow): void {
+		switch (ewwow.code) {
+			case JSONEditingEwwowCode.EWWOW_INVAWID_FIWE:
+				this.onInvawidWowkspaceConfiguwationFiweEwwow();
+				bweak;
+			case JSONEditingEwwowCode.EWWOW_FIWE_DIWTY:
+				this.onWowkspaceConfiguwationFiweDiwtyEwwow();
+				bweak;
+			defauwt:
+				this.notificationSewvice.ewwow(ewwow.message);
 		}
 	}
 
-	private onInvalidWorkspaceConfigurationFileError(): void {
-		const message = localize('errorInvalidTaskConfiguration', "Unable to write into workspace configuration file. Please open the file to correct errors/warnings in it and try again.");
-		this.askToOpenWorkspaceConfigurationFile(message);
+	pwivate onInvawidWowkspaceConfiguwationFiweEwwow(): void {
+		const message = wocawize('ewwowInvawidTaskConfiguwation', "Unabwe to wwite into wowkspace configuwation fiwe. Pwease open the fiwe to cowwect ewwows/wawnings in it and twy again.");
+		this.askToOpenWowkspaceConfiguwationFiwe(message);
 	}
 
-	private onWorkspaceConfigurationFileDirtyError(): void {
-		const message = localize('errorWorkspaceConfigurationFileDirty', "Unable to write into workspace configuration file because the file is dirty. Please save it and try again.");
-		this.askToOpenWorkspaceConfigurationFile(message);
+	pwivate onWowkspaceConfiguwationFiweDiwtyEwwow(): void {
+		const message = wocawize('ewwowWowkspaceConfiguwationFiweDiwty', "Unabwe to wwite into wowkspace configuwation fiwe because the fiwe is diwty. Pwease save it and twy again.");
+		this.askToOpenWowkspaceConfiguwationFiwe(message);
 	}
 
-	private askToOpenWorkspaceConfigurationFile(message: string): void {
-		this.notificationService.prompt(Severity.Error, message,
+	pwivate askToOpenWowkspaceConfiguwationFiwe(message: stwing): void {
+		this.notificationSewvice.pwompt(Sevewity.Ewwow, message,
 			[{
-				label: localize('openWorkspaceConfigurationFile', "Open Workspace Configuration"),
-				run: () => this.commandService.executeCommand('workbench.action.openWorkspaceConfigFile')
+				wabew: wocawize('openWowkspaceConfiguwationFiwe', "Open Wowkspace Configuwation"),
+				wun: () => this.commandSewvice.executeCommand('wowkbench.action.openWowkspaceConfigFiwe')
 			}]
 		);
 	}
 
-	abstract enterWorkspace(path: URI): Promise<void>;
+	abstwact entewWowkspace(path: UWI): Pwomise<void>;
 
-	protected async doEnterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined> {
-		if (!!this.environmentService.extensionTestsLocationURI) {
-			throw new Error('Entering a new workspace is not possible in tests.');
+	pwotected async doEntewWowkspace(path: UWI): Pwomise<IEntewWowkspaceWesuwt | undefined> {
+		if (!!this.enviwonmentSewvice.extensionTestsWocationUWI) {
+			thwow new Ewwow('Entewing a new wowkspace is not possibwe in tests.');
 		}
 
-		const workspace = await this.workspacesService.getWorkspaceIdentifier(path);
+		const wowkspace = await this.wowkspacesSewvice.getWowkspaceIdentifia(path);
 
-		// Settings migration (only if we come from a folder workspace)
-		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
-			await this.migrateWorkspaceSettings(workspace);
+		// Settings migwation (onwy if we come fwom a fowda wowkspace)
+		if (this.contextSewvice.getWowkbenchState() === WowkbenchState.FOWDa) {
+			await this.migwateWowkspaceSettings(wowkspace);
 		}
 
-		const workspaceImpl = this.contextService as WorkspaceService;
-		await workspaceImpl.initialize(workspace);
+		const wowkspaceImpw = this.contextSewvice as WowkspaceSewvice;
+		await wowkspaceImpw.initiawize(wowkspace);
 
-		return this.workspacesService.enterWorkspace(path);
+		wetuwn this.wowkspacesSewvice.entewWowkspace(path);
 	}
 
-	private migrateWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): Promise<void> {
-		return this.doCopyWorkspaceSettings(toWorkspace, setting => setting.scope === ConfigurationScope.WINDOW);
+	pwivate migwateWowkspaceSettings(toWowkspace: IWowkspaceIdentifia): Pwomise<void> {
+		wetuwn this.doCopyWowkspaceSettings(toWowkspace, setting => setting.scope === ConfiguwationScope.WINDOW);
 	}
 
-	copyWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): Promise<void> {
-		return this.doCopyWorkspaceSettings(toWorkspace);
+	copyWowkspaceSettings(toWowkspace: IWowkspaceIdentifia): Pwomise<void> {
+		wetuwn this.doCopyWowkspaceSettings(toWowkspace);
 	}
 
-	private doCopyWorkspaceSettings(toWorkspace: IWorkspaceIdentifier, filter?: (config: IConfigurationPropertySchema) => boolean): Promise<void> {
-		const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
-		const targetWorkspaceConfiguration: any = {};
-		for (const key of this.configurationService.keys().workspace) {
-			if (configurationProperties[key]) {
-				if (filter && !filter(configurationProperties[key])) {
+	pwivate doCopyWowkspaceSettings(toWowkspace: IWowkspaceIdentifia, fiwta?: (config: IConfiguwationPwopewtySchema) => boowean): Pwomise<void> {
+		const configuwationPwopewties = Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation).getConfiguwationPwopewties();
+		const tawgetWowkspaceConfiguwation: any = {};
+		fow (const key of this.configuwationSewvice.keys().wowkspace) {
+			if (configuwationPwopewties[key]) {
+				if (fiwta && !fiwta(configuwationPwopewties[key])) {
 					continue;
 				}
 
-				targetWorkspaceConfiguration[key] = this.configurationService.inspect(key).workspaceValue;
+				tawgetWowkspaceConfiguwation[key] = this.configuwationSewvice.inspect(key).wowkspaceVawue;
 			}
 		}
 
-		return this.jsonEditingService.write(toWorkspace.configPath, [{ path: ['settings'], value: targetWorkspaceConfiguration }], true);
+		wetuwn this.jsonEditingSewvice.wwite(toWowkspace.configPath, [{ path: ['settings'], vawue: tawgetWowkspaceConfiguwation }], twue);
 	}
 
-	private async trustWorkspaceConfiguration(configPathURI: URI): Promise<void> {
-		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.workspaceTrustManagementService.isWorkspaceTrusted()) {
-			await this.workspaceTrustManagementService.setUrisTrust([configPathURI], true);
+	pwivate async twustWowkspaceConfiguwation(configPathUWI: UWI): Pwomise<void> {
+		if (this.contextSewvice.getWowkbenchState() !== WowkbenchState.EMPTY && this.wowkspaceTwustManagementSewvice.isWowkspaceTwusted()) {
+			await this.wowkspaceTwustManagementSewvice.setUwisTwust([configPathUWI], twue);
 		}
 	}
 
-	protected getCurrentWorkspaceIdentifier(): IWorkspaceIdentifier | undefined {
-		const workspace = this.contextService.getWorkspace();
-		if (workspace?.configuration) {
-			return { id: workspace.id, configPath: workspace.configuration };
+	pwotected getCuwwentWowkspaceIdentifia(): IWowkspaceIdentifia | undefined {
+		const wowkspace = this.contextSewvice.getWowkspace();
+		if (wowkspace?.configuwation) {
+			wetuwn { id: wowkspace.id, configPath: wowkspace.configuwation };
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 }

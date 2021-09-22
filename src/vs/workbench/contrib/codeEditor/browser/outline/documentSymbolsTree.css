@@ -1,49 +1,49 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-list .monaco-list-row.focused.selected .outline-element .monaco-highlighted-label,
-.monaco-list .monaco-list-row.focused.selected .outline-element-decoration {
-	/* make sure selection color wins when a label is being selected */
-	color: inherit !important;
+.monaco-wist .monaco-wist-wow.focused.sewected .outwine-ewement .monaco-highwighted-wabew,
+.monaco-wist .monaco-wist-wow.focused.sewected .outwine-ewement-decowation {
+	/* make suwe sewection cowow wins when a wabew is being sewected */
+	cowow: inhewit !impowtant;
 }
 
-.monaco-list .outline-element {
-	display: flex;
-	flex: 1;
-	flex-flow: row nowrap;
-	align-items: center;
+.monaco-wist .outwine-ewement {
+	dispway: fwex;
+	fwex: 1;
+	fwex-fwow: wow nowwap;
+	awign-items: centa;
 }
 
-.monaco-list .outline-element .monaco-highlighted-label {
-	color: var(--outline-element-color);
+.monaco-wist .outwine-ewement .monaco-highwighted-wabew {
+	cowow: vaw(--outwine-ewement-cowow);
 }
 
-.monaco-breadcrumbs .outline-element .outline-element-decoration,
-.monaco-list .outline-element .outline-element-decoration {
+.monaco-bweadcwumbs .outwine-ewement .outwine-ewement-decowation,
+.monaco-wist .outwine-ewement .outwine-ewement-decowation {
 	opacity: 0.75;
 	font-size: 90%;
 	font-weight: 600;
 	padding: 0 12px 0 5px;
-	margin-left: auto;
-	text-align: center;
-	color: var(--outline-element-color);
+	mawgin-weft: auto;
+	text-awign: centa;
+	cowow: vaw(--outwine-ewement-cowow);
 }
 
-/* when showing in breadcrumbs than hide a few things, like markers or descriptions */
-.monaco-breadcrumbs .outline-element .monaco-icon-label-container .monaco-icon-description-container,
-.monaco-breadcrumbs .outline-element .outline-element-decoration {
-	display: none;
+/* when showing in bweadcwumbs than hide a few things, wike mawkews ow descwiptions */
+.monaco-bweadcwumbs .outwine-ewement .monaco-icon-wabew-containa .monaco-icon-descwiption-containa,
+.monaco-bweadcwumbs .outwine-ewement .outwine-ewement-decowation {
+	dispway: none;
 }
 
-.monaco-list .outline-element .outline-element-decoration.bubble {
-	font-family: codicon;
+.monaco-wist .outwine-ewement .outwine-ewement-decowation.bubbwe {
+	font-famiwy: codicon;
 	font-size: 14px;
 	opacity: 0.4;
-	padding-right: 8px;
+	padding-wight: 8px;
 }
 
-.monaco-list .outline-element .outline-element-icon {
-	margin-right: 4px;
+.monaco-wist .outwine-ewement .outwine-ewement-icon {
+	mawgin-wight: 4px;
 }

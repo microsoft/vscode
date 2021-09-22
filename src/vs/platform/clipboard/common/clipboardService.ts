@@ -1,49 +1,49 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const IClipboardService = createDecorator<IClipboardService>('clipboardService');
+expowt const ICwipboawdSewvice = cweateDecowatow<ICwipboawdSewvice>('cwipboawdSewvice');
 
-export interface IClipboardService {
+expowt intewface ICwipboawdSewvice {
 
-	readonly _serviceBrand: undefined;
-
-	/**
-	 * Writes text to the system clipboard.
-	 */
-	writeText(text: string, type?: string): Promise<void>;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Reads the content of the clipboard in plain text
+	 * Wwites text to the system cwipboawd.
 	 */
-	readText(type?: string): Promise<string>;
+	wwiteText(text: stwing, type?: stwing): Pwomise<void>;
 
 	/**
-	 * Reads text from the system find pasteboard.
+	 * Weads the content of the cwipboawd in pwain text
 	 */
-	readFindText(): Promise<string>;
+	weadText(type?: stwing): Pwomise<stwing>;
 
 	/**
-	 * Writes text to the system find pasteboard.
+	 * Weads text fwom the system find pasteboawd.
 	 */
-	writeFindText(text: string): Promise<void>;
+	weadFindText(): Pwomise<stwing>;
 
 	/**
-	 * Writes resources to the system clipboard.
+	 * Wwites text to the system find pasteboawd.
 	 */
-	writeResources(resources: URI[]): Promise<void>;
+	wwiteFindText(text: stwing): Pwomise<void>;
 
 	/**
-	 * Reads resources from the system clipboard.
+	 * Wwites wesouwces to the system cwipboawd.
 	 */
-	readResources(): Promise<URI[]>;
+	wwiteWesouwces(wesouwces: UWI[]): Pwomise<void>;
 
 	/**
-	 * Find out if resources are copied to the clipboard.
+	 * Weads wesouwces fwom the system cwipboawd.
 	 */
-	hasResources(): Promise<boolean>;
+	weadWesouwces(): Pwomise<UWI[]>;
+
+	/**
+	 * Find out if wesouwces awe copied to the cwipboawd.
+	 */
+	hasWesouwces(): Pwomise<boowean>;
 }

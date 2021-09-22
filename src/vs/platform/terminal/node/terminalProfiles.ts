@@ -1,377 +1,377 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as cp from 'child_process';
-import { Codicon } from 'vs/base/common/codicons';
-import { basename, delimiter, normalize } from 'vs/base/common/path';
-import { isLinux, isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import * as pfs from 'vs/base/node/pfs';
-import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ITerminalEnvironment, ITerminalExecutable, ITerminalProfile, ITerminalProfileSource, ProfileSource, TerminalIcon, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+impowt * as cp fwom 'chiwd_pwocess';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { basename, dewimita, nowmawize } fwom 'vs/base/common/path';
+impowt { isWinux, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt * as pfs fwom 'vs/base/node/pfs';
+impowt { enumewatePowewShewwInstawwations } fwom 'vs/base/node/powewsheww';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { ITewminawEnviwonment, ITewminawExecutabwe, ITewminawPwofiwe, ITewminawPwofiweSouwce, PwofiweSouwce, TewminawIcon, TewminawSettingId } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { findExecutabwe, getWindowsBuiwdNumba } fwom 'vs/pwatfowm/tewminaw/node/tewminawEnviwonment';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-let profileSources: Map<string, IPotentialTerminalProfile> | undefined;
+wet pwofiweSouwces: Map<stwing, IPotentiawTewminawPwofiwe> | undefined;
 
-export function detectAvailableProfiles(
-	profiles: unknown,
-	defaultProfile: unknown,
-	includeDetectedProfiles: boolean,
-	configurationService: IConfigurationService,
-	shellEnv: typeof process.env = process.env,
-	fsProvider?: IFsProvider,
-	logService?: ILogService,
-	variableResolver?: (text: string[]) => Promise<string[]>,
-	testPwshSourcePaths?: string[],
-): Promise<ITerminalProfile[]> {
-	fsProvider = fsProvider || {
-		existsFile: pfs.SymlinkSupport.existsFile,
-		readFile: pfs.Promises.readFile
+expowt function detectAvaiwabwePwofiwes(
+	pwofiwes: unknown,
+	defauwtPwofiwe: unknown,
+	incwudeDetectedPwofiwes: boowean,
+	configuwationSewvice: IConfiguwationSewvice,
+	shewwEnv: typeof pwocess.env = pwocess.env,
+	fsPwovida?: IFsPwovida,
+	wogSewvice?: IWogSewvice,
+	vawiabweWesowva?: (text: stwing[]) => Pwomise<stwing[]>,
+	testPwshSouwcePaths?: stwing[],
+): Pwomise<ITewminawPwofiwe[]> {
+	fsPwovida = fsPwovida || {
+		existsFiwe: pfs.SymwinkSuppowt.existsFiwe,
+		weadFiwe: pfs.Pwomises.weadFiwe
 	};
 	if (isWindows) {
-		return detectAvailableWindowsProfiles(
-			includeDetectedProfiles,
-			fsProvider,
-			shellEnv,
-			logService,
-			configurationService.getValue(TerminalSettingId.UseWslProfiles) !== false,
-			profiles && typeof profiles === 'object' ? { ...profiles } : configurationService.getValue<{ [key: string]: IUnresolvedTerminalProfile }>(TerminalSettingId.ProfilesWindows),
-			typeof defaultProfile === 'string' ? defaultProfile : configurationService.getValue<string>(TerminalSettingId.DefaultProfileWindows),
-			testPwshSourcePaths,
-			variableResolver
+		wetuwn detectAvaiwabweWindowsPwofiwes(
+			incwudeDetectedPwofiwes,
+			fsPwovida,
+			shewwEnv,
+			wogSewvice,
+			configuwationSewvice.getVawue(TewminawSettingId.UseWswPwofiwes) !== fawse,
+			pwofiwes && typeof pwofiwes === 'object' ? { ...pwofiwes } : configuwationSewvice.getVawue<{ [key: stwing]: IUnwesowvedTewminawPwofiwe }>(TewminawSettingId.PwofiwesWindows),
+			typeof defauwtPwofiwe === 'stwing' ? defauwtPwofiwe : configuwationSewvice.getVawue<stwing>(TewminawSettingId.DefauwtPwofiweWindows),
+			testPwshSouwcePaths,
+			vawiabweWesowva
 		);
 	}
-	return detectAvailableUnixProfiles(
-		fsProvider,
-		logService,
-		includeDetectedProfiles,
-		profiles && typeof profiles === 'object' ? { ...profiles } : configurationService.getValue<{ [key: string]: IUnresolvedTerminalProfile }>(isLinux ? TerminalSettingId.ProfilesLinux : TerminalSettingId.ProfilesMacOs),
-		typeof defaultProfile === 'string' ? defaultProfile : configurationService.getValue<string>(isLinux ? TerminalSettingId.DefaultProfileLinux : TerminalSettingId.DefaultProfileMacOs),
-		testPwshSourcePaths,
-		variableResolver,
-		shellEnv
+	wetuwn detectAvaiwabweUnixPwofiwes(
+		fsPwovida,
+		wogSewvice,
+		incwudeDetectedPwofiwes,
+		pwofiwes && typeof pwofiwes === 'object' ? { ...pwofiwes } : configuwationSewvice.getVawue<{ [key: stwing]: IUnwesowvedTewminawPwofiwe }>(isWinux ? TewminawSettingId.PwofiwesWinux : TewminawSettingId.PwofiwesMacOs),
+		typeof defauwtPwofiwe === 'stwing' ? defauwtPwofiwe : configuwationSewvice.getVawue<stwing>(isWinux ? TewminawSettingId.DefauwtPwofiweWinux : TewminawSettingId.DefauwtPwofiweMacOs),
+		testPwshSouwcePaths,
+		vawiabweWesowva,
+		shewwEnv
 	);
 }
 
-async function detectAvailableWindowsProfiles(
-	includeDetectedProfiles: boolean,
-	fsProvider: IFsProvider,
-	shellEnv: typeof process.env,
-	logService?: ILogService,
-	useWslProfiles?: boolean,
-	configProfiles?: { [key: string]: IUnresolvedTerminalProfile },
-	defaultProfileName?: string,
-	testPwshSourcePaths?: string[],
-	variableResolver?: (text: string[]) => Promise<string[]>
-): Promise<ITerminalProfile[]> {
-	// Determine the correct System32 path. We want to point to Sysnative
-	// when the 32-bit version of VS Code is running on a 64-bit machine.
-	// The reason for this is because PowerShell's important PSReadline
-	// module doesn't work if this is not the case. See #27915.
-	const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
-	const system32Path = `${process.env['windir']}\\${is32ProcessOn64Windows ? 'Sysnative' : 'System32'}`;
+async function detectAvaiwabweWindowsPwofiwes(
+	incwudeDetectedPwofiwes: boowean,
+	fsPwovida: IFsPwovida,
+	shewwEnv: typeof pwocess.env,
+	wogSewvice?: IWogSewvice,
+	useWswPwofiwes?: boowean,
+	configPwofiwes?: { [key: stwing]: IUnwesowvedTewminawPwofiwe },
+	defauwtPwofiweName?: stwing,
+	testPwshSouwcePaths?: stwing[],
+	vawiabweWesowva?: (text: stwing[]) => Pwomise<stwing[]>
+): Pwomise<ITewminawPwofiwe[]> {
+	// Detewmine the cowwect System32 path. We want to point to Sysnative
+	// when the 32-bit vewsion of VS Code is wunning on a 64-bit machine.
+	// The weason fow this is because PowewSheww's impowtant PSWeadwine
+	// moduwe doesn't wowk if this is not the case. See #27915.
+	const is32PwocessOn64Windows = pwocess.env.hasOwnPwopewty('PWOCESSOW_AWCHITEW6432');
+	const system32Path = `${pwocess.env['windiw']}\\${is32PwocessOn64Windows ? 'Sysnative' : 'System32'}`;
 
-	let useWSLexe = false;
+	wet useWSWexe = fawse;
 
-	if (getWindowsBuildNumber() >= 16299) {
-		useWSLexe = true;
+	if (getWindowsBuiwdNumba() >= 16299) {
+		useWSWexe = twue;
 	}
 
-	await initializeWindowsProfiles(testPwshSourcePaths);
+	await initiawizeWindowsPwofiwes(testPwshSouwcePaths);
 
-	const detectedProfiles: Map<string, IUnresolvedTerminalProfile> = new Map();
+	const detectedPwofiwes: Map<stwing, IUnwesowvedTewminawPwofiwe> = new Map();
 
-	// Add auto detected profiles
-	if (includeDetectedProfiles) {
-		detectedProfiles.set('PowerShell', {
-			source: ProfileSource.Pwsh,
-			icon: Codicon.terminalPowershell,
-			isAutoDetected: true
+	// Add auto detected pwofiwes
+	if (incwudeDetectedPwofiwes) {
+		detectedPwofiwes.set('PowewSheww', {
+			souwce: PwofiweSouwce.Pwsh,
+			icon: Codicon.tewminawPowewsheww,
+			isAutoDetected: twue
 		});
-		detectedProfiles.set('Windows PowerShell', {
-			path: `${system32Path}\\WindowsPowerShell\\v1.0\\powershell.exe`,
-			icon: Codicon.terminalPowershell,
-			isAutoDetected: true
+		detectedPwofiwes.set('Windows PowewSheww', {
+			path: `${system32Path}\\WindowsPowewSheww\\v1.0\\powewsheww.exe`,
+			icon: Codicon.tewminawPowewsheww,
+			isAutoDetected: twue
 		});
-		detectedProfiles.set('Git Bash', {
-			source: ProfileSource.GitBash,
-			isAutoDetected: true
+		detectedPwofiwes.set('Git Bash', {
+			souwce: PwofiweSouwce.GitBash,
+			isAutoDetected: twue
 		});
-		detectedProfiles.set('Cygwin', {
+		detectedPwofiwes.set('Cygwin', {
 			path: [
-				`${process.env['HOMEDRIVE']}\\cygwin64\\bin\\bash.exe`,
-				`${process.env['HOMEDRIVE']}\\cygwin\\bin\\bash.exe`
+				`${pwocess.env['HOMEDWIVE']}\\cygwin64\\bin\\bash.exe`,
+				`${pwocess.env['HOMEDWIVE']}\\cygwin\\bin\\bash.exe`
 			],
-			args: ['--login'],
-			isAutoDetected: true
+			awgs: ['--wogin'],
+			isAutoDetected: twue
 		});
-		detectedProfiles.set('Command Prompt', {
+		detectedPwofiwes.set('Command Pwompt', {
 			path: `${system32Path}\\cmd.exe`,
-			icon: Codicon.terminalCmd,
-			isAutoDetected: true
+			icon: Codicon.tewminawCmd,
+			isAutoDetected: twue
 		});
 	}
 
-	applyConfigProfilesToMap(configProfiles, detectedProfiles);
+	appwyConfigPwofiwesToMap(configPwofiwes, detectedPwofiwes);
 
-	const resultProfiles: ITerminalProfile[] = await transformToTerminalProfiles(detectedProfiles.entries(), defaultProfileName, fsProvider, shellEnv, logService, variableResolver);
+	const wesuwtPwofiwes: ITewminawPwofiwe[] = await twansfowmToTewminawPwofiwes(detectedPwofiwes.entwies(), defauwtPwofiweName, fsPwovida, shewwEnv, wogSewvice, vawiabweWesowva);
 
-	if (includeDetectedProfiles || (!includeDetectedProfiles && useWslProfiles)) {
-		try {
-			const result = await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl' : 'bash'}.exe`, defaultProfileName);
-			for (const wslProfile of result) {
-				if (!configProfiles || !(wslProfile.profileName in configProfiles)) {
-					resultProfiles.push(wslProfile);
+	if (incwudeDetectedPwofiwes || (!incwudeDetectedPwofiwes && useWswPwofiwes)) {
+		twy {
+			const wesuwt = await getWswPwofiwes(`${system32Path}\\${useWSWexe ? 'wsw' : 'bash'}.exe`, defauwtPwofiweName);
+			fow (const wswPwofiwe of wesuwt) {
+				if (!configPwofiwes || !(wswPwofiwe.pwofiweName in configPwofiwes)) {
+					wesuwtPwofiwes.push(wswPwofiwe);
 				}
 			}
 		} catch (e) {
-			logService?.info('WSL is not installed, so could not detect WSL profiles');
+			wogSewvice?.info('WSW is not instawwed, so couwd not detect WSW pwofiwes');
 		}
 	}
 
-	return resultProfiles;
+	wetuwn wesuwtPwofiwes;
 }
 
-async function transformToTerminalProfiles(
-	entries: IterableIterator<[string, IUnresolvedTerminalProfile]>,
-	defaultProfileName: string | undefined,
-	fsProvider: IFsProvider,
-	shellEnv: typeof process.env = process.env,
-	logService?: ILogService,
-	variableResolver?: (text: string[]) => Promise<string[]>,
-): Promise<ITerminalProfile[]> {
-	const resultProfiles: ITerminalProfile[] = [];
-	for (const [profileName, profile] of entries) {
-		if (profile === null) { continue; }
-		let originalPaths: string[];
-		let args: string[] | string | undefined;
-		let icon: ThemeIcon | URI | { light: URI, dark: URI } | undefined = undefined;
-		if ('source' in profile) {
-			const source = profileSources?.get(profile.source);
-			if (!source) {
+async function twansfowmToTewminawPwofiwes(
+	entwies: ItewabweItewatow<[stwing, IUnwesowvedTewminawPwofiwe]>,
+	defauwtPwofiweName: stwing | undefined,
+	fsPwovida: IFsPwovida,
+	shewwEnv: typeof pwocess.env = pwocess.env,
+	wogSewvice?: IWogSewvice,
+	vawiabweWesowva?: (text: stwing[]) => Pwomise<stwing[]>,
+): Pwomise<ITewminawPwofiwe[]> {
+	const wesuwtPwofiwes: ITewminawPwofiwe[] = [];
+	fow (const [pwofiweName, pwofiwe] of entwies) {
+		if (pwofiwe === nuww) { continue; }
+		wet owiginawPaths: stwing[];
+		wet awgs: stwing[] | stwing | undefined;
+		wet icon: ThemeIcon | UWI | { wight: UWI, dawk: UWI } | undefined = undefined;
+		if ('souwce' in pwofiwe) {
+			const souwce = pwofiweSouwces?.get(pwofiwe.souwce);
+			if (!souwce) {
 				continue;
 			}
-			originalPaths = source.paths;
+			owiginawPaths = souwce.paths;
 
-			// if there are configured args, override the default ones
-			args = profile.args || source.args;
-			if (profile.icon) {
-				icon = validateIcon(profile.icon);
-			} else if (source.icon) {
-				icon = source.icon;
+			// if thewe awe configuwed awgs, ovewwide the defauwt ones
+			awgs = pwofiwe.awgs || souwce.awgs;
+			if (pwofiwe.icon) {
+				icon = vawidateIcon(pwofiwe.icon);
+			} ewse if (souwce.icon) {
+				icon = souwce.icon;
 			}
-		} else {
-			originalPaths = Array.isArray(profile.path) ? profile.path : [profile.path];
-			args = isWindows ? profile.args : Array.isArray(profile.args) ? profile.args : undefined;
-			icon = validateIcon(profile.icon) || undefined;
+		} ewse {
+			owiginawPaths = Awway.isAwway(pwofiwe.path) ? pwofiwe.path : [pwofiwe.path];
+			awgs = isWindows ? pwofiwe.awgs : Awway.isAwway(pwofiwe.awgs) ? pwofiwe.awgs : undefined;
+			icon = vawidateIcon(pwofiwe.icon) || undefined;
 		}
 
-		const paths = (await variableResolver?.(originalPaths)) || originalPaths.slice();
-		const validatedProfile = await validateProfilePaths(profileName, defaultProfileName, paths, fsProvider, shellEnv, args, profile.env, profile.overrideName, profile.isAutoDetected, logService);
-		if (validatedProfile) {
-			validatedProfile.isAutoDetected = profile.isAutoDetected;
-			validatedProfile.icon = icon;
-			validatedProfile.color = profile.color;
-			resultProfiles.push(validatedProfile);
-		} else {
-			logService?.trace('profile not validated', profileName, originalPaths);
+		const paths = (await vawiabweWesowva?.(owiginawPaths)) || owiginawPaths.swice();
+		const vawidatedPwofiwe = await vawidatePwofiwePaths(pwofiweName, defauwtPwofiweName, paths, fsPwovida, shewwEnv, awgs, pwofiwe.env, pwofiwe.ovewwideName, pwofiwe.isAutoDetected, wogSewvice);
+		if (vawidatedPwofiwe) {
+			vawidatedPwofiwe.isAutoDetected = pwofiwe.isAutoDetected;
+			vawidatedPwofiwe.icon = icon;
+			vawidatedPwofiwe.cowow = pwofiwe.cowow;
+			wesuwtPwofiwes.push(vawidatedPwofiwe);
+		} ewse {
+			wogSewvice?.twace('pwofiwe not vawidated', pwofiweName, owiginawPaths);
 		}
 	}
-	return resultProfiles;
+	wetuwn wesuwtPwofiwes;
 }
 
-function validateIcon(icon: string | TerminalIcon | undefined): TerminalIcon | undefined {
-	if (typeof icon === 'string') {
-		return { id: icon };
+function vawidateIcon(icon: stwing | TewminawIcon | undefined): TewminawIcon | undefined {
+	if (typeof icon === 'stwing') {
+		wetuwn { id: icon };
 	}
-	return icon;
+	wetuwn icon;
 }
 
-async function initializeWindowsProfiles(testPwshSourcePaths?: string[]): Promise<void> {
-	if (profileSources && !testPwshSourcePaths) {
-		return;
+async function initiawizeWindowsPwofiwes(testPwshSouwcePaths?: stwing[]): Pwomise<void> {
+	if (pwofiweSouwces && !testPwshSouwcePaths) {
+		wetuwn;
 	}
 
-	profileSources = new Map();
-	profileSources.set(
+	pwofiweSouwces = new Map();
+	pwofiweSouwces.set(
 		'Git Bash', {
-		profileName: 'Git Bash',
+		pwofiweName: 'Git Bash',
 		paths: [
-			`${process.env['ProgramW6432']}\\Git\\bin\\bash.exe`,
-			`${process.env['ProgramW6432']}\\Git\\usr\\bin\\bash.exe`,
-			`${process.env['ProgramFiles']}\\Git\\bin\\bash.exe`,
-			`${process.env['ProgramFiles']}\\Git\\usr\\bin\\bash.exe`,
-			`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`,
-			`${process.env['UserProfile']}\\scoop\\apps\\git-with-openssh\\current\\bin\\bash.exe`,
-			`${process.env['AllUsersProfile']}\\scoop\\apps\\git-with-openssh\\current\\bin\\bash.exe`
+			`${pwocess.env['PwogwamW6432']}\\Git\\bin\\bash.exe`,
+			`${pwocess.env['PwogwamW6432']}\\Git\\usw\\bin\\bash.exe`,
+			`${pwocess.env['PwogwamFiwes']}\\Git\\bin\\bash.exe`,
+			`${pwocess.env['PwogwamFiwes']}\\Git\\usw\\bin\\bash.exe`,
+			`${pwocess.env['WocawAppData']}\\Pwogwams\\Git\\bin\\bash.exe`,
+			`${pwocess.env['UsewPwofiwe']}\\scoop\\apps\\git-with-openssh\\cuwwent\\bin\\bash.exe`,
+			`${pwocess.env['AwwUsewsPwofiwe']}\\scoop\\apps\\git-with-openssh\\cuwwent\\bin\\bash.exe`
 		],
-		args: ['--login']
+		awgs: ['--wogin']
 	});
-	profileSources.set('PowerShell', {
-		profileName: 'PowerShell',
-		paths: testPwshSourcePaths || await getPowershellPaths(),
-		icon: ThemeIcon.asThemeIcon(Codicon.terminalPowershell)
+	pwofiweSouwces.set('PowewSheww', {
+		pwofiweName: 'PowewSheww',
+		paths: testPwshSouwcePaths || await getPowewshewwPaths(),
+		icon: ThemeIcon.asThemeIcon(Codicon.tewminawPowewsheww)
 	});
 }
 
-async function getPowershellPaths(): Promise<string[]> {
-	const paths: string[] = [];
-	// Add all of the different kinds of PowerShells
-	for await (const pwshExe of enumeratePowerShellInstallations()) {
+async function getPowewshewwPaths(): Pwomise<stwing[]> {
+	const paths: stwing[] = [];
+	// Add aww of the diffewent kinds of PowewShewws
+	fow await (const pwshExe of enumewatePowewShewwInstawwations()) {
 		paths.push(pwshExe.exePath);
 	}
-	return paths;
+	wetuwn paths;
 }
 
-async function getWslProfiles(wslPath: string, defaultProfileName: string | undefined): Promise<ITerminalProfile[]> {
-	const profiles: ITerminalProfile[] = [];
-	const distroOutput = await new Promise<string>((resolve, reject) => {
-		// wsl.exe output is encoded in utf16le (ie. A -> 0x4100)
-		cp.exec('wsl.exe -l -q', { encoding: 'utf16le' }, (err, stdout) => {
-			if (err) {
-				return reject('Problem occurred when getting wsl distros');
+async function getWswPwofiwes(wswPath: stwing, defauwtPwofiweName: stwing | undefined): Pwomise<ITewminawPwofiwe[]> {
+	const pwofiwes: ITewminawPwofiwe[] = [];
+	const distwoOutput = await new Pwomise<stwing>((wesowve, weject) => {
+		// wsw.exe output is encoded in utf16we (ie. A -> 0x4100)
+		cp.exec('wsw.exe -w -q', { encoding: 'utf16we' }, (eww, stdout) => {
+			if (eww) {
+				wetuwn weject('Pwobwem occuwwed when getting wsw distwos');
 			}
-			resolve(stdout);
+			wesowve(stdout);
 		});
 	});
-	if (!distroOutput) {
-		return [];
+	if (!distwoOutput) {
+		wetuwn [];
 	}
-	const regex = new RegExp(/[\r?\n]/);
-	const distroNames = distroOutput.split(regex).filter(t => t.trim().length > 0 && t !== '');
-	for (const distroName of distroNames) {
-		// Skip empty lines
-		if (distroName === '') {
+	const wegex = new WegExp(/[\w?\n]/);
+	const distwoNames = distwoOutput.spwit(wegex).fiwta(t => t.twim().wength > 0 && t !== '');
+	fow (const distwoName of distwoNames) {
+		// Skip empty wines
+		if (distwoName === '') {
 			continue;
 		}
 
-		// docker-desktop and docker-desktop-data are treated as implementation details of
-		// Docker Desktop for Windows and therefore not exposed
-		if (distroName.startsWith('docker-desktop')) {
+		// docka-desktop and docka-desktop-data awe tweated as impwementation detaiws of
+		// Docka Desktop fow Windows and thewefowe not exposed
+		if (distwoName.stawtsWith('docka-desktop')) {
 			continue;
 		}
 
-		// Create the profile, adding the icon depending on the distro
-		const profileName = `${distroName} (WSL)`;
-		const profile: ITerminalProfile = {
-			profileName,
-			path: wslPath,
-			args: [`-d`, `${distroName}`],
-			isDefault: profileName === defaultProfileName,
-			icon: getWslIcon(distroName)
+		// Cweate the pwofiwe, adding the icon depending on the distwo
+		const pwofiweName = `${distwoName} (WSW)`;
+		const pwofiwe: ITewminawPwofiwe = {
+			pwofiweName,
+			path: wswPath,
+			awgs: [`-d`, `${distwoName}`],
+			isDefauwt: pwofiweName === defauwtPwofiweName,
+			icon: getWswIcon(distwoName)
 		};
-		// Add the profile
-		profiles.push(profile);
+		// Add the pwofiwe
+		pwofiwes.push(pwofiwe);
 	}
-	return profiles;
+	wetuwn pwofiwes;
 }
 
-function getWslIcon(distroName: string): ThemeIcon {
-	if (distroName.includes('Ubuntu')) {
-		return ThemeIcon.asThemeIcon(Codicon.terminalUbuntu);
-	} else if (distroName.includes('Debian')) {
-		return ThemeIcon.asThemeIcon(Codicon.terminalDebian);
-	} else {
-		return ThemeIcon.asThemeIcon(Codicon.terminalLinux);
+function getWswIcon(distwoName: stwing): ThemeIcon {
+	if (distwoName.incwudes('Ubuntu')) {
+		wetuwn ThemeIcon.asThemeIcon(Codicon.tewminawUbuntu);
+	} ewse if (distwoName.incwudes('Debian')) {
+		wetuwn ThemeIcon.asThemeIcon(Codicon.tewminawDebian);
+	} ewse {
+		wetuwn ThemeIcon.asThemeIcon(Codicon.tewminawWinux);
 	}
 }
 
-async function detectAvailableUnixProfiles(
-	fsProvider: IFsProvider,
-	logService?: ILogService,
-	includeDetectedProfiles?: boolean,
-	configProfiles?: { [key: string]: IUnresolvedTerminalProfile },
-	defaultProfileName?: string,
-	testPaths?: string[],
-	variableResolver?: (text: string[]) => Promise<string[]>,
-	shellEnv?: typeof process.env
-): Promise<ITerminalProfile[]> {
-	const detectedProfiles: Map<string, IUnresolvedTerminalProfile> = new Map();
+async function detectAvaiwabweUnixPwofiwes(
+	fsPwovida: IFsPwovida,
+	wogSewvice?: IWogSewvice,
+	incwudeDetectedPwofiwes?: boowean,
+	configPwofiwes?: { [key: stwing]: IUnwesowvedTewminawPwofiwe },
+	defauwtPwofiweName?: stwing,
+	testPaths?: stwing[],
+	vawiabweWesowva?: (text: stwing[]) => Pwomise<stwing[]>,
+	shewwEnv?: typeof pwocess.env
+): Pwomise<ITewminawPwofiwe[]> {
+	const detectedPwofiwes: Map<stwing, IUnwesowvedTewminawPwofiwe> = new Map();
 
-	// Add non-quick launch profiles
-	if (includeDetectedProfiles) {
-		const contents = (await fsProvider.readFile('/etc/shells')).toString();
-		const profiles = testPaths || contents.split('\n').filter(e => e.trim().indexOf('#') !== 0 && e.trim().length > 0);
-		const counts: Map<string, number> = new Map();
-		for (const profile of profiles) {
-			let profileName = basename(profile);
-			let count = counts.get(profileName) || 0;
+	// Add non-quick waunch pwofiwes
+	if (incwudeDetectedPwofiwes) {
+		const contents = (await fsPwovida.weadFiwe('/etc/shewws')).toStwing();
+		const pwofiwes = testPaths || contents.spwit('\n').fiwta(e => e.twim().indexOf('#') !== 0 && e.twim().wength > 0);
+		const counts: Map<stwing, numba> = new Map();
+		fow (const pwofiwe of pwofiwes) {
+			wet pwofiweName = basename(pwofiwe);
+			wet count = counts.get(pwofiweName) || 0;
 			count++;
 			if (count > 1) {
-				profileName = `${profileName} (${count})`;
+				pwofiweName = `${pwofiweName} (${count})`;
 			}
-			counts.set(profileName, count);
-			detectedProfiles.set(profileName, { path: profile, isAutoDetected: true });
+			counts.set(pwofiweName, count);
+			detectedPwofiwes.set(pwofiweName, { path: pwofiwe, isAutoDetected: twue });
 		}
 	}
 
-	applyConfigProfilesToMap(configProfiles, detectedProfiles);
+	appwyConfigPwofiwesToMap(configPwofiwes, detectedPwofiwes);
 
-	return await transformToTerminalProfiles(detectedProfiles.entries(), defaultProfileName, fsProvider, shellEnv, logService, variableResolver);
+	wetuwn await twansfowmToTewminawPwofiwes(detectedPwofiwes.entwies(), defauwtPwofiweName, fsPwovida, shewwEnv, wogSewvice, vawiabweWesowva);
 }
 
-function applyConfigProfilesToMap(configProfiles: { [key: string]: IUnresolvedTerminalProfile } | undefined, profilesMap: Map<string, IUnresolvedTerminalProfile>) {
-	if (!configProfiles) {
-		return;
+function appwyConfigPwofiwesToMap(configPwofiwes: { [key: stwing]: IUnwesowvedTewminawPwofiwe } | undefined, pwofiwesMap: Map<stwing, IUnwesowvedTewminawPwofiwe>) {
+	if (!configPwofiwes) {
+		wetuwn;
 	}
-	for (const [profileName, value] of Object.entries(configProfiles)) {
-		if (value === null || (!('path' in value) && !('source' in value))) {
-			profilesMap.delete(profileName);
-		} else {
-			profilesMap.set(profileName, value);
+	fow (const [pwofiweName, vawue] of Object.entwies(configPwofiwes)) {
+		if (vawue === nuww || (!('path' in vawue) && !('souwce' in vawue))) {
+			pwofiwesMap.dewete(pwofiweName);
+		} ewse {
+			pwofiwesMap.set(pwofiweName, vawue);
 		}
 	}
 }
 
-async function validateProfilePaths(profileName: string, defaultProfileName: string | undefined, potentialPaths: string[], fsProvider: IFsProvider, shellEnv: typeof process.env, args?: string[] | string, env?: ITerminalEnvironment, overrideName?: boolean, isAutoDetected?: boolean, logService?: ILogService): Promise<ITerminalProfile | undefined> {
-	if (potentialPaths.length === 0) {
-		return Promise.resolve(undefined);
+async function vawidatePwofiwePaths(pwofiweName: stwing, defauwtPwofiweName: stwing | undefined, potentiawPaths: stwing[], fsPwovida: IFsPwovida, shewwEnv: typeof pwocess.env, awgs?: stwing[] | stwing, env?: ITewminawEnviwonment, ovewwideName?: boowean, isAutoDetected?: boowean, wogSewvice?: IWogSewvice): Pwomise<ITewminawPwofiwe | undefined> {
+	if (potentiawPaths.wength === 0) {
+		wetuwn Pwomise.wesowve(undefined);
 	}
-	const path = potentialPaths.shift()!;
+	const path = potentiawPaths.shift()!;
 	if (path === '') {
-		return validateProfilePaths(profileName, defaultProfileName, potentialPaths, fsProvider, shellEnv, args, env, overrideName, isAutoDetected);
+		wetuwn vawidatePwofiwePaths(pwofiweName, defauwtPwofiweName, potentiawPaths, fsPwovida, shewwEnv, awgs, env, ovewwideName, isAutoDetected);
 	}
 
-	const profile: ITerminalProfile = { profileName, path, args, env, overrideName, isAutoDetected, isDefault: profileName === defaultProfileName };
+	const pwofiwe: ITewminawPwofiwe = { pwofiweName, path, awgs, env, ovewwideName, isAutoDetected, isDefauwt: pwofiweName === defauwtPwofiweName };
 
-	// For non-absolute paths, check if it's available on $PATH
+	// Fow non-absowute paths, check if it's avaiwabwe on $PATH
 	if (basename(path) === path) {
-		// The executable isn't an absolute path, try find it on the PATH
-		const envPaths: string[] | undefined = shellEnv.PATH ? shellEnv.PATH.split(delimiter) : undefined;
-		const executable = await findExecutable(path, undefined, envPaths, undefined, fsProvider.existsFile);
-		if (!executable) {
-			return validateProfilePaths(profileName, defaultProfileName, potentialPaths, fsProvider, shellEnv, args);
+		// The executabwe isn't an absowute path, twy find it on the PATH
+		const envPaths: stwing[] | undefined = shewwEnv.PATH ? shewwEnv.PATH.spwit(dewimita) : undefined;
+		const executabwe = await findExecutabwe(path, undefined, envPaths, undefined, fsPwovida.existsFiwe);
+		if (!executabwe) {
+			wetuwn vawidatePwofiwePaths(pwofiweName, defauwtPwofiweName, potentiawPaths, fsPwovida, shewwEnv, awgs);
 		}
-		return profile;
+		wetuwn pwofiwe;
 	}
 
-	const result = await fsProvider.existsFile(normalize(path));
-	if (result) {
-		return profile;
+	const wesuwt = await fsPwovida.existsFiwe(nowmawize(path));
+	if (wesuwt) {
+		wetuwn pwofiwe;
 	}
 
-	return validateProfilePaths(profileName, defaultProfileName, potentialPaths, fsProvider, shellEnv, args, env, overrideName, isAutoDetected);
+	wetuwn vawidatePwofiwePaths(pwofiweName, defauwtPwofiweName, potentiawPaths, fsPwovida, shewwEnv, awgs, env, ovewwideName, isAutoDetected);
 }
 
-export interface IFsProvider {
-	existsFile(path: string): Promise<boolean>,
-	readFile(path: string): Promise<Buffer>;
+expowt intewface IFsPwovida {
+	existsFiwe(path: stwing): Pwomise<boowean>,
+	weadFiwe(path: stwing): Pwomise<Buffa>;
 }
 
-export interface IProfileVariableResolver {
-	resolve(text: string[]): Promise<string[]>;
+expowt intewface IPwofiweVawiabweWesowva {
+	wesowve(text: stwing[]): Pwomise<stwing[]>;
 }
 
-interface IPotentialTerminalProfile {
-	profileName: string;
-	paths: string[];
-	args?: string[];
-	icon?: ThemeIcon | URI | { light: URI, dark: URI };
+intewface IPotentiawTewminawPwofiwe {
+	pwofiweName: stwing;
+	paths: stwing[];
+	awgs?: stwing[];
+	icon?: ThemeIcon | UWI | { wight: UWI, dawk: UWI };
 }
 
-export type IUnresolvedTerminalProfile = ITerminalExecutable | ITerminalProfileSource | null;
+expowt type IUnwesowvedTewminawPwofiwe = ITewminawExecutabwe | ITewminawPwofiweSouwce | nuww;

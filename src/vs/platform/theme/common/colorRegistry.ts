@@ -1,618 +1,618 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Color, RGBA } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import { assertNever } from 'vs/base/common/types';
-import * as nls from 'vs/nls';
-import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import * as platform from 'vs/platform/registry/common/platform';
-import { IColorTheme } from 'vs/platform/theme/common/themeService';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { Cowow, WGBA } fwom 'vs/base/common/cowow';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IJSONSchema, IJSONSchemaMap } fwom 'vs/base/common/jsonSchema';
+impowt { assewtNeva } fwom 'vs/base/common/types';
+impowt * as nws fwom 'vs/nws';
+impowt { Extensions as JSONExtensions, IJSONContwibutionWegistwy } fwom 'vs/pwatfowm/jsonschemas/common/jsonContwibutionWegistwy';
+impowt * as pwatfowm fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { ICowowTheme } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
 //  ------ API types
 
-export type ColorIdentifier = string;
+expowt type CowowIdentifia = stwing;
 
-export interface ColorContribution {
-	readonly id: ColorIdentifier;
-	readonly description: string;
-	readonly defaults: ColorDefaults | null;
-	readonly needsTransparency: boolean;
-	readonly deprecationMessage: string | undefined;
+expowt intewface CowowContwibution {
+	weadonwy id: CowowIdentifia;
+	weadonwy descwiption: stwing;
+	weadonwy defauwts: CowowDefauwts | nuww;
+	weadonwy needsTwanspawency: boowean;
+	weadonwy depwecationMessage: stwing | undefined;
 }
 
-export const enum ColorTransformType {
-	Darken,
-	Lighten,
-	Transparent,
+expowt const enum CowowTwansfowmType {
+	Dawken,
+	Wighten,
+	Twanspawent,
 	OneOf,
-	LessProminent,
-	IfDefinedThenElse
+	WessPwominent,
+	IfDefinedThenEwse
 }
 
-export type ColorTransform =
-	| { op: ColorTransformType.Darken; value: ColorValue; factor: number }
-	| { op: ColorTransformType.Lighten; value: ColorValue; factor: number }
-	| { op: ColorTransformType.Transparent; value: ColorValue; factor: number }
-	| { op: ColorTransformType.OneOf; values: readonly ColorValue[] }
-	| { op: ColorTransformType.LessProminent; value: ColorValue; background: ColorValue; factor: number; transparency: number }
-	| { op: ColorTransformType.IfDefinedThenElse; if: ColorIdentifier; then: ColorValue, else: ColorValue };
+expowt type CowowTwansfowm =
+	| { op: CowowTwansfowmType.Dawken; vawue: CowowVawue; factow: numba }
+	| { op: CowowTwansfowmType.Wighten; vawue: CowowVawue; factow: numba }
+	| { op: CowowTwansfowmType.Twanspawent; vawue: CowowVawue; factow: numba }
+	| { op: CowowTwansfowmType.OneOf; vawues: weadonwy CowowVawue[] }
+	| { op: CowowTwansfowmType.WessPwominent; vawue: CowowVawue; backgwound: CowowVawue; factow: numba; twanspawency: numba }
+	| { op: CowowTwansfowmType.IfDefinedThenEwse; if: CowowIdentifia; then: CowowVawue, ewse: CowowVawue };
 
-export interface ColorDefaults {
-	light: ColorValue | null;
-	dark: ColorValue | null;
-	hc: ColorValue | null;
+expowt intewface CowowDefauwts {
+	wight: CowowVawue | nuww;
+	dawk: CowowVawue | nuww;
+	hc: CowowVawue | nuww;
 }
 
 /**
- * A Color Value is either a color literal, a reference to an other color or a derived color
+ * A Cowow Vawue is eitha a cowow witewaw, a wefewence to an otha cowow ow a dewived cowow
  */
-export type ColorValue = Color | string | ColorIdentifier | ColorTransform;
+expowt type CowowVawue = Cowow | stwing | CowowIdentifia | CowowTwansfowm;
 
-// color registry
-export const Extensions = {
-	ColorContribution: 'base.contributions.colors'
+// cowow wegistwy
+expowt const Extensions = {
+	CowowContwibution: 'base.contwibutions.cowows'
 };
 
-export interface IColorRegistry {
+expowt intewface ICowowWegistwy {
 
-	readonly onDidChangeSchema: Event<void>;
-
-	/**
-	 * Register a color to the registry.
-	 * @param id The color id as used in theme description files
-	 * @param defaults The default values
-	 * @description the description
-	 */
-	registerColor(id: string, defaults: ColorDefaults, description: string): ColorIdentifier;
+	weadonwy onDidChangeSchema: Event<void>;
 
 	/**
-	 * Register a color to the registry.
+	 * Wegista a cowow to the wegistwy.
+	 * @pawam id The cowow id as used in theme descwiption fiwes
+	 * @pawam defauwts The defauwt vawues
+	 * @descwiption the descwiption
 	 */
-	deregisterColor(id: string): void;
+	wegistewCowow(id: stwing, defauwts: CowowDefauwts, descwiption: stwing): CowowIdentifia;
 
 	/**
-	 * Get all color contributions
+	 * Wegista a cowow to the wegistwy.
 	 */
-	getColors(): ColorContribution[];
+	dewegistewCowow(id: stwing): void;
 
 	/**
-	 * Gets the default color of the given id
+	 * Get aww cowow contwibutions
 	 */
-	resolveDefaultColor(id: ColorIdentifier, theme: IColorTheme): Color | undefined;
+	getCowows(): CowowContwibution[];
 
 	/**
-	 * JSON schema for an object to assign color values to one of the color contributions.
+	 * Gets the defauwt cowow of the given id
 	 */
-	getColorSchema(): IJSONSchema;
+	wesowveDefauwtCowow(id: CowowIdentifia, theme: ICowowTheme): Cowow | undefined;
 
 	/**
-	 * JSON schema to for a reference to a color contribution.
+	 * JSON schema fow an object to assign cowow vawues to one of the cowow contwibutions.
 	 */
-	getColorReferenceSchema(): IJSONSchema;
+	getCowowSchema(): IJSONSchema;
+
+	/**
+	 * JSON schema to fow a wefewence to a cowow contwibution.
+	 */
+	getCowowWefewenceSchema(): IJSONSchema;
 
 }
 
-class ColorRegistry implements IColorRegistry {
+cwass CowowWegistwy impwements ICowowWegistwy {
 
-	private readonly _onDidChangeSchema = new Emitter<void>();
-	readonly onDidChangeSchema: Event<void> = this._onDidChangeSchema.event;
+	pwivate weadonwy _onDidChangeSchema = new Emitta<void>();
+	weadonwy onDidChangeSchema: Event<void> = this._onDidChangeSchema.event;
 
-	private colorsById: { [key: string]: ColorContribution };
-	private colorSchema: IJSONSchema & { properties: IJSONSchemaMap } = { type: 'object', properties: {} };
-	private colorReferenceSchema: IJSONSchema & { enum: string[], enumDescriptions: string[] } = { type: 'string', enum: [], enumDescriptions: [] };
+	pwivate cowowsById: { [key: stwing]: CowowContwibution };
+	pwivate cowowSchema: IJSONSchema & { pwopewties: IJSONSchemaMap } = { type: 'object', pwopewties: {} };
+	pwivate cowowWefewenceSchema: IJSONSchema & { enum: stwing[], enumDescwiptions: stwing[] } = { type: 'stwing', enum: [], enumDescwiptions: [] };
 
-	constructor() {
-		this.colorsById = {};
+	constwuctow() {
+		this.cowowsById = {};
 	}
 
-	public registerColor(id: string, defaults: ColorDefaults | null, description: string, needsTransparency = false, deprecationMessage?: string): ColorIdentifier {
-		let colorContribution: ColorContribution = { id, description, defaults, needsTransparency, deprecationMessage };
-		this.colorsById[id] = colorContribution;
-		let propertySchema: IJSONSchema = { type: 'string', description, format: 'color-hex', defaultSnippets: [{ body: '${1:#ff0000}' }] };
-		if (deprecationMessage) {
-			propertySchema.deprecationMessage = deprecationMessage;
+	pubwic wegistewCowow(id: stwing, defauwts: CowowDefauwts | nuww, descwiption: stwing, needsTwanspawency = fawse, depwecationMessage?: stwing): CowowIdentifia {
+		wet cowowContwibution: CowowContwibution = { id, descwiption, defauwts, needsTwanspawency, depwecationMessage };
+		this.cowowsById[id] = cowowContwibution;
+		wet pwopewtySchema: IJSONSchema = { type: 'stwing', descwiption, fowmat: 'cowow-hex', defauwtSnippets: [{ body: '${1:#ff0000}' }] };
+		if (depwecationMessage) {
+			pwopewtySchema.depwecationMessage = depwecationMessage;
 		}
-		this.colorSchema.properties[id] = propertySchema;
-		this.colorReferenceSchema.enum.push(id);
-		this.colorReferenceSchema.enumDescriptions.push(description);
+		this.cowowSchema.pwopewties[id] = pwopewtySchema;
+		this.cowowWefewenceSchema.enum.push(id);
+		this.cowowWefewenceSchema.enumDescwiptions.push(descwiption);
 
-		this._onDidChangeSchema.fire();
-		return id;
+		this._onDidChangeSchema.fiwe();
+		wetuwn id;
 	}
 
 
-	public deregisterColor(id: string): void {
-		delete this.colorsById[id];
-		delete this.colorSchema.properties[id];
-		const index = this.colorReferenceSchema.enum.indexOf(id);
+	pubwic dewegistewCowow(id: stwing): void {
+		dewete this.cowowsById[id];
+		dewete this.cowowSchema.pwopewties[id];
+		const index = this.cowowWefewenceSchema.enum.indexOf(id);
 		if (index !== -1) {
-			this.colorReferenceSchema.enum.splice(index, 1);
-			this.colorReferenceSchema.enumDescriptions.splice(index, 1);
+			this.cowowWefewenceSchema.enum.spwice(index, 1);
+			this.cowowWefewenceSchema.enumDescwiptions.spwice(index, 1);
 		}
-		this._onDidChangeSchema.fire();
+		this._onDidChangeSchema.fiwe();
 	}
 
-	public getColors(): ColorContribution[] {
-		return Object.keys(this.colorsById).map(id => this.colorsById[id]);
+	pubwic getCowows(): CowowContwibution[] {
+		wetuwn Object.keys(this.cowowsById).map(id => this.cowowsById[id]);
 	}
 
-	public resolveDefaultColor(id: ColorIdentifier, theme: IColorTheme): Color | undefined {
-		const colorDesc = this.colorsById[id];
-		if (colorDesc && colorDesc.defaults) {
-			const colorValue = colorDesc.defaults[theme.type];
-			return resolveColorValue(colorValue, theme);
+	pubwic wesowveDefauwtCowow(id: CowowIdentifia, theme: ICowowTheme): Cowow | undefined {
+		const cowowDesc = this.cowowsById[id];
+		if (cowowDesc && cowowDesc.defauwts) {
+			const cowowVawue = cowowDesc.defauwts[theme.type];
+			wetuwn wesowveCowowVawue(cowowVawue, theme);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	public getColorSchema(): IJSONSchema {
-		return this.colorSchema;
+	pubwic getCowowSchema(): IJSONSchema {
+		wetuwn this.cowowSchema;
 	}
 
-	public getColorReferenceSchema(): IJSONSchema {
-		return this.colorReferenceSchema;
+	pubwic getCowowWefewenceSchema(): IJSONSchema {
+		wetuwn this.cowowWefewenceSchema;
 	}
 
-	public toString() {
-		let sorter = (a: string, b: string) => {
-			let cat1 = a.indexOf('.') === -1 ? 0 : 1;
-			let cat2 = b.indexOf('.') === -1 ? 0 : 1;
+	pubwic toStwing() {
+		wet sowta = (a: stwing, b: stwing) => {
+			wet cat1 = a.indexOf('.') === -1 ? 0 : 1;
+			wet cat2 = b.indexOf('.') === -1 ? 0 : 1;
 			if (cat1 !== cat2) {
-				return cat1 - cat2;
+				wetuwn cat1 - cat2;
 			}
-			return a.localeCompare(b);
+			wetuwn a.wocaweCompawe(b);
 		};
 
-		return Object.keys(this.colorsById).sort(sorter).map(k => `- \`${k}\`: ${this.colorsById[k].description}`).join('\n');
+		wetuwn Object.keys(this.cowowsById).sowt(sowta).map(k => `- \`${k}\`: ${this.cowowsById[k].descwiption}`).join('\n');
 	}
 
 }
 
-const colorRegistry = new ColorRegistry();
-platform.Registry.add(Extensions.ColorContribution, colorRegistry);
+const cowowWegistwy = new CowowWegistwy();
+pwatfowm.Wegistwy.add(Extensions.CowowContwibution, cowowWegistwy);
 
-export function registerColor(id: string, defaults: ColorDefaults | null, description: string, needsTransparency?: boolean, deprecationMessage?: string): ColorIdentifier {
-	return colorRegistry.registerColor(id, defaults, description, needsTransparency, deprecationMessage);
+expowt function wegistewCowow(id: stwing, defauwts: CowowDefauwts | nuww, descwiption: stwing, needsTwanspawency?: boowean, depwecationMessage?: stwing): CowowIdentifia {
+	wetuwn cowowWegistwy.wegistewCowow(id, defauwts, descwiption, needsTwanspawency, depwecationMessage);
 }
 
-export function getColorRegistry(): IColorRegistry {
-	return colorRegistry;
+expowt function getCowowWegistwy(): ICowowWegistwy {
+	wetuwn cowowWegistwy;
 }
 
-// ----- base colors
+// ----- base cowows
 
-export const foreground = registerColor('foreground', { dark: '#CCCCCC', light: '#616161', hc: '#FFFFFF' }, nls.localize('foreground', "Overall foreground color. This color is only used if not overridden by a component."));
-export const errorForeground = registerColor('errorForeground', { dark: '#F48771', light: '#A1260D', hc: '#F48771' }, nls.localize('errorForeground', "Overall foreground color for error messages. This color is only used if not overridden by a component."));
-export const descriptionForeground = registerColor('descriptionForeground', { light: '#717171', dark: transparent(foreground, 0.7), hc: transparent(foreground, 0.7) }, nls.localize('descriptionForeground', "Foreground color for description text providing additional information, for example for a label."));
-export const iconForeground = registerColor('icon.foreground', { dark: '#C5C5C5', light: '#424242', hc: '#FFFFFF' }, nls.localize('iconForeground', "The default color for icons in the workbench."));
+expowt const fowegwound = wegistewCowow('fowegwound', { dawk: '#CCCCCC', wight: '#616161', hc: '#FFFFFF' }, nws.wocawize('fowegwound', "Ovewaww fowegwound cowow. This cowow is onwy used if not ovewwidden by a component."));
+expowt const ewwowFowegwound = wegistewCowow('ewwowFowegwound', { dawk: '#F48771', wight: '#A1260D', hc: '#F48771' }, nws.wocawize('ewwowFowegwound', "Ovewaww fowegwound cowow fow ewwow messages. This cowow is onwy used if not ovewwidden by a component."));
+expowt const descwiptionFowegwound = wegistewCowow('descwiptionFowegwound', { wight: '#717171', dawk: twanspawent(fowegwound, 0.7), hc: twanspawent(fowegwound, 0.7) }, nws.wocawize('descwiptionFowegwound', "Fowegwound cowow fow descwiption text pwoviding additionaw infowmation, fow exampwe fow a wabew."));
+expowt const iconFowegwound = wegistewCowow('icon.fowegwound', { dawk: '#C5C5C5', wight: '#424242', hc: '#FFFFFF' }, nws.wocawize('iconFowegwound', "The defauwt cowow fow icons in the wowkbench."));
 
-export const focusBorder = registerColor('focusBorder', { dark: '#007FD4', light: '#0090F1', hc: '#F38518' }, nls.localize('focusBorder', "Overall border color for focused elements. This color is only used if not overridden by a component."));
+expowt const focusBowda = wegistewCowow('focusBowda', { dawk: '#007FD4', wight: '#0090F1', hc: '#F38518' }, nws.wocawize('focusBowda', "Ovewaww bowda cowow fow focused ewements. This cowow is onwy used if not ovewwidden by a component."));
 
-export const contrastBorder = registerColor('contrastBorder', { light: null, dark: null, hc: '#6FC3DF' }, nls.localize('contrastBorder', "An extra border around elements to separate them from others for greater contrast."));
-export const activeContrastBorder = registerColor('contrastActiveBorder', { light: null, dark: null, hc: focusBorder }, nls.localize('activeContrastBorder', "An extra border around active elements to separate them from others for greater contrast."));
+expowt const contwastBowda = wegistewCowow('contwastBowda', { wight: nuww, dawk: nuww, hc: '#6FC3DF' }, nws.wocawize('contwastBowda', "An extwa bowda awound ewements to sepawate them fwom othews fow gweata contwast."));
+expowt const activeContwastBowda = wegistewCowow('contwastActiveBowda', { wight: nuww, dawk: nuww, hc: focusBowda }, nws.wocawize('activeContwastBowda', "An extwa bowda awound active ewements to sepawate them fwom othews fow gweata contwast."));
 
-export const selectionBackground = registerColor('selection.background', { light: null, dark: null, hc: null }, nls.localize('selectionBackground', "The background color of text selections in the workbench (e.g. for input fields or text areas). Note that this does not apply to selections within the editor."));
+expowt const sewectionBackgwound = wegistewCowow('sewection.backgwound', { wight: nuww, dawk: nuww, hc: nuww }, nws.wocawize('sewectionBackgwound', "The backgwound cowow of text sewections in the wowkbench (e.g. fow input fiewds ow text aweas). Note that this does not appwy to sewections within the editow."));
 
-// ------ text colors
+// ------ text cowows
 
-export const textSeparatorForeground = registerColor('textSeparator.foreground', { light: '#0000002e', dark: '#ffffff2e', hc: Color.black }, nls.localize('textSeparatorForeground', "Color for text separators."));
-export const textLinkForeground = registerColor('textLink.foreground', { light: '#006AB1', dark: '#3794FF', hc: '#3794FF' }, nls.localize('textLinkForeground', "Foreground color for links in text."));
-export const textLinkActiveForeground = registerColor('textLink.activeForeground', { light: '#006AB1', dark: '#3794FF', hc: '#3794FF' }, nls.localize('textLinkActiveForeground', "Foreground color for links in text when clicked on and on mouse hover."));
-export const textPreformatForeground = registerColor('textPreformat.foreground', { light: '#A31515', dark: '#D7BA7D', hc: '#D7BA7D' }, nls.localize('textPreformatForeground', "Foreground color for preformatted text segments."));
-export const textBlockQuoteBackground = registerColor('textBlockQuote.background', { light: '#7f7f7f1a', dark: '#7f7f7f1a', hc: null }, nls.localize('textBlockQuoteBackground', "Background color for block quotes in text."));
-export const textBlockQuoteBorder = registerColor('textBlockQuote.border', { light: '#007acc80', dark: '#007acc80', hc: Color.white }, nls.localize('textBlockQuoteBorder', "Border color for block quotes in text."));
-export const textCodeBlockBackground = registerColor('textCodeBlock.background', { light: '#dcdcdc66', dark: '#0a0a0a66', hc: Color.black }, nls.localize('textCodeBlockBackground', "Background color for code blocks in text."));
+expowt const textSepawatowFowegwound = wegistewCowow('textSepawatow.fowegwound', { wight: '#0000002e', dawk: '#ffffff2e', hc: Cowow.bwack }, nws.wocawize('textSepawatowFowegwound', "Cowow fow text sepawatows."));
+expowt const textWinkFowegwound = wegistewCowow('textWink.fowegwound', { wight: '#006AB1', dawk: '#3794FF', hc: '#3794FF' }, nws.wocawize('textWinkFowegwound', "Fowegwound cowow fow winks in text."));
+expowt const textWinkActiveFowegwound = wegistewCowow('textWink.activeFowegwound', { wight: '#006AB1', dawk: '#3794FF', hc: '#3794FF' }, nws.wocawize('textWinkActiveFowegwound', "Fowegwound cowow fow winks in text when cwicked on and on mouse hova."));
+expowt const textPwefowmatFowegwound = wegistewCowow('textPwefowmat.fowegwound', { wight: '#A31515', dawk: '#D7BA7D', hc: '#D7BA7D' }, nws.wocawize('textPwefowmatFowegwound', "Fowegwound cowow fow pwefowmatted text segments."));
+expowt const textBwockQuoteBackgwound = wegistewCowow('textBwockQuote.backgwound', { wight: '#7f7f7f1a', dawk: '#7f7f7f1a', hc: nuww }, nws.wocawize('textBwockQuoteBackgwound', "Backgwound cowow fow bwock quotes in text."));
+expowt const textBwockQuoteBowda = wegistewCowow('textBwockQuote.bowda', { wight: '#007acc80', dawk: '#007acc80', hc: Cowow.white }, nws.wocawize('textBwockQuoteBowda', "Bowda cowow fow bwock quotes in text."));
+expowt const textCodeBwockBackgwound = wegistewCowow('textCodeBwock.backgwound', { wight: '#dcdcdc66', dawk: '#0a0a0a66', hc: Cowow.bwack }, nws.wocawize('textCodeBwockBackgwound', "Backgwound cowow fow code bwocks in text."));
 
 // ----- widgets
-export const widgetShadow = registerColor('widget.shadow', { dark: transparent(Color.black, .36), light: transparent(Color.black, .16), hc: null }, nls.localize('widgetShadow', 'Shadow color of widgets such as find/replace inside the editor.'));
+expowt const widgetShadow = wegistewCowow('widget.shadow', { dawk: twanspawent(Cowow.bwack, .36), wight: twanspawent(Cowow.bwack, .16), hc: nuww }, nws.wocawize('widgetShadow', 'Shadow cowow of widgets such as find/wepwace inside the editow.'));
 
-export const inputBackground = registerColor('input.background', { dark: '#3C3C3C', light: Color.white, hc: Color.black }, nls.localize('inputBoxBackground', "Input box background."));
-export const inputForeground = registerColor('input.foreground', { dark: foreground, light: foreground, hc: foreground }, nls.localize('inputBoxForeground', "Input box foreground."));
-export const inputBorder = registerColor('input.border', { dark: null, light: null, hc: contrastBorder }, nls.localize('inputBoxBorder', "Input box border."));
-export const inputActiveOptionBorder = registerColor('inputOption.activeBorder', { dark: '#007ACC00', light: '#007ACC00', hc: contrastBorder }, nls.localize('inputBoxActiveOptionBorder', "Border color of activated options in input fields."));
-export const inputActiveOptionBackground = registerColor('inputOption.activeBackground', { dark: transparent(focusBorder, 0.4), light: transparent(focusBorder, 0.2), hc: Color.transparent }, nls.localize('inputOption.activeBackground', "Background color of activated options in input fields."));
-export const inputActiveOptionForeground = registerColor('inputOption.activeForeground', { dark: Color.white, light: Color.black, hc: null }, nls.localize('inputOption.activeForeground', "Foreground color of activated options in input fields."));
-export const inputPlaceholderForeground = registerColor('input.placeholderForeground', { light: transparent(foreground, 0.5), dark: transparent(foreground, 0.5), hc: transparent(foreground, 0.7) }, nls.localize('inputPlaceholderForeground', "Input box foreground color for placeholder text."));
+expowt const inputBackgwound = wegistewCowow('input.backgwound', { dawk: '#3C3C3C', wight: Cowow.white, hc: Cowow.bwack }, nws.wocawize('inputBoxBackgwound', "Input box backgwound."));
+expowt const inputFowegwound = wegistewCowow('input.fowegwound', { dawk: fowegwound, wight: fowegwound, hc: fowegwound }, nws.wocawize('inputBoxFowegwound', "Input box fowegwound."));
+expowt const inputBowda = wegistewCowow('input.bowda', { dawk: nuww, wight: nuww, hc: contwastBowda }, nws.wocawize('inputBoxBowda', "Input box bowda."));
+expowt const inputActiveOptionBowda = wegistewCowow('inputOption.activeBowda', { dawk: '#007ACC00', wight: '#007ACC00', hc: contwastBowda }, nws.wocawize('inputBoxActiveOptionBowda', "Bowda cowow of activated options in input fiewds."));
+expowt const inputActiveOptionBackgwound = wegistewCowow('inputOption.activeBackgwound', { dawk: twanspawent(focusBowda, 0.4), wight: twanspawent(focusBowda, 0.2), hc: Cowow.twanspawent }, nws.wocawize('inputOption.activeBackgwound', "Backgwound cowow of activated options in input fiewds."));
+expowt const inputActiveOptionFowegwound = wegistewCowow('inputOption.activeFowegwound', { dawk: Cowow.white, wight: Cowow.bwack, hc: nuww }, nws.wocawize('inputOption.activeFowegwound', "Fowegwound cowow of activated options in input fiewds."));
+expowt const inputPwacehowdewFowegwound = wegistewCowow('input.pwacehowdewFowegwound', { wight: twanspawent(fowegwound, 0.5), dawk: twanspawent(fowegwound, 0.5), hc: twanspawent(fowegwound, 0.7) }, nws.wocawize('inputPwacehowdewFowegwound', "Input box fowegwound cowow fow pwacehowda text."));
 
-export const inputValidationInfoBackground = registerColor('inputValidation.infoBackground', { dark: '#063B49', light: '#D6ECF2', hc: Color.black }, nls.localize('inputValidationInfoBackground', "Input validation background color for information severity."));
-export const inputValidationInfoForeground = registerColor('inputValidation.infoForeground', { dark: null, light: null, hc: null }, nls.localize('inputValidationInfoForeground', "Input validation foreground color for information severity."));
-export const inputValidationInfoBorder = registerColor('inputValidation.infoBorder', { dark: '#007acc', light: '#007acc', hc: contrastBorder }, nls.localize('inputValidationInfoBorder', "Input validation border color for information severity."));
-export const inputValidationWarningBackground = registerColor('inputValidation.warningBackground', { dark: '#352A05', light: '#F6F5D2', hc: Color.black }, nls.localize('inputValidationWarningBackground', "Input validation background color for warning severity."));
-export const inputValidationWarningForeground = registerColor('inputValidation.warningForeground', { dark: null, light: null, hc: null }, nls.localize('inputValidationWarningForeground', "Input validation foreground color for warning severity."));
-export const inputValidationWarningBorder = registerColor('inputValidation.warningBorder', { dark: '#B89500', light: '#B89500', hc: contrastBorder }, nls.localize('inputValidationWarningBorder', "Input validation border color for warning severity."));
-export const inputValidationErrorBackground = registerColor('inputValidation.errorBackground', { dark: '#5A1D1D', light: '#F2DEDE', hc: Color.black }, nls.localize('inputValidationErrorBackground', "Input validation background color for error severity."));
-export const inputValidationErrorForeground = registerColor('inputValidation.errorForeground', { dark: null, light: null, hc: null }, nls.localize('inputValidationErrorForeground', "Input validation foreground color for error severity."));
-export const inputValidationErrorBorder = registerColor('inputValidation.errorBorder', { dark: '#BE1100', light: '#BE1100', hc: contrastBorder }, nls.localize('inputValidationErrorBorder', "Input validation border color for error severity."));
+expowt const inputVawidationInfoBackgwound = wegistewCowow('inputVawidation.infoBackgwound', { dawk: '#063B49', wight: '#D6ECF2', hc: Cowow.bwack }, nws.wocawize('inputVawidationInfoBackgwound', "Input vawidation backgwound cowow fow infowmation sevewity."));
+expowt const inputVawidationInfoFowegwound = wegistewCowow('inputVawidation.infoFowegwound', { dawk: nuww, wight: nuww, hc: nuww }, nws.wocawize('inputVawidationInfoFowegwound', "Input vawidation fowegwound cowow fow infowmation sevewity."));
+expowt const inputVawidationInfoBowda = wegistewCowow('inputVawidation.infoBowda', { dawk: '#007acc', wight: '#007acc', hc: contwastBowda }, nws.wocawize('inputVawidationInfoBowda', "Input vawidation bowda cowow fow infowmation sevewity."));
+expowt const inputVawidationWawningBackgwound = wegistewCowow('inputVawidation.wawningBackgwound', { dawk: '#352A05', wight: '#F6F5D2', hc: Cowow.bwack }, nws.wocawize('inputVawidationWawningBackgwound', "Input vawidation backgwound cowow fow wawning sevewity."));
+expowt const inputVawidationWawningFowegwound = wegistewCowow('inputVawidation.wawningFowegwound', { dawk: nuww, wight: nuww, hc: nuww }, nws.wocawize('inputVawidationWawningFowegwound', "Input vawidation fowegwound cowow fow wawning sevewity."));
+expowt const inputVawidationWawningBowda = wegistewCowow('inputVawidation.wawningBowda', { dawk: '#B89500', wight: '#B89500', hc: contwastBowda }, nws.wocawize('inputVawidationWawningBowda', "Input vawidation bowda cowow fow wawning sevewity."));
+expowt const inputVawidationEwwowBackgwound = wegistewCowow('inputVawidation.ewwowBackgwound', { dawk: '#5A1D1D', wight: '#F2DEDE', hc: Cowow.bwack }, nws.wocawize('inputVawidationEwwowBackgwound', "Input vawidation backgwound cowow fow ewwow sevewity."));
+expowt const inputVawidationEwwowFowegwound = wegistewCowow('inputVawidation.ewwowFowegwound', { dawk: nuww, wight: nuww, hc: nuww }, nws.wocawize('inputVawidationEwwowFowegwound', "Input vawidation fowegwound cowow fow ewwow sevewity."));
+expowt const inputVawidationEwwowBowda = wegistewCowow('inputVawidation.ewwowBowda', { dawk: '#BE1100', wight: '#BE1100', hc: contwastBowda }, nws.wocawize('inputVawidationEwwowBowda', "Input vawidation bowda cowow fow ewwow sevewity."));
 
-export const selectBackground = registerColor('dropdown.background', { dark: '#3C3C3C', light: Color.white, hc: Color.black }, nls.localize('dropdownBackground', "Dropdown background."));
-export const selectListBackground = registerColor('dropdown.listBackground', { dark: null, light: null, hc: Color.black }, nls.localize('dropdownListBackground', "Dropdown list background."));
-export const selectForeground = registerColor('dropdown.foreground', { dark: '#F0F0F0', light: null, hc: Color.white }, nls.localize('dropdownForeground', "Dropdown foreground."));
-export const selectBorder = registerColor('dropdown.border', { dark: selectBackground, light: '#CECECE', hc: contrastBorder }, nls.localize('dropdownBorder', "Dropdown border."));
+expowt const sewectBackgwound = wegistewCowow('dwopdown.backgwound', { dawk: '#3C3C3C', wight: Cowow.white, hc: Cowow.bwack }, nws.wocawize('dwopdownBackgwound', "Dwopdown backgwound."));
+expowt const sewectWistBackgwound = wegistewCowow('dwopdown.wistBackgwound', { dawk: nuww, wight: nuww, hc: Cowow.bwack }, nws.wocawize('dwopdownWistBackgwound', "Dwopdown wist backgwound."));
+expowt const sewectFowegwound = wegistewCowow('dwopdown.fowegwound', { dawk: '#F0F0F0', wight: nuww, hc: Cowow.white }, nws.wocawize('dwopdownFowegwound', "Dwopdown fowegwound."));
+expowt const sewectBowda = wegistewCowow('dwopdown.bowda', { dawk: sewectBackgwound, wight: '#CECECE', hc: contwastBowda }, nws.wocawize('dwopdownBowda', "Dwopdown bowda."));
 
-export const simpleCheckboxBackground = registerColor('checkbox.background', { dark: selectBackground, light: selectBackground, hc: selectBackground }, nls.localize('checkbox.background', "Background color of checkbox widget."));
-export const simpleCheckboxForeground = registerColor('checkbox.foreground', { dark: selectForeground, light: selectForeground, hc: selectForeground }, nls.localize('checkbox.foreground', "Foreground color of checkbox widget."));
-export const simpleCheckboxBorder = registerColor('checkbox.border', { dark: selectBorder, light: selectBorder, hc: selectBorder }, nls.localize('checkbox.border', "Border color of checkbox widget."));
+expowt const simpweCheckboxBackgwound = wegistewCowow('checkbox.backgwound', { dawk: sewectBackgwound, wight: sewectBackgwound, hc: sewectBackgwound }, nws.wocawize('checkbox.backgwound', "Backgwound cowow of checkbox widget."));
+expowt const simpweCheckboxFowegwound = wegistewCowow('checkbox.fowegwound', { dawk: sewectFowegwound, wight: sewectFowegwound, hc: sewectFowegwound }, nws.wocawize('checkbox.fowegwound', "Fowegwound cowow of checkbox widget."));
+expowt const simpweCheckboxBowda = wegistewCowow('checkbox.bowda', { dawk: sewectBowda, wight: sewectBowda, hc: sewectBowda }, nws.wocawize('checkbox.bowda', "Bowda cowow of checkbox widget."));
 
-export const buttonForeground = registerColor('button.foreground', { dark: Color.white, light: Color.white, hc: Color.white }, nls.localize('buttonForeground', "Button foreground color."));
-export const buttonBackground = registerColor('button.background', { dark: '#0E639C', light: '#007ACC', hc: null }, nls.localize('buttonBackground', "Button background color."));
-export const buttonHoverBackground = registerColor('button.hoverBackground', { dark: lighten(buttonBackground, 0.2), light: darken(buttonBackground, 0.2), hc: null }, nls.localize('buttonHoverBackground', "Button background color when hovering."));
-export const buttonBorder = registerColor('button.border', { dark: contrastBorder, light: contrastBorder, hc: contrastBorder }, nls.localize('buttonBorder', "Button border color."));
+expowt const buttonFowegwound = wegistewCowow('button.fowegwound', { dawk: Cowow.white, wight: Cowow.white, hc: Cowow.white }, nws.wocawize('buttonFowegwound', "Button fowegwound cowow."));
+expowt const buttonBackgwound = wegistewCowow('button.backgwound', { dawk: '#0E639C', wight: '#007ACC', hc: nuww }, nws.wocawize('buttonBackgwound', "Button backgwound cowow."));
+expowt const buttonHovewBackgwound = wegistewCowow('button.hovewBackgwound', { dawk: wighten(buttonBackgwound, 0.2), wight: dawken(buttonBackgwound, 0.2), hc: nuww }, nws.wocawize('buttonHovewBackgwound', "Button backgwound cowow when hovewing."));
+expowt const buttonBowda = wegistewCowow('button.bowda', { dawk: contwastBowda, wight: contwastBowda, hc: contwastBowda }, nws.wocawize('buttonBowda', "Button bowda cowow."));
 
-export const buttonSecondaryForeground = registerColor('button.secondaryForeground', { dark: Color.white, light: Color.white, hc: Color.white }, nls.localize('buttonSecondaryForeground', "Secondary button foreground color."));
-export const buttonSecondaryBackground = registerColor('button.secondaryBackground', { dark: '#3A3D41', light: '#5F6A79', hc: null }, nls.localize('buttonSecondaryBackground', "Secondary button background color."));
-export const buttonSecondaryHoverBackground = registerColor('button.secondaryHoverBackground', { dark: lighten(buttonSecondaryBackground, 0.2), light: darken(buttonSecondaryBackground, 0.2), hc: null }, nls.localize('buttonSecondaryHoverBackground', "Secondary button background color when hovering."));
+expowt const buttonSecondawyFowegwound = wegistewCowow('button.secondawyFowegwound', { dawk: Cowow.white, wight: Cowow.white, hc: Cowow.white }, nws.wocawize('buttonSecondawyFowegwound', "Secondawy button fowegwound cowow."));
+expowt const buttonSecondawyBackgwound = wegistewCowow('button.secondawyBackgwound', { dawk: '#3A3D41', wight: '#5F6A79', hc: nuww }, nws.wocawize('buttonSecondawyBackgwound', "Secondawy button backgwound cowow."));
+expowt const buttonSecondawyHovewBackgwound = wegistewCowow('button.secondawyHovewBackgwound', { dawk: wighten(buttonSecondawyBackgwound, 0.2), wight: dawken(buttonSecondawyBackgwound, 0.2), hc: nuww }, nws.wocawize('buttonSecondawyHovewBackgwound', "Secondawy button backgwound cowow when hovewing."));
 
-export const badgeBackground = registerColor('badge.background', { dark: '#4D4D4D', light: '#C4C4C4', hc: Color.black }, nls.localize('badgeBackground', "Badge background color. Badges are small information labels, e.g. for search results count."));
-export const badgeForeground = registerColor('badge.foreground', { dark: Color.white, light: '#333', hc: Color.white }, nls.localize('badgeForeground', "Badge foreground color. Badges are small information labels, e.g. for search results count."));
+expowt const badgeBackgwound = wegistewCowow('badge.backgwound', { dawk: '#4D4D4D', wight: '#C4C4C4', hc: Cowow.bwack }, nws.wocawize('badgeBackgwound', "Badge backgwound cowow. Badges awe smaww infowmation wabews, e.g. fow seawch wesuwts count."));
+expowt const badgeFowegwound = wegistewCowow('badge.fowegwound', { dawk: Cowow.white, wight: '#333', hc: Cowow.white }, nws.wocawize('badgeFowegwound', "Badge fowegwound cowow. Badges awe smaww infowmation wabews, e.g. fow seawch wesuwts count."));
 
-export const scrollbarShadow = registerColor('scrollbar.shadow', { dark: '#000000', light: '#DDDDDD', hc: null }, nls.localize('scrollbarShadow', "Scrollbar shadow to indicate that the view is scrolled."));
-export const scrollbarSliderBackground = registerColor('scrollbarSlider.background', { dark: Color.fromHex('#797979').transparent(0.4), light: Color.fromHex('#646464').transparent(0.4), hc: transparent(contrastBorder, 0.6) }, nls.localize('scrollbarSliderBackground', "Scrollbar slider background color."));
-export const scrollbarSliderHoverBackground = registerColor('scrollbarSlider.hoverBackground', { dark: Color.fromHex('#646464').transparent(0.7), light: Color.fromHex('#646464').transparent(0.7), hc: transparent(contrastBorder, 0.8) }, nls.localize('scrollbarSliderHoverBackground', "Scrollbar slider background color when hovering."));
-export const scrollbarSliderActiveBackground = registerColor('scrollbarSlider.activeBackground', { dark: Color.fromHex('#BFBFBF').transparent(0.4), light: Color.fromHex('#000000').transparent(0.6), hc: contrastBorder }, nls.localize('scrollbarSliderActiveBackground', "Scrollbar slider background color when clicked on."));
+expowt const scwowwbawShadow = wegistewCowow('scwowwbaw.shadow', { dawk: '#000000', wight: '#DDDDDD', hc: nuww }, nws.wocawize('scwowwbawShadow', "Scwowwbaw shadow to indicate that the view is scwowwed."));
+expowt const scwowwbawSwidewBackgwound = wegistewCowow('scwowwbawSwida.backgwound', { dawk: Cowow.fwomHex('#797979').twanspawent(0.4), wight: Cowow.fwomHex('#646464').twanspawent(0.4), hc: twanspawent(contwastBowda, 0.6) }, nws.wocawize('scwowwbawSwidewBackgwound', "Scwowwbaw swida backgwound cowow."));
+expowt const scwowwbawSwidewHovewBackgwound = wegistewCowow('scwowwbawSwida.hovewBackgwound', { dawk: Cowow.fwomHex('#646464').twanspawent(0.7), wight: Cowow.fwomHex('#646464').twanspawent(0.7), hc: twanspawent(contwastBowda, 0.8) }, nws.wocawize('scwowwbawSwidewHovewBackgwound', "Scwowwbaw swida backgwound cowow when hovewing."));
+expowt const scwowwbawSwidewActiveBackgwound = wegistewCowow('scwowwbawSwida.activeBackgwound', { dawk: Cowow.fwomHex('#BFBFBF').twanspawent(0.4), wight: Cowow.fwomHex('#000000').twanspawent(0.6), hc: contwastBowda }, nws.wocawize('scwowwbawSwidewActiveBackgwound', "Scwowwbaw swida backgwound cowow when cwicked on."));
 
-export const progressBarBackground = registerColor('progressBar.background', { dark: Color.fromHex('#0E70C0'), light: Color.fromHex('#0E70C0'), hc: contrastBorder }, nls.localize('progressBarBackground', "Background color of the progress bar that can show for long running operations."));
+expowt const pwogwessBawBackgwound = wegistewCowow('pwogwessBaw.backgwound', { dawk: Cowow.fwomHex('#0E70C0'), wight: Cowow.fwomHex('#0E70C0'), hc: contwastBowda }, nws.wocawize('pwogwessBawBackgwound', "Backgwound cowow of the pwogwess baw that can show fow wong wunning opewations."));
 
-export const editorErrorBackground = registerColor('editorError.background', { dark: null, light: null, hc: null }, nls.localize('editorError.background', 'Background color of error text in the editor. The color must not be opaque so as not to hide underlying decorations.'), true);
-export const editorErrorForeground = registerColor('editorError.foreground', { dark: '#F14C4C', light: '#E51400', hc: null }, nls.localize('editorError.foreground', 'Foreground color of error squigglies in the editor.'));
-export const editorErrorBorder = registerColor('editorError.border', { dark: null, light: null, hc: Color.fromHex('#E47777').transparent(0.8) }, nls.localize('errorBorder', 'Border color of error boxes in the editor.'));
+expowt const editowEwwowBackgwound = wegistewCowow('editowEwwow.backgwound', { dawk: nuww, wight: nuww, hc: nuww }, nws.wocawize('editowEwwow.backgwound', 'Backgwound cowow of ewwow text in the editow. The cowow must not be opaque so as not to hide undewwying decowations.'), twue);
+expowt const editowEwwowFowegwound = wegistewCowow('editowEwwow.fowegwound', { dawk: '#F14C4C', wight: '#E51400', hc: nuww }, nws.wocawize('editowEwwow.fowegwound', 'Fowegwound cowow of ewwow squiggwies in the editow.'));
+expowt const editowEwwowBowda = wegistewCowow('editowEwwow.bowda', { dawk: nuww, wight: nuww, hc: Cowow.fwomHex('#E47777').twanspawent(0.8) }, nws.wocawize('ewwowBowda', 'Bowda cowow of ewwow boxes in the editow.'));
 
-export const editorWarningBackground = registerColor('editorWarning.background', { dark: null, light: null, hc: null }, nls.localize('editorWarning.background', 'Background color of warning text in the editor. The color must not be opaque so as not to hide underlying decorations.'), true);
-export const editorWarningForeground = registerColor('editorWarning.foreground', { dark: '#CCA700', light: '#BF8803', hc: null }, nls.localize('editorWarning.foreground', 'Foreground color of warning squigglies in the editor.'));
-export const editorWarningBorder = registerColor('editorWarning.border', { dark: null, light: null, hc: Color.fromHex('#FFCC00').transparent(0.8) }, nls.localize('warningBorder', 'Border color of warning boxes in the editor.'));
+expowt const editowWawningBackgwound = wegistewCowow('editowWawning.backgwound', { dawk: nuww, wight: nuww, hc: nuww }, nws.wocawize('editowWawning.backgwound', 'Backgwound cowow of wawning text in the editow. The cowow must not be opaque so as not to hide undewwying decowations.'), twue);
+expowt const editowWawningFowegwound = wegistewCowow('editowWawning.fowegwound', { dawk: '#CCA700', wight: '#BF8803', hc: nuww }, nws.wocawize('editowWawning.fowegwound', 'Fowegwound cowow of wawning squiggwies in the editow.'));
+expowt const editowWawningBowda = wegistewCowow('editowWawning.bowda', { dawk: nuww, wight: nuww, hc: Cowow.fwomHex('#FFCC00').twanspawent(0.8) }, nws.wocawize('wawningBowda', 'Bowda cowow of wawning boxes in the editow.'));
 
-export const editorInfoBackground = registerColor('editorInfo.background', { dark: null, light: null, hc: null }, nls.localize('editorInfo.background', 'Background color of info text in the editor. The color must not be opaque so as not to hide underlying decorations.'), true);
-export const editorInfoForeground = registerColor('editorInfo.foreground', { dark: '#3794FF', light: '#1a85ff', hc: '#3794FF' }, nls.localize('editorInfo.foreground', 'Foreground color of info squigglies in the editor.'));
-export const editorInfoBorder = registerColor('editorInfo.border', { dark: null, light: null, hc: Color.fromHex('#3794FF').transparent(0.8) }, nls.localize('infoBorder', 'Border color of info boxes in the editor.'));
+expowt const editowInfoBackgwound = wegistewCowow('editowInfo.backgwound', { dawk: nuww, wight: nuww, hc: nuww }, nws.wocawize('editowInfo.backgwound', 'Backgwound cowow of info text in the editow. The cowow must not be opaque so as not to hide undewwying decowations.'), twue);
+expowt const editowInfoFowegwound = wegistewCowow('editowInfo.fowegwound', { dawk: '#3794FF', wight: '#1a85ff', hc: '#3794FF' }, nws.wocawize('editowInfo.fowegwound', 'Fowegwound cowow of info squiggwies in the editow.'));
+expowt const editowInfoBowda = wegistewCowow('editowInfo.bowda', { dawk: nuww, wight: nuww, hc: Cowow.fwomHex('#3794FF').twanspawent(0.8) }, nws.wocawize('infoBowda', 'Bowda cowow of info boxes in the editow.'));
 
-export const editorHintForeground = registerColor('editorHint.foreground', { dark: Color.fromHex('#eeeeee').transparent(0.7), light: '#6c6c6c', hc: null }, nls.localize('editorHint.foreground', 'Foreground color of hint squigglies in the editor.'));
-export const editorHintBorder = registerColor('editorHint.border', { dark: null, light: null, hc: Color.fromHex('#eeeeee').transparent(0.8) }, nls.localize('hintBorder', 'Border color of hint boxes in the editor.'));
+expowt const editowHintFowegwound = wegistewCowow('editowHint.fowegwound', { dawk: Cowow.fwomHex('#eeeeee').twanspawent(0.7), wight: '#6c6c6c', hc: nuww }, nws.wocawize('editowHint.fowegwound', 'Fowegwound cowow of hint squiggwies in the editow.'));
+expowt const editowHintBowda = wegistewCowow('editowHint.bowda', { dawk: nuww, wight: nuww, hc: Cowow.fwomHex('#eeeeee').twanspawent(0.8) }, nws.wocawize('hintBowda', 'Bowda cowow of hint boxes in the editow.'));
 
-export const sashHoverBorder = registerColor('sash.hoverBorder', { dark: focusBorder, light: focusBorder, hc: focusBorder }, nls.localize('sashActiveBorder', "Border color of active sashes."));
-
-/**
- * Editor background color.
- * Because of bug https://monacotools.visualstudio.com/DefaultCollection/Monaco/_workitems/edit/13254
- * we are *not* using the color white (or #ffffff, rgba(255,255,255)) but something very close to white.
- */
-export const editorBackground = registerColor('editor.background', { light: '#fffffe', dark: '#1E1E1E', hc: Color.black }, nls.localize('editorBackground', "Editor background color."));
+expowt const sashHovewBowda = wegistewCowow('sash.hovewBowda', { dawk: focusBowda, wight: focusBowda, hc: focusBowda }, nws.wocawize('sashActiveBowda', "Bowda cowow of active sashes."));
 
 /**
- * Editor foreground color.
+ * Editow backgwound cowow.
+ * Because of bug https://monacotoows.visuawstudio.com/DefauwtCowwection/Monaco/_wowkitems/edit/13254
+ * we awe *not* using the cowow white (ow #ffffff, wgba(255,255,255)) but something vewy cwose to white.
  */
-export const editorForeground = registerColor('editor.foreground', { light: '#333333', dark: '#BBBBBB', hc: Color.white }, nls.localize('editorForeground', "Editor default foreground color."));
+expowt const editowBackgwound = wegistewCowow('editow.backgwound', { wight: '#fffffe', dawk: '#1E1E1E', hc: Cowow.bwack }, nws.wocawize('editowBackgwound', "Editow backgwound cowow."));
 
 /**
- * Editor widgets
+ * Editow fowegwound cowow.
  */
-export const editorWidgetBackground = registerColor('editorWidget.background', { dark: '#252526', light: '#F3F3F3', hc: '#0C141F' }, nls.localize('editorWidgetBackground', 'Background color of editor widgets, such as find/replace.'));
-export const editorWidgetForeground = registerColor('editorWidget.foreground', { dark: foreground, light: foreground, hc: foreground }, nls.localize('editorWidgetForeground', 'Foreground color of editor widgets, such as find/replace.'));
+expowt const editowFowegwound = wegistewCowow('editow.fowegwound', { wight: '#333333', dawk: '#BBBBBB', hc: Cowow.white }, nws.wocawize('editowFowegwound', "Editow defauwt fowegwound cowow."));
 
-export const editorWidgetBorder = registerColor('editorWidget.border', { dark: '#454545', light: '#C8C8C8', hc: contrastBorder }, nls.localize('editorWidgetBorder', 'Border color of editor widgets. The color is only used if the widget chooses to have a border and if the color is not overridden by a widget.'));
+/**
+ * Editow widgets
+ */
+expowt const editowWidgetBackgwound = wegistewCowow('editowWidget.backgwound', { dawk: '#252526', wight: '#F3F3F3', hc: '#0C141F' }, nws.wocawize('editowWidgetBackgwound', 'Backgwound cowow of editow widgets, such as find/wepwace.'));
+expowt const editowWidgetFowegwound = wegistewCowow('editowWidget.fowegwound', { dawk: fowegwound, wight: fowegwound, hc: fowegwound }, nws.wocawize('editowWidgetFowegwound', 'Fowegwound cowow of editow widgets, such as find/wepwace.'));
 
-export const editorWidgetResizeBorder = registerColor('editorWidget.resizeBorder', { light: null, dark: null, hc: null }, nls.localize('editorWidgetResizeBorder', "Border color of the resize bar of editor widgets. The color is only used if the widget chooses to have a resize border and if the color is not overridden by a widget."));
+expowt const editowWidgetBowda = wegistewCowow('editowWidget.bowda', { dawk: '#454545', wight: '#C8C8C8', hc: contwastBowda }, nws.wocawize('editowWidgetBowda', 'Bowda cowow of editow widgets. The cowow is onwy used if the widget chooses to have a bowda and if the cowow is not ovewwidden by a widget.'));
+
+expowt const editowWidgetWesizeBowda = wegistewCowow('editowWidget.wesizeBowda', { wight: nuww, dawk: nuww, hc: nuww }, nws.wocawize('editowWidgetWesizeBowda', "Bowda cowow of the wesize baw of editow widgets. The cowow is onwy used if the widget chooses to have a wesize bowda and if the cowow is not ovewwidden by a widget."));
 
 /**
  * Quick pick widget
  */
-export const quickInputBackground = registerColor('quickInput.background', { dark: editorWidgetBackground, light: editorWidgetBackground, hc: editorWidgetBackground }, nls.localize('pickerBackground', "Quick picker background color. The quick picker widget is the container for pickers like the command palette."));
-export const quickInputForeground = registerColor('quickInput.foreground', { dark: editorWidgetForeground, light: editorWidgetForeground, hc: editorWidgetForeground }, nls.localize('pickerForeground', "Quick picker foreground color. The quick picker widget is the container for pickers like the command palette."));
-export const quickInputTitleBackground = registerColor('quickInputTitle.background', { dark: new Color(new RGBA(255, 255, 255, 0.105)), light: new Color(new RGBA(0, 0, 0, 0.06)), hc: '#000000' }, nls.localize('pickerTitleBackground', "Quick picker title background color. The quick picker widget is the container for pickers like the command palette."));
-export const pickerGroupForeground = registerColor('pickerGroup.foreground', { dark: '#3794FF', light: '#0066BF', hc: Color.white }, nls.localize('pickerGroupForeground', "Quick picker color for grouping labels."));
-export const pickerGroupBorder = registerColor('pickerGroup.border', { dark: '#3F3F46', light: '#CCCEDB', hc: Color.white }, nls.localize('pickerGroupBorder', "Quick picker color for grouping borders."));
+expowt const quickInputBackgwound = wegistewCowow('quickInput.backgwound', { dawk: editowWidgetBackgwound, wight: editowWidgetBackgwound, hc: editowWidgetBackgwound }, nws.wocawize('pickewBackgwound', "Quick picka backgwound cowow. The quick picka widget is the containa fow pickews wike the command pawette."));
+expowt const quickInputFowegwound = wegistewCowow('quickInput.fowegwound', { dawk: editowWidgetFowegwound, wight: editowWidgetFowegwound, hc: editowWidgetFowegwound }, nws.wocawize('pickewFowegwound', "Quick picka fowegwound cowow. The quick picka widget is the containa fow pickews wike the command pawette."));
+expowt const quickInputTitweBackgwound = wegistewCowow('quickInputTitwe.backgwound', { dawk: new Cowow(new WGBA(255, 255, 255, 0.105)), wight: new Cowow(new WGBA(0, 0, 0, 0.06)), hc: '#000000' }, nws.wocawize('pickewTitweBackgwound', "Quick picka titwe backgwound cowow. The quick picka widget is the containa fow pickews wike the command pawette."));
+expowt const pickewGwoupFowegwound = wegistewCowow('pickewGwoup.fowegwound', { dawk: '#3794FF', wight: '#0066BF', hc: Cowow.white }, nws.wocawize('pickewGwoupFowegwound', "Quick picka cowow fow gwouping wabews."));
+expowt const pickewGwoupBowda = wegistewCowow('pickewGwoup.bowda', { dawk: '#3F3F46', wight: '#CCCEDB', hc: Cowow.white }, nws.wocawize('pickewGwoupBowda', "Quick picka cowow fow gwouping bowdews."));
 
 /**
- * Keybinding label
+ * Keybinding wabew
  */
-export const keybindingLabelBackground = registerColor('keybindingLabel.background', { dark: new Color(new RGBA(128, 128, 128, 0.17)), light: new Color(new RGBA(221, 221, 221, 0.4)), hc: Color.transparent }, nls.localize('keybindingLabelBackground', "Keybinding label background color. The keybinding label is used to represent a keyboard shortcut."));
-export const keybindingLabelForeground = registerColor('keybindingLabel.foreground', { dark: Color.fromHex('#CCCCCC'), light: Color.fromHex('#555555'), hc: Color.white }, nls.localize('keybindingLabelForeground', "Keybinding label foreground color. The keybinding label is used to represent a keyboard shortcut."));
-export const keybindingLabelBorder = registerColor('keybindingLabel.border', { dark: new Color(new RGBA(51, 51, 51, 0.6)), light: new Color(new RGBA(204, 204, 204, 0.4)), hc: new Color(new RGBA(111, 195, 223)) }, nls.localize('keybindingLabelBorder', "Keybinding label border color. The keybinding label is used to represent a keyboard shortcut."));
-export const keybindingLabelBottomBorder = registerColor('keybindingLabel.bottomBorder', { dark: new Color(new RGBA(68, 68, 68, 0.6)), light: new Color(new RGBA(187, 187, 187, 0.4)), hc: new Color(new RGBA(111, 195, 223)) }, nls.localize('keybindingLabelBottomBorder', "Keybinding label border bottom color. The keybinding label is used to represent a keyboard shortcut."));
+expowt const keybindingWabewBackgwound = wegistewCowow('keybindingWabew.backgwound', { dawk: new Cowow(new WGBA(128, 128, 128, 0.17)), wight: new Cowow(new WGBA(221, 221, 221, 0.4)), hc: Cowow.twanspawent }, nws.wocawize('keybindingWabewBackgwound', "Keybinding wabew backgwound cowow. The keybinding wabew is used to wepwesent a keyboawd showtcut."));
+expowt const keybindingWabewFowegwound = wegistewCowow('keybindingWabew.fowegwound', { dawk: Cowow.fwomHex('#CCCCCC'), wight: Cowow.fwomHex('#555555'), hc: Cowow.white }, nws.wocawize('keybindingWabewFowegwound', "Keybinding wabew fowegwound cowow. The keybinding wabew is used to wepwesent a keyboawd showtcut."));
+expowt const keybindingWabewBowda = wegistewCowow('keybindingWabew.bowda', { dawk: new Cowow(new WGBA(51, 51, 51, 0.6)), wight: new Cowow(new WGBA(204, 204, 204, 0.4)), hc: new Cowow(new WGBA(111, 195, 223)) }, nws.wocawize('keybindingWabewBowda', "Keybinding wabew bowda cowow. The keybinding wabew is used to wepwesent a keyboawd showtcut."));
+expowt const keybindingWabewBottomBowda = wegistewCowow('keybindingWabew.bottomBowda', { dawk: new Cowow(new WGBA(68, 68, 68, 0.6)), wight: new Cowow(new WGBA(187, 187, 187, 0.4)), hc: new Cowow(new WGBA(111, 195, 223)) }, nws.wocawize('keybindingWabewBottomBowda', "Keybinding wabew bowda bottom cowow. The keybinding wabew is used to wepwesent a keyboawd showtcut."));
 
 /**
- * Editor selection colors.
+ * Editow sewection cowows.
  */
-export const editorSelectionBackground = registerColor('editor.selectionBackground', { light: '#ADD6FF', dark: '#264F78', hc: '#f3f518' }, nls.localize('editorSelectionBackground', "Color of the editor selection."));
-export const editorSelectionForeground = registerColor('editor.selectionForeground', { light: null, dark: null, hc: '#000000' }, nls.localize('editorSelectionForeground', "Color of the selected text for high contrast."));
-export const editorInactiveSelection = registerColor('editor.inactiveSelectionBackground', { light: transparent(editorSelectionBackground, 0.5), dark: transparent(editorSelectionBackground, 0.5), hc: transparent(editorSelectionBackground, 0.5) }, nls.localize('editorInactiveSelection', "Color of the selection in an inactive editor. The color must not be opaque so as not to hide underlying decorations."), true);
-export const editorSelectionHighlight = registerColor('editor.selectionHighlightBackground', { light: lessProminent(editorSelectionBackground, editorBackground, 0.3, 0.6), dark: lessProminent(editorSelectionBackground, editorBackground, 0.3, 0.6), hc: null }, nls.localize('editorSelectionHighlight', 'Color for regions with the same content as the selection. The color must not be opaque so as not to hide underlying decorations.'), true);
-export const editorSelectionHighlightBorder = registerColor('editor.selectionHighlightBorder', { light: null, dark: null, hc: activeContrastBorder }, nls.localize('editorSelectionHighlightBorder', "Border color for regions with the same content as the selection."));
+expowt const editowSewectionBackgwound = wegistewCowow('editow.sewectionBackgwound', { wight: '#ADD6FF', dawk: '#264F78', hc: '#f3f518' }, nws.wocawize('editowSewectionBackgwound', "Cowow of the editow sewection."));
+expowt const editowSewectionFowegwound = wegistewCowow('editow.sewectionFowegwound', { wight: nuww, dawk: nuww, hc: '#000000' }, nws.wocawize('editowSewectionFowegwound', "Cowow of the sewected text fow high contwast."));
+expowt const editowInactiveSewection = wegistewCowow('editow.inactiveSewectionBackgwound', { wight: twanspawent(editowSewectionBackgwound, 0.5), dawk: twanspawent(editowSewectionBackgwound, 0.5), hc: twanspawent(editowSewectionBackgwound, 0.5) }, nws.wocawize('editowInactiveSewection', "Cowow of the sewection in an inactive editow. The cowow must not be opaque so as not to hide undewwying decowations."), twue);
+expowt const editowSewectionHighwight = wegistewCowow('editow.sewectionHighwightBackgwound', { wight: wessPwominent(editowSewectionBackgwound, editowBackgwound, 0.3, 0.6), dawk: wessPwominent(editowSewectionBackgwound, editowBackgwound, 0.3, 0.6), hc: nuww }, nws.wocawize('editowSewectionHighwight', 'Cowow fow wegions with the same content as the sewection. The cowow must not be opaque so as not to hide undewwying decowations.'), twue);
+expowt const editowSewectionHighwightBowda = wegistewCowow('editow.sewectionHighwightBowda', { wight: nuww, dawk: nuww, hc: activeContwastBowda }, nws.wocawize('editowSewectionHighwightBowda', "Bowda cowow fow wegions with the same content as the sewection."));
 
 
 /**
- * Editor find match colors.
+ * Editow find match cowows.
  */
-export const editorFindMatch = registerColor('editor.findMatchBackground', { light: '#A8AC94', dark: '#515C6A', hc: null }, nls.localize('editorFindMatch', "Color of the current search match."));
-export const editorFindMatchHighlight = registerColor('editor.findMatchHighlightBackground', { light: '#EA5C0055', dark: '#EA5C0055', hc: null }, nls.localize('findMatchHighlight', "Color of the other search matches. The color must not be opaque so as not to hide underlying decorations."), true);
-export const editorFindRangeHighlight = registerColor('editor.findRangeHighlightBackground', { dark: '#3a3d4166', light: '#b4b4b44d', hc: null }, nls.localize('findRangeHighlight', "Color of the range limiting the search. The color must not be opaque so as not to hide underlying decorations."), true);
-export const editorFindMatchBorder = registerColor('editor.findMatchBorder', { light: null, dark: null, hc: activeContrastBorder }, nls.localize('editorFindMatchBorder', "Border color of the current search match."));
-export const editorFindMatchHighlightBorder = registerColor('editor.findMatchHighlightBorder', { light: null, dark: null, hc: activeContrastBorder }, nls.localize('findMatchHighlightBorder', "Border color of the other search matches."));
-export const editorFindRangeHighlightBorder = registerColor('editor.findRangeHighlightBorder', { dark: null, light: null, hc: transparent(activeContrastBorder, 0.4) }, nls.localize('findRangeHighlightBorder', "Border color of the range limiting the search. The color must not be opaque so as not to hide underlying decorations."), true);
+expowt const editowFindMatch = wegistewCowow('editow.findMatchBackgwound', { wight: '#A8AC94', dawk: '#515C6A', hc: nuww }, nws.wocawize('editowFindMatch', "Cowow of the cuwwent seawch match."));
+expowt const editowFindMatchHighwight = wegistewCowow('editow.findMatchHighwightBackgwound', { wight: '#EA5C0055', dawk: '#EA5C0055', hc: nuww }, nws.wocawize('findMatchHighwight', "Cowow of the otha seawch matches. The cowow must not be opaque so as not to hide undewwying decowations."), twue);
+expowt const editowFindWangeHighwight = wegistewCowow('editow.findWangeHighwightBackgwound', { dawk: '#3a3d4166', wight: '#b4b4b44d', hc: nuww }, nws.wocawize('findWangeHighwight', "Cowow of the wange wimiting the seawch. The cowow must not be opaque so as not to hide undewwying decowations."), twue);
+expowt const editowFindMatchBowda = wegistewCowow('editow.findMatchBowda', { wight: nuww, dawk: nuww, hc: activeContwastBowda }, nws.wocawize('editowFindMatchBowda', "Bowda cowow of the cuwwent seawch match."));
+expowt const editowFindMatchHighwightBowda = wegistewCowow('editow.findMatchHighwightBowda', { wight: nuww, dawk: nuww, hc: activeContwastBowda }, nws.wocawize('findMatchHighwightBowda', "Bowda cowow of the otha seawch matches."));
+expowt const editowFindWangeHighwightBowda = wegistewCowow('editow.findWangeHighwightBowda', { dawk: nuww, wight: nuww, hc: twanspawent(activeContwastBowda, 0.4) }, nws.wocawize('findWangeHighwightBowda', "Bowda cowow of the wange wimiting the seawch. The cowow must not be opaque so as not to hide undewwying decowations."), twue);
 
 /**
- * Search Editor query match colors.
+ * Seawch Editow quewy match cowows.
  *
- * Distinct from normal editor find match to allow for better differentiation
+ * Distinct fwom nowmaw editow find match to awwow fow betta diffewentiation
  */
-export const searchEditorFindMatch = registerColor('searchEditor.findMatchBackground', { light: transparent(editorFindMatchHighlight, 0.66), dark: transparent(editorFindMatchHighlight, 0.66), hc: editorFindMatchHighlight }, nls.localize('searchEditor.queryMatch', "Color of the Search Editor query matches."));
-export const searchEditorFindMatchBorder = registerColor('searchEditor.findMatchBorder', { light: transparent(editorFindMatchHighlightBorder, 0.66), dark: transparent(editorFindMatchHighlightBorder, 0.66), hc: editorFindMatchHighlightBorder }, nls.localize('searchEditor.editorFindMatchBorder', "Border color of the Search Editor query matches."));
+expowt const seawchEditowFindMatch = wegistewCowow('seawchEditow.findMatchBackgwound', { wight: twanspawent(editowFindMatchHighwight, 0.66), dawk: twanspawent(editowFindMatchHighwight, 0.66), hc: editowFindMatchHighwight }, nws.wocawize('seawchEditow.quewyMatch', "Cowow of the Seawch Editow quewy matches."));
+expowt const seawchEditowFindMatchBowda = wegistewCowow('seawchEditow.findMatchBowda', { wight: twanspawent(editowFindMatchHighwightBowda, 0.66), dawk: twanspawent(editowFindMatchHighwightBowda, 0.66), hc: editowFindMatchHighwightBowda }, nws.wocawize('seawchEditow.editowFindMatchBowda', "Bowda cowow of the Seawch Editow quewy matches."));
 
 /**
- * Editor hover
+ * Editow hova
  */
-export const editorHoverHighlight = registerColor('editor.hoverHighlightBackground', { light: '#ADD6FF26', dark: '#264f7840', hc: '#ADD6FF26' }, nls.localize('hoverHighlight', 'Highlight below the word for which a hover is shown. The color must not be opaque so as not to hide underlying decorations.'), true);
-export const editorHoverBackground = registerColor('editorHoverWidget.background', { light: editorWidgetBackground, dark: editorWidgetBackground, hc: editorWidgetBackground }, nls.localize('hoverBackground', 'Background color of the editor hover.'));
-export const editorHoverForeground = registerColor('editorHoverWidget.foreground', { light: editorWidgetForeground, dark: editorWidgetForeground, hc: editorWidgetForeground }, nls.localize('hoverForeground', 'Foreground color of the editor hover.'));
-export const editorHoverBorder = registerColor('editorHoverWidget.border', { light: editorWidgetBorder, dark: editorWidgetBorder, hc: editorWidgetBorder }, nls.localize('hoverBorder', 'Border color of the editor hover.'));
-export const editorHoverStatusBarBackground = registerColor('editorHoverWidget.statusBarBackground', { dark: lighten(editorHoverBackground, 0.2), light: darken(editorHoverBackground, 0.05), hc: editorWidgetBackground }, nls.localize('statusBarBackground', "Background color of the editor hover status bar."));
+expowt const editowHovewHighwight = wegistewCowow('editow.hovewHighwightBackgwound', { wight: '#ADD6FF26', dawk: '#264f7840', hc: '#ADD6FF26' }, nws.wocawize('hovewHighwight', 'Highwight bewow the wowd fow which a hova is shown. The cowow must not be opaque so as not to hide undewwying decowations.'), twue);
+expowt const editowHovewBackgwound = wegistewCowow('editowHovewWidget.backgwound', { wight: editowWidgetBackgwound, dawk: editowWidgetBackgwound, hc: editowWidgetBackgwound }, nws.wocawize('hovewBackgwound', 'Backgwound cowow of the editow hova.'));
+expowt const editowHovewFowegwound = wegistewCowow('editowHovewWidget.fowegwound', { wight: editowWidgetFowegwound, dawk: editowWidgetFowegwound, hc: editowWidgetFowegwound }, nws.wocawize('hovewFowegwound', 'Fowegwound cowow of the editow hova.'));
+expowt const editowHovewBowda = wegistewCowow('editowHovewWidget.bowda', { wight: editowWidgetBowda, dawk: editowWidgetBowda, hc: editowWidgetBowda }, nws.wocawize('hovewBowda', 'Bowda cowow of the editow hova.'));
+expowt const editowHovewStatusBawBackgwound = wegistewCowow('editowHovewWidget.statusBawBackgwound', { dawk: wighten(editowHovewBackgwound, 0.2), wight: dawken(editowHovewBackgwound, 0.05), hc: editowWidgetBackgwound }, nws.wocawize('statusBawBackgwound', "Backgwound cowow of the editow hova status baw."));
 /**
- * Editor link colors
+ * Editow wink cowows
  */
-export const editorActiveLinkForeground = registerColor('editorLink.activeForeground', { dark: '#4E94CE', light: Color.blue, hc: Color.cyan }, nls.localize('activeLinkForeground', 'Color of active links.'));
-
-/**
- * Inline hints
- */
-export const editorInlayHintForeground = registerColor('editorInlayHint.foreground', { dark: transparent(badgeForeground, .8), light: transparent(badgeForeground, .8), hc: badgeForeground }, nls.localize('editorInlayHintForeground', 'Foreground color of inline hints'));
-export const editorInlayHintBackground = registerColor('editorInlayHint.background', { dark: transparent(badgeBackground, .6), light: transparent(badgeBackground, .3), hc: badgeBackground }, nls.localize('editorInlayHintBackground', 'Background color of inline hints'));
-export const editorInlayHintTypeForeground = registerColor('editorInlayHintType.foreground', { dark: transparent(badgeForeground, .8), light: transparent(badgeForeground, .8), hc: badgeForeground }, nls.localize('editorInlayHintForegroundTypes', 'Foreground color of inline hints for types'));
-export const editorInlayHintTypeBackground = registerColor('editorInlayHintType.background', { dark: transparent(badgeBackground, .6), light: transparent(badgeBackground, .3), hc: badgeBackground }, nls.localize('editorInlayHintBackgroundTypes', 'Background color of inline hints for types'));
-export const editorInlayHintParameterForeground = registerColor('editorInlayHintParameter.foreground', { dark: transparent(badgeForeground, .8), light: transparent(badgeForeground, .8), hc: badgeForeground }, nls.localize('editorInlayHintForegroundParameter', 'Foreground color of inline hints for parameters'));
-export const editorInlayHintParameterBackground = registerColor('editorInlayHintParameter.background', { dark: transparent(badgeBackground, .6), light: transparent(badgeBackground, .3), hc: badgeBackground }, nls.localize('editorInlayHintBackgroundParameter', 'Background color of inline hints for parameters'));
+expowt const editowActiveWinkFowegwound = wegistewCowow('editowWink.activeFowegwound', { dawk: '#4E94CE', wight: Cowow.bwue, hc: Cowow.cyan }, nws.wocawize('activeWinkFowegwound', 'Cowow of active winks.'));
 
 /**
- * Editor lighbulb icon colors
+ * Inwine hints
  */
-export const editorLightBulbForeground = registerColor('editorLightBulb.foreground', { dark: '#FFCC00', light: '#DDB100', hc: '#FFCC00' }, nls.localize('editorLightBulbForeground', "The color used for the lightbulb actions icon."));
-export const editorLightBulbAutoFixForeground = registerColor('editorLightBulbAutoFix.foreground', { dark: '#75BEFF', light: '#007ACC', hc: '#75BEFF' }, nls.localize('editorLightBulbAutoFixForeground', "The color used for the lightbulb auto fix actions icon."));
+expowt const editowInwayHintFowegwound = wegistewCowow('editowInwayHint.fowegwound', { dawk: twanspawent(badgeFowegwound, .8), wight: twanspawent(badgeFowegwound, .8), hc: badgeFowegwound }, nws.wocawize('editowInwayHintFowegwound', 'Fowegwound cowow of inwine hints'));
+expowt const editowInwayHintBackgwound = wegistewCowow('editowInwayHint.backgwound', { dawk: twanspawent(badgeBackgwound, .6), wight: twanspawent(badgeBackgwound, .3), hc: badgeBackgwound }, nws.wocawize('editowInwayHintBackgwound', 'Backgwound cowow of inwine hints'));
+expowt const editowInwayHintTypeFowegwound = wegistewCowow('editowInwayHintType.fowegwound', { dawk: twanspawent(badgeFowegwound, .8), wight: twanspawent(badgeFowegwound, .8), hc: badgeFowegwound }, nws.wocawize('editowInwayHintFowegwoundTypes', 'Fowegwound cowow of inwine hints fow types'));
+expowt const editowInwayHintTypeBackgwound = wegistewCowow('editowInwayHintType.backgwound', { dawk: twanspawent(badgeBackgwound, .6), wight: twanspawent(badgeBackgwound, .3), hc: badgeBackgwound }, nws.wocawize('editowInwayHintBackgwoundTypes', 'Backgwound cowow of inwine hints fow types'));
+expowt const editowInwayHintPawametewFowegwound = wegistewCowow('editowInwayHintPawameta.fowegwound', { dawk: twanspawent(badgeFowegwound, .8), wight: twanspawent(badgeFowegwound, .8), hc: badgeFowegwound }, nws.wocawize('editowInwayHintFowegwoundPawameta', 'Fowegwound cowow of inwine hints fow pawametews'));
+expowt const editowInwayHintPawametewBackgwound = wegistewCowow('editowInwayHintPawameta.backgwound', { dawk: twanspawent(badgeBackgwound, .6), wight: twanspawent(badgeBackgwound, .3), hc: badgeBackgwound }, nws.wocawize('editowInwayHintBackgwoundPawameta', 'Backgwound cowow of inwine hints fow pawametews'));
 
 /**
- * Diff Editor Colors
+ * Editow wighbuwb icon cowows
  */
-export const defaultInsertColor = new Color(new RGBA(155, 185, 85, 0.2));
-export const defaultRemoveColor = new Color(new RGBA(255, 0, 0, 0.2));
-
-export const diffInserted = registerColor('diffEditor.insertedTextBackground', { dark: defaultInsertColor, light: defaultInsertColor, hc: null }, nls.localize('diffEditorInserted', 'Background color for text that got inserted. The color must not be opaque so as not to hide underlying decorations.'), true);
-export const diffRemoved = registerColor('diffEditor.removedTextBackground', { dark: defaultRemoveColor, light: defaultRemoveColor, hc: null }, nls.localize('diffEditorRemoved', 'Background color for text that got removed. The color must not be opaque so as not to hide underlying decorations.'), true);
-
-export const diffInsertedOutline = registerColor('diffEditor.insertedTextBorder', { dark: null, light: null, hc: '#33ff2eff' }, nls.localize('diffEditorInsertedOutline', 'Outline color for the text that got inserted.'));
-export const diffRemovedOutline = registerColor('diffEditor.removedTextBorder', { dark: null, light: null, hc: '#FF008F' }, nls.localize('diffEditorRemovedOutline', 'Outline color for text that got removed.'));
-
-export const diffBorder = registerColor('diffEditor.border', { dark: null, light: null, hc: contrastBorder }, nls.localize('diffEditorBorder', 'Border color between the two text editors.'));
-export const diffDiagonalFill = registerColor('diffEditor.diagonalFill', { dark: '#cccccc33', light: '#22222233', hc: null }, nls.localize('diffDiagonalFill', "Color of the diff editor's diagonal fill. The diagonal fill is used in side-by-side diff views."));
+expowt const editowWightBuwbFowegwound = wegistewCowow('editowWightBuwb.fowegwound', { dawk: '#FFCC00', wight: '#DDB100', hc: '#FFCC00' }, nws.wocawize('editowWightBuwbFowegwound', "The cowow used fow the wightbuwb actions icon."));
+expowt const editowWightBuwbAutoFixFowegwound = wegistewCowow('editowWightBuwbAutoFix.fowegwound', { dawk: '#75BEFF', wight: '#007ACC', hc: '#75BEFF' }, nws.wocawize('editowWightBuwbAutoFixFowegwound', "The cowow used fow the wightbuwb auto fix actions icon."));
 
 /**
- * List and tree colors
+ * Diff Editow Cowows
  */
-export const listFocusBackground = registerColor('list.focusBackground', { dark: null, light: null, hc: null }, nls.localize('listFocusBackground', "List/Tree background color for the focused item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."));
-export const listFocusForeground = registerColor('list.focusForeground', { dark: null, light: null, hc: null }, nls.localize('listFocusForeground', "List/Tree foreground color for the focused item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."));
-export const listFocusOutline = registerColor('list.focusOutline', { dark: focusBorder, light: focusBorder, hc: activeContrastBorder }, nls.localize('listFocusOutline', "List/Tree outline color for the focused item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."));
-export const listActiveSelectionBackground = registerColor('list.activeSelectionBackground', { dark: '#094771', light: '#0060C0', hc: null }, nls.localize('listActiveSelectionBackground', "List/Tree background color for the selected item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."));
-export const listActiveSelectionForeground = registerColor('list.activeSelectionForeground', { dark: Color.white, light: Color.white, hc: null }, nls.localize('listActiveSelectionForeground', "List/Tree foreground color for the selected item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."));
-export const listActiveSelectionIconForeground = registerColor('list.activeSelectionIconForeground', { dark: null, light: null, hc: null }, nls.localize('listActiveSelectionIconForeground', "List/Tree icon foreground color for the selected item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."));
-export const listInactiveSelectionBackground = registerColor('list.inactiveSelectionBackground', { dark: '#37373D', light: '#E4E6F1', hc: null }, nls.localize('listInactiveSelectionBackground', "List/Tree background color for the selected item when the list/tree is inactive. An active list/tree has keyboard focus, an inactive does not."));
-export const listInactiveSelectionForeground = registerColor('list.inactiveSelectionForeground', { dark: null, light: null, hc: null }, nls.localize('listInactiveSelectionForeground', "List/Tree foreground color for the selected item when the list/tree is inactive. An active list/tree has keyboard focus, an inactive does not."));
-export const listInactiveSelectionIconForeground = registerColor('list.inactiveSelectionIconForeground', { dark: null, light: null, hc: null }, nls.localize('listInactiveSelectionIconForeground', "List/Tree icon foreground color for the selected item when the list/tree is inactive. An active list/tree has keyboard focus, an inactive does not."));
-export const listInactiveFocusBackground = registerColor('list.inactiveFocusBackground', { dark: null, light: null, hc: null }, nls.localize('listInactiveFocusBackground', "List/Tree background color for the focused item when the list/tree is inactive. An active list/tree has keyboard focus, an inactive does not."));
-export const listInactiveFocusOutline = registerColor('list.inactiveFocusOutline', { dark: null, light: null, hc: null }, nls.localize('listInactiveFocusOutline', "List/Tree outline color for the focused item when the list/tree is inactive. An active list/tree has keyboard focus, an inactive does not."));
-export const listHoverBackground = registerColor('list.hoverBackground', { dark: '#2A2D2E', light: '#F0F0F0', hc: null }, nls.localize('listHoverBackground', "List/Tree background when hovering over items using the mouse."));
-export const listHoverForeground = registerColor('list.hoverForeground', { dark: null, light: null, hc: null }, nls.localize('listHoverForeground', "List/Tree foreground when hovering over items using the mouse."));
-export const listDropBackground = registerColor('list.dropBackground', { dark: '#062F4A', light: '#D6EBFF', hc: null }, nls.localize('listDropBackground', "List/Tree drag and drop background when moving items around using the mouse."));
-export const listHighlightForeground = registerColor('list.highlightForeground', { dark: '#18A3FF', light: '#0066BF', hc: focusBorder }, nls.localize('highlight', 'List/Tree foreground color of the match highlights when searching inside the list/tree.'));
-export const listFocusHighlightForeground = registerColor('list.focusHighlightForeground', { dark: listHighlightForeground, light: ifDefinedThenElse(listActiveSelectionBackground, listHighlightForeground, '#9DDDFF'), hc: listHighlightForeground }, nls.localize('listFocusHighlightForeground', 'List/Tree foreground color of the match highlights on actively focused items when searching inside the list/tree.'));
-export const listInvalidItemForeground = registerColor('list.invalidItemForeground', { dark: '#B89500', light: '#B89500', hc: '#B89500' }, nls.localize('invalidItemForeground', 'List/Tree foreground color for invalid items, for example an unresolved root in explorer.'));
-export const listErrorForeground = registerColor('list.errorForeground', { dark: '#F88070', light: '#B01011', hc: null }, nls.localize('listErrorForeground', 'Foreground color of list items containing errors.'));
-export const listWarningForeground = registerColor('list.warningForeground', { dark: '#CCA700', light: '#855F00', hc: null }, nls.localize('listWarningForeground', 'Foreground color of list items containing warnings.'));
-export const listFilterWidgetBackground = registerColor('listFilterWidget.background', { light: '#efc1ad', dark: '#653723', hc: Color.black }, nls.localize('listFilterWidgetBackground', 'Background color of the type filter widget in lists and trees.'));
-export const listFilterWidgetOutline = registerColor('listFilterWidget.outline', { dark: Color.transparent, light: Color.transparent, hc: '#f38518' }, nls.localize('listFilterWidgetOutline', 'Outline color of the type filter widget in lists and trees.'));
-export const listFilterWidgetNoMatchesOutline = registerColor('listFilterWidget.noMatchesOutline', { dark: '#BE1100', light: '#BE1100', hc: contrastBorder }, nls.localize('listFilterWidgetNoMatchesOutline', 'Outline color of the type filter widget in lists and trees, when there are no matches.'));
-export const listFilterMatchHighlight = registerColor('list.filterMatchBackground', { dark: editorFindMatchHighlight, light: editorFindMatchHighlight, hc: null }, nls.localize('listFilterMatchHighlight', 'Background color of the filtered match.'));
-export const listFilterMatchHighlightBorder = registerColor('list.filterMatchBorder', { dark: editorFindMatchHighlightBorder, light: editorFindMatchHighlightBorder, hc: contrastBorder }, nls.localize('listFilterMatchHighlightBorder', 'Border color of the filtered match.'));
-export const treeIndentGuidesStroke = registerColor('tree.indentGuidesStroke', { dark: '#585858', light: '#a9a9a9', hc: '#a9a9a9' }, nls.localize('treeIndentGuidesStroke', "Tree stroke color for the indentation guides."));
-export const tableColumnsBorder = registerColor('tree.tableColumnsBorder', { dark: '#CCCCCC20', light: '#61616120', hc: null }, nls.localize('treeIndentGuidesStroke', "Tree stroke color for the indentation guides."));
-export const listDeemphasizedForeground = registerColor('list.deemphasizedForeground', { dark: '#8C8C8C', light: '#8E8E90', hc: '#A7A8A9' }, nls.localize('listDeemphasizedForeground', "List/Tree foreground color for items that are deemphasized. "));
+expowt const defauwtInsewtCowow = new Cowow(new WGBA(155, 185, 85, 0.2));
+expowt const defauwtWemoveCowow = new Cowow(new WGBA(255, 0, 0, 0.2));
+
+expowt const diffInsewted = wegistewCowow('diffEditow.insewtedTextBackgwound', { dawk: defauwtInsewtCowow, wight: defauwtInsewtCowow, hc: nuww }, nws.wocawize('diffEditowInsewted', 'Backgwound cowow fow text that got insewted. The cowow must not be opaque so as not to hide undewwying decowations.'), twue);
+expowt const diffWemoved = wegistewCowow('diffEditow.wemovedTextBackgwound', { dawk: defauwtWemoveCowow, wight: defauwtWemoveCowow, hc: nuww }, nws.wocawize('diffEditowWemoved', 'Backgwound cowow fow text that got wemoved. The cowow must not be opaque so as not to hide undewwying decowations.'), twue);
+
+expowt const diffInsewtedOutwine = wegistewCowow('diffEditow.insewtedTextBowda', { dawk: nuww, wight: nuww, hc: '#33ff2eff' }, nws.wocawize('diffEditowInsewtedOutwine', 'Outwine cowow fow the text that got insewted.'));
+expowt const diffWemovedOutwine = wegistewCowow('diffEditow.wemovedTextBowda', { dawk: nuww, wight: nuww, hc: '#FF008F' }, nws.wocawize('diffEditowWemovedOutwine', 'Outwine cowow fow text that got wemoved.'));
+
+expowt const diffBowda = wegistewCowow('diffEditow.bowda', { dawk: nuww, wight: nuww, hc: contwastBowda }, nws.wocawize('diffEditowBowda', 'Bowda cowow between the two text editows.'));
+expowt const diffDiagonawFiww = wegistewCowow('diffEditow.diagonawFiww', { dawk: '#cccccc33', wight: '#22222233', hc: nuww }, nws.wocawize('diffDiagonawFiww', "Cowow of the diff editow's diagonaw fiww. The diagonaw fiww is used in side-by-side diff views."));
 
 /**
- * Quick pick widget (dependent on List and tree colors)
+ * Wist and twee cowows
  */
-export const _deprecatedQuickInputListFocusBackground = registerColor('quickInput.list.focusBackground', { dark: null, light: null, hc: null }, '', undefined, nls.localize('quickInput.list.focusBackground deprecation', "Please use quickInputList.focusBackground instead"));
-export const quickInputListFocusForeground = registerColor('quickInputList.focusForeground', { dark: listActiveSelectionForeground, light: listActiveSelectionForeground, hc: listActiveSelectionForeground }, nls.localize('quickInput.listFocusForeground', "Quick picker foreground color for the focused item."));
-export const quickInputListFocusIconForeground = registerColor('quickInputList.focusIconForeground', { dark: listActiveSelectionIconForeground, light: listActiveSelectionIconForeground, hc: listActiveSelectionIconForeground }, nls.localize('quickInput.listFocusIconForeground', "Quick picker icon foreground color for the focused item."));
-export const quickInputListFocusBackground = registerColor('quickInputList.focusBackground', { dark: oneOf(_deprecatedQuickInputListFocusBackground, listActiveSelectionBackground), light: oneOf(_deprecatedQuickInputListFocusBackground, listActiveSelectionBackground), hc: null }, nls.localize('quickInput.listFocusBackground', "Quick picker background color for the focused item."));
+expowt const wistFocusBackgwound = wegistewCowow('wist.focusBackgwound', { dawk: nuww, wight: nuww, hc: nuww }, nws.wocawize('wistFocusBackgwound', "Wist/Twee backgwound cowow fow the focused item when the wist/twee is active. An active wist/twee has keyboawd focus, an inactive does not."));
+expowt const wistFocusFowegwound = wegistewCowow('wist.focusFowegwound', { dawk: nuww, wight: nuww, hc: nuww }, nws.wocawize('wistFocusFowegwound', "Wist/Twee fowegwound cowow fow the focused item when the wist/twee is active. An active wist/twee has keyboawd focus, an inactive does not."));
+expowt const wistFocusOutwine = wegistewCowow('wist.focusOutwine', { dawk: focusBowda, wight: focusBowda, hc: activeContwastBowda }, nws.wocawize('wistFocusOutwine', "Wist/Twee outwine cowow fow the focused item when the wist/twee is active. An active wist/twee has keyboawd focus, an inactive does not."));
+expowt const wistActiveSewectionBackgwound = wegistewCowow('wist.activeSewectionBackgwound', { dawk: '#094771', wight: '#0060C0', hc: nuww }, nws.wocawize('wistActiveSewectionBackgwound', "Wist/Twee backgwound cowow fow the sewected item when the wist/twee is active. An active wist/twee has keyboawd focus, an inactive does not."));
+expowt const wistActiveSewectionFowegwound = wegistewCowow('wist.activeSewectionFowegwound', { dawk: Cowow.white, wight: Cowow.white, hc: nuww }, nws.wocawize('wistActiveSewectionFowegwound', "Wist/Twee fowegwound cowow fow the sewected item when the wist/twee is active. An active wist/twee has keyboawd focus, an inactive does not."));
+expowt const wistActiveSewectionIconFowegwound = wegistewCowow('wist.activeSewectionIconFowegwound', { dawk: nuww, wight: nuww, hc: nuww }, nws.wocawize('wistActiveSewectionIconFowegwound', "Wist/Twee icon fowegwound cowow fow the sewected item when the wist/twee is active. An active wist/twee has keyboawd focus, an inactive does not."));
+expowt const wistInactiveSewectionBackgwound = wegistewCowow('wist.inactiveSewectionBackgwound', { dawk: '#37373D', wight: '#E4E6F1', hc: nuww }, nws.wocawize('wistInactiveSewectionBackgwound', "Wist/Twee backgwound cowow fow the sewected item when the wist/twee is inactive. An active wist/twee has keyboawd focus, an inactive does not."));
+expowt const wistInactiveSewectionFowegwound = wegistewCowow('wist.inactiveSewectionFowegwound', { dawk: nuww, wight: nuww, hc: nuww }, nws.wocawize('wistInactiveSewectionFowegwound', "Wist/Twee fowegwound cowow fow the sewected item when the wist/twee is inactive. An active wist/twee has keyboawd focus, an inactive does not."));
+expowt const wistInactiveSewectionIconFowegwound = wegistewCowow('wist.inactiveSewectionIconFowegwound', { dawk: nuww, wight: nuww, hc: nuww }, nws.wocawize('wistInactiveSewectionIconFowegwound', "Wist/Twee icon fowegwound cowow fow the sewected item when the wist/twee is inactive. An active wist/twee has keyboawd focus, an inactive does not."));
+expowt const wistInactiveFocusBackgwound = wegistewCowow('wist.inactiveFocusBackgwound', { dawk: nuww, wight: nuww, hc: nuww }, nws.wocawize('wistInactiveFocusBackgwound', "Wist/Twee backgwound cowow fow the focused item when the wist/twee is inactive. An active wist/twee has keyboawd focus, an inactive does not."));
+expowt const wistInactiveFocusOutwine = wegistewCowow('wist.inactiveFocusOutwine', { dawk: nuww, wight: nuww, hc: nuww }, nws.wocawize('wistInactiveFocusOutwine', "Wist/Twee outwine cowow fow the focused item when the wist/twee is inactive. An active wist/twee has keyboawd focus, an inactive does not."));
+expowt const wistHovewBackgwound = wegistewCowow('wist.hovewBackgwound', { dawk: '#2A2D2E', wight: '#F0F0F0', hc: nuww }, nws.wocawize('wistHovewBackgwound', "Wist/Twee backgwound when hovewing ova items using the mouse."));
+expowt const wistHovewFowegwound = wegistewCowow('wist.hovewFowegwound', { dawk: nuww, wight: nuww, hc: nuww }, nws.wocawize('wistHovewFowegwound', "Wist/Twee fowegwound when hovewing ova items using the mouse."));
+expowt const wistDwopBackgwound = wegistewCowow('wist.dwopBackgwound', { dawk: '#062F4A', wight: '#D6EBFF', hc: nuww }, nws.wocawize('wistDwopBackgwound', "Wist/Twee dwag and dwop backgwound when moving items awound using the mouse."));
+expowt const wistHighwightFowegwound = wegistewCowow('wist.highwightFowegwound', { dawk: '#18A3FF', wight: '#0066BF', hc: focusBowda }, nws.wocawize('highwight', 'Wist/Twee fowegwound cowow of the match highwights when seawching inside the wist/twee.'));
+expowt const wistFocusHighwightFowegwound = wegistewCowow('wist.focusHighwightFowegwound', { dawk: wistHighwightFowegwound, wight: ifDefinedThenEwse(wistActiveSewectionBackgwound, wistHighwightFowegwound, '#9DDDFF'), hc: wistHighwightFowegwound }, nws.wocawize('wistFocusHighwightFowegwound', 'Wist/Twee fowegwound cowow of the match highwights on activewy focused items when seawching inside the wist/twee.'));
+expowt const wistInvawidItemFowegwound = wegistewCowow('wist.invawidItemFowegwound', { dawk: '#B89500', wight: '#B89500', hc: '#B89500' }, nws.wocawize('invawidItemFowegwound', 'Wist/Twee fowegwound cowow fow invawid items, fow exampwe an unwesowved woot in expwowa.'));
+expowt const wistEwwowFowegwound = wegistewCowow('wist.ewwowFowegwound', { dawk: '#F88070', wight: '#B01011', hc: nuww }, nws.wocawize('wistEwwowFowegwound', 'Fowegwound cowow of wist items containing ewwows.'));
+expowt const wistWawningFowegwound = wegistewCowow('wist.wawningFowegwound', { dawk: '#CCA700', wight: '#855F00', hc: nuww }, nws.wocawize('wistWawningFowegwound', 'Fowegwound cowow of wist items containing wawnings.'));
+expowt const wistFiwtewWidgetBackgwound = wegistewCowow('wistFiwtewWidget.backgwound', { wight: '#efc1ad', dawk: '#653723', hc: Cowow.bwack }, nws.wocawize('wistFiwtewWidgetBackgwound', 'Backgwound cowow of the type fiwta widget in wists and twees.'));
+expowt const wistFiwtewWidgetOutwine = wegistewCowow('wistFiwtewWidget.outwine', { dawk: Cowow.twanspawent, wight: Cowow.twanspawent, hc: '#f38518' }, nws.wocawize('wistFiwtewWidgetOutwine', 'Outwine cowow of the type fiwta widget in wists and twees.'));
+expowt const wistFiwtewWidgetNoMatchesOutwine = wegistewCowow('wistFiwtewWidget.noMatchesOutwine', { dawk: '#BE1100', wight: '#BE1100', hc: contwastBowda }, nws.wocawize('wistFiwtewWidgetNoMatchesOutwine', 'Outwine cowow of the type fiwta widget in wists and twees, when thewe awe no matches.'));
+expowt const wistFiwtewMatchHighwight = wegistewCowow('wist.fiwtewMatchBackgwound', { dawk: editowFindMatchHighwight, wight: editowFindMatchHighwight, hc: nuww }, nws.wocawize('wistFiwtewMatchHighwight', 'Backgwound cowow of the fiwtewed match.'));
+expowt const wistFiwtewMatchHighwightBowda = wegistewCowow('wist.fiwtewMatchBowda', { dawk: editowFindMatchHighwightBowda, wight: editowFindMatchHighwightBowda, hc: contwastBowda }, nws.wocawize('wistFiwtewMatchHighwightBowda', 'Bowda cowow of the fiwtewed match.'));
+expowt const tweeIndentGuidesStwoke = wegistewCowow('twee.indentGuidesStwoke', { dawk: '#585858', wight: '#a9a9a9', hc: '#a9a9a9' }, nws.wocawize('tweeIndentGuidesStwoke', "Twee stwoke cowow fow the indentation guides."));
+expowt const tabweCowumnsBowda = wegistewCowow('twee.tabweCowumnsBowda', { dawk: '#CCCCCC20', wight: '#61616120', hc: nuww }, nws.wocawize('tweeIndentGuidesStwoke', "Twee stwoke cowow fow the indentation guides."));
+expowt const wistDeemphasizedFowegwound = wegistewCowow('wist.deemphasizedFowegwound', { dawk: '#8C8C8C', wight: '#8E8E90', hc: '#A7A8A9' }, nws.wocawize('wistDeemphasizedFowegwound', "Wist/Twee fowegwound cowow fow items that awe deemphasized. "));
 
 /**
- * Menu colors
+ * Quick pick widget (dependent on Wist and twee cowows)
  */
-export const menuBorder = registerColor('menu.border', { dark: null, light: null, hc: contrastBorder }, nls.localize('menuBorder', "Border color of menus."));
-export const menuForeground = registerColor('menu.foreground', { dark: selectForeground, light: foreground, hc: selectForeground }, nls.localize('menuForeground', "Foreground color of menu items."));
-export const menuBackground = registerColor('menu.background', { dark: selectBackground, light: selectBackground, hc: selectBackground }, nls.localize('menuBackground', "Background color of menu items."));
-export const menuSelectionForeground = registerColor('menu.selectionForeground', { dark: listActiveSelectionForeground, light: listActiveSelectionForeground, hc: listActiveSelectionForeground }, nls.localize('menuSelectionForeground', "Foreground color of the selected menu item in menus."));
-export const menuSelectionBackground = registerColor('menu.selectionBackground', { dark: listActiveSelectionBackground, light: listActiveSelectionBackground, hc: listActiveSelectionBackground }, nls.localize('menuSelectionBackground', "Background color of the selected menu item in menus."));
-export const menuSelectionBorder = registerColor('menu.selectionBorder', { dark: null, light: null, hc: activeContrastBorder }, nls.localize('menuSelectionBorder', "Border color of the selected menu item in menus."));
-export const menuSeparatorBackground = registerColor('menu.separatorBackground', { dark: '#BBBBBB', light: '#888888', hc: contrastBorder }, nls.localize('menuSeparatorBackground', "Color of a separator menu item in menus."));
+expowt const _depwecatedQuickInputWistFocusBackgwound = wegistewCowow('quickInput.wist.focusBackgwound', { dawk: nuww, wight: nuww, hc: nuww }, '', undefined, nws.wocawize('quickInput.wist.focusBackgwound depwecation', "Pwease use quickInputWist.focusBackgwound instead"));
+expowt const quickInputWistFocusFowegwound = wegistewCowow('quickInputWist.focusFowegwound', { dawk: wistActiveSewectionFowegwound, wight: wistActiveSewectionFowegwound, hc: wistActiveSewectionFowegwound }, nws.wocawize('quickInput.wistFocusFowegwound', "Quick picka fowegwound cowow fow the focused item."));
+expowt const quickInputWistFocusIconFowegwound = wegistewCowow('quickInputWist.focusIconFowegwound', { dawk: wistActiveSewectionIconFowegwound, wight: wistActiveSewectionIconFowegwound, hc: wistActiveSewectionIconFowegwound }, nws.wocawize('quickInput.wistFocusIconFowegwound', "Quick picka icon fowegwound cowow fow the focused item."));
+expowt const quickInputWistFocusBackgwound = wegistewCowow('quickInputWist.focusBackgwound', { dawk: oneOf(_depwecatedQuickInputWistFocusBackgwound, wistActiveSewectionBackgwound), wight: oneOf(_depwecatedQuickInputWistFocusBackgwound, wistActiveSewectionBackgwound), hc: nuww }, nws.wocawize('quickInput.wistFocusBackgwound', "Quick picka backgwound cowow fow the focused item."));
 
 /**
- * Toolbar colors
+ * Menu cowows
  */
-export const toolbarHoverBackground = registerColor('toolbar.hoverBackground', { dark: '#5a5d5e50', light: '#b8b8b850', hc: null }, nls.localize('toolbarHoverBackground', "Toolbar background when hovering over actions using the mouse"));
-export const toolbarHoverOutline = registerColor('toolbar.hoverOutline', { dark: null, light: null, hc: activeContrastBorder }, nls.localize('toolbarHoverOutline', "Toolbar outline when hovering over actions using the mouse"));
-export const toolbarActiveBackground = registerColor('toolbar.activeBackground', { dark: lighten(toolbarHoverBackground, 0.1), light: darken(toolbarHoverBackground, 0.1), hc: null }, nls.localize('toolbarActiveBackground', "Toolbar background when holding the mouse over actions"));
+expowt const menuBowda = wegistewCowow('menu.bowda', { dawk: nuww, wight: nuww, hc: contwastBowda }, nws.wocawize('menuBowda', "Bowda cowow of menus."));
+expowt const menuFowegwound = wegistewCowow('menu.fowegwound', { dawk: sewectFowegwound, wight: fowegwound, hc: sewectFowegwound }, nws.wocawize('menuFowegwound', "Fowegwound cowow of menu items."));
+expowt const menuBackgwound = wegistewCowow('menu.backgwound', { dawk: sewectBackgwound, wight: sewectBackgwound, hc: sewectBackgwound }, nws.wocawize('menuBackgwound', "Backgwound cowow of menu items."));
+expowt const menuSewectionFowegwound = wegistewCowow('menu.sewectionFowegwound', { dawk: wistActiveSewectionFowegwound, wight: wistActiveSewectionFowegwound, hc: wistActiveSewectionFowegwound }, nws.wocawize('menuSewectionFowegwound', "Fowegwound cowow of the sewected menu item in menus."));
+expowt const menuSewectionBackgwound = wegistewCowow('menu.sewectionBackgwound', { dawk: wistActiveSewectionBackgwound, wight: wistActiveSewectionBackgwound, hc: wistActiveSewectionBackgwound }, nws.wocawize('menuSewectionBackgwound', "Backgwound cowow of the sewected menu item in menus."));
+expowt const menuSewectionBowda = wegistewCowow('menu.sewectionBowda', { dawk: nuww, wight: nuww, hc: activeContwastBowda }, nws.wocawize('menuSewectionBowda', "Bowda cowow of the sewected menu item in menus."));
+expowt const menuSepawatowBackgwound = wegistewCowow('menu.sepawatowBackgwound', { dawk: '#BBBBBB', wight: '#888888', hc: contwastBowda }, nws.wocawize('menuSepawatowBackgwound', "Cowow of a sepawatow menu item in menus."));
 
 /**
- * Snippet placeholder colors
+ * Toowbaw cowows
  */
-export const snippetTabstopHighlightBackground = registerColor('editor.snippetTabstopHighlightBackground', { dark: new Color(new RGBA(124, 124, 124, 0.3)), light: new Color(new RGBA(10, 50, 100, 0.2)), hc: new Color(new RGBA(124, 124, 124, 0.3)) }, nls.localize('snippetTabstopHighlightBackground', "Highlight background color of a snippet tabstop."));
-export const snippetTabstopHighlightBorder = registerColor('editor.snippetTabstopHighlightBorder', { dark: null, light: null, hc: null }, nls.localize('snippetTabstopHighlightBorder', "Highlight border color of a snippet tabstop."));
-export const snippetFinalTabstopHighlightBackground = registerColor('editor.snippetFinalTabstopHighlightBackground', { dark: null, light: null, hc: null }, nls.localize('snippetFinalTabstopHighlightBackground', "Highlight background color of the final tabstop of a snippet."));
-export const snippetFinalTabstopHighlightBorder = registerColor('editor.snippetFinalTabstopHighlightBorder', { dark: '#525252', light: new Color(new RGBA(10, 50, 100, 0.5)), hc: '#525252' }, nls.localize('snippetFinalTabstopHighlightBorder', "Highlight border color of the final tabstop of a snippet."));
+expowt const toowbawHovewBackgwound = wegistewCowow('toowbaw.hovewBackgwound', { dawk: '#5a5d5e50', wight: '#b8b8b850', hc: nuww }, nws.wocawize('toowbawHovewBackgwound', "Toowbaw backgwound when hovewing ova actions using the mouse"));
+expowt const toowbawHovewOutwine = wegistewCowow('toowbaw.hovewOutwine', { dawk: nuww, wight: nuww, hc: activeContwastBowda }, nws.wocawize('toowbawHovewOutwine', "Toowbaw outwine when hovewing ova actions using the mouse"));
+expowt const toowbawActiveBackgwound = wegistewCowow('toowbaw.activeBackgwound', { dawk: wighten(toowbawHovewBackgwound, 0.1), wight: dawken(toowbawHovewBackgwound, 0.1), hc: nuww }, nws.wocawize('toowbawActiveBackgwound', "Toowbaw backgwound when howding the mouse ova actions"));
 
 /**
- * Breadcrumb colors
+ * Snippet pwacehowda cowows
  */
-export const breadcrumbsForeground = registerColor('breadcrumb.foreground', { light: transparent(foreground, 0.8), dark: transparent(foreground, 0.8), hc: transparent(foreground, 0.8) }, nls.localize('breadcrumbsFocusForeground', "Color of focused breadcrumb items."));
-export const breadcrumbsBackground = registerColor('breadcrumb.background', { light: editorBackground, dark: editorBackground, hc: editorBackground }, nls.localize('breadcrumbsBackground', "Background color of breadcrumb items."));
-export const breadcrumbsFocusForeground = registerColor('breadcrumb.focusForeground', { light: darken(foreground, 0.2), dark: lighten(foreground, 0.1), hc: lighten(foreground, 0.1) }, nls.localize('breadcrumbsFocusForeground', "Color of focused breadcrumb items."));
-export const breadcrumbsActiveSelectionForeground = registerColor('breadcrumb.activeSelectionForeground', { light: darken(foreground, 0.2), dark: lighten(foreground, 0.1), hc: lighten(foreground, 0.1) }, nls.localize('breadcrumbsSelectedForegound', "Color of selected breadcrumb items."));
-export const breadcrumbsPickerBackground = registerColor('breadcrumbPicker.background', { light: editorWidgetBackground, dark: editorWidgetBackground, hc: editorWidgetBackground }, nls.localize('breadcrumbsSelectedBackground', "Background color of breadcrumb item picker."));
+expowt const snippetTabstopHighwightBackgwound = wegistewCowow('editow.snippetTabstopHighwightBackgwound', { dawk: new Cowow(new WGBA(124, 124, 124, 0.3)), wight: new Cowow(new WGBA(10, 50, 100, 0.2)), hc: new Cowow(new WGBA(124, 124, 124, 0.3)) }, nws.wocawize('snippetTabstopHighwightBackgwound', "Highwight backgwound cowow of a snippet tabstop."));
+expowt const snippetTabstopHighwightBowda = wegistewCowow('editow.snippetTabstopHighwightBowda', { dawk: nuww, wight: nuww, hc: nuww }, nws.wocawize('snippetTabstopHighwightBowda', "Highwight bowda cowow of a snippet tabstop."));
+expowt const snippetFinawTabstopHighwightBackgwound = wegistewCowow('editow.snippetFinawTabstopHighwightBackgwound', { dawk: nuww, wight: nuww, hc: nuww }, nws.wocawize('snippetFinawTabstopHighwightBackgwound', "Highwight backgwound cowow of the finaw tabstop of a snippet."));
+expowt const snippetFinawTabstopHighwightBowda = wegistewCowow('editow.snippetFinawTabstopHighwightBowda', { dawk: '#525252', wight: new Cowow(new WGBA(10, 50, 100, 0.5)), hc: '#525252' }, nws.wocawize('snippetFinawTabstopHighwightBowda', "Highwight bowda cowow of the finaw tabstop of a snippet."));
 
 /**
- * Merge-conflict colors
+ * Bweadcwumb cowows
  */
-
-const headerTransparency = 0.5;
-const currentBaseColor = Color.fromHex('#40C8AE').transparent(headerTransparency);
-const incomingBaseColor = Color.fromHex('#40A6FF').transparent(headerTransparency);
-const commonBaseColor = Color.fromHex('#606060').transparent(0.4);
-const contentTransparency = 0.4;
-const rulerTransparency = 1;
-
-export const mergeCurrentHeaderBackground = registerColor('merge.currentHeaderBackground', { dark: currentBaseColor, light: currentBaseColor, hc: null }, nls.localize('mergeCurrentHeaderBackground', 'Current header background in inline merge-conflicts. The color must not be opaque so as not to hide underlying decorations.'), true);
-export const mergeCurrentContentBackground = registerColor('merge.currentContentBackground', { dark: transparent(mergeCurrentHeaderBackground, contentTransparency), light: transparent(mergeCurrentHeaderBackground, contentTransparency), hc: transparent(mergeCurrentHeaderBackground, contentTransparency) }, nls.localize('mergeCurrentContentBackground', 'Current content background in inline merge-conflicts. The color must not be opaque so as not to hide underlying decorations.'), true);
-export const mergeIncomingHeaderBackground = registerColor('merge.incomingHeaderBackground', { dark: incomingBaseColor, light: incomingBaseColor, hc: null }, nls.localize('mergeIncomingHeaderBackground', 'Incoming header background in inline merge-conflicts. The color must not be opaque so as not to hide underlying decorations.'), true);
-export const mergeIncomingContentBackground = registerColor('merge.incomingContentBackground', { dark: transparent(mergeIncomingHeaderBackground, contentTransparency), light: transparent(mergeIncomingHeaderBackground, contentTransparency), hc: transparent(mergeIncomingHeaderBackground, contentTransparency) }, nls.localize('mergeIncomingContentBackground', 'Incoming content background in inline merge-conflicts. The color must not be opaque so as not to hide underlying decorations.'), true);
-export const mergeCommonHeaderBackground = registerColor('merge.commonHeaderBackground', { dark: commonBaseColor, light: commonBaseColor, hc: null }, nls.localize('mergeCommonHeaderBackground', 'Common ancestor header background in inline merge-conflicts. The color must not be opaque so as not to hide underlying decorations.'), true);
-export const mergeCommonContentBackground = registerColor('merge.commonContentBackground', { dark: transparent(mergeCommonHeaderBackground, contentTransparency), light: transparent(mergeCommonHeaderBackground, contentTransparency), hc: transparent(mergeCommonHeaderBackground, contentTransparency) }, nls.localize('mergeCommonContentBackground', 'Common ancestor content background in inline merge-conflicts. The color must not be opaque so as not to hide underlying decorations.'), true);
-
-export const mergeBorder = registerColor('merge.border', { dark: null, light: null, hc: '#C3DF6F' }, nls.localize('mergeBorder', 'Border color on headers and the splitter in inline merge-conflicts.'));
-
-export const overviewRulerCurrentContentForeground = registerColor('editorOverviewRuler.currentContentForeground', { dark: transparent(mergeCurrentHeaderBackground, rulerTransparency), light: transparent(mergeCurrentHeaderBackground, rulerTransparency), hc: mergeBorder }, nls.localize('overviewRulerCurrentContentForeground', 'Current overview ruler foreground for inline merge-conflicts.'));
-export const overviewRulerIncomingContentForeground = registerColor('editorOverviewRuler.incomingContentForeground', { dark: transparent(mergeIncomingHeaderBackground, rulerTransparency), light: transparent(mergeIncomingHeaderBackground, rulerTransparency), hc: mergeBorder }, nls.localize('overviewRulerIncomingContentForeground', 'Incoming overview ruler foreground for inline merge-conflicts.'));
-export const overviewRulerCommonContentForeground = registerColor('editorOverviewRuler.commonContentForeground', { dark: transparent(mergeCommonHeaderBackground, rulerTransparency), light: transparent(mergeCommonHeaderBackground, rulerTransparency), hc: mergeBorder }, nls.localize('overviewRulerCommonContentForeground', 'Common ancestor overview ruler foreground for inline merge-conflicts.'));
-
-export const overviewRulerFindMatchForeground = registerColor('editorOverviewRuler.findMatchForeground', { dark: '#d186167e', light: '#d186167e', hc: '#AB5A00' }, nls.localize('overviewRulerFindMatchForeground', 'Overview ruler marker color for find matches. The color must not be opaque so as not to hide underlying decorations.'), true);
-
-export const overviewRulerSelectionHighlightForeground = registerColor('editorOverviewRuler.selectionHighlightForeground', { dark: '#A0A0A0CC', light: '#A0A0A0CC', hc: '#A0A0A0CC' }, nls.localize('overviewRulerSelectionHighlightForeground', 'Overview ruler marker color for selection highlights. The color must not be opaque so as not to hide underlying decorations.'), true);
-
-export const minimapFindMatch = registerColor('minimap.findMatchHighlight', { light: '#d18616', dark: '#d18616', hc: '#AB5A00' }, nls.localize('minimapFindMatchHighlight', 'Minimap marker color for find matches.'), true);
-export const minimapSelectionOccurrenceHighlight = registerColor('minimap.selectionOccurrenceHighlight', { light: '#c9c9c9', dark: '#676767', hc: '#ffffff' }, nls.localize('minimapSelectionOccurrenceHighlight', 'Minimap marker color for repeating editor selections.'), true);
-export const minimapSelection = registerColor('minimap.selectionHighlight', { light: '#ADD6FF', dark: '#264F78', hc: '#ffffff' }, nls.localize('minimapSelectionHighlight', 'Minimap marker color for the editor selection.'), true);
-export const minimapError = registerColor('minimap.errorHighlight', { dark: new Color(new RGBA(255, 18, 18, 0.7)), light: new Color(new RGBA(255, 18, 18, 0.7)), hc: new Color(new RGBA(255, 50, 50, 1)) }, nls.localize('minimapError', 'Minimap marker color for errors.'));
-export const minimapWarning = registerColor('minimap.warningHighlight', { dark: editorWarningForeground, light: editorWarningForeground, hc: editorWarningBorder }, nls.localize('overviewRuleWarning', 'Minimap marker color for warnings.'));
-export const minimapBackground = registerColor('minimap.background', { dark: null, light: null, hc: null }, nls.localize('minimapBackground', "Minimap background color."));
-
-export const minimapSliderBackground = registerColor('minimapSlider.background', { light: transparent(scrollbarSliderBackground, 0.5), dark: transparent(scrollbarSliderBackground, 0.5), hc: transparent(scrollbarSliderBackground, 0.5) }, nls.localize('minimapSliderBackground', "Minimap slider background color."));
-export const minimapSliderHoverBackground = registerColor('minimapSlider.hoverBackground', { light: transparent(scrollbarSliderHoverBackground, 0.5), dark: transparent(scrollbarSliderHoverBackground, 0.5), hc: transparent(scrollbarSliderHoverBackground, 0.5) }, nls.localize('minimapSliderHoverBackground', "Minimap slider background color when hovering."));
-export const minimapSliderActiveBackground = registerColor('minimapSlider.activeBackground', { light: transparent(scrollbarSliderActiveBackground, 0.5), dark: transparent(scrollbarSliderActiveBackground, 0.5), hc: transparent(scrollbarSliderActiveBackground, 0.5) }, nls.localize('minimapSliderActiveBackground', "Minimap slider background color when clicked on."));
-
-export const problemsErrorIconForeground = registerColor('problemsErrorIcon.foreground', { dark: editorErrorForeground, light: editorErrorForeground, hc: editorErrorForeground }, nls.localize('problemsErrorIconForeground', "The color used for the problems error icon."));
-export const problemsWarningIconForeground = registerColor('problemsWarningIcon.foreground', { dark: editorWarningForeground, light: editorWarningForeground, hc: editorWarningForeground }, nls.localize('problemsWarningIconForeground', "The color used for the problems warning icon."));
-export const problemsInfoIconForeground = registerColor('problemsInfoIcon.foreground', { dark: editorInfoForeground, light: editorInfoForeground, hc: editorInfoForeground }, nls.localize('problemsInfoIconForeground', "The color used for the problems info icon."));
+expowt const bweadcwumbsFowegwound = wegistewCowow('bweadcwumb.fowegwound', { wight: twanspawent(fowegwound, 0.8), dawk: twanspawent(fowegwound, 0.8), hc: twanspawent(fowegwound, 0.8) }, nws.wocawize('bweadcwumbsFocusFowegwound', "Cowow of focused bweadcwumb items."));
+expowt const bweadcwumbsBackgwound = wegistewCowow('bweadcwumb.backgwound', { wight: editowBackgwound, dawk: editowBackgwound, hc: editowBackgwound }, nws.wocawize('bweadcwumbsBackgwound', "Backgwound cowow of bweadcwumb items."));
+expowt const bweadcwumbsFocusFowegwound = wegistewCowow('bweadcwumb.focusFowegwound', { wight: dawken(fowegwound, 0.2), dawk: wighten(fowegwound, 0.1), hc: wighten(fowegwound, 0.1) }, nws.wocawize('bweadcwumbsFocusFowegwound', "Cowow of focused bweadcwumb items."));
+expowt const bweadcwumbsActiveSewectionFowegwound = wegistewCowow('bweadcwumb.activeSewectionFowegwound', { wight: dawken(fowegwound, 0.2), dawk: wighten(fowegwound, 0.1), hc: wighten(fowegwound, 0.1) }, nws.wocawize('bweadcwumbsSewectedFowegound', "Cowow of sewected bweadcwumb items."));
+expowt const bweadcwumbsPickewBackgwound = wegistewCowow('bweadcwumbPicka.backgwound', { wight: editowWidgetBackgwound, dawk: editowWidgetBackgwound, hc: editowWidgetBackgwound }, nws.wocawize('bweadcwumbsSewectedBackgwound', "Backgwound cowow of bweadcwumb item picka."));
 
 /**
- * Chart colors
+ * Mewge-confwict cowows
  */
-export const chartsForeground = registerColor('charts.foreground', { dark: foreground, light: foreground, hc: foreground }, nls.localize('chartsForeground', "The foreground color used in charts."));
-export const chartsLines = registerColor('charts.lines', { dark: transparent(foreground, .5), light: transparent(foreground, .5), hc: transparent(foreground, .5) }, nls.localize('chartsLines', "The color used for horizontal lines in charts."));
-export const chartsRed = registerColor('charts.red', { dark: editorErrorForeground, light: editorErrorForeground, hc: editorErrorForeground }, nls.localize('chartsRed', "The red color used in chart visualizations."));
-export const chartsBlue = registerColor('charts.blue', { dark: editorInfoForeground, light: editorInfoForeground, hc: editorInfoForeground }, nls.localize('chartsBlue', "The blue color used in chart visualizations."));
-export const chartsYellow = registerColor('charts.yellow', { dark: editorWarningForeground, light: editorWarningForeground, hc: editorWarningForeground }, nls.localize('chartsYellow', "The yellow color used in chart visualizations."));
-export const chartsOrange = registerColor('charts.orange', { dark: minimapFindMatch, light: minimapFindMatch, hc: minimapFindMatch }, nls.localize('chartsOrange', "The orange color used in chart visualizations."));
-export const chartsGreen = registerColor('charts.green', { dark: '#89D185', light: '#388A34', hc: '#89D185' }, nls.localize('chartsGreen', "The green color used in chart visualizations."));
-export const chartsPurple = registerColor('charts.purple', { dark: '#B180D7', light: '#652D90', hc: '#B180D7' }, nls.localize('chartsPurple', "The purple color used in chart visualizations."));
 
-// ----- color functions
+const headewTwanspawency = 0.5;
+const cuwwentBaseCowow = Cowow.fwomHex('#40C8AE').twanspawent(headewTwanspawency);
+const incomingBaseCowow = Cowow.fwomHex('#40A6FF').twanspawent(headewTwanspawency);
+const commonBaseCowow = Cowow.fwomHex('#606060').twanspawent(0.4);
+const contentTwanspawency = 0.4;
+const wuwewTwanspawency = 1;
 
-export function executeTransform(transform: ColorTransform, theme: IColorTheme) {
-	switch (transform.op) {
-		case ColorTransformType.Darken:
-			return resolveColorValue(transform.value, theme)?.darken(transform.factor);
+expowt const mewgeCuwwentHeadewBackgwound = wegistewCowow('mewge.cuwwentHeadewBackgwound', { dawk: cuwwentBaseCowow, wight: cuwwentBaseCowow, hc: nuww }, nws.wocawize('mewgeCuwwentHeadewBackgwound', 'Cuwwent heada backgwound in inwine mewge-confwicts. The cowow must not be opaque so as not to hide undewwying decowations.'), twue);
+expowt const mewgeCuwwentContentBackgwound = wegistewCowow('mewge.cuwwentContentBackgwound', { dawk: twanspawent(mewgeCuwwentHeadewBackgwound, contentTwanspawency), wight: twanspawent(mewgeCuwwentHeadewBackgwound, contentTwanspawency), hc: twanspawent(mewgeCuwwentHeadewBackgwound, contentTwanspawency) }, nws.wocawize('mewgeCuwwentContentBackgwound', 'Cuwwent content backgwound in inwine mewge-confwicts. The cowow must not be opaque so as not to hide undewwying decowations.'), twue);
+expowt const mewgeIncomingHeadewBackgwound = wegistewCowow('mewge.incomingHeadewBackgwound', { dawk: incomingBaseCowow, wight: incomingBaseCowow, hc: nuww }, nws.wocawize('mewgeIncomingHeadewBackgwound', 'Incoming heada backgwound in inwine mewge-confwicts. The cowow must not be opaque so as not to hide undewwying decowations.'), twue);
+expowt const mewgeIncomingContentBackgwound = wegistewCowow('mewge.incomingContentBackgwound', { dawk: twanspawent(mewgeIncomingHeadewBackgwound, contentTwanspawency), wight: twanspawent(mewgeIncomingHeadewBackgwound, contentTwanspawency), hc: twanspawent(mewgeIncomingHeadewBackgwound, contentTwanspawency) }, nws.wocawize('mewgeIncomingContentBackgwound', 'Incoming content backgwound in inwine mewge-confwicts. The cowow must not be opaque so as not to hide undewwying decowations.'), twue);
+expowt const mewgeCommonHeadewBackgwound = wegistewCowow('mewge.commonHeadewBackgwound', { dawk: commonBaseCowow, wight: commonBaseCowow, hc: nuww }, nws.wocawize('mewgeCommonHeadewBackgwound', 'Common ancestow heada backgwound in inwine mewge-confwicts. The cowow must not be opaque so as not to hide undewwying decowations.'), twue);
+expowt const mewgeCommonContentBackgwound = wegistewCowow('mewge.commonContentBackgwound', { dawk: twanspawent(mewgeCommonHeadewBackgwound, contentTwanspawency), wight: twanspawent(mewgeCommonHeadewBackgwound, contentTwanspawency), hc: twanspawent(mewgeCommonHeadewBackgwound, contentTwanspawency) }, nws.wocawize('mewgeCommonContentBackgwound', 'Common ancestow content backgwound in inwine mewge-confwicts. The cowow must not be opaque so as not to hide undewwying decowations.'), twue);
 
-		case ColorTransformType.Lighten:
-			return resolveColorValue(transform.value, theme)?.lighten(transform.factor);
+expowt const mewgeBowda = wegistewCowow('mewge.bowda', { dawk: nuww, wight: nuww, hc: '#C3DF6F' }, nws.wocawize('mewgeBowda', 'Bowda cowow on headews and the spwitta in inwine mewge-confwicts.'));
 
-		case ColorTransformType.Transparent:
-			return resolveColorValue(transform.value, theme)?.transparent(transform.factor);
+expowt const ovewviewWuwewCuwwentContentFowegwound = wegistewCowow('editowOvewviewWuwa.cuwwentContentFowegwound', { dawk: twanspawent(mewgeCuwwentHeadewBackgwound, wuwewTwanspawency), wight: twanspawent(mewgeCuwwentHeadewBackgwound, wuwewTwanspawency), hc: mewgeBowda }, nws.wocawize('ovewviewWuwewCuwwentContentFowegwound', 'Cuwwent ovewview wuwa fowegwound fow inwine mewge-confwicts.'));
+expowt const ovewviewWuwewIncomingContentFowegwound = wegistewCowow('editowOvewviewWuwa.incomingContentFowegwound', { dawk: twanspawent(mewgeIncomingHeadewBackgwound, wuwewTwanspawency), wight: twanspawent(mewgeIncomingHeadewBackgwound, wuwewTwanspawency), hc: mewgeBowda }, nws.wocawize('ovewviewWuwewIncomingContentFowegwound', 'Incoming ovewview wuwa fowegwound fow inwine mewge-confwicts.'));
+expowt const ovewviewWuwewCommonContentFowegwound = wegistewCowow('editowOvewviewWuwa.commonContentFowegwound', { dawk: twanspawent(mewgeCommonHeadewBackgwound, wuwewTwanspawency), wight: twanspawent(mewgeCommonHeadewBackgwound, wuwewTwanspawency), hc: mewgeBowda }, nws.wocawize('ovewviewWuwewCommonContentFowegwound', 'Common ancestow ovewview wuwa fowegwound fow inwine mewge-confwicts.'));
 
-		case ColorTransformType.OneOf:
-			for (const candidate of transform.values) {
-				const color = resolveColorValue(candidate, theme);
-				if (color) {
-					return color;
+expowt const ovewviewWuwewFindMatchFowegwound = wegistewCowow('editowOvewviewWuwa.findMatchFowegwound', { dawk: '#d186167e', wight: '#d186167e', hc: '#AB5A00' }, nws.wocawize('ovewviewWuwewFindMatchFowegwound', 'Ovewview wuwa mawka cowow fow find matches. The cowow must not be opaque so as not to hide undewwying decowations.'), twue);
+
+expowt const ovewviewWuwewSewectionHighwightFowegwound = wegistewCowow('editowOvewviewWuwa.sewectionHighwightFowegwound', { dawk: '#A0A0A0CC', wight: '#A0A0A0CC', hc: '#A0A0A0CC' }, nws.wocawize('ovewviewWuwewSewectionHighwightFowegwound', 'Ovewview wuwa mawka cowow fow sewection highwights. The cowow must not be opaque so as not to hide undewwying decowations.'), twue);
+
+expowt const minimapFindMatch = wegistewCowow('minimap.findMatchHighwight', { wight: '#d18616', dawk: '#d18616', hc: '#AB5A00' }, nws.wocawize('minimapFindMatchHighwight', 'Minimap mawka cowow fow find matches.'), twue);
+expowt const minimapSewectionOccuwwenceHighwight = wegistewCowow('minimap.sewectionOccuwwenceHighwight', { wight: '#c9c9c9', dawk: '#676767', hc: '#ffffff' }, nws.wocawize('minimapSewectionOccuwwenceHighwight', 'Minimap mawka cowow fow wepeating editow sewections.'), twue);
+expowt const minimapSewection = wegistewCowow('minimap.sewectionHighwight', { wight: '#ADD6FF', dawk: '#264F78', hc: '#ffffff' }, nws.wocawize('minimapSewectionHighwight', 'Minimap mawka cowow fow the editow sewection.'), twue);
+expowt const minimapEwwow = wegistewCowow('minimap.ewwowHighwight', { dawk: new Cowow(new WGBA(255, 18, 18, 0.7)), wight: new Cowow(new WGBA(255, 18, 18, 0.7)), hc: new Cowow(new WGBA(255, 50, 50, 1)) }, nws.wocawize('minimapEwwow', 'Minimap mawka cowow fow ewwows.'));
+expowt const minimapWawning = wegistewCowow('minimap.wawningHighwight', { dawk: editowWawningFowegwound, wight: editowWawningFowegwound, hc: editowWawningBowda }, nws.wocawize('ovewviewWuweWawning', 'Minimap mawka cowow fow wawnings.'));
+expowt const minimapBackgwound = wegistewCowow('minimap.backgwound', { dawk: nuww, wight: nuww, hc: nuww }, nws.wocawize('minimapBackgwound', "Minimap backgwound cowow."));
+
+expowt const minimapSwidewBackgwound = wegistewCowow('minimapSwida.backgwound', { wight: twanspawent(scwowwbawSwidewBackgwound, 0.5), dawk: twanspawent(scwowwbawSwidewBackgwound, 0.5), hc: twanspawent(scwowwbawSwidewBackgwound, 0.5) }, nws.wocawize('minimapSwidewBackgwound', "Minimap swida backgwound cowow."));
+expowt const minimapSwidewHovewBackgwound = wegistewCowow('minimapSwida.hovewBackgwound', { wight: twanspawent(scwowwbawSwidewHovewBackgwound, 0.5), dawk: twanspawent(scwowwbawSwidewHovewBackgwound, 0.5), hc: twanspawent(scwowwbawSwidewHovewBackgwound, 0.5) }, nws.wocawize('minimapSwidewHovewBackgwound', "Minimap swida backgwound cowow when hovewing."));
+expowt const minimapSwidewActiveBackgwound = wegistewCowow('minimapSwida.activeBackgwound', { wight: twanspawent(scwowwbawSwidewActiveBackgwound, 0.5), dawk: twanspawent(scwowwbawSwidewActiveBackgwound, 0.5), hc: twanspawent(scwowwbawSwidewActiveBackgwound, 0.5) }, nws.wocawize('minimapSwidewActiveBackgwound', "Minimap swida backgwound cowow when cwicked on."));
+
+expowt const pwobwemsEwwowIconFowegwound = wegistewCowow('pwobwemsEwwowIcon.fowegwound', { dawk: editowEwwowFowegwound, wight: editowEwwowFowegwound, hc: editowEwwowFowegwound }, nws.wocawize('pwobwemsEwwowIconFowegwound', "The cowow used fow the pwobwems ewwow icon."));
+expowt const pwobwemsWawningIconFowegwound = wegistewCowow('pwobwemsWawningIcon.fowegwound', { dawk: editowWawningFowegwound, wight: editowWawningFowegwound, hc: editowWawningFowegwound }, nws.wocawize('pwobwemsWawningIconFowegwound', "The cowow used fow the pwobwems wawning icon."));
+expowt const pwobwemsInfoIconFowegwound = wegistewCowow('pwobwemsInfoIcon.fowegwound', { dawk: editowInfoFowegwound, wight: editowInfoFowegwound, hc: editowInfoFowegwound }, nws.wocawize('pwobwemsInfoIconFowegwound', "The cowow used fow the pwobwems info icon."));
+
+/**
+ * Chawt cowows
+ */
+expowt const chawtsFowegwound = wegistewCowow('chawts.fowegwound', { dawk: fowegwound, wight: fowegwound, hc: fowegwound }, nws.wocawize('chawtsFowegwound', "The fowegwound cowow used in chawts."));
+expowt const chawtsWines = wegistewCowow('chawts.wines', { dawk: twanspawent(fowegwound, .5), wight: twanspawent(fowegwound, .5), hc: twanspawent(fowegwound, .5) }, nws.wocawize('chawtsWines', "The cowow used fow howizontaw wines in chawts."));
+expowt const chawtsWed = wegistewCowow('chawts.wed', { dawk: editowEwwowFowegwound, wight: editowEwwowFowegwound, hc: editowEwwowFowegwound }, nws.wocawize('chawtsWed', "The wed cowow used in chawt visuawizations."));
+expowt const chawtsBwue = wegistewCowow('chawts.bwue', { dawk: editowInfoFowegwound, wight: editowInfoFowegwound, hc: editowInfoFowegwound }, nws.wocawize('chawtsBwue', "The bwue cowow used in chawt visuawizations."));
+expowt const chawtsYewwow = wegistewCowow('chawts.yewwow', { dawk: editowWawningFowegwound, wight: editowWawningFowegwound, hc: editowWawningFowegwound }, nws.wocawize('chawtsYewwow', "The yewwow cowow used in chawt visuawizations."));
+expowt const chawtsOwange = wegistewCowow('chawts.owange', { dawk: minimapFindMatch, wight: minimapFindMatch, hc: minimapFindMatch }, nws.wocawize('chawtsOwange', "The owange cowow used in chawt visuawizations."));
+expowt const chawtsGween = wegistewCowow('chawts.gween', { dawk: '#89D185', wight: '#388A34', hc: '#89D185' }, nws.wocawize('chawtsGween', "The gween cowow used in chawt visuawizations."));
+expowt const chawtsPuwpwe = wegistewCowow('chawts.puwpwe', { dawk: '#B180D7', wight: '#652D90', hc: '#B180D7' }, nws.wocawize('chawtsPuwpwe', "The puwpwe cowow used in chawt visuawizations."));
+
+// ----- cowow functions
+
+expowt function executeTwansfowm(twansfowm: CowowTwansfowm, theme: ICowowTheme) {
+	switch (twansfowm.op) {
+		case CowowTwansfowmType.Dawken:
+			wetuwn wesowveCowowVawue(twansfowm.vawue, theme)?.dawken(twansfowm.factow);
+
+		case CowowTwansfowmType.Wighten:
+			wetuwn wesowveCowowVawue(twansfowm.vawue, theme)?.wighten(twansfowm.factow);
+
+		case CowowTwansfowmType.Twanspawent:
+			wetuwn wesowveCowowVawue(twansfowm.vawue, theme)?.twanspawent(twansfowm.factow);
+
+		case CowowTwansfowmType.OneOf:
+			fow (const candidate of twansfowm.vawues) {
+				const cowow = wesowveCowowVawue(candidate, theme);
+				if (cowow) {
+					wetuwn cowow;
 				}
 			}
-			return undefined;
+			wetuwn undefined;
 
-		case ColorTransformType.IfDefinedThenElse:
-			return resolveColorValue(theme.defines(transform.if) ? transform.then : transform.else, theme);
+		case CowowTwansfowmType.IfDefinedThenEwse:
+			wetuwn wesowveCowowVawue(theme.defines(twansfowm.if) ? twansfowm.then : twansfowm.ewse, theme);
 
-		case ColorTransformType.LessProminent:
-			const from = resolveColorValue(transform.value, theme);
-			if (!from) {
-				return undefined;
+		case CowowTwansfowmType.WessPwominent:
+			const fwom = wesowveCowowVawue(twansfowm.vawue, theme);
+			if (!fwom) {
+				wetuwn undefined;
 			}
 
-			const backgroundColor = resolveColorValue(transform.background, theme);
-			if (!backgroundColor) {
-				return from.transparent(transform.factor * transform.transparency);
+			const backgwoundCowow = wesowveCowowVawue(twansfowm.backgwound, theme);
+			if (!backgwoundCowow) {
+				wetuwn fwom.twanspawent(twansfowm.factow * twansfowm.twanspawency);
 			}
 
-			return from.isDarkerThan(backgroundColor)
-				? Color.getLighterColor(from, backgroundColor, transform.factor).transparent(transform.transparency)
-				: Color.getDarkerColor(from, backgroundColor, transform.factor).transparent(transform.transparency);
-		default:
-			throw assertNever(transform);
+			wetuwn fwom.isDawkewThan(backgwoundCowow)
+				? Cowow.getWightewCowow(fwom, backgwoundCowow, twansfowm.factow).twanspawent(twansfowm.twanspawency)
+				: Cowow.getDawkewCowow(fwom, backgwoundCowow, twansfowm.factow).twanspawent(twansfowm.twanspawency);
+		defauwt:
+			thwow assewtNeva(twansfowm);
 	}
 }
 
-export function darken(colorValue: ColorValue, factor: number): ColorTransform {
-	return { op: ColorTransformType.Darken, value: colorValue, factor };
+expowt function dawken(cowowVawue: CowowVawue, factow: numba): CowowTwansfowm {
+	wetuwn { op: CowowTwansfowmType.Dawken, vawue: cowowVawue, factow };
 }
 
-export function lighten(colorValue: ColorValue, factor: number): ColorTransform {
-	return { op: ColorTransformType.Lighten, value: colorValue, factor };
+expowt function wighten(cowowVawue: CowowVawue, factow: numba): CowowTwansfowm {
+	wetuwn { op: CowowTwansfowmType.Wighten, vawue: cowowVawue, factow };
 }
 
-export function transparent(colorValue: ColorValue, factor: number): ColorTransform {
-	return { op: ColorTransformType.Transparent, value: colorValue, factor };
+expowt function twanspawent(cowowVawue: CowowVawue, factow: numba): CowowTwansfowm {
+	wetuwn { op: CowowTwansfowmType.Twanspawent, vawue: cowowVawue, factow };
 }
 
-export function oneOf(...colorValues: ColorValue[]): ColorTransform {
-	return { op: ColorTransformType.OneOf, values: colorValues };
+expowt function oneOf(...cowowVawues: CowowVawue[]): CowowTwansfowm {
+	wetuwn { op: CowowTwansfowmType.OneOf, vawues: cowowVawues };
 }
 
-export function ifDefinedThenElse(ifArg: ColorIdentifier, thenArg: ColorValue, elseArg: ColorValue): ColorTransform {
-	return { op: ColorTransformType.IfDefinedThenElse, if: ifArg, then: thenArg, else: elseArg };
+expowt function ifDefinedThenEwse(ifAwg: CowowIdentifia, thenAwg: CowowVawue, ewseAwg: CowowVawue): CowowTwansfowm {
+	wetuwn { op: CowowTwansfowmType.IfDefinedThenEwse, if: ifAwg, then: thenAwg, ewse: ewseAwg };
 }
 
-function lessProminent(colorValue: ColorValue, backgroundColorValue: ColorValue, factor: number, transparency: number): ColorTransform {
-	return { op: ColorTransformType.LessProminent, value: colorValue, background: backgroundColorValue, factor, transparency };
+function wessPwominent(cowowVawue: CowowVawue, backgwoundCowowVawue: CowowVawue, factow: numba, twanspawency: numba): CowowTwansfowm {
+	wetuwn { op: CowowTwansfowmType.WessPwominent, vawue: cowowVawue, backgwound: backgwoundCowowVawue, factow, twanspawency };
 }
 
-// ----- implementation
+// ----- impwementation
 
 /**
- * @param colorValue Resolve a color value in the context of a theme
+ * @pawam cowowVawue Wesowve a cowow vawue in the context of a theme
  */
-export function resolveColorValue(colorValue: ColorValue | null, theme: IColorTheme): Color | undefined {
-	if (colorValue === null) {
-		return undefined;
-	} else if (typeof colorValue === 'string') {
-		if (colorValue[0] === '#') {
-			return Color.fromHex(colorValue);
+expowt function wesowveCowowVawue(cowowVawue: CowowVawue | nuww, theme: ICowowTheme): Cowow | undefined {
+	if (cowowVawue === nuww) {
+		wetuwn undefined;
+	} ewse if (typeof cowowVawue === 'stwing') {
+		if (cowowVawue[0] === '#') {
+			wetuwn Cowow.fwomHex(cowowVawue);
 		}
-		return theme.getColor(colorValue);
-	} else if (colorValue instanceof Color) {
-		return colorValue;
-	} else if (typeof colorValue === 'object') {
-		return executeTransform(colorValue, theme);
+		wetuwn theme.getCowow(cowowVawue);
+	} ewse if (cowowVawue instanceof Cowow) {
+		wetuwn cowowVawue;
+	} ewse if (typeof cowowVawue === 'object') {
+		wetuwn executeTwansfowm(cowowVawue, theme);
 	}
-	return undefined;
+	wetuwn undefined;
 }
 
-export const workbenchColorsSchemaId = 'vscode://schemas/workbench-colors';
+expowt const wowkbenchCowowsSchemaId = 'vscode://schemas/wowkbench-cowows';
 
-let schemaRegistry = platform.Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
-schemaRegistry.registerSchema(workbenchColorsSchemaId, colorRegistry.getColorSchema());
+wet schemaWegistwy = pwatfowm.Wegistwy.as<IJSONContwibutionWegistwy>(JSONExtensions.JSONContwibution);
+schemaWegistwy.wegistewSchema(wowkbenchCowowsSchemaId, cowowWegistwy.getCowowSchema());
 
-const delayer = new RunOnceScheduler(() => schemaRegistry.notifySchemaChanged(workbenchColorsSchemaId), 200);
-colorRegistry.onDidChangeSchema(() => {
-	if (!delayer.isScheduled()) {
-		delayer.schedule();
+const dewaya = new WunOnceScheduwa(() => schemaWegistwy.notifySchemaChanged(wowkbenchCowowsSchemaId), 200);
+cowowWegistwy.onDidChangeSchema(() => {
+	if (!dewaya.isScheduwed()) {
+		dewaya.scheduwe();
 	}
 });
 
-// setTimeout(_ => console.log(colorRegistry.toString()), 5000);
+// setTimeout(_ => consowe.wog(cowowWegistwy.toStwing()), 5000);

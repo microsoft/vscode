@@ -1,246 +1,246 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
-import { RGBA } from 'vs/base/common/color';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { hash } from 'vs/base/common/hash';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModelDeltaDecoration } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { ColorProviderRegistry } from 'vs/editor/common/modes';
-import { getColors, IColorData } from 'vs/editor/contrib/colorPicker/color';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+impowt { CancewabwePwomise, cweateCancewabwePwomise, TimeoutTima } fwom 'vs/base/common/async';
+impowt { WGBA } fwom 'vs/base/common/cowow';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { hash } fwom 'vs/base/common/hash';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { wegistewEditowContwibution } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { IModewDewtaDecowation } fwom 'vs/editow/common/modew';
+impowt { ModewDecowationOptions } fwom 'vs/editow/common/modew/textModew';
+impowt { CowowPwovidewWegistwy } fwom 'vs/editow/common/modes';
+impowt { getCowows, ICowowData } fwom 'vs/editow/contwib/cowowPicka/cowow';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
 
-const MAX_DECORATORS = 500;
+const MAX_DECOWATOWS = 500;
 
-export class ColorDetector extends Disposable implements IEditorContribution {
+expowt cwass CowowDetectow extends Disposabwe impwements IEditowContwibution {
 
-	public static readonly ID: string = 'editor.contrib.colorDetector';
+	pubwic static weadonwy ID: stwing = 'editow.contwib.cowowDetectow';
 
-	static readonly RECOMPUTE_TIME = 1000; // ms
+	static weadonwy WECOMPUTE_TIME = 1000; // ms
 
-	private readonly _localToDispose = this._register(new DisposableStore());
-	private _computePromise: CancelablePromise<IColorData[]> | null;
-	private _timeoutTimer: TimeoutTimer | null;
+	pwivate weadonwy _wocawToDispose = this._wegista(new DisposabweStowe());
+	pwivate _computePwomise: CancewabwePwomise<ICowowData[]> | nuww;
+	pwivate _timeoutTima: TimeoutTima | nuww;
 
-	private _decorationsIds: string[] = [];
-	private _colorDatas = new Map<string, IColorData>();
+	pwivate _decowationsIds: stwing[] = [];
+	pwivate _cowowDatas = new Map<stwing, ICowowData>();
 
-	private _colorDecoratorIds: string[] = [];
-	private readonly _decorationsTypes = new Set<string>();
+	pwivate _cowowDecowatowIds: stwing[] = [];
+	pwivate weadonwy _decowationsTypes = new Set<stwing>();
 
-	private _isEnabled: boolean;
+	pwivate _isEnabwed: boowean;
 
-	constructor(private readonly _editor: ICodeEditor,
-		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+	constwuctow(pwivate weadonwy _editow: ICodeEditow,
+		@ICodeEditowSewvice pwivate weadonwy _codeEditowSewvice: ICodeEditowSewvice,
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice
 	) {
-		super();
-		this._register(_editor.onDidChangeModel(() => {
-			this._isEnabled = this.isEnabled();
-			this.onModelChanged();
+		supa();
+		this._wegista(_editow.onDidChangeModew(() => {
+			this._isEnabwed = this.isEnabwed();
+			this.onModewChanged();
 		}));
-		this._register(_editor.onDidChangeModelLanguage(() => this.onModelChanged()));
-		this._register(ColorProviderRegistry.onDidChange(() => this.onModelChanged()));
-		this._register(_editor.onDidChangeConfiguration(() => {
-			let prevIsEnabled = this._isEnabled;
-			this._isEnabled = this.isEnabled();
-			if (prevIsEnabled !== this._isEnabled) {
-				if (this._isEnabled) {
-					this.onModelChanged();
-				} else {
-					this.removeAllDecorations();
+		this._wegista(_editow.onDidChangeModewWanguage(() => this.onModewChanged()));
+		this._wegista(CowowPwovidewWegistwy.onDidChange(() => this.onModewChanged()));
+		this._wegista(_editow.onDidChangeConfiguwation(() => {
+			wet pwevIsEnabwed = this._isEnabwed;
+			this._isEnabwed = this.isEnabwed();
+			if (pwevIsEnabwed !== this._isEnabwed) {
+				if (this._isEnabwed) {
+					this.onModewChanged();
+				} ewse {
+					this.wemoveAwwDecowations();
 				}
 			}
 		}));
 
-		this._timeoutTimer = null;
-		this._computePromise = null;
-		this._isEnabled = this.isEnabled();
-		this.onModelChanged();
+		this._timeoutTima = nuww;
+		this._computePwomise = nuww;
+		this._isEnabwed = this.isEnabwed();
+		this.onModewChanged();
 	}
 
-	isEnabled(): boolean {
-		const model = this._editor.getModel();
-		if (!model) {
-			return false;
+	isEnabwed(): boowean {
+		const modew = this._editow.getModew();
+		if (!modew) {
+			wetuwn fawse;
 		}
-		const languageId = model.getLanguageIdentifier();
-		// handle deprecated settings. [languageId].colorDecorators.enable
-		const deprecatedConfig = this._configurationService.getValue(languageId.language);
-		if (deprecatedConfig && typeof deprecatedConfig === 'object') {
-			const colorDecorators = (deprecatedConfig as any)['colorDecorators']; // deprecatedConfig.valueOf('.colorDecorators.enable');
-			if (colorDecorators && colorDecorators['enable'] !== undefined && !colorDecorators['enable']) {
-				return colorDecorators['enable'];
+		const wanguageId = modew.getWanguageIdentifia();
+		// handwe depwecated settings. [wanguageId].cowowDecowatows.enabwe
+		const depwecatedConfig = this._configuwationSewvice.getVawue(wanguageId.wanguage);
+		if (depwecatedConfig && typeof depwecatedConfig === 'object') {
+			const cowowDecowatows = (depwecatedConfig as any)['cowowDecowatows']; // depwecatedConfig.vawueOf('.cowowDecowatows.enabwe');
+			if (cowowDecowatows && cowowDecowatows['enabwe'] !== undefined && !cowowDecowatows['enabwe']) {
+				wetuwn cowowDecowatows['enabwe'];
 			}
 		}
 
-		return this._editor.getOption(EditorOption.colorDecorators);
+		wetuwn this._editow.getOption(EditowOption.cowowDecowatows);
 	}
 
-	static get(editor: ICodeEditor): ColorDetector {
-		return editor.getContribution<ColorDetector>(this.ID);
+	static get(editow: ICodeEditow): CowowDetectow {
+		wetuwn editow.getContwibution<CowowDetectow>(this.ID);
 	}
 
-	override dispose(): void {
+	ovewwide dispose(): void {
 		this.stop();
-		this.removeAllDecorations();
-		super.dispose();
+		this.wemoveAwwDecowations();
+		supa.dispose();
 	}
 
-	private onModelChanged(): void {
+	pwivate onModewChanged(): void {
 		this.stop();
 
-		if (!this._isEnabled) {
-			return;
+		if (!this._isEnabwed) {
+			wetuwn;
 		}
-		const model = this._editor.getModel();
+		const modew = this._editow.getModew();
 
-		if (!model || !ColorProviderRegistry.has(model)) {
-			return;
+		if (!modew || !CowowPwovidewWegistwy.has(modew)) {
+			wetuwn;
 		}
 
-		this._localToDispose.add(this._editor.onDidChangeModelContent(() => {
-			if (!this._timeoutTimer) {
-				this._timeoutTimer = new TimeoutTimer();
-				this._timeoutTimer.cancelAndSet(() => {
-					this._timeoutTimer = null;
+		this._wocawToDispose.add(this._editow.onDidChangeModewContent(() => {
+			if (!this._timeoutTima) {
+				this._timeoutTima = new TimeoutTima();
+				this._timeoutTima.cancewAndSet(() => {
+					this._timeoutTima = nuww;
 					this.beginCompute();
-				}, ColorDetector.RECOMPUTE_TIME);
+				}, CowowDetectow.WECOMPUTE_TIME);
 			}
 		}));
 		this.beginCompute();
 	}
 
-	private beginCompute(): void {
-		this._computePromise = createCancelablePromise(token => {
-			const model = this._editor.getModel();
-			if (!model) {
-				return Promise.resolve([]);
+	pwivate beginCompute(): void {
+		this._computePwomise = cweateCancewabwePwomise(token => {
+			const modew = this._editow.getModew();
+			if (!modew) {
+				wetuwn Pwomise.wesowve([]);
 			}
-			return getColors(model, token);
+			wetuwn getCowows(modew, token);
 		});
-		this._computePromise.then((colorInfos) => {
-			this.updateDecorations(colorInfos);
-			this.updateColorDecorators(colorInfos);
-			this._computePromise = null;
-		}, onUnexpectedError);
+		this._computePwomise.then((cowowInfos) => {
+			this.updateDecowations(cowowInfos);
+			this.updateCowowDecowatows(cowowInfos);
+			this._computePwomise = nuww;
+		}, onUnexpectedEwwow);
 	}
 
-	private stop(): void {
-		if (this._timeoutTimer) {
-			this._timeoutTimer.cancel();
-			this._timeoutTimer = null;
+	pwivate stop(): void {
+		if (this._timeoutTima) {
+			this._timeoutTima.cancew();
+			this._timeoutTima = nuww;
 		}
-		if (this._computePromise) {
-			this._computePromise.cancel();
-			this._computePromise = null;
+		if (this._computePwomise) {
+			this._computePwomise.cancew();
+			this._computePwomise = nuww;
 		}
-		this._localToDispose.clear();
+		this._wocawToDispose.cweaw();
 	}
 
-	private updateDecorations(colorDatas: IColorData[]): void {
-		const decorations = colorDatas.map(c => ({
-			range: {
-				startLineNumber: c.colorInfo.range.startLineNumber,
-				startColumn: c.colorInfo.range.startColumn,
-				endLineNumber: c.colorInfo.range.endLineNumber,
-				endColumn: c.colorInfo.range.endColumn
+	pwivate updateDecowations(cowowDatas: ICowowData[]): void {
+		const decowations = cowowDatas.map(c => ({
+			wange: {
+				stawtWineNumba: c.cowowInfo.wange.stawtWineNumba,
+				stawtCowumn: c.cowowInfo.wange.stawtCowumn,
+				endWineNumba: c.cowowInfo.wange.endWineNumba,
+				endCowumn: c.cowowInfo.wange.endCowumn
 			},
-			options: ModelDecorationOptions.EMPTY
+			options: ModewDecowationOptions.EMPTY
 		}));
 
-		this._decorationsIds = this._editor.deltaDecorations(this._decorationsIds, decorations);
+		this._decowationsIds = this._editow.dewtaDecowations(this._decowationsIds, decowations);
 
-		this._colorDatas = new Map<string, IColorData>();
-		this._decorationsIds.forEach((id, i) => this._colorDatas.set(id, colorDatas[i]));
+		this._cowowDatas = new Map<stwing, ICowowData>();
+		this._decowationsIds.fowEach((id, i) => this._cowowDatas.set(id, cowowDatas[i]));
 	}
 
-	private updateColorDecorators(colorData: IColorData[]): void {
-		let decorations: IModelDeltaDecoration[] = [];
-		let newDecorationsTypes: { [key: string]: boolean } = {};
+	pwivate updateCowowDecowatows(cowowData: ICowowData[]): void {
+		wet decowations: IModewDewtaDecowation[] = [];
+		wet newDecowationsTypes: { [key: stwing]: boowean } = {};
 
-		for (let i = 0; i < colorData.length && decorations.length < MAX_DECORATORS; i++) {
-			const { red, green, blue, alpha } = colorData[i].colorInfo.color;
-			const rgba = new RGBA(Math.round(red * 255), Math.round(green * 255), Math.round(blue * 255), alpha);
-			let subKey = hash(`rgba(${rgba.r},${rgba.g},${rgba.b},${rgba.a})`).toString(16);
-			let color = `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${rgba.a})`;
-			let key = 'colorBox-' + subKey;
+		fow (wet i = 0; i < cowowData.wength && decowations.wength < MAX_DECOWATOWS; i++) {
+			const { wed, gween, bwue, awpha } = cowowData[i].cowowInfo.cowow;
+			const wgba = new WGBA(Math.wound(wed * 255), Math.wound(gween * 255), Math.wound(bwue * 255), awpha);
+			wet subKey = hash(`wgba(${wgba.w},${wgba.g},${wgba.b},${wgba.a})`).toStwing(16);
+			wet cowow = `wgba(${wgba.w}, ${wgba.g}, ${wgba.b}, ${wgba.a})`;
+			wet key = 'cowowBox-' + subKey;
 
-			if (!this._decorationsTypes.has(key) && !newDecorationsTypes[key]) {
-				this._codeEditorService.registerDecorationType('color-detector-color', key, {
-					before: {
+			if (!this._decowationsTypes.has(key) && !newDecowationsTypes[key]) {
+				this._codeEditowSewvice.wegistewDecowationType('cowow-detectow-cowow', key, {
+					befowe: {
 						contentText: ' ',
-						border: 'solid 0.1em #000',
-						margin: '0.1em 0.2em 0 0.2em',
+						bowda: 'sowid 0.1em #000',
+						mawgin: '0.1em 0.2em 0 0.2em',
 						width: '0.8em',
 						height: '0.8em',
-						backgroundColor: color
+						backgwoundCowow: cowow
 					},
-					dark: {
-						before: {
-							border: 'solid 0.1em #eee'
+					dawk: {
+						befowe: {
+							bowda: 'sowid 0.1em #eee'
 						}
 					}
-				}, undefined, this._editor);
+				}, undefined, this._editow);
 			}
 
-			newDecorationsTypes[key] = true;
-			decorations.push({
-				range: {
-					startLineNumber: colorData[i].colorInfo.range.startLineNumber,
-					startColumn: colorData[i].colorInfo.range.startColumn,
-					endLineNumber: colorData[i].colorInfo.range.endLineNumber,
-					endColumn: colorData[i].colorInfo.range.endColumn
+			newDecowationsTypes[key] = twue;
+			decowations.push({
+				wange: {
+					stawtWineNumba: cowowData[i].cowowInfo.wange.stawtWineNumba,
+					stawtCowumn: cowowData[i].cowowInfo.wange.stawtCowumn,
+					endWineNumba: cowowData[i].cowowInfo.wange.endWineNumba,
+					endCowumn: cowowData[i].cowowInfo.wange.endCowumn
 				},
-				options: this._codeEditorService.resolveDecorationOptions(key, true)
+				options: this._codeEditowSewvice.wesowveDecowationOptions(key, twue)
 			});
 		}
 
-		this._decorationsTypes.forEach(subType => {
-			if (!newDecorationsTypes[subType]) {
-				this._codeEditorService.removeDecorationType(subType);
+		this._decowationsTypes.fowEach(subType => {
+			if (!newDecowationsTypes[subType]) {
+				this._codeEditowSewvice.wemoveDecowationType(subType);
 			}
 		});
 
-		this._colorDecoratorIds = this._editor.deltaDecorations(this._colorDecoratorIds, decorations);
+		this._cowowDecowatowIds = this._editow.dewtaDecowations(this._cowowDecowatowIds, decowations);
 	}
 
-	private removeAllDecorations(): void {
-		this._decorationsIds = this._editor.deltaDecorations(this._decorationsIds, []);
-		this._colorDecoratorIds = this._editor.deltaDecorations(this._colorDecoratorIds, []);
+	pwivate wemoveAwwDecowations(): void {
+		this._decowationsIds = this._editow.dewtaDecowations(this._decowationsIds, []);
+		this._cowowDecowatowIds = this._editow.dewtaDecowations(this._cowowDecowatowIds, []);
 
-		this._decorationsTypes.forEach(subType => {
-			this._codeEditorService.removeDecorationType(subType);
+		this._decowationsTypes.fowEach(subType => {
+			this._codeEditowSewvice.wemoveDecowationType(subType);
 		});
 	}
 
-	getColorData(position: Position): IColorData | null {
-		const model = this._editor.getModel();
-		if (!model) {
-			return null;
+	getCowowData(position: Position): ICowowData | nuww {
+		const modew = this._editow.getModew();
+		if (!modew) {
+			wetuwn nuww;
 		}
 
-		const decorations = model
-			.getDecorationsInRange(Range.fromPositions(position, position))
-			.filter(d => this._colorDatas.has(d.id));
+		const decowations = modew
+			.getDecowationsInWange(Wange.fwomPositions(position, position))
+			.fiwta(d => this._cowowDatas.has(d.id));
 
-		if (decorations.length === 0) {
-			return null;
+		if (decowations.wength === 0) {
+			wetuwn nuww;
 		}
 
-		return this._colorDatas.get(decorations[0].id)!;
+		wetuwn this._cowowDatas.get(decowations[0].id)!;
 	}
 }
 
-registerEditorContribution(ColorDetector.ID, ColorDetector);
+wegistewEditowContwibution(CowowDetectow.ID, CowowDetectow);

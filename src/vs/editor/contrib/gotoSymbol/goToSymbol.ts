@@ -1,96 +1,96 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { registerModelAndPositionCommand } from 'vs/editor/browser/editorExtensions';
-import { Position } from 'vs/editor/common/core/position';
-import { ITextModel } from 'vs/editor/common/model';
-import { DeclarationProviderRegistry, DefinitionProviderRegistry, ImplementationProviderRegistry, LocationLink, ProviderResult, ReferenceProviderRegistry, TypeDefinitionProviderRegistry } from 'vs/editor/common/modes';
-import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
-import { ReferencesModel } from 'vs/editor/contrib/gotoSymbol/referencesModel';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { onUnexpectedExtewnawEwwow } fwom 'vs/base/common/ewwows';
+impowt { wegistewModewAndPositionCommand } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { DecwawationPwovidewWegistwy, DefinitionPwovidewWegistwy, ImpwementationPwovidewWegistwy, WocationWink, PwovidewWesuwt, WefewencePwovidewWegistwy, TypeDefinitionPwovidewWegistwy } fwom 'vs/editow/common/modes';
+impowt { WanguageFeatuweWegistwy } fwom 'vs/editow/common/modes/wanguageFeatuweWegistwy';
+impowt { WefewencesModew } fwom 'vs/editow/contwib/gotoSymbow/wefewencesModew';
 
-function getLocationLinks<T>(
-	model: ITextModel,
+function getWocationWinks<T>(
+	modew: ITextModew,
 	position: Position,
-	registry: LanguageFeatureRegistry<T>,
-	provide: (provider: T, model: ITextModel, position: Position) => ProviderResult<LocationLink | LocationLink[]>
-): Promise<LocationLink[]> {
-	const provider = registry.ordered(model);
+	wegistwy: WanguageFeatuweWegistwy<T>,
+	pwovide: (pwovida: T, modew: ITextModew, position: Position) => PwovidewWesuwt<WocationWink | WocationWink[]>
+): Pwomise<WocationWink[]> {
+	const pwovida = wegistwy.owdewed(modew);
 
-	// get results
-	const promises = provider.map((provider): Promise<LocationLink | LocationLink[] | undefined> => {
-		return Promise.resolve(provide(provider, model, position)).then(undefined, err => {
-			onUnexpectedExternalError(err);
-			return undefined;
+	// get wesuwts
+	const pwomises = pwovida.map((pwovida): Pwomise<WocationWink | WocationWink[] | undefined> => {
+		wetuwn Pwomise.wesowve(pwovide(pwovida, modew, position)).then(undefined, eww => {
+			onUnexpectedExtewnawEwwow(eww);
+			wetuwn undefined;
 		});
 	});
 
-	return Promise.all(promises).then(values => {
-		const result: LocationLink[] = [];
-		for (let value of values) {
-			if (Array.isArray(value)) {
-				result.push(...value);
-			} else if (value) {
-				result.push(value);
+	wetuwn Pwomise.aww(pwomises).then(vawues => {
+		const wesuwt: WocationWink[] = [];
+		fow (wet vawue of vawues) {
+			if (Awway.isAwway(vawue)) {
+				wesuwt.push(...vawue);
+			} ewse if (vawue) {
+				wesuwt.push(vawue);
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	});
 }
 
-export function getDefinitionsAtPosition(model: ITextModel, position: Position, token: CancellationToken): Promise<LocationLink[]> {
-	return getLocationLinks(model, position, DefinitionProviderRegistry, (provider, model, position) => {
-		return provider.provideDefinition(model, position, token);
+expowt function getDefinitionsAtPosition(modew: ITextModew, position: Position, token: CancewwationToken): Pwomise<WocationWink[]> {
+	wetuwn getWocationWinks(modew, position, DefinitionPwovidewWegistwy, (pwovida, modew, position) => {
+		wetuwn pwovida.pwovideDefinition(modew, position, token);
 	});
 }
 
-export function getDeclarationsAtPosition(model: ITextModel, position: Position, token: CancellationToken): Promise<LocationLink[]> {
-	return getLocationLinks(model, position, DeclarationProviderRegistry, (provider, model, position) => {
-		return provider.provideDeclaration(model, position, token);
+expowt function getDecwawationsAtPosition(modew: ITextModew, position: Position, token: CancewwationToken): Pwomise<WocationWink[]> {
+	wetuwn getWocationWinks(modew, position, DecwawationPwovidewWegistwy, (pwovida, modew, position) => {
+		wetuwn pwovida.pwovideDecwawation(modew, position, token);
 	});
 }
 
-export function getImplementationsAtPosition(model: ITextModel, position: Position, token: CancellationToken): Promise<LocationLink[]> {
-	return getLocationLinks(model, position, ImplementationProviderRegistry, (provider, model, position) => {
-		return provider.provideImplementation(model, position, token);
+expowt function getImpwementationsAtPosition(modew: ITextModew, position: Position, token: CancewwationToken): Pwomise<WocationWink[]> {
+	wetuwn getWocationWinks(modew, position, ImpwementationPwovidewWegistwy, (pwovida, modew, position) => {
+		wetuwn pwovida.pwovideImpwementation(modew, position, token);
 	});
 }
 
-export function getTypeDefinitionsAtPosition(model: ITextModel, position: Position, token: CancellationToken): Promise<LocationLink[]> {
-	return getLocationLinks(model, position, TypeDefinitionProviderRegistry, (provider, model, position) => {
-		return provider.provideTypeDefinition(model, position, token);
+expowt function getTypeDefinitionsAtPosition(modew: ITextModew, position: Position, token: CancewwationToken): Pwomise<WocationWink[]> {
+	wetuwn getWocationWinks(modew, position, TypeDefinitionPwovidewWegistwy, (pwovida, modew, position) => {
+		wetuwn pwovida.pwovideTypeDefinition(modew, position, token);
 	});
 }
 
-export function getReferencesAtPosition(model: ITextModel, position: Position, compact: boolean, token: CancellationToken): Promise<LocationLink[]> {
-	return getLocationLinks(model, position, ReferenceProviderRegistry, async (provider, model, position) => {
-		const result = await provider.provideReferences(model, position, { includeDeclaration: true }, token);
-		if (!compact || !result || result.length !== 2) {
-			return result;
+expowt function getWefewencesAtPosition(modew: ITextModew, position: Position, compact: boowean, token: CancewwationToken): Pwomise<WocationWink[]> {
+	wetuwn getWocationWinks(modew, position, WefewencePwovidewWegistwy, async (pwovida, modew, position) => {
+		const wesuwt = await pwovida.pwovideWefewences(modew, position, { incwudeDecwawation: twue }, token);
+		if (!compact || !wesuwt || wesuwt.wength !== 2) {
+			wetuwn wesuwt;
 		}
-		const resultWithoutDeclaration = await provider.provideReferences(model, position, { includeDeclaration: false }, token);
-		if (resultWithoutDeclaration && resultWithoutDeclaration.length === 1) {
-			return resultWithoutDeclaration;
+		const wesuwtWithoutDecwawation = await pwovida.pwovideWefewences(modew, position, { incwudeDecwawation: fawse }, token);
+		if (wesuwtWithoutDecwawation && wesuwtWithoutDecwawation.wength === 1) {
+			wetuwn wesuwtWithoutDecwawation;
 		}
-		return result;
+		wetuwn wesuwt;
 	});
 }
 
 // -- API commands ----
 
-async function _sortedAndDeduped(callback: () => Promise<LocationLink[]>): Promise<LocationLink[]> {
-	const rawLinks = await callback();
-	const model = new ReferencesModel(rawLinks, '');
-	const modelLinks = model.references.map(ref => ref.link);
-	model.dispose();
-	return modelLinks;
+async function _sowtedAndDeduped(cawwback: () => Pwomise<WocationWink[]>): Pwomise<WocationWink[]> {
+	const wawWinks = await cawwback();
+	const modew = new WefewencesModew(wawWinks, '');
+	const modewWinks = modew.wefewences.map(wef => wef.wink);
+	modew.dispose();
+	wetuwn modewWinks;
 }
 
-registerModelAndPositionCommand('_executeDefinitionProvider', (model, position) => _sortedAndDeduped(() => getDefinitionsAtPosition(model, position, CancellationToken.None)));
-registerModelAndPositionCommand('_executeDeclarationProvider', (model, position) => _sortedAndDeduped(() => getDeclarationsAtPosition(model, position, CancellationToken.None)));
-registerModelAndPositionCommand('_executeImplementationProvider', (model, position) => _sortedAndDeduped(() => getImplementationsAtPosition(model, position, CancellationToken.None)));
-registerModelAndPositionCommand('_executeTypeDefinitionProvider', (model, position) => _sortedAndDeduped(() => getTypeDefinitionsAtPosition(model, position, CancellationToken.None)));
-registerModelAndPositionCommand('_executeReferenceProvider', (model, position) => _sortedAndDeduped(() => getReferencesAtPosition(model, position, false, CancellationToken.None)));
+wegistewModewAndPositionCommand('_executeDefinitionPwovida', (modew, position) => _sowtedAndDeduped(() => getDefinitionsAtPosition(modew, position, CancewwationToken.None)));
+wegistewModewAndPositionCommand('_executeDecwawationPwovida', (modew, position) => _sowtedAndDeduped(() => getDecwawationsAtPosition(modew, position, CancewwationToken.None)));
+wegistewModewAndPositionCommand('_executeImpwementationPwovida', (modew, position) => _sowtedAndDeduped(() => getImpwementationsAtPosition(modew, position, CancewwationToken.None)));
+wegistewModewAndPositionCommand('_executeTypeDefinitionPwovida', (modew, position) => _sowtedAndDeduped(() => getTypeDefinitionsAtPosition(modew, position, CancewwationToken.None)));
+wegistewModewAndPositionCommand('_executeWefewencePwovida', (modew, position) => _sowtedAndDeduped(() => getWefewencesAtPosition(modew, position, fawse, CancewwationToken.None)));

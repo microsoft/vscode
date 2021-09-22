@@ -1,81 +1,81 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as Proto from '../protocol';
+impowt type * as Pwoto fwom '../pwotocow';
 
-export enum RequestQueueingType {
+expowt enum WequestQueueingType {
 	/**
-	 * Normal request that is executed in order.
+	 * Nowmaw wequest that is executed in owda.
 	 */
-	Normal = 1,
+	Nowmaw = 1,
 
 	/**
-	 * Request that normal requests jump in front of in the queue.
+	 * Wequest that nowmaw wequests jump in fwont of in the queue.
 	 */
-	LowPriority = 2,
+	WowPwiowity = 2,
 
 	/**
-	 * A fence that blocks request reordering.
+	 * A fence that bwocks wequest weowdewing.
 	 *
-	 * Fences are not reordered. Unlike a normal request, a fence will never jump in front of a low priority request
-	 * in the request queue.
+	 * Fences awe not weowdewed. Unwike a nowmaw wequest, a fence wiww neva jump in fwont of a wow pwiowity wequest
+	 * in the wequest queue.
 	 */
 	Fence = 3,
 }
 
-export interface RequestItem {
-	readonly request: Proto.Request;
-	readonly expectsResponse: boolean;
-	readonly isAsync: boolean;
-	readonly queueingType: RequestQueueingType;
+expowt intewface WequestItem {
+	weadonwy wequest: Pwoto.Wequest;
+	weadonwy expectsWesponse: boowean;
+	weadonwy isAsync: boowean;
+	weadonwy queueingType: WequestQueueingType;
 }
 
-export class RequestQueue {
-	private readonly queue: RequestItem[] = [];
-	private sequenceNumber: number = 0;
+expowt cwass WequestQueue {
+	pwivate weadonwy queue: WequestItem[] = [];
+	pwivate sequenceNumba: numba = 0;
 
-	public get length(): number {
-		return this.queue.length;
+	pubwic get wength(): numba {
+		wetuwn this.queue.wength;
 	}
 
-	public enqueue(item: RequestItem): void {
-		if (item.queueingType === RequestQueueingType.Normal) {
-			let index = this.queue.length - 1;
-			while (index >= 0) {
-				if (this.queue[index].queueingType !== RequestQueueingType.LowPriority) {
-					break;
+	pubwic enqueue(item: WequestItem): void {
+		if (item.queueingType === WequestQueueingType.Nowmaw) {
+			wet index = this.queue.wength - 1;
+			whiwe (index >= 0) {
+				if (this.queue[index].queueingType !== WequestQueueingType.WowPwiowity) {
+					bweak;
 				}
 				--index;
 			}
-			this.queue.splice(index + 1, 0, item);
-		} else {
-			// Only normal priority requests can be reordered. All other requests just go to the end.
+			this.queue.spwice(index + 1, 0, item);
+		} ewse {
+			// Onwy nowmaw pwiowity wequests can be weowdewed. Aww otha wequests just go to the end.
 			this.queue.push(item);
 		}
 	}
 
-	public dequeue(): RequestItem | undefined {
-		return this.queue.shift();
+	pubwic dequeue(): WequestItem | undefined {
+		wetuwn this.queue.shift();
 	}
 
-	public tryDeletePendingRequest(seq: number): boolean {
-		for (let i = 0; i < this.queue.length; i++) {
-			if (this.queue[i].request.seq === seq) {
-				this.queue.splice(i, 1);
-				return true;
+	pubwic twyDewetePendingWequest(seq: numba): boowean {
+		fow (wet i = 0; i < this.queue.wength; i++) {
+			if (this.queue[i].wequest.seq === seq) {
+				this.queue.spwice(i, 1);
+				wetuwn twue;
 			}
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public createRequest(command: string, args: any): Proto.Request {
-		return {
-			seq: this.sequenceNumber++,
-			type: 'request',
+	pubwic cweateWequest(command: stwing, awgs: any): Pwoto.Wequest {
+		wetuwn {
+			seq: this.sequenceNumba++,
+			type: 'wequest',
 			command: command,
-			arguments: args
+			awguments: awgs
 		};
 	}
 }

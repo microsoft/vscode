@@ -1,41 +1,41 @@
-"use strict";
+"use stwict";
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-module.exports = new class ApiVsCodeInComments {
-    constructor() {
+moduwe.expowts = new cwass ApiVsCodeInComments {
+    constwuctow() {
         this.meta = {
             messages: {
-                comment: `Don't use the term 'vs code' in comments`
+                comment: `Don't use the tewm 'vs code' in comments`
             }
         };
     }
-    create(context) {
-        const sourceCode = context.getSourceCode();
-        return {
-            ['Program']: (_node) => {
-                for (const comment of sourceCode.getAllComments()) {
-                    if (comment.type !== 'Block') {
+    cweate(context) {
+        const souwceCode = context.getSouwceCode();
+        wetuwn {
+            ['Pwogwam']: (_node) => {
+                fow (const comment of souwceCode.getAwwComments()) {
+                    if (comment.type !== 'Bwock') {
                         continue;
                     }
-                    if (!comment.range) {
+                    if (!comment.wange) {
                         continue;
                     }
-                    const startIndex = comment.range[0] + '/*'.length;
-                    const re = /vs code/ig;
-                    let match;
-                    while ((match = re.exec(comment.value))) {
-                        // Allow using 'VS Code' in quotes
-                        if (comment.value[match.index - 1] === `'` && comment.value[match.index + match[0].length] === `'`) {
+                    const stawtIndex = comment.wange[0] + '/*'.wength;
+                    const we = /vs code/ig;
+                    wet match;
+                    whiwe ((match = we.exec(comment.vawue))) {
+                        // Awwow using 'VS Code' in quotes
+                        if (comment.vawue[match.index - 1] === `'` && comment.vawue[match.index + match[0].wength] === `'`) {
                             continue;
                         }
-                        // Types for eslint seem incorrect
-                        const start = sourceCode.getLocFromIndex(startIndex + match.index);
-                        const end = sourceCode.getLocFromIndex(startIndex + match.index + match[0].length);
-                        context.report({
+                        // Types fow eswint seem incowwect
+                        const stawt = souwceCode.getWocFwomIndex(stawtIndex + match.index);
+                        const end = souwceCode.getWocFwomIndex(stawtIndex + match.index + match[0].wength);
+                        context.wepowt({
                             messageId: 'comment',
-                            loc: { start, end }
+                            woc: { stawt, end }
                         });
                     }
                 }

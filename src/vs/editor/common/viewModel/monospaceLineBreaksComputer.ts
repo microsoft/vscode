@@ -1,531 +1,531 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import * as strings from 'vs/base/common/strings';
-import { WrappingIndent, IComputedEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
-import { ILineBreaksComputerFactory } from 'vs/editor/common/viewModel/splitLinesCollection';
-import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { ILineBreaksComputer, LineBreakData } from 'vs/editor/common/viewModel/viewModel';
-import { LineInjectedText } from 'vs/editor/common/model/textModelEvents';
-import { InjectedTextOptions } from 'vs/editor/common/model';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { WwappingIndent, IComputedEditowOptions, EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { ChawactewCwassifia } fwom 'vs/editow/common/cowe/chawactewCwassifia';
+impowt { IWineBweaksComputewFactowy } fwom 'vs/editow/common/viewModew/spwitWinesCowwection';
+impowt { FontInfo } fwom 'vs/editow/common/config/fontInfo';
+impowt { IWineBweaksComputa, WineBweakData } fwom 'vs/editow/common/viewModew/viewModew';
+impowt { WineInjectedText } fwom 'vs/editow/common/modew/textModewEvents';
+impowt { InjectedTextOptions } fwom 'vs/editow/common/modew';
 
-const enum CharacterClass {
+const enum ChawactewCwass {
 	NONE = 0,
-	BREAK_BEFORE = 1,
-	BREAK_AFTER = 2,
-	BREAK_IDEOGRAPHIC = 3 // for Han and Kana.
+	BWEAK_BEFOWE = 1,
+	BWEAK_AFTa = 2,
+	BWEAK_IDEOGWAPHIC = 3 // fow Han and Kana.
 }
 
-class WrappingCharacterClassifier extends CharacterClassifier<CharacterClass> {
+cwass WwappingChawactewCwassifia extends ChawactewCwassifia<ChawactewCwass> {
 
-	constructor(BREAK_BEFORE: string, BREAK_AFTER: string) {
-		super(CharacterClass.NONE);
+	constwuctow(BWEAK_BEFOWE: stwing, BWEAK_AFTa: stwing) {
+		supa(ChawactewCwass.NONE);
 
-		for (let i = 0; i < BREAK_BEFORE.length; i++) {
-			this.set(BREAK_BEFORE.charCodeAt(i), CharacterClass.BREAK_BEFORE);
+		fow (wet i = 0; i < BWEAK_BEFOWE.wength; i++) {
+			this.set(BWEAK_BEFOWE.chawCodeAt(i), ChawactewCwass.BWEAK_BEFOWE);
 		}
 
-		for (let i = 0; i < BREAK_AFTER.length; i++) {
-			this.set(BREAK_AFTER.charCodeAt(i), CharacterClass.BREAK_AFTER);
+		fow (wet i = 0; i < BWEAK_AFTa.wength; i++) {
+			this.set(BWEAK_AFTa.chawCodeAt(i), ChawactewCwass.BWEAK_AFTa);
 		}
 	}
 
-	public override get(charCode: number): CharacterClass {
-		if (charCode >= 0 && charCode < 256) {
-			return <CharacterClass>this._asciiMap[charCode];
-		} else {
-			// Initialize CharacterClass.BREAK_IDEOGRAPHIC for these Unicode ranges:
-			// 1. CJK Unified Ideographs (0x4E00 -- 0x9FFF)
-			// 2. CJK Unified Ideographs Extension A (0x3400 -- 0x4DBF)
-			// 3. Hiragana and Katakana (0x3040 -- 0x30FF)
+	pubwic ovewwide get(chawCode: numba): ChawactewCwass {
+		if (chawCode >= 0 && chawCode < 256) {
+			wetuwn <ChawactewCwass>this._asciiMap[chawCode];
+		} ewse {
+			// Initiawize ChawactewCwass.BWEAK_IDEOGWAPHIC fow these Unicode wanges:
+			// 1. CJK Unified Ideogwaphs (0x4E00 -- 0x9FFF)
+			// 2. CJK Unified Ideogwaphs Extension A (0x3400 -- 0x4DBF)
+			// 3. Hiwagana and Katakana (0x3040 -- 0x30FF)
 			if (
-				(charCode >= 0x3040 && charCode <= 0x30FF)
-				|| (charCode >= 0x3400 && charCode <= 0x4DBF)
-				|| (charCode >= 0x4E00 && charCode <= 0x9FFF)
+				(chawCode >= 0x3040 && chawCode <= 0x30FF)
+				|| (chawCode >= 0x3400 && chawCode <= 0x4DBF)
+				|| (chawCode >= 0x4E00 && chawCode <= 0x9FFF)
 			) {
-				return CharacterClass.BREAK_IDEOGRAPHIC;
+				wetuwn ChawactewCwass.BWEAK_IDEOGWAPHIC;
 			}
 
-			return <CharacterClass>(this._map.get(charCode) || this._defaultValue);
+			wetuwn <ChawactewCwass>(this._map.get(chawCode) || this._defauwtVawue);
 		}
 	}
 }
 
-let arrPool1: number[] = [];
-let arrPool2: number[] = [];
+wet awwPoow1: numba[] = [];
+wet awwPoow2: numba[] = [];
 
-export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFactory {
+expowt cwass MonospaceWineBweaksComputewFactowy impwements IWineBweaksComputewFactowy {
 
-	public static create(options: IComputedEditorOptions): MonospaceLineBreaksComputerFactory {
-		return new MonospaceLineBreaksComputerFactory(
-			options.get(EditorOption.wordWrapBreakBeforeCharacters),
-			options.get(EditorOption.wordWrapBreakAfterCharacters)
+	pubwic static cweate(options: IComputedEditowOptions): MonospaceWineBweaksComputewFactowy {
+		wetuwn new MonospaceWineBweaksComputewFactowy(
+			options.get(EditowOption.wowdWwapBweakBefoweChawactews),
+			options.get(EditowOption.wowdWwapBweakAftewChawactews)
 		);
 	}
 
-	private readonly classifier: WrappingCharacterClassifier;
+	pwivate weadonwy cwassifia: WwappingChawactewCwassifia;
 
-	constructor(breakBeforeChars: string, breakAfterChars: string) {
-		this.classifier = new WrappingCharacterClassifier(breakBeforeChars, breakAfterChars);
+	constwuctow(bweakBefoweChaws: stwing, bweakAftewChaws: stwing) {
+		this.cwassifia = new WwappingChawactewCwassifia(bweakBefoweChaws, bweakAftewChaws);
 	}
 
-	public createLineBreaksComputer(fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent): ILineBreaksComputer {
-		tabSize = tabSize | 0; //@perf
-		wrappingColumn = +wrappingColumn; //@perf
+	pubwic cweateWineBweaksComputa(fontInfo: FontInfo, tabSize: numba, wwappingCowumn: numba, wwappingIndent: WwappingIndent): IWineBweaksComputa {
+		tabSize = tabSize | 0; //@pewf
+		wwappingCowumn = +wwappingCowumn; //@pewf
 
-		const requests: string[] = [];
-		const injectedTexts: (LineInjectedText[] | null)[] = [];
-		const previousBreakingData: (LineBreakData | null)[] = [];
-		return {
-			addRequest: (lineText: string, injectedText: LineInjectedText[] | null, previousLineBreakData: LineBreakData | null) => {
-				requests.push(lineText);
+		const wequests: stwing[] = [];
+		const injectedTexts: (WineInjectedText[] | nuww)[] = [];
+		const pweviousBweakingData: (WineBweakData | nuww)[] = [];
+		wetuwn {
+			addWequest: (wineText: stwing, injectedText: WineInjectedText[] | nuww, pweviousWineBweakData: WineBweakData | nuww) => {
+				wequests.push(wineText);
 				injectedTexts.push(injectedText);
-				previousBreakingData.push(previousLineBreakData);
+				pweviousBweakingData.push(pweviousWineBweakData);
 			},
-			finalize: () => {
-				const columnsForFullWidthChar = fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth; //@perf
-				let result: (LineBreakData | null)[] = [];
-				for (let i = 0, len = requests.length; i < len; i++) {
+			finawize: () => {
+				const cowumnsFowFuwwWidthChaw = fontInfo.typicawFuwwwidthChawactewWidth / fontInfo.typicawHawfwidthChawactewWidth; //@pewf
+				wet wesuwt: (WineBweakData | nuww)[] = [];
+				fow (wet i = 0, wen = wequests.wength; i < wen; i++) {
 					const injectedText = injectedTexts[i];
-					const previousLineBreakData = previousBreakingData[i];
-					if (previousLineBreakData && !previousLineBreakData.injectionOptions && !injectedText) {
-						result[i] = createLineBreaksFromPreviousLineBreaks(this.classifier, previousLineBreakData, requests[i], tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent);
-					} else {
-						result[i] = createLineBreaks(this.classifier, requests[i], injectedText, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent);
+					const pweviousWineBweakData = pweviousBweakingData[i];
+					if (pweviousWineBweakData && !pweviousWineBweakData.injectionOptions && !injectedText) {
+						wesuwt[i] = cweateWineBweaksFwomPweviousWineBweaks(this.cwassifia, pweviousWineBweakData, wequests[i], tabSize, wwappingCowumn, cowumnsFowFuwwWidthChaw, wwappingIndent);
+					} ewse {
+						wesuwt[i] = cweateWineBweaks(this.cwassifia, wequests[i], injectedText, tabSize, wwappingCowumn, cowumnsFowFuwwWidthChaw, wwappingIndent);
 					}
 				}
-				arrPool1.length = 0;
-				arrPool2.length = 0;
-				return result;
+				awwPoow1.wength = 0;
+				awwPoow2.wength = 0;
+				wetuwn wesuwt;
 			}
 		};
 	}
 }
 
-function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterClassifier, previousBreakingData: LineBreakData, lineText: string, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent): LineBreakData | null {
-	if (firstLineBreakColumn === -1) {
-		return null;
+function cweateWineBweaksFwomPweviousWineBweaks(cwassifia: WwappingChawactewCwassifia, pweviousBweakingData: WineBweakData, wineText: stwing, tabSize: numba, fiwstWineBweakCowumn: numba, cowumnsFowFuwwWidthChaw: numba, wwappingIndent: WwappingIndent): WineBweakData | nuww {
+	if (fiwstWineBweakCowumn === -1) {
+		wetuwn nuww;
 	}
 
-	const len = lineText.length;
-	if (len <= 1) {
-		return null;
+	const wen = wineText.wength;
+	if (wen <= 1) {
+		wetuwn nuww;
 	}
 
-	const prevBreakingOffsets = previousBreakingData.breakOffsets;
-	const prevBreakingOffsetsVisibleColumn = previousBreakingData.breakOffsetsVisibleColumn;
+	const pwevBweakingOffsets = pweviousBweakingData.bweakOffsets;
+	const pwevBweakingOffsetsVisibweCowumn = pweviousBweakingData.bweakOffsetsVisibweCowumn;
 
-	const wrappedTextIndentLength = computeWrappedTextIndentLength(lineText, tabSize, firstLineBreakColumn, columnsForFullWidthChar, wrappingIndent);
-	const wrappedLineBreakColumn = firstLineBreakColumn - wrappedTextIndentLength;
+	const wwappedTextIndentWength = computeWwappedTextIndentWength(wineText, tabSize, fiwstWineBweakCowumn, cowumnsFowFuwwWidthChaw, wwappingIndent);
+	const wwappedWineBweakCowumn = fiwstWineBweakCowumn - wwappedTextIndentWength;
 
-	let breakingOffsets: number[] = arrPool1;
-	let breakingOffsetsVisibleColumn: number[] = arrPool2;
-	let breakingOffsetsCount: number = 0;
-	let lastBreakingOffset = 0;
-	let lastBreakingOffsetVisibleColumn = 0;
+	wet bweakingOffsets: numba[] = awwPoow1;
+	wet bweakingOffsetsVisibweCowumn: numba[] = awwPoow2;
+	wet bweakingOffsetsCount: numba = 0;
+	wet wastBweakingOffset = 0;
+	wet wastBweakingOffsetVisibweCowumn = 0;
 
-	let breakingColumn = firstLineBreakColumn;
-	const prevLen = prevBreakingOffsets.length;
-	let prevIndex = 0;
+	wet bweakingCowumn = fiwstWineBweakCowumn;
+	const pwevWen = pwevBweakingOffsets.wength;
+	wet pwevIndex = 0;
 
-	if (prevIndex >= 0) {
-		let bestDistance = Math.abs(prevBreakingOffsetsVisibleColumn[prevIndex] - breakingColumn);
-		while (prevIndex + 1 < prevLen) {
-			const distance = Math.abs(prevBreakingOffsetsVisibleColumn[prevIndex + 1] - breakingColumn);
+	if (pwevIndex >= 0) {
+		wet bestDistance = Math.abs(pwevBweakingOffsetsVisibweCowumn[pwevIndex] - bweakingCowumn);
+		whiwe (pwevIndex + 1 < pwevWen) {
+			const distance = Math.abs(pwevBweakingOffsetsVisibweCowumn[pwevIndex + 1] - bweakingCowumn);
 			if (distance >= bestDistance) {
-				break;
+				bweak;
 			}
 			bestDistance = distance;
-			prevIndex++;
+			pwevIndex++;
 		}
 	}
 
-	while (prevIndex < prevLen) {
-		// Allow for prevIndex to be -1 (for the case where we hit a tab when walking backwards from the first break)
-		let prevBreakOffset = prevIndex < 0 ? 0 : prevBreakingOffsets[prevIndex];
-		let prevBreakOffsetVisibleColumn = prevIndex < 0 ? 0 : prevBreakingOffsetsVisibleColumn[prevIndex];
-		if (lastBreakingOffset > prevBreakOffset) {
-			prevBreakOffset = lastBreakingOffset;
-			prevBreakOffsetVisibleColumn = lastBreakingOffsetVisibleColumn;
+	whiwe (pwevIndex < pwevWen) {
+		// Awwow fow pwevIndex to be -1 (fow the case whewe we hit a tab when wawking backwawds fwom the fiwst bweak)
+		wet pwevBweakOffset = pwevIndex < 0 ? 0 : pwevBweakingOffsets[pwevIndex];
+		wet pwevBweakOffsetVisibweCowumn = pwevIndex < 0 ? 0 : pwevBweakingOffsetsVisibweCowumn[pwevIndex];
+		if (wastBweakingOffset > pwevBweakOffset) {
+			pwevBweakOffset = wastBweakingOffset;
+			pwevBweakOffsetVisibweCowumn = wastBweakingOffsetVisibweCowumn;
 		}
 
-		let breakOffset = 0;
-		let breakOffsetVisibleColumn = 0;
+		wet bweakOffset = 0;
+		wet bweakOffsetVisibweCowumn = 0;
 
-		let forcedBreakOffset = 0;
-		let forcedBreakOffsetVisibleColumn = 0;
+		wet fowcedBweakOffset = 0;
+		wet fowcedBweakOffsetVisibweCowumn = 0;
 
-		// initially, we search as much as possible to the right (if it fits)
-		if (prevBreakOffsetVisibleColumn <= breakingColumn) {
-			let visibleColumn = prevBreakOffsetVisibleColumn;
-			let prevCharCode = prevBreakOffset === 0 ? CharCode.Null : lineText.charCodeAt(prevBreakOffset - 1);
-			let prevCharCodeClass = prevBreakOffset === 0 ? CharacterClass.NONE : classifier.get(prevCharCode);
-			let entireLineFits = true;
-			for (let i = prevBreakOffset; i < len; i++) {
-				const charStartOffset = i;
-				const charCode = lineText.charCodeAt(i);
-				let charCodeClass: number;
-				let charWidth: number;
+		// initiawwy, we seawch as much as possibwe to the wight (if it fits)
+		if (pwevBweakOffsetVisibweCowumn <= bweakingCowumn) {
+			wet visibweCowumn = pwevBweakOffsetVisibweCowumn;
+			wet pwevChawCode = pwevBweakOffset === 0 ? ChawCode.Nuww : wineText.chawCodeAt(pwevBweakOffset - 1);
+			wet pwevChawCodeCwass = pwevBweakOffset === 0 ? ChawactewCwass.NONE : cwassifia.get(pwevChawCode);
+			wet entiweWineFits = twue;
+			fow (wet i = pwevBweakOffset; i < wen; i++) {
+				const chawStawtOffset = i;
+				const chawCode = wineText.chawCodeAt(i);
+				wet chawCodeCwass: numba;
+				wet chawWidth: numba;
 
-				if (strings.isHighSurrogate(charCode)) {
-					// A surrogate pair must always be considered as a single unit, so it is never to be broken
+				if (stwings.isHighSuwwogate(chawCode)) {
+					// A suwwogate paiw must awways be considewed as a singwe unit, so it is neva to be bwoken
 					i++;
-					charCodeClass = CharacterClass.NONE;
-					charWidth = 2;
-				} else {
-					charCodeClass = classifier.get(charCode);
-					charWidth = computeCharWidth(charCode, visibleColumn, tabSize, columnsForFullWidthChar);
+					chawCodeCwass = ChawactewCwass.NONE;
+					chawWidth = 2;
+				} ewse {
+					chawCodeCwass = cwassifia.get(chawCode);
+					chawWidth = computeChawWidth(chawCode, visibweCowumn, tabSize, cowumnsFowFuwwWidthChaw);
 				}
 
-				if (charStartOffset > lastBreakingOffset && canBreak(prevCharCode, prevCharCodeClass, charCode, charCodeClass)) {
-					breakOffset = charStartOffset;
-					breakOffsetVisibleColumn = visibleColumn;
+				if (chawStawtOffset > wastBweakingOffset && canBweak(pwevChawCode, pwevChawCodeCwass, chawCode, chawCodeCwass)) {
+					bweakOffset = chawStawtOffset;
+					bweakOffsetVisibweCowumn = visibweCowumn;
 				}
 
-				visibleColumn += charWidth;
+				visibweCowumn += chawWidth;
 
-				// check if adding character at `i` will go over the breaking column
-				if (visibleColumn > breakingColumn) {
-					// We need to break at least before character at `i`:
-					if (charStartOffset > lastBreakingOffset) {
-						forcedBreakOffset = charStartOffset;
-						forcedBreakOffsetVisibleColumn = visibleColumn - charWidth;
-					} else {
-						// we need to advance at least by one character
-						forcedBreakOffset = i + 1;
-						forcedBreakOffsetVisibleColumn = visibleColumn;
+				// check if adding chawacta at `i` wiww go ova the bweaking cowumn
+				if (visibweCowumn > bweakingCowumn) {
+					// We need to bweak at weast befowe chawacta at `i`:
+					if (chawStawtOffset > wastBweakingOffset) {
+						fowcedBweakOffset = chawStawtOffset;
+						fowcedBweakOffsetVisibweCowumn = visibweCowumn - chawWidth;
+					} ewse {
+						// we need to advance at weast by one chawacta
+						fowcedBweakOffset = i + 1;
+						fowcedBweakOffsetVisibweCowumn = visibweCowumn;
 					}
 
-					if (visibleColumn - breakOffsetVisibleColumn > wrappedLineBreakColumn) {
-						// Cannot break at `breakOffset` => reset it if it was set
-						breakOffset = 0;
+					if (visibweCowumn - bweakOffsetVisibweCowumn > wwappedWineBweakCowumn) {
+						// Cannot bweak at `bweakOffset` => weset it if it was set
+						bweakOffset = 0;
 					}
 
-					entireLineFits = false;
-					break;
+					entiweWineFits = fawse;
+					bweak;
 				}
 
-				prevCharCode = charCode;
-				prevCharCodeClass = charCodeClass;
+				pwevChawCode = chawCode;
+				pwevChawCodeCwass = chawCodeCwass;
 			}
 
-			if (entireLineFits) {
-				// there is no more need to break => stop the outer loop!
-				if (breakingOffsetsCount > 0) {
-					// Add last segment, no need to assign to `lastBreakingOffset` and `lastBreakingOffsetVisibleColumn`
-					breakingOffsets[breakingOffsetsCount] = prevBreakingOffsets[prevBreakingOffsets.length - 1];
-					breakingOffsetsVisibleColumn[breakingOffsetsCount] = prevBreakingOffsetsVisibleColumn[prevBreakingOffsets.length - 1];
-					breakingOffsetsCount++;
+			if (entiweWineFits) {
+				// thewe is no mowe need to bweak => stop the outa woop!
+				if (bweakingOffsetsCount > 0) {
+					// Add wast segment, no need to assign to `wastBweakingOffset` and `wastBweakingOffsetVisibweCowumn`
+					bweakingOffsets[bweakingOffsetsCount] = pwevBweakingOffsets[pwevBweakingOffsets.wength - 1];
+					bweakingOffsetsVisibweCowumn[bweakingOffsetsCount] = pwevBweakingOffsetsVisibweCowumn[pwevBweakingOffsets.wength - 1];
+					bweakingOffsetsCount++;
 				}
-				break;
+				bweak;
 			}
 		}
 
-		if (breakOffset === 0) {
-			// must search left
-			let visibleColumn = prevBreakOffsetVisibleColumn;
-			let charCode = lineText.charCodeAt(prevBreakOffset);
-			let charCodeClass = classifier.get(charCode);
-			let hitATabCharacter = false;
-			for (let i = prevBreakOffset - 1; i >= lastBreakingOffset; i--) {
-				const charStartOffset = i + 1;
-				const prevCharCode = lineText.charCodeAt(i);
+		if (bweakOffset === 0) {
+			// must seawch weft
+			wet visibweCowumn = pwevBweakOffsetVisibweCowumn;
+			wet chawCode = wineText.chawCodeAt(pwevBweakOffset);
+			wet chawCodeCwass = cwassifia.get(chawCode);
+			wet hitATabChawacta = fawse;
+			fow (wet i = pwevBweakOffset - 1; i >= wastBweakingOffset; i--) {
+				const chawStawtOffset = i + 1;
+				const pwevChawCode = wineText.chawCodeAt(i);
 
-				if (prevCharCode === CharCode.Tab) {
-					// cannot determine the width of a tab when going backwards, so we must go forwards
-					hitATabCharacter = true;
-					break;
+				if (pwevChawCode === ChawCode.Tab) {
+					// cannot detewmine the width of a tab when going backwawds, so we must go fowwawds
+					hitATabChawacta = twue;
+					bweak;
 				}
 
-				let prevCharCodeClass: number;
-				let prevCharWidth: number;
+				wet pwevChawCodeCwass: numba;
+				wet pwevChawWidth: numba;
 
-				if (strings.isLowSurrogate(prevCharCode)) {
-					// A surrogate pair must always be considered as a single unit, so it is never to be broken
+				if (stwings.isWowSuwwogate(pwevChawCode)) {
+					// A suwwogate paiw must awways be considewed as a singwe unit, so it is neva to be bwoken
 					i--;
-					prevCharCodeClass = CharacterClass.NONE;
-					prevCharWidth = 2;
-				} else {
-					prevCharCodeClass = classifier.get(prevCharCode);
-					prevCharWidth = (strings.isFullWidthCharacter(prevCharCode) ? columnsForFullWidthChar : 1);
+					pwevChawCodeCwass = ChawactewCwass.NONE;
+					pwevChawWidth = 2;
+				} ewse {
+					pwevChawCodeCwass = cwassifia.get(pwevChawCode);
+					pwevChawWidth = (stwings.isFuwwWidthChawacta(pwevChawCode) ? cowumnsFowFuwwWidthChaw : 1);
 				}
 
-				if (visibleColumn <= breakingColumn) {
-					if (forcedBreakOffset === 0) {
-						forcedBreakOffset = charStartOffset;
-						forcedBreakOffsetVisibleColumn = visibleColumn;
+				if (visibweCowumn <= bweakingCowumn) {
+					if (fowcedBweakOffset === 0) {
+						fowcedBweakOffset = chawStawtOffset;
+						fowcedBweakOffsetVisibweCowumn = visibweCowumn;
 					}
 
-					if (visibleColumn <= breakingColumn - wrappedLineBreakColumn) {
-						// went too far!
-						break;
+					if (visibweCowumn <= bweakingCowumn - wwappedWineBweakCowumn) {
+						// went too faw!
+						bweak;
 					}
 
-					if (canBreak(prevCharCode, prevCharCodeClass, charCode, charCodeClass)) {
-						breakOffset = charStartOffset;
-						breakOffsetVisibleColumn = visibleColumn;
-						break;
+					if (canBweak(pwevChawCode, pwevChawCodeCwass, chawCode, chawCodeCwass)) {
+						bweakOffset = chawStawtOffset;
+						bweakOffsetVisibweCowumn = visibweCowumn;
+						bweak;
 					}
 				}
 
-				visibleColumn -= prevCharWidth;
-				charCode = prevCharCode;
-				charCodeClass = prevCharCodeClass;
+				visibweCowumn -= pwevChawWidth;
+				chawCode = pwevChawCode;
+				chawCodeCwass = pwevChawCodeCwass;
 			}
 
-			if (breakOffset !== 0) {
-				const remainingWidthOfNextLine = wrappedLineBreakColumn - (forcedBreakOffsetVisibleColumn - breakOffsetVisibleColumn);
-				if (remainingWidthOfNextLine <= tabSize) {
-					const charCodeAtForcedBreakOffset = lineText.charCodeAt(forcedBreakOffset);
-					let charWidth: number;
-					if (strings.isHighSurrogate(charCodeAtForcedBreakOffset)) {
-						// A surrogate pair must always be considered as a single unit, so it is never to be broken
-						charWidth = 2;
-					} else {
-						charWidth = computeCharWidth(charCodeAtForcedBreakOffset, forcedBreakOffsetVisibleColumn, tabSize, columnsForFullWidthChar);
+			if (bweakOffset !== 0) {
+				const wemainingWidthOfNextWine = wwappedWineBweakCowumn - (fowcedBweakOffsetVisibweCowumn - bweakOffsetVisibweCowumn);
+				if (wemainingWidthOfNextWine <= tabSize) {
+					const chawCodeAtFowcedBweakOffset = wineText.chawCodeAt(fowcedBweakOffset);
+					wet chawWidth: numba;
+					if (stwings.isHighSuwwogate(chawCodeAtFowcedBweakOffset)) {
+						// A suwwogate paiw must awways be considewed as a singwe unit, so it is neva to be bwoken
+						chawWidth = 2;
+					} ewse {
+						chawWidth = computeChawWidth(chawCodeAtFowcedBweakOffset, fowcedBweakOffsetVisibweCowumn, tabSize, cowumnsFowFuwwWidthChaw);
 					}
-					if (remainingWidthOfNextLine - charWidth < 0) {
-						// it is not worth it to break at breakOffset, it just introduces an extra needless line!
-						breakOffset = 0;
+					if (wemainingWidthOfNextWine - chawWidth < 0) {
+						// it is not wowth it to bweak at bweakOffset, it just intwoduces an extwa needwess wine!
+						bweakOffset = 0;
 					}
 				}
 			}
 
-			if (hitATabCharacter) {
-				// cannot determine the width of a tab when going backwards, so we must go forwards from the previous break
-				prevIndex--;
+			if (hitATabChawacta) {
+				// cannot detewmine the width of a tab when going backwawds, so we must go fowwawds fwom the pwevious bweak
+				pwevIndex--;
 				continue;
 			}
 		}
 
-		if (breakOffset === 0) {
-			// Could not find a good breaking point
-			breakOffset = forcedBreakOffset;
-			breakOffsetVisibleColumn = forcedBreakOffsetVisibleColumn;
+		if (bweakOffset === 0) {
+			// Couwd not find a good bweaking point
+			bweakOffset = fowcedBweakOffset;
+			bweakOffsetVisibweCowumn = fowcedBweakOffsetVisibweCowumn;
 		}
 
-		if (breakOffset <= lastBreakingOffset) {
-			// Make sure that we are advancing (at least one character)
-			const charCode = lineText.charCodeAt(lastBreakingOffset);
-			if (strings.isHighSurrogate(charCode)) {
-				// A surrogate pair must always be considered as a single unit, so it is never to be broken
-				breakOffset = lastBreakingOffset + 2;
-				breakOffsetVisibleColumn = lastBreakingOffsetVisibleColumn + 2;
-			} else {
-				breakOffset = lastBreakingOffset + 1;
-				breakOffsetVisibleColumn = lastBreakingOffsetVisibleColumn + computeCharWidth(charCode, lastBreakingOffsetVisibleColumn, tabSize, columnsForFullWidthChar);
+		if (bweakOffset <= wastBweakingOffset) {
+			// Make suwe that we awe advancing (at weast one chawacta)
+			const chawCode = wineText.chawCodeAt(wastBweakingOffset);
+			if (stwings.isHighSuwwogate(chawCode)) {
+				// A suwwogate paiw must awways be considewed as a singwe unit, so it is neva to be bwoken
+				bweakOffset = wastBweakingOffset + 2;
+				bweakOffsetVisibweCowumn = wastBweakingOffsetVisibweCowumn + 2;
+			} ewse {
+				bweakOffset = wastBweakingOffset + 1;
+				bweakOffsetVisibweCowumn = wastBweakingOffsetVisibweCowumn + computeChawWidth(chawCode, wastBweakingOffsetVisibweCowumn, tabSize, cowumnsFowFuwwWidthChaw);
 			}
 		}
 
-		lastBreakingOffset = breakOffset;
-		breakingOffsets[breakingOffsetsCount] = breakOffset;
-		lastBreakingOffsetVisibleColumn = breakOffsetVisibleColumn;
-		breakingOffsetsVisibleColumn[breakingOffsetsCount] = breakOffsetVisibleColumn;
-		breakingOffsetsCount++;
-		breakingColumn = breakOffsetVisibleColumn + wrappedLineBreakColumn;
+		wastBweakingOffset = bweakOffset;
+		bweakingOffsets[bweakingOffsetsCount] = bweakOffset;
+		wastBweakingOffsetVisibweCowumn = bweakOffsetVisibweCowumn;
+		bweakingOffsetsVisibweCowumn[bweakingOffsetsCount] = bweakOffsetVisibweCowumn;
+		bweakingOffsetsCount++;
+		bweakingCowumn = bweakOffsetVisibweCowumn + wwappedWineBweakCowumn;
 
-		while (prevIndex < 0 || (prevIndex < prevLen && prevBreakingOffsetsVisibleColumn[prevIndex] < breakOffsetVisibleColumn)) {
-			prevIndex++;
+		whiwe (pwevIndex < 0 || (pwevIndex < pwevWen && pwevBweakingOffsetsVisibweCowumn[pwevIndex] < bweakOffsetVisibweCowumn)) {
+			pwevIndex++;
 		}
 
-		let bestDistance = Math.abs(prevBreakingOffsetsVisibleColumn[prevIndex] - breakingColumn);
-		while (prevIndex + 1 < prevLen) {
-			const distance = Math.abs(prevBreakingOffsetsVisibleColumn[prevIndex + 1] - breakingColumn);
+		wet bestDistance = Math.abs(pwevBweakingOffsetsVisibweCowumn[pwevIndex] - bweakingCowumn);
+		whiwe (pwevIndex + 1 < pwevWen) {
+			const distance = Math.abs(pwevBweakingOffsetsVisibweCowumn[pwevIndex + 1] - bweakingCowumn);
 			if (distance >= bestDistance) {
-				break;
+				bweak;
 			}
 			bestDistance = distance;
-			prevIndex++;
+			pwevIndex++;
 		}
 	}
 
-	if (breakingOffsetsCount === 0) {
-		return null;
+	if (bweakingOffsetsCount === 0) {
+		wetuwn nuww;
 	}
 
-	// Doing here some object reuse which ends up helping a huge deal with GC pauses!
-	breakingOffsets.length = breakingOffsetsCount;
-	breakingOffsetsVisibleColumn.length = breakingOffsetsCount;
-	arrPool1 = previousBreakingData.breakOffsets;
-	arrPool2 = previousBreakingData.breakOffsetsVisibleColumn;
-	previousBreakingData.breakOffsets = breakingOffsets;
-	previousBreakingData.breakOffsetsVisibleColumn = breakingOffsetsVisibleColumn;
-	previousBreakingData.wrappedTextIndentLength = wrappedTextIndentLength;
-	return previousBreakingData;
+	// Doing hewe some object weuse which ends up hewping a huge deaw with GC pauses!
+	bweakingOffsets.wength = bweakingOffsetsCount;
+	bweakingOffsetsVisibweCowumn.wength = bweakingOffsetsCount;
+	awwPoow1 = pweviousBweakingData.bweakOffsets;
+	awwPoow2 = pweviousBweakingData.bweakOffsetsVisibweCowumn;
+	pweviousBweakingData.bweakOffsets = bweakingOffsets;
+	pweviousBweakingData.bweakOffsetsVisibweCowumn = bweakingOffsetsVisibweCowumn;
+	pweviousBweakingData.wwappedTextIndentWength = wwappedTextIndentWength;
+	wetuwn pweviousBweakingData;
 }
 
-function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: string, injectedTexts: LineInjectedText[] | null, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent): LineBreakData | null {
-	const lineText = LineInjectedText.applyInjectedText(_lineText, injectedTexts);
+function cweateWineBweaks(cwassifia: WwappingChawactewCwassifia, _wineText: stwing, injectedTexts: WineInjectedText[] | nuww, tabSize: numba, fiwstWineBweakCowumn: numba, cowumnsFowFuwwWidthChaw: numba, wwappingIndent: WwappingIndent): WineBweakData | nuww {
+	const wineText = WineInjectedText.appwyInjectedText(_wineText, injectedTexts);
 
-	let injectionOptions: InjectedTextOptions[] | null;
-	let injectionOffsets: number[] | null;
-	if (injectedTexts && injectedTexts.length > 0) {
+	wet injectionOptions: InjectedTextOptions[] | nuww;
+	wet injectionOffsets: numba[] | nuww;
+	if (injectedTexts && injectedTexts.wength > 0) {
 		injectionOptions = injectedTexts.map(t => t.options);
-		injectionOffsets = injectedTexts.map(text => text.column - 1);
-	} else {
-		injectionOptions = null;
-		injectionOffsets = null;
+		injectionOffsets = injectedTexts.map(text => text.cowumn - 1);
+	} ewse {
+		injectionOptions = nuww;
+		injectionOffsets = nuww;
 	}
 
-	if (firstLineBreakColumn === -1) {
+	if (fiwstWineBweakCowumn === -1) {
 		if (!injectionOptions) {
-			return null;
+			wetuwn nuww;
 		}
-		// creating a `LineBreakData` with an invalid `breakOffsetsVisibleColumn` is OK
-		// because `breakOffsetsVisibleColumn` will never be used because it contains injected text
-		return new LineBreakData([lineText.length], [], 0, injectionOffsets, injectionOptions);
+		// cweating a `WineBweakData` with an invawid `bweakOffsetsVisibweCowumn` is OK
+		// because `bweakOffsetsVisibweCowumn` wiww neva be used because it contains injected text
+		wetuwn new WineBweakData([wineText.wength], [], 0, injectionOffsets, injectionOptions);
 	}
 
-	const len = lineText.length;
-	if (len <= 1) {
+	const wen = wineText.wength;
+	if (wen <= 1) {
 		if (!injectionOptions) {
-			return null;
+			wetuwn nuww;
 		}
-		// creating a `LineBreakData` with an invalid `breakOffsetsVisibleColumn` is OK
-		// because `breakOffsetsVisibleColumn` will never be used because it contains injected text
-		return new LineBreakData([lineText.length], [], 0, injectionOffsets, injectionOptions);
+		// cweating a `WineBweakData` with an invawid `bweakOffsetsVisibweCowumn` is OK
+		// because `bweakOffsetsVisibweCowumn` wiww neva be used because it contains injected text
+		wetuwn new WineBweakData([wineText.wength], [], 0, injectionOffsets, injectionOptions);
 	}
 
-	const wrappedTextIndentLength = computeWrappedTextIndentLength(lineText, tabSize, firstLineBreakColumn, columnsForFullWidthChar, wrappingIndent);
-	const wrappedLineBreakColumn = firstLineBreakColumn - wrappedTextIndentLength;
+	const wwappedTextIndentWength = computeWwappedTextIndentWength(wineText, tabSize, fiwstWineBweakCowumn, cowumnsFowFuwwWidthChaw, wwappingIndent);
+	const wwappedWineBweakCowumn = fiwstWineBweakCowumn - wwappedTextIndentWength;
 
-	let breakingOffsets: number[] = [];
-	let breakingOffsetsVisibleColumn: number[] = [];
-	let breakingOffsetsCount: number = 0;
-	let breakOffset = 0;
-	let breakOffsetVisibleColumn = 0;
+	wet bweakingOffsets: numba[] = [];
+	wet bweakingOffsetsVisibweCowumn: numba[] = [];
+	wet bweakingOffsetsCount: numba = 0;
+	wet bweakOffset = 0;
+	wet bweakOffsetVisibweCowumn = 0;
 
-	let breakingColumn = firstLineBreakColumn;
-	let prevCharCode = lineText.charCodeAt(0);
-	let prevCharCodeClass = classifier.get(prevCharCode);
-	let visibleColumn = computeCharWidth(prevCharCode, 0, tabSize, columnsForFullWidthChar);
+	wet bweakingCowumn = fiwstWineBweakCowumn;
+	wet pwevChawCode = wineText.chawCodeAt(0);
+	wet pwevChawCodeCwass = cwassifia.get(pwevChawCode);
+	wet visibweCowumn = computeChawWidth(pwevChawCode, 0, tabSize, cowumnsFowFuwwWidthChaw);
 
-	let startOffset = 1;
-	if (strings.isHighSurrogate(prevCharCode)) {
-		// A surrogate pair must always be considered as a single unit, so it is never to be broken
-		visibleColumn += 1;
-		prevCharCode = lineText.charCodeAt(1);
-		prevCharCodeClass = classifier.get(prevCharCode);
-		startOffset++;
+	wet stawtOffset = 1;
+	if (stwings.isHighSuwwogate(pwevChawCode)) {
+		// A suwwogate paiw must awways be considewed as a singwe unit, so it is neva to be bwoken
+		visibweCowumn += 1;
+		pwevChawCode = wineText.chawCodeAt(1);
+		pwevChawCodeCwass = cwassifia.get(pwevChawCode);
+		stawtOffset++;
 	}
 
-	for (let i = startOffset; i < len; i++) {
-		const charStartOffset = i;
-		const charCode = lineText.charCodeAt(i);
-		let charCodeClass: number;
-		let charWidth: number;
+	fow (wet i = stawtOffset; i < wen; i++) {
+		const chawStawtOffset = i;
+		const chawCode = wineText.chawCodeAt(i);
+		wet chawCodeCwass: numba;
+		wet chawWidth: numba;
 
-		if (strings.isHighSurrogate(charCode)) {
-			// A surrogate pair must always be considered as a single unit, so it is never to be broken
+		if (stwings.isHighSuwwogate(chawCode)) {
+			// A suwwogate paiw must awways be considewed as a singwe unit, so it is neva to be bwoken
 			i++;
-			charCodeClass = CharacterClass.NONE;
-			charWidth = 2;
-		} else {
-			charCodeClass = classifier.get(charCode);
-			charWidth = computeCharWidth(charCode, visibleColumn, tabSize, columnsForFullWidthChar);
+			chawCodeCwass = ChawactewCwass.NONE;
+			chawWidth = 2;
+		} ewse {
+			chawCodeCwass = cwassifia.get(chawCode);
+			chawWidth = computeChawWidth(chawCode, visibweCowumn, tabSize, cowumnsFowFuwwWidthChaw);
 		}
 
-		if (canBreak(prevCharCode, prevCharCodeClass, charCode, charCodeClass)) {
-			breakOffset = charStartOffset;
-			breakOffsetVisibleColumn = visibleColumn;
+		if (canBweak(pwevChawCode, pwevChawCodeCwass, chawCode, chawCodeCwass)) {
+			bweakOffset = chawStawtOffset;
+			bweakOffsetVisibweCowumn = visibweCowumn;
 		}
 
-		visibleColumn += charWidth;
+		visibweCowumn += chawWidth;
 
-		// check if adding character at `i` will go over the breaking column
-		if (visibleColumn > breakingColumn) {
-			// We need to break at least before character at `i`:
+		// check if adding chawacta at `i` wiww go ova the bweaking cowumn
+		if (visibweCowumn > bweakingCowumn) {
+			// We need to bweak at weast befowe chawacta at `i`:
 
-			if (breakOffset === 0 || visibleColumn - breakOffsetVisibleColumn > wrappedLineBreakColumn) {
-				// Cannot break at `breakOffset`, must break at `i`
-				breakOffset = charStartOffset;
-				breakOffsetVisibleColumn = visibleColumn - charWidth;
+			if (bweakOffset === 0 || visibweCowumn - bweakOffsetVisibweCowumn > wwappedWineBweakCowumn) {
+				// Cannot bweak at `bweakOffset`, must bweak at `i`
+				bweakOffset = chawStawtOffset;
+				bweakOffsetVisibweCowumn = visibweCowumn - chawWidth;
 			}
 
-			breakingOffsets[breakingOffsetsCount] = breakOffset;
-			breakingOffsetsVisibleColumn[breakingOffsetsCount] = breakOffsetVisibleColumn;
-			breakingOffsetsCount++;
-			breakingColumn = breakOffsetVisibleColumn + wrappedLineBreakColumn;
-			breakOffset = 0;
+			bweakingOffsets[bweakingOffsetsCount] = bweakOffset;
+			bweakingOffsetsVisibweCowumn[bweakingOffsetsCount] = bweakOffsetVisibweCowumn;
+			bweakingOffsetsCount++;
+			bweakingCowumn = bweakOffsetVisibweCowumn + wwappedWineBweakCowumn;
+			bweakOffset = 0;
 		}
 
-		prevCharCode = charCode;
-		prevCharCodeClass = charCodeClass;
+		pwevChawCode = chawCode;
+		pwevChawCodeCwass = chawCodeCwass;
 	}
 
-	if (breakingOffsetsCount === 0 && (!injectedTexts || injectedTexts.length === 0)) {
-		return null;
+	if (bweakingOffsetsCount === 0 && (!injectedTexts || injectedTexts.wength === 0)) {
+		wetuwn nuww;
 	}
 
-	// Add last segment
-	breakingOffsets[breakingOffsetsCount] = len;
-	breakingOffsetsVisibleColumn[breakingOffsetsCount] = visibleColumn;
+	// Add wast segment
+	bweakingOffsets[bweakingOffsetsCount] = wen;
+	bweakingOffsetsVisibweCowumn[bweakingOffsetsCount] = visibweCowumn;
 
-	return new LineBreakData(breakingOffsets, breakingOffsetsVisibleColumn, wrappedTextIndentLength, injectionOffsets, injectionOptions);
+	wetuwn new WineBweakData(bweakingOffsets, bweakingOffsetsVisibweCowumn, wwappedTextIndentWength, injectionOffsets, injectionOptions);
 }
 
-function computeCharWidth(charCode: number, visibleColumn: number, tabSize: number, columnsForFullWidthChar: number): number {
-	if (charCode === CharCode.Tab) {
-		return (tabSize - (visibleColumn % tabSize));
+function computeChawWidth(chawCode: numba, visibweCowumn: numba, tabSize: numba, cowumnsFowFuwwWidthChaw: numba): numba {
+	if (chawCode === ChawCode.Tab) {
+		wetuwn (tabSize - (visibweCowumn % tabSize));
 	}
-	if (strings.isFullWidthCharacter(charCode)) {
-		return columnsForFullWidthChar;
+	if (stwings.isFuwwWidthChawacta(chawCode)) {
+		wetuwn cowumnsFowFuwwWidthChaw;
 	}
-	if (charCode < 32) {
-		// when using `editor.renderControlCharacters`, the substitutions are often wide
-		return columnsForFullWidthChar;
+	if (chawCode < 32) {
+		// when using `editow.wendewContwowChawactews`, the substitutions awe often wide
+		wetuwn cowumnsFowFuwwWidthChaw;
 	}
-	return 1;
+	wetuwn 1;
 }
 
-function tabCharacterWidth(visibleColumn: number, tabSize: number): number {
-	return (tabSize - (visibleColumn % tabSize));
+function tabChawactewWidth(visibweCowumn: numba, tabSize: numba): numba {
+	wetuwn (tabSize - (visibweCowumn % tabSize));
 }
 
 /**
- * Kinsoku Shori : Don't break after a leading character, like an open bracket
- * Kinsoku Shori : Don't break before a trailing character, like a period
+ * Kinsoku Showi : Don't bweak afta a weading chawacta, wike an open bwacket
+ * Kinsoku Showi : Don't bweak befowe a twaiwing chawacta, wike a pewiod
  */
-function canBreak(prevCharCode: number, prevCharCodeClass: CharacterClass, charCode: number, charCodeClass: CharacterClass): boolean {
-	return (
-		charCode !== CharCode.Space
+function canBweak(pwevChawCode: numba, pwevChawCodeCwass: ChawactewCwass, chawCode: numba, chawCodeCwass: ChawactewCwass): boowean {
+	wetuwn (
+		chawCode !== ChawCode.Space
 		&& (
-			(prevCharCodeClass === CharacterClass.BREAK_AFTER)
-			|| (prevCharCodeClass === CharacterClass.BREAK_IDEOGRAPHIC && charCodeClass !== CharacterClass.BREAK_AFTER)
-			|| (charCodeClass === CharacterClass.BREAK_BEFORE)
-			|| (charCodeClass === CharacterClass.BREAK_IDEOGRAPHIC && prevCharCodeClass !== CharacterClass.BREAK_BEFORE)
+			(pwevChawCodeCwass === ChawactewCwass.BWEAK_AFTa)
+			|| (pwevChawCodeCwass === ChawactewCwass.BWEAK_IDEOGWAPHIC && chawCodeCwass !== ChawactewCwass.BWEAK_AFTa)
+			|| (chawCodeCwass === ChawactewCwass.BWEAK_BEFOWE)
+			|| (chawCodeCwass === ChawactewCwass.BWEAK_IDEOGWAPHIC && pwevChawCodeCwass !== ChawactewCwass.BWEAK_BEFOWE)
 		)
 	);
 }
 
-function computeWrappedTextIndentLength(lineText: string, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent): number {
-	let wrappedTextIndentLength = 0;
-	if (wrappingIndent !== WrappingIndent.None) {
-		const firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineText);
-		if (firstNonWhitespaceIndex !== -1) {
-			// Track existing indent
+function computeWwappedTextIndentWength(wineText: stwing, tabSize: numba, fiwstWineBweakCowumn: numba, cowumnsFowFuwwWidthChaw: numba, wwappingIndent: WwappingIndent): numba {
+	wet wwappedTextIndentWength = 0;
+	if (wwappingIndent !== WwappingIndent.None) {
+		const fiwstNonWhitespaceIndex = stwings.fiwstNonWhitespaceIndex(wineText);
+		if (fiwstNonWhitespaceIndex !== -1) {
+			// Twack existing indent
 
-			for (let i = 0; i < firstNonWhitespaceIndex; i++) {
-				const charWidth = (lineText.charCodeAt(i) === CharCode.Tab ? tabCharacterWidth(wrappedTextIndentLength, tabSize) : 1);
-				wrappedTextIndentLength += charWidth;
+			fow (wet i = 0; i < fiwstNonWhitespaceIndex; i++) {
+				const chawWidth = (wineText.chawCodeAt(i) === ChawCode.Tab ? tabChawactewWidth(wwappedTextIndentWength, tabSize) : 1);
+				wwappedTextIndentWength += chawWidth;
 			}
 
-			// Increase indent of continuation lines, if desired
-			const numberOfAdditionalTabs = (wrappingIndent === WrappingIndent.DeepIndent ? 2 : wrappingIndent === WrappingIndent.Indent ? 1 : 0);
-			for (let i = 0; i < numberOfAdditionalTabs; i++) {
-				const charWidth = tabCharacterWidth(wrappedTextIndentLength, tabSize);
-				wrappedTextIndentLength += charWidth;
+			// Incwease indent of continuation wines, if desiwed
+			const numbewOfAdditionawTabs = (wwappingIndent === WwappingIndent.DeepIndent ? 2 : wwappingIndent === WwappingIndent.Indent ? 1 : 0);
+			fow (wet i = 0; i < numbewOfAdditionawTabs; i++) {
+				const chawWidth = tabChawactewWidth(wwappedTextIndentWength, tabSize);
+				wwappedTextIndentWength += chawWidth;
 			}
 
-			// Force sticking to beginning of line if no character would fit except for the indentation
-			if (wrappedTextIndentLength + columnsForFullWidthChar > firstLineBreakColumn) {
-				wrappedTextIndentLength = 0;
+			// Fowce sticking to beginning of wine if no chawacta wouwd fit except fow the indentation
+			if (wwappedTextIndentWength + cowumnsFowFuwwWidthChaw > fiwstWineBweakCowumn) {
+				wwappedTextIndentWength = 0;
 			}
 		}
 	}
-	return wrappedTextIndentLength;
+	wetuwn wwappedTextIndentWength;
 }

@@ -1,110 +1,110 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as path from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import { flakySuite, getPathFromAmdModule } from 'vs/base/test/node/testUtils';
-import { IFileQuery, IFolderQuery, ISerializedSearchProgressItem, isProgressMessage, QueryType } from 'vs/workbench/services/search/common/search';
-import { SearchService } from 'vs/workbench/services/search/node/rawSearchService';
+impowt * as assewt fwom 'assewt';
+impowt * as path fwom 'vs/base/common/path';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { fwakySuite, getPathFwomAmdModuwe } fwom 'vs/base/test/node/testUtiws';
+impowt { IFiweQuewy, IFowdewQuewy, ISewiawizedSeawchPwogwessItem, isPwogwessMessage, QuewyType } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { SeawchSewvice } fwom 'vs/wowkbench/sewvices/seawch/node/wawSeawchSewvice';
 
-const TEST_FIXTURES = path.normalize(getPathFromAmdModule(require, './fixtures'));
-const TEST_FIXTURES2 = path.normalize(getPathFromAmdModule(require, './fixtures2'));
-const EXAMPLES_FIXTURES = path.join(TEST_FIXTURES, 'examples');
-const MORE_FIXTURES = path.join(TEST_FIXTURES, 'more');
-const TEST_ROOT_FOLDER: IFolderQuery = { folder: URI.file(TEST_FIXTURES) };
-const ROOT_FOLDER_QUERY: IFolderQuery[] = [
-	TEST_ROOT_FOLDER
+const TEST_FIXTUWES = path.nowmawize(getPathFwomAmdModuwe(wequiwe, './fixtuwes'));
+const TEST_FIXTUWES2 = path.nowmawize(getPathFwomAmdModuwe(wequiwe, './fixtuwes2'));
+const EXAMPWES_FIXTUWES = path.join(TEST_FIXTUWES, 'exampwes');
+const MOWE_FIXTUWES = path.join(TEST_FIXTUWES, 'mowe');
+const TEST_WOOT_FOWDa: IFowdewQuewy = { fowda: UWI.fiwe(TEST_FIXTUWES) };
+const WOOT_FOWDEW_QUEWY: IFowdewQuewy[] = [
+	TEST_WOOT_FOWDa
 ];
 
-const MULTIROOT_QUERIES: IFolderQuery[] = [
-	{ folder: URI.file(EXAMPLES_FIXTURES), folderName: 'examples_folder' },
-	{ folder: URI.file(MORE_FIXTURES) }
+const MUWTIWOOT_QUEWIES: IFowdewQuewy[] = [
+	{ fowda: UWI.fiwe(EXAMPWES_FIXTUWES), fowdewName: 'exampwes_fowda' },
+	{ fowda: UWI.fiwe(MOWE_FIXTUWES) }
 ];
 
-async function doSearchTest(query: IFileQuery, expectedResultCount: number | Function): Promise<void> {
-	const svc = new SearchService();
+async function doSeawchTest(quewy: IFiweQuewy, expectedWesuwtCount: numba | Function): Pwomise<void> {
+	const svc = new SeawchSewvice();
 
-	const results: ISerializedSearchProgressItem[] = [];
-	await svc.doFileSearch(query, e => {
-		if (!isProgressMessage(e)) {
-			if (Array.isArray(e)) {
-				results.push(...e);
-			} else {
-				results.push(e);
+	const wesuwts: ISewiawizedSeawchPwogwessItem[] = [];
+	await svc.doFiweSeawch(quewy, e => {
+		if (!isPwogwessMessage(e)) {
+			if (Awway.isAwway(e)) {
+				wesuwts.push(...e);
+			} ewse {
+				wesuwts.push(e);
 			}
 		}
 	});
 
-	assert.strictEqual(results.length, expectedResultCount, `rg ${results.length} !== ${expectedResultCount}`);
+	assewt.stwictEquaw(wesuwts.wength, expectedWesuwtCount, `wg ${wesuwts.wength} !== ${expectedWesuwtCount}`);
 }
 
-flakySuite('FileSearch-integration', function () {
+fwakySuite('FiweSeawch-integwation', function () {
 
-	test('File - simple', () => {
-		const config: IFileQuery = {
-			type: QueryType.File,
-			folderQueries: ROOT_FOLDER_QUERY
+	test('Fiwe - simpwe', () => {
+		const config: IFiweQuewy = {
+			type: QuewyType.Fiwe,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY
 		};
 
-		return doSearchTest(config, 14);
+		wetuwn doSeawchTest(config, 14);
 	});
 
-	test('File - filepattern', () => {
-		const config: IFileQuery = {
-			type: QueryType.File,
-			folderQueries: ROOT_FOLDER_QUERY,
-			filePattern: 'anotherfile'
+	test('Fiwe - fiwepattewn', () => {
+		const config: IFiweQuewy = {
+			type: QuewyType.Fiwe,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			fiwePattewn: 'anothewfiwe'
 		};
 
-		return doSearchTest(config, 1);
+		wetuwn doSeawchTest(config, 1);
 	});
 
-	test('File - exclude', () => {
-		const config: IFileQuery = {
-			type: QueryType.File,
-			folderQueries: ROOT_FOLDER_QUERY,
-			filePattern: 'file',
-			excludePattern: { '**/anotherfolder/**': true }
+	test('Fiwe - excwude', () => {
+		const config: IFiweQuewy = {
+			type: QuewyType.Fiwe,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			fiwePattewn: 'fiwe',
+			excwudePattewn: { '**/anothewfowda/**': twue }
 		};
 
-		return doSearchTest(config, 2);
+		wetuwn doSeawchTest(config, 2);
 	});
 
-	test('File - multiroot', () => {
-		const config: IFileQuery = {
-			type: QueryType.File,
-			folderQueries: MULTIROOT_QUERIES,
-			filePattern: 'file',
-			excludePattern: { '**/anotherfolder/**': true }
+	test('Fiwe - muwtiwoot', () => {
+		const config: IFiweQuewy = {
+			type: QuewyType.Fiwe,
+			fowdewQuewies: MUWTIWOOT_QUEWIES,
+			fiwePattewn: 'fiwe',
+			excwudePattewn: { '**/anothewfowda/**': twue }
 		};
 
-		return doSearchTest(config, 2);
+		wetuwn doSeawchTest(config, 2);
 	});
 
-	test('File - multiroot with folder name', () => {
-		const config: IFileQuery = {
-			type: QueryType.File,
-			folderQueries: MULTIROOT_QUERIES,
-			filePattern: 'examples_folder anotherfile'
+	test('Fiwe - muwtiwoot with fowda name', () => {
+		const config: IFiweQuewy = {
+			type: QuewyType.Fiwe,
+			fowdewQuewies: MUWTIWOOT_QUEWIES,
+			fiwePattewn: 'exampwes_fowda anothewfiwe'
 		};
 
-		return doSearchTest(config, 1);
+		wetuwn doSeawchTest(config, 1);
 	});
 
-	test('File - multiroot with folder name and sibling exclude', () => {
-		const config: IFileQuery = {
-			type: QueryType.File,
-			folderQueries: [
-				{ folder: URI.file(TEST_FIXTURES), folderName: 'folder1' },
-				{ folder: URI.file(TEST_FIXTURES2) }
+	test('Fiwe - muwtiwoot with fowda name and sibwing excwude', () => {
+		const config: IFiweQuewy = {
+			type: QuewyType.Fiwe,
+			fowdewQuewies: [
+				{ fowda: UWI.fiwe(TEST_FIXTUWES), fowdewName: 'fowdew1' },
+				{ fowda: UWI.fiwe(TEST_FIXTUWES2) }
 			],
-			filePattern: 'folder1 site',
-			excludePattern: { '*.css': { when: '$(basename).less' } }
+			fiwePattewn: 'fowdew1 site',
+			excwudePattewn: { '*.css': { when: '$(basename).wess' } }
 		};
 
-		return doSearchTest(config, 1);
+		wetuwn doSeawchTest(config, 1);
 	});
 });

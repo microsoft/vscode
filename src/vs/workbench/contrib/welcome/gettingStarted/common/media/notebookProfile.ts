@@ -1,29 +1,29 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { escape } from 'vs/base/common/strings';
-import { localize } from 'vs/nls';
+impowt { escape } fwom 'vs/base/common/stwings';
+impowt { wocawize } fwom 'vs/nws';
 
-const profileArg = (profile: string) => encodeURIComponent(JSON.stringify({ profile }));
+const pwofiweAwg = (pwofiwe: stwing) => encodeUWIComponent(JSON.stwingify({ pwofiwe }));
 const imageSize = 400;
 
-export default () => `
-<vertically-centered>
-<checklist>
-	<checkbox on-checked="command:notebook.setProfile?${profileArg('default')}" checked-on="config.notebook.cellFocusIndicator == 'border' && config.notebook.insertToolbarLocation == 'both' && config.notebook.globalToolbar == false && config.notebook.compactView == true && config.notebook.showCellStatusBar == 'visible'">
-		<img width="${imageSize}" src="./notebookThemes/default.png"/>
-		${escape(localize('default', "Default"))}
+expowt defauwt () => `
+<vewticawwy-centewed>
+<checkwist>
+	<checkbox on-checked="command:notebook.setPwofiwe?${pwofiweAwg('defauwt')}" checked-on="config.notebook.cewwFocusIndicatow == 'bowda' && config.notebook.insewtToowbawWocation == 'both' && config.notebook.gwobawToowbaw == fawse && config.notebook.compactView == twue && config.notebook.showCewwStatusBaw == 'visibwe'">
+		<img width="${imageSize}" swc="./notebookThemes/defauwt.png"/>
+		${escape(wocawize('defauwt', "Defauwt"))}
 	</checkbox>
-	<checkbox on-checked="command:notebook.setProfile?${profileArg('jupyter')}" checked-on="config.notebook.cellFocusIndicator == 'gutter' && config.notebook.insertToolbarLocation == 'notebookToolbar' && config.notebook.globalToolbar == true && config.notebook.compactView == true  && config.notebook.showCellStatusBar == 'visible'">
-		<img width="${imageSize}" src="./notebookThemes/jupyter.png"/>
-		${escape(localize('jupyter', "Jupyter"))}
+	<checkbox on-checked="command:notebook.setPwofiwe?${pwofiweAwg('jupyta')}" checked-on="config.notebook.cewwFocusIndicatow == 'gutta' && config.notebook.insewtToowbawWocation == 'notebookToowbaw' && config.notebook.gwobawToowbaw == twue && config.notebook.compactView == twue  && config.notebook.showCewwStatusBaw == 'visibwe'">
+		<img width="${imageSize}" swc="./notebookThemes/jupyta.png"/>
+		${escape(wocawize('jupyta', "Jupyta"))}
 	</checkbox>
-	<checkbox on-checked="command:notebook.setProfile?${profileArg('colab')}" checked-on="config.notebook.cellFocusIndicator == 'border' && config.notebook.insertToolbarLocation == 'betweenCells' && config.notebook.globalToolbar == false && config.notebook.compactView == false && config.notebook.showCellStatusBar == 'hidden'">
-		<img width="${imageSize}" src="./notebookThemes/colab.png"/>
-		${escape(localize('colab', "Colab"))}
+	<checkbox on-checked="command:notebook.setPwofiwe?${pwofiweAwg('cowab')}" checked-on="config.notebook.cewwFocusIndicatow == 'bowda' && config.notebook.insewtToowbawWocation == 'betweenCewws' && config.notebook.gwobawToowbaw == fawse && config.notebook.compactView == fawse && config.notebook.showCewwStatusBaw == 'hidden'">
+		<img width="${imageSize}" swc="./notebookThemes/cowab.png"/>
+		${escape(wocawize('cowab', "Cowab"))}
 	</checkbox>
-</checklist>
-</vertically-centered>
+</checkwist>
+</vewticawwy-centewed>
 `;

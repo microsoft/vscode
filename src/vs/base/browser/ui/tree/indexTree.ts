@@ -1,50 +1,50 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { AbstractTree, IAbstractTreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
-import { IList, IndexTreeModel } from 'vs/base/browser/ui/tree/indexTreeModel';
-import { ITreeElement, ITreeModel, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { Iterable } from 'vs/base/common/iterator';
-import 'vs/css!./media/tree';
+impowt { IWistViwtuawDewegate } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { AbstwactTwee, IAbstwactTweeOptions } fwom 'vs/base/bwowsa/ui/twee/abstwactTwee';
+impowt { IWist, IndexTweeModew } fwom 'vs/base/bwowsa/ui/twee/indexTweeModew';
+impowt { ITweeEwement, ITweeModew, ITweeNode, ITweeWendewa } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
+impowt 'vs/css!./media/twee';
 
-export interface IIndexTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> { }
+expowt intewface IIndexTweeOptions<T, TFiwtewData = void> extends IAbstwactTweeOptions<T, TFiwtewData> { }
 
-export class IndexTree<T, TFilterData = void> extends AbstractTree<T, TFilterData, number[]> {
+expowt cwass IndexTwee<T, TFiwtewData = void> extends AbstwactTwee<T, TFiwtewData, numba[]> {
 
-	protected override model!: IndexTreeModel<T, TFilterData>;
+	pwotected ovewwide modew!: IndexTweeModew<T, TFiwtewData>;
 
-	constructor(
-		user: string,
-		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
-		renderers: ITreeRenderer<T, TFilterData, any>[],
-		private rootElement: T,
-		options: IIndexTreeOptions<T, TFilterData> = {}
+	constwuctow(
+		usa: stwing,
+		containa: HTMWEwement,
+		dewegate: IWistViwtuawDewegate<T>,
+		wendewews: ITweeWendewa<T, TFiwtewData, any>[],
+		pwivate wootEwement: T,
+		options: IIndexTweeOptions<T, TFiwtewData> = {}
 	) {
-		super(user, container, delegate, renderers, options);
+		supa(usa, containa, dewegate, wendewews, options);
 	}
 
-	splice(location: number[], deleteCount: number, toInsert: Iterable<ITreeElement<T>> = Iterable.empty()): void {
-		this.model.splice(location, deleteCount, toInsert);
+	spwice(wocation: numba[], deweteCount: numba, toInsewt: Itewabwe<ITweeEwement<T>> = Itewabwe.empty()): void {
+		this.modew.spwice(wocation, deweteCount, toInsewt);
 	}
 
-	rerender(location?: number[]): void {
-		if (location === undefined) {
-			this.view.rerender();
-			return;
+	wewenda(wocation?: numba[]): void {
+		if (wocation === undefined) {
+			this.view.wewenda();
+			wetuwn;
 		}
 
-		this.model.rerender(location);
+		this.modew.wewenda(wocation);
 	}
 
-	updateElementHeight(location: number[], height: number): void {
-		this.model.updateElementHeight(location, height);
+	updateEwementHeight(wocation: numba[], height: numba): void {
+		this.modew.updateEwementHeight(wocation, height);
 	}
 
-	protected createModel(user: string, view: IList<ITreeNode<T, TFilterData>>, options: IIndexTreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, number[]> {
-		return new IndexTreeModel(user, view, this.rootElement, options);
+	pwotected cweateModew(usa: stwing, view: IWist<ITweeNode<T, TFiwtewData>>, options: IIndexTweeOptions<T, TFiwtewData>): ITweeModew<T, TFiwtewData, numba[]> {
+		wetuwn new IndexTweeModew(usa, view, this.wootEwement, options);
 	}
 }

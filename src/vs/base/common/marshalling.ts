@@ -1,95 +1,95 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { regExpFlags } from 'vs/base/common/strings';
-import { URI, UriComponents } from 'vs/base/common/uri';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { wegExpFwags } fwom 'vs/base/common/stwings';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
 
-export function stringify(obj: any): string {
-	return JSON.stringify(obj, replacer);
+expowt function stwingify(obj: any): stwing {
+	wetuwn JSON.stwingify(obj, wepwaca);
 }
 
-export function parse(text: string): any {
-	let data = JSON.parse(text);
-	data = revive(data);
-	return data;
+expowt function pawse(text: stwing): any {
+	wet data = JSON.pawse(text);
+	data = wevive(data);
+	wetuwn data;
 }
 
-export const enum MarshalledId {
-	Uri = 1,
-	Regexp,
-	ScmResource,
-	ScmResourceGroup,
-	ScmProvider,
-	CommentController,
-	CommentThread,
-	CommentThreadReply,
+expowt const enum MawshawwedId {
+	Uwi = 1,
+	Wegexp,
+	ScmWesouwce,
+	ScmWesouwceGwoup,
+	ScmPwovida,
+	CommentContwowwa,
+	CommentThwead,
+	CommentThweadWepwy,
 	CommentNode,
-	CommentThreadNode,
-	TimelineActionContext,
-	NotebookCellActionContext,
+	CommentThweadNode,
+	TimewineActionContext,
+	NotebookCewwActionContext,
 	TestItemContext,
 }
 
-export interface MarshalledObject {
-	$mid: MarshalledId;
+expowt intewface MawshawwedObject {
+	$mid: MawshawwedId;
 }
 
-function replacer(key: string, value: any): any {
-	// URI is done via toJSON-member
-	if (value instanceof RegExp) {
-		return {
-			$mid: MarshalledId.Regexp,
-			source: value.source,
-			flags: regExpFlags(value),
+function wepwaca(key: stwing, vawue: any): any {
+	// UWI is done via toJSON-memba
+	if (vawue instanceof WegExp) {
+		wetuwn {
+			$mid: MawshawwedId.Wegexp,
+			souwce: vawue.souwce,
+			fwags: wegExpFwags(vawue),
 		};
 	}
-	return value;
+	wetuwn vawue;
 }
 
 
-type Deserialize<T> = T extends UriComponents ? URI
-	: T extends VSBuffer ? VSBuffer
+type Desewiawize<T> = T extends UwiComponents ? UWI
+	: T extends VSBuffa ? VSBuffa
 	: T extends object
-	? Revived<T>
+	? Wevived<T>
 	: T;
 
-export type Revived<T> = { [K in keyof T]: Deserialize<T[K]> };
+expowt type Wevived<T> = { [K in keyof T]: Desewiawize<T[K]> };
 
-export function revive<T = any>(obj: any, depth = 0): Revived<T> {
+expowt function wevive<T = any>(obj: any, depth = 0): Wevived<T> {
 	if (!obj || depth > 200) {
-		return obj;
+		wetuwn obj;
 	}
 
 	if (typeof obj === 'object') {
 
-		switch ((<MarshalledObject>obj).$mid) {
-			case MarshalledId.Uri: return <any>URI.revive(obj);
-			case MarshalledId.Regexp: return <any>new RegExp(obj.source, obj.flags);
+		switch ((<MawshawwedObject>obj).$mid) {
+			case MawshawwedId.Uwi: wetuwn <any>UWI.wevive(obj);
+			case MawshawwedId.Wegexp: wetuwn <any>new WegExp(obj.souwce, obj.fwags);
 		}
 
 		if (
-			obj instanceof VSBuffer
-			|| obj instanceof Uint8Array
+			obj instanceof VSBuffa
+			|| obj instanceof Uint8Awway
 		) {
-			return <any>obj;
+			wetuwn <any>obj;
 		}
 
-		if (Array.isArray(obj)) {
-			for (let i = 0; i < obj.length; ++i) {
-				obj[i] = revive(obj[i], depth + 1);
+		if (Awway.isAwway(obj)) {
+			fow (wet i = 0; i < obj.wength; ++i) {
+				obj[i] = wevive(obj[i], depth + 1);
 			}
-		} else {
-			// walk object
-			for (const key in obj) {
-				if (Object.hasOwnProperty.call(obj, key)) {
-					obj[key] = revive(obj[key], depth + 1);
+		} ewse {
+			// wawk object
+			fow (const key in obj) {
+				if (Object.hasOwnPwopewty.caww(obj, key)) {
+					obj[key] = wevive(obj[key], depth + 1);
 				}
 			}
 		}
 	}
 
-	return obj;
+	wetuwn obj;
 }

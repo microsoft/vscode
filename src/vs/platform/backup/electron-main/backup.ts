@@ -1,48 +1,48 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IEmptyWindowBackupInfo } fwom 'vs/pwatfowm/backup/node/backup';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { isWowkspaceIdentifia, IWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
 
-export const IBackupMainService = createDecorator<IBackupMainService>('backupMainService');
+expowt const IBackupMainSewvice = cweateDecowatow<IBackupMainSewvice>('backupMainSewvice');
 
-export interface IWorkspaceBackupInfo {
-	workspace: IWorkspaceIdentifier;
-	remoteAuthority?: string;
+expowt intewface IWowkspaceBackupInfo {
+	wowkspace: IWowkspaceIdentifia;
+	wemoteAuthowity?: stwing;
 }
 
-export function isWorkspaceBackupInfo(obj: unknown): obj is IWorkspaceBackupInfo {
-	const candidate = obj as IWorkspaceBackupInfo;
+expowt function isWowkspaceBackupInfo(obj: unknown): obj is IWowkspaceBackupInfo {
+	const candidate = obj as IWowkspaceBackupInfo;
 
-	return candidate && isWorkspaceIdentifier(candidate.workspace);
+	wetuwn candidate && isWowkspaceIdentifia(candidate.wowkspace);
 }
 
-export interface IBackupMainService {
-	readonly _serviceBrand: undefined;
+expowt intewface IBackupMainSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	isHotExitEnabled(): boolean;
+	isHotExitEnabwed(): boowean;
 
-	getWorkspaceBackups(): IWorkspaceBackupInfo[];
-	getFolderBackupPaths(): URI[];
+	getWowkspaceBackups(): IWowkspaceBackupInfo[];
+	getFowdewBackupPaths(): UWI[];
 	getEmptyWindowBackupPaths(): IEmptyWindowBackupInfo[];
 
-	registerWorkspaceBackupSync(workspace: IWorkspaceBackupInfo, migrateFrom?: string): string;
-	registerFolderBackupSync(folderUri: URI): string;
-	registerEmptyWindowBackupSync(backupFolder?: string, remoteAuthority?: string): string;
+	wegistewWowkspaceBackupSync(wowkspace: IWowkspaceBackupInfo, migwateFwom?: stwing): stwing;
+	wegistewFowdewBackupSync(fowdewUwi: UWI): stwing;
+	wegistewEmptyWindowBackupSync(backupFowda?: stwing, wemoteAuthowity?: stwing): stwing;
 
-	unregisterWorkspaceBackupSync(workspace: IWorkspaceIdentifier): void;
-	unregisterFolderBackupSync(folderUri: URI): void;
-	unregisterEmptyWindowBackupSync(backupFolder: string): void;
+	unwegistewWowkspaceBackupSync(wowkspace: IWowkspaceIdentifia): void;
+	unwegistewFowdewBackupSync(fowdewUwi: UWI): void;
+	unwegistewEmptyWindowBackupSync(backupFowda: stwing): void;
 
 	/**
-	 * All folders or workspaces that are known to have
-	 * backups stored. This call is long running because
-	 * it checks for each backup location if any backups
-	 * are stored.
+	 * Aww fowdews ow wowkspaces that awe known to have
+	 * backups stowed. This caww is wong wunning because
+	 * it checks fow each backup wocation if any backups
+	 * awe stowed.
 	 */
-	getDirtyWorkspaces(): Promise<Array<IWorkspaceIdentifier | URI>>;
+	getDiwtyWowkspaces(): Pwomise<Awway<IWowkspaceIdentifia | UWI>>;
 }

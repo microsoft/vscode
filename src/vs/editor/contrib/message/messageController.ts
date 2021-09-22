@@ -1,213 +1,213 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { TimeoutTimer } from 'vs/base/common/async';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./messageController';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorCommand, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
-import * as nls from 'vs/nls';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+impowt { awewt } fwom 'vs/base/bwowsa/ui/awia/awia';
+impowt { TimeoutTima } fwom 'vs/base/common/async';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { DisposabweStowe, IDisposabwe, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt 'vs/css!./messageContwowwa';
+impowt { ContentWidgetPositionPwefewence, ICodeEditow, IContentWidget, IContentWidgetPosition } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowCommand, wegistewEditowCommand, wegistewEditowContwibution } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { IPosition } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IEditowContwibution, ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt * as nws fwom 'vs/nws';
+impowt { IContextKey, IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { inputVawidationInfoBackgwound, inputVawidationInfoBowda, inputVawidationInfoFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { CowowScheme } fwom 'vs/pwatfowm/theme/common/theme';
+impowt { wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-export class MessageController implements IEditorContribution {
+expowt cwass MessageContwowwa impwements IEditowContwibution {
 
-	public static readonly ID = 'editor.contrib.messageController';
+	pubwic static weadonwy ID = 'editow.contwib.messageContwowwa';
 
-	static readonly MESSAGE_VISIBLE = new RawContextKey<boolean>('messageVisible', false, nls.localize('messageVisible', 'Whether the editor is currently showing an inline message'));
+	static weadonwy MESSAGE_VISIBWE = new WawContextKey<boowean>('messageVisibwe', fawse, nws.wocawize('messageVisibwe', 'Whetha the editow is cuwwentwy showing an inwine message'));
 
-	static get(editor: ICodeEditor): MessageController {
-		return editor.getContribution<MessageController>(MessageController.ID);
+	static get(editow: ICodeEditow): MessageContwowwa {
+		wetuwn editow.getContwibution<MessageContwowwa>(MessageContwowwa.ID);
 	}
 
-	private readonly _editor: ICodeEditor;
-	private readonly _visible: IContextKey<boolean>;
-	private readonly _messageWidget = new MutableDisposable<MessageWidget>();
-	private readonly _messageListeners = new DisposableStore();
-	private readonly _editorListener: IDisposable;
+	pwivate weadonwy _editow: ICodeEditow;
+	pwivate weadonwy _visibwe: IContextKey<boowean>;
+	pwivate weadonwy _messageWidget = new MutabweDisposabwe<MessageWidget>();
+	pwivate weadonwy _messageWistenews = new DisposabweStowe();
+	pwivate weadonwy _editowWistena: IDisposabwe;
 
-	constructor(
-		editor: ICodeEditor,
-		@IContextKeyService contextKeyService: IContextKeyService
+	constwuctow(
+		editow: ICodeEditow,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice
 	) {
 
-		this._editor = editor;
-		this._visible = MessageController.MESSAGE_VISIBLE.bindTo(contextKeyService);
-		this._editorListener = this._editor.onDidAttemptReadOnlyEdit(() => this._onDidAttemptReadOnlyEdit());
+		this._editow = editow;
+		this._visibwe = MessageContwowwa.MESSAGE_VISIBWE.bindTo(contextKeySewvice);
+		this._editowWistena = this._editow.onDidAttemptWeadOnwyEdit(() => this._onDidAttemptWeadOnwyEdit());
 	}
 
 	dispose(): void {
-		this._editorListener.dispose();
-		this._messageListeners.dispose();
+		this._editowWistena.dispose();
+		this._messageWistenews.dispose();
 		this._messageWidget.dispose();
-		this._visible.reset();
+		this._visibwe.weset();
 	}
 
-	isVisible() {
-		return this._visible.get();
+	isVisibwe() {
+		wetuwn this._visibwe.get();
 	}
 
-	showMessage(message: string, position: IPosition): void {
+	showMessage(message: stwing, position: IPosition): void {
 
-		alert(message);
+		awewt(message);
 
-		this._visible.set(true);
-		this._messageWidget.clear();
-		this._messageListeners.clear();
-		this._messageWidget.value = new MessageWidget(this._editor, position, message);
+		this._visibwe.set(twue);
+		this._messageWidget.cweaw();
+		this._messageWistenews.cweaw();
+		this._messageWidget.vawue = new MessageWidget(this._editow, position, message);
 
-		// close on blur, cursor, model change, dispose
-		this._messageListeners.add(this._editor.onDidBlurEditorText(() => this.closeMessage()));
-		this._messageListeners.add(this._editor.onDidChangeCursorPosition(() => this.closeMessage()));
-		this._messageListeners.add(this._editor.onDidDispose(() => this.closeMessage()));
-		this._messageListeners.add(this._editor.onDidChangeModel(() => this.closeMessage()));
+		// cwose on bwuw, cuwsow, modew change, dispose
+		this._messageWistenews.add(this._editow.onDidBwuwEditowText(() => this.cwoseMessage()));
+		this._messageWistenews.add(this._editow.onDidChangeCuwsowPosition(() => this.cwoseMessage()));
+		this._messageWistenews.add(this._editow.onDidDispose(() => this.cwoseMessage()));
+		this._messageWistenews.add(this._editow.onDidChangeModew(() => this.cwoseMessage()));
 
 		// 3sec
-		this._messageListeners.add(new TimeoutTimer(() => this.closeMessage(), 3000));
+		this._messageWistenews.add(new TimeoutTima(() => this.cwoseMessage(), 3000));
 
-		// close on mouse move
-		let bounds: Range;
-		this._messageListeners.add(this._editor.onMouseMove(e => {
-			// outside the text area
-			if (!e.target.position) {
-				return;
+		// cwose on mouse move
+		wet bounds: Wange;
+		this._messageWistenews.add(this._editow.onMouseMove(e => {
+			// outside the text awea
+			if (!e.tawget.position) {
+				wetuwn;
 			}
 
 			if (!bounds) {
-				// define bounding box around position and first mouse occurance
-				bounds = new Range(position.lineNumber - 3, 1, e.target.position.lineNumber + 3, 1);
-			} else if (!bounds.containsPosition(e.target.position)) {
-				// check if position is still in bounds
-				this.closeMessage();
+				// define bounding box awound position and fiwst mouse occuwance
+				bounds = new Wange(position.wineNumba - 3, 1, e.tawget.position.wineNumba + 3, 1);
+			} ewse if (!bounds.containsPosition(e.tawget.position)) {
+				// check if position is stiww in bounds
+				this.cwoseMessage();
 			}
 		}));
 	}
 
-	closeMessage(): void {
-		this._visible.reset();
-		this._messageListeners.clear();
-		if (this._messageWidget.value) {
-			this._messageListeners.add(MessageWidget.fadeOut(this._messageWidget.value));
+	cwoseMessage(): void {
+		this._visibwe.weset();
+		this._messageWistenews.cweaw();
+		if (this._messageWidget.vawue) {
+			this._messageWistenews.add(MessageWidget.fadeOut(this._messageWidget.vawue));
 		}
 	}
 
-	private _onDidAttemptReadOnlyEdit(): void {
-		if (this._editor.hasModel()) {
-			this.showMessage(nls.localize('editor.readonly', "Cannot edit in read-only editor"), this._editor.getPosition());
+	pwivate _onDidAttemptWeadOnwyEdit(): void {
+		if (this._editow.hasModew()) {
+			this.showMessage(nws.wocawize('editow.weadonwy', "Cannot edit in wead-onwy editow"), this._editow.getPosition());
 		}
 	}
 }
 
-const MessageCommand = EditorCommand.bindToContribution<MessageController>(MessageController.get);
+const MessageCommand = EditowCommand.bindToContwibution<MessageContwowwa>(MessageContwowwa.get);
 
 
-registerEditorCommand(new MessageCommand({
-	id: 'leaveEditorMessage',
-	precondition: MessageController.MESSAGE_VISIBLE,
-	handler: c => c.closeMessage(),
+wegistewEditowCommand(new MessageCommand({
+	id: 'weaveEditowMessage',
+	pwecondition: MessageContwowwa.MESSAGE_VISIBWE,
+	handwa: c => c.cwoseMessage(),
 	kbOpts: {
-		weight: KeybindingWeight.EditorContrib + 30,
-		primary: KeyCode.Escape
+		weight: KeybindingWeight.EditowContwib + 30,
+		pwimawy: KeyCode.Escape
 	}
 }));
 
-class MessageWidget implements IContentWidget {
+cwass MessageWidget impwements IContentWidget {
 
-	// Editor.IContentWidget.allowEditorOverflow
-	readonly allowEditorOverflow = true;
-	readonly suppressMouseDown = false;
+	// Editow.IContentWidget.awwowEditowOvewfwow
+	weadonwy awwowEditowOvewfwow = twue;
+	weadonwy suppwessMouseDown = fawse;
 
-	private readonly _editor: ICodeEditor;
-	private readonly _position: IPosition;
-	private readonly _domNode: HTMLDivElement;
+	pwivate weadonwy _editow: ICodeEditow;
+	pwivate weadonwy _position: IPosition;
+	pwivate weadonwy _domNode: HTMWDivEwement;
 
-	static fadeOut(messageWidget: MessageWidget): IDisposable {
-		let handle: any;
+	static fadeOut(messageWidget: MessageWidget): IDisposabwe {
+		wet handwe: any;
 		const dispose = () => {
 			messageWidget.dispose();
-			clearTimeout(handle);
-			messageWidget.getDomNode().removeEventListener('animationend', dispose);
+			cweawTimeout(handwe);
+			messageWidget.getDomNode().wemoveEventWistena('animationend', dispose);
 		};
-		handle = setTimeout(dispose, 110);
-		messageWidget.getDomNode().addEventListener('animationend', dispose);
-		messageWidget.getDomNode().classList.add('fadeOut');
-		return { dispose };
+		handwe = setTimeout(dispose, 110);
+		messageWidget.getDomNode().addEventWistena('animationend', dispose);
+		messageWidget.getDomNode().cwassWist.add('fadeOut');
+		wetuwn { dispose };
 	}
 
-	constructor(editor: ICodeEditor, { lineNumber, column }: IPosition, text: string) {
+	constwuctow(editow: ICodeEditow, { wineNumba, cowumn }: IPosition, text: stwing) {
 
-		this._editor = editor;
-		this._editor.revealLinesInCenterIfOutsideViewport(lineNumber, lineNumber, ScrollType.Smooth);
-		this._position = { lineNumber, column: column - 1 };
+		this._editow = editow;
+		this._editow.weveawWinesInCentewIfOutsideViewpowt(wineNumba, wineNumba, ScwowwType.Smooth);
+		this._position = { wineNumba, cowumn: cowumn - 1 };
 
-		this._domNode = document.createElement('div');
-		this._domNode.classList.add('monaco-editor-overlaymessage');
+		this._domNode = document.cweateEwement('div');
+		this._domNode.cwassWist.add('monaco-editow-ovewwaymessage');
 
-		const anchorTop = document.createElement('div');
-		anchorTop.classList.add('anchor', 'top');
-		this._domNode.appendChild(anchorTop);
+		const anchowTop = document.cweateEwement('div');
+		anchowTop.cwassWist.add('anchow', 'top');
+		this._domNode.appendChiwd(anchowTop);
 
-		const message = document.createElement('div');
-		message.classList.add('message');
+		const message = document.cweateEwement('div');
+		message.cwassWist.add('message');
 		message.textContent = text;
-		this._domNode.appendChild(message);
+		this._domNode.appendChiwd(message);
 
-		const anchorBottom = document.createElement('div');
-		anchorBottom.classList.add('anchor', 'below');
-		this._domNode.appendChild(anchorBottom);
+		const anchowBottom = document.cweateEwement('div');
+		anchowBottom.cwassWist.add('anchow', 'bewow');
+		this._domNode.appendChiwd(anchowBottom);
 
-		this._editor.addContentWidget(this);
-		this._domNode.classList.add('fadeIn');
+		this._editow.addContentWidget(this);
+		this._domNode.cwassWist.add('fadeIn');
 	}
 
 	dispose() {
-		this._editor.removeContentWidget(this);
+		this._editow.wemoveContentWidget(this);
 	}
 
-	getId(): string {
-		return 'messageoverlay';
+	getId(): stwing {
+		wetuwn 'messageovewway';
 	}
 
-	getDomNode(): HTMLElement {
-		return this._domNode;
+	getDomNode(): HTMWEwement {
+		wetuwn this._domNode;
 	}
 
 	getPosition(): IContentWidgetPosition {
-		return { position: this._position, preference: [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW] };
+		wetuwn { position: this._position, pwefewence: [ContentWidgetPositionPwefewence.ABOVE, ContentWidgetPositionPwefewence.BEWOW] };
 	}
 
-	afterRender(position: ContentWidgetPositionPreference | null): void {
-		this._domNode.classList.toggle('below', position === ContentWidgetPositionPreference.BELOW);
+	aftewWenda(position: ContentWidgetPositionPwefewence | nuww): void {
+		this._domNode.cwassWist.toggwe('bewow', position === ContentWidgetPositionPwefewence.BEWOW);
 	}
 
 }
 
-registerEditorContribution(MessageController.ID, MessageController);
+wegistewEditowContwibution(MessageContwowwa.ID, MessageContwowwa);
 
-registerThemingParticipant((theme, collector) => {
-	const border = theme.getColor(inputValidationInfoBorder);
-	if (border) {
-		let borderWidth = theme.type === ColorScheme.HIGH_CONTRAST ? 2 : 1;
-		collector.addRule(`.monaco-editor .monaco-editor-overlaymessage .anchor.below { border-top-color: ${border}; }`);
-		collector.addRule(`.monaco-editor .monaco-editor-overlaymessage .anchor.top { border-bottom-color: ${border}; }`);
-		collector.addRule(`.monaco-editor .monaco-editor-overlaymessage .message { border: ${borderWidth}px solid ${border}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const bowda = theme.getCowow(inputVawidationInfoBowda);
+	if (bowda) {
+		wet bowdewWidth = theme.type === CowowScheme.HIGH_CONTWAST ? 2 : 1;
+		cowwectow.addWuwe(`.monaco-editow .monaco-editow-ovewwaymessage .anchow.bewow { bowda-top-cowow: ${bowda}; }`);
+		cowwectow.addWuwe(`.monaco-editow .monaco-editow-ovewwaymessage .anchow.top { bowda-bottom-cowow: ${bowda}; }`);
+		cowwectow.addWuwe(`.monaco-editow .monaco-editow-ovewwaymessage .message { bowda: ${bowdewWidth}px sowid ${bowda}; }`);
 	}
-	const background = theme.getColor(inputValidationInfoBackground);
-	if (background) {
-		collector.addRule(`.monaco-editor .monaco-editor-overlaymessage .message { background-color: ${background}; }`);
+	const backgwound = theme.getCowow(inputVawidationInfoBackgwound);
+	if (backgwound) {
+		cowwectow.addWuwe(`.monaco-editow .monaco-editow-ovewwaymessage .message { backgwound-cowow: ${backgwound}; }`);
 	}
-	const foreground = theme.getColor(inputValidationInfoForeground);
-	if (foreground) {
-		collector.addRule(`.monaco-editor .monaco-editor-overlaymessage .message { color: ${foreground}; }`);
+	const fowegwound = theme.getCowow(inputVawidationInfoFowegwound);
+	if (fowegwound) {
+		cowwectow.addWuwe(`.monaco-editow .monaco-editow-ovewwaymessage .message { cowow: ${fowegwound}; }`);
 	}
 });

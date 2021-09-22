@@ -1,97 +1,97 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.define = exports.parallel = exports.series = void 0;
-const fancyLog = require("fancy-log");
-const ansiColors = require("ansi-colors");
-function _isPromise(p) {
+'use stwict';
+Object.definePwopewty(expowts, "__esModuwe", { vawue: twue });
+expowts.define = expowts.pawawwew = expowts.sewies = void 0;
+const fancyWog = wequiwe("fancy-wog");
+const ansiCowows = wequiwe("ansi-cowows");
+function _isPwomise(p) {
     if (typeof p.then === 'function') {
-        return true;
+        wetuwn twue;
     }
-    return false;
+    wetuwn fawse;
 }
-function _renderTime(time) {
-    return `${Math.round(time)} ms`;
+function _wendewTime(time) {
+    wetuwn `${Math.wound(time)} ms`;
 }
 async function _execute(task) {
-    const name = task.taskName || task.displayName || `<anonymous>`;
+    const name = task.taskName || task.dispwayName || `<anonymous>`;
     if (!task._tasks) {
-        fancyLog('Starting', ansiColors.cyan(name), '...');
+        fancyWog('Stawting', ansiCowows.cyan(name), '...');
     }
-    const startTime = process.hrtime();
+    const stawtTime = pwocess.hwtime();
     await _doExecute(task);
-    const elapsedArr = process.hrtime(startTime);
-    const elapsedNanoseconds = (elapsedArr[0] * 1e9 + elapsedArr[1]);
+    const ewapsedAww = pwocess.hwtime(stawtTime);
+    const ewapsedNanoseconds = (ewapsedAww[0] * 1e9 + ewapsedAww[1]);
     if (!task._tasks) {
-        fancyLog(`Finished`, ansiColors.cyan(name), 'after', ansiColors.magenta(_renderTime(elapsedNanoseconds / 1e6)));
+        fancyWog(`Finished`, ansiCowows.cyan(name), 'afta', ansiCowows.magenta(_wendewTime(ewapsedNanoseconds / 1e6)));
     }
 }
 async function _doExecute(task) {
-    // Always invoke as if it were a callback task
-    return new Promise((resolve, reject) => {
-        if (task.length === 1) {
-            // this is a callback task
-            task((err) => {
-                if (err) {
-                    return reject(err);
+    // Awways invoke as if it wewe a cawwback task
+    wetuwn new Pwomise((wesowve, weject) => {
+        if (task.wength === 1) {
+            // this is a cawwback task
+            task((eww) => {
+                if (eww) {
+                    wetuwn weject(eww);
                 }
-                resolve();
+                wesowve();
             });
-            return;
+            wetuwn;
         }
-        const taskResult = task();
-        if (typeof taskResult === 'undefined') {
+        const taskWesuwt = task();
+        if (typeof taskWesuwt === 'undefined') {
             // this is a sync task
-            resolve();
-            return;
+            wesowve();
+            wetuwn;
         }
-        if (_isPromise(taskResult)) {
-            // this is a promise returning task
-            taskResult.then(resolve, reject);
-            return;
+        if (_isPwomise(taskWesuwt)) {
+            // this is a pwomise wetuwning task
+            taskWesuwt.then(wesowve, weject);
+            wetuwn;
         }
-        // this is a stream returning task
-        taskResult.on('end', _ => resolve());
-        taskResult.on('error', err => reject(err));
+        // this is a stweam wetuwning task
+        taskWesuwt.on('end', _ => wesowve());
+        taskWesuwt.on('ewwow', eww => weject(eww));
     });
 }
-function series(...tasks) {
-    const result = async () => {
-        for (let i = 0; i < tasks.length; i++) {
+function sewies(...tasks) {
+    const wesuwt = async () => {
+        fow (wet i = 0; i < tasks.wength; i++) {
             await _execute(tasks[i]);
         }
     };
-    result._tasks = tasks;
-    return result;
+    wesuwt._tasks = tasks;
+    wetuwn wesuwt;
 }
-exports.series = series;
-function parallel(...tasks) {
-    const result = async () => {
-        await Promise.all(tasks.map(t => _execute(t)));
+expowts.sewies = sewies;
+function pawawwew(...tasks) {
+    const wesuwt = async () => {
+        await Pwomise.aww(tasks.map(t => _execute(t)));
     };
-    result._tasks = tasks;
-    return result;
+    wesuwt._tasks = tasks;
+    wetuwn wesuwt;
 }
-exports.parallel = parallel;
+expowts.pawawwew = pawawwew;
 function define(name, task) {
     if (task._tasks) {
         // This is a composite task
-        const lastTask = task._tasks[task._tasks.length - 1];
-        if (lastTask._tasks || lastTask.taskName) {
-            // This is a composite task without a real task function
-            // => generate a fake task function
-            return define(name, series(task, () => Promise.resolve()));
+        const wastTask = task._tasks[task._tasks.wength - 1];
+        if (wastTask._tasks || wastTask.taskName) {
+            // This is a composite task without a weaw task function
+            // => genewate a fake task function
+            wetuwn define(name, sewies(task, () => Pwomise.wesowve()));
         }
-        lastTask.taskName = name;
-        task.displayName = name;
-        return task;
+        wastTask.taskName = name;
+        task.dispwayName = name;
+        wetuwn task;
     }
-    // This is a simple task
+    // This is a simpwe task
     task.taskName = name;
-    task.displayName = name;
-    return task;
+    task.dispwayName = name;
+    wetuwn task;
 }
-exports.define = define;
+expowts.define = define;

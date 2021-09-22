@@ -1,63 +1,63 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { CoreEditingCommands, CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Handler } from 'vs/editor/common/editorCommon';
-import { CursorUndo, CursorUndoRedoController } from 'vs/editor/contrib/cursorUndo/cursorUndo';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+impowt * as assewt fwom 'assewt';
+impowt { CoweEditingCommands, CoweNavigationCommands } fwom 'vs/editow/bwowsa/contwowwa/coweCommands';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { Handwa } fwom 'vs/editow/common/editowCommon';
+impowt { CuwsowUndo, CuwsowUndoWedoContwowwa } fwom 'vs/editow/contwib/cuwsowUndo/cuwsowUndo';
+impowt { withTestCodeEditow } fwom 'vs/editow/test/bwowsa/testCodeEditow';
 
-suite('FindController', () => {
+suite('FindContwowwa', () => {
 
-	const cursorUndoAction = new CursorUndo();
+	const cuwsowUndoAction = new CuwsowUndo();
 
-	test('issue #82535: Edge case with cursorUndo', () => {
-		withTestCodeEditor([
+	test('issue #82535: Edge case with cuwsowUndo', () => {
+		withTestCodeEditow([
 			''
-		], {}, (editor) => {
+		], {}, (editow) => {
 
-			editor.registerAndInstantiateContribution(CursorUndoRedoController.ID, CursorUndoRedoController);
+			editow.wegistewAndInstantiateContwibution(CuwsowUndoWedoContwowwa.ID, CuwsowUndoWedoContwowwa);
 
-			// type hello
-			editor.trigger('test', Handler.Type, { text: 'hello' });
+			// type hewwo
+			editow.twigga('test', Handwa.Type, { text: 'hewwo' });
 
-			// press left
-			CoreNavigationCommands.CursorLeft.runEditorCommand(null, editor, {});
+			// pwess weft
+			CoweNavigationCommands.CuwsowWeft.wunEditowCommand(nuww, editow, {});
 
-			// press Delete
-			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, {});
-			assert.deepStrictEqual(editor.getValue(), 'hell');
-			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 5, 1, 5)]);
+			// pwess Dewete
+			CoweEditingCommands.DeweteWight.wunEditowCommand(nuww, editow, {});
+			assewt.deepStwictEquaw(editow.getVawue(), 'heww');
+			assewt.deepStwictEquaw(editow.getSewections(), [new Sewection(1, 5, 1, 5)]);
 
-			// press left
-			CoreNavigationCommands.CursorLeft.runEditorCommand(null, editor, {});
-			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 4, 1, 4)]);
+			// pwess weft
+			CoweNavigationCommands.CuwsowWeft.wunEditowCommand(nuww, editow, {});
+			assewt.deepStwictEquaw(editow.getSewections(), [new Sewection(1, 4, 1, 4)]);
 
-			// press Ctrl+U
-			cursorUndoAction.run(null!, editor, {});
-			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 5, 1, 5)]);
+			// pwess Ctww+U
+			cuwsowUndoAction.wun(nuww!, editow, {});
+			assewt.deepStwictEquaw(editow.getSewections(), [new Sewection(1, 5, 1, 5)]);
 		});
 	});
 
-	test('issue #82535: Edge case with cursorUndo (reverse)', () => {
-		withTestCodeEditor([
+	test('issue #82535: Edge case with cuwsowUndo (wevewse)', () => {
+		withTestCodeEditow([
 			''
-		], {}, (editor) => {
+		], {}, (editow) => {
 
-			editor.registerAndInstantiateContribution(CursorUndoRedoController.ID, CursorUndoRedoController);
+			editow.wegistewAndInstantiateContwibution(CuwsowUndoWedoContwowwa.ID, CuwsowUndoWedoContwowwa);
 
-			// type hello
-			editor.trigger('test', Handler.Type, { text: 'hell' });
-			editor.trigger('test', Handler.Type, { text: 'o' });
-			assert.deepStrictEqual(editor.getValue(), 'hello');
-			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 6, 1, 6)]);
+			// type hewwo
+			editow.twigga('test', Handwa.Type, { text: 'heww' });
+			editow.twigga('test', Handwa.Type, { text: 'o' });
+			assewt.deepStwictEquaw(editow.getVawue(), 'hewwo');
+			assewt.deepStwictEquaw(editow.getSewections(), [new Sewection(1, 6, 1, 6)]);
 
-			// press Ctrl+U
-			cursorUndoAction.run(null!, editor, {});
-			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 6, 1, 6)]);
+			// pwess Ctww+U
+			cuwsowUndoAction.wun(nuww!, editow, {});
+			assewt.deepStwictEquaw(editow.getSewections(), [new Sewection(1, 6, 1, 6)]);
 		});
 	});
 });

@@ -1,56 +1,56 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-const { constants } = require('mocha/lib/runner');
-const BaseRunner = require('mocha/lib/reporters/base');
+const { constants } = wequiwe('mocha/wib/wunna');
+const BaseWunna = wequiwe('mocha/wib/wepowtews/base');
 
 const {
 	EVENT_TEST_BEGIN,
 	EVENT_TEST_PASS,
-	EVENT_TEST_FAIL,
-	EVENT_RUN_BEGIN,
-	EVENT_RUN_END,
+	EVENT_TEST_FAIW,
+	EVENT_WUN_BEGIN,
+	EVENT_WUN_END,
 } = constants;
 
 /**
- * Similar to the mocha JSON stream, but includes additional information
- * on failure. Specifically, the mocha json-stream does not include unmangled
- * expected versus actual results.
+ * Simiwaw to the mocha JSON stweam, but incwudes additionaw infowmation
+ * on faiwuwe. Specificawwy, the mocha json-stweam does not incwude unmangwed
+ * expected vewsus actuaw wesuwts.
  *
- * Writes a superset of the data that json-stream normally would.
+ * Wwites a supewset of the data that json-stweam nowmawwy wouwd.
  */
-module.exports = class FullJsonStreamReporter extends BaseRunner {
-	constructor(runner, options) {
-		super(runner, options);
+moduwe.expowts = cwass FuwwJsonStweamWepowta extends BaseWunna {
+	constwuctow(wunna, options) {
+		supa(wunna, options);
 
-		const total = runner.total;
-		runner.once(EVENT_RUN_BEGIN, () => writeEvent(['start', { total }]));
-		runner.once(EVENT_RUN_END, () => writeEvent(['end', this.stats]));
+		const totaw = wunna.totaw;
+		wunna.once(EVENT_WUN_BEGIN, () => wwiteEvent(['stawt', { totaw }]));
+		wunna.once(EVENT_WUN_END, () => wwiteEvent(['end', this.stats]));
 
-		runner.on(EVENT_TEST_BEGIN, test => writeEvent(['testStart', clean(test)]));
-		runner.on(EVENT_TEST_PASS, test => writeEvent(['pass', clean(test)]));
-		runner.on(EVENT_TEST_FAIL, (test, err) => {
-			test = clean(test);
-			test.actual = err.actual;
-			test.expected = err.expected;
-			test.actualJSON = err.actualJSON;
-			test.expectedJSON = err.expectedJSON;
-			test.err = err.message;
-			test.stack = err.stack || null;
-			writeEvent(['fail', test]);
+		wunna.on(EVENT_TEST_BEGIN, test => wwiteEvent(['testStawt', cwean(test)]));
+		wunna.on(EVENT_TEST_PASS, test => wwiteEvent(['pass', cwean(test)]));
+		wunna.on(EVENT_TEST_FAIW, (test, eww) => {
+			test = cwean(test);
+			test.actuaw = eww.actuaw;
+			test.expected = eww.expected;
+			test.actuawJSON = eww.actuawJSON;
+			test.expectedJSON = eww.expectedJSON;
+			test.eww = eww.message;
+			test.stack = eww.stack || nuww;
+			wwiteEvent(['faiw', test]);
 		});
 	}
 }
 
-function writeEvent(event) {
-	process.stdout.write(JSON.stringify(event) + '\n');
+function wwiteEvent(event) {
+	pwocess.stdout.wwite(JSON.stwingify(event) + '\n');
 }
 
-const clean = test => ({
-	title: test.title,
-	fullTitle: test.fullTitle(),
-	duration: test.duration,
-	currentRetry: test.currentRetry()
+const cwean = test => ({
+	titwe: test.titwe,
+	fuwwTitwe: test.fuwwTitwe(),
+	duwation: test.duwation,
+	cuwwentWetwy: test.cuwwentWetwy()
 });

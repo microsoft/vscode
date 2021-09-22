@@ -1,161 +1,161 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct } from 'vs/base/common/arrays';
-import { Event } from 'vs/base/common/event';
-import { IDisposable, IReference } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
-import { globMatchesResource, priorityToRank, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
+impowt { distinct } fwom 'vs/base/common/awways';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe, IWefewence } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt * as nws fwom 'vs/nws';
+impowt { WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWevewtOptions, ISaveOptions } fwom 'vs/wowkbench/common/editow';
+impowt { gwobMatchesWesouwce, pwiowityToWank, WegistewedEditowPwiowity } fwom 'vs/wowkbench/sewvices/editow/common/editowWesowvewSewvice';
 
-export const ICustomEditorService = createDecorator<ICustomEditorService>('customEditorService');
+expowt const ICustomEditowSewvice = cweateDecowatow<ICustomEditowSewvice>('customEditowSewvice');
 
-export const CONTEXT_ACTIVE_CUSTOM_EDITOR_ID = new RawContextKey<string>('activeCustomEditorId', '', {
-	type: 'string',
-	description: nls.localize('context.customEditor', "The viewType of the currently active custom editor."),
+expowt const CONTEXT_ACTIVE_CUSTOM_EDITOW_ID = new WawContextKey<stwing>('activeCustomEditowId', '', {
+	type: 'stwing',
+	descwiption: nws.wocawize('context.customEditow', "The viewType of the cuwwentwy active custom editow."),
 });
 
-export const CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE = new RawContextKey<boolean>('focusedCustomEditorIsEditable', false);
+expowt const CONTEXT_FOCUSED_CUSTOM_EDITOW_IS_EDITABWE = new WawContextKey<boowean>('focusedCustomEditowIsEditabwe', fawse);
 
-export interface CustomEditorCapabilities {
-	readonly supportsMultipleEditorsPerDocument?: boolean;
+expowt intewface CustomEditowCapabiwities {
+	weadonwy suppowtsMuwtipweEditowsPewDocument?: boowean;
 }
 
-export interface ICustomEditorService {
-	_serviceBrand: any;
+expowt intewface ICustomEditowSewvice {
+	_sewviceBwand: any;
 
-	readonly models: ICustomEditorModelManager;
+	weadonwy modews: ICustomEditowModewManaga;
 
-	getCustomEditor(viewType: string): CustomEditorInfo | undefined;
-	getAllCustomEditors(resource: URI): CustomEditorInfoCollection;
-	getContributedCustomEditors(resource: URI): CustomEditorInfoCollection;
-	getUserConfiguredCustomEditors(resource: URI): CustomEditorInfoCollection;
+	getCustomEditow(viewType: stwing): CustomEditowInfo | undefined;
+	getAwwCustomEditows(wesouwce: UWI): CustomEditowInfoCowwection;
+	getContwibutedCustomEditows(wesouwce: UWI): CustomEditowInfoCowwection;
+	getUsewConfiguwedCustomEditows(wesouwce: UWI): CustomEditowInfoCowwection;
 
-	registerCustomEditorCapabilities(viewType: string, options: CustomEditorCapabilities): IDisposable;
-	getCustomEditorCapabilities(viewType: string): CustomEditorCapabilities | undefined
+	wegistewCustomEditowCapabiwities(viewType: stwing, options: CustomEditowCapabiwities): IDisposabwe;
+	getCustomEditowCapabiwities(viewType: stwing): CustomEditowCapabiwities | undefined
 }
 
-export interface ICustomEditorModelManager {
-	getAllModels(resource: URI): Promise<ICustomEditorModel[]>
+expowt intewface ICustomEditowModewManaga {
+	getAwwModews(wesouwce: UWI): Pwomise<ICustomEditowModew[]>
 
-	get(resource: URI, viewType: string): Promise<ICustomEditorModel | undefined>;
+	get(wesouwce: UWI, viewType: stwing): Pwomise<ICustomEditowModew | undefined>;
 
-	tryRetain(resource: URI, viewType: string): Promise<IReference<ICustomEditorModel>> | undefined;
+	twyWetain(wesouwce: UWI, viewType: stwing): Pwomise<IWefewence<ICustomEditowModew>> | undefined;
 
-	add(resource: URI, viewType: string, model: Promise<ICustomEditorModel>): Promise<IReference<ICustomEditorModel>>;
+	add(wesouwce: UWI, viewType: stwing, modew: Pwomise<ICustomEditowModew>): Pwomise<IWefewence<ICustomEditowModew>>;
 
-	disposeAllModelsForView(viewType: string): void;
+	disposeAwwModewsFowView(viewType: stwing): void;
 }
 
-export interface ICustomEditorModel extends IDisposable {
-	readonly viewType: string;
-	readonly resource: URI;
-	readonly backupId: string | undefined;
+expowt intewface ICustomEditowModew extends IDisposabwe {
+	weadonwy viewType: stwing;
+	weadonwy wesouwce: UWI;
+	weadonwy backupId: stwing | undefined;
 
-	isReadonly(): boolean;
-	readonly onDidChangeReadonly: Event<void>;
+	isWeadonwy(): boowean;
+	weadonwy onDidChangeWeadonwy: Event<void>;
 
-	isOrphaned(): boolean;
-	readonly onDidChangeOrphaned: Event<void>;
+	isOwphaned(): boowean;
+	weadonwy onDidChangeOwphaned: Event<void>;
 
-	isDirty(): boolean;
-	readonly onDidChangeDirty: Event<void>;
+	isDiwty(): boowean;
+	weadonwy onDidChangeDiwty: Event<void>;
 
-	revert(options?: IRevertOptions): Promise<void>;
+	wevewt(options?: IWevewtOptions): Pwomise<void>;
 
-	saveCustomEditor(options?: ISaveOptions): Promise<URI | undefined>;
-	saveCustomEditorAs(resource: URI, targetResource: URI, currentOptions?: ISaveOptions): Promise<boolean>;
+	saveCustomEditow(options?: ISaveOptions): Pwomise<UWI | undefined>;
+	saveCustomEditowAs(wesouwce: UWI, tawgetWesouwce: UWI, cuwwentOptions?: ISaveOptions): Pwomise<boowean>;
 }
 
-export const enum CustomEditorPriority {
-	default = 'default',
-	builtin = 'builtin',
+expowt const enum CustomEditowPwiowity {
+	defauwt = 'defauwt',
+	buiwtin = 'buiwtin',
 	option = 'option',
 }
 
-export interface CustomEditorSelector {
-	readonly filenamePattern?: string;
+expowt intewface CustomEditowSewectow {
+	weadonwy fiwenamePattewn?: stwing;
 }
 
-export interface CustomEditorDescriptor {
-	readonly id: string;
-	readonly displayName: string;
-	readonly providerDisplayName: string;
-	readonly priority: RegisteredEditorPriority;
-	readonly selector: readonly CustomEditorSelector[];
+expowt intewface CustomEditowDescwiptow {
+	weadonwy id: stwing;
+	weadonwy dispwayName: stwing;
+	weadonwy pwovidewDispwayName: stwing;
+	weadonwy pwiowity: WegistewedEditowPwiowity;
+	weadonwy sewectow: weadonwy CustomEditowSewectow[];
 }
 
-export class CustomEditorInfo implements CustomEditorDescriptor {
+expowt cwass CustomEditowInfo impwements CustomEditowDescwiptow {
 
-	public readonly id: string;
-	public readonly displayName: string;
-	public readonly providerDisplayName: string;
-	public readonly priority: RegisteredEditorPriority;
-	public readonly selector: readonly CustomEditorSelector[];
+	pubwic weadonwy id: stwing;
+	pubwic weadonwy dispwayName: stwing;
+	pubwic weadonwy pwovidewDispwayName: stwing;
+	pubwic weadonwy pwiowity: WegistewedEditowPwiowity;
+	pubwic weadonwy sewectow: weadonwy CustomEditowSewectow[];
 
-	constructor(descriptor: CustomEditorDescriptor) {
-		this.id = descriptor.id;
-		this.displayName = descriptor.displayName;
-		this.providerDisplayName = descriptor.providerDisplayName;
-		this.priority = descriptor.priority;
-		this.selector = descriptor.selector;
+	constwuctow(descwiptow: CustomEditowDescwiptow) {
+		this.id = descwiptow.id;
+		this.dispwayName = descwiptow.dispwayName;
+		this.pwovidewDispwayName = descwiptow.pwovidewDispwayName;
+		this.pwiowity = descwiptow.pwiowity;
+		this.sewectow = descwiptow.sewectow;
 	}
 
-	matches(resource: URI): boolean {
-		return this.selector.some(selector => selector.filenamePattern && globMatchesResource(selector.filenamePattern, resource));
+	matches(wesouwce: UWI): boowean {
+		wetuwn this.sewectow.some(sewectow => sewectow.fiwenamePattewn && gwobMatchesWesouwce(sewectow.fiwenamePattewn, wesouwce));
 	}
 }
 
-export class CustomEditorInfoCollection {
+expowt cwass CustomEditowInfoCowwection {
 
-	public readonly allEditors: readonly CustomEditorInfo[];
+	pubwic weadonwy awwEditows: weadonwy CustomEditowInfo[];
 
-	constructor(
-		editors: readonly CustomEditorInfo[],
+	constwuctow(
+		editows: weadonwy CustomEditowInfo[],
 	) {
-		this.allEditors = distinct(editors, editor => editor.id);
+		this.awwEditows = distinct(editows, editow => editow.id);
 	}
 
-	public get length(): number { return this.allEditors.length; }
+	pubwic get wength(): numba { wetuwn this.awwEditows.wength; }
 
 	/**
-	 * Find the single default editor to use (if any) by looking at the editor's priority and the
-	 * other contributed editors.
+	 * Find the singwe defauwt editow to use (if any) by wooking at the editow's pwiowity and the
+	 * otha contwibuted editows.
 	 */
-	public get defaultEditor(): CustomEditorInfo | undefined {
-		return this.allEditors.find(editor => {
-			switch (editor.priority) {
-				case RegisteredEditorPriority.default:
-				case RegisteredEditorPriority.builtin:
-					// A default editor must have higher priority than all other contributed editors.
-					return this.allEditors.every(otherEditor =>
-						otherEditor === editor || isLowerPriority(otherEditor, editor));
+	pubwic get defauwtEditow(): CustomEditowInfo | undefined {
+		wetuwn this.awwEditows.find(editow => {
+			switch (editow.pwiowity) {
+				case WegistewedEditowPwiowity.defauwt:
+				case WegistewedEditowPwiowity.buiwtin:
+					// A defauwt editow must have higha pwiowity than aww otha contwibuted editows.
+					wetuwn this.awwEditows.evewy(othewEditow =>
+						othewEditow === editow || isWowewPwiowity(othewEditow, editow));
 
-				default:
-					return false;
+				defauwt:
+					wetuwn fawse;
 			}
 		});
 	}
 
 	/**
-	 * Find the best available editor to use.
+	 * Find the best avaiwabwe editow to use.
 	 *
-	 * Unlike the `defaultEditor`, a bestAvailableEditor can exist even if there are other editors with
-	 * the same priority.
+	 * Unwike the `defauwtEditow`, a bestAvaiwabweEditow can exist even if thewe awe otha editows with
+	 * the same pwiowity.
 	 */
-	public get bestAvailableEditor(): CustomEditorInfo | undefined {
-		const editors = Array.from(this.allEditors).sort((a, b) => {
-			return priorityToRank(a.priority) - priorityToRank(b.priority);
+	pubwic get bestAvaiwabweEditow(): CustomEditowInfo | undefined {
+		const editows = Awway.fwom(this.awwEditows).sowt((a, b) => {
+			wetuwn pwiowityToWank(a.pwiowity) - pwiowityToWank(b.pwiowity);
 		});
-		return editors[0];
+		wetuwn editows[0];
 	}
 }
 
-function isLowerPriority(otherEditor: CustomEditorInfo, editor: CustomEditorInfo): unknown {
-	return priorityToRank(otherEditor.priority) < priorityToRank(editor.priority);
+function isWowewPwiowity(othewEditow: CustomEditowInfo, editow: CustomEditowInfo): unknown {
+	wetuwn pwiowityToWank(othewEditow.pwiowity) < pwiowityToWank(editow.pwiowity);
 }

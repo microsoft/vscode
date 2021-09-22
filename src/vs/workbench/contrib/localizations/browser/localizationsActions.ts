@@ -1,87 +1,87 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Action } from 'vs/base/common/actions';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { language } from 'vs/base/common/platform';
-import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IWocawizationsSewvice } fwom 'vs/pwatfowm/wocawizations/common/wocawizations';
+impowt { IQuickInputSewvice, IQuickPickItem } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { IJSONEditingSewvice } fwom 'vs/wowkbench/sewvices/configuwation/common/jsonEditing';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { wanguage } fwom 'vs/base/common/pwatfowm';
+impowt { IExtensionsViewPaneContaina, VIEWWET_ID as EXTENSIONS_VIEWWET_ID } fwom 'vs/wowkbench/contwib/extensions/common/extensions';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
+impowt { ViewContainewWocation } fwom 'vs/wowkbench/common/views';
 
-export class ConfigureLocaleAction extends Action {
-	public static readonly ID = 'workbench.action.configureLocale';
-	public static readonly LABEL = localize('configureLocale', "Configure Display Language");
+expowt cwass ConfiguweWocaweAction extends Action {
+	pubwic static weadonwy ID = 'wowkbench.action.configuweWocawe';
+	pubwic static weadonwy WABEW = wocawize('configuweWocawe', "Configuwe Dispway Wanguage");
 
-	constructor(id: string, label: string,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@ILocalizationsService private readonly localizationService: ILocalizationsService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
-		@IHostService private readonly hostService: IHostService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IProductService private readonly productService: IProductService
+	constwuctow(id: stwing, wabew: stwing,
+		@IEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IEnviwonmentSewvice,
+		@IWocawizationsSewvice pwivate weadonwy wocawizationSewvice: IWocawizationsSewvice,
+		@IQuickInputSewvice pwivate weadonwy quickInputSewvice: IQuickInputSewvice,
+		@IJSONEditingSewvice pwivate weadonwy jsonEditingSewvice: IJSONEditingSewvice,
+		@IHostSewvice pwivate weadonwy hostSewvice: IHostSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IPaneCompositePawtSewvice pwivate weadonwy paneCompositeSewvice: IPaneCompositePawtSewvice,
+		@IDiawogSewvice pwivate weadonwy diawogSewvice: IDiawogSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	private async getLanguageOptions(): Promise<IQuickPickItem[]> {
-		const availableLanguages = await this.localizationService.getLanguageIds();
-		availableLanguages.sort();
+	pwivate async getWanguageOptions(): Pwomise<IQuickPickItem[]> {
+		const avaiwabweWanguages = await this.wocawizationSewvice.getWanguageIds();
+		avaiwabweWanguages.sowt();
 
-		return availableLanguages
-			.map(language => { return { label: language }; })
-			.concat({ label: localize('installAdditionalLanguages', "Install Additional Languages...") });
+		wetuwn avaiwabweWanguages
+			.map(wanguage => { wetuwn { wabew: wanguage }; })
+			.concat({ wabew: wocawize('instawwAdditionawWanguages', "Instaww Additionaw Wanguages...") });
 	}
 
-	public override async run(): Promise<void> {
-		const languageOptions = await this.getLanguageOptions();
-		const currentLanguageIndex = languageOptions.findIndex(l => l.label === language);
+	pubwic ovewwide async wun(): Pwomise<void> {
+		const wanguageOptions = await this.getWanguageOptions();
+		const cuwwentWanguageIndex = wanguageOptions.findIndex(w => w.wabew === wanguage);
 
-		try {
-			const selectedLanguage = await this.quickInputService.pick(languageOptions,
+		twy {
+			const sewectedWanguage = await this.quickInputSewvice.pick(wanguageOptions,
 				{
-					canPickMany: false,
-					placeHolder: localize('chooseDisplayLanguage', "Select Display Language"),
-					activeItem: languageOptions[currentLanguageIndex]
+					canPickMany: fawse,
+					pwaceHowda: wocawize('chooseDispwayWanguage', "Sewect Dispway Wanguage"),
+					activeItem: wanguageOptions[cuwwentWanguageIndex]
 				});
 
-			if (selectedLanguage === languageOptions[languageOptions.length - 1]) {
-				return this.paneCompositeService.openPaneComposite(EXTENSIONS_VIEWLET_ID, ViewContainerLocation.Sidebar, true)
-					.then(viewlet => viewlet?.getViewPaneContainer())
-					.then(viewlet => {
-						const extensionsViewlet = viewlet as IExtensionsViewPaneContainer;
-						extensionsViewlet.search('@category:"language packs"');
-						extensionsViewlet.focus();
+			if (sewectedWanguage === wanguageOptions[wanguageOptions.wength - 1]) {
+				wetuwn this.paneCompositeSewvice.openPaneComposite(EXTENSIONS_VIEWWET_ID, ViewContainewWocation.Sidebaw, twue)
+					.then(viewwet => viewwet?.getViewPaneContaina())
+					.then(viewwet => {
+						const extensionsViewwet = viewwet as IExtensionsViewPaneContaina;
+						extensionsViewwet.seawch('@categowy:"wanguage packs"');
+						extensionsViewwet.focus();
 					});
 			}
 
-			if (selectedLanguage) {
-				await this.jsonEditingService.write(this.environmentService.argvResource, [{ path: ['locale'], value: selectedLanguage.label }], true);
-				const restart = await this.dialogService.confirm({
+			if (sewectedWanguage) {
+				await this.jsonEditingSewvice.wwite(this.enviwonmentSewvice.awgvWesouwce, [{ path: ['wocawe'], vawue: sewectedWanguage.wabew }], twue);
+				const westawt = await this.diawogSewvice.confiwm({
 					type: 'info',
-					message: localize('relaunchDisplayLanguageMessage', "A restart is required for the change in display language to take effect."),
-					detail: localize('relaunchDisplayLanguageDetail', "Press the restart button to restart {0} and change the display language.", this.productService.nameLong),
-					primaryButton: localize('restart', "&&Restart")
+					message: wocawize('wewaunchDispwayWanguageMessage', "A westawt is wequiwed fow the change in dispway wanguage to take effect."),
+					detaiw: wocawize('wewaunchDispwayWanguageDetaiw', "Pwess the westawt button to westawt {0} and change the dispway wanguage.", this.pwoductSewvice.nameWong),
+					pwimawyButton: wocawize('westawt', "&&Westawt")
 				});
 
-				if (restart.confirmed) {
-					this.hostService.restart();
+				if (westawt.confiwmed) {
+					this.hostSewvice.westawt();
 				}
 			}
 		} catch (e) {
-			this.notificationService.error(e);
+			this.notificationSewvice.ewwow(e);
 		}
 	}
 }

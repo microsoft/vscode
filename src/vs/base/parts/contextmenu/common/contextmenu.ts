@@ -1,42 +1,42 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export interface ICommonContextMenuItem {
-	label?: string;
+expowt intewface ICommonContextMenuItem {
+	wabew?: stwing;
 
-	type?: 'normal' | 'separator' | 'submenu' | 'checkbox' | 'radio';
+	type?: 'nowmaw' | 'sepawatow' | 'submenu' | 'checkbox' | 'wadio';
 
-	accelerator?: string;
+	accewewatow?: stwing;
 
-	enabled?: boolean;
-	visible?: boolean;
-	checked?: boolean;
+	enabwed?: boowean;
+	visibwe?: boowean;
+	checked?: boowean;
 }
 
-export interface ISerializableContextMenuItem extends ICommonContextMenuItem {
-	id: number;
-	submenu?: ISerializableContextMenuItem[];
+expowt intewface ISewiawizabweContextMenuItem extends ICommonContextMenuItem {
+	id: numba;
+	submenu?: ISewiawizabweContextMenuItem[];
 }
 
-export interface IContextMenuItem extends ICommonContextMenuItem {
-	click?: (event: IContextMenuEvent) => void;
+expowt intewface IContextMenuItem extends ICommonContextMenuItem {
+	cwick?: (event: IContextMenuEvent) => void;
 	submenu?: IContextMenuItem[];
 }
 
-export interface IContextMenuEvent {
-	shiftKey?: boolean;
-	ctrlKey?: boolean;
-	altKey?: boolean;
-	metaKey?: boolean;
+expowt intewface IContextMenuEvent {
+	shiftKey?: boowean;
+	ctwwKey?: boowean;
+	awtKey?: boowean;
+	metaKey?: boowean;
 }
 
-export interface IPopupOptions {
-	x?: number;
-	y?: number;
-	positioningItem?: number;
+expowt intewface IPopupOptions {
+	x?: numba;
+	y?: numba;
+	positioningItem?: numba;
 }
 
-export const CONTEXT_MENU_CHANNEL = 'vscode:contextmenu';
-export const CONTEXT_MENU_CLOSE_CHANNEL = 'vscode:onCloseContextMenu';
+expowt const CONTEXT_MENU_CHANNEW = 'vscode:contextmenu';
+expowt const CONTEXT_MENU_CWOSE_CHANNEW = 'vscode:onCwoseContextMenu';

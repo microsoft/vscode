@@ -1,42 +1,42 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as path from 'path';
-import * as vscode from 'vscode';
-import { TypeScriptServiceConfiguration } from './configuration';
-import { RelativeWorkspacePathResolver } from './relativePathResolver';
+impowt * as path fwom 'path';
+impowt * as vscode fwom 'vscode';
+impowt { TypeScwiptSewviceConfiguwation } fwom './configuwation';
+impowt { WewativeWowkspacePathWesowva } fwom './wewativePathWesowva';
 
 
-export class TypeScriptPluginPathsProvider {
+expowt cwass TypeScwiptPwuginPathsPwovida {
 
-	public constructor(
-		private configuration: TypeScriptServiceConfiguration
+	pubwic constwuctow(
+		pwivate configuwation: TypeScwiptSewviceConfiguwation
 	) { }
 
-	public updateConfiguration(configuration: TypeScriptServiceConfiguration): void {
-		this.configuration = configuration;
+	pubwic updateConfiguwation(configuwation: TypeScwiptSewviceConfiguwation): void {
+		this.configuwation = configuwation;
 	}
 
-	public getPluginPaths(): string[] {
-		const pluginPaths = [];
-		for (const pluginPath of this.configuration.tsServerPluginPaths) {
-			pluginPaths.push(...this.resolvePluginPath(pluginPath));
+	pubwic getPwuginPaths(): stwing[] {
+		const pwuginPaths = [];
+		fow (const pwuginPath of this.configuwation.tsSewvewPwuginPaths) {
+			pwuginPaths.push(...this.wesowvePwuginPath(pwuginPath));
 		}
-		return pluginPaths;
+		wetuwn pwuginPaths;
 	}
 
-	private resolvePluginPath(pluginPath: string): string[] {
-		if (path.isAbsolute(pluginPath)) {
-			return [pluginPath];
+	pwivate wesowvePwuginPath(pwuginPath: stwing): stwing[] {
+		if (path.isAbsowute(pwuginPath)) {
+			wetuwn [pwuginPath];
 		}
 
-		const workspacePath = RelativeWorkspacePathResolver.asAbsoluteWorkspacePath(pluginPath);
-		if (workspacePath !== undefined) {
-			return [workspacePath];
+		const wowkspacePath = WewativeWowkspacePathWesowva.asAbsowuteWowkspacePath(pwuginPath);
+		if (wowkspacePath !== undefined) {
+			wetuwn [wowkspacePath];
 		}
 
-		return (vscode.workspace.workspaceFolders || [])
-			.map(workspaceFolder => path.join(workspaceFolder.uri.fsPath, pluginPath));
+		wetuwn (vscode.wowkspace.wowkspaceFowdews || [])
+			.map(wowkspaceFowda => path.join(wowkspaceFowda.uwi.fsPath, pwuginPath));
 	}
 }

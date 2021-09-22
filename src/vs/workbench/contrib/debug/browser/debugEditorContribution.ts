@@ -1,734 +1,734 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as strings from 'vs/base/common/strings';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import * as env from 'vs/base/common/platform';
-import { visit } from 'vs/base/common/json';
-import { setProperty } from 'vs/base/common/jsonEdit';
-import { Constants } from 'vs/base/common/uint';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { InlineValueContext, InlineValuesProviderRegistry, StandardTokenType } from 'vs/editor/common/modes';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { distinct, flatten } from 'vs/base/common/arrays';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/model/wordHelper';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType, IPartialEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
-import { IDecorationOptions } from 'vs/editor/common/editorCommon';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { Range } from 'vs/editor/common/core/range';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugEditorContribution, IDebugService, State, IStackFrame, IDebugConfiguration, IExpression, IExceptionInfo, IDebugSession, CONTEXT_EXCEPTION_WIDGET_VISIBLE } from 'vs/workbench/contrib/debug/common/debug';
-import { ExceptionWidget } from 'vs/workbench/contrib/debug/browser/exceptionWidget';
-import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
-import { Position } from 'vs/editor/common/core/position';
-import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
-import { memoize } from 'vs/base/common/decorators';
-import { IEditorHoverOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { DebugHoverWidget } from 'vs/workbench/contrib/debug/browser/debugHover';
-import { ITextModel } from 'vs/editor/common/model';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { basename } from 'vs/base/common/path';
-import { ModesHoverController } from 'vs/editor/contrib/hover/hover';
-import { HoverStartMode } from 'vs/editor/contrib/hover/hoverOperation';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { Event } from 'vs/base/common/event';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Expression } from 'vs/workbench/contrib/debug/common/debugModel';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { addDisposableListener } from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
+impowt * as nws fwom 'vs/nws';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt * as env fwom 'vs/base/common/pwatfowm';
+impowt { visit } fwom 'vs/base/common/json';
+impowt { setPwopewty } fwom 'vs/base/common/jsonEdit';
+impowt { Constants } fwom 'vs/base/common/uint';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { IKeyboawdEvent, StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { InwineVawueContext, InwineVawuesPwovidewWegistwy, StandawdTokenType } fwom 'vs/editow/common/modes';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { distinct, fwatten } fwom 'vs/base/common/awways';
+impowt { onUnexpectedExtewnawEwwow } fwom 'vs/base/common/ewwows';
+impowt { DEFAUWT_WOWD_WEGEXP } fwom 'vs/editow/common/modew/wowdHewpa';
+impowt { ICodeEditow, IEditowMouseEvent, MouseTawgetType, IPawtiawEditowMouseEvent } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IDecowationOptions } fwom 'vs/editow/common/editowCommon';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IDebugEditowContwibution, IDebugSewvice, State, IStackFwame, IDebugConfiguwation, IExpwession, IExceptionInfo, IDebugSession, CONTEXT_EXCEPTION_WIDGET_VISIBWE } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { ExceptionWidget } fwom 'vs/wowkbench/contwib/debug/bwowsa/exceptionWidget';
+impowt { FwoatingCwickWidget } fwom 'vs/wowkbench/bwowsa/codeeditow';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { CoweEditingCommands } fwom 'vs/editow/bwowsa/contwowwa/coweCommands';
+impowt { memoize } fwom 'vs/base/common/decowatows';
+impowt { IEditowHovewOptions, EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { DebugHovewWidget } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugHova';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { dispose, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { EditOpewation } fwom 'vs/editow/common/cowe/editOpewation';
+impowt { basename } fwom 'vs/base/common/path';
+impowt { ModesHovewContwowwa } fwom 'vs/editow/contwib/hova/hova';
+impowt { HovewStawtMode } fwom 'vs/editow/contwib/hova/hovewOpewation';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { Expwession } fwom 'vs/wowkbench/contwib/debug/common/debugModew';
+impowt { themeCowowFwomId } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { wegistewCowow } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { addDisposabweWistena } fwom 'vs/base/bwowsa/dom';
+impowt { DomEmitta } fwom 'vs/base/bwowsa/event';
 
-const LAUNCH_JSON_REGEX = /\.vscode\/launch\.json$/;
-const INLINE_VALUE_DECORATION_KEY = 'inlinevaluedecoration';
-const MAX_NUM_INLINE_VALUES = 100; // JS Global scope can have 700+ entries. We want to limit ourselves for perf reasons
-const MAX_INLINE_DECORATOR_LENGTH = 150; // Max string length of each inline decorator when debugging. If exceeded ... is added
-const MAX_TOKENIZATION_LINE_LEN = 500; // If line is too long, then inline values for the line are skipped
+const WAUNCH_JSON_WEGEX = /\.vscode\/waunch\.json$/;
+const INWINE_VAWUE_DECOWATION_KEY = 'inwinevawuedecowation';
+const MAX_NUM_INWINE_VAWUES = 100; // JS Gwobaw scope can have 700+ entwies. We want to wimit ouwsewves fow pewf weasons
+const MAX_INWINE_DECOWATOW_WENGTH = 150; // Max stwing wength of each inwine decowatow when debugging. If exceeded ... is added
+const MAX_TOKENIZATION_WINE_WEN = 500; // If wine is too wong, then inwine vawues fow the wine awe skipped
 
-export const debugInlineForeground = registerColor('editor.inlineValuesForeground', {
-	dark: '#ffffff80',
-	light: '#00000080',
+expowt const debugInwineFowegwound = wegistewCowow('editow.inwineVawuesFowegwound', {
+	dawk: '#ffffff80',
+	wight: '#00000080',
 	hc: '#ffffff80'
-}, nls.localize('editor.inlineValuesForeground', "Color for the debug inline value text."));
+}, nws.wocawize('editow.inwineVawuesFowegwound', "Cowow fow the debug inwine vawue text."));
 
-export const debugInlineBackground = registerColor('editor.inlineValuesBackground', {
-	dark: '#ffc80033',
-	light: '#ffc80033',
+expowt const debugInwineBackgwound = wegistewCowow('editow.inwineVawuesBackgwound', {
+	dawk: '#ffc80033',
+	wight: '#ffc80033',
 	hc: '#ffc80033'
-}, nls.localize('editor.inlineValuesBackground', "Color for the debug inline value background."));
+}, nws.wocawize('editow.inwineVawuesBackgwound', "Cowow fow the debug inwine vawue backgwound."));
 
-class InlineSegment {
-	constructor(public column: number, public text: string) {
+cwass InwineSegment {
+	constwuctow(pubwic cowumn: numba, pubwic text: stwing) {
 	}
 }
 
-function createInlineValueDecoration(lineNumber: number, contentText: string, column = Constants.MAX_SAFE_SMALL_INTEGER): IDecorationOptions {
-	// If decoratorText is too long, trim and add ellipses. This could happen for minified files with everything on a single line
-	if (contentText.length > MAX_INLINE_DECORATOR_LENGTH) {
-		contentText = contentText.substr(0, MAX_INLINE_DECORATOR_LENGTH) + '...';
+function cweateInwineVawueDecowation(wineNumba: numba, contentText: stwing, cowumn = Constants.MAX_SAFE_SMAWW_INTEGa): IDecowationOptions {
+	// If decowatowText is too wong, twim and add ewwipses. This couwd happen fow minified fiwes with evewything on a singwe wine
+	if (contentText.wength > MAX_INWINE_DECOWATOW_WENGTH) {
+		contentText = contentText.substw(0, MAX_INWINE_DECOWATOW_WENGTH) + '...';
 	}
 
-	return {
-		range: {
-			startLineNumber: lineNumber,
-			endLineNumber: lineNumber,
-			startColumn: column,
-			endColumn: column
+	wetuwn {
+		wange: {
+			stawtWineNumba: wineNumba,
+			endWineNumba: wineNumba,
+			stawtCowumn: cowumn,
+			endCowumn: cowumn
 		},
-		renderOptions: {
-			after: {
+		wendewOptions: {
+			afta: {
 				contentText,
-				backgroundColor: themeColorFromId(debugInlineBackground),
-				margin: '10px',
-				color: themeColorFromId(debugInlineForeground)
+				backgwoundCowow: themeCowowFwomId(debugInwineBackgwound),
+				mawgin: '10px',
+				cowow: themeCowowFwomId(debugInwineFowegwound)
 			}
 		}
 	};
 }
 
-function createInlineValueDecorationsInsideRange(expressions: ReadonlyArray<IExpression>, range: Range, model: ITextModel, wordToLineNumbersMap: Map<string, number[]>): IDecorationOptions[] {
-	const nameValueMap = new Map<string, string>();
-	for (let expr of expressions) {
-		nameValueMap.set(expr.name, expr.value);
-		// Limit the size of map. Too large can have a perf impact
-		if (nameValueMap.size >= MAX_NUM_INLINE_VALUES) {
-			break;
+function cweateInwineVawueDecowationsInsideWange(expwessions: WeadonwyAwway<IExpwession>, wange: Wange, modew: ITextModew, wowdToWineNumbewsMap: Map<stwing, numba[]>): IDecowationOptions[] {
+	const nameVawueMap = new Map<stwing, stwing>();
+	fow (wet expw of expwessions) {
+		nameVawueMap.set(expw.name, expw.vawue);
+		// Wimit the size of map. Too wawge can have a pewf impact
+		if (nameVawueMap.size >= MAX_NUM_INWINE_VAWUES) {
+			bweak;
 		}
 	}
 
-	const lineToNamesMap: Map<number, string[]> = new Map<number, string[]>();
+	const wineToNamesMap: Map<numba, stwing[]> = new Map<numba, stwing[]>();
 
-	// Compute unique set of names on each line
-	nameValueMap.forEach((_value, name) => {
-		const lineNumbers = wordToLineNumbersMap.get(name);
-		if (lineNumbers) {
-			for (let lineNumber of lineNumbers) {
-				if (range.containsPosition(new Position(lineNumber, 0))) {
-					if (!lineToNamesMap.has(lineNumber)) {
-						lineToNamesMap.set(lineNumber, []);
+	// Compute unique set of names on each wine
+	nameVawueMap.fowEach((_vawue, name) => {
+		const wineNumbews = wowdToWineNumbewsMap.get(name);
+		if (wineNumbews) {
+			fow (wet wineNumba of wineNumbews) {
+				if (wange.containsPosition(new Position(wineNumba, 0))) {
+					if (!wineToNamesMap.has(wineNumba)) {
+						wineToNamesMap.set(wineNumba, []);
 					}
 
-					if (lineToNamesMap.get(lineNumber)!.indexOf(name) === -1) {
-						lineToNamesMap.get(lineNumber)!.push(name);
+					if (wineToNamesMap.get(wineNumba)!.indexOf(name) === -1) {
+						wineToNamesMap.get(wineNumba)!.push(name);
 					}
 				}
 			}
 		}
 	});
 
-	const decorations: IDecorationOptions[] = [];
-	// Compute decorators for each line
-	lineToNamesMap.forEach((names, line) => {
-		const contentText = names.sort((first, second) => {
-			const content = model.getLineContent(line);
-			return content.indexOf(first) - content.indexOf(second);
-		}).map(name => `${name} = ${nameValueMap.get(name)}`).join(', ');
-		decorations.push(createInlineValueDecoration(line, contentText));
+	const decowations: IDecowationOptions[] = [];
+	// Compute decowatows fow each wine
+	wineToNamesMap.fowEach((names, wine) => {
+		const contentText = names.sowt((fiwst, second) => {
+			const content = modew.getWineContent(wine);
+			wetuwn content.indexOf(fiwst) - content.indexOf(second);
+		}).map(name => `${name} = ${nameVawueMap.get(name)}`).join(', ');
+		decowations.push(cweateInwineVawueDecowation(wine, contentText));
 	});
 
-	return decorations;
+	wetuwn decowations;
 }
 
-function getWordToLineNumbersMap(model: ITextModel | null): Map<string, number[]> {
-	const result = new Map<string, number[]>();
-	if (!model) {
-		return result;
+function getWowdToWineNumbewsMap(modew: ITextModew | nuww): Map<stwing, numba[]> {
+	const wesuwt = new Map<stwing, numba[]>();
+	if (!modew) {
+		wetuwn wesuwt;
 	}
 
-	// For every word in every line, map its ranges for fast lookup
-	for (let lineNumber = 1, len = model.getLineCount(); lineNumber <= len; ++lineNumber) {
-		const lineContent = model.getLineContent(lineNumber);
+	// Fow evewy wowd in evewy wine, map its wanges fow fast wookup
+	fow (wet wineNumba = 1, wen = modew.getWineCount(); wineNumba <= wen; ++wineNumba) {
+		const wineContent = modew.getWineContent(wineNumba);
 
-		// If line is too long then skip the line
-		if (lineContent.length > MAX_TOKENIZATION_LINE_LEN) {
+		// If wine is too wong then skip the wine
+		if (wineContent.wength > MAX_TOKENIZATION_WINE_WEN) {
 			continue;
 		}
 
-		model.forceTokenization(lineNumber);
-		const lineTokens = model.getLineTokens(lineNumber);
-		for (let tokenIndex = 0, tokenCount = lineTokens.getCount(); tokenIndex < tokenCount; tokenIndex++) {
-			const tokenType = lineTokens.getStandardTokenType(tokenIndex);
+		modew.fowceTokenization(wineNumba);
+		const wineTokens = modew.getWineTokens(wineNumba);
+		fow (wet tokenIndex = 0, tokenCount = wineTokens.getCount(); tokenIndex < tokenCount; tokenIndex++) {
+			const tokenType = wineTokens.getStandawdTokenType(tokenIndex);
 
-			// Token is a word and not a comment
-			if (tokenType === StandardTokenType.Other) {
-				DEFAULT_WORD_REGEXP.lastIndex = 0; // We assume tokens will usually map 1:1 to words if they match
+			// Token is a wowd and not a comment
+			if (tokenType === StandawdTokenType.Otha) {
+				DEFAUWT_WOWD_WEGEXP.wastIndex = 0; // We assume tokens wiww usuawwy map 1:1 to wowds if they match
 
-				const tokenStartOffset = lineTokens.getStartOffset(tokenIndex);
-				const tokenEndOffset = lineTokens.getEndOffset(tokenIndex);
-				const tokenStr = lineContent.substring(tokenStartOffset, tokenEndOffset);
-				const wordMatch = DEFAULT_WORD_REGEXP.exec(tokenStr);
+				const tokenStawtOffset = wineTokens.getStawtOffset(tokenIndex);
+				const tokenEndOffset = wineTokens.getEndOffset(tokenIndex);
+				const tokenStw = wineContent.substwing(tokenStawtOffset, tokenEndOffset);
+				const wowdMatch = DEFAUWT_WOWD_WEGEXP.exec(tokenStw);
 
-				if (wordMatch) {
+				if (wowdMatch) {
 
-					const word = wordMatch[0];
-					if (!result.has(word)) {
-						result.set(word, []);
+					const wowd = wowdMatch[0];
+					if (!wesuwt.has(wowd)) {
+						wesuwt.set(wowd, []);
 					}
 
-					result.get(word)!.push(lineNumber);
+					wesuwt.get(wowd)!.push(wineNumba);
 				}
 			}
 		}
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-export class DebugEditorContribution implements IDebugEditorContribution {
+expowt cwass DebugEditowContwibution impwements IDebugEditowContwibution {
 
-	private toDispose: IDisposable[];
-	private hoverWidget: DebugHoverWidget;
-	private hoverRange: Range | null = null;
-	private mouseDown = false;
-	private exceptionWidgetVisible: IContextKey<boolean>;
+	pwivate toDispose: IDisposabwe[];
+	pwivate hovewWidget: DebugHovewWidget;
+	pwivate hovewWange: Wange | nuww = nuww;
+	pwivate mouseDown = fawse;
+	pwivate exceptionWidgetVisibwe: IContextKey<boowean>;
 
-	private exceptionWidget: ExceptionWidget | undefined;
-	private configurationWidget: FloatingClickWidget | undefined;
-	private altListener: IDisposable | undefined;
-	private altPressed = false;
+	pwivate exceptionWidget: ExceptionWidget | undefined;
+	pwivate configuwationWidget: FwoatingCwickWidget | undefined;
+	pwivate awtWistena: IDisposabwe | undefined;
+	pwivate awtPwessed = fawse;
 
-	constructor(
-		private editor: ICodeEditor,
-		@IDebugService private readonly debugService: IDebugService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ICommandService private readonly commandService: ICommandService,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IHostService private readonly hostService: IHostService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IContextKeyService contextKeyService: IContextKeyService
+	constwuctow(
+		pwivate editow: ICodeEditow,
+		@IDebugSewvice pwivate weadonwy debugSewvice: IDebugSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice,
+		@ICodeEditowSewvice pwivate weadonwy codeEditowSewvice: ICodeEditowSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IHostSewvice pwivate weadonwy hostSewvice: IHostSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice
 	) {
-		this.hoverWidget = this.instantiationService.createInstance(DebugHoverWidget, this.editor);
+		this.hovewWidget = this.instantiationSewvice.cweateInstance(DebugHovewWidget, this.editow);
 		this.toDispose = [];
-		this.registerListeners();
-		this.updateConfigurationWidgetVisibility();
-		this.codeEditorService.registerDecorationType('debug-inline-value-decoration', INLINE_VALUE_DECORATION_KEY, {});
-		this.exceptionWidgetVisible = CONTEXT_EXCEPTION_WIDGET_VISIBLE.bindTo(contextKeyService);
-		this.toggleExceptionWidget();
+		this.wegistewWistenews();
+		this.updateConfiguwationWidgetVisibiwity();
+		this.codeEditowSewvice.wegistewDecowationType('debug-inwine-vawue-decowation', INWINE_VAWUE_DECOWATION_KEY, {});
+		this.exceptionWidgetVisibwe = CONTEXT_EXCEPTION_WIDGET_VISIBWE.bindTo(contextKeySewvice);
+		this.toggweExceptionWidget();
 	}
 
-	private registerListeners(): void {
-		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(e => this.onFocusStackFrame(e.stackFrame)));
+	pwivate wegistewWistenews(): void {
+		this.toDispose.push(this.debugSewvice.getViewModew().onDidFocusStackFwame(e => this.onFocusStackFwame(e.stackFwame)));
 
-		// hover listeners & hover widget
-		this.toDispose.push(this.editor.onMouseDown((e: IEditorMouseEvent) => this.onEditorMouseDown(e)));
-		this.toDispose.push(this.editor.onMouseUp(() => this.mouseDown = false));
-		this.toDispose.push(this.editor.onMouseMove((e: IEditorMouseEvent) => this.onEditorMouseMove(e)));
-		this.toDispose.push(this.editor.onMouseLeave((e: IPartialEditorMouseEvent) => {
-			const hoverDomNode = this.hoverWidget.getDomNode();
-			if (!hoverDomNode) {
-				return;
+		// hova wistenews & hova widget
+		this.toDispose.push(this.editow.onMouseDown((e: IEditowMouseEvent) => this.onEditowMouseDown(e)));
+		this.toDispose.push(this.editow.onMouseUp(() => this.mouseDown = fawse));
+		this.toDispose.push(this.editow.onMouseMove((e: IEditowMouseEvent) => this.onEditowMouseMove(e)));
+		this.toDispose.push(this.editow.onMouseWeave((e: IPawtiawEditowMouseEvent) => {
+			const hovewDomNode = this.hovewWidget.getDomNode();
+			if (!hovewDomNode) {
+				wetuwn;
 			}
 
-			const rect = hoverDomNode.getBoundingClientRect();
-			// Only hide the hover widget if the editor mouse leave event is outside the hover widget #3528
-			if (e.event.posx < rect.left || e.event.posx > rect.right || e.event.posy < rect.top || e.event.posy > rect.bottom) {
-				this.hideHoverWidget();
+			const wect = hovewDomNode.getBoundingCwientWect();
+			// Onwy hide the hova widget if the editow mouse weave event is outside the hova widget #3528
+			if (e.event.posx < wect.weft || e.event.posx > wect.wight || e.event.posy < wect.top || e.event.posy > wect.bottom) {
+				this.hideHovewWidget();
 			}
 		}));
-		this.toDispose.push(this.editor.onKeyDown((e: IKeyboardEvent) => this.onKeyDown(e)));
-		this.toDispose.push(this.editor.onDidChangeModelContent(() => {
-			this._wordToLineNumbersMap = undefined;
-			this.updateInlineValuesScheduler.schedule();
+		this.toDispose.push(this.editow.onKeyDown((e: IKeyboawdEvent) => this.onKeyDown(e)));
+		this.toDispose.push(this.editow.onDidChangeModewContent(() => {
+			this._wowdToWineNumbewsMap = undefined;
+			this.updateInwineVawuesScheduwa.scheduwe();
 		}));
-		this.toDispose.push(this.debugService.getViewModel().onWillUpdateViews(() => this.updateInlineValuesScheduler.schedule()));
-		this.toDispose.push(this.editor.onDidChangeModel(async () => {
-			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
-			const model = this.editor.getModel();
-			if (model) {
-				this.applyHoverConfiguration(model, stackFrame);
+		this.toDispose.push(this.debugSewvice.getViewModew().onWiwwUpdateViews(() => this.updateInwineVawuesScheduwa.scheduwe()));
+		this.toDispose.push(this.editow.onDidChangeModew(async () => {
+			const stackFwame = this.debugSewvice.getViewModew().focusedStackFwame;
+			const modew = this.editow.getModew();
+			if (modew) {
+				this.appwyHovewConfiguwation(modew, stackFwame);
 			}
-			this.toggleExceptionWidget();
-			this.hideHoverWidget();
-			this.updateConfigurationWidgetVisibility();
-			this._wordToLineNumbersMap = undefined;
-			await this.updateInlineValueDecorations(stackFrame);
+			this.toggweExceptionWidget();
+			this.hideHovewWidget();
+			this.updateConfiguwationWidgetVisibiwity();
+			this._wowdToWineNumbewsMap = undefined;
+			await this.updateInwineVawueDecowations(stackFwame);
 		}));
-		this.toDispose.push(this.editor.onDidScrollChange(() => {
-			this.hideHoverWidget();
+		this.toDispose.push(this.editow.onDidScwowwChange(() => {
+			this.hideHovewWidget();
 
-			// Inline value provider should get called on view port change
-			const model = this.editor.getModel();
-			if (model && InlineValuesProviderRegistry.has(model)) {
-				this.updateInlineValuesScheduler.schedule();
+			// Inwine vawue pwovida shouwd get cawwed on view powt change
+			const modew = this.editow.getModew();
+			if (modew && InwineVawuesPwovidewWegistwy.has(modew)) {
+				this.updateInwineVawuesScheduwa.scheduwe();
 			}
 		}));
-		this.toDispose.push(this.debugService.onDidChangeState((state: State) => {
+		this.toDispose.push(this.debugSewvice.onDidChangeState((state: State) => {
 			if (state !== State.Stopped) {
-				this.toggleExceptionWidget();
+				this.toggweExceptionWidget();
 			}
 		}));
 	}
 
-	private _wordToLineNumbersMap: Map<string, number[]> | undefined = undefined;
-	private get wordToLineNumbersMap(): Map<string, number[]> {
-		if (!this._wordToLineNumbersMap) {
-			this._wordToLineNumbersMap = getWordToLineNumbersMap(this.editor.getModel());
+	pwivate _wowdToWineNumbewsMap: Map<stwing, numba[]> | undefined = undefined;
+	pwivate get wowdToWineNumbewsMap(): Map<stwing, numba[]> {
+		if (!this._wowdToWineNumbewsMap) {
+			this._wowdToWineNumbewsMap = getWowdToWineNumbewsMap(this.editow.getModew());
 		}
-		return this._wordToLineNumbersMap;
+		wetuwn this._wowdToWineNumbewsMap;
 	}
 
-	private applyHoverConfiguration(model: ITextModel, stackFrame: IStackFrame | undefined): void {
-		if (stackFrame && this.uriIdentityService.extUri.isEqual(model.uri, stackFrame.source.uri)) {
-			if (this.altListener) {
-				this.altListener.dispose();
+	pwivate appwyHovewConfiguwation(modew: ITextModew, stackFwame: IStackFwame | undefined): void {
+		if (stackFwame && this.uwiIdentitySewvice.extUwi.isEquaw(modew.uwi, stackFwame.souwce.uwi)) {
+			if (this.awtWistena) {
+				this.awtWistena.dispose();
 			}
-			// When the alt key is pressed show regular editor hover and hide the debug hover #84561
-			this.altListener = addDisposableListener(document, 'keydown', keydownEvent => {
-				const standardKeyboardEvent = new StandardKeyboardEvent(keydownEvent);
-				if (standardKeyboardEvent.keyCode === KeyCode.Alt) {
-					this.altPressed = true;
-					const debugHoverWasVisible = this.hoverWidget.isVisible();
-					this.hoverWidget.hide();
-					this.enableEditorHover();
-					if (debugHoverWasVisible && this.hoverRange) {
-						// If the debug hover was visible immediately show the editor hover for the alt transition to be smooth
-						const hoverController = this.editor.getContribution<ModesHoverController>(ModesHoverController.ID);
-						hoverController.showContentHover(this.hoverRange, HoverStartMode.Immediate, false);
+			// When the awt key is pwessed show weguwaw editow hova and hide the debug hova #84561
+			this.awtWistena = addDisposabweWistena(document, 'keydown', keydownEvent => {
+				const standawdKeyboawdEvent = new StandawdKeyboawdEvent(keydownEvent);
+				if (standawdKeyboawdEvent.keyCode === KeyCode.Awt) {
+					this.awtPwessed = twue;
+					const debugHovewWasVisibwe = this.hovewWidget.isVisibwe();
+					this.hovewWidget.hide();
+					this.enabweEditowHova();
+					if (debugHovewWasVisibwe && this.hovewWange) {
+						// If the debug hova was visibwe immediatewy show the editow hova fow the awt twansition to be smooth
+						const hovewContwowwa = this.editow.getContwibution<ModesHovewContwowwa>(ModesHovewContwowwa.ID);
+						hovewContwowwa.showContentHova(this.hovewWange, HovewStawtMode.Immediate, fawse);
 					}
 
-					const onKeyUp = new DomEmitter(document, 'keyup');
-					const listener = Event.any<KeyboardEvent | boolean>(this.hostService.onDidChangeFocus, onKeyUp.event)(keyupEvent => {
-						let standardKeyboardEvent = undefined;
-						if (keyupEvent instanceof KeyboardEvent) {
-							standardKeyboardEvent = new StandardKeyboardEvent(keyupEvent);
+					const onKeyUp = new DomEmitta(document, 'keyup');
+					const wistena = Event.any<KeyboawdEvent | boowean>(this.hostSewvice.onDidChangeFocus, onKeyUp.event)(keyupEvent => {
+						wet standawdKeyboawdEvent = undefined;
+						if (keyupEvent instanceof KeyboawdEvent) {
+							standawdKeyboawdEvent = new StandawdKeyboawdEvent(keyupEvent);
 						}
-						if (!standardKeyboardEvent || standardKeyboardEvent.keyCode === KeyCode.Alt) {
-							this.altPressed = false;
-							this.editor.updateOptions({ hover: { enabled: false } });
-							listener.dispose();
+						if (!standawdKeyboawdEvent || standawdKeyboawdEvent.keyCode === KeyCode.Awt) {
+							this.awtPwessed = fawse;
+							this.editow.updateOptions({ hova: { enabwed: fawse } });
+							wistena.dispose();
 							onKeyUp.dispose();
 						}
 					});
 				}
 			});
 
-			this.editor.updateOptions({ hover: { enabled: false } });
-		} else {
-			this.altListener?.dispose();
-			this.enableEditorHover();
+			this.editow.updateOptions({ hova: { enabwed: fawse } });
+		} ewse {
+			this.awtWistena?.dispose();
+			this.enabweEditowHova();
 		}
 	}
 
-	private enableEditorHover(): void {
-		if (this.editor.hasModel()) {
-			const model = this.editor.getModel();
-			let overrides = {
-				resource: model.uri,
-				overrideIdentifier: model.getLanguageIdentifier().language
+	pwivate enabweEditowHova(): void {
+		if (this.editow.hasModew()) {
+			const modew = this.editow.getModew();
+			wet ovewwides = {
+				wesouwce: modew.uwi,
+				ovewwideIdentifia: modew.getWanguageIdentifia().wanguage
 			};
-			const defaultConfiguration = this.configurationService.getValue<IEditorHoverOptions>('editor.hover', overrides);
-			this.editor.updateOptions({
-				hover: {
-					enabled: defaultConfiguration.enabled,
-					delay: defaultConfiguration.delay,
-					sticky: defaultConfiguration.sticky
+			const defauwtConfiguwation = this.configuwationSewvice.getVawue<IEditowHovewOptions>('editow.hova', ovewwides);
+			this.editow.updateOptions({
+				hova: {
+					enabwed: defauwtConfiguwation.enabwed,
+					deway: defauwtConfiguwation.deway,
+					sticky: defauwtConfiguwation.sticky
 				}
 			});
 		}
 	}
 
-	async showHover(range: Range, focus: boolean): Promise<void> {
-		const sf = this.debugService.getViewModel().focusedStackFrame;
-		const model = this.editor.getModel();
-		if (sf && model && this.uriIdentityService.extUri.isEqual(sf.source.uri, model.uri) && !this.altPressed) {
-			return this.hoverWidget.showAt(range, focus);
+	async showHova(wange: Wange, focus: boowean): Pwomise<void> {
+		const sf = this.debugSewvice.getViewModew().focusedStackFwame;
+		const modew = this.editow.getModew();
+		if (sf && modew && this.uwiIdentitySewvice.extUwi.isEquaw(sf.souwce.uwi, modew.uwi) && !this.awtPwessed) {
+			wetuwn this.hovewWidget.showAt(wange, focus);
 		}
 	}
 
-	private async onFocusStackFrame(sf: IStackFrame | undefined): Promise<void> {
-		const model = this.editor.getModel();
-		if (model) {
-			this.applyHoverConfiguration(model, sf);
-			if (sf && this.uriIdentityService.extUri.isEqual(sf.source.uri, model.uri)) {
-				await this.toggleExceptionWidget();
-			} else {
-				this.hideHoverWidget();
+	pwivate async onFocusStackFwame(sf: IStackFwame | undefined): Pwomise<void> {
+		const modew = this.editow.getModew();
+		if (modew) {
+			this.appwyHovewConfiguwation(modew, sf);
+			if (sf && this.uwiIdentitySewvice.extUwi.isEquaw(sf.souwce.uwi, modew.uwi)) {
+				await this.toggweExceptionWidget();
+			} ewse {
+				this.hideHovewWidget();
 			}
 		}
 
-		await this.updateInlineValueDecorations(sf);
+		await this.updateInwineVawueDecowations(sf);
 	}
 
 	@memoize
-	private get showHoverScheduler(): RunOnceScheduler {
-		const hoverOption = this.editor.getOption(EditorOption.hover);
-		const scheduler = new RunOnceScheduler(() => {
-			if (this.hoverRange) {
-				this.showHover(this.hoverRange, false);
+	pwivate get showHovewScheduwa(): WunOnceScheduwa {
+		const hovewOption = this.editow.getOption(EditowOption.hova);
+		const scheduwa = new WunOnceScheduwa(() => {
+			if (this.hovewWange) {
+				this.showHova(this.hovewWange, fawse);
 			}
-		}, hoverOption.delay * 2);
-		this.toDispose.push(scheduler);
+		}, hovewOption.deway * 2);
+		this.toDispose.push(scheduwa);
 
-		return scheduler;
+		wetuwn scheduwa;
 	}
 
 	@memoize
-	private get hideHoverScheduler(): RunOnceScheduler {
-		const scheduler = new RunOnceScheduler(() => {
-			if (!this.hoverWidget.isHovered()) {
-				this.hoverWidget.hide();
+	pwivate get hideHovewScheduwa(): WunOnceScheduwa {
+		const scheduwa = new WunOnceScheduwa(() => {
+			if (!this.hovewWidget.isHovewed()) {
+				this.hovewWidget.hide();
 			}
 		}, 0);
-		this.toDispose.push(scheduler);
+		this.toDispose.push(scheduwa);
 
-		return scheduler;
+		wetuwn scheduwa;
 	}
 
-	private hideHoverWidget(): void {
-		if (!this.hideHoverScheduler.isScheduled() && this.hoverWidget.willBeVisible()) {
-			this.hideHoverScheduler.schedule();
+	pwivate hideHovewWidget(): void {
+		if (!this.hideHovewScheduwa.isScheduwed() && this.hovewWidget.wiwwBeVisibwe()) {
+			this.hideHovewScheduwa.scheduwe();
 		}
-		this.showHoverScheduler.cancel();
+		this.showHovewScheduwa.cancew();
 	}
 
-	// hover business
+	// hova business
 
-	private onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
-		this.mouseDown = true;
-		if (mouseEvent.target.type === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === DebugHoverWidget.ID) {
-			return;
+	pwivate onEditowMouseDown(mouseEvent: IEditowMouseEvent): void {
+		this.mouseDown = twue;
+		if (mouseEvent.tawget.type === MouseTawgetType.CONTENT_WIDGET && mouseEvent.tawget.detaiw === DebugHovewWidget.ID) {
+			wetuwn;
 		}
 
-		this.hideHoverWidget();
+		this.hideHovewWidget();
 	}
 
-	private onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
-		if (this.debugService.state !== State.Stopped) {
-			return;
+	pwivate onEditowMouseMove(mouseEvent: IEditowMouseEvent): void {
+		if (this.debugSewvice.state !== State.Stopped) {
+			wetuwn;
 		}
 
-		const targetType = mouseEvent.target.type;
-		const stopKey = env.isMacintosh ? 'metaKey' : 'ctrlKey';
+		const tawgetType = mouseEvent.tawget.type;
+		const stopKey = env.isMacintosh ? 'metaKey' : 'ctwwKey';
 
-		if (targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === DebugHoverWidget.ID && !(<any>mouseEvent.event)[stopKey]) {
-			// mouse moved on top of debug hover widget
-			return;
+		if (tawgetType === MouseTawgetType.CONTENT_WIDGET && mouseEvent.tawget.detaiw === DebugHovewWidget.ID && !(<any>mouseEvent.event)[stopKey]) {
+			// mouse moved on top of debug hova widget
+			wetuwn;
 		}
-		if (targetType === MouseTargetType.CONTENT_TEXT) {
-			if (mouseEvent.target.range && !mouseEvent.target.range.equalsRange(this.hoverRange)) {
-				this.hoverRange = mouseEvent.target.range;
-				this.hideHoverScheduler.cancel();
-				this.showHoverScheduler.schedule();
+		if (tawgetType === MouseTawgetType.CONTENT_TEXT) {
+			if (mouseEvent.tawget.wange && !mouseEvent.tawget.wange.equawsWange(this.hovewWange)) {
+				this.hovewWange = mouseEvent.tawget.wange;
+				this.hideHovewScheduwa.cancew();
+				this.showHovewScheduwa.scheduwe();
 			}
-		} else if (!this.mouseDown) {
-			// Do not hide debug hover when the mouse is pressed because it usually leads to accidental closing #64620
-			this.hideHoverWidget();
+		} ewse if (!this.mouseDown) {
+			// Do not hide debug hova when the mouse is pwessed because it usuawwy weads to accidentaw cwosing #64620
+			this.hideHovewWidget();
 		}
 	}
 
-	private onKeyDown(e: IKeyboardEvent): void {
-		const stopKey = env.isMacintosh ? KeyCode.Meta : KeyCode.Ctrl;
+	pwivate onKeyDown(e: IKeyboawdEvent): void {
+		const stopKey = env.isMacintosh ? KeyCode.Meta : KeyCode.Ctww;
 		if (e.keyCode !== stopKey) {
-			// do not hide hover when Ctrl/Meta is pressed
-			this.hideHoverWidget();
+			// do not hide hova when Ctww/Meta is pwessed
+			this.hideHovewWidget();
 		}
 	}
-	// end hover business
+	// end hova business
 
 	// exception widget
-	private async toggleExceptionWidget(): Promise<void> {
-		// Toggles exception widget based on the state of the current editor model and debug stack frame
-		const model = this.editor.getModel();
-		const focusedSf = this.debugService.getViewModel().focusedStackFrame;
-		const callStack = focusedSf ? focusedSf.thread.getCallStack() : null;
-		if (!model || !focusedSf || !callStack || callStack.length === 0) {
-			this.closeExceptionWidget();
-			return;
+	pwivate async toggweExceptionWidget(): Pwomise<void> {
+		// Toggwes exception widget based on the state of the cuwwent editow modew and debug stack fwame
+		const modew = this.editow.getModew();
+		const focusedSf = this.debugSewvice.getViewModew().focusedStackFwame;
+		const cawwStack = focusedSf ? focusedSf.thwead.getCawwStack() : nuww;
+		if (!modew || !focusedSf || !cawwStack || cawwStack.wength === 0) {
+			this.cwoseExceptionWidget();
+			wetuwn;
 		}
 
-		// First call stack frame that is available is the frame where exception has been thrown
-		const exceptionSf = callStack.find(sf => !!(sf && sf.source && sf.source.available && sf.source.presentationHint !== 'deemphasize'));
+		// Fiwst caww stack fwame that is avaiwabwe is the fwame whewe exception has been thwown
+		const exceptionSf = cawwStack.find(sf => !!(sf && sf.souwce && sf.souwce.avaiwabwe && sf.souwce.pwesentationHint !== 'deemphasize'));
 		if (!exceptionSf || exceptionSf !== focusedSf) {
-			this.closeExceptionWidget();
-			return;
+			this.cwoseExceptionWidget();
+			wetuwn;
 		}
 
-		const sameUri = this.uriIdentityService.extUri.isEqual(exceptionSf.source.uri, model.uri);
-		if (this.exceptionWidget && !sameUri) {
-			this.closeExceptionWidget();
-		} else if (sameUri) {
-			const exceptionInfo = await focusedSf.thread.exceptionInfo;
+		const sameUwi = this.uwiIdentitySewvice.extUwi.isEquaw(exceptionSf.souwce.uwi, modew.uwi);
+		if (this.exceptionWidget && !sameUwi) {
+			this.cwoseExceptionWidget();
+		} ewse if (sameUwi) {
+			const exceptionInfo = await focusedSf.thwead.exceptionInfo;
 			if (exceptionInfo) {
-				this.showExceptionWidget(exceptionInfo, this.debugService.getViewModel().focusedSession, exceptionSf.range.startLineNumber, exceptionSf.range.startColumn);
+				this.showExceptionWidget(exceptionInfo, this.debugSewvice.getViewModew().focusedSession, exceptionSf.wange.stawtWineNumba, exceptionSf.wange.stawtCowumn);
 			}
 		}
 	}
 
-	private showExceptionWidget(exceptionInfo: IExceptionInfo, debugSession: IDebugSession | undefined, lineNumber: number, column: number): void {
+	pwivate showExceptionWidget(exceptionInfo: IExceptionInfo, debugSession: IDebugSession | undefined, wineNumba: numba, cowumn: numba): void {
 		if (this.exceptionWidget) {
 			this.exceptionWidget.dispose();
 		}
 
-		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, exceptionInfo, debugSession);
-		this.exceptionWidget.show({ lineNumber, column }, 0);
+		this.exceptionWidget = this.instantiationSewvice.cweateInstance(ExceptionWidget, this.editow, exceptionInfo, debugSession);
+		this.exceptionWidget.show({ wineNumba, cowumn }, 0);
 		this.exceptionWidget.focus();
-		this.editor.revealLine(lineNumber);
-		this.exceptionWidgetVisible.set(true);
+		this.editow.weveawWine(wineNumba);
+		this.exceptionWidgetVisibwe.set(twue);
 	}
 
-	closeExceptionWidget(): void {
+	cwoseExceptionWidget(): void {
 		if (this.exceptionWidget) {
-			const shouldFocusEditor = this.exceptionWidget.hasfocus();
+			const shouwdFocusEditow = this.exceptionWidget.hasfocus();
 			this.exceptionWidget.dispose();
 			this.exceptionWidget = undefined;
-			this.exceptionWidgetVisible.set(false);
-			if (shouldFocusEditor) {
-				this.editor.focus();
+			this.exceptionWidgetVisibwe.set(fawse);
+			if (shouwdFocusEditow) {
+				this.editow.focus();
 			}
 		}
 	}
 
-	// configuration widget
-	private updateConfigurationWidgetVisibility(): void {
-		const model = this.editor.getModel();
-		if (this.configurationWidget) {
-			this.configurationWidget.dispose();
+	// configuwation widget
+	pwivate updateConfiguwationWidgetVisibiwity(): void {
+		const modew = this.editow.getModew();
+		if (this.configuwationWidget) {
+			this.configuwationWidget.dispose();
 		}
-		if (model && LAUNCH_JSON_REGEX.test(model.uri.toString()) && !this.editor.getOption(EditorOption.readOnly)) {
-			this.configurationWidget = this.instantiationService.createInstance(FloatingClickWidget, this.editor, nls.localize('addConfiguration', "Add Configuration..."), null);
-			this.configurationWidget.render();
-			this.toDispose.push(this.configurationWidget.onClick(() => this.addLaunchConfiguration()));
+		if (modew && WAUNCH_JSON_WEGEX.test(modew.uwi.toStwing()) && !this.editow.getOption(EditowOption.weadOnwy)) {
+			this.configuwationWidget = this.instantiationSewvice.cweateInstance(FwoatingCwickWidget, this.editow, nws.wocawize('addConfiguwation', "Add Configuwation..."), nuww);
+			this.configuwationWidget.wenda();
+			this.toDispose.push(this.configuwationWidget.onCwick(() => this.addWaunchConfiguwation()));
 		}
 	}
 
-	async addLaunchConfiguration(): Promise<any> {
-		/* __GDPR__
-			"debug/addLaunchConfiguration" : {}
+	async addWaunchConfiguwation(): Pwomise<any> {
+		/* __GDPW__
+			"debug/addWaunchConfiguwation" : {}
 		*/
-		this.telemetryService.publicLog('debug/addLaunchConfiguration');
-		const model = this.editor.getModel();
-		if (!model) {
-			return;
+		this.tewemetwySewvice.pubwicWog('debug/addWaunchConfiguwation');
+		const modew = this.editow.getModew();
+		if (!modew) {
+			wetuwn;
 		}
 
-		let configurationsArrayPosition: Position | undefined;
-		let lastProperty: string;
+		wet configuwationsAwwayPosition: Position | undefined;
+		wet wastPwopewty: stwing;
 
-		const getConfigurationPosition = () => {
-			let depthInArray = 0;
-			visit(model.getValue(), {
-				onObjectProperty: (property: string) => {
-					lastProperty = property;
+		const getConfiguwationPosition = () => {
+			wet depthInAwway = 0;
+			visit(modew.getVawue(), {
+				onObjectPwopewty: (pwopewty: stwing) => {
+					wastPwopewty = pwopewty;
 				},
-				onArrayBegin: (offset: number) => {
-					if (lastProperty === 'configurations' && depthInArray === 0) {
-						configurationsArrayPosition = model.getPositionAt(offset + 1);
+				onAwwayBegin: (offset: numba) => {
+					if (wastPwopewty === 'configuwations' && depthInAwway === 0) {
+						configuwationsAwwayPosition = modew.getPositionAt(offset + 1);
 					}
-					depthInArray++;
+					depthInAwway++;
 				},
-				onArrayEnd: () => {
-					depthInArray--;
+				onAwwayEnd: () => {
+					depthInAwway--;
 				}
 			});
 		};
 
-		getConfigurationPosition();
+		getConfiguwationPosition();
 
-		if (!configurationsArrayPosition) {
-			// "configurations" array doesn't exist. Add it here.
-			const { tabSize, insertSpaces } = model.getOptions();
-			const eol = model.getEOL();
-			const edit = (basename(model.uri.fsPath) === 'launch.json') ?
-				setProperty(model.getValue(), ['configurations'], [], { tabSize, insertSpaces, eol })[0] :
-				setProperty(model.getValue(), ['launch'], { 'configurations': [] }, { tabSize, insertSpaces, eol })[0];
-			const startPosition = model.getPositionAt(edit.offset);
-			const lineNumber = startPosition.lineNumber;
-			const range = new Range(lineNumber, startPosition.column, lineNumber, model.getLineMaxColumn(lineNumber));
-			model.pushEditOperations(null, [EditOperation.replace(range, edit.content)], () => null);
-			// Go through the file again since we've edited it
-			getConfigurationPosition();
+		if (!configuwationsAwwayPosition) {
+			// "configuwations" awway doesn't exist. Add it hewe.
+			const { tabSize, insewtSpaces } = modew.getOptions();
+			const eow = modew.getEOW();
+			const edit = (basename(modew.uwi.fsPath) === 'waunch.json') ?
+				setPwopewty(modew.getVawue(), ['configuwations'], [], { tabSize, insewtSpaces, eow })[0] :
+				setPwopewty(modew.getVawue(), ['waunch'], { 'configuwations': [] }, { tabSize, insewtSpaces, eow })[0];
+			const stawtPosition = modew.getPositionAt(edit.offset);
+			const wineNumba = stawtPosition.wineNumba;
+			const wange = new Wange(wineNumba, stawtPosition.cowumn, wineNumba, modew.getWineMaxCowumn(wineNumba));
+			modew.pushEditOpewations(nuww, [EditOpewation.wepwace(wange, edit.content)], () => nuww);
+			// Go thwough the fiwe again since we've edited it
+			getConfiguwationPosition();
 		}
-		if (!configurationsArrayPosition) {
-			return;
+		if (!configuwationsAwwayPosition) {
+			wetuwn;
 		}
 
-		this.editor.focus();
+		this.editow.focus();
 
-		const insertLine = (position: Position): Promise<any> => {
-			// Check if there are more characters on a line after a "configurations": [, if yes enter a newline
-			if (model.getLineLastNonWhitespaceColumn(position.lineNumber) > position.column) {
-				this.editor.setPosition(position);
-				CoreEditingCommands.LineBreakInsert.runEditorCommand(null, this.editor, null);
+		const insewtWine = (position: Position): Pwomise<any> => {
+			// Check if thewe awe mowe chawactews on a wine afta a "configuwations": [, if yes enta a newwine
+			if (modew.getWineWastNonWhitespaceCowumn(position.wineNumba) > position.cowumn) {
+				this.editow.setPosition(position);
+				CoweEditingCommands.WineBweakInsewt.wunEditowCommand(nuww, this.editow, nuww);
 			}
-			this.editor.setPosition(position);
-			return this.commandService.executeCommand('editor.action.insertLineAfter');
+			this.editow.setPosition(position);
+			wetuwn this.commandSewvice.executeCommand('editow.action.insewtWineAfta');
 		};
 
-		await insertLine(configurationsArrayPosition);
-		await this.commandService.executeCommand('editor.action.triggerSuggest');
+		await insewtWine(configuwationsAwwayPosition);
+		await this.commandSewvice.executeCommand('editow.action.twiggewSuggest');
 	}
 
-	// Inline Decorations
+	// Inwine Decowations
 
 	@memoize
-	private get removeInlineValuesScheduler(): RunOnceScheduler {
-		return new RunOnceScheduler(
-			() => this.editor.removeDecorations(INLINE_VALUE_DECORATION_KEY),
+	pwivate get wemoveInwineVawuesScheduwa(): WunOnceScheduwa {
+		wetuwn new WunOnceScheduwa(
+			() => this.editow.wemoveDecowations(INWINE_VAWUE_DECOWATION_KEY),
 			100
 		);
 	}
 
 	@memoize
-	private get updateInlineValuesScheduler(): RunOnceScheduler {
-		return new RunOnceScheduler(
-			async () => await this.updateInlineValueDecorations(this.debugService.getViewModel().focusedStackFrame),
+	pwivate get updateInwineVawuesScheduwa(): WunOnceScheduwa {
+		wetuwn new WunOnceScheduwa(
+			async () => await this.updateInwineVawueDecowations(this.debugSewvice.getViewModew().focusedStackFwame),
 			200
 		);
 	}
 
-	private async updateInlineValueDecorations(stackFrame: IStackFrame | undefined): Promise<void> {
+	pwivate async updateInwineVawueDecowations(stackFwame: IStackFwame | undefined): Pwomise<void> {
 
-		const var_value_format = '{0} = {1}';
-		const separator = ', ';
+		const vaw_vawue_fowmat = '{0} = {1}';
+		const sepawatow = ', ';
 
-		const model = this.editor.getModel();
-		const inlineValuesSetting = this.configurationService.getValue<IDebugConfiguration>('debug').inlineValues;
-		const inlineValuesTurnedOn = inlineValuesSetting === true || (inlineValuesSetting === 'auto' && model && InlineValuesProviderRegistry.has(model));
-		if (!inlineValuesTurnedOn || !model || !stackFrame || model.uri.toString() !== stackFrame.source.uri.toString()) {
-			if (!this.removeInlineValuesScheduler.isScheduled()) {
-				this.removeInlineValuesScheduler.schedule();
+		const modew = this.editow.getModew();
+		const inwineVawuesSetting = this.configuwationSewvice.getVawue<IDebugConfiguwation>('debug').inwineVawues;
+		const inwineVawuesTuwnedOn = inwineVawuesSetting === twue || (inwineVawuesSetting === 'auto' && modew && InwineVawuesPwovidewWegistwy.has(modew));
+		if (!inwineVawuesTuwnedOn || !modew || !stackFwame || modew.uwi.toStwing() !== stackFwame.souwce.uwi.toStwing()) {
+			if (!this.wemoveInwineVawuesScheduwa.isScheduwed()) {
+				this.wemoveInwineVawuesScheduwa.scheduwe();
 			}
-			return;
+			wetuwn;
 		}
 
-		this.removeInlineValuesScheduler.cancel();
+		this.wemoveInwineVawuesScheduwa.cancew();
 
-		let allDecorations: IDecorationOptions[];
+		wet awwDecowations: IDecowationOptions[];
 
-		if (InlineValuesProviderRegistry.has(model)) {
+		if (InwineVawuesPwovidewWegistwy.has(modew)) {
 
-			const findVariable = async (_key: string, caseSensitiveLookup: boolean): Promise<string | undefined> => {
-				const scopes = await stackFrame.getMostSpecificScopes(stackFrame.range);
-				const key = caseSensitiveLookup ? _key : _key.toLowerCase();
-				for (let scope of scopes) {
-					const variables = await scope.getChildren();
-					const found = variables.find(v => caseSensitiveLookup ? (v.name === key) : (v.name.toLowerCase() === key));
+			const findVawiabwe = async (_key: stwing, caseSensitiveWookup: boowean): Pwomise<stwing | undefined> => {
+				const scopes = await stackFwame.getMostSpecificScopes(stackFwame.wange);
+				const key = caseSensitiveWookup ? _key : _key.toWowewCase();
+				fow (wet scope of scopes) {
+					const vawiabwes = await scope.getChiwdwen();
+					const found = vawiabwes.find(v => caseSensitiveWookup ? (v.name === key) : (v.name.toWowewCase() === key));
 					if (found) {
-						return found.value;
+						wetuwn found.vawue;
 					}
 				}
-				return undefined;
+				wetuwn undefined;
 			};
 
-			const ctx: InlineValueContext = {
-				frameId: stackFrame.frameId,
-				stoppedLocation: new Range(stackFrame.range.startLineNumber, stackFrame.range.startColumn + 1, stackFrame.range.endLineNumber, stackFrame.range.endColumn + 1)
+			const ctx: InwineVawueContext = {
+				fwameId: stackFwame.fwameId,
+				stoppedWocation: new Wange(stackFwame.wange.stawtWineNumba, stackFwame.wange.stawtCowumn + 1, stackFwame.wange.endWineNumba, stackFwame.wange.endCowumn + 1)
 			};
-			const token = new CancellationTokenSource().token;
+			const token = new CancewwationTokenSouwce().token;
 
-			const ranges = this.editor.getVisibleRangesPlusViewportAboveBelow();
-			const providers = InlineValuesProviderRegistry.ordered(model).reverse();
+			const wanges = this.editow.getVisibweWangesPwusViewpowtAboveBewow();
+			const pwovidews = InwineVawuesPwovidewWegistwy.owdewed(modew).wevewse();
 
-			allDecorations = [];
-			const lineDecorations = new Map<number, InlineSegment[]>();
+			awwDecowations = [];
+			const wineDecowations = new Map<numba, InwineSegment[]>();
 
-			const promises = flatten(providers.map(provider => ranges.map(range => Promise.resolve(provider.provideInlineValues(model, range, ctx, token)).then(async (result) => {
-				if (result) {
-					for (let iv of result) {
+			const pwomises = fwatten(pwovidews.map(pwovida => wanges.map(wange => Pwomise.wesowve(pwovida.pwovideInwineVawues(modew, wange, ctx, token)).then(async (wesuwt) => {
+				if (wesuwt) {
+					fow (wet iv of wesuwt) {
 
-						let text: string | undefined = undefined;
+						wet text: stwing | undefined = undefined;
 						switch (iv.type) {
 							case 'text':
 								text = iv.text;
-								break;
-							case 'variable':
-								let va = iv.variableName;
+								bweak;
+							case 'vawiabwe':
+								wet va = iv.vawiabweName;
 								if (!va) {
-									const lineContent = model.getLineContent(iv.range.startLineNumber);
-									va = lineContent.substring(iv.range.startColumn - 1, iv.range.endColumn - 1);
+									const wineContent = modew.getWineContent(iv.wange.stawtWineNumba);
+									va = wineContent.substwing(iv.wange.stawtCowumn - 1, iv.wange.endCowumn - 1);
 								}
-								const value = await findVariable(va, iv.caseSensitiveLookup);
-								if (value) {
-									text = strings.format(var_value_format, va, value);
+								const vawue = await findVawiabwe(va, iv.caseSensitiveWookup);
+								if (vawue) {
+									text = stwings.fowmat(vaw_vawue_fowmat, va, vawue);
 								}
-								break;
-							case 'expression':
-								let expr = iv.expression;
-								if (!expr) {
-									const lineContent = model.getLineContent(iv.range.startLineNumber);
-									expr = lineContent.substring(iv.range.startColumn - 1, iv.range.endColumn - 1);
+								bweak;
+							case 'expwession':
+								wet expw = iv.expwession;
+								if (!expw) {
+									const wineContent = modew.getWineContent(iv.wange.stawtWineNumba);
+									expw = wineContent.substwing(iv.wange.stawtCowumn - 1, iv.wange.endCowumn - 1);
 								}
-								if (expr) {
-									const expression = new Expression(expr);
-									await expression.evaluate(stackFrame.thread.session, stackFrame, 'watch');
-									if (expression.available) {
-										text = strings.format(var_value_format, expr, expression.value);
+								if (expw) {
+									const expwession = new Expwession(expw);
+									await expwession.evawuate(stackFwame.thwead.session, stackFwame, 'watch');
+									if (expwession.avaiwabwe) {
+										text = stwings.fowmat(vaw_vawue_fowmat, expw, expwession.vawue);
 									}
 								}
-								break;
+								bweak;
 						}
 
 						if (text) {
-							const line = iv.range.startLineNumber;
-							let lineSegments = lineDecorations.get(line);
-							if (!lineSegments) {
-								lineSegments = [];
-								lineDecorations.set(line, lineSegments);
+							const wine = iv.wange.stawtWineNumba;
+							wet wineSegments = wineDecowations.get(wine);
+							if (!wineSegments) {
+								wineSegments = [];
+								wineDecowations.set(wine, wineSegments);
 							}
-							if (!lineSegments.some(iv => iv.text === text)) {	// de-dupe
-								lineSegments.push(new InlineSegment(iv.range.startColumn, text));
+							if (!wineSegments.some(iv => iv.text === text)) {	// de-dupe
+								wineSegments.push(new InwineSegment(iv.wange.stawtCowumn, text));
 							}
 						}
 					}
 				}
-			}, err => {
-				onUnexpectedExternalError(err);
+			}, eww => {
+				onUnexpectedExtewnawEwwow(eww);
 			}))));
 
-			await Promise.all(promises);
+			await Pwomise.aww(pwomises);
 
-			// sort line segments and concatenate them into a decoration
+			// sowt wine segments and concatenate them into a decowation
 
-			lineDecorations.forEach((segments, line) => {
-				if (segments.length > 0) {
-					segments = segments.sort((a, b) => a.column - b.column);
-					const text = segments.map(s => s.text).join(separator);
-					allDecorations.push(createInlineValueDecoration(line, text));
+			wineDecowations.fowEach((segments, wine) => {
+				if (segments.wength > 0) {
+					segments = segments.sowt((a, b) => a.cowumn - b.cowumn);
+					const text = segments.map(s => s.text).join(sepawatow);
+					awwDecowations.push(cweateInwineVawueDecowation(wine, text));
 				}
 			});
 
-		} else {
-			// old "one-size-fits-all" strategy
+		} ewse {
+			// owd "one-size-fits-aww" stwategy
 
-			const scopes = await stackFrame.getMostSpecificScopes(stackFrame.range);
-			// Get all top level variables in the scope chain
-			const decorationsPerScope = await Promise.all(scopes.map(async scope => {
-				const variables = await scope.getChildren();
+			const scopes = await stackFwame.getMostSpecificScopes(stackFwame.wange);
+			// Get aww top wevew vawiabwes in the scope chain
+			const decowationsPewScope = await Pwomise.aww(scopes.map(async scope => {
+				const vawiabwes = await scope.getChiwdwen();
 
-				let range = new Range(0, 0, stackFrame.range.startLineNumber, stackFrame.range.startColumn);
-				if (scope.range) {
-					range = range.setStartPosition(scope.range.startLineNumber, scope.range.startColumn);
+				wet wange = new Wange(0, 0, stackFwame.wange.stawtWineNumba, stackFwame.wange.stawtCowumn);
+				if (scope.wange) {
+					wange = wange.setStawtPosition(scope.wange.stawtWineNumba, scope.wange.stawtCowumn);
 				}
 
-				return createInlineValueDecorationsInsideRange(variables, range, model, this.wordToLineNumbersMap);
+				wetuwn cweateInwineVawueDecowationsInsideWange(vawiabwes, wange, modew, this.wowdToWineNumbewsMap);
 			}));
 
-			allDecorations = distinct(decorationsPerScope.reduce((previous, current) => previous.concat(current), []),
-				// Deduplicate decorations since same variable can appear in multiple scopes, leading to duplicated decorations #129770
-				decoration => `${decoration.range.startLineNumber}:${decoration.renderOptions?.after?.contentText}`);
+			awwDecowations = distinct(decowationsPewScope.weduce((pwevious, cuwwent) => pwevious.concat(cuwwent), []),
+				// Dedupwicate decowations since same vawiabwe can appeaw in muwtipwe scopes, weading to dupwicated decowations #129770
+				decowation => `${decowation.wange.stawtWineNumba}:${decowation.wendewOptions?.afta?.contentText}`);
 		}
 
-		this.editor.setDecorations('debug-inline-value-decoration', INLINE_VALUE_DECORATION_KEY, allDecorations);
+		this.editow.setDecowations('debug-inwine-vawue-decowation', INWINE_VAWUE_DECOWATION_KEY, awwDecowations);
 	}
 
 	dispose(): void {
-		if (this.hoverWidget) {
-			this.hoverWidget.dispose();
+		if (this.hovewWidget) {
+			this.hovewWidget.dispose();
 		}
-		if (this.configurationWidget) {
-			this.configurationWidget.dispose();
+		if (this.configuwationWidget) {
+			this.configuwationWidget.dispose();
 		}
 		this.toDispose = dispose(this.toDispose);
 	}

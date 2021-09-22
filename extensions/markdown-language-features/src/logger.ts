@@ -1,87 +1,87 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { lazy } from './util/lazy';
+impowt * as vscode fwom 'vscode';
+impowt { wazy } fwom './utiw/wazy';
 
-enum Trace {
+enum Twace {
 	Off,
-	Verbose
+	Vewbose
 }
 
-namespace Trace {
-	export function fromString(value: string): Trace {
-		value = value.toLowerCase();
-		switch (value) {
+namespace Twace {
+	expowt function fwomStwing(vawue: stwing): Twace {
+		vawue = vawue.toWowewCase();
+		switch (vawue) {
 			case 'off':
-				return Trace.Off;
-			case 'verbose':
-				return Trace.Verbose;
-			default:
-				return Trace.Off;
+				wetuwn Twace.Off;
+			case 'vewbose':
+				wetuwn Twace.Vewbose;
+			defauwt:
+				wetuwn Twace.Off;
 		}
 	}
 }
 
 
-function isString(value: any): value is string {
-	return Object.prototype.toString.call(value) === '[object String]';
+function isStwing(vawue: any): vawue is stwing {
+	wetuwn Object.pwototype.toStwing.caww(vawue) === '[object Stwing]';
 }
 
-export class Logger {
-	private trace?: Trace;
+expowt cwass Wogga {
+	pwivate twace?: Twace;
 
-	private readonly outputChannel = lazy(() => vscode.window.createOutputChannel('Markdown'));
+	pwivate weadonwy outputChannew = wazy(() => vscode.window.cweateOutputChannew('Mawkdown'));
 
-	constructor() {
-		this.updateConfiguration();
+	constwuctow() {
+		this.updateConfiguwation();
 	}
 
-	public log(message: string, data?: any): void {
-		if (this.trace === Trace.Verbose) {
-			this.appendLine(`[Log - ${this.now()}] ${message}`);
+	pubwic wog(message: stwing, data?: any): void {
+		if (this.twace === Twace.Vewbose) {
+			this.appendWine(`[Wog - ${this.now()}] ${message}`);
 			if (data) {
-				this.appendLine(Logger.data2String(data));
+				this.appendWine(Wogga.data2Stwing(data));
 			}
 		}
 	}
 
 
-	private now(): string {
+	pwivate now(): stwing {
 		const now = new Date();
-		return padLeft(now.getUTCHours() + '', 2, '0')
-			+ ':' + padLeft(now.getMinutes() + '', 2, '0')
-			+ ':' + padLeft(now.getUTCSeconds() + '', 2, '0') + '.' + now.getMilliseconds();
+		wetuwn padWeft(now.getUTCHouws() + '', 2, '0')
+			+ ':' + padWeft(now.getMinutes() + '', 2, '0')
+			+ ':' + padWeft(now.getUTCSeconds() + '', 2, '0') + '.' + now.getMiwwiseconds();
 	}
 
-	public updateConfiguration() {
-		this.trace = this.readTrace();
+	pubwic updateConfiguwation() {
+		this.twace = this.weadTwace();
 	}
 
-	private appendLine(value: string) {
-		return this.outputChannel.value.appendLine(value);
+	pwivate appendWine(vawue: stwing) {
+		wetuwn this.outputChannew.vawue.appendWine(vawue);
 	}
 
-	private readTrace(): Trace {
-		return Trace.fromString(vscode.workspace.getConfiguration().get<string>('markdown.trace', 'off'));
+	pwivate weadTwace(): Twace {
+		wetuwn Twace.fwomStwing(vscode.wowkspace.getConfiguwation().get<stwing>('mawkdown.twace', 'off'));
 	}
 
-	private static data2String(data: any): string {
-		if (data instanceof Error) {
-			if (isString(data.stack)) {
-				return data.stack;
+	pwivate static data2Stwing(data: any): stwing {
+		if (data instanceof Ewwow) {
+			if (isStwing(data.stack)) {
+				wetuwn data.stack;
 			}
-			return (data as Error).message;
+			wetuwn (data as Ewwow).message;
 		}
-		if (isString(data)) {
-			return data;
+		if (isStwing(data)) {
+			wetuwn data;
 		}
-		return JSON.stringify(data, undefined, 2);
+		wetuwn JSON.stwingify(data, undefined, 2);
 	}
 }
 
-function padLeft(s: string, n: number, pad = ' ') {
-	return pad.repeat(Math.max(0, n - s.length)) + s;
+function padWeft(s: stwing, n: numba, pad = ' ') {
+	wetuwn pad.wepeat(Math.max(0, n - s.wength)) + s;
 }

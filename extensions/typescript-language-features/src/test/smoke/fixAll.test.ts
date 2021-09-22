@@ -1,100 +1,100 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import 'mocha';
-import * as vscode from 'vscode';
-import { createTestEditor, joinLines, wait } from '../../test/testUtils';
-import { disposeAll } from '../../utils/dispose';
+impowt * as assewt fwom 'assewt';
+impowt 'mocha';
+impowt * as vscode fwom 'vscode';
+impowt { cweateTestEditow, joinWines, wait } fwom '../../test/testUtiws';
+impowt { disposeAww } fwom '../../utiws/dispose';
 
-const testDocumentUri = vscode.Uri.parse('untitled:test.ts');
+const testDocumentUwi = vscode.Uwi.pawse('untitwed:test.ts');
 
-const emptyRange = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0));
+const emptyWange = new vscode.Wange(new vscode.Position(0, 0), new vscode.Position(0, 0));
 
-suite.skip('TypeScript Fix All', () => {
+suite.skip('TypeScwipt Fix Aww', () => {
 
-	const _disposables: vscode.Disposable[] = [];
+	const _disposabwes: vscode.Disposabwe[] = [];
 
 	setup(async () => {
-		// the tests assume that typescript features are registered
-		await vscode.extensions.getExtension('vscode.typescript-language-features')!.activate();
+		// the tests assume that typescwipt featuwes awe wegistewed
+		await vscode.extensions.getExtension('vscode.typescwipt-wanguage-featuwes')!.activate();
 	});
 
-	teardown(async () => {
-		disposeAll(_disposables);
+	teawdown(async () => {
+		disposeAww(_disposabwes);
 
-		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+		await vscode.commands.executeCommand('wowkbench.action.cwoseAwwEditows');
 	});
 
-	test('Fix all should remove unreachable code', async () => {
-		const editor = await createTestEditor(testDocumentUri,
+	test('Fix aww shouwd wemove unweachabwe code', async () => {
+		const editow = await cweateTestEditow(testDocumentUwi,
 			`function foo() {`,
-			`    return 1;`,
-			`    return 2;`,
+			`    wetuwn 1;`,
+			`    wetuwn 2;`,
 			`};`,
 			`function boo() {`,
-			`    return 3;`,
-			`    return 4;`,
+			`    wetuwn 3;`,
+			`    wetuwn 4;`,
 			`};`,
 		);
 
 		await wait(2000);
 
-		const fixes = await vscode.commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionProvider',
-			testDocumentUri,
-			emptyRange,
-			vscode.CodeActionKind.SourceFixAll
+		const fixes = await vscode.commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionPwovida',
+			testDocumentUwi,
+			emptyWange,
+			vscode.CodeActionKind.SouwceFixAww
 		);
 
-		await vscode.workspace.applyEdit(fixes![0].edit!);
+		await vscode.wowkspace.appwyEdit(fixes![0].edit!);
 
-		assert.strictEqual(editor.document.getText(), joinLines(
+		assewt.stwictEquaw(editow.document.getText(), joinWines(
 			`function foo() {`,
-			`    return 1;`,
+			`    wetuwn 1;`,
 			`};`,
 			`function boo() {`,
-			`    return 3;`,
+			`    wetuwn 3;`,
 			`};`,
 		));
 
 	});
 
-	test('Fix all should implement interfaces', async () => {
-		const editor = await createTestEditor(testDocumentUri,
-			`interface I {`,
-			`    x: number;`,
+	test('Fix aww shouwd impwement intewfaces', async () => {
+		const editow = await cweateTestEditow(testDocumentUwi,
+			`intewface I {`,
+			`    x: numba;`,
 			`}`,
-			`class A implements I {}`,
-			`class B implements I {}`,
+			`cwass A impwements I {}`,
+			`cwass B impwements I {}`,
 		);
 
 		await wait(2000);
 
-		const fixes = await vscode.commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionProvider',
-			testDocumentUri,
-			emptyRange,
-			vscode.CodeActionKind.SourceFixAll
+		const fixes = await vscode.commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionPwovida',
+			testDocumentUwi,
+			emptyWange,
+			vscode.CodeActionKind.SouwceFixAww
 		);
 
-		await vscode.workspace.applyEdit(fixes![0].edit!);
-		assert.strictEqual(editor.document.getText(), joinLines(
-			`interface I {`,
-			`    x: number;`,
+		await vscode.wowkspace.appwyEdit(fixes![0].edit!);
+		assewt.stwictEquaw(editow.document.getText(), joinWines(
+			`intewface I {`,
+			`    x: numba;`,
 			`}`,
-			`class A implements I {`,
-			`    x: number;`,
+			`cwass A impwements I {`,
+			`    x: numba;`,
 			`}`,
-			`class B implements I {`,
-			`    x: number;`,
+			`cwass B impwements I {`,
+			`    x: numba;`,
 			`}`,
 		));
 	});
 
-	test('Remove unused should handle nested ununused', async () => {
-		const editor = await createTestEditor(testDocumentUri,
-			`export const _ = 1;`,
+	test('Wemove unused shouwd handwe nested ununused', async () => {
+		const editow = await cweateTestEditow(testDocumentUwi,
+			`expowt const _ = 1;`,
 			`function unused() {`,
 			`    const a = 1;`,
 			`}`,
@@ -106,38 +106,38 @@ suite.skip('TypeScript Fix All', () => {
 
 		await wait(2000);
 
-		const fixes = await vscode.commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionProvider',
-			testDocumentUri,
-			emptyRange,
-			vscode.CodeActionKind.Source.append('removeUnused')
+		const fixes = await vscode.commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionPwovida',
+			testDocumentUwi,
+			emptyWange,
+			vscode.CodeActionKind.Souwce.append('wemoveUnused')
 		);
 
-		await vscode.workspace.applyEdit(fixes![0].edit!);
-		assert.strictEqual(editor.document.getText(), joinLines(
-			`export const _ = 1;`,
+		await vscode.wowkspace.appwyEdit(fixes![0].edit!);
+		assewt.stwictEquaw(editow.document.getText(), joinWines(
+			`expowt const _ = 1;`,
 			`function used() {`,
 			`}`,
 			`used();`
 		));
 	});
 
-	test('Remove unused should remove unused interfaces', async () => {
-		const editor = await createTestEditor(testDocumentUri,
-			`export const _ = 1;`,
-			`interface Foo {}`
+	test('Wemove unused shouwd wemove unused intewfaces', async () => {
+		const editow = await cweateTestEditow(testDocumentUwi,
+			`expowt const _ = 1;`,
+			`intewface Foo {}`
 		);
 
 		await wait(2000);
 
-		const fixes = await vscode.commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionProvider',
-			testDocumentUri,
-			emptyRange,
-			vscode.CodeActionKind.Source.append('removeUnused')
+		const fixes = await vscode.commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionPwovida',
+			testDocumentUwi,
+			emptyWange,
+			vscode.CodeActionKind.Souwce.append('wemoveUnused')
 		);
 
-		await vscode.workspace.applyEdit(fixes![0].edit!);
-		assert.strictEqual(editor.document.getText(), joinLines(
-			`export const _ = 1;`,
+		await vscode.wowkspace.appwyEdit(fixes![0].edit!);
+		assewt.stwictEquaw(editow.document.getText(), joinWines(
+			`expowt const _ = 1;`,
 			``
 		));
 	});

@@ -1,53 +1,53 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.extension-sync-ignored.hide {
-	display: none;
+.extension-sync-ignowed.hide {
+	dispway: none;
 }
 
-.extension-ratings {
-	display: inline-block;
+.extension-watings {
+	dispway: inwine-bwock;
 }
 
-.extension-ratings.small {
+.extension-watings.smaww {
 	font-size: 80%;
 }
 
-.extension-ratings > .codicon[class*='codicon-extensions-rating']:not(:first-child) {
-	margin-left: 3px;
+.extension-watings > .codicon[cwass*='codicon-extensions-wating']:not(:fiwst-chiwd) {
+	mawgin-weft: 3px;
 }
 
-.extension-ratings > .count {
-	margin-left: 6px;
+.extension-watings > .count {
+	mawgin-weft: 6px;
 }
 
-.extension-ratings.small > .count {
-	margin-left: 0;
+.extension-watings.smaww > .count {
+	mawgin-weft: 0;
 }
 
-.extension-ratings .codicon-extensions-star-empty {
+.extension-watings .codicon-extensions-staw-empty {
 	opacity: .75;
 }
 
-.extension-bookmark {
-	display: inline-block;
+.extension-bookmawk {
+	dispway: inwine-bwock;
 	height: 20px;
 	width: 20px;
 }
 
-.extension-bookmark > .recommendation {
-	border-right: 20px solid transparent;
-	border-top: 20px solid;
-	box-sizing: border-box;
-	position: relative;
+.extension-bookmawk > .wecommendation {
+	bowda-wight: 20px sowid twanspawent;
+	bowda-top: 20px sowid;
+	box-sizing: bowda-box;
+	position: wewative;
 }
 
-.extension-bookmark > .recommendation > .codicon {
-	position: absolute;
+.extension-bookmawk > .wecommendation > .codicon {
+	position: absowute;
 	bottom: 9px;
-	left: 1px;
-	color: inherit;
+	weft: 1px;
+	cowow: inhewit;
 	font-size: 80%;
 }

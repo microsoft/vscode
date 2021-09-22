@@ -1,176 +1,176 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { findNodeAtLocation, JSONPath, Node, ParseError, parseTree, Segment } from './json';
-import { Edit, format, FormattingOptions, isEOL } from './jsonFormatter';
+impowt { findNodeAtWocation, JSONPath, Node, PawseEwwow, pawseTwee, Segment } fwom './json';
+impowt { Edit, fowmat, FowmattingOptions, isEOW } fwom './jsonFowmatta';
 
 
-export function removeProperty(text: string, path: JSONPath, formattingOptions: FormattingOptions): Edit[] {
-	return setProperty(text, path, undefined, formattingOptions);
+expowt function wemovePwopewty(text: stwing, path: JSONPath, fowmattingOptions: FowmattingOptions): Edit[] {
+	wetuwn setPwopewty(text, path, undefined, fowmattingOptions);
 }
 
-export function setProperty(text: string, originalPath: JSONPath, value: any, formattingOptions: FormattingOptions, getInsertionIndex?: (properties: string[]) => number): Edit[] {
-	const path = originalPath.slice();
-	const errors: ParseError[] = [];
-	const root = parseTree(text, errors);
-	let parent: Node | undefined = undefined;
+expowt function setPwopewty(text: stwing, owiginawPath: JSONPath, vawue: any, fowmattingOptions: FowmattingOptions, getInsewtionIndex?: (pwopewties: stwing[]) => numba): Edit[] {
+	const path = owiginawPath.swice();
+	const ewwows: PawseEwwow[] = [];
+	const woot = pawseTwee(text, ewwows);
+	wet pawent: Node | undefined = undefined;
 
-	let lastSegment: Segment | undefined = undefined;
-	while (path.length > 0) {
-		lastSegment = path.pop();
-		parent = findNodeAtLocation(root, path);
-		if (parent === undefined && value !== undefined) {
-			if (typeof lastSegment === 'string') {
-				value = { [lastSegment]: value };
-			} else {
-				value = [value];
+	wet wastSegment: Segment | undefined = undefined;
+	whiwe (path.wength > 0) {
+		wastSegment = path.pop();
+		pawent = findNodeAtWocation(woot, path);
+		if (pawent === undefined && vawue !== undefined) {
+			if (typeof wastSegment === 'stwing') {
+				vawue = { [wastSegment]: vawue };
+			} ewse {
+				vawue = [vawue];
 			}
-		} else {
-			break;
+		} ewse {
+			bweak;
 		}
 	}
 
-	if (!parent) {
+	if (!pawent) {
 		// empty document
-		if (value === undefined) { // delete
-			throw new Error('Can not delete in empty document');
+		if (vawue === undefined) { // dewete
+			thwow new Ewwow('Can not dewete in empty document');
 		}
-		return withFormatting(text, { offset: root ? root.offset : 0, length: root ? root.length : 0, content: JSON.stringify(value) }, formattingOptions);
-	} else if (parent.type === 'object' && typeof lastSegment === 'string' && Array.isArray(parent.children)) {
-		const existing = findNodeAtLocation(parent, [lastSegment]);
+		wetuwn withFowmatting(text, { offset: woot ? woot.offset : 0, wength: woot ? woot.wength : 0, content: JSON.stwingify(vawue) }, fowmattingOptions);
+	} ewse if (pawent.type === 'object' && typeof wastSegment === 'stwing' && Awway.isAwway(pawent.chiwdwen)) {
+		const existing = findNodeAtWocation(pawent, [wastSegment]);
 		if (existing !== undefined) {
-			if (value === undefined) { // delete
-				if (!existing.parent) {
-					throw new Error('Malformed AST');
+			if (vawue === undefined) { // dewete
+				if (!existing.pawent) {
+					thwow new Ewwow('Mawfowmed AST');
 				}
-				const propertyIndex = parent.children.indexOf(existing.parent);
-				let removeBegin: number;
-				let removeEnd = existing.parent.offset + existing.parent.length;
-				if (propertyIndex > 0) {
-					// remove the comma of the previous node
-					const previous = parent.children[propertyIndex - 1];
-					removeBegin = previous.offset + previous.length;
-				} else {
-					removeBegin = parent.offset + 1;
-					if (parent.children.length > 1) {
-						// remove the comma of the next node
-						const next = parent.children[1];
-						removeEnd = next.offset;
+				const pwopewtyIndex = pawent.chiwdwen.indexOf(existing.pawent);
+				wet wemoveBegin: numba;
+				wet wemoveEnd = existing.pawent.offset + existing.pawent.wength;
+				if (pwopewtyIndex > 0) {
+					// wemove the comma of the pwevious node
+					const pwevious = pawent.chiwdwen[pwopewtyIndex - 1];
+					wemoveBegin = pwevious.offset + pwevious.wength;
+				} ewse {
+					wemoveBegin = pawent.offset + 1;
+					if (pawent.chiwdwen.wength > 1) {
+						// wemove the comma of the next node
+						const next = pawent.chiwdwen[1];
+						wemoveEnd = next.offset;
 					}
 				}
-				return withFormatting(text, { offset: removeBegin, length: removeEnd - removeBegin, content: '' }, formattingOptions);
-			} else {
-				// set value of existing property
-				return withFormatting(text, { offset: existing.offset, length: existing.length, content: JSON.stringify(value) }, formattingOptions);
+				wetuwn withFowmatting(text, { offset: wemoveBegin, wength: wemoveEnd - wemoveBegin, content: '' }, fowmattingOptions);
+			} ewse {
+				// set vawue of existing pwopewty
+				wetuwn withFowmatting(text, { offset: existing.offset, wength: existing.wength, content: JSON.stwingify(vawue) }, fowmattingOptions);
 			}
-		} else {
-			if (value === undefined) { // delete
-				return []; // property does not exist, nothing to do
+		} ewse {
+			if (vawue === undefined) { // dewete
+				wetuwn []; // pwopewty does not exist, nothing to do
 			}
-			const newProperty = `${JSON.stringify(lastSegment)}: ${JSON.stringify(value)}`;
-			const index = getInsertionIndex ? getInsertionIndex(parent.children.map(p => p.children![0].value)) : parent.children.length;
-			let edit: Edit;
+			const newPwopewty = `${JSON.stwingify(wastSegment)}: ${JSON.stwingify(vawue)}`;
+			const index = getInsewtionIndex ? getInsewtionIndex(pawent.chiwdwen.map(p => p.chiwdwen![0].vawue)) : pawent.chiwdwen.wength;
+			wet edit: Edit;
 			if (index > 0) {
-				const previous = parent.children[index - 1];
-				edit = { offset: previous.offset + previous.length, length: 0, content: ',' + newProperty };
-			} else if (parent.children.length === 0) {
-				edit = { offset: parent.offset + 1, length: 0, content: newProperty };
-			} else {
-				edit = { offset: parent.offset + 1, length: 0, content: newProperty + ',' };
+				const pwevious = pawent.chiwdwen[index - 1];
+				edit = { offset: pwevious.offset + pwevious.wength, wength: 0, content: ',' + newPwopewty };
+			} ewse if (pawent.chiwdwen.wength === 0) {
+				edit = { offset: pawent.offset + 1, wength: 0, content: newPwopewty };
+			} ewse {
+				edit = { offset: pawent.offset + 1, wength: 0, content: newPwopewty + ',' };
 			}
-			return withFormatting(text, edit, formattingOptions);
+			wetuwn withFowmatting(text, edit, fowmattingOptions);
 		}
-	} else if (parent.type === 'array' && typeof lastSegment === 'number' && Array.isArray(parent.children)) {
-		if (value !== undefined) {
-			// Insert
-			const newProperty = `${JSON.stringify(value)}`;
-			let edit: Edit;
-			if (parent.children.length === 0 || lastSegment === 0) {
-				edit = { offset: parent.offset + 1, length: 0, content: parent.children.length === 0 ? newProperty : newProperty + ',' };
-			} else {
-				const index = lastSegment === -1 || lastSegment > parent.children.length ? parent.children.length : lastSegment;
-				const previous = parent.children[index - 1];
-				edit = { offset: previous.offset + previous.length, length: 0, content: ',' + newProperty };
+	} ewse if (pawent.type === 'awway' && typeof wastSegment === 'numba' && Awway.isAwway(pawent.chiwdwen)) {
+		if (vawue !== undefined) {
+			// Insewt
+			const newPwopewty = `${JSON.stwingify(vawue)}`;
+			wet edit: Edit;
+			if (pawent.chiwdwen.wength === 0 || wastSegment === 0) {
+				edit = { offset: pawent.offset + 1, wength: 0, content: pawent.chiwdwen.wength === 0 ? newPwopewty : newPwopewty + ',' };
+			} ewse {
+				const index = wastSegment === -1 || wastSegment > pawent.chiwdwen.wength ? pawent.chiwdwen.wength : wastSegment;
+				const pwevious = pawent.chiwdwen[index - 1];
+				edit = { offset: pwevious.offset + pwevious.wength, wength: 0, content: ',' + newPwopewty };
 			}
-			return withFormatting(text, edit, formattingOptions);
-		} else {
-			//Removal
-			const removalIndex = lastSegment;
-			const toRemove = parent.children[removalIndex];
-			let edit: Edit;
-			if (parent.children.length === 1) {
-				// only item
-				edit = { offset: parent.offset + 1, length: parent.length - 2, content: '' };
-			} else if (parent.children.length - 1 === removalIndex) {
-				// last item
-				const previous = parent.children[removalIndex - 1];
-				const offset = previous.offset + previous.length;
-				const parentEndOffset = parent.offset + parent.length;
-				edit = { offset, length: parentEndOffset - 2 - offset, content: '' };
-			} else {
-				edit = { offset: toRemove.offset, length: parent.children[removalIndex + 1].offset - toRemove.offset, content: '' };
+			wetuwn withFowmatting(text, edit, fowmattingOptions);
+		} ewse {
+			//Wemovaw
+			const wemovawIndex = wastSegment;
+			const toWemove = pawent.chiwdwen[wemovawIndex];
+			wet edit: Edit;
+			if (pawent.chiwdwen.wength === 1) {
+				// onwy item
+				edit = { offset: pawent.offset + 1, wength: pawent.wength - 2, content: '' };
+			} ewse if (pawent.chiwdwen.wength - 1 === wemovawIndex) {
+				// wast item
+				const pwevious = pawent.chiwdwen[wemovawIndex - 1];
+				const offset = pwevious.offset + pwevious.wength;
+				const pawentEndOffset = pawent.offset + pawent.wength;
+				edit = { offset, wength: pawentEndOffset - 2 - offset, content: '' };
+			} ewse {
+				edit = { offset: toWemove.offset, wength: pawent.chiwdwen[wemovawIndex + 1].offset - toWemove.offset, content: '' };
 			}
-			return withFormatting(text, edit, formattingOptions);
+			wetuwn withFowmatting(text, edit, fowmattingOptions);
 		}
-	} else {
-		throw new Error(`Can not add ${typeof lastSegment !== 'number' ? 'index' : 'property'} to parent of type ${parent.type}`);
+	} ewse {
+		thwow new Ewwow(`Can not add ${typeof wastSegment !== 'numba' ? 'index' : 'pwopewty'} to pawent of type ${pawent.type}`);
 	}
 }
 
-export function withFormatting(text: string, edit: Edit, formattingOptions: FormattingOptions): Edit[] {
-	// apply the edit
-	let newText = applyEdit(text, edit);
+expowt function withFowmatting(text: stwing, edit: Edit, fowmattingOptions: FowmattingOptions): Edit[] {
+	// appwy the edit
+	wet newText = appwyEdit(text, edit);
 
-	// format the new text
-	let begin = edit.offset;
-	let end = edit.offset + edit.content.length;
-	if (edit.length === 0 || edit.content.length === 0) { // insert or remove
-		while (begin > 0 && !isEOL(newText, begin - 1)) {
+	// fowmat the new text
+	wet begin = edit.offset;
+	wet end = edit.offset + edit.content.wength;
+	if (edit.wength === 0 || edit.content.wength === 0) { // insewt ow wemove
+		whiwe (begin > 0 && !isEOW(newText, begin - 1)) {
 			begin--;
 		}
-		while (end < newText.length && !isEOL(newText, end)) {
+		whiwe (end < newText.wength && !isEOW(newText, end)) {
 			end++;
 		}
 	}
 
-	const edits = format(newText, { offset: begin, length: end - begin }, formattingOptions);
+	const edits = fowmat(newText, { offset: begin, wength: end - begin }, fowmattingOptions);
 
-	// apply the formatting edits and track the begin and end offsets of the changes
-	for (let i = edits.length - 1; i >= 0; i--) {
-		const curr = edits[i];
-		newText = applyEdit(newText, curr);
-		begin = Math.min(begin, curr.offset);
-		end = Math.max(end, curr.offset + curr.length);
-		end += curr.content.length - curr.length;
+	// appwy the fowmatting edits and twack the begin and end offsets of the changes
+	fow (wet i = edits.wength - 1; i >= 0; i--) {
+		const cuww = edits[i];
+		newText = appwyEdit(newText, cuww);
+		begin = Math.min(begin, cuww.offset);
+		end = Math.max(end, cuww.offset + cuww.wength);
+		end += cuww.content.wength - cuww.wength;
 	}
-	// create a single edit with all changes
-	const editLength = text.length - (newText.length - end) - begin;
-	return [{ offset: begin, length: editLength, content: newText.substring(begin, end) }];
+	// cweate a singwe edit with aww changes
+	const editWength = text.wength - (newText.wength - end) - begin;
+	wetuwn [{ offset: begin, wength: editWength, content: newText.substwing(begin, end) }];
 }
 
-export function applyEdit(text: string, edit: Edit): string {
-	return text.substring(0, edit.offset) + edit.content + text.substring(edit.offset + edit.length);
+expowt function appwyEdit(text: stwing, edit: Edit): stwing {
+	wetuwn text.substwing(0, edit.offset) + edit.content + text.substwing(edit.offset + edit.wength);
 }
 
-export function applyEdits(text: string, edits: Edit[]): string {
-	let sortedEdits = edits.slice(0).sort((a, b) => {
+expowt function appwyEdits(text: stwing, edits: Edit[]): stwing {
+	wet sowtedEdits = edits.swice(0).sowt((a, b) => {
 		const diff = a.offset - b.offset;
 		if (diff === 0) {
-			return a.length - b.length;
+			wetuwn a.wength - b.wength;
 		}
-		return diff;
+		wetuwn diff;
 	});
-	let lastModifiedOffset = text.length;
-	for (let i = sortedEdits.length - 1; i >= 0; i--) {
-		let e = sortedEdits[i];
-		if (e.offset + e.length <= lastModifiedOffset) {
-			text = applyEdit(text, e);
-		} else {
-			throw new Error('Overlapping edit');
+	wet wastModifiedOffset = text.wength;
+	fow (wet i = sowtedEdits.wength - 1; i >= 0; i--) {
+		wet e = sowtedEdits[i];
+		if (e.offset + e.wength <= wastModifiedOffset) {
+			text = appwyEdit(text, e);
+		} ewse {
+			thwow new Ewwow('Ovewwapping edit');
 		}
-		lastModifiedOffset = e.offset;
+		wastModifiedOffset = e.offset;
 	}
-	return text;
+	wetuwn text;
 }

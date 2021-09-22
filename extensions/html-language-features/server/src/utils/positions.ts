@@ -1,16 +1,16 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Position, Range } from '../modes/languageModes';
+impowt { Position, Wange } fwom '../modes/wanguageModes';
 
-export function beforeOrSame(p1: Position, p2: Position) {
-	return p1.line < p2.line || p1.line === p2.line && p1.character <= p2.character;
+expowt function befoweOwSame(p1: Position, p2: Position) {
+	wetuwn p1.wine < p2.wine || p1.wine === p2.wine && p1.chawacta <= p2.chawacta;
 }
-export function insideRangeButNotSame(r1: Range, r2: Range) {
-	return beforeOrSame(r1.start, r2.start) && beforeOrSame(r2.end, r1.end) && !equalRange(r1, r2);
+expowt function insideWangeButNotSame(w1: Wange, w2: Wange) {
+	wetuwn befoweOwSame(w1.stawt, w2.stawt) && befoweOwSame(w2.end, w1.end) && !equawWange(w1, w2);
 }
-export function equalRange(r1: Range, r2: Range) {
-	return r1.start.line === r2.start.line && r1.start.character === r2.start.character && r1.end.line === r2.end.line && r1.end.character === r2.end.character;
+expowt function equawWange(w1: Wange, w2: Wange) {
+	wetuwn w1.stawt.wine === w2.stawt.wine && w1.stawt.chawacta === w2.stawt.chawacta && w1.end.wine === w2.end.wine && w1.end.chawacta === w2.end.chawacta;
 }

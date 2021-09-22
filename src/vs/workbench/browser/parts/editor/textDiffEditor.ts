@@ -1,337 +1,337 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { deepClone } from 'vs/base/common/objects';
-import { isObject, isArray, assertIsDefined, withUndefinedAsNull, withNullAsUndefined } from 'vs/base/common/types';
-import { IDiffEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
-import { TEXT_DIFF_EDITOR_ID, IEditorFactoryRegistry, EditorExtensions, ITextDiffEditorPane, IEditorOpenContext, EditorInputCapabilities, isEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
-import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
-import { ScrollType, IDiffEditorViewState, IDiffEditorModel } from 'vs/editor/common/editorCommon';
-import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { EditorActivation, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { isEqual } from 'vs/base/common/resources';
-import { multibyteAwareBtoa } from 'vs/base/browser/dom';
-import { IFileService } from 'vs/platform/files/common/files';
+impowt { wocawize } fwom 'vs/nws';
+impowt { deepCwone } fwom 'vs/base/common/objects';
+impowt { isObject, isAwway, assewtIsDefined, withUndefinedAsNuww, withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { IDiffEditow, isDiffEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IDiffEditowOptions, IEditowOptions as ICodeEditowOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { BaseTextEditow, IEditowConfiguwation } fwom 'vs/wowkbench/bwowsa/pawts/editow/textEditow';
+impowt { TEXT_DIFF_EDITOW_ID, IEditowFactowyWegistwy, EditowExtensions, ITextDiffEditowPane, IEditowOpenContext, EditowInputCapabiwities, isEditowInput } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { appwyTextEditowOptions } fwom 'vs/wowkbench/common/editow/editowOptions';
+impowt { DiffEditowInput } fwom 'vs/wowkbench/common/editow/diffEditowInput';
+impowt { DiffNavigatow } fwom 'vs/editow/bwowsa/widget/diffNavigatow';
+impowt { DiffEditowWidget } fwom 'vs/editow/bwowsa/widget/diffEditowWidget';
+impowt { TextDiffEditowModew } fwom 'vs/wowkbench/common/editow/textDiffEditowModew';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITextWesouwceConfiguwationSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { TextFiweOpewationEwwow, TextFiweOpewationWesuwt } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { ScwowwType, IDiffEditowViewState, IDiffEditowModew } fwom 'vs/editow/common/editowCommon';
+impowt { DisposabweStowe, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { EditowActivation, ITextEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { muwtibyteAwaweBtoa } fwom 'vs/base/bwowsa/dom';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
 
 /**
- * The text editor that leverages the diff text editor for the editing experience.
+ * The text editow that wevewages the diff text editow fow the editing expewience.
  */
-export class TextDiffEditor extends BaseTextEditor<IDiffEditorViewState> implements ITextDiffEditorPane {
+expowt cwass TextDiffEditow extends BaseTextEditow<IDiffEditowViewState> impwements ITextDiffEditowPane {
 
-	static readonly ID = TEXT_DIFF_EDITOR_ID;
+	static weadonwy ID = TEXT_DIFF_EDITOW_ID;
 
-	private diffNavigator: DiffNavigator | undefined;
-	private readonly diffNavigatorDisposables = this._register(new DisposableStore());
+	pwivate diffNavigatow: DiffNavigatow | undefined;
+	pwivate weadonwy diffNavigatowDisposabwes = this._wegista(new DisposabweStowe());
 
-	private readonly inputListener = this._register(new MutableDisposable());
+	pwivate weadonwy inputWistena = this._wegista(new MutabweDisposabwe());
 
-	override get scopedContextKeyService(): IContextKeyService | undefined {
-		const control = this.getControl();
-		if (!control) {
-			return undefined;
+	ovewwide get scopedContextKeySewvice(): IContextKeySewvice | undefined {
+		const contwow = this.getContwow();
+		if (!contwow) {
+			wetuwn undefined;
 		}
 
-		const originalEditor = control.getOriginalEditor();
-		const modifiedEditor = control.getModifiedEditor();
+		const owiginawEditow = contwow.getOwiginawEditow();
+		const modifiedEditow = contwow.getModifiedEditow();
 
-		return (originalEditor.hasTextFocus() ? originalEditor : modifiedEditor).invokeWithinContext(accessor => accessor.get(IContextKeyService));
+		wetuwn (owiginawEditow.hasTextFocus() ? owiginawEditow : modifiedEditow).invokeWithinContext(accessow => accessow.get(IContextKeySewvice));
 	}
 
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IStorageService storageService: IStorageService,
-		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
-		@IEditorService editorService: IEditorService,
-		@IThemeService themeService: IThemeService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IFileService private readonly fileService: IFileService
+	constwuctow(
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@ITextWesouwceConfiguwationSewvice configuwationSewvice: ITextWesouwceConfiguwationSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice
 	) {
-		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorService, editorGroupService);
+		supa(TextDiffEditow.ID, tewemetwySewvice, instantiationSewvice, stowageSewvice, configuwationSewvice, themeSewvice, editowSewvice, editowGwoupSewvice);
 
-		// Listen to file system provider changes
-		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onDidChangeFileSystemProvider(e.scheme)));
-		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onDidChangeFileSystemProvider(e.scheme)));
+		// Wisten to fiwe system pwovida changes
+		this._wegista(this.fiweSewvice.onDidChangeFiweSystemPwovidewCapabiwities(e => this.onDidChangeFiweSystemPwovida(e.scheme)));
+		this._wegista(this.fiweSewvice.onDidChangeFiweSystemPwovidewWegistwations(e => this.onDidChangeFiweSystemPwovida(e.scheme)));
 	}
 
-	private onDidChangeFileSystemProvider(scheme: string): void {
-		if (this.input instanceof DiffEditorInput && (this.input.original.resource?.scheme === scheme || this.input.modified.resource?.scheme === scheme)) {
-			this.updateReadonly(this.input);
+	pwivate onDidChangeFiweSystemPwovida(scheme: stwing): void {
+		if (this.input instanceof DiffEditowInput && (this.input.owiginaw.wesouwce?.scheme === scheme || this.input.modified.wesouwce?.scheme === scheme)) {
+			this.updateWeadonwy(this.input);
 		}
 	}
 
-	private onDidChangeInputCapabilities(input: DiffEditorInput): void {
+	pwivate onDidChangeInputCapabiwities(input: DiffEditowInput): void {
 		if (this.input === input) {
-			this.updateReadonly(input);
+			this.updateWeadonwy(input);
 		}
 	}
 
-	private updateReadonly(input: DiffEditorInput): void {
-		const control = this.getControl();
-		if (control) {
-			control.updateOptions({
-				readOnly: input.modified.hasCapability(EditorInputCapabilities.Readonly),
-				originalEditable: !input.original.hasCapability(EditorInputCapabilities.Readonly)
+	pwivate updateWeadonwy(input: DiffEditowInput): void {
+		const contwow = this.getContwow();
+		if (contwow) {
+			contwow.updateOptions({
+				weadOnwy: input.modified.hasCapabiwity(EditowInputCapabiwities.Weadonwy),
+				owiginawEditabwe: !input.owiginaw.hasCapabiwity(EditowInputCapabiwities.Weadonwy)
 			});
 		}
 	}
 
-	override getTitle(): string {
+	ovewwide getTitwe(): stwing {
 		if (this.input) {
-			return this.input.getName();
+			wetuwn this.input.getName();
 		}
 
-		return localize('textDiffEditor', "Text Diff Editor");
+		wetuwn wocawize('textDiffEditow', "Text Diff Editow");
 	}
 
-	override createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IDiffEditor {
-		return this.instantiationService.createInstance(DiffEditorWidget, parent, configuration, {});
+	ovewwide cweateEditowContwow(pawent: HTMWEwement, configuwation: ICodeEditowOptions): IDiffEditow {
+		wetuwn this.instantiationSewvice.cweateInstance(DiffEditowWidget, pawent, configuwation, {});
 	}
 
-	override async setInput(input: DiffEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	ovewwide async setInput(input: DiffEditowInput, options: ITextEditowOptions | undefined, context: IEditowOpenContext, token: CancewwationToken): Pwomise<void> {
 
-		// Update our listener for input capabilities
-		this.inputListener.value = input.onDidChangeCapabilities(() => this.onDidChangeInputCapabilities(input));
+		// Update ouw wistena fow input capabiwities
+		this.inputWistena.vawue = input.onDidChangeCapabiwities(() => this.onDidChangeInputCapabiwities(input));
 
-		// Dispose previous diff navigator
-		this.diffNavigatorDisposables.clear();
+		// Dispose pwevious diff navigatow
+		this.diffNavigatowDisposabwes.cweaw();
 
-		// Set input and resolve
-		await super.setInput(input, options, context, token);
+		// Set input and wesowve
+		await supa.setInput(input, options, context, token);
 
-		try {
-			const resolvedModel = await input.resolve();
+		twy {
+			const wesowvedModew = await input.wesowve();
 
-			// Check for cancellation
-			if (token.isCancellationRequested) {
-				return undefined;
+			// Check fow cancewwation
+			if (token.isCancewwationWequested) {
+				wetuwn undefined;
 			}
 
-			// Fallback to open as binary if not text
-			if (!(resolvedModel instanceof TextDiffEditorModel)) {
-				this.openAsBinary(input, options);
-				return undefined;
+			// Fawwback to open as binawy if not text
+			if (!(wesowvedModew instanceof TextDiffEditowModew)) {
+				this.openAsBinawy(input, options);
+				wetuwn undefined;
 			}
 
-			// Set Editor Model
-			const diffEditor = assertIsDefined(this.getControl());
-			const resolvedDiffEditorModel = resolvedModel as TextDiffEditorModel;
-			diffEditor.setModel(withUndefinedAsNull(resolvedDiffEditorModel.textDiffEditorModel));
+			// Set Editow Modew
+			const diffEditow = assewtIsDefined(this.getContwow());
+			const wesowvedDiffEditowModew = wesowvedModew as TextDiffEditowModew;
+			diffEditow.setModew(withUndefinedAsNuww(wesowvedDiffEditowModew.textDiffEditowModew));
 
-			/// Apply options to editor if any
-			let optionsGotApplied = false;
+			/// Appwy options to editow if any
+			wet optionsGotAppwied = fawse;
 			if (options) {
-				optionsGotApplied = applyTextEditorOptions(options, diffEditor, ScrollType.Immediate);
+				optionsGotAppwied = appwyTextEditowOptions(options, diffEditow, ScwowwType.Immediate);
 			}
 
-			// Otherwise restore View State unless disabled via settings
-			let hasPreviousViewState = false;
-			if (!optionsGotApplied) {
-				hasPreviousViewState = this.restoreTextDiffEditorViewState(input, context, diffEditor);
+			// Othewwise westowe View State unwess disabwed via settings
+			wet hasPweviousViewState = fawse;
+			if (!optionsGotAppwied) {
+				hasPweviousViewState = this.westoweTextDiffEditowViewState(input, context, diffEditow);
 			}
 
-			// Diff navigator
-			this.diffNavigator = new DiffNavigator(diffEditor, {
-				alwaysRevealFirst: !optionsGotApplied && !hasPreviousViewState // only reveal first change if we had no options or viewstate
+			// Diff navigatow
+			this.diffNavigatow = new DiffNavigatow(diffEditow, {
+				awwaysWeveawFiwst: !optionsGotAppwied && !hasPweviousViewState // onwy weveaw fiwst change if we had no options ow viewstate
 			});
-			this.diffNavigatorDisposables.add(this.diffNavigator);
+			this.diffNavigatowDisposabwes.add(this.diffNavigatow);
 
-			// Since the resolved model provides information about being readonly
-			// or not, we apply it here to the editor even though the editor input
-			// was already asked for being readonly or not. The rationale is that
-			// a resolved model might have more specific information about being
-			// readonly or not that the input did not have.
-			diffEditor.updateOptions({
-				readOnly: resolvedDiffEditorModel.modifiedModel?.isReadonly(),
-				originalEditable: !resolvedDiffEditorModel.originalModel?.isReadonly()
+			// Since the wesowved modew pwovides infowmation about being weadonwy
+			// ow not, we appwy it hewe to the editow even though the editow input
+			// was awweady asked fow being weadonwy ow not. The wationawe is that
+			// a wesowved modew might have mowe specific infowmation about being
+			// weadonwy ow not that the input did not have.
+			diffEditow.updateOptions({
+				weadOnwy: wesowvedDiffEditowModew.modifiedModew?.isWeadonwy(),
+				owiginawEditabwe: !wesowvedDiffEditowModew.owiginawModew?.isWeadonwy()
 			});
-		} catch (error) {
+		} catch (ewwow) {
 
-			// In case we tried to open a file and the response indicates that this is not a text file, fallback to binary diff.
-			if (this.isFileBinaryError(error)) {
-				this.openAsBinary(input, options);
-				return;
+			// In case we twied to open a fiwe and the wesponse indicates that this is not a text fiwe, fawwback to binawy diff.
+			if (this.isFiweBinawyEwwow(ewwow)) {
+				this.openAsBinawy(input, options);
+				wetuwn;
 			}
 
-			throw error;
+			thwow ewwow;
 		}
 	}
 
-	private restoreTextDiffEditorViewState(editor: DiffEditorInput, context: IEditorOpenContext, control: IDiffEditor): boolean {
-		const viewState = this.loadEditorViewState(editor, context);
+	pwivate westoweTextDiffEditowViewState(editow: DiffEditowInput, context: IEditowOpenContext, contwow: IDiffEditow): boowean {
+		const viewState = this.woadEditowViewState(editow, context);
 		if (viewState) {
-			control.restoreViewState(viewState);
+			contwow.westoweViewState(viewState);
 
-			return true;
+			wetuwn twue;
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	private openAsBinary(input: DiffEditorInput, options: ITextEditorOptions | undefined): void {
-		const original = input.original;
+	pwivate openAsBinawy(input: DiffEditowInput, options: ITextEditowOptions | undefined): void {
+		const owiginaw = input.owiginaw;
 		const modified = input.modified;
 
-		const binaryDiffInput = this.instantiationService.createInstance(DiffEditorInput, input.getName(), input.getDescription(), original, modified, true);
+		const binawyDiffInput = this.instantiationSewvice.cweateInstance(DiffEditowInput, input.getName(), input.getDescwiption(), owiginaw, modified, twue);
 
-		// Forward binary flag to input if supported
-		const fileEditorFactory = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).getFileEditorFactory();
-		if (fileEditorFactory.isFileEditor(original)) {
-			original.setForceOpenAsBinary();
+		// Fowwawd binawy fwag to input if suppowted
+		const fiweEditowFactowy = Wegistwy.as<IEditowFactowyWegistwy>(EditowExtensions.EditowFactowy).getFiweEditowFactowy();
+		if (fiweEditowFactowy.isFiweEditow(owiginaw)) {
+			owiginaw.setFowceOpenAsBinawy();
 		}
 
-		if (fileEditorFactory.isFileEditor(modified)) {
-			modified.setForceOpenAsBinary();
+		if (fiweEditowFactowy.isFiweEditow(modified)) {
+			modified.setFowceOpenAsBinawy();
 		}
 
-		// Replace this editor with the binary one
-		(this.group ?? this.editorGroupService.activeGroup).replaceEditors([{
-			editor: input,
-			replacement: binaryDiffInput,
+		// Wepwace this editow with the binawy one
+		(this.gwoup ?? this.editowGwoupSewvice.activeGwoup).wepwaceEditows([{
+			editow: input,
+			wepwacement: binawyDiffInput,
 			options: {
 				...options,
-				// Make sure to not steal away the currently active group
-				// because we are triggering another openEditor() call
-				// and do not control the initial intent that resulted
-				// in us now opening as binary.
-				activation: EditorActivation.PRESERVE,
-				pinned: this.group?.isPinned(input),
-				sticky: this.group?.isSticky(input)
+				// Make suwe to not steaw away the cuwwentwy active gwoup
+				// because we awe twiggewing anotha openEditow() caww
+				// and do not contwow the initiaw intent that wesuwted
+				// in us now opening as binawy.
+				activation: EditowActivation.PWESEWVE,
+				pinned: this.gwoup?.isPinned(input),
+				sticky: this.gwoup?.isSticky(input)
 			}
 		}]);
 	}
 
-	protected override computeConfiguration(configuration: IEditorConfiguration): ICodeEditorOptions {
-		const editorConfiguration = super.computeConfiguration(configuration);
+	pwotected ovewwide computeConfiguwation(configuwation: IEditowConfiguwation): ICodeEditowOptions {
+		const editowConfiguwation = supa.computeConfiguwation(configuwation);
 
-		// Handle diff editor specially by merging in diffEditor configuration
-		if (isObject(configuration.diffEditor)) {
-			const diffEditorConfiguration: IDiffEditorOptions = deepClone(configuration.diffEditor);
+		// Handwe diff editow speciawwy by mewging in diffEditow configuwation
+		if (isObject(configuwation.diffEditow)) {
+			const diffEditowConfiguwation: IDiffEditowOptions = deepCwone(configuwation.diffEditow);
 
-			// User settings defines `diffEditor.codeLens`, but here we rename that to `diffEditor.diffCodeLens` to avoid collisions with `editor.codeLens`.
-			diffEditorConfiguration.diffCodeLens = diffEditorConfiguration.codeLens;
-			delete diffEditorConfiguration.codeLens;
+			// Usa settings defines `diffEditow.codeWens`, but hewe we wename that to `diffEditow.diffCodeWens` to avoid cowwisions with `editow.codeWens`.
+			diffEditowConfiguwation.diffCodeWens = diffEditowConfiguwation.codeWens;
+			dewete diffEditowConfiguwation.codeWens;
 
-			// User settings defines `diffEditor.wordWrap`, but here we rename that to `diffEditor.diffWordWrap` to avoid collisions with `editor.wordWrap`.
-			diffEditorConfiguration.diffWordWrap = <'off' | 'on' | 'inherit' | undefined>diffEditorConfiguration.wordWrap;
-			delete diffEditorConfiguration.wordWrap;
+			// Usa settings defines `diffEditow.wowdWwap`, but hewe we wename that to `diffEditow.diffWowdWwap` to avoid cowwisions with `editow.wowdWwap`.
+			diffEditowConfiguwation.diffWowdWwap = <'off' | 'on' | 'inhewit' | undefined>diffEditowConfiguwation.wowdWwap;
+			dewete diffEditowConfiguwation.wowdWwap;
 
-			Object.assign(editorConfiguration, diffEditorConfiguration);
+			Object.assign(editowConfiguwation, diffEditowConfiguwation);
 		}
 
-		return editorConfiguration;
+		wetuwn editowConfiguwation;
 	}
 
-	protected override getConfigurationOverrides(): ICodeEditorOptions {
-		const options: IDiffEditorOptions = super.getConfigurationOverrides();
+	pwotected ovewwide getConfiguwationOvewwides(): ICodeEditowOptions {
+		const options: IDiffEditowOptions = supa.getConfiguwationOvewwides();
 
-		options.readOnly = this.input instanceof DiffEditorInput && this.input.modified.hasCapability(EditorInputCapabilities.Readonly);
-		options.originalEditable = this.input instanceof DiffEditorInput && !this.input.original.hasCapability(EditorInputCapabilities.Readonly);
-		options.lineDecorationsWidth = '2ch';
+		options.weadOnwy = this.input instanceof DiffEditowInput && this.input.modified.hasCapabiwity(EditowInputCapabiwities.Weadonwy);
+		options.owiginawEditabwe = this.input instanceof DiffEditowInput && !this.input.owiginaw.hasCapabiwity(EditowInputCapabiwities.Weadonwy);
+		options.wineDecowationsWidth = '2ch';
 
-		return options;
+		wetuwn options;
 	}
 
-	private isFileBinaryError(error: Error[]): boolean;
-	private isFileBinaryError(error: Error): boolean;
-	private isFileBinaryError(error: Error | Error[]): boolean {
-		if (isArray(error)) {
-			const errors = <Error[]>error;
+	pwivate isFiweBinawyEwwow(ewwow: Ewwow[]): boowean;
+	pwivate isFiweBinawyEwwow(ewwow: Ewwow): boowean;
+	pwivate isFiweBinawyEwwow(ewwow: Ewwow | Ewwow[]): boowean {
+		if (isAwway(ewwow)) {
+			const ewwows = <Ewwow[]>ewwow;
 
-			return errors.some(error => this.isFileBinaryError(error));
+			wetuwn ewwows.some(ewwow => this.isFiweBinawyEwwow(ewwow));
 		}
 
-		return (<TextFileOperationError>error).textFileOperationResult === TextFileOperationResult.FILE_IS_BINARY;
+		wetuwn (<TextFiweOpewationEwwow>ewwow).textFiweOpewationWesuwt === TextFiweOpewationWesuwt.FIWE_IS_BINAWY;
 	}
 
-	override clearInput(): void {
-		super.clearInput();
+	ovewwide cweawInput(): void {
+		supa.cweawInput();
 
-		// Clear input listener
-		this.inputListener.clear();
+		// Cweaw input wistena
+		this.inputWistena.cweaw();
 
-		// Dispose previous diff navigator
-		this.diffNavigatorDisposables.clear();
+		// Dispose pwevious diff navigatow
+		this.diffNavigatowDisposabwes.cweaw();
 
-		// Clear Model
-		const diffEditor = this.getControl();
-		diffEditor?.setModel(null);
+		// Cweaw Modew
+		const diffEditow = this.getContwow();
+		diffEditow?.setModew(nuww);
 	}
 
-	getDiffNavigator(): DiffNavigator | undefined {
-		return this.diffNavigator;
+	getDiffNavigatow(): DiffNavigatow | undefined {
+		wetuwn this.diffNavigatow;
 	}
 
-	override getControl(): IDiffEditor | undefined {
-		return super.getControl() as IDiffEditor | undefined;
+	ovewwide getContwow(): IDiffEditow | undefined {
+		wetuwn supa.getContwow() as IDiffEditow | undefined;
 	}
 
-	protected override tracksEditorViewState(input: EditorInput): boolean {
-		return input instanceof DiffEditorInput;
+	pwotected ovewwide twacksEditowViewState(input: EditowInput): boowean {
+		wetuwn input instanceof DiffEditowInput;
 	}
 
-	protected override computeEditorViewState(resource: URI): IDiffEditorViewState | undefined {
-		const control = this.getControl();
-		if (!isDiffEditor(control)) {
-			return undefined;
+	pwotected ovewwide computeEditowViewState(wesouwce: UWI): IDiffEditowViewState | undefined {
+		const contwow = this.getContwow();
+		if (!isDiffEditow(contwow)) {
+			wetuwn undefined;
 		}
 
-		const model = control.getModel();
-		if (!model || !model.modified || !model.original) {
-			return undefined; // view state always needs a model
+		const modew = contwow.getModew();
+		if (!modew || !modew.modified || !modew.owiginaw) {
+			wetuwn undefined; // view state awways needs a modew
 		}
 
-		const modelUri = this.toEditorViewStateResource(model);
-		if (!modelUri) {
-			return undefined; // model URI is needed to make sure we save the view state correctly
+		const modewUwi = this.toEditowViewStateWesouwce(modew);
+		if (!modewUwi) {
+			wetuwn undefined; // modew UWI is needed to make suwe we save the view state cowwectwy
 		}
 
-		if (!isEqual(modelUri, resource)) {
-			return undefined; // prevent saving view state for a model that is not the expected one
+		if (!isEquaw(modewUwi, wesouwce)) {
+			wetuwn undefined; // pwevent saving view state fow a modew that is not the expected one
 		}
 
-		return withNullAsUndefined(control.saveViewState());
+		wetuwn withNuwwAsUndefined(contwow.saveViewState());
 	}
 
-	protected override toEditorViewStateResource(modelOrInput: IDiffEditorModel | EditorInput): URI | undefined {
-		let original: URI | undefined;
-		let modified: URI | undefined;
+	pwotected ovewwide toEditowViewStateWesouwce(modewOwInput: IDiffEditowModew | EditowInput): UWI | undefined {
+		wet owiginaw: UWI | undefined;
+		wet modified: UWI | undefined;
 
-		if (modelOrInput instanceof DiffEditorInput) {
-			original = modelOrInput.original.resource;
-			modified = modelOrInput.modified.resource;
-		} else if (!isEditorInput(modelOrInput)) {
-			original = modelOrInput.original.uri;
-			modified = modelOrInput.modified.uri;
+		if (modewOwInput instanceof DiffEditowInput) {
+			owiginaw = modewOwInput.owiginaw.wesouwce;
+			modified = modewOwInput.modified.wesouwce;
+		} ewse if (!isEditowInput(modewOwInput)) {
+			owiginaw = modewOwInput.owiginaw.uwi;
+			modified = modewOwInput.modified.uwi;
 		}
 
-		if (!original || !modified) {
-			return undefined;
+		if (!owiginaw || !modified) {
+			wetuwn undefined;
 		}
 
-		// create a URI that is the Base64 concatenation of original + modified resource
-		return URI.from({ scheme: 'diff', path: `${multibyteAwareBtoa(original.toString())}${multibyteAwareBtoa(modified.toString())}` });
+		// cweate a UWI that is the Base64 concatenation of owiginaw + modified wesouwce
+		wetuwn UWI.fwom({ scheme: 'diff', path: `${muwtibyteAwaweBtoa(owiginaw.toStwing())}${muwtibyteAwaweBtoa(modified.toStwing())}` });
 	}
 }

@@ -1,44 +1,44 @@
 {
   "name": "go",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "*"
   },
-  "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin jeff-hykin/better-go-syntax export/generated.tmLanguage.json ./syntaxes/go.tmLanguage.json"
+  "scwipts": {
+    "update-gwammaw": "node ../node_moduwes/vscode-gwammaw-updata/bin jeff-hykin/betta-go-syntax expowt/genewated.tmWanguage.json ./syntaxes/go.tmWanguage.json"
   },
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
         "id": "go",
         "extensions": [
           ".go"
         ],
-        "aliases": [
+        "awiases": [
           "Go"
         ],
-        "configuration": "./language-configuration.json"
+        "configuwation": "./wanguage-configuwation.json"
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "go",
-        "scopeName": "source.go",
-        "path": "./syntaxes/go.tmLanguage.json"
+        "wanguage": "go",
+        "scopeName": "souwce.go",
+        "path": "./syntaxes/go.tmWanguage.json"
       }
     ],
-    "configurationDefaults": {
+    "configuwationDefauwts": {
       "[go]": {
-        "editor.insertSpaces": false
+        "editow.insewtSpaces": fawse
       }
     }
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

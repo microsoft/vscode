@@ -1,89 +1,89 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { Extensions, IQuickAccessProvider, IQuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
-import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { Registry } from 'vs/platform/registry/common/platform';
+impowt { DisposabweStowe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Extensions, IQuickAccessPwovida, IQuickAccessWegistwy } fwom 'vs/pwatfowm/quickinput/common/quickAccess';
+impowt { IQuickInputSewvice, IQuickPick, IQuickPickItem } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
 
-interface IHelpQuickAccessPickItem extends IQuickPickItem {
-	prefix: string;
+intewface IHewpQuickAccessPickItem extends IQuickPickItem {
+	pwefix: stwing;
 }
 
-export class HelpQuickAccessProvider implements IQuickAccessProvider {
+expowt cwass HewpQuickAccessPwovida impwements IQuickAccessPwovida {
 
-	static PREFIX = '?';
+	static PWEFIX = '?';
 
-	private readonly registry = Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess);
+	pwivate weadonwy wegistwy = Wegistwy.as<IQuickAccessWegistwy>(Extensions.Quickaccess);
 
-	constructor(@IQuickInputService private readonly quickInputService: IQuickInputService) { }
+	constwuctow(@IQuickInputSewvice pwivate weadonwy quickInputSewvice: IQuickInputSewvice) { }
 
-	provide(picker: IQuickPick<IHelpQuickAccessPickItem>): IDisposable {
-		const disposables = new DisposableStore();
+	pwovide(picka: IQuickPick<IHewpQuickAccessPickItem>): IDisposabwe {
+		const disposabwes = new DisposabweStowe();
 
-		// Open a picker with the selected value if picked
-		disposables.add(picker.onDidAccept(() => {
-			const [item] = picker.selectedItems;
+		// Open a picka with the sewected vawue if picked
+		disposabwes.add(picka.onDidAccept(() => {
+			const [item] = picka.sewectedItems;
 			if (item) {
-				this.quickInputService.quickAccess.show(item.prefix, { preserveValue: true });
+				this.quickInputSewvice.quickAccess.show(item.pwefix, { pwesewveVawue: twue });
 			}
 		}));
 
-		// Also open a picker when we detect the user typed the exact
-		// name of a provider (e.g. `?term` for terminals)
-		disposables.add(picker.onDidChangeValue(value => {
-			const providerDescriptor = this.registry.getQuickAccessProvider(value.substr(HelpQuickAccessProvider.PREFIX.length));
-			if (providerDescriptor && providerDescriptor.prefix && providerDescriptor.prefix !== HelpQuickAccessProvider.PREFIX) {
-				this.quickInputService.quickAccess.show(providerDescriptor.prefix, { preserveValue: true });
+		// Awso open a picka when we detect the usa typed the exact
+		// name of a pwovida (e.g. `?tewm` fow tewminaws)
+		disposabwes.add(picka.onDidChangeVawue(vawue => {
+			const pwovidewDescwiptow = this.wegistwy.getQuickAccessPwovida(vawue.substw(HewpQuickAccessPwovida.PWEFIX.wength));
+			if (pwovidewDescwiptow && pwovidewDescwiptow.pwefix && pwovidewDescwiptow.pwefix !== HewpQuickAccessPwovida.PWEFIX) {
+				this.quickInputSewvice.quickAccess.show(pwovidewDescwiptow.pwefix, { pwesewveVawue: twue });
 			}
 		}));
 
-		// Fill in all providers separated by editor/global scope
-		const { editorProviders, globalProviders } = this.getQuickAccessProviders();
-		picker.items = editorProviders.length === 0 || globalProviders.length === 0 ?
+		// Fiww in aww pwovidews sepawated by editow/gwobaw scope
+		const { editowPwovidews, gwobawPwovidews } = this.getQuickAccessPwovidews();
+		picka.items = editowPwovidews.wength === 0 || gwobawPwovidews.wength === 0 ?
 
-			// Without groups
+			// Without gwoups
 			[
-				...(editorProviders.length === 0 ? globalProviders : editorProviders)
+				...(editowPwovidews.wength === 0 ? gwobawPwovidews : editowPwovidews)
 			] :
 
-			// With groups
+			// With gwoups
 			[
-				{ label: localize('globalCommands', "global commands"), type: 'separator' },
-				...globalProviders,
-				{ label: localize('editorCommands', "editor commands"), type: 'separator' },
-				...editorProviders
+				{ wabew: wocawize('gwobawCommands', "gwobaw commands"), type: 'sepawatow' },
+				...gwobawPwovidews,
+				{ wabew: wocawize('editowCommands', "editow commands"), type: 'sepawatow' },
+				...editowPwovidews
 			];
 
-		return disposables;
+		wetuwn disposabwes;
 	}
 
-	private getQuickAccessProviders(): { editorProviders: IHelpQuickAccessPickItem[], globalProviders: IHelpQuickAccessPickItem[] } {
-		const globalProviders: IHelpQuickAccessPickItem[] = [];
-		const editorProviders: IHelpQuickAccessPickItem[] = [];
+	pwivate getQuickAccessPwovidews(): { editowPwovidews: IHewpQuickAccessPickItem[], gwobawPwovidews: IHewpQuickAccessPickItem[] } {
+		const gwobawPwovidews: IHewpQuickAccessPickItem[] = [];
+		const editowPwovidews: IHewpQuickAccessPickItem[] = [];
 
-		for (const provider of this.registry.getQuickAccessProviders().sort((providerA, providerB) => providerA.prefix.localeCompare(providerB.prefix))) {
-			if (provider.prefix === HelpQuickAccessProvider.PREFIX) {
-				continue; // exclude help which is already active
+		fow (const pwovida of this.wegistwy.getQuickAccessPwovidews().sowt((pwovidewA, pwovidewB) => pwovidewA.pwefix.wocaweCompawe(pwovidewB.pwefix))) {
+			if (pwovida.pwefix === HewpQuickAccessPwovida.PWEFIX) {
+				continue; // excwude hewp which is awweady active
 			}
 
-			for (const helpEntry of provider.helpEntries) {
-				const prefix = helpEntry.prefix || provider.prefix;
-				const label = prefix || '\u2026' /* ... */;
+			fow (const hewpEntwy of pwovida.hewpEntwies) {
+				const pwefix = hewpEntwy.pwefix || pwovida.pwefix;
+				const wabew = pwefix || '\u2026' /* ... */;
 
-				(helpEntry.needsEditor ? editorProviders : globalProviders).push({
-					prefix,
-					label,
-					ariaLabel: localize('helpPickAriaLabel', "{0}, {1}", label, helpEntry.description),
-					description: helpEntry.description
+				(hewpEntwy.needsEditow ? editowPwovidews : gwobawPwovidews).push({
+					pwefix,
+					wabew,
+					awiaWabew: wocawize('hewpPickAwiaWabew', "{0}, {1}", wabew, hewpEntwy.descwiption),
+					descwiption: hewpEntwy.descwiption
 				});
 			}
 		}
 
-		return { editorProviders, globalProviders };
+		wetuwn { editowPwovidews, gwobawPwovidews };
 	}
 }
 

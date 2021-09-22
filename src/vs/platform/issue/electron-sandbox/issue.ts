@@ -1,11 +1,11 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ICommonIssueService } from 'vs/platform/issue/common/issue';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ICommonIssueSewvice } fwom 'vs/pwatfowm/issue/common/issue';
 
-export const IIssueService = createDecorator<IIssueService>('issueService');
+expowt const IIssueSewvice = cweateDecowatow<IIssueSewvice>('issueSewvice');
 
-export interface IIssueService extends ICommonIssueService { }
+expowt intewface IIssueSewvice extends ICommonIssueSewvice { }

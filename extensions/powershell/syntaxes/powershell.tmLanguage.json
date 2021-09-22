@@ -1,339 +1,339 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/PowerShell/EditorSyntax/blob/master/PowerShellSyntax.tmLanguage",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/PowewSheww/EditowSyntax/bwob/masta/PowewShewwSyntax.tmWanguage",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/PowerShell/EditorSyntax/commit/c150c15cca30cafd2159e3f53514f93ccf4c5649",
-	"name": "PowerShell",
-	"scopeName": "source.powershell",
-	"patterns": [
+	"vewsion": "https://github.com/PowewSheww/EditowSyntax/commit/c150c15cca30cafd2159e3f53514f93ccf4c5649",
+	"name": "PowewSheww",
+	"scopeName": "souwce.powewsheww",
+	"pattewns": [
 		{
 			"begin": "<#",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.comment.block.begin.powershell"
+					"name": "punctuation.definition.comment.bwock.begin.powewsheww"
 				}
 			},
 			"end": "#>",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.comment.block.end.powershell"
+					"name": "punctuation.definition.comment.bwock.end.powewsheww"
 				}
 			},
-			"name": "comment.block.powershell",
-			"patterns": [
+			"name": "comment.bwock.powewsheww",
+			"pattewns": [
 				{
-					"include": "#commentEmbeddedDocs"
+					"incwude": "#commentEmbeddedDocs"
 				}
 			]
 		},
 		{
 			"match": "[2-6]>&1|>>|>|<<|<|>|>\\||[1-6]>|[1-6]>>",
-			"name": "keyword.operator.redirection.powershell"
+			"name": "keywowd.opewatow.wediwection.powewsheww"
 		},
 		{
-			"include": "#commands"
+			"incwude": "#commands"
 		},
 		{
-			"include": "#commentLine"
+			"incwude": "#commentWine"
 		},
 		{
-			"include": "#variable"
+			"incwude": "#vawiabwe"
 		},
 		{
-			"include": "#subexpression"
+			"incwude": "#subexpwession"
 		},
 		{
-			"include": "#function"
+			"incwude": "#function"
 		},
 		{
-			"include": "#attribute"
+			"incwude": "#attwibute"
 		},
 		{
-			"include": "#UsingDirective"
+			"incwude": "#UsingDiwective"
 		},
 		{
-			"include": "#type"
+			"incwude": "#type"
 		},
 		{
-			"include": "#hashtable"
+			"incwude": "#hashtabwe"
 		},
 		{
-			"include": "#doubleQuotedString"
+			"incwude": "#doubweQuotedStwing"
 		},
 		{
-			"include": "#scriptblock"
+			"incwude": "#scwiptbwock"
 		},
 		{
-			"comment": "Needed to parse stuff correctly in 'argument mode'. (See about_parsing.)",
-			"include": "#doubleQuotedStringEscapes"
+			"comment": "Needed to pawse stuff cowwectwy in 'awgument mode'. (See about_pawsing.)",
+			"incwude": "#doubweQuotedStwingEscapes"
 		},
 		{
 			"begin": "['\\x{2018}-\\x{201B}]",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.powershell"
+					"name": "punctuation.definition.stwing.begin.powewsheww"
 				}
 			},
 			"end": "['\\x{2018}-\\x{201B}]",
-			"applyEndPatternLast": true,
-			"endCaptures": {
+			"appwyEndPattewnWast": twue,
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.powershell"
+					"name": "punctuation.definition.stwing.end.powewsheww"
 				}
 			},
-			"name": "string.quoted.single.powershell",
-			"patterns": [
+			"name": "stwing.quoted.singwe.powewsheww",
+			"pattewns": [
 				{
 					"match": "['\\x{2018}-\\x{201B}]{2}",
-					"name": "constant.character.escape.powershell"
+					"name": "constant.chawacta.escape.powewsheww"
 				}
 			]
 		},
 		{
 			"begin": "(@[\"\\x{201C}-\\x{201E}])\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "punctuation.definition.string.begin.powershell"
+					"name": "punctuation.definition.stwing.begin.powewsheww"
 				}
 			},
 			"end": "^[\"\\x{201C}-\\x{201E}]@",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.powershell"
+					"name": "punctuation.definition.stwing.end.powewsheww"
 				}
 			},
-			"name": "string.quoted.double.heredoc.powershell",
-			"patterns": [
+			"name": "stwing.quoted.doubwe.hewedoc.powewsheww",
+			"pattewns": [
 				{
-					"include": "#variableNoProperty"
+					"incwude": "#vawiabweNoPwopewty"
 				},
 				{
-					"include": "#doubleQuotedStringEscapes"
+					"incwude": "#doubweQuotedStwingEscapes"
 				},
 				{
-					"include": "#interpolation"
+					"incwude": "#intewpowation"
 				}
 			]
 		},
 		{
 			"begin": "(@['\\x{2018}-\\x{201B}])\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "punctuation.definition.string.begin.powershell"
+					"name": "punctuation.definition.stwing.begin.powewsheww"
 				}
 			},
 			"end": "^['\\x{2018}-\\x{201B}]@",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.powershell"
+					"name": "punctuation.definition.stwing.end.powewsheww"
 				}
 			},
-			"name": "string.quoted.single.heredoc.powershell"
+			"name": "stwing.quoted.singwe.hewedoc.powewsheww"
 		},
 		{
-			"include": "#numericConstant"
+			"incwude": "#numewicConstant"
 		},
 		{
 			"begin": "(@)(\\()",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.other.array.begin.powershell"
+					"name": "keywowd.otha.awway.begin.powewsheww"
 				},
 				"2": {
-					"name": "punctuation.section.group.begin.powershell"
+					"name": "punctuation.section.gwoup.begin.powewsheww"
 				}
 			},
 			"end": "\\)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.section.group.end.powershell"
+					"name": "punctuation.section.gwoup.end.powewsheww"
 				}
 			},
-			"name": "meta.group.array-expression.powershell",
-			"patterns": [
+			"name": "meta.gwoup.awway-expwession.powewsheww",
+			"pattewns": [
 				{
-					"include": "$self"
+					"incwude": "$sewf"
 				}
 			]
 		},
 		{
 			"begin": "((\\$))(\\()",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.other.substatement.powershell"
+					"name": "keywowd.otha.substatement.powewsheww"
 				},
 				"2": {
-					"name": "punctuation.definition.subexpression.powershell"
+					"name": "punctuation.definition.subexpwession.powewsheww"
 				},
 				"3": {
-					"name": "punctuation.section.group.begin.powershell"
+					"name": "punctuation.section.gwoup.begin.powewsheww"
 				}
 			},
-			"comment": "TODO: move to repo; make recursive.",
+			"comment": "TODO: move to wepo; make wecuwsive.",
 			"end": "\\)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.section.group.end.powershell"
+					"name": "punctuation.section.gwoup.end.powewsheww"
 				}
 			},
-			"name": "meta.group.complex.subexpression.powershell",
-			"patterns": [
+			"name": "meta.gwoup.compwex.subexpwession.powewsheww",
+			"pattewns": [
 				{
-					"include": "$self"
+					"incwude": "$sewf"
 				}
 			]
 		},
 		{
 			"match": "(\\b(([A-Za-z0-9\\-_\\.]+)\\.(?i:exe|com|cmd|bat))\\b)",
-			"name": "support.function.powershell"
+			"name": "suppowt.function.powewsheww"
 		},
 		{
-			"match": "(?<!\\w|-|\\.)((?i:begin|break|catch|continue|data|default|define|do|dynamicparam|else|elseif|end|exit|finally|for|from|if|in|inlinescript|parallel|param|process|return|sequence|switch|throw|trap|try|until|var|while)|%|\\?)(?!\\w)",
-			"name": "keyword.control.powershell"
+			"match": "(?<!\\w|-|\\.)((?i:begin|bweak|catch|continue|data|defauwt|define|do|dynamicpawam|ewse|ewseif|end|exit|finawwy|fow|fwom|if|in|inwinescwipt|pawawwew|pawam|pwocess|wetuwn|sequence|switch|thwow|twap|twy|untiw|vaw|whiwe)|%|\\?)(?!\\w)",
+			"name": "keywowd.contwow.powewsheww"
 		},
 		{
-			"match": "(?<!\\w|-|[^\\)]\\.)((?i:(foreach|where)(?!-object))|%|\\?)(?!\\w)",
-			"name": "keyword.control.powershell"
+			"match": "(?<!\\w|-|[^\\)]\\.)((?i:(foweach|whewe)(?!-object))|%|\\?)(?!\\w)",
+			"name": "keywowd.contwow.powewsheww"
 		},
 		{
 			"begin": "(?<!\\w)(--%)(?!\\w)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.control.powershell"
+					"name": "keywowd.contwow.powewsheww"
 				}
 			},
 			"end": "$",
-			"patterns": [
+			"pattewns": [
 				{
 					"match": ".+",
-					"name": "string.unquoted.powershell"
+					"name": "stwing.unquoted.powewsheww"
 				}
 			],
-			"comment": "This should be moved to the repository at some point."
+			"comment": "This shouwd be moved to the wepositowy at some point."
 		},
 		{
-			"comment": "This should only be relevant inside a class but will require a rework of how classes are matched. This is a temp fix.",
+			"comment": "This shouwd onwy be wewevant inside a cwass but wiww wequiwe a wewowk of how cwasses awe matched. This is a temp fix.",
 			"match": "(?<!\\w)((?i:hidden|static))(?!\\w)",
-			"name": "storage.modifier.powershell"
+			"name": "stowage.modifia.powewsheww"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "storage.type.powershell"
+					"name": "stowage.type.powewsheww"
 				},
 				"2": {
 					"name": "entity.name.function"
 				}
 			},
-			"comment": "capture should be entity.name.type, but it doesn't provide a good color in the default schema.",
-			"match": "(?<!\\w|-)((?i:class)|%|\\?)(?:\\s)+((?:\\p{L}|\\d|_|-|)+)\\b"
+			"comment": "captuwe shouwd be entity.name.type, but it doesn't pwovide a good cowow in the defauwt schema.",
+			"match": "(?<!\\w|-)((?i:cwass)|%|\\?)(?:\\s)+((?:\\p{W}|\\d|_|-|)+)\\b"
 		},
 		{
 			"match": "(?<!\\w)-(?i:is(?:not)?|as)\\b",
-			"name": "keyword.operator.comparison.powershell"
+			"name": "keywowd.opewatow.compawison.powewsheww"
 		},
 		{
-			"match": "(?<!\\w)-(?i:[ic]?(?:eq|ne|[gl][te]|(?:not)?(?:like|match|contains|in)|replace))(?!\\p{L})",
-			"name": "keyword.operator.comparison.powershell"
+			"match": "(?<!\\w)-(?i:[ic]?(?:eq|ne|[gw][te]|(?:not)?(?:wike|match|contains|in)|wepwace))(?!\\p{W})",
+			"name": "keywowd.opewatow.compawison.powewsheww"
 		},
 		{
-			"match": "(?<!\\w)-(?i:join|split)(?!\\p{L})|!",
-			"name": "keyword.operator.unary.powershell"
+			"match": "(?<!\\w)-(?i:join|spwit)(?!\\p{W})|!",
+			"name": "keywowd.opewatow.unawy.powewsheww"
 		},
 		{
-			"match": "(?<!\\w)-(?i:and|or|not|xor)(?!\\p{L})|!",
-			"name": "keyword.operator.logical.powershell"
+			"match": "(?<!\\w)-(?i:and|ow|not|xow)(?!\\p{W})|!",
+			"name": "keywowd.opewatow.wogicaw.powewsheww"
 		},
 		{
-			"match": "(?<!\\w)-(?i:band|bor|bnot|bxor|shl|shr)(?!\\p{L})",
-			"name": "keyword.operator.bitwise.powershell"
+			"match": "(?<!\\w)-(?i:band|bow|bnot|bxow|shw|shw)(?!\\p{W})",
+			"name": "keywowd.opewatow.bitwise.powewsheww"
 		},
 		{
-			"match": "(?<!\\w)-(?i:f)(?!\\p{L})",
-			"name": "keyword.operator.string-format.powershell"
+			"match": "(?<!\\w)-(?i:f)(?!\\p{W})",
+			"name": "keywowd.opewatow.stwing-fowmat.powewsheww"
 		},
 		{
 			"match": "[+%*/-]?=|[+/*%-]",
-			"name": "keyword.operator.assignment.powershell"
+			"name": "keywowd.opewatow.assignment.powewsheww"
 		},
 		{
 			"match": "\\|{2}|&{2}|;",
-			"name": "punctuation.terminator.statement.powershell"
+			"name": "punctuation.tewminatow.statement.powewsheww"
 		},
 		{
 			"match": "&|(?<!\\w)\\.(?= )|`|,|\\|",
-			"name": "keyword.operator.other.powershell"
+			"name": "keywowd.opewatow.otha.powewsheww"
 		},
 		{
-			"comment": "This is very imprecise, is there a syntax for 'must come after...' ",
+			"comment": "This is vewy impwecise, is thewe a syntax fow 'must come afta...' ",
 			"match": "(?<!\\s|^)\\.\\.(?=\\-?\\d|\\(|\\$)",
-			"name": "keyword.operator.range.powershell"
+			"name": "keywowd.opewatow.wange.powewsheww"
 		}
 	],
-	"repository": {
-		"commentLine": {
+	"wepositowy": {
+		"commentWine": {
 			"begin": "(?<![`\\\\-])(#)#*",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.comment.powershell"
+					"name": "punctuation.definition.comment.powewsheww"
 				}
 			},
 			"end": "$\\n?",
-			"name": "comment.line.powershell",
-			"patterns": [
+			"name": "comment.wine.powewsheww",
+			"pattewns": [
 				{
-					"include": "#commentEmbeddedDocs"
+					"incwude": "#commentEmbeddedDocs"
 				},
 				{
-					"include": "#RequiresDirective"
+					"incwude": "#WequiwesDiwective"
 				}
 			]
 		},
-		"attribute": {
-			"begin": "(\\[)\\s*\\b(?i)(cmdletbinding|alias|outputtype|parameter|validatenotnull|validatenotnullorempty|validatecount|validateset|allownull|allowemptycollection|allowemptystring|validatescript|validaterange|validatepattern|validatelength|supportswildcards)\\b",
-			"beginCaptures": {
+		"attwibute": {
+			"begin": "(\\[)\\s*\\b(?i)(cmdwetbinding|awias|outputtype|pawameta|vawidatenotnuww|vawidatenotnuwwowempty|vawidatecount|vawidateset|awwownuww|awwowemptycowwection|awwowemptystwing|vawidatescwipt|vawidatewange|vawidatepattewn|vawidatewength|suppowtswiwdcawds)\\b",
+			"beginCaptuwes": {
 				"1": {
-					"name": "punctuation.section.bracket.begin.powershell"
+					"name": "punctuation.section.bwacket.begin.powewsheww"
 				},
 				"2": {
-					"name": "support.function.attribute.powershell"
+					"name": "suppowt.function.attwibute.powewsheww"
 				}
 			},
 			"end": "(\\])",
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "punctuation.section.bracket.end.powershell"
+					"name": "punctuation.section.bwacket.end.powewsheww"
 				}
 			},
-			"name": "meta.attribute.powershell",
-			"patterns": [
+			"name": "meta.attwibute.powewsheww",
+			"pattewns": [
 				{
 					"begin": "\\(",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.section.group.begin.powershell"
+							"name": "punctuation.section.gwoup.begin.powewsheww"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.section.group.end.powershell"
+							"name": "punctuation.section.gwoup.end.powewsheww"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "$self"
+							"incwude": "$sewf"
 						},
 						{
-							"match": "(?i)\\b(mandatory|valuefrompipeline|valuefrompipelinebypropertyname|valuefromremainingarguments|position|parametersetname|defaultparametersetname|supportsshouldprocess|supportspaging|positionalbinding|helpuri|confirmimpact|helpmessage)\\b(?:\\s+)?(=)?",
-							"captures": {
+							"match": "(?i)\\b(mandatowy|vawuefwompipewine|vawuefwompipewinebypwopewtyname|vawuefwomwemainingawguments|position|pawametewsetname|defauwtpawametewsetname|suppowtsshouwdpwocess|suppowtspaging|positionawbinding|hewpuwi|confiwmimpact|hewpmessage)\\b(?:\\s+)?(=)?",
+							"captuwes": {
 								"1": {
-									"name": "variable.parameter.attribute.powershell"
+									"name": "vawiabwe.pawameta.attwibute.powewsheww"
 								},
 								"2": {
-									"name": "keyword.operator.assignment.powershell"
+									"name": "keywowd.opewatow.assignment.powewsheww"
 								}
 							}
 						}
@@ -342,686 +342,686 @@
 			]
 		},
 		"commands": {
-			"patterns": [
+			"pattewns": [
 				{
-					"comment": "Verb-Noun pattern:",
-					"match": "(?:(\\p{L}|\\d|_|-|\\\\|\\:)*\\\\)?\\b(?i:Add|Approve|Assert|Backup|Block|Build|Checkpoint|Clear|Close|Compare|Complete|Compress|Confirm|Connect|Convert|ConvertFrom|ConvertTo|Copy|Debug|Deny|Deploy|Disable|Disconnect|Dismount|Edit|Enable|Enter|Exit|Expand|Export|Find|Format|Get|Grant|Group|Hide|Import|Initialize|Install|Invoke|Join|Limit|Lock|Measure|Merge|Mount|Move|New|Open|Optimize|Out|Ping|Pop|Protect|Publish|Push|Read|Receive|Redo|Register|Remove|Rename|Repair|Request|Reset|Resize|Resolve|Restart|Restore|Resume|Revoke|Save|Search|Select|Send|Set|Show|Skip|Split|Start|Step|Stop|Submit|Suspend|Switch|Sync|Test|Trace|Unblock|Undo|Uninstall|Unlock|Unprotect|Unpublish|Unregister|Update|Use|Wait|Watch|Write)\\-.+?(?:\\.(?i:exe|cmd|bat|ps1))?\\b",
-					"name": "support.function.powershell"
+					"comment": "Vewb-Noun pattewn:",
+					"match": "(?:(\\p{W}|\\d|_|-|\\\\|\\:)*\\\\)?\\b(?i:Add|Appwove|Assewt|Backup|Bwock|Buiwd|Checkpoint|Cweaw|Cwose|Compawe|Compwete|Compwess|Confiwm|Connect|Convewt|ConvewtFwom|ConvewtTo|Copy|Debug|Deny|Depwoy|Disabwe|Disconnect|Dismount|Edit|Enabwe|Enta|Exit|Expand|Expowt|Find|Fowmat|Get|Gwant|Gwoup|Hide|Impowt|Initiawize|Instaww|Invoke|Join|Wimit|Wock|Measuwe|Mewge|Mount|Move|New|Open|Optimize|Out|Ping|Pop|Pwotect|Pubwish|Push|Wead|Weceive|Wedo|Wegista|Wemove|Wename|Wepaiw|Wequest|Weset|Wesize|Wesowve|Westawt|Westowe|Wesume|Wevoke|Save|Seawch|Sewect|Send|Set|Show|Skip|Spwit|Stawt|Step|Stop|Submit|Suspend|Switch|Sync|Test|Twace|Unbwock|Undo|Uninstaww|Unwock|Unpwotect|Unpubwish|Unwegista|Update|Use|Wait|Watch|Wwite)\\-.+?(?:\\.(?i:exe|cmd|bat|ps1))?\\b",
+					"name": "suppowt.function.powewsheww"
 				},
 				{
-					"comment": "Builtin cmdlets with reserved verbs",
-					"match": "(?<!\\w)(?i:foreach-object)(?!\\w)",
-					"name": "support.function.powershell"
+					"comment": "Buiwtin cmdwets with wesewved vewbs",
+					"match": "(?<!\\w)(?i:foweach-object)(?!\\w)",
+					"name": "suppowt.function.powewsheww"
 				},
 				{
-					"comment": "Builtin cmdlets with reserved verbs",
-					"match": "(?<!\\w)(?i:where-object)(?!\\w)",
-					"name": "support.function.powershell"
+					"comment": "Buiwtin cmdwets with wesewved vewbs",
+					"match": "(?<!\\w)(?i:whewe-object)(?!\\w)",
+					"name": "suppowt.function.powewsheww"
 				},
 				{
-					"comment": "Builtin cmdlets with reserved verbs",
-					"match": "(?<!\\w)(?i:sort-object)(?!\\w)",
-					"name": "support.function.powershell"
+					"comment": "Buiwtin cmdwets with wesewved vewbs",
+					"match": "(?<!\\w)(?i:sowt-object)(?!\\w)",
+					"name": "suppowt.function.powewsheww"
 				},
 				{
-					"comment": "Builtin cmdlets with reserved verbs",
+					"comment": "Buiwtin cmdwets with wesewved vewbs",
 					"match": "(?<!\\w)(?i:tee-object)(?!\\w)",
-					"name": "support.function.powershell"
+					"name": "suppowt.function.powewsheww"
 				}
 			]
 		},
 		"commentEmbeddedDocs": {
-			"patterns": [
+			"pattewns": [
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "constant.string.documentation.powershell"
+							"name": "constant.stwing.documentation.powewsheww"
 						},
 						"2": {
-							"name": "keyword.operator.documentation.powershell"
+							"name": "keywowd.opewatow.documentation.powewsheww"
 						}
 					},
-					"comment": "these embedded doc keywords do not support arguments, must be the only thing on the line",
-					"match": "(?:^|\\G)(?i:\\s*(\\.)(COMPONENT|DESCRIPTION|EXAMPLE|FUNCTIONALITY|INPUTS|LINK|NOTES|OUTPUTS|ROLE|SYNOPSIS))\\s*$",
-					"name": "comment.documentation.embedded.powershell"
+					"comment": "these embedded doc keywowds do not suppowt awguments, must be the onwy thing on the wine",
+					"match": "(?:^|\\G)(?i:\\s*(\\.)(COMPONENT|DESCWIPTION|EXAMPWE|FUNCTIONAWITY|INPUTS|WINK|NOTES|OUTPUTS|WOWE|SYNOPSIS))\\s*$",
+					"name": "comment.documentation.embedded.powewsheww"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "constant.string.documentation.powershell"
+							"name": "constant.stwing.documentation.powewsheww"
 						},
 						"2": {
-							"name": "keyword.operator.documentation.powershell"
+							"name": "keywowd.opewatow.documentation.powewsheww"
 						},
 						"3": {
-							"name": "keyword.operator.documentation.powershell"
+							"name": "keywowd.opewatow.documentation.powewsheww"
 						}
 					},
-					"comment": "these embedded doc keywords require arguments though the type required may be inconsistent, they may not all be able to use the same argument match",
-					"match": "(?:^|\\G)(?i:\\s*(\\.)(EXTERNALHELP|FORWARDHELP(?:CATEGORY|TARGETNAME)|PARAMETER|REMOTEHELPRUNSPACE))\\s+(.+?)\\s*$",
-					"name": "comment.documentation.embedded.powershell"
+					"comment": "these embedded doc keywowds wequiwe awguments though the type wequiwed may be inconsistent, they may not aww be abwe to use the same awgument match",
+					"match": "(?:^|\\G)(?i:\\s*(\\.)(EXTEWNAWHEWP|FOWWAWDHEWP(?:CATEGOWY|TAWGETNAME)|PAWAMETa|WEMOTEHEWPWUNSPACE))\\s+(.+?)\\s*$",
+					"name": "comment.documentation.embedded.powewsheww"
 				}
 			]
 		},
-		"doubleQuotedStringEscapes": {
-			"patterns": [
+		"doubweQuotedStwingEscapes": {
+			"pattewns": [
 				{
-					"match": "`[`0abefnrtv'\"\\x{2018}-\\x{201E}$]",
-					"name": "constant.character.escape.powershell"
+					"match": "`[`0abefnwtv'\"\\x{2018}-\\x{201E}$]",
+					"name": "constant.chawacta.escape.powewsheww"
 				},
 				{
-					"include": "#unicodeEscape"
+					"incwude": "#unicodeEscape"
 				}
 			]
 		},
 		"unicodeEscape": {
-			"comment": "`u{xxxx} added in PowerShell 6.0",
-			"patterns": [
+			"comment": "`u{xxxx} added in PowewSheww 6.0",
+			"pattewns": [
 				{
 					"match": "`u\\{(?:(?:10)?([0-9a-fA-F]){1,4}|0?\\g<1>{1,5})}",
-					"name": "constant.character.escape.powershell"
+					"name": "constant.chawacta.escape.powewsheww"
 				},
 				{
 					"match": "`u(?:\\{[0-9a-fA-F]{,6}.)?",
-					"name": "invalid.character.escape.powershell"
+					"name": "invawid.chawacta.escape.powewsheww"
 				}
 			]
 		},
 		"function": {
-			"begin": "^(?:\\s*+)(?i)(function|filter|configuration|workflow)\\s+(?:(global|local|script|private):)?((?:\\p{L}|\\d|_|-|\\.)+)",
-			"beginCaptures": {
+			"begin": "^(?:\\s*+)(?i)(function|fiwta|configuwation|wowkfwow)\\s+(?:(gwobaw|wocaw|scwipt|pwivate):)?((?:\\p{W}|\\d|_|-|\\.)+)",
+			"beginCaptuwes": {
 				"0": {
-					"name": "meta.function.powershell"
+					"name": "meta.function.powewsheww"
 				},
 				"1": {
-					"name": "storage.type.powershell"
+					"name": "stowage.type.powewsheww"
 				},
 				"2": {
-					"name": "storage.modifier.scope.powershell"
+					"name": "stowage.modifia.scope.powewsheww"
 				},
 				"3": {
-					"name": "entity.name.function.powershell"
+					"name": "entity.name.function.powewsheww"
 				}
 			},
 			"end": "(?=\\{|\\()",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#commentLine"
+					"incwude": "#commentWine"
 				}
 			]
 		},
-		"subexpression": {
+		"subexpwession": {
 			"begin": "\\(",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.section.group.begin.powershell"
+					"name": "punctuation.section.gwoup.begin.powewsheww"
 				}
 			},
 			"end": "\\)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.section.group.end.powershell"
+					"name": "punctuation.section.gwoup.end.powewsheww"
 				}
 			},
-			"name": "meta.group.simple.subexpression.powershell",
-			"patterns": [
+			"name": "meta.gwoup.simpwe.subexpwession.powewsheww",
+			"pattewns": [
 				{
-					"include": "$self"
+					"incwude": "$sewf"
 				}
 			]
 		},
-		"interpolation": {
+		"intewpowation": {
 			"begin": "(((\\$)))((\\())",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.other.substatement.powershell"
+					"name": "keywowd.otha.substatement.powewsheww"
 				},
 				"2": {
-					"name": "punctuation.definition.substatement.powershell"
+					"name": "punctuation.definition.substatement.powewsheww"
 				},
 				"3": {
-					"name": "punctuation.section.embedded.substatement.begin.powershell"
+					"name": "punctuation.section.embedded.substatement.begin.powewsheww"
 				},
 				"4": {
-					"name": "punctuation.section.group.begin.powershell"
+					"name": "punctuation.section.gwoup.begin.powewsheww"
 				},
 				"5": {
-					"name": "punctuation.section.embedded.substatement.begin.powershell"
+					"name": "punctuation.section.embedded.substatement.begin.powewsheww"
 				}
 			},
-			"contentName": "interpolated.complex.source.powershell",
+			"contentName": "intewpowated.compwex.souwce.powewsheww",
 			"end": "(\\))",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.section.group.end.powershell"
+					"name": "punctuation.section.gwoup.end.powewsheww"
 				},
 				"1": {
-					"name": "punctuation.section.embedded.substatement.end.powershell"
+					"name": "punctuation.section.embedded.substatement.end.powewsheww"
 				}
 			},
-			"name": "meta.embedded.substatement.powershell",
-			"patterns": [
+			"name": "meta.embedded.substatement.powewsheww",
+			"pattewns": [
 				{
-					"include": "$self"
+					"incwude": "$sewf"
 				}
 			]
 		},
-		"numericConstant": {
-			"patterns": [
+		"numewicConstant": {
+			"pattewns": [
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "constant.numeric.hex.powershell"
+							"name": "constant.numewic.hex.powewsheww"
 						},
 						"2": {
-							"name": "keyword.other.powershell"
+							"name": "keywowd.otha.powewsheww"
 						}
 					},
-					"match": "(?<!\\w)([-+]?0(?:x|X)[0-9a-fA-F_]+(?:U|u|L|l|UL|Ul|uL|ul|LU|Lu|lU|lu)?)((?i:[kmgtp]b)?)\\b"
+					"match": "(?<!\\w)([-+]?0(?:x|X)[0-9a-fA-F_]+(?:U|u|W|w|UW|Uw|uW|uw|WU|Wu|wU|wu)?)((?i:[kmgtp]b)?)\\b"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "constant.numeric.integer.powershell"
+							"name": "constant.numewic.intega.powewsheww"
 						},
 						"2": {
-							"name": "keyword.other.powershell"
+							"name": "keywowd.otha.powewsheww"
 						}
 					},
 					"match": "(?<!\\w)([-+]?(?:[0-9_]+)?\\.[0-9_]+(?:(?:e|E)[0-9]+)?(?:F|f|D|d|M|m)?)((?i:[kmgtp]b)?)\\b"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "constant.numeric.octal.powershell"
+							"name": "constant.numewic.octaw.powewsheww"
 						},
 						"2": {
-							"name": "keyword.other.powershell"
+							"name": "keywowd.otha.powewsheww"
 						}
 					},
-					"match": "(?<!\\w)([-+]?0(?:b|B)[01_]+(?:U|u|L|l|UL|Ul|uL|ul|LU|Lu|lU|lu)?)((?i:[kmgtp]b)?)\\b"
+					"match": "(?<!\\w)([-+]?0(?:b|B)[01_]+(?:U|u|W|w|UW|Uw|uW|uw|WU|Wu|wU|wu)?)((?i:[kmgtp]b)?)\\b"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "constant.numeric.integer.powershell"
+							"name": "constant.numewic.intega.powewsheww"
 						},
 						"2": {
-							"name": "keyword.other.powershell"
+							"name": "keywowd.otha.powewsheww"
 						}
 					},
 					"match": "(?<!\\w)([-+]?[0-9_]+(?:e|E)(?:[0-9_])?+(?:F|f|D|d|M|m)?)((?i:[kmgtp]b)?)\\b"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "constant.numeric.integer.powershell"
+							"name": "constant.numewic.intega.powewsheww"
 						},
 						"2": {
-							"name": "keyword.other.powershell"
+							"name": "keywowd.otha.powewsheww"
 						}
 					},
 					"match": "(?<!\\w)([-+]?[0-9_]+\\.(?:e|E)(?:[0-9_])?+(?:F|f|D|d|M|m)?)((?i:[kmgtp]b)?)\\b"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "constant.numeric.integer.powershell"
+							"name": "constant.numewic.intega.powewsheww"
 						},
 						"2": {
-							"name": "keyword.other.powershell"
+							"name": "keywowd.otha.powewsheww"
 						}
 					},
 					"match": "(?<!\\w)([-+]?[0-9_]+[\\.]?(?:F|f|D|d|M|m))((?i:[kmgtp]b)?)\\b"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "constant.numeric.integer.powershell"
+							"name": "constant.numewic.intega.powewsheww"
 						},
 						"2": {
-							"name": "keyword.other.powershell"
+							"name": "keywowd.otha.powewsheww"
 						}
 					},
-					"match": "(?<!\\w)([-+]?[0-9_]+[\\.]?(?:U|u|L|l|UL|Ul|uL|ul|LU|Lu|lU|lu)?)((?i:[kmgtp]b)?)\\b"
+					"match": "(?<!\\w)([-+]?[0-9_]+[\\.]?(?:U|u|W|w|UW|Uw|uW|uw|WU|Wu|wU|wu)?)((?i:[kmgtp]b)?)\\b"
 				}
 			]
 		},
-		"scriptblock": {
+		"scwiptbwock": {
 			"begin": "\\{",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.section.braces.begin.powershell"
+					"name": "punctuation.section.bwaces.begin.powewsheww"
 				}
 			},
 			"end": "\\}",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.section.braces.end.powershell"
+					"name": "punctuation.section.bwaces.end.powewsheww"
 				}
 			},
-			"name": "meta.scriptblock.powershell",
-			"patterns": [
+			"name": "meta.scwiptbwock.powewsheww",
+			"pattewns": [
 				{
-					"include": "$self"
+					"incwude": "$sewf"
 				}
 			]
 		},
 		"type": {
 			"begin": "\\[",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.section.bracket.begin.powershell"
+					"name": "punctuation.section.bwacket.begin.powewsheww"
 				}
 			},
 			"end": "\\]",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.section.bracket.end.powershell"
+					"name": "punctuation.section.bwacket.end.powewsheww"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"match": "(?!\\d+|\\.)(?:\\p{L}|\\p{N}|\\.)+",
-					"name": "storage.type.powershell"
+					"match": "(?!\\d+|\\.)(?:\\p{W}|\\p{N}|\\.)+",
+					"name": "stowage.type.powewsheww"
 				},
 				{
-					"include": "$self"
+					"incwude": "$sewf"
 				}
 			]
 		},
-		"variable": {
-			"patterns": [
+		"vawiabwe": {
+			"pattewns": [
 				{
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "constant.language.powershell"
+							"name": "constant.wanguage.powewsheww"
 						},
 						"1": {
-							"name": "punctuation.definition.variable.powershell"
+							"name": "punctuation.definition.vawiabwe.powewsheww"
 						}
 					},
-					"comment": "These are special constants.",
-					"match": "(\\$)(?i:(False|Null|True))\\b"
+					"comment": "These awe speciaw constants.",
+					"match": "(\\$)(?i:(Fawse|Nuww|Twue))\\b"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "support.constant.variable.powershell"
+							"name": "suppowt.constant.vawiabwe.powewsheww"
 						},
 						"1": {
-							"name": "punctuation.definition.variable.powershell"
+							"name": "punctuation.definition.vawiabwe.powewsheww"
 						},
 						"3": {
-							"name": "variable.other.member.powershell"
+							"name": "vawiabwe.otha.memba.powewsheww"
 						}
 					},
-					"comment": "These are the other built-in constants.",
-					"match": "(\\$)(?i:(Error|ExecutionContext|Host|Home|PID|PsHome|PsVersionTable|ShellID))((?:\\.(?:\\p{L}|\\d|_)+)*\\b)?\\b"
+					"comment": "These awe the otha buiwt-in constants.",
+					"match": "(\\$)(?i:(Ewwow|ExecutionContext|Host|Home|PID|PsHome|PsVewsionTabwe|ShewwID))((?:\\.(?:\\p{W}|\\d|_)+)*\\b)?\\b"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "support.variable.automatic.powershell"
+							"name": "suppowt.vawiabwe.automatic.powewsheww"
 						},
 						"1": {
-							"name": "punctuation.definition.variable.powershell"
+							"name": "punctuation.definition.vawiabwe.powewsheww"
 						},
 						"3": {
-							"name": "variable.other.member.powershell"
+							"name": "vawiabwe.otha.memba.powewsheww"
 						}
 					},
-					"comment": "Automatic variables are not constants, but they are read-only. In monokai (default) color schema support.variable doesn't have color, so we use constant.",
-					"match": "(\\$)((?:[$^?])|(?i:_|Args|ConsoleFileName|Event|EventArgs|EventSubscriber|ForEach|Input|LastExitCode|Matches|MyInvocation|NestedPromptLevel|Profile|PSBoundParameters|PsCmdlet|PsCulture|PSDebugContext|PSItem|PSCommandPath|PSScriptRoot|PsUICulture|Pwd|Sender|SourceArgs|SourceEventArgs|StackTrace|Switch|This)\\b)((?:\\.(?:\\p{L}|\\d|_)+)*\\b)?"
+					"comment": "Automatic vawiabwes awe not constants, but they awe wead-onwy. In monokai (defauwt) cowow schema suppowt.vawiabwe doesn't have cowow, so we use constant.",
+					"match": "(\\$)((?:[$^?])|(?i:_|Awgs|ConsoweFiweName|Event|EventAwgs|EventSubscwiba|FowEach|Input|WastExitCode|Matches|MyInvocation|NestedPwomptWevew|Pwofiwe|PSBoundPawametews|PsCmdwet|PsCuwtuwe|PSDebugContext|PSItem|PSCommandPath|PSScwiptWoot|PsUICuwtuwe|Pwd|Senda|SouwceAwgs|SouwceEventAwgs|StackTwace|Switch|This)\\b)((?:\\.(?:\\p{W}|\\d|_)+)*\\b)?"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "variable.language.powershell"
+							"name": "vawiabwe.wanguage.powewsheww"
 						},
 						"1": {
-							"name": "punctuation.definition.variable.powershell"
+							"name": "punctuation.definition.vawiabwe.powewsheww"
 						},
 						"3": {
-							"name": "variable.other.member.powershell"
+							"name": "vawiabwe.otha.memba.powewsheww"
 						}
 					},
-					"comment": "Style preference variables as language variables so that they stand out.",
-					"match": "(\\$)(?i:(ConfirmPreference|DebugPreference|ErrorActionPreference|ErrorView|FormatEnumerationLimit|InformationPreference|LogCommandHealthEvent|LogCommandLifecycleEvent|LogEngineHealthEvent|LogEngineLifecycleEvent|LogProviderHealthEvent|LogProviderLifecycleEvent|MaximumAliasCount|MaximumDriveCount|MaximumErrorCount|MaximumFunctionCount|MaximumHistoryCount|MaximumVariableCount|OFS|OutputEncoding|PSCulture|PSDebugContext|PSDefaultParameterValues|PSEmailServer|PSItem|PSModuleAutoLoadingPreference|PSModuleAutoloadingPreference|PSSenderInfo|PSSessionApplicationName|PSSessionConfigurationName|PSSessionOption|ProgressPreference|VerbosePreference|WarningPreference|WhatIfPreference))((?:\\.(?:\\p{L}|\\d|_)+)*\\b)?\\b"
+					"comment": "Stywe pwefewence vawiabwes as wanguage vawiabwes so that they stand out.",
+					"match": "(\\$)(?i:(ConfiwmPwefewence|DebugPwefewence|EwwowActionPwefewence|EwwowView|FowmatEnumewationWimit|InfowmationPwefewence|WogCommandHeawthEvent|WogCommandWifecycweEvent|WogEngineHeawthEvent|WogEngineWifecycweEvent|WogPwovidewHeawthEvent|WogPwovidewWifecycweEvent|MaximumAwiasCount|MaximumDwiveCount|MaximumEwwowCount|MaximumFunctionCount|MaximumHistowyCount|MaximumVawiabweCount|OFS|OutputEncoding|PSCuwtuwe|PSDebugContext|PSDefauwtPawametewVawues|PSEmaiwSewva|PSItem|PSModuweAutoWoadingPwefewence|PSModuweAutowoadingPwefewence|PSSendewInfo|PSSessionAppwicationName|PSSessionConfiguwationName|PSSessionOption|PwogwessPwefewence|VewbosePwefewence|WawningPwefewence|WhatIfPwefewence))((?:\\.(?:\\p{W}|\\d|_)+)*\\b)?\\b"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "variable.other.readwrite.powershell"
+							"name": "vawiabwe.otha.weadwwite.powewsheww"
 						},
 						"1": {
-							"name": "punctuation.definition.variable.powershell"
+							"name": "punctuation.definition.vawiabwe.powewsheww"
 						},
 						"2": {
-							"name": "storage.modifier.scope.powershell"
+							"name": "stowage.modifia.scope.powewsheww"
 						},
 						"4": {
-							"name": "variable.other.member.powershell"
+							"name": "vawiabwe.otha.memba.powewsheww"
 						}
 					},
-					"match": "(?i:(\\$|@)(global|local|private|script|using|workflow):((?:\\p{L}|\\d|_)+))((?:\\.(?:\\p{L}|\\d|_)+)*\\b)?"
+					"match": "(?i:(\\$|@)(gwobaw|wocaw|pwivate|scwipt|using|wowkfwow):((?:\\p{W}|\\d|_)+))((?:\\.(?:\\p{W}|\\d|_)+)*\\b)?"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "variable.other.readwrite.powershell"
+							"name": "vawiabwe.otha.weadwwite.powewsheww"
 						},
 						"1": {
-							"name": "punctuation.definition.variable.powershell"
+							"name": "punctuation.definition.vawiabwe.powewsheww"
 						},
 						"2": {
-							"name": "punctuation.section.braces.begin.powershell"
+							"name": "punctuation.section.bwaces.begin.powewsheww"
 						},
 						"3": {
-							"name": "storage.modifier.scope.powershell"
+							"name": "stowage.modifia.scope.powewsheww"
 						},
 						"5": {
-							"name": "punctuation.section.braces.end.powershell"
+							"name": "punctuation.section.bwaces.end.powewsheww"
 						},
 						"6": {
-							"name": "variable.other.member.powershell"
+							"name": "vawiabwe.otha.memba.powewsheww"
 						}
 					},
-					"match": "(?i:(\\$)(\\{)(global|local|private|script|using|workflow):([^}]*[^}`])(\\}))((?:\\.(?:\\p{L}|\\d|_)+)*\\b)?"
+					"match": "(?i:(\\$)(\\{)(gwobaw|wocaw|pwivate|scwipt|using|wowkfwow):([^}]*[^}`])(\\}))((?:\\.(?:\\p{W}|\\d|_)+)*\\b)?"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "variable.other.readwrite.powershell"
+							"name": "vawiabwe.otha.weadwwite.powewsheww"
 						},
 						"1": {
-							"name": "punctuation.definition.variable.powershell"
+							"name": "punctuation.definition.vawiabwe.powewsheww"
 						},
 						"2": {
-							"name": "support.variable.drive.powershell"
+							"name": "suppowt.vawiabwe.dwive.powewsheww"
 						},
 						"4": {
-							"name": "variable.other.member.powershell"
+							"name": "vawiabwe.otha.memba.powewsheww"
 						}
 					},
-					"match": "(?i:(\\$|@)((?:\\p{L}|\\d|_)+:)?((?:\\p{L}|\\d|_)+))((?:\\.(?:\\p{L}|\\d|_)+)*\\b)?"
+					"match": "(?i:(\\$|@)((?:\\p{W}|\\d|_)+:)?((?:\\p{W}|\\d|_)+))((?:\\.(?:\\p{W}|\\d|_)+)*\\b)?"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "variable.other.readwrite.powershell"
+							"name": "vawiabwe.otha.weadwwite.powewsheww"
 						},
 						"1": {
-							"name": "punctuation.definition.variable.powershell"
+							"name": "punctuation.definition.vawiabwe.powewsheww"
 						},
 						"2": {
-							"name": "punctuation.section.braces.begin.powershell"
+							"name": "punctuation.section.bwaces.begin.powewsheww"
 						},
 						"3": {
-							"name": "support.variable.drive.powershell"
+							"name": "suppowt.vawiabwe.dwive.powewsheww"
 						},
 						"5": {
-							"name": "punctuation.section.braces.end.powershell"
+							"name": "punctuation.section.bwaces.end.powewsheww"
 						},
 						"6": {
-							"name": "variable.other.member.powershell"
+							"name": "vawiabwe.otha.memba.powewsheww"
 						}
 					},
-					"match": "(?i:(\\$)(\\{)((?:\\p{L}|\\d|_)+:)?([^}]*[^}`])(\\}))((?:\\.(?:\\p{L}|\\d|_)+)*\\b)?"
+					"match": "(?i:(\\$)(\\{)((?:\\p{W}|\\d|_)+:)?([^}]*[^}`])(\\}))((?:\\.(?:\\p{W}|\\d|_)+)*\\b)?"
 				}
 			]
 		},
-		"UsingDirective": {
-			"match": "(?<!\\w)(?i:(using))\\s+(?i:(namespace|module))\\s+(?i:((?:\\w+(?:\\.)?)+))",
-			"captures": {
+		"UsingDiwective": {
+			"match": "(?<!\\w)(?i:(using))\\s+(?i:(namespace|moduwe))\\s+(?i:((?:\\w+(?:\\.)?)+))",
+			"captuwes": {
 				"1": {
-					"name": "keyword.control.using.powershell"
+					"name": "keywowd.contwow.using.powewsheww"
 				},
 				"2": {
-					"name": "keyword.other.powershell"
+					"name": "keywowd.otha.powewsheww"
 				},
 				"3": {
-					"name": "variable.parameter.powershell"
+					"name": "vawiabwe.pawameta.powewsheww"
 				}
 			}
 		},
-		"RequiresDirective": {
-			"begin": "(?<=#)(?i:(requires))\\s",
-			"beginCaptures": {
+		"WequiwesDiwective": {
+			"begin": "(?<=#)(?i:(wequiwes))\\s",
+			"beginCaptuwes": {
 				"0": {
-					"name": "keyword.control.requires.powershell"
+					"name": "keywowd.contwow.wequiwes.powewsheww"
 				}
 			},
 			"end": "$",
-			"name": "meta.requires.powershell",
-			"patterns": [
+			"name": "meta.wequiwes.powewsheww",
+			"pattewns": [
 				{
-					"match": "\\-(?i:Modules|PSSnapin|RunAsAdministrator|ShellId|Version|Assembly|PSEdition)",
-					"name": "keyword.other.powershell"
+					"match": "\\-(?i:Moduwes|PSSnapin|WunAsAdministwatow|ShewwId|Vewsion|Assembwy|PSEdition)",
+					"name": "keywowd.otha.powewsheww"
 				},
 				{
-					"match": "(?<!-)\\b\\p{L}+|\\d+(?:\\.\\d+)*",
-					"name": "variable.parameter.powershell"
+					"match": "(?<!-)\\b\\p{W}+|\\d+(?:\\.\\d+)*",
+					"name": "vawiabwe.pawameta.powewsheww"
 				},
 				{
-					"include": "#hashtable"
+					"incwude": "#hashtabwe"
 				}
 			]
 		},
-		"variableNoProperty": {
-			"patterns": [
+		"vawiabweNoPwopewty": {
+			"pattewns": [
 				{
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "constant.language.powershell"
+							"name": "constant.wanguage.powewsheww"
 						},
 						"1": {
-							"name": "punctuation.definition.variable.powershell"
+							"name": "punctuation.definition.vawiabwe.powewsheww"
 						}
 					},
-					"comment": "These are special constants.",
-					"match": "(\\$)(?i:(False|Null|True))\\b"
+					"comment": "These awe speciaw constants.",
+					"match": "(\\$)(?i:(Fawse|Nuww|Twue))\\b"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "support.constant.variable.powershell"
+							"name": "suppowt.constant.vawiabwe.powewsheww"
 						},
 						"1": {
-							"name": "punctuation.definition.variable.powershell"
+							"name": "punctuation.definition.vawiabwe.powewsheww"
 						},
 						"3": {
-							"name": "variable.other.member.powershell"
+							"name": "vawiabwe.otha.memba.powewsheww"
 						}
 					},
-					"comment": "These are the other built-in constants.",
-					"match": "(\\$)(?i:(Error|ExecutionContext|Host|Home|PID|PsHome|PsVersionTable|ShellID))\\b"
+					"comment": "These awe the otha buiwt-in constants.",
+					"match": "(\\$)(?i:(Ewwow|ExecutionContext|Host|Home|PID|PsHome|PsVewsionTabwe|ShewwID))\\b"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "support.variable.automatic.powershell"
+							"name": "suppowt.vawiabwe.automatic.powewsheww"
 						},
 						"1": {
-							"name": "punctuation.definition.variable.powershell"
+							"name": "punctuation.definition.vawiabwe.powewsheww"
 						},
 						"3": {
-							"name": "variable.other.member.powershell"
+							"name": "vawiabwe.otha.memba.powewsheww"
 						}
 					},
-					"comment": "Automatic variables are not constants, but they are read-only...",
-					"match": "(\\$)((?:[$^?])|(?i:_|Args|ConsoleFileName|Event|EventArgs|EventSubscriber|ForEach|Input|LastExitCode|Matches|MyInvocation|NestedPromptLevel|Profile|PSBoundParameters|PsCmdlet|PsCulture|PSDebugContext|PSItem|PSCommandPath|PSScriptRoot|PsUICulture|Pwd|Sender|SourceArgs|SourceEventArgs|StackTrace|Switch|This)\\b)"
+					"comment": "Automatic vawiabwes awe not constants, but they awe wead-onwy...",
+					"match": "(\\$)((?:[$^?])|(?i:_|Awgs|ConsoweFiweName|Event|EventAwgs|EventSubscwiba|FowEach|Input|WastExitCode|Matches|MyInvocation|NestedPwomptWevew|Pwofiwe|PSBoundPawametews|PsCmdwet|PsCuwtuwe|PSDebugContext|PSItem|PSCommandPath|PSScwiptWoot|PsUICuwtuwe|Pwd|Senda|SouwceAwgs|SouwceEventAwgs|StackTwace|Switch|This)\\b)"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "variable.language.powershell"
+							"name": "vawiabwe.wanguage.powewsheww"
 						},
 						"1": {
-							"name": "punctuation.definition.variable.powershell"
+							"name": "punctuation.definition.vawiabwe.powewsheww"
 						},
 						"3": {
-							"name": "variable.other.member.powershell"
+							"name": "vawiabwe.otha.memba.powewsheww"
 						}
 					},
-					"comment": "Style preference variables as language variables so that they stand out.",
-					"match": "(\\$)(?i:(ConfirmPreference|DebugPreference|ErrorActionPreference|ErrorView|FormatEnumerationLimit|InformationPreference|LogCommandHealthEvent|LogCommandLifecycleEvent|LogEngineHealthEvent|LogEngineLifecycleEvent|LogProviderHealthEvent|LogProviderLifecycleEvent|MaximumAliasCount|MaximumDriveCount|MaximumErrorCount|MaximumFunctionCount|MaximumHistoryCount|MaximumVariableCount|OFS|OutputEncoding|PSCulture|PSDebugContext|PSDefaultParameterValues|PSEmailServer|PSItem|PSModuleAutoLoadingPreference|PSModuleAutoloadingPreference|PSSenderInfo|PSSessionApplicationName|PSSessionConfigurationName|PSSessionOption|ProgressPreference|VerbosePreference|WarningPreference|WhatIfPreference))\\b"
+					"comment": "Stywe pwefewence vawiabwes as wanguage vawiabwes so that they stand out.",
+					"match": "(\\$)(?i:(ConfiwmPwefewence|DebugPwefewence|EwwowActionPwefewence|EwwowView|FowmatEnumewationWimit|InfowmationPwefewence|WogCommandHeawthEvent|WogCommandWifecycweEvent|WogEngineHeawthEvent|WogEngineWifecycweEvent|WogPwovidewHeawthEvent|WogPwovidewWifecycweEvent|MaximumAwiasCount|MaximumDwiveCount|MaximumEwwowCount|MaximumFunctionCount|MaximumHistowyCount|MaximumVawiabweCount|OFS|OutputEncoding|PSCuwtuwe|PSDebugContext|PSDefauwtPawametewVawues|PSEmaiwSewva|PSItem|PSModuweAutoWoadingPwefewence|PSModuweAutowoadingPwefewence|PSSendewInfo|PSSessionAppwicationName|PSSessionConfiguwationName|PSSessionOption|PwogwessPwefewence|VewbosePwefewence|WawningPwefewence|WhatIfPwefewence))\\b"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "variable.other.readwrite.powershell"
+							"name": "vawiabwe.otha.weadwwite.powewsheww"
 						},
 						"1": {
-							"name": "punctuation.definition.variable.powershell"
+							"name": "punctuation.definition.vawiabwe.powewsheww"
 						},
 						"2": {
-							"name": "storage.modifier.scope.powershell"
+							"name": "stowage.modifia.scope.powewsheww"
 						},
 						"4": {
-							"name": "variable.other.member.powershell"
+							"name": "vawiabwe.otha.memba.powewsheww"
 						}
 					},
-					"match": "(?i:(\\$)(global|local|private|script|using|workflow):((?:\\p{L}|\\d|_)+))"
+					"match": "(?i:(\\$)(gwobaw|wocaw|pwivate|scwipt|using|wowkfwow):((?:\\p{W}|\\d|_)+))"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "variable.other.readwrite.powershell"
+							"name": "vawiabwe.otha.weadwwite.powewsheww"
 						},
 						"1": {
-							"name": "punctuation.definition.variable.powershell"
+							"name": "punctuation.definition.vawiabwe.powewsheww"
 						},
 						"2": {
-							"name": "storage.modifier.scope.powershell"
+							"name": "stowage.modifia.scope.powewsheww"
 						},
 						"4": {
-							"name": "keyword.other.powershell"
+							"name": "keywowd.otha.powewsheww"
 						},
 						"5": {
-							"name": "variable.other.member.powershell"
+							"name": "vawiabwe.otha.memba.powewsheww"
 						}
 					},
-					"match": "(?i:(\\$)(\\{)(global|local|private|script|using|workflow):([^}]*[^}`])(\\}))"
+					"match": "(?i:(\\$)(\\{)(gwobaw|wocaw|pwivate|scwipt|using|wowkfwow):([^}]*[^}`])(\\}))"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "variable.other.readwrite.powershell"
+							"name": "vawiabwe.otha.weadwwite.powewsheww"
 						},
 						"1": {
-							"name": "punctuation.definition.variable.powershell"
+							"name": "punctuation.definition.vawiabwe.powewsheww"
 						},
 						"2": {
-							"name": "support.variable.drive.powershell"
+							"name": "suppowt.vawiabwe.dwive.powewsheww"
 						},
 						"4": {
-							"name": "variable.other.member.powershell"
+							"name": "vawiabwe.otha.memba.powewsheww"
 						}
 					},
-					"match": "(?i:(\\$)((?:\\p{L}|\\d|_)+:)?((?:\\p{L}|\\d|_)+))"
+					"match": "(?i:(\\$)((?:\\p{W}|\\d|_)+:)?((?:\\p{W}|\\d|_)+))"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "variable.other.readwrite.powershell"
+							"name": "vawiabwe.otha.weadwwite.powewsheww"
 						},
 						"1": {
-							"name": "punctuation.definition.variable.powershell"
+							"name": "punctuation.definition.vawiabwe.powewsheww"
 						},
 						"2": {
-							"name": "punctuation.section.braces.begin"
+							"name": "punctuation.section.bwaces.begin"
 						},
 						"3": {
-							"name": "support.variable.drive.powershell"
+							"name": "suppowt.vawiabwe.dwive.powewsheww"
 						},
 						"5": {
-							"name": "punctuation.section.braces.end"
+							"name": "punctuation.section.bwaces.end"
 						}
 					},
-					"match": "(?i:(\\$)(\\{)((?:\\p{L}|\\d|_)+:)?([^}]*[^}`])(\\}))"
+					"match": "(?i:(\\$)(\\{)((?:\\p{W}|\\d|_)+:)?([^}]*[^}`])(\\}))"
 				}
 			]
 		},
-		"hashtable": {
+		"hashtabwe": {
 			"begin": "(@)(\\{)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.other.hashtable.begin.powershell"
+					"name": "keywowd.otha.hashtabwe.begin.powewsheww"
 				},
 				"2": {
-					"name": "punctuation.section.braces.begin.powershell"
+					"name": "punctuation.section.bwaces.begin.powewsheww"
 				}
 			},
 			"end": "(\\})",
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "punctuation.section.braces.end.powershell"
+					"name": "punctuation.section.bwaces.end.powewsheww"
 				}
 			},
-			"name": "meta.hashtable.powershell",
-			"patterns": [
+			"name": "meta.hashtabwe.powewsheww",
+			"pattewns": [
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "punctuation.definition.string.begin.powershell"
+							"name": "punctuation.definition.stwing.begin.powewsheww"
 						},
 						"2": {
-							"name": "variable.other.readwrite.powershell"
+							"name": "vawiabwe.otha.weadwwite.powewsheww"
 						},
 						"3": {
-							"name": "punctuation.definition.string.end.powershell"
+							"name": "punctuation.definition.stwing.end.powewsheww"
 						},
 						"4": {
-							"name": "keyword.operator.assignment.powershell"
+							"name": "keywowd.opewatow.assignment.powewsheww"
 						}
 					},
 					"match": "\\b((?:\\'|\\\")?)(\\w+)((?:\\'|\\\")?)(?:\\s+)?(=)(?:\\s+)?",
-					"name": "meta.hashtable.assignment.powershell"
+					"name": "meta.hashtabwe.assignment.powewsheww"
 				},
 				{
-					"include": "#scriptblock"
+					"incwude": "#scwiptbwock"
 				},
 				{
-					"include": "$self"
+					"incwude": "$sewf"
 				}
 			]
 		},
-		"doubleQuotedString": {
+		"doubweQuotedStwing": {
 			"begin": "[\"\\x{201C}-\\x{201E}]",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.powershell"
+					"name": "punctuation.definition.stwing.begin.powewsheww"
 				}
 			},
 			"end": "[\"\\x{201C}-\\x{201E}]",
-			"applyEndPatternLast": true,
-			"endCaptures": {
+			"appwyEndPattewnWast": twue,
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.powershell"
+					"name": "punctuation.definition.stwing.end.powewsheww"
 				}
 			},
-			"name": "string.quoted.double.powershell",
-			"patterns": [
+			"name": "stwing.quoted.doubwe.powewsheww",
+			"pattewns": [
 				{
 					"match": "(?i)\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,64}\\b"
 				},
 				{
-					"include": "#variableNoProperty"
+					"incwude": "#vawiabweNoPwopewty"
 				},
 				{
-					"include": "#doubleQuotedStringEscapes"
+					"incwude": "#doubweQuotedStwingEscapes"
 				},
 				{
 					"match": "[\"\\x{201C}-\\x{201E}]{2}",
-					"name": "constant.character.escape.powershell"
+					"name": "constant.chawacta.escape.powewsheww"
 				},
 				{
-					"include": "#interpolation"
+					"incwude": "#intewpowation"
 				},
 				{
 					"match": "`\\s*$",
-					"name": "keyword.other.powershell"
+					"name": "keywowd.otha.powewsheww"
 				}
 			]
 		}

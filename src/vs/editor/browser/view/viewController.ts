@@ -1,332 +1,332 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
-import { IEditorMouseEvent, IPartialEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
-import { ViewUserInputEvents } from 'vs/editor/browser/view/viewUserInputEvents';
-import { Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IConfiguration } from 'vs/editor/common/editorCommon';
-import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import * as platform from 'vs/base/common/platform';
+impowt { IKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { CoweNavigationCommands } fwom 'vs/editow/bwowsa/contwowwa/coweCommands';
+impowt { IEditowMouseEvent, IPawtiawEditowMouseEvent } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { ViewUsewInputEvents } fwom 'vs/editow/bwowsa/view/viewUsewInputEvents';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { IConfiguwation } fwom 'vs/editow/common/editowCommon';
+impowt { IViewModew } fwom 'vs/editow/common/viewModew/viewModew';
+impowt { IMouseWheewEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
 
-export interface IMouseDispatchData {
+expowt intewface IMouseDispatchData {
 	position: Position;
 	/**
-	 * Desired mouse column (e.g. when position.column gets clamped to text length -- clicking after text on a line).
+	 * Desiwed mouse cowumn (e.g. when position.cowumn gets cwamped to text wength -- cwicking afta text on a wine).
 	 */
-	mouseColumn: number;
-	startedOnLineNumbers: boolean;
+	mouseCowumn: numba;
+	stawtedOnWineNumbews: boowean;
 
-	inSelectionMode: boolean;
-	mouseDownCount: number;
-	altKey: boolean;
-	ctrlKey: boolean;
-	metaKey: boolean;
-	shiftKey: boolean;
+	inSewectionMode: boowean;
+	mouseDownCount: numba;
+	awtKey: boowean;
+	ctwwKey: boowean;
+	metaKey: boowean;
+	shiftKey: boowean;
 
-	leftButton: boolean;
-	middleButton: boolean;
+	weftButton: boowean;
+	middweButton: boowean;
 }
 
-export interface ICommandDelegate {
-	paste(text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null): void;
-	type(text: string): void;
-	compositionType(text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number): void;
-	startComposition(): void;
+expowt intewface ICommandDewegate {
+	paste(text: stwing, pasteOnNewWine: boowean, muwticuwsowText: stwing[] | nuww, mode: stwing | nuww): void;
+	type(text: stwing): void;
+	compositionType(text: stwing, wepwacePwevChawCnt: numba, wepwaceNextChawCnt: numba, positionDewta: numba): void;
+	stawtComposition(): void;
 	endComposition(): void;
 	cut(): void;
 }
 
-export class ViewController {
+expowt cwass ViewContwowwa {
 
-	private readonly configuration: IConfiguration;
-	private readonly viewModel: IViewModel;
-	private readonly userInputEvents: ViewUserInputEvents;
-	private readonly commandDelegate: ICommandDelegate;
+	pwivate weadonwy configuwation: IConfiguwation;
+	pwivate weadonwy viewModew: IViewModew;
+	pwivate weadonwy usewInputEvents: ViewUsewInputEvents;
+	pwivate weadonwy commandDewegate: ICommandDewegate;
 
-	constructor(
-		configuration: IConfiguration,
-		viewModel: IViewModel,
-		userInputEvents: ViewUserInputEvents,
-		commandDelegate: ICommandDelegate
+	constwuctow(
+		configuwation: IConfiguwation,
+		viewModew: IViewModew,
+		usewInputEvents: ViewUsewInputEvents,
+		commandDewegate: ICommandDewegate
 	) {
-		this.configuration = configuration;
-		this.viewModel = viewModel;
-		this.userInputEvents = userInputEvents;
-		this.commandDelegate = commandDelegate;
+		this.configuwation = configuwation;
+		this.viewModew = viewModew;
+		this.usewInputEvents = usewInputEvents;
+		this.commandDewegate = commandDewegate;
 	}
 
-	public paste(text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null): void {
-		this.commandDelegate.paste(text, pasteOnNewLine, multicursorText, mode);
+	pubwic paste(text: stwing, pasteOnNewWine: boowean, muwticuwsowText: stwing[] | nuww, mode: stwing | nuww): void {
+		this.commandDewegate.paste(text, pasteOnNewWine, muwticuwsowText, mode);
 	}
 
-	public type(text: string): void {
-		this.commandDelegate.type(text);
+	pubwic type(text: stwing): void {
+		this.commandDewegate.type(text);
 	}
 
-	public compositionType(text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number): void {
-		this.commandDelegate.compositionType(text, replacePrevCharCnt, replaceNextCharCnt, positionDelta);
+	pubwic compositionType(text: stwing, wepwacePwevChawCnt: numba, wepwaceNextChawCnt: numba, positionDewta: numba): void {
+		this.commandDewegate.compositionType(text, wepwacePwevChawCnt, wepwaceNextChawCnt, positionDewta);
 	}
 
-	public compositionStart(): void {
-		this.commandDelegate.startComposition();
+	pubwic compositionStawt(): void {
+		this.commandDewegate.stawtComposition();
 	}
 
-	public compositionEnd(): void {
-		this.commandDelegate.endComposition();
+	pubwic compositionEnd(): void {
+		this.commandDewegate.endComposition();
 	}
 
-	public cut(): void {
-		this.commandDelegate.cut();
+	pubwic cut(): void {
+		this.commandDewegate.cut();
 	}
 
-	public setSelection(modelSelection: Selection): void {
-		CoreNavigationCommands.SetSelection.runCoreEditorCommand(this.viewModel, {
-			source: 'keyboard',
-			selection: modelSelection
+	pubwic setSewection(modewSewection: Sewection): void {
+		CoweNavigationCommands.SetSewection.wunCoweEditowCommand(this.viewModew, {
+			souwce: 'keyboawd',
+			sewection: modewSewection
 		});
 	}
 
-	private _validateViewColumn(viewPosition: Position): Position {
-		const minColumn = this.viewModel.getLineMinColumn(viewPosition.lineNumber);
-		if (viewPosition.column < minColumn) {
-			return new Position(viewPosition.lineNumber, minColumn);
+	pwivate _vawidateViewCowumn(viewPosition: Position): Position {
+		const minCowumn = this.viewModew.getWineMinCowumn(viewPosition.wineNumba);
+		if (viewPosition.cowumn < minCowumn) {
+			wetuwn new Position(viewPosition.wineNumba, minCowumn);
 		}
-		return viewPosition;
+		wetuwn viewPosition;
 	}
 
-	private _hasMulticursorModifier(data: IMouseDispatchData): boolean {
-		switch (this.configuration.options.get(EditorOption.multiCursorModifier)) {
-			case 'altKey':
-				return data.altKey;
-			case 'ctrlKey':
-				return data.ctrlKey;
+	pwivate _hasMuwticuwsowModifia(data: IMouseDispatchData): boowean {
+		switch (this.configuwation.options.get(EditowOption.muwtiCuwsowModifia)) {
+			case 'awtKey':
+				wetuwn data.awtKey;
+			case 'ctwwKey':
+				wetuwn data.ctwwKey;
 			case 'metaKey':
-				return data.metaKey;
-			default:
-				return false;
+				wetuwn data.metaKey;
+			defauwt:
+				wetuwn fawse;
 		}
 	}
 
-	private _hasNonMulticursorModifier(data: IMouseDispatchData): boolean {
-		switch (this.configuration.options.get(EditorOption.multiCursorModifier)) {
-			case 'altKey':
-				return data.ctrlKey || data.metaKey;
-			case 'ctrlKey':
-				return data.altKey || data.metaKey;
+	pwivate _hasNonMuwticuwsowModifia(data: IMouseDispatchData): boowean {
+		switch (this.configuwation.options.get(EditowOption.muwtiCuwsowModifia)) {
+			case 'awtKey':
+				wetuwn data.ctwwKey || data.metaKey;
+			case 'ctwwKey':
+				wetuwn data.awtKey || data.metaKey;
 			case 'metaKey':
-				return data.ctrlKey || data.altKey;
-			default:
-				return false;
+				wetuwn data.ctwwKey || data.awtKey;
+			defauwt:
+				wetuwn fawse;
 		}
 	}
 
-	public dispatchMouse(data: IMouseDispatchData): void {
-		const options = this.configuration.options;
-		const selectionClipboardIsOn = (platform.isLinux && options.get(EditorOption.selectionClipboard));
-		const columnSelection = options.get(EditorOption.columnSelection);
-		if (data.middleButton && !selectionClipboardIsOn) {
-			this._columnSelect(data.position, data.mouseColumn, data.inSelectionMode);
-		} else if (data.startedOnLineNumbers) {
-			// If the dragging started on the gutter, then have operations work on the entire line
-			if (this._hasMulticursorModifier(data)) {
-				if (data.inSelectionMode) {
-					this._lastCursorLineSelect(data.position);
-				} else {
-					this._createCursor(data.position, true);
+	pubwic dispatchMouse(data: IMouseDispatchData): void {
+		const options = this.configuwation.options;
+		const sewectionCwipboawdIsOn = (pwatfowm.isWinux && options.get(EditowOption.sewectionCwipboawd));
+		const cowumnSewection = options.get(EditowOption.cowumnSewection);
+		if (data.middweButton && !sewectionCwipboawdIsOn) {
+			this._cowumnSewect(data.position, data.mouseCowumn, data.inSewectionMode);
+		} ewse if (data.stawtedOnWineNumbews) {
+			// If the dwagging stawted on the gutta, then have opewations wowk on the entiwe wine
+			if (this._hasMuwticuwsowModifia(data)) {
+				if (data.inSewectionMode) {
+					this._wastCuwsowWineSewect(data.position);
+				} ewse {
+					this._cweateCuwsow(data.position, twue);
 				}
-			} else {
-				if (data.inSelectionMode) {
-					this._lineSelectDrag(data.position);
-				} else {
-					this._lineSelect(data.position);
-				}
-			}
-		} else if (data.mouseDownCount >= 4) {
-			this._selectAll();
-		} else if (data.mouseDownCount === 3) {
-			if (this._hasMulticursorModifier(data)) {
-				if (data.inSelectionMode) {
-					this._lastCursorLineSelectDrag(data.position);
-				} else {
-					this._lastCursorLineSelect(data.position);
-				}
-			} else {
-				if (data.inSelectionMode) {
-					this._lineSelectDrag(data.position);
-				} else {
-					this._lineSelect(data.position);
+			} ewse {
+				if (data.inSewectionMode) {
+					this._wineSewectDwag(data.position);
+				} ewse {
+					this._wineSewect(data.position);
 				}
 			}
-		} else if (data.mouseDownCount === 2) {
-			if (this._hasMulticursorModifier(data)) {
-				this._lastCursorWordSelect(data.position);
-			} else {
-				if (data.inSelectionMode) {
-					this._wordSelectDrag(data.position);
-				} else {
-					this._wordSelect(data.position);
+		} ewse if (data.mouseDownCount >= 4) {
+			this._sewectAww();
+		} ewse if (data.mouseDownCount === 3) {
+			if (this._hasMuwticuwsowModifia(data)) {
+				if (data.inSewectionMode) {
+					this._wastCuwsowWineSewectDwag(data.position);
+				} ewse {
+					this._wastCuwsowWineSewect(data.position);
+				}
+			} ewse {
+				if (data.inSewectionMode) {
+					this._wineSewectDwag(data.position);
+				} ewse {
+					this._wineSewect(data.position);
 				}
 			}
-		} else {
-			if (this._hasMulticursorModifier(data)) {
-				if (!this._hasNonMulticursorModifier(data)) {
+		} ewse if (data.mouseDownCount === 2) {
+			if (this._hasMuwticuwsowModifia(data)) {
+				this._wastCuwsowWowdSewect(data.position);
+			} ewse {
+				if (data.inSewectionMode) {
+					this._wowdSewectDwag(data.position);
+				} ewse {
+					this._wowdSewect(data.position);
+				}
+			}
+		} ewse {
+			if (this._hasMuwticuwsowModifia(data)) {
+				if (!this._hasNonMuwticuwsowModifia(data)) {
 					if (data.shiftKey) {
-						this._columnSelect(data.position, data.mouseColumn, true);
-					} else {
-						// Do multi-cursor operations only when purely alt is pressed
-						if (data.inSelectionMode) {
-							this._lastCursorMoveToSelect(data.position);
-						} else {
-							this._createCursor(data.position, false);
+						this._cowumnSewect(data.position, data.mouseCowumn, twue);
+					} ewse {
+						// Do muwti-cuwsow opewations onwy when puwewy awt is pwessed
+						if (data.inSewectionMode) {
+							this._wastCuwsowMoveToSewect(data.position);
+						} ewse {
+							this._cweateCuwsow(data.position, fawse);
 						}
 					}
 				}
-			} else {
-				if (data.inSelectionMode) {
-					if (data.altKey) {
-						this._columnSelect(data.position, data.mouseColumn, true);
-					} else {
-						if (columnSelection) {
-							this._columnSelect(data.position, data.mouseColumn, true);
-						} else {
-							this._moveToSelect(data.position);
+			} ewse {
+				if (data.inSewectionMode) {
+					if (data.awtKey) {
+						this._cowumnSewect(data.position, data.mouseCowumn, twue);
+					} ewse {
+						if (cowumnSewection) {
+							this._cowumnSewect(data.position, data.mouseCowumn, twue);
+						} ewse {
+							this._moveToSewect(data.position);
 						}
 					}
-				} else {
+				} ewse {
 					this.moveTo(data.position);
 				}
 			}
 		}
 	}
 
-	private _usualArgs(viewPosition: Position) {
-		viewPosition = this._validateViewColumn(viewPosition);
-		return {
-			source: 'mouse',
-			position: this._convertViewToModelPosition(viewPosition),
+	pwivate _usuawAwgs(viewPosition: Position) {
+		viewPosition = this._vawidateViewCowumn(viewPosition);
+		wetuwn {
+			souwce: 'mouse',
+			position: this._convewtViewToModewPosition(viewPosition),
 			viewPosition: viewPosition
 		};
 	}
 
-	public moveTo(viewPosition: Position): void {
-		CoreNavigationCommands.MoveTo.runCoreEditorCommand(this.viewModel, this._usualArgs(viewPosition));
+	pubwic moveTo(viewPosition: Position): void {
+		CoweNavigationCommands.MoveTo.wunCoweEditowCommand(this.viewModew, this._usuawAwgs(viewPosition));
 	}
 
-	private _moveToSelect(viewPosition: Position): void {
-		CoreNavigationCommands.MoveToSelect.runCoreEditorCommand(this.viewModel, this._usualArgs(viewPosition));
+	pwivate _moveToSewect(viewPosition: Position): void {
+		CoweNavigationCommands.MoveToSewect.wunCoweEditowCommand(this.viewModew, this._usuawAwgs(viewPosition));
 	}
 
-	private _columnSelect(viewPosition: Position, mouseColumn: number, doColumnSelect: boolean): void {
-		viewPosition = this._validateViewColumn(viewPosition);
-		CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(this.viewModel, {
-			source: 'mouse',
-			position: this._convertViewToModelPosition(viewPosition),
+	pwivate _cowumnSewect(viewPosition: Position, mouseCowumn: numba, doCowumnSewect: boowean): void {
+		viewPosition = this._vawidateViewCowumn(viewPosition);
+		CoweNavigationCommands.CowumnSewect.wunCoweEditowCommand(this.viewModew, {
+			souwce: 'mouse',
+			position: this._convewtViewToModewPosition(viewPosition),
 			viewPosition: viewPosition,
-			mouseColumn: mouseColumn,
-			doColumnSelect: doColumnSelect
+			mouseCowumn: mouseCowumn,
+			doCowumnSewect: doCowumnSewect
 		});
 	}
 
-	private _createCursor(viewPosition: Position, wholeLine: boolean): void {
-		viewPosition = this._validateViewColumn(viewPosition);
-		CoreNavigationCommands.CreateCursor.runCoreEditorCommand(this.viewModel, {
-			source: 'mouse',
-			position: this._convertViewToModelPosition(viewPosition),
+	pwivate _cweateCuwsow(viewPosition: Position, whoweWine: boowean): void {
+		viewPosition = this._vawidateViewCowumn(viewPosition);
+		CoweNavigationCommands.CweateCuwsow.wunCoweEditowCommand(this.viewModew, {
+			souwce: 'mouse',
+			position: this._convewtViewToModewPosition(viewPosition),
 			viewPosition: viewPosition,
-			wholeLine: wholeLine
+			whoweWine: whoweWine
 		});
 	}
 
-	private _lastCursorMoveToSelect(viewPosition: Position): void {
-		CoreNavigationCommands.LastCursorMoveToSelect.runCoreEditorCommand(this.viewModel, this._usualArgs(viewPosition));
+	pwivate _wastCuwsowMoveToSewect(viewPosition: Position): void {
+		CoweNavigationCommands.WastCuwsowMoveToSewect.wunCoweEditowCommand(this.viewModew, this._usuawAwgs(viewPosition));
 	}
 
-	private _wordSelect(viewPosition: Position): void {
-		CoreNavigationCommands.WordSelect.runCoreEditorCommand(this.viewModel, this._usualArgs(viewPosition));
+	pwivate _wowdSewect(viewPosition: Position): void {
+		CoweNavigationCommands.WowdSewect.wunCoweEditowCommand(this.viewModew, this._usuawAwgs(viewPosition));
 	}
 
-	private _wordSelectDrag(viewPosition: Position): void {
-		CoreNavigationCommands.WordSelectDrag.runCoreEditorCommand(this.viewModel, this._usualArgs(viewPosition));
+	pwivate _wowdSewectDwag(viewPosition: Position): void {
+		CoweNavigationCommands.WowdSewectDwag.wunCoweEditowCommand(this.viewModew, this._usuawAwgs(viewPosition));
 	}
 
-	private _lastCursorWordSelect(viewPosition: Position): void {
-		CoreNavigationCommands.LastCursorWordSelect.runCoreEditorCommand(this.viewModel, this._usualArgs(viewPosition));
+	pwivate _wastCuwsowWowdSewect(viewPosition: Position): void {
+		CoweNavigationCommands.WastCuwsowWowdSewect.wunCoweEditowCommand(this.viewModew, this._usuawAwgs(viewPosition));
 	}
 
-	private _lineSelect(viewPosition: Position): void {
-		CoreNavigationCommands.LineSelect.runCoreEditorCommand(this.viewModel, this._usualArgs(viewPosition));
+	pwivate _wineSewect(viewPosition: Position): void {
+		CoweNavigationCommands.WineSewect.wunCoweEditowCommand(this.viewModew, this._usuawAwgs(viewPosition));
 	}
 
-	private _lineSelectDrag(viewPosition: Position): void {
-		CoreNavigationCommands.LineSelectDrag.runCoreEditorCommand(this.viewModel, this._usualArgs(viewPosition));
+	pwivate _wineSewectDwag(viewPosition: Position): void {
+		CoweNavigationCommands.WineSewectDwag.wunCoweEditowCommand(this.viewModew, this._usuawAwgs(viewPosition));
 	}
 
-	private _lastCursorLineSelect(viewPosition: Position): void {
-		CoreNavigationCommands.LastCursorLineSelect.runCoreEditorCommand(this.viewModel, this._usualArgs(viewPosition));
+	pwivate _wastCuwsowWineSewect(viewPosition: Position): void {
+		CoweNavigationCommands.WastCuwsowWineSewect.wunCoweEditowCommand(this.viewModew, this._usuawAwgs(viewPosition));
 	}
 
-	private _lastCursorLineSelectDrag(viewPosition: Position): void {
-		CoreNavigationCommands.LastCursorLineSelectDrag.runCoreEditorCommand(this.viewModel, this._usualArgs(viewPosition));
+	pwivate _wastCuwsowWineSewectDwag(viewPosition: Position): void {
+		CoweNavigationCommands.WastCuwsowWineSewectDwag.wunCoweEditowCommand(this.viewModew, this._usuawAwgs(viewPosition));
 	}
 
-	private _selectAll(): void {
-		CoreNavigationCommands.SelectAll.runCoreEditorCommand(this.viewModel, { source: 'mouse' });
+	pwivate _sewectAww(): void {
+		CoweNavigationCommands.SewectAww.wunCoweEditowCommand(this.viewModew, { souwce: 'mouse' });
 	}
 
 	// ----------------------
 
-	private _convertViewToModelPosition(viewPosition: Position): Position {
-		return this.viewModel.coordinatesConverter.convertViewPositionToModelPosition(viewPosition);
+	pwivate _convewtViewToModewPosition(viewPosition: Position): Position {
+		wetuwn this.viewModew.coowdinatesConvewta.convewtViewPositionToModewPosition(viewPosition);
 	}
 
-	public emitKeyDown(e: IKeyboardEvent): void {
-		this.userInputEvents.emitKeyDown(e);
+	pubwic emitKeyDown(e: IKeyboawdEvent): void {
+		this.usewInputEvents.emitKeyDown(e);
 	}
 
-	public emitKeyUp(e: IKeyboardEvent): void {
-		this.userInputEvents.emitKeyUp(e);
+	pubwic emitKeyUp(e: IKeyboawdEvent): void {
+		this.usewInputEvents.emitKeyUp(e);
 	}
 
-	public emitContextMenu(e: IEditorMouseEvent): void {
-		this.userInputEvents.emitContextMenu(e);
+	pubwic emitContextMenu(e: IEditowMouseEvent): void {
+		this.usewInputEvents.emitContextMenu(e);
 	}
 
-	public emitMouseMove(e: IEditorMouseEvent): void {
-		this.userInputEvents.emitMouseMove(e);
+	pubwic emitMouseMove(e: IEditowMouseEvent): void {
+		this.usewInputEvents.emitMouseMove(e);
 	}
 
-	public emitMouseLeave(e: IPartialEditorMouseEvent): void {
-		this.userInputEvents.emitMouseLeave(e);
+	pubwic emitMouseWeave(e: IPawtiawEditowMouseEvent): void {
+		this.usewInputEvents.emitMouseWeave(e);
 	}
 
-	public emitMouseUp(e: IEditorMouseEvent): void {
-		this.userInputEvents.emitMouseUp(e);
+	pubwic emitMouseUp(e: IEditowMouseEvent): void {
+		this.usewInputEvents.emitMouseUp(e);
 	}
 
-	public emitMouseDown(e: IEditorMouseEvent): void {
-		this.userInputEvents.emitMouseDown(e);
+	pubwic emitMouseDown(e: IEditowMouseEvent): void {
+		this.usewInputEvents.emitMouseDown(e);
 	}
 
-	public emitMouseDrag(e: IEditorMouseEvent): void {
-		this.userInputEvents.emitMouseDrag(e);
+	pubwic emitMouseDwag(e: IEditowMouseEvent): void {
+		this.usewInputEvents.emitMouseDwag(e);
 	}
 
-	public emitMouseDrop(e: IPartialEditorMouseEvent): void {
-		this.userInputEvents.emitMouseDrop(e);
+	pubwic emitMouseDwop(e: IPawtiawEditowMouseEvent): void {
+		this.usewInputEvents.emitMouseDwop(e);
 	}
 
-	public emitMouseDropCanceled(): void {
-		this.userInputEvents.emitMouseDropCanceled();
+	pubwic emitMouseDwopCancewed(): void {
+		this.usewInputEvents.emitMouseDwopCancewed();
 	}
 
-	public emitMouseWheel(e: IMouseWheelEvent): void {
-		this.userInputEvents.emitMouseWheel(e);
+	pubwic emitMouseWheew(e: IMouseWheewEvent): void {
+		this.usewInputEvents.emitMouseWheew(e);
 	}
 }

@@ -1,35 +1,35 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import * as nls from 'vs/nls';
+impowt { StopWatch } fwom 'vs/base/common/stopwatch';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, wegistewEditowAction, SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt * as nws fwom 'vs/nws';
 
-class ForceRetokenizeAction extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.action.forceRetokenize',
-			label: nls.localize('forceRetokenize', "Developer: Force Retokenize"),
-			alias: 'Developer: Force Retokenize',
-			precondition: undefined
+cwass FowceWetokenizeAction extends EditowAction {
+	constwuctow() {
+		supa({
+			id: 'editow.action.fowceWetokenize',
+			wabew: nws.wocawize('fowceWetokenize', "Devewopa: Fowce Wetokenize"),
+			awias: 'Devewopa: Fowce Wetokenize',
+			pwecondition: undefined
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		if (!editor.hasModel()) {
-			return;
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		if (!editow.hasModew()) {
+			wetuwn;
 		}
-		const model = editor.getModel();
-		model.resetTokenization();
-		const sw = new StopWatch(true);
-		model.forceTokenization(model.getLineCount());
+		const modew = editow.getModew();
+		modew.wesetTokenization();
+		const sw = new StopWatch(twue);
+		modew.fowceTokenization(modew.getWineCount());
 		sw.stop();
-		console.log(`tokenization took ${sw.elapsed()}`);
+		consowe.wog(`tokenization took ${sw.ewapsed()}`);
 
 	}
 }
 
-registerEditorAction(ForceRetokenizeAction);
+wegistewEditowAction(FowceWetokenizeAction);

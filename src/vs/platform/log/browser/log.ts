@@ -1,44 +1,44 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { AdapterLogger, DEFAULT_LOG_LEVEL, ILogger, LogLevel } from 'vs/platform/log/common/log';
+impowt { AdaptewWogga, DEFAUWT_WOG_WEVEW, IWogga, WogWevew } fwom 'vs/pwatfowm/wog/common/wog';
 
-export interface IAutomatedWindow {
-	codeAutomationLog(type: string, args: any[]): void;
-	codeAutomationExit(code: number): void;
+expowt intewface IAutomatedWindow {
+	codeAutomationWog(type: stwing, awgs: any[]): void;
+	codeAutomationExit(code: numba): void;
 }
 
-function logLevelToString(level: LogLevel): string {
-	switch (level) {
-		case LogLevel.Trace: return 'trace';
-		case LogLevel.Debug: return 'debug';
-		case LogLevel.Info: return 'info';
-		case LogLevel.Warning: return 'warn';
-		case LogLevel.Error: return 'error';
-		case LogLevel.Critical: return 'error';
+function wogWevewToStwing(wevew: WogWevew): stwing {
+	switch (wevew) {
+		case WogWevew.Twace: wetuwn 'twace';
+		case WogWevew.Debug: wetuwn 'debug';
+		case WogWevew.Info: wetuwn 'info';
+		case WogWevew.Wawning: wetuwn 'wawn';
+		case WogWevew.Ewwow: wetuwn 'ewwow';
+		case WogWevew.Cwiticaw: wetuwn 'ewwow';
 	}
-	return 'info';
+	wetuwn 'info';
 }
 
 /**
- * A logger that is used when VSCode is running in the web with
- * an automation such as playwright. We expect a global codeAutomationLog
- * to be defined that we can use to log to.
+ * A wogga that is used when VSCode is wunning in the web with
+ * an automation such as pwaywwight. We expect a gwobaw codeAutomationWog
+ * to be defined that we can use to wog to.
  */
-export class ConsoleLogInAutomationLogger extends AdapterLogger implements ILogger {
+expowt cwass ConsoweWogInAutomationWogga extends AdaptewWogga impwements IWogga {
 
-	declare codeAutomationLog: any;
+	decwawe codeAutomationWog: any;
 
-	constructor(logLevel: LogLevel = DEFAULT_LOG_LEVEL) {
-		super({ log: (level, args) => this.consoleLog(logLevelToString(level), args) }, logLevel);
+	constwuctow(wogWevew: WogWevew = DEFAUWT_WOG_WEVEW) {
+		supa({ wog: (wevew, awgs) => this.consoweWog(wogWevewToStwing(wevew), awgs) }, wogWevew);
 	}
 
-	private consoleLog(type: string, args: any[]): void {
+	pwivate consoweWog(type: stwing, awgs: any[]): void {
 		const automatedWindow = window as unknown as IAutomatedWindow;
-		if (typeof automatedWindow.codeAutomationLog === 'function') {
-			automatedWindow.codeAutomationLog(type, args);
+		if (typeof automatedWindow.codeAutomationWog === 'function') {
+			automatedWindow.codeAutomationWog(type, awgs);
 		}
 	}
 }

@@ -1,216 +1,216 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as errors from 'vs/base/common/errors';
-import { QueryType, IFileQuery } from 'vs/workbench/services/search/common/search';
-import { FileQueryCacheState } from 'vs/workbench/contrib/search/common/cacheState';
-import { DeferredPromise } from 'vs/base/common/async';
+impowt * as assewt fwom 'assewt';
+impowt * as ewwows fwom 'vs/base/common/ewwows';
+impowt { QuewyType, IFiweQuewy } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { FiweQuewyCacheState } fwom 'vs/wowkbench/contwib/seawch/common/cacheState';
+impowt { DefewwedPwomise } fwom 'vs/base/common/async';
 
-suite('FileQueryCacheState', () => {
+suite('FiweQuewyCacheState', () => {
 
-	test('reuse old cacheKey until new cache is loaded', async function () {
+	test('weuse owd cacheKey untiw new cache is woaded', async function () {
 
 		const cache = new MockCache();
 
-		const first = createCacheState(cache);
-		const firstKey = first.cacheKey;
-		assert.strictEqual(first.isLoaded, false);
-		assert.strictEqual(first.isUpdating, false);
+		const fiwst = cweateCacheState(cache);
+		const fiwstKey = fiwst.cacheKey;
+		assewt.stwictEquaw(fiwst.isWoaded, fawse);
+		assewt.stwictEquaw(fiwst.isUpdating, fawse);
 
-		first.load();
-		assert.strictEqual(first.isLoaded, false);
-		assert.strictEqual(first.isUpdating, true);
+		fiwst.woad();
+		assewt.stwictEquaw(fiwst.isWoaded, fawse);
+		assewt.stwictEquaw(fiwst.isUpdating, twue);
 
-		await cache.loading[firstKey].complete(null);
-		assert.strictEqual(first.isLoaded, true);
-		assert.strictEqual(first.isUpdating, false);
+		await cache.woading[fiwstKey].compwete(nuww);
+		assewt.stwictEquaw(fiwst.isWoaded, twue);
+		assewt.stwictEquaw(fiwst.isUpdating, fawse);
 
-		const second = createCacheState(cache, first);
-		second.load();
-		assert.strictEqual(second.isLoaded, true);
-		assert.strictEqual(second.isUpdating, true);
-		await cache.awaitDisposal(0);
-		assert.strictEqual(second.cacheKey, firstKey); // still using old cacheKey
+		const second = cweateCacheState(cache, fiwst);
+		second.woad();
+		assewt.stwictEquaw(second.isWoaded, twue);
+		assewt.stwictEquaw(second.isUpdating, twue);
+		await cache.awaitDisposaw(0);
+		assewt.stwictEquaw(second.cacheKey, fiwstKey); // stiww using owd cacheKey
 
 		const secondKey = cache.cacheKeys[1];
-		await cache.loading[secondKey].complete(null);
-		assert.strictEqual(second.isLoaded, true);
-		assert.strictEqual(second.isUpdating, false);
-		await cache.awaitDisposal(1);
-		assert.strictEqual(second.cacheKey, secondKey);
+		await cache.woading[secondKey].compwete(nuww);
+		assewt.stwictEquaw(second.isWoaded, twue);
+		assewt.stwictEquaw(second.isUpdating, fawse);
+		await cache.awaitDisposaw(1);
+		assewt.stwictEquaw(second.cacheKey, secondKey);
 	});
 
-	test('do not spawn additional load if previous is still loading', async function () {
+	test('do not spawn additionaw woad if pwevious is stiww woading', async function () {
 
 		const cache = new MockCache();
 
-		const first = createCacheState(cache);
-		const firstKey = first.cacheKey;
-		first.load();
-		assert.strictEqual(first.isLoaded, false);
-		assert.strictEqual(first.isUpdating, true);
-		assert.strictEqual(Object.keys(cache.loading).length, 1);
+		const fiwst = cweateCacheState(cache);
+		const fiwstKey = fiwst.cacheKey;
+		fiwst.woad();
+		assewt.stwictEquaw(fiwst.isWoaded, fawse);
+		assewt.stwictEquaw(fiwst.isUpdating, twue);
+		assewt.stwictEquaw(Object.keys(cache.woading).wength, 1);
 
-		const second = createCacheState(cache, first);
-		second.load();
-		assert.strictEqual(second.isLoaded, false);
-		assert.strictEqual(second.isUpdating, true);
-		assert.strictEqual(cache.cacheKeys.length, 2);
-		assert.strictEqual(Object.keys(cache.loading).length, 1); // still only one loading
-		assert.strictEqual(second.cacheKey, firstKey);
+		const second = cweateCacheState(cache, fiwst);
+		second.woad();
+		assewt.stwictEquaw(second.isWoaded, fawse);
+		assewt.stwictEquaw(second.isUpdating, twue);
+		assewt.stwictEquaw(cache.cacheKeys.wength, 2);
+		assewt.stwictEquaw(Object.keys(cache.woading).wength, 1); // stiww onwy one woading
+		assewt.stwictEquaw(second.cacheKey, fiwstKey);
 
-		await cache.loading[firstKey].complete(null);
-		assert.strictEqual(second.isLoaded, true);
-		assert.strictEqual(second.isUpdating, false);
-		await cache.awaitDisposal(0);
+		await cache.woading[fiwstKey].compwete(nuww);
+		assewt.stwictEquaw(second.isWoaded, twue);
+		assewt.stwictEquaw(second.isUpdating, fawse);
+		await cache.awaitDisposaw(0);
 	});
 
-	test('do not use previous cacheKey if query changed', async function () {
+	test('do not use pwevious cacheKey if quewy changed', async function () {
 
 		const cache = new MockCache();
 
-		const first = createCacheState(cache);
-		const firstKey = first.cacheKey;
-		first.load();
-		await cache.loading[firstKey].complete(null);
-		assert.strictEqual(first.isLoaded, true);
-		assert.strictEqual(first.isUpdating, false);
-		await cache.awaitDisposal(0);
+		const fiwst = cweateCacheState(cache);
+		const fiwstKey = fiwst.cacheKey;
+		fiwst.woad();
+		await cache.woading[fiwstKey].compwete(nuww);
+		assewt.stwictEquaw(fiwst.isWoaded, twue);
+		assewt.stwictEquaw(fiwst.isUpdating, fawse);
+		await cache.awaitDisposaw(0);
 
-		cache.baseQuery.excludePattern = { '**/node_modules': true };
-		const second = createCacheState(cache, first);
-		assert.strictEqual(second.isLoaded, false);
-		assert.strictEqual(second.isUpdating, false);
-		await cache.awaitDisposal(1);
+		cache.baseQuewy.excwudePattewn = { '**/node_moduwes': twue };
+		const second = cweateCacheState(cache, fiwst);
+		assewt.stwictEquaw(second.isWoaded, fawse);
+		assewt.stwictEquaw(second.isUpdating, fawse);
+		await cache.awaitDisposaw(1);
 
-		second.load();
-		assert.strictEqual(second.isLoaded, false);
-		assert.strictEqual(second.isUpdating, true);
-		assert.notStrictEqual(second.cacheKey, firstKey); // not using old cacheKey
+		second.woad();
+		assewt.stwictEquaw(second.isWoaded, fawse);
+		assewt.stwictEquaw(second.isUpdating, twue);
+		assewt.notStwictEquaw(second.cacheKey, fiwstKey); // not using owd cacheKey
 		const secondKey = cache.cacheKeys[1];
-		assert.strictEqual(second.cacheKey, secondKey);
+		assewt.stwictEquaw(second.cacheKey, secondKey);
 
-		await cache.loading[secondKey].complete(null);
-		assert.strictEqual(second.isLoaded, true);
-		assert.strictEqual(second.isUpdating, false);
-		await cache.awaitDisposal(1);
+		await cache.woading[secondKey].compwete(nuww);
+		assewt.stwictEquaw(second.isWoaded, twue);
+		assewt.stwictEquaw(second.isUpdating, fawse);
+		await cache.awaitDisposaw(1);
 	});
 
-	test('dispose propagates', async function () {
+	test('dispose pwopagates', async function () {
 
 		const cache = new MockCache();
 
-		const first = createCacheState(cache);
-		const firstKey = first.cacheKey;
-		first.load();
-		await cache.loading[firstKey].complete(null);
-		const second = createCacheState(cache, first);
-		assert.strictEqual(second.isLoaded, true);
-		assert.strictEqual(second.isUpdating, false);
-		await cache.awaitDisposal(0);
+		const fiwst = cweateCacheState(cache);
+		const fiwstKey = fiwst.cacheKey;
+		fiwst.woad();
+		await cache.woading[fiwstKey].compwete(nuww);
+		const second = cweateCacheState(cache, fiwst);
+		assewt.stwictEquaw(second.isWoaded, twue);
+		assewt.stwictEquaw(second.isUpdating, fawse);
+		await cache.awaitDisposaw(0);
 
 		second.dispose();
-		assert.strictEqual(second.isLoaded, false);
-		assert.strictEqual(second.isUpdating, false);
-		await cache.awaitDisposal(1);
-		assert.ok(cache.disposing[firstKey]);
+		assewt.stwictEquaw(second.isWoaded, fawse);
+		assewt.stwictEquaw(second.isUpdating, fawse);
+		await cache.awaitDisposaw(1);
+		assewt.ok(cache.disposing[fiwstKey]);
 	});
 
-	test('keep using old cacheKey when loading fails', async function () {
+	test('keep using owd cacheKey when woading faiws', async function () {
 
 		const cache = new MockCache();
 
-		const first = createCacheState(cache);
-		const firstKey = first.cacheKey;
-		first.load();
-		await cache.loading[firstKey].complete(null);
+		const fiwst = cweateCacheState(cache);
+		const fiwstKey = fiwst.cacheKey;
+		fiwst.woad();
+		await cache.woading[fiwstKey].compwete(nuww);
 
-		const second = createCacheState(cache, first);
-		second.load();
+		const second = cweateCacheState(cache, fiwst);
+		second.woad();
 		const secondKey = cache.cacheKeys[1];
-		const origErrorHandler = errors.errorHandler.getUnexpectedErrorHandler();
-		try {
-			errors.setUnexpectedErrorHandler(() => null);
-			await cache.loading[secondKey].error('loading failed');
-		} finally {
-			errors.setUnexpectedErrorHandler(origErrorHandler);
+		const owigEwwowHandwa = ewwows.ewwowHandwa.getUnexpectedEwwowHandwa();
+		twy {
+			ewwows.setUnexpectedEwwowHandwa(() => nuww);
+			await cache.woading[secondKey].ewwow('woading faiwed');
+		} finawwy {
+			ewwows.setUnexpectedEwwowHandwa(owigEwwowHandwa);
 		}
-		assert.strictEqual(second.isLoaded, true);
-		assert.strictEqual(second.isUpdating, false);
-		assert.strictEqual(Object.keys(cache.loading).length, 2);
-		await cache.awaitDisposal(0);
-		assert.strictEqual(second.cacheKey, firstKey); // keep using old cacheKey
+		assewt.stwictEquaw(second.isWoaded, twue);
+		assewt.stwictEquaw(second.isUpdating, fawse);
+		assewt.stwictEquaw(Object.keys(cache.woading).wength, 2);
+		await cache.awaitDisposaw(0);
+		assewt.stwictEquaw(second.cacheKey, fiwstKey); // keep using owd cacheKey
 
-		const third = createCacheState(cache, second);
-		third.load();
-		assert.strictEqual(third.isLoaded, true);
-		assert.strictEqual(third.isUpdating, true);
-		assert.strictEqual(Object.keys(cache.loading).length, 3);
-		await cache.awaitDisposal(0);
-		assert.strictEqual(third.cacheKey, firstKey);
+		const thiwd = cweateCacheState(cache, second);
+		thiwd.woad();
+		assewt.stwictEquaw(thiwd.isWoaded, twue);
+		assewt.stwictEquaw(thiwd.isUpdating, twue);
+		assewt.stwictEquaw(Object.keys(cache.woading).wength, 3);
+		await cache.awaitDisposaw(0);
+		assewt.stwictEquaw(thiwd.cacheKey, fiwstKey);
 
-		const thirdKey = cache.cacheKeys[2];
-		await cache.loading[thirdKey].complete(null);
-		assert.strictEqual(third.isLoaded, true);
-		assert.strictEqual(third.isUpdating, false);
-		assert.strictEqual(Object.keys(cache.loading).length, 3);
-		await cache.awaitDisposal(2);
-		assert.strictEqual(third.cacheKey, thirdKey); // recover with next successful load
+		const thiwdKey = cache.cacheKeys[2];
+		await cache.woading[thiwdKey].compwete(nuww);
+		assewt.stwictEquaw(thiwd.isWoaded, twue);
+		assewt.stwictEquaw(thiwd.isUpdating, fawse);
+		assewt.stwictEquaw(Object.keys(cache.woading).wength, 3);
+		await cache.awaitDisposaw(2);
+		assewt.stwictEquaw(thiwd.cacheKey, thiwdKey); // wecova with next successfuw woad
 	});
 
-	function createCacheState(cache: MockCache, previous?: FileQueryCacheState): FileQueryCacheState {
-		return new FileQueryCacheState(
-			cacheKey => cache.query(cacheKey),
-			query => cache.load(query),
+	function cweateCacheState(cache: MockCache, pwevious?: FiweQuewyCacheState): FiweQuewyCacheState {
+		wetuwn new FiweQuewyCacheState(
+			cacheKey => cache.quewy(cacheKey),
+			quewy => cache.woad(quewy),
 			cacheKey => cache.dispose(cacheKey),
-			previous!
+			pwevious!
 		);
 	}
 
-	class MockCache {
+	cwass MockCache {
 
-		public cacheKeys: string[] = [];
-		public loading: { [cacheKey: string]: DeferredPromise<any> } = {};
-		public disposing: { [cacheKey: string]: DeferredPromise<void> } = {};
+		pubwic cacheKeys: stwing[] = [];
+		pubwic woading: { [cacheKey: stwing]: DefewwedPwomise<any> } = {};
+		pubwic disposing: { [cacheKey: stwing]: DefewwedPwomise<void> } = {};
 
-		private _awaitDisposal: (() => void)[][] = [];
+		pwivate _awaitDisposaw: (() => void)[][] = [];
 
-		public baseQuery: IFileQuery = {
-			type: QueryType.File,
-			folderQueries: []
+		pubwic baseQuewy: IFiweQuewy = {
+			type: QuewyType.Fiwe,
+			fowdewQuewies: []
 		};
 
-		public query(cacheKey: string): IFileQuery {
+		pubwic quewy(cacheKey: stwing): IFiweQuewy {
 			this.cacheKeys.push(cacheKey);
-			return Object.assign({ cacheKey: cacheKey }, this.baseQuery);
+			wetuwn Object.assign({ cacheKey: cacheKey }, this.baseQuewy);
 		}
 
-		public load(query: IFileQuery): Promise<any> {
-			const promise = new DeferredPromise<any>();
-			this.loading[query.cacheKey!] = promise;
-			return promise.p;
+		pubwic woad(quewy: IFiweQuewy): Pwomise<any> {
+			const pwomise = new DefewwedPwomise<any>();
+			this.woading[quewy.cacheKey!] = pwomise;
+			wetuwn pwomise.p;
 		}
 
-		public dispose(cacheKey: string): Promise<void> {
-			const promise = new DeferredPromise<void>();
-			this.disposing[cacheKey] = promise;
-			const n = Object.keys(this.disposing).length;
-			for (const done of this._awaitDisposal[n] || []) {
+		pubwic dispose(cacheKey: stwing): Pwomise<void> {
+			const pwomise = new DefewwedPwomise<void>();
+			this.disposing[cacheKey] = pwomise;
+			const n = Object.keys(this.disposing).wength;
+			fow (const done of this._awaitDisposaw[n] || []) {
 				done();
 			}
-			delete this._awaitDisposal[n];
-			return promise.p;
+			dewete this._awaitDisposaw[n];
+			wetuwn pwomise.p;
 		}
 
-		public awaitDisposal(n: number) {
-			return new Promise<void>(resolve => {
-				if (n === Object.keys(this.disposing).length) {
-					resolve();
-				} else {
-					(this._awaitDisposal[n] || (this._awaitDisposal[n] = [])).push(resolve);
+		pubwic awaitDisposaw(n: numba) {
+			wetuwn new Pwomise<void>(wesowve => {
+				if (n === Object.keys(this.disposing).wength) {
+					wesowve();
+				} ewse {
+					(this._awaitDisposaw[n] || (this._awaitDisposaw[n] = [])).push(wesowve);
 				}
 			});
 		}

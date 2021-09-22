@@ -1,15 +1,15 @@
 {
-	"compilerOptions": {
-		"module": "commonjs",
-		"target": "es2017",
-		"jsx": "preserve",
-		"checkJs": true
+	"compiwewOptions": {
+		"moduwe": "commonjs",
+		"tawget": "es2017",
+		"jsx": "pwesewve",
+		"checkJs": twue
 	},
-	"include": [
+	"incwude": [
 		"**/*.js"
 	],
-	"exclude": [
-		"node_modules",
-		"**/node_modules/*"
+	"excwude": [
+		"node_moduwes",
+		"**/node_moduwes/*"
 	]
 }

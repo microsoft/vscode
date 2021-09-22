@@ -1,345 +1,345 @@
 steps:
-  - task: NodeTool@0
+  - task: NodeToow@0
     inputs:
-      versionSpec: "14.x"
+      vewsionSpec: "14.x"
 
-  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+  - task: geekweawningio.gw-vsts-tasks-yawn.yawn-instawwa-task.YawnInstawwa@2
     inputs:
-      versionSpec: "1.x"
+      vewsionSpec: "1.x"
 
-  - task: UsePythonVersion@0
+  - task: UsePythonVewsion@0
     inputs:
-      versionSpec: "2.x"
-      addToPath: true
+      vewsionSpec: "2.x"
+      addToPath: twue
 
-  - task: AzureKeyVault@1
-    displayName: "Azure Key Vault: Get Secrets"
+  - task: AzuweKeyVauwt@1
+    dispwayName: "Azuwe Key Vauwt: Get Secwets"
     inputs:
-      azureSubscription: "vscode-builds-subscription"
-      KeyVaultName: vscode
-      SecretsFilter: "github-distro-mixin-password,vscode-storage-key,builds-docdb-key-readwrite,ESRP-PKI,esrp-aad-username,esrp-aad-password"
+      azuweSubscwiption: "vscode-buiwds-subscwiption"
+      KeyVauwtName: vscode
+      SecwetsFiwta: "github-distwo-mixin-passwowd,vscode-stowage-key,buiwds-docdb-key-weadwwite,ESWP-PKI,eswp-aad-usewname,eswp-aad-passwowd"
 
-  - task: DownloadPipelineArtifact@2
+  - task: DownwoadPipewineAwtifact@2
     inputs:
-      artifact: Compilation
-      path: $(Build.ArtifactStagingDirectory)
-    displayName: Download compilation output
+      awtifact: Compiwation
+      path: $(Buiwd.AwtifactStagingDiwectowy)
+    dispwayName: Downwoad compiwation output
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { tar --force-local -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz }
-    displayName: Extract compilation output
+  - powewsheww: |
+      . buiwd/azuwe-pipewines/win32/exec.ps1
+      $EwwowActionPwefewence = "Stop"
+      exec { taw --fowce-wocaw -xzf $(Buiwd.AwtifactStagingDiwectowy)/compiwation.taw.gz }
+    dispwayName: Extwact compiwation output
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      "machine github.com`nlogin vscode`npassword $(github-distro-mixin-password)" | Out-File "$env:USERPROFILE\_netrc" -Encoding ASCII
+  - powewsheww: |
+      . buiwd/azuwe-pipewines/win32/exec.ps1
+      $EwwowActionPwefewence = "Stop"
+      "machine github.com`nwogin vscode`npasswowd $(github-distwo-mixin-passwowd)" | Out-Fiwe "$env:USEWPWOFIWE\_netwc" -Encoding ASCII
 
-      exec { git config user.email "vscode@microsoft.com" }
-      exec { git config user.name "VSCode" }
-    displayName: Prepare tooling
+      exec { git config usa.emaiw "vscode@micwosoft.com" }
+      exec { git config usa.name "VSCode" }
+    dispwayName: Pwepawe toowing
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro") }
-    displayName: Merge distro
+  - powewsheww: |
+      . buiwd/azuwe-pipewines/win32/exec.ps1
+      $EwwowActionPwefewence = "Stop"
+      exec { git puww --no-webase https://github.com/$(VSCODE_MIXIN_WEPO).git $(node -p "wequiwe('./package.json').distwo") }
+    dispwayName: Mewge distwo
 
-  - powershell: |
-      "$(VSCODE_ARCH)" | Out-File -Encoding ascii -NoNewLine .build\arch
-      "$env:ENABLE_TERRAPIN" | Out-File -Encoding ascii -NoNewLine .build\terrapin
-      node build/azure-pipelines/common/computeNodeModulesCacheKey.js > .build/yarnlockhash
-    displayName: Prepare yarn cache flags
+  - powewsheww: |
+      "$(VSCODE_AWCH)" | Out-Fiwe -Encoding ascii -NoNewWine .buiwd\awch
+      "$env:ENABWE_TEWWAPIN" | Out-Fiwe -Encoding ascii -NoNewWine .buiwd\tewwapin
+      node buiwd/azuwe-pipewines/common/computeNodeModuwesCacheKey.js > .buiwd/yawnwockhash
+    dispwayName: Pwepawe yawn cache fwags
 
   - task: Cache@2
     inputs:
-      key: "nodeModules | $(Agent.OS) | .build/arch, .build/terrapin, .build/yarnlockhash"
-      path: .build/node_modules_cache
-      cacheHitVar: NODE_MODULES_RESTORED
-    displayName: Restore node_modules cache
+      key: "nodeModuwes | $(Agent.OS) | .buiwd/awch, .buiwd/tewwapin, .buiwd/yawnwockhash"
+      path: .buiwd/node_moduwes_cache
+      cacheHitVaw: NODE_MODUWES_WESTOWED
+    dispwayName: Westowe node_moduwes cache
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { 7z.exe x .build/node_modules_cache/cache.7z -aos }
-    condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
-    displayName: Extract node_modules cache
+  - powewsheww: |
+      . buiwd/azuwe-pipewines/win32/exec.ps1
+      $EwwowActionPwefewence = "Stop"
+      exec { 7z.exe x .buiwd/node_moduwes_cache/cache.7z -aos }
+    condition: and(succeeded(), eq(vawiabwes.NODE_MODUWES_WESTOWED, 'twue'))
+    dispwayName: Extwact node_moduwes cache
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { npx https://aka.ms/enablesecurefeed standAlone }
+  - powewsheww: |
+      . buiwd/azuwe-pipewines/win32/exec.ps1
+      $EwwowActionPwefewence = "Stop"
+      exec { npx https://aka.ms/enabwesecuwefeed standAwone }
     timeoutInMinutes: 5
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
-    displayName: Switch to Terrapin packages
+    condition: and(succeeded(), ne(vawiabwes.NODE_MODUWES_WESTOWED, 'twue'), eq(vawiabwes['ENABWE_TEWWAPIN'], 'twue'))
+    dispwayName: Switch to Tewwapin packages
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      . build/azure-pipelines/win32/retry.ps1
-      $ErrorActionPreference = "Stop"
-      $env:npm_config_arch="$(VSCODE_ARCH)"
-      $env:npm_config_build_from_source="true"
-      $env:CHILD_CONCURRENCY="1"
-      retry { exec { yarn --frozen-lockfile } }
+  - powewsheww: |
+      . buiwd/azuwe-pipewines/win32/exec.ps1
+      . buiwd/azuwe-pipewines/win32/wetwy.ps1
+      $EwwowActionPwefewence = "Stop"
+      $env:npm_config_awch="$(VSCODE_AWCH)"
+      $env:npm_config_buiwd_fwom_souwce="twue"
+      $env:CHIWD_CONCUWWENCY="1"
+      wetwy { exec { yawn --fwozen-wockfiwe } }
     env:
-      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
-    displayName: Install dependencies
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+      EWECTWON_SKIP_BINAWY_DOWNWOAD: 1
+      PWAYWWIGHT_SKIP_BWOWSEW_DOWNWOAD: 1
+      GITHUB_TOKEN: "$(github-distwo-mixin-passwowd)"
+    dispwayName: Instaww dependencies
+    condition: and(succeeded(), ne(vawiabwes.NODE_MODUWES_WESTOWED, 'twue'))
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt }
-      exec { mkdir -Force .build/node_modules_cache }
-      exec { 7z.exe a .build/node_modules_cache/cache.7z -mx3 `@.build/node_modules_list.txt }
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-    displayName: Create node_modules archive
+  - powewsheww: |
+      . buiwd/azuwe-pipewines/win32/exec.ps1
+      $EwwowActionPwefewence = "Stop"
+      exec { node buiwd/azuwe-pipewines/common/wistNodeModuwes.js .buiwd/node_moduwes_wist.txt }
+      exec { mkdiw -Fowce .buiwd/node_moduwes_cache }
+      exec { 7z.exe a .buiwd/node_moduwes_cache/cache.7z -mx3 `@.buiwd/node_moduwes_wist.txt }
+    condition: and(succeeded(), ne(vawiabwes.NODE_MODUWES_WESTOWED, 'twue'))
+    dispwayName: Cweate node_moduwes awchive
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { node build/azure-pipelines/mixin }
-    displayName: Mix in quality
+  - powewsheww: |
+      . buiwd/azuwe-pipewines/win32/exec.ps1
+      $EwwowActionPwefewence = "Stop"
+      exec { node buiwd/azuwe-pipewines/mixin }
+    dispwayName: Mix in quawity
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
-      exec { yarn npm-run-all -lp "electron $(VSCODE_ARCH)" }
-    displayName: Download Electron
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+  - powewsheww: |
+      . buiwd/azuwe-pipewines/win32/exec.ps1
+      $EwwowActionPwefewence = "Stop"
+      $env:VSCODE_MIXIN_PASSWOWD="$(github-distwo-mixin-passwowd)"
+      exec { yawn npm-wun-aww -wp "ewectwon $(VSCODE_AWCH)" }
+    dispwayName: Downwoad Ewectwon
+    condition: and(succeeded(), eq(vawiabwes['VSCODE_STEP_ON_IT'], 'fawse'))
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
-      exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-min-ci" }
-      echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)"
-    displayName: Build
+  - powewsheww: |
+      . buiwd/azuwe-pipewines/win32/exec.ps1
+      $EwwowActionPwefewence = "Stop"
+      $env:VSCODE_MIXIN_PASSWOWD="$(github-distwo-mixin-passwowd)"
+      exec { yawn guwp "vscode-win32-$(VSCODE_AWCH)-min-ci" }
+      echo "##vso[task.setvawiabwe vawiabwe=CodeSigningFowdewPath]$(agent.buiwddiwectowy)/VSCode-win32-$(VSCODE_AWCH)"
+    dispwayName: Buiwd
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
-      exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-code-helper" }
-      exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-inno-updater" }
-    displayName: Prepare Package
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - powewsheww: |
+      . buiwd/azuwe-pipewines/win32/exec.ps1
+      $EwwowActionPwefewence = "Stop"
+      $env:VSCODE_MIXIN_PASSWOWD="$(github-distwo-mixin-passwowd)"
+      exec { yawn guwp "vscode-win32-$(VSCODE_AWCH)-code-hewpa" }
+      exec { yawn guwp "vscode-win32-$(VSCODE_AWCH)-inno-updata" }
+    dispwayName: Pwepawe Package
+    condition: and(succeeded(), ne(vawiabwes['VSCODE_PUBWISH'], 'fawse'))
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
-      exec { yarn gulp "vscode-reh-win32-$(VSCODE_ARCH)-min-ci" }
-      exec { yarn gulp "vscode-reh-web-win32-$(VSCODE_ARCH)-min-ci" }
-      echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(CodeSigningFolderPath),$(agent.builddirectory)/vscode-reh-win32-$(VSCODE_ARCH)"
-    displayName: Build Server
-    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
+  - powewsheww: |
+      . buiwd/azuwe-pipewines/win32/exec.ps1
+      $EwwowActionPwefewence = "Stop"
+      $env:VSCODE_MIXIN_PASSWOWD="$(github-distwo-mixin-passwowd)"
+      exec { yawn guwp "vscode-weh-win32-$(VSCODE_AWCH)-min-ci" }
+      exec { yawn guwp "vscode-weh-web-win32-$(VSCODE_AWCH)-min-ci" }
+      echo "##vso[task.setvawiabwe vawiabwe=CodeSigningFowdewPath]$(CodeSigningFowdewPath),$(agent.buiwddiwectowy)/vscode-weh-win32-$(VSCODE_AWCH)"
+    dispwayName: Buiwd Sewva
+    condition: and(succeeded(), ne(vawiabwes['VSCODE_AWCH'], 'awm64'))
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
-      exec { yarn npm-run-all -lp "playwright-install" }
-    displayName: Download Playwright
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+  - powewsheww: |
+      . buiwd/azuwe-pipewines/win32/exec.ps1
+      $EwwowActionPwefewence = "Stop"
+      $env:VSCODE_MIXIN_PASSWOWD="$(github-distwo-mixin-passwowd)"
+      exec { yawn npm-wun-aww -wp "pwaywwight-instaww" }
+    dispwayName: Downwoad Pwaywwight
+    condition: and(succeeded(), eq(vawiabwes['VSCODE_STEP_ON_IT'], 'fawse'), ne(vawiabwes['VSCODE_AWCH'], 'awm64'))
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { yarn electron $(VSCODE_ARCH) }
-      exec { .\scripts\test.bat --build --tfs "Unit Tests" }
-    displayName: Run unit tests (Electron)
+  - powewsheww: |
+      . buiwd/azuwe-pipewines/win32/exec.ps1
+      $EwwowActionPwefewence = "Stop"
+      exec { yawn ewectwon $(VSCODE_AWCH) }
+      exec { .\scwipts\test.bat --buiwd --tfs "Unit Tests" }
+    dispwayName: Wun unit tests (Ewectwon)
     timeoutInMinutes: 7
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+    condition: and(succeeded(), eq(vawiabwes['VSCODE_STEP_ON_IT'], 'fawse'), ne(vawiabwes['VSCODE_AWCH'], 'awm64'))
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { yarn test-browser --build --browser chromium --browser firefox --tfs "Browser Unit Tests" }
-    displayName: Run unit tests (Browser)
+  - powewsheww: |
+      . buiwd/azuwe-pipewines/win32/exec.ps1
+      $EwwowActionPwefewence = "Stop"
+      exec { yawn test-bwowsa --buiwd --bwowsa chwomium --bwowsa fiwefox --tfs "Bwowsa Unit Tests" }
+    dispwayName: Wun unit tests (Bwowsa)
     timeoutInMinutes: 7
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+    condition: and(succeeded(), eq(vawiabwes['VSCODE_STEP_ON_IT'], 'fawse'), ne(vawiabwes['VSCODE_AWCH'], 'awm64'))
 
-  - powershell: |
-      # Figure out the full absolute path of the product we just built
-      # including the remote server and configure the integration tests
-      # to run with these builds instead of running out of sources.
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
-      $AppProductJson = Get-Content -Raw -Path "$AppRoot\resources\app\product.json" | ConvertFrom-Json
-      $AppNameShort = $AppProductJson.nameShort
-      exec { $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"; $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-win32-$(VSCODE_ARCH)"; .\scripts\test-integration.bat --build --tfs "Integration Tests" }
-    displayName: Run integration tests (Electron)
+  - powewsheww: |
+      # Figuwe out the fuww absowute path of the pwoduct we just buiwt
+      # incwuding the wemote sewva and configuwe the integwation tests
+      # to wun with these buiwds instead of wunning out of souwces.
+      . buiwd/azuwe-pipewines/win32/exec.ps1
+      $EwwowActionPwefewence = "Stop"
+      $AppWoot = "$(agent.buiwddiwectowy)\VSCode-win32-$(VSCODE_AWCH)"
+      $AppPwoductJson = Get-Content -Waw -Path "$AppWoot\wesouwces\app\pwoduct.json" | ConvewtFwom-Json
+      $AppNameShowt = $AppPwoductJson.nameShowt
+      exec { $env:INTEGWATION_TEST_EWECTWON_PATH = "$AppWoot\$AppNameShowt.exe"; $env:VSCODE_WEMOTE_SEWVEW_PATH = "$(agent.buiwddiwectowy)\vscode-weh-win32-$(VSCODE_AWCH)"; .\scwipts\test-integwation.bat --buiwd --tfs "Integwation Tests" }
+    dispwayName: Wun integwation tests (Ewectwon)
     timeoutInMinutes: 10
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+    condition: and(succeeded(), eq(vawiabwes['VSCODE_STEP_ON_IT'], 'fawse'), ne(vawiabwes['VSCODE_AWCH'], 'awm64'))
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-web-win32-$(VSCODE_ARCH)"; .\resources\server\test\test-web-integration.bat --browser firefox }
-    displayName: Run integration tests (Browser)
+  - powewsheww: |
+      . buiwd/azuwe-pipewines/win32/exec.ps1
+      $EwwowActionPwefewence = "Stop"
+      exec { $env:VSCODE_WEMOTE_SEWVEW_PATH = "$(agent.buiwddiwectowy)\vscode-weh-web-win32-$(VSCODE_AWCH)"; .\wesouwces\sewva\test\test-web-integwation.bat --bwowsa fiwefox }
+    dispwayName: Wun integwation tests (Bwowsa)
     timeoutInMinutes: 10
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+    condition: and(succeeded(), eq(vawiabwes['VSCODE_STEP_ON_IT'], 'fawse'), ne(vawiabwes['VSCODE_AWCH'], 'awm64'))
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
-      $AppProductJson = Get-Content -Raw -Path "$AppRoot\resources\app\product.json" | ConvertFrom-Json
-      $AppNameShort = $AppProductJson.nameShort
-      exec { $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"; $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-win32-$(VSCODE_ARCH)"; .\resources\server\test\test-remote-integration.bat }
-    displayName: Run remote integration tests (Electron)
+  - powewsheww: |
+      . buiwd/azuwe-pipewines/win32/exec.ps1
+      $EwwowActionPwefewence = "Stop"
+      $AppWoot = "$(agent.buiwddiwectowy)\VSCode-win32-$(VSCODE_AWCH)"
+      $AppPwoductJson = Get-Content -Waw -Path "$AppWoot\wesouwces\app\pwoduct.json" | ConvewtFwom-Json
+      $AppNameShowt = $AppPwoductJson.nameShowt
+      exec { $env:INTEGWATION_TEST_EWECTWON_PATH = "$AppWoot\$AppNameShowt.exe"; $env:VSCODE_WEMOTE_SEWVEW_PATH = "$(agent.buiwddiwectowy)\vscode-weh-win32-$(VSCODE_AWCH)"; .\wesouwces\sewva\test\test-wemote-integwation.bat }
+    dispwayName: Wun wemote integwation tests (Ewectwon)
     timeoutInMinutes: 7
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+    condition: and(succeeded(), eq(vawiabwes['VSCODE_STEP_ON_IT'], 'fawse'), ne(vawiabwes['VSCODE_AWCH'], 'awm64'))
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { yarn --cwd test/smoke compile }
-    displayName: Compile smoke tests
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+  - powewsheww: |
+      . buiwd/azuwe-pipewines/win32/exec.ps1
+      $EwwowActionPwefewence = "Stop"
+      exec { yawn --cwd test/smoke compiwe }
+    dispwayName: Compiwe smoke tests
+    condition: and(succeeded(), eq(vawiabwes['VSCODE_STEP_ON_IT'], 'fawse'), ne(vawiabwes['VSCODE_AWCH'], 'awm64'))
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
-      exec { yarn smoketest-no-compile --build "$AppRoot" --screenshots $(Build.SourcesDirectory)\.build\logs\smoke-tests }
-    displayName: Run smoke tests (Electron)
+  - powewsheww: |
+      . buiwd/azuwe-pipewines/win32/exec.ps1
+      $EwwowActionPwefewence = "Stop"
+      $AppWoot = "$(agent.buiwddiwectowy)\VSCode-win32-$(VSCODE_AWCH)"
+      exec { yawn smoketest-no-compiwe --buiwd "$AppWoot" --scweenshots $(Buiwd.SouwcesDiwectowy)\.buiwd\wogs\smoke-tests }
+    dispwayName: Wun smoke tests (Ewectwon)
     timeoutInMinutes: 5
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+    condition: and(succeeded(), eq(vawiabwes['VSCODE_STEP_ON_IT'], 'fawse'), ne(vawiabwes['VSCODE_AWCH'], 'awm64'))
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
-      $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-win32-$(VSCODE_ARCH)"
-      exec { yarn smoketest-no-compile --build "$AppRoot" --remote }
-    displayName: Run smoke tests (Remote)
+  - powewsheww: |
+      . buiwd/azuwe-pipewines/win32/exec.ps1
+      $EwwowActionPwefewence = "Stop"
+      $AppWoot = "$(agent.buiwddiwectowy)\VSCode-win32-$(VSCODE_AWCH)"
+      $env:VSCODE_WEMOTE_SEWVEW_PATH = "$(agent.buiwddiwectowy)\vscode-weh-win32-$(VSCODE_AWCH)"
+      exec { yawn smoketest-no-compiwe --buiwd "$AppWoot" --wemote }
+    dispwayName: Wun smoke tests (Wemote)
     timeoutInMinutes: 5
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+    condition: and(succeeded(), eq(vawiabwes['VSCODE_STEP_ON_IT'], 'fawse'), ne(vawiabwes['VSCODE_AWCH'], 'awm64'))
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-web-win32-$(VSCODE_ARCH)"
-      exec { yarn smoketest-no-compile --web --browser firefox --headless }
-    displayName: Run smoke tests (Browser)
+  - powewsheww: |
+      . buiwd/azuwe-pipewines/win32/exec.ps1
+      $EwwowActionPwefewence = "Stop"
+      $env:VSCODE_WEMOTE_SEWVEW_PATH = "$(agent.buiwddiwectowy)\vscode-weh-web-win32-$(VSCODE_AWCH)"
+      exec { yawn smoketest-no-compiwe --web --bwowsa fiwefox --headwess }
+    dispwayName: Wun smoke tests (Bwowsa)
     timeoutInMinutes: 5
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+    condition: and(succeeded(), eq(vawiabwes['VSCODE_STEP_ON_IT'], 'fawse'), ne(vawiabwes['VSCODE_AWCH'], 'awm64'))
 
-  - task: PublishPipelineArtifact@0
+  - task: PubwishPipewineAwtifact@0
     inputs:
-      artifactName: crash-dump-windows-$(VSCODE_ARCH)
-      targetPath: .build\crashes
-    displayName: "Publish Crash Reports"
-    continueOnError: true
-    condition: failed()
+      awtifactName: cwash-dump-windows-$(VSCODE_AWCH)
+      tawgetPath: .buiwd\cwashes
+    dispwayName: "Pubwish Cwash Wepowts"
+    continueOnEwwow: twue
+    condition: faiwed()
 
-  - task: PublishPipelineArtifact@0
+  - task: PubwishPipewineAwtifact@0
     inputs:
-      artifactName: logs-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
-      targetPath: .build\logs
-    displayName: "Publish Log Files"
-    continueOnError: true
-    condition: and(succeededOrFailed(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+      awtifactName: wogs-windows-$(VSCODE_AWCH)-$(System.JobAttempt)
+      tawgetPath: .buiwd\wogs
+    dispwayName: "Pubwish Wog Fiwes"
+    continueOnEwwow: twue
+    condition: and(succeededOwFaiwed(), eq(vawiabwes['VSCODE_STEP_ON_IT'], 'fawse'), ne(vawiabwes['VSCODE_AWCH'], 'awm64'))
 
-  - task: PublishTestResults@2
-    displayName: Publish Tests Results
+  - task: PubwishTestWesuwts@2
+    dispwayName: Pubwish Tests Wesuwts
     inputs:
-      testResultsFiles: "*-results.xml"
-      searchFolder: "$(Build.ArtifactStagingDirectory)/test-results"
-    condition: and(succeededOrFailed(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+      testWesuwtsFiwes: "*-wesuwts.xmw"
+      seawchFowda: "$(Buiwd.AwtifactStagingDiwectowy)/test-wesuwts"
+    condition: and(succeededOwFaiwed(), eq(vawiabwes['VSCODE_STEP_ON_IT'], 'fawse'), ne(vawiabwes['VSCODE_AWCH'], 'awm64'))
 
   - task: UseDotNet@2
     inputs:
-      version: 2.x
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+      vewsion: 2.x
+    condition: and(succeeded(), ne(vawiabwes['VSCODE_PUBWISH'], 'fawse'))
 
-  - task: EsrpClientTool@1
-    displayName: Download ESRPClient
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - task: EswpCwientToow@1
+    dispwayName: Downwoad ESWPCwient
+    condition: and(succeeded(), ne(vawiabwes['VSCODE_PUBWISH'], 'fawse'))
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { yarn --cwd build }
-      exec { yarn --cwd build compile }
-    displayName: Compile build tools
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - powewsheww: |
+      . buiwd/azuwe-pipewines/win32/exec.ps1
+      $EwwowActionPwefewence = "Stop"
+      exec { yawn --cwd buiwd }
+      exec { yawn --cwd buiwd compiwe }
+    dispwayName: Compiwe buiwd toows
+    condition: and(succeeded(), ne(vawiabwes['VSCODE_PUBWISH'], 'fawse'))
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      $EsrpClientTool = (gci -directory -filter EsrpClientTool_* $(Agent.RootDirectory)\_tasks | Select-Object -last 1).FullName
-      $EsrpCliZip = (gci -recurse -filter esrpcli.*.zip $EsrpClientTool | Select-Object -last 1).FullName
-      mkdir -p $(Agent.TempDirectory)\esrpcli
-      Expand-Archive -Path $EsrpCliZip -DestinationPath $(Agent.TempDirectory)\esrpcli
-      $EsrpCliDllPath = (gci -recurse -filter esrpcli.dll $(Agent.TempDirectory)\esrpcli | Select-Object -last 1).FullName
-      echo "##vso[task.setvariable variable=EsrpCliDllPath]$EsrpCliDllPath"
-    displayName: Find ESRP CLI
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - powewsheww: |
+      . buiwd/azuwe-pipewines/win32/exec.ps1
+      $EwwowActionPwefewence = "Stop"
+      $EswpCwientToow = (gci -diwectowy -fiwta EswpCwientToow_* $(Agent.WootDiwectowy)\_tasks | Sewect-Object -wast 1).FuwwName
+      $EswpCwiZip = (gci -wecuwse -fiwta eswpcwi.*.zip $EswpCwientToow | Sewect-Object -wast 1).FuwwName
+      mkdiw -p $(Agent.TempDiwectowy)\eswpcwi
+      Expand-Awchive -Path $EswpCwiZip -DestinationPath $(Agent.TempDiwectowy)\eswpcwi
+      $EswpCwiDwwPath = (gci -wecuwse -fiwta eswpcwi.dww $(Agent.TempDiwectowy)\eswpcwi | Sewect-Object -wast 1).FuwwName
+      echo "##vso[task.setvawiabwe vawiabwe=EswpCwiDwwPath]$EswpCwiDwwPath"
+    dispwayName: Find ESWP CWI
+    condition: and(succeeded(), ne(vawiabwes['VSCODE_PUBWISH'], 'fawse'))
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { node build\azure-pipelines\common\sign $env:EsrpCliDllPath windows $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(CodeSigningFolderPath) '*.dll,*.exe,*.node' }
-    displayName: Codesign
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - powewsheww: |
+      . buiwd/azuwe-pipewines/win32/exec.ps1
+      $EwwowActionPwefewence = "Stop"
+      exec { node buiwd\azuwe-pipewines\common\sign $env:EswpCwiDwwPath windows $(ESWP-PKI) $(eswp-aad-usewname) $(eswp-aad-passwowd) $(CodeSigningFowdewPath) '*.dww,*.exe,*.node' }
+    dispwayName: Codesign
+    condition: and(succeeded(), ne(vawiabwes['VSCODE_PUBWISH'], 'fawse'))
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-archive" }
-    displayName: Package archive
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - powewsheww: |
+      . buiwd/azuwe-pipewines/win32/exec.ps1
+      $EwwowActionPwefewence = "Stop"
+      exec { yawn guwp "vscode-win32-$(VSCODE_AWCH)-awchive" }
+    dispwayName: Package awchive
+    condition: and(succeeded(), ne(vawiabwes['VSCODE_PUBWISH'], 'fawse'))
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      $env:ESRPPKI = "$(ESRP-PKI)"
-      $env:ESRPAADUsername = "$(esrp-aad-username)"
-      $env:ESRPAADPassword = "$(esrp-aad-password)"
-      exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-system-setup" --sign }
-      exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-user-setup" --sign }
-    displayName: Package setups
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - powewsheww: |
+      . buiwd/azuwe-pipewines/win32/exec.ps1
+      $EwwowActionPwefewence = "Stop"
+      $env:ESWPPKI = "$(ESWP-PKI)"
+      $env:ESWPAADUsewname = "$(eswp-aad-usewname)"
+      $env:ESWPAADPasswowd = "$(eswp-aad-passwowd)"
+      exec { yawn guwp "vscode-win32-$(VSCODE_AWCH)-system-setup" --sign }
+      exec { yawn guwp "vscode-win32-$(VSCODE_AWCH)-usa-setup" --sign }
+    dispwayName: Package setups
+    condition: and(succeeded(), ne(vawiabwes['VSCODE_PUBWISH'], 'fawse'))
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      $env:AZURE_STORAGE_ACCESS_KEY_2 = "$(vscode-storage-key)"
-      $env:AZURE_DOCUMENTDB_MASTERKEY = "$(builds-docdb-key-readwrite)"
-      $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
-      .\build\azure-pipelines\win32\prepare-publish.ps1
-    displayName: Publish
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - powewsheww: |
+      . buiwd/azuwe-pipewines/win32/exec.ps1
+      $EwwowActionPwefewence = "Stop"
+      $env:AZUWE_STOWAGE_ACCESS_KEY_2 = "$(vscode-stowage-key)"
+      $env:AZUWE_DOCUMENTDB_MASTEWKEY = "$(buiwds-docdb-key-weadwwite)"
+      $env:VSCODE_MIXIN_PASSWOWD="$(github-distwo-mixin-passwowd)"
+      .\buiwd\azuwe-pipewines\win32\pwepawe-pubwish.ps1
+    dispwayName: Pubwish
+    condition: and(succeeded(), ne(vawiabwes['VSCODE_PUBWISH'], 'fawse'))
 
-  - publish: $(System.DefaultWorkingDirectory)\.build\win32-$(VSCODE_ARCH)\archive\$(ARCHIVE_NAME)
-    artifact: vscode_client_win32_$(VSCODE_ARCH)_archive
-    displayName: Publish archive
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - pubwish: $(System.DefauwtWowkingDiwectowy)\.buiwd\win32-$(VSCODE_AWCH)\awchive\$(AWCHIVE_NAME)
+    awtifact: vscode_cwient_win32_$(VSCODE_AWCH)_awchive
+    dispwayName: Pubwish awchive
+    condition: and(succeeded(), ne(vawiabwes['VSCODE_PUBWISH'], 'fawse'))
 
-  - publish: $(System.DefaultWorkingDirectory)\.build\win32-$(VSCODE_ARCH)\system-setup\$(SYSTEM_SETUP_NAME)
-    artifact: vscode_client_win32_$(VSCODE_ARCH)_setup
-    displayName: Publish system setup
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - pubwish: $(System.DefauwtWowkingDiwectowy)\.buiwd\win32-$(VSCODE_AWCH)\system-setup\$(SYSTEM_SETUP_NAME)
+    awtifact: vscode_cwient_win32_$(VSCODE_AWCH)_setup
+    dispwayName: Pubwish system setup
+    condition: and(succeeded(), ne(vawiabwes['VSCODE_PUBWISH'], 'fawse'))
 
-  - publish: $(System.DefaultWorkingDirectory)\.build\win32-$(VSCODE_ARCH)\user-setup\$(USER_SETUP_NAME)
-    artifact: vscode_client_win32_$(VSCODE_ARCH)_user-setup
-    displayName: Publish user setup
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - pubwish: $(System.DefauwtWowkingDiwectowy)\.buiwd\win32-$(VSCODE_AWCH)\usa-setup\$(USEW_SETUP_NAME)
+    awtifact: vscode_cwient_win32_$(VSCODE_AWCH)_usa-setup
+    dispwayName: Pubwish usa setup
+    condition: and(succeeded(), ne(vawiabwes['VSCODE_PUBWISH'], 'fawse'))
 
-  - publish: $(System.DefaultWorkingDirectory)\.build\vscode-server-win32-$(VSCODE_ARCH).zip
-    artifact: vscode_server_win32_$(VSCODE_ARCH)_archive
-    displayName: Publish server archive
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+  - pubwish: $(System.DefauwtWowkingDiwectowy)\.buiwd\vscode-sewva-win32-$(VSCODE_AWCH).zip
+    awtifact: vscode_sewvew_win32_$(VSCODE_AWCH)_awchive
+    dispwayName: Pubwish sewva awchive
+    condition: and(succeeded(), ne(vawiabwes['VSCODE_PUBWISH'], 'fawse'), ne(vawiabwes['VSCODE_AWCH'], 'awm64'))
 
-  - publish: $(System.DefaultWorkingDirectory)\.build\vscode-server-win32-$(VSCODE_ARCH)-web.zip
-    artifact: vscode_web_win32_$(VSCODE_ARCH)_archive
-    displayName: Publish web server archive
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+  - pubwish: $(System.DefauwtWowkingDiwectowy)\.buiwd\vscode-sewva-win32-$(VSCODE_AWCH)-web.zip
+    awtifact: vscode_web_win32_$(VSCODE_AWCH)_awchive
+    dispwayName: Pubwish web sewva awchive
+    condition: and(succeeded(), ne(vawiabwes['VSCODE_PUBWISH'], 'fawse'), ne(vawiabwes['VSCODE_AWCH'], 'awm64'))

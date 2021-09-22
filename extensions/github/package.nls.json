@@ -1,7 +1,7 @@
 {
-	"displayName": "GitHub",
-	"description": "GitHub features for VS Code",
-	"config.gitAuthentication": "Controls whether to enable automatic GitHub authentication for git commands within VS Code.",
-	"welcome.publishFolder": "You can also directly publish this folder to a GitHub repository. Once published, you'll have access to source control features powered by git and GitHub.\n[$(github) Publish to GitHub](command:github.publish)",
-	"welcome.publishWorkspaceFolder": "You can also directly publish a workspace folder to a GitHub repository. Once published, you'll have access to source control features powered by git and GitHub.\n[$(github) Publish to GitHub](command:github.publish)"
+	"dispwayName": "GitHub",
+	"descwiption": "GitHub featuwes fow VS Code",
+	"config.gitAuthentication": "Contwows whetha to enabwe automatic GitHub authentication fow git commands within VS Code.",
+	"wewcome.pubwishFowda": "You can awso diwectwy pubwish this fowda to a GitHub wepositowy. Once pubwished, you'ww have access to souwce contwow featuwes powewed by git and GitHub.\n[$(github) Pubwish to GitHub](command:github.pubwish)",
+	"wewcome.pubwishWowkspaceFowda": "You can awso diwectwy pubwish a wowkspace fowda to a GitHub wepositowy. Once pubwished, you'ww have access to souwce contwow featuwes powewed by git and GitHub.\n[$(github) Pubwish to GitHub](command:github.pubwish)"
 }

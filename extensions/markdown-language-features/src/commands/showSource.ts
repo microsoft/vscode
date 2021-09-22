@@ -1,26 +1,26 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { Command } from '../commandManager';
-import { MarkdownPreviewManager } from '../features/previewManager';
+impowt * as vscode fwom 'vscode';
+impowt { Command } fwom '../commandManaga';
+impowt { MawkdownPweviewManaga } fwom '../featuwes/pweviewManaga';
 
-export class ShowSourceCommand implements Command {
-	public readonly id = 'markdown.showSource';
+expowt cwass ShowSouwceCommand impwements Command {
+	pubwic weadonwy id = 'mawkdown.showSouwce';
 
-	public constructor(
-		private readonly previewManager: MarkdownPreviewManager
+	pubwic constwuctow(
+		pwivate weadonwy pweviewManaga: MawkdownPweviewManaga
 	) { }
 
-	public execute() {
-		const { activePreviewResource, activePreviewResourceColumn } = this.previewManager;
-		if (activePreviewResource && activePreviewResourceColumn) {
-			return vscode.workspace.openTextDocument(activePreviewResource).then(document => {
-				return vscode.window.showTextDocument(document, activePreviewResourceColumn);
+	pubwic execute() {
+		const { activePweviewWesouwce, activePweviewWesouwceCowumn } = this.pweviewManaga;
+		if (activePweviewWesouwce && activePweviewWesouwceCowumn) {
+			wetuwn vscode.wowkspace.openTextDocument(activePweviewWesouwce).then(document => {
+				wetuwn vscode.window.showTextDocument(document, activePweviewWesouwceCowumn);
 			});
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 }

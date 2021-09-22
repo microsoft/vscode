@@ -1,6 +1,6 @@
-src/**
+swc/**
 out/**
 tsconfig.json
 extension.webpack.config.js
-extension-browser.webpack.config.js
-yarn.lock
+extension-bwowsa.webpack.config.js
+yawn.wock

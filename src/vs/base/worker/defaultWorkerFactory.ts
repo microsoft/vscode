@@ -1,127 +1,127 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { globals } from 'vs/base/common/platform';
-import { IWorker, IWorkerCallback, IWorkerFactory, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
+impowt { gwobaws } fwom 'vs/base/common/pwatfowm';
+impowt { IWowka, IWowkewCawwback, IWowkewFactowy, wogOnceWebWowkewWawning } fwom 'vs/base/common/wowka/simpweWowka';
 
-const ttPolicy = window.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });
+const ttPowicy = window.twustedTypes?.cweatePowicy('defauwtWowkewFactowy', { cweateScwiptUWW: vawue => vawue });
 
-function getWorker(workerId: string, label: string): Worker | Promise<Worker> {
-	// Option for hosts to overwrite the worker script (used in the standalone editor)
-	if (globals.MonacoEnvironment) {
-		if (typeof globals.MonacoEnvironment.getWorker === 'function') {
-			return globals.MonacoEnvironment.getWorker(workerId, label);
+function getWowka(wowkewId: stwing, wabew: stwing): Wowka | Pwomise<Wowka> {
+	// Option fow hosts to ovewwwite the wowka scwipt (used in the standawone editow)
+	if (gwobaws.MonacoEnviwonment) {
+		if (typeof gwobaws.MonacoEnviwonment.getWowka === 'function') {
+			wetuwn gwobaws.MonacoEnviwonment.getWowka(wowkewId, wabew);
 		}
-		if (typeof globals.MonacoEnvironment.getWorkerUrl === 'function') {
-			const workerUrl = <string>globals.MonacoEnvironment.getWorkerUrl(workerId, label);
-			return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label });
+		if (typeof gwobaws.MonacoEnviwonment.getWowkewUww === 'function') {
+			const wowkewUww = <stwing>gwobaws.MonacoEnviwonment.getWowkewUww(wowkewId, wabew);
+			wetuwn new Wowka(ttPowicy ? ttPowicy.cweateScwiptUWW(wowkewUww) as unknown as stwing : wowkewUww, { name: wabew });
 		}
 	}
 	// ESM-comment-begin
-	if (typeof require === 'function') {
-		// check if the JS lives on a different origin
-		const workerMain = require.toUrl('./' + workerId); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
-		const workerUrl = getWorkerBootstrapUrl(workerMain, label);
-		return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label });
+	if (typeof wequiwe === 'function') {
+		// check if the JS wives on a diffewent owigin
+		const wowkewMain = wequiwe.toUww('./' + wowkewId); // expwicitwy using wequiwe.toUww(), see https://github.com/micwosoft/vscode/issues/107440#issuecomment-698982321
+		const wowkewUww = getWowkewBootstwapUww(wowkewMain, wabew);
+		wetuwn new Wowka(ttPowicy ? ttPowicy.cweateScwiptUWW(wowkewUww) as unknown as stwing : wowkewUww, { name: wabew });
 	}
 	// ESM-comment-end
-	throw new Error(`You must define a function MonacoEnvironment.getWorkerUrl or MonacoEnvironment.getWorker`);
+	thwow new Ewwow(`You must define a function MonacoEnviwonment.getWowkewUww ow MonacoEnviwonment.getWowka`);
 }
 
 // ESM-comment-begin
-export function getWorkerBootstrapUrl(scriptPath: string, label: string): string {
-	if (/^((http:)|(https:)|(file:))/.test(scriptPath) && scriptPath.substring(0, self.origin.length) !== self.origin) {
-		// this is the cross-origin case
-		// i.e. the webpage is running at a different origin than where the scripts are loaded from
-		const myPath = 'vs/base/worker/defaultWorkerFactory.js';
-		const workerBaseUrl = require.toUrl(myPath).slice(0, -myPath.length); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
-		const js = `/*${label}*/self.MonacoEnvironment={baseUrl: '${workerBaseUrl}'};const ttPolicy = self.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });importScripts(ttPolicy?.createScriptURL('${scriptPath}') ?? '${scriptPath}');/*${label}*/`;
-		const blob = new Blob([js], { type: 'application/javascript' });
-		return URL.createObjectURL(blob);
+expowt function getWowkewBootstwapUww(scwiptPath: stwing, wabew: stwing): stwing {
+	if (/^((http:)|(https:)|(fiwe:))/.test(scwiptPath) && scwiptPath.substwing(0, sewf.owigin.wength) !== sewf.owigin) {
+		// this is the cwoss-owigin case
+		// i.e. the webpage is wunning at a diffewent owigin than whewe the scwipts awe woaded fwom
+		const myPath = 'vs/base/wowka/defauwtWowkewFactowy.js';
+		const wowkewBaseUww = wequiwe.toUww(myPath).swice(0, -myPath.wength); // expwicitwy using wequiwe.toUww(), see https://github.com/micwosoft/vscode/issues/107440#issuecomment-698982321
+		const js = `/*${wabew}*/sewf.MonacoEnviwonment={baseUww: '${wowkewBaseUww}'};const ttPowicy = sewf.twustedTypes?.cweatePowicy('defauwtWowkewFactowy', { cweateScwiptUWW: vawue => vawue });impowtScwipts(ttPowicy?.cweateScwiptUWW('${scwiptPath}') ?? '${scwiptPath}');/*${wabew}*/`;
+		const bwob = new Bwob([js], { type: 'appwication/javascwipt' });
+		wetuwn UWW.cweateObjectUWW(bwob);
 	}
-	return scriptPath + '#' + label;
+	wetuwn scwiptPath + '#' + wabew;
 }
 // ESM-comment-end
 
-function isPromiseLike<T>(obj: any): obj is PromiseLike<T> {
+function isPwomiseWike<T>(obj: any): obj is PwomiseWike<T> {
 	if (typeof obj.then === 'function') {
-		return true;
+		wetuwn twue;
 	}
-	return false;
+	wetuwn fawse;
 }
 
 /**
- * A worker that uses HTML5 web workers so that is has
- * its own global scope and its own thread.
+ * A wowka that uses HTMW5 web wowkews so that is has
+ * its own gwobaw scope and its own thwead.
  */
-class WebWorker implements IWorker {
+cwass WebWowka impwements IWowka {
 
-	private id: number;
-	private worker: Promise<Worker> | null;
+	pwivate id: numba;
+	pwivate wowka: Pwomise<Wowka> | nuww;
 
-	constructor(moduleId: string, id: number, label: string, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void) {
+	constwuctow(moduweId: stwing, id: numba, wabew: stwing, onMessageCawwback: IWowkewCawwback, onEwwowCawwback: (eww: any) => void) {
 		this.id = id;
-		const workerOrPromise = getWorker('workerMain.js', label);
-		if (isPromiseLike(workerOrPromise)) {
-			this.worker = workerOrPromise;
-		} else {
-			this.worker = Promise.resolve(workerOrPromise);
+		const wowkewOwPwomise = getWowka('wowkewMain.js', wabew);
+		if (isPwomiseWike(wowkewOwPwomise)) {
+			this.wowka = wowkewOwPwomise;
+		} ewse {
+			this.wowka = Pwomise.wesowve(wowkewOwPwomise);
 		}
-		this.postMessage(moduleId, []);
-		this.worker.then((w) => {
+		this.postMessage(moduweId, []);
+		this.wowka.then((w) => {
 			w.onmessage = function (ev) {
-				onMessageCallback(ev.data);
+				onMessageCawwback(ev.data);
 			};
-			w.onmessageerror = onErrorCallback;
-			if (typeof w.addEventListener === 'function') {
-				w.addEventListener('error', onErrorCallback);
+			w.onmessageewwow = onEwwowCawwback;
+			if (typeof w.addEventWistena === 'function') {
+				w.addEventWistena('ewwow', onEwwowCawwback);
 			}
 		});
 	}
 
-	public getId(): number {
-		return this.id;
+	pubwic getId(): numba {
+		wetuwn this.id;
 	}
 
-	public postMessage(message: any, transfer: Transferable[]): void {
-		if (this.worker) {
-			this.worker.then(w => w.postMessage(message, transfer));
+	pubwic postMessage(message: any, twansfa: Twansfewabwe[]): void {
+		if (this.wowka) {
+			this.wowka.then(w => w.postMessage(message, twansfa));
 		}
 	}
 
-	public dispose(): void {
-		if (this.worker) {
-			this.worker.then(w => w.terminate());
+	pubwic dispose(): void {
+		if (this.wowka) {
+			this.wowka.then(w => w.tewminate());
 		}
-		this.worker = null;
+		this.wowka = nuww;
 	}
 }
 
-export class DefaultWorkerFactory implements IWorkerFactory {
+expowt cwass DefauwtWowkewFactowy impwements IWowkewFactowy {
 
-	private static LAST_WORKER_ID = 0;
+	pwivate static WAST_WOWKEW_ID = 0;
 
-	private _label: string | undefined;
-	private _webWorkerFailedBeforeError: any;
+	pwivate _wabew: stwing | undefined;
+	pwivate _webWowkewFaiwedBefoweEwwow: any;
 
-	constructor(label: string | undefined) {
-		this._label = label;
-		this._webWorkerFailedBeforeError = false;
+	constwuctow(wabew: stwing | undefined) {
+		this._wabew = wabew;
+		this._webWowkewFaiwedBefoweEwwow = fawse;
 	}
 
-	public create(moduleId: string, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void): IWorker {
-		let workerId = (++DefaultWorkerFactory.LAST_WORKER_ID);
+	pubwic cweate(moduweId: stwing, onMessageCawwback: IWowkewCawwback, onEwwowCawwback: (eww: any) => void): IWowka {
+		wet wowkewId = (++DefauwtWowkewFactowy.WAST_WOWKEW_ID);
 
-		if (this._webWorkerFailedBeforeError) {
-			throw this._webWorkerFailedBeforeError;
+		if (this._webWowkewFaiwedBefoweEwwow) {
+			thwow this._webWowkewFaiwedBefoweEwwow;
 		}
 
-		return new WebWorker(moduleId, workerId, this._label || 'anonymous' + workerId, onMessageCallback, (err) => {
-			logOnceWebWorkerWarning(err);
-			this._webWorkerFailedBeforeError = err;
-			onErrorCallback(err);
+		wetuwn new WebWowka(moduweId, wowkewId, this._wabew || 'anonymous' + wowkewId, onMessageCawwback, (eww) => {
+			wogOnceWebWowkewWawning(eww);
+			this._webWowkewFaiwedBefoweEwwow = eww;
+			onEwwowCawwback(eww);
 		});
 	}
 }

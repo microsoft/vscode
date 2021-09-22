@@ -1,169 +1,169 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ITextContentData, IViewZoneData } from 'vs/editor/browser/controller/mouseTarget';
-import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { Range } from 'vs/editor/common/core/range';
-import { IModelDecoration } from 'vs/editor/common/model';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { HoverAnchor, HoverAnchorType, HoverForeignElementAnchor, IEditorHover, IEditorHoverParticipant, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
-import { commitInlineSuggestionAction, GhostTextController, ShowNextInlineSuggestionAction, ShowPreviousInlineSuggestionAction } from 'vs/editor/contrib/inlineCompletions/ghostTextController';
-import * as nls from 'vs/nls';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { MawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { DisposabweStowe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ITextContentData, IViewZoneData } fwom 'vs/editow/bwowsa/contwowwa/mouseTawget';
+impowt { MawkdownWendewa } fwom 'vs/editow/bwowsa/cowe/mawkdownWendewa';
+impowt { ICodeEditow, IEditowMouseEvent, MouseTawgetType } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IModewDecowation } fwom 'vs/editow/common/modew';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { HovewAnchow, HovewAnchowType, HovewFoweignEwementAnchow, IEditowHova, IEditowHovewPawticipant, IEditowHovewStatusBaw, IHovewPawt } fwom 'vs/editow/contwib/hova/hovewTypes';
+impowt { commitInwineSuggestionAction, GhostTextContwowwa, ShowNextInwineSuggestionAction, ShowPweviousInwineSuggestionAction } fwom 'vs/editow/contwib/inwineCompwetions/ghostTextContwowwa';
+impowt * as nws fwom 'vs/nws';
+impowt { IAccessibiwitySewvice } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { IMenuSewvice, MenuId, MenuItemAction } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
 
-export class InlineCompletionsHover implements IHoverPart {
-	constructor(
-		public readonly owner: IEditorHoverParticipant<InlineCompletionsHover>,
-		public readonly range: Range,
-		public readonly controller: GhostTextController
+expowt cwass InwineCompwetionsHova impwements IHovewPawt {
+	constwuctow(
+		pubwic weadonwy owna: IEditowHovewPawticipant<InwineCompwetionsHova>,
+		pubwic weadonwy wange: Wange,
+		pubwic weadonwy contwowwa: GhostTextContwowwa
 	) { }
 
-	public isValidForHoverAnchor(anchor: HoverAnchor): boolean {
-		return (
-			anchor.type === HoverAnchorType.Range
-			&& this.range.startColumn <= anchor.range.startColumn
-			&& this.range.endColumn >= anchor.range.endColumn
+	pubwic isVawidFowHovewAnchow(anchow: HovewAnchow): boowean {
+		wetuwn (
+			anchow.type === HovewAnchowType.Wange
+			&& this.wange.stawtCowumn <= anchow.wange.stawtCowumn
+			&& this.wange.endCowumn >= anchow.wange.endCowumn
 		);
 	}
 
-	public hasMultipleSuggestions(): Promise<boolean> {
-		return this.controller.hasMultipleInlineCompletions();
+	pubwic hasMuwtipweSuggestions(): Pwomise<boowean> {
+		wetuwn this.contwowwa.hasMuwtipweInwineCompwetions();
 	}
 }
 
-export class InlineCompletionsHoverParticipant implements IEditorHoverParticipant<InlineCompletionsHover> {
-	constructor(
-		private readonly _editor: ICodeEditor,
-		private readonly _hover: IEditorHover,
-		@ICommandService private readonly _commandService: ICommandService,
-		@IMenuService private readonly _menuService: IMenuService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IModeService private readonly _modeService: IModeService,
-		@IOpenerService private readonly _openerService: IOpenerService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+expowt cwass InwineCompwetionsHovewPawticipant impwements IEditowHovewPawticipant<InwineCompwetionsHova> {
+	constwuctow(
+		pwivate weadonwy _editow: ICodeEditow,
+		pwivate weadonwy _hova: IEditowHova,
+		@ICommandSewvice pwivate weadonwy _commandSewvice: ICommandSewvice,
+		@IMenuSewvice pwivate weadonwy _menuSewvice: IMenuSewvice,
+		@IContextKeySewvice pwivate weadonwy _contextKeySewvice: IContextKeySewvice,
+		@IModeSewvice pwivate weadonwy _modeSewvice: IModeSewvice,
+		@IOpenewSewvice pwivate weadonwy _openewSewvice: IOpenewSewvice,
+		@IAccessibiwitySewvice pwivate weadonwy accessibiwitySewvice: IAccessibiwitySewvice,
 	) { }
 
-	suggestHoverAnchor(mouseEvent: IEditorMouseEvent): HoverAnchor | null {
-		const controller = GhostTextController.get(this._editor);
-		if (!controller) {
-			return null;
+	suggestHovewAnchow(mouseEvent: IEditowMouseEvent): HovewAnchow | nuww {
+		const contwowwa = GhostTextContwowwa.get(this._editow);
+		if (!contwowwa) {
+			wetuwn nuww;
 		}
-		if (mouseEvent.target.type === MouseTargetType.CONTENT_VIEW_ZONE) {
-			// handle the case where the mouse is over the view zone
-			const viewZoneData = <IViewZoneData>mouseEvent.target.detail;
-			if (controller.shouldShowHoverAtViewZone(viewZoneData.viewZoneId)) {
-				return new HoverForeignElementAnchor(1000, this, Range.fromPositions(viewZoneData.positionBefore || viewZoneData.position, viewZoneData.positionBefore || viewZoneData.position));
+		if (mouseEvent.tawget.type === MouseTawgetType.CONTENT_VIEW_ZONE) {
+			// handwe the case whewe the mouse is ova the view zone
+			const viewZoneData = <IViewZoneData>mouseEvent.tawget.detaiw;
+			if (contwowwa.shouwdShowHovewAtViewZone(viewZoneData.viewZoneId)) {
+				wetuwn new HovewFoweignEwementAnchow(1000, this, Wange.fwomPositions(viewZoneData.positionBefowe || viewZoneData.position, viewZoneData.positionBefowe || viewZoneData.position));
 			}
 		}
-		if (mouseEvent.target.type === MouseTargetType.CONTENT_EMPTY && mouseEvent.target.range) {
-			// handle the case where the mouse is over the empty portion of a line following ghost text
-			if (controller.shouldShowHoverAt(mouseEvent.target.range)) {
-				return new HoverForeignElementAnchor(1000, this, mouseEvent.target.range);
+		if (mouseEvent.tawget.type === MouseTawgetType.CONTENT_EMPTY && mouseEvent.tawget.wange) {
+			// handwe the case whewe the mouse is ova the empty powtion of a wine fowwowing ghost text
+			if (contwowwa.shouwdShowHovewAt(mouseEvent.tawget.wange)) {
+				wetuwn new HovewFoweignEwementAnchow(1000, this, mouseEvent.tawget.wange);
 			}
 		}
-		if (mouseEvent.target.type === MouseTargetType.CONTENT_TEXT && mouseEvent.target.range && mouseEvent.target.detail) {
-			// handle the case where the mouse is directly over ghost text
-			const mightBeForeignElement = (<ITextContentData>mouseEvent.target.detail).mightBeForeignElement;
-			if (mightBeForeignElement && controller.shouldShowHoverAt(mouseEvent.target.range)) {
-				return new HoverForeignElementAnchor(1000, this, mouseEvent.target.range);
+		if (mouseEvent.tawget.type === MouseTawgetType.CONTENT_TEXT && mouseEvent.tawget.wange && mouseEvent.tawget.detaiw) {
+			// handwe the case whewe the mouse is diwectwy ova ghost text
+			const mightBeFoweignEwement = (<ITextContentData>mouseEvent.tawget.detaiw).mightBeFoweignEwement;
+			if (mightBeFoweignEwement && contwowwa.shouwdShowHovewAt(mouseEvent.tawget.wange)) {
+				wetuwn new HovewFoweignEwementAnchow(1000, this, mouseEvent.tawget.wange);
 			}
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): InlineCompletionsHover[] {
-		const controller = GhostTextController.get(this._editor);
-		if (controller && controller.shouldShowHoverAt(anchor.range)) {
-			return [new InlineCompletionsHover(this, anchor.range, controller)];
+	computeSync(anchow: HovewAnchow, wineDecowations: IModewDecowation[]): InwineCompwetionsHova[] {
+		const contwowwa = GhostTextContwowwa.get(this._editow);
+		if (contwowwa && contwowwa.shouwdShowHovewAt(anchow.wange)) {
+			wetuwn [new InwineCompwetionsHova(this, anchow.wange, contwowwa)];
 		}
-		return [];
+		wetuwn [];
 	}
 
-	renderHoverParts(hoverParts: InlineCompletionsHover[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable {
-		const disposableStore = new DisposableStore();
-		const part = hoverParts[0];
+	wendewHovewPawts(hovewPawts: InwineCompwetionsHova[], fwagment: DocumentFwagment, statusBaw: IEditowHovewStatusBaw): IDisposabwe {
+		const disposabweStowe = new DisposabweStowe();
+		const pawt = hovewPawts[0];
 
-		if (this.accessibilityService.isScreenReaderOptimized()) {
-			this.renderScreenReaderText(part, fragment, disposableStore);
+		if (this.accessibiwitySewvice.isScweenWeadewOptimized()) {
+			this.wendewScweenWeadewText(pawt, fwagment, disposabweStowe);
 		}
 
-		const menu = disposableStore.add(this._menuService.createMenu(
-			MenuId.InlineCompletionsActions,
-			this._contextKeyService
+		const menu = disposabweStowe.add(this._menuSewvice.cweateMenu(
+			MenuId.InwineCompwetionsActions,
+			this._contextKeySewvice
 		));
 
-		const previousAction = statusBar.addAction({
-			label: nls.localize('showNextInlineSuggestion', "Next"),
-			commandId: ShowNextInlineSuggestionAction.ID,
-			run: () => this._commandService.executeCommand(ShowNextInlineSuggestionAction.ID)
+		const pweviousAction = statusBaw.addAction({
+			wabew: nws.wocawize('showNextInwineSuggestion', "Next"),
+			commandId: ShowNextInwineSuggestionAction.ID,
+			wun: () => this._commandSewvice.executeCommand(ShowNextInwineSuggestionAction.ID)
 		});
-		const nextAction = statusBar.addAction({
-			label: nls.localize('showPreviousInlineSuggestion', "Previous"),
-			commandId: ShowPreviousInlineSuggestionAction.ID,
-			run: () => this._commandService.executeCommand(ShowPreviousInlineSuggestionAction.ID)
+		const nextAction = statusBaw.addAction({
+			wabew: nws.wocawize('showPweviousInwineSuggestion', "Pwevious"),
+			commandId: ShowPweviousInwineSuggestionAction.ID,
+			wun: () => this._commandSewvice.executeCommand(ShowPweviousInwineSuggestionAction.ID)
 		});
-		statusBar.addAction({
-			label: nls.localize('acceptInlineSuggestion', "Accept"),
-			commandId: commitInlineSuggestionAction.id,
-			run: () => this._commandService.executeCommand(commitInlineSuggestionAction.id)
+		statusBaw.addAction({
+			wabew: nws.wocawize('acceptInwineSuggestion', "Accept"),
+			commandId: commitInwineSuggestionAction.id,
+			wun: () => this._commandSewvice.executeCommand(commitInwineSuggestionAction.id)
 		});
 
-		const actions = [previousAction, nextAction];
-		for (const action of actions) {
-			action.setEnabled(false);
+		const actions = [pweviousAction, nextAction];
+		fow (const action of actions) {
+			action.setEnabwed(fawse);
 		}
-		part.hasMultipleSuggestions().then(hasMore => {
-			for (const action of actions) {
-				action.setEnabled(hasMore);
+		pawt.hasMuwtipweSuggestions().then(hasMowe => {
+			fow (const action of actions) {
+				action.setEnabwed(hasMowe);
 			}
 		});
 
-		for (const [_, group] of menu.getActions()) {
-			for (const action of group) {
+		fow (const [_, gwoup] of menu.getActions()) {
+			fow (const action of gwoup) {
 				if (action instanceof MenuItemAction) {
-					statusBar.addAction({
-						label: action.label,
+					statusBaw.addAction({
+						wabew: action.wabew,
 						commandId: action.item.id,
-						run: () => this._commandService.executeCommand(action.item.id)
+						wun: () => this._commandSewvice.executeCommand(action.item.id)
 					});
 				}
 			}
 		}
 
-		return disposableStore;
+		wetuwn disposabweStowe;
 	}
 
-	private renderScreenReaderText(part: InlineCompletionsHover, fragment: DocumentFragment, disposableStore: DisposableStore) {
+	pwivate wendewScweenWeadewText(pawt: InwineCompwetionsHova, fwagment: DocumentFwagment, disposabweStowe: DisposabweStowe) {
 		const $ = dom.$;
-		const markdownHoverElement = $('div.hover-row.markdown-hover');
-		const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
-		const renderer = disposableStore.add(new MarkdownRenderer({ editor: this._editor }, this._modeService, this._openerService));
-		const render = (code: string) => {
-			disposableStore.add(renderer.onDidRenderAsync(() => {
-				hoverContentsElement.className = 'hover-contents code-hover-contents';
-				this._hover.onContentsChanged();
+		const mawkdownHovewEwement = $('div.hova-wow.mawkdown-hova');
+		const hovewContentsEwement = dom.append(mawkdownHovewEwement, $('div.hova-contents'));
+		const wendewa = disposabweStowe.add(new MawkdownWendewa({ editow: this._editow }, this._modeSewvice, this._openewSewvice));
+		const wenda = (code: stwing) => {
+			disposabweStowe.add(wendewa.onDidWendewAsync(() => {
+				hovewContentsEwement.cwassName = 'hova-contents code-hova-contents';
+				this._hova.onContentsChanged();
 			}));
 
-			const inlineSuggestionAvailable = nls.localize('inlineSuggestionFollows', "Suggestion:");
-			const renderedContents = disposableStore.add(renderer.render(new MarkdownString().appendText(inlineSuggestionAvailable).appendCodeblock('text', code)));
-			hoverContentsElement.replaceChildren(renderedContents.element);
+			const inwineSuggestionAvaiwabwe = nws.wocawize('inwineSuggestionFowwows', "Suggestion:");
+			const wendewedContents = disposabweStowe.add(wendewa.wenda(new MawkdownStwing().appendText(inwineSuggestionAvaiwabwe).appendCodebwock('text', code)));
+			hovewContentsEwement.wepwaceChiwdwen(wendewedContents.ewement);
 		};
 
-		const ghostText = part.controller.activeModel?.inlineCompletionsModel?.ghostText;
+		const ghostText = pawt.contwowwa.activeModew?.inwineCompwetionsModew?.ghostText;
 		if (ghostText) {
-			const lineText = this._editor.getModel()!.getLineContent(ghostText.lineNumber);
-			render(ghostText.renderForScreenReader(lineText));
+			const wineText = this._editow.getModew()!.getWineContent(ghostText.wineNumba);
+			wenda(ghostText.wendewFowScweenWeada(wineText));
 		}
-		fragment.appendChild(markdownHoverElement);
+		fwagment.appendChiwd(mawkdownHovewEwement);
 	}
 }

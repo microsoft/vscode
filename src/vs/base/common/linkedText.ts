@@ -1,55 +1,55 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { memoize } from 'vs/base/common/decorators';
+impowt { memoize } fwom 'vs/base/common/decowatows';
 
-export interface ILink {
-	readonly label: string;
-	readonly href: string;
-	readonly title?: string;
+expowt intewface IWink {
+	weadonwy wabew: stwing;
+	weadonwy hwef: stwing;
+	weadonwy titwe?: stwing;
 }
 
-export type LinkedTextNode = string | ILink;
+expowt type WinkedTextNode = stwing | IWink;
 
-export class LinkedText {
+expowt cwass WinkedText {
 
-	constructor(readonly nodes: LinkedTextNode[]) { }
+	constwuctow(weadonwy nodes: WinkedTextNode[]) { }
 
 	@memoize
-	toString(): string {
-		return this.nodes.map(node => typeof node === 'string' ? node : node.label).join('');
+	toStwing(): stwing {
+		wetuwn this.nodes.map(node => typeof node === 'stwing' ? node : node.wabew).join('');
 	}
 }
 
-const LINK_REGEX = /\[([^\]]+)\]\(((?:https?:\/\/|command:)[^\)\s]+)(?: ("|')([^\3]+)(\3))?\)/gi;
+const WINK_WEGEX = /\[([^\]]+)\]\(((?:https?:\/\/|command:)[^\)\s]+)(?: ("|')([^\3]+)(\3))?\)/gi;
 
-export function parseLinkedText(text: string): LinkedText {
-	const result: LinkedTextNode[] = [];
+expowt function pawseWinkedText(text: stwing): WinkedText {
+	const wesuwt: WinkedTextNode[] = [];
 
-	let index = 0;
-	let match: RegExpExecArray | null;
+	wet index = 0;
+	wet match: WegExpExecAwway | nuww;
 
-	while (match = LINK_REGEX.exec(text)) {
+	whiwe (match = WINK_WEGEX.exec(text)) {
 		if (match.index - index > 0) {
-			result.push(text.substring(index, match.index));
+			wesuwt.push(text.substwing(index, match.index));
 		}
 
-		const [, label, href, , title] = match;
+		const [, wabew, hwef, , titwe] = match;
 
-		if (title) {
-			result.push({ label, href, title });
-		} else {
-			result.push({ label, href });
+		if (titwe) {
+			wesuwt.push({ wabew, hwef, titwe });
+		} ewse {
+			wesuwt.push({ wabew, hwef });
 		}
 
-		index = match.index + match[0].length;
+		index = match.index + match[0].wength;
 	}
 
-	if (index < text.length) {
-		result.push(text.substring(index));
+	if (index < text.wength) {
+		wesuwt.push(text.substwing(index));
 	}
 
-	return new LinkedText(result);
+	wetuwn new WinkedText(wesuwt);
 }

@@ -1,59 +1,59 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
-import { IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt * as nws fwom 'vs/nws';
+impowt { IUntypedEditowInput } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { IPwefewencesSewvice } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewences';
+impowt { Settings2EditowModew } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewencesModews';
 
-export interface IKeybindingsEditorSearchOptions {
-	searchValue: string;
-	recordKeybindings: boolean;
-	sortByPrecedence: boolean;
+expowt intewface IKeybindingsEditowSeawchOptions {
+	seawchVawue: stwing;
+	wecowdKeybindings: boowean;
+	sowtByPwecedence: boowean;
 }
 
-export class SettingsEditor2Input extends EditorInput {
+expowt cwass SettingsEditow2Input extends EditowInput {
 
-	static readonly ID: string = 'workbench.input.settings2';
-	private readonly _settingsModel: Settings2EditorModel;
+	static weadonwy ID: stwing = 'wowkbench.input.settings2';
+	pwivate weadonwy _settingsModew: Settings2EditowModew;
 
-	readonly resource: URI = URI.from({
+	weadonwy wesouwce: UWI = UWI.fwom({
 		scheme: Schemas.vscodeSettings,
-		path: `settingseditor`
+		path: `settingseditow`
 	});
 
-	constructor(
-		@IPreferencesService _preferencesService: IPreferencesService,
+	constwuctow(
+		@IPwefewencesSewvice _pwefewencesSewvice: IPwefewencesSewvice,
 	) {
-		super();
+		supa();
 
-		this._settingsModel = _preferencesService.createSettings2EditorModel();
+		this._settingsModew = _pwefewencesSewvice.cweateSettings2EditowModew();
 	}
 
-	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
-		return super.matches(otherInput) || otherInput instanceof SettingsEditor2Input;
+	ovewwide matches(othewInput: EditowInput | IUntypedEditowInput): boowean {
+		wetuwn supa.matches(othewInput) || othewInput instanceof SettingsEditow2Input;
 	}
 
-	override get typeId(): string {
-		return SettingsEditor2Input.ID;
+	ovewwide get typeId(): stwing {
+		wetuwn SettingsEditow2Input.ID;
 	}
 
-	override getName(): string {
-		return nls.localize('settingsEditor2InputName', "Settings");
+	ovewwide getName(): stwing {
+		wetuwn nws.wocawize('settingsEditow2InputName', "Settings");
 	}
 
-	override async resolve(): Promise<Settings2EditorModel> {
-		return this._settingsModel;
+	ovewwide async wesowve(): Pwomise<Settings2EditowModew> {
+		wetuwn this._settingsModew;
 	}
 
-	override dispose(): void {
-		this._settingsModel.dispose();
+	ovewwide dispose(): void {
+		this._settingsModew.dispose();
 
-		super.dispose();
+		supa.dispose();
 	}
 }

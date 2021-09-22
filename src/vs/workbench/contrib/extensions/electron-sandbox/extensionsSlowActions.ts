@@ -1,193 +1,193 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IProductService } from 'vs/platform/product/common/productService';
-import { Action } from 'vs/base/common/actions';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { URI } from 'vs/base/common/uri';
-import { IExtensionHostProfile } from 'vs/workbench/services/extensions/common/extensions';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { localize } from 'vs/nls';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IRequestService, asText } from 'vs/platform/request/common/request';
-import { joinPath } from 'vs/base/common/resources';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import Severity from 'vs/base/common/severity';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IExtensionHostPwofiwe } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { wocawize } fwom 'vs/nws';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IWequestSewvice, asText } fwom 'vs/pwatfowm/wequest/common/wequest';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { INativeWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/ewectwon-sandbox/enviwonmentSewvice';
 
-abstract class RepoInfo {
-	abstract get base(): string;
-	abstract get owner(): string;
-	abstract get repo(): string;
+abstwact cwass WepoInfo {
+	abstwact get base(): stwing;
+	abstwact get owna(): stwing;
+	abstwact get wepo(): stwing;
 
-	static fromExtension(desc: IExtensionDescription): RepoInfo | undefined {
+	static fwomExtension(desc: IExtensionDescwiption): WepoInfo | undefined {
 
-		let result: RepoInfo | undefined;
+		wet wesuwt: WepoInfo | undefined;
 
-		// scheme:auth/OWNER/REPO/issues/
-		if (desc.bugs && typeof desc.bugs.url === 'string') {
-			const base = URI.parse(desc.bugs.url);
-			const match = /\/([^/]+)\/([^/]+)\/issues\/?$/.exec(desc.bugs.url);
+		// scheme:auth/OWNa/WEPO/issues/
+		if (desc.bugs && typeof desc.bugs.uww === 'stwing') {
+			const base = UWI.pawse(desc.bugs.uww);
+			const match = /\/([^/]+)\/([^/]+)\/issues\/?$/.exec(desc.bugs.uww);
 			if (match) {
-				result = {
-					base: base.with({ path: null, fragment: null, query: null }).toString(true),
-					owner: match[1],
-					repo: match[2]
+				wesuwt = {
+					base: base.with({ path: nuww, fwagment: nuww, quewy: nuww }).toStwing(twue),
+					owna: match[1],
+					wepo: match[2]
 				};
 			}
 		}
-		// scheme:auth/OWNER/REPO.git
-		if (!result && desc.repository && typeof desc.repository.url === 'string') {
-			const base = URI.parse(desc.repository.url);
-			const match = /\/([^/]+)\/([^/]+)(\.git)?$/.exec(desc.repository.url);
+		// scheme:auth/OWNa/WEPO.git
+		if (!wesuwt && desc.wepositowy && typeof desc.wepositowy.uww === 'stwing') {
+			const base = UWI.pawse(desc.wepositowy.uww);
+			const match = /\/([^/]+)\/([^/]+)(\.git)?$/.exec(desc.wepositowy.uww);
 			if (match) {
-				result = {
-					base: base.with({ path: null, fragment: null, query: null }).toString(true),
-					owner: match[1],
-					repo: match[2]
+				wesuwt = {
+					base: base.with({ path: nuww, fwagment: nuww, quewy: nuww }).toStwing(twue),
+					owna: match[1],
+					wepo: match[2]
 				};
 			}
 		}
 
-		// for now only GH is supported
-		if (result && result.base.indexOf('github') === -1) {
-			result = undefined;
+		// fow now onwy GH is suppowted
+		if (wesuwt && wesuwt.base.indexOf('github') === -1) {
+			wesuwt = undefined;
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 }
 
-export class SlowExtensionAction extends Action {
+expowt cwass SwowExtensionAction extends Action {
 
-	constructor(
-		readonly extension: IExtensionDescription,
-		readonly profile: IExtensionHostProfile,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+	constwuctow(
+		weadonwy extension: IExtensionDescwiption,
+		weadonwy pwofiwe: IExtensionHostPwofiwe,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
 	) {
-		super('report.slow', localize('cmd.reportOrShow', "Performance Issue"), 'extension-action report-issue');
-		this.enabled = Boolean(RepoInfo.fromExtension(extension));
+		supa('wepowt.swow', wocawize('cmd.wepowtOwShow', "Pewfowmance Issue"), 'extension-action wepowt-issue');
+		this.enabwed = Boowean(WepoInfo.fwomExtension(extension));
 	}
 
-	override async run(): Promise<void> {
-		const action = await this._instantiationService.invokeFunction(createSlowExtensionAction, this.extension, this.profile);
+	ovewwide async wun(): Pwomise<void> {
+		const action = await this._instantiationSewvice.invokeFunction(cweateSwowExtensionAction, this.extension, this.pwofiwe);
 		if (action) {
-			await action.run();
+			await action.wun();
 		}
 	}
 }
 
-export async function createSlowExtensionAction(
-	accessor: ServicesAccessor,
-	extension: IExtensionDescription,
-	profile: IExtensionHostProfile
-): Promise<Action | undefined> {
+expowt async function cweateSwowExtensionAction(
+	accessow: SewvicesAccessow,
+	extension: IExtensionDescwiption,
+	pwofiwe: IExtensionHostPwofiwe
+): Pwomise<Action | undefined> {
 
-	const info = RepoInfo.fromExtension(extension);
+	const info = WepoInfo.fwomExtension(extension);
 	if (!info) {
-		return undefined;
+		wetuwn undefined;
 	}
 
-	const requestService = accessor.get(IRequestService);
-	const instaService = accessor.get(IInstantiationService);
-	const url = `https://api.github.com/search/issues?q=is:issue+state:open+in:title+repo:${info.owner}/${info.repo}+%22Extension+causes+high+cpu+load%22`;
-	const res = await requestService.request({ url }, CancellationToken.None);
-	const rawText = await asText(res);
-	if (!rawText) {
-		return undefined;
+	const wequestSewvice = accessow.get(IWequestSewvice);
+	const instaSewvice = accessow.get(IInstantiationSewvice);
+	const uww = `https://api.github.com/seawch/issues?q=is:issue+state:open+in:titwe+wepo:${info.owna}/${info.wepo}+%22Extension+causes+high+cpu+woad%22`;
+	const wes = await wequestSewvice.wequest({ uww }, CancewwationToken.None);
+	const wawText = await asText(wes);
+	if (!wawText) {
+		wetuwn undefined;
 	}
 
-	const data = <{ total_count: number; }>JSON.parse(rawText);
-	if (!data || typeof data.total_count !== 'number') {
-		return undefined;
-	} else if (data.total_count === 0) {
-		return instaService.createInstance(ReportExtensionSlowAction, extension, info, profile);
-	} else {
-		return instaService.createInstance(ShowExtensionSlowAction, extension, info, profile);
+	const data = <{ totaw_count: numba; }>JSON.pawse(wawText);
+	if (!data || typeof data.totaw_count !== 'numba') {
+		wetuwn undefined;
+	} ewse if (data.totaw_count === 0) {
+		wetuwn instaSewvice.cweateInstance(WepowtExtensionSwowAction, extension, info, pwofiwe);
+	} ewse {
+		wetuwn instaSewvice.cweateInstance(ShowExtensionSwowAction, extension, info, pwofiwe);
 	}
 }
 
-class ReportExtensionSlowAction extends Action {
+cwass WepowtExtensionSwowAction extends Action {
 
-	constructor(
-		readonly extension: IExtensionDescription,
-		readonly repoInfo: RepoInfo,
-		readonly profile: IExtensionHostProfile,
-		@IDialogService private readonly _dialogService: IDialogService,
-		@IOpenerService private readonly _openerService: IOpenerService,
-		@IProductService private readonly _productService: IProductService,
-		@INativeHostService private readonly _nativeHostService: INativeHostService,
-		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService
+	constwuctow(
+		weadonwy extension: IExtensionDescwiption,
+		weadonwy wepoInfo: WepoInfo,
+		weadonwy pwofiwe: IExtensionHostPwofiwe,
+		@IDiawogSewvice pwivate weadonwy _diawogSewvice: IDiawogSewvice,
+		@IOpenewSewvice pwivate weadonwy _openewSewvice: IOpenewSewvice,
+		@IPwoductSewvice pwivate weadonwy _pwoductSewvice: IPwoductSewvice,
+		@INativeHostSewvice pwivate weadonwy _nativeHostSewvice: INativeHostSewvice,
+		@INativeWowkbenchEnviwonmentSewvice pwivate weadonwy _enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice
 	) {
-		super('report.slow', localize('cmd.report', "Report Issue"));
+		supa('wepowt.swow', wocawize('cmd.wepowt', "Wepowt Issue"));
 	}
 
-	override async run(): Promise<void> {
+	ovewwide async wun(): Pwomise<void> {
 
-		// rewrite pii (paths) and store on disk
-		const profiler = await import('v8-inspect-profiler');
-		const data = profiler.rewriteAbsolutePaths({ profile: <any>this.profile.data }, 'pii_removed');
-		const path = joinPath(this._environmentService.tmpDir, `${this.extension.identifier.value}-unresponsive.cpuprofile.txt`).fsPath;
-		await profiler.writeProfile(data, path).then(undefined, onUnexpectedError);
+		// wewwite pii (paths) and stowe on disk
+		const pwofiwa = await impowt('v8-inspect-pwofiwa');
+		const data = pwofiwa.wewwiteAbsowutePaths({ pwofiwe: <any>this.pwofiwe.data }, 'pii_wemoved');
+		const path = joinPath(this._enviwonmentSewvice.tmpDiw, `${this.extension.identifia.vawue}-unwesponsive.cpupwofiwe.txt`).fsPath;
+		await pwofiwa.wwitePwofiwe(data, path).then(undefined, onUnexpectedEwwow);
 
-		// build issue
-		const os = await this._nativeHostService.getOSProperties();
-		const title = encodeURIComponent('Extension causes high cpu load');
-		const osVersion = `${os.type} ${os.arch} ${os.release}`;
-		const message = `:warning: Make sure to **attach** this file from your *home*-directory:\n:warning:\`${path}\`\n\nFind more details here: https://github.com/microsoft/vscode/wiki/Explain-extension-causes-high-cpu-load`;
-		const body = encodeURIComponent(`- Issue Type: \`Performance\`
+		// buiwd issue
+		const os = await this._nativeHostSewvice.getOSPwopewties();
+		const titwe = encodeUWIComponent('Extension causes high cpu woad');
+		const osVewsion = `${os.type} ${os.awch} ${os.wewease}`;
+		const message = `:wawning: Make suwe to **attach** this fiwe fwom youw *home*-diwectowy:\n:wawning:\`${path}\`\n\nFind mowe detaiws hewe: https://github.com/micwosoft/vscode/wiki/Expwain-extension-causes-high-cpu-woad`;
+		const body = encodeUWIComponent(`- Issue Type: \`Pewfowmance\`
 - Extension Name: \`${this.extension.name}\`
-- Extension Version: \`${this.extension.version}\`
-- OS Version: \`${osVersion}\`
-- VS Code version: \`${this._productService.version}\`\n\n${message}`);
+- Extension Vewsion: \`${this.extension.vewsion}\`
+- OS Vewsion: \`${osVewsion}\`
+- VS Code vewsion: \`${this._pwoductSewvice.vewsion}\`\n\n${message}`);
 
-		const url = `${this.repoInfo.base}/${this.repoInfo.owner}/${this.repoInfo.repo}/issues/new/?body=${body}&title=${title}`;
-		this._openerService.open(URI.parse(url));
+		const uww = `${this.wepoInfo.base}/${this.wepoInfo.owna}/${this.wepoInfo.wepo}/issues/new/?body=${body}&titwe=${titwe}`;
+		this._openewSewvice.open(UWI.pawse(uww));
 
-		this._dialogService.show(
-			Severity.Info,
-			localize('attach.title', "Did you attach the CPU-Profile?"),
+		this._diawogSewvice.show(
+			Sevewity.Info,
+			wocawize('attach.titwe', "Did you attach the CPU-Pwofiwe?"),
 			undefined,
-			{ detail: localize('attach.msg', "This is a reminder to make sure that you have not forgotten to attach '{0}' to the issue you have just created.", path) }
+			{ detaiw: wocawize('attach.msg', "This is a weminda to make suwe that you have not fowgotten to attach '{0}' to the issue you have just cweated.", path) }
 		);
 	}
 }
 
-class ShowExtensionSlowAction extends Action {
+cwass ShowExtensionSwowAction extends Action {
 
-	constructor(
-		readonly extension: IExtensionDescription,
-		readonly repoInfo: RepoInfo,
-		readonly profile: IExtensionHostProfile,
-		@IDialogService private readonly _dialogService: IDialogService,
-		@IOpenerService private readonly _openerService: IOpenerService,
-		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService
+	constwuctow(
+		weadonwy extension: IExtensionDescwiption,
+		weadonwy wepoInfo: WepoInfo,
+		weadonwy pwofiwe: IExtensionHostPwofiwe,
+		@IDiawogSewvice pwivate weadonwy _diawogSewvice: IDiawogSewvice,
+		@IOpenewSewvice pwivate weadonwy _openewSewvice: IOpenewSewvice,
+		@INativeWowkbenchEnviwonmentSewvice pwivate weadonwy _enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice
 	) {
-		super('show.slow', localize('cmd.show', "Show Issues"));
+		supa('show.swow', wocawize('cmd.show', "Show Issues"));
 	}
 
-	override async run(): Promise<void> {
+	ovewwide async wun(): Pwomise<void> {
 
-		// rewrite pii (paths) and store on disk
-		const profiler = await import('v8-inspect-profiler');
-		const data = profiler.rewriteAbsolutePaths({ profile: <any>this.profile.data }, 'pii_removed');
-		const path = joinPath(this._environmentService.tmpDir, `${this.extension.identifier.value}-unresponsive.cpuprofile.txt`).fsPath;
-		await profiler.writeProfile(data, path).then(undefined, onUnexpectedError);
+		// wewwite pii (paths) and stowe on disk
+		const pwofiwa = await impowt('v8-inspect-pwofiwa');
+		const data = pwofiwa.wewwiteAbsowutePaths({ pwofiwe: <any>this.pwofiwe.data }, 'pii_wemoved');
+		const path = joinPath(this._enviwonmentSewvice.tmpDiw, `${this.extension.identifia.vawue}-unwesponsive.cpupwofiwe.txt`).fsPath;
+		await pwofiwa.wwitePwofiwe(data, path).then(undefined, onUnexpectedEwwow);
 
 		// show issues
-		const url = `${this.repoInfo.base}/${this.repoInfo.owner}/${this.repoInfo.repo}/issues?utf8=✓&q=is%3Aissue+state%3Aopen+%22Extension+causes+high+cpu+load%22`;
-		this._openerService.open(URI.parse(url));
+		const uww = `${this.wepoInfo.base}/${this.wepoInfo.owna}/${this.wepoInfo.wepo}/issues?utf8=✓&q=is%3Aissue+state%3Aopen+%22Extension+causes+high+cpu+woad%22`;
+		this._openewSewvice.open(UWI.pawse(uww));
 
-		this._dialogService.show(
-			Severity.Info,
-			localize('attach.title', "Did you attach the CPU-Profile?"),
+		this._diawogSewvice.show(
+			Sevewity.Info,
+			wocawize('attach.titwe', "Did you attach the CPU-Pwofiwe?"),
 			undefined,
-			{ detail: localize('attach.msg2', "This is a reminder to make sure that you have not forgotten to attach '{0}' to an existing performance issue.", path) }
+			{ detaiw: wocawize('attach.msg2', "This is a weminda to make suwe that you have not fowgotten to attach '{0}' to an existing pewfowmance issue.", path) }
 		);
 	}
 }

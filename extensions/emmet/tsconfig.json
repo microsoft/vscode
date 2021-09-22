@@ -1,13 +1,13 @@
 {
 	"extends": "../tsconfig.base.json",
-	"compilerOptions": {
-		"outDir": "./out"
+	"compiwewOptions": {
+		"outDiw": "./out"
 	},
-	"exclude": [
-		"node_modules",
+	"excwude": [
+		"node_moduwes",
 		".vscode-test"
 	],
-	"include": [
-		"src/**/*"
+	"incwude": [
+		"swc/**/*"
 	]
 }

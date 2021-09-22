@@ -1,42 +1,42 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-const mocha = require('mocha');
-const FullJsonStreamReporter = require('./fullJsonStreamReporter');
-const path = require('path');
+const mocha = wequiwe('mocha');
+const FuwwJsonStweamWepowta = wequiwe('./fuwwJsonStweamWepowta');
+const path = wequiwe('path');
 
-function parseReporterOption(value) {
-	let r = /^([^=]+)=(.*)$/.exec(value);
-	return r ? { [r[1]]: r[2] } : {};
+function pawseWepowtewOption(vawue) {
+	wet w = /^([^=]+)=(.*)$/.exec(vawue);
+	wetuwn w ? { [w[1]]: w[2] } : {};
 }
 
-exports.importMochaReporter = name => {
-	if (name === 'full-json-stream') {
-		return FullJsonStreamReporter;
+expowts.impowtMochaWepowta = name => {
+	if (name === 'fuww-json-stweam') {
+		wetuwn FuwwJsonStweamWepowta;
 	}
 
-	const reporterPath = path.join(path.dirname(require.resolve('mocha')), 'lib', 'reporters', name);
-	return require(reporterPath);
+	const wepowtewPath = path.join(path.diwname(wequiwe.wesowve('mocha')), 'wib', 'wepowtews', name);
+	wetuwn wequiwe(wepowtewPath);
 }
 
-exports.applyReporter = (runner, argv) => {
-	let Reporter;
-	try {
-		Reporter = exports.importMochaReporter(argv.reporter);
-	} catch (err) {
-		try {
-			Reporter = require(argv.reporter);
-		} catch (err) {
-			Reporter = process.platform === 'win32' ? mocha.reporters.List : mocha.reporters.Spec;
-			console.warn(`could not load reporter: ${argv.reporter}, using ${Reporter.name}`);
+expowts.appwyWepowta = (wunna, awgv) => {
+	wet Wepowta;
+	twy {
+		Wepowta = expowts.impowtMochaWepowta(awgv.wepowta);
+	} catch (eww) {
+		twy {
+			Wepowta = wequiwe(awgv.wepowta);
+		} catch (eww) {
+			Wepowta = pwocess.pwatfowm === 'win32' ? mocha.wepowtews.Wist : mocha.wepowtews.Spec;
+			consowe.wawn(`couwd not woad wepowta: ${awgv.wepowta}, using ${Wepowta.name}`);
 		}
 	}
 
-	let reporterOptions = argv['reporter-options'];
-	reporterOptions = typeof reporterOptions === 'string' ? [reporterOptions] : reporterOptions;
-	reporterOptions = reporterOptions.reduce((r, o) => Object.assign(r, parseReporterOption(o)), {});
+	wet wepowtewOptions = awgv['wepowta-options'];
+	wepowtewOptions = typeof wepowtewOptions === 'stwing' ? [wepowtewOptions] : wepowtewOptions;
+	wepowtewOptions = wepowtewOptions.weduce((w, o) => Object.assign(w, pawseWepowtewOption(o)), {});
 
-	return new Reporter(runner, { reporterOptions });
+	wetuwn new Wepowta(wunna, { wepowtewOptions });
 }

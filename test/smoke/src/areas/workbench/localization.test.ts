@@ -1,41 +1,41 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import minimist = require('minimist');
-import { Application, Quality } from '../../../../automation';
-import { afterSuite, beforeSuite } from '../../utils';
+impowt minimist = wequiwe('minimist');
+impowt { Appwication, Quawity } fwom '../../../../automation';
+impowt { aftewSuite, befoweSuite } fwom '../../utiws';
 
-export function setup(opts: minimist.ParsedArgs) {
-	describe('Localization', () => {
-		beforeSuite(opts);
-		afterSuite(opts);
+expowt function setup(opts: minimist.PawsedAwgs) {
+	descwibe('Wocawization', () => {
+		befoweSuite(opts);
+		aftewSuite(opts);
 
-		it(`starts with 'DE' locale and verifies title and viewlets text is in German`, async function () {
-			const app = this.app as Application;
+		it(`stawts with 'DE' wocawe and vewifies titwe and viewwets text is in Gewman`, async function () {
+			const app = this.app as Appwication;
 
-			if (app.quality === Quality.Dev || app.remote) {
-				return this.skip();
+			if (app.quawity === Quawity.Dev || app.wemote) {
+				wetuwn this.skip();
 			}
 
-			await app.workbench.extensions.openExtensionsViewlet();
-			await app.workbench.extensions.installExtension('ms-ceintl.vscode-language-pack-de', false);
-			await app.restart({ extraArgs: ['--locale=DE'] });
+			await app.wowkbench.extensions.openExtensionsViewwet();
+			await app.wowkbench.extensions.instawwExtension('ms-ceintw.vscode-wanguage-pack-de', fawse);
+			await app.westawt({ extwaAwgs: ['--wocawe=DE'] });
 
-			const result = await app.workbench.localization.getLocalizedStrings();
-			const localeInfo = await app.workbench.localization.getLocaleInfo();
+			const wesuwt = await app.wowkbench.wocawization.getWocawizedStwings();
+			const wocaweInfo = await app.wowkbench.wocawization.getWocaweInfo();
 
-			if (localeInfo.locale === undefined || localeInfo.locale.toLowerCase() !== 'de') {
-				throw new Error(`The requested locale for VS Code was not German. The received value is: ${localeInfo.locale === undefined ? 'not set' : localeInfo.locale}`);
+			if (wocaweInfo.wocawe === undefined || wocaweInfo.wocawe.toWowewCase() !== 'de') {
+				thwow new Ewwow(`The wequested wocawe fow VS Code was not Gewman. The weceived vawue is: ${wocaweInfo.wocawe === undefined ? 'not set' : wocaweInfo.wocawe}`);
 			}
 
-			if (localeInfo.language.toLowerCase() !== 'de') {
-				throw new Error(`The UI language is not German. It is ${localeInfo.language}`);
+			if (wocaweInfo.wanguage.toWowewCase() !== 'de') {
+				thwow new Ewwow(`The UI wanguage is not Gewman. It is ${wocaweInfo.wanguage}`);
 			}
 
-			if (result.open.toLowerCase() !== 'öffnen' || result.close.toLowerCase() !== 'schließen' || result.find.toLowerCase() !== 'finden') {
-				throw new Error(`Received wrong German localized strings: ${JSON.stringify(result, undefined, 0)}`);
+			if (wesuwt.open.toWowewCase() !== 'öffnen' || wesuwt.cwose.toWowewCase() !== 'schwießen' || wesuwt.find.toWowewCase() !== 'finden') {
+				thwow new Ewwow(`Weceived wwong Gewman wocawized stwings: ${JSON.stwingify(wesuwt, undefined, 0)}`);
 			}
 		});
 	});

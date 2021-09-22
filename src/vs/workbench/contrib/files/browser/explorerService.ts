@@ -1,401 +1,401 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IFilesConfiguration, ISortOrderConfiguration, SortOrder, LexicographicOptions } from 'vs/workbench/contrib/files/common/files';
-import { ExplorerItem, ExplorerModel } from 'vs/workbench/contrib/files/common/explorerModel';
-import { URI } from 'vs/base/common/uri';
-import { FileOperationEvent, FileOperation, IFileService, FileChangesEvent, FileChangeType, IResolveFileOptions } from 'vs/platform/files/common/files';
-import { dirname, basename } from 'vs/base/common/resources';
-import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditableData } from 'vs/workbench/common/views';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { IBulkEditService, ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
-import { UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
-import { IExplorerView, IExplorerService } from 'vs/workbench/contrib/files/browser/files';
-import { IProgressService, ProgressLocation, IProgressNotificationOptions, IProgressCompositeOptions } from 'vs/platform/progress/common/progress';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { IFiwesConfiguwation, ISowtOwdewConfiguwation, SowtOwda, WexicogwaphicOptions } fwom 'vs/wowkbench/contwib/fiwes/common/fiwes';
+impowt { ExpwowewItem, ExpwowewModew } fwom 'vs/wowkbench/contwib/fiwes/common/expwowewModew';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { FiweOpewationEvent, FiweOpewation, IFiweSewvice, FiweChangesEvent, FiweChangeType, IWesowveFiweOptions } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { diwname, basename } fwom 'vs/base/common/wesouwces';
+impowt { IConfiguwationSewvice, IConfiguwationChangeEvent } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IEditabweData } fwom 'vs/wowkbench/common/views';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { IBuwkEditSewvice, WesouwceFiweEdit } fwom 'vs/editow/bwowsa/sewvices/buwkEditSewvice';
+impowt { UndoWedoSouwce } fwom 'vs/pwatfowm/undoWedo/common/undoWedo';
+impowt { IExpwowewView, IExpwowewSewvice } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/fiwes';
+impowt { IPwogwessSewvice, PwogwessWocation, IPwogwessNotificationOptions, IPwogwessCompositeOptions } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
 
-export const UNDO_REDO_SOURCE = new UndoRedoSource();
+expowt const UNDO_WEDO_SOUWCE = new UndoWedoSouwce();
 
-export class ExplorerService implements IExplorerService {
-	declare readonly _serviceBrand: undefined;
+expowt cwass ExpwowewSewvice impwements IExpwowewSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private static readonly EXPLORER_FILE_CHANGES_REACT_DELAY = 500; // delay in ms to react to file changes to give our internal events a chance to react first
+	pwivate static weadonwy EXPWOWEW_FIWE_CHANGES_WEACT_DEWAY = 500; // deway in ms to weact to fiwe changes to give ouw intewnaw events a chance to weact fiwst
 
-	private readonly disposables = new DisposableStore();
-	private editable: { stat: ExplorerItem, data: IEditableData } | undefined;
-	private _sortOrder: SortOrder;
-	private _lexicographicOptions: LexicographicOptions;
-	private cutItems: ExplorerItem[] | undefined;
-	private view: IExplorerView | undefined;
-	private model: ExplorerModel;
-	private onFileChangesScheduler: RunOnceScheduler;
-	private fileChangeEvents: FileChangesEvent[] = [];
+	pwivate weadonwy disposabwes = new DisposabweStowe();
+	pwivate editabwe: { stat: ExpwowewItem, data: IEditabweData } | undefined;
+	pwivate _sowtOwda: SowtOwda;
+	pwivate _wexicogwaphicOptions: WexicogwaphicOptions;
+	pwivate cutItems: ExpwowewItem[] | undefined;
+	pwivate view: IExpwowewView | undefined;
+	pwivate modew: ExpwowewModew;
+	pwivate onFiweChangesScheduwa: WunOnceScheduwa;
+	pwivate fiweChangeEvents: FiweChangesEvent[] = [];
 
-	constructor(
-		@IFileService private fileService: IFileService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IClipboardService private clipboardService: IClipboardService,
-		@IEditorService private editorService: IEditorService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IBulkEditService private readonly bulkEditService: IBulkEditService,
-		@IProgressService private readonly progressService: IProgressService,
-		@IHostService hostService: IHostService
+	constwuctow(
+		@IFiweSewvice pwivate fiweSewvice: IFiweSewvice,
+		@IConfiguwationSewvice pwivate configuwationSewvice: IConfiguwationSewvice,
+		@IWowkspaceContextSewvice pwivate contextSewvice: IWowkspaceContextSewvice,
+		@ICwipboawdSewvice pwivate cwipboawdSewvice: ICwipboawdSewvice,
+		@IEditowSewvice pwivate editowSewvice: IEditowSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice,
+		@IBuwkEditSewvice pwivate weadonwy buwkEditSewvice: IBuwkEditSewvice,
+		@IPwogwessSewvice pwivate weadonwy pwogwessSewvice: IPwogwessSewvice,
+		@IHostSewvice hostSewvice: IHostSewvice
 	) {
-		this._sortOrder = this.configurationService.getValue('explorer.sortOrder');
-		this._lexicographicOptions = this.configurationService.getValue('explorer.sortOrderLexicographicOptions');
+		this._sowtOwda = this.configuwationSewvice.getVawue('expwowa.sowtOwda');
+		this._wexicogwaphicOptions = this.configuwationSewvice.getVawue('expwowa.sowtOwdewWexicogwaphicOptions');
 
-		this.model = new ExplorerModel(this.contextService, this.uriIdentityService, this.fileService);
-		this.disposables.add(this.model);
-		this.disposables.add(this.fileService.onDidRunOperation(e => this.onDidRunOperation(e)));
+		this.modew = new ExpwowewModew(this.contextSewvice, this.uwiIdentitySewvice, this.fiweSewvice);
+		this.disposabwes.add(this.modew);
+		this.disposabwes.add(this.fiweSewvice.onDidWunOpewation(e => this.onDidWunOpewation(e)));
 
-		this.onFileChangesScheduler = new RunOnceScheduler(async () => {
-			const events = this.fileChangeEvents;
-			this.fileChangeEvents = [];
+		this.onFiweChangesScheduwa = new WunOnceScheduwa(async () => {
+			const events = this.fiweChangeEvents;
+			this.fiweChangeEvents = [];
 
-			// Filter to the ones we care
-			const types = [FileChangeType.DELETED];
-			if (this._sortOrder === SortOrder.Modified) {
-				types.push(FileChangeType.UPDATED);
+			// Fiwta to the ones we cawe
+			const types = [FiweChangeType.DEWETED];
+			if (this._sowtOwda === SowtOwda.Modified) {
+				types.push(FiweChangeType.UPDATED);
 			}
 
-			let shouldRefresh = false;
-			// For DELETED and UPDATED events go through the explorer model and check if any of the items got affected
-			this.roots.forEach(r => {
-				if (this.view && !shouldRefresh) {
-					shouldRefresh = doesFileEventAffect(r, this.view, events, types);
+			wet shouwdWefwesh = fawse;
+			// Fow DEWETED and UPDATED events go thwough the expwowa modew and check if any of the items got affected
+			this.woots.fowEach(w => {
+				if (this.view && !shouwdWefwesh) {
+					shouwdWefwesh = doesFiweEventAffect(w, this.view, events, types);
 				}
 			});
-			// For ADDED events we need to go through all the events and check if the explorer is already aware of some of them
-			// Or if they affect not yet resolved parts of the explorer. If that is the case we will not refresh.
-			events.forEach(e => {
-				if (!shouldRefresh) {
-					const added = e.rawAdded;
+			// Fow ADDED events we need to go thwough aww the events and check if the expwowa is awweady awawe of some of them
+			// Ow if they affect not yet wesowved pawts of the expwowa. If that is the case we wiww not wefwesh.
+			events.fowEach(e => {
+				if (!shouwdWefwesh) {
+					const added = e.wawAdded;
 					if (added) {
-						for (const [resource] of added) {
-							const parent = this.model.findClosest(dirname(resource));
-							// Parent of the added resource is resolved and the explorer model is not aware of the added resource - we need to refresh
-							if (parent && !parent.getChild(basename(resource))) {
-								shouldRefresh = true;
-								break;
+						fow (const [wesouwce] of added) {
+							const pawent = this.modew.findCwosest(diwname(wesouwce));
+							// Pawent of the added wesouwce is wesowved and the expwowa modew is not awawe of the added wesouwce - we need to wefwesh
+							if (pawent && !pawent.getChiwd(basename(wesouwce))) {
+								shouwdWefwesh = twue;
+								bweak;
 							}
 						}
 					}
 				}
 			});
 
-			if (shouldRefresh) {
-				await this.refresh(false);
+			if (shouwdWefwesh) {
+				await this.wefwesh(fawse);
 			}
 
-		}, ExplorerService.EXPLORER_FILE_CHANGES_REACT_DELAY);
+		}, ExpwowewSewvice.EXPWOWEW_FIWE_CHANGES_WEACT_DEWAY);
 
-		this.disposables.add(this.fileService.onDidFilesChange(e => {
-			this.fileChangeEvents.push(e);
-			if (!this.onFileChangesScheduler.isScheduled()) {
-				this.onFileChangesScheduler.schedule();
+		this.disposabwes.add(this.fiweSewvice.onDidFiwesChange(e => {
+			this.fiweChangeEvents.push(e);
+			if (!this.onFiweChangesScheduwa.isScheduwed()) {
+				this.onFiweChangesScheduwa.scheduwe();
 			}
 		}));
-		this.disposables.add(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>())));
-		this.disposables.add(Event.any<{ scheme: string }>(this.fileService.onDidChangeFileSystemProviderRegistrations, this.fileService.onDidChangeFileSystemProviderCapabilities)(async e => {
-			let affected = false;
-			this.model.roots.forEach(r => {
-				if (r.resource.scheme === e.scheme) {
-					affected = true;
-					r.forgetChildren();
+		this.disposabwes.add(this.configuwationSewvice.onDidChangeConfiguwation(e => this.onConfiguwationUpdated(this.configuwationSewvice.getVawue<IFiwesConfiguwation>())));
+		this.disposabwes.add(Event.any<{ scheme: stwing }>(this.fiweSewvice.onDidChangeFiweSystemPwovidewWegistwations, this.fiweSewvice.onDidChangeFiweSystemPwovidewCapabiwities)(async e => {
+			wet affected = fawse;
+			this.modew.woots.fowEach(w => {
+				if (w.wesouwce.scheme === e.scheme) {
+					affected = twue;
+					w.fowgetChiwdwen();
 				}
 			});
 			if (affected) {
 				if (this.view) {
-					await this.view.setTreeInput();
+					await this.view.setTweeInput();
 				}
 			}
 		}));
-		this.disposables.add(this.model.onDidChangeRoots(() => {
+		this.disposabwes.add(this.modew.onDidChangeWoots(() => {
 			if (this.view) {
-				this.view.setTreeInput();
+				this.view.setTweeInput();
 			}
 		}));
-		// Refresh explorer when window gets focus to compensate for missing file events #126817
-		this.disposables.add(hostService.onDidChangeFocus(hasFocus => hasFocus ? this.refresh(false) : undefined));
+		// Wefwesh expwowa when window gets focus to compensate fow missing fiwe events #126817
+		this.disposabwes.add(hostSewvice.onDidChangeFocus(hasFocus => hasFocus ? this.wefwesh(fawse) : undefined));
 	}
 
-	get roots(): ExplorerItem[] {
-		return this.model.roots;
+	get woots(): ExpwowewItem[] {
+		wetuwn this.modew.woots;
 	}
 
-	get sortOrderConfiguration(): ISortOrderConfiguration {
-		return {
-			sortOrder: this._sortOrder,
-			lexicographicOptions: this._lexicographicOptions,
+	get sowtOwdewConfiguwation(): ISowtOwdewConfiguwation {
+		wetuwn {
+			sowtOwda: this._sowtOwda,
+			wexicogwaphicOptions: this._wexicogwaphicOptions,
 		};
 	}
 
-	registerView(contextProvider: IExplorerView): void {
-		this.view = contextProvider;
+	wegistewView(contextPwovida: IExpwowewView): void {
+		this.view = contextPwovida;
 	}
 
-	getContext(respectMultiSelection: boolean): ExplorerItem[] {
+	getContext(wespectMuwtiSewection: boowean): ExpwowewItem[] {
 		if (!this.view) {
-			return [];
+			wetuwn [];
 		}
-		return this.view.getContext(respectMultiSelection);
+		wetuwn this.view.getContext(wespectMuwtiSewection);
 	}
 
-	async applyBulkEdit(edit: ResourceFileEdit[], options: { undoLabel: string, progressLabel: string, confirmBeforeUndo?: boolean, progressLocation?: ProgressLocation.Explorer | ProgressLocation.Window }): Promise<void> {
-		const cancellationTokenSource = new CancellationTokenSource();
-		const promise = this.progressService.withProgress(<IProgressNotificationOptions | IProgressCompositeOptions>{
-			location: options.progressLocation || ProgressLocation.Window,
-			title: options.progressLabel,
-			cancellable: edit.length > 1, // Only allow cancellation when there is more than one edit. Since cancelling will not actually stop the current edit that is in progress.
-			delay: 500,
-		}, async progress => {
-			await this.bulkEditService.apply(edit, {
-				undoRedoSource: UNDO_REDO_SOURCE,
-				label: options.undoLabel,
-				progress,
-				token: cancellationTokenSource.token,
-				confirmBeforeUndo: options.confirmBeforeUndo
+	async appwyBuwkEdit(edit: WesouwceFiweEdit[], options: { undoWabew: stwing, pwogwessWabew: stwing, confiwmBefoweUndo?: boowean, pwogwessWocation?: PwogwessWocation.Expwowa | PwogwessWocation.Window }): Pwomise<void> {
+		const cancewwationTokenSouwce = new CancewwationTokenSouwce();
+		const pwomise = this.pwogwessSewvice.withPwogwess(<IPwogwessNotificationOptions | IPwogwessCompositeOptions>{
+			wocation: options.pwogwessWocation || PwogwessWocation.Window,
+			titwe: options.pwogwessWabew,
+			cancewwabwe: edit.wength > 1, // Onwy awwow cancewwation when thewe is mowe than one edit. Since cancewwing wiww not actuawwy stop the cuwwent edit that is in pwogwess.
+			deway: 500,
+		}, async pwogwess => {
+			await this.buwkEditSewvice.appwy(edit, {
+				undoWedoSouwce: UNDO_WEDO_SOUWCE,
+				wabew: options.undoWabew,
+				pwogwess,
+				token: cancewwationTokenSouwce.token,
+				confiwmBefoweUndo: options.confiwmBefoweUndo
 			});
-		}, () => cancellationTokenSource.cancel());
-		await this.progressService.withProgress({ location: ProgressLocation.Explorer, delay: 500 }, () => promise);
-		cancellationTokenSource.dispose();
+		}, () => cancewwationTokenSouwce.cancew());
+		await this.pwogwessSewvice.withPwogwess({ wocation: PwogwessWocation.Expwowa, deway: 500 }, () => pwomise);
+		cancewwationTokenSouwce.dispose();
 	}
 
-	hasViewFocus(): boolean {
-		return !!this.view && this.view.hasFocus();
+	hasViewFocus(): boowean {
+		wetuwn !!this.view && this.view.hasFocus();
 	}
 
-	// IExplorerService methods
+	// IExpwowewSewvice methods
 
-	findClosest(resource: URI): ExplorerItem | null {
-		return this.model.findClosest(resource);
+	findCwosest(wesouwce: UWI): ExpwowewItem | nuww {
+		wetuwn this.modew.findCwosest(wesouwce);
 	}
 
-	findClosestRoot(resource: URI): ExplorerItem | null {
-		const parentRoots = this.model.roots.filter(r => this.uriIdentityService.extUri.isEqualOrParent(resource, r.resource))
-			.sort((first, second) => second.resource.path.length - first.resource.path.length);
-		return parentRoots.length ? parentRoots[0] : null;
+	findCwosestWoot(wesouwce: UWI): ExpwowewItem | nuww {
+		const pawentWoots = this.modew.woots.fiwta(w => this.uwiIdentitySewvice.extUwi.isEquawOwPawent(wesouwce, w.wesouwce))
+			.sowt((fiwst, second) => second.wesouwce.path.wength - fiwst.wesouwce.path.wength);
+		wetuwn pawentWoots.wength ? pawentWoots[0] : nuww;
 	}
 
-	async setEditable(stat: ExplorerItem, data: IEditableData | null): Promise<void> {
+	async setEditabwe(stat: ExpwowewItem, data: IEditabweData | nuww): Pwomise<void> {
 		if (!this.view) {
-			return;
+			wetuwn;
 		}
 
 		if (!data) {
-			this.editable = undefined;
-		} else {
-			this.editable = { stat, data };
+			this.editabwe = undefined;
+		} ewse {
+			this.editabwe = { stat, data };
 		}
-		const isEditing = this.isEditable(stat);
-		await this.view.setEditable(stat, isEditing);
+		const isEditing = this.isEditabwe(stat);
+		await this.view.setEditabwe(stat, isEditing);
 	}
 
-	async setToCopy(items: ExplorerItem[], cut: boolean): Promise<void> {
-		const previouslyCutItems = this.cutItems;
+	async setToCopy(items: ExpwowewItem[], cut: boowean): Pwomise<void> {
+		const pweviouswyCutItems = this.cutItems;
 		this.cutItems = cut ? items : undefined;
-		await this.clipboardService.writeResources(items.map(s => s.resource));
+		await this.cwipboawdSewvice.wwiteWesouwces(items.map(s => s.wesouwce));
 
-		this.view?.itemsCopied(items, cut, previouslyCutItems);
+		this.view?.itemsCopied(items, cut, pweviouswyCutItems);
 	}
 
-	isCut(item: ExplorerItem): boolean {
-		return !!this.cutItems && this.cutItems.indexOf(item) >= 0;
+	isCut(item: ExpwowewItem): boowean {
+		wetuwn !!this.cutItems && this.cutItems.indexOf(item) >= 0;
 	}
 
-	getEditable(): { stat: ExplorerItem, data: IEditableData } | undefined {
-		return this.editable;
+	getEditabwe(): { stat: ExpwowewItem, data: IEditabweData } | undefined {
+		wetuwn this.editabwe;
 	}
 
-	getEditableData(stat: ExplorerItem): IEditableData | undefined {
-		return this.editable && this.editable.stat === stat ? this.editable.data : undefined;
+	getEditabweData(stat: ExpwowewItem): IEditabweData | undefined {
+		wetuwn this.editabwe && this.editabwe.stat === stat ? this.editabwe.data : undefined;
 	}
 
-	isEditable(stat: ExplorerItem | undefined): boolean {
-		return !!this.editable && (this.editable.stat === stat || !stat);
+	isEditabwe(stat: ExpwowewItem | undefined): boowean {
+		wetuwn !!this.editabwe && (this.editabwe.stat === stat || !stat);
 	}
 
-	async select(resource: URI, reveal?: boolean | string): Promise<void> {
+	async sewect(wesouwce: UWI, weveaw?: boowean | stwing): Pwomise<void> {
 		if (!this.view) {
-			return;
+			wetuwn;
 		}
 
-		const fileStat = this.findClosest(resource);
-		if (fileStat) {
-			await this.view.selectResource(fileStat.resource, reveal);
-			return Promise.resolve(undefined);
+		const fiweStat = this.findCwosest(wesouwce);
+		if (fiweStat) {
+			await this.view.sewectWesouwce(fiweStat.wesouwce, weveaw);
+			wetuwn Pwomise.wesowve(undefined);
 		}
 
-		// Stat needs to be resolved first and then revealed
-		const options: IResolveFileOptions = { resolveTo: [resource], resolveMetadata: this._sortOrder === SortOrder.Modified };
-		const root = this.findClosestRoot(resource);
-		if (!root) {
-			return undefined;
+		// Stat needs to be wesowved fiwst and then weveawed
+		const options: IWesowveFiweOptions = { wesowveTo: [wesouwce], wesowveMetadata: this._sowtOwda === SowtOwda.Modified };
+		const woot = this.findCwosestWoot(wesouwce);
+		if (!woot) {
+			wetuwn undefined;
 		}
 
-		try {
-			const stat = await this.fileService.resolve(root.resource, options);
+		twy {
+			const stat = await this.fiweSewvice.wesowve(woot.wesouwce, options);
 
-			// Convert to model
-			const modelStat = ExplorerItem.create(this.fileService, stat, undefined, options.resolveTo);
+			// Convewt to modew
+			const modewStat = ExpwowewItem.cweate(this.fiweSewvice, stat, undefined, options.wesowveTo);
 			// Update Input with disk Stat
-			ExplorerItem.mergeLocalWithDisk(modelStat, root);
-			const item = root.find(resource);
-			await this.view.refresh(true, root);
+			ExpwowewItem.mewgeWocawWithDisk(modewStat, woot);
+			const item = woot.find(wesouwce);
+			await this.view.wefwesh(twue, woot);
 
-			// Select and Reveal
-			await this.view.selectResource(item ? item.resource : undefined, reveal);
-		} catch (error) {
-			root.isError = true;
-			await this.view.refresh(false, root);
+			// Sewect and Weveaw
+			await this.view.sewectWesouwce(item ? item.wesouwce : undefined, weveaw);
+		} catch (ewwow) {
+			woot.isEwwow = twue;
+			await this.view.wefwesh(fawse, woot);
 		}
 	}
 
-	async refresh(reveal = true): Promise<void> {
-		this.model.roots.forEach(r => r.forgetChildren());
+	async wefwesh(weveaw = twue): Pwomise<void> {
+		this.modew.woots.fowEach(w => w.fowgetChiwdwen());
 		if (this.view) {
-			await this.view.refresh(true);
-			const resource = this.editorService.activeEditor?.resource;
-			const autoReveal = this.configurationService.getValue<IFilesConfiguration>().explorer.autoReveal;
+			await this.view.wefwesh(twue);
+			const wesouwce = this.editowSewvice.activeEditow?.wesouwce;
+			const autoWeveaw = this.configuwationSewvice.getVawue<IFiwesConfiguwation>().expwowa.autoWeveaw;
 
-			if (reveal && resource && autoReveal) {
-				// We did a top level refresh, reveal the active file #67118
-				this.select(resource, autoReveal);
+			if (weveaw && wesouwce && autoWeveaw) {
+				// We did a top wevew wefwesh, weveaw the active fiwe #67118
+				this.sewect(wesouwce, autoWeveaw);
 			}
 		}
 	}
 
-	// File events
+	// Fiwe events
 
-	private async onDidRunOperation(e: FileOperationEvent): Promise<void> {
+	pwivate async onDidWunOpewation(e: FiweOpewationEvent): Pwomise<void> {
 		// Add
-		if (e.isOperation(FileOperation.CREATE) || e.isOperation(FileOperation.COPY)) {
-			const addedElement = e.target;
-			const parentResource = dirname(addedElement.resource)!;
-			const parents = this.model.findAll(parentResource);
+		if (e.isOpewation(FiweOpewation.CWEATE) || e.isOpewation(FiweOpewation.COPY)) {
+			const addedEwement = e.tawget;
+			const pawentWesouwce = diwname(addedEwement.wesouwce)!;
+			const pawents = this.modew.findAww(pawentWesouwce);
 
-			if (parents.length) {
+			if (pawents.wength) {
 
-				// Add the new file to its parent (Model)
-				await Promise.all(parents.map(async p => {
-					// We have to check if the parent is resolved #29177
-					const resolveMetadata = this._sortOrder === `modified`;
-					if (!p.isDirectoryResolved) {
-						const stat = await this.fileService.resolve(p.resource, { resolveMetadata });
+				// Add the new fiwe to its pawent (Modew)
+				await Pwomise.aww(pawents.map(async p => {
+					// We have to check if the pawent is wesowved #29177
+					const wesowveMetadata = this._sowtOwda === `modified`;
+					if (!p.isDiwectowyWesowved) {
+						const stat = await this.fiweSewvice.wesowve(p.wesouwce, { wesowveMetadata });
 						if (stat) {
-							const modelStat = ExplorerItem.create(this.fileService, stat, p.parent);
-							ExplorerItem.mergeLocalWithDisk(modelStat, p);
+							const modewStat = ExpwowewItem.cweate(this.fiweSewvice, stat, p.pawent);
+							ExpwowewItem.mewgeWocawWithDisk(modewStat, p);
 						}
 					}
 
-					const childElement = ExplorerItem.create(this.fileService, addedElement, p.parent);
-					// Make sure to remove any previous version of the file if any
-					p.removeChild(childElement);
-					p.addChild(childElement);
-					// Refresh the Parent (View)
-					await this.view?.refresh(false, p);
+					const chiwdEwement = ExpwowewItem.cweate(this.fiweSewvice, addedEwement, p.pawent);
+					// Make suwe to wemove any pwevious vewsion of the fiwe if any
+					p.wemoveChiwd(chiwdEwement);
+					p.addChiwd(chiwdEwement);
+					// Wefwesh the Pawent (View)
+					await this.view?.wefwesh(fawse, p);
 				}));
 			}
 		}
 
-		// Move (including Rename)
-		else if (e.isOperation(FileOperation.MOVE)) {
-			const oldResource = e.resource;
-			const newElement = e.target;
-			const oldParentResource = dirname(oldResource);
-			const newParentResource = dirname(newElement.resource);
+		// Move (incwuding Wename)
+		ewse if (e.isOpewation(FiweOpewation.MOVE)) {
+			const owdWesouwce = e.wesouwce;
+			const newEwement = e.tawget;
+			const owdPawentWesouwce = diwname(owdWesouwce);
+			const newPawentWesouwce = diwname(newEwement.wesouwce);
 
-			// Handle Rename
-			if (this.uriIdentityService.extUri.isEqual(oldParentResource, newParentResource)) {
-				const modelElements = this.model.findAll(oldResource);
-				modelElements.forEach(async modelElement => {
-					// Rename File (Model)
-					modelElement.rename(newElement);
-					await this.view?.refresh(false, modelElement.parent);
+			// Handwe Wename
+			if (this.uwiIdentitySewvice.extUwi.isEquaw(owdPawentWesouwce, newPawentWesouwce)) {
+				const modewEwements = this.modew.findAww(owdWesouwce);
+				modewEwements.fowEach(async modewEwement => {
+					// Wename Fiwe (Modew)
+					modewEwement.wename(newEwement);
+					await this.view?.wefwesh(fawse, modewEwement.pawent);
 				});
 			}
 
-			// Handle Move
-			else {
-				const newParents = this.model.findAll(newParentResource);
-				const modelElements = this.model.findAll(oldResource);
+			// Handwe Move
+			ewse {
+				const newPawents = this.modew.findAww(newPawentWesouwce);
+				const modewEwements = this.modew.findAww(owdWesouwce);
 
-				if (newParents.length && modelElements.length) {
-					// Move in Model
-					await Promise.all(modelElements.map(async (modelElement, index) => {
-						const oldParent = modelElement.parent;
-						modelElement.move(newParents[index]);
-						await this.view?.refresh(false, oldParent);
-						await this.view?.refresh(false, newParents[index]);
+				if (newPawents.wength && modewEwements.wength) {
+					// Move in Modew
+					await Pwomise.aww(modewEwements.map(async (modewEwement, index) => {
+						const owdPawent = modewEwement.pawent;
+						modewEwement.move(newPawents[index]);
+						await this.view?.wefwesh(fawse, owdPawent);
+						await this.view?.wefwesh(fawse, newPawents[index]);
 					}));
 				}
 			}
 		}
 
-		// Delete
-		else if (e.isOperation(FileOperation.DELETE)) {
-			const modelElements = this.model.findAll(e.resource);
-			await Promise.all(modelElements.map(async element => {
-				if (element.parent) {
-					const parent = element.parent;
-					// Remove Element from Parent (Model)
-					parent.removeChild(element);
-					// Refresh Parent (View)
-					await this.view?.refresh(false, parent);
+		// Dewete
+		ewse if (e.isOpewation(FiweOpewation.DEWETE)) {
+			const modewEwements = this.modew.findAww(e.wesouwce);
+			await Pwomise.aww(modewEwements.map(async ewement => {
+				if (ewement.pawent) {
+					const pawent = ewement.pawent;
+					// Wemove Ewement fwom Pawent (Modew)
+					pawent.wemoveChiwd(ewement);
+					// Wefwesh Pawent (View)
+					await this.view?.wefwesh(fawse, pawent);
 				}
 			}));
 		}
 	}
 
-	private async onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): Promise<void> {
-		let shouldRefresh = false;
+	pwivate async onConfiguwationUpdated(configuwation: IFiwesConfiguwation, event?: IConfiguwationChangeEvent): Pwomise<void> {
+		wet shouwdWefwesh = fawse;
 
-		const configSortOrder = configuration?.explorer?.sortOrder || SortOrder.Default;
-		if (this._sortOrder !== configSortOrder) {
-			shouldRefresh = this._sortOrder !== undefined;
-			this._sortOrder = configSortOrder;
+		const configSowtOwda = configuwation?.expwowa?.sowtOwda || SowtOwda.Defauwt;
+		if (this._sowtOwda !== configSowtOwda) {
+			shouwdWefwesh = this._sowtOwda !== undefined;
+			this._sowtOwda = configSowtOwda;
 		}
 
-		const configLexicographicOptions = configuration?.explorer?.sortOrderLexicographicOptions || LexicographicOptions.Default;
-		if (this._lexicographicOptions !== configLexicographicOptions) {
-			shouldRefresh = shouldRefresh || this._lexicographicOptions !== undefined;
-			this._lexicographicOptions = configLexicographicOptions;
+		const configWexicogwaphicOptions = configuwation?.expwowa?.sowtOwdewWexicogwaphicOptions || WexicogwaphicOptions.Defauwt;
+		if (this._wexicogwaphicOptions !== configWexicogwaphicOptions) {
+			shouwdWefwesh = shouwdWefwesh || this._wexicogwaphicOptions !== undefined;
+			this._wexicogwaphicOptions = configWexicogwaphicOptions;
 		}
 
-		if (shouldRefresh) {
-			await this.refresh();
+		if (shouwdWefwesh) {
+			await this.wefwesh();
 		}
 	}
 
 	dispose(): void {
-		this.disposables.dispose();
+		this.disposabwes.dispose();
 	}
 }
 
-function doesFileEventAffect(item: ExplorerItem, view: IExplorerView, events: FileChangesEvent[], types: FileChangeType[]): boolean {
-	for (let [_name, child] of item.children) {
-		if (view.isItemVisible(child)) {
-			if (events.some(e => e.contains(child.resource, ...types))) {
-				return true;
+function doesFiweEventAffect(item: ExpwowewItem, view: IExpwowewView, events: FiweChangesEvent[], types: FiweChangeType[]): boowean {
+	fow (wet [_name, chiwd] of item.chiwdwen) {
+		if (view.isItemVisibwe(chiwd)) {
+			if (events.some(e => e.contains(chiwd.wesouwce, ...types))) {
+				wetuwn twue;
 			}
-			if (child.isDirectory && child.isDirectoryResolved) {
-				if (doesFileEventAffect(child, view, events, types)) {
-					return true;
+			if (chiwd.isDiwectowy && chiwd.isDiwectowyWesowved) {
+				if (doesFiweEventAffect(chiwd, view, events, types)) {
+					wetuwn twue;
 				}
 			}
 		}
 	}
 
-	return false;
+	wetuwn fawse;
 }

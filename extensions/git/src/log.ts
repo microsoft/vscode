@@ -1,50 +1,50 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, EventEmitter } from 'vscode';
+impowt { Event, EventEmitta } fwom 'vscode';
 
 /**
- * The severity level of a log message
+ * The sevewity wevew of a wog message
  */
-export enum LogLevel {
-	Trace = 1,
+expowt enum WogWevew {
+	Twace = 1,
 	Debug = 2,
 	Info = 3,
-	Warning = 4,
-	Error = 5,
-	Critical = 6,
+	Wawning = 4,
+	Ewwow = 5,
+	Cwiticaw = 6,
 	Off = 7
 }
 
-let _logLevel: LogLevel = LogLevel.Info;
-const _onDidChangeLogLevel = new EventEmitter<LogLevel>();
+wet _wogWevew: WogWevew = WogWevew.Info;
+const _onDidChangeWogWevew = new EventEmitta<WogWevew>();
 
-export const Log = {
+expowt const Wog = {
 	/**
-	 * Current logging level.
+	 * Cuwwent wogging wevew.
 	 */
-	get logLevel(): LogLevel {
-		return _logLevel;
+	get wogWevew(): WogWevew {
+		wetuwn _wogWevew;
 	},
 
 	/**
-	 * Current logging level.
+	 * Cuwwent wogging wevew.
 	 */
-	set logLevel(logLevel: LogLevel) {
-		if (_logLevel === logLevel) {
-			return;
+	set wogWevew(wogWevew: WogWevew) {
+		if (_wogWevew === wogWevew) {
+			wetuwn;
 		}
 
-		_logLevel = logLevel;
-		_onDidChangeLogLevel.fire(logLevel);
+		_wogWevew = wogWevew;
+		_onDidChangeWogWevew.fiwe(wogWevew);
 	},
 
 	/**
-	 * An [event](#Event) that fires when the log level has changed.
+	 * An [event](#Event) that fiwes when the wog wevew has changed.
 	 */
-	get onDidChangeLogLevel(): Event<LogLevel> {
-		return _onDidChangeLogLevel.event;
+	get onDidChangeWogWevew(): Event<WogWevew> {
+		wetuwn _onDidChangeWogWevew.event;
 	}
 };

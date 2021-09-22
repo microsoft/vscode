@@ -1,85 +1,85 @@
 {
   "name": "json",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "0.10.x"
   },
-  "scripts": {
-    "update-grammar": "node ./build/update-grammars.js"
+  "scwipts": {
+    "update-gwammaw": "node ./buiwd/update-gwammaws.js"
   },
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
         "id": "json",
-        "aliases": [
+        "awiases": [
           "JSON",
           "json"
         ],
         "extensions": [
           ".json",
-          ".bowerrc",
-          ".jscsrc",
+          ".bowewwc",
+          ".jscswc",
           ".webmanifest",
           ".js.map",
           ".css.map",
           ".ts.map",
-          ".har",
-          ".jslintrc",
-          ".jsonld",
+          ".haw",
+          ".jswintwc",
+          ".jsonwd",
           ".geojson"
         ],
-        "filenames": [
-          "composer.lock",
+        "fiwenames": [
+          "composa.wock",
           ".watchmanconfig"
         ],
         "mimetypes": [
-          "application/json",
-          "application/manifest+json"
+          "appwication/json",
+          "appwication/manifest+json"
         ],
-        "configuration": "./language-configuration.json"
+        "configuwation": "./wanguage-configuwation.json"
       },
       {
         "id": "jsonc",
-        "aliases": [
+        "awiases": [
           "JSON with Comments"
         ],
         "extensions": [
           ".jsonc",
-          ".eslintrc",
-          ".eslintrc.json",
-          ".jsfmtrc",
-          ".jshintrc",
-          ".swcrc",
-          ".hintrc",
-          ".babelrc"
+          ".eswintwc",
+          ".eswintwc.json",
+          ".jsfmtwc",
+          ".jshintwc",
+          ".swcwc",
+          ".hintwc",
+          ".babewwc"
         ],
-        "filenames": [
-          "babel.config.json",
-          ".babelrc.json",
-          ".ember-cli"
+        "fiwenames": [
+          "babew.config.json",
+          ".babewwc.json",
+          ".emba-cwi"
         ],
-        "configuration": "./language-configuration.json"
+        "configuwation": "./wanguage-configuwation.json"
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "json",
-        "scopeName": "source.json",
-        "path": "./syntaxes/JSON.tmLanguage.json"
+        "wanguage": "json",
+        "scopeName": "souwce.json",
+        "path": "./syntaxes/JSON.tmWanguage.json"
       },
       {
-        "language": "jsonc",
-        "scopeName": "source.json.comments",
-        "path": "./syntaxes/JSONC.tmLanguage.json"
+        "wanguage": "jsonc",
+        "scopeName": "souwce.json.comments",
+        "path": "./syntaxes/JSONC.tmWanguage.json"
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

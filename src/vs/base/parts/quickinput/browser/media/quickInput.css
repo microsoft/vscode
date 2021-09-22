@@ -1,291 +1,291 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 .quick-input-widget {
-	position: absolute;
+	position: absowute;
 	width: 600px;
 	z-index: 2000;
 	padding: 0 1px 1px 1px;
-	left: 50%;
-	margin-left: -300px;
+	weft: 50%;
+	mawgin-weft: -300px;
 }
 
-.quick-input-titlebar {
-	display: flex;
-	align-items: center;
+.quick-input-titwebaw {
+	dispway: fwex;
+	awign-items: centa;
 }
 
-.quick-input-left-action-bar {
-	display: flex;
-	margin-left: 4px;
-	flex: 1;
+.quick-input-weft-action-baw {
+	dispway: fwex;
+	mawgin-weft: 4px;
+	fwex: 1;
 }
 
-.quick-input-title {
+.quick-input-titwe {
 	padding: 3px 0px;
-	text-align: center;
-	text-overflow: ellipsis;
-	overflow: hidden;
+	text-awign: centa;
+	text-ovewfwow: ewwipsis;
+	ovewfwow: hidden;
 }
 
-.quick-input-right-action-bar {
-	display: flex;
-	margin-right: 4px;
-	flex: 1;
+.quick-input-wight-action-baw {
+	dispway: fwex;
+	mawgin-wight: 4px;
+	fwex: 1;
 }
 
-.quick-input-right-action-bar > .actions-container {
-	justify-content: flex-end;
+.quick-input-wight-action-baw > .actions-containa {
+	justify-content: fwex-end;
 }
 
-.quick-input-titlebar .monaco-action-bar .action-label.codicon {
-	background-position: center;
-	background-repeat: no-repeat;
+.quick-input-titwebaw .monaco-action-baw .action-wabew.codicon {
+	backgwound-position: centa;
+	backgwound-wepeat: no-wepeat;
 	padding: 2px;
 }
 
-.quick-input-description {
-	margin: 6px;
+.quick-input-descwiption {
+	mawgin: 6px;
 }
 
-.quick-input-header .quick-input-description {
-	margin: 4px 2px;
+.quick-input-heada .quick-input-descwiption {
+	mawgin: 4px 2px;
 }
 
-.quick-input-header {
-	display: flex;
+.quick-input-heada {
+	dispway: fwex;
 	padding: 6px 6px 0px 6px;
-	margin-bottom: -2px;
+	mawgin-bottom: -2px;
 }
 
-.quick-input-widget.hidden-input .quick-input-header {
-	/* reduce margins and paddings when input box hidden */
+.quick-input-widget.hidden-input .quick-input-heada {
+	/* weduce mawgins and paddings when input box hidden */
 	padding: 0;
-	margin-bottom: 0;
+	mawgin-bottom: 0;
 }
 
 .quick-input-and-message {
-	display: flex;
-	flex-direction: column;
-	flex-grow: 1;
+	dispway: fwex;
+	fwex-diwection: cowumn;
+	fwex-gwow: 1;
 	min-width: 0;
-	position: relative;
+	position: wewative;
 }
 
-.quick-input-check-all {
-	align-self: center;
-	margin: 0;
+.quick-input-check-aww {
+	awign-sewf: centa;
+	mawgin: 0;
 }
 
-.quick-input-filter {
-	flex-grow: 1;
-	display: flex;
-	position: relative;
+.quick-input-fiwta {
+	fwex-gwow: 1;
+	dispway: fwex;
+	position: wewative;
 }
 
 .quick-input-box {
-	flex-grow: 1;
+	fwex-gwow: 1;
 }
 
 .quick-input-widget.show-checkboxes .quick-input-box,
 .quick-input-widget.show-checkboxes .quick-input-message {
-	margin-left: 5px;
+	mawgin-weft: 5px;
 }
 
-.quick-input-visible-count {
-	position: absolute;
-	left: -10000px;
+.quick-input-visibwe-count {
+	position: absowute;
+	weft: -10000px;
 }
 
 .quick-input-count {
-	align-self: center;
-	position: absolute;
-	right: 4px;
-	display: flex;
-	align-items: center;
+	awign-sewf: centa;
+	position: absowute;
+	wight: 4px;
+	dispway: fwex;
+	awign-items: centa;
 }
 
 .quick-input-count .monaco-count-badge {
-	vertical-align: middle;
+	vewticaw-awign: middwe;
 	padding: 2px 4px;
-	border-radius: 2px;
+	bowda-wadius: 2px;
 	min-height: auto;
-	line-height: normal;
+	wine-height: nowmaw;
 }
 
 .quick-input-action {
-	margin-left: 6px;
+	mawgin-weft: 6px;
 }
 
 .quick-input-action .monaco-text-button {
 	font-size: 11px;
 	padding: 0 6px;
-	display: flex;
+	dispway: fwex;
 	height: 27.5px;
-	align-items: center;
+	awign-items: centa;
 }
 
 .quick-input-message {
-	margin-top: -1px;
+	mawgin-top: -1px;
 	padding: 5px 5px 2px 5px;
-	overflow-wrap: break-word;
+	ovewfwow-wwap: bweak-wowd;
 }
 
 .quick-input-message > .codicon {
-	margin: 0 0.2em;
-	vertical-align: text-bottom;
+	mawgin: 0 0.2em;
+	vewticaw-awign: text-bottom;
 }
 
-.quick-input-progress.monaco-progress-container {
-	position: relative;
+.quick-input-pwogwess.monaco-pwogwess-containa {
+	position: wewative;
 }
 
-.quick-input-progress.monaco-progress-container,
-.quick-input-progress.monaco-progress-container .progress-bit {
+.quick-input-pwogwess.monaco-pwogwess-containa,
+.quick-input-pwogwess.monaco-pwogwess-containa .pwogwess-bit {
 	height: 2px;
 }
 
-.quick-input-list {
-	line-height: 22px;
-	margin-top: 6px;
+.quick-input-wist {
+	wine-height: 22px;
+	mawgin-top: 6px;
 }
 
-.quick-input-widget.hidden-input .quick-input-list {
-	margin-top: 0; /* reduce margins when input box hidden */
+.quick-input-widget.hidden-input .quick-input-wist {
+	mawgin-top: 0; /* weduce mawgins when input box hidden */
 }
 
-.quick-input-list .monaco-list {
-	overflow: hidden;
-	max-height: calc(20 * 22px);
+.quick-input-wist .monaco-wist {
+	ovewfwow: hidden;
+	max-height: cawc(20 * 22px);
 }
 
-.quick-input-list .quick-input-list-entry {
-	box-sizing: border-box;
-	overflow: hidden;
-	display: flex;
+.quick-input-wist .quick-input-wist-entwy {
+	box-sizing: bowda-box;
+	ovewfwow: hidden;
+	dispway: fwex;
 	height: 100%;
 	padding: 0 6px;
 }
 
-.quick-input-list .quick-input-list-entry.quick-input-list-separator-border {
-	border-top-width: 1px;
-	border-top-style: solid;
+.quick-input-wist .quick-input-wist-entwy.quick-input-wist-sepawatow-bowda {
+	bowda-top-width: 1px;
+	bowda-top-stywe: sowid;
 }
 
-.quick-input-list .monaco-list-row[data-index="0"] .quick-input-list-entry.quick-input-list-separator-border {
-	border-top-style: none;
+.quick-input-wist .monaco-wist-wow[data-index="0"] .quick-input-wist-entwy.quick-input-wist-sepawatow-bowda {
+	bowda-top-stywe: none;
 }
 
-.quick-input-list .quick-input-list-label {
-	overflow: hidden;
-	display: flex;
+.quick-input-wist .quick-input-wist-wabew {
+	ovewfwow: hidden;
+	dispway: fwex;
 	height: 100%;
-	flex: 1;
+	fwex: 1;
 }
 
-.quick-input-list .quick-input-list-checkbox {
-	align-self: center;
-	margin: 0;
+.quick-input-wist .quick-input-wist-checkbox {
+	awign-sewf: centa;
+	mawgin: 0;
 }
 
-.quick-input-list .quick-input-list-rows {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	display: flex;
-	flex-direction: column;
+.quick-input-wist .quick-input-wist-wows {
+	ovewfwow: hidden;
+	text-ovewfwow: ewwipsis;
+	dispway: fwex;
+	fwex-diwection: cowumn;
 	height: 100%;
-	flex: 1;
-	margin-left: 5px;
+	fwex: 1;
+	mawgin-weft: 5px;
 }
 
-.quick-input-widget.show-checkboxes .quick-input-list .quick-input-list-rows {
-	margin-left: 10px;
+.quick-input-widget.show-checkboxes .quick-input-wist .quick-input-wist-wows {
+	mawgin-weft: 10px;
 }
 
-.quick-input-widget .quick-input-list .quick-input-list-checkbox {
-	display: none;
+.quick-input-widget .quick-input-wist .quick-input-wist-checkbox {
+	dispway: none;
 }
-.quick-input-widget.show-checkboxes .quick-input-list .quick-input-list-checkbox {
-	display: inline;
-}
-
-.quick-input-list .quick-input-list-rows > .quick-input-list-row {
-	display: flex;
-	align-items: center;
+.quick-input-widget.show-checkboxes .quick-input-wist .quick-input-wist-checkbox {
+	dispway: inwine;
 }
 
-.quick-input-list .quick-input-list-rows > .quick-input-list-row .monaco-icon-label,
-.quick-input-list .quick-input-list-rows > .quick-input-list-row .monaco-icon-label .monaco-icon-label-container > .monaco-icon-name-container {
-	flex: 1; /* make sure the icon label grows within the row */
+.quick-input-wist .quick-input-wist-wows > .quick-input-wist-wow {
+	dispway: fwex;
+	awign-items: centa;
 }
 
-.quick-input-list .quick-input-list-rows > .quick-input-list-row .codicon[class*='codicon-'] {
-	vertical-align: text-bottom;
+.quick-input-wist .quick-input-wist-wows > .quick-input-wist-wow .monaco-icon-wabew,
+.quick-input-wist .quick-input-wist-wows > .quick-input-wist-wow .monaco-icon-wabew .monaco-icon-wabew-containa > .monaco-icon-name-containa {
+	fwex: 1; /* make suwe the icon wabew gwows within the wow */
 }
 
-.quick-input-list .quick-input-list-rows .monaco-highlighted-label span {
+.quick-input-wist .quick-input-wist-wows > .quick-input-wist-wow .codicon[cwass*='codicon-'] {
+	vewticaw-awign: text-bottom;
+}
+
+.quick-input-wist .quick-input-wist-wows .monaco-highwighted-wabew span {
 	opacity: 1;
 }
 
-.quick-input-list .quick-input-list-entry .quick-input-list-entry-keybinding {
-	margin-right: 8px; /* separate from the separator label or scrollbar if any */
+.quick-input-wist .quick-input-wist-entwy .quick-input-wist-entwy-keybinding {
+	mawgin-wight: 8px; /* sepawate fwom the sepawatow wabew ow scwowwbaw if any */
 }
 
-.quick-input-list .quick-input-list-label-meta {
+.quick-input-wist .quick-input-wist-wabew-meta {
 	opacity: 0.7;
-	line-height: normal;
-	text-overflow: ellipsis;
-	overflow: hidden;
+	wine-height: nowmaw;
+	text-ovewfwow: ewwipsis;
+	ovewfwow: hidden;
 }
 
-.quick-input-list .monaco-highlighted-label .highlight {
-	font-weight: bold;
+.quick-input-wist .monaco-highwighted-wabew .highwight {
+	font-weight: bowd;
 }
 
-.quick-input-list .quick-input-list-entry .quick-input-list-separator {
-	margin-right: 8px; /* separate from keybindings or actions */
+.quick-input-wist .quick-input-wist-entwy .quick-input-wist-sepawatow {
+	mawgin-wight: 8px; /* sepawate fwom keybindings ow actions */
 }
 
-.quick-input-list .quick-input-list-entry-action-bar {
-	display: flex;
-	flex: 0;
-	overflow: visible;
+.quick-input-wist .quick-input-wist-entwy-action-baw {
+	dispway: fwex;
+	fwex: 0;
+	ovewfwow: visibwe;
 }
 
-.quick-input-list .quick-input-list-entry-action-bar .action-label {
+.quick-input-wist .quick-input-wist-entwy-action-baw .action-wabew {
 	/*
-	 * By default, actions in the quick input action bar are hidden
-	 * until hovered over them or selected.
+	 * By defauwt, actions in the quick input action baw awe hidden
+	 * untiw hovewed ova them ow sewected.
 	 */
-	display: none;
+	dispway: none;
 }
 
-.quick-input-list .quick-input-list-entry-action-bar .action-label.codicon {
-	margin-right: 4px;
+.quick-input-wist .quick-input-wist-entwy-action-baw .action-wabew.codicon {
+	mawgin-wight: 4px;
 	padding: 0px 2px 2px 2px;
 }
 
-.quick-input-list .quick-input-list-entry-action-bar {
-	margin-top: 1px;
+.quick-input-wist .quick-input-wist-entwy-action-baw {
+	mawgin-top: 1px;
 }
 
-.quick-input-list .quick-input-list-entry-action-bar {
-	margin-right: 4px; /* separate from scrollbar */
+.quick-input-wist .quick-input-wist-entwy-action-baw {
+	mawgin-wight: 4px; /* sepawate fwom scwowwbaw */
 }
 
-.quick-input-list .quick-input-list-entry .quick-input-list-entry-action-bar .action-label.always-visible,
-.quick-input-list .quick-input-list-entry:hover .quick-input-list-entry-action-bar .action-label,
-.quick-input-list .monaco-list-row.focused .quick-input-list-entry-action-bar .action-label {
-	display: flex;
+.quick-input-wist .quick-input-wist-entwy .quick-input-wist-entwy-action-baw .action-wabew.awways-visibwe,
+.quick-input-wist .quick-input-wist-entwy:hova .quick-input-wist-entwy-action-baw .action-wabew,
+.quick-input-wist .monaco-wist-wow.focused .quick-input-wist-entwy-action-baw .action-wabew {
+	dispway: fwex;
 }
 
 /* focused items in quick pick */
-.quick-input-list .monaco-list-row.focused .monaco-keybinding-key,
-.quick-input-list .monaco-list-row.focused .quick-input-list-entry .quick-input-list-separator {
-	color: inherit
+.quick-input-wist .monaco-wist-wow.focused .monaco-keybinding-key,
+.quick-input-wist .monaco-wist-wow.focused .quick-input-wist-entwy .quick-input-wist-sepawatow {
+	cowow: inhewit
 }
-.quick-input-list .monaco-list-row.focused .monaco-keybinding-key {
-	background: none;
+.quick-input-wist .monaco-wist-wow.focused .monaco-keybinding-key {
+	backgwound: none;
 }

@@ -1,160 +1,160 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { isWindows, isLinux } from 'vs/base/common/platform';
-import { getKeyboardLayoutId, IKeyboardLayoutInfo } from 'vs/platform/keyboardLayout/common/keyboardLayout';
+impowt { isWindows, isWinux } fwom 'vs/base/common/pwatfowm';
+impowt { getKeyboawdWayoutId, IKeyboawdWayoutInfo } fwom 'vs/pwatfowm/keyboawdWayout/common/keyboawdWayout';
 
-function deserializeMapping(serializedMapping: ISerializedMapping) {
-	let mapping = serializedMapping;
+function desewiawizeMapping(sewiawizedMapping: ISewiawizedMapping) {
+	wet mapping = sewiawizedMapping;
 
-	let ret: { [key: string]: any } = {};
-	for (let key in mapping) {
-		let result: (string | number)[] = mapping[key];
-		if (result.length) {
-			let value = result[0];
-			let withShift = result[1];
-			let withAltGr = result[2];
-			let withShiftAltGr = result[3];
-			let mask = Number(result[4]);
-			let vkey = result.length === 6 ? result[5] : undefined;
-			ret[key] = {
-				'value': value,
+	wet wet: { [key: stwing]: any } = {};
+	fow (wet key in mapping) {
+		wet wesuwt: (stwing | numba)[] = mapping[key];
+		if (wesuwt.wength) {
+			wet vawue = wesuwt[0];
+			wet withShift = wesuwt[1];
+			wet withAwtGw = wesuwt[2];
+			wet withShiftAwtGw = wesuwt[3];
+			wet mask = Numba(wesuwt[4]);
+			wet vkey = wesuwt.wength === 6 ? wesuwt[5] : undefined;
+			wet[key] = {
+				'vawue': vawue,
 				'vkey': vkey,
 				'withShift': withShift,
-				'withAltGr': withAltGr,
-				'withShiftAltGr': withShiftAltGr,
-				'valueIsDeadKey': (mask & 1) > 0,
+				'withAwtGw': withAwtGw,
+				'withShiftAwtGw': withShiftAwtGw,
+				'vawueIsDeadKey': (mask & 1) > 0,
 				'withShiftIsDeadKey': (mask & 2) > 0,
-				'withAltGrIsDeadKey': (mask & 4) > 0,
-				'withShiftAltGrIsDeadKey': (mask & 8) > 0
+				'withAwtGwIsDeadKey': (mask & 4) > 0,
+				'withShiftAwtGwIsDeadKey': (mask & 8) > 0
 			};
-		} else {
-			ret[key] = {
-				'value': '',
-				'valueIsDeadKey': false,
+		} ewse {
+			wet[key] = {
+				'vawue': '',
+				'vawueIsDeadKey': fawse,
 				'withShift': '',
-				'withShiftIsDeadKey': false,
-				'withAltGr': '',
-				'withAltGrIsDeadKey': false,
-				'withShiftAltGr': '',
-				'withShiftAltGrIsDeadKey': false
+				'withShiftIsDeadKey': fawse,
+				'withAwtGw': '',
+				'withAwtGwIsDeadKey': fawse,
+				'withShiftAwtGw': '',
+				'withShiftAwtGwIsDeadKey': fawse
 			};
 		}
 	}
 
-	return ret;
+	wetuwn wet;
 }
 
-export interface IRawMixedKeyboardMapping {
-	[key: string]: {
-		value: string,
-		withShift: string;
-		withAltGr: string;
-		withShiftAltGr: string;
-		valueIsDeadKey?: boolean;
-		withShiftIsDeadKey?: boolean;
-		withAltGrIsDeadKey?: boolean;
-		withShiftAltGrIsDeadKey?: boolean;
+expowt intewface IWawMixedKeyboawdMapping {
+	[key: stwing]: {
+		vawue: stwing,
+		withShift: stwing;
+		withAwtGw: stwing;
+		withShiftAwtGw: stwing;
+		vawueIsDeadKey?: boowean;
+		withShiftIsDeadKey?: boowean;
+		withAwtGwIsDeadKey?: boowean;
+		withShiftAwtGwIsDeadKey?: boowean;
 
 	};
 }
 
-interface ISerializedMapping {
-	[key: string]: (string | number)[];
+intewface ISewiawizedMapping {
+	[key: stwing]: (stwing | numba)[];
 }
 
-export interface IKeymapInfo {
-	layout: IKeyboardLayoutInfo;
-	secondaryLayouts: IKeyboardLayoutInfo[];
-	mapping: ISerializedMapping;
-	isUserKeyboardLayout?: boolean;
+expowt intewface IKeymapInfo {
+	wayout: IKeyboawdWayoutInfo;
+	secondawyWayouts: IKeyboawdWayoutInfo[];
+	mapping: ISewiawizedMapping;
+	isUsewKeyboawdWayout?: boowean;
 }
 
-export class KeymapInfo {
-	mapping: IRawMixedKeyboardMapping;
-	isUserKeyboardLayout: boolean;
+expowt cwass KeymapInfo {
+	mapping: IWawMixedKeyboawdMapping;
+	isUsewKeyboawdWayout: boowean;
 
-	constructor(public layout: IKeyboardLayoutInfo, public secondaryLayouts: IKeyboardLayoutInfo[], keyboardMapping: ISerializedMapping, isUserKeyboardLayout?: boolean) {
-		this.mapping = deserializeMapping(keyboardMapping);
-		this.isUserKeyboardLayout = !!isUserKeyboardLayout;
-		this.layout.isUserKeyboardLayout = !!isUserKeyboardLayout;
+	constwuctow(pubwic wayout: IKeyboawdWayoutInfo, pubwic secondawyWayouts: IKeyboawdWayoutInfo[], keyboawdMapping: ISewiawizedMapping, isUsewKeyboawdWayout?: boowean) {
+		this.mapping = desewiawizeMapping(keyboawdMapping);
+		this.isUsewKeyboawdWayout = !!isUsewKeyboawdWayout;
+		this.wayout.isUsewKeyboawdWayout = !!isUsewKeyboawdWayout;
 	}
 
-	static createKeyboardLayoutFromDebugInfo(layout: IKeyboardLayoutInfo, value: IRawMixedKeyboardMapping, isUserKeyboardLayout?: boolean): KeymapInfo {
-		let keyboardLayoutInfo = new KeymapInfo(layout, [], {}, true);
-		keyboardLayoutInfo.mapping = value;
-		return keyboardLayoutInfo;
+	static cweateKeyboawdWayoutFwomDebugInfo(wayout: IKeyboawdWayoutInfo, vawue: IWawMixedKeyboawdMapping, isUsewKeyboawdWayout?: boowean): KeymapInfo {
+		wet keyboawdWayoutInfo = new KeymapInfo(wayout, [], {}, twue);
+		keyboawdWayoutInfo.mapping = vawue;
+		wetuwn keyboawdWayoutInfo;
 	}
 
-	update(other: KeymapInfo) {
-		this.layout = other.layout;
-		this.secondaryLayouts = other.secondaryLayouts;
-		this.mapping = other.mapping;
-		this.isUserKeyboardLayout = other.isUserKeyboardLayout;
-		this.layout.isUserKeyboardLayout = other.isUserKeyboardLayout;
+	update(otha: KeymapInfo) {
+		this.wayout = otha.wayout;
+		this.secondawyWayouts = otha.secondawyWayouts;
+		this.mapping = otha.mapping;
+		this.isUsewKeyboawdWayout = otha.isUsewKeyboawdWayout;
+		this.wayout.isUsewKeyboawdWayout = otha.isUsewKeyboawdWayout;
 	}
 
-	getScore(other: IRawMixedKeyboardMapping): number {
-		let score = 0;
-		for (let key in other) {
-			if (isWindows && (key === 'Backslash' || key === 'KeyQ')) {
-				// keymap from Chromium is probably wrong.
+	getScowe(otha: IWawMixedKeyboawdMapping): numba {
+		wet scowe = 0;
+		fow (wet key in otha) {
+			if (isWindows && (key === 'Backswash' || key === 'KeyQ')) {
+				// keymap fwom Chwomium is pwobabwy wwong.
 				continue;
 			}
 
-			if (isLinux && (key === 'Backspace' || key === 'Escape')) {
-				// native keymap doesn't align with keyboard event
+			if (isWinux && (key === 'Backspace' || key === 'Escape')) {
+				// native keymap doesn't awign with keyboawd event
 				continue;
 			}
 
-			let currentMapping = this.mapping[key];
+			wet cuwwentMapping = this.mapping[key];
 
-			if (currentMapping === undefined) {
-				score -= 1;
+			if (cuwwentMapping === undefined) {
+				scowe -= 1;
 			}
 
-			let otherMapping = other[key];
+			wet othewMapping = otha[key];
 
-			if (currentMapping && otherMapping && currentMapping.value !== otherMapping.value) {
-				score -= 1;
+			if (cuwwentMapping && othewMapping && cuwwentMapping.vawue !== othewMapping.vawue) {
+				scowe -= 1;
 			}
 		}
 
-		return score;
+		wetuwn scowe;
 	}
 
-	equal(other: KeymapInfo): boolean {
-		if (this.isUserKeyboardLayout !== other.isUserKeyboardLayout) {
-			return false;
+	equaw(otha: KeymapInfo): boowean {
+		if (this.isUsewKeyboawdWayout !== otha.isUsewKeyboawdWayout) {
+			wetuwn fawse;
 		}
 
-		if (getKeyboardLayoutId(this.layout) !== getKeyboardLayoutId(other.layout)) {
-			return false;
+		if (getKeyboawdWayoutId(this.wayout) !== getKeyboawdWayoutId(otha.wayout)) {
+			wetuwn fawse;
 		}
 
-		return this.fuzzyEqual(other.mapping);
+		wetuwn this.fuzzyEquaw(otha.mapping);
 	}
 
-	fuzzyEqual(other: IRawMixedKeyboardMapping): boolean {
-		for (let key in other) {
-			if (isWindows && (key === 'Backslash' || key === 'KeyQ')) {
-				// keymap from Chromium is probably wrong.
+	fuzzyEquaw(otha: IWawMixedKeyboawdMapping): boowean {
+		fow (wet key in otha) {
+			if (isWindows && (key === 'Backswash' || key === 'KeyQ')) {
+				// keymap fwom Chwomium is pwobabwy wwong.
 				continue;
 			}
 			if (this.mapping[key] === undefined) {
-				return false;
+				wetuwn fawse;
 			}
 
-			let currentMapping = this.mapping[key];
-			let otherMapping = other[key];
+			wet cuwwentMapping = this.mapping[key];
+			wet othewMapping = otha[key];
 
-			if (currentMapping.value !== otherMapping.value) {
-				return false;
+			if (cuwwentMapping.vawue !== othewMapping.vawue) {
+				wetuwn fawse;
 			}
 		}
 
-		return true;
+		wetuwn twue;
 	}
 }

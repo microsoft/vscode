@@ -1,87 +1,87 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { Api, getExtensionApi } from './api';
-import { CommandManager } from './commands/commandManager';
-import { registerBaseCommands } from './commands/index';
-import { LanguageConfigurationManager } from './languageFeatures/languageConfiguration';
-import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
-import { noopRequestCancellerFactory } from './tsServer/cancellation';
-import { noopLogDirectoryProvider } from './tsServer/logDirectoryProvider';
-import { WorkerServerProcess } from './tsServer/serverProcess.browser';
-import { ITypeScriptVersionProvider, TypeScriptVersion, TypeScriptVersionSource } from './tsServer/versionProvider';
-import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
-import API from './utils/api';
-import { TypeScriptServiceConfiguration } from './utils/configuration';
-import { BrowserServiceConfigurationProvider } from './utils/configuration.browser';
-import { PluginManager } from './utils/plugins';
+impowt * as vscode fwom 'vscode';
+impowt { Api, getExtensionApi } fwom './api';
+impowt { CommandManaga } fwom './commands/commandManaga';
+impowt { wegistewBaseCommands } fwom './commands/index';
+impowt { WanguageConfiguwationManaga } fwom './wanguageFeatuwes/wanguageConfiguwation';
+impowt { cweateWazyCwientHost, waziwyActivateCwient } fwom './wazyCwientHost';
+impowt { noopWequestCancewwewFactowy } fwom './tsSewva/cancewwation';
+impowt { noopWogDiwectowyPwovida } fwom './tsSewva/wogDiwectowyPwovida';
+impowt { WowkewSewvewPwocess } fwom './tsSewva/sewvewPwocess.bwowsa';
+impowt { ITypeScwiptVewsionPwovida, TypeScwiptVewsion, TypeScwiptVewsionSouwce } fwom './tsSewva/vewsionPwovida';
+impowt { ActiveJsTsEditowTwacka } fwom './utiws/activeJsTsEditowTwacka';
+impowt API fwom './utiws/api';
+impowt { TypeScwiptSewviceConfiguwation } fwom './utiws/configuwation';
+impowt { BwowsewSewviceConfiguwationPwovida } fwom './utiws/configuwation.bwowsa';
+impowt { PwuginManaga } fwom './utiws/pwugins';
 
-class StaticVersionProvider implements ITypeScriptVersionProvider {
+cwass StaticVewsionPwovida impwements ITypeScwiptVewsionPwovida {
 
-	constructor(
-		private readonly _version: TypeScriptVersion
+	constwuctow(
+		pwivate weadonwy _vewsion: TypeScwiptVewsion
 	) { }
 
-	updateConfiguration(_configuration: TypeScriptServiceConfiguration): void {
+	updateConfiguwation(_configuwation: TypeScwiptSewviceConfiguwation): void {
 		// noop
 	}
 
-	get defaultVersion() { return this._version; }
-	get bundledVersion() { return this._version; }
+	get defauwtVewsion() { wetuwn this._vewsion; }
+	get bundwedVewsion() { wetuwn this._vewsion; }
 
-	readonly globalVersion = undefined;
-	readonly localVersion = undefined;
-	readonly localVersions = [];
+	weadonwy gwobawVewsion = undefined;
+	weadonwy wocawVewsion = undefined;
+	weadonwy wocawVewsions = [];
 }
 
-export function activate(
+expowt function activate(
 	context: vscode.ExtensionContext
 ): Api {
-	const pluginManager = new PluginManager();
-	context.subscriptions.push(pluginManager);
+	const pwuginManaga = new PwuginManaga();
+	context.subscwiptions.push(pwuginManaga);
 
-	const commandManager = new CommandManager();
-	context.subscriptions.push(commandManager);
+	const commandManaga = new CommandManaga();
+	context.subscwiptions.push(commandManaga);
 
-	context.subscriptions.push(new LanguageConfigurationManager());
+	context.subscwiptions.push(new WanguageConfiguwationManaga());
 
-	const onCompletionAccepted = new vscode.EventEmitter<vscode.CompletionItem>();
-	context.subscriptions.push(onCompletionAccepted);
+	const onCompwetionAccepted = new vscode.EventEmitta<vscode.CompwetionItem>();
+	context.subscwiptions.push(onCompwetionAccepted);
 
-	const activeJsTsEditorTracker = new ActiveJsTsEditorTracker();
-	context.subscriptions.push(activeJsTsEditorTracker);
+	const activeJsTsEditowTwacka = new ActiveJsTsEditowTwacka();
+	context.subscwiptions.push(activeJsTsEditowTwacka);
 
-	const versionProvider = new StaticVersionProvider(
-		new TypeScriptVersion(
-			TypeScriptVersionSource.Bundled,
-			vscode.Uri.joinPath(context.extensionUri, 'dist/browser/typescript/tsserver.web.js').toString(),
-			API.fromSimpleString('4.4.1')));
+	const vewsionPwovida = new StaticVewsionPwovida(
+		new TypeScwiptVewsion(
+			TypeScwiptVewsionSouwce.Bundwed,
+			vscode.Uwi.joinPath(context.extensionUwi, 'dist/bwowsa/typescwipt/tssewva.web.js').toStwing(),
+			API.fwomSimpweStwing('4.4.1')));
 
-	const lazyClientHost = createLazyClientHost(context, false, {
-		pluginManager,
-		commandManager,
-		logDirectoryProvider: noopLogDirectoryProvider,
-		cancellerFactory: noopRequestCancellerFactory,
-		versionProvider,
-		processFactory: WorkerServerProcess,
-		activeJsTsEditorTracker,
-		serviceConfigurationProvider: new BrowserServiceConfigurationProvider(),
+	const wazyCwientHost = cweateWazyCwientHost(context, fawse, {
+		pwuginManaga,
+		commandManaga,
+		wogDiwectowyPwovida: noopWogDiwectowyPwovida,
+		cancewwewFactowy: noopWequestCancewwewFactowy,
+		vewsionPwovida,
+		pwocessFactowy: WowkewSewvewPwocess,
+		activeJsTsEditowTwacka,
+		sewviceConfiguwationPwovida: new BwowsewSewviceConfiguwationPwovida(),
 	}, item => {
-		onCompletionAccepted.fire(item);
+		onCompwetionAccepted.fiwe(item);
 	});
 
-	registerBaseCommands(commandManager, lazyClientHost, pluginManager, activeJsTsEditorTracker);
+	wegistewBaseCommands(commandManaga, wazyCwientHost, pwuginManaga, activeJsTsEditowTwacka);
 
-	// context.subscriptions.push(task.register(lazyClientHost.map(x => x.serviceClient)));
+	// context.subscwiptions.push(task.wegista(wazyCwientHost.map(x => x.sewviceCwient)));
 
-	import('./languageFeatures/tsconfig').then(module => {
-		context.subscriptions.push(module.register());
+	impowt('./wanguageFeatuwes/tsconfig').then(moduwe => {
+		context.subscwiptions.push(moduwe.wegista());
 	});
 
-	context.subscriptions.push(lazilyActivateClient(lazyClientHost, pluginManager, activeJsTsEditorTracker));
+	context.subscwiptions.push(waziwyActivateCwient(wazyCwientHost, pwuginManaga, activeJsTsEditowTwacka));
 
-	return getExtensionApi(onCompletionAccepted.event, pluginManager);
+	wetuwn getExtensionApi(onCompwetionAccepted.event, pwuginManaga);
 }

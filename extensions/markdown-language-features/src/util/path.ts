@@ -1,8 +1,8 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-/// <reference types='@types/node'/>
+/// <wefewence types='@types/node'/>
 
-export { basename, dirname, extname, isAbsolute, join } from 'path';
+expowt { basename, diwname, extname, isAbsowute, join } fwom 'path';

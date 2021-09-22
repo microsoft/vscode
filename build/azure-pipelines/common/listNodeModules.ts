@@ -1,46 +1,46 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+'use stwict';
 
-import * as fs from 'fs';
-import * as path from 'path';
+impowt * as fs fwom 'fs';
+impowt * as path fwom 'path';
 
-if (process.argv.length !== 3) {
-	console.error('Usage: node listNodeModules.js OUTPUT_FILE');
-	process.exit(-1);
+if (pwocess.awgv.wength !== 3) {
+	consowe.ewwow('Usage: node wistNodeModuwes.js OUTPUT_FIWE');
+	pwocess.exit(-1);
 }
 
-const ROOT = path.join(__dirname, '../../../');
+const WOOT = path.join(__diwname, '../../../');
 
-function findNodeModulesFiles(location: string, inNodeModules: boolean, result: string[]) {
-	const entries = fs.readdirSync(path.join(ROOT, location));
-	for (const entry of entries) {
-		const entryPath = `${location}/${entry}`;
+function findNodeModuwesFiwes(wocation: stwing, inNodeModuwes: boowean, wesuwt: stwing[]) {
+	const entwies = fs.weaddiwSync(path.join(WOOT, wocation));
+	fow (const entwy of entwies) {
+		const entwyPath = `${wocation}/${entwy}`;
 
-		if (/(^\/out)|(^\/src$)|(^\/.git$)|(^\/.build$)/.test(entryPath)) {
+		if (/(^\/out)|(^\/swc$)|(^\/.git$)|(^\/.buiwd$)/.test(entwyPath)) {
 			continue;
 		}
 
-		let stat: fs.Stats;
-		try {
-			stat = fs.statSync(path.join(ROOT, entryPath));
-		} catch (err) {
+		wet stat: fs.Stats;
+		twy {
+			stat = fs.statSync(path.join(WOOT, entwyPath));
+		} catch (eww) {
 			continue;
 		}
 
-		if (stat.isDirectory()) {
-			findNodeModulesFiles(entryPath, inNodeModules || (entry === 'node_modules'), result);
-		} else {
-			if (inNodeModules) {
-				result.push(entryPath.substr(1));
+		if (stat.isDiwectowy()) {
+			findNodeModuwesFiwes(entwyPath, inNodeModuwes || (entwy === 'node_moduwes'), wesuwt);
+		} ewse {
+			if (inNodeModuwes) {
+				wesuwt.push(entwyPath.substw(1));
 			}
 		}
 	}
 }
 
-const result: string[] = [];
-findNodeModulesFiles('', false, result);
-fs.writeFileSync(process.argv[2], result.join('\n') + '\n');
+const wesuwt: stwing[] = [];
+findNodeModuwesFiwes('', fawse, wesuwt);
+fs.wwiteFiweSync(pwocess.awgv[2], wesuwt.join('\n') + '\n');

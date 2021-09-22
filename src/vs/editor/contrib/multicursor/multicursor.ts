@@ -1,1108 +1,1108 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { status } from 'vs/base/browser/ui/aria/aria';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Constants } from 'vs/base/common/uint';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { CursorState } from 'vs/editor/common/controller/cursorCommon';
-import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { CursorMoveCommands } from 'vs/editor/common/controller/cursorMoveCommands';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { FindMatch, ITextModel, OverviewRulerLane, TrackedRangeStickiness, MinimapPosition } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
-import { CommonFindController } from 'vs/editor/contrib/find/findController';
-import { FindOptionOverride, INewFindReplaceState } from 'vs/editor/contrib/find/findState';
-import * as nls from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { overviewRulerSelectionHighlightForeground, minimapSelectionOccurrenceHighlight } from 'vs/platform/theme/common/colorRegistry';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+impowt { status } fwom 'vs/base/bwowsa/ui/awia/awia';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { KeyChowd, KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { Constants } fwom 'vs/base/common/uint';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, wegistewEditowAction, wegistewEditowContwibution, SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { CuwsowState } fwom 'vs/editow/common/contwowwa/cuwsowCommon';
+impowt { CuwsowChangeWeason, ICuwsowSewectionChangedEvent } fwom 'vs/editow/common/contwowwa/cuwsowEvents';
+impowt { CuwsowMoveCommands } fwom 'vs/editow/common/contwowwa/cuwsowMoveCommands';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { IEditowContwibution, ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { FindMatch, ITextModew, OvewviewWuwewWane, TwackedWangeStickiness, MinimapPosition } fwom 'vs/editow/common/modew';
+impowt { ModewDecowationOptions } fwom 'vs/editow/common/modew/textModew';
+impowt { DocumentHighwightPwovidewWegistwy } fwom 'vs/editow/common/modes';
+impowt { CommonFindContwowwa } fwom 'vs/editow/contwib/find/findContwowwa';
+impowt { FindOptionOvewwide, INewFindWepwaceState } fwom 'vs/editow/contwib/find/findState';
+impowt * as nws fwom 'vs/nws';
+impowt { MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { ovewviewWuwewSewectionHighwightFowegwound, minimapSewectionOccuwwenceHighwight } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { themeCowowFwomId } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-function announceCursorChange(previousCursorState: CursorState[], cursorState: CursorState[]): void {
-	const cursorDiff = cursorState.filter(cs => !previousCursorState.find(pcs => pcs.equals(cs)));
-	if (cursorDiff.length >= 1) {
-		const cursorPositions = cursorDiff.map(cs => `line ${cs.viewState.position.lineNumber} column ${cs.viewState.position.column}`).join(', ');
-		const msg = cursorDiff.length === 1 ? nls.localize('cursorAdded', "Cursor added: {0}", cursorPositions) : nls.localize('cursorsAdded', "Cursors added: {0}", cursorPositions);
+function announceCuwsowChange(pweviousCuwsowState: CuwsowState[], cuwsowState: CuwsowState[]): void {
+	const cuwsowDiff = cuwsowState.fiwta(cs => !pweviousCuwsowState.find(pcs => pcs.equaws(cs)));
+	if (cuwsowDiff.wength >= 1) {
+		const cuwsowPositions = cuwsowDiff.map(cs => `wine ${cs.viewState.position.wineNumba} cowumn ${cs.viewState.position.cowumn}`).join(', ');
+		const msg = cuwsowDiff.wength === 1 ? nws.wocawize('cuwsowAdded', "Cuwsow added: {0}", cuwsowPositions) : nws.wocawize('cuwsowsAdded', "Cuwsows added: {0}", cuwsowPositions);
 		status(msg);
 	}
 }
 
-export class InsertCursorAbove extends EditorAction {
+expowt cwass InsewtCuwsowAbove extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.insertCursorAbove',
-			label: nls.localize('mutlicursor.insertAbove', "Add Cursor Above"),
-			alias: 'Add Cursor Above',
-			precondition: undefined,
+	constwuctow() {
+		supa({
+			id: 'editow.action.insewtCuwsowAbove',
+			wabew: nws.wocawize('mutwicuwsow.insewtAbove', "Add Cuwsow Above"),
+			awias: 'Add Cuwsow Above',
+			pwecondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.UpArrow,
-				linux: {
-					primary: KeyMod.Shift | KeyMod.Alt | KeyCode.UpArrow,
-					secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow]
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.UpAwwow,
+				winux: {
+					pwimawy: KeyMod.Shift | KeyMod.Awt | KeyCode.UpAwwow,
+					secondawy: [KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.UpAwwow]
 				},
-				weight: KeybindingWeight.EditorContrib
+				weight: KeybindingWeight.EditowContwib
 			},
 			menuOpts: {
-				menuId: MenuId.MenubarSelectionMenu,
-				group: '3_multi',
-				title: nls.localize({ key: 'miInsertCursorAbove', comment: ['&& denotes a mnemonic'] }, "&&Add Cursor Above"),
-				order: 2
+				menuId: MenuId.MenubawSewectionMenu,
+				gwoup: '3_muwti',
+				titwe: nws.wocawize({ key: 'miInsewtCuwsowAbove', comment: ['&& denotes a mnemonic'] }, "&&Add Cuwsow Above"),
+				owda: 2
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		if (!editor.hasModel()) {
-			return;
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow, awgs: any): void {
+		if (!editow.hasModew()) {
+			wetuwn;
 		}
 
-		const useLogicalLine = (args && args.logicalLine === true);
-		const viewModel = editor._getViewModel();
+		const useWogicawWine = (awgs && awgs.wogicawWine === twue);
+		const viewModew = editow._getViewModew();
 
-		if (viewModel.cursorConfig.readOnly) {
-			return;
+		if (viewModew.cuwsowConfig.weadOnwy) {
+			wetuwn;
 		}
 
-		viewModel.pushStackElement();
-		const previousCursorState = viewModel.getCursorStates();
-		viewModel.setCursorStates(
-			args.source,
-			CursorChangeReason.Explicit,
-			CursorMoveCommands.addCursorUp(viewModel, previousCursorState, useLogicalLine)
+		viewModew.pushStackEwement();
+		const pweviousCuwsowState = viewModew.getCuwsowStates();
+		viewModew.setCuwsowStates(
+			awgs.souwce,
+			CuwsowChangeWeason.Expwicit,
+			CuwsowMoveCommands.addCuwsowUp(viewModew, pweviousCuwsowState, useWogicawWine)
 		);
-		viewModel.revealTopMostCursor(args.source);
-		announceCursorChange(previousCursorState, viewModel.getCursorStates());
+		viewModew.weveawTopMostCuwsow(awgs.souwce);
+		announceCuwsowChange(pweviousCuwsowState, viewModew.getCuwsowStates());
 	}
 }
 
-export class InsertCursorBelow extends EditorAction {
+expowt cwass InsewtCuwsowBewow extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.insertCursorBelow',
-			label: nls.localize('mutlicursor.insertBelow', "Add Cursor Below"),
-			alias: 'Add Cursor Below',
-			precondition: undefined,
+	constwuctow() {
+		supa({
+			id: 'editow.action.insewtCuwsowBewow',
+			wabew: nws.wocawize('mutwicuwsow.insewtBewow', "Add Cuwsow Bewow"),
+			awias: 'Add Cuwsow Bewow',
+			pwecondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.DownArrow,
-				linux: {
-					primary: KeyMod.Shift | KeyMod.Alt | KeyCode.DownArrow,
-					secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow]
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.DownAwwow,
+				winux: {
+					pwimawy: KeyMod.Shift | KeyMod.Awt | KeyCode.DownAwwow,
+					secondawy: [KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.DownAwwow]
 				},
-				weight: KeybindingWeight.EditorContrib
+				weight: KeybindingWeight.EditowContwib
 			},
 			menuOpts: {
-				menuId: MenuId.MenubarSelectionMenu,
-				group: '3_multi',
-				title: nls.localize({ key: 'miInsertCursorBelow', comment: ['&& denotes a mnemonic'] }, "A&&dd Cursor Below"),
-				order: 3
+				menuId: MenuId.MenubawSewectionMenu,
+				gwoup: '3_muwti',
+				titwe: nws.wocawize({ key: 'miInsewtCuwsowBewow', comment: ['&& denotes a mnemonic'] }, "A&&dd Cuwsow Bewow"),
+				owda: 3
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		if (!editor.hasModel()) {
-			return;
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow, awgs: any): void {
+		if (!editow.hasModew()) {
+			wetuwn;
 		}
 
-		const useLogicalLine = (args && args.logicalLine === true);
-		const viewModel = editor._getViewModel();
+		const useWogicawWine = (awgs && awgs.wogicawWine === twue);
+		const viewModew = editow._getViewModew();
 
-		if (viewModel.cursorConfig.readOnly) {
-			return;
+		if (viewModew.cuwsowConfig.weadOnwy) {
+			wetuwn;
 		}
 
-		viewModel.pushStackElement();
-		const previousCursorState = viewModel.getCursorStates();
-		viewModel.setCursorStates(
-			args.source,
-			CursorChangeReason.Explicit,
-			CursorMoveCommands.addCursorDown(viewModel, previousCursorState, useLogicalLine)
+		viewModew.pushStackEwement();
+		const pweviousCuwsowState = viewModew.getCuwsowStates();
+		viewModew.setCuwsowStates(
+			awgs.souwce,
+			CuwsowChangeWeason.Expwicit,
+			CuwsowMoveCommands.addCuwsowDown(viewModew, pweviousCuwsowState, useWogicawWine)
 		);
-		viewModel.revealBottomMostCursor(args.source);
-		announceCursorChange(previousCursorState, viewModel.getCursorStates());
+		viewModew.weveawBottomMostCuwsow(awgs.souwce);
+		announceCuwsowChange(pweviousCuwsowState, viewModew.getCuwsowStates());
 	}
 }
 
-class InsertCursorAtEndOfEachLineSelected extends EditorAction {
+cwass InsewtCuwsowAtEndOfEachWineSewected extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.insertCursorAtEndOfEachLineSelected',
-			label: nls.localize('mutlicursor.insertAtEndOfEachLineSelected', "Add Cursors to Line Ends"),
-			alias: 'Add Cursors to Line Ends',
-			precondition: undefined,
+	constwuctow() {
+		supa({
+			id: 'editow.action.insewtCuwsowAtEndOfEachWineSewected',
+			wabew: nws.wocawize('mutwicuwsow.insewtAtEndOfEachWineSewected', "Add Cuwsows to Wine Ends"),
+			awias: 'Add Cuwsows to Wine Ends',
+			pwecondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_I,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyMod.Shift | KeyMod.Awt | KeyCode.KEY_I,
+				weight: KeybindingWeight.EditowContwib
 			},
 			menuOpts: {
-				menuId: MenuId.MenubarSelectionMenu,
-				group: '3_multi',
-				title: nls.localize({ key: 'miInsertCursorAtEndOfEachLineSelected', comment: ['&& denotes a mnemonic'] }, "Add C&&ursors to Line Ends"),
-				order: 4
+				menuId: MenuId.MenubawSewectionMenu,
+				gwoup: '3_muwti',
+				titwe: nws.wocawize({ key: 'miInsewtCuwsowAtEndOfEachWineSewected', comment: ['&& denotes a mnemonic'] }, "Add C&&uwsows to Wine Ends"),
+				owda: 4
 			}
 		});
 	}
 
-	private getCursorsForSelection(selection: Selection, model: ITextModel, result: Selection[]): void {
-		if (selection.isEmpty()) {
-			return;
+	pwivate getCuwsowsFowSewection(sewection: Sewection, modew: ITextModew, wesuwt: Sewection[]): void {
+		if (sewection.isEmpty()) {
+			wetuwn;
 		}
 
-		for (let i = selection.startLineNumber; i < selection.endLineNumber; i++) {
-			let currentLineMaxColumn = model.getLineMaxColumn(i);
-			result.push(new Selection(i, currentLineMaxColumn, i, currentLineMaxColumn));
+		fow (wet i = sewection.stawtWineNumba; i < sewection.endWineNumba; i++) {
+			wet cuwwentWineMaxCowumn = modew.getWineMaxCowumn(i);
+			wesuwt.push(new Sewection(i, cuwwentWineMaxCowumn, i, cuwwentWineMaxCowumn));
 		}
-		if (selection.endColumn > 1) {
-			result.push(new Selection(selection.endLineNumber, selection.endColumn, selection.endLineNumber, selection.endColumn));
+		if (sewection.endCowumn > 1) {
+			wesuwt.push(new Sewection(sewection.endWineNumba, sewection.endCowumn, sewection.endWineNumba, sewection.endCowumn));
 		}
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		if (!editor.hasModel()) {
-			return;
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		if (!editow.hasModew()) {
+			wetuwn;
 		}
 
-		const model = editor.getModel();
-		const selections = editor.getSelections();
-		const viewModel = editor._getViewModel();
-		const previousCursorState = viewModel.getCursorStates();
-		let newSelections: Selection[] = [];
-		selections.forEach((sel) => this.getCursorsForSelection(sel, model, newSelections));
+		const modew = editow.getModew();
+		const sewections = editow.getSewections();
+		const viewModew = editow._getViewModew();
+		const pweviousCuwsowState = viewModew.getCuwsowStates();
+		wet newSewections: Sewection[] = [];
+		sewections.fowEach((sew) => this.getCuwsowsFowSewection(sew, modew, newSewections));
 
-		if (newSelections.length > 0) {
-			editor.setSelections(newSelections);
+		if (newSewections.wength > 0) {
+			editow.setSewections(newSewections);
 		}
-		announceCursorChange(previousCursorState, viewModel.getCursorStates());
+		announceCuwsowChange(pweviousCuwsowState, viewModew.getCuwsowStates());
 	}
 }
 
-class InsertCursorAtEndOfLineSelected extends EditorAction {
+cwass InsewtCuwsowAtEndOfWineSewected extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.addCursorsToBottom',
-			label: nls.localize('mutlicursor.addCursorsToBottom', "Add Cursors To Bottom"),
-			alias: 'Add Cursors To Bottom',
-			precondition: undefined
+	constwuctow() {
+		supa({
+			id: 'editow.action.addCuwsowsToBottom',
+			wabew: nws.wocawize('mutwicuwsow.addCuwsowsToBottom', "Add Cuwsows To Bottom"),
+			awias: 'Add Cuwsows To Bottom',
+			pwecondition: undefined
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		if (!editor.hasModel()) {
-			return;
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		if (!editow.hasModew()) {
+			wetuwn;
 		}
 
-		const selections = editor.getSelections();
-		const lineCount = editor.getModel().getLineCount();
+		const sewections = editow.getSewections();
+		const wineCount = editow.getModew().getWineCount();
 
-		let newSelections: Selection[] = [];
-		for (let i = selections[0].startLineNumber; i <= lineCount; i++) {
-			newSelections.push(new Selection(i, selections[0].startColumn, i, selections[0].endColumn));
+		wet newSewections: Sewection[] = [];
+		fow (wet i = sewections[0].stawtWineNumba; i <= wineCount; i++) {
+			newSewections.push(new Sewection(i, sewections[0].stawtCowumn, i, sewections[0].endCowumn));
 		}
 
-		const viewModel = editor._getViewModel();
-		const previousCursorState = viewModel.getCursorStates();
-		if (newSelections.length > 0) {
-			editor.setSelections(newSelections);
+		const viewModew = editow._getViewModew();
+		const pweviousCuwsowState = viewModew.getCuwsowStates();
+		if (newSewections.wength > 0) {
+			editow.setSewections(newSewections);
 		}
-		announceCursorChange(previousCursorState, viewModel.getCursorStates());
+		announceCuwsowChange(pweviousCuwsowState, viewModew.getCuwsowStates());
 	}
 }
 
-class InsertCursorAtTopOfLineSelected extends EditorAction {
+cwass InsewtCuwsowAtTopOfWineSewected extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.addCursorsToTop',
-			label: nls.localize('mutlicursor.addCursorsToTop', "Add Cursors To Top"),
-			alias: 'Add Cursors To Top',
-			precondition: undefined
+	constwuctow() {
+		supa({
+			id: 'editow.action.addCuwsowsToTop',
+			wabew: nws.wocawize('mutwicuwsow.addCuwsowsToTop', "Add Cuwsows To Top"),
+			awias: 'Add Cuwsows To Top',
+			pwecondition: undefined
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		if (!editor.hasModel()) {
-			return;
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		if (!editow.hasModew()) {
+			wetuwn;
 		}
 
-		const selections = editor.getSelections();
+		const sewections = editow.getSewections();
 
-		let newSelections: Selection[] = [];
-		for (let i = selections[0].startLineNumber; i >= 1; i--) {
-			newSelections.push(new Selection(i, selections[0].startColumn, i, selections[0].endColumn));
+		wet newSewections: Sewection[] = [];
+		fow (wet i = sewections[0].stawtWineNumba; i >= 1; i--) {
+			newSewections.push(new Sewection(i, sewections[0].stawtCowumn, i, sewections[0].endCowumn));
 		}
 
-		const viewModel = editor._getViewModel();
-		const previousCursorState = viewModel.getCursorStates();
-		if (newSelections.length > 0) {
-			editor.setSelections(newSelections);
+		const viewModew = editow._getViewModew();
+		const pweviousCuwsowState = viewModew.getCuwsowStates();
+		if (newSewections.wength > 0) {
+			editow.setSewections(newSewections);
 		}
-		announceCursorChange(previousCursorState, viewModel.getCursorStates());
+		announceCuwsowChange(pweviousCuwsowState, viewModew.getCuwsowStates());
 	}
 }
 
-export class MultiCursorSessionResult {
-	constructor(
-		public readonly selections: Selection[],
-		public readonly revealRange: Range,
-		public readonly revealScrollType: ScrollType
+expowt cwass MuwtiCuwsowSessionWesuwt {
+	constwuctow(
+		pubwic weadonwy sewections: Sewection[],
+		pubwic weadonwy weveawWange: Wange,
+		pubwic weadonwy weveawScwowwType: ScwowwType
 	) { }
 }
 
-export class MultiCursorSession {
+expowt cwass MuwtiCuwsowSession {
 
-	public static create(editor: ICodeEditor, findController: CommonFindController): MultiCursorSession | null {
-		if (!editor.hasModel()) {
-			return null;
+	pubwic static cweate(editow: ICodeEditow, findContwowwa: CommonFindContwowwa): MuwtiCuwsowSession | nuww {
+		if (!editow.hasModew()) {
+			wetuwn nuww;
 		}
-		const findState = findController.getState();
+		const findState = findContwowwa.getState();
 
-		// Find widget owns entirely what we search for if:
-		//  - focus is not in the editor (i.e. it is in the find widget)
-		//  - and the search widget is visible
-		//  - and the search string is non-empty
-		if (!editor.hasTextFocus() && findState.isRevealed && findState.searchString.length > 0) {
-			// Find widget owns what is searched for
-			return new MultiCursorSession(editor, findController, false, findState.searchString, findState.wholeWord, findState.matchCase, null);
+		// Find widget owns entiwewy what we seawch fow if:
+		//  - focus is not in the editow (i.e. it is in the find widget)
+		//  - and the seawch widget is visibwe
+		//  - and the seawch stwing is non-empty
+		if (!editow.hasTextFocus() && findState.isWeveawed && findState.seawchStwing.wength > 0) {
+			// Find widget owns what is seawched fow
+			wetuwn new MuwtiCuwsowSession(editow, findContwowwa, fawse, findState.seawchStwing, findState.whoweWowd, findState.matchCase, nuww);
 		}
 
-		// Otherwise, the selection gives the search text, and the find widget gives the search settings
-		// The exception is the find state disassociation case: when beginning with a single, collapsed selection
-		let isDisconnectedFromFindController = false;
-		let wholeWord: boolean;
-		let matchCase: boolean;
-		const selections = editor.getSelections();
-		if (selections.length === 1 && selections[0].isEmpty()) {
-			isDisconnectedFromFindController = true;
-			wholeWord = true;
-			matchCase = true;
-		} else {
-			wholeWord = findState.wholeWord;
+		// Othewwise, the sewection gives the seawch text, and the find widget gives the seawch settings
+		// The exception is the find state disassociation case: when beginning with a singwe, cowwapsed sewection
+		wet isDisconnectedFwomFindContwowwa = fawse;
+		wet whoweWowd: boowean;
+		wet matchCase: boowean;
+		const sewections = editow.getSewections();
+		if (sewections.wength === 1 && sewections[0].isEmpty()) {
+			isDisconnectedFwomFindContwowwa = twue;
+			whoweWowd = twue;
+			matchCase = twue;
+		} ewse {
+			whoweWowd = findState.whoweWowd;
 			matchCase = findState.matchCase;
 		}
 
-		// Selection owns what is searched for
-		const s = editor.getSelection();
+		// Sewection owns what is seawched fow
+		const s = editow.getSewection();
 
-		let searchText: string;
-		let currentMatch: Selection | null = null;
+		wet seawchText: stwing;
+		wet cuwwentMatch: Sewection | nuww = nuww;
 
 		if (s.isEmpty()) {
-			// selection is empty => expand to current word
-			const word = editor.getConfiguredWordAtPosition(s.getStartPosition());
-			if (!word) {
-				return null;
+			// sewection is empty => expand to cuwwent wowd
+			const wowd = editow.getConfiguwedWowdAtPosition(s.getStawtPosition());
+			if (!wowd) {
+				wetuwn nuww;
 			}
-			searchText = word.word;
-			currentMatch = new Selection(s.startLineNumber, word.startColumn, s.startLineNumber, word.endColumn);
-		} else {
-			searchText = editor.getModel().getValueInRange(s).replace(/\r\n/g, '\n');
+			seawchText = wowd.wowd;
+			cuwwentMatch = new Sewection(s.stawtWineNumba, wowd.stawtCowumn, s.stawtWineNumba, wowd.endCowumn);
+		} ewse {
+			seawchText = editow.getModew().getVawueInWange(s).wepwace(/\w\n/g, '\n');
 		}
 
-		return new MultiCursorSession(editor, findController, isDisconnectedFromFindController, searchText, wholeWord, matchCase, currentMatch);
+		wetuwn new MuwtiCuwsowSession(editow, findContwowwa, isDisconnectedFwomFindContwowwa, seawchText, whoweWowd, matchCase, cuwwentMatch);
 	}
 
-	constructor(
-		private readonly _editor: ICodeEditor,
-		public readonly findController: CommonFindController,
-		public readonly isDisconnectedFromFindController: boolean,
-		public readonly searchText: string,
-		public readonly wholeWord: boolean,
-		public readonly matchCase: boolean,
-		public currentMatch: Selection | null
+	constwuctow(
+		pwivate weadonwy _editow: ICodeEditow,
+		pubwic weadonwy findContwowwa: CommonFindContwowwa,
+		pubwic weadonwy isDisconnectedFwomFindContwowwa: boowean,
+		pubwic weadonwy seawchText: stwing,
+		pubwic weadonwy whoweWowd: boowean,
+		pubwic weadonwy matchCase: boowean,
+		pubwic cuwwentMatch: Sewection | nuww
 	) { }
 
-	public addSelectionToNextFindMatch(): MultiCursorSessionResult | null {
-		if (!this._editor.hasModel()) {
-			return null;
+	pubwic addSewectionToNextFindMatch(): MuwtiCuwsowSessionWesuwt | nuww {
+		if (!this._editow.hasModew()) {
+			wetuwn nuww;
 		}
 
 		const nextMatch = this._getNextMatch();
 		if (!nextMatch) {
-			return null;
+			wetuwn nuww;
 		}
 
-		const allSelections = this._editor.getSelections();
-		return new MultiCursorSessionResult(allSelections.concat(nextMatch), nextMatch, ScrollType.Smooth);
+		const awwSewections = this._editow.getSewections();
+		wetuwn new MuwtiCuwsowSessionWesuwt(awwSewections.concat(nextMatch), nextMatch, ScwowwType.Smooth);
 	}
 
-	public moveSelectionToNextFindMatch(): MultiCursorSessionResult | null {
-		if (!this._editor.hasModel()) {
-			return null;
+	pubwic moveSewectionToNextFindMatch(): MuwtiCuwsowSessionWesuwt | nuww {
+		if (!this._editow.hasModew()) {
+			wetuwn nuww;
 		}
 
 		const nextMatch = this._getNextMatch();
 		if (!nextMatch) {
-			return null;
+			wetuwn nuww;
 		}
 
-		const allSelections = this._editor.getSelections();
-		return new MultiCursorSessionResult(allSelections.slice(0, allSelections.length - 1).concat(nextMatch), nextMatch, ScrollType.Smooth);
+		const awwSewections = this._editow.getSewections();
+		wetuwn new MuwtiCuwsowSessionWesuwt(awwSewections.swice(0, awwSewections.wength - 1).concat(nextMatch), nextMatch, ScwowwType.Smooth);
 	}
 
-	private _getNextMatch(): Selection | null {
-		if (!this._editor.hasModel()) {
-			return null;
+	pwivate _getNextMatch(): Sewection | nuww {
+		if (!this._editow.hasModew()) {
+			wetuwn nuww;
 		}
 
-		if (this.currentMatch) {
-			const result = this.currentMatch;
-			this.currentMatch = null;
-			return result;
+		if (this.cuwwentMatch) {
+			const wesuwt = this.cuwwentMatch;
+			this.cuwwentMatch = nuww;
+			wetuwn wesuwt;
 		}
 
-		this.findController.highlightFindOptions();
+		this.findContwowwa.highwightFindOptions();
 
-		const allSelections = this._editor.getSelections();
-		const lastAddedSelection = allSelections[allSelections.length - 1];
-		const nextMatch = this._editor.getModel().findNextMatch(this.searchText, lastAddedSelection.getEndPosition(), false, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false);
+		const awwSewections = this._editow.getSewections();
+		const wastAddedSewection = awwSewections[awwSewections.wength - 1];
+		const nextMatch = this._editow.getModew().findNextMatch(this.seawchText, wastAddedSewection.getEndPosition(), fawse, this.matchCase, this.whoweWowd ? this._editow.getOption(EditowOption.wowdSepawatows) : nuww, fawse);
 
 		if (!nextMatch) {
-			return null;
+			wetuwn nuww;
 		}
-		return new Selection(nextMatch.range.startLineNumber, nextMatch.range.startColumn, nextMatch.range.endLineNumber, nextMatch.range.endColumn);
+		wetuwn new Sewection(nextMatch.wange.stawtWineNumba, nextMatch.wange.stawtCowumn, nextMatch.wange.endWineNumba, nextMatch.wange.endCowumn);
 	}
 
-	public addSelectionToPreviousFindMatch(): MultiCursorSessionResult | null {
-		if (!this._editor.hasModel()) {
-			return null;
+	pubwic addSewectionToPweviousFindMatch(): MuwtiCuwsowSessionWesuwt | nuww {
+		if (!this._editow.hasModew()) {
+			wetuwn nuww;
 		}
 
-		const previousMatch = this._getPreviousMatch();
-		if (!previousMatch) {
-			return null;
+		const pweviousMatch = this._getPweviousMatch();
+		if (!pweviousMatch) {
+			wetuwn nuww;
 		}
 
-		const allSelections = this._editor.getSelections();
-		return new MultiCursorSessionResult(allSelections.concat(previousMatch), previousMatch, ScrollType.Smooth);
+		const awwSewections = this._editow.getSewections();
+		wetuwn new MuwtiCuwsowSessionWesuwt(awwSewections.concat(pweviousMatch), pweviousMatch, ScwowwType.Smooth);
 	}
 
-	public moveSelectionToPreviousFindMatch(): MultiCursorSessionResult | null {
-		if (!this._editor.hasModel()) {
-			return null;
+	pubwic moveSewectionToPweviousFindMatch(): MuwtiCuwsowSessionWesuwt | nuww {
+		if (!this._editow.hasModew()) {
+			wetuwn nuww;
 		}
 
-		const previousMatch = this._getPreviousMatch();
-		if (!previousMatch) {
-			return null;
+		const pweviousMatch = this._getPweviousMatch();
+		if (!pweviousMatch) {
+			wetuwn nuww;
 		}
 
-		const allSelections = this._editor.getSelections();
-		return new MultiCursorSessionResult(allSelections.slice(0, allSelections.length - 1).concat(previousMatch), previousMatch, ScrollType.Smooth);
+		const awwSewections = this._editow.getSewections();
+		wetuwn new MuwtiCuwsowSessionWesuwt(awwSewections.swice(0, awwSewections.wength - 1).concat(pweviousMatch), pweviousMatch, ScwowwType.Smooth);
 	}
 
-	private _getPreviousMatch(): Selection | null {
-		if (!this._editor.hasModel()) {
-			return null;
+	pwivate _getPweviousMatch(): Sewection | nuww {
+		if (!this._editow.hasModew()) {
+			wetuwn nuww;
 		}
 
-		if (this.currentMatch) {
-			const result = this.currentMatch;
-			this.currentMatch = null;
-			return result;
+		if (this.cuwwentMatch) {
+			const wesuwt = this.cuwwentMatch;
+			this.cuwwentMatch = nuww;
+			wetuwn wesuwt;
 		}
 
-		this.findController.highlightFindOptions();
+		this.findContwowwa.highwightFindOptions();
 
-		const allSelections = this._editor.getSelections();
-		const lastAddedSelection = allSelections[allSelections.length - 1];
-		const previousMatch = this._editor.getModel().findPreviousMatch(this.searchText, lastAddedSelection.getStartPosition(), false, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false);
+		const awwSewections = this._editow.getSewections();
+		const wastAddedSewection = awwSewections[awwSewections.wength - 1];
+		const pweviousMatch = this._editow.getModew().findPweviousMatch(this.seawchText, wastAddedSewection.getStawtPosition(), fawse, this.matchCase, this.whoweWowd ? this._editow.getOption(EditowOption.wowdSepawatows) : nuww, fawse);
 
-		if (!previousMatch) {
-			return null;
+		if (!pweviousMatch) {
+			wetuwn nuww;
 		}
-		return new Selection(previousMatch.range.startLineNumber, previousMatch.range.startColumn, previousMatch.range.endLineNumber, previousMatch.range.endColumn);
+		wetuwn new Sewection(pweviousMatch.wange.stawtWineNumba, pweviousMatch.wange.stawtCowumn, pweviousMatch.wange.endWineNumba, pweviousMatch.wange.endCowumn);
 	}
 
-	public selectAll(): FindMatch[] {
-		if (!this._editor.hasModel()) {
-			return [];
+	pubwic sewectAww(): FindMatch[] {
+		if (!this._editow.hasModew()) {
+			wetuwn [];
 		}
 
-		this.findController.highlightFindOptions();
+		this.findContwowwa.highwightFindOptions();
 
-		return this._editor.getModel().findMatches(this.searchText, true, false, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
+		wetuwn this._editow.getModew().findMatches(this.seawchText, twue, fawse, this.matchCase, this.whoweWowd ? this._editow.getOption(EditowOption.wowdSepawatows) : nuww, fawse, Constants.MAX_SAFE_SMAWW_INTEGa);
 	}
 }
 
-export class MultiCursorSelectionController extends Disposable implements IEditorContribution {
+expowt cwass MuwtiCuwsowSewectionContwowwa extends Disposabwe impwements IEditowContwibution {
 
-	public static readonly ID = 'editor.contrib.multiCursorController';
+	pubwic static weadonwy ID = 'editow.contwib.muwtiCuwsowContwowwa';
 
-	private readonly _editor: ICodeEditor;
-	private _ignoreSelectionChange: boolean;
-	private _session: MultiCursorSession | null;
-	private readonly _sessionDispose = this._register(new DisposableStore());
+	pwivate weadonwy _editow: ICodeEditow;
+	pwivate _ignoweSewectionChange: boowean;
+	pwivate _session: MuwtiCuwsowSession | nuww;
+	pwivate weadonwy _sessionDispose = this._wegista(new DisposabweStowe());
 
-	public static get(editor: ICodeEditor): MultiCursorSelectionController {
-		return editor.getContribution<MultiCursorSelectionController>(MultiCursorSelectionController.ID);
+	pubwic static get(editow: ICodeEditow): MuwtiCuwsowSewectionContwowwa {
+		wetuwn editow.getContwibution<MuwtiCuwsowSewectionContwowwa>(MuwtiCuwsowSewectionContwowwa.ID);
 	}
 
-	constructor(editor: ICodeEditor) {
-		super();
-		this._editor = editor;
-		this._ignoreSelectionChange = false;
-		this._session = null;
+	constwuctow(editow: ICodeEditow) {
+		supa();
+		this._editow = editow;
+		this._ignoweSewectionChange = fawse;
+		this._session = nuww;
 	}
 
-	public override dispose(): void {
+	pubwic ovewwide dispose(): void {
 		this._endSession();
-		super.dispose();
+		supa.dispose();
 	}
 
-	private _beginSessionIfNeeded(findController: CommonFindController): void {
+	pwivate _beginSessionIfNeeded(findContwowwa: CommonFindContwowwa): void {
 		if (!this._session) {
-			// Create a new session
-			const session = MultiCursorSession.create(this._editor, findController);
+			// Cweate a new session
+			const session = MuwtiCuwsowSession.cweate(this._editow, findContwowwa);
 			if (!session) {
-				return;
+				wetuwn;
 			}
 
 			this._session = session;
 
-			const newState: INewFindReplaceState = { searchString: this._session.searchText };
-			if (this._session.isDisconnectedFromFindController) {
-				newState.wholeWordOverride = FindOptionOverride.True;
-				newState.matchCaseOverride = FindOptionOverride.True;
-				newState.isRegexOverride = FindOptionOverride.False;
+			const newState: INewFindWepwaceState = { seawchStwing: this._session.seawchText };
+			if (this._session.isDisconnectedFwomFindContwowwa) {
+				newState.whoweWowdOvewwide = FindOptionOvewwide.Twue;
+				newState.matchCaseOvewwide = FindOptionOvewwide.Twue;
+				newState.isWegexOvewwide = FindOptionOvewwide.Fawse;
 			}
-			findController.getState().change(newState, false);
+			findContwowwa.getState().change(newState, fawse);
 
-			this._sessionDispose.add(this._editor.onDidChangeCursorSelection((e) => {
-				if (this._ignoreSelectionChange) {
-					return;
+			this._sessionDispose.add(this._editow.onDidChangeCuwsowSewection((e) => {
+				if (this._ignoweSewectionChange) {
+					wetuwn;
 				}
 				this._endSession();
 			}));
-			this._sessionDispose.add(this._editor.onDidBlurEditorText(() => {
+			this._sessionDispose.add(this._editow.onDidBwuwEditowText(() => {
 				this._endSession();
 			}));
-			this._sessionDispose.add(findController.getState().onFindReplaceStateChange((e) => {
-				if (e.matchCase || e.wholeWord) {
+			this._sessionDispose.add(findContwowwa.getState().onFindWepwaceStateChange((e) => {
+				if (e.matchCase || e.whoweWowd) {
 					this._endSession();
 				}
 			}));
 		}
 	}
 
-	private _endSession(): void {
-		this._sessionDispose.clear();
-		if (this._session && this._session.isDisconnectedFromFindController) {
-			const newState: INewFindReplaceState = {
-				wholeWordOverride: FindOptionOverride.NotSet,
-				matchCaseOverride: FindOptionOverride.NotSet,
-				isRegexOverride: FindOptionOverride.NotSet,
+	pwivate _endSession(): void {
+		this._sessionDispose.cweaw();
+		if (this._session && this._session.isDisconnectedFwomFindContwowwa) {
+			const newState: INewFindWepwaceState = {
+				whoweWowdOvewwide: FindOptionOvewwide.NotSet,
+				matchCaseOvewwide: FindOptionOvewwide.NotSet,
+				isWegexOvewwide: FindOptionOvewwide.NotSet,
 			};
-			this._session.findController.getState().change(newState, false);
+			this._session.findContwowwa.getState().change(newState, fawse);
 		}
-		this._session = null;
+		this._session = nuww;
 	}
 
-	private _setSelections(selections: Selection[]): void {
-		this._ignoreSelectionChange = true;
-		this._editor.setSelections(selections);
-		this._ignoreSelectionChange = false;
+	pwivate _setSewections(sewections: Sewection[]): void {
+		this._ignoweSewectionChange = twue;
+		this._editow.setSewections(sewections);
+		this._ignoweSewectionChange = fawse;
 	}
 
-	private _expandEmptyToWord(model: ITextModel, selection: Selection): Selection {
-		if (!selection.isEmpty()) {
-			return selection;
+	pwivate _expandEmptyToWowd(modew: ITextModew, sewection: Sewection): Sewection {
+		if (!sewection.isEmpty()) {
+			wetuwn sewection;
 		}
-		const word = this._editor.getConfiguredWordAtPosition(selection.getStartPosition());
-		if (!word) {
-			return selection;
+		const wowd = this._editow.getConfiguwedWowdAtPosition(sewection.getStawtPosition());
+		if (!wowd) {
+			wetuwn sewection;
 		}
-		return new Selection(selection.startLineNumber, word.startColumn, selection.startLineNumber, word.endColumn);
+		wetuwn new Sewection(sewection.stawtWineNumba, wowd.stawtCowumn, sewection.stawtWineNumba, wowd.endCowumn);
 	}
 
-	private _applySessionResult(result: MultiCursorSessionResult | null): void {
-		if (!result) {
-			return;
+	pwivate _appwySessionWesuwt(wesuwt: MuwtiCuwsowSessionWesuwt | nuww): void {
+		if (!wesuwt) {
+			wetuwn;
 		}
-		this._setSelections(result.selections);
-		if (result.revealRange) {
-			this._editor.revealRangeInCenterIfOutsideViewport(result.revealRange, result.revealScrollType);
+		this._setSewections(wesuwt.sewections);
+		if (wesuwt.weveawWange) {
+			this._editow.weveawWangeInCentewIfOutsideViewpowt(wesuwt.weveawWange, wesuwt.weveawScwowwType);
 		}
 	}
 
-	public getSession(findController: CommonFindController): MultiCursorSession | null {
-		return this._session;
+	pubwic getSession(findContwowwa: CommonFindContwowwa): MuwtiCuwsowSession | nuww {
+		wetuwn this._session;
 	}
 
-	public addSelectionToNextFindMatch(findController: CommonFindController): void {
-		if (!this._editor.hasModel()) {
-			return;
+	pubwic addSewectionToNextFindMatch(findContwowwa: CommonFindContwowwa): void {
+		if (!this._editow.hasModew()) {
+			wetuwn;
 		}
 		if (!this._session) {
-			// If there are multiple cursors, handle the case where they do not all select the same text.
-			const allSelections = this._editor.getSelections();
-			if (allSelections.length > 1) {
-				const findState = findController.getState();
+			// If thewe awe muwtipwe cuwsows, handwe the case whewe they do not aww sewect the same text.
+			const awwSewections = this._editow.getSewections();
+			if (awwSewections.wength > 1) {
+				const findState = findContwowwa.getState();
 				const matchCase = findState.matchCase;
-				const selectionsContainSameText = modelRangesContainSameText(this._editor.getModel(), allSelections, matchCase);
-				if (!selectionsContainSameText) {
-					const model = this._editor.getModel();
-					let resultingSelections: Selection[] = [];
-					for (let i = 0, len = allSelections.length; i < len; i++) {
-						resultingSelections[i] = this._expandEmptyToWord(model, allSelections[i]);
+				const sewectionsContainSameText = modewWangesContainSameText(this._editow.getModew(), awwSewections, matchCase);
+				if (!sewectionsContainSameText) {
+					const modew = this._editow.getModew();
+					wet wesuwtingSewections: Sewection[] = [];
+					fow (wet i = 0, wen = awwSewections.wength; i < wen; i++) {
+						wesuwtingSewections[i] = this._expandEmptyToWowd(modew, awwSewections[i]);
 					}
-					this._editor.setSelections(resultingSelections);
-					return;
+					this._editow.setSewections(wesuwtingSewections);
+					wetuwn;
 				}
 			}
 		}
-		this._beginSessionIfNeeded(findController);
+		this._beginSessionIfNeeded(findContwowwa);
 		if (this._session) {
-			this._applySessionResult(this._session.addSelectionToNextFindMatch());
+			this._appwySessionWesuwt(this._session.addSewectionToNextFindMatch());
 		}
 	}
 
-	public addSelectionToPreviousFindMatch(findController: CommonFindController): void {
-		this._beginSessionIfNeeded(findController);
+	pubwic addSewectionToPweviousFindMatch(findContwowwa: CommonFindContwowwa): void {
+		this._beginSessionIfNeeded(findContwowwa);
 		if (this._session) {
-			this._applySessionResult(this._session.addSelectionToPreviousFindMatch());
+			this._appwySessionWesuwt(this._session.addSewectionToPweviousFindMatch());
 		}
 	}
 
-	public moveSelectionToNextFindMatch(findController: CommonFindController): void {
-		this._beginSessionIfNeeded(findController);
+	pubwic moveSewectionToNextFindMatch(findContwowwa: CommonFindContwowwa): void {
+		this._beginSessionIfNeeded(findContwowwa);
 		if (this._session) {
-			this._applySessionResult(this._session.moveSelectionToNextFindMatch());
+			this._appwySessionWesuwt(this._session.moveSewectionToNextFindMatch());
 		}
 	}
 
-	public moveSelectionToPreviousFindMatch(findController: CommonFindController): void {
-		this._beginSessionIfNeeded(findController);
+	pubwic moveSewectionToPweviousFindMatch(findContwowwa: CommonFindContwowwa): void {
+		this._beginSessionIfNeeded(findContwowwa);
 		if (this._session) {
-			this._applySessionResult(this._session.moveSelectionToPreviousFindMatch());
+			this._appwySessionWesuwt(this._session.moveSewectionToPweviousFindMatch());
 		}
 	}
 
-	public selectAll(findController: CommonFindController): void {
-		if (!this._editor.hasModel()) {
-			return;
+	pubwic sewectAww(findContwowwa: CommonFindContwowwa): void {
+		if (!this._editow.hasModew()) {
+			wetuwn;
 		}
 
-		let matches: FindMatch[] | null = null;
+		wet matches: FindMatch[] | nuww = nuww;
 
-		const findState = findController.getState();
+		const findState = findContwowwa.getState();
 
-		// Special case: find widget owns entirely what we search for if:
-		// - focus is not in the editor (i.e. it is in the find widget)
-		// - and the search widget is visible
-		// - and the search string is non-empty
-		// - and we're searching for a regex
-		if (findState.isRevealed && findState.searchString.length > 0 && findState.isRegex) {
+		// Speciaw case: find widget owns entiwewy what we seawch fow if:
+		// - focus is not in the editow (i.e. it is in the find widget)
+		// - and the seawch widget is visibwe
+		// - and the seawch stwing is non-empty
+		// - and we'we seawching fow a wegex
+		if (findState.isWeveawed && findState.seawchStwing.wength > 0 && findState.isWegex) {
 
-			matches = this._editor.getModel().findMatches(findState.searchString, true, findState.isRegex, findState.matchCase, findState.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
+			matches = this._editow.getModew().findMatches(findState.seawchStwing, twue, findState.isWegex, findState.matchCase, findState.whoweWowd ? this._editow.getOption(EditowOption.wowdSepawatows) : nuww, fawse, Constants.MAX_SAFE_SMAWW_INTEGa);
 
-		} else {
+		} ewse {
 
-			this._beginSessionIfNeeded(findController);
+			this._beginSessionIfNeeded(findContwowwa);
 			if (!this._session) {
-				return;
+				wetuwn;
 			}
 
-			matches = this._session.selectAll();
+			matches = this._session.sewectAww();
 		}
 
-		if (findState.searchScope) {
-			const states = findState.searchScope;
-			let inSelection: FindMatch[] | null = [];
-			matches.forEach((match) => {
-				states.forEach((state) => {
-					if (match.range.endLineNumber <= state.endLineNumber && match.range.startLineNumber >= state.startLineNumber) {
-						inSelection!.push(match);
+		if (findState.seawchScope) {
+			const states = findState.seawchScope;
+			wet inSewection: FindMatch[] | nuww = [];
+			matches.fowEach((match) => {
+				states.fowEach((state) => {
+					if (match.wange.endWineNumba <= state.endWineNumba && match.wange.stawtWineNumba >= state.stawtWineNumba) {
+						inSewection!.push(match);
 					}
 				});
 			});
-			matches = inSelection;
+			matches = inSewection;
 		}
 
-		if (matches.length > 0) {
-			const editorSelection = this._editor.getSelection();
-			// Have the primary cursor remain the one where the action was invoked
-			for (let i = 0, len = matches.length; i < len; i++) {
+		if (matches.wength > 0) {
+			const editowSewection = this._editow.getSewection();
+			// Have the pwimawy cuwsow wemain the one whewe the action was invoked
+			fow (wet i = 0, wen = matches.wength; i < wen; i++) {
 				const match = matches[i];
-				const intersection = match.range.intersectRanges(editorSelection);
-				if (intersection) {
+				const intewsection = match.wange.intewsectWanges(editowSewection);
+				if (intewsection) {
 					// bingo!
 					matches[i] = matches[0];
 					matches[0] = match;
-					break;
+					bweak;
 				}
 			}
 
-			this._setSelections(matches.map(m => new Selection(m.range.startLineNumber, m.range.startColumn, m.range.endLineNumber, m.range.endColumn)));
+			this._setSewections(matches.map(m => new Sewection(m.wange.stawtWineNumba, m.wange.stawtCowumn, m.wange.endWineNumba, m.wange.endCowumn)));
 		}
 	}
 
-	public selectAllUsingSelections(selections: Selection[]): void {
-		if (selections.length > 0) {
-			this._setSelections(selections);
+	pubwic sewectAwwUsingSewections(sewections: Sewection[]): void {
+		if (sewections.wength > 0) {
+			this._setSewections(sewections);
 		}
 	}
 }
 
-export abstract class MultiCursorSelectionControllerAction extends EditorAction {
+expowt abstwact cwass MuwtiCuwsowSewectionContwowwewAction extends EditowAction {
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const multiCursorController = MultiCursorSelectionController.get(editor);
-		if (!multiCursorController) {
-			return;
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		const muwtiCuwsowContwowwa = MuwtiCuwsowSewectionContwowwa.get(editow);
+		if (!muwtiCuwsowContwowwa) {
+			wetuwn;
 		}
-		const findController = CommonFindController.get(editor);
-		if (!findController) {
-			return;
+		const findContwowwa = CommonFindContwowwa.get(editow);
+		if (!findContwowwa) {
+			wetuwn;
 		}
-		const viewModel = editor._getViewModel();
-		if (viewModel) {
-			const previousCursorState = viewModel.getCursorStates();
-			this._run(multiCursorController, findController);
-			announceCursorChange(previousCursorState, viewModel.getCursorStates());
+		const viewModew = editow._getViewModew();
+		if (viewModew) {
+			const pweviousCuwsowState = viewModew.getCuwsowStates();
+			this._wun(muwtiCuwsowContwowwa, findContwowwa);
+			announceCuwsowChange(pweviousCuwsowState, viewModew.getCuwsowStates());
 		}
 	}
 
-	protected abstract _run(multiCursorController: MultiCursorSelectionController, findController: CommonFindController): void;
+	pwotected abstwact _wun(muwtiCuwsowContwowwa: MuwtiCuwsowSewectionContwowwa, findContwowwa: CommonFindContwowwa): void;
 }
 
-export class AddSelectionToNextFindMatchAction extends MultiCursorSelectionControllerAction {
-	constructor() {
-		super({
-			id: 'editor.action.addSelectionToNextFindMatch',
-			label: nls.localize('addSelectionToNextFindMatch', "Add Selection To Next Find Match"),
-			alias: 'Add Selection To Next Find Match',
-			precondition: undefined,
+expowt cwass AddSewectionToNextFindMatchAction extends MuwtiCuwsowSewectionContwowwewAction {
+	constwuctow() {
+		supa({
+			id: 'editow.action.addSewectionToNextFindMatch',
+			wabew: nws.wocawize('addSewectionToNextFindMatch', "Add Sewection To Next Find Match"),
+			awias: 'Add Sewection To Next Find Match',
+			pwecondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_D,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.focus,
+				pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_D,
+				weight: KeybindingWeight.EditowContwib
 			},
 			menuOpts: {
-				menuId: MenuId.MenubarSelectionMenu,
-				group: '3_multi',
-				title: nls.localize({ key: 'miAddSelectionToNextFindMatch', comment: ['&& denotes a mnemonic'] }, "Add &&Next Occurrence"),
-				order: 5
+				menuId: MenuId.MenubawSewectionMenu,
+				gwoup: '3_muwti',
+				titwe: nws.wocawize({ key: 'miAddSewectionToNextFindMatch', comment: ['&& denotes a mnemonic'] }, "Add &&Next Occuwwence"),
+				owda: 5
 			}
 		});
 	}
-	protected _run(multiCursorController: MultiCursorSelectionController, findController: CommonFindController): void {
-		multiCursorController.addSelectionToNextFindMatch(findController);
+	pwotected _wun(muwtiCuwsowContwowwa: MuwtiCuwsowSewectionContwowwa, findContwowwa: CommonFindContwowwa): void {
+		muwtiCuwsowContwowwa.addSewectionToNextFindMatch(findContwowwa);
 	}
 }
 
-export class AddSelectionToPreviousFindMatchAction extends MultiCursorSelectionControllerAction {
-	constructor() {
-		super({
-			id: 'editor.action.addSelectionToPreviousFindMatch',
-			label: nls.localize('addSelectionToPreviousFindMatch', "Add Selection To Previous Find Match"),
-			alias: 'Add Selection To Previous Find Match',
-			precondition: undefined,
+expowt cwass AddSewectionToPweviousFindMatchAction extends MuwtiCuwsowSewectionContwowwewAction {
+	constwuctow() {
+		supa({
+			id: 'editow.action.addSewectionToPweviousFindMatch',
+			wabew: nws.wocawize('addSewectionToPweviousFindMatch', "Add Sewection To Pwevious Find Match"),
+			awias: 'Add Sewection To Pwevious Find Match',
+			pwecondition: undefined,
 			menuOpts: {
-				menuId: MenuId.MenubarSelectionMenu,
-				group: '3_multi',
-				title: nls.localize({ key: 'miAddSelectionToPreviousFindMatch', comment: ['&& denotes a mnemonic'] }, "Add P&&revious Occurrence"),
-				order: 6
+				menuId: MenuId.MenubawSewectionMenu,
+				gwoup: '3_muwti',
+				titwe: nws.wocawize({ key: 'miAddSewectionToPweviousFindMatch', comment: ['&& denotes a mnemonic'] }, "Add P&&wevious Occuwwence"),
+				owda: 6
 			}
 		});
 	}
-	protected _run(multiCursorController: MultiCursorSelectionController, findController: CommonFindController): void {
-		multiCursorController.addSelectionToPreviousFindMatch(findController);
+	pwotected _wun(muwtiCuwsowContwowwa: MuwtiCuwsowSewectionContwowwa, findContwowwa: CommonFindContwowwa): void {
+		muwtiCuwsowContwowwa.addSewectionToPweviousFindMatch(findContwowwa);
 	}
 }
 
-export class MoveSelectionToNextFindMatchAction extends MultiCursorSelectionControllerAction {
-	constructor() {
-		super({
-			id: 'editor.action.moveSelectionToNextFindMatch',
-			label: nls.localize('moveSelectionToNextFindMatch', "Move Last Selection To Next Find Match"),
-			alias: 'Move Last Selection To Next Find Match',
-			precondition: undefined,
+expowt cwass MoveSewectionToNextFindMatchAction extends MuwtiCuwsowSewectionContwowwewAction {
+	constwuctow() {
+		supa({
+			id: 'editow.action.moveSewectionToNextFindMatch',
+			wabew: nws.wocawize('moveSewectionToNextFindMatch', "Move Wast Sewection To Next Find Match"),
+			awias: 'Move Wast Sewection To Next Find Match',
+			pwecondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.focus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_D),
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.focus,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_D),
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
-	protected _run(multiCursorController: MultiCursorSelectionController, findController: CommonFindController): void {
-		multiCursorController.moveSelectionToNextFindMatch(findController);
+	pwotected _wun(muwtiCuwsowContwowwa: MuwtiCuwsowSewectionContwowwa, findContwowwa: CommonFindContwowwa): void {
+		muwtiCuwsowContwowwa.moveSewectionToNextFindMatch(findContwowwa);
 	}
 }
 
-export class MoveSelectionToPreviousFindMatchAction extends MultiCursorSelectionControllerAction {
-	constructor() {
-		super({
-			id: 'editor.action.moveSelectionToPreviousFindMatch',
-			label: nls.localize('moveSelectionToPreviousFindMatch', "Move Last Selection To Previous Find Match"),
-			alias: 'Move Last Selection To Previous Find Match',
-			precondition: undefined
+expowt cwass MoveSewectionToPweviousFindMatchAction extends MuwtiCuwsowSewectionContwowwewAction {
+	constwuctow() {
+		supa({
+			id: 'editow.action.moveSewectionToPweviousFindMatch',
+			wabew: nws.wocawize('moveSewectionToPweviousFindMatch', "Move Wast Sewection To Pwevious Find Match"),
+			awias: 'Move Wast Sewection To Pwevious Find Match',
+			pwecondition: undefined
 		});
 	}
-	protected _run(multiCursorController: MultiCursorSelectionController, findController: CommonFindController): void {
-		multiCursorController.moveSelectionToPreviousFindMatch(findController);
+	pwotected _wun(muwtiCuwsowContwowwa: MuwtiCuwsowSewectionContwowwa, findContwowwa: CommonFindContwowwa): void {
+		muwtiCuwsowContwowwa.moveSewectionToPweviousFindMatch(findContwowwa);
 	}
 }
 
-export class SelectHighlightsAction extends MultiCursorSelectionControllerAction {
-	constructor() {
-		super({
-			id: 'editor.action.selectHighlights',
-			label: nls.localize('selectAllOccurrencesOfFindMatch', "Select All Occurrences of Find Match"),
-			alias: 'Select All Occurrences of Find Match',
-			precondition: undefined,
+expowt cwass SewectHighwightsAction extends MuwtiCuwsowSewectionContwowwewAction {
+	constwuctow() {
+		supa({
+			id: 'editow.action.sewectHighwights',
+			wabew: nws.wocawize('sewectAwwOccuwwencesOfFindMatch', "Sewect Aww Occuwwences of Find Match"),
+			awias: 'Sewect Aww Occuwwences of Find Match',
+			pwecondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_L,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.focus,
+				pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_W,
+				weight: KeybindingWeight.EditowContwib
 			},
 			menuOpts: {
-				menuId: MenuId.MenubarSelectionMenu,
-				group: '3_multi',
-				title: nls.localize({ key: 'miSelectHighlights', comment: ['&& denotes a mnemonic'] }, "Select All &&Occurrences"),
-				order: 7
+				menuId: MenuId.MenubawSewectionMenu,
+				gwoup: '3_muwti',
+				titwe: nws.wocawize({ key: 'miSewectHighwights', comment: ['&& denotes a mnemonic'] }, "Sewect Aww &&Occuwwences"),
+				owda: 7
 			}
 		});
 	}
-	protected _run(multiCursorController: MultiCursorSelectionController, findController: CommonFindController): void {
-		multiCursorController.selectAll(findController);
+	pwotected _wun(muwtiCuwsowContwowwa: MuwtiCuwsowSewectionContwowwa, findContwowwa: CommonFindContwowwa): void {
+		muwtiCuwsowContwowwa.sewectAww(findContwowwa);
 	}
 }
 
-export class CompatChangeAll extends MultiCursorSelectionControllerAction {
-	constructor() {
-		super({
-			id: 'editor.action.changeAll',
-			label: nls.localize('changeAll.label', "Change All Occurrences"),
-			alias: 'Change All Occurrences',
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.editorTextFocus),
+expowt cwass CompatChangeAww extends MuwtiCuwsowSewectionContwowwewAction {
+	constwuctow() {
+		supa({
+			id: 'editow.action.changeAww',
+			wabew: nws.wocawize('changeAww.wabew', "Change Aww Occuwwences"),
+			awias: 'Change Aww Occuwwences',
+			pwecondition: ContextKeyExpw.and(EditowContextKeys.wwitabwe, EditowContextKeys.editowTextFocus),
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.F2,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyMod.CtwwCmd | KeyCode.F2,
+				weight: KeybindingWeight.EditowContwib
 			},
 			contextMenuOpts: {
-				group: '1_modification',
-				order: 1.2
+				gwoup: '1_modification',
+				owda: 1.2
 			}
 		});
 	}
-	protected _run(multiCursorController: MultiCursorSelectionController, findController: CommonFindController): void {
-		multiCursorController.selectAll(findController);
+	pwotected _wun(muwtiCuwsowContwowwa: MuwtiCuwsowSewectionContwowwa, findContwowwa: CommonFindContwowwa): void {
+		muwtiCuwsowContwowwa.sewectAww(findContwowwa);
 	}
 }
 
-class SelectionHighlighterState {
-	public readonly searchText: string;
-	public readonly matchCase: boolean;
-	public readonly wordSeparators: string | null;
-	public readonly modelVersionId: number;
+cwass SewectionHighwightewState {
+	pubwic weadonwy seawchText: stwing;
+	pubwic weadonwy matchCase: boowean;
+	pubwic weadonwy wowdSepawatows: stwing | nuww;
+	pubwic weadonwy modewVewsionId: numba;
 
-	constructor(searchText: string, matchCase: boolean, wordSeparators: string | null, modelVersionId: number) {
-		this.searchText = searchText;
+	constwuctow(seawchText: stwing, matchCase: boowean, wowdSepawatows: stwing | nuww, modewVewsionId: numba) {
+		this.seawchText = seawchText;
 		this.matchCase = matchCase;
-		this.wordSeparators = wordSeparators;
-		this.modelVersionId = modelVersionId;
+		this.wowdSepawatows = wowdSepawatows;
+		this.modewVewsionId = modewVewsionId;
 	}
 
 	/**
-	 * Everything equals except for `lastWordUnderCursor`
+	 * Evewything equaws except fow `wastWowdUndewCuwsow`
 	 */
-	public static softEquals(a: SelectionHighlighterState | null, b: SelectionHighlighterState | null): boolean {
+	pubwic static softEquaws(a: SewectionHighwightewState | nuww, b: SewectionHighwightewState | nuww): boowean {
 		if (!a && !b) {
-			return true;
+			wetuwn twue;
 		}
 		if (!a || !b) {
-			return false;
+			wetuwn fawse;
 		}
-		return (
-			a.searchText === b.searchText
+		wetuwn (
+			a.seawchText === b.seawchText
 			&& a.matchCase === b.matchCase
-			&& a.wordSeparators === b.wordSeparators
-			&& a.modelVersionId === b.modelVersionId
+			&& a.wowdSepawatows === b.wowdSepawatows
+			&& a.modewVewsionId === b.modewVewsionId
 		);
 	}
 }
 
-export class SelectionHighlighter extends Disposable implements IEditorContribution {
-	public static readonly ID = 'editor.contrib.selectionHighlighter';
+expowt cwass SewectionHighwighta extends Disposabwe impwements IEditowContwibution {
+	pubwic static weadonwy ID = 'editow.contwib.sewectionHighwighta';
 
-	private readonly editor: ICodeEditor;
-	private _isEnabled: boolean;
-	private decorations: string[];
-	private readonly updateSoon: RunOnceScheduler;
-	private state: SelectionHighlighterState | null;
+	pwivate weadonwy editow: ICodeEditow;
+	pwivate _isEnabwed: boowean;
+	pwivate decowations: stwing[];
+	pwivate weadonwy updateSoon: WunOnceScheduwa;
+	pwivate state: SewectionHighwightewState | nuww;
 
-	constructor(editor: ICodeEditor) {
-		super();
-		this.editor = editor;
-		this._isEnabled = editor.getOption(EditorOption.selectionHighlight);
-		this.decorations = [];
-		this.updateSoon = this._register(new RunOnceScheduler(() => this._update(), 300));
-		this.state = null;
+	constwuctow(editow: ICodeEditow) {
+		supa();
+		this.editow = editow;
+		this._isEnabwed = editow.getOption(EditowOption.sewectionHighwight);
+		this.decowations = [];
+		this.updateSoon = this._wegista(new WunOnceScheduwa(() => this._update(), 300));
+		this.state = nuww;
 
-		this._register(editor.onDidChangeConfiguration((e) => {
-			this._isEnabled = editor.getOption(EditorOption.selectionHighlight);
+		this._wegista(editow.onDidChangeConfiguwation((e) => {
+			this._isEnabwed = editow.getOption(EditowOption.sewectionHighwight);
 		}));
-		this._register(editor.onDidChangeCursorSelection((e: ICursorSelectionChangedEvent) => {
+		this._wegista(editow.onDidChangeCuwsowSewection((e: ICuwsowSewectionChangedEvent) => {
 
-			if (!this._isEnabled) {
-				// Early exit if nothing needs to be done!
-				// Leave some form of early exit check here if you wish to continue being a cursor position change listener ;)
-				return;
+			if (!this._isEnabwed) {
+				// Eawwy exit if nothing needs to be done!
+				// Weave some fowm of eawwy exit check hewe if you wish to continue being a cuwsow position change wistena ;)
+				wetuwn;
 			}
 
-			if (e.selection.isEmpty()) {
-				if (e.reason === CursorChangeReason.Explicit) {
+			if (e.sewection.isEmpty()) {
+				if (e.weason === CuwsowChangeWeason.Expwicit) {
 					if (this.state) {
-						// no longer valid
-						this._setState(null);
+						// no wonga vawid
+						this._setState(nuww);
 					}
-					this.updateSoon.schedule();
-				} else {
-					this._setState(null);
+					this.updateSoon.scheduwe();
+				} ewse {
+					this._setState(nuww);
 				}
-			} else {
+			} ewse {
 				this._update();
 			}
 		}));
-		this._register(editor.onDidChangeModel((e) => {
-			this._setState(null);
+		this._wegista(editow.onDidChangeModew((e) => {
+			this._setState(nuww);
 		}));
-		this._register(editor.onDidChangeModelContent((e) => {
-			if (this._isEnabled) {
-				this.updateSoon.schedule();
+		this._wegista(editow.onDidChangeModewContent((e) => {
+			if (this._isEnabwed) {
+				this.updateSoon.scheduwe();
 			}
 		}));
-		this._register(CommonFindController.get(editor).getState().onFindReplaceStateChange((e) => {
+		this._wegista(CommonFindContwowwa.get(editow).getState().onFindWepwaceStateChange((e) => {
 			this._update();
 		}));
 	}
 
-	private _update(): void {
-		this._setState(SelectionHighlighter._createState(this._isEnabled, this.editor));
+	pwivate _update(): void {
+		this._setState(SewectionHighwighta._cweateState(this._isEnabwed, this.editow));
 	}
 
-	private static _createState(isEnabled: boolean, editor: ICodeEditor): SelectionHighlighterState | null {
-		if (!isEnabled) {
-			return null;
+	pwivate static _cweateState(isEnabwed: boowean, editow: ICodeEditow): SewectionHighwightewState | nuww {
+		if (!isEnabwed) {
+			wetuwn nuww;
 		}
-		if (!editor.hasModel()) {
-			return null;
+		if (!editow.hasModew()) {
+			wetuwn nuww;
 		}
-		const s = editor.getSelection();
-		if (s.startLineNumber !== s.endLineNumber) {
-			// multiline forbidden for perf reasons
-			return null;
+		const s = editow.getSewection();
+		if (s.stawtWineNumba !== s.endWineNumba) {
+			// muwtiwine fowbidden fow pewf weasons
+			wetuwn nuww;
 		}
-		const multiCursorController = MultiCursorSelectionController.get(editor);
-		if (!multiCursorController) {
-			return null;
+		const muwtiCuwsowContwowwa = MuwtiCuwsowSewectionContwowwa.get(editow);
+		if (!muwtiCuwsowContwowwa) {
+			wetuwn nuww;
 		}
-		const findController = CommonFindController.get(editor);
-		if (!findController) {
-			return null;
+		const findContwowwa = CommonFindContwowwa.get(editow);
+		if (!findContwowwa) {
+			wetuwn nuww;
 		}
-		let r = multiCursorController.getSession(findController);
-		if (!r) {
-			const allSelections = editor.getSelections();
-			if (allSelections.length > 1) {
-				const findState = findController.getState();
+		wet w = muwtiCuwsowContwowwa.getSession(findContwowwa);
+		if (!w) {
+			const awwSewections = editow.getSewections();
+			if (awwSewections.wength > 1) {
+				const findState = findContwowwa.getState();
 				const matchCase = findState.matchCase;
-				const selectionsContainSameText = modelRangesContainSameText(editor.getModel(), allSelections, matchCase);
-				if (!selectionsContainSameText) {
-					return null;
+				const sewectionsContainSameText = modewWangesContainSameText(editow.getModew(), awwSewections, matchCase);
+				if (!sewectionsContainSameText) {
+					wetuwn nuww;
 				}
 			}
 
-			r = MultiCursorSession.create(editor, findController);
+			w = MuwtiCuwsowSession.cweate(editow, findContwowwa);
 		}
-		if (!r) {
-			return null;
-		}
-
-		if (r.currentMatch) {
-			// This is an empty selection
-			// Do not interfere with semantic word highlighting in the no selection case
-			return null;
-		}
-		if (/^[ \t]+$/.test(r.searchText)) {
-			// whitespace only selection
-			return null;
-		}
-		if (r.searchText.length > 200) {
-			// very long selection
-			return null;
+		if (!w) {
+			wetuwn nuww;
 		}
 
-		// TODO: better handling of this case
-		const findState = findController.getState();
+		if (w.cuwwentMatch) {
+			// This is an empty sewection
+			// Do not intewfewe with semantic wowd highwighting in the no sewection case
+			wetuwn nuww;
+		}
+		if (/^[ \t]+$/.test(w.seawchText)) {
+			// whitespace onwy sewection
+			wetuwn nuww;
+		}
+		if (w.seawchText.wength > 200) {
+			// vewy wong sewection
+			wetuwn nuww;
+		}
+
+		// TODO: betta handwing of this case
+		const findState = findContwowwa.getState();
 		const caseSensitive = findState.matchCase;
 
-		// Return early if the find widget shows the exact same matches
-		if (findState.isRevealed) {
-			let findStateSearchString = findState.searchString;
+		// Wetuwn eawwy if the find widget shows the exact same matches
+		if (findState.isWeveawed) {
+			wet findStateSeawchStwing = findState.seawchStwing;
 			if (!caseSensitive) {
-				findStateSearchString = findStateSearchString.toLowerCase();
+				findStateSeawchStwing = findStateSeawchStwing.toWowewCase();
 			}
 
-			let mySearchString = r.searchText;
+			wet mySeawchStwing = w.seawchText;
 			if (!caseSensitive) {
-				mySearchString = mySearchString.toLowerCase();
+				mySeawchStwing = mySeawchStwing.toWowewCase();
 			}
 
-			if (findStateSearchString === mySearchString && r.matchCase === findState.matchCase && r.wholeWord === findState.wholeWord && !findState.isRegex) {
-				return null;
+			if (findStateSeawchStwing === mySeawchStwing && w.matchCase === findState.matchCase && w.whoweWowd === findState.whoweWowd && !findState.isWegex) {
+				wetuwn nuww;
 			}
 		}
 
-		return new SelectionHighlighterState(r.searchText, r.matchCase, r.wholeWord ? editor.getOption(EditorOption.wordSeparators) : null, editor.getModel().getVersionId());
+		wetuwn new SewectionHighwightewState(w.seawchText, w.matchCase, w.whoweWowd ? editow.getOption(EditowOption.wowdSepawatows) : nuww, editow.getModew().getVewsionId());
 	}
 
-	private _setState(state: SelectionHighlighterState | null): void {
-		if (SelectionHighlighterState.softEquals(this.state, state)) {
+	pwivate _setState(state: SewectionHighwightewState | nuww): void {
+		if (SewectionHighwightewState.softEquaws(this.state, state)) {
 			this.state = state;
-			return;
+			wetuwn;
 		}
 		this.state = state;
 
 		if (!this.state) {
-			this.decorations = this.editor.deltaDecorations(this.decorations, []);
-			return;
+			this.decowations = this.editow.dewtaDecowations(this.decowations, []);
+			wetuwn;
 		}
 
-		if (!this.editor.hasModel()) {
-			return;
+		if (!this.editow.hasModew()) {
+			wetuwn;
 		}
 
-		const model = this.editor.getModel();
-		if (model.isTooLargeForTokenization()) {
-			// the file is too large, so searching word under cursor in the whole document takes is blocking the UI.
-			return;
+		const modew = this.editow.getModew();
+		if (modew.isTooWawgeFowTokenization()) {
+			// the fiwe is too wawge, so seawching wowd unda cuwsow in the whowe document takes is bwocking the UI.
+			wetuwn;
 		}
 
-		const hasFindOccurrences = DocumentHighlightProviderRegistry.has(model) && this.editor.getOption(EditorOption.occurrencesHighlight);
+		const hasFindOccuwwences = DocumentHighwightPwovidewWegistwy.has(modew) && this.editow.getOption(EditowOption.occuwwencesHighwight);
 
-		let allMatches = model.findMatches(this.state.searchText, true, false, this.state.matchCase, this.state.wordSeparators, false).map(m => m.range);
-		allMatches.sort(Range.compareRangesUsingStarts);
+		wet awwMatches = modew.findMatches(this.state.seawchText, twue, fawse, this.state.matchCase, this.state.wowdSepawatows, fawse).map(m => m.wange);
+		awwMatches.sowt(Wange.compaweWangesUsingStawts);
 
-		let selections = this.editor.getSelections();
-		selections.sort(Range.compareRangesUsingStarts);
+		wet sewections = this.editow.getSewections();
+		sewections.sowt(Wange.compaweWangesUsingStawts);
 
-		// do not overlap with selection (issue #64 and #512)
-		let matches: Range[] = [];
-		for (let i = 0, j = 0, len = allMatches.length, lenJ = selections.length; i < len;) {
-			const match = allMatches[i];
+		// do not ovewwap with sewection (issue #64 and #512)
+		wet matches: Wange[] = [];
+		fow (wet i = 0, j = 0, wen = awwMatches.wength, wenJ = sewections.wength; i < wen;) {
+			const match = awwMatches[i];
 
-			if (j >= lenJ) {
-				// finished all editor selections
+			if (j >= wenJ) {
+				// finished aww editow sewections
 				matches.push(match);
 				i++;
-			} else {
-				const cmp = Range.compareRangesUsingStarts(match, selections[j]);
+			} ewse {
+				const cmp = Wange.compaweWangesUsingStawts(match, sewections[j]);
 				if (cmp < 0) {
-					// match is before sel
-					if (selections[j].isEmpty() || !Range.areIntersecting(match, selections[j])) {
+					// match is befowe sew
+					if (sewections[j].isEmpty() || !Wange.aweIntewsecting(match, sewections[j])) {
 						matches.push(match);
 					}
 					i++;
-				} else if (cmp > 0) {
-					// sel is before match
+				} ewse if (cmp > 0) {
+					// sew is befowe match
 					j++;
-				} else {
-					// sel is equal to match
+				} ewse {
+					// sew is equaw to match
 					i++;
 					j++;
 				}
 			}
 		}
 
-		const decorations = matches.map(r => {
-			return {
-				range: r,
-				// Show in overviewRuler only if model has no semantic highlighting
-				options: (hasFindOccurrences ? SelectionHighlighter._SELECTION_HIGHLIGHT : SelectionHighlighter._SELECTION_HIGHLIGHT_OVERVIEW)
+		const decowations = matches.map(w => {
+			wetuwn {
+				wange: w,
+				// Show in ovewviewWuwa onwy if modew has no semantic highwighting
+				options: (hasFindOccuwwences ? SewectionHighwighta._SEWECTION_HIGHWIGHT : SewectionHighwighta._SEWECTION_HIGHWIGHT_OVEWVIEW)
 			};
 		});
 
-		this.decorations = this.editor.deltaDecorations(this.decorations, decorations);
+		this.decowations = this.editow.dewtaDecowations(this.decowations, decowations);
 	}
 
-	private static readonly _SELECTION_HIGHLIGHT_OVERVIEW = ModelDecorationOptions.register({
-		description: 'selection-highlight-overview',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		className: 'selectionHighlight',
+	pwivate static weadonwy _SEWECTION_HIGHWIGHT_OVEWVIEW = ModewDecowationOptions.wegista({
+		descwiption: 'sewection-highwight-ovewview',
+		stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges,
+		cwassName: 'sewectionHighwight',
 		minimap: {
-			color: themeColorFromId(minimapSelectionOccurrenceHighlight),
-			position: MinimapPosition.Inline
+			cowow: themeCowowFwomId(minimapSewectionOccuwwenceHighwight),
+			position: MinimapPosition.Inwine
 		},
-		overviewRuler: {
-			color: themeColorFromId(overviewRulerSelectionHighlightForeground),
-			position: OverviewRulerLane.Center
+		ovewviewWuwa: {
+			cowow: themeCowowFwomId(ovewviewWuwewSewectionHighwightFowegwound),
+			position: OvewviewWuwewWane.Centa
 		}
 	});
 
-	private static readonly _SELECTION_HIGHLIGHT = ModelDecorationOptions.register({
-		description: 'selection-highlight',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		className: 'selectionHighlight',
+	pwivate static weadonwy _SEWECTION_HIGHWIGHT = ModewDecowationOptions.wegista({
+		descwiption: 'sewection-highwight',
+		stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges,
+		cwassName: 'sewectionHighwight',
 	});
 
-	public override dispose(): void {
-		this._setState(null);
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		this._setState(nuww);
+		supa.dispose();
 	}
 }
 
-function modelRangesContainSameText(model: ITextModel, ranges: Range[], matchCase: boolean): boolean {
-	const selectedText = getValueInRange(model, ranges[0], !matchCase);
-	for (let i = 1, len = ranges.length; i < len; i++) {
-		const range = ranges[i];
-		if (range.isEmpty()) {
-			return false;
+function modewWangesContainSameText(modew: ITextModew, wanges: Wange[], matchCase: boowean): boowean {
+	const sewectedText = getVawueInWange(modew, wanges[0], !matchCase);
+	fow (wet i = 1, wen = wanges.wength; i < wen; i++) {
+		const wange = wanges[i];
+		if (wange.isEmpty()) {
+			wetuwn fawse;
 		}
-		const thisSelectedText = getValueInRange(model, range, !matchCase);
-		if (selectedText !== thisSelectedText) {
-			return false;
+		const thisSewectedText = getVawueInWange(modew, wange, !matchCase);
+		if (sewectedText !== thisSewectedText) {
+			wetuwn fawse;
 		}
 	}
-	return true;
+	wetuwn twue;
 }
 
-function getValueInRange(model: ITextModel, range: Range, toLowerCase: boolean): string {
-	const text = model.getValueInRange(range);
-	return (toLowerCase ? text.toLowerCase() : text);
+function getVawueInWange(modew: ITextModew, wange: Wange, toWowewCase: boowean): stwing {
+	const text = modew.getVawueInWange(wange);
+	wetuwn (toWowewCase ? text.toWowewCase() : text);
 }
 
-registerEditorContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController);
-registerEditorContribution(SelectionHighlighter.ID, SelectionHighlighter);
+wegistewEditowContwibution(MuwtiCuwsowSewectionContwowwa.ID, MuwtiCuwsowSewectionContwowwa);
+wegistewEditowContwibution(SewectionHighwighta.ID, SewectionHighwighta);
 
-registerEditorAction(InsertCursorAbove);
-registerEditorAction(InsertCursorBelow);
-registerEditorAction(InsertCursorAtEndOfEachLineSelected);
-registerEditorAction(AddSelectionToNextFindMatchAction);
-registerEditorAction(AddSelectionToPreviousFindMatchAction);
-registerEditorAction(MoveSelectionToNextFindMatchAction);
-registerEditorAction(MoveSelectionToPreviousFindMatchAction);
-registerEditorAction(SelectHighlightsAction);
-registerEditorAction(CompatChangeAll);
-registerEditorAction(InsertCursorAtEndOfLineSelected);
-registerEditorAction(InsertCursorAtTopOfLineSelected);
+wegistewEditowAction(InsewtCuwsowAbove);
+wegistewEditowAction(InsewtCuwsowBewow);
+wegistewEditowAction(InsewtCuwsowAtEndOfEachWineSewected);
+wegistewEditowAction(AddSewectionToNextFindMatchAction);
+wegistewEditowAction(AddSewectionToPweviousFindMatchAction);
+wegistewEditowAction(MoveSewectionToNextFindMatchAction);
+wegistewEditowAction(MoveSewectionToPweviousFindMatchAction);
+wegistewEditowAction(SewectHighwightsAction);
+wegistewEditowAction(CompatChangeAww);
+wegistewEditowAction(InsewtCuwsowAtEndOfWineSewected);
+wegistewEditowAction(InsewtCuwsowAtTopOfWineSewected);

@@ -1,799 +1,799 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { addSetting, merge, updateIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
-import type { IConflictSetting } from 'vs/platform/userDataSync/common/userDataSync';
+impowt * as assewt fwom 'assewt';
+impowt { addSetting, mewge, updateIgnowedSettings } fwom 'vs/pwatfowm/usewDataSync/common/settingsMewge';
+impowt type { IConfwictSetting } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
 
-const formattingOptions = { eol: '\n', insertSpaces: false, tabSize: 4 };
+const fowmattingOptions = { eow: '\n', insewtSpaces: fawse, tabSize: 4 };
 
-suite('SettingsMerge - Merge', () => {
+suite('SettingsMewge - Mewge', () => {
 
-	test('merge when local and remote are same with one entry', async () => {
-		const localContent = stringify({ 'a': 1 });
-		const remoteContent = stringify({ 'a': 1 });
-		const actual = merge(localContent, remoteContent, null, [], [], formattingOptions);
-		assert.strictEqual(actual.localContent, null);
-		assert.strictEqual(actual.remoteContent, null);
-		assert.strictEqual(actual.conflictsSettings.length, 0);
-		assert.ok(!actual.hasConflicts);
+	test('mewge when wocaw and wemote awe same with one entwy', async () => {
+		const wocawContent = stwingify({ 'a': 1 });
+		const wemoteContent = stwingify({ 'a': 1 });
+		const actuaw = mewge(wocawContent, wemoteContent, nuww, [], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, nuww);
+		assewt.stwictEquaw(actuaw.wemoteContent, nuww);
+		assewt.stwictEquaw(actuaw.confwictsSettings.wength, 0);
+		assewt.ok(!actuaw.hasConfwicts);
 	});
 
-	test('merge when local and remote are same with multiple entries', async () => {
-		const localContent = stringify({
+	test('mewge when wocaw and wemote awe same with muwtipwe entwies', async () => {
+		const wocawContent = stwingify({
 			'a': 1,
 			'b': 2
 		});
-		const remoteContent = stringify({
+		const wemoteContent = stwingify({
 			'a': 1,
 			'b': 2
 		});
-		const actual = merge(localContent, remoteContent, null, [], [], formattingOptions);
-		assert.strictEqual(actual.localContent, null);
-		assert.strictEqual(actual.remoteContent, null);
-		assert.strictEqual(actual.conflictsSettings.length, 0);
-		assert.ok(!actual.hasConflicts);
+		const actuaw = mewge(wocawContent, wemoteContent, nuww, [], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, nuww);
+		assewt.stwictEquaw(actuaw.wemoteContent, nuww);
+		assewt.stwictEquaw(actuaw.confwictsSettings.wength, 0);
+		assewt.ok(!actuaw.hasConfwicts);
 	});
 
-	test('merge when local and remote are same with multiple entries in different order', async () => {
-		const localContent = stringify({
+	test('mewge when wocaw and wemote awe same with muwtipwe entwies in diffewent owda', async () => {
+		const wocawContent = stwingify({
 			'b': 2,
 			'a': 1,
 		});
-		const remoteContent = stringify({
+		const wemoteContent = stwingify({
 			'a': 1,
 			'b': 2
 		});
-		const actual = merge(localContent, remoteContent, null, [], [], formattingOptions);
-		assert.strictEqual(actual.localContent, localContent);
-		assert.strictEqual(actual.remoteContent, remoteContent);
-		assert.ok(actual.hasConflicts);
-		assert.strictEqual(actual.conflictsSettings.length, 0);
+		const actuaw = mewge(wocawContent, wemoteContent, nuww, [], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, wocawContent);
+		assewt.stwictEquaw(actuaw.wemoteContent, wemoteContent);
+		assewt.ok(actuaw.hasConfwicts);
+		assewt.stwictEquaw(actuaw.confwictsSettings.wength, 0);
 	});
 
-	test('merge when local and remote are same with different base content', async () => {
-		const localContent = stringify({
+	test('mewge when wocaw and wemote awe same with diffewent base content', async () => {
+		const wocawContent = stwingify({
 			'b': 2,
 			'a': 1,
 		});
-		const baseContent = stringify({
+		const baseContent = stwingify({
 			'a': 2,
 			'b': 1
 		});
-		const remoteContent = stringify({
+		const wemoteContent = stwingify({
 			'a': 1,
 			'b': 2
 		});
-		const actual = merge(localContent, remoteContent, baseContent, [], [], formattingOptions);
-		assert.strictEqual(actual.localContent, localContent);
-		assert.strictEqual(actual.remoteContent, remoteContent);
-		assert.strictEqual(actual.conflictsSettings.length, 0);
-		assert.ok(actual.hasConflicts);
+		const actuaw = mewge(wocawContent, wemoteContent, baseContent, [], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, wocawContent);
+		assewt.stwictEquaw(actuaw.wemoteContent, wemoteContent);
+		assewt.stwictEquaw(actuaw.confwictsSettings.wength, 0);
+		assewt.ok(actuaw.hasConfwicts);
 	});
 
-	test('merge when a new entry is added to remote', async () => {
-		const localContent = stringify({
+	test('mewge when a new entwy is added to wemote', async () => {
+		const wocawContent = stwingify({
 			'a': 1,
 		});
-		const remoteContent = stringify({
+		const wemoteContent = stwingify({
 			'a': 1,
 			'b': 2
 		});
-		const actual = merge(localContent, remoteContent, null, [], [], formattingOptions);
-		assert.strictEqual(actual.localContent, remoteContent);
-		assert.strictEqual(actual.remoteContent, null);
-		assert.strictEqual(actual.conflictsSettings.length, 0);
-		assert.ok(!actual.hasConflicts);
+		const actuaw = mewge(wocawContent, wemoteContent, nuww, [], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, wemoteContent);
+		assewt.stwictEquaw(actuaw.wemoteContent, nuww);
+		assewt.stwictEquaw(actuaw.confwictsSettings.wength, 0);
+		assewt.ok(!actuaw.hasConfwicts);
 	});
 
-	test('merge when multiple new entries are added to remote', async () => {
-		const localContent = stringify({
+	test('mewge when muwtipwe new entwies awe added to wemote', async () => {
+		const wocawContent = stwingify({
 			'a': 1,
 		});
-		const remoteContent = stringify({
+		const wemoteContent = stwingify({
 			'a': 1,
 			'b': 2,
 			'c': 3,
 		});
-		const actual = merge(localContent, remoteContent, null, [], [], formattingOptions);
-		assert.strictEqual(actual.localContent, remoteContent);
-		assert.strictEqual(actual.remoteContent, null);
-		assert.strictEqual(actual.conflictsSettings.length, 0);
-		assert.ok(!actual.hasConflicts);
+		const actuaw = mewge(wocawContent, wemoteContent, nuww, [], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, wemoteContent);
+		assewt.stwictEquaw(actuaw.wemoteContent, nuww);
+		assewt.stwictEquaw(actuaw.confwictsSettings.wength, 0);
+		assewt.ok(!actuaw.hasConfwicts);
 	});
 
-	test('merge when multiple new entries are added to remote from base and local has not changed', async () => {
-		const localContent = stringify({
+	test('mewge when muwtipwe new entwies awe added to wemote fwom base and wocaw has not changed', async () => {
+		const wocawContent = stwingify({
 			'a': 1,
 		});
-		const remoteContent = stringify({
+		const wemoteContent = stwingify({
 			'b': 2,
 			'a': 1,
 			'c': 3,
 		});
-		const actual = merge(localContent, remoteContent, localContent, [], [], formattingOptions);
-		assert.strictEqual(actual.localContent, remoteContent);
-		assert.strictEqual(actual.remoteContent, null);
-		assert.strictEqual(actual.conflictsSettings.length, 0);
-		assert.ok(!actual.hasConflicts);
+		const actuaw = mewge(wocawContent, wemoteContent, wocawContent, [], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, wemoteContent);
+		assewt.stwictEquaw(actuaw.wemoteContent, nuww);
+		assewt.stwictEquaw(actuaw.confwictsSettings.wength, 0);
+		assewt.ok(!actuaw.hasConfwicts);
 	});
 
-	test('merge when an entry is removed from remote from base and local has not changed', async () => {
-		const localContent = stringify({
+	test('mewge when an entwy is wemoved fwom wemote fwom base and wocaw has not changed', async () => {
+		const wocawContent = stwingify({
 			'a': 1,
 			'b': 2,
 		});
-		const remoteContent = stringify({
+		const wemoteContent = stwingify({
 			'a': 1,
 		});
-		const actual = merge(localContent, remoteContent, localContent, [], [], formattingOptions);
-		assert.strictEqual(actual.localContent, remoteContent);
-		assert.strictEqual(actual.remoteContent, null);
-		assert.strictEqual(actual.conflictsSettings.length, 0);
-		assert.ok(!actual.hasConflicts);
+		const actuaw = mewge(wocawContent, wemoteContent, wocawContent, [], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, wemoteContent);
+		assewt.stwictEquaw(actuaw.wemoteContent, nuww);
+		assewt.stwictEquaw(actuaw.confwictsSettings.wength, 0);
+		assewt.ok(!actuaw.hasConfwicts);
 	});
 
-	test('merge when all entries are removed from base and local has not changed', async () => {
-		const localContent = stringify({
+	test('mewge when aww entwies awe wemoved fwom base and wocaw has not changed', async () => {
+		const wocawContent = stwingify({
 			'a': 1,
 		});
-		const remoteContent = stringify({});
-		const actual = merge(localContent, remoteContent, localContent, [], [], formattingOptions);
-		assert.strictEqual(actual.localContent, remoteContent);
-		assert.strictEqual(actual.remoteContent, null);
-		assert.strictEqual(actual.conflictsSettings.length, 0);
-		assert.ok(!actual.hasConflicts);
+		const wemoteContent = stwingify({});
+		const actuaw = mewge(wocawContent, wemoteContent, wocawContent, [], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, wemoteContent);
+		assewt.stwictEquaw(actuaw.wemoteContent, nuww);
+		assewt.stwictEquaw(actuaw.confwictsSettings.wength, 0);
+		assewt.ok(!actuaw.hasConfwicts);
 	});
 
-	test('merge when an entry is updated in remote from base and local has not changed', async () => {
-		const localContent = stringify({
+	test('mewge when an entwy is updated in wemote fwom base and wocaw has not changed', async () => {
+		const wocawContent = stwingify({
 			'a': 1,
 		});
-		const remoteContent = stringify({
+		const wemoteContent = stwingify({
 			'a': 2
 		});
-		const actual = merge(localContent, remoteContent, localContent, [], [], formattingOptions);
-		assert.strictEqual(actual.localContent, remoteContent);
-		assert.strictEqual(actual.remoteContent, null);
-		assert.strictEqual(actual.conflictsSettings.length, 0);
-		assert.ok(!actual.hasConflicts);
+		const actuaw = mewge(wocawContent, wemoteContent, wocawContent, [], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, wemoteContent);
+		assewt.stwictEquaw(actuaw.wemoteContent, nuww);
+		assewt.stwictEquaw(actuaw.confwictsSettings.wength, 0);
+		assewt.ok(!actuaw.hasConfwicts);
 	});
 
-	test('merge when remote has moved forwareded with multiple changes and local stays with base', async () => {
-		const localContent = stringify({
+	test('mewge when wemote has moved fowwaweded with muwtipwe changes and wocaw stays with base', async () => {
+		const wocawContent = stwingify({
 			'a': 1,
 		});
-		const remoteContent = stringify({
+		const wemoteContent = stwingify({
 			'a': 2,
 			'b': 1,
 			'c': 3,
 			'd': 4,
 		});
-		const actual = merge(localContent, remoteContent, localContent, [], [], formattingOptions);
-		assert.strictEqual(actual.localContent, remoteContent);
-		assert.strictEqual(actual.remoteContent, null);
-		assert.strictEqual(actual.conflictsSettings.length, 0);
-		assert.ok(!actual.hasConflicts);
+		const actuaw = mewge(wocawContent, wemoteContent, wocawContent, [], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, wemoteContent);
+		assewt.stwictEquaw(actuaw.wemoteContent, nuww);
+		assewt.stwictEquaw(actuaw.confwictsSettings.wength, 0);
+		assewt.ok(!actuaw.hasConfwicts);
 	});
 
-	test('merge when remote has moved forwareded with order changes and local stays with base', async () => {
-		const localContent = stringify({
+	test('mewge when wemote has moved fowwaweded with owda changes and wocaw stays with base', async () => {
+		const wocawContent = stwingify({
 			'a': 1,
 			'b': 2,
 			'c': 3,
 		});
-		const remoteContent = stringify({
+		const wemoteContent = stwingify({
 			'a': 2,
 			'd': 4,
 			'c': 3,
 			'b': 2,
 		});
-		const actual = merge(localContent, remoteContent, localContent, [], [], formattingOptions);
-		assert.strictEqual(actual.localContent, remoteContent);
-		assert.strictEqual(actual.remoteContent, null);
-		assert.strictEqual(actual.conflictsSettings.length, 0);
-		assert.ok(!actual.hasConflicts);
+		const actuaw = mewge(wocawContent, wemoteContent, wocawContent, [], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, wemoteContent);
+		assewt.stwictEquaw(actuaw.wemoteContent, nuww);
+		assewt.stwictEquaw(actuaw.confwictsSettings.wength, 0);
+		assewt.ok(!actuaw.hasConfwicts);
 	});
 
-	test('merge when remote has moved forwareded with comment changes and local stays with base', async () => {
-		const localContent = `
+	test('mewge when wemote has moved fowwaweded with comment changes and wocaw stays with base', async () => {
+		const wocawContent = `
 {
-	// this is comment for b
+	// this is comment fow b
 	"b": 2,
-	// this is comment for c
+	// this is comment fow c
 	"c": 1,
 }`;
-		const remoteContent = stringify`
+		const wemoteContent = stwingify`
 {
 	// comment b has changed
 	"b": 2,
-	// this is comment for c
+	// this is comment fow c
 	"c": 1,
 }`;
-		const actual = merge(localContent, remoteContent, localContent, [], [], formattingOptions);
-		assert.strictEqual(actual.localContent, remoteContent);
-		assert.strictEqual(actual.remoteContent, null);
-		assert.strictEqual(actual.conflictsSettings.length, 0);
-		assert.ok(!actual.hasConflicts);
+		const actuaw = mewge(wocawContent, wemoteContent, wocawContent, [], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, wemoteContent);
+		assewt.stwictEquaw(actuaw.wemoteContent, nuww);
+		assewt.stwictEquaw(actuaw.confwictsSettings.wength, 0);
+		assewt.ok(!actuaw.hasConfwicts);
 	});
 
-	test('merge when remote has moved forwareded with comment and order changes and local stays with base', async () => {
-		const localContent = `
+	test('mewge when wemote has moved fowwaweded with comment and owda changes and wocaw stays with base', async () => {
+		const wocawContent = `
 {
-	// this is comment for b
+	// this is comment fow b
 	"b": 2,
-	// this is comment for c
+	// this is comment fow c
 	"c": 1,
 }`;
-		const remoteContent = stringify`
+		const wemoteContent = stwingify`
 {
-	// this is comment for c
+	// this is comment fow c
 	"c": 1,
 	// comment b has changed
 	"b": 2,
 }`;
-		const actual = merge(localContent, remoteContent, localContent, [], [], formattingOptions);
-		assert.strictEqual(actual.localContent, remoteContent);
-		assert.strictEqual(actual.remoteContent, null);
-		assert.strictEqual(actual.conflictsSettings.length, 0);
-		assert.ok(!actual.hasConflicts);
+		const actuaw = mewge(wocawContent, wemoteContent, wocawContent, [], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, wemoteContent);
+		assewt.stwictEquaw(actuaw.wemoteContent, nuww);
+		assewt.stwictEquaw(actuaw.confwictsSettings.wength, 0);
+		assewt.ok(!actuaw.hasConfwicts);
 	});
 
-	test('merge when a new entries are added to local', async () => {
-		const localContent = stringify({
+	test('mewge when a new entwies awe added to wocaw', async () => {
+		const wocawContent = stwingify({
 			'a': 1,
 			'b': 2,
 			'c': 3,
 			'd': 4,
 		});
-		const remoteContent = stringify({
+		const wemoteContent = stwingify({
 			'a': 1,
 		});
-		const actual = merge(localContent, remoteContent, null, [], [], formattingOptions);
-		assert.strictEqual(actual.localContent, null);
-		assert.strictEqual(actual.remoteContent, localContent);
-		assert.strictEqual(actual.conflictsSettings.length, 0);
-		assert.ok(!actual.hasConflicts);
+		const actuaw = mewge(wocawContent, wemoteContent, nuww, [], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, nuww);
+		assewt.stwictEquaw(actuaw.wemoteContent, wocawContent);
+		assewt.stwictEquaw(actuaw.confwictsSettings.wength, 0);
+		assewt.ok(!actuaw.hasConfwicts);
 	});
 
-	test('merge when multiple new entries are added to local from base and remote is not changed', async () => {
-		const localContent = stringify({
+	test('mewge when muwtipwe new entwies awe added to wocaw fwom base and wemote is not changed', async () => {
+		const wocawContent = stwingify({
 			'a': 2,
 			'b': 1,
 			'c': 3,
 			'd': 4,
 		});
-		const remoteContent = stringify({
+		const wemoteContent = stwingify({
 			'a': 1,
 		});
-		const actual = merge(localContent, remoteContent, remoteContent, [], [], formattingOptions);
-		assert.strictEqual(actual.localContent, null);
-		assert.strictEqual(actual.remoteContent, localContent);
-		assert.strictEqual(actual.conflictsSettings.length, 0);
-		assert.ok(!actual.hasConflicts);
+		const actuaw = mewge(wocawContent, wemoteContent, wemoteContent, [], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, nuww);
+		assewt.stwictEquaw(actuaw.wemoteContent, wocawContent);
+		assewt.stwictEquaw(actuaw.confwictsSettings.wength, 0);
+		assewt.ok(!actuaw.hasConfwicts);
 	});
 
-	test('merge when an entry is removed from local from base and remote has not changed', async () => {
-		const localContent = stringify({
+	test('mewge when an entwy is wemoved fwom wocaw fwom base and wemote has not changed', async () => {
+		const wocawContent = stwingify({
 			'a': 1,
 			'c': 2
 		});
-		const remoteContent = stringify({
+		const wemoteContent = stwingify({
 			'a': 2,
 			'b': 1,
 			'c': 3,
 			'd': 4,
 		});
-		const actual = merge(localContent, remoteContent, remoteContent, [], [], formattingOptions);
-		assert.strictEqual(actual.localContent, null);
-		assert.strictEqual(actual.remoteContent, localContent);
-		assert.strictEqual(actual.conflictsSettings.length, 0);
-		assert.ok(!actual.hasConflicts);
+		const actuaw = mewge(wocawContent, wemoteContent, wemoteContent, [], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, nuww);
+		assewt.stwictEquaw(actuaw.wemoteContent, wocawContent);
+		assewt.stwictEquaw(actuaw.confwictsSettings.wength, 0);
+		assewt.ok(!actuaw.hasConfwicts);
 	});
 
-	test('merge when an entry is updated in local from base and remote has not changed', async () => {
-		const localContent = stringify({
+	test('mewge when an entwy is updated in wocaw fwom base and wemote has not changed', async () => {
+		const wocawContent = stwingify({
 			'a': 1,
 			'c': 2
 		});
-		const remoteContent = stringify({
+		const wemoteContent = stwingify({
 			'a': 2,
 			'c': 2,
 		});
-		const actual = merge(localContent, remoteContent, remoteContent, [], [], formattingOptions);
-		assert.strictEqual(actual.localContent, null);
-		assert.strictEqual(actual.remoteContent, localContent);
-		assert.strictEqual(actual.conflictsSettings.length, 0);
-		assert.ok(!actual.hasConflicts);
+		const actuaw = mewge(wocawContent, wemoteContent, wemoteContent, [], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, nuww);
+		assewt.stwictEquaw(actuaw.wemoteContent, wocawContent);
+		assewt.stwictEquaw(actuaw.confwictsSettings.wength, 0);
+		assewt.ok(!actuaw.hasConfwicts);
 	});
 
-	test('merge when local has moved forwarded with multiple changes and remote stays with base', async () => {
-		const localContent = stringify({
+	test('mewge when wocaw has moved fowwawded with muwtipwe changes and wemote stays with base', async () => {
+		const wocawContent = stwingify({
 			'a': 2,
 			'b': 1,
 			'c': 3,
 			'd': 4,
 		});
-		const remoteContent = stringify({
+		const wemoteContent = stwingify({
 			'a': 1,
 		});
-		const actual = merge(localContent, remoteContent, remoteContent, [], [], formattingOptions);
-		assert.strictEqual(actual.localContent, null);
-		assert.strictEqual(actual.remoteContent, localContent);
-		assert.strictEqual(actual.conflictsSettings.length, 0);
-		assert.ok(!actual.hasConflicts);
+		const actuaw = mewge(wocawContent, wemoteContent, wemoteContent, [], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, nuww);
+		assewt.stwictEquaw(actuaw.wemoteContent, wocawContent);
+		assewt.stwictEquaw(actuaw.confwictsSettings.wength, 0);
+		assewt.ok(!actuaw.hasConfwicts);
 	});
 
-	test('merge when local has moved forwarded with order changes and remote stays with base', async () => {
-		const localContent = `
+	test('mewge when wocaw has moved fowwawded with owda changes and wemote stays with base', async () => {
+		const wocawContent = `
 {
 	"b": 2,
 	"c": 1,
 }`;
-		const remoteContent = stringify`
+		const wemoteContent = stwingify`
 {
 	"c": 1,
 	"b": 2,
 }`;
-		const actual = merge(localContent, remoteContent, remoteContent, [], [], formattingOptions);
-		assert.strictEqual(actual.localContent, null);
-		assert.strictEqual(actual.remoteContent, localContent);
-		assert.strictEqual(actual.conflictsSettings.length, 0);
-		assert.ok(!actual.hasConflicts);
+		const actuaw = mewge(wocawContent, wemoteContent, wemoteContent, [], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, nuww);
+		assewt.stwictEquaw(actuaw.wemoteContent, wocawContent);
+		assewt.stwictEquaw(actuaw.confwictsSettings.wength, 0);
+		assewt.ok(!actuaw.hasConfwicts);
 	});
 
-	test('merge when local has moved forwarded with comment changes and remote stays with base', async () => {
-		const localContent = `
+	test('mewge when wocaw has moved fowwawded with comment changes and wemote stays with base', async () => {
+		const wocawContent = `
 {
-	// comment for b has changed
+	// comment fow b has changed
 	"b": 2,
-	// comment for c
+	// comment fow c
 	"c": 1,
 }`;
-		const remoteContent = stringify`
+		const wemoteContent = stwingify`
 {
-	// comment for b
+	// comment fow b
 	"b": 2,
-	// comment for c
+	// comment fow c
 	"c": 1,
 }`;
-		const actual = merge(localContent, remoteContent, remoteContent, [], [], formattingOptions);
-		assert.strictEqual(actual.localContent, null);
-		assert.strictEqual(actual.remoteContent, localContent);
-		assert.strictEqual(actual.conflictsSettings.length, 0);
-		assert.ok(!actual.hasConflicts);
+		const actuaw = mewge(wocawContent, wemoteContent, wemoteContent, [], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, nuww);
+		assewt.stwictEquaw(actuaw.wemoteContent, wocawContent);
+		assewt.stwictEquaw(actuaw.confwictsSettings.wength, 0);
+		assewt.ok(!actuaw.hasConfwicts);
 	});
 
-	test('merge when local has moved forwarded with comment and order changes and remote stays with base', async () => {
-		const localContent = `
+	test('mewge when wocaw has moved fowwawded with comment and owda changes and wemote stays with base', async () => {
+		const wocawContent = `
 {
-	// comment for c
+	// comment fow c
 	"c": 1,
-	// comment for b has changed
+	// comment fow b has changed
 	"b": 2,
 }`;
-		const remoteContent = stringify`
+		const wemoteContent = stwingify`
 {
-	// comment for b
+	// comment fow b
 	"b": 2,
-	// comment for c
+	// comment fow c
 	"c": 1,
 }`;
-		const actual = merge(localContent, remoteContent, remoteContent, [], [], formattingOptions);
-		assert.strictEqual(actual.localContent, null);
-		assert.strictEqual(actual.remoteContent, localContent);
-		assert.strictEqual(actual.conflictsSettings.length, 0);
-		assert.ok(!actual.hasConflicts);
+		const actuaw = mewge(wocawContent, wemoteContent, wemoteContent, [], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, nuww);
+		assewt.stwictEquaw(actuaw.wemoteContent, wocawContent);
+		assewt.stwictEquaw(actuaw.confwictsSettings.wength, 0);
+		assewt.ok(!actuaw.hasConfwicts);
 	});
 
-	test('merge when local and remote with one entry but different value', async () => {
-		const localContent = stringify({
+	test('mewge when wocaw and wemote with one entwy but diffewent vawue', async () => {
+		const wocawContent = stwingify({
 			'a': 1
 		});
-		const remoteContent = stringify({
+		const wemoteContent = stwingify({
 			'a': 2
 		});
-		const expectedConflicts: IConflictSetting[] = [{ key: 'a', localValue: 1, remoteValue: 2 }];
-		const actual = merge(localContent, remoteContent, null, [], [], formattingOptions);
-		assert.strictEqual(actual.localContent, localContent);
-		assert.strictEqual(actual.remoteContent, remoteContent);
-		assert.ok(actual.hasConflicts);
-		assert.deepStrictEqual(actual.conflictsSettings, expectedConflicts);
+		const expectedConfwicts: IConfwictSetting[] = [{ key: 'a', wocawVawue: 1, wemoteVawue: 2 }];
+		const actuaw = mewge(wocawContent, wemoteContent, nuww, [], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, wocawContent);
+		assewt.stwictEquaw(actuaw.wemoteContent, wemoteContent);
+		assewt.ok(actuaw.hasConfwicts);
+		assewt.deepStwictEquaw(actuaw.confwictsSettings, expectedConfwicts);
 	});
 
-	test('merge when the entry is removed in remote but updated in local and a new entry is added in remote', async () => {
-		const baseContent = stringify({
+	test('mewge when the entwy is wemoved in wemote but updated in wocaw and a new entwy is added in wemote', async () => {
+		const baseContent = stwingify({
 			'a': 1
 		});
-		const localContent = stringify({
+		const wocawContent = stwingify({
 			'a': 2
 		});
-		const remoteContent = stringify({
+		const wemoteContent = stwingify({
 			'b': 2
 		});
-		const expectedConflicts: IConflictSetting[] = [{ key: 'a', localValue: 2, remoteValue: undefined }];
-		const actual = merge(localContent, remoteContent, baseContent, [], [], formattingOptions);
-		assert.strictEqual(actual.localContent, stringify({
+		const expectedConfwicts: IConfwictSetting[] = [{ key: 'a', wocawVawue: 2, wemoteVawue: undefined }];
+		const actuaw = mewge(wocawContent, wemoteContent, baseContent, [], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, stwingify({
 			'a': 2,
 			'b': 2
 		}));
-		assert.strictEqual(actual.remoteContent, remoteContent);
-		assert.ok(actual.hasConflicts);
-		assert.deepStrictEqual(actual.conflictsSettings, expectedConflicts);
+		assewt.stwictEquaw(actuaw.wemoteContent, wemoteContent);
+		assewt.ok(actuaw.hasConfwicts);
+		assewt.deepStwictEquaw(actuaw.confwictsSettings, expectedConfwicts);
 	});
 
-	test('merge with single entry and local is empty', async () => {
-		const baseContent = stringify({
+	test('mewge with singwe entwy and wocaw is empty', async () => {
+		const baseContent = stwingify({
 			'a': 1
 		});
-		const localContent = stringify({});
-		const remoteContent = stringify({
+		const wocawContent = stwingify({});
+		const wemoteContent = stwingify({
 			'a': 2
 		});
-		const expectedConflicts: IConflictSetting[] = [{ key: 'a', localValue: undefined, remoteValue: 2 }];
-		const actual = merge(localContent, remoteContent, baseContent, [], [], formattingOptions);
-		assert.strictEqual(actual.localContent, localContent);
-		assert.strictEqual(actual.remoteContent, remoteContent);
-		assert.ok(actual.hasConflicts);
-		assert.deepStrictEqual(actual.conflictsSettings, expectedConflicts);
+		const expectedConfwicts: IConfwictSetting[] = [{ key: 'a', wocawVawue: undefined, wemoteVawue: 2 }];
+		const actuaw = mewge(wocawContent, wemoteContent, baseContent, [], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, wocawContent);
+		assewt.stwictEquaw(actuaw.wemoteContent, wemoteContent);
+		assewt.ok(actuaw.hasConfwicts);
+		assewt.deepStwictEquaw(actuaw.confwictsSettings, expectedConfwicts);
 	});
 
-	test('merge when local and remote has moved forwareded with conflicts', async () => {
-		const baseContent = stringify({
+	test('mewge when wocaw and wemote has moved fowwaweded with confwicts', async () => {
+		const baseContent = stwingify({
 			'a': 1,
 			'b': 2,
 			'c': 3,
 			'd': 4,
 		});
-		const localContent = stringify({
+		const wocawContent = stwingify({
 			'a': 2,
 			'c': 3,
 			'd': 5,
 			'e': 4,
 			'f': 1,
 		});
-		const remoteContent = stringify({
+		const wemoteContent = stwingify({
 			'b': 3,
 			'c': 3,
 			'd': 6,
 			'e': 5,
 		});
-		const expectedConflicts: IConflictSetting[] = [
-			{ key: 'b', localValue: undefined, remoteValue: 3 },
-			{ key: 'a', localValue: 2, remoteValue: undefined },
-			{ key: 'd', localValue: 5, remoteValue: 6 },
-			{ key: 'e', localValue: 4, remoteValue: 5 },
+		const expectedConfwicts: IConfwictSetting[] = [
+			{ key: 'b', wocawVawue: undefined, wemoteVawue: 3 },
+			{ key: 'a', wocawVawue: 2, wemoteVawue: undefined },
+			{ key: 'd', wocawVawue: 5, wemoteVawue: 6 },
+			{ key: 'e', wocawVawue: 4, wemoteVawue: 5 },
 		];
-		const actual = merge(localContent, remoteContent, baseContent, [], [], formattingOptions);
-		assert.strictEqual(actual.localContent, stringify({
+		const actuaw = mewge(wocawContent, wemoteContent, baseContent, [], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, stwingify({
 			'a': 2,
 			'c': 3,
 			'd': 5,
 			'e': 4,
 			'f': 1,
 		}));
-		assert.strictEqual(actual.remoteContent, stringify({
+		assewt.stwictEquaw(actuaw.wemoteContent, stwingify({
 			'b': 3,
 			'c': 3,
 			'd': 6,
 			'e': 5,
 			'f': 1,
 		}));
-		assert.ok(actual.hasConflicts);
-		assert.deepStrictEqual(actual.conflictsSettings, expectedConflicts);
+		assewt.ok(actuaw.hasConfwicts);
+		assewt.deepStwictEquaw(actuaw.confwictsSettings, expectedConfwicts);
 	});
 
-	test('merge when local and remote has moved forwareded with change in order', async () => {
-		const baseContent = stringify({
+	test('mewge when wocaw and wemote has moved fowwaweded with change in owda', async () => {
+		const baseContent = stwingify({
 			'a': 1,
 			'b': 2,
 			'c': 3,
 			'd': 4,
 		});
-		const localContent = stringify({
+		const wocawContent = stwingify({
 			'a': 2,
 			'c': 3,
 			'b': 2,
 			'd': 4,
 			'e': 5,
 		});
-		const remoteContent = stringify({
+		const wemoteContent = stwingify({
 			'a': 1,
 			'b': 2,
 			'c': 4,
 		});
-		const actual = merge(localContent, remoteContent, baseContent, [], [], formattingOptions);
-		assert.strictEqual(actual.localContent, stringify({
+		const actuaw = mewge(wocawContent, wemoteContent, baseContent, [], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, stwingify({
 			'a': 2,
 			'c': 4,
 			'b': 2,
 			'e': 5,
 		}));
-		assert.strictEqual(actual.remoteContent, stringify({
+		assewt.stwictEquaw(actuaw.wemoteContent, stwingify({
 			'a': 2,
 			'b': 2,
 			'e': 5,
 			'c': 4,
 		}));
-		assert.ok(actual.hasConflicts);
-		assert.deepStrictEqual(actual.conflictsSettings, []);
+		assewt.ok(actuaw.hasConfwicts);
+		assewt.deepStwictEquaw(actuaw.confwictsSettings, []);
 	});
 
-	test('merge when local and remote has moved forwareded with comment changes', async () => {
+	test('mewge when wocaw and wemote has moved fowwaweded with comment changes', async () => {
 		const baseContent = `
 {
-	// this is comment for b
+	// this is comment fow b
 	"b": 2,
-	// this is comment for c
+	// this is comment fow c
 	"c": 1
 }`;
-		const localContent = `
+		const wocawContent = `
 {
-	// comment b has changed in local
+	// comment b has changed in wocaw
 	"b": 2,
-	// this is comment for c
+	// this is comment fow c
 	"c": 1
 }`;
-		const remoteContent = `
+		const wemoteContent = `
 {
-	// comment b has changed in remote
+	// comment b has changed in wemote
 	"b": 2,
-	// this is comment for c
+	// this is comment fow c
 	"c": 1
 }`;
-		const actual = merge(localContent, remoteContent, baseContent, [], [], formattingOptions);
-		assert.strictEqual(actual.localContent, localContent);
-		assert.strictEqual(actual.remoteContent, remoteContent);
-		assert.ok(actual.hasConflicts);
-		assert.deepStrictEqual(actual.conflictsSettings, []);
+		const actuaw = mewge(wocawContent, wemoteContent, baseContent, [], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, wocawContent);
+		assewt.stwictEquaw(actuaw.wemoteContent, wemoteContent);
+		assewt.ok(actuaw.hasConfwicts);
+		assewt.deepStwictEquaw(actuaw.confwictsSettings, []);
 	});
 
-	test('resolve when local and remote has moved forwareded with resolved conflicts', async () => {
-		const baseContent = stringify({
+	test('wesowve when wocaw and wemote has moved fowwaweded with wesowved confwicts', async () => {
+		const baseContent = stwingify({
 			'a': 1,
 			'b': 2,
 			'c': 3,
 			'd': 4,
 		});
-		const localContent = stringify({
+		const wocawContent = stwingify({
 			'a': 2,
 			'c': 3,
 			'd': 5,
 			'e': 4,
 			'f': 1,
 		});
-		const remoteContent = stringify({
+		const wemoteContent = stwingify({
 			'b': 3,
 			'c': 3,
 			'd': 6,
 			'e': 5,
 		});
-		const expectedConflicts: IConflictSetting[] = [
-			{ key: 'd', localValue: 5, remoteValue: 6 },
+		const expectedConfwicts: IConfwictSetting[] = [
+			{ key: 'd', wocawVawue: 5, wemoteVawue: 6 },
 		];
-		const actual = merge(localContent, remoteContent, baseContent, [], [{ key: 'a', value: 2 }, { key: 'b', value: undefined }, { key: 'e', value: 5 }], formattingOptions);
-		assert.strictEqual(actual.localContent, stringify({
+		const actuaw = mewge(wocawContent, wemoteContent, baseContent, [], [{ key: 'a', vawue: 2 }, { key: 'b', vawue: undefined }, { key: 'e', vawue: 5 }], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, stwingify({
 			'a': 2,
 			'c': 3,
 			'd': 5,
 			'e': 5,
 			'f': 1,
 		}));
-		assert.strictEqual(actual.remoteContent, stringify({
+		assewt.stwictEquaw(actuaw.wemoteContent, stwingify({
 			'c': 3,
 			'd': 6,
 			'e': 5,
 			'f': 1,
 			'a': 2,
 		}));
-		assert.ok(actual.hasConflicts);
-		assert.deepStrictEqual(actual.conflictsSettings, expectedConflicts);
+		assewt.ok(actuaw.hasConfwicts);
+		assewt.deepStwictEquaw(actuaw.confwictsSettings, expectedConfwicts);
 	});
 
-	test('ignored setting is not merged when changed in local and remote', async () => {
-		const localContent = stringify({ 'a': 1 });
-		const remoteContent = stringify({ 'a': 2 });
-		const actual = merge(localContent, remoteContent, null, ['a'], [], formattingOptions);
-		assert.strictEqual(actual.localContent, null);
-		assert.strictEqual(actual.remoteContent, null);
-		assert.strictEqual(actual.conflictsSettings.length, 0);
-		assert.ok(!actual.hasConflicts);
+	test('ignowed setting is not mewged when changed in wocaw and wemote', async () => {
+		const wocawContent = stwingify({ 'a': 1 });
+		const wemoteContent = stwingify({ 'a': 2 });
+		const actuaw = mewge(wocawContent, wemoteContent, nuww, ['a'], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, nuww);
+		assewt.stwictEquaw(actuaw.wemoteContent, nuww);
+		assewt.stwictEquaw(actuaw.confwictsSettings.wength, 0);
+		assewt.ok(!actuaw.hasConfwicts);
 	});
 
-	test('ignored setting is not merged when changed in local and remote from base', async () => {
-		const baseContent = stringify({ 'a': 0 });
-		const localContent = stringify({ 'a': 1 });
-		const remoteContent = stringify({ 'a': 2 });
-		const actual = merge(localContent, remoteContent, baseContent, ['a'], [], formattingOptions);
-		assert.strictEqual(actual.localContent, null);
-		assert.strictEqual(actual.remoteContent, null);
-		assert.strictEqual(actual.conflictsSettings.length, 0);
-		assert.ok(!actual.hasConflicts);
+	test('ignowed setting is not mewged when changed in wocaw and wemote fwom base', async () => {
+		const baseContent = stwingify({ 'a': 0 });
+		const wocawContent = stwingify({ 'a': 1 });
+		const wemoteContent = stwingify({ 'a': 2 });
+		const actuaw = mewge(wocawContent, wemoteContent, baseContent, ['a'], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, nuww);
+		assewt.stwictEquaw(actuaw.wemoteContent, nuww);
+		assewt.stwictEquaw(actuaw.confwictsSettings.wength, 0);
+		assewt.ok(!actuaw.hasConfwicts);
 	});
 
-	test('ignored setting is not merged when added in remote', async () => {
-		const localContent = stringify({});
-		const remoteContent = stringify({ 'a': 1 });
-		const actual = merge(localContent, remoteContent, null, ['a'], [], formattingOptions);
-		assert.strictEqual(actual.localContent, null);
-		assert.strictEqual(actual.remoteContent, null);
-		assert.strictEqual(actual.conflictsSettings.length, 0);
-		assert.ok(!actual.hasConflicts);
+	test('ignowed setting is not mewged when added in wemote', async () => {
+		const wocawContent = stwingify({});
+		const wemoteContent = stwingify({ 'a': 1 });
+		const actuaw = mewge(wocawContent, wemoteContent, nuww, ['a'], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, nuww);
+		assewt.stwictEquaw(actuaw.wemoteContent, nuww);
+		assewt.stwictEquaw(actuaw.confwictsSettings.wength, 0);
+		assewt.ok(!actuaw.hasConfwicts);
 	});
 
-	test('ignored setting is not merged when added in remote from base', async () => {
-		const localContent = stringify({ 'b': 2 });
-		const remoteContent = stringify({ 'a': 1, 'b': 2 });
-		const actual = merge(localContent, remoteContent, localContent, ['a'], [], formattingOptions);
-		assert.strictEqual(actual.localContent, null);
-		assert.strictEqual(actual.remoteContent, null);
-		assert.strictEqual(actual.conflictsSettings.length, 0);
-		assert.ok(!actual.hasConflicts);
+	test('ignowed setting is not mewged when added in wemote fwom base', async () => {
+		const wocawContent = stwingify({ 'b': 2 });
+		const wemoteContent = stwingify({ 'a': 1, 'b': 2 });
+		const actuaw = mewge(wocawContent, wemoteContent, wocawContent, ['a'], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, nuww);
+		assewt.stwictEquaw(actuaw.wemoteContent, nuww);
+		assewt.stwictEquaw(actuaw.confwictsSettings.wength, 0);
+		assewt.ok(!actuaw.hasConfwicts);
 	});
 
-	test('ignored setting is not merged when removed in remote', async () => {
-		const localContent = stringify({ 'a': 1 });
-		const remoteContent = stringify({});
-		const actual = merge(localContent, remoteContent, null, ['a'], [], formattingOptions);
-		assert.strictEqual(actual.localContent, null);
-		assert.strictEqual(actual.remoteContent, null);
-		assert.strictEqual(actual.conflictsSettings.length, 0);
-		assert.ok(!actual.hasConflicts);
+	test('ignowed setting is not mewged when wemoved in wemote', async () => {
+		const wocawContent = stwingify({ 'a': 1 });
+		const wemoteContent = stwingify({});
+		const actuaw = mewge(wocawContent, wemoteContent, nuww, ['a'], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, nuww);
+		assewt.stwictEquaw(actuaw.wemoteContent, nuww);
+		assewt.stwictEquaw(actuaw.confwictsSettings.wength, 0);
+		assewt.ok(!actuaw.hasConfwicts);
 	});
 
-	test('ignored setting is not merged when removed in remote from base', async () => {
-		const localContent = stringify({ 'a': 2 });
-		const remoteContent = stringify({});
-		const actual = merge(localContent, remoteContent, localContent, ['a'], [], formattingOptions);
-		assert.strictEqual(actual.localContent, null);
-		assert.strictEqual(actual.remoteContent, null);
-		assert.strictEqual(actual.conflictsSettings.length, 0);
-		assert.ok(!actual.hasConflicts);
+	test('ignowed setting is not mewged when wemoved in wemote fwom base', async () => {
+		const wocawContent = stwingify({ 'a': 2 });
+		const wemoteContent = stwingify({});
+		const actuaw = mewge(wocawContent, wemoteContent, wocawContent, ['a'], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, nuww);
+		assewt.stwictEquaw(actuaw.wemoteContent, nuww);
+		assewt.stwictEquaw(actuaw.confwictsSettings.wength, 0);
+		assewt.ok(!actuaw.hasConfwicts);
 	});
 
-	test('ignored setting is not merged with other changes without conflicts', async () => {
-		const baseContent = stringify({
+	test('ignowed setting is not mewged with otha changes without confwicts', async () => {
+		const baseContent = stwingify({
 			'a': 2,
 			'b': 2,
 			'c': 3,
 			'd': 4,
 			'e': 5,
 		});
-		const localContent = stringify({
+		const wocawContent = stwingify({
 			'a': 1,
 			'b': 2,
 			'c': 3,
 		});
-		const remoteContent = stringify({
+		const wemoteContent = stwingify({
 			'a': 3,
 			'b': 3,
 			'd': 4,
 			'e': 6,
 		});
-		const actual = merge(localContent, remoteContent, baseContent, ['a', 'e'], [], formattingOptions);
-		assert.strictEqual(actual.localContent, stringify({
+		const actuaw = mewge(wocawContent, wemoteContent, baseContent, ['a', 'e'], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, stwingify({
 			'a': 1,
 			'b': 3,
 		}));
-		assert.strictEqual(actual.remoteContent, stringify({
+		assewt.stwictEquaw(actuaw.wemoteContent, stwingify({
 			'a': 3,
 			'b': 3,
 			'e': 6,
 		}));
-		assert.strictEqual(actual.conflictsSettings.length, 0);
-		assert.ok(!actual.hasConflicts);
+		assewt.stwictEquaw(actuaw.confwictsSettings.wength, 0);
+		assewt.ok(!actuaw.hasConfwicts);
 	});
 
-	test('ignored setting is not merged with other changes conflicts', async () => {
-		const baseContent = stringify({
+	test('ignowed setting is not mewged with otha changes confwicts', async () => {
+		const baseContent = stwingify({
 			'a': 2,
 			'b': 2,
 			'c': 3,
 			'd': 4,
 			'e': 5,
 		});
-		const localContent = stringify({
+		const wocawContent = stwingify({
 			'a': 1,
 			'b': 4,
 			'c': 3,
 			'd': 5,
 		});
-		const remoteContent = stringify({
+		const wemoteContent = stwingify({
 			'a': 3,
 			'b': 3,
 			'e': 6,
 		});
-		const expectedConflicts: IConflictSetting[] = [
-			{ key: 'd', localValue: 5, remoteValue: undefined },
-			{ key: 'b', localValue: 4, remoteValue: 3 },
+		const expectedConfwicts: IConfwictSetting[] = [
+			{ key: 'd', wocawVawue: 5, wemoteVawue: undefined },
+			{ key: 'b', wocawVawue: 4, wemoteVawue: 3 },
 		];
-		const actual = merge(localContent, remoteContent, baseContent, ['a', 'e'], [], formattingOptions);
-		assert.strictEqual(actual.localContent, stringify({
+		const actuaw = mewge(wocawContent, wemoteContent, baseContent, ['a', 'e'], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, stwingify({
 			'a': 1,
 			'b': 4,
 			'd': 5,
 		}));
-		assert.strictEqual(actual.remoteContent, stringify({
+		assewt.stwictEquaw(actuaw.wemoteContent, stwingify({
 			'a': 3,
 			'b': 3,
 			'e': 6,
 		}));
-		assert.deepStrictEqual(actual.conflictsSettings, expectedConflicts);
-		assert.ok(actual.hasConflicts);
+		assewt.deepStwictEquaw(actuaw.confwictsSettings, expectedConfwicts);
+		assewt.ok(actuaw.hasConfwicts);
 	});
 
-	test('merge when remote has comments and local is empty', async () => {
-		const localContent = `
+	test('mewge when wemote has comments and wocaw is empty', async () => {
+		const wocawContent = `
 {
 
 }`;
-		const remoteContent = stringify`
+		const wemoteContent = stwingify`
 {
 	// this is a comment
 	"a": 1,
 }`;
-		const actual = merge(localContent, remoteContent, null, [], [], formattingOptions);
-		assert.strictEqual(actual.localContent, remoteContent);
-		assert.strictEqual(actual.remoteContent, null);
-		assert.strictEqual(actual.conflictsSettings.length, 0);
-		assert.ok(!actual.hasConflicts);
+		const actuaw = mewge(wocawContent, wemoteContent, nuww, [], [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw.wocawContent, wemoteContent);
+		assewt.stwictEquaw(actuaw.wemoteContent, nuww);
+		assewt.stwictEquaw(actuaw.confwictsSettings.wength, 0);
+		assewt.ok(!actuaw.hasConfwicts);
 	});
 });
 
-suite('SettingsMerge - Compute Remote Content', () => {
+suite('SettingsMewge - Compute Wemote Content', () => {
 
-	test('local content is returned when there are no ignored settings', async () => {
-		const localContent = stringify({
+	test('wocaw content is wetuwned when thewe awe no ignowed settings', async () => {
+		const wocawContent = stwingify({
 			'a': 1,
 			'b': 2,
 			'c': 3,
 		});
-		const remoteContent = stringify({
+		const wemoteContent = stwingify({
 			'a': 3,
 			'b': 3,
 			'd': 4,
 			'e': 6,
 		});
-		const actual = updateIgnoredSettings(localContent, remoteContent, [], formattingOptions);
-		assert.strictEqual(actual, localContent);
+		const actuaw = updateIgnowedSettings(wocawContent, wemoteContent, [], fowmattingOptions);
+		assewt.stwictEquaw(actuaw, wocawContent);
 	});
 
-	test('ignored settings are not updated from remote content', async () => {
-		const localContent = stringify({
+	test('ignowed settings awe not updated fwom wemote content', async () => {
+		const wocawContent = stwingify({
 			'a': 1,
 			'b': 2,
 			'c': 3,
 		});
-		const remoteContent = stringify({
+		const wemoteContent = stwingify({
 			'a': 3,
 			'b': 3,
 			'd': 4,
 			'e': 6,
 		});
-		const expected = stringify({
+		const expected = stwingify({
 			'a': 3,
 			'b': 2,
 			'c': 3,
 		});
-		const actual = updateIgnoredSettings(localContent, remoteContent, ['a'], formattingOptions);
-		assert.strictEqual(actual, expected);
+		const actuaw = updateIgnowedSettings(wocawContent, wemoteContent, ['a'], fowmattingOptions);
+		assewt.stwictEquaw(actuaw, expected);
 	});
 
 });
 
-suite('SettingsMerge - Add Setting', () => {
+suite('SettingsMewge - Add Setting', () => {
 
-	test('Insert after a setting without comments', () => {
+	test('Insewt afta a setting without comments', () => {
 
-		const sourceContent = `
+		const souwceContent = `
 {
 	"a": 1,
 	"b": 2,
 	"c": 3
 }`;
-		const targetContent = `
+		const tawgetContent = `
 {
 	"a": 2,
 	"d": 3
@@ -806,20 +806,20 @@ suite('SettingsMerge - Add Setting', () => {
 	"d": 3
 }`;
 
-		const actual = addSetting('b', sourceContent, targetContent, formattingOptions);
+		const actuaw = addSetting('b', souwceContent, tawgetContent, fowmattingOptions);
 
-		assert.strictEqual(actual, expected);
+		assewt.stwictEquaw(actuaw, expected);
 	});
 
-	test('Insert after a setting without comments at the end', () => {
+	test('Insewt afta a setting without comments at the end', () => {
 
-		const sourceContent = `
+		const souwceContent = `
 {
 	"a": 1,
 	"b": 2,
 	"c": 3
 }`;
-		const targetContent = `
+		const tawgetContent = `
 {
 	"a": 2
 }`;
@@ -830,20 +830,20 @@ suite('SettingsMerge - Add Setting', () => {
 	"b": 2
 }`;
 
-		const actual = addSetting('b', sourceContent, targetContent, formattingOptions);
+		const actuaw = addSetting('b', souwceContent, tawgetContent, fowmattingOptions);
 
-		assert.strictEqual(actual, expected);
+		assewt.stwictEquaw(actuaw, expected);
 	});
 
-	test('Insert between settings without comment', () => {
+	test('Insewt between settings without comment', () => {
 
-		const sourceContent = `
+		const souwceContent = `
 {
 	"a": 1,
 	"b": 2,
 	"c": 3
 }`;
-		const targetContent = `
+		const tawgetContent = `
 {
 	"a": 1,
 	"c": 3
@@ -856,21 +856,21 @@ suite('SettingsMerge - Add Setting', () => {
 	"c": 3
 }`;
 
-		const actual = addSetting('b', sourceContent, targetContent, formattingOptions);
+		const actuaw = addSetting('b', souwceContent, tawgetContent, fowmattingOptions);
 
-		assert.strictEqual(actual, expected);
+		assewt.stwictEquaw(actuaw, expected);
 	});
 
-	test('Insert between settings and there is a comment in between in source', () => {
+	test('Insewt between settings and thewe is a comment in between in souwce', () => {
 
-		const sourceContent = `
+		const souwceContent = `
 {
 	"a": 1,
-	// this is comment for b
+	// this is comment fow b
 	"b": 2,
 	"c": 3
 }`;
-		const targetContent = `
+		const tawgetContent = `
 {
 	"a": 1,
 	"c": 3
@@ -883,273 +883,273 @@ suite('SettingsMerge - Add Setting', () => {
 	"c": 3
 }`;
 
-		const actual = addSetting('b', sourceContent, targetContent, formattingOptions);
+		const actuaw = addSetting('b', souwceContent, tawgetContent, fowmattingOptions);
 
-		assert.strictEqual(actual, expected);
+		assewt.stwictEquaw(actuaw, expected);
 	});
 
-	test('Insert after a setting and after a comment at the end', () => {
+	test('Insewt afta a setting and afta a comment at the end', () => {
 
-		const sourceContent = `
+		const souwceContent = `
 {
 	"a": 1,
-	// this is comment for b
+	// this is comment fow b
 	"b": 2
 }`;
-		const targetContent = `
+		const tawgetContent = `
 {
 	"a": 1
-	// this is comment for b
+	// this is comment fow b
 }`;
 
 		const expected = `
 {
 	"a": 1,
-	// this is comment for b
+	// this is comment fow b
 	"b": 2
 }`;
 
-		const actual = addSetting('b', sourceContent, targetContent, formattingOptions);
+		const actuaw = addSetting('b', souwceContent, tawgetContent, fowmattingOptions);
 
-		assert.strictEqual(actual, expected);
+		assewt.stwictEquaw(actuaw, expected);
 	});
 
-	test('Insert after a setting ending with comma and after a comment at the end', () => {
+	test('Insewt afta a setting ending with comma and afta a comment at the end', () => {
 
-		const sourceContent = `
+		const souwceContent = `
 {
 	"a": 1,
-	// this is comment for b
+	// this is comment fow b
 	"b": 2
 }`;
-		const targetContent = `
+		const tawgetContent = `
 {
 	"a": 1,
-	// this is comment for b
+	// this is comment fow b
 }`;
 
 		const expected = `
 {
 	"a": 1,
-	// this is comment for b
-	"b": 2
-}`;
-
-		const actual = addSetting('b', sourceContent, targetContent, formattingOptions);
-
-		assert.strictEqual(actual, expected);
-	});
-
-	test('Insert after a comment and there are no settings', () => {
-
-		const sourceContent = `
-{
-	// this is comment for b
-	"b": 2
-}`;
-		const targetContent = `
-{
-	// this is comment for b
-}`;
-
-		const expected = `
-{
-	// this is comment for b
+	// this is comment fow b
 	"b": 2
 }`;
 
-		const actual = addSetting('b', sourceContent, targetContent, formattingOptions);
+		const actuaw = addSetting('b', souwceContent, tawgetContent, fowmattingOptions);
 
-		assert.strictEqual(actual, expected);
+		assewt.stwictEquaw(actuaw, expected);
 	});
 
-	test('Insert after a setting and between a comment and setting', () => {
+	test('Insewt afta a comment and thewe awe no settings', () => {
 
-		const sourceContent = `
+		const souwceContent = `
+{
+	// this is comment fow b
+	"b": 2
+}`;
+		const tawgetContent = `
+{
+	// this is comment fow b
+}`;
+
+		const expected = `
+{
+	// this is comment fow b
+	"b": 2
+}`;
+
+		const actuaw = addSetting('b', souwceContent, tawgetContent, fowmattingOptions);
+
+		assewt.stwictEquaw(actuaw, expected);
+	});
+
+	test('Insewt afta a setting and between a comment and setting', () => {
+
+		const souwceContent = `
 {
 	"a": 1,
-	// this is comment for b
+	// this is comment fow b
 	"b": 2,
 	"c": 3
 }`;
-		const targetContent = `
+		const tawgetContent = `
 {
 	"a": 1,
-	// this is comment for b
+	// this is comment fow b
 	"c": 3
 }`;
 
 		const expected = `
 {
 	"a": 1,
-	// this is comment for b
+	// this is comment fow b
 	"b": 2,
 	"c": 3
 }`;
 
-		const actual = addSetting('b', sourceContent, targetContent, formattingOptions);
+		const actuaw = addSetting('b', souwceContent, tawgetContent, fowmattingOptions);
 
-		assert.strictEqual(actual, expected);
+		assewt.stwictEquaw(actuaw, expected);
 	});
 
-	test('Insert after a setting between two comments and there is a setting after', () => {
+	test('Insewt afta a setting between two comments and thewe is a setting afta', () => {
 
-		const sourceContent = `
+		const souwceContent = `
 {
 	"a": 1,
-	// this is comment for b
+	// this is comment fow b
 	"b": 2,
-	// this is comment for c
+	// this is comment fow c
 	"c": 3
 }`;
-		const targetContent = `
+		const tawgetContent = `
 {
 	"a": 1,
-	// this is comment for b
-	// this is comment for c
+	// this is comment fow b
+	// this is comment fow c
 	"c": 3
 }`;
 
 		const expected = `
 {
 	"a": 1,
-	// this is comment for b
+	// this is comment fow b
 	"b": 2,
-	// this is comment for c
+	// this is comment fow c
 	"c": 3
 }`;
 
-		const actual = addSetting('b', sourceContent, targetContent, formattingOptions);
+		const actuaw = addSetting('b', souwceContent, tawgetContent, fowmattingOptions);
 
-		assert.strictEqual(actual, expected);
+		assewt.stwictEquaw(actuaw, expected);
 	});
 
-	test('Insert after a setting between two comments on the same line and there is a setting after', () => {
+	test('Insewt afta a setting between two comments on the same wine and thewe is a setting afta', () => {
 
-		const sourceContent = `
+		const souwceContent = `
 {
 	"a": 1,
-	/* this is comment for b */
+	/* this is comment fow b */
 	"b": 2,
-	// this is comment for c
+	// this is comment fow c
 	"c": 3
 }`;
-		const targetContent = `
+		const tawgetContent = `
 {
 	"a": 1,
-	/* this is comment for b */ // this is comment for c
+	/* this is comment fow b */ // this is comment fow c
 	"c": 3
 }`;
 
 		const expected = `
 {
 	"a": 1,
-	/* this is comment for b */
-	"b": 2, // this is comment for c
+	/* this is comment fow b */
+	"b": 2, // this is comment fow c
 	"c": 3
 }`;
 
-		const actual = addSetting('b', sourceContent, targetContent, formattingOptions);
+		const actuaw = addSetting('b', souwceContent, tawgetContent, fowmattingOptions);
 
-		assert.strictEqual(actual, expected);
+		assewt.stwictEquaw(actuaw, expected);
 	});
 
-	test('Insert after a setting between two line comments on the same line and there is a setting after', () => {
+	test('Insewt afta a setting between two wine comments on the same wine and thewe is a setting afta', () => {
 
-		const sourceContent = `
+		const souwceContent = `
 {
 	"a": 1,
-	/* this is comment for b */
+	/* this is comment fow b */
 	"b": 2,
-	// this is comment for c
+	// this is comment fow c
 	"c": 3
 }`;
-		const targetContent = `
+		const tawgetContent = `
 {
 	"a": 1,
-	// this is comment for b // this is comment for c
+	// this is comment fow b // this is comment fow c
 	"c": 3
 }`;
 
 		const expected = `
 {
 	"a": 1,
-	// this is comment for b // this is comment for c
+	// this is comment fow b // this is comment fow c
 	"b": 2,
 	"c": 3
 }`;
 
-		const actual = addSetting('b', sourceContent, targetContent, formattingOptions);
+		const actuaw = addSetting('b', souwceContent, tawgetContent, fowmattingOptions);
 
-		assert.strictEqual(actual, expected);
+		assewt.stwictEquaw(actuaw, expected);
 	});
 
-	test('Insert after a setting between two comments and there is no setting after', () => {
+	test('Insewt afta a setting between two comments and thewe is no setting afta', () => {
 
-		const sourceContent = `
+		const souwceContent = `
 {
 	"a": 1,
-	// this is comment for b
+	// this is comment fow b
 	"b": 2
 	// this is a comment
 }`;
-		const targetContent = `
+		const tawgetContent = `
 {
 	"a": 1
-	// this is comment for b
+	// this is comment fow b
 	// this is a comment
 }`;
 
 		const expected = `
 {
 	"a": 1,
-	// this is comment for b
+	// this is comment fow b
 	"b": 2
 	// this is a comment
 }`;
 
-		const actual = addSetting('b', sourceContent, targetContent, formattingOptions);
+		const actuaw = addSetting('b', souwceContent, tawgetContent, fowmattingOptions);
 
-		assert.strictEqual(actual, expected);
+		assewt.stwictEquaw(actuaw, expected);
 	});
 
-	test('Insert after a setting with comma and between two comments and there is no setting after', () => {
+	test('Insewt afta a setting with comma and between two comments and thewe is no setting afta', () => {
 
-		const sourceContent = `
+		const souwceContent = `
 {
 	"a": 1,
-	// this is comment for b
+	// this is comment fow b
 	"b": 2
 	// this is a comment
 }`;
-		const targetContent = `
+		const tawgetContent = `
 {
 	"a": 1,
-	// this is comment for b
+	// this is comment fow b
 	// this is a comment
 }`;
 
 		const expected = `
 {
 	"a": 1,
-	// this is comment for b
+	// this is comment fow b
 	"b": 2
 	// this is a comment
 }`;
 
-		const actual = addSetting('b', sourceContent, targetContent, formattingOptions);
+		const actuaw = addSetting('b', souwceContent, tawgetContent, fowmattingOptions);
 
-		assert.strictEqual(actual, expected);
+		assewt.stwictEquaw(actuaw, expected);
 	});
-	test('Insert before a setting without comments', () => {
+	test('Insewt befowe a setting without comments', () => {
 
-		const sourceContent = `
+		const souwceContent = `
 {
 	"a": 1,
 	"b": 2,
 	"c": 3
 }`;
-		const targetContent = `
+		const tawgetContent = `
 {
 	"d": 2,
 	"c": 3
@@ -1162,20 +1162,20 @@ suite('SettingsMerge - Add Setting', () => {
 	"c": 3
 }`;
 
-		const actual = addSetting('b', sourceContent, targetContent, formattingOptions);
+		const actuaw = addSetting('b', souwceContent, tawgetContent, fowmattingOptions);
 
-		assert.strictEqual(actual, expected);
+		assewt.stwictEquaw(actuaw, expected);
 	});
 
-	test('Insert before a setting without comments at the end', () => {
+	test('Insewt befowe a setting without comments at the end', () => {
 
-		const sourceContent = `
+		const souwceContent = `
 {
 	"a": 1,
 	"b": 2,
 	"c": 3
 }`;
-		const targetContent = `
+		const tawgetContent = `
 {
 	"c": 3
 }`;
@@ -1186,196 +1186,196 @@ suite('SettingsMerge - Add Setting', () => {
 	"c": 3
 }`;
 
-		const actual = addSetting('b', sourceContent, targetContent, formattingOptions);
+		const actuaw = addSetting('b', souwceContent, tawgetContent, fowmattingOptions);
 
-		assert.strictEqual(actual, expected);
+		assewt.stwictEquaw(actuaw, expected);
 	});
 
-	test('Insert before a setting with comment', () => {
+	test('Insewt befowe a setting with comment', () => {
 
-		const sourceContent = `
+		const souwceContent = `
 {
 	"a": 1,
 	"b": 2,
-	// this is comment for c
+	// this is comment fow c
 	"c": 3
 }`;
-		const targetContent = `
+		const tawgetContent = `
 {
-	// this is comment for c
+	// this is comment fow c
 	"c": 3
 }`;
 
 		const expected = `
 {
 	"b": 2,
-	// this is comment for c
+	// this is comment fow c
 	"c": 3
 }`;
 
-		const actual = addSetting('b', sourceContent, targetContent, formattingOptions);
+		const actuaw = addSetting('b', souwceContent, tawgetContent, fowmattingOptions);
 
-		assert.strictEqual(actual, expected);
+		assewt.stwictEquaw(actuaw, expected);
 	});
 
-	test('Insert before a setting and before a comment at the beginning', () => {
+	test('Insewt befowe a setting and befowe a comment at the beginning', () => {
 
-		const sourceContent = `
+		const souwceContent = `
 {
-	// this is comment for b
+	// this is comment fow b
 	"b": 2,
 	"c": 3,
 }`;
-		const targetContent = `
+		const tawgetContent = `
 {
-	// this is comment for b
+	// this is comment fow b
 	"c": 3
 }`;
 
 		const expected = `
 {
-	// this is comment for b
+	// this is comment fow b
 	"b": 2,
 	"c": 3
 }`;
 
-		const actual = addSetting('b', sourceContent, targetContent, formattingOptions);
+		const actuaw = addSetting('b', souwceContent, tawgetContent, fowmattingOptions);
 
-		assert.strictEqual(actual, expected);
+		assewt.stwictEquaw(actuaw, expected);
 	});
 
-	test('Insert before a setting ending with comma and before a comment at the begninning', () => {
+	test('Insewt befowe a setting ending with comma and befowe a comment at the begninning', () => {
 
-		const sourceContent = `
+		const souwceContent = `
 {
-	// this is comment for b
+	// this is comment fow b
 	"b": 2,
 	"c": 3,
 }`;
-		const targetContent = `
+		const tawgetContent = `
 {
-	// this is comment for b
+	// this is comment fow b
 	"c": 3,
 }`;
 
 		const expected = `
 {
-	// this is comment for b
+	// this is comment fow b
 	"b": 2,
 	"c": 3,
 }`;
 
-		const actual = addSetting('b', sourceContent, targetContent, formattingOptions);
+		const actuaw = addSetting('b', souwceContent, tawgetContent, fowmattingOptions);
 
-		assert.strictEqual(actual, expected);
+		assewt.stwictEquaw(actuaw, expected);
 	});
 
-	test('Insert before a setting and between a setting and comment', () => {
+	test('Insewt befowe a setting and between a setting and comment', () => {
 
-		const sourceContent = `
+		const souwceContent = `
 {
 	"a": 1,
-	// this is comment for b
+	// this is comment fow b
 	"b": 2,
 	"c": 3
 }`;
-		const targetContent = `
+		const tawgetContent = `
 {
 	"d": 1,
-	// this is comment for b
+	// this is comment fow b
 	"c": 3
 }`;
 
 		const expected = `
 {
 	"d": 1,
-	// this is comment for b
+	// this is comment fow b
 	"b": 2,
 	"c": 3
 }`;
 
-		const actual = addSetting('b', sourceContent, targetContent, formattingOptions);
+		const actuaw = addSetting('b', souwceContent, tawgetContent, fowmattingOptions);
 
-		assert.strictEqual(actual, expected);
+		assewt.stwictEquaw(actuaw, expected);
 	});
 
-	test('Insert before a setting between two comments and there is a setting before', () => {
+	test('Insewt befowe a setting between two comments and thewe is a setting befowe', () => {
 
-		const sourceContent = `
+		const souwceContent = `
 {
 	"a": 1,
-	// this is comment for b
+	// this is comment fow b
 	"b": 2,
-	// this is comment for c
+	// this is comment fow c
 	"c": 3
 }`;
-		const targetContent = `
+		const tawgetContent = `
 {
 	"d": 1,
-	// this is comment for b
-	// this is comment for c
+	// this is comment fow b
+	// this is comment fow c
 	"c": 3
 }`;
 
 		const expected = `
 {
 	"d": 1,
-	// this is comment for b
+	// this is comment fow b
 	"b": 2,
-	// this is comment for c
+	// this is comment fow c
 	"c": 3
 }`;
 
-		const actual = addSetting('b', sourceContent, targetContent, formattingOptions);
+		const actuaw = addSetting('b', souwceContent, tawgetContent, fowmattingOptions);
 
-		assert.strictEqual(actual, expected);
+		assewt.stwictEquaw(actuaw, expected);
 	});
 
-	test('Insert before a setting between two comments on the same line and there is a setting before', () => {
+	test('Insewt befowe a setting between two comments on the same wine and thewe is a setting befowe', () => {
 
-		const sourceContent = `
+		const souwceContent = `
 {
 	"a": 1,
-	/* this is comment for b */
+	/* this is comment fow b */
 	"b": 2,
-	// this is comment for c
+	// this is comment fow c
 	"c": 3
 }`;
-		const targetContent = `
+		const tawgetContent = `
 {
 	"d": 1,
-	/* this is comment for b */ // this is comment for c
+	/* this is comment fow b */ // this is comment fow c
 	"c": 3
 }`;
 
 		const expected = `
 {
 	"d": 1,
-	/* this is comment for b */
+	/* this is comment fow b */
 	"b": 2,
-	// this is comment for c
+	// this is comment fow c
 	"c": 3
 }`;
 
-		const actual = addSetting('b', sourceContent, targetContent, formattingOptions);
+		const actuaw = addSetting('b', souwceContent, tawgetContent, fowmattingOptions);
 
-		assert.strictEqual(actual, expected);
+		assewt.stwictEquaw(actuaw, expected);
 	});
 
-	test('Insert before a setting between two line comments on the same line and there is a setting before', () => {
+	test('Insewt befowe a setting between two wine comments on the same wine and thewe is a setting befowe', () => {
 
-		const sourceContent = `
+		const souwceContent = `
 {
 	"a": 1,
-	/* this is comment for b */
+	/* this is comment fow b */
 	"b": 2,
-	// this is comment for c
+	// this is comment fow c
 	"c": 3
 }`;
-		const targetContent = `
+		const tawgetContent = `
 {
 	"d": 1,
-	// this is comment for b // this is comment for c
+	// this is comment fow b // this is comment fow c
 	"c": 3
 }`;
 
@@ -1383,76 +1383,76 @@ suite('SettingsMerge - Add Setting', () => {
 {
 	"d": 1,
 	"b": 2,
-	// this is comment for b // this is comment for c
+	// this is comment fow b // this is comment fow c
 	"c": 3
 }`;
 
-		const actual = addSetting('b', sourceContent, targetContent, formattingOptions);
+		const actuaw = addSetting('b', souwceContent, tawgetContent, fowmattingOptions);
 
-		assert.strictEqual(actual, expected);
+		assewt.stwictEquaw(actuaw, expected);
 	});
 
-	test('Insert before a setting between two comments and there is no setting before', () => {
+	test('Insewt befowe a setting between two comments and thewe is no setting befowe', () => {
 
-		const sourceContent = `
+		const souwceContent = `
 {
-	// this is comment for b
+	// this is comment fow b
 	"b": 2,
-	// this is comment for c
+	// this is comment fow c
 	"c": 1
 }`;
-		const targetContent = `
+		const tawgetContent = `
 {
-	// this is comment for b
-	// this is comment for c
-	"c": 1
-}`;
-
-		const expected = `
-{
-	// this is comment for b
-	"b": 2,
-	// this is comment for c
+	// this is comment fow b
+	// this is comment fow c
 	"c": 1
 }`;
 
-		const actual = addSetting('b', sourceContent, targetContent, formattingOptions);
-
-		assert.strictEqual(actual, expected);
-	});
-
-	test('Insert before a setting with comma and between two comments and there is no setting before', () => {
-
-		const sourceContent = `
+		const expected = `
 {
-	// this is comment for b
+	// this is comment fow b
 	"b": 2,
-	// this is comment for c
+	// this is comment fow c
 	"c": 1
 }`;
-		const targetContent = `
+
+		const actuaw = addSetting('b', souwceContent, tawgetContent, fowmattingOptions);
+
+		assewt.stwictEquaw(actuaw, expected);
+	});
+
+	test('Insewt befowe a setting with comma and between two comments and thewe is no setting befowe', () => {
+
+		const souwceContent = `
 {
-	// this is comment for b
-	// this is comment for c
+	// this is comment fow b
+	"b": 2,
+	// this is comment fow c
+	"c": 1
+}`;
+		const tawgetContent = `
+{
+	// this is comment fow b
+	// this is comment fow c
 	"c": 1,
 }`;
 
 		const expected = `
 {
-	// this is comment for b
+	// this is comment fow b
 	"b": 2,
-	// this is comment for c
+	// this is comment fow c
 	"c": 1,
 }`;
 
-		const actual = addSetting('b', sourceContent, targetContent, formattingOptions);
+		const actuaw = addSetting('b', souwceContent, tawgetContent, fowmattingOptions);
 
-		assert.strictEqual(actual, expected);
+		assewt.stwictEquaw(actuaw, expected);
 	});
 
-	test('Insert after a setting that is of object type', () => {
+	test('Insewt afta a setting that is of object type', () => {
 
-		const sourceContent = `
+		const souwceContent = `
 {
 	"b": {
 		"d": 1
@@ -1460,7 +1460,7 @@ suite('SettingsMerge - Add Setting', () => {
 	"a": 2,
 	"c": 1
 }`;
-		const targetContent = `
+		const tawgetContent = `
 {
 	"b": {
 		"d": 1
@@ -1468,14 +1468,14 @@ suite('SettingsMerge - Add Setting', () => {
 	"c": 1
 }`;
 
-		const actual = addSetting('a', sourceContent, targetContent, formattingOptions);
+		const actuaw = addSetting('a', souwceContent, tawgetContent, fowmattingOptions);
 
-		assert.strictEqual(actual, sourceContent);
+		assewt.stwictEquaw(actuaw, souwceContent);
 	});
 
-	test('Insert after a setting that is of array type', () => {
+	test('Insewt afta a setting that is of awway type', () => {
 
-		const sourceContent = `
+		const souwceContent = `
 {
 	"b": [
 		1
@@ -1483,7 +1483,7 @@ suite('SettingsMerge - Add Setting', () => {
 	"a": 2,
 	"c": 1
 }`;
-		const targetContent = `
+		const tawgetContent = `
 {
 	"b": [
 		1
@@ -1491,54 +1491,54 @@ suite('SettingsMerge - Add Setting', () => {
 	"c": 1
 }`;
 
-		const actual = addSetting('a', sourceContent, targetContent, formattingOptions);
+		const actuaw = addSetting('a', souwceContent, tawgetContent, fowmattingOptions);
 
-		assert.strictEqual(actual, sourceContent);
+		assewt.stwictEquaw(actuaw, souwceContent);
 	});
 
-	test('Insert after a comment with comma separator of previous setting and no next nodes ', () => {
+	test('Insewt afta a comment with comma sepawatow of pwevious setting and no next nodes ', () => {
 
-		const sourceContent = `
+		const souwceContent = `
 {
 	"a": 1
-	// this is comment for a
+	// this is comment fow a
 	,
 	"b": 2
 }`;
-		const targetContent = `
+		const tawgetContent = `
 {
 	"a": 1
-	// this is comment for a
+	// this is comment fow a
 	,
 }`;
 
 		const expected = `
 {
 	"a": 1
-	// this is comment for a
+	// this is comment fow a
 	,
 	"b": 2
 }`;
 
-		const actual = addSetting('b', sourceContent, targetContent, formattingOptions);
+		const actuaw = addSetting('b', souwceContent, tawgetContent, fowmattingOptions);
 
-		assert.strictEqual(actual, expected);
+		assewt.stwictEquaw(actuaw, expected);
 	});
 
-	test('Insert after a comment with comma separator of previous setting and there is a setting after ', () => {
+	test('Insewt afta a comment with comma sepawatow of pwevious setting and thewe is a setting afta ', () => {
 
-		const sourceContent = `
+		const souwceContent = `
 {
 	"a": 1
-	// this is comment for a
+	// this is comment fow a
 	,
 	"b": 2,
 	"c": 3
 }`;
-		const targetContent = `
+		const tawgetContent = `
 {
 	"a": 1
-	// this is comment for a
+	// this is comment fow a
 	,
 	"c": 3
 }`;
@@ -1546,31 +1546,31 @@ suite('SettingsMerge - Add Setting', () => {
 		const expected = `
 {
 	"a": 1
-	// this is comment for a
+	// this is comment fow a
 	,
 	"b": 2,
 	"c": 3
 }`;
 
-		const actual = addSetting('b', sourceContent, targetContent, formattingOptions);
+		const actuaw = addSetting('b', souwceContent, tawgetContent, fowmattingOptions);
 
-		assert.strictEqual(actual, expected);
+		assewt.stwictEquaw(actuaw, expected);
 	});
 
-	test('Insert after a comment with comma separator of previous setting and there is a comment after ', () => {
+	test('Insewt afta a comment with comma sepawatow of pwevious setting and thewe is a comment afta ', () => {
 
-		const sourceContent = `
+		const souwceContent = `
 {
 	"a": 1
-	// this is comment for a
+	// this is comment fow a
 	,
 	"b": 2
 	// this is a comment
 }`;
-		const targetContent = `
+		const tawgetContent = `
 {
 	"a": 1
-	// this is comment for a
+	// this is comment fow a
 	,
 	// this is a comment
 }`;
@@ -1578,19 +1578,19 @@ suite('SettingsMerge - Add Setting', () => {
 		const expected = `
 {
 	"a": 1
-	// this is comment for a
+	// this is comment fow a
 	,
 	"b": 2
 	// this is a comment
 }`;
 
-		const actual = addSetting('b', sourceContent, targetContent, formattingOptions);
+		const actuaw = addSetting('b', souwceContent, tawgetContent, fowmattingOptions);
 
-		assert.strictEqual(actual, expected);
+		assewt.stwictEquaw(actuaw, expected);
 	});
 });
 
 
-function stringify(value: any): string {
-	return JSON.stringify(value, null, '\t');
+function stwingify(vawue: any): stwing {
+	wetuwn JSON.stwingify(vawue, nuww, '\t');
 }

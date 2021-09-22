@@ -1,9 +1,9 @@
 {
 	"comments": {
-		"lineComment": "%"
+		"wineComment": "%"
 	},
-	// symbols used as brackets
-	"brackets": [
+	// symbows used as bwackets
+	"bwackets": [
 		[
 			"{",
 			"}"
@@ -17,21 +17,21 @@
 			")"
 		]
 	],
-	"autoClosingPairs": [
+	"autoCwosingPaiws": [
 		{
 			"open": "{",
-			"close": "}"
+			"cwose": "}"
 		},
 		{
 			"open": "[",
-			"close": "]"
+			"cwose": "]"
 		},
 		{
 			"open": "(",
-			"close": ")"
+			"cwose": ")"
 		}
 	],
-	"surroundingPairs": [
+	"suwwoundingPaiws": [
 		[
 			"(",
 			")"

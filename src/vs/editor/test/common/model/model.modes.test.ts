@@ -1,263 +1,263 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import * as modes from 'vs/editor/common/modes';
-import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+impowt * as assewt fwom 'assewt';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { EditOpewation } fwom 'vs/editow/common/cowe/editOpewation';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { TokenizationWesuwt2 } fwom 'vs/editow/common/cowe/token';
+impowt { TextModew } fwom 'vs/editow/common/modew/textModew';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt { NUWW_STATE } fwom 'vs/editow/common/modes/nuwwMode';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
 
-// --------- utils
+// --------- utiws
 
-suite('Editor Model - Model Modes 1', () => {
+suite('Editow Modew - Modew Modes 1', () => {
 
-	let calledFor: string[] = [];
+	wet cawwedFow: stwing[] = [];
 
-	function checkAndClear(arr: string[]) {
-		assert.deepStrictEqual(calledFor, arr);
-		calledFor = [];
+	function checkAndCweaw(aww: stwing[]) {
+		assewt.deepStwictEquaw(cawwedFow, aww);
+		cawwedFow = [];
 	}
 
-	const tokenizationSupport: modes.ITokenizationSupport = {
-		getInitialState: () => NULL_STATE,
+	const tokenizationSuppowt: modes.ITokenizationSuppowt = {
+		getInitiawState: () => NUWW_STATE,
 		tokenize: undefined!,
-		tokenize2: (line: string, hasEOL: boolean, state: modes.IState): TokenizationResult2 => {
-			calledFor.push(line.charAt(0));
-			return new TokenizationResult2(new Uint32Array(0), state);
+		tokenize2: (wine: stwing, hasEOW: boowean, state: modes.IState): TokenizationWesuwt2 => {
+			cawwedFow.push(wine.chawAt(0));
+			wetuwn new TokenizationWesuwt2(new Uint32Awway(0), state);
 		}
 	};
 
-	let thisModel: TextModel;
-	let languageRegistration: IDisposable;
+	wet thisModew: TextModew;
+	wet wanguageWegistwation: IDisposabwe;
 
 	setup(() => {
 		const TEXT =
-			'1\r\n' +
+			'1\w\n' +
 			'2\n' +
 			'3\n' +
-			'4\r\n' +
+			'4\w\n' +
 			'5';
-		const LANGUAGE_ID = 'modelModeTest1';
-		calledFor = [];
-		languageRegistration = modes.TokenizationRegistry.register(LANGUAGE_ID, tokenizationSupport);
-		thisModel = createTextModel(TEXT, undefined, new modes.LanguageIdentifier(LANGUAGE_ID, 0));
+		const WANGUAGE_ID = 'modewModeTest1';
+		cawwedFow = [];
+		wanguageWegistwation = modes.TokenizationWegistwy.wegista(WANGUAGE_ID, tokenizationSuppowt);
+		thisModew = cweateTextModew(TEXT, undefined, new modes.WanguageIdentifia(WANGUAGE_ID, 0));
 	});
 
-	teardown(() => {
-		thisModel.dispose();
-		languageRegistration.dispose();
-		calledFor = [];
+	teawdown(() => {
+		thisModew.dispose();
+		wanguageWegistwation.dispose();
+		cawwedFow = [];
 	});
 
-	test('model calls syntax highlighter 1', () => {
-		thisModel.forceTokenization(1);
-		checkAndClear(['1']);
+	test('modew cawws syntax highwighta 1', () => {
+		thisModew.fowceTokenization(1);
+		checkAndCweaw(['1']);
 	});
 
-	test('model calls syntax highlighter 2', () => {
-		thisModel.forceTokenization(2);
-		checkAndClear(['1', '2']);
+	test('modew cawws syntax highwighta 2', () => {
+		thisModew.fowceTokenization(2);
+		checkAndCweaw(['1', '2']);
 
-		thisModel.forceTokenization(2);
-		checkAndClear([]);
+		thisModew.fowceTokenization(2);
+		checkAndCweaw([]);
 	});
 
-	test('model caches states', () => {
-		thisModel.forceTokenization(1);
-		checkAndClear(['1']);
+	test('modew caches states', () => {
+		thisModew.fowceTokenization(1);
+		checkAndCweaw(['1']);
 
-		thisModel.forceTokenization(2);
-		checkAndClear(['2']);
+		thisModew.fowceTokenization(2);
+		checkAndCweaw(['2']);
 
-		thisModel.forceTokenization(3);
-		checkAndClear(['3']);
+		thisModew.fowceTokenization(3);
+		checkAndCweaw(['3']);
 
-		thisModel.forceTokenization(4);
-		checkAndClear(['4']);
+		thisModew.fowceTokenization(4);
+		checkAndCweaw(['4']);
 
-		thisModel.forceTokenization(5);
-		checkAndClear(['5']);
+		thisModew.fowceTokenization(5);
+		checkAndCweaw(['5']);
 
-		thisModel.forceTokenization(5);
-		checkAndClear([]);
+		thisModew.fowceTokenization(5);
+		checkAndCweaw([]);
 	});
 
-	test('model invalidates states for one line insert', () => {
-		thisModel.forceTokenization(5);
-		checkAndClear(['1', '2', '3', '4', '5']);
+	test('modew invawidates states fow one wine insewt', () => {
+		thisModew.fowceTokenization(5);
+		checkAndCweaw(['1', '2', '3', '4', '5']);
 
-		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), '-')]);
-		thisModel.forceTokenization(5);
-		checkAndClear(['-']);
+		thisModew.appwyEdits([EditOpewation.insewt(new Position(1, 1), '-')]);
+		thisModew.fowceTokenization(5);
+		checkAndCweaw(['-']);
 
-		thisModel.forceTokenization(5);
-		checkAndClear([]);
+		thisModew.fowceTokenization(5);
+		checkAndCweaw([]);
 	});
 
-	test('model invalidates states for many lines insert', () => {
-		thisModel.forceTokenization(5);
-		checkAndClear(['1', '2', '3', '4', '5']);
+	test('modew invawidates states fow many wines insewt', () => {
+		thisModew.fowceTokenization(5);
+		checkAndCweaw(['1', '2', '3', '4', '5']);
 
-		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), '0\n-\n+')]);
-		assert.strictEqual(thisModel.getLineCount(), 7);
-		thisModel.forceTokenization(7);
-		checkAndClear(['0', '-', '+']);
+		thisModew.appwyEdits([EditOpewation.insewt(new Position(1, 1), '0\n-\n+')]);
+		assewt.stwictEquaw(thisModew.getWineCount(), 7);
+		thisModew.fowceTokenization(7);
+		checkAndCweaw(['0', '-', '+']);
 
-		thisModel.forceTokenization(7);
-		checkAndClear([]);
+		thisModew.fowceTokenization(7);
+		checkAndCweaw([]);
 	});
 
-	test('model invalidates states for one new line', () => {
-		thisModel.forceTokenization(5);
-		checkAndClear(['1', '2', '3', '4', '5']);
+	test('modew invawidates states fow one new wine', () => {
+		thisModew.fowceTokenization(5);
+		checkAndCweaw(['1', '2', '3', '4', '5']);
 
-		thisModel.applyEdits([EditOperation.insert(new Position(1, 2), '\n')]);
-		thisModel.applyEdits([EditOperation.insert(new Position(2, 1), 'a')]);
-		thisModel.forceTokenization(6);
-		checkAndClear(['1', 'a']);
+		thisModew.appwyEdits([EditOpewation.insewt(new Position(1, 2), '\n')]);
+		thisModew.appwyEdits([EditOpewation.insewt(new Position(2, 1), 'a')]);
+		thisModew.fowceTokenization(6);
+		checkAndCweaw(['1', 'a']);
 	});
 
-	test('model invalidates states for one line delete', () => {
-		thisModel.forceTokenization(5);
-		checkAndClear(['1', '2', '3', '4', '5']);
+	test('modew invawidates states fow one wine dewete', () => {
+		thisModew.fowceTokenization(5);
+		checkAndCweaw(['1', '2', '3', '4', '5']);
 
-		thisModel.applyEdits([EditOperation.insert(new Position(1, 2), '-')]);
-		thisModel.forceTokenization(5);
-		checkAndClear(['1']);
+		thisModew.appwyEdits([EditOpewation.insewt(new Position(1, 2), '-')]);
+		thisModew.fowceTokenization(5);
+		checkAndCweaw(['1']);
 
-		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 2))]);
-		thisModel.forceTokenization(5);
-		checkAndClear(['-']);
+		thisModew.appwyEdits([EditOpewation.dewete(new Wange(1, 1, 1, 2))]);
+		thisModew.fowceTokenization(5);
+		checkAndCweaw(['-']);
 
-		thisModel.forceTokenization(5);
-		checkAndClear([]);
+		thisModew.fowceTokenization(5);
+		checkAndCweaw([]);
 	});
 
-	test('model invalidates states for many lines delete', () => {
-		thisModel.forceTokenization(5);
-		checkAndClear(['1', '2', '3', '4', '5']);
+	test('modew invawidates states fow many wines dewete', () => {
+		thisModew.fowceTokenization(5);
+		checkAndCweaw(['1', '2', '3', '4', '5']);
 
-		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 3, 1))]);
-		thisModel.forceTokenization(3);
-		checkAndClear(['3']);
+		thisModew.appwyEdits([EditOpewation.dewete(new Wange(1, 1, 3, 1))]);
+		thisModew.fowceTokenization(3);
+		checkAndCweaw(['3']);
 
-		thisModel.forceTokenization(3);
-		checkAndClear([]);
+		thisModew.fowceTokenization(3);
+		checkAndCweaw([]);
 	});
 });
 
-suite('Editor Model - Model Modes 2', () => {
+suite('Editow Modew - Modew Modes 2', () => {
 
-	class ModelState2 implements modes.IState {
-		prevLineContent: string;
+	cwass ModewState2 impwements modes.IState {
+		pwevWineContent: stwing;
 
-		constructor(prevLineContent: string) {
-			this.prevLineContent = prevLineContent;
+		constwuctow(pwevWineContent: stwing) {
+			this.pwevWineContent = pwevWineContent;
 		}
 
-		clone(): modes.IState {
-			return new ModelState2(this.prevLineContent);
+		cwone(): modes.IState {
+			wetuwn new ModewState2(this.pwevWineContent);
 		}
 
-		equals(other: modes.IState): boolean {
-			return (other instanceof ModelState2) && other.prevLineContent === this.prevLineContent;
+		equaws(otha: modes.IState): boowean {
+			wetuwn (otha instanceof ModewState2) && otha.pwevWineContent === this.pwevWineContent;
 		}
 	}
 
-	let calledFor: string[] = [];
+	wet cawwedFow: stwing[] = [];
 
-	function checkAndClear(arr: string[]): void {
-		assert.deepStrictEqual(calledFor, arr);
-		calledFor = [];
+	function checkAndCweaw(aww: stwing[]): void {
+		assewt.deepStwictEquaw(cawwedFow, aww);
+		cawwedFow = [];
 	}
 
-	const tokenizationSupport: modes.ITokenizationSupport = {
-		getInitialState: () => new ModelState2(''),
+	const tokenizationSuppowt: modes.ITokenizationSuppowt = {
+		getInitiawState: () => new ModewState2(''),
 		tokenize: undefined!,
-		tokenize2: (line: string, hasEOL: boolean, state: modes.IState): TokenizationResult2 => {
-			calledFor.push(line);
-			(<ModelState2>state).prevLineContent = line;
-			return new TokenizationResult2(new Uint32Array(0), state);
+		tokenize2: (wine: stwing, hasEOW: boowean, state: modes.IState): TokenizationWesuwt2 => {
+			cawwedFow.push(wine);
+			(<ModewState2>state).pwevWineContent = wine;
+			wetuwn new TokenizationWesuwt2(new Uint32Awway(0), state);
 		}
 	};
 
-	let thisModel: TextModel;
-	let languageRegistration: IDisposable;
+	wet thisModew: TextModew;
+	wet wanguageWegistwation: IDisposabwe;
 
 	setup(() => {
 		const TEXT =
-			'Line1' + '\r\n' +
-			'Line2' + '\n' +
-			'Line3' + '\n' +
-			'Line4' + '\r\n' +
-			'Line5';
-		const LANGUAGE_ID = 'modelModeTest2';
-		languageRegistration = modes.TokenizationRegistry.register(LANGUAGE_ID, tokenizationSupport);
-		thisModel = createTextModel(TEXT, undefined, new modes.LanguageIdentifier(LANGUAGE_ID, 0));
+			'Wine1' + '\w\n' +
+			'Wine2' + '\n' +
+			'Wine3' + '\n' +
+			'Wine4' + '\w\n' +
+			'Wine5';
+		const WANGUAGE_ID = 'modewModeTest2';
+		wanguageWegistwation = modes.TokenizationWegistwy.wegista(WANGUAGE_ID, tokenizationSuppowt);
+		thisModew = cweateTextModew(TEXT, undefined, new modes.WanguageIdentifia(WANGUAGE_ID, 0));
 	});
 
-	teardown(() => {
-		thisModel.dispose();
-		languageRegistration.dispose();
+	teawdown(() => {
+		thisModew.dispose();
+		wanguageWegistwation.dispose();
 	});
 
-	test('getTokensForInvalidLines one text insert', () => {
-		thisModel.forceTokenization(5);
-		checkAndClear(['Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
-		thisModel.applyEdits([EditOperation.insert(new Position(1, 6), '-')]);
-		thisModel.forceTokenization(5);
-		checkAndClear(['Line1-', 'Line2']);
+	test('getTokensFowInvawidWines one text insewt', () => {
+		thisModew.fowceTokenization(5);
+		checkAndCweaw(['Wine1', 'Wine2', 'Wine3', 'Wine4', 'Wine5']);
+		thisModew.appwyEdits([EditOpewation.insewt(new Position(1, 6), '-')]);
+		thisModew.fowceTokenization(5);
+		checkAndCweaw(['Wine1-', 'Wine2']);
 	});
 
-	test('getTokensForInvalidLines two text insert', () => {
-		thisModel.forceTokenization(5);
-		checkAndClear(['Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
-		thisModel.applyEdits([
-			EditOperation.insert(new Position(1, 6), '-'),
-			EditOperation.insert(new Position(3, 6), '-')
+	test('getTokensFowInvawidWines two text insewt', () => {
+		thisModew.fowceTokenization(5);
+		checkAndCweaw(['Wine1', 'Wine2', 'Wine3', 'Wine4', 'Wine5']);
+		thisModew.appwyEdits([
+			EditOpewation.insewt(new Position(1, 6), '-'),
+			EditOpewation.insewt(new Position(3, 6), '-')
 		]);
 
-		thisModel.forceTokenization(5);
-		checkAndClear(['Line1-', 'Line2', 'Line3-', 'Line4']);
+		thisModew.fowceTokenization(5);
+		checkAndCweaw(['Wine1-', 'Wine2', 'Wine3-', 'Wine4']);
 	});
 
-	test('getTokensForInvalidLines one multi-line text insert, one small text insert', () => {
-		thisModel.forceTokenization(5);
-		checkAndClear(['Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
-		thisModel.applyEdits([EditOperation.insert(new Position(1, 6), '\nNew line\nAnother new line')]);
-		thisModel.applyEdits([EditOperation.insert(new Position(5, 6), '-')]);
-		thisModel.forceTokenization(7);
-		checkAndClear(['Line1', 'New line', 'Another new line', 'Line2', 'Line3-', 'Line4']);
+	test('getTokensFowInvawidWines one muwti-wine text insewt, one smaww text insewt', () => {
+		thisModew.fowceTokenization(5);
+		checkAndCweaw(['Wine1', 'Wine2', 'Wine3', 'Wine4', 'Wine5']);
+		thisModew.appwyEdits([EditOpewation.insewt(new Position(1, 6), '\nNew wine\nAnotha new wine')]);
+		thisModew.appwyEdits([EditOpewation.insewt(new Position(5, 6), '-')]);
+		thisModew.fowceTokenization(7);
+		checkAndCweaw(['Wine1', 'New wine', 'Anotha new wine', 'Wine2', 'Wine3-', 'Wine4']);
 	});
 
-	test('getTokensForInvalidLines one delete text', () => {
-		thisModel.forceTokenization(5);
-		checkAndClear(['Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
-		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 5))]);
-		thisModel.forceTokenization(5);
-		checkAndClear(['1', 'Line2']);
+	test('getTokensFowInvawidWines one dewete text', () => {
+		thisModew.fowceTokenization(5);
+		checkAndCweaw(['Wine1', 'Wine2', 'Wine3', 'Wine4', 'Wine5']);
+		thisModew.appwyEdits([EditOpewation.dewete(new Wange(1, 1, 1, 5))]);
+		thisModew.fowceTokenization(5);
+		checkAndCweaw(['1', 'Wine2']);
 	});
 
-	test('getTokensForInvalidLines one line delete text', () => {
-		thisModel.forceTokenization(5);
-		checkAndClear(['Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
-		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 2, 1))]);
-		thisModel.forceTokenization(4);
-		checkAndClear(['Line2']);
+	test('getTokensFowInvawidWines one wine dewete text', () => {
+		thisModew.fowceTokenization(5);
+		checkAndCweaw(['Wine1', 'Wine2', 'Wine3', 'Wine4', 'Wine5']);
+		thisModew.appwyEdits([EditOpewation.dewete(new Wange(1, 1, 2, 1))]);
+		thisModew.fowceTokenization(4);
+		checkAndCweaw(['Wine2']);
 	});
 
-	test('getTokensForInvalidLines multiple lines delete text', () => {
-		thisModel.forceTokenization(5);
-		checkAndClear(['Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
-		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 3, 3))]);
-		thisModel.forceTokenization(3);
-		checkAndClear(['ne3', 'Line4']);
+	test('getTokensFowInvawidWines muwtipwe wines dewete text', () => {
+		thisModew.fowceTokenization(5);
+		checkAndCweaw(['Wine1', 'Wine2', 'Wine3', 'Wine4', 'Wine5']);
+		thisModew.appwyEdits([EditOpewation.dewete(new Wange(1, 1, 3, 3))]);
+		thisModew.fowceTokenization(3);
+		checkAndCweaw(['ne3', 'Wine4']);
 	});
 });

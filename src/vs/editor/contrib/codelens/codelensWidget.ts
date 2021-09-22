@@ -1,363 +1,363 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import 'vs/css!./codelensWidget';
-import { ContentWidgetPositionPreference, IActiveCodeEditor, IContentWidget, IContentWidgetPosition, IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
-import { Range } from 'vs/editor/common/core/range';
-import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { CodeLens, Command } from 'vs/editor/common/modes';
-import { editorCodeLensForeground } from 'vs/editor/common/view/editorColorRegistry';
-import { CodeLensItem } from 'vs/editor/contrib/codelens/codelens';
-import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { wendewWabewWithIcons } fwom 'vs/base/bwowsa/ui/iconWabew/iconWabews';
+impowt 'vs/css!./codewensWidget';
+impowt { ContentWidgetPositionPwefewence, IActiveCodeEditow, IContentWidget, IContentWidgetPosition, IViewZone, IViewZoneChangeAccessow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IModewDecowationsChangeAccessow, IModewDewtaDecowation, ITextModew } fwom 'vs/editow/common/modew';
+impowt { ModewDecowationOptions } fwom 'vs/editow/common/modew/textModew';
+impowt { CodeWens, Command } fwom 'vs/editow/common/modes';
+impowt { editowCodeWensFowegwound } fwom 'vs/editow/common/view/editowCowowWegistwy';
+impowt { CodeWensItem } fwom 'vs/editow/contwib/codewens/codewens';
+impowt { editowActiveWinkFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-class CodeLensViewZone implements IViewZone {
+cwass CodeWensViewZone impwements IViewZone {
 
-	readonly suppressMouseDown: boolean;
-	readonly domNode: HTMLElement;
+	weadonwy suppwessMouseDown: boowean;
+	weadonwy domNode: HTMWEwement;
 
-	afterLineNumber: number;
-	heightInPx: number;
+	aftewWineNumba: numba;
+	heightInPx: numba;
 
-	private _lastHeight?: number;
-	private readonly _onHeight: () => void;
+	pwivate _wastHeight?: numba;
+	pwivate weadonwy _onHeight: () => void;
 
-	constructor(afterLineNumber: number, heightInPx: number, onHeight: () => void) {
-		this.afterLineNumber = afterLineNumber;
+	constwuctow(aftewWineNumba: numba, heightInPx: numba, onHeight: () => void) {
+		this.aftewWineNumba = aftewWineNumba;
 		this.heightInPx = heightInPx;
 
 		this._onHeight = onHeight;
-		this.suppressMouseDown = true;
-		this.domNode = document.createElement('div');
+		this.suppwessMouseDown = twue;
+		this.domNode = document.cweateEwement('div');
 	}
 
-	onComputedHeight(height: number): void {
-		if (this._lastHeight === undefined) {
-			this._lastHeight = height;
-		} else if (this._lastHeight !== height) {
-			this._lastHeight = height;
+	onComputedHeight(height: numba): void {
+		if (this._wastHeight === undefined) {
+			this._wastHeight = height;
+		} ewse if (this._wastHeight !== height) {
+			this._wastHeight = height;
 			this._onHeight();
 		}
 	}
 }
 
-class CodeLensContentWidget implements IContentWidget {
+cwass CodeWensContentWidget impwements IContentWidget {
 
-	private static _idPool: number = 0;
+	pwivate static _idPoow: numba = 0;
 
-	// Editor.IContentWidget.allowEditorOverflow
-	readonly allowEditorOverflow: boolean = false;
-	readonly suppressMouseDown: boolean = true;
+	// Editow.IContentWidget.awwowEditowOvewfwow
+	weadonwy awwowEditowOvewfwow: boowean = fawse;
+	weadonwy suppwessMouseDown: boowean = twue;
 
-	private readonly _id: string;
-	private readonly _domNode: HTMLElement;
-	private readonly _editor: IActiveCodeEditor;
-	private readonly _commands = new Map<string, Command>();
+	pwivate weadonwy _id: stwing;
+	pwivate weadonwy _domNode: HTMWEwement;
+	pwivate weadonwy _editow: IActiveCodeEditow;
+	pwivate weadonwy _commands = new Map<stwing, Command>();
 
-	private _widgetPosition?: IContentWidgetPosition;
-	private _isEmpty: boolean = true;
+	pwivate _widgetPosition?: IContentWidgetPosition;
+	pwivate _isEmpty: boowean = twue;
 
-	constructor(
-		editor: IActiveCodeEditor,
-		className: string,
-		line: number,
+	constwuctow(
+		editow: IActiveCodeEditow,
+		cwassName: stwing,
+		wine: numba,
 	) {
-		this._editor = editor;
-		this._id = `codelens.widget-${(CodeLensContentWidget._idPool++)}`;
+		this._editow = editow;
+		this._id = `codewens.widget-${(CodeWensContentWidget._idPoow++)}`;
 
-		this.updatePosition(line);
+		this.updatePosition(wine);
 
-		this._domNode = document.createElement('span');
-		this._domNode.className = `codelens-decoration ${className}`;
+		this._domNode = document.cweateEwement('span');
+		this._domNode.cwassName = `codewens-decowation ${cwassName}`;
 	}
 
-	withCommands(lenses: Array<CodeLens | undefined | null>, animate: boolean): void {
-		this._commands.clear();
+	withCommands(wenses: Awway<CodeWens | undefined | nuww>, animate: boowean): void {
+		this._commands.cweaw();
 
-		let children: HTMLElement[] = [];
-		let hasSymbol = false;
-		for (let i = 0; i < lenses.length; i++) {
-			const lens = lenses[i];
-			if (!lens) {
+		wet chiwdwen: HTMWEwement[] = [];
+		wet hasSymbow = fawse;
+		fow (wet i = 0; i < wenses.wength; i++) {
+			const wens = wenses[i];
+			if (!wens) {
 				continue;
 			}
-			hasSymbol = true;
-			if (lens.command) {
-				const title = renderLabelWithIcons(lens.command.title.trim());
-				if (lens.command.id) {
-					children.push(dom.$('a', { id: String(i), title: lens.command.tooltip }, ...title));
-					this._commands.set(String(i), lens.command);
-				} else {
-					children.push(dom.$('span', { title: lens.command.tooltip }, ...title));
+			hasSymbow = twue;
+			if (wens.command) {
+				const titwe = wendewWabewWithIcons(wens.command.titwe.twim());
+				if (wens.command.id) {
+					chiwdwen.push(dom.$('a', { id: Stwing(i), titwe: wens.command.toowtip }, ...titwe));
+					this._commands.set(Stwing(i), wens.command);
+				} ewse {
+					chiwdwen.push(dom.$('span', { titwe: wens.command.toowtip }, ...titwe));
 				}
-				if (i + 1 < lenses.length) {
-					children.push(dom.$('span', undefined, '\u00a0|\u00a0'));
+				if (i + 1 < wenses.wength) {
+					chiwdwen.push(dom.$('span', undefined, '\u00a0|\u00a0'));
 				}
 			}
 		}
 
-		if (!hasSymbol) {
-			// symbols but no commands
-			dom.reset(this._domNode, dom.$('span', undefined, 'no commands'));
+		if (!hasSymbow) {
+			// symbows but no commands
+			dom.weset(this._domNode, dom.$('span', undefined, 'no commands'));
 
-		} else {
-			// symbols and commands
-			dom.reset(this._domNode, ...children);
+		} ewse {
+			// symbows and commands
+			dom.weset(this._domNode, ...chiwdwen);
 			if (this._isEmpty && animate) {
-				this._domNode.classList.add('fadein');
+				this._domNode.cwassWist.add('fadein');
 			}
-			this._isEmpty = false;
+			this._isEmpty = fawse;
 		}
 	}
 
-	getCommand(link: HTMLLinkElement): Command | undefined {
-		return link.parentElement === this._domNode
-			? this._commands.get(link.id)
+	getCommand(wink: HTMWWinkEwement): Command | undefined {
+		wetuwn wink.pawentEwement === this._domNode
+			? this._commands.get(wink.id)
 			: undefined;
 	}
 
-	getId(): string {
-		return this._id;
+	getId(): stwing {
+		wetuwn this._id;
 	}
 
-	getDomNode(): HTMLElement {
-		return this._domNode;
+	getDomNode(): HTMWEwement {
+		wetuwn this._domNode;
 	}
 
-	updatePosition(line: number): void {
-		const column = this._editor.getModel().getLineFirstNonWhitespaceColumn(line);
+	updatePosition(wine: numba): void {
+		const cowumn = this._editow.getModew().getWineFiwstNonWhitespaceCowumn(wine);
 		this._widgetPosition = {
-			position: { lineNumber: line, column: column },
-			preference: [ContentWidgetPositionPreference.ABOVE]
+			position: { wineNumba: wine, cowumn: cowumn },
+			pwefewence: [ContentWidgetPositionPwefewence.ABOVE]
 		};
 	}
 
-	getPosition(): IContentWidgetPosition | null {
-		return this._widgetPosition || null;
+	getPosition(): IContentWidgetPosition | nuww {
+		wetuwn this._widgetPosition || nuww;
 	}
 }
 
-export interface IDecorationIdCallback {
-	(decorationId: string): void;
+expowt intewface IDecowationIdCawwback {
+	(decowationId: stwing): void;
 }
 
-export class CodeLensHelper {
+expowt cwass CodeWensHewpa {
 
-	private readonly _removeDecorations: string[];
-	private readonly _addDecorations: IModelDeltaDecoration[];
-	private readonly _addDecorationsCallbacks: IDecorationIdCallback[];
+	pwivate weadonwy _wemoveDecowations: stwing[];
+	pwivate weadonwy _addDecowations: IModewDewtaDecowation[];
+	pwivate weadonwy _addDecowationsCawwbacks: IDecowationIdCawwback[];
 
-	constructor() {
-		this._removeDecorations = [];
-		this._addDecorations = [];
-		this._addDecorationsCallbacks = [];
+	constwuctow() {
+		this._wemoveDecowations = [];
+		this._addDecowations = [];
+		this._addDecowationsCawwbacks = [];
 	}
 
-	addDecoration(decoration: IModelDeltaDecoration, callback: IDecorationIdCallback): void {
-		this._addDecorations.push(decoration);
-		this._addDecorationsCallbacks.push(callback);
+	addDecowation(decowation: IModewDewtaDecowation, cawwback: IDecowationIdCawwback): void {
+		this._addDecowations.push(decowation);
+		this._addDecowationsCawwbacks.push(cawwback);
 	}
 
-	removeDecoration(decorationId: string): void {
-		this._removeDecorations.push(decorationId);
+	wemoveDecowation(decowationId: stwing): void {
+		this._wemoveDecowations.push(decowationId);
 	}
 
-	commit(changeAccessor: IModelDecorationsChangeAccessor): void {
-		let resultingDecorations = changeAccessor.deltaDecorations(this._removeDecorations, this._addDecorations);
-		for (let i = 0, len = resultingDecorations.length; i < len; i++) {
-			this._addDecorationsCallbacks[i](resultingDecorations[i]);
+	commit(changeAccessow: IModewDecowationsChangeAccessow): void {
+		wet wesuwtingDecowations = changeAccessow.dewtaDecowations(this._wemoveDecowations, this._addDecowations);
+		fow (wet i = 0, wen = wesuwtingDecowations.wength; i < wen; i++) {
+			this._addDecowationsCawwbacks[i](wesuwtingDecowations[i]);
 		}
 	}
 }
 
-export class CodeLensWidget {
+expowt cwass CodeWensWidget {
 
-	private readonly _editor: IActiveCodeEditor;
-	private readonly _className: string;
-	private readonly _viewZone: CodeLensViewZone;
-	private readonly _viewZoneId: string;
+	pwivate weadonwy _editow: IActiveCodeEditow;
+	pwivate weadonwy _cwassName: stwing;
+	pwivate weadonwy _viewZone: CodeWensViewZone;
+	pwivate weadonwy _viewZoneId: stwing;
 
-	private _contentWidget?: CodeLensContentWidget;
-	private _decorationIds: string[];
-	private _data: CodeLensItem[];
-	private _isDisposed: boolean = false;
+	pwivate _contentWidget?: CodeWensContentWidget;
+	pwivate _decowationIds: stwing[];
+	pwivate _data: CodeWensItem[];
+	pwivate _isDisposed: boowean = fawse;
 
-	constructor(
-		data: CodeLensItem[],
-		editor: IActiveCodeEditor,
-		className: string,
-		helper: CodeLensHelper,
-		viewZoneChangeAccessor: IViewZoneChangeAccessor,
-		heightInPx: number,
-		updateCallback: () => void
+	constwuctow(
+		data: CodeWensItem[],
+		editow: IActiveCodeEditow,
+		cwassName: stwing,
+		hewpa: CodeWensHewpa,
+		viewZoneChangeAccessow: IViewZoneChangeAccessow,
+		heightInPx: numba,
+		updateCawwback: () => void
 	) {
-		this._editor = editor;
-		this._className = className;
+		this._editow = editow;
+		this._cwassName = cwassName;
 		this._data = data;
 
-		// create combined range, track all ranges with decorations,
-		// check if there is already something to render
-		this._decorationIds = [];
-		let range: Range | undefined;
-		let lenses: CodeLens[] = [];
+		// cweate combined wange, twack aww wanges with decowations,
+		// check if thewe is awweady something to wenda
+		this._decowationIds = [];
+		wet wange: Wange | undefined;
+		wet wenses: CodeWens[] = [];
 
-		this._data.forEach((codeLensData, i) => {
+		this._data.fowEach((codeWensData, i) => {
 
-			if (codeLensData.symbol.command) {
-				lenses.push(codeLensData.symbol);
+			if (codeWensData.symbow.command) {
+				wenses.push(codeWensData.symbow);
 			}
 
-			helper.addDecoration({
-				range: codeLensData.symbol.range,
-				options: ModelDecorationOptions.EMPTY
-			}, id => this._decorationIds[i] = id);
+			hewpa.addDecowation({
+				wange: codeWensData.symbow.wange,
+				options: ModewDecowationOptions.EMPTY
+			}, id => this._decowationIds[i] = id);
 
-			// the range contains all lenses on this line
-			if (!range) {
-				range = Range.lift(codeLensData.symbol.range);
-			} else {
-				range = Range.plusRange(range, codeLensData.symbol.range);
+			// the wange contains aww wenses on this wine
+			if (!wange) {
+				wange = Wange.wift(codeWensData.symbow.wange);
+			} ewse {
+				wange = Wange.pwusWange(wange, codeWensData.symbow.wange);
 			}
 		});
 
-		this._viewZone = new CodeLensViewZone(range!.startLineNumber - 1, heightInPx, updateCallback);
-		this._viewZoneId = viewZoneChangeAccessor.addZone(this._viewZone);
+		this._viewZone = new CodeWensViewZone(wange!.stawtWineNumba - 1, heightInPx, updateCawwback);
+		this._viewZoneId = viewZoneChangeAccessow.addZone(this._viewZone);
 
-		if (lenses.length > 0) {
-			this._createContentWidgetIfNecessary();
-			this._contentWidget!.withCommands(lenses, false);
+		if (wenses.wength > 0) {
+			this._cweateContentWidgetIfNecessawy();
+			this._contentWidget!.withCommands(wenses, fawse);
 		}
 	}
 
-	private _createContentWidgetIfNecessary(): void {
+	pwivate _cweateContentWidgetIfNecessawy(): void {
 		if (!this._contentWidget) {
-			this._contentWidget = new CodeLensContentWidget(this._editor, this._className, this._viewZone.afterLineNumber + 1);
-			this._editor.addContentWidget(this._contentWidget);
-		} else {
-			this._editor.layoutContentWidget(this._contentWidget);
+			this._contentWidget = new CodeWensContentWidget(this._editow, this._cwassName, this._viewZone.aftewWineNumba + 1);
+			this._editow.addContentWidget(this._contentWidget);
+		} ewse {
+			this._editow.wayoutContentWidget(this._contentWidget);
 		}
 	}
 
-	dispose(helper: CodeLensHelper, viewZoneChangeAccessor?: IViewZoneChangeAccessor): void {
-		this._decorationIds.forEach(helper.removeDecoration, helper);
-		this._decorationIds = [];
-		if (viewZoneChangeAccessor) {
-			viewZoneChangeAccessor.removeZone(this._viewZoneId);
+	dispose(hewpa: CodeWensHewpa, viewZoneChangeAccessow?: IViewZoneChangeAccessow): void {
+		this._decowationIds.fowEach(hewpa.wemoveDecowation, hewpa);
+		this._decowationIds = [];
+		if (viewZoneChangeAccessow) {
+			viewZoneChangeAccessow.wemoveZone(this._viewZoneId);
 		}
 		if (this._contentWidget) {
-			this._editor.removeContentWidget(this._contentWidget);
+			this._editow.wemoveContentWidget(this._contentWidget);
 			this._contentWidget = undefined;
 		}
-		this._isDisposed = true;
+		this._isDisposed = twue;
 	}
 
-	isDisposed(): boolean {
-		return this._isDisposed;
+	isDisposed(): boowean {
+		wetuwn this._isDisposed;
 	}
 
-	isValid(): boolean {
-		return this._decorationIds.some((id, i) => {
-			const range = this._editor.getModel().getDecorationRange(id);
-			const symbol = this._data[i].symbol;
-			return !!(range && Range.isEmpty(symbol.range) === range.isEmpty());
+	isVawid(): boowean {
+		wetuwn this._decowationIds.some((id, i) => {
+			const wange = this._editow.getModew().getDecowationWange(id);
+			const symbow = this._data[i].symbow;
+			wetuwn !!(wange && Wange.isEmpty(symbow.wange) === wange.isEmpty());
 		});
 	}
 
-	updateCodeLensSymbols(data: CodeLensItem[], helper: CodeLensHelper): void {
-		this._decorationIds.forEach(helper.removeDecoration, helper);
-		this._decorationIds = [];
+	updateCodeWensSymbows(data: CodeWensItem[], hewpa: CodeWensHewpa): void {
+		this._decowationIds.fowEach(hewpa.wemoveDecowation, hewpa);
+		this._decowationIds = [];
 		this._data = data;
-		this._data.forEach((codeLensData, i) => {
-			helper.addDecoration({
-				range: codeLensData.symbol.range,
-				options: ModelDecorationOptions.EMPTY
-			}, id => this._decorationIds[i] = id);
+		this._data.fowEach((codeWensData, i) => {
+			hewpa.addDecowation({
+				wange: codeWensData.symbow.wange,
+				options: ModewDecowationOptions.EMPTY
+			}, id => this._decowationIds[i] = id);
 		});
 	}
 
-	updateHeight(height: number, viewZoneChangeAccessor: IViewZoneChangeAccessor): void {
+	updateHeight(height: numba, viewZoneChangeAccessow: IViewZoneChangeAccessow): void {
 		this._viewZone.heightInPx = height;
-		viewZoneChangeAccessor.layoutZone(this._viewZoneId);
+		viewZoneChangeAccessow.wayoutZone(this._viewZoneId);
 		if (this._contentWidget) {
-			this._editor.layoutContentWidget(this._contentWidget);
+			this._editow.wayoutContentWidget(this._contentWidget);
 		}
 	}
 
-	computeIfNecessary(model: ITextModel): CodeLensItem[] | null {
-		if (!this._viewZone.domNode.hasAttribute('monaco-visible-view-zone')) {
-			return null;
+	computeIfNecessawy(modew: ITextModew): CodeWensItem[] | nuww {
+		if (!this._viewZone.domNode.hasAttwibute('monaco-visibwe-view-zone')) {
+			wetuwn nuww;
 		}
 
-		// Read editor current state
-		for (let i = 0; i < this._decorationIds.length; i++) {
-			const range = model.getDecorationRange(this._decorationIds[i]);
-			if (range) {
-				this._data[i].symbol.range = range;
+		// Wead editow cuwwent state
+		fow (wet i = 0; i < this._decowationIds.wength; i++) {
+			const wange = modew.getDecowationWange(this._decowationIds[i]);
+			if (wange) {
+				this._data[i].symbow.wange = wange;
 			}
 		}
-		return this._data;
+		wetuwn this._data;
 	}
 
-	updateCommands(symbols: Array<CodeLens | undefined | null>): void {
+	updateCommands(symbows: Awway<CodeWens | undefined | nuww>): void {
 
-		this._createContentWidgetIfNecessary();
-		this._contentWidget!.withCommands(symbols, true);
+		this._cweateContentWidgetIfNecessawy();
+		this._contentWidget!.withCommands(symbows, twue);
 
-		for (let i = 0; i < this._data.length; i++) {
-			const resolved = symbols[i];
-			if (resolved) {
-				const { symbol } = this._data[i];
-				symbol.command = resolved.command || symbol.command;
+		fow (wet i = 0; i < this._data.wength; i++) {
+			const wesowved = symbows[i];
+			if (wesowved) {
+				const { symbow } = this._data[i];
+				symbow.command = wesowved.command || symbow.command;
 			}
 		}
 	}
 
-	getCommand(link: HTMLLinkElement): Command | undefined {
-		return this._contentWidget?.getCommand(link);
+	getCommand(wink: HTMWWinkEwement): Command | undefined {
+		wetuwn this._contentWidget?.getCommand(wink);
 	}
 
-	getLineNumber(): number {
-		const range = this._editor.getModel().getDecorationRange(this._decorationIds[0]);
-		if (range) {
-			return range.startLineNumber;
+	getWineNumba(): numba {
+		const wange = this._editow.getModew().getDecowationWange(this._decowationIds[0]);
+		if (wange) {
+			wetuwn wange.stawtWineNumba;
 		}
-		return -1;
+		wetuwn -1;
 	}
 
-	update(viewZoneChangeAccessor: IViewZoneChangeAccessor): void {
-		if (this.isValid()) {
-			const range = this._editor.getModel().getDecorationRange(this._decorationIds[0]);
-			if (range) {
-				this._viewZone.afterLineNumber = range.startLineNumber - 1;
-				viewZoneChangeAccessor.layoutZone(this._viewZoneId);
+	update(viewZoneChangeAccessow: IViewZoneChangeAccessow): void {
+		if (this.isVawid()) {
+			const wange = this._editow.getModew().getDecowationWange(this._decowationIds[0]);
+			if (wange) {
+				this._viewZone.aftewWineNumba = wange.stawtWineNumba - 1;
+				viewZoneChangeAccessow.wayoutZone(this._viewZoneId);
 
 				if (this._contentWidget) {
-					this._contentWidget.updatePosition(range.startLineNumber);
-					this._editor.layoutContentWidget(this._contentWidget);
+					this._contentWidget.updatePosition(wange.stawtWineNumba);
+					this._editow.wayoutContentWidget(this._contentWidget);
 				}
 			}
 		}
 	}
 
-	getItems(): CodeLensItem[] {
-		return this._data;
+	getItems(): CodeWensItem[] {
+		wetuwn this._data;
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	const codeLensForeground = theme.getColor(editorCodeLensForeground);
-	if (codeLensForeground) {
-		collector.addRule(`.monaco-editor .codelens-decoration { color: ${codeLensForeground}; }`);
-		collector.addRule(`.monaco-editor .codelens-decoration .codicon { color: ${codeLensForeground}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const codeWensFowegwound = theme.getCowow(editowCodeWensFowegwound);
+	if (codeWensFowegwound) {
+		cowwectow.addWuwe(`.monaco-editow .codewens-decowation { cowow: ${codeWensFowegwound}; }`);
+		cowwectow.addWuwe(`.monaco-editow .codewens-decowation .codicon { cowow: ${codeWensFowegwound}; }`);
 	}
-	const activeLinkForeground = theme.getColor(editorActiveLinkForeground);
-	if (activeLinkForeground) {
-		collector.addRule(`.monaco-editor .codelens-decoration > a:hover { color: ${activeLinkForeground} !important; }`);
-		collector.addRule(`.monaco-editor .codelens-decoration > a:hover .codicon { color: ${activeLinkForeground} !important; }`);
+	const activeWinkFowegwound = theme.getCowow(editowActiveWinkFowegwound);
+	if (activeWinkFowegwound) {
+		cowwectow.addWuwe(`.monaco-editow .codewens-decowation > a:hova { cowow: ${activeWinkFowegwound} !impowtant; }`);
+		cowwectow.addWuwe(`.monaco-editow .codewens-decowation > a:hova .codicon { cowow: ${activeWinkFowegwound} !impowtant; }`);
 	}
 });

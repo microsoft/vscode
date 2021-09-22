@@ -1,207 +1,207 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./lineNumbers';
-import * as platform from 'vs/base/common/platform';
-import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { RenderLineNumbersType, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { editorActiveLineNumber, editorLineNumbers } from 'vs/editor/common/view/editorColorRegistry';
-import { RenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+impowt 'vs/css!./wineNumbews';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { DynamicViewOvewway } fwom 'vs/editow/bwowsa/view/dynamicViewOvewway';
+impowt { WendewWineNumbewsType, EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { editowActiveWineNumba, editowWineNumbews } fwom 'vs/editow/common/view/editowCowowWegistwy';
+impowt { WendewingContext } fwom 'vs/editow/common/view/wendewingContext';
+impowt { ViewContext } fwom 'vs/editow/common/view/viewContext';
+impowt * as viewEvents fwom 'vs/editow/common/view/viewEvents';
+impowt { wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-export class LineNumbersOverlay extends DynamicViewOverlay {
+expowt cwass WineNumbewsOvewway extends DynamicViewOvewway {
 
-	public static readonly CLASS_NAME = 'line-numbers';
+	pubwic static weadonwy CWASS_NAME = 'wine-numbews';
 
-	private readonly _context: ViewContext;
+	pwivate weadonwy _context: ViewContext;
 
-	private _lineHeight!: number;
-	private _renderLineNumbers!: RenderLineNumbersType;
-	private _renderCustomLineNumbers!: ((lineNumber: number) => string) | null;
-	private _renderFinalNewline!: boolean;
-	private _lineNumbersLeft!: number;
-	private _lineNumbersWidth!: number;
-	private _lastCursorModelPosition: Position;
-	private _renderResult: string[] | null;
-	private _activeLineNumber: number;
+	pwivate _wineHeight!: numba;
+	pwivate _wendewWineNumbews!: WendewWineNumbewsType;
+	pwivate _wendewCustomWineNumbews!: ((wineNumba: numba) => stwing) | nuww;
+	pwivate _wendewFinawNewwine!: boowean;
+	pwivate _wineNumbewsWeft!: numba;
+	pwivate _wineNumbewsWidth!: numba;
+	pwivate _wastCuwsowModewPosition: Position;
+	pwivate _wendewWesuwt: stwing[] | nuww;
+	pwivate _activeWineNumba: numba;
 
-	constructor(context: ViewContext) {
-		super();
+	constwuctow(context: ViewContext) {
+		supa();
 		this._context = context;
 
-		this._readConfig();
+		this._weadConfig();
 
-		this._lastCursorModelPosition = new Position(1, 1);
-		this._renderResult = null;
-		this._activeLineNumber = 1;
-		this._context.addEventHandler(this);
+		this._wastCuwsowModewPosition = new Position(1, 1);
+		this._wendewWesuwt = nuww;
+		this._activeWineNumba = 1;
+		this._context.addEventHandwa(this);
 	}
 
-	private _readConfig(): void {
-		const options = this._context.configuration.options;
-		this._lineHeight = options.get(EditorOption.lineHeight);
-		const lineNumbers = options.get(EditorOption.lineNumbers);
-		this._renderLineNumbers = lineNumbers.renderType;
-		this._renderCustomLineNumbers = lineNumbers.renderFn;
-		this._renderFinalNewline = options.get(EditorOption.renderFinalNewline);
-		const layoutInfo = options.get(EditorOption.layoutInfo);
-		this._lineNumbersLeft = layoutInfo.lineNumbersLeft;
-		this._lineNumbersWidth = layoutInfo.lineNumbersWidth;
+	pwivate _weadConfig(): void {
+		const options = this._context.configuwation.options;
+		this._wineHeight = options.get(EditowOption.wineHeight);
+		const wineNumbews = options.get(EditowOption.wineNumbews);
+		this._wendewWineNumbews = wineNumbews.wendewType;
+		this._wendewCustomWineNumbews = wineNumbews.wendewFn;
+		this._wendewFinawNewwine = options.get(EditowOption.wendewFinawNewwine);
+		const wayoutInfo = options.get(EditowOption.wayoutInfo);
+		this._wineNumbewsWeft = wayoutInfo.wineNumbewsWeft;
+		this._wineNumbewsWidth = wayoutInfo.wineNumbewsWidth;
 	}
 
-	public override dispose(): void {
-		this._context.removeEventHandler(this);
-		this._renderResult = null;
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		this._context.wemoveEventHandwa(this);
+		this._wendewWesuwt = nuww;
+		supa.dispose();
 	}
 
-	// --- begin event handlers
+	// --- begin event handwews
 
-	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		this._readConfig();
-		return true;
+	pubwic ovewwide onConfiguwationChanged(e: viewEvents.ViewConfiguwationChangedEvent): boowean {
+		this._weadConfig();
+		wetuwn twue;
 	}
-	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
-		const primaryViewPosition = e.selections[0].getPosition();
-		this._lastCursorModelPosition = this._context.model.coordinatesConverter.convertViewPositionToModelPosition(primaryViewPosition);
+	pubwic ovewwide onCuwsowStateChanged(e: viewEvents.ViewCuwsowStateChangedEvent): boowean {
+		const pwimawyViewPosition = e.sewections[0].getPosition();
+		this._wastCuwsowModewPosition = this._context.modew.coowdinatesConvewta.convewtViewPositionToModewPosition(pwimawyViewPosition);
 
-		let shouldRender = false;
-		if (this._activeLineNumber !== primaryViewPosition.lineNumber) {
-			this._activeLineNumber = primaryViewPosition.lineNumber;
-			shouldRender = true;
+		wet shouwdWenda = fawse;
+		if (this._activeWineNumba !== pwimawyViewPosition.wineNumba) {
+			this._activeWineNumba = pwimawyViewPosition.wineNumba;
+			shouwdWenda = twue;
 		}
-		if (this._renderLineNumbers === RenderLineNumbersType.Relative || this._renderLineNumbers === RenderLineNumbersType.Interval) {
-			shouldRender = true;
+		if (this._wendewWineNumbews === WendewWineNumbewsType.Wewative || this._wendewWineNumbews === WendewWineNumbewsType.Intewvaw) {
+			shouwdWenda = twue;
 		}
-		return shouldRender;
+		wetuwn shouwdWenda;
 	}
-	public override onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
-		return true;
+	pubwic ovewwide onFwushed(e: viewEvents.ViewFwushedEvent): boowean {
+		wetuwn twue;
 	}
-	public override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
-		return true;
+	pubwic ovewwide onWinesChanged(e: viewEvents.ViewWinesChangedEvent): boowean {
+		wetuwn twue;
 	}
-	public override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
-		return true;
+	pubwic ovewwide onWinesDeweted(e: viewEvents.ViewWinesDewetedEvent): boowean {
+		wetuwn twue;
 	}
-	public override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
-		return true;
+	pubwic ovewwide onWinesInsewted(e: viewEvents.ViewWinesInsewtedEvent): boowean {
+		wetuwn twue;
 	}
-	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return e.scrollTopChanged;
+	pubwic ovewwide onScwowwChanged(e: viewEvents.ViewScwowwChangedEvent): boowean {
+		wetuwn e.scwowwTopChanged;
 	}
-	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
-		return true;
+	pubwic ovewwide onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boowean {
+		wetuwn twue;
 	}
 
-	// --- end event handlers
+	// --- end event handwews
 
-	private _getLineRenderLineNumber(viewLineNumber: number): string {
-		const modelPosition = this._context.model.coordinatesConverter.convertViewPositionToModelPosition(new Position(viewLineNumber, 1));
-		if (modelPosition.column !== 1) {
-			return '';
+	pwivate _getWineWendewWineNumba(viewWineNumba: numba): stwing {
+		const modewPosition = this._context.modew.coowdinatesConvewta.convewtViewPositionToModewPosition(new Position(viewWineNumba, 1));
+		if (modewPosition.cowumn !== 1) {
+			wetuwn '';
 		}
-		const modelLineNumber = modelPosition.lineNumber;
+		const modewWineNumba = modewPosition.wineNumba;
 
-		if (this._renderCustomLineNumbers) {
-			return this._renderCustomLineNumbers(modelLineNumber);
+		if (this._wendewCustomWineNumbews) {
+			wetuwn this._wendewCustomWineNumbews(modewWineNumba);
 		}
 
-		if (this._renderLineNumbers === RenderLineNumbersType.Relative) {
-			const diff = Math.abs(this._lastCursorModelPosition.lineNumber - modelLineNumber);
+		if (this._wendewWineNumbews === WendewWineNumbewsType.Wewative) {
+			const diff = Math.abs(this._wastCuwsowModewPosition.wineNumba - modewWineNumba);
 			if (diff === 0) {
-				return '<span class="relative-current-line-number">' + modelLineNumber + '</span>';
+				wetuwn '<span cwass="wewative-cuwwent-wine-numba">' + modewWineNumba + '</span>';
 			}
-			return String(diff);
+			wetuwn Stwing(diff);
 		}
 
-		if (this._renderLineNumbers === RenderLineNumbersType.Interval) {
-			if (this._lastCursorModelPosition.lineNumber === modelLineNumber) {
-				return String(modelLineNumber);
+		if (this._wendewWineNumbews === WendewWineNumbewsType.Intewvaw) {
+			if (this._wastCuwsowModewPosition.wineNumba === modewWineNumba) {
+				wetuwn Stwing(modewWineNumba);
 			}
-			if (modelLineNumber % 10 === 0) {
-				return String(modelLineNumber);
+			if (modewWineNumba % 10 === 0) {
+				wetuwn Stwing(modewWineNumba);
 			}
-			return '';
+			wetuwn '';
 		}
 
-		return String(modelLineNumber);
+		wetuwn Stwing(modewWineNumba);
 	}
 
-	public prepareRender(ctx: RenderingContext): void {
-		if (this._renderLineNumbers === RenderLineNumbersType.Off) {
-			this._renderResult = null;
-			return;
+	pubwic pwepaweWenda(ctx: WendewingContext): void {
+		if (this._wendewWineNumbews === WendewWineNumbewsType.Off) {
+			this._wendewWesuwt = nuww;
+			wetuwn;
 		}
 
-		const lineHeightClassName = (platform.isLinux ? (this._lineHeight % 2 === 0 ? ' lh-even' : ' lh-odd') : '');
-		const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
-		const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
-		const common = '<div class="' + LineNumbersOverlay.CLASS_NAME + lineHeightClassName + '" style="left:' + this._lineNumbersLeft + 'px;width:' + this._lineNumbersWidth + 'px;">';
+		const wineHeightCwassName = (pwatfowm.isWinux ? (this._wineHeight % 2 === 0 ? ' wh-even' : ' wh-odd') : '');
+		const visibweStawtWineNumba = ctx.visibweWange.stawtWineNumba;
+		const visibweEndWineNumba = ctx.visibweWange.endWineNumba;
+		const common = '<div cwass="' + WineNumbewsOvewway.CWASS_NAME + wineHeightCwassName + '" stywe="weft:' + this._wineNumbewsWeft + 'px;width:' + this._wineNumbewsWidth + 'px;">';
 
-		const lineCount = this._context.model.getLineCount();
-		const output: string[] = [];
-		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
-			const lineIndex = lineNumber - visibleStartLineNumber;
+		const wineCount = this._context.modew.getWineCount();
+		const output: stwing[] = [];
+		fow (wet wineNumba = visibweStawtWineNumba; wineNumba <= visibweEndWineNumba; wineNumba++) {
+			const wineIndex = wineNumba - visibweStawtWineNumba;
 
-			if (!this._renderFinalNewline) {
-				if (lineNumber === lineCount && this._context.model.getLineLength(lineNumber) === 0) {
-					// Do not render last (empty) line
-					output[lineIndex] = '';
+			if (!this._wendewFinawNewwine) {
+				if (wineNumba === wineCount && this._context.modew.getWineWength(wineNumba) === 0) {
+					// Do not wenda wast (empty) wine
+					output[wineIndex] = '';
 					continue;
 				}
 			}
 
-			const renderLineNumber = this._getLineRenderLineNumber(lineNumber);
+			const wendewWineNumba = this._getWineWendewWineNumba(wineNumba);
 
-			if (renderLineNumber) {
-				if (lineNumber === this._activeLineNumber) {
-					output[lineIndex] = (
-						'<div class="active-line-number ' + LineNumbersOverlay.CLASS_NAME + lineHeightClassName + '" style="left:' + this._lineNumbersLeft + 'px;width:' + this._lineNumbersWidth + 'px;">'
-						+ renderLineNumber
+			if (wendewWineNumba) {
+				if (wineNumba === this._activeWineNumba) {
+					output[wineIndex] = (
+						'<div cwass="active-wine-numba ' + WineNumbewsOvewway.CWASS_NAME + wineHeightCwassName + '" stywe="weft:' + this._wineNumbewsWeft + 'px;width:' + this._wineNumbewsWidth + 'px;">'
+						+ wendewWineNumba
 						+ '</div>'
 					);
-				} else {
-					output[lineIndex] = (
+				} ewse {
+					output[wineIndex] = (
 						common
-						+ renderLineNumber
+						+ wendewWineNumba
 						+ '</div>'
 					);
 				}
-			} else {
-				output[lineIndex] = '';
+			} ewse {
+				output[wineIndex] = '';
 			}
 		}
 
-		this._renderResult = output;
+		this._wendewWesuwt = output;
 	}
 
-	public render(startLineNumber: number, lineNumber: number): string {
-		if (!this._renderResult) {
-			return '';
+	pubwic wenda(stawtWineNumba: numba, wineNumba: numba): stwing {
+		if (!this._wendewWesuwt) {
+			wetuwn '';
 		}
-		const lineIndex = lineNumber - startLineNumber;
-		if (lineIndex < 0 || lineIndex >= this._renderResult.length) {
-			return '';
+		const wineIndex = wineNumba - stawtWineNumba;
+		if (wineIndex < 0 || wineIndex >= this._wendewWesuwt.wength) {
+			wetuwn '';
 		}
-		return this._renderResult[lineIndex];
+		wetuwn this._wendewWesuwt[wineIndex];
 	}
 }
 
 // theming
 
-registerThemingParticipant((theme, collector) => {
-	const lineNumbers = theme.getColor(editorLineNumbers);
-	if (lineNumbers) {
-		collector.addRule(`.monaco-editor .line-numbers { color: ${lineNumbers}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const wineNumbews = theme.getCowow(editowWineNumbews);
+	if (wineNumbews) {
+		cowwectow.addWuwe(`.monaco-editow .wine-numbews { cowow: ${wineNumbews}; }`);
 	}
-	const activeLineNumber = theme.getColor(editorActiveLineNumber);
-	if (activeLineNumber) {
-		collector.addRule(`.monaco-editor .line-numbers.active-line-number { color: ${activeLineNumber}; }`);
+	const activeWineNumba = theme.getCowow(editowActiveWineNumba);
+	if (activeWineNumba) {
+		cowwectow.addWuwe(`.monaco-editow .wine-numbews.active-wine-numba { cowow: ${activeWineNumba}; }`);
 	}
 });

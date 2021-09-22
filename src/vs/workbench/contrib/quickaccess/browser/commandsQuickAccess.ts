@@ -1,199 +1,199 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { ICommandQuickPick, CommandsHistory } from 'vs/platform/quickinput/browser/commandsQuickAccess';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction, Action2 } from 'vs/platform/actions/common/actions';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { timeout } from 'vs/base/common/async';
-import { DisposableStore, toDisposable, dispose } from 'vs/base/common/lifecycle';
-import { AbstractEditorCommandsQuickAccessProvider } from 'vs/editor/contrib/quickAccess/commandsQuickAccess';
-import { IEditor } from 'vs/editor/common/editorCommon';
-import { Language } from 'vs/base/common/platform';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { DefaultQuickAccessFilterValue } from 'vs/platform/quickinput/common/quickAccess';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchQuickAccessConfiguration } from 'vs/workbench/browser/quickaccess';
-import { Codicon } from 'vs/base/common/codicons';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { stripIcons } from 'vs/base/common/iconLabels';
-import { isFirefox } from 'vs/base/browser/browser';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ICommandQuickPick, CommandsHistowy } fwom 'vs/pwatfowm/quickinput/bwowsa/commandsQuickAccess';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IMenuSewvice, MenuId, MenuItemAction, SubmenuItemAction, Action2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { DisposabweStowe, toDisposabwe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { AbstwactEditowCommandsQuickAccessPwovida } fwom 'vs/editow/contwib/quickAccess/commandsQuickAccess';
+impowt { IEditow } fwom 'vs/editow/common/editowCommon';
+impowt { Wanguage } fwom 'vs/base/common/pwatfowm';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { DefauwtQuickAccessFiwtewVawue } fwom 'vs/pwatfowm/quickinput/common/quickAccess';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IWowkbenchQuickAccessConfiguwation } fwom 'vs/wowkbench/bwowsa/quickaccess';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { IQuickInputSewvice } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { KeyMod, KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { TwiggewAction } fwom 'vs/pwatfowm/quickinput/bwowsa/pickewQuickAccess';
+impowt { IPwefewencesSewvice } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewences';
+impowt { stwipIcons } fwom 'vs/base/common/iconWabews';
+impowt { isFiwefox } fwom 'vs/base/bwowsa/bwowsa';
 
-export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
+expowt cwass CommandsQuickAccessPwovida extends AbstwactEditowCommandsQuickAccessPwovida {
 
-	// If extensions are not yet registered, we wait for a little moment to give them
-	// a chance to register so that the complete set of commands shows up as result
-	// We do not want to delay functionality beyond that time though to keep the commands
-	// functional.
-	private readonly extensionRegistrationRace = Promise.race([
+	// If extensions awe not yet wegistewed, we wait fow a wittwe moment to give them
+	// a chance to wegista so that the compwete set of commands shows up as wesuwt
+	// We do not want to deway functionawity beyond that time though to keep the commands
+	// functionaw.
+	pwivate weadonwy extensionWegistwationWace = Pwomise.wace([
 		timeout(800),
-		this.extensionService.whenInstalledExtensionsRegistered()
+		this.extensionSewvice.whenInstawwedExtensionsWegistewed()
 	]);
 
-	protected get activeTextEditorControl(): IEditor | undefined { return this.editorService.activeTextEditorControl; }
+	pwotected get activeTextEditowContwow(): IEditow | undefined { wetuwn this.editowSewvice.activeTextEditowContwow; }
 
-	get defaultFilterValue(): DefaultQuickAccessFilterValue | undefined {
-		if (this.configuration.preserveInput) {
-			return DefaultQuickAccessFilterValue.LAST;
+	get defauwtFiwtewVawue(): DefauwtQuickAccessFiwtewVawue | undefined {
+		if (this.configuwation.pwesewveInput) {
+			wetuwn DefauwtQuickAccessFiwtewVawue.WAST;
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	constructor(
-		@IEditorService private readonly editorService: IEditorService,
-		@IMenuService private readonly menuService: IMenuService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@ICommandService commandService: ICommandService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IDialogService dialogService: IDialogService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService,
+	constwuctow(
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IMenuSewvice pwivate weadonwy menuSewvice: IMenuSewvice,
+		@IExtensionSewvice pwivate weadonwy extensionSewvice: IExtensionSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@ICommandSewvice commandSewvice: ICommandSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IDiawogSewvice diawogSewvice: IDiawogSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IEditowGwoupsSewvice pwivate weadonwy editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IPwefewencesSewvice pwivate weadonwy pwefewencesSewvice: IPwefewencesSewvice,
 	) {
-		super({
-			showAlias: !Language.isDefaultVariant(),
-			noResultsPick: {
-				label: localize('noCommandResults', "No matching commands"),
+		supa({
+			showAwias: !Wanguage.isDefauwtVawiant(),
+			noWesuwtsPick: {
+				wabew: wocawize('noCommandWesuwts', "No matching commands"),
 				commandId: ''
 			}
-		}, instantiationService, keybindingService, commandService, telemetryService, dialogService);
+		}, instantiationSewvice, keybindingSewvice, commandSewvice, tewemetwySewvice, diawogSewvice);
 	}
 
-	private get configuration() {
-		const commandPaletteConfig = this.configurationService.getValue<IWorkbenchQuickAccessConfiguration>().workbench.commandPalette;
+	pwivate get configuwation() {
+		const commandPawetteConfig = this.configuwationSewvice.getVawue<IWowkbenchQuickAccessConfiguwation>().wowkbench.commandPawette;
 
-		return {
-			preserveInput: commandPaletteConfig.preserveInput
+		wetuwn {
+			pwesewveInput: commandPawetteConfig.pwesewveInput
 		};
 	}
 
-	protected async getCommandPicks(disposables: DisposableStore, token: CancellationToken): Promise<Array<ICommandQuickPick>> {
+	pwotected async getCommandPicks(disposabwes: DisposabweStowe, token: CancewwationToken): Pwomise<Awway<ICommandQuickPick>> {
 
-		// wait for extensions registration or 800ms once
-		await this.extensionRegistrationRace;
+		// wait fow extensions wegistwation ow 800ms once
+		await this.extensionWegistwationWace;
 
-		if (token.isCancellationRequested) {
-			return [];
+		if (token.isCancewwationWequested) {
+			wetuwn [];
 		}
 
-		return [
-			...this.getCodeEditorCommandPicks(),
-			...this.getGlobalCommandPicks(disposables)
+		wetuwn [
+			...this.getCodeEditowCommandPicks(),
+			...this.getGwobawCommandPicks(disposabwes)
 		].map(c => ({
 			...c,
 			buttons: [{
-				iconClass: Codicon.gear.classNames,
-				tooltip: localize('configure keybinding', "Configure Keybinding"),
+				iconCwass: Codicon.geaw.cwassNames,
+				toowtip: wocawize('configuwe keybinding', "Configuwe Keybinding"),
 			}],
-			trigger: (): TriggerAction => {
-				this.preferencesService.openGlobalKeybindingSettings(false, { query: `@command:${c.commandId}` });
-				return TriggerAction.CLOSE_PICKER;
+			twigga: (): TwiggewAction => {
+				this.pwefewencesSewvice.openGwobawKeybindingSettings(fawse, { quewy: `@command:${c.commandId}` });
+				wetuwn TwiggewAction.CWOSE_PICKa;
 			},
 		}));
 	}
 
-	private getGlobalCommandPicks(disposables: DisposableStore): ICommandQuickPick[] {
-		const globalCommandPicks: ICommandQuickPick[] = [];
-		const scopedContextKeyService = this.editorService.activeEditorPane?.scopedContextKeyService || this.editorGroupService.activeGroup.scopedContextKeyService;
-		const globalCommandsMenu = this.menuService.createMenu(MenuId.CommandPalette, scopedContextKeyService);
-		const globalCommandsMenuActions = globalCommandsMenu.getActions()
-			.reduce((r, [, actions]) => [...r, ...actions], <Array<MenuItemAction | SubmenuItemAction | string>>[])
-			.filter(action => action instanceof MenuItemAction && action.enabled) as MenuItemAction[];
+	pwivate getGwobawCommandPicks(disposabwes: DisposabweStowe): ICommandQuickPick[] {
+		const gwobawCommandPicks: ICommandQuickPick[] = [];
+		const scopedContextKeySewvice = this.editowSewvice.activeEditowPane?.scopedContextKeySewvice || this.editowGwoupSewvice.activeGwoup.scopedContextKeySewvice;
+		const gwobawCommandsMenu = this.menuSewvice.cweateMenu(MenuId.CommandPawette, scopedContextKeySewvice);
+		const gwobawCommandsMenuActions = gwobawCommandsMenu.getActions()
+			.weduce((w, [, actions]) => [...w, ...actions], <Awway<MenuItemAction | SubmenuItemAction | stwing>>[])
+			.fiwta(action => action instanceof MenuItemAction && action.enabwed) as MenuItemAction[];
 
-		for (const action of globalCommandsMenuActions) {
+		fow (const action of gwobawCommandsMenuActions) {
 
-			// Label
-			let label = (typeof action.item.title === 'string' ? action.item.title : action.item.title.value) || action.item.id;
+			// Wabew
+			wet wabew = (typeof action.item.titwe === 'stwing' ? action.item.titwe : action.item.titwe.vawue) || action.item.id;
 
-			// Category
-			const category = typeof action.item.category === 'string' ? action.item.category : action.item.category?.value;
-			if (category) {
-				label = localize('commandWithCategory', "{0}: {1}", category, label);
+			// Categowy
+			const categowy = typeof action.item.categowy === 'stwing' ? action.item.categowy : action.item.categowy?.vawue;
+			if (categowy) {
+				wabew = wocawize('commandWithCategowy', "{0}: {1}", categowy, wabew);
 			}
 
-			// Alias
-			const aliasLabel = typeof action.item.title !== 'string' ? action.item.title.original : undefined;
-			const aliasCategory = (category && action.item.category && typeof action.item.category !== 'string') ? action.item.category.original : undefined;
-			const commandAlias = (aliasLabel && category) ?
-				aliasCategory ? `${aliasCategory}: ${aliasLabel}` : `${category}: ${aliasLabel}` :
-				aliasLabel;
+			// Awias
+			const awiasWabew = typeof action.item.titwe !== 'stwing' ? action.item.titwe.owiginaw : undefined;
+			const awiasCategowy = (categowy && action.item.categowy && typeof action.item.categowy !== 'stwing') ? action.item.categowy.owiginaw : undefined;
+			const commandAwias = (awiasWabew && categowy) ?
+				awiasCategowy ? `${awiasCategowy}: ${awiasWabew}` : `${categowy}: ${awiasWabew}` :
+				awiasWabew;
 
-			globalCommandPicks.push({
+			gwobawCommandPicks.push({
 				commandId: action.item.id,
-				commandAlias,
-				label: stripIcons(label)
+				commandAwias,
+				wabew: stwipIcons(wabew)
 			});
 		}
 
-		// Cleanup
-		globalCommandsMenu.dispose();
-		disposables.add(toDisposable(() => dispose(globalCommandsMenuActions)));
+		// Cweanup
+		gwobawCommandsMenu.dispose();
+		disposabwes.add(toDisposabwe(() => dispose(gwobawCommandsMenuActions)));
 
-		return globalCommandPicks;
+		wetuwn gwobawCommandPicks;
 	}
 }
 
-//#region Actions
+//#wegion Actions
 
-export class ShowAllCommandsAction extends Action2 {
+expowt cwass ShowAwwCommandsAction extends Action2 {
 
-	static readonly ID = 'workbench.action.showCommands';
+	static weadonwy ID = 'wowkbench.action.showCommands';
 
-	constructor() {
-		super({
-			id: ShowAllCommandsAction.ID,
-			title: { value: localize('showTriggerActions', "Show All Commands"), original: 'Show All Commands' },
-			f1: true,
+	constwuctow() {
+		supa({
+			id: ShowAwwCommandsAction.ID,
+			titwe: { vawue: wocawize('showTwiggewActions', "Show Aww Commands"), owiginaw: 'Show Aww Commands' },
+			f1: twue,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
+				weight: KeybindingWeight.WowkbenchContwib,
 				when: undefined,
-				primary: !isFirefox ? (KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_P) : undefined,
-				secondary: [KeyCode.F1]
+				pwimawy: !isFiwefox ? (KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_P) : undefined,
+				secondawy: [KeyCode.F1]
 			}
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		accessor.get(IQuickInputService).quickAccess.show(CommandsQuickAccessProvider.PREFIX);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		accessow.get(IQuickInputSewvice).quickAccess.show(CommandsQuickAccessPwovida.PWEFIX);
 	}
 }
 
-export class ClearCommandHistoryAction extends Action2 {
+expowt cwass CweawCommandHistowyAction extends Action2 {
 
-	constructor() {
-		super({
-			id: 'workbench.action.clearCommandHistory',
-			title: { value: localize('clearCommandHistory', "Clear Command History"), original: 'Clear Command History' },
-			f1: true
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.cweawCommandHistowy',
+			titwe: { vawue: wocawize('cweawCommandHistowy', "Cweaw Command Histowy"), owiginaw: 'Cweaw Command Histowy' },
+			f1: twue
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		const storageService = accessor.get(IStorageService);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const configuwationSewvice = accessow.get(IConfiguwationSewvice);
+		const stowageSewvice = accessow.get(IStowageSewvice);
 
-		const commandHistoryLength = CommandsHistory.getConfiguredCommandHistoryLength(configurationService);
-		if (commandHistoryLength > 0) {
-			CommandsHistory.clearHistory(configurationService, storageService);
+		const commandHistowyWength = CommandsHistowy.getConfiguwedCommandHistowyWength(configuwationSewvice);
+		if (commandHistowyWength > 0) {
+			CommandsHistowy.cweawHistowy(configuwationSewvice, stowageSewvice);
 		}
 	}
 }
 
-//#endregion
+//#endwegion

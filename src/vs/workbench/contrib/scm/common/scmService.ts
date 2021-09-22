@@ -1,246 +1,246 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator, ISCMInputChangeEvent, SCMInputChangeReason, InputValidationType, IInputValidation } from './scm';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { HistoryNavigator2 } from 'vs/base/common/history';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
+impowt { IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { ISCMSewvice, ISCMPwovida, ISCMInput, ISCMWepositowy, IInputVawidatow, ISCMInputChangeEvent, SCMInputChangeWeason, InputVawidationType, IInputVawidation } fwom './scm';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { HistowyNavigatow2 } fwom 'vs/base/common/histowy';
+impowt { IMawkdownStwing } fwom 'vs/base/common/htmwContent';
 
-class SCMInput implements ISCMInput {
+cwass SCMInput impwements ISCMInput {
 
-	private _value = '';
+	pwivate _vawue = '';
 
-	get value(): string {
-		return this._value;
+	get vawue(): stwing {
+		wetuwn this._vawue;
 	}
 
-	private readonly _onDidChange = new Emitter<ISCMInputChangeEvent>();
-	readonly onDidChange: Event<ISCMInputChangeEvent> = this._onDidChange.event;
+	pwivate weadonwy _onDidChange = new Emitta<ISCMInputChangeEvent>();
+	weadonwy onDidChange: Event<ISCMInputChangeEvent> = this._onDidChange.event;
 
-	private _placeholder = '';
+	pwivate _pwacehowda = '';
 
-	get placeholder(): string {
-		return this._placeholder;
+	get pwacehowda(): stwing {
+		wetuwn this._pwacehowda;
 	}
 
-	set placeholder(placeholder: string) {
-		this._placeholder = placeholder;
-		this._onDidChangePlaceholder.fire(placeholder);
+	set pwacehowda(pwacehowda: stwing) {
+		this._pwacehowda = pwacehowda;
+		this._onDidChangePwacehowda.fiwe(pwacehowda);
 	}
 
-	private readonly _onDidChangePlaceholder = new Emitter<string>();
-	readonly onDidChangePlaceholder: Event<string> = this._onDidChangePlaceholder.event;
+	pwivate weadonwy _onDidChangePwacehowda = new Emitta<stwing>();
+	weadonwy onDidChangePwacehowda: Event<stwing> = this._onDidChangePwacehowda.event;
 
-	private _visible = true;
+	pwivate _visibwe = twue;
 
-	get visible(): boolean {
-		return this._visible;
+	get visibwe(): boowean {
+		wetuwn this._visibwe;
 	}
 
-	set visible(visible: boolean) {
-		this._visible = visible;
-		this._onDidChangeVisibility.fire(visible);
+	set visibwe(visibwe: boowean) {
+		this._visibwe = visibwe;
+		this._onDidChangeVisibiwity.fiwe(visibwe);
 	}
 
-	private readonly _onDidChangeVisibility = new Emitter<boolean>();
-	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
+	pwivate weadonwy _onDidChangeVisibiwity = new Emitta<boowean>();
+	weadonwy onDidChangeVisibiwity: Event<boowean> = this._onDidChangeVisibiwity.event;
 
 	setFocus(): void {
-		this._onDidChangeFocus.fire();
+		this._onDidChangeFocus.fiwe();
 	}
 
-	private readonly _onDidChangeFocus = new Emitter<void>();
-	readonly onDidChangeFocus: Event<void> = this._onDidChangeFocus.event;
+	pwivate weadonwy _onDidChangeFocus = new Emitta<void>();
+	weadonwy onDidChangeFocus: Event<void> = this._onDidChangeFocus.event;
 
-	showValidationMessage(message: string | IMarkdownString, type: InputValidationType): void {
-		this._onDidChangeValidationMessage.fire({ message: message, type: type });
+	showVawidationMessage(message: stwing | IMawkdownStwing, type: InputVawidationType): void {
+		this._onDidChangeVawidationMessage.fiwe({ message: message, type: type });
 	}
 
-	private readonly _onDidChangeValidationMessage = new Emitter<IInputValidation>();
-	readonly onDidChangeValidationMessage: Event<IInputValidation> = this._onDidChangeValidationMessage.event;
+	pwivate weadonwy _onDidChangeVawidationMessage = new Emitta<IInputVawidation>();
+	weadonwy onDidChangeVawidationMessage: Event<IInputVawidation> = this._onDidChangeVawidationMessage.event;
 
 
-	private _validateInput: IInputValidator = () => Promise.resolve(undefined);
+	pwivate _vawidateInput: IInputVawidatow = () => Pwomise.wesowve(undefined);
 
-	get validateInput(): IInputValidator {
-		return this._validateInput;
+	get vawidateInput(): IInputVawidatow {
+		wetuwn this._vawidateInput;
 	}
 
-	set validateInput(validateInput: IInputValidator) {
-		this._validateInput = validateInput;
-		this._onDidChangeValidateInput.fire();
+	set vawidateInput(vawidateInput: IInputVawidatow) {
+		this._vawidateInput = vawidateInput;
+		this._onDidChangeVawidateInput.fiwe();
 	}
 
-	private readonly _onDidChangeValidateInput = new Emitter<void>();
-	readonly onDidChangeValidateInput: Event<void> = this._onDidChangeValidateInput.event;
+	pwivate weadonwy _onDidChangeVawidateInput = new Emitta<void>();
+	weadonwy onDidChangeVawidateInput: Event<void> = this._onDidChangeVawidateInput.event;
 
-	private historyNavigator: HistoryNavigator2<string>;
+	pwivate histowyNavigatow: HistowyNavigatow2<stwing>;
 
-	constructor(
-		readonly repository: ISCMRepository,
-		@IStorageService private storageService: IStorageService
+	constwuctow(
+		weadonwy wepositowy: ISCMWepositowy,
+		@IStowageSewvice pwivate stowageSewvice: IStowageSewvice
 	) {
-		const historyKey = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri?.path}`;
-		let history: string[] | undefined;
-		let rawHistory = this.storageService.get(historyKey, StorageScope.GLOBAL, '');
+		const histowyKey = `scm/input:${this.wepositowy.pwovida.wabew}:${this.wepositowy.pwovida.wootUwi?.path}`;
+		wet histowy: stwing[] | undefined;
+		wet wawHistowy = this.stowageSewvice.get(histowyKey, StowageScope.GWOBAW, '');
 
-		if (rawHistory) {
-			try {
-				history = JSON.parse(rawHistory);
+		if (wawHistowy) {
+			twy {
+				histowy = JSON.pawse(wawHistowy);
 			} catch {
 				// noop
 			}
 		}
 
-		if (!history || history.length === 0) {
-			history = [this._value];
-		} else {
-			this._value = history[history.length - 1];
+		if (!histowy || histowy.wength === 0) {
+			histowy = [this._vawue];
+		} ewse {
+			this._vawue = histowy[histowy.wength - 1];
 		}
 
-		this.historyNavigator = new HistoryNavigator2(history, 50);
+		this.histowyNavigatow = new HistowyNavigatow2(histowy, 50);
 
-		this.storageService.onWillSaveState(e => {
-			if (this.historyNavigator.isAtEnd()) {
-				this.historyNavigator.replaceLast(this._value);
+		this.stowageSewvice.onWiwwSaveState(e => {
+			if (this.histowyNavigatow.isAtEnd()) {
+				this.histowyNavigatow.wepwaceWast(this._vawue);
 			}
 
-			if (this.repository.provider.rootUri) {
-				this.storageService.store(historyKey, JSON.stringify([...this.historyNavigator]), StorageScope.GLOBAL, StorageTarget.USER);
+			if (this.wepositowy.pwovida.wootUwi) {
+				this.stowageSewvice.stowe(histowyKey, JSON.stwingify([...this.histowyNavigatow]), StowageScope.GWOBAW, StowageTawget.USa);
 			}
 		});
 	}
 
-	setValue(value: string, transient: boolean, reason?: SCMInputChangeReason) {
-		if (value === this._value) {
-			return;
+	setVawue(vawue: stwing, twansient: boowean, weason?: SCMInputChangeWeason) {
+		if (vawue === this._vawue) {
+			wetuwn;
 		}
 
-		if (!transient) {
-			this.historyNavigator.replaceLast(this._value);
-			this.historyNavigator.add(value);
+		if (!twansient) {
+			this.histowyNavigatow.wepwaceWast(this._vawue);
+			this.histowyNavigatow.add(vawue);
 		}
 
-		this._value = value;
-		this._onDidChange.fire({ value, reason });
+		this._vawue = vawue;
+		this._onDidChange.fiwe({ vawue, weason });
 	}
 
-	showNextHistoryValue(): void {
-		if (this.historyNavigator.isAtEnd()) {
-			return;
-		} else if (!this.historyNavigator.has(this.value)) {
-			this.historyNavigator.replaceLast(this._value);
-			this.historyNavigator.resetCursor();
+	showNextHistowyVawue(): void {
+		if (this.histowyNavigatow.isAtEnd()) {
+			wetuwn;
+		} ewse if (!this.histowyNavigatow.has(this.vawue)) {
+			this.histowyNavigatow.wepwaceWast(this._vawue);
+			this.histowyNavigatow.wesetCuwsow();
 		}
 
-		const value = this.historyNavigator.next();
-		this.setValue(value, true, SCMInputChangeReason.HistoryNext);
+		const vawue = this.histowyNavigatow.next();
+		this.setVawue(vawue, twue, SCMInputChangeWeason.HistowyNext);
 	}
 
-	showPreviousHistoryValue(): void {
-		if (this.historyNavigator.isAtEnd()) {
-			this.historyNavigator.replaceLast(this._value);
-		} else if (!this.historyNavigator.has(this._value)) {
-			this.historyNavigator.replaceLast(this._value);
-			this.historyNavigator.resetCursor();
+	showPweviousHistowyVawue(): void {
+		if (this.histowyNavigatow.isAtEnd()) {
+			this.histowyNavigatow.wepwaceWast(this._vawue);
+		} ewse if (!this.histowyNavigatow.has(this._vawue)) {
+			this.histowyNavigatow.wepwaceWast(this._vawue);
+			this.histowyNavigatow.wesetCuwsow();
 		}
 
-		const value = this.historyNavigator.previous();
-		this.setValue(value, true, SCMInputChangeReason.HistoryPrevious);
+		const vawue = this.histowyNavigatow.pwevious();
+		this.setVawue(vawue, twue, SCMInputChangeWeason.HistowyPwevious);
 	}
 }
 
-class SCMRepository implements ISCMRepository {
+cwass SCMWepositowy impwements ISCMWepositowy {
 
-	private _selected = false;
-	get selected(): boolean {
-		return this._selected;
+	pwivate _sewected = fawse;
+	get sewected(): boowean {
+		wetuwn this._sewected;
 	}
 
-	private readonly _onDidChangeSelection = new Emitter<boolean>();
-	readonly onDidChangeSelection: Event<boolean> = this._onDidChangeSelection.event;
+	pwivate weadonwy _onDidChangeSewection = new Emitta<boowean>();
+	weadonwy onDidChangeSewection: Event<boowean> = this._onDidChangeSewection.event;
 
-	readonly input: ISCMInput = new SCMInput(this, this.storageService);
+	weadonwy input: ISCMInput = new SCMInput(this, this.stowageSewvice);
 
-	constructor(
-		public readonly provider: ISCMProvider,
-		private disposable: IDisposable,
-		@IStorageService private storageService: IStorageService
+	constwuctow(
+		pubwic weadonwy pwovida: ISCMPwovida,
+		pwivate disposabwe: IDisposabwe,
+		@IStowageSewvice pwivate stowageSewvice: IStowageSewvice
 	) { }
 
-	setSelected(selected: boolean): void {
-		if (this._selected === selected) {
-			return;
+	setSewected(sewected: boowean): void {
+		if (this._sewected === sewected) {
+			wetuwn;
 		}
 
-		this._selected = selected;
-		this._onDidChangeSelection.fire(selected);
+		this._sewected = sewected;
+		this._onDidChangeSewection.fiwe(sewected);
 	}
 
 	dispose(): void {
-		this.disposable.dispose();
-		this.provider.dispose();
+		this.disposabwe.dispose();
+		this.pwovida.dispose();
 	}
 }
 
-export class SCMService implements ISCMService {
+expowt cwass SCMSewvice impwements ISCMSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private _providerIds = new Set<string>();
-	private _repositories: ISCMRepository[] = [];
-	get repositories(): ISCMRepository[] { return [...this._repositories]; }
+	pwivate _pwovidewIds = new Set<stwing>();
+	pwivate _wepositowies: ISCMWepositowy[] = [];
+	get wepositowies(): ISCMWepositowy[] { wetuwn [...this._wepositowies]; }
 
-	private providerCount: IContextKey<number>;
+	pwivate pwovidewCount: IContextKey<numba>;
 
-	private readonly _onDidAddProvider = new Emitter<ISCMRepository>();
-	readonly onDidAddRepository: Event<ISCMRepository> = this._onDidAddProvider.event;
+	pwivate weadonwy _onDidAddPwovida = new Emitta<ISCMWepositowy>();
+	weadonwy onDidAddWepositowy: Event<ISCMWepositowy> = this._onDidAddPwovida.event;
 
-	private readonly _onDidRemoveProvider = new Emitter<ISCMRepository>();
-	readonly onDidRemoveRepository: Event<ISCMRepository> = this._onDidRemoveProvider.event;
+	pwivate weadonwy _onDidWemovePwovida = new Emitta<ISCMWepositowy>();
+	weadonwy onDidWemoveWepositowy: Event<ISCMWepositowy> = this._onDidWemovePwovida.event;
 
-	constructor(
-		@ILogService private readonly logService: ILogService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IStorageService private storageService: IStorageService
+	constwuctow(
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IStowageSewvice pwivate stowageSewvice: IStowageSewvice
 	) {
-		this.providerCount = contextKeyService.createKey('scm.providerCount', 0);
+		this.pwovidewCount = contextKeySewvice.cweateKey('scm.pwovidewCount', 0);
 	}
 
-	registerSCMProvider(provider: ISCMProvider): ISCMRepository {
-		this.logService.trace('SCMService#registerSCMProvider');
+	wegistewSCMPwovida(pwovida: ISCMPwovida): ISCMWepositowy {
+		this.wogSewvice.twace('SCMSewvice#wegistewSCMPwovida');
 
-		if (this._providerIds.has(provider.id)) {
-			throw new Error(`SCM Provider ${provider.id} already exists.`);
+		if (this._pwovidewIds.has(pwovida.id)) {
+			thwow new Ewwow(`SCM Pwovida ${pwovida.id} awweady exists.`);
 		}
 
-		this._providerIds.add(provider.id);
+		this._pwovidewIds.add(pwovida.id);
 
-		const disposable = toDisposable(() => {
-			const index = this._repositories.indexOf(repository);
+		const disposabwe = toDisposabwe(() => {
+			const index = this._wepositowies.indexOf(wepositowy);
 
 			if (index < 0) {
-				return;
+				wetuwn;
 			}
 
-			this._providerIds.delete(provider.id);
-			this._repositories.splice(index, 1);
-			this._onDidRemoveProvider.fire(repository);
+			this._pwovidewIds.dewete(pwovida.id);
+			this._wepositowies.spwice(index, 1);
+			this._onDidWemovePwovida.fiwe(wepositowy);
 
-			this.providerCount.set(this._repositories.length);
+			this.pwovidewCount.set(this._wepositowies.wength);
 		});
 
-		const repository = new SCMRepository(provider, disposable, this.storageService);
-		this._repositories.push(repository);
-		this._onDidAddProvider.fire(repository);
+		const wepositowy = new SCMWepositowy(pwovida, disposabwe, this.stowageSewvice);
+		this._wepositowies.push(wepositowy);
+		this._onDidAddPwovida.fiwe(wepositowy);
 
-		this.providerCount.set(this._repositories.length);
-		return repository;
+		this.pwovidewCount.set(this._wepositowies.wength);
+		wetuwn wepositowy;
 	}
 }

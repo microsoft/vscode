@@ -1,346 +1,346 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CursorColumns, CursorConfiguration, ICursorSimpleModel, SingleCursorState } from 'vs/editor/common/controller/cursorCommon';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import * as strings from 'vs/base/common/strings';
-import { Constants } from 'vs/base/common/uint';
-import { AtomicTabMoveOperations, Direction } from 'vs/editor/common/controller/cursorAtomicMoveOperations';
-import { PositionAffinity } from 'vs/editor/common/model';
+impowt { CuwsowCowumns, CuwsowConfiguwation, ICuwsowSimpweModew, SingweCuwsowState } fwom 'vs/editow/common/contwowwa/cuwsowCommon';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { Constants } fwom 'vs/base/common/uint';
+impowt { AtomicTabMoveOpewations, Diwection } fwom 'vs/editow/common/contwowwa/cuwsowAtomicMoveOpewations';
+impowt { PositionAffinity } fwom 'vs/editow/common/modew';
 
-export class CursorPosition {
-	_cursorPositionBrand: void = undefined;
+expowt cwass CuwsowPosition {
+	_cuwsowPositionBwand: void = undefined;
 
-	public readonly lineNumber: number;
-	public readonly column: number;
-	public readonly leftoverVisibleColumns: number;
+	pubwic weadonwy wineNumba: numba;
+	pubwic weadonwy cowumn: numba;
+	pubwic weadonwy weftovewVisibweCowumns: numba;
 
-	constructor(lineNumber: number, column: number, leftoverVisibleColumns: number) {
-		this.lineNumber = lineNumber;
-		this.column = column;
-		this.leftoverVisibleColumns = leftoverVisibleColumns;
+	constwuctow(wineNumba: numba, cowumn: numba, weftovewVisibweCowumns: numba) {
+		this.wineNumba = wineNumba;
+		this.cowumn = cowumn;
+		this.weftovewVisibweCowumns = weftovewVisibweCowumns;
 	}
 }
 
-export class MoveOperations {
-	public static leftPosition(model: ICursorSimpleModel, position: Position): Position {
-		if (position.column > model.getLineMinColumn(position.lineNumber)) {
-			return position.delta(undefined, -strings.prevCharLength(model.getLineContent(position.lineNumber), position.column - 1));
-		} else if (position.lineNumber > 1) {
-			const newLineNumber = position.lineNumber - 1;
-			return new Position(newLineNumber, model.getLineMaxColumn(newLineNumber));
-		} else {
-			return position;
+expowt cwass MoveOpewations {
+	pubwic static weftPosition(modew: ICuwsowSimpweModew, position: Position): Position {
+		if (position.cowumn > modew.getWineMinCowumn(position.wineNumba)) {
+			wetuwn position.dewta(undefined, -stwings.pwevChawWength(modew.getWineContent(position.wineNumba), position.cowumn - 1));
+		} ewse if (position.wineNumba > 1) {
+			const newWineNumba = position.wineNumba - 1;
+			wetuwn new Position(newWineNumba, modew.getWineMaxCowumn(newWineNumba));
+		} ewse {
+			wetuwn position;
 		}
 	}
 
-	private static leftPositionAtomicSoftTabs(model: ICursorSimpleModel, position: Position, tabSize: number): Position {
-		if (position.column <= model.getLineIndentColumn(position.lineNumber)) {
-			const minColumn = model.getLineMinColumn(position.lineNumber);
-			const lineContent = model.getLineContent(position.lineNumber);
-			const newPosition = AtomicTabMoveOperations.atomicPosition(lineContent, position.column - 1, tabSize, Direction.Left);
-			if (newPosition !== -1 && newPosition + 1 >= minColumn) {
-				return new Position(position.lineNumber, newPosition + 1);
+	pwivate static weftPositionAtomicSoftTabs(modew: ICuwsowSimpweModew, position: Position, tabSize: numba): Position {
+		if (position.cowumn <= modew.getWineIndentCowumn(position.wineNumba)) {
+			const minCowumn = modew.getWineMinCowumn(position.wineNumba);
+			const wineContent = modew.getWineContent(position.wineNumba);
+			const newPosition = AtomicTabMoveOpewations.atomicPosition(wineContent, position.cowumn - 1, tabSize, Diwection.Weft);
+			if (newPosition !== -1 && newPosition + 1 >= minCowumn) {
+				wetuwn new Position(position.wineNumba, newPosition + 1);
 			}
 		}
-		return this.leftPosition(model, position);
+		wetuwn this.weftPosition(modew, position);
 	}
 
-	private static left(config: CursorConfiguration, model: ICursorSimpleModel, position: Position): CursorPosition {
+	pwivate static weft(config: CuwsowConfiguwation, modew: ICuwsowSimpweModew, position: Position): CuwsowPosition {
 		const pos = config.stickyTabStops
-			? MoveOperations.leftPositionAtomicSoftTabs(model, position, config.tabSize)
-			: MoveOperations.leftPosition(model, position);
-		return new CursorPosition(pos.lineNumber, pos.column, 0);
+			? MoveOpewations.weftPositionAtomicSoftTabs(modew, position, config.tabSize)
+			: MoveOpewations.weftPosition(modew, position);
+		wetuwn new CuwsowPosition(pos.wineNumba, pos.cowumn, 0);
 	}
 
 	/**
-	 * @param noOfColumns Must be either `1`
-	 * or `Math.round(viewModel.getLineContent(viewLineNumber).length / 2)` (for half lines).
+	 * @pawam noOfCowumns Must be eitha `1`
+	 * ow `Math.wound(viewModew.getWineContent(viewWineNumba).wength / 2)` (fow hawf wines).
 	*/
-	public static moveLeft(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, noOfColumns: number): SingleCursorState {
-		let lineNumber: number,
-			column: number;
+	pubwic static moveWeft(config: CuwsowConfiguwation, modew: ICuwsowSimpweModew, cuwsow: SingweCuwsowState, inSewectionMode: boowean, noOfCowumns: numba): SingweCuwsowState {
+		wet wineNumba: numba,
+			cowumn: numba;
 
-		if (cursor.hasSelection() && !inSelectionMode) {
-			// If the user has a selection and does not want to extend it,
-			// put the cursor at the beginning of the selection.
-			lineNumber = cursor.selection.startLineNumber;
-			column = cursor.selection.startColumn;
-		} else {
-			// This has no effect if noOfColumns === 1.
-			// It is ok to do so in the half-line scenario.
-			const pos = cursor.position.delta(undefined, -(noOfColumns - 1));
-			// We clip the position before normalization, as normalization is not defined
-			// for possibly negative columns.
-			const normalizedPos = model.normalizePosition(MoveOperations.clipPositionColumn(pos, model), PositionAffinity.Left);
-			const p = MoveOperations.left(config, model, normalizedPos);
+		if (cuwsow.hasSewection() && !inSewectionMode) {
+			// If the usa has a sewection and does not want to extend it,
+			// put the cuwsow at the beginning of the sewection.
+			wineNumba = cuwsow.sewection.stawtWineNumba;
+			cowumn = cuwsow.sewection.stawtCowumn;
+		} ewse {
+			// This has no effect if noOfCowumns === 1.
+			// It is ok to do so in the hawf-wine scenawio.
+			const pos = cuwsow.position.dewta(undefined, -(noOfCowumns - 1));
+			// We cwip the position befowe nowmawization, as nowmawization is not defined
+			// fow possibwy negative cowumns.
+			const nowmawizedPos = modew.nowmawizePosition(MoveOpewations.cwipPositionCowumn(pos, modew), PositionAffinity.Weft);
+			const p = MoveOpewations.weft(config, modew, nowmawizedPos);
 
-			lineNumber = p.lineNumber;
-			column = p.column;
+			wineNumba = p.wineNumba;
+			cowumn = p.cowumn;
 		}
 
-		return cursor.move(inSelectionMode, lineNumber, column, 0);
+		wetuwn cuwsow.move(inSewectionMode, wineNumba, cowumn, 0);
 	}
 
 	/**
-	 * Adjusts the column so that it is within min/max of the line.
+	 * Adjusts the cowumn so that it is within min/max of the wine.
 	*/
-	private static clipPositionColumn(position: Position, model: ICursorSimpleModel): Position {
-		return new Position(
-			position.lineNumber,
-			MoveOperations.clipRange(position.column, model.getLineMinColumn(position.lineNumber),
-				model.getLineMaxColumn(position.lineNumber))
+	pwivate static cwipPositionCowumn(position: Position, modew: ICuwsowSimpweModew): Position {
+		wetuwn new Position(
+			position.wineNumba,
+			MoveOpewations.cwipWange(position.cowumn, modew.getWineMinCowumn(position.wineNumba),
+				modew.getWineMaxCowumn(position.wineNumba))
 		);
 	}
 
-	private static clipRange(value: number, min: number, max: number): number {
-		if (value < min) {
-			return min;
+	pwivate static cwipWange(vawue: numba, min: numba, max: numba): numba {
+		if (vawue < min) {
+			wetuwn min;
 		}
-		if (value > max) {
-			return max;
+		if (vawue > max) {
+			wetuwn max;
 		}
-		return value;
+		wetuwn vawue;
 	}
 
-	public static rightPosition(model: ICursorSimpleModel, lineNumber: number, column: number): Position {
-		if (column < model.getLineMaxColumn(lineNumber)) {
-			column = column + strings.nextCharLength(model.getLineContent(lineNumber), column - 1);
-		} else if (lineNumber < model.getLineCount()) {
-			lineNumber = lineNumber + 1;
-			column = model.getLineMinColumn(lineNumber);
+	pubwic static wightPosition(modew: ICuwsowSimpweModew, wineNumba: numba, cowumn: numba): Position {
+		if (cowumn < modew.getWineMaxCowumn(wineNumba)) {
+			cowumn = cowumn + stwings.nextChawWength(modew.getWineContent(wineNumba), cowumn - 1);
+		} ewse if (wineNumba < modew.getWineCount()) {
+			wineNumba = wineNumba + 1;
+			cowumn = modew.getWineMinCowumn(wineNumba);
 		}
-		return new Position(lineNumber, column);
+		wetuwn new Position(wineNumba, cowumn);
 	}
 
-	public static rightPositionAtomicSoftTabs(model: ICursorSimpleModel, lineNumber: number, column: number, tabSize: number, indentSize: number): Position {
-		if (column < model.getLineIndentColumn(lineNumber)) {
-			const lineContent = model.getLineContent(lineNumber);
-			const newPosition = AtomicTabMoveOperations.atomicPosition(lineContent, column - 1, tabSize, Direction.Right);
+	pubwic static wightPositionAtomicSoftTabs(modew: ICuwsowSimpweModew, wineNumba: numba, cowumn: numba, tabSize: numba, indentSize: numba): Position {
+		if (cowumn < modew.getWineIndentCowumn(wineNumba)) {
+			const wineContent = modew.getWineContent(wineNumba);
+			const newPosition = AtomicTabMoveOpewations.atomicPosition(wineContent, cowumn - 1, tabSize, Diwection.Wight);
 			if (newPosition !== -1) {
-				return new Position(lineNumber, newPosition + 1);
+				wetuwn new Position(wineNumba, newPosition + 1);
 			}
 		}
-		return this.rightPosition(model, lineNumber, column);
+		wetuwn this.wightPosition(modew, wineNumba, cowumn);
 	}
 
-	public static right(config: CursorConfiguration, model: ICursorSimpleModel, position: Position): CursorPosition {
+	pubwic static wight(config: CuwsowConfiguwation, modew: ICuwsowSimpweModew, position: Position): CuwsowPosition {
 		const pos = config.stickyTabStops
-			? MoveOperations.rightPositionAtomicSoftTabs(model, position.lineNumber, position.column, config.tabSize, config.indentSize)
-			: MoveOperations.rightPosition(model, position.lineNumber, position.column);
-		return new CursorPosition(pos.lineNumber, pos.column, 0);
+			? MoveOpewations.wightPositionAtomicSoftTabs(modew, position.wineNumba, position.cowumn, config.tabSize, config.indentSize)
+			: MoveOpewations.wightPosition(modew, position.wineNumba, position.cowumn);
+		wetuwn new CuwsowPosition(pos.wineNumba, pos.cowumn, 0);
 	}
 
-	public static moveRight(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, noOfColumns: number): SingleCursorState {
-		let lineNumber: number,
-			column: number;
+	pubwic static moveWight(config: CuwsowConfiguwation, modew: ICuwsowSimpweModew, cuwsow: SingweCuwsowState, inSewectionMode: boowean, noOfCowumns: numba): SingweCuwsowState {
+		wet wineNumba: numba,
+			cowumn: numba;
 
-		if (cursor.hasSelection() && !inSelectionMode) {
-			// If we are in selection mode, move right without selection cancels selection and puts cursor at the end of the selection
-			lineNumber = cursor.selection.endLineNumber;
-			column = cursor.selection.endColumn;
-		} else {
-			const pos = cursor.position.delta(undefined, noOfColumns - 1);
-			const normalizedPos = model.normalizePosition(MoveOperations.clipPositionColumn(pos, model), PositionAffinity.Right);
-			const r = MoveOperations.right(config, model, normalizedPos);
-			lineNumber = r.lineNumber;
-			column = r.column;
+		if (cuwsow.hasSewection() && !inSewectionMode) {
+			// If we awe in sewection mode, move wight without sewection cancews sewection and puts cuwsow at the end of the sewection
+			wineNumba = cuwsow.sewection.endWineNumba;
+			cowumn = cuwsow.sewection.endCowumn;
+		} ewse {
+			const pos = cuwsow.position.dewta(undefined, noOfCowumns - 1);
+			const nowmawizedPos = modew.nowmawizePosition(MoveOpewations.cwipPositionCowumn(pos, modew), PositionAffinity.Wight);
+			const w = MoveOpewations.wight(config, modew, nowmawizedPos);
+			wineNumba = w.wineNumba;
+			cowumn = w.cowumn;
 		}
 
-		return cursor.move(inSelectionMode, lineNumber, column, 0);
+		wetuwn cuwsow.move(inSewectionMode, wineNumba, cowumn, 0);
 	}
 
-	public static down(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnLastLine: boolean): CursorPosition {
-		const currentVisibleColumn = CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize) + leftoverVisibleColumns;
-		const lineCount = model.getLineCount();
-		const wasOnLastPosition = (lineNumber === lineCount && column === model.getLineMaxColumn(lineNumber));
+	pubwic static down(config: CuwsowConfiguwation, modew: ICuwsowSimpweModew, wineNumba: numba, cowumn: numba, weftovewVisibweCowumns: numba, count: numba, awwowMoveOnWastWine: boowean): CuwsowPosition {
+		const cuwwentVisibweCowumn = CuwsowCowumns.visibweCowumnFwomCowumn(modew.getWineContent(wineNumba), cowumn, config.tabSize) + weftovewVisibweCowumns;
+		const wineCount = modew.getWineCount();
+		const wasOnWastPosition = (wineNumba === wineCount && cowumn === modew.getWineMaxCowumn(wineNumba));
 
-		lineNumber = lineNumber + count;
-		if (lineNumber > lineCount) {
-			lineNumber = lineCount;
-			if (allowMoveOnLastLine) {
-				column = model.getLineMaxColumn(lineNumber);
-			} else {
-				column = Math.min(model.getLineMaxColumn(lineNumber), column);
+		wineNumba = wineNumba + count;
+		if (wineNumba > wineCount) {
+			wineNumba = wineCount;
+			if (awwowMoveOnWastWine) {
+				cowumn = modew.getWineMaxCowumn(wineNumba);
+			} ewse {
+				cowumn = Math.min(modew.getWineMaxCowumn(wineNumba), cowumn);
 			}
-		} else {
-			column = CursorColumns.columnFromVisibleColumn2(config, model, lineNumber, currentVisibleColumn);
+		} ewse {
+			cowumn = CuwsowCowumns.cowumnFwomVisibweCowumn2(config, modew, wineNumba, cuwwentVisibweCowumn);
 		}
 
-		if (wasOnLastPosition) {
-			leftoverVisibleColumns = 0;
-		} else {
-			leftoverVisibleColumns = currentVisibleColumn - CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize);
+		if (wasOnWastPosition) {
+			weftovewVisibweCowumns = 0;
+		} ewse {
+			weftovewVisibweCowumns = cuwwentVisibweCowumn - CuwsowCowumns.visibweCowumnFwomCowumn(modew.getWineContent(wineNumba), cowumn, config.tabSize);
 		}
 
-		return new CursorPosition(lineNumber, column, leftoverVisibleColumns);
+		wetuwn new CuwsowPosition(wineNumba, cowumn, weftovewVisibweCowumns);
 	}
 
-	public static moveDown(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, linesCount: number): SingleCursorState {
-		let lineNumber: number,
-			column: number;
+	pubwic static moveDown(config: CuwsowConfiguwation, modew: ICuwsowSimpweModew, cuwsow: SingweCuwsowState, inSewectionMode: boowean, winesCount: numba): SingweCuwsowState {
+		wet wineNumba: numba,
+			cowumn: numba;
 
-		if (cursor.hasSelection() && !inSelectionMode) {
-			// If we are in selection mode, move down acts relative to the end of selection
-			lineNumber = cursor.selection.endLineNumber;
-			column = cursor.selection.endColumn;
-		} else {
-			lineNumber = cursor.position.lineNumber;
-			column = cursor.position.column;
+		if (cuwsow.hasSewection() && !inSewectionMode) {
+			// If we awe in sewection mode, move down acts wewative to the end of sewection
+			wineNumba = cuwsow.sewection.endWineNumba;
+			cowumn = cuwsow.sewection.endCowumn;
+		} ewse {
+			wineNumba = cuwsow.position.wineNumba;
+			cowumn = cuwsow.position.cowumn;
 		}
 
-		let r = MoveOperations.down(config, model, lineNumber, column, cursor.leftoverVisibleColumns, linesCount, true);
+		wet w = MoveOpewations.down(config, modew, wineNumba, cowumn, cuwsow.weftovewVisibweCowumns, winesCount, twue);
 
-		return cursor.move(inSelectionMode, r.lineNumber, r.column, r.leftoverVisibleColumns);
+		wetuwn cuwsow.move(inSewectionMode, w.wineNumba, w.cowumn, w.weftovewVisibweCowumns);
 	}
 
-	public static translateDown(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): SingleCursorState {
-		let selection = cursor.selection;
+	pubwic static twanswateDown(config: CuwsowConfiguwation, modew: ICuwsowSimpweModew, cuwsow: SingweCuwsowState): SingweCuwsowState {
+		wet sewection = cuwsow.sewection;
 
-		let selectionStart = MoveOperations.down(config, model, selection.selectionStartLineNumber, selection.selectionStartColumn, cursor.selectionStartLeftoverVisibleColumns, 1, false);
-		let position = MoveOperations.down(config, model, selection.positionLineNumber, selection.positionColumn, cursor.leftoverVisibleColumns, 1, false);
+		wet sewectionStawt = MoveOpewations.down(config, modew, sewection.sewectionStawtWineNumba, sewection.sewectionStawtCowumn, cuwsow.sewectionStawtWeftovewVisibweCowumns, 1, fawse);
+		wet position = MoveOpewations.down(config, modew, sewection.positionWineNumba, sewection.positionCowumn, cuwsow.weftovewVisibweCowumns, 1, fawse);
 
-		return new SingleCursorState(
-			new Range(selectionStart.lineNumber, selectionStart.column, selectionStart.lineNumber, selectionStart.column),
-			selectionStart.leftoverVisibleColumns,
-			new Position(position.lineNumber, position.column),
-			position.leftoverVisibleColumns
+		wetuwn new SingweCuwsowState(
+			new Wange(sewectionStawt.wineNumba, sewectionStawt.cowumn, sewectionStawt.wineNumba, sewectionStawt.cowumn),
+			sewectionStawt.weftovewVisibweCowumns,
+			new Position(position.wineNumba, position.cowumn),
+			position.weftovewVisibweCowumns
 		);
 	}
 
-	public static up(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnFirstLine: boolean): CursorPosition {
-		const currentVisibleColumn = CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize) + leftoverVisibleColumns;
-		const wasOnFirstPosition = (lineNumber === 1 && column === 1);
+	pubwic static up(config: CuwsowConfiguwation, modew: ICuwsowSimpweModew, wineNumba: numba, cowumn: numba, weftovewVisibweCowumns: numba, count: numba, awwowMoveOnFiwstWine: boowean): CuwsowPosition {
+		const cuwwentVisibweCowumn = CuwsowCowumns.visibweCowumnFwomCowumn(modew.getWineContent(wineNumba), cowumn, config.tabSize) + weftovewVisibweCowumns;
+		const wasOnFiwstPosition = (wineNumba === 1 && cowumn === 1);
 
-		lineNumber = lineNumber - count;
-		if (lineNumber < 1) {
-			lineNumber = 1;
-			if (allowMoveOnFirstLine) {
-				column = model.getLineMinColumn(lineNumber);
-			} else {
-				column = Math.min(model.getLineMaxColumn(lineNumber), column);
+		wineNumba = wineNumba - count;
+		if (wineNumba < 1) {
+			wineNumba = 1;
+			if (awwowMoveOnFiwstWine) {
+				cowumn = modew.getWineMinCowumn(wineNumba);
+			} ewse {
+				cowumn = Math.min(modew.getWineMaxCowumn(wineNumba), cowumn);
 			}
-		} else {
-			column = CursorColumns.columnFromVisibleColumn2(config, model, lineNumber, currentVisibleColumn);
+		} ewse {
+			cowumn = CuwsowCowumns.cowumnFwomVisibweCowumn2(config, modew, wineNumba, cuwwentVisibweCowumn);
 		}
 
-		if (wasOnFirstPosition) {
-			leftoverVisibleColumns = 0;
-		} else {
-			leftoverVisibleColumns = currentVisibleColumn - CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize);
+		if (wasOnFiwstPosition) {
+			weftovewVisibweCowumns = 0;
+		} ewse {
+			weftovewVisibweCowumns = cuwwentVisibweCowumn - CuwsowCowumns.visibweCowumnFwomCowumn(modew.getWineContent(wineNumba), cowumn, config.tabSize);
 		}
 
-		return new CursorPosition(lineNumber, column, leftoverVisibleColumns);
+		wetuwn new CuwsowPosition(wineNumba, cowumn, weftovewVisibweCowumns);
 	}
 
-	public static moveUp(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, linesCount: number): SingleCursorState {
-		let lineNumber: number,
-			column: number;
+	pubwic static moveUp(config: CuwsowConfiguwation, modew: ICuwsowSimpweModew, cuwsow: SingweCuwsowState, inSewectionMode: boowean, winesCount: numba): SingweCuwsowState {
+		wet wineNumba: numba,
+			cowumn: numba;
 
-		if (cursor.hasSelection() && !inSelectionMode) {
-			// If we are in selection mode, move up acts relative to the beginning of selection
-			lineNumber = cursor.selection.startLineNumber;
-			column = cursor.selection.startColumn;
-		} else {
-			lineNumber = cursor.position.lineNumber;
-			column = cursor.position.column;
+		if (cuwsow.hasSewection() && !inSewectionMode) {
+			// If we awe in sewection mode, move up acts wewative to the beginning of sewection
+			wineNumba = cuwsow.sewection.stawtWineNumba;
+			cowumn = cuwsow.sewection.stawtCowumn;
+		} ewse {
+			wineNumba = cuwsow.position.wineNumba;
+			cowumn = cuwsow.position.cowumn;
 		}
 
-		let r = MoveOperations.up(config, model, lineNumber, column, cursor.leftoverVisibleColumns, linesCount, true);
+		wet w = MoveOpewations.up(config, modew, wineNumba, cowumn, cuwsow.weftovewVisibweCowumns, winesCount, twue);
 
-		return cursor.move(inSelectionMode, r.lineNumber, r.column, r.leftoverVisibleColumns);
+		wetuwn cuwsow.move(inSewectionMode, w.wineNumba, w.cowumn, w.weftovewVisibweCowumns);
 	}
 
-	public static translateUp(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): SingleCursorState {
+	pubwic static twanswateUp(config: CuwsowConfiguwation, modew: ICuwsowSimpweModew, cuwsow: SingweCuwsowState): SingweCuwsowState {
 
-		let selection = cursor.selection;
+		wet sewection = cuwsow.sewection;
 
-		let selectionStart = MoveOperations.up(config, model, selection.selectionStartLineNumber, selection.selectionStartColumn, cursor.selectionStartLeftoverVisibleColumns, 1, false);
-		let position = MoveOperations.up(config, model, selection.positionLineNumber, selection.positionColumn, cursor.leftoverVisibleColumns, 1, false);
+		wet sewectionStawt = MoveOpewations.up(config, modew, sewection.sewectionStawtWineNumba, sewection.sewectionStawtCowumn, cuwsow.sewectionStawtWeftovewVisibweCowumns, 1, fawse);
+		wet position = MoveOpewations.up(config, modew, sewection.positionWineNumba, sewection.positionCowumn, cuwsow.weftovewVisibweCowumns, 1, fawse);
 
-		return new SingleCursorState(
-			new Range(selectionStart.lineNumber, selectionStart.column, selectionStart.lineNumber, selectionStart.column),
-			selectionStart.leftoverVisibleColumns,
-			new Position(position.lineNumber, position.column),
-			position.leftoverVisibleColumns
+		wetuwn new SingweCuwsowState(
+			new Wange(sewectionStawt.wineNumba, sewectionStawt.cowumn, sewectionStawt.wineNumba, sewectionStawt.cowumn),
+			sewectionStawt.weftovewVisibweCowumns,
+			new Position(position.wineNumba, position.cowumn),
+			position.weftovewVisibweCowumns
 		);
 	}
 
-	private static _isBlankLine(model: ICursorSimpleModel, lineNumber: number): boolean {
-		if (model.getLineFirstNonWhitespaceColumn(lineNumber) === 0) {
-			// empty or contains only whitespace
-			return true;
+	pwivate static _isBwankWine(modew: ICuwsowSimpweModew, wineNumba: numba): boowean {
+		if (modew.getWineFiwstNonWhitespaceCowumn(wineNumba) === 0) {
+			// empty ow contains onwy whitespace
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public static moveToPrevBlankLine(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean): SingleCursorState {
-		let lineNumber = cursor.position.lineNumber;
+	pubwic static moveToPwevBwankWine(config: CuwsowConfiguwation, modew: ICuwsowSimpweModew, cuwsow: SingweCuwsowState, inSewectionMode: boowean): SingweCuwsowState {
+		wet wineNumba = cuwsow.position.wineNumba;
 
-		// If our current line is blank, move to the previous non-blank line
-		while (lineNumber > 1 && this._isBlankLine(model, lineNumber)) {
-			lineNumber--;
+		// If ouw cuwwent wine is bwank, move to the pwevious non-bwank wine
+		whiwe (wineNumba > 1 && this._isBwankWine(modew, wineNumba)) {
+			wineNumba--;
 		}
 
-		// Find the previous blank line
-		while (lineNumber > 1 && !this._isBlankLine(model, lineNumber)) {
-			lineNumber--;
+		// Find the pwevious bwank wine
+		whiwe (wineNumba > 1 && !this._isBwankWine(modew, wineNumba)) {
+			wineNumba--;
 		}
 
-		return cursor.move(inSelectionMode, lineNumber, model.getLineMinColumn(lineNumber), 0);
+		wetuwn cuwsow.move(inSewectionMode, wineNumba, modew.getWineMinCowumn(wineNumba), 0);
 	}
 
-	public static moveToNextBlankLine(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean): SingleCursorState {
-		const lineCount = model.getLineCount();
-		let lineNumber = cursor.position.lineNumber;
+	pubwic static moveToNextBwankWine(config: CuwsowConfiguwation, modew: ICuwsowSimpweModew, cuwsow: SingweCuwsowState, inSewectionMode: boowean): SingweCuwsowState {
+		const wineCount = modew.getWineCount();
+		wet wineNumba = cuwsow.position.wineNumba;
 
-		// If our current line is blank, move to the next non-blank line
-		while (lineNumber < lineCount && this._isBlankLine(model, lineNumber)) {
-			lineNumber++;
+		// If ouw cuwwent wine is bwank, move to the next non-bwank wine
+		whiwe (wineNumba < wineCount && this._isBwankWine(modew, wineNumba)) {
+			wineNumba++;
 		}
 
-		// Find the next blank line
-		while (lineNumber < lineCount && !this._isBlankLine(model, lineNumber)) {
-			lineNumber++;
+		// Find the next bwank wine
+		whiwe (wineNumba < wineCount && !this._isBwankWine(modew, wineNumba)) {
+			wineNumba++;
 		}
 
-		return cursor.move(inSelectionMode, lineNumber, model.getLineMinColumn(lineNumber), 0);
+		wetuwn cuwsow.move(inSewectionMode, wineNumba, modew.getWineMinCowumn(wineNumba), 0);
 	}
 
-	public static moveToBeginningOfLine(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean): SingleCursorState {
-		let lineNumber = cursor.position.lineNumber;
-		let minColumn = model.getLineMinColumn(lineNumber);
-		let firstNonBlankColumn = model.getLineFirstNonWhitespaceColumn(lineNumber) || minColumn;
+	pubwic static moveToBeginningOfWine(config: CuwsowConfiguwation, modew: ICuwsowSimpweModew, cuwsow: SingweCuwsowState, inSewectionMode: boowean): SingweCuwsowState {
+		wet wineNumba = cuwsow.position.wineNumba;
+		wet minCowumn = modew.getWineMinCowumn(wineNumba);
+		wet fiwstNonBwankCowumn = modew.getWineFiwstNonWhitespaceCowumn(wineNumba) || minCowumn;
 
-		let column: number;
+		wet cowumn: numba;
 
-		let relevantColumnNumber = cursor.position.column;
-		if (relevantColumnNumber === firstNonBlankColumn) {
-			column = minColumn;
-		} else {
-			column = firstNonBlankColumn;
+		wet wewevantCowumnNumba = cuwsow.position.cowumn;
+		if (wewevantCowumnNumba === fiwstNonBwankCowumn) {
+			cowumn = minCowumn;
+		} ewse {
+			cowumn = fiwstNonBwankCowumn;
 		}
 
-		return cursor.move(inSelectionMode, lineNumber, column, 0);
+		wetuwn cuwsow.move(inSewectionMode, wineNumba, cowumn, 0);
 	}
 
-	public static moveToEndOfLine(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, sticky: boolean): SingleCursorState {
-		let lineNumber = cursor.position.lineNumber;
-		let maxColumn = model.getLineMaxColumn(lineNumber);
-		return cursor.move(inSelectionMode, lineNumber, maxColumn, sticky ? Constants.MAX_SAFE_SMALL_INTEGER - maxColumn : 0);
+	pubwic static moveToEndOfWine(config: CuwsowConfiguwation, modew: ICuwsowSimpweModew, cuwsow: SingweCuwsowState, inSewectionMode: boowean, sticky: boowean): SingweCuwsowState {
+		wet wineNumba = cuwsow.position.wineNumba;
+		wet maxCowumn = modew.getWineMaxCowumn(wineNumba);
+		wetuwn cuwsow.move(inSewectionMode, wineNumba, maxCowumn, sticky ? Constants.MAX_SAFE_SMAWW_INTEGa - maxCowumn : 0);
 	}
 
-	public static moveToBeginningOfBuffer(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean): SingleCursorState {
-		return cursor.move(inSelectionMode, 1, 1, 0);
+	pubwic static moveToBeginningOfBuffa(config: CuwsowConfiguwation, modew: ICuwsowSimpweModew, cuwsow: SingweCuwsowState, inSewectionMode: boowean): SingweCuwsowState {
+		wetuwn cuwsow.move(inSewectionMode, 1, 1, 0);
 	}
 
-	public static moveToEndOfBuffer(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean): SingleCursorState {
-		let lastLineNumber = model.getLineCount();
-		let lastColumn = model.getLineMaxColumn(lastLineNumber);
+	pubwic static moveToEndOfBuffa(config: CuwsowConfiguwation, modew: ICuwsowSimpweModew, cuwsow: SingweCuwsowState, inSewectionMode: boowean): SingweCuwsowState {
+		wet wastWineNumba = modew.getWineCount();
+		wet wastCowumn = modew.getWineMaxCowumn(wastWineNumba);
 
-		return cursor.move(inSelectionMode, lastLineNumber, lastColumn, 0);
+		wetuwn cuwsow.move(inSewectionMode, wastWineNumba, wastCowumn, 0);
 	}
 }

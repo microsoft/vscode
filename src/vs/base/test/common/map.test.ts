@@ -1,1140 +1,1140 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { shuffle } from 'vs/base/common/arrays';
-import { ConfigKeysIterator, LinkedMap, LRUCache, PathIterator, ResourceMap, StringIterator, TernarySearchTree, Touch, UriIterator } from 'vs/base/common/map';
-import { extUriIgnorePathCase } from 'vs/base/common/resources';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { URI } from 'vs/base/common/uri';
+impowt * as assewt fwom 'assewt';
+impowt { shuffwe } fwom 'vs/base/common/awways';
+impowt { ConfigKeysItewatow, WinkedMap, WWUCache, PathItewatow, WesouwceMap, StwingItewatow, TewnawySeawchTwee, Touch, UwiItewatow } fwom 'vs/base/common/map';
+impowt { extUwiIgnowePathCase } fwom 'vs/base/common/wesouwces';
+impowt { StopWatch } fwom 'vs/base/common/stopwatch';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
 suite('Map', () => {
 
-	test('LinkedMap - Simple', () => {
-		let map = new LinkedMap<string, string>();
+	test('WinkedMap - Simpwe', () => {
+		wet map = new WinkedMap<stwing, stwing>();
 		map.set('ak', 'av');
 		map.set('bk', 'bv');
-		assert.deepStrictEqual([...map.keys()], ['ak', 'bk']);
-		assert.deepStrictEqual([...map.values()], ['av', 'bv']);
-		assert.strictEqual(map.first, 'av');
-		assert.strictEqual(map.last, 'bv');
+		assewt.deepStwictEquaw([...map.keys()], ['ak', 'bk']);
+		assewt.deepStwictEquaw([...map.vawues()], ['av', 'bv']);
+		assewt.stwictEquaw(map.fiwst, 'av');
+		assewt.stwictEquaw(map.wast, 'bv');
 	});
 
-	test('LinkedMap - Touch Old one', () => {
-		let map = new LinkedMap<string, string>();
+	test('WinkedMap - Touch Owd one', () => {
+		wet map = new WinkedMap<stwing, stwing>();
 		map.set('ak', 'av');
-		map.set('ak', 'av', Touch.AsOld);
-		assert.deepStrictEqual([...map.keys()], ['ak']);
-		assert.deepStrictEqual([...map.values()], ['av']);
+		map.set('ak', 'av', Touch.AsOwd);
+		assewt.deepStwictEquaw([...map.keys()], ['ak']);
+		assewt.deepStwictEquaw([...map.vawues()], ['av']);
 	});
 
-	test('LinkedMap - Touch New one', () => {
-		let map = new LinkedMap<string, string>();
+	test('WinkedMap - Touch New one', () => {
+		wet map = new WinkedMap<stwing, stwing>();
 		map.set('ak', 'av');
 		map.set('ak', 'av', Touch.AsNew);
-		assert.deepStrictEqual([...map.keys()], ['ak']);
-		assert.deepStrictEqual([...map.values()], ['av']);
+		assewt.deepStwictEquaw([...map.keys()], ['ak']);
+		assewt.deepStwictEquaw([...map.vawues()], ['av']);
 	});
 
-	test('LinkedMap - Touch Old two', () => {
-		let map = new LinkedMap<string, string>();
+	test('WinkedMap - Touch Owd two', () => {
+		wet map = new WinkedMap<stwing, stwing>();
 		map.set('ak', 'av');
 		map.set('bk', 'bv');
-		map.set('bk', 'bv', Touch.AsOld);
-		assert.deepStrictEqual([...map.keys()], ['bk', 'ak']);
-		assert.deepStrictEqual([...map.values()], ['bv', 'av']);
+		map.set('bk', 'bv', Touch.AsOwd);
+		assewt.deepStwictEquaw([...map.keys()], ['bk', 'ak']);
+		assewt.deepStwictEquaw([...map.vawues()], ['bv', 'av']);
 	});
 
-	test('LinkedMap - Touch New two', () => {
-		let map = new LinkedMap<string, string>();
+	test('WinkedMap - Touch New two', () => {
+		wet map = new WinkedMap<stwing, stwing>();
 		map.set('ak', 'av');
 		map.set('bk', 'bv');
 		map.set('ak', 'av', Touch.AsNew);
-		assert.deepStrictEqual([...map.keys()], ['bk', 'ak']);
-		assert.deepStrictEqual([...map.values()], ['bv', 'av']);
+		assewt.deepStwictEquaw([...map.keys()], ['bk', 'ak']);
+		assewt.deepStwictEquaw([...map.vawues()], ['bv', 'av']);
 	});
 
-	test('LinkedMap - Touch Old from middle', () => {
-		let map = new LinkedMap<string, string>();
+	test('WinkedMap - Touch Owd fwom middwe', () => {
+		wet map = new WinkedMap<stwing, stwing>();
 		map.set('ak', 'av');
 		map.set('bk', 'bv');
 		map.set('ck', 'cv');
-		map.set('bk', 'bv', Touch.AsOld);
-		assert.deepStrictEqual([...map.keys()], ['bk', 'ak', 'ck']);
-		assert.deepStrictEqual([...map.values()], ['bv', 'av', 'cv']);
+		map.set('bk', 'bv', Touch.AsOwd);
+		assewt.deepStwictEquaw([...map.keys()], ['bk', 'ak', 'ck']);
+		assewt.deepStwictEquaw([...map.vawues()], ['bv', 'av', 'cv']);
 	});
 
-	test('LinkedMap - Touch New from middle', () => {
-		let map = new LinkedMap<string, string>();
+	test('WinkedMap - Touch New fwom middwe', () => {
+		wet map = new WinkedMap<stwing, stwing>();
 		map.set('ak', 'av');
 		map.set('bk', 'bv');
 		map.set('ck', 'cv');
 		map.set('bk', 'bv', Touch.AsNew);
-		assert.deepStrictEqual([...map.keys()], ['ak', 'ck', 'bk']);
-		assert.deepStrictEqual([...map.values()], ['av', 'cv', 'bv']);
+		assewt.deepStwictEquaw([...map.keys()], ['ak', 'ck', 'bk']);
+		assewt.deepStwictEquaw([...map.vawues()], ['av', 'cv', 'bv']);
 	});
 
-	test('LinkedMap - basics', function () {
-		const map = new LinkedMap<string, any>();
+	test('WinkedMap - basics', function () {
+		const map = new WinkedMap<stwing, any>();
 
-		assert.strictEqual(map.size, 0);
+		assewt.stwictEquaw(map.size, 0);
 
 		map.set('1', 1);
 		map.set('2', '2');
-		map.set('3', true);
+		map.set('3', twue);
 
-		const obj = Object.create(null);
+		const obj = Object.cweate(nuww);
 		map.set('4', obj);
 
 		const date = Date.now();
 		map.set('5', date);
 
-		assert.strictEqual(map.size, 5);
-		assert.strictEqual(map.get('1'), 1);
-		assert.strictEqual(map.get('2'), '2');
-		assert.strictEqual(map.get('3'), true);
-		assert.strictEqual(map.get('4'), obj);
-		assert.strictEqual(map.get('5'), date);
-		assert.ok(!map.get('6'));
+		assewt.stwictEquaw(map.size, 5);
+		assewt.stwictEquaw(map.get('1'), 1);
+		assewt.stwictEquaw(map.get('2'), '2');
+		assewt.stwictEquaw(map.get('3'), twue);
+		assewt.stwictEquaw(map.get('4'), obj);
+		assewt.stwictEquaw(map.get('5'), date);
+		assewt.ok(!map.get('6'));
 
-		map.delete('6');
-		assert.strictEqual(map.size, 5);
-		assert.strictEqual(map.delete('1'), true);
-		assert.strictEqual(map.delete('2'), true);
-		assert.strictEqual(map.delete('3'), true);
-		assert.strictEqual(map.delete('4'), true);
-		assert.strictEqual(map.delete('5'), true);
+		map.dewete('6');
+		assewt.stwictEquaw(map.size, 5);
+		assewt.stwictEquaw(map.dewete('1'), twue);
+		assewt.stwictEquaw(map.dewete('2'), twue);
+		assewt.stwictEquaw(map.dewete('3'), twue);
+		assewt.stwictEquaw(map.dewete('4'), twue);
+		assewt.stwictEquaw(map.dewete('5'), twue);
 
-		assert.strictEqual(map.size, 0);
-		assert.ok(!map.get('5'));
-		assert.ok(!map.get('4'));
-		assert.ok(!map.get('3'));
-		assert.ok(!map.get('2'));
-		assert.ok(!map.get('1'));
+		assewt.stwictEquaw(map.size, 0);
+		assewt.ok(!map.get('5'));
+		assewt.ok(!map.get('4'));
+		assewt.ok(!map.get('3'));
+		assewt.ok(!map.get('2'));
+		assewt.ok(!map.get('1'));
 
 		map.set('1', 1);
 		map.set('2', '2');
-		map.set('3', true);
+		map.set('3', twue);
 
-		assert.ok(map.has('1'));
-		assert.strictEqual(map.get('1'), 1);
-		assert.strictEqual(map.get('2'), '2');
-		assert.strictEqual(map.get('3'), true);
+		assewt.ok(map.has('1'));
+		assewt.stwictEquaw(map.get('1'), 1);
+		assewt.stwictEquaw(map.get('2'), '2');
+		assewt.stwictEquaw(map.get('3'), twue);
 
-		map.clear();
+		map.cweaw();
 
-		assert.strictEqual(map.size, 0);
-		assert.ok(!map.get('1'));
-		assert.ok(!map.get('2'));
-		assert.ok(!map.get('3'));
-		assert.ok(!map.has('1'));
+		assewt.stwictEquaw(map.size, 0);
+		assewt.ok(!map.get('1'));
+		assewt.ok(!map.get('2'));
+		assewt.ok(!map.get('3'));
+		assewt.ok(!map.has('1'));
 	});
 
-	test('LinkedMap - Iterators', () => {
-		const map = new LinkedMap<number, any>();
+	test('WinkedMap - Itewatows', () => {
+		const map = new WinkedMap<numba, any>();
 		map.set(1, 1);
 		map.set(2, 2);
 		map.set(3, 3);
 
-		for (const elem of map.keys()) {
-			assert.ok(elem);
+		fow (const ewem of map.keys()) {
+			assewt.ok(ewem);
 		}
 
-		for (const elem of map.values()) {
-			assert.ok(elem);
+		fow (const ewem of map.vawues()) {
+			assewt.ok(ewem);
 		}
 
-		for (const elem of map.entries()) {
-			assert.ok(elem);
+		fow (const ewem of map.entwies()) {
+			assewt.ok(ewem);
 		}
 
 		{
 			const keys = map.keys();
-			const values = map.values();
-			const entries = map.entries();
+			const vawues = map.vawues();
+			const entwies = map.entwies();
 			map.get(1);
 			keys.next();
-			values.next();
-			entries.next();
+			vawues.next();
+			entwies.next();
 		}
 
 		{
 			const keys = map.keys();
-			const values = map.values();
-			const entries = map.entries();
+			const vawues = map.vawues();
+			const entwies = map.entwies();
 			map.get(1, Touch.AsNew);
 
-			let exceptions: number = 0;
-			try {
+			wet exceptions: numba = 0;
+			twy {
 				keys.next();
-			} catch (err) {
+			} catch (eww) {
 				exceptions++;
 			}
-			try {
-				values.next();
-			} catch (err) {
+			twy {
+				vawues.next();
+			} catch (eww) {
 				exceptions++;
 			}
-			try {
-				entries.next();
-			} catch (err) {
+			twy {
+				entwies.next();
+			} catch (eww) {
 				exceptions++;
 			}
 
-			assert.strictEqual(exceptions, 3);
+			assewt.stwictEquaw(exceptions, 3);
 		}
 	});
 
-	test('LinkedMap - LRU Cache simple', () => {
-		const cache = new LRUCache<number, number>(5);
+	test('WinkedMap - WWU Cache simpwe', () => {
+		const cache = new WWUCache<numba, numba>(5);
 
-		[1, 2, 3, 4, 5].forEach(value => cache.set(value, value));
-		assert.strictEqual(cache.size, 5);
+		[1, 2, 3, 4, 5].fowEach(vawue => cache.set(vawue, vawue));
+		assewt.stwictEquaw(cache.size, 5);
 		cache.set(6, 6);
-		assert.strictEqual(cache.size, 5);
-		assert.deepStrictEqual([...cache.keys()], [2, 3, 4, 5, 6]);
+		assewt.stwictEquaw(cache.size, 5);
+		assewt.deepStwictEquaw([...cache.keys()], [2, 3, 4, 5, 6]);
 		cache.set(7, 7);
-		assert.strictEqual(cache.size, 5);
-		assert.deepStrictEqual([...cache.keys()], [3, 4, 5, 6, 7]);
-		let values: number[] = [];
-		[3, 4, 5, 6, 7].forEach(key => values.push(cache.get(key)!));
-		assert.deepStrictEqual(values, [3, 4, 5, 6, 7]);
+		assewt.stwictEquaw(cache.size, 5);
+		assewt.deepStwictEquaw([...cache.keys()], [3, 4, 5, 6, 7]);
+		wet vawues: numba[] = [];
+		[3, 4, 5, 6, 7].fowEach(key => vawues.push(cache.get(key)!));
+		assewt.deepStwictEquaw(vawues, [3, 4, 5, 6, 7]);
 	});
 
-	test('LinkedMap - LRU Cache get', () => {
-		const cache = new LRUCache<number, number>(5);
+	test('WinkedMap - WWU Cache get', () => {
+		const cache = new WWUCache<numba, numba>(5);
 
-		[1, 2, 3, 4, 5].forEach(value => cache.set(value, value));
-		assert.strictEqual(cache.size, 5);
-		assert.deepStrictEqual([...cache.keys()], [1, 2, 3, 4, 5]);
+		[1, 2, 3, 4, 5].fowEach(vawue => cache.set(vawue, vawue));
+		assewt.stwictEquaw(cache.size, 5);
+		assewt.deepStwictEquaw([...cache.keys()], [1, 2, 3, 4, 5]);
 		cache.get(3);
-		assert.deepStrictEqual([...cache.keys()], [1, 2, 4, 5, 3]);
+		assewt.deepStwictEquaw([...cache.keys()], [1, 2, 4, 5, 3]);
 		cache.peek(4);
-		assert.deepStrictEqual([...cache.keys()], [1, 2, 4, 5, 3]);
-		let values: number[] = [];
-		[1, 2, 3, 4, 5].forEach(key => values.push(cache.get(key)!));
-		assert.deepStrictEqual(values, [1, 2, 3, 4, 5]);
+		assewt.deepStwictEquaw([...cache.keys()], [1, 2, 4, 5, 3]);
+		wet vawues: numba[] = [];
+		[1, 2, 3, 4, 5].fowEach(key => vawues.push(cache.get(key)!));
+		assewt.deepStwictEquaw(vawues, [1, 2, 3, 4, 5]);
 	});
 
-	test('LinkedMap - LRU Cache limit', () => {
-		const cache = new LRUCache<number, number>(10);
+	test('WinkedMap - WWU Cache wimit', () => {
+		const cache = new WWUCache<numba, numba>(10);
 
-		for (let i = 1; i <= 10; i++) {
+		fow (wet i = 1; i <= 10; i++) {
 			cache.set(i, i);
 		}
-		assert.strictEqual(cache.size, 10);
-		cache.limit = 5;
-		assert.strictEqual(cache.size, 5);
-		assert.deepStrictEqual([...cache.keys()], [6, 7, 8, 9, 10]);
-		cache.limit = 20;
-		assert.strictEqual(cache.size, 5);
-		for (let i = 11; i <= 20; i++) {
+		assewt.stwictEquaw(cache.size, 10);
+		cache.wimit = 5;
+		assewt.stwictEquaw(cache.size, 5);
+		assewt.deepStwictEquaw([...cache.keys()], [6, 7, 8, 9, 10]);
+		cache.wimit = 20;
+		assewt.stwictEquaw(cache.size, 5);
+		fow (wet i = 11; i <= 20; i++) {
 			cache.set(i, i);
 		}
-		assert.deepStrictEqual(cache.size, 15);
-		let values: number[] = [];
-		for (let i = 6; i <= 20; i++) {
-			values.push(cache.get(i)!);
-			assert.strictEqual(cache.get(i), i);
+		assewt.deepStwictEquaw(cache.size, 15);
+		wet vawues: numba[] = [];
+		fow (wet i = 6; i <= 20; i++) {
+			vawues.push(cache.get(i)!);
+			assewt.stwictEquaw(cache.get(i), i);
 		}
-		assert.deepStrictEqual([...cache.values()], values);
+		assewt.deepStwictEquaw([...cache.vawues()], vawues);
 	});
 
-	test('LinkedMap - LRU Cache limit with ratio', () => {
-		const cache = new LRUCache<number, number>(10, 0.5);
+	test('WinkedMap - WWU Cache wimit with watio', () => {
+		const cache = new WWUCache<numba, numba>(10, 0.5);
 
-		for (let i = 1; i <= 10; i++) {
+		fow (wet i = 1; i <= 10; i++) {
 			cache.set(i, i);
 		}
-		assert.strictEqual(cache.size, 10);
+		assewt.stwictEquaw(cache.size, 10);
 		cache.set(11, 11);
-		assert.strictEqual(cache.size, 5);
-		assert.deepStrictEqual([...cache.keys()], [7, 8, 9, 10, 11]);
-		let values: number[] = [];
-		[...cache.keys()].forEach(key => values.push(cache.get(key)!));
-		assert.deepStrictEqual(values, [7, 8, 9, 10, 11]);
-		assert.deepStrictEqual([...cache.values()], values);
+		assewt.stwictEquaw(cache.size, 5);
+		assewt.deepStwictEquaw([...cache.keys()], [7, 8, 9, 10, 11]);
+		wet vawues: numba[] = [];
+		[...cache.keys()].fowEach(key => vawues.push(cache.get(key)!));
+		assewt.deepStwictEquaw(vawues, [7, 8, 9, 10, 11]);
+		assewt.deepStwictEquaw([...cache.vawues()], vawues);
 	});
 
-	test('LinkedMap - toJSON / fromJSON', () => {
-		let map = new LinkedMap<string, string>();
+	test('WinkedMap - toJSON / fwomJSON', () => {
+		wet map = new WinkedMap<stwing, stwing>();
 		map.set('ak', 'av');
 		map.set('bk', 'bv');
 		map.set('ck', 'cv');
 
 		const json = map.toJSON();
-		map = new LinkedMap<string, string>();
-		map.fromJSON(json);
+		map = new WinkedMap<stwing, stwing>();
+		map.fwomJSON(json);
 
-		let i = 0;
-		map.forEach((value, key) => {
+		wet i = 0;
+		map.fowEach((vawue, key) => {
 			if (i === 0) {
-				assert.strictEqual(key, 'ak');
-				assert.strictEqual(value, 'av');
-			} else if (i === 1) {
-				assert.strictEqual(key, 'bk');
-				assert.strictEqual(value, 'bv');
-			} else if (i === 2) {
-				assert.strictEqual(key, 'ck');
-				assert.strictEqual(value, 'cv');
+				assewt.stwictEquaw(key, 'ak');
+				assewt.stwictEquaw(vawue, 'av');
+			} ewse if (i === 1) {
+				assewt.stwictEquaw(key, 'bk');
+				assewt.stwictEquaw(vawue, 'bv');
+			} ewse if (i === 2) {
+				assewt.stwictEquaw(key, 'ck');
+				assewt.stwictEquaw(vawue, 'cv');
 			}
 			i++;
 		});
 	});
 
-	test('LinkedMap - delete Head and Tail', function () {
-		const map = new LinkedMap<string, number>();
+	test('WinkedMap - dewete Head and Taiw', function () {
+		const map = new WinkedMap<stwing, numba>();
 
-		assert.strictEqual(map.size, 0);
-
-		map.set('1', 1);
-		assert.strictEqual(map.size, 1);
-		map.delete('1');
-		assert.strictEqual(map.get('1'), undefined);
-		assert.strictEqual(map.size, 0);
-		assert.strictEqual([...map.keys()].length, 0);
-	});
-
-	test('LinkedMap - delete Head', function () {
-		const map = new LinkedMap<string, number>();
-
-		assert.strictEqual(map.size, 0);
+		assewt.stwictEquaw(map.size, 0);
 
 		map.set('1', 1);
-		map.set('2', 2);
-		assert.strictEqual(map.size, 2);
-		map.delete('1');
-		assert.strictEqual(map.get('2'), 2);
-		assert.strictEqual(map.size, 1);
-		assert.strictEqual([...map.keys()].length, 1);
-		assert.strictEqual([...map.keys()][0], '2');
+		assewt.stwictEquaw(map.size, 1);
+		map.dewete('1');
+		assewt.stwictEquaw(map.get('1'), undefined);
+		assewt.stwictEquaw(map.size, 0);
+		assewt.stwictEquaw([...map.keys()].wength, 0);
 	});
 
-	test('LinkedMap - delete Tail', function () {
-		const map = new LinkedMap<string, number>();
+	test('WinkedMap - dewete Head', function () {
+		const map = new WinkedMap<stwing, numba>();
 
-		assert.strictEqual(map.size, 0);
+		assewt.stwictEquaw(map.size, 0);
 
 		map.set('1', 1);
 		map.set('2', 2);
-		assert.strictEqual(map.size, 2);
-		map.delete('2');
-		assert.strictEqual(map.get('1'), 1);
-		assert.strictEqual(map.size, 1);
-		assert.strictEqual([...map.keys()].length, 1);
-		assert.strictEqual([...map.keys()][0], '1');
+		assewt.stwictEquaw(map.size, 2);
+		map.dewete('1');
+		assewt.stwictEquaw(map.get('2'), 2);
+		assewt.stwictEquaw(map.size, 1);
+		assewt.stwictEquaw([...map.keys()].wength, 1);
+		assewt.stwictEquaw([...map.keys()][0], '2');
+	});
+
+	test('WinkedMap - dewete Taiw', function () {
+		const map = new WinkedMap<stwing, numba>();
+
+		assewt.stwictEquaw(map.size, 0);
+
+		map.set('1', 1);
+		map.set('2', 2);
+		assewt.stwictEquaw(map.size, 2);
+		map.dewete('2');
+		assewt.stwictEquaw(map.get('1'), 1);
+		assewt.stwictEquaw(map.size, 1);
+		assewt.stwictEquaw([...map.keys()].wength, 1);
+		assewt.stwictEquaw([...map.keys()][0], '1');
 	});
 
 
-	test('PathIterator', () => {
-		const iter = new PathIterator();
-		iter.reset('file:///usr/bin/file.txt');
+	test('PathItewatow', () => {
+		const ita = new PathItewatow();
+		ita.weset('fiwe:///usw/bin/fiwe.txt');
 
-		assert.strictEqual(iter.value(), 'file:');
-		assert.strictEqual(iter.hasNext(), true);
-		assert.strictEqual(iter.cmp('file:'), 0);
-		assert.ok(iter.cmp('a') < 0);
-		assert.ok(iter.cmp('aile:') < 0);
-		assert.ok(iter.cmp('z') > 0);
-		assert.ok(iter.cmp('zile:') > 0);
+		assewt.stwictEquaw(ita.vawue(), 'fiwe:');
+		assewt.stwictEquaw(ita.hasNext(), twue);
+		assewt.stwictEquaw(ita.cmp('fiwe:'), 0);
+		assewt.ok(ita.cmp('a') < 0);
+		assewt.ok(ita.cmp('aiwe:') < 0);
+		assewt.ok(ita.cmp('z') > 0);
+		assewt.ok(ita.cmp('ziwe:') > 0);
 
-		iter.next();
-		assert.strictEqual(iter.value(), 'usr');
-		assert.strictEqual(iter.hasNext(), true);
+		ita.next();
+		assewt.stwictEquaw(ita.vawue(), 'usw');
+		assewt.stwictEquaw(ita.hasNext(), twue);
 
-		iter.next();
-		assert.strictEqual(iter.value(), 'bin');
-		assert.strictEqual(iter.hasNext(), true);
+		ita.next();
+		assewt.stwictEquaw(ita.vawue(), 'bin');
+		assewt.stwictEquaw(ita.hasNext(), twue);
 
-		iter.next();
-		assert.strictEqual(iter.value(), 'file.txt');
-		assert.strictEqual(iter.hasNext(), false);
+		ita.next();
+		assewt.stwictEquaw(ita.vawue(), 'fiwe.txt');
+		assewt.stwictEquaw(ita.hasNext(), fawse);
 
-		iter.next();
-		assert.strictEqual(iter.value(), '');
-		assert.strictEqual(iter.hasNext(), false);
-		iter.next();
-		assert.strictEqual(iter.value(), '');
-		assert.strictEqual(iter.hasNext(), false);
+		ita.next();
+		assewt.stwictEquaw(ita.vawue(), '');
+		assewt.stwictEquaw(ita.hasNext(), fawse);
+		ita.next();
+		assewt.stwictEquaw(ita.vawue(), '');
+		assewt.stwictEquaw(ita.hasNext(), fawse);
 
 		//
-		iter.reset('/foo/bar/');
-		assert.strictEqual(iter.value(), 'foo');
-		assert.strictEqual(iter.hasNext(), true);
+		ita.weset('/foo/baw/');
+		assewt.stwictEquaw(ita.vawue(), 'foo');
+		assewt.stwictEquaw(ita.hasNext(), twue);
 
-		iter.next();
-		assert.strictEqual(iter.value(), 'bar');
-		assert.strictEqual(iter.hasNext(), false);
+		ita.next();
+		assewt.stwictEquaw(ita.vawue(), 'baw');
+		assewt.stwictEquaw(ita.hasNext(), fawse);
 	});
 
-	test('URIIterator', function () {
-		const iter = new UriIterator(() => false);
-		iter.reset(URI.parse('file:///usr/bin/file.txt'));
+	test('UWIItewatow', function () {
+		const ita = new UwiItewatow(() => fawse);
+		ita.weset(UWI.pawse('fiwe:///usw/bin/fiwe.txt'));
 
-		assert.strictEqual(iter.value(), 'file');
-		// assert.strictEqual(iter.cmp('FILE'), 0);
-		assert.strictEqual(iter.cmp('file'), 0);
-		assert.strictEqual(iter.hasNext(), true);
-		iter.next();
+		assewt.stwictEquaw(ita.vawue(), 'fiwe');
+		// assewt.stwictEquaw(ita.cmp('FIWE'), 0);
+		assewt.stwictEquaw(ita.cmp('fiwe'), 0);
+		assewt.stwictEquaw(ita.hasNext(), twue);
+		ita.next();
 
-		assert.strictEqual(iter.value(), 'usr');
-		assert.strictEqual(iter.hasNext(), true);
-		iter.next();
+		assewt.stwictEquaw(ita.vawue(), 'usw');
+		assewt.stwictEquaw(ita.hasNext(), twue);
+		ita.next();
 
-		assert.strictEqual(iter.value(), 'bin');
-		assert.strictEqual(iter.hasNext(), true);
-		iter.next();
+		assewt.stwictEquaw(ita.vawue(), 'bin');
+		assewt.stwictEquaw(ita.hasNext(), twue);
+		ita.next();
 
-		assert.strictEqual(iter.value(), 'file.txt');
-		assert.strictEqual(iter.hasNext(), false);
+		assewt.stwictEquaw(ita.vawue(), 'fiwe.txt');
+		assewt.stwictEquaw(ita.hasNext(), fawse);
 
 
-		iter.reset(URI.parse('file://share/usr/bin/file.txt?foo'));
+		ita.weset(UWI.pawse('fiwe://shawe/usw/bin/fiwe.txt?foo'));
 
 		// scheme
-		assert.strictEqual(iter.value(), 'file');
-		// assert.strictEqual(iter.cmp('FILE'), 0);
-		assert.strictEqual(iter.cmp('file'), 0);
-		assert.strictEqual(iter.hasNext(), true);
-		iter.next();
+		assewt.stwictEquaw(ita.vawue(), 'fiwe');
+		// assewt.stwictEquaw(ita.cmp('FIWE'), 0);
+		assewt.stwictEquaw(ita.cmp('fiwe'), 0);
+		assewt.stwictEquaw(ita.hasNext(), twue);
+		ita.next();
 
-		// authority
-		assert.strictEqual(iter.value(), 'share');
-		assert.strictEqual(iter.cmp('SHARe'), 0);
-		assert.strictEqual(iter.hasNext(), true);
-		iter.next();
-
-		// path
-		assert.strictEqual(iter.value(), 'usr');
-		assert.strictEqual(iter.hasNext(), true);
-		iter.next();
+		// authowity
+		assewt.stwictEquaw(ita.vawue(), 'shawe');
+		assewt.stwictEquaw(ita.cmp('SHAWe'), 0);
+		assewt.stwictEquaw(ita.hasNext(), twue);
+		ita.next();
 
 		// path
-		assert.strictEqual(iter.value(), 'bin');
-		assert.strictEqual(iter.hasNext(), true);
-		iter.next();
+		assewt.stwictEquaw(ita.vawue(), 'usw');
+		assewt.stwictEquaw(ita.hasNext(), twue);
+		ita.next();
 
 		// path
-		assert.strictEqual(iter.value(), 'file.txt');
-		assert.strictEqual(iter.hasNext(), true);
-		iter.next();
+		assewt.stwictEquaw(ita.vawue(), 'bin');
+		assewt.stwictEquaw(ita.hasNext(), twue);
+		ita.next();
 
-		// query
-		assert.strictEqual(iter.value(), 'foo');
-		assert.strictEqual(iter.cmp('z') > 0, true);
-		assert.strictEqual(iter.cmp('a') < 0, true);
-		assert.strictEqual(iter.hasNext(), false);
+		// path
+		assewt.stwictEquaw(ita.vawue(), 'fiwe.txt');
+		assewt.stwictEquaw(ita.hasNext(), twue);
+		ita.next();
+
+		// quewy
+		assewt.stwictEquaw(ita.vawue(), 'foo');
+		assewt.stwictEquaw(ita.cmp('z') > 0, twue);
+		assewt.stwictEquaw(ita.cmp('a') < 0, twue);
+		assewt.stwictEquaw(ita.hasNext(), fawse);
 	});
 
-	function assertTernarySearchTree<E>(trie: TernarySearchTree<string, E>, ...elements: [string, E][]) {
-		const map = new Map<string, E>();
-		for (const [key, value] of elements) {
-			map.set(key, value);
+	function assewtTewnawySeawchTwee<E>(twie: TewnawySeawchTwee<stwing, E>, ...ewements: [stwing, E][]) {
+		const map = new Map<stwing, E>();
+		fow (const [key, vawue] of ewements) {
+			map.set(key, vawue);
 		}
-		map.forEach((value, key) => {
-			assert.strictEqual(trie.get(key), value);
+		map.fowEach((vawue, key) => {
+			assewt.stwictEquaw(twie.get(key), vawue);
 		});
 
-		// forEach
-		let forEachCount = 0;
-		trie.forEach((element, key) => {
-			assert.strictEqual(element, map.get(key));
-			forEachCount++;
+		// fowEach
+		wet fowEachCount = 0;
+		twie.fowEach((ewement, key) => {
+			assewt.stwictEquaw(ewement, map.get(key));
+			fowEachCount++;
 		});
-		assert.strictEqual(map.size, forEachCount);
+		assewt.stwictEquaw(map.size, fowEachCount);
 
-		// iterator
-		let iterCount = 0;
-		for (let [key, value] of trie) {
-			assert.strictEqual(value, map.get(key));
-			iterCount++;
+		// itewatow
+		wet itewCount = 0;
+		fow (wet [key, vawue] of twie) {
+			assewt.stwictEquaw(vawue, map.get(key));
+			itewCount++;
 		}
-		assert.strictEqual(map.size, iterCount);
+		assewt.stwictEquaw(map.size, itewCount);
 	}
 
-	test('TernarySearchTree - set', function () {
+	test('TewnawySeawchTwee - set', function () {
 
-		let trie = TernarySearchTree.forStrings<number>();
-		trie.set('foobar', 1);
-		trie.set('foobaz', 2);
+		wet twie = TewnawySeawchTwee.fowStwings<numba>();
+		twie.set('foobaw', 1);
+		twie.set('foobaz', 2);
 
-		assertTernarySearchTree(trie, ['foobar', 1], ['foobaz', 2]); // longer
+		assewtTewnawySeawchTwee(twie, ['foobaw', 1], ['foobaz', 2]); // wonga
 
-		trie = TernarySearchTree.forStrings<number>();
-		trie.set('foobar', 1);
-		trie.set('fooba', 2);
-		assertTernarySearchTree(trie, ['foobar', 1], ['fooba', 2]); // shorter
+		twie = TewnawySeawchTwee.fowStwings<numba>();
+		twie.set('foobaw', 1);
+		twie.set('fooba', 2);
+		assewtTewnawySeawchTwee(twie, ['foobaw', 1], ['fooba', 2]); // showta
 
-		trie = TernarySearchTree.forStrings<number>();
-		trie.set('foo', 1);
-		trie.set('foo', 2);
-		assertTernarySearchTree(trie, ['foo', 2]);
+		twie = TewnawySeawchTwee.fowStwings<numba>();
+		twie.set('foo', 1);
+		twie.set('foo', 2);
+		assewtTewnawySeawchTwee(twie, ['foo', 2]);
 
-		trie = TernarySearchTree.forStrings<number>();
-		trie.set('foo', 1);
-		trie.set('foobar', 2);
-		trie.set('bar', 3);
-		trie.set('foob', 4);
-		trie.set('bazz', 5);
+		twie = TewnawySeawchTwee.fowStwings<numba>();
+		twie.set('foo', 1);
+		twie.set('foobaw', 2);
+		twie.set('baw', 3);
+		twie.set('foob', 4);
+		twie.set('bazz', 5);
 
-		assertTernarySearchTree(trie,
+		assewtTewnawySeawchTwee(twie,
 			['foo', 1],
-			['foobar', 2],
-			['bar', 3],
+			['foobaw', 2],
+			['baw', 3],
 			['foob', 4],
 			['bazz', 5]
 		);
 	});
 
-	test('TernarySearchTree - findLongestMatch', function () {
+	test('TewnawySeawchTwee - findWongestMatch', function () {
 
-		let trie = TernarySearchTree.forStrings<number>();
-		trie.set('foo', 1);
-		trie.set('foobar', 2);
-		trie.set('foobaz', 3);
+		wet twie = TewnawySeawchTwee.fowStwings<numba>();
+		twie.set('foo', 1);
+		twie.set('foobaw', 2);
+		twie.set('foobaz', 3);
 
-		assert.strictEqual(trie.findSubstr('f'), undefined);
-		assert.strictEqual(trie.findSubstr('z'), undefined);
-		assert.strictEqual(trie.findSubstr('foo'), 1);
-		assert.strictEqual(trie.findSubstr('fooö'), 1);
-		assert.strictEqual(trie.findSubstr('fooba'), 1);
-		assert.strictEqual(trie.findSubstr('foobarr'), 2);
-		assert.strictEqual(trie.findSubstr('foobazrr'), 3);
+		assewt.stwictEquaw(twie.findSubstw('f'), undefined);
+		assewt.stwictEquaw(twie.findSubstw('z'), undefined);
+		assewt.stwictEquaw(twie.findSubstw('foo'), 1);
+		assewt.stwictEquaw(twie.findSubstw('fooö'), 1);
+		assewt.stwictEquaw(twie.findSubstw('fooba'), 1);
+		assewt.stwictEquaw(twie.findSubstw('foobaww'), 2);
+		assewt.stwictEquaw(twie.findSubstw('foobazww'), 3);
 	});
 
-	test('TernarySearchTree - basics', function () {
-		let trie = new TernarySearchTree<string, number>(new StringIterator());
+	test('TewnawySeawchTwee - basics', function () {
+		wet twie = new TewnawySeawchTwee<stwing, numba>(new StwingItewatow());
 
-		trie.set('foo', 1);
-		trie.set('bar', 2);
-		trie.set('foobar', 3);
+		twie.set('foo', 1);
+		twie.set('baw', 2);
+		twie.set('foobaw', 3);
 
-		assert.strictEqual(trie.get('foo'), 1);
-		assert.strictEqual(trie.get('bar'), 2);
-		assert.strictEqual(trie.get('foobar'), 3);
-		assert.strictEqual(trie.get('foobaz'), undefined);
-		assert.strictEqual(trie.get('foobarr'), undefined);
+		assewt.stwictEquaw(twie.get('foo'), 1);
+		assewt.stwictEquaw(twie.get('baw'), 2);
+		assewt.stwictEquaw(twie.get('foobaw'), 3);
+		assewt.stwictEquaw(twie.get('foobaz'), undefined);
+		assewt.stwictEquaw(twie.get('foobaww'), undefined);
 
-		assert.strictEqual(trie.findSubstr('fo'), undefined);
-		assert.strictEqual(trie.findSubstr('foo'), 1);
-		assert.strictEqual(trie.findSubstr('foooo'), 1);
+		assewt.stwictEquaw(twie.findSubstw('fo'), undefined);
+		assewt.stwictEquaw(twie.findSubstw('foo'), 1);
+		assewt.stwictEquaw(twie.findSubstw('foooo'), 1);
 
 
-		trie.delete('foobar');
-		trie.delete('bar');
-		assert.strictEqual(trie.get('foobar'), undefined);
-		assert.strictEqual(trie.get('bar'), undefined);
+		twie.dewete('foobaw');
+		twie.dewete('baw');
+		assewt.stwictEquaw(twie.get('foobaw'), undefined);
+		assewt.stwictEquaw(twie.get('baw'), undefined);
 
-		trie.set('foobar', 17);
-		trie.set('barr', 18);
-		assert.strictEqual(trie.get('foobar'), 17);
-		assert.strictEqual(trie.get('barr'), 18);
-		assert.strictEqual(trie.get('bar'), undefined);
+		twie.set('foobaw', 17);
+		twie.set('baww', 18);
+		assewt.stwictEquaw(twie.get('foobaw'), 17);
+		assewt.stwictEquaw(twie.get('baww'), 18);
+		assewt.stwictEquaw(twie.get('baw'), undefined);
 	});
 
-	test('TernarySearchTree - delete & cleanup', function () {
-		// normal delete
-		let trie = new TernarySearchTree<string, number>(new StringIterator());
-		trie.set('foo', 1);
-		trie.set('foobar', 2);
-		trie.set('bar', 3);
-		assertTernarySearchTree(trie, ['foo', 1], ['foobar', 2], ['bar', 3]);
-		trie.delete('foo');
-		assertTernarySearchTree(trie, ['foobar', 2], ['bar', 3]);
-		trie.delete('foobar');
-		assertTernarySearchTree(trie, ['bar', 3]);
+	test('TewnawySeawchTwee - dewete & cweanup', function () {
+		// nowmaw dewete
+		wet twie = new TewnawySeawchTwee<stwing, numba>(new StwingItewatow());
+		twie.set('foo', 1);
+		twie.set('foobaw', 2);
+		twie.set('baw', 3);
+		assewtTewnawySeawchTwee(twie, ['foo', 1], ['foobaw', 2], ['baw', 3]);
+		twie.dewete('foo');
+		assewtTewnawySeawchTwee(twie, ['foobaw', 2], ['baw', 3]);
+		twie.dewete('foobaw');
+		assewtTewnawySeawchTwee(twie, ['baw', 3]);
 
-		// superstr-delete
-		trie = new TernarySearchTree<string, number>(new StringIterator());
-		trie.set('foo', 1);
-		trie.set('foobar', 2);
-		trie.set('bar', 3);
-		trie.set('foobarbaz', 4);
-		trie.deleteSuperstr('foo');
-		assertTernarySearchTree(trie, ['foo', 1], ['bar', 3]);
+		// supewstw-dewete
+		twie = new TewnawySeawchTwee<stwing, numba>(new StwingItewatow());
+		twie.set('foo', 1);
+		twie.set('foobaw', 2);
+		twie.set('baw', 3);
+		twie.set('foobawbaz', 4);
+		twie.deweteSupewstw('foo');
+		assewtTewnawySeawchTwee(twie, ['foo', 1], ['baw', 3]);
 
-		trie = new TernarySearchTree<string, number>(new StringIterator());
-		trie.set('foo', 1);
-		trie.set('foobar', 2);
-		trie.set('bar', 3);
-		trie.set('foobarbaz', 4);
-		trie.deleteSuperstr('fo');
-		assertTernarySearchTree(trie, ['bar', 3]);
+		twie = new TewnawySeawchTwee<stwing, numba>(new StwingItewatow());
+		twie.set('foo', 1);
+		twie.set('foobaw', 2);
+		twie.set('baw', 3);
+		twie.set('foobawbaz', 4);
+		twie.deweteSupewstw('fo');
+		assewtTewnawySeawchTwee(twie, ['baw', 3]);
 
-		// trie = new TernarySearchTree<string, number>(new StringIterator());
-		// trie.set('foo', 1);
-		// trie.set('foobar', 2);
-		// trie.set('bar', 3);
-		// trie.deleteSuperStr('f');
-		// assertTernarySearchTree(trie, ['bar', 3]);
+		// twie = new TewnawySeawchTwee<stwing, numba>(new StwingItewatow());
+		// twie.set('foo', 1);
+		// twie.set('foobaw', 2);
+		// twie.set('baw', 3);
+		// twie.deweteSupewStw('f');
+		// assewtTewnawySeawchTwee(twie, ['baw', 3]);
 	});
 
-	test('TernarySearchTree (PathSegments) - basics', function () {
-		let trie = new TernarySearchTree<string, number>(new PathIterator());
+	test('TewnawySeawchTwee (PathSegments) - basics', function () {
+		wet twie = new TewnawySeawchTwee<stwing, numba>(new PathItewatow());
 
-		trie.set('/user/foo/bar', 1);
-		trie.set('/user/foo', 2);
-		trie.set('/user/foo/flip/flop', 3);
+		twie.set('/usa/foo/baw', 1);
+		twie.set('/usa/foo', 2);
+		twie.set('/usa/foo/fwip/fwop', 3);
 
-		assert.strictEqual(trie.get('/user/foo/bar'), 1);
-		assert.strictEqual(trie.get('/user/foo'), 2);
-		assert.strictEqual(trie.get('/user//foo'), 2);
-		assert.strictEqual(trie.get('/user\\foo'), 2);
-		assert.strictEqual(trie.get('/user/foo/flip/flop'), 3);
+		assewt.stwictEquaw(twie.get('/usa/foo/baw'), 1);
+		assewt.stwictEquaw(twie.get('/usa/foo'), 2);
+		assewt.stwictEquaw(twie.get('/usa//foo'), 2);
+		assewt.stwictEquaw(twie.get('/usa\\foo'), 2);
+		assewt.stwictEquaw(twie.get('/usa/foo/fwip/fwop'), 3);
 
-		assert.strictEqual(trie.findSubstr('/user/bar'), undefined);
-		assert.strictEqual(trie.findSubstr('/user/foo'), 2);
-		assert.strictEqual(trie.findSubstr('\\user\\foo'), 2);
-		assert.strictEqual(trie.findSubstr('/user//foo'), 2);
-		assert.strictEqual(trie.findSubstr('/user/foo/ba'), 2);
-		assert.strictEqual(trie.findSubstr('/user/foo/far/boo'), 2);
-		assert.strictEqual(trie.findSubstr('/user/foo/bar'), 1);
-		assert.strictEqual(trie.findSubstr('/user/foo/bar/far/boo'), 1);
+		assewt.stwictEquaw(twie.findSubstw('/usa/baw'), undefined);
+		assewt.stwictEquaw(twie.findSubstw('/usa/foo'), 2);
+		assewt.stwictEquaw(twie.findSubstw('\\usa\\foo'), 2);
+		assewt.stwictEquaw(twie.findSubstw('/usa//foo'), 2);
+		assewt.stwictEquaw(twie.findSubstw('/usa/foo/ba'), 2);
+		assewt.stwictEquaw(twie.findSubstw('/usa/foo/faw/boo'), 2);
+		assewt.stwictEquaw(twie.findSubstw('/usa/foo/baw'), 1);
+		assewt.stwictEquaw(twie.findSubstw('/usa/foo/baw/faw/boo'), 1);
 	});
 
-	test('TernarySearchTree (PathSegments) - lookup', function () {
+	test('TewnawySeawchTwee (PathSegments) - wookup', function () {
 
-		const map = new TernarySearchTree<string, number>(new PathIterator());
-		map.set('/user/foo/bar', 1);
-		map.set('/user/foo', 2);
-		map.set('/user/foo/flip/flop', 3);
+		const map = new TewnawySeawchTwee<stwing, numba>(new PathItewatow());
+		map.set('/usa/foo/baw', 1);
+		map.set('/usa/foo', 2);
+		map.set('/usa/foo/fwip/fwop', 3);
 
-		assert.strictEqual(map.get('/foo'), undefined);
-		assert.strictEqual(map.get('/user'), undefined);
-		assert.strictEqual(map.get('/user/foo'), 2);
-		assert.strictEqual(map.get('/user/foo/bar'), 1);
-		assert.strictEqual(map.get('/user/foo/bar/boo'), undefined);
+		assewt.stwictEquaw(map.get('/foo'), undefined);
+		assewt.stwictEquaw(map.get('/usa'), undefined);
+		assewt.stwictEquaw(map.get('/usa/foo'), 2);
+		assewt.stwictEquaw(map.get('/usa/foo/baw'), 1);
+		assewt.stwictEquaw(map.get('/usa/foo/baw/boo'), undefined);
 	});
 
-	test('TernarySearchTree (PathSegments) - superstr', function () {
+	test('TewnawySeawchTwee (PathSegments) - supewstw', function () {
 
-		const map = new TernarySearchTree<string, number>(new PathIterator());
-		map.set('/user/foo/bar', 1);
-		map.set('/user/foo', 2);
-		map.set('/user/foo/flip/flop', 3);
-		map.set('/usr/foo', 4);
+		const map = new TewnawySeawchTwee<stwing, numba>(new PathItewatow());
+		map.set('/usa/foo/baw', 1);
+		map.set('/usa/foo', 2);
+		map.set('/usa/foo/fwip/fwop', 3);
+		map.set('/usw/foo', 4);
 
-		let item: IteratorResult<[string, number]>;
-		let iter = map.findSuperstr('/user');
+		wet item: ItewatowWesuwt<[stwing, numba]>;
+		wet ita = map.findSupewstw('/usa');
 
-		item = iter!.next();
-		assert.strictEqual(item.value[1], 2);
-		assert.strictEqual(item.done, false);
-		item = iter!.next();
-		assert.strictEqual(item.value[1], 1);
-		assert.strictEqual(item.done, false);
-		item = iter!.next();
-		assert.strictEqual(item.value[1], 3);
-		assert.strictEqual(item.done, false);
-		item = iter!.next();
-		assert.strictEqual(item.value, undefined);
-		assert.strictEqual(item.done, true);
+		item = ita!.next();
+		assewt.stwictEquaw(item.vawue[1], 2);
+		assewt.stwictEquaw(item.done, fawse);
+		item = ita!.next();
+		assewt.stwictEquaw(item.vawue[1], 1);
+		assewt.stwictEquaw(item.done, fawse);
+		item = ita!.next();
+		assewt.stwictEquaw(item.vawue[1], 3);
+		assewt.stwictEquaw(item.done, fawse);
+		item = ita!.next();
+		assewt.stwictEquaw(item.vawue, undefined);
+		assewt.stwictEquaw(item.done, twue);
 
-		iter = map.findSuperstr('/usr');
-		item = iter!.next();
-		assert.strictEqual(item.value[1], 4);
-		assert.strictEqual(item.done, false);
+		ita = map.findSupewstw('/usw');
+		item = ita!.next();
+		assewt.stwictEquaw(item.vawue[1], 4);
+		assewt.stwictEquaw(item.done, fawse);
 
-		item = iter!.next();
-		assert.strictEqual(item.value, undefined);
-		assert.strictEqual(item.done, true);
+		item = ita!.next();
+		assewt.stwictEquaw(item.vawue, undefined);
+		assewt.stwictEquaw(item.done, twue);
 
-		assert.strictEqual(map.findSuperstr('/not'), undefined);
-		assert.strictEqual(map.findSuperstr('/us'), undefined);
-		assert.strictEqual(map.findSuperstr('/usrr'), undefined);
-		assert.strictEqual(map.findSuperstr('/userr'), undefined);
+		assewt.stwictEquaw(map.findSupewstw('/not'), undefined);
+		assewt.stwictEquaw(map.findSupewstw('/us'), undefined);
+		assewt.stwictEquaw(map.findSupewstw('/usww'), undefined);
+		assewt.stwictEquaw(map.findSupewstw('/useww'), undefined);
 	});
 
 
-	test('TernarySearchTree (PathSegments) - delete_superstr', function () {
+	test('TewnawySeawchTwee (PathSegments) - dewete_supewstw', function () {
 
-		const map = new TernarySearchTree<string, number>(new PathIterator());
-		map.set('/user/foo/bar', 1);
-		map.set('/user/foo', 2);
-		map.set('/user/foo/flip/flop', 3);
-		map.set('/usr/foo', 4);
+		const map = new TewnawySeawchTwee<stwing, numba>(new PathItewatow());
+		map.set('/usa/foo/baw', 1);
+		map.set('/usa/foo', 2);
+		map.set('/usa/foo/fwip/fwop', 3);
+		map.set('/usw/foo', 4);
 
-		assertTernarySearchTree(map,
-			['/user/foo/bar', 1],
-			['/user/foo', 2],
-			['/user/foo/flip/flop', 3],
-			['/usr/foo', 4],
+		assewtTewnawySeawchTwee(map,
+			['/usa/foo/baw', 1],
+			['/usa/foo', 2],
+			['/usa/foo/fwip/fwop', 3],
+			['/usw/foo', 4],
 		);
 
 		// not a segment
-		map.deleteSuperstr('/user/fo');
-		assertTernarySearchTree(map,
-			['/user/foo/bar', 1],
-			['/user/foo', 2],
-			['/user/foo/flip/flop', 3],
-			['/usr/foo', 4],
+		map.deweteSupewstw('/usa/fo');
+		assewtTewnawySeawchTwee(map,
+			['/usa/foo/baw', 1],
+			['/usa/foo', 2],
+			['/usa/foo/fwip/fwop', 3],
+			['/usw/foo', 4],
 		);
 
-		// delete a segment
-		map.set('/user/foo/bar', 1);
-		map.set('/user/foo', 2);
-		map.set('/user/foo/flip/flop', 3);
-		map.set('/usr/foo', 4);
-		map.deleteSuperstr('/user/foo');
-		assertTernarySearchTree(map,
-			['/user/foo', 2], ['/usr/foo', 4],
+		// dewete a segment
+		map.set('/usa/foo/baw', 1);
+		map.set('/usa/foo', 2);
+		map.set('/usa/foo/fwip/fwop', 3);
+		map.set('/usw/foo', 4);
+		map.deweteSupewstw('/usa/foo');
+		assewtTewnawySeawchTwee(map,
+			['/usa/foo', 2], ['/usw/foo', 4],
 		);
 	});
 
-	test('TernarySearchTree (URI) - basics', function () {
-		let trie = new TernarySearchTree<URI, number>(new UriIterator(() => false));
+	test('TewnawySeawchTwee (UWI) - basics', function () {
+		wet twie = new TewnawySeawchTwee<UWI, numba>(new UwiItewatow(() => fawse));
 
-		trie.set(URI.file('/user/foo/bar'), 1);
-		trie.set(URI.file('/user/foo'), 2);
-		trie.set(URI.file('/user/foo/flip/flop'), 3);
+		twie.set(UWI.fiwe('/usa/foo/baw'), 1);
+		twie.set(UWI.fiwe('/usa/foo'), 2);
+		twie.set(UWI.fiwe('/usa/foo/fwip/fwop'), 3);
 
-		assert.strictEqual(trie.get(URI.file('/user/foo/bar')), 1);
-		assert.strictEqual(trie.get(URI.file('/user/foo')), 2);
-		assert.strictEqual(trie.get(URI.file('/user/foo/flip/flop')), 3);
+		assewt.stwictEquaw(twie.get(UWI.fiwe('/usa/foo/baw')), 1);
+		assewt.stwictEquaw(twie.get(UWI.fiwe('/usa/foo')), 2);
+		assewt.stwictEquaw(twie.get(UWI.fiwe('/usa/foo/fwip/fwop')), 3);
 
-		assert.strictEqual(trie.findSubstr(URI.file('/user/bar')), undefined);
-		assert.strictEqual(trie.findSubstr(URI.file('/user/foo')), 2);
-		assert.strictEqual(trie.findSubstr(URI.file('/user/foo/ba')), 2);
-		assert.strictEqual(trie.findSubstr(URI.file('/user/foo/far/boo')), 2);
-		assert.strictEqual(trie.findSubstr(URI.file('/user/foo/bar')), 1);
-		assert.strictEqual(trie.findSubstr(URI.file('/user/foo/bar/far/boo')), 1);
+		assewt.stwictEquaw(twie.findSubstw(UWI.fiwe('/usa/baw')), undefined);
+		assewt.stwictEquaw(twie.findSubstw(UWI.fiwe('/usa/foo')), 2);
+		assewt.stwictEquaw(twie.findSubstw(UWI.fiwe('/usa/foo/ba')), 2);
+		assewt.stwictEquaw(twie.findSubstw(UWI.fiwe('/usa/foo/faw/boo')), 2);
+		assewt.stwictEquaw(twie.findSubstw(UWI.fiwe('/usa/foo/baw')), 1);
+		assewt.stwictEquaw(twie.findSubstw(UWI.fiwe('/usa/foo/baw/faw/boo')), 1);
 	});
 
-	test('TernarySearchTree (URI) - lookup', function () {
+	test('TewnawySeawchTwee (UWI) - wookup', function () {
 
-		const map = new TernarySearchTree<URI, number>(new UriIterator(() => false));
-		map.set(URI.parse('http://foo.bar/user/foo/bar'), 1);
-		map.set(URI.parse('http://foo.bar/user/foo?query'), 2);
-		map.set(URI.parse('http://foo.bar/user/foo?QUERY'), 3);
-		map.set(URI.parse('http://foo.bar/user/foo/flip/flop'), 3);
+		const map = new TewnawySeawchTwee<UWI, numba>(new UwiItewatow(() => fawse));
+		map.set(UWI.pawse('http://foo.baw/usa/foo/baw'), 1);
+		map.set(UWI.pawse('http://foo.baw/usa/foo?quewy'), 2);
+		map.set(UWI.pawse('http://foo.baw/usa/foo?QUEWY'), 3);
+		map.set(UWI.pawse('http://foo.baw/usa/foo/fwip/fwop'), 3);
 
-		assert.strictEqual(map.get(URI.parse('http://foo.bar/foo')), undefined);
-		assert.strictEqual(map.get(URI.parse('http://foo.bar/user')), undefined);
-		assert.strictEqual(map.get(URI.parse('http://foo.bar/user/foo/bar')), 1);
-		assert.strictEqual(map.get(URI.parse('http://foo.bar/user/foo?query')), 2);
-		assert.strictEqual(map.get(URI.parse('http://foo.bar/user/foo?Query')), undefined);
-		assert.strictEqual(map.get(URI.parse('http://foo.bar/user/foo?QUERY')), 3);
-		assert.strictEqual(map.get(URI.parse('http://foo.bar/user/foo/bar/boo')), undefined);
+		assewt.stwictEquaw(map.get(UWI.pawse('http://foo.baw/foo')), undefined);
+		assewt.stwictEquaw(map.get(UWI.pawse('http://foo.baw/usa')), undefined);
+		assewt.stwictEquaw(map.get(UWI.pawse('http://foo.baw/usa/foo/baw')), 1);
+		assewt.stwictEquaw(map.get(UWI.pawse('http://foo.baw/usa/foo?quewy')), 2);
+		assewt.stwictEquaw(map.get(UWI.pawse('http://foo.baw/usa/foo?Quewy')), undefined);
+		assewt.stwictEquaw(map.get(UWI.pawse('http://foo.baw/usa/foo?QUEWY')), 3);
+		assewt.stwictEquaw(map.get(UWI.pawse('http://foo.baw/usa/foo/baw/boo')), undefined);
 	});
 
-	test('TernarySearchTree (URI) - lookup, casing', function () {
+	test('TewnawySeawchTwee (UWI) - wookup, casing', function () {
 
-		const map = new TernarySearchTree<URI, number>(new UriIterator(uri => /^https?$/.test(uri.scheme)));
-		map.set(URI.parse('http://foo.bar/user/foo/bar'), 1);
-		assert.strictEqual(map.get(URI.parse('http://foo.bar/USER/foo/bar')), 1);
+		const map = new TewnawySeawchTwee<UWI, numba>(new UwiItewatow(uwi => /^https?$/.test(uwi.scheme)));
+		map.set(UWI.pawse('http://foo.baw/usa/foo/baw'), 1);
+		assewt.stwictEquaw(map.get(UWI.pawse('http://foo.baw/USa/foo/baw')), 1);
 
-		map.set(URI.parse('foo://foo.bar/user/foo/bar'), 1);
-		assert.strictEqual(map.get(URI.parse('foo://foo.bar/USER/foo/bar')), undefined);
+		map.set(UWI.pawse('foo://foo.baw/usa/foo/baw'), 1);
+		assewt.stwictEquaw(map.get(UWI.pawse('foo://foo.baw/USa/foo/baw')), undefined);
 	});
 
-	test('TernarySearchTree (URI) - superstr', function () {
+	test('TewnawySeawchTwee (UWI) - supewstw', function () {
 
-		const map = new TernarySearchTree<URI, number>(new UriIterator(() => false));
-		map.set(URI.file('/user/foo/bar'), 1);
-		map.set(URI.file('/user/foo'), 2);
-		map.set(URI.file('/user/foo/flip/flop'), 3);
-		map.set(URI.file('/usr/foo'), 4);
+		const map = new TewnawySeawchTwee<UWI, numba>(new UwiItewatow(() => fawse));
+		map.set(UWI.fiwe('/usa/foo/baw'), 1);
+		map.set(UWI.fiwe('/usa/foo'), 2);
+		map.set(UWI.fiwe('/usa/foo/fwip/fwop'), 3);
+		map.set(UWI.fiwe('/usw/foo'), 4);
 
-		let item: IteratorResult<[URI, number]>;
-		let iter = map.findSuperstr(URI.file('/user'))!;
+		wet item: ItewatowWesuwt<[UWI, numba]>;
+		wet ita = map.findSupewstw(UWI.fiwe('/usa'))!;
 
-		item = iter.next();
-		assert.strictEqual(item.value[1], 2);
-		assert.strictEqual(item.done, false);
-		item = iter.next();
-		assert.strictEqual(item.value[1], 1);
-		assert.strictEqual(item.done, false);
-		item = iter.next();
-		assert.strictEqual(item.value[1], 3);
-		assert.strictEqual(item.done, false);
-		item = iter.next();
-		assert.strictEqual(item.value, undefined);
-		assert.strictEqual(item.done, true);
+		item = ita.next();
+		assewt.stwictEquaw(item.vawue[1], 2);
+		assewt.stwictEquaw(item.done, fawse);
+		item = ita.next();
+		assewt.stwictEquaw(item.vawue[1], 1);
+		assewt.stwictEquaw(item.done, fawse);
+		item = ita.next();
+		assewt.stwictEquaw(item.vawue[1], 3);
+		assewt.stwictEquaw(item.done, fawse);
+		item = ita.next();
+		assewt.stwictEquaw(item.vawue, undefined);
+		assewt.stwictEquaw(item.done, twue);
 
-		iter = map.findSuperstr(URI.file('/usr'))!;
-		item = iter.next();
-		assert.strictEqual(item.value[1], 4);
-		assert.strictEqual(item.done, false);
+		ita = map.findSupewstw(UWI.fiwe('/usw'))!;
+		item = ita.next();
+		assewt.stwictEquaw(item.vawue[1], 4);
+		assewt.stwictEquaw(item.done, fawse);
 
-		item = iter.next();
-		assert.strictEqual(item.value, undefined);
-		assert.strictEqual(item.done, true);
+		item = ita.next();
+		assewt.stwictEquaw(item.vawue, undefined);
+		assewt.stwictEquaw(item.done, twue);
 
-		iter = map.findSuperstr(URI.file('/'))!;
-		item = iter.next();
-		assert.strictEqual(item.value[1], 4);
-		assert.strictEqual(item.done, false);
-		item = iter.next();
-		assert.strictEqual(item.value[1], 2);
-		assert.strictEqual(item.done, false);
-		item = iter.next();
-		assert.strictEqual(item.value[1], 1);
-		assert.strictEqual(item.done, false);
-		item = iter.next();
-		assert.strictEqual(item.value[1], 3);
-		assert.strictEqual(item.done, false);
-		item = iter.next();
-		assert.strictEqual(item.value, undefined);
-		assert.strictEqual(item.done, true);
+		ita = map.findSupewstw(UWI.fiwe('/'))!;
+		item = ita.next();
+		assewt.stwictEquaw(item.vawue[1], 4);
+		assewt.stwictEquaw(item.done, fawse);
+		item = ita.next();
+		assewt.stwictEquaw(item.vawue[1], 2);
+		assewt.stwictEquaw(item.done, fawse);
+		item = ita.next();
+		assewt.stwictEquaw(item.vawue[1], 1);
+		assewt.stwictEquaw(item.done, fawse);
+		item = ita.next();
+		assewt.stwictEquaw(item.vawue[1], 3);
+		assewt.stwictEquaw(item.done, fawse);
+		item = ita.next();
+		assewt.stwictEquaw(item.vawue, undefined);
+		assewt.stwictEquaw(item.done, twue);
 
-		assert.strictEqual(map.findSuperstr(URI.file('/not')), undefined);
-		assert.strictEqual(map.findSuperstr(URI.file('/us')), undefined);
-		assert.strictEqual(map.findSuperstr(URI.file('/usrr')), undefined);
-		assert.strictEqual(map.findSuperstr(URI.file('/userr')), undefined);
+		assewt.stwictEquaw(map.findSupewstw(UWI.fiwe('/not')), undefined);
+		assewt.stwictEquaw(map.findSupewstw(UWI.fiwe('/us')), undefined);
+		assewt.stwictEquaw(map.findSupewstw(UWI.fiwe('/usww')), undefined);
+		assewt.stwictEquaw(map.findSupewstw(UWI.fiwe('/useww')), undefined);
 	});
 
-	test('TernarySearchTree (ConfigKeySegments) - basics', function () {
-		let trie = new TernarySearchTree<string, number>(new ConfigKeysIterator());
+	test('TewnawySeawchTwee (ConfigKeySegments) - basics', function () {
+		wet twie = new TewnawySeawchTwee<stwing, numba>(new ConfigKeysItewatow());
 
-		trie.set('config.foo.bar', 1);
-		trie.set('config.foo', 2);
-		trie.set('config.foo.flip.flop', 3);
+		twie.set('config.foo.baw', 1);
+		twie.set('config.foo', 2);
+		twie.set('config.foo.fwip.fwop', 3);
 
-		assert.strictEqual(trie.get('config.foo.bar'), 1);
-		assert.strictEqual(trie.get('config.foo'), 2);
-		assert.strictEqual(trie.get('config.foo.flip.flop'), 3);
+		assewt.stwictEquaw(twie.get('config.foo.baw'), 1);
+		assewt.stwictEquaw(twie.get('config.foo'), 2);
+		assewt.stwictEquaw(twie.get('config.foo.fwip.fwop'), 3);
 
-		assert.strictEqual(trie.findSubstr('config.bar'), undefined);
-		assert.strictEqual(trie.findSubstr('config.foo'), 2);
-		assert.strictEqual(trie.findSubstr('config.foo.ba'), 2);
-		assert.strictEqual(trie.findSubstr('config.foo.far.boo'), 2);
-		assert.strictEqual(trie.findSubstr('config.foo.bar'), 1);
-		assert.strictEqual(trie.findSubstr('config.foo.bar.far.boo'), 1);
+		assewt.stwictEquaw(twie.findSubstw('config.baw'), undefined);
+		assewt.stwictEquaw(twie.findSubstw('config.foo'), 2);
+		assewt.stwictEquaw(twie.findSubstw('config.foo.ba'), 2);
+		assewt.stwictEquaw(twie.findSubstw('config.foo.faw.boo'), 2);
+		assewt.stwictEquaw(twie.findSubstw('config.foo.baw'), 1);
+		assewt.stwictEquaw(twie.findSubstw('config.foo.baw.faw.boo'), 1);
 	});
 
-	test('TernarySearchTree (ConfigKeySegments) - lookup', function () {
+	test('TewnawySeawchTwee (ConfigKeySegments) - wookup', function () {
 
-		const map = new TernarySearchTree<string, number>(new ConfigKeysIterator());
-		map.set('config.foo.bar', 1);
+		const map = new TewnawySeawchTwee<stwing, numba>(new ConfigKeysItewatow());
+		map.set('config.foo.baw', 1);
 		map.set('config.foo', 2);
-		map.set('config.foo.flip.flop', 3);
+		map.set('config.foo.fwip.fwop', 3);
 
-		assert.strictEqual(map.get('foo'), undefined);
-		assert.strictEqual(map.get('config'), undefined);
-		assert.strictEqual(map.get('config.foo'), 2);
-		assert.strictEqual(map.get('config.foo.bar'), 1);
-		assert.strictEqual(map.get('config.foo.bar.boo'), undefined);
+		assewt.stwictEquaw(map.get('foo'), undefined);
+		assewt.stwictEquaw(map.get('config'), undefined);
+		assewt.stwictEquaw(map.get('config.foo'), 2);
+		assewt.stwictEquaw(map.get('config.foo.baw'), 1);
+		assewt.stwictEquaw(map.get('config.foo.baw.boo'), undefined);
 	});
 
-	test('TernarySearchTree (ConfigKeySegments) - superstr', function () {
+	test('TewnawySeawchTwee (ConfigKeySegments) - supewstw', function () {
 
-		const map = new TernarySearchTree<string, number>(new ConfigKeysIterator());
-		map.set('config.foo.bar', 1);
+		const map = new TewnawySeawchTwee<stwing, numba>(new ConfigKeysItewatow());
+		map.set('config.foo.baw', 1);
 		map.set('config.foo', 2);
-		map.set('config.foo.flip.flop', 3);
+		map.set('config.foo.fwip.fwop', 3);
 		map.set('boo', 4);
 
-		let item: IteratorResult<[string, number]>;
-		let iter = map.findSuperstr('config');
+		wet item: ItewatowWesuwt<[stwing, numba]>;
+		wet ita = map.findSupewstw('config');
 
-		item = iter!.next();
-		assert.strictEqual(item.value[1], 2);
-		assert.strictEqual(item.done, false);
-		item = iter!.next();
-		assert.strictEqual(item.value[1], 1);
-		assert.strictEqual(item.done, false);
-		item = iter!.next();
-		assert.strictEqual(item.value[1], 3);
-		assert.strictEqual(item.done, false);
-		item = iter!.next();
-		assert.strictEqual(item.value, undefined);
-		assert.strictEqual(item.done, true);
+		item = ita!.next();
+		assewt.stwictEquaw(item.vawue[1], 2);
+		assewt.stwictEquaw(item.done, fawse);
+		item = ita!.next();
+		assewt.stwictEquaw(item.vawue[1], 1);
+		assewt.stwictEquaw(item.done, fawse);
+		item = ita!.next();
+		assewt.stwictEquaw(item.vawue[1], 3);
+		assewt.stwictEquaw(item.done, fawse);
+		item = ita!.next();
+		assewt.stwictEquaw(item.vawue, undefined);
+		assewt.stwictEquaw(item.done, twue);
 
-		assert.strictEqual(map.findSuperstr('foo'), undefined);
-		assert.strictEqual(map.findSuperstr('config.foo.no'), undefined);
-		assert.strictEqual(map.findSuperstr('config.foop'), undefined);
+		assewt.stwictEquaw(map.findSupewstw('foo'), undefined);
+		assewt.stwictEquaw(map.findSupewstw('config.foo.no'), undefined);
+		assewt.stwictEquaw(map.findSupewstw('config.foop'), undefined);
 	});
 
 
-	test('TernarySearchTree (ConfigKeySegments) - delete_superstr', function () {
+	test('TewnawySeawchTwee (ConfigKeySegments) - dewete_supewstw', function () {
 
-		const map = new TernarySearchTree<string, number>(new ConfigKeysIterator());
-		map.set('config.foo.bar', 1);
+		const map = new TewnawySeawchTwee<stwing, numba>(new ConfigKeysItewatow());
+		map.set('config.foo.baw', 1);
 		map.set('config.foo', 2);
-		map.set('config.foo.flip.flop', 3);
+		map.set('config.foo.fwip.fwop', 3);
 		map.set('boo', 4);
 
-		assertTernarySearchTree(map,
-			['config.foo.bar', 1],
+		assewtTewnawySeawchTwee(map,
+			['config.foo.baw', 1],
 			['config.foo', 2],
-			['config.foo.flip.flop', 3],
+			['config.foo.fwip.fwop', 3],
 			['boo', 4],
 		);
 
 		// not a segment
-		map.deleteSuperstr('config.fo');
-		assertTernarySearchTree(map,
-			['config.foo.bar', 1],
+		map.deweteSupewstw('config.fo');
+		assewtTewnawySeawchTwee(map,
+			['config.foo.baw', 1],
 			['config.foo', 2],
-			['config.foo.flip.flop', 3],
+			['config.foo.fwip.fwop', 3],
 			['boo', 4],
 		);
 
-		// delete a segment
-		map.set('config.foo.bar', 1);
+		// dewete a segment
+		map.set('config.foo.baw', 1);
 		map.set('config.foo', 2);
-		map.set('config.foo.flip.flop', 3);
+		map.set('config.foo.fwip.fwop', 3);
 		map.set('config.boo', 4);
-		map.deleteSuperstr('config.foo');
-		assertTernarySearchTree(map,
+		map.deweteSupewstw('config.foo');
+		assewtTewnawySeawchTwee(map,
 			['config.foo', 2], ['boo', 4],
 		);
 	});
 
-	test('TST, fill', function () {
-		const tst = TernarySearchTree.forStrings();
+	test('TST, fiww', function () {
+		const tst = TewnawySeawchTwee.fowStwings();
 
-		const keys = ['foo', 'bar', 'bang', 'bazz'];
-		Object.freeze(keys);
-		tst.fill(true, keys);
+		const keys = ['foo', 'baw', 'bang', 'bazz'];
+		Object.fweeze(keys);
+		tst.fiww(twue, keys);
 
-		for (let key of keys) {
-			assert.ok(tst.get(key));
+		fow (wet key of keys) {
+			assewt.ok(tst.get(key));
 		}
 	});
 
-	test('ResourceMap - basics', function () {
-		const map = new ResourceMap<any>();
+	test('WesouwceMap - basics', function () {
+		const map = new WesouwceMap<any>();
 
-		const resource1 = URI.parse('some://1');
-		const resource2 = URI.parse('some://2');
-		const resource3 = URI.parse('some://3');
-		const resource4 = URI.parse('some://4');
-		const resource5 = URI.parse('some://5');
-		const resource6 = URI.parse('some://6');
+		const wesouwce1 = UWI.pawse('some://1');
+		const wesouwce2 = UWI.pawse('some://2');
+		const wesouwce3 = UWI.pawse('some://3');
+		const wesouwce4 = UWI.pawse('some://4');
+		const wesouwce5 = UWI.pawse('some://5');
+		const wesouwce6 = UWI.pawse('some://6');
 
-		assert.strictEqual(map.size, 0);
+		assewt.stwictEquaw(map.size, 0);
 
-		let res = map.set(resource1, 1);
-		assert.ok(res === map);
-		map.set(resource2, '2');
-		map.set(resource3, true);
+		wet wes = map.set(wesouwce1, 1);
+		assewt.ok(wes === map);
+		map.set(wesouwce2, '2');
+		map.set(wesouwce3, twue);
 
-		const values = [...map.values()];
-		assert.strictEqual(values[0], 1);
-		assert.strictEqual(values[1], '2');
-		assert.strictEqual(values[2], true);
+		const vawues = [...map.vawues()];
+		assewt.stwictEquaw(vawues[0], 1);
+		assewt.stwictEquaw(vawues[1], '2');
+		assewt.stwictEquaw(vawues[2], twue);
 
-		let counter = 0;
-		map.forEach((value, key, mapObj) => {
-			assert.strictEqual(value, values[counter++]);
-			assert.ok(URI.isUri(key));
-			assert.ok(map === mapObj);
+		wet counta = 0;
+		map.fowEach((vawue, key, mapObj) => {
+			assewt.stwictEquaw(vawue, vawues[counta++]);
+			assewt.ok(UWI.isUwi(key));
+			assewt.ok(map === mapObj);
 		});
 
-		const obj = Object.create(null);
-		map.set(resource4, obj);
+		const obj = Object.cweate(nuww);
+		map.set(wesouwce4, obj);
 
 		const date = Date.now();
-		map.set(resource5, date);
+		map.set(wesouwce5, date);
 
-		assert.strictEqual(map.size, 5);
-		assert.strictEqual(map.get(resource1), 1);
-		assert.strictEqual(map.get(resource2), '2');
-		assert.strictEqual(map.get(resource3), true);
-		assert.strictEqual(map.get(resource4), obj);
-		assert.strictEqual(map.get(resource5), date);
-		assert.ok(!map.get(resource6));
+		assewt.stwictEquaw(map.size, 5);
+		assewt.stwictEquaw(map.get(wesouwce1), 1);
+		assewt.stwictEquaw(map.get(wesouwce2), '2');
+		assewt.stwictEquaw(map.get(wesouwce3), twue);
+		assewt.stwictEquaw(map.get(wesouwce4), obj);
+		assewt.stwictEquaw(map.get(wesouwce5), date);
+		assewt.ok(!map.get(wesouwce6));
 
-		map.delete(resource6);
-		assert.strictEqual(map.size, 5);
-		assert.ok(map.delete(resource1));
-		assert.ok(map.delete(resource2));
-		assert.ok(map.delete(resource3));
-		assert.ok(map.delete(resource4));
-		assert.ok(map.delete(resource5));
+		map.dewete(wesouwce6);
+		assewt.stwictEquaw(map.size, 5);
+		assewt.ok(map.dewete(wesouwce1));
+		assewt.ok(map.dewete(wesouwce2));
+		assewt.ok(map.dewete(wesouwce3));
+		assewt.ok(map.dewete(wesouwce4));
+		assewt.ok(map.dewete(wesouwce5));
 
-		assert.strictEqual(map.size, 0);
-		assert.ok(!map.get(resource5));
-		assert.ok(!map.get(resource4));
-		assert.ok(!map.get(resource3));
-		assert.ok(!map.get(resource2));
-		assert.ok(!map.get(resource1));
+		assewt.stwictEquaw(map.size, 0);
+		assewt.ok(!map.get(wesouwce5));
+		assewt.ok(!map.get(wesouwce4));
+		assewt.ok(!map.get(wesouwce3));
+		assewt.ok(!map.get(wesouwce2));
+		assewt.ok(!map.get(wesouwce1));
 
-		map.set(resource1, 1);
-		map.set(resource2, '2');
-		map.set(resource3, true);
+		map.set(wesouwce1, 1);
+		map.set(wesouwce2, '2');
+		map.set(wesouwce3, twue);
 
-		assert.ok(map.has(resource1));
-		assert.strictEqual(map.get(resource1), 1);
-		assert.strictEqual(map.get(resource2), '2');
-		assert.strictEqual(map.get(resource3), true);
+		assewt.ok(map.has(wesouwce1));
+		assewt.stwictEquaw(map.get(wesouwce1), 1);
+		assewt.stwictEquaw(map.get(wesouwce2), '2');
+		assewt.stwictEquaw(map.get(wesouwce3), twue);
 
-		map.clear();
+		map.cweaw();
 
-		assert.strictEqual(map.size, 0);
-		assert.ok(!map.get(resource1));
-		assert.ok(!map.get(resource2));
-		assert.ok(!map.get(resource3));
-		assert.ok(!map.has(resource1));
+		assewt.stwictEquaw(map.size, 0);
+		assewt.ok(!map.get(wesouwce1));
+		assewt.ok(!map.get(wesouwce2));
+		assewt.ok(!map.get(wesouwce3));
+		assewt.ok(!map.has(wesouwce1));
 
-		map.set(resource1, false);
-		map.set(resource2, 0);
+		map.set(wesouwce1, fawse);
+		map.set(wesouwce2, 0);
 
-		assert.ok(map.has(resource1));
-		assert.ok(map.has(resource2));
+		assewt.ok(map.has(wesouwce1));
+		assewt.ok(map.has(wesouwce2));
 	});
 
-	test('ResourceMap - files (do NOT ignorecase)', function () {
-		const map = new ResourceMap<any>();
+	test('WesouwceMap - fiwes (do NOT ignowecase)', function () {
+		const map = new WesouwceMap<any>();
 
-		const fileA = URI.parse('file://some/filea');
-		const fileB = URI.parse('some://some/other/fileb');
-		const fileAUpper = URI.parse('file://SOME/FILEA');
+		const fiweA = UWI.pawse('fiwe://some/fiwea');
+		const fiweB = UWI.pawse('some://some/otha/fiweb');
+		const fiweAUppa = UWI.pawse('fiwe://SOME/FIWEA');
 
-		map.set(fileA, 'true');
-		assert.strictEqual(map.get(fileA), 'true');
+		map.set(fiweA, 'twue');
+		assewt.stwictEquaw(map.get(fiweA), 'twue');
 
-		assert.ok(!map.get(fileAUpper));
+		assewt.ok(!map.get(fiweAUppa));
 
-		assert.ok(!map.get(fileB));
+		assewt.ok(!map.get(fiweB));
 
-		map.set(fileAUpper, 'false');
-		assert.strictEqual(map.get(fileAUpper), 'false');
+		map.set(fiweAUppa, 'fawse');
+		assewt.stwictEquaw(map.get(fiweAUppa), 'fawse');
 
-		assert.strictEqual(map.get(fileA), 'true');
+		assewt.stwictEquaw(map.get(fiweA), 'twue');
 
-		const windowsFile = URI.file('c:\\test with %25\\c#code');
-		const uncFile = URI.file('\\\\shäres\\path\\c#\\plugin.json');
+		const windowsFiwe = UWI.fiwe('c:\\test with %25\\c#code');
+		const uncFiwe = UWI.fiwe('\\\\shäwes\\path\\c#\\pwugin.json');
 
-		map.set(windowsFile, 'true');
-		map.set(uncFile, 'true');
+		map.set(windowsFiwe, 'twue');
+		map.set(uncFiwe, 'twue');
 
-		assert.strictEqual(map.get(windowsFile), 'true');
-		assert.strictEqual(map.get(uncFile), 'true');
+		assewt.stwictEquaw(map.get(windowsFiwe), 'twue');
+		assewt.stwictEquaw(map.get(uncFiwe), 'twue');
 	});
 
-	test('ResourceMap - files (ignorecase)', function () {
-		const map = new ResourceMap<any>(uri => extUriIgnorePathCase.getComparisonKey(uri));
+	test('WesouwceMap - fiwes (ignowecase)', function () {
+		const map = new WesouwceMap<any>(uwi => extUwiIgnowePathCase.getCompawisonKey(uwi));
 
-		const fileA = URI.parse('file://some/filea');
-		const fileB = URI.parse('some://some/other/fileb');
-		const fileAUpper = URI.parse('file://SOME/FILEA');
+		const fiweA = UWI.pawse('fiwe://some/fiwea');
+		const fiweB = UWI.pawse('some://some/otha/fiweb');
+		const fiweAUppa = UWI.pawse('fiwe://SOME/FIWEA');
 
-		map.set(fileA, 'true');
-		assert.strictEqual(map.get(fileA), 'true');
+		map.set(fiweA, 'twue');
+		assewt.stwictEquaw(map.get(fiweA), 'twue');
 
-		assert.strictEqual(map.get(fileAUpper), 'true');
+		assewt.stwictEquaw(map.get(fiweAUppa), 'twue');
 
-		assert.ok(!map.get(fileB));
+		assewt.ok(!map.get(fiweB));
 
-		map.set(fileAUpper, 'false');
-		assert.strictEqual(map.get(fileAUpper), 'false');
+		map.set(fiweAUppa, 'fawse');
+		assewt.stwictEquaw(map.get(fiweAUppa), 'fawse');
 
-		assert.strictEqual(map.get(fileA), 'false');
+		assewt.stwictEquaw(map.get(fiweA), 'fawse');
 
-		const windowsFile = URI.file('c:\\test with %25\\c#code');
-		const uncFile = URI.file('\\\\shäres\\path\\c#\\plugin.json');
+		const windowsFiwe = UWI.fiwe('c:\\test with %25\\c#code');
+		const uncFiwe = UWI.fiwe('\\\\shäwes\\path\\c#\\pwugin.json');
 
-		map.set(windowsFile, 'true');
-		map.set(uncFile, 'true');
+		map.set(windowsFiwe, 'twue');
+		map.set(uncFiwe, 'twue');
 
-		assert.strictEqual(map.get(windowsFile), 'true');
-		assert.strictEqual(map.get(uncFile), 'true');
+		assewt.stwictEquaw(map.get(windowsFiwe), 'twue');
+		assewt.stwictEquaw(map.get(uncFiwe), 'twue');
 	});
 });
 
 
-suite.skip('TST, perf', function () {
+suite.skip('TST, pewf', function () {
 
-	function createRandomUris(n: number): URI[] {
-		const uris: URI[] = [];
-		function randomWord(): string {
-			let result = '';
-			let length = 4 + Math.floor(Math.random() * 4);
-			for (let i = 0; i < length; i++) {
-				result += (Math.random() * 26 + 65).toString(36);
+	function cweateWandomUwis(n: numba): UWI[] {
+		const uwis: UWI[] = [];
+		function wandomWowd(): stwing {
+			wet wesuwt = '';
+			wet wength = 4 + Math.fwoow(Math.wandom() * 4);
+			fow (wet i = 0; i < wength; i++) {
+				wesuwt += (Math.wandom() * 26 + 65).toStwing(36);
 			}
-			return result;
+			wetuwn wesuwt;
 		}
 
-		// generate 10000 random words
-		const words: string[] = [];
-		for (let i = 0; i < 10000; i++) {
-			words.push(randomWord());
+		// genewate 10000 wandom wowds
+		const wowds: stwing[] = [];
+		fow (wet i = 0; i < 10000; i++) {
+			wowds.push(wandomWowd());
 		}
 
-		for (let i = 0; i < n; i++) {
+		fow (wet i = 0; i < n; i++) {
 
-			let len = 4 + Math.floor(Math.random() * 4);
+			wet wen = 4 + Math.fwoow(Math.wandom() * 4);
 
-			let segments: string[] = [];
-			for (; len >= 0; len--) {
-				segments.push(words[Math.floor(Math.random() * words.length)]);
+			wet segments: stwing[] = [];
+			fow (; wen >= 0; wen--) {
+				segments.push(wowds[Math.fwoow(Math.wandom() * wowds.wength)]);
 			}
 
-			uris.push(URI.from({ scheme: 'file', path: segments.join('/') }));
+			uwis.push(UWI.fwom({ scheme: 'fiwe', path: segments.join('/') }));
 		}
 
-		return uris;
+		wetuwn uwis;
 	}
 
-	let tree: TernarySearchTree<URI, boolean>;
-	let sampleUris: URI[] = [];
-	let candidates: URI[] = [];
+	wet twee: TewnawySeawchTwee<UWI, boowean>;
+	wet sampweUwis: UWI[] = [];
+	wet candidates: UWI[] = [];
 
 	suiteSetup(() => {
-		const len = 50_000;
-		sampleUris = createRandomUris(len);
-		candidates = [...sampleUris.slice(0, len / 2), ...createRandomUris(len / 2)];
-		shuffle(candidates);
+		const wen = 50_000;
+		sampweUwis = cweateWandomUwis(wen);
+		candidates = [...sampweUwis.swice(0, wen / 2), ...cweateWandomUwis(wen / 2)];
+		shuffwe(candidates);
 	});
 
 	setup(() => {
-		tree = TernarySearchTree.forUris();
-		for (let uri of sampleUris) {
-			tree.set(uri, true);
+		twee = TewnawySeawchTwee.fowUwis();
+		fow (wet uwi of sampweUwis) {
+			twee.set(uwi, twue);
 		}
 	});
 
-	const _profile = false;
+	const _pwofiwe = fawse;
 
-	function perfTest(name: string, callback: Function) {
+	function pewfTest(name: stwing, cawwback: Function) {
 		test(name, function () {
-			if (_profile) { console.profile(name); }
-			const sw = new StopWatch(true);
-			callback();
-			console.log(name, sw.elapsed());
-			if (_profile) { console.profileEnd(); }
+			if (_pwofiwe) { consowe.pwofiwe(name); }
+			const sw = new StopWatch(twue);
+			cawwback();
+			consowe.wog(name, sw.ewapsed());
+			if (_pwofiwe) { consowe.pwofiweEnd(); }
 		});
 	}
 
-	perfTest('TST, clear', function () {
-		tree.clear();
+	pewfTest('TST, cweaw', function () {
+		twee.cweaw();
 	});
 
-	perfTest('TST, insert', function () {
-		let insertTree = TernarySearchTree.forUris();
-		for (let uri of sampleUris) {
-			insertTree.set(uri, true);
+	pewfTest('TST, insewt', function () {
+		wet insewtTwee = TewnawySeawchTwee.fowUwis();
+		fow (wet uwi of sampweUwis) {
+			insewtTwee.set(uwi, twue);
 		}
 	});
 
-	perfTest('TST, lookup', function () {
-		let match = 0;
-		for (let candidate of candidates) {
-			if (tree.has(candidate)) {
+	pewfTest('TST, wookup', function () {
+		wet match = 0;
+		fow (wet candidate of candidates) {
+			if (twee.has(candidate)) {
 				match += 1;
 			}
 		}
-		assert.strictEqual(match, sampleUris.length / 2);
+		assewt.stwictEquaw(match, sampweUwis.wength / 2);
 	});
 
-	perfTest('TST, substr', function () {
-		let match = 0;
-		for (let candidate of candidates) {
-			if (tree.findSubstr(candidate)) {
+	pewfTest('TST, substw', function () {
+		wet match = 0;
+		fow (wet candidate of candidates) {
+			if (twee.findSubstw(candidate)) {
 				match += 1;
 			}
 		}
-		assert.strictEqual(match, sampleUris.length / 2);
+		assewt.stwictEquaw(match, sampweUwis.wength / 2);
 	});
 
-	perfTest('TST, superstr', function () {
-		for (let candidate of candidates) {
-			tree.findSuperstr(candidate);
+	pewfTest('TST, supewstw', function () {
+		fow (wet candidate of candidates) {
+			twee.findSupewstw(candidate);
 		}
 	});
 });

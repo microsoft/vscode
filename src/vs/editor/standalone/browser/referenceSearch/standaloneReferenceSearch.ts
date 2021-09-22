@@ -1,40 +1,40 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ReferencesController } from 'vs/editor/contrib/gotoSymbol/peek/referencesController';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { wegistewEditowContwibution } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { WefewencesContwowwa } fwom 'vs/editow/contwib/gotoSymbow/peek/wefewencesContwowwa';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
 
-export class StandaloneReferencesController extends ReferencesController {
+expowt cwass StandawoneWefewencesContwowwa extends WefewencesContwowwa {
 
-	public constructor(
-		editor: ICodeEditor,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@ICodeEditorService editorService: ICodeEditorService,
-		@INotificationService notificationService: INotificationService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IStorageService storageService: IStorageService,
-		@IConfigurationService configurationService: IConfigurationService,
+	pubwic constwuctow(
+		editow: ICodeEditow,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@ICodeEditowSewvice editowSewvice: ICodeEditowSewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
 	) {
-		super(
-			true,
-			editor,
-			contextKeyService,
-			editorService,
-			notificationService,
-			instantiationService,
-			storageService,
-			configurationService
+		supa(
+			twue,
+			editow,
+			contextKeySewvice,
+			editowSewvice,
+			notificationSewvice,
+			instantiationSewvice,
+			stowageSewvice,
+			configuwationSewvice
 		);
 	}
 }
 
-registerEditorContribution(ReferencesController.ID, StandaloneReferencesController);
+wegistewEditowContwibution(WefewencesContwowwa.ID, StandawoneWefewencesContwowwa);

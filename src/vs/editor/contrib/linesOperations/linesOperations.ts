@@ -1,1130 +1,1130 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
-import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, IActionOptions, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ReplaceCommand, ReplaceCommandThatPreservesSelection, ReplaceCommandThatSelectsText } from 'vs/editor/common/commands/replaceCommand';
-import { TrimTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
-import { CopyLinesCommand } from 'vs/editor/contrib/linesOperations/copyLinesCommand';
-import { MoveLinesCommand } from 'vs/editor/contrib/linesOperations/moveLinesCommand';
-import { SortLinesCommand } from 'vs/editor/contrib/linesOperations/sortLinesCommand';
-import * as nls from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+impowt { KeyChowd, KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { CoweEditingCommands } fwom 'vs/editow/bwowsa/contwowwa/coweCommands';
+impowt { IActiveCodeEditow, ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, IActionOptions, wegistewEditowAction, SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { WepwaceCommand, WepwaceCommandThatPwesewvesSewection, WepwaceCommandThatSewectsText } fwom 'vs/editow/common/commands/wepwaceCommand';
+impowt { TwimTwaiwingWhitespaceCommand } fwom 'vs/editow/common/commands/twimTwaiwingWhitespaceCommand';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { TypeOpewations } fwom 'vs/editow/common/contwowwa/cuwsowTypeOpewations';
+impowt { EditOpewation } fwom 'vs/editow/common/cowe/editOpewation';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { ICommand } fwom 'vs/editow/common/editowCommon';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { IIdentifiedSingweEditOpewation, ITextModew } fwom 'vs/editow/common/modew';
+impowt { CopyWinesCommand } fwom 'vs/editow/contwib/winesOpewations/copyWinesCommand';
+impowt { MoveWinesCommand } fwom 'vs/editow/contwib/winesOpewations/moveWinesCommand';
+impowt { SowtWinesCommand } fwom 'vs/editow/contwib/winesOpewations/sowtWinesCommand';
+impowt * as nws fwom 'vs/nws';
+impowt { MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
 
-// copy lines
+// copy wines
 
-abstract class AbstractCopyLinesAction extends EditorAction {
+abstwact cwass AbstwactCopyWinesAction extends EditowAction {
 
-	private readonly down: boolean;
+	pwivate weadonwy down: boowean;
 
-	constructor(down: boolean, opts: IActionOptions) {
-		super(opts);
+	constwuctow(down: boowean, opts: IActionOptions) {
+		supa(opts);
 		this.down = down;
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		if (!editor.hasModel()) {
-			return;
+	pubwic wun(_accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		if (!editow.hasModew()) {
+			wetuwn;
 		}
 
-		const selections = editor.getSelections().map((selection, index) => ({ selection, index, ignore: false }));
-		selections.sort((a, b) => Range.compareRangesUsingStarts(a.selection, b.selection));
+		const sewections = editow.getSewections().map((sewection, index) => ({ sewection, index, ignowe: fawse }));
+		sewections.sowt((a, b) => Wange.compaweWangesUsingStawts(a.sewection, b.sewection));
 
-		// Remove selections that would result in copying the same line
-		let prev = selections[0];
-		for (let i = 1; i < selections.length; i++) {
-			const curr = selections[i];
-			if (prev.selection.endLineNumber === curr.selection.startLineNumber) {
-				// these two selections would copy the same line
-				if (prev.index < curr.index) {
-					// prev wins
-					curr.ignore = true;
-				} else {
-					// curr wins
-					prev.ignore = true;
-					prev = curr;
+		// Wemove sewections that wouwd wesuwt in copying the same wine
+		wet pwev = sewections[0];
+		fow (wet i = 1; i < sewections.wength; i++) {
+			const cuww = sewections[i];
+			if (pwev.sewection.endWineNumba === cuww.sewection.stawtWineNumba) {
+				// these two sewections wouwd copy the same wine
+				if (pwev.index < cuww.index) {
+					// pwev wins
+					cuww.ignowe = twue;
+				} ewse {
+					// cuww wins
+					pwev.ignowe = twue;
+					pwev = cuww;
 				}
 			}
 		}
 
 		const commands: ICommand[] = [];
-		for (const selection of selections) {
-			commands.push(new CopyLinesCommand(selection.selection, this.down, selection.ignore));
+		fow (const sewection of sewections) {
+			commands.push(new CopyWinesCommand(sewection.sewection, this.down, sewection.ignowe));
 		}
 
-		editor.pushUndoStop();
-		editor.executeCommands(this.id, commands);
-		editor.pushUndoStop();
+		editow.pushUndoStop();
+		editow.executeCommands(this.id, commands);
+		editow.pushUndoStop();
 	}
 }
 
-class CopyLinesUpAction extends AbstractCopyLinesAction {
-	constructor() {
-		super(false, {
-			id: 'editor.action.copyLinesUpAction',
-			label: nls.localize('lines.copyUp', "Copy Line Up"),
-			alias: 'Copy Line Up',
-			precondition: EditorContextKeys.writable,
+cwass CopyWinesUpAction extends AbstwactCopyWinesAction {
+	constwuctow() {
+		supa(fawse, {
+			id: 'editow.action.copyWinesUpAction',
+			wabew: nws.wocawize('wines.copyUp', "Copy Wine Up"),
+			awias: 'Copy Wine Up',
+			pwecondition: EditowContextKeys.wwitabwe,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow,
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow },
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyMod.Awt | KeyMod.Shift | KeyCode.UpAwwow,
+				winux: { pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyMod.Shift | KeyCode.UpAwwow },
+				weight: KeybindingWeight.EditowContwib
 			},
 			menuOpts: {
-				menuId: MenuId.MenubarSelectionMenu,
-				group: '2_line',
-				title: nls.localize({ key: 'miCopyLinesUp', comment: ['&& denotes a mnemonic'] }, "&&Copy Line Up"),
-				order: 1
+				menuId: MenuId.MenubawSewectionMenu,
+				gwoup: '2_wine',
+				titwe: nws.wocawize({ key: 'miCopyWinesUp', comment: ['&& denotes a mnemonic'] }, "&&Copy Wine Up"),
+				owda: 1
 			}
 		});
 	}
 }
 
-class CopyLinesDownAction extends AbstractCopyLinesAction {
-	constructor() {
-		super(true, {
-			id: 'editor.action.copyLinesDownAction',
-			label: nls.localize('lines.copyDown', "Copy Line Down"),
-			alias: 'Copy Line Down',
-			precondition: EditorContextKeys.writable,
+cwass CopyWinesDownAction extends AbstwactCopyWinesAction {
+	constwuctow() {
+		supa(twue, {
+			id: 'editow.action.copyWinesDownAction',
+			wabew: nws.wocawize('wines.copyDown', "Copy Wine Down"),
+			awias: 'Copy Wine Down',
+			pwecondition: EditowContextKeys.wwitabwe,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow,
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow },
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyMod.Awt | KeyMod.Shift | KeyCode.DownAwwow,
+				winux: { pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyMod.Shift | KeyCode.DownAwwow },
+				weight: KeybindingWeight.EditowContwib
 			},
 			menuOpts: {
-				menuId: MenuId.MenubarSelectionMenu,
-				group: '2_line',
-				title: nls.localize({ key: 'miCopyLinesDown', comment: ['&& denotes a mnemonic'] }, "Co&&py Line Down"),
-				order: 2
+				menuId: MenuId.MenubawSewectionMenu,
+				gwoup: '2_wine',
+				titwe: nws.wocawize({ key: 'miCopyWinesDown', comment: ['&& denotes a mnemonic'] }, "Co&&py Wine Down"),
+				owda: 2
 			}
 		});
 	}
 }
 
-export class DuplicateSelectionAction extends EditorAction {
+expowt cwass DupwicateSewectionAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.duplicateSelection',
-			label: nls.localize('duplicateSelection', "Duplicate Selection"),
-			alias: 'Duplicate Selection',
-			precondition: EditorContextKeys.writable,
+	constwuctow() {
+		supa({
+			id: 'editow.action.dupwicateSewection',
+			wabew: nws.wocawize('dupwicateSewection', "Dupwicate Sewection"),
+			awias: 'Dupwicate Sewection',
+			pwecondition: EditowContextKeys.wwitabwe,
 			menuOpts: {
-				menuId: MenuId.MenubarSelectionMenu,
-				group: '2_line',
-				title: nls.localize({ key: 'miDuplicateSelection', comment: ['&& denotes a mnemonic'] }, "&&Duplicate Selection"),
-				order: 5
+				menuId: MenuId.MenubawSewectionMenu,
+				gwoup: '2_wine',
+				titwe: nws.wocawize({ key: 'miDupwicateSewection', comment: ['&& denotes a mnemonic'] }, "&&Dupwicate Sewection"),
+				owda: 5
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		if (!editor.hasModel()) {
-			return;
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow, awgs: any): void {
+		if (!editow.hasModew()) {
+			wetuwn;
 		}
 
 		const commands: ICommand[] = [];
-		const selections = editor.getSelections();
-		const model = editor.getModel();
+		const sewections = editow.getSewections();
+		const modew = editow.getModew();
 
-		for (const selection of selections) {
-			if (selection.isEmpty()) {
-				commands.push(new CopyLinesCommand(selection, true));
-			} else {
-				const insertSelection = new Selection(selection.endLineNumber, selection.endColumn, selection.endLineNumber, selection.endColumn);
-				commands.push(new ReplaceCommandThatSelectsText(insertSelection, model.getValueInRange(selection)));
+		fow (const sewection of sewections) {
+			if (sewection.isEmpty()) {
+				commands.push(new CopyWinesCommand(sewection, twue));
+			} ewse {
+				const insewtSewection = new Sewection(sewection.endWineNumba, sewection.endCowumn, sewection.endWineNumba, sewection.endCowumn);
+				commands.push(new WepwaceCommandThatSewectsText(insewtSewection, modew.getVawueInWange(sewection)));
 			}
 		}
 
-		editor.pushUndoStop();
-		editor.executeCommands(this.id, commands);
-		editor.pushUndoStop();
+		editow.pushUndoStop();
+		editow.executeCommands(this.id, commands);
+		editow.pushUndoStop();
 	}
 }
 
-// move lines
+// move wines
 
-abstract class AbstractMoveLinesAction extends EditorAction {
+abstwact cwass AbstwactMoveWinesAction extends EditowAction {
 
-	private readonly down: boolean;
+	pwivate weadonwy down: boowean;
 
-	constructor(down: boolean, opts: IActionOptions) {
-		super(opts);
+	constwuctow(down: boowean, opts: IActionOptions) {
+		supa(opts);
 		this.down = down;
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+	pubwic wun(_accessow: SewvicesAccessow, editow: ICodeEditow): void {
 
-		let commands: ICommand[] = [];
-		let selections = editor.getSelections() || [];
-		const autoIndent = editor.getOption(EditorOption.autoIndent);
+		wet commands: ICommand[] = [];
+		wet sewections = editow.getSewections() || [];
+		const autoIndent = editow.getOption(EditowOption.autoIndent);
 
-		for (const selection of selections) {
-			commands.push(new MoveLinesCommand(selection, this.down, autoIndent));
+		fow (const sewection of sewections) {
+			commands.push(new MoveWinesCommand(sewection, this.down, autoIndent));
 		}
 
-		editor.pushUndoStop();
-		editor.executeCommands(this.id, commands);
-		editor.pushUndoStop();
+		editow.pushUndoStop();
+		editow.executeCommands(this.id, commands);
+		editow.pushUndoStop();
 	}
 }
 
-class MoveLinesUpAction extends AbstractMoveLinesAction {
-	constructor() {
-		super(false, {
-			id: 'editor.action.moveLinesUpAction',
-			label: nls.localize('lines.moveUp', "Move Line Up"),
-			alias: 'Move Line Up',
-			precondition: EditorContextKeys.writable,
+cwass MoveWinesUpAction extends AbstwactMoveWinesAction {
+	constwuctow() {
+		supa(fawse, {
+			id: 'editow.action.moveWinesUpAction',
+			wabew: nws.wocawize('wines.moveUp', "Move Wine Up"),
+			awias: 'Move Wine Up',
+			pwecondition: EditowContextKeys.wwitabwe,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Alt | KeyCode.UpArrow,
-				linux: { primary: KeyMod.Alt | KeyCode.UpArrow },
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyMod.Awt | KeyCode.UpAwwow,
+				winux: { pwimawy: KeyMod.Awt | KeyCode.UpAwwow },
+				weight: KeybindingWeight.EditowContwib
 			},
 			menuOpts: {
-				menuId: MenuId.MenubarSelectionMenu,
-				group: '2_line',
-				title: nls.localize({ key: 'miMoveLinesUp', comment: ['&& denotes a mnemonic'] }, "Mo&&ve Line Up"),
-				order: 3
+				menuId: MenuId.MenubawSewectionMenu,
+				gwoup: '2_wine',
+				titwe: nws.wocawize({ key: 'miMoveWinesUp', comment: ['&& denotes a mnemonic'] }, "Mo&&ve Wine Up"),
+				owda: 3
 			}
 		});
 	}
 }
 
-class MoveLinesDownAction extends AbstractMoveLinesAction {
-	constructor() {
-		super(true, {
-			id: 'editor.action.moveLinesDownAction',
-			label: nls.localize('lines.moveDown', "Move Line Down"),
-			alias: 'Move Line Down',
-			precondition: EditorContextKeys.writable,
+cwass MoveWinesDownAction extends AbstwactMoveWinesAction {
+	constwuctow() {
+		supa(twue, {
+			id: 'editow.action.moveWinesDownAction',
+			wabew: nws.wocawize('wines.moveDown', "Move Wine Down"),
+			awias: 'Move Wine Down',
+			pwecondition: EditowContextKeys.wwitabwe,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Alt | KeyCode.DownArrow,
-				linux: { primary: KeyMod.Alt | KeyCode.DownArrow },
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyMod.Awt | KeyCode.DownAwwow,
+				winux: { pwimawy: KeyMod.Awt | KeyCode.DownAwwow },
+				weight: KeybindingWeight.EditowContwib
 			},
 			menuOpts: {
-				menuId: MenuId.MenubarSelectionMenu,
-				group: '2_line',
-				title: nls.localize({ key: 'miMoveLinesDown', comment: ['&& denotes a mnemonic'] }, "Move &&Line Down"),
-				order: 4
+				menuId: MenuId.MenubawSewectionMenu,
+				gwoup: '2_wine',
+				titwe: nws.wocawize({ key: 'miMoveWinesDown', comment: ['&& denotes a mnemonic'] }, "Move &&Wine Down"),
+				owda: 4
 			}
 		});
 	}
 }
 
-export abstract class AbstractSortLinesAction extends EditorAction {
-	private readonly descending: boolean;
+expowt abstwact cwass AbstwactSowtWinesAction extends EditowAction {
+	pwivate weadonwy descending: boowean;
 
-	constructor(descending: boolean, opts: IActionOptions) {
-		super(opts);
+	constwuctow(descending: boowean, opts: IActionOptions) {
+		supa(opts);
 		this.descending = descending;
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const selections = editor.getSelections() || [];
+	pubwic wun(_accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		const sewections = editow.getSewections() || [];
 
-		for (const selection of selections) {
-			if (!SortLinesCommand.canRun(editor.getModel(), selection, this.descending)) {
-				return;
+		fow (const sewection of sewections) {
+			if (!SowtWinesCommand.canWun(editow.getModew(), sewection, this.descending)) {
+				wetuwn;
 			}
 		}
 
-		let commands: ICommand[] = [];
-		for (let i = 0, len = selections.length; i < len; i++) {
-			commands[i] = new SortLinesCommand(selections[i], this.descending);
+		wet commands: ICommand[] = [];
+		fow (wet i = 0, wen = sewections.wength; i < wen; i++) {
+			commands[i] = new SowtWinesCommand(sewections[i], this.descending);
 		}
 
-		editor.pushUndoStop();
-		editor.executeCommands(this.id, commands);
-		editor.pushUndoStop();
+		editow.pushUndoStop();
+		editow.executeCommands(this.id, commands);
+		editow.pushUndoStop();
 	}
 }
 
-export class SortLinesAscendingAction extends AbstractSortLinesAction {
-	constructor() {
-		super(false, {
-			id: 'editor.action.sortLinesAscending',
-			label: nls.localize('lines.sortAscending', "Sort Lines Ascending"),
-			alias: 'Sort Lines Ascending',
-			precondition: EditorContextKeys.writable
+expowt cwass SowtWinesAscendingAction extends AbstwactSowtWinesAction {
+	constwuctow() {
+		supa(fawse, {
+			id: 'editow.action.sowtWinesAscending',
+			wabew: nws.wocawize('wines.sowtAscending', "Sowt Wines Ascending"),
+			awias: 'Sowt Wines Ascending',
+			pwecondition: EditowContextKeys.wwitabwe
 		});
 	}
 }
 
-export class SortLinesDescendingAction extends AbstractSortLinesAction {
-	constructor() {
-		super(true, {
-			id: 'editor.action.sortLinesDescending',
-			label: nls.localize('lines.sortDescending', "Sort Lines Descending"),
-			alias: 'Sort Lines Descending',
-			precondition: EditorContextKeys.writable
+expowt cwass SowtWinesDescendingAction extends AbstwactSowtWinesAction {
+	constwuctow() {
+		supa(twue, {
+			id: 'editow.action.sowtWinesDescending',
+			wabew: nws.wocawize('wines.sowtDescending', "Sowt Wines Descending"),
+			awias: 'Sowt Wines Descending',
+			pwecondition: EditowContextKeys.wwitabwe
 		});
 	}
 }
 
-export class TrimTrailingWhitespaceAction extends EditorAction {
+expowt cwass TwimTwaiwingWhitespaceAction extends EditowAction {
 
-	public static readonly ID = 'editor.action.trimTrailingWhitespace';
+	pubwic static weadonwy ID = 'editow.action.twimTwaiwingWhitespace';
 
-	constructor() {
-		super({
-			id: TrimTrailingWhitespaceAction.ID,
-			label: nls.localize('lines.trimTrailingWhitespace', "Trim Trailing Whitespace"),
-			alias: 'Trim Trailing Whitespace',
-			precondition: EditorContextKeys.writable,
+	constwuctow() {
+		supa({
+			id: TwimTwaiwingWhitespaceAction.ID,
+			wabew: nws.wocawize('wines.twimTwaiwingWhitespace', "Twim Twaiwing Whitespace"),
+			awias: 'Twim Twaiwing Whitespace',
+			pwecondition: EditowContextKeys.wwitabwe,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_X),
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_X),
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+	pubwic wun(_accessow: SewvicesAccessow, editow: ICodeEditow, awgs: any): void {
 
-		let cursors: Position[] = [];
-		if (args.reason === 'auto-save') {
-			// See https://github.com/editorconfig/editorconfig-vscode/issues/47
-			// It is very convenient for the editor config extension to invoke this action.
-			// So, if we get a reason:'auto-save' passed in, let's preserve cursor positions.
-			cursors = (editor.getSelections() || []).map(s => new Position(s.positionLineNumber, s.positionColumn));
+		wet cuwsows: Position[] = [];
+		if (awgs.weason === 'auto-save') {
+			// See https://github.com/editowconfig/editowconfig-vscode/issues/47
+			// It is vewy convenient fow the editow config extension to invoke this action.
+			// So, if we get a weason:'auto-save' passed in, wet's pwesewve cuwsow positions.
+			cuwsows = (editow.getSewections() || []).map(s => new Position(s.positionWineNumba, s.positionCowumn));
 		}
 
-		let selection = editor.getSelection();
-		if (selection === null) {
-			return;
+		wet sewection = editow.getSewection();
+		if (sewection === nuww) {
+			wetuwn;
 		}
 
-		let command = new TrimTrailingWhitespaceCommand(selection, cursors);
+		wet command = new TwimTwaiwingWhitespaceCommand(sewection, cuwsows);
 
-		editor.pushUndoStop();
-		editor.executeCommands(this.id, [command]);
-		editor.pushUndoStop();
+		editow.pushUndoStop();
+		editow.executeCommands(this.id, [command]);
+		editow.pushUndoStop();
 	}
 }
 
-// delete lines
+// dewete wines
 
-interface IDeleteLinesOperation {
-	startLineNumber: number;
-	selectionStartColumn: number;
-	endLineNumber: number;
-	positionColumn: number;
+intewface IDeweteWinesOpewation {
+	stawtWineNumba: numba;
+	sewectionStawtCowumn: numba;
+	endWineNumba: numba;
+	positionCowumn: numba;
 }
 
-export class DeleteLinesAction extends EditorAction {
+expowt cwass DeweteWinesAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.deleteLines',
-			label: nls.localize('lines.delete', "Delete Line"),
-			alias: 'Delete Line',
-			precondition: EditorContextKeys.writable,
+	constwuctow() {
+		supa({
+			id: 'editow.action.deweteWines',
+			wabew: nws.wocawize('wines.dewete', "Dewete Wine"),
+			awias: 'Dewete Wine',
+			pwecondition: EditowContextKeys.wwitabwe,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_K,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.textInputFocus,
+				pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_K,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		if (!editor.hasModel()) {
-			return;
+	pubwic wun(_accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		if (!editow.hasModew()) {
+			wetuwn;
 		}
 
-		let ops = this._getLinesToRemove(editor);
+		wet ops = this._getWinesToWemove(editow);
 
-		let model: ITextModel = editor.getModel();
-		if (model.getLineCount() === 1 && model.getLineMaxColumn(1) === 1) {
-			// Model is empty
-			return;
+		wet modew: ITextModew = editow.getModew();
+		if (modew.getWineCount() === 1 && modew.getWineMaxCowumn(1) === 1) {
+			// Modew is empty
+			wetuwn;
 		}
 
-		let linesDeleted = 0;
-		let edits: IIdentifiedSingleEditOperation[] = [];
-		let cursorState: Selection[] = [];
-		for (let i = 0, len = ops.length; i < len; i++) {
+		wet winesDeweted = 0;
+		wet edits: IIdentifiedSingweEditOpewation[] = [];
+		wet cuwsowState: Sewection[] = [];
+		fow (wet i = 0, wen = ops.wength; i < wen; i++) {
 			const op = ops[i];
 
-			let startLineNumber = op.startLineNumber;
-			let endLineNumber = op.endLineNumber;
+			wet stawtWineNumba = op.stawtWineNumba;
+			wet endWineNumba = op.endWineNumba;
 
-			let startColumn = 1;
-			let endColumn = model.getLineMaxColumn(endLineNumber);
-			if (endLineNumber < model.getLineCount()) {
-				endLineNumber += 1;
-				endColumn = 1;
-			} else if (startLineNumber > 1) {
-				startLineNumber -= 1;
-				startColumn = model.getLineMaxColumn(startLineNumber);
+			wet stawtCowumn = 1;
+			wet endCowumn = modew.getWineMaxCowumn(endWineNumba);
+			if (endWineNumba < modew.getWineCount()) {
+				endWineNumba += 1;
+				endCowumn = 1;
+			} ewse if (stawtWineNumba > 1) {
+				stawtWineNumba -= 1;
+				stawtCowumn = modew.getWineMaxCowumn(stawtWineNumba);
 			}
 
-			edits.push(EditOperation.replace(new Selection(startLineNumber, startColumn, endLineNumber, endColumn), ''));
-			cursorState.push(new Selection(startLineNumber - linesDeleted, op.positionColumn, startLineNumber - linesDeleted, op.positionColumn));
-			linesDeleted += (op.endLineNumber - op.startLineNumber + 1);
+			edits.push(EditOpewation.wepwace(new Sewection(stawtWineNumba, stawtCowumn, endWineNumba, endCowumn), ''));
+			cuwsowState.push(new Sewection(stawtWineNumba - winesDeweted, op.positionCowumn, stawtWineNumba - winesDeweted, op.positionCowumn));
+			winesDeweted += (op.endWineNumba - op.stawtWineNumba + 1);
 		}
 
-		editor.pushUndoStop();
-		editor.executeEdits(this.id, edits, cursorState);
-		editor.pushUndoStop();
+		editow.pushUndoStop();
+		editow.executeEdits(this.id, edits, cuwsowState);
+		editow.pushUndoStop();
 	}
 
-	private _getLinesToRemove(editor: IActiveCodeEditor): IDeleteLinesOperation[] {
-		// Construct delete operations
-		let operations: IDeleteLinesOperation[] = editor.getSelections().map((s) => {
+	pwivate _getWinesToWemove(editow: IActiveCodeEditow): IDeweteWinesOpewation[] {
+		// Constwuct dewete opewations
+		wet opewations: IDeweteWinesOpewation[] = editow.getSewections().map((s) => {
 
-			let endLineNumber = s.endLineNumber;
-			if (s.startLineNumber < s.endLineNumber && s.endColumn === 1) {
-				endLineNumber -= 1;
+			wet endWineNumba = s.endWineNumba;
+			if (s.stawtWineNumba < s.endWineNumba && s.endCowumn === 1) {
+				endWineNumba -= 1;
 			}
 
-			return {
-				startLineNumber: s.startLineNumber,
-				selectionStartColumn: s.selectionStartColumn,
-				endLineNumber: endLineNumber,
-				positionColumn: s.positionColumn
+			wetuwn {
+				stawtWineNumba: s.stawtWineNumba,
+				sewectionStawtCowumn: s.sewectionStawtCowumn,
+				endWineNumba: endWineNumba,
+				positionCowumn: s.positionCowumn
 			};
 		});
 
-		// Sort delete operations
-		operations.sort((a, b) => {
-			if (a.startLineNumber === b.startLineNumber) {
-				return a.endLineNumber - b.endLineNumber;
+		// Sowt dewete opewations
+		opewations.sowt((a, b) => {
+			if (a.stawtWineNumba === b.stawtWineNumba) {
+				wetuwn a.endWineNumba - b.endWineNumba;
 			}
-			return a.startLineNumber - b.startLineNumber;
+			wetuwn a.stawtWineNumba - b.stawtWineNumba;
 		});
 
-		// Merge delete operations which are adjacent or overlapping
-		let mergedOperations: IDeleteLinesOperation[] = [];
-		let previousOperation = operations[0];
-		for (let i = 1; i < operations.length; i++) {
-			if (previousOperation.endLineNumber + 1 >= operations[i].startLineNumber) {
-				// Merge current operations into the previous one
-				previousOperation.endLineNumber = operations[i].endLineNumber;
-			} else {
-				// Push previous operation
-				mergedOperations.push(previousOperation);
-				previousOperation = operations[i];
+		// Mewge dewete opewations which awe adjacent ow ovewwapping
+		wet mewgedOpewations: IDeweteWinesOpewation[] = [];
+		wet pweviousOpewation = opewations[0];
+		fow (wet i = 1; i < opewations.wength; i++) {
+			if (pweviousOpewation.endWineNumba + 1 >= opewations[i].stawtWineNumba) {
+				// Mewge cuwwent opewations into the pwevious one
+				pweviousOpewation.endWineNumba = opewations[i].endWineNumba;
+			} ewse {
+				// Push pwevious opewation
+				mewgedOpewations.push(pweviousOpewation);
+				pweviousOpewation = opewations[i];
 			}
 		}
-		// Push the last operation
-		mergedOperations.push(previousOperation);
+		// Push the wast opewation
+		mewgedOpewations.push(pweviousOpewation);
 
-		return mergedOperations;
+		wetuwn mewgedOpewations;
 	}
 }
 
-export class IndentLinesAction extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.action.indentLines',
-			label: nls.localize('lines.indent', "Indent Line"),
-			alias: 'Indent Line',
-			precondition: EditorContextKeys.writable,
+expowt cwass IndentWinesAction extends EditowAction {
+	constwuctow() {
+		supa({
+			id: 'editow.action.indentWines',
+			wabew: nws.wocawize('wines.indent', "Indent Wine"),
+			awias: 'Indent Wine',
+			pwecondition: EditowContextKeys.wwitabwe,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyMod.CtwwCmd | KeyCode.US_CWOSE_SQUAWE_BWACKET,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const viewModel = editor._getViewModel();
-		if (!viewModel) {
-			return;
+	pubwic wun(_accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		const viewModew = editow._getViewModew();
+		if (!viewModew) {
+			wetuwn;
 		}
-		editor.pushUndoStop();
-		editor.executeCommands(this.id, TypeOperations.indent(viewModel.cursorConfig, editor.getModel(), editor.getSelections()));
-		editor.pushUndoStop();
+		editow.pushUndoStop();
+		editow.executeCommands(this.id, TypeOpewations.indent(viewModew.cuwsowConfig, editow.getModew(), editow.getSewections()));
+		editow.pushUndoStop();
 	}
 }
 
-class OutdentLinesAction extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.action.outdentLines',
-			label: nls.localize('lines.outdent', "Outdent Line"),
-			alias: 'Outdent Line',
-			precondition: EditorContextKeys.writable,
+cwass OutdentWinesAction extends EditowAction {
+	constwuctow() {
+		supa({
+			id: 'editow.action.outdentWines',
+			wabew: nws.wocawize('wines.outdent', "Outdent Wine"),
+			awias: 'Outdent Wine',
+			pwecondition: EditowContextKeys.wwitabwe,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.US_OPEN_SQUARE_BRACKET,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyMod.CtwwCmd | KeyCode.US_OPEN_SQUAWE_BWACKET,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		CoreEditingCommands.Outdent.runEditorCommand(_accessor, editor, null);
+	pubwic wun(_accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		CoweEditingCommands.Outdent.wunEditowCommand(_accessow, editow, nuww);
 	}
 }
 
-export class InsertLineBeforeAction extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.action.insertLineBefore',
-			label: nls.localize('lines.insertBefore', "Insert Line Above"),
-			alias: 'Insert Line Above',
-			precondition: EditorContextKeys.writable,
+expowt cwass InsewtWineBefoweAction extends EditowAction {
+	constwuctow() {
+		supa({
+			id: 'editow.action.insewtWineBefowe',
+			wabew: nws.wocawize('wines.insewtBefowe', "Insewt Wine Above"),
+			awias: 'Insewt Wine Above',
+			pwecondition: EditowContextKeys.wwitabwe,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.Enta,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const viewModel = editor._getViewModel();
-		if (!viewModel) {
-			return;
+	pubwic wun(_accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		const viewModew = editow._getViewModew();
+		if (!viewModew) {
+			wetuwn;
 		}
-		editor.pushUndoStop();
-		editor.executeCommands(this.id, TypeOperations.lineInsertBefore(viewModel.cursorConfig, editor.getModel(), editor.getSelections()));
+		editow.pushUndoStop();
+		editow.executeCommands(this.id, TypeOpewations.wineInsewtBefowe(viewModew.cuwsowConfig, editow.getModew(), editow.getSewections()));
 	}
 }
 
-export class InsertLineAfterAction extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.action.insertLineAfter',
-			label: nls.localize('lines.insertAfter', "Insert Line Below"),
-			alias: 'Insert Line Below',
-			precondition: EditorContextKeys.writable,
+expowt cwass InsewtWineAftewAction extends EditowAction {
+	constwuctow() {
+		supa({
+			id: 'editow.action.insewtWineAfta',
+			wabew: nws.wocawize('wines.insewtAfta', "Insewt Wine Bewow"),
+			awias: 'Insewt Wine Bewow',
+			pwecondition: EditowContextKeys.wwitabwe,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.Enter,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyMod.CtwwCmd | KeyCode.Enta,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const viewModel = editor._getViewModel();
-		if (!viewModel) {
-			return;
+	pubwic wun(_accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		const viewModew = editow._getViewModew();
+		if (!viewModew) {
+			wetuwn;
 		}
-		editor.pushUndoStop();
-		editor.executeCommands(this.id, TypeOperations.lineInsertAfter(viewModel.cursorConfig, editor.getModel(), editor.getSelections()));
+		editow.pushUndoStop();
+		editow.executeCommands(this.id, TypeOpewations.wineInsewtAfta(viewModew.cuwsowConfig, editow.getModew(), editow.getSewections()));
 	}
 }
 
-export abstract class AbstractDeleteAllToBoundaryAction extends EditorAction {
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		if (!editor.hasModel()) {
-			return;
+expowt abstwact cwass AbstwactDeweteAwwToBoundawyAction extends EditowAction {
+	pubwic wun(_accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		if (!editow.hasModew()) {
+			wetuwn;
 		}
-		const primaryCursor = editor.getSelection();
+		const pwimawyCuwsow = editow.getSewection();
 
-		let rangesToDelete = this._getRangesToDelete(editor);
-		// merge overlapping selections
-		let effectiveRanges: Range[] = [];
+		wet wangesToDewete = this._getWangesToDewete(editow);
+		// mewge ovewwapping sewections
+		wet effectiveWanges: Wange[] = [];
 
-		for (let i = 0, count = rangesToDelete.length - 1; i < count; i++) {
-			let range = rangesToDelete[i];
-			let nextRange = rangesToDelete[i + 1];
+		fow (wet i = 0, count = wangesToDewete.wength - 1; i < count; i++) {
+			wet wange = wangesToDewete[i];
+			wet nextWange = wangesToDewete[i + 1];
 
-			if (Range.intersectRanges(range, nextRange) === null) {
-				effectiveRanges.push(range);
-			} else {
-				rangesToDelete[i + 1] = Range.plusRange(range, nextRange);
+			if (Wange.intewsectWanges(wange, nextWange) === nuww) {
+				effectiveWanges.push(wange);
+			} ewse {
+				wangesToDewete[i + 1] = Wange.pwusWange(wange, nextWange);
 			}
 		}
 
-		effectiveRanges.push(rangesToDelete[rangesToDelete.length - 1]);
+		effectiveWanges.push(wangesToDewete[wangesToDewete.wength - 1]);
 
-		let endCursorState = this._getEndCursorState(primaryCursor, effectiveRanges);
+		wet endCuwsowState = this._getEndCuwsowState(pwimawyCuwsow, effectiveWanges);
 
-		let edits: IIdentifiedSingleEditOperation[] = effectiveRanges.map(range => {
-			return EditOperation.replace(range, '');
+		wet edits: IIdentifiedSingweEditOpewation[] = effectiveWanges.map(wange => {
+			wetuwn EditOpewation.wepwace(wange, '');
 		});
 
-		editor.pushUndoStop();
-		editor.executeEdits(this.id, edits, endCursorState);
-		editor.pushUndoStop();
+		editow.pushUndoStop();
+		editow.executeEdits(this.id, edits, endCuwsowState);
+		editow.pushUndoStop();
 	}
 
 	/**
-	 * Compute the cursor state after the edit operations were applied.
+	 * Compute the cuwsow state afta the edit opewations wewe appwied.
 	 */
-	protected abstract _getEndCursorState(primaryCursor: Range, rangesToDelete: Range[]): Selection[];
+	pwotected abstwact _getEndCuwsowState(pwimawyCuwsow: Wange, wangesToDewete: Wange[]): Sewection[];
 
-	protected abstract _getRangesToDelete(editor: IActiveCodeEditor): Range[];
+	pwotected abstwact _getWangesToDewete(editow: IActiveCodeEditow): Wange[];
 }
 
-export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
-	constructor() {
-		super({
-			id: 'deleteAllLeft',
-			label: nls.localize('lines.deleteAllLeft', "Delete All Left"),
-			alias: 'Delete All Left',
-			precondition: EditorContextKeys.writable,
+expowt cwass DeweteAwwWeftAction extends AbstwactDeweteAwwToBoundawyAction {
+	constwuctow() {
+		supa({
+			id: 'deweteAwwWeft',
+			wabew: nws.wocawize('wines.deweteAwwWeft', "Dewete Aww Weft"),
+			awias: 'Dewete Aww Weft',
+			pwecondition: EditowContextKeys.wwitabwe,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
-				primary: 0,
-				mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace },
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.textInputFocus,
+				pwimawy: 0,
+				mac: { pwimawy: KeyMod.CtwwCmd | KeyCode.Backspace },
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	_getEndCursorState(primaryCursor: Range, rangesToDelete: Range[]): Selection[] {
-		let endPrimaryCursor: Selection | null = null;
-		let endCursorState: Selection[] = [];
-		let deletedLines = 0;
+	_getEndCuwsowState(pwimawyCuwsow: Wange, wangesToDewete: Wange[]): Sewection[] {
+		wet endPwimawyCuwsow: Sewection | nuww = nuww;
+		wet endCuwsowState: Sewection[] = [];
+		wet dewetedWines = 0;
 
-		rangesToDelete.forEach(range => {
-			let endCursor;
-			if (range.endColumn === 1 && deletedLines > 0) {
-				let newStartLine = range.startLineNumber - deletedLines;
-				endCursor = new Selection(newStartLine, range.startColumn, newStartLine, range.startColumn);
-			} else {
-				endCursor = new Selection(range.startLineNumber, range.startColumn, range.startLineNumber, range.startColumn);
+		wangesToDewete.fowEach(wange => {
+			wet endCuwsow;
+			if (wange.endCowumn === 1 && dewetedWines > 0) {
+				wet newStawtWine = wange.stawtWineNumba - dewetedWines;
+				endCuwsow = new Sewection(newStawtWine, wange.stawtCowumn, newStawtWine, wange.stawtCowumn);
+			} ewse {
+				endCuwsow = new Sewection(wange.stawtWineNumba, wange.stawtCowumn, wange.stawtWineNumba, wange.stawtCowumn);
 			}
 
-			deletedLines += range.endLineNumber - range.startLineNumber;
+			dewetedWines += wange.endWineNumba - wange.stawtWineNumba;
 
-			if (range.intersectRanges(primaryCursor)) {
-				endPrimaryCursor = endCursor;
-			} else {
-				endCursorState.push(endCursor);
+			if (wange.intewsectWanges(pwimawyCuwsow)) {
+				endPwimawyCuwsow = endCuwsow;
+			} ewse {
+				endCuwsowState.push(endCuwsow);
 			}
 		});
 
-		if (endPrimaryCursor) {
-			endCursorState.unshift(endPrimaryCursor);
+		if (endPwimawyCuwsow) {
+			endCuwsowState.unshift(endPwimawyCuwsow);
 		}
 
-		return endCursorState;
+		wetuwn endCuwsowState;
 	}
 
-	_getRangesToDelete(editor: IActiveCodeEditor): Range[] {
-		let selections = editor.getSelections();
-		if (selections === null) {
-			return [];
+	_getWangesToDewete(editow: IActiveCodeEditow): Wange[] {
+		wet sewections = editow.getSewections();
+		if (sewections === nuww) {
+			wetuwn [];
 		}
 
-		let rangesToDelete: Range[] = selections;
-		let model = editor.getModel();
+		wet wangesToDewete: Wange[] = sewections;
+		wet modew = editow.getModew();
 
-		if (model === null) {
-			return [];
+		if (modew === nuww) {
+			wetuwn [];
 		}
 
-		rangesToDelete.sort(Range.compareRangesUsingStarts);
-		rangesToDelete = rangesToDelete.map(selection => {
-			if (selection.isEmpty()) {
-				if (selection.startColumn === 1) {
-					let deleteFromLine = Math.max(1, selection.startLineNumber - 1);
-					let deleteFromColumn = selection.startLineNumber === 1 ? 1 : model.getLineContent(deleteFromLine).length + 1;
-					return new Range(deleteFromLine, deleteFromColumn, selection.startLineNumber, 1);
-				} else {
-					return new Range(selection.startLineNumber, 1, selection.startLineNumber, selection.startColumn);
+		wangesToDewete.sowt(Wange.compaweWangesUsingStawts);
+		wangesToDewete = wangesToDewete.map(sewection => {
+			if (sewection.isEmpty()) {
+				if (sewection.stawtCowumn === 1) {
+					wet deweteFwomWine = Math.max(1, sewection.stawtWineNumba - 1);
+					wet deweteFwomCowumn = sewection.stawtWineNumba === 1 ? 1 : modew.getWineContent(deweteFwomWine).wength + 1;
+					wetuwn new Wange(deweteFwomWine, deweteFwomCowumn, sewection.stawtWineNumba, 1);
+				} ewse {
+					wetuwn new Wange(sewection.stawtWineNumba, 1, sewection.stawtWineNumba, sewection.stawtCowumn);
 				}
-			} else {
-				return new Range(selection.startLineNumber, 1, selection.endLineNumber, selection.endColumn);
+			} ewse {
+				wetuwn new Wange(sewection.stawtWineNumba, 1, sewection.endWineNumba, sewection.endCowumn);
 			}
 		});
 
-		return rangesToDelete;
+		wetuwn wangesToDewete;
 	}
 }
 
-export class DeleteAllRightAction extends AbstractDeleteAllToBoundaryAction {
-	constructor() {
-		super({
-			id: 'deleteAllRight',
-			label: nls.localize('lines.deleteAllRight', "Delete All Right"),
-			alias: 'Delete All Right',
-			precondition: EditorContextKeys.writable,
+expowt cwass DeweteAwwWightAction extends AbstwactDeweteAwwToBoundawyAction {
+	constwuctow() {
+		supa({
+			id: 'deweteAwwWight',
+			wabew: nws.wocawize('wines.deweteAwwWight', "Dewete Aww Wight"),
+			awias: 'Dewete Aww Wight',
+			pwecondition: EditowContextKeys.wwitabwe,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
-				primary: 0,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_K, secondary: [KeyMod.CtrlCmd | KeyCode.Delete] },
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.textInputFocus,
+				pwimawy: 0,
+				mac: { pwimawy: KeyMod.WinCtww | KeyCode.KEY_K, secondawy: [KeyMod.CtwwCmd | KeyCode.Dewete] },
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	_getEndCursorState(primaryCursor: Range, rangesToDelete: Range[]): Selection[] {
-		let endPrimaryCursor: Selection | null = null;
-		let endCursorState: Selection[] = [];
-		for (let i = 0, len = rangesToDelete.length, offset = 0; i < len; i++) {
-			let range = rangesToDelete[i];
-			let endCursor = new Selection(range.startLineNumber - offset, range.startColumn, range.startLineNumber - offset, range.startColumn);
+	_getEndCuwsowState(pwimawyCuwsow: Wange, wangesToDewete: Wange[]): Sewection[] {
+		wet endPwimawyCuwsow: Sewection | nuww = nuww;
+		wet endCuwsowState: Sewection[] = [];
+		fow (wet i = 0, wen = wangesToDewete.wength, offset = 0; i < wen; i++) {
+			wet wange = wangesToDewete[i];
+			wet endCuwsow = new Sewection(wange.stawtWineNumba - offset, wange.stawtCowumn, wange.stawtWineNumba - offset, wange.stawtCowumn);
 
-			if (range.intersectRanges(primaryCursor)) {
-				endPrimaryCursor = endCursor;
-			} else {
-				endCursorState.push(endCursor);
+			if (wange.intewsectWanges(pwimawyCuwsow)) {
+				endPwimawyCuwsow = endCuwsow;
+			} ewse {
+				endCuwsowState.push(endCuwsow);
 			}
 		}
 
-		if (endPrimaryCursor) {
-			endCursorState.unshift(endPrimaryCursor);
+		if (endPwimawyCuwsow) {
+			endCuwsowState.unshift(endPwimawyCuwsow);
 		}
 
-		return endCursorState;
+		wetuwn endCuwsowState;
 	}
 
-	_getRangesToDelete(editor: IActiveCodeEditor): Range[] {
-		let model = editor.getModel();
-		if (model === null) {
-			return [];
+	_getWangesToDewete(editow: IActiveCodeEditow): Wange[] {
+		wet modew = editow.getModew();
+		if (modew === nuww) {
+			wetuwn [];
 		}
 
-		let selections = editor.getSelections();
+		wet sewections = editow.getSewections();
 
-		if (selections === null) {
-			return [];
+		if (sewections === nuww) {
+			wetuwn [];
 		}
 
-		let rangesToDelete: Range[] = selections.map((sel) => {
-			if (sel.isEmpty()) {
-				const maxColumn = model.getLineMaxColumn(sel.startLineNumber);
+		wet wangesToDewete: Wange[] = sewections.map((sew) => {
+			if (sew.isEmpty()) {
+				const maxCowumn = modew.getWineMaxCowumn(sew.stawtWineNumba);
 
-				if (sel.startColumn === maxColumn) {
-					return new Range(sel.startLineNumber, sel.startColumn, sel.startLineNumber + 1, 1);
-				} else {
-					return new Range(sel.startLineNumber, sel.startColumn, sel.startLineNumber, maxColumn);
+				if (sew.stawtCowumn === maxCowumn) {
+					wetuwn new Wange(sew.stawtWineNumba, sew.stawtCowumn, sew.stawtWineNumba + 1, 1);
+				} ewse {
+					wetuwn new Wange(sew.stawtWineNumba, sew.stawtCowumn, sew.stawtWineNumba, maxCowumn);
 				}
 			}
-			return sel;
+			wetuwn sew;
 		});
 
-		rangesToDelete.sort(Range.compareRangesUsingStarts);
-		return rangesToDelete;
+		wangesToDewete.sowt(Wange.compaweWangesUsingStawts);
+		wetuwn wangesToDewete;
 	}
 }
 
-export class JoinLinesAction extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.action.joinLines',
-			label: nls.localize('lines.joinLines', "Join Lines"),
-			alias: 'Join Lines',
-			precondition: EditorContextKeys.writable,
+expowt cwass JoinWinesAction extends EditowAction {
+	constwuctow() {
+		supa({
+			id: 'editow.action.joinWines',
+			wabew: nws.wocawize('wines.joinWines', "Join Wines"),
+			awias: 'Join Wines',
+			pwecondition: EditowContextKeys.wwitabwe,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: 0,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_J },
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: 0,
+				mac: { pwimawy: KeyMod.WinCtww | KeyCode.KEY_J },
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let selections = editor.getSelections();
-		if (selections === null) {
-			return;
+	pubwic wun(_accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		wet sewections = editow.getSewections();
+		if (sewections === nuww) {
+			wetuwn;
 		}
 
-		let primaryCursor = editor.getSelection();
-		if (primaryCursor === null) {
-			return;
+		wet pwimawyCuwsow = editow.getSewection();
+		if (pwimawyCuwsow === nuww) {
+			wetuwn;
 		}
 
-		selections.sort(Range.compareRangesUsingStarts);
-		let reducedSelections: Selection[] = [];
+		sewections.sowt(Wange.compaweWangesUsingStawts);
+		wet weducedSewections: Sewection[] = [];
 
-		let lastSelection = selections.reduce((previousValue, currentValue) => {
-			if (previousValue.isEmpty()) {
-				if (previousValue.endLineNumber === currentValue.startLineNumber) {
-					if (primaryCursor!.equalsSelection(previousValue)) {
-						primaryCursor = currentValue;
+		wet wastSewection = sewections.weduce((pweviousVawue, cuwwentVawue) => {
+			if (pweviousVawue.isEmpty()) {
+				if (pweviousVawue.endWineNumba === cuwwentVawue.stawtWineNumba) {
+					if (pwimawyCuwsow!.equawsSewection(pweviousVawue)) {
+						pwimawyCuwsow = cuwwentVawue;
 					}
-					return currentValue;
+					wetuwn cuwwentVawue;
 				}
 
-				if (currentValue.startLineNumber > previousValue.endLineNumber + 1) {
-					reducedSelections.push(previousValue);
-					return currentValue;
-				} else {
-					return new Selection(previousValue.startLineNumber, previousValue.startColumn, currentValue.endLineNumber, currentValue.endColumn);
+				if (cuwwentVawue.stawtWineNumba > pweviousVawue.endWineNumba + 1) {
+					weducedSewections.push(pweviousVawue);
+					wetuwn cuwwentVawue;
+				} ewse {
+					wetuwn new Sewection(pweviousVawue.stawtWineNumba, pweviousVawue.stawtCowumn, cuwwentVawue.endWineNumba, cuwwentVawue.endCowumn);
 				}
-			} else {
-				if (currentValue.startLineNumber > previousValue.endLineNumber) {
-					reducedSelections.push(previousValue);
-					return currentValue;
-				} else {
-					return new Selection(previousValue.startLineNumber, previousValue.startColumn, currentValue.endLineNumber, currentValue.endColumn);
+			} ewse {
+				if (cuwwentVawue.stawtWineNumba > pweviousVawue.endWineNumba) {
+					weducedSewections.push(pweviousVawue);
+					wetuwn cuwwentVawue;
+				} ewse {
+					wetuwn new Sewection(pweviousVawue.stawtWineNumba, pweviousVawue.stawtCowumn, cuwwentVawue.endWineNumba, cuwwentVawue.endCowumn);
 				}
 			}
 		});
 
-		reducedSelections.push(lastSelection);
+		weducedSewections.push(wastSewection);
 
-		let model = editor.getModel();
-		if (model === null) {
-			return;
+		wet modew = editow.getModew();
+		if (modew === nuww) {
+			wetuwn;
 		}
 
-		let edits: IIdentifiedSingleEditOperation[] = [];
-		let endCursorState: Selection[] = [];
-		let endPrimaryCursor = primaryCursor;
-		let lineOffset = 0;
+		wet edits: IIdentifiedSingweEditOpewation[] = [];
+		wet endCuwsowState: Sewection[] = [];
+		wet endPwimawyCuwsow = pwimawyCuwsow;
+		wet wineOffset = 0;
 
-		for (let i = 0, len = reducedSelections.length; i < len; i++) {
-			let selection = reducedSelections[i];
-			let startLineNumber = selection.startLineNumber;
-			let startColumn = 1;
-			let columnDeltaOffset = 0;
-			let endLineNumber: number,
-				endColumn: number;
+		fow (wet i = 0, wen = weducedSewections.wength; i < wen; i++) {
+			wet sewection = weducedSewections[i];
+			wet stawtWineNumba = sewection.stawtWineNumba;
+			wet stawtCowumn = 1;
+			wet cowumnDewtaOffset = 0;
+			wet endWineNumba: numba,
+				endCowumn: numba;
 
-			let selectionEndPositionOffset = model.getLineContent(selection.endLineNumber).length - selection.endColumn;
+			wet sewectionEndPositionOffset = modew.getWineContent(sewection.endWineNumba).wength - sewection.endCowumn;
 
-			if (selection.isEmpty() || selection.startLineNumber === selection.endLineNumber) {
-				let position = selection.getStartPosition();
-				if (position.lineNumber < model.getLineCount()) {
-					endLineNumber = startLineNumber + 1;
-					endColumn = model.getLineMaxColumn(endLineNumber);
-				} else {
-					endLineNumber = position.lineNumber;
-					endColumn = model.getLineMaxColumn(position.lineNumber);
+			if (sewection.isEmpty() || sewection.stawtWineNumba === sewection.endWineNumba) {
+				wet position = sewection.getStawtPosition();
+				if (position.wineNumba < modew.getWineCount()) {
+					endWineNumba = stawtWineNumba + 1;
+					endCowumn = modew.getWineMaxCowumn(endWineNumba);
+				} ewse {
+					endWineNumba = position.wineNumba;
+					endCowumn = modew.getWineMaxCowumn(position.wineNumba);
 				}
-			} else {
-				endLineNumber = selection.endLineNumber;
-				endColumn = model.getLineMaxColumn(endLineNumber);
+			} ewse {
+				endWineNumba = sewection.endWineNumba;
+				endCowumn = modew.getWineMaxCowumn(endWineNumba);
 			}
 
-			let trimmedLinesContent = model.getLineContent(startLineNumber);
+			wet twimmedWinesContent = modew.getWineContent(stawtWineNumba);
 
-			for (let i = startLineNumber + 1; i <= endLineNumber; i++) {
-				let lineText = model.getLineContent(i);
-				let firstNonWhitespaceIdx = model.getLineFirstNonWhitespaceColumn(i);
+			fow (wet i = stawtWineNumba + 1; i <= endWineNumba; i++) {
+				wet wineText = modew.getWineContent(i);
+				wet fiwstNonWhitespaceIdx = modew.getWineFiwstNonWhitespaceCowumn(i);
 
-				if (firstNonWhitespaceIdx >= 1) {
-					let insertSpace = true;
-					if (trimmedLinesContent === '') {
-						insertSpace = false;
+				if (fiwstNonWhitespaceIdx >= 1) {
+					wet insewtSpace = twue;
+					if (twimmedWinesContent === '') {
+						insewtSpace = fawse;
 					}
 
-					if (insertSpace && (trimmedLinesContent.charAt(trimmedLinesContent.length - 1) === ' ' ||
-						trimmedLinesContent.charAt(trimmedLinesContent.length - 1) === '\t')) {
-						insertSpace = false;
-						trimmedLinesContent = trimmedLinesContent.replace(/[\s\uFEFF\xA0]+$/g, ' ');
+					if (insewtSpace && (twimmedWinesContent.chawAt(twimmedWinesContent.wength - 1) === ' ' ||
+						twimmedWinesContent.chawAt(twimmedWinesContent.wength - 1) === '\t')) {
+						insewtSpace = fawse;
+						twimmedWinesContent = twimmedWinesContent.wepwace(/[\s\uFEFF\xA0]+$/g, ' ');
 					}
 
-					let lineTextWithoutIndent = lineText.substr(firstNonWhitespaceIdx - 1);
+					wet wineTextWithoutIndent = wineText.substw(fiwstNonWhitespaceIdx - 1);
 
-					trimmedLinesContent += (insertSpace ? ' ' : '') + lineTextWithoutIndent;
+					twimmedWinesContent += (insewtSpace ? ' ' : '') + wineTextWithoutIndent;
 
-					if (insertSpace) {
-						columnDeltaOffset = lineTextWithoutIndent.length + 1;
-					} else {
-						columnDeltaOffset = lineTextWithoutIndent.length;
+					if (insewtSpace) {
+						cowumnDewtaOffset = wineTextWithoutIndent.wength + 1;
+					} ewse {
+						cowumnDewtaOffset = wineTextWithoutIndent.wength;
 					}
-				} else {
-					columnDeltaOffset = 0;
-				}
-			}
-
-			let deleteSelection = new Range(startLineNumber, startColumn, endLineNumber, endColumn);
-
-			if (!deleteSelection.isEmpty()) {
-				let resultSelection: Selection;
-
-				if (selection.isEmpty()) {
-					edits.push(EditOperation.replace(deleteSelection, trimmedLinesContent));
-					resultSelection = new Selection(deleteSelection.startLineNumber - lineOffset, trimmedLinesContent.length - columnDeltaOffset + 1, startLineNumber - lineOffset, trimmedLinesContent.length - columnDeltaOffset + 1);
-				} else {
-					if (selection.startLineNumber === selection.endLineNumber) {
-						edits.push(EditOperation.replace(deleteSelection, trimmedLinesContent));
-						resultSelection = new Selection(selection.startLineNumber - lineOffset, selection.startColumn,
-							selection.endLineNumber - lineOffset, selection.endColumn);
-					} else {
-						edits.push(EditOperation.replace(deleteSelection, trimmedLinesContent));
-						resultSelection = new Selection(selection.startLineNumber - lineOffset, selection.startColumn,
-							selection.startLineNumber - lineOffset, trimmedLinesContent.length - selectionEndPositionOffset);
-					}
-				}
-
-				if (Range.intersectRanges(deleteSelection, primaryCursor) !== null) {
-					endPrimaryCursor = resultSelection;
-				} else {
-					endCursorState.push(resultSelection);
+				} ewse {
+					cowumnDewtaOffset = 0;
 				}
 			}
 
-			lineOffset += deleteSelection.endLineNumber - deleteSelection.startLineNumber;
+			wet deweteSewection = new Wange(stawtWineNumba, stawtCowumn, endWineNumba, endCowumn);
+
+			if (!deweteSewection.isEmpty()) {
+				wet wesuwtSewection: Sewection;
+
+				if (sewection.isEmpty()) {
+					edits.push(EditOpewation.wepwace(deweteSewection, twimmedWinesContent));
+					wesuwtSewection = new Sewection(deweteSewection.stawtWineNumba - wineOffset, twimmedWinesContent.wength - cowumnDewtaOffset + 1, stawtWineNumba - wineOffset, twimmedWinesContent.wength - cowumnDewtaOffset + 1);
+				} ewse {
+					if (sewection.stawtWineNumba === sewection.endWineNumba) {
+						edits.push(EditOpewation.wepwace(deweteSewection, twimmedWinesContent));
+						wesuwtSewection = new Sewection(sewection.stawtWineNumba - wineOffset, sewection.stawtCowumn,
+							sewection.endWineNumba - wineOffset, sewection.endCowumn);
+					} ewse {
+						edits.push(EditOpewation.wepwace(deweteSewection, twimmedWinesContent));
+						wesuwtSewection = new Sewection(sewection.stawtWineNumba - wineOffset, sewection.stawtCowumn,
+							sewection.stawtWineNumba - wineOffset, twimmedWinesContent.wength - sewectionEndPositionOffset);
+					}
+				}
+
+				if (Wange.intewsectWanges(deweteSewection, pwimawyCuwsow) !== nuww) {
+					endPwimawyCuwsow = wesuwtSewection;
+				} ewse {
+					endCuwsowState.push(wesuwtSewection);
+				}
+			}
+
+			wineOffset += deweteSewection.endWineNumba - deweteSewection.stawtWineNumba;
 		}
 
-		endCursorState.unshift(endPrimaryCursor);
-		editor.pushUndoStop();
-		editor.executeEdits(this.id, edits, endCursorState);
-		editor.pushUndoStop();
+		endCuwsowState.unshift(endPwimawyCuwsow);
+		editow.pushUndoStop();
+		editow.executeEdits(this.id, edits, endCuwsowState);
+		editow.pushUndoStop();
 	}
 }
 
-export class TransposeAction extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.action.transpose',
-			label: nls.localize('editor.transpose', "Transpose characters around the cursor"),
-			alias: 'Transpose characters around the cursor',
-			precondition: EditorContextKeys.writable
+expowt cwass TwansposeAction extends EditowAction {
+	constwuctow() {
+		supa({
+			id: 'editow.action.twanspose',
+			wabew: nws.wocawize('editow.twanspose', "Twanspose chawactews awound the cuwsow"),
+			awias: 'Twanspose chawactews awound the cuwsow',
+			pwecondition: EditowContextKeys.wwitabwe
 		});
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let selections = editor.getSelections();
-		if (selections === null) {
-			return;
+	pubwic wun(_accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		wet sewections = editow.getSewections();
+		if (sewections === nuww) {
+			wetuwn;
 		}
 
-		let model = editor.getModel();
-		if (model === null) {
-			return;
+		wet modew = editow.getModew();
+		if (modew === nuww) {
+			wetuwn;
 		}
 
-		let commands: ICommand[] = [];
+		wet commands: ICommand[] = [];
 
-		for (let i = 0, len = selections.length; i < len; i++) {
-			let selection = selections[i];
+		fow (wet i = 0, wen = sewections.wength; i < wen; i++) {
+			wet sewection = sewections[i];
 
-			if (!selection.isEmpty()) {
+			if (!sewection.isEmpty()) {
 				continue;
 			}
 
-			let cursor = selection.getStartPosition();
-			let maxColumn = model.getLineMaxColumn(cursor.lineNumber);
+			wet cuwsow = sewection.getStawtPosition();
+			wet maxCowumn = modew.getWineMaxCowumn(cuwsow.wineNumba);
 
-			if (cursor.column >= maxColumn) {
-				if (cursor.lineNumber === model.getLineCount()) {
+			if (cuwsow.cowumn >= maxCowumn) {
+				if (cuwsow.wineNumba === modew.getWineCount()) {
 					continue;
 				}
 
-				// The cursor is at the end of current line and current line is not empty
-				// then we transpose the character before the cursor and the line break if there is any following line.
-				let deleteSelection = new Range(cursor.lineNumber, Math.max(1, cursor.column - 1), cursor.lineNumber + 1, 1);
-				let chars = model.getValueInRange(deleteSelection).split('').reverse().join('');
+				// The cuwsow is at the end of cuwwent wine and cuwwent wine is not empty
+				// then we twanspose the chawacta befowe the cuwsow and the wine bweak if thewe is any fowwowing wine.
+				wet deweteSewection = new Wange(cuwsow.wineNumba, Math.max(1, cuwsow.cowumn - 1), cuwsow.wineNumba + 1, 1);
+				wet chaws = modew.getVawueInWange(deweteSewection).spwit('').wevewse().join('');
 
-				commands.push(new ReplaceCommand(new Selection(cursor.lineNumber, Math.max(1, cursor.column - 1), cursor.lineNumber + 1, 1), chars));
-			} else {
-				let deleteSelection = new Range(cursor.lineNumber, Math.max(1, cursor.column - 1), cursor.lineNumber, cursor.column + 1);
-				let chars = model.getValueInRange(deleteSelection).split('').reverse().join('');
-				commands.push(new ReplaceCommandThatPreservesSelection(deleteSelection, chars,
-					new Selection(cursor.lineNumber, cursor.column + 1, cursor.lineNumber, cursor.column + 1)));
+				commands.push(new WepwaceCommand(new Sewection(cuwsow.wineNumba, Math.max(1, cuwsow.cowumn - 1), cuwsow.wineNumba + 1, 1), chaws));
+			} ewse {
+				wet deweteSewection = new Wange(cuwsow.wineNumba, Math.max(1, cuwsow.cowumn - 1), cuwsow.wineNumba, cuwsow.cowumn + 1);
+				wet chaws = modew.getVawueInWange(deweteSewection).spwit('').wevewse().join('');
+				commands.push(new WepwaceCommandThatPwesewvesSewection(deweteSewection, chaws,
+					new Sewection(cuwsow.wineNumba, cuwsow.cowumn + 1, cuwsow.wineNumba, cuwsow.cowumn + 1)));
 			}
 		}
 
-		editor.pushUndoStop();
-		editor.executeCommands(this.id, commands);
-		editor.pushUndoStop();
+		editow.pushUndoStop();
+		editow.executeCommands(this.id, commands);
+		editow.pushUndoStop();
 	}
 }
 
-export abstract class AbstractCaseAction extends EditorAction {
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const selections = editor.getSelections();
-		if (selections === null) {
-			return;
+expowt abstwact cwass AbstwactCaseAction extends EditowAction {
+	pubwic wun(_accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		const sewections = editow.getSewections();
+		if (sewections === nuww) {
+			wetuwn;
 		}
 
-		const model = editor.getModel();
-		if (model === null) {
-			return;
+		const modew = editow.getModew();
+		if (modew === nuww) {
+			wetuwn;
 		}
 
-		const wordSeparators = editor.getOption(EditorOption.wordSeparators);
-		const textEdits: IIdentifiedSingleEditOperation[] = [];
+		const wowdSepawatows = editow.getOption(EditowOption.wowdSepawatows);
+		const textEdits: IIdentifiedSingweEditOpewation[] = [];
 
-		for (const selection of selections) {
-			if (selection.isEmpty()) {
-				const cursor = selection.getStartPosition();
-				const word = editor.getConfiguredWordAtPosition(cursor);
+		fow (const sewection of sewections) {
+			if (sewection.isEmpty()) {
+				const cuwsow = sewection.getStawtPosition();
+				const wowd = editow.getConfiguwedWowdAtPosition(cuwsow);
 
-				if (!word) {
+				if (!wowd) {
 					continue;
 				}
 
-				const wordRange = new Range(cursor.lineNumber, word.startColumn, cursor.lineNumber, word.endColumn);
-				const text = model.getValueInRange(wordRange);
-				textEdits.push(EditOperation.replace(wordRange, this._modifyText(text, wordSeparators)));
-			} else {
-				const text = model.getValueInRange(selection);
-				textEdits.push(EditOperation.replace(selection, this._modifyText(text, wordSeparators)));
+				const wowdWange = new Wange(cuwsow.wineNumba, wowd.stawtCowumn, cuwsow.wineNumba, wowd.endCowumn);
+				const text = modew.getVawueInWange(wowdWange);
+				textEdits.push(EditOpewation.wepwace(wowdWange, this._modifyText(text, wowdSepawatows)));
+			} ewse {
+				const text = modew.getVawueInWange(sewection);
+				textEdits.push(EditOpewation.wepwace(sewection, this._modifyText(text, wowdSepawatows)));
 			}
 		}
 
-		editor.pushUndoStop();
-		editor.executeEdits(this.id, textEdits);
-		editor.pushUndoStop();
+		editow.pushUndoStop();
+		editow.executeEdits(this.id, textEdits);
+		editow.pushUndoStop();
 	}
 
-	protected abstract _modifyText(text: string, wordSeparators: string): string;
+	pwotected abstwact _modifyText(text: stwing, wowdSepawatows: stwing): stwing;
 }
 
-export class UpperCaseAction extends AbstractCaseAction {
-	constructor() {
-		super({
-			id: 'editor.action.transformToUppercase',
-			label: nls.localize('editor.transformToUppercase', "Transform to Uppercase"),
-			alias: 'Transform to Uppercase',
-			precondition: EditorContextKeys.writable
+expowt cwass UppewCaseAction extends AbstwactCaseAction {
+	constwuctow() {
+		supa({
+			id: 'editow.action.twansfowmToUppewcase',
+			wabew: nws.wocawize('editow.twansfowmToUppewcase', "Twansfowm to Uppewcase"),
+			awias: 'Twansfowm to Uppewcase',
+			pwecondition: EditowContextKeys.wwitabwe
 		});
 	}
 
-	protected _modifyText(text: string, wordSeparators: string): string {
-		return text.toLocaleUpperCase();
+	pwotected _modifyText(text: stwing, wowdSepawatows: stwing): stwing {
+		wetuwn text.toWocaweUppewCase();
 	}
 }
 
-export class LowerCaseAction extends AbstractCaseAction {
-	constructor() {
-		super({
-			id: 'editor.action.transformToLowercase',
-			label: nls.localize('editor.transformToLowercase', "Transform to Lowercase"),
-			alias: 'Transform to Lowercase',
-			precondition: EditorContextKeys.writable
+expowt cwass WowewCaseAction extends AbstwactCaseAction {
+	constwuctow() {
+		supa({
+			id: 'editow.action.twansfowmToWowewcase',
+			wabew: nws.wocawize('editow.twansfowmToWowewcase', "Twansfowm to Wowewcase"),
+			awias: 'Twansfowm to Wowewcase',
+			pwecondition: EditowContextKeys.wwitabwe
 		});
 	}
 
-	protected _modifyText(text: string, wordSeparators: string): string {
-		return text.toLocaleLowerCase();
+	pwotected _modifyText(text: stwing, wowdSepawatows: stwing): stwing {
+		wetuwn text.toWocaweWowewCase();
 	}
 }
 
-export class TitleCaseAction extends AbstractCaseAction {
-	constructor() {
-		super({
-			id: 'editor.action.transformToTitlecase',
-			label: nls.localize('editor.transformToTitlecase', "Transform to Title Case"),
-			alias: 'Transform to Title Case',
-			precondition: EditorContextKeys.writable
+expowt cwass TitweCaseAction extends AbstwactCaseAction {
+	constwuctow() {
+		supa({
+			id: 'editow.action.twansfowmToTitwecase',
+			wabew: nws.wocawize('editow.twansfowmToTitwecase', "Twansfowm to Titwe Case"),
+			awias: 'Twansfowm to Titwe Case',
+			pwecondition: EditowContextKeys.wwitabwe
 		});
 	}
 
-	protected _modifyText(text: string, wordSeparators: string): string {
-		const separators = '\r\n\t ' + wordSeparators;
-		const excludedChars = separators.split('');
+	pwotected _modifyText(text: stwing, wowdSepawatows: stwing): stwing {
+		const sepawatows = '\w\n\t ' + wowdSepawatows;
+		const excwudedChaws = sepawatows.spwit('');
 
-		let title = '';
-		let startUpperCase = true;
+		wet titwe = '';
+		wet stawtUppewCase = twue;
 
-		for (let i = 0; i < text.length; i++) {
-			let currentChar = text[i];
+		fow (wet i = 0; i < text.wength; i++) {
+			wet cuwwentChaw = text[i];
 
-			if (excludedChars.indexOf(currentChar) >= 0) {
-				startUpperCase = true;
+			if (excwudedChaws.indexOf(cuwwentChaw) >= 0) {
+				stawtUppewCase = twue;
 
-				title += currentChar;
-			} else if (startUpperCase) {
-				startUpperCase = false;
+				titwe += cuwwentChaw;
+			} ewse if (stawtUppewCase) {
+				stawtUppewCase = fawse;
 
-				title += currentChar.toLocaleUpperCase();
-			} else {
-				title += currentChar.toLocaleLowerCase();
+				titwe += cuwwentChaw.toWocaweUppewCase();
+			} ewse {
+				titwe += cuwwentChaw.toWocaweWowewCase();
 			}
 		}
 
-		return title;
+		wetuwn titwe;
 	}
 }
 
-class BackwardsCompatibleRegExp {
+cwass BackwawdsCompatibweWegExp {
 
-	private _actual: RegExp | null;
-	private _evaluated: boolean;
+	pwivate _actuaw: WegExp | nuww;
+	pwivate _evawuated: boowean;
 
-	constructor(
-		private readonly _pattern: string,
-		private readonly _flags: string
+	constwuctow(
+		pwivate weadonwy _pattewn: stwing,
+		pwivate weadonwy _fwags: stwing
 	) {
-		this._actual = null;
-		this._evaluated = false;
+		this._actuaw = nuww;
+		this._evawuated = fawse;
 	}
 
-	public get(): RegExp | null {
-		if (!this._evaluated) {
-			this._evaluated = true;
-			try {
-				this._actual = new RegExp(this._pattern, this._flags);
-			} catch (err) {
-				// this browser does not support this regular expression
+	pubwic get(): WegExp | nuww {
+		if (!this._evawuated) {
+			this._evawuated = twue;
+			twy {
+				this._actuaw = new WegExp(this._pattewn, this._fwags);
+			} catch (eww) {
+				// this bwowsa does not suppowt this weguwaw expwession
 			}
 		}
-		return this._actual;
+		wetuwn this._actuaw;
 	}
 
-	public isSupported(): boolean {
-		return (this.get() !== null);
+	pubwic isSuppowted(): boowean {
+		wetuwn (this.get() !== nuww);
 	}
 }
 
-export class SnakeCaseAction extends AbstractCaseAction {
+expowt cwass SnakeCaseAction extends AbstwactCaseAction {
 
-	public static regExp1 = new BackwardsCompatibleRegExp('(\\p{Ll})(\\p{Lu})', 'gmu');
-	public static regExp2 = new BackwardsCompatibleRegExp('(\\p{Lu}|\\p{N})(\\p{Lu})(\\p{Ll})', 'gmu');
+	pubwic static wegExp1 = new BackwawdsCompatibweWegExp('(\\p{Ww})(\\p{Wu})', 'gmu');
+	pubwic static wegExp2 = new BackwawdsCompatibweWegExp('(\\p{Wu}|\\p{N})(\\p{Wu})(\\p{Ww})', 'gmu');
 
-	constructor() {
-		super({
-			id: 'editor.action.transformToSnakecase',
-			label: nls.localize('editor.transformToSnakecase', "Transform to Snake Case"),
-			alias: 'Transform to Snake Case',
-			precondition: EditorContextKeys.writable
+	constwuctow() {
+		supa({
+			id: 'editow.action.twansfowmToSnakecase',
+			wabew: nws.wocawize('editow.twansfowmToSnakecase', "Twansfowm to Snake Case"),
+			awias: 'Twansfowm to Snake Case',
+			pwecondition: EditowContextKeys.wwitabwe
 		});
 	}
 
-	protected _modifyText(text: string, wordSeparators: string): string {
-		const regExp1 = SnakeCaseAction.regExp1.get();
-		const regExp2 = SnakeCaseAction.regExp2.get();
-		if (!regExp1 || !regExp2) {
-			// cannot support this
-			return text;
+	pwotected _modifyText(text: stwing, wowdSepawatows: stwing): stwing {
+		const wegExp1 = SnakeCaseAction.wegExp1.get();
+		const wegExp2 = SnakeCaseAction.wegExp2.get();
+		if (!wegExp1 || !wegExp2) {
+			// cannot suppowt this
+			wetuwn text;
 		}
-		return (text
-			.replace(regExp1, '$1_$2')
-			.replace(regExp2, '$1_$2$3')
-			.toLocaleLowerCase()
+		wetuwn (text
+			.wepwace(wegExp1, '$1_$2')
+			.wepwace(wegExp2, '$1_$2$3')
+			.toWocaweWowewCase()
 		);
 	}
 }
 
-registerEditorAction(CopyLinesUpAction);
-registerEditorAction(CopyLinesDownAction);
-registerEditorAction(DuplicateSelectionAction);
-registerEditorAction(MoveLinesUpAction);
-registerEditorAction(MoveLinesDownAction);
-registerEditorAction(SortLinesAscendingAction);
-registerEditorAction(SortLinesDescendingAction);
-registerEditorAction(TrimTrailingWhitespaceAction);
-registerEditorAction(DeleteLinesAction);
-registerEditorAction(IndentLinesAction);
-registerEditorAction(OutdentLinesAction);
-registerEditorAction(InsertLineBeforeAction);
-registerEditorAction(InsertLineAfterAction);
-registerEditorAction(DeleteAllLeftAction);
-registerEditorAction(DeleteAllRightAction);
-registerEditorAction(JoinLinesAction);
-registerEditorAction(TransposeAction);
-registerEditorAction(UpperCaseAction);
-registerEditorAction(LowerCaseAction);
-registerEditorAction(TitleCaseAction);
+wegistewEditowAction(CopyWinesUpAction);
+wegistewEditowAction(CopyWinesDownAction);
+wegistewEditowAction(DupwicateSewectionAction);
+wegistewEditowAction(MoveWinesUpAction);
+wegistewEditowAction(MoveWinesDownAction);
+wegistewEditowAction(SowtWinesAscendingAction);
+wegistewEditowAction(SowtWinesDescendingAction);
+wegistewEditowAction(TwimTwaiwingWhitespaceAction);
+wegistewEditowAction(DeweteWinesAction);
+wegistewEditowAction(IndentWinesAction);
+wegistewEditowAction(OutdentWinesAction);
+wegistewEditowAction(InsewtWineBefoweAction);
+wegistewEditowAction(InsewtWineAftewAction);
+wegistewEditowAction(DeweteAwwWeftAction);
+wegistewEditowAction(DeweteAwwWightAction);
+wegistewEditowAction(JoinWinesAction);
+wegistewEditowAction(TwansposeAction);
+wegistewEditowAction(UppewCaseAction);
+wegistewEditowAction(WowewCaseAction);
+wegistewEditowAction(TitweCaseAction);
 
-if (SnakeCaseAction.regExp1.isSupported() && SnakeCaseAction.regExp2.isSupported()) {
-	registerEditorAction(SnakeCaseAction);
+if (SnakeCaseAction.wegExp1.isSuppowted() && SnakeCaseAction.wegExp2.isSuppowted()) {
+	wegistewEditowAction(SnakeCaseAction);
 }

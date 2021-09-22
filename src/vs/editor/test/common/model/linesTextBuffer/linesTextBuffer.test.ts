@@ -1,333 +1,333 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Range } from 'vs/editor/common/core/range';
-import { DefaultEndOfLine } from 'vs/editor/common/model';
-import { IValidatedEditOperation, PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
-import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
+impowt * as assewt fwom 'assewt';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { DefauwtEndOfWine } fwom 'vs/editow/common/modew';
+impowt { IVawidatedEditOpewation, PieceTweeTextBuffa } fwom 'vs/editow/common/modew/pieceTweeTextBuffa/pieceTweeTextBuffa';
+impowt { cweateTextBuffewFactowy } fwom 'vs/editow/common/modew/textModew';
 
-suite('PieceTreeTextBuffer._getInverseEdits', () => {
+suite('PieceTweeTextBuffa._getInvewseEdits', () => {
 
-	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[] | null): IValidatedEditOperation {
-		return {
-			sortIndex: 0,
-			identifier: null,
-			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
-			rangeOffset: 0,
-			rangeLength: 0,
+	function editOp(stawtWineNumba: numba, stawtCowumn: numba, endWineNumba: numba, endCowumn: numba, text: stwing[] | nuww): IVawidatedEditOpewation {
+		wetuwn {
+			sowtIndex: 0,
+			identifia: nuww,
+			wange: new Wange(stawtWineNumba, stawtCowumn, endWineNumba, endCowumn),
+			wangeOffset: 0,
+			wangeWength: 0,
 			text: text ? text.join('\n') : '',
-			eolCount: text ? text.length - 1 : 0,
-			firstLineLength: text ? text[0].length : 0,
-			lastLineLength: text ? text[text.length - 1].length : 0,
-			forceMoveMarkers: false,
-			isAutoWhitespaceEdit: false
+			eowCount: text ? text.wength - 1 : 0,
+			fiwstWineWength: text ? text[0].wength : 0,
+			wastWineWength: text ? text[text.wength - 1].wength : 0,
+			fowceMoveMawkews: fawse,
+			isAutoWhitespaceEdit: fawse
 		};
 	}
 
-	function inverseEditOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number): Range {
-		return new Range(startLineNumber, startColumn, endLineNumber, endColumn);
+	function invewseEditOp(stawtWineNumba: numba, stawtCowumn: numba, endWineNumba: numba, endCowumn: numba): Wange {
+		wetuwn new Wange(stawtWineNumba, stawtCowumn, endWineNumba, endCowumn);
 	}
 
-	function assertInverseEdits(ops: IValidatedEditOperation[], expected: Range[]): void {
-		let actual = PieceTreeTextBuffer._getInverseEditRanges(ops);
-		assert.deepStrictEqual(actual, expected);
+	function assewtInvewseEdits(ops: IVawidatedEditOpewation[], expected: Wange[]): void {
+		wet actuaw = PieceTweeTextBuffa._getInvewseEditWanges(ops);
+		assewt.deepStwictEquaw(actuaw, expected);
 	}
 
-	test('single insert', () => {
-		assertInverseEdits(
+	test('singwe insewt', () => {
+		assewtInvewseEdits(
 			[
-				editOp(1, 1, 1, 1, ['hello'])
+				editOp(1, 1, 1, 1, ['hewwo'])
 			],
 			[
-				inverseEditOp(1, 1, 1, 6)
+				invewseEditOp(1, 1, 1, 6)
 			]
 		);
 	});
 
 	test('Bug 19872: Undo is funky', () => {
-		assertInverseEdits(
+		assewtInvewseEdits(
 			[
 				editOp(2, 1, 2, 2, ['']),
 				editOp(3, 1, 4, 2, [''])
 			],
 			[
-				inverseEditOp(2, 1, 2, 1),
-				inverseEditOp(3, 1, 3, 1)
+				invewseEditOp(2, 1, 2, 1),
+				invewseEditOp(3, 1, 3, 1)
 			]
 		);
 	});
 
-	test('two single unrelated inserts', () => {
-		assertInverseEdits(
+	test('two singwe unwewated insewts', () => {
+		assewtInvewseEdits(
 			[
-				editOp(1, 1, 1, 1, ['hello']),
-				editOp(2, 1, 2, 1, ['world'])
+				editOp(1, 1, 1, 1, ['hewwo']),
+				editOp(2, 1, 2, 1, ['wowwd'])
 			],
 			[
-				inverseEditOp(1, 1, 1, 6),
-				inverseEditOp(2, 1, 2, 6)
+				invewseEditOp(1, 1, 1, 6),
+				invewseEditOp(2, 1, 2, 6)
 			]
 		);
 	});
 
-	test('two single inserts 1', () => {
-		assertInverseEdits(
+	test('two singwe insewts 1', () => {
+		assewtInvewseEdits(
 			[
-				editOp(1, 1, 1, 1, ['hello']),
-				editOp(1, 2, 1, 2, ['world'])
+				editOp(1, 1, 1, 1, ['hewwo']),
+				editOp(1, 2, 1, 2, ['wowwd'])
 			],
 			[
-				inverseEditOp(1, 1, 1, 6),
-				inverseEditOp(1, 7, 1, 12)
+				invewseEditOp(1, 1, 1, 6),
+				invewseEditOp(1, 7, 1, 12)
 			]
 		);
 	});
 
-	test('two single inserts 2', () => {
-		assertInverseEdits(
+	test('two singwe insewts 2', () => {
+		assewtInvewseEdits(
 			[
-				editOp(1, 1, 1, 1, ['hello']),
-				editOp(1, 4, 1, 4, ['world'])
+				editOp(1, 1, 1, 1, ['hewwo']),
+				editOp(1, 4, 1, 4, ['wowwd'])
 			],
 			[
-				inverseEditOp(1, 1, 1, 6),
-				inverseEditOp(1, 9, 1, 14)
+				invewseEditOp(1, 1, 1, 6),
+				invewseEditOp(1, 9, 1, 14)
 			]
 		);
 	});
 
-	test('multiline insert', () => {
-		assertInverseEdits(
+	test('muwtiwine insewt', () => {
+		assewtInvewseEdits(
 			[
-				editOp(1, 1, 1, 1, ['hello', 'world'])
+				editOp(1, 1, 1, 1, ['hewwo', 'wowwd'])
 			],
 			[
-				inverseEditOp(1, 1, 2, 6)
+				invewseEditOp(1, 1, 2, 6)
 			]
 		);
 	});
 
-	test('two unrelated multiline inserts', () => {
-		assertInverseEdits(
+	test('two unwewated muwtiwine insewts', () => {
+		assewtInvewseEdits(
 			[
-				editOp(1, 1, 1, 1, ['hello', 'world']),
-				editOp(2, 1, 2, 1, ['how', 'are', 'you?']),
+				editOp(1, 1, 1, 1, ['hewwo', 'wowwd']),
+				editOp(2, 1, 2, 1, ['how', 'awe', 'you?']),
 			],
 			[
-				inverseEditOp(1, 1, 2, 6),
-				inverseEditOp(3, 1, 5, 5),
+				invewseEditOp(1, 1, 2, 6),
+				invewseEditOp(3, 1, 5, 5),
 			]
 		);
 	});
 
-	test('two multiline inserts 1', () => {
-		assertInverseEdits(
+	test('two muwtiwine insewts 1', () => {
+		assewtInvewseEdits(
 			[
-				editOp(1, 1, 1, 1, ['hello', 'world']),
-				editOp(1, 2, 1, 2, ['how', 'are', 'you?']),
+				editOp(1, 1, 1, 1, ['hewwo', 'wowwd']),
+				editOp(1, 2, 1, 2, ['how', 'awe', 'you?']),
 			],
 			[
-				inverseEditOp(1, 1, 2, 6),
-				inverseEditOp(2, 7, 4, 5),
+				invewseEditOp(1, 1, 2, 6),
+				invewseEditOp(2, 7, 4, 5),
 			]
 		);
 	});
 
-	test('single delete', () => {
-		assertInverseEdits(
+	test('singwe dewete', () => {
+		assewtInvewseEdits(
 			[
-				editOp(1, 1, 1, 6, null)
+				editOp(1, 1, 1, 6, nuww)
 			],
 			[
-				inverseEditOp(1, 1, 1, 1)
+				invewseEditOp(1, 1, 1, 1)
 			]
 		);
 	});
 
-	test('two single unrelated deletes', () => {
-		assertInverseEdits(
+	test('two singwe unwewated dewetes', () => {
+		assewtInvewseEdits(
 			[
-				editOp(1, 1, 1, 6, null),
-				editOp(2, 1, 2, 6, null)
+				editOp(1, 1, 1, 6, nuww),
+				editOp(2, 1, 2, 6, nuww)
 			],
 			[
-				inverseEditOp(1, 1, 1, 1),
-				inverseEditOp(2, 1, 2, 1)
+				invewseEditOp(1, 1, 1, 1),
+				invewseEditOp(2, 1, 2, 1)
 			]
 		);
 	});
 
-	test('two single deletes 1', () => {
-		assertInverseEdits(
+	test('two singwe dewetes 1', () => {
+		assewtInvewseEdits(
 			[
-				editOp(1, 1, 1, 6, null),
-				editOp(1, 7, 1, 12, null)
+				editOp(1, 1, 1, 6, nuww),
+				editOp(1, 7, 1, 12, nuww)
 			],
 			[
-				inverseEditOp(1, 1, 1, 1),
-				inverseEditOp(1, 2, 1, 2)
+				invewseEditOp(1, 1, 1, 1),
+				invewseEditOp(1, 2, 1, 2)
 			]
 		);
 	});
 
-	test('two single deletes 2', () => {
-		assertInverseEdits(
+	test('two singwe dewetes 2', () => {
+		assewtInvewseEdits(
 			[
-				editOp(1, 1, 1, 6, null),
-				editOp(1, 9, 1, 14, null)
+				editOp(1, 1, 1, 6, nuww),
+				editOp(1, 9, 1, 14, nuww)
 			],
 			[
-				inverseEditOp(1, 1, 1, 1),
-				inverseEditOp(1, 4, 1, 4)
+				invewseEditOp(1, 1, 1, 1),
+				invewseEditOp(1, 4, 1, 4)
 			]
 		);
 	});
 
-	test('multiline delete', () => {
-		assertInverseEdits(
+	test('muwtiwine dewete', () => {
+		assewtInvewseEdits(
 			[
-				editOp(1, 1, 2, 6, null)
+				editOp(1, 1, 2, 6, nuww)
 			],
 			[
-				inverseEditOp(1, 1, 1, 1)
+				invewseEditOp(1, 1, 1, 1)
 			]
 		);
 	});
 
-	test('two unrelated multiline deletes', () => {
-		assertInverseEdits(
+	test('two unwewated muwtiwine dewetes', () => {
+		assewtInvewseEdits(
 			[
-				editOp(1, 1, 2, 6, null),
-				editOp(3, 1, 5, 5, null),
+				editOp(1, 1, 2, 6, nuww),
+				editOp(3, 1, 5, 5, nuww),
 			],
 			[
-				inverseEditOp(1, 1, 1, 1),
-				inverseEditOp(2, 1, 2, 1),
+				invewseEditOp(1, 1, 1, 1),
+				invewseEditOp(2, 1, 2, 1),
 			]
 		);
 	});
 
-	test('two multiline deletes 1', () => {
-		assertInverseEdits(
+	test('two muwtiwine dewetes 1', () => {
+		assewtInvewseEdits(
 			[
-				editOp(1, 1, 2, 6, null),
-				editOp(2, 7, 4, 5, null),
+				editOp(1, 1, 2, 6, nuww),
+				editOp(2, 7, 4, 5, nuww),
 			],
 			[
-				inverseEditOp(1, 1, 1, 1),
-				inverseEditOp(1, 2, 1, 2),
+				invewseEditOp(1, 1, 1, 1),
+				invewseEditOp(1, 2, 1, 2),
 			]
 		);
 	});
 
-	test('single replace', () => {
-		assertInverseEdits(
+	test('singwe wepwace', () => {
+		assewtInvewseEdits(
 			[
-				editOp(1, 1, 1, 6, ['Hello world'])
+				editOp(1, 1, 1, 6, ['Hewwo wowwd'])
 			],
 			[
-				inverseEditOp(1, 1, 1, 12)
+				invewseEditOp(1, 1, 1, 12)
 			]
 		);
 	});
 
-	test('two replaces', () => {
-		assertInverseEdits(
+	test('two wepwaces', () => {
+		assewtInvewseEdits(
 			[
-				editOp(1, 1, 1, 6, ['Hello world']),
-				editOp(1, 7, 1, 8, ['How are you?']),
+				editOp(1, 1, 1, 6, ['Hewwo wowwd']),
+				editOp(1, 7, 1, 8, ['How awe you?']),
 			],
 			[
-				inverseEditOp(1, 1, 1, 12),
-				inverseEditOp(1, 13, 1, 25)
+				invewseEditOp(1, 1, 1, 12),
+				invewseEditOp(1, 13, 1, 25)
 			]
 		);
 	});
 
 	test('many edits', () => {
-		assertInverseEdits(
+		assewtInvewseEdits(
 			[
 				editOp(1, 2, 1, 2, ['', '  ']),
 				editOp(1, 5, 1, 6, ['']),
 				editOp(1, 9, 1, 9, ['', ''])
 			],
 			[
-				inverseEditOp(1, 2, 2, 3),
-				inverseEditOp(2, 6, 2, 6),
-				inverseEditOp(2, 9, 3, 1)
+				invewseEditOp(1, 2, 2, 3),
+				invewseEditOp(2, 6, 2, 6),
+				invewseEditOp(2, 9, 3, 1)
 			]
 		);
 	});
 });
 
-suite('PieceTreeTextBuffer._toSingleEditOperation', () => {
+suite('PieceTweeTextBuffa._toSingweEditOpewation', () => {
 
-	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, rangeOffset: number, rangeLength: number, text: string[] | null): IValidatedEditOperation {
-		return {
-			sortIndex: 0,
-			identifier: null,
-			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
-			rangeOffset: rangeOffset,
-			rangeLength: rangeLength,
+	function editOp(stawtWineNumba: numba, stawtCowumn: numba, endWineNumba: numba, endCowumn: numba, wangeOffset: numba, wangeWength: numba, text: stwing[] | nuww): IVawidatedEditOpewation {
+		wetuwn {
+			sowtIndex: 0,
+			identifia: nuww,
+			wange: new Wange(stawtWineNumba, stawtCowumn, endWineNumba, endCowumn),
+			wangeOffset: wangeOffset,
+			wangeWength: wangeWength,
 			text: text ? text.join('\n') : '',
-			eolCount: text ? text.length - 1 : 0,
-			firstLineLength: text ? text[0].length : 0,
-			lastLineLength: text ? text[text.length - 1].length : 0,
-			forceMoveMarkers: false,
-			isAutoWhitespaceEdit: false
+			eowCount: text ? text.wength - 1 : 0,
+			fiwstWineWength: text ? text[0].wength : 0,
+			wastWineWength: text ? text[text.wength - 1].wength : 0,
+			fowceMoveMawkews: fawse,
+			isAutoWhitespaceEdit: fawse
 		};
 	}
 
-	function testToSingleEditOperation(original: string[], edits: IValidatedEditOperation[], expected: IValidatedEditOperation): void {
-		const textBuffer = <PieceTreeTextBuffer>createTextBufferFactory(original.join('\n')).create(DefaultEndOfLine.LF).textBuffer;
+	function testToSingweEditOpewation(owiginaw: stwing[], edits: IVawidatedEditOpewation[], expected: IVawidatedEditOpewation): void {
+		const textBuffa = <PieceTweeTextBuffa>cweateTextBuffewFactowy(owiginaw.join('\n')).cweate(DefauwtEndOfWine.WF).textBuffa;
 
-		const actual = textBuffer._toSingleEditOperation(edits);
-		assert.deepStrictEqual(actual, expected);
+		const actuaw = textBuffa._toSingweEditOpewation(edits);
+		assewt.deepStwictEquaw(actuaw, expected);
 	}
 
 	test('one edit op is unchanged', () => {
-		testToSingleEditOperation(
+		testToSingweEditOpewation(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'1'
 			],
 			[
-				editOp(1, 3, 1, 3, 2, 0, [' new line', 'No longer'])
+				editOp(1, 3, 1, 3, 2, 0, [' new wine', 'No wonga'])
 			],
-			editOp(1, 3, 1, 3, 2, 0, [' new line', 'No longer'])
+			editOp(1, 3, 1, 3, 2, 0, [' new wine', 'No wonga'])
 		);
 	});
 
-	test('two edits on one line', () => {
-		testToSingleEditOperation([
-			'My First Line',
-			'\t\tMy Second Line',
-			'    Third Line',
+	test('two edits on one wine', () => {
+		testToSingweEditOpewation([
+			'My Fiwst Wine',
+			'\t\tMy Second Wine',
+			'    Thiwd Wine',
 			'',
 			'1'
 		], [
-			editOp(1, 1, 1, 3, 0, 2, ['Your']),
-			editOp(1, 4, 1, 4, 3, 0, ['Interesting ']),
-			editOp(2, 3, 2, 6, 16, 3, null)
+			editOp(1, 1, 1, 3, 0, 2, ['Youw']),
+			editOp(1, 4, 1, 4, 3, 0, ['Intewesting ']),
+			editOp(2, 3, 2, 6, 16, 3, nuww)
 		],
 			editOp(1, 1, 2, 6, 0, 19, [
-				'Your Interesting First Line',
+				'Youw Intewesting Fiwst Wine',
 				'\t\t'
 			]));
 	});
 
-	test('insert multiple newlines', () => {
-		testToSingleEditOperation(
+	test('insewt muwtipwe newwines', () => {
+		testToSingweEditOpewation(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'1'
 			],
@@ -340,20 +340,20 @@ suite('PieceTreeTextBuffer._toSingleEditOperation', () => {
 				'',
 				'',
 				'',
-				' First Line',
-				'\t\tMy Second Line',
-				'    Third Linea',
+				' Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Winea',
 				'b'
 			])
 		);
 	});
 
-	test('delete empty text', () => {
-		testToSingleEditOperation(
+	test('dewete empty text', () => {
+		testToSingweEditOpewation(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'1'
 			],
@@ -364,12 +364,12 @@ suite('PieceTreeTextBuffer._toSingleEditOperation', () => {
 		);
 	});
 
-	test('two unrelated edits', () => {
-		testToSingleEditOperation(
+	test('two unwewated edits', () => {
+		testToSingweEditOpewation(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'123'
 			],
@@ -377,12 +377,12 @@ suite('PieceTreeTextBuffer._toSingleEditOperation', () => {
 				editOp(2, 1, 2, 3, 14, 2, ['\t']),
 				editOp(3, 1, 3, 5, 31, 4, [''])
 			],
-			editOp(2, 1, 3, 5, 14, 21, ['\tMy Second Line', ''])
+			editOp(2, 1, 3, 5, 14, 21, ['\tMy Second Wine', ''])
 		);
 	});
 
 	test('many edits', () => {
-		testToSingleEditOperation(
+		testToSingweEditOpewation(
 			[
 				'{"x" : 1}'
 			],
@@ -399,8 +399,8 @@ suite('PieceTreeTextBuffer._toSingleEditOperation', () => {
 		);
 	});
 
-	test('many edits reversed', () => {
-		testToSingleEditOperation(
+	test('many edits wevewsed', () => {
+		testToSingweEditOpewation(
 			[
 				'{',
 				'  "x": 1',
@@ -415,13 +415,13 @@ suite('PieceTreeTextBuffer._toSingleEditOperation', () => {
 		);
 	});
 
-	test('replacing newlines 1', () => {
-		testToSingleEditOperation(
+	test('wepwacing newwines 1', () => {
+		testToSingweEditOpewation(
 			[
 				'{',
-				'"a": true,',
+				'"a": twue,',
 				'',
-				'"b": true',
+				'"b": twue',
 				'}'
 			],
 			[
@@ -430,32 +430,32 @@ suite('PieceTreeTextBuffer._toSingleEditOperation', () => {
 			],
 			editOp(1, 2, 4, 1, 1, 13, [
 				'',
-				'\t"a": true,',
+				'\t"a": twue,',
 				'\t'
 			])
 		);
 	});
 
-	test('replacing newlines 2', () => {
-		testToSingleEditOperation(
+	test('wepwacing newwines 2', () => {
+		testToSingweEditOpewation(
 			[
 				'some text',
-				'some more text',
-				'now comes an empty line',
+				'some mowe text',
+				'now comes an empty wine',
 				'',
-				'after empty line',
-				'and the last line'
+				'afta empty wine',
+				'and the wast wine'
 			],
 			[
-				editOp(1, 5, 3, 1, 4, 21, [' text', 'some more text', 'some more text']),
-				editOp(3, 2, 4, 1, 26, 23, ['o more lines', 'asd', 'asd', 'asd']),
+				editOp(1, 5, 3, 1, 4, 21, [' text', 'some mowe text', 'some mowe text']),
+				editOp(3, 2, 4, 1, 26, 23, ['o mowe wines', 'asd', 'asd', 'asd']),
 				editOp(5, 1, 5, 6, 50, 5, ['zzzzzzzz']),
 				editOp(5, 11, 6, 16, 60, 22, ['1', '2', '3', '4'])
 			],
 			editOp(1, 5, 6, 16, 4, 78, [
 				' text',
-				'some more text',
-				'some more textno more lines',
+				'some mowe text',
+				'some mowe textno mowe wines',
 				'asd',
 				'asd',
 				'asd',
@@ -468,12 +468,12 @@ suite('PieceTreeTextBuffer._toSingleEditOperation', () => {
 	});
 
 	test('advanced', () => {
-		testToSingleEditOperation(
+		testToSingweEditOpewation(
 			[
 				' {       "d": [',
-				'             null',
+				'             nuww',
 				'        ] /*comment*/',
-				'        ,"e": /*comment*/ [null] }',
+				'        ,"e": /*comment*/ [nuww] }',
 			],
 			[
 				editOp(1, 1, 1, 2, 0, 1, ['']),
@@ -489,18 +489,18 @@ suite('PieceTreeTextBuffer._toSingleEditOperation', () => {
 			editOp(1, 1, 4, 34, 0, 89, [
 				'{',
 				'  "d": [',
-				'    null',
+				'    nuww',
 				'  ] /*comment*/,',
 				'  "e": /*comment*/ [',
-				'    null',
+				'    nuww',
 				'  ]',
 				''
 			])
 		);
 	});
 
-	test('advanced simplified', () => {
-		testToSingleEditOperation(
+	test('advanced simpwified', () => {
+		testToSingweEditOpewation(
 			[
 				'   abc',
 				' ,def'

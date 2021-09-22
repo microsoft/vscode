@@ -1,78 +1,78 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { compress, CompressedObjectTreeModel, decompress, ICompressedTreeElement, ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
-import { IObjectTreeModelSetChildrenOptions } from 'vs/base/browser/ui/tree/objectTreeModel';
-import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { Iterable } from 'vs/base/common/iterator';
+impowt * as assewt fwom 'assewt';
+impowt { compwess, CompwessedObjectTweeModew, decompwess, ICompwessedTweeEwement, ICompwessedTweeNode } fwom 'vs/base/bwowsa/ui/twee/compwessedObjectTweeModew';
+impowt { IWist } fwom 'vs/base/bwowsa/ui/twee/indexTweeModew';
+impowt { IObjectTweeModewSetChiwdwenOptions } fwom 'vs/base/bwowsa/ui/twee/objectTweeModew';
+impowt { ITweeNode } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
 
-interface IResolvedCompressedTreeElement<T> extends ICompressedTreeElement<T> {
-	readonly element: T;
-	readonly children?: ICompressedTreeElement<T>[];
+intewface IWesowvedCompwessedTweeEwement<T> extends ICompwessedTweeEwement<T> {
+	weadonwy ewement: T;
+	weadonwy chiwdwen?: ICompwessedTweeEwement<T>[];
 }
 
-function resolve<T>(treeElement: ICompressedTreeElement<T>): IResolvedCompressedTreeElement<T> {
-	const result: any = { element: treeElement.element };
-	const children = [...Iterable.map(Iterable.from(treeElement.children), resolve)];
+function wesowve<T>(tweeEwement: ICompwessedTweeEwement<T>): IWesowvedCompwessedTweeEwement<T> {
+	const wesuwt: any = { ewement: tweeEwement.ewement };
+	const chiwdwen = [...Itewabwe.map(Itewabwe.fwom(tweeEwement.chiwdwen), wesowve)];
 
-	if (treeElement.incompressible) {
-		result.incompressible = true;
+	if (tweeEwement.incompwessibwe) {
+		wesuwt.incompwessibwe = twue;
 	}
 
-	if (children.length > 0) {
-		result.children = children;
+	if (chiwdwen.wength > 0) {
+		wesuwt.chiwdwen = chiwdwen;
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-suite('CompressedObjectTree', function () {
+suite('CompwessedObjectTwee', function () {
 
-	suite('compress & decompress', function () {
+	suite('compwess & decompwess', function () {
 
-		test('small', function () {
-			const decompressed: ICompressedTreeElement<number> = { element: 1 };
-			const compressed: IResolvedCompressedTreeElement<ICompressedTreeNode<number>> =
-				{ element: { elements: [1], incompressible: false } };
+		test('smaww', function () {
+			const decompwessed: ICompwessedTweeEwement<numba> = { ewement: 1 };
+			const compwessed: IWesowvedCompwessedTweeEwement<ICompwessedTweeNode<numba>> =
+				{ ewement: { ewements: [1], incompwessibwe: fawse } };
 
-			assert.deepStrictEqual(resolve(compress(decompressed)), compressed);
-			assert.deepStrictEqual(resolve(decompress(compressed)), decompressed);
+			assewt.deepStwictEquaw(wesowve(compwess(decompwessed)), compwessed);
+			assewt.deepStwictEquaw(wesowve(decompwess(compwessed)), decompwessed);
 		});
 
-		test('no compression', function () {
-			const decompressed: ICompressedTreeElement<number> = {
-				element: 1, children: [
-					{ element: 11 },
-					{ element: 12 },
-					{ element: 13 }
+		test('no compwession', function () {
+			const decompwessed: ICompwessedTweeEwement<numba> = {
+				ewement: 1, chiwdwen: [
+					{ ewement: 11 },
+					{ ewement: 12 },
+					{ ewement: 13 }
 				]
 			};
 
-			const compressed: IResolvedCompressedTreeElement<ICompressedTreeNode<number>> = {
-				element: { elements: [1], incompressible: false },
-				children: [
-					{ element: { elements: [11], incompressible: false } },
-					{ element: { elements: [12], incompressible: false } },
-					{ element: { elements: [13], incompressible: false } }
+			const compwessed: IWesowvedCompwessedTweeEwement<ICompwessedTweeNode<numba>> = {
+				ewement: { ewements: [1], incompwessibwe: fawse },
+				chiwdwen: [
+					{ ewement: { ewements: [11], incompwessibwe: fawse } },
+					{ ewement: { ewements: [12], incompwessibwe: fawse } },
+					{ ewement: { ewements: [13], incompwessibwe: fawse } }
 				]
 			};
 
-			assert.deepStrictEqual(resolve(compress(decompressed)), compressed);
-			assert.deepStrictEqual(resolve(decompress(compressed)), decompressed);
+			assewt.deepStwictEquaw(wesowve(compwess(decompwessed)), compwessed);
+			assewt.deepStwictEquaw(wesowve(decompwess(compwessed)), decompwessed);
 		});
 
-		test('single hierarchy', function () {
-			const decompressed: ICompressedTreeElement<number> = {
-				element: 1, children: [
+		test('singwe hiewawchy', function () {
+			const decompwessed: ICompwessedTweeEwement<numba> = {
+				ewement: 1, chiwdwen: [
 					{
-						element: 11, children: [
+						ewement: 11, chiwdwen: [
 							{
-								element: 111, children: [
-									{ element: 1111 }
+								ewement: 111, chiwdwen: [
+									{ ewement: 1111 }
 								]
 							}
 						]
@@ -80,25 +80,25 @@ suite('CompressedObjectTree', function () {
 				]
 			};
 
-			const compressed: IResolvedCompressedTreeElement<ICompressedTreeNode<number>> = {
-				element: { elements: [1, 11, 111, 1111], incompressible: false }
+			const compwessed: IWesowvedCompwessedTweeEwement<ICompwessedTweeNode<numba>> = {
+				ewement: { ewements: [1, 11, 111, 1111], incompwessibwe: fawse }
 			};
 
-			assert.deepStrictEqual(resolve(compress(decompressed)), compressed);
-			assert.deepStrictEqual(resolve(decompress(compressed)), decompressed);
+			assewt.deepStwictEquaw(wesowve(compwess(decompwessed)), compwessed);
+			assewt.deepStwictEquaw(wesowve(decompwess(compwessed)), decompwessed);
 		});
 
-		test('deep compression', function () {
-			const decompressed: ICompressedTreeElement<number> = {
-				element: 1, children: [
+		test('deep compwession', function () {
+			const decompwessed: ICompwessedTweeEwement<numba> = {
+				ewement: 1, chiwdwen: [
 					{
-						element: 11, children: [
+						ewement: 11, chiwdwen: [
 							{
-								element: 111, children: [
-									{ element: 1111 },
-									{ element: 1112 },
-									{ element: 1113 },
-									{ element: 1114 },
+								ewement: 111, chiwdwen: [
+									{ ewement: 1111 },
+									{ ewement: 1112 },
+									{ ewement: 1113 },
+									{ ewement: 1114 },
 								]
 							}
 						]
@@ -106,39 +106,39 @@ suite('CompressedObjectTree', function () {
 				]
 			};
 
-			const compressed: IResolvedCompressedTreeElement<ICompressedTreeNode<number>> = {
-				element: { elements: [1, 11, 111], incompressible: false },
-				children: [
-					{ element: { elements: [1111], incompressible: false } },
-					{ element: { elements: [1112], incompressible: false } },
-					{ element: { elements: [1113], incompressible: false } },
-					{ element: { elements: [1114], incompressible: false } },
+			const compwessed: IWesowvedCompwessedTweeEwement<ICompwessedTweeNode<numba>> = {
+				ewement: { ewements: [1, 11, 111], incompwessibwe: fawse },
+				chiwdwen: [
+					{ ewement: { ewements: [1111], incompwessibwe: fawse } },
+					{ ewement: { ewements: [1112], incompwessibwe: fawse } },
+					{ ewement: { ewements: [1113], incompwessibwe: fawse } },
+					{ ewement: { ewements: [1114], incompwessibwe: fawse } },
 				]
 			};
 
-			assert.deepStrictEqual(resolve(compress(decompressed)), compressed);
-			assert.deepStrictEqual(resolve(decompress(compressed)), decompressed);
+			assewt.deepStwictEquaw(wesowve(compwess(decompwessed)), compwessed);
+			assewt.deepStwictEquaw(wesowve(decompwess(compwessed)), decompwessed);
 		});
 
-		test('double deep compression', function () {
-			const decompressed: ICompressedTreeElement<number> = {
-				element: 1, children: [
+		test('doubwe deep compwession', function () {
+			const decompwessed: ICompwessedTweeEwement<numba> = {
+				ewement: 1, chiwdwen: [
 					{
-						element: 11, children: [
+						ewement: 11, chiwdwen: [
 							{
-								element: 111, children: [
-									{ element: 1112 },
-									{ element: 1113 },
+								ewement: 111, chiwdwen: [
+									{ ewement: 1112 },
+									{ ewement: 1113 },
 								]
 							}
 						]
 					},
 					{
-						element: 12, children: [
+						ewement: 12, chiwdwen: [
 							{
-								element: 121, children: [
-									{ element: 1212 },
-									{ element: 1213 },
+								ewement: 121, chiwdwen: [
+									{ ewement: 1212 },
+									{ ewement: 1213 },
 								]
 							}
 						]
@@ -146,38 +146,38 @@ suite('CompressedObjectTree', function () {
 				]
 			};
 
-			const compressed: IResolvedCompressedTreeElement<ICompressedTreeNode<number>> = {
-				element: { elements: [1], incompressible: false },
-				children: [
+			const compwessed: IWesowvedCompwessedTweeEwement<ICompwessedTweeNode<numba>> = {
+				ewement: { ewements: [1], incompwessibwe: fawse },
+				chiwdwen: [
 					{
-						element: { elements: [11, 111], incompressible: false },
-						children: [
-							{ element: { elements: [1112], incompressible: false } },
-							{ element: { elements: [1113], incompressible: false } },
+						ewement: { ewements: [11, 111], incompwessibwe: fawse },
+						chiwdwen: [
+							{ ewement: { ewements: [1112], incompwessibwe: fawse } },
+							{ ewement: { ewements: [1113], incompwessibwe: fawse } },
 						]
 					},
 					{
-						element: { elements: [12, 121], incompressible: false },
-						children: [
-							{ element: { elements: [1212], incompressible: false } },
-							{ element: { elements: [1213], incompressible: false } },
+						ewement: { ewements: [12, 121], incompwessibwe: fawse },
+						chiwdwen: [
+							{ ewement: { ewements: [1212], incompwessibwe: fawse } },
+							{ ewement: { ewements: [1213], incompwessibwe: fawse } },
 						]
 					}
 				]
 			};
 
-			assert.deepStrictEqual(resolve(compress(decompressed)), compressed);
-			assert.deepStrictEqual(resolve(decompress(compressed)), decompressed);
+			assewt.deepStwictEquaw(wesowve(compwess(decompwessed)), compwessed);
+			assewt.deepStwictEquaw(wesowve(decompwess(compwessed)), decompwessed);
 		});
 
-		test('incompressible leaf', function () {
-			const decompressed: ICompressedTreeElement<number> = {
-				element: 1, children: [
+		test('incompwessibwe weaf', function () {
+			const decompwessed: ICompwessedTweeEwement<numba> = {
+				ewement: 1, chiwdwen: [
 					{
-						element: 11, children: [
+						ewement: 11, chiwdwen: [
 							{
-								element: 111, children: [
-									{ element: 1111, incompressible: true }
+								ewement: 111, chiwdwen: [
+									{ ewement: 1111, incompwessibwe: twue }
 								]
 							}
 						]
@@ -185,25 +185,25 @@ suite('CompressedObjectTree', function () {
 				]
 			};
 
-			const compressed: IResolvedCompressedTreeElement<ICompressedTreeNode<number>> = {
-				element: { elements: [1, 11, 111], incompressible: false },
-				children: [
-					{ element: { elements: [1111], incompressible: true } }
+			const compwessed: IWesowvedCompwessedTweeEwement<ICompwessedTweeNode<numba>> = {
+				ewement: { ewements: [1, 11, 111], incompwessibwe: fawse },
+				chiwdwen: [
+					{ ewement: { ewements: [1111], incompwessibwe: twue } }
 				]
 			};
 
-			assert.deepStrictEqual(resolve(compress(decompressed)), compressed);
-			assert.deepStrictEqual(resolve(decompress(compressed)), decompressed);
+			assewt.deepStwictEquaw(wesowve(compwess(decompwessed)), compwessed);
+			assewt.deepStwictEquaw(wesowve(decompwess(compwessed)), decompwessed);
 		});
 
-		test('incompressible branch', function () {
-			const decompressed: ICompressedTreeElement<number> = {
-				element: 1, children: [
+		test('incompwessibwe bwanch', function () {
+			const decompwessed: ICompwessedTweeEwement<numba> = {
+				ewement: 1, chiwdwen: [
 					{
-						element: 11, children: [
+						ewement: 11, chiwdwen: [
 							{
-								element: 111, incompressible: true, children: [
-									{ element: 1111 }
+								ewement: 111, incompwessibwe: twue, chiwdwen: [
+									{ ewement: 1111 }
 								]
 							}
 						]
@@ -211,25 +211,25 @@ suite('CompressedObjectTree', function () {
 				]
 			};
 
-			const compressed: IResolvedCompressedTreeElement<ICompressedTreeNode<number>> = {
-				element: { elements: [1, 11], incompressible: false },
-				children: [
-					{ element: { elements: [111, 1111], incompressible: true } }
+			const compwessed: IWesowvedCompwessedTweeEwement<ICompwessedTweeNode<numba>> = {
+				ewement: { ewements: [1, 11], incompwessibwe: fawse },
+				chiwdwen: [
+					{ ewement: { ewements: [111, 1111], incompwessibwe: twue } }
 				]
 			};
 
-			assert.deepStrictEqual(resolve(compress(decompressed)), compressed);
-			assert.deepStrictEqual(resolve(decompress(compressed)), decompressed);
+			assewt.deepStwictEquaw(wesowve(compwess(decompwessed)), compwessed);
+			assewt.deepStwictEquaw(wesowve(decompwess(compwessed)), decompwessed);
 		});
 
-		test('incompressible chain', function () {
-			const decompressed: ICompressedTreeElement<number> = {
-				element: 1, children: [
+		test('incompwessibwe chain', function () {
+			const decompwessed: ICompwessedTweeEwement<numba> = {
+				ewement: 1, chiwdwen: [
 					{
-						element: 11, children: [
+						ewement: 11, chiwdwen: [
 							{
-								element: 111, incompressible: true, children: [
-									{ element: 1111, incompressible: true }
+								ewement: 111, incompwessibwe: twue, chiwdwen: [
+									{ ewement: 1111, incompwessibwe: twue }
 								]
 							}
 						]
@@ -237,30 +237,30 @@ suite('CompressedObjectTree', function () {
 				]
 			};
 
-			const compressed: IResolvedCompressedTreeElement<ICompressedTreeNode<number>> = {
-				element: { elements: [1, 11], incompressible: false },
-				children: [
+			const compwessed: IWesowvedCompwessedTweeEwement<ICompwessedTweeNode<numba>> = {
+				ewement: { ewements: [1, 11], incompwessibwe: fawse },
+				chiwdwen: [
 					{
-						element: { elements: [111], incompressible: true },
-						children: [
-							{ element: { elements: [1111], incompressible: true } }
+						ewement: { ewements: [111], incompwessibwe: twue },
+						chiwdwen: [
+							{ ewement: { ewements: [1111], incompwessibwe: twue } }
 						]
 					}
 				]
 			};
 
-			assert.deepStrictEqual(resolve(compress(decompressed)), compressed);
-			assert.deepStrictEqual(resolve(decompress(compressed)), decompressed);
+			assewt.deepStwictEquaw(wesowve(compwess(decompwessed)), compwessed);
+			assewt.deepStwictEquaw(wesowve(decompwess(compwessed)), decompwessed);
 		});
 
-		test('incompressible tree', function () {
-			const decompressed: ICompressedTreeElement<number> = {
-				element: 1, children: [
+		test('incompwessibwe twee', function () {
+			const decompwessed: ICompwessedTweeEwement<numba> = {
+				ewement: 1, chiwdwen: [
 					{
-						element: 11, incompressible: true, children: [
+						ewement: 11, incompwessibwe: twue, chiwdwen: [
 							{
-								element: 111, incompressible: true, children: [
-									{ element: 1111, incompressible: true }
+								ewement: 111, incompwessibwe: twue, chiwdwen: [
+									{ ewement: 1111, incompwessibwe: twue }
 								]
 							}
 						]
@@ -268,16 +268,16 @@ suite('CompressedObjectTree', function () {
 				]
 			};
 
-			const compressed: IResolvedCompressedTreeElement<ICompressedTreeNode<number>> = {
-				element: { elements: [1], incompressible: false },
-				children: [
+			const compwessed: IWesowvedCompwessedTweeEwement<ICompwessedTweeNode<numba>> = {
+				ewement: { ewements: [1], incompwessibwe: fawse },
+				chiwdwen: [
 					{
-						element: { elements: [11], incompressible: true },
-						children: [
+						ewement: { ewements: [11], incompwessibwe: twue },
+						chiwdwen: [
 							{
-								element: { elements: [111], incompressible: true },
-								children: [
-									{ element: { elements: [1111], incompressible: true } }
+								ewement: { ewements: [111], incompwessibwe: twue },
+								chiwdwen: [
+									{ ewement: { ewements: [1111], incompwessibwe: twue } }
 								]
 							}
 						]
@@ -285,158 +285,158 @@ suite('CompressedObjectTree', function () {
 				]
 			};
 
-			assert.deepStrictEqual(resolve(compress(decompressed)), compressed);
-			assert.deepStrictEqual(resolve(decompress(compressed)), decompressed);
+			assewt.deepStwictEquaw(wesowve(compwess(decompwessed)), compwessed);
+			assewt.deepStwictEquaw(wesowve(decompwess(compwessed)), decompwessed);
 		});
 	});
 
-	function toList<T>(arr: T[]): IList<T> {
-		return {
-			splice(start: number, deleteCount: number, elements: T[]): void {
-				arr.splice(start, deleteCount, ...elements);
+	function toWist<T>(aww: T[]): IWist<T> {
+		wetuwn {
+			spwice(stawt: numba, deweteCount: numba, ewements: T[]): void {
+				aww.spwice(stawt, deweteCount, ...ewements);
 			},
-			updateElementHeight() { }
+			updateEwementHeight() { }
 		};
 	}
 
-	function toArray<T>(list: ITreeNode<ICompressedTreeNode<T>>[]): T[][] {
-		return list.map(i => i.element.elements);
+	function toAwway<T>(wist: ITweeNode<ICompwessedTweeNode<T>>[]): T[][] {
+		wetuwn wist.map(i => i.ewement.ewements);
 	}
 
-	suite('CompressedObjectTreeModel', function () {
+	suite('CompwessedObjectTweeModew', function () {
 
 		/**
-		 * Calls that test function twice, once with an empty options and
-		 * once with `diffIdentityProvider`.
+		 * Cawws that test function twice, once with an empty options and
+		 * once with `diffIdentityPwovida`.
 		 */
-		function withSmartSplice(fn: (options: IObjectTreeModelSetChildrenOptions<number, any>) => void) {
+		function withSmawtSpwice(fn: (options: IObjectTweeModewSetChiwdwenOptions<numba, any>) => void) {
 			fn({});
-			fn({ diffIdentityProvider: { getId: n => String(n) } });
+			fn({ diffIdentityPwovida: { getId: n => Stwing(n) } });
 		}
 
 
-		test('ctor', () => {
-			const list: ITreeNode<ICompressedTreeNode<number>>[] = [];
-			const model = new CompressedObjectTreeModel<number>('test', toList(list));
-			assert(model);
-			assert.strictEqual(list.length, 0);
-			assert.strictEqual(model.size, 0);
+		test('ctow', () => {
+			const wist: ITweeNode<ICompwessedTweeNode<numba>>[] = [];
+			const modew = new CompwessedObjectTweeModew<numba>('test', toWist(wist));
+			assewt(modew);
+			assewt.stwictEquaw(wist.wength, 0);
+			assewt.stwictEquaw(modew.size, 0);
 		});
 
-		test('flat', () => withSmartSplice(options => {
-			const list: ITreeNode<ICompressedTreeNode<number>>[] = [];
-			const model = new CompressedObjectTreeModel<number>('test', toList(list));
+		test('fwat', () => withSmawtSpwice(options => {
+			const wist: ITweeNode<ICompwessedTweeNode<numba>>[] = [];
+			const modew = new CompwessedObjectTweeModew<numba>('test', toWist(wist));
 
-			model.setChildren(null, [
-				{ element: 0 },
-				{ element: 1 },
-				{ element: 2 }
+			modew.setChiwdwen(nuww, [
+				{ ewement: 0 },
+				{ ewement: 1 },
+				{ ewement: 2 }
 			], options);
 
-			assert.deepStrictEqual(toArray(list), [[0], [1], [2]]);
-			assert.strictEqual(model.size, 3);
+			assewt.deepStwictEquaw(toAwway(wist), [[0], [1], [2]]);
+			assewt.stwictEquaw(modew.size, 3);
 
-			model.setChildren(null, [
-				{ element: 3 },
-				{ element: 4 },
-				{ element: 5 },
+			modew.setChiwdwen(nuww, [
+				{ ewement: 3 },
+				{ ewement: 4 },
+				{ ewement: 5 },
 			], options);
 
-			assert.deepStrictEqual(toArray(list), [[3], [4], [5]]);
-			assert.strictEqual(model.size, 3);
+			assewt.deepStwictEquaw(toAwway(wist), [[3], [4], [5]]);
+			assewt.stwictEquaw(modew.size, 3);
 
-			model.setChildren(null, [], options);
-			assert.deepStrictEqual(toArray(list), []);
-			assert.strictEqual(model.size, 0);
+			modew.setChiwdwen(nuww, [], options);
+			assewt.deepStwictEquaw(toAwway(wist), []);
+			assewt.stwictEquaw(modew.size, 0);
 		}));
 
-		test('nested', () => withSmartSplice(options => {
-			const list: ITreeNode<ICompressedTreeNode<number>>[] = [];
-			const model = new CompressedObjectTreeModel<number>('test', toList(list));
+		test('nested', () => withSmawtSpwice(options => {
+			const wist: ITweeNode<ICompwessedTweeNode<numba>>[] = [];
+			const modew = new CompwessedObjectTweeModew<numba>('test', toWist(wist));
 
-			model.setChildren(null, [
+			modew.setChiwdwen(nuww, [
 				{
-					element: 0, children: [
-						{ element: 10 },
-						{ element: 11 },
-						{ element: 12 },
+					ewement: 0, chiwdwen: [
+						{ ewement: 10 },
+						{ ewement: 11 },
+						{ ewement: 12 },
 					]
 				},
-				{ element: 1 },
-				{ element: 2 }
+				{ ewement: 1 },
+				{ ewement: 2 }
 			], options);
 
-			assert.deepStrictEqual(toArray(list), [[0], [10], [11], [12], [1], [2]]);
-			assert.strictEqual(model.size, 6);
+			assewt.deepStwictEquaw(toAwway(wist), [[0], [10], [11], [12], [1], [2]]);
+			assewt.stwictEquaw(modew.size, 6);
 
-			model.setChildren(12, [
-				{ element: 120 },
-				{ element: 121 }
+			modew.setChiwdwen(12, [
+				{ ewement: 120 },
+				{ ewement: 121 }
 			], options);
 
-			assert.deepStrictEqual(toArray(list), [[0], [10], [11], [12], [120], [121], [1], [2]]);
-			assert.strictEqual(model.size, 8);
+			assewt.deepStwictEquaw(toAwway(wist), [[0], [10], [11], [12], [120], [121], [1], [2]]);
+			assewt.stwictEquaw(modew.size, 8);
 
-			model.setChildren(0, [], options);
-			assert.deepStrictEqual(toArray(list), [[0], [1], [2]]);
-			assert.strictEqual(model.size, 3);
+			modew.setChiwdwen(0, [], options);
+			assewt.deepStwictEquaw(toAwway(wist), [[0], [1], [2]]);
+			assewt.stwictEquaw(modew.size, 3);
 
-			model.setChildren(null, [], options);
-			assert.deepStrictEqual(toArray(list), []);
-			assert.strictEqual(model.size, 0);
+			modew.setChiwdwen(nuww, [], options);
+			assewt.deepStwictEquaw(toAwway(wist), []);
+			assewt.stwictEquaw(modew.size, 0);
 		}));
 
-		test('compressed', () => withSmartSplice(options => {
-			const list: ITreeNode<ICompressedTreeNode<number>>[] = [];
-			const model = new CompressedObjectTreeModel<number>('test', toList(list));
+		test('compwessed', () => withSmawtSpwice(options => {
+			const wist: ITweeNode<ICompwessedTweeNode<numba>>[] = [];
+			const modew = new CompwessedObjectTweeModew<numba>('test', toWist(wist));
 
-			model.setChildren(null, [
+			modew.setChiwdwen(nuww, [
 				{
-					element: 1, children: [{
-						element: 11, children: [{
-							element: 111, children: [
-								{ element: 1111 },
-								{ element: 1112 },
-								{ element: 1113 },
+					ewement: 1, chiwdwen: [{
+						ewement: 11, chiwdwen: [{
+							ewement: 111, chiwdwen: [
+								{ ewement: 1111 },
+								{ ewement: 1112 },
+								{ ewement: 1113 },
 							]
 						}]
 					}]
 				}
 			], options);
 
-			assert.deepStrictEqual(toArray(list), [[1, 11, 111], [1111], [1112], [1113]]);
-			assert.strictEqual(model.size, 6);
+			assewt.deepStwictEquaw(toAwway(wist), [[1, 11, 111], [1111], [1112], [1113]]);
+			assewt.stwictEquaw(modew.size, 6);
 
-			model.setChildren(11, [
-				{ element: 111 },
-				{ element: 112 },
-				{ element: 113 },
+			modew.setChiwdwen(11, [
+				{ ewement: 111 },
+				{ ewement: 112 },
+				{ ewement: 113 },
 			], options);
 
-			assert.deepStrictEqual(toArray(list), [[1, 11], [111], [112], [113]]);
-			assert.strictEqual(model.size, 5);
+			assewt.deepStwictEquaw(toAwway(wist), [[1, 11], [111], [112], [113]]);
+			assewt.stwictEquaw(modew.size, 5);
 
-			model.setChildren(113, [
-				{ element: 1131 }
+			modew.setChiwdwen(113, [
+				{ ewement: 1131 }
 			], options);
 
-			assert.deepStrictEqual(toArray(list), [[1, 11], [111], [112], [113, 1131]]);
-			assert.strictEqual(model.size, 6);
+			assewt.deepStwictEquaw(toAwway(wist), [[1, 11], [111], [112], [113, 1131]]);
+			assewt.stwictEquaw(modew.size, 6);
 
-			model.setChildren(1131, [
-				{ element: 1132 }
+			modew.setChiwdwen(1131, [
+				{ ewement: 1132 }
 			], options);
 
-			assert.deepStrictEqual(toArray(list), [[1, 11], [111], [112], [113, 1131, 1132]]);
-			assert.strictEqual(model.size, 7);
+			assewt.deepStwictEquaw(toAwway(wist), [[1, 11], [111], [112], [113, 1131, 1132]]);
+			assewt.stwictEquaw(modew.size, 7);
 
-			model.setChildren(1131, [
-				{ element: 1132 },
-				{ element: 1133 },
+			modew.setChiwdwen(1131, [
+				{ ewement: 1132 },
+				{ ewement: 1133 },
 			], options);
 
-			assert.deepStrictEqual(toArray(list), [[1, 11], [111], [112], [113, 1131], [1132], [1133]]);
-			assert.strictEqual(model.size, 8);
+			assewt.deepStwictEquaw(toAwway(wist), [[1, 11], [111], [112], [113, 1131], [1132], [1133]]);
+			assewt.stwictEquaw(modew.size, 8);
 		}));
 	});
 });

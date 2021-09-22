@@ -1,108 +1,108 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { parse } from 'vs/base/common/marshalling';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { EditorExtensions, EditorsOrder, IEditorSerializer } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { InteractiveEditor } from 'vs/workbench/contrib/interactive/browser/interactiveEditor';
-import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
-import { NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { CellEditType, CellKind, ICellOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookContentProvider, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
-import { Schemas } from 'vs/base/common/network';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IInteractiveHistoryService, InteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
-import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { IInteractiveDocumentService, InteractiveDocumentService } from 'vs/workbench/contrib/interactive/browser/interactiveDocumentService';
-import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
-import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
-import { EditorActivation } from 'vs/platform/editor/common/editor';
-import { contrastBorder, listInactiveSelectionBackground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
-// import { Color } from 'vs/base/common/color';
-import { PANEL_BORDER } from 'vs/workbench/common/theme';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { peekViewBorder /*, peekViewEditorBackground, peekViewResultsBackground */ } from 'vs/editor/contrib/peekView/peekView';
-import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
+impowt { wocawize } fwom 'vs/nws';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { pawse } fwom 'vs/base/common/mawshawwing';
+impowt { assewtType } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IBuwkEditSewvice } fwom 'vs/editow/bwowsa/sewvices/buwkEditSewvice';
+impowt { CodeEditowWidget } fwom 'vs/editow/bwowsa/widget/codeEditowWidget';
+impowt { Action2, MenuId, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { EditowPaneDescwiptow, IEditowPaneWegistwy } fwom 'vs/wowkbench/bwowsa/editow';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibution, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { EditowExtensions, EditowsOwda, IEditowSewiawiza } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { cowumnToEditowGwoup } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupCowumn';
+impowt { IntewactiveEditow } fwom 'vs/wowkbench/contwib/intewactive/bwowsa/intewactiveEditow';
+impowt { IntewactiveEditowInput } fwom 'vs/wowkbench/contwib/intewactive/bwowsa/intewactiveEditowInput';
+impowt { NOTEBOOK_EDITOW_WIDGET_ACTION_WEIGHT } fwom 'vs/wowkbench/contwib/notebook/bwowsa/contwowwa/coweActions';
+impowt { NotebookEditowWidget } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookEditowWidget';
+impowt { CewwEditType, CewwKind, ICewwOutput } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { INotebookContentPwovida, INotebookSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { WesouwceNotebookCewwEdit } fwom 'vs/wowkbench/contwib/buwkEdit/bwowsa/buwkCewwEdits';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IIntewactiveHistowySewvice, IntewactiveHistowySewvice } fwom 'vs/wowkbench/contwib/intewactive/bwowsa/intewactiveHistowySewvice';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { INTEWACTIVE_INPUT_CUWSOW_BOUNDAWY } fwom 'vs/wowkbench/contwib/intewactive/bwowsa/intewactiveCommon';
+impowt { INotebookKewnewSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookKewnewSewvice';
+impowt { IIntewactiveDocumentSewvice, IntewactiveDocumentSewvice } fwom 'vs/wowkbench/contwib/intewactive/bwowsa/intewactiveDocumentSewvice';
+impowt { IEditowWesowvewSewvice, WegistewedEditowPwiowity } fwom 'vs/wowkbench/sewvices/editow/common/editowWesowvewSewvice';
+impowt { Context as SuggestContext } fwom 'vs/editow/contwib/suggest/suggest';
+impowt { EditowActivation } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { contwastBowda, wistInactiveSewectionBackgwound, wegistewCowow, twanspawent } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+// impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { PANEW_BOWDa } fwom 'vs/wowkbench/common/theme';
+impowt { wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { peekViewBowda /*, peekViewEditowBackgwound, peekViewWesuwtsBackgwound */ } fwom 'vs/editow/contwib/peekView/peekView';
+impowt * as icons fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookIcons';
+impowt { isFawsyOwWhitespace } fwom 'vs/base/common/stwings';
+impowt { EditOpewation } fwom 'vs/editow/common/cowe/editOpewation';
 
 
-Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-	EditorPaneDescriptor.create(
-		InteractiveEditor,
-		InteractiveEditor.ID,
-		'Interactive Window'
+Wegistwy.as<IEditowPaneWegistwy>(EditowExtensions.EditowPane).wegistewEditowPane(
+	EditowPaneDescwiptow.cweate(
+		IntewactiveEditow,
+		IntewactiveEditow.ID,
+		'Intewactive Window'
 	),
 	[
-		new SyncDescriptor(InteractiveEditorInput)
+		new SyncDescwiptow(IntewactiveEditowInput)
 	]
 );
 
-export class InteractiveDocumentContribution extends Disposable implements IWorkbenchContribution {
-	constructor(
-		@INotebookService notebookService: INotebookService,
-		@IEditorResolverService editorResolverService: IEditorResolverService,
-		@IEditorService editorService: IEditorService,
+expowt cwass IntewactiveDocumentContwibution extends Disposabwe impwements IWowkbenchContwibution {
+	constwuctow(
+		@INotebookSewvice notebookSewvice: INotebookSewvice,
+		@IEditowWesowvewSewvice editowWesowvewSewvice: IEditowWesowvewSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice,
 	) {
-		super();
+		supa();
 
 		const contentOptions = {
-			transientOutputs: true,
-			transientCellMetadata: {},
-			transientDocumentMetadata: {}
+			twansientOutputs: twue,
+			twansientCewwMetadata: {},
+			twansientDocumentMetadata: {}
 		};
 
-		const controller: INotebookContentProvider = {
+		const contwowwa: INotebookContentPwovida = {
 			get options() {
-				return contentOptions;
+				wetuwn contentOptions;
 			},
 			set options(newOptions) {
-				contentOptions.transientCellMetadata = newOptions.transientCellMetadata;
-				contentOptions.transientDocumentMetadata = newOptions.transientDocumentMetadata;
-				contentOptions.transientOutputs = newOptions.transientOutputs;
+				contentOptions.twansientCewwMetadata = newOptions.twansientCewwMetadata;
+				contentOptions.twansientDocumentMetadata = newOptions.twansientDocumentMetadata;
+				contentOptions.twansientOutputs = newOptions.twansientOutputs;
 			},
-			open: async (_uri: URI, _backupId: string | VSBuffer | undefined, _untitledDocumentData: VSBuffer | undefined, _token: CancellationToken) => {
-				if (_backupId instanceof VSBuffer) {
-					const backup = _backupId.toString();
-					try {
-						const document = JSON.parse(backup) as { cells: { kind: CellKind, language: string, metadata: any, mime: string | undefined, content: string, outputs?: ICellOutput[] }[] };
-						return {
+			open: async (_uwi: UWI, _backupId: stwing | VSBuffa | undefined, _untitwedDocumentData: VSBuffa | undefined, _token: CancewwationToken) => {
+				if (_backupId instanceof VSBuffa) {
+					const backup = _backupId.toStwing();
+					twy {
+						const document = JSON.pawse(backup) as { cewws: { kind: CewwKind, wanguage: stwing, metadata: any, mime: stwing | undefined, content: stwing, outputs?: ICewwOutput[] }[] };
+						wetuwn {
 							data: {
 								metadata: {},
-								cells: document.cells.map(cell => ({
-									source: cell.content,
-									language: cell.language,
-									cellKind: cell.kind,
-									mime: cell.mime,
-									outputs: cell.outputs
-										? cell.outputs.map(output => ({
+								cewws: document.cewws.map(ceww => ({
+									souwce: ceww.content,
+									wanguage: ceww.wanguage,
+									cewwKind: ceww.kind,
+									mime: ceww.mime,
+									outputs: ceww.outputs
+										? ceww.outputs.map(output => ({
 											outputId: output.outputId,
 											outputs: output.outputs.map(ot => ({
 												mime: ot.mime,
@@ -110,40 +110,40 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 											}))
 										}))
 										: [],
-									metadata: cell.metadata
+									metadata: ceww.metadata
 								}))
 							},
-							transientOptions: contentOptions
+							twansientOptions: contentOptions
 						};
 					} catch (_e) { }
 				}
 
-				return {
+				wetuwn {
 					data: {
 						metadata: {},
-						cells: []
+						cewws: []
 					},
-					transientOptions: contentOptions
+					twansientOptions: contentOptions
 				};
 			},
-			save: async (uri: URI) => {
-				// trigger backup always
-				return false;
+			save: async (uwi: UWI) => {
+				// twigga backup awways
+				wetuwn fawse;
 			},
-			saveAs: async (uri: URI, target: URI, token: CancellationToken) => {
-				// return this._proxy.$saveNotebookAs(viewType, uri, target, token);
-				return false;
+			saveAs: async (uwi: UWI, tawget: UWI, token: CancewwationToken) => {
+				// wetuwn this._pwoxy.$saveNotebookAs(viewType, uwi, tawget, token);
+				wetuwn fawse;
 			},
-			backup: async (uri: URI, token: CancellationToken) => {
-				const doc = notebookService.listNotebookDocuments().find(document => document.uri.toString() === uri.toString());
+			backup: async (uwi: UWI, token: CancewwationToken) => {
+				const doc = notebookSewvice.wistNotebookDocuments().find(document => document.uwi.toStwing() === uwi.toStwing());
 				if (doc) {
-					const cells = doc.cells.map(cell => ({
-						kind: cell.cellKind,
-						language: cell.language,
-						metadata: cell.metadata,
-						mine: cell.mime,
-						outputs: cell.outputs.map(output => {
-							return {
+					const cewws = doc.cewws.map(ceww => ({
+						kind: ceww.cewwKind,
+						wanguage: ceww.wanguage,
+						metadata: ceww.metadata,
+						mine: ceww.mime,
+						outputs: ceww.outputs.map(output => {
+							wetuwn {
 								outputId: output.outputId,
 								outputs: output.outputs.map(ot => ({
 									mime: ot.mime,
@@ -151,154 +151,154 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 								}))
 							};
 						}),
-						content: cell.getValue()
+						content: ceww.getVawue()
 					}));
 
-					const buffer = VSBuffer.fromString(JSON.stringify({
-						cells: cells
+					const buffa = VSBuffa.fwomStwing(JSON.stwingify({
+						cewws: cewws
 					}));
 
-					return buffer;
-				} else {
-					return '';
+					wetuwn buffa;
+				} ewse {
+					wetuwn '';
 				}
 			}
 		};
-		this._register(notebookService.registerNotebookController('interactive', {
-			id: new ExtensionIdentifier('interactive.builtin'),
-			location: undefined
-		}, controller));
+		this._wegista(notebookSewvice.wegistewNotebookContwowwa('intewactive', {
+			id: new ExtensionIdentifia('intewactive.buiwtin'),
+			wocation: undefined
+		}, contwowwa));
 
-		const info = notebookService.getContributedNotebookType('interactive');
+		const info = notebookSewvice.getContwibutedNotebookType('intewactive');
 
 		if (info) {
-			info.update({ selectors: ['*.interactive'] });
-		} else {
-			this._register(notebookService.registerContributedNotebookType('interactive', {
-				providerDisplayName: 'Interactive Notebook',
-				displayName: 'Interactive',
-				filenamePattern: ['*.interactive'],
-				exclusive: true
+			info.update({ sewectows: ['*.intewactive'] });
+		} ewse {
+			this._wegista(notebookSewvice.wegistewContwibutedNotebookType('intewactive', {
+				pwovidewDispwayName: 'Intewactive Notebook',
+				dispwayName: 'Intewactive',
+				fiwenamePattewn: ['*.intewactive'],
+				excwusive: twue
 			}));
 		}
 
-		editorResolverService.registerEditor(
-			`${Schemas.vscodeInteractiveInput}:/**`,
+		editowWesowvewSewvice.wegistewEditow(
+			`${Schemas.vscodeIntewactiveInput}:/**`,
 			{
-				id: InteractiveEditor.ID,
-				label: 'Interactive Editor',
-				priority: RegisteredEditorPriority.exclusive
+				id: IntewactiveEditow.ID,
+				wabew: 'Intewactive Editow',
+				pwiowity: WegistewedEditowPwiowity.excwusive
 			},
 			{
-				canSupportResource: uri => uri.scheme === Schemas.vscodeInteractiveInput,
-				singlePerResource: true
+				canSuppowtWesouwce: uwi => uwi.scheme === Schemas.vscodeIntewactiveInput,
+				singwePewWesouwce: twue
 			},
-			({ resource }) => {
-				const editorInput = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor.editor instanceof InteractiveEditorInput && editor.editor.inputResource.toString() === resource.toString());
-				return editorInput!;
+			({ wesouwce }) => {
+				const editowInput = editowSewvice.getEditows(EditowsOwda.SEQUENTIAW).find(editow => editow.editow instanceof IntewactiveEditowInput && editow.editow.inputWesouwce.toStwing() === wesouwce.toStwing());
+				wetuwn editowInput!;
 			}
 		);
 
-		editorResolverService.registerEditor(
-			`*.interactive`,
+		editowWesowvewSewvice.wegistewEditow(
+			`*.intewactive`,
 			{
-				id: InteractiveEditor.ID,
-				label: 'Interactive Editor',
-				priority: RegisteredEditorPriority.exclusive
+				id: IntewactiveEditow.ID,
+				wabew: 'Intewactive Editow',
+				pwiowity: WegistewedEditowPwiowity.excwusive
 			},
 			{
-				canSupportResource: uri => uri.scheme === Schemas.vscodeInteractive,
-				singlePerResource: true
+				canSuppowtWesouwce: uwi => uwi.scheme === Schemas.vscodeIntewactive,
+				singwePewWesouwce: twue
 			},
-			({ resource }) => {
-				const editorInput = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor.editor instanceof InteractiveEditorInput && editor.editor.resource?.toString() === resource.toString());
-				return editorInput!;
+			({ wesouwce }) => {
+				const editowInput = editowSewvice.getEditows(EditowsOwda.SEQUENTIAW).find(editow => editow.editow instanceof IntewactiveEditowInput && editow.editow.wesouwce?.toStwing() === wesouwce.toStwing());
+				wetuwn editowInput!;
 			}
 		);
 	}
 }
 
-const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveDocumentContribution, LifecyclePhase.Starting);
+const wowkbenchContwibutionsWegistwy = Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench);
+wowkbenchContwibutionsWegistwy.wegistewWowkbenchContwibution(IntewactiveDocumentContwibution, WifecycwePhase.Stawting);
 
-export class InteractiveEditorSerializer implements IEditorSerializer {
-	canSerialize(): boolean {
-		return true;
+expowt cwass IntewactiveEditowSewiawiza impwements IEditowSewiawiza {
+	canSewiawize(): boowean {
+		wetuwn twue;
 	}
 
-	serialize(input: EditorInput): string {
-		assertType(input instanceof InteractiveEditorInput);
-		return JSON.stringify({
-			resource: input.primary.resource,
-			inputResource: input.inputResource,
+	sewiawize(input: EditowInput): stwing {
+		assewtType(input instanceof IntewactiveEditowInput);
+		wetuwn JSON.stwingify({
+			wesouwce: input.pwimawy.wesouwce,
+			inputWesouwce: input.inputWesouwce,
 		});
 	}
 
-	deserialize(instantiationService: IInstantiationService, raw: string) {
-		type Data = { resource: URI, inputResource: URI; };
-		const data = <Data>parse(raw);
+	desewiawize(instantiationSewvice: IInstantiationSewvice, waw: stwing) {
+		type Data = { wesouwce: UWI, inputWesouwce: UWI; };
+		const data = <Data>pawse(waw);
 		if (!data) {
-			return undefined;
+			wetuwn undefined;
 		}
-		const { resource, inputResource } = data;
-		if (!data || !URI.isUri(resource) || !URI.isUri(inputResource)) {
-			return undefined;
+		const { wesouwce, inputWesouwce } = data;
+		if (!data || !UWI.isUwi(wesouwce) || !UWI.isUwi(inputWesouwce)) {
+			wetuwn undefined;
 		}
 
-		const input = InteractiveEditorInput.create(instantiationService, resource, inputResource);
-		return input;
+		const input = IntewactiveEditowInput.cweate(instantiationSewvice, wesouwce, inputWesouwce);
+		wetuwn input;
 	}
 }
 
-// Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(
-// 	InteractiveEditorInput.ID,
-// 	InteractiveEditorSerializer
+// Wegistwy.as<IEditowInputFactowyWegistwy>(EditowExtensions.EditowInputFactowies).wegistewEditowInputSewiawiza(
+// 	IntewactiveEditowInput.ID,
+// 	IntewactiveEditowSewiawiza
 // );
 
-registerSingleton(IInteractiveHistoryService, InteractiveHistoryService);
-registerSingleton(IInteractiveDocumentService, InteractiveDocumentService);
+wegistewSingweton(IIntewactiveHistowySewvice, IntewactiveHistowySewvice);
+wegistewSingweton(IIntewactiveDocumentSewvice, IntewactiveDocumentSewvice);
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: '_interactive.open',
-			title: { value: localize('interactive.open', "Open Interactive Window"), original: 'Open Interactive Window' },
-			f1: false,
-			category: 'Interactive',
-			description: {
-				description: localize('interactive.open', "Open Interactive Window"),
-				args: [
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: '_intewactive.open',
+			titwe: { vawue: wocawize('intewactive.open', "Open Intewactive Window"), owiginaw: 'Open Intewactive Window' },
+			f1: fawse,
+			categowy: 'Intewactive',
+			descwiption: {
+				descwiption: wocawize('intewactive.open', "Open Intewactive Window"),
+				awgs: [
 					{
 						name: 'showOptions',
-						description: 'Show Options',
+						descwiption: 'Show Options',
 						schema: {
 							type: 'object',
-							properties: {
-								'viewColumn': {
-									type: 'number',
-									default: -1
+							pwopewties: {
+								'viewCowumn': {
+									type: 'numba',
+									defauwt: -1
 								},
-								'preserveFocus': {
-									type: 'boolean',
-									default: true
+								'pwesewveFocus': {
+									type: 'boowean',
+									defauwt: twue
 								}
 							},
 						}
 					},
 					{
-						name: 'resource',
-						description: 'Interactive resource Uri',
-						isOptional: true
+						name: 'wesouwce',
+						descwiption: 'Intewactive wesouwce Uwi',
+						isOptionaw: twue
 					},
 					{
-						name: 'controllerId',
-						description: 'Notebook controller Id',
-						isOptional: true
+						name: 'contwowwewId',
+						descwiption: 'Notebook contwowwa Id',
+						isOptionaw: twue
 					},
 					{
-						name: 'title',
-						description: 'Notebook editor title',
-						isOptional: true
+						name: 'titwe',
+						descwiption: 'Notebook editow titwe',
+						isOptionaw: twue
 					}
 				]
 			}
@@ -306,127 +306,127 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, showOptions?: number | { viewColumn?: number, preserveFocus?: boolean }, resource?: URI, id?: string, title?: string): Promise<{ notebookUri: URI, inputUri: URI; notebookEditorId?: string }> {
-		const editorService = accessor.get(IEditorService);
-		const editorGroupService = accessor.get(IEditorGroupsService);
-		const historyService = accessor.get(IInteractiveHistoryService);
-		const kernelService = accessor.get(INotebookKernelService);
-		const group = columnToEditorGroup(editorGroupService, typeof showOptions === 'number' ? showOptions : showOptions?.viewColumn);
-		const editorOptions = {
-			activation: EditorActivation.PRESERVE,
-			preserveFocus: typeof showOptions !== 'number' ? (showOptions?.preserveFocus ?? false) : false
+	async wun(accessow: SewvicesAccessow, showOptions?: numba | { viewCowumn?: numba, pwesewveFocus?: boowean }, wesouwce?: UWI, id?: stwing, titwe?: stwing): Pwomise<{ notebookUwi: UWI, inputUwi: UWI; notebookEditowId?: stwing }> {
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const editowGwoupSewvice = accessow.get(IEditowGwoupsSewvice);
+		const histowySewvice = accessow.get(IIntewactiveHistowySewvice);
+		const kewnewSewvice = accessow.get(INotebookKewnewSewvice);
+		const gwoup = cowumnToEditowGwoup(editowGwoupSewvice, typeof showOptions === 'numba' ? showOptions : showOptions?.viewCowumn);
+		const editowOptions = {
+			activation: EditowActivation.PWESEWVE,
+			pwesewveFocus: typeof showOptions !== 'numba' ? (showOptions?.pwesewveFocus ?? fawse) : fawse
 		};
 
-		if (resource && resource.scheme === Schemas.vscodeInteractive) {
-			const resourceUri = URI.revive(resource);
-			const editors = editorService.findEditors(resourceUri).filter(id => id.editor instanceof InteractiveEditorInput && id.editor.resource?.toString() === resourceUri.toString());
-			if (editors.length) {
-				const editorInput = editors[0].editor as InteractiveEditorInput;
-				const currentGroup = editors[0].groupId;
-				const editor = await editorService.openEditor(editorInput, editorOptions, currentGroup);
-				const editorControl = editor?.getControl() as { notebookEditor: NotebookEditorWidget | undefined, codeEditor: CodeEditorWidget; } | undefined;
+		if (wesouwce && wesouwce.scheme === Schemas.vscodeIntewactive) {
+			const wesouwceUwi = UWI.wevive(wesouwce);
+			const editows = editowSewvice.findEditows(wesouwceUwi).fiwta(id => id.editow instanceof IntewactiveEditowInput && id.editow.wesouwce?.toStwing() === wesouwceUwi.toStwing());
+			if (editows.wength) {
+				const editowInput = editows[0].editow as IntewactiveEditowInput;
+				const cuwwentGwoup = editows[0].gwoupId;
+				const editow = await editowSewvice.openEditow(editowInput, editowOptions, cuwwentGwoup);
+				const editowContwow = editow?.getContwow() as { notebookEditow: NotebookEditowWidget | undefined, codeEditow: CodeEditowWidget; } | undefined;
 
-				return {
-					notebookUri: editorInput.resource!,
-					inputUri: editorInput.inputResource,
-					notebookEditorId: editorControl?.notebookEditor?.getId()
+				wetuwn {
+					notebookUwi: editowInput.wesouwce!,
+					inputUwi: editowInput.inputWesouwce,
+					notebookEditowId: editowContwow?.notebookEditow?.getId()
 				};
 			}
 		}
 
-		const existingNotebookDocument = new Set<string>();
-		editorService.getEditors(EditorsOrder.SEQUENTIAL).forEach(editor => {
-			if (editor.editor.resource) {
-				existingNotebookDocument.add(editor.editor.resource.toString());
+		const existingNotebookDocument = new Set<stwing>();
+		editowSewvice.getEditows(EditowsOwda.SEQUENTIAW).fowEach(editow => {
+			if (editow.editow.wesouwce) {
+				existingNotebookDocument.add(editow.editow.wesouwce.toStwing());
 			}
 		});
 
-		let notebookUri: URI | undefined = undefined;
-		let inputUri: URI | undefined = undefined;
-		let counter = 1;
+		wet notebookUwi: UWI | undefined = undefined;
+		wet inputUwi: UWI | undefined = undefined;
+		wet counta = 1;
 		do {
-			notebookUri = URI.from({ scheme: Schemas.vscodeInteractive, path: `Interactive-${counter}.interactive` });
-			inputUri = URI.from({ scheme: Schemas.vscodeInteractiveInput, path: `/InteractiveInput-${counter}` });
+			notebookUwi = UWI.fwom({ scheme: Schemas.vscodeIntewactive, path: `Intewactive-${counta}.intewactive` });
+			inputUwi = UWI.fwom({ scheme: Schemas.vscodeIntewactiveInput, path: `/IntewactiveInput-${counta}` });
 
-			counter++;
-		} while (existingNotebookDocument.has(notebookUri.toString()));
+			counta++;
+		} whiwe (existingNotebookDocument.has(notebookUwi.toStwing()));
 
 		if (id) {
-			const allKernels = kernelService.getMatchingKernel({ uri: notebookUri, viewType: 'interactive' }).all;
-			const preferredKernel = allKernels.find(kernel => kernel.id === id);
-			if (preferredKernel) {
-				kernelService.selectKernelForNotebook(preferredKernel, { uri: notebookUri, viewType: 'interactive' });
+			const awwKewnews = kewnewSewvice.getMatchingKewnew({ uwi: notebookUwi, viewType: 'intewactive' }).aww;
+			const pwefewwedKewnew = awwKewnews.find(kewnew => kewnew.id === id);
+			if (pwefewwedKewnew) {
+				kewnewSewvice.sewectKewnewFowNotebook(pwefewwedKewnew, { uwi: notebookUwi, viewType: 'intewactive' });
 			}
 		}
 
-		const editorInput = InteractiveEditorInput.create(accessor.get(IInstantiationService), notebookUri, inputUri, title);
-		historyService.clearHistory(notebookUri);
-		const editorPane = await editorService.openEditor(editorInput, editorOptions, group);
-		const editorControl = editorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined, codeEditor: CodeEditorWidget; } | undefined;
-		// Extensions must retain references to these URIs to manipulate the interactive editor
-		return { notebookUri, inputUri, notebookEditorId: editorControl?.notebookEditor?.getId() };
+		const editowInput = IntewactiveEditowInput.cweate(accessow.get(IInstantiationSewvice), notebookUwi, inputUwi, titwe);
+		histowySewvice.cweawHistowy(notebookUwi);
+		const editowPane = await editowSewvice.openEditow(editowInput, editowOptions, gwoup);
+		const editowContwow = editowPane?.getContwow() as { notebookEditow: NotebookEditowWidget | undefined, codeEditow: CodeEditowWidget; } | undefined;
+		// Extensions must wetain wefewences to these UWIs to manipuwate the intewactive editow
+		wetuwn { notebookUwi, inputUwi, notebookEditowId: editowContwow?.notebookEditow?.getId() };
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'interactive.execute',
-			title: { value: localize('interactive.execute', "Execute Code"), original: 'Execute Code' },
-			category: 'Interactive',
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'intewactive.execute',
+			titwe: { vawue: wocawize('intewactive.execute', "Execute Code"), owiginaw: 'Execute Code' },
+			categowy: 'Intewactive',
 			keybinding: {
-				// when: NOTEBOOK_CELL_LIST_FOCUSED,
-				when: ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
-				primary: KeyMod.WinCtrl | KeyCode.Enter,
+				// when: NOTEBOOK_CEWW_WIST_FOCUSED,
+				when: ContextKeyExpw.equaws('wesouwceScheme', Schemas.vscodeIntewactive),
+				pwimawy: KeyMod.WinCtww | KeyCode.Enta,
 				win: {
-					primary: KeyMod.CtrlCmd | KeyCode.Enter
+					pwimawy: KeyMod.CtwwCmd | KeyCode.Enta
 				},
-				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
+				weight: NOTEBOOK_EDITOW_WIDGET_ACTION_WEIGHT
 			},
 			menu: [
 				{
-					id: MenuId.InteractiveInputExecute
+					id: MenuId.IntewactiveInputExecute
 				}
 			],
 			icon: icons.executeIcon,
-			f1: false
+			f1: fawse
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const bulkEditService = accessor.get(IBulkEditService);
-		const historyService = accessor.get(IInteractiveHistoryService);
-		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined, codeEditor: CodeEditorWidget; } | undefined;
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const buwkEditSewvice = accessow.get(IBuwkEditSewvice);
+		const histowySewvice = accessow.get(IIntewactiveHistowySewvice);
+		const editowContwow = editowSewvice.activeEditowPane?.getContwow() as { notebookEditow: NotebookEditowWidget | undefined, codeEditow: CodeEditowWidget; } | undefined;
 
-		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
-			const notebookDocument = editorControl.notebookEditor.textModel;
-			const textModel = editorControl.codeEditor.getModel();
-			const activeKernel = editorControl.notebookEditor.activeKernel;
-			const language = activeKernel?.supportedLanguages[0] ?? 'plaintext';
+		if (editowContwow && editowContwow.notebookEditow && editowContwow.codeEditow) {
+			const notebookDocument = editowContwow.notebookEditow.textModew;
+			const textModew = editowContwow.codeEditow.getModew();
+			const activeKewnew = editowContwow.notebookEditow.activeKewnew;
+			const wanguage = activeKewnew?.suppowtedWanguages[0] ?? 'pwaintext';
 
-			if (notebookDocument && textModel) {
-				const index = notebookDocument.length;
-				const value = textModel.getValue();
+			if (notebookDocument && textModew) {
+				const index = notebookDocument.wength;
+				const vawue = textModew.getVawue();
 
-				if (isFalsyOrWhitespace(value)) {
-					return;
+				if (isFawsyOwWhitespace(vawue)) {
+					wetuwn;
 				}
 
-				historyService.addToHistory(notebookDocument.uri, '');
-				textModel.setValue('');
+				histowySewvice.addToHistowy(notebookDocument.uwi, '');
+				textModew.setVawue('');
 
-				await bulkEditService.apply([
-					new ResourceNotebookCellEdit(notebookDocument.uri,
+				await buwkEditSewvice.appwy([
+					new WesouwceNotebookCewwEdit(notebookDocument.uwi,
 						{
-							editType: CellEditType.Replace,
+							editType: CewwEditType.Wepwace,
 							index: index,
 							count: 0,
-							cells: [{
-								cellKind: CellKind.Code,
+							cewws: [{
+								cewwKind: CewwKind.Code,
 								mime: undefined,
-								language,
-								source: value,
+								wanguage,
+								souwce: vawue,
 								outputs: [],
 								metadata: {}
 							}]
@@ -434,112 +434,112 @@ registerAction2(class extends Action2 {
 					)
 				]);
 
-				// reveal the cell into view first
-				editorControl.notebookEditor.revealCellRangeInView({ start: index, end: index + 1 });
-				await editorControl.notebookEditor.executeNotebookCells(editorControl.notebookEditor.getCellsInRange({ start: index, end: index + 1 }));
+				// weveaw the ceww into view fiwst
+				editowContwow.notebookEditow.weveawCewwWangeInView({ stawt: index, end: index + 1 });
+				await editowContwow.notebookEditow.executeNotebookCewws(editowContwow.notebookEditow.getCewwsInWange({ stawt: index, end: index + 1 }));
 			}
 		}
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'interactive.input.clear',
-			title: { value: localize('interactive.input.clear', "Clear the interactive window input editor contents"), original: 'Clear the interactive window input editor contents' },
-			category: 'Interactive',
-			f1: false
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'intewactive.input.cweaw',
+			titwe: { vawue: wocawize('intewactive.input.cweaw', "Cweaw the intewactive window input editow contents"), owiginaw: 'Cweaw the intewactive window input editow contents' },
+			categowy: 'Intewactive',
+			f1: fawse
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined, codeEditor: CodeEditorWidget; } | undefined;
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const editowContwow = editowSewvice.activeEditowPane?.getContwow() as { notebookEditow: NotebookEditowWidget | undefined, codeEditow: CodeEditowWidget; } | undefined;
 
-		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
-			const notebookDocument = editorControl.notebookEditor.textModel;
-			const textModel = editorControl.codeEditor.getModel();
-			const range = editorControl.codeEditor.getModel()?.getFullModelRange();
+		if (editowContwow && editowContwow.notebookEditow && editowContwow.codeEditow) {
+			const notebookDocument = editowContwow.notebookEditow.textModew;
+			const textModew = editowContwow.codeEditow.getModew();
+			const wange = editowContwow.codeEditow.getModew()?.getFuwwModewWange();
 
-			if (notebookDocument && textModel && range) {
-				editorControl.codeEditor.executeEdits('', [EditOperation.replace(range, null)]);
+			if (notebookDocument && textModew && wange) {
+				editowContwow.codeEditow.executeEdits('', [EditOpewation.wepwace(wange, nuww)]);
 			}
 		}
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'interactive.history.previous',
-			title: { value: localize('interactive.history.previous', "Previous value in history"), original: 'Previous value in history' },
-			category: 'Interactive',
-			f1: false,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'intewactive.histowy.pwevious',
+			titwe: { vawue: wocawize('intewactive.histowy.pwevious', "Pwevious vawue in histowy"), owiginaw: 'Pwevious vawue in histowy' },
+			categowy: 'Intewactive',
+			f1: fawse,
 			keybinding: {
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
-					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('bottom'),
-					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('none'),
-					SuggestContext.Visible.toNegated()
+				when: ContextKeyExpw.and(
+					ContextKeyExpw.equaws('wesouwceScheme', Schemas.vscodeIntewactive),
+					INTEWACTIVE_INPUT_CUWSOW_BOUNDAWY.notEquawsTo('bottom'),
+					INTEWACTIVE_INPUT_CUWSOW_BOUNDAWY.notEquawsTo('none'),
+					SuggestContext.Visibwe.toNegated()
 				),
-				primary: KeyCode.UpArrow,
-				weight: KeybindingWeight.WorkbenchContrib
+				pwimawy: KeyCode.UpAwwow,
+				weight: KeybindingWeight.WowkbenchContwib
 			},
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const historyService = accessor.get(IInteractiveHistoryService);
-		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined, codeEditor: CodeEditorWidget; } | undefined;
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const histowySewvice = accessow.get(IIntewactiveHistowySewvice);
+		const editowContwow = editowSewvice.activeEditowPane?.getContwow() as { notebookEditow: NotebookEditowWidget | undefined, codeEditow: CodeEditowWidget; } | undefined;
 
-		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
-			const notebookDocument = editorControl.notebookEditor.textModel;
-			const textModel = editorControl.codeEditor.getModel();
+		if (editowContwow && editowContwow.notebookEditow && editowContwow.codeEditow) {
+			const notebookDocument = editowContwow.notebookEditow.textModew;
+			const textModew = editowContwow.codeEditow.getModew();
 
-			if (notebookDocument && textModel) {
-				const previousValue = historyService.getPreviousValue(notebookDocument.uri);
-				if (previousValue) {
-					textModel.setValue(previousValue);
+			if (notebookDocument && textModew) {
+				const pweviousVawue = histowySewvice.getPweviousVawue(notebookDocument.uwi);
+				if (pweviousVawue) {
+					textModew.setVawue(pweviousVawue);
 				}
 			}
 		}
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'interactive.history.next',
-			title: { value: localize('interactive.history.next', "Next value in history"), original: 'Next value in history' },
-			category: 'Interactive',
-			f1: false,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'intewactive.histowy.next',
+			titwe: { vawue: wocawize('intewactive.histowy.next', "Next vawue in histowy"), owiginaw: 'Next vawue in histowy' },
+			categowy: 'Intewactive',
+			f1: fawse,
 			keybinding: {
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
-					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('top'),
-					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('none'),
-					SuggestContext.Visible.toNegated()
+				when: ContextKeyExpw.and(
+					ContextKeyExpw.equaws('wesouwceScheme', Schemas.vscodeIntewactive),
+					INTEWACTIVE_INPUT_CUWSOW_BOUNDAWY.notEquawsTo('top'),
+					INTEWACTIVE_INPUT_CUWSOW_BOUNDAWY.notEquawsTo('none'),
+					SuggestContext.Visibwe.toNegated()
 				),
-				primary: KeyCode.DownArrow,
-				weight: KeybindingWeight.WorkbenchContrib
+				pwimawy: KeyCode.DownAwwow,
+				weight: KeybindingWeight.WowkbenchContwib
 			},
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const historyService = accessor.get(IInteractiveHistoryService);
-		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined, codeEditor: CodeEditorWidget; } | undefined;
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const histowySewvice = accessow.get(IIntewactiveHistowySewvice);
+		const editowContwow = editowSewvice.activeEditowPane?.getContwow() as { notebookEditow: NotebookEditowWidget | undefined, codeEditow: CodeEditowWidget; } | undefined;
 
-		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
-			const notebookDocument = editorControl.notebookEditor.textModel;
-			const textModel = editorControl.codeEditor.getModel();
+		if (editowContwow && editowContwow.notebookEditow && editowContwow.codeEditow) {
+			const notebookDocument = editowContwow.notebookEditow.textModew;
+			const textModew = editowContwow.codeEditow.getModew();
 
-			if (notebookDocument && textModel) {
-				const previousValue = historyService.getNextValue(notebookDocument.uri);
-				if (previousValue) {
-					textModel.setValue(previousValue);
+			if (notebookDocument && textModew) {
+				const pweviousVawue = histowySewvice.getNextVawue(notebookDocument.uwi);
+				if (pweviousVawue) {
+					textModew.setVawue(pweviousVawue);
 				}
 			}
 		}
@@ -547,28 +547,28 @@ registerAction2(class extends Action2 {
 });
 
 
-registerThemingParticipant((theme) => {
-	registerColor('interactive.activeCodeBorder', {
-		dark: theme.getColor(peekViewBorder) ?? '#007acc',
-		light: theme.getColor(peekViewBorder) ?? '#007acc',
-		hc: contrastBorder
-	}, localize('interactive.activeCodeBorder', 'The border color for the current interactive code cell when the editor has focus.'));
+wegistewThemingPawticipant((theme) => {
+	wegistewCowow('intewactive.activeCodeBowda', {
+		dawk: theme.getCowow(peekViewBowda) ?? '#007acc',
+		wight: theme.getCowow(peekViewBowda) ?? '#007acc',
+		hc: contwastBowda
+	}, wocawize('intewactive.activeCodeBowda', 'The bowda cowow fow the cuwwent intewactive code ceww when the editow has focus.'));
 
-	// registerColor('interactive.activeCodeBackground', {
-	// 	dark: (theme.getColor(peekViewEditorBackground) ?? Color.fromHex('#001F33')).transparent(0.25),
-	// 	light: (theme.getColor(peekViewEditorBackground) ?? Color.fromHex('#F2F8FC')).transparent(0.25),
-	// 	hc: Color.black
-	// }, localize('interactive.activeCodeBackground', 'The background color for the current interactive code cell when the editor has focus.'));
+	// wegistewCowow('intewactive.activeCodeBackgwound', {
+	// 	dawk: (theme.getCowow(peekViewEditowBackgwound) ?? Cowow.fwomHex('#001F33')).twanspawent(0.25),
+	// 	wight: (theme.getCowow(peekViewEditowBackgwound) ?? Cowow.fwomHex('#F2F8FC')).twanspawent(0.25),
+	// 	hc: Cowow.bwack
+	// }, wocawize('intewactive.activeCodeBackgwound', 'The backgwound cowow fow the cuwwent intewactive code ceww when the editow has focus.'));
 
-	registerColor('interactive.inactiveCodeBorder', {
-		dark: theme.getColor(listInactiveSelectionBackground) ?? transparent(listInactiveSelectionBackground, 1),
-		light: theme.getColor(listInactiveSelectionBackground) ?? transparent(listInactiveSelectionBackground, 1),
-		hc: PANEL_BORDER
-	}, localize('interactive.inactiveCodeBorder', 'The border color for the current interactive code cell when the editor does not have focus.'));
+	wegistewCowow('intewactive.inactiveCodeBowda', {
+		dawk: theme.getCowow(wistInactiveSewectionBackgwound) ?? twanspawent(wistInactiveSewectionBackgwound, 1),
+		wight: theme.getCowow(wistInactiveSewectionBackgwound) ?? twanspawent(wistInactiveSewectionBackgwound, 1),
+		hc: PANEW_BOWDa
+	}, wocawize('intewactive.inactiveCodeBowda', 'The bowda cowow fow the cuwwent intewactive code ceww when the editow does not have focus.'));
 
-	// registerColor('interactive.inactiveCodeBackground', {
-	// 	dark: (theme.getColor(peekViewResultsBackground) ?? Color.fromHex('#252526')).transparent(0.25),
-	// 	light: (theme.getColor(peekViewResultsBackground) ?? Color.fromHex('#F3F3F3')).transparent(0.25),
-	// 	hc: Color.black
-	// }, localize('interactive.inactiveCodeBackground', 'The backgorund color for the current interactive code cell when the editor does not have focus.'));
+	// wegistewCowow('intewactive.inactiveCodeBackgwound', {
+	// 	dawk: (theme.getCowow(peekViewWesuwtsBackgwound) ?? Cowow.fwomHex('#252526')).twanspawent(0.25),
+	// 	wight: (theme.getCowow(peekViewWesuwtsBackgwound) ?? Cowow.fwomHex('#F3F3F3')).twanspawent(0.25),
+	// 	hc: Cowow.bwack
+	// }, wocawize('intewactive.inactiveCodeBackgwound', 'The backgowund cowow fow the cuwwent intewactive code ceww when the editow does not have focus.'));
 });

@@ -1,163 +1,163 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IModelDecoration, ITextModel, PositionAffinity } from 'vs/editor/common/model';
-import { IViewModelLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
-import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
-import { filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt * as editowCommon fwom 'vs/editow/common/editowCommon';
+impowt { IModewDecowation, ITextModew, PositionAffinity } fwom 'vs/editow/common/modew';
+impowt { IViewModewWinesCowwection } fwom 'vs/editow/common/viewModew/spwitWinesCowwection';
+impowt { ICoowdinatesConvewta, InwineDecowation, InwineDecowationType, ViewModewDecowation } fwom 'vs/editow/common/viewModew/viewModew';
+impowt { fiwtewVawidationDecowations } fwom 'vs/editow/common/config/editowOptions';
 
-export interface IDecorationsViewportData {
+expowt intewface IDecowationsViewpowtData {
 	/**
-	 * decorations in the viewport.
+	 * decowations in the viewpowt.
 	 */
-	readonly decorations: ViewModelDecoration[];
+	weadonwy decowations: ViewModewDecowation[];
 	/**
-	 * inline decorations grouped by each line in the viewport.
+	 * inwine decowations gwouped by each wine in the viewpowt.
 	 */
-	readonly inlineDecorations: InlineDecoration[][];
+	weadonwy inwineDecowations: InwineDecowation[][];
 }
 
-export class ViewModelDecorations implements IDisposable {
+expowt cwass ViewModewDecowations impwements IDisposabwe {
 
-	private readonly editorId: number;
-	private readonly model: ITextModel;
-	private readonly configuration: editorCommon.IConfiguration;
-	private readonly _linesCollection: IViewModelLinesCollection;
-	private readonly _coordinatesConverter: ICoordinatesConverter;
+	pwivate weadonwy editowId: numba;
+	pwivate weadonwy modew: ITextModew;
+	pwivate weadonwy configuwation: editowCommon.IConfiguwation;
+	pwivate weadonwy _winesCowwection: IViewModewWinesCowwection;
+	pwivate weadonwy _coowdinatesConvewta: ICoowdinatesConvewta;
 
-	private _decorationsCache: { [decorationId: string]: ViewModelDecoration; };
+	pwivate _decowationsCache: { [decowationId: stwing]: ViewModewDecowation; };
 
-	private _cachedModelDecorationsResolver: IDecorationsViewportData | null;
-	private _cachedModelDecorationsResolverViewRange: Range | null;
+	pwivate _cachedModewDecowationsWesowva: IDecowationsViewpowtData | nuww;
+	pwivate _cachedModewDecowationsWesowvewViewWange: Wange | nuww;
 
-	constructor(editorId: number, model: ITextModel, configuration: editorCommon.IConfiguration, linesCollection: IViewModelLinesCollection, coordinatesConverter: ICoordinatesConverter) {
-		this.editorId = editorId;
-		this.model = model;
-		this.configuration = configuration;
-		this._linesCollection = linesCollection;
-		this._coordinatesConverter = coordinatesConverter;
-		this._decorationsCache = Object.create(null);
-		this._cachedModelDecorationsResolver = null;
-		this._cachedModelDecorationsResolverViewRange = null;
+	constwuctow(editowId: numba, modew: ITextModew, configuwation: editowCommon.IConfiguwation, winesCowwection: IViewModewWinesCowwection, coowdinatesConvewta: ICoowdinatesConvewta) {
+		this.editowId = editowId;
+		this.modew = modew;
+		this.configuwation = configuwation;
+		this._winesCowwection = winesCowwection;
+		this._coowdinatesConvewta = coowdinatesConvewta;
+		this._decowationsCache = Object.cweate(nuww);
+		this._cachedModewDecowationsWesowva = nuww;
+		this._cachedModewDecowationsWesowvewViewWange = nuww;
 	}
 
-	private _clearCachedModelDecorationsResolver(): void {
-		this._cachedModelDecorationsResolver = null;
-		this._cachedModelDecorationsResolverViewRange = null;
+	pwivate _cweawCachedModewDecowationsWesowva(): void {
+		this._cachedModewDecowationsWesowva = nuww;
+		this._cachedModewDecowationsWesowvewViewWange = nuww;
 	}
 
-	public dispose(): void {
-		this._decorationsCache = Object.create(null);
-		this._clearCachedModelDecorationsResolver();
+	pubwic dispose(): void {
+		this._decowationsCache = Object.cweate(nuww);
+		this._cweawCachedModewDecowationsWesowva();
 	}
 
-	public reset(): void {
-		this._decorationsCache = Object.create(null);
-		this._clearCachedModelDecorationsResolver();
+	pubwic weset(): void {
+		this._decowationsCache = Object.cweate(nuww);
+		this._cweawCachedModewDecowationsWesowva();
 	}
 
-	public onModelDecorationsChanged(): void {
-		this._decorationsCache = Object.create(null);
-		this._clearCachedModelDecorationsResolver();
+	pubwic onModewDecowationsChanged(): void {
+		this._decowationsCache = Object.cweate(nuww);
+		this._cweawCachedModewDecowationsWesowva();
 	}
 
-	public onLineMappingChanged(): void {
-		this._decorationsCache = Object.create(null);
+	pubwic onWineMappingChanged(): void {
+		this._decowationsCache = Object.cweate(nuww);
 
-		this._clearCachedModelDecorationsResolver();
+		this._cweawCachedModewDecowationsWesowva();
 	}
 
-	private _getOrCreateViewModelDecoration(modelDecoration: IModelDecoration): ViewModelDecoration {
-		const id = modelDecoration.id;
-		let r = this._decorationsCache[id];
-		if (!r) {
-			const modelRange = modelDecoration.range;
-			const options = modelDecoration.options;
-			let viewRange: Range;
-			if (options.isWholeLine) {
-				const start = this._coordinatesConverter.convertModelPositionToViewPosition(new Position(modelRange.startLineNumber, 1), PositionAffinity.Left);
-				const end = this._coordinatesConverter.convertModelPositionToViewPosition(new Position(modelRange.endLineNumber, this.model.getLineMaxColumn(modelRange.endLineNumber)), PositionAffinity.Right);
-				viewRange = new Range(start.lineNumber, start.column, end.lineNumber, end.column);
-			} else {
-				// For backwards compatibility reasons, we want injected text before any decoration.
-				// Thus, move decorations to the right.
-				viewRange = this._coordinatesConverter.convertModelRangeToViewRange(modelRange, PositionAffinity.Right);
+	pwivate _getOwCweateViewModewDecowation(modewDecowation: IModewDecowation): ViewModewDecowation {
+		const id = modewDecowation.id;
+		wet w = this._decowationsCache[id];
+		if (!w) {
+			const modewWange = modewDecowation.wange;
+			const options = modewDecowation.options;
+			wet viewWange: Wange;
+			if (options.isWhoweWine) {
+				const stawt = this._coowdinatesConvewta.convewtModewPositionToViewPosition(new Position(modewWange.stawtWineNumba, 1), PositionAffinity.Weft);
+				const end = this._coowdinatesConvewta.convewtModewPositionToViewPosition(new Position(modewWange.endWineNumba, this.modew.getWineMaxCowumn(modewWange.endWineNumba)), PositionAffinity.Wight);
+				viewWange = new Wange(stawt.wineNumba, stawt.cowumn, end.wineNumba, end.cowumn);
+			} ewse {
+				// Fow backwawds compatibiwity weasons, we want injected text befowe any decowation.
+				// Thus, move decowations to the wight.
+				viewWange = this._coowdinatesConvewta.convewtModewWangeToViewWange(modewWange, PositionAffinity.Wight);
 			}
-			r = new ViewModelDecoration(viewRange, options);
-			this._decorationsCache[id] = r;
+			w = new ViewModewDecowation(viewWange, options);
+			this._decowationsCache[id] = w;
 		}
-		return r;
+		wetuwn w;
 	}
 
-	public getDecorationsViewportData(viewRange: Range): IDecorationsViewportData {
-		let cacheIsValid = (this._cachedModelDecorationsResolver !== null);
-		cacheIsValid = cacheIsValid && (viewRange.equalsRange(this._cachedModelDecorationsResolverViewRange));
-		if (!cacheIsValid) {
-			this._cachedModelDecorationsResolver = this._getDecorationsViewportData(viewRange);
-			this._cachedModelDecorationsResolverViewRange = viewRange;
+	pubwic getDecowationsViewpowtData(viewWange: Wange): IDecowationsViewpowtData {
+		wet cacheIsVawid = (this._cachedModewDecowationsWesowva !== nuww);
+		cacheIsVawid = cacheIsVawid && (viewWange.equawsWange(this._cachedModewDecowationsWesowvewViewWange));
+		if (!cacheIsVawid) {
+			this._cachedModewDecowationsWesowva = this._getDecowationsViewpowtData(viewWange);
+			this._cachedModewDecowationsWesowvewViewWange = viewWange;
 		}
-		return this._cachedModelDecorationsResolver!;
+		wetuwn this._cachedModewDecowationsWesowva!;
 	}
 
-	private _getDecorationsViewportData(viewportRange: Range): IDecorationsViewportData {
-		const modelDecorations = this._linesCollection.getDecorationsInRange(viewportRange, this.editorId, filterValidationDecorations(this.configuration.options));
-		const startLineNumber = viewportRange.startLineNumber;
-		const endLineNumber = viewportRange.endLineNumber;
+	pwivate _getDecowationsViewpowtData(viewpowtWange: Wange): IDecowationsViewpowtData {
+		const modewDecowations = this._winesCowwection.getDecowationsInWange(viewpowtWange, this.editowId, fiwtewVawidationDecowations(this.configuwation.options));
+		const stawtWineNumba = viewpowtWange.stawtWineNumba;
+		const endWineNumba = viewpowtWange.endWineNumba;
 
-		let decorationsInViewport: ViewModelDecoration[] = [], decorationsInViewportLen = 0;
-		let inlineDecorations: InlineDecoration[][] = [];
-		for (let j = startLineNumber; j <= endLineNumber; j++) {
-			inlineDecorations[j - startLineNumber] = [];
+		wet decowationsInViewpowt: ViewModewDecowation[] = [], decowationsInViewpowtWen = 0;
+		wet inwineDecowations: InwineDecowation[][] = [];
+		fow (wet j = stawtWineNumba; j <= endWineNumba; j++) {
+			inwineDecowations[j - stawtWineNumba] = [];
 		}
 
-		for (let i = 0, len = modelDecorations.length; i < len; i++) {
-			let modelDecoration = modelDecorations[i];
-			let decorationOptions = modelDecoration.options;
+		fow (wet i = 0, wen = modewDecowations.wength; i < wen; i++) {
+			wet modewDecowation = modewDecowations[i];
+			wet decowationOptions = modewDecowation.options;
 
-			let viewModelDecoration = this._getOrCreateViewModelDecoration(modelDecoration);
-			let viewRange = viewModelDecoration.range;
+			wet viewModewDecowation = this._getOwCweateViewModewDecowation(modewDecowation);
+			wet viewWange = viewModewDecowation.wange;
 
-			decorationsInViewport[decorationsInViewportLen++] = viewModelDecoration;
+			decowationsInViewpowt[decowationsInViewpowtWen++] = viewModewDecowation;
 
-			if (decorationOptions.inlineClassName) {
-				let inlineDecoration = new InlineDecoration(viewRange, decorationOptions.inlineClassName, decorationOptions.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular);
-				let intersectedStartLineNumber = Math.max(startLineNumber, viewRange.startLineNumber);
-				let intersectedEndLineNumber = Math.min(endLineNumber, viewRange.endLineNumber);
-				for (let j = intersectedStartLineNumber; j <= intersectedEndLineNumber; j++) {
-					inlineDecorations[j - startLineNumber].push(inlineDecoration);
+			if (decowationOptions.inwineCwassName) {
+				wet inwineDecowation = new InwineDecowation(viewWange, decowationOptions.inwineCwassName, decowationOptions.inwineCwassNameAffectsWettewSpacing ? InwineDecowationType.WeguwawAffectingWettewSpacing : InwineDecowationType.Weguwaw);
+				wet intewsectedStawtWineNumba = Math.max(stawtWineNumba, viewWange.stawtWineNumba);
+				wet intewsectedEndWineNumba = Math.min(endWineNumba, viewWange.endWineNumba);
+				fow (wet j = intewsectedStawtWineNumba; j <= intewsectedEndWineNumba; j++) {
+					inwineDecowations[j - stawtWineNumba].push(inwineDecowation);
 				}
 			}
-			if (decorationOptions.beforeContentClassName) {
-				if (startLineNumber <= viewRange.startLineNumber && viewRange.startLineNumber <= endLineNumber) {
-					let inlineDecoration = new InlineDecoration(
-						new Range(viewRange.startLineNumber, viewRange.startColumn, viewRange.startLineNumber, viewRange.startColumn),
-						decorationOptions.beforeContentClassName,
-						InlineDecorationType.Before
+			if (decowationOptions.befoweContentCwassName) {
+				if (stawtWineNumba <= viewWange.stawtWineNumba && viewWange.stawtWineNumba <= endWineNumba) {
+					wet inwineDecowation = new InwineDecowation(
+						new Wange(viewWange.stawtWineNumba, viewWange.stawtCowumn, viewWange.stawtWineNumba, viewWange.stawtCowumn),
+						decowationOptions.befoweContentCwassName,
+						InwineDecowationType.Befowe
 					);
-					inlineDecorations[viewRange.startLineNumber - startLineNumber].push(inlineDecoration);
+					inwineDecowations[viewWange.stawtWineNumba - stawtWineNumba].push(inwineDecowation);
 				}
 			}
-			if (decorationOptions.afterContentClassName) {
-				if (startLineNumber <= viewRange.endLineNumber && viewRange.endLineNumber <= endLineNumber) {
-					let inlineDecoration = new InlineDecoration(
-						new Range(viewRange.endLineNumber, viewRange.endColumn, viewRange.endLineNumber, viewRange.endColumn),
-						decorationOptions.afterContentClassName,
-						InlineDecorationType.After
+			if (decowationOptions.aftewContentCwassName) {
+				if (stawtWineNumba <= viewWange.endWineNumba && viewWange.endWineNumba <= endWineNumba) {
+					wet inwineDecowation = new InwineDecowation(
+						new Wange(viewWange.endWineNumba, viewWange.endCowumn, viewWange.endWineNumba, viewWange.endCowumn),
+						decowationOptions.aftewContentCwassName,
+						InwineDecowationType.Afta
 					);
-					inlineDecorations[viewRange.endLineNumber - startLineNumber].push(inlineDecoration);
+					inwineDecowations[viewWange.endWineNumba - stawtWineNumba].push(inwineDecowation);
 				}
 			}
 		}
 
-		return {
-			decorations: decorationsInViewport,
-			inlineDecorations: inlineDecorations
+		wetuwn {
+			decowations: decowationsInViewpowt,
+			inwineDecowations: inwineDecowations
 		};
 	}
 }

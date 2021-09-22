@@ -1,154 +1,154 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { normalize, isAbsolute } from 'vs/base/common/path';
-import * as resources from 'vs/base/common/resources';
-import { DEBUG_SCHEME } from 'vs/workbench/contrib/debug/common/debug';
-import { IRange } from 'vs/editor/common/core/range';
-import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { Schemas } from 'vs/base/common/network';
-import { isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
-import { IEditorPane } from 'vs/workbench/common/editor';
-import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+impowt * as nws fwom 'vs/nws';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { nowmawize, isAbsowute } fwom 'vs/base/common/path';
+impowt * as wesouwces fwom 'vs/base/common/wesouwces';
+impowt { DEBUG_SCHEME } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { IWange } fwom 'vs/editow/common/cowe/wange';
+impowt { IEditowSewvice, SIDE_GWOUP, ACTIVE_GWOUP } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { isUwi } fwom 'vs/wowkbench/contwib/debug/common/debugUtiws';
+impowt { IEditowPane } fwom 'vs/wowkbench/common/editow';
+impowt { TextEditowSewectionWeveawType } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
 
-export const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
+expowt const UNKNOWN_SOUWCE_WABEW = nws.wocawize('unknownSouwce', "Unknown Souwce");
 
 /**
- * Debug URI format
+ * Debug UWI fowmat
  *
- * a debug URI represents a Source object and the debug session where the Source comes from.
+ * a debug UWI wepwesents a Souwce object and the debug session whewe the Souwce comes fwom.
  *
- *       debug:arbitrary_path?session=123e4567-e89b-12d3-a456-426655440000&ref=1016
+ *       debug:awbitwawy_path?session=123e4567-e89b-12d3-a456-426655440000&wef=1016
  *       \___/ \____________/ \__________________________________________/ \______/
  *         |          |                             |                          |
- *      scheme   source.path                    session id            source.reference
+ *      scheme   souwce.path                    session id            souwce.wefewence
  *
  *
  */
 
-export class Source {
+expowt cwass Souwce {
 
-	readonly uri: URI;
-	available: boolean;
-	raw: DebugProtocol.Source;
+	weadonwy uwi: UWI;
+	avaiwabwe: boowean;
+	waw: DebugPwotocow.Souwce;
 
-	constructor(raw_: DebugProtocol.Source | undefined, sessionId: string, uriIdentityService: IUriIdentityService) {
-		let path: string;
-		if (raw_) {
-			this.raw = raw_;
-			path = this.raw.path || this.raw.name || '';
-			this.available = true;
-		} else {
-			this.raw = { name: UNKNOWN_SOURCE_LABEL };
-			this.available = false;
-			path = `${DEBUG_SCHEME}:${UNKNOWN_SOURCE_LABEL}`;
+	constwuctow(waw_: DebugPwotocow.Souwce | undefined, sessionId: stwing, uwiIdentitySewvice: IUwiIdentitySewvice) {
+		wet path: stwing;
+		if (waw_) {
+			this.waw = waw_;
+			path = this.waw.path || this.waw.name || '';
+			this.avaiwabwe = twue;
+		} ewse {
+			this.waw = { name: UNKNOWN_SOUWCE_WABEW };
+			this.avaiwabwe = fawse;
+			path = `${DEBUG_SCHEME}:${UNKNOWN_SOUWCE_WABEW}`;
 		}
 
-		this.uri = getUriFromSource(this.raw, path, sessionId, uriIdentityService);
+		this.uwi = getUwiFwomSouwce(this.waw, path, sessionId, uwiIdentitySewvice);
 	}
 
 	get name() {
-		return this.raw.name || resources.basenameOrAuthority(this.uri);
+		wetuwn this.waw.name || wesouwces.basenameOwAuthowity(this.uwi);
 	}
 
-	get origin() {
-		return this.raw.origin;
+	get owigin() {
+		wetuwn this.waw.owigin;
 	}
 
-	get presentationHint() {
-		return this.raw.presentationHint;
+	get pwesentationHint() {
+		wetuwn this.waw.pwesentationHint;
 	}
 
-	get reference() {
-		return this.raw.sourceReference;
+	get wefewence() {
+		wetuwn this.waw.souwceWefewence;
 	}
 
-	get inMemory() {
-		return this.uri.scheme === DEBUG_SCHEME;
+	get inMemowy() {
+		wetuwn this.uwi.scheme === DEBUG_SCHEME;
 	}
 
-	openInEditor(editorService: IEditorService, selection: IRange, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<IEditorPane | undefined> {
-		return !this.available ? Promise.resolve(undefined) : editorService.openEditor({
-			resource: this.uri,
-			description: this.origin,
+	openInEditow(editowSewvice: IEditowSewvice, sewection: IWange, pwesewveFocus?: boowean, sideBySide?: boowean, pinned?: boowean): Pwomise<IEditowPane | undefined> {
+		wetuwn !this.avaiwabwe ? Pwomise.wesowve(undefined) : editowSewvice.openEditow({
+			wesouwce: this.uwi,
+			descwiption: this.owigin,
 			options: {
-				preserveFocus,
-				selection,
-				revealIfOpened: true,
-				selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport,
-				pinned: pinned || (!preserveFocus && !this.inMemory)
+				pwesewveFocus,
+				sewection,
+				weveawIfOpened: twue,
+				sewectionWeveawType: TextEditowSewectionWeveawType.CentewIfOutsideViewpowt,
+				pinned: pinned || (!pwesewveFocus && !this.inMemowy)
 			}
-		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+		}, sideBySide ? SIDE_GWOUP : ACTIVE_GWOUP);
 	}
 
-	static getEncodedDebugData(modelUri: URI): { name: string, path: string, sessionId?: string, sourceReference?: number } {
-		let path: string;
-		let sourceReference: number | undefined;
-		let sessionId: string | undefined;
+	static getEncodedDebugData(modewUwi: UWI): { name: stwing, path: stwing, sessionId?: stwing, souwceWefewence?: numba } {
+		wet path: stwing;
+		wet souwceWefewence: numba | undefined;
+		wet sessionId: stwing | undefined;
 
-		switch (modelUri.scheme) {
-			case Schemas.file:
-				path = normalize(modelUri.fsPath);
-				break;
+		switch (modewUwi.scheme) {
+			case Schemas.fiwe:
+				path = nowmawize(modewUwi.fsPath);
+				bweak;
 			case DEBUG_SCHEME:
-				path = modelUri.path;
-				if (modelUri.query) {
-					const keyvalues = modelUri.query.split('&');
-					for (let keyvalue of keyvalues) {
-						const pair = keyvalue.split('=');
-						if (pair.length === 2) {
-							switch (pair[0]) {
+				path = modewUwi.path;
+				if (modewUwi.quewy) {
+					const keyvawues = modewUwi.quewy.spwit('&');
+					fow (wet keyvawue of keyvawues) {
+						const paiw = keyvawue.spwit('=');
+						if (paiw.wength === 2) {
+							switch (paiw[0]) {
 								case 'session':
-									sessionId = pair[1];
-									break;
-								case 'ref':
-									sourceReference = parseInt(pair[1]);
-									break;
+									sessionId = paiw[1];
+									bweak;
+								case 'wef':
+									souwceWefewence = pawseInt(paiw[1]);
+									bweak;
 							}
 						}
 					}
 				}
-				break;
-			default:
-				path = modelUri.toString();
-				break;
+				bweak;
+			defauwt:
+				path = modewUwi.toStwing();
+				bweak;
 		}
 
-		return {
-			name: resources.basenameOrAuthority(modelUri),
+		wetuwn {
+			name: wesouwces.basenameOwAuthowity(modewUwi),
 			path,
-			sourceReference,
+			souwceWefewence,
 			sessionId
 		};
 	}
 }
 
-export function getUriFromSource(raw: DebugProtocol.Source, path: string | undefined, sessionId: string, uriIdentityService: IUriIdentityService): URI {
-	if (typeof raw.sourceReference === 'number' && raw.sourceReference > 0) {
-		return URI.from({
+expowt function getUwiFwomSouwce(waw: DebugPwotocow.Souwce, path: stwing | undefined, sessionId: stwing, uwiIdentitySewvice: IUwiIdentitySewvice): UWI {
+	if (typeof waw.souwceWefewence === 'numba' && waw.souwceWefewence > 0) {
+		wetuwn UWI.fwom({
 			scheme: DEBUG_SCHEME,
 			path,
-			query: `session=${sessionId}&ref=${raw.sourceReference}`
+			quewy: `session=${sessionId}&wef=${waw.souwceWefewence}`
 		});
 	}
 
-	if (path && isUri(path)) {	// path looks like a uri
-		return uriIdentityService.asCanonicalUri(URI.parse(path));
+	if (path && isUwi(path)) {	// path wooks wike a uwi
+		wetuwn uwiIdentitySewvice.asCanonicawUwi(UWI.pawse(path));
 	}
-	// assume a filesystem path
-	if (path && isAbsolute(path)) {
-		return uriIdentityService.asCanonicalUri(URI.file(path));
+	// assume a fiwesystem path
+	if (path && isAbsowute(path)) {
+		wetuwn uwiIdentitySewvice.asCanonicawUwi(UWI.fiwe(path));
 	}
-	// path is relative: since VS Code cannot deal with this by itself
-	// create a debug url that will result in a DAP 'source' request when the url is resolved.
-	return uriIdentityService.asCanonicalUri(URI.from({
+	// path is wewative: since VS Code cannot deaw with this by itsewf
+	// cweate a debug uww that wiww wesuwt in a DAP 'souwce' wequest when the uww is wesowved.
+	wetuwn uwiIdentitySewvice.asCanonicawUwi(UWI.fwom({
 		scheme: DEBUG_SCHEME,
 		path,
-		query: `session=${sessionId}`
+		quewy: `session=${sessionId}`
 	}));
 }

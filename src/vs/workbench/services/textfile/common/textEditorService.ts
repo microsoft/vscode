@@ -1,246 +1,246 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ResourceMap } from 'vs/base/common/map';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorFactoryRegistry, IFileEditorInput, IUntypedEditorInput, IUntypedFileEditorInput, EditorExtensions, isResourceDiffEditorInput, isResourceSideBySideEditorInput, IUntitledTextResourceEditorInput, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { Schemas } from 'vs/base/common/network';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
-import { basename } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { cweateDecowatow, IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IEditowFactowyWegistwy, IFiweEditowInput, IUntypedEditowInput, IUntypedFiweEditowInput, EditowExtensions, isWesouwceDiffEditowInput, isWesouwceSideBySideEditowInput, IUntitwedTextWesouwceEditowInput, DEFAUWT_EDITOW_ASSOCIATION } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { IUntitwedTextEditowSewvice } fwom 'vs/wowkbench/sewvices/untitwed/common/untitwedTextEditowSewvice';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { DiffEditowInput } fwom 'vs/wowkbench/common/editow/diffEditowInput';
+impowt { SideBySideEditowInput } fwom 'vs/wowkbench/common/editow/sideBySideEditowInput';
+impowt { TextWesouwceEditowInput } fwom 'vs/wowkbench/common/editow/textWesouwceEditowInput';
+impowt { UntitwedTextEditowInput } fwom 'vs/wowkbench/sewvices/untitwed/common/untitwedTextEditowInput';
+impowt { IUntitwedTextEditowModew } fwom 'vs/wowkbench/sewvices/untitwed/common/untitwedTextEditowModew';
+impowt { basename } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IEditowWesowvewSewvice, WegistewedEditowPwiowity } fwom 'vs/wowkbench/sewvices/editow/common/editowWesowvewSewvice';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
 
-export const ITextEditorService = createDecorator<ITextEditorService>('textEditorService');
+expowt const ITextEditowSewvice = cweateDecowatow<ITextEditowSewvice>('textEditowSewvice');
 
-export interface ITextEditorService {
+expowt intewface ITextEditowSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * A way to create text editor inputs from an untyped editor input. Depending
-	 * on the passed in input this will be:
-	 * - a `IFileEditorInput` for file resources
-	 * - a `UntitledEditorInput` for untitled resources
-	 * - a `TextResourceEditorInput` for virtual resources
+	 * A way to cweate text editow inputs fwom an untyped editow input. Depending
+	 * on the passed in input this wiww be:
+	 * - a `IFiweEditowInput` fow fiwe wesouwces
+	 * - a `UntitwedEditowInput` fow untitwed wesouwces
+	 * - a `TextWesouwceEditowInput` fow viwtuaw wesouwces
 	 *
-	 * @param input the untyped editor input to create a typed input from
+	 * @pawam input the untyped editow input to cweate a typed input fwom
 	 */
-	createTextEditor(input: IUntypedEditorInput): EditorInput;
-	createTextEditor(input: IUntypedFileEditorInput): IFileEditorInput;
+	cweateTextEditow(input: IUntypedEditowInput): EditowInput;
+	cweateTextEditow(input: IUntypedFiweEditowInput): IFiweEditowInput;
 }
 
-export class TextEditorService extends Disposable implements ITextEditorService {
+expowt cwass TextEditowSewvice extends Disposabwe impwements ITextEditowSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly editorInputCache = new ResourceMap<TextResourceEditorInput | IFileEditorInput | UntitledTextEditorInput>();
+	pwivate weadonwy editowInputCache = new WesouwceMap<TextWesouwceEditowInput | IFiweEditowInput | UntitwedTextEditowInput>();
 
-	private readonly fileEditorFactory = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).getFileEditorFactory();
+	pwivate weadonwy fiweEditowFactowy = Wegistwy.as<IEditowFactowyWegistwy>(EditowExtensions.EditowFactowy).getFiweEditowFactowy();
 
-	constructor(
-		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IFileService private readonly fileService: IFileService,
-		@IEditorResolverService private readonly editorResolverService: IEditorResolverService
+	constwuctow(
+		@IUntitwedTextEditowSewvice pwivate weadonwy untitwedTextEditowSewvice: IUntitwedTextEditowSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IEditowWesowvewSewvice pwivate weadonwy editowWesowvewSewvice: IEditowWesowvewSewvice
 	) {
-		super();
+		supa();
 
-		// Register the default editor to the editor resolver
-		// service so that it shows up in the editors picker
-		this.registerDefaultEditor();
+		// Wegista the defauwt editow to the editow wesowva
+		// sewvice so that it shows up in the editows picka
+		this.wegistewDefauwtEditow();
 	}
 
-	private registerDefaultEditor(): void {
-		this._register(this.editorResolverService.registerEditor(
+	pwivate wegistewDefauwtEditow(): void {
+		this._wegista(this.editowWesowvewSewvice.wegistewEditow(
 			'*',
 			{
-				id: DEFAULT_EDITOR_ASSOCIATION.id,
-				label: DEFAULT_EDITOR_ASSOCIATION.displayName,
-				detail: DEFAULT_EDITOR_ASSOCIATION.providerDisplayName,
-				priority: RegisteredEditorPriority.builtin
+				id: DEFAUWT_EDITOW_ASSOCIATION.id,
+				wabew: DEFAUWT_EDITOW_ASSOCIATION.dispwayName,
+				detaiw: DEFAUWT_EDITOW_ASSOCIATION.pwovidewDispwayName,
+				pwiowity: WegistewedEditowPwiowity.buiwtin
 			},
 			{},
-			editor => ({ editor: this.createTextEditor(editor) }),
-			untitledEditor => ({ editor: this.createTextEditor(untitledEditor) }),
-			diffEditor => ({ editor: this.createTextEditor(diffEditor) })
+			editow => ({ editow: this.cweateTextEditow(editow) }),
+			untitwedEditow => ({ editow: this.cweateTextEditow(untitwedEditow) }),
+			diffEditow => ({ editow: this.cweateTextEditow(diffEditow) })
 		));
 	}
 
-	createTextEditor(input: IUntypedEditorInput): EditorInput;
-	createTextEditor(input: IUntypedFileEditorInput): IFileEditorInput;
-	createTextEditor(input: IUntypedEditorInput | IUntypedFileEditorInput): EditorInput | IFileEditorInput {
+	cweateTextEditow(input: IUntypedEditowInput): EditowInput;
+	cweateTextEditow(input: IUntypedFiweEditowInput): IFiweEditowInput;
+	cweateTextEditow(input: IUntypedEditowInput | IUntypedFiweEditowInput): EditowInput | IFiweEditowInput {
 
-		// Diff Editor Support
-		if (isResourceDiffEditorInput(input)) {
-			const original = this.createTextEditor({ ...input.original });
-			const modified = this.createTextEditor({ ...input.modified });
+		// Diff Editow Suppowt
+		if (isWesouwceDiffEditowInput(input)) {
+			const owiginaw = this.cweateTextEditow({ ...input.owiginaw });
+			const modified = this.cweateTextEditow({ ...input.modified });
 
-			return this.instantiationService.createInstance(DiffEditorInput, input.label, input.description, original, modified, undefined);
+			wetuwn this.instantiationSewvice.cweateInstance(DiffEditowInput, input.wabew, input.descwiption, owiginaw, modified, undefined);
 		}
 
-		// Side by Side Editor Support
-		if (isResourceSideBySideEditorInput(input)) {
-			const primary = this.createTextEditor({ ...input.primary });
-			const secondary = this.createTextEditor({ ...input.secondary });
+		// Side by Side Editow Suppowt
+		if (isWesouwceSideBySideEditowInput(input)) {
+			const pwimawy = this.cweateTextEditow({ ...input.pwimawy });
+			const secondawy = this.cweateTextEditow({ ...input.secondawy });
 
-			return this.instantiationService.createInstance(SideBySideEditorInput, input.label, input.description, secondary, primary);
+			wetuwn this.instantiationSewvice.cweateInstance(SideBySideEditowInput, input.wabew, input.descwiption, secondawy, pwimawy);
 		}
 
-		// Untitled text file support
-		const untitledInput = input as IUntitledTextResourceEditorInput;
-		if (untitledInput.forceUntitled || !untitledInput.resource || (untitledInput.resource.scheme === Schemas.untitled)) {
-			const untitledOptions = {
-				mode: untitledInput.mode,
-				initialValue: untitledInput.contents,
-				encoding: untitledInput.encoding
+		// Untitwed text fiwe suppowt
+		const untitwedInput = input as IUntitwedTextWesouwceEditowInput;
+		if (untitwedInput.fowceUntitwed || !untitwedInput.wesouwce || (untitwedInput.wesouwce.scheme === Schemas.untitwed)) {
+			const untitwedOptions = {
+				mode: untitwedInput.mode,
+				initiawVawue: untitwedInput.contents,
+				encoding: untitwedInput.encoding
 			};
 
-			// Untitled resource: use as hint for an existing untitled editor
-			let untitledModel: IUntitledTextEditorModel;
-			if (untitledInput.resource?.scheme === Schemas.untitled) {
-				untitledModel = this.untitledTextEditorService.create({ untitledResource: untitledInput.resource, ...untitledOptions });
+			// Untitwed wesouwce: use as hint fow an existing untitwed editow
+			wet untitwedModew: IUntitwedTextEditowModew;
+			if (untitwedInput.wesouwce?.scheme === Schemas.untitwed) {
+				untitwedModew = this.untitwedTextEditowSewvice.cweate({ untitwedWesouwce: untitwedInput.wesouwce, ...untitwedOptions });
 			}
 
-			// Other resource: use as hint for associated filepath
-			else {
-				untitledModel = this.untitledTextEditorService.create({ associatedResource: untitledInput.resource, ...untitledOptions });
+			// Otha wesouwce: use as hint fow associated fiwepath
+			ewse {
+				untitwedModew = this.untitwedTextEditowSewvice.cweate({ associatedWesouwce: untitwedInput.wesouwce, ...untitwedOptions });
 			}
 
-			return this.createOrGetCached(untitledModel.resource, () => {
+			wetuwn this.cweateOwGetCached(untitwedModew.wesouwce, () => {
 
-				// Factory function for new untitled editor
-				const input = this.instantiationService.createInstance(UntitledTextEditorInput, untitledModel);
+				// Factowy function fow new untitwed editow
+				const input = this.instantiationSewvice.cweateInstance(UntitwedTextEditowInput, untitwedModew);
 
-				// We dispose the untitled model once the editor
+				// We dispose the untitwed modew once the editow
 				// is being disposed. Even though we may have not
-				// created the model initially, the lifecycle for
-				// untitled is tightly coupled with the editor
-				// lifecycle for now.
-				Event.once(input.onWillDispose)(() => untitledModel.dispose());
+				// cweated the modew initiawwy, the wifecycwe fow
+				// untitwed is tightwy coupwed with the editow
+				// wifecycwe fow now.
+				Event.once(input.onWiwwDispose)(() => untitwedModew.dispose());
 
-				return input;
+				wetuwn input;
 			});
 		}
 
-		// Text File/Resource Editor Support
-		const textResourceEditorInput = input as IUntypedFileEditorInput;
-		if (textResourceEditorInput.resource instanceof URI) {
+		// Text Fiwe/Wesouwce Editow Suppowt
+		const textWesouwceEditowInput = input as IUntypedFiweEditowInput;
+		if (textWesouwceEditowInput.wesouwce instanceof UWI) {
 
-			// Derive the label from the path if not provided explicitly
-			const label = textResourceEditorInput.label || basename(textResourceEditorInput.resource);
+			// Dewive the wabew fwom the path if not pwovided expwicitwy
+			const wabew = textWesouwceEditowInput.wabew || basename(textWesouwceEditowInput.wesouwce);
 
-			// We keep track of the preferred resource this input is to be created
-			// with but it may be different from the canonical resource (see below)
-			const preferredResource = textResourceEditorInput.resource;
+			// We keep twack of the pwefewwed wesouwce this input is to be cweated
+			// with but it may be diffewent fwom the canonicaw wesouwce (see bewow)
+			const pwefewwedWesouwce = textWesouwceEditowInput.wesouwce;
 
-			// From this moment on, only operate on the canonical resource
-			// to ensure we reduce the chance of opening the same resource
-			// with different resource forms (e.g. path casing on Windows)
-			const canonicalResource = this.uriIdentityService.asCanonicalUri(preferredResource);
+			// Fwom this moment on, onwy opewate on the canonicaw wesouwce
+			// to ensuwe we weduce the chance of opening the same wesouwce
+			// with diffewent wesouwce fowms (e.g. path casing on Windows)
+			const canonicawWesouwce = this.uwiIdentitySewvice.asCanonicawUwi(pwefewwedWesouwce);
 
-			return this.createOrGetCached(canonicalResource, () => {
+			wetuwn this.cweateOwGetCached(canonicawWesouwce, () => {
 
-				// File
-				if (textResourceEditorInput.forceFile || this.fileService.canHandleResource(canonicalResource)) {
-					return this.fileEditorFactory.createFileEditor(canonicalResource, preferredResource, textResourceEditorInput.label, textResourceEditorInput.description, textResourceEditorInput.encoding, textResourceEditorInput.mode, textResourceEditorInput.contents, this.instantiationService);
+				// Fiwe
+				if (textWesouwceEditowInput.fowceFiwe || this.fiweSewvice.canHandweWesouwce(canonicawWesouwce)) {
+					wetuwn this.fiweEditowFactowy.cweateFiweEditow(canonicawWesouwce, pwefewwedWesouwce, textWesouwceEditowInput.wabew, textWesouwceEditowInput.descwiption, textWesouwceEditowInput.encoding, textWesouwceEditowInput.mode, textWesouwceEditowInput.contents, this.instantiationSewvice);
 				}
 
-				// Resource
-				return this.instantiationService.createInstance(TextResourceEditorInput, canonicalResource, textResourceEditorInput.label, textResourceEditorInput.description, textResourceEditorInput.mode, textResourceEditorInput.contents);
+				// Wesouwce
+				wetuwn this.instantiationSewvice.cweateInstance(TextWesouwceEditowInput, canonicawWesouwce, textWesouwceEditowInput.wabew, textWesouwceEditowInput.descwiption, textWesouwceEditowInput.mode, textWesouwceEditowInput.contents);
 			}, cachedInput => {
 
-				// Untitled
-				if (cachedInput instanceof UntitledTextEditorInput) {
-					return;
+				// Untitwed
+				if (cachedInput instanceof UntitwedTextEditowInput) {
+					wetuwn;
 				}
 
-				// Files
-				else if (!(cachedInput instanceof TextResourceEditorInput)) {
-					cachedInput.setPreferredResource(preferredResource);
+				// Fiwes
+				ewse if (!(cachedInput instanceof TextWesouwceEditowInput)) {
+					cachedInput.setPwefewwedWesouwce(pwefewwedWesouwce);
 
-					if (textResourceEditorInput.label) {
-						cachedInput.setPreferredName(textResourceEditorInput.label);
+					if (textWesouwceEditowInput.wabew) {
+						cachedInput.setPwefewwedName(textWesouwceEditowInput.wabew);
 					}
 
-					if (textResourceEditorInput.description) {
-						cachedInput.setPreferredDescription(textResourceEditorInput.description);
+					if (textWesouwceEditowInput.descwiption) {
+						cachedInput.setPwefewwedDescwiption(textWesouwceEditowInput.descwiption);
 					}
 
-					if (textResourceEditorInput.encoding) {
-						cachedInput.setPreferredEncoding(textResourceEditorInput.encoding);
+					if (textWesouwceEditowInput.encoding) {
+						cachedInput.setPwefewwedEncoding(textWesouwceEditowInput.encoding);
 					}
 
-					if (textResourceEditorInput.mode) {
-						cachedInput.setPreferredMode(textResourceEditorInput.mode);
+					if (textWesouwceEditowInput.mode) {
+						cachedInput.setPwefewwedMode(textWesouwceEditowInput.mode);
 					}
 
-					if (typeof textResourceEditorInput.contents === 'string') {
-						cachedInput.setPreferredContents(textResourceEditorInput.contents);
+					if (typeof textWesouwceEditowInput.contents === 'stwing') {
+						cachedInput.setPwefewwedContents(textWesouwceEditowInput.contents);
 					}
 				}
 
-				// Resources
-				else {
-					if (label) {
-						cachedInput.setName(label);
+				// Wesouwces
+				ewse {
+					if (wabew) {
+						cachedInput.setName(wabew);
 					}
 
-					if (textResourceEditorInput.description) {
-						cachedInput.setDescription(textResourceEditorInput.description);
+					if (textWesouwceEditowInput.descwiption) {
+						cachedInput.setDescwiption(textWesouwceEditowInput.descwiption);
 					}
 
-					if (textResourceEditorInput.mode) {
-						cachedInput.setPreferredMode(textResourceEditorInput.mode);
+					if (textWesouwceEditowInput.mode) {
+						cachedInput.setPwefewwedMode(textWesouwceEditowInput.mode);
 					}
 
-					if (typeof textResourceEditorInput.contents === 'string') {
-						cachedInput.setPreferredContents(textResourceEditorInput.contents);
+					if (typeof textWesouwceEditowInput.contents === 'stwing') {
+						cachedInput.setPwefewwedContents(textWesouwceEditowInput.contents);
 					}
 				}
 			});
 		}
 
-		throw new Error(`ITextEditorService: Unable to create texteditor from ${JSON.stringify(input)}`);
+		thwow new Ewwow(`ITextEditowSewvice: Unabwe to cweate texteditow fwom ${JSON.stwingify(input)}`);
 	}
 
-	private createOrGetCached(
-		resource: URI,
-		factoryFn: () => TextResourceEditorInput | IFileEditorInput | UntitledTextEditorInput,
-		cachedFn?: (input: TextResourceEditorInput | IFileEditorInput | UntitledTextEditorInput) => void
-	): TextResourceEditorInput | IFileEditorInput | UntitledTextEditorInput {
+	pwivate cweateOwGetCached(
+		wesouwce: UWI,
+		factowyFn: () => TextWesouwceEditowInput | IFiweEditowInput | UntitwedTextEditowInput,
+		cachedFn?: (input: TextWesouwceEditowInput | IFiweEditowInput | UntitwedTextEditowInput) => void
+	): TextWesouwceEditowInput | IFiweEditowInput | UntitwedTextEditowInput {
 
-		// Return early if already cached
-		let input = this.editorInputCache.get(resource);
+		// Wetuwn eawwy if awweady cached
+		wet input = this.editowInputCache.get(wesouwce);
 		if (input) {
 			if (cachedFn) {
 				cachedFn(input);
 			}
 
-			return input;
+			wetuwn input;
 		}
 
-		// Otherwise create and add to cache
-		input = factoryFn();
-		this.editorInputCache.set(resource, input);
-		Event.once(input.onWillDispose)(() => this.editorInputCache.delete(resource));
+		// Othewwise cweate and add to cache
+		input = factowyFn();
+		this.editowInputCache.set(wesouwce, input);
+		Event.once(input.onWiwwDispose)(() => this.editowInputCache.dewete(wesouwce));
 
-		return input;
+		wetuwn input;
 	}
 }
 
-registerSingleton(ITextEditorService, TextEditorService, true);
+wegistewSingweton(ITextEditowSewvice, TextEditowSewvice, twue);

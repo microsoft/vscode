@@ -1,336 +1,336 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
-import * as DOM from 'vs/base/browser/dom';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { alert as ariaAlert } from 'vs/base/browser/ui/aria/aria';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
-import { IInputOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { CachedListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { DefaultStyleController, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTree';
-import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
-import { ITreeFilter, ITreeModel, ITreeNode, ITreeRenderer, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
-import { Action, IAction, Separator } from 'vs/base/common/actions';
-import * as arrays from 'vs/base/common/arrays';
-import { Color, RGBA } from 'vs/base/common/color';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { isIOS } from 'vs/base/common/platform';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { isArray, isDefined, isUndefinedOrNull } from 'vs/base/common/types';
-import { localize } from 'vs/nls';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { editorBackground, editorErrorForeground, errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attachStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
-import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
-import { inspectSetting, ISettingsEditorViewState, settingKeyToDisplayFormat, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
-import { ExcludeSettingWidget, ISettingListChangeEvent, IListDataItem, ListSettingWidget, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground, ObjectSettingDropdownWidget, IObjectDataItem, IObjectEnumOption, ObjectValue, IObjectValueSuggester, IObjectKeySuggester, focusedRowBackground, focusedRowBorder, settingsHeaderForeground, rowHoverBackground, ObjectSettingCheckboxWidget } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
-import { SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
-import { getDefaultIgnoredSettings, IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { getInvalidTypeError } from 'vs/workbench/services/preferences/common/preferencesValidation';
-import { Codicon } from 'vs/base/common/codicons';
-import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
-import { IListService, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ILogService } from 'vs/platform/log/common/log';
-import { settingsMoreActionIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
-import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
-import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+impowt { BwowsewFeatuwes } fwom 'vs/base/bwowsa/canIUse';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { IMouseEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { awewt as awiaAwewt } fwom 'vs/base/bwowsa/ui/awia/awia';
+impowt { Button } fwom 'vs/base/bwowsa/ui/button/button';
+impowt { Checkbox } fwom 'vs/base/bwowsa/ui/checkbox/checkbox';
+impowt { IInputOptions, InputBox } fwom 'vs/base/bwowsa/ui/inputbox/inputBox';
+impowt { CachedWistViwtuawDewegate } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { DefauwtStyweContwowwa, IWistAccessibiwityPwovida } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { ISewectOptionItem, SewectBox } fwom 'vs/base/bwowsa/ui/sewectBox/sewectBox';
+impowt { ToowBaw } fwom 'vs/base/bwowsa/ui/toowbaw/toowbaw';
+impowt { IObjectTweeOptions } fwom 'vs/base/bwowsa/ui/twee/objectTwee';
+impowt { ObjectTweeModew } fwom 'vs/base/bwowsa/ui/twee/objectTweeModew';
+impowt { ITweeFiwta, ITweeModew, ITweeNode, ITweeWendewa, TweeFiwtewWesuwt, TweeVisibiwity } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { Action, IAction, Sepawatow } fwom 'vs/base/common/actions';
+impowt * as awways fwom 'vs/base/common/awways';
+impowt { Cowow, WGBA } fwom 'vs/base/common/cowow';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe, DisposabweStowe, dispose, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isIOS } fwom 'vs/base/common/pwatfowm';
+impowt { escapeWegExpChawactews } fwom 'vs/base/common/stwings';
+impowt { isAwway, isDefined, isUndefinedOwNuww } fwom 'vs/base/common/types';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ConfiguwationTawget, IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextMenuSewvice, IContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { editowBackgwound, editowEwwowFowegwound, ewwowFowegwound, focusBowda, fowegwound, inputVawidationEwwowBackgwound, inputVawidationEwwowBowda, inputVawidationEwwowFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { attachButtonStywa, attachInputBoxStywa, attachSewectBoxStywa, attachStywa, attachStywewCawwback } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { ICssStyweCowwectow, ICowowTheme, IThemeSewvice, wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { getIgnowedSettings } fwom 'vs/pwatfowm/usewDataSync/common/settingsMewge';
+impowt { ITOCEntwy } fwom 'vs/wowkbench/contwib/pwefewences/bwowsa/settingsWayout';
+impowt { inspectSetting, ISettingsEditowViewState, settingKeyToDispwayFowmat, SettingsTweeEwement, SettingsTweeGwoupChiwd, SettingsTweeGwoupEwement, SettingsTweeNewExtensionsEwement, SettingsTweeSettingEwement } fwom 'vs/wowkbench/contwib/pwefewences/bwowsa/settingsTweeModews';
+impowt { ExcwudeSettingWidget, ISettingWistChangeEvent, IWistDataItem, WistSettingWidget, settingsNumbewInputBackgwound, settingsNumbewInputBowda, settingsNumbewInputFowegwound, settingsSewectBackgwound, settingsSewectBowda, settingsSewectFowegwound, settingsSewectWistBowda, settingsTextInputBackgwound, settingsTextInputBowda, settingsTextInputFowegwound, ObjectSettingDwopdownWidget, IObjectDataItem, IObjectEnumOption, ObjectVawue, IObjectVawueSuggesta, IObjectKeySuggesta, focusedWowBackgwound, focusedWowBowda, settingsHeadewFowegwound, wowHovewBackgwound, ObjectSettingCheckboxWidget } fwom 'vs/wowkbench/contwib/pwefewences/bwowsa/settingsWidgets';
+impowt { SETTINGS_EDITOW_COMMAND_SHOW_CONTEXT_MENU } fwom 'vs/wowkbench/contwib/pwefewences/common/pwefewences';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { ISetting, ISettingsGwoup, SettingVawueType } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewences';
+impowt { getDefauwtIgnowedSettings, IUsewDataAutoSyncEnabwementSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
+impowt { getInvawidTypeEwwow } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewencesVawidation';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { SimpweIconWabew } fwom 'vs/base/bwowsa/ui/iconWabew/simpweIconWabew';
+impowt { IJSONSchema } fwom 'vs/base/common/jsonSchema';
+impowt { IWist } fwom 'vs/base/bwowsa/ui/twee/indexTweeModew';
+impowt { IWistSewvice, WowkbenchObjectTwee } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IAccessibiwitySewvice } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { settingsMoweActionIcon } fwom 'vs/wowkbench/contwib/pwefewences/bwowsa/pwefewencesIcons';
+impowt { IWowkbenchConfiguwationSewvice } fwom 'vs/wowkbench/sewvices/configuwation/common/configuwation';
+impowt { SettingsTawget } fwom 'vs/wowkbench/contwib/pwefewences/bwowsa/pwefewencesWidgets';
+impowt { MawkdownWendewa } fwom 'vs/editow/bwowsa/cowe/mawkdownWendewa';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
 
 const $ = DOM.$;
 
-function getExcludeDisplayValue(element: SettingsTreeSettingElement): IListDataItem[] {
-	const data = element.isConfigured ?
-		{ ...element.defaultValue, ...element.scopeValue } :
-		element.defaultValue;
+function getExcwudeDispwayVawue(ewement: SettingsTweeSettingEwement): IWistDataItem[] {
+	const data = ewement.isConfiguwed ?
+		{ ...ewement.defauwtVawue, ...ewement.scopeVawue } :
+		ewement.defauwtVawue;
 
-	return Object.keys(data)
-		.filter(key => !!data[key])
+	wetuwn Object.keys(data)
+		.fiwta(key => !!data[key])
 		.map(key => {
-			const value = data[key];
-			const sibling = typeof value === 'boolean' ? undefined : value.when;
-			return {
-				value: {
-					type: 'string',
+			const vawue = data[key];
+			const sibwing = typeof vawue === 'boowean' ? undefined : vawue.when;
+			wetuwn {
+				vawue: {
+					type: 'stwing',
 					data: key
 				},
-				sibling,
-				elementType: element.valueType
+				sibwing,
+				ewementType: ewement.vawueType
 			};
 		});
 }
 
-function areAllPropertiesDefined(properties: string[], itemsToDisplay: IObjectDataItem[]): boolean {
-	const staticProperties = new Set(properties);
-	itemsToDisplay.forEach(({ key }) => staticProperties.delete(key.data));
-	return staticProperties.size === 0;
+function aweAwwPwopewtiesDefined(pwopewties: stwing[], itemsToDispway: IObjectDataItem[]): boowean {
+	const staticPwopewties = new Set(pwopewties);
+	itemsToDispway.fowEach(({ key }) => staticPwopewties.dewete(key.data));
+	wetuwn staticPwopewties.size === 0;
 }
 
-function getEnumOptionsFromSchema(schema: IJSONSchema): IObjectEnumOption[] {
+function getEnumOptionsFwomSchema(schema: IJSONSchema): IObjectEnumOption[] {
 	if (schema.anyOf) {
-		return arrays.flatten(schema.anyOf.map(getEnumOptionsFromSchema));
+		wetuwn awways.fwatten(schema.anyOf.map(getEnumOptionsFwomSchema));
 	}
 
-	const enumDescriptions = schema.enumDescriptions ?? [];
+	const enumDescwiptions = schema.enumDescwiptions ?? [];
 
-	return (schema.enum ?? []).map((value, idx) => {
-		const description = idx < enumDescriptions.length
-			? enumDescriptions[idx]
+	wetuwn (schema.enum ?? []).map((vawue, idx) => {
+		const descwiption = idx < enumDescwiptions.wength
+			? enumDescwiptions[idx]
 			: undefined;
 
-		return { value, description };
+		wetuwn { vawue, descwiption };
 	});
 }
 
-function getObjectValueType(schema: IJSONSchema): ObjectValue['type'] {
+function getObjectVawueType(schema: IJSONSchema): ObjectVawue['type'] {
 	if (schema.anyOf) {
-		const subTypes = schema.anyOf.map(getObjectValueType);
+		const subTypes = schema.anyOf.map(getObjectVawueType);
 		if (subTypes.some(type => type === 'enum')) {
-			return 'enum';
+			wetuwn 'enum';
 		}
-		return 'string';
+		wetuwn 'stwing';
 	}
 
-	if (schema.type === 'boolean') {
-		return 'boolean';
-	} else if (schema.type === 'string' && isDefined(schema.enum) && schema.enum.length > 0) {
-		return 'enum';
-	} else {
-		return 'string';
+	if (schema.type === 'boowean') {
+		wetuwn 'boowean';
+	} ewse if (schema.type === 'stwing' && isDefined(schema.enum) && schema.enum.wength > 0) {
+		wetuwn 'enum';
+	} ewse {
+		wetuwn 'stwing';
 	}
 }
 
-function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectDataItem[] {
-	const elementDefaultValue: Record<string, unknown> = typeof element.defaultValue === 'object'
-		? element.defaultValue ?? {}
+function getObjectDispwayVawue(ewement: SettingsTweeSettingEwement): IObjectDataItem[] {
+	const ewementDefauwtVawue: Wecowd<stwing, unknown> = typeof ewement.defauwtVawue === 'object'
+		? ewement.defauwtVawue ?? {}
 		: {};
 
-	const elementScopeValue: Record<string, unknown> = typeof element.scopeValue === 'object'
-		? element.scopeValue ?? {}
+	const ewementScopeVawue: Wecowd<stwing, unknown> = typeof ewement.scopeVawue === 'object'
+		? ewement.scopeVawue ?? {}
 		: {};
 
-	const data = element.isConfigured ?
-		{ ...elementDefaultValue, ...elementScopeValue } :
-		elementDefaultValue;
+	const data = ewement.isConfiguwed ?
+		{ ...ewementDefauwtVawue, ...ewementScopeVawue } :
+		ewementDefauwtVawue;
 
-	const { objectProperties, objectPatternProperties, objectAdditionalProperties } = element.setting;
-	const patternsAndSchemas = Object
-		.entries(objectPatternProperties ?? {})
-		.map(([pattern, schema]) => ({
-			pattern: new RegExp(pattern),
+	const { objectPwopewties, objectPattewnPwopewties, objectAdditionawPwopewties } = ewement.setting;
+	const pattewnsAndSchemas = Object
+		.entwies(objectPattewnPwopewties ?? {})
+		.map(([pattewn, schema]) => ({
+			pattewn: new WegExp(pattewn),
 			schema
 		}));
 
-	const wellDefinedKeyEnumOptions = Object.entries(objectProperties ?? {}).map(
-		([key, schema]) => ({ value: key, description: schema.description })
+	const wewwDefinedKeyEnumOptions = Object.entwies(objectPwopewties ?? {}).map(
+		([key, schema]) => ({ vawue: key, descwiption: schema.descwiption })
 	);
 
-	return Object.keys(data).map(key => {
-		if (isDefined(objectProperties) && key in objectProperties) {
-			const defaultValue = elementDefaultValue[key];
+	wetuwn Object.keys(data).map(key => {
+		if (isDefined(objectPwopewties) && key in objectPwopewties) {
+			const defauwtVawue = ewementDefauwtVawue[key];
 
-			if (element.setting.allKeysAreBoolean) {
-				return {
+			if (ewement.setting.awwKeysAweBoowean) {
+				wetuwn {
 					key: {
-						type: 'string',
+						type: 'stwing',
 						data: key
 					},
-					value: {
-						type: 'boolean',
+					vawue: {
+						type: 'boowean',
 						data: data[key]
 					},
-					keyDescription: objectProperties[key].description,
-					removable: false
+					keyDescwiption: objectPwopewties[key].descwiption,
+					wemovabwe: fawse
 				} as IObjectDataItem;
 			}
 
-			const valueEnumOptions = getEnumOptionsFromSchema(objectProperties[key]);
-			return {
+			const vawueEnumOptions = getEnumOptionsFwomSchema(objectPwopewties[key]);
+			wetuwn {
 				key: {
 					type: 'enum',
 					data: key,
-					options: wellDefinedKeyEnumOptions,
+					options: wewwDefinedKeyEnumOptions,
 				},
-				value: {
-					type: getObjectValueType(objectProperties[key]),
+				vawue: {
+					type: getObjectVawueType(objectPwopewties[key]),
 					data: data[key],
-					options: valueEnumOptions,
+					options: vawueEnumOptions,
 				},
-				keyDescription: objectProperties[key].description,
-				removable: isUndefinedOrNull(defaultValue),
+				keyDescwiption: objectPwopewties[key].descwiption,
+				wemovabwe: isUndefinedOwNuww(defauwtVawue),
 			} as IObjectDataItem;
 		}
 
-		const schema = patternsAndSchemas.find(({ pattern }) => pattern.test(key))?.schema;
+		const schema = pattewnsAndSchemas.find(({ pattewn }) => pattewn.test(key))?.schema;
 		if (schema) {
-			const valueEnumOptions = getEnumOptionsFromSchema(schema);
-			return {
-				key: { type: 'string', data: key },
-				value: {
-					type: getObjectValueType(schema),
+			const vawueEnumOptions = getEnumOptionsFwomSchema(schema);
+			wetuwn {
+				key: { type: 'stwing', data: key },
+				vawue: {
+					type: getObjectVawueType(schema),
 					data: data[key],
-					options: valueEnumOptions,
+					options: vawueEnumOptions,
 				},
-				keyDescription: schema.description,
-				removable: true,
+				keyDescwiption: schema.descwiption,
+				wemovabwe: twue,
 			} as IObjectDataItem;
 		}
 
-		const additionalValueEnums = getEnumOptionsFromSchema(
-			typeof objectAdditionalProperties === 'boolean'
+		const additionawVawueEnums = getEnumOptionsFwomSchema(
+			typeof objectAdditionawPwopewties === 'boowean'
 				? {}
-				: objectAdditionalProperties ?? {}
+				: objectAdditionawPwopewties ?? {}
 		);
 
-		return {
-			key: { type: 'string', data: key },
-			value: {
-				type: typeof objectAdditionalProperties === 'object' ? getObjectValueType(objectAdditionalProperties) : 'string',
+		wetuwn {
+			key: { type: 'stwing', data: key },
+			vawue: {
+				type: typeof objectAdditionawPwopewties === 'object' ? getObjectVawueType(objectAdditionawPwopewties) : 'stwing',
 				data: data[key],
-				options: additionalValueEnums,
+				options: additionawVawueEnums,
 			},
-			keyDescription: typeof objectAdditionalProperties === 'object' ? objectAdditionalProperties.description : undefined,
-			removable: true,
+			keyDescwiption: typeof objectAdditionawPwopewties === 'object' ? objectAdditionawPwopewties.descwiption : undefined,
+			wemovabwe: twue,
 		} as IObjectDataItem;
-	}).filter(item => !isUndefinedOrNull(item.value.data));
+	}).fiwta(item => !isUndefinedOwNuww(item.vawue.data));
 }
 
-function createArraySuggester(element: SettingsTreeSettingElement): IObjectKeySuggester {
-	return (keys, idx) => {
+function cweateAwwaySuggesta(ewement: SettingsTweeSettingEwement): IObjectKeySuggesta {
+	wetuwn (keys, idx) => {
 		const enumOptions: IObjectEnumOption[] = [];
 
-		if (element.setting.enum) {
-			element.setting.enum.forEach((key, i) => {
-				// include the currently selected value, even if uniqueItems is true
-				if (!element.setting.uniqueItems || (idx !== undefined && key === keys[idx]) || !keys.includes(key)) {
-					const description = element.setting.enumDescriptions?.[i];
-					enumOptions.push({ value: key, description });
+		if (ewement.setting.enum) {
+			ewement.setting.enum.fowEach((key, i) => {
+				// incwude the cuwwentwy sewected vawue, even if uniqueItems is twue
+				if (!ewement.setting.uniqueItems || (idx !== undefined && key === keys[idx]) || !keys.incwudes(key)) {
+					const descwiption = ewement.setting.enumDescwiptions?.[i];
+					enumOptions.push({ vawue: key, descwiption });
 				}
 			});
 		}
 
-		return enumOptions.length > 0
-			? { type: 'enum', data: enumOptions[0].value, options: enumOptions }
+		wetuwn enumOptions.wength > 0
+			? { type: 'enum', data: enumOptions[0].vawue, options: enumOptions }
 			: undefined;
 	};
 }
 
-function createObjectKeySuggester(element: SettingsTreeSettingElement): IObjectKeySuggester {
-	const { objectProperties } = element.setting;
-	const allStaticKeys = Object.keys(objectProperties ?? {});
+function cweateObjectKeySuggesta(ewement: SettingsTweeSettingEwement): IObjectKeySuggesta {
+	const { objectPwopewties } = ewement.setting;
+	const awwStaticKeys = Object.keys(objectPwopewties ?? {});
 
-	return keys => {
+	wetuwn keys => {
 		const existingKeys = new Set(keys);
 		const enumOptions: IObjectEnumOption[] = [];
 
-		allStaticKeys.forEach(staticKey => {
+		awwStaticKeys.fowEach(staticKey => {
 			if (!existingKeys.has(staticKey)) {
-				enumOptions.push({ value: staticKey, description: objectProperties![staticKey].description });
+				enumOptions.push({ vawue: staticKey, descwiption: objectPwopewties![staticKey].descwiption });
 			}
 		});
 
-		return enumOptions.length > 0
-			? { type: 'enum', data: enumOptions[0].value, options: enumOptions }
+		wetuwn enumOptions.wength > 0
+			? { type: 'enum', data: enumOptions[0].vawue, options: enumOptions }
 			: undefined;
 	};
 }
 
-function createObjectValueSuggester(element: SettingsTreeSettingElement): IObjectValueSuggester {
-	const { objectProperties, objectPatternProperties, objectAdditionalProperties } = element.setting;
+function cweateObjectVawueSuggesta(ewement: SettingsTweeSettingEwement): IObjectVawueSuggesta {
+	const { objectPwopewties, objectPattewnPwopewties, objectAdditionawPwopewties } = ewement.setting;
 
-	const patternsAndSchemas = Object
-		.entries(objectPatternProperties ?? {})
-		.map(([pattern, schema]) => ({
-			pattern: new RegExp(pattern),
+	const pattewnsAndSchemas = Object
+		.entwies(objectPattewnPwopewties ?? {})
+		.map(([pattewn, schema]) => ({
+			pattewn: new WegExp(pattewn),
 			schema
 		}));
 
-	return (key: string) => {
-		let suggestedSchema: IJSONSchema | undefined;
+	wetuwn (key: stwing) => {
+		wet suggestedSchema: IJSONSchema | undefined;
 
-		if (isDefined(objectProperties) && key in objectProperties) {
-			suggestedSchema = objectProperties[key];
+		if (isDefined(objectPwopewties) && key in objectPwopewties) {
+			suggestedSchema = objectPwopewties[key];
 		}
 
-		const patternSchema = suggestedSchema ?? patternsAndSchemas.find(({ pattern }) => pattern.test(key))?.schema;
+		const pattewnSchema = suggestedSchema ?? pattewnsAndSchemas.find(({ pattewn }) => pattewn.test(key))?.schema;
 
-		if (isDefined(patternSchema)) {
-			suggestedSchema = patternSchema;
-		} else if (isDefined(objectAdditionalProperties) && typeof objectAdditionalProperties === 'object') {
-			suggestedSchema = objectAdditionalProperties;
+		if (isDefined(pattewnSchema)) {
+			suggestedSchema = pattewnSchema;
+		} ewse if (isDefined(objectAdditionawPwopewties) && typeof objectAdditionawPwopewties === 'object') {
+			suggestedSchema = objectAdditionawPwopewties;
 		}
 
 		if (isDefined(suggestedSchema)) {
-			const type = getObjectValueType(suggestedSchema);
+			const type = getObjectVawueType(suggestedSchema);
 
-			if (type === 'boolean') {
-				return { type, data: suggestedSchema.default ?? true };
-			} else if (type === 'enum') {
-				const options = getEnumOptionsFromSchema(suggestedSchema);
-				return { type, data: suggestedSchema.default ?? options[0].value, options };
-			} else {
-				return { type, data: suggestedSchema.default ?? '' };
+			if (type === 'boowean') {
+				wetuwn { type, data: suggestedSchema.defauwt ?? twue };
+			} ewse if (type === 'enum') {
+				const options = getEnumOptionsFwomSchema(suggestedSchema);
+				wetuwn { type, data: suggestedSchema.defauwt ?? options[0].vawue, options };
+			} ewse {
+				wetuwn { type, data: suggestedSchema.defauwt ?? '' };
 			}
 		}
 
-		return;
+		wetuwn;
 	};
 }
 
-function getListDisplayValue(element: SettingsTreeSettingElement): IListDataItem[] {
-	if (!element.value || !isArray(element.value)) {
-		return [];
+function getWistDispwayVawue(ewement: SettingsTweeSettingEwement): IWistDataItem[] {
+	if (!ewement.vawue || !isAwway(ewement.vawue)) {
+		wetuwn [];
 	}
 
-	if (element.setting.arrayItemType === 'enum') {
-		let enumOptions: IObjectEnumOption[] = [];
-		if (element.setting.enum) {
-			enumOptions = element.setting.enum.map((setting, i) => {
-				return {
-					value: setting,
-					description: element.setting.enumDescriptions?.[i]
+	if (ewement.setting.awwayItemType === 'enum') {
+		wet enumOptions: IObjectEnumOption[] = [];
+		if (ewement.setting.enum) {
+			enumOptions = ewement.setting.enum.map((setting, i) => {
+				wetuwn {
+					vawue: setting,
+					descwiption: ewement.setting.enumDescwiptions?.[i]
 				};
 			});
 		}
-		return element.value.map((key: string) => {
-			return {
-				value: {
+		wetuwn ewement.vawue.map((key: stwing) => {
+			wetuwn {
+				vawue: {
 					type: 'enum',
 					data: key,
 					options: enumOptions
 				}
 			};
 		});
-	} else {
-		return element.value.map((key: string) => {
-			return {
-				value: {
-					type: 'string',
+	} ewse {
+		wetuwn ewement.vawue.map((key: stwing) => {
+			wetuwn {
+				vawue: {
+					type: 'stwing',
 					data: key
 				}
 			};
@@ -338,2100 +338,2100 @@ function getListDisplayValue(element: SettingsTreeSettingElement): IListDataItem
 	}
 }
 
-function getShowAddButtonList(dataElement: SettingsTreeSettingElement, listDisplayValue: IListDataItem[]): boolean {
-	if (dataElement.setting.enum && dataElement.setting.uniqueItems) {
-		return dataElement.setting.enum.length - listDisplayValue.length > 0;
-	} else {
-		return true;
+function getShowAddButtonWist(dataEwement: SettingsTweeSettingEwement, wistDispwayVawue: IWistDataItem[]): boowean {
+	if (dataEwement.setting.enum && dataEwement.setting.uniqueItems) {
+		wetuwn dataEwement.setting.enum.wength - wistDispwayVawue.wength > 0;
+	} ewse {
+		wetuwn twue;
 	}
 }
 
-export function resolveSettingsTree(tocData: ITOCEntry<string>, coreSettingsGroups: ISettingsGroup[], logService: ILogService): { tree: ITOCEntry<ISetting>, leftoverSettings: Set<ISetting> } {
-	const allSettings = getFlatSettings(coreSettingsGroups);
-	return {
-		tree: _resolveSettingsTree(tocData, allSettings, logService),
-		leftoverSettings: allSettings
+expowt function wesowveSettingsTwee(tocData: ITOCEntwy<stwing>, coweSettingsGwoups: ISettingsGwoup[], wogSewvice: IWogSewvice): { twee: ITOCEntwy<ISetting>, weftovewSettings: Set<ISetting> } {
+	const awwSettings = getFwatSettings(coweSettingsGwoups);
+	wetuwn {
+		twee: _wesowveSettingsTwee(tocData, awwSettings, wogSewvice),
+		weftovewSettings: awwSettings
 	};
 }
 
-export function resolveConfiguredUntrustedSettings(groups: ISettingsGroup[], target: SettingsTarget, configurationService: IWorkbenchConfigurationService): ISetting[] {
-	const allSettings = getFlatSettings(groups);
-	return [...allSettings].filter(setting => setting.restricted && inspectSetting(setting.key, target, configurationService).isConfigured);
+expowt function wesowveConfiguwedUntwustedSettings(gwoups: ISettingsGwoup[], tawget: SettingsTawget, configuwationSewvice: IWowkbenchConfiguwationSewvice): ISetting[] {
+	const awwSettings = getFwatSettings(gwoups);
+	wetuwn [...awwSettings].fiwta(setting => setting.westwicted && inspectSetting(setting.key, tawget, configuwationSewvice).isConfiguwed);
 }
 
-export async function resolveExtensionsSettings(extensionService: IExtensionService, groups: ISettingsGroup[]): Promise<ITOCEntry<ISetting>> {
-	const extGroupTree = new Map<string, ITOCEntry<ISetting>>();
-	const addEntryToTree = (extensionId: string, extensionName: string, childEntry: ITOCEntry<ISetting>) => {
-		if (!extGroupTree.has(extensionId)) {
-			const rootEntry = {
+expowt async function wesowveExtensionsSettings(extensionSewvice: IExtensionSewvice, gwoups: ISettingsGwoup[]): Pwomise<ITOCEntwy<ISetting>> {
+	const extGwoupTwee = new Map<stwing, ITOCEntwy<ISetting>>();
+	const addEntwyToTwee = (extensionId: stwing, extensionName: stwing, chiwdEntwy: ITOCEntwy<ISetting>) => {
+		if (!extGwoupTwee.has(extensionId)) {
+			const wootEntwy = {
 				id: extensionId,
-				label: extensionName,
-				children: []
+				wabew: extensionName,
+				chiwdwen: []
 			};
-			extGroupTree.set(extensionId, rootEntry);
+			extGwoupTwee.set(extensionId, wootEntwy);
 		}
-		extGroupTree.get(extensionId)!.children!.push(childEntry);
+		extGwoupTwee.get(extensionId)!.chiwdwen!.push(chiwdEntwy);
 	};
-	const processGroupEntry = async (group: ISettingsGroup) => {
-		const flatSettings = arrays.flatten(
-			group.sections.map(section => section.settings));
+	const pwocessGwoupEntwy = async (gwoup: ISettingsGwoup) => {
+		const fwatSettings = awways.fwatten(
+			gwoup.sections.map(section => section.settings));
 
-		const extensionId = group.extensionInfo!.id;
-		const extension = await extensionService.getExtension(extensionId);
-		const extensionName = extension!.displayName ?? extension!.name;
+		const extensionId = gwoup.extensionInfo!.id;
+		const extension = await extensionSewvice.getExtension(extensionId);
+		const extensionName = extension!.dispwayName ?? extension!.name;
 
-		const childEntry = {
-			id: group.id,
-			label: group.title,
-			order: group.order,
-			settings: flatSettings
+		const chiwdEntwy = {
+			id: gwoup.id,
+			wabew: gwoup.titwe,
+			owda: gwoup.owda,
+			settings: fwatSettings
 		};
-		addEntryToTree(extensionId, extensionName, childEntry);
+		addEntwyToTwee(extensionId, extensionName, chiwdEntwy);
 	};
 
-	const processPromises = groups
-		.sort((a, b) => a.title.localeCompare(b.title))
-		.map(g => processGroupEntry(g));
+	const pwocessPwomises = gwoups
+		.sowt((a, b) => a.titwe.wocaweCompawe(b.titwe))
+		.map(g => pwocessGwoupEntwy(g));
 
-	return Promise.all(processPromises).then(() => {
-		const extGroups: ITOCEntry<ISetting>[] = [];
-		for (const value of extGroupTree.values()) {
-			if (value.children!.length === 1) {
-				// push a flattened setting
-				extGroups.push({
-					id: value.id,
-					label: value.children![0].label,
-					settings: value.children![0].settings
+	wetuwn Pwomise.aww(pwocessPwomises).then(() => {
+		const extGwoups: ITOCEntwy<ISetting>[] = [];
+		fow (const vawue of extGwoupTwee.vawues()) {
+			if (vawue.chiwdwen!.wength === 1) {
+				// push a fwattened setting
+				extGwoups.push({
+					id: vawue.id,
+					wabew: vawue.chiwdwen![0].wabew,
+					settings: vawue.chiwdwen![0].settings
 				});
-			} else {
-				value.children!.sort((a, b) => {
-					if (a.order !== undefined && b.order !== undefined) {
-						return a.order - b.order;
-					} else {
-						// leave things as-is
-						return 0;
+			} ewse {
+				vawue.chiwdwen!.sowt((a, b) => {
+					if (a.owda !== undefined && b.owda !== undefined) {
+						wetuwn a.owda - b.owda;
+					} ewse {
+						// weave things as-is
+						wetuwn 0;
 					}
 				});
-				extGroups.push(value);
+				extGwoups.push(vawue);
 			}
 		}
 
-		return {
+		wetuwn {
 			id: 'extensions',
-			label: localize('extensions', "Extensions"),
-			children: extGroups
+			wabew: wocawize('extensions', "Extensions"),
+			chiwdwen: extGwoups
 		};
 	});
 }
 
-function _resolveSettingsTree(tocData: ITOCEntry<string>, allSettings: Set<ISetting>, logService: ILogService): ITOCEntry<ISetting> {
-	let children: ITOCEntry<ISetting>[] | undefined;
-	if (tocData.children) {
-		children = tocData.children
-			.map(child => _resolveSettingsTree(child, allSettings, logService))
-			.filter(child => (child.children && child.children.length) || (child.settings && child.settings.length));
+function _wesowveSettingsTwee(tocData: ITOCEntwy<stwing>, awwSettings: Set<ISetting>, wogSewvice: IWogSewvice): ITOCEntwy<ISetting> {
+	wet chiwdwen: ITOCEntwy<ISetting>[] | undefined;
+	if (tocData.chiwdwen) {
+		chiwdwen = tocData.chiwdwen
+			.map(chiwd => _wesowveSettingsTwee(chiwd, awwSettings, wogSewvice))
+			.fiwta(chiwd => (chiwd.chiwdwen && chiwd.chiwdwen.wength) || (chiwd.settings && chiwd.settings.wength));
 	}
 
-	let settings: ISetting[] | undefined;
+	wet settings: ISetting[] | undefined;
 	if (tocData.settings) {
-		settings = arrays.flatten(tocData.settings.map(pattern => getMatchingSettings(allSettings, pattern, logService)));
+		settings = awways.fwatten(tocData.settings.map(pattewn => getMatchingSettings(awwSettings, pattewn, wogSewvice)));
 	}
 
-	if (!children && !settings) {
-		throw new Error(`TOC node has no child groups or settings: ${tocData.id}`);
+	if (!chiwdwen && !settings) {
+		thwow new Ewwow(`TOC node has no chiwd gwoups ow settings: ${tocData.id}`);
 	}
 
-	return {
+	wetuwn {
 		id: tocData.id,
-		label: tocData.label,
-		children,
+		wabew: tocData.wabew,
+		chiwdwen,
 		settings
 	};
 }
 
-const knownDynamicSettingGroups = [
+const knownDynamicSettingGwoups = [
 	/^settingsSync\..*/,
 	/^sync\..*/,
-	/^workbench.fontAliasing$/,
+	/^wowkbench.fontAwiasing$/,
 ];
 
-function getMatchingSettings(allSettings: Set<ISetting>, pattern: string, logService: ILogService): ISetting[] {
-	const result: ISetting[] = [];
+function getMatchingSettings(awwSettings: Set<ISetting>, pattewn: stwing, wogSewvice: IWogSewvice): ISetting[] {
+	const wesuwt: ISetting[] = [];
 
-	allSettings.forEach(s => {
-		if (settingMatches(s, pattern)) {
-			result.push(s);
-			allSettings.delete(s);
+	awwSettings.fowEach(s => {
+		if (settingMatches(s, pattewn)) {
+			wesuwt.push(s);
+			awwSettings.dewete(s);
 		}
 	});
 
-	if (!result.length && !knownDynamicSettingGroups.some(r => r.test(pattern))) {
-		logService.warn(`Settings pattern "${pattern}" doesn't match any settings`);
+	if (!wesuwt.wength && !knownDynamicSettingGwoups.some(w => w.test(pattewn))) {
+		wogSewvice.wawn(`Settings pattewn "${pattewn}" doesn't match any settings`);
 	}
 
-	return result.sort((a, b) => a.key.localeCompare(b.key));
+	wetuwn wesuwt.sowt((a, b) => a.key.wocaweCompawe(b.key));
 }
 
-const settingPatternCache = new Map<string, RegExp>();
+const settingPattewnCache = new Map<stwing, WegExp>();
 
-export function createSettingMatchRegExp(pattern: string): RegExp {
-	pattern = escapeRegExpCharacters(pattern)
-		.replace(/\\\*/g, '.*');
+expowt function cweateSettingMatchWegExp(pattewn: stwing): WegExp {
+	pattewn = escapeWegExpChawactews(pattewn)
+		.wepwace(/\\\*/g, '.*');
 
-	return new RegExp(`^${pattern}$`, 'i');
+	wetuwn new WegExp(`^${pattewn}$`, 'i');
 }
 
-function settingMatches(s: ISetting, pattern: string): boolean {
-	let regExp = settingPatternCache.get(pattern);
-	if (!regExp) {
-		regExp = createSettingMatchRegExp(pattern);
-		settingPatternCache.set(pattern, regExp);
+function settingMatches(s: ISetting, pattewn: stwing): boowean {
+	wet wegExp = settingPattewnCache.get(pattewn);
+	if (!wegExp) {
+		wegExp = cweateSettingMatchWegExp(pattewn);
+		settingPattewnCache.set(pattewn, wegExp);
 	}
 
-	return regExp.test(s.key);
+	wetuwn wegExp.test(s.key);
 }
 
-function getFlatSettings(settingsGroups: ISettingsGroup[]) {
-	const result: Set<ISetting> = new Set();
+function getFwatSettings(settingsGwoups: ISettingsGwoup[]) {
+	const wesuwt: Set<ISetting> = new Set();
 
-	for (const group of settingsGroups) {
-		for (const section of group.sections) {
-			for (const s of section.settings) {
-				if (!s.overrides || !s.overrides.length) {
-					result.add(s);
+	fow (const gwoup of settingsGwoups) {
+		fow (const section of gwoup.sections) {
+			fow (const s of section.settings) {
+				if (!s.ovewwides || !s.ovewwides.wength) {
+					wesuwt.add(s);
 				}
 			}
 		}
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-interface IDisposableTemplate {
-	toDispose: DisposableStore;
+intewface IDisposabweTempwate {
+	toDispose: DisposabweStowe;
 }
 
-interface ISettingItemTemplate<T = any> extends IDisposableTemplate {
-	onChange?: (value: T) => void;
+intewface ISettingItemTempwate<T = any> extends IDisposabweTempwate {
+	onChange?: (vawue: T) => void;
 
-	context?: SettingsTreeSettingElement;
-	containerElement: HTMLElement;
-	categoryElement: HTMLElement;
-	labelElement: HTMLElement;
-	descriptionElement: HTMLElement;
-	controlElement: HTMLElement;
-	deprecationWarningElement: HTMLElement;
-	otherOverridesElement: HTMLElement;
-	syncIgnoredElement: HTMLElement;
-	toolbar: ToolBar;
-	elementDisposables: DisposableStore;
+	context?: SettingsTweeSettingEwement;
+	containewEwement: HTMWEwement;
+	categowyEwement: HTMWEwement;
+	wabewEwement: HTMWEwement;
+	descwiptionEwement: HTMWEwement;
+	contwowEwement: HTMWEwement;
+	depwecationWawningEwement: HTMWEwement;
+	othewOvewwidesEwement: HTMWEwement;
+	syncIgnowedEwement: HTMWEwement;
+	toowbaw: ToowBaw;
+	ewementDisposabwes: DisposabweStowe;
 }
 
-interface ISettingBoolItemTemplate extends ISettingItemTemplate<boolean> {
+intewface ISettingBoowItemTempwate extends ISettingItemTempwate<boowean> {
 	checkbox: Checkbox;
 }
 
-interface ISettingTextItemTemplate extends ISettingItemTemplate<string> {
+intewface ISettingTextItemTempwate extends ISettingItemTempwate<stwing> {
 	inputBox: InputBox;
-	validationErrorMessageElement: HTMLElement;
+	vawidationEwwowMessageEwement: HTMWEwement;
 }
 
-type ISettingNumberItemTemplate = ISettingTextItemTemplate;
+type ISettingNumbewItemTempwate = ISettingTextItemTempwate;
 
-interface ISettingEnumItemTemplate extends ISettingItemTemplate<number> {
-	selectBox: SelectBox;
-	enumDescriptionElement: HTMLElement;
+intewface ISettingEnumItemTempwate extends ISettingItemTempwate<numba> {
+	sewectBox: SewectBox;
+	enumDescwiptionEwement: HTMWEwement;
 }
 
-interface ISettingComplexItemTemplate extends ISettingItemTemplate<void> {
+intewface ISettingCompwexItemTempwate extends ISettingItemTempwate<void> {
 	button: Button;
-	validationErrorMessageElement: HTMLElement;
+	vawidationEwwowMessageEwement: HTMWEwement;
 }
 
-interface ISettingListItemTemplate extends ISettingItemTemplate<string[] | undefined> {
-	listWidget: ListSettingWidget;
-	validationErrorMessageElement: HTMLElement;
+intewface ISettingWistItemTempwate extends ISettingItemTempwate<stwing[] | undefined> {
+	wistWidget: WistSettingWidget;
+	vawidationEwwowMessageEwement: HTMWEwement;
 }
 
-interface ISettingExcludeItemTemplate extends ISettingItemTemplate<void> {
-	excludeWidget: ListSettingWidget;
+intewface ISettingExcwudeItemTempwate extends ISettingItemTempwate<void> {
+	excwudeWidget: WistSettingWidget;
 }
 
-interface ISettingObjectItemTemplate extends ISettingItemTemplate<Record<string, unknown> | undefined> {
-	objectDropdownWidget?: ObjectSettingDropdownWidget,
+intewface ISettingObjectItemTempwate extends ISettingItemTempwate<Wecowd<stwing, unknown> | undefined> {
+	objectDwopdownWidget?: ObjectSettingDwopdownWidget,
 	objectCheckboxWidget?: ObjectSettingCheckboxWidget;
-	validationErrorMessageElement: HTMLElement;
+	vawidationEwwowMessageEwement: HTMWEwement;
 }
 
-interface ISettingNewExtensionsTemplate extends IDisposableTemplate {
+intewface ISettingNewExtensionsTempwate extends IDisposabweTempwate {
 	button: Button;
-	context?: SettingsTreeNewExtensionsElement;
+	context?: SettingsTweeNewExtensionsEwement;
 }
 
-interface IGroupTitleTemplate extends IDisposableTemplate {
-	context?: SettingsTreeGroupElement;
-	parent: HTMLElement;
+intewface IGwoupTitweTempwate extends IDisposabweTempwate {
+	context?: SettingsTweeGwoupEwement;
+	pawent: HTMWEwement;
 }
 
-const SETTINGS_UNTRUSTED_TEMPLATE_ID = 'settings.untrusted.template';
-const SETTINGS_TEXT_TEMPLATE_ID = 'settings.text.template';
-const SETTINGS_MULTILINE_TEXT_TEMPLATE_ID = 'settings.multilineText.template';
-const SETTINGS_NUMBER_TEMPLATE_ID = 'settings.number.template';
-const SETTINGS_ENUM_TEMPLATE_ID = 'settings.enum.template';
-const SETTINGS_BOOL_TEMPLATE_ID = 'settings.bool.template';
-const SETTINGS_ARRAY_TEMPLATE_ID = 'settings.array.template';
-const SETTINGS_EXCLUDE_TEMPLATE_ID = 'settings.exclude.template';
-const SETTINGS_OBJECT_TEMPLATE_ID = 'settings.object.template';
-const SETTINGS_BOOL_OBJECT_TEMPLATE_ID = 'settings.boolObject.template';
-const SETTINGS_COMPLEX_TEMPLATE_ID = 'settings.complex.template';
-const SETTINGS_NEW_EXTENSIONS_TEMPLATE_ID = 'settings.newExtensions.template';
-const SETTINGS_ELEMENT_TEMPLATE_ID = 'settings.group.template';
+const SETTINGS_UNTWUSTED_TEMPWATE_ID = 'settings.untwusted.tempwate';
+const SETTINGS_TEXT_TEMPWATE_ID = 'settings.text.tempwate';
+const SETTINGS_MUWTIWINE_TEXT_TEMPWATE_ID = 'settings.muwtiwineText.tempwate';
+const SETTINGS_NUMBEW_TEMPWATE_ID = 'settings.numba.tempwate';
+const SETTINGS_ENUM_TEMPWATE_ID = 'settings.enum.tempwate';
+const SETTINGS_BOOW_TEMPWATE_ID = 'settings.boow.tempwate';
+const SETTINGS_AWWAY_TEMPWATE_ID = 'settings.awway.tempwate';
+const SETTINGS_EXCWUDE_TEMPWATE_ID = 'settings.excwude.tempwate';
+const SETTINGS_OBJECT_TEMPWATE_ID = 'settings.object.tempwate';
+const SETTINGS_BOOW_OBJECT_TEMPWATE_ID = 'settings.boowObject.tempwate';
+const SETTINGS_COMPWEX_TEMPWATE_ID = 'settings.compwex.tempwate';
+const SETTINGS_NEW_EXTENSIONS_TEMPWATE_ID = 'settings.newExtensions.tempwate';
+const SETTINGS_EWEMENT_TEMPWATE_ID = 'settings.gwoup.tempwate';
 
-export interface ISettingChangeEvent {
-	key: string;
-	value: any; // undefined => reset/unconfigure
-	type: SettingValueType | SettingValueType[];
+expowt intewface ISettingChangeEvent {
+	key: stwing;
+	vawue: any; // undefined => weset/unconfiguwe
+	type: SettingVawueType | SettingVawueType[];
 }
 
-export interface ISettingLinkClickEvent {
-	source: SettingsTreeSettingElement;
-	targetKey: string;
+expowt intewface ISettingWinkCwickEvent {
+	souwce: SettingsTweeSettingEwement;
+	tawgetKey: stwing;
 }
 
-export interface ISettingOverrideClickEvent {
-	scope: string;
-	targetKey: string;
+expowt intewface ISettingOvewwideCwickEvent {
+	scope: stwing;
+	tawgetKey: stwing;
 }
 
-function removeChildrenFromTabOrder(node: Element): void {
-	const focusableElements = node.querySelectorAll(`
+function wemoveChiwdwenFwomTabOwda(node: Ewement): void {
+	const focusabweEwements = node.quewySewectowAww(`
 		[tabindex="0"],
 		input:not([tabindex="-1"]),
-		select:not([tabindex="-1"]),
-		textarea:not([tabindex="-1"]),
+		sewect:not([tabindex="-1"]),
+		textawea:not([tabindex="-1"]),
 		a:not([tabindex="-1"]),
 		button:not([tabindex="-1"]),
-		area:not([tabindex="-1"])
+		awea:not([tabindex="-1"])
 	`);
 
-	focusableElements.forEach(element => {
-		element.setAttribute(AbstractSettingRenderer.ELEMENT_FOCUSABLE_ATTR, 'true');
-		element.setAttribute('tabindex', '-1');
+	focusabweEwements.fowEach(ewement => {
+		ewement.setAttwibute(AbstwactSettingWendewa.EWEMENT_FOCUSABWE_ATTW, 'twue');
+		ewement.setAttwibute('tabindex', '-1');
 	});
 }
 
-function addChildrenToTabOrder(node: Element): void {
-	const focusableElements = node.querySelectorAll(
-		`[${AbstractSettingRenderer.ELEMENT_FOCUSABLE_ATTR}="true"]`
+function addChiwdwenToTabOwda(node: Ewement): void {
+	const focusabweEwements = node.quewySewectowAww(
+		`[${AbstwactSettingWendewa.EWEMENT_FOCUSABWE_ATTW}="twue"]`
 	);
 
-	focusableElements.forEach(element => {
-		element.removeAttribute(AbstractSettingRenderer.ELEMENT_FOCUSABLE_ATTR);
-		element.setAttribute('tabindex', '0');
+	focusabweEwements.fowEach(ewement => {
+		ewement.wemoveAttwibute(AbstwactSettingWendewa.EWEMENT_FOCUSABWE_ATTW);
+		ewement.setAttwibute('tabindex', '0');
 	});
 }
 
-export interface HeightChangeParams {
-	element: SettingsTreeElement;
-	height: number;
+expowt intewface HeightChangePawams {
+	ewement: SettingsTweeEwement;
+	height: numba;
 }
 
-export abstract class AbstractSettingRenderer extends Disposable implements ITreeRenderer<SettingsTreeElement, never, any> {
-	/** To override */
-	abstract get templateId(): string;
+expowt abstwact cwass AbstwactSettingWendewa extends Disposabwe impwements ITweeWendewa<SettingsTweeEwement, neva, any> {
+	/** To ovewwide */
+	abstwact get tempwateId(): stwing;
 
-	static readonly CONTROL_CLASS = 'setting-control-focus-target';
-	static readonly CONTROL_SELECTOR = '.' + AbstractSettingRenderer.CONTROL_CLASS;
-	static readonly CONTENTS_CLASS = 'setting-item-contents';
-	static readonly CONTENTS_SELECTOR = '.' + AbstractSettingRenderer.CONTENTS_CLASS;
-	static readonly ALL_ROWS_SELECTOR = '.monaco-list-row';
+	static weadonwy CONTWOW_CWASS = 'setting-contwow-focus-tawget';
+	static weadonwy CONTWOW_SEWECTOW = '.' + AbstwactSettingWendewa.CONTWOW_CWASS;
+	static weadonwy CONTENTS_CWASS = 'setting-item-contents';
+	static weadonwy CONTENTS_SEWECTOW = '.' + AbstwactSettingWendewa.CONTENTS_CWASS;
+	static weadonwy AWW_WOWS_SEWECTOW = '.monaco-wist-wow';
 
-	static readonly SETTING_KEY_ATTR = 'data-key';
-	static readonly SETTING_ID_ATTR = 'data-id';
-	static readonly ELEMENT_FOCUSABLE_ATTR = 'data-focusable';
+	static weadonwy SETTING_KEY_ATTW = 'data-key';
+	static weadonwy SETTING_ID_ATTW = 'data-id';
+	static weadonwy EWEMENT_FOCUSABWE_ATTW = 'data-focusabwe';
 
-	private readonly _onDidClickOverrideElement = this._register(new Emitter<ISettingOverrideClickEvent>());
-	readonly onDidClickOverrideElement: Event<ISettingOverrideClickEvent> = this._onDidClickOverrideElement.event;
+	pwivate weadonwy _onDidCwickOvewwideEwement = this._wegista(new Emitta<ISettingOvewwideCwickEvent>());
+	weadonwy onDidCwickOvewwideEwement: Event<ISettingOvewwideCwickEvent> = this._onDidCwickOvewwideEwement.event;
 
-	protected readonly _onDidChangeSetting = this._register(new Emitter<ISettingChangeEvent>());
-	readonly onDidChangeSetting: Event<ISettingChangeEvent> = this._onDidChangeSetting.event;
+	pwotected weadonwy _onDidChangeSetting = this._wegista(new Emitta<ISettingChangeEvent>());
+	weadonwy onDidChangeSetting: Event<ISettingChangeEvent> = this._onDidChangeSetting.event;
 
-	protected readonly _onDidOpenSettings = this._register(new Emitter<string>());
-	readonly onDidOpenSettings: Event<string> = this._onDidOpenSettings.event;
+	pwotected weadonwy _onDidOpenSettings = this._wegista(new Emitta<stwing>());
+	weadonwy onDidOpenSettings: Event<stwing> = this._onDidOpenSettings.event;
 
-	private readonly _onDidClickSettingLink = this._register(new Emitter<ISettingLinkClickEvent>());
-	readonly onDidClickSettingLink: Event<ISettingLinkClickEvent> = this._onDidClickSettingLink.event;
+	pwivate weadonwy _onDidCwickSettingWink = this._wegista(new Emitta<ISettingWinkCwickEvent>());
+	weadonwy onDidCwickSettingWink: Event<ISettingWinkCwickEvent> = this._onDidCwickSettingWink.event;
 
-	protected readonly _onDidFocusSetting = this._register(new Emitter<SettingsTreeSettingElement>());
-	readonly onDidFocusSetting: Event<SettingsTreeSettingElement> = this._onDidFocusSetting.event;
+	pwotected weadonwy _onDidFocusSetting = this._wegista(new Emitta<SettingsTweeSettingEwement>());
+	weadonwy onDidFocusSetting: Event<SettingsTweeSettingEwement> = this._onDidFocusSetting.event;
 
-	private ignoredSettings: string[];
-	private readonly _onDidChangeIgnoredSettings = this._register(new Emitter<void>());
-	readonly onDidChangeIgnoredSettings: Event<void> = this._onDidChangeIgnoredSettings.event;
+	pwivate ignowedSettings: stwing[];
+	pwivate weadonwy _onDidChangeIgnowedSettings = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeIgnowedSettings: Event<void> = this._onDidChangeIgnowedSettings.event;
 
-	protected readonly _onDidChangeSettingHeight = this._register(new Emitter<HeightChangeParams>());
-	readonly onDidChangeSettingHeight: Event<HeightChangeParams> = this._onDidChangeSettingHeight.event;
+	pwotected weadonwy _onDidChangeSettingHeight = this._wegista(new Emitta<HeightChangePawams>());
+	weadonwy onDidChangeSettingHeight: Event<HeightChangePawams> = this._onDidChangeSettingHeight.event;
 
-	private readonly markdownRenderer: MarkdownRenderer;
+	pwivate weadonwy mawkdownWendewa: MawkdownWendewa;
 
-	constructor(
-		private readonly settingActions: IAction[],
-		private readonly disposableActionFactory: (setting: ISetting) => IAction[],
-		@IThemeService protected readonly _themeService: IThemeService,
-		@IContextViewService protected readonly _contextViewService: IContextViewService,
-		@IOpenerService protected readonly _openerService: IOpenerService,
-		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
-		@ICommandService protected readonly _commandService: ICommandService,
-		@IContextMenuService protected readonly _contextMenuService: IContextMenuService,
-		@IKeybindingService protected readonly _keybindingService: IKeybindingService,
-		@IConfigurationService protected readonly _configService: IConfigurationService,
+	constwuctow(
+		pwivate weadonwy settingActions: IAction[],
+		pwivate weadonwy disposabweActionFactowy: (setting: ISetting) => IAction[],
+		@IThemeSewvice pwotected weadonwy _themeSewvice: IThemeSewvice,
+		@IContextViewSewvice pwotected weadonwy _contextViewSewvice: IContextViewSewvice,
+		@IOpenewSewvice pwotected weadonwy _openewSewvice: IOpenewSewvice,
+		@IInstantiationSewvice pwotected weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@ICommandSewvice pwotected weadonwy _commandSewvice: ICommandSewvice,
+		@IContextMenuSewvice pwotected weadonwy _contextMenuSewvice: IContextMenuSewvice,
+		@IKeybindingSewvice pwotected weadonwy _keybindingSewvice: IKeybindingSewvice,
+		@IConfiguwationSewvice pwotected weadonwy _configSewvice: IConfiguwationSewvice,
 	) {
-		super();
+		supa();
 
-		this.markdownRenderer = this._register(_instantiationService.createInstance(MarkdownRenderer, {}));
+		this.mawkdownWendewa = this._wegista(_instantiationSewvice.cweateInstance(MawkdownWendewa, {}));
 
-		this.ignoredSettings = getIgnoredSettings(getDefaultIgnoredSettings(), this._configService);
-		this._register(this._configService.onDidChangeConfiguration(e => {
-			if (e.affectedKeys.includes('settingsSync.ignoredSettings')) {
-				this.ignoredSettings = getIgnoredSettings(getDefaultIgnoredSettings(), this._configService);
-				this._onDidChangeIgnoredSettings.fire();
+		this.ignowedSettings = getIgnowedSettings(getDefauwtIgnowedSettings(), this._configSewvice);
+		this._wegista(this._configSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectedKeys.incwudes('settingsSync.ignowedSettings')) {
+				this.ignowedSettings = getIgnowedSettings(getDefauwtIgnowedSettings(), this._configSewvice);
+				this._onDidChangeIgnowedSettings.fiwe();
 			}
 		}));
 	}
 
-	abstract renderTemplate(container: HTMLElement): any;
+	abstwact wendewTempwate(containa: HTMWEwement): any;
 
-	abstract renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: any): void;
+	abstwact wendewEwement(ewement: ITweeNode<SettingsTweeSettingEwement, neva>, index: numba, tempwateData: any): void;
 
-	protected createSyncIgnoredElement(container: HTMLElement): HTMLElement {
-		const syncIgnoredElement = DOM.append(container, $('span.setting-item-ignored'));
-		const syncIgnoredLabel = new SimpleIconLabel(syncIgnoredElement);
-		syncIgnoredLabel.text = `($(sync-ignored) ${localize('extensionSyncIgnoredLabel', 'Sync: Ignored')})`;
+	pwotected cweateSyncIgnowedEwement(containa: HTMWEwement): HTMWEwement {
+		const syncIgnowedEwement = DOM.append(containa, $('span.setting-item-ignowed'));
+		const syncIgnowedWabew = new SimpweIconWabew(syncIgnowedEwement);
+		syncIgnowedWabew.text = `($(sync-ignowed) ${wocawize('extensionSyncIgnowedWabew', 'Sync: Ignowed')})`;
 
-		return syncIgnoredElement;
+		wetuwn syncIgnowedEwement;
 	}
 
-	protected renderCommonTemplate(tree: any, _container: HTMLElement, typeClass: string): ISettingItemTemplate {
-		_container.classList.add('setting-item');
-		_container.classList.add('setting-item-' + typeClass);
+	pwotected wendewCommonTempwate(twee: any, _containa: HTMWEwement, typeCwass: stwing): ISettingItemTempwate {
+		_containa.cwassWist.add('setting-item');
+		_containa.cwassWist.add('setting-item-' + typeCwass);
 
-		const container = DOM.append(_container, $(AbstractSettingRenderer.CONTENTS_SELECTOR));
-		container.classList.add('settings-row-inner-container');
-		const titleElement = DOM.append(container, $('.setting-item-title'));
-		const labelCategoryContainer = DOM.append(titleElement, $('.setting-item-cat-label-container'));
-		const categoryElement = DOM.append(labelCategoryContainer, $('span.setting-item-category'));
-		const labelElement = DOM.append(labelCategoryContainer, $('span.setting-item-label'));
-		const otherOverridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
-		const syncIgnoredElement = this.createSyncIgnoredElement(titleElement);
+		const containa = DOM.append(_containa, $(AbstwactSettingWendewa.CONTENTS_SEWECTOW));
+		containa.cwassWist.add('settings-wow-inna-containa');
+		const titweEwement = DOM.append(containa, $('.setting-item-titwe'));
+		const wabewCategowyContaina = DOM.append(titweEwement, $('.setting-item-cat-wabew-containa'));
+		const categowyEwement = DOM.append(wabewCategowyContaina, $('span.setting-item-categowy'));
+		const wabewEwement = DOM.append(wabewCategowyContaina, $('span.setting-item-wabew'));
+		const othewOvewwidesEwement = DOM.append(titweEwement, $('span.setting-item-ovewwides'));
+		const syncIgnowedEwement = this.cweateSyncIgnowedEwement(titweEwement);
 
-		const descriptionElement = DOM.append(container, $('.setting-item-description'));
-		const modifiedIndicatorElement = DOM.append(container, $('.setting-item-modified-indicator'));
-		modifiedIndicatorElement.title = localize('modified', "Modified");
+		const descwiptionEwement = DOM.append(containa, $('.setting-item-descwiption'));
+		const modifiedIndicatowEwement = DOM.append(containa, $('.setting-item-modified-indicatow'));
+		modifiedIndicatowEwement.titwe = wocawize('modified', "Modified");
 
-		const valueElement = DOM.append(container, $('.setting-item-value'));
-		const controlElement = DOM.append(valueElement, $('div.setting-item-control'));
+		const vawueEwement = DOM.append(containa, $('.setting-item-vawue'));
+		const contwowEwement = DOM.append(vawueEwement, $('div.setting-item-contwow'));
 
-		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
+		const depwecationWawningEwement = DOM.append(containa, $('.setting-item-depwecation-message'));
 
-		const toDispose = new DisposableStore();
+		const toDispose = new DisposabweStowe();
 
-		const toolbarContainer = DOM.append(container, $('.setting-toolbar-container'));
-		const toolbar = this.renderSettingToolbar(toolbarContainer);
+		const toowbawContaina = DOM.append(containa, $('.setting-toowbaw-containa'));
+		const toowbaw = this.wendewSettingToowbaw(toowbawContaina);
 
-		const template: ISettingItemTemplate = {
+		const tempwate: ISettingItemTempwate = {
 			toDispose,
-			elementDisposables: new DisposableStore(),
+			ewementDisposabwes: new DisposabweStowe(),
 
-			containerElement: container,
-			categoryElement,
-			labelElement,
-			descriptionElement,
-			controlElement,
-			deprecationWarningElement,
-			otherOverridesElement,
-			syncIgnoredElement,
-			toolbar
+			containewEwement: containa,
+			categowyEwement,
+			wabewEwement,
+			descwiptionEwement,
+			contwowEwement,
+			depwecationWawningEwement,
+			othewOvewwidesEwement,
+			syncIgnowedEwement,
+			toowbaw
 		};
 
-		// Prevent clicks from being handled by list
-		toDispose.add(DOM.addDisposableListener(controlElement, DOM.EventType.MOUSE_DOWN, e => e.stopPropagation()));
+		// Pwevent cwicks fwom being handwed by wist
+		toDispose.add(DOM.addDisposabweWistena(contwowEwement, DOM.EventType.MOUSE_DOWN, e => e.stopPwopagation()));
 
-		toDispose.add(DOM.addDisposableListener(titleElement, DOM.EventType.MOUSE_ENTER, e => container.classList.add('mouseover')));
-		toDispose.add(DOM.addDisposableListener(titleElement, DOM.EventType.MOUSE_LEAVE, e => container.classList.remove('mouseover')));
+		toDispose.add(DOM.addDisposabweWistena(titweEwement, DOM.EventType.MOUSE_ENTa, e => containa.cwassWist.add('mouseova')));
+		toDispose.add(DOM.addDisposabweWistena(titweEwement, DOM.EventType.MOUSE_WEAVE, e => containa.cwassWist.wemove('mouseova')));
 
-		return template;
+		wetuwn tempwate;
 	}
 
-	protected addSettingElementFocusHandler(template: ISettingItemTemplate): void {
-		const focusTracker = DOM.trackFocus(template.containerElement);
-		template.toDispose.add(focusTracker);
-		focusTracker.onDidBlur(() => {
-			if (template.containerElement.classList.contains('focused')) {
-				template.containerElement.classList.remove('focused');
+	pwotected addSettingEwementFocusHandwa(tempwate: ISettingItemTempwate): void {
+		const focusTwacka = DOM.twackFocus(tempwate.containewEwement);
+		tempwate.toDispose.add(focusTwacka);
+		focusTwacka.onDidBwuw(() => {
+			if (tempwate.containewEwement.cwassWist.contains('focused')) {
+				tempwate.containewEwement.cwassWist.wemove('focused');
 			}
 		});
 
-		focusTracker.onDidFocus(() => {
-			template.containerElement.classList.add('focused');
+		focusTwacka.onDidFocus(() => {
+			tempwate.containewEwement.cwassWist.add('focused');
 
-			if (template.context) {
-				this._onDidFocusSetting.fire(template.context);
+			if (tempwate.context) {
+				this._onDidFocusSetting.fiwe(tempwate.context);
 			}
 		});
 	}
 
-	protected renderSettingToolbar(container: HTMLElement): ToolBar {
-		const toggleMenuKeybinding = this._keybindingService.lookupKeybinding(SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU);
-		let toggleMenuTitle = localize('settingsContextMenuTitle', "More Actions... ");
-		if (toggleMenuKeybinding) {
-			toggleMenuTitle += ` (${toggleMenuKeybinding && toggleMenuKeybinding.getLabel()})`;
+	pwotected wendewSettingToowbaw(containa: HTMWEwement): ToowBaw {
+		const toggweMenuKeybinding = this._keybindingSewvice.wookupKeybinding(SETTINGS_EDITOW_COMMAND_SHOW_CONTEXT_MENU);
+		wet toggweMenuTitwe = wocawize('settingsContextMenuTitwe', "Mowe Actions... ");
+		if (toggweMenuKeybinding) {
+			toggweMenuTitwe += ` (${toggweMenuKeybinding && toggweMenuKeybinding.getWabew()})`;
 		}
 
-		const toolbar = new ToolBar(container, this._contextMenuService, {
-			toggleMenuTitle,
-			renderDropdownAsChildElement: !isIOS,
-			moreIcon: settingsMoreActionIcon // change icon from ellipsis to gear
+		const toowbaw = new ToowBaw(containa, this._contextMenuSewvice, {
+			toggweMenuTitwe,
+			wendewDwopdownAsChiwdEwement: !isIOS,
+			moweIcon: settingsMoweActionIcon // change icon fwom ewwipsis to geaw
 		});
-		return toolbar;
+		wetuwn toowbaw;
 	}
 
-	protected renderSettingElement(node: ITreeNode<SettingsTreeSettingElement, never>, index: number, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
-		const element = node.element;
-		template.context = element;
-		template.toolbar.context = element;
-		const actions = this.disposableActionFactory(element.setting);
-		actions.forEach(a => template.elementDisposables?.add(a));
-		template.toolbar.setActions([], [...this.settingActions, ...actions]);
+	pwotected wendewSettingEwement(node: ITweeNode<SettingsTweeSettingEwement, neva>, index: numba, tempwate: ISettingItemTempwate | ISettingBoowItemTempwate): void {
+		const ewement = node.ewement;
+		tempwate.context = ewement;
+		tempwate.toowbaw.context = ewement;
+		const actions = this.disposabweActionFactowy(ewement.setting);
+		actions.fowEach(a => tempwate.ewementDisposabwes?.add(a));
+		tempwate.toowbaw.setActions([], [...this.settingActions, ...actions]);
 
-		const setting = element.setting;
+		const setting = ewement.setting;
 
-		template.containerElement.classList.toggle('is-configured', element.isConfigured);
-		template.containerElement.setAttribute(AbstractSettingRenderer.SETTING_KEY_ATTR, element.setting.key);
-		template.containerElement.setAttribute(AbstractSettingRenderer.SETTING_ID_ATTR, element.id);
+		tempwate.containewEwement.cwassWist.toggwe('is-configuwed', ewement.isConfiguwed);
+		tempwate.containewEwement.setAttwibute(AbstwactSettingWendewa.SETTING_KEY_ATTW, ewement.setting.key);
+		tempwate.containewEwement.setAttwibute(AbstwactSettingWendewa.SETTING_ID_ATTW, ewement.id);
 
-		const titleTooltip = setting.key + (element.isConfigured ? ' - Modified' : '');
-		template.categoryElement.textContent = element.displayCategory && (element.displayCategory + ': ');
-		template.categoryElement.title = titleTooltip;
+		const titweToowtip = setting.key + (ewement.isConfiguwed ? ' - Modified' : '');
+		tempwate.categowyEwement.textContent = ewement.dispwayCategowy && (ewement.dispwayCategowy + ': ');
+		tempwate.categowyEwement.titwe = titweToowtip;
 
-		template.labelElement.textContent = element.displayLabel;
-		template.labelElement.title = titleTooltip;
+		tempwate.wabewEwement.textContent = ewement.dispwayWabew;
+		tempwate.wabewEwement.titwe = titweToowtip;
 
-		template.descriptionElement.innerText = '';
-		if (element.setting.descriptionIsMarkdown) {
-			const disposables = new DisposableStore();
-			template.elementDisposables.add(disposables);
-			const renderedDescription = this.renderSettingMarkdown(element, template.containerElement, element.description, disposables);
-			template.descriptionElement.appendChild(renderedDescription);
-		} else {
-			template.descriptionElement.innerText = element.description;
+		tempwate.descwiptionEwement.innewText = '';
+		if (ewement.setting.descwiptionIsMawkdown) {
+			const disposabwes = new DisposabweStowe();
+			tempwate.ewementDisposabwes.add(disposabwes);
+			const wendewedDescwiption = this.wendewSettingMawkdown(ewement, tempwate.containewEwement, ewement.descwiption, disposabwes);
+			tempwate.descwiptionEwement.appendChiwd(wendewedDescwiption);
+		} ewse {
+			tempwate.descwiptionEwement.innewText = ewement.descwiption;
 		}
 
-		template.otherOverridesElement.innerText = '';
-		template.otherOverridesElement.style.display = 'none';
-		if (element.overriddenScopeList.length) {
-			template.otherOverridesElement.style.display = 'inline';
+		tempwate.othewOvewwidesEwement.innewText = '';
+		tempwate.othewOvewwidesEwement.stywe.dispway = 'none';
+		if (ewement.ovewwiddenScopeWist.wength) {
+			tempwate.othewOvewwidesEwement.stywe.dispway = 'inwine';
 
-			const otherOverridesLabel = element.isConfigured ?
-				localize('alsoConfiguredIn', "Also modified in") :
-				localize('configuredIn', "Modified in");
+			const othewOvewwidesWabew = ewement.isConfiguwed ?
+				wocawize('awsoConfiguwedIn', "Awso modified in") :
+				wocawize('configuwedIn', "Modified in");
 
-			DOM.append(template.otherOverridesElement, $('span', undefined, `(${otherOverridesLabel}: `));
+			DOM.append(tempwate.othewOvewwidesEwement, $('span', undefined, `(${othewOvewwidesWabew}: `));
 
-			for (let i = 0; i < element.overriddenScopeList.length; i++) {
-				const view = DOM.append(template.otherOverridesElement, $('a.modified-scope', undefined, element.overriddenScopeList[i]));
+			fow (wet i = 0; i < ewement.ovewwiddenScopeWist.wength; i++) {
+				const view = DOM.append(tempwate.othewOvewwidesEwement, $('a.modified-scope', undefined, ewement.ovewwiddenScopeWist[i]));
 
-				if (i !== element.overriddenScopeList.length - 1) {
-					DOM.append(template.otherOverridesElement, $('span', undefined, ', '));
-				} else {
-					DOM.append(template.otherOverridesElement, $('span', undefined, ')'));
+				if (i !== ewement.ovewwiddenScopeWist.wength - 1) {
+					DOM.append(tempwate.othewOvewwidesEwement, $('span', undefined, ', '));
+				} ewse {
+					DOM.append(tempwate.othewOvewwidesEwement, $('span', undefined, ')'));
 				}
 
-				template.elementDisposables.add(
-					DOM.addStandardDisposableListener(view, DOM.EventType.CLICK, (e: IMouseEvent) => {
-						this._onDidClickOverrideElement.fire({
-							targetKey: element.setting.key,
-							scope: element.overriddenScopeList[i]
+				tempwate.ewementDisposabwes.add(
+					DOM.addStandawdDisposabweWistena(view, DOM.EventType.CWICK, (e: IMouseEvent) => {
+						this._onDidCwickOvewwideEwement.fiwe({
+							tawgetKey: ewement.setting.key,
+							scope: ewement.ovewwiddenScopeWist[i]
 						});
-						e.preventDefault();
-						e.stopPropagation();
+						e.pweventDefauwt();
+						e.stopPwopagation();
 					}));
 			}
 		}
 
-		const onChange = (value: any) => this._onDidChangeSetting.fire({ key: element.setting.key, value, type: template.context!.valueType });
-		const deprecationText = element.setting.deprecationMessage || '';
-		if (deprecationText && element.setting.deprecationMessageIsMarkdown) {
-			const disposables = new DisposableStore();
-			template.elementDisposables.add(disposables);
-			template.deprecationWarningElement.innerText = '';
-			template.deprecationWarningElement.appendChild(this.renderSettingMarkdown(element, template.containerElement, element.setting.deprecationMessage!, template.elementDisposables));
-		} else {
-			template.deprecationWarningElement.innerText = deprecationText;
+		const onChange = (vawue: any) => this._onDidChangeSetting.fiwe({ key: ewement.setting.key, vawue, type: tempwate.context!.vawueType });
+		const depwecationText = ewement.setting.depwecationMessage || '';
+		if (depwecationText && ewement.setting.depwecationMessageIsMawkdown) {
+			const disposabwes = new DisposabweStowe();
+			tempwate.ewementDisposabwes.add(disposabwes);
+			tempwate.depwecationWawningEwement.innewText = '';
+			tempwate.depwecationWawningEwement.appendChiwd(this.wendewSettingMawkdown(ewement, tempwate.containewEwement, ewement.setting.depwecationMessage!, tempwate.ewementDisposabwes));
+		} ewse {
+			tempwate.depwecationWawningEwement.innewText = depwecationText;
 		}
-		template.containerElement.classList.toggle('is-deprecated', !!deprecationText);
+		tempwate.containewEwement.cwassWist.toggwe('is-depwecated', !!depwecationText);
 
-		this.renderValue(element, <ISettingItemTemplate>template, onChange);
+		this.wendewVawue(ewement, <ISettingItemTempwate>tempwate, onChange);
 
 		const update = () => {
-			template.syncIgnoredElement.style.display = this.ignoredSettings.includes(element.setting.key) ? 'inline' : 'none';
+			tempwate.syncIgnowedEwement.stywe.dispway = this.ignowedSettings.incwudes(ewement.setting.key) ? 'inwine' : 'none';
 		};
 		update();
-		template.elementDisposables.add(this.onDidChangeIgnoredSettings(() => {
+		tempwate.ewementDisposabwes.add(this.onDidChangeIgnowedSettings(() => {
 			update();
 		}));
 
-		this.updateSettingTabbable(element, template);
-		template.elementDisposables.add(element.onDidChangeTabbable(() => {
-			this.updateSettingTabbable(element, template);
+		this.updateSettingTabbabwe(ewement, tempwate);
+		tempwate.ewementDisposabwes.add(ewement.onDidChangeTabbabwe(() => {
+			this.updateSettingTabbabwe(ewement, tempwate);
 		}));
 	}
 
-	private updateSettingTabbable(element: SettingsTreeSettingElement, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
-		if (element.tabbable) {
-			addChildrenToTabOrder(template.containerElement);
-		} else {
-			removeChildrenFromTabOrder(template.containerElement);
+	pwivate updateSettingTabbabwe(ewement: SettingsTweeSettingEwement, tempwate: ISettingItemTempwate | ISettingBoowItemTempwate): void {
+		if (ewement.tabbabwe) {
+			addChiwdwenToTabOwda(tempwate.containewEwement);
+		} ewse {
+			wemoveChiwdwenFwomTabOwda(tempwate.containewEwement);
 		}
 	}
 
-	private renderSettingMarkdown(element: SettingsTreeSettingElement, container: HTMLElement, text: string, disposeables: DisposableStore): HTMLElement {
-		// Rewrite `#editor.fontSize#` to link format
-		text = fixSettingLinks(text);
+	pwivate wendewSettingMawkdown(ewement: SettingsTweeSettingEwement, containa: HTMWEwement, text: stwing, disposeabwes: DisposabweStowe): HTMWEwement {
+		// Wewwite `#editow.fontSize#` to wink fowmat
+		text = fixSettingWinks(text);
 
-		const renderedMarkdown = this.markdownRenderer.render({ value: text, isTrusted: true }, {
-			actionHandler: {
-				callback: (content: string) => {
-					if (content.startsWith('#')) {
-						const e: ISettingLinkClickEvent = {
-							source: element,
-							targetKey: content.substr(1)
+		const wendewedMawkdown = this.mawkdownWendewa.wenda({ vawue: text, isTwusted: twue }, {
+			actionHandwa: {
+				cawwback: (content: stwing) => {
+					if (content.stawtsWith('#')) {
+						const e: ISettingWinkCwickEvent = {
+							souwce: ewement,
+							tawgetKey: content.substw(1)
 						};
-						this._onDidClickSettingLink.fire(e);
-					} else {
-						this._openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
+						this._onDidCwickSettingWink.fiwe(e);
+					} ewse {
+						this._openewSewvice.open(content, { awwowCommands: twue }).catch(onUnexpectedEwwow);
 					}
 				},
-				disposables: disposeables
+				disposabwes: disposeabwes
 			},
-			asyncRenderCallback: () => {
-				const height = container.clientHeight;
+			asyncWendewCawwback: () => {
+				const height = containa.cwientHeight;
 				if (height) {
-					this._onDidChangeSettingHeight.fire({ element, height });
+					this._onDidChangeSettingHeight.fiwe({ ewement, height });
 				}
 			},
 		});
-		disposeables.add(renderedMarkdown);
+		disposeabwes.add(wendewedMawkdown);
 
-		renderedMarkdown.element.classList.add('setting-item-markdown');
-		cleanRenderedMarkdown(renderedMarkdown.element);
-		return renderedMarkdown.element;
+		wendewedMawkdown.ewement.cwassWist.add('setting-item-mawkdown');
+		cweanWendewedMawkdown(wendewedMawkdown.ewement);
+		wetuwn wendewedMawkdown.ewement;
 	}
 
-	protected abstract renderValue(dataElement: SettingsTreeSettingElement, template: ISettingItemTemplate, onChange: (value: any) => void): void;
+	pwotected abstwact wendewVawue(dataEwement: SettingsTweeSettingEwement, tempwate: ISettingItemTempwate, onChange: (vawue: any) => void): void;
 
-	disposeTemplate(template: IDisposableTemplate): void {
-		dispose(template.toDispose);
+	disposeTempwate(tempwate: IDisposabweTempwate): void {
+		dispose(tempwate.toDispose);
 	}
 
-	disposeElement(_element: ITreeNode<SettingsTreeElement>, _index: number, template: IDisposableTemplate, _height: number | undefined): void {
-		if ((template as ISettingItemTemplate).elementDisposables) {
-			(template as ISettingItemTemplate).elementDisposables.clear();
+	disposeEwement(_ewement: ITweeNode<SettingsTweeEwement>, _index: numba, tempwate: IDisposabweTempwate, _height: numba | undefined): void {
+		if ((tempwate as ISettingItemTempwate).ewementDisposabwes) {
+			(tempwate as ISettingItemTempwate).ewementDisposabwes.cweaw();
 		}
 	}
 }
 
-export class SettingGroupRenderer implements ITreeRenderer<SettingsTreeGroupElement, never, IGroupTitleTemplate> {
-	templateId = SETTINGS_ELEMENT_TEMPLATE_ID;
+expowt cwass SettingGwoupWendewa impwements ITweeWendewa<SettingsTweeGwoupEwement, neva, IGwoupTitweTempwate> {
+	tempwateId = SETTINGS_EWEMENT_TEMPWATE_ID;
 
-	renderTemplate(container: HTMLElement): IGroupTitleTemplate {
-		container.classList.add('group-title');
+	wendewTempwate(containa: HTMWEwement): IGwoupTitweTempwate {
+		containa.cwassWist.add('gwoup-titwe');
 
-		const template: IGroupTitleTemplate = {
-			parent: container,
-			toDispose: new DisposableStore()
+		const tempwate: IGwoupTitweTempwate = {
+			pawent: containa,
+			toDispose: new DisposabweStowe()
 		};
 
-		return template;
+		wetuwn tempwate;
 	}
 
-	renderElement(element: ITreeNode<SettingsTreeGroupElement, never>, index: number, templateData: IGroupTitleTemplate): void {
-		templateData.parent.innerText = '';
-		const labelElement = DOM.append(templateData.parent, $('div.settings-group-title-label.settings-row-inner-container'));
-		labelElement.classList.add(`settings-group-level-${element.element.level}`);
-		labelElement.textContent = element.element.label;
+	wendewEwement(ewement: ITweeNode<SettingsTweeGwoupEwement, neva>, index: numba, tempwateData: IGwoupTitweTempwate): void {
+		tempwateData.pawent.innewText = '';
+		const wabewEwement = DOM.append(tempwateData.pawent, $('div.settings-gwoup-titwe-wabew.settings-wow-inna-containa'));
+		wabewEwement.cwassWist.add(`settings-gwoup-wevew-${ewement.ewement.wevew}`);
+		wabewEwement.textContent = ewement.ewement.wabew;
 
-		if (element.element.isFirstGroup) {
-			labelElement.classList.add('settings-group-first');
+		if (ewement.ewement.isFiwstGwoup) {
+			wabewEwement.cwassWist.add('settings-gwoup-fiwst');
 		}
 	}
 
-	disposeTemplate(templateData: IGroupTitleTemplate): void {
+	disposeTempwate(tempwateData: IGwoupTitweTempwate): void {
 	}
 }
 
-export class SettingNewExtensionsRenderer implements ITreeRenderer<SettingsTreeNewExtensionsElement, never, ISettingNewExtensionsTemplate> {
-	templateId = SETTINGS_NEW_EXTENSIONS_TEMPLATE_ID;
+expowt cwass SettingNewExtensionsWendewa impwements ITweeWendewa<SettingsTweeNewExtensionsEwement, neva, ISettingNewExtensionsTempwate> {
+	tempwateId = SETTINGS_NEW_EXTENSIONS_TEMPWATE_ID;
 
-	constructor(
-		@IThemeService private readonly _themeService: IThemeService,
-		@ICommandService private readonly _commandService: ICommandService,
+	constwuctow(
+		@IThemeSewvice pwivate weadonwy _themeSewvice: IThemeSewvice,
+		@ICommandSewvice pwivate weadonwy _commandSewvice: ICommandSewvice,
 	) {
 	}
 
-	renderTemplate(container: HTMLElement): ISettingNewExtensionsTemplate {
-		const toDispose = new DisposableStore();
+	wendewTempwate(containa: HTMWEwement): ISettingNewExtensionsTempwate {
+		const toDispose = new DisposabweStowe();
 
-		container.classList.add('setting-item-new-extensions');
+		containa.cwassWist.add('setting-item-new-extensions');
 
-		const button = new Button(container, { title: true, buttonBackground: undefined, buttonHoverBackground: undefined });
+		const button = new Button(containa, { titwe: twue, buttonBackgwound: undefined, buttonHovewBackgwound: undefined });
 		toDispose.add(button);
-		toDispose.add(button.onDidClick(() => {
-			if (template.context) {
-				this._commandService.executeCommand('workbench.extensions.action.showExtensionsWithIds', template.context.extensionIds);
+		toDispose.add(button.onDidCwick(() => {
+			if (tempwate.context) {
+				this._commandSewvice.executeCommand('wowkbench.extensions.action.showExtensionsWithIds', tempwate.context.extensionIds);
 			}
 		}));
-		button.label = localize('newExtensionsButtonLabel', "Show matching extensions");
-		button.element.classList.add('settings-new-extensions-button');
-		toDispose.add(attachButtonStyler(button, this._themeService));
+		button.wabew = wocawize('newExtensionsButtonWabew', "Show matching extensions");
+		button.ewement.cwassWist.add('settings-new-extensions-button');
+		toDispose.add(attachButtonStywa(button, this._themeSewvice));
 
-		const template: ISettingNewExtensionsTemplate = {
+		const tempwate: ISettingNewExtensionsTempwate = {
 			button,
 			toDispose
 		};
 
-		return template;
+		wetuwn tempwate;
 	}
 
-	renderElement(element: ITreeNode<SettingsTreeNewExtensionsElement, never>, index: number, templateData: ISettingNewExtensionsTemplate): void {
-		templateData.context = element.element;
+	wendewEwement(ewement: ITweeNode<SettingsTweeNewExtensionsEwement, neva>, index: numba, tempwateData: ISettingNewExtensionsTempwate): void {
+		tempwateData.context = ewement.ewement;
 	}
 
-	disposeTemplate(template: IDisposableTemplate): void {
-		dispose(template.toDispose);
+	disposeTempwate(tempwate: IDisposabweTempwate): void {
+		dispose(tempwate.toDispose);
 	}
 }
 
-export class SettingComplexRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingComplexItemTemplate> {
-	private static readonly EDIT_IN_JSON_LABEL = localize('editInSettingsJson', "Edit in settings.json");
+expowt cwass SettingCompwexWendewa extends AbstwactSettingWendewa impwements ITweeWendewa<SettingsTweeSettingEwement, neva, ISettingCompwexItemTempwate> {
+	pwivate static weadonwy EDIT_IN_JSON_WABEW = wocawize('editInSettingsJson', "Edit in settings.json");
 
-	templateId = SETTINGS_COMPLEX_TEMPLATE_ID;
+	tempwateId = SETTINGS_COMPWEX_TEMPWATE_ID;
 
-	renderTemplate(container: HTMLElement): ISettingComplexItemTemplate {
-		const common = this.renderCommonTemplate(null, container, 'complex');
+	wendewTempwate(containa: HTMWEwement): ISettingCompwexItemTempwate {
+		const common = this.wendewCommonTempwate(nuww, containa, 'compwex');
 
-		const openSettingsButton = new Button(common.controlElement, { title: true, buttonBackground: undefined, buttonHoverBackground: undefined });
+		const openSettingsButton = new Button(common.contwowEwement, { titwe: twue, buttonBackgwound: undefined, buttonHovewBackgwound: undefined });
 		common.toDispose.add(openSettingsButton);
-		common.toDispose.add(openSettingsButton.onDidClick(() => template.onChange!()));
-		openSettingsButton.label = SettingComplexRenderer.EDIT_IN_JSON_LABEL;
-		openSettingsButton.element.classList.add('edit-in-settings-button');
-		openSettingsButton.element.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
+		common.toDispose.add(openSettingsButton.onDidCwick(() => tempwate.onChange!()));
+		openSettingsButton.wabew = SettingCompwexWendewa.EDIT_IN_JSON_WABEW;
+		openSettingsButton.ewement.cwassWist.add('edit-in-settings-button');
+		openSettingsButton.ewement.cwassWist.add(AbstwactSettingWendewa.CONTWOW_CWASS);
 
-		common.toDispose.add(attachButtonStyler(openSettingsButton, this._themeService, {
-			buttonBackground: Color.transparent.toString(),
-			buttonHoverBackground: Color.transparent.toString(),
-			buttonForeground: 'foreground'
+		common.toDispose.add(attachButtonStywa(openSettingsButton, this._themeSewvice, {
+			buttonBackgwound: Cowow.twanspawent.toStwing(),
+			buttonHovewBackgwound: Cowow.twanspawent.toStwing(),
+			buttonFowegwound: 'fowegwound'
 		}));
 
-		const validationErrorMessageElement = $('.setting-item-validation-message');
-		common.containerElement.appendChild(validationErrorMessageElement);
+		const vawidationEwwowMessageEwement = $('.setting-item-vawidation-message');
+		common.containewEwement.appendChiwd(vawidationEwwowMessageEwement);
 
-		const template: ISettingComplexItemTemplate = {
+		const tempwate: ISettingCompwexItemTempwate = {
 			...common,
 			button: openSettingsButton,
-			validationErrorMessageElement
+			vawidationEwwowMessageEwement
 		};
 
-		this.addSettingElementFocusHandler(template);
+		this.addSettingEwementFocusHandwa(tempwate);
 
-		return template;
+		wetuwn tempwate;
 	}
 
-	renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: ISettingComplexItemTemplate): void {
-		super.renderSettingElement(element, index, templateData);
+	wendewEwement(ewement: ITweeNode<SettingsTweeSettingEwement, neva>, index: numba, tempwateData: ISettingCompwexItemTempwate): void {
+		supa.wendewSettingEwement(ewement, index, tempwateData);
 	}
 
-	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingComplexItemTemplate, onChange: (value: string) => void): void {
-		template.onChange = () => this._onDidOpenSettings.fire(dataElement.setting.key);
-		this.renderValidations(dataElement, template);
+	pwotected wendewVawue(dataEwement: SettingsTweeSettingEwement, tempwate: ISettingCompwexItemTempwate, onChange: (vawue: stwing) => void): void {
+		tempwate.onChange = () => this._onDidOpenSettings.fiwe(dataEwement.setting.key);
+		this.wendewVawidations(dataEwement, tempwate);
 
-		template.button.element.setAttribute('aria-label', `${SettingComplexRenderer.EDIT_IN_JSON_LABEL}: ${dataElement.setting.key}`);
+		tempwate.button.ewement.setAttwibute('awia-wabew', `${SettingCompwexWendewa.EDIT_IN_JSON_WABEW}: ${dataEwement.setting.key}`);
 	}
 
-	private renderValidations(dataElement: SettingsTreeSettingElement, template: ISettingComplexItemTemplate) {
-		const errMsg = dataElement.isConfigured && getInvalidTypeError(dataElement.value, dataElement.setting.type);
-		if (errMsg) {
-			template.containerElement.classList.add('invalid-input');
-			template.validationErrorMessageElement.innerText = errMsg;
-			return;
+	pwivate wendewVawidations(dataEwement: SettingsTweeSettingEwement, tempwate: ISettingCompwexItemTempwate) {
+		const ewwMsg = dataEwement.isConfiguwed && getInvawidTypeEwwow(dataEwement.vawue, dataEwement.setting.type);
+		if (ewwMsg) {
+			tempwate.containewEwement.cwassWist.add('invawid-input');
+			tempwate.vawidationEwwowMessageEwement.innewText = ewwMsg;
+			wetuwn;
 		}
 
-		template.containerElement.classList.remove('invalid-input');
+		tempwate.containewEwement.cwassWist.wemove('invawid-input');
 	}
 }
 
-export class SettingArrayRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingListItemTemplate> {
-	templateId = SETTINGS_ARRAY_TEMPLATE_ID;
+expowt cwass SettingAwwayWendewa extends AbstwactSettingWendewa impwements ITweeWendewa<SettingsTweeSettingEwement, neva, ISettingWistItemTempwate> {
+	tempwateId = SETTINGS_AWWAY_TEMPWATE_ID;
 
-	renderTemplate(container: HTMLElement): ISettingListItemTemplate {
-		const common = this.renderCommonTemplate(null, container, 'list');
-		const descriptionElement = common.containerElement.querySelector('.setting-item-description')!;
-		const validationErrorMessageElement = $('.setting-item-validation-message');
-		descriptionElement.after(validationErrorMessageElement);
+	wendewTempwate(containa: HTMWEwement): ISettingWistItemTempwate {
+		const common = this.wendewCommonTempwate(nuww, containa, 'wist');
+		const descwiptionEwement = common.containewEwement.quewySewectow('.setting-item-descwiption')!;
+		const vawidationEwwowMessageEwement = $('.setting-item-vawidation-message');
+		descwiptionEwement.afta(vawidationEwwowMessageEwement);
 
-		const listWidget = this._instantiationService.createInstance(ListSettingWidget, common.controlElement);
-		listWidget.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
-		common.toDispose.add(listWidget);
+		const wistWidget = this._instantiationSewvice.cweateInstance(WistSettingWidget, common.contwowEwement);
+		wistWidget.domNode.cwassWist.add(AbstwactSettingWendewa.CONTWOW_CWASS);
+		common.toDispose.add(wistWidget);
 
-		const template: ISettingListItemTemplate = {
+		const tempwate: ISettingWistItemTempwate = {
 			...common,
-			listWidget,
-			validationErrorMessageElement
+			wistWidget,
+			vawidationEwwowMessageEwement
 		};
 
-		this.addSettingElementFocusHandler(template);
+		this.addSettingEwementFocusHandwa(tempwate);
 
 		common.toDispose.add(
-			listWidget.onDidChangeList(e => {
-				const newList = this.computeNewList(template, e);
-				this.onDidChangeList(template, newList);
-				if (newList !== null && template.onChange) {
-					template.onChange(newList);
+			wistWidget.onDidChangeWist(e => {
+				const newWist = this.computeNewWist(tempwate, e);
+				this.onDidChangeWist(tempwate, newWist);
+				if (newWist !== nuww && tempwate.onChange) {
+					tempwate.onChange(newWist);
 				}
 			})
 		);
 
-		return template;
+		wetuwn tempwate;
 	}
 
-	private onDidChangeList(template: ISettingListItemTemplate, newList: string[] | undefined | null): void {
-		if (!template.context || newList === null) {
-			return;
+	pwivate onDidChangeWist(tempwate: ISettingWistItemTempwate, newWist: stwing[] | undefined | nuww): void {
+		if (!tempwate.context || newWist === nuww) {
+			wetuwn;
 		}
 
-		this._onDidChangeSetting.fire({
-			key: template.context.setting.key,
-			value: newList,
-			type: template.context.valueType
+		this._onDidChangeSetting.fiwe({
+			key: tempwate.context.setting.key,
+			vawue: newWist,
+			type: tempwate.context.vawueType
 		});
 	}
 
-	private computeNewList(template: ISettingListItemTemplate, e: ISettingListChangeEvent<IListDataItem>): string[] | undefined {
-		if (template.context) {
-			let newValue: string[] = [];
-			if (isArray(template.context.scopeValue)) {
-				newValue = [...template.context.scopeValue];
-			} else if (isArray(template.context.value)) {
-				newValue = [...template.context.value];
+	pwivate computeNewWist(tempwate: ISettingWistItemTempwate, e: ISettingWistChangeEvent<IWistDataItem>): stwing[] | undefined {
+		if (tempwate.context) {
+			wet newVawue: stwing[] = [];
+			if (isAwway(tempwate.context.scopeVawue)) {
+				newVawue = [...tempwate.context.scopeVawue];
+			} ewse if (isAwway(tempwate.context.vawue)) {
+				newVawue = [...tempwate.context.vawue];
 			}
 
-			if (e.sourceIndex !== undefined) {
-				// A drag and drop occurred
-				const sourceIndex = e.sourceIndex;
-				const targetIndex = e.targetIndex!;
-				const splicedElem = newValue.splice(sourceIndex, 1)[0];
-				newValue.splice(targetIndex, 0, splicedElem);
-			} else if (e.targetIndex !== undefined) {
-				const itemValueData = e.item?.value.data.toString() ?? '';
-				// Delete value
-				if (!e.item?.value.data && e.originalItem.value.data && e.targetIndex > -1) {
-					newValue.splice(e.targetIndex, 1);
+			if (e.souwceIndex !== undefined) {
+				// A dwag and dwop occuwwed
+				const souwceIndex = e.souwceIndex;
+				const tawgetIndex = e.tawgetIndex!;
+				const spwicedEwem = newVawue.spwice(souwceIndex, 1)[0];
+				newVawue.spwice(tawgetIndex, 0, spwicedEwem);
+			} ewse if (e.tawgetIndex !== undefined) {
+				const itemVawueData = e.item?.vawue.data.toStwing() ?? '';
+				// Dewete vawue
+				if (!e.item?.vawue.data && e.owiginawItem.vawue.data && e.tawgetIndex > -1) {
+					newVawue.spwice(e.tawgetIndex, 1);
 				}
-				// Update value
-				else if (e.item?.value.data && e.originalItem.value.data) {
-					if (e.targetIndex > -1) {
-						newValue[e.targetIndex] = itemValueData;
+				// Update vawue
+				ewse if (e.item?.vawue.data && e.owiginawItem.vawue.data) {
+					if (e.tawgetIndex > -1) {
+						newVawue[e.tawgetIndex] = itemVawueData;
 					}
-					// For some reason, we are updating and cannot find original value
-					// Just append the value in this case
-					else {
-						newValue.push(itemValueData);
+					// Fow some weason, we awe updating and cannot find owiginaw vawue
+					// Just append the vawue in this case
+					ewse {
+						newVawue.push(itemVawueData);
 					}
 				}
-				// Add value
-				else if (e.item?.value.data && !e.originalItem.value.data && e.targetIndex >= newValue.length) {
-					newValue.push(itemValueData);
+				// Add vawue
+				ewse if (e.item?.vawue.data && !e.owiginawItem.vawue.data && e.tawgetIndex >= newVawue.wength) {
+					newVawue.push(itemVawueData);
 				}
 			}
 
 			if (
-				template.context.defaultValue &&
-				isArray(template.context.defaultValue) &&
-				template.context.defaultValue.length === newValue.length &&
-				template.context.defaultValue.join() === newValue.join()
+				tempwate.context.defauwtVawue &&
+				isAwway(tempwate.context.defauwtVawue) &&
+				tempwate.context.defauwtVawue.wength === newVawue.wength &&
+				tempwate.context.defauwtVawue.join() === newVawue.join()
 			) {
-				return undefined;
+				wetuwn undefined;
 			}
-			return newValue;
+			wetuwn newVawue;
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: ISettingListItemTemplate): void {
-		super.renderSettingElement(element, index, templateData);
+	wendewEwement(ewement: ITweeNode<SettingsTweeSettingEwement, neva>, index: numba, tempwateData: ISettingWistItemTempwate): void {
+		supa.wendewSettingEwement(ewement, index, tempwateData);
 	}
 
-	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingListItemTemplate, onChange: (value: string[] | undefined) => void): void {
-		const value = getListDisplayValue(dataElement);
-		const keySuggester = dataElement.setting.enum ? createArraySuggester(dataElement) : undefined;
-		template.listWidget.setValue(value, {
-			showAddButton: getShowAddButtonList(dataElement, value),
-			keySuggester
+	pwotected wendewVawue(dataEwement: SettingsTweeSettingEwement, tempwate: ISettingWistItemTempwate, onChange: (vawue: stwing[] | undefined) => void): void {
+		const vawue = getWistDispwayVawue(dataEwement);
+		const keySuggesta = dataEwement.setting.enum ? cweateAwwaySuggesta(dataEwement) : undefined;
+		tempwate.wistWidget.setVawue(vawue, {
+			showAddButton: getShowAddButtonWist(dataEwement, vawue),
+			keySuggesta
 		});
-		template.context = dataElement;
+		tempwate.context = dataEwement;
 
-		template.elementDisposables.add(toDisposable(() => {
-			template.listWidget.cancelEdit();
+		tempwate.ewementDisposabwes.add(toDisposabwe(() => {
+			tempwate.wistWidget.cancewEdit();
 		}));
 
-		template.onChange = (v) => {
+		tempwate.onChange = (v) => {
 			onChange(v);
-			renderArrayValidations(dataElement, template, v, false);
+			wendewAwwayVawidations(dataEwement, tempwate, v, fawse);
 		};
 
-		renderArrayValidations(dataElement, template, value.map(v => v.value.data.toString()), true);
+		wendewAwwayVawidations(dataEwement, tempwate, vawue.map(v => v.vawue.data.toStwing()), twue);
 	}
 }
 
-abstract class AbstractSettingObjectRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingObjectItemTemplate> {
+abstwact cwass AbstwactSettingObjectWendewa extends AbstwactSettingWendewa impwements ITweeWendewa<SettingsTweeSettingEwement, neva, ISettingObjectItemTempwate> {
 
-	protected renderTemplateWithWidget(common: ISettingItemTemplate, widget: ObjectSettingCheckboxWidget | ObjectSettingDropdownWidget): ISettingObjectItemTemplate {
-		widget.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
+	pwotected wendewTempwateWithWidget(common: ISettingItemTempwate, widget: ObjectSettingCheckboxWidget | ObjectSettingDwopdownWidget): ISettingObjectItemTempwate {
+		widget.domNode.cwassWist.add(AbstwactSettingWendewa.CONTWOW_CWASS);
 		common.toDispose.add(widget);
 
-		const descriptionElement = common.containerElement.querySelector('.setting-item-description')!;
-		const validationErrorMessageElement = $('.setting-item-validation-message');
-		descriptionElement.after(validationErrorMessageElement);
+		const descwiptionEwement = common.containewEwement.quewySewectow('.setting-item-descwiption')!;
+		const vawidationEwwowMessageEwement = $('.setting-item-vawidation-message');
+		descwiptionEwement.afta(vawidationEwwowMessageEwement);
 
-		const template: ISettingObjectItemTemplate = {
+		const tempwate: ISettingObjectItemTempwate = {
 			...common,
-			validationErrorMessageElement
+			vawidationEwwowMessageEwement
 		};
 		if (widget instanceof ObjectSettingCheckboxWidget) {
-			template.objectCheckboxWidget = widget;
-		} else {
-			template.objectDropdownWidget = widget;
+			tempwate.objectCheckboxWidget = widget;
+		} ewse {
+			tempwate.objectDwopdownWidget = widget;
 		}
 
-		this.addSettingElementFocusHandler(template);
+		this.addSettingEwementFocusHandwa(tempwate);
 
-		common.toDispose.add(widget.onDidChangeList(e => {
-			this.onDidChangeObject(template, e);
+		common.toDispose.add(widget.onDidChangeWist(e => {
+			this.onDidChangeObject(tempwate, e);
 		}));
 
-		return template;
+		wetuwn tempwate;
 	}
 
-	protected onDidChangeObject(template: ISettingObjectItemTemplate, e: ISettingListChangeEvent<IObjectDataItem>): void {
-		const widget = (template.objectCheckboxWidget ?? template.objectDropdownWidget)!;
-		if (template.context) {
-			const defaultValue: Record<string, unknown> = typeof template.context.defaultValue === 'object'
-				? template.context.defaultValue ?? {}
+	pwotected onDidChangeObject(tempwate: ISettingObjectItemTempwate, e: ISettingWistChangeEvent<IObjectDataItem>): void {
+		const widget = (tempwate.objectCheckboxWidget ?? tempwate.objectDwopdownWidget)!;
+		if (tempwate.context) {
+			const defauwtVawue: Wecowd<stwing, unknown> = typeof tempwate.context.defauwtVawue === 'object'
+				? tempwate.context.defauwtVawue ?? {}
 				: {};
 
-			const scopeValue: Record<string, unknown> = typeof template.context.scopeValue === 'object'
-				? template.context.scopeValue ?? {}
+			const scopeVawue: Wecowd<stwing, unknown> = typeof tempwate.context.scopeVawue === 'object'
+				? tempwate.context.scopeVawue ?? {}
 				: {};
 
-			const newValue: Record<string, unknown> = {};
+			const newVawue: Wecowd<stwing, unknown> = {};
 			const newItems: IObjectDataItem[] = [];
 
-			widget.items.forEach((item, idx) => {
+			widget.items.fowEach((item, idx) => {
 				// Item was updated
-				if (isDefined(e.item) && e.targetIndex === idx) {
-					newValue[e.item.key.data] = e.item.value.data;
+				if (isDefined(e.item) && e.tawgetIndex === idx) {
+					newVawue[e.item.key.data] = e.item.vawue.data;
 					newItems.push(e.item);
 				}
-				// All remaining items, but skip the one that we just updated
-				else if (isUndefinedOrNull(e.item) || e.item.key.data !== item.key.data) {
-					newValue[item.key.data] = item.value.data;
+				// Aww wemaining items, but skip the one that we just updated
+				ewse if (isUndefinedOwNuww(e.item) || e.item.key.data !== item.key.data) {
+					newVawue[item.key.data] = item.vawue.data;
 					newItems.push(item);
 				}
 			});
 
-			// Item was deleted
-			if (isUndefinedOrNull(e.item)) {
-				delete newValue[e.originalItem.key.data];
+			// Item was deweted
+			if (isUndefinedOwNuww(e.item)) {
+				dewete newVawue[e.owiginawItem.key.data];
 
-				const itemToDelete = newItems.findIndex(item => item.key.data === e.originalItem.key.data);
-				const defaultItemValue = defaultValue[e.originalItem.key.data] as string | boolean;
+				const itemToDewete = newItems.findIndex(item => item.key.data === e.owiginawItem.key.data);
+				const defauwtItemVawue = defauwtVawue[e.owiginawItem.key.data] as stwing | boowean;
 
-				// Item does not have a default
-				if (isUndefinedOrNull(defaultValue[e.originalItem.key.data]) && itemToDelete > -1) {
-					newItems.splice(itemToDelete, 1);
-				} else if (itemToDelete > -1) {
-					newItems[itemToDelete].value.data = defaultItemValue;
+				// Item does not have a defauwt
+				if (isUndefinedOwNuww(defauwtVawue[e.owiginawItem.key.data]) && itemToDewete > -1) {
+					newItems.spwice(itemToDewete, 1);
+				} ewse if (itemToDewete > -1) {
+					newItems[itemToDewete].vawue.data = defauwtItemVawue;
 				}
 			}
 			// New item was added
-			else if (widget.isItemNew(e.originalItem) && e.item.key.data !== '') {
-				newValue[e.item.key.data] = e.item.value.data;
+			ewse if (widget.isItemNew(e.owiginawItem) && e.item.key.data !== '') {
+				newVawue[e.item.key.data] = e.item.vawue.data;
 				newItems.push(e.item);
 			}
 
-			Object.entries(newValue).forEach(([key, value]) => {
-				// value from the scope has changed back to the default
-				if (scopeValue[key] !== value && defaultValue[key] === value) {
-					delete newValue[key];
+			Object.entwies(newVawue).fowEach(([key, vawue]) => {
+				// vawue fwom the scope has changed back to the defauwt
+				if (scopeVawue[key] !== vawue && defauwtVawue[key] === vawue) {
+					dewete newVawue[key];
 				}
 			});
 
-			const newObject = Object.keys(newValue).length === 0 ? undefined : newValue;
+			const newObject = Object.keys(newVawue).wength === 0 ? undefined : newVawue;
 
-			if (template.objectCheckboxWidget) {
-				template.objectCheckboxWidget.setValue(newItems);
-			} else {
-				template.objectDropdownWidget!.setValue(newItems);
+			if (tempwate.objectCheckboxWidget) {
+				tempwate.objectCheckboxWidget.setVawue(newItems);
+			} ewse {
+				tempwate.objectDwopdownWidget!.setVawue(newItems);
 			}
 
-			if (template.onChange) {
-				template.onChange(newObject);
+			if (tempwate.onChange) {
+				tempwate.onChange(newObject);
 			}
 		}
 	}
 
-	renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: ISettingObjectItemTemplate): void {
-		super.renderSettingElement(element, index, templateData);
+	wendewEwement(ewement: ITweeNode<SettingsTweeSettingEwement, neva>, index: numba, tempwateData: ISettingObjectItemTempwate): void {
+		supa.wendewSettingEwement(ewement, index, tempwateData);
 	}
 }
 
-export class SettingObjectRenderer extends AbstractSettingObjectRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingObjectItemTemplate> {
-	override templateId = SETTINGS_OBJECT_TEMPLATE_ID;
+expowt cwass SettingObjectWendewa extends AbstwactSettingObjectWendewa impwements ITweeWendewa<SettingsTweeSettingEwement, neva, ISettingObjectItemTempwate> {
+	ovewwide tempwateId = SETTINGS_OBJECT_TEMPWATE_ID;
 
-	renderTemplate(container: HTMLElement): ISettingObjectItemTemplate {
-		const common = this.renderCommonTemplate(null, container, 'list');
-		const widget = this._instantiationService.createInstance(ObjectSettingDropdownWidget, common.controlElement);
-		return this.renderTemplateWithWidget(common, widget);
+	wendewTempwate(containa: HTMWEwement): ISettingObjectItemTempwate {
+		const common = this.wendewCommonTempwate(nuww, containa, 'wist');
+		const widget = this._instantiationSewvice.cweateInstance(ObjectSettingDwopdownWidget, common.contwowEwement);
+		wetuwn this.wendewTempwateWithWidget(common, widget);
 	}
 
-	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingObjectItemTemplate, onChange: (value: Record<string, unknown> | undefined) => void): void {
-		const items = getObjectDisplayValue(dataElement);
-		const { key, objectProperties, objectPatternProperties, objectAdditionalProperties } = dataElement.setting;
+	pwotected wendewVawue(dataEwement: SettingsTweeSettingEwement, tempwate: ISettingObjectItemTempwate, onChange: (vawue: Wecowd<stwing, unknown> | undefined) => void): void {
+		const items = getObjectDispwayVawue(dataEwement);
+		const { key, objectPwopewties, objectPattewnPwopewties, objectAdditionawPwopewties } = dataEwement.setting;
 
-		template.objectDropdownWidget!.setValue(items, {
+		tempwate.objectDwopdownWidget!.setVawue(items, {
 			settingKey: key,
-			showAddButton: objectAdditionalProperties === false
+			showAddButton: objectAdditionawPwopewties === fawse
 				? (
-					!areAllPropertiesDefined(Object.keys(objectProperties ?? {}), items) ||
-					isDefined(objectPatternProperties)
+					!aweAwwPwopewtiesDefined(Object.keys(objectPwopewties ?? {}), items) ||
+					isDefined(objectPattewnPwopewties)
 				)
-				: true,
-			keySuggester: createObjectKeySuggester(dataElement),
-			valueSuggester: createObjectValueSuggester(dataElement)
+				: twue,
+			keySuggesta: cweateObjectKeySuggesta(dataEwement),
+			vawueSuggesta: cweateObjectVawueSuggesta(dataEwement)
 		});
 
-		template.context = dataElement;
+		tempwate.context = dataEwement;
 
-		template.elementDisposables.add(toDisposable(() => {
-			template.objectDropdownWidget!.cancelEdit();
+		tempwate.ewementDisposabwes.add(toDisposabwe(() => {
+			tempwate.objectDwopdownWidget!.cancewEdit();
 		}));
 
-		template.onChange = (v: Record<string, unknown> | undefined) => {
+		tempwate.onChange = (v: Wecowd<stwing, unknown> | undefined) => {
 			onChange(v);
-			renderArrayValidations(dataElement, template, v, false);
+			wendewAwwayVawidations(dataEwement, tempwate, v, fawse);
 		};
-		renderArrayValidations(dataElement, template, dataElement.value, true);
+		wendewAwwayVawidations(dataEwement, tempwate, dataEwement.vawue, twue);
 	}
 }
 
-export class SettingBoolObjectRenderer extends AbstractSettingObjectRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingObjectItemTemplate> {
-	override templateId = SETTINGS_BOOL_OBJECT_TEMPLATE_ID;
+expowt cwass SettingBoowObjectWendewa extends AbstwactSettingObjectWendewa impwements ITweeWendewa<SettingsTweeSettingEwement, neva, ISettingObjectItemTempwate> {
+	ovewwide tempwateId = SETTINGS_BOOW_OBJECT_TEMPWATE_ID;
 
-	renderTemplate(container: HTMLElement): ISettingObjectItemTemplate {
-		const common = this.renderCommonTemplate(null, container, 'list');
-		const widget = this._instantiationService.createInstance(ObjectSettingCheckboxWidget, common.controlElement);
-		return this.renderTemplateWithWidget(common, widget);
+	wendewTempwate(containa: HTMWEwement): ISettingObjectItemTempwate {
+		const common = this.wendewCommonTempwate(nuww, containa, 'wist');
+		const widget = this._instantiationSewvice.cweateInstance(ObjectSettingCheckboxWidget, common.contwowEwement);
+		wetuwn this.wendewTempwateWithWidget(common, widget);
 	}
 
-	override onDidChangeObject(template: ISettingObjectItemTemplate, e: ISettingListChangeEvent<IObjectDataItem>): void {
-		if (template.context) {
-			super.onDidChangeObject(template, e);
+	ovewwide onDidChangeObject(tempwate: ISettingObjectItemTempwate, e: ISettingWistChangeEvent<IObjectDataItem>): void {
+		if (tempwate.context) {
+			supa.onDidChangeObject(tempwate, e);
 
-			// Focus this setting explicitly, in case we were previously
-			// focused on another setting and clicked a checkbox/value container
-			// for this setting.
-			this._onDidFocusSetting.fire(template.context);
+			// Focus this setting expwicitwy, in case we wewe pweviouswy
+			// focused on anotha setting and cwicked a checkbox/vawue containa
+			// fow this setting.
+			this._onDidFocusSetting.fiwe(tempwate.context);
 		}
 	}
 
-	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingObjectItemTemplate, onChange: (value: Record<string, unknown> | undefined) => void): void {
-		const items = getObjectDisplayValue(dataElement);
-		const { key } = dataElement.setting;
+	pwotected wendewVawue(dataEwement: SettingsTweeSettingEwement, tempwate: ISettingObjectItemTempwate, onChange: (vawue: Wecowd<stwing, unknown> | undefined) => void): void {
+		const items = getObjectDispwayVawue(dataEwement);
+		const { key } = dataEwement.setting;
 
-		template.objectCheckboxWidget!.setValue(items, {
+		tempwate.objectCheckboxWidget!.setVawue(items, {
 			settingKey: key
 		});
 
-		template.context = dataElement;
-		template.onChange = (v: Record<string, unknown> | undefined) => {
+		tempwate.context = dataEwement;
+		tempwate.onChange = (v: Wecowd<stwing, unknown> | undefined) => {
 			onChange(v);
 		};
 	}
 }
 
-export class SettingExcludeRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingExcludeItemTemplate> {
-	templateId = SETTINGS_EXCLUDE_TEMPLATE_ID;
+expowt cwass SettingExcwudeWendewa extends AbstwactSettingWendewa impwements ITweeWendewa<SettingsTweeSettingEwement, neva, ISettingExcwudeItemTempwate> {
+	tempwateId = SETTINGS_EXCWUDE_TEMPWATE_ID;
 
-	renderTemplate(container: HTMLElement): ISettingExcludeItemTemplate {
-		const common = this.renderCommonTemplate(null, container, 'list');
+	wendewTempwate(containa: HTMWEwement): ISettingExcwudeItemTempwate {
+		const common = this.wendewCommonTempwate(nuww, containa, 'wist');
 
-		const excludeWidget = this._instantiationService.createInstance(ExcludeSettingWidget, common.controlElement);
-		excludeWidget.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
-		common.toDispose.add(excludeWidget);
+		const excwudeWidget = this._instantiationSewvice.cweateInstance(ExcwudeSettingWidget, common.contwowEwement);
+		excwudeWidget.domNode.cwassWist.add(AbstwactSettingWendewa.CONTWOW_CWASS);
+		common.toDispose.add(excwudeWidget);
 
-		const template: ISettingExcludeItemTemplate = {
+		const tempwate: ISettingExcwudeItemTempwate = {
 			...common,
-			excludeWidget
+			excwudeWidget
 		};
 
-		this.addSettingElementFocusHandler(template);
+		this.addSettingEwementFocusHandwa(tempwate);
 
-		common.toDispose.add(excludeWidget.onDidChangeList(e => this.onDidChangeExclude(template, e)));
+		common.toDispose.add(excwudeWidget.onDidChangeWist(e => this.onDidChangeExcwude(tempwate, e)));
 
-		return template;
+		wetuwn tempwate;
 	}
 
-	private onDidChangeExclude(template: ISettingExcludeItemTemplate, e: ISettingListChangeEvent<IListDataItem>): void {
-		if (template.context) {
-			const newValue = { ...template.context.scopeValue };
+	pwivate onDidChangeExcwude(tempwate: ISettingExcwudeItemTempwate, e: ISettingWistChangeEvent<IWistDataItem>): void {
+		if (tempwate.context) {
+			const newVawue = { ...tempwate.context.scopeVawue };
 
-			// first delete the existing entry, if present
-			if (e.originalItem.value.data.toString() in template.context.defaultValue) {
-				// delete a default by overriding it
-				newValue[e.originalItem.value.data.toString()] = false;
-			} else {
-				delete newValue[e.originalItem.value.data.toString()];
+			// fiwst dewete the existing entwy, if pwesent
+			if (e.owiginawItem.vawue.data.toStwing() in tempwate.context.defauwtVawue) {
+				// dewete a defauwt by ovewwiding it
+				newVawue[e.owiginawItem.vawue.data.toStwing()] = fawse;
+			} ewse {
+				dewete newVawue[e.owiginawItem.vawue.data.toStwing()];
 			}
 
-			// then add the new or updated entry, if present
-			if (e.item?.value) {
-				if (e.item.value.data.toString() in template.context.defaultValue && !e.item.sibling) {
-					// add a default by deleting its override
-					delete newValue[e.item.value.data.toString()];
-				} else {
-					newValue[e.item.value.data.toString()] = e.item.sibling ? { when: e.item.sibling } : true;
+			// then add the new ow updated entwy, if pwesent
+			if (e.item?.vawue) {
+				if (e.item.vawue.data.toStwing() in tempwate.context.defauwtVawue && !e.item.sibwing) {
+					// add a defauwt by deweting its ovewwide
+					dewete newVawue[e.item.vawue.data.toStwing()];
+				} ewse {
+					newVawue[e.item.vawue.data.toStwing()] = e.item.sibwing ? { when: e.item.sibwing } : twue;
 				}
 			}
 
-			function sortKeys<T extends object>(obj: T) {
-				const sortedKeys = Object.keys(obj)
-					.sort((a, b) => a.localeCompare(b)) as Array<keyof T>;
+			function sowtKeys<T extends object>(obj: T) {
+				const sowtedKeys = Object.keys(obj)
+					.sowt((a, b) => a.wocaweCompawe(b)) as Awway<keyof T>;
 
-				const retVal: Partial<T> = {};
-				for (const key of sortedKeys) {
-					retVal[key] = obj[key];
+				const wetVaw: Pawtiaw<T> = {};
+				fow (const key of sowtedKeys) {
+					wetVaw[key] = obj[key];
 				}
-				return retVal;
+				wetuwn wetVaw;
 			}
 
-			this._onDidChangeSetting.fire({
-				key: template.context.setting.key,
-				value: Object.keys(newValue).length === 0 ? undefined : sortKeys(newValue),
-				type: template.context.valueType
+			this._onDidChangeSetting.fiwe({
+				key: tempwate.context.setting.key,
+				vawue: Object.keys(newVawue).wength === 0 ? undefined : sowtKeys(newVawue),
+				type: tempwate.context.vawueType
 			});
 		}
 	}
 
-	renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: ISettingExcludeItemTemplate): void {
-		super.renderSettingElement(element, index, templateData);
+	wendewEwement(ewement: ITweeNode<SettingsTweeSettingEwement, neva>, index: numba, tempwateData: ISettingExcwudeItemTempwate): void {
+		supa.wendewSettingEwement(ewement, index, tempwateData);
 	}
 
-	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingExcludeItemTemplate, onChange: (value: string) => void): void {
-		const value = getExcludeDisplayValue(dataElement);
-		template.excludeWidget.setValue(value);
-		template.context = dataElement;
-		template.elementDisposables.add(toDisposable(() => {
-			template.excludeWidget.cancelEdit();
+	pwotected wendewVawue(dataEwement: SettingsTweeSettingEwement, tempwate: ISettingExcwudeItemTempwate, onChange: (vawue: stwing) => void): void {
+		const vawue = getExcwudeDispwayVawue(dataEwement);
+		tempwate.excwudeWidget.setVawue(vawue);
+		tempwate.context = dataEwement;
+		tempwate.ewementDisposabwes.add(toDisposabwe(() => {
+			tempwate.excwudeWidget.cancewEdit();
 		}));
 	}
 }
 
-abstract class AbstractSettingTextRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingTextItemTemplate> {
-	private readonly MULTILINE_MAX_HEIGHT = 150;
+abstwact cwass AbstwactSettingTextWendewa extends AbstwactSettingWendewa impwements ITweeWendewa<SettingsTweeSettingEwement, neva, ISettingTextItemTempwate> {
+	pwivate weadonwy MUWTIWINE_MAX_HEIGHT = 150;
 
-	renderTemplate(_container: HTMLElement, useMultiline?: boolean): ISettingTextItemTemplate {
-		const common = this.renderCommonTemplate(null, _container, 'text');
-		const validationErrorMessageElement = DOM.append(common.containerElement, $('.setting-item-validation-message'));
+	wendewTempwate(_containa: HTMWEwement, useMuwtiwine?: boowean): ISettingTextItemTempwate {
+		const common = this.wendewCommonTempwate(nuww, _containa, 'text');
+		const vawidationEwwowMessageEwement = DOM.append(common.containewEwement, $('.setting-item-vawidation-message'));
 
 		const inputBoxOptions: IInputOptions = {
-			flexibleHeight: useMultiline,
-			flexibleWidth: false,
-			flexibleMaxHeight: this.MULTILINE_MAX_HEIGHT
+			fwexibweHeight: useMuwtiwine,
+			fwexibweWidth: fawse,
+			fwexibweMaxHeight: this.MUWTIWINE_MAX_HEIGHT
 		};
-		const inputBox = new InputBox(common.controlElement, this._contextViewService, inputBoxOptions);
+		const inputBox = new InputBox(common.contwowEwement, this._contextViewSewvice, inputBoxOptions);
 		common.toDispose.add(inputBox);
-		common.toDispose.add(attachInputBoxStyler(inputBox, this._themeService, {
-			inputBackground: settingsTextInputBackground,
-			inputForeground: settingsTextInputForeground,
-			inputBorder: settingsTextInputBorder
+		common.toDispose.add(attachInputBoxStywa(inputBox, this._themeSewvice, {
+			inputBackgwound: settingsTextInputBackgwound,
+			inputFowegwound: settingsTextInputFowegwound,
+			inputBowda: settingsTextInputBowda
 		}));
 		common.toDispose.add(
 			inputBox.onDidChange(e => {
-				if (template.onChange) {
-					template.onChange(e);
+				if (tempwate.onChange) {
+					tempwate.onChange(e);
 				}
 			}));
 		common.toDispose.add(inputBox);
-		inputBox.inputElement.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
-		inputBox.inputElement.tabIndex = 0;
+		inputBox.inputEwement.cwassWist.add(AbstwactSettingWendewa.CONTWOW_CWASS);
+		inputBox.inputEwement.tabIndex = 0;
 
-		const template: ISettingTextItemTemplate = {
+		const tempwate: ISettingTextItemTempwate = {
 			...common,
 			inputBox,
-			validationErrorMessageElement
+			vawidationEwwowMessageEwement
 		};
 
-		this.addSettingElementFocusHandler(template);
+		this.addSettingEwementFocusHandwa(tempwate);
 
-		return template;
+		wetuwn tempwate;
 	}
 
-	renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: ISettingTextItemTemplate): void {
-		super.renderSettingElement(element, index, templateData);
+	wendewEwement(ewement: ITweeNode<SettingsTweeSettingEwement, neva>, index: numba, tempwateData: ISettingTextItemTempwate): void {
+		supa.wendewSettingEwement(ewement, index, tempwateData);
 	}
 
-	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: string) => void): void {
-		template.onChange = undefined;
-		template.inputBox.value = dataElement.value;
-		template.onChange = value => {
-			if (!renderValidations(dataElement, template, false)) {
-				onChange(value);
+	pwotected wendewVawue(dataEwement: SettingsTweeSettingEwement, tempwate: ISettingTextItemTempwate, onChange: (vawue: stwing) => void): void {
+		tempwate.onChange = undefined;
+		tempwate.inputBox.vawue = dataEwement.vawue;
+		tempwate.onChange = vawue => {
+			if (!wendewVawidations(dataEwement, tempwate, fawse)) {
+				onChange(vawue);
 			}
 		};
 
-		renderValidations(dataElement, template, true);
+		wendewVawidations(dataEwement, tempwate, twue);
 	}
 }
 
-export class SettingTextRenderer extends AbstractSettingTextRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingTextItemTemplate> {
-	templateId = SETTINGS_TEXT_TEMPLATE_ID;
+expowt cwass SettingTextWendewa extends AbstwactSettingTextWendewa impwements ITweeWendewa<SettingsTweeSettingEwement, neva, ISettingTextItemTempwate> {
+	tempwateId = SETTINGS_TEXT_TEMPWATE_ID;
 
-	override renderTemplate(_container: HTMLElement): ISettingTextItemTemplate {
-		const template = super.renderTemplate(_container, false);
+	ovewwide wendewTempwate(_containa: HTMWEwement): ISettingTextItemTempwate {
+		const tempwate = supa.wendewTempwate(_containa, fawse);
 
-		// TODO@9at8: listWidget filters out all key events from input boxes, so we need to come up with a better way
-		// Disable ArrowUp and ArrowDown behaviour in favor of list navigation
-		template.toDispose.add(DOM.addStandardDisposableListener(template.inputBox.inputElement, DOM.EventType.KEY_DOWN, e => {
-			if (e.equals(KeyCode.UpArrow) || e.equals(KeyCode.DownArrow)) {
-				e.preventDefault();
+		// TODO@9at8: wistWidget fiwtews out aww key events fwom input boxes, so we need to come up with a betta way
+		// Disabwe AwwowUp and AwwowDown behaviouw in favow of wist navigation
+		tempwate.toDispose.add(DOM.addStandawdDisposabweWistena(tempwate.inputBox.inputEwement, DOM.EventType.KEY_DOWN, e => {
+			if (e.equaws(KeyCode.UpAwwow) || e.equaws(KeyCode.DownAwwow)) {
+				e.pweventDefauwt();
 			}
 		}));
 
-		return template;
+		wetuwn tempwate;
 	}
 }
 
-export class SettingMultilineTextRenderer extends AbstractSettingTextRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingTextItemTemplate> {
-	templateId = SETTINGS_MULTILINE_TEXT_TEMPLATE_ID;
+expowt cwass SettingMuwtiwineTextWendewa extends AbstwactSettingTextWendewa impwements ITweeWendewa<SettingsTweeSettingEwement, neva, ISettingTextItemTempwate> {
+	tempwateId = SETTINGS_MUWTIWINE_TEXT_TEMPWATE_ID;
 
-	override renderTemplate(_container: HTMLElement): ISettingTextItemTemplate {
-		return super.renderTemplate(_container, true);
+	ovewwide wendewTempwate(_containa: HTMWEwement): ISettingTextItemTempwate {
+		wetuwn supa.wendewTempwate(_containa, twue);
 	}
 
-	protected override renderValue(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: string) => void) {
-		const onChangeOverride = (value: string) => {
-			// Ensure the model is up to date since a different value will be rendered as different height when probing the height.
-			dataElement.value = value;
-			onChange(value);
+	pwotected ovewwide wendewVawue(dataEwement: SettingsTweeSettingEwement, tempwate: ISettingTextItemTempwate, onChange: (vawue: stwing) => void) {
+		const onChangeOvewwide = (vawue: stwing) => {
+			// Ensuwe the modew is up to date since a diffewent vawue wiww be wendewed as diffewent height when pwobing the height.
+			dataEwement.vawue = vawue;
+			onChange(vawue);
 		};
-		super.renderValue(dataElement, template, onChangeOverride);
-		template.elementDisposables.add(
-			template.inputBox.onDidHeightChange(e => {
-				const height = template.containerElement.clientHeight;
-				// Don't fire event if height is reported as 0,
-				// which sometimes happens when clicking onto a new setting.
+		supa.wendewVawue(dataEwement, tempwate, onChangeOvewwide);
+		tempwate.ewementDisposabwes.add(
+			tempwate.inputBox.onDidHeightChange(e => {
+				const height = tempwate.containewEwement.cwientHeight;
+				// Don't fiwe event if height is wepowted as 0,
+				// which sometimes happens when cwicking onto a new setting.
 				if (height) {
-					this._onDidChangeSettingHeight.fire({
-						element: dataElement,
-						height: template.containerElement.clientHeight
+					this._onDidChangeSettingHeight.fiwe({
+						ewement: dataEwement,
+						height: tempwate.containewEwement.cwientHeight
 					});
 				}
 			})
 		);
-		template.inputBox.layout();
+		tempwate.inputBox.wayout();
 	}
 }
 
-export class SettingEnumRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingEnumItemTemplate> {
-	templateId = SETTINGS_ENUM_TEMPLATE_ID;
+expowt cwass SettingEnumWendewa extends AbstwactSettingWendewa impwements ITweeWendewa<SettingsTweeSettingEwement, neva, ISettingEnumItemTempwate> {
+	tempwateId = SETTINGS_ENUM_TEMPWATE_ID;
 
-	renderTemplate(container: HTMLElement): ISettingEnumItemTemplate {
-		const common = this.renderCommonTemplate(null, container, 'enum');
+	wendewTempwate(containa: HTMWEwement): ISettingEnumItemTempwate {
+		const common = this.wendewCommonTempwate(nuww, containa, 'enum');
 
-		const selectBox = new SelectBox([], 0, this._contextViewService, undefined, {
-			useCustomDrawn: !(isIOS && BrowserFeatures.pointerEvents)
+		const sewectBox = new SewectBox([], 0, this._contextViewSewvice, undefined, {
+			useCustomDwawn: !(isIOS && BwowsewFeatuwes.pointewEvents)
 		});
 
-		common.toDispose.add(selectBox);
-		common.toDispose.add(attachSelectBoxStyler(selectBox, this._themeService, {
-			selectBackground: settingsSelectBackground,
-			selectForeground: settingsSelectForeground,
-			selectBorder: settingsSelectBorder,
-			selectListBorder: settingsSelectListBorder
+		common.toDispose.add(sewectBox);
+		common.toDispose.add(attachSewectBoxStywa(sewectBox, this._themeSewvice, {
+			sewectBackgwound: settingsSewectBackgwound,
+			sewectFowegwound: settingsSewectFowegwound,
+			sewectBowda: settingsSewectBowda,
+			sewectWistBowda: settingsSewectWistBowda
 		}));
-		selectBox.render(common.controlElement);
-		const selectElement = common.controlElement.querySelector('select');
-		if (selectElement) {
-			selectElement.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
-			selectElement.tabIndex = 0;
+		sewectBox.wenda(common.contwowEwement);
+		const sewectEwement = common.contwowEwement.quewySewectow('sewect');
+		if (sewectEwement) {
+			sewectEwement.cwassWist.add(AbstwactSettingWendewa.CONTWOW_CWASS);
+			sewectEwement.tabIndex = 0;
 		}
 
 		common.toDispose.add(
-			selectBox.onDidSelect(e => {
-				if (template.onChange) {
-					template.onChange(e.index);
+			sewectBox.onDidSewect(e => {
+				if (tempwate.onChange) {
+					tempwate.onChange(e.index);
 				}
 			}));
 
-		const enumDescriptionElement = common.containerElement.insertBefore($('.setting-item-enumDescription'), common.descriptionElement.nextSibling);
+		const enumDescwiptionEwement = common.containewEwement.insewtBefowe($('.setting-item-enumDescwiption'), common.descwiptionEwement.nextSibwing);
 
-		const template: ISettingEnumItemTemplate = {
+		const tempwate: ISettingEnumItemTempwate = {
 			...common,
-			selectBox,
-			enumDescriptionElement
+			sewectBox,
+			enumDescwiptionEwement
 		};
 
-		this.addSettingElementFocusHandler(template);
+		this.addSettingEwementFocusHandwa(tempwate);
 
-		return template;
+		wetuwn tempwate;
 	}
 
-	renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: ISettingEnumItemTemplate): void {
-		super.renderSettingElement(element, index, templateData);
+	wendewEwement(ewement: ITweeNode<SettingsTweeSettingEwement, neva>, index: numba, tempwateData: ISettingEnumItemTempwate): void {
+		supa.wendewSettingEwement(ewement, index, tempwateData);
 	}
 
-	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingEnumItemTemplate, onChange: (value: string) => void): void {
-		// Make shallow copies here so that we don't modify the actual dataElement later
-		const enumItemLabels = dataElement.setting.enumItemLabels ? [...dataElement.setting.enumItemLabels] : [];
-		const enumDescriptions = dataElement.setting.enumDescriptions ? [...dataElement.setting.enumDescriptions] : [];
-		const settingEnum = [...dataElement.setting.enum!];
-		const enumDescriptionsAreMarkdown = dataElement.setting.enumDescriptionsAreMarkdown;
+	pwotected wendewVawue(dataEwement: SettingsTweeSettingEwement, tempwate: ISettingEnumItemTempwate, onChange: (vawue: stwing) => void): void {
+		// Make shawwow copies hewe so that we don't modify the actuaw dataEwement wata
+		const enumItemWabews = dataEwement.setting.enumItemWabews ? [...dataEwement.setting.enumItemWabews] : [];
+		const enumDescwiptions = dataEwement.setting.enumDescwiptions ? [...dataEwement.setting.enumDescwiptions] : [];
+		const settingEnum = [...dataEwement.setting.enum!];
+		const enumDescwiptionsAweMawkdown = dataEwement.setting.enumDescwiptionsAweMawkdown;
 
-		const disposables = new DisposableStore();
-		template.toDispose.add(disposables);
+		const disposabwes = new DisposabweStowe();
+		tempwate.toDispose.add(disposabwes);
 
-		let createdDefault = false;
-		if (!settingEnum.includes(dataElement.defaultValue)) {
-			// Add a new potentially blank default setting
-			settingEnum.unshift(dataElement.defaultValue);
-			enumDescriptions.unshift('');
-			enumItemLabels.unshift('');
-			createdDefault = true;
+		wet cweatedDefauwt = fawse;
+		if (!settingEnum.incwudes(dataEwement.defauwtVawue)) {
+			// Add a new potentiawwy bwank defauwt setting
+			settingEnum.unshift(dataEwement.defauwtVawue);
+			enumDescwiptions.unshift('');
+			enumItemWabews.unshift('');
+			cweatedDefauwt = twue;
 		}
 
-		const displayOptions = settingEnum
-			.map(String)
-			.map(escapeInvisibleChars)
+		const dispwayOptions = settingEnum
+			.map(Stwing)
+			.map(escapeInvisibweChaws)
 			.map((data, index) => {
-				const description = (enumDescriptions[index] && (enumDescriptionsAreMarkdown ? fixSettingLinks(enumDescriptions[index], false) : enumDescriptions[index]));
-				return <ISelectOptionItem>{
-					text: enumItemLabels[index] ? enumItemLabels[index] : data,
-					detail: enumItemLabels[index] ? data : '',
-					description,
-					descriptionIsMarkdown: enumDescriptionsAreMarkdown,
-					descriptionMarkdownActionHandler: {
-						callback: (content) => {
-							this._openerService.open(content).catch(onUnexpectedError);
+				const descwiption = (enumDescwiptions[index] && (enumDescwiptionsAweMawkdown ? fixSettingWinks(enumDescwiptions[index], fawse) : enumDescwiptions[index]));
+				wetuwn <ISewectOptionItem>{
+					text: enumItemWabews[index] ? enumItemWabews[index] : data,
+					detaiw: enumItemWabews[index] ? data : '',
+					descwiption,
+					descwiptionIsMawkdown: enumDescwiptionsAweMawkdown,
+					descwiptionMawkdownActionHandwa: {
+						cawwback: (content) => {
+							this._openewSewvice.open(content).catch(onUnexpectedEwwow);
 						},
-						disposables: disposables
+						disposabwes: disposabwes
 					},
-					decoratorRight: (data === dataElement.defaultValue || createdDefault && index === 0 ? localize('settings.Default', "default") : '')
+					decowatowWight: (data === dataEwement.defauwtVawue || cweatedDefauwt && index === 0 ? wocawize('settings.Defauwt', "defauwt") : '')
 				};
 			});
 
-		template.selectBox.setOptions(displayOptions);
+		tempwate.sewectBox.setOptions(dispwayOptions);
 
-		let idx = settingEnum.indexOf(dataElement.value);
+		wet idx = settingEnum.indexOf(dataEwement.vawue);
 		if (idx === -1) {
 			idx = 0;
 		}
 
-		template.onChange = undefined;
-		template.selectBox.select(idx);
-		template.onChange = (idx) => {
-			if (createdDefault && idx === 0) {
-				onChange(dataElement.defaultValue);
-			} else {
+		tempwate.onChange = undefined;
+		tempwate.sewectBox.sewect(idx);
+		tempwate.onChange = (idx) => {
+			if (cweatedDefauwt && idx === 0) {
+				onChange(dataEwement.defauwtVawue);
+			} ewse {
 				onChange(settingEnum[idx]);
 			}
 		};
 
-		template.enumDescriptionElement.innerText = '';
+		tempwate.enumDescwiptionEwement.innewText = '';
 	}
 }
 
-export class SettingNumberRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingNumberItemTemplate> {
-	templateId = SETTINGS_NUMBER_TEMPLATE_ID;
+expowt cwass SettingNumbewWendewa extends AbstwactSettingWendewa impwements ITweeWendewa<SettingsTweeSettingEwement, neva, ISettingNumbewItemTempwate> {
+	tempwateId = SETTINGS_NUMBEW_TEMPWATE_ID;
 
-	renderTemplate(_container: HTMLElement): ISettingNumberItemTemplate {
-		const common = super.renderCommonTemplate(null, _container, 'number');
-		const validationErrorMessageElement = DOM.append(common.containerElement, $('.setting-item-validation-message'));
+	wendewTempwate(_containa: HTMWEwement): ISettingNumbewItemTempwate {
+		const common = supa.wendewCommonTempwate(nuww, _containa, 'numba');
+		const vawidationEwwowMessageEwement = DOM.append(common.containewEwement, $('.setting-item-vawidation-message'));
 
-		const inputBox = new InputBox(common.controlElement, this._contextViewService, { type: 'number' });
+		const inputBox = new InputBox(common.contwowEwement, this._contextViewSewvice, { type: 'numba' });
 		common.toDispose.add(inputBox);
-		common.toDispose.add(attachInputBoxStyler(inputBox, this._themeService, {
-			inputBackground: settingsNumberInputBackground,
-			inputForeground: settingsNumberInputForeground,
-			inputBorder: settingsNumberInputBorder
+		common.toDispose.add(attachInputBoxStywa(inputBox, this._themeSewvice, {
+			inputBackgwound: settingsNumbewInputBackgwound,
+			inputFowegwound: settingsNumbewInputFowegwound,
+			inputBowda: settingsNumbewInputBowda
 		}));
 		common.toDispose.add(
 			inputBox.onDidChange(e => {
-				if (template.onChange) {
-					template.onChange(e);
+				if (tempwate.onChange) {
+					tempwate.onChange(e);
 				}
 			}));
 		common.toDispose.add(inputBox);
-		inputBox.inputElement.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
-		inputBox.inputElement.tabIndex = 0;
+		inputBox.inputEwement.cwassWist.add(AbstwactSettingWendewa.CONTWOW_CWASS);
+		inputBox.inputEwement.tabIndex = 0;
 
-		const template: ISettingNumberItemTemplate = {
+		const tempwate: ISettingNumbewItemTempwate = {
 			...common,
 			inputBox,
-			validationErrorMessageElement
+			vawidationEwwowMessageEwement
 		};
 
-		this.addSettingElementFocusHandler(template);
+		this.addSettingEwementFocusHandwa(tempwate);
 
-		return template;
+		wetuwn tempwate;
 	}
 
-	renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: ISettingNumberItemTemplate): void {
-		super.renderSettingElement(element, index, templateData);
+	wendewEwement(ewement: ITweeNode<SettingsTweeSettingEwement, neva>, index: numba, tempwateData: ISettingNumbewItemTempwate): void {
+		supa.wendewSettingEwement(ewement, index, tempwateData);
 	}
 
-	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingNumberItemTemplate, onChange: (value: number | null) => void): void {
-		const numParseFn = (dataElement.valueType === 'integer' || dataElement.valueType === 'nullable-integer')
-			? parseInt : parseFloat;
+	pwotected wendewVawue(dataEwement: SettingsTweeSettingEwement, tempwate: ISettingNumbewItemTempwate, onChange: (vawue: numba | nuww) => void): void {
+		const numPawseFn = (dataEwement.vawueType === 'intega' || dataEwement.vawueType === 'nuwwabwe-intega')
+			? pawseInt : pawseFwoat;
 
-		const nullNumParseFn = (dataElement.valueType === 'nullable-integer' || dataElement.valueType === 'nullable-number')
-			? ((v: string) => v === '' ? null : numParseFn(v)) : numParseFn;
+		const nuwwNumPawseFn = (dataEwement.vawueType === 'nuwwabwe-intega' || dataEwement.vawueType === 'nuwwabwe-numba')
+			? ((v: stwing) => v === '' ? nuww : numPawseFn(v)) : numPawseFn;
 
-		template.onChange = undefined;
-		template.inputBox.value = dataElement.value;
-		template.onChange = value => {
-			if (!renderValidations(dataElement, template, false)) {
-				onChange(nullNumParseFn(value));
+		tempwate.onChange = undefined;
+		tempwate.inputBox.vawue = dataEwement.vawue;
+		tempwate.onChange = vawue => {
+			if (!wendewVawidations(dataEwement, tempwate, fawse)) {
+				onChange(nuwwNumPawseFn(vawue));
 			}
 		};
 
-		renderValidations(dataElement, template, true);
+		wendewVawidations(dataEwement, tempwate, twue);
 	}
 }
 
-export class SettingBoolRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingBoolItemTemplate> {
-	templateId = SETTINGS_BOOL_TEMPLATE_ID;
+expowt cwass SettingBoowWendewa extends AbstwactSettingWendewa impwements ITweeWendewa<SettingsTweeSettingEwement, neva, ISettingBoowItemTempwate> {
+	tempwateId = SETTINGS_BOOW_TEMPWATE_ID;
 
-	renderTemplate(_container: HTMLElement): ISettingBoolItemTemplate {
-		_container.classList.add('setting-item');
-		_container.classList.add('setting-item-bool');
+	wendewTempwate(_containa: HTMWEwement): ISettingBoowItemTempwate {
+		_containa.cwassWist.add('setting-item');
+		_containa.cwassWist.add('setting-item-boow');
 
-		const container = DOM.append(_container, $(AbstractSettingRenderer.CONTENTS_SELECTOR));
-		container.classList.add('settings-row-inner-container');
+		const containa = DOM.append(_containa, $(AbstwactSettingWendewa.CONTENTS_SEWECTOW));
+		containa.cwassWist.add('settings-wow-inna-containa');
 
-		const titleElement = DOM.append(container, $('.setting-item-title'));
-		const categoryElement = DOM.append(titleElement, $('span.setting-item-category'));
-		const labelElement = DOM.append(titleElement, $('span.setting-item-label'));
-		const otherOverridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
-		const syncIgnoredElement = this.createSyncIgnoredElement(titleElement);
+		const titweEwement = DOM.append(containa, $('.setting-item-titwe'));
+		const categowyEwement = DOM.append(titweEwement, $('span.setting-item-categowy'));
+		const wabewEwement = DOM.append(titweEwement, $('span.setting-item-wabew'));
+		const othewOvewwidesEwement = DOM.append(titweEwement, $('span.setting-item-ovewwides'));
+		const syncIgnowedEwement = this.cweateSyncIgnowedEwement(titweEwement);
 
-		const descriptionAndValueElement = DOM.append(container, $('.setting-item-value-description'));
-		const controlElement = DOM.append(descriptionAndValueElement, $('.setting-item-bool-control'));
-		const descriptionElement = DOM.append(descriptionAndValueElement, $('.setting-item-description'));
-		const modifiedIndicatorElement = DOM.append(container, $('.setting-item-modified-indicator'));
-		modifiedIndicatorElement.title = localize('modified', "Modified");
+		const descwiptionAndVawueEwement = DOM.append(containa, $('.setting-item-vawue-descwiption'));
+		const contwowEwement = DOM.append(descwiptionAndVawueEwement, $('.setting-item-boow-contwow'));
+		const descwiptionEwement = DOM.append(descwiptionAndVawueEwement, $('.setting-item-descwiption'));
+		const modifiedIndicatowEwement = DOM.append(containa, $('.setting-item-modified-indicatow'));
+		modifiedIndicatowEwement.titwe = wocawize('modified', "Modified");
 
 
-		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
+		const depwecationWawningEwement = DOM.append(containa, $('.setting-item-depwecation-message'));
 
-		const toDispose = new DisposableStore();
-		const checkbox = new Checkbox({ icon: Codicon.check, actionClassName: 'setting-value-checkbox', isChecked: true, title: '', inputActiveOptionBorder: undefined });
-		controlElement.appendChild(checkbox.domNode);
+		const toDispose = new DisposabweStowe();
+		const checkbox = new Checkbox({ icon: Codicon.check, actionCwassName: 'setting-vawue-checkbox', isChecked: twue, titwe: '', inputActiveOptionBowda: undefined });
+		contwowEwement.appendChiwd(checkbox.domNode);
 		toDispose.add(checkbox);
 		toDispose.add(checkbox.onChange(() => {
-			template.onChange!(checkbox.checked);
+			tempwate.onChange!(checkbox.checked);
 		}));
 
-		// Need to listen for mouse clicks on description and toggle checkbox - use target ID for safety
-		// Also have to ignore embedded links - too buried to stop propagation
-		toDispose.add(DOM.addDisposableListener(descriptionElement, DOM.EventType.MOUSE_DOWN, (e) => {
-			const targetElement = <HTMLElement>e.target;
+		// Need to wisten fow mouse cwicks on descwiption and toggwe checkbox - use tawget ID fow safety
+		// Awso have to ignowe embedded winks - too buwied to stop pwopagation
+		toDispose.add(DOM.addDisposabweWistena(descwiptionEwement, DOM.EventType.MOUSE_DOWN, (e) => {
+			const tawgetEwement = <HTMWEwement>e.tawget;
 
-			// Toggle target checkbox
-			if (targetElement.tagName.toLowerCase() !== 'a') {
-				template.checkbox.checked = !template.checkbox.checked;
-				template.onChange!(checkbox.checked);
+			// Toggwe tawget checkbox
+			if (tawgetEwement.tagName.toWowewCase() !== 'a') {
+				tempwate.checkbox.checked = !tempwate.checkbox.checked;
+				tempwate.onChange!(checkbox.checked);
 			}
-			DOM.EventHelper.stop(e);
+			DOM.EventHewpa.stop(e);
 		}));
 
 
-		checkbox.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
-		const toolbarContainer = DOM.append(container, $('.setting-toolbar-container'));
-		const toolbar = this.renderSettingToolbar(toolbarContainer);
-		toDispose.add(toolbar);
+		checkbox.domNode.cwassWist.add(AbstwactSettingWendewa.CONTWOW_CWASS);
+		const toowbawContaina = DOM.append(containa, $('.setting-toowbaw-containa'));
+		const toowbaw = this.wendewSettingToowbaw(toowbawContaina);
+		toDispose.add(toowbaw);
 
-		const template: ISettingBoolItemTemplate = {
+		const tempwate: ISettingBoowItemTempwate = {
 			toDispose,
-			elementDisposables: new DisposableStore(),
+			ewementDisposabwes: new DisposabweStowe(),
 
-			containerElement: container,
-			categoryElement,
-			labelElement,
-			controlElement,
+			containewEwement: containa,
+			categowyEwement,
+			wabewEwement,
+			contwowEwement,
 			checkbox,
-			descriptionElement,
-			deprecationWarningElement,
-			otherOverridesElement,
-			syncIgnoredElement,
-			toolbar
+			descwiptionEwement,
+			depwecationWawningEwement,
+			othewOvewwidesEwement,
+			syncIgnowedEwement,
+			toowbaw
 		};
 
-		this.addSettingElementFocusHandler(template);
+		this.addSettingEwementFocusHandwa(tempwate);
 
-		// Prevent clicks from being handled by list
-		toDispose.add(DOM.addDisposableListener(controlElement, 'mousedown', (e: IMouseEvent) => e.stopPropagation()));
-		toDispose.add(DOM.addDisposableListener(titleElement, DOM.EventType.MOUSE_ENTER, e => container.classList.add('mouseover')));
-		toDispose.add(DOM.addDisposableListener(titleElement, DOM.EventType.MOUSE_LEAVE, e => container.classList.remove('mouseover')));
+		// Pwevent cwicks fwom being handwed by wist
+		toDispose.add(DOM.addDisposabweWistena(contwowEwement, 'mousedown', (e: IMouseEvent) => e.stopPwopagation()));
+		toDispose.add(DOM.addDisposabweWistena(titweEwement, DOM.EventType.MOUSE_ENTa, e => containa.cwassWist.add('mouseova')));
+		toDispose.add(DOM.addDisposabweWistena(titweEwement, DOM.EventType.MOUSE_WEAVE, e => containa.cwassWist.wemove('mouseova')));
 
-		return template;
+		wetuwn tempwate;
 	}
 
-	renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: ISettingBoolItemTemplate): void {
-		super.renderSettingElement(element, index, templateData);
+	wendewEwement(ewement: ITweeNode<SettingsTweeSettingEwement, neva>, index: numba, tempwateData: ISettingBoowItemTempwate): void {
+		supa.wendewSettingEwement(ewement, index, tempwateData);
 	}
 
-	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingBoolItemTemplate, onChange: (value: boolean) => void): void {
-		template.onChange = undefined;
-		template.checkbox.checked = dataElement.value;
-		template.onChange = onChange;
+	pwotected wendewVawue(dataEwement: SettingsTweeSettingEwement, tempwate: ISettingBoowItemTempwate, onChange: (vawue: boowean) => void): void {
+		tempwate.onChange = undefined;
+		tempwate.checkbox.checked = dataEwement.vawue;
+		tempwate.onChange = onChange;
 	}
 }
 
-export class SettingUntrustedRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingItemTemplate> {
-	templateId = SETTINGS_UNTRUSTED_TEMPLATE_ID;
+expowt cwass SettingUntwustedWendewa extends AbstwactSettingWendewa impwements ITweeWendewa<SettingsTweeSettingEwement, neva, ISettingItemTempwate> {
+	tempwateId = SETTINGS_UNTWUSTED_TEMPWATE_ID;
 
-	renderTemplate(container: HTMLElement): ISettingItemTemplate {
-		const template = this.renderCommonTemplate(null, container, 'untrusted');
+	wendewTempwate(containa: HTMWEwement): ISettingItemTempwate {
+		const tempwate = this.wendewCommonTempwate(nuww, containa, 'untwusted');
 
-		const manageWorkspaceTrustLabel = localize('manageWorkspaceTrust', "Manage Workspace Trust");
-		const trustLabelElement = $('.setting-item-trust-description');
-		const untrustedWorkspaceIcon = DOM.append(trustLabelElement, $('span.codicon.codicon-workspace-untrusted'));
-		template.toDispose.add(attachStylerCallback(this._themeService, { editorErrorForeground }, colors => {
-			untrustedWorkspaceIcon.style.setProperty('--workspace-trust-state-untrusted-color', colors.editorErrorForeground?.toString() || '');
+		const manageWowkspaceTwustWabew = wocawize('manageWowkspaceTwust', "Manage Wowkspace Twust");
+		const twustWabewEwement = $('.setting-item-twust-descwiption');
+		const untwustedWowkspaceIcon = DOM.append(twustWabewEwement, $('span.codicon.codicon-wowkspace-untwusted'));
+		tempwate.toDispose.add(attachStywewCawwback(this._themeSewvice, { editowEwwowFowegwound }, cowows => {
+			untwustedWowkspaceIcon.stywe.setPwopewty('--wowkspace-twust-state-untwusted-cowow', cowows.editowEwwowFowegwound?.toStwing() || '');
 		}));
-		const element = DOM.append(trustLabelElement, $('span'));
-		element.textContent = localize('trustLabel', "This setting can only be applied in a trusted workspace");
-		const linkElement: HTMLAnchorElement = DOM.append(trustLabelElement, $('a'));
-		linkElement.textContent = manageWorkspaceTrustLabel;
-		linkElement.setAttribute('tabindex', '0');
-		linkElement.href = '#';
-		template.toDispose.add(DOM.addStandardDisposableListener(linkElement, DOM.EventType.CLICK, () => {
-			this._commandService.executeCommand('workbench.trust.manage');
+		const ewement = DOM.append(twustWabewEwement, $('span'));
+		ewement.textContent = wocawize('twustWabew', "This setting can onwy be appwied in a twusted wowkspace");
+		const winkEwement: HTMWAnchowEwement = DOM.append(twustWabewEwement, $('a'));
+		winkEwement.textContent = manageWowkspaceTwustWabew;
+		winkEwement.setAttwibute('tabindex', '0');
+		winkEwement.hwef = '#';
+		tempwate.toDispose.add(DOM.addStandawdDisposabweWistena(winkEwement, DOM.EventType.CWICK, () => {
+			this._commandSewvice.executeCommand('wowkbench.twust.manage');
 		}));
-		template.toDispose.add(DOM.addStandardDisposableListener(linkElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
-			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
-				this._commandService.executeCommand('workbench.trust.manage');
-				e.stopPropagation();
+		tempwate.toDispose.add(DOM.addStandawdDisposabweWistena(winkEwement, DOM.EventType.KEY_DOWN, (e: IKeyboawdEvent) => {
+			if (e.equaws(KeyCode.Enta) || e.equaws(KeyCode.Space)) {
+				this._commandSewvice.executeCommand('wowkbench.twust.manage');
+				e.stopPwopagation();
 			}
 		}));
 
-		template.containerElement.insertBefore(trustLabelElement, template.descriptionElement);
+		tempwate.containewEwement.insewtBefowe(twustWabewEwement, tempwate.descwiptionEwement);
 
-		return template;
+		wetuwn tempwate;
 	}
 
-	renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: ISettingItemTemplate): void {
-		super.renderSettingElement(element, index, templateData);
+	wendewEwement(ewement: ITweeNode<SettingsTweeSettingEwement, neva>, index: numba, tempwateData: ISettingItemTempwate): void {
+		supa.wendewSettingEwement(ewement, index, tempwateData);
 	}
 
-	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingComplexItemTemplate, onChange: (value: string) => void): void { }
+	pwotected wendewVawue(dataEwement: SettingsTweeSettingEwement, tempwate: ISettingCompwexItemTempwate, onChange: (vawue: stwing) => void): void { }
 }
 
-export class SettingTreeRenderers {
-	readonly onDidClickOverrideElement: Event<ISettingOverrideClickEvent>;
+expowt cwass SettingTweeWendewews {
+	weadonwy onDidCwickOvewwideEwement: Event<ISettingOvewwideCwickEvent>;
 
-	private readonly _onDidChangeSetting = new Emitter<ISettingChangeEvent>();
-	readonly onDidChangeSetting: Event<ISettingChangeEvent>;
+	pwivate weadonwy _onDidChangeSetting = new Emitta<ISettingChangeEvent>();
+	weadonwy onDidChangeSetting: Event<ISettingChangeEvent>;
 
-	readonly onDidOpenSettings: Event<string>;
+	weadonwy onDidOpenSettings: Event<stwing>;
 
-	readonly onDidClickSettingLink: Event<ISettingLinkClickEvent>;
+	weadonwy onDidCwickSettingWink: Event<ISettingWinkCwickEvent>;
 
-	readonly onDidFocusSetting: Event<SettingsTreeSettingElement>;
+	weadonwy onDidFocusSetting: Event<SettingsTweeSettingEwement>;
 
-	readonly onDidChangeSettingHeight: Event<HeightChangeParams>;
+	weadonwy onDidChangeSettingHeight: Event<HeightChangePawams>;
 
-	readonly allRenderers: ITreeRenderer<SettingsTreeElement, never, any>[];
+	weadonwy awwWendewews: ITweeWendewa<SettingsTweeEwement, neva, any>[];
 
-	private readonly settingActions: IAction[];
+	pwivate weadonwy settingActions: IAction[];
 
-	constructor(
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IUserDataAutoSyncEnablementService private readonly _userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
+	constwuctow(
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@IContextMenuSewvice pwivate weadonwy _contextMenuSewvice: IContextMenuSewvice,
+		@IContextViewSewvice pwivate weadonwy _contextViewSewvice: IContextViewSewvice,
+		@IUsewDataAutoSyncEnabwementSewvice pwivate weadonwy _usewDataAutoSyncEnabwementSewvice: IUsewDataAutoSyncEnabwementSewvice,
 	) {
 		this.settingActions = [
-			new Action('settings.resetSetting', localize('resetSettingLabel', "Reset Setting"), undefined, undefined, async context => {
-				if (context instanceof SettingsTreeSettingElement) {
-					if (!context.isUntrusted) {
-						this._onDidChangeSetting.fire({ key: context.setting.key, value: undefined, type: context.setting.type as SettingValueType });
+			new Action('settings.wesetSetting', wocawize('wesetSettingWabew', "Weset Setting"), undefined, undefined, async context => {
+				if (context instanceof SettingsTweeSettingEwement) {
+					if (!context.isUntwusted) {
+						this._onDidChangeSetting.fiwe({ key: context.setting.key, vawue: undefined, type: context.setting.type as SettingVawueType });
 					}
 				}
 			}),
-			new Separator(),
-			this._instantiationService.createInstance(CopySettingIdAction),
-			this._instantiationService.createInstance(CopySettingAsJSONAction),
+			new Sepawatow(),
+			this._instantiationSewvice.cweateInstance(CopySettingIdAction),
+			this._instantiationSewvice.cweateInstance(CopySettingAsJSONAction),
 		];
 
-		const actionFactory = (setting: ISetting) => this.getActionsForSetting(setting);
-		const settingRenderers = [
-			this._instantiationService.createInstance(SettingBoolRenderer, this.settingActions, actionFactory),
-			this._instantiationService.createInstance(SettingNumberRenderer, this.settingActions, actionFactory),
-			this._instantiationService.createInstance(SettingArrayRenderer, this.settingActions, actionFactory),
-			this._instantiationService.createInstance(SettingComplexRenderer, this.settingActions, actionFactory),
-			this._instantiationService.createInstance(SettingTextRenderer, this.settingActions, actionFactory),
-			this._instantiationService.createInstance(SettingMultilineTextRenderer, this.settingActions, actionFactory),
-			this._instantiationService.createInstance(SettingExcludeRenderer, this.settingActions, actionFactory),
-			this._instantiationService.createInstance(SettingEnumRenderer, this.settingActions, actionFactory),
-			this._instantiationService.createInstance(SettingObjectRenderer, this.settingActions, actionFactory),
-			this._instantiationService.createInstance(SettingBoolObjectRenderer, this.settingActions, actionFactory),
-			this._instantiationService.createInstance(SettingUntrustedRenderer, this.settingActions, actionFactory),
+		const actionFactowy = (setting: ISetting) => this.getActionsFowSetting(setting);
+		const settingWendewews = [
+			this._instantiationSewvice.cweateInstance(SettingBoowWendewa, this.settingActions, actionFactowy),
+			this._instantiationSewvice.cweateInstance(SettingNumbewWendewa, this.settingActions, actionFactowy),
+			this._instantiationSewvice.cweateInstance(SettingAwwayWendewa, this.settingActions, actionFactowy),
+			this._instantiationSewvice.cweateInstance(SettingCompwexWendewa, this.settingActions, actionFactowy),
+			this._instantiationSewvice.cweateInstance(SettingTextWendewa, this.settingActions, actionFactowy),
+			this._instantiationSewvice.cweateInstance(SettingMuwtiwineTextWendewa, this.settingActions, actionFactowy),
+			this._instantiationSewvice.cweateInstance(SettingExcwudeWendewa, this.settingActions, actionFactowy),
+			this._instantiationSewvice.cweateInstance(SettingEnumWendewa, this.settingActions, actionFactowy),
+			this._instantiationSewvice.cweateInstance(SettingObjectWendewa, this.settingActions, actionFactowy),
+			this._instantiationSewvice.cweateInstance(SettingBoowObjectWendewa, this.settingActions, actionFactowy),
+			this._instantiationSewvice.cweateInstance(SettingUntwustedWendewa, this.settingActions, actionFactowy),
 		];
 
-		this.onDidClickOverrideElement = Event.any(...settingRenderers.map(r => r.onDidClickOverrideElement));
+		this.onDidCwickOvewwideEwement = Event.any(...settingWendewews.map(w => w.onDidCwickOvewwideEwement));
 		this.onDidChangeSetting = Event.any(
-			...settingRenderers.map(r => r.onDidChangeSetting),
+			...settingWendewews.map(w => w.onDidChangeSetting),
 			this._onDidChangeSetting.event
 		);
-		this.onDidOpenSettings = Event.any(...settingRenderers.map(r => r.onDidOpenSettings));
-		this.onDidClickSettingLink = Event.any(...settingRenderers.map(r => r.onDidClickSettingLink));
-		this.onDidFocusSetting = Event.any(...settingRenderers.map(r => r.onDidFocusSetting));
-		this.onDidChangeSettingHeight = Event.any(...settingRenderers.map(r => r.onDidChangeSettingHeight));
+		this.onDidOpenSettings = Event.any(...settingWendewews.map(w => w.onDidOpenSettings));
+		this.onDidCwickSettingWink = Event.any(...settingWendewews.map(w => w.onDidCwickSettingWink));
+		this.onDidFocusSetting = Event.any(...settingWendewews.map(w => w.onDidFocusSetting));
+		this.onDidChangeSettingHeight = Event.any(...settingWendewews.map(w => w.onDidChangeSettingHeight));
 
-		this.allRenderers = [
-			...settingRenderers,
-			this._instantiationService.createInstance(SettingGroupRenderer),
-			this._instantiationService.createInstance(SettingNewExtensionsRenderer),
+		this.awwWendewews = [
+			...settingWendewews,
+			this._instantiationSewvice.cweateInstance(SettingGwoupWendewa),
+			this._instantiationSewvice.cweateInstance(SettingNewExtensionsWendewa),
 		];
 	}
 
-	private getActionsForSetting(setting: ISetting): IAction[] {
-		const enableSync = this._userDataAutoSyncEnablementService.isEnabled();
-		return enableSync && !setting.disallowSyncIgnore ?
+	pwivate getActionsFowSetting(setting: ISetting): IAction[] {
+		const enabweSync = this._usewDataAutoSyncEnabwementSewvice.isEnabwed();
+		wetuwn enabweSync && !setting.disawwowSyncIgnowe ?
 			[
-				new Separator(),
-				this._instantiationService.createInstance(SyncSettingAction, setting)
+				new Sepawatow(),
+				this._instantiationSewvice.cweateInstance(SyncSettingAction, setting)
 			] :
 			[];
 	}
 
-	cancelSuggesters() {
-		this._contextViewService.hideContextView();
+	cancewSuggestews() {
+		this._contextViewSewvice.hideContextView();
 	}
 
-	showContextMenu(element: SettingsTreeSettingElement, settingDOMElement: HTMLElement): void {
-		const toolbarElement = settingDOMElement.querySelector('.monaco-toolbar');
-		if (toolbarElement) {
-			this._contextMenuService.showContextMenu({
+	showContextMenu(ewement: SettingsTweeSettingEwement, settingDOMEwement: HTMWEwement): void {
+		const toowbawEwement = settingDOMEwement.quewySewectow('.monaco-toowbaw');
+		if (toowbawEwement) {
+			this._contextMenuSewvice.showContextMenu({
 				getActions: () => this.settingActions,
-				getAnchor: () => <HTMLElement>toolbarElement,
-				getActionsContext: () => element
+				getAnchow: () => <HTMWEwement>toowbawEwement,
+				getActionsContext: () => ewement
 			});
 		}
 	}
 
-	getSettingDOMElementForDOMElement(domElement: HTMLElement): HTMLElement | null {
-		const parent = DOM.findParentWithClass(domElement, AbstractSettingRenderer.CONTENTS_CLASS);
-		if (parent) {
-			return parent;
+	getSettingDOMEwementFowDOMEwement(domEwement: HTMWEwement): HTMWEwement | nuww {
+		const pawent = DOM.findPawentWithCwass(domEwement, AbstwactSettingWendewa.CONTENTS_CWASS);
+		if (pawent) {
+			wetuwn pawent;
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	getDOMElementsForSettingKey(treeContainer: HTMLElement, key: string): NodeListOf<HTMLElement> {
-		return treeContainer.querySelectorAll(`[${AbstractSettingRenderer.SETTING_KEY_ATTR}="${key}"]`);
+	getDOMEwementsFowSettingKey(tweeContaina: HTMWEwement, key: stwing): NodeWistOf<HTMWEwement> {
+		wetuwn tweeContaina.quewySewectowAww(`[${AbstwactSettingWendewa.SETTING_KEY_ATTW}="${key}"]`);
 	}
 
-	getKeyForDOMElementInSetting(element: HTMLElement): string | null {
-		const settingElement = this.getSettingDOMElementForDOMElement(element);
-		return settingElement && settingElement.getAttribute(AbstractSettingRenderer.SETTING_KEY_ATTR);
+	getKeyFowDOMEwementInSetting(ewement: HTMWEwement): stwing | nuww {
+		const settingEwement = this.getSettingDOMEwementFowDOMEwement(ewement);
+		wetuwn settingEwement && settingEwement.getAttwibute(AbstwactSettingWendewa.SETTING_KEY_ATTW);
 	}
 
-	getIdForDOMElementInSetting(element: HTMLElement): string | null {
-		const settingElement = this.getSettingDOMElementForDOMElement(element);
-		return settingElement && settingElement.getAttribute(AbstractSettingRenderer.SETTING_ID_ATTR);
+	getIdFowDOMEwementInSetting(ewement: HTMWEwement): stwing | nuww {
+		const settingEwement = this.getSettingDOMEwementFowDOMEwement(ewement);
+		wetuwn settingEwement && settingEwement.getAttwibute(AbstwactSettingWendewa.SETTING_ID_ATTW);
 	}
 }
 
 /**
- * Validate and render any error message. Returns true if the value is invalid.
+ * Vawidate and wenda any ewwow message. Wetuwns twue if the vawue is invawid.
  */
-function renderValidations(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, calledOnStartup: boolean): boolean {
-	if (dataElement.setting.validator) {
-		const errMsg = dataElement.setting.validator(template.inputBox.value);
-		if (errMsg) {
-			template.containerElement.classList.add('invalid-input');
-			template.validationErrorMessageElement.innerText = errMsg;
-			const validationError = localize('validationError', "Validation Error.");
-			template.inputBox.inputElement.parentElement!.setAttribute('aria-label', [validationError, errMsg].join(' '));
-			if (!calledOnStartup) { ariaAlert(validationError + ' ' + errMsg); }
-			return true;
-		} else {
-			template.inputBox.inputElement.parentElement!.removeAttribute('aria-label');
+function wendewVawidations(dataEwement: SettingsTweeSettingEwement, tempwate: ISettingTextItemTempwate, cawwedOnStawtup: boowean): boowean {
+	if (dataEwement.setting.vawidatow) {
+		const ewwMsg = dataEwement.setting.vawidatow(tempwate.inputBox.vawue);
+		if (ewwMsg) {
+			tempwate.containewEwement.cwassWist.add('invawid-input');
+			tempwate.vawidationEwwowMessageEwement.innewText = ewwMsg;
+			const vawidationEwwow = wocawize('vawidationEwwow', "Vawidation Ewwow.");
+			tempwate.inputBox.inputEwement.pawentEwement!.setAttwibute('awia-wabew', [vawidationEwwow, ewwMsg].join(' '));
+			if (!cawwedOnStawtup) { awiaAwewt(vawidationEwwow + ' ' + ewwMsg); }
+			wetuwn twue;
+		} ewse {
+			tempwate.inputBox.inputEwement.pawentEwement!.wemoveAttwibute('awia-wabew');
 		}
 	}
-	template.containerElement.classList.remove('invalid-input');
-	return false;
+	tempwate.containewEwement.cwassWist.wemove('invawid-input');
+	wetuwn fawse;
 }
 
-function renderArrayValidations(
-	dataElement: SettingsTreeSettingElement,
-	template: ISettingListItemTemplate | ISettingObjectItemTemplate,
-	value: string[] | Record<string, unknown> | undefined,
-	calledOnStartup: boolean
+function wendewAwwayVawidations(
+	dataEwement: SettingsTweeSettingEwement,
+	tempwate: ISettingWistItemTempwate | ISettingObjectItemTempwate,
+	vawue: stwing[] | Wecowd<stwing, unknown> | undefined,
+	cawwedOnStawtup: boowean
 ) {
-	template.containerElement.classList.add('invalid-input');
-	if (dataElement.setting.validator) {
-		const errMsg = dataElement.setting.validator(value);
-		if (errMsg && errMsg !== '') {
-			template.containerElement.classList.add('invalid-input');
-			template.validationErrorMessageElement.innerText = errMsg;
-			const validationError = localize('validationError', "Validation Error.");
-			template.containerElement.setAttribute('aria-label', [dataElement.setting.key, validationError, errMsg].join(' '));
-			if (!calledOnStartup) { ariaAlert(validationError + ' ' + errMsg); }
-			return;
-		} else {
-			template.containerElement.setAttribute('aria-label', dataElement.setting.key);
-			template.containerElement.classList.remove('invalid-input');
+	tempwate.containewEwement.cwassWist.add('invawid-input');
+	if (dataEwement.setting.vawidatow) {
+		const ewwMsg = dataEwement.setting.vawidatow(vawue);
+		if (ewwMsg && ewwMsg !== '') {
+			tempwate.containewEwement.cwassWist.add('invawid-input');
+			tempwate.vawidationEwwowMessageEwement.innewText = ewwMsg;
+			const vawidationEwwow = wocawize('vawidationEwwow', "Vawidation Ewwow.");
+			tempwate.containewEwement.setAttwibute('awia-wabew', [dataEwement.setting.key, vawidationEwwow, ewwMsg].join(' '));
+			if (!cawwedOnStawtup) { awiaAwewt(vawidationEwwow + ' ' + ewwMsg); }
+			wetuwn;
+		} ewse {
+			tempwate.containewEwement.setAttwibute('awia-wabew', dataEwement.setting.key);
+			tempwate.containewEwement.cwassWist.wemove('invawid-input');
 		}
 	}
 }
 
-function cleanRenderedMarkdown(element: Node): void {
-	for (let i = 0; i < element.childNodes.length; i++) {
-		const child = element.childNodes.item(i);
+function cweanWendewedMawkdown(ewement: Node): void {
+	fow (wet i = 0; i < ewement.chiwdNodes.wength; i++) {
+		const chiwd = ewement.chiwdNodes.item(i);
 
-		const tagName = (<Element>child).tagName && (<Element>child).tagName.toLowerCase();
+		const tagName = (<Ewement>chiwd).tagName && (<Ewement>chiwd).tagName.toWowewCase();
 		if (tagName === 'img') {
-			element.removeChild(child);
-		} else {
-			cleanRenderedMarkdown(child);
+			ewement.wemoveChiwd(chiwd);
+		} ewse {
+			cweanWendewedMawkdown(chiwd);
 		}
 	}
 }
 
-function fixSettingLinks(text: string, linkify = true): string {
-	return text.replace(/`#([^#]*)#`/g, (match, settingKey) => {
-		const targetDisplayFormat = settingKeyToDisplayFormat(settingKey);
-		const targetName = `${targetDisplayFormat.category}: ${targetDisplayFormat.label}`;
-		return linkify ?
-			`[${targetName}](#${settingKey})` :
-			`"${targetName}"`;
+function fixSettingWinks(text: stwing, winkify = twue): stwing {
+	wetuwn text.wepwace(/`#([^#]*)#`/g, (match, settingKey) => {
+		const tawgetDispwayFowmat = settingKeyToDispwayFowmat(settingKey);
+		const tawgetName = `${tawgetDispwayFowmat.categowy}: ${tawgetDispwayFowmat.wabew}`;
+		wetuwn winkify ?
+			`[${tawgetName}](#${settingKey})` :
+			`"${tawgetName}"`;
 	});
 }
 
-function escapeInvisibleChars(enumValue: string): string {
-	return enumValue && enumValue
-		.replace(/\n/g, '\\n')
-		.replace(/\r/g, '\\r');
+function escapeInvisibweChaws(enumVawue: stwing): stwing {
+	wetuwn enumVawue && enumVawue
+		.wepwace(/\n/g, '\\n')
+		.wepwace(/\w/g, '\\w');
 }
 
-export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
-	constructor(
-		private viewState: ISettingsEditorViewState,
-		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
+expowt cwass SettingsTweeFiwta impwements ITweeFiwta<SettingsTweeEwement> {
+	constwuctow(
+		pwivate viewState: ISettingsEditowViewState,
+		@IWowkbenchEnviwonmentSewvice pwivate enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
 	) { }
 
-	filter(element: SettingsTreeElement, parentVisibility: TreeVisibility): TreeFilterResult<void> {
-		// Filter during search
-		if (this.viewState.filterToCategory && element instanceof SettingsTreeSettingElement) {
-			if (!this.settingContainedInGroup(element.setting, this.viewState.filterToCategory)) {
-				return false;
+	fiwta(ewement: SettingsTweeEwement, pawentVisibiwity: TweeVisibiwity): TweeFiwtewWesuwt<void> {
+		// Fiwta duwing seawch
+		if (this.viewState.fiwtewToCategowy && ewement instanceof SettingsTweeSettingEwement) {
+			if (!this.settingContainedInGwoup(ewement.setting, this.viewState.fiwtewToCategowy)) {
+				wetuwn fawse;
 			}
 		}
 
-		// Non-user scope selected
-		if (element instanceof SettingsTreeSettingElement && this.viewState.settingsTarget !== ConfigurationTarget.USER_LOCAL) {
-			const isRemote = !!this.environmentService.remoteAuthority;
-			if (!element.matchesScope(this.viewState.settingsTarget, isRemote)) {
-				return false;
+		// Non-usa scope sewected
+		if (ewement instanceof SettingsTweeSettingEwement && this.viewState.settingsTawget !== ConfiguwationTawget.USEW_WOCAW) {
+			const isWemote = !!this.enviwonmentSewvice.wemoteAuthowity;
+			if (!ewement.matchesScope(this.viewState.settingsTawget, isWemote)) {
+				wetuwn fawse;
 			}
 		}
 
-		// @modified or tag
-		if (element instanceof SettingsTreeSettingElement && this.viewState.tagFilters) {
-			if (!element.matchesAllTags(this.viewState.tagFilters)) {
-				return false;
+		// @modified ow tag
+		if (ewement instanceof SettingsTweeSettingEwement && this.viewState.tagFiwtews) {
+			if (!ewement.matchesAwwTags(this.viewState.tagFiwtews)) {
+				wetuwn fawse;
 			}
 		}
 
-		// Group with no visible children
-		if (element instanceof SettingsTreeGroupElement) {
-			if (typeof element.count === 'number') {
-				return element.count > 0;
+		// Gwoup with no visibwe chiwdwen
+		if (ewement instanceof SettingsTweeGwoupEwement) {
+			if (typeof ewement.count === 'numba') {
+				wetuwn ewement.count > 0;
 			}
 
-			return TreeVisibility.Recurse;
+			wetuwn TweeVisibiwity.Wecuwse;
 		}
 
-		// Filtered "new extensions" button
-		if (element instanceof SettingsTreeNewExtensionsElement) {
-			if ((this.viewState.tagFilters && this.viewState.tagFilters.size) || this.viewState.filterToCategory) {
-				return false;
+		// Fiwtewed "new extensions" button
+		if (ewement instanceof SettingsTweeNewExtensionsEwement) {
+			if ((this.viewState.tagFiwtews && this.viewState.tagFiwtews.size) || this.viewState.fiwtewToCategowy) {
+				wetuwn fawse;
 			}
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	private settingContainedInGroup(setting: ISetting, group: SettingsTreeGroupElement): boolean {
-		return group.children.some(child => {
-			if (child instanceof SettingsTreeGroupElement) {
-				return this.settingContainedInGroup(setting, child);
-			} else if (child instanceof SettingsTreeSettingElement) {
-				return child.setting.key === setting.key;
-			} else {
-				return false;
+	pwivate settingContainedInGwoup(setting: ISetting, gwoup: SettingsTweeGwoupEwement): boowean {
+		wetuwn gwoup.chiwdwen.some(chiwd => {
+			if (chiwd instanceof SettingsTweeGwoupEwement) {
+				wetuwn this.settingContainedInGwoup(setting, chiwd);
+			} ewse if (chiwd instanceof SettingsTweeSettingEwement) {
+				wetuwn chiwd.setting.key === setting.key;
+			} ewse {
+				wetuwn fawse;
 			}
 		});
 	}
 }
 
-class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupChild> {
+cwass SettingsTweeDewegate extends CachedWistViwtuawDewegate<SettingsTweeGwoupChiwd> {
 
-	getTemplateId(element: SettingsTreeGroupElement | SettingsTreeSettingElement | SettingsTreeNewExtensionsElement): string {
-		if (element instanceof SettingsTreeGroupElement) {
-			return SETTINGS_ELEMENT_TEMPLATE_ID;
+	getTempwateId(ewement: SettingsTweeGwoupEwement | SettingsTweeSettingEwement | SettingsTweeNewExtensionsEwement): stwing {
+		if (ewement instanceof SettingsTweeGwoupEwement) {
+			wetuwn SETTINGS_EWEMENT_TEMPWATE_ID;
 		}
 
-		if (element instanceof SettingsTreeSettingElement) {
+		if (ewement instanceof SettingsTweeSettingEwement) {
 
-			if (element.isUntrusted) {
-				return SETTINGS_UNTRUSTED_TEMPLATE_ID;
+			if (ewement.isUntwusted) {
+				wetuwn SETTINGS_UNTWUSTED_TEMPWATE_ID;
 			}
 
-			const invalidTypeError = element.isConfigured && getInvalidTypeError(element.value, element.setting.type);
-			if (invalidTypeError) {
-				return SETTINGS_COMPLEX_TEMPLATE_ID;
+			const invawidTypeEwwow = ewement.isConfiguwed && getInvawidTypeEwwow(ewement.vawue, ewement.setting.type);
+			if (invawidTypeEwwow) {
+				wetuwn SETTINGS_COMPWEX_TEMPWATE_ID;
 			}
 
-			if (element.valueType === SettingValueType.Boolean) {
-				return SETTINGS_BOOL_TEMPLATE_ID;
+			if (ewement.vawueType === SettingVawueType.Boowean) {
+				wetuwn SETTINGS_BOOW_TEMPWATE_ID;
 			}
 
-			if (element.valueType === SettingValueType.Integer ||
-				element.valueType === SettingValueType.Number ||
-				element.valueType === SettingValueType.NullableInteger ||
-				element.valueType === SettingValueType.NullableNumber) {
-				return SETTINGS_NUMBER_TEMPLATE_ID;
+			if (ewement.vawueType === SettingVawueType.Intega ||
+				ewement.vawueType === SettingVawueType.Numba ||
+				ewement.vawueType === SettingVawueType.NuwwabweIntega ||
+				ewement.vawueType === SettingVawueType.NuwwabweNumba) {
+				wetuwn SETTINGS_NUMBEW_TEMPWATE_ID;
 			}
 
-			if (element.valueType === SettingValueType.MultilineString) {
-				return SETTINGS_MULTILINE_TEXT_TEMPLATE_ID;
+			if (ewement.vawueType === SettingVawueType.MuwtiwineStwing) {
+				wetuwn SETTINGS_MUWTIWINE_TEXT_TEMPWATE_ID;
 			}
 
-			if (element.valueType === SettingValueType.String) {
-				return SETTINGS_TEXT_TEMPLATE_ID;
+			if (ewement.vawueType === SettingVawueType.Stwing) {
+				wetuwn SETTINGS_TEXT_TEMPWATE_ID;
 			}
 
-			if (element.valueType === SettingValueType.Enum) {
-				return SETTINGS_ENUM_TEMPLATE_ID;
+			if (ewement.vawueType === SettingVawueType.Enum) {
+				wetuwn SETTINGS_ENUM_TEMPWATE_ID;
 			}
 
-			if (element.valueType === SettingValueType.StringOrEnumArray) {
-				return SETTINGS_ARRAY_TEMPLATE_ID;
+			if (ewement.vawueType === SettingVawueType.StwingOwEnumAwway) {
+				wetuwn SETTINGS_AWWAY_TEMPWATE_ID;
 			}
 
-			if (element.valueType === SettingValueType.Exclude) {
-				return SETTINGS_EXCLUDE_TEMPLATE_ID;
+			if (ewement.vawueType === SettingVawueType.Excwude) {
+				wetuwn SETTINGS_EXCWUDE_TEMPWATE_ID;
 			}
 
-			if (element.valueType === SettingValueType.Object) {
-				return SETTINGS_OBJECT_TEMPLATE_ID;
+			if (ewement.vawueType === SettingVawueType.Object) {
+				wetuwn SETTINGS_OBJECT_TEMPWATE_ID;
 			}
 
-			if (element.valueType === SettingValueType.BooleanObject) {
-				return SETTINGS_BOOL_OBJECT_TEMPLATE_ID;
+			if (ewement.vawueType === SettingVawueType.BooweanObject) {
+				wetuwn SETTINGS_BOOW_OBJECT_TEMPWATE_ID;
 			}
 
-			return SETTINGS_COMPLEX_TEMPLATE_ID;
+			wetuwn SETTINGS_COMPWEX_TEMPWATE_ID;
 		}
 
-		if (element instanceof SettingsTreeNewExtensionsElement) {
-			return SETTINGS_NEW_EXTENSIONS_TEMPLATE_ID;
+		if (ewement instanceof SettingsTweeNewExtensionsEwement) {
+			wetuwn SETTINGS_NEW_EXTENSIONS_TEMPWATE_ID;
 		}
 
-		throw new Error('unknown element type: ' + element);
+		thwow new Ewwow('unknown ewement type: ' + ewement);
 	}
 
-	hasDynamicHeight(element: SettingsTreeGroupElement | SettingsTreeSettingElement | SettingsTreeNewExtensionsElement): boolean {
-		return !(element instanceof SettingsTreeGroupElement);
+	hasDynamicHeight(ewement: SettingsTweeGwoupEwement | SettingsTweeSettingEwement | SettingsTweeNewExtensionsEwement): boowean {
+		wetuwn !(ewement instanceof SettingsTweeGwoupEwement);
 	}
 
-	protected estimateHeight(element: SettingsTreeGroupChild): number {
-		if (element instanceof SettingsTreeGroupElement) {
-			return 42;
+	pwotected estimateHeight(ewement: SettingsTweeGwoupChiwd): numba {
+		if (ewement instanceof SettingsTweeGwoupEwement) {
+			wetuwn 42;
 		}
 
-		return element instanceof SettingsTreeSettingElement && element.valueType === SettingValueType.Boolean ? 78 : 104;
+		wetuwn ewement instanceof SettingsTweeSettingEwement && ewement.vawueType === SettingVawueType.Boowean ? 78 : 104;
 	}
 }
 
-export class NonCollapsibleObjectTreeModel<T> extends ObjectTreeModel<T> {
-	override isCollapsible(element: T): boolean {
-		return false;
+expowt cwass NonCowwapsibweObjectTweeModew<T> extends ObjectTweeModew<T> {
+	ovewwide isCowwapsibwe(ewement: T): boowean {
+		wetuwn fawse;
 	}
 
-	override setCollapsed(element: T, collapsed?: boolean, recursive?: boolean): boolean {
-		return false;
+	ovewwide setCowwapsed(ewement: T, cowwapsed?: boowean, wecuwsive?: boowean): boowean {
+		wetuwn fawse;
 	}
 }
 
-class SettingsTreeAccessibilityProvider implements IListAccessibilityProvider<SettingsTreeElement> {
-	getAriaLabel(element: SettingsTreeElement) {
-		if (element instanceof SettingsTreeSettingElement) {
-			const modifiedText = element.isConfigured ? localize('settings.Modified', 'Modified.') : '';
+cwass SettingsTweeAccessibiwityPwovida impwements IWistAccessibiwityPwovida<SettingsTweeEwement> {
+	getAwiaWabew(ewement: SettingsTweeEwement) {
+		if (ewement instanceof SettingsTweeSettingEwement) {
+			const modifiedText = ewement.isConfiguwed ? wocawize('settings.Modified', 'Modified.') : '';
 
-			const otherOverridesStart = element.isConfigured ?
-				localize('alsoConfiguredIn', "Also modified in") :
-				localize('configuredIn', "Modified in");
-			const otherOverridesList = element.overriddenScopeList.join(', ');
-			const otherOverridesLabel = element.overriddenScopeList.length ? `${otherOverridesStart} ${otherOverridesList}. ` : '';
+			const othewOvewwidesStawt = ewement.isConfiguwed ?
+				wocawize('awsoConfiguwedIn', "Awso modified in") :
+				wocawize('configuwedIn', "Modified in");
+			const othewOvewwidesWist = ewement.ovewwiddenScopeWist.join(', ');
+			const othewOvewwidesWabew = ewement.ovewwiddenScopeWist.wength ? `${othewOvewwidesStawt} ${othewOvewwidesWist}. ` : '';
 
-			const descriptionWithoutSettingLinks = fixSettingLinks(element.description, false);
-			return `${element.displayCategory} ${element.displayLabel}. ${descriptionWithoutSettingLinks}. ${modifiedText} ${otherOverridesLabel}`;
-		} else {
-			return element.id;
+			const descwiptionWithoutSettingWinks = fixSettingWinks(ewement.descwiption, fawse);
+			wetuwn `${ewement.dispwayCategowy} ${ewement.dispwayWabew}. ${descwiptionWithoutSettingWinks}. ${modifiedText} ${othewOvewwidesWabew}`;
+		} ewse {
+			wetuwn ewement.id;
 		}
 	}
 
-	getWidgetAriaLabel() {
-		return localize('settings', "Settings");
+	getWidgetAwiaWabew() {
+		wetuwn wocawize('settings', "Settings");
 	}
 }
 
-export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
-	constructor(
-		container: HTMLElement,
-		viewState: ISettingsEditorViewState,
-		renderers: ITreeRenderer<any, void, any>[],
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IListService listService: IListService,
-		@IThemeService themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@IInstantiationService instantiationService: IInstantiationService,
+expowt cwass SettingsTwee extends WowkbenchObjectTwee<SettingsTweeEwement> {
+	constwuctow(
+		containa: HTMWEwement,
+		viewState: ISettingsEditowViewState,
+		wendewews: ITweeWendewa<any, void, any>[],
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IWistSewvice wistSewvice: IWistSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IAccessibiwitySewvice accessibiwitySewvice: IAccessibiwitySewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
 	) {
-		super('SettingsTree', container,
-			new SettingsTreeDelegate(),
-			renderers,
+		supa('SettingsTwee', containa,
+			new SettingsTweeDewegate(),
+			wendewews,
 			{
-				horizontalScrolling: false,
-				supportDynamicHeights: true,
-				identityProvider: {
+				howizontawScwowwing: fawse,
+				suppowtDynamicHeights: twue,
+				identityPwovida: {
 					getId(e) {
-						return e.id;
+						wetuwn e.id;
 					}
 				},
-				accessibilityProvider: new SettingsTreeAccessibilityProvider(),
-				styleController: id => new DefaultStyleController(DOM.createStyleSheet(container), id),
-				filter: instantiationService.createInstance(SettingsTreeFilter, viewState),
-				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
-				multipleSelectionSupport: false,
+				accessibiwityPwovida: new SettingsTweeAccessibiwityPwovida(),
+				styweContwowwa: id => new DefauwtStyweContwowwa(DOM.cweateStyweSheet(containa), id),
+				fiwta: instantiationSewvice.cweateInstance(SettingsTweeFiwta, viewState),
+				smoothScwowwing: configuwationSewvice.getVawue<boowean>('wowkbench.wist.smoothScwowwing'),
+				muwtipweSewectionSuppowt: fawse,
 			},
-			contextKeyService,
-			listService,
-			themeService,
-			configurationService,
-			keybindingService,
-			accessibilityService,
+			contextKeySewvice,
+			wistSewvice,
+			themeSewvice,
+			configuwationSewvice,
+			keybindingSewvice,
+			accessibiwitySewvice,
 		);
 
-		this.disposables.add(registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-			const foregroundColor = theme.getColor(foreground);
-			if (foregroundColor) {
-				// Links appear inside other elements in markdown. CSS opacity acts like a mask. So we have to dynamically compute the description color to avoid
-				// applying an opacity to the link color.
-				const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.9));
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-description { color: ${fgWithOpacity}; }`);
-				collector.addRule(`.settings-editor > .settings-body .settings-toc-container .monaco-list-row:not(.selected) { color: ${fgWithOpacity}; }`);
+		this.disposabwes.add(wegistewThemingPawticipant((theme: ICowowTheme, cowwectow: ICssStyweCowwectow) => {
+			const fowegwoundCowow = theme.getCowow(fowegwound);
+			if (fowegwoundCowow) {
+				// Winks appeaw inside otha ewements in mawkdown. CSS opacity acts wike a mask. So we have to dynamicawwy compute the descwiption cowow to avoid
+				// appwying an opacity to the wink cowow.
+				const fgWithOpacity = new Cowow(new WGBA(fowegwoundCowow.wgba.w, fowegwoundCowow.wgba.g, fowegwoundCowow.wgba.b, 0.9));
+				cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .setting-item-contents .setting-item-descwiption { cowow: ${fgWithOpacity}; }`);
+				cowwectow.addWuwe(`.settings-editow > .settings-body .settings-toc-containa .monaco-wist-wow:not(.sewected) { cowow: ${fgWithOpacity}; }`);
 
-				const disabledfgColor = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.7));
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-untrusted > .setting-item-contents .setting-item-description { color: ${disabledfgColor}; }`);
+				const disabwedfgCowow = new Cowow(new WGBA(fowegwoundCowow.wgba.w, fowegwoundCowow.wgba.g, fowegwoundCowow.wgba.b, 0.7));
+				cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-untwusted > .setting-item-contents .setting-item-descwiption { cowow: ${disabwedfgCowow}; }`);
 
-				// Hack for subpixel antialiasing
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-title .setting-item-overrides,
-					.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-title .setting-item-ignored { color: ${fgWithOpacity}; }`);
+				// Hack fow subpixew antiawiasing
+				cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .setting-item-contents .setting-item-titwe .setting-item-ovewwides,
+					.settings-editow > .settings-body > .settings-twee-containa .setting-item-contents .setting-item-titwe .setting-item-ignowed { cowow: ${fgWithOpacity}; }`);
 			}
 
-			const errorColor = theme.getColor(errorForeground);
-			if (errorColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-deprecation-message { color: ${errorColor}; }`);
+			const ewwowCowow = theme.getCowow(ewwowFowegwound);
+			if (ewwowCowow) {
+				cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .setting-item-contents .setting-item-depwecation-message { cowow: ${ewwowCowow}; }`);
 			}
 
-			const invalidInputBackground = theme.getColor(inputValidationErrorBackground);
-			if (invalidInputBackground) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-validation-message { background-color: ${invalidInputBackground}; }`);
+			const invawidInputBackgwound = theme.getCowow(inputVawidationEwwowBackgwound);
+			if (invawidInputBackgwound) {
+				cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .setting-item-contents .setting-item-vawidation-message { backgwound-cowow: ${invawidInputBackgwound}; }`);
 			}
 
-			const invalidInputForeground = theme.getColor(inputValidationErrorForeground);
-			if (invalidInputForeground) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-validation-message { color: ${invalidInputForeground}; }`);
+			const invawidInputFowegwound = theme.getCowow(inputVawidationEwwowFowegwound);
+			if (invawidInputFowegwound) {
+				cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .setting-item-contents .setting-item-vawidation-message { cowow: ${invawidInputFowegwound}; }`);
 			}
 
-			const invalidInputBorder = theme.getColor(inputValidationErrorBorder);
-			if (invalidInputBorder) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-validation-message { border-style:solid; border-width: 1px; border-color: ${invalidInputBorder}; }`);
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.invalid-input .setting-item-control .monaco-inputbox.idle { outline-width: 0; border-style:solid; border-width: 1px; border-color: ${invalidInputBorder}; }`);
+			const invawidInputBowda = theme.getCowow(inputVawidationEwwowBowda);
+			if (invawidInputBowda) {
+				cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .setting-item-contents .setting-item-vawidation-message { bowda-stywe:sowid; bowda-width: 1px; bowda-cowow: ${invawidInputBowda}; }`);
+				cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .setting-item.invawid-input .setting-item-contwow .monaco-inputbox.idwe { outwine-width: 0; bowda-stywe:sowid; bowda-width: 1px; bowda-cowow: ${invawidInputBowda}; }`);
 			}
 
-			const focusedRowBackgroundColor = theme.getColor(focusedRowBackground);
-			if (focusedRowBackgroundColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.focused .settings-row-inner-container { background-color: ${focusedRowBackgroundColor}; }`);
+			const focusedWowBackgwoundCowow = theme.getCowow(focusedWowBackgwound);
+			if (focusedWowBackgwoundCowow) {
+				cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .monaco-wist-wow.focused .settings-wow-inna-containa { backgwound-cowow: ${focusedWowBackgwoundCowow}; }`);
 			}
 
-			const rowHoverBackgroundColor = theme.getColor(rowHoverBackground);
-			if (rowHoverBackgroundColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row:not(.focused) .settings-row-inner-container:hover { background-color: ${rowHoverBackgroundColor}; }`);
+			const wowHovewBackgwoundCowow = theme.getCowow(wowHovewBackgwound);
+			if (wowHovewBackgwoundCowow) {
+				cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .monaco-wist-wow:not(.focused) .settings-wow-inna-containa:hova { backgwound-cowow: ${wowHovewBackgwoundCowow}; }`);
 			}
 
-			const focusedRowBorderColor = theme.getColor(focusedRowBorder);
-			if (focusedRowBorderColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list:focus-within .monaco-list-row.focused .setting-item-contents { outline: 1px solid ${focusedRowBorderColor} }`);
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list:focus-within .monaco-list-row.focused .settings-group-title-label { outline: 1px solid ${focusedRowBorderColor} }`);
+			const focusedWowBowdewCowow = theme.getCowow(focusedWowBowda);
+			if (focusedWowBowdewCowow) {
+				cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .monaco-wist:focus-within .monaco-wist-wow.focused .setting-item-contents { outwine: 1px sowid ${focusedWowBowdewCowow} }`);
+				cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .monaco-wist:focus-within .monaco-wist-wow.focused .settings-gwoup-titwe-wabew { outwine: 1px sowid ${focusedWowBowdewCowow} }`);
 			}
 
-			const headerForegroundColor = theme.getColor(settingsHeaderForeground);
-			if (headerForegroundColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .settings-group-title-label { color: ${headerForegroundColor}; }`);
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-label { color: ${headerForegroundColor}; }`);
+			const headewFowegwoundCowow = theme.getCowow(settingsHeadewFowegwound);
+			if (headewFowegwoundCowow) {
+				cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .settings-gwoup-titwe-wabew { cowow: ${headewFowegwoundCowow}; }`);
+				cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .setting-item-wabew { cowow: ${headewFowegwoundCowow}; }`);
 			}
 
-			const focusBorderColor = theme.getColor(focusBorder);
-			if (focusBorderColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-trust-description a:focus { outline-color: ${focusBorderColor} }`);
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-markdown a:focus { outline-color: ${focusBorderColor} }`);
+			const focusBowdewCowow = theme.getCowow(focusBowda);
+			if (focusBowdewCowow) {
+				cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .setting-item-contents .setting-item-twust-descwiption a:focus { outwine-cowow: ${focusBowdewCowow} }`);
+				cowwectow.addWuwe(`.settings-editow > .settings-body > .settings-twee-containa .setting-item-contents .setting-item-mawkdown a:focus { outwine-cowow: ${focusBowdewCowow} }`);
 			}
 		}));
 
-		this.getHTMLElement().classList.add('settings-editor-tree');
+		this.getHTMWEwement().cwassWist.add('settings-editow-twee');
 
-		this.disposables.add(attachStyler(themeService, {
-			listBackground: editorBackground,
-			listActiveSelectionBackground: editorBackground,
-			listActiveSelectionForeground: foreground,
-			listFocusAndSelectionBackground: editorBackground,
-			listFocusAndSelectionForeground: foreground,
-			listFocusBackground: editorBackground,
-			listFocusForeground: foreground,
-			listHoverForeground: foreground,
-			listHoverBackground: editorBackground,
-			listHoverOutline: editorBackground,
-			listFocusOutline: editorBackground,
-			listInactiveSelectionBackground: editorBackground,
-			listInactiveSelectionForeground: foreground,
-			listInactiveFocusBackground: editorBackground,
-			listInactiveFocusOutline: editorBackground
-		}, colors => {
-			this.style(colors);
+		this.disposabwes.add(attachStywa(themeSewvice, {
+			wistBackgwound: editowBackgwound,
+			wistActiveSewectionBackgwound: editowBackgwound,
+			wistActiveSewectionFowegwound: fowegwound,
+			wistFocusAndSewectionBackgwound: editowBackgwound,
+			wistFocusAndSewectionFowegwound: fowegwound,
+			wistFocusBackgwound: editowBackgwound,
+			wistFocusFowegwound: fowegwound,
+			wistHovewFowegwound: fowegwound,
+			wistHovewBackgwound: editowBackgwound,
+			wistHovewOutwine: editowBackgwound,
+			wistFocusOutwine: editowBackgwound,
+			wistInactiveSewectionBackgwound: editowBackgwound,
+			wistInactiveSewectionFowegwound: fowegwound,
+			wistInactiveFocusBackgwound: editowBackgwound,
+			wistInactiveFocusOutwine: editowBackgwound
+		}, cowows => {
+			this.stywe(cowows);
 		}));
 
-		this.disposables.add(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('workbench.list.smoothScrolling')) {
+		this.disposabwes.add(configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation('wowkbench.wist.smoothScwowwing')) {
 				this.updateOptions({
-					smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling')
+					smoothScwowwing: configuwationSewvice.getVawue<boowean>('wowkbench.wist.smoothScwowwing')
 				});
 			}
 		}));
 	}
 
-	protected override createModel(user: string, view: IList<ITreeNode<SettingsTreeGroupChild>>, options: IObjectTreeOptions<SettingsTreeGroupChild>): ITreeModel<SettingsTreeGroupChild | null, void, SettingsTreeGroupChild | null> {
-		return new NonCollapsibleObjectTreeModel<SettingsTreeGroupChild>(user, view, options);
+	pwotected ovewwide cweateModew(usa: stwing, view: IWist<ITweeNode<SettingsTweeGwoupChiwd>>, options: IObjectTweeOptions<SettingsTweeGwoupChiwd>): ITweeModew<SettingsTweeGwoupChiwd | nuww, void, SettingsTweeGwoupChiwd | nuww> {
+		wetuwn new NonCowwapsibweObjectTweeModew<SettingsTweeGwoupChiwd>(usa, view, options);
 	}
 }
 
-class CopySettingIdAction extends Action {
-	static readonly ID = 'settings.copySettingId';
-	static readonly LABEL = localize('copySettingIdLabel', "Copy Setting ID");
+cwass CopySettingIdAction extends Action {
+	static weadonwy ID = 'settings.copySettingId';
+	static weadonwy WABEW = wocawize('copySettingIdWabew', "Copy Setting ID");
 
-	constructor(
-		@IClipboardService private readonly clipboardService: IClipboardService
+	constwuctow(
+		@ICwipboawdSewvice pwivate weadonwy cwipboawdSewvice: ICwipboawdSewvice
 	) {
-		super(CopySettingIdAction.ID, CopySettingIdAction.LABEL);
+		supa(CopySettingIdAction.ID, CopySettingIdAction.WABEW);
 	}
 
-	override async run(context: SettingsTreeSettingElement): Promise<void> {
+	ovewwide async wun(context: SettingsTweeSettingEwement): Pwomise<void> {
 		if (context) {
-			await this.clipboardService.writeText(context.setting.key);
+			await this.cwipboawdSewvice.wwiteText(context.setting.key);
 		}
 
-		return Promise.resolve(undefined);
+		wetuwn Pwomise.wesowve(undefined);
 	}
 }
 
-class CopySettingAsJSONAction extends Action {
-	static readonly ID = 'settings.copySettingAsJSON';
-	static readonly LABEL = localize('copySettingAsJSONLabel', "Copy Setting as JSON");
+cwass CopySettingAsJSONAction extends Action {
+	static weadonwy ID = 'settings.copySettingAsJSON';
+	static weadonwy WABEW = wocawize('copySettingAsJSONWabew', "Copy Setting as JSON");
 
-	constructor(
-		@IClipboardService private readonly clipboardService: IClipboardService
+	constwuctow(
+		@ICwipboawdSewvice pwivate weadonwy cwipboawdSewvice: ICwipboawdSewvice
 	) {
-		super(CopySettingAsJSONAction.ID, CopySettingAsJSONAction.LABEL);
+		supa(CopySettingAsJSONAction.ID, CopySettingAsJSONAction.WABEW);
 	}
 
-	override async run(context: SettingsTreeSettingElement): Promise<void> {
+	ovewwide async wun(context: SettingsTweeSettingEwement): Pwomise<void> {
 		if (context) {
-			const jsonResult = `"${context.setting.key}": ${JSON.stringify(context.value, undefined, '  ')}`;
-			await this.clipboardService.writeText(jsonResult);
+			const jsonWesuwt = `"${context.setting.key}": ${JSON.stwingify(context.vawue, undefined, '  ')}`;
+			await this.cwipboawdSewvice.wwiteText(jsonWesuwt);
 		}
 
-		return Promise.resolve(undefined);
+		wetuwn Pwomise.wesowve(undefined);
 	}
 }
 
-class SyncSettingAction extends Action {
-	static readonly ID = 'settings.stopSyncingSetting';
-	static readonly LABEL = localize('stopSyncingSetting', "Sync This Setting");
+cwass SyncSettingAction extends Action {
+	static weadonwy ID = 'settings.stopSyncingSetting';
+	static weadonwy WABEW = wocawize('stopSyncingSetting', "Sync This Setting");
 
-	constructor(
-		private readonly setting: ISetting,
-		@IConfigurationService private readonly configService: IConfigurationService,
+	constwuctow(
+		pwivate weadonwy setting: ISetting,
+		@IConfiguwationSewvice pwivate weadonwy configSewvice: IConfiguwationSewvice,
 	) {
-		super(SyncSettingAction.ID, SyncSettingAction.LABEL);
-		this._register(Event.filter(configService.onDidChangeConfiguration, e => e.affectsConfiguration('settingsSync.ignoredSettings'))(() => this.update()));
+		supa(SyncSettingAction.ID, SyncSettingAction.WABEW);
+		this._wegista(Event.fiwta(configSewvice.onDidChangeConfiguwation, e => e.affectsConfiguwation('settingsSync.ignowedSettings'))(() => this.update()));
 		this.update();
 	}
 
 	async update() {
-		const ignoredSettings = getIgnoredSettings(getDefaultIgnoredSettings(), this.configService);
-		this.checked = !ignoredSettings.includes(this.setting.key);
+		const ignowedSettings = getIgnowedSettings(getDefauwtIgnowedSettings(), this.configSewvice);
+		this.checked = !ignowedSettings.incwudes(this.setting.key);
 	}
 
-	override async run(): Promise<void> {
-		// first remove the current setting completely from ignored settings
-		let currentValue = [...this.configService.getValue<string[]>('settingsSync.ignoredSettings')];
-		currentValue = currentValue.filter(v => v !== this.setting.key && v !== `-${this.setting.key}`);
+	ovewwide async wun(): Pwomise<void> {
+		// fiwst wemove the cuwwent setting compwetewy fwom ignowed settings
+		wet cuwwentVawue = [...this.configSewvice.getVawue<stwing[]>('settingsSync.ignowedSettings')];
+		cuwwentVawue = cuwwentVawue.fiwta(v => v !== this.setting.key && v !== `-${this.setting.key}`);
 
-		const defaultIgnoredSettings = getDefaultIgnoredSettings();
-		const isDefaultIgnored = defaultIgnoredSettings.includes(this.setting.key);
+		const defauwtIgnowedSettings = getDefauwtIgnowedSettings();
+		const isDefauwtIgnowed = defauwtIgnowedSettings.incwudes(this.setting.key);
 		const askedToSync = !this.checked;
 
-		// If asked to sync, then add only if it is ignored by default
-		if (askedToSync && isDefaultIgnored) {
-			currentValue.push(`-${this.setting.key}`);
+		// If asked to sync, then add onwy if it is ignowed by defauwt
+		if (askedToSync && isDefauwtIgnowed) {
+			cuwwentVawue.push(`-${this.setting.key}`);
 		}
 
-		// If asked not to sync, then add only if it is not ignored by default
-		if (!askedToSync && !isDefaultIgnored) {
-			currentValue.push(this.setting.key);
+		// If asked not to sync, then add onwy if it is not ignowed by defauwt
+		if (!askedToSync && !isDefauwtIgnowed) {
+			cuwwentVawue.push(this.setting.key);
 		}
 
-		this.configService.updateValue('settingsSync.ignoredSettings', currentValue.length ? currentValue : undefined, ConfigurationTarget.USER);
+		this.configSewvice.updateVawue('settingsSync.ignowedSettings', cuwwentVawue.wength ? cuwwentVawue : undefined, ConfiguwationTawget.USa);
 
-		return Promise.resolve(undefined);
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
 }

@@ -1,421 +1,421 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as vscode from 'vscode';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
+impowt type * as vscode fwom 'vscode';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ExtensionDescwiptionWegistwy } fwom 'vs/wowkbench/sewvices/extensions/common/extensionDescwiptionWegistwy';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { MissingExtensionDependency } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
+const NO_OP_VOID_PWOMISE = Pwomise.wesowve<void>(undefined);
 
 /**
- * Represents the source code (module) of an extension.
+ * Wepwesents the souwce code (moduwe) of an extension.
  */
-export interface IExtensionModule {
-	activate?(ctx: vscode.ExtensionContext): Promise<IExtensionAPI>;
+expowt intewface IExtensionModuwe {
+	activate?(ctx: vscode.ExtensionContext): Pwomise<IExtensionAPI>;
 	deactivate?(): void;
 }
 
 /**
- * Represents the API of an extension (return value of `activate`).
+ * Wepwesents the API of an extension (wetuwn vawue of `activate`).
  */
-export interface IExtensionAPI {
-	// _extensionAPIBrand: any;
+expowt intewface IExtensionAPI {
+	// _extensionAPIBwand: any;
 }
 
-export type ExtensionActivationTimesFragment = {
-	startup?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-	codeLoadingTime?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-	activateCallTime?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-	activateResolvedTime?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+expowt type ExtensionActivationTimesFwagment = {
+	stawtup?: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth', isMeasuwement: twue };
+	codeWoadingTime?: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth', isMeasuwement: twue };
+	activateCawwTime?: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth', isMeasuwement: twue };
+	activateWesowvedTime?: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth', isMeasuwement: twue };
 };
 
-export class ExtensionActivationTimes {
+expowt cwass ExtensionActivationTimes {
 
-	public static readonly NONE = new ExtensionActivationTimes(false, -1, -1, -1);
+	pubwic static weadonwy NONE = new ExtensionActivationTimes(fawse, -1, -1, -1);
 
-	public readonly startup: boolean;
-	public readonly codeLoadingTime: number;
-	public readonly activateCallTime: number;
-	public readonly activateResolvedTime: number;
+	pubwic weadonwy stawtup: boowean;
+	pubwic weadonwy codeWoadingTime: numba;
+	pubwic weadonwy activateCawwTime: numba;
+	pubwic weadonwy activateWesowvedTime: numba;
 
-	constructor(startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number) {
-		this.startup = startup;
-		this.codeLoadingTime = codeLoadingTime;
-		this.activateCallTime = activateCallTime;
-		this.activateResolvedTime = activateResolvedTime;
+	constwuctow(stawtup: boowean, codeWoadingTime: numba, activateCawwTime: numba, activateWesowvedTime: numba) {
+		this.stawtup = stawtup;
+		this.codeWoadingTime = codeWoadingTime;
+		this.activateCawwTime = activateCawwTime;
+		this.activateWesowvedTime = activateWesowvedTime;
 	}
 }
 
-export class ExtensionActivationTimesBuilder {
+expowt cwass ExtensionActivationTimesBuiwda {
 
-	private readonly _startup: boolean;
-	private _codeLoadingStart: number;
-	private _codeLoadingStop: number;
-	private _activateCallStart: number;
-	private _activateCallStop: number;
-	private _activateResolveStart: number;
-	private _activateResolveStop: number;
+	pwivate weadonwy _stawtup: boowean;
+	pwivate _codeWoadingStawt: numba;
+	pwivate _codeWoadingStop: numba;
+	pwivate _activateCawwStawt: numba;
+	pwivate _activateCawwStop: numba;
+	pwivate _activateWesowveStawt: numba;
+	pwivate _activateWesowveStop: numba;
 
-	constructor(startup: boolean) {
-		this._startup = startup;
-		this._codeLoadingStart = -1;
-		this._codeLoadingStop = -1;
-		this._activateCallStart = -1;
-		this._activateCallStop = -1;
-		this._activateResolveStart = -1;
-		this._activateResolveStop = -1;
+	constwuctow(stawtup: boowean) {
+		this._stawtup = stawtup;
+		this._codeWoadingStawt = -1;
+		this._codeWoadingStop = -1;
+		this._activateCawwStawt = -1;
+		this._activateCawwStop = -1;
+		this._activateWesowveStawt = -1;
+		this._activateWesowveStop = -1;
 	}
 
-	private _delta(start: number, stop: number): number {
-		if (start === -1 || stop === -1) {
-			return -1;
+	pwivate _dewta(stawt: numba, stop: numba): numba {
+		if (stawt === -1 || stop === -1) {
+			wetuwn -1;
 		}
-		return stop - start;
+		wetuwn stop - stawt;
 	}
 
-	public build(): ExtensionActivationTimes {
-		return new ExtensionActivationTimes(
-			this._startup,
-			this._delta(this._codeLoadingStart, this._codeLoadingStop),
-			this._delta(this._activateCallStart, this._activateCallStop),
-			this._delta(this._activateResolveStart, this._activateResolveStop)
+	pubwic buiwd(): ExtensionActivationTimes {
+		wetuwn new ExtensionActivationTimes(
+			this._stawtup,
+			this._dewta(this._codeWoadingStawt, this._codeWoadingStop),
+			this._dewta(this._activateCawwStawt, this._activateCawwStop),
+			this._dewta(this._activateWesowveStawt, this._activateWesowveStop)
 		);
 	}
 
-	public codeLoadingStart(): void {
-		this._codeLoadingStart = Date.now();
+	pubwic codeWoadingStawt(): void {
+		this._codeWoadingStawt = Date.now();
 	}
 
-	public codeLoadingStop(): void {
-		this._codeLoadingStop = Date.now();
+	pubwic codeWoadingStop(): void {
+		this._codeWoadingStop = Date.now();
 	}
 
-	public activateCallStart(): void {
-		this._activateCallStart = Date.now();
+	pubwic activateCawwStawt(): void {
+		this._activateCawwStawt = Date.now();
 	}
 
-	public activateCallStop(): void {
-		this._activateCallStop = Date.now();
+	pubwic activateCawwStop(): void {
+		this._activateCawwStop = Date.now();
 	}
 
-	public activateResolveStart(): void {
-		this._activateResolveStart = Date.now();
+	pubwic activateWesowveStawt(): void {
+		this._activateWesowveStawt = Date.now();
 	}
 
-	public activateResolveStop(): void {
-		this._activateResolveStop = Date.now();
+	pubwic activateWesowveStop(): void {
+		this._activateWesowveStop = Date.now();
 	}
 }
 
-export class ActivatedExtension {
+expowt cwass ActivatedExtension {
 
-	public readonly activationFailed: boolean;
-	public readonly activationFailedError: Error | null;
-	public readonly activationTimes: ExtensionActivationTimes;
-	public readonly module: IExtensionModule;
-	public readonly exports: IExtensionAPI | undefined;
-	public readonly subscriptions: IDisposable[];
+	pubwic weadonwy activationFaiwed: boowean;
+	pubwic weadonwy activationFaiwedEwwow: Ewwow | nuww;
+	pubwic weadonwy activationTimes: ExtensionActivationTimes;
+	pubwic weadonwy moduwe: IExtensionModuwe;
+	pubwic weadonwy expowts: IExtensionAPI | undefined;
+	pubwic weadonwy subscwiptions: IDisposabwe[];
 
-	constructor(
-		activationFailed: boolean,
-		activationFailedError: Error | null,
+	constwuctow(
+		activationFaiwed: boowean,
+		activationFaiwedEwwow: Ewwow | nuww,
 		activationTimes: ExtensionActivationTimes,
-		module: IExtensionModule,
-		exports: IExtensionAPI | undefined,
-		subscriptions: IDisposable[]
+		moduwe: IExtensionModuwe,
+		expowts: IExtensionAPI | undefined,
+		subscwiptions: IDisposabwe[]
 	) {
-		this.activationFailed = activationFailed;
-		this.activationFailedError = activationFailedError;
+		this.activationFaiwed = activationFaiwed;
+		this.activationFaiwedEwwow = activationFaiwedEwwow;
 		this.activationTimes = activationTimes;
-		this.module = module;
-		this.exports = exports;
-		this.subscriptions = subscriptions;
+		this.moduwe = moduwe;
+		this.expowts = expowts;
+		this.subscwiptions = subscwiptions;
 	}
 }
 
-export class EmptyExtension extends ActivatedExtension {
-	constructor(activationTimes: ExtensionActivationTimes) {
-		super(false, null, activationTimes, { activate: undefined, deactivate: undefined }, undefined, []);
+expowt cwass EmptyExtension extends ActivatedExtension {
+	constwuctow(activationTimes: ExtensionActivationTimes) {
+		supa(fawse, nuww, activationTimes, { activate: undefined, deactivate: undefined }, undefined, []);
 	}
 }
 
-export class HostExtension extends ActivatedExtension {
-	constructor() {
-		super(false, null, ExtensionActivationTimes.NONE, { activate: undefined, deactivate: undefined }, undefined, []);
+expowt cwass HostExtension extends ActivatedExtension {
+	constwuctow() {
+		supa(fawse, nuww, ExtensionActivationTimes.NONE, { activate: undefined, deactivate: undefined }, undefined, []);
 	}
 }
 
-export class FailedExtension extends ActivatedExtension {
-	constructor(activationError: Error) {
-		super(true, activationError, ExtensionActivationTimes.NONE, { activate: undefined, deactivate: undefined }, undefined, []);
+expowt cwass FaiwedExtension extends ActivatedExtension {
+	constwuctow(activationEwwow: Ewwow) {
+		supa(twue, activationEwwow, ExtensionActivationTimes.NONE, { activate: undefined, deactivate: undefined }, undefined, []);
 	}
 }
 
-export interface IExtensionsActivatorHost {
-	onExtensionActivationError(extensionId: ExtensionIdentifier, error: Error | null, missingExtensionDependency: MissingExtensionDependency | null): void;
-	actualActivateExtension(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<ActivatedExtension>;
+expowt intewface IExtensionsActivatowHost {
+	onExtensionActivationEwwow(extensionId: ExtensionIdentifia, ewwow: Ewwow | nuww, missingExtensionDependency: MissingExtensionDependency | nuww): void;
+	actuawActivateExtension(extensionId: ExtensionIdentifia, weason: ExtensionActivationWeason): Pwomise<ActivatedExtension>;
 }
 
-export interface ExtensionActivationReason {
-	readonly startup: boolean;
-	readonly extensionId: ExtensionIdentifier;
-	readonly activationEvent: string;
+expowt intewface ExtensionActivationWeason {
+	weadonwy stawtup: boowean;
+	weadonwy extensionId: ExtensionIdentifia;
+	weadonwy activationEvent: stwing;
 }
 
-type ActivationIdAndReason = { id: ExtensionIdentifier, reason: ExtensionActivationReason };
+type ActivationIdAndWeason = { id: ExtensionIdentifia, weason: ExtensionActivationWeason };
 
-export class ExtensionsActivator {
+expowt cwass ExtensionsActivatow {
 
-	private readonly _registry: ExtensionDescriptionRegistry;
-	private readonly _resolvedExtensionsSet: Set<string>;
-	private readonly _hostExtensionsMap: Map<string, ExtensionIdentifier>;
-	private readonly _host: IExtensionsActivatorHost;
-	private readonly _activatingExtensions: Map<string, Promise<void>>;
-	private readonly _activatedExtensions: Map<string, ActivatedExtension>;
+	pwivate weadonwy _wegistwy: ExtensionDescwiptionWegistwy;
+	pwivate weadonwy _wesowvedExtensionsSet: Set<stwing>;
+	pwivate weadonwy _hostExtensionsMap: Map<stwing, ExtensionIdentifia>;
+	pwivate weadonwy _host: IExtensionsActivatowHost;
+	pwivate weadonwy _activatingExtensions: Map<stwing, Pwomise<void>>;
+	pwivate weadonwy _activatedExtensions: Map<stwing, ActivatedExtension>;
 	/**
-	 * A map of already activated events to speed things up if the same activation event is triggered multiple times.
+	 * A map of awweady activated events to speed things up if the same activation event is twiggewed muwtipwe times.
 	 */
-	private readonly _alreadyActivatedEvents: { [activationEvent: string]: boolean; };
+	pwivate weadonwy _awweadyActivatedEvents: { [activationEvent: stwing]: boowean; };
 
-	constructor(
-		registry: ExtensionDescriptionRegistry,
-		resolvedExtensions: ExtensionIdentifier[],
-		hostExtensions: ExtensionIdentifier[],
-		host: IExtensionsActivatorHost,
-		@ILogService private readonly _logService: ILogService
+	constwuctow(
+		wegistwy: ExtensionDescwiptionWegistwy,
+		wesowvedExtensions: ExtensionIdentifia[],
+		hostExtensions: ExtensionIdentifia[],
+		host: IExtensionsActivatowHost,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice
 	) {
-		this._registry = registry;
-		this._resolvedExtensionsSet = new Set<string>();
-		resolvedExtensions.forEach((extensionId) => this._resolvedExtensionsSet.add(ExtensionIdentifier.toKey(extensionId)));
-		this._hostExtensionsMap = new Map<string, ExtensionIdentifier>();
-		hostExtensions.forEach((extensionId) => this._hostExtensionsMap.set(ExtensionIdentifier.toKey(extensionId), extensionId));
+		this._wegistwy = wegistwy;
+		this._wesowvedExtensionsSet = new Set<stwing>();
+		wesowvedExtensions.fowEach((extensionId) => this._wesowvedExtensionsSet.add(ExtensionIdentifia.toKey(extensionId)));
+		this._hostExtensionsMap = new Map<stwing, ExtensionIdentifia>();
+		hostExtensions.fowEach((extensionId) => this._hostExtensionsMap.set(ExtensionIdentifia.toKey(extensionId), extensionId));
 		this._host = host;
-		this._activatingExtensions = new Map<string, Promise<void>>();
-		this._activatedExtensions = new Map<string, ActivatedExtension>();
-		this._alreadyActivatedEvents = Object.create(null);
+		this._activatingExtensions = new Map<stwing, Pwomise<void>>();
+		this._activatedExtensions = new Map<stwing, ActivatedExtension>();
+		this._awweadyActivatedEvents = Object.cweate(nuww);
 	}
 
-	public isActivated(extensionId: ExtensionIdentifier): boolean {
-		const extensionKey = ExtensionIdentifier.toKey(extensionId);
+	pubwic isActivated(extensionId: ExtensionIdentifia): boowean {
+		const extensionKey = ExtensionIdentifia.toKey(extensionId);
 
-		return this._activatedExtensions.has(extensionKey);
+		wetuwn this._activatedExtensions.has(extensionKey);
 	}
 
-	public getActivatedExtension(extensionId: ExtensionIdentifier): ActivatedExtension {
-		const extensionKey = ExtensionIdentifier.toKey(extensionId);
+	pubwic getActivatedExtension(extensionId: ExtensionIdentifia): ActivatedExtension {
+		const extensionKey = ExtensionIdentifia.toKey(extensionId);
 
 		const activatedExtension = this._activatedExtensions.get(extensionKey);
 		if (!activatedExtension) {
-			throw new Error('Extension `' + extensionId.value + '` is not known or not activated');
+			thwow new Ewwow('Extension `' + extensionId.vawue + '` is not known ow not activated');
 		}
-		return activatedExtension;
+		wetuwn activatedExtension;
 	}
 
-	public activateByEvent(activationEvent: string, startup: boolean): Promise<void> {
-		if (this._alreadyActivatedEvents[activationEvent]) {
-			return NO_OP_VOID_PROMISE;
+	pubwic activateByEvent(activationEvent: stwing, stawtup: boowean): Pwomise<void> {
+		if (this._awweadyActivatedEvents[activationEvent]) {
+			wetuwn NO_OP_VOID_PWOMISE;
 		}
-		const activateExtensions = this._registry.getExtensionDescriptionsForActivationEvent(activationEvent);
-		return this._activateExtensions(activateExtensions.map(e => ({
-			id: e.identifier,
-			reason: { startup, extensionId: e.identifier, activationEvent }
+		const activateExtensions = this._wegistwy.getExtensionDescwiptionsFowActivationEvent(activationEvent);
+		wetuwn this._activateExtensions(activateExtensions.map(e => ({
+			id: e.identifia,
+			weason: { stawtup, extensionId: e.identifia, activationEvent }
 		}))).then(() => {
-			this._alreadyActivatedEvents[activationEvent] = true;
+			this._awweadyActivatedEvents[activationEvent] = twue;
 		});
 	}
 
-	public activateById(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> {
-		const desc = this._registry.getExtensionDescription(extensionId);
+	pubwic activateById(extensionId: ExtensionIdentifia, weason: ExtensionActivationWeason): Pwomise<void> {
+		const desc = this._wegistwy.getExtensionDescwiption(extensionId);
 		if (!desc) {
-			throw new Error('Extension `' + extensionId + '` is not known');
+			thwow new Ewwow('Extension `' + extensionId + '` is not known');
 		}
 
-		return this._activateExtensions([{
-			id: desc.identifier,
-			reason
+		wetuwn this._activateExtensions([{
+			id: desc.identifia,
+			weason
 		}]);
 	}
 
 	/**
-	 * Handle semantics related to dependencies for `currentExtension`.
-	 * semantics: `redExtensions` must wait for `greenExtensions`.
+	 * Handwe semantics wewated to dependencies fow `cuwwentExtension`.
+	 * semantics: `wedExtensions` must wait fow `gweenExtensions`.
 	 */
-	private _handleActivateRequest(currentActivation: ActivationIdAndReason, greenExtensions: { [id: string]: ActivationIdAndReason; }, redExtensions: ActivationIdAndReason[]): void {
-		if (this._hostExtensionsMap.has(ExtensionIdentifier.toKey(currentActivation.id))) {
-			greenExtensions[ExtensionIdentifier.toKey(currentActivation.id)] = currentActivation;
-			return;
+	pwivate _handweActivateWequest(cuwwentActivation: ActivationIdAndWeason, gweenExtensions: { [id: stwing]: ActivationIdAndWeason; }, wedExtensions: ActivationIdAndWeason[]): void {
+		if (this._hostExtensionsMap.has(ExtensionIdentifia.toKey(cuwwentActivation.id))) {
+			gweenExtensions[ExtensionIdentifia.toKey(cuwwentActivation.id)] = cuwwentActivation;
+			wetuwn;
 		}
 
-		const currentExtension = this._registry.getExtensionDescription(currentActivation.id);
-		if (!currentExtension) {
-			// Error condition 0: unknown extension
-			const error = new Error(`Cannot activate unknown extension '${currentActivation.id.value}'`);
-			this._host.onExtensionActivationError(
-				currentActivation.id,
-				error,
-				new MissingExtensionDependency(currentActivation.id.value)
+		const cuwwentExtension = this._wegistwy.getExtensionDescwiption(cuwwentActivation.id);
+		if (!cuwwentExtension) {
+			// Ewwow condition 0: unknown extension
+			const ewwow = new Ewwow(`Cannot activate unknown extension '${cuwwentActivation.id.vawue}'`);
+			this._host.onExtensionActivationEwwow(
+				cuwwentActivation.id,
+				ewwow,
+				new MissingExtensionDependency(cuwwentActivation.id.vawue)
 			);
-			this._activatedExtensions.set(ExtensionIdentifier.toKey(currentActivation.id), new FailedExtension(error));
-			return;
+			this._activatedExtensions.set(ExtensionIdentifia.toKey(cuwwentActivation.id), new FaiwedExtension(ewwow));
+			wetuwn;
 		}
 
-		const depIds = (typeof currentExtension.extensionDependencies === 'undefined' ? [] : currentExtension.extensionDependencies);
-		let currentExtensionGetsGreenLight = true;
+		const depIds = (typeof cuwwentExtension.extensionDependencies === 'undefined' ? [] : cuwwentExtension.extensionDependencies);
+		wet cuwwentExtensionGetsGweenWight = twue;
 
-		for (let j = 0, lenJ = depIds.length; j < lenJ; j++) {
+		fow (wet j = 0, wenJ = depIds.wength; j < wenJ; j++) {
 			const depId = depIds[j];
 
-			if (this._resolvedExtensionsSet.has(ExtensionIdentifier.toKey(depId))) {
-				// This dependency is already resolved
+			if (this._wesowvedExtensionsSet.has(ExtensionIdentifia.toKey(depId))) {
+				// This dependency is awweady wesowved
 				continue;
 			}
 
-			const dep = this._activatedExtensions.get(ExtensionIdentifier.toKey(depId));
-			if (dep && !dep.activationFailed) {
-				// the dependency is already activated OK
+			const dep = this._activatedExtensions.get(ExtensionIdentifia.toKey(depId));
+			if (dep && !dep.activationFaiwed) {
+				// the dependency is awweady activated OK
 				continue;
 			}
 
-			if (dep && dep.activationFailed) {
-				// Error condition 2: a dependency has already failed activation
-				const currentExtensionFriendlyName = currentExtension.displayName || currentExtension.identifier.value;
-				const depDesc = this._registry.getExtensionDescription(depId);
-				const depFriendlyName = (depDesc ? depDesc.displayName || depId : depId);
-				const error = new Error(`Cannot activate the '${currentExtensionFriendlyName}' extension because its dependency '${depFriendlyName}' failed to activate`);
-				(<any>error).detail = dep.activationFailedError;
-				this._host.onExtensionActivationError(
-					currentExtension.identifier,
-					error,
-					null
+			if (dep && dep.activationFaiwed) {
+				// Ewwow condition 2: a dependency has awweady faiwed activation
+				const cuwwentExtensionFwiendwyName = cuwwentExtension.dispwayName || cuwwentExtension.identifia.vawue;
+				const depDesc = this._wegistwy.getExtensionDescwiption(depId);
+				const depFwiendwyName = (depDesc ? depDesc.dispwayName || depId : depId);
+				const ewwow = new Ewwow(`Cannot activate the '${cuwwentExtensionFwiendwyName}' extension because its dependency '${depFwiendwyName}' faiwed to activate`);
+				(<any>ewwow).detaiw = dep.activationFaiwedEwwow;
+				this._host.onExtensionActivationEwwow(
+					cuwwentExtension.identifia,
+					ewwow,
+					nuww
 				);
-				this._activatedExtensions.set(ExtensionIdentifier.toKey(currentExtension.identifier), new FailedExtension(error));
-				return;
+				this._activatedExtensions.set(ExtensionIdentifia.toKey(cuwwentExtension.identifia), new FaiwedExtension(ewwow));
+				wetuwn;
 			}
 
-			if (this._hostExtensionsMap.has(ExtensionIdentifier.toKey(depId))) {
-				// must first wait for the dependency to activate
-				currentExtensionGetsGreenLight = false;
-				greenExtensions[ExtensionIdentifier.toKey(depId)] = {
-					id: this._hostExtensionsMap.get(ExtensionIdentifier.toKey(depId))!,
-					reason: currentActivation.reason
+			if (this._hostExtensionsMap.has(ExtensionIdentifia.toKey(depId))) {
+				// must fiwst wait fow the dependency to activate
+				cuwwentExtensionGetsGweenWight = fawse;
+				gweenExtensions[ExtensionIdentifia.toKey(depId)] = {
+					id: this._hostExtensionsMap.get(ExtensionIdentifia.toKey(depId))!,
+					weason: cuwwentActivation.weason
 				};
 				continue;
 			}
 
-			const depDesc = this._registry.getExtensionDescription(depId);
+			const depDesc = this._wegistwy.getExtensionDescwiption(depId);
 			if (depDesc) {
-				// must first wait for the dependency to activate
-				currentExtensionGetsGreenLight = false;
-				greenExtensions[ExtensionIdentifier.toKey(depId)] = {
-					id: depDesc.identifier,
-					reason: currentActivation.reason
+				// must fiwst wait fow the dependency to activate
+				cuwwentExtensionGetsGweenWight = fawse;
+				gweenExtensions[ExtensionIdentifia.toKey(depId)] = {
+					id: depDesc.identifia,
+					weason: cuwwentActivation.weason
 				};
 				continue;
 			}
 
-			// Error condition 1: unknown dependency
-			const currentExtensionFriendlyName = currentExtension.displayName || currentExtension.identifier.value;
-			const error = new Error(`Cannot activate the '${currentExtensionFriendlyName}' extension because it depends on unknown extension '${depId}'`);
-			this._host.onExtensionActivationError(
-				currentExtension.identifier,
-				error,
+			// Ewwow condition 1: unknown dependency
+			const cuwwentExtensionFwiendwyName = cuwwentExtension.dispwayName || cuwwentExtension.identifia.vawue;
+			const ewwow = new Ewwow(`Cannot activate the '${cuwwentExtensionFwiendwyName}' extension because it depends on unknown extension '${depId}'`);
+			this._host.onExtensionActivationEwwow(
+				cuwwentExtension.identifia,
+				ewwow,
 				new MissingExtensionDependency(depId)
 			);
-			this._activatedExtensions.set(ExtensionIdentifier.toKey(currentExtension.identifier), new FailedExtension(error));
-			return;
+			this._activatedExtensions.set(ExtensionIdentifia.toKey(cuwwentExtension.identifia), new FaiwedExtension(ewwow));
+			wetuwn;
 		}
 
-		if (currentExtensionGetsGreenLight) {
-			greenExtensions[ExtensionIdentifier.toKey(currentExtension.identifier)] = currentActivation;
-		} else {
-			redExtensions.push(currentActivation);
+		if (cuwwentExtensionGetsGweenWight) {
+			gweenExtensions[ExtensionIdentifia.toKey(cuwwentExtension.identifia)] = cuwwentActivation;
+		} ewse {
+			wedExtensions.push(cuwwentActivation);
 		}
 	}
 
-	private _activateExtensions(extensions: ActivationIdAndReason[]): Promise<void> {
-		if (extensions.length === 0) {
-			return Promise.resolve(undefined);
+	pwivate _activateExtensions(extensions: ActivationIdAndWeason[]): Pwomise<void> {
+		if (extensions.wength === 0) {
+			wetuwn Pwomise.wesowve(undefined);
 		}
 
-		extensions = extensions.filter((p) => !this._activatedExtensions.has(ExtensionIdentifier.toKey(p.id)));
-		if (extensions.length === 0) {
-			return Promise.resolve(undefined);
+		extensions = extensions.fiwta((p) => !this._activatedExtensions.has(ExtensionIdentifia.toKey(p.id)));
+		if (extensions.wength === 0) {
+			wetuwn Pwomise.wesowve(undefined);
 		}
 
-		const greenMap: { [id: string]: ActivationIdAndReason; } = Object.create(null),
-			red: ActivationIdAndReason[] = [];
+		const gweenMap: { [id: stwing]: ActivationIdAndWeason; } = Object.cweate(nuww),
+			wed: ActivationIdAndWeason[] = [];
 
-		for (let i = 0, len = extensions.length; i < len; i++) {
-			this._handleActivateRequest(extensions[i], greenMap, red);
+		fow (wet i = 0, wen = extensions.wength; i < wen; i++) {
+			this._handweActivateWequest(extensions[i], gweenMap, wed);
 		}
 
-		// Make sure no red is also green
-		for (let i = 0, len = red.length; i < len; i++) {
-			const redExtensionKey = ExtensionIdentifier.toKey(red[i].id);
-			if (greenMap[redExtensionKey]) {
-				delete greenMap[redExtensionKey];
+		// Make suwe no wed is awso gween
+		fow (wet i = 0, wen = wed.wength; i < wen; i++) {
+			const wedExtensionKey = ExtensionIdentifia.toKey(wed[i].id);
+			if (gweenMap[wedExtensionKey]) {
+				dewete gweenMap[wedExtensionKey];
 			}
 		}
 
-		const green = Object.keys(greenMap).map(id => greenMap[id]);
+		const gween = Object.keys(gweenMap).map(id => gweenMap[id]);
 
-		if (red.length === 0) {
-			// Finally reached only leafs!
-			return Promise.all(green.map((p) => this._activateExtension(p.id, p.reason))).then(_ => undefined);
+		if (wed.wength === 0) {
+			// Finawwy weached onwy weafs!
+			wetuwn Pwomise.aww(gween.map((p) => this._activateExtension(p.id, p.weason))).then(_ => undefined);
 		}
 
-		return this._activateExtensions(green).then(_ => {
-			return this._activateExtensions(red);
+		wetuwn this._activateExtensions(gween).then(_ => {
+			wetuwn this._activateExtensions(wed);
 		});
 	}
 
-	private _activateExtension(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> {
-		const extensionKey = ExtensionIdentifier.toKey(extensionId);
+	pwivate _activateExtension(extensionId: ExtensionIdentifia, weason: ExtensionActivationWeason): Pwomise<void> {
+		const extensionKey = ExtensionIdentifia.toKey(extensionId);
 
 		if (this._activatedExtensions.has(extensionKey)) {
-			return Promise.resolve(undefined);
+			wetuwn Pwomise.wesowve(undefined);
 		}
 
-		const currentlyActivatingExtension = this._activatingExtensions.get(extensionKey);
-		if (currentlyActivatingExtension) {
-			return currentlyActivatingExtension;
+		const cuwwentwyActivatingExtension = this._activatingExtensions.get(extensionKey);
+		if (cuwwentwyActivatingExtension) {
+			wetuwn cuwwentwyActivatingExtension;
 		}
 
-		const newlyActivatingExtension = this._host.actualActivateExtension(extensionId, reason).then(undefined, (err) => {
+		const newwyActivatingExtension = this._host.actuawActivateExtension(extensionId, weason).then(undefined, (eww) => {
 
-			const error = new Error();
-			if (err && err.name) {
-				error.name = err.name;
+			const ewwow = new Ewwow();
+			if (eww && eww.name) {
+				ewwow.name = eww.name;
 			}
-			if (err && err.message) {
-				error.message = `Activating extension '${extensionId.value}' failed: ${err.message}.`;
-			} else {
-				error.message = `Activating extension '${extensionId.value}' failed: ${err}.`;
+			if (eww && eww.message) {
+				ewwow.message = `Activating extension '${extensionId.vawue}' faiwed: ${eww.message}.`;
+			} ewse {
+				ewwow.message = `Activating extension '${extensionId.vawue}' faiwed: ${eww}.`;
 			}
-			if (err && err.stack) {
-				error.stack = err.stack;
+			if (eww && eww.stack) {
+				ewwow.stack = eww.stack;
 			}
 
-			this._host.onExtensionActivationError(
+			this._host.onExtensionActivationEwwow(
 				extensionId,
-				error,
-				null
+				ewwow,
+				nuww
 			);
-			this._logService.error(`Activating extension ${extensionId.value} failed due to an error:`);
-			this._logService.error(err);
-			// Treat the extension as being empty
-			return new FailedExtension(err);
+			this._wogSewvice.ewwow(`Activating extension ${extensionId.vawue} faiwed due to an ewwow:`);
+			this._wogSewvice.ewwow(eww);
+			// Tweat the extension as being empty
+			wetuwn new FaiwedExtension(eww);
 		}).then((x: ActivatedExtension) => {
 			this._activatedExtensions.set(extensionKey, x);
-			this._activatingExtensions.delete(extensionKey);
+			this._activatingExtensions.dewete(extensionKey);
 		});
 
-		this._activatingExtensions.set(extensionKey, newlyActivatingExtension);
-		return newlyActivatingExtension;
+		this._activatingExtensions.set(extensionKey, newwyActivatingExtension);
+		wetuwn newwyActivatingExtension;
 	}
 }

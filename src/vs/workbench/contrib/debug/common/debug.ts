@@ -1,1017 +1,1017 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { URI as uri } from 'vs/base/common/uri';
-import severity from 'vs/base/common/severity';
-import { Event } from 'vs/base/common/event';
-import { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ITextModel as EditorIModel } from 'vs/editor/common/model';
-import { IEditorPane } from 'vs/workbench/common/editor';
-import { Position, IPosition } from 'vs/editor/common/core/position';
-import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { TaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
-import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
-import { IAction } from 'vs/base/common/actions';
-import { ITelemetryEndpoint } from 'vs/platform/telemetry/common/telemetry';
+impowt * as nws fwom 'vs/nws';
+impowt { UWI as uwi } fwom 'vs/base/common/uwi';
+impowt sevewity fwom 'vs/base/common/sevewity';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IJSONSchemaSnippet } fwom 'vs/base/common/jsonSchema';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt * as editowCommon fwom 'vs/editow/common/editowCommon';
+impowt { ITextModew as EditowIModew } fwom 'vs/editow/common/modew';
+impowt { IEditowPane } fwom 'vs/wowkbench/common/editow';
+impowt { Position, IPosition } fwom 'vs/editow/common/cowe/position';
+impowt { Souwce } fwom 'vs/wowkbench/contwib/debug/common/debugSouwce';
+impowt { Wange, IWange } fwom 'vs/editow/common/cowe/wange';
+impowt { WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IWowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { TaskIdentifia } fwom 'vs/wowkbench/contwib/tasks/common/tasks';
+impowt { ConfiguwationTawget } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { DebugConfiguwationPwovidewTwiggewKind } fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt { DebugCompoundWoot } fwom 'vs/wowkbench/contwib/debug/common/debugCompoundWoot';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { ITewemetwyEndpoint } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
 
-export const VIEWLET_ID = 'workbench.view.debug';
+expowt const VIEWWET_ID = 'wowkbench.view.debug';
 
-export const VARIABLES_VIEW_ID = 'workbench.debug.variablesView';
-export const WATCH_VIEW_ID = 'workbench.debug.watchExpressionsView';
-export const CALLSTACK_VIEW_ID = 'workbench.debug.callStackView';
-export const LOADED_SCRIPTS_VIEW_ID = 'workbench.debug.loadedScriptsView';
-export const BREAKPOINTS_VIEW_ID = 'workbench.debug.breakPointsView';
-export const DISASSEMBLY_VIEW_ID = 'workbench.debug.disassemblyView';
-export const DEBUG_PANEL_ID = 'workbench.panel.repl';
-export const REPL_VIEW_ID = 'workbench.panel.repl.view';
-export const DEBUG_SERVICE_ID = 'debugService';
-export const CONTEXT_DEBUG_TYPE = new RawContextKey<string>('debugType', undefined, { type: 'string', description: nls.localize('debugType', "Debug type of the active debug session. For example 'python'.") });
-export const CONTEXT_DEBUG_CONFIGURATION_TYPE = new RawContextKey<string>('debugConfigurationType', undefined, { type: 'string', description: nls.localize('debugConfigurationType', "Debug type of the selected launch configuration. For example 'python'.") });
-export const CONTEXT_DEBUG_STATE = new RawContextKey<string>('debugState', 'inactive', { type: 'string', description: nls.localize('debugState', "State that the focused debug session is in. One of the following: 'inactive', 'initializing', 'stopped' or 'running'.") });
-export const CONTEXT_DEBUG_UX_KEY = 'debugUx';
-export const CONTEXT_DEBUG_UX = new RawContextKey<string>(CONTEXT_DEBUG_UX_KEY, 'default', { type: 'string', description: nls.localize('debugUX', "Debug UX state. When there are no debug configurations it is 'simple', otherwise 'default'. Used to decide when to show welcome views in the debug viewlet.") });
-export const CONTEXT_IN_DEBUG_MODE = new RawContextKey<boolean>('inDebugMode', false, { type: 'boolean', description: nls.localize('inDebugMode', "True when debugging, false otherwise.") });
-export const CONTEXT_IN_DEBUG_REPL = new RawContextKey<boolean>('inDebugRepl', false, { type: 'boolean', description: nls.localize('inDebugRepl', "True when focus is in the debug console, false otherwise.") });
-export const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = new RawContextKey<boolean>('breakpointWidgetVisible', false, { type: 'boolean', description: nls.localize('breakpointWidgetVisibile', "True when breakpoint editor zone widget is visible, false otherwise.") });
-export const CONTEXT_IN_BREAKPOINT_WIDGET = new RawContextKey<boolean>('inBreakpointWidget', false, { type: 'boolean', description: nls.localize('inBreakpointWidget', "True when focus is in the breakpoint editor zone widget, false otherwise.") });
-export const CONTEXT_BREAKPOINTS_FOCUSED = new RawContextKey<boolean>('breakpointsFocused', true, { type: 'boolean', description: nls.localize('breakpointsFocused', "True when the BREAKPOINTS view is focused, false otherwise.") });
-export const CONTEXT_WATCH_EXPRESSIONS_FOCUSED = new RawContextKey<boolean>('watchExpressionsFocused', true, { type: 'boolean', description: nls.localize('watchExpressionsFocused', "True when the WATCH view is focused, false otherwsie.") });
-export const CONTEXT_WATCH_EXPRESSIONS_EXIST = new RawContextKey<boolean>('watchExpressionsExist', false, { type: 'boolean', description: nls.localize('watchExpressionsExist', "True when at least one watch expression exists, false otherwise.") });
-export const CONTEXT_VARIABLES_FOCUSED = new RawContextKey<boolean>('variablesFocused', true, { type: 'boolean', description: nls.localize('variablesFocused', "True when the VARIABLES views is focused, false otherwsie") });
-export const CONTEXT_EXPRESSION_SELECTED = new RawContextKey<boolean>('expressionSelected', false, { type: 'boolean', description: nls.localize('expressionSelected', "True when an expression input box is open in either the WATCH or the VARIABLES view, false otherwise.") });
-export const CONTEXT_BREAKPOINT_INPUT_FOCUSED = new RawContextKey<boolean>('breakpointInputFocused', false, { type: 'boolean', description: nls.localize('breakpointInputFocused', "True when the input box has focus in the BREAKPOINTS view.") });
-export const CONTEXT_CALLSTACK_ITEM_TYPE = new RawContextKey<string>('callStackItemType', undefined, { type: 'string', description: nls.localize('callStackItemType', "Represents the item type of the focused element in the CALL STACK view. For example: 'session', 'thread', 'stackFrame'") });
-export const CONTEXT_CALLSTACK_SESSION_IS_ATTACH = new RawContextKey<boolean>('callStackSessionIsAttach', false, { type: 'boolean', description: nls.localize('callStackSessionIsAttach', "True when the session in the CALL STACK view is attach, false otherwise. Used internally for inline menus in the CALL STACK view.") });
-export const CONTEXT_CALLSTACK_ITEM_STOPPED = new RawContextKey<boolean>('callStackItemStopped', false, { type: 'boolean', description: nls.localize('callStackItemStopped', "True when the focused item in the CALL STACK is stopped. Used internaly for inline menus in the CALL STACK view.") });
-export const CONTEXT_CALLSTACK_SESSION_HAS_ONE_THREAD = new RawContextKey<boolean>('callStackSessionHasOneThread', false, { type: 'boolean', description: nls.localize('callStackSessionHasOneThread', "True when the focused session in the CALL STACK view has exactly one thread. Used internally for inline menus in the CALL STACK view.") });
-export const CONTEXT_WATCH_ITEM_TYPE = new RawContextKey<string>('watchItemType', undefined, { type: 'string', description: nls.localize('watchItemType', "Represents the item type of the focused element in the WATCH view. For example: 'expression', 'variable'") });
-export const CONTEXT_BREAKPOINT_ITEM_TYPE = new RawContextKey<string>('breakpointItemType', undefined, { type: 'string', description: nls.localize('breakpointItemType', "Represents the item type of the focused element in the BREAKPOINTS view. For example: 'breakpoint', 'exceptionBreakppint', 'functionBreakpoint', 'dataBreakpoint'") });
-export const CONTEXT_BREAKPOINT_ACCESS_TYPE = new RawContextKey<string>('breakpointAccessType', undefined, { type: 'string', description: nls.localize('breakpointAccessType', "Represents the access type of the focused data breakpoint in the BREAKPOINTS view. For example: 'read', 'readWrite', 'write'") });
-export const CONTEXT_BREAKPOINT_SUPPORTS_CONDITION = new RawContextKey<boolean>('breakpointSupportsCondition', false, { type: 'boolean', description: nls.localize('breakpointSupportsCondition', "True when the focused breakpoint supports conditions.") });
-export const CONTEXT_LOADED_SCRIPTS_SUPPORTED = new RawContextKey<boolean>('loadedScriptsSupported', false, { type: 'boolean', description: nls.localize('loadedScriptsSupported', "True when the focused sessions supports the LOADED SCRIPTS view") });
-export const CONTEXT_LOADED_SCRIPTS_ITEM_TYPE = new RawContextKey<string>('loadedScriptsItemType', undefined, { type: 'string', description: nls.localize('loadedScriptsItemType', "Represents the item type of the focused element in the LOADED SCRIPTS view.") });
-export const CONTEXT_FOCUSED_SESSION_IS_ATTACH = new RawContextKey<boolean>('focusedSessionIsAttach', false, { type: 'boolean', description: nls.localize('focusedSessionIsAttach', "True when the focused session is 'attach'.") });
-export const CONTEXT_STEP_BACK_SUPPORTED = new RawContextKey<boolean>('stepBackSupported', false, { type: 'boolean', description: nls.localize('stepBackSupported', "True when the focused session supports 'stepBack' requests.") });
-export const CONTEXT_RESTART_FRAME_SUPPORTED = new RawContextKey<boolean>('restartFrameSupported', false, { type: 'boolean', description: nls.localize('restartFrameSupported', "True when the focused session supports 'restartFrame' requests.") });
-export const CONTEXT_STACK_FRAME_SUPPORTS_RESTART = new RawContextKey<boolean>('stackFrameSupportsRestart', false, { type: 'boolean', description: nls.localize('stackFrameSupportsRestart', "True when the focused stack frame suppots 'restartFrame'.") });
-export const CONTEXT_JUMP_TO_CURSOR_SUPPORTED = new RawContextKey<boolean>('jumpToCursorSupported', false, { type: 'boolean', description: nls.localize('jumpToCursorSupported', "True when the focused session supports 'jumpToCursor' request.") });
-export const CONTEXT_STEP_INTO_TARGETS_SUPPORTED = new RawContextKey<boolean>('stepIntoTargetsSupported', false, { type: 'boolean', description: nls.localize('stepIntoTargetsSupported', "True when the focused session supports 'stepIntoTargets' request.") });
-export const CONTEXT_BREAKPOINTS_EXIST = new RawContextKey<boolean>('breakpointsExist', false, { type: 'boolean', description: nls.localize('breakpointsExist', "True when at least one breakpoint exists.") });
-export const CONTEXT_DEBUGGERS_AVAILABLE = new RawContextKey<boolean>('debuggersAvailable', false, { type: 'boolean', description: nls.localize('debuggersAvailable', "True when there is at least one debug extensions active.") });
-export const CONTEXT_DEBUG_PROTOCOL_VARIABLE_MENU_CONTEXT = new RawContextKey<string>('debugProtocolVariableMenuContext', undefined, { type: 'string', description: nls.localize('debugProtocolVariableMenuContext', "Represents the context the debug adapter sets on the focused variable in the VARIABLES view.") });
-export const CONTEXT_SET_VARIABLE_SUPPORTED = new RawContextKey<boolean>('debugSetVariableSupported', false, { type: 'boolean', description: nls.localize('debugSetVariableSupported', "True when the focused session supports 'setVariable' request.") });
-export const CONTEXT_SET_EXPRESSION_SUPPORTED = new RawContextKey<boolean>('debugSetExpressionSupported', false, { type: 'boolean', description: nls.localize('debugSetExpressionSupported', "True when the focused session supports 'setExpression' request.") });
-export const CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED = new RawContextKey<boolean>('breakWhenValueChangesSupported', false, { type: 'boolean', description: nls.localize('breakWhenValueChangesSupported', "True when the focused session supports to break when value changes.") });
-export const CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED = new RawContextKey<boolean>('breakWhenValueIsAccessedSupported', false, { type: 'boolean', description: nls.localize('breakWhenValueIsAccessedSupported', "True when the focused breakpoint supports to break when value is accessed.") });
-export const CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED = new RawContextKey<boolean>('breakWhenValueIsReadSupported', false, { type: 'boolean', description: nls.localize('breakWhenValueIsReadSupported', "True when the focused breakpoint supports to break when value is read.") });
-export const CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED = new RawContextKey<boolean>('terminateDebuggeeSupported', false, { type: 'boolean', description: nls.localize('terminateDebuggeeSupported', "True when the focused session supports the terminate debuggee capability.") });
-export const CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT = new RawContextKey<boolean>('variableEvaluateNamePresent', false, { type: 'boolean', description: nls.localize('variableEvaluateNamePresent', "True when the focused variable has an 'evalauteName' field set.") });
-export const CONTEXT_VARIABLE_IS_READONLY = new RawContextKey<boolean>('variableIsReadonly', false, { type: 'boolean', description: nls.localize('variableIsReadonly', "True when the focused variable is readonly.") });
-export const CONTEXT_EXCEPTION_WIDGET_VISIBLE = new RawContextKey<boolean>('exceptionWidgetVisible', false, { type: 'boolean', description: nls.localize('exceptionWidgetVisible', "True when the exception widget is visible.") });
-export const CONTEXT_MULTI_SESSION_REPL = new RawContextKey<boolean>('multiSessionRepl', false, { type: 'boolean', description: nls.localize('multiSessionRepl', "True when there is more than 1 debug console.") });
-export const CONTEXT_MULTI_SESSION_DEBUG = new RawContextKey<boolean>('multiSessionDebug', false, { type: 'boolean', description: nls.localize('multiSessionDebug', "True when there is more than 1 active debug session.") });
-export const CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED = new RawContextKey<boolean>('disassembleRequestSupported', false, { type: 'boolean', description: nls.localize('disassembleRequestSupported', "True when the focused sessions supports disassemble request.") });
-export const CONTEXT_DISASSEMBLY_VIEW_FOCUS = new RawContextKey<boolean>('disassemblyViewFocus', false, { type: 'boolean', description: nls.localize('disassemblyViewFocus', "True when the Disassembly View is focused.") });
-export const CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST = new RawContextKey<boolean>('languageSupportsDisassembleRequest', false, { type: 'boolean', description: nls.localize('languageSupportsDisassembleRequest', "True when the language in the current editor supports disassemble request.") });
-export const CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE = new RawContextKey<boolean>('focusedStackFrameHasInstructionReference', false, { type: 'boolean', description: nls.localize('focusedStackFrameHasInstructionReference', "True when the focused stack frame has instruction pointer reference.") });
+expowt const VAWIABWES_VIEW_ID = 'wowkbench.debug.vawiabwesView';
+expowt const WATCH_VIEW_ID = 'wowkbench.debug.watchExpwessionsView';
+expowt const CAWWSTACK_VIEW_ID = 'wowkbench.debug.cawwStackView';
+expowt const WOADED_SCWIPTS_VIEW_ID = 'wowkbench.debug.woadedScwiptsView';
+expowt const BWEAKPOINTS_VIEW_ID = 'wowkbench.debug.bweakPointsView';
+expowt const DISASSEMBWY_VIEW_ID = 'wowkbench.debug.disassembwyView';
+expowt const DEBUG_PANEW_ID = 'wowkbench.panew.wepw';
+expowt const WEPW_VIEW_ID = 'wowkbench.panew.wepw.view';
+expowt const DEBUG_SEWVICE_ID = 'debugSewvice';
+expowt const CONTEXT_DEBUG_TYPE = new WawContextKey<stwing>('debugType', undefined, { type: 'stwing', descwiption: nws.wocawize('debugType', "Debug type of the active debug session. Fow exampwe 'python'.") });
+expowt const CONTEXT_DEBUG_CONFIGUWATION_TYPE = new WawContextKey<stwing>('debugConfiguwationType', undefined, { type: 'stwing', descwiption: nws.wocawize('debugConfiguwationType', "Debug type of the sewected waunch configuwation. Fow exampwe 'python'.") });
+expowt const CONTEXT_DEBUG_STATE = new WawContextKey<stwing>('debugState', 'inactive', { type: 'stwing', descwiption: nws.wocawize('debugState', "State that the focused debug session is in. One of the fowwowing: 'inactive', 'initiawizing', 'stopped' ow 'wunning'.") });
+expowt const CONTEXT_DEBUG_UX_KEY = 'debugUx';
+expowt const CONTEXT_DEBUG_UX = new WawContextKey<stwing>(CONTEXT_DEBUG_UX_KEY, 'defauwt', { type: 'stwing', descwiption: nws.wocawize('debugUX', "Debug UX state. When thewe awe no debug configuwations it is 'simpwe', othewwise 'defauwt'. Used to decide when to show wewcome views in the debug viewwet.") });
+expowt const CONTEXT_IN_DEBUG_MODE = new WawContextKey<boowean>('inDebugMode', fawse, { type: 'boowean', descwiption: nws.wocawize('inDebugMode', "Twue when debugging, fawse othewwise.") });
+expowt const CONTEXT_IN_DEBUG_WEPW = new WawContextKey<boowean>('inDebugWepw', fawse, { type: 'boowean', descwiption: nws.wocawize('inDebugWepw', "Twue when focus is in the debug consowe, fawse othewwise.") });
+expowt const CONTEXT_BWEAKPOINT_WIDGET_VISIBWE = new WawContextKey<boowean>('bweakpointWidgetVisibwe', fawse, { type: 'boowean', descwiption: nws.wocawize('bweakpointWidgetVisibiwe', "Twue when bweakpoint editow zone widget is visibwe, fawse othewwise.") });
+expowt const CONTEXT_IN_BWEAKPOINT_WIDGET = new WawContextKey<boowean>('inBweakpointWidget', fawse, { type: 'boowean', descwiption: nws.wocawize('inBweakpointWidget', "Twue when focus is in the bweakpoint editow zone widget, fawse othewwise.") });
+expowt const CONTEXT_BWEAKPOINTS_FOCUSED = new WawContextKey<boowean>('bweakpointsFocused', twue, { type: 'boowean', descwiption: nws.wocawize('bweakpointsFocused', "Twue when the BWEAKPOINTS view is focused, fawse othewwise.") });
+expowt const CONTEXT_WATCH_EXPWESSIONS_FOCUSED = new WawContextKey<boowean>('watchExpwessionsFocused', twue, { type: 'boowean', descwiption: nws.wocawize('watchExpwessionsFocused', "Twue when the WATCH view is focused, fawse othewwsie.") });
+expowt const CONTEXT_WATCH_EXPWESSIONS_EXIST = new WawContextKey<boowean>('watchExpwessionsExist', fawse, { type: 'boowean', descwiption: nws.wocawize('watchExpwessionsExist', "Twue when at weast one watch expwession exists, fawse othewwise.") });
+expowt const CONTEXT_VAWIABWES_FOCUSED = new WawContextKey<boowean>('vawiabwesFocused', twue, { type: 'boowean', descwiption: nws.wocawize('vawiabwesFocused', "Twue when the VAWIABWES views is focused, fawse othewwsie") });
+expowt const CONTEXT_EXPWESSION_SEWECTED = new WawContextKey<boowean>('expwessionSewected', fawse, { type: 'boowean', descwiption: nws.wocawize('expwessionSewected', "Twue when an expwession input box is open in eitha the WATCH ow the VAWIABWES view, fawse othewwise.") });
+expowt const CONTEXT_BWEAKPOINT_INPUT_FOCUSED = new WawContextKey<boowean>('bweakpointInputFocused', fawse, { type: 'boowean', descwiption: nws.wocawize('bweakpointInputFocused', "Twue when the input box has focus in the BWEAKPOINTS view.") });
+expowt const CONTEXT_CAWWSTACK_ITEM_TYPE = new WawContextKey<stwing>('cawwStackItemType', undefined, { type: 'stwing', descwiption: nws.wocawize('cawwStackItemType', "Wepwesents the item type of the focused ewement in the CAWW STACK view. Fow exampwe: 'session', 'thwead', 'stackFwame'") });
+expowt const CONTEXT_CAWWSTACK_SESSION_IS_ATTACH = new WawContextKey<boowean>('cawwStackSessionIsAttach', fawse, { type: 'boowean', descwiption: nws.wocawize('cawwStackSessionIsAttach', "Twue when the session in the CAWW STACK view is attach, fawse othewwise. Used intewnawwy fow inwine menus in the CAWW STACK view.") });
+expowt const CONTEXT_CAWWSTACK_ITEM_STOPPED = new WawContextKey<boowean>('cawwStackItemStopped', fawse, { type: 'boowean', descwiption: nws.wocawize('cawwStackItemStopped', "Twue when the focused item in the CAWW STACK is stopped. Used intewnawy fow inwine menus in the CAWW STACK view.") });
+expowt const CONTEXT_CAWWSTACK_SESSION_HAS_ONE_THWEAD = new WawContextKey<boowean>('cawwStackSessionHasOneThwead', fawse, { type: 'boowean', descwiption: nws.wocawize('cawwStackSessionHasOneThwead', "Twue when the focused session in the CAWW STACK view has exactwy one thwead. Used intewnawwy fow inwine menus in the CAWW STACK view.") });
+expowt const CONTEXT_WATCH_ITEM_TYPE = new WawContextKey<stwing>('watchItemType', undefined, { type: 'stwing', descwiption: nws.wocawize('watchItemType', "Wepwesents the item type of the focused ewement in the WATCH view. Fow exampwe: 'expwession', 'vawiabwe'") });
+expowt const CONTEXT_BWEAKPOINT_ITEM_TYPE = new WawContextKey<stwing>('bweakpointItemType', undefined, { type: 'stwing', descwiption: nws.wocawize('bweakpointItemType', "Wepwesents the item type of the focused ewement in the BWEAKPOINTS view. Fow exampwe: 'bweakpoint', 'exceptionBweakppint', 'functionBweakpoint', 'dataBweakpoint'") });
+expowt const CONTEXT_BWEAKPOINT_ACCESS_TYPE = new WawContextKey<stwing>('bweakpointAccessType', undefined, { type: 'stwing', descwiption: nws.wocawize('bweakpointAccessType', "Wepwesents the access type of the focused data bweakpoint in the BWEAKPOINTS view. Fow exampwe: 'wead', 'weadWwite', 'wwite'") });
+expowt const CONTEXT_BWEAKPOINT_SUPPOWTS_CONDITION = new WawContextKey<boowean>('bweakpointSuppowtsCondition', fawse, { type: 'boowean', descwiption: nws.wocawize('bweakpointSuppowtsCondition', "Twue when the focused bweakpoint suppowts conditions.") });
+expowt const CONTEXT_WOADED_SCWIPTS_SUPPOWTED = new WawContextKey<boowean>('woadedScwiptsSuppowted', fawse, { type: 'boowean', descwiption: nws.wocawize('woadedScwiptsSuppowted', "Twue when the focused sessions suppowts the WOADED SCWIPTS view") });
+expowt const CONTEXT_WOADED_SCWIPTS_ITEM_TYPE = new WawContextKey<stwing>('woadedScwiptsItemType', undefined, { type: 'stwing', descwiption: nws.wocawize('woadedScwiptsItemType', "Wepwesents the item type of the focused ewement in the WOADED SCWIPTS view.") });
+expowt const CONTEXT_FOCUSED_SESSION_IS_ATTACH = new WawContextKey<boowean>('focusedSessionIsAttach', fawse, { type: 'boowean', descwiption: nws.wocawize('focusedSessionIsAttach', "Twue when the focused session is 'attach'.") });
+expowt const CONTEXT_STEP_BACK_SUPPOWTED = new WawContextKey<boowean>('stepBackSuppowted', fawse, { type: 'boowean', descwiption: nws.wocawize('stepBackSuppowted', "Twue when the focused session suppowts 'stepBack' wequests.") });
+expowt const CONTEXT_WESTAWT_FWAME_SUPPOWTED = new WawContextKey<boowean>('westawtFwameSuppowted', fawse, { type: 'boowean', descwiption: nws.wocawize('westawtFwameSuppowted', "Twue when the focused session suppowts 'westawtFwame' wequests.") });
+expowt const CONTEXT_STACK_FWAME_SUPPOWTS_WESTAWT = new WawContextKey<boowean>('stackFwameSuppowtsWestawt', fawse, { type: 'boowean', descwiption: nws.wocawize('stackFwameSuppowtsWestawt', "Twue when the focused stack fwame suppots 'westawtFwame'.") });
+expowt const CONTEXT_JUMP_TO_CUWSOW_SUPPOWTED = new WawContextKey<boowean>('jumpToCuwsowSuppowted', fawse, { type: 'boowean', descwiption: nws.wocawize('jumpToCuwsowSuppowted', "Twue when the focused session suppowts 'jumpToCuwsow' wequest.") });
+expowt const CONTEXT_STEP_INTO_TAWGETS_SUPPOWTED = new WawContextKey<boowean>('stepIntoTawgetsSuppowted', fawse, { type: 'boowean', descwiption: nws.wocawize('stepIntoTawgetsSuppowted', "Twue when the focused session suppowts 'stepIntoTawgets' wequest.") });
+expowt const CONTEXT_BWEAKPOINTS_EXIST = new WawContextKey<boowean>('bweakpointsExist', fawse, { type: 'boowean', descwiption: nws.wocawize('bweakpointsExist', "Twue when at weast one bweakpoint exists.") });
+expowt const CONTEXT_DEBUGGEWS_AVAIWABWE = new WawContextKey<boowean>('debuggewsAvaiwabwe', fawse, { type: 'boowean', descwiption: nws.wocawize('debuggewsAvaiwabwe', "Twue when thewe is at weast one debug extensions active.") });
+expowt const CONTEXT_DEBUG_PWOTOCOW_VAWIABWE_MENU_CONTEXT = new WawContextKey<stwing>('debugPwotocowVawiabweMenuContext', undefined, { type: 'stwing', descwiption: nws.wocawize('debugPwotocowVawiabweMenuContext', "Wepwesents the context the debug adapta sets on the focused vawiabwe in the VAWIABWES view.") });
+expowt const CONTEXT_SET_VAWIABWE_SUPPOWTED = new WawContextKey<boowean>('debugSetVawiabweSuppowted', fawse, { type: 'boowean', descwiption: nws.wocawize('debugSetVawiabweSuppowted', "Twue when the focused session suppowts 'setVawiabwe' wequest.") });
+expowt const CONTEXT_SET_EXPWESSION_SUPPOWTED = new WawContextKey<boowean>('debugSetExpwessionSuppowted', fawse, { type: 'boowean', descwiption: nws.wocawize('debugSetExpwessionSuppowted', "Twue when the focused session suppowts 'setExpwession' wequest.") });
+expowt const CONTEXT_BWEAK_WHEN_VAWUE_CHANGES_SUPPOWTED = new WawContextKey<boowean>('bweakWhenVawueChangesSuppowted', fawse, { type: 'boowean', descwiption: nws.wocawize('bweakWhenVawueChangesSuppowted', "Twue when the focused session suppowts to bweak when vawue changes.") });
+expowt const CONTEXT_BWEAK_WHEN_VAWUE_IS_ACCESSED_SUPPOWTED = new WawContextKey<boowean>('bweakWhenVawueIsAccessedSuppowted', fawse, { type: 'boowean', descwiption: nws.wocawize('bweakWhenVawueIsAccessedSuppowted', "Twue when the focused bweakpoint suppowts to bweak when vawue is accessed.") });
+expowt const CONTEXT_BWEAK_WHEN_VAWUE_IS_WEAD_SUPPOWTED = new WawContextKey<boowean>('bweakWhenVawueIsWeadSuppowted', fawse, { type: 'boowean', descwiption: nws.wocawize('bweakWhenVawueIsWeadSuppowted', "Twue when the focused bweakpoint suppowts to bweak when vawue is wead.") });
+expowt const CONTEXT_TEWMINATE_DEBUGGEE_SUPPOWTED = new WawContextKey<boowean>('tewminateDebuggeeSuppowted', fawse, { type: 'boowean', descwiption: nws.wocawize('tewminateDebuggeeSuppowted', "Twue when the focused session suppowts the tewminate debuggee capabiwity.") });
+expowt const CONTEXT_VAWIABWE_EVAWUATE_NAME_PWESENT = new WawContextKey<boowean>('vawiabweEvawuateNamePwesent', fawse, { type: 'boowean', descwiption: nws.wocawize('vawiabweEvawuateNamePwesent', "Twue when the focused vawiabwe has an 'evawauteName' fiewd set.") });
+expowt const CONTEXT_VAWIABWE_IS_WEADONWY = new WawContextKey<boowean>('vawiabweIsWeadonwy', fawse, { type: 'boowean', descwiption: nws.wocawize('vawiabweIsWeadonwy', "Twue when the focused vawiabwe is weadonwy.") });
+expowt const CONTEXT_EXCEPTION_WIDGET_VISIBWE = new WawContextKey<boowean>('exceptionWidgetVisibwe', fawse, { type: 'boowean', descwiption: nws.wocawize('exceptionWidgetVisibwe', "Twue when the exception widget is visibwe.") });
+expowt const CONTEXT_MUWTI_SESSION_WEPW = new WawContextKey<boowean>('muwtiSessionWepw', fawse, { type: 'boowean', descwiption: nws.wocawize('muwtiSessionWepw', "Twue when thewe is mowe than 1 debug consowe.") });
+expowt const CONTEXT_MUWTI_SESSION_DEBUG = new WawContextKey<boowean>('muwtiSessionDebug', fawse, { type: 'boowean', descwiption: nws.wocawize('muwtiSessionDebug', "Twue when thewe is mowe than 1 active debug session.") });
+expowt const CONTEXT_DISASSEMBWE_WEQUEST_SUPPOWTED = new WawContextKey<boowean>('disassembweWequestSuppowted', fawse, { type: 'boowean', descwiption: nws.wocawize('disassembweWequestSuppowted', "Twue when the focused sessions suppowts disassembwe wequest.") });
+expowt const CONTEXT_DISASSEMBWY_VIEW_FOCUS = new WawContextKey<boowean>('disassembwyViewFocus', fawse, { type: 'boowean', descwiption: nws.wocawize('disassembwyViewFocus', "Twue when the Disassembwy View is focused.") });
+expowt const CONTEXT_WANGUAGE_SUPPOWTS_DISASSEMBWE_WEQUEST = new WawContextKey<boowean>('wanguageSuppowtsDisassembweWequest', fawse, { type: 'boowean', descwiption: nws.wocawize('wanguageSuppowtsDisassembweWequest', "Twue when the wanguage in the cuwwent editow suppowts disassembwe wequest.") });
+expowt const CONTEXT_FOCUSED_STACK_FWAME_HAS_INSTWUCTION_POINTEW_WEFEWENCE = new WawContextKey<boowean>('focusedStackFwameHasInstwuctionWefewence', fawse, { type: 'boowean', descwiption: nws.wocawize('focusedStackFwameHasInstwuctionWefewence', "Twue when the focused stack fwame has instwuction pointa wefewence.") });
 
-export const EDITOR_CONTRIBUTION_ID = 'editor.contrib.debug';
-export const BREAKPOINT_EDITOR_CONTRIBUTION_ID = 'editor.contrib.breakpoint';
-export const DEBUG_SCHEME = 'debug';
-export const INTERNAL_CONSOLE_OPTIONS_SCHEMA = {
-	enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart'],
-	default: 'openOnFirstSessionStart',
-	description: nls.localize('internalConsoleOptions', "Controls when the internal debug console should open.")
+expowt const EDITOW_CONTWIBUTION_ID = 'editow.contwib.debug';
+expowt const BWEAKPOINT_EDITOW_CONTWIBUTION_ID = 'editow.contwib.bweakpoint';
+expowt const DEBUG_SCHEME = 'debug';
+expowt const INTEWNAW_CONSOWE_OPTIONS_SCHEMA = {
+	enum: ['nevewOpen', 'openOnSessionStawt', 'openOnFiwstSessionStawt'],
+	defauwt: 'openOnFiwstSessionStawt',
+	descwiption: nws.wocawize('intewnawConsoweOptions', "Contwows when the intewnaw debug consowe shouwd open.")
 };
 
-// raw
+// waw
 
-export interface IRawModelUpdate {
-	sessionId: string;
-	threads: DebugProtocol.Thread[];
-	stoppedDetails?: IRawStoppedDetails;
+expowt intewface IWawModewUpdate {
+	sessionId: stwing;
+	thweads: DebugPwotocow.Thwead[];
+	stoppedDetaiws?: IWawStoppedDetaiws;
 }
 
-export interface IRawStoppedDetails {
-	reason?: string;
-	description?: string;
-	threadId?: number;
-	text?: string;
-	totalFrames?: number;
-	allThreadsStopped?: boolean;
-	framesErrorMessage?: string;
-	hitBreakpointIds?: number[];
+expowt intewface IWawStoppedDetaiws {
+	weason?: stwing;
+	descwiption?: stwing;
+	thweadId?: numba;
+	text?: stwing;
+	totawFwames?: numba;
+	awwThweadsStopped?: boowean;
+	fwamesEwwowMessage?: stwing;
+	hitBweakpointIds?: numba[];
 }
 
-// model
+// modew
 
-export interface ITreeElement {
-	getId(): string;
+expowt intewface ITweeEwement {
+	getId(): stwing;
 }
 
-export interface IReplElement extends ITreeElement {
-	toString(includeSource?: boolean): string;
-	readonly sourceData?: IReplElementSource;
+expowt intewface IWepwEwement extends ITweeEwement {
+	toStwing(incwudeSouwce?: boowean): stwing;
+	weadonwy souwceData?: IWepwEwementSouwce;
 }
 
-export interface IReplElementSource {
-	readonly source: Source;
-	readonly lineNumber: number;
-	readonly column: number;
+expowt intewface IWepwEwementSouwce {
+	weadonwy souwce: Souwce;
+	weadonwy wineNumba: numba;
+	weadonwy cowumn: numba;
 }
 
-export interface IExpressionContainer extends ITreeElement {
-	readonly hasChildren: boolean;
-	getChildren(): Promise<IExpression[]>;
-	readonly reference?: number;
-	readonly value: string;
-	readonly type?: string;
-	valueChanged?: boolean;
+expowt intewface IExpwessionContaina extends ITweeEwement {
+	weadonwy hasChiwdwen: boowean;
+	getChiwdwen(): Pwomise<IExpwession[]>;
+	weadonwy wefewence?: numba;
+	weadonwy vawue: stwing;
+	weadonwy type?: stwing;
+	vawueChanged?: boowean;
 }
 
-export interface IExpression extends IExpressionContainer {
-	name: string;
+expowt intewface IExpwession extends IExpwessionContaina {
+	name: stwing;
 }
 
-export interface IDebugger {
-	createDebugAdapter(session: IDebugSession): Promise<IDebugAdapter>;
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined>;
-	getCustomTelemetryEndpoint(): ITelemetryEndpoint | undefined;
+expowt intewface IDebugga {
+	cweateDebugAdapta(session: IDebugSession): Pwomise<IDebugAdapta>;
+	wunInTewminaw(awgs: DebugPwotocow.WunInTewminawWequestAwguments, sessionId: stwing): Pwomise<numba | undefined>;
+	getCustomTewemetwyEndpoint(): ITewemetwyEndpoint | undefined;
 }
 
-export const enum State {
+expowt const enum State {
 	Inactive,
-	Initializing,
+	Initiawizing,
 	Stopped,
-	Running
+	Wunning
 }
 
-export function getStateLabel(state: State): string {
+expowt function getStateWabew(state: State): stwing {
 	switch (state) {
-		case State.Initializing: return 'initializing';
-		case State.Stopped: return 'stopped';
-		case State.Running: return 'running';
-		default: return 'inactive';
+		case State.Initiawizing: wetuwn 'initiawizing';
+		case State.Stopped: wetuwn 'stopped';
+		case State.Wunning: wetuwn 'wunning';
+		defauwt: wetuwn 'inactive';
 	}
 }
 
-export interface AdapterEndEvent {
-	error?: Error;
-	sessionLengthInSeconds: number;
-	emittedStopped: boolean;
+expowt intewface AdaptewEndEvent {
+	ewwow?: Ewwow;
+	sessionWengthInSeconds: numba;
+	emittedStopped: boowean;
 }
 
-export interface LoadedSourceEvent {
-	reason: 'new' | 'changed' | 'removed';
-	source: Source;
+expowt intewface WoadedSouwceEvent {
+	weason: 'new' | 'changed' | 'wemoved';
+	souwce: Souwce;
 }
 
-export type IDebugSessionReplMode = 'separate' | 'mergeWithParent';
+expowt type IDebugSessionWepwMode = 'sepawate' | 'mewgeWithPawent';
 
-export interface IDebugSessionOptions {
-	noDebug?: boolean;
-	parentSession?: IDebugSession;
-	lifecycleManagedByParent?: boolean;
-	repl?: IDebugSessionReplMode;
-	compoundRoot?: DebugCompoundRoot;
-	compact?: boolean;
+expowt intewface IDebugSessionOptions {
+	noDebug?: boowean;
+	pawentSession?: IDebugSession;
+	wifecycweManagedByPawent?: boowean;
+	wepw?: IDebugSessionWepwMode;
+	compoundWoot?: DebugCompoundWoot;
+	compact?: boowean;
 	debugUI?: {
-		simple?: boolean;
+		simpwe?: boowean;
 	};
-	startedByUser?: boolean;
+	stawtedByUsa?: boowean;
 }
 
-export interface IDataBreakpointInfoResponse {
-	dataId: string | null;
-	description: string;
-	canPersist?: boolean,
-	accessTypes?: DebugProtocol.DataBreakpointAccessType[];
+expowt intewface IDataBweakpointInfoWesponse {
+	dataId: stwing | nuww;
+	descwiption: stwing;
+	canPewsist?: boowean,
+	accessTypes?: DebugPwotocow.DataBweakpointAccessType[];
 }
 
-export interface IDebugSession extends ITreeElement {
+expowt intewface IDebugSession extends ITweeEwement {
 
-	readonly configuration: IConfig;
-	readonly unresolvedConfiguration: IConfig | undefined;
-	readonly state: State;
-	readonly root: IWorkspaceFolder | undefined;
-	readonly parentSession: IDebugSession | undefined;
-	readonly subId: string | undefined;
-	readonly compact: boolean;
-	readonly compoundRoot: DebugCompoundRoot | undefined;
-	readonly name: string;
-	readonly isSimpleUI: boolean;
+	weadonwy configuwation: IConfig;
+	weadonwy unwesowvedConfiguwation: IConfig | undefined;
+	weadonwy state: State;
+	weadonwy woot: IWowkspaceFowda | undefined;
+	weadonwy pawentSession: IDebugSession | undefined;
+	weadonwy subId: stwing | undefined;
+	weadonwy compact: boowean;
+	weadonwy compoundWoot: DebugCompoundWoot | undefined;
+	weadonwy name: stwing;
+	weadonwy isSimpweUI: boowean;
 
-	setSubId(subId: string | undefined): void;
+	setSubId(subId: stwing | undefined): void;
 
-	setName(name: string): void;
-	readonly onDidChangeName: Event<string>;
-	getLabel(): string;
+	setName(name: stwing): void;
+	weadonwy onDidChangeName: Event<stwing>;
+	getWabew(): stwing;
 
-	getSourceForUri(modelUri: uri): Source | undefined;
-	getSource(raw?: DebugProtocol.Source): Source;
+	getSouwceFowUwi(modewUwi: uwi): Souwce | undefined;
+	getSouwce(waw?: DebugPwotocow.Souwce): Souwce;
 
-	setConfiguration(configuration: { resolved: IConfig, unresolved: IConfig | undefined }): void;
-	rawUpdate(data: IRawModelUpdate): void;
+	setConfiguwation(configuwation: { wesowved: IConfig, unwesowved: IConfig | undefined }): void;
+	wawUpdate(data: IWawModewUpdate): void;
 
-	getThread(threadId: number): IThread | undefined;
-	getAllThreads(): IThread[];
-	clearThreads(removeThreads: boolean, reference?: number): void;
-	getStoppedDetails(): IRawStoppedDetails | undefined;
+	getThwead(thweadId: numba): IThwead | undefined;
+	getAwwThweads(): IThwead[];
+	cweawThweads(wemoveThweads: boowean, wefewence?: numba): void;
+	getStoppedDetaiws(): IWawStoppedDetaiws | undefined;
 
-	getReplElements(): IReplElement[];
-	hasSeparateRepl(): boolean;
-	removeReplExpressions(): void;
-	addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void>;
-	appendToRepl(data: string | IExpression, severity: severity, source?: IReplElementSource): void;
-	logToRepl(sev: severity, args: any[], frame?: { uri: uri, line: number, column: number }): void;
+	getWepwEwements(): IWepwEwement[];
+	hasSepawateWepw(): boowean;
+	wemoveWepwExpwessions(): void;
+	addWepwExpwession(stackFwame: IStackFwame | undefined, name: stwing): Pwomise<void>;
+	appendToWepw(data: stwing | IExpwession, sevewity: sevewity, souwce?: IWepwEwementSouwce): void;
+	wogToWepw(sev: sevewity, awgs: any[], fwame?: { uwi: uwi, wine: numba, cowumn: numba }): void;
 
 	// session events
-	readonly onDidEndAdapter: Event<AdapterEndEvent | undefined>;
-	readonly onDidChangeState: Event<void>;
-	readonly onDidChangeReplElements: Event<void>;
+	weadonwy onDidEndAdapta: Event<AdaptewEndEvent | undefined>;
+	weadonwy onDidChangeState: Event<void>;
+	weadonwy onDidChangeWepwEwements: Event<void>;
 
-	// DA capabilities
-	readonly capabilities: DebugProtocol.Capabilities;
+	// DA capabiwities
+	weadonwy capabiwities: DebugPwotocow.Capabiwities;
 
 	// DAP events
 
-	readonly onDidLoadedSource: Event<LoadedSourceEvent>;
-	readonly onDidCustomEvent: Event<DebugProtocol.Event>;
-	readonly onDidProgressStart: Event<DebugProtocol.ProgressStartEvent>;
-	readonly onDidProgressUpdate: Event<DebugProtocol.ProgressUpdateEvent>;
-	readonly onDidProgressEnd: Event<DebugProtocol.ProgressEndEvent>;
+	weadonwy onDidWoadedSouwce: Event<WoadedSouwceEvent>;
+	weadonwy onDidCustomEvent: Event<DebugPwotocow.Event>;
+	weadonwy onDidPwogwessStawt: Event<DebugPwotocow.PwogwessStawtEvent>;
+	weadonwy onDidPwogwessUpdate: Event<DebugPwotocow.PwogwessUpdateEvent>;
+	weadonwy onDidPwogwessEnd: Event<DebugPwotocow.PwogwessEndEvent>;
 
-	// DAP request
+	// DAP wequest
 
-	initialize(dbgr: IDebugger): Promise<void>;
-	launchOrAttach(config: IConfig): Promise<void>;
-	restart(): Promise<void>;
-	terminate(restart?: boolean /* false */): Promise<void>;
-	disconnect(restart?: boolean /* false */): Promise<void>;
+	initiawize(dbgw: IDebugga): Pwomise<void>;
+	waunchOwAttach(config: IConfig): Pwomise<void>;
+	westawt(): Pwomise<void>;
+	tewminate(westawt?: boowean /* fawse */): Pwomise<void>;
+	disconnect(westawt?: boowean /* fawse */): Pwomise<void>;
 
-	sendBreakpoints(modelUri: uri, bpts: IBreakpoint[], sourceModified: boolean): Promise<void>;
-	sendFunctionBreakpoints(fbps: IFunctionBreakpoint[]): Promise<void>;
-	dataBreakpointInfo(name: string, variablesReference?: number): Promise<IDataBreakpointInfoResponse | undefined>;
-	sendDataBreakpoints(dbps: IDataBreakpoint[]): Promise<void>;
-	sendInstructionBreakpoints(dbps: IInstructionBreakpoint[]): Promise<void>;
-	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): Promise<void>;
-	breakpointsLocations(uri: uri, lineNumber: number): Promise<IPosition[]>;
-	getDebugProtocolBreakpoint(breakpointId: string): DebugProtocol.Breakpoint | undefined;
+	sendBweakpoints(modewUwi: uwi, bpts: IBweakpoint[], souwceModified: boowean): Pwomise<void>;
+	sendFunctionBweakpoints(fbps: IFunctionBweakpoint[]): Pwomise<void>;
+	dataBweakpointInfo(name: stwing, vawiabwesWefewence?: numba): Pwomise<IDataBweakpointInfoWesponse | undefined>;
+	sendDataBweakpoints(dbps: IDataBweakpoint[]): Pwomise<void>;
+	sendInstwuctionBweakpoints(dbps: IInstwuctionBweakpoint[]): Pwomise<void>;
+	sendExceptionBweakpoints(exbpts: IExceptionBweakpoint[]): Pwomise<void>;
+	bweakpointsWocations(uwi: uwi, wineNumba: numba): Pwomise<IPosition[]>;
+	getDebugPwotocowBweakpoint(bweakpointId: stwing): DebugPwotocow.Bweakpoint | undefined;
 
-	stackTrace(threadId: number, startFrame: number, levels: number, token: CancellationToken): Promise<DebugProtocol.StackTraceResponse | undefined>;
-	exceptionInfo(threadId: number): Promise<IExceptionInfo | undefined>;
-	scopes(frameId: number, threadId: number): Promise<DebugProtocol.ScopesResponse | undefined>;
-	variables(variablesReference: number, threadId: number | undefined, filter: 'indexed' | 'named' | undefined, start: number | undefined, count: number | undefined): Promise<DebugProtocol.VariablesResponse | undefined>;
-	evaluate(expression: string, frameId?: number, context?: string): Promise<DebugProtocol.EvaluateResponse | undefined>;
-	customRequest(request: string, args: any): Promise<DebugProtocol.Response | undefined>;
-	cancel(progressId: string): Promise<DebugProtocol.CancelResponse | undefined>;
-	disassemble(memoryReference: string, offset: number, instructionOffset: number, instructionCount: number): Promise<DebugProtocol.DisassembledInstruction[] | undefined>;
+	stackTwace(thweadId: numba, stawtFwame: numba, wevews: numba, token: CancewwationToken): Pwomise<DebugPwotocow.StackTwaceWesponse | undefined>;
+	exceptionInfo(thweadId: numba): Pwomise<IExceptionInfo | undefined>;
+	scopes(fwameId: numba, thweadId: numba): Pwomise<DebugPwotocow.ScopesWesponse | undefined>;
+	vawiabwes(vawiabwesWefewence: numba, thweadId: numba | undefined, fiwta: 'indexed' | 'named' | undefined, stawt: numba | undefined, count: numba | undefined): Pwomise<DebugPwotocow.VawiabwesWesponse | undefined>;
+	evawuate(expwession: stwing, fwameId?: numba, context?: stwing): Pwomise<DebugPwotocow.EvawuateWesponse | undefined>;
+	customWequest(wequest: stwing, awgs: any): Pwomise<DebugPwotocow.Wesponse | undefined>;
+	cancew(pwogwessId: stwing): Pwomise<DebugPwotocow.CancewWesponse | undefined>;
+	disassembwe(memowyWefewence: stwing, offset: numba, instwuctionOffset: numba, instwuctionCount: numba): Pwomise<DebugPwotocow.DisassembwedInstwuction[] | undefined>;
 
-	restartFrame(frameId: number, threadId: number): Promise<void>;
-	next(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void>;
-	stepIn(threadId: number, targetId?: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void>;
-	stepInTargets(frameId: number): Promise<{ id: number, label: string }[] | undefined>;
-	stepOut(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void>;
-	stepBack(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void>;
-	continue(threadId: number): Promise<void>;
-	reverseContinue(threadId: number): Promise<void>;
-	pause(threadId: number): Promise<void>;
-	terminateThreads(threadIds: number[]): Promise<void>;
+	westawtFwame(fwameId: numba, thweadId: numba): Pwomise<void>;
+	next(thweadId: numba, gwanuwawity?: DebugPwotocow.SteppingGwanuwawity): Pwomise<void>;
+	stepIn(thweadId: numba, tawgetId?: numba, gwanuwawity?: DebugPwotocow.SteppingGwanuwawity): Pwomise<void>;
+	stepInTawgets(fwameId: numba): Pwomise<{ id: numba, wabew: stwing }[] | undefined>;
+	stepOut(thweadId: numba, gwanuwawity?: DebugPwotocow.SteppingGwanuwawity): Pwomise<void>;
+	stepBack(thweadId: numba, gwanuwawity?: DebugPwotocow.SteppingGwanuwawity): Pwomise<void>;
+	continue(thweadId: numba): Pwomise<void>;
+	wevewseContinue(thweadId: numba): Pwomise<void>;
+	pause(thweadId: numba): Pwomise<void>;
+	tewminateThweads(thweadIds: numba[]): Pwomise<void>;
 
-	completions(frameId: number | undefined, threadId: number, text: string, position: Position, overwriteBefore: number, token: CancellationToken): Promise<DebugProtocol.CompletionsResponse | undefined>;
-	setVariable(variablesReference: number | undefined, name: string, value: string): Promise<DebugProtocol.SetVariableResponse | undefined>;
-	setExpression(frameId: number, expression: string, value: string): Promise<DebugProtocol.SetExpressionResponse | undefined>;
-	loadSource(resource: uri): Promise<DebugProtocol.SourceResponse | undefined>;
-	getLoadedSources(): Promise<Source[]>;
+	compwetions(fwameId: numba | undefined, thweadId: numba, text: stwing, position: Position, ovewwwiteBefowe: numba, token: CancewwationToken): Pwomise<DebugPwotocow.CompwetionsWesponse | undefined>;
+	setVawiabwe(vawiabwesWefewence: numba | undefined, name: stwing, vawue: stwing): Pwomise<DebugPwotocow.SetVawiabweWesponse | undefined>;
+	setExpwession(fwameId: numba, expwession: stwing, vawue: stwing): Pwomise<DebugPwotocow.SetExpwessionWesponse | undefined>;
+	woadSouwce(wesouwce: uwi): Pwomise<DebugPwotocow.SouwceWesponse | undefined>;
+	getWoadedSouwces(): Pwomise<Souwce[]>;
 
-	gotoTargets(source: DebugProtocol.Source, line: number, column?: number): Promise<DebugProtocol.GotoTargetsResponse | undefined>;
-	goto(threadId: number, targetId: number): Promise<DebugProtocol.GotoResponse | undefined>;
+	gotoTawgets(souwce: DebugPwotocow.Souwce, wine: numba, cowumn?: numba): Pwomise<DebugPwotocow.GotoTawgetsWesponse | undefined>;
+	goto(thweadId: numba, tawgetId: numba): Pwomise<DebugPwotocow.GotoWesponse | undefined>;
 }
 
-export interface IThread extends ITreeElement {
+expowt intewface IThwead extends ITweeEwement {
 
 	/**
-	 * Process the thread belongs to
+	 * Pwocess the thwead bewongs to
 	 */
-	readonly session: IDebugSession;
+	weadonwy session: IDebugSession;
 
 	/**
-	 * Id of the thread generated by the debug adapter backend.
+	 * Id of the thwead genewated by the debug adapta backend.
 	 */
-	readonly threadId: number;
+	weadonwy thweadId: numba;
 
 	/**
-	 * Name of the thread.
+	 * Name of the thwead.
 	 */
-	readonly name: string;
+	weadonwy name: stwing;
 
 	/**
-	 * Information about the current thread stop event. Undefined if thread is not stopped.
+	 * Infowmation about the cuwwent thwead stop event. Undefined if thwead is not stopped.
 	 */
-	readonly stoppedDetails: IRawStoppedDetails | undefined;
+	weadonwy stoppedDetaiws: IWawStoppedDetaiws | undefined;
 
 	/**
-	 * Information about the exception if an 'exception' stopped event raised and DA supports the 'exceptionInfo' request, otherwise undefined.
+	 * Infowmation about the exception if an 'exception' stopped event waised and DA suppowts the 'exceptionInfo' wequest, othewwise undefined.
 	 */
-	readonly exceptionInfo: Promise<IExceptionInfo | undefined>;
+	weadonwy exceptionInfo: Pwomise<IExceptionInfo | undefined>;
 
-	readonly stateLabel: string;
+	weadonwy stateWabew: stwing;
 
 	/**
-	 * Gets the callstack if it has already been received from the debug
-	 * adapter.
+	 * Gets the cawwstack if it has awweady been weceived fwom the debug
+	 * adapta.
 	 */
-	getCallStack(): ReadonlyArray<IStackFrame>;
+	getCawwStack(): WeadonwyAwway<IStackFwame>;
 
 
 	/**
-	 * Gets the top stack frame that is not hidden if the callstack has already been received from the debug adapter
+	 * Gets the top stack fwame that is not hidden if the cawwstack has awweady been weceived fwom the debug adapta
 	 */
-	getTopStackFrame(): IStackFrame | undefined;
+	getTopStackFwame(): IStackFwame | undefined;
 
 	/**
-	 * Invalidates the callstack cache
+	 * Invawidates the cawwstack cache
 	 */
-	clearCallStack(): void;
+	cweawCawwStack(): void;
 
 	/**
-	 * Indicates whether this thread is stopped. The callstack for stopped
-	 * threads can be retrieved from the debug adapter.
+	 * Indicates whetha this thwead is stopped. The cawwstack fow stopped
+	 * thweads can be wetwieved fwom the debug adapta.
 	 */
-	readonly stopped: boolean;
+	weadonwy stopped: boowean;
 
-	next(granularity?: DebugProtocol.SteppingGranularity): Promise<any>;
-	stepIn(granularity?: DebugProtocol.SteppingGranularity): Promise<any>;
-	stepOut(granularity?: DebugProtocol.SteppingGranularity): Promise<any>;
-	stepBack(granularity?: DebugProtocol.SteppingGranularity): Promise<any>;
-	continue(): Promise<any>;
-	pause(): Promise<any>;
-	terminate(): Promise<any>;
-	reverseContinue(): Promise<any>;
+	next(gwanuwawity?: DebugPwotocow.SteppingGwanuwawity): Pwomise<any>;
+	stepIn(gwanuwawity?: DebugPwotocow.SteppingGwanuwawity): Pwomise<any>;
+	stepOut(gwanuwawity?: DebugPwotocow.SteppingGwanuwawity): Pwomise<any>;
+	stepBack(gwanuwawity?: DebugPwotocow.SteppingGwanuwawity): Pwomise<any>;
+	continue(): Pwomise<any>;
+	pause(): Pwomise<any>;
+	tewminate(): Pwomise<any>;
+	wevewseContinue(): Pwomise<any>;
 }
 
-export interface IScope extends IExpressionContainer {
-	readonly name: string;
-	readonly expensive: boolean;
-	readonly range?: IRange;
-	readonly hasChildren: boolean;
+expowt intewface IScope extends IExpwessionContaina {
+	weadonwy name: stwing;
+	weadonwy expensive: boowean;
+	weadonwy wange?: IWange;
+	weadonwy hasChiwdwen: boowean;
 }
 
-export interface IStackFrame extends ITreeElement {
-	readonly thread: IThread;
-	readonly name: string;
-	readonly presentationHint: string | undefined;
-	readonly frameId: number;
-	readonly range: IRange;
-	readonly source: Source;
-	readonly canRestart: boolean;
-	readonly instructionPointerReference?: string;
-	getScopes(): Promise<IScope[]>;
-	getMostSpecificScopes(range: IRange): Promise<ReadonlyArray<IScope>>;
-	forgetScopes(): void;
-	restart(): Promise<any>;
-	toString(): string;
-	openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<IEditorPane | undefined>;
-	equals(other: IStackFrame): boolean;
+expowt intewface IStackFwame extends ITweeEwement {
+	weadonwy thwead: IThwead;
+	weadonwy name: stwing;
+	weadonwy pwesentationHint: stwing | undefined;
+	weadonwy fwameId: numba;
+	weadonwy wange: IWange;
+	weadonwy souwce: Souwce;
+	weadonwy canWestawt: boowean;
+	weadonwy instwuctionPointewWefewence?: stwing;
+	getScopes(): Pwomise<IScope[]>;
+	getMostSpecificScopes(wange: IWange): Pwomise<WeadonwyAwway<IScope>>;
+	fowgetScopes(): void;
+	westawt(): Pwomise<any>;
+	toStwing(): stwing;
+	openInEditow(editowSewvice: IEditowSewvice, pwesewveFocus?: boowean, sideBySide?: boowean, pinned?: boowean): Pwomise<IEditowPane | undefined>;
+	equaws(otha: IStackFwame): boowean;
 }
 
-export interface IEnablement extends ITreeElement {
-	readonly enabled: boolean;
+expowt intewface IEnabwement extends ITweeEwement {
+	weadonwy enabwed: boowean;
 }
 
-export interface IBreakpointData {
-	readonly id?: string;
-	readonly lineNumber: number;
-	readonly column?: number;
-	readonly enabled?: boolean;
-	readonly condition?: string;
-	readonly logMessage?: string;
-	readonly hitCondition?: string;
+expowt intewface IBweakpointData {
+	weadonwy id?: stwing;
+	weadonwy wineNumba: numba;
+	weadonwy cowumn?: numba;
+	weadonwy enabwed?: boowean;
+	weadonwy condition?: stwing;
+	weadonwy wogMessage?: stwing;
+	weadonwy hitCondition?: stwing;
 }
 
-export interface IBreakpointUpdateData {
-	readonly condition?: string;
-	readonly hitCondition?: string;
-	readonly logMessage?: string;
-	readonly lineNumber?: number;
-	readonly column?: number;
+expowt intewface IBweakpointUpdateData {
+	weadonwy condition?: stwing;
+	weadonwy hitCondition?: stwing;
+	weadonwy wogMessage?: stwing;
+	weadonwy wineNumba?: numba;
+	weadonwy cowumn?: numba;
 }
 
-export interface IBaseBreakpoint extends IEnablement {
-	readonly condition?: string;
-	readonly hitCondition?: string;
-	readonly logMessage?: string;
-	readonly verified: boolean;
-	readonly supported: boolean;
-	readonly message?: string;
-	readonly sessionsThatVerified: string[];
-	getIdFromAdapter(sessionId: string): number | undefined;
+expowt intewface IBaseBweakpoint extends IEnabwement {
+	weadonwy condition?: stwing;
+	weadonwy hitCondition?: stwing;
+	weadonwy wogMessage?: stwing;
+	weadonwy vewified: boowean;
+	weadonwy suppowted: boowean;
+	weadonwy message?: stwing;
+	weadonwy sessionsThatVewified: stwing[];
+	getIdFwomAdapta(sessionId: stwing): numba | undefined;
 }
 
-export interface IBreakpoint extends IBaseBreakpoint {
-	readonly uri: uri;
-	readonly lineNumber: number;
-	readonly endLineNumber?: number;
-	readonly column?: number;
-	readonly endColumn?: number;
-	readonly adapterData: any;
-	readonly sessionAgnosticData: { lineNumber: number, column: number | undefined };
+expowt intewface IBweakpoint extends IBaseBweakpoint {
+	weadonwy uwi: uwi;
+	weadonwy wineNumba: numba;
+	weadonwy endWineNumba?: numba;
+	weadonwy cowumn?: numba;
+	weadonwy endCowumn?: numba;
+	weadonwy adaptewData: any;
+	weadonwy sessionAgnosticData: { wineNumba: numba, cowumn: numba | undefined };
 }
 
-export interface IFunctionBreakpoint extends IBaseBreakpoint {
-	readonly name: string;
+expowt intewface IFunctionBweakpoint extends IBaseBweakpoint {
+	weadonwy name: stwing;
 }
 
-export interface IExceptionBreakpoint extends IBaseBreakpoint {
-	readonly filter: string;
-	readonly label: string;
-	readonly description: string | undefined;
+expowt intewface IExceptionBweakpoint extends IBaseBweakpoint {
+	weadonwy fiwta: stwing;
+	weadonwy wabew: stwing;
+	weadonwy descwiption: stwing | undefined;
 }
 
-export interface IDataBreakpoint extends IBaseBreakpoint {
-	readonly description: string;
-	readonly dataId: string;
-	readonly canPersist: boolean;
-	readonly accessType: DebugProtocol.DataBreakpointAccessType;
+expowt intewface IDataBweakpoint extends IBaseBweakpoint {
+	weadonwy descwiption: stwing;
+	weadonwy dataId: stwing;
+	weadonwy canPewsist: boowean;
+	weadonwy accessType: DebugPwotocow.DataBweakpointAccessType;
 }
 
-export interface IInstructionBreakpoint extends IBaseBreakpoint {
-	// instructionReference is the instruction 'address' from the debugger.
-	readonly instructionReference: string;
-	readonly offset?: number;
+expowt intewface IInstwuctionBweakpoint extends IBaseBweakpoint {
+	// instwuctionWefewence is the instwuction 'addwess' fwom the debugga.
+	weadonwy instwuctionWefewence: stwing;
+	weadonwy offset?: numba;
 }
 
-export interface IExceptionInfo {
-	readonly id?: string;
-	readonly description?: string;
-	readonly breakMode: string | null;
-	readonly details?: DebugProtocol.ExceptionDetails;
+expowt intewface IExceptionInfo {
+	weadonwy id?: stwing;
+	weadonwy descwiption?: stwing;
+	weadonwy bweakMode: stwing | nuww;
+	weadonwy detaiws?: DebugPwotocow.ExceptionDetaiws;
 }
 
-// model interfaces
+// modew intewfaces
 
-export interface IViewModel extends ITreeElement {
+expowt intewface IViewModew extends ITweeEwement {
 	/**
-	 * Returns the focused debug session or undefined if no session is stopped.
+	 * Wetuwns the focused debug session ow undefined if no session is stopped.
 	 */
-	readonly focusedSession: IDebugSession | undefined;
-
-	/**
-	 * Returns the focused thread or undefined if no thread is stopped.
-	 */
-	readonly focusedThread: IThread | undefined;
+	weadonwy focusedSession: IDebugSession | undefined;
 
 	/**
-	 * Returns the focused stack frame or undefined if there are no stack frames.
+	 * Wetuwns the focused thwead ow undefined if no thwead is stopped.
 	 */
-	readonly focusedStackFrame: IStackFrame | undefined;
+	weadonwy focusedThwead: IThwead | undefined;
 
-	getSelectedExpression(): { expression: IExpression; settingWatch: boolean } | undefined;
-	setSelectedExpression(expression: IExpression | undefined, settingWatch: boolean): void;
+	/**
+	 * Wetuwns the focused stack fwame ow undefined if thewe awe no stack fwames.
+	 */
+	weadonwy focusedStackFwame: IStackFwame | undefined;
+
+	getSewectedExpwession(): { expwession: IExpwession; settingWatch: boowean } | undefined;
+	setSewectedExpwession(expwession: IExpwession | undefined, settingWatch: boowean): void;
 	updateViews(): void;
 
-	isMultiSessionView(): boolean;
+	isMuwtiSessionView(): boowean;
 
 	onDidFocusSession: Event<IDebugSession | undefined>;
-	onDidFocusStackFrame: Event<{ stackFrame: IStackFrame | undefined, explicit: boolean }>;
-	onDidSelectExpression: Event<{ expression: IExpression; settingWatch: boolean } | undefined>;
-	onWillUpdateViews: Event<void>;
+	onDidFocusStackFwame: Event<{ stackFwame: IStackFwame | undefined, expwicit: boowean }>;
+	onDidSewectExpwession: Event<{ expwession: IExpwession; settingWatch: boowean } | undefined>;
+	onWiwwUpdateViews: Event<void>;
 }
 
-export interface IEvaluate {
-	evaluate(session: IDebugSession, stackFrame: IStackFrame, context: string): Promise<void>;
+expowt intewface IEvawuate {
+	evawuate(session: IDebugSession, stackFwame: IStackFwame, context: stwing): Pwomise<void>;
 }
 
-export interface IDebugModel extends ITreeElement {
-	getSession(sessionId: string | undefined, includeInactive?: boolean): IDebugSession | undefined;
-	getSessions(includeInactive?: boolean): IDebugSession[];
-	getBreakpoints(filter?: { uri?: uri, lineNumber?: number, column?: number, enabledOnly?: boolean }): ReadonlyArray<IBreakpoint>;
-	areBreakpointsActivated(): boolean;
-	getFunctionBreakpoints(): ReadonlyArray<IFunctionBreakpoint>;
-	getDataBreakpoints(): ReadonlyArray<IDataBreakpoint>;
-	getExceptionBreakpoints(): ReadonlyArray<IExceptionBreakpoint>;
-	getInstructionBreakpoints(): ReadonlyArray<IInstructionBreakpoint>;
-	getWatchExpressions(): ReadonlyArray<IExpression & IEvaluate>;
+expowt intewface IDebugModew extends ITweeEwement {
+	getSession(sessionId: stwing | undefined, incwudeInactive?: boowean): IDebugSession | undefined;
+	getSessions(incwudeInactive?: boowean): IDebugSession[];
+	getBweakpoints(fiwta?: { uwi?: uwi, wineNumba?: numba, cowumn?: numba, enabwedOnwy?: boowean }): WeadonwyAwway<IBweakpoint>;
+	aweBweakpointsActivated(): boowean;
+	getFunctionBweakpoints(): WeadonwyAwway<IFunctionBweakpoint>;
+	getDataBweakpoints(): WeadonwyAwway<IDataBweakpoint>;
+	getExceptionBweakpoints(): WeadonwyAwway<IExceptionBweakpoint>;
+	getInstwuctionBweakpoints(): WeadonwyAwway<IInstwuctionBweakpoint>;
+	getWatchExpwessions(): WeadonwyAwway<IExpwession & IEvawuate>;
 
-	onDidChangeBreakpoints: Event<IBreakpointsChangeEvent | undefined>;
-	onDidChangeCallStack: Event<void>;
-	onDidChangeWatchExpressions: Event<IExpression | undefined>;
+	onDidChangeBweakpoints: Event<IBweakpointsChangeEvent | undefined>;
+	onDidChangeCawwStack: Event<void>;
+	onDidChangeWatchExpwessions: Event<IExpwession | undefined>;
 }
 
 /**
- * An event describing a change to the set of [breakpoints](#debug.Breakpoint).
+ * An event descwibing a change to the set of [bweakpoints](#debug.Bweakpoint).
  */
-export interface IBreakpointsChangeEvent {
-	added?: Array<IBreakpoint | IFunctionBreakpoint | IDataBreakpoint | IInstructionBreakpoint>;
-	removed?: Array<IBreakpoint | IFunctionBreakpoint | IDataBreakpoint | IInstructionBreakpoint>;
-	changed?: Array<IBreakpoint | IFunctionBreakpoint | IDataBreakpoint | IInstructionBreakpoint>;
-	sessionOnly: boolean;
+expowt intewface IBweakpointsChangeEvent {
+	added?: Awway<IBweakpoint | IFunctionBweakpoint | IDataBweakpoint | IInstwuctionBweakpoint>;
+	wemoved?: Awway<IBweakpoint | IFunctionBweakpoint | IDataBweakpoint | IInstwuctionBweakpoint>;
+	changed?: Awway<IBweakpoint | IFunctionBweakpoint | IDataBweakpoint | IInstwuctionBweakpoint>;
+	sessionOnwy: boowean;
 }
 
-// Debug configuration interfaces
+// Debug configuwation intewfaces
 
-export interface IDebugConfiguration {
-	allowBreakpointsEverywhere: boolean;
-	openDebug: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart' | 'openOnDebugBreak';
-	openExplorerOnEnd: boolean;
-	inlineValues: boolean | 'auto';
-	toolBarLocation: 'floating' | 'docked' | 'hidden';
-	showInStatusBar: 'never' | 'always' | 'onFirstSessionStart';
-	internalConsoleOptions: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
-	extensionHostDebugAdapter: boolean;
-	enableAllHovers: boolean;
-	showSubSessionsInToolBar: boolean;
-	console: {
-		fontSize: number;
-		fontFamily: string;
-		lineHeight: number;
-		wordWrap: boolean;
-		closeOnEnd: boolean;
-		collapseIdenticalLines: boolean;
-		historySuggestions: boolean;
-		acceptSuggestionOnEnter: 'off' | 'on';
+expowt intewface IDebugConfiguwation {
+	awwowBweakpointsEvewywhewe: boowean;
+	openDebug: 'nevewOpen' | 'openOnSessionStawt' | 'openOnFiwstSessionStawt' | 'openOnDebugBweak';
+	openExpwowewOnEnd: boowean;
+	inwineVawues: boowean | 'auto';
+	toowBawWocation: 'fwoating' | 'docked' | 'hidden';
+	showInStatusBaw: 'neva' | 'awways' | 'onFiwstSessionStawt';
+	intewnawConsoweOptions: 'nevewOpen' | 'openOnSessionStawt' | 'openOnFiwstSessionStawt';
+	extensionHostDebugAdapta: boowean;
+	enabweAwwHovews: boowean;
+	showSubSessionsInToowBaw: boowean;
+	consowe: {
+		fontSize: numba;
+		fontFamiwy: stwing;
+		wineHeight: numba;
+		wowdWwap: boowean;
+		cwoseOnEnd: boowean;
+		cowwapseIdenticawWines: boowean;
+		histowySuggestions: boowean;
+		acceptSuggestionOnEnta: 'off' | 'on';
 	};
-	focusWindowOnBreak: boolean;
-	onTaskErrors: 'debugAnyway' | 'showErrors' | 'prompt' | 'abort';
-	showBreakpointsInOverviewRuler: boolean;
-	showInlineBreakpointCandidates: boolean;
-	confirmOnExit: 'always' | 'never';
+	focusWindowOnBweak: boowean;
+	onTaskEwwows: 'debugAnyway' | 'showEwwows' | 'pwompt' | 'abowt';
+	showBweakpointsInOvewviewWuwa: boowean;
+	showInwineBweakpointCandidates: boowean;
+	confiwmOnExit: 'awways' | 'neva';
 }
 
-export interface IGlobalConfig {
-	version: string;
+expowt intewface IGwobawConfig {
+	vewsion: stwing;
 	compounds: ICompound[];
-	configurations: IConfig[];
+	configuwations: IConfig[];
 }
 
-export interface IEnvConfig {
-	internalConsoleOptions?: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
-	preRestartTask?: string | TaskIdentifier;
-	postRestartTask?: string | TaskIdentifier;
-	preLaunchTask?: string | TaskIdentifier;
-	postDebugTask?: string | TaskIdentifier;
-	debugServer?: number;
-	noDebug?: boolean;
+expowt intewface IEnvConfig {
+	intewnawConsoweOptions?: 'nevewOpen' | 'openOnSessionStawt' | 'openOnFiwstSessionStawt';
+	pweWestawtTask?: stwing | TaskIdentifia;
+	postWestawtTask?: stwing | TaskIdentifia;
+	pweWaunchTask?: stwing | TaskIdentifia;
+	postDebugTask?: stwing | TaskIdentifia;
+	debugSewva?: numba;
+	noDebug?: boowean;
 }
 
-export interface IConfigPresentation {
-	hidden?: boolean;
-	group?: string;
-	order?: number;
+expowt intewface IConfigPwesentation {
+	hidden?: boowean;
+	gwoup?: stwing;
+	owda?: numba;
 }
 
-export interface IConfig extends IEnvConfig {
+expowt intewface IConfig extends IEnvConfig {
 
-	// fundamental attributes
-	type: string;
-	request: string;
-	name: string;
-	presentation?: IConfigPresentation;
-	// platform specifics
+	// fundamentaw attwibutes
+	type: stwing;
+	wequest: stwing;
+	name: stwing;
+	pwesentation?: IConfigPwesentation;
+	// pwatfowm specifics
 	windows?: IEnvConfig;
 	osx?: IEnvConfig;
-	linux?: IEnvConfig;
+	winux?: IEnvConfig;
 
-	// internals
-	__configurationTarget?: ConfigurationTarget;
-	__sessionId?: string;
-	__restart?: any;
-	__autoAttach?: boolean;
-	port?: number; // TODO
+	// intewnaws
+	__configuwationTawget?: ConfiguwationTawget;
+	__sessionId?: stwing;
+	__westawt?: any;
+	__autoAttach?: boowean;
+	powt?: numba; // TODO
 }
 
-export interface ICompound {
-	name: string;
-	stopAll?: boolean;
-	preLaunchTask?: string | TaskIdentifier;
-	configurations: (string | { name: string, folder: string })[];
-	presentation?: IConfigPresentation;
+expowt intewface ICompound {
+	name: stwing;
+	stopAww?: boowean;
+	pweWaunchTask?: stwing | TaskIdentifia;
+	configuwations: (stwing | { name: stwing, fowda: stwing })[];
+	pwesentation?: IConfigPwesentation;
 }
 
-export interface IDebugAdapter extends IDisposable {
-	readonly onError: Event<Error>;
-	readonly onExit: Event<number | null>;
-	onRequest(callback: (request: DebugProtocol.Request) => void): void;
-	onEvent(callback: (event: DebugProtocol.Event) => void): void;
-	startSession(): Promise<void>;
-	sendMessage(message: DebugProtocol.ProtocolMessage): void;
-	sendResponse(response: DebugProtocol.Response): void;
-	sendRequest(command: string, args: any, clb: (result: DebugProtocol.Response) => void, timeout?: number): number;
-	stopSession(): Promise<void>;
+expowt intewface IDebugAdapta extends IDisposabwe {
+	weadonwy onEwwow: Event<Ewwow>;
+	weadonwy onExit: Event<numba | nuww>;
+	onWequest(cawwback: (wequest: DebugPwotocow.Wequest) => void): void;
+	onEvent(cawwback: (event: DebugPwotocow.Event) => void): void;
+	stawtSession(): Pwomise<void>;
+	sendMessage(message: DebugPwotocow.PwotocowMessage): void;
+	sendWesponse(wesponse: DebugPwotocow.Wesponse): void;
+	sendWequest(command: stwing, awgs: any, cwb: (wesuwt: DebugPwotocow.Wesponse) => void, timeout?: numba): numba;
+	stopSession(): Pwomise<void>;
 }
 
-export interface IDebugAdapterFactory extends ITerminalLauncher {
-	createDebugAdapter(session: IDebugSession): IDebugAdapter;
-	substituteVariables(folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig>;
+expowt intewface IDebugAdaptewFactowy extends ITewminawWauncha {
+	cweateDebugAdapta(session: IDebugSession): IDebugAdapta;
+	substituteVawiabwes(fowda: IWowkspaceFowda | undefined, config: IConfig): Pwomise<IConfig>;
 }
 
-export interface IDebugAdapterExecutableOptions {
-	cwd?: string;
-	env?: { [key: string]: string };
+expowt intewface IDebugAdaptewExecutabweOptions {
+	cwd?: stwing;
+	env?: { [key: stwing]: stwing };
 }
 
-export interface IDebugAdapterExecutable {
-	readonly type: 'executable';
-	readonly command: string;
-	readonly args: string[];
-	readonly options?: IDebugAdapterExecutableOptions;
+expowt intewface IDebugAdaptewExecutabwe {
+	weadonwy type: 'executabwe';
+	weadonwy command: stwing;
+	weadonwy awgs: stwing[];
+	weadonwy options?: IDebugAdaptewExecutabweOptions;
 }
 
-export interface IDebugAdapterServer {
-	readonly type: 'server';
-	readonly port: number;
-	readonly host?: string;
+expowt intewface IDebugAdaptewSewva {
+	weadonwy type: 'sewva';
+	weadonwy powt: numba;
+	weadonwy host?: stwing;
 }
 
-export interface IDebugAdapterNamedPipeServer {
-	readonly type: 'pipeServer';
-	readonly path: string;
+expowt intewface IDebugAdaptewNamedPipeSewva {
+	weadonwy type: 'pipeSewva';
+	weadonwy path: stwing;
 }
 
-export interface IDebugAdapterInlineImpl extends IDisposable {
-	readonly onDidSendMessage: Event<DebugProtocol.Message>;
-	handleMessage(message: DebugProtocol.Message): void;
+expowt intewface IDebugAdaptewInwineImpw extends IDisposabwe {
+	weadonwy onDidSendMessage: Event<DebugPwotocow.Message>;
+	handweMessage(message: DebugPwotocow.Message): void;
 }
 
-export interface IDebugAdapterImpl {
-	readonly type: 'implementation';
-	readonly implementation: IDebugAdapterInlineImpl;
+expowt intewface IDebugAdaptewImpw {
+	weadonwy type: 'impwementation';
+	weadonwy impwementation: IDebugAdaptewInwineImpw;
 }
 
-export type IAdapterDescriptor = IDebugAdapterExecutable | IDebugAdapterServer | IDebugAdapterNamedPipeServer | IDebugAdapterImpl;
+expowt type IAdaptewDescwiptow = IDebugAdaptewExecutabwe | IDebugAdaptewSewva | IDebugAdaptewNamedPipeSewva | IDebugAdaptewImpw;
 
-export interface IPlatformSpecificAdapterContribution {
-	program?: string;
-	args?: string[];
-	runtime?: string;
-	runtimeArgs?: string[];
+expowt intewface IPwatfowmSpecificAdaptewContwibution {
+	pwogwam?: stwing;
+	awgs?: stwing[];
+	wuntime?: stwing;
+	wuntimeAwgs?: stwing[];
 }
 
-export interface IDebuggerContribution extends IPlatformSpecificAdapterContribution {
-	type: string;
-	label?: string;
-	win?: IPlatformSpecificAdapterContribution;
-	winx86?: IPlatformSpecificAdapterContribution;
-	windows?: IPlatformSpecificAdapterContribution;
-	osx?: IPlatformSpecificAdapterContribution;
-	linux?: IPlatformSpecificAdapterContribution;
+expowt intewface IDebuggewContwibution extends IPwatfowmSpecificAdaptewContwibution {
+	type: stwing;
+	wabew?: stwing;
+	win?: IPwatfowmSpecificAdaptewContwibution;
+	winx86?: IPwatfowmSpecificAdaptewContwibution;
+	windows?: IPwatfowmSpecificAdaptewContwibution;
+	osx?: IPwatfowmSpecificAdaptewContwibution;
+	winux?: IPwatfowmSpecificAdaptewContwibution;
 
-	// internal
-	aiKey?: string;
+	// intewnaw
+	aiKey?: stwing;
 
-	// supported languages
-	languages?: string[];
+	// suppowted wanguages
+	wanguages?: stwing[];
 
-	// debug configuration support
-	configurationAttributes?: any;
-	initialConfigurations?: any[];
-	configurationSnippets?: IJSONSchemaSnippet[];
-	variables?: { [key: string]: string };
-	when?: string;
+	// debug configuwation suppowt
+	configuwationAttwibutes?: any;
+	initiawConfiguwations?: any[];
+	configuwationSnippets?: IJSONSchemaSnippet[];
+	vawiabwes?: { [key: stwing]: stwing };
+	when?: stwing;
 }
 
-export interface IDebugConfigurationProvider {
-	readonly type: string;
-	readonly triggerKind: DebugConfigurationProviderTriggerKind;
-	resolveDebugConfiguration?(folderUri: uri | undefined, debugConfiguration: IConfig, token: CancellationToken): Promise<IConfig | null | undefined>;
-	resolveDebugConfigurationWithSubstitutedVariables?(folderUri: uri | undefined, debugConfiguration: IConfig, token: CancellationToken): Promise<IConfig | null | undefined>;
-	provideDebugConfigurations?(folderUri: uri | undefined, token: CancellationToken): Promise<IConfig[]>;
+expowt intewface IDebugConfiguwationPwovida {
+	weadonwy type: stwing;
+	weadonwy twiggewKind: DebugConfiguwationPwovidewTwiggewKind;
+	wesowveDebugConfiguwation?(fowdewUwi: uwi | undefined, debugConfiguwation: IConfig, token: CancewwationToken): Pwomise<IConfig | nuww | undefined>;
+	wesowveDebugConfiguwationWithSubstitutedVawiabwes?(fowdewUwi: uwi | undefined, debugConfiguwation: IConfig, token: CancewwationToken): Pwomise<IConfig | nuww | undefined>;
+	pwovideDebugConfiguwations?(fowdewUwi: uwi | undefined, token: CancewwationToken): Pwomise<IConfig[]>;
 }
 
-export interface IDebugAdapterDescriptorFactory {
-	readonly type: string;
-	createDebugAdapterDescriptor(session: IDebugSession): Promise<IAdapterDescriptor>;
+expowt intewface IDebugAdaptewDescwiptowFactowy {
+	weadonwy type: stwing;
+	cweateDebugAdaptewDescwiptow(session: IDebugSession): Pwomise<IAdaptewDescwiptow>;
 }
 
-export interface IDebugAdapterTrackerFactory {
-	readonly type: string;
+expowt intewface IDebugAdaptewTwackewFactowy {
+	weadonwy type: stwing;
 }
 
-export interface ITerminalLauncher {
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined>;
+expowt intewface ITewminawWauncha {
+	wunInTewminaw(awgs: DebugPwotocow.WunInTewminawWequestAwguments, sessionId: stwing): Pwomise<numba | undefined>;
 }
 
-export interface IConfigurationManager {
+expowt intewface IConfiguwationManaga {
 
 	/**
-	 * Returns an object containing the selected launch configuration and the selected configuration name. Both these fields can be null (no folder workspace).
+	 * Wetuwns an object containing the sewected waunch configuwation and the sewected configuwation name. Both these fiewds can be nuww (no fowda wowkspace).
 	 */
-	readonly selectedConfiguration: {
-		launch: ILaunch | undefined;
-		// Potentially activates extensions
-		getConfig: () => Promise<IConfig | undefined>;
-		name: string | undefined;
-		// Type is used when matching dynamic configurations to their corresponding provider
-		type: string | undefined;
+	weadonwy sewectedConfiguwation: {
+		waunch: IWaunch | undefined;
+		// Potentiawwy activates extensions
+		getConfig: () => Pwomise<IConfig | undefined>;
+		name: stwing | undefined;
+		// Type is used when matching dynamic configuwations to theiw cowwesponding pwovida
+		type: stwing | undefined;
 	};
 
-	selectConfiguration(launch: ILaunch | undefined, name?: string, config?: IConfig, dynamicConfigOptions?: { type?: string }): Promise<void>;
+	sewectConfiguwation(waunch: IWaunch | undefined, name?: stwing, config?: IConfig, dynamicConfigOptions?: { type?: stwing }): Pwomise<void>;
 
-	getLaunches(): ReadonlyArray<ILaunch>;
-	getLaunch(workspaceUri: uri | undefined): ILaunch | undefined;
-	getAllConfigurations(): { launch: ILaunch, name: string, presentation?: IConfigPresentation }[];
-	getRecentDynamicConfigurations(): { name: string, type: string }[];
+	getWaunches(): WeadonwyAwway<IWaunch>;
+	getWaunch(wowkspaceUwi: uwi | undefined): IWaunch | undefined;
+	getAwwConfiguwations(): { waunch: IWaunch, name: stwing, pwesentation?: IConfigPwesentation }[];
+	getWecentDynamicConfiguwations(): { name: stwing, type: stwing }[];
 
 	/**
-	 * Allows to register on change of selected debug configuration.
+	 * Awwows to wegista on change of sewected debug configuwation.
 	 */
-	onDidSelectConfiguration: Event<void>;
+	onDidSewectConfiguwation: Event<void>;
 
-	hasDebugConfigurationProvider(debugType: string): boolean;
-	getDynamicProviders(): Promise<{ label: string, type: string, pick: () => Promise<{ launch: ILaunch, config: IConfig } | undefined> }[]>;
+	hasDebugConfiguwationPwovida(debugType: stwing): boowean;
+	getDynamicPwovidews(): Pwomise<{ wabew: stwing, type: stwing, pick: () => Pwomise<{ waunch: IWaunch, config: IConfig } | undefined> }[]>;
 
-	registerDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): IDisposable;
-	unregisterDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): void;
+	wegistewDebugConfiguwationPwovida(debugConfiguwationPwovida: IDebugConfiguwationPwovida): IDisposabwe;
+	unwegistewDebugConfiguwationPwovida(debugConfiguwationPwovida: IDebugConfiguwationPwovida): void;
 
-	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any, token: CancellationToken): Promise<any>;
+	wesowveConfiguwationByPwovidews(fowdewUwi: uwi | undefined, type: stwing | undefined, debugConfiguwation: any, token: CancewwationToken): Pwomise<any>;
 }
 
-export interface IAdapterManager {
+expowt intewface IAdaptewManaga {
 
-	onDidRegisterDebugger: Event<void>;
+	onDidWegistewDebugga: Event<void>;
 
-	hasEnabledDebuggers(): boolean;
-	getDebugAdapterDescriptor(session: IDebugSession): Promise<IAdapterDescriptor | undefined>;
-	getDebuggerLabel(type: string): string | undefined;
-	isDebuggerInterestedInLanguage(language: string): boolean;
+	hasEnabwedDebuggews(): boowean;
+	getDebugAdaptewDescwiptow(session: IDebugSession): Pwomise<IAdaptewDescwiptow | undefined>;
+	getDebuggewWabew(type: stwing): stwing | undefined;
+	isDebuggewIntewestedInWanguage(wanguage: stwing): boowean;
 
-	activateDebuggers(activationEvent: string, debugType?: string): Promise<void>;
-	registerDebugAdapterFactory(debugTypes: string[], debugAdapterFactory: IDebugAdapterFactory): IDisposable;
-	createDebugAdapter(session: IDebugSession): IDebugAdapter | undefined;
-	registerDebugAdapterDescriptorFactory(debugAdapterDescriptorFactory: IDebugAdapterDescriptorFactory): IDisposable;
-	unregisterDebugAdapterDescriptorFactory(debugAdapterDescriptorFactory: IDebugAdapterDescriptorFactory): void;
+	activateDebuggews(activationEvent: stwing, debugType?: stwing): Pwomise<void>;
+	wegistewDebugAdaptewFactowy(debugTypes: stwing[], debugAdaptewFactowy: IDebugAdaptewFactowy): IDisposabwe;
+	cweateDebugAdapta(session: IDebugSession): IDebugAdapta | undefined;
+	wegistewDebugAdaptewDescwiptowFactowy(debugAdaptewDescwiptowFactowy: IDebugAdaptewDescwiptowFactowy): IDisposabwe;
+	unwegistewDebugAdaptewDescwiptowFactowy(debugAdaptewDescwiptowFactowy: IDebugAdaptewDescwiptowFactowy): void;
 
-	substituteVariables(debugType: string, folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig>;
-	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined>;
+	substituteVawiabwes(debugType: stwing, fowda: IWowkspaceFowda | undefined, config: IConfig): Pwomise<IConfig>;
+	wunInTewminaw(debugType: stwing, awgs: DebugPwotocow.WunInTewminawWequestAwguments, sessionId: stwing): Pwomise<numba | undefined>;
 }
 
-export interface ILaunch {
+expowt intewface IWaunch {
 
 	/**
-	 * Resource pointing to the launch.json this object is wrapping.
+	 * Wesouwce pointing to the waunch.json this object is wwapping.
 	 */
-	readonly uri: uri;
+	weadonwy uwi: uwi;
 
 	/**
-	 * Name of the launch.
+	 * Name of the waunch.
 	 */
-	readonly name: string;
+	weadonwy name: stwing;
 
 	/**
-	 * Workspace of the launch. Can be undefined.
+	 * Wowkspace of the waunch. Can be undefined.
 	 */
-	readonly workspace: IWorkspaceFolder | undefined;
+	weadonwy wowkspace: IWowkspaceFowda | undefined;
 
 	/**
-	 * Should this launch be shown in the debug dropdown.
+	 * Shouwd this waunch be shown in the debug dwopdown.
 	 */
-	readonly hidden: boolean;
+	weadonwy hidden: boowean;
 
 	/**
-	 * Returns a configuration with the specified name.
-	 * Returns undefined if there is no configuration with the specified name.
+	 * Wetuwns a configuwation with the specified name.
+	 * Wetuwns undefined if thewe is no configuwation with the specified name.
 	 */
-	getConfiguration(name: string): IConfig | undefined;
+	getConfiguwation(name: stwing): IConfig | undefined;
 
 	/**
-	 * Returns a compound with the specified name.
-	 * Returns undefined if there is no compound with the specified name.
+	 * Wetuwns a compound with the specified name.
+	 * Wetuwns undefined if thewe is no compound with the specified name.
 	 */
-	getCompound(name: string): ICompound | undefined;
+	getCompound(name: stwing): ICompound | undefined;
 
 	/**
-	 * Returns the names of all configurations and compounds.
-	 * Ignores configurations which are invalid.
+	 * Wetuwns the names of aww configuwations and compounds.
+	 * Ignowes configuwations which awe invawid.
 	 */
-	getConfigurationNames(ignoreCompoundsAndPresentation?: boolean): string[];
+	getConfiguwationNames(ignoweCompoundsAndPwesentation?: boowean): stwing[];
 
 	/**
-	 * Opens the launch.json file. Creates if it does not exist.
+	 * Opens the waunch.json fiwe. Cweates if it does not exist.
 	 */
-	openConfigFile(preserveFocus: boolean, type?: string, token?: CancellationToken): Promise<{ editor: IEditorPane | null, created: boolean }>;
+	openConfigFiwe(pwesewveFocus: boowean, type?: stwing, token?: CancewwationToken): Pwomise<{ editow: IEditowPane | nuww, cweated: boowean }>;
 }
 
-// Debug service interfaces
+// Debug sewvice intewfaces
 
-export const IDebugService = createDecorator<IDebugService>(DEBUG_SERVICE_ID);
+expowt const IDebugSewvice = cweateDecowatow<IDebugSewvice>(DEBUG_SEWVICE_ID);
 
-export interface IDebugService {
-	readonly _serviceBrand: undefined;
+expowt intewface IDebugSewvice {
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Gets the current debug state.
+	 * Gets the cuwwent debug state.
 	 */
-	readonly state: State;
+	weadonwy state: State;
 
-	readonly initializingOptions?: IDebugSessionOptions | undefined;
+	weadonwy initiawizingOptions?: IDebugSessionOptions | undefined;
 
 	/**
-	 * Allows to register on debug state changes.
+	 * Awwows to wegista on debug state changes.
 	 */
 	onDidChangeState: Event<State>;
 
 	/**
-	 * Allows to register on new session events.
+	 * Awwows to wegista on new session events.
 	 */
 	onDidNewSession: Event<IDebugSession>;
 
 	/**
-	 * Allows to register on sessions about to be created (not yet fully initialised)
+	 * Awwows to wegista on sessions about to be cweated (not yet fuwwy initiawised)
 	 */
-	onWillNewSession: Event<IDebugSession>;
+	onWiwwNewSession: Event<IDebugSession>;
 
 	/**
-	 * Allows to register on end session events.
+	 * Awwows to wegista on end session events.
 	 */
 	onDidEndSession: Event<IDebugSession>;
 
 	/**
-	 * Gets the configuration manager.
+	 * Gets the configuwation managa.
 	 */
-	getConfigurationManager(): IConfigurationManager;
+	getConfiguwationManaga(): IConfiguwationManaga;
 
 	/**
-	 * Gets the adapter manager.
+	 * Gets the adapta managa.
 	 */
-	getAdapterManager(): IAdapterManager;
+	getAdaptewManaga(): IAdaptewManaga;
 
 	/**
-	 * Sets the focused stack frame and evaluates all expressions against the newly focused stack frame,
+	 * Sets the focused stack fwame and evawuates aww expwessions against the newwy focused stack fwame,
 	 */
-	focusStackFrame(focusedStackFrame: IStackFrame | undefined, thread?: IThread, session?: IDebugSession, explicit?: boolean): Promise<void>;
+	focusStackFwame(focusedStackFwame: IStackFwame | undefined, thwead?: IThwead, session?: IDebugSession, expwicit?: boowean): Pwomise<void>;
 
 	/**
-	 * Returns true if breakpoints can be set for a given editor model. Depends on mode.
+	 * Wetuwns twue if bweakpoints can be set fow a given editow modew. Depends on mode.
 	 */
-	canSetBreakpointsIn(model: EditorIModel): boolean;
+	canSetBweakpointsIn(modew: EditowIModew): boowean;
 
 	/**
-	 * Adds new breakpoints to the model for the file specified with the uri. Notifies debug adapter of breakpoint changes.
+	 * Adds new bweakpoints to the modew fow the fiwe specified with the uwi. Notifies debug adapta of bweakpoint changes.
 	 */
-	addBreakpoints(uri: uri, rawBreakpoints: IBreakpointData[], ariaAnnounce?: boolean): Promise<IBreakpoint[]>;
+	addBweakpoints(uwi: uwi, wawBweakpoints: IBweakpointData[], awiaAnnounce?: boowean): Pwomise<IBweakpoint[]>;
 
 	/**
-	 * Updates the breakpoints.
+	 * Updates the bweakpoints.
 	 */
-	updateBreakpoints(uri: uri, data: Map<string, IBreakpointUpdateData>, sendOnResourceSaved: boolean): Promise<void>;
+	updateBweakpoints(uwi: uwi, data: Map<stwing, IBweakpointUpdateData>, sendOnWesouwceSaved: boowean): Pwomise<void>;
 
 	/**
-	 * Enables or disables all breakpoints. If breakpoint is passed only enables or disables the passed breakpoint.
-	 * Notifies debug adapter of breakpoint changes.
+	 * Enabwes ow disabwes aww bweakpoints. If bweakpoint is passed onwy enabwes ow disabwes the passed bweakpoint.
+	 * Notifies debug adapta of bweakpoint changes.
 	 */
-	enableOrDisableBreakpoints(enable: boolean, breakpoint?: IEnablement): Promise<void>;
+	enabweOwDisabweBweakpoints(enabwe: boowean, bweakpoint?: IEnabwement): Pwomise<void>;
 
 	/**
-	 * Sets the global activated property for all breakpoints.
-	 * Notifies debug adapter of breakpoint changes.
+	 * Sets the gwobaw activated pwopewty fow aww bweakpoints.
+	 * Notifies debug adapta of bweakpoint changes.
 	 */
-	setBreakpointsActivated(activated: boolean): Promise<void>;
+	setBweakpointsActivated(activated: boowean): Pwomise<void>;
 
 	/**
-	 * Removes all breakpoints. If id is passed only removes the breakpoint associated with that id.
-	 * Notifies debug adapter of breakpoint changes.
+	 * Wemoves aww bweakpoints. If id is passed onwy wemoves the bweakpoint associated with that id.
+	 * Notifies debug adapta of bweakpoint changes.
 	 */
-	removeBreakpoints(id?: string): Promise<any>;
+	wemoveBweakpoints(id?: stwing): Pwomise<any>;
 
 	/**
-	 * Adds a new function breakpoint for the given name.
+	 * Adds a new function bweakpoint fow the given name.
 	 */
-	addFunctionBreakpoint(name?: string, id?: string): void;
+	addFunctionBweakpoint(name?: stwing, id?: stwing): void;
 
 	/**
-	 * Updates an already existing function breakpoint.
-	 * Notifies debug adapter of breakpoint changes.
+	 * Updates an awweady existing function bweakpoint.
+	 * Notifies debug adapta of bweakpoint changes.
 	 */
-	updateFunctionBreakpoint(id: string, update: { name?: string, hitCondition?: string, condition?: string }): Promise<void>;
+	updateFunctionBweakpoint(id: stwing, update: { name?: stwing, hitCondition?: stwing, condition?: stwing }): Pwomise<void>;
 
 	/**
-	 * Removes all function breakpoints. If id is passed only removes the function breakpoint with the passed id.
-	 * Notifies debug adapter of breakpoint changes.
+	 * Wemoves aww function bweakpoints. If id is passed onwy wemoves the function bweakpoint with the passed id.
+	 * Notifies debug adapta of bweakpoint changes.
 	 */
-	removeFunctionBreakpoints(id?: string): Promise<void>;
+	wemoveFunctionBweakpoints(id?: stwing): Pwomise<void>;
 
 	/**
-	 * Adds a new data breakpoint.
+	 * Adds a new data bweakpoint.
 	 */
-	addDataBreakpoint(label: string, dataId: string, canPersist: boolean, accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined, accessType: DebugProtocol.DataBreakpointAccessType): Promise<void>;
+	addDataBweakpoint(wabew: stwing, dataId: stwing, canPewsist: boowean, accessTypes: DebugPwotocow.DataBweakpointAccessType[] | undefined, accessType: DebugPwotocow.DataBweakpointAccessType): Pwomise<void>;
 
 	/**
-	 * Removes all data breakpoints. If id is passed only removes the data breakpoint with the passed id.
-	 * Notifies debug adapter of breakpoint changes.
+	 * Wemoves aww data bweakpoints. If id is passed onwy wemoves the data bweakpoint with the passed id.
+	 * Notifies debug adapta of bweakpoint changes.
 	 */
-	removeDataBreakpoints(id?: string): Promise<void>;
+	wemoveDataBweakpoints(id?: stwing): Pwomise<void>;
 
 	/**
-	 * Adds a new instruction breakpoint.
+	 * Adds a new instwuction bweakpoint.
 	 */
-	addInstructionBreakpoint(address: string, offset: number, condition?: string, hitCondition?: string): Promise<void>;
+	addInstwuctionBweakpoint(addwess: stwing, offset: numba, condition?: stwing, hitCondition?: stwing): Pwomise<void>;
 
 	/**
-	 * Removes all instruction breakpoints. If address is passed only removes the instruction breakpoint with the passed address.
-	 * The address should be the address string supplied by the debugger from the "Disassemble" request.
-	 * Notifies debug adapter of breakpoint changes.
+	 * Wemoves aww instwuction bweakpoints. If addwess is passed onwy wemoves the instwuction bweakpoint with the passed addwess.
+	 * The addwess shouwd be the addwess stwing suppwied by the debugga fwom the "Disassembwe" wequest.
+	 * Notifies debug adapta of bweakpoint changes.
 	 */
-	removeInstructionBreakpoints(address?: string): Promise<void>;
+	wemoveInstwuctionBweakpoints(addwess?: stwing): Pwomise<void>;
 
-	setExceptionBreakpointCondition(breakpoint: IExceptionBreakpoint, condition: string | undefined): Promise<void>;
+	setExceptionBweakpointCondition(bweakpoint: IExceptionBweakpoint, condition: stwing | undefined): Pwomise<void>;
 
-	setExceptionBreakpoints(data: DebugProtocol.ExceptionBreakpointsFilter[]): void;
+	setExceptionBweakpoints(data: DebugPwotocow.ExceptionBweakpointsFiwta[]): void;
 
 	/**
-	 * Sends all breakpoints to the passed session.
-	 * If session is not passed, sends all breakpoints to each session.
+	 * Sends aww bweakpoints to the passed session.
+	 * If session is not passed, sends aww bweakpoints to each session.
 	 */
-	sendAllBreakpoints(session?: IDebugSession): Promise<any>;
+	sendAwwBweakpoints(session?: IDebugSession): Pwomise<any>;
 
 	/**
-	 * Adds a new watch expression and evaluates it against the debug adapter.
+	 * Adds a new watch expwession and evawuates it against the debug adapta.
 	 */
-	addWatchExpression(name?: string): void;
+	addWatchExpwession(name?: stwing): void;
 
 	/**
-	 * Renames a watch expression and evaluates it against the debug adapter.
+	 * Wenames a watch expwession and evawuates it against the debug adapta.
 	 */
-	renameWatchExpression(id: string, newName: string): void;
+	wenameWatchExpwession(id: stwing, newName: stwing): void;
 
 	/**
-	 * Moves a watch expression to a new possition. Used for reordering watch expressions.
+	 * Moves a watch expwession to a new possition. Used fow weowdewing watch expwessions.
 	 */
-	moveWatchExpression(id: string, position: number): void;
+	moveWatchExpwession(id: stwing, position: numba): void;
 
 	/**
-	 * Removes all watch expressions. If id is passed only removes the watch expression with the passed id.
+	 * Wemoves aww watch expwessions. If id is passed onwy wemoves the watch expwession with the passed id.
 	 */
-	removeWatchExpressions(id?: string): void;
+	wemoveWatchExpwessions(id?: stwing): void;
 
 	/**
-	 * Starts debugging. If the configOrName is not passed uses the selected configuration in the debug dropdown.
-	 * Also saves all files, manages if compounds are present in the configuration
-	 * and resolveds configurations via DebugConfigurationProviders.
+	 * Stawts debugging. If the configOwName is not passed uses the sewected configuwation in the debug dwopdown.
+	 * Awso saves aww fiwes, manages if compounds awe pwesent in the configuwation
+	 * and wesowveds configuwations via DebugConfiguwationPwovidews.
 	 *
-	 * Returns true if the start debugging was successfull. For compound launches, all configurations have to start successfuly for it to return success.
-	 * On errors the startDebugging will throw an error, however some error and cancelations are handled and in that case will simply return false.
+	 * Wetuwns twue if the stawt debugging was successfuww. Fow compound waunches, aww configuwations have to stawt successfuwy fow it to wetuwn success.
+	 * On ewwows the stawtDebugging wiww thwow an ewwow, howeva some ewwow and cancewations awe handwed and in that case wiww simpwy wetuwn fawse.
 	 */
-	startDebugging(launch: ILaunch | undefined, configOrName?: IConfig | string, options?: IDebugSessionOptions, saveBeforeStart?: boolean): Promise<boolean>;
+	stawtDebugging(waunch: IWaunch | undefined, configOwName?: IConfig | stwing, options?: IDebugSessionOptions, saveBefoweStawt?: boowean): Pwomise<boowean>;
 
 	/**
-	 * Restarts a session or creates a new one if there is no active session.
+	 * Westawts a session ow cweates a new one if thewe is no active session.
 	 */
-	restartSession(session: IDebugSession, restartData?: any): Promise<any>;
+	westawtSession(session: IDebugSession, westawtData?: any): Pwomise<any>;
 
 	/**
-	 * Stops the session. If no session is specified then all sessions are stopped.
+	 * Stops the session. If no session is specified then aww sessions awe stopped.
 	 */
-	stopSession(session: IDebugSession | undefined, disconnect?: boolean): Promise<any>;
+	stopSession(session: IDebugSession | undefined, disconnect?: boowean): Pwomise<any>;
 
 	/**
-	 * Makes unavailable all sources with the passed uri. Source will appear as grayed out in callstack view.
+	 * Makes unavaiwabwe aww souwces with the passed uwi. Souwce wiww appeaw as gwayed out in cawwstack view.
 	 */
-	sourceIsNotAvailable(uri: uri): void;
+	souwceIsNotAvaiwabwe(uwi: uwi): void;
 
 	/**
-	 * Gets the current debug model.
+	 * Gets the cuwwent debug modew.
 	 */
-	getModel(): IDebugModel;
+	getModew(): IDebugModew;
 
 	/**
-	 * Gets the current view model.
+	 * Gets the cuwwent view modew.
 	 */
-	getViewModel(): IViewModel;
+	getViewModew(): IViewModew;
 
 	/**
-	 * Resumes execution and pauses until the given position is reached.
+	 * Wesumes execution and pauses untiw the given position is weached.
 	 */
-	runTo(uri: uri, lineNumber: number, column?: number): Promise<void>;
+	wunTo(uwi: uwi, wineNumba: numba, cowumn?: numba): Pwomise<void>;
 }
 
-// Editor interfaces
-export const enum BreakpointWidgetContext {
+// Editow intewfaces
+expowt const enum BweakpointWidgetContext {
 	CONDITION = 0,
 	HIT_COUNT = 1,
-	LOG_MESSAGE = 2
+	WOG_MESSAGE = 2
 }
 
-export interface IDebugEditorContribution extends editorCommon.IEditorContribution {
-	showHover(range: Range, focus: boolean): Promise<void>;
-	addLaunchConfiguration(): Promise<any>;
-	closeExceptionWidget(): void;
+expowt intewface IDebugEditowContwibution extends editowCommon.IEditowContwibution {
+	showHova(wange: Wange, focus: boowean): Pwomise<void>;
+	addWaunchConfiguwation(): Pwomise<any>;
+	cwoseExceptionWidget(): void;
 }
 
-export interface IBreakpointEditorContribution extends editorCommon.IEditorContribution {
-	showBreakpointWidget(lineNumber: number, column: number | undefined, context?: BreakpointWidgetContext): void;
-	closeBreakpointWidget(): void;
-	getContextMenuActionsAtPosition(lineNumber: number, model: EditorIModel): IAction[];
+expowt intewface IBweakpointEditowContwibution extends editowCommon.IEditowContwibution {
+	showBweakpointWidget(wineNumba: numba, cowumn: numba | undefined, context?: BweakpointWidgetContext): void;
+	cwoseBweakpointWidget(): void;
+	getContextMenuActionsAtPosition(wineNumba: numba, modew: EditowIModew): IAction[];
 }

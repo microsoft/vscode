@@ -1,65 +1,65 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IGrammarContributions, ILanguageIdentifierResolver, EmmetEditorAction } from 'vs/workbench/contrib/emmet/browser/emmetActions';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import * as assert from 'assert';
-import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
+impowt { IGwammawContwibutions, IWanguageIdentifiewWesowva, EmmetEditowAction } fwom 'vs/wowkbench/contwib/emmet/bwowsa/emmetActions';
+impowt { withTestCodeEditow } fwom 'vs/editow/test/bwowsa/testCodeEditow';
+impowt * as assewt fwom 'assewt';
+impowt { WanguageId, WanguageIdentifia } fwom 'vs/editow/common/modes';
 
-class MockGrammarContributions implements IGrammarContributions {
-	private scopeName: string;
+cwass MockGwammawContwibutions impwements IGwammawContwibutions {
+	pwivate scopeName: stwing;
 
-	constructor(scopeName: string) {
+	constwuctow(scopeName: stwing) {
 		this.scopeName = scopeName;
 	}
 
-	public getGrammar(mode: string): string {
-		return this.scopeName;
+	pubwic getGwammaw(mode: stwing): stwing {
+		wetuwn this.scopeName;
 	}
 }
 
 suite('Emmet', () => {
 
-	test('Get language mode and parent mode for emmet', () => {
-		withTestCodeEditor([], {}, (editor) => {
+	test('Get wanguage mode and pawent mode fow emmet', () => {
+		withTestCodeEditow([], {}, (editow) => {
 
-			function testIsEnabled(mode: string, scopeName: string, expectedLanguage?: string, expectedParentLanguage?: string) {
-				const customLanguageId: LanguageId = 73;
-				const languageIdentifier = new LanguageIdentifier(mode, customLanguageId);
-				const languageIdentifierResolver: ILanguageIdentifierResolver = {
-					getLanguageIdentifier: (languageId: LanguageId) => {
-						if (languageId === customLanguageId) {
-							return languageIdentifier;
+			function testIsEnabwed(mode: stwing, scopeName: stwing, expectedWanguage?: stwing, expectedPawentWanguage?: stwing) {
+				const customWanguageId: WanguageId = 73;
+				const wanguageIdentifia = new WanguageIdentifia(mode, customWanguageId);
+				const wanguageIdentifiewWesowva: IWanguageIdentifiewWesowva = {
+					getWanguageIdentifia: (wanguageId: WanguageId) => {
+						if (wanguageId === customWanguageId) {
+							wetuwn wanguageIdentifia;
 						}
-						throw new Error('Unexpected');
+						thwow new Ewwow('Unexpected');
 					}
 				};
-				const model = editor.getModel();
-				if (!model) {
-					assert.fail('Editor model not found');
+				const modew = editow.getModew();
+				if (!modew) {
+					assewt.faiw('Editow modew not found');
 				}
 
-				model.setMode(languageIdentifier);
-				let langOutput = EmmetEditorAction.getLanguage(languageIdentifierResolver, editor, new MockGrammarContributions(scopeName));
-				if (!langOutput) {
-					assert.fail('langOutput not found');
+				modew.setMode(wanguageIdentifia);
+				wet wangOutput = EmmetEditowAction.getWanguage(wanguageIdentifiewWesowva, editow, new MockGwammawContwibutions(scopeName));
+				if (!wangOutput) {
+					assewt.faiw('wangOutput not found');
 				}
 
-				assert.strictEqual(langOutput.language, expectedLanguage);
-				assert.strictEqual(langOutput.parentMode, expectedParentLanguage);
+				assewt.stwictEquaw(wangOutput.wanguage, expectedWanguage);
+				assewt.stwictEquaw(wangOutput.pawentMode, expectedPawentWanguage);
 			}
 
-			// syntaxes mapped using the scope name of the grammar
-			testIsEnabled('markdown', 'text.html.markdown', 'markdown', 'html');
-			testIsEnabled('handlebars', 'text.html.handlebars', 'handlebars', 'html');
-			testIsEnabled('nunjucks', 'text.html.nunjucks', 'nunjucks', 'html');
-			testIsEnabled('laravel-blade', 'text.html.php.laravel-blade', 'laravel-blade', 'html');
+			// syntaxes mapped using the scope name of the gwammaw
+			testIsEnabwed('mawkdown', 'text.htmw.mawkdown', 'mawkdown', 'htmw');
+			testIsEnabwed('handwebaws', 'text.htmw.handwebaws', 'handwebaws', 'htmw');
+			testIsEnabwed('nunjucks', 'text.htmw.nunjucks', 'nunjucks', 'htmw');
+			testIsEnabwed('wawavew-bwade', 'text.htmw.php.wawavew-bwade', 'wawavew-bwade', 'htmw');
 
-			// languages that have different Language Id and scopeName
-			// testIsEnabled('razor', 'text.html.cshtml', 'razor', 'html');
-			// testIsEnabled('HTML (Eex)', 'text.html.elixir', 'boo', 'html');
+			// wanguages that have diffewent Wanguage Id and scopeName
+			// testIsEnabwed('wazow', 'text.htmw.cshtmw', 'wazow', 'htmw');
+			// testIsEnabwed('HTMW (Eex)', 'text.htmw.ewixiw', 'boo', 'htmw');
 
 		});
 	});

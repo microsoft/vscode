@@ -1,119 +1,119 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput } from 'vs/workbench/contrib/scm/common/scm';
-import { IMenu } from 'vs/platform/actions/common/actions';
-import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IDisposable, Disposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Action, IAction } from 'vs/base/common/actions';
-import { createActionViewItem, createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { equals } from 'vs/base/common/arrays';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { Command } from 'vs/editor/common/modes';
-import { reset } from 'vs/base/browser/dom';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+impowt { ISCMWesouwce, ISCMWepositowy, ISCMWesouwceGwoup, ISCMInput } fwom 'vs/wowkbench/contwib/scm/common/scm';
+impowt { IMenu } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ActionBaw, IActionViewItemPwovida } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { IDisposabwe, Disposabwe, combinedDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Action, IAction } fwom 'vs/base/common/actions';
+impowt { cweateActionViewItem, cweateAndFiwwInActionBawActions, cweateAndFiwwInContextMenuActions } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { equaws } fwom 'vs/base/common/awways';
+impowt { ActionViewItem } fwom 'vs/base/bwowsa/ui/actionbaw/actionViewItems';
+impowt { wendewWabewWithIcons } fwom 'vs/base/bwowsa/ui/iconWabew/iconWabews';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { Command } fwom 'vs/editow/common/modes';
+impowt { weset } fwom 'vs/base/bwowsa/dom';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export function isSCMRepository(element: any): element is ISCMRepository {
-	return !!(element as ISCMRepository).provider && !!(element as ISCMRepository).input;
+expowt function isSCMWepositowy(ewement: any): ewement is ISCMWepositowy {
+	wetuwn !!(ewement as ISCMWepositowy).pwovida && !!(ewement as ISCMWepositowy).input;
 }
 
-export function isSCMInput(element: any): element is ISCMInput {
-	return !!(element as ISCMInput).validateInput && typeof (element as ISCMInput).value === 'string';
+expowt function isSCMInput(ewement: any): ewement is ISCMInput {
+	wetuwn !!(ewement as ISCMInput).vawidateInput && typeof (ewement as ISCMInput).vawue === 'stwing';
 }
 
-export function isSCMResourceGroup(element: any): element is ISCMResourceGroup {
-	return !!(element as ISCMResourceGroup).provider && !!(element as ISCMResourceGroup).elements;
+expowt function isSCMWesouwceGwoup(ewement: any): ewement is ISCMWesouwceGwoup {
+	wetuwn !!(ewement as ISCMWesouwceGwoup).pwovida && !!(ewement as ISCMWesouwceGwoup).ewements;
 }
 
-export function isSCMResource(element: any): element is ISCMResource {
-	return !!(element as ISCMResource).sourceUri && isSCMResourceGroup((element as ISCMResource).resourceGroup);
+expowt function isSCMWesouwce(ewement: any): ewement is ISCMWesouwce {
+	wetuwn !!(ewement as ISCMWesouwce).souwceUwi && isSCMWesouwceGwoup((ewement as ISCMWesouwce).wesouwceGwoup);
 }
 
-const compareActions = (a: IAction, b: IAction) => a.id === b.id;
+const compaweActions = (a: IAction, b: IAction) => a.id === b.id;
 
-export function connectPrimaryMenu(menu: IMenu, callback: (primary: IAction[], secondary: IAction[]) => void, primaryGroup?: string): IDisposable {
-	let cachedDisposable: IDisposable = Disposable.None;
-	let cachedPrimary: IAction[] = [];
-	let cachedSecondary: IAction[] = [];
+expowt function connectPwimawyMenu(menu: IMenu, cawwback: (pwimawy: IAction[], secondawy: IAction[]) => void, pwimawyGwoup?: stwing): IDisposabwe {
+	wet cachedDisposabwe: IDisposabwe = Disposabwe.None;
+	wet cachedPwimawy: IAction[] = [];
+	wet cachedSecondawy: IAction[] = [];
 
 	const updateActions = () => {
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
+		const pwimawy: IAction[] = [];
+		const secondawy: IAction[] = [];
 
-		const disposable = createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, { primary, secondary }, primaryGroup);
+		const disposabwe = cweateAndFiwwInActionBawActions(menu, { shouwdFowwawdAwgs: twue }, { pwimawy, secondawy }, pwimawyGwoup);
 
-		if (equals(cachedPrimary, primary, compareActions) && equals(cachedSecondary, secondary, compareActions)) {
-			disposable.dispose();
-			return;
+		if (equaws(cachedPwimawy, pwimawy, compaweActions) && equaws(cachedSecondawy, secondawy, compaweActions)) {
+			disposabwe.dispose();
+			wetuwn;
 		}
 
-		cachedDisposable = disposable;
-		cachedPrimary = primary;
-		cachedSecondary = secondary;
+		cachedDisposabwe = disposabwe;
+		cachedPwimawy = pwimawy;
+		cachedSecondawy = secondawy;
 
-		callback(primary, secondary);
+		cawwback(pwimawy, secondawy);
 	};
 
 	updateActions();
 
-	return combinedDisposable(
+	wetuwn combinedDisposabwe(
 		menu.onDidChange(updateActions),
-		toDisposable(() => cachedDisposable.dispose())
+		toDisposabwe(() => cachedDisposabwe.dispose())
 	);
 }
 
-export function connectPrimaryMenuToInlineActionBar(menu: IMenu, actionBar: ActionBar): IDisposable {
-	return connectPrimaryMenu(menu, (primary) => {
-		actionBar.clear();
-		actionBar.push(primary, { icon: true, label: false });
-	}, 'inline');
+expowt function connectPwimawyMenuToInwineActionBaw(menu: IMenu, actionBaw: ActionBaw): IDisposabwe {
+	wetuwn connectPwimawyMenu(menu, (pwimawy) => {
+		actionBaw.cweaw();
+		actionBaw.push(pwimawy, { icon: twue, wabew: fawse });
+	}, 'inwine');
 }
 
-export function collectContextMenuActions(menu: IMenu): [IAction[], IDisposable] {
-	const primary: IAction[] = [];
+expowt function cowwectContextMenuActions(menu: IMenu): [IAction[], IDisposabwe] {
+	const pwimawy: IAction[] = [];
 	const actions: IAction[] = [];
-	const disposable = createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, { primary, secondary: actions }, 'inline');
-	return [actions, disposable];
+	const disposabwe = cweateAndFiwwInContextMenuActions(menu, { shouwdFowwawdAwgs: twue }, { pwimawy, secondawy: actions }, 'inwine');
+	wetuwn [actions, disposabwe];
 }
 
-export class StatusBarAction extends Action {
+expowt cwass StatusBawAction extends Action {
 
-	constructor(
-		private command: Command,
-		private commandService: ICommandService
+	constwuctow(
+		pwivate command: Command,
+		pwivate commandSewvice: ICommandSewvice
 	) {
-		super(`statusbaraction{${command.id}}`, command.title, '', true);
-		this.tooltip = command.tooltip || '';
+		supa(`statusbawaction{${command.id}}`, command.titwe, '', twue);
+		this.toowtip = command.toowtip || '';
 	}
 
-	override run(): Promise<void> {
-		return this.commandService.executeCommand(this.command.id, ...(this.command.arguments || []));
+	ovewwide wun(): Pwomise<void> {
+		wetuwn this.commandSewvice.executeCommand(this.command.id, ...(this.command.awguments || []));
 	}
 }
 
-class StatusBarActionViewItem extends ActionViewItem {
+cwass StatusBawActionViewItem extends ActionViewItem {
 
-	constructor(action: StatusBarAction) {
-		super(null, action, {});
+	constwuctow(action: StatusBawAction) {
+		supa(nuww, action, {});
 	}
 
-	override updateLabel(): void {
-		if (this.options.label && this.label) {
-			reset(this.label, ...renderLabelWithIcons(this.getAction().label));
+	ovewwide updateWabew(): void {
+		if (this.options.wabew && this.wabew) {
+			weset(this.wabew, ...wendewWabewWithIcons(this.getAction().wabew));
 		}
 	}
 }
 
-export function getActionViewItemProvider(instaService: IInstantiationService): IActionViewItemProvider {
-	return action => {
-		if (action instanceof StatusBarAction) {
-			return new StatusBarActionViewItem(action);
+expowt function getActionViewItemPwovida(instaSewvice: IInstantiationSewvice): IActionViewItemPwovida {
+	wetuwn action => {
+		if (action instanceof StatusBawAction) {
+			wetuwn new StatusBawActionViewItem(action);
 		}
 
-		return createActionViewItem(instaService, action);
+		wetuwn cweateActionViewItem(instaSewvice, action);
 	};
 }

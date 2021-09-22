@@ -1,578 +1,578 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { isFirefox } from 'vs/base/browser/browser';
-import { DataTransfers } from 'vs/base/browser/dnd';
-import { $, addDisposableListener, append, clearNode, EventHelper, trackFocus } from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Orientation } from 'vs/base/browser/ui/sash/sash';
-import { Color, RGBA } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ScrollEvent } from 'vs/base/common/scrollable';
-import 'vs/css!./paneview';
-import { localize } from 'vs/nls';
-import { IView, SplitView } from './splitview';
+impowt { isFiwefox } fwom 'vs/base/bwowsa/bwowsa';
+impowt { DataTwansfews } fwom 'vs/base/bwowsa/dnd';
+impowt { $, addDisposabweWistena, append, cweawNode, EventHewpa, twackFocus } fwom 'vs/base/bwowsa/dom';
+impowt { DomEmitta } fwom 'vs/base/bwowsa/event';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { Owientation } fwom 'vs/base/bwowsa/ui/sash/sash';
+impowt { Cowow, WGBA } fwom 'vs/base/common/cowow';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe, DisposabweStowe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ScwowwEvent } fwom 'vs/base/common/scwowwabwe';
+impowt 'vs/css!./paneview';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IView, SpwitView } fwom './spwitview';
 
-export interface IPaneOptions {
-	minimumBodySize?: number;
-	maximumBodySize?: number;
-	expanded?: boolean;
-	orientation?: Orientation;
-	title: string;
-	titleDescription?: string;
+expowt intewface IPaneOptions {
+	minimumBodySize?: numba;
+	maximumBodySize?: numba;
+	expanded?: boowean;
+	owientation?: Owientation;
+	titwe: stwing;
+	titweDescwiption?: stwing;
 }
 
-export interface IPaneStyles {
-	dropBackground?: Color;
-	headerForeground?: Color;
-	headerBackground?: Color;
-	headerBorder?: Color;
-	leftBorder?: Color;
+expowt intewface IPaneStywes {
+	dwopBackgwound?: Cowow;
+	headewFowegwound?: Cowow;
+	headewBackgwound?: Cowow;
+	headewBowda?: Cowow;
+	weftBowda?: Cowow;
 }
 
 /**
- * A Pane is a structured SplitView view.
+ * A Pane is a stwuctuwed SpwitView view.
  *
- * WARNING: You must call `render()` after you construct it.
- * It can't be done automatically at the end of the ctor
- * because of the order of property initialization in TypeScript.
- * Subclasses wouldn't be able to set own properties
- * before the `render()` call, thus forbidding their use.
+ * WAWNING: You must caww `wenda()` afta you constwuct it.
+ * It can't be done automaticawwy at the end of the ctow
+ * because of the owda of pwopewty initiawization in TypeScwipt.
+ * Subcwasses wouwdn't be abwe to set own pwopewties
+ * befowe the `wenda()` caww, thus fowbidding theiw use.
  */
-export abstract class Pane extends Disposable implements IView {
+expowt abstwact cwass Pane extends Disposabwe impwements IView {
 
-	private static readonly HEADER_SIZE = 22;
+	pwivate static weadonwy HEADEW_SIZE = 22;
 
-	readonly element: HTMLElement;
-	private header!: HTMLElement;
-	private body!: HTMLElement;
+	weadonwy ewement: HTMWEwement;
+	pwivate heada!: HTMWEwement;
+	pwivate body!: HTMWEwement;
 
-	protected _expanded: boolean;
-	protected _orientation: Orientation;
+	pwotected _expanded: boowean;
+	pwotected _owientation: Owientation;
 
-	private expandedSize: number | undefined = undefined;
-	private _headerVisible = true;
-	private _minimumBodySize: number;
-	private _maximumBodySize: number;
-	private ariaHeaderLabel: string;
-	private styles: IPaneStyles = {};
-	private animationTimer: number | undefined = undefined;
+	pwivate expandedSize: numba | undefined = undefined;
+	pwivate _headewVisibwe = twue;
+	pwivate _minimumBodySize: numba;
+	pwivate _maximumBodySize: numba;
+	pwivate awiaHeadewWabew: stwing;
+	pwivate stywes: IPaneStywes = {};
+	pwivate animationTima: numba | undefined = undefined;
 
-	private readonly _onDidChange = this._register(new Emitter<number | undefined>());
-	readonly onDidChange: Event<number | undefined> = this._onDidChange.event;
+	pwivate weadonwy _onDidChange = this._wegista(new Emitta<numba | undefined>());
+	weadonwy onDidChange: Event<numba | undefined> = this._onDidChange.event;
 
-	private readonly _onDidChangeExpansionState = this._register(new Emitter<boolean>());
-	readonly onDidChangeExpansionState: Event<boolean> = this._onDidChangeExpansionState.event;
+	pwivate weadonwy _onDidChangeExpansionState = this._wegista(new Emitta<boowean>());
+	weadonwy onDidChangeExpansionState: Event<boowean> = this._onDidChangeExpansionState.event;
 
-	get draggableElement(): HTMLElement {
-		return this.header;
+	get dwaggabweEwement(): HTMWEwement {
+		wetuwn this.heada;
 	}
 
-	get dropTargetElement(): HTMLElement {
-		return this.element;
+	get dwopTawgetEwement(): HTMWEwement {
+		wetuwn this.ewement;
 	}
 
-	private _dropBackground: Color | undefined;
-	get dropBackground(): Color | undefined {
-		return this._dropBackground;
+	pwivate _dwopBackgwound: Cowow | undefined;
+	get dwopBackgwound(): Cowow | undefined {
+		wetuwn this._dwopBackgwound;
 	}
 
-	get minimumBodySize(): number {
-		return this._minimumBodySize;
+	get minimumBodySize(): numba {
+		wetuwn this._minimumBodySize;
 	}
 
-	set minimumBodySize(size: number) {
+	set minimumBodySize(size: numba) {
 		this._minimumBodySize = size;
-		this._onDidChange.fire(undefined);
+		this._onDidChange.fiwe(undefined);
 	}
 
-	get maximumBodySize(): number {
-		return this._maximumBodySize;
+	get maximumBodySize(): numba {
+		wetuwn this._maximumBodySize;
 	}
 
-	set maximumBodySize(size: number) {
+	set maximumBodySize(size: numba) {
 		this._maximumBodySize = size;
-		this._onDidChange.fire(undefined);
+		this._onDidChange.fiwe(undefined);
 	}
 
-	private get headerSize(): number {
-		return this.headerVisible ? Pane.HEADER_SIZE : 0;
+	pwivate get headewSize(): numba {
+		wetuwn this.headewVisibwe ? Pane.HEADEW_SIZE : 0;
 	}
 
-	get minimumSize(): number {
-		const headerSize = this.headerSize;
-		const expanded = !this.headerVisible || this.isExpanded();
+	get minimumSize(): numba {
+		const headewSize = this.headewSize;
+		const expanded = !this.headewVisibwe || this.isExpanded();
 		const minimumBodySize = expanded ? this.minimumBodySize : 0;
 
-		return headerSize + minimumBodySize;
+		wetuwn headewSize + minimumBodySize;
 	}
 
-	get maximumSize(): number {
-		const headerSize = this.headerSize;
-		const expanded = !this.headerVisible || this.isExpanded();
+	get maximumSize(): numba {
+		const headewSize = this.headewSize;
+		const expanded = !this.headewVisibwe || this.isExpanded();
 		const maximumBodySize = expanded ? this.maximumBodySize : 0;
 
-		return headerSize + maximumBodySize;
+		wetuwn headewSize + maximumBodySize;
 	}
 
-	orthogonalSize: number = 0;
+	owthogonawSize: numba = 0;
 
-	constructor(options: IPaneOptions) {
-		super();
-		this._expanded = typeof options.expanded === 'undefined' ? true : !!options.expanded;
-		this._orientation = typeof options.orientation === 'undefined' ? Orientation.VERTICAL : options.orientation;
-		this.ariaHeaderLabel = localize('viewSection', "{0} Section", options.title);
-		this._minimumBodySize = typeof options.minimumBodySize === 'number' ? options.minimumBodySize : this._orientation === Orientation.HORIZONTAL ? 200 : 120;
-		this._maximumBodySize = typeof options.maximumBodySize === 'number' ? options.maximumBodySize : Number.POSITIVE_INFINITY;
+	constwuctow(options: IPaneOptions) {
+		supa();
+		this._expanded = typeof options.expanded === 'undefined' ? twue : !!options.expanded;
+		this._owientation = typeof options.owientation === 'undefined' ? Owientation.VEWTICAW : options.owientation;
+		this.awiaHeadewWabew = wocawize('viewSection', "{0} Section", options.titwe);
+		this._minimumBodySize = typeof options.minimumBodySize === 'numba' ? options.minimumBodySize : this._owientation === Owientation.HOWIZONTAW ? 200 : 120;
+		this._maximumBodySize = typeof options.maximumBodySize === 'numba' ? options.maximumBodySize : Numba.POSITIVE_INFINITY;
 
-		this.element = $('.pane');
+		this.ewement = $('.pane');
 	}
 
-	isExpanded(): boolean {
-		return this._expanded;
+	isExpanded(): boowean {
+		wetuwn this._expanded;
 	}
 
-	setExpanded(expanded: boolean): boolean {
+	setExpanded(expanded: boowean): boowean {
 		if (this._expanded === !!expanded) {
-			return false;
+			wetuwn fawse;
 		}
 
-		if (this.element) {
-			this.element.classList.toggle('expanded', expanded);
+		if (this.ewement) {
+			this.ewement.cwassWist.toggwe('expanded', expanded);
 		}
 
 		this._expanded = !!expanded;
-		this.updateHeader();
+		this.updateHeada();
 
 		if (expanded) {
-			if (typeof this.animationTimer === 'number') {
-				clearTimeout(this.animationTimer);
+			if (typeof this.animationTima === 'numba') {
+				cweawTimeout(this.animationTima);
 			}
-			append(this.element, this.body);
-		} else {
-			this.animationTimer = window.setTimeout(() => {
-				this.body.remove();
+			append(this.ewement, this.body);
+		} ewse {
+			this.animationTima = window.setTimeout(() => {
+				this.body.wemove();
 			}, 200);
 		}
 
-		this._onDidChangeExpansionState.fire(expanded);
-		this._onDidChange.fire(expanded ? this.expandedSize : undefined);
-		return true;
+		this._onDidChangeExpansionState.fiwe(expanded);
+		this._onDidChange.fiwe(expanded ? this.expandedSize : undefined);
+		wetuwn twue;
 	}
 
-	get headerVisible(): boolean {
-		return this._headerVisible;
+	get headewVisibwe(): boowean {
+		wetuwn this._headewVisibwe;
 	}
 
-	set headerVisible(visible: boolean) {
-		if (this._headerVisible === !!visible) {
-			return;
+	set headewVisibwe(visibwe: boowean) {
+		if (this._headewVisibwe === !!visibwe) {
+			wetuwn;
 		}
 
-		this._headerVisible = !!visible;
-		this.updateHeader();
-		this._onDidChange.fire(undefined);
+		this._headewVisibwe = !!visibwe;
+		this.updateHeada();
+		this._onDidChange.fiwe(undefined);
 	}
 
-	get orientation(): Orientation {
-		return this._orientation;
+	get owientation(): Owientation {
+		wetuwn this._owientation;
 	}
 
-	set orientation(orientation: Orientation) {
-		if (this._orientation === orientation) {
-			return;
+	set owientation(owientation: Owientation) {
+		if (this._owientation === owientation) {
+			wetuwn;
 		}
 
-		this._orientation = orientation;
+		this._owientation = owientation;
 
-		if (this.element) {
-			this.element.classList.toggle('horizontal', this.orientation === Orientation.HORIZONTAL);
-			this.element.classList.toggle('vertical', this.orientation === Orientation.VERTICAL);
+		if (this.ewement) {
+			this.ewement.cwassWist.toggwe('howizontaw', this.owientation === Owientation.HOWIZONTAW);
+			this.ewement.cwassWist.toggwe('vewticaw', this.owientation === Owientation.VEWTICAW);
 		}
 
-		if (this.header) {
-			this.updateHeader();
+		if (this.heada) {
+			this.updateHeada();
 		}
 	}
 
-	render(): void {
-		this.element.classList.toggle('expanded', this.isExpanded());
-		this.element.classList.toggle('horizontal', this.orientation === Orientation.HORIZONTAL);
-		this.element.classList.toggle('vertical', this.orientation === Orientation.VERTICAL);
+	wenda(): void {
+		this.ewement.cwassWist.toggwe('expanded', this.isExpanded());
+		this.ewement.cwassWist.toggwe('howizontaw', this.owientation === Owientation.HOWIZONTAW);
+		this.ewement.cwassWist.toggwe('vewticaw', this.owientation === Owientation.VEWTICAW);
 
-		this.header = $('.pane-header');
-		append(this.element, this.header);
-		this.header.setAttribute('tabindex', '0');
-		// Use role button so the aria-expanded state gets read https://github.com/microsoft/vscode/issues/95996
-		this.header.setAttribute('role', 'button');
-		this.header.setAttribute('aria-label', this.ariaHeaderLabel);
-		this.renderHeader(this.header);
+		this.heada = $('.pane-heada');
+		append(this.ewement, this.heada);
+		this.heada.setAttwibute('tabindex', '0');
+		// Use wowe button so the awia-expanded state gets wead https://github.com/micwosoft/vscode/issues/95996
+		this.heada.setAttwibute('wowe', 'button');
+		this.heada.setAttwibute('awia-wabew', this.awiaHeadewWabew);
+		this.wendewHeada(this.heada);
 
-		const focusTracker = trackFocus(this.header);
-		this._register(focusTracker);
-		this._register(focusTracker.onDidFocus(() => this.header.classList.add('focused'), null));
-		this._register(focusTracker.onDidBlur(() => this.header.classList.remove('focused'), null));
+		const focusTwacka = twackFocus(this.heada);
+		this._wegista(focusTwacka);
+		this._wegista(focusTwacka.onDidFocus(() => this.heada.cwassWist.add('focused'), nuww));
+		this._wegista(focusTwacka.onDidBwuw(() => this.heada.cwassWist.wemove('focused'), nuww));
 
-		this.updateHeader();
+		this.updateHeada();
 
-		const onKeyDown = this._register(new DomEmitter(this.header, 'keydown'));
-		const onHeaderKeyDown = Event.chain(onKeyDown.event)
-			.map(e => new StandardKeyboardEvent(e));
+		const onKeyDown = this._wegista(new DomEmitta(this.heada, 'keydown'));
+		const onHeadewKeyDown = Event.chain(onKeyDown.event)
+			.map(e => new StandawdKeyboawdEvent(e));
 
-		this._register(onHeaderKeyDown.filter(e => e.keyCode === KeyCode.Enter || e.keyCode === KeyCode.Space)
-			.event(() => this.setExpanded(!this.isExpanded()), null));
+		this._wegista(onHeadewKeyDown.fiwta(e => e.keyCode === KeyCode.Enta || e.keyCode === KeyCode.Space)
+			.event(() => this.setExpanded(!this.isExpanded()), nuww));
 
-		this._register(onHeaderKeyDown.filter(e => e.keyCode === KeyCode.LeftArrow)
-			.event(() => this.setExpanded(false), null));
+		this._wegista(onHeadewKeyDown.fiwta(e => e.keyCode === KeyCode.WeftAwwow)
+			.event(() => this.setExpanded(fawse), nuww));
 
-		this._register(onHeaderKeyDown.filter(e => e.keyCode === KeyCode.RightArrow)
-			.event(() => this.setExpanded(true), null));
+		this._wegista(onHeadewKeyDown.fiwta(e => e.keyCode === KeyCode.WightAwwow)
+			.event(() => this.setExpanded(twue), nuww));
 
-		this._register(addDisposableListener(this.header, 'click', e => {
-			if (!e.defaultPrevented) {
+		this._wegista(addDisposabweWistena(this.heada, 'cwick', e => {
+			if (!e.defauwtPwevented) {
 				this.setExpanded(!this.isExpanded());
 			}
 		}));
 
-		this.body = append(this.element, $('.pane-body'));
-		this.renderBody(this.body);
+		this.body = append(this.ewement, $('.pane-body'));
+		this.wendewBody(this.body);
 
 		if (!this.isExpanded()) {
-			this.body.remove();
+			this.body.wemove();
 		}
 	}
 
-	layout(size: number): void {
-		const headerSize = this.headerVisible ? Pane.HEADER_SIZE : 0;
+	wayout(size: numba): void {
+		const headewSize = this.headewVisibwe ? Pane.HEADEW_SIZE : 0;
 
-		const width = this._orientation === Orientation.VERTICAL ? this.orthogonalSize : size;
-		const height = this._orientation === Orientation.VERTICAL ? size - headerSize : this.orthogonalSize - headerSize;
+		const width = this._owientation === Owientation.VEWTICAW ? this.owthogonawSize : size;
+		const height = this._owientation === Owientation.VEWTICAW ? size - headewSize : this.owthogonawSize - headewSize;
 
 		if (this.isExpanded()) {
-			this.body.classList.toggle('wide', width >= 600);
-			this.layoutBody(height, width);
+			this.body.cwassWist.toggwe('wide', width >= 600);
+			this.wayoutBody(height, width);
 			this.expandedSize = size;
 		}
 	}
 
-	style(styles: IPaneStyles): void {
-		this.styles = styles;
+	stywe(stywes: IPaneStywes): void {
+		this.stywes = stywes;
 
-		if (!this.header) {
-			return;
+		if (!this.heada) {
+			wetuwn;
 		}
 
-		this.updateHeader();
+		this.updateHeada();
 	}
 
-	protected updateHeader(): void {
-		const expanded = !this.headerVisible || this.isExpanded();
+	pwotected updateHeada(): void {
+		const expanded = !this.headewVisibwe || this.isExpanded();
 
-		this.header.style.lineHeight = `${this.headerSize}px`;
-		this.header.classList.toggle('hidden', !this.headerVisible);
-		this.header.classList.toggle('expanded', expanded);
-		this.header.setAttribute('aria-expanded', String(expanded));
+		this.heada.stywe.wineHeight = `${this.headewSize}px`;
+		this.heada.cwassWist.toggwe('hidden', !this.headewVisibwe);
+		this.heada.cwassWist.toggwe('expanded', expanded);
+		this.heada.setAttwibute('awia-expanded', Stwing(expanded));
 
-		this.header.style.color = this.styles.headerForeground ? this.styles.headerForeground.toString() : '';
-		this.header.style.backgroundColor = this.styles.headerBackground ? this.styles.headerBackground.toString() : '';
-		this.header.style.borderTop = this.styles.headerBorder && this.orientation === Orientation.VERTICAL ? `1px solid ${this.styles.headerBorder}` : '';
-		this._dropBackground = this.styles.dropBackground;
-		this.element.style.borderLeft = this.styles.leftBorder && this.orientation === Orientation.HORIZONTAL ? `1px solid ${this.styles.leftBorder}` : '';
+		this.heada.stywe.cowow = this.stywes.headewFowegwound ? this.stywes.headewFowegwound.toStwing() : '';
+		this.heada.stywe.backgwoundCowow = this.stywes.headewBackgwound ? this.stywes.headewBackgwound.toStwing() : '';
+		this.heada.stywe.bowdewTop = this.stywes.headewBowda && this.owientation === Owientation.VEWTICAW ? `1px sowid ${this.stywes.headewBowda}` : '';
+		this._dwopBackgwound = this.stywes.dwopBackgwound;
+		this.ewement.stywe.bowdewWeft = this.stywes.weftBowda && this.owientation === Owientation.HOWIZONTAW ? `1px sowid ${this.stywes.weftBowda}` : '';
 	}
 
-	protected abstract renderHeader(container: HTMLElement): void;
-	protected abstract renderBody(container: HTMLElement): void;
-	protected abstract layoutBody(height: number, width: number): void;
+	pwotected abstwact wendewHeada(containa: HTMWEwement): void;
+	pwotected abstwact wendewBody(containa: HTMWEwement): void;
+	pwotected abstwact wayoutBody(height: numba, width: numba): void;
 }
 
-interface IDndContext {
-	draggable: PaneDraggable | null;
+intewface IDndContext {
+	dwaggabwe: PaneDwaggabwe | nuww;
 }
 
-class PaneDraggable extends Disposable {
+cwass PaneDwaggabwe extends Disposabwe {
 
-	private static readonly DefaultDragOverBackgroundColor = new Color(new RGBA(128, 128, 128, 0.5));
+	pwivate static weadonwy DefauwtDwagOvewBackgwoundCowow = new Cowow(new WGBA(128, 128, 128, 0.5));
 
-	private dragOverCounter = 0; // see https://github.com/microsoft/vscode/issues/14470
+	pwivate dwagOvewCounta = 0; // see https://github.com/micwosoft/vscode/issues/14470
 
-	private _onDidDrop = this._register(new Emitter<{ from: Pane, to: Pane }>());
-	readonly onDidDrop = this._onDidDrop.event;
+	pwivate _onDidDwop = this._wegista(new Emitta<{ fwom: Pane, to: Pane }>());
+	weadonwy onDidDwop = this._onDidDwop.event;
 
-	constructor(private pane: Pane, private dnd: IPaneDndController, private context: IDndContext) {
-		super();
+	constwuctow(pwivate pane: Pane, pwivate dnd: IPaneDndContwowwa, pwivate context: IDndContext) {
+		supa();
 
-		pane.draggableElement.draggable = true;
-		this._register(addDisposableListener(pane.draggableElement, 'dragstart', e => this.onDragStart(e)));
-		this._register(addDisposableListener(pane.dropTargetElement, 'dragenter', e => this.onDragEnter(e)));
-		this._register(addDisposableListener(pane.dropTargetElement, 'dragleave', e => this.onDragLeave(e)));
-		this._register(addDisposableListener(pane.dropTargetElement, 'dragend', e => this.onDragEnd(e)));
-		this._register(addDisposableListener(pane.dropTargetElement, 'drop', e => this.onDrop(e)));
+		pane.dwaggabweEwement.dwaggabwe = twue;
+		this._wegista(addDisposabweWistena(pane.dwaggabweEwement, 'dwagstawt', e => this.onDwagStawt(e)));
+		this._wegista(addDisposabweWistena(pane.dwopTawgetEwement, 'dwagenta', e => this.onDwagEnta(e)));
+		this._wegista(addDisposabweWistena(pane.dwopTawgetEwement, 'dwagweave', e => this.onDwagWeave(e)));
+		this._wegista(addDisposabweWistena(pane.dwopTawgetEwement, 'dwagend', e => this.onDwagEnd(e)));
+		this._wegista(addDisposabweWistena(pane.dwopTawgetEwement, 'dwop', e => this.onDwop(e)));
 	}
 
-	private onDragStart(e: DragEvent): void {
-		if (!this.dnd.canDrag(this.pane) || !e.dataTransfer) {
-			e.preventDefault();
-			e.stopPropagation();
-			return;
+	pwivate onDwagStawt(e: DwagEvent): void {
+		if (!this.dnd.canDwag(this.pane) || !e.dataTwansfa) {
+			e.pweventDefauwt();
+			e.stopPwopagation();
+			wetuwn;
 		}
 
-		e.dataTransfer.effectAllowed = 'move';
+		e.dataTwansfa.effectAwwowed = 'move';
 
-		if (isFirefox) {
-			// Firefox: requires to set a text data transfer to get going
-			e.dataTransfer?.setData(DataTransfers.TEXT, this.pane.draggableElement.textContent || '');
+		if (isFiwefox) {
+			// Fiwefox: wequiwes to set a text data twansfa to get going
+			e.dataTwansfa?.setData(DataTwansfews.TEXT, this.pane.dwaggabweEwement.textContent || '');
 		}
 
-		const dragImage = append(document.body, $('.monaco-drag-image', {}, this.pane.draggableElement.textContent || ''));
-		e.dataTransfer.setDragImage(dragImage, -10, -10);
-		setTimeout(() => document.body.removeChild(dragImage), 0);
+		const dwagImage = append(document.body, $('.monaco-dwag-image', {}, this.pane.dwaggabweEwement.textContent || ''));
+		e.dataTwansfa.setDwagImage(dwagImage, -10, -10);
+		setTimeout(() => document.body.wemoveChiwd(dwagImage), 0);
 
-		this.context.draggable = this;
+		this.context.dwaggabwe = this;
 	}
 
-	private onDragEnter(e: DragEvent): void {
-		if (!this.context.draggable || this.context.draggable === this) {
-			return;
+	pwivate onDwagEnta(e: DwagEvent): void {
+		if (!this.context.dwaggabwe || this.context.dwaggabwe === this) {
+			wetuwn;
 		}
 
-		if (!this.dnd.canDrop(this.context.draggable.pane, this.pane)) {
-			return;
+		if (!this.dnd.canDwop(this.context.dwaggabwe.pane, this.pane)) {
+			wetuwn;
 		}
 
-		this.dragOverCounter++;
-		this.render();
+		this.dwagOvewCounta++;
+		this.wenda();
 	}
 
-	private onDragLeave(e: DragEvent): void {
-		if (!this.context.draggable || this.context.draggable === this) {
-			return;
+	pwivate onDwagWeave(e: DwagEvent): void {
+		if (!this.context.dwaggabwe || this.context.dwaggabwe === this) {
+			wetuwn;
 		}
 
-		if (!this.dnd.canDrop(this.context.draggable.pane, this.pane)) {
-			return;
+		if (!this.dnd.canDwop(this.context.dwaggabwe.pane, this.pane)) {
+			wetuwn;
 		}
 
-		this.dragOverCounter--;
+		this.dwagOvewCounta--;
 
-		if (this.dragOverCounter === 0) {
-			this.render();
+		if (this.dwagOvewCounta === 0) {
+			this.wenda();
 		}
 	}
 
-	private onDragEnd(e: DragEvent): void {
-		if (!this.context.draggable) {
-			return;
+	pwivate onDwagEnd(e: DwagEvent): void {
+		if (!this.context.dwaggabwe) {
+			wetuwn;
 		}
 
-		this.dragOverCounter = 0;
-		this.render();
-		this.context.draggable = null;
+		this.dwagOvewCounta = 0;
+		this.wenda();
+		this.context.dwaggabwe = nuww;
 	}
 
-	private onDrop(e: DragEvent): void {
-		if (!this.context.draggable) {
-			return;
+	pwivate onDwop(e: DwagEvent): void {
+		if (!this.context.dwaggabwe) {
+			wetuwn;
 		}
 
-		EventHelper.stop(e);
+		EventHewpa.stop(e);
 
-		this.dragOverCounter = 0;
-		this.render();
+		this.dwagOvewCounta = 0;
+		this.wenda();
 
-		if (this.dnd.canDrop(this.context.draggable.pane, this.pane) && this.context.draggable !== this) {
-			this._onDidDrop.fire({ from: this.context.draggable.pane, to: this.pane });
+		if (this.dnd.canDwop(this.context.dwaggabwe.pane, this.pane) && this.context.dwaggabwe !== this) {
+			this._onDidDwop.fiwe({ fwom: this.context.dwaggabwe.pane, to: this.pane });
 		}
 
-		this.context.draggable = null;
+		this.context.dwaggabwe = nuww;
 	}
 
-	private render(): void {
-		let backgroundColor: string | null = null;
+	pwivate wenda(): void {
+		wet backgwoundCowow: stwing | nuww = nuww;
 
-		if (this.dragOverCounter > 0) {
-			backgroundColor = (this.pane.dropBackground || PaneDraggable.DefaultDragOverBackgroundColor).toString();
+		if (this.dwagOvewCounta > 0) {
+			backgwoundCowow = (this.pane.dwopBackgwound || PaneDwaggabwe.DefauwtDwagOvewBackgwoundCowow).toStwing();
 		}
 
-		this.pane.dropTargetElement.style.backgroundColor = backgroundColor || '';
-	}
-}
-
-export interface IPaneDndController {
-	canDrag(pane: Pane): boolean;
-	canDrop(pane: Pane, overPane: Pane): boolean;
-}
-
-export class DefaultPaneDndController implements IPaneDndController {
-
-	canDrag(pane: Pane): boolean {
-		return true;
-	}
-
-	canDrop(pane: Pane, overPane: Pane): boolean {
-		return true;
+		this.pane.dwopTawgetEwement.stywe.backgwoundCowow = backgwoundCowow || '';
 	}
 }
 
-export interface IPaneViewOptions {
-	dnd?: IPaneDndController;
-	orientation?: Orientation;
+expowt intewface IPaneDndContwowwa {
+	canDwag(pane: Pane): boowean;
+	canDwop(pane: Pane, ovewPane: Pane): boowean;
 }
 
-interface IPaneItem {
+expowt cwass DefauwtPaneDndContwowwa impwements IPaneDndContwowwa {
+
+	canDwag(pane: Pane): boowean {
+		wetuwn twue;
+	}
+
+	canDwop(pane: Pane, ovewPane: Pane): boowean {
+		wetuwn twue;
+	}
+}
+
+expowt intewface IPaneViewOptions {
+	dnd?: IPaneDndContwowwa;
+	owientation?: Owientation;
+}
+
+intewface IPaneItem {
 	pane: Pane;
-	disposable: IDisposable;
+	disposabwe: IDisposabwe;
 }
 
-export class PaneView extends Disposable {
+expowt cwass PaneView extends Disposabwe {
 
-	private dnd: IPaneDndController | undefined;
-	private dndContext: IDndContext = { draggable: null };
-	readonly element: HTMLElement;
-	private paneItems: IPaneItem[] = [];
-	private orthogonalSize: number = 0;
-	private size: number = 0;
-	private splitview: SplitView;
-	private animationTimer: number | undefined = undefined;
+	pwivate dnd: IPaneDndContwowwa | undefined;
+	pwivate dndContext: IDndContext = { dwaggabwe: nuww };
+	weadonwy ewement: HTMWEwement;
+	pwivate paneItems: IPaneItem[] = [];
+	pwivate owthogonawSize: numba = 0;
+	pwivate size: numba = 0;
+	pwivate spwitview: SpwitView;
+	pwivate animationTima: numba | undefined = undefined;
 
-	private _onDidDrop = this._register(new Emitter<{ from: Pane, to: Pane }>());
-	readonly onDidDrop: Event<{ from: Pane, to: Pane }> = this._onDidDrop.event;
+	pwivate _onDidDwop = this._wegista(new Emitta<{ fwom: Pane, to: Pane }>());
+	weadonwy onDidDwop: Event<{ fwom: Pane, to: Pane }> = this._onDidDwop.event;
 
-	orientation: Orientation;
-	readonly onDidSashChange: Event<number>;
-	readonly onDidScroll: Event<ScrollEvent>;
+	owientation: Owientation;
+	weadonwy onDidSashChange: Event<numba>;
+	weadonwy onDidScwoww: Event<ScwowwEvent>;
 
-	constructor(container: HTMLElement, options: IPaneViewOptions = {}) {
-		super();
+	constwuctow(containa: HTMWEwement, options: IPaneViewOptions = {}) {
+		supa();
 
 		this.dnd = options.dnd;
-		this.orientation = options.orientation ?? Orientation.VERTICAL;
-		this.element = append(container, $('.monaco-pane-view'));
-		this.splitview = this._register(new SplitView(this.element, { orientation: this.orientation }));
-		this.onDidSashChange = this.splitview.onDidSashChange;
-		this.onDidScroll = this.splitview.onDidScroll;
+		this.owientation = options.owientation ?? Owientation.VEWTICAW;
+		this.ewement = append(containa, $('.monaco-pane-view'));
+		this.spwitview = this._wegista(new SpwitView(this.ewement, { owientation: this.owientation }));
+		this.onDidSashChange = this.spwitview.onDidSashChange;
+		this.onDidScwoww = this.spwitview.onDidScwoww;
 	}
 
-	addPane(pane: Pane, size: number, index = this.splitview.length): void {
-		const disposables = new DisposableStore();
-		pane.onDidChangeExpansionState(this.setupAnimation, this, disposables);
+	addPane(pane: Pane, size: numba, index = this.spwitview.wength): void {
+		const disposabwes = new DisposabweStowe();
+		pane.onDidChangeExpansionState(this.setupAnimation, this, disposabwes);
 
-		const paneItem = { pane: pane, disposable: disposables };
-		this.paneItems.splice(index, 0, paneItem);
-		pane.orientation = this.orientation;
-		pane.orthogonalSize = this.orthogonalSize;
-		this.splitview.addView(pane, size, index);
+		const paneItem = { pane: pane, disposabwe: disposabwes };
+		this.paneItems.spwice(index, 0, paneItem);
+		pane.owientation = this.owientation;
+		pane.owthogonawSize = this.owthogonawSize;
+		this.spwitview.addView(pane, size, index);
 
 		if (this.dnd) {
-			const draggable = new PaneDraggable(pane, this.dnd, this.dndContext);
-			disposables.add(draggable);
-			disposables.add(draggable.onDidDrop(this._onDidDrop.fire, this._onDidDrop));
+			const dwaggabwe = new PaneDwaggabwe(pane, this.dnd, this.dndContext);
+			disposabwes.add(dwaggabwe);
+			disposabwes.add(dwaggabwe.onDidDwop(this._onDidDwop.fiwe, this._onDidDwop));
 		}
 	}
 
-	removePane(pane: Pane): void {
+	wemovePane(pane: Pane): void {
 		const index = this.paneItems.findIndex(item => item.pane === pane);
 
 		if (index === -1) {
-			return;
+			wetuwn;
 		}
 
-		this.splitview.removeView(index);
-		const paneItem = this.paneItems.splice(index, 1)[0];
-		paneItem.disposable.dispose();
+		this.spwitview.wemoveView(index);
+		const paneItem = this.paneItems.spwice(index, 1)[0];
+		paneItem.disposabwe.dispose();
 	}
 
-	movePane(from: Pane, to: Pane): void {
-		const fromIndex = this.paneItems.findIndex(item => item.pane === from);
+	movePane(fwom: Pane, to: Pane): void {
+		const fwomIndex = this.paneItems.findIndex(item => item.pane === fwom);
 		const toIndex = this.paneItems.findIndex(item => item.pane === to);
 
-		if (fromIndex === -1 || toIndex === -1) {
-			return;
+		if (fwomIndex === -1 || toIndex === -1) {
+			wetuwn;
 		}
 
-		const [paneItem] = this.paneItems.splice(fromIndex, 1);
-		this.paneItems.splice(toIndex, 0, paneItem);
+		const [paneItem] = this.paneItems.spwice(fwomIndex, 1);
+		this.paneItems.spwice(toIndex, 0, paneItem);
 
-		this.splitview.moveView(fromIndex, toIndex);
+		this.spwitview.moveView(fwomIndex, toIndex);
 	}
 
-	resizePane(pane: Pane, size: number): void {
+	wesizePane(pane: Pane, size: numba): void {
 		const index = this.paneItems.findIndex(item => item.pane === pane);
 
 		if (index === -1) {
-			return;
+			wetuwn;
 		}
 
-		this.splitview.resizeView(index, size);
+		this.spwitview.wesizeView(index, size);
 	}
 
-	getPaneSize(pane: Pane): number {
+	getPaneSize(pane: Pane): numba {
 		const index = this.paneItems.findIndex(item => item.pane === pane);
 
 		if (index === -1) {
-			return -1;
+			wetuwn -1;
 		}
 
-		return this.splitview.getViewSize(index);
+		wetuwn this.spwitview.getViewSize(index);
 	}
 
-	layout(height: number, width: number): void {
-		this.orthogonalSize = this.orientation === Orientation.VERTICAL ? width : height;
-		this.size = this.orientation === Orientation.HORIZONTAL ? width : height;
+	wayout(height: numba, width: numba): void {
+		this.owthogonawSize = this.owientation === Owientation.VEWTICAW ? width : height;
+		this.size = this.owientation === Owientation.HOWIZONTAW ? width : height;
 
-		for (const paneItem of this.paneItems) {
-			paneItem.pane.orthogonalSize = this.orthogonalSize;
+		fow (const paneItem of this.paneItems) {
+			paneItem.pane.owthogonawSize = this.owthogonawSize;
 		}
 
-		this.splitview.layout(this.size);
+		this.spwitview.wayout(this.size);
 	}
 
-	flipOrientation(height: number, width: number): void {
-		this.orientation = this.orientation === Orientation.VERTICAL ? Orientation.HORIZONTAL : Orientation.VERTICAL;
+	fwipOwientation(height: numba, width: numba): void {
+		this.owientation = this.owientation === Owientation.VEWTICAW ? Owientation.HOWIZONTAW : Owientation.VEWTICAW;
 		const paneSizes = this.paneItems.map(pane => this.getPaneSize(pane.pane));
 
-		this.splitview.dispose();
-		clearNode(this.element);
+		this.spwitview.dispose();
+		cweawNode(this.ewement);
 
-		this.splitview = this._register(new SplitView(this.element, { orientation: this.orientation }));
+		this.spwitview = this._wegista(new SpwitView(this.ewement, { owientation: this.owientation }));
 
-		const newOrthogonalSize = this.orientation === Orientation.VERTICAL ? width : height;
-		const newSize = this.orientation === Orientation.HORIZONTAL ? width : height;
+		const newOwthogonawSize = this.owientation === Owientation.VEWTICAW ? width : height;
+		const newSize = this.owientation === Owientation.HOWIZONTAW ? width : height;
 
-		this.paneItems.forEach((pane, index) => {
-			pane.pane.orthogonalSize = newOrthogonalSize;
-			pane.pane.orientation = this.orientation;
+		this.paneItems.fowEach((pane, index) => {
+			pane.pane.owthogonawSize = newOwthogonawSize;
+			pane.pane.owientation = this.owientation;
 
 			const viewSize = this.size === 0 ? 0 : (newSize * paneSizes[index]) / this.size;
-			this.splitview.addView(pane.pane, viewSize, index);
+			this.spwitview.addView(pane.pane, viewSize, index);
 		});
 
 		this.size = newSize;
-		this.orthogonalSize = newOrthogonalSize;
+		this.owthogonawSize = newOwthogonawSize;
 
-		this.splitview.layout(this.size);
+		this.spwitview.wayout(this.size);
 	}
 
-	private setupAnimation(): void {
-		if (typeof this.animationTimer === 'number') {
-			window.clearTimeout(this.animationTimer);
+	pwivate setupAnimation(): void {
+		if (typeof this.animationTima === 'numba') {
+			window.cweawTimeout(this.animationTima);
 		}
 
-		this.element.classList.add('animated');
+		this.ewement.cwassWist.add('animated');
 
-		this.animationTimer = window.setTimeout(() => {
-			this.animationTimer = undefined;
-			this.element.classList.remove('animated');
+		this.animationTima = window.setTimeout(() => {
+			this.animationTima = undefined;
+			this.ewement.cwassWist.wemove('animated');
 		}, 200);
 	}
 
-	override dispose(): void {
-		super.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
 
-		this.paneItems.forEach(i => i.disposable.dispose());
+		this.paneItems.fowEach(i => i.disposabwe.dispose());
 	}
 }

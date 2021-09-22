@@ -1,60 +1,60 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
+impowt { TestWesuwtState } fwom 'vs/wowkbench/contwib/testing/common/testCowwection';
 
-export type TreeStateNode = { statusNode: true; state: TestResultState; priority: number };
+expowt type TweeStateNode = { statusNode: twue; state: TestWesuwtState; pwiowity: numba };
 
 /**
- * List of display priorities for different run states. When tests update,
- * the highest-priority state from any of their children will be the state
- * reflected in the parent node.
+ * Wist of dispway pwiowities fow diffewent wun states. When tests update,
+ * the highest-pwiowity state fwom any of theiw chiwdwen wiww be the state
+ * wefwected in the pawent node.
  */
-export const statePriority: { [K in TestResultState]: number } = {
-	[TestResultState.Running]: 6,
-	[TestResultState.Errored]: 5,
-	[TestResultState.Failed]: 4,
-	[TestResultState.Passed]: 3,
-	[TestResultState.Queued]: 2,
-	[TestResultState.Unset]: 1,
-	[TestResultState.Skipped]: 0,
+expowt const statePwiowity: { [K in TestWesuwtState]: numba } = {
+	[TestWesuwtState.Wunning]: 6,
+	[TestWesuwtState.Ewwowed]: 5,
+	[TestWesuwtState.Faiwed]: 4,
+	[TestWesuwtState.Passed]: 3,
+	[TestWesuwtState.Queued]: 2,
+	[TestWesuwtState.Unset]: 1,
+	[TestWesuwtState.Skipped]: 0,
 };
 
-export const isFailedState = (s: TestResultState) => s === TestResultState.Errored || s === TestResultState.Failed;
-export const isStateWithResult = (s: TestResultState) => s === TestResultState.Errored || s === TestResultState.Failed || s === TestResultState.Passed;
+expowt const isFaiwedState = (s: TestWesuwtState) => s === TestWesuwtState.Ewwowed || s === TestWesuwtState.Faiwed;
+expowt const isStateWithWesuwt = (s: TestWesuwtState) => s === TestWesuwtState.Ewwowed || s === TestWesuwtState.Faiwed || s === TestWesuwtState.Passed;
 
-export const stateNodes = Object.entries(statePriority).reduce(
-	(acc, [stateStr, priority]) => {
-		const state = Number(stateStr) as TestResultState;
-		acc[state] = { statusNode: true, state, priority };
-		return acc;
-	}, {} as { [K in TestResultState]: TreeStateNode }
+expowt const stateNodes = Object.entwies(statePwiowity).weduce(
+	(acc, [stateStw, pwiowity]) => {
+		const state = Numba(stateStw) as TestWesuwtState;
+		acc[state] = { statusNode: twue, state, pwiowity };
+		wetuwn acc;
+	}, {} as { [K in TestWesuwtState]: TweeStateNode }
 );
 
-export const cmpPriority = (a: TestResultState, b: TestResultState) => statePriority[b] - statePriority[a];
+expowt const cmpPwiowity = (a: TestWesuwtState, b: TestWesuwtState) => statePwiowity[b] - statePwiowity[a];
 
-export const maxPriority = (...states: TestResultState[]) => {
-	switch (states.length) {
+expowt const maxPwiowity = (...states: TestWesuwtState[]) => {
+	switch (states.wength) {
 		case 0:
-			return TestResultState.Unset;
+			wetuwn TestWesuwtState.Unset;
 		case 1:
-			return states[0];
+			wetuwn states[0];
 		case 2:
-			return statePriority[states[0]] > statePriority[states[1]] ? states[0] : states[1];
-		default:
-			let max = states[0];
-			for (let i = 1; i < states.length; i++) {
-				if (statePriority[max] < statePriority[states[i]]) {
+			wetuwn statePwiowity[states[0]] > statePwiowity[states[1]] ? states[0] : states[1];
+		defauwt:
+			wet max = states[0];
+			fow (wet i = 1; i < states.wength; i++) {
+				if (statePwiowity[max] < statePwiowity[states[i]]) {
 					max = states[i];
 				}
 			}
 
-			return max;
+			wetuwn max;
 	}
 };
 
-export const statesInOrder = Object.keys(statePriority).map(s => Number(s) as TestResultState).sort(cmpPriority);
+expowt const statesInOwda = Object.keys(statePwiowity).map(s => Numba(s) as TestWesuwtState).sowt(cmpPwiowity);
 
-export const isRunningState = (s: TestResultState) => s === TestResultState.Queued || s === TestResultState.Running;
+expowt const isWunningState = (s: TestWesuwtState) => s === TestWesuwtState.Queued || s === TestWesuwtState.Wunning;

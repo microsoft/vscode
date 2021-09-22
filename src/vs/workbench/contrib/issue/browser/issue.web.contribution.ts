@@ -1,75 +1,75 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { ICommandAction, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IWebIssueService, WebIssueService } from 'vs/workbench/contrib/issue/browser/issueService';
-import { OpenIssueReporterArgs, OpenIssueReporterActionId, OpenIssueReporterApiCommandId } from 'vs/workbench/contrib/issue/common/commands';
+impowt * as nws fwom 'vs/nws';
+impowt { ICommandAction, MenuId, MenuWegistwy } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibution, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IWebIssueSewvice, WebIssueSewvice } fwom 'vs/wowkbench/contwib/issue/bwowsa/issueSewvice';
+impowt { OpenIssueWepowtewAwgs, OpenIssueWepowtewActionId, OpenIssueWepowtewApiCommandId } fwom 'vs/wowkbench/contwib/issue/common/commands';
 
-class RegisterIssueContribution implements IWorkbenchContribution {
+cwass WegistewIssueContwibution impwements IWowkbenchContwibution {
 
-	constructor(@IProductService readonly productService: IProductService) {
-		if (productService.reportIssueUrl) {
-			const OpenIssueReporterActionLabel = nls.localize({ key: 'reportIssueInEnglish', comment: ['Translate this to "Report Issue in English" in all languages please!'] }, "Report Issue");
+	constwuctow(@IPwoductSewvice weadonwy pwoductSewvice: IPwoductSewvice) {
+		if (pwoductSewvice.wepowtIssueUww) {
+			const OpenIssueWepowtewActionWabew = nws.wocawize({ key: 'wepowtIssueInEngwish', comment: ['Twanswate this to "Wepowt Issue in Engwish" in aww wanguages pwease!'] }, "Wepowt Issue");
 
-			CommandsRegistry.registerCommand(OpenIssueReporterActionId, function (accessor, args?: [string] | OpenIssueReporterArgs) {
-				let extensionId: string | undefined;
-				if (args) {
-					if (Array.isArray(args)) {
-						[extensionId] = args;
-					} else {
-						extensionId = args.extensionId;
+			CommandsWegistwy.wegistewCommand(OpenIssueWepowtewActionId, function (accessow, awgs?: [stwing] | OpenIssueWepowtewAwgs) {
+				wet extensionId: stwing | undefined;
+				if (awgs) {
+					if (Awway.isAwway(awgs)) {
+						[extensionId] = awgs;
+					} ewse {
+						extensionId = awgs.extensionId;
 					}
 				}
 
-				return accessor.get(IWebIssueService).openReporter({ extensionId });
+				wetuwn accessow.get(IWebIssueSewvice).openWepowta({ extensionId });
 			});
 
-			CommandsRegistry.registerCommand({
-				id: OpenIssueReporterApiCommandId,
-				handler: function (accessor, args?: [string] | OpenIssueReporterArgs) {
-					let extensionId: string | undefined;
-					if (args) {
-						if (Array.isArray(args)) {
-							[extensionId] = args;
-						} else {
-							extensionId = args.extensionId;
+			CommandsWegistwy.wegistewCommand({
+				id: OpenIssueWepowtewApiCommandId,
+				handwa: function (accessow, awgs?: [stwing] | OpenIssueWepowtewAwgs) {
+					wet extensionId: stwing | undefined;
+					if (awgs) {
+						if (Awway.isAwway(awgs)) {
+							[extensionId] = awgs;
+						} ewse {
+							extensionId = awgs.extensionId;
 						}
 					}
 
-					if (!!extensionId && typeof extensionId !== 'string') {
-						throw new Error(`Invalid argument when running '${OpenIssueReporterApiCommandId}: 'extensionId' must be of type string `);
+					if (!!extensionId && typeof extensionId !== 'stwing') {
+						thwow new Ewwow(`Invawid awgument when wunning '${OpenIssueWepowtewApiCommandId}: 'extensionId' must be of type stwing `);
 					}
 
-					return accessor.get(IWebIssueService).openReporter({ extensionId });
+					wetuwn accessow.get(IWebIssueSewvice).openWepowta({ extensionId });
 				},
-				description: {
-					description: 'Open the issue reporter and optionally prefill part of the form.',
-					args: [
+				descwiption: {
+					descwiption: 'Open the issue wepowta and optionawwy pwefiww pawt of the fowm.',
+					awgs: [
 						{
 							name: 'options',
-							description: 'Data to use to prefill the issue reporter with.',
-							isOptional: true,
+							descwiption: 'Data to use to pwefiww the issue wepowta with.',
+							isOptionaw: twue,
 							schema: {
 								oneOf: [
 									{
-										type: 'string',
-										description: 'The extension id to preselect.'
+										type: 'stwing',
+										descwiption: 'The extension id to pwesewect.'
 									},
 									{
 										type: 'object',
-										properties: {
+										pwopewties: {
 											extensionId: {
-												type: 'string'
+												type: 'stwing'
 											},
 										}
 
@@ -82,26 +82,26 @@ class RegisterIssueContribution implements IWorkbenchContribution {
 			});
 
 			const command: ICommandAction = {
-				id: OpenIssueReporterActionId,
-				title: { value: OpenIssueReporterActionLabel, original: 'Report Issue' },
-				category: CATEGORIES.Help
+				id: OpenIssueWepowtewActionId,
+				titwe: { vawue: OpenIssueWepowtewActionWabew, owiginaw: 'Wepowt Issue' },
+				categowy: CATEGOWIES.Hewp
 			};
 
-			MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command });
+			MenuWegistwy.appendMenuItem(MenuId.CommandPawette, { command });
 
-			MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
-				group: '3_feedback',
+			MenuWegistwy.appendMenuItem(MenuId.MenubawHewpMenu, {
+				gwoup: '3_feedback',
 				command,
-				order: 3
+				owda: 3
 			});
 		}
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(RegisterIssueContribution, LifecyclePhase.Starting);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(WegistewIssueContwibution, WifecycwePhase.Stawting);
 
-CommandsRegistry.registerCommand('_issues.getSystemStatus', (accessor) => {
-	return nls.localize('statusUnsupported', "The --status argument is not yet supported in browsers.");
+CommandsWegistwy.wegistewCommand('_issues.getSystemStatus', (accessow) => {
+	wetuwn nws.wocawize('statusUnsuppowted', "The --status awgument is not yet suppowted in bwowsews.");
 });
 
-registerSingleton(IWebIssueService, WebIssueService, true);
+wegistewSingweton(IWebIssueSewvice, WebIssueSewvice, twue);

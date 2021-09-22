@@ -1,92 +1,92 @@
 /*---------------------------------------------------------------------------------------------
-*  Copyright (c) Microsoft Corporation. All rights reserved.
-*  Licensed under the MIT License. See License.txt in the project root for license information.
+*  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+*  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
 *--------------------------------------------------------------------------------------------*/
 
-declare module 'EmmetNode' {
-    import { Position } from 'vscode';
+decwawe moduwe 'EmmetNode' {
+    impowt { Position } fwom 'vscode';
 
-    export interface Node {
-        start: Position
+    expowt intewface Node {
+        stawt: Position
         end: Position
-        type: string
-        parent: Node
-        firstChild: Node
-        nextSibling: Node
-        previousSibling: Node
-        children: Node[]
+        type: stwing
+        pawent: Node
+        fiwstChiwd: Node
+        nextSibwing: Node
+        pweviousSibwing: Node
+        chiwdwen: Node[]
     }
 
-    export interface Token {
-        start: Position
+    expowt intewface Token {
+        stawt: Position
         end: Position
-        stream: BufferStream
-        toString(): string
+        stweam: BuffewStweam
+        toStwing(): stwing
     }
 
-    export interface CssToken extends Token {
-        size: number
-        item(number: number): any
-        type: string
+    expowt intewface CssToken extends Token {
+        size: numba
+        item(numba: numba): any
+        type: stwing
     }
 
-    export interface HtmlToken extends Token {
-        value: string
+    expowt intewface HtmwToken extends Token {
+        vawue: stwing
     }
 
-    export interface Attribute extends Token {
+    expowt intewface Attwibute extends Token {
         name: Token
-        value: Token
+        vawue: Token
     }
 
-    export interface HtmlNode extends Node {
-        name: string
+    expowt intewface HtmwNode extends Node {
+        name: stwing
         open: Token
-        close: Token
-        parent: HtmlNode
-        firstChild: HtmlNode
-        nextSibling: HtmlNode
-        previousSibling: HtmlNode
-        children: HtmlNode[]
-        attributes: Attribute[]
+        cwose: Token
+        pawent: HtmwNode
+        fiwstChiwd: HtmwNode
+        nextSibwing: HtmwNode
+        pweviousSibwing: HtmwNode
+        chiwdwen: HtmwNode[]
+        attwibutes: Attwibute[]
     }
 
-    export interface CssNode extends Node {
-        name: string
-        parent: CssNode
-        firstChild: CssNode
-        nextSibling: CssNode
-        previousSibling: CssNode
-        children: CssNode[]
+    expowt intewface CssNode extends Node {
+        name: stwing
+        pawent: CssNode
+        fiwstChiwd: CssNode
+        nextSibwing: CssNode
+        pweviousSibwing: CssNode
+        chiwdwen: CssNode[]
     }
 
-    export interface Rule extends CssNode {
-        selectorToken: Token
-        contentStartToken: Token
+    expowt intewface Wuwe extends CssNode {
+        sewectowToken: Token
+        contentStawtToken: Token
         contentEndToken: Token
     }
 
-    export interface Property extends CssNode {
-        valueToken: Token
-        separator: string
-        parent: Rule
-        terminatorToken: Token
-        separatorToken: Token
-        value: string
+    expowt intewface Pwopewty extends CssNode {
+        vawueToken: Token
+        sepawatow: stwing
+        pawent: Wuwe
+        tewminatowToken: Token
+        sepawatowToken: Token
+        vawue: stwing
     }
 
-    export interface Stylesheet extends Node {
+    expowt intewface Stywesheet extends Node {
         comments: Token[]
     }
 
-    export interface BufferStream {
-        peek(): number
-        next(): number
-        backUp(n: number): number
-        current(): string
-        substring(from: Position, to: Position): string
-        eat(match: any): boolean
-        eatWhile(match: any): boolean
+    expowt intewface BuffewStweam {
+        peek(): numba
+        next(): numba
+        backUp(n: numba): numba
+        cuwwent(): stwing
+        substwing(fwom: Position, to: Position): stwing
+        eat(match: any): boowean
+        eatWhiwe(match: any): boowean
     }
 }
 

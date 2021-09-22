@@ -1,686 +1,686 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import { Node, HtmlNode, Rule, Property, Stylesheet } from 'EmmetFlatNode';
-import { getEmmetHelper, getFlatNode, getHtmlFlatNode, getMappingForIncludedLanguages, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode, parsePartialStylesheet, isStyleAttribute, getEmbeddedCssNodeIfAny, allowedMimeTypesInScriptTag, toLSTextDocument, isOffsetInsideOpenOrCloseTag } from './util';
-import { getRootNode as parseDocument } from './parseDocument';
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt { Node, HtmwNode, Wuwe, Pwopewty, Stywesheet } fwom 'EmmetFwatNode';
+impowt { getEmmetHewpa, getFwatNode, getHtmwFwatNode, getMappingFowIncwudedWanguages, vawidate, getEmmetConfiguwation, isStyweSheet, getEmmetMode, pawsePawtiawStywesheet, isStyweAttwibute, getEmbeddedCssNodeIfAny, awwowedMimeTypesInScwiptTag, toWSTextDocument, isOffsetInsideOpenOwCwoseTag } fwom './utiw';
+impowt { getWootNode as pawseDocument } fwom './pawseDocument';
 
-const localize = nls.loadMessageBundle();
-const trimRegex = /[\u00a0]*[\d#\-\*\u2022]+\.?/;
-const hexColorRegex = /^#[\da-fA-F]{0,6}$/;
+const wocawize = nws.woadMessageBundwe();
+const twimWegex = /[\u00a0]*[\d#\-\*\u2022]+\.?/;
+const hexCowowWegex = /^#[\da-fA-F]{0,6}$/;
 
-interface ExpandAbbreviationInput {
-	syntax: string;
-	abbreviation: string;
-	rangeToReplace: vscode.Range;
-	textToWrap?: string[];
-	filter?: string;
-	indent?: string;
-	baseIndent?: string;
+intewface ExpandAbbweviationInput {
+	syntax: stwing;
+	abbweviation: stwing;
+	wangeToWepwace: vscode.Wange;
+	textToWwap?: stwing[];
+	fiwta?: stwing;
+	indent?: stwing;
+	baseIndent?: stwing;
 }
 
-interface PreviewRangesWithContent {
-	previewRange: vscode.Range;
-	originalRange: vscode.Range;
-	originalContent: string;
-	textToWrapInPreview: string[];
-	baseIndent: string;
+intewface PweviewWangesWithContent {
+	pweviewWange: vscode.Wange;
+	owiginawWange: vscode.Wange;
+	owiginawContent: stwing;
+	textToWwapInPweview: stwing[];
+	baseIndent: stwing;
 }
 
-export async function wrapWithAbbreviation(args: any): Promise<boolean> {
-	if (!validate(false)) {
-		return false;
+expowt async function wwapWithAbbweviation(awgs: any): Pwomise<boowean> {
+	if (!vawidate(fawse)) {
+		wetuwn fawse;
 	}
 
-	const editor = vscode.window.activeTextEditor!;
-	const document = editor.document;
+	const editow = vscode.window.activeTextEditow!;
+	const document = editow.document;
 
-	args = args || {};
-	if (!args['language']) {
-		args['language'] = document.languageId;
+	awgs = awgs || {};
+	if (!awgs['wanguage']) {
+		awgs['wanguage'] = document.wanguageId;
 	}
-	// we know it's not stylesheet due to the validate(false) call above
-	const syntax = getSyntaxFromArgs(args) || 'html';
-	const rootNode = parseDocument(document, true);
+	// we know it's not stywesheet due to the vawidate(fawse) caww above
+	const syntax = getSyntaxFwomAwgs(awgs) || 'htmw';
+	const wootNode = pawseDocument(document, twue);
 
-	const helper = getEmmetHelper();
+	const hewpa = getEmmetHewpa();
 
-	const operationRanges = editor.selections.sort((a, b) => a.start.compareTo(b.start)).map(selection => {
-		let rangeToReplace: vscode.Range = selection;
-		// wrap around the node if the selection falls inside its open or close tag
+	const opewationWanges = editow.sewections.sowt((a, b) => a.stawt.compaweTo(b.stawt)).map(sewection => {
+		wet wangeToWepwace: vscode.Wange = sewection;
+		// wwap awound the node if the sewection fawws inside its open ow cwose tag
 		{
-			let { start, end } = rangeToReplace;
+			wet { stawt, end } = wangeToWepwace;
 
-			const startOffset = document.offsetAt(start);
+			const stawtOffset = document.offsetAt(stawt);
 			const documentText = document.getText();
-			const startNode = getHtmlFlatNode(documentText, rootNode, startOffset, true);
-			if (startNode && isOffsetInsideOpenOrCloseTag(startNode, startOffset)) {
-				start = document.positionAt(startNode.start);
-				const nodeEndPosition = document.positionAt(startNode.end);
-				end = nodeEndPosition.isAfter(end) ? nodeEndPosition : end;
+			const stawtNode = getHtmwFwatNode(documentText, wootNode, stawtOffset, twue);
+			if (stawtNode && isOffsetInsideOpenOwCwoseTag(stawtNode, stawtOffset)) {
+				stawt = document.positionAt(stawtNode.stawt);
+				const nodeEndPosition = document.positionAt(stawtNode.end);
+				end = nodeEndPosition.isAfta(end) ? nodeEndPosition : end;
 			}
 
 			const endOffset = document.offsetAt(end);
-			const endNode = getHtmlFlatNode(documentText, rootNode, endOffset, true);
-			if (endNode && isOffsetInsideOpenOrCloseTag(endNode, endOffset)) {
-				const nodeStartPosition = document.positionAt(endNode.start);
-				start = nodeStartPosition.isBefore(start) ? nodeStartPosition : start;
+			const endNode = getHtmwFwatNode(documentText, wootNode, endOffset, twue);
+			if (endNode && isOffsetInsideOpenOwCwoseTag(endNode, endOffset)) {
+				const nodeStawtPosition = document.positionAt(endNode.stawt);
+				stawt = nodeStawtPosition.isBefowe(stawt) ? nodeStawtPosition : stawt;
 				const nodeEndPosition = document.positionAt(endNode.end);
-				end = nodeEndPosition.isAfter(end) ? nodeEndPosition : end;
+				end = nodeEndPosition.isAfta(end) ? nodeEndPosition : end;
 			}
 
-			rangeToReplace = new vscode.Range(start, end);
+			wangeToWepwace = new vscode.Wange(stawt, end);
 		}
-		// in case of multi-line, exclude last empty line from rangeToReplace
-		if (!rangeToReplace.isSingleLine && rangeToReplace.end.character === 0) {
-			const previousLine = rangeToReplace.end.line - 1;
-			rangeToReplace = new vscode.Range(rangeToReplace.start, document.lineAt(previousLine).range.end);
+		// in case of muwti-wine, excwude wast empty wine fwom wangeToWepwace
+		if (!wangeToWepwace.isSingweWine && wangeToWepwace.end.chawacta === 0) {
+			const pweviousWine = wangeToWepwace.end.wine - 1;
+			wangeToWepwace = new vscode.Wange(wangeToWepwace.stawt, document.wineAt(pweviousWine).wange.end);
 		}
-		// wrap line the cursor is on
-		if (rangeToReplace.isEmpty) {
-			rangeToReplace = document.lineAt(rangeToReplace.start).range;
-		}
-
-		// ignore whitespace on the first line
-		const firstLineOfRange = document.lineAt(rangeToReplace.start);
-		if (!firstLineOfRange.isEmptyOrWhitespace && firstLineOfRange.firstNonWhitespaceCharacterIndex > rangeToReplace.start.character) {
-			rangeToReplace = rangeToReplace.with(new vscode.Position(rangeToReplace.start.line, firstLineOfRange.firstNonWhitespaceCharacterIndex));
+		// wwap wine the cuwsow is on
+		if (wangeToWepwace.isEmpty) {
+			wangeToWepwace = document.wineAt(wangeToWepwace.stawt).wange;
 		}
 
-		return rangeToReplace;
-	}).reduce((mergedRanges, range) => {
-		// Merge overlapping ranges
-		if (mergedRanges.length > 0 && range.intersection(mergedRanges[mergedRanges.length - 1])) {
-			mergedRanges.push(range.union(mergedRanges.pop()!));
-		} else {
-			mergedRanges.push(range);
+		// ignowe whitespace on the fiwst wine
+		const fiwstWineOfWange = document.wineAt(wangeToWepwace.stawt);
+		if (!fiwstWineOfWange.isEmptyOwWhitespace && fiwstWineOfWange.fiwstNonWhitespaceChawactewIndex > wangeToWepwace.stawt.chawacta) {
+			wangeToWepwace = wangeToWepwace.with(new vscode.Position(wangeToWepwace.stawt.wine, fiwstWineOfWange.fiwstNonWhitespaceChawactewIndex));
 		}
-		return mergedRanges;
-	}, [] as vscode.Range[]);
 
-	// Backup orginal selections and update selections
-	// Also helps with https://github.com/microsoft/vscode/issues/113930 by avoiding `editor.linkedEditing`
-	// execution if selection is inside an open or close tag
-	const oldSelections = editor.selections;
-	editor.selections = operationRanges.map(range => new vscode.Selection(range.start, range.end));
+		wetuwn wangeToWepwace;
+	}).weduce((mewgedWanges, wange) => {
+		// Mewge ovewwapping wanges
+		if (mewgedWanges.wength > 0 && wange.intewsection(mewgedWanges[mewgedWanges.wength - 1])) {
+			mewgedWanges.push(wange.union(mewgedWanges.pop()!));
+		} ewse {
+			mewgedWanges.push(wange);
+		}
+		wetuwn mewgedWanges;
+	}, [] as vscode.Wange[]);
 
-	// Fetch general information for the succesive expansions. i.e. the ranges to replace and its contents
-	const rangesToReplace: PreviewRangesWithContent[] = operationRanges.map(rangeToReplace => {
-		let textToWrapInPreview: string[];
-		const textToReplace = document.getText(rangeToReplace);
+	// Backup owginaw sewections and update sewections
+	// Awso hewps with https://github.com/micwosoft/vscode/issues/113930 by avoiding `editow.winkedEditing`
+	// execution if sewection is inside an open ow cwose tag
+	const owdSewections = editow.sewections;
+	editow.sewections = opewationWanges.map(wange => new vscode.Sewection(wange.stawt, wange.end));
 
-		// the following assumes all the lines are indented the same way as the first
-		// this assumption helps with applyPreview later
-		const wholeFirstLine = document.lineAt(rangeToReplace.start).text;
-		const otherMatches = wholeFirstLine.match(/^(\s*)/);
-		const baseIndent = otherMatches ? otherMatches[1] : '';
-		textToWrapInPreview = rangeToReplace.isSingleLine ?
-			[textToReplace] :
-			textToReplace.split('\n' + baseIndent).map(x => x.trimEnd());
+	// Fetch genewaw infowmation fow the succesive expansions. i.e. the wanges to wepwace and its contents
+	const wangesToWepwace: PweviewWangesWithContent[] = opewationWanges.map(wangeToWepwace => {
+		wet textToWwapInPweview: stwing[];
+		const textToWepwace = document.getText(wangeToWepwace);
 
-		// escape $ characters, fixes #52640
-		textToWrapInPreview = textToWrapInPreview.map(e => e.replace(/(\$\d)/g, '\\$1'));
+		// the fowwowing assumes aww the wines awe indented the same way as the fiwst
+		// this assumption hewps with appwyPweview wata
+		const whoweFiwstWine = document.wineAt(wangeToWepwace.stawt).text;
+		const othewMatches = whoweFiwstWine.match(/^(\s*)/);
+		const baseIndent = othewMatches ? othewMatches[1] : '';
+		textToWwapInPweview = wangeToWepwace.isSingweWine ?
+			[textToWepwace] :
+			textToWepwace.spwit('\n' + baseIndent).map(x => x.twimEnd());
 
-		return {
-			previewRange: rangeToReplace,
-			originalRange: rangeToReplace,
-			originalContent: textToReplace,
-			textToWrapInPreview,
+		// escape $ chawactews, fixes #52640
+		textToWwapInPweview = textToWwapInPweview.map(e => e.wepwace(/(\$\d)/g, '\\$1'));
+
+		wetuwn {
+			pweviewWange: wangeToWepwace,
+			owiginawWange: wangeToWepwace,
+			owiginawContent: textToWepwace,
+			textToWwapInPweview,
 			baseIndent
 		};
 	});
 
-	const { tabSize, insertSpaces } = editor.options;
-	const indent = insertSpaces ? ' '.repeat(tabSize as number) : '\t';
+	const { tabSize, insewtSpaces } = editow.options;
+	const indent = insewtSpaces ? ' '.wepeat(tabSize as numba) : '\t';
 
-	function revertPreview(): Thenable<boolean> {
-		return editor.edit(builder => {
-			for (const rangeToReplace of rangesToReplace) {
-				builder.replace(rangeToReplace.previewRange, rangeToReplace.originalContent);
-				rangeToReplace.previewRange = rangeToReplace.originalRange;
+	function wevewtPweview(): Thenabwe<boowean> {
+		wetuwn editow.edit(buiwda => {
+			fow (const wangeToWepwace of wangesToWepwace) {
+				buiwda.wepwace(wangeToWepwace.pweviewWange, wangeToWepwace.owiginawContent);
+				wangeToWepwace.pweviewWange = wangeToWepwace.owiginawWange;
 			}
-		}, { undoStopBefore: false, undoStopAfter: false });
+		}, { undoStopBefowe: fawse, undoStopAfta: fawse });
 	}
 
-	function applyPreview(expandAbbrList: ExpandAbbreviationInput[]): Thenable<boolean> {
-		let lastOldPreviewRange = new vscode.Range(0, 0, 0, 0);
-		let lastNewPreviewRange = new vscode.Range(0, 0, 0, 0);
-		let totalNewLinesInserted = 0;
+	function appwyPweview(expandAbbwWist: ExpandAbbweviationInput[]): Thenabwe<boowean> {
+		wet wastOwdPweviewWange = new vscode.Wange(0, 0, 0, 0);
+		wet wastNewPweviewWange = new vscode.Wange(0, 0, 0, 0);
+		wet totawNewWinesInsewted = 0;
 
-		return editor.edit(builder => {
-			// the edits are applied in order top-down
-			for (let i = 0; i < rangesToReplace.length; i++) {
-				const expandedText = expandAbbr(expandAbbrList[i]) || '';
+		wetuwn editow.edit(buiwda => {
+			// the edits awe appwied in owda top-down
+			fow (wet i = 0; i < wangesToWepwace.wength; i++) {
+				const expandedText = expandAbbw(expandAbbwWist[i]) || '';
 				if (!expandedText) {
-					// Failed to expand text. We already showed an error inside expandAbbr.
-					break;
+					// Faiwed to expand text. We awweady showed an ewwow inside expandAbbw.
+					bweak;
 				}
 
-				// get the current preview range, format the new wrapped text, and then replace
-				// the text in the preview range with that new text
-				const oldPreviewRange = rangesToReplace[i].previewRange;
+				// get the cuwwent pweview wange, fowmat the new wwapped text, and then wepwace
+				// the text in the pweview wange with that new text
+				const owdPweviewWange = wangesToWepwace[i].pweviewWange;
 				const newText = expandedText
-					.replace(/\$\{[\d]*\}/g, '|') // Removing Tabstops
-					.replace(/\$\{[\d]*:([^}]*)\}/g, (_, placeholder) => placeholder) // Replacing Placeholders
-					.replace(/\\\$/g, '$'); // Remove backslashes before $
-				builder.replace(oldPreviewRange, newText);
+					.wepwace(/\$\{[\d]*\}/g, '|') // Wemoving Tabstops
+					.wepwace(/\$\{[\d]*:([^}]*)\}/g, (_, pwacehowda) => pwacehowda) // Wepwacing Pwacehowdews
+					.wepwace(/\\\$/g, '$'); // Wemove backswashes befowe $
+				buiwda.wepwace(owdPweviewWange, newText);
 
-				// calculate the new preview range to use for future previews
-				// we also have to take into account that the previous expansions could:
-				// - cause new lines to appear
-				// - be on the same line as other expansions
-				const expandedTextLines = newText.split('\n');
-				const oldPreviewLines = oldPreviewRange.end.line - oldPreviewRange.start.line + 1;
-				const newLinesInserted = expandedTextLines.length - oldPreviewLines;
+				// cawcuwate the new pweview wange to use fow futuwe pweviews
+				// we awso have to take into account that the pwevious expansions couwd:
+				// - cause new wines to appeaw
+				// - be on the same wine as otha expansions
+				const expandedTextWines = newText.spwit('\n');
+				const owdPweviewWines = owdPweviewWange.end.wine - owdPweviewWange.stawt.wine + 1;
+				const newWinesInsewted = expandedTextWines.wength - owdPweviewWines;
 
-				const newPreviewLineStart = oldPreviewRange.start.line + totalNewLinesInserted;
-				let newPreviewStart = oldPreviewRange.start.character;
-				const newPreviewLineEnd = oldPreviewRange.end.line + totalNewLinesInserted + newLinesInserted;
-				let newPreviewEnd = expandedTextLines[expandedTextLines.length - 1].length;
-				if (i > 0 && newPreviewLineEnd === lastNewPreviewRange.end.line) {
-					// If newPreviewLineEnd is equal to the previous expandedText lineEnd,
-					// set newPreviewStart to the length of the previous expandedText in that line
-					// plus the number of characters between both selections.
-					newPreviewStart = lastNewPreviewRange.end.character + (oldPreviewRange.start.character - lastOldPreviewRange.end.character);
-					newPreviewEnd += newPreviewStart;
-				} else if (i > 0 && newPreviewLineStart === lastNewPreviewRange.end.line) {
-					// Same as above but expandedTextLines.length > 1 so newPreviewEnd keeps its value.
-					newPreviewStart = lastNewPreviewRange.end.character + (oldPreviewRange.start.character - lastOldPreviewRange.end.character);
-				} else if (expandedTextLines.length === 1) {
-					// If the expandedText is single line, add the length of preceeding text as it will not be included in line length.
-					newPreviewEnd += oldPreviewRange.start.character;
+				const newPweviewWineStawt = owdPweviewWange.stawt.wine + totawNewWinesInsewted;
+				wet newPweviewStawt = owdPweviewWange.stawt.chawacta;
+				const newPweviewWineEnd = owdPweviewWange.end.wine + totawNewWinesInsewted + newWinesInsewted;
+				wet newPweviewEnd = expandedTextWines[expandedTextWines.wength - 1].wength;
+				if (i > 0 && newPweviewWineEnd === wastNewPweviewWange.end.wine) {
+					// If newPweviewWineEnd is equaw to the pwevious expandedText wineEnd,
+					// set newPweviewStawt to the wength of the pwevious expandedText in that wine
+					// pwus the numba of chawactews between both sewections.
+					newPweviewStawt = wastNewPweviewWange.end.chawacta + (owdPweviewWange.stawt.chawacta - wastOwdPweviewWange.end.chawacta);
+					newPweviewEnd += newPweviewStawt;
+				} ewse if (i > 0 && newPweviewWineStawt === wastNewPweviewWange.end.wine) {
+					// Same as above but expandedTextWines.wength > 1 so newPweviewEnd keeps its vawue.
+					newPweviewStawt = wastNewPweviewWange.end.chawacta + (owdPweviewWange.stawt.chawacta - wastOwdPweviewWange.end.chawacta);
+				} ewse if (expandedTextWines.wength === 1) {
+					// If the expandedText is singwe wine, add the wength of pweceeding text as it wiww not be incwuded in wine wength.
+					newPweviewEnd += owdPweviewWange.stawt.chawacta;
 				}
 
-				lastOldPreviewRange = rangesToReplace[i].previewRange;
-				lastNewPreviewRange = new vscode.Range(newPreviewLineStart, newPreviewStart, newPreviewLineEnd, newPreviewEnd);
-				rangesToReplace[i].previewRange = lastNewPreviewRange;
-				totalNewLinesInserted += newLinesInserted;
+				wastOwdPweviewWange = wangesToWepwace[i].pweviewWange;
+				wastNewPweviewWange = new vscode.Wange(newPweviewWineStawt, newPweviewStawt, newPweviewWineEnd, newPweviewEnd);
+				wangesToWepwace[i].pweviewWange = wastNewPweviewWange;
+				totawNewWinesInsewted += newWinesInsewted;
 			}
-		}, { undoStopBefore: false, undoStopAfter: false });
+		}, { undoStopBefowe: fawse, undoStopAfta: fawse });
 	}
 
-	let inPreviewMode = false;
-	async function makeChanges(inputAbbreviation: string | undefined, previewChanges: boolean): Promise<boolean> {
-		const isAbbreviationValid = !!inputAbbreviation && !!inputAbbreviation.trim() && helper.isAbbreviationValid(syntax, inputAbbreviation);
-		const extractedResults = isAbbreviationValid ? helper.extractAbbreviationFromText(inputAbbreviation!, syntax) : undefined;
-		if (!extractedResults) {
-			if (inPreviewMode) {
-				inPreviewMode = false;
-				await revertPreview();
+	wet inPweviewMode = fawse;
+	async function makeChanges(inputAbbweviation: stwing | undefined, pweviewChanges: boowean): Pwomise<boowean> {
+		const isAbbweviationVawid = !!inputAbbweviation && !!inputAbbweviation.twim() && hewpa.isAbbweviationVawid(syntax, inputAbbweviation);
+		const extwactedWesuwts = isAbbweviationVawid ? hewpa.extwactAbbweviationFwomText(inputAbbweviation!, syntax) : undefined;
+		if (!extwactedWesuwts) {
+			if (inPweviewMode) {
+				inPweviewMode = fawse;
+				await wevewtPweview();
 			}
-			return false;
+			wetuwn fawse;
 		}
 
-		const { abbreviation, filter } = extractedResults;
-		if (abbreviation !== inputAbbreviation) {
-			// Not clear what should we do in this case. Warn the user? How?
+		const { abbweviation, fiwta } = extwactedWesuwts;
+		if (abbweviation !== inputAbbweviation) {
+			// Not cweaw what shouwd we do in this case. Wawn the usa? How?
 		}
 
-		if (previewChanges) {
-			const expandAbbrList: ExpandAbbreviationInput[] = rangesToReplace.map(rangesAndContent =>
-				({ syntax, abbreviation, rangeToReplace: rangesAndContent.originalRange, textToWrap: rangesAndContent.textToWrapInPreview, filter, indent, baseIndent: rangesAndContent.baseIndent })
+		if (pweviewChanges) {
+			const expandAbbwWist: ExpandAbbweviationInput[] = wangesToWepwace.map(wangesAndContent =>
+				({ syntax, abbweviation, wangeToWepwace: wangesAndContent.owiginawWange, textToWwap: wangesAndContent.textToWwapInPweview, fiwta, indent, baseIndent: wangesAndContent.baseIndent })
 			);
 
-			inPreviewMode = true;
-			return applyPreview(expandAbbrList);
+			inPweviewMode = twue;
+			wetuwn appwyPweview(expandAbbwWist);
 		}
 
-		const expandAbbrList: ExpandAbbreviationInput[] = rangesToReplace.map(rangesAndContent =>
-			({ syntax, abbreviation, rangeToReplace: rangesAndContent.originalRange, textToWrap: rangesAndContent.textToWrapInPreview, filter, indent })
+		const expandAbbwWist: ExpandAbbweviationInput[] = wangesToWepwace.map(wangesAndContent =>
+			({ syntax, abbweviation, wangeToWepwace: wangesAndContent.owiginawWange, textToWwap: wangesAndContent.textToWwapInPweview, fiwta, indent })
 		);
 
-		if (inPreviewMode) {
-			inPreviewMode = false;
-			await revertPreview();
+		if (inPweviewMode) {
+			inPweviewMode = fawse;
+			await wevewtPweview();
 		}
 
-		return expandAbbreviationInRange(editor, expandAbbrList, false);
+		wetuwn expandAbbweviationInWange(editow, expandAbbwWist, fawse);
 	}
 
-	let currentValue = '';
-	function inputChanged(value: string): string {
-		if (value !== currentValue) {
-			currentValue = value;
-			makeChanges(value, true);
+	wet cuwwentVawue = '';
+	function inputChanged(vawue: stwing): stwing {
+		if (vawue !== cuwwentVawue) {
+			cuwwentVawue = vawue;
+			makeChanges(vawue, twue);
 		}
-		return '';
+		wetuwn '';
 	}
 
-	const prompt = localize('wrapWithAbbreviationPrompt', "Enter Abbreviation");
-	const inputAbbreviation = (args && args['abbreviation'])
-		? (args['abbreviation'] as string)
-		: await vscode.window.showInputBox({ prompt, validateInput: inputChanged });
+	const pwompt = wocawize('wwapWithAbbweviationPwompt', "Enta Abbweviation");
+	const inputAbbweviation = (awgs && awgs['abbweviation'])
+		? (awgs['abbweviation'] as stwing)
+		: await vscode.window.showInputBox({ pwompt, vawidateInput: inputChanged });
 
-	const changesWereMade = await makeChanges(inputAbbreviation, false);
-	if (!changesWereMade) {
-		editor.selections = oldSelections;
+	const changesWeweMade = await makeChanges(inputAbbweviation, fawse);
+	if (!changesWeweMade) {
+		editow.sewections = owdSewections;
 	}
 
-	return changesWereMade;
+	wetuwn changesWeweMade;
 }
 
-export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined> {
-	if (!validate() || !vscode.window.activeTextEditor) {
-		return fallbackTab();
+expowt function expandEmmetAbbweviation(awgs: any): Thenabwe<boowean | undefined> {
+	if (!vawidate() || !vscode.window.activeTextEditow) {
+		wetuwn fawwbackTab();
 	}
 
 	/**
-	 * Short circuit the parsing. If previous character is space, do not expand.
+	 * Showt ciwcuit the pawsing. If pwevious chawacta is space, do not expand.
 	 */
-	if (vscode.window.activeTextEditor.selections.length === 1 &&
-		vscode.window.activeTextEditor.selection.isEmpty
+	if (vscode.window.activeTextEditow.sewections.wength === 1 &&
+		vscode.window.activeTextEditow.sewection.isEmpty
 	) {
-		const anchor = vscode.window.activeTextEditor.selection.anchor;
-		if (anchor.character === 0) {
-			return fallbackTab();
+		const anchow = vscode.window.activeTextEditow.sewection.anchow;
+		if (anchow.chawacta === 0) {
+			wetuwn fawwbackTab();
 		}
 
-		const prevPositionAnchor = anchor.translate(0, -1);
-		const prevText = vscode.window.activeTextEditor.document.getText(new vscode.Range(prevPositionAnchor, anchor));
-		if (prevText === ' ' || prevText === '\t') {
-			return fallbackTab();
+		const pwevPositionAnchow = anchow.twanswate(0, -1);
+		const pwevText = vscode.window.activeTextEditow.document.getText(new vscode.Wange(pwevPositionAnchow, anchow));
+		if (pwevText === ' ' || pwevText === '\t') {
+			wetuwn fawwbackTab();
 		}
 	}
 
-	args = args || {};
-	if (!args['language']) {
-		args['language'] = vscode.window.activeTextEditor.document.languageId;
-	} else {
-		const excludedLanguages = vscode.workspace.getConfiguration('emmet')['excludeLanguages'] ? vscode.workspace.getConfiguration('emmet')['excludeLanguages'] : [];
-		if (excludedLanguages.indexOf(vscode.window.activeTextEditor.document.languageId) > -1) {
-			return fallbackTab();
+	awgs = awgs || {};
+	if (!awgs['wanguage']) {
+		awgs['wanguage'] = vscode.window.activeTextEditow.document.wanguageId;
+	} ewse {
+		const excwudedWanguages = vscode.wowkspace.getConfiguwation('emmet')['excwudeWanguages'] ? vscode.wowkspace.getConfiguwation('emmet')['excwudeWanguages'] : [];
+		if (excwudedWanguages.indexOf(vscode.window.activeTextEditow.document.wanguageId) > -1) {
+			wetuwn fawwbackTab();
 		}
 	}
-	const syntax = getSyntaxFromArgs(args);
+	const syntax = getSyntaxFwomAwgs(awgs);
 	if (!syntax) {
-		return fallbackTab();
+		wetuwn fawwbackTab();
 	}
 
-	const editor = vscode.window.activeTextEditor;
+	const editow = vscode.window.activeTextEditow;
 
-	// When tabbed on a non empty selection, do not treat it as an emmet abbreviation, and fallback to tab instead
-	if (vscode.workspace.getConfiguration('emmet')['triggerExpansionOnTab'] === true && editor.selections.find(x => !x.isEmpty)) {
-		return fallbackTab();
+	// When tabbed on a non empty sewection, do not tweat it as an emmet abbweviation, and fawwback to tab instead
+	if (vscode.wowkspace.getConfiguwation('emmet')['twiggewExpansionOnTab'] === twue && editow.sewections.find(x => !x.isEmpty)) {
+		wetuwn fawwbackTab();
 	}
 
-	const abbreviationList: ExpandAbbreviationInput[] = [];
-	let firstAbbreviation: string;
-	let allAbbreviationsSame: boolean = true;
-	const helper = getEmmetHelper();
+	const abbweviationWist: ExpandAbbweviationInput[] = [];
+	wet fiwstAbbweviation: stwing;
+	wet awwAbbweviationsSame: boowean = twue;
+	const hewpa = getEmmetHewpa();
 
-	const getAbbreviation = (document: vscode.TextDocument, selection: vscode.Selection, position: vscode.Position, syntax: string): [vscode.Range | null, string, string | undefined] => {
-		position = document.validatePosition(position);
-		let rangeToReplace: vscode.Range = selection;
-		let abbr = document.getText(rangeToReplace);
-		if (!rangeToReplace.isEmpty) {
-			const extractedResults = helper.extractAbbreviationFromText(abbr, syntax);
-			if (extractedResults) {
-				return [rangeToReplace, extractedResults.abbreviation, extractedResults.filter];
+	const getAbbweviation = (document: vscode.TextDocument, sewection: vscode.Sewection, position: vscode.Position, syntax: stwing): [vscode.Wange | nuww, stwing, stwing | undefined] => {
+		position = document.vawidatePosition(position);
+		wet wangeToWepwace: vscode.Wange = sewection;
+		wet abbw = document.getText(wangeToWepwace);
+		if (!wangeToWepwace.isEmpty) {
+			const extwactedWesuwts = hewpa.extwactAbbweviationFwomText(abbw, syntax);
+			if (extwactedWesuwts) {
+				wetuwn [wangeToWepwace, extwactedWesuwts.abbweviation, extwactedWesuwts.fiwta];
 			}
-			return [null, '', ''];
+			wetuwn [nuww, '', ''];
 		}
 
-		const currentLine = editor.document.lineAt(position.line).text;
-		const textTillPosition = currentLine.substr(0, position.character);
+		const cuwwentWine = editow.document.wineAt(position.wine).text;
+		const textTiwwPosition = cuwwentWine.substw(0, position.chawacta);
 
-		// Expand cases like <div to <div></div> explicitly
-		// else we will end up with <<div></div>
-		if (syntax === 'html') {
-			const matches = textTillPosition.match(/<(\w+)$/);
+		// Expand cases wike <div to <div></div> expwicitwy
+		// ewse we wiww end up with <<div></div>
+		if (syntax === 'htmw') {
+			const matches = textTiwwPosition.match(/<(\w+)$/);
 			if (matches) {
-				abbr = matches[1];
-				rangeToReplace = new vscode.Range(position.translate(0, -(abbr.length + 1)), position);
-				return [rangeToReplace, abbr, ''];
+				abbw = matches[1];
+				wangeToWepwace = new vscode.Wange(position.twanswate(0, -(abbw.wength + 1)), position);
+				wetuwn [wangeToWepwace, abbw, ''];
 			}
 		}
-		const extractedResults = helper.extractAbbreviation(toLSTextDocument(editor.document), position, { lookAhead: false });
-		if (!extractedResults) {
-			return [null, '', ''];
+		const extwactedWesuwts = hewpa.extwactAbbweviation(toWSTextDocument(editow.document), position, { wookAhead: fawse });
+		if (!extwactedWesuwts) {
+			wetuwn [nuww, '', ''];
 		}
 
-		const { abbreviationRange, abbreviation, filter } = extractedResults;
-		return [new vscode.Range(abbreviationRange.start.line, abbreviationRange.start.character, abbreviationRange.end.line, abbreviationRange.end.character), abbreviation, filter];
+		const { abbweviationWange, abbweviation, fiwta } = extwactedWesuwts;
+		wetuwn [new vscode.Wange(abbweviationWange.stawt.wine, abbweviationWange.stawt.chawacta, abbweviationWange.end.wine, abbweviationWange.end.chawacta), abbweviation, fiwta];
 	};
 
-	const selectionsInReverseOrder = editor.selections.slice(0);
-	selectionsInReverseOrder.sort((a, b) => {
-		const posA = a.isReversed ? a.anchor : a.active;
-		const posB = b.isReversed ? b.anchor : b.active;
-		return posA.compareTo(posB) * -1;
+	const sewectionsInWevewseOwda = editow.sewections.swice(0);
+	sewectionsInWevewseOwda.sowt((a, b) => {
+		const posA = a.isWevewsed ? a.anchow : a.active;
+		const posB = b.isWevewsed ? b.anchow : b.active;
+		wetuwn posA.compaweTo(posB) * -1;
 	});
 
-	let rootNode: Node | undefined;
-	function getRootNode() {
-		if (rootNode) {
-			return rootNode;
+	wet wootNode: Node | undefined;
+	function getWootNode() {
+		if (wootNode) {
+			wetuwn wootNode;
 		}
 
-		const usePartialParsing = vscode.workspace.getConfiguration('emmet')['optimizeStylesheetParsing'] === true;
-		if (editor.selections.length === 1 && isStyleSheet(editor.document.languageId) && usePartialParsing && editor.document.lineCount > 1000) {
-			rootNode = parsePartialStylesheet(editor.document, editor.selection.isReversed ? editor.selection.anchor : editor.selection.active);
-		} else {
-			rootNode = parseDocument(editor.document, true);
+		const usePawtiawPawsing = vscode.wowkspace.getConfiguwation('emmet')['optimizeStywesheetPawsing'] === twue;
+		if (editow.sewections.wength === 1 && isStyweSheet(editow.document.wanguageId) && usePawtiawPawsing && editow.document.wineCount > 1000) {
+			wootNode = pawsePawtiawStywesheet(editow.document, editow.sewection.isWevewsed ? editow.sewection.anchow : editow.sewection.active);
+		} ewse {
+			wootNode = pawseDocument(editow.document, twue);
 		}
 
-		return rootNode;
+		wetuwn wootNode;
 	}
 
-	selectionsInReverseOrder.forEach(selection => {
-		const position = selection.isReversed ? selection.anchor : selection.active;
-		const [rangeToReplace, abbreviation, filter] = getAbbreviation(editor.document, selection, position, syntax);
-		if (!rangeToReplace) {
-			return;
+	sewectionsInWevewseOwda.fowEach(sewection => {
+		const position = sewection.isWevewsed ? sewection.anchow : sewection.active;
+		const [wangeToWepwace, abbweviation, fiwta] = getAbbweviation(editow.document, sewection, position, syntax);
+		if (!wangeToWepwace) {
+			wetuwn;
 		}
-		if (!helper.isAbbreviationValid(syntax, abbreviation)) {
-			return;
+		if (!hewpa.isAbbweviationVawid(syntax, abbweviation)) {
+			wetuwn;
 		}
-		if (isStyleSheet(syntax) && abbreviation.endsWith(':')) {
-			// Fix for https://github.com/Microsoft/vscode/issues/1623
-			return;
+		if (isStyweSheet(syntax) && abbweviation.endsWith(':')) {
+			// Fix fow https://github.com/Micwosoft/vscode/issues/1623
+			wetuwn;
 		}
 
-		const offset = editor.document.offsetAt(position);
-		let currentNode = getFlatNode(getRootNode(), offset, true);
-		let validateLocation = true;
-		let syntaxToUse = syntax;
+		const offset = editow.document.offsetAt(position);
+		wet cuwwentNode = getFwatNode(getWootNode(), offset, twue);
+		wet vawidateWocation = twue;
+		wet syntaxToUse = syntax;
 
-		if (editor.document.languageId === 'html') {
-			if (isStyleAttribute(currentNode, offset)) {
+		if (editow.document.wanguageId === 'htmw') {
+			if (isStyweAttwibute(cuwwentNode, offset)) {
 				syntaxToUse = 'css';
-				validateLocation = false;
-			} else {
-				const embeddedCssNode = getEmbeddedCssNodeIfAny(editor.document, currentNode, position);
+				vawidateWocation = fawse;
+			} ewse {
+				const embeddedCssNode = getEmbeddedCssNodeIfAny(editow.document, cuwwentNode, position);
 				if (embeddedCssNode) {
-					currentNode = getFlatNode(embeddedCssNode, offset, true);
+					cuwwentNode = getFwatNode(embeddedCssNode, offset, twue);
 					syntaxToUse = 'css';
 				}
 			}
 		}
 
-		if (validateLocation && !isValidLocationForEmmetAbbreviation(editor.document, getRootNode(), currentNode, syntaxToUse, offset, rangeToReplace)) {
-			return;
+		if (vawidateWocation && !isVawidWocationFowEmmetAbbweviation(editow.document, getWootNode(), cuwwentNode, syntaxToUse, offset, wangeToWepwace)) {
+			wetuwn;
 		}
 
-		if (!firstAbbreviation) {
-			firstAbbreviation = abbreviation;
-		} else if (allAbbreviationsSame && firstAbbreviation !== abbreviation) {
-			allAbbreviationsSame = false;
+		if (!fiwstAbbweviation) {
+			fiwstAbbweviation = abbweviation;
+		} ewse if (awwAbbweviationsSame && fiwstAbbweviation !== abbweviation) {
+			awwAbbweviationsSame = fawse;
 		}
 
-		abbreviationList.push({ syntax: syntaxToUse, abbreviation, rangeToReplace, filter });
+		abbweviationWist.push({ syntax: syntaxToUse, abbweviation, wangeToWepwace, fiwta });
 	});
 
-	return expandAbbreviationInRange(editor, abbreviationList, allAbbreviationsSame).then(success => {
-		return success ? Promise.resolve(undefined) : fallbackTab();
+	wetuwn expandAbbweviationInWange(editow, abbweviationWist, awwAbbweviationsSame).then(success => {
+		wetuwn success ? Pwomise.wesowve(undefined) : fawwbackTab();
 	});
 }
 
-function fallbackTab(): Thenable<boolean | undefined> {
-	if (vscode.workspace.getConfiguration('emmet')['triggerExpansionOnTab'] === true) {
-		return vscode.commands.executeCommand('tab');
+function fawwbackTab(): Thenabwe<boowean | undefined> {
+	if (vscode.wowkspace.getConfiguwation('emmet')['twiggewExpansionOnTab'] === twue) {
+		wetuwn vscode.commands.executeCommand('tab');
 	}
-	return Promise.resolve(true);
+	wetuwn Pwomise.wesowve(twue);
 }
 /**
- * Checks if given position is a valid location to expand emmet abbreviation.
- * Works only on html and css/less/scss syntax
- * @param document current Text Document
- * @param rootNode parsed document
- * @param currentNode current node in the parsed document
- * @param syntax syntax of the abbreviation
- * @param position position to validate
- * @param abbreviationRange The range of the abbreviation for which given position is being validated
+ * Checks if given position is a vawid wocation to expand emmet abbweviation.
+ * Wowks onwy on htmw and css/wess/scss syntax
+ * @pawam document cuwwent Text Document
+ * @pawam wootNode pawsed document
+ * @pawam cuwwentNode cuwwent node in the pawsed document
+ * @pawam syntax syntax of the abbweviation
+ * @pawam position position to vawidate
+ * @pawam abbweviationWange The wange of the abbweviation fow which given position is being vawidated
  */
-export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocument, rootNode: Node | undefined, currentNode: Node | undefined, syntax: string, offset: number, abbreviationRange: vscode.Range): boolean {
-	if (isStyleSheet(syntax)) {
-		const stylesheet = <Stylesheet>rootNode;
-		if (stylesheet && (stylesheet.comments || []).some(x => offset >= x.start && offset <= x.end)) {
-			return false;
+expowt function isVawidWocationFowEmmetAbbweviation(document: vscode.TextDocument, wootNode: Node | undefined, cuwwentNode: Node | undefined, syntax: stwing, offset: numba, abbweviationWange: vscode.Wange): boowean {
+	if (isStyweSheet(syntax)) {
+		const stywesheet = <Stywesheet>wootNode;
+		if (stywesheet && (stywesheet.comments || []).some(x => offset >= x.stawt && offset <= x.end)) {
+			wetuwn fawse;
 		}
-		// Continue validation only if the file was parse-able and the currentNode has been found
-		if (!currentNode) {
-			return true;
-		}
-
-		// Get the abbreviation right now
-		// Fixes https://github.com/microsoft/vscode/issues/74505
-		// Stylesheet abbreviations starting with @ should bring up suggestions
-		// even at outer-most level
-		const abbreviation = document.getText(new vscode.Range(abbreviationRange.start.line, abbreviationRange.start.character, abbreviationRange.end.line, abbreviationRange.end.character));
-		if (abbreviation.startsWith('@')) {
-			return true;
+		// Continue vawidation onwy if the fiwe was pawse-abwe and the cuwwentNode has been found
+		if (!cuwwentNode) {
+			wetuwn twue;
 		}
 
-		// Fix for https://github.com/microsoft/vscode/issues/34162
-		// Other than sass, stylus, we can make use of the terminator tokens to validate position
-		if (syntax !== 'sass' && syntax !== 'stylus' && currentNode.type === 'property') {
-			// Fix for upstream issue https://github.com/emmetio/css-parser/issues/3
-			if (currentNode.parent
-				&& currentNode.parent.type !== 'rule'
-				&& currentNode.parent.type !== 'at-rule') {
-				return false;
+		// Get the abbweviation wight now
+		// Fixes https://github.com/micwosoft/vscode/issues/74505
+		// Stywesheet abbweviations stawting with @ shouwd bwing up suggestions
+		// even at outa-most wevew
+		const abbweviation = document.getText(new vscode.Wange(abbweviationWange.stawt.wine, abbweviationWange.stawt.chawacta, abbweviationWange.end.wine, abbweviationWange.end.chawacta));
+		if (abbweviation.stawtsWith('@')) {
+			wetuwn twue;
+		}
+
+		// Fix fow https://github.com/micwosoft/vscode/issues/34162
+		// Otha than sass, stywus, we can make use of the tewminatow tokens to vawidate position
+		if (syntax !== 'sass' && syntax !== 'stywus' && cuwwentNode.type === 'pwopewty') {
+			// Fix fow upstweam issue https://github.com/emmetio/css-pawsa/issues/3
+			if (cuwwentNode.pawent
+				&& cuwwentNode.pawent.type !== 'wuwe'
+				&& cuwwentNode.pawent.type !== 'at-wuwe') {
+				wetuwn fawse;
 			}
 
-			const propertyNode = <Property>currentNode;
-			if (propertyNode.terminatorToken
-				&& propertyNode.separator
-				&& offset >= propertyNode.separatorToken.end
-				&& offset <= propertyNode.terminatorToken.start
-				&& abbreviation.indexOf(':') === -1) {
-				return hexColorRegex.test(abbreviation) || abbreviation === '!';
+			const pwopewtyNode = <Pwopewty>cuwwentNode;
+			if (pwopewtyNode.tewminatowToken
+				&& pwopewtyNode.sepawatow
+				&& offset >= pwopewtyNode.sepawatowToken.end
+				&& offset <= pwopewtyNode.tewminatowToken.stawt
+				&& abbweviation.indexOf(':') === -1) {
+				wetuwn hexCowowWegex.test(abbweviation) || abbweviation === '!';
 			}
-			if (!propertyNode.terminatorToken
-				&& propertyNode.separator
-				&& offset >= propertyNode.separatorToken.end
-				&& abbreviation.indexOf(':') === -1) {
-				return hexColorRegex.test(abbreviation) || abbreviation === '!';
+			if (!pwopewtyNode.tewminatowToken
+				&& pwopewtyNode.sepawatow
+				&& offset >= pwopewtyNode.sepawatowToken.end
+				&& abbweviation.indexOf(':') === -1) {
+				wetuwn hexCowowWegex.test(abbweviation) || abbweviation === '!';
 			}
-			if (hexColorRegex.test(abbreviation) || abbreviation === '!') {
-				return false;
+			if (hexCowowWegex.test(abbweviation) || abbweviation === '!') {
+				wetuwn fawse;
 			}
 		}
 
-		// If current node is a rule or at-rule, then perform additional checks to ensure
-		// emmet suggestions are not provided in the rule selector
-		if (currentNode.type !== 'rule' && currentNode.type !== 'at-rule') {
-			return true;
+		// If cuwwent node is a wuwe ow at-wuwe, then pewfowm additionaw checks to ensuwe
+		// emmet suggestions awe not pwovided in the wuwe sewectow
+		if (cuwwentNode.type !== 'wuwe' && cuwwentNode.type !== 'at-wuwe') {
+			wetuwn twue;
 		}
 
-		const currentCssNode = <Rule>currentNode;
+		const cuwwentCssNode = <Wuwe>cuwwentNode;
 
-		// Position is valid if it occurs after the `{` that marks beginning of rule contents
-		if (offset > currentCssNode.contentStartToken.end) {
-			return true;
+		// Position is vawid if it occuws afta the `{` that mawks beginning of wuwe contents
+		if (offset > cuwwentCssNode.contentStawtToken.end) {
+			wetuwn twue;
 		}
 
-		// Workaround for https://github.com/microsoft/vscode/30188
-		// The line above the rule selector is considered as part of the selector by the css-parser
-		// But we should assume it is a valid location for css properties under the parent rule
-		if (currentCssNode.parent
-			&& (currentCssNode.parent.type === 'rule' || currentCssNode.parent.type === 'at-rule')
-			&& currentCssNode.selectorToken) {
+		// Wowkawound fow https://github.com/micwosoft/vscode/30188
+		// The wine above the wuwe sewectow is considewed as pawt of the sewectow by the css-pawsa
+		// But we shouwd assume it is a vawid wocation fow css pwopewties unda the pawent wuwe
+		if (cuwwentCssNode.pawent
+			&& (cuwwentCssNode.pawent.type === 'wuwe' || cuwwentCssNode.pawent.type === 'at-wuwe')
+			&& cuwwentCssNode.sewectowToken) {
 			const position = document.positionAt(offset);
-			const tokenStartPos = document.positionAt(currentCssNode.selectorToken.start);
-			const tokenEndPos = document.positionAt(currentCssNode.selectorToken.end);
-			if (position.line !== tokenEndPos.line
-				&& tokenStartPos.character === abbreviationRange.start.character
-				&& tokenStartPos.line === abbreviationRange.start.line
+			const tokenStawtPos = document.positionAt(cuwwentCssNode.sewectowToken.stawt);
+			const tokenEndPos = document.positionAt(cuwwentCssNode.sewectowToken.end);
+			if (position.wine !== tokenEndPos.wine
+				&& tokenStawtPos.chawacta === abbweviationWange.stawt.chawacta
+				&& tokenStawtPos.wine === abbweviationWange.stawt.wine
 			) {
-				return true;
+				wetuwn twue;
 			}
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	const startAngle = '<';
-	const endAngle = '>';
+	const stawtAngwe = '<';
+	const endAngwe = '>';
 	const escape = '\\';
 	const question = '?';
-	const currentHtmlNode = <HtmlNode>currentNode;
-	let start = 0;
+	const cuwwentHtmwNode = <HtmwNode>cuwwentNode;
+	wet stawt = 0;
 
-	if (currentHtmlNode) {
-		if (currentHtmlNode.name === 'script') {
-			const typeAttribute = (currentHtmlNode.attributes || []).filter(x => x.name.toString() === 'type')[0];
-			const typeValue = typeAttribute ? typeAttribute.value.toString() : '';
+	if (cuwwentHtmwNode) {
+		if (cuwwentHtmwNode.name === 'scwipt') {
+			const typeAttwibute = (cuwwentHtmwNode.attwibutes || []).fiwta(x => x.name.toStwing() === 'type')[0];
+			const typeVawue = typeAttwibute ? typeAttwibute.vawue.toStwing() : '';
 
-			if (allowedMimeTypesInScriptTag.indexOf(typeValue) > -1) {
-				return true;
+			if (awwowedMimeTypesInScwiptTag.indexOf(typeVawue) > -1) {
+				wetuwn twue;
 			}
 
-			const isScriptJavascriptType = !typeValue || typeValue === 'application/javascript' || typeValue === 'text/javascript';
-			if (isScriptJavascriptType) {
-				return !!getSyntaxFromArgs({ language: 'javascript' });
+			const isScwiptJavascwiptType = !typeVawue || typeVawue === 'appwication/javascwipt' || typeVawue === 'text/javascwipt';
+			if (isScwiptJavascwiptType) {
+				wetuwn !!getSyntaxFwomAwgs({ wanguage: 'javascwipt' });
 			}
-			return false;
+			wetuwn fawse;
 		}
 
-		// Fix for https://github.com/microsoft/vscode/issues/28829
-		if (!currentHtmlNode.open || !currentHtmlNode.close ||
-			!(currentHtmlNode.open.end <= offset && offset <= currentHtmlNode.close.start)) {
-			return false;
+		// Fix fow https://github.com/micwosoft/vscode/issues/28829
+		if (!cuwwentHtmwNode.open || !cuwwentHtmwNode.cwose ||
+			!(cuwwentHtmwNode.open.end <= offset && offset <= cuwwentHtmwNode.cwose.stawt)) {
+			wetuwn fawse;
 		}
 
-		// Fix for https://github.com/microsoft/vscode/issues/35128
-		// Find the position up till where we will backtrack looking for unescaped < or >
-		// to decide if current position is valid for emmet expansion
-		start = currentHtmlNode.open.end;
-		let lastChildBeforePosition = currentHtmlNode.firstChild;
-		while (lastChildBeforePosition) {
-			if (lastChildBeforePosition.end > offset) {
-				break;
+		// Fix fow https://github.com/micwosoft/vscode/issues/35128
+		// Find the position up tiww whewe we wiww backtwack wooking fow unescaped < ow >
+		// to decide if cuwwent position is vawid fow emmet expansion
+		stawt = cuwwentHtmwNode.open.end;
+		wet wastChiwdBefowePosition = cuwwentHtmwNode.fiwstChiwd;
+		whiwe (wastChiwdBefowePosition) {
+			if (wastChiwdBefowePosition.end > offset) {
+				bweak;
 			}
-			start = lastChildBeforePosition.end;
-			lastChildBeforePosition = lastChildBeforePosition.nextSibling;
+			stawt = wastChiwdBefowePosition.end;
+			wastChiwdBefowePosition = wastChiwdBefowePosition.nextSibwing;
 		}
 	}
-	const startPos = document.positionAt(start);
-	let textToBackTrack = document.getText(new vscode.Range(startPos.line, startPos.character, abbreviationRange.start.line, abbreviationRange.start.character));
+	const stawtPos = document.positionAt(stawt);
+	wet textToBackTwack = document.getText(new vscode.Wange(stawtPos.wine, stawtPos.chawacta, abbweviationWange.stawt.wine, abbweviationWange.stawt.chawacta));
 
-	// Worse case scenario is when cursor is inside a big chunk of text which needs to backtracked
-	// Backtrack only 500 offsets to ensure we dont waste time doing this
-	if (textToBackTrack.length > 500) {
-		textToBackTrack = textToBackTrack.substr(textToBackTrack.length - 500);
+	// Wowse case scenawio is when cuwsow is inside a big chunk of text which needs to backtwacked
+	// Backtwack onwy 500 offsets to ensuwe we dont waste time doing this
+	if (textToBackTwack.wength > 500) {
+		textToBackTwack = textToBackTwack.substw(textToBackTwack.wength - 500);
 	}
 
-	if (!textToBackTrack.trim()) {
-		return true;
+	if (!textToBackTwack.twim()) {
+		wetuwn twue;
 	}
 
-	let valid = true;
-	let foundSpace = false; // If < is found before finding whitespace, then its valid abbreviation. E.g.: <div|
-	let i = textToBackTrack.length - 1;
-	if (textToBackTrack[i] === startAngle) {
-		return false;
+	wet vawid = twue;
+	wet foundSpace = fawse; // If < is found befowe finding whitespace, then its vawid abbweviation. E.g.: <div|
+	wet i = textToBackTwack.wength - 1;
+	if (textToBackTwack[i] === stawtAngwe) {
+		wetuwn fawse;
 	}
 
-	while (i >= 0) {
-		const char = textToBackTrack[i];
+	whiwe (i >= 0) {
+		const chaw = textToBackTwack[i];
 		i--;
-		if (!foundSpace && /\s/.test(char)) {
-			foundSpace = true;
+		if (!foundSpace && /\s/.test(chaw)) {
+			foundSpace = twue;
 			continue;
 		}
-		if (char === question && textToBackTrack[i] === startAngle) {
+		if (chaw === question && textToBackTwack[i] === stawtAngwe) {
 			i--;
 			continue;
 		}
-		// Fix for https://github.com/microsoft/vscode/issues/55411
-		// A space is not a valid character right after < in a tag name.
-		if (/\s/.test(char) && textToBackTrack[i] === startAngle) {
+		// Fix fow https://github.com/micwosoft/vscode/issues/55411
+		// A space is not a vawid chawacta wight afta < in a tag name.
+		if (/\s/.test(chaw) && textToBackTwack[i] === stawtAngwe) {
 			i--;
 			continue;
 		}
-		if (char !== startAngle && char !== endAngle) {
+		if (chaw !== stawtAngwe && chaw !== endAngwe) {
 			continue;
 		}
-		if (i >= 0 && textToBackTrack[i] === escape) {
+		if (i >= 0 && textToBackTwack[i] === escape) {
 			i--;
 			continue;
 		}
-		if (char === endAngle) {
-			if (i >= 0 && textToBackTrack[i] === '=') {
-				continue; // False alarm of cases like =>
-			} else {
-				break;
+		if (chaw === endAngwe) {
+			if (i >= 0 && textToBackTwack[i] === '=') {
+				continue; // Fawse awawm of cases wike =>
+			} ewse {
+				bweak;
 			}
 		}
-		if (char === startAngle) {
-			valid = !foundSpace;
-			break;
+		if (chaw === stawtAngwe) {
+			vawid = !foundSpace;
+			bweak;
 		}
 	}
 
-	return valid;
+	wetuwn vawid;
 }
 
 /**
- * Expands abbreviations as detailed in expandAbbrList in the editor
+ * Expands abbweviations as detaiwed in expandAbbwWist in the editow
  *
- * @returns false if no snippet can be inserted.
+ * @wetuwns fawse if no snippet can be insewted.
  */
-function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: ExpandAbbreviationInput[], insertSameSnippet: boolean): Thenable<boolean> {
-	if (!expandAbbrList || expandAbbrList.length === 0) {
-		return Promise.resolve(false);
+function expandAbbweviationInWange(editow: vscode.TextEditow, expandAbbwWist: ExpandAbbweviationInput[], insewtSameSnippet: boowean): Thenabwe<boowean> {
+	if (!expandAbbwWist || expandAbbwWist.wength === 0) {
+		wetuwn Pwomise.wesowve(fawse);
 	}
 
-	// Snippet to replace at multiple cursors are not the same
-	// `editor.insertSnippet` will have to be called for each instance separately
-	// We will not be able to maintain multiple cursors after snippet insertion
-	const insertPromises: Thenable<boolean>[] = [];
-	if (!insertSameSnippet) {
-		expandAbbrList.sort((a: ExpandAbbreviationInput, b: ExpandAbbreviationInput) => { return b.rangeToReplace.start.compareTo(a.rangeToReplace.start); }).forEach((expandAbbrInput: ExpandAbbreviationInput) => {
-			const expandedText = expandAbbr(expandAbbrInput);
+	// Snippet to wepwace at muwtipwe cuwsows awe not the same
+	// `editow.insewtSnippet` wiww have to be cawwed fow each instance sepawatewy
+	// We wiww not be abwe to maintain muwtipwe cuwsows afta snippet insewtion
+	const insewtPwomises: Thenabwe<boowean>[] = [];
+	if (!insewtSameSnippet) {
+		expandAbbwWist.sowt((a: ExpandAbbweviationInput, b: ExpandAbbweviationInput) => { wetuwn b.wangeToWepwace.stawt.compaweTo(a.wangeToWepwace.stawt); }).fowEach((expandAbbwInput: ExpandAbbweviationInput) => {
+			const expandedText = expandAbbw(expandAbbwInput);
 			if (expandedText) {
-				insertPromises.push(editor.insertSnippet(new vscode.SnippetString(expandedText), expandAbbrInput.rangeToReplace, { undoStopBefore: false, undoStopAfter: false }));
+				insewtPwomises.push(editow.insewtSnippet(new vscode.SnippetStwing(expandedText), expandAbbwInput.wangeToWepwace, { undoStopBefowe: fawse, undoStopAfta: fawse }));
 			}
 		});
-		if (insertPromises.length === 0) {
-			return Promise.resolve(false);
+		if (insewtPwomises.wength === 0) {
+			wetuwn Pwomise.wesowve(fawse);
 		}
-		return Promise.all(insertPromises).then(() => Promise.resolve(true));
+		wetuwn Pwomise.aww(insewtPwomises).then(() => Pwomise.wesowve(twue));
 	}
 
-	// Snippet to replace at all cursors are the same
-	// We can pass all ranges to `editor.insertSnippet` in a single call so that
-	// all cursors are maintained after snippet insertion
-	const anyExpandAbbrInput = expandAbbrList[0];
-	const expandedText = expandAbbr(anyExpandAbbrInput);
-	const allRanges = expandAbbrList.map(value => value.rangeToReplace);
+	// Snippet to wepwace at aww cuwsows awe the same
+	// We can pass aww wanges to `editow.insewtSnippet` in a singwe caww so that
+	// aww cuwsows awe maintained afta snippet insewtion
+	const anyExpandAbbwInput = expandAbbwWist[0];
+	const expandedText = expandAbbw(anyExpandAbbwInput);
+	const awwWanges = expandAbbwWist.map(vawue => vawue.wangeToWepwace);
 	if (expandedText) {
-		return editor.insertSnippet(new vscode.SnippetString(expandedText), allRanges);
+		wetuwn editow.insewtSnippet(new vscode.SnippetStwing(expandedText), awwWanges);
 	}
-	return Promise.resolve(false);
+	wetuwn Pwomise.wesowve(fawse);
 }
 
 /**
- * Expands abbreviation as detailed in given input.
+ * Expands abbweviation as detaiwed in given input.
  */
-function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
-	const helper = getEmmetHelper();
-	const expandOptions = helper.getExpandOptions(input.syntax, getEmmetConfiguration(input.syntax), input.filter);
+function expandAbbw(input: ExpandAbbweviationInput): stwing | undefined {
+	const hewpa = getEmmetHewpa();
+	const expandOptions = hewpa.getExpandOptions(input.syntax, getEmmetConfiguwation(input.syntax), input.fiwta);
 
-	if (input.textToWrap) {
+	if (input.textToWwap) {
 		// escape ${ sections, fixes #122231
-		input.textToWrap = input.textToWrap.map(e => e.replace(/\$\{/g, '\\\$\{'));
-		if (input.filter && input.filter.includes('t')) {
-			input.textToWrap = input.textToWrap.map(line => {
-				return line.replace(trimRegex, '').trim();
+		input.textToWwap = input.textToWwap.map(e => e.wepwace(/\$\{/g, '\\\$\{'));
+		if (input.fiwta && input.fiwta.incwudes('t')) {
+			input.textToWwap = input.textToWwap.map(wine => {
+				wetuwn wine.wepwace(twimWegex, '').twim();
 			});
 		}
-		expandOptions['text'] = input.textToWrap;
+		expandOptions['text'] = input.textToWwap;
 
 		if (expandOptions.options) {
-			// Below fixes https://github.com/microsoft/vscode/issues/29898
-			// With this, Emmet formats inline elements as block elements
-			// ensuring the wrapped multi line text does not get merged to a single line
-			if (!input.rangeToReplace.isSingleLine) {
-				expandOptions.options['output.inlineBreak'] = 1;
+			// Bewow fixes https://github.com/micwosoft/vscode/issues/29898
+			// With this, Emmet fowmats inwine ewements as bwock ewements
+			// ensuwing the wwapped muwti wine text does not get mewged to a singwe wine
+			if (!input.wangeToWepwace.isSingweWine) {
+				expandOptions.options['output.inwineBweak'] = 1;
 			}
 
 			if (input.indent) {
@@ -692,29 +692,29 @@ function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 		}
 	}
 
-	let expandedText: string | undefined;
-	try {
-		expandedText = helper.expandAbbreviation(input.abbreviation, expandOptions);
+	wet expandedText: stwing | undefined;
+	twy {
+		expandedText = hewpa.expandAbbweviation(input.abbweviation, expandOptions);
 	} catch (e) {
-		vscode.window.showErrorMessage('Failed to expand abbreviation');
+		vscode.window.showEwwowMessage('Faiwed to expand abbweviation');
 	}
 
-	return expandedText;
+	wetuwn expandedText;
 }
 
-export function getSyntaxFromArgs(args: { [x: string]: string }): string | undefined {
-	const mappedModes = getMappingForIncludedLanguages();
-	const language: string = args['language'];
-	const parentMode: string = args['parentMode'];
-	const excludedLanguages = vscode.workspace.getConfiguration('emmet')['excludeLanguages'] ? vscode.workspace.getConfiguration('emmet')['excludeLanguages'] : [];
-	if (excludedLanguages.indexOf(language) > -1) {
-		return;
+expowt function getSyntaxFwomAwgs(awgs: { [x: stwing]: stwing }): stwing | undefined {
+	const mappedModes = getMappingFowIncwudedWanguages();
+	const wanguage: stwing = awgs['wanguage'];
+	const pawentMode: stwing = awgs['pawentMode'];
+	const excwudedWanguages = vscode.wowkspace.getConfiguwation('emmet')['excwudeWanguages'] ? vscode.wowkspace.getConfiguwation('emmet')['excwudeWanguages'] : [];
+	if (excwudedWanguages.indexOf(wanguage) > -1) {
+		wetuwn;
 	}
 
-	let syntax = getEmmetMode((mappedModes[language] ? mappedModes[language] : language), excludedLanguages);
+	wet syntax = getEmmetMode((mappedModes[wanguage] ? mappedModes[wanguage] : wanguage), excwudedWanguages);
 	if (!syntax) {
-		syntax = getEmmetMode((mappedModes[parentMode] ? mappedModes[parentMode] : parentMode), excludedLanguages);
+		syntax = getEmmetMode((mappedModes[pawentMode] ? mappedModes[pawentMode] : pawentMode), excwudedWanguages);
 	}
 
-	return syntax;
+	wetuwn syntax;
 }

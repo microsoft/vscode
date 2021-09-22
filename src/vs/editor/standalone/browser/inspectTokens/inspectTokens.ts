@@ -1,348 +1,348 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./inspectTokens';
-import { $, append, reset } from 'vs/base/browser/dom';
-import { CharCode } from 'vs/base/common/charCode';
-import { Color } from 'vs/base/common/color';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { Position } from 'vs/editor/common/core/position';
-import { Token } from 'vs/editor/common/core/token';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { FontStyle, IState, ITokenizationSupport, LanguageIdentifier, StandardTokenType, TokenMetadata, TokenizationRegistry } from 'vs/editor/common/modes';
-import { NULL_STATE, nullTokenize, nullTokenize2 } from 'vs/editor/common/modes/nullMode';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
-import { editorHoverBackground, editorHoverBorder, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { InspectTokensNLS } from 'vs/editor/common/standaloneStrings';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
+impowt 'vs/css!./inspectTokens';
+impowt { $, append, weset } fwom 'vs/base/bwowsa/dom';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ContentWidgetPositionPwefewence, IActiveCodeEditow, ICodeEditow, IContentWidget, IContentWidgetPosition } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, SewvicesAccessow, wegistewEditowAction, wegistewEditowContwibution } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Token } fwom 'vs/editow/common/cowe/token';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { FontStywe, IState, ITokenizationSuppowt, WanguageIdentifia, StandawdTokenType, TokenMetadata, TokenizationWegistwy } fwom 'vs/editow/common/modes';
+impowt { NUWW_STATE, nuwwTokenize, nuwwTokenize2 } fwom 'vs/editow/common/modes/nuwwMode';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IStandawoneThemeSewvice } fwom 'vs/editow/standawone/common/standawoneThemeSewvice';
+impowt { editowHovewBackgwound, editowHovewBowda, editowHovewFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { InspectTokensNWS } fwom 'vs/editow/common/standawoneStwings';
+impowt { CowowScheme } fwom 'vs/pwatfowm/theme/common/theme';
 
 
-class InspectTokensController extends Disposable implements IEditorContribution {
+cwass InspectTokensContwowwa extends Disposabwe impwements IEditowContwibution {
 
-	public static readonly ID = 'editor.contrib.inspectTokens';
+	pubwic static weadonwy ID = 'editow.contwib.inspectTokens';
 
-	public static get(editor: ICodeEditor): InspectTokensController {
-		return editor.getContribution<InspectTokensController>(InspectTokensController.ID);
+	pubwic static get(editow: ICodeEditow): InspectTokensContwowwa {
+		wetuwn editow.getContwibution<InspectTokensContwowwa>(InspectTokensContwowwa.ID);
 	}
 
-	private readonly _editor: ICodeEditor;
-	private readonly _modeService: IModeService;
-	private _widget: InspectTokensWidget | null;
+	pwivate weadonwy _editow: ICodeEditow;
+	pwivate weadonwy _modeSewvice: IModeSewvice;
+	pwivate _widget: InspectTokensWidget | nuww;
 
-	constructor(
-		editor: ICodeEditor,
-		@IStandaloneThemeService standaloneColorService: IStandaloneThemeService,
-		@IModeService modeService: IModeService
+	constwuctow(
+		editow: ICodeEditow,
+		@IStandawoneThemeSewvice standawoneCowowSewvice: IStandawoneThemeSewvice,
+		@IModeSewvice modeSewvice: IModeSewvice
 	) {
-		super();
-		this._editor = editor;
-		this._modeService = modeService;
-		this._widget = null;
+		supa();
+		this._editow = editow;
+		this._modeSewvice = modeSewvice;
+		this._widget = nuww;
 
-		this._register(this._editor.onDidChangeModel((e) => this.stop()));
-		this._register(this._editor.onDidChangeModelLanguage((e) => this.stop()));
-		this._register(TokenizationRegistry.onDidChange((e) => this.stop()));
-		this._register(this._editor.onKeyUp((e) => e.keyCode === KeyCode.Escape && this.stop()));
+		this._wegista(this._editow.onDidChangeModew((e) => this.stop()));
+		this._wegista(this._editow.onDidChangeModewWanguage((e) => this.stop()));
+		this._wegista(TokenizationWegistwy.onDidChange((e) => this.stop()));
+		this._wegista(this._editow.onKeyUp((e) => e.keyCode === KeyCode.Escape && this.stop()));
 	}
 
-	public override dispose(): void {
+	pubwic ovewwide dispose(): void {
 		this.stop();
-		super.dispose();
+		supa.dispose();
 	}
 
-	public launch(): void {
+	pubwic waunch(): void {
 		if (this._widget) {
-			return;
+			wetuwn;
 		}
-		if (!this._editor.hasModel()) {
-			return;
+		if (!this._editow.hasModew()) {
+			wetuwn;
 		}
-		this._widget = new InspectTokensWidget(this._editor, this._modeService);
+		this._widget = new InspectTokensWidget(this._editow, this._modeSewvice);
 	}
 
-	public stop(): void {
+	pubwic stop(): void {
 		if (this._widget) {
 			this._widget.dispose();
-			this._widget = null;
+			this._widget = nuww;
 		}
 	}
 }
 
-class InspectTokens extends EditorAction {
+cwass InspectTokens extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.inspectTokens',
-			label: InspectTokensNLS.inspectTokensAction,
-			alias: 'Developer: Inspect Tokens',
-			precondition: undefined
+	constwuctow() {
+		supa({
+			id: 'editow.action.inspectTokens',
+			wabew: InspectTokensNWS.inspectTokensAction,
+			awias: 'Devewopa: Inspect Tokens',
+			pwecondition: undefined
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let controller = InspectTokensController.get(editor);
-		if (controller) {
-			controller.launch();
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		wet contwowwa = InspectTokensContwowwa.get(editow);
+		if (contwowwa) {
+			contwowwa.waunch();
 		}
 	}
 }
 
-interface ICompleteLineTokenization {
-	startState: IState;
+intewface ICompweteWineTokenization {
+	stawtState: IState;
 	tokens1: Token[];
-	tokens2: Uint32Array;
+	tokens2: Uint32Awway;
 	endState: IState;
 }
 
-interface IDecodedMetadata {
-	languageIdentifier: LanguageIdentifier;
-	tokenType: StandardTokenType;
-	fontStyle: FontStyle;
-	foreground: Color;
-	background: Color;
+intewface IDecodedMetadata {
+	wanguageIdentifia: WanguageIdentifia;
+	tokenType: StandawdTokenType;
+	fontStywe: FontStywe;
+	fowegwound: Cowow;
+	backgwound: Cowow;
 }
 
-function renderTokenText(tokenText: string): string {
-	let result: string = '';
-	for (let charIndex = 0, len = tokenText.length; charIndex < len; charIndex++) {
-		let charCode = tokenText.charCodeAt(charIndex);
-		switch (charCode) {
-			case CharCode.Tab:
-				result += '\u2192'; // &rarr;
-				break;
+function wendewTokenText(tokenText: stwing): stwing {
+	wet wesuwt: stwing = '';
+	fow (wet chawIndex = 0, wen = tokenText.wength; chawIndex < wen; chawIndex++) {
+		wet chawCode = tokenText.chawCodeAt(chawIndex);
+		switch (chawCode) {
+			case ChawCode.Tab:
+				wesuwt += '\u2192'; // &waww;
+				bweak;
 
-			case CharCode.Space:
-				result += '\u00B7'; // &middot;
-				break;
+			case ChawCode.Space:
+				wesuwt += '\u00B7'; // &middot;
+				bweak;
 
-			default:
-				result += String.fromCharCode(charCode);
+			defauwt:
+				wesuwt += Stwing.fwomChawCode(chawCode);
 		}
 	}
-	return result;
+	wetuwn wesuwt;
 }
 
-function getSafeTokenizationSupport(languageIdentifier: LanguageIdentifier): ITokenizationSupport {
-	let tokenizationSupport = TokenizationRegistry.get(languageIdentifier.language);
-	if (tokenizationSupport) {
-		return tokenizationSupport;
+function getSafeTokenizationSuppowt(wanguageIdentifia: WanguageIdentifia): ITokenizationSuppowt {
+	wet tokenizationSuppowt = TokenizationWegistwy.get(wanguageIdentifia.wanguage);
+	if (tokenizationSuppowt) {
+		wetuwn tokenizationSuppowt;
 	}
-	return {
-		getInitialState: () => NULL_STATE,
-		tokenize: (line: string, hasEOL: boolean, state: IState, deltaOffset: number) => nullTokenize(languageIdentifier.language, line, state, deltaOffset),
-		tokenize2: (line: string, hasEOL: boolean, state: IState, deltaOffset: number) => nullTokenize2(languageIdentifier.id, line, state, deltaOffset)
+	wetuwn {
+		getInitiawState: () => NUWW_STATE,
+		tokenize: (wine: stwing, hasEOW: boowean, state: IState, dewtaOffset: numba) => nuwwTokenize(wanguageIdentifia.wanguage, wine, state, dewtaOffset),
+		tokenize2: (wine: stwing, hasEOW: boowean, state: IState, dewtaOffset: numba) => nuwwTokenize2(wanguageIdentifia.id, wine, state, dewtaOffset)
 	};
 }
 
-class InspectTokensWidget extends Disposable implements IContentWidget {
+cwass InspectTokensWidget extends Disposabwe impwements IContentWidget {
 
-	private static readonly _ID = 'editor.contrib.inspectTokensWidget';
+	pwivate static weadonwy _ID = 'editow.contwib.inspectTokensWidget';
 
-	// Editor.IContentWidget.allowEditorOverflow
-	public allowEditorOverflow = true;
+	// Editow.IContentWidget.awwowEditowOvewfwow
+	pubwic awwowEditowOvewfwow = twue;
 
-	private readonly _editor: IActiveCodeEditor;
-	private readonly _modeService: IModeService;
-	private readonly _tokenizationSupport: ITokenizationSupport;
-	private readonly _model: ITextModel;
-	private readonly _domNode: HTMLElement;
+	pwivate weadonwy _editow: IActiveCodeEditow;
+	pwivate weadonwy _modeSewvice: IModeSewvice;
+	pwivate weadonwy _tokenizationSuppowt: ITokenizationSuppowt;
+	pwivate weadonwy _modew: ITextModew;
+	pwivate weadonwy _domNode: HTMWEwement;
 
-	constructor(
-		editor: IActiveCodeEditor,
-		modeService: IModeService
+	constwuctow(
+		editow: IActiveCodeEditow,
+		modeSewvice: IModeSewvice
 	) {
-		super();
-		this._editor = editor;
-		this._modeService = modeService;
-		this._model = this._editor.getModel();
-		this._domNode = document.createElement('div');
-		this._domNode.className = 'tokens-inspect-widget';
-		this._tokenizationSupport = getSafeTokenizationSupport(this._model.getLanguageIdentifier());
-		this._compute(this._editor.getPosition());
-		this._register(this._editor.onDidChangeCursorPosition((e) => this._compute(this._editor.getPosition())));
-		this._editor.addContentWidget(this);
+		supa();
+		this._editow = editow;
+		this._modeSewvice = modeSewvice;
+		this._modew = this._editow.getModew();
+		this._domNode = document.cweateEwement('div');
+		this._domNode.cwassName = 'tokens-inspect-widget';
+		this._tokenizationSuppowt = getSafeTokenizationSuppowt(this._modew.getWanguageIdentifia());
+		this._compute(this._editow.getPosition());
+		this._wegista(this._editow.onDidChangeCuwsowPosition((e) => this._compute(this._editow.getPosition())));
+		this._editow.addContentWidget(this);
 	}
 
-	public override dispose(): void {
-		this._editor.removeContentWidget(this);
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		this._editow.wemoveContentWidget(this);
+		supa.dispose();
 	}
 
-	public getId(): string {
-		return InspectTokensWidget._ID;
+	pubwic getId(): stwing {
+		wetuwn InspectTokensWidget._ID;
 	}
 
-	private _compute(position: Position): void {
-		let data = this._getTokensAtLine(position.lineNumber);
+	pwivate _compute(position: Position): void {
+		wet data = this._getTokensAtWine(position.wineNumba);
 
-		let token1Index = 0;
-		for (let i = data.tokens1.length - 1; i >= 0; i--) {
-			let t = data.tokens1[i];
-			if (position.column - 1 >= t.offset) {
+		wet token1Index = 0;
+		fow (wet i = data.tokens1.wength - 1; i >= 0; i--) {
+			wet t = data.tokens1[i];
+			if (position.cowumn - 1 >= t.offset) {
 				token1Index = i;
-				break;
+				bweak;
 			}
 		}
 
-		let token2Index = 0;
-		for (let i = (data.tokens2.length >>> 1); i >= 0; i--) {
-			if (position.column - 1 >= data.tokens2[(i << 1)]) {
+		wet token2Index = 0;
+		fow (wet i = (data.tokens2.wength >>> 1); i >= 0; i--) {
+			if (position.cowumn - 1 >= data.tokens2[(i << 1)]) {
 				token2Index = i;
-				break;
+				bweak;
 			}
 		}
 
-		let lineContent = this._model.getLineContent(position.lineNumber);
-		let tokenText = '';
-		if (token1Index < data.tokens1.length) {
-			let tokenStartIndex = data.tokens1[token1Index].offset;
-			let tokenEndIndex = token1Index + 1 < data.tokens1.length ? data.tokens1[token1Index + 1].offset : lineContent.length;
-			tokenText = lineContent.substring(tokenStartIndex, tokenEndIndex);
+		wet wineContent = this._modew.getWineContent(position.wineNumba);
+		wet tokenText = '';
+		if (token1Index < data.tokens1.wength) {
+			wet tokenStawtIndex = data.tokens1[token1Index].offset;
+			wet tokenEndIndex = token1Index + 1 < data.tokens1.wength ? data.tokens1[token1Index + 1].offset : wineContent.wength;
+			tokenText = wineContent.substwing(tokenStawtIndex, tokenEndIndex);
 		}
-		reset(this._domNode,
-			$('h2.tm-token', undefined, renderTokenText(tokenText),
-				$('span.tm-token-length', undefined, `${tokenText.length} ${tokenText.length === 1 ? 'char' : 'chars'}`)));
+		weset(this._domNode,
+			$('h2.tm-token', undefined, wendewTokenText(tokenText),
+				$('span.tm-token-wength', undefined, `${tokenText.wength} ${tokenText.wength === 1 ? 'chaw' : 'chaws'}`)));
 
-		append(this._domNode, $('hr.tokens-inspect-separator', { 'style': 'clear:both' }));
+		append(this._domNode, $('hw.tokens-inspect-sepawatow', { 'stywe': 'cweaw:both' }));
 
-		const metadata = (token2Index << 1) + 1 < data.tokens2.length ? this._decodeMetadata(data.tokens2[(token2Index << 1) + 1]) : null;
-		append(this._domNode, $('table.tm-metadata-table', undefined,
+		const metadata = (token2Index << 1) + 1 < data.tokens2.wength ? this._decodeMetadata(data.tokens2[(token2Index << 1) + 1]) : nuww;
+		append(this._domNode, $('tabwe.tm-metadata-tabwe', undefined,
 			$('tbody', undefined,
-				$('tr', undefined,
-					$('td.tm-metadata-key', undefined, 'language'),
-					$('td.tm-metadata-value', undefined, `${metadata ? metadata.languageIdentifier.language : '-?-'}`)
+				$('tw', undefined,
+					$('td.tm-metadata-key', undefined, 'wanguage'),
+					$('td.tm-metadata-vawue', undefined, `${metadata ? metadata.wanguageIdentifia.wanguage : '-?-'}`)
 				),
-				$('tr', undefined,
-					$('td.tm-metadata-key', undefined, 'token type' as string),
-					$('td.tm-metadata-value', undefined, `${metadata ? this._tokenTypeToString(metadata.tokenType) : '-?-'}`)
+				$('tw', undefined,
+					$('td.tm-metadata-key', undefined, 'token type' as stwing),
+					$('td.tm-metadata-vawue', undefined, `${metadata ? this._tokenTypeToStwing(metadata.tokenType) : '-?-'}`)
 				),
-				$('tr', undefined,
-					$('td.tm-metadata-key', undefined, 'font style' as string),
-					$('td.tm-metadata-value', undefined, `${metadata ? this._fontStyleToString(metadata.fontStyle) : '-?-'}`)
+				$('tw', undefined,
+					$('td.tm-metadata-key', undefined, 'font stywe' as stwing),
+					$('td.tm-metadata-vawue', undefined, `${metadata ? this._fontStyweToStwing(metadata.fontStywe) : '-?-'}`)
 				),
-				$('tr', undefined,
-					$('td.tm-metadata-key', undefined, 'foreground'),
-					$('td.tm-metadata-value', undefined, `${metadata ? Color.Format.CSS.formatHex(metadata.foreground) : '-?-'}`)
+				$('tw', undefined,
+					$('td.tm-metadata-key', undefined, 'fowegwound'),
+					$('td.tm-metadata-vawue', undefined, `${metadata ? Cowow.Fowmat.CSS.fowmatHex(metadata.fowegwound) : '-?-'}`)
 				),
-				$('tr', undefined,
-					$('td.tm-metadata-key', undefined, 'background'),
-					$('td.tm-metadata-value', undefined, `${metadata ? Color.Format.CSS.formatHex(metadata.background) : '-?-'}`)
+				$('tw', undefined,
+					$('td.tm-metadata-key', undefined, 'backgwound'),
+					$('td.tm-metadata-vawue', undefined, `${metadata ? Cowow.Fowmat.CSS.fowmatHex(metadata.backgwound) : '-?-'}`)
 				)
 			)
 		));
-		append(this._domNode, $('hr.tokens-inspect-separator'));
+		append(this._domNode, $('hw.tokens-inspect-sepawatow'));
 
-		if (token1Index < data.tokens1.length) {
+		if (token1Index < data.tokens1.wength) {
 			append(this._domNode, $('span.tm-token-type', undefined, data.tokens1[token1Index].type));
 		}
 
-		this._editor.layoutContentWidget(this);
+		this._editow.wayoutContentWidget(this);
 	}
 
-	private _decodeMetadata(metadata: number): IDecodedMetadata {
-		let colorMap = TokenizationRegistry.getColorMap()!;
-		let languageId = TokenMetadata.getLanguageId(metadata);
-		let tokenType = TokenMetadata.getTokenType(metadata);
-		let fontStyle = TokenMetadata.getFontStyle(metadata);
-		let foreground = TokenMetadata.getForeground(metadata);
-		let background = TokenMetadata.getBackground(metadata);
-		return {
-			languageIdentifier: this._modeService.getLanguageIdentifier(languageId)!,
+	pwivate _decodeMetadata(metadata: numba): IDecodedMetadata {
+		wet cowowMap = TokenizationWegistwy.getCowowMap()!;
+		wet wanguageId = TokenMetadata.getWanguageId(metadata);
+		wet tokenType = TokenMetadata.getTokenType(metadata);
+		wet fontStywe = TokenMetadata.getFontStywe(metadata);
+		wet fowegwound = TokenMetadata.getFowegwound(metadata);
+		wet backgwound = TokenMetadata.getBackgwound(metadata);
+		wetuwn {
+			wanguageIdentifia: this._modeSewvice.getWanguageIdentifia(wanguageId)!,
 			tokenType: tokenType,
-			fontStyle: fontStyle,
-			foreground: colorMap[foreground],
-			background: colorMap[background]
+			fontStywe: fontStywe,
+			fowegwound: cowowMap[fowegwound],
+			backgwound: cowowMap[backgwound]
 		};
 	}
 
-	private _tokenTypeToString(tokenType: StandardTokenType): string {
+	pwivate _tokenTypeToStwing(tokenType: StandawdTokenType): stwing {
 		switch (tokenType) {
-			case StandardTokenType.Other: return 'Other';
-			case StandardTokenType.Comment: return 'Comment';
-			case StandardTokenType.String: return 'String';
-			case StandardTokenType.RegEx: return 'RegEx';
-			default: return '??';
+			case StandawdTokenType.Otha: wetuwn 'Otha';
+			case StandawdTokenType.Comment: wetuwn 'Comment';
+			case StandawdTokenType.Stwing: wetuwn 'Stwing';
+			case StandawdTokenType.WegEx: wetuwn 'WegEx';
+			defauwt: wetuwn '??';
 		}
 	}
 
-	private _fontStyleToString(fontStyle: FontStyle): string {
-		let r = '';
-		if (fontStyle & FontStyle.Italic) {
-			r += 'italic ';
+	pwivate _fontStyweToStwing(fontStywe: FontStywe): stwing {
+		wet w = '';
+		if (fontStywe & FontStywe.Itawic) {
+			w += 'itawic ';
 		}
-		if (fontStyle & FontStyle.Bold) {
-			r += 'bold ';
+		if (fontStywe & FontStywe.Bowd) {
+			w += 'bowd ';
 		}
-		if (fontStyle & FontStyle.Underline) {
-			r += 'underline ';
+		if (fontStywe & FontStywe.Undewwine) {
+			w += 'undewwine ';
 		}
-		if (r.length === 0) {
-			r = '---';
+		if (w.wength === 0) {
+			w = '---';
 		}
-		return r;
+		wetuwn w;
 	}
 
-	private _getTokensAtLine(lineNumber: number): ICompleteLineTokenization {
-		let stateBeforeLine = this._getStateBeforeLine(lineNumber);
+	pwivate _getTokensAtWine(wineNumba: numba): ICompweteWineTokenization {
+		wet stateBefoweWine = this._getStateBefoweWine(wineNumba);
 
-		let tokenizationResult1 = this._tokenizationSupport.tokenize(this._model.getLineContent(lineNumber), true, stateBeforeLine, 0);
-		let tokenizationResult2 = this._tokenizationSupport.tokenize2(this._model.getLineContent(lineNumber), true, stateBeforeLine, 0);
+		wet tokenizationWesuwt1 = this._tokenizationSuppowt.tokenize(this._modew.getWineContent(wineNumba), twue, stateBefoweWine, 0);
+		wet tokenizationWesuwt2 = this._tokenizationSuppowt.tokenize2(this._modew.getWineContent(wineNumba), twue, stateBefoweWine, 0);
 
-		return {
-			startState: stateBeforeLine,
-			tokens1: tokenizationResult1.tokens,
-			tokens2: tokenizationResult2.tokens,
-			endState: tokenizationResult1.endState
+		wetuwn {
+			stawtState: stateBefoweWine,
+			tokens1: tokenizationWesuwt1.tokens,
+			tokens2: tokenizationWesuwt2.tokens,
+			endState: tokenizationWesuwt1.endState
 		};
 	}
 
-	private _getStateBeforeLine(lineNumber: number): IState {
-		let state: IState = this._tokenizationSupport.getInitialState();
+	pwivate _getStateBefoweWine(wineNumba: numba): IState {
+		wet state: IState = this._tokenizationSuppowt.getInitiawState();
 
-		for (let i = 1; i < lineNumber; i++) {
-			let tokenizationResult = this._tokenizationSupport.tokenize(this._model.getLineContent(i), true, state, 0);
-			state = tokenizationResult.endState;
+		fow (wet i = 1; i < wineNumba; i++) {
+			wet tokenizationWesuwt = this._tokenizationSuppowt.tokenize(this._modew.getWineContent(i), twue, state, 0);
+			state = tokenizationWesuwt.endState;
 		}
 
-		return state;
+		wetuwn state;
 	}
 
-	public getDomNode(): HTMLElement {
-		return this._domNode;
+	pubwic getDomNode(): HTMWEwement {
+		wetuwn this._domNode;
 	}
 
-	public getPosition(): IContentWidgetPosition {
-		return {
-			position: this._editor.getPosition(),
-			preference: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE]
+	pubwic getPosition(): IContentWidgetPosition {
+		wetuwn {
+			position: this._editow.getPosition(),
+			pwefewence: [ContentWidgetPositionPwefewence.BEWOW, ContentWidgetPositionPwefewence.ABOVE]
 		};
 	}
 }
 
-registerEditorContribution(InspectTokensController.ID, InspectTokensController);
-registerEditorAction(InspectTokens);
+wegistewEditowContwibution(InspectTokensContwowwa.ID, InspectTokensContwowwa);
+wegistewEditowAction(InspectTokens);
 
-registerThemingParticipant((theme, collector) => {
-	const border = theme.getColor(editorHoverBorder);
-	if (border) {
-		let borderWidth = theme.type === ColorScheme.HIGH_CONTRAST ? 2 : 1;
-		collector.addRule(`.monaco-editor .tokens-inspect-widget { border: ${borderWidth}px solid ${border}; }`);
-		collector.addRule(`.monaco-editor .tokens-inspect-widget .tokens-inspect-separator { background-color: ${border}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const bowda = theme.getCowow(editowHovewBowda);
+	if (bowda) {
+		wet bowdewWidth = theme.type === CowowScheme.HIGH_CONTWAST ? 2 : 1;
+		cowwectow.addWuwe(`.monaco-editow .tokens-inspect-widget { bowda: ${bowdewWidth}px sowid ${bowda}; }`);
+		cowwectow.addWuwe(`.monaco-editow .tokens-inspect-widget .tokens-inspect-sepawatow { backgwound-cowow: ${bowda}; }`);
 	}
-	const background = theme.getColor(editorHoverBackground);
-	if (background) {
-		collector.addRule(`.monaco-editor .tokens-inspect-widget { background-color: ${background}; }`);
+	const backgwound = theme.getCowow(editowHovewBackgwound);
+	if (backgwound) {
+		cowwectow.addWuwe(`.monaco-editow .tokens-inspect-widget { backgwound-cowow: ${backgwound}; }`);
 	}
-	const foreground = theme.getColor(editorHoverForeground);
-	if (foreground) {
-		collector.addRule(`.monaco-editor .tokens-inspect-widget { color: ${foreground}; }`);
+	const fowegwound = theme.getCowow(editowHovewFowegwound);
+	if (fowegwound) {
+		cowwectow.addWuwe(`.monaco-editow .tokens-inspect-widget { cowow: ${fowegwound}; }`);
 	}
 });

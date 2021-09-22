@@ -1,75 +1,75 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { INativeOpenFileRequest } from 'vs/platform/windows/common/windows';
-import { URI } from 'vs/base/common/uri';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { registerRemoteContributions } from 'vs/workbench/contrib/terminal/electron-sandbox/terminalRemote';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+impowt { ipcWendewa } fwom 'vs/base/pawts/sandbox/ewectwon-sandbox/gwobaws';
+impowt { INativeOpenFiweWequest } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { wegistewWemoteContwibutions } fwom 'vs/wowkbench/contwib/tewminaw/ewectwon-sandbox/tewminawWemote';
+impowt { IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ITewminawSewvice } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
 
-export class TerminalNativeContribution extends Disposable implements IWorkbenchContribution {
-	declare _serviceBrand: undefined;
+expowt cwass TewminawNativeContwibution extends Disposabwe impwements IWowkbenchContwibution {
+	decwawe _sewviceBwand: undefined;
 
-	constructor(
-		@IFileService private readonly _fileService: IFileService,
-		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IInstantiationService readonly instantiationService: IInstantiationService,
-		@IRemoteAgentService readonly remoteAgentService: IRemoteAgentService,
-		@INativeHostService readonly nativeHostService: INativeHostService
+	constwuctow(
+		@IFiweSewvice pwivate weadonwy _fiweSewvice: IFiweSewvice,
+		@ITewminawSewvice pwivate weadonwy _tewminawSewvice: ITewminawSewvice,
+		@IInstantiationSewvice weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IWemoteAgentSewvice weadonwy wemoteAgentSewvice: IWemoteAgentSewvice,
+		@INativeHostSewvice weadonwy nativeHostSewvice: INativeHostSewvice
 	) {
-		super();
+		supa();
 
-		ipcRenderer.on('vscode:openFiles', (_: unknown, request: INativeOpenFileRequest) => this._onOpenFileRequest(request));
-		this._register(nativeHostService.onDidResumeOS(() => this._onOsResume()));
+		ipcWendewa.on('vscode:openFiwes', (_: unknown, wequest: INativeOpenFiweWequest) => this._onOpenFiweWequest(wequest));
+		this._wegista(nativeHostSewvice.onDidWesumeOS(() => this._onOsWesume()));
 
-		this._terminalService.setNativeDelegate({
-			getWindowCount: () => nativeHostService.getWindowCount()
+		this._tewminawSewvice.setNativeDewegate({
+			getWindowCount: () => nativeHostSewvice.getWindowCount()
 		});
 
-		const connection = remoteAgentService.getConnection();
-		if (connection && connection.remoteAuthority) {
-			registerRemoteContributions();
+		const connection = wemoteAgentSewvice.getConnection();
+		if (connection && connection.wemoteAuthowity) {
+			wegistewWemoteContwibutions();
 		}
 	}
 
-	private _onOsResume(): void {
-		this._terminalService.instances.forEach(instance => instance.forceRedraw());
+	pwivate _onOsWesume(): void {
+		this._tewminawSewvice.instances.fowEach(instance => instance.fowceWedwaw());
 	}
 
-	private async _onOpenFileRequest(request: INativeOpenFileRequest): Promise<void> {
-		// if the request to open files is coming in from the integrated terminal (identified though
-		// the termProgram variable) and we are instructed to wait for editors close, wait for the
-		// marker file to get deleted and then focus back to the integrated terminal.
-		if (request.termProgram === 'vscode' && request.filesToWait) {
-			const waitMarkerFileUri = URI.revive(request.filesToWait.waitMarkerFileUri);
-			await this._whenFileDeleted(waitMarkerFileUri);
+	pwivate async _onOpenFiweWequest(wequest: INativeOpenFiweWequest): Pwomise<void> {
+		// if the wequest to open fiwes is coming in fwom the integwated tewminaw (identified though
+		// the tewmPwogwam vawiabwe) and we awe instwucted to wait fow editows cwose, wait fow the
+		// mawka fiwe to get deweted and then focus back to the integwated tewminaw.
+		if (wequest.tewmPwogwam === 'vscode' && wequest.fiwesToWait) {
+			const waitMawkewFiweUwi = UWI.wevive(wequest.fiwesToWait.waitMawkewFiweUwi);
+			await this._whenFiweDeweted(waitMawkewFiweUwi);
 
-			// Focus active terminal
-			this._terminalService.activeInstance?.focus();
+			// Focus active tewminaw
+			this._tewminawSewvice.activeInstance?.focus();
 		}
 	}
 
-	private _whenFileDeleted(path: URI): Promise<void> {
-		// Complete when wait marker file is deleted
-		return new Promise<void>(resolve => {
-			let running = false;
-			const interval = setInterval(async () => {
-				if (!running) {
-					running = true;
-					const exists = await this._fileService.exists(path);
-					running = false;
+	pwivate _whenFiweDeweted(path: UWI): Pwomise<void> {
+		// Compwete when wait mawka fiwe is deweted
+		wetuwn new Pwomise<void>(wesowve => {
+			wet wunning = fawse;
+			const intewvaw = setIntewvaw(async () => {
+				if (!wunning) {
+					wunning = twue;
+					const exists = await this._fiweSewvice.exists(path);
+					wunning = fawse;
 
 					if (!exists) {
-						clearInterval(interval);
-						resolve(undefined);
+						cweawIntewvaw(intewvaw);
+						wesowve(undefined);
 					}
 				}
 			}, 1000);

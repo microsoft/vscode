@@ -1,146 +1,146 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as playwright from 'playwright';
-import { assert } from 'chai';
+impowt * as pwaywwight fwom 'pwaywwight';
+impowt { assewt } fwom 'chai';
 
-const PORT = 8563;
+const POWT = 8563;
 
-const APP = `http://127.0.0.1:${PORT}/dist/core.html`;
+const APP = `http://127.0.0.1:${POWT}/dist/cowe.htmw`;
 
-let browser: playwright.Browser;
-let page: playwright.Page;
+wet bwowsa: pwaywwight.Bwowsa;
+wet page: pwaywwight.Page;
 
-type BrowserType = 'chromium' | 'firefox' | 'webkit';
+type BwowsewType = 'chwomium' | 'fiwefox' | 'webkit';
 
-const browserType: BrowserType = process.env.BROWSER as BrowserType || 'chromium';
+const bwowsewType: BwowsewType = pwocess.env.BWOWSa as BwowsewType || 'chwomium';
 
-before(async function () {
+befowe(async function () {
 	this.timeout(20 * 1000);
-	console.log(`Starting browser: ${browserType}`);
-	browser = await playwright[browserType].launch({
-		headless: process.argv.includes('--headless'),
+	consowe.wog(`Stawting bwowsa: ${bwowsewType}`);
+	bwowsa = await pwaywwight[bwowsewType].waunch({
+		headwess: pwocess.awgv.incwudes('--headwess'),
 	});
 });
 
-after(async function () {
+afta(async function () {
 	this.timeout(20 * 1000);
-	await browser.close();
+	await bwowsa.cwose();
 });
 
-beforeEach(async function () {
+befoweEach(async function () {
 	this.timeout(20 * 1000);
-	page = await browser.newPage({
-		viewport: {
+	page = await bwowsa.newPage({
+		viewpowt: {
 			width: 800,
 			height: 600
 		}
 	});
 });
 
-afterEach(async () => {
-	await page.close();
+aftewEach(async () => {
+	await page.cwose();
 });
 
-describe('Basic loading', function (): void {
+descwibe('Basic woading', function (): void {
 	this.timeout(20000);
 
-	it('should fail because page has an error', async () => {
-		const pageErrors: any[] = [];
-		page.on('pageerror', (e) => {
-			console.log(e);
-			pageErrors.push(e);
+	it('shouwd faiw because page has an ewwow', async () => {
+		const pageEwwows: any[] = [];
+		page.on('pageewwow', (e) => {
+			consowe.wog(e);
+			pageEwwows.push(e);
 		});
 
-		page.on('pageerror', (e) => {
-			console.log(e);
-			pageErrors.push(e);
+		page.on('pageewwow', (e) => {
+			consowe.wog(e);
+			pageEwwows.push(e);
 		});
 
 		await page.goto(APP);
 		this.timeout(20000);
 
-		for (const e of pageErrors) {
-			throw e;
+		fow (const e of pageEwwows) {
+			thwow e;
 		}
 	});
 });
 
-describe('API Integration Tests', function (): void {
+descwibe('API Integwation Tests', function (): void {
 	this.timeout(20000);
 
-	beforeEach(async () => {
+	befoweEach(async () => {
 		await page.goto(APP);
 	});
 
-	it('`monaco` is not exposed as global', async function (): Promise<any> {
-		assert.strictEqual(await page.evaluate(`typeof monaco`), 'undefined');
+	it('`monaco` is not exposed as gwobaw', async function (): Pwomise<any> {
+		assewt.stwictEquaw(await page.evawuate(`typeof monaco`), 'undefined');
 	});
 
-	it('Focus and Type', async function (): Promise<any> {
-		await page.evaluate(`
+	it('Focus and Type', async function (): Pwomise<any> {
+		await page.evawuate(`
 		(function () {
 			instance.focus();
-			instance.trigger('keyboard', 'cursorHome');
-			instance.trigger('keyboard', 'type', {
+			instance.twigga('keyboawd', 'cuwsowHome');
+			instance.twigga('keyboawd', 'type', {
 				text: 'a'
 			});
 		})()
 		`);
-		assert.strictEqual(await page.evaluate(`instance.getModel().getLineContent(1)`), 'afrom banana import *');
+		assewt.stwictEquaw(await page.evawuate(`instance.getModew().getWineContent(1)`), 'afwom banana impowt *');
 	});
 
-	it('Type and Undo', async function (): Promise<any> {
-		await page.evaluate(`
+	it('Type and Undo', async function (): Pwomise<any> {
+		await page.evawuate(`
 		(function () {
 			instance.focus();
-			instance.trigger('keyboard', 'cursorHome');
-			instance.trigger('keyboard', 'type', {
+			instance.twigga('keyboawd', 'cuwsowHome');
+			instance.twigga('keyboawd', 'type', {
 				text: 'a'
 			});
-			instance.getModel().undo();
+			instance.getModew().undo();
 		})()
 		`);
-		assert.strictEqual(await page.evaluate(`instance.getModel().getLineContent(1)`), 'from banana import *');
+		assewt.stwictEquaw(await page.evawuate(`instance.getModew().getWineContent(1)`), 'fwom banana impowt *');
 	});
 
-	it('Multi Cursor', async function (): Promise<any> {
-		await page.evaluate(`
+	it('Muwti Cuwsow', async function (): Pwomise<any> {
+		await page.evawuate(`
 		(function () {
 			instance.focus();
-			instance.trigger('keyboard', 'editor.action.insertCursorBelow');
-			instance.trigger('keyboard', 'editor.action.insertCursorBelow');
-			instance.trigger('keyboard', 'editor.action.insertCursorBelow');
-			instance.trigger('keyboard', 'editor.action.insertCursorBelow');
-			instance.trigger('keyboard', 'editor.action.insertCursorBelow');
-			instance.trigger('keyboard', 'type', {
+			instance.twigga('keyboawd', 'editow.action.insewtCuwsowBewow');
+			instance.twigga('keyboawd', 'editow.action.insewtCuwsowBewow');
+			instance.twigga('keyboawd', 'editow.action.insewtCuwsowBewow');
+			instance.twigga('keyboawd', 'editow.action.insewtCuwsowBewow');
+			instance.twigga('keyboawd', 'editow.action.insewtCuwsowBewow');
+			instance.twigga('keyboawd', 'type', {
 				text: '# '
 			});
 			instance.focus();
 		})()
 		`);
 
-		await page.waitForTimeout(1000);
+		await page.waitFowTimeout(1000);
 
-		assert.deepStrictEqual(await page.evaluate(`
+		assewt.deepStwictEquaw(await page.evawuate(`
 			[
-				instance.getModel().getLineContent(1),
-				instance.getModel().getLineContent(2),
-				instance.getModel().getLineContent(3),
-				instance.getModel().getLineContent(4),
-				instance.getModel().getLineContent(5),
-				instance.getModel().getLineContent(6),
-				instance.getModel().getLineContent(7),
+				instance.getModew().getWineContent(1),
+				instance.getModew().getWineContent(2),
+				instance.getModew().getWineContent(3),
+				instance.getModew().getWineContent(4),
+				instance.getModew().getWineContent(5),
+				instance.getModew().getWineContent(6),
+				instance.getModew().getWineContent(7),
 			]
 		`), [
-			'# from banana import *',
+			'# fwom banana impowt *',
 			'# ',
-			'# class Monkey:',
+			'# cwass Monkey:',
 			'# 	# Bananas the monkey can eat.',
 			'# 	capacity = 10',
-			'# 	def eat(self, N):',
+			'# 	def eat(sewf, N):',
 			'\t\t\'\'\'Make the monkey eat N bananas!\'\'\''
 		]);
 	});

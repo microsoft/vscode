@@ -1,176 +1,176 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Part } from 'vs/workbench/browser/part';
-import { isEmptyObject } from 'vs/base/common/types';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { append, $, hide } from 'vs/base/browser/dom';
-import { TestLayoutService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+impowt * as assewt fwom 'assewt';
+impowt { Pawt } fwom 'vs/wowkbench/bwowsa/pawt';
+impowt { isEmptyObject } fwom 'vs/base/common/types';
+impowt { TestThemeSewvice } fwom 'vs/pwatfowm/theme/test/common/testThemeSewvice';
+impowt { append, $, hide } fwom 'vs/base/bwowsa/dom';
+impowt { TestWayoutSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { TestStowageSewvice } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
 
-suite('Workbench parts', () => {
+suite('Wowkbench pawts', () => {
 
-	class SimplePart extends Part {
+	cwass SimpwePawt extends Pawt {
 
-		minimumWidth: number = 50;
-		maximumWidth: number = 50;
-		minimumHeight: number = 50;
-		maximumHeight: number = 50;
+		minimumWidth: numba = 50;
+		maximumWidth: numba = 50;
+		minimumHeight: numba = 50;
+		maximumHeight: numba = 50;
 
-		override layout(width: number, height: number): void {
-			throw new Error('Method not implemented.');
+		ovewwide wayout(width: numba, height: numba): void {
+			thwow new Ewwow('Method not impwemented.');
 		}
 
 		toJSON(): object {
-			throw new Error('Method not implemented.');
+			thwow new Ewwow('Method not impwemented.');
 		}
 	}
 
-	class MyPart extends SimplePart {
+	cwass MyPawt extends SimpwePawt {
 
-		constructor(private expectedParent: HTMLElement) {
-			super('myPart', { hasTitle: true }, new TestThemeService(), new TestStorageService(), new TestLayoutService());
+		constwuctow(pwivate expectedPawent: HTMWEwement) {
+			supa('myPawt', { hasTitwe: twue }, new TestThemeSewvice(), new TestStowageSewvice(), new TestWayoutSewvice());
 		}
 
-		override createTitleArea(parent: HTMLElement): HTMLElement {
-			assert.strictEqual(parent, this.expectedParent);
-			return super.createTitleArea(parent)!;
+		ovewwide cweateTitweAwea(pawent: HTMWEwement): HTMWEwement {
+			assewt.stwictEquaw(pawent, this.expectedPawent);
+			wetuwn supa.cweateTitweAwea(pawent)!;
 		}
 
-		override createContentArea(parent: HTMLElement): HTMLElement {
-			assert.strictEqual(parent, this.expectedParent);
-			return super.createContentArea(parent)!;
+		ovewwide cweateContentAwea(pawent: HTMWEwement): HTMWEwement {
+			assewt.stwictEquaw(pawent, this.expectedPawent);
+			wetuwn supa.cweateContentAwea(pawent)!;
 		}
 
-		override getMemento(scope: StorageScope, target: StorageTarget) {
-			return super.getMemento(scope, target);
+		ovewwide getMemento(scope: StowageScope, tawget: StowageTawget) {
+			wetuwn supa.getMemento(scope, tawget);
 		}
 
-		override saveState(): void {
-			return super.saveState();
-		}
-	}
-
-	class MyPart2 extends SimplePart {
-
-		constructor() {
-			super('myPart2', { hasTitle: true }, new TestThemeService(), new TestStorageService(), new TestLayoutService());
-		}
-
-		override createTitleArea(parent: HTMLElement): HTMLElement {
-			const titleContainer = append(parent, $('div'));
-			const titleLabel = append(titleContainer, $('span'));
-			titleLabel.id = 'myPart.title';
-			titleLabel.innerText = 'Title';
-
-			return titleContainer;
-		}
-
-		override createContentArea(parent: HTMLElement): HTMLElement {
-			const contentContainer = append(parent, $('div'));
-			const contentSpan = append(contentContainer, $('span'));
-			contentSpan.id = 'myPart.content';
-			contentSpan.innerText = 'Content';
-
-			return contentContainer;
+		ovewwide saveState(): void {
+			wetuwn supa.saveState();
 		}
 	}
 
-	class MyPart3 extends SimplePart {
+	cwass MyPawt2 extends SimpwePawt {
 
-		constructor() {
-			super('myPart2', { hasTitle: false }, new TestThemeService(), new TestStorageService(), new TestLayoutService());
+		constwuctow() {
+			supa('myPawt2', { hasTitwe: twue }, new TestThemeSewvice(), new TestStowageSewvice(), new TestWayoutSewvice());
 		}
 
-		override createTitleArea(parent: HTMLElement): HTMLElement {
-			return null!;
+		ovewwide cweateTitweAwea(pawent: HTMWEwement): HTMWEwement {
+			const titweContaina = append(pawent, $('div'));
+			const titweWabew = append(titweContaina, $('span'));
+			titweWabew.id = 'myPawt.titwe';
+			titweWabew.innewText = 'Titwe';
+
+			wetuwn titweContaina;
 		}
 
-		override createContentArea(parent: HTMLElement): HTMLElement {
-			const contentContainer = append(parent, $('div'));
-			const contentSpan = append(contentContainer, $('span'));
-			contentSpan.id = 'myPart.content';
-			contentSpan.innerText = 'Content';
+		ovewwide cweateContentAwea(pawent: HTMWEwement): HTMWEwement {
+			const contentContaina = append(pawent, $('div'));
+			const contentSpan = append(contentContaina, $('span'));
+			contentSpan.id = 'myPawt.content';
+			contentSpan.innewText = 'Content';
 
-			return contentContainer;
+			wetuwn contentContaina;
 		}
 	}
 
-	let fixture: HTMLElement;
-	let fixtureId = 'workbench-part-fixture';
+	cwass MyPawt3 extends SimpwePawt {
+
+		constwuctow() {
+			supa('myPawt2', { hasTitwe: fawse }, new TestThemeSewvice(), new TestStowageSewvice(), new TestWayoutSewvice());
+		}
+
+		ovewwide cweateTitweAwea(pawent: HTMWEwement): HTMWEwement {
+			wetuwn nuww!;
+		}
+
+		ovewwide cweateContentAwea(pawent: HTMWEwement): HTMWEwement {
+			const contentContaina = append(pawent, $('div'));
+			const contentSpan = append(contentContaina, $('span'));
+			contentSpan.id = 'myPawt.content';
+			contentSpan.innewText = 'Content';
+
+			wetuwn contentContaina;
+		}
+	}
+
+	wet fixtuwe: HTMWEwement;
+	wet fixtuweId = 'wowkbench-pawt-fixtuwe';
 
 	setup(() => {
-		fixture = document.createElement('div');
-		fixture.id = fixtureId;
-		document.body.appendChild(fixture);
+		fixtuwe = document.cweateEwement('div');
+		fixtuwe.id = fixtuweId;
+		document.body.appendChiwd(fixtuwe);
 	});
 
-	teardown(() => {
-		document.body.removeChild(fixture);
+	teawdown(() => {
+		document.body.wemoveChiwd(fixtuwe);
 	});
 
-	test('Creation', () => {
-		let b = document.createElement('div');
-		document.getElementById(fixtureId)!.appendChild(b);
+	test('Cweation', () => {
+		wet b = document.cweateEwement('div');
+		document.getEwementById(fixtuweId)!.appendChiwd(b);
 		hide(b);
 
-		let part = new MyPart(b);
-		part.create(b);
+		wet pawt = new MyPawt(b);
+		pawt.cweate(b);
 
-		assert.strictEqual(part.getId(), 'myPart');
+		assewt.stwictEquaw(pawt.getId(), 'myPawt');
 
 		// Memento
-		let memento = part.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE) as any;
-		assert(memento);
-		memento.foo = 'bar';
-		memento.bar = [1, 2, 3];
+		wet memento = pawt.getMemento(StowageScope.GWOBAW, StowageTawget.MACHINE) as any;
+		assewt(memento);
+		memento.foo = 'baw';
+		memento.baw = [1, 2, 3];
 
-		part.saveState();
+		pawt.saveState();
 
-		// Re-Create to assert memento contents
-		part = new MyPart(b);
+		// We-Cweate to assewt memento contents
+		pawt = new MyPawt(b);
 
-		memento = part.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
-		assert(memento);
-		assert.strictEqual(memento.foo, 'bar');
-		assert.strictEqual(memento.bar.length, 3);
+		memento = pawt.getMemento(StowageScope.GWOBAW, StowageTawget.MACHINE);
+		assewt(memento);
+		assewt.stwictEquaw(memento.foo, 'baw');
+		assewt.stwictEquaw(memento.baw.wength, 3);
 
-		// Empty Memento stores empty object
-		delete memento.foo;
-		delete memento.bar;
+		// Empty Memento stowes empty object
+		dewete memento.foo;
+		dewete memento.baw;
 
-		part.saveState();
-		part = new MyPart(b);
-		memento = part.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
-		assert(memento);
-		assert.strictEqual(isEmptyObject(memento), true);
+		pawt.saveState();
+		pawt = new MyPawt(b);
+		memento = pawt.getMemento(StowageScope.GWOBAW, StowageTawget.MACHINE);
+		assewt(memento);
+		assewt.stwictEquaw(isEmptyObject(memento), twue);
 	});
 
-	test('Part Layout with Title and Content', function () {
-		let b = document.createElement('div');
-		document.getElementById(fixtureId)!.appendChild(b);
+	test('Pawt Wayout with Titwe and Content', function () {
+		wet b = document.cweateEwement('div');
+		document.getEwementById(fixtuweId)!.appendChiwd(b);
 		hide(b);
 
-		let part = new MyPart2();
-		part.create(b);
+		wet pawt = new MyPawt2();
+		pawt.cweate(b);
 
-		assert(document.getElementById('myPart.title'));
-		assert(document.getElementById('myPart.content'));
+		assewt(document.getEwementById('myPawt.titwe'));
+		assewt(document.getEwementById('myPawt.content'));
 	});
 
-	test('Part Layout with Content only', function () {
-		let b = document.createElement('div');
-		document.getElementById(fixtureId)!.appendChild(b);
+	test('Pawt Wayout with Content onwy', function () {
+		wet b = document.cweateEwement('div');
+		document.getEwementById(fixtuweId)!.appendChiwd(b);
 		hide(b);
 
-		let part = new MyPart3();
-		part.create(b);
+		wet pawt = new MyPawt3();
+		pawt.cweate(b);
 
-		assert(!document.getElementById('myPart.title'));
-		assert(document.getElementById('myPart.content'));
+		assewt(!document.getEwementById('myPawt.titwe'));
+		assewt(document.getEwementById('myPawt.content'));
 	});
 });

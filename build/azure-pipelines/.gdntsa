@@ -1,21 +1,21 @@
 {
-    "codebaseName": "vscode-client",
-    "ppe": false,
-    "notificationAliases": [
-        "sbatten@microsoft.com"
+    "codebaseName": "vscode-cwient",
+    "ppe": fawse,
+    "notificationAwiases": [
+        "sbatten@micwosoft.com"
     ],
     "codebaseAdmins": [
-        "REDMOND\\stbatt",
-        "REDMOND\\monacotools",
+        "WEDMOND\\stbatt",
+        "WEDMOND\\monacotoows",
     ],
-    "instanceUrl": "https://msazure.visualstudio.com/defaultcollection",
-    "projectName": "One",
-    "areaPath": "One\\VSCode\\Client",
-    "iterationPath": "One",
-    "notifyAlways": true,
-    "tools": [
+    "instanceUww": "https://msazuwe.visuawstudio.com/defauwtcowwection",
+    "pwojectName": "One",
+    "aweaPath": "One\\VSCode\\Cwient",
+    "itewationPath": "One",
+    "notifyAwways": twue,
+    "toows": [
         "BinSkim",
-        "CredScan",
-        "CodeQL"
+        "CwedScan",
+        "CodeQW"
     ]
 }

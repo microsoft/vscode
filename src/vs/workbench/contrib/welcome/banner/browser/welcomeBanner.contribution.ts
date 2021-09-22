@@ -1,53 +1,53 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
-import { Codicon, iconRegistry } from 'vs/base/common/codicons';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { URI } from 'vs/base/common/uri';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IBannewSewvice } fwom 'vs/wowkbench/sewvices/banna/bwowsa/bannewSewvice';
+impowt { Codicon, iconWegistwy } fwom 'vs/base/common/codicons';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-class WelcomeBannerContribution {
+cwass WewcomeBannewContwibution {
 
-	private static readonly WELCOME_BANNER_DISMISSED_KEY = 'workbench.banner.welcome.dismissed';
+	pwivate static weadonwy WEWCOME_BANNEW_DISMISSED_KEY = 'wowkbench.banna.wewcome.dismissed';
 
-	constructor(
-		@IBannerService bannerService: IBannerService,
-		@IStorageService storageService: IStorageService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
+	constwuctow(
+		@IBannewSewvice bannewSewvice: IBannewSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IWowkbenchEnviwonmentSewvice enviwonmentSewvice: IWowkbenchEnviwonmentSewvice
 	) {
-		const welcomeBanner = environmentService.options?.welcomeBanner;
-		if (!welcomeBanner) {
-			return; // welcome banner is not enabled
+		const wewcomeBanna = enviwonmentSewvice.options?.wewcomeBanna;
+		if (!wewcomeBanna) {
+			wetuwn; // wewcome banna is not enabwed
 		}
 
-		if (storageService.getBoolean(WelcomeBannerContribution.WELCOME_BANNER_DISMISSED_KEY, StorageScope.GLOBAL, false)) {
-			return; // welcome banner dismissed
+		if (stowageSewvice.getBoowean(WewcomeBannewContwibution.WEWCOME_BANNEW_DISMISSED_KEY, StowageScope.GWOBAW, fawse)) {
+			wetuwn; // wewcome banna dismissed
 		}
 
-		let icon: Codicon | URI | undefined = undefined;
-		if (typeof welcomeBanner.icon === 'string') {
-			icon = iconRegistry.get(welcomeBanner.icon);
-		} else if (welcomeBanner.icon) {
-			icon = URI.revive(welcomeBanner.icon);
+		wet icon: Codicon | UWI | undefined = undefined;
+		if (typeof wewcomeBanna.icon === 'stwing') {
+			icon = iconWegistwy.get(wewcomeBanna.icon);
+		} ewse if (wewcomeBanna.icon) {
+			icon = UWI.wevive(wewcomeBanna.icon);
 		}
 
-		bannerService.show({
-			id: 'welcome.banner',
-			message: welcomeBanner.message,
+		bannewSewvice.show({
+			id: 'wewcome.banna',
+			message: wewcomeBanna.message,
 			icon,
-			actions: welcomeBanner.actions,
-			onClose: () => {
-				storageService.store(WelcomeBannerContribution.WELCOME_BANNER_DISMISSED_KEY, true, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			actions: wewcomeBanna.actions,
+			onCwose: () => {
+				stowageSewvice.stowe(WewcomeBannewContwibution.WEWCOME_BANNEW_DISMISSED_KEY, twue, StowageScope.GWOBAW, StowageTawget.MACHINE);
 			}
 		});
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WelcomeBannerContribution, LifecyclePhase.Restored);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench)
+	.wegistewWowkbenchContwibution(WewcomeBannewContwibution, WifecycwePhase.Westowed);

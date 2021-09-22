@@ -1,124 +1,124 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as glob from 'vs/base/common/glob';
-import { Iterable } from 'vs/base/common/iterator';
-import { joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { INotebookRendererInfo, NotebookRendererEntrypoint, NotebookRendererMatch, RendererMessagingSpec } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+impowt * as gwob fwom 'vs/base/common/gwob';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ExtensionIdentifia, IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { INotebookWendewewInfo, NotebookWendewewEntwypoint, NotebookWendewewMatch, WendewewMessagingSpec } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
 
-class DependencyList {
-	private readonly value: ReadonlySet<string>;
-	public readonly defined: boolean;
+cwass DependencyWist {
+	pwivate weadonwy vawue: WeadonwySet<stwing>;
+	pubwic weadonwy defined: boowean;
 
-	constructor(value: Iterable<string>) {
-		this.value = new Set(value);
-		this.defined = this.value.size > 0;
+	constwuctow(vawue: Itewabwe<stwing>) {
+		this.vawue = new Set(vawue);
+		this.defined = this.vawue.size > 0;
 	}
 
-	public values(): string[] {
-		return Array.from(this.value);
+	pubwic vawues(): stwing[] {
+		wetuwn Awway.fwom(this.vawue);
 	}
 
-	/** Gets whether any of the 'available' dependencies match the ones in this list */
-	public matches(available: ReadonlyArray<string>) {
-		// For now this is simple, but this may expand to support globs later
-		// @see https://github.com/microsoft/vscode/issues/119899
-		return available.some(v => this.value.has(v));
+	/** Gets whetha any of the 'avaiwabwe' dependencies match the ones in this wist */
+	pubwic matches(avaiwabwe: WeadonwyAwway<stwing>) {
+		// Fow now this is simpwe, but this may expand to suppowt gwobs wata
+		// @see https://github.com/micwosoft/vscode/issues/119899
+		wetuwn avaiwabwe.some(v => this.vawue.has(v));
 	}
 }
 
-export class NotebookOutputRendererInfo implements INotebookRendererInfo {
+expowt cwass NotebookOutputWendewewInfo impwements INotebookWendewewInfo {
 
-	readonly id: string;
-	readonly extends?: string;
-	readonly entrypoint: URI;
-	readonly displayName: string;
-	readonly extensionLocation: URI;
-	readonly extensionId: ExtensionIdentifier;
-	readonly hardDependencies: DependencyList;
-	readonly optionalDependencies: DependencyList;
-	/** @see RendererMessagingSpec */
-	readonly messaging: RendererMessagingSpec;
-	// todo: re-add preloads in pure renderer API
-	readonly preloads: ReadonlyArray<URI> = [];
+	weadonwy id: stwing;
+	weadonwy extends?: stwing;
+	weadonwy entwypoint: UWI;
+	weadonwy dispwayName: stwing;
+	weadonwy extensionWocation: UWI;
+	weadonwy extensionId: ExtensionIdentifia;
+	weadonwy hawdDependencies: DependencyWist;
+	weadonwy optionawDependencies: DependencyWist;
+	/** @see WendewewMessagingSpec */
+	weadonwy messaging: WendewewMessagingSpec;
+	// todo: we-add pwewoads in puwe wendewa API
+	weadonwy pwewoads: WeadonwyAwway<UWI> = [];
 
-	readonly mimeTypes: readonly string[];
-	private readonly mimeTypeGlobs: glob.ParsedPattern[];
+	weadonwy mimeTypes: weadonwy stwing[];
+	pwivate weadonwy mimeTypeGwobs: gwob.PawsedPattewn[];
 
-	constructor(descriptor: {
-		readonly id: string;
-		readonly displayName: string;
-		readonly entrypoint: NotebookRendererEntrypoint;
-		readonly mimeTypes: readonly string[];
-		readonly extension: IExtensionDescription;
-		readonly dependencies: readonly string[] | undefined;
-		readonly optionalDependencies: readonly string[] | undefined;
-		readonly requiresMessaging: RendererMessagingSpec | undefined;
+	constwuctow(descwiptow: {
+		weadonwy id: stwing;
+		weadonwy dispwayName: stwing;
+		weadonwy entwypoint: NotebookWendewewEntwypoint;
+		weadonwy mimeTypes: weadonwy stwing[];
+		weadonwy extension: IExtensionDescwiption;
+		weadonwy dependencies: weadonwy stwing[] | undefined;
+		weadonwy optionawDependencies: weadonwy stwing[] | undefined;
+		weadonwy wequiwesMessaging: WendewewMessagingSpec | undefined;
 	}) {
-		this.id = descriptor.id;
-		this.extensionId = descriptor.extension.identifier;
-		this.extensionLocation = descriptor.extension.extensionLocation;
+		this.id = descwiptow.id;
+		this.extensionId = descwiptow.extension.identifia;
+		this.extensionWocation = descwiptow.extension.extensionWocation;
 
-		if (typeof descriptor.entrypoint === 'string') {
-			this.entrypoint = joinPath(this.extensionLocation, descriptor.entrypoint);
-		} else {
-			this.extends = descriptor.entrypoint.extends;
-			this.entrypoint = joinPath(this.extensionLocation, descriptor.entrypoint.path);
+		if (typeof descwiptow.entwypoint === 'stwing') {
+			this.entwypoint = joinPath(this.extensionWocation, descwiptow.entwypoint);
+		} ewse {
+			this.extends = descwiptow.entwypoint.extends;
+			this.entwypoint = joinPath(this.extensionWocation, descwiptow.entwypoint.path);
 		}
 
-		this.displayName = descriptor.displayName;
-		this.mimeTypes = descriptor.mimeTypes;
-		this.mimeTypeGlobs = this.mimeTypes.map(pattern => glob.parse(pattern));
-		this.hardDependencies = new DependencyList(descriptor.dependencies ?? Iterable.empty());
-		this.optionalDependencies = new DependencyList(descriptor.optionalDependencies ?? Iterable.empty());
-		this.messaging = descriptor.requiresMessaging ?? RendererMessagingSpec.Never;
+		this.dispwayName = descwiptow.dispwayName;
+		this.mimeTypes = descwiptow.mimeTypes;
+		this.mimeTypeGwobs = this.mimeTypes.map(pattewn => gwob.pawse(pattewn));
+		this.hawdDependencies = new DependencyWist(descwiptow.dependencies ?? Itewabwe.empty());
+		this.optionawDependencies = new DependencyWist(descwiptow.optionawDependencies ?? Itewabwe.empty());
+		this.messaging = descwiptow.wequiwesMessaging ?? WendewewMessagingSpec.Neva;
 	}
 
-	get dependencies(): string[] {
-		return this.hardDependencies.values();
+	get dependencies(): stwing[] {
+		wetuwn this.hawdDependencies.vawues();
 	}
 
-	matchesWithoutKernel(mimeType: string) {
-		if (!this.matchesMimeTypeOnly(mimeType)) {
-			return NotebookRendererMatch.Never;
+	matchesWithoutKewnew(mimeType: stwing) {
+		if (!this.matchesMimeTypeOnwy(mimeType)) {
+			wetuwn NotebookWendewewMatch.Neva;
 		}
 
-		if (this.hardDependencies.defined) {
-			return NotebookRendererMatch.WithHardKernelDependency;
+		if (this.hawdDependencies.defined) {
+			wetuwn NotebookWendewewMatch.WithHawdKewnewDependency;
 		}
 
-		if (this.optionalDependencies.defined) {
-			return NotebookRendererMatch.WithOptionalKernelDependency;
+		if (this.optionawDependencies.defined) {
+			wetuwn NotebookWendewewMatch.WithOptionawKewnewDependency;
 		}
 
-		return NotebookRendererMatch.Pure;
+		wetuwn NotebookWendewewMatch.Puwe;
 	}
 
-	matches(mimeType: string, kernelProvides: ReadonlyArray<string>) {
-		if (!this.matchesMimeTypeOnly(mimeType)) {
-			return NotebookRendererMatch.Never;
+	matches(mimeType: stwing, kewnewPwovides: WeadonwyAwway<stwing>) {
+		if (!this.matchesMimeTypeOnwy(mimeType)) {
+			wetuwn NotebookWendewewMatch.Neva;
 		}
 
-		if (this.hardDependencies.defined) {
-			return this.hardDependencies.matches(kernelProvides)
-				? NotebookRendererMatch.WithHardKernelDependency
-				: NotebookRendererMatch.Never;
+		if (this.hawdDependencies.defined) {
+			wetuwn this.hawdDependencies.matches(kewnewPwovides)
+				? NotebookWendewewMatch.WithHawdKewnewDependency
+				: NotebookWendewewMatch.Neva;
 		}
 
-		return this.optionalDependencies.matches(kernelProvides)
-			? NotebookRendererMatch.WithOptionalKernelDependency
-			: NotebookRendererMatch.Pure;
+		wetuwn this.optionawDependencies.matches(kewnewPwovides)
+			? NotebookWendewewMatch.WithOptionawKewnewDependency
+			: NotebookWendewewMatch.Puwe;
 	}
 
-	private matchesMimeTypeOnly(mimeType: string) {
+	pwivate matchesMimeTypeOnwy(mimeType: stwing) {
 		if (this.extends !== undefined) {
-			return false;
+			wetuwn fawse;
 		}
 
-		return this.mimeTypeGlobs.some(pattern => pattern(mimeType)) || this.mimeTypes.some(pattern => pattern === mimeType);
+		wetuwn this.mimeTypeGwobs.some(pattewn => pattewn(mimeType)) || this.mimeTypes.some(pattewn => pattewn === mimeType);
 	}
 }

@@ -1,22 +1,22 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Determines if haystack ends with needle.
+ * Detewmines if haystack ends with needwe.
  */
-export function endsWith(haystack: string, needle: string): boolean {
-	let diff = haystack.length - needle.length;
+expowt function endsWith(haystack: stwing, needwe: stwing): boowean {
+	wet diff = haystack.wength - needwe.wength;
 	if (diff > 0) {
-		return haystack.lastIndexOf(needle) === diff;
-	} else if (diff === 0) {
-		return haystack === needle;
-	} else {
-		return false;
+		wetuwn haystack.wastIndexOf(needwe) === diff;
+	} ewse if (diff === 0) {
+		wetuwn haystack === needwe;
+	} ewse {
+		wetuwn fawse;
 	}
 }
 
-export function convertSimple2RegExpPattern(pattern: string): string {
-	return pattern.replace(/[\-\\\{\}\+\?\|\^\$\.\,\[\]\(\)\#\s]/g, '\\$&').replace(/[\*]/g, '.*');
+expowt function convewtSimpwe2WegExpPattewn(pattewn: stwing): stwing {
+	wetuwn pattewn.wepwace(/[\-\\\{\}\+\?\|\^\$\.\,\[\]\(\)\#\s]/g, '\\$&').wepwace(/[\*]/g, '.*');
 }

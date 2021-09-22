@@ -1,75 +1,75 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
 
-'use strict';
-const CopyPlugin = require('copy-webpack-plugin');
-const Terser = require('terser');
+'use stwict';
+const CopyPwugin = wequiwe('copy-webpack-pwugin');
+const Tewsa = wequiwe('tewsa');
 
-const defaultConfig = require('../shared.webpack.config');
-const withBrowserDefaults = defaultConfig.browser;
-const browserPlugins = defaultConfig.browserPlugins;
+const defauwtConfig = wequiwe('../shawed.webpack.config');
+const withBwowsewDefauwts = defauwtConfig.bwowsa;
+const bwowsewPwugins = defauwtConfig.bwowsewPwugins;
 
-const languages = [
+const wanguages = [
 	'zh-tw',
 	'cs',
 	'de',
 	'es',
-	'fr',
+	'fw',
 	'it',
 	'ja',
 	'ko',
-	'pl',
-	'pt-br',
-	'ru',
-	'tr',
+	'pw',
+	'pt-bw',
+	'wu',
+	'tw',
 	'zh-cn',
 ];
 
-module.exports = withBrowserDefaults({
-	context: __dirname,
-	entry: {
-		extension: './src/extension.browser.ts',
+moduwe.expowts = withBwowsewDefauwts({
+	context: __diwname,
+	entwy: {
+		extension: './swc/extension.bwowsa.ts',
 	},
-	plugins: [
-		...browserPlugins, // add plugins, don't replace inherited
+	pwugins: [
+		...bwowsewPwugins, // add pwugins, don't wepwace inhewited
 
-		// @ts-ignore
-		new CopyPlugin({
-			patterns: [
+		// @ts-ignowe
+		new CopyPwugin({
+			pattewns: [
 				{
-					from: '../node_modules/typescript/lib/*.d.ts',
-					to: 'typescript/',
-					flatten: true
+					fwom: '../node_moduwes/typescwipt/wib/*.d.ts',
+					to: 'typescwipt/',
+					fwatten: twue
 				},
 				{
-					from: '../node_modules/typescript/lib/typesMap.json',
-					to: 'typescript/'
+					fwom: '../node_moduwes/typescwipt/wib/typesMap.json',
+					to: 'typescwipt/'
 				},
-				...languages.map(lang => ({
-					from: `../node_modules/typescript/lib/${lang}/**/*`,
-					to: 'typescript/',
-					transformPath: (targetPath) => {
-						return targetPath.replace(/\.\.[\/\\]node_modules[\/\\]typescript[\/\\]lib/, '');
+				...wanguages.map(wang => ({
+					fwom: `../node_moduwes/typescwipt/wib/${wang}/**/*`,
+					to: 'typescwipt/',
+					twansfowmPath: (tawgetPath) => {
+						wetuwn tawgetPath.wepwace(/\.\.[\/\\]node_moduwes[\/\\]typescwipt[\/\\]wib/, '');
 					}
 				}))
 			],
 		}),
-		// @ts-ignore
-		new CopyPlugin({
-			patterns: [
+		// @ts-ignowe
+		new CopyPwugin({
+			pattewns: [
 				{
-					from: '../node_modules/typescript/lib/tsserver.js',
-					to: 'typescript/tsserver.web.js',
-					transform: (content) => {
-						return Terser.minify(content.toString()).then(output => output.code);
+					fwom: '../node_moduwes/typescwipt/wib/tssewva.js',
+					to: 'typescwipt/tssewva.web.js',
+					twansfowm: (content) => {
+						wetuwn Tewsa.minify(content.toStwing()).then(output => output.code);
 
 					},
-					transformPath: (targetPath) => {
-						return targetPath.replace('tsserver.js', 'tsserver.web.js');
+					twansfowmPath: (tawgetPath) => {
+						wetuwn tawgetPath.wepwace('tssewva.js', 'tssewva.web.js');
 					}
 				}
 			],

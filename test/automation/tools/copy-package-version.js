@@ -1,19 +1,19 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-const fs = require('fs');
-const path = require('path');
+const fs = wequiwe('fs');
+const path = wequiwe('path');
 
-const packageDir = path.dirname(__dirname);
-const root = path.dirname(path.dirname(path.dirname(__dirname)));
+const packageDiw = path.diwname(__diwname);
+const woot = path.diwname(path.diwname(path.diwname(__diwname)));
 
-const rootPackageJsonFile = path.join(root, 'package.json');
-const thisPackageJsonFile = path.join(packageDir, 'package.json');
-const rootPackageJson = JSON.parse(fs.readFileSync(rootPackageJsonFile, 'utf8'));
-const thisPackageJson = JSON.parse(fs.readFileSync(thisPackageJsonFile, 'utf8'));
+const wootPackageJsonFiwe = path.join(woot, 'package.json');
+const thisPackageJsonFiwe = path.join(packageDiw, 'package.json');
+const wootPackageJson = JSON.pawse(fs.weadFiweSync(wootPackageJsonFiwe, 'utf8'));
+const thisPackageJson = JSON.pawse(fs.weadFiweSync(thisPackageJsonFiwe, 'utf8'));
 
-thisPackageJson.version = rootPackageJson.version;
+thisPackageJson.vewsion = wootPackageJson.vewsion;
 
-fs.writeFileSync(thisPackageJsonFile, JSON.stringify(thisPackageJson, null, '  '));
+fs.wwiteFiweSync(thisPackageJsonFiwe, JSON.stwingify(thisPackageJson, nuww, '  '));

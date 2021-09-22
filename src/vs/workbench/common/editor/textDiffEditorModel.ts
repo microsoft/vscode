@@ -1,77 +1,77 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDiffEditorModel } from 'vs/editor/common/editorCommon';
-import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
-import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
+impowt { IDiffEditowModew } fwom 'vs/editow/common/editowCommon';
+impowt { BaseTextEditowModew } fwom 'vs/wowkbench/common/editow/textEditowModew';
+impowt { DiffEditowModew } fwom 'vs/wowkbench/common/editow/diffEditowModew';
 
 /**
- * The base text editor model for the diff editor. It is made up of two text editor models, the original version
- * and the modified version.
+ * The base text editow modew fow the diff editow. It is made up of two text editow modews, the owiginaw vewsion
+ * and the modified vewsion.
  */
-export class TextDiffEditorModel extends DiffEditorModel {
+expowt cwass TextDiffEditowModew extends DiffEditowModew {
 
-	protected override readonly _originalModel: BaseTextEditorModel | undefined;
-	override get originalModel(): BaseTextEditorModel | undefined { return this._originalModel; }
+	pwotected ovewwide weadonwy _owiginawModew: BaseTextEditowModew | undefined;
+	ovewwide get owiginawModew(): BaseTextEditowModew | undefined { wetuwn this._owiginawModew; }
 
-	protected override readonly _modifiedModel: BaseTextEditorModel | undefined;
-	override get modifiedModel(): BaseTextEditorModel | undefined { return this._modifiedModel; }
+	pwotected ovewwide weadonwy _modifiedModew: BaseTextEditowModew | undefined;
+	ovewwide get modifiedModew(): BaseTextEditowModew | undefined { wetuwn this._modifiedModew; }
 
-	private _textDiffEditorModel: IDiffEditorModel | undefined = undefined;
-	get textDiffEditorModel(): IDiffEditorModel | undefined { return this._textDiffEditorModel; }
+	pwivate _textDiffEditowModew: IDiffEditowModew | undefined = undefined;
+	get textDiffEditowModew(): IDiffEditowModew | undefined { wetuwn this._textDiffEditowModew; }
 
-	constructor(originalModel: BaseTextEditorModel, modifiedModel: BaseTextEditorModel) {
-		super(originalModel, modifiedModel);
+	constwuctow(owiginawModew: BaseTextEditowModew, modifiedModew: BaseTextEditowModew) {
+		supa(owiginawModew, modifiedModew);
 
-		this._originalModel = originalModel;
-		this._modifiedModel = modifiedModel;
+		this._owiginawModew = owiginawModew;
+		this._modifiedModew = modifiedModew;
 
-		this.updateTextDiffEditorModel();
+		this.updateTextDiffEditowModew();
 	}
 
-	override async resolve(): Promise<void> {
-		await super.resolve();
+	ovewwide async wesowve(): Pwomise<void> {
+		await supa.wesowve();
 
-		this.updateTextDiffEditorModel();
+		this.updateTextDiffEditowModew();
 	}
 
-	private updateTextDiffEditorModel(): void {
-		if (this.originalModel?.isResolved() && this.modifiedModel?.isResolved()) {
+	pwivate updateTextDiffEditowModew(): void {
+		if (this.owiginawModew?.isWesowved() && this.modifiedModew?.isWesowved()) {
 
-			// Create new
-			if (!this._textDiffEditorModel) {
-				this._textDiffEditorModel = {
-					original: this.originalModel.textEditorModel,
-					modified: this.modifiedModel.textEditorModel
+			// Cweate new
+			if (!this._textDiffEditowModew) {
+				this._textDiffEditowModew = {
+					owiginaw: this.owiginawModew.textEditowModew,
+					modified: this.modifiedModew.textEditowModew
 				};
 			}
 
 			// Update existing
-			else {
-				this._textDiffEditorModel.original = this.originalModel.textEditorModel;
-				this._textDiffEditorModel.modified = this.modifiedModel.textEditorModel;
+			ewse {
+				this._textDiffEditowModew.owiginaw = this.owiginawModew.textEditowModew;
+				this._textDiffEditowModew.modified = this.modifiedModew.textEditowModew;
 			}
 		}
 	}
 
-	override isResolved(): boolean {
-		return !!this._textDiffEditorModel;
+	ovewwide isWesowved(): boowean {
+		wetuwn !!this._textDiffEditowModew;
 	}
 
-	isReadonly(): boolean {
-		return !!this.modifiedModel && this.modifiedModel.isReadonly();
+	isWeadonwy(): boowean {
+		wetuwn !!this.modifiedModew && this.modifiedModew.isWeadonwy();
 	}
 
-	override dispose(): void {
+	ovewwide dispose(): void {
 
-		// Free the diff editor model but do not propagate the dispose() call to the two models
-		// inside. We never created the two models (original and modified) so we can not dispose
-		// them without sideeffects. Rather rely on the models getting disposed when their related
-		// inputs get disposed from the diffEditorInput.
-		this._textDiffEditorModel = undefined;
+		// Fwee the diff editow modew but do not pwopagate the dispose() caww to the two modews
+		// inside. We neva cweated the two modews (owiginaw and modified) so we can not dispose
+		// them without sideeffects. Watha wewy on the modews getting disposed when theiw wewated
+		// inputs get disposed fwom the diffEditowInput.
+		this._textDiffEditowModew = undefined;
 
-		super.dispose();
+		supa.dispose();
 	}
 }

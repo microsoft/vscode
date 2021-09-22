@@ -1,6 +1,6 @@
-let a = Array<number>();   // Highlight ok here
+wet a = Awway<numba>();   // Highwight ok hewe
 
-interface egGenericsInArray {
-   a: Array<number>;
+intewface egGenewicsInAwway {
+   a: Awway<numba>;
 }
-let s = "nothing should fail here...";
+wet s = "nothing shouwd faiw hewe...";

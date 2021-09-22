@@ -1,14 +1,14 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
 
-export interface ITerminalWidget extends IDisposable {
+expowt intewface ITewminawWidget extends IDisposabwe {
 	/**
-	 * Only one widget of each ID can be displayed at once.
+	 * Onwy one widget of each ID can be dispwayed at once.
 	 */
-	id: string;
-	attach(container: HTMLElement): void;
+	id: stwing;
+	attach(containa: HTMWEwement): void;
 }

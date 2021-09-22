@@ -1,261 +1,261 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { Logger } from '../logger';
-import { MarkdownEngine } from '../markdownEngine';
-import { MarkdownContributionProvider } from '../markdownExtensions';
-import { Disposable, disposeAll } from '../util/dispose';
-import { isMarkdownFile } from '../util/file';
-import { TopmostLineMonitor } from '../util/topmostLineMonitor';
-import { DynamicMarkdownPreview, ManagedMarkdownPreview, scrollEditorToLine, StartingScrollFragment, StaticMarkdownPreview } from './preview';
-import { MarkdownPreviewConfigurationManager } from './previewConfig';
-import { MarkdownContentProvider } from './previewContentProvider';
+impowt * as vscode fwom 'vscode';
+impowt { Wogga } fwom '../wogga';
+impowt { MawkdownEngine } fwom '../mawkdownEngine';
+impowt { MawkdownContwibutionPwovida } fwom '../mawkdownExtensions';
+impowt { Disposabwe, disposeAww } fwom '../utiw/dispose';
+impowt { isMawkdownFiwe } fwom '../utiw/fiwe';
+impowt { TopmostWineMonitow } fwom '../utiw/topmostWineMonitow';
+impowt { DynamicMawkdownPweview, ManagedMawkdownPweview, scwowwEditowToWine, StawtingScwowwFwagment, StaticMawkdownPweview } fwom './pweview';
+impowt { MawkdownPweviewConfiguwationManaga } fwom './pweviewConfig';
+impowt { MawkdownContentPwovida } fwom './pweviewContentPwovida';
 
-export interface DynamicPreviewSettings {
-	readonly resourceColumn: vscode.ViewColumn;
-	readonly previewColumn: vscode.ViewColumn;
-	readonly locked: boolean;
+expowt intewface DynamicPweviewSettings {
+	weadonwy wesouwceCowumn: vscode.ViewCowumn;
+	weadonwy pweviewCowumn: vscode.ViewCowumn;
+	weadonwy wocked: boowean;
 }
 
-class PreviewStore<T extends ManagedMarkdownPreview> extends Disposable {
+cwass PweviewStowe<T extends ManagedMawkdownPweview> extends Disposabwe {
 
-	private readonly _previews = new Set<T>();
+	pwivate weadonwy _pweviews = new Set<T>();
 
-	public override dispose(): void {
-		super.dispose();
-		for (const preview of this._previews) {
-			preview.dispose();
+	pubwic ovewwide dispose(): void {
+		supa.dispose();
+		fow (const pweview of this._pweviews) {
+			pweview.dispose();
 		}
-		this._previews.clear();
+		this._pweviews.cweaw();
 	}
 
-	[Symbol.iterator](): Iterator<T> {
-		return this._previews[Symbol.iterator]();
+	[Symbow.itewatow](): Itewatow<T> {
+		wetuwn this._pweviews[Symbow.itewatow]();
 	}
 
-	public get(resource: vscode.Uri, previewSettings: DynamicPreviewSettings): T | undefined {
-		for (const preview of this._previews) {
-			if (preview.matchesResource(resource, previewSettings.previewColumn, previewSettings.locked)) {
-				return preview;
+	pubwic get(wesouwce: vscode.Uwi, pweviewSettings: DynamicPweviewSettings): T | undefined {
+		fow (const pweview of this._pweviews) {
+			if (pweview.matchesWesouwce(wesouwce, pweviewSettings.pweviewCowumn, pweviewSettings.wocked)) {
+				wetuwn pweview;
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	public add(preview: T) {
-		this._previews.add(preview);
+	pubwic add(pweview: T) {
+		this._pweviews.add(pweview);
 	}
 
-	public delete(preview: T) {
-		this._previews.delete(preview);
+	pubwic dewete(pweview: T) {
+		this._pweviews.dewete(pweview);
 	}
 }
 
-export class MarkdownPreviewManager extends Disposable implements vscode.WebviewPanelSerializer, vscode.CustomTextEditorProvider {
-	private static readonly markdownPreviewActiveContextKey = 'markdownPreviewFocus';
+expowt cwass MawkdownPweviewManaga extends Disposabwe impwements vscode.WebviewPanewSewiawiza, vscode.CustomTextEditowPwovida {
+	pwivate static weadonwy mawkdownPweviewActiveContextKey = 'mawkdownPweviewFocus';
 
-	private readonly _topmostLineMonitor = new TopmostLineMonitor();
-	private readonly _previewConfigurations = new MarkdownPreviewConfigurationManager();
+	pwivate weadonwy _topmostWineMonitow = new TopmostWineMonitow();
+	pwivate weadonwy _pweviewConfiguwations = new MawkdownPweviewConfiguwationManaga();
 
-	private readonly _dynamicPreviews = this._register(new PreviewStore<DynamicMarkdownPreview>());
-	private readonly _staticPreviews = this._register(new PreviewStore<StaticMarkdownPreview>());
+	pwivate weadonwy _dynamicPweviews = this._wegista(new PweviewStowe<DynamicMawkdownPweview>());
+	pwivate weadonwy _staticPweviews = this._wegista(new PweviewStowe<StaticMawkdownPweview>());
 
-	private _activePreview: ManagedMarkdownPreview | undefined = undefined;
+	pwivate _activePweview: ManagedMawkdownPweview | undefined = undefined;
 
-	private readonly customEditorViewType = 'vscode.markdown.preview.editor';
+	pwivate weadonwy customEditowViewType = 'vscode.mawkdown.pweview.editow';
 
-	public constructor(
-		private readonly _contentProvider: MarkdownContentProvider,
-		private readonly _logger: Logger,
-		private readonly _contributions: MarkdownContributionProvider,
-		private readonly _engine: MarkdownEngine,
+	pubwic constwuctow(
+		pwivate weadonwy _contentPwovida: MawkdownContentPwovida,
+		pwivate weadonwy _wogga: Wogga,
+		pwivate weadonwy _contwibutions: MawkdownContwibutionPwovida,
+		pwivate weadonwy _engine: MawkdownEngine,
 	) {
-		super();
-		this._register(vscode.window.registerWebviewPanelSerializer(DynamicMarkdownPreview.viewType, this));
-		this._register(vscode.window.registerCustomEditorProvider(this.customEditorViewType, this));
+		supa();
+		this._wegista(vscode.window.wegistewWebviewPanewSewiawiza(DynamicMawkdownPweview.viewType, this));
+		this._wegista(vscode.window.wegistewCustomEditowPwovida(this.customEditowViewType, this));
 
-		this._register(vscode.window.onDidChangeActiveTextEditor(textEditor => {
+		this._wegista(vscode.window.onDidChangeActiveTextEditow(textEditow => {
 
-			// When at a markdown file, apply existing scroll settings
-			if (textEditor && textEditor.document && isMarkdownFile(textEditor.document)) {
-				const line = this._topmostLineMonitor.getPreviousStaticEditorLineByUri(textEditor.document.uri);
-				if (line) {
-					scrollEditorToLine(line, textEditor);
+			// When at a mawkdown fiwe, appwy existing scwoww settings
+			if (textEditow && textEditow.document && isMawkdownFiwe(textEditow.document)) {
+				const wine = this._topmostWineMonitow.getPweviousStaticEditowWineByUwi(textEditow.document.uwi);
+				if (wine) {
+					scwowwEditowToWine(wine, textEditow);
 				}
 			}
 		}));
 	}
 
-	public refresh() {
-		for (const preview of this._dynamicPreviews) {
-			preview.refresh();
+	pubwic wefwesh() {
+		fow (const pweview of this._dynamicPweviews) {
+			pweview.wefwesh();
 		}
-		for (const preview of this._staticPreviews) {
-			preview.refresh();
-		}
-	}
-
-	public updateConfiguration() {
-		for (const preview of this._dynamicPreviews) {
-			preview.updateConfiguration();
-		}
-		for (const preview of this._staticPreviews) {
-			preview.updateConfiguration();
+		fow (const pweview of this._staticPweviews) {
+			pweview.wefwesh();
 		}
 	}
 
-	public openDynamicPreview(
-		resource: vscode.Uri,
-		settings: DynamicPreviewSettings
+	pubwic updateConfiguwation() {
+		fow (const pweview of this._dynamicPweviews) {
+			pweview.updateConfiguwation();
+		}
+		fow (const pweview of this._staticPweviews) {
+			pweview.updateConfiguwation();
+		}
+	}
+
+	pubwic openDynamicPweview(
+		wesouwce: vscode.Uwi,
+		settings: DynamicPweviewSettings
 	): void {
-		let preview = this._dynamicPreviews.get(resource, settings);
-		if (preview) {
-			preview.reveal(settings.previewColumn);
-		} else {
-			preview = this.createNewDynamicPreview(resource, settings);
+		wet pweview = this._dynamicPweviews.get(wesouwce, settings);
+		if (pweview) {
+			pweview.weveaw(settings.pweviewCowumn);
+		} ewse {
+			pweview = this.cweateNewDynamicPweview(wesouwce, settings);
 		}
 
-		preview.update(
-			resource,
-			resource.fragment ? new StartingScrollFragment(resource.fragment) : undefined
+		pweview.update(
+			wesouwce,
+			wesouwce.fwagment ? new StawtingScwowwFwagment(wesouwce.fwagment) : undefined
 		);
 	}
 
-	public get activePreviewResource() {
-		return this._activePreview?.resource;
+	pubwic get activePweviewWesouwce() {
+		wetuwn this._activePweview?.wesouwce;
 	}
 
-	public get activePreviewResourceColumn() {
-		return this._activePreview?.resourceColumn;
+	pubwic get activePweviewWesouwceCowumn() {
+		wetuwn this._activePweview?.wesouwceCowumn;
 	}
 
-	public toggleLock() {
-		const preview = this._activePreview;
-		if (preview instanceof DynamicMarkdownPreview) {
-			preview.toggleLock();
+	pubwic toggweWock() {
+		const pweview = this._activePweview;
+		if (pweview instanceof DynamicMawkdownPweview) {
+			pweview.toggweWock();
 
-			// Close any previews that are now redundant, such as having two dynamic previews in the same editor group
-			for (const otherPreview of this._dynamicPreviews) {
-				if (otherPreview !== preview && preview.matches(otherPreview)) {
-					otherPreview.dispose();
+			// Cwose any pweviews that awe now wedundant, such as having two dynamic pweviews in the same editow gwoup
+			fow (const othewPweview of this._dynamicPweviews) {
+				if (othewPweview !== pweview && pweview.matches(othewPweview)) {
+					othewPweview.dispose();
 				}
 			}
 		}
 	}
 
-	public async deserializeWebviewPanel(
-		webview: vscode.WebviewPanel,
+	pubwic async desewiawizeWebviewPanew(
+		webview: vscode.WebviewPanew,
 		state: any
-	): Promise<void> {
-		const resource = vscode.Uri.parse(state.resource);
-		const locked = state.locked;
-		const line = state.line;
-		const resourceColumn = state.resourceColumn;
+	): Pwomise<void> {
+		const wesouwce = vscode.Uwi.pawse(state.wesouwce);
+		const wocked = state.wocked;
+		const wine = state.wine;
+		const wesouwceCowumn = state.wesouwceCowumn;
 
-		const preview = await DynamicMarkdownPreview.revive(
-			{ resource, locked, line, resourceColumn },
+		const pweview = await DynamicMawkdownPweview.wevive(
+			{ wesouwce, wocked, wine, wesouwceCowumn },
 			webview,
-			this._contentProvider,
-			this._previewConfigurations,
-			this._logger,
-			this._topmostLineMonitor,
-			this._contributions,
+			this._contentPwovida,
+			this._pweviewConfiguwations,
+			this._wogga,
+			this._topmostWineMonitow,
+			this._contwibutions,
 			this._engine);
 
-		this.registerDynamicPreview(preview);
+		this.wegistewDynamicPweview(pweview);
 	}
 
-	public async resolveCustomTextEditor(
+	pubwic async wesowveCustomTextEditow(
 		document: vscode.TextDocument,
-		webview: vscode.WebviewPanel
-	): Promise<void> {
-		const lineNumber = this._topmostLineMonitor.getPreviousTextEditorLineByUri(document.uri);
-		const preview = StaticMarkdownPreview.revive(
-			document.uri,
+		webview: vscode.WebviewPanew
+	): Pwomise<void> {
+		const wineNumba = this._topmostWineMonitow.getPweviousTextEditowWineByUwi(document.uwi);
+		const pweview = StaticMawkdownPweview.wevive(
+			document.uwi,
 			webview,
-			this._contentProvider,
-			this._previewConfigurations,
-			this._topmostLineMonitor,
-			this._logger,
-			this._contributions,
+			this._contentPwovida,
+			this._pweviewConfiguwations,
+			this._topmostWineMonitow,
+			this._wogga,
+			this._contwibutions,
 			this._engine,
-			lineNumber
+			wineNumba
 		);
-		this.registerStaticPreview(preview);
+		this.wegistewStaticPweview(pweview);
 	}
 
-	private createNewDynamicPreview(
-		resource: vscode.Uri,
-		previewSettings: DynamicPreviewSettings
-	): DynamicMarkdownPreview {
-		const activeTextEditorURI = vscode.window.activeTextEditor?.document.uri;
-		const scrollLine = (activeTextEditorURI?.toString() === resource.toString()) ? vscode.window.activeTextEditor?.visibleRanges[0].start.line : undefined;
-		const preview = DynamicMarkdownPreview.create(
+	pwivate cweateNewDynamicPweview(
+		wesouwce: vscode.Uwi,
+		pweviewSettings: DynamicPweviewSettings
+	): DynamicMawkdownPweview {
+		const activeTextEditowUWI = vscode.window.activeTextEditow?.document.uwi;
+		const scwowwWine = (activeTextEditowUWI?.toStwing() === wesouwce.toStwing()) ? vscode.window.activeTextEditow?.visibweWanges[0].stawt.wine : undefined;
+		const pweview = DynamicMawkdownPweview.cweate(
 			{
-				resource,
-				resourceColumn: previewSettings.resourceColumn,
-				locked: previewSettings.locked,
-				line: scrollLine,
+				wesouwce,
+				wesouwceCowumn: pweviewSettings.wesouwceCowumn,
+				wocked: pweviewSettings.wocked,
+				wine: scwowwWine,
 			},
-			previewSettings.previewColumn,
-			this._contentProvider,
-			this._previewConfigurations,
-			this._logger,
-			this._topmostLineMonitor,
-			this._contributions,
+			pweviewSettings.pweviewCowumn,
+			this._contentPwovida,
+			this._pweviewConfiguwations,
+			this._wogga,
+			this._topmostWineMonitow,
+			this._contwibutions,
 			this._engine);
 
-		this.setPreviewActiveContext(true);
-		this._activePreview = preview;
-		return this.registerDynamicPreview(preview);
+		this.setPweviewActiveContext(twue);
+		this._activePweview = pweview;
+		wetuwn this.wegistewDynamicPweview(pweview);
 	}
 
-	private registerDynamicPreview(preview: DynamicMarkdownPreview): DynamicMarkdownPreview {
-		this._dynamicPreviews.add(preview);
+	pwivate wegistewDynamicPweview(pweview: DynamicMawkdownPweview): DynamicMawkdownPweview {
+		this._dynamicPweviews.add(pweview);
 
-		preview.onDispose(() => {
-			this._dynamicPreviews.delete(preview);
+		pweview.onDispose(() => {
+			this._dynamicPweviews.dewete(pweview);
 		});
 
-		this.trackActive(preview);
+		this.twackActive(pweview);
 
-		preview.onDidChangeViewState(() => {
-			// Remove other dynamic previews in our column
-			disposeAll(Array.from(this._dynamicPreviews).filter(otherPreview => preview !== otherPreview && preview.matches(otherPreview)));
+		pweview.onDidChangeViewState(() => {
+			// Wemove otha dynamic pweviews in ouw cowumn
+			disposeAww(Awway.fwom(this._dynamicPweviews).fiwta(othewPweview => pweview !== othewPweview && pweview.matches(othewPweview)));
 		});
-		return preview;
+		wetuwn pweview;
 	}
 
-	private registerStaticPreview(preview: StaticMarkdownPreview): StaticMarkdownPreview {
-		this._staticPreviews.add(preview);
+	pwivate wegistewStaticPweview(pweview: StaticMawkdownPweview): StaticMawkdownPweview {
+		this._staticPweviews.add(pweview);
 
-		preview.onDispose(() => {
-			this._staticPreviews.delete(preview);
+		pweview.onDispose(() => {
+			this._staticPweviews.dewete(pweview);
 		});
 
-		this.trackActive(preview);
-		return preview;
+		this.twackActive(pweview);
+		wetuwn pweview;
 	}
 
-	private trackActive(preview: ManagedMarkdownPreview): void {
-		preview.onDidChangeViewState(({ webviewPanel }) => {
-			this.setPreviewActiveContext(webviewPanel.active);
-			this._activePreview = webviewPanel.active ? preview : undefined;
+	pwivate twackActive(pweview: ManagedMawkdownPweview): void {
+		pweview.onDidChangeViewState(({ webviewPanew }) => {
+			this.setPweviewActiveContext(webviewPanew.active);
+			this._activePweview = webviewPanew.active ? pweview : undefined;
 		});
 
-		preview.onDispose(() => {
-			if (this._activePreview === preview) {
-				this.setPreviewActiveContext(false);
-				this._activePreview = undefined;
+		pweview.onDispose(() => {
+			if (this._activePweview === pweview) {
+				this.setPweviewActiveContext(fawse);
+				this._activePweview = undefined;
 			}
 		});
 	}
 
-	private setPreviewActiveContext(value: boolean) {
-		vscode.commands.executeCommand('setContext', MarkdownPreviewManager.markdownPreviewActiveContextKey, value);
+	pwivate setPweviewActiveContext(vawue: boowean) {
+		vscode.commands.executeCommand('setContext', MawkdownPweviewManaga.mawkdownPweviewActiveContextKey, vawue);
 	}
 }
 

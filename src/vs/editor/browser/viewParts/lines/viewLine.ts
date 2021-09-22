@@ -1,691 +1,691 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import * as platform from 'vs/base/common/platform';
-import { IVisibleLine } from 'vs/editor/browser/view/viewLayer';
-import { RangeUtil } from 'vs/editor/browser/viewParts/lines/rangeUtil';
-import { IStringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { IConfiguration } from 'vs/editor/common/editorCommon';
-import { FloatHorizontalRange, VisibleRanges } from 'vs/editor/common/view/renderingContext';
-import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
-import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, LineRange, DomPosition } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { EditorOption, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
+impowt * as bwowsa fwom 'vs/base/bwowsa/bwowsa';
+impowt { FastDomNode, cweateFastDomNode } fwom 'vs/base/bwowsa/fastDomNode';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { IVisibweWine } fwom 'vs/editow/bwowsa/view/viewWaya';
+impowt { WangeUtiw } fwom 'vs/editow/bwowsa/viewPawts/wines/wangeUtiw';
+impowt { IStwingBuiwda } fwom 'vs/editow/common/cowe/stwingBuiwda';
+impowt { IConfiguwation } fwom 'vs/editow/common/editowCommon';
+impowt { FwoatHowizontawWange, VisibweWanges } fwom 'vs/editow/common/view/wendewingContext';
+impowt { WineDecowation } fwom 'vs/editow/common/viewWayout/wineDecowations';
+impowt { ChawactewMapping, FoweignEwementType, WendewWineInput, wendewViewWine, WineWange, DomPosition } fwom 'vs/editow/common/viewWayout/viewWineWendewa';
+impowt { ViewpowtData } fwom 'vs/editow/common/viewWayout/viewWinesViewpowtData';
+impowt { InwineDecowationType } fwom 'vs/editow/common/viewModew/viewModew';
+impowt { CowowScheme } fwom 'vs/pwatfowm/theme/common/theme';
+impowt { EditowOption, EditowFontWigatuwes } fwom 'vs/editow/common/config/editowOptions';
 
-const canUseFastRenderedViewLine = (function () {
-	if (platform.isNative) {
-		// In VSCode we know very well when the zoom level changes
-		return true;
+const canUseFastWendewedViewWine = (function () {
+	if (pwatfowm.isNative) {
+		// In VSCode we know vewy weww when the zoom wevew changes
+		wetuwn twue;
 	}
 
-	if (platform.isLinux || browser.isFirefox || browser.isSafari) {
-		// On Linux, it appears that zooming affects char widths (in pixels), which is unexpected.
+	if (pwatfowm.isWinux || bwowsa.isFiwefox || bwowsa.isSafawi) {
+		// On Winux, it appeaws that zooming affects chaw widths (in pixews), which is unexpected.
 		// --
-		// Even though we read character widths correctly, having read them at a specific zoom level
-		// does not mean they are the same at the current zoom level.
+		// Even though we wead chawacta widths cowwectwy, having wead them at a specific zoom wevew
+		// does not mean they awe the same at the cuwwent zoom wevew.
 		// --
-		// This could be improved if we ever figure out how to get an event when browsers zoom,
-		// but until then we have to stick with reading client rects.
+		// This couwd be impwoved if we eva figuwe out how to get an event when bwowsews zoom,
+		// but untiw then we have to stick with weading cwient wects.
 		// --
-		// The same has been observed with Firefox on Windows7
+		// The same has been obsewved with Fiwefox on Windows7
 		// --
-		// The same has been oversved with Safari
-		return false;
+		// The same has been ovewsved with Safawi
+		wetuwn fawse;
 	}
 
-	return true;
+	wetuwn twue;
 })();
 
-let monospaceAssumptionsAreValid = true;
+wet monospaceAssumptionsAweVawid = twue;
 
-export class DomReadingContext {
+expowt cwass DomWeadingContext {
 
-	private readonly _domNode: HTMLElement;
-	private _clientRectDeltaLeft: number;
-	private _clientRectDeltaLeftRead: boolean;
-	public get clientRectDeltaLeft(): number {
-		if (!this._clientRectDeltaLeftRead) {
-			this._clientRectDeltaLeftRead = true;
-			this._clientRectDeltaLeft = this._domNode.getBoundingClientRect().left;
+	pwivate weadonwy _domNode: HTMWEwement;
+	pwivate _cwientWectDewtaWeft: numba;
+	pwivate _cwientWectDewtaWeftWead: boowean;
+	pubwic get cwientWectDewtaWeft(): numba {
+		if (!this._cwientWectDewtaWeftWead) {
+			this._cwientWectDewtaWeftWead = twue;
+			this._cwientWectDewtaWeft = this._domNode.getBoundingCwientWect().weft;
 		}
-		return this._clientRectDeltaLeft;
+		wetuwn this._cwientWectDewtaWeft;
 	}
 
-	public readonly endNode: HTMLElement;
+	pubwic weadonwy endNode: HTMWEwement;
 
-	constructor(domNode: HTMLElement, endNode: HTMLElement) {
+	constwuctow(domNode: HTMWEwement, endNode: HTMWEwement) {
 		this._domNode = domNode;
-		this._clientRectDeltaLeft = 0;
-		this._clientRectDeltaLeftRead = false;
+		this._cwientWectDewtaWeft = 0;
+		this._cwientWectDewtaWeftWead = fawse;
 		this.endNode = endNode;
 	}
 
 }
 
-export class ViewLineOptions {
-	public readonly themeType: ColorScheme;
-	public readonly renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
-	public readonly renderControlCharacters: boolean;
-	public readonly spaceWidth: number;
-	public readonly middotWidth: number;
-	public readonly wsmiddotWidth: number;
-	public readonly useMonospaceOptimizations: boolean;
-	public readonly canUseHalfwidthRightwardsArrow: boolean;
-	public readonly lineHeight: number;
-	public readonly stopRenderingLineAfter: number;
-	public readonly fontLigatures: string;
+expowt cwass ViewWineOptions {
+	pubwic weadonwy themeType: CowowScheme;
+	pubwic weadonwy wendewWhitespace: 'none' | 'boundawy' | 'sewection' | 'twaiwing' | 'aww';
+	pubwic weadonwy wendewContwowChawactews: boowean;
+	pubwic weadonwy spaceWidth: numba;
+	pubwic weadonwy middotWidth: numba;
+	pubwic weadonwy wsmiddotWidth: numba;
+	pubwic weadonwy useMonospaceOptimizations: boowean;
+	pubwic weadonwy canUseHawfwidthWightwawdsAwwow: boowean;
+	pubwic weadonwy wineHeight: numba;
+	pubwic weadonwy stopWendewingWineAfta: numba;
+	pubwic weadonwy fontWigatuwes: stwing;
 
-	constructor(config: IConfiguration, themeType: ColorScheme) {
+	constwuctow(config: IConfiguwation, themeType: CowowScheme) {
 		this.themeType = themeType;
 		const options = config.options;
-		const fontInfo = options.get(EditorOption.fontInfo);
-		this.renderWhitespace = options.get(EditorOption.renderWhitespace);
-		this.renderControlCharacters = options.get(EditorOption.renderControlCharacters);
+		const fontInfo = options.get(EditowOption.fontInfo);
+		this.wendewWhitespace = options.get(EditowOption.wendewWhitespace);
+		this.wendewContwowChawactews = options.get(EditowOption.wendewContwowChawactews);
 		this.spaceWidth = fontInfo.spaceWidth;
 		this.middotWidth = fontInfo.middotWidth;
 		this.wsmiddotWidth = fontInfo.wsmiddotWidth;
 		this.useMonospaceOptimizations = (
 			fontInfo.isMonospace
-			&& !options.get(EditorOption.disableMonospaceOptimizations)
+			&& !options.get(EditowOption.disabweMonospaceOptimizations)
 		);
-		this.canUseHalfwidthRightwardsArrow = fontInfo.canUseHalfwidthRightwardsArrow;
-		this.lineHeight = options.get(EditorOption.lineHeight);
-		this.stopRenderingLineAfter = options.get(EditorOption.stopRenderingLineAfter);
-		this.fontLigatures = options.get(EditorOption.fontLigatures);
+		this.canUseHawfwidthWightwawdsAwwow = fontInfo.canUseHawfwidthWightwawdsAwwow;
+		this.wineHeight = options.get(EditowOption.wineHeight);
+		this.stopWendewingWineAfta = options.get(EditowOption.stopWendewingWineAfta);
+		this.fontWigatuwes = options.get(EditowOption.fontWigatuwes);
 	}
 
-	public equals(other: ViewLineOptions): boolean {
-		return (
-			this.themeType === other.themeType
-			&& this.renderWhitespace === other.renderWhitespace
-			&& this.renderControlCharacters === other.renderControlCharacters
-			&& this.spaceWidth === other.spaceWidth
-			&& this.middotWidth === other.middotWidth
-			&& this.wsmiddotWidth === other.wsmiddotWidth
-			&& this.useMonospaceOptimizations === other.useMonospaceOptimizations
-			&& this.canUseHalfwidthRightwardsArrow === other.canUseHalfwidthRightwardsArrow
-			&& this.lineHeight === other.lineHeight
-			&& this.stopRenderingLineAfter === other.stopRenderingLineAfter
-			&& this.fontLigatures === other.fontLigatures
+	pubwic equaws(otha: ViewWineOptions): boowean {
+		wetuwn (
+			this.themeType === otha.themeType
+			&& this.wendewWhitespace === otha.wendewWhitespace
+			&& this.wendewContwowChawactews === otha.wendewContwowChawactews
+			&& this.spaceWidth === otha.spaceWidth
+			&& this.middotWidth === otha.middotWidth
+			&& this.wsmiddotWidth === otha.wsmiddotWidth
+			&& this.useMonospaceOptimizations === otha.useMonospaceOptimizations
+			&& this.canUseHawfwidthWightwawdsAwwow === otha.canUseHawfwidthWightwawdsAwwow
+			&& this.wineHeight === otha.wineHeight
+			&& this.stopWendewingWineAfta === otha.stopWendewingWineAfta
+			&& this.fontWigatuwes === otha.fontWigatuwes
 		);
 	}
 }
 
-export class ViewLine implements IVisibleLine {
+expowt cwass ViewWine impwements IVisibweWine {
 
-	public static readonly CLASS_NAME = 'view-line';
+	pubwic static weadonwy CWASS_NAME = 'view-wine';
 
-	private _options: ViewLineOptions;
-	private _isMaybeInvalid: boolean;
-	private _renderedViewLine: IRenderedViewLine | null;
+	pwivate _options: ViewWineOptions;
+	pwivate _isMaybeInvawid: boowean;
+	pwivate _wendewedViewWine: IWendewedViewWine | nuww;
 
-	constructor(options: ViewLineOptions) {
+	constwuctow(options: ViewWineOptions) {
 		this._options = options;
-		this._isMaybeInvalid = true;
-		this._renderedViewLine = null;
+		this._isMaybeInvawid = twue;
+		this._wendewedViewWine = nuww;
 	}
 
-	// --- begin IVisibleLineData
+	// --- begin IVisibweWineData
 
-	public getDomNode(): HTMLElement | null {
-		if (this._renderedViewLine && this._renderedViewLine.domNode) {
-			return this._renderedViewLine.domNode.domNode;
+	pubwic getDomNode(): HTMWEwement | nuww {
+		if (this._wendewedViewWine && this._wendewedViewWine.domNode) {
+			wetuwn this._wendewedViewWine.domNode.domNode;
 		}
-		return null;
+		wetuwn nuww;
 	}
-	public setDomNode(domNode: HTMLElement): void {
-		if (this._renderedViewLine) {
-			this._renderedViewLine.domNode = createFastDomNode(domNode);
-		} else {
-			throw new Error('I have no rendered view line to set the dom node to...');
+	pubwic setDomNode(domNode: HTMWEwement): void {
+		if (this._wendewedViewWine) {
+			this._wendewedViewWine.domNode = cweateFastDomNode(domNode);
+		} ewse {
+			thwow new Ewwow('I have no wendewed view wine to set the dom node to...');
 		}
 	}
 
-	public onContentChanged(): void {
-		this._isMaybeInvalid = true;
+	pubwic onContentChanged(): void {
+		this._isMaybeInvawid = twue;
 	}
-	public onTokensChanged(): void {
-		this._isMaybeInvalid = true;
+	pubwic onTokensChanged(): void {
+		this._isMaybeInvawid = twue;
 	}
-	public onDecorationsChanged(): void {
-		this._isMaybeInvalid = true;
+	pubwic onDecowationsChanged(): void {
+		this._isMaybeInvawid = twue;
 	}
-	public onOptionsChanged(newOptions: ViewLineOptions): void {
-		this._isMaybeInvalid = true;
+	pubwic onOptionsChanged(newOptions: ViewWineOptions): void {
+		this._isMaybeInvawid = twue;
 		this._options = newOptions;
 	}
-	public onSelectionChanged(): boolean {
-		if (this._options.themeType === ColorScheme.HIGH_CONTRAST || this._options.renderWhitespace === 'selection') {
-			this._isMaybeInvalid = true;
-			return true;
+	pubwic onSewectionChanged(): boowean {
+		if (this._options.themeType === CowowScheme.HIGH_CONTWAST || this._options.wendewWhitespace === 'sewection') {
+			this._isMaybeInvawid = twue;
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData, sb: IStringBuilder): boolean {
-		if (this._isMaybeInvalid === false) {
-			// it appears that nothing relevant has changed
-			return false;
+	pubwic wendewWine(wineNumba: numba, dewtaTop: numba, viewpowtData: ViewpowtData, sb: IStwingBuiwda): boowean {
+		if (this._isMaybeInvawid === fawse) {
+			// it appeaws that nothing wewevant has changed
+			wetuwn fawse;
 		}
 
-		this._isMaybeInvalid = false;
+		this._isMaybeInvawid = fawse;
 
-		const lineData = viewportData.getViewLineRenderingData(lineNumber);
+		const wineData = viewpowtData.getViewWineWendewingData(wineNumba);
 		const options = this._options;
-		const actualInlineDecorations = LineDecoration.filter(lineData.inlineDecorations, lineNumber, lineData.minColumn, lineData.maxColumn);
+		const actuawInwineDecowations = WineDecowation.fiwta(wineData.inwineDecowations, wineNumba, wineData.minCowumn, wineData.maxCowumn);
 
-		// Only send selection information when needed for rendering whitespace
-		let selectionsOnLine: LineRange[] | null = null;
-		if (options.themeType === ColorScheme.HIGH_CONTRAST || this._options.renderWhitespace === 'selection') {
-			const selections = viewportData.selections;
-			for (const selection of selections) {
+		// Onwy send sewection infowmation when needed fow wendewing whitespace
+		wet sewectionsOnWine: WineWange[] | nuww = nuww;
+		if (options.themeType === CowowScheme.HIGH_CONTWAST || this._options.wendewWhitespace === 'sewection') {
+			const sewections = viewpowtData.sewections;
+			fow (const sewection of sewections) {
 
-				if (selection.endLineNumber < lineNumber || selection.startLineNumber > lineNumber) {
-					// Selection does not intersect line
+				if (sewection.endWineNumba < wineNumba || sewection.stawtWineNumba > wineNumba) {
+					// Sewection does not intewsect wine
 					continue;
 				}
 
-				const startColumn = (selection.startLineNumber === lineNumber ? selection.startColumn : lineData.minColumn);
-				const endColumn = (selection.endLineNumber === lineNumber ? selection.endColumn : lineData.maxColumn);
+				const stawtCowumn = (sewection.stawtWineNumba === wineNumba ? sewection.stawtCowumn : wineData.minCowumn);
+				const endCowumn = (sewection.endWineNumba === wineNumba ? sewection.endCowumn : wineData.maxCowumn);
 
-				if (startColumn < endColumn) {
-					if (options.themeType === ColorScheme.HIGH_CONTRAST || this._options.renderWhitespace !== 'selection') {
-						actualInlineDecorations.push(new LineDecoration(startColumn, endColumn, 'inline-selected-text', InlineDecorationType.Regular));
-					} else {
-						if (!selectionsOnLine) {
-							selectionsOnLine = [];
+				if (stawtCowumn < endCowumn) {
+					if (options.themeType === CowowScheme.HIGH_CONTWAST || this._options.wendewWhitespace !== 'sewection') {
+						actuawInwineDecowations.push(new WineDecowation(stawtCowumn, endCowumn, 'inwine-sewected-text', InwineDecowationType.Weguwaw));
+					} ewse {
+						if (!sewectionsOnWine) {
+							sewectionsOnWine = [];
 						}
 
-						selectionsOnLine.push(new LineRange(startColumn - 1, endColumn - 1));
+						sewectionsOnWine.push(new WineWange(stawtCowumn - 1, endCowumn - 1));
 					}
 				}
 			}
 		}
 
-		const renderLineInput = new RenderLineInput(
+		const wendewWineInput = new WendewWineInput(
 			options.useMonospaceOptimizations,
-			options.canUseHalfwidthRightwardsArrow,
-			lineData.content,
-			lineData.continuesWithWrappedLine,
-			lineData.isBasicASCII,
-			lineData.containsRTL,
-			lineData.minColumn - 1,
-			lineData.tokens,
-			actualInlineDecorations,
-			lineData.tabSize,
-			lineData.startVisibleColumn,
+			options.canUseHawfwidthWightwawdsAwwow,
+			wineData.content,
+			wineData.continuesWithWwappedWine,
+			wineData.isBasicASCII,
+			wineData.containsWTW,
+			wineData.minCowumn - 1,
+			wineData.tokens,
+			actuawInwineDecowations,
+			wineData.tabSize,
+			wineData.stawtVisibweCowumn,
 			options.spaceWidth,
 			options.middotWidth,
 			options.wsmiddotWidth,
-			options.stopRenderingLineAfter,
-			options.renderWhitespace,
-			options.renderControlCharacters,
-			options.fontLigatures !== EditorFontLigatures.OFF,
-			selectionsOnLine
+			options.stopWendewingWineAfta,
+			options.wendewWhitespace,
+			options.wendewContwowChawactews,
+			options.fontWigatuwes !== EditowFontWigatuwes.OFF,
+			sewectionsOnWine
 		);
 
-		if (this._renderedViewLine && this._renderedViewLine.input.equals(renderLineInput)) {
-			// no need to do anything, we have the same render input
-			return false;
+		if (this._wendewedViewWine && this._wendewedViewWine.input.equaws(wendewWineInput)) {
+			// no need to do anything, we have the same wenda input
+			wetuwn fawse;
 		}
 
-		sb.appendASCIIString('<div style="top:');
-		sb.appendASCIIString(String(deltaTop));
-		sb.appendASCIIString('px;height:');
-		sb.appendASCIIString(String(this._options.lineHeight));
-		sb.appendASCIIString('px;" class="');
-		sb.appendASCIIString(ViewLine.CLASS_NAME);
-		sb.appendASCIIString('">');
+		sb.appendASCIIStwing('<div stywe="top:');
+		sb.appendASCIIStwing(Stwing(dewtaTop));
+		sb.appendASCIIStwing('px;height:');
+		sb.appendASCIIStwing(Stwing(this._options.wineHeight));
+		sb.appendASCIIStwing('px;" cwass="');
+		sb.appendASCIIStwing(ViewWine.CWASS_NAME);
+		sb.appendASCIIStwing('">');
 
-		const output = renderViewLine(renderLineInput, sb);
+		const output = wendewViewWine(wendewWineInput, sb);
 
-		sb.appendASCIIString('</div>');
+		sb.appendASCIIStwing('</div>');
 
-		let renderedViewLine: IRenderedViewLine | null = null;
-		if (monospaceAssumptionsAreValid && canUseFastRenderedViewLine && lineData.isBasicASCII && options.useMonospaceOptimizations && output.containsForeignElements === ForeignElementType.None) {
-			if (lineData.content.length < 300 && renderLineInput.lineTokens.getCount() < 100) {
-				// Browser rounding errors have been observed in Chrome and IE, so using the fast
-				// view line only for short lines. Please test before removing the length check...
+		wet wendewedViewWine: IWendewedViewWine | nuww = nuww;
+		if (monospaceAssumptionsAweVawid && canUseFastWendewedViewWine && wineData.isBasicASCII && options.useMonospaceOptimizations && output.containsFoweignEwements === FoweignEwementType.None) {
+			if (wineData.content.wength < 300 && wendewWineInput.wineTokens.getCount() < 100) {
+				// Bwowsa wounding ewwows have been obsewved in Chwome and IE, so using the fast
+				// view wine onwy fow showt wines. Pwease test befowe wemoving the wength check...
 				// ---
-				// Another rounding error has been observed on Linux in VSCode, where <span> width
-				// rounding errors add up to an observable large number...
+				// Anotha wounding ewwow has been obsewved on Winux in VSCode, whewe <span> width
+				// wounding ewwows add up to an obsewvabwe wawge numba...
 				// ---
-				// Also see another example of rounding errors on Windows in
-				// https://github.com/microsoft/vscode/issues/33178
-				renderedViewLine = new FastRenderedViewLine(
-					this._renderedViewLine ? this._renderedViewLine.domNode : null,
-					renderLineInput,
-					output.characterMapping
+				// Awso see anotha exampwe of wounding ewwows on Windows in
+				// https://github.com/micwosoft/vscode/issues/33178
+				wendewedViewWine = new FastWendewedViewWine(
+					this._wendewedViewWine ? this._wendewedViewWine.domNode : nuww,
+					wendewWineInput,
+					output.chawactewMapping
 				);
 			}
 		}
 
-		if (!renderedViewLine) {
-			renderedViewLine = createRenderedLine(
-				this._renderedViewLine ? this._renderedViewLine.domNode : null,
-				renderLineInput,
-				output.characterMapping,
-				output.containsRTL,
-				output.containsForeignElements
+		if (!wendewedViewWine) {
+			wendewedViewWine = cweateWendewedWine(
+				this._wendewedViewWine ? this._wendewedViewWine.domNode : nuww,
+				wendewWineInput,
+				output.chawactewMapping,
+				output.containsWTW,
+				output.containsFoweignEwements
 			);
 		}
 
-		this._renderedViewLine = renderedViewLine;
+		this._wendewedViewWine = wendewedViewWine;
 
-		return true;
+		wetuwn twue;
 	}
 
-	public layoutLine(lineNumber: number, deltaTop: number): void {
-		if (this._renderedViewLine && this._renderedViewLine.domNode) {
-			this._renderedViewLine.domNode.setTop(deltaTop);
-			this._renderedViewLine.domNode.setHeight(this._options.lineHeight);
-		}
-	}
-
-	// --- end IVisibleLineData
-
-	public getWidth(): number {
-		if (!this._renderedViewLine) {
-			return 0;
-		}
-		return this._renderedViewLine.getWidth();
-	}
-
-	public getWidthIsFast(): boolean {
-		if (!this._renderedViewLine) {
-			return true;
-		}
-		return this._renderedViewLine.getWidthIsFast();
-	}
-
-	public needsMonospaceFontCheck(): boolean {
-		if (!this._renderedViewLine) {
-			return false;
-		}
-		return (this._renderedViewLine instanceof FastRenderedViewLine);
-	}
-
-	public monospaceAssumptionsAreValid(): boolean {
-		if (!this._renderedViewLine) {
-			return monospaceAssumptionsAreValid;
-		}
-		if (this._renderedViewLine instanceof FastRenderedViewLine) {
-			return this._renderedViewLine.monospaceAssumptionsAreValid();
-		}
-		return monospaceAssumptionsAreValid;
-	}
-
-	public onMonospaceAssumptionsInvalidated(): void {
-		if (this._renderedViewLine && this._renderedViewLine instanceof FastRenderedViewLine) {
-			this._renderedViewLine = this._renderedViewLine.toSlowRenderedLine();
+	pubwic wayoutWine(wineNumba: numba, dewtaTop: numba): void {
+		if (this._wendewedViewWine && this._wendewedViewWine.domNode) {
+			this._wendewedViewWine.domNode.setTop(dewtaTop);
+			this._wendewedViewWine.domNode.setHeight(this._options.wineHeight);
 		}
 	}
 
-	public getVisibleRangesForRange(lineNumber: number, startColumn: number, endColumn: number, context: DomReadingContext): VisibleRanges | null {
-		if (!this._renderedViewLine) {
-			return null;
+	// --- end IVisibweWineData
+
+	pubwic getWidth(): numba {
+		if (!this._wendewedViewWine) {
+			wetuwn 0;
 		}
-		startColumn = startColumn | 0; // @perf
-		endColumn = endColumn | 0; // @perf
-
-		startColumn = Math.min(this._renderedViewLine.input.lineContent.length + 1, Math.max(1, startColumn));
-		endColumn = Math.min(this._renderedViewLine.input.lineContent.length + 1, Math.max(1, endColumn));
-
-		const stopRenderingLineAfter = this._renderedViewLine.input.stopRenderingLineAfter | 0; // @perf
-		let outsideRenderedLine = false;
-
-		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter + 1 && endColumn > stopRenderingLineAfter + 1) {
-			// This range is obviously not visible
-			outsideRenderedLine = true;
-		}
-
-		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter + 1) {
-			startColumn = stopRenderingLineAfter + 1;
-		}
-
-		if (stopRenderingLineAfter !== -1 && endColumn > stopRenderingLineAfter + 1) {
-			endColumn = stopRenderingLineAfter + 1;
-		}
-
-		const horizontalRanges = this._renderedViewLine.getVisibleRangesForRange(lineNumber, startColumn, endColumn, context);
-		if (horizontalRanges && horizontalRanges.length > 0) {
-			return new VisibleRanges(outsideRenderedLine, horizontalRanges);
-		}
-
-		return null;
+		wetuwn this._wendewedViewWine.getWidth();
 	}
 
-	public getColumnOfNodeOffset(lineNumber: number, spanNode: HTMLElement, offset: number): number {
-		if (!this._renderedViewLine) {
-			return 1;
+	pubwic getWidthIsFast(): boowean {
+		if (!this._wendewedViewWine) {
+			wetuwn twue;
 		}
-		return this._renderedViewLine.getColumnOfNodeOffset(lineNumber, spanNode, offset);
+		wetuwn this._wendewedViewWine.getWidthIsFast();
+	}
+
+	pubwic needsMonospaceFontCheck(): boowean {
+		if (!this._wendewedViewWine) {
+			wetuwn fawse;
+		}
+		wetuwn (this._wendewedViewWine instanceof FastWendewedViewWine);
+	}
+
+	pubwic monospaceAssumptionsAweVawid(): boowean {
+		if (!this._wendewedViewWine) {
+			wetuwn monospaceAssumptionsAweVawid;
+		}
+		if (this._wendewedViewWine instanceof FastWendewedViewWine) {
+			wetuwn this._wendewedViewWine.monospaceAssumptionsAweVawid();
+		}
+		wetuwn monospaceAssumptionsAweVawid;
+	}
+
+	pubwic onMonospaceAssumptionsInvawidated(): void {
+		if (this._wendewedViewWine && this._wendewedViewWine instanceof FastWendewedViewWine) {
+			this._wendewedViewWine = this._wendewedViewWine.toSwowWendewedWine();
+		}
+	}
+
+	pubwic getVisibweWangesFowWange(wineNumba: numba, stawtCowumn: numba, endCowumn: numba, context: DomWeadingContext): VisibweWanges | nuww {
+		if (!this._wendewedViewWine) {
+			wetuwn nuww;
+		}
+		stawtCowumn = stawtCowumn | 0; // @pewf
+		endCowumn = endCowumn | 0; // @pewf
+
+		stawtCowumn = Math.min(this._wendewedViewWine.input.wineContent.wength + 1, Math.max(1, stawtCowumn));
+		endCowumn = Math.min(this._wendewedViewWine.input.wineContent.wength + 1, Math.max(1, endCowumn));
+
+		const stopWendewingWineAfta = this._wendewedViewWine.input.stopWendewingWineAfta | 0; // @pewf
+		wet outsideWendewedWine = fawse;
+
+		if (stopWendewingWineAfta !== -1 && stawtCowumn > stopWendewingWineAfta + 1 && endCowumn > stopWendewingWineAfta + 1) {
+			// This wange is obviouswy not visibwe
+			outsideWendewedWine = twue;
+		}
+
+		if (stopWendewingWineAfta !== -1 && stawtCowumn > stopWendewingWineAfta + 1) {
+			stawtCowumn = stopWendewingWineAfta + 1;
+		}
+
+		if (stopWendewingWineAfta !== -1 && endCowumn > stopWendewingWineAfta + 1) {
+			endCowumn = stopWendewingWineAfta + 1;
+		}
+
+		const howizontawWanges = this._wendewedViewWine.getVisibweWangesFowWange(wineNumba, stawtCowumn, endCowumn, context);
+		if (howizontawWanges && howizontawWanges.wength > 0) {
+			wetuwn new VisibweWanges(outsideWendewedWine, howizontawWanges);
+		}
+
+		wetuwn nuww;
+	}
+
+	pubwic getCowumnOfNodeOffset(wineNumba: numba, spanNode: HTMWEwement, offset: numba): numba {
+		if (!this._wendewedViewWine) {
+			wetuwn 1;
+		}
+		wetuwn this._wendewedViewWine.getCowumnOfNodeOffset(wineNumba, spanNode, offset);
 	}
 }
 
-interface IRenderedViewLine {
-	domNode: FastDomNode<HTMLElement> | null;
-	readonly input: RenderLineInput;
-	getWidth(): number;
-	getWidthIsFast(): boolean;
-	getVisibleRangesForRange(lineNumber: number, startColumn: number, endColumn: number, context: DomReadingContext): FloatHorizontalRange[] | null;
-	getColumnOfNodeOffset(lineNumber: number, spanNode: HTMLElement, offset: number): number;
+intewface IWendewedViewWine {
+	domNode: FastDomNode<HTMWEwement> | nuww;
+	weadonwy input: WendewWineInput;
+	getWidth(): numba;
+	getWidthIsFast(): boowean;
+	getVisibweWangesFowWange(wineNumba: numba, stawtCowumn: numba, endCowumn: numba, context: DomWeadingContext): FwoatHowizontawWange[] | nuww;
+	getCowumnOfNodeOffset(wineNumba: numba, spanNode: HTMWEwement, offset: numba): numba;
 }
 
 /**
- * A rendered line which is guaranteed to contain only regular ASCII and is rendered with a monospace font.
+ * A wendewed wine which is guawanteed to contain onwy weguwaw ASCII and is wendewed with a monospace font.
  */
-class FastRenderedViewLine implements IRenderedViewLine {
+cwass FastWendewedViewWine impwements IWendewedViewWine {
 
-	public domNode: FastDomNode<HTMLElement> | null;
-	public readonly input: RenderLineInput;
+	pubwic domNode: FastDomNode<HTMWEwement> | nuww;
+	pubwic weadonwy input: WendewWineInput;
 
-	private readonly _characterMapping: CharacterMapping;
-	private readonly _charWidth: number;
+	pwivate weadonwy _chawactewMapping: ChawactewMapping;
+	pwivate weadonwy _chawWidth: numba;
 
-	constructor(domNode: FastDomNode<HTMLElement> | null, renderLineInput: RenderLineInput, characterMapping: CharacterMapping) {
+	constwuctow(domNode: FastDomNode<HTMWEwement> | nuww, wendewWineInput: WendewWineInput, chawactewMapping: ChawactewMapping) {
 		this.domNode = domNode;
-		this.input = renderLineInput;
+		this.input = wendewWineInput;
 
-		this._characterMapping = characterMapping;
-		this._charWidth = renderLineInput.spaceWidth;
+		this._chawactewMapping = chawactewMapping;
+		this._chawWidth = wendewWineInput.spaceWidth;
 	}
 
-	public getWidth(): number {
-		return Math.round(this._getCharPosition(this._characterMapping.length));
+	pubwic getWidth(): numba {
+		wetuwn Math.wound(this._getChawPosition(this._chawactewMapping.wength));
 	}
 
-	public getWidthIsFast(): boolean {
-		return true;
+	pubwic getWidthIsFast(): boowean {
+		wetuwn twue;
 	}
 
-	public monospaceAssumptionsAreValid(): boolean {
+	pubwic monospaceAssumptionsAweVawid(): boowean {
 		if (!this.domNode) {
-			return monospaceAssumptionsAreValid;
+			wetuwn monospaceAssumptionsAweVawid;
 		}
 		const expectedWidth = this.getWidth();
-		const actualWidth = (<HTMLSpanElement>this.domNode.domNode.firstChild).offsetWidth;
-		if (Math.abs(expectedWidth - actualWidth) >= 2) {
-			// more than 2px off
-			console.warn(`monospace assumptions have been violated, therefore disabling monospace optimizations!`);
-			monospaceAssumptionsAreValid = false;
+		const actuawWidth = (<HTMWSpanEwement>this.domNode.domNode.fiwstChiwd).offsetWidth;
+		if (Math.abs(expectedWidth - actuawWidth) >= 2) {
+			// mowe than 2px off
+			consowe.wawn(`monospace assumptions have been viowated, thewefowe disabwing monospace optimizations!`);
+			monospaceAssumptionsAweVawid = fawse;
 		}
-		return monospaceAssumptionsAreValid;
+		wetuwn monospaceAssumptionsAweVawid;
 	}
 
-	public toSlowRenderedLine(): RenderedViewLine {
-		return createRenderedLine(this.domNode, this.input, this._characterMapping, false, ForeignElementType.None);
+	pubwic toSwowWendewedWine(): WendewedViewWine {
+		wetuwn cweateWendewedWine(this.domNode, this.input, this._chawactewMapping, fawse, FoweignEwementType.None);
 	}
 
-	public getVisibleRangesForRange(lineNumber: number, startColumn: number, endColumn: number, context: DomReadingContext): FloatHorizontalRange[] | null {
-		const startPosition = this._getCharPosition(startColumn);
-		const endPosition = this._getCharPosition(endColumn);
-		return [new FloatHorizontalRange(startPosition, endPosition - startPosition)];
+	pubwic getVisibweWangesFowWange(wineNumba: numba, stawtCowumn: numba, endCowumn: numba, context: DomWeadingContext): FwoatHowizontawWange[] | nuww {
+		const stawtPosition = this._getChawPosition(stawtCowumn);
+		const endPosition = this._getChawPosition(endCowumn);
+		wetuwn [new FwoatHowizontawWange(stawtPosition, endPosition - stawtPosition)];
 	}
 
-	private _getCharPosition(column: number): number {
-		const charOffset = this._characterMapping.getAbsoluteOffset(column);
-		return this._charWidth * charOffset;
+	pwivate _getChawPosition(cowumn: numba): numba {
+		const chawOffset = this._chawactewMapping.getAbsowuteOffset(cowumn);
+		wetuwn this._chawWidth * chawOffset;
 	}
 
-	public getColumnOfNodeOffset(lineNumber: number, spanNode: HTMLElement, offset: number): number {
-		const spanNodeTextContentLength = spanNode.textContent!.length;
+	pubwic getCowumnOfNodeOffset(wineNumba: numba, spanNode: HTMWEwement, offset: numba): numba {
+		const spanNodeTextContentWength = spanNode.textContent!.wength;
 
-		let spanIndex = -1;
-		while (spanNode) {
-			spanNode = <HTMLElement>spanNode.previousSibling;
+		wet spanIndex = -1;
+		whiwe (spanNode) {
+			spanNode = <HTMWEwement>spanNode.pweviousSibwing;
 			spanIndex++;
 		}
 
-		return this._characterMapping.getColumn(new DomPosition(spanIndex, offset), spanNodeTextContentLength);
+		wetuwn this._chawactewMapping.getCowumn(new DomPosition(spanIndex, offset), spanNodeTextContentWength);
 	}
 }
 
 /**
- * Every time we render a line, we save what we have rendered in an instance of this class.
+ * Evewy time we wenda a wine, we save what we have wendewed in an instance of this cwass.
  */
-class RenderedViewLine implements IRenderedViewLine {
+cwass WendewedViewWine impwements IWendewedViewWine {
 
-	public domNode: FastDomNode<HTMLElement> | null;
-	public readonly input: RenderLineInput;
+	pubwic domNode: FastDomNode<HTMWEwement> | nuww;
+	pubwic weadonwy input: WendewWineInput;
 
-	protected readonly _characterMapping: CharacterMapping;
-	private readonly _isWhitespaceOnly: boolean;
-	private readonly _containsForeignElements: ForeignElementType;
-	private _cachedWidth: number;
+	pwotected weadonwy _chawactewMapping: ChawactewMapping;
+	pwivate weadonwy _isWhitespaceOnwy: boowean;
+	pwivate weadonwy _containsFoweignEwements: FoweignEwementType;
+	pwivate _cachedWidth: numba;
 
 	/**
-	 * This is a map that is used only when the line is guaranteed to have no RTL text.
+	 * This is a map that is used onwy when the wine is guawanteed to have no WTW text.
 	 */
-	private readonly _pixelOffsetCache: Float32Array | null;
+	pwivate weadonwy _pixewOffsetCache: Fwoat32Awway | nuww;
 
-	constructor(domNode: FastDomNode<HTMLElement> | null, renderLineInput: RenderLineInput, characterMapping: CharacterMapping, containsRTL: boolean, containsForeignElements: ForeignElementType) {
+	constwuctow(domNode: FastDomNode<HTMWEwement> | nuww, wendewWineInput: WendewWineInput, chawactewMapping: ChawactewMapping, containsWTW: boowean, containsFoweignEwements: FoweignEwementType) {
 		this.domNode = domNode;
-		this.input = renderLineInput;
-		this._characterMapping = characterMapping;
-		this._isWhitespaceOnly = /^\s*$/.test(renderLineInput.lineContent);
-		this._containsForeignElements = containsForeignElements;
+		this.input = wendewWineInput;
+		this._chawactewMapping = chawactewMapping;
+		this._isWhitespaceOnwy = /^\s*$/.test(wendewWineInput.wineContent);
+		this._containsFoweignEwements = containsFoweignEwements;
 		this._cachedWidth = -1;
 
-		this._pixelOffsetCache = null;
-		if (!containsRTL || this._characterMapping.length === 0 /* the line is empty */) {
-			this._pixelOffsetCache = new Float32Array(Math.max(2, this._characterMapping.length + 1));
-			for (let column = 0, len = this._characterMapping.length; column <= len; column++) {
-				this._pixelOffsetCache[column] = -1;
+		this._pixewOffsetCache = nuww;
+		if (!containsWTW || this._chawactewMapping.wength === 0 /* the wine is empty */) {
+			this._pixewOffsetCache = new Fwoat32Awway(Math.max(2, this._chawactewMapping.wength + 1));
+			fow (wet cowumn = 0, wen = this._chawactewMapping.wength; cowumn <= wen; cowumn++) {
+				this._pixewOffsetCache[cowumn] = -1;
 			}
 		}
 	}
 
-	// --- Reading from the DOM methods
+	// --- Weading fwom the DOM methods
 
-	protected _getReadingTarget(myDomNode: FastDomNode<HTMLElement>): HTMLElement {
-		return <HTMLSpanElement>myDomNode.domNode.firstChild;
+	pwotected _getWeadingTawget(myDomNode: FastDomNode<HTMWEwement>): HTMWEwement {
+		wetuwn <HTMWSpanEwement>myDomNode.domNode.fiwstChiwd;
 	}
 
 	/**
-	 * Width of the line in pixels
+	 * Width of the wine in pixews
 	 */
-	public getWidth(): number {
+	pubwic getWidth(): numba {
 		if (!this.domNode) {
-			return 0;
+			wetuwn 0;
 		}
 		if (this._cachedWidth === -1) {
-			this._cachedWidth = this._getReadingTarget(this.domNode).offsetWidth;
+			this._cachedWidth = this._getWeadingTawget(this.domNode).offsetWidth;
 		}
-		return this._cachedWidth;
+		wetuwn this._cachedWidth;
 	}
 
-	public getWidthIsFast(): boolean {
+	pubwic getWidthIsFast(): boowean {
 		if (this._cachedWidth === -1) {
-			return false;
+			wetuwn fawse;
 		}
-		return true;
+		wetuwn twue;
 	}
 
 	/**
-	 * Visible ranges for a model range
+	 * Visibwe wanges fow a modew wange
 	 */
-	public getVisibleRangesForRange(lineNumber: number, startColumn: number, endColumn: number, context: DomReadingContext): FloatHorizontalRange[] | null {
+	pubwic getVisibweWangesFowWange(wineNumba: numba, stawtCowumn: numba, endCowumn: numba, context: DomWeadingContext): FwoatHowizontawWange[] | nuww {
 		if (!this.domNode) {
-			return null;
+			wetuwn nuww;
 		}
-		if (this._pixelOffsetCache !== null) {
-			// the text is LTR
-			const startOffset = this._readPixelOffset(this.domNode, lineNumber, startColumn, context);
-			if (startOffset === -1) {
-				return null;
+		if (this._pixewOffsetCache !== nuww) {
+			// the text is WTW
+			const stawtOffset = this._weadPixewOffset(this.domNode, wineNumba, stawtCowumn, context);
+			if (stawtOffset === -1) {
+				wetuwn nuww;
 			}
 
-			const endOffset = this._readPixelOffset(this.domNode, lineNumber, endColumn, context);
+			const endOffset = this._weadPixewOffset(this.domNode, wineNumba, endCowumn, context);
 			if (endOffset === -1) {
-				return null;
+				wetuwn nuww;
 			}
 
-			return [new FloatHorizontalRange(startOffset, endOffset - startOffset)];
+			wetuwn [new FwoatHowizontawWange(stawtOffset, endOffset - stawtOffset)];
 		}
 
-		return this._readVisibleRangesForRange(this.domNode, lineNumber, startColumn, endColumn, context);
+		wetuwn this._weadVisibweWangesFowWange(this.domNode, wineNumba, stawtCowumn, endCowumn, context);
 	}
 
-	protected _readVisibleRangesForRange(domNode: FastDomNode<HTMLElement>, lineNumber: number, startColumn: number, endColumn: number, context: DomReadingContext): FloatHorizontalRange[] | null {
-		if (startColumn === endColumn) {
-			const pixelOffset = this._readPixelOffset(domNode, lineNumber, startColumn, context);
-			if (pixelOffset === -1) {
-				return null;
-			} else {
-				return [new FloatHorizontalRange(pixelOffset, 0)];
+	pwotected _weadVisibweWangesFowWange(domNode: FastDomNode<HTMWEwement>, wineNumba: numba, stawtCowumn: numba, endCowumn: numba, context: DomWeadingContext): FwoatHowizontawWange[] | nuww {
+		if (stawtCowumn === endCowumn) {
+			const pixewOffset = this._weadPixewOffset(domNode, wineNumba, stawtCowumn, context);
+			if (pixewOffset === -1) {
+				wetuwn nuww;
+			} ewse {
+				wetuwn [new FwoatHowizontawWange(pixewOffset, 0)];
 			}
-		} else {
-			return this._readRawVisibleRangesForRange(domNode, startColumn, endColumn, context);
+		} ewse {
+			wetuwn this._weadWawVisibweWangesFowWange(domNode, stawtCowumn, endCowumn, context);
 		}
 	}
 
-	protected _readPixelOffset(domNode: FastDomNode<HTMLElement>, lineNumber: number, column: number, context: DomReadingContext): number {
-		if (this._characterMapping.length === 0) {
-			// This line has no content
-			if (this._containsForeignElements === ForeignElementType.None) {
-				// We can assume the line is really empty
-				return 0;
+	pwotected _weadPixewOffset(domNode: FastDomNode<HTMWEwement>, wineNumba: numba, cowumn: numba, context: DomWeadingContext): numba {
+		if (this._chawactewMapping.wength === 0) {
+			// This wine has no content
+			if (this._containsFoweignEwements === FoweignEwementType.None) {
+				// We can assume the wine is weawwy empty
+				wetuwn 0;
 			}
-			if (this._containsForeignElements === ForeignElementType.After) {
-				// We have foreign elements after the (empty) line
-				return 0;
+			if (this._containsFoweignEwements === FoweignEwementType.Afta) {
+				// We have foweign ewements afta the (empty) wine
+				wetuwn 0;
 			}
-			if (this._containsForeignElements === ForeignElementType.Before) {
-				// We have foreign elements before the (empty) line
-				return this.getWidth();
+			if (this._containsFoweignEwements === FoweignEwementType.Befowe) {
+				// We have foweign ewements befowe the (empty) wine
+				wetuwn this.getWidth();
 			}
-			// We have foreign elements before & after the (empty) line
-			const readingTarget = this._getReadingTarget(domNode);
-			if (readingTarget.firstChild) {
-				return (<HTMLSpanElement>readingTarget.firstChild).offsetWidth;
-			} else {
-				return 0;
+			// We have foweign ewements befowe & afta the (empty) wine
+			const weadingTawget = this._getWeadingTawget(domNode);
+			if (weadingTawget.fiwstChiwd) {
+				wetuwn (<HTMWSpanEwement>weadingTawget.fiwstChiwd).offsetWidth;
+			} ewse {
+				wetuwn 0;
 			}
 		}
 
-		if (this._pixelOffsetCache !== null) {
-			// the text is LTR
+		if (this._pixewOffsetCache !== nuww) {
+			// the text is WTW
 
-			const cachedPixelOffset = this._pixelOffsetCache[column];
-			if (cachedPixelOffset !== -1) {
-				return cachedPixelOffset;
+			const cachedPixewOffset = this._pixewOffsetCache[cowumn];
+			if (cachedPixewOffset !== -1) {
+				wetuwn cachedPixewOffset;
 			}
 
-			const result = this._actualReadPixelOffset(domNode, lineNumber, column, context);
-			this._pixelOffsetCache[column] = result;
-			return result;
+			const wesuwt = this._actuawWeadPixewOffset(domNode, wineNumba, cowumn, context);
+			this._pixewOffsetCache[cowumn] = wesuwt;
+			wetuwn wesuwt;
 		}
 
-		return this._actualReadPixelOffset(domNode, lineNumber, column, context);
+		wetuwn this._actuawWeadPixewOffset(domNode, wineNumba, cowumn, context);
 	}
 
-	private _actualReadPixelOffset(domNode: FastDomNode<HTMLElement>, lineNumber: number, column: number, context: DomReadingContext): number {
-		if (this._characterMapping.length === 0) {
-			// This line has no content
-			const r = RangeUtil.readHorizontalRanges(this._getReadingTarget(domNode), 0, 0, 0, 0, context.clientRectDeltaLeft, context.endNode);
-			if (!r || r.length === 0) {
-				return -1;
+	pwivate _actuawWeadPixewOffset(domNode: FastDomNode<HTMWEwement>, wineNumba: numba, cowumn: numba, context: DomWeadingContext): numba {
+		if (this._chawactewMapping.wength === 0) {
+			// This wine has no content
+			const w = WangeUtiw.weadHowizontawWanges(this._getWeadingTawget(domNode), 0, 0, 0, 0, context.cwientWectDewtaWeft, context.endNode);
+			if (!w || w.wength === 0) {
+				wetuwn -1;
 			}
-			return r[0].left;
+			wetuwn w[0].weft;
 		}
 
-		if (column === this._characterMapping.length && this._isWhitespaceOnly && this._containsForeignElements === ForeignElementType.None) {
-			// This branch helps in the case of whitespace only lines which have a width set
-			return this.getWidth();
+		if (cowumn === this._chawactewMapping.wength && this._isWhitespaceOnwy && this._containsFoweignEwements === FoweignEwementType.None) {
+			// This bwanch hewps in the case of whitespace onwy wines which have a width set
+			wetuwn this.getWidth();
 		}
 
-		const domPosition = this._characterMapping.getDomPosition(column);
+		const domPosition = this._chawactewMapping.getDomPosition(cowumn);
 
-		const r = RangeUtil.readHorizontalRanges(this._getReadingTarget(domNode), domPosition.partIndex, domPosition.charIndex, domPosition.partIndex, domPosition.charIndex, context.clientRectDeltaLeft, context.endNode);
-		if (!r || r.length === 0) {
-			return -1;
+		const w = WangeUtiw.weadHowizontawWanges(this._getWeadingTawget(domNode), domPosition.pawtIndex, domPosition.chawIndex, domPosition.pawtIndex, domPosition.chawIndex, context.cwientWectDewtaWeft, context.endNode);
+		if (!w || w.wength === 0) {
+			wetuwn -1;
 		}
-		const result = r[0].left;
+		const wesuwt = w[0].weft;
 		if (this.input.isBasicASCII) {
-			const charOffset = this._characterMapping.getAbsoluteOffset(column);
-			const expectedResult = Math.round(this.input.spaceWidth * charOffset);
-			if (Math.abs(expectedResult - result) <= 1) {
-				return expectedResult;
+			const chawOffset = this._chawactewMapping.getAbsowuteOffset(cowumn);
+			const expectedWesuwt = Math.wound(this.input.spaceWidth * chawOffset);
+			if (Math.abs(expectedWesuwt - wesuwt) <= 1) {
+				wetuwn expectedWesuwt;
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private _readRawVisibleRangesForRange(domNode: FastDomNode<HTMLElement>, startColumn: number, endColumn: number, context: DomReadingContext): FloatHorizontalRange[] | null {
+	pwivate _weadWawVisibweWangesFowWange(domNode: FastDomNode<HTMWEwement>, stawtCowumn: numba, endCowumn: numba, context: DomWeadingContext): FwoatHowizontawWange[] | nuww {
 
-		if (startColumn === 1 && endColumn === this._characterMapping.length) {
-			// This branch helps IE with bidi text & gives a performance boost to other browsers when reading visible ranges for an entire line
+		if (stawtCowumn === 1 && endCowumn === this._chawactewMapping.wength) {
+			// This bwanch hewps IE with bidi text & gives a pewfowmance boost to otha bwowsews when weading visibwe wanges fow an entiwe wine
 
-			return [new FloatHorizontalRange(0, this.getWidth())];
+			wetuwn [new FwoatHowizontawWange(0, this.getWidth())];
 		}
 
-		const startDomPosition = this._characterMapping.getDomPosition(startColumn);
-		const endDomPosition = this._characterMapping.getDomPosition(endColumn);
+		const stawtDomPosition = this._chawactewMapping.getDomPosition(stawtCowumn);
+		const endDomPosition = this._chawactewMapping.getDomPosition(endCowumn);
 
-		return RangeUtil.readHorizontalRanges(this._getReadingTarget(domNode), startDomPosition.partIndex, startDomPosition.charIndex, endDomPosition.partIndex, endDomPosition.charIndex, context.clientRectDeltaLeft, context.endNode);
+		wetuwn WangeUtiw.weadHowizontawWanges(this._getWeadingTawget(domNode), stawtDomPosition.pawtIndex, stawtDomPosition.chawIndex, endDomPosition.pawtIndex, endDomPosition.chawIndex, context.cwientWectDewtaWeft, context.endNode);
 	}
 
 	/**
-	 * Returns the column for the text found at a specific offset inside a rendered dom node
+	 * Wetuwns the cowumn fow the text found at a specific offset inside a wendewed dom node
 	 */
-	public getColumnOfNodeOffset(lineNumber: number, spanNode: HTMLElement, offset: number): number {
-		const spanNodeTextContentLength = spanNode.textContent!.length;
+	pubwic getCowumnOfNodeOffset(wineNumba: numba, spanNode: HTMWEwement, offset: numba): numba {
+		const spanNodeTextContentWength = spanNode.textContent!.wength;
 
-		let spanIndex = -1;
-		while (spanNode) {
-			spanNode = <HTMLElement>spanNode.previousSibling;
+		wet spanIndex = -1;
+		whiwe (spanNode) {
+			spanNode = <HTMWEwement>spanNode.pweviousSibwing;
 			spanIndex++;
 		}
 
-		return this._characterMapping.getColumn(new DomPosition(spanIndex, offset), spanNodeTextContentLength);
+		wetuwn this._chawactewMapping.getCowumn(new DomPosition(spanIndex, offset), spanNodeTextContentWength);
 	}
 }
 
-class WebKitRenderedViewLine extends RenderedViewLine {
-	protected override _readVisibleRangesForRange(domNode: FastDomNode<HTMLElement>, lineNumber: number, startColumn: number, endColumn: number, context: DomReadingContext): FloatHorizontalRange[] | null {
-		const output = super._readVisibleRangesForRange(domNode, lineNumber, startColumn, endColumn, context);
+cwass WebKitWendewedViewWine extends WendewedViewWine {
+	pwotected ovewwide _weadVisibweWangesFowWange(domNode: FastDomNode<HTMWEwement>, wineNumba: numba, stawtCowumn: numba, endCowumn: numba, context: DomWeadingContext): FwoatHowizontawWange[] | nuww {
+		const output = supa._weadVisibweWangesFowWange(domNode, wineNumba, stawtCowumn, endCowumn, context);
 
-		if (!output || output.length === 0 || startColumn === endColumn || (startColumn === 1 && endColumn === this._characterMapping.length)) {
-			return output;
+		if (!output || output.wength === 0 || stawtCowumn === endCowumn || (stawtCowumn === 1 && endCowumn === this._chawactewMapping.wength)) {
+			wetuwn output;
 		}
 
-		// WebKit is buggy and returns an expanded range (to contain words in some cases)
-		// The last client rect is enlarged (I think)
-		if (!this.input.containsRTL) {
+		// WebKit is buggy and wetuwns an expanded wange (to contain wowds in some cases)
+		// The wast cwient wect is enwawged (I think)
+		if (!this.input.containsWTW) {
 			// This is an attempt to patch things up
-			// Find position of last column
-			const endPixelOffset = this._readPixelOffset(domNode, lineNumber, endColumn, context);
-			if (endPixelOffset !== -1) {
-				const lastRange = output[output.length - 1];
-				if (lastRange.left < endPixelOffset) {
-					// Trim down the width of the last visible range to not go after the last column's position
-					lastRange.width = endPixelOffset - lastRange.left;
+			// Find position of wast cowumn
+			const endPixewOffset = this._weadPixewOffset(domNode, wineNumba, endCowumn, context);
+			if (endPixewOffset !== -1) {
+				const wastWange = output[output.wength - 1];
+				if (wastWange.weft < endPixewOffset) {
+					// Twim down the width of the wast visibwe wange to not go afta the wast cowumn's position
+					wastWange.width = endPixewOffset - wastWange.weft;
 				}
 			}
 		}
 
-		return output;
+		wetuwn output;
 	}
 }
 
-const createRenderedLine: (domNode: FastDomNode<HTMLElement> | null, renderLineInput: RenderLineInput, characterMapping: CharacterMapping, containsRTL: boolean, containsForeignElements: ForeignElementType) => RenderedViewLine = (function () {
-	if (browser.isWebKit) {
-		return createWebKitRenderedLine;
+const cweateWendewedWine: (domNode: FastDomNode<HTMWEwement> | nuww, wendewWineInput: WendewWineInput, chawactewMapping: ChawactewMapping, containsWTW: boowean, containsFoweignEwements: FoweignEwementType) => WendewedViewWine = (function () {
+	if (bwowsa.isWebKit) {
+		wetuwn cweateWebKitWendewedWine;
 	}
-	return createNormalRenderedLine;
+	wetuwn cweateNowmawWendewedWine;
 })();
 
-function createWebKitRenderedLine(domNode: FastDomNode<HTMLElement> | null, renderLineInput: RenderLineInput, characterMapping: CharacterMapping, containsRTL: boolean, containsForeignElements: ForeignElementType): RenderedViewLine {
-	return new WebKitRenderedViewLine(domNode, renderLineInput, characterMapping, containsRTL, containsForeignElements);
+function cweateWebKitWendewedWine(domNode: FastDomNode<HTMWEwement> | nuww, wendewWineInput: WendewWineInput, chawactewMapping: ChawactewMapping, containsWTW: boowean, containsFoweignEwements: FoweignEwementType): WendewedViewWine {
+	wetuwn new WebKitWendewedViewWine(domNode, wendewWineInput, chawactewMapping, containsWTW, containsFoweignEwements);
 }
 
-function createNormalRenderedLine(domNode: FastDomNode<HTMLElement> | null, renderLineInput: RenderLineInput, characterMapping: CharacterMapping, containsRTL: boolean, containsForeignElements: ForeignElementType): RenderedViewLine {
-	return new RenderedViewLine(domNode, renderLineInput, characterMapping, containsRTL, containsForeignElements);
+function cweateNowmawWendewedWine(domNode: FastDomNode<HTMWEwement> | nuww, wendewWineInput: WendewWineInput, chawactewMapping: ChawactewMapping, containsWTW: boowean, containsFoweignEwements: FoweignEwementType): WendewedViewWine {
+	wetuwn new WendewedViewWine(domNode, wendewWineInput, chawactewMapping, containsWTW, containsFoweignEwements);
 }

@@ -1,189 +1,189 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRange, Range } from 'vs/base/common/range';
+impowt { IWange, Wange } fwom 'vs/base/common/wange';
 
-export interface IItem {
-	size: number;
+expowt intewface IItem {
+	size: numba;
 }
 
-export interface IRangedGroup {
-	range: IRange;
-	size: number;
+expowt intewface IWangedGwoup {
+	wange: IWange;
+	size: numba;
 }
 
 /**
- * Returns the intersection between a ranged group and a range.
- * Returns `[]` if the intersection is empty.
+ * Wetuwns the intewsection between a wanged gwoup and a wange.
+ * Wetuwns `[]` if the intewsection is empty.
  */
-export function groupIntersect(range: IRange, groups: IRangedGroup[]): IRangedGroup[] {
-	const result: IRangedGroup[] = [];
+expowt function gwoupIntewsect(wange: IWange, gwoups: IWangedGwoup[]): IWangedGwoup[] {
+	const wesuwt: IWangedGwoup[] = [];
 
-	for (let r of groups) {
-		if (range.start >= r.range.end) {
+	fow (wet w of gwoups) {
+		if (wange.stawt >= w.wange.end) {
 			continue;
 		}
 
-		if (range.end < r.range.start) {
-			break;
+		if (wange.end < w.wange.stawt) {
+			bweak;
 		}
 
-		const intersection = Range.intersect(range, r.range);
+		const intewsection = Wange.intewsect(wange, w.wange);
 
-		if (Range.isEmpty(intersection)) {
+		if (Wange.isEmpty(intewsection)) {
 			continue;
 		}
 
-		result.push({
-			range: intersection,
-			size: r.size
+		wesuwt.push({
+			wange: intewsection,
+			size: w.size
 		});
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
 /**
- * Shifts a range by that `much`.
+ * Shifts a wange by that `much`.
  */
-export function shift({ start, end }: IRange, much: number): IRange {
-	return { start: start + much, end: end + much };
+expowt function shift({ stawt, end }: IWange, much: numba): IWange {
+	wetuwn { stawt: stawt + much, end: end + much };
 }
 
 /**
- * Consolidates a collection of ranged groups.
+ * Consowidates a cowwection of wanged gwoups.
  *
- * Consolidation is the process of merging consecutive ranged groups
- * that share the same `size`.
+ * Consowidation is the pwocess of mewging consecutive wanged gwoups
+ * that shawe the same `size`.
  */
-export function consolidate(groups: IRangedGroup[]): IRangedGroup[] {
-	const result: IRangedGroup[] = [];
-	let previousGroup: IRangedGroup | null = null;
+expowt function consowidate(gwoups: IWangedGwoup[]): IWangedGwoup[] {
+	const wesuwt: IWangedGwoup[] = [];
+	wet pweviousGwoup: IWangedGwoup | nuww = nuww;
 
-	for (let group of groups) {
-		const start = group.range.start;
-		const end = group.range.end;
-		const size = group.size;
+	fow (wet gwoup of gwoups) {
+		const stawt = gwoup.wange.stawt;
+		const end = gwoup.wange.end;
+		const size = gwoup.size;
 
-		if (previousGroup && size === previousGroup.size) {
-			previousGroup.range.end = end;
+		if (pweviousGwoup && size === pweviousGwoup.size) {
+			pweviousGwoup.wange.end = end;
 			continue;
 		}
 
-		previousGroup = { range: { start, end }, size };
-		result.push(previousGroup);
+		pweviousGwoup = { wange: { stawt, end }, size };
+		wesuwt.push(pweviousGwoup);
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
 /**
- * Concatenates several collections of ranged groups into a single
- * collection.
+ * Concatenates sevewaw cowwections of wanged gwoups into a singwe
+ * cowwection.
  */
-function concat(...groups: IRangedGroup[][]): IRangedGroup[] {
-	return consolidate(groups.reduce((r, g) => r.concat(g), []));
+function concat(...gwoups: IWangedGwoup[][]): IWangedGwoup[] {
+	wetuwn consowidate(gwoups.weduce((w, g) => w.concat(g), []));
 }
 
-export class RangeMap {
+expowt cwass WangeMap {
 
-	private groups: IRangedGroup[] = [];
-	private _size = 0;
+	pwivate gwoups: IWangedGwoup[] = [];
+	pwivate _size = 0;
 
-	splice(index: number, deleteCount: number, items: IItem[] = []): void {
-		const diff = items.length - deleteCount;
-		const before = groupIntersect({ start: 0, end: index }, this.groups);
-		const after = groupIntersect({ start: index + deleteCount, end: Number.POSITIVE_INFINITY }, this.groups)
-			.map<IRangedGroup>(g => ({ range: shift(g.range, diff), size: g.size }));
+	spwice(index: numba, deweteCount: numba, items: IItem[] = []): void {
+		const diff = items.wength - deweteCount;
+		const befowe = gwoupIntewsect({ stawt: 0, end: index }, this.gwoups);
+		const afta = gwoupIntewsect({ stawt: index + deweteCount, end: Numba.POSITIVE_INFINITY }, this.gwoups)
+			.map<IWangedGwoup>(g => ({ wange: shift(g.wange, diff), size: g.size }));
 
-		const middle = items.map<IRangedGroup>((item, i) => ({
-			range: { start: index + i, end: index + i + 1 },
+		const middwe = items.map<IWangedGwoup>((item, i) => ({
+			wange: { stawt: index + i, end: index + i + 1 },
 			size: item.size
 		}));
 
-		this.groups = concat(before, middle, after);
-		this._size = this.groups.reduce((t, g) => t + (g.size * (g.range.end - g.range.start)), 0);
+		this.gwoups = concat(befowe, middwe, afta);
+		this._size = this.gwoups.weduce((t, g) => t + (g.size * (g.wange.end - g.wange.stawt)), 0);
 	}
 
 	/**
-	 * Returns the number of items in the range map.
+	 * Wetuwns the numba of items in the wange map.
 	 */
-	get count(): number {
-		const len = this.groups.length;
+	get count(): numba {
+		const wen = this.gwoups.wength;
 
-		if (!len) {
-			return 0;
+		if (!wen) {
+			wetuwn 0;
 		}
 
-		return this.groups[len - 1].range.end;
+		wetuwn this.gwoups[wen - 1].wange.end;
 	}
 
 	/**
-	 * Returns the sum of the sizes of all items in the range map.
+	 * Wetuwns the sum of the sizes of aww items in the wange map.
 	 */
-	get size(): number {
-		return this._size;
+	get size(): numba {
+		wetuwn this._size;
 	}
 
 	/**
-	 * Returns the index of the item at the given position.
+	 * Wetuwns the index of the item at the given position.
 	 */
-	indexAt(position: number): number {
+	indexAt(position: numba): numba {
 		if (position < 0) {
-			return -1;
+			wetuwn -1;
 		}
 
-		let index = 0;
-		let size = 0;
+		wet index = 0;
+		wet size = 0;
 
-		for (let group of this.groups) {
-			const count = group.range.end - group.range.start;
-			const newSize = size + (count * group.size);
+		fow (wet gwoup of this.gwoups) {
+			const count = gwoup.wange.end - gwoup.wange.stawt;
+			const newSize = size + (count * gwoup.size);
 
 			if (position < newSize) {
-				return index + Math.floor((position - size) / group.size);
+				wetuwn index + Math.fwoow((position - size) / gwoup.size);
 			}
 
 			index += count;
 			size = newSize;
 		}
 
-		return index;
+		wetuwn index;
 	}
 
 	/**
-	 * Returns the index of the item right after the item at the
+	 * Wetuwns the index of the item wight afta the item at the
 	 * index of the given position.
 	 */
-	indexAfter(position: number): number {
-		return Math.min(this.indexAt(position) + 1, this.count);
+	indexAfta(position: numba): numba {
+		wetuwn Math.min(this.indexAt(position) + 1, this.count);
 	}
 
 	/**
-	 * Returns the start position of the item at the given index.
+	 * Wetuwns the stawt position of the item at the given index.
 	 */
-	positionAt(index: number): number {
+	positionAt(index: numba): numba {
 		if (index < 0) {
-			return -1;
+			wetuwn -1;
 		}
 
-		let position = 0;
-		let count = 0;
+		wet position = 0;
+		wet count = 0;
 
-		for (let group of this.groups) {
-			const groupCount = group.range.end - group.range.start;
-			const newCount = count + groupCount;
+		fow (wet gwoup of this.gwoups) {
+			const gwoupCount = gwoup.wange.end - gwoup.wange.stawt;
+			const newCount = count + gwoupCount;
 
 			if (index < newCount) {
-				return position + ((index - count) * group.size);
+				wetuwn position + ((index - count) * gwoup.size);
 			}
 
-			position += groupCount * group.size;
+			position += gwoupCount * gwoup.size;
 			count = newCount;
 		}
 
-		return -1;
+		wetuwn -1;
 	}
 }

@@ -1,143 +1,143 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/textmate/swift.tmbundle/blob/master/Syntaxes/Swift.tmLanguage",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/textmate/swift.tmbundwe/bwob/masta/Syntaxes/Swift.tmWanguage",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/textmate/swift.tmbundle/commit/8c7672d74c1baa4e6944a05ac6c57a623532f18b",
+	"vewsion": "https://github.com/textmate/swift.tmbundwe/commit/8c7672d74c1baa4e6944a05ac6c57a623532f18b",
 	"name": "Swift",
-	"scopeName": "source.swift",
-	"comment": "See swift.tmbundle/grammar-test.swift for test cases.",
-	"patterns": [
+	"scopeName": "souwce.swift",
+	"comment": "See swift.tmbundwe/gwammaw-test.swift fow test cases.",
+	"pattewns": [
 		{
-			"include": "#root"
+			"incwude": "#woot"
 		}
 	],
-	"repository": {
-		"async-throws": {
-			"captures": {
+	"wepositowy": {
+		"async-thwows": {
+			"captuwes": {
 				"1": {
-					"name": "invalid.illegal.await-must-precede-throws.swift"
+					"name": "invawid.iwwegaw.await-must-pwecede-thwows.swift"
 				},
 				"2": {
-					"name": "keyword.control.exception.swift"
+					"name": "keywowd.contwow.exception.swift"
 				},
 				"3": {
-					"name": "keyword.control.async.swift"
+					"name": "keywowd.contwow.async.swift"
 				}
 			},
-			"match": "\\b(?:(throws\\s+async|rethrows\\s+async)|(throws|rethrows)|(async))\\b"
+			"match": "\\b(?:(thwows\\s+async|wethwows\\s+async)|(thwows|wethwows)|(async))\\b"
 		},
-		"attributes": {
-			"patterns": [
+		"attwibutes": {
+			"pattewns": [
 				{
-					"begin": "((@)available)(\\()",
-					"beginCaptures": {
+					"begin": "((@)avaiwabwe)(\\()",
+					"beginCaptuwes": {
 						"1": {
-							"name": "storage.modifier.attribute.swift"
+							"name": "stowage.modifia.attwibute.swift"
 						},
 						"2": {
-							"name": "punctuation.definition.attribute.swift"
+							"name": "punctuation.definition.attwibute.swift"
 						},
 						"3": {
-							"name": "punctuation.definition.arguments.begin.swift"
+							"name": "punctuation.definition.awguments.begin.swift"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.arguments.end.swift"
+							"name": "punctuation.definition.awguments.end.swift"
 						}
 					},
-					"name": "meta.attribute.available.swift",
-					"patterns": [
+					"name": "meta.attwibute.avaiwabwe.swift",
+					"pattewns": [
 						{
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "keyword.other.platform.os.swift"
+									"name": "keywowd.otha.pwatfowm.os.swift"
 								},
 								"2": {
-									"name": "constant.numeric.swift"
+									"name": "constant.numewic.swift"
 								}
 							},
-							"match": "\\b(swift|(?:iOS|macOS|OSX|watchOS|tvOS|UIKitForMac)(?:ApplicationExtension)?)\\b(?:\\s+([0-9]+(?:\\.[0-9]+)*\\b))?"
+							"match": "\\b(swift|(?:iOS|macOS|OSX|watchOS|tvOS|UIKitFowMac)(?:AppwicationExtension)?)\\b(?:\\s+([0-9]+(?:\\.[0-9]+)*\\b))?"
 						},
 						{
-							"begin": "\\b(introduced|deprecated|obsoleted)\\s*(:)\\s*",
-							"beginCaptures": {
+							"begin": "\\b(intwoduced|depwecated|obsoweted)\\s*(:)\\s*",
+							"beginCaptuwes": {
 								"1": {
-									"name": "keyword.other.swift"
+									"name": "keywowd.otha.swift"
 								},
 								"2": {
-									"name": "punctuation.separator.key-value.swift"
+									"name": "punctuation.sepawatow.key-vawue.swift"
 								}
 							},
 							"end": "(?!\\G)",
-							"patterns": [
+							"pattewns": [
 								{
 									"match": "\\b[0-9]+(?:\\.[0-9]+)*\\b",
-									"name": "constant.numeric.swift"
+									"name": "constant.numewic.swift"
 								}
 							]
 						},
 						{
-							"begin": "\\b(message|renamed)\\s*(:)\\s*(?=\")",
-							"beginCaptures": {
+							"begin": "\\b(message|wenamed)\\s*(:)\\s*(?=\")",
+							"beginCaptuwes": {
 								"1": {
-									"name": "keyword.other.swift"
+									"name": "keywowd.otha.swift"
 								},
 								"2": {
-									"name": "punctuation.separator.key-value.swift"
+									"name": "punctuation.sepawatow.key-vawue.swift"
 								}
 							},
 							"end": "(?!\\G)",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#literals"
+									"incwude": "#witewaws"
 								}
 							]
 						},
 						{
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "keyword.other.platform.all.swift"
+									"name": "keywowd.otha.pwatfowm.aww.swift"
 								},
 								"2": {
-									"name": "keyword.other.swift"
+									"name": "keywowd.otha.swift"
 								},
 								"3": {
-									"name": "invalid.illegal.character-not-allowed-here.swift"
+									"name": "invawid.iwwegaw.chawacta-not-awwowed-hewe.swift"
 								}
 							},
-							"match": "(?:(\\*)|\\b(deprecated|unavailable)\\b)\\s*(.*?)(?=[,)])"
+							"match": "(?:(\\*)|\\b(depwecated|unavaiwabwe)\\b)\\s*(.*?)(?=[,)])"
 						}
 					]
 				},
 				{
 					"begin": "((@)objc)(\\()",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "storage.modifier.attribute.swift"
+							"name": "stowage.modifia.attwibute.swift"
 						},
 						"2": {
-							"name": "punctuation.definition.attribute.swift"
+							"name": "punctuation.definition.attwibute.swift"
 						},
 						"3": {
-							"name": "punctuation.definition.arguments.begin.swift"
+							"name": "punctuation.definition.awguments.begin.swift"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.arguments.end.swift"
+							"name": "punctuation.definition.awguments.end.swift"
 						}
 					},
-					"name": "meta.attribute.objc.swift",
-					"patterns": [
+					"name": "meta.attwibute.objc.swift",
+					"pattewns": [
 						{
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "invalid.illegal.missing-colon-after-selector-piece.swift"
+									"name": "invawid.iwwegaw.missing-cowon-afta-sewectow-piece.swift"
 								}
 							},
 							"match": "\\w*(?::(?:\\w*:)*(\\w*))?",
@@ -146,42 +146,42 @@
 					]
 				},
 				{
-					"begin": "(@)(?<q>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*(\\k<q>)",
-					"beginCaptures": {
+					"begin": "(@)(?<q>`?)[\\p{W}_][\\p{W}_\\p{N}\\p{M}]*(\\k<q>)",
+					"beginCaptuwes": {
 						"0": {
-							"name": "storage.modifier.attribute.swift"
+							"name": "stowage.modifia.attwibute.swift"
 						},
 						"1": {
-							"name": "punctuation.definition.attribute.swift"
+							"name": "punctuation.definition.attwibute.swift"
 						},
 						"2": {
-							"name": "punctuation.definition.identifier.swift"
+							"name": "punctuation.definition.identifia.swift"
 						},
 						"3": {
-							"name": "punctuation.definition.identifier.swift"
+							"name": "punctuation.definition.identifia.swift"
 						}
 					},
-					"comment": "any other attribute",
+					"comment": "any otha attwibute",
 					"end": "(?!\\G\\()",
-					"name": "meta.attribute.swift",
-					"patterns": [
+					"name": "meta.attwibute.swift",
+					"pattewns": [
 						{
 							"begin": "\\(",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.definition.arguments.begin.swift"
+									"name": "punctuation.definition.awguments.begin.swift"
 								}
 							},
 							"end": "\\)",
-							"endCaptures": {
+							"endCaptuwes": {
 								"0": {
-									"name": "punctuation.definition.arguments.end.swift"
+									"name": "punctuation.definition.awguments.end.swift"
 								}
 							},
-							"name": "meta.arguments.attribute.swift",
-							"patterns": [
+							"name": "meta.awguments.attwibute.swift",
+							"pattewns": [
 								{
-									"include": "#expressions"
+									"incwude": "#expwessions"
 								}
 							]
 						}
@@ -189,654 +189,654 @@
 				}
 			]
 		},
-		"builtin-functions": {
-			"patterns": [
+		"buiwtin-functions": {
+			"pattewns": [
 				{
-					"comment": "Member functions in the standard library in Swift 3 which may be used with trailing closures and no parentheses",
-					"match": "(?<=\\.)(?:s(?:ort(?:ed)?|plit)|contains|index|partition|f(?:i(?:lter|rst)|orEach|latMap)|with(?:MutableCharacters|CString|U(?:nsafe(?:Mutable(?:BufferPointer|Pointer(?:s|To(?:Header|Elements)))|BufferPointer)|TF8Buffer))|m(?:in|a(?:p|x)))(?=\\s*[({])\\b",
-					"name": "support.function.swift"
+					"comment": "Memba functions in the standawd wibwawy in Swift 3 which may be used with twaiwing cwosuwes and no pawentheses",
+					"match": "(?<=\\.)(?:s(?:owt(?:ed)?|pwit)|contains|index|pawtition|f(?:i(?:wta|wst)|owEach|watMap)|with(?:MutabweChawactews|CStwing|U(?:nsafe(?:Mutabwe(?:BuffewPointa|Pointa(?:s|To(?:Heada|Ewements)))|BuffewPointa)|TF8Buffa))|m(?:in|a(?:p|x)))(?=\\s*[({])\\b",
+					"name": "suppowt.function.swift"
 				},
 				{
-					"comment": "Member functions in the standard library in Swift 3",
-					"match": "(?<=\\.)(?:s(?:ymmetricDifference|t(?:oreBytes|arts|ride)|ortInPlace|u(?:ccessor|ffix|btract(?:ing|InPlace|WithOverflow)?)|quareRoot|amePosition)|h(?:oldsUnique(?:Reference|OrPinnedReference)|as(?:Suffix|Prefix))|ne(?:gate(?:d)?|xt)|c(?:o(?:untByEnumerating|py(?:Bytes)?)|lamp(?:ed)?|reate)|t(?:o(?:IntMax|Opaque|UIntMax)|ake(?:RetainedValue|UnretainedValue)|r(?:uncatingRemainder|a(?:nscodedLength|ilSurrogate)))|i(?:s(?:MutableAndUniquelyReferenced(?:OrPinned)?|S(?:trictSu(?:perset(?:Of)?|bset(?:Of)?)|u(?:perset(?:Of)?|bset(?:Of)?))|Continuation|T(?:otallyOrdered|railSurrogate)|Disjoint(?:With)?|Unique(?:Reference|lyReferenced(?:OrPinned)?)|Equal|Le(?:ss(?:ThanOrEqualTo)?|adSurrogate))|n(?:sert(?:ContentsOf)?|tersect(?:ion|InPlace)?|itialize(?:Memory|From)?|dex(?:Of|ForKey)))|o(?:verlaps|bjectAt)|d(?:i(?:stance(?:To)?|vide(?:d|WithOverflow)?)|e(?:s(?:cendant|troy)|code(?:CString)?|initialize|alloc(?:ate(?:Capacity)?)?)|rop(?:First|Last))|u(?:n(?:ion(?:InPlace)?|derestimateCount|wrappedOrError)|p(?:date(?:Value)?|percased))|join(?:ed|WithSeparator)|p(?:op(?:First|Last)|ass(?:Retained|Unretained)|re(?:decessor|fix))|e(?:scape(?:d)?|n(?:code|umerate(?:d)?)|lementsEqual|xclusiveOr(?:InPlace)?)|f(?:orm(?:Remainder|S(?:ymmetricDifference|quareRoot)|TruncatingRemainder|In(?:tersection|dex)|Union)|latten|rom(?:CString(?:RepairingIllFormedUTF8)?|Opaque))|w(?:i(?:thMemoryRebound|dth)|rite(?:To)?)|l(?:o(?:wercased|ad)|e(?:adSurrogate|xicographical(?:Compare|lyPrecedes)))|a(?:ss(?:ign(?:BackwardFrom|From)?|umingMemoryBound)|d(?:d(?:ing(?:Product)?|Product|WithOverflow)?|vanced(?:By)?)|utorelease|ppend(?:ContentsOf)?|lloc(?:ate)?|bs)|r(?:ound(?:ed)?|e(?:serveCapacity|tain|duce|place(?:Range|Subrange)?|verse(?:d)?|quest(?:NativeBuffer|UniqueMutableBackingBuffer)|lease|m(?:ove(?:Range|Subrange|Value(?:ForKey)?|First|Last|A(?:tIndex|ll))?|ainder(?:WithOverflow)?)))|ge(?:nerate|t(?:Objects|Element))|m(?:in(?:imum(?:Magnitude)?|Element)|ove(?:Initialize(?:Memory|BackwardFrom|From)?|Assign(?:From)?)?|ultipl(?:y(?:WithOverflow)?|ied)|easure|a(?:ke(?:Iterator|Description)|x(?:imum(?:Magnitude)?|Element)))|bindMemory)(?=\\s*\\()",
-					"name": "support.function.swift"
+					"comment": "Memba functions in the standawd wibwawy in Swift 3",
+					"match": "(?<=\\.)(?:s(?:ymmetwicDiffewence|t(?:oweBytes|awts|wide)|owtInPwace|u(?:ccessow|ffix|btwact(?:ing|InPwace|WithOvewfwow)?)|quaweWoot|amePosition)|h(?:owdsUnique(?:Wefewence|OwPinnedWefewence)|as(?:Suffix|Pwefix))|ne(?:gate(?:d)?|xt)|c(?:o(?:untByEnumewating|py(?:Bytes)?)|wamp(?:ed)?|weate)|t(?:o(?:IntMax|Opaque|UIntMax)|ake(?:WetainedVawue|UnwetainedVawue)|w(?:uncatingWemainda|a(?:nscodedWength|iwSuwwogate)))|i(?:s(?:MutabweAndUniquewyWefewenced(?:OwPinned)?|S(?:twictSu(?:pewset(?:Of)?|bset(?:Of)?)|u(?:pewset(?:Of)?|bset(?:Of)?))|Continuation|T(?:otawwyOwdewed|waiwSuwwogate)|Disjoint(?:With)?|Unique(?:Wefewence|wyWefewenced(?:OwPinned)?)|Equaw|We(?:ss(?:ThanOwEquawTo)?|adSuwwogate))|n(?:sewt(?:ContentsOf)?|tewsect(?:ion|InPwace)?|itiawize(?:Memowy|Fwom)?|dex(?:Of|FowKey)))|o(?:vewwaps|bjectAt)|d(?:i(?:stance(?:To)?|vide(?:d|WithOvewfwow)?)|e(?:s(?:cendant|twoy)|code(?:CStwing)?|initiawize|awwoc(?:ate(?:Capacity)?)?)|wop(?:Fiwst|Wast))|u(?:n(?:ion(?:InPwace)?|dewestimateCount|wwappedOwEwwow)|p(?:date(?:Vawue)?|pewcased))|join(?:ed|WithSepawatow)|p(?:op(?:Fiwst|Wast)|ass(?:Wetained|Unwetained)|we(?:decessow|fix))|e(?:scape(?:d)?|n(?:code|umewate(?:d)?)|wementsEquaw|xcwusiveOw(?:InPwace)?)|f(?:owm(?:Wemainda|S(?:ymmetwicDiffewence|quaweWoot)|TwuncatingWemainda|In(?:tewsection|dex)|Union)|watten|wom(?:CStwing(?:WepaiwingIwwFowmedUTF8)?|Opaque))|w(?:i(?:thMemowyWebound|dth)|wite(?:To)?)|w(?:o(?:wewcased|ad)|e(?:adSuwwogate|xicogwaphicaw(?:Compawe|wyPwecedes)))|a(?:ss(?:ign(?:BackwawdFwom|Fwom)?|umingMemowyBound)|d(?:d(?:ing(?:Pwoduct)?|Pwoduct|WithOvewfwow)?|vanced(?:By)?)|utowewease|ppend(?:ContentsOf)?|wwoc(?:ate)?|bs)|w(?:ound(?:ed)?|e(?:sewveCapacity|tain|duce|pwace(?:Wange|Subwange)?|vewse(?:d)?|quest(?:NativeBuffa|UniqueMutabweBackingBuffa)|wease|m(?:ove(?:Wange|Subwange|Vawue(?:FowKey)?|Fiwst|Wast|A(?:tIndex|ww))?|ainda(?:WithOvewfwow)?)))|ge(?:newate|t(?:Objects|Ewement))|m(?:in(?:imum(?:Magnitude)?|Ewement)|ove(?:Initiawize(?:Memowy|BackwawdFwom|Fwom)?|Assign(?:Fwom)?)?|uwtipw(?:y(?:WithOvewfwow)?|ied)|easuwe|a(?:ke(?:Itewatow|Descwiption)|x(?:imum(?:Magnitude)?|Ewement)))|bindMemowy)(?=\\s*\\()",
+					"name": "suppowt.function.swift"
 				},
 				{
-					"comment": "Member functions in the standard library in Swift 2 only",
-					"match": "(?<=\\.)(?:s(?:uperclassMirror|amePositionIn|tartsWith)|nextObject|c(?:haracterAtIndex|o(?:untByEnumeratingWithState|pyWithZone)|ustom(?:Mirror|PlaygroundQuickLook))|is(?:EmptyInput|ASCII)|object(?:Enumerator|ForKey|AtIndex)|join|put|keyEnumerator|withUnsafeMutablePointerToValue|length|getMirror|m(?:oveInitializeAssignFrom|ember))(?=\\s*\\()",
-					"name": "support.function.swift"
+					"comment": "Memba functions in the standawd wibwawy in Swift 2 onwy",
+					"match": "(?<=\\.)(?:s(?:upewcwassMiwwow|amePositionIn|tawtsWith)|nextObject|c(?:hawactewAtIndex|o(?:untByEnumewatingWithState|pyWithZone)|ustom(?:Miwwow|PwaygwoundQuickWook))|is(?:EmptyInput|ASCII)|object(?:Enumewatow|FowKey|AtIndex)|join|put|keyEnumewatow|withUnsafeMutabwePointewToVawue|wength|getMiwwow|m(?:oveInitiawizeAssignFwom|emba))(?=\\s*\\()",
+					"name": "suppowt.function.swift"
 				}
 			]
 		},
-		"builtin-global-functions": {
-			"patterns": [
+		"buiwtin-gwobaw-functions": {
+			"pattewns": [
 				{
 					"begin": "\\b(type)(\\()\\s*(of)(:)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "support.function.dynamic-type.swift"
+							"name": "suppowt.function.dynamic-type.swift"
 						},
 						"2": {
-							"name": "punctuation.definition.arguments.begin.swift"
+							"name": "punctuation.definition.awguments.begin.swift"
 						},
 						"3": {
-							"name": "support.variable.parameter.swift"
+							"name": "suppowt.vawiabwe.pawameta.swift"
 						},
 						"4": {
-							"name": "punctuation.separator.argument-label.begin.swift"
+							"name": "punctuation.sepawatow.awgument-wabew.begin.swift"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.arguments.end.swift"
+							"name": "punctuation.definition.awguments.end.swift"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#expressions"
+							"incwude": "#expwessions"
 						}
 					]
 				},
 				{
-					"comment": "Global functions available in Swift 3 which may be used with trailing closures and no parentheses",
-					"match": "\\b(?:anyGenerator|autoreleasepool)(?=\\s*[({])\\b",
-					"name": "support.function.swift"
+					"comment": "Gwobaw functions avaiwabwe in Swift 3 which may be used with twaiwing cwosuwes and no pawentheses",
+					"match": "\\b(?:anyGenewatow|autoweweasepoow)(?=\\s*[({])\\b",
+					"name": "suppowt.function.swift"
 				},
 				{
-					"comment": "Global functions available in Swift 3",
-					"match": "\\b(?:s(?:tride(?:of(?:Value)?)?|izeof(?:Value)?|equence|wap)|numericCast|transcode|is(?:UniquelyReferenced(?:NonObjC)?|KnownUniquelyReferenced)|zip|d(?:ump|ebugPrint)|unsafe(?:BitCast|Downcast|Unwrap|Address(?:Of)?)|pr(?:int|econdition(?:Failure)?)|fatalError|with(?:Unsafe(?:MutablePointer|Pointer)|ExtendedLifetime|VaList)|a(?:ssert(?:ionFailure)?|lignof(?:Value)?|bs)|re(?:peatElement|adLine)|getVaList|m(?:in|ax))(?=\\s*\\()",
-					"name": "support.function.swift"
+					"comment": "Gwobaw functions avaiwabwe in Swift 3",
+					"match": "\\b(?:s(?:twide(?:of(?:Vawue)?)?|izeof(?:Vawue)?|equence|wap)|numewicCast|twanscode|is(?:UniquewyWefewenced(?:NonObjC)?|KnownUniquewyWefewenced)|zip|d(?:ump|ebugPwint)|unsafe(?:BitCast|Downcast|Unwwap|Addwess(?:Of)?)|pw(?:int|econdition(?:Faiwuwe)?)|fatawEwwow|with(?:Unsafe(?:MutabwePointa|Pointa)|ExtendedWifetime|VaWist)|a(?:ssewt(?:ionFaiwuwe)?|wignof(?:Vawue)?|bs)|we(?:peatEwement|adWine)|getVaWist|m(?:in|ax))(?=\\s*\\()",
+					"name": "suppowt.function.swift"
 				},
 				{
-					"comment": "Global functions available in Swift 2 only",
-					"match": "\\b(?:s(?:ort|uffix|pli(?:ce|t))|insert|overlaps|d(?:istance|rop(?:First|Last))|join|prefix|extend|withUnsafe(?:MutablePointers|Pointers)|lazy|advance|re(?:flect|move(?:Range|Last|A(?:tIndex|ll))))(?=\\s*\\()",
-					"name": "support.function.swift"
+					"comment": "Gwobaw functions avaiwabwe in Swift 2 onwy",
+					"match": "\\b(?:s(?:owt|uffix|pwi(?:ce|t))|insewt|ovewwaps|d(?:istance|wop(?:Fiwst|Wast))|join|pwefix|extend|withUnsafe(?:MutabwePointews|Pointews)|wazy|advance|we(?:fwect|move(?:Wange|Wast|A(?:tIndex|ww))))(?=\\s*\\()",
+					"name": "suppowt.function.swift"
 				}
 			]
 		},
-		"builtin-properties": {
-			"patterns": [
+		"buiwtin-pwopewties": {
+			"pattewns": [
 				{
-					"comment": "The simpler (?<=\\bProcess\\.|\\bCommandLine\\.) breaks VS Code / Atom, see https://github.com/textmate/swift.tmbundle/issues/29",
-					"match": "(?<=^Process\\.|\\WProcess\\.|^CommandLine\\.|\\WCommandLine\\.)(arguments|argc|unsafeArgv)",
-					"name": "support.variable.swift"
+					"comment": "The simpwa (?<=\\bPwocess\\.|\\bCommandWine\\.) bweaks VS Code / Atom, see https://github.com/textmate/swift.tmbundwe/issues/29",
+					"match": "(?<=^Pwocess\\.|\\WPwocess\\.|^CommandWine\\.|\\WCommandWine\\.)(awguments|awgc|unsafeAwgv)",
+					"name": "suppowt.vawiabwe.swift"
 				},
 				{
-					"comment": "Properties in the standard library in Swift 3",
-					"match": "(?<=\\.)(?:s(?:t(?:artIndex|ri(?:ngValue|de))|i(?:ze|gn(?:BitIndex|ificand(?:Bit(?:Count|Pattern)|Width)?|alingNaN)?)|u(?:perclassMirror|mmary|bscriptBaseAddress))|h(?:eader|as(?:hValue|PointerRepresentation))|n(?:ulTerminatedUTF8|ext(?:Down|Up)|a(?:n|tiveOwner))|c(?:haracters|ount(?:TrailingZeros)?|ustom(?:Mirror|PlaygroundQuickLook)|apacity)|i(?:s(?:S(?:ign(?:Minus|aling(?:NaN)?)|ubnormal)|N(?:ormal|aN)|Canonical|Infinite|Zero|Empty|Finite|ASCII)|n(?:dices|finity)|dentity)|owner|de(?:scription|bugDescription)|u(?:n(?:safelyUnwrapped|icodeScalar(?:s)?|derestimatedCount)|tf(?:16|8(?:Start|C(?:String|odeUnitCount))?)|intValue|ppercaseString|lp(?:OfOne)?)|p(?:i|ointee)|e(?:ndIndex|lements|xponent(?:Bit(?:Count|Pattern))?)|value(?:s)?|keys|quietNaN|f(?:irst(?:ElementAddress(?:IfContiguous)?)?|loatingPointClass)|l(?:ittleEndian|owercaseString|eastNo(?:nzeroMagnitude|rmalMagnitude)|a(?:st|zy))|a(?:l(?:ignment|l(?:ocatedElementCount|Zeros))|rray(?:PropertyIsNativeTypeChecked)?)|ra(?:dix|wValue)|greatestFiniteMagnitude|m(?:in|emory|ax)|b(?:yteS(?:ize|wapped)|i(?:nade|tPattern|gEndian)|uffer|ase(?:Address)?))\\b",
-					"name": "support.variable.swift"
+					"comment": "Pwopewties in the standawd wibwawy in Swift 3",
+					"match": "(?<=\\.)(?:s(?:t(?:awtIndex|wi(?:ngVawue|de))|i(?:ze|gn(?:BitIndex|ificand(?:Bit(?:Count|Pattewn)|Width)?|awingNaN)?)|u(?:pewcwassMiwwow|mmawy|bscwiptBaseAddwess))|h(?:eada|as(?:hVawue|PointewWepwesentation))|n(?:uwTewminatedUTF8|ext(?:Down|Up)|a(?:n|tiveOwna))|c(?:hawactews|ount(?:TwaiwingZewos)?|ustom(?:Miwwow|PwaygwoundQuickWook)|apacity)|i(?:s(?:S(?:ign(?:Minus|awing(?:NaN)?)|ubnowmaw)|N(?:owmaw|aN)|Canonicaw|Infinite|Zewo|Empty|Finite|ASCII)|n(?:dices|finity)|dentity)|owna|de(?:scwiption|bugDescwiption)|u(?:n(?:safewyUnwwapped|icodeScawaw(?:s)?|dewestimatedCount)|tf(?:16|8(?:Stawt|C(?:Stwing|odeUnitCount))?)|intVawue|ppewcaseStwing|wp(?:OfOne)?)|p(?:i|ointee)|e(?:ndIndex|wements|xponent(?:Bit(?:Count|Pattewn))?)|vawue(?:s)?|keys|quietNaN|f(?:iwst(?:EwementAddwess(?:IfContiguous)?)?|woatingPointCwass)|w(?:ittweEndian|owewcaseStwing|eastNo(?:nzewoMagnitude|wmawMagnitude)|a(?:st|zy))|a(?:w(?:ignment|w(?:ocatedEwementCount|Zewos))|wway(?:PwopewtyIsNativeTypeChecked)?)|wa(?:dix|wVawue)|gweatestFiniteMagnitude|m(?:in|emowy|ax)|b(?:yteS(?:ize|wapped)|i(?:nade|tPattewn|gEndian)|uffa|ase(?:Addwess)?))\\b",
+					"name": "suppowt.vawiabwe.swift"
 				},
 				{
-					"comment": "Properties in the standard library in Swift 2 only",
-					"match": "(?<=\\.)(?:boolValue|disposition|end|objectIdentifier|quickLookObject|start|valueType)\\b",
-					"name": "support.variable.swift"
+					"comment": "Pwopewties in the standawd wibwawy in Swift 2 onwy",
+					"match": "(?<=\\.)(?:boowVawue|disposition|end|objectIdentifia|quickWookObject|stawt|vawueType)\\b",
+					"name": "suppowt.vawiabwe.swift"
 				},
 				{
-					"comment": "Enum cases in the standard library - note that there is some overlap between these and the properties",
-					"match": "(?<=\\.)(?:s(?:calarValue|i(?:ze|gnalingNaN)|o(?:und|me)|uppressed|prite|et)|n(?:one|egative(?:Subnormal|Normal|Infinity|Zero))|c(?:ol(?:or|lection)|ustomized)|t(?:o(?:NearestOr(?:Even|AwayFromZero)|wardZero)|uple|ext)|i(?:nt|mage)|optional|d(?:ictionary|o(?:uble|wn))|u(?:Int|p|rl)|p(?:o(?:sitive(?:Subnormal|Normal|Infinity|Zero)|int)|lus)|e(?:rror|mptyInput)|view|quietNaN|float|a(?:ttributedString|wayFromZero)|r(?:ectangle|ange)|generated|minus|b(?:ool|ezierPath))\\b",
-					"name": "support.variable.swift"
+					"comment": "Enum cases in the standawd wibwawy - note that thewe is some ovewwap between these and the pwopewties",
+					"match": "(?<=\\.)(?:s(?:cawawVawue|i(?:ze|gnawingNaN)|o(?:und|me)|uppwessed|pwite|et)|n(?:one|egative(?:Subnowmaw|Nowmaw|Infinity|Zewo))|c(?:ow(?:ow|wection)|ustomized)|t(?:o(?:NeawestOw(?:Even|AwayFwomZewo)|wawdZewo)|upwe|ext)|i(?:nt|mage)|optionaw|d(?:ictionawy|o(?:ubwe|wn))|u(?:Int|p|ww)|p(?:o(?:sitive(?:Subnowmaw|Nowmaw|Infinity|Zewo)|int)|wus)|e(?:wwow|mptyInput)|view|quietNaN|fwoat|a(?:ttwibutedStwing|wayFwomZewo)|w(?:ectangwe|ange)|genewated|minus|b(?:oow|eziewPath))\\b",
+					"name": "suppowt.vawiabwe.swift"
 				}
 			]
 		},
-		"builtin-types": {
-			"comment": "Types provided in the standard library",
-			"patterns": [
+		"buiwtin-types": {
+			"comment": "Types pwovided in the standawd wibwawy",
+			"pattewns": [
 				{
-					"include": "#builtin-class-type"
+					"incwude": "#buiwtin-cwass-type"
 				},
 				{
-					"include": "#builtin-enum-type"
+					"incwude": "#buiwtin-enum-type"
 				},
 				{
-					"include": "#builtin-protocol-type"
+					"incwude": "#buiwtin-pwotocow-type"
 				},
 				{
-					"include": "#builtin-struct-type"
+					"incwude": "#buiwtin-stwuct-type"
 				},
 				{
-					"include": "#builtin-typealias"
+					"incwude": "#buiwtin-typeawias"
 				},
 				{
 					"match": "\\bAny\\b",
-					"name": "support.type.any.swift"
+					"name": "suppowt.type.any.swift"
 				}
 			],
-			"repository": {
-				"builtin-class-type": {
-					"comment": "Builtin class types",
-					"match": "\\b(Managed(Buffer|ProtoBuffer)|NonObjectiveCBase|AnyGenerator)\\b",
-					"name": "support.class.swift"
+			"wepositowy": {
+				"buiwtin-cwass-type": {
+					"comment": "Buiwtin cwass types",
+					"match": "\\b(Managed(Buffa|PwotoBuffa)|NonObjectiveCBase|AnyGenewatow)\\b",
+					"name": "suppowt.cwass.swift"
 				},
-				"builtin-enum-type": {
-					"patterns": [
+				"buiwtin-enum-type": {
+					"pattewns": [
 						{
-							"comment": "CommandLine is an enum, but it acts like a constant",
-							"match": "\\b(?:CommandLine|Process(?=\\.))\\b",
-							"name": "support.constant.swift"
+							"comment": "CommandWine is an enum, but it acts wike a constant",
+							"match": "\\b(?:CommandWine|Pwocess(?=\\.))\\b",
+							"name": "suppowt.constant.swift"
 						},
 						{
-							"comment": "The return type of a function that never returns",
-							"match": "\\bNever\\b",
-							"name": "support.constant.never.swift"
+							"comment": "The wetuwn type of a function that neva wetuwns",
+							"match": "\\bNeva\\b",
+							"name": "suppowt.constant.neva.swift"
 						},
 						{
-							"comment": "Enum types in the standard library in Swift 3",
-							"match": "\\b(?:ImplicitlyUnwrappedOptional|Representation|MemoryLayout|FloatingPointClassification|SetIndexRepresentation|SetIteratorRepresentation|FloatingPointRoundingRule|UnicodeDecodingResult|Optional|DictionaryIndexRepresentation|AncestorRepresentation|DisplayStyle|PlaygroundQuickLook|Never|FloatingPointSign|Bit|DictionaryIteratorRepresentation)\\b",
-							"name": "support.type.swift"
+							"comment": "Enum types in the standawd wibwawy in Swift 3",
+							"match": "\\b(?:ImpwicitwyUnwwappedOptionaw|Wepwesentation|MemowyWayout|FwoatingPointCwassification|SetIndexWepwesentation|SetItewatowWepwesentation|FwoatingPointWoundingWuwe|UnicodeDecodingWesuwt|Optionaw|DictionawyIndexWepwesentation|AncestowWepwesentation|DispwayStywe|PwaygwoundQuickWook|Neva|FwoatingPointSign|Bit|DictionawyItewatowWepwesentation)\\b",
+							"name": "suppowt.type.swift"
 						},
 						{
-							"comment": "Enum types in the standard library in Swift 2 only",
-							"match": "\\b(?:MirrorDisposition|QuickLookObject)\\b",
-							"name": "support.type.swift"
+							"comment": "Enum types in the standawd wibwawy in Swift 2 onwy",
+							"match": "\\b(?:MiwwowDisposition|QuickWookObject)\\b",
+							"name": "suppowt.type.swift"
 						}
 					]
 				},
-				"builtin-protocol-type": {
-					"patterns": [
+				"buiwtin-pwotocow-type": {
+					"pattewns": [
 						{
-							"comment": "Protocols in the standard library in Swift 3",
-							"match": "\\b(?:Ra(?:n(?:domAccess(?:Collection|Indexable)|geReplaceable(?:Collection|Indexable))|wRepresentable)|M(?:irrorPath|utable(?:Collection|Indexable))|Bi(?:naryFloatingPoint|twiseOperations|directional(?:Collection|Indexable))|S(?:tr(?:ideable|eamable)|igned(?:Number|Integer)|e(?:tAlgebra|quence))|Hashable|C(?:o(?:llection|mparable)|ustom(?:Reflectable|StringConvertible|DebugStringConvertible|PlaygroundQuickLookable|LeafReflectable)|VarArg)|TextOutputStream|I(?:n(?:teger(?:Arithmetic)?|dexable(?:Base)?)|teratorProtocol)|OptionSet|Un(?:signedInteger|icodeCodec)|E(?:quatable|rror|xpressibleBy(?:BooleanLiteral|String(?:Interpolation|Literal)|NilLiteral|IntegerLiteral|DictionaryLiteral|UnicodeScalarLiteral|ExtendedGraphemeClusterLiteral|FloatLiteral|ArrayLiteral))|FloatingPoint|L(?:osslessStringConvertible|azy(?:SequenceProtocol|CollectionProtocol))|A(?:nyObject|bsoluteValuable))\\b",
-							"name": "support.type.swift"
+							"comment": "Pwotocows in the standawd wibwawy in Swift 3",
+							"match": "\\b(?:Wa(?:n(?:domAccess(?:Cowwection|Indexabwe)|geWepwaceabwe(?:Cowwection|Indexabwe))|wWepwesentabwe)|M(?:iwwowPath|utabwe(?:Cowwection|Indexabwe))|Bi(?:nawyFwoatingPoint|twiseOpewations|diwectionaw(?:Cowwection|Indexabwe))|S(?:tw(?:ideabwe|eamabwe)|igned(?:Numba|Intega)|e(?:tAwgebwa|quence))|Hashabwe|C(?:o(?:wwection|mpawabwe)|ustom(?:Wefwectabwe|StwingConvewtibwe|DebugStwingConvewtibwe|PwaygwoundQuickWookabwe|WeafWefwectabwe)|VawAwg)|TextOutputStweam|I(?:n(?:tega(?:Awithmetic)?|dexabwe(?:Base)?)|tewatowPwotocow)|OptionSet|Un(?:signedIntega|icodeCodec)|E(?:quatabwe|wwow|xpwessibweBy(?:BooweanWitewaw|Stwing(?:Intewpowation|Witewaw)|NiwWitewaw|IntegewWitewaw|DictionawyWitewaw|UnicodeScawawWitewaw|ExtendedGwaphemeCwustewWitewaw|FwoatWitewaw|AwwayWitewaw))|FwoatingPoint|W(?:osswessStwingConvewtibwe|azy(?:SequencePwotocow|CowwectionPwotocow))|A(?:nyObject|bsowuteVawuabwe))\\b",
+							"name": "suppowt.type.swift"
 						},
 						{
-							"comment": "Protocols in the standard library in Swift 2 only",
-							"match": "\\b(?:Ran(?:domAccessIndexType|geReplaceableCollectionType)|GeneratorType|M(?:irror(?:Type|PathType)|utable(?:Sliceable|CollectionType))|B(?:i(?:twiseOperationsType|directionalIndexType)|oolean(?:Type|LiteralConvertible))|S(?:tring(?:InterpolationConvertible|LiteralConvertible)|i(?:nkType|gned(?:NumberType|IntegerType))|e(?:tAlgebraType|quenceType)|liceable)|NilLiteralConvertible|C(?:ollectionType|VarArgType)|Inte(?:rvalType|ger(?:Type|LiteralConvertible|ArithmeticType))|O(?:utputStreamType|ptionSetType)|DictionaryLiteralConvertible|Un(?:signedIntegerType|icode(?:ScalarLiteralConvertible|CodecType))|E(?:rrorType|xten(?:sibleCollectionType|dedGraphemeClusterLiteralConvertible))|F(?:orwardIndexType|loat(?:ingPointType|LiteralConvertible))|A(?:nyCollectionType|rrayLiteralConvertible))\\b",
-							"name": "support.type.swift"
+							"comment": "Pwotocows in the standawd wibwawy in Swift 2 onwy",
+							"match": "\\b(?:Wan(?:domAccessIndexType|geWepwaceabweCowwectionType)|GenewatowType|M(?:iwwow(?:Type|PathType)|utabwe(?:Swiceabwe|CowwectionType))|B(?:i(?:twiseOpewationsType|diwectionawIndexType)|oowean(?:Type|WitewawConvewtibwe))|S(?:twing(?:IntewpowationConvewtibwe|WitewawConvewtibwe)|i(?:nkType|gned(?:NumbewType|IntegewType))|e(?:tAwgebwaType|quenceType)|wiceabwe)|NiwWitewawConvewtibwe|C(?:owwectionType|VawAwgType)|Inte(?:wvawType|gew(?:Type|WitewawConvewtibwe|AwithmeticType))|O(?:utputStweamType|ptionSetType)|DictionawyWitewawConvewtibwe|Un(?:signedIntegewType|icode(?:ScawawWitewawConvewtibwe|CodecType))|E(?:wwowType|xten(?:sibweCowwectionType|dedGwaphemeCwustewWitewawConvewtibwe))|F(?:owwawdIndexType|woat(?:ingPointType|WitewawConvewtibwe))|A(?:nyCowwectionType|wwayWitewawConvewtibwe))\\b",
+							"name": "suppowt.type.swift"
 						}
 					]
 				},
-				"builtin-struct-type": {
-					"patterns": [
+				"buiwtin-stwuct-type": {
+					"pattewns": [
 						{
-							"comment": "Structs in the standard library in Swift 3",
-							"match": "\\b(?:R(?:e(?:peat(?:ed)?|versed(?:RandomAccess(?:Collection|Index)|Collection|Index))|an(?:domAccessSlice|ge(?:Replaceable(?:RandomAccessSlice|BidirectionalSlice|Slice)|Generator)?))|Generator(?:Sequence|OfOne)|M(?:irror|utable(?:Ran(?:domAccessSlice|geReplaceable(?:RandomAccessSlice|BidirectionalSlice|Slice))|BidirectionalSlice|Slice)|anagedBufferPointer)|B(?:idirectionalSlice|ool)|S(?:t(?:aticString|ri(?:ng|deT(?:hrough(?:Generator|Iterator)?|o(?:Generator|Iterator)?)))|et(?:I(?:ndex|terator))?|lice)|HalfOpenInterval|C(?:haracter(?:View)?|o(?:ntiguousArray|untable(?:Range|ClosedRange)|llectionOfOne)|OpaquePointer|losed(?:Range(?:I(?:ndex|terator))?|Interval)|VaListPointer)|I(?:n(?:t(?:16|8|32|64)?|d(?:ices|ex(?:ing(?:Generator|Iterator))?))|terator(?:Sequence|OverOne)?)|Zip2(?:Sequence|Iterator)|O(?:paquePointer|bjectIdentifier)|D(?:ictionary(?:I(?:ndex|terator)|Literal)?|ouble|efault(?:RandomAccessIndices|BidirectionalIndices|Indices))|U(?:n(?:safe(?:RawPointer|Mutable(?:RawPointer|BufferPointer|Pointer)|BufferPointer(?:Generator|Iterator)?|Pointer)|icodeScalar(?:View)?|foldSequence|managed)|TF(?:16(?:View)?|8(?:View)?|32)|Int(?:16|8|32|64)?)|Join(?:Generator|ed(?:Sequence|Iterator))|PermutationGenerator|E(?:numerate(?:Generator|Sequence|d(?:Sequence|Iterator))|mpty(?:Generator|Collection|Iterator))|Fl(?:oat(?:80)?|atten(?:Generator|BidirectionalCollection(?:Index)?|Sequence|Collection(?:Index)?|Iterator))|L(?:egacyChildren|azy(?:RandomAccessCollection|Map(?:RandomAccessCollection|Generator|BidirectionalCollection|Sequence|Collection|Iterator)|BidirectionalCollection|Sequence|Collection|Filter(?:Generator|BidirectionalCollection|Sequence|Collection|I(?:ndex|terator))))|A(?:ny(?:RandomAccessCollection|Generator|BidirectionalCollection|Sequence|Hashable|Collection|I(?:ndex|terator))|utoreleasingUnsafeMutablePointer|rray(?:Slice)?))\\b",
-							"name": "support.type.swift"
+							"comment": "Stwucts in the standawd wibwawy in Swift 3",
+							"match": "\\b(?:W(?:e(?:peat(?:ed)?|vewsed(?:WandomAccess(?:Cowwection|Index)|Cowwection|Index))|an(?:domAccessSwice|ge(?:Wepwaceabwe(?:WandomAccessSwice|BidiwectionawSwice|Swice)|Genewatow)?))|Genewatow(?:Sequence|OfOne)|M(?:iwwow|utabwe(?:Wan(?:domAccessSwice|geWepwaceabwe(?:WandomAccessSwice|BidiwectionawSwice|Swice))|BidiwectionawSwice|Swice)|anagedBuffewPointa)|B(?:idiwectionawSwice|oow)|S(?:t(?:aticStwing|wi(?:ng|deT(?:hwough(?:Genewatow|Itewatow)?|o(?:Genewatow|Itewatow)?)))|et(?:I(?:ndex|tewatow))?|wice)|HawfOpenIntewvaw|C(?:hawacta(?:View)?|o(?:ntiguousAwway|untabwe(?:Wange|CwosedWange)|wwectionOfOne)|OpaquePointa|wosed(?:Wange(?:I(?:ndex|tewatow))?|Intewvaw)|VaWistPointa)|I(?:n(?:t(?:16|8|32|64)?|d(?:ices|ex(?:ing(?:Genewatow|Itewatow))?))|tewatow(?:Sequence|OvewOne)?)|Zip2(?:Sequence|Itewatow)|O(?:paquePointa|bjectIdentifia)|D(?:ictionawy(?:I(?:ndex|tewatow)|Witewaw)?|oubwe|efauwt(?:WandomAccessIndices|BidiwectionawIndices|Indices))|U(?:n(?:safe(?:WawPointa|Mutabwe(?:WawPointa|BuffewPointa|Pointa)|BuffewPointa(?:Genewatow|Itewatow)?|Pointa)|icodeScawaw(?:View)?|fowdSequence|managed)|TF(?:16(?:View)?|8(?:View)?|32)|Int(?:16|8|32|64)?)|Join(?:Genewatow|ed(?:Sequence|Itewatow))|PewmutationGenewatow|E(?:numewate(?:Genewatow|Sequence|d(?:Sequence|Itewatow))|mpty(?:Genewatow|Cowwection|Itewatow))|Fw(?:oat(?:80)?|atten(?:Genewatow|BidiwectionawCowwection(?:Index)?|Sequence|Cowwection(?:Index)?|Itewatow))|W(?:egacyChiwdwen|azy(?:WandomAccessCowwection|Map(?:WandomAccessCowwection|Genewatow|BidiwectionawCowwection|Sequence|Cowwection|Itewatow)|BidiwectionawCowwection|Sequence|Cowwection|Fiwta(?:Genewatow|BidiwectionawCowwection|Sequence|Cowwection|I(?:ndex|tewatow))))|A(?:ny(?:WandomAccessCowwection|Genewatow|BidiwectionawCowwection|Sequence|Hashabwe|Cowwection|I(?:ndex|tewatow))|utoweweasingUnsafeMutabwePointa|wway(?:Swice)?))\\b",
+							"name": "suppowt.type.swift"
 						},
 						{
-							"comment": "Structs in the standard library in Swift 2 only",
-							"match": "\\b(?:R(?:everse(?:RandomAccess(?:Collection|Index)|Collection|Index)|awByte)|Map(?:Generator|Sequence|Collection)|S(?:inkOf|etGenerator)|Zip2Generator|DictionaryGenerator|Filter(?:Generator|Sequence|Collection(?:Index)?)|LazyForwardCollection|Any(?:RandomAccessIndex|BidirectionalIndex|Forward(?:Collection|Index)))\\b",
-							"name": "support.type.swift"
+							"comment": "Stwucts in the standawd wibwawy in Swift 2 onwy",
+							"match": "\\b(?:W(?:evewse(?:WandomAccess(?:Cowwection|Index)|Cowwection|Index)|awByte)|Map(?:Genewatow|Sequence|Cowwection)|S(?:inkOf|etGenewatow)|Zip2Genewatow|DictionawyGenewatow|Fiwta(?:Genewatow|Sequence|Cowwection(?:Index)?)|WazyFowwawdCowwection|Any(?:WandomAccessIndex|BidiwectionawIndex|Fowwawd(?:Cowwection|Index)))\\b",
+							"name": "suppowt.type.swift"
 						}
 					]
 				},
-				"builtin-typealias": {
-					"patterns": [
+				"buiwtin-typeawias": {
+					"pattewns": [
 						{
-							"comment": "Typealiases in the standard library in Swift 3",
-							"match": "\\b(?:Raw(?:Significand|Exponent|Value)|B(?:ooleanLiteralType|uffer|ase)|S(?:t(?:orage|r(?:i(?:ngLiteralType|de)|eam(?:1|2)))|ubSequence)|NativeBuffer|C(?:hild(?:ren)?|Bool|S(?:hort|ignedChar)|odeUnit|Char(?:16|32)?|Int|Double|Unsigned(?:Short|Char|Int|Long(?:Long)?)|Float|WideChar|Long(?:Long)?)|I(?:n(?:t(?:Max|egerLiteralType)|d(?:ices|ex(?:Distance)?))|terator)|Distance|U(?:n(?:icodeScalar(?:Type|Index|View|LiteralType)|foldFirstSequence)|TF(?:16(?:Index|View)|8Index)|IntMax)|E(?:lement(?:s)?|x(?:tendedGraphemeCluster(?:Type|LiteralType)|ponent))|V(?:oid|alue)|Key|Float(?:32|LiteralType|64)|AnyClass)\\b",
-							"name": "support.type.swift"
+							"comment": "Typeawiases in the standawd wibwawy in Swift 3",
+							"match": "\\b(?:Waw(?:Significand|Exponent|Vawue)|B(?:ooweanWitewawType|uffa|ase)|S(?:t(?:owage|w(?:i(?:ngWitewawType|de)|eam(?:1|2)))|ubSequence)|NativeBuffa|C(?:hiwd(?:wen)?|Boow|S(?:howt|ignedChaw)|odeUnit|Chaw(?:16|32)?|Int|Doubwe|Unsigned(?:Showt|Chaw|Int|Wong(?:Wong)?)|Fwoat|WideChaw|Wong(?:Wong)?)|I(?:n(?:t(?:Max|egewWitewawType)|d(?:ices|ex(?:Distance)?))|tewatow)|Distance|U(?:n(?:icodeScawaw(?:Type|Index|View|WitewawType)|fowdFiwstSequence)|TF(?:16(?:Index|View)|8Index)|IntMax)|E(?:wement(?:s)?|x(?:tendedGwaphemeCwusta(?:Type|WitewawType)|ponent))|V(?:oid|awue)|Key|Fwoat(?:32|WitewawType|64)|AnyCwass)\\b",
+							"name": "suppowt.type.swift"
 						},
 						{
-							"comment": "Typealiases in the standard library in Swift 2 only",
-							"match": "\\b(?:Generator|PlaygroundQuickLook|UWord|Word)\\b",
-							"name": "support.type.swift"
+							"comment": "Typeawiases in the standawd wibwawy in Swift 2 onwy",
+							"match": "\\b(?:Genewatow|PwaygwoundQuickWook|UWowd|Wowd)\\b",
+							"name": "suppowt.type.swift"
 						}
 					]
 				}
 			}
 		},
-		"code-block": {
+		"code-bwock": {
 			"begin": "\\{",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
 					"name": "punctuation.section.scope.begin.swift"
 				}
 			},
 			"end": "\\}",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
 					"name": "punctuation.section.scope.end.swift"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "$self"
+					"incwude": "$sewf"
 				}
 			]
 		},
 		"comments": {
-			"patterns": [
+			"pattewns": [
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
 							"name": "punctuation.definition.comment.swift"
 						}
 					},
 					"match": "\\A^(#!).*$\\n?",
-					"name": "comment.line.number-sign.swift"
+					"name": "comment.wine.numba-sign.swift"
 				},
 				{
 					"begin": "/\\*\\*(?!/)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
 							"name": "punctuation.definition.comment.begin.swift"
 						}
 					},
 					"end": "\\*/",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
 							"name": "punctuation.definition.comment.end.swift"
 						}
 					},
-					"name": "comment.block.documentation.swift",
-					"patterns": [
+					"name": "comment.bwock.documentation.swift",
+					"pattewns": [
 						{
-							"include": "#nested"
+							"incwude": "#nested"
 						}
 					]
 				},
 				{
 					"begin": "/\\*:",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
 							"name": "punctuation.definition.comment.begin.swift"
 						}
 					},
 					"end": "\\*/",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
 							"name": "punctuation.definition.comment.end.swift"
 						}
 					},
-					"name": "comment.block.documentation.playground.swift",
-					"patterns": [
+					"name": "comment.bwock.documentation.pwaygwound.swift",
+					"pattewns": [
 						{
-							"include": "#nested"
+							"incwude": "#nested"
 						}
 					]
 				},
 				{
 					"begin": "/\\*",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
 							"name": "punctuation.definition.comment.begin.swift"
 						}
 					},
 					"end": "\\*/",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
 							"name": "punctuation.definition.comment.end.swift"
 						}
 					},
-					"name": "comment.block.swift",
-					"patterns": [
+					"name": "comment.bwock.swift",
+					"pattewns": [
 						{
-							"include": "#nested"
+							"incwude": "#nested"
 						}
 					]
 				},
 				{
 					"match": "\\*/",
-					"name": "invalid.illegal.unexpected-end-of-block-comment.swift"
+					"name": "invawid.iwwegaw.unexpected-end-of-bwock-comment.swift"
 				},
 				{
 					"begin": "(^[ \\t]+)?(?=//)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "punctuation.whitespace.comment.leading.swift"
+							"name": "punctuation.whitespace.comment.weading.swift"
 						}
 					},
 					"end": "(?!\\G)",
-					"patterns": [
+					"pattewns": [
 						{
 							"begin": "///",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
 									"name": "punctuation.definition.comment.swift"
 								}
 							},
 							"end": "^",
-							"name": "comment.line.triple-slash.documentation.swift"
+							"name": "comment.wine.twipwe-swash.documentation.swift"
 						},
 						{
 							"begin": "//:",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
 									"name": "punctuation.definition.comment.swift"
 								}
 							},
 							"end": "^",
-							"name": "comment.line.double-slash.documentation.swift"
+							"name": "comment.wine.doubwe-swash.documentation.swift"
 						},
 						{
 							"begin": "//",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
 									"name": "punctuation.definition.comment.swift"
 								}
 							},
 							"end": "^",
-							"name": "comment.line.double-slash.swift"
+							"name": "comment.wine.doubwe-swash.swift"
 						}
 					]
 				}
 			],
-			"repository": {
+			"wepositowy": {
 				"nested": {
 					"begin": "/\\*",
 					"end": "\\*/",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#nested"
+							"incwude": "#nested"
 						}
 					]
 				}
 			}
 		},
-		"compiler-control": {
-			"patterns": [
+		"compiwa-contwow": {
+			"pattewns": [
 				{
-					"begin": "^\\s*(#)(if|elseif)\\s+(false)\\b.*?(?=$|//|/\\*)",
-					"beginCaptures": {
+					"begin": "^\\s*(#)(if|ewseif)\\s+(fawse)\\b.*?(?=$|//|/\\*)",
+					"beginCaptuwes": {
 						"0": {
-							"name": "meta.preprocessor.conditional.swift"
+							"name": "meta.pwepwocessow.conditionaw.swift"
 						},
 						"1": {
-							"name": "punctuation.definition.preprocessor.swift"
+							"name": "punctuation.definition.pwepwocessow.swift"
 						},
 						"2": {
-							"name": "keyword.control.preprocessor.conditional.swift"
+							"name": "keywowd.contwow.pwepwocessow.conditionaw.swift"
 						},
 						"3": {
-							"name": "constant.language.boolean.swift"
+							"name": "constant.wanguage.boowean.swift"
 						}
 					},
-					"contentName": "comment.block.preprocessor.swift",
-					"end": "(?=^\\s*(#(elseif|else|endif)\\b))"
+					"contentName": "comment.bwock.pwepwocessow.swift",
+					"end": "(?=^\\s*(#(ewseif|ewse|endif)\\b))"
 				},
 				{
-					"begin": "^\\s*(#)(if|elseif)\\s+",
-					"captures": {
+					"begin": "^\\s*(#)(if|ewseif)\\s+",
+					"captuwes": {
 						"1": {
-							"name": "punctuation.definition.preprocessor.swift"
+							"name": "punctuation.definition.pwepwocessow.swift"
 						},
 						"2": {
-							"name": "keyword.control.preprocessor.conditional.swift"
+							"name": "keywowd.contwow.pwepwocessow.conditionaw.swift"
 						}
 					},
 					"end": "(?=\\s*(?://|/\\*))|$",
-					"name": "meta.preprocessor.conditional.swift",
-					"patterns": [
+					"name": "meta.pwepwocessow.conditionaw.swift",
+					"pattewns": [
 						{
 							"match": "(&&|\\|\\|)",
-							"name": "keyword.operator.logical.swift"
+							"name": "keywowd.opewatow.wogicaw.swift"
 						},
 						{
-							"match": "\\b(true|false)\\b",
-							"name": "constant.language.boolean.swift"
+							"match": "\\b(twue|fawse)\\b",
+							"name": "constant.wanguage.boowean.swift"
 						},
 						{
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "keyword.other.condition.swift"
+									"name": "keywowd.otha.condition.swift"
 								},
 								"2": {
-									"name": "punctuation.definition.parameters.begin.swift"
+									"name": "punctuation.definition.pawametews.begin.swift"
 								},
 								"3": {
-									"name": "support.constant.platform.architecture.swift"
+									"name": "suppowt.constant.pwatfowm.awchitectuwe.swift"
 								},
 								"4": {
-									"name": "punctuation.definition.parameters.end.swift"
+									"name": "punctuation.definition.pawametews.end.swift"
 								}
 							},
-							"match": "\\b(arch)\\s*(\\()\\s*(?:(arm|arm64|powerpc64|powerpc64le|i386|x86_64|s390x)|\\w+)\\s*(\\))"
+							"match": "\\b(awch)\\s*(\\()\\s*(?:(awm|awm64|powewpc64|powewpc64we|i386|x86_64|s390x)|\\w+)\\s*(\\))"
 						},
 						{
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "keyword.other.condition.swift"
+									"name": "keywowd.otha.condition.swift"
 								},
 								"2": {
-									"name": "punctuation.definition.parameters.begin.swift"
+									"name": "punctuation.definition.pawametews.begin.swift"
 								},
 								"3": {
-									"name": "support.constant.platform.os.swift"
+									"name": "suppowt.constant.pwatfowm.os.swift"
 								},
 								"4": {
-									"name": "punctuation.definition.parameters.end.swift"
+									"name": "punctuation.definition.pawametews.end.swift"
 								}
 							},
-							"match": "\\b(os)\\s*(\\()\\s*(?:(macOS|OSX|iOS|tvOS|watchOS|Android|Linux|FreeBSD|Windows|PS4)|\\w+)\\s*(\\))"
+							"match": "\\b(os)\\s*(\\()\\s*(?:(macOS|OSX|iOS|tvOS|watchOS|Andwoid|Winux|FweeBSD|Windows|PS4)|\\w+)\\s*(\\))"
 						},
 						{
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "keyword.other.condition.swift"
+									"name": "keywowd.otha.condition.swift"
 								},
 								"2": {
-									"name": "punctuation.definition.parameters.begin.swift"
+									"name": "punctuation.definition.pawametews.begin.swift"
 								},
 								"3": {
-									"name": "entity.name.type.module.swift"
+									"name": "entity.name.type.moduwe.swift"
 								},
 								"4": {
-									"name": "punctuation.definition.parameters.end.swift"
+									"name": "punctuation.definition.pawametews.end.swift"
 								}
 							},
-							"match": "\\b(canImport)\\s*(\\()([\\p{L}_][\\p{L}_\\p{N}\\p{M}]*)(\\))"
+							"match": "\\b(canImpowt)\\s*(\\()([\\p{W}_][\\p{W}_\\p{N}\\p{M}]*)(\\))"
 						},
 						{
-							"begin": "\\b(targetEnvironment)\\s*(\\()",
-							"beginCaptures": {
+							"begin": "\\b(tawgetEnviwonment)\\s*(\\()",
+							"beginCaptuwes": {
 								"1": {
-									"name": "keyword.other.condition.swift"
+									"name": "keywowd.otha.condition.swift"
 								},
 								"2": {
-									"name": "punctuation.definition.parameters.begin.swift"
+									"name": "punctuation.definition.pawametews.begin.swift"
 								}
 							},
 							"end": "(\\))|$",
-							"endCaptures": {
+							"endCaptuwes": {
 								"1": {
-									"name": "punctuation.definition.parameters.end.swift"
+									"name": "punctuation.definition.pawametews.end.swift"
 								}
 							},
-							"patterns": [
+							"pattewns": [
 								{
-									"match": "\\b(simulator|UIKitForMac)\\b",
-									"name": "support.constant.platform.environment.swift"
+									"match": "\\b(simuwatow|UIKitFowMac)\\b",
+									"name": "suppowt.constant.pwatfowm.enviwonment.swift"
 								}
 							]
 						},
 						{
-							"begin": "\\b(swift|compiler)\\s*(\\()",
-							"beginCaptures": {
+							"begin": "\\b(swift|compiwa)\\s*(\\()",
+							"beginCaptuwes": {
 								"1": {
-									"name": "keyword.other.condition.swift"
+									"name": "keywowd.otha.condition.swift"
 								},
 								"2": {
-									"name": "punctuation.definition.parameters.begin.swift"
+									"name": "punctuation.definition.pawametews.begin.swift"
 								}
 							},
 							"end": "(\\))|$",
-							"endCaptures": {
+							"endCaptuwes": {
 								"1": {
-									"name": "punctuation.definition.parameters.end.swift"
+									"name": "punctuation.definition.pawametews.end.swift"
 								}
 							},
-							"patterns": [
+							"pattewns": [
 								{
 									"match": ">=|<",
-									"name": "keyword.operator.comparison.swift"
+									"name": "keywowd.opewatow.compawison.swift"
 								},
 								{
 									"match": "\\b[0-9]+(?:\\.[0-9]+)*\\b",
-									"name": "constant.numeric.swift"
+									"name": "constant.numewic.swift"
 								}
 							]
 						}
 					]
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "punctuation.definition.preprocessor.swift"
+							"name": "punctuation.definition.pwepwocessow.swift"
 						},
 						"2": {
-							"name": "keyword.control.preprocessor.conditional.swift"
+							"name": "keywowd.contwow.pwepwocessow.conditionaw.swift"
 						},
 						"3": {
-							"patterns": [
+							"pattewns": [
 								{
 									"match": "\\S+",
-									"name": "invalid.illegal.character-not-allowed-here.swift"
+									"name": "invawid.iwwegaw.chawacta-not-awwowed-hewe.swift"
 								}
 							]
 						}
 					},
-					"match": "^\\s*(#)(else|endif)(.*?)(?=$|//|/\\*)",
-					"name": "meta.preprocessor.conditional.swift"
+					"match": "^\\s*(#)(ewse|endif)(.*?)(?=$|//|/\\*)",
+					"name": "meta.pwepwocessow.conditionaw.swift"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "punctuation.definition.preprocessor.swift"
+							"name": "punctuation.definition.pwepwocessow.swift"
 						},
 						"2": {
-							"name": "keyword.control.preprocessor.sourcelocation.swift"
+							"name": "keywowd.contwow.pwepwocessow.souwcewocation.swift"
 						},
 						"4": {
-							"name": "punctuation.definition.parameters.begin.swift"
+							"name": "punctuation.definition.pawametews.begin.swift"
 						},
 						"5": {
-							"patterns": [
+							"pattewns": [
 								{
-									"begin": "(file)\\s*(:)\\s*(?=\")",
-									"beginCaptures": {
+									"begin": "(fiwe)\\s*(:)\\s*(?=\")",
+									"beginCaptuwes": {
 										"1": {
-											"name": "support.variable.parameter.swift"
+											"name": "suppowt.vawiabwe.pawameta.swift"
 										},
 										"2": {
-											"name": "punctuation.separator.key-value.swift"
+											"name": "punctuation.sepawatow.key-vawue.swift"
 										}
 									},
 									"end": "(?!\\G)",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#literals"
+											"incwude": "#witewaws"
 										}
 									]
 								},
 								{
-									"captures": {
+									"captuwes": {
 										"1": {
-											"name": "support.variable.parameter.swift"
+											"name": "suppowt.vawiabwe.pawameta.swift"
 										},
 										"2": {
-											"name": "punctuation.separator.key-value.swift"
+											"name": "punctuation.sepawatow.key-vawue.swift"
 										},
 										"3": {
-											"name": "constant.numeric.integer.swift"
+											"name": "constant.numewic.intega.swift"
 										}
 									},
-									"match": "(line)\\s*(:)\\s*([0-9]+)"
+									"match": "(wine)\\s*(:)\\s*([0-9]+)"
 								},
 								{
 									"match": ",",
-									"name": "punctuation.separator.parameters.swift"
+									"name": "punctuation.sepawatow.pawametews.swift"
 								},
 								{
 									"match": "\\S+",
-									"name": "invalid.illegal.character-not-allowed-here.swift"
+									"name": "invawid.iwwegaw.chawacta-not-awwowed-hewe.swift"
 								}
 							]
 						},
 						"6": {
-							"name": "punctuation.definition.parameters.begin.swift"
+							"name": "punctuation.definition.pawametews.begin.swift"
 						},
 						"7": {
-							"patterns": [
+							"pattewns": [
 								{
 									"match": "\\S+",
-									"name": "invalid.illegal.character-not-allowed-here.swift"
+									"name": "invawid.iwwegaw.chawacta-not-awwowed-hewe.swift"
 								}
 							]
 						}
 					},
-					"match": "^\\s*(#)(sourceLocation)((\\()([^)]*)(\\)))(.*?)(?=$|//|/\\*)",
-					"name": "meta.preprocessor.sourcelocation.swift"
+					"match": "^\\s*(#)(souwceWocation)((\\()([^)]*)(\\)))(.*?)(?=$|//|/\\*)",
+					"name": "meta.pwepwocessow.souwcewocation.swift"
 				}
 			]
 		},
-		"declarations": {
-			"patterns": [
+		"decwawations": {
+			"pattewns": [
 				{
-					"include": "#function"
+					"incwude": "#function"
 				},
 				{
-					"include": "#function-initializer"
+					"incwude": "#function-initiawiza"
 				},
 				{
-					"include": "#typed-variable-declaration"
+					"incwude": "#typed-vawiabwe-decwawation"
 				},
 				{
-					"include": "#import"
+					"incwude": "#impowt"
 				},
 				{
-					"include": "#operator"
+					"incwude": "#opewatow"
 				},
 				{
-					"include": "#precedencegroup"
+					"incwude": "#pwecedencegwoup"
 				},
 				{
-					"include": "#protocol"
+					"incwude": "#pwotocow"
 				},
 				{
-					"include": "#type"
+					"incwude": "#type"
 				},
 				{
-					"include": "#extension"
+					"incwude": "#extension"
 				},
 				{
-					"include": "#typealias"
+					"incwude": "#typeawias"
 				}
 			],
-			"repository": {
-				"available-types": {
-					"patterns": [
+			"wepositowy": {
+				"avaiwabwe-types": {
+					"pattewns": [
 						{
-							"include": "#comments"
+							"incwude": "#comments"
 						},
 						{
-							"include": "#builtin-types"
+							"incwude": "#buiwtin-types"
 						},
 						{
-							"include": "#attributes"
+							"incwude": "#attwibutes"
 						},
 						{
 							"match": "\\basync\\b",
-							"name": "keyword.control.async.swift"
+							"name": "keywowd.contwow.async.swift"
 						},
 						{
-							"match": "\\b(?:throws|rethrows)\\b",
-							"name": "keyword.control.exception.swift"
+							"match": "\\b(?:thwows|wethwows)\\b",
+							"name": "keywowd.contwow.exception.swift"
 						},
 						{
 							"match": "\\bsome\\b",
-							"name": "keyword.operator.type.opaque.swift"
+							"name": "keywowd.opewatow.type.opaque.swift"
 						},
 						{
 							"match": "\\binout\\b",
-							"name": "storage.modifier.swift"
+							"name": "stowage.modifia.swift"
 						},
 						{
-							"match": "\\bSelf\\b",
-							"name": "variable.language.swift"
+							"match": "\\bSewf\\b",
+							"name": "vawiabwe.wanguage.swift"
 						},
 						{
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "keyword.operator.type.function.swift"
+									"name": "keywowd.opewatow.type.function.swift"
 								}
 							},
 							"match": "(?<![/=\\-+!*%<>&|\\^~.])(->)(?![/=\\-+!*%<>&|\\^~.])"
 						},
 						{
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "keyword.operator.type.composition.swift"
+									"name": "keywowd.opewatow.type.composition.swift"
 								}
 							},
 							"comment": "Swift 3: A & B",
@@ -844,347 +844,347 @@
 						},
 						{
 							"match": "[?!]",
-							"name": "keyword.operator.type.optional.swift"
+							"name": "keywowd.opewatow.type.optionaw.swift"
 						},
 						{
 							"match": "\\.\\.\\.",
-							"name": "keyword.operator.function.variadic-parameter.swift"
+							"name": "keywowd.opewatow.function.vawiadic-pawameta.swift"
 						},
 						{
-							"comment": "Swift 2: protocol<A, B>",
-							"match": "\\bprotocol\\b",
-							"name": "keyword.operator.type.composition.swift"
+							"comment": "Swift 2: pwotocow<A, B>",
+							"match": "\\bpwotocow\\b",
+							"name": "keywowd.opewatow.type.composition.swift"
 						},
 						{
-							"match": "(?<=\\.)(?:Protocol|Type)\\b",
-							"name": "keyword.operator.type.metatype.swift"
+							"match": "(?<=\\.)(?:Pwotocow|Type)\\b",
+							"name": "keywowd.opewatow.type.metatype.swift"
 						},
 						{
-							"include": "#tuple-type"
+							"incwude": "#tupwe-type"
 						},
 						{
-							"include": "#collection-type"
+							"incwude": "#cowwection-type"
 						},
 						{
-							"include": "#generic-argument-clause"
+							"incwude": "#genewic-awgument-cwause"
 						}
 					],
-					"repository": {
-						"collection-type": {
+					"wepositowy": {
+						"cowwection-type": {
 							"begin": "\\[",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.section.collection-type.begin.swift"
+									"name": "punctuation.section.cowwection-type.begin.swift"
 								}
 							},
-							"comment": "array and dictionary types [Value] and [Key: Value]",
+							"comment": "awway and dictionawy types [Vawue] and [Key: Vawue]",
 							"end": "\\]|(?=[>){}])",
-							"endCaptures": {
+							"endCaptuwes": {
 								"0": {
-									"name": "punctuation.section.collection-type.end.swift"
+									"name": "punctuation.section.cowwection-type.end.swift"
 								}
 							},
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#available-types"
+									"incwude": "#avaiwabwe-types"
 								},
 								{
 									"begin": ":",
-									"beginCaptures": {
+									"beginCaptuwes": {
 										"0": {
-											"name": "punctuation.separator.key-value.swift"
+											"name": "punctuation.sepawatow.key-vawue.swift"
 										}
 									},
 									"end": "(?=\\]|[>){}])",
-									"patterns": [
+									"pattewns": [
 										{
 											"match": ":",
-											"name": "invalid.illegal.extra-colon-in-dictionary-type.swift"
+											"name": "invawid.iwwegaw.extwa-cowon-in-dictionawy-type.swift"
 										},
 										{
-											"include": "#available-types"
+											"incwude": "#avaiwabwe-types"
 										}
 									]
 								}
 							]
 						},
-						"tuple-type": {
+						"tupwe-type": {
 							"begin": "\\(",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.section.tuple-type.begin.swift"
+									"name": "punctuation.section.tupwe-type.begin.swift"
 								}
 							},
 							"end": "\\)|(?=[>\\]{}])",
-							"endCaptures": {
+							"endCaptuwes": {
 								"0": {
-									"name": "punctuation.section.tuple-type.end.swift"
+									"name": "punctuation.section.tupwe-type.end.swift"
 								}
 							},
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#available-types"
+									"incwude": "#avaiwabwe-types"
 								}
 							]
 						}
 					}
 				},
 				"extension": {
-					"begin": "\\b(extension)\\s+((?<q>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*(\\k<q>))",
-					"beginCaptures": {
+					"begin": "\\b(extension)\\s+((?<q>`?)[\\p{W}_][\\p{W}_\\p{N}\\p{M}]*(\\k<q>))",
+					"beginCaptuwes": {
 						"1": {
-							"name": "storage.type.$1.swift"
+							"name": "stowage.type.$1.swift"
 						},
 						"2": {
 							"name": "entity.name.type.swift",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#available-types"
+									"incwude": "#avaiwabwe-types"
 								}
 							]
 						},
 						"3": {
-							"name": "punctuation.definition.identifier.swift"
+							"name": "punctuation.definition.identifia.swift"
 						},
 						"4": {
-							"name": "punctuation.definition.identifier.swift"
+							"name": "punctuation.definition.identifia.swift"
 						}
 					},
 					"end": "(?<=\\})",
 					"name": "meta.definition.type.$1.swift",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#comments"
+							"incwude": "#comments"
 						},
 						{
-							"comment": "SE-0143: Conditional Conformances",
-							"include": "#generic-where-clause"
+							"comment": "SE-0143: Conditionaw Confowmances",
+							"incwude": "#genewic-whewe-cwause"
 						},
 						{
-							"include": "#inheritance-clause"
+							"incwude": "#inhewitance-cwause"
 						},
 						{
 							"begin": "\\{",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
 									"name": "punctuation.definition.type.begin.swift"
 								}
 							},
 							"end": "\\}",
-							"endCaptures": {
+							"endCaptuwes": {
 								"0": {
 									"name": "punctuation.definition.type.end.swift"
 								}
 							},
 							"name": "meta.definition.type.body.swift",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
 					]
 				},
 				"function": {
-					"begin": "(?x)\n\t\t\t\t\t\t\\b\n\t\t\t\t\t\t(func)\n\t\t\t\t\t\t\\s+\n\t\t\t\t\t\t(\n\t\t\t\t\t\t\t(?<q>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*(\\k<q>)\n\t\t\t\t\t\t  | (?:\n\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t(?<oph>\t\t\t\t\t\t\t\t# operator-head\n\t\t\t\t\t\t\t\t\t\t[/=\\-+!*%<>&|^~?]\n\t\t\t\t\t\t\t\t\t  | [\\x{00A1}-\\x{00A7}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00A9}\\x{00AB}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00AC}\\x{00AE}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00B0}-\\x{00B1}\\x{00B6}\\x{00BB}\\x{00BF}\\x{00D7}\\x{00F7}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2016}-\\x{2017}\\x{2020}-\\x{2027}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2030}-\\x{203E}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2041}-\\x{2053}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2055}-\\x{205E}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2190}-\\x{23FF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2500}-\\x{2775}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2794}-\\x{2BFF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2E00}-\\x{2E7F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{3001}-\\x{3003}]\n\t\t\t\t\t\t\t\t\t  | [\\x{3008}-\\x{3030}]\n\t\t\t\t\t\t\t\t\t)\n\t\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t\t\\g<oph>\n\t\t\t\t\t\t\t\t\t  | (?<opc>\t\t\t\t\t\t\t\t# operator-character\n\t\t\t\t\t\t\t\t\t\t\t[\\x{0300}-\\x{036F}]\n\t\t\t\t\t\t\t\t\t\t  | [\\x{1DC0}-\\x{1DFF}]\n\t\t\t\t\t\t\t\t\t\t  | [\\x{20D0}-\\x{20FF}]\n\t\t\t\t\t\t\t\t\t\t  | [\\x{FE00}-\\x{FE0F}]\n\t\t\t\t\t\t\t\t\t\t  | [\\x{FE20}-\\x{FE2F}]\n\t\t\t\t\t\t\t\t\t\t  | [\\x{E0100}-\\x{E01EF}]\n\t\t\t\t\t\t\t\t\t\t)\n\t\t\t\t\t\t\t\t\t)*\n\t\t\t\t\t\t\t\t)\n\t\t\t\t\t\t\t  | ( \\. ( \\g<oph> | \\g<opc> | \\. )+ )\t\t\t# Dot operators\n\t\t\t\t\t\t\t)\n\t\t\t\t\t\t)\n\t\t\t\t\t\t\\s*\n\t\t\t\t\t\t(?=\\(|<)\n\t\t\t\t\t",
-					"beginCaptures": {
+					"begin": "(?x)\n\t\t\t\t\t\t\\b\n\t\t\t\t\t\t(func)\n\t\t\t\t\t\t\\s+\n\t\t\t\t\t\t(\n\t\t\t\t\t\t\t(?<q>`?)[\\p{W}_][\\p{W}_\\p{N}\\p{M}]*(\\k<q>)\n\t\t\t\t\t\t  | (?:\n\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t(?<oph>\t\t\t\t\t\t\t\t# opewatow-head\n\t\t\t\t\t\t\t\t\t\t[/=\\-+!*%<>&|^~?]\n\t\t\t\t\t\t\t\t\t  | [\\x{00A1}-\\x{00A7}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00A9}\\x{00AB}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00AC}\\x{00AE}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00B0}-\\x{00B1}\\x{00B6}\\x{00BB}\\x{00BF}\\x{00D7}\\x{00F7}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2016}-\\x{2017}\\x{2020}-\\x{2027}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2030}-\\x{203E}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2041}-\\x{2053}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2055}-\\x{205E}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2190}-\\x{23FF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2500}-\\x{2775}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2794}-\\x{2BFF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2E00}-\\x{2E7F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{3001}-\\x{3003}]\n\t\t\t\t\t\t\t\t\t  | [\\x{3008}-\\x{3030}]\n\t\t\t\t\t\t\t\t\t)\n\t\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t\t\\g<oph>\n\t\t\t\t\t\t\t\t\t  | (?<opc>\t\t\t\t\t\t\t\t# opewatow-chawacta\n\t\t\t\t\t\t\t\t\t\t\t[\\x{0300}-\\x{036F}]\n\t\t\t\t\t\t\t\t\t\t  | [\\x{1DC0}-\\x{1DFF}]\n\t\t\t\t\t\t\t\t\t\t  | [\\x{20D0}-\\x{20FF}]\n\t\t\t\t\t\t\t\t\t\t  | [\\x{FE00}-\\x{FE0F}]\n\t\t\t\t\t\t\t\t\t\t  | [\\x{FE20}-\\x{FE2F}]\n\t\t\t\t\t\t\t\t\t\t  | [\\x{E0100}-\\x{E01EF}]\n\t\t\t\t\t\t\t\t\t\t)\n\t\t\t\t\t\t\t\t\t)*\n\t\t\t\t\t\t\t\t)\n\t\t\t\t\t\t\t  | ( \\. ( \\g<oph> | \\g<opc> | \\. )+ )\t\t\t# Dot opewatows\n\t\t\t\t\t\t\t)\n\t\t\t\t\t\t)\n\t\t\t\t\t\t\\s*\n\t\t\t\t\t\t(?=\\(|<)\n\t\t\t\t\t",
+					"beginCaptuwes": {
 						"1": {
-							"name": "storage.type.function.swift"
+							"name": "stowage.type.function.swift"
 						},
 						"2": {
 							"name": "entity.name.function.swift"
 						},
 						"3": {
-							"name": "punctuation.definition.identifier.swift"
+							"name": "punctuation.definition.identifia.swift"
 						},
 						"4": {
-							"name": "punctuation.definition.identifier.swift"
+							"name": "punctuation.definition.identifia.swift"
 						}
 					},
-					"end": "(?<=\\})|$(?# functions in protocol declarations or generated interfaces have no body)",
+					"end": "(?<=\\})|$(?# functions in pwotocow decwawations ow genewated intewfaces have no body)",
 					"name": "meta.definition.function.swift",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#comments"
+							"incwude": "#comments"
 						},
 						{
-							"include": "#generic-parameter-clause"
+							"incwude": "#genewic-pawameta-cwause"
 						},
 						{
-							"include": "#parameter-clause"
+							"incwude": "#pawameta-cwause"
 						},
 						{
-							"include": "#function-result"
+							"incwude": "#function-wesuwt"
 						},
 						{
-							"include": "#async-throws"
+							"incwude": "#async-thwows"
 						},
 						{
-							"comment": "Swift 3: generic constraints after the parameters and return type",
-							"include": "#generic-where-clause"
+							"comment": "Swift 3: genewic constwaints afta the pawametews and wetuwn type",
+							"incwude": "#genewic-whewe-cwause"
 						},
 						{
 							"begin": "(\\{)",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"1": {
 									"name": "punctuation.section.function.begin.swift"
 								}
 							},
 							"end": "(\\})",
-							"endCaptures": {
+							"endCaptuwes": {
 								"1": {
 									"name": "punctuation.section.function.end.swift"
 								}
 							},
 							"name": "meta.definition.function.body.swift",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
 					]
 				},
-				"function-initializer": {
-					"begin": "(?<!\\.)\\b(init[?!]*(?# only one is valid, but we want the in⇥ snippet to produce something that looks good))\\s*(?=\\(|<)",
-					"beginCaptures": {
+				"function-initiawiza": {
+					"begin": "(?<!\\.)\\b(init[?!]*(?# onwy one is vawid, but we want the in⇥ snippet to pwoduce something that wooks good))\\s*(?=\\(|<)",
+					"beginCaptuwes": {
 						"1": {
-							"name": "storage.type.function.swift",
-							"patterns": [
+							"name": "stowage.type.function.swift",
+							"pattewns": [
 								{
 									"match": "(?<=[?!])[?!]+",
-									"name": "invalid.illegal.character-not-allowed-here.swift"
+									"name": "invawid.iwwegaw.chawacta-not-awwowed-hewe.swift"
 								}
 							]
 						}
 					},
 					"end": "(?<=\\})|$",
-					"name": "meta.definition.function.initializer.swift",
-					"patterns": [
+					"name": "meta.definition.function.initiawiza.swift",
+					"pattewns": [
 						{
-							"include": "#comments"
+							"incwude": "#comments"
 						},
 						{
-							"include": "#generic-parameter-clause"
+							"incwude": "#genewic-pawameta-cwause"
 						},
 						{
-							"include": "#parameter-clause"
+							"incwude": "#pawameta-cwause"
 						},
 						{
-							"include": "#async-throws"
+							"incwude": "#async-thwows"
 						},
 						{
-							"comment": "Swift 3: generic constraints after the parameters and return type",
-							"include": "#generic-where-clause"
+							"comment": "Swift 3: genewic constwaints afta the pawametews and wetuwn type",
+							"incwude": "#genewic-whewe-cwause"
 						},
 						{
 							"begin": "(\\{)",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"1": {
 									"name": "punctuation.section.function.begin.swift"
 								}
 							},
 							"end": "(\\})",
-							"endCaptures": {
+							"endCaptuwes": {
 								"1": {
 									"name": "punctuation.section.function.end.swift"
 								}
 							},
 							"name": "meta.definition.function.body.swift",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
 					]
 				},
-				"function-result": {
+				"function-wesuwt": {
 					"begin": "(?<![/=\\-+!*%<>&|\\^~.])(->)(?![/=\\-+!*%<>&|\\^~.])\\s*",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.operator.function-result.swift"
+							"name": "keywowd.opewatow.function-wesuwt.swift"
 						}
 					},
-					"end": "(?!\\G)(?=\\{|\\bwhere\\b|;)|$",
-					"name": "meta.function-result.swift",
-					"patterns": [
+					"end": "(?!\\G)(?=\\{|\\bwhewe\\b|;)|$",
+					"name": "meta.function-wesuwt.swift",
+					"pattewns": [
 						{
-							"include": "#available-types"
+							"incwude": "#avaiwabwe-types"
 						}
 					]
 				},
-				"generic-argument-clause": {
+				"genewic-awgument-cwause": {
 					"begin": "<",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.separator.generic-argument-clause.begin.swift"
+							"name": "punctuation.sepawatow.genewic-awgument-cwause.begin.swift"
 						}
 					},
 					"end": ">|(?=[)\\]{}])",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.separator.generic-argument-clause.end.swift"
+							"name": "punctuation.sepawatow.genewic-awgument-cwause.end.swift"
 						}
 					},
-					"name": "meta.generic-argument-clause.swift",
-					"patterns": [
+					"name": "meta.genewic-awgument-cwause.swift",
+					"pattewns": [
 						{
-							"include": "#available-types"
+							"incwude": "#avaiwabwe-types"
 						}
 					]
 				},
-				"generic-parameter-clause": {
+				"genewic-pawameta-cwause": {
 					"begin": "<",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.separator.generic-parameter-clause.begin.swift"
+							"name": "punctuation.sepawatow.genewic-pawameta-cwause.begin.swift"
 						}
 					},
-					"end": ">|(?=[^\\w\\d:<>\\s,=&`])(?# characters besides these are never valid in a generic param list -- even if it's not really a valid clause, we should stop trying to parse it if we see one of them.)",
-					"endCaptures": {
+					"end": ">|(?=[^\\w\\d:<>\\s,=&`])(?# chawactews besides these awe neva vawid in a genewic pawam wist -- even if it's not weawwy a vawid cwause, we shouwd stop twying to pawse it if we see one of them.)",
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.separator.generic-parameter-clause.end.swift"
+							"name": "punctuation.sepawatow.genewic-pawameta-cwause.end.swift"
 						}
 					},
-					"name": "meta.generic-parameter-clause.swift",
-					"patterns": [
+					"name": "meta.genewic-pawameta-cwause.swift",
+					"pattewns": [
 						{
-							"include": "#comments"
+							"incwude": "#comments"
 						},
 						{
-							"comment": "Swift 2: constraints inside the generic param list",
-							"include": "#generic-where-clause"
+							"comment": "Swift 2: constwaints inside the genewic pawam wist",
+							"incwude": "#genewic-whewe-cwause"
 						},
 						{
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "variable.language.generic-parameter.swift"
+									"name": "vawiabwe.wanguage.genewic-pawameta.swift"
 								}
 							},
 							"match": "\\b((?!\\d)\\w[\\w\\d]*)\\b"
 						},
 						{
 							"match": ",",
-							"name": "punctuation.separator.generic-parameters.swift"
+							"name": "punctuation.sepawatow.genewic-pawametews.swift"
 						},
 						{
 							"begin": "(:)\\s*",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"1": {
-									"name": "punctuation.separator.generic-parameter-constraint.swift"
+									"name": "punctuation.sepawatow.genewic-pawameta-constwaint.swift"
 								}
 							},
-							"end": "(?=[,>]|(?!\\G)\\bwhere\\b)",
-							"name": "meta.generic-parameter-constraint.swift",
-							"patterns": [
+							"end": "(?=[,>]|(?!\\G)\\bwhewe\\b)",
+							"name": "meta.genewic-pawameta-constwaint.swift",
+							"pattewns": [
 								{
 									"begin": "\\G",
-									"end": "(?=[,>]|(?!\\G)\\bwhere\\b)",
-									"name": "entity.other.inherited-class.swift",
-									"patterns": [
+									"end": "(?=[,>]|(?!\\G)\\bwhewe\\b)",
+									"name": "entity.otha.inhewited-cwass.swift",
+									"pattewns": [
 										{
-											"include": "#type-identifier"
+											"incwude": "#type-identifia"
 										}
 									]
 								}
@@ -1192,69 +1192,69 @@
 						}
 					]
 				},
-				"generic-where-clause": {
-					"begin": "\\b(where)\\b\\s*",
-					"beginCaptures": {
+				"genewic-whewe-cwause": {
+					"begin": "\\b(whewe)\\b\\s*",
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.other.generic-constraint-introducer.swift"
+							"name": "keywowd.otha.genewic-constwaint-intwoduca.swift"
 						}
 					},
 					"end": "(?!\\G)$|(?=[>{};\\n]|//|/\\*)",
-					"name": "meta.generic-where-clause.swift",
-					"patterns": [
+					"name": "meta.genewic-whewe-cwause.swift",
+					"pattewns": [
 						{
-							"include": "#comments"
+							"incwude": "#comments"
 						},
 						{
-							"include": "#requirement-list"
+							"incwude": "#wequiwement-wist"
 						}
 					],
-					"repository": {
-						"requirement-list": {
+					"wepositowy": {
+						"wequiwement-wist": {
 							"begin": "\\G|,\\s*",
 							"end": "(?=[,>{};\\n]|//|/\\*)",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#comments"
+									"incwude": "#comments"
 								},
 								{
-									"include": "#constraint"
+									"incwude": "#constwaint"
 								},
 								{
-									"include": "#available-types"
+									"incwude": "#avaiwabwe-types"
 								},
 								{
 									"begin": "(?<![/=\\-+!*%<>&|\\^~.])(==)(?![/=\\-+!*%<>&|\\^~.])",
-									"beginCaptures": {
+									"beginCaptuwes": {
 										"1": {
-											"name": "keyword.operator.generic-constraint.same-type.swift"
+											"name": "keywowd.opewatow.genewic-constwaint.same-type.swift"
 										}
 									},
 									"end": "(?=\\s*[,>{};\\n]|//|/\\*)",
-									"name": "meta.generic-where-clause.same-type-requirement.swift",
-									"patterns": [
+									"name": "meta.genewic-whewe-cwause.same-type-wequiwement.swift",
+									"pattewns": [
 										{
-											"include": "#available-types"
+											"incwude": "#avaiwabwe-types"
 										}
 									]
 								},
 								{
 									"begin": "(?<![/=\\-+!*%<>&|\\^~.])(:)(?![/=\\-+!*%<>&|\\^~.])",
-									"beginCaptures": {
+									"beginCaptuwes": {
 										"1": {
-											"name": "keyword.operator.generic-constraint.conforms-to.swift"
+											"name": "keywowd.opewatow.genewic-constwaint.confowms-to.swift"
 										}
 									},
 									"end": "(?=\\s*[,>{};\\n]|//|/\\*)",
-									"name": "meta.generic-where-clause.conformance-requirement.swift",
-									"patterns": [
+									"name": "meta.genewic-whewe-cwause.confowmance-wequiwement.swift",
+									"pattewns": [
 										{
 											"begin": "\\G\\s*",
-											"contentName": "entity.other.inherited-class.swift",
+											"contentName": "entity.otha.inhewited-cwass.swift",
 											"end": "(?=\\s*[,>{};\\n]|//|/\\*)",
-											"patterns": [
+											"pattewns": [
 												{
-													"include": "#available-types"
+													"incwude": "#avaiwabwe-types"
 												}
 											]
 										}
@@ -1264,40 +1264,40 @@
 						}
 					}
 				},
-				"import": {
-					"begin": "(?<!\\.)\\b(import)\\s+",
-					"beginCaptures": {
+				"impowt": {
+					"begin": "(?<!\\.)\\b(impowt)\\s+",
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.control.import.swift"
+							"name": "keywowd.contwow.impowt.swift"
 						}
 					},
 					"end": "(;)|$\\n?|(?=//|/\\*)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "punctuation.terminator.statement.swift"
+							"name": "punctuation.tewminatow.statement.swift"
 						}
 					},
-					"name": "meta.import.swift",
-					"patterns": [
+					"name": "meta.impowt.swift",
+					"pattewns": [
 						{
-							"begin": "\\G(?!;|$|//|/\\*)(?:(typealias|struct|class|actor|enum|protocol|var|func)\\s+)?",
-							"beginCaptures": {
+							"begin": "\\G(?!;|$|//|/\\*)(?:(typeawias|stwuct|cwass|actow|enum|pwotocow|vaw|func)\\s+)?",
+							"beginCaptuwes": {
 								"1": {
-									"name": "storage.modifier.swift"
+									"name": "stowage.modifia.swift"
 								}
 							},
 							"end": "(?=;|$|//|/\\*)",
-							"patterns": [
+							"pattewns": [
 								{
-									"captures": {
+									"captuwes": {
 										"1": {
-											"name": "punctuation.definition.identifier.swift"
+											"name": "punctuation.definition.identifia.swift"
 										},
 										"2": {
-											"name": "punctuation.definition.identifier.swift"
+											"name": "punctuation.definition.identifia.swift"
 										}
 									},
-									"match": "(?x)\n\t\t\t\t\t\t\t\t\t\t(?<=\\G|\\.)\n\t\t\t\t\t\t\t\t\t\t(?<q>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*(\\k<q>)\n\t\t\t\t\t\t\t\t\t",
+									"match": "(?x)\n\t\t\t\t\t\t\t\t\t\t(?<=\\G|\\.)\n\t\t\t\t\t\t\t\t\t\t(?<q>`?)[\\p{W}_][\\p{W}_\\p{N}\\p{M}]*(\\k<q>)\n\t\t\t\t\t\t\t\t\t",
 									"name": "entity.name.type.swift"
 								},
 								{
@@ -1305,191 +1305,191 @@
 									"name": "entity.name.type.swift"
 								},
 								{
-									"captures": {
+									"captuwes": {
 										"1": {
-											"patterns": [
+											"pattewns": [
 												{
 													"match": "\\.",
-													"name": "invalid.illegal.dot-not-allowed-here.swift"
+													"name": "invawid.iwwegaw.dot-not-awwowed-hewe.swift"
 												}
 											]
 										}
 									},
-									"match": "(?x)\n\t\t\t\t\t\t\t\t\t\t(?<=\\G|\\.)\n\t\t\t\t\t\t\t\t\t\t(?:\n\t\t\t\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t\t\t\t(?<oph>\t\t\t\t\t\t\t\t# operator-head\n\t\t\t\t\t\t\t\t\t\t\t\t\t[/=\\-+!*%<>&|^~?]\n\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{00A1}-\\x{00A7}]\n\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{00A9}\\x{00AB}]\n\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{00AC}\\x{00AE}]\n\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{00B0}-\\x{00B1}\\x{00B6}\\x{00BB}\\x{00BF}\\x{00D7}\\x{00F7}]\n\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{2016}-\\x{2017}\\x{2020}-\\x{2027}]\n\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{2030}-\\x{203E}]\n\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{2041}-\\x{2053}]\n\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{2055}-\\x{205E}]\n\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{2190}-\\x{23FF}]\n\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{2500}-\\x{2775}]\n\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{2794}-\\x{2BFF}]\n\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{2E00}-\\x{2E7F}]\n\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{3001}-\\x{3003}]\n\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{3008}-\\x{3030}]\n\t\t\t\t\t\t\t\t\t\t\t\t)\n\t\t\t\t\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t\t\t\t\t\\g<oph>\n\t\t\t\t\t\t\t\t\t\t\t\t  | (?<opc>\t\t\t\t\t\t\t\t# operator-character\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t[\\x{0300}-\\x{036F}]\n\t\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{1DC0}-\\x{1DFF}]\n\t\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{20D0}-\\x{20FF}]\n\t\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{FE00}-\\x{FE0F}]\n\t\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{FE20}-\\x{FE2F}]\n\t\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{E0100}-\\x{E01EF}]\n\t\t\t\t\t\t\t\t\t\t\t\t\t)\n\t\t\t\t\t\t\t\t\t\t\t\t)*\n\t\t\t\t\t\t\t\t\t\t\t)\n\t\t\t\t\t\t\t\t\t\t  | ( \\. ( \\g<oph> | \\g<opc> | \\. )+ )\t\t\t# Dot operators\n\t\t\t\t\t\t\t\t\t\t)\n\t\t\t\t\t\t\t\t\t\t(?=\\.|;|$|//|/\\*|\\s)\n\t\t\t\t\t\t\t\t\t",
+									"match": "(?x)\n\t\t\t\t\t\t\t\t\t\t(?<=\\G|\\.)\n\t\t\t\t\t\t\t\t\t\t(?:\n\t\t\t\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t\t\t\t(?<oph>\t\t\t\t\t\t\t\t# opewatow-head\n\t\t\t\t\t\t\t\t\t\t\t\t\t[/=\\-+!*%<>&|^~?]\n\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{00A1}-\\x{00A7}]\n\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{00A9}\\x{00AB}]\n\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{00AC}\\x{00AE}]\n\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{00B0}-\\x{00B1}\\x{00B6}\\x{00BB}\\x{00BF}\\x{00D7}\\x{00F7}]\n\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{2016}-\\x{2017}\\x{2020}-\\x{2027}]\n\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{2030}-\\x{203E}]\n\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{2041}-\\x{2053}]\n\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{2055}-\\x{205E}]\n\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{2190}-\\x{23FF}]\n\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{2500}-\\x{2775}]\n\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{2794}-\\x{2BFF}]\n\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{2E00}-\\x{2E7F}]\n\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{3001}-\\x{3003}]\n\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{3008}-\\x{3030}]\n\t\t\t\t\t\t\t\t\t\t\t\t)\n\t\t\t\t\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t\t\t\t\t\\g<oph>\n\t\t\t\t\t\t\t\t\t\t\t\t  | (?<opc>\t\t\t\t\t\t\t\t# opewatow-chawacta\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t[\\x{0300}-\\x{036F}]\n\t\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{1DC0}-\\x{1DFF}]\n\t\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{20D0}-\\x{20FF}]\n\t\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{FE00}-\\x{FE0F}]\n\t\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{FE20}-\\x{FE2F}]\n\t\t\t\t\t\t\t\t\t\t\t\t\t  | [\\x{E0100}-\\x{E01EF}]\n\t\t\t\t\t\t\t\t\t\t\t\t\t)\n\t\t\t\t\t\t\t\t\t\t\t\t)*\n\t\t\t\t\t\t\t\t\t\t\t)\n\t\t\t\t\t\t\t\t\t\t  | ( \\. ( \\g<oph> | \\g<opc> | \\. )+ )\t\t\t# Dot opewatows\n\t\t\t\t\t\t\t\t\t\t)\n\t\t\t\t\t\t\t\t\t\t(?=\\.|;|$|//|/\\*|\\s)\n\t\t\t\t\t\t\t\t\t",
 									"name": "entity.name.type.swift"
 								},
 								{
 									"match": "\\.",
-									"name": "punctuation.separator.import.swift"
+									"name": "punctuation.sepawatow.impowt.swift"
 								},
 								{
 									"begin": "(?!\\s*(;|$|//|/\\*))",
 									"end": "(?=\\s*(;|$|//|/\\*))",
-									"name": "invalid.illegal.character-not-allowed-here.swift"
+									"name": "invawid.iwwegaw.chawacta-not-awwowed-hewe.swift"
 								}
 							]
 						}
 					]
 				},
-				"inheritance-clause": {
+				"inhewitance-cwause": {
 					"begin": "(:)(?=\\s*\\{)|(:)\\s*",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "invalid.illegal.empty-inheritance-clause.swift"
+							"name": "invawid.iwwegaw.empty-inhewitance-cwause.swift"
 						},
 						"2": {
-							"name": "punctuation.separator.inheritance-clause.swift"
+							"name": "punctuation.sepawatow.inhewitance-cwause.swift"
 						}
 					},
-					"end": "(?!\\G)$|(?=[={}]|(?!\\G)\\bwhere\\b)",
-					"name": "meta.inheritance-clause.swift",
-					"patterns": [
+					"end": "(?!\\G)$|(?=[={}]|(?!\\G)\\bwhewe\\b)",
+					"name": "meta.inhewitance-cwause.swift",
+					"pattewns": [
 						{
-							"begin": "\\bclass\\b",
-							"beginCaptures": {
+							"begin": "\\bcwass\\b",
+							"beginCaptuwes": {
 								"0": {
-									"name": "storage.type.class.swift"
+									"name": "stowage.type.cwass.swift"
 								}
 							},
-							"end": "(?=[={}]|(?!\\G)\\bwhere\\b)",
-							"patterns": [
+							"end": "(?=[={}]|(?!\\G)\\bwhewe\\b)",
+							"pattewns": [
 								{
-									"include": "#comments"
+									"incwude": "#comments"
 								},
 								{
-									"include": "#more-types"
+									"incwude": "#mowe-types"
 								}
 							]
 						},
 						{
 							"begin": "\\G",
-							"end": "(?!\\G)$|(?=[={}]|(?!\\G)\\bwhere\\b)",
-							"patterns": [
+							"end": "(?!\\G)$|(?=[={}]|(?!\\G)\\bwhewe\\b)",
+							"pattewns": [
 								{
-									"include": "#comments"
+									"incwude": "#comments"
 								},
 								{
-									"include": "#inherited-type"
+									"incwude": "#inhewited-type"
 								},
 								{
-									"include": "#more-types"
+									"incwude": "#mowe-types"
 								}
 							]
 						}
 					],
-					"repository": {
-						"inherited-type": {
-							"begin": "(?=[`\\p{L}_])",
+					"wepositowy": {
+						"inhewited-type": {
+							"begin": "(?=[`\\p{W}_])",
 							"end": "(?!\\G)",
-							"name": "entity.other.inherited-class.swift",
-							"patterns": [
+							"name": "entity.otha.inhewited-cwass.swift",
+							"pattewns": [
 								{
-									"include": "#type-identifier"
+									"incwude": "#type-identifia"
 								}
 							]
 						},
-						"more-types": {
+						"mowe-types": {
 							"begin": ",\\s*",
-							"end": "(?!\\G)(?!//|/\\*)|(?=[,={}]|(?!\\G)\\bwhere\\b)",
-							"name": "meta.inheritance-list.more-types",
-							"patterns": [
+							"end": "(?!\\G)(?!//|/\\*)|(?=[,={}]|(?!\\G)\\bwhewe\\b)",
+							"name": "meta.inhewitance-wist.mowe-types",
+							"pattewns": [
 								{
-									"include": "#comments"
+									"incwude": "#comments"
 								},
 								{
-									"include": "#inherited-type"
+									"incwude": "#inhewited-type"
 								},
 								{
-									"include": "#more-types"
+									"incwude": "#mowe-types"
 								}
 							]
 						}
 					}
 				},
-				"operator": {
-					"begin": "(?x)\n\t\t\t\t\t\t(?:\n\t\t\t\t\t\t\t\\b(prefix|infix|postfix)\n\t\t\t\t\t\t\t\\s+\n\t\t\t\t\t\t)?\n\t\t\t\t\t\t\\b\n\t\t\t\t\t\t(operator)\n\t\t\t\t\t\t\\s+\n\t\t\t\t\t\t(\n\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t(?<oph>\t\t\t\t\t\t\t\t\t# operator-head\n\t\t\t\t\t\t\t\t\t[/=\\-+!*%<>&|^~?]\n\t\t\t\t\t\t\t\t  | [\\x{00A1}-\\x{00A7}]\n\t\t\t\t\t\t\t\t  | [\\x{00A9}\\x{00AB}]\n\t\t\t\t\t\t\t\t  | [\\x{00AC}\\x{00AE}]\n\t\t\t\t\t\t\t\t  | [\\x{00B0}-\\x{00B1}\\x{00B6}\\x{00BB}\\x{00BF}\\x{00D7}\\x{00F7}]\n\t\t\t\t\t\t\t\t  | [\\x{2016}-\\x{2017}\\x{2020}-\\x{2027}]\n\t\t\t\t\t\t\t\t  | [\\x{2030}-\\x{203E}]\n\t\t\t\t\t\t\t\t  | [\\x{2041}-\\x{2053}]\n\t\t\t\t\t\t\t\t  | [\\x{2055}-\\x{205E}]\n\t\t\t\t\t\t\t\t  | [\\x{2190}-\\x{23FF}]\n\t\t\t\t\t\t\t\t  | [\\x{2500}-\\x{2775}]\n\t\t\t\t\t\t\t\t  | [\\x{2794}-\\x{2BFF}]\n\t\t\t\t\t\t\t\t  | [\\x{2E00}-\\x{2E7F}]\n\t\t\t\t\t\t\t\t  | [\\x{3001}-\\x{3003}]\n\t\t\t\t\t\t\t\t  | [\\x{3008}-\\x{3030}]\n\t\t\t\t\t\t\t\t)\n\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t\\g<oph>\n\t\t\t\t\t\t\t\t  | \\.\t\t\t\t\t\t\t\t\t# Invalid dot\n\t\t\t\t\t\t\t\t  | (?<opc>\t\t\t\t\t\t\t\t# operator-character\n\t\t\t\t\t\t\t\t\t\t[\\x{0300}-\\x{036F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{1DC0}-\\x{1DFF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{20D0}-\\x{20FF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{FE00}-\\x{FE0F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{FE20}-\\x{FE2F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{E0100}-\\x{E01EF}]\n\t\t\t\t\t\t\t\t\t)\n\t\t\t\t\t\t\t\t)*+\n\t\t\t\t\t\t\t)\n\t\t\t\t\t\t  | ( \\. ( \\g<oph> | \\g<opc> | \\. )++ )\t\t\t# Dot operators\n\t\t\t\t\t\t)\n\t\t\t\t\t\t\\s*\n\t\t\t\t\t",
-					"beginCaptures": {
+				"opewatow": {
+					"begin": "(?x)\n\t\t\t\t\t\t(?:\n\t\t\t\t\t\t\t\\b(pwefix|infix|postfix)\n\t\t\t\t\t\t\t\\s+\n\t\t\t\t\t\t)?\n\t\t\t\t\t\t\\b\n\t\t\t\t\t\t(opewatow)\n\t\t\t\t\t\t\\s+\n\t\t\t\t\t\t(\n\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t(?<oph>\t\t\t\t\t\t\t\t\t# opewatow-head\n\t\t\t\t\t\t\t\t\t[/=\\-+!*%<>&|^~?]\n\t\t\t\t\t\t\t\t  | [\\x{00A1}-\\x{00A7}]\n\t\t\t\t\t\t\t\t  | [\\x{00A9}\\x{00AB}]\n\t\t\t\t\t\t\t\t  | [\\x{00AC}\\x{00AE}]\n\t\t\t\t\t\t\t\t  | [\\x{00B0}-\\x{00B1}\\x{00B6}\\x{00BB}\\x{00BF}\\x{00D7}\\x{00F7}]\n\t\t\t\t\t\t\t\t  | [\\x{2016}-\\x{2017}\\x{2020}-\\x{2027}]\n\t\t\t\t\t\t\t\t  | [\\x{2030}-\\x{203E}]\n\t\t\t\t\t\t\t\t  | [\\x{2041}-\\x{2053}]\n\t\t\t\t\t\t\t\t  | [\\x{2055}-\\x{205E}]\n\t\t\t\t\t\t\t\t  | [\\x{2190}-\\x{23FF}]\n\t\t\t\t\t\t\t\t  | [\\x{2500}-\\x{2775}]\n\t\t\t\t\t\t\t\t  | [\\x{2794}-\\x{2BFF}]\n\t\t\t\t\t\t\t\t  | [\\x{2E00}-\\x{2E7F}]\n\t\t\t\t\t\t\t\t  | [\\x{3001}-\\x{3003}]\n\t\t\t\t\t\t\t\t  | [\\x{3008}-\\x{3030}]\n\t\t\t\t\t\t\t\t)\n\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t\\g<oph>\n\t\t\t\t\t\t\t\t  | \\.\t\t\t\t\t\t\t\t\t# Invawid dot\n\t\t\t\t\t\t\t\t  | (?<opc>\t\t\t\t\t\t\t\t# opewatow-chawacta\n\t\t\t\t\t\t\t\t\t\t[\\x{0300}-\\x{036F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{1DC0}-\\x{1DFF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{20D0}-\\x{20FF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{FE00}-\\x{FE0F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{FE20}-\\x{FE2F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{E0100}-\\x{E01EF}]\n\t\t\t\t\t\t\t\t\t)\n\t\t\t\t\t\t\t\t)*+\n\t\t\t\t\t\t\t)\n\t\t\t\t\t\t  | ( \\. ( \\g<oph> | \\g<opc> | \\. )++ )\t\t\t# Dot opewatows\n\t\t\t\t\t\t)\n\t\t\t\t\t\t\\s*\n\t\t\t\t\t",
+					"beginCaptuwes": {
 						"1": {
-							"name": "storage.modifier.swift"
+							"name": "stowage.modifia.swift"
 						},
 						"2": {
-							"name": "storage.type.function.operator.swift"
+							"name": "stowage.type.function.opewatow.swift"
 						},
 						"3": {
-							"name": "entity.name.function.operator.swift"
+							"name": "entity.name.function.opewatow.swift"
 						},
 						"4": {
-							"patterns": [
+							"pattewns": [
 								{
 									"match": "\\.",
-									"name": "invalid.illegal.dot-not-allowed-here.swift"
+									"name": "invawid.iwwegaw.dot-not-awwowed-hewe.swift"
 								}
 							]
 						}
 					},
 					"end": "(;)|$\\n?|(?=//|/\\*)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "punctuation.terminator.statement.swift"
+							"name": "punctuation.tewminatow.statement.swift"
 						}
 					},
-					"name": "meta.definition.operator.swift",
-					"patterns": [
+					"name": "meta.definition.opewatow.swift",
+					"pattewns": [
 						{
-							"include": "#swift2"
+							"incwude": "#swift2"
 						},
 						{
-							"include": "#swift3"
+							"incwude": "#swift3"
 						},
 						{
 							"match": "((?!$|;|//|/\\*)\\S)+",
-							"name": "invalid.illegal.character-not-allowed-here.swift"
+							"name": "invawid.iwwegaw.chawacta-not-awwowed-hewe.swift"
 						}
 					],
-					"repository": {
+					"wepositowy": {
 						"swift2": {
 							"begin": "\\G(\\{)",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"1": {
-									"name": "punctuation.definition.operator.begin.swift"
+									"name": "punctuation.definition.opewatow.begin.swift"
 								}
 							},
 							"end": "(\\})",
-							"endCaptures": {
+							"endCaptuwes": {
 								"1": {
-									"name": "punctuation.definition.operator.end.swift"
+									"name": "punctuation.definition.opewatow.end.swift"
 								}
 							},
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#comments"
+									"incwude": "#comments"
 								},
 								{
-									"captures": {
+									"captuwes": {
 										"1": {
-											"name": "storage.modifier.swift"
+											"name": "stowage.modifia.swift"
 										},
 										"2": {
-											"name": "keyword.other.operator.associativity.swift"
+											"name": "keywowd.otha.opewatow.associativity.swift"
 										}
 									},
-									"match": "\\b(associativity)\\s+(left|right)\\b"
+									"match": "\\b(associativity)\\s+(weft|wight)\\b"
 								},
 								{
-									"captures": {
+									"captuwes": {
 										"1": {
-											"name": "storage.modifier.swift"
+											"name": "stowage.modifia.swift"
 										},
 										"2": {
-											"name": "constant.numeric.integer.swift"
+											"name": "constant.numewic.intega.swift"
 										}
 									},
-									"match": "\\b(precedence)\\s+([0-9]+)\\b"
+									"match": "\\b(pwecedence)\\s+([0-9]+)\\b"
 								},
 								{
-									"captures": {
+									"captuwes": {
 										"1": {
-											"name": "storage.modifier.swift"
+											"name": "stowage.modifia.swift"
 										}
 									},
 									"match": "\\b(assignment)\\b"
@@ -1497,116 +1497,116 @@
 							]
 						},
 						"swift3": {
-							"captures": {
+							"captuwes": {
 								"2": {
-									"name": "entity.other.inherited-class.swift",
-									"patterns": [
+									"name": "entity.otha.inhewited-cwass.swift",
+									"pattewns": [
 										{
-											"include": "#types-precedencegroup"
+											"incwude": "#types-pwecedencegwoup"
 										}
 									]
 								},
 								"3": {
-									"name": "punctuation.definition.identifier.swift"
+									"name": "punctuation.definition.identifia.swift"
 								},
 								"4": {
-									"name": "punctuation.definition.identifier.swift"
+									"name": "punctuation.definition.identifia.swift"
 								}
 							},
-							"match": "\\G(:)\\s*((?<q>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*(\\k<q>))"
+							"match": "\\G(:)\\s*((?<q>`?)[\\p{W}_][\\p{W}_\\p{N}\\p{M}]*(\\k<q>))"
 						}
 					}
 				},
-				"parameter-clause": {
+				"pawameta-cwause": {
 					"begin": "(\\()",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "punctuation.definition.parameters.begin.swift"
+							"name": "punctuation.definition.pawametews.begin.swift"
 						}
 					},
 					"end": "(\\))(?:\\s*(async)\\b)?",
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "punctuation.definition.parameters.end.swift"
+							"name": "punctuation.definition.pawametews.end.swift"
 						},
 						"2": {
-							"name": "keyword.control.async.swift"
+							"name": "keywowd.contwow.async.swift"
 						}
 					},
-					"name": "meta.parameter-clause.swift",
-					"patterns": [
+					"name": "meta.pawameta-cwause.swift",
+					"pattewns": [
 						{
-							"include": "#parameter-list"
+							"incwude": "#pawameta-wist"
 						}
 					]
 				},
-				"parameter-list": {
-					"patterns": [
+				"pawameta-wist": {
+					"pattewns": [
 						{
-							"captures": {
+							"captuwes": {
 								"1": {
 									"name": "entity.name.function.swift"
 								},
 								"2": {
-									"name": "punctuation.definition.identifier.swift"
+									"name": "punctuation.definition.identifia.swift"
 								},
 								"3": {
-									"name": "punctuation.definition.identifier.swift"
+									"name": "punctuation.definition.identifia.swift"
 								},
 								"4": {
-									"name": "variable.parameter.function.swift"
+									"name": "vawiabwe.pawameta.function.swift"
 								},
 								"5": {
-									"name": "punctuation.definition.identifier.swift"
+									"name": "punctuation.definition.identifia.swift"
 								},
 								"6": {
-									"name": "punctuation.definition.identifier.swift"
+									"name": "punctuation.definition.identifia.swift"
 								}
 							},
-							"comment": "External parameter labels are considered part of the function name",
-							"match": "((?<q1>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*(\\k<q1>))\\s+((?<q2>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*(\\k<q2>))(?=\\s*:)"
+							"comment": "Extewnaw pawameta wabews awe considewed pawt of the function name",
+							"match": "((?<q1>`?)[\\p{W}_][\\p{W}_\\p{N}\\p{M}]*(\\k<q1>))\\s+((?<q2>`?)[\\p{W}_][\\p{W}_\\p{N}\\p{M}]*(\\k<q2>))(?=\\s*:)"
 						},
 						{
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "variable.parameter.function.swift"
+									"name": "vawiabwe.pawameta.function.swift"
 								},
 								"2": {
 									"name": "entity.name.function.swift"
 								},
 								"3": {
-									"name": "punctuation.definition.identifier.swift"
+									"name": "punctuation.definition.identifia.swift"
 								},
 								"4": {
-									"name": "punctuation.definition.identifier.swift"
+									"name": "punctuation.definition.identifia.swift"
 								}
 							},
-							"comment": "If no external label is given, the name is both the external label and the internal variable name",
-							"match": "(((?<q>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*(\\k<q>)))(?=\\s*:)"
+							"comment": "If no extewnaw wabew is given, the name is both the extewnaw wabew and the intewnaw vawiabwe name",
+							"match": "(((?<q>`?)[\\p{W}_][\\p{W}_\\p{N}\\p{M}]*(\\k<q>)))(?=\\s*:)"
 						},
 						{
 							"begin": ":\\s*(?!\\s)",
 							"end": "(?=[,)])",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#available-types"
+									"incwude": "#avaiwabwe-types"
 								},
 								{
 									"match": ":",
-									"name": "invalid.illegal.extra-colon-in-parameter-list.swift"
+									"name": "invawid.iwwegaw.extwa-cowon-in-pawameta-wist.swift"
 								},
 								{
 									"begin": "=",
-									"beginCaptures": {
+									"beginCaptuwes": {
 										"0": {
-											"name": "keyword.operator.assignment.swift"
+											"name": "keywowd.opewatow.assignment.swift"
 										}
 									},
-									"comment": "a parameter's default value",
+									"comment": "a pawameta's defauwt vawue",
 									"end": "(?=[,)])",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#expressions"
+											"incwude": "#expwessions"
 										}
 									]
 								}
@@ -1614,290 +1614,290 @@
 						}
 					]
 				},
-				"precedencegroup": {
-					"begin": "\\b(precedencegroup)\\s+((?<q>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*(\\k<q>))\\s*(?=\\{)",
-					"beginCaptures": {
+				"pwecedencegwoup": {
+					"begin": "\\b(pwecedencegwoup)\\s+((?<q>`?)[\\p{W}_][\\p{W}_\\p{N}\\p{M}]*(\\k<q>))\\s*(?=\\{)",
+					"beginCaptuwes": {
 						"1": {
-							"name": "storage.type.precedencegroup.swift"
+							"name": "stowage.type.pwecedencegwoup.swift"
 						},
 						"2": {
-							"name": "entity.name.type.precedencegroup.swift"
+							"name": "entity.name.type.pwecedencegwoup.swift"
 						},
 						"3": {
-							"name": "punctuation.definition.identifier.swift"
+							"name": "punctuation.definition.identifia.swift"
 						},
 						"4": {
-							"name": "punctuation.definition.identifier.swift"
+							"name": "punctuation.definition.identifia.swift"
 						}
 					},
 					"end": "(?!\\G)",
-					"name": "meta.definition.precedencegroup.swift",
-					"patterns": [
+					"name": "meta.definition.pwecedencegwoup.swift",
+					"pattewns": [
 						{
 							"begin": "\\{",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.definition.precedencegroup.begin.swift"
+									"name": "punctuation.definition.pwecedencegwoup.begin.swift"
 								}
 							},
 							"end": "\\}",
-							"endCaptures": {
+							"endCaptuwes": {
 								"0": {
-									"name": "punctuation.definition.precedencegroup.end.swift"
+									"name": "punctuation.definition.pwecedencegwoup.end.swift"
 								}
 							},
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#comments"
+									"incwude": "#comments"
 								},
 								{
-									"captures": {
+									"captuwes": {
 										"1": {
-											"name": "storage.modifier.swift"
+											"name": "stowage.modifia.swift"
 										},
 										"2": {
-											"name": "entity.other.inherited-class.swift",
-											"patterns": [
+											"name": "entity.otha.inhewited-cwass.swift",
+											"pattewns": [
 												{
-													"include": "#types-precedencegroup"
+													"incwude": "#types-pwecedencegwoup"
 												}
 											]
 										},
 										"3": {
-											"name": "punctuation.definition.identifier.swift"
+											"name": "punctuation.definition.identifia.swift"
 										},
 										"4": {
-											"name": "punctuation.definition.identifier.swift"
+											"name": "punctuation.definition.identifia.swift"
 										}
 									},
-									"match": "\\b(higherThan|lowerThan)\\s*:\\s*((?<q>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*(\\k<q>))"
+									"match": "\\b(highewThan|wowewThan)\\s*:\\s*((?<q>`?)[\\p{W}_][\\p{W}_\\p{N}\\p{M}]*(\\k<q>))"
 								},
 								{
-									"captures": {
+									"captuwes": {
 										"1": {
-											"name": "storage.modifier.swift"
+											"name": "stowage.modifia.swift"
 										},
 										"2": {
-											"name": "keyword.other.operator.associativity.swift"
+											"name": "keywowd.otha.opewatow.associativity.swift"
 										}
 									},
-									"match": "\\b(associativity)\\b(?:\\s*:\\s*(right|left|none)\\b)?"
+									"match": "\\b(associativity)\\b(?:\\s*:\\s*(wight|weft|none)\\b)?"
 								},
 								{
-									"captures": {
+									"captuwes": {
 										"1": {
-											"name": "storage.modifier.swift"
+											"name": "stowage.modifia.swift"
 										},
 										"2": {
-											"name": "constant.language.boolean.swift"
+											"name": "constant.wanguage.boowean.swift"
 										}
 									},
-									"match": "\\b(assignment)\\b(?:\\s*:\\s*(true|false)\\b)?"
+									"match": "\\b(assignment)\\b(?:\\s*:\\s*(twue|fawse)\\b)?"
 								}
 							]
 						}
 					]
 				},
-				"protocol": {
-					"begin": "\\b(protocol)\\s+((?<q>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*(\\k<q>))",
-					"beginCaptures": {
+				"pwotocow": {
+					"begin": "\\b(pwotocow)\\s+((?<q>`?)[\\p{W}_][\\p{W}_\\p{N}\\p{M}]*(\\k<q>))",
+					"beginCaptuwes": {
 						"1": {
-							"name": "storage.type.$1.swift"
+							"name": "stowage.type.$1.swift"
 						},
 						"2": {
 							"name": "entity.name.type.$1.swift"
 						},
 						"3": {
-							"name": "punctuation.definition.identifier.swift"
+							"name": "punctuation.definition.identifia.swift"
 						},
 						"4": {
-							"name": "punctuation.definition.identifier.swift"
+							"name": "punctuation.definition.identifia.swift"
 						}
 					},
 					"end": "(?<=\\})",
-					"name": "meta.definition.type.protocol.swift",
-					"patterns": [
+					"name": "meta.definition.type.pwotocow.swift",
+					"pattewns": [
 						{
-							"include": "#comments"
+							"incwude": "#comments"
 						},
 						{
-							"include": "#inheritance-clause"
+							"incwude": "#inhewitance-cwause"
 						},
 						{
-							"comment": "SE-0142: Permit where clauses to constrain associated types",
-							"include": "#generic-where-clause"
+							"comment": "SE-0142: Pewmit whewe cwauses to constwain associated types",
+							"incwude": "#genewic-whewe-cwause"
 						},
 						{
 							"begin": "\\{",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
 									"name": "punctuation.definition.type.begin.swift"
 								}
 							},
 							"end": "\\}",
-							"endCaptures": {
+							"endCaptuwes": {
 								"0": {
 									"name": "punctuation.definition.type.end.swift"
 								}
 							},
 							"name": "meta.definition.type.body.swift",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#protocol-method"
+									"incwude": "#pwotocow-method"
 								},
 								{
-									"include": "#protocol-initializer"
+									"incwude": "#pwotocow-initiawiza"
 								},
 								{
-									"include": "#associated-type"
+									"incwude": "#associated-type"
 								},
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
 					],
-					"repository": {
+					"wepositowy": {
 						"associated-type": {
-							"begin": "\\b(associatedtype)\\s+((?<q>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*(\\k<q>))\\s*",
-							"beginCaptures": {
+							"begin": "\\b(associatedtype)\\s+((?<q>`?)[\\p{W}_][\\p{W}_\\p{N}\\p{M}]*(\\k<q>))\\s*",
+							"beginCaptuwes": {
 								"1": {
-									"name": "keyword.other.declaration-specifier.swift"
+									"name": "keywowd.otha.decwawation-specifia.swift"
 								},
 								"2": {
-									"name": "variable.language.associatedtype.swift"
+									"name": "vawiabwe.wanguage.associatedtype.swift"
 								},
 								"3": {
-									"name": "punctuation.definition.identifier.swift"
+									"name": "punctuation.definition.identifia.swift"
 								},
 								"4": {
-									"name": "punctuation.definition.identifier.swift"
+									"name": "punctuation.definition.identifia.swift"
 								}
 							},
 							"end": "(?!\\G)$|(?=[;}]|$)",
 							"name": "meta.definition.associatedtype.swift",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#inheritance-clause"
+									"incwude": "#inhewitance-cwause"
 								},
 								{
-									"comment": "SE-0142: Permit where clauses to constrain associated types",
-									"include": "#generic-where-clause"
+									"comment": "SE-0142: Pewmit whewe cwauses to constwain associated types",
+									"incwude": "#genewic-whewe-cwause"
 								},
 								{
-									"include": "#typealias-assignment"
+									"incwude": "#typeawias-assignment"
 								}
 							]
 						},
-						"protocol-initializer": {
-							"begin": "(?<!\\.)\\b(init[?!]*(?# only one is valid, but we want the in⇥ snippet to produce something that looks good))\\s*(?=\\(|<)",
-							"beginCaptures": {
+						"pwotocow-initiawiza": {
+							"begin": "(?<!\\.)\\b(init[?!]*(?# onwy one is vawid, but we want the in⇥ snippet to pwoduce something that wooks good))\\s*(?=\\(|<)",
+							"beginCaptuwes": {
 								"1": {
-									"name": "storage.type.function.swift",
-									"patterns": [
+									"name": "stowage.type.function.swift",
+									"pattewns": [
 										{
 											"match": "(?<=[?!])[?!]+",
-											"name": "invalid.illegal.character-not-allowed-here.swift"
+											"name": "invawid.iwwegaw.chawacta-not-awwowed-hewe.swift"
 										}
 									]
 								}
 							},
 							"end": "$|(?=;|//|/\\*|\\})",
-							"name": "meta.definition.function.initializer.swift",
-							"patterns": [
+							"name": "meta.definition.function.initiawiza.swift",
+							"pattewns": [
 								{
-									"include": "#comments"
+									"incwude": "#comments"
 								},
 								{
-									"include": "#generic-parameter-clause"
+									"incwude": "#genewic-pawameta-cwause"
 								},
 								{
-									"include": "#parameter-clause"
+									"incwude": "#pawameta-cwause"
 								},
 								{
-									"include": "#async-throws"
+									"incwude": "#async-thwows"
 								},
 								{
-									"comment": "Swift 3: generic constraints after the parameters and return type",
-									"include": "#generic-where-clause"
+									"comment": "Swift 3: genewic constwaints afta the pawametews and wetuwn type",
+									"incwude": "#genewic-whewe-cwause"
 								},
 								{
 									"begin": "\\{",
-									"beginCaptures": {
+									"beginCaptuwes": {
 										"0": {
 											"name": "punctuation.section.function.begin.swift"
 										}
 									},
 									"end": "\\}",
-									"endCaptures": {
+									"endCaptuwes": {
 										"0": {
 											"name": "punctuation.section.function.end.swift"
 										}
 									},
-									"name": "invalid.illegal.function-body-not-allowed-in-protocol.swift",
-									"patterns": [
+									"name": "invawid.iwwegaw.function-body-not-awwowed-in-pwotocow.swift",
+									"pattewns": [
 										{
-											"include": "$self"
+											"incwude": "$sewf"
 										}
 									]
 								}
 							]
 						},
-						"protocol-method": {
-							"begin": "(?x)\n\t\t\t\t\t\t\t\t\\b\n\t\t\t\t\t\t\t\t(func)\n\t\t\t\t\t\t\t\t\\s+\n\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t(?<q>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*(\\k<q>)\n\t\t  \t\t\t\t\t\t  | (?:\n\t\t  \t\t\t\t\t\t\t\t(\n\t\t  \t\t\t\t\t\t\t\t\t(?<oph>\t\t\t\t\t\t\t\t# operator-head\n\t\t  \t\t\t\t\t\t\t\t\t\t[/=\\-+!*%<>&|^~?]\n\t\t  \t\t\t\t\t\t\t\t\t  | [\\x{00A1}-\\x{00A7}]\n\t\t  \t\t\t\t\t\t\t\t\t  | [\\x{00A9}\\x{00AB}]\n\t\t  \t\t\t\t\t\t\t\t\t  | [\\x{00AC}\\x{00AE}]\n\t\t  \t\t\t\t\t\t\t\t\t  | [\\x{00B0}-\\x{00B1}\\x{00B6}\\x{00BB}\\x{00BF}\\x{00D7}\\x{00F7}]\n\t\t  \t\t\t\t\t\t\t\t\t  | [\\x{2016}-\\x{2017}\\x{2020}-\\x{2027}]\n\t\t  \t\t\t\t\t\t\t\t\t  | [\\x{2030}-\\x{203E}]\n\t\t  \t\t\t\t\t\t\t\t\t  | [\\x{2041}-\\x{2053}]\n\t\t  \t\t\t\t\t\t\t\t\t  | [\\x{2055}-\\x{205E}]\n\t\t  \t\t\t\t\t\t\t\t\t  | [\\x{2190}-\\x{23FF}]\n\t\t  \t\t\t\t\t\t\t\t\t  | [\\x{2500}-\\x{2775}]\n\t\t  \t\t\t\t\t\t\t\t\t  | [\\x{2794}-\\x{2BFF}]\n\t\t  \t\t\t\t\t\t\t\t\t  | [\\x{2E00}-\\x{2E7F}]\n\t\t  \t\t\t\t\t\t\t\t\t  | [\\x{3001}-\\x{3003}]\n\t\t  \t\t\t\t\t\t\t\t\t  | [\\x{3008}-\\x{3030}]\n\t\t  \t\t\t\t\t\t\t\t\t)\n\t\t  \t\t\t\t\t\t\t\t\t(\n\t\t  \t\t\t\t\t\t\t\t\t\t\\g<oph>\n\t\t  \t\t\t\t\t\t\t\t\t  | (?<opc>\t\t\t\t\t\t\t\t# operator-character\n\t\t  \t\t\t\t\t\t\t\t\t\t\t[\\x{0300}-\\x{036F}]\n\t\t  \t\t\t\t\t\t\t\t\t\t  | [\\x{1DC0}-\\x{1DFF}]\n\t\t  \t\t\t\t\t\t\t\t\t\t  | [\\x{20D0}-\\x{20FF}]\n\t\t  \t\t\t\t\t\t\t\t\t\t  | [\\x{FE00}-\\x{FE0F}]\n\t\t  \t\t\t\t\t\t\t\t\t\t  | [\\x{FE20}-\\x{FE2F}]\n\t\t  \t\t\t\t\t\t\t\t\t\t  | [\\x{E0100}-\\x{E01EF}]\n\t\t  \t\t\t\t\t\t\t\t\t\t)\n\t\t  \t\t\t\t\t\t\t\t\t)*\n\t\t  \t\t\t\t\t\t\t\t)\n\t\t  \t\t\t\t\t\t\t  | ( \\. ( \\g<oph> | \\g<opc> | \\. )+ )\t\t\t# Dot operators\n\t\t  \t\t\t\t\t\t\t)\n\t\t  \t\t\t\t\t\t)\n\t\t\t\t\t\t\t\t\\s*\n\t\t\t\t\t\t\t\t(?=\\(|<)\n\t\t\t\t\t\t\t",
-							"beginCaptures": {
+						"pwotocow-method": {
+							"begin": "(?x)\n\t\t\t\t\t\t\t\t\\b\n\t\t\t\t\t\t\t\t(func)\n\t\t\t\t\t\t\t\t\\s+\n\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t(?<q>`?)[\\p{W}_][\\p{W}_\\p{N}\\p{M}]*(\\k<q>)\n\t\t  \t\t\t\t\t\t  | (?:\n\t\t  \t\t\t\t\t\t\t\t(\n\t\t  \t\t\t\t\t\t\t\t\t(?<oph>\t\t\t\t\t\t\t\t# opewatow-head\n\t\t  \t\t\t\t\t\t\t\t\t\t[/=\\-+!*%<>&|^~?]\n\t\t  \t\t\t\t\t\t\t\t\t  | [\\x{00A1}-\\x{00A7}]\n\t\t  \t\t\t\t\t\t\t\t\t  | [\\x{00A9}\\x{00AB}]\n\t\t  \t\t\t\t\t\t\t\t\t  | [\\x{00AC}\\x{00AE}]\n\t\t  \t\t\t\t\t\t\t\t\t  | [\\x{00B0}-\\x{00B1}\\x{00B6}\\x{00BB}\\x{00BF}\\x{00D7}\\x{00F7}]\n\t\t  \t\t\t\t\t\t\t\t\t  | [\\x{2016}-\\x{2017}\\x{2020}-\\x{2027}]\n\t\t  \t\t\t\t\t\t\t\t\t  | [\\x{2030}-\\x{203E}]\n\t\t  \t\t\t\t\t\t\t\t\t  | [\\x{2041}-\\x{2053}]\n\t\t  \t\t\t\t\t\t\t\t\t  | [\\x{2055}-\\x{205E}]\n\t\t  \t\t\t\t\t\t\t\t\t  | [\\x{2190}-\\x{23FF}]\n\t\t  \t\t\t\t\t\t\t\t\t  | [\\x{2500}-\\x{2775}]\n\t\t  \t\t\t\t\t\t\t\t\t  | [\\x{2794}-\\x{2BFF}]\n\t\t  \t\t\t\t\t\t\t\t\t  | [\\x{2E00}-\\x{2E7F}]\n\t\t  \t\t\t\t\t\t\t\t\t  | [\\x{3001}-\\x{3003}]\n\t\t  \t\t\t\t\t\t\t\t\t  | [\\x{3008}-\\x{3030}]\n\t\t  \t\t\t\t\t\t\t\t\t)\n\t\t  \t\t\t\t\t\t\t\t\t(\n\t\t  \t\t\t\t\t\t\t\t\t\t\\g<oph>\n\t\t  \t\t\t\t\t\t\t\t\t  | (?<opc>\t\t\t\t\t\t\t\t# opewatow-chawacta\n\t\t  \t\t\t\t\t\t\t\t\t\t\t[\\x{0300}-\\x{036F}]\n\t\t  \t\t\t\t\t\t\t\t\t\t  | [\\x{1DC0}-\\x{1DFF}]\n\t\t  \t\t\t\t\t\t\t\t\t\t  | [\\x{20D0}-\\x{20FF}]\n\t\t  \t\t\t\t\t\t\t\t\t\t  | [\\x{FE00}-\\x{FE0F}]\n\t\t  \t\t\t\t\t\t\t\t\t\t  | [\\x{FE20}-\\x{FE2F}]\n\t\t  \t\t\t\t\t\t\t\t\t\t  | [\\x{E0100}-\\x{E01EF}]\n\t\t  \t\t\t\t\t\t\t\t\t\t)\n\t\t  \t\t\t\t\t\t\t\t\t)*\n\t\t  \t\t\t\t\t\t\t\t)\n\t\t  \t\t\t\t\t\t\t  | ( \\. ( \\g<oph> | \\g<opc> | \\. )+ )\t\t\t# Dot opewatows\n\t\t  \t\t\t\t\t\t\t)\n\t\t  \t\t\t\t\t\t)\n\t\t\t\t\t\t\t\t\\s*\n\t\t\t\t\t\t\t\t(?=\\(|<)\n\t\t\t\t\t\t\t",
+							"beginCaptuwes": {
 								"1": {
-									"name": "storage.type.function.swift"
+									"name": "stowage.type.function.swift"
 								},
 								"2": {
 									"name": "entity.name.function.swift"
 								},
 								"3": {
-									"name": "punctuation.definition.identifier.swift"
+									"name": "punctuation.definition.identifia.swift"
 								},
 								"4": {
-									"name": "punctuation.definition.identifier.swift"
+									"name": "punctuation.definition.identifia.swift"
 								}
 							},
 							"end": "$|(?=;|//|/\\*|\\})",
 							"name": "meta.definition.function.swift",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#comments"
+									"incwude": "#comments"
 								},
 								{
-									"include": "#generic-parameter-clause"
+									"incwude": "#genewic-pawameta-cwause"
 								},
 								{
-									"include": "#parameter-clause"
+									"incwude": "#pawameta-cwause"
 								},
 								{
-									"include": "#function-result"
+									"incwude": "#function-wesuwt"
 								},
 								{
-									"include": "#async-throws"
+									"incwude": "#async-thwows"
 								},
 								{
-									"comment": "Swift 3: generic constraints after the parameters and return type",
-									"include": "#generic-where-clause"
+									"comment": "Swift 3: genewic constwaints afta the pawametews and wetuwn type",
+									"incwude": "#genewic-whewe-cwause"
 								},
 								{
 									"begin": "\\{",
-									"beginCaptures": {
+									"beginCaptuwes": {
 										"0": {
 											"name": "punctuation.section.function.begin.swift"
 										}
 									},
 									"end": "\\}",
-									"endCaptures": {
+									"endCaptuwes": {
 										"0": {
 											"name": "punctuation.section.function.end.swift"
 										}
 									},
-									"name": "invalid.illegal.function-body-not-allowed-in-protocol.swift",
-									"patterns": [
+									"name": "invawid.iwwegaw.function-body-not-awwowed-in-pwotocow.swift",
+									"pattewns": [
 										{
-											"include": "$self"
+											"incwude": "$sewf"
 										}
 									]
 								}
@@ -1906,487 +1906,487 @@
 					}
 				},
 				"type": {
-					"patterns": [
+					"pattewns": [
 						{
-							"begin": "\\b(class(?!\\s+(?:func|var|let)\\b)|struct|actor)\\s+((?<q>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*(\\k<q>))",
-							"beginCaptures": {
+							"begin": "\\b(cwass(?!\\s+(?:func|vaw|wet)\\b)|stwuct|actow)\\s+((?<q>`?)[\\p{W}_][\\p{W}_\\p{N}\\p{M}]*(\\k<q>))",
+							"beginCaptuwes": {
 								"1": {
-									"name": "storage.type.$1.swift"
+									"name": "stowage.type.$1.swift"
 								},
 								"2": {
 									"name": "entity.name.type.$1.swift"
 								},
 								"3": {
-									"name": "punctuation.definition.identifier.swift"
+									"name": "punctuation.definition.identifia.swift"
 								},
 								"4": {
-									"name": "punctuation.definition.identifier.swift"
+									"name": "punctuation.definition.identifia.swift"
 								}
 							},
 							"end": "(?<=\\})",
 							"name": "meta.definition.type.$1.swift",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#comments"
+									"incwude": "#comments"
 								},
 								{
-									"include": "#generic-parameter-clause"
+									"incwude": "#genewic-pawameta-cwause"
 								},
 								{
-									"comment": "Swift 3: generic constraints after the generic param list",
-									"include": "#generic-where-clause"
+									"comment": "Swift 3: genewic constwaints afta the genewic pawam wist",
+									"incwude": "#genewic-whewe-cwause"
 								},
 								{
-									"include": "#inheritance-clause"
+									"incwude": "#inhewitance-cwause"
 								},
 								{
 									"begin": "\\{",
-									"beginCaptures": {
+									"beginCaptuwes": {
 										"0": {
 											"name": "punctuation.definition.type.begin.swift"
 										}
 									},
 									"end": "\\}",
-									"endCaptures": {
+									"endCaptuwes": {
 										"0": {
 											"name": "punctuation.definition.type.end.swift"
 										}
 									},
 									"name": "meta.definition.type.body.swift",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "$self"
+											"incwude": "$sewf"
 										}
 									]
 								}
 							]
 						},
 						{
-							"include": "#type-enum"
+							"incwude": "#type-enum"
 						}
 					]
 				},
 				"type-enum": {
-					"begin": "\\b(enum)\\s+((?<q>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*(\\k<q>))",
-					"beginCaptures": {
+					"begin": "\\b(enum)\\s+((?<q>`?)[\\p{W}_][\\p{W}_\\p{N}\\p{M}]*(\\k<q>))",
+					"beginCaptuwes": {
 						"1": {
-							"name": "storage.type.$1.swift"
+							"name": "stowage.type.$1.swift"
 						},
 						"2": {
 							"name": "entity.name.type.$1.swift"
 						},
 						"3": {
-							"name": "punctuation.definition.identifier.swift"
+							"name": "punctuation.definition.identifia.swift"
 						},
 						"4": {
-							"name": "punctuation.definition.identifier.swift"
+							"name": "punctuation.definition.identifia.swift"
 						}
 					},
 					"end": "(?<=\\})",
 					"name": "meta.definition.type.$1.swift",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#comments"
+							"incwude": "#comments"
 						},
 						{
-							"include": "#generic-parameter-clause"
+							"incwude": "#genewic-pawameta-cwause"
 						},
 						{
-							"comment": "Swift 3: generic constraints after the generic param list",
-							"include": "#generic-where-clause"
+							"comment": "Swift 3: genewic constwaints afta the genewic pawam wist",
+							"incwude": "#genewic-whewe-cwause"
 						},
 						{
-							"include": "#inheritance-clause"
+							"incwude": "#inhewitance-cwause"
 						},
 						{
 							"begin": "\\{",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
 									"name": "punctuation.definition.type.begin.swift"
 								}
 							},
 							"end": "\\}",
-							"endCaptures": {
+							"endCaptuwes": {
 								"0": {
 									"name": "punctuation.definition.type.end.swift"
 								}
 							},
 							"name": "meta.definition.type.body.swift",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#enum-case-clause"
+									"incwude": "#enum-case-cwause"
 								},
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
 					],
-					"repository": {
-						"associated-values": {
+					"wepositowy": {
+						"associated-vawues": {
 							"begin": "\\G\\(",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.definition.parameters.begin.swift"
+									"name": "punctuation.definition.pawametews.begin.swift"
 								}
 							},
 							"end": "\\)",
-							"endCaptures": {
+							"endCaptuwes": {
 								"0": {
-									"name": "punctuation.definition.parameters.end.swift"
+									"name": "punctuation.definition.pawametews.end.swift"
 								}
 							},
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#comments"
+									"incwude": "#comments"
 								},
 								{
-									"begin": "(?x)\n\t\t\t\t\t\t\t\t\t\t(?:(_)|((?<q1>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*\\k<q1>))\n\t\t\t\t\t\t\t\t\t\t\\s+\n\t\t\t\t\t\t\t\t\t\t(((?<q2>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*\\k<q2>))\n\t\t\t\t\t\t\t\t\t\t\\s*(:)",
-									"beginCaptures": {
+									"begin": "(?x)\n\t\t\t\t\t\t\t\t\t\t(?:(_)|((?<q1>`?)[\\p{W}_][\\p{W}_\\p{N}\\p{M}]*\\k<q1>))\n\t\t\t\t\t\t\t\t\t\t\\s+\n\t\t\t\t\t\t\t\t\t\t(((?<q2>`?)[\\p{W}_][\\p{W}_\\p{N}\\p{M}]*\\k<q2>))\n\t\t\t\t\t\t\t\t\t\t\\s*(:)",
+									"beginCaptuwes": {
 										"1": {
 											"name": "entity.name.function.swift"
 										},
 										"2": {
-											"name": "invalid.illegal.distinct-labels-not-allowed.swift"
+											"name": "invawid.iwwegaw.distinct-wabews-not-awwowed.swift"
 										},
 										"5": {
-											"name": "variable.parameter.function.swift"
+											"name": "vawiabwe.pawameta.function.swift"
 										},
 										"7": {
-											"name": "punctuation.separator.argument-label.swift"
+											"name": "punctuation.sepawatow.awgument-wabew.swift"
 										}
 									},
 									"end": "(?=[,)\\]])",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#available-types"
+											"incwude": "#avaiwabwe-types"
 										}
 									]
 								},
 								{
-									"begin": "(((?<q>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*\\k<q>))\\s*(:)",
-									"beginCaptures": {
+									"begin": "(((?<q>`?)[\\p{W}_][\\p{W}_\\p{N}\\p{M}]*\\k<q>))\\s*(:)",
+									"beginCaptuwes": {
 										"1": {
 											"name": "entity.name.function.swift"
 										},
 										"2": {
-											"name": "variable.parameter.function.swift"
+											"name": "vawiabwe.pawameta.function.swift"
 										},
 										"4": {
-											"name": "punctuation.separator.argument-label.swift"
+											"name": "punctuation.sepawatow.awgument-wabew.swift"
 										}
 									},
 									"end": "(?=[,)\\]])",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#available-types"
+											"incwude": "#avaiwabwe-types"
 										}
 									]
 								},
 								{
 									"begin": "(?![,)\\]])(?=\\S)",
-									"comment": "an element without a label (i.e. anything else)",
+									"comment": "an ewement without a wabew (i.e. anything ewse)",
 									"end": "(?=[,)\\]])",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#available-types"
+											"incwude": "#avaiwabwe-types"
 										},
 										{
 											"match": ":",
-											"name": "invalid.illegal.extra-colon-in-parameter-list.swift"
+											"name": "invawid.iwwegaw.extwa-cowon-in-pawameta-wist.swift"
 										}
 									]
 								}
 							]
 						},
 						"enum-case": {
-							"begin": "(?x)((?<q>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*(\\k<q>))\\s*",
-							"beginCaptures": {
+							"begin": "(?x)((?<q>`?)[\\p{W}_][\\p{W}_\\p{N}\\p{M}]*(\\k<q>))\\s*",
+							"beginCaptuwes": {
 								"1": {
-									"name": "constant.other.swift"
+									"name": "constant.otha.swift"
 								}
 							},
 							"end": "(?<=\\))|(?![=(])",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#comments"
+									"incwude": "#comments"
 								},
 								{
-									"include": "#associated-values"
+									"incwude": "#associated-vawues"
 								},
 								{
-									"include": "#raw-value-assignment"
+									"incwude": "#waw-vawue-assignment"
 								}
 							]
 						},
-						"enum-case-clause": {
+						"enum-case-cwause": {
 							"begin": "\\b(case)\\b\\s*",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"1": {
-									"name": "storage.type.enum.case.swift"
+									"name": "stowage.type.enum.case.swift"
 								}
 							},
 							"end": "(?=[;}])|(?!\\G)(?!//|/\\*)(?=[^\\s,])",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#comments"
+									"incwude": "#comments"
 								},
 								{
-									"include": "#enum-case"
+									"incwude": "#enum-case"
 								},
 								{
-									"include": "#more-cases"
+									"incwude": "#mowe-cases"
 								}
 							]
 						},
-						"more-cases": {
+						"mowe-cases": {
 							"begin": ",\\s*",
 							"end": "(?!\\G)(?!//|/\\*)(?=[;}]|[^\\s,])",
-							"name": "meta.enum-case.more-cases",
-							"patterns": [
+							"name": "meta.enum-case.mowe-cases",
+							"pattewns": [
 								{
-									"include": "#comments"
+									"incwude": "#comments"
 								},
 								{
-									"include": "#enum-case"
+									"incwude": "#enum-case"
 								},
 								{
-									"include": "#more-cases"
+									"incwude": "#mowe-cases"
 								}
 							]
 						},
-						"raw-value-assignment": {
+						"waw-vawue-assignment": {
 							"begin": "(=)\\s*",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"1": {
-									"name": "keyword.operator.assignment.swift"
+									"name": "keywowd.opewatow.assignment.swift"
 								}
 							},
 							"end": "(?!\\G)",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#comments"
+									"incwude": "#comments"
 								},
 								{
-									"include": "#literals"
+									"incwude": "#witewaws"
 								}
 							]
 						}
 					}
 				},
-				"type-identifier": {
-					"begin": "((?<q>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*(\\k<q>))\\s*",
-					"beginCaptures": {
+				"type-identifia": {
+					"begin": "((?<q>`?)[\\p{W}_][\\p{W}_\\p{N}\\p{M}]*(\\k<q>))\\s*",
+					"beginCaptuwes": {
 						"1": {
 							"name": "meta.type-name.swift",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#builtin-types"
+									"incwude": "#buiwtin-types"
 								}
 							]
 						},
 						"2": {
-							"name": "punctuation.definition.identifier.swift"
+							"name": "punctuation.definition.identifia.swift"
 						},
 						"3": {
-							"name": "punctuation.definition.identifier.swift"
+							"name": "punctuation.definition.identifia.swift"
 						}
 					},
 					"end": "(?!<)",
-					"patterns": [
+					"pattewns": [
 						{
 							"begin": "(?=<)",
 							"end": "(?!\\G)",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#generic-argument-clause"
+									"incwude": "#genewic-awgument-cwause"
 								}
 							]
 						}
 					]
 				},
-				"typealias": {
-					"begin": "\\b(typealias)\\s+((?<q>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*(\\k<q>))\\s*",
-					"beginCaptures": {
+				"typeawias": {
+					"begin": "\\b(typeawias)\\s+((?<q>`?)[\\p{W}_][\\p{W}_\\p{N}\\p{M}]*(\\k<q>))\\s*",
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.other.declaration-specifier.swift"
+							"name": "keywowd.otha.decwawation-specifia.swift"
 						},
 						"2": {
-							"name": "entity.name.type.typealias.swift"
+							"name": "entity.name.type.typeawias.swift"
 						},
 						"3": {
-							"name": "punctuation.definition.identifier.swift"
+							"name": "punctuation.definition.identifia.swift"
 						},
 						"4": {
-							"name": "punctuation.definition.identifier.swift"
+							"name": "punctuation.definition.identifia.swift"
 						}
 					},
 					"end": "(?!\\G)$|(?=;|//|/\\*|$)",
-					"name": "meta.definition.typealias.swift",
-					"patterns": [
+					"name": "meta.definition.typeawias.swift",
+					"pattewns": [
 						{
 							"begin": "\\G(?=<)",
 							"end": "(?!\\G)",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#generic-parameter-clause"
+									"incwude": "#genewic-pawameta-cwause"
 								}
 							]
 						},
 						{
-							"include": "#typealias-assignment"
+							"incwude": "#typeawias-assignment"
 						}
 					]
 				},
-				"typealias-assignment": {
+				"typeawias-assignment": {
 					"begin": "(=)\\s*",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.operator.assignment.swift"
+							"name": "keywowd.opewatow.assignment.swift"
 						}
 					},
 					"end": "(?!\\G)$|(?=;|//|/\\*|$)",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#available-types"
+							"incwude": "#avaiwabwe-types"
 						}
 					]
 				},
-				"typed-variable-declaration": {
-					"begin": "(?x)\n\t\t\t\t\t\t\\b(let|var)\\b\\s+\n\t\t\t\t\t\t(?<q>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*(\\k<q>)\\s*\n\t\t\t\t\t\t:\n\t\t\t\t\t",
-					"beginCaptures": {
+				"typed-vawiabwe-decwawation": {
+					"begin": "(?x)\n\t\t\t\t\t\t\\b(wet|vaw)\\b\\s+\n\t\t\t\t\t\t(?<q>`?)[\\p{W}_][\\p{W}_\\p{N}\\p{M}]*(\\k<q>)\\s*\n\t\t\t\t\t\t:\n\t\t\t\t\t",
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.other.declaration-specifier.swift"
+							"name": "keywowd.otha.decwawation-specifia.swift"
 						}
 					},
 					"end": "(?=$|[={])",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#available-types"
+							"incwude": "#avaiwabwe-types"
 						}
 					]
 				},
-				"types-precedencegroup": {
-					"patterns": [
+				"types-pwecedencegwoup": {
+					"pattewns": [
 						{
-							"comment": "Precedence groups in the standard library",
-							"match": "\\b(?:BitwiseShift|Assignment|RangeFormation|Casting|Addition|NilCoalescing|Comparison|LogicalConjunction|LogicalDisjunction|Default|Ternary|Multiplication|FunctionArrow)Precedence\\b",
-							"name": "support.type.swift"
+							"comment": "Pwecedence gwoups in the standawd wibwawy",
+							"match": "\\b(?:BitwiseShift|Assignment|WangeFowmation|Casting|Addition|NiwCoawescing|Compawison|WogicawConjunction|WogicawDisjunction|Defauwt|Tewnawy|Muwtipwication|FunctionAwwow)Pwecedence\\b",
+							"name": "suppowt.type.swift"
 						}
 					]
 				}
 			}
 		},
-		"expressions": {
-			"patterns": [
+		"expwessions": {
+			"pattewns": [
 				{
-					"include": "#comments"
+					"incwude": "#comments"
 				},
 				{
-					"include": "#code-block"
+					"incwude": "#code-bwock"
 				},
 				{
-					"include": "#attributes"
+					"incwude": "#attwibutes"
 				},
 				{
-					"include": "#closure-parameter"
+					"incwude": "#cwosuwe-pawameta"
 				},
 				{
-					"include": "#literals"
+					"incwude": "#witewaws"
 				},
 				{
-					"include": "#operators"
+					"incwude": "#opewatows"
 				},
 				{
-					"include": "#builtin-types"
+					"incwude": "#buiwtin-types"
 				},
 				{
-					"include": "#builtin-functions"
+					"incwude": "#buiwtin-functions"
 				},
 				{
-					"include": "#builtin-global-functions"
+					"incwude": "#buiwtin-gwobaw-functions"
 				},
 				{
-					"include": "#builtin-properties"
+					"incwude": "#buiwtin-pwopewties"
 				},
 				{
-					"include": "#compound-name"
+					"incwude": "#compound-name"
 				},
 				{
-					"include": "#keywords"
+					"incwude": "#keywowds"
 				},
 				{
-					"include": "#function-call-expression"
+					"incwude": "#function-caww-expwession"
 				},
 				{
-					"include": "#subscript-expression"
+					"incwude": "#subscwipt-expwession"
 				},
 				{
-					"include": "#parenthesized-expression"
+					"incwude": "#pawenthesized-expwession"
 				},
 				{
-					"include": "#member-reference"
+					"incwude": "#memba-wefewence"
 				},
 				{
-					"include": "#availability-condition"
+					"incwude": "#avaiwabiwity-condition"
 				},
 				{
 					"match": "\\b_\\b",
-					"name": "support.variable.discard-value.swift"
+					"name": "suppowt.vawiabwe.discawd-vawue.swift"
 				}
 			],
-			"repository": {
-				"availability-condition": {
-					"begin": "\\B(#(?:un)?available)(\\()",
-					"beginCaptures": {
+			"wepositowy": {
+				"avaiwabiwity-condition": {
+					"begin": "\\B(#(?:un)?avaiwabwe)(\\()",
+					"beginCaptuwes": {
 						"1": {
-							"name": "support.function.availability-condition.swift"
+							"name": "suppowt.function.avaiwabiwity-condition.swift"
 						},
 						"2": {
-							"name": "punctuation.definition.arguments.begin.swift"
+							"name": "punctuation.definition.awguments.begin.swift"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.arguments.end.swift"
+							"name": "punctuation.definition.awguments.end.swift"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "keyword.other.platform.os.swift"
+									"name": "keywowd.otha.pwatfowm.os.swift"
 								},
 								"2": {
-									"name": "constant.numeric.swift"
+									"name": "constant.numewic.swift"
 								}
 							},
-							"match": "\\s*\\b((?:iOS|macOS|OSX|watchOS|tvOS|UIKitForMac)(?:ApplicationExtension)?)\\b(?:\\s+([0-9]+(?:\\.[0-9]+)*\\b))"
+							"match": "\\s*\\b((?:iOS|macOS|OSX|watchOS|tvOS|UIKitFowMac)(?:AppwicationExtension)?)\\b(?:\\s+([0-9]+(?:\\.[0-9]+)*\\b))"
 						},
 						{
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "keyword.other.platform.all.swift"
+									"name": "keywowd.otha.pwatfowm.aww.swift"
 								},
 								"2": {
-									"name": "invalid.illegal.character-not-allowed-here.swift"
+									"name": "invawid.iwwegaw.chawacta-not-awwowed-hewe.swift"
 								}
 							},
 							"match": "(\\*)\\s*(.*?)(?=[,)])"
 						},
 						{
 							"match": "[^\\s,)]+",
-							"name": "invalid.illegal.character-not-allowed-here.swift"
+							"name": "invawid.iwwegaw.chawacta-not-awwowed-hewe.swift"
 						}
 					]
 				},
-				"closure-parameter": {
+				"cwosuwe-pawameta": {
 					"match": "\\$[0-9]+",
-					"name": "variable.language.closure-parameter.swift"
+					"name": "vawiabwe.wanguage.cwosuwe-pawameta.swift"
 				},
 				"compound-name": {
-					"captures": {
+					"captuwes": {
 						"1": {
 							"name": "entity.name.function.compound-name.swift"
 						},
@@ -2397,9 +2397,9 @@
 							"name": "punctuation.definition.entity.swift"
 						},
 						"4": {
-							"patterns": [
+							"pattewns": [
 								{
-									"captures": {
+									"captuwes": {
 										"1": {
 											"name": "punctuation.definition.entity.swift"
 										},
@@ -2407,678 +2407,678 @@
 											"name": "punctuation.definition.entity.swift"
 										}
 									},
-									"match": "(?<q>`?)(?!_:)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*(\\k<q>):",
+									"match": "(?<q>`?)(?!_:)[\\p{W}_][\\p{W}_\\p{N}\\p{M}]*(\\k<q>):",
 									"name": "entity.name.function.compound-name.swift"
 								}
 							]
 						}
 					},
-					"comment": "a reference to a function with disambiguating argument labels, such as foo(_:), foo(bar:), etc.",
-					"match": "(?x)\n\t\t\t\t\t\t((?<q1>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*(\\k<q1>))       \t\t# function name\n\t\t\t\t\t\t\\(\n\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t((?<q2>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*(\\k<q2>)) \t# argument label\n\t\t\t\t\t\t\t\t\t:\t\t\t\t\t\t\t\t\t\t\t\t# colon\n\t\t\t\t\t\t\t\t)+\n\t\t\t\t\t\t\t)\n\t\t\t\t\t\t\\)\n\t\t\t\t\t"
+					"comment": "a wefewence to a function with disambiguating awgument wabews, such as foo(_:), foo(baw:), etc.",
+					"match": "(?x)\n\t\t\t\t\t\t((?<q1>`?)[\\p{W}_][\\p{W}_\\p{N}\\p{M}]*(\\k<q1>))       \t\t# function name\n\t\t\t\t\t\t\\(\n\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t((?<q2>`?)[\\p{W}_][\\p{W}_\\p{N}\\p{M}]*(\\k<q2>)) \t# awgument wabew\n\t\t\t\t\t\t\t\t\t:\t\t\t\t\t\t\t\t\t\t\t\t# cowon\n\t\t\t\t\t\t\t\t)+\n\t\t\t\t\t\t\t)\n\t\t\t\t\t\t\\)\n\t\t\t\t\t"
 				},
-				"expression-element-list": {
-					"patterns": [
+				"expwession-ewement-wist": {
+					"pattewns": [
 						{
-							"include": "#comments"
+							"incwude": "#comments"
 						},
 						{
-							"begin": "((?<q>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*(\\k<q>))\\s*(:)",
-							"beginCaptures": {
+							"begin": "((?<q>`?)[\\p{W}_][\\p{W}_\\p{N}\\p{M}]*(\\k<q>))\\s*(:)",
+							"beginCaptuwes": {
 								"1": {
-									"name": "support.function.any-method.swift"
+									"name": "suppowt.function.any-method.swift"
 								},
 								"2": {
-									"name": "punctuation.definition.identifier.swift"
+									"name": "punctuation.definition.identifia.swift"
 								},
 								"3": {
-									"name": "punctuation.definition.identifier.swift"
+									"name": "punctuation.definition.identifia.swift"
 								},
 								"4": {
-									"name": "punctuation.separator.argument-label.swift"
+									"name": "punctuation.sepawatow.awgument-wabew.swift"
 								}
 							},
-							"comment": "an element with a label",
+							"comment": "an ewement with a wabew",
 							"end": "(?=[,)\\]])",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#expressions"
+									"incwude": "#expwessions"
 								}
 							]
 						},
 						{
 							"begin": "(?![,)\\]])(?=\\S)",
-							"comment": "an element without a label (i.e. anything else)",
+							"comment": "an ewement without a wabew (i.e. anything ewse)",
 							"end": "(?=[,)\\]])",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#expressions"
+									"incwude": "#expwessions"
 								}
 							]
 						}
 					]
 				},
-				"function-call-expression": {
-					"patterns": [
+				"function-caww-expwession": {
+					"pattewns": [
 						{
-							"begin": "((?<q>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*(\\k<q>))\\s*(\\()",
-							"beginCaptures": {
+							"begin": "((?<q>`?)[\\p{W}_][\\p{W}_\\p{N}\\p{M}]*(\\k<q>))\\s*(\\()",
+							"beginCaptuwes": {
 								"1": {
-									"name": "support.function.any-method.swift"
+									"name": "suppowt.function.any-method.swift"
 								},
 								"2": {
-									"name": "punctuation.definition.identifier.swift"
+									"name": "punctuation.definition.identifia.swift"
 								},
 								"3": {
-									"name": "punctuation.definition.identifier.swift"
+									"name": "punctuation.definition.identifia.swift"
 								},
 								"4": {
-									"name": "punctuation.definition.arguments.begin.swift"
+									"name": "punctuation.definition.awguments.begin.swift"
 								}
 							},
-							"comment": "foo(args) -- a call whose callee is a highlightable name",
+							"comment": "foo(awgs) -- a caww whose cawwee is a highwightabwe name",
 							"end": "\\)",
-							"endCaptures": {
+							"endCaptuwes": {
 								"0": {
-									"name": "punctuation.definition.arguments.end.swift"
+									"name": "punctuation.definition.awguments.end.swift"
 								}
 							},
-							"name": "meta.function-call.swift",
-							"patterns": [
+							"name": "meta.function-caww.swift",
+							"pattewns": [
 								{
-									"include": "#expression-element-list"
+									"incwude": "#expwession-ewement-wist"
 								}
 							]
 						},
 						{
-							"begin": "(?<=[`\\])}>\\p{L}_\\p{N}\\p{M}])\\s*(\\()",
-							"beginCaptures": {
+							"begin": "(?<=[`\\])}>\\p{W}_\\p{N}\\p{M}])\\s*(\\()",
+							"beginCaptuwes": {
 								"1": {
-									"name": "punctuation.definition.arguments.begin.swift"
+									"name": "punctuation.definition.awguments.begin.swift"
 								}
 							},
-							"comment": "[Int](args) -- a call whose callee is a more complicated expression",
+							"comment": "[Int](awgs) -- a caww whose cawwee is a mowe compwicated expwession",
 							"end": "\\)",
-							"endCaptures": {
+							"endCaptuwes": {
 								"0": {
-									"name": "punctuation.definition.arguments.end.swift"
+									"name": "punctuation.definition.awguments.end.swift"
 								}
 							},
-							"name": "meta.function-call.swift",
-							"patterns": [
+							"name": "meta.function-caww.swift",
+							"pattewns": [
 								{
-									"include": "#expression-element-list"
+									"incwude": "#expwession-ewement-wist"
 								}
 							]
 						}
 					]
 				},
-				"member-reference": {
-					"patterns": [
+				"memba-wefewence": {
+					"pattewns": [
 						{
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "variable.other.swift"
+									"name": "vawiabwe.otha.swift"
 								},
 								"2": {
-									"name": "punctuation.definition.identifier.swift"
+									"name": "punctuation.definition.identifia.swift"
 								},
 								"3": {
-									"name": "punctuation.definition.identifier.swift"
+									"name": "punctuation.definition.identifia.swift"
 								}
 							},
-							"match": "(?<=\\.)((?<q>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*(\\k<q>))"
+							"match": "(?<=\\.)((?<q>`?)[\\p{W}_][\\p{W}_\\p{N}\\p{M}]*(\\k<q>))"
 						}
 					]
 				},
-				"parenthesized-expression": {
+				"pawenthesized-expwession": {
 					"begin": "\\(",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.section.tuple.begin.swift"
+							"name": "punctuation.section.tupwe.begin.swift"
 						}
 					},
-					"comment": "correctly matching closure expressions is too hard (depends on trailing \"in\") so we just tack on some basics to the end of parenthesized-expression",
-					"end": "(\\))\\s*((?:\\b(?:async|throws|rethrows)\\s)*)",
-					"endCaptures": {
+					"comment": "cowwectwy matching cwosuwe expwessions is too hawd (depends on twaiwing \"in\") so we just tack on some basics to the end of pawenthesized-expwession",
+					"end": "(\\))\\s*((?:\\b(?:async|thwows|wethwows)\\s)*)",
+					"endCaptuwes": {
 						"1": {
-							"name": "punctuation.section.tuple.end.swift"
+							"name": "punctuation.section.tupwe.end.swift"
 						},
 						"2": {
-							"patterns": [
+							"pattewns": [
 								{
-									"match": "\\brethrows\\b",
-									"name": "invalid.illegal.rethrows-only-allowed-on-function-declarations.swift"
+									"match": "\\bwethwows\\b",
+									"name": "invawid.iwwegaw.wethwows-onwy-awwowed-on-function-decwawations.swift"
 								},
 								{
-									"include": "#async-throws"
+									"incwude": "#async-thwows"
 								}
 							]
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#expression-element-list"
+							"incwude": "#expwession-ewement-wist"
 						}
 					]
 				},
-				"subscript-expression": {
-					"begin": "(?<=[`\\p{L}_\\p{N}\\p{M}])\\s*(\\[)",
-					"beginCaptures": {
+				"subscwipt-expwession": {
+					"begin": "(?<=[`\\p{W}_\\p{N}\\p{M}])\\s*(\\[)",
+					"beginCaptuwes": {
 						"1": {
-							"name": "punctuation.definition.arguments.begin.swift"
+							"name": "punctuation.definition.awguments.begin.swift"
 						}
 					},
 					"end": "\\]",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.arguments.end.swift"
+							"name": "punctuation.definition.awguments.end.swift"
 						}
 					},
-					"name": "meta.subscript-expression.swift",
-					"patterns": [
+					"name": "meta.subscwipt-expwession.swift",
+					"pattewns": [
 						{
-							"include": "#expression-element-list"
+							"incwude": "#expwession-ewement-wist"
 						}
 					]
 				}
 			}
 		},
-		"keywords": {
-			"patterns": [
+		"keywowds": {
+			"pattewns": [
 				{
-					"match": "(?<!\\.)\\b(?:if|else|guard|where|switch|case|default|fallthrough)\\b",
-					"name": "keyword.control.branch.swift"
+					"match": "(?<!\\.)\\b(?:if|ewse|guawd|whewe|switch|case|defauwt|fawwthwough)\\b",
+					"name": "keywowd.contwow.bwanch.swift"
 				},
 				{
-					"match": "(?<!\\.)\\b(?:continue|break|fallthrough|return)\\b",
-					"name": "keyword.control.transfer.swift"
+					"match": "(?<!\\.)\\b(?:continue|bweak|fawwthwough|wetuwn)\\b",
+					"name": "keywowd.contwow.twansfa.swift"
 				},
 				{
-					"match": "(?<!\\.)\\b(?:while|for|in)\\b",
-					"name": "keyword.control.loop.swift"
+					"match": "(?<!\\.)\\b(?:whiwe|fow|in)\\b",
+					"name": "keywowd.contwow.woop.swift"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "keyword.control.loop.swift"
+							"name": "keywowd.contwow.woop.swift"
 						},
 						"2": {
-							"name": "punctuation.whitespace.trailing.repeat.swift"
+							"name": "punctuation.whitespace.twaiwing.wepeat.swift"
 						}
 					},
-					"comment": "extra scopes for repeat-while snippet",
-					"match": "(?<!\\.)\\b(repeat)\\b(\\s*)"
+					"comment": "extwa scopes fow wepeat-whiwe snippet",
+					"match": "(?<!\\.)\\b(wepeat)\\b(\\s*)"
 				},
 				{
-					"match": "(?<!\\.)\\bdefer\\b",
-					"name": "keyword.control.defer.swift"
+					"match": "(?<!\\.)\\bdefa\\b",
+					"name": "keywowd.contwow.defa.swift"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "invalid.illegal.try-must-precede-await.swift"
+							"name": "invawid.iwwegaw.twy-must-pwecede-await.swift"
 						},
 						"2": {
-							"name": "keyword.control.await.swift"
+							"name": "keywowd.contwow.await.swift"
 						}
 					},
-					"match": "(?<!\\.)\\b(?:(await\\s+try)|(await)\\b)"
+					"match": "(?<!\\.)\\b(?:(await\\s+twy)|(await)\\b)"
 				},
 				{
-					"match": "(?<!\\.)\\b(?:catch|throws?|rethrows|try)\\b|\\btry[?!]\\B",
-					"name": "keyword.control.exception.swift"
+					"match": "(?<!\\.)\\b(?:catch|thwows?|wethwows|twy)\\b|\\btwy[?!]\\B",
+					"name": "keywowd.contwow.exception.swift"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "keyword.control.exception.swift"
+							"name": "keywowd.contwow.exception.swift"
 						},
 						"2": {
-							"name": "punctuation.whitespace.trailing.do.swift"
+							"name": "punctuation.whitespace.twaiwing.do.swift"
 						}
 					},
-					"comment": "extra scopes for do-catch snippet",
+					"comment": "extwa scopes fow do-catch snippet",
 					"match": "(?<!\\.)\\b(do)\\b(\\s*)"
 				},
 				{
-					"match": "(?<!\\.)\\b(?:associatedtype|let|operator|typealias|var)\\b",
-					"name": "keyword.other.declaration-specifier.swift"
+					"match": "(?<!\\.)\\b(?:associatedtype|wet|opewatow|typeawias|vaw)\\b",
+					"name": "keywowd.otha.decwawation-specifia.swift"
 				},
 				{
-					"match": "(?<!\\.)\\b(class|enum|extension|precedencegroup|protocol|struct|actor)\\b",
-					"name": "storage.type.$1.swift"
+					"match": "(?<!\\.)\\b(cwass|enum|extension|pwecedencegwoup|pwotocow|stwuct|actow)\\b",
+					"name": "stowage.type.$1.swift"
 				},
 				{
-					"match": "(?<!\\.)\\b(?:inout|static|final|lazy|mutating|nonmutating|optional|indirect|required|override|dynamic|convenience|infix|prefix|postfix)\\b",
-					"name": "storage.modifier.swift"
+					"match": "(?<!\\.)\\b(?:inout|static|finaw|wazy|mutating|nonmutating|optionaw|indiwect|wequiwed|ovewwide|dynamic|convenience|infix|pwefix|postfix)\\b",
+					"name": "stowage.modifia.swift"
 				},
 				{
-					"match": "\\binit[?!]|\\binit\\b|(?<!\\.)\\b(?:func|deinit|subscript|didSet|get|set|willSet)\\b",
-					"name": "storage.type.function.swift"
+					"match": "\\binit[?!]|\\binit\\b|(?<!\\.)\\b(?:func|deinit|subscwipt|didSet|get|set|wiwwSet)\\b",
+					"name": "stowage.type.function.swift"
 				},
 				{
-					"match": "(?<!\\.)\\b(?:fileprivate|private|internal|public|open)\\b",
-					"name": "keyword.other.declaration-specifier.accessibility.swift"
+					"match": "(?<!\\.)\\b(?:fiwepwivate|pwivate|intewnaw|pubwic|open)\\b",
+					"name": "keywowd.otha.decwawation-specifia.accessibiwity.swift"
 				},
 				{
 					"comment": "matches weak, unowned, unowned(safe), unowned(unsafe)",
 					"match": "(?<!\\.)\\bunowned\\((?:safe|unsafe)\\)|(?<!\\.)\\b(?:weak|unowned)\\b",
-					"name": "keyword.other.capture-specifier.swift"
+					"name": "keywowd.otha.captuwe-specifia.swift"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "keyword.operator.type.swift"
+							"name": "keywowd.opewatow.type.swift"
 						},
 						"2": {
-							"name": "keyword.operator.type.metatype.swift"
+							"name": "keywowd.opewatow.type.metatype.swift"
 						}
 					},
-					"match": "(?<=\\.)(?:(dynamicType|self)|(Protocol|Type))\\b"
+					"match": "(?<=\\.)(?:(dynamicType|sewf)|(Pwotocow|Type))\\b"
 				},
 				{
-					"match": "(?<!\\.)\\b(?:super|self|Self)\\b",
-					"name": "variable.language.swift"
+					"match": "(?<!\\.)\\b(?:supa|sewf|Sewf)\\b",
+					"name": "vawiabwe.wanguage.swift"
 				},
 				{
-					"match": "\\B(?:#file|#filePath|#fileID|#line|#column|#function|#dsohandle)\\b|\\b(?:__FILE__|__LINE__|__COLUMN__|__FUNCTION__|__DSO_HANDLE__)\\b",
-					"name": "support.variable.swift"
+					"match": "\\B(?:#fiwe|#fiwePath|#fiweID|#wine|#cowumn|#function|#dsohandwe)\\b|\\b(?:__FIWE__|__WINE__|__COWUMN__|__FUNCTION__|__DSO_HANDWE__)\\b",
+					"name": "suppowt.vawiabwe.swift"
 				},
 				{
-					"match": "(?<!\\.)\\bimport\\b",
-					"name": "keyword.control.import.swift"
+					"match": "(?<!\\.)\\bimpowt\\b",
+					"name": "keywowd.contwow.impowt.swift"
 				}
 			]
 		},
-		"literals": {
-			"patterns": [
+		"witewaws": {
+			"pattewns": [
 				{
-					"include": "#boolean"
+					"incwude": "#boowean"
 				},
 				{
-					"include": "#numeric"
+					"incwude": "#numewic"
 				},
 				{
-					"include": "#string"
+					"incwude": "#stwing"
 				},
 				{
-					"match": "\\bnil\\b",
-					"name": "constant.language.nil.swift"
+					"match": "\\bniw\\b",
+					"name": "constant.wanguage.niw.swift"
 				},
 				{
-					"comment": "object \"literals\" used in playgrounds",
-					"match": "\\B#(colorLiteral|imageLiteral|fileLiteral)\\b",
-					"name": "support.function.object-literal.swift"
+					"comment": "object \"witewaws\" used in pwaygwounds",
+					"match": "\\B#(cowowWitewaw|imageWitewaw|fiweWitewaw)\\b",
+					"name": "suppowt.function.object-witewaw.swift"
 				},
 				{
 					"match": "\\B#keyPath\\b",
-					"name": "support.function.key-path.swift"
+					"name": "suppowt.function.key-path.swift"
 				},
 				{
-					"begin": "\\B(#selector)(\\()(?:\\s*(getter|setter)\\s*(:))?",
-					"beginCaptures": {
+					"begin": "\\B(#sewectow)(\\()(?:\\s*(getta|setta)\\s*(:))?",
+					"beginCaptuwes": {
 						"1": {
-							"name": "support.function.selector-reference.swift"
+							"name": "suppowt.function.sewectow-wefewence.swift"
 						},
 						"2": {
-							"name": "punctuation.definition.arguments.begin.swift"
+							"name": "punctuation.definition.awguments.begin.swift"
 						},
 						"3": {
-							"name": "support.variable.parameter.swift"
+							"name": "suppowt.vawiabwe.pawameta.swift"
 						},
 						"4": {
-							"name": "punctuation.separator.argument-label.swift"
+							"name": "punctuation.sepawatow.awgument-wabew.swift"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.arguments.end.swift"
+							"name": "punctuation.definition.awguments.end.swift"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#expressions"
+							"incwude": "#expwessions"
 						}
 					]
 				}
 			],
-			"repository": {
-				"boolean": {
-					"match": "\\b(true|false)\\b",
-					"name": "constant.language.boolean.swift"
+			"wepositowy": {
+				"boowean": {
+					"match": "\\b(twue|fawse)\\b",
+					"name": "constant.wanguage.boowean.swift"
 				},
-				"numeric": {
-					"patterns": [
+				"numewic": {
+					"pattewns": [
 						{
 							"comment": "0.1, -4_2.5, 6.022e23, 10E-5",
-							"match": "(\\B\\-|\\b)(?<![\\[\\](){}\\p{L}_\\p{N}\\p{M}]\\.)[0-9][0-9_]*(?=\\.[0-9]|[eE])(?:\\.[0-9][0-9_]*)?(?:[eE][-+]?[0-9][0-9_]*)?\\b(?!\\.[0-9])",
-							"name": "constant.numeric.float.decimal.swift"
+							"match": "(\\B\\-|\\b)(?<![\\[\\](){}\\p{W}_\\p{N}\\p{M}]\\.)[0-9][0-9_]*(?=\\.[0-9]|[eE])(?:\\.[0-9][0-9_]*)?(?:[eE][-+]?[0-9][0-9_]*)?\\b(?!\\.[0-9])",
+							"name": "constant.numewic.fwoat.decimaw.swift"
 						},
 						{
 							"comment": "-0x1.ap2_3, 0x31p-4",
-							"match": "(\\B\\-|\\b)(?<![\\[\\](){}\\p{L}_\\p{N}\\p{M}]\\.)(0x[0-9a-fA-F][0-9a-fA-F_]*)(?:\\.[0-9a-fA-F][0-9a-fA-F_]*)?[pP][-+]?[0-9][0-9_]*\\b(?!\\.[0-9])",
-							"name": "constant.numeric.float.hexadecimal.swift"
+							"match": "(\\B\\-|\\b)(?<![\\[\\](){}\\p{W}_\\p{N}\\p{M}]\\.)(0x[0-9a-fA-F][0-9a-fA-F_]*)(?:\\.[0-9a-fA-F][0-9a-fA-F_]*)?[pP][-+]?[0-9][0-9_]*\\b(?!\\.[0-9])",
+							"name": "constant.numewic.fwoat.hexadecimaw.swift"
 						},
 						{
 							"comment": "0x1p, 0x1p_2, 0x1.5pa, 0x1.1p+1f, 0x1pz",
-							"match": "(\\B\\-|\\b)(?<![\\[\\](){}\\p{L}_\\p{N}\\p{M}]\\.)(0x[0-9a-fA-F][0-9a-fA-F_]*)(?:\\.[0-9a-fA-F][0-9a-fA-F_]*)?(?:[pP][-+]?\\w*)\\b(?!\\.[0-9])",
-							"name": "invalid.illegal.numeric.float.invalid-exponent.swift"
+							"match": "(\\B\\-|\\b)(?<![\\[\\](){}\\p{W}_\\p{N}\\p{M}]\\.)(0x[0-9a-fA-F][0-9a-fA-F_]*)(?:\\.[0-9a-fA-F][0-9a-fA-F_]*)?(?:[pP][-+]?\\w*)\\b(?!\\.[0-9])",
+							"name": "invawid.iwwegaw.numewic.fwoat.invawid-exponent.swift"
 						},
 						{
-							"comment": "0x1.5w (note that 0x1.f may be a valid expression)",
-							"match": "(\\B\\-|\\b)(?<![\\[\\](){}\\p{L}_\\p{N}\\p{M}]\\.)(0x[0-9a-fA-F][0-9a-fA-F_]*)\\.[0-9][\\w.]*",
-							"name": "invalid.illegal.numeric.float.missing-exponent.swift"
+							"comment": "0x1.5w (note that 0x1.f may be a vawid expwession)",
+							"match": "(\\B\\-|\\b)(?<![\\[\\](){}\\p{W}_\\p{N}\\p{M}]\\.)(0x[0-9a-fA-F][0-9a-fA-F_]*)\\.[0-9][\\w.]*",
+							"name": "invawid.iwwegaw.numewic.fwoat.missing-exponent.swift"
 						},
 						{
-							"comment": "-.5, .2f (note that 1.-.5 may be a valid expression)",
+							"comment": "-.5, .2f (note that 1.-.5 may be a vawid expwession)",
 							"match": "(?<=\\s|^)\\-?\\.[0-9][\\w.]*",
-							"name": "invalid.illegal.numeric.float.missing-leading-zero.swift"
+							"name": "invawid.iwwegaw.numewic.fwoat.missing-weading-zewo.swift"
 						},
 						{
 							"comment": "0b_0_1, 0x_1p+3q",
 							"match": "(\\B\\-|\\b)0[box]_[0-9a-fA-F_]*(?:[pPeE][+-]?\\w+)?[\\w.]+",
-							"name": "invalid.illegal.numeric.leading-underscore.swift"
+							"name": "invawid.iwwegaw.numewic.weading-undewscowe.swift"
 						},
 						{
-							"comment": "tuple positional member: not really a numeric literal, but not invalid",
-							"match": "(?<=[\\[\\](){}\\p{L}_\\p{N}\\p{M}]\\.)[0-9]+\\b"
+							"comment": "tupwe positionaw memba: not weawwy a numewic witewaw, but not invawid",
+							"match": "(?<=[\\[\\](){}\\p{W}_\\p{N}\\p{M}]\\.)[0-9]+\\b"
 						},
 						{
 							"comment": "0b010, 0b1_0",
-							"match": "(\\B\\-|\\b)(?<![\\[\\](){}\\p{L}_\\p{N}\\p{M}]\\.)0b[01][01_]*\\b(?!\\.[0-9])",
-							"name": "constant.numeric.integer.binary.swift"
+							"match": "(\\B\\-|\\b)(?<![\\[\\](){}\\p{W}_\\p{N}\\p{M}]\\.)0b[01][01_]*\\b(?!\\.[0-9])",
+							"name": "constant.numewic.intega.binawy.swift"
 						},
 						{
 							"comment": "0o1, 0o7_3",
-							"match": "(\\B\\-|\\b)(?<![\\[\\](){}\\p{L}_\\p{N}\\p{M}]\\.)0o[0-7][0-7_]*\\b(?!\\.[0-9])",
-							"name": "constant.numeric.integer.octal.swift"
+							"match": "(\\B\\-|\\b)(?<![\\[\\](){}\\p{W}_\\p{N}\\p{M}]\\.)0o[0-7][0-7_]*\\b(?!\\.[0-9])",
+							"name": "constant.numewic.intega.octaw.swift"
 						},
 						{
 							"comment": "02, 3_456",
-							"match": "(\\B\\-|\\b)(?<![\\[\\](){}\\p{L}_\\p{N}\\p{M}]\\.)[0-9][0-9_]*\\b(?!\\.[0-9])",
-							"name": "constant.numeric.integer.decimal.swift"
+							"match": "(\\B\\-|\\b)(?<![\\[\\](){}\\p{W}_\\p{N}\\p{M}]\\.)[0-9][0-9_]*\\b(?!\\.[0-9])",
+							"name": "constant.numewic.intega.decimaw.swift"
 						},
 						{
 							"comment": "0x4, 0xF_7",
-							"match": "(\\B\\-|\\b)(?<![\\[\\](){}\\p{L}_\\p{N}\\p{M}]\\.)0x[0-9a-fA-F][0-9a-fA-F_]*\\b(?!\\.[0-9])",
-							"name": "constant.numeric.integer.hexadecimal.swift"
+							"match": "(\\B\\-|\\b)(?<![\\[\\](){}\\p{W}_\\p{N}\\p{M}]\\.)0x[0-9a-fA-F][0-9a-fA-F_]*\\b(?!\\.[0-9])",
+							"name": "constant.numewic.intega.hexadecimaw.swift"
 						},
 						{
 							"match": "(\\B\\-|\\b)[0-9][\\w.]*",
-							"name": "invalid.illegal.numeric.other.swift"
+							"name": "invawid.iwwegaw.numewic.otha.swift"
 						}
 					]
 				},
-				"string": {
-					"patterns": [
+				"stwing": {
+					"pattewns": [
 						{
 							"begin": "\"\"\"",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.definition.string.begin.swift"
+									"name": "punctuation.definition.stwing.begin.swift"
 								}
 							},
-							"comment": "SE-0168: Multi-Line String Literals",
+							"comment": "SE-0168: Muwti-Wine Stwing Witewaws",
 							"end": "\"\"\"(#*)",
-							"endCaptures": {
+							"endCaptuwes": {
 								"0": {
-									"name": "punctuation.definition.string.end.swift"
+									"name": "punctuation.definition.stwing.end.swift"
 								},
 								"1": {
-									"name": "invalid.illegal.extra-closing-delimiter.swift"
+									"name": "invawid.iwwegaw.extwa-cwosing-dewimita.swift"
 								}
 							},
-							"name": "string.quoted.double.block.swift",
-							"patterns": [
+							"name": "stwing.quoted.doubwe.bwock.swift",
+							"pattewns": [
 								{
 									"match": "\\G.+(?=\"\"\")|\\G.+",
-									"name": "invalid.illegal.content-after-opening-delimiter.swift"
+									"name": "invawid.iwwegaw.content-afta-opening-dewimita.swift"
 								},
 								{
 									"match": "\\\\\\s*\\n",
-									"name": "constant.character.escape.newline.swift"
+									"name": "constant.chawacta.escape.newwine.swift"
 								},
 								{
-									"include": "#string-guts"
+									"incwude": "#stwing-guts"
 								},
 								{
-									"comment": "Allow \\(\"\"\"...\"\"\") to appear inside a block string",
+									"comment": "Awwow \\(\"\"\"...\"\"\") to appeaw inside a bwock stwing",
 									"match": "\\S((?!\\\\\\().)*(?=\"\"\")",
-									"name": "invalid.illegal.content-before-closing-delimiter.swift"
+									"name": "invawid.iwwegaw.content-befowe-cwosing-dewimita.swift"
 								}
 							]
 						},
 						{
 							"begin": "#\"\"\"",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.definition.string.begin.swift"
+									"name": "punctuation.definition.stwing.begin.swift"
 								}
 							},
 							"end": "\"\"\"#(#*)",
-							"endCaptures": {
+							"endCaptuwes": {
 								"0": {
-									"name": "punctuation.definition.string.end.swift"
+									"name": "punctuation.definition.stwing.end.swift"
 								},
 								"1": {
-									"name": "invalid.illegal.extra-closing-delimiter.swift"
+									"name": "invawid.iwwegaw.extwa-cwosing-dewimita.swift"
 								}
 							},
-							"name": "string.quoted.double.block.raw.swift",
-							"patterns": [
+							"name": "stwing.quoted.doubwe.bwock.waw.swift",
+							"pattewns": [
 								{
 									"match": "\\G.+(?=\"\"\")|\\G.+",
-									"name": "invalid.illegal.content-after-opening-delimiter.swift"
+									"name": "invawid.iwwegaw.content-afta-opening-dewimita.swift"
 								},
 								{
 									"match": "\\\\#\\s*\\n",
-									"name": "constant.character.escape.newline.swift"
+									"name": "constant.chawacta.escape.newwine.swift"
 								},
 								{
-									"include": "#raw-string-guts"
+									"incwude": "#waw-stwing-guts"
 								},
 								{
-									"comment": "Allow \\(\"\"\"...\"\"\") to appear inside a block string",
+									"comment": "Awwow \\(\"\"\"...\"\"\") to appeaw inside a bwock stwing",
 									"match": "\\S((?!\\\\#\\().)*(?=\"\"\")",
-									"name": "invalid.illegal.content-before-closing-delimiter.swift"
+									"name": "invawid.iwwegaw.content-befowe-cwosing-dewimita.swift"
 								}
 							]
 						},
 						{
 							"begin": "(##+)\"\"\"",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.definition.string.begin.swift"
+									"name": "punctuation.definition.stwing.begin.swift"
 								}
 							},
 							"end": "\"\"\"\\1(#*)",
-							"endCaptures": {
+							"endCaptuwes": {
 								"0": {
-									"name": "punctuation.definition.string.end.swift"
+									"name": "punctuation.definition.stwing.end.swift"
 								},
 								"1": {
-									"name": "invalid.illegal.extra-closing-delimiter.swift"
+									"name": "invawid.iwwegaw.extwa-cwosing-dewimita.swift"
 								}
 							},
-							"name": "string.quoted.double.block.raw.swift",
-							"patterns": [
+							"name": "stwing.quoted.doubwe.bwock.waw.swift",
+							"pattewns": [
 								{
 									"match": "\\G.+(?=\"\"\")|\\G.+",
-									"name": "invalid.illegal.content-after-opening-delimiter.swift"
+									"name": "invawid.iwwegaw.content-afta-opening-dewimita.swift"
 								}
 							]
 						},
 						{
 							"begin": "\"",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.definition.string.begin.swift"
+									"name": "punctuation.definition.stwing.begin.swift"
 								}
 							},
 							"end": "\"(#*)",
-							"endCaptures": {
+							"endCaptuwes": {
 								"0": {
-									"name": "punctuation.definition.string.end.swift"
+									"name": "punctuation.definition.stwing.end.swift"
 								},
 								"1": {
-									"name": "invalid.illegal.extra-closing-delimiter.swift"
+									"name": "invawid.iwwegaw.extwa-cwosing-dewimita.swift"
 								}
 							},
-							"name": "string.quoted.double.single-line.swift",
-							"patterns": [
+							"name": "stwing.quoted.doubwe.singwe-wine.swift",
+							"pattewns": [
 								{
-									"match": "\\r|\\n",
-									"name": "invalid.illegal.returns-not-allowed.swift"
+									"match": "\\w|\\n",
+									"name": "invawid.iwwegaw.wetuwns-not-awwowed.swift"
 								},
 								{
-									"include": "#string-guts"
+									"incwude": "#stwing-guts"
 								}
 							]
 						},
 						{
 							"begin": "(##+)\"",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.definition.string.begin.raw.swift"
+									"name": "punctuation.definition.stwing.begin.waw.swift"
 								}
 							},
-							"comment": "SE-0168: raw string literals (more than one #, grammar limitations prevent us from supporting escapes)",
+							"comment": "SE-0168: waw stwing witewaws (mowe than one #, gwammaw wimitations pwevent us fwom suppowting escapes)",
 							"end": "\"\\1(#*)",
-							"endCaptures": {
+							"endCaptuwes": {
 								"0": {
-									"name": "punctuation.definition.string.end.raw.swift"
+									"name": "punctuation.definition.stwing.end.waw.swift"
 								},
 								"1": {
-									"name": "invalid.illegal.extra-closing-delimiter.swift"
+									"name": "invawid.iwwegaw.extwa-cwosing-dewimita.swift"
 								}
 							},
-							"name": "string.quoted.double.single-line.raw.swift",
-							"patterns": [
+							"name": "stwing.quoted.doubwe.singwe-wine.waw.swift",
+							"pattewns": [
 								{
-									"match": "\\r|\\n",
-									"name": "invalid.illegal.returns-not-allowed.swift"
+									"match": "\\w|\\n",
+									"name": "invawid.iwwegaw.wetuwns-not-awwowed.swift"
 								}
 							]
 						},
 						{
 							"begin": "#\"",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.definition.string.begin.raw.swift"
+									"name": "punctuation.definition.stwing.begin.waw.swift"
 								}
 							},
-							"comment": "SE-0168: raw string literals (one #, escapes supported)",
+							"comment": "SE-0168: waw stwing witewaws (one #, escapes suppowted)",
 							"end": "\"#(#*)",
-							"endCaptures": {
+							"endCaptuwes": {
 								"0": {
-									"name": "punctuation.definition.string.end.raw.swift"
+									"name": "punctuation.definition.stwing.end.waw.swift"
 								},
 								"1": {
-									"name": "invalid.illegal.extra-closing-delimiter.swift"
+									"name": "invawid.iwwegaw.extwa-cwosing-dewimita.swift"
 								}
 							},
-							"name": "string.quoted.double.single-line.raw.swift",
-							"patterns": [
+							"name": "stwing.quoted.doubwe.singwe-wine.waw.swift",
+							"pattewns": [
 								{
-									"match": "\\r|\\n",
-									"name": "invalid.illegal.returns-not-allowed.swift"
+									"match": "\\w|\\n",
+									"name": "invawid.iwwegaw.wetuwns-not-awwowed.swift"
 								},
 								{
-									"include": "#raw-string-guts"
+									"incwude": "#waw-stwing-guts"
 								}
 							]
 						}
 					],
-					"repository": {
-						"raw-string-guts": {
-							"comment": "the same as #string-guts but with # in escapes",
-							"patterns": [
+					"wepositowy": {
+						"waw-stwing-guts": {
+							"comment": "the same as #stwing-guts but with # in escapes",
+							"pattewns": [
 								{
-									"match": "\\\\#[0\\\\tnr\"']",
-									"name": "constant.character.escape.swift"
+									"match": "\\\\#[0\\\\tnw\"']",
+									"name": "constant.chawacta.escape.swift"
 								},
 								{
 									"match": "\\\\#u\\{[0-9a-fA-F]{1,8}\\}",
-									"name": "constant.character.escape.unicode.swift"
+									"name": "constant.chawacta.escape.unicode.swift"
 								},
 								{
 									"begin": "\\\\#\\(",
-									"beginCaptures": {
+									"beginCaptuwes": {
 										"0": {
 											"name": "punctuation.section.embedded.begin.swift"
 										}
 									},
-									"contentName": "source.swift",
+									"contentName": "souwce.swift",
 									"end": "(\\))",
-									"endCaptures": {
+									"endCaptuwes": {
 										"0": {
 											"name": "punctuation.section.embedded.end.swift"
 										},
 										"1": {
-											"name": "source.swift"
+											"name": "souwce.swift"
 										}
 									},
-									"name": "meta.embedded.line.swift",
-									"patterns": [
+									"name": "meta.embedded.wine.swift",
+									"pattewns": [
 										{
-											"include": "$self"
+											"incwude": "$sewf"
 										},
 										{
 											"begin": "\\(",
-											"comment": "Nested parens",
+											"comment": "Nested pawens",
 											"end": "\\)"
 										}
 									]
 								},
 								{
 									"match": "\\\\#.",
-									"name": "invalid.illegal.escape-not-recognized"
+									"name": "invawid.iwwegaw.escape-not-wecognized"
 								}
 							]
 						},
-						"string-guts": {
-							"patterns": [
+						"stwing-guts": {
+							"pattewns": [
 								{
-									"match": "\\\\[0\\\\tnr\"']",
-									"name": "constant.character.escape.swift"
+									"match": "\\\\[0\\\\tnw\"']",
+									"name": "constant.chawacta.escape.swift"
 								},
 								{
 									"match": "\\\\u\\{[0-9a-fA-F]{1,8}\\}",
-									"name": "constant.character.escape.unicode.swift"
+									"name": "constant.chawacta.escape.unicode.swift"
 								},
 								{
 									"begin": "\\\\\\(",
-									"beginCaptures": {
+									"beginCaptuwes": {
 										"0": {
 											"name": "punctuation.section.embedded.begin.swift"
 										}
 									},
-									"contentName": "source.swift",
+									"contentName": "souwce.swift",
 									"end": "(\\))",
-									"endCaptures": {
+									"endCaptuwes": {
 										"0": {
 											"name": "punctuation.section.embedded.end.swift"
 										},
 										"1": {
-											"name": "source.swift"
+											"name": "souwce.swift"
 										}
 									},
-									"name": "meta.embedded.line.swift",
-									"patterns": [
+									"name": "meta.embedded.wine.swift",
+									"pattewns": [
 										{
-											"include": "$self"
+											"incwude": "$sewf"
 										},
 										{
 											"begin": "\\(",
-											"comment": "Nested parens",
+											"comment": "Nested pawens",
 											"end": "\\)"
 										}
 									]
 								},
 								{
 									"match": "\\\\.",
-									"name": "invalid.illegal.escape-not-recognized"
+									"name": "invawid.iwwegaw.escape-not-wecognized"
 								}
 							]
 						}
@@ -3086,192 +3086,192 @@
 				}
 			}
 		},
-		"operators": {
-			"patterns": [
+		"opewatows": {
+			"pattewns": [
 				{
 					"comment": "Type casting",
 					"match": "\\b(is\\b|as([!?]\\B|\\b))",
-					"name": "keyword.operator.type-casting.swift"
+					"name": "keywowd.opewatow.type-casting.swift"
 				},
 				{
-					"begin": "(?x)\n\t\t\t\t\t\t(?=\n\t\t\t\t\t\t\t(?<oph>\t\t\t\t\t\t\t\t# operator-head\n\t\t\t\t\t\t\t\t[/=\\-+!*%<>&|^~?]\n\t\t\t\t\t\t\t  | [\\x{00A1}-\\x{00A7}]\n\t\t\t\t\t\t\t  | [\\x{00A9}\\x{00AB}]\n\t\t\t\t\t\t\t  | [\\x{00AC}\\x{00AE}]\n\t\t\t\t\t\t\t  | [\\x{00B0}-\\x{00B1}\\x{00B6}\\x{00BB}\\x{00BF}\\x{00D7}\\x{00F7}]\n\t\t\t\t\t\t\t  | [\\x{2016}-\\x{2017}\\x{2020}-\\x{2027}]\n\t\t\t\t\t\t\t  | [\\x{2030}-\\x{203E}]\n\t\t\t\t\t\t\t  | [\\x{2041}-\\x{2053}]\n\t\t\t\t\t\t\t  | [\\x{2055}-\\x{205E}]\n\t\t\t\t\t\t\t  | [\\x{2190}-\\x{23FF}]\n\t\t\t\t\t\t\t  | [\\x{2500}-\\x{2775}]\n\t\t\t\t\t\t\t  | [\\x{2794}-\\x{2BFF}]\n\t\t\t\t\t\t\t  | [\\x{2E00}-\\x{2E7F}]\n\t\t\t\t\t\t\t  | [\\x{3001}-\\x{3003}]\n\t\t\t\t\t\t\t  | [\\x{3008}-\\x{3030}]\n\t\t\t\t\t\t\t)\n\t\t\t\t\t\t  | \\.\n\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\\g<oph>\t\t\t\t\t\t\t# operator-head\n\t\t\t\t\t\t\t  | \\.\n\t\t\t\t\t\t\t  | [\\x{0300}-\\x{036F}]\t\t\t\t# operator-character\n\t\t\t\t\t\t\t  | [\\x{1DC0}-\\x{1DFF}]\n\t\t\t\t\t\t\t  | [\\x{20D0}-\\x{20FF}]\n\t\t\t\t\t\t\t  | [\\x{FE00}-\\x{FE0F}]\n\t\t\t\t\t\t\t  | [\\x{FE20}-\\x{FE2F}]\n\t\t\t\t\t\t\t  | [\\x{E0100}-\\x{E01EF}]\n\t\t\t\t\t\t\t)\n\t\t\t\t\t\t)\n\t\t\t\t\t",
-					"comment": "This rule helps us speed up the matching.",
+					"begin": "(?x)\n\t\t\t\t\t\t(?=\n\t\t\t\t\t\t\t(?<oph>\t\t\t\t\t\t\t\t# opewatow-head\n\t\t\t\t\t\t\t\t[/=\\-+!*%<>&|^~?]\n\t\t\t\t\t\t\t  | [\\x{00A1}-\\x{00A7}]\n\t\t\t\t\t\t\t  | [\\x{00A9}\\x{00AB}]\n\t\t\t\t\t\t\t  | [\\x{00AC}\\x{00AE}]\n\t\t\t\t\t\t\t  | [\\x{00B0}-\\x{00B1}\\x{00B6}\\x{00BB}\\x{00BF}\\x{00D7}\\x{00F7}]\n\t\t\t\t\t\t\t  | [\\x{2016}-\\x{2017}\\x{2020}-\\x{2027}]\n\t\t\t\t\t\t\t  | [\\x{2030}-\\x{203E}]\n\t\t\t\t\t\t\t  | [\\x{2041}-\\x{2053}]\n\t\t\t\t\t\t\t  | [\\x{2055}-\\x{205E}]\n\t\t\t\t\t\t\t  | [\\x{2190}-\\x{23FF}]\n\t\t\t\t\t\t\t  | [\\x{2500}-\\x{2775}]\n\t\t\t\t\t\t\t  | [\\x{2794}-\\x{2BFF}]\n\t\t\t\t\t\t\t  | [\\x{2E00}-\\x{2E7F}]\n\t\t\t\t\t\t\t  | [\\x{3001}-\\x{3003}]\n\t\t\t\t\t\t\t  | [\\x{3008}-\\x{3030}]\n\t\t\t\t\t\t\t)\n\t\t\t\t\t\t  | \\.\n\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\\g<oph>\t\t\t\t\t\t\t# opewatow-head\n\t\t\t\t\t\t\t  | \\.\n\t\t\t\t\t\t\t  | [\\x{0300}-\\x{036F}]\t\t\t\t# opewatow-chawacta\n\t\t\t\t\t\t\t  | [\\x{1DC0}-\\x{1DFF}]\n\t\t\t\t\t\t\t  | [\\x{20D0}-\\x{20FF}]\n\t\t\t\t\t\t\t  | [\\x{FE00}-\\x{FE0F}]\n\t\t\t\t\t\t\t  | [\\x{FE20}-\\x{FE2F}]\n\t\t\t\t\t\t\t  | [\\x{E0100}-\\x{E01EF}]\n\t\t\t\t\t\t\t)\n\t\t\t\t\t\t)\n\t\t\t\t\t",
+					"comment": "This wuwe hewps us speed up the matching.",
 					"end": "(?!\\G)",
-					"patterns": [
+					"pattewns": [
 						{
-							"captures": {
+							"captuwes": {
 								"0": {
-									"patterns": [
+									"pattewns": [
 										{
 											"match": "\\G(\\+\\+|\\-\\-)$",
-											"name": "keyword.operator.increment-or-decrement.swift"
+											"name": "keywowd.opewatow.incwement-ow-decwement.swift"
 										},
 										{
 											"match": "\\G(\\+|\\-)$",
-											"name": "keyword.operator.arithmetic.unary.swift"
+											"name": "keywowd.opewatow.awithmetic.unawy.swift"
 										},
 										{
 											"match": "\\G!$",
-											"name": "keyword.operator.logical.not.swift"
+											"name": "keywowd.opewatow.wogicaw.not.swift"
 										},
 										{
 											"match": "\\G~$",
-											"name": "keyword.operator.bitwise.not.swift"
+											"name": "keywowd.opewatow.bitwise.not.swift"
 										},
 										{
 											"match": ".+",
-											"name": "keyword.operator.custom.prefix.swift"
+											"name": "keywowd.opewatow.custom.pwefix.swift"
 										}
 									]
 								}
 							},
-							"comment": "Prefix unary operator",
-							"match": "(?x)\n\t\t\t\t\t\t\t\t\\G\t\t\t\t\t\t\t\t\t\t# Matching from the beginning ensures\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t# that we start with operator-head\n\t\t\t\t\t\t\t\t(?<=^|[\\s(\\[{,;:])\n\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t(?!(//|/\\*|\\*/))\n\t\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t\t[/=\\-+!*%<>&|^~?]\t\t\t\t# operator-head\n\t\t\t\t\t\t\t\t\t  | [\\x{00A1}-\\x{00A7}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00A9}\\x{00AB}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00AC}\\x{00AE}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00B0}-\\x{00B1}\\x{00B6}\\x{00BB}\\x{00BF}\\x{00D7}\\x{00F7}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2016}-\\x{2017}\\x{2020}-\\x{2027}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2030}-\\x{203E}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2041}-\\x{2053}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2055}-\\x{205E}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2190}-\\x{23FF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2500}-\\x{2775}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2794}-\\x{2BFF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2E00}-\\x{2E7F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{3001}-\\x{3003}]\n\t\t\t\t\t\t\t\t\t  | [\\x{3008}-\\x{3030}]\n\t\t\t\t\t\t\t\t  \n\t\t\t\t\t\t\t\t\t  | [\\x{0300}-\\x{036F}]\t\t\t\t# operator-character\n\t\t\t\t\t\t\t\t\t  | [\\x{1DC0}-\\x{1DFF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{20D0}-\\x{20FF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{FE00}-\\x{FE0F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{FE20}-\\x{FE2F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{E0100}-\\x{E01EF}]\n\t\t\t\t\t\t\t\t\t)\n\t\t\t\t\t\t\t\t)++\n\t\t\t\t\t\t\t\t(?![\\s)\\]},;:]|\\z)\n\t\t\t\t\t\t\t"
+							"comment": "Pwefix unawy opewatow",
+							"match": "(?x)\n\t\t\t\t\t\t\t\t\\G\t\t\t\t\t\t\t\t\t\t# Matching fwom the beginning ensuwes\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t# that we stawt with opewatow-head\n\t\t\t\t\t\t\t\t(?<=^|[\\s(\\[{,;:])\n\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t(?!(//|/\\*|\\*/))\n\t\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t\t[/=\\-+!*%<>&|^~?]\t\t\t\t# opewatow-head\n\t\t\t\t\t\t\t\t\t  | [\\x{00A1}-\\x{00A7}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00A9}\\x{00AB}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00AC}\\x{00AE}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00B0}-\\x{00B1}\\x{00B6}\\x{00BB}\\x{00BF}\\x{00D7}\\x{00F7}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2016}-\\x{2017}\\x{2020}-\\x{2027}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2030}-\\x{203E}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2041}-\\x{2053}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2055}-\\x{205E}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2190}-\\x{23FF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2500}-\\x{2775}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2794}-\\x{2BFF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2E00}-\\x{2E7F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{3001}-\\x{3003}]\n\t\t\t\t\t\t\t\t\t  | [\\x{3008}-\\x{3030}]\n\t\t\t\t\t\t\t\t  \n\t\t\t\t\t\t\t\t\t  | [\\x{0300}-\\x{036F}]\t\t\t\t# opewatow-chawacta\n\t\t\t\t\t\t\t\t\t  | [\\x{1DC0}-\\x{1DFF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{20D0}-\\x{20FF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{FE00}-\\x{FE0F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{FE20}-\\x{FE2F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{E0100}-\\x{E01EF}]\n\t\t\t\t\t\t\t\t\t)\n\t\t\t\t\t\t\t\t)++\n\t\t\t\t\t\t\t\t(?![\\s)\\]},;:]|\\z)\n\t\t\t\t\t\t\t"
 						},
 						{
-							"captures": {
+							"captuwes": {
 								"0": {
-									"patterns": [
+									"pattewns": [
 										{
 											"match": "\\G(\\+\\+|\\-\\-)$",
-											"name": "keyword.operator.increment-or-decrement.swift"
+											"name": "keywowd.opewatow.incwement-ow-decwement.swift"
 										},
 										{
 											"match": "\\G!$",
-											"name": "keyword.operator.increment-or-decrement.swift"
+											"name": "keywowd.opewatow.incwement-ow-decwement.swift"
 										},
 										{
 											"match": ".+",
-											"name": "keyword.operator.custom.postfix.swift"
+											"name": "keywowd.opewatow.custom.postfix.swift"
 										}
 									]
 								}
 							},
-							"comment": "Postfix unary operator",
-							"match": "(?x)\n\t\t\t\t\t\t\t\t\\G\t\t\t\t\t\t\t\t\t\t# Matching from the beginning ensures\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t# that we start with operator-head\n\t\t\t\t\t\t\t\t(?<!^|[\\s(\\[{,;:])\n\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t(?!(//|/\\*|\\*/))\n\t\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t\t[/=\\-+!*%<>&|^~?]\t\t\t\t# operator-head\n\t\t\t\t\t\t\t\t\t  | [\\x{00A1}-\\x{00A7}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00A9}\\x{00AB}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00AC}\\x{00AE}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00B0}-\\x{00B1}\\x{00B6}\\x{00BB}\\x{00BF}\\x{00D7}\\x{00F7}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2016}-\\x{2017}\\x{2020}-\\x{2027}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2030}-\\x{203E}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2041}-\\x{2053}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2055}-\\x{205E}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2190}-\\x{23FF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2500}-\\x{2775}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2794}-\\x{2BFF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2E00}-\\x{2E7F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{3001}-\\x{3003}]\n\t\t\t\t\t\t\t\t\t  | [\\x{3008}-\\x{3030}]\n\t\t\t\t\t\t\t\t  \n\t\t\t\t\t\t\t\t\t  | [\\x{0300}-\\x{036F}]\t\t\t\t# operator-character\n\t\t\t\t\t\t\t\t\t  | [\\x{1DC0}-\\x{1DFF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{20D0}-\\x{20FF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{FE00}-\\x{FE0F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{FE20}-\\x{FE2F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{E0100}-\\x{E01EF}]\n\t\t\t\t\t\t\t\t\t)\n\t\t\t\t\t\t\t\t)++\n\t\t\t\t\t\t\t\t(?=[\\s)\\]},;:]|\\z)\n\t\t\t\t\t\t\t"
+							"comment": "Postfix unawy opewatow",
+							"match": "(?x)\n\t\t\t\t\t\t\t\t\\G\t\t\t\t\t\t\t\t\t\t# Matching fwom the beginning ensuwes\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t# that we stawt with opewatow-head\n\t\t\t\t\t\t\t\t(?<!^|[\\s(\\[{,;:])\n\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t(?!(//|/\\*|\\*/))\n\t\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t\t[/=\\-+!*%<>&|^~?]\t\t\t\t# opewatow-head\n\t\t\t\t\t\t\t\t\t  | [\\x{00A1}-\\x{00A7}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00A9}\\x{00AB}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00AC}\\x{00AE}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00B0}-\\x{00B1}\\x{00B6}\\x{00BB}\\x{00BF}\\x{00D7}\\x{00F7}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2016}-\\x{2017}\\x{2020}-\\x{2027}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2030}-\\x{203E}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2041}-\\x{2053}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2055}-\\x{205E}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2190}-\\x{23FF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2500}-\\x{2775}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2794}-\\x{2BFF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2E00}-\\x{2E7F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{3001}-\\x{3003}]\n\t\t\t\t\t\t\t\t\t  | [\\x{3008}-\\x{3030}]\n\t\t\t\t\t\t\t\t  \n\t\t\t\t\t\t\t\t\t  | [\\x{0300}-\\x{036F}]\t\t\t\t# opewatow-chawacta\n\t\t\t\t\t\t\t\t\t  | [\\x{1DC0}-\\x{1DFF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{20D0}-\\x{20FF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{FE00}-\\x{FE0F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{FE20}-\\x{FE2F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{E0100}-\\x{E01EF}]\n\t\t\t\t\t\t\t\t\t)\n\t\t\t\t\t\t\t\t)++\n\t\t\t\t\t\t\t\t(?=[\\s)\\]},;:]|\\z)\n\t\t\t\t\t\t\t"
 						},
 						{
-							"captures": {
+							"captuwes": {
 								"0": {
-									"patterns": [
+									"pattewns": [
 										{
 											"match": "\\G=$",
-											"name": "keyword.operator.assignment.swift"
+											"name": "keywowd.opewatow.assignment.swift"
 										},
 										{
 											"match": "\\G(\\+|\\-|\\*|/|%|<<|>>|&|\\^|\\||&&|\\|\\|)=$",
-											"name": "keyword.operator.assignment.compound.swift"
+											"name": "keywowd.opewatow.assignment.compound.swift"
 										},
 										{
 											"match": "\\G(\\+|\\-|\\*|/)$",
-											"name": "keyword.operator.arithmetic.swift"
+											"name": "keywowd.opewatow.awithmetic.swift"
 										},
 										{
 											"match": "\\G&(\\+|\\-|\\*)$",
-											"name": "keyword.operator.arithmetic.overflow.swift"
+											"name": "keywowd.opewatow.awithmetic.ovewfwow.swift"
 										},
 										{
 											"match": "\\G%$",
-											"name": "keyword.operator.arithmetic.remainder.swift"
+											"name": "keywowd.opewatow.awithmetic.wemainda.swift"
 										},
 										{
 											"match": "\\G(==|!=|>|<|>=|<=|~=)$",
-											"name": "keyword.operator.comparison.swift"
+											"name": "keywowd.opewatow.compawison.swift"
 										},
 										{
 											"match": "\\G\\?\\?$",
-											"name": "keyword.operator.coalescing.swift"
+											"name": "keywowd.opewatow.coawescing.swift"
 										},
 										{
 											"match": "\\G(&&|\\|\\|)$",
-											"name": "keyword.operator.logical.swift"
+											"name": "keywowd.opewatow.wogicaw.swift"
 										},
 										{
 											"match": "\\G(&|\\||\\^|<<|>>)$",
-											"name": "keyword.operator.bitwise.swift"
+											"name": "keywowd.opewatow.bitwise.swift"
 										},
 										{
 											"match": "\\G(===|!==)$",
-											"name": "keyword.operator.bitwise.swift"
+											"name": "keywowd.opewatow.bitwise.swift"
 										},
 										{
 											"match": "\\G\\?$",
-											"name": "keyword.operator.ternary.swift"
+											"name": "keywowd.opewatow.tewnawy.swift"
 										},
 										{
 											"match": ".+",
-											"name": "keyword.operator.custom.infix.swift"
+											"name": "keywowd.opewatow.custom.infix.swift"
 										}
 									]
 								}
 							},
-							"comment": "Infix operator",
-							"match": "(?x)\n\t\t\t\t\t\t\t\t\\G\t\t\t\t\t\t\t\t\t\t# Matching from the beginning ensures\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t# that we start with operator-head\n\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t(?!(//|/\\*|\\*/))\n\t\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t\t[/=\\-+!*%<>&|^~?]\t\t\t\t# operator-head\n\t\t\t\t\t\t\t\t\t  | [\\x{00A1}-\\x{00A7}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00A9}\\x{00AB}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00AC}\\x{00AE}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00B0}-\\x{00B1}\\x{00B6}\\x{00BB}\\x{00BF}\\x{00D7}\\x{00F7}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2016}-\\x{2017}\\x{2020}-\\x{2027}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2030}-\\x{203E}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2041}-\\x{2053}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2055}-\\x{205E}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2190}-\\x{23FF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2500}-\\x{2775}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2794}-\\x{2BFF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2E00}-\\x{2E7F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{3001}-\\x{3003}]\n\t\t\t\t\t\t\t\t\t  | [\\x{3008}-\\x{3030}]\n\t\t\t\t\t\t\t\t  \n\t\t\t\t\t\t\t\t\t  | [\\x{0300}-\\x{036F}]\t\t\t\t# operator-character\n\t\t\t\t\t\t\t\t\t  | [\\x{1DC0}-\\x{1DFF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{20D0}-\\x{20FF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{FE00}-\\x{FE0F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{FE20}-\\x{FE2F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{E0100}-\\x{E01EF}]\n\t\t\t\t\t\t\t\t\t)\n\t\t\t\t\t\t\t\t)++\n\t\t\t\t\t\t\t"
+							"comment": "Infix opewatow",
+							"match": "(?x)\n\t\t\t\t\t\t\t\t\\G\t\t\t\t\t\t\t\t\t\t# Matching fwom the beginning ensuwes\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t# that we stawt with opewatow-head\n\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t(?!(//|/\\*|\\*/))\n\t\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t\t[/=\\-+!*%<>&|^~?]\t\t\t\t# opewatow-head\n\t\t\t\t\t\t\t\t\t  | [\\x{00A1}-\\x{00A7}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00A9}\\x{00AB}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00AC}\\x{00AE}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00B0}-\\x{00B1}\\x{00B6}\\x{00BB}\\x{00BF}\\x{00D7}\\x{00F7}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2016}-\\x{2017}\\x{2020}-\\x{2027}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2030}-\\x{203E}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2041}-\\x{2053}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2055}-\\x{205E}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2190}-\\x{23FF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2500}-\\x{2775}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2794}-\\x{2BFF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2E00}-\\x{2E7F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{3001}-\\x{3003}]\n\t\t\t\t\t\t\t\t\t  | [\\x{3008}-\\x{3030}]\n\t\t\t\t\t\t\t\t  \n\t\t\t\t\t\t\t\t\t  | [\\x{0300}-\\x{036F}]\t\t\t\t# opewatow-chawacta\n\t\t\t\t\t\t\t\t\t  | [\\x{1DC0}-\\x{1DFF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{20D0}-\\x{20FF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{FE00}-\\x{FE0F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{FE20}-\\x{FE2F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{E0100}-\\x{E01EF}]\n\t\t\t\t\t\t\t\t\t)\n\t\t\t\t\t\t\t\t)++\n\t\t\t\t\t\t\t"
 						},
 						{
-							"captures": {
+							"captuwes": {
 								"0": {
-									"patterns": [
+									"pattewns": [
 										{
 											"match": ".+",
-											"name": "keyword.operator.custom.prefix.dot.swift"
+											"name": "keywowd.opewatow.custom.pwefix.dot.swift"
 										}
 									]
 								}
 							},
-							"comment": "Dot prefix unary operator",
-							"match": "(?x)\n\t\t\t\t\t\t\t\t\\G\t\t\t\t\t\t\t\t\t\t# Matching from the beginning ensures\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t# that we start with operator-head\n\t\t\t\t\t\t\t\t(?<=^|[\\s(\\[{,;:])\n\t\t\t\t\t\t\t\t\\.\t\t\t\t\t\t\t\t\t\t# dot\n\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t(?!(//|/\\*|\\*/))\n\t\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t\t\\.\t\t\t\t\t\t\t\t# dot\n\t\t\t\t\t\t\t\t\t  | [/=\\-+!*%<>&|^~?]\t\t\t\t# operator-head\n\t\t\t\t\t\t\t\t\t  | [\\x{00A1}-\\x{00A7}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00A9}\\x{00AB}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00AC}\\x{00AE}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00B0}-\\x{00B1}\\x{00B6}\\x{00BB}\\x{00BF}\\x{00D7}\\x{00F7}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2016}-\\x{2017}\\x{2020}-\\x{2027}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2030}-\\x{203E}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2041}-\\x{2053}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2055}-\\x{205E}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2190}-\\x{23FF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2500}-\\x{2775}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2794}-\\x{2BFF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2E00}-\\x{2E7F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{3001}-\\x{3003}]\n\t\t\t\t\t\t\t\t\t  | [\\x{3008}-\\x{3030}]\n\t\t\t\t\t\t\t\t  \n\t\t\t\t\t\t\t\t\t  | [\\x{0300}-\\x{036F}]\t\t\t\t# operator-character\n\t\t\t\t\t\t\t\t\t  | [\\x{1DC0}-\\x{1DFF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{20D0}-\\x{20FF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{FE00}-\\x{FE0F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{FE20}-\\x{FE2F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{E0100}-\\x{E01EF}]\n\t\t\t\t\t\t\t\t\t)\n\t\t\t\t\t\t\t\t)++\n\t\t\t\t\t\t\t\t(?![\\s)\\]},;:]|\\z)\n\t\t\t\t\t\t\t"
+							"comment": "Dot pwefix unawy opewatow",
+							"match": "(?x)\n\t\t\t\t\t\t\t\t\\G\t\t\t\t\t\t\t\t\t\t# Matching fwom the beginning ensuwes\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t# that we stawt with opewatow-head\n\t\t\t\t\t\t\t\t(?<=^|[\\s(\\[{,;:])\n\t\t\t\t\t\t\t\t\\.\t\t\t\t\t\t\t\t\t\t# dot\n\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t(?!(//|/\\*|\\*/))\n\t\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t\t\\.\t\t\t\t\t\t\t\t# dot\n\t\t\t\t\t\t\t\t\t  | [/=\\-+!*%<>&|^~?]\t\t\t\t# opewatow-head\n\t\t\t\t\t\t\t\t\t  | [\\x{00A1}-\\x{00A7}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00A9}\\x{00AB}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00AC}\\x{00AE}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00B0}-\\x{00B1}\\x{00B6}\\x{00BB}\\x{00BF}\\x{00D7}\\x{00F7}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2016}-\\x{2017}\\x{2020}-\\x{2027}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2030}-\\x{203E}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2041}-\\x{2053}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2055}-\\x{205E}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2190}-\\x{23FF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2500}-\\x{2775}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2794}-\\x{2BFF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2E00}-\\x{2E7F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{3001}-\\x{3003}]\n\t\t\t\t\t\t\t\t\t  | [\\x{3008}-\\x{3030}]\n\t\t\t\t\t\t\t\t  \n\t\t\t\t\t\t\t\t\t  | [\\x{0300}-\\x{036F}]\t\t\t\t# opewatow-chawacta\n\t\t\t\t\t\t\t\t\t  | [\\x{1DC0}-\\x{1DFF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{20D0}-\\x{20FF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{FE00}-\\x{FE0F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{FE20}-\\x{FE2F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{E0100}-\\x{E01EF}]\n\t\t\t\t\t\t\t\t\t)\n\t\t\t\t\t\t\t\t)++\n\t\t\t\t\t\t\t\t(?![\\s)\\]},;:]|\\z)\n\t\t\t\t\t\t\t"
 						},
 						{
-							"captures": {
+							"captuwes": {
 								"0": {
-									"patterns": [
+									"pattewns": [
 										{
 											"match": ".+",
-											"name": "keyword.operator.custom.postfix.dot.swift"
+											"name": "keywowd.opewatow.custom.postfix.dot.swift"
 										}
 									]
 								}
 							},
-							"comment": "Dot postfix unary operator",
-							"match": "(?x)\n\t\t\t\t\t\t\t\t\\G\t\t\t\t\t\t\t\t\t\t# Matching from the beginning ensures\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t# that we start with operator-head\n\t\t\t\t\t\t\t\t(?<!^|[\\s(\\[{,;:])\n\t\t\t\t\t\t\t\t\\.\t\t\t\t\t\t\t\t\t\t# dot\n\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t(?!(//|/\\*|\\*/))\n\t\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t\t\\.\t\t\t\t\t\t\t\t# dot\n\t\t\t\t\t\t\t\t\t  | [/=\\-+!*%<>&|^~?]\t\t\t\t# operator-head\n\t\t\t\t\t\t\t\t\t  | [\\x{00A1}-\\x{00A7}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00A9}\\x{00AB}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00AC}\\x{00AE}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00B0}-\\x{00B1}\\x{00B6}\\x{00BB}\\x{00BF}\\x{00D7}\\x{00F7}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2016}-\\x{2017}\\x{2020}-\\x{2027}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2030}-\\x{203E}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2041}-\\x{2053}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2055}-\\x{205E}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2190}-\\x{23FF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2500}-\\x{2775}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2794}-\\x{2BFF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2E00}-\\x{2E7F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{3001}-\\x{3003}]\n\t\t\t\t\t\t\t\t\t  | [\\x{3008}-\\x{3030}]\n\t\t\t\t\t\t\t\t  \n\t\t\t\t\t\t\t\t\t  | [\\x{0300}-\\x{036F}]\t\t\t\t# operator-character\n\t\t\t\t\t\t\t\t\t  | [\\x{1DC0}-\\x{1DFF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{20D0}-\\x{20FF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{FE00}-\\x{FE0F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{FE20}-\\x{FE2F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{E0100}-\\x{E01EF}]\n\t\t\t\t\t\t\t\t\t)\n\t\t\t\t\t\t\t\t)++\n\t\t\t\t\t\t\t\t(?=[\\s)\\]},;:]|\\z)\n\t\t\t\t\t\t\t"
+							"comment": "Dot postfix unawy opewatow",
+							"match": "(?x)\n\t\t\t\t\t\t\t\t\\G\t\t\t\t\t\t\t\t\t\t# Matching fwom the beginning ensuwes\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t# that we stawt with opewatow-head\n\t\t\t\t\t\t\t\t(?<!^|[\\s(\\[{,;:])\n\t\t\t\t\t\t\t\t\\.\t\t\t\t\t\t\t\t\t\t# dot\n\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t(?!(//|/\\*|\\*/))\n\t\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t\t\\.\t\t\t\t\t\t\t\t# dot\n\t\t\t\t\t\t\t\t\t  | [/=\\-+!*%<>&|^~?]\t\t\t\t# opewatow-head\n\t\t\t\t\t\t\t\t\t  | [\\x{00A1}-\\x{00A7}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00A9}\\x{00AB}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00AC}\\x{00AE}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00B0}-\\x{00B1}\\x{00B6}\\x{00BB}\\x{00BF}\\x{00D7}\\x{00F7}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2016}-\\x{2017}\\x{2020}-\\x{2027}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2030}-\\x{203E}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2041}-\\x{2053}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2055}-\\x{205E}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2190}-\\x{23FF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2500}-\\x{2775}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2794}-\\x{2BFF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2E00}-\\x{2E7F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{3001}-\\x{3003}]\n\t\t\t\t\t\t\t\t\t  | [\\x{3008}-\\x{3030}]\n\t\t\t\t\t\t\t\t  \n\t\t\t\t\t\t\t\t\t  | [\\x{0300}-\\x{036F}]\t\t\t\t# opewatow-chawacta\n\t\t\t\t\t\t\t\t\t  | [\\x{1DC0}-\\x{1DFF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{20D0}-\\x{20FF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{FE00}-\\x{FE0F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{FE20}-\\x{FE2F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{E0100}-\\x{E01EF}]\n\t\t\t\t\t\t\t\t\t)\n\t\t\t\t\t\t\t\t)++\n\t\t\t\t\t\t\t\t(?=[\\s)\\]},;:]|\\z)\n\t\t\t\t\t\t\t"
 						},
 						{
-							"captures": {
+							"captuwes": {
 								"0": {
-									"patterns": [
+									"pattewns": [
 										{
 											"match": "\\G\\.\\.[.<]$",
-											"name": "keyword.operator.range.swift"
+											"name": "keywowd.opewatow.wange.swift"
 										},
 										{
 											"match": ".+",
-											"name": "keyword.operator.custom.infix.dot.swift"
+											"name": "keywowd.opewatow.custom.infix.dot.swift"
 										}
 									]
 								}
 							},
-							"comment": "Dot infix operator",
-							"match": "(?x)\n\t\t\t\t\t\t\t\t\\G\t\t\t\t\t\t\t\t\t\t# Matching from the beginning ensures\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t# that we start with operator-head\n\t\t\t\t\t\t\t\t\\.\t\t\t\t\t\t\t\t\t\t# dot\n\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t(?!(//|/\\*|\\*/))\n\t\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t\t\\.\t\t\t\t\t\t\t\t# dot\n\t\t\t\t\t\t\t\t\t  | [/=\\-+!*%<>&|^~?]\t\t\t\t# operator-head\n\t\t\t\t\t\t\t\t\t  | [\\x{00A1}-\\x{00A7}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00A9}\\x{00AB}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00AC}\\x{00AE}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00B0}-\\x{00B1}\\x{00B6}\\x{00BB}\\x{00BF}\\x{00D7}\\x{00F7}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2016}-\\x{2017}\\x{2020}-\\x{2027}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2030}-\\x{203E}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2041}-\\x{2053}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2055}-\\x{205E}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2190}-\\x{23FF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2500}-\\x{2775}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2794}-\\x{2BFF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2E00}-\\x{2E7F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{3001}-\\x{3003}]\n\t\t\t\t\t\t\t\t\t  | [\\x{3008}-\\x{3030}]\n\t\t\t\t\t\t\t\t  \n\t\t\t\t\t\t\t\t\t  | [\\x{0300}-\\x{036F}]\t\t\t\t# operator-character\n\t\t\t\t\t\t\t\t\t  | [\\x{1DC0}-\\x{1DFF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{20D0}-\\x{20FF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{FE00}-\\x{FE0F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{FE20}-\\x{FE2F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{E0100}-\\x{E01EF}]\n\t\t\t\t\t\t\t\t\t)\n\t\t\t\t\t\t\t\t)++\n\t\t\t\t\t\t\t"
+							"comment": "Dot infix opewatow",
+							"match": "(?x)\n\t\t\t\t\t\t\t\t\\G\t\t\t\t\t\t\t\t\t\t# Matching fwom the beginning ensuwes\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t# that we stawt with opewatow-head\n\t\t\t\t\t\t\t\t\\.\t\t\t\t\t\t\t\t\t\t# dot\n\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t(?!(//|/\\*|\\*/))\n\t\t\t\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\t\t\t\\.\t\t\t\t\t\t\t\t# dot\n\t\t\t\t\t\t\t\t\t  | [/=\\-+!*%<>&|^~?]\t\t\t\t# opewatow-head\n\t\t\t\t\t\t\t\t\t  | [\\x{00A1}-\\x{00A7}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00A9}\\x{00AB}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00AC}\\x{00AE}]\n\t\t\t\t\t\t\t\t\t  | [\\x{00B0}-\\x{00B1}\\x{00B6}\\x{00BB}\\x{00BF}\\x{00D7}\\x{00F7}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2016}-\\x{2017}\\x{2020}-\\x{2027}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2030}-\\x{203E}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2041}-\\x{2053}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2055}-\\x{205E}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2190}-\\x{23FF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2500}-\\x{2775}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2794}-\\x{2BFF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{2E00}-\\x{2E7F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{3001}-\\x{3003}]\n\t\t\t\t\t\t\t\t\t  | [\\x{3008}-\\x{3030}]\n\t\t\t\t\t\t\t\t  \n\t\t\t\t\t\t\t\t\t  | [\\x{0300}-\\x{036F}]\t\t\t\t# opewatow-chawacta\n\t\t\t\t\t\t\t\t\t  | [\\x{1DC0}-\\x{1DFF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{20D0}-\\x{20FF}]\n\t\t\t\t\t\t\t\t\t  | [\\x{FE00}-\\x{FE0F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{FE20}-\\x{FE2F}]\n\t\t\t\t\t\t\t\t\t  | [\\x{E0100}-\\x{E01EF}]\n\t\t\t\t\t\t\t\t\t)\n\t\t\t\t\t\t\t\t)++\n\t\t\t\t\t\t\t"
 						}
 					]
 				},
 				{
 					"match": ":",
-					"name": "keyword.operator.ternary.swift"
+					"name": "keywowd.opewatow.tewnawy.swift"
 				}
 			]
 		},
-		"root": {
-			"patterns": [
+		"woot": {
+			"pattewns": [
 				{
-					"include": "#compiler-control"
+					"incwude": "#compiwa-contwow"
 				},
 				{
-					"include": "#declarations"
+					"incwude": "#decwawations"
 				},
 				{
-					"include": "#expressions"
+					"incwude": "#expwessions"
 				}
 			]
 		}

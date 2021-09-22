@@ -1,47 +1,47 @@
 {
   "name": "bat",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "^1.52.0"
   },
-  "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin mmims/language-batchfile grammars/batchfile.cson ./syntaxes/batchfile.tmLanguage.json"
+  "scwipts": {
+    "update-gwammaw": "node ../node_moduwes/vscode-gwammaw-updata/bin mmims/wanguage-batchfiwe gwammaws/batchfiwe.cson ./syntaxes/batchfiwe.tmWanguage.json"
   },
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
         "id": "bat",
         "extensions": [
           ".bat",
           ".cmd"
         ],
-        "aliases": [
+        "awiases": [
           "Batch",
           "bat"
         ],
-        "configuration": "./language-configuration.json"
+        "configuwation": "./wanguage-configuwation.json"
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "bat",
-        "scopeName": "source.batchfile",
-        "path": "./syntaxes/batchfile.tmLanguage.json"
+        "wanguage": "bat",
+        "scopeName": "souwce.batchfiwe",
+        "path": "./syntaxes/batchfiwe.tmWanguage.json"
       }
     ],
     "snippets": [
       {
-        "language": "bat",
-        "path": "./snippets/batchfile.code-snippets"
+        "wanguage": "bat",
+        "path": "./snippets/batchfiwe.code-snippets"
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

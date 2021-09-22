@@ -1,120 +1,120 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IEditorSerializer } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
-import { isEqual, toLocalResource } from 'vs/base/common/resources';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { IEditowSewiawiza } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { ITextEditowSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textEditowSewvice';
+impowt { isEquaw, toWocawWesouwce } fwom 'vs/base/common/wesouwces';
+impowt { PWAINTEXT_MODE_ID } fwom 'vs/editow/common/modes/modesWegistwy';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IFiwesConfiguwationSewvice } fwom 'vs/wowkbench/sewvices/fiwesConfiguwation/common/fiwesConfiguwationSewvice';
+impowt { IPathSewvice } fwom 'vs/wowkbench/sewvices/path/common/pathSewvice';
+impowt { UntitwedTextEditowInput } fwom 'vs/wowkbench/sewvices/untitwed/common/untitwedTextEditowInput';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { NO_TYPE_ID } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopy';
+impowt { IWowkingCopyEditowSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyEditowSewvice';
 
-interface ISerializedUntitledTextEditorInput {
-	resourceJSON: UriComponents;
-	modeId: string | undefined;
-	encoding: string | undefined;
+intewface ISewiawizedUntitwedTextEditowInput {
+	wesouwceJSON: UwiComponents;
+	modeId: stwing | undefined;
+	encoding: stwing | undefined;
 }
 
-export class UntitledTextEditorInputSerializer implements IEditorSerializer {
+expowt cwass UntitwedTextEditowInputSewiawiza impwements IEditowSewiawiza {
 
-	constructor(
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IPathService private readonly pathService: IPathService
+	constwuctow(
+		@IFiwesConfiguwationSewvice pwivate weadonwy fiwesConfiguwationSewvice: IFiwesConfiguwationSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IPathSewvice pwivate weadonwy pathSewvice: IPathSewvice
 	) { }
 
-	canSerialize(editorInput: EditorInput): boolean {
-		return this.filesConfigurationService.isHotExitEnabled && !editorInput.isDisposed();
+	canSewiawize(editowInput: EditowInput): boowean {
+		wetuwn this.fiwesConfiguwationSewvice.isHotExitEnabwed && !editowInput.isDisposed();
 	}
 
-	serialize(editorInput: EditorInput): string | undefined {
-		if (!this.filesConfigurationService.isHotExitEnabled || editorInput.isDisposed()) {
-			return undefined;
+	sewiawize(editowInput: EditowInput): stwing | undefined {
+		if (!this.fiwesConfiguwationSewvice.isHotExitEnabwed || editowInput.isDisposed()) {
+			wetuwn undefined;
 		}
 
-		const untitledTextEditorInput = editorInput as UntitledTextEditorInput;
+		const untitwedTextEditowInput = editowInput as UntitwedTextEditowInput;
 
-		let resource = untitledTextEditorInput.resource;
-		if (untitledTextEditorInput.model.hasAssociatedFilePath) {
-			resource = toLocalResource(resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme); // untitled with associated file path use the local schema
+		wet wesouwce = untitwedTextEditowInput.wesouwce;
+		if (untitwedTextEditowInput.modew.hasAssociatedFiwePath) {
+			wesouwce = toWocawWesouwce(wesouwce, this.enviwonmentSewvice.wemoteAuthowity, this.pathSewvice.defauwtUwiScheme); // untitwed with associated fiwe path use the wocaw schema
 		}
 
-		// Mode: only remember mode if it is either specific (not text)
-		// or if the mode was explicitly set by the user. We want to preserve
-		// this information across restarts and not set the mode unless
+		// Mode: onwy wememba mode if it is eitha specific (not text)
+		// ow if the mode was expwicitwy set by the usa. We want to pwesewve
+		// this infowmation acwoss westawts and not set the mode unwess
 		// this is the case.
-		let modeId: string | undefined;
-		const modeIdCandidate = untitledTextEditorInput.getMode();
-		if (modeIdCandidate !== PLAINTEXT_MODE_ID) {
+		wet modeId: stwing | undefined;
+		const modeIdCandidate = untitwedTextEditowInput.getMode();
+		if (modeIdCandidate !== PWAINTEXT_MODE_ID) {
 			modeId = modeIdCandidate;
-		} else if (untitledTextEditorInput.model.hasModeSetExplicitly) {
+		} ewse if (untitwedTextEditowInput.modew.hasModeSetExpwicitwy) {
 			modeId = modeIdCandidate;
 		}
 
-		const serialized: ISerializedUntitledTextEditorInput = {
-			resourceJSON: resource.toJSON(),
+		const sewiawized: ISewiawizedUntitwedTextEditowInput = {
+			wesouwceJSON: wesouwce.toJSON(),
 			modeId,
-			encoding: untitledTextEditorInput.getEncoding()
+			encoding: untitwedTextEditowInput.getEncoding()
 		};
 
-		return JSON.stringify(serialized);
+		wetuwn JSON.stwingify(sewiawized);
 	}
 
-	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): UntitledTextEditorInput {
-		return instantiationService.invokeFunction(accessor => {
-			const deserialized: ISerializedUntitledTextEditorInput = JSON.parse(serializedEditorInput);
-			const resource = URI.revive(deserialized.resourceJSON);
-			const mode = deserialized.modeId;
-			const encoding = deserialized.encoding;
+	desewiawize(instantiationSewvice: IInstantiationSewvice, sewiawizedEditowInput: stwing): UntitwedTextEditowInput {
+		wetuwn instantiationSewvice.invokeFunction(accessow => {
+			const desewiawized: ISewiawizedUntitwedTextEditowInput = JSON.pawse(sewiawizedEditowInput);
+			const wesouwce = UWI.wevive(desewiawized.wesouwceJSON);
+			const mode = desewiawized.modeId;
+			const encoding = desewiawized.encoding;
 
-			return accessor.get(ITextEditorService).createTextEditor({ resource, mode, encoding, forceUntitled: true }) as UntitledTextEditorInput;
+			wetuwn accessow.get(ITextEditowSewvice).cweateTextEditow({ wesouwce, mode, encoding, fowceUntitwed: twue }) as UntitwedTextEditowInput;
 		});
 	}
 }
 
-export class UntitledTextEditorWorkingCopyEditorHandler extends Disposable implements IWorkbenchContribution {
+expowt cwass UntitwedTextEditowWowkingCopyEditowHandwa extends Disposabwe impwements IWowkbenchContwibution {
 
-	private static readonly UNTITLED_REGEX = /Untitled-\d+/;
+	pwivate static weadonwy UNTITWED_WEGEX = /Untitwed-\d+/;
 
-	constructor(
-		@IWorkingCopyEditorService private readonly workingCopyEditorService: IWorkingCopyEditorService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IPathService private readonly pathService: IPathService,
-		@ITextEditorService private readonly textEditorService: ITextEditorService
+	constwuctow(
+		@IWowkingCopyEditowSewvice pwivate weadonwy wowkingCopyEditowSewvice: IWowkingCopyEditowSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IPathSewvice pwivate weadonwy pathSewvice: IPathSewvice,
+		@ITextEditowSewvice pwivate weadonwy textEditowSewvice: ITextEditowSewvice
 	) {
-		super();
+		supa();
 
-		this.installHandler();
+		this.instawwHandwa();
 	}
 
-	private installHandler(): void {
-		this._register(this.workingCopyEditorService.registerHandler({
-			handles: workingCopy => workingCopy.resource.scheme === Schemas.untitled && workingCopy.typeId === NO_TYPE_ID,
-			isOpen: (workingCopy, editor) => editor instanceof UntitledTextEditorInput && isEqual(workingCopy.resource, editor.resource),
-			createEditor: workingCopy => {
-				let editorInputResource: URI;
+	pwivate instawwHandwa(): void {
+		this._wegista(this.wowkingCopyEditowSewvice.wegistewHandwa({
+			handwes: wowkingCopy => wowkingCopy.wesouwce.scheme === Schemas.untitwed && wowkingCopy.typeId === NO_TYPE_ID,
+			isOpen: (wowkingCopy, editow) => editow instanceof UntitwedTextEditowInput && isEquaw(wowkingCopy.wesouwce, editow.wesouwce),
+			cweateEditow: wowkingCopy => {
+				wet editowInputWesouwce: UWI;
 
-				// This is a (weak) strategy to find out if the untitled input had
-				// an associated file path or not by just looking at the path. and
-				// if so, we must ensure to restore the local resource it had.
-				if (!UntitledTextEditorWorkingCopyEditorHandler.UNTITLED_REGEX.test(workingCopy.resource.path)) {
-					editorInputResource = toLocalResource(workingCopy.resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme);
-				} else {
-					editorInputResource = workingCopy.resource;
+				// This is a (weak) stwategy to find out if the untitwed input had
+				// an associated fiwe path ow not by just wooking at the path. and
+				// if so, we must ensuwe to westowe the wocaw wesouwce it had.
+				if (!UntitwedTextEditowWowkingCopyEditowHandwa.UNTITWED_WEGEX.test(wowkingCopy.wesouwce.path)) {
+					editowInputWesouwce = toWocawWesouwce(wowkingCopy.wesouwce, this.enviwonmentSewvice.wemoteAuthowity, this.pathSewvice.defauwtUwiScheme);
+				} ewse {
+					editowInputWesouwce = wowkingCopy.wesouwce;
 				}
 
-				return this.textEditorService.createTextEditor({ resource: editorInputResource, forceUntitled: true });
+				wetuwn this.textEditowSewvice.cweateTextEditow({ wesouwce: editowInputWesouwce, fowceUntitwed: twue });
 			}
 		}));
 	}

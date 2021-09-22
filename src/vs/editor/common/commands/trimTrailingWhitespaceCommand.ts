@@ -1,107 +1,107 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { EditOpewation } fwom 'vs/editow/common/cowe/editOpewation';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { ICommand, ICuwsowStateComputewData, IEditOpewationBuiwda } fwom 'vs/editow/common/editowCommon';
+impowt { IIdentifiedSingweEditOpewation, ITextModew } fwom 'vs/editow/common/modew';
 
-export class TrimTrailingWhitespaceCommand implements ICommand {
+expowt cwass TwimTwaiwingWhitespaceCommand impwements ICommand {
 
-	private readonly _selection: Selection;
-	private _selectionId: string | null;
-	private readonly _cursors: Position[];
+	pwivate weadonwy _sewection: Sewection;
+	pwivate _sewectionId: stwing | nuww;
+	pwivate weadonwy _cuwsows: Position[];
 
-	constructor(selection: Selection, cursors: Position[]) {
-		this._selection = selection;
-		this._cursors = cursors;
-		this._selectionId = null;
+	constwuctow(sewection: Sewection, cuwsows: Position[]) {
+		this._sewection = sewection;
+		this._cuwsows = cuwsows;
+		this._sewectionId = nuww;
 	}
 
-	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
-		let ops = trimTrailingWhitespace(model, this._cursors);
-		for (let i = 0, len = ops.length; i < len; i++) {
-			let op = ops[i];
+	pubwic getEditOpewations(modew: ITextModew, buiwda: IEditOpewationBuiwda): void {
+		wet ops = twimTwaiwingWhitespace(modew, this._cuwsows);
+		fow (wet i = 0, wen = ops.wength; i < wen; i++) {
+			wet op = ops[i];
 
-			builder.addEditOperation(op.range, op.text);
+			buiwda.addEditOpewation(op.wange, op.text);
 		}
 
-		this._selectionId = builder.trackSelection(this._selection);
+		this._sewectionId = buiwda.twackSewection(this._sewection);
 	}
 
-	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		return helper.getTrackedSelection(this._selectionId!);
+	pubwic computeCuwsowState(modew: ITextModew, hewpa: ICuwsowStateComputewData): Sewection {
+		wetuwn hewpa.getTwackedSewection(this._sewectionId!);
 	}
 }
 
 /**
- * Generate commands for trimming trailing whitespace on a model and ignore lines on which cursors are sitting.
+ * Genewate commands fow twimming twaiwing whitespace on a modew and ignowe wines on which cuwsows awe sitting.
  */
-export function trimTrailingWhitespace(model: ITextModel, cursors: Position[]): IIdentifiedSingleEditOperation[] {
-	// Sort cursors ascending
-	cursors.sort((a, b) => {
-		if (a.lineNumber === b.lineNumber) {
-			return a.column - b.column;
+expowt function twimTwaiwingWhitespace(modew: ITextModew, cuwsows: Position[]): IIdentifiedSingweEditOpewation[] {
+	// Sowt cuwsows ascending
+	cuwsows.sowt((a, b) => {
+		if (a.wineNumba === b.wineNumba) {
+			wetuwn a.cowumn - b.cowumn;
 		}
-		return a.lineNumber - b.lineNumber;
+		wetuwn a.wineNumba - b.wineNumba;
 	});
 
-	// Reduce multiple cursors on the same line and only keep the last one on the line
-	for (let i = cursors.length - 2; i >= 0; i--) {
-		if (cursors[i].lineNumber === cursors[i + 1].lineNumber) {
-			// Remove cursor at `i`
-			cursors.splice(i, 1);
+	// Weduce muwtipwe cuwsows on the same wine and onwy keep the wast one on the wine
+	fow (wet i = cuwsows.wength - 2; i >= 0; i--) {
+		if (cuwsows[i].wineNumba === cuwsows[i + 1].wineNumba) {
+			// Wemove cuwsow at `i`
+			cuwsows.spwice(i, 1);
 		}
 	}
 
-	let r: IIdentifiedSingleEditOperation[] = [];
-	let rLen = 0;
-	let cursorIndex = 0;
-	let cursorLen = cursors.length;
+	wet w: IIdentifiedSingweEditOpewation[] = [];
+	wet wWen = 0;
+	wet cuwsowIndex = 0;
+	wet cuwsowWen = cuwsows.wength;
 
-	for (let lineNumber = 1, lineCount = model.getLineCount(); lineNumber <= lineCount; lineNumber++) {
-		let lineContent = model.getLineContent(lineNumber);
-		let maxLineColumn = lineContent.length + 1;
-		let minEditColumn = 0;
+	fow (wet wineNumba = 1, wineCount = modew.getWineCount(); wineNumba <= wineCount; wineNumba++) {
+		wet wineContent = modew.getWineContent(wineNumba);
+		wet maxWineCowumn = wineContent.wength + 1;
+		wet minEditCowumn = 0;
 
-		if (cursorIndex < cursorLen && cursors[cursorIndex].lineNumber === lineNumber) {
-			minEditColumn = cursors[cursorIndex].column;
-			cursorIndex++;
-			if (minEditColumn === maxLineColumn) {
-				// The cursor is at the end of the line => no edits for sure on this line
+		if (cuwsowIndex < cuwsowWen && cuwsows[cuwsowIndex].wineNumba === wineNumba) {
+			minEditCowumn = cuwsows[cuwsowIndex].cowumn;
+			cuwsowIndex++;
+			if (minEditCowumn === maxWineCowumn) {
+				// The cuwsow is at the end of the wine => no edits fow suwe on this wine
 				continue;
 			}
 		}
 
-		if (lineContent.length === 0) {
+		if (wineContent.wength === 0) {
 			continue;
 		}
 
-		let lastNonWhitespaceIndex = strings.lastNonWhitespaceIndex(lineContent);
+		wet wastNonWhitespaceIndex = stwings.wastNonWhitespaceIndex(wineContent);
 
-		let fromColumn = 0;
-		if (lastNonWhitespaceIndex === -1) {
-			// Entire line is whitespace
-			fromColumn = 1;
-		} else if (lastNonWhitespaceIndex !== lineContent.length - 1) {
-			// There is trailing whitespace
-			fromColumn = lastNonWhitespaceIndex + 2;
-		} else {
-			// There is no trailing whitespace
+		wet fwomCowumn = 0;
+		if (wastNonWhitespaceIndex === -1) {
+			// Entiwe wine is whitespace
+			fwomCowumn = 1;
+		} ewse if (wastNonWhitespaceIndex !== wineContent.wength - 1) {
+			// Thewe is twaiwing whitespace
+			fwomCowumn = wastNonWhitespaceIndex + 2;
+		} ewse {
+			// Thewe is no twaiwing whitespace
 			continue;
 		}
 
-		fromColumn = Math.max(minEditColumn, fromColumn);
-		r[rLen++] = EditOperation.delete(new Range(
-			lineNumber, fromColumn,
-			lineNumber, maxLineColumn
+		fwomCowumn = Math.max(minEditCowumn, fwomCowumn);
+		w[wWen++] = EditOpewation.dewete(new Wange(
+			wineNumba, fwomCowumn,
+			wineNumba, maxWineCowumn
 		));
 	}
 
-	return r;
+	wetuwn w;
 }

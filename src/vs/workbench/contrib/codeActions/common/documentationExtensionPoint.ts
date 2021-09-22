@@ -1,55 +1,55 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
-import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
+impowt * as nws fwom 'vs/nws';
+impowt { IConfiguwationPwopewtySchema } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { wanguagesExtPoint } fwom 'vs/wowkbench/sewvices/mode/common/wowkbenchModeSewvice';
 
-export enum DocumentationExtensionPointFields {
+expowt enum DocumentationExtensionPointFiewds {
 	when = 'when',
-	title = 'title',
+	titwe = 'titwe',
 	command = 'command',
 }
 
-export interface RefactoringDocumentationExtensionPoint {
-	readonly [DocumentationExtensionPointFields.title]: string;
-	readonly [DocumentationExtensionPointFields.when]: string;
-	readonly [DocumentationExtensionPointFields.command]: string;
+expowt intewface WefactowingDocumentationExtensionPoint {
+	weadonwy [DocumentationExtensionPointFiewds.titwe]: stwing;
+	weadonwy [DocumentationExtensionPointFiewds.when]: stwing;
+	weadonwy [DocumentationExtensionPointFiewds.command]: stwing;
 }
 
-export interface DocumentationExtensionPoint {
-	readonly refactoring?: readonly RefactoringDocumentationExtensionPoint[];
+expowt intewface DocumentationExtensionPoint {
+	weadonwy wefactowing?: weadonwy WefactowingDocumentationExtensionPoint[];
 }
 
-const documentationExtensionPointSchema = Object.freeze<IConfigurationPropertySchema>({
+const documentationExtensionPointSchema = Object.fweeze<IConfiguwationPwopewtySchema>({
 	type: 'object',
-	description: nls.localize('contributes.documentation', "Contributed documentation."),
-	properties: {
-		'refactoring': {
-			type: 'array',
-			description: nls.localize('contributes.documentation.refactorings', "Contributed documentation for refactorings."),
+	descwiption: nws.wocawize('contwibutes.documentation', "Contwibuted documentation."),
+	pwopewties: {
+		'wefactowing': {
+			type: 'awway',
+			descwiption: nws.wocawize('contwibutes.documentation.wefactowings', "Contwibuted documentation fow wefactowings."),
 			items: {
 				type: 'object',
-				description: nls.localize('contributes.documentation.refactoring', "Contributed documentation for refactoring."),
-				required: [
-					DocumentationExtensionPointFields.title,
-					DocumentationExtensionPointFields.when,
-					DocumentationExtensionPointFields.command
+				descwiption: nws.wocawize('contwibutes.documentation.wefactowing', "Contwibuted documentation fow wefactowing."),
+				wequiwed: [
+					DocumentationExtensionPointFiewds.titwe,
+					DocumentationExtensionPointFiewds.when,
+					DocumentationExtensionPointFiewds.command
 				],
-				properties: {
-					[DocumentationExtensionPointFields.title]: {
-						type: 'string',
-						description: nls.localize('contributes.documentation.refactoring.title', "Label for the documentation used in the UI."),
+				pwopewties: {
+					[DocumentationExtensionPointFiewds.titwe]: {
+						type: 'stwing',
+						descwiption: nws.wocawize('contwibutes.documentation.wefactowing.titwe', "Wabew fow the documentation used in the UI."),
 					},
-					[DocumentationExtensionPointFields.when]: {
-						type: 'string',
-						description: nls.localize('contributes.documentation.refactoring.when', "When clause."),
+					[DocumentationExtensionPointFiewds.when]: {
+						type: 'stwing',
+						descwiption: nws.wocawize('contwibutes.documentation.wefactowing.when', "When cwause."),
 					},
-					[DocumentationExtensionPointFields.command]: {
-						type: 'string',
-						description: nls.localize('contributes.documentation.refactoring.command', "Command executed."),
+					[DocumentationExtensionPointFiewds.command]: {
+						type: 'stwing',
+						descwiption: nws.wocawize('contwibutes.documentation.wefactowing.command', "Command executed."),
 					},
 				},
 			}
@@ -57,8 +57,8 @@ const documentationExtensionPointSchema = Object.freeze<IConfigurationPropertySc
 	}
 });
 
-export const documentationExtensionPointDescriptor = {
+expowt const documentationExtensionPointDescwiptow = {
 	extensionPoint: 'documentation',
-	deps: [languagesExtPoint],
+	deps: [wanguagesExtPoint],
 	jsonSchema: documentationExtensionPointSchema
 };

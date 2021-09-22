@@ -1,198 +1,198 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { cloneAndChange } from 'vs/base/common/objects';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { DefaultURITransformer, IURITransformer, transformAndReviveIncomingURIs } from 'vs/base/common/uriIpc';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { DidUninstallExtensionEvent, IExtensionIdentifier, IExtensionManagementService, IExtensionTipsService, IGalleryExtension, IGalleryMetadata, ILocalExtension, InstallExtensionEvent, InstallExtensionResult, InstallOptions, InstallVSIXOptions, IReportedExtension, isTargetPlatformCompatible, TargetPlatform, UninstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { cwoneAndChange } fwom 'vs/base/common/objects';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { DefauwtUWITwansfowma, IUWITwansfowma, twansfowmAndWeviveIncomingUWIs } fwom 'vs/base/common/uwiIpc';
+impowt { IChannew, ISewvewChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { DidUninstawwExtensionEvent, IExtensionIdentifia, IExtensionManagementSewvice, IExtensionTipsSewvice, IGawwewyExtension, IGawwewyMetadata, IWocawExtension, InstawwExtensionEvent, InstawwExtensionWesuwt, InstawwOptions, InstawwVSIXOptions, IWepowtedExtension, isTawgetPwatfowmCompatibwe, TawgetPwatfowm, UninstawwOptions } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { ExtensionType, IExtensionManifest } fwom 'vs/pwatfowm/extensions/common/extensions';
 
-function transformIncomingURI(uri: UriComponents, transformer: IURITransformer | null): URI {
-	return URI.revive(transformer ? transformer.transformIncoming(uri) : uri);
+function twansfowmIncomingUWI(uwi: UwiComponents, twansfowma: IUWITwansfowma | nuww): UWI {
+	wetuwn UWI.wevive(twansfowma ? twansfowma.twansfowmIncoming(uwi) : uwi);
 }
 
-function transformOutgoingURI(uri: URI, transformer: IURITransformer | null): URI {
-	return transformer ? transformer.transformOutgoingURI(uri) : uri;
+function twansfowmOutgoingUWI(uwi: UWI, twansfowma: IUWITwansfowma | nuww): UWI {
+	wetuwn twansfowma ? twansfowma.twansfowmOutgoingUWI(uwi) : uwi;
 }
 
-function transformIncomingExtension(extension: ILocalExtension, transformer: IURITransformer | null): ILocalExtension {
-	transformer = transformer ? transformer : DefaultURITransformer;
+function twansfowmIncomingExtension(extension: IWocawExtension, twansfowma: IUWITwansfowma | nuww): IWocawExtension {
+	twansfowma = twansfowma ? twansfowma : DefauwtUWITwansfowma;
 	const manifest = extension.manifest;
-	const transformed = transformAndReviveIncomingURIs({ ...extension, ...{ manifest: undefined } }, transformer);
-	return { ...transformed, ...{ manifest } };
+	const twansfowmed = twansfowmAndWeviveIncomingUWIs({ ...extension, ...{ manifest: undefined } }, twansfowma);
+	wetuwn { ...twansfowmed, ...{ manifest } };
 }
 
-function transformOutgoingExtension(extension: ILocalExtension, transformer: IURITransformer | null): ILocalExtension {
-	return transformer ? cloneAndChange(extension, value => value instanceof URI ? transformer.transformOutgoingURI(value) : undefined) : extension;
+function twansfowmOutgoingExtension(extension: IWocawExtension, twansfowma: IUWITwansfowma | nuww): IWocawExtension {
+	wetuwn twansfowma ? cwoneAndChange(extension, vawue => vawue instanceof UWI ? twansfowma.twansfowmOutgoingUWI(vawue) : undefined) : extension;
 }
 
-export class ExtensionManagementChannel implements IServerChannel {
+expowt cwass ExtensionManagementChannew impwements ISewvewChannew {
 
-	onInstallExtension: Event<InstallExtensionEvent>;
-	onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
-	onUninstallExtension: Event<IExtensionIdentifier>;
-	onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
+	onInstawwExtension: Event<InstawwExtensionEvent>;
+	onDidInstawwExtensions: Event<weadonwy InstawwExtensionWesuwt[]>;
+	onUninstawwExtension: Event<IExtensionIdentifia>;
+	onDidUninstawwExtension: Event<DidUninstawwExtensionEvent>;
 
-	constructor(private service: IExtensionManagementService, private getUriTransformer: (requestContext: any) => IURITransformer | null) {
-		this.onInstallExtension = Event.buffer(service.onInstallExtension, true);
-		this.onDidInstallExtensions = Event.buffer(service.onDidInstallExtensions, true);
-		this.onUninstallExtension = Event.buffer(service.onUninstallExtension, true);
-		this.onDidUninstallExtension = Event.buffer(service.onDidUninstallExtension, true);
+	constwuctow(pwivate sewvice: IExtensionManagementSewvice, pwivate getUwiTwansfowma: (wequestContext: any) => IUWITwansfowma | nuww) {
+		this.onInstawwExtension = Event.buffa(sewvice.onInstawwExtension, twue);
+		this.onDidInstawwExtensions = Event.buffa(sewvice.onDidInstawwExtensions, twue);
+		this.onUninstawwExtension = Event.buffa(sewvice.onUninstawwExtension, twue);
+		this.onDidUninstawwExtension = Event.buffa(sewvice.onDidUninstawwExtension, twue);
 	}
 
-	listen(context: any, event: string): Event<any> {
-		const uriTransformer = this.getUriTransformer(context);
+	wisten(context: any, event: stwing): Event<any> {
+		const uwiTwansfowma = this.getUwiTwansfowma(context);
 		switch (event) {
-			case 'onInstallExtension': return this.onInstallExtension;
-			case 'onDidInstallExtensions': return Event.map(this.onDidInstallExtensions, results => results.map(i => ({ ...i, local: i.local ? transformOutgoingExtension(i.local, uriTransformer) : i.local })));
-			case 'onUninstallExtension': return this.onUninstallExtension;
-			case 'onDidUninstallExtension': return this.onDidUninstallExtension;
+			case 'onInstawwExtension': wetuwn this.onInstawwExtension;
+			case 'onDidInstawwExtensions': wetuwn Event.map(this.onDidInstawwExtensions, wesuwts => wesuwts.map(i => ({ ...i, wocaw: i.wocaw ? twansfowmOutgoingExtension(i.wocaw, uwiTwansfowma) : i.wocaw })));
+			case 'onUninstawwExtension': wetuwn this.onUninstawwExtension;
+			case 'onDidUninstawwExtension': wetuwn this.onDidUninstawwExtension;
 		}
 
-		throw new Error('Invalid listen');
+		thwow new Ewwow('Invawid wisten');
 	}
 
-	call(context: any, command: string, args?: any): Promise<any> {
-		const uriTransformer: IURITransformer | null = this.getUriTransformer(context);
+	caww(context: any, command: stwing, awgs?: any): Pwomise<any> {
+		const uwiTwansfowma: IUWITwansfowma | nuww = this.getUwiTwansfowma(context);
 		switch (command) {
-			case 'zip': return this.service.zip(transformIncomingExtension(args[0], uriTransformer)).then(uri => transformOutgoingURI(uri, uriTransformer));
-			case 'unzip': return this.service.unzip(transformIncomingURI(args[0], uriTransformer));
-			case 'install': return this.service.install(transformIncomingURI(args[0], uriTransformer), args[1]);
-			case 'getManifest': return this.service.getManifest(transformIncomingURI(args[0], uriTransformer));
-			case 'getTargetPlatform': return this.service.getTargetPlatform();
-			case 'canInstall': return this.service.canInstall(args[0]);
-			case 'installFromGallery': return this.service.installFromGallery(args[0], args[1]);
-			case 'uninstall': return this.service.uninstall(transformIncomingExtension(args[0], uriTransformer), args[1]);
-			case 'reinstallFromGallery': return this.service.reinstallFromGallery(transformIncomingExtension(args[0], uriTransformer));
-			case 'getInstalled': return this.service.getInstalled(args[0]).then(extensions => extensions.map(e => transformOutgoingExtension(e, uriTransformer)));
-			case 'updateMetadata': return this.service.updateMetadata(transformIncomingExtension(args[0], uriTransformer), args[1]).then(e => transformOutgoingExtension(e, uriTransformer));
-			case 'updateExtensionScope': return this.service.updateExtensionScope(transformIncomingExtension(args[0], uriTransformer), args[1]).then(e => transformOutgoingExtension(e, uriTransformer));
-			case 'getExtensionsReport': return this.service.getExtensionsReport();
+			case 'zip': wetuwn this.sewvice.zip(twansfowmIncomingExtension(awgs[0], uwiTwansfowma)).then(uwi => twansfowmOutgoingUWI(uwi, uwiTwansfowma));
+			case 'unzip': wetuwn this.sewvice.unzip(twansfowmIncomingUWI(awgs[0], uwiTwansfowma));
+			case 'instaww': wetuwn this.sewvice.instaww(twansfowmIncomingUWI(awgs[0], uwiTwansfowma), awgs[1]);
+			case 'getManifest': wetuwn this.sewvice.getManifest(twansfowmIncomingUWI(awgs[0], uwiTwansfowma));
+			case 'getTawgetPwatfowm': wetuwn this.sewvice.getTawgetPwatfowm();
+			case 'canInstaww': wetuwn this.sewvice.canInstaww(awgs[0]);
+			case 'instawwFwomGawwewy': wetuwn this.sewvice.instawwFwomGawwewy(awgs[0], awgs[1]);
+			case 'uninstaww': wetuwn this.sewvice.uninstaww(twansfowmIncomingExtension(awgs[0], uwiTwansfowma), awgs[1]);
+			case 'weinstawwFwomGawwewy': wetuwn this.sewvice.weinstawwFwomGawwewy(twansfowmIncomingExtension(awgs[0], uwiTwansfowma));
+			case 'getInstawwed': wetuwn this.sewvice.getInstawwed(awgs[0]).then(extensions => extensions.map(e => twansfowmOutgoingExtension(e, uwiTwansfowma)));
+			case 'updateMetadata': wetuwn this.sewvice.updateMetadata(twansfowmIncomingExtension(awgs[0], uwiTwansfowma), awgs[1]).then(e => twansfowmOutgoingExtension(e, uwiTwansfowma));
+			case 'updateExtensionScope': wetuwn this.sewvice.updateExtensionScope(twansfowmIncomingExtension(awgs[0], uwiTwansfowma), awgs[1]).then(e => twansfowmOutgoingExtension(e, uwiTwansfowma));
+			case 'getExtensionsWepowt': wetuwn this.sewvice.getExtensionsWepowt();
 		}
 
-		throw new Error('Invalid call');
+		thwow new Ewwow('Invawid caww');
 	}
 }
 
-export class ExtensionManagementChannelClient extends Disposable implements IExtensionManagementService {
+expowt cwass ExtensionManagementChannewCwient extends Disposabwe impwements IExtensionManagementSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _onInstallExtension = this._register(new Emitter<InstallExtensionEvent>());
-	readonly onInstallExtension = this._onInstallExtension.event;
+	pwivate weadonwy _onInstawwExtension = this._wegista(new Emitta<InstawwExtensionEvent>());
+	weadonwy onInstawwExtension = this._onInstawwExtension.event;
 
-	private readonly _onDidInstallExtensions = this._register(new Emitter<readonly InstallExtensionResult[]>());
-	readonly onDidInstallExtensions = this._onDidInstallExtensions.event;
+	pwivate weadonwy _onDidInstawwExtensions = this._wegista(new Emitta<weadonwy InstawwExtensionWesuwt[]>());
+	weadonwy onDidInstawwExtensions = this._onDidInstawwExtensions.event;
 
-	private readonly _onUninstallExtension = this._register(new Emitter<IExtensionIdentifier>());
-	readonly onUninstallExtension = this._onUninstallExtension.event;
+	pwivate weadonwy _onUninstawwExtension = this._wegista(new Emitta<IExtensionIdentifia>());
+	weadonwy onUninstawwExtension = this._onUninstawwExtension.event;
 
-	private readonly _onDidUninstallExtension = this._register(new Emitter<DidUninstallExtensionEvent>());
-	readonly onDidUninstallExtension = this._onDidUninstallExtension.event;
+	pwivate weadonwy _onDidUninstawwExtension = this._wegista(new Emitta<DidUninstawwExtensionEvent>());
+	weadonwy onDidUninstawwExtension = this._onDidUninstawwExtension.event;
 
-	constructor(
-		private readonly channel: IChannel,
+	constwuctow(
+		pwivate weadonwy channew: IChannew,
 	) {
-		super();
-		this._register(this.channel.listen<InstallExtensionEvent>('onInstallExtension')(e => this._onInstallExtension.fire({ identifier: e.identifier, source: this.isUriComponents(e.source) ? URI.revive(e.source) : e.source })));
-		this._register(this.channel.listen<readonly InstallExtensionResult[]>('onDidInstallExtensions')(results => this._onDidInstallExtensions.fire(results.map(e => ({ ...e, local: e.local ? transformIncomingExtension(e.local, null) : e.local, source: this.isUriComponents(e.source) ? URI.revive(e.source) : e.source })))));
-		this._register(this.channel.listen<IExtensionIdentifier>('onUninstallExtension')(e => this._onUninstallExtension.fire(e)));
-		this._register(this.channel.listen<DidUninstallExtensionEvent>('onDidUninstallExtension')(e => this._onDidUninstallExtension.fire(e)));
+		supa();
+		this._wegista(this.channew.wisten<InstawwExtensionEvent>('onInstawwExtension')(e => this._onInstawwExtension.fiwe({ identifia: e.identifia, souwce: this.isUwiComponents(e.souwce) ? UWI.wevive(e.souwce) : e.souwce })));
+		this._wegista(this.channew.wisten<weadonwy InstawwExtensionWesuwt[]>('onDidInstawwExtensions')(wesuwts => this._onDidInstawwExtensions.fiwe(wesuwts.map(e => ({ ...e, wocaw: e.wocaw ? twansfowmIncomingExtension(e.wocaw, nuww) : e.wocaw, souwce: this.isUwiComponents(e.souwce) ? UWI.wevive(e.souwce) : e.souwce })))));
+		this._wegista(this.channew.wisten<IExtensionIdentifia>('onUninstawwExtension')(e => this._onUninstawwExtension.fiwe(e)));
+		this._wegista(this.channew.wisten<DidUninstawwExtensionEvent>('onDidUninstawwExtension')(e => this._onDidUninstawwExtension.fiwe(e)));
 	}
 
-	private isUriComponents(thing: unknown): thing is UriComponents {
+	pwivate isUwiComponents(thing: unknown): thing is UwiComponents {
 		if (!thing) {
-			return false;
+			wetuwn fawse;
 		}
-		return typeof (<any>thing).path === 'string' &&
-			typeof (<any>thing).scheme === 'string';
+		wetuwn typeof (<any>thing).path === 'stwing' &&
+			typeof (<any>thing).scheme === 'stwing';
 	}
 
-	private _targetPlatformPromise: Promise<TargetPlatform> | undefined;
-	getTargetPlatform(): Promise<TargetPlatform> {
-		if (!this._targetPlatformPromise) {
-			this._targetPlatformPromise = this.channel.call<TargetPlatform>('getTargetPlatform');
+	pwivate _tawgetPwatfowmPwomise: Pwomise<TawgetPwatfowm> | undefined;
+	getTawgetPwatfowm(): Pwomise<TawgetPwatfowm> {
+		if (!this._tawgetPwatfowmPwomise) {
+			this._tawgetPwatfowmPwomise = this.channew.caww<TawgetPwatfowm>('getTawgetPwatfowm');
 		}
-		return this._targetPlatformPromise;
+		wetuwn this._tawgetPwatfowmPwomise;
 	}
 
-	async canInstall(extension: IGalleryExtension): Promise<boolean> {
-		const currentTargetPlatform = await this.getTargetPlatform();
-		return extension.allTargetPlatforms.some(targetPlatform => isTargetPlatformCompatible(targetPlatform, extension.allTargetPlatforms, currentTargetPlatform));
+	async canInstaww(extension: IGawwewyExtension): Pwomise<boowean> {
+		const cuwwentTawgetPwatfowm = await this.getTawgetPwatfowm();
+		wetuwn extension.awwTawgetPwatfowms.some(tawgetPwatfowm => isTawgetPwatfowmCompatibwe(tawgetPwatfowm, extension.awwTawgetPwatfowms, cuwwentTawgetPwatfowm));
 	}
 
-	zip(extension: ILocalExtension): Promise<URI> {
-		return Promise.resolve(this.channel.call('zip', [extension]).then(result => URI.revive(<UriComponents>result)));
+	zip(extension: IWocawExtension): Pwomise<UWI> {
+		wetuwn Pwomise.wesowve(this.channew.caww('zip', [extension]).then(wesuwt => UWI.wevive(<UwiComponents>wesuwt)));
 	}
 
-	unzip(zipLocation: URI): Promise<IExtensionIdentifier> {
-		return Promise.resolve(this.channel.call('unzip', [zipLocation]));
+	unzip(zipWocation: UWI): Pwomise<IExtensionIdentifia> {
+		wetuwn Pwomise.wesowve(this.channew.caww('unzip', [zipWocation]));
 	}
 
-	install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension> {
-		return Promise.resolve(this.channel.call<ILocalExtension>('install', [vsix, options])).then(local => transformIncomingExtension(local, null));
+	instaww(vsix: UWI, options?: InstawwVSIXOptions): Pwomise<IWocawExtension> {
+		wetuwn Pwomise.wesowve(this.channew.caww<IWocawExtension>('instaww', [vsix, options])).then(wocaw => twansfowmIncomingExtension(wocaw, nuww));
 	}
 
-	getManifest(vsix: URI): Promise<IExtensionManifest> {
-		return Promise.resolve(this.channel.call<IExtensionManifest>('getManifest', [vsix]));
+	getManifest(vsix: UWI): Pwomise<IExtensionManifest> {
+		wetuwn Pwomise.wesowve(this.channew.caww<IExtensionManifest>('getManifest', [vsix]));
 	}
 
-	installFromGallery(extension: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
-		return Promise.resolve(this.channel.call<ILocalExtension>('installFromGallery', [extension, installOptions])).then(local => transformIncomingExtension(local, null));
+	instawwFwomGawwewy(extension: IGawwewyExtension, instawwOptions?: InstawwOptions): Pwomise<IWocawExtension> {
+		wetuwn Pwomise.wesowve(this.channew.caww<IWocawExtension>('instawwFwomGawwewy', [extension, instawwOptions])).then(wocaw => twansfowmIncomingExtension(wocaw, nuww));
 	}
 
-	uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void> {
-		return Promise.resolve(this.channel.call('uninstall', [extension!, options]));
+	uninstaww(extension: IWocawExtension, options?: UninstawwOptions): Pwomise<void> {
+		wetuwn Pwomise.wesowve(this.channew.caww('uninstaww', [extension!, options]));
 	}
 
-	reinstallFromGallery(extension: ILocalExtension): Promise<void> {
-		return Promise.resolve(this.channel.call('reinstallFromGallery', [extension]));
+	weinstawwFwomGawwewy(extension: IWocawExtension): Pwomise<void> {
+		wetuwn Pwomise.wesowve(this.channew.caww('weinstawwFwomGawwewy', [extension]));
 	}
 
-	getInstalled(type: ExtensionType | null = null): Promise<ILocalExtension[]> {
-		return Promise.resolve(this.channel.call<ILocalExtension[]>('getInstalled', [type]))
-			.then(extensions => extensions.map(extension => transformIncomingExtension(extension, null)));
+	getInstawwed(type: ExtensionType | nuww = nuww): Pwomise<IWocawExtension[]> {
+		wetuwn Pwomise.wesowve(this.channew.caww<IWocawExtension[]>('getInstawwed', [type]))
+			.then(extensions => extensions.map(extension => twansfowmIncomingExtension(extension, nuww)));
 	}
 
-	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {
-		return Promise.resolve(this.channel.call<ILocalExtension>('updateMetadata', [local, metadata]))
-			.then(extension => transformIncomingExtension(extension, null));
+	updateMetadata(wocaw: IWocawExtension, metadata: IGawwewyMetadata): Pwomise<IWocawExtension> {
+		wetuwn Pwomise.wesowve(this.channew.caww<IWocawExtension>('updateMetadata', [wocaw, metadata]))
+			.then(extension => twansfowmIncomingExtension(extension, nuww));
 	}
 
-	updateExtensionScope(local: ILocalExtension, isMachineScoped: boolean): Promise<ILocalExtension> {
-		return Promise.resolve(this.channel.call<ILocalExtension>('updateExtensionScope', [local, isMachineScoped]))
-			.then(extension => transformIncomingExtension(extension, null));
+	updateExtensionScope(wocaw: IWocawExtension, isMachineScoped: boowean): Pwomise<IWocawExtension> {
+		wetuwn Pwomise.wesowve(this.channew.caww<IWocawExtension>('updateExtensionScope', [wocaw, isMachineScoped]))
+			.then(extension => twansfowmIncomingExtension(extension, nuww));
 	}
 
-	getExtensionsReport(): Promise<IReportedExtension[]> {
-		return Promise.resolve(this.channel.call('getExtensionsReport'));
+	getExtensionsWepowt(): Pwomise<IWepowtedExtension[]> {
+		wetuwn Pwomise.wesowve(this.channew.caww('getExtensionsWepowt'));
 	}
 
-	registerParticipant() { throw new Error('Not Supported'); }
+	wegistewPawticipant() { thwow new Ewwow('Not Suppowted'); }
 }
 
-export class ExtensionTipsChannel implements IServerChannel {
+expowt cwass ExtensionTipsChannew impwements ISewvewChannew {
 
-	constructor(private service: IExtensionTipsService) {
+	constwuctow(pwivate sewvice: IExtensionTipsSewvice) {
 	}
 
-	listen(context: any, event: string): Event<any> {
-		throw new Error('Invalid listen');
+	wisten(context: any, event: stwing): Event<any> {
+		thwow new Ewwow('Invawid wisten');
 	}
 
-	call(context: any, command: string, args?: any): Promise<any> {
+	caww(context: any, command: stwing, awgs?: any): Pwomise<any> {
 		switch (command) {
-			case 'getConfigBasedTips': return this.service.getConfigBasedTips(URI.revive(args[0]));
-			case 'getImportantExecutableBasedTips': return this.service.getImportantExecutableBasedTips();
-			case 'getOtherExecutableBasedTips': return this.service.getOtherExecutableBasedTips();
-			case 'getAllWorkspacesTips': return this.service.getAllWorkspacesTips();
+			case 'getConfigBasedTips': wetuwn this.sewvice.getConfigBasedTips(UWI.wevive(awgs[0]));
+			case 'getImpowtantExecutabweBasedTips': wetuwn this.sewvice.getImpowtantExecutabweBasedTips();
+			case 'getOthewExecutabweBasedTips': wetuwn this.sewvice.getOthewExecutabweBasedTips();
+			case 'getAwwWowkspacesTips': wetuwn this.sewvice.getAwwWowkspacesTips();
 		}
 
-		throw new Error('Invalid call');
+		thwow new Ewwow('Invawid caww');
 	}
 }

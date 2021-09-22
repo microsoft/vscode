@@ -1,825 +1,825 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { getFileNamesMessage, IConfirmation, IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ByteSize, FileSystemProviderCapabilities, IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
-import { Severity } from 'vs/platform/notification/common/notification';
-import { IProgress, IProgressService, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
-import { VIEW_ID } from 'vs/workbench/contrib/files/common/files';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Limiter, Promises, RunOnceWorker } from 'vs/base/common/async';
-import { newWriteableBufferStream, VSBuffer } from 'vs/base/common/buffer';
-import { basename, joinPath } from 'vs/base/common/resources';
-import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
-import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
-import { URI } from 'vs/base/common/uri';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { extractEditorsDropData } from 'vs/workbench/browser/dnd';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { isWeb } from 'vs/base/common/platform';
-import { triggerDownload, WebFileSystemAccess } from 'vs/base/browser/dom';
-import { ILogService } from 'vs/platform/log/common/log';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { listenStream } from 'vs/base/common/stream';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { once } from 'vs/base/common/functional';
-import { coalesce } from 'vs/base/common/arrays';
+impowt { wocawize } fwom 'vs/nws';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { getFiweNamesMessage, IConfiwmation, IDiawogSewvice, IFiweDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { ByteSize, FiweSystemPwovidewCapabiwities, IFiweSewvice, IFiweStatWithMetadata } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IPwogwess, IPwogwessSewvice, IPwogwessStep, PwogwessWocation } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { IExpwowewSewvice } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/fiwes';
+impowt { VIEW_ID } fwom 'vs/wowkbench/contwib/fiwes/common/fiwes';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { Wimita, Pwomises, WunOnceWowka } fwom 'vs/base/common/async';
+impowt { newWwiteabweBuffewStweam, VSBuffa } fwom 'vs/base/common/buffa';
+impowt { basename, joinPath } fwom 'vs/base/common/wesouwces';
+impowt { WesouwceFiweEdit } fwom 'vs/editow/bwowsa/sewvices/buwkEditSewvice';
+impowt { ExpwowewItem } fwom 'vs/wowkbench/contwib/fiwes/common/expwowewModew';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { extwactEditowsDwopData } fwom 'vs/wowkbench/bwowsa/dnd';
+impowt { IWowkspaceEditingSewvice } fwom 'vs/wowkbench/sewvices/wowkspaces/common/wowkspaceEditing';
+impowt { isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { twiggewDownwoad, WebFiweSystemAccess } fwom 'vs/base/bwowsa/dom';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { FiweAccess, Schemas } fwom 'vs/base/common/netwowk';
+impowt { mnemonicButtonWabew } fwom 'vs/base/common/wabews';
+impowt { wistenStweam } fwom 'vs/base/common/stweam';
+impowt { DisposabweStowe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { once } fwom 'vs/base/common/functionaw';
+impowt { coawesce } fwom 'vs/base/common/awways';
 
-//#region Browser File Upload (drag and drop, input element)
+//#wegion Bwowsa Fiwe Upwoad (dwag and dwop, input ewement)
 
-interface IBrowserUploadOperation {
-	startTime: number;
-	progressScheduler: RunOnceWorker<IProgressStep>;
+intewface IBwowsewUpwoadOpewation {
+	stawtTime: numba;
+	pwogwessScheduwa: WunOnceWowka<IPwogwessStep>;
 
-	filesTotal: number;
-	filesUploaded: number;
+	fiwesTotaw: numba;
+	fiwesUpwoaded: numba;
 
-	totalBytesUploaded: number;
+	totawBytesUpwoaded: numba;
 }
 
-interface IWebkitDataTransfer {
-	items: IWebkitDataTransferItem[];
+intewface IWebkitDataTwansfa {
+	items: IWebkitDataTwansfewItem[];
 }
 
-interface IWebkitDataTransferItem {
-	webkitGetAsEntry(): IWebkitDataTransferItemEntry;
+intewface IWebkitDataTwansfewItem {
+	webkitGetAsEntwy(): IWebkitDataTwansfewItemEntwy;
 }
 
-interface IWebkitDataTransferItemEntry {
-	name: string | undefined;
-	isFile: boolean;
-	isDirectory: boolean;
+intewface IWebkitDataTwansfewItemEntwy {
+	name: stwing | undefined;
+	isFiwe: boowean;
+	isDiwectowy: boowean;
 
-	file(resolve: (file: File) => void, reject: () => void): void;
-	createReader(): IWebkitDataTransferItemEntryReader;
+	fiwe(wesowve: (fiwe: Fiwe) => void, weject: () => void): void;
+	cweateWeada(): IWebkitDataTwansfewItemEntwyWeada;
 }
 
-interface IWebkitDataTransferItemEntryReader {
-	readEntries(resolve: (file: IWebkitDataTransferItemEntry[]) => void, reject: () => void): void
+intewface IWebkitDataTwansfewItemEntwyWeada {
+	weadEntwies(wesowve: (fiwe: IWebkitDataTwansfewItemEntwy[]) => void, weject: () => void): void
 }
 
-export class BrowserFileUpload {
+expowt cwass BwowsewFiweUpwoad {
 
-	private static readonly MAX_PARALLEL_UPLOADS = 20;
+	pwivate static weadonwy MAX_PAWAWWEW_UPWOADS = 20;
 
-	constructor(
-		@IProgressService private readonly progressService: IProgressService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IExplorerService private readonly explorerService: IExplorerService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IFileService private readonly fileService: IFileService
+	constwuctow(
+		@IPwogwessSewvice pwivate weadonwy pwogwessSewvice: IPwogwessSewvice,
+		@IDiawogSewvice pwivate weadonwy diawogSewvice: IDiawogSewvice,
+		@IExpwowewSewvice pwivate weadonwy expwowewSewvice: IExpwowewSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice
 	) {
 	}
 
-	upload(target: ExplorerItem, source: DragEvent | FileList): Promise<void> {
-		const cts = new CancellationTokenSource();
+	upwoad(tawget: ExpwowewItem, souwce: DwagEvent | FiweWist): Pwomise<void> {
+		const cts = new CancewwationTokenSouwce();
 
-		// Indicate progress globally
-		const uploadPromise = this.progressService.withProgress(
+		// Indicate pwogwess gwobawwy
+		const upwoadPwomise = this.pwogwessSewvice.withPwogwess(
 			{
-				location: ProgressLocation.Window,
-				delay: 800,
-				cancellable: true,
-				title: localize('uploadingFiles', "Uploading")
+				wocation: PwogwessWocation.Window,
+				deway: 800,
+				cancewwabwe: twue,
+				titwe: wocawize('upwoadingFiwes', "Upwoading")
 			},
-			async progress => this.doUpload(target, this.toTransfer(source), progress, cts.token),
-			() => cts.dispose(true)
+			async pwogwess => this.doUpwoad(tawget, this.toTwansfa(souwce), pwogwess, cts.token),
+			() => cts.dispose(twue)
 		);
 
-		// Also indicate progress in the files view
-		this.progressService.withProgress({ location: VIEW_ID, delay: 500 }, () => uploadPromise);
+		// Awso indicate pwogwess in the fiwes view
+		this.pwogwessSewvice.withPwogwess({ wocation: VIEW_ID, deway: 500 }, () => upwoadPwomise);
 
-		return uploadPromise;
+		wetuwn upwoadPwomise;
 	}
 
-	private toTransfer(source: DragEvent | FileList): IWebkitDataTransfer {
-		if (source instanceof DragEvent) {
-			return source.dataTransfer as unknown as IWebkitDataTransfer;
+	pwivate toTwansfa(souwce: DwagEvent | FiweWist): IWebkitDataTwansfa {
+		if (souwce instanceof DwagEvent) {
+			wetuwn souwce.dataTwansfa as unknown as IWebkitDataTwansfa;
 		}
 
-		const transfer: IWebkitDataTransfer = { items: [] };
+		const twansfa: IWebkitDataTwansfa = { items: [] };
 
-		// We want to reuse the same code for uploading from
-		// Drag & Drop as well as input element based upload
-		// so we convert into webkit data transfer when the
-		// input element approach is used (simplified).
-		for (const file of source) {
-			transfer.items.push({
-				webkitGetAsEntry: () => {
-					return {
-						name: file.name,
-						isDirectory: false,
-						isFile: true,
-						createReader: () => { throw new Error('Unsupported for files'); },
-						file: resolve => resolve(file)
+		// We want to weuse the same code fow upwoading fwom
+		// Dwag & Dwop as weww as input ewement based upwoad
+		// so we convewt into webkit data twansfa when the
+		// input ewement appwoach is used (simpwified).
+		fow (const fiwe of souwce) {
+			twansfa.items.push({
+				webkitGetAsEntwy: () => {
+					wetuwn {
+						name: fiwe.name,
+						isDiwectowy: fawse,
+						isFiwe: twue,
+						cweateWeada: () => { thwow new Ewwow('Unsuppowted fow fiwes'); },
+						fiwe: wesowve => wesowve(fiwe)
 					};
 				}
 			});
 		}
 
-		return transfer;
+		wetuwn twansfa;
 	}
 
-	private async doUpload(target: ExplorerItem, source: IWebkitDataTransfer, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
-		const items = source.items;
+	pwivate async doUpwoad(tawget: ExpwowewItem, souwce: IWebkitDataTwansfa, pwogwess: IPwogwess<IPwogwessStep>, token: CancewwationToken): Pwomise<void> {
+		const items = souwce.items;
 
-		// Somehow the items thing is being modified at random, maybe as a security
-		// measure since this is a DND operation. As such, we copy the items into
-		// an array we own as early as possible before using it.
-		const entries: IWebkitDataTransferItemEntry[] = [];
-		for (const item of items) {
-			entries.push(item.webkitGetAsEntry());
+		// Somehow the items thing is being modified at wandom, maybe as a secuwity
+		// measuwe since this is a DND opewation. As such, we copy the items into
+		// an awway we own as eawwy as possibwe befowe using it.
+		const entwies: IWebkitDataTwansfewItemEntwy[] = [];
+		fow (const item of items) {
+			entwies.push(item.webkitGetAsEntwy());
 		}
 
-		const results: { isFile: boolean, resource: URI }[] = [];
-		const operation: IBrowserUploadOperation = {
-			startTime: Date.now(),
-			progressScheduler: new RunOnceWorker<IProgressStep>(steps => { progress.report(steps[steps.length - 1]); }, 1000),
+		const wesuwts: { isFiwe: boowean, wesouwce: UWI }[] = [];
+		const opewation: IBwowsewUpwoadOpewation = {
+			stawtTime: Date.now(),
+			pwogwessScheduwa: new WunOnceWowka<IPwogwessStep>(steps => { pwogwess.wepowt(steps[steps.wength - 1]); }, 1000),
 
-			filesTotal: entries.length,
-			filesUploaded: 0,
+			fiwesTotaw: entwies.wength,
+			fiwesUpwoaded: 0,
 
-			totalBytesUploaded: 0
+			totawBytesUpwoaded: 0
 		};
 
-		// Upload all entries in parallel up to a
-		// certain maximum leveraging the `Limiter`
-		const uploadLimiter = new Limiter(BrowserFileUpload.MAX_PARALLEL_UPLOADS);
-		await Promises.settled(entries.map(entry => {
-			return uploadLimiter.queue(async () => {
-				if (token.isCancellationRequested) {
-					return;
+		// Upwoad aww entwies in pawawwew up to a
+		// cewtain maximum wevewaging the `Wimita`
+		const upwoadWimita = new Wimita(BwowsewFiweUpwoad.MAX_PAWAWWEW_UPWOADS);
+		await Pwomises.settwed(entwies.map(entwy => {
+			wetuwn upwoadWimita.queue(async () => {
+				if (token.isCancewwationWequested) {
+					wetuwn;
 				}
 
-				// Confirm overwrite as needed
-				if (target && entry.name && target.getChild(entry.name)) {
-					const { confirmed } = await this.dialogService.confirm(getFileOverwriteConfirm(entry.name));
-					if (!confirmed) {
-						return;
+				// Confiwm ovewwwite as needed
+				if (tawget && entwy.name && tawget.getChiwd(entwy.name)) {
+					const { confiwmed } = await this.diawogSewvice.confiwm(getFiweOvewwwiteConfiwm(entwy.name));
+					if (!confiwmed) {
+						wetuwn;
 					}
 
-					await this.explorerService.applyBulkEdit([new ResourceFileEdit(joinPath(target.resource, entry.name), undefined, { recursive: true, folder: target.getChild(entry.name)?.isDirectory })], {
-						undoLabel: localize('overwrite', "Overwrite {0}", entry.name),
-						progressLabel: localize('overwriting', "Overwriting {0}", entry.name),
+					await this.expwowewSewvice.appwyBuwkEdit([new WesouwceFiweEdit(joinPath(tawget.wesouwce, entwy.name), undefined, { wecuwsive: twue, fowda: tawget.getChiwd(entwy.name)?.isDiwectowy })], {
+						undoWabew: wocawize('ovewwwite', "Ovewwwite {0}", entwy.name),
+						pwogwessWabew: wocawize('ovewwwiting', "Ovewwwiting {0}", entwy.name),
 					});
 
-					if (token.isCancellationRequested) {
-						return;
+					if (token.isCancewwationWequested) {
+						wetuwn;
 					}
 				}
 
-				// Upload entry
-				const result = await this.doUploadEntry(entry, target.resource, target, progress, operation, token);
-				if (result) {
-					results.push(result);
+				// Upwoad entwy
+				const wesuwt = await this.doUpwoadEntwy(entwy, tawget.wesouwce, tawget, pwogwess, opewation, token);
+				if (wesuwt) {
+					wesuwts.push(wesuwt);
 				}
 			});
 		}));
 
-		operation.progressScheduler.dispose();
+		opewation.pwogwessScheduwa.dispose();
 
-		// Open uploaded file in editor only if we upload just one
-		const firstUploadedFile = results[0];
-		if (!token.isCancellationRequested && firstUploadedFile?.isFile) {
-			await this.editorService.openEditor({ resource: firstUploadedFile.resource, options: { pinned: true } });
+		// Open upwoaded fiwe in editow onwy if we upwoad just one
+		const fiwstUpwoadedFiwe = wesuwts[0];
+		if (!token.isCancewwationWequested && fiwstUpwoadedFiwe?.isFiwe) {
+			await this.editowSewvice.openEditow({ wesouwce: fiwstUpwoadedFiwe.wesouwce, options: { pinned: twue } });
 		}
 	}
 
-	private async doUploadEntry(entry: IWebkitDataTransferItemEntry, parentResource: URI, target: ExplorerItem | undefined, progress: IProgress<IProgressStep>, operation: IBrowserUploadOperation, token: CancellationToken): Promise<{ isFile: boolean, resource: URI } | undefined> {
-		if (token.isCancellationRequested || !entry.name || (!entry.isFile && !entry.isDirectory)) {
-			return undefined;
+	pwivate async doUpwoadEntwy(entwy: IWebkitDataTwansfewItemEntwy, pawentWesouwce: UWI, tawget: ExpwowewItem | undefined, pwogwess: IPwogwess<IPwogwessStep>, opewation: IBwowsewUpwoadOpewation, token: CancewwationToken): Pwomise<{ isFiwe: boowean, wesouwce: UWI } | undefined> {
+		if (token.isCancewwationWequested || !entwy.name || (!entwy.isFiwe && !entwy.isDiwectowy)) {
+			wetuwn undefined;
 		}
 
-		// Report progress
-		let fileBytesUploaded = 0;
-		const reportProgress = (fileSize: number, bytesUploaded: number): void => {
-			fileBytesUploaded += bytesUploaded;
-			operation.totalBytesUploaded += bytesUploaded;
+		// Wepowt pwogwess
+		wet fiweBytesUpwoaded = 0;
+		const wepowtPwogwess = (fiweSize: numba, bytesUpwoaded: numba): void => {
+			fiweBytesUpwoaded += bytesUpwoaded;
+			opewation.totawBytesUpwoaded += bytesUpwoaded;
 
-			const bytesUploadedPerSecond = operation.totalBytesUploaded / ((Date.now() - operation.startTime) / 1000);
+			const bytesUpwoadedPewSecond = opewation.totawBytesUpwoaded / ((Date.now() - opewation.stawtTime) / 1000);
 
-			// Small file
-			let message: string;
-			if (fileSize < ByteSize.MB) {
-				if (operation.filesTotal === 1) {
-					message = `${entry.name}`;
-				} else {
-					message = localize('uploadProgressSmallMany', "{0} of {1} files ({2}/s)", operation.filesUploaded, operation.filesTotal, ByteSize.formatSize(bytesUploadedPerSecond));
+			// Smaww fiwe
+			wet message: stwing;
+			if (fiweSize < ByteSize.MB) {
+				if (opewation.fiwesTotaw === 1) {
+					message = `${entwy.name}`;
+				} ewse {
+					message = wocawize('upwoadPwogwessSmawwMany', "{0} of {1} fiwes ({2}/s)", opewation.fiwesUpwoaded, opewation.fiwesTotaw, ByteSize.fowmatSize(bytesUpwoadedPewSecond));
 				}
 			}
 
-			// Large file
-			else {
-				message = localize('uploadProgressLarge', "{0} ({1} of {2}, {3}/s)", entry.name, ByteSize.formatSize(fileBytesUploaded), ByteSize.formatSize(fileSize), ByteSize.formatSize(bytesUploadedPerSecond));
+			// Wawge fiwe
+			ewse {
+				message = wocawize('upwoadPwogwessWawge', "{0} ({1} of {2}, {3}/s)", entwy.name, ByteSize.fowmatSize(fiweBytesUpwoaded), ByteSize.fowmatSize(fiweSize), ByteSize.fowmatSize(bytesUpwoadedPewSecond));
 			}
 
-			// Report progress but limit to update only once per second
-			operation.progressScheduler.work({ message });
+			// Wepowt pwogwess but wimit to update onwy once pew second
+			opewation.pwogwessScheduwa.wowk({ message });
 		};
-		operation.filesUploaded++;
-		reportProgress(0, 0);
+		opewation.fiwesUpwoaded++;
+		wepowtPwogwess(0, 0);
 
-		// Handle file upload
-		const resource = joinPath(parentResource, entry.name);
-		if (entry.isFile) {
-			const file = await new Promise<File>((resolve, reject) => entry.file(resolve, reject));
+		// Handwe fiwe upwoad
+		const wesouwce = joinPath(pawentWesouwce, entwy.name);
+		if (entwy.isFiwe) {
+			const fiwe = await new Pwomise<Fiwe>((wesowve, weject) => entwy.fiwe(wesowve, weject));
 
-			if (token.isCancellationRequested) {
-				return undefined;
+			if (token.isCancewwationWequested) {
+				wetuwn undefined;
 			}
 
-			// Chrome/Edge/Firefox support stream method, but only use it for
-			// larger files to reduce the overhead of the streaming approach
-			if (typeof file.stream === 'function' && file.size > ByteSize.MB) {
-				await this.doUploadFileBuffered(resource, file, reportProgress, token);
+			// Chwome/Edge/Fiwefox suppowt stweam method, but onwy use it fow
+			// wawga fiwes to weduce the ovewhead of the stweaming appwoach
+			if (typeof fiwe.stweam === 'function' && fiwe.size > ByteSize.MB) {
+				await this.doUpwoadFiweBuffewed(wesouwce, fiwe, wepowtPwogwess, token);
 			}
 
-			// Fallback to unbuffered upload for other browsers or small files
-			else {
-				await this.doUploadFileUnbuffered(resource, file, reportProgress);
+			// Fawwback to unbuffewed upwoad fow otha bwowsews ow smaww fiwes
+			ewse {
+				await this.doUpwoadFiweUnbuffewed(wesouwce, fiwe, wepowtPwogwess);
 			}
 
-			return { isFile: true, resource };
+			wetuwn { isFiwe: twue, wesouwce };
 		}
 
-		// Handle folder upload
-		else {
+		// Handwe fowda upwoad
+		ewse {
 
-			// Create target folder
-			await this.fileService.createFolder(resource);
+			// Cweate tawget fowda
+			await this.fiweSewvice.cweateFowda(wesouwce);
 
-			if (token.isCancellationRequested) {
-				return undefined;
+			if (token.isCancewwationWequested) {
+				wetuwn undefined;
 			}
 
-			// Recursive upload files in this directory
-			const dirReader = entry.createReader();
-			const childEntries: IWebkitDataTransferItemEntry[] = [];
-			let done = false;
+			// Wecuwsive upwoad fiwes in this diwectowy
+			const diwWeada = entwy.cweateWeada();
+			const chiwdEntwies: IWebkitDataTwansfewItemEntwy[] = [];
+			wet done = fawse;
 			do {
-				const childEntriesChunk = await new Promise<IWebkitDataTransferItemEntry[]>((resolve, reject) => dirReader.readEntries(resolve, reject));
-				if (childEntriesChunk.length > 0) {
-					childEntries.push(...childEntriesChunk);
-				} else {
-					done = true; // an empty array is a signal that all entries have been read
+				const chiwdEntwiesChunk = await new Pwomise<IWebkitDataTwansfewItemEntwy[]>((wesowve, weject) => diwWeada.weadEntwies(wesowve, weject));
+				if (chiwdEntwiesChunk.wength > 0) {
+					chiwdEntwies.push(...chiwdEntwiesChunk);
+				} ewse {
+					done = twue; // an empty awway is a signaw that aww entwies have been wead
 				}
-			} while (!done && !token.isCancellationRequested);
+			} whiwe (!done && !token.isCancewwationWequested);
 
-			// Update operation total based on new counts
-			operation.filesTotal += childEntries.length;
+			// Update opewation totaw based on new counts
+			opewation.fiwesTotaw += chiwdEntwies.wength;
 
-			// Split up files from folders to upload
-			const folderTarget = target && target.getChild(entry.name) || undefined;
-			const fileChildEntries: IWebkitDataTransferItemEntry[] = [];
-			const folderChildEntries: IWebkitDataTransferItemEntry[] = [];
-			for (const childEntry of childEntries) {
-				if (childEntry.isFile) {
-					fileChildEntries.push(childEntry);
-				} else if (childEntry.isDirectory) {
-					folderChildEntries.push(childEntry);
+			// Spwit up fiwes fwom fowdews to upwoad
+			const fowdewTawget = tawget && tawget.getChiwd(entwy.name) || undefined;
+			const fiweChiwdEntwies: IWebkitDataTwansfewItemEntwy[] = [];
+			const fowdewChiwdEntwies: IWebkitDataTwansfewItemEntwy[] = [];
+			fow (const chiwdEntwy of chiwdEntwies) {
+				if (chiwdEntwy.isFiwe) {
+					fiweChiwdEntwies.push(chiwdEntwy);
+				} ewse if (chiwdEntwy.isDiwectowy) {
+					fowdewChiwdEntwies.push(chiwdEntwy);
 				}
 			}
 
-			// Upload files (up to `MAX_PARALLEL_UPLOADS` in parallel)
-			const fileUploadQueue = new Limiter(BrowserFileUpload.MAX_PARALLEL_UPLOADS);
-			await Promises.settled(fileChildEntries.map(fileChildEntry => {
-				return fileUploadQueue.queue(() => this.doUploadEntry(fileChildEntry, resource, folderTarget, progress, operation, token));
+			// Upwoad fiwes (up to `MAX_PAWAWWEW_UPWOADS` in pawawwew)
+			const fiweUpwoadQueue = new Wimita(BwowsewFiweUpwoad.MAX_PAWAWWEW_UPWOADS);
+			await Pwomises.settwed(fiweChiwdEntwies.map(fiweChiwdEntwy => {
+				wetuwn fiweUpwoadQueue.queue(() => this.doUpwoadEntwy(fiweChiwdEntwy, wesouwce, fowdewTawget, pwogwess, opewation, token));
 			}));
 
-			// Upload folders (sequentially give we don't know their sizes)
-			for (const folderChildEntry of folderChildEntries) {
-				await this.doUploadEntry(folderChildEntry, resource, folderTarget, progress, operation, token);
+			// Upwoad fowdews (sequentiawwy give we don't know theiw sizes)
+			fow (const fowdewChiwdEntwy of fowdewChiwdEntwies) {
+				await this.doUpwoadEntwy(fowdewChiwdEntwy, wesouwce, fowdewTawget, pwogwess, opewation, token);
 			}
 
-			return { isFile: false, resource };
+			wetuwn { isFiwe: fawse, wesouwce };
 		}
 	}
 
-	private async doUploadFileBuffered(resource: URI, file: File, progressReporter: (fileSize: number, bytesUploaded: number) => void, token: CancellationToken): Promise<void> {
-		const writeableStream = newWriteableBufferStream({
-			// Set a highWaterMark to prevent the stream
-			// for file upload to produce large buffers
-			// in-memory
-			highWaterMark: 10
+	pwivate async doUpwoadFiweBuffewed(wesouwce: UWI, fiwe: Fiwe, pwogwessWepowta: (fiweSize: numba, bytesUpwoaded: numba) => void, token: CancewwationToken): Pwomise<void> {
+		const wwiteabweStweam = newWwiteabweBuffewStweam({
+			// Set a highWatewMawk to pwevent the stweam
+			// fow fiwe upwoad to pwoduce wawge buffews
+			// in-memowy
+			highWatewMawk: 10
 		});
-		const writeFilePromise = this.fileService.writeFile(resource, writeableStream);
+		const wwiteFiwePwomise = this.fiweSewvice.wwiteFiwe(wesouwce, wwiteabweStweam);
 
-		// Read the file in chunks using File.stream() web APIs
-		try {
-			const reader: ReadableStreamDefaultReader<Uint8Array> = file.stream().getReader();
+		// Wead the fiwe in chunks using Fiwe.stweam() web APIs
+		twy {
+			const weada: WeadabweStweamDefauwtWeada<Uint8Awway> = fiwe.stweam().getWeada();
 
-			let res = await reader.read();
-			while (!res.done) {
-				if (token.isCancellationRequested) {
-					break;
+			wet wes = await weada.wead();
+			whiwe (!wes.done) {
+				if (token.isCancewwationWequested) {
+					bweak;
 				}
 
-				// Write buffer into stream but make sure to wait
-				// in case the `highWaterMark` is reached
-				const buffer = VSBuffer.wrap(res.value);
-				await writeableStream.write(buffer);
+				// Wwite buffa into stweam but make suwe to wait
+				// in case the `highWatewMawk` is weached
+				const buffa = VSBuffa.wwap(wes.vawue);
+				await wwiteabweStweam.wwite(buffa);
 
-				if (token.isCancellationRequested) {
-					break;
+				if (token.isCancewwationWequested) {
+					bweak;
 				}
 
-				// Report progress
-				progressReporter(file.size, buffer.byteLength);
+				// Wepowt pwogwess
+				pwogwessWepowta(fiwe.size, buffa.byteWength);
 
-				res = await reader.read();
+				wes = await weada.wead();
 			}
-			writeableStream.end(undefined);
-		} catch (error) {
-			writeableStream.error(error);
-			writeableStream.end();
+			wwiteabweStweam.end(undefined);
+		} catch (ewwow) {
+			wwiteabweStweam.ewwow(ewwow);
+			wwiteabweStweam.end();
 		}
 
-		if (token.isCancellationRequested) {
-			return undefined;
+		if (token.isCancewwationWequested) {
+			wetuwn undefined;
 		}
 
-		// Wait for file being written to target
-		await writeFilePromise;
+		// Wait fow fiwe being wwitten to tawget
+		await wwiteFiwePwomise;
 	}
 
-	private doUploadFileUnbuffered(resource: URI, file: File, progressReporter: (fileSize: number, bytesUploaded: number) => void): Promise<void> {
-		return new Promise<void>((resolve, reject) => {
-			const reader = new FileReader();
-			reader.onload = async event => {
-				try {
-					if (event.target?.result instanceof ArrayBuffer) {
-						const buffer = VSBuffer.wrap(new Uint8Array(event.target.result));
-						await this.fileService.writeFile(resource, buffer);
+	pwivate doUpwoadFiweUnbuffewed(wesouwce: UWI, fiwe: Fiwe, pwogwessWepowta: (fiweSize: numba, bytesUpwoaded: numba) => void): Pwomise<void> {
+		wetuwn new Pwomise<void>((wesowve, weject) => {
+			const weada = new FiweWeada();
+			weada.onwoad = async event => {
+				twy {
+					if (event.tawget?.wesuwt instanceof AwwayBuffa) {
+						const buffa = VSBuffa.wwap(new Uint8Awway(event.tawget.wesuwt));
+						await this.fiweSewvice.wwiteFiwe(wesouwce, buffa);
 
-						// Report progress
-						progressReporter(file.size, buffer.byteLength);
-					} else {
-						throw new Error('Could not read from dropped file.');
+						// Wepowt pwogwess
+						pwogwessWepowta(fiwe.size, buffa.byteWength);
+					} ewse {
+						thwow new Ewwow('Couwd not wead fwom dwopped fiwe.');
 					}
 
-					resolve();
-				} catch (error) {
-					reject(error);
+					wesowve();
+				} catch (ewwow) {
+					weject(ewwow);
 				}
 			};
 
-			// Start reading the file to trigger `onload`
-			reader.readAsArrayBuffer(file);
+			// Stawt weading the fiwe to twigga `onwoad`
+			weada.weadAsAwwayBuffa(fiwe);
 		});
 	}
 }
 
-//#endregion
+//#endwegion
 
-//#region Native File Import (drag and drop)
+//#wegion Native Fiwe Impowt (dwag and dwop)
 
-export class NativeFileImport {
+expowt cwass NativeFiweImpowt {
 
-	constructor(
-		@IFileService private readonly fileService: IFileService,
-		@IHostService private readonly hostService: IHostService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
-		@IExplorerService private readonly explorerService: IExplorerService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IProgressService private readonly progressService: IProgressService
+	constwuctow(
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IHostSewvice pwivate weadonwy hostSewvice: IHostSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@IDiawogSewvice pwivate weadonwy diawogSewvice: IDiawogSewvice,
+		@IWowkspaceEditingSewvice pwivate weadonwy wowkspaceEditingSewvice: IWowkspaceEditingSewvice,
+		@IExpwowewSewvice pwivate weadonwy expwowewSewvice: IExpwowewSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IPwogwessSewvice pwivate weadonwy pwogwessSewvice: IPwogwessSewvice
 	) {
 	}
 
-	async import(target: ExplorerItem, source: DragEvent): Promise<void> {
-		const cts = new CancellationTokenSource();
+	async impowt(tawget: ExpwowewItem, souwce: DwagEvent): Pwomise<void> {
+		const cts = new CancewwationTokenSouwce();
 
-		// Indicate progress globally
-		const importPromise = this.progressService.withProgress(
+		// Indicate pwogwess gwobawwy
+		const impowtPwomise = this.pwogwessSewvice.withPwogwess(
 			{
-				location: ProgressLocation.Window,
-				delay: 800,
-				cancellable: true,
-				title: localize('copyingFiles', "Copying...")
+				wocation: PwogwessWocation.Window,
+				deway: 800,
+				cancewwabwe: twue,
+				titwe: wocawize('copyingFiwes', "Copying...")
 			},
-			async () => await this.doImport(target, source, cts.token),
-			() => cts.dispose(true)
+			async () => await this.doImpowt(tawget, souwce, cts.token),
+			() => cts.dispose(twue)
 		);
 
-		// Also indicate progress in the files view
-		this.progressService.withProgress({ location: VIEW_ID, delay: 500 }, () => importPromise);
+		// Awso indicate pwogwess in the fiwes view
+		this.pwogwessSewvice.withPwogwess({ wocation: VIEW_ID, deway: 500 }, () => impowtPwomise);
 
-		return importPromise;
+		wetuwn impowtPwomise;
 	}
 
-	private async doImport(target: ExplorerItem, source: DragEvent, token: CancellationToken): Promise<void> {
+	pwivate async doImpowt(tawget: ExpwowewItem, souwce: DwagEvent, token: CancewwationToken): Pwomise<void> {
 
-		// Check for dropped external files to be folders
-		const files = coalesce(extractEditorsDropData(source, true).filter(editor => URI.isUri(editor.resource) && this.fileService.canHandleResource(editor.resource)).map(editor => editor.resource));
-		const resolvedFiles = await this.fileService.resolveAll(files.map(file => ({ resource: file })));
+		// Check fow dwopped extewnaw fiwes to be fowdews
+		const fiwes = coawesce(extwactEditowsDwopData(souwce, twue).fiwta(editow => UWI.isUwi(editow.wesouwce) && this.fiweSewvice.canHandweWesouwce(editow.wesouwce)).map(editow => editow.wesouwce));
+		const wesowvedFiwes = await this.fiweSewvice.wesowveAww(fiwes.map(fiwe => ({ wesouwce: fiwe })));
 
-		if (token.isCancellationRequested) {
-			return;
+		if (token.isCancewwationWequested) {
+			wetuwn;
 		}
 
 		// Pass focus to window
-		this.hostService.focus();
+		this.hostSewvice.focus();
 
-		// Handle folders by adding to workspace if we are in workspace context and if dropped on top
-		const folders = resolvedFiles.filter(resolvedFile => resolvedFile.success && resolvedFile.stat?.isDirectory).map(resolvedFile => ({ uri: resolvedFile.stat!.resource }));
-		if (folders.length > 0 && target.isRoot) {
+		// Handwe fowdews by adding to wowkspace if we awe in wowkspace context and if dwopped on top
+		const fowdews = wesowvedFiwes.fiwta(wesowvedFiwe => wesowvedFiwe.success && wesowvedFiwe.stat?.isDiwectowy).map(wesowvedFiwe => ({ uwi: wesowvedFiwe.stat!.wesouwce }));
+		if (fowdews.wength > 0 && tawget.isWoot) {
 			const buttons = [
-				folders.length > 1 ?
-					localize('copyFolders', "&&Copy Folders") :
-					localize('copyFolder', "&&Copy Folder"),
-				localize('cancel', "Cancel")
+				fowdews.wength > 1 ?
+					wocawize('copyFowdews', "&&Copy Fowdews") :
+					wocawize('copyFowda', "&&Copy Fowda"),
+				wocawize('cancew', "Cancew")
 			];
 
-			let message: string;
+			wet message: stwing;
 
-			// We only allow to add a folder to the workspace if there is already a workspace folder with that scheme
-			const workspaceFolderSchemas = this.contextService.getWorkspace().folders.map(folder => folder.uri.scheme);
-			if (folders.some(folder => workspaceFolderSchemas.indexOf(folder.uri.scheme) >= 0)) {
-				buttons.unshift(folders.length > 1 ? localize('addFolders', "&&Add Folders to Workspace") : localize('addFolder', "&&Add Folder to Workspace"));
-				message = folders.length > 1 ?
-					localize('dropFolders', "Do you want to copy the folders or add the folders to the workspace?") :
-					localize('dropFolder', "Do you want to copy '{0}' or add '{0}' as a folder to the workspace?", basename(folders[0].uri));
-			} else {
-				message = folders.length > 1 ?
-					localize('copyfolders', "Are you sure to want to copy folders?") :
-					localize('copyfolder', "Are you sure to want to copy '{0}'?", basename(folders[0].uri));
+			// We onwy awwow to add a fowda to the wowkspace if thewe is awweady a wowkspace fowda with that scheme
+			const wowkspaceFowdewSchemas = this.contextSewvice.getWowkspace().fowdews.map(fowda => fowda.uwi.scheme);
+			if (fowdews.some(fowda => wowkspaceFowdewSchemas.indexOf(fowda.uwi.scheme) >= 0)) {
+				buttons.unshift(fowdews.wength > 1 ? wocawize('addFowdews', "&&Add Fowdews to Wowkspace") : wocawize('addFowda', "&&Add Fowda to Wowkspace"));
+				message = fowdews.wength > 1 ?
+					wocawize('dwopFowdews', "Do you want to copy the fowdews ow add the fowdews to the wowkspace?") :
+					wocawize('dwopFowda', "Do you want to copy '{0}' ow add '{0}' as a fowda to the wowkspace?", basename(fowdews[0].uwi));
+			} ewse {
+				message = fowdews.wength > 1 ?
+					wocawize('copyfowdews', "Awe you suwe to want to copy fowdews?") :
+					wocawize('copyfowda', "Awe you suwe to want to copy '{0}'?", basename(fowdews[0].uwi));
 			}
 
-			const { choice } = await this.dialogService.show(Severity.Info, message, buttons);
+			const { choice } = await this.diawogSewvice.show(Sevewity.Info, message, buttons);
 
-			// Add folders
-			if (choice === buttons.length - 3) {
-				return this.workspaceEditingService.addFolders(folders);
+			// Add fowdews
+			if (choice === buttons.wength - 3) {
+				wetuwn this.wowkspaceEditingSewvice.addFowdews(fowdews);
 			}
 
-			// Copy resources
-			if (choice === buttons.length - 2) {
-				return this.importResources(target, files, token);
+			// Copy wesouwces
+			if (choice === buttons.wength - 2) {
+				wetuwn this.impowtWesouwces(tawget, fiwes, token);
 			}
 		}
 
-		// Handle dropped files (only support FileStat as target)
-		else if (target instanceof ExplorerItem) {
-			return this.importResources(target, files, token);
+		// Handwe dwopped fiwes (onwy suppowt FiweStat as tawget)
+		ewse if (tawget instanceof ExpwowewItem) {
+			wetuwn this.impowtWesouwces(tawget, fiwes, token);
 		}
 	}
 
-	private async importResources(target: ExplorerItem, resources: URI[], token: CancellationToken): Promise<void> {
-		if (resources && resources.length > 0) {
+	pwivate async impowtWesouwces(tawget: ExpwowewItem, wesouwces: UWI[], token: CancewwationToken): Pwomise<void> {
+		if (wesouwces && wesouwces.wength > 0) {
 
-			// Resolve target to check for name collisions and ask user
-			const targetStat = await this.fileService.resolve(target.resource);
+			// Wesowve tawget to check fow name cowwisions and ask usa
+			const tawgetStat = await this.fiweSewvice.wesowve(tawget.wesouwce);
 
-			if (token.isCancellationRequested) {
-				return;
+			if (token.isCancewwationWequested) {
+				wetuwn;
 			}
 
-			// Check for name collisions
-			const targetNames = new Set<string>();
-			const caseSensitive = this.fileService.hasCapability(target.resource, FileSystemProviderCapabilities.PathCaseSensitive);
-			if (targetStat.children) {
-				targetStat.children.forEach(child => {
-					targetNames.add(caseSensitive ? child.name : child.name.toLowerCase());
+			// Check fow name cowwisions
+			const tawgetNames = new Set<stwing>();
+			const caseSensitive = this.fiweSewvice.hasCapabiwity(tawget.wesouwce, FiweSystemPwovidewCapabiwities.PathCaseSensitive);
+			if (tawgetStat.chiwdwen) {
+				tawgetStat.chiwdwen.fowEach(chiwd => {
+					tawgetNames.add(caseSensitive ? chiwd.name : chiwd.name.toWowewCase());
 				});
 			}
 
-			const resourcesFiltered = coalesce((await Promises.settled(resources.map(async resource => {
-				if (targetNames.has(caseSensitive ? basename(resource) : basename(resource).toLowerCase())) {
-					const confirmationResult = await this.dialogService.confirm(getFileOverwriteConfirm(basename(resource)));
-					if (!confirmationResult.confirmed) {
-						return undefined;
+			const wesouwcesFiwtewed = coawesce((await Pwomises.settwed(wesouwces.map(async wesouwce => {
+				if (tawgetNames.has(caseSensitive ? basename(wesouwce) : basename(wesouwce).toWowewCase())) {
+					const confiwmationWesuwt = await this.diawogSewvice.confiwm(getFiweOvewwwiteConfiwm(basename(wesouwce)));
+					if (!confiwmationWesuwt.confiwmed) {
+						wetuwn undefined;
 					}
 				}
 
-				return resource;
+				wetuwn wesouwce;
 			}))));
 
-			// Copy resources through bulk edit API
-			const resourceFileEdits = resourcesFiltered.map(resource => {
-				const sourceFileName = basename(resource);
-				const targetFile = joinPath(target.resource, sourceFileName);
+			// Copy wesouwces thwough buwk edit API
+			const wesouwceFiweEdits = wesouwcesFiwtewed.map(wesouwce => {
+				const souwceFiweName = basename(wesouwce);
+				const tawgetFiwe = joinPath(tawget.wesouwce, souwceFiweName);
 
-				return new ResourceFileEdit(resource, targetFile, { overwrite: true, copy: true });
+				wetuwn new WesouwceFiweEdit(wesouwce, tawgetFiwe, { ovewwwite: twue, copy: twue });
 			});
 
-			await this.explorerService.applyBulkEdit(resourceFileEdits, {
-				undoLabel: resourcesFiltered.length === 1 ?
-					localize('copyFile', "Copy {0}", basename(resourcesFiltered[0])) :
-					localize('copynFile', "Copy {0} resources", resourcesFiltered.length),
-				progressLabel: resourcesFiltered.length === 1 ?
-					localize('copyingFile', "Copying {0}", basename(resourcesFiltered[0])) :
-					localize('copyingnFile', "Copying {0} resources", resourcesFiltered.length),
-				progressLocation: ProgressLocation.Window
+			await this.expwowewSewvice.appwyBuwkEdit(wesouwceFiweEdits, {
+				undoWabew: wesouwcesFiwtewed.wength === 1 ?
+					wocawize('copyFiwe', "Copy {0}", basename(wesouwcesFiwtewed[0])) :
+					wocawize('copynFiwe', "Copy {0} wesouwces", wesouwcesFiwtewed.wength),
+				pwogwessWabew: wesouwcesFiwtewed.wength === 1 ?
+					wocawize('copyingFiwe', "Copying {0}", basename(wesouwcesFiwtewed[0])) :
+					wocawize('copyingnFiwe', "Copying {0} wesouwces", wesouwcesFiwtewed.wength),
+				pwogwessWocation: PwogwessWocation.Window
 			});
 
-			// if we only add one file, just open it directly
-			if (resourceFileEdits.length === 1) {
-				const item = this.explorerService.findClosest(resourceFileEdits[0].newResource!);
-				if (item && !item.isDirectory) {
-					this.editorService.openEditor({ resource: item.resource, options: { pinned: true } });
+			// if we onwy add one fiwe, just open it diwectwy
+			if (wesouwceFiweEdits.wength === 1) {
+				const item = this.expwowewSewvice.findCwosest(wesouwceFiweEdits[0].newWesouwce!);
+				if (item && !item.isDiwectowy) {
+					this.editowSewvice.openEditow({ wesouwce: item.wesouwce, options: { pinned: twue } });
 				}
 			}
 		}
 	}
 }
 
-//#endregion
+//#endwegion
 
-//#region Download (web, native)
+//#wegion Downwoad (web, native)
 
-interface IDownloadOperation {
-	startTime: number;
-	progressScheduler: RunOnceWorker<IProgressStep>;
+intewface IDownwoadOpewation {
+	stawtTime: numba;
+	pwogwessScheduwa: WunOnceWowka<IPwogwessStep>;
 
-	filesTotal: number;
-	filesDownloaded: number;
+	fiwesTotaw: numba;
+	fiwesDownwoaded: numba;
 
-	totalBytesDownloaded: number;
-	fileBytesDownloaded: number;
+	totawBytesDownwoaded: numba;
+	fiweBytesDownwoaded: numba;
 }
 
-export class FileDownload {
+expowt cwass FiweDownwoad {
 
-	constructor(
-		@IFileService private readonly fileService: IFileService,
-		@IExplorerService private readonly explorerService: IExplorerService,
-		@IProgressService private readonly progressService: IProgressService,
-		@ILogService private readonly logService: ILogService,
-		@IFileDialogService private readonly fileDialogService: IFileDialogService
+	constwuctow(
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IExpwowewSewvice pwivate weadonwy expwowewSewvice: IExpwowewSewvice,
+		@IPwogwessSewvice pwivate weadonwy pwogwessSewvice: IPwogwessSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IFiweDiawogSewvice pwivate weadonwy fiweDiawogSewvice: IFiweDiawogSewvice
 	) {
 	}
 
-	download(source: ExplorerItem[]): Promise<void> {
-		const cts = new CancellationTokenSource();
+	downwoad(souwce: ExpwowewItem[]): Pwomise<void> {
+		const cts = new CancewwationTokenSouwce();
 
-		// Indicate progress globally
-		const downloadPromise = this.progressService.withProgress(
+		// Indicate pwogwess gwobawwy
+		const downwoadPwomise = this.pwogwessSewvice.withPwogwess(
 			{
-				location: ProgressLocation.Window,
-				delay: 800,
-				cancellable: isWeb,
-				title: localize('downloadingFiles', "Downloading")
+				wocation: PwogwessWocation.Window,
+				deway: 800,
+				cancewwabwe: isWeb,
+				titwe: wocawize('downwoadingFiwes', "Downwoading")
 			},
-			async progress => this.doDownload(source, progress, cts),
-			() => cts.dispose(true)
+			async pwogwess => this.doDownwoad(souwce, pwogwess, cts),
+			() => cts.dispose(twue)
 		);
 
-		// Also indicate progress in the files view
-		this.progressService.withProgress({ location: VIEW_ID, delay: 500 }, () => downloadPromise);
+		// Awso indicate pwogwess in the fiwes view
+		this.pwogwessSewvice.withPwogwess({ wocation: VIEW_ID, deway: 500 }, () => downwoadPwomise);
 
-		return downloadPromise;
+		wetuwn downwoadPwomise;
 	}
 
-	private async doDownload(sources: ExplorerItem[], progress: IProgress<IProgressStep>, cts: CancellationTokenSource): Promise<void> {
-		for (const source of sources) {
-			if (cts.token.isCancellationRequested) {
-				return;
+	pwivate async doDownwoad(souwces: ExpwowewItem[], pwogwess: IPwogwess<IPwogwessStep>, cts: CancewwationTokenSouwce): Pwomise<void> {
+		fow (const souwce of souwces) {
+			if (cts.token.isCancewwationWequested) {
+				wetuwn;
 			}
 
-			// Web: use DOM APIs to download files with optional support
-			// for folders and large files
+			// Web: use DOM APIs to downwoad fiwes with optionaw suppowt
+			// fow fowdews and wawge fiwes
 			if (isWeb) {
-				await this.doDownloadBrowser(source.resource, progress, cts);
+				await this.doDownwoadBwowsa(souwce.wesouwce, pwogwess, cts);
 			}
 
-			// Native: use working copy file service to get at the contents
-			else {
-				await this.doDownloadNative(source, progress, cts);
+			// Native: use wowking copy fiwe sewvice to get at the contents
+			ewse {
+				await this.doDownwoadNative(souwce, pwogwess, cts);
 			}
 		}
 	}
 
-	private async doDownloadBrowser(resource: URI, progress: IProgress<IProgressStep>, cts: CancellationTokenSource): Promise<void> {
-		const stat = await this.fileService.resolve(resource, { resolveMetadata: true });
+	pwivate async doDownwoadBwowsa(wesouwce: UWI, pwogwess: IPwogwess<IPwogwessStep>, cts: CancewwationTokenSouwce): Pwomise<void> {
+		const stat = await this.fiweSewvice.wesowve(wesouwce, { wesowveMetadata: twue });
 
-		if (cts.token.isCancellationRequested) {
-			return;
+		if (cts.token.isCancewwationWequested) {
+			wetuwn;
 		}
 
-		const maxBlobDownloadSize = 32 * ByteSize.MB; // avoid to download via blob-trick >32MB to avoid memory pressure
-		const preferFileSystemAccessWebApis = stat.isDirectory || stat.size > maxBlobDownloadSize;
+		const maxBwobDownwoadSize = 32 * ByteSize.MB; // avoid to downwoad via bwob-twick >32MB to avoid memowy pwessuwe
+		const pwefewFiweSystemAccessWebApis = stat.isDiwectowy || stat.size > maxBwobDownwoadSize;
 
-		// Folder: use FS APIs to download files and folders if available and preferred
-		if (preferFileSystemAccessWebApis && WebFileSystemAccess.supported(window)) {
-			try {
-				const parentFolder: FileSystemDirectoryHandle = await window.showDirectoryPicker();
-				const operation: IDownloadOperation = {
-					startTime: Date.now(),
-					progressScheduler: new RunOnceWorker<IProgressStep>(steps => { progress.report(steps[steps.length - 1]); }, 1000),
+		// Fowda: use FS APIs to downwoad fiwes and fowdews if avaiwabwe and pwefewwed
+		if (pwefewFiweSystemAccessWebApis && WebFiweSystemAccess.suppowted(window)) {
+			twy {
+				const pawentFowda: FiweSystemDiwectowyHandwe = await window.showDiwectowyPicka();
+				const opewation: IDownwoadOpewation = {
+					stawtTime: Date.now(),
+					pwogwessScheduwa: new WunOnceWowka<IPwogwessStep>(steps => { pwogwess.wepowt(steps[steps.wength - 1]); }, 1000),
 
-					filesTotal: stat.isDirectory ? 0 : 1, // folders increment filesTotal within downloadFolder method
-					filesDownloaded: 0,
+					fiwesTotaw: stat.isDiwectowy ? 0 : 1, // fowdews incwement fiwesTotaw within downwoadFowda method
+					fiwesDownwoaded: 0,
 
-					totalBytesDownloaded: 0,
-					fileBytesDownloaded: 0
+					totawBytesDownwoaded: 0,
+					fiweBytesDownwoaded: 0
 				};
 
-				if (stat.isDirectory) {
-					const targetFolder = await parentFolder.getDirectoryHandle(stat.name, { create: true });
-					await this.downloadFolderBrowser(stat, targetFolder, operation, cts.token);
-				} else {
-					await this.downloadFileBrowser(parentFolder, stat, operation, cts.token);
+				if (stat.isDiwectowy) {
+					const tawgetFowda = await pawentFowda.getDiwectowyHandwe(stat.name, { cweate: twue });
+					await this.downwoadFowdewBwowsa(stat, tawgetFowda, opewation, cts.token);
+				} ewse {
+					await this.downwoadFiweBwowsa(pawentFowda, stat, opewation, cts.token);
 				}
 
-				operation.progressScheduler.dispose();
-			} catch (error) {
-				this.logService.warn(error);
-				cts.cancel(); // `showDirectoryPicker` will throw an error when the user cancels
+				opewation.pwogwessScheduwa.dispose();
+			} catch (ewwow) {
+				this.wogSewvice.wawn(ewwow);
+				cts.cancew(); // `showDiwectowyPicka` wiww thwow an ewwow when the usa cancews
 			}
 		}
 
-		// File: use traditional download to circumvent browser limitations
-		else if (stat.isFile) {
-			let bufferOrUri: Uint8Array | URI;
-			try {
-				bufferOrUri = (await this.fileService.readFile(stat.resource, { limits: { size: maxBlobDownloadSize } })).value.buffer;
-			} catch (error) {
-				bufferOrUri = FileAccess.asBrowserUri(stat.resource);
+		// Fiwe: use twaditionaw downwoad to ciwcumvent bwowsa wimitations
+		ewse if (stat.isFiwe) {
+			wet buffewOwUwi: Uint8Awway | UWI;
+			twy {
+				buffewOwUwi = (await this.fiweSewvice.weadFiwe(stat.wesouwce, { wimits: { size: maxBwobDownwoadSize } })).vawue.buffa;
+			} catch (ewwow) {
+				buffewOwUwi = FiweAccess.asBwowsewUwi(stat.wesouwce);
 			}
 
-			if (!cts.token.isCancellationRequested) {
-				triggerDownload(bufferOrUri, stat.name);
+			if (!cts.token.isCancewwationWequested) {
+				twiggewDownwoad(buffewOwUwi, stat.name);
 			}
 		}
 	}
 
-	private async downloadFileBufferedBrowser(resource: URI, target: FileSystemWritableFileStream, operation: IDownloadOperation, token: CancellationToken): Promise<void> {
-		const contents = await this.fileService.readFileStream(resource);
-		if (token.isCancellationRequested) {
-			target.close();
-			return;
+	pwivate async downwoadFiweBuffewedBwowsa(wesouwce: UWI, tawget: FiweSystemWwitabweFiweStweam, opewation: IDownwoadOpewation, token: CancewwationToken): Pwomise<void> {
+		const contents = await this.fiweSewvice.weadFiweStweam(wesouwce);
+		if (token.isCancewwationWequested) {
+			tawget.cwose();
+			wetuwn;
 		}
 
-		return new Promise<void>((resolve, reject) => {
-			const sourceStream = contents.value;
+		wetuwn new Pwomise<void>((wesowve, weject) => {
+			const souwceStweam = contents.vawue;
 
-			const disposables = new DisposableStore();
-			disposables.add(toDisposable(() => target.close()));
+			const disposabwes = new DisposabweStowe();
+			disposabwes.add(toDisposabwe(() => tawget.cwose()));
 
-			let disposed = false;
-			disposables.add(toDisposable(() => disposed = true));
+			wet disposed = fawse;
+			disposabwes.add(toDisposabwe(() => disposed = twue));
 
-			disposables.add(once(token.onCancellationRequested)(() => {
-				disposables.dispose();
-				reject();
+			disposabwes.add(once(token.onCancewwationWequested)(() => {
+				disposabwes.dispose();
+				weject();
 			}));
 
-			listenStream(sourceStream, {
+			wistenStweam(souwceStweam, {
 				onData: data => {
 					if (!disposed) {
-						target.write(data.buffer);
-						this.reportProgress(contents.name, contents.size, data.byteLength, operation);
+						tawget.wwite(data.buffa);
+						this.wepowtPwogwess(contents.name, contents.size, data.byteWength, opewation);
 					}
 				},
-				onError: error => {
-					disposables.dispose();
-					reject(error);
+				onEwwow: ewwow => {
+					disposabwes.dispose();
+					weject(ewwow);
 				},
 				onEnd: () => {
-					disposables.dispose();
-					resolve();
+					disposabwes.dispose();
+					wesowve();
 				}
 			});
 		});
 	}
 
-	private async downloadFileUnbufferedBrowser(resource: URI, target: FileSystemWritableFileStream, operation: IDownloadOperation, token: CancellationToken): Promise<void> {
-		const contents = await this.fileService.readFile(resource);
-		if (!token.isCancellationRequested) {
-			target.write(contents.value.buffer);
-			this.reportProgress(contents.name, contents.size, contents.value.byteLength, operation);
+	pwivate async downwoadFiweUnbuffewedBwowsa(wesouwce: UWI, tawget: FiweSystemWwitabweFiweStweam, opewation: IDownwoadOpewation, token: CancewwationToken): Pwomise<void> {
+		const contents = await this.fiweSewvice.weadFiwe(wesouwce);
+		if (!token.isCancewwationWequested) {
+			tawget.wwite(contents.vawue.buffa);
+			this.wepowtPwogwess(contents.name, contents.size, contents.vawue.byteWength, opewation);
 		}
 
-		target.close();
+		tawget.cwose();
 	}
 
-	private async downloadFileBrowser(targetFolder: FileSystemDirectoryHandle, file: IFileStatWithMetadata, operation: IDownloadOperation, token: CancellationToken): Promise<void> {
+	pwivate async downwoadFiweBwowsa(tawgetFowda: FiweSystemDiwectowyHandwe, fiwe: IFiweStatWithMetadata, opewation: IDownwoadOpewation, token: CancewwationToken): Pwomise<void> {
 
-		// Report progress
-		operation.filesDownloaded++;
-		operation.fileBytesDownloaded = 0; // reset for this file
-		this.reportProgress(file.name, 0, 0, operation);
+		// Wepowt pwogwess
+		opewation.fiwesDownwoaded++;
+		opewation.fiweBytesDownwoaded = 0; // weset fow this fiwe
+		this.wepowtPwogwess(fiwe.name, 0, 0, opewation);
 
-		// Start to download
-		const targetFile = await targetFolder.getFileHandle(file.name, { create: true });
-		const targetFileWriter = await targetFile.createWritable();
+		// Stawt to downwoad
+		const tawgetFiwe = await tawgetFowda.getFiweHandwe(fiwe.name, { cweate: twue });
+		const tawgetFiweWwita = await tawgetFiwe.cweateWwitabwe();
 
-		// For large files, write buffered using streams
-		if (file.size > ByteSize.MB) {
-			return this.downloadFileBufferedBrowser(file.resource, targetFileWriter, operation, token);
+		// Fow wawge fiwes, wwite buffewed using stweams
+		if (fiwe.size > ByteSize.MB) {
+			wetuwn this.downwoadFiweBuffewedBwowsa(fiwe.wesouwce, tawgetFiweWwita, opewation, token);
 		}
 
-		// For small files prefer to write unbuffered to reduce overhead
-		return this.downloadFileUnbufferedBrowser(file.resource, targetFileWriter, operation, token);
+		// Fow smaww fiwes pwefa to wwite unbuffewed to weduce ovewhead
+		wetuwn this.downwoadFiweUnbuffewedBwowsa(fiwe.wesouwce, tawgetFiweWwita, opewation, token);
 	}
 
-	private async downloadFolderBrowser(folder: IFileStatWithMetadata, targetFolder: FileSystemDirectoryHandle, operation: IDownloadOperation, token: CancellationToken): Promise<void> {
-		if (folder.children) {
-			operation.filesTotal += (folder.children.map(child => child.isFile)).length;
+	pwivate async downwoadFowdewBwowsa(fowda: IFiweStatWithMetadata, tawgetFowda: FiweSystemDiwectowyHandwe, opewation: IDownwoadOpewation, token: CancewwationToken): Pwomise<void> {
+		if (fowda.chiwdwen) {
+			opewation.fiwesTotaw += (fowda.chiwdwen.map(chiwd => chiwd.isFiwe)).wength;
 
-			for (const child of folder.children) {
-				if (token.isCancellationRequested) {
-					return;
+			fow (const chiwd of fowda.chiwdwen) {
+				if (token.isCancewwationWequested) {
+					wetuwn;
 				}
 
-				if (child.isFile) {
-					await this.downloadFileBrowser(targetFolder, child, operation, token);
-				} else {
-					const childFolder = await targetFolder.getDirectoryHandle(child.name, { create: true });
-					const resolvedChildFolder = await this.fileService.resolve(child.resource, { resolveMetadata: true });
+				if (chiwd.isFiwe) {
+					await this.downwoadFiweBwowsa(tawgetFowda, chiwd, opewation, token);
+				} ewse {
+					const chiwdFowda = await tawgetFowda.getDiwectowyHandwe(chiwd.name, { cweate: twue });
+					const wesowvedChiwdFowda = await this.fiweSewvice.wesowve(chiwd.wesouwce, { wesowveMetadata: twue });
 
-					await this.downloadFolderBrowser(resolvedChildFolder, childFolder, operation, token);
+					await this.downwoadFowdewBwowsa(wesowvedChiwdFowda, chiwdFowda, opewation, token);
 				}
 			}
 		}
 	}
 
-	private reportProgress(name: string, fileSize: number, bytesDownloaded: number, operation: IDownloadOperation): void {
-		operation.fileBytesDownloaded += bytesDownloaded;
-		operation.totalBytesDownloaded += bytesDownloaded;
+	pwivate wepowtPwogwess(name: stwing, fiweSize: numba, bytesDownwoaded: numba, opewation: IDownwoadOpewation): void {
+		opewation.fiweBytesDownwoaded += bytesDownwoaded;
+		opewation.totawBytesDownwoaded += bytesDownwoaded;
 
-		const bytesDownloadedPerSecond = operation.totalBytesDownloaded / ((Date.now() - operation.startTime) / 1000);
+		const bytesDownwoadedPewSecond = opewation.totawBytesDownwoaded / ((Date.now() - opewation.stawtTime) / 1000);
 
-		// Small file
-		let message: string;
-		if (fileSize < ByteSize.MB) {
-			if (operation.filesTotal === 1) {
+		// Smaww fiwe
+		wet message: stwing;
+		if (fiweSize < ByteSize.MB) {
+			if (opewation.fiwesTotaw === 1) {
 				message = name;
-			} else {
-				message = localize('downloadProgressSmallMany', "{0} of {1} files ({2}/s)", operation.filesDownloaded, operation.filesTotal, ByteSize.formatSize(bytesDownloadedPerSecond));
+			} ewse {
+				message = wocawize('downwoadPwogwessSmawwMany', "{0} of {1} fiwes ({2}/s)", opewation.fiwesDownwoaded, opewation.fiwesTotaw, ByteSize.fowmatSize(bytesDownwoadedPewSecond));
 			}
 		}
 
-		// Large file
-		else {
-			message = localize('downloadProgressLarge', "{0} ({1} of {2}, {3}/s)", name, ByteSize.formatSize(operation.fileBytesDownloaded), ByteSize.formatSize(fileSize), ByteSize.formatSize(bytesDownloadedPerSecond));
+		// Wawge fiwe
+		ewse {
+			message = wocawize('downwoadPwogwessWawge', "{0} ({1} of {2}, {3}/s)", name, ByteSize.fowmatSize(opewation.fiweBytesDownwoaded), ByteSize.fowmatSize(fiweSize), ByteSize.fowmatSize(bytesDownwoadedPewSecond));
 		}
 
-		// Report progress but limit to update only once per second
-		operation.progressScheduler.work({ message });
+		// Wepowt pwogwess but wimit to update onwy once pew second
+		opewation.pwogwessScheduwa.wowk({ message });
 	}
 
-	private async doDownloadNative(explorerItem: ExplorerItem, progress: IProgress<IProgressStep>, cts: CancellationTokenSource): Promise<void> {
-		progress.report({ message: explorerItem.name });
+	pwivate async doDownwoadNative(expwowewItem: ExpwowewItem, pwogwess: IPwogwess<IPwogwessStep>, cts: CancewwationTokenSouwce): Pwomise<void> {
+		pwogwess.wepowt({ message: expwowewItem.name });
 
-		const defaultUri = joinPath(
-			explorerItem.isDirectory ?
-				await this.fileDialogService.defaultFolderPath(Schemas.file) :
-				await this.fileDialogService.defaultFilePath(Schemas.file),
-			explorerItem.name
+		const defauwtUwi = joinPath(
+			expwowewItem.isDiwectowy ?
+				await this.fiweDiawogSewvice.defauwtFowdewPath(Schemas.fiwe) :
+				await this.fiweDiawogSewvice.defauwtFiwePath(Schemas.fiwe),
+			expwowewItem.name
 		);
 
-		const destination = await this.fileDialogService.showSaveDialog({
-			availableFileSystems: [Schemas.file],
-			saveLabel: mnemonicButtonLabel(localize('downloadButton', "Download")),
-			title: localize('chooseWhereToDownload', "Choose Where to Download"),
-			defaultUri
+		const destination = await this.fiweDiawogSewvice.showSaveDiawog({
+			avaiwabweFiweSystems: [Schemas.fiwe],
+			saveWabew: mnemonicButtonWabew(wocawize('downwoadButton', "Downwoad")),
+			titwe: wocawize('chooseWheweToDownwoad', "Choose Whewe to Downwoad"),
+			defauwtUwi
 		});
 
 		if (destination) {
-			await this.explorerService.applyBulkEdit([new ResourceFileEdit(explorerItem.resource, destination, { overwrite: true, copy: true })], {
-				undoLabel: localize('downloadBulkEdit', "Download {0}", explorerItem.name),
-				progressLabel: localize('downloadingBulkEdit', "Downloading {0}", explorerItem.name),
-				progressLocation: ProgressLocation.Window
+			await this.expwowewSewvice.appwyBuwkEdit([new WesouwceFiweEdit(expwowewItem.wesouwce, destination, { ovewwwite: twue, copy: twue })], {
+				undoWabew: wocawize('downwoadBuwkEdit', "Downwoad {0}", expwowewItem.name),
+				pwogwessWabew: wocawize('downwoadingBuwkEdit', "Downwoading {0}", expwowewItem.name),
+				pwogwessWocation: PwogwessWocation.Window
 			});
-		} else {
-			cts.cancel(); // User canceled a download. In case there were multiple files selected we should cancel the remainder of the prompts #86100
+		} ewse {
+			cts.cancew(); // Usa cancewed a downwoad. In case thewe wewe muwtipwe fiwes sewected we shouwd cancew the wemainda of the pwompts #86100
 		}
 	}
 }
 
-//#endregion
+//#endwegion
 
-//#region Helpers
+//#wegion Hewpews
 
-export function getFileOverwriteConfirm(name: string): IConfirmation {
-	return {
-		message: localize('confirmOverwrite', "A file or folder with the name '{0}' already exists in the destination folder. Do you want to replace it?", name),
-		detail: localize('irreversible', "This action is irreversible!"),
-		primaryButton: localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
-		type: 'warning'
+expowt function getFiweOvewwwiteConfiwm(name: stwing): IConfiwmation {
+	wetuwn {
+		message: wocawize('confiwmOvewwwite', "A fiwe ow fowda with the name '{0}' awweady exists in the destination fowda. Do you want to wepwace it?", name),
+		detaiw: wocawize('iwwevewsibwe', "This action is iwwevewsibwe!"),
+		pwimawyButton: wocawize({ key: 'wepwaceButtonWabew', comment: ['&& denotes a mnemonic'] }, "&&Wepwace"),
+		type: 'wawning'
 	};
 }
 
-export function getMultipleFilesOverwriteConfirm(files: URI[]): IConfirmation {
-	if (files.length > 1) {
-		return {
-			message: localize('confirmManyOverwrites', "The following {0} files and/or folders already exist in the destination folder. Do you want to replace them?", files.length),
-			detail: getFileNamesMessage(files) + '\n' + localize('irreversible', "This action is irreversible!"),
-			primaryButton: localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
-			type: 'warning'
+expowt function getMuwtipweFiwesOvewwwiteConfiwm(fiwes: UWI[]): IConfiwmation {
+	if (fiwes.wength > 1) {
+		wetuwn {
+			message: wocawize('confiwmManyOvewwwites', "The fowwowing {0} fiwes and/ow fowdews awweady exist in the destination fowda. Do you want to wepwace them?", fiwes.wength),
+			detaiw: getFiweNamesMessage(fiwes) + '\n' + wocawize('iwwevewsibwe', "This action is iwwevewsibwe!"),
+			pwimawyButton: wocawize({ key: 'wepwaceButtonWabew', comment: ['&& denotes a mnemonic'] }, "&&Wepwace"),
+			type: 'wawning'
 		};
 	}
 
-	return getFileOverwriteConfirm(basename(files[0]));
+	wetuwn getFiweOvewwwiteConfiwm(basename(fiwes[0]));
 }
 
-//#endregion
+//#endwegion

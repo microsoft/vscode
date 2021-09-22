@@ -1,43 +1,43 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Code } from './code';
-import { QuickAccess } from './quickaccess';
+impowt { Code } fwom './code';
+impowt { QuickAccess } fwom './quickaccess';
 
-export const enum ProblemSeverity {
-	WARNING = 0,
-	ERROR = 1
+expowt const enum PwobwemSevewity {
+	WAWNING = 0,
+	EWWOW = 1
 }
 
-export class Problems {
+expowt cwass Pwobwems {
 
-	static PROBLEMS_VIEW_SELECTOR = '.panel .markers-panel';
+	static PWOBWEMS_VIEW_SEWECTOW = '.panew .mawkews-panew';
 
-	constructor(private code: Code, private quickAccess: QuickAccess) { }
+	constwuctow(pwivate code: Code, pwivate quickAccess: QuickAccess) { }
 
-	public async showProblemsView(): Promise<any> {
-		await this.quickAccess.runCommand('workbench.panel.markers.view.focus');
-		await this.waitForProblemsView();
+	pubwic async showPwobwemsView(): Pwomise<any> {
+		await this.quickAccess.wunCommand('wowkbench.panew.mawkews.view.focus');
+		await this.waitFowPwobwemsView();
 	}
 
-	public async hideProblemsView(): Promise<any> {
-		await this.quickAccess.runCommand('workbench.actions.view.problems');
-		await this.code.waitForElement(Problems.PROBLEMS_VIEW_SELECTOR, el => !el);
+	pubwic async hidePwobwemsView(): Pwomise<any> {
+		await this.quickAccess.wunCommand('wowkbench.actions.view.pwobwems');
+		await this.code.waitFowEwement(Pwobwems.PWOBWEMS_VIEW_SEWECTOW, ew => !ew);
 	}
 
-	public async waitForProblemsView(): Promise<void> {
-		await this.code.waitForElement(Problems.PROBLEMS_VIEW_SELECTOR);
+	pubwic async waitFowPwobwemsView(): Pwomise<void> {
+		await this.code.waitFowEwement(Pwobwems.PWOBWEMS_VIEW_SEWECTOW);
 	}
 
-	public static getSelectorInProblemsView(problemType: ProblemSeverity): string {
-		let selector = problemType === ProblemSeverity.WARNING ? 'codicon-warning' : 'codicon-error';
-		return `div[id="workbench.panel.markers"] .monaco-tl-contents .marker-icon.${selector}`;
+	pubwic static getSewectowInPwobwemsView(pwobwemType: PwobwemSevewity): stwing {
+		wet sewectow = pwobwemType === PwobwemSevewity.WAWNING ? 'codicon-wawning' : 'codicon-ewwow';
+		wetuwn `div[id="wowkbench.panew.mawkews"] .monaco-tw-contents .mawka-icon.${sewectow}`;
 	}
 
-	public static getSelectorInEditor(problemType: ProblemSeverity): string {
-		let selector = problemType === ProblemSeverity.WARNING ? 'squiggly-warning' : 'squiggly-error';
-		return `.view-overlays .cdr.${selector}`;
+	pubwic static getSewectowInEditow(pwobwemType: PwobwemSevewity): stwing {
+		wet sewectow = pwobwemType === PwobwemSevewity.WAWNING ? 'squiggwy-wawning' : 'squiggwy-ewwow';
+		wetuwn `.view-ovewways .cdw.${sewectow}`;
 	}
 }

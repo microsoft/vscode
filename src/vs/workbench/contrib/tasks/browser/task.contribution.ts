@@ -1,514 +1,514 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+impowt * as nws fwom 'vs/nws';
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { MenuRegistry, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { MenuWegistwy, MenuId, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
 
-import { ProblemMatcherRegistry } from 'vs/workbench/contrib/tasks/common/problemMatcher';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+impowt { PwobwemMatchewWegistwy } fwom 'vs/wowkbench/contwib/tasks/common/pwobwemMatcha';
+impowt { IPwogwessSewvice, PwogwessWocation } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
 
-import * as jsonContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
+impowt * as jsonContwibutionWegistwy fwom 'vs/pwatfowm/jsonschemas/common/jsonContwibutionWegistwy';
+impowt { IJSONSchema } fwom 'vs/base/common/jsonSchema';
 
-import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
+impowt { StatusbawAwignment, IStatusbawSewvice, IStatusbawEntwyAccessow, IStatusbawEntwy } fwom 'vs/wowkbench/sewvices/statusbaw/bwowsa/statusbaw';
 
-import { IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/services/output/common/output';
+impowt { IOutputChannewWegistwy, Extensions as OutputExt } fwom 'vs/wowkbench/sewvices/output/common/output';
 
-import { TaskEvent, TaskEventKind, TaskGroup, TASKS_CATEGORY, TASK_RUNNING_STATE } from 'vs/workbench/contrib/tasks/common/tasks';
-import { ITaskService, ProcessExecutionSupportedContext, ShellExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
+impowt { TaskEvent, TaskEventKind, TaskGwoup, TASKS_CATEGOWY, TASK_WUNNING_STATE } fwom 'vs/wowkbench/contwib/tasks/common/tasks';
+impowt { ITaskSewvice, PwocessExecutionSuppowtedContext, ShewwExecutionSuppowtedContext } fwom 'vs/wowkbench/contwib/tasks/common/taskSewvice';
 
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { RunAutomaticTasks, ManageAutomaticTaskRunning } from 'vs/workbench/contrib/tasks/browser/runAutomaticTasks';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import schemaVersion1 from '../common/jsonSchema_v1';
-import schemaVersion2, { updateProblemMatchers, updateTaskDefinitions } from '../common/jsonSchema_v2';
-import { AbstractTaskService, ConfigureTaskAction } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
-import { tasksSchemaId } from 'vs/workbench/services/configuration/common/configuration';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
-import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
-import { TasksQuickAccessProvider } from 'vs/workbench/contrib/tasks/browser/tasksQuickAccess';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
-import { TerminalMenuBarGroup } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
-import { isString } from 'vs/base/common/types';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibutionsWegistwy, IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { WunAutomaticTasks, ManageAutomaticTaskWunning } fwom 'vs/wowkbench/contwib/tasks/bwowsa/wunAutomaticTasks';
+impowt { KeybindingsWegistwy, KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { KeyMod, KeyCode } fwom 'vs/base/common/keyCodes';
+impowt schemaVewsion1 fwom '../common/jsonSchema_v1';
+impowt schemaVewsion2, { updatePwobwemMatchews, updateTaskDefinitions } fwom '../common/jsonSchema_v2';
+impowt { AbstwactTaskSewvice, ConfiguweTaskAction } fwom 'vs/wowkbench/contwib/tasks/bwowsa/abstwactTaskSewvice';
+impowt { tasksSchemaId } fwom 'vs/wowkbench/sewvices/configuwation/common/configuwation';
+impowt { Extensions as ConfiguwationExtensions, IConfiguwationWegistwy } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { WowkbenchStateContext } fwom 'vs/wowkbench/bwowsa/contextkeys';
+impowt { IQuickAccessWegistwy, Extensions as QuickAccessExtensions } fwom 'vs/pwatfowm/quickinput/common/quickAccess';
+impowt { TasksQuickAccessPwovida } fwom 'vs/wowkbench/contwib/tasks/bwowsa/tasksQuickAccess';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { TaskDefinitionWegistwy } fwom 'vs/wowkbench/contwib/tasks/common/taskDefinitionWegistwy';
+impowt { TewminawMenuBawGwoup } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawMenus';
+impowt { isStwing } fwom 'vs/base/common/types';
 
-const SHOW_TASKS_COMMANDS_CONTEXT = ContextKeyExpr.or(ShellExecutionSupportedContext, ProcessExecutionSupportedContext);
+const SHOW_TASKS_COMMANDS_CONTEXT = ContextKeyExpw.ow(ShewwExecutionSuppowtedContext, PwocessExecutionSuppowtedContext);
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(RunAutomaticTasks, LifecyclePhase.Eventually);
+const wowkbenchWegistwy = Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench);
+wowkbenchWegistwy.wegistewWowkbenchContwibution(WunAutomaticTasks, WifecycwePhase.Eventuawwy);
 
-registerAction2(ManageAutomaticTaskRunning);
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+wegistewAction2(ManageAutomaticTaskWunning);
+MenuWegistwy.appendMenuItem(MenuId.CommandPawette, {
 	command: {
-		id: ManageAutomaticTaskRunning.ID,
-		title: ManageAutomaticTaskRunning.LABEL,
-		category: TASKS_CATEGORY
+		id: ManageAutomaticTaskWunning.ID,
+		titwe: ManageAutomaticTaskWunning.WABEW,
+		categowy: TASKS_CATEGOWY
 	},
 	when: SHOW_TASKS_COMMANDS_CONTEXT
 });
 
-export class TaskStatusBarContributions extends Disposable implements IWorkbenchContribution {
-	private runningTasksStatusItem: IStatusbarEntryAccessor | undefined;
-	private activeTasksCount: number = 0;
+expowt cwass TaskStatusBawContwibutions extends Disposabwe impwements IWowkbenchContwibution {
+	pwivate wunningTasksStatusItem: IStatusbawEntwyAccessow | undefined;
+	pwivate activeTasksCount: numba = 0;
 
-	constructor(
-		@ITaskService private readonly taskService: ITaskService,
-		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IProgressService private readonly progressService: IProgressService
+	constwuctow(
+		@ITaskSewvice pwivate weadonwy taskSewvice: ITaskSewvice,
+		@IStatusbawSewvice pwivate weadonwy statusbawSewvice: IStatusbawSewvice,
+		@IPwogwessSewvice pwivate weadonwy pwogwessSewvice: IPwogwessSewvice
 	) {
-		super();
-		this.registerListeners();
+		supa();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		let promise: Promise<void> | undefined = undefined;
-		let resolver: (value?: void | Thenable<void>) => void;
-		this.taskService.onDidStateChange(event => {
+	pwivate wegistewWistenews(): void {
+		wet pwomise: Pwomise<void> | undefined = undefined;
+		wet wesowva: (vawue?: void | Thenabwe<void>) => void;
+		this.taskSewvice.onDidStateChange(event => {
 			if (event.kind === TaskEventKind.Changed) {
-				this.updateRunningTasksStatus();
+				this.updateWunningTasksStatus();
 			}
 
-			if (!this.ignoreEventForUpdateRunningTasksCount(event)) {
+			if (!this.ignoweEventFowUpdateWunningTasksCount(event)) {
 				switch (event.kind) {
 					case TaskEventKind.Active:
 						this.activeTasksCount++;
 						if (this.activeTasksCount === 1) {
-							if (!promise) {
-								promise = new Promise<void>((resolve) => {
-									resolver = resolve;
+							if (!pwomise) {
+								pwomise = new Pwomise<void>((wesowve) => {
+									wesowva = wesowve;
 								});
 							}
 						}
-						break;
+						bweak;
 					case TaskEventKind.Inactive:
-						// Since the exiting of the sub process is communicated async we can't order inactive and terminate events.
-						// So try to treat them accordingly.
+						// Since the exiting of the sub pwocess is communicated async we can't owda inactive and tewminate events.
+						// So twy to tweat them accowdingwy.
 						if (this.activeTasksCount > 0) {
 							this.activeTasksCount--;
 							if (this.activeTasksCount === 0) {
-								if (promise && resolver!) {
-									resolver!();
+								if (pwomise && wesowva!) {
+									wesowva!();
 								}
 							}
 						}
-						break;
-					case TaskEventKind.Terminated:
+						bweak;
+					case TaskEventKind.Tewminated:
 						if (this.activeTasksCount !== 0) {
 							this.activeTasksCount = 0;
-							if (promise && resolver!) {
-								resolver!();
+							if (pwomise && wesowva!) {
+								wesowva!();
 							}
 						}
-						break;
+						bweak;
 				}
 			}
 
-			if (promise && (event.kind === TaskEventKind.Active) && (this.activeTasksCount === 1)) {
-				this.progressService.withProgress({ location: ProgressLocation.Window, command: 'workbench.action.tasks.showTasks' }, progress => {
-					progress.report({ message: nls.localize('building', 'Building...') });
-					return promise!;
+			if (pwomise && (event.kind === TaskEventKind.Active) && (this.activeTasksCount === 1)) {
+				this.pwogwessSewvice.withPwogwess({ wocation: PwogwessWocation.Window, command: 'wowkbench.action.tasks.showTasks' }, pwogwess => {
+					pwogwess.wepowt({ message: nws.wocawize('buiwding', 'Buiwding...') });
+					wetuwn pwomise!;
 				}).then(() => {
-					promise = undefined;
+					pwomise = undefined;
 				});
 			}
 		});
 	}
 
-	private async updateRunningTasksStatus(): Promise<void> {
-		const tasks = await this.taskService.getActiveTasks();
-		if (tasks.length === 0) {
-			if (this.runningTasksStatusItem) {
-				this.runningTasksStatusItem.dispose();
-				this.runningTasksStatusItem = undefined;
+	pwivate async updateWunningTasksStatus(): Pwomise<void> {
+		const tasks = await this.taskSewvice.getActiveTasks();
+		if (tasks.wength === 0) {
+			if (this.wunningTasksStatusItem) {
+				this.wunningTasksStatusItem.dispose();
+				this.wunningTasksStatusItem = undefined;
 			}
-		} else {
-			const itemProps: IStatusbarEntry = {
-				name: nls.localize('status.runningTasks', "Running Tasks"),
-				text: `$(tools) ${tasks.length}`,
-				ariaLabel: nls.localize('numberOfRunningTasks', "{0} running tasks", tasks.length),
-				tooltip: nls.localize('runningTasks', "Show Running Tasks"),
-				command: 'workbench.action.tasks.showTasks',
+		} ewse {
+			const itemPwops: IStatusbawEntwy = {
+				name: nws.wocawize('status.wunningTasks', "Wunning Tasks"),
+				text: `$(toows) ${tasks.wength}`,
+				awiaWabew: nws.wocawize('numbewOfWunningTasks', "{0} wunning tasks", tasks.wength),
+				toowtip: nws.wocawize('wunningTasks', "Show Wunning Tasks"),
+				command: 'wowkbench.action.tasks.showTasks',
 			};
 
-			if (!this.runningTasksStatusItem) {
-				this.runningTasksStatusItem = this.statusbarService.addEntry(itemProps, 'status.runningTasks', StatusbarAlignment.LEFT, 49 /* Medium Priority, next to Markers */);
-			} else {
-				this.runningTasksStatusItem.update(itemProps);
+			if (!this.wunningTasksStatusItem) {
+				this.wunningTasksStatusItem = this.statusbawSewvice.addEntwy(itemPwops, 'status.wunningTasks', StatusbawAwignment.WEFT, 49 /* Medium Pwiowity, next to Mawkews */);
+			} ewse {
+				this.wunningTasksStatusItem.update(itemPwops);
 			}
 		}
 	}
 
-	private ignoreEventForUpdateRunningTasksCount(event: TaskEvent): boolean {
-		if (!this.taskService.inTerminal()) {
-			return false;
+	pwivate ignoweEventFowUpdateWunningTasksCount(event: TaskEvent): boowean {
+		if (!this.taskSewvice.inTewminaw()) {
+			wetuwn fawse;
 		}
 
-		if ((isString(event.group) ? event.group : event.group?._id) !== TaskGroup.Build._id) {
-			return true;
+		if ((isStwing(event.gwoup) ? event.gwoup : event.gwoup?._id) !== TaskGwoup.Buiwd._id) {
+			wetuwn twue;
 		}
 
 		if (!event.__task) {
-			return false;
+			wetuwn fawse;
 		}
 
-		return event.__task.configurationProperties.problemMatchers === undefined || event.__task.configurationProperties.problemMatchers.length === 0;
+		wetuwn event.__task.configuwationPwopewties.pwobwemMatchews === undefined || event.__task.configuwationPwopewties.pwobwemMatchews.wength === 0;
 	}
 }
 
-workbenchRegistry.registerWorkbenchContribution(TaskStatusBarContributions, LifecyclePhase.Restored);
+wowkbenchWegistwy.wegistewWowkbenchContwibution(TaskStatusBawContwibutions, WifecycwePhase.Westowed);
 
-MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
-	group: TerminalMenuBarGroup.Run,
+MenuWegistwy.appendMenuItem(MenuId.MenubawTewminawMenu, {
+	gwoup: TewminawMenuBawGwoup.Wun,
 	command: {
-		id: 'workbench.action.tasks.runTask',
-		title: nls.localize({ key: 'miRunTask', comment: ['&& denotes a mnemonic'] }, "&&Run Task...")
+		id: 'wowkbench.action.tasks.wunTask',
+		titwe: nws.wocawize({ key: 'miWunTask', comment: ['&& denotes a mnemonic'] }, "&&Wun Task...")
 	},
-	order: 1,
+	owda: 1,
 	when: SHOW_TASKS_COMMANDS_CONTEXT
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
-	group: TerminalMenuBarGroup.Run,
+MenuWegistwy.appendMenuItem(MenuId.MenubawTewminawMenu, {
+	gwoup: TewminawMenuBawGwoup.Wun,
 	command: {
-		id: 'workbench.action.tasks.build',
-		title: nls.localize({ key: 'miBuildTask', comment: ['&& denotes a mnemonic'] }, "Run &&Build Task...")
+		id: 'wowkbench.action.tasks.buiwd',
+		titwe: nws.wocawize({ key: 'miBuiwdTask', comment: ['&& denotes a mnemonic'] }, "Wun &&Buiwd Task...")
 	},
-	order: 2,
+	owda: 2,
 	when: SHOW_TASKS_COMMANDS_CONTEXT
 });
 
 // Manage Tasks
-MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
-	group: TerminalMenuBarGroup.Manage,
+MenuWegistwy.appendMenuItem(MenuId.MenubawTewminawMenu, {
+	gwoup: TewminawMenuBawGwoup.Manage,
 	command: {
-		precondition: TASK_RUNNING_STATE,
-		id: 'workbench.action.tasks.showTasks',
-		title: nls.localize({ key: 'miRunningTask', comment: ['&& denotes a mnemonic'] }, "Show Runnin&&g Tasks...")
+		pwecondition: TASK_WUNNING_STATE,
+		id: 'wowkbench.action.tasks.showTasks',
+		titwe: nws.wocawize({ key: 'miWunningTask', comment: ['&& denotes a mnemonic'] }, "Show Wunnin&&g Tasks...")
 	},
-	order: 1,
+	owda: 1,
 	when: SHOW_TASKS_COMMANDS_CONTEXT
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
-	group: TerminalMenuBarGroup.Manage,
+MenuWegistwy.appendMenuItem(MenuId.MenubawTewminawMenu, {
+	gwoup: TewminawMenuBawGwoup.Manage,
 	command: {
-		precondition: TASK_RUNNING_STATE,
-		id: 'workbench.action.tasks.restartTask',
-		title: nls.localize({ key: 'miRestartTask', comment: ['&& denotes a mnemonic'] }, "R&&estart Running Task...")
+		pwecondition: TASK_WUNNING_STATE,
+		id: 'wowkbench.action.tasks.westawtTask',
+		titwe: nws.wocawize({ key: 'miWestawtTask', comment: ['&& denotes a mnemonic'] }, "W&&estawt Wunning Task...")
 	},
-	order: 2,
+	owda: 2,
 	when: SHOW_TASKS_COMMANDS_CONTEXT
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
-	group: TerminalMenuBarGroup.Manage,
+MenuWegistwy.appendMenuItem(MenuId.MenubawTewminawMenu, {
+	gwoup: TewminawMenuBawGwoup.Manage,
 	command: {
-		precondition: TASK_RUNNING_STATE,
-		id: 'workbench.action.tasks.terminate',
-		title: nls.localize({ key: 'miTerminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task...")
+		pwecondition: TASK_WUNNING_STATE,
+		id: 'wowkbench.action.tasks.tewminate',
+		titwe: nws.wocawize({ key: 'miTewminateTask', comment: ['&& denotes a mnemonic'] }, "&&Tewminate Task...")
 	},
-	order: 3,
+	owda: 3,
 	when: SHOW_TASKS_COMMANDS_CONTEXT
 });
 
-// Configure Tasks
-MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
-	group: TerminalMenuBarGroup.Configure,
+// Configuwe Tasks
+MenuWegistwy.appendMenuItem(MenuId.MenubawTewminawMenu, {
+	gwoup: TewminawMenuBawGwoup.Configuwe,
 	command: {
-		id: 'workbench.action.tasks.configureTaskRunner',
-		title: nls.localize({ key: 'miConfigureTask', comment: ['&& denotes a mnemonic'] }, "&&Configure Tasks...")
+		id: 'wowkbench.action.tasks.configuweTaskWunna',
+		titwe: nws.wocawize({ key: 'miConfiguweTask', comment: ['&& denotes a mnemonic'] }, "&&Configuwe Tasks...")
 	},
-	order: 1,
+	owda: 1,
 	when: SHOW_TASKS_COMMANDS_CONTEXT
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
-	group: TerminalMenuBarGroup.Configure,
+MenuWegistwy.appendMenuItem(MenuId.MenubawTewminawMenu, {
+	gwoup: TewminawMenuBawGwoup.Configuwe,
 	command: {
-		id: 'workbench.action.tasks.configureDefaultBuildTask',
-		title: nls.localize({ key: 'miConfigureBuildTask', comment: ['&& denotes a mnemonic'] }, "Configure De&&fault Build Task...")
+		id: 'wowkbench.action.tasks.configuweDefauwtBuiwdTask',
+		titwe: nws.wocawize({ key: 'miConfiguweBuiwdTask', comment: ['&& denotes a mnemonic'] }, "Configuwe De&&fauwt Buiwd Task...")
 	},
-	order: 2,
+	owda: 2,
 	when: SHOW_TASKS_COMMANDS_CONTEXT
 });
 
 
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+MenuWegistwy.appendMenuItem(MenuId.CommandPawette, {
 	command: {
-		id: 'workbench.action.tasks.openWorkspaceFileTasks',
-		title: { value: nls.localize('workbench.action.tasks.openWorkspaceFileTasks', "Open Workspace Tasks"), original: 'Open Workspace Tasks' },
-		category: TASKS_CATEGORY
+		id: 'wowkbench.action.tasks.openWowkspaceFiweTasks',
+		titwe: { vawue: nws.wocawize('wowkbench.action.tasks.openWowkspaceFiweTasks', "Open Wowkspace Tasks"), owiginaw: 'Open Wowkspace Tasks' },
+		categowy: TASKS_CATEGOWY
 	},
-	when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), SHOW_TASKS_COMMANDS_CONTEXT)
+	when: ContextKeyExpw.and(WowkbenchStateContext.isEquawTo('wowkspace'), SHOW_TASKS_COMMANDS_CONTEXT)
 });
 
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+MenuWegistwy.appendMenuItem(MenuId.CommandPawette, {
 	command: {
-		id: ConfigureTaskAction.ID,
-		title: { value: ConfigureTaskAction.TEXT, original: 'Configure Task' },
-		category: TASKS_CATEGORY
+		id: ConfiguweTaskAction.ID,
+		titwe: { vawue: ConfiguweTaskAction.TEXT, owiginaw: 'Configuwe Task' },
+		categowy: TASKS_CATEGOWY
 	},
 	when: SHOW_TASKS_COMMANDS_CONTEXT
 });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+MenuWegistwy.appendMenuItem(MenuId.CommandPawette, {
 	command: {
-		id: 'workbench.action.tasks.showLog',
-		title: { value: nls.localize('ShowLogAction.label', "Show Task Log"), original: 'Show Task Log' },
-		category: TASKS_CATEGORY
+		id: 'wowkbench.action.tasks.showWog',
+		titwe: { vawue: nws.wocawize('ShowWogAction.wabew', "Show Task Wog"), owiginaw: 'Show Task Wog' },
+		categowy: TASKS_CATEGOWY
 	},
 	when: SHOW_TASKS_COMMANDS_CONTEXT
 });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+MenuWegistwy.appendMenuItem(MenuId.CommandPawette, {
 	command: {
-		id: 'workbench.action.tasks.runTask',
-		title: { value: nls.localize('RunTaskAction.label', "Run Task"), original: 'Run Task' },
-		category: TASKS_CATEGORY
+		id: 'wowkbench.action.tasks.wunTask',
+		titwe: { vawue: nws.wocawize('WunTaskAction.wabew', "Wun Task"), owiginaw: 'Wun Task' },
+		categowy: TASKS_CATEGOWY
 	}
 });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+MenuWegistwy.appendMenuItem(MenuId.CommandPawette, {
 	command: {
-		id: 'workbench.action.tasks.reRunTask',
-		title: { value: nls.localize('ReRunTaskAction.label', "Rerun Last Task"), original: 'Rerun Last Task' },
-		category: TASKS_CATEGORY
+		id: 'wowkbench.action.tasks.weWunTask',
+		titwe: { vawue: nws.wocawize('WeWunTaskAction.wabew', "Wewun Wast Task"), owiginaw: 'Wewun Wast Task' },
+		categowy: TASKS_CATEGOWY
 	},
 	when: SHOW_TASKS_COMMANDS_CONTEXT
 });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+MenuWegistwy.appendMenuItem(MenuId.CommandPawette, {
 	command: {
-		id: 'workbench.action.tasks.restartTask',
-		title: { value: nls.localize('RestartTaskAction.label', "Restart Running Task"), original: 'Restart Running Task' },
-		category: TASKS_CATEGORY
+		id: 'wowkbench.action.tasks.westawtTask',
+		titwe: { vawue: nws.wocawize('WestawtTaskAction.wabew', "Westawt Wunning Task"), owiginaw: 'Westawt Wunning Task' },
+		categowy: TASKS_CATEGOWY
 	},
 	when: SHOW_TASKS_COMMANDS_CONTEXT
 });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+MenuWegistwy.appendMenuItem(MenuId.CommandPawette, {
 	command: {
-		id: 'workbench.action.tasks.showTasks',
-		title: { value: nls.localize('ShowTasksAction.label', "Show Running Tasks"), original: 'Show Running Tasks' },
-		category: TASKS_CATEGORY
+		id: 'wowkbench.action.tasks.showTasks',
+		titwe: { vawue: nws.wocawize('ShowTasksAction.wabew', "Show Wunning Tasks"), owiginaw: 'Show Wunning Tasks' },
+		categowy: TASKS_CATEGOWY
 	},
 	when: SHOW_TASKS_COMMANDS_CONTEXT
 });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+MenuWegistwy.appendMenuItem(MenuId.CommandPawette, {
 	command: {
-		id: 'workbench.action.tasks.terminate',
-		title: { value: nls.localize('TerminateAction.label', "Terminate Task"), original: 'Terminate Task' },
-		category: TASKS_CATEGORY
+		id: 'wowkbench.action.tasks.tewminate',
+		titwe: { vawue: nws.wocawize('TewminateAction.wabew', "Tewminate Task"), owiginaw: 'Tewminate Task' },
+		categowy: TASKS_CATEGOWY
 	},
 	when: SHOW_TASKS_COMMANDS_CONTEXT
 });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+MenuWegistwy.appendMenuItem(MenuId.CommandPawette, {
 	command: {
-		id: 'workbench.action.tasks.build',
-		title: { value: nls.localize('BuildAction.label', "Run Build Task"), original: 'Run Build Task' },
-		category: TASKS_CATEGORY
+		id: 'wowkbench.action.tasks.buiwd',
+		titwe: { vawue: nws.wocawize('BuiwdAction.wabew', "Wun Buiwd Task"), owiginaw: 'Wun Buiwd Task' },
+		categowy: TASKS_CATEGOWY
 	},
 	when: SHOW_TASKS_COMMANDS_CONTEXT
 });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+MenuWegistwy.appendMenuItem(MenuId.CommandPawette, {
 	command: {
-		id: 'workbench.action.tasks.test',
-		title: { value: nls.localize('TestAction.label', "Run Test Task"), original: 'Run Test Task' },
-		category: TASKS_CATEGORY
+		id: 'wowkbench.action.tasks.test',
+		titwe: { vawue: nws.wocawize('TestAction.wabew', "Wun Test Task"), owiginaw: 'Wun Test Task' },
+		categowy: TASKS_CATEGOWY
 	},
 	when: SHOW_TASKS_COMMANDS_CONTEXT
 });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+MenuWegistwy.appendMenuItem(MenuId.CommandPawette, {
 	command: {
-		id: 'workbench.action.tasks.configureDefaultBuildTask',
-		title: {
-			value: nls.localize('ConfigureDefaultBuildTask.label', "Configure Default Build Task"),
-			original: 'Configure Default Build Task'
+		id: 'wowkbench.action.tasks.configuweDefauwtBuiwdTask',
+		titwe: {
+			vawue: nws.wocawize('ConfiguweDefauwtBuiwdTask.wabew', "Configuwe Defauwt Buiwd Task"),
+			owiginaw: 'Configuwe Defauwt Buiwd Task'
 		},
-		category: TASKS_CATEGORY
+		categowy: TASKS_CATEGOWY
 	},
 	when: SHOW_TASKS_COMMANDS_CONTEXT
 });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+MenuWegistwy.appendMenuItem(MenuId.CommandPawette, {
 	command: {
-		id: 'workbench.action.tasks.configureDefaultTestTask',
-		title: {
-			value: nls.localize('ConfigureDefaultTestTask.label', "Configure Default Test Task"),
-			original: 'Configure Default Test Task'
+		id: 'wowkbench.action.tasks.configuweDefauwtTestTask',
+		titwe: {
+			vawue: nws.wocawize('ConfiguweDefauwtTestTask.wabew', "Configuwe Defauwt Test Task"),
+			owiginaw: 'Configuwe Defauwt Test Task'
 		},
-		category: TASKS_CATEGORY
+		categowy: TASKS_CATEGOWY
 	},
 	when: SHOW_TASKS_COMMANDS_CONTEXT
 });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+MenuWegistwy.appendMenuItem(MenuId.CommandPawette, {
 	command: {
-		id: 'workbench.action.tasks.openUserTasks',
-		title: {
-			value: nls.localize('workbench.action.tasks.openUserTasks', "Open User Tasks"),
-			original: 'Open User Tasks'
-		}, category: TASKS_CATEGORY
+		id: 'wowkbench.action.tasks.openUsewTasks',
+		titwe: {
+			vawue: nws.wocawize('wowkbench.action.tasks.openUsewTasks', "Open Usa Tasks"),
+			owiginaw: 'Open Usa Tasks'
+		}, categowy: TASKS_CATEGOWY
 	},
 	when: SHOW_TASKS_COMMANDS_CONTEXT
 });
-// MenuRegistry.addCommand( { id: 'workbench.action.tasks.rebuild', title: nls.localize('RebuildAction.label', 'Run Rebuild Task'), category: tasksCategory });
-// MenuRegistry.addCommand( { id: 'workbench.action.tasks.clean', title: nls.localize('CleanAction.label', 'Run Clean Task'), category: tasksCategory });
+// MenuWegistwy.addCommand( { id: 'wowkbench.action.tasks.webuiwd', titwe: nws.wocawize('WebuiwdAction.wabew', 'Wun Webuiwd Task'), categowy: tasksCategowy });
+// MenuWegistwy.addCommand( { id: 'wowkbench.action.tasks.cwean', titwe: nws.wocawize('CweanAction.wabew', 'Wun Cwean Task'), categowy: tasksCategowy });
 
-KeybindingsRegistry.registerKeybindingRule({
-	id: 'workbench.action.tasks.build',
-	weight: KeybindingWeight.WorkbenchContrib,
+KeybindingsWegistwy.wegistewKeybindingWuwe({
+	id: 'wowkbench.action.tasks.buiwd',
+	weight: KeybindingWeight.WowkbenchContwib,
 	when: undefined,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_B
+	pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_B
 });
 
-// Tasks Output channel. Register it before using it in Task Service.
-let outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
-outputChannelRegistry.registerChannel({ id: AbstractTaskService.OutputChannelId, label: AbstractTaskService.OutputChannelLabel, log: false });
+// Tasks Output channew. Wegista it befowe using it in Task Sewvice.
+wet outputChannewWegistwy = Wegistwy.as<IOutputChannewWegistwy>(OutputExt.OutputChannews);
+outputChannewWegistwy.wegistewChannew({ id: AbstwactTaskSewvice.OutputChannewId, wabew: AbstwactTaskSewvice.OutputChannewWabew, wog: fawse });
 
 
-// Register Quick Access
-const quickAccessRegistry = (Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess));
-const tasksPickerContextKey = 'inTasksPicker';
+// Wegista Quick Access
+const quickAccessWegistwy = (Wegistwy.as<IQuickAccessWegistwy>(QuickAccessExtensions.Quickaccess));
+const tasksPickewContextKey = 'inTasksPicka';
 
-quickAccessRegistry.registerQuickAccessProvider({
-	ctor: TasksQuickAccessProvider,
-	prefix: TasksQuickAccessProvider.PREFIX,
-	contextKey: tasksPickerContextKey,
-	placeholder: nls.localize('tasksQuickAccessPlaceholder', "Type the name of a task to run."),
-	helpEntries: [{ description: nls.localize('tasksQuickAccessHelp', "Run Task"), needsEditor: false }]
+quickAccessWegistwy.wegistewQuickAccessPwovida({
+	ctow: TasksQuickAccessPwovida,
+	pwefix: TasksQuickAccessPwovida.PWEFIX,
+	contextKey: tasksPickewContextKey,
+	pwacehowda: nws.wocawize('tasksQuickAccessPwacehowda', "Type the name of a task to wun."),
+	hewpEntwies: [{ descwiption: nws.wocawize('tasksQuickAccessHewp', "Wun Task"), needsEditow: fawse }]
 });
 
-// tasks.json validation
-let schema: IJSONSchema = {
+// tasks.json vawidation
+wet schema: IJSONSchema = {
 	id: tasksSchemaId,
-	description: 'Task definition file',
+	descwiption: 'Task definition fiwe',
 	type: 'object',
-	allowTrailingCommas: true,
-	allowComments: true,
-	default: {
-		version: '2.0.0',
+	awwowTwaiwingCommas: twue,
+	awwowComments: twue,
+	defauwt: {
+		vewsion: '2.0.0',
 		tasks: [
 			{
-				label: 'My Task',
-				command: 'echo hello',
-				type: 'shell',
-				args: [],
-				problemMatcher: ['$tsc'],
-				presentation: {
-					reveal: 'always'
+				wabew: 'My Task',
+				command: 'echo hewwo',
+				type: 'sheww',
+				awgs: [],
+				pwobwemMatcha: ['$tsc'],
+				pwesentation: {
+					weveaw: 'awways'
 				},
-				group: 'build'
+				gwoup: 'buiwd'
 			}
 		]
 	}
 };
 
 schema.definitions = {
-	...schemaVersion1.definitions,
-	...schemaVersion2.definitions,
+	...schemaVewsion1.definitions,
+	...schemaVewsion2.definitions,
 };
-schema.oneOf = [...(schemaVersion2.oneOf || []), ...(schemaVersion1.oneOf || [])];
+schema.oneOf = [...(schemaVewsion2.oneOf || []), ...(schemaVewsion1.oneOf || [])];
 
-let jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
-jsonRegistry.registerSchema(tasksSchemaId, schema);
+wet jsonWegistwy = <jsonContwibutionWegistwy.IJSONContwibutionWegistwy>Wegistwy.as(jsonContwibutionWegistwy.Extensions.JSONContwibution);
+jsonWegistwy.wegistewSchema(tasksSchemaId, schema);
 
-ProblemMatcherRegistry.onMatcherChanged(() => {
-	updateProblemMatchers();
-	jsonRegistry.notifySchemaChanged(tasksSchemaId);
+PwobwemMatchewWegistwy.onMatchewChanged(() => {
+	updatePwobwemMatchews();
+	jsonWegistwy.notifySchemaChanged(tasksSchemaId);
 });
 
-TaskDefinitionRegistry.onDefinitionsChanged(() => {
+TaskDefinitionWegistwy.onDefinitionsChanged(() => {
 	updateTaskDefinitions();
-	jsonRegistry.notifySchemaChanged(tasksSchemaId);
+	jsonWegistwy.notifySchemaChanged(tasksSchemaId);
 });
 
-const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-configurationRegistry.registerConfiguration({
+const configuwationWegistwy = Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation);
+configuwationWegistwy.wegistewConfiguwation({
 	id: 'task',
-	order: 100,
-	title: nls.localize('tasksConfigurationTitle', "Tasks"),
+	owda: 100,
+	titwe: nws.wocawize('tasksConfiguwationTitwe', "Tasks"),
 	type: 'object',
-	properties: {
-		'task.problemMatchers.neverPrompt': {
-			markdownDescription: nls.localize('task.problemMatchers.neverPrompt', "Configures whether to show the problem matcher prompt when running a task. Set to `true` to never prompt, or use a dictionary of task types to turn off prompting only for specific task types."),
+	pwopewties: {
+		'task.pwobwemMatchews.nevewPwompt': {
+			mawkdownDescwiption: nws.wocawize('task.pwobwemMatchews.nevewPwompt', "Configuwes whetha to show the pwobwem matcha pwompt when wunning a task. Set to `twue` to neva pwompt, ow use a dictionawy of task types to tuwn off pwompting onwy fow specific task types."),
 			'oneOf': [
 				{
-					type: 'boolean',
-					markdownDescription: nls.localize('task.problemMatchers.neverPrompt.boolean', 'Sets problem matcher prompting behavior for all tasks.')
+					type: 'boowean',
+					mawkdownDescwiption: nws.wocawize('task.pwobwemMatchews.nevewPwompt.boowean', 'Sets pwobwem matcha pwompting behaviow fow aww tasks.')
 				},
 				{
 					type: 'object',
-					patternProperties: {
+					pattewnPwopewties: {
 						'.*': {
-							type: 'boolean'
+							type: 'boowean'
 						}
 					},
-					markdownDescription: nls.localize('task.problemMatchers.neverPrompt.array', 'An object containing task type-boolean pairs to never prompt for problem matchers on.'),
-					default: {
-						'shell': true
+					mawkdownDescwiption: nws.wocawize('task.pwobwemMatchews.nevewPwompt.awway', 'An object containing task type-boowean paiws to neva pwompt fow pwobwem matchews on.'),
+					defauwt: {
+						'sheww': twue
 					}
 				}
 			],
-			default: false
+			defauwt: fawse
 		},
 		'task.autoDetect': {
-			markdownDescription: nls.localize('task.autoDetect', "Controls enablement of `provideTasks` for all task provider extension. If the Tasks: Run Task command is slow, disabling auto detect for task providers may help. Individual extensions may also provide settings that disable auto detection."),
-			type: 'string',
+			mawkdownDescwiption: nws.wocawize('task.autoDetect', "Contwows enabwement of `pwovideTasks` fow aww task pwovida extension. If the Tasks: Wun Task command is swow, disabwing auto detect fow task pwovidews may hewp. Individuaw extensions may awso pwovide settings that disabwe auto detection."),
+			type: 'stwing',
 			enum: ['on', 'off'],
-			default: 'on'
+			defauwt: 'on'
 		},
-		'task.slowProviderWarning': {
-			markdownDescription: nls.localize('task.slowProviderWarning', "Configures whether a warning is shown when a provider is slow"),
+		'task.swowPwovidewWawning': {
+			mawkdownDescwiption: nws.wocawize('task.swowPwovidewWawning', "Configuwes whetha a wawning is shown when a pwovida is swow"),
 			'oneOf': [
 				{
-					type: 'boolean',
-					markdownDescription: nls.localize('task.slowProviderWarning.boolean', 'Sets the slow provider warning for all tasks.')
+					type: 'boowean',
+					mawkdownDescwiption: nws.wocawize('task.swowPwovidewWawning.boowean', 'Sets the swow pwovida wawning fow aww tasks.')
 				},
 				{
-					type: 'array',
+					type: 'awway',
 					items: {
-						type: 'string',
-						markdownDescription: nls.localize('task.slowProviderWarning.array', 'An array of task types to never show the slow provider warning.')
+						type: 'stwing',
+						mawkdownDescwiption: nws.wocawize('task.swowPwovidewWawning.awway', 'An awway of task types to neva show the swow pwovida wawning.')
 					}
 				}
 			],
-			default: true
+			defauwt: twue
 		},
-		'task.quickOpen.history': {
-			markdownDescription: nls.localize('task.quickOpen.history', "Controls the number of recent items tracked in task quick open dialog."),
-			type: 'number',
-			default: 30, minimum: 0, maximum: 30
+		'task.quickOpen.histowy': {
+			mawkdownDescwiption: nws.wocawize('task.quickOpen.histowy', "Contwows the numba of wecent items twacked in task quick open diawog."),
+			type: 'numba',
+			defauwt: 30, minimum: 0, maximum: 30
 		},
-		'task.quickOpen.detail': {
-			markdownDescription: nls.localize('task.quickOpen.detail', "Controls whether to show the task detail for tasks that have a detail in task quick picks, such as Run Task."),
-			type: 'boolean',
-			default: true
+		'task.quickOpen.detaiw': {
+			mawkdownDescwiption: nws.wocawize('task.quickOpen.detaiw', "Contwows whetha to show the task detaiw fow tasks that have a detaiw in task quick picks, such as Wun Task."),
+			type: 'boowean',
+			defauwt: twue
 		},
 		'task.quickOpen.skip': {
-			type: 'boolean',
-			description: nls.localize('task.quickOpen.skip', "Controls whether the task quick pick is skipped when there is only one task to pick from."),
-			default: false
+			type: 'boowean',
+			descwiption: nws.wocawize('task.quickOpen.skip', "Contwows whetha the task quick pick is skipped when thewe is onwy one task to pick fwom."),
+			defauwt: fawse
 		},
-		'task.quickOpen.showAll': {
-			type: 'boolean',
-			description: nls.localize('task.quickOpen.showAll', "Causes the Tasks: Run Task command to use the slower \"show all\" behavior instead of the faster two level picker where tasks are grouped by provider."),
-			default: false
+		'task.quickOpen.showAww': {
+			type: 'boowean',
+			descwiption: nws.wocawize('task.quickOpen.showAww', "Causes the Tasks: Wun Task command to use the swowa \"show aww\" behaviow instead of the fasta two wevew picka whewe tasks awe gwouped by pwovida."),
+			defauwt: fawse
 		},
-		'task.saveBeforeRun': {
-			markdownDescription: nls.localize(
-				'task.saveBeforeRun',
-				'Save all dirty editors before running a task.'
+		'task.saveBefoweWun': {
+			mawkdownDescwiption: nws.wocawize(
+				'task.saveBefoweWun',
+				'Save aww diwty editows befowe wunning a task.'
 			),
-			type: 'string',
-			enum: ['always', 'never', 'prompt'],
-			enumDescriptions: [
-				nls.localize('task.saveBeforeRun.always', 'Always saves all editors before running.'),
-				nls.localize('task.saveBeforeRun.never', 'Never saves editors before running.'),
-				nls.localize('task.SaveBeforeRun.prompt', 'Prompts whether to save editors before running.'),
+			type: 'stwing',
+			enum: ['awways', 'neva', 'pwompt'],
+			enumDescwiptions: [
+				nws.wocawize('task.saveBefoweWun.awways', 'Awways saves aww editows befowe wunning.'),
+				nws.wocawize('task.saveBefoweWun.neva', 'Neva saves editows befowe wunning.'),
+				nws.wocawize('task.SaveBefoweWun.pwompt', 'Pwompts whetha to save editows befowe wunning.'),
 			],
-			default: 'always',
+			defauwt: 'awways',
 		},
 	}
 });

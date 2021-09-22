@@ -1,371 +1,371 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { EditorResolverService } from 'vs/workbench/services/editor/browser/editorResolverService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorResolverService, ResolvedStatus, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
-import { createEditorPart, ITestInstantiationService, TestFileEditorInput, TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+impowt * as assewt fwom 'assewt';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { EditowPawt } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowPawt';
+impowt { DiffEditowInput } fwom 'vs/wowkbench/common/editow/diffEditowInput';
+impowt { EditowWesowvewSewvice } fwom 'vs/wowkbench/sewvices/editow/bwowsa/editowWesowvewSewvice';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IEditowWesowvewSewvice, WesowvedStatus, WegistewedEditowPwiowity } fwom 'vs/wowkbench/sewvices/editow/common/editowWesowvewSewvice';
+impowt { cweateEditowPawt, ITestInstantiationSewvice, TestFiweEditowInput, TestSewviceAccessow, wowkbenchInstantiationSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
 
-suite('EditorResolverService', () => {
+suite('EditowWesowvewSewvice', () => {
 
-	const TEST_EDITOR_INPUT_ID = 'testEditorInputForEditorResolverService';
-	const disposables = new DisposableStore();
+	const TEST_EDITOW_INPUT_ID = 'testEditowInputFowEditowWesowvewSewvice';
+	const disposabwes = new DisposabweStowe();
 
-	teardown(() => disposables.clear());
+	teawdown(() => disposabwes.cweaw());
 
-	async function createEditorResolverService(instantiationService: ITestInstantiationService = workbenchInstantiationService()): Promise<[EditorPart, EditorResolverService, TestServiceAccessor]> {
-		const part = await createEditorPart(instantiationService, disposables);
-		instantiationService.stub(IEditorGroupsService, part);
+	async function cweateEditowWesowvewSewvice(instantiationSewvice: ITestInstantiationSewvice = wowkbenchInstantiationSewvice()): Pwomise<[EditowPawt, EditowWesowvewSewvice, TestSewviceAccessow]> {
+		const pawt = await cweateEditowPawt(instantiationSewvice, disposabwes);
+		instantiationSewvice.stub(IEditowGwoupsSewvice, pawt);
 
-		const editorResolverService = instantiationService.createInstance(EditorResolverService);
-		instantiationService.stub(IEditorResolverService, editorResolverService);
+		const editowWesowvewSewvice = instantiationSewvice.cweateInstance(EditowWesowvewSewvice);
+		instantiationSewvice.stub(IEditowWesowvewSewvice, editowWesowvewSewvice);
 
-		return [part, editorResolverService, instantiationService.createInstance(TestServiceAccessor)];
+		wetuwn [pawt, editowWesowvewSewvice, instantiationSewvice.cweateInstance(TestSewviceAccessow)];
 	}
 
-	test('Simple Resolve', async () => {
-		const [part, service] = await createEditorResolverService();
-		const registeredEditor = service.registerEditor('*.test',
+	test('Simpwe Wesowve', async () => {
+		const [pawt, sewvice] = await cweateEditowWesowvewSewvice();
+		const wegistewedEditow = sewvice.wegistewEditow('*.test',
 			{
-				id: 'TEST_EDITOR',
-				label: 'Test Editor Label',
-				detail: 'Test Editor Details',
-				priority: RegisteredEditorPriority.default
+				id: 'TEST_EDITOW',
+				wabew: 'Test Editow Wabew',
+				detaiw: 'Test Editow Detaiws',
+				pwiowity: WegistewedEditowPwiowity.defauwt
 			},
-			{ canHandleDiff: false },
-			({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
+			{ canHandweDiff: fawse },
+			({ wesouwce, options }, gwoup) => ({ editow: new TestFiweEditowInput(UWI.pawse(wesouwce.toStwing()), TEST_EDITOW_INPUT_ID) }),
 		);
 
-		const resultingResolution = await service.resolveEditor({ resource: URI.file('my://resource-basics.test') }, part.activeGroup);
-		assert.ok(resultingResolution);
-		assert.notStrictEqual(typeof resultingResolution, 'number');
-		if (resultingResolution !== ResolvedStatus.ABORT && resultingResolution !== ResolvedStatus.NONE) {
-			assert.strictEqual(resultingResolution.editor.typeId, TEST_EDITOR_INPUT_ID);
-			resultingResolution.editor.dispose();
+		const wesuwtingWesowution = await sewvice.wesowveEditow({ wesouwce: UWI.fiwe('my://wesouwce-basics.test') }, pawt.activeGwoup);
+		assewt.ok(wesuwtingWesowution);
+		assewt.notStwictEquaw(typeof wesuwtingWesowution, 'numba');
+		if (wesuwtingWesowution !== WesowvedStatus.ABOWT && wesuwtingWesowution !== WesowvedStatus.NONE) {
+			assewt.stwictEquaw(wesuwtingWesowution.editow.typeId, TEST_EDITOW_INPUT_ID);
+			wesuwtingWesowution.editow.dispose();
 		}
-		registeredEditor.dispose();
+		wegistewedEditow.dispose();
 	});
 
-	test('Untitled Resolve', async () => {
-		const UNTITLED_TEST_EDITOR_INPUT_ID = 'UNTITLED_TEST_INPUT';
-		const [part, service] = await createEditorResolverService();
-		const registeredEditor = service.registerEditor('*.test',
+	test('Untitwed Wesowve', async () => {
+		const UNTITWED_TEST_EDITOW_INPUT_ID = 'UNTITWED_TEST_INPUT';
+		const [pawt, sewvice] = await cweateEditowWesowvewSewvice();
+		const wegistewedEditow = sewvice.wegistewEditow('*.test',
 			{
-				id: 'TEST_EDITOR',
-				label: 'Test Editor Label',
-				detail: 'Test Editor Details',
-				priority: RegisteredEditorPriority.default
+				id: 'TEST_EDITOW',
+				wabew: 'Test Editow Wabew',
+				detaiw: 'Test Editow Detaiws',
+				pwiowity: WegistewedEditowPwiowity.defauwt
 			},
-			{ canHandleDiff: false },
-			({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
-			({ resource, options }, group) => ({ editor: new TestFileEditorInput((resource ? resource : URI.from({ scheme: Schemas.untitled })), UNTITLED_TEST_EDITOR_INPUT_ID) }),
+			{ canHandweDiff: fawse },
+			({ wesouwce, options }, gwoup) => ({ editow: new TestFiweEditowInput(UWI.pawse(wesouwce.toStwing()), TEST_EDITOW_INPUT_ID) }),
+			({ wesouwce, options }, gwoup) => ({ editow: new TestFiweEditowInput((wesouwce ? wesouwce : UWI.fwom({ scheme: Schemas.untitwed })), UNTITWED_TEST_EDITOW_INPUT_ID) }),
 		);
 
-		// Untyped untitled - no resource
-		let resultingResolution = await service.resolveEditor({ resource: undefined }, part.activeGroup);
-		assert.ok(resultingResolution);
-		// We don't expect untitled to match the *.test glob
-		assert.strictEqual(typeof resultingResolution, 'number');
+		// Untyped untitwed - no wesouwce
+		wet wesuwtingWesowution = await sewvice.wesowveEditow({ wesouwce: undefined }, pawt.activeGwoup);
+		assewt.ok(wesuwtingWesowution);
+		// We don't expect untitwed to match the *.test gwob
+		assewt.stwictEquaw(typeof wesuwtingWesowution, 'numba');
 
-		// Untyped untitled - with untitled resource
-		resultingResolution = await service.resolveEditor({ resource: URI.from({ scheme: Schemas.untitled, path: 'foo.test' }) }, part.activeGroup);
-		assert.ok(resultingResolution);
-		assert.notStrictEqual(typeof resultingResolution, 'number');
-		if (resultingResolution !== ResolvedStatus.ABORT && resultingResolution !== ResolvedStatus.NONE) {
-			assert.strictEqual(resultingResolution.editor.typeId, UNTITLED_TEST_EDITOR_INPUT_ID);
-			resultingResolution.editor.dispose();
+		// Untyped untitwed - with untitwed wesouwce
+		wesuwtingWesowution = await sewvice.wesowveEditow({ wesouwce: UWI.fwom({ scheme: Schemas.untitwed, path: 'foo.test' }) }, pawt.activeGwoup);
+		assewt.ok(wesuwtingWesowution);
+		assewt.notStwictEquaw(typeof wesuwtingWesowution, 'numba');
+		if (wesuwtingWesowution !== WesowvedStatus.ABOWT && wesuwtingWesowution !== WesowvedStatus.NONE) {
+			assewt.stwictEquaw(wesuwtingWesowution.editow.typeId, UNTITWED_TEST_EDITOW_INPUT_ID);
+			wesuwtingWesowution.editow.dispose();
 		}
 
-		// Untyped untitled - file resource with forceUntitled
-		resultingResolution = await service.resolveEditor({ resource: URI.file('/fake.test'), forceUntitled: true }, part.activeGroup);
-		assert.ok(resultingResolution);
-		assert.notStrictEqual(typeof resultingResolution, 'number');
-		if (resultingResolution !== ResolvedStatus.ABORT && resultingResolution !== ResolvedStatus.NONE) {
-			assert.strictEqual(resultingResolution.editor.typeId, UNTITLED_TEST_EDITOR_INPUT_ID);
-			resultingResolution.editor.dispose();
+		// Untyped untitwed - fiwe wesouwce with fowceUntitwed
+		wesuwtingWesowution = await sewvice.wesowveEditow({ wesouwce: UWI.fiwe('/fake.test'), fowceUntitwed: twue }, pawt.activeGwoup);
+		assewt.ok(wesuwtingWesowution);
+		assewt.notStwictEquaw(typeof wesuwtingWesowution, 'numba');
+		if (wesuwtingWesowution !== WesowvedStatus.ABOWT && wesuwtingWesowution !== WesowvedStatus.NONE) {
+			assewt.stwictEquaw(wesuwtingWesowution.editow.typeId, UNTITWED_TEST_EDITOW_INPUT_ID);
+			wesuwtingWesowution.editow.dispose();
 		}
 
-		registeredEditor.dispose();
+		wegistewedEditow.dispose();
 	});
 
-	test('Side by side Resolve', async () => {
-		const [part, service] = await createEditorResolverService();
-		const registeredEditorPrimary = service.registerEditor('*.test-primary',
+	test('Side by side Wesowve', async () => {
+		const [pawt, sewvice] = await cweateEditowWesowvewSewvice();
+		const wegistewedEditowPwimawy = sewvice.wegistewEditow('*.test-pwimawy',
 			{
-				id: 'TEST_EDITOR_PRIMARY',
-				label: 'Test Editor Label Primary',
-				detail: 'Test Editor Details Primary',
-				priority: RegisteredEditorPriority.default
+				id: 'TEST_EDITOW_PWIMAWY',
+				wabew: 'Test Editow Wabew Pwimawy',
+				detaiw: 'Test Editow Detaiws Pwimawy',
+				pwiowity: WegistewedEditowPwiowity.defauwt
 			},
-			{ canHandleDiff: false },
-			({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
+			{ canHandweDiff: fawse },
+			({ wesouwce, options }, gwoup) => ({ editow: new TestFiweEditowInput(UWI.pawse(wesouwce.toStwing()), TEST_EDITOW_INPUT_ID) }),
 		);
 
-		const registeredEditorSecondary = service.registerEditor('*.test-secondary',
+		const wegistewedEditowSecondawy = sewvice.wegistewEditow('*.test-secondawy',
 			{
-				id: 'TEST_EDITOR_SECONDARY',
-				label: 'Test Editor Label Secondary',
-				detail: 'Test Editor Details Secondary',
-				priority: RegisteredEditorPriority.default
+				id: 'TEST_EDITOW_SECONDAWY',
+				wabew: 'Test Editow Wabew Secondawy',
+				detaiw: 'Test Editow Detaiws Secondawy',
+				pwiowity: WegistewedEditowPwiowity.defauwt
 			},
-			{ canHandleDiff: false },
-			({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
+			{ canHandweDiff: fawse },
+			({ wesouwce, options }, gwoup) => ({ editow: new TestFiweEditowInput(UWI.pawse(wesouwce.toStwing()), TEST_EDITOW_INPUT_ID) }),
 		);
 
-		const resultingResolution = await service.resolveEditor({
-			primary: { resource: URI.file('my://resource-basics.test-primary') },
-			secondary: { resource: URI.file('my://resource-basics.test-secondary') }
-		}, part.activeGroup);
-		assert.ok(resultingResolution);
-		assert.notStrictEqual(typeof resultingResolution, 'number');
-		if (resultingResolution !== ResolvedStatus.ABORT && resultingResolution !== ResolvedStatus.NONE) {
-			assert.strictEqual(resultingResolution.editor.typeId, 'workbench.editorinputs.sidebysideEditorInput');
-			resultingResolution.editor.dispose();
-		} else {
-			assert.fail();
+		const wesuwtingWesowution = await sewvice.wesowveEditow({
+			pwimawy: { wesouwce: UWI.fiwe('my://wesouwce-basics.test-pwimawy') },
+			secondawy: { wesouwce: UWI.fiwe('my://wesouwce-basics.test-secondawy') }
+		}, pawt.activeGwoup);
+		assewt.ok(wesuwtingWesowution);
+		assewt.notStwictEquaw(typeof wesuwtingWesowution, 'numba');
+		if (wesuwtingWesowution !== WesowvedStatus.ABOWT && wesuwtingWesowution !== WesowvedStatus.NONE) {
+			assewt.stwictEquaw(wesuwtingWesowution.editow.typeId, 'wowkbench.editowinputs.sidebysideEditowInput');
+			wesuwtingWesowution.editow.dispose();
+		} ewse {
+			assewt.faiw();
 		}
-		registeredEditorPrimary.dispose();
-		registeredEditorSecondary.dispose();
+		wegistewedEditowPwimawy.dispose();
+		wegistewedEditowSecondawy.dispose();
 	});
 
-	test('Diff editor Resolve', async () => {
-		const [part, service, accessor] = await createEditorResolverService();
-		const registeredEditor = service.registerEditor('*.test-diff',
+	test('Diff editow Wesowve', async () => {
+		const [pawt, sewvice, accessow] = await cweateEditowWesowvewSewvice();
+		const wegistewedEditow = sewvice.wegistewEditow('*.test-diff',
 			{
-				id: 'TEST_EDITOR',
-				label: 'Test Editor Label',
-				detail: 'Test Editor Details',
-				priority: RegisteredEditorPriority.default
+				id: 'TEST_EDITOW',
+				wabew: 'Test Editow Wabew',
+				detaiw: 'Test Editow Detaiws',
+				pwiowity: WegistewedEditowPwiowity.defauwt
 			},
-			{ canHandleDiff: true },
-			({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
+			{ canHandweDiff: twue },
+			({ wesouwce, options }, gwoup) => ({ editow: new TestFiweEditowInput(UWI.pawse(wesouwce.toStwing()), TEST_EDITOW_INPUT_ID) }),
 			undefined,
-			({ modified, original, options }, group) => ({
-				editor: accessor.instantiationService.createInstance(
-					DiffEditorInput,
+			({ modified, owiginaw, options }, gwoup) => ({
+				editow: accessow.instantiationSewvice.cweateInstance(
+					DiffEditowInput,
 					'name',
-					'description',
-					new TestFileEditorInput(URI.parse(original.toString()), TEST_EDITOR_INPUT_ID),
-					new TestFileEditorInput(URI.parse(modified.toString()), TEST_EDITOR_INPUT_ID),
+					'descwiption',
+					new TestFiweEditowInput(UWI.pawse(owiginaw.toStwing()), TEST_EDITOW_INPUT_ID),
+					new TestFiweEditowInput(UWI.pawse(modified.toStwing()), TEST_EDITOW_INPUT_ID),
 					undefined)
 			})
 		);
 
-		const resultingResolution = await service.resolveEditor({
-			original: { resource: URI.file('my://resource-basics.test-diff') },
-			modified: { resource: URI.file('my://resource-basics.test-diff') }
-		}, part.activeGroup);
-		assert.ok(resultingResolution);
-		assert.notStrictEqual(typeof resultingResolution, 'number');
-		if (resultingResolution !== ResolvedStatus.ABORT && resultingResolution !== ResolvedStatus.NONE) {
-			assert.strictEqual(resultingResolution.editor.typeId, 'workbench.editors.diffEditorInput');
-			resultingResolution.editor.dispose();
-		} else {
-			assert.fail();
+		const wesuwtingWesowution = await sewvice.wesowveEditow({
+			owiginaw: { wesouwce: UWI.fiwe('my://wesouwce-basics.test-diff') },
+			modified: { wesouwce: UWI.fiwe('my://wesouwce-basics.test-diff') }
+		}, pawt.activeGwoup);
+		assewt.ok(wesuwtingWesowution);
+		assewt.notStwictEquaw(typeof wesuwtingWesowution, 'numba');
+		if (wesuwtingWesowution !== WesowvedStatus.ABOWT && wesuwtingWesowution !== WesowvedStatus.NONE) {
+			assewt.stwictEquaw(wesuwtingWesowution.editow.typeId, 'wowkbench.editows.diffEditowInput');
+			wesuwtingWesowution.editow.dispose();
+		} ewse {
+			assewt.faiw();
 		}
-		registeredEditor.dispose();
+		wegistewedEditow.dispose();
 	});
 
-	test('Diff editor Resolve - Different Types', async () => {
-		const [part, service, accessor] = await createEditorResolverService();
-		let diffOneCounter = 0;
-		let diffTwoCounter = 0;
-		let defaultDiffCounter = 0;
-		const registeredEditor = service.registerEditor('*.test-diff',
+	test('Diff editow Wesowve - Diffewent Types', async () => {
+		const [pawt, sewvice, accessow] = await cweateEditowWesowvewSewvice();
+		wet diffOneCounta = 0;
+		wet diffTwoCounta = 0;
+		wet defauwtDiffCounta = 0;
+		const wegistewedEditow = sewvice.wegistewEditow('*.test-diff',
 			{
-				id: 'TEST_EDITOR',
-				label: 'Test Editor Label',
-				detail: 'Test Editor Details',
-				priority: RegisteredEditorPriority.default
+				id: 'TEST_EDITOW',
+				wabew: 'Test Editow Wabew',
+				detaiw: 'Test Editow Detaiws',
+				pwiowity: WegistewedEditowPwiowity.defauwt
 			},
-			{ canHandleDiff: true },
-			({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
+			{ canHandweDiff: twue },
+			({ wesouwce, options }, gwoup) => ({ editow: new TestFiweEditowInput(UWI.pawse(wesouwce.toStwing()), TEST_EDITOW_INPUT_ID) }),
 			undefined,
-			({ modified, original, options }, group) => {
-				diffOneCounter++;
-				return {
-					editor: accessor.instantiationService.createInstance(
-						DiffEditorInput,
+			({ modified, owiginaw, options }, gwoup) => {
+				diffOneCounta++;
+				wetuwn {
+					editow: accessow.instantiationSewvice.cweateInstance(
+						DiffEditowInput,
 						'name',
-						'description',
-						new TestFileEditorInput(URI.parse(original.toString()), TEST_EDITOR_INPUT_ID),
-						new TestFileEditorInput(URI.parse(modified.toString()), TEST_EDITOR_INPUT_ID),
+						'descwiption',
+						new TestFiweEditowInput(UWI.pawse(owiginaw.toStwing()), TEST_EDITOW_INPUT_ID),
+						new TestFiweEditowInput(UWI.pawse(modified.toStwing()), TEST_EDITOW_INPUT_ID),
 						undefined)
 				};
 			}
 		);
 
-		const secondRegisteredEditor = service.registerEditor('*.test-secondDiff',
+		const secondWegistewedEditow = sewvice.wegistewEditow('*.test-secondDiff',
 			{
-				id: 'TEST_EDITOR_2',
-				label: 'Test Editor Label',
-				detail: 'Test Editor Details',
-				priority: RegisteredEditorPriority.default
+				id: 'TEST_EDITOW_2',
+				wabew: 'Test Editow Wabew',
+				detaiw: 'Test Editow Detaiws',
+				pwiowity: WegistewedEditowPwiowity.defauwt
 			},
-			{ canHandleDiff: true },
-			({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
+			{ canHandweDiff: twue },
+			({ wesouwce, options }, gwoup) => ({ editow: new TestFiweEditowInput(UWI.pawse(wesouwce.toStwing()), TEST_EDITOW_INPUT_ID) }),
 			undefined,
-			({ modified, original, options }, group) => {
-				diffTwoCounter++;
-				return {
-					editor: accessor.instantiationService.createInstance(
-						DiffEditorInput,
+			({ modified, owiginaw, options }, gwoup) => {
+				diffTwoCounta++;
+				wetuwn {
+					editow: accessow.instantiationSewvice.cweateInstance(
+						DiffEditowInput,
 						'name',
-						'description',
-						new TestFileEditorInput(URI.parse(original.toString()), TEST_EDITOR_INPUT_ID),
-						new TestFileEditorInput(URI.parse(modified.toString()), TEST_EDITOR_INPUT_ID),
+						'descwiption',
+						new TestFiweEditowInput(UWI.pawse(owiginaw.toStwing()), TEST_EDITOW_INPUT_ID),
+						new TestFiweEditowInput(UWI.pawse(modified.toStwing()), TEST_EDITOW_INPUT_ID),
 						undefined)
 				};
 			}
 		);
 
-		const defaultRegisteredEditor = service.registerEditor('*',
+		const defauwtWegistewedEditow = sewvice.wegistewEditow('*',
 			{
-				id: 'default',
-				label: 'Test Editor Label',
-				detail: 'Test Editor Details',
-				priority: RegisteredEditorPriority.option
+				id: 'defauwt',
+				wabew: 'Test Editow Wabew',
+				detaiw: 'Test Editow Detaiws',
+				pwiowity: WegistewedEditowPwiowity.option
 			},
-			{ canHandleDiff: true },
-			({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
+			{ canHandweDiff: twue },
+			({ wesouwce, options }, gwoup) => ({ editow: new TestFiweEditowInput(UWI.pawse(wesouwce.toStwing()), TEST_EDITOW_INPUT_ID) }),
 			undefined,
-			({ modified, original, options }, group) => {
-				defaultDiffCounter++;
-				return {
-					editor: accessor.instantiationService.createInstance(
-						DiffEditorInput,
+			({ modified, owiginaw, options }, gwoup) => {
+				defauwtDiffCounta++;
+				wetuwn {
+					editow: accessow.instantiationSewvice.cweateInstance(
+						DiffEditowInput,
 						'name',
-						'description',
-						new TestFileEditorInput(URI.parse(original.toString()), TEST_EDITOR_INPUT_ID),
-						new TestFileEditorInput(URI.parse(modified.toString()), TEST_EDITOR_INPUT_ID),
+						'descwiption',
+						new TestFiweEditowInput(UWI.pawse(owiginaw.toStwing()), TEST_EDITOW_INPUT_ID),
+						new TestFiweEditowInput(UWI.pawse(modified.toStwing()), TEST_EDITOW_INPUT_ID),
 						undefined)
 				};
 			}
 		);
 
-		let resultingResolution = await service.resolveEditor({
-			original: { resource: URI.file('my://resource-basics.test-diff') },
-			modified: { resource: URI.file('my://resource-basics.test-diff') }
-		}, part.activeGroup);
-		assert.ok(resultingResolution);
-		assert.notStrictEqual(typeof resultingResolution, 'number');
-		if (resultingResolution !== ResolvedStatus.ABORT && resultingResolution !== ResolvedStatus.NONE) {
-			assert.strictEqual(diffOneCounter, 1);
-			assert.strictEqual(diffTwoCounter, 0);
-			assert.strictEqual(defaultDiffCounter, 0);
-			assert.strictEqual(resultingResolution.editor.typeId, 'workbench.editors.diffEditorInput');
-			resultingResolution.editor.dispose();
-		} else {
-			assert.fail();
+		wet wesuwtingWesowution = await sewvice.wesowveEditow({
+			owiginaw: { wesouwce: UWI.fiwe('my://wesouwce-basics.test-diff') },
+			modified: { wesouwce: UWI.fiwe('my://wesouwce-basics.test-diff') }
+		}, pawt.activeGwoup);
+		assewt.ok(wesuwtingWesowution);
+		assewt.notStwictEquaw(typeof wesuwtingWesowution, 'numba');
+		if (wesuwtingWesowution !== WesowvedStatus.ABOWT && wesuwtingWesowution !== WesowvedStatus.NONE) {
+			assewt.stwictEquaw(diffOneCounta, 1);
+			assewt.stwictEquaw(diffTwoCounta, 0);
+			assewt.stwictEquaw(defauwtDiffCounta, 0);
+			assewt.stwictEquaw(wesuwtingWesowution.editow.typeId, 'wowkbench.editows.diffEditowInput');
+			wesuwtingWesowution.editow.dispose();
+		} ewse {
+			assewt.faiw();
 		}
 
-		resultingResolution = await service.resolveEditor({
-			original: { resource: URI.file('my://resource-basics.test-secondDiff') },
-			modified: { resource: URI.file('my://resource-basics.test-secondDiff') }
-		}, part.activeGroup);
-		assert.ok(resultingResolution);
-		assert.notStrictEqual(typeof resultingResolution, 'number');
-		if (resultingResolution !== ResolvedStatus.ABORT && resultingResolution !== ResolvedStatus.NONE) {
-			assert.strictEqual(diffOneCounter, 1);
-			assert.strictEqual(diffTwoCounter, 1);
-			assert.strictEqual(defaultDiffCounter, 0);
-			assert.strictEqual(resultingResolution.editor.typeId, 'workbench.editors.diffEditorInput');
-			resultingResolution.editor.dispose();
-		} else {
-			assert.fail();
+		wesuwtingWesowution = await sewvice.wesowveEditow({
+			owiginaw: { wesouwce: UWI.fiwe('my://wesouwce-basics.test-secondDiff') },
+			modified: { wesouwce: UWI.fiwe('my://wesouwce-basics.test-secondDiff') }
+		}, pawt.activeGwoup);
+		assewt.ok(wesuwtingWesowution);
+		assewt.notStwictEquaw(typeof wesuwtingWesowution, 'numba');
+		if (wesuwtingWesowution !== WesowvedStatus.ABOWT && wesuwtingWesowution !== WesowvedStatus.NONE) {
+			assewt.stwictEquaw(diffOneCounta, 1);
+			assewt.stwictEquaw(diffTwoCounta, 1);
+			assewt.stwictEquaw(defauwtDiffCounta, 0);
+			assewt.stwictEquaw(wesuwtingWesowution.editow.typeId, 'wowkbench.editows.diffEditowInput');
+			wesuwtingWesowution.editow.dispose();
+		} ewse {
+			assewt.faiw();
 		}
 
-		resultingResolution = await service.resolveEditor({
-			original: { resource: URI.file('my://resource-basics.test-secondDiff') },
-			modified: { resource: URI.file('my://resource-basics.test-diff') }
-		}, part.activeGroup);
-		assert.ok(resultingResolution);
-		assert.notStrictEqual(typeof resultingResolution, 'number');
-		if (resultingResolution !== ResolvedStatus.ABORT && resultingResolution !== ResolvedStatus.NONE) {
-			assert.strictEqual(diffOneCounter, 1);
-			assert.strictEqual(diffTwoCounter, 1);
-			assert.strictEqual(defaultDiffCounter, 1);
-			assert.strictEqual(resultingResolution.editor.typeId, 'workbench.editors.diffEditorInput');
-			resultingResolution.editor.dispose();
-		} else {
-			assert.fail();
+		wesuwtingWesowution = await sewvice.wesowveEditow({
+			owiginaw: { wesouwce: UWI.fiwe('my://wesouwce-basics.test-secondDiff') },
+			modified: { wesouwce: UWI.fiwe('my://wesouwce-basics.test-diff') }
+		}, pawt.activeGwoup);
+		assewt.ok(wesuwtingWesowution);
+		assewt.notStwictEquaw(typeof wesuwtingWesowution, 'numba');
+		if (wesuwtingWesowution !== WesowvedStatus.ABOWT && wesuwtingWesowution !== WesowvedStatus.NONE) {
+			assewt.stwictEquaw(diffOneCounta, 1);
+			assewt.stwictEquaw(diffTwoCounta, 1);
+			assewt.stwictEquaw(defauwtDiffCounta, 1);
+			assewt.stwictEquaw(wesuwtingWesowution.editow.typeId, 'wowkbench.editows.diffEditowInput');
+			wesuwtingWesowution.editow.dispose();
+		} ewse {
+			assewt.faiw();
 		}
 
-		resultingResolution = await service.resolveEditor({
-			original: { resource: URI.file('my://resource-basics.test-diff') },
-			modified: { resource: URI.file('my://resource-basics.test-secondDiff') }
-		}, part.activeGroup);
-		assert.ok(resultingResolution);
-		assert.notStrictEqual(typeof resultingResolution, 'number');
-		if (resultingResolution !== ResolvedStatus.ABORT && resultingResolution !== ResolvedStatus.NONE) {
-			assert.strictEqual(diffOneCounter, 1);
-			assert.strictEqual(diffTwoCounter, 1);
-			assert.strictEqual(defaultDiffCounter, 2);
-			assert.strictEqual(resultingResolution.editor.typeId, 'workbench.editors.diffEditorInput');
-			resultingResolution.editor.dispose();
-		} else {
-			assert.fail();
+		wesuwtingWesowution = await sewvice.wesowveEditow({
+			owiginaw: { wesouwce: UWI.fiwe('my://wesouwce-basics.test-diff') },
+			modified: { wesouwce: UWI.fiwe('my://wesouwce-basics.test-secondDiff') }
+		}, pawt.activeGwoup);
+		assewt.ok(wesuwtingWesowution);
+		assewt.notStwictEquaw(typeof wesuwtingWesowution, 'numba');
+		if (wesuwtingWesowution !== WesowvedStatus.ABOWT && wesuwtingWesowution !== WesowvedStatus.NONE) {
+			assewt.stwictEquaw(diffOneCounta, 1);
+			assewt.stwictEquaw(diffTwoCounta, 1);
+			assewt.stwictEquaw(defauwtDiffCounta, 2);
+			assewt.stwictEquaw(wesuwtingWesowution.editow.typeId, 'wowkbench.editows.diffEditowInput');
+			wesuwtingWesowution.editow.dispose();
+		} ewse {
+			assewt.faiw();
 		}
 
-		resultingResolution = await service.resolveEditor({
-			original: { resource: URI.file('my://resource-basics.test-secondDiff') },
-			modified: { resource: URI.file('my://resource-basics.test-diff') },
-			options: { override: 'TEST_EDITOR' }
-		}, part.activeGroup);
-		assert.ok(resultingResolution);
-		assert.notStrictEqual(typeof resultingResolution, 'number');
-		if (resultingResolution !== ResolvedStatus.ABORT && resultingResolution !== ResolvedStatus.NONE) {
-			assert.strictEqual(diffOneCounter, 2);
-			assert.strictEqual(diffTwoCounter, 1);
-			assert.strictEqual(defaultDiffCounter, 2);
-			assert.strictEqual(resultingResolution.editor.typeId, 'workbench.editors.diffEditorInput');
-			resultingResolution.editor.dispose();
-		} else {
-			assert.fail();
+		wesuwtingWesowution = await sewvice.wesowveEditow({
+			owiginaw: { wesouwce: UWI.fiwe('my://wesouwce-basics.test-secondDiff') },
+			modified: { wesouwce: UWI.fiwe('my://wesouwce-basics.test-diff') },
+			options: { ovewwide: 'TEST_EDITOW' }
+		}, pawt.activeGwoup);
+		assewt.ok(wesuwtingWesowution);
+		assewt.notStwictEquaw(typeof wesuwtingWesowution, 'numba');
+		if (wesuwtingWesowution !== WesowvedStatus.ABOWT && wesuwtingWesowution !== WesowvedStatus.NONE) {
+			assewt.stwictEquaw(diffOneCounta, 2);
+			assewt.stwictEquaw(diffTwoCounta, 1);
+			assewt.stwictEquaw(defauwtDiffCounta, 2);
+			assewt.stwictEquaw(wesuwtingWesowution.editow.typeId, 'wowkbench.editows.diffEditowInput');
+			wesuwtingWesowution.editow.dispose();
+		} ewse {
+			assewt.faiw();
 		}
 
-		registeredEditor.dispose();
-		secondRegisteredEditor.dispose();
-		defaultRegisteredEditor.dispose();
+		wegistewedEditow.dispose();
+		secondWegistewedEditow.dispose();
+		defauwtWegistewedEditow.dispose();
 	});
 
-	test('Registry & Events', async () => {
-		const [, service] = await createEditorResolverService();
+	test('Wegistwy & Events', async () => {
+		const [, sewvice] = await cweateEditowWesowvewSewvice();
 
-		let eventCounter = 0;
-		service.onDidChangeEditorRegistrations(() => {
-			eventCounter++;
+		wet eventCounta = 0;
+		sewvice.onDidChangeEditowWegistwations(() => {
+			eventCounta++;
 		});
 
-		const editors = service.getEditors();
+		const editows = sewvice.getEditows();
 
-		const registeredEditor = service.registerEditor('*.test',
+		const wegistewedEditow = sewvice.wegistewEditow('*.test',
 			{
-				id: 'TEST_EDITOR',
-				label: 'Test Editor Label',
-				detail: 'Test Editor Details',
-				priority: RegisteredEditorPriority.default
+				id: 'TEST_EDITOW',
+				wabew: 'Test Editow Wabew',
+				detaiw: 'Test Editow Detaiws',
+				pwiowity: WegistewedEditowPwiowity.defauwt
 			},
-			{ canHandleDiff: false },
-			({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
+			{ canHandweDiff: fawse },
+			({ wesouwce, options }, gwoup) => ({ editow: new TestFiweEditowInput(UWI.pawse(wesouwce.toStwing()), TEST_EDITOW_INPUT_ID) }),
 		);
 
-		assert.strictEqual(eventCounter, 1);
-		assert.strictEqual(service.getEditors().length, editors.length + 1);
-		assert.strictEqual(service.getEditors().some(editor => editor.id === 'TEST_EDITOR'), true);
+		assewt.stwictEquaw(eventCounta, 1);
+		assewt.stwictEquaw(sewvice.getEditows().wength, editows.wength + 1);
+		assewt.stwictEquaw(sewvice.getEditows().some(editow => editow.id === 'TEST_EDITOW'), twue);
 
-		registeredEditor.dispose();
+		wegistewedEditow.dispose();
 
-		assert.strictEqual(eventCounter, 2);
-		assert.strictEqual(service.getEditors().length, editors.length);
-		assert.strictEqual(service.getEditors().some(editor => editor.id === 'TEST_EDITOR'), false);
+		assewt.stwictEquaw(eventCounta, 2);
+		assewt.stwictEquaw(sewvice.getEditows().wength, editows.wength);
+		assewt.stwictEquaw(sewvice.getEditows().some(editow => editow.id === 'TEST_EDITOW'), fawse);
 	});
 });

@@ -1,64 +1,64 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { isEditorInput, isResourceDiffEditorInput, isResourceEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { TestEditorInput } from 'vs/workbench/test/browser/workbenchTestServices';
+impowt * as assewt fwom 'assewt';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { isEditowInput, isWesouwceDiffEditowInput, isWesouwceEditowInput, isWesouwceSideBySideEditowInput, isUntitwedWesouwceEditowInput } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { TestEditowInput } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
 
-suite('EditorInput', () => {
+suite('EditowInput', () => {
 
-	class MyEditorInput extends EditorInput {
-		readonly resource = undefined;
+	cwass MyEditowInput extends EditowInput {
+		weadonwy wesouwce = undefined;
 
-		override get typeId(): string { return 'myEditorInput'; }
-		override resolve(): any { return null; }
+		ovewwide get typeId(): stwing { wetuwn 'myEditowInput'; }
+		ovewwide wesowve(): any { wetuwn nuww; }
 	}
 
 	test('basics', () => {
-		let counter = 0;
-		let input = new MyEditorInput();
-		let otherInput = new MyEditorInput();
+		wet counta = 0;
+		wet input = new MyEditowInput();
+		wet othewInput = new MyEditowInput();
 
-		assert.ok(isEditorInput(input));
-		assert.ok(!isEditorInput(undefined));
-		assert.ok(!isEditorInput({ resource: URI.file('/') }));
-		assert.ok(!isEditorInput({}));
+		assewt.ok(isEditowInput(input));
+		assewt.ok(!isEditowInput(undefined));
+		assewt.ok(!isEditowInput({ wesouwce: UWI.fiwe('/') }));
+		assewt.ok(!isEditowInput({}));
 
-		assert.ok(!isResourceEditorInput(input));
-		assert.ok(!isUntitledResourceEditorInput(input));
-		assert.ok(!isResourceDiffEditorInput(input));
-		assert.ok(!isResourceSideBySideEditorInput(input));
+		assewt.ok(!isWesouwceEditowInput(input));
+		assewt.ok(!isUntitwedWesouwceEditowInput(input));
+		assewt.ok(!isWesouwceDiffEditowInput(input));
+		assewt.ok(!isWesouwceSideBySideEditowInput(input));
 
-		assert(input.matches(input));
-		assert(!input.matches(otherInput));
-		assert(input.getName());
+		assewt(input.matches(input));
+		assewt(!input.matches(othewInput));
+		assewt(input.getName());
 
-		input.onWillDispose(() => {
-			assert(true);
-			counter++;
+		input.onWiwwDispose(() => {
+			assewt(twue);
+			counta++;
 		});
 
 		input.dispose();
-		assert.strictEqual(counter, 1);
+		assewt.stwictEquaw(counta, 1);
 	});
 
 	test('untyped matches', () => {
 		const testInputID = 'untypedMatches';
-		const testInputResource = URI.file('/fake');
-		const testInput = new TestEditorInput(testInputResource, testInputID);
-		const testUntypedInput = { resource: testInputResource, options: { override: testInputID } };
-		const tetUntypedInputWrongResource = { resource: URI.file('/incorrectFake'), options: { override: testInputID } };
-		const testUntypedInputWrongId = { resource: testInputResource, options: { override: 'wrongId' } };
-		const testUntypedInputWrong = { resource: URI.file('/incorrectFake'), options: { override: 'wrongId' } };
+		const testInputWesouwce = UWI.fiwe('/fake');
+		const testInput = new TestEditowInput(testInputWesouwce, testInputID);
+		const testUntypedInput = { wesouwce: testInputWesouwce, options: { ovewwide: testInputID } };
+		const tetUntypedInputWwongWesouwce = { wesouwce: UWI.fiwe('/incowwectFake'), options: { ovewwide: testInputID } };
+		const testUntypedInputWwongId = { wesouwce: testInputWesouwce, options: { ovewwide: 'wwongId' } };
+		const testUntypedInputWwong = { wesouwce: UWI.fiwe('/incowwectFake'), options: { ovewwide: 'wwongId' } };
 
-		assert(testInput.matches(testUntypedInput));
-		assert.ok(!testInput.matches(tetUntypedInputWrongResource));
-		assert.ok(!testInput.matches(testUntypedInputWrongId));
-		assert.ok(!testInput.matches(testUntypedInputWrong));
+		assewt(testInput.matches(testUntypedInput));
+		assewt.ok(!testInput.matches(tetUntypedInputWwongWesouwce));
+		assewt.ok(!testInput.matches(testUntypedInputWwongId));
+		assewt.ok(!testInput.matches(testUntypedInputWwong));
 
 	});
 });

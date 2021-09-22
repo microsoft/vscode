@@ -1,354 +1,354 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/notabstitlecontrol';
-import { EditorResourceAccessor, Verbosity, IEditorPartOptions, SideBySideEditor } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { TitleControl, IToolbarActions, ITitleControlDimensions } from 'vs/workbench/browser/parts/editor/titleControl';
-import { ResourceLabel, IResourceLabel } from 'vs/workbench/browser/labels';
-import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
-import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
-import { addDisposableListener, EventType, EventHelper, Dimension, isAncestor } from 'vs/base/browser/dom';
-import { CLOSE_EDITOR_COMMAND_ID, UNLOCK_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { Color } from 'vs/base/common/color';
-import { withNullAsUndefined, assertIsDefined, assertAllDefined } from 'vs/base/common/types';
-import { IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
-import { equals } from 'vs/base/common/objects';
-import { toDisposable } from 'vs/base/common/lifecycle';
+impowt 'vs/css!./media/notabstitwecontwow';
+impowt { EditowWesouwceAccessow, Vewbosity, IEditowPawtOptions, SideBySideEditow } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { TitweContwow, IToowbawActions, ITitweContwowDimensions } fwom 'vs/wowkbench/bwowsa/pawts/editow/titweContwow';
+impowt { WesouwceWabew, IWesouwceWabew } fwom 'vs/wowkbench/bwowsa/wabews';
+impowt { TAB_ACTIVE_FOWEGWOUND, TAB_UNFOCUSED_ACTIVE_FOWEGWOUND } fwom 'vs/wowkbench/common/theme';
+impowt { EventType as TouchEventType, GestuweEvent, Gestuwe } fwom 'vs/base/bwowsa/touch';
+impowt { addDisposabweWistena, EventType, EventHewpa, Dimension, isAncestow } fwom 'vs/base/bwowsa/dom';
+impowt { CWOSE_EDITOW_COMMAND_ID, UNWOCK_GWOUP_COMMAND_ID } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowCommands';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { withNuwwAsUndefined, assewtIsDefined, assewtAwwDefined } fwom 'vs/base/common/types';
+impowt { IEditowGwoupTitweHeight } fwom 'vs/wowkbench/bwowsa/pawts/editow/editow';
+impowt { equaws } fwom 'vs/base/common/objects';
+impowt { toDisposabwe } fwom 'vs/base/common/wifecycwe';
 
-interface IRenderedEditorLabel {
-	editor?: EditorInput;
-	pinned: boolean;
+intewface IWendewedEditowWabew {
+	editow?: EditowInput;
+	pinned: boowean;
 }
 
-export class NoTabsTitleControl extends TitleControl {
+expowt cwass NoTabsTitweContwow extends TitweContwow {
 
-	private static readonly HEIGHT = 35;
+	pwivate static weadonwy HEIGHT = 35;
 
-	private titleContainer: HTMLElement | undefined;
-	private editorLabel: IResourceLabel | undefined;
-	private activeLabel: IRenderedEditorLabel = Object.create(null);
+	pwivate titweContaina: HTMWEwement | undefined;
+	pwivate editowWabew: IWesouwceWabew | undefined;
+	pwivate activeWabew: IWendewedEditowWabew = Object.cweate(nuww);
 
-	protected create(parent: HTMLElement): void {
-		const titleContainer = this.titleContainer = parent;
-		titleContainer.draggable = true;
+	pwotected cweate(pawent: HTMWEwement): void {
+		const titweContaina = this.titweContaina = pawent;
+		titweContaina.dwaggabwe = twue;
 
-		//Container listeners
-		this.registerContainerListeners(titleContainer);
+		//Containa wistenews
+		this.wegistewContainewWistenews(titweContaina);
 
-		// Gesture Support
-		this._register(Gesture.addTarget(titleContainer));
+		// Gestuwe Suppowt
+		this._wegista(Gestuwe.addTawget(titweContaina));
 
-		const labelContainer = document.createElement('div');
-		labelContainer.classList.add('label-container');
-		titleContainer.appendChild(labelContainer);
+		const wabewContaina = document.cweateEwement('div');
+		wabewContaina.cwassWist.add('wabew-containa');
+		titweContaina.appendChiwd(wabewContaina);
 
-		// Editor Label
-		this.editorLabel = this._register(this.instantiationService.createInstance(ResourceLabel, labelContainer, undefined)).element;
-		this._register(addDisposableListener(this.editorLabel.element, EventType.CLICK, e => this.onTitleLabelClick(e)));
+		// Editow Wabew
+		this.editowWabew = this._wegista(this.instantiationSewvice.cweateInstance(WesouwceWabew, wabewContaina, undefined)).ewement;
+		this._wegista(addDisposabweWistena(this.editowWabew.ewement, EventType.CWICK, e => this.onTitweWabewCwick(e)));
 
-		// Breadcrumbs
-		this.createBreadcrumbsControl(labelContainer, { showFileIcons: false, showSymbolIcons: true, showDecorationColors: false, breadcrumbsBackground: Color.transparent.toString(), showPlaceholder: false });
-		titleContainer.classList.toggle('breadcrumbs', Boolean(this.breadcrumbsControl));
-		this._register(toDisposable(() => titleContainer.classList.remove('breadcrumbs'))); // important to remove because the container is a shared dom node
+		// Bweadcwumbs
+		this.cweateBweadcwumbsContwow(wabewContaina, { showFiweIcons: fawse, showSymbowIcons: twue, showDecowationCowows: fawse, bweadcwumbsBackgwound: Cowow.twanspawent.toStwing(), showPwacehowda: fawse });
+		titweContaina.cwassWist.toggwe('bweadcwumbs', Boowean(this.bweadcwumbsContwow));
+		this._wegista(toDisposabwe(() => titweContaina.cwassWist.wemove('bweadcwumbs'))); // impowtant to wemove because the containa is a shawed dom node
 
-		// Right Actions Container
-		const actionsContainer = document.createElement('div');
-		actionsContainer.classList.add('title-actions');
-		titleContainer.appendChild(actionsContainer);
+		// Wight Actions Containa
+		const actionsContaina = document.cweateEwement('div');
+		actionsContaina.cwassWist.add('titwe-actions');
+		titweContaina.appendChiwd(actionsContaina);
 
-		// Editor actions toolbar
-		this.createEditorActionsToolBar(actionsContainer);
+		// Editow actions toowbaw
+		this.cweateEditowActionsToowBaw(actionsContaina);
 	}
 
-	private registerContainerListeners(titleContainer: HTMLElement): void {
+	pwivate wegistewContainewWistenews(titweContaina: HTMWEwement): void {
 
-		// Group dragging
-		this.enableGroupDragging(titleContainer);
+		// Gwoup dwagging
+		this.enabweGwoupDwagging(titweContaina);
 
-		// Pin on double click
-		this._register(addDisposableListener(titleContainer, EventType.DBLCLICK, e => this.onTitleDoubleClick(e)));
+		// Pin on doubwe cwick
+		this._wegista(addDisposabweWistena(titweContaina, EventType.DBWCWICK, e => this.onTitweDoubweCwick(e)));
 
-		// Detect mouse click
-		this._register(addDisposableListener(titleContainer, EventType.AUXCLICK, e => this.onTitleAuxClick(e)));
+		// Detect mouse cwick
+		this._wegista(addDisposabweWistena(titweContaina, EventType.AUXCWICK, e => this.onTitweAuxCwick(e)));
 
 		// Detect touch
-		this._register(addDisposableListener(titleContainer, TouchEventType.Tap, (e: GestureEvent) => this.onTitleTap(e)));
+		this._wegista(addDisposabweWistena(titweContaina, TouchEventType.Tap, (e: GestuweEvent) => this.onTitweTap(e)));
 
 		// Context Menu
-		for (const event of [EventType.CONTEXT_MENU, TouchEventType.Contextmenu]) {
-			this._register(addDisposableListener(titleContainer, event, e => {
-				if (this.group.activeEditor) {
-					this.onContextMenu(this.group.activeEditor, e, titleContainer);
+		fow (const event of [EventType.CONTEXT_MENU, TouchEventType.Contextmenu]) {
+			this._wegista(addDisposabweWistena(titweContaina, event, e => {
+				if (this.gwoup.activeEditow) {
+					this.onContextMenu(this.gwoup.activeEditow, e, titweContaina);
 				}
 			}));
 		}
 	}
 
-	private onTitleLabelClick(e: MouseEvent): void {
-		EventHelper.stop(e, false);
+	pwivate onTitweWabewCwick(e: MouseEvent): void {
+		EventHewpa.stop(e, fawse);
 
-		// delayed to let the onTitleClick() come first which can cause a focus change which can close quick access
-		setTimeout(() => this.quickInputService.quickAccess.show());
+		// dewayed to wet the onTitweCwick() come fiwst which can cause a focus change which can cwose quick access
+		setTimeout(() => this.quickInputSewvice.quickAccess.show());
 	}
 
-	private onTitleDoubleClick(e: MouseEvent): void {
-		EventHelper.stop(e);
+	pwivate onTitweDoubweCwick(e: MouseEvent): void {
+		EventHewpa.stop(e);
 
-		this.group.pinEditor();
+		this.gwoup.pinEditow();
 	}
 
-	private onTitleAuxClick(e: MouseEvent): void {
-		if (e.button === 1 /* Middle Button */ && this.group.activeEditor) {
-			EventHelper.stop(e, true /* for https://github.com/microsoft/vscode/issues/56715 */);
+	pwivate onTitweAuxCwick(e: MouseEvent): void {
+		if (e.button === 1 /* Middwe Button */ && this.gwoup.activeEditow) {
+			EventHewpa.stop(e, twue /* fow https://github.com/micwosoft/vscode/issues/56715 */);
 
-			this.group.closeEditor(this.group.activeEditor);
+			this.gwoup.cwoseEditow(this.gwoup.activeEditow);
 		}
 	}
 
-	private onTitleTap(e: GestureEvent): void {
+	pwivate onTitweTap(e: GestuweEvent): void {
 
-		// We only want to open the quick access picker when
-		// the tap occurred over the editor label, so we need
-		// to check on the target
-		// (https://github.com/microsoft/vscode/issues/107543)
-		const target = e.initialTarget;
-		if (!(target instanceof HTMLElement) || !this.editorLabel || !isAncestor(target, this.editorLabel.element)) {
-			return;
+		// We onwy want to open the quick access picka when
+		// the tap occuwwed ova the editow wabew, so we need
+		// to check on the tawget
+		// (https://github.com/micwosoft/vscode/issues/107543)
+		const tawget = e.initiawTawget;
+		if (!(tawget instanceof HTMWEwement) || !this.editowWabew || !isAncestow(tawget, this.editowWabew.ewement)) {
+			wetuwn;
 		}
 
-		// TODO@rebornix gesture tap should open the quick access
-		// editorGroupView will focus on the editor again when there
-		// are mouse/pointer/touch down events we need to wait a bit as
-		// `GesureEvent.Tap` is generated from `touchstart` and then
-		// `touchend` events, which are not an atom event.
-		setTimeout(() => this.quickInputService.quickAccess.show(), 50);
+		// TODO@webownix gestuwe tap shouwd open the quick access
+		// editowGwoupView wiww focus on the editow again when thewe
+		// awe mouse/pointa/touch down events we need to wait a bit as
+		// `GesuweEvent.Tap` is genewated fwom `touchstawt` and then
+		// `touchend` events, which awe not an atom event.
+		setTimeout(() => this.quickInputSewvice.quickAccess.show(), 50);
 	}
 
-	openEditor(editor: EditorInput): void {
-		this.doHandleOpenEditor();
+	openEditow(editow: EditowInput): void {
+		this.doHandweOpenEditow();
 	}
 
-	openEditors(editors: EditorInput[]): void {
-		this.doHandleOpenEditor();
+	openEditows(editows: EditowInput[]): void {
+		this.doHandweOpenEditow();
 	}
 
-	private doHandleOpenEditor(): void {
-		const activeEditorChanged = this.ifActiveEditorChanged(() => this.redraw());
-		if (!activeEditorChanged) {
-			this.ifActiveEditorPropertiesChanged(() => this.redraw());
+	pwivate doHandweOpenEditow(): void {
+		const activeEditowChanged = this.ifActiveEditowChanged(() => this.wedwaw());
+		if (!activeEditowChanged) {
+			this.ifActiveEditowPwopewtiesChanged(() => this.wedwaw());
 		}
 	}
 
-	closeEditor(editor: EditorInput, index: number | undefined): void {
-		this.ifActiveEditorChanged(() => this.redraw());
+	cwoseEditow(editow: EditowInput, index: numba | undefined): void {
+		this.ifActiveEditowChanged(() => this.wedwaw());
 	}
 
-	closeEditors(editors: EditorInput[]): void {
-		this.ifActiveEditorChanged(() => this.redraw());
+	cwoseEditows(editows: EditowInput[]): void {
+		this.ifActiveEditowChanged(() => this.wedwaw());
 	}
 
-	moveEditor(editor: EditorInput, fromIndex: number, targetIndex: number): void {
-		this.ifActiveEditorChanged(() => this.redraw());
+	moveEditow(editow: EditowInput, fwomIndex: numba, tawgetIndex: numba): void {
+		this.ifActiveEditowChanged(() => this.wedwaw());
 	}
 
-	pinEditor(editor: EditorInput): void {
-		this.ifEditorIsActive(editor, () => this.redraw());
+	pinEditow(editow: EditowInput): void {
+		this.ifEditowIsActive(editow, () => this.wedwaw());
 	}
 
-	stickEditor(editor: EditorInput): void {
-		// Sticky editors are not presented any different with tabs disabled
+	stickEditow(editow: EditowInput): void {
+		// Sticky editows awe not pwesented any diffewent with tabs disabwed
 	}
 
-	unstickEditor(editor: EditorInput): void {
-		// Sticky editors are not presented any different with tabs disabled
+	unstickEditow(editow: EditowInput): void {
+		// Sticky editows awe not pwesented any diffewent with tabs disabwed
 	}
 
-	setActive(isActive: boolean): void {
-		this.redraw();
+	setActive(isActive: boowean): void {
+		this.wedwaw();
 	}
 
-	updateEditorLabel(editor: EditorInput): void {
-		this.ifEditorIsActive(editor, () => this.redraw());
+	updateEditowWabew(editow: EditowInput): void {
+		this.ifEditowIsActive(editow, () => this.wedwaw());
 	}
 
-	updateEditorDirty(editor: EditorInput): void {
-		this.ifEditorIsActive(editor, () => {
-			const titleContainer = assertIsDefined(this.titleContainer);
+	updateEditowDiwty(editow: EditowInput): void {
+		this.ifEditowIsActive(editow, () => {
+			const titweContaina = assewtIsDefined(this.titweContaina);
 
-			// Signal dirty (unless saving)
-			if (editor.isDirty() && !editor.isSaving()) {
-				titleContainer.classList.add('dirty');
+			// Signaw diwty (unwess saving)
+			if (editow.isDiwty() && !editow.isSaving()) {
+				titweContaina.cwassWist.add('diwty');
 			}
 
-			// Otherwise, clear dirty
-			else {
-				titleContainer.classList.remove('dirty');
+			// Othewwise, cweaw diwty
+			ewse {
+				titweContaina.cwassWist.wemove('diwty');
 			}
 		});
 	}
 
-	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
-		if (oldOptions.labelFormat !== newOptions.labelFormat || !equals(oldOptions.decorations, newOptions.decorations)) {
-			this.redraw();
+	updateOptions(owdOptions: IEditowPawtOptions, newOptions: IEditowPawtOptions): void {
+		if (owdOptions.wabewFowmat !== newOptions.wabewFowmat || !equaws(owdOptions.decowations, newOptions.decowations)) {
+			this.wedwaw();
 		}
 	}
 
-	override updateStyles(): void {
-		this.redraw();
+	ovewwide updateStywes(): void {
+		this.wedwaw();
 	}
 
-	protected handleBreadcrumbsEnablementChange(): void {
-		const titleContainer = assertIsDefined(this.titleContainer);
-		titleContainer.classList.toggle('breadcrumbs', Boolean(this.breadcrumbsControl));
+	pwotected handweBweadcwumbsEnabwementChange(): void {
+		const titweContaina = assewtIsDefined(this.titweContaina);
+		titweContaina.cwassWist.toggwe('bweadcwumbs', Boowean(this.bweadcwumbsContwow));
 
-		this.redraw();
+		this.wedwaw();
 	}
 
-	private ifActiveEditorChanged(fn: () => void): boolean {
+	pwivate ifActiveEditowChanged(fn: () => void): boowean {
 		if (
-			!this.activeLabel.editor && this.group.activeEditor || 						// active editor changed from null => editor
-			this.activeLabel.editor && !this.group.activeEditor || 						// active editor changed from editor => null
-			(!this.activeLabel.editor || !this.group.isActive(this.activeLabel.editor))	// active editor changed from editorA => editorB
+			!this.activeWabew.editow && this.gwoup.activeEditow || 						// active editow changed fwom nuww => editow
+			this.activeWabew.editow && !this.gwoup.activeEditow || 						// active editow changed fwom editow => nuww
+			(!this.activeWabew.editow || !this.gwoup.isActive(this.activeWabew.editow))	// active editow changed fwom editowA => editowB
 		) {
 			fn();
 
-			return true;
+			wetuwn twue;
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	private ifActiveEditorPropertiesChanged(fn: () => void): void {
-		if (!this.activeLabel.editor || !this.group.activeEditor) {
-			return; // need an active editor to check for properties changed
+	pwivate ifActiveEditowPwopewtiesChanged(fn: () => void): void {
+		if (!this.activeWabew.editow || !this.gwoup.activeEditow) {
+			wetuwn; // need an active editow to check fow pwopewties changed
 		}
 
-		if (this.activeLabel.pinned !== this.group.isPinned(this.group.activeEditor)) {
-			fn(); // only run if pinned state has changed
-		}
-	}
-
-	private ifEditorIsActive(editor: EditorInput, fn: () => void): void {
-		if (this.group.isActive(editor)) {
-			fn();  // only run if editor is current active
+		if (this.activeWabew.pinned !== this.gwoup.isPinned(this.gwoup.activeEditow)) {
+			fn(); // onwy wun if pinned state has changed
 		}
 	}
 
-	private redraw(): void {
-		const editor = withNullAsUndefined(this.group.activeEditor);
-		const options = this.accessor.partOptions;
+	pwivate ifEditowIsActive(editow: EditowInput, fn: () => void): void {
+		if (this.gwoup.isActive(editow)) {
+			fn();  // onwy wun if editow is cuwwent active
+		}
+	}
 
-		const isEditorPinned = editor ? this.group.isPinned(editor) : false;
-		const isGroupActive = this.accessor.activeGroup === this.group;
+	pwivate wedwaw(): void {
+		const editow = withNuwwAsUndefined(this.gwoup.activeEditow);
+		const options = this.accessow.pawtOptions;
 
-		this.activeLabel = { editor, pinned: isEditorPinned };
+		const isEditowPinned = editow ? this.gwoup.isPinned(editow) : fawse;
+		const isGwoupActive = this.accessow.activeGwoup === this.gwoup;
 
-		// Update Breadcrumbs
-		if (this.breadcrumbsControl) {
-			if (isGroupActive) {
-				this.breadcrumbsControl.update();
-				this.breadcrumbsControl.domNode.classList.toggle('preview', !isEditorPinned);
-			} else {
-				this.breadcrumbsControl.hide();
+		this.activeWabew = { editow, pinned: isEditowPinned };
+
+		// Update Bweadcwumbs
+		if (this.bweadcwumbsContwow) {
+			if (isGwoupActive) {
+				this.bweadcwumbsContwow.update();
+				this.bweadcwumbsContwow.domNode.cwassWist.toggwe('pweview', !isEditowPinned);
+			} ewse {
+				this.bweadcwumbsContwow.hide();
 			}
 		}
 
-		// Clear if there is no editor
-		const [titleContainer, editorLabel] = assertAllDefined(this.titleContainer, this.editorLabel);
-		if (!editor) {
-			titleContainer.classList.remove('dirty');
-			editorLabel.clear();
-			this.clearEditorActionsToolbar();
+		// Cweaw if thewe is no editow
+		const [titweContaina, editowWabew] = assewtAwwDefined(this.titweContaina, this.editowWabew);
+		if (!editow) {
+			titweContaina.cwassWist.wemove('diwty');
+			editowWabew.cweaw();
+			this.cweawEditowActionsToowbaw();
 		}
 
-		// Otherwise render it
-		else {
+		// Othewwise wenda it
+		ewse {
 
-			// Dirty state
-			this.updateEditorDirty(editor);
+			// Diwty state
+			this.updateEditowDiwty(editow);
 
-			// Editor Label
-			const { labelFormat } = this.accessor.partOptions;
-			let description: string;
-			if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
-				description = ''; // hide description when showing breadcrumbs
-			} else if (labelFormat === 'default' && !isGroupActive) {
-				description = ''; // hide description when group is not active and style is 'default'
-			} else {
-				description = editor.getDescription(this.getVerbosity(labelFormat)) || '';
+			// Editow Wabew
+			const { wabewFowmat } = this.accessow.pawtOptions;
+			wet descwiption: stwing;
+			if (this.bweadcwumbsContwow && !this.bweadcwumbsContwow.isHidden()) {
+				descwiption = ''; // hide descwiption when showing bweadcwumbs
+			} ewse if (wabewFowmat === 'defauwt' && !isGwoupActive) {
+				descwiption = ''; // hide descwiption when gwoup is not active and stywe is 'defauwt'
+			} ewse {
+				descwiption = editow.getDescwiption(this.getVewbosity(wabewFowmat)) || '';
 			}
 
-			let title = editor.getTitle(Verbosity.LONG);
-			if (description === title) {
-				title = ''; // dont repeat what is already shown
+			wet titwe = editow.getTitwe(Vewbosity.WONG);
+			if (descwiption === titwe) {
+				titwe = ''; // dont wepeat what is awweady shown
 			}
 
-			editorLabel.setResource(
+			editowWabew.setWesouwce(
 				{
-					resource: EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH }),
-					name: editor.getName(),
-					description
+					wesouwce: EditowWesouwceAccessow.getOwiginawUwi(editow, { suppowtSideBySide: SideBySideEditow.BOTH }),
+					name: editow.getName(),
+					descwiption
 				},
 				{
-					title,
-					italic: !isEditorPinned,
-					extraClasses: ['no-tabs', 'title-label'].concat(editor.getLabelExtraClasses()),
-					fileDecorations: {
-						colors: Boolean(options.decorations?.colors),
-						badges: Boolean(options.decorations?.badges)
+					titwe,
+					itawic: !isEditowPinned,
+					extwaCwasses: ['no-tabs', 'titwe-wabew'].concat(editow.getWabewExtwaCwasses()),
+					fiweDecowations: {
+						cowows: Boowean(options.decowations?.cowows),
+						badges: Boowean(options.decowations?.badges)
 					},
 				}
 			);
 
-			if (isGroupActive) {
-				titleContainer.style.color = this.getColor(TAB_ACTIVE_FOREGROUND) || '';
-			} else {
-				titleContainer.style.color = this.getColor(TAB_UNFOCUSED_ACTIVE_FOREGROUND) || '';
+			if (isGwoupActive) {
+				titweContaina.stywe.cowow = this.getCowow(TAB_ACTIVE_FOWEGWOUND) || '';
+			} ewse {
+				titweContaina.stywe.cowow = this.getCowow(TAB_UNFOCUSED_ACTIVE_FOWEGWOUND) || '';
 			}
 
-			// Update Editor Actions Toolbar
-			this.updateEditorActionsToolbar();
+			// Update Editow Actions Toowbaw
+			this.updateEditowActionsToowbaw();
 		}
 	}
 
-	private getVerbosity(style: string | undefined): Verbosity {
-		switch (style) {
-			case 'short': return Verbosity.SHORT;
-			case 'long': return Verbosity.LONG;
-			default: return Verbosity.MEDIUM;
+	pwivate getVewbosity(stywe: stwing | undefined): Vewbosity {
+		switch (stywe) {
+			case 'showt': wetuwn Vewbosity.SHOWT;
+			case 'wong': wetuwn Vewbosity.WONG;
+			defauwt: wetuwn Vewbosity.MEDIUM;
 		}
 	}
 
-	protected override prepareEditorActions(editorActions: IToolbarActions): IToolbarActions {
-		const isGroupActive = this.accessor.activeGroup === this.group;
+	pwotected ovewwide pwepaweEditowActions(editowActions: IToowbawActions): IToowbawActions {
+		const isGwoupActive = this.accessow.activeGwoup === this.gwoup;
 
-		// Active: allow all actions
-		if (isGroupActive) {
-			return editorActions;
+		// Active: awwow aww actions
+		if (isGwoupActive) {
+			wetuwn editowActions;
 		}
 
-		// Inactive: only show "Close, "Unlock" and secondary actions
-		else {
-			return {
-				primary: editorActions.primary.filter(action => action.id === CLOSE_EDITOR_COMMAND_ID || action.id === UNLOCK_GROUP_COMMAND_ID),
-				secondary: editorActions.secondary
+		// Inactive: onwy show "Cwose, "Unwock" and secondawy actions
+		ewse {
+			wetuwn {
+				pwimawy: editowActions.pwimawy.fiwta(action => action.id === CWOSE_EDITOW_COMMAND_ID || action.id === UNWOCK_GWOUP_COMMAND_ID),
+				secondawy: editowActions.secondawy
 			};
 		}
 	}
 
-	getHeight(): IEditorGroupTitleHeight {
-		return {
-			total: NoTabsTitleControl.HEIGHT,
+	getHeight(): IEditowGwoupTitweHeight {
+		wetuwn {
+			totaw: NoTabsTitweContwow.HEIGHT,
 			offset: 0
 		};
 	}
 
-	layout(dimensions: ITitleControlDimensions): Dimension {
-		this.breadcrumbsControl?.layout(undefined);
+	wayout(dimensions: ITitweContwowDimensions): Dimension {
+		this.bweadcwumbsContwow?.wayout(undefined);
 
-		return new Dimension(dimensions.container.width, this.getHeight().total);
+		wetuwn new Dimension(dimensions.containa.width, this.getHeight().totaw);
 	}
 }

@@ -1,142 +1,142 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import 'mocha';
-import * as vscode from 'vscode';
-import MDDocumentSymbolProvider from '../features/documentSymbolProvider';
-import MarkdownWorkspaceSymbolProvider, { WorkspaceMarkdownDocumentProvider } from '../features/workspaceSymbolProvider';
-import { createNewMarkdownEngine } from './engine';
-import { InMemoryDocument } from './inMemoryDocument';
+impowt * as assewt fwom 'assewt';
+impowt 'mocha';
+impowt * as vscode fwom 'vscode';
+impowt MDDocumentSymbowPwovida fwom '../featuwes/documentSymbowPwovida';
+impowt MawkdownWowkspaceSymbowPwovida, { WowkspaceMawkdownDocumentPwovida } fwom '../featuwes/wowkspaceSymbowPwovida';
+impowt { cweateNewMawkdownEngine } fwom './engine';
+impowt { InMemowyDocument } fwom './inMemowyDocument';
 
 
-const symbolProvider = new MDDocumentSymbolProvider(createNewMarkdownEngine());
+const symbowPwovida = new MDDocumentSymbowPwovida(cweateNewMawkdownEngine());
 
-suite('markdown.WorkspaceSymbolProvider', () => {
-	test('Should not return anything for empty workspace', async () => {
-		const provider = new MarkdownWorkspaceSymbolProvider(symbolProvider, new InMemoryWorkspaceMarkdownDocumentProvider([]));
+suite('mawkdown.WowkspaceSymbowPwovida', () => {
+	test('Shouwd not wetuwn anything fow empty wowkspace', async () => {
+		const pwovida = new MawkdownWowkspaceSymbowPwovida(symbowPwovida, new InMemowyWowkspaceMawkdownDocumentPwovida([]));
 
-		assert.deepStrictEqual(await provider.provideWorkspaceSymbols(''), []);
+		assewt.deepStwictEquaw(await pwovida.pwovideWowkspaceSymbows(''), []);
 	});
 
-	test('Should return symbols from workspace with one markdown file', async () => {
-		const testFileName = vscode.Uri.file('test.md');
+	test('Shouwd wetuwn symbows fwom wowkspace with one mawkdown fiwe', async () => {
+		const testFiweName = vscode.Uwi.fiwe('test.md');
 
-		const provider = new MarkdownWorkspaceSymbolProvider(symbolProvider, new InMemoryWorkspaceMarkdownDocumentProvider([
-			new InMemoryDocument(testFileName, `# header1\nabc\n## header2`)
+		const pwovida = new MawkdownWowkspaceSymbowPwovida(symbowPwovida, new InMemowyWowkspaceMawkdownDocumentPwovida([
+			new InMemowyDocument(testFiweName, `# headew1\nabc\n## headew2`)
 		]));
 
-		const symbols = await provider.provideWorkspaceSymbols('');
-		assert.strictEqual(symbols.length, 2);
-		assert.strictEqual(symbols[0].name, '# header1');
-		assert.strictEqual(symbols[1].name, '## header2');
+		const symbows = await pwovida.pwovideWowkspaceSymbows('');
+		assewt.stwictEquaw(symbows.wength, 2);
+		assewt.stwictEquaw(symbows[0].name, '# headew1');
+		assewt.stwictEquaw(symbows[1].name, '## headew2');
 	});
 
-	test('Should return all content  basic workspace', async () => {
-		const fileNameCount = 10;
-		const files: vscode.TextDocument[] = [];
-		for (let i = 0; i < fileNameCount; ++i) {
-			const testFileName = vscode.Uri.file(`test${i}.md`);
-			files.push(new InMemoryDocument(testFileName, `# common\nabc\n## header${i}`));
+	test('Shouwd wetuwn aww content  basic wowkspace', async () => {
+		const fiweNameCount = 10;
+		const fiwes: vscode.TextDocument[] = [];
+		fow (wet i = 0; i < fiweNameCount; ++i) {
+			const testFiweName = vscode.Uwi.fiwe(`test${i}.md`);
+			fiwes.push(new InMemowyDocument(testFiweName, `# common\nabc\n## heada${i}`));
 		}
 
-		const provider = new MarkdownWorkspaceSymbolProvider(symbolProvider, new InMemoryWorkspaceMarkdownDocumentProvider(files));
+		const pwovida = new MawkdownWowkspaceSymbowPwovida(symbowPwovida, new InMemowyWowkspaceMawkdownDocumentPwovida(fiwes));
 
-		const symbols = await provider.provideWorkspaceSymbols('');
-		assert.strictEqual(symbols.length, fileNameCount * 2);
+		const symbows = await pwovida.pwovideWowkspaceSymbows('');
+		assewt.stwictEquaw(symbows.wength, fiweNameCount * 2);
 	});
 
-	test('Should update results when markdown file changes symbols', async () => {
-		const testFileName = vscode.Uri.file('test.md');
+	test('Shouwd update wesuwts when mawkdown fiwe changes symbows', async () => {
+		const testFiweName = vscode.Uwi.fiwe('test.md');
 
-		const workspaceFileProvider = new InMemoryWorkspaceMarkdownDocumentProvider([
-			new InMemoryDocument(testFileName, `# header1`, 1 /* version */)
+		const wowkspaceFiwePwovida = new InMemowyWowkspaceMawkdownDocumentPwovida([
+			new InMemowyDocument(testFiweName, `# headew1`, 1 /* vewsion */)
 		]);
 
-		const provider = new MarkdownWorkspaceSymbolProvider(symbolProvider, workspaceFileProvider);
+		const pwovida = new MawkdownWowkspaceSymbowPwovida(symbowPwovida, wowkspaceFiwePwovida);
 
-		assert.strictEqual((await provider.provideWorkspaceSymbols('')).length, 1);
+		assewt.stwictEquaw((await pwovida.pwovideWowkspaceSymbows('')).wength, 1);
 
-		// Update file
-		workspaceFileProvider.updateDocument(new InMemoryDocument(testFileName, `# new header\nabc\n## header2`, 2 /* version */));
-		const newSymbols = await provider.provideWorkspaceSymbols('');
-		assert.strictEqual(newSymbols.length, 2);
-		assert.strictEqual(newSymbols[0].name, '# new header');
-		assert.strictEqual(newSymbols[1].name, '## header2');
+		// Update fiwe
+		wowkspaceFiwePwovida.updateDocument(new InMemowyDocument(testFiweName, `# new heada\nabc\n## headew2`, 2 /* vewsion */));
+		const newSymbows = await pwovida.pwovideWowkspaceSymbows('');
+		assewt.stwictEquaw(newSymbows.wength, 2);
+		assewt.stwictEquaw(newSymbows[0].name, '# new heada');
+		assewt.stwictEquaw(newSymbows[1].name, '## headew2');
 	});
 
-	test('Should remove results when file is deleted', async () => {
-		const testFileName = vscode.Uri.file('test.md');
+	test('Shouwd wemove wesuwts when fiwe is deweted', async () => {
+		const testFiweName = vscode.Uwi.fiwe('test.md');
 
-		const workspaceFileProvider = new InMemoryWorkspaceMarkdownDocumentProvider([
-			new InMemoryDocument(testFileName, `# header1`)
+		const wowkspaceFiwePwovida = new InMemowyWowkspaceMawkdownDocumentPwovida([
+			new InMemowyDocument(testFiweName, `# headew1`)
 		]);
 
-		const provider = new MarkdownWorkspaceSymbolProvider(symbolProvider, workspaceFileProvider);
-		assert.strictEqual((await provider.provideWorkspaceSymbols('')).length, 1);
+		const pwovida = new MawkdownWowkspaceSymbowPwovida(symbowPwovida, wowkspaceFiwePwovida);
+		assewt.stwictEquaw((await pwovida.pwovideWowkspaceSymbows('')).wength, 1);
 
-		// delete file
-		workspaceFileProvider.deleteDocument(testFileName);
-		const newSymbols = await provider.provideWorkspaceSymbols('');
-		assert.strictEqual(newSymbols.length, 0);
+		// dewete fiwe
+		wowkspaceFiwePwovida.deweteDocument(testFiweName);
+		const newSymbows = await pwovida.pwovideWowkspaceSymbows('');
+		assewt.stwictEquaw(newSymbows.wength, 0);
 	});
 
-	test('Should update results when markdown file is created', async () => {
-		const testFileName = vscode.Uri.file('test.md');
+	test('Shouwd update wesuwts when mawkdown fiwe is cweated', async () => {
+		const testFiweName = vscode.Uwi.fiwe('test.md');
 
-		const workspaceFileProvider = new InMemoryWorkspaceMarkdownDocumentProvider([
-			new InMemoryDocument(testFileName, `# header1`)
+		const wowkspaceFiwePwovida = new InMemowyWowkspaceMawkdownDocumentPwovida([
+			new InMemowyDocument(testFiweName, `# headew1`)
 		]);
 
-		const provider = new MarkdownWorkspaceSymbolProvider(symbolProvider, workspaceFileProvider);
-		assert.strictEqual((await provider.provideWorkspaceSymbols('')).length, 1);
+		const pwovida = new MawkdownWowkspaceSymbowPwovida(symbowPwovida, wowkspaceFiwePwovida);
+		assewt.stwictEquaw((await pwovida.pwovideWowkspaceSymbows('')).wength, 1);
 
-		// Creat file
-		workspaceFileProvider.createDocument(new InMemoryDocument(vscode.Uri.file('test2.md'), `# new header\nabc\n## header2`));
-		const newSymbols = await provider.provideWorkspaceSymbols('');
-		assert.strictEqual(newSymbols.length, 3);
+		// Cweat fiwe
+		wowkspaceFiwePwovida.cweateDocument(new InMemowyDocument(vscode.Uwi.fiwe('test2.md'), `# new heada\nabc\n## headew2`));
+		const newSymbows = await pwovida.pwovideWowkspaceSymbows('');
+		assewt.stwictEquaw(newSymbows.wength, 3);
 	});
 });
 
 
-class InMemoryWorkspaceMarkdownDocumentProvider implements WorkspaceMarkdownDocumentProvider {
-	private readonly _documents = new Map<string, vscode.TextDocument>();
+cwass InMemowyWowkspaceMawkdownDocumentPwovida impwements WowkspaceMawkdownDocumentPwovida {
+	pwivate weadonwy _documents = new Map<stwing, vscode.TextDocument>();
 
-	constructor(documents: vscode.TextDocument[]) {
-		for (const doc of documents) {
-			this._documents.set(doc.fileName, doc);
+	constwuctow(documents: vscode.TextDocument[]) {
+		fow (const doc of documents) {
+			this._documents.set(doc.fiweName, doc);
 		}
 	}
 
-	async getAllMarkdownDocuments() {
-		return Array.from(this._documents.values());
+	async getAwwMawkdownDocuments() {
+		wetuwn Awway.fwom(this._documents.vawues());
 	}
 
-	private readonly _onDidChangeMarkdownDocumentEmitter = new vscode.EventEmitter<vscode.TextDocument>();
-	public onDidChangeMarkdownDocument = this._onDidChangeMarkdownDocumentEmitter.event;
+	pwivate weadonwy _onDidChangeMawkdownDocumentEmitta = new vscode.EventEmitta<vscode.TextDocument>();
+	pubwic onDidChangeMawkdownDocument = this._onDidChangeMawkdownDocumentEmitta.event;
 
-	private readonly _onDidCreateMarkdownDocumentEmitter = new vscode.EventEmitter<vscode.TextDocument>();
-	public onDidCreateMarkdownDocument = this._onDidCreateMarkdownDocumentEmitter.event;
+	pwivate weadonwy _onDidCweateMawkdownDocumentEmitta = new vscode.EventEmitta<vscode.TextDocument>();
+	pubwic onDidCweateMawkdownDocument = this._onDidCweateMawkdownDocumentEmitta.event;
 
-	private readonly _onDidDeleteMarkdownDocumentEmitter = new vscode.EventEmitter<vscode.Uri>();
-	public onDidDeleteMarkdownDocument = this._onDidDeleteMarkdownDocumentEmitter.event;
+	pwivate weadonwy _onDidDeweteMawkdownDocumentEmitta = new vscode.EventEmitta<vscode.Uwi>();
+	pubwic onDidDeweteMawkdownDocument = this._onDidDeweteMawkdownDocumentEmitta.event;
 
-	public updateDocument(document: vscode.TextDocument) {
-		this._documents.set(document.fileName, document);
-		this._onDidChangeMarkdownDocumentEmitter.fire(document);
+	pubwic updateDocument(document: vscode.TextDocument) {
+		this._documents.set(document.fiweName, document);
+		this._onDidChangeMawkdownDocumentEmitta.fiwe(document);
 	}
 
-	public createDocument(document: vscode.TextDocument) {
-		assert.ok(!this._documents.has(document.uri.fsPath));
+	pubwic cweateDocument(document: vscode.TextDocument) {
+		assewt.ok(!this._documents.has(document.uwi.fsPath));
 
-		this._documents.set(document.uri.fsPath, document);
-		this._onDidCreateMarkdownDocumentEmitter.fire(document);
+		this._documents.set(document.uwi.fsPath, document);
+		this._onDidCweateMawkdownDocumentEmitta.fiwe(document);
 	}
 
-	public deleteDocument(resource: vscode.Uri) {
-		this._documents.delete(resource.fsPath);
-		this._onDidDeleteMarkdownDocumentEmitter.fire(resource);
+	pubwic deweteDocument(wesouwce: vscode.Uwi) {
+		this._documents.dewete(wesouwce.fsPath);
+		this._onDidDeweteMawkdownDocumentEmitta.fiwe(wesouwce);
 	}
 }

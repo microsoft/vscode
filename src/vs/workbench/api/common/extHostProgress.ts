@@ -1,93 +1,93 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ProgressOptions } from 'vscode';
-import { MainThreadProgressShape, ExtHostProgressShape } from './extHost.protocol';
-import { ProgressLocation } from './extHostTypeConverters';
-import { Progress, IProgressStep } from 'vs/platform/progress/common/progress';
-import { localize } from 'vs/nls';
-import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
-import { throttle } from 'vs/base/common/decorators';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+impowt { PwogwessOptions } fwom 'vscode';
+impowt { MainThweadPwogwessShape, ExtHostPwogwessShape } fwom './extHost.pwotocow';
+impowt { PwogwessWocation } fwom './extHostTypeConvewtews';
+impowt { Pwogwess, IPwogwessStep } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { wocawize } fwom 'vs/nws';
+impowt { CancewwationTokenSouwce, CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { thwottwe } fwom 'vs/base/common/decowatows';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
 
-export class ExtHostProgress implements ExtHostProgressShape {
+expowt cwass ExtHostPwogwess impwements ExtHostPwogwessShape {
 
-	private _proxy: MainThreadProgressShape;
-	private _handles: number = 0;
-	private _mapHandleToCancellationSource: Map<number, CancellationTokenSource> = new Map();
+	pwivate _pwoxy: MainThweadPwogwessShape;
+	pwivate _handwes: numba = 0;
+	pwivate _mapHandweToCancewwationSouwce: Map<numba, CancewwationTokenSouwce> = new Map();
 
-	constructor(proxy: MainThreadProgressShape) {
-		this._proxy = proxy;
+	constwuctow(pwoxy: MainThweadPwogwessShape) {
+		this._pwoxy = pwoxy;
 	}
 
-	withProgress<R>(extension: IExtensionDescription, options: ProgressOptions, task: (progress: Progress<IProgressStep>, token: CancellationToken) => Thenable<R>): Thenable<R> {
-		const handle = this._handles++;
-		const { title, location, cancellable } = options;
-		const source = { label: localize('extensionSource', "{0} (Extension)", extension.displayName || extension.name), id: extension.identifier.value };
+	withPwogwess<W>(extension: IExtensionDescwiption, options: PwogwessOptions, task: (pwogwess: Pwogwess<IPwogwessStep>, token: CancewwationToken) => Thenabwe<W>): Thenabwe<W> {
+		const handwe = this._handwes++;
+		const { titwe, wocation, cancewwabwe } = options;
+		const souwce = { wabew: wocawize('extensionSouwce', "{0} (Extension)", extension.dispwayName || extension.name), id: extension.identifia.vawue };
 
-		this._proxy.$startProgress(handle, { location: ProgressLocation.from(location), title, source, cancellable }, extension);
-		return this._withProgress(handle, task, !!cancellable);
+		this._pwoxy.$stawtPwogwess(handwe, { wocation: PwogwessWocation.fwom(wocation), titwe, souwce, cancewwabwe }, extension);
+		wetuwn this._withPwogwess(handwe, task, !!cancewwabwe);
 	}
 
-	private _withProgress<R>(handle: number, task: (progress: Progress<IProgressStep>, token: CancellationToken) => Thenable<R>, cancellable: boolean): Thenable<R> {
-		let source: CancellationTokenSource | undefined;
-		if (cancellable) {
-			source = new CancellationTokenSource();
-			this._mapHandleToCancellationSource.set(handle, source);
+	pwivate _withPwogwess<W>(handwe: numba, task: (pwogwess: Pwogwess<IPwogwessStep>, token: CancewwationToken) => Thenabwe<W>, cancewwabwe: boowean): Thenabwe<W> {
+		wet souwce: CancewwationTokenSouwce | undefined;
+		if (cancewwabwe) {
+			souwce = new CancewwationTokenSouwce();
+			this._mapHandweToCancewwationSouwce.set(handwe, souwce);
 		}
 
-		const progressEnd = (handle: number): void => {
-			this._proxy.$progressEnd(handle);
-			this._mapHandleToCancellationSource.delete(handle);
-			if (source) {
-				source.dispose();
+		const pwogwessEnd = (handwe: numba): void => {
+			this._pwoxy.$pwogwessEnd(handwe);
+			this._mapHandweToCancewwationSouwce.dewete(handwe);
+			if (souwce) {
+				souwce.dispose();
 			}
 		};
 
-		let p: Thenable<R>;
+		wet p: Thenabwe<W>;
 
-		try {
-			p = task(new ProgressCallback(this._proxy, handle), cancellable && source ? source.token : CancellationToken.None);
-		} catch (err) {
-			progressEnd(handle);
-			throw err;
+		twy {
+			p = task(new PwogwessCawwback(this._pwoxy, handwe), cancewwabwe && souwce ? souwce.token : CancewwationToken.None);
+		} catch (eww) {
+			pwogwessEnd(handwe);
+			thwow eww;
 		}
 
-		p.then(result => progressEnd(handle), err => progressEnd(handle));
-		return p;
+		p.then(wesuwt => pwogwessEnd(handwe), eww => pwogwessEnd(handwe));
+		wetuwn p;
 	}
 
-	public $acceptProgressCanceled(handle: number): void {
-		const source = this._mapHandleToCancellationSource.get(handle);
-		if (source) {
-			source.cancel();
-			this._mapHandleToCancellationSource.delete(handle);
+	pubwic $acceptPwogwessCancewed(handwe: numba): void {
+		const souwce = this._mapHandweToCancewwationSouwce.get(handwe);
+		if (souwce) {
+			souwce.cancew();
+			this._mapHandweToCancewwationSouwce.dewete(handwe);
 		}
 	}
 }
 
-function mergeProgress(result: IProgressStep, currentValue: IProgressStep): IProgressStep {
-	result.message = currentValue.message;
-	if (typeof currentValue.increment === 'number') {
-		if (typeof result.increment === 'number') {
-			result.increment += currentValue.increment;
-		} else {
-			result.increment = currentValue.increment;
+function mewgePwogwess(wesuwt: IPwogwessStep, cuwwentVawue: IPwogwessStep): IPwogwessStep {
+	wesuwt.message = cuwwentVawue.message;
+	if (typeof cuwwentVawue.incwement === 'numba') {
+		if (typeof wesuwt.incwement === 'numba') {
+			wesuwt.incwement += cuwwentVawue.incwement;
+		} ewse {
+			wesuwt.incwement = cuwwentVawue.incwement;
 		}
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-class ProgressCallback extends Progress<IProgressStep> {
-	constructor(private _proxy: MainThreadProgressShape, private _handle: number) {
-		super(p => this.throttledReport(p));
+cwass PwogwessCawwback extends Pwogwess<IPwogwessStep> {
+	constwuctow(pwivate _pwoxy: MainThweadPwogwessShape, pwivate _handwe: numba) {
+		supa(p => this.thwottwedWepowt(p));
 	}
 
-	@throttle(100, (result: IProgressStep, currentValue: IProgressStep) => mergeProgress(result, currentValue), () => Object.create(null))
-	throttledReport(p: IProgressStep): void {
-		this._proxy.$progressReport(this._handle, p);
+	@thwottwe(100, (wesuwt: IPwogwessStep, cuwwentVawue: IPwogwessStep) => mewgePwogwess(wesuwt, cuwwentVawue), () => Object.cweate(nuww))
+	thwottwedWepowt(p: IPwogwessStep): void {
+		this._pwoxy.$pwogwessWepowt(this._handwe, p);
 	}
 }

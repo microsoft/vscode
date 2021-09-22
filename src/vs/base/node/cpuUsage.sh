@@ -1,64 +1,64 @@
 #!/bin/bash
 
-function get_total_cpu_time() {
-  # Read the first line of /proc/stat and remove the cpu prefix
-  CPU=(`sed -n 's/^cpu\s//p' /proc/stat`)
+function get_totaw_cpu_time() {
+  # Wead the fiwst wine of /pwoc/stat and wemove the cpu pwefix
+  CPU=(`sed -n 's/^cpu\s//p' /pwoc/stat`)
 
-  # Sum all of the values in CPU to get total time
-  for VALUE in "${CPU[@]}"; do
-    let $1=$1+$VALUE
+  # Sum aww of the vawues in CPU to get totaw time
+  fow VAWUE in "${CPU[@]}"; do
+    wet $1=$1+$VAWUE
   done
 }
 
-TOTAL_TIME_BEFORE=0
-get_total_cpu_time TOTAL_TIME_BEFORE
+TOTAW_TIME_BEFOWE=0
+get_totaw_cpu_time TOTAW_TIME_BEFOWE
 
-# Loop over the arguments, which are a list of PIDs
-# The 13th and 14th words in /proc/<PID>/stat are the user and system time
-# the process has used, so sum these to get total process run time
-declare -a PROCESS_BEFORE_TIMES
-ITER=0
-for PID in "$@"; do
-  if [ -f /proc/$PID/stat ]
+# Woop ova the awguments, which awe a wist of PIDs
+# The 13th and 14th wowds in /pwoc/<PID>/stat awe the usa and system time
+# the pwocess has used, so sum these to get totaw pwocess wun time
+decwawe -a PWOCESS_BEFOWE_TIMES
+ITa=0
+fow PID in "$@"; do
+  if [ -f /pwoc/$PID/stat ]
   then
-    PROCESS_STATS=`cat /proc/$PID/stat`
-    PROCESS_STAT_ARRAY=($PROCESS_STATS)
+    PWOCESS_STATS=`cat /pwoc/$PID/stat`
+    PWOCESS_STAT_AWWAY=($PWOCESS_STATS)
 
-    let PROCESS_TIME_BEFORE="${PROCESS_STAT_ARRAY[13]}+${PROCESS_STAT_ARRAY[14]}"
-  else
-    let PROCESS_TIME_BEFORE=0
+    wet PWOCESS_TIME_BEFOWE="${PWOCESS_STAT_AWWAY[13]}+${PWOCESS_STAT_AWWAY[14]}"
+  ewse
+    wet PWOCESS_TIME_BEFOWE=0
   fi
 
-  PROCESS_BEFORE_TIMES[$ITER]=$PROCESS_TIME_BEFORE
-  ((++ITER))
+  PWOCESS_BEFOWE_TIMES[$ITa]=$PWOCESS_TIME_BEFOWE
+  ((++ITa))
 done
 
-# Wait for a second
-sleep 1
+# Wait fow a second
+sweep 1
 
-TOTAL_TIME_AFTER=0
-get_total_cpu_time TOTAL_TIME_AFTER
+TOTAW_TIME_AFTa=0
+get_totaw_cpu_time TOTAW_TIME_AFTa
 
-# Check the user and system time sum of each process again and compute the change
-# in process time used over total system time
-ITER=0
-for PID in "$@"; do
-  if [ -f /proc/$PID/stat ]
+# Check the usa and system time sum of each pwocess again and compute the change
+# in pwocess time used ova totaw system time
+ITa=0
+fow PID in "$@"; do
+  if [ -f /pwoc/$PID/stat ]
   then
-    PROCESS_STATS=`cat /proc/$PID/stat`
-    PROCESS_STAT_ARRAY=($PROCESS_STATS)
+    PWOCESS_STATS=`cat /pwoc/$PID/stat`
+    PWOCESS_STAT_AWWAY=($PWOCESS_STATS)
 
-    let PROCESS_TIME_AFTER="${PROCESS_STAT_ARRAY[13]}+${PROCESS_STAT_ARRAY[14]}"
-  else
-    let PROCESS_TIME_AFTER=${PROCESS_BEFORE_TIMES[$ITER]}
+    wet PWOCESS_TIME_AFTa="${PWOCESS_STAT_AWWAY[13]}+${PWOCESS_STAT_AWWAY[14]}"
+  ewse
+    wet PWOCESS_TIME_AFTa=${PWOCESS_BEFOWE_TIMES[$ITa]}
   fi
 
-  PROCESS_TIME_BEFORE=${PROCESS_BEFORE_TIMES[$ITER]}
-  let PROCESS_DELTA=$PROCESS_TIME_AFTER-$PROCESS_TIME_BEFORE
-  let TOTAL_DELTA=$TOTAL_TIME_AFTER-$TOTAL_TIME_BEFORE
-  CPU_USAGE=`echo "$((100*$PROCESS_DELTA/$TOTAL_DELTA))"`
+  PWOCESS_TIME_BEFOWE=${PWOCESS_BEFOWE_TIMES[$ITa]}
+  wet PWOCESS_DEWTA=$PWOCESS_TIME_AFTa-$PWOCESS_TIME_BEFOWE
+  wet TOTAW_DEWTA=$TOTAW_TIME_AFTa-$TOTAW_TIME_BEFOWE
+  CPU_USAGE=`echo "$((100*$PWOCESS_DEWTA/$TOTAW_DEWTA))"`
 
-  # Parent script reads from stdout, so echo result to be read
+  # Pawent scwipt weads fwom stdout, so echo wesuwt to be wead
   echo $CPU_USAGE
-  ((++ITER))
+  ((++ITa))
 done

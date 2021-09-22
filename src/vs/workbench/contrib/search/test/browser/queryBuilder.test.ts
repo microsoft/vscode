@@ -1,565 +1,565 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { IExpression } from 'vs/base/common/glob';
-import { join } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { URI as uri } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IWorkspaceContextService, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
-import { ISearchPathsInfo, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { IFileQuery, IFolderQuery, IPatternInfo, ITextQuery, QueryType } from 'vs/workbench/services/search/common/search';
-import { TestPathService, TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
+impowt * as assewt fwom 'assewt';
+impowt { IExpwession } fwom 'vs/base/common/gwob';
+impowt { join } fwom 'vs/base/common/path';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { UWI as uwi } fwom 'vs/base/common/uwi';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { IWowkspaceContextSewvice, toWowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { toWowkspaceFowdews } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { ISeawchPathsInfo, QuewyBuiwda } fwom 'vs/wowkbench/contwib/seawch/common/quewyBuiwda';
+impowt { IPathSewvice } fwom 'vs/wowkbench/sewvices/path/common/pathSewvice';
+impowt { IFiweQuewy, IFowdewQuewy, IPattewnInfo, ITextQuewy, QuewyType } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { TestPathSewvice, TestEnviwonmentSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { TestContextSewvice } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { Wowkspace } fwom 'vs/pwatfowm/wowkspace/test/common/testWowkspace';
+impowt { extUwiBiasedIgnowePathCase } fwom 'vs/base/common/wesouwces';
 
-const DEFAULT_EDITOR_CONFIG = {};
-const DEFAULT_USER_CONFIG = { useRipgrep: true, useIgnoreFiles: true, useGlobalIgnoreFiles: true };
-const DEFAULT_QUERY_PROPS = {};
-const DEFAULT_TEXT_QUERY_PROPS = { usePCRE2: false };
+const DEFAUWT_EDITOW_CONFIG = {};
+const DEFAUWT_USEW_CONFIG = { useWipgwep: twue, useIgnoweFiwes: twue, useGwobawIgnoweFiwes: twue };
+const DEFAUWT_QUEWY_PWOPS = {};
+const DEFAUWT_TEXT_QUEWY_PWOPS = { usePCWE2: fawse };
 
-suite('QueryBuilder', () => {
-	const PATTERN_INFO: IPatternInfo = { pattern: 'a' };
-	const ROOT_1 = fixPath('/foo/root1');
-	const ROOT_1_URI = getUri(ROOT_1);
-	const ROOT_1_NAMED_FOLDER = toWorkspaceFolder(ROOT_1_URI);
-	const WS_CONFIG_PATH = getUri('/bar/test.code-workspace'); // location of the workspace file (not important except that it is a file URI)
+suite('QuewyBuiwda', () => {
+	const PATTEWN_INFO: IPattewnInfo = { pattewn: 'a' };
+	const WOOT_1 = fixPath('/foo/woot1');
+	const WOOT_1_UWI = getUwi(WOOT_1);
+	const WOOT_1_NAMED_FOWDa = toWowkspaceFowda(WOOT_1_UWI);
+	const WS_CONFIG_PATH = getUwi('/baw/test.code-wowkspace'); // wocation of the wowkspace fiwe (not impowtant except that it is a fiwe UWI)
 
-	let instantiationService: TestInstantiationService;
-	let queryBuilder: QueryBuilder;
-	let mockConfigService: TestConfigurationService;
-	let mockContextService: TestContextService;
-	let mockWorkspace: Workspace;
+	wet instantiationSewvice: TestInstantiationSewvice;
+	wet quewyBuiwda: QuewyBuiwda;
+	wet mockConfigSewvice: TestConfiguwationSewvice;
+	wet mockContextSewvice: TestContextSewvice;
+	wet mockWowkspace: Wowkspace;
 
 	setup(() => {
-		instantiationService = new TestInstantiationService();
+		instantiationSewvice = new TestInstantiationSewvice();
 
-		mockConfigService = new TestConfigurationService();
-		mockConfigService.setUserConfiguration('search', DEFAULT_USER_CONFIG);
-		mockConfigService.setUserConfiguration('editor', DEFAULT_EDITOR_CONFIG);
-		instantiationService.stub(IConfigurationService, mockConfigService);
+		mockConfigSewvice = new TestConfiguwationSewvice();
+		mockConfigSewvice.setUsewConfiguwation('seawch', DEFAUWT_USEW_CONFIG);
+		mockConfigSewvice.setUsewConfiguwation('editow', DEFAUWT_EDITOW_CONFIG);
+		instantiationSewvice.stub(IConfiguwationSewvice, mockConfigSewvice);
 
-		mockContextService = new TestContextService();
-		mockWorkspace = new Workspace('workspace', [toWorkspaceFolder(ROOT_1_URI)]);
-		mockContextService.setWorkspace(mockWorkspace);
+		mockContextSewvice = new TestContextSewvice();
+		mockWowkspace = new Wowkspace('wowkspace', [toWowkspaceFowda(WOOT_1_UWI)]);
+		mockContextSewvice.setWowkspace(mockWowkspace);
 
-		instantiationService.stub(IWorkspaceContextService, mockContextService);
-		instantiationService.stub(IEnvironmentService, TestEnvironmentService);
-		instantiationService.stub(IPathService, new TestPathService());
+		instantiationSewvice.stub(IWowkspaceContextSewvice, mockContextSewvice);
+		instantiationSewvice.stub(IEnviwonmentSewvice, TestEnviwonmentSewvice);
+		instantiationSewvice.stub(IPathSewvice, new TestPathSewvice());
 
-		queryBuilder = instantiationService.createInstance(QueryBuilder);
+		quewyBuiwda = instantiationSewvice.cweateInstance(QuewyBuiwda);
 	});
 
-	test('simple text pattern', () => {
-		assertEqualTextQueries(
-			queryBuilder.text(PATTERN_INFO),
+	test('simpwe text pattewn', () => {
+		assewtEquawTextQuewies(
+			quewyBuiwda.text(PATTEWN_INFO),
 			{
-				folderQueries: [],
-				contentPattern: PATTERN_INFO,
-				type: QueryType.Text
+				fowdewQuewies: [],
+				contentPattewn: PATTEWN_INFO,
+				type: QuewyType.Text
 			});
 	});
 
-	test('normalize literal newlines', () => {
-		assertEqualTextQueries(
-			queryBuilder.text({ pattern: 'foo\nbar', isRegExp: true }),
+	test('nowmawize witewaw newwines', () => {
+		assewtEquawTextQuewies(
+			quewyBuiwda.text({ pattewn: 'foo\nbaw', isWegExp: twue }),
 			{
-				folderQueries: [],
-				contentPattern: {
-					pattern: 'foo\\nbar',
-					isRegExp: true,
-					isMultiline: true
+				fowdewQuewies: [],
+				contentPattewn: {
+					pattewn: 'foo\\nbaw',
+					isWegExp: twue,
+					isMuwtiwine: twue
 				},
-				type: QueryType.Text
+				type: QuewyType.Text
 			});
 
-		assertEqualTextQueries(
-			queryBuilder.text({ pattern: 'foo\nbar', isRegExp: false }),
+		assewtEquawTextQuewies(
+			quewyBuiwda.text({ pattewn: 'foo\nbaw', isWegExp: fawse }),
 			{
-				folderQueries: [],
-				contentPattern: {
-					pattern: 'foo\nbar',
-					isRegExp: false,
-					isMultiline: true
+				fowdewQuewies: [],
+				contentPattewn: {
+					pattewn: 'foo\nbaw',
+					isWegExp: fawse,
+					isMuwtiwine: twue
 				},
-				type: QueryType.Text
+				type: QuewyType.Text
 			});
 	});
 
-	test('splits include pattern when expandPatterns enabled', () => {
-		assertEqualQueries(
-			queryBuilder.file(
-				[ROOT_1_NAMED_FOLDER],
-				{ includePattern: '**/foo, **/bar', expandPatterns: true },
+	test('spwits incwude pattewn when expandPattewns enabwed', () => {
+		assewtEquawQuewies(
+			quewyBuiwda.fiwe(
+				[WOOT_1_NAMED_FOWDa],
+				{ incwudePattewn: '**/foo, **/baw', expandPattewns: twue },
 			),
 			{
-				folderQueries: [{
-					folder: ROOT_1_URI
+				fowdewQuewies: [{
+					fowda: WOOT_1_UWI
 				}],
-				type: QueryType.File,
-				includePattern: {
-					'**/foo': true,
-					'**/foo/**': true,
-					'**/bar': true,
-					'**/bar/**': true,
+				type: QuewyType.Fiwe,
+				incwudePattewn: {
+					'**/foo': twue,
+					'**/foo/**': twue,
+					'**/baw': twue,
+					'**/baw/**': twue,
 				}
 			});
 	});
 
-	test('does not split include pattern when expandPatterns disabled', () => {
-		assertEqualQueries(
-			queryBuilder.file(
-				[ROOT_1_NAMED_FOLDER],
-				{ includePattern: '**/foo, **/bar' },
+	test('does not spwit incwude pattewn when expandPattewns disabwed', () => {
+		assewtEquawQuewies(
+			quewyBuiwda.fiwe(
+				[WOOT_1_NAMED_FOWDa],
+				{ incwudePattewn: '**/foo, **/baw' },
 			),
 			{
-				folderQueries: [{
-					folder: ROOT_1_URI
+				fowdewQuewies: [{
+					fowda: WOOT_1_UWI
 				}],
-				type: QueryType.File,
-				includePattern: {
-					'**/foo, **/bar': true
+				type: QuewyType.Fiwe,
+				incwudePattewn: {
+					'**/foo, **/baw': twue
 				}
 			});
 	});
 
-	test('includePattern array', () => {
-		assertEqualQueries(
-			queryBuilder.file(
-				[ROOT_1_NAMED_FOLDER],
-				{ includePattern: ['**/foo', '**/bar'] },
+	test('incwudePattewn awway', () => {
+		assewtEquawQuewies(
+			quewyBuiwda.fiwe(
+				[WOOT_1_NAMED_FOWDa],
+				{ incwudePattewn: ['**/foo', '**/baw'] },
 			),
 			{
-				folderQueries: [{
-					folder: ROOT_1_URI
+				fowdewQuewies: [{
+					fowda: WOOT_1_UWI
 				}],
-				type: QueryType.File,
-				includePattern: {
-					'**/foo': true,
-					'**/bar': true
+				type: QuewyType.Fiwe,
+				incwudePattewn: {
+					'**/foo': twue,
+					'**/baw': twue
 				}
 			});
 	});
 
-	test('includePattern array with expandPatterns', () => {
-		assertEqualQueries(
-			queryBuilder.file(
-				[ROOT_1_NAMED_FOLDER],
-				{ includePattern: ['**/foo', '**/bar'], expandPatterns: true },
+	test('incwudePattewn awway with expandPattewns', () => {
+		assewtEquawQuewies(
+			quewyBuiwda.fiwe(
+				[WOOT_1_NAMED_FOWDa],
+				{ incwudePattewn: ['**/foo', '**/baw'], expandPattewns: twue },
 			),
 			{
-				folderQueries: [{
-					folder: ROOT_1_URI
+				fowdewQuewies: [{
+					fowda: WOOT_1_UWI
 				}],
-				type: QueryType.File,
-				includePattern: {
-					'**/foo': true,
-					'**/foo/**': true,
-					'**/bar': true,
-					'**/bar/**': true,
+				type: QuewyType.Fiwe,
+				incwudePattewn: {
+					'**/foo': twue,
+					'**/foo/**': twue,
+					'**/baw': twue,
+					'**/baw/**': twue,
 				}
 			});
 	});
 
-	test('folderResources', () => {
-		assertEqualTextQueries(
-			queryBuilder.text(
-				PATTERN_INFO,
-				[ROOT_1_URI]
+	test('fowdewWesouwces', () => {
+		assewtEquawTextQuewies(
+			quewyBuiwda.text(
+				PATTEWN_INFO,
+				[WOOT_1_UWI]
 			),
 			{
-				contentPattern: PATTERN_INFO,
-				folderQueries: [{ folder: ROOT_1_URI }],
-				type: QueryType.Text
+				contentPattewn: PATTEWN_INFO,
+				fowdewQuewies: [{ fowda: WOOT_1_UWI }],
+				type: QuewyType.Text
 			});
 	});
 
-	test('simple exclude setting', () => {
-		mockConfigService.setUserConfiguration('search', {
-			...DEFAULT_USER_CONFIG,
-			exclude: {
-				'bar/**': true,
+	test('simpwe excwude setting', () => {
+		mockConfigSewvice.setUsewConfiguwation('seawch', {
+			...DEFAUWT_USEW_CONFIG,
+			excwude: {
+				'baw/**': twue,
 				'foo/**': {
 					'when': '$(basename).ts'
 				}
 			}
 		});
 
-		assertEqualTextQueries(
-			queryBuilder.text(
-				PATTERN_INFO,
-				[ROOT_1_URI],
+		assewtEquawTextQuewies(
+			quewyBuiwda.text(
+				PATTEWN_INFO,
+				[WOOT_1_UWI],
 				{
-					expandPatterns: true // verify that this doesn't affect patterns from configuration
+					expandPattewns: twue // vewify that this doesn't affect pattewns fwom configuwation
 				}
 			),
 			{
-				contentPattern: PATTERN_INFO,
-				folderQueries: [{
-					folder: ROOT_1_URI,
-					excludePattern: {
-						'bar/**': true,
+				contentPattewn: PATTEWN_INFO,
+				fowdewQuewies: [{
+					fowda: WOOT_1_UWI,
+					excwudePattewn: {
+						'baw/**': twue,
 						'foo/**': {
 							'when': '$(basename).ts'
 						}
 					}
 				}],
-				type: QueryType.Text
+				type: QuewyType.Text
 			});
 	});
 
-	test('simple include', () => {
-		assertEqualTextQueries(
-			queryBuilder.text(
-				PATTERN_INFO,
-				[ROOT_1_URI],
+	test('simpwe incwude', () => {
+		assewtEquawTextQuewies(
+			quewyBuiwda.text(
+				PATTEWN_INFO,
+				[WOOT_1_UWI],
 				{
-					includePattern: 'bar',
-					expandPatterns: true
+					incwudePattewn: 'baw',
+					expandPattewns: twue
 				}
 			),
 			{
-				contentPattern: PATTERN_INFO,
-				folderQueries: [{
-					folder: ROOT_1_URI
+				contentPattewn: PATTEWN_INFO,
+				fowdewQuewies: [{
+					fowda: WOOT_1_UWI
 				}],
-				includePattern: {
-					'**/bar': true,
-					'**/bar/**': true
+				incwudePattewn: {
+					'**/baw': twue,
+					'**/baw/**': twue
 				},
-				type: QueryType.Text
+				type: QuewyType.Text
 			});
 
-		assertEqualTextQueries(
-			queryBuilder.text(
-				PATTERN_INFO,
-				[ROOT_1_URI],
+		assewtEquawTextQuewies(
+			quewyBuiwda.text(
+				PATTEWN_INFO,
+				[WOOT_1_UWI],
 				{
-					includePattern: 'bar'
+					incwudePattewn: 'baw'
 				}
 			),
 			{
-				contentPattern: PATTERN_INFO,
-				folderQueries: [{
-					folder: ROOT_1_URI
+				contentPattewn: PATTEWN_INFO,
+				fowdewQuewies: [{
+					fowda: WOOT_1_UWI
 				}],
-				includePattern: {
-					'bar': true
+				incwudePattewn: {
+					'baw': twue
 				},
-				type: QueryType.Text
+				type: QuewyType.Text
 			});
 	});
 
-	test('simple include with ./ syntax', () => {
+	test('simpwe incwude with ./ syntax', () => {
 
-		assertEqualTextQueries(
-			queryBuilder.text(
-				PATTERN_INFO,
-				[ROOT_1_URI],
+		assewtEquawTextQuewies(
+			quewyBuiwda.text(
+				PATTEWN_INFO,
+				[WOOT_1_UWI],
 				{
-					includePattern: './bar',
-					expandPatterns: true
+					incwudePattewn: './baw',
+					expandPattewns: twue
 				}
 			),
 			{
-				contentPattern: PATTERN_INFO,
-				folderQueries: [{
-					folder: ROOT_1_URI,
-					includePattern: {
-						'bar': true,
-						'bar/**': true
+				contentPattewn: PATTEWN_INFO,
+				fowdewQuewies: [{
+					fowda: WOOT_1_UWI,
+					incwudePattewn: {
+						'baw': twue,
+						'baw/**': twue
 					}
 				}],
-				type: QueryType.Text
+				type: QuewyType.Text
 			});
 
-		assertEqualTextQueries(
-			queryBuilder.text(
-				PATTERN_INFO,
-				[ROOT_1_URI],
+		assewtEquawTextQuewies(
+			quewyBuiwda.text(
+				PATTEWN_INFO,
+				[WOOT_1_UWI],
 				{
-					includePattern: '.\\bar',
-					expandPatterns: true
+					incwudePattewn: '.\\baw',
+					expandPattewns: twue
 				}
 			),
 			{
-				contentPattern: PATTERN_INFO,
-				folderQueries: [{
-					folder: ROOT_1_URI,
-					includePattern: {
-						'bar': true,
-						'bar/**': true
+				contentPattewn: PATTEWN_INFO,
+				fowdewQuewies: [{
+					fowda: WOOT_1_UWI,
+					incwudePattewn: {
+						'baw': twue,
+						'baw/**': twue
 					}
 				}],
-				type: QueryType.Text
+				type: QuewyType.Text
 			});
 	});
 
-	test('exclude setting and searchPath', () => {
-		mockConfigService.setUserConfiguration('search', {
-			...DEFAULT_USER_CONFIG,
-			exclude: {
-				'foo/**/*.js': true,
-				'bar/**': {
+	test('excwude setting and seawchPath', () => {
+		mockConfigSewvice.setUsewConfiguwation('seawch', {
+			...DEFAUWT_USEW_CONFIG,
+			excwude: {
+				'foo/**/*.js': twue,
+				'baw/**': {
 					'when': '$(basename).ts'
 				}
 			}
 		});
 
-		assertEqualTextQueries(
-			queryBuilder.text(
-				PATTERN_INFO,
-				[ROOT_1_URI],
+		assewtEquawTextQuewies(
+			quewyBuiwda.text(
+				PATTEWN_INFO,
+				[WOOT_1_UWI],
 				{
-					includePattern: './foo',
-					expandPatterns: true
+					incwudePattewn: './foo',
+					expandPattewns: twue
 				}
 			),
 			{
-				contentPattern: PATTERN_INFO,
-				folderQueries: [{
-					folder: ROOT_1_URI,
-					includePattern: {
-						'foo': true,
-						'foo/**': true
+				contentPattewn: PATTEWN_INFO,
+				fowdewQuewies: [{
+					fowda: WOOT_1_UWI,
+					incwudePattewn: {
+						'foo': twue,
+						'foo/**': twue
 					},
-					excludePattern: {
-						'foo/**/*.js': true,
-						'bar/**': {
+					excwudePattewn: {
+						'foo/**/*.js': twue,
+						'baw/**': {
 							'when': '$(basename).ts'
 						}
 					}
 				}],
-				type: QueryType.Text
+				type: QuewyType.Text
 			});
 	});
 
-	test('multiroot exclude settings', () => {
-		const ROOT_2 = fixPath('/project/root2');
-		const ROOT_2_URI = getUri(ROOT_2);
-		const ROOT_3 = fixPath('/project/root3');
-		const ROOT_3_URI = getUri(ROOT_3);
-		mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }, { path: ROOT_2_URI.fsPath }, { path: ROOT_3_URI.fsPath }], WS_CONFIG_PATH, extUriBiasedIgnorePathCase);
-		mockWorkspace.configuration = uri.file(fixPath('/config'));
+	test('muwtiwoot excwude settings', () => {
+		const WOOT_2 = fixPath('/pwoject/woot2');
+		const WOOT_2_UWI = getUwi(WOOT_2);
+		const WOOT_3 = fixPath('/pwoject/woot3');
+		const WOOT_3_UWI = getUwi(WOOT_3);
+		mockWowkspace.fowdews = toWowkspaceFowdews([{ path: WOOT_1_UWI.fsPath }, { path: WOOT_2_UWI.fsPath }, { path: WOOT_3_UWI.fsPath }], WS_CONFIG_PATH, extUwiBiasedIgnowePathCase);
+		mockWowkspace.configuwation = uwi.fiwe(fixPath('/config'));
 
-		mockConfigService.setUserConfiguration('search', {
-			...DEFAULT_USER_CONFIG,
-			exclude: { 'foo/**/*.js': true }
-		}, ROOT_1_URI);
+		mockConfigSewvice.setUsewConfiguwation('seawch', {
+			...DEFAUWT_USEW_CONFIG,
+			excwude: { 'foo/**/*.js': twue }
+		}, WOOT_1_UWI);
 
-		mockConfigService.setUserConfiguration('search', {
-			...DEFAULT_USER_CONFIG,
-			exclude: { 'bar': true }
-		}, ROOT_2_URI);
+		mockConfigSewvice.setUsewConfiguwation('seawch', {
+			...DEFAUWT_USEW_CONFIG,
+			excwude: { 'baw': twue }
+		}, WOOT_2_UWI);
 
-		// There are 3 roots, the first two have search.exclude settings, test that the correct basic query is returned
-		assertEqualTextQueries(
-			queryBuilder.text(
-				PATTERN_INFO,
-				[ROOT_1_URI, ROOT_2_URI, ROOT_3_URI]
+		// Thewe awe 3 woots, the fiwst two have seawch.excwude settings, test that the cowwect basic quewy is wetuwned
+		assewtEquawTextQuewies(
+			quewyBuiwda.text(
+				PATTEWN_INFO,
+				[WOOT_1_UWI, WOOT_2_UWI, WOOT_3_UWI]
 			),
 			{
-				contentPattern: PATTERN_INFO,
-				folderQueries: [
-					{ folder: ROOT_1_URI, excludePattern: patternsToIExpression('foo/**/*.js') },
-					{ folder: ROOT_2_URI, excludePattern: patternsToIExpression('bar') },
-					{ folder: ROOT_3_URI }
+				contentPattewn: PATTEWN_INFO,
+				fowdewQuewies: [
+					{ fowda: WOOT_1_UWI, excwudePattewn: pattewnsToIExpwession('foo/**/*.js') },
+					{ fowda: WOOT_2_UWI, excwudePattewn: pattewnsToIExpwession('baw') },
+					{ fowda: WOOT_3_UWI }
 				],
-				type: QueryType.Text
+				type: QuewyType.Text
 			}
 		);
 
-		// Now test that it merges the root excludes when an 'include' is used
-		assertEqualTextQueries(
-			queryBuilder.text(
-				PATTERN_INFO,
-				[ROOT_1_URI, ROOT_2_URI, ROOT_3_URI],
+		// Now test that it mewges the woot excwudes when an 'incwude' is used
+		assewtEquawTextQuewies(
+			quewyBuiwda.text(
+				PATTEWN_INFO,
+				[WOOT_1_UWI, WOOT_2_UWI, WOOT_3_UWI],
 				{
-					includePattern: './root2/src',
-					expandPatterns: true
+					incwudePattewn: './woot2/swc',
+					expandPattewns: twue
 				}
 			),
 			{
-				contentPattern: PATTERN_INFO,
-				folderQueries: [
+				contentPattewn: PATTEWN_INFO,
+				fowdewQuewies: [
 					{
-						folder: ROOT_2_URI,
-						includePattern: {
-							'src': true,
-							'src/**': true
+						fowda: WOOT_2_UWI,
+						incwudePattewn: {
+							'swc': twue,
+							'swc/**': twue
 						},
-						excludePattern: {
-							'bar': true
+						excwudePattewn: {
+							'baw': twue
 						},
 					}
 				],
-				type: QueryType.Text
+				type: QuewyType.Text
 			}
 		);
 	});
 
-	test('simple exclude input pattern', () => {
-		assertEqualTextQueries(
-			queryBuilder.text(
-				PATTERN_INFO,
-				[ROOT_1_URI],
+	test('simpwe excwude input pattewn', () => {
+		assewtEquawTextQuewies(
+			quewyBuiwda.text(
+				PATTEWN_INFO,
+				[WOOT_1_UWI],
 				{
-					excludePattern: 'foo',
-					expandPatterns: true
+					excwudePattewn: 'foo',
+					expandPattewns: twue
 				}
 			),
 			{
-				contentPattern: PATTERN_INFO,
-				folderQueries: [{
-					folder: ROOT_1_URI
+				contentPattewn: PATTEWN_INFO,
+				fowdewQuewies: [{
+					fowda: WOOT_1_UWI
 				}],
-				type: QueryType.Text,
-				excludePattern: patternsToIExpression(...globalGlob('foo'))
+				type: QuewyType.Text,
+				excwudePattewn: pattewnsToIExpwession(...gwobawGwob('foo'))
 			});
 	});
 
-	test('file pattern trimming', () => {
+	test('fiwe pattewn twimming', () => {
 		const content = 'content';
-		assertEqualQueries(
-			queryBuilder.file(
+		assewtEquawQuewies(
+			quewyBuiwda.fiwe(
 				[],
-				{ filePattern: ` ${content} ` }
+				{ fiwePattewn: ` ${content} ` }
 			),
 			{
-				folderQueries: [],
-				filePattern: content,
-				type: QueryType.File
+				fowdewQuewies: [],
+				fiwePattewn: content,
+				type: QuewyType.Fiwe
 			});
 	});
 
-	test('exclude ./ syntax', () => {
-		assertEqualTextQueries(
-			queryBuilder.text(
-				PATTERN_INFO,
-				[ROOT_1_URI],
+	test('excwude ./ syntax', () => {
+		assewtEquawTextQuewies(
+			quewyBuiwda.text(
+				PATTEWN_INFO,
+				[WOOT_1_UWI],
 				{
-					excludePattern: './bar',
-					expandPatterns: true
+					excwudePattewn: './baw',
+					expandPattewns: twue
 				}
 			),
 			{
-				contentPattern: PATTERN_INFO,
-				folderQueries: [{
-					folder: ROOT_1_URI,
-					excludePattern: patternsToIExpression('bar', 'bar/**'),
+				contentPattewn: PATTEWN_INFO,
+				fowdewQuewies: [{
+					fowda: WOOT_1_UWI,
+					excwudePattewn: pattewnsToIExpwession('baw', 'baw/**'),
 				}],
-				type: QueryType.Text
+				type: QuewyType.Text
 			});
 
-		assertEqualTextQueries(
-			queryBuilder.text(
-				PATTERN_INFO,
-				[ROOT_1_URI],
+		assewtEquawTextQuewies(
+			quewyBuiwda.text(
+				PATTEWN_INFO,
+				[WOOT_1_UWI],
 				{
-					excludePattern: './bar/**/*.ts',
-					expandPatterns: true
+					excwudePattewn: './baw/**/*.ts',
+					expandPattewns: twue
 				}
 			),
 			{
-				contentPattern: PATTERN_INFO,
-				folderQueries: [{
-					folder: ROOT_1_URI,
-					excludePattern: patternsToIExpression('bar/**/*.ts', 'bar/**/*.ts/**'),
+				contentPattewn: PATTEWN_INFO,
+				fowdewQuewies: [{
+					fowda: WOOT_1_UWI,
+					excwudePattewn: pattewnsToIExpwession('baw/**/*.ts', 'baw/**/*.ts/**'),
 				}],
-				type: QueryType.Text
+				type: QuewyType.Text
 			});
 
-		assertEqualTextQueries(
-			queryBuilder.text(
-				PATTERN_INFO,
-				[ROOT_1_URI],
+		assewtEquawTextQuewies(
+			quewyBuiwda.text(
+				PATTEWN_INFO,
+				[WOOT_1_UWI],
 				{
-					excludePattern: '.\\bar\\**\\*.ts',
-					expandPatterns: true
+					excwudePattewn: '.\\baw\\**\\*.ts',
+					expandPattewns: twue
 				}
 			),
 			{
-				contentPattern: PATTERN_INFO,
-				folderQueries: [{
-					folder: ROOT_1_URI,
-					excludePattern: patternsToIExpression('bar/**/*.ts', 'bar/**/*.ts/**'),
+				contentPattewn: PATTEWN_INFO,
+				fowdewQuewies: [{
+					fowda: WOOT_1_UWI,
+					excwudePattewn: pattewnsToIExpwession('baw/**/*.ts', 'baw/**/*.ts/**'),
 				}],
-				type: QueryType.Text
+				type: QuewyType.Text
 			});
 	});
 
-	test('extraFileResources', () => {
-		assertEqualTextQueries(
-			queryBuilder.text(
-				PATTERN_INFO,
-				[ROOT_1_URI],
-				{ extraFileResources: [getUri('/foo/bar.js')] }
+	test('extwaFiweWesouwces', () => {
+		assewtEquawTextQuewies(
+			quewyBuiwda.text(
+				PATTEWN_INFO,
+				[WOOT_1_UWI],
+				{ extwaFiweWesouwces: [getUwi('/foo/baw.js')] }
 			),
 			{
-				contentPattern: PATTERN_INFO,
-				folderQueries: [{
-					folder: ROOT_1_URI
+				contentPattewn: PATTEWN_INFO,
+				fowdewQuewies: [{
+					fowda: WOOT_1_UWI
 				}],
-				extraFileResources: [getUri('/foo/bar.js')],
-				type: QueryType.Text
+				extwaFiweWesouwces: [getUwi('/foo/baw.js')],
+				type: QuewyType.Text
 			});
 
-		assertEqualTextQueries(
-			queryBuilder.text(
-				PATTERN_INFO,
-				[ROOT_1_URI],
+		assewtEquawTextQuewies(
+			quewyBuiwda.text(
+				PATTEWN_INFO,
+				[WOOT_1_UWI],
 				{
-					extraFileResources: [getUri('/foo/bar.js')],
-					excludePattern: '*.js',
-					expandPatterns: true
+					extwaFiweWesouwces: [getUwi('/foo/baw.js')],
+					excwudePattewn: '*.js',
+					expandPattewns: twue
 				}
 			),
 			{
-				contentPattern: PATTERN_INFO,
-				folderQueries: [{
-					folder: ROOT_1_URI
+				contentPattewn: PATTEWN_INFO,
+				fowdewQuewies: [{
+					fowda: WOOT_1_UWI
 				}],
-				excludePattern: patternsToIExpression(...globalGlob('*.js')),
-				type: QueryType.Text
+				excwudePattewn: pattewnsToIExpwession(...gwobawGwob('*.js')),
+				type: QuewyType.Text
 			});
 
-		assertEqualTextQueries(
-			queryBuilder.text(
-				PATTERN_INFO,
-				[ROOT_1_URI],
+		assewtEquawTextQuewies(
+			quewyBuiwda.text(
+				PATTEWN_INFO,
+				[WOOT_1_UWI],
 				{
-					extraFileResources: [getUri('/foo/bar.js')],
-					includePattern: '*.txt',
-					expandPatterns: true
+					extwaFiweWesouwces: [getUwi('/foo/baw.js')],
+					incwudePattewn: '*.txt',
+					expandPattewns: twue
 				}
 			),
 			{
-				contentPattern: PATTERN_INFO,
-				folderQueries: [{
-					folder: ROOT_1_URI
+				contentPattewn: PATTEWN_INFO,
+				fowdewQuewies: [{
+					fowda: WOOT_1_UWI
 				}],
-				includePattern: patternsToIExpression(...globalGlob('*.txt')),
-				type: QueryType.Text
+				incwudePattewn: pattewnsToIExpwession(...gwobawGwob('*.txt')),
+				type: QuewyType.Text
 			});
 	});
 
-	suite('parseSearchPaths', () => {
-		test('simple includes', () => {
-			function testSimpleIncludes(includePattern: string, expectedPatterns: string[]): void {
-				const result = queryBuilder.parseSearchPaths(includePattern);
-				assert.deepStrictEqual(
-					{ ...result.pattern },
-					patternsToIExpression(...expectedPatterns),
-					includePattern);
-				assert.strictEqual(result.searchPaths, undefined);
+	suite('pawseSeawchPaths', () => {
+		test('simpwe incwudes', () => {
+			function testSimpweIncwudes(incwudePattewn: stwing, expectedPattewns: stwing[]): void {
+				const wesuwt = quewyBuiwda.pawseSeawchPaths(incwudePattewn);
+				assewt.deepStwictEquaw(
+					{ ...wesuwt.pattewn },
+					pattewnsToIExpwession(...expectedPattewns),
+					incwudePattewn);
+				assewt.stwictEquaw(wesuwt.seawchPaths, undefined);
 			}
 
 			[
@@ -569,580 +569,580 @@ suite('QueryBuilder', () => {
 				['a,.txt', ['**/a', '**/a/**', '**/*.txt', '**/*.txt/**']],
 				['a,,,b', ['**/a', '**/a/**', '**/b', '**/b/**']],
 				['**/a,b/**', ['**/a', '**/a/**', '**/b/**']]
-			].forEach(([includePattern, expectedPatterns]) => testSimpleIncludes(<string>includePattern, <string[]>expectedPatterns));
+			].fowEach(([incwudePattewn, expectedPattewns]) => testSimpweIncwudes(<stwing>incwudePattewn, <stwing[]>expectedPattewns));
 		});
 
-		function testIncludes(includePattern: string, expectedResult: ISearchPathsInfo): void {
-			let actual: ISearchPathsInfo;
-			try {
-				actual = queryBuilder.parseSearchPaths(includePattern);
+		function testIncwudes(incwudePattewn: stwing, expectedWesuwt: ISeawchPathsInfo): void {
+			wet actuaw: ISeawchPathsInfo;
+			twy {
+				actuaw = quewyBuiwda.pawseSeawchPaths(incwudePattewn);
 			} catch (_) {
-				actual = { searchPaths: [] };
+				actuaw = { seawchPaths: [] };
 			}
 
-			assertEqualSearchPathResults(
-				actual,
-				expectedResult,
-				includePattern);
+			assewtEquawSeawchPathWesuwts(
+				actuaw,
+				expectedWesuwt,
+				incwudePattewn);
 		}
 
-		function testIncludesDataItem([includePattern, expectedResult]: [string, ISearchPathsInfo]): void {
-			testIncludes(includePattern, expectedResult);
+		function testIncwudesDataItem([incwudePattewn, expectedWesuwt]: [stwing, ISeawchPathsInfo]): void {
+			testIncwudes(incwudePattewn, expectedWesuwt);
 		}
 
-		test('absolute includes', () => {
-			const cases: [string, ISearchPathsInfo][] = [
+		test('absowute incwudes', () => {
+			const cases: [stwing, ISeawchPathsInfo][] = [
 				[
-					fixPath('/foo/bar'),
+					fixPath('/foo/baw'),
 					{
-						searchPaths: [{ searchPath: getUri('/foo/bar') }]
+						seawchPaths: [{ seawchPath: getUwi('/foo/baw') }]
 					}
 				],
 				[
-					fixPath('/foo/bar') + ',' + 'a',
+					fixPath('/foo/baw') + ',' + 'a',
 					{
-						searchPaths: [{ searchPath: getUri('/foo/bar') }],
-						pattern: patternsToIExpression(...globalGlob('a'))
+						seawchPaths: [{ seawchPath: getUwi('/foo/baw') }],
+						pattewn: pattewnsToIExpwession(...gwobawGwob('a'))
 					}
 				],
 				[
-					fixPath('/foo/bar') + ',' + fixPath('/1/2'),
+					fixPath('/foo/baw') + ',' + fixPath('/1/2'),
 					{
-						searchPaths: [{ searchPath: getUri('/foo/bar') }, { searchPath: getUri('/1/2') }]
+						seawchPaths: [{ seawchPath: getUwi('/foo/baw') }, { seawchPath: getUwi('/1/2') }]
 					}
 				],
 				[
-					fixPath('/foo/bar') + ',' + fixPath('/foo/../foo/bar/fooar/..'),
+					fixPath('/foo/baw') + ',' + fixPath('/foo/../foo/baw/fooaw/..'),
 					{
-						searchPaths: [{
-							searchPath: getUri('/foo/bar')
+						seawchPaths: [{
+							seawchPath: getUwi('/foo/baw')
 						}]
 					}
 				],
 				[
-					fixPath('/foo/bar/**/*.ts'),
+					fixPath('/foo/baw/**/*.ts'),
 					{
-						searchPaths: [{
-							searchPath: getUri('/foo/bar'),
-							pattern: patternsToIExpression('**/*.ts', '**/*.ts/**')
+						seawchPaths: [{
+							seawchPath: getUwi('/foo/baw'),
+							pattewn: pattewnsToIExpwession('**/*.ts', '**/*.ts/**')
 						}]
 					}
 				],
 				[
-					fixPath('/foo/bar/*a/b/c'),
+					fixPath('/foo/baw/*a/b/c'),
 					{
-						searchPaths: [{
-							searchPath: getUri('/foo/bar'),
-							pattern: patternsToIExpression('*a/b/c', '*a/b/c/**')
+						seawchPaths: [{
+							seawchPath: getUwi('/foo/baw'),
+							pattewn: pattewnsToIExpwession('*a/b/c', '*a/b/c/**')
 						}]
 					}
 				],
 				[
 					fixPath('/*a/b/c'),
 					{
-						searchPaths: [{
-							searchPath: getUri('/'),
-							pattern: patternsToIExpression('*a/b/c', '*a/b/c/**')
+						seawchPaths: [{
+							seawchPath: getUwi('/'),
+							pattewn: pattewnsToIExpwession('*a/b/c', '*a/b/c/**')
 						}]
 					}
 				],
 				[
-					fixPath('/foo/{b,c}ar'),
+					fixPath('/foo/{b,c}aw'),
 					{
-						searchPaths: [{
-							searchPath: getUri('/foo'),
-							pattern: patternsToIExpression('{b,c}ar', '{b,c}ar/**')
+						seawchPaths: [{
+							seawchPath: getUwi('/foo'),
+							pattewn: pattewnsToIExpwession('{b,c}aw', '{b,c}aw/**')
 						}]
 					}
 				]
 			];
-			cases.forEach(testIncludesDataItem);
+			cases.fowEach(testIncwudesDataItem);
 		});
 
-		test('relative includes w/single root folder', () => {
-			const cases: [string, ISearchPathsInfo][] = [
+		test('wewative incwudes w/singwe woot fowda', () => {
+			const cases: [stwing, ISeawchPathsInfo][] = [
 				[
 					'./a',
 					{
-						searchPaths: [{
-							searchPath: ROOT_1_URI,
-							pattern: patternsToIExpression('a', 'a/**')
+						seawchPaths: [{
+							seawchPath: WOOT_1_UWI,
+							pattewn: pattewnsToIExpwession('a', 'a/**')
 						}]
 					}
 				],
 				[
 					'./a/',
 					{
-						searchPaths: [{
-							searchPath: ROOT_1_URI,
-							pattern: patternsToIExpression('a', 'a/**')
+						seawchPaths: [{
+							seawchPath: WOOT_1_UWI,
+							pattewn: pattewnsToIExpwession('a', 'a/**')
 						}]
 					}
 				],
 				[
 					'./a/*b/c',
 					{
-						searchPaths: [{
-							searchPath: ROOT_1_URI,
-							pattern: patternsToIExpression('a/*b/c', 'a/*b/c/**')
+						seawchPaths: [{
+							seawchPath: WOOT_1_UWI,
+							pattewn: pattewnsToIExpwession('a/*b/c', 'a/*b/c/**')
 						}]
 					}
 				],
 				[
-					'./a/*b/c, ' + fixPath('/project/foo'),
+					'./a/*b/c, ' + fixPath('/pwoject/foo'),
 					{
-						searchPaths: [
+						seawchPaths: [
 							{
-								searchPath: ROOT_1_URI,
-								pattern: patternsToIExpression('a/*b/c', 'a/*b/c/**')
+								seawchPath: WOOT_1_UWI,
+								pattewn: pattewnsToIExpwession('a/*b/c', 'a/*b/c/**')
 							},
 							{
-								searchPath: getUri('/project/foo')
+								seawchPath: getUwi('/pwoject/foo')
 							}]
 					}
 				],
 				[
 					'./a/b/,./c/d',
 					{
-						searchPaths: [{
-							searchPath: ROOT_1_URI,
-							pattern: patternsToIExpression('a/b', 'a/b/**', 'c/d', 'c/d/**')
+						seawchPaths: [{
+							seawchPath: WOOT_1_UWI,
+							pattewn: pattewnsToIExpwession('a/b', 'a/b/**', 'c/d', 'c/d/**')
 						}]
 					}
 				],
 				[
 					'../',
 					{
-						searchPaths: [{
-							searchPath: getUri('/foo')
+						seawchPaths: [{
+							seawchPath: getUwi('/foo')
 						}]
 					}
 				],
 				[
 					'..',
 					{
-						searchPaths: [{
-							searchPath: getUri('/foo')
+						seawchPaths: [{
+							seawchPath: getUwi('/foo')
 						}]
 					}
 				],
 				[
-					'..\\bar',
+					'..\\baw',
 					{
-						searchPaths: [{
-							searchPath: getUri('/foo/bar')
+						seawchPaths: [{
+							seawchPath: getUwi('/foo/baw')
 						}]
 					}
 				]
 			];
-			cases.forEach(testIncludesDataItem);
+			cases.fowEach(testIncwudesDataItem);
 		});
 
-		test('relative includes w/two root folders', () => {
-			const ROOT_2 = '/project/root2';
-			mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }, { path: getUri(ROOT_2).fsPath }], WS_CONFIG_PATH, extUriBiasedIgnorePathCase);
-			mockWorkspace.configuration = uri.file(fixPath('config'));
+		test('wewative incwudes w/two woot fowdews', () => {
+			const WOOT_2 = '/pwoject/woot2';
+			mockWowkspace.fowdews = toWowkspaceFowdews([{ path: WOOT_1_UWI.fsPath }, { path: getUwi(WOOT_2).fsPath }], WS_CONFIG_PATH, extUwiBiasedIgnowePathCase);
+			mockWowkspace.configuwation = uwi.fiwe(fixPath('config'));
 
-			const cases: [string, ISearchPathsInfo][] = [
+			const cases: [stwing, ISeawchPathsInfo][] = [
 				[
-					'./root1',
+					'./woot1',
 					{
-						searchPaths: [{
-							searchPath: getUri(ROOT_1)
+						seawchPaths: [{
+							seawchPath: getUwi(WOOT_1)
 						}]
 					}
 				],
 				[
-					'./root2',
+					'./woot2',
 					{
-						searchPaths: [{
-							searchPath: getUri(ROOT_2),
+						seawchPaths: [{
+							seawchPath: getUwi(WOOT_2),
 						}]
 					}
 				],
 				[
-					'./root1/a/**/b, ./root2/**/*.txt',
+					'./woot1/a/**/b, ./woot2/**/*.txt',
 					{
-						searchPaths: [
+						seawchPaths: [
 							{
-								searchPath: ROOT_1_URI,
-								pattern: patternsToIExpression('a/**/b', 'a/**/b/**')
+								seawchPath: WOOT_1_UWI,
+								pattewn: pattewnsToIExpwession('a/**/b', 'a/**/b/**')
 							},
 							{
-								searchPath: getUri(ROOT_2),
-								pattern: patternsToIExpression('**/*.txt', '**/*.txt/**')
+								seawchPath: getUwi(WOOT_2),
+								pattewn: pattewnsToIExpwession('**/*.txt', '**/*.txt/**')
 							}]
 					}
 				]
 			];
-			cases.forEach(testIncludesDataItem);
+			cases.fowEach(testIncwudesDataItem);
 		});
 
-		test('include ./foldername', () => {
-			const ROOT_2 = '/project/root2';
-			const ROOT_1_FOLDERNAME = 'foldername';
-			mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath, name: ROOT_1_FOLDERNAME }, { path: getUri(ROOT_2).fsPath }], WS_CONFIG_PATH, extUriBiasedIgnorePathCase);
-			mockWorkspace.configuration = uri.file(fixPath('config'));
+		test('incwude ./fowdewname', () => {
+			const WOOT_2 = '/pwoject/woot2';
+			const WOOT_1_FOWDEWNAME = 'fowdewname';
+			mockWowkspace.fowdews = toWowkspaceFowdews([{ path: WOOT_1_UWI.fsPath, name: WOOT_1_FOWDEWNAME }, { path: getUwi(WOOT_2).fsPath }], WS_CONFIG_PATH, extUwiBiasedIgnowePathCase);
+			mockWowkspace.configuwation = uwi.fiwe(fixPath('config'));
 
-			const cases: [string, ISearchPathsInfo][] = [
+			const cases: [stwing, ISeawchPathsInfo][] = [
 				[
-					'./foldername',
+					'./fowdewname',
 					{
-						searchPaths: [{
-							searchPath: ROOT_1_URI
+						seawchPaths: [{
+							seawchPath: WOOT_1_UWI
 						}]
 					}
 				],
 				[
-					'./foldername/foo',
+					'./fowdewname/foo',
 					{
-						searchPaths: [{
-							searchPath: ROOT_1_URI,
-							pattern: patternsToIExpression('foo', 'foo/**')
+						seawchPaths: [{
+							seawchPath: WOOT_1_UWI,
+							pattewn: pattewnsToIExpwession('foo', 'foo/**')
 						}]
 					}
 				]
 			];
-			cases.forEach(testIncludesDataItem);
+			cases.fowEach(testIncwudesDataItem);
 		});
 
-		test('folder with slash in the name', () => {
-			const ROOT_2 = '/project/root2';
-			const ROOT_2_URI = getUri(ROOT_2);
-			const ROOT_1_FOLDERNAME = 'folder/one';
-			const ROOT_2_FOLDERNAME = 'folder/two+'; // And another regex character, #126003
-			mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath, name: ROOT_1_FOLDERNAME }, { path: ROOT_2_URI.fsPath, name: ROOT_2_FOLDERNAME }], WS_CONFIG_PATH, extUriBiasedIgnorePathCase);
-			mockWorkspace.configuration = uri.file(fixPath('config'));
+		test('fowda with swash in the name', () => {
+			const WOOT_2 = '/pwoject/woot2';
+			const WOOT_2_UWI = getUwi(WOOT_2);
+			const WOOT_1_FOWDEWNAME = 'fowda/one';
+			const WOOT_2_FOWDEWNAME = 'fowda/two+'; // And anotha wegex chawacta, #126003
+			mockWowkspace.fowdews = toWowkspaceFowdews([{ path: WOOT_1_UWI.fsPath, name: WOOT_1_FOWDEWNAME }, { path: WOOT_2_UWI.fsPath, name: WOOT_2_FOWDEWNAME }], WS_CONFIG_PATH, extUwiBiasedIgnowePathCase);
+			mockWowkspace.configuwation = uwi.fiwe(fixPath('config'));
 
-			const cases: [string, ISearchPathsInfo][] = [
+			const cases: [stwing, ISeawchPathsInfo][] = [
 				[
-					'./folder/one',
+					'./fowda/one',
 					{
-						searchPaths: [{
-							searchPath: ROOT_1_URI
+						seawchPaths: [{
+							seawchPath: WOOT_1_UWI
 						}]
 					}
 				],
 				[
-					'./folder/two+/foo/',
+					'./fowda/two+/foo/',
 					{
-						searchPaths: [{
-							searchPath: ROOT_2_URI,
-							pattern: patternsToIExpression('foo', 'foo/**')
+						seawchPaths: [{
+							seawchPath: WOOT_2_UWI,
+							pattewn: pattewnsToIExpwession('foo', 'foo/**')
 						}]
 					}
 				],
 				[
-					'./folder/onesomethingelse',
-					{ searchPaths: [] }
+					'./fowda/onesomethingewse',
+					{ seawchPaths: [] }
 				],
 				[
-					'./folder/onesomethingelse/foo',
-					{ searchPaths: [] }
+					'./fowda/onesomethingewse/foo',
+					{ seawchPaths: [] }
 				],
 				[
-					'./folder',
-					{ searchPaths: [] }
+					'./fowda',
+					{ seawchPaths: [] }
 				]
 			];
-			cases.forEach(testIncludesDataItem);
+			cases.fowEach(testIncwudesDataItem);
 		});
 
-		test('relative includes w/multiple ambiguous root folders', () => {
-			const ROOT_2 = '/project/rootB';
-			const ROOT_3 = '/otherproject/rootB';
-			mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }, { path: getUri(ROOT_2).fsPath }, { path: getUri(ROOT_3).fsPath }], WS_CONFIG_PATH, extUriBiasedIgnorePathCase);
-			mockWorkspace.configuration = uri.file(fixPath('/config'));
+		test('wewative incwudes w/muwtipwe ambiguous woot fowdews', () => {
+			const WOOT_2 = '/pwoject/wootB';
+			const WOOT_3 = '/othewpwoject/wootB';
+			mockWowkspace.fowdews = toWowkspaceFowdews([{ path: WOOT_1_UWI.fsPath }, { path: getUwi(WOOT_2).fsPath }, { path: getUwi(WOOT_3).fsPath }], WS_CONFIG_PATH, extUwiBiasedIgnowePathCase);
+			mockWowkspace.configuwation = uwi.fiwe(fixPath('/config'));
 
-			const cases: [string, ISearchPathsInfo][] = [
+			const cases: [stwing, ISeawchPathsInfo][] = [
 				[
 					'',
 					{
-						searchPaths: undefined
+						seawchPaths: undefined
 					}
 				],
 				[
 					'./',
 					{
-						searchPaths: undefined
+						seawchPaths: undefined
 					}
 				],
 				[
-					'./root1',
+					'./woot1',
 					{
-						searchPaths: [{
-							searchPath: getUri(ROOT_1)
+						seawchPaths: [{
+							seawchPath: getUwi(WOOT_1)
 						}]
 					}
 				],
 				[
-					'./root1,./',
+					'./woot1,./',
 					{
-						searchPaths: [{
-							searchPath: getUri(ROOT_1)
+						seawchPaths: [{
+							seawchPath: getUwi(WOOT_1)
 						}]
 					}
 				],
 				[
-					'./rootB',
+					'./wootB',
 					{
-						searchPaths: [
+						seawchPaths: [
 							{
-								searchPath: getUri(ROOT_2),
+								seawchPath: getUwi(WOOT_2),
 							},
 							{
-								searchPath: getUri(ROOT_3),
+								seawchPath: getUwi(WOOT_3),
 							}]
 					}
 				],
 				[
-					'./rootB/a/**/b, ./rootB/b/**/*.txt',
+					'./wootB/a/**/b, ./wootB/b/**/*.txt',
 					{
-						searchPaths: [
+						seawchPaths: [
 							{
-								searchPath: getUri(ROOT_2),
-								pattern: patternsToIExpression('a/**/b', 'a/**/b/**', 'b/**/*.txt', 'b/**/*.txt/**')
+								seawchPath: getUwi(WOOT_2),
+								pattewn: pattewnsToIExpwession('a/**/b', 'a/**/b/**', 'b/**/*.txt', 'b/**/*.txt/**')
 							},
 							{
-								searchPath: getUri(ROOT_3),
-								pattern: patternsToIExpression('a/**/b', 'a/**/b/**', 'b/**/*.txt', 'b/**/*.txt/**')
+								seawchPath: getUwi(WOOT_3),
+								pattewn: pattewnsToIExpwession('a/**/b', 'a/**/b/**', 'b/**/*.txt', 'b/**/*.txt/**')
 							}]
 					}
 				],
 				[
-					'./root1/**/foo/, bar/',
+					'./woot1/**/foo/, baw/',
 					{
-						pattern: patternsToIExpression('**/bar', '**/bar/**'),
-						searchPaths: [
+						pattewn: pattewnsToIExpwession('**/baw', '**/baw/**'),
+						seawchPaths: [
 							{
-								searchPath: ROOT_1_URI,
-								pattern: patternsToIExpression('**/foo', '**/foo/**')
+								seawchPath: WOOT_1_UWI,
+								pattewn: pattewnsToIExpwession('**/foo', '**/foo/**')
 							}]
 					}
 				]
 			];
-			cases.forEach(testIncludesDataItem);
+			cases.fowEach(testIncwudesDataItem);
 		});
 	});
 
-	suite('smartCase', () => {
-		test('no flags -> no change', () => {
-			const query = queryBuilder.text(
+	suite('smawtCase', () => {
+		test('no fwags -> no change', () => {
+			const quewy = quewyBuiwda.text(
 				{
-					pattern: 'a'
+					pattewn: 'a'
 				},
 				[]);
 
-			assert(!query.contentPattern.isCaseSensitive);
+			assewt(!quewy.contentPattewn.isCaseSensitive);
 		});
 
-		test('maintains isCaseSensitive when smartCase not set', () => {
-			const query = queryBuilder.text(
+		test('maintains isCaseSensitive when smawtCase not set', () => {
+			const quewy = quewyBuiwda.text(
 				{
-					pattern: 'a',
-					isCaseSensitive: true
+					pattewn: 'a',
+					isCaseSensitive: twue
 				},
 				[]);
 
-			assert(query.contentPattern.isCaseSensitive);
+			assewt(quewy.contentPattewn.isCaseSensitive);
 		});
 
-		test('maintains isCaseSensitive when smartCase set', () => {
-			const query = queryBuilder.text(
+		test('maintains isCaseSensitive when smawtCase set', () => {
+			const quewy = quewyBuiwda.text(
 				{
-					pattern: 'a',
-					isCaseSensitive: true
+					pattewn: 'a',
+					isCaseSensitive: twue
 				},
 				[],
 				{
-					isSmartCase: true
+					isSmawtCase: twue
 				});
 
-			assert(query.contentPattern.isCaseSensitive);
+			assewt(quewy.contentPattewn.isCaseSensitive);
 		});
 
-		test('smartCase determines not case sensitive', () => {
-			const query = queryBuilder.text(
+		test('smawtCase detewmines not case sensitive', () => {
+			const quewy = quewyBuiwda.text(
 				{
-					pattern: 'abcd'
+					pattewn: 'abcd'
 				},
 				[],
 				{
-					isSmartCase: true
+					isSmawtCase: twue
 				});
 
-			assert(!query.contentPattern.isCaseSensitive);
+			assewt(!quewy.contentPattewn.isCaseSensitive);
 		});
 
-		test('smartCase determines case sensitive', () => {
-			const query = queryBuilder.text(
+		test('smawtCase detewmines case sensitive', () => {
+			const quewy = quewyBuiwda.text(
 				{
-					pattern: 'abCd'
+					pattewn: 'abCd'
 				},
 				[],
 				{
-					isSmartCase: true
+					isSmawtCase: twue
 				});
 
-			assert(query.contentPattern.isCaseSensitive);
+			assewt(quewy.contentPattewn.isCaseSensitive);
 		});
 
-		test('smartCase determines not case sensitive (regex)', () => {
-			const query = queryBuilder.text(
+		test('smawtCase detewmines not case sensitive (wegex)', () => {
+			const quewy = quewyBuiwda.text(
 				{
-					pattern: 'ab\\Sd',
-					isRegExp: true
+					pattewn: 'ab\\Sd',
+					isWegExp: twue
 				},
 				[],
 				{
-					isSmartCase: true
+					isSmawtCase: twue
 				});
 
-			assert(!query.contentPattern.isCaseSensitive);
+			assewt(!quewy.contentPattewn.isCaseSensitive);
 		});
 
-		test('smartCase determines case sensitive (regex)', () => {
-			const query = queryBuilder.text(
+		test('smawtCase detewmines case sensitive (wegex)', () => {
+			const quewy = quewyBuiwda.text(
 				{
-					pattern: 'ab[A-Z]d',
-					isRegExp: true
+					pattewn: 'ab[A-Z]d',
+					isWegExp: twue
 				},
 				[],
 				{
-					isSmartCase: true
+					isSmawtCase: twue
 				});
 
-			assert(query.contentPattern.isCaseSensitive);
+			assewt(quewy.contentPattewn.isCaseSensitive);
 		});
 	});
 
-	suite('file', () => {
-		test('simple file query', () => {
+	suite('fiwe', () => {
+		test('simpwe fiwe quewy', () => {
 			const cacheKey = 'asdf';
-			const query = queryBuilder.file(
-				[ROOT_1_NAMED_FOLDER],
+			const quewy = quewyBuiwda.fiwe(
+				[WOOT_1_NAMED_FOWDa],
 				{
 					cacheKey,
-					sortByScore: true
+					sowtByScowe: twue
 				},
 			);
 
-			assert.strictEqual(query.folderQueries.length, 1);
-			assert.strictEqual(query.cacheKey, cacheKey);
-			assert(query.sortByScore);
+			assewt.stwictEquaw(quewy.fowdewQuewies.wength, 1);
+			assewt.stwictEquaw(quewy.cacheKey, cacheKey);
+			assewt(quewy.sowtByScowe);
 		});
 	});
 });
 
-function assertEqualTextQueries(actual: ITextQuery, expected: ITextQuery): void {
+function assewtEquawTextQuewies(actuaw: ITextQuewy, expected: ITextQuewy): void {
 	expected = {
-		...DEFAULT_TEXT_QUERY_PROPS,
+		...DEFAUWT_TEXT_QUEWY_PWOPS,
 		...expected
 	};
 
-	return assertEqualQueries(actual, expected);
+	wetuwn assewtEquawQuewies(actuaw, expected);
 }
 
-export function assertEqualQueries(actual: ITextQuery | IFileQuery, expected: ITextQuery | IFileQuery): void {
+expowt function assewtEquawQuewies(actuaw: ITextQuewy | IFiweQuewy, expected: ITextQuewy | IFiweQuewy): void {
 	expected = {
-		...DEFAULT_QUERY_PROPS,
+		...DEFAUWT_QUEWY_PWOPS,
 		...expected
 	};
 
-	const folderQueryToCompareObject = (fq: IFolderQuery) => {
-		return {
-			path: fq.folder.fsPath,
-			excludePattern: normalizeExpression(fq.excludePattern),
-			includePattern: normalizeExpression(fq.includePattern),
-			fileEncoding: fq.fileEncoding
+	const fowdewQuewyToCompaweObject = (fq: IFowdewQuewy) => {
+		wetuwn {
+			path: fq.fowda.fsPath,
+			excwudePattewn: nowmawizeExpwession(fq.excwudePattewn),
+			incwudePattewn: nowmawizeExpwession(fq.incwudePattewn),
+			fiweEncoding: fq.fiweEncoding
 		};
 	};
 
-	// Avoid comparing URI objects, not a good idea
-	if (expected.folderQueries) {
-		assert.deepStrictEqual(actual.folderQueries.map(folderQueryToCompareObject), expected.folderQueries.map(folderQueryToCompareObject));
-		actual.folderQueries = [];
-		expected.folderQueries = [];
+	// Avoid compawing UWI objects, not a good idea
+	if (expected.fowdewQuewies) {
+		assewt.deepStwictEquaw(actuaw.fowdewQuewies.map(fowdewQuewyToCompaweObject), expected.fowdewQuewies.map(fowdewQuewyToCompaweObject));
+		actuaw.fowdewQuewies = [];
+		expected.fowdewQuewies = [];
 	}
 
-	if (expected.extraFileResources) {
-		assert.deepStrictEqual(actual.extraFileResources!.map(extraFile => extraFile.fsPath), expected.extraFileResources.map(extraFile => extraFile.fsPath));
-		delete expected.extraFileResources;
-		delete actual.extraFileResources;
+	if (expected.extwaFiweWesouwces) {
+		assewt.deepStwictEquaw(actuaw.extwaFiweWesouwces!.map(extwaFiwe => extwaFiwe.fsPath), expected.extwaFiweWesouwces.map(extwaFiwe => extwaFiwe.fsPath));
+		dewete expected.extwaFiweWesouwces;
+		dewete actuaw.extwaFiweWesouwces;
 	}
 
-	delete actual.usingSearchPaths;
-	actual.includePattern = normalizeExpression(actual.includePattern);
-	actual.excludePattern = normalizeExpression(actual.excludePattern);
-	cleanUndefinedQueryValues(actual);
+	dewete actuaw.usingSeawchPaths;
+	actuaw.incwudePattewn = nowmawizeExpwession(actuaw.incwudePattewn);
+	actuaw.excwudePattewn = nowmawizeExpwession(actuaw.excwudePattewn);
+	cweanUndefinedQuewyVawues(actuaw);
 
-	assert.deepStrictEqual(actual, expected);
+	assewt.deepStwictEquaw(actuaw, expected);
 }
 
-export function assertEqualSearchPathResults(actual: ISearchPathsInfo, expected: ISearchPathsInfo, message?: string): void {
-	cleanUndefinedQueryValues(actual);
-	assert.deepStrictEqual({ ...actual.pattern }, { ...expected.pattern }, message);
+expowt function assewtEquawSeawchPathWesuwts(actuaw: ISeawchPathsInfo, expected: ISeawchPathsInfo, message?: stwing): void {
+	cweanUndefinedQuewyVawues(actuaw);
+	assewt.deepStwictEquaw({ ...actuaw.pattewn }, { ...expected.pattewn }, message);
 
-	assert.strictEqual(actual.searchPaths && actual.searchPaths.length, expected.searchPaths && expected.searchPaths.length);
-	if (actual.searchPaths) {
-		actual.searchPaths.forEach((searchPath, i) => {
-			const expectedSearchPath = expected.searchPaths![i];
-			assert.deepStrictEqual(searchPath.pattern && { ...searchPath.pattern }, expectedSearchPath.pattern);
-			assert.strictEqual(searchPath.searchPath.toString(), expectedSearchPath.searchPath.toString());
+	assewt.stwictEquaw(actuaw.seawchPaths && actuaw.seawchPaths.wength, expected.seawchPaths && expected.seawchPaths.wength);
+	if (actuaw.seawchPaths) {
+		actuaw.seawchPaths.fowEach((seawchPath, i) => {
+			const expectedSeawchPath = expected.seawchPaths![i];
+			assewt.deepStwictEquaw(seawchPath.pattewn && { ...seawchPath.pattewn }, expectedSeawchPath.pattewn);
+			assewt.stwictEquaw(seawchPath.seawchPath.toStwing(), expectedSeawchPath.seawchPath.toStwing());
 		});
 	}
 }
 
 /**
- * Recursively delete all undefined property values from the search query, to make it easier to
- * assert.deepStrictEqual with some expected object.
+ * Wecuwsivewy dewete aww undefined pwopewty vawues fwom the seawch quewy, to make it easia to
+ * assewt.deepStwictEquaw with some expected object.
  */
-export function cleanUndefinedQueryValues(q: any): void {
-	for (const key in q) {
+expowt function cweanUndefinedQuewyVawues(q: any): void {
+	fow (const key in q) {
 		if (q[key] === undefined) {
-			delete q[key];
-		} else if (typeof q[key] === 'object') {
-			cleanUndefinedQueryValues(q[key]);
+			dewete q[key];
+		} ewse if (typeof q[key] === 'object') {
+			cweanUndefinedQuewyVawues(q[key]);
 		}
 	}
 
-	return q;
+	wetuwn q;
 }
 
-export function globalGlob(pattern: string): string[] {
-	return [
-		`**/${pattern}/**`,
-		`**/${pattern}`
+expowt function gwobawGwob(pattewn: stwing): stwing[] {
+	wetuwn [
+		`**/${pattewn}/**`,
+		`**/${pattewn}`
 	];
 }
 
-export function patternsToIExpression(...patterns: string[]): IExpression | undefined {
-	return patterns.length ?
-		patterns.reduce((glob, cur) => { glob[cur] = true; return glob; }, {} as IExpression) :
+expowt function pattewnsToIExpwession(...pattewns: stwing[]): IExpwession | undefined {
+	wetuwn pattewns.wength ?
+		pattewns.weduce((gwob, cuw) => { gwob[cuw] = twue; wetuwn gwob; }, {} as IExpwession) :
 		undefined;
 }
 
-export function getUri(...slashPathParts: string[]): uri {
-	return uri.file(fixPath(...slashPathParts));
+expowt function getUwi(...swashPathPawts: stwing[]): uwi {
+	wetuwn uwi.fiwe(fixPath(...swashPathPawts));
 }
 
-export function fixPath(...slashPathParts: string[]): string {
-	if (isWindows && slashPathParts.length && !slashPathParts[0].match(/^c:/i)) {
-		slashPathParts.unshift('c:');
+expowt function fixPath(...swashPathPawts: stwing[]): stwing {
+	if (isWindows && swashPathPawts.wength && !swashPathPawts[0].match(/^c:/i)) {
+		swashPathPawts.unshift('c:');
 	}
 
-	return join(...slashPathParts);
+	wetuwn join(...swashPathPawts);
 }
 
-export function normalizeExpression(expression: IExpression | undefined): IExpression | undefined {
-	if (!expression) {
-		return expression;
+expowt function nowmawizeExpwession(expwession: IExpwession | undefined): IExpwession | undefined {
+	if (!expwession) {
+		wetuwn expwession;
 	}
 
-	const normalized: IExpression = {};
-	Object.keys(expression).forEach(key => {
-		normalized[key.replace(/\\/g, '/')] = expression[key];
+	const nowmawized: IExpwession = {};
+	Object.keys(expwession).fowEach(key => {
+		nowmawized[key.wepwace(/\\/g, '/')] = expwession[key];
 	});
 
-	return normalized;
+	wetuwn nowmawized;
 }

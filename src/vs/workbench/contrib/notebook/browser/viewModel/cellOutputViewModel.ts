@@ -1,71 +1,71 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICellOutputViewModel, IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ICellOutput, IOrderedMimeType, mimeTypeIsMergeable, RENDERER_NOT_AVAILABLE } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ICewwOutputViewModew, IGenewicCewwViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { NotebookTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookTextModew';
+impowt { ICewwOutput, IOwdewedMimeType, mimeTypeIsMewgeabwe, WENDEWEW_NOT_AVAIWABWE } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { INotebookSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookSewvice';
 
-let handle = 0;
-export class CellOutputViewModel extends Disposable implements ICellOutputViewModel {
-	outputHandle = handle++;
-	get model(): ICellOutput {
-		return this._outputRawData;
+wet handwe = 0;
+expowt cwass CewwOutputViewModew extends Disposabwe impwements ICewwOutputViewModew {
+	outputHandwe = handwe++;
+	get modew(): ICewwOutput {
+		wetuwn this._outputWawData;
 	}
 
-	private _pickedMimeType: IOrderedMimeType | undefined;
+	pwivate _pickedMimeType: IOwdewedMimeType | undefined;
 	get pickedMimeType() {
-		return this._pickedMimeType;
+		wetuwn this._pickedMimeType;
 	}
 
-	set pickedMimeType(value: IOrderedMimeType | undefined) {
-		this._pickedMimeType = value;
+	set pickedMimeType(vawue: IOwdewedMimeType | undefined) {
+		this._pickedMimeType = vawue;
 	}
 
-	constructor(
-		readonly cellViewModel: IGenericCellViewModel,
-		private readonly _outputRawData: ICellOutput,
-		private readonly _notebookService: INotebookService
+	constwuctow(
+		weadonwy cewwViewModew: IGenewicCewwViewModew,
+		pwivate weadonwy _outputWawData: ICewwOutput,
+		pwivate weadonwy _notebookSewvice: INotebookSewvice
 	) {
-		super();
+		supa();
 	}
 
-	hasMultiMimeType() {
-		if (this._outputRawData.outputs.length < 2) {
-			return false;
+	hasMuwtiMimeType() {
+		if (this._outputWawData.outputs.wength < 2) {
+			wetuwn fawse;
 		}
 
-		const firstMimeType = this._outputRawData.outputs[0].mime;
-		return this._outputRawData.outputs.some(output => output.mime !== firstMimeType);
+		const fiwstMimeType = this._outputWawData.outputs[0].mime;
+		wetuwn this._outputWawData.outputs.some(output => output.mime !== fiwstMimeType);
 	}
 
-	supportAppend() {
-		// if there is any mime type that's not mergeable then the whole output is not mergeable.
-		return this._outputRawData.outputs.every(op => mimeTypeIsMergeable(op.mime));
+	suppowtAppend() {
+		// if thewe is any mime type that's not mewgeabwe then the whowe output is not mewgeabwe.
+		wetuwn this._outputWawData.outputs.evewy(op => mimeTypeIsMewgeabwe(op.mime));
 	}
 
-	resolveMimeTypes(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined): [readonly IOrderedMimeType[], number] {
-		const mimeTypes = this._notebookService.getOutputMimeTypeInfo(textModel, kernelProvides, this.model);
-		let index = -1;
+	wesowveMimeTypes(textModew: NotebookTextModew, kewnewPwovides: weadonwy stwing[] | undefined): [weadonwy IOwdewedMimeType[], numba] {
+		const mimeTypes = this._notebookSewvice.getOutputMimeTypeInfo(textModew, kewnewPwovides, this.modew);
+		wet index = -1;
 		if (this._pickedMimeType) {
-			index = mimeTypes.findIndex(mimeType => mimeType.rendererId === this._pickedMimeType!.rendererId && mimeType.mimeType === this._pickedMimeType!.mimeType && mimeType.isTrusted);
+			index = mimeTypes.findIndex(mimeType => mimeType.wendewewId === this._pickedMimeType!.wendewewId && mimeType.mimeType === this._pickedMimeType!.mimeType && mimeType.isTwusted);
 		}
 
-		// there is at least one mimetype which is safe and can be rendered by the core
+		// thewe is at weast one mimetype which is safe and can be wendewed by the cowe
 		if (index === -1) {
-			index = mimeTypes.findIndex(mimeType => mimeType.rendererId !== RENDERER_NOT_AVAILABLE && mimeType.isTrusted);
+			index = mimeTypes.findIndex(mimeType => mimeType.wendewewId !== WENDEWEW_NOT_AVAIWABWE && mimeType.isTwusted);
 		}
 
-		return [mimeTypes, Math.max(index, 0)];
+		wetuwn [mimeTypes, Math.max(index, 0)];
 	}
 
-	toRawJSON() {
-		return {
-			outputs: this._outputRawData.outputs,
-			// TODO@rebronix, no id, right?
+	toWawJSON() {
+		wetuwn {
+			outputs: this._outputWawData.outputs,
+			// TODO@webwonix, no id, wight?
 		};
 	}
 }

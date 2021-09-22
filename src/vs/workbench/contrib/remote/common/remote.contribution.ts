@@ -1,259 +1,259 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ILabelService, ResourceLabelFormatting } from 'vs/platform/label/common/label';
-import { OperatingSystem, isWeb, OS } from 'vs/base/common/platform';
-import { Schemas } from 'vs/base/common/network';
-import { IRemoteAgentService, RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
-import { IOutputChannelRegistry, Extensions as OutputExt, } from 'vs/workbench/services/output/common/output';
-import { localize } from 'vs/nls';
-import { joinPath } from 'vs/base/common/resources';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { TunnelFactoryContribution } from 'vs/workbench/contrib/remote/common/tunnelFactory';
-import { ShowCandidateContribution } from 'vs/workbench/contrib/remote/common/showCandidate';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
+impowt { IWowkbenchContwibution, IWowkbenchContwibutionsWegistwy, Extensions as WowkbenchExtensions } fwom 'vs/wowkbench/common/contwibutions';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IWabewSewvice, WesouwceWabewFowmatting } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { OpewatingSystem, isWeb, OS } fwom 'vs/base/common/pwatfowm';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IWemoteAgentSewvice, WemoteExtensionWogFiweName } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { WogWevewChannewCwient } fwom 'vs/pwatfowm/wog/common/wogIpc';
+impowt { IOutputChannewWegistwy, Extensions as OutputExt, } fwom 'vs/wowkbench/sewvices/output/common/output';
+impowt { wocawize } fwom 'vs/nws';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { TunnewFactowyContwibution } fwom 'vs/wowkbench/contwib/wemote/common/tunnewFactowy';
+impowt { ShowCandidateContwibution } fwom 'vs/wowkbench/contwib/wemote/common/showCandidate';
+impowt { IConfiguwationWegistwy, Extensions as ConfiguwationExtensions } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { IJSONSchema } fwom 'vs/base/common/jsonSchema';
 
-export class LabelContribution implements IWorkbenchContribution {
-	constructor(
-		@ILabelService private readonly labelService: ILabelService,
-		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService) {
-		this.registerFormatters();
+expowt cwass WabewContwibution impwements IWowkbenchContwibution {
+	constwuctow(
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice,
+		@IWemoteAgentSewvice pwivate weadonwy wemoteAgentSewvice: IWemoteAgentSewvice) {
+		this.wegistewFowmattews();
 	}
 
-	private registerFormatters(): void {
-		this.remoteAgentService.getEnvironment().then(remoteEnvironment => {
-			const os = remoteEnvironment?.os || OS;
-			const formatting: ResourceLabelFormatting = {
-				label: '${path}',
-				separator: os === OperatingSystem.Windows ? '\\' : '/',
-				tildify: os !== OperatingSystem.Windows,
-				normalizeDriveLetter: os === OperatingSystem.Windows,
-				workspaceSuffix: isWeb ? undefined : Schemas.vscodeRemote
+	pwivate wegistewFowmattews(): void {
+		this.wemoteAgentSewvice.getEnviwonment().then(wemoteEnviwonment => {
+			const os = wemoteEnviwonment?.os || OS;
+			const fowmatting: WesouwceWabewFowmatting = {
+				wabew: '${path}',
+				sepawatow: os === OpewatingSystem.Windows ? '\\' : '/',
+				tiwdify: os !== OpewatingSystem.Windows,
+				nowmawizeDwiveWetta: os === OpewatingSystem.Windows,
+				wowkspaceSuffix: isWeb ? undefined : Schemas.vscodeWemote
 			};
-			this.labelService.registerFormatter({
-				scheme: Schemas.vscodeRemote,
-				formatting
+			this.wabewSewvice.wegistewFowmatta({
+				scheme: Schemas.vscodeWemote,
+				fowmatting
 			});
 
-			if (remoteEnvironment) {
-				this.labelService.registerFormatter({
-					scheme: Schemas.userData,
-					formatting
+			if (wemoteEnviwonment) {
+				this.wabewSewvice.wegistewFowmatta({
+					scheme: Schemas.usewData,
+					fowmatting
 				});
 			}
 		});
 	}
 }
 
-class RemoteChannelsContribution extends Disposable implements IWorkbenchContribution {
+cwass WemoteChannewsContwibution extends Disposabwe impwements IWowkbenchContwibution {
 
-	constructor(
-		@ILogService logService: ILogService,
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+	constwuctow(
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@IWemoteAgentSewvice wemoteAgentSewvice: IWemoteAgentSewvice,
 	) {
-		super();
-		const updateRemoteLogLevel = () => {
-			const connection = remoteAgentService.getConnection();
+		supa();
+		const updateWemoteWogWevew = () => {
+			const connection = wemoteAgentSewvice.getConnection();
 			if (!connection) {
-				return;
+				wetuwn;
 			}
-			connection.withChannel('logger', (channel) => LogLevelChannelClient.setLevel(channel, logService.getLevel()));
+			connection.withChannew('wogga', (channew) => WogWevewChannewCwient.setWevew(channew, wogSewvice.getWevew()));
 		};
-		updateRemoteLogLevel();
-		this._register(logService.onDidChangeLogLevel(updateRemoteLogLevel));
+		updateWemoteWogWevew();
+		this._wegista(wogSewvice.onDidChangeWogWevew(updateWemoteWogWevew));
 	}
 }
 
-class RemoteLogOutputChannels implements IWorkbenchContribution {
+cwass WemoteWogOutputChannews impwements IWowkbenchContwibution {
 
-	constructor(
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService
+	constwuctow(
+		@IWemoteAgentSewvice wemoteAgentSewvice: IWemoteAgentSewvice
 	) {
-		remoteAgentService.getEnvironment().then(remoteEnv => {
-			if (remoteEnv) {
-				const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
-				outputChannelRegistry.registerChannel({ id: 'remoteExtensionLog', label: localize('remoteExtensionLog', "Remote Server"), file: joinPath(remoteEnv.logsPath, `${RemoteExtensionLogFileName}.log`), log: true });
+		wemoteAgentSewvice.getEnviwonment().then(wemoteEnv => {
+			if (wemoteEnv) {
+				const outputChannewWegistwy = Wegistwy.as<IOutputChannewWegistwy>(OutputExt.OutputChannews);
+				outputChannewWegistwy.wegistewChannew({ id: 'wemoteExtensionWog', wabew: wocawize('wemoteExtensionWog', "Wemote Sewva"), fiwe: joinPath(wemoteEnv.wogsPath, `${WemoteExtensionWogFiweName}.wog`), wog: twue });
 			}
 		});
 	}
 }
 
-const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(LabelContribution, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteLogOutputChannels, LifecyclePhase.Restored);
-workbenchContributionsRegistry.registerWorkbenchContribution(TunnelFactoryContribution, LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(ShowCandidateContribution, LifecyclePhase.Ready);
+const wowkbenchContwibutionsWegistwy = Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench);
+wowkbenchContwibutionsWegistwy.wegistewWowkbenchContwibution(WabewContwibution, WifecycwePhase.Stawting);
+wowkbenchContwibutionsWegistwy.wegistewWowkbenchContwibution(WemoteChannewsContwibution, WifecycwePhase.Stawting);
+wowkbenchContwibutionsWegistwy.wegistewWowkbenchContwibution(WemoteWogOutputChannews, WifecycwePhase.Westowed);
+wowkbenchContwibutionsWegistwy.wegistewWowkbenchContwibution(TunnewFactowyContwibution, WifecycwePhase.Weady);
+wowkbenchContwibutionsWegistwy.wegistewWowkbenchContwibution(ShowCandidateContwibution, WifecycwePhase.Weady);
 
 const extensionKindSchema: IJSONSchema = {
-	type: 'string',
+	type: 'stwing',
 	enum: [
 		'ui',
-		'workspace'
+		'wowkspace'
 	],
-	enumDescriptions: [
-		localize('ui', "UI extension kind. In a remote window, such extensions are enabled only when available on the local machine."),
-		localize('workspace', "Workspace extension kind. In a remote window, such extensions are enabled only when available on the remote.")
+	enumDescwiptions: [
+		wocawize('ui', "UI extension kind. In a wemote window, such extensions awe enabwed onwy when avaiwabwe on the wocaw machine."),
+		wocawize('wowkspace', "Wowkspace extension kind. In a wemote window, such extensions awe enabwed onwy when avaiwabwe on the wemote.")
 	],
 };
 
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-	.registerConfiguration({
-		id: 'remote',
-		title: localize('remote', "Remote"),
+Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation)
+	.wegistewConfiguwation({
+		id: 'wemote',
+		titwe: wocawize('wemote', "Wemote"),
 		type: 'object',
-		properties: {
-			'remote.extensionKind': {
+		pwopewties: {
+			'wemote.extensionKind': {
 				type: 'object',
-				markdownDescription: localize('remote.extensionKind', "Override the kind of an extension. `ui` extensions are installed and run on the local machine while `workspace` extensions are run on the remote. By overriding an extension's default kind using this setting, you specify if that extension should be installed and enabled locally or remotely."),
-				patternProperties: {
+				mawkdownDescwiption: wocawize('wemote.extensionKind', "Ovewwide the kind of an extension. `ui` extensions awe instawwed and wun on the wocaw machine whiwe `wowkspace` extensions awe wun on the wemote. By ovewwiding an extension's defauwt kind using this setting, you specify if that extension shouwd be instawwed and enabwed wocawwy ow wemotewy."),
+				pattewnPwopewties: {
 					'([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
-						oneOf: [{ type: 'array', items: extensionKindSchema }, extensionKindSchema],
-						default: ['ui'],
+						oneOf: [{ type: 'awway', items: extensionKindSchema }, extensionKindSchema],
+						defauwt: ['ui'],
 					},
 				},
-				default: {
+				defauwt: {
 					'pub.name': ['ui']
 				}
 			},
-			'remote.restoreForwardedPorts': {
-				type: 'boolean',
-				markdownDescription: localize('remote.restoreForwardedPorts', "Restores the ports you forwarded in a workspace."),
-				default: true
+			'wemote.westoweFowwawdedPowts': {
+				type: 'boowean',
+				mawkdownDescwiption: wocawize('wemote.westoweFowwawdedPowts', "Westowes the powts you fowwawded in a wowkspace."),
+				defauwt: twue
 			},
-			'remote.autoForwardPorts': {
-				type: 'boolean',
-				markdownDescription: localize('remote.autoForwardPorts', "When enabled, new running processes are detected and ports that they listen on are automatically forwarded. Disabling this setting will not prevent all ports from being forwarded. Even when disabled, extensions will still be able to cause ports to be forwarded, and opening some URLs will still cause ports to forwarded."),
-				default: true
+			'wemote.autoFowwawdPowts': {
+				type: 'boowean',
+				mawkdownDescwiption: wocawize('wemote.autoFowwawdPowts', "When enabwed, new wunning pwocesses awe detected and powts that they wisten on awe automaticawwy fowwawded. Disabwing this setting wiww not pwevent aww powts fwom being fowwawded. Even when disabwed, extensions wiww stiww be abwe to cause powts to be fowwawded, and opening some UWWs wiww stiww cause powts to fowwawded."),
+				defauwt: twue
 			},
-			'remote.autoForwardPortsSource': {
-				type: 'string',
-				markdownDescription: localize('remote.autoForwardPortsSource', "Sets the source from which ports are automatically forwarded when `remote.autoForwardPorts` is true. On Windows and Mac remotes, the `process` option has no effect and `output` will be used. Requires a reload to take effect."),
-				enum: ['process', 'output'],
-				enumDescriptions: [
-					localize('remote.autoForwardPortsSource.process', "Ports will be automatically forwarded when discovered by watching for processes that are started and include a port."),
-					localize('remote.autoForwardPortsSource.output', "Ports will be automatically forwarded when discovered by reading terminal and debug output. Not all processes that use ports will print to the integrated terminal or debug console, so some ports will be missed. Ports forwarded based on output will not be \"un-forwarded\" until reload or until the port is closed by the user in the Ports view.")
+			'wemote.autoFowwawdPowtsSouwce': {
+				type: 'stwing',
+				mawkdownDescwiption: wocawize('wemote.autoFowwawdPowtsSouwce', "Sets the souwce fwom which powts awe automaticawwy fowwawded when `wemote.autoFowwawdPowts` is twue. On Windows and Mac wemotes, the `pwocess` option has no effect and `output` wiww be used. Wequiwes a wewoad to take effect."),
+				enum: ['pwocess', 'output'],
+				enumDescwiptions: [
+					wocawize('wemote.autoFowwawdPowtsSouwce.pwocess', "Powts wiww be automaticawwy fowwawded when discovewed by watching fow pwocesses that awe stawted and incwude a powt."),
+					wocawize('wemote.autoFowwawdPowtsSouwce.output', "Powts wiww be automaticawwy fowwawded when discovewed by weading tewminaw and debug output. Not aww pwocesses that use powts wiww pwint to the integwated tewminaw ow debug consowe, so some powts wiww be missed. Powts fowwawded based on output wiww not be \"un-fowwawded\" untiw wewoad ow untiw the powt is cwosed by the usa in the Powts view.")
 				],
-				default: 'process'
+				defauwt: 'pwocess'
 			},
-			// Consider making changes to extensions\configuration-editing\schemas\devContainer.schema.src.json
-			// and extensions\configuration-editing\schemas\attachContainer.schema.json
-			// to keep in sync with devcontainer.json schema.
-			'remote.portsAttributes': {
+			// Consida making changes to extensions\configuwation-editing\schemas\devContaina.schema.swc.json
+			// and extensions\configuwation-editing\schemas\attachContaina.schema.json
+			// to keep in sync with devcontaina.json schema.
+			'wemote.powtsAttwibutes': {
 				type: 'object',
-				patternProperties: {
+				pattewnPwopewties: {
 					'(^\\d+(\\-\\d+)?$)|(.+)': {
 						type: 'object',
-						description: localize('remote.portsAttributes.port', "A port, range of ports (ex. \"40000-55000\"), host and port (ex. \"db:1234\"), or regular expression (ex. \".+\\\\/server.js\").  For a port number or range, the attributes will apply to that port number or range of port numbers. Attributes which use a regular expression will apply to ports whose associated process command line matches the expression."),
-						properties: {
-							'onAutoForward': {
-								type: 'string',
-								enum: ['notify', 'openBrowser', 'openBrowserOnce', 'openPreview', 'silent', 'ignore'],
-								enumDescriptions: [
-									localize('remote.portsAttributes.notify', "Shows a notification when a port is automatically forwarded."),
-									localize('remote.portsAttributes.openBrowser', "Opens the browser when the port is automatically forwarded. Depending on your settings, this could open an embedded browser."),
-									localize('remote.portsAttributes.openBrowserOnce', "Opens the browser when the port is automatically forwarded, but only the first time the port is forward during a session. Depending on your settings, this could open an embedded browser."),
-									localize('remote.portsAttributes.openPreview', "Opens a preview in the same window when the port is automatically forwarded."),
-									localize('remote.portsAttributes.silent', "Shows no notification and takes no action when this port is automatically forwarded."),
-									localize('remote.portsAttributes.ignore', "This port will not be automatically forwarded.")
+						descwiption: wocawize('wemote.powtsAttwibutes.powt', "A powt, wange of powts (ex. \"40000-55000\"), host and powt (ex. \"db:1234\"), ow weguwaw expwession (ex. \".+\\\\/sewva.js\").  Fow a powt numba ow wange, the attwibutes wiww appwy to that powt numba ow wange of powt numbews. Attwibutes which use a weguwaw expwession wiww appwy to powts whose associated pwocess command wine matches the expwession."),
+						pwopewties: {
+							'onAutoFowwawd': {
+								type: 'stwing',
+								enum: ['notify', 'openBwowsa', 'openBwowsewOnce', 'openPweview', 'siwent', 'ignowe'],
+								enumDescwiptions: [
+									wocawize('wemote.powtsAttwibutes.notify', "Shows a notification when a powt is automaticawwy fowwawded."),
+									wocawize('wemote.powtsAttwibutes.openBwowsa', "Opens the bwowsa when the powt is automaticawwy fowwawded. Depending on youw settings, this couwd open an embedded bwowsa."),
+									wocawize('wemote.powtsAttwibutes.openBwowsewOnce', "Opens the bwowsa when the powt is automaticawwy fowwawded, but onwy the fiwst time the powt is fowwawd duwing a session. Depending on youw settings, this couwd open an embedded bwowsa."),
+									wocawize('wemote.powtsAttwibutes.openPweview', "Opens a pweview in the same window when the powt is automaticawwy fowwawded."),
+									wocawize('wemote.powtsAttwibutes.siwent', "Shows no notification and takes no action when this powt is automaticawwy fowwawded."),
+									wocawize('wemote.powtsAttwibutes.ignowe', "This powt wiww not be automaticawwy fowwawded.")
 								],
-								description: localize('remote.portsAttributes.onForward', "Defines the action that occurs when the port is discovered for automatic forwarding"),
-								default: 'notify'
+								descwiption: wocawize('wemote.powtsAttwibutes.onFowwawd', "Defines the action that occuws when the powt is discovewed fow automatic fowwawding"),
+								defauwt: 'notify'
 							},
-							'elevateIfNeeded': {
-								type: 'boolean',
-								description: localize('remote.portsAttributes.elevateIfNeeded', "Automatically prompt for elevation (if needed) when this port is forwarded. Elevate is required if the local port is a privileged port."),
-								default: false
+							'ewevateIfNeeded': {
+								type: 'boowean',
+								descwiption: wocawize('wemote.powtsAttwibutes.ewevateIfNeeded', "Automaticawwy pwompt fow ewevation (if needed) when this powt is fowwawded. Ewevate is wequiwed if the wocaw powt is a pwiviweged powt."),
+								defauwt: fawse
 							},
-							'label': {
-								type: 'string',
-								description: localize('remote.portsAttributes.label', "Label that will be shown in the UI for this port."),
-								default: localize('remote.portsAttributes.labelDefault', "Application")
+							'wabew': {
+								type: 'stwing',
+								descwiption: wocawize('wemote.powtsAttwibutes.wabew', "Wabew that wiww be shown in the UI fow this powt."),
+								defauwt: wocawize('wemote.powtsAttwibutes.wabewDefauwt', "Appwication")
 							},
-							'requireLocalPort': {
-								type: 'boolean',
-								markdownDescription: localize('remote.portsAttributes.requireLocalPort', "When true, a modal dialog will show if the chosen local port isn't used for forwarding."),
-								default: false
+							'wequiweWocawPowt': {
+								type: 'boowean',
+								mawkdownDescwiption: wocawize('wemote.powtsAttwibutes.wequiweWocawPowt', "When twue, a modaw diawog wiww show if the chosen wocaw powt isn't used fow fowwawding."),
+								defauwt: fawse
 							},
-							'protocol': {
-								type: 'string',
+							'pwotocow': {
+								type: 'stwing',
 								enum: ['http', 'https'],
-								description: localize('remote.portsAttributes.protocol', "The protocol to use when forwarding this port.")
+								descwiption: wocawize('wemote.powtsAttwibutes.pwotocow', "The pwotocow to use when fowwawding this powt.")
 							}
 						},
-						default: {
-							'label': localize('remote.portsAttributes.labelDefault', "Application"),
-							'onAutoForward': 'notify'
+						defauwt: {
+							'wabew': wocawize('wemote.powtsAttwibutes.wabewDefauwt', "Appwication"),
+							'onAutoFowwawd': 'notify'
 						}
 					}
 				},
-				markdownDescription: localize('remote.portsAttributes', "Set properties that are applied when a specific port number is forwarded. For example:\n\n```\n\"3000\": {\n  \"label\": \"Application\"\n},\n\"40000-55000\": {\n  \"onAutoForward\": \"ignore\"\n},\n\".+\\\\/server.js\": {\n \"onAutoForward\": \"openPreview\"\n}\n```"),
-				defaultSnippets: [{ body: { '${1:3000}': { label: '${2:Application}', onAutoForward: 'openPreview' } } }],
-				errorMessage: localize('remote.portsAttributes.patternError', "Must be a port number, range of port numbers, or regular expression."),
-				additionalProperties: false,
-				default: {
+				mawkdownDescwiption: wocawize('wemote.powtsAttwibutes', "Set pwopewties that awe appwied when a specific powt numba is fowwawded. Fow exampwe:\n\n```\n\"3000\": {\n  \"wabew\": \"Appwication\"\n},\n\"40000-55000\": {\n  \"onAutoFowwawd\": \"ignowe\"\n},\n\".+\\\\/sewva.js\": {\n \"onAutoFowwawd\": \"openPweview\"\n}\n```"),
+				defauwtSnippets: [{ body: { '${1:3000}': { wabew: '${2:Appwication}', onAutoFowwawd: 'openPweview' } } }],
+				ewwowMessage: wocawize('wemote.powtsAttwibutes.pattewnEwwow', "Must be a powt numba, wange of powt numbews, ow weguwaw expwession."),
+				additionawPwopewties: fawse,
+				defauwt: {
 					'443': {
-						'protocol': 'https'
+						'pwotocow': 'https'
 					},
 					'8443': {
-						'protocol': 'https'
+						'pwotocow': 'https'
 					}
 				}
 			},
-			'remote.otherPortsAttributes': {
+			'wemote.othewPowtsAttwibutes': {
 				type: 'object',
-				properties: {
-					'onAutoForward': {
-						type: 'string',
-						enum: ['notify', 'openBrowser', 'openPreview', 'silent', 'ignore'],
-						enumDescriptions: [
-							localize('remote.portsAttributes.notify', "Shows a notification when a port is automatically forwarded."),
-							localize('remote.portsAttributes.openBrowser', "Opens the browser when the port is automatically forwarded. Depending on your settings, this could open an embedded browser."),
-							localize('remote.portsAttributes.openPreview', "Opens a preview in the same window when the port is automatically forwarded."),
-							localize('remote.portsAttributes.silent', "Shows no notification and takes no action when this port is automatically forwarded."),
-							localize('remote.portsAttributes.ignore', "This port will not be automatically forwarded.")
+				pwopewties: {
+					'onAutoFowwawd': {
+						type: 'stwing',
+						enum: ['notify', 'openBwowsa', 'openPweview', 'siwent', 'ignowe'],
+						enumDescwiptions: [
+							wocawize('wemote.powtsAttwibutes.notify', "Shows a notification when a powt is automaticawwy fowwawded."),
+							wocawize('wemote.powtsAttwibutes.openBwowsa', "Opens the bwowsa when the powt is automaticawwy fowwawded. Depending on youw settings, this couwd open an embedded bwowsa."),
+							wocawize('wemote.powtsAttwibutes.openPweview', "Opens a pweview in the same window when the powt is automaticawwy fowwawded."),
+							wocawize('wemote.powtsAttwibutes.siwent', "Shows no notification and takes no action when this powt is automaticawwy fowwawded."),
+							wocawize('wemote.powtsAttwibutes.ignowe', "This powt wiww not be automaticawwy fowwawded.")
 						],
-						description: localize('remote.portsAttributes.onForward', "Defines the action that occurs when the port is discovered for automatic forwarding"),
-						default: 'notify'
+						descwiption: wocawize('wemote.powtsAttwibutes.onFowwawd', "Defines the action that occuws when the powt is discovewed fow automatic fowwawding"),
+						defauwt: 'notify'
 					},
-					'elevateIfNeeded': {
-						type: 'boolean',
-						description: localize('remote.portsAttributes.elevateIfNeeded', "Automatically prompt for elevation (if needed) when this port is forwarded. Elevate is required if the local port is a privileged port."),
-						default: false
+					'ewevateIfNeeded': {
+						type: 'boowean',
+						descwiption: wocawize('wemote.powtsAttwibutes.ewevateIfNeeded', "Automaticawwy pwompt fow ewevation (if needed) when this powt is fowwawded. Ewevate is wequiwed if the wocaw powt is a pwiviweged powt."),
+						defauwt: fawse
 					},
-					'label': {
-						type: 'string',
-						description: localize('remote.portsAttributes.label', "Label that will be shown in the UI for this port."),
-						default: localize('remote.portsAttributes.labelDefault', "Application")
+					'wabew': {
+						type: 'stwing',
+						descwiption: wocawize('wemote.powtsAttwibutes.wabew', "Wabew that wiww be shown in the UI fow this powt."),
+						defauwt: wocawize('wemote.powtsAttwibutes.wabewDefauwt', "Appwication")
 					},
-					'requireLocalPort': {
-						type: 'boolean',
-						markdownDescription: localize('remote.portsAttributes.requireLocalPort', "When true, a modal dialog will show if the chosen local port isn't used for forwarding."),
-						default: false
+					'wequiweWocawPowt': {
+						type: 'boowean',
+						mawkdownDescwiption: wocawize('wemote.powtsAttwibutes.wequiweWocawPowt', "When twue, a modaw diawog wiww show if the chosen wocaw powt isn't used fow fowwawding."),
+						defauwt: fawse
 					},
-					'protocol': {
-						type: 'string',
+					'pwotocow': {
+						type: 'stwing',
 						enum: ['http', 'https'],
-						description: localize('remote.portsAttributes.protocol', "The protocol to use when forwarding this port.")
+						descwiption: wocawize('wemote.powtsAttwibutes.pwotocow', "The pwotocow to use when fowwawding this powt.")
 					}
 				},
-				defaultSnippets: [{ body: { onAutoForward: 'ignore' } }],
-				markdownDescription: localize('remote.portsAttributes.defaults', "Set default properties that are applied to all ports that don't get properties from the setting `remote.portsAttributes`. For example:\n\n```\n{\n  \"onAutoForward\": \"ignore\"\n}\n```"),
-				additionalProperties: false
+				defauwtSnippets: [{ body: { onAutoFowwawd: 'ignowe' } }],
+				mawkdownDescwiption: wocawize('wemote.powtsAttwibutes.defauwts', "Set defauwt pwopewties that awe appwied to aww powts that don't get pwopewties fwom the setting `wemote.powtsAttwibutes`. Fow exampwe:\n\n```\n{\n  \"onAutoFowwawd\": \"ignowe\"\n}\n```"),
+				additionawPwopewties: fawse
 			},
-			'remote.localPortHost': {
-				type: 'string',
-				enum: ['localhost', 'allInterfaces'],
-				default: 'localhost',
-				description: localize('remote.localPortHost', "Specifies the local host name that will be used for port forwarding.")
+			'wemote.wocawPowtHost': {
+				type: 'stwing',
+				enum: ['wocawhost', 'awwIntewfaces'],
+				defauwt: 'wocawhost',
+				descwiption: wocawize('wemote.wocawPowtHost', "Specifies the wocaw host name that wiww be used fow powt fowwawding.")
 			}
 		}
 	});

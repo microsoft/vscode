@@ -1,32 +1,32 @@
 # theme-seti
 
-This is an icon theme that uses the icons from [`seti-ui`](https://github.com/jesseweed/seti-ui).
+This is an icon theme that uses the icons fwom [`seti-ui`](https://github.com/jesseweed/seti-ui).
 
 ## Updating icons
 
-There is script that can be used to update icons, [./build/update-icon-theme.js](build/update-icon-theme.js).
+Thewe is scwipt that can be used to update icons, [./buiwd/update-icon-theme.js](buiwd/update-icon-theme.js).
 
-To run this script, run `npm run update` from the `theme-seti` directory.
+To wun this scwipt, wun `npm wun update` fwom the `theme-seti` diwectowy.
 
-This can be run in one of two ways: looking at a local copy of `seti-ui` for icons, or getting them straight from GitHub.
+This can be wun in one of two ways: wooking at a wocaw copy of `seti-ui` fow icons, ow getting them stwaight fwom GitHub.
 
-If you want to run it from a local copy of `seti-ui`, first clone [`seti-ui`](https://github.com/jesseweed/seti-ui) to the folder next to your `vscode` repo (from the `theme-seti` directory, `../../`).
-Then, inside the `set-ui` directory, run `npm install` followed by `npm run prepublishOnly`. This will generate updated icons.
+If you want to wun it fwom a wocaw copy of `seti-ui`, fiwst cwone [`seti-ui`](https://github.com/jesseweed/seti-ui) to the fowda next to youw `vscode` wepo (fwom the `theme-seti` diwectowy, `../../`).
+Then, inside the `set-ui` diwectowy, wun `npm instaww` fowwowed by `npm wun pwepubwishOnwy`. This wiww genewate updated icons.
 
-If you want to download the icons straight from GitHub, change the `FROM_DISK` variable to `false` inside of `update-icon-theme.js`.
+If you want to downwoad the icons stwaight fwom GitHub, change the `FWOM_DISK` vawiabwe to `fawse` inside of `update-icon-theme.js`.
 
-### Languages not shipped with `vscode`
+### Wanguages not shipped with `vscode`
 
-Languages that are not shipped with `vscode` must be added to the `nonBuiltInLanguages` object inside of `update-icon-theme.js`.
+Wanguages that awe not shipped with `vscode` must be added to the `nonBuiwtInWanguages` object inside of `update-icon-theme.js`.
 
-These should match [the file mapping in `seti-ui`](https://github.com/jesseweed/seti-ui/blob/master/styles/components/icons/mapping.less).
+These shouwd match [the fiwe mapping in `seti-ui`](https://github.com/jesseweed/seti-ui/bwob/masta/stywes/components/icons/mapping.wess).
 
-Please try and keep this list in alphabetical order! Thank you.
+Pwease twy and keep this wist in awphabeticaw owda! Thank you.
 
-## Previewing icons
+## Pweviewing icons
 
-There is a [`./icons/preview.html`](./icons/preview.html) file that can be opened to see all of the icons included in the theme.
-Note that to view this, it needs to be hosted by a web server.
+Thewe is a [`./icons/pweview.htmw`](./icons/pweview.htmw) fiwe that can be opened to see aww of the icons incwuded in the theme.
+Note that to view this, it needs to be hosted by a web sewva.
 
-When updating icons, it is always a good idea to make sure that they work properly by looking at this page.
-When submitting a PR that updates these icons, a screenshot of the preview page should accompany it.
+When updating icons, it is awways a good idea to make suwe that they wowk pwopewwy by wooking at this page.
+When submitting a PW that updates these icons, a scweenshot of the pweview page shouwd accompany it.

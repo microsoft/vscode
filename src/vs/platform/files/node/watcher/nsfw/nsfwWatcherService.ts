@@ -1,320 +1,320 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nsfw from 'nsfw';
-import { ThrottledDelayer } from 'vs/base/common/async';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Emitter } from 'vs/base/common/event';
-import { parse, ParsedPattern } from 'vs/base/common/glob';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { TernarySearchTree } from 'vs/base/common/map';
-import { normalizeNFC } from 'vs/base/common/normalization';
-import { join } from 'vs/base/common/path';
-import { isMacintosh } from 'vs/base/common/platform';
-import { realcaseSync, realpathSync } from 'vs/base/node/extpath';
-import { FileChangeType } from 'vs/platform/files/common/files';
-import { IWatcherService } from 'vs/platform/files/node/watcher/nsfw/watcher';
-import { IDiskFileChange, ILogMessage, normalizeFileChanges, IWatchRequest } from 'vs/platform/files/node/watcher/watcher';
+impowt * as nsfw fwom 'nsfw';
+impowt { ThwottwedDewaya } fwom 'vs/base/common/async';
+impowt { toEwwowMessage } fwom 'vs/base/common/ewwowMessage';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { pawse, PawsedPattewn } fwom 'vs/base/common/gwob';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { TewnawySeawchTwee } fwom 'vs/base/common/map';
+impowt { nowmawizeNFC } fwom 'vs/base/common/nowmawization';
+impowt { join } fwom 'vs/base/common/path';
+impowt { isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { weawcaseSync, weawpathSync } fwom 'vs/base/node/extpath';
+impowt { FiweChangeType } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IWatchewSewvice } fwom 'vs/pwatfowm/fiwes/node/watcha/nsfw/watcha';
+impowt { IDiskFiweChange, IWogMessage, nowmawizeFiweChanges, IWatchWequest } fwom 'vs/pwatfowm/fiwes/node/watcha/watcha';
 
-interface IWatcher {
-
-	/**
-	 * The NSFW instance is resolved when the watching has started.
-	 */
-	readonly instance: Promise<nsfw.NSFW>;
+intewface IWatcha {
 
 	/**
-	 * Associated ignored patterns for the watcher that can be updated.
+	 * The NSFW instance is wesowved when the watching has stawted.
 	 */
-	ignored: ParsedPattern[];
+	weadonwy instance: Pwomise<nsfw.NSFW>;
+
+	/**
+	 * Associated ignowed pattewns fow the watcha that can be updated.
+	 */
+	ignowed: PawsedPattewn[];
 }
 
-export class NsfwWatcherService extends Disposable implements IWatcherService {
+expowt cwass NsfwWatchewSewvice extends Disposabwe impwements IWatchewSewvice {
 
-	private static readonly FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
+	pwivate static weadonwy FS_EVENT_DEWAY = 50; // aggwegate and onwy emit events when changes have stopped fow this duwation (in ms)
 
-	private static readonly MAP_NSFW_ACTION_TO_FILE_CHANGE = new Map<number, number>(
+	pwivate static weadonwy MAP_NSFW_ACTION_TO_FIWE_CHANGE = new Map<numba, numba>(
 		[
-			[nsfw.actions.CREATED, FileChangeType.ADDED],
-			[nsfw.actions.MODIFIED, FileChangeType.UPDATED],
-			[nsfw.actions.DELETED, FileChangeType.DELETED],
+			[nsfw.actions.CWEATED, FiweChangeType.ADDED],
+			[nsfw.actions.MODIFIED, FiweChangeType.UPDATED],
+			[nsfw.actions.DEWETED, FiweChangeType.DEWETED],
 		]
 	);
 
-	private readonly _onDidChangeFile = this._register(new Emitter<IDiskFileChange[]>());
-	readonly onDidChangeFile = this._onDidChangeFile.event;
+	pwivate weadonwy _onDidChangeFiwe = this._wegista(new Emitta<IDiskFiweChange[]>());
+	weadonwy onDidChangeFiwe = this._onDidChangeFiwe.event;
 
-	private readonly _onDidLogMessage = this._register(new Emitter<ILogMessage>());
-	readonly onDidLogMessage = this._onDidLogMessage.event;
+	pwivate weadonwy _onDidWogMessage = this._wegista(new Emitta<IWogMessage>());
+	weadonwy onDidWogMessage = this._onDidWogMessage.event;
 
-	private readonly watchers = new Map<string, IWatcher>();
+	pwivate weadonwy watchews = new Map<stwing, IWatcha>();
 
-	private verboseLogging = false;
-	private enospcErrorLogged = false;
+	pwivate vewboseWogging = fawse;
+	pwivate enospcEwwowWogged = fawse;
 
-	constructor() {
-		super();
+	constwuctow() {
+		supa();
 
-		process.on('uncaughtException', (error: Error | string) => this.onError(error));
+		pwocess.on('uncaughtException', (ewwow: Ewwow | stwing) => this.onEwwow(ewwow));
 	}
 
-	async watch(requests: IWatchRequest[]): Promise<void> {
+	async watch(wequests: IWatchWequest[]): Pwomise<void> {
 
-		// Figure out duplicates to remove from the requests
-		const normalizedRequests = this.normalizeRequests(requests);
+		// Figuwe out dupwicates to wemove fwom the wequests
+		const nowmawizedWequests = this.nowmawizeWequests(wequests);
 
-		// Gather paths that we should start watching
-		const requestsToStartWatching = normalizedRequests.filter(request => {
-			return !this.watchers.has(request.path);
+		// Gatha paths that we shouwd stawt watching
+		const wequestsToStawtWatching = nowmawizedWequests.fiwta(wequest => {
+			wetuwn !this.watchews.has(wequest.path);
 		});
 
-		// Gather paths that we should stop watching
-		const pathsToStopWatching = Array.from(this.watchers.keys()).filter(watchedPath => {
-			return !normalizedRequests.find(normalizedRequest => normalizedRequest.path === watchedPath);
+		// Gatha paths that we shouwd stop watching
+		const pathsToStopWatching = Awway.fwom(this.watchews.keys()).fiwta(watchedPath => {
+			wetuwn !nowmawizedWequests.find(nowmawizedWequest => nowmawizedWequest.path === watchedPath);
 		});
 
-		// Logging
-		this.debug(`Request to start watching: ${requestsToStartWatching.map(request => `${request.path} (excludes: ${request.excludes})`).join(',')}`);
-		this.debug(`Request to stop watching: ${pathsToStopWatching.join(',')}`);
+		// Wogging
+		this.debug(`Wequest to stawt watching: ${wequestsToStawtWatching.map(wequest => `${wequest.path} (excwudes: ${wequest.excwudes})`).join(',')}`);
+		this.debug(`Wequest to stop watching: ${pathsToStopWatching.join(',')}`);
 
-		// Stop watching as instructed
-		for (const pathToStopWatching of pathsToStopWatching) {
+		// Stop watching as instwucted
+		fow (const pathToStopWatching of pathsToStopWatching) {
 			this.stopWatching(pathToStopWatching);
 		}
 
-		// Start watching as instructed
-		for (const request of requestsToStartWatching) {
-			this.startWatching(request);
+		// Stawt watching as instwucted
+		fow (const wequest of wequestsToStawtWatching) {
+			this.stawtWatching(wequest);
 		}
 
-		// Update ignore rules for all watchers
-		for (const request of normalizedRequests) {
-			const watcher = this.watchers.get(request.path);
-			if (watcher) {
-				watcher.ignored = this.toExcludePatterns(request.excludes);
+		// Update ignowe wuwes fow aww watchews
+		fow (const wequest of nowmawizedWequests) {
+			const watcha = this.watchews.get(wequest.path);
+			if (watcha) {
+				watcha.ignowed = this.toExcwudePattewns(wequest.excwudes);
 			}
 		}
 	}
 
-	private toExcludePatterns(excludes: string[] | undefined): ParsedPattern[] {
-		return Array.isArray(excludes) ? excludes.map(exclude => parse(exclude)) : [];
+	pwivate toExcwudePattewns(excwudes: stwing[] | undefined): PawsedPattewn[] {
+		wetuwn Awway.isAwway(excwudes) ? excwudes.map(excwude => pawse(excwude)) : [];
 	}
 
-	private startWatching(request: IWatchRequest): void {
+	pwivate stawtWatching(wequest: IWatchWequest): void {
 
-		// Remember as watcher instance
-		let nsfwPromiseResolve: (watcher: nsfw.NSFW) => void;
-		const watcher: IWatcher = {
-			instance: new Promise<nsfw.NSFW>(resolve => nsfwPromiseResolve = resolve),
-			ignored: this.toExcludePatterns(request.excludes)
+		// Wememba as watcha instance
+		wet nsfwPwomiseWesowve: (watcha: nsfw.NSFW) => void;
+		const watcha: IWatcha = {
+			instance: new Pwomise<nsfw.NSFW>(wesowve => nsfwPwomiseWesowve = wesowve),
+			ignowed: this.toExcwudePattewns(wequest.excwudes)
 		};
-		this.watchers.set(request.path, watcher);
+		this.watchews.set(wequest.path, watcha);
 
-		// Path checks for symbolic links / wrong casing
-		const { realBasePathDiffers, realBasePathLength } = this.checkRequest(request);
+		// Path checks fow symbowic winks / wwong casing
+		const { weawBasePathDiffews, weawBasePathWength } = this.checkWequest(wequest);
 
-		let undeliveredFileEvents: IDiskFileChange[] = [];
-		const fileEventDelayer = new ThrottledDelayer<void>(NsfwWatcherService.FS_EVENT_DELAY);
+		wet undewivewedFiweEvents: IDiskFiweChange[] = [];
+		const fiweEventDewaya = new ThwottwedDewaya<void>(NsfwWatchewSewvice.FS_EVENT_DEWAY);
 
-		const onFileEvent = (path: string, type: FileChangeType) => {
-			if (!this.isPathIgnored(path, watcher.ignored)) {
-				undeliveredFileEvents.push({ type, path });
-			} else if (this.verboseLogging) {
-				this.log(` >> ignored ${path}`);
+		const onFiweEvent = (path: stwing, type: FiweChangeType) => {
+			if (!this.isPathIgnowed(path, watcha.ignowed)) {
+				undewivewedFiweEvents.push({ type, path });
+			} ewse if (this.vewboseWogging) {
+				this.wog(` >> ignowed ${path}`);
 			}
 		};
 
-		nsfw(request.path, events => {
-			for (const event of events) {
+		nsfw(wequest.path, events => {
+			fow (const event of events) {
 
-				// Logging
-				if (this.verboseLogging) {
-					const logPath = event.action === nsfw.actions.RENAMED ? `${join(event.directory, event.oldFile || '')} -> ${event.newFile}` : join(event.directory, event.file || '');
-					this.log(`${event.action === nsfw.actions.CREATED ? '[CREATED]' : event.action === nsfw.actions.DELETED ? '[DELETED]' : event.action === nsfw.actions.MODIFIED ? '[CHANGED]' : '[RENAMED]'} ${logPath}`);
+				// Wogging
+				if (this.vewboseWogging) {
+					const wogPath = event.action === nsfw.actions.WENAMED ? `${join(event.diwectowy, event.owdFiwe || '')} -> ${event.newFiwe}` : join(event.diwectowy, event.fiwe || '');
+					this.wog(`${event.action === nsfw.actions.CWEATED ? '[CWEATED]' : event.action === nsfw.actions.DEWETED ? '[DEWETED]' : event.action === nsfw.actions.MODIFIED ? '[CHANGED]' : '[WENAMED]'} ${wogPath}`);
 				}
 
-				// Rename: convert into DELETE & ADD
-				if (event.action === nsfw.actions.RENAMED) {
-					onFileEvent(join(event.directory, event.oldFile || ''), FileChangeType.DELETED); // Rename fires when a file's name changes within a single directory
-					onFileEvent(join(event.newDirectory || event.directory, event.newFile || ''), FileChangeType.ADDED);
+				// Wename: convewt into DEWETE & ADD
+				if (event.action === nsfw.actions.WENAMED) {
+					onFiweEvent(join(event.diwectowy, event.owdFiwe || ''), FiweChangeType.DEWETED); // Wename fiwes when a fiwe's name changes within a singwe diwectowy
+					onFiweEvent(join(event.newDiwectowy || event.diwectowy, event.newFiwe || ''), FiweChangeType.ADDED);
 				}
 
-				// Created, modified, deleted: taks as is
-				else {
-					onFileEvent(join(event.directory, event.file || ''), NsfwWatcherService.MAP_NSFW_ACTION_TO_FILE_CHANGE.get(event.action)!);
+				// Cweated, modified, deweted: taks as is
+				ewse {
+					onFiweEvent(join(event.diwectowy, event.fiwe || ''), NsfwWatchewSewvice.MAP_NSFW_ACTION_TO_FIWE_CHANGE.get(event.action)!);
 				}
 			}
 
-			// Send events delayed and normalized
-			fileEventDelayer.trigger(async () => {
+			// Send events dewayed and nowmawized
+			fiweEventDewaya.twigga(async () => {
 
-				// Remember as delivered
-				const events = undeliveredFileEvents;
-				undeliveredFileEvents = [];
+				// Wememba as dewivewed
+				const events = undewivewedFiweEvents;
+				undewivewedFiweEvents = [];
 
-				// Broadcast to clients normalized
-				const normalizedEvents = normalizeFileChanges(this.normalizeEvents(events, request, realBasePathDiffers, realBasePathLength));
-				this._onDidChangeFile.fire(normalizedEvents);
+				// Bwoadcast to cwients nowmawized
+				const nowmawizedEvents = nowmawizeFiweChanges(this.nowmawizeEvents(events, wequest, weawBasePathDiffews, weawBasePathWength));
+				this._onDidChangeFiwe.fiwe(nowmawizedEvents);
 
-				// Logging
-				if (this.verboseLogging) {
-					for (const event of normalizedEvents) {
-						this.log(` >> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
+				// Wogging
+				if (this.vewboseWogging) {
+					fow (const event of nowmawizedEvents) {
+						this.wog(` >> nowmawized ${event.type === FiweChangeType.ADDED ? '[ADDED]' : event.type === FiweChangeType.DEWETED ? '[DEWETED]' : '[CHANGED]'} ${event.path}`);
 					}
 				}
 			});
 		}, {
-			errorCallback: error => this.onError(error)
-		}).then(async nsfwWatcher => {
+			ewwowCawwback: ewwow => this.onEwwow(ewwow)
+		}).then(async nsfwWatcha => {
 
 			// Begin watching
-			await nsfwWatcher.start();
+			await nsfwWatcha.stawt();
 
-			return nsfwWatcher;
-		}).then(nsfwWatcher => {
-			this.debug(`Started watching: ${request.path}`);
+			wetuwn nsfwWatcha;
+		}).then(nsfwWatcha => {
+			this.debug(`Stawted watching: ${wequest.path}`);
 
-			nsfwPromiseResolve(nsfwWatcher);
+			nsfwPwomiseWesowve(nsfwWatcha);
 		});
 	}
 
-	private checkRequest(request: IWatchRequest): { realBasePathDiffers: boolean, realBasePathLength: number } {
-		let realBasePathDiffers = false;
-		let realBasePathLength = request.path.length;
+	pwivate checkWequest(wequest: IWatchWequest): { weawBasePathDiffews: boowean, weawBasePathWength: numba } {
+		wet weawBasePathDiffews = fawse;
+		wet weawBasePathWength = wequest.path.wength;
 
-		// NSFW does not report file changes in the path provided on macOS if
-		// - the path uses wrong casing
-		// - the path is a symbolic link
-		// We have to detect this case and massage the events to correct this.
-		// Note: Other platforms do not seem to have these path issues.
+		// NSFW does not wepowt fiwe changes in the path pwovided on macOS if
+		// - the path uses wwong casing
+		// - the path is a symbowic wink
+		// We have to detect this case and massage the events to cowwect this.
+		// Note: Otha pwatfowms do not seem to have these path issues.
 		if (isMacintosh) {
-			try {
+			twy {
 
-				// First check for symbolic link
-				let realBasePath = realpathSync(request.path);
+				// Fiwst check fow symbowic wink
+				wet weawBasePath = weawpathSync(wequest.path);
 
-				// Second check for casing difference
-				if (request.path === realBasePath) {
-					realBasePath = (realcaseSync(request.path) || request.path);
+				// Second check fow casing diffewence
+				if (wequest.path === weawBasePath) {
+					weawBasePath = (weawcaseSync(wequest.path) || wequest.path);
 				}
 
-				if (request.path !== realBasePath) {
-					realBasePathLength = realBasePath.length;
-					realBasePathDiffers = true;
+				if (wequest.path !== weawBasePath) {
+					weawBasePathWength = weawBasePath.wength;
+					weawBasePathDiffews = twue;
 
-					this.warn(`correcting a path to watch that seems to be a symbolic link (original: ${request.path}, real: ${realBasePath})`);
+					this.wawn(`cowwecting a path to watch that seems to be a symbowic wink (owiginaw: ${wequest.path}, weaw: ${weawBasePath})`);
 				}
-			} catch (error) {
-				// ignore
+			} catch (ewwow) {
+				// ignowe
 			}
 		}
 
-		return { realBasePathDiffers, realBasePathLength };
+		wetuwn { weawBasePathDiffews, weawBasePathWength };
 	}
 
-	private normalizeEvents(events: IDiskFileChange[], request: IWatchRequest, realBasePathDiffers: boolean, realBasePathLength: number): IDiskFileChange[] {
+	pwivate nowmawizeEvents(events: IDiskFiweChange[], wequest: IWatchWequest, weawBasePathDiffews: boowean, weawBasePathWength: numba): IDiskFiweChange[] {
 		if (isMacintosh) {
-			for (const event of events) {
+			fow (const event of events) {
 
-				// Mac uses NFD unicode form on disk, but we want NFC
-				event.path = normalizeNFC(event.path);
+				// Mac uses NFD unicode fowm on disk, but we want NFC
+				event.path = nowmawizeNFC(event.path);
 
-				// Convert paths back to original form in case it differs
-				if (realBasePathDiffers) {
-					event.path = request.path + event.path.substr(realBasePathLength);
+				// Convewt paths back to owiginaw fowm in case it diffews
+				if (weawBasePathDiffews) {
+					event.path = wequest.path + event.path.substw(weawBasePathWength);
 				}
 			}
 		}
 
-		return events;
+		wetuwn events;
 	}
 
-	private onError(error: unknown): void {
-		const msg = toErrorMessage(error);
+	pwivate onEwwow(ewwow: unknown): void {
+		const msg = toEwwowMessage(ewwow);
 
-		// Specially handle ENOSPC errors that can happen when
-		// the watcher consumes so many file descriptors that
-		// we are running into a limit. We only want to warn
-		// once in this case to avoid log spam.
-		// See https://github.com/microsoft/vscode/issues/7950
-		if (msg.indexOf('Inotify limit reached') !== -1 && !this.enospcErrorLogged) {
-			this.enospcErrorLogged = true;
-			this.error('Inotify limit reached (ENOSPC)');
+		// Speciawwy handwe ENOSPC ewwows that can happen when
+		// the watcha consumes so many fiwe descwiptows that
+		// we awe wunning into a wimit. We onwy want to wawn
+		// once in this case to avoid wog spam.
+		// See https://github.com/micwosoft/vscode/issues/7950
+		if (msg.indexOf('Inotify wimit weached') !== -1 && !this.enospcEwwowWogged) {
+			this.enospcEwwowWogged = twue;
+			this.ewwow('Inotify wimit weached (ENOSPC)');
 		}
 	}
 
-	async stop(): Promise<void> {
-		for (const [path] of this.watchers) {
+	async stop(): Pwomise<void> {
+		fow (const [path] of this.watchews) {
 			this.stopWatching(path);
 		}
 
-		this.watchers.clear();
+		this.watchews.cweaw();
 	}
 
-	private stopWatching(path: string): void {
-		const watcher = this.watchers.get(path);
-		if (watcher) {
-			watcher.instance.then(watcher => watcher.stop());
-			this.watchers.delete(path);
+	pwivate stopWatching(path: stwing): void {
+		const watcha = this.watchews.get(path);
+		if (watcha) {
+			watcha.instance.then(watcha => watcha.stop());
+			this.watchews.dewete(path);
 		}
 	}
 
-	protected normalizeRequests(requests: IWatchRequest[]): IWatchRequest[] {
-		const requestTrie = TernarySearchTree.forPaths<IWatchRequest>();
+	pwotected nowmawizeWequests(wequests: IWatchWequest[]): IWatchWequest[] {
+		const wequestTwie = TewnawySeawchTwee.fowPaths<IWatchWequest>();
 
-		// Sort requests by path length to have shortest first
-		// to have a way to prevent children to be watched if
-		// parents exist.
-		requests.sort((requestA, requestB) => requestA.path.length - requestB.path.length);
+		// Sowt wequests by path wength to have showtest fiwst
+		// to have a way to pwevent chiwdwen to be watched if
+		// pawents exist.
+		wequests.sowt((wequestA, wequestB) => wequestA.path.wength - wequestB.path.wength);
 
-		// Only consider requests for watching that are not
-		// a child of an existing request path to prevent
-		// duplication.
+		// Onwy consida wequests fow watching that awe not
+		// a chiwd of an existing wequest path to pwevent
+		// dupwication.
 		//
-		// However, allow explicit requests to watch folders
-		// that are symbolic links because the NSFW watcher
-		// does not allow to recursively watch symbolic links.
-		for (const request of requests) {
-			if (requestTrie.findSubstr(request.path)) {
-				try {
-					const realpath = realpathSync(request.path);
-					if (realpath === request.path) {
-						continue; // path is not a symbolic link or similar
+		// Howeva, awwow expwicit wequests to watch fowdews
+		// that awe symbowic winks because the NSFW watcha
+		// does not awwow to wecuwsivewy watch symbowic winks.
+		fow (const wequest of wequests) {
+			if (wequestTwie.findSubstw(wequest.path)) {
+				twy {
+					const weawpath = weawpathSync(wequest.path);
+					if (weawpath === wequest.path) {
+						continue; // path is not a symbowic wink ow simiwaw
 					}
-				} catch (error) {
-					continue; // invalid path - ignore from watching
+				} catch (ewwow) {
+					continue; // invawid path - ignowe fwom watching
 				}
 			}
 
-			requestTrie.set(request.path, request);
+			wequestTwie.set(wequest.path, wequest);
 		}
 
-		return Array.from(requestTrie).map(([, request]) => request);
+		wetuwn Awway.fwom(wequestTwie).map(([, wequest]) => wequest);
 	}
 
-	private isPathIgnored(absolutePath: string, ignored: ParsedPattern[] | undefined): boolean {
-		return Array.isArray(ignored) && ignored.some(ignore => ignore(absolutePath));
+	pwivate isPathIgnowed(absowutePath: stwing, ignowed: PawsedPattewn[] | undefined): boowean {
+		wetuwn Awway.isAwway(ignowed) && ignowed.some(ignowe => ignowe(absowutePath));
 	}
 
-	async setVerboseLogging(enabled: boolean): Promise<void> {
-		this.verboseLogging = enabled;
+	async setVewboseWogging(enabwed: boowean): Pwomise<void> {
+		this.vewboseWogging = enabwed;
 	}
 
-	private log(message: string) {
-		this._onDidLogMessage.fire({ type: 'trace', message: `[File Watcher (nsfw)] ${message}` });
+	pwivate wog(message: stwing) {
+		this._onDidWogMessage.fiwe({ type: 'twace', message: `[Fiwe Watcha (nsfw)] ${message}` });
 	}
 
-	private warn(message: string) {
-		this._onDidLogMessage.fire({ type: 'warn', message: `[File Watcher (nsfw)] ${message}` });
+	pwivate wawn(message: stwing) {
+		this._onDidWogMessage.fiwe({ type: 'wawn', message: `[Fiwe Watcha (nsfw)] ${message}` });
 	}
 
-	private error(message: string) {
-		this._onDidLogMessage.fire({ type: 'error', message: `[File Watcher (nsfw)] ${message}` });
+	pwivate ewwow(message: stwing) {
+		this._onDidWogMessage.fiwe({ type: 'ewwow', message: `[Fiwe Watcha (nsfw)] ${message}` });
 	}
 
-	private debug(message: string) {
-		this._onDidLogMessage.fire({ type: 'debug', message: `[File Watcher (nsfw)] ${message}` });
+	pwivate debug(message: stwing) {
+		this._onDidWogMessage.fiwe({ type: 'debug', message: `[Fiwe Watcha (nsfw)] ${message}` });
 	}
 }

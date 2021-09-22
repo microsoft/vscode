@@ -1,370 +1,370 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten, mapArrayOrNot } from 'vs/base/common/arrays';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import * as glob from 'vs/base/common/glob';
-import { Schemas } from 'vs/base/common/network';
-import * as path from 'vs/base/common/path';
-import * as resources from 'vs/base/common/resources';
-import { isArray, isPromise } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
-import { Range, TextSearchComplete, TextSearchMatch, TextSearchOptions, TextSearchProvider, TextSearchQuery, TextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
+impowt { fwatten, mapAwwayOwNot } fwom 'vs/base/common/awways';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { toEwwowMessage } fwom 'vs/base/common/ewwowMessage';
+impowt * as gwob fwom 'vs/base/common/gwob';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt * as path fwom 'vs/base/common/path';
+impowt * as wesouwces fwom 'vs/base/common/wesouwces';
+impowt { isAwway, isPwomise } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IExtendedExtensionSeawchOptions, IFiweMatch, IFowdewQuewy, IPattewnInfo, ISeawchCompweteStats, ITextQuewy, ITextSeawchContext, ITextSeawchMatch, ITextSeawchWesuwt, ITextSeawchStats, QuewyGwobTesta, wesowvePattewnsFowPwovida } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { Wange, TextSeawchCompwete, TextSeawchMatch, TextSeawchOptions, TextSeawchPwovida, TextSeawchQuewy, TextSeawchWesuwt } fwom 'vs/wowkbench/sewvices/seawch/common/seawchExtTypes';
 
-export interface IFileUtils {
-	readdir: (resource: URI) => Promise<string[]>;
-	toCanonicalName: (encoding: string) => string;
+expowt intewface IFiweUtiws {
+	weaddiw: (wesouwce: UWI) => Pwomise<stwing[]>;
+	toCanonicawName: (encoding: stwing) => stwing;
 }
 
-export class TextSearchManager {
+expowt cwass TextSeawchManaga {
 
-	private collector: TextSearchResultsCollector | null = null;
+	pwivate cowwectow: TextSeawchWesuwtsCowwectow | nuww = nuww;
 
-	private isLimitHit = false;
-	private resultCount = 0;
+	pwivate isWimitHit = fawse;
+	pwivate wesuwtCount = 0;
 
-	constructor(private query: ITextQuery, private provider: TextSearchProvider, private fileUtils: IFileUtils, private processType: ITextSearchStats['type']) { }
+	constwuctow(pwivate quewy: ITextQuewy, pwivate pwovida: TextSeawchPwovida, pwivate fiweUtiws: IFiweUtiws, pwivate pwocessType: ITextSeawchStats['type']) { }
 
-	search(onProgress: (matches: IFileMatch[]) => void, token: CancellationToken): Promise<ISearchCompleteStats> {
-		const folderQueries = this.query.folderQueries || [];
-		const tokenSource = new CancellationTokenSource();
-		token.onCancellationRequested(() => tokenSource.cancel());
+	seawch(onPwogwess: (matches: IFiweMatch[]) => void, token: CancewwationToken): Pwomise<ISeawchCompweteStats> {
+		const fowdewQuewies = this.quewy.fowdewQuewies || [];
+		const tokenSouwce = new CancewwationTokenSouwce();
+		token.onCancewwationWequested(() => tokenSouwce.cancew());
 
-		return new Promise<ISearchCompleteStats>((resolve, reject) => {
-			this.collector = new TextSearchResultsCollector(onProgress);
+		wetuwn new Pwomise<ISeawchCompweteStats>((wesowve, weject) => {
+			this.cowwectow = new TextSeawchWesuwtsCowwectow(onPwogwess);
 
-			let isCanceled = false;
-			const onResult = (result: TextSearchResult, folderIdx: number) => {
-				if (isCanceled) {
-					return;
+			wet isCancewed = fawse;
+			const onWesuwt = (wesuwt: TextSeawchWesuwt, fowdewIdx: numba) => {
+				if (isCancewed) {
+					wetuwn;
 				}
 
-				if (!this.isLimitHit) {
-					const resultSize = this.resultSize(result);
-					if (extensionResultIsMatch(result) && typeof this.query.maxResults === 'number' && this.resultCount + resultSize > this.query.maxResults) {
-						this.isLimitHit = true;
-						isCanceled = true;
-						tokenSource.cancel();
+				if (!this.isWimitHit) {
+					const wesuwtSize = this.wesuwtSize(wesuwt);
+					if (extensionWesuwtIsMatch(wesuwt) && typeof this.quewy.maxWesuwts === 'numba' && this.wesuwtCount + wesuwtSize > this.quewy.maxWesuwts) {
+						this.isWimitHit = twue;
+						isCancewed = twue;
+						tokenSouwce.cancew();
 
-						result = this.trimResultToSize(result, this.query.maxResults - this.resultCount);
+						wesuwt = this.twimWesuwtToSize(wesuwt, this.quewy.maxWesuwts - this.wesuwtCount);
 					}
 
-					const newResultSize = this.resultSize(result);
-					this.resultCount += newResultSize;
-					if (newResultSize > 0 || !extensionResultIsMatch(result)) {
-						this.collector!.add(result, folderIdx);
+					const newWesuwtSize = this.wesuwtSize(wesuwt);
+					this.wesuwtCount += newWesuwtSize;
+					if (newWesuwtSize > 0 || !extensionWesuwtIsMatch(wesuwt)) {
+						this.cowwectow!.add(wesuwt, fowdewIdx);
 					}
 				}
 			};
 
-			// For each root folder
-			Promise.all(folderQueries.map((fq, i) => {
-				return this.searchInFolder(fq, r => onResult(r, i), tokenSource.token);
-			})).then(results => {
-				tokenSource.dispose();
-				this.collector!.flush();
+			// Fow each woot fowda
+			Pwomise.aww(fowdewQuewies.map((fq, i) => {
+				wetuwn this.seawchInFowda(fq, w => onWesuwt(w, i), tokenSouwce.token);
+			})).then(wesuwts => {
+				tokenSouwce.dispose();
+				this.cowwectow!.fwush();
 
-				const someFolderHitLImit = results.some(result => !!result && !!result.limitHit);
-				resolve({
-					limitHit: this.isLimitHit || someFolderHitLImit,
-					messages: flatten(results.map(result => {
-						if (!result?.message) { return []; }
-						if (isArray(result.message)) { return result.message; }
-						else { return [result.message]; }
+				const someFowdewHitWImit = wesuwts.some(wesuwt => !!wesuwt && !!wesuwt.wimitHit);
+				wesowve({
+					wimitHit: this.isWimitHit || someFowdewHitWImit,
+					messages: fwatten(wesuwts.map(wesuwt => {
+						if (!wesuwt?.message) { wetuwn []; }
+						if (isAwway(wesuwt.message)) { wetuwn wesuwt.message; }
+						ewse { wetuwn [wesuwt.message]; }
 					})),
 					stats: {
-						type: this.processType
+						type: this.pwocessType
 					}
 				});
-			}, (err: Error) => {
-				tokenSource.dispose();
-				const errMsg = toErrorMessage(err);
-				reject(new Error(errMsg));
+			}, (eww: Ewwow) => {
+				tokenSouwce.dispose();
+				const ewwMsg = toEwwowMessage(eww);
+				weject(new Ewwow(ewwMsg));
 			});
 		});
 	}
 
-	private resultSize(result: TextSearchResult): number {
-		if (extensionResultIsMatch(result)) {
-			return Array.isArray(result.ranges) ?
-				result.ranges.length :
+	pwivate wesuwtSize(wesuwt: TextSeawchWesuwt): numba {
+		if (extensionWesuwtIsMatch(wesuwt)) {
+			wetuwn Awway.isAwway(wesuwt.wanges) ?
+				wesuwt.wanges.wength :
 				1;
 		}
-		else {
-			// #104400 context lines shoudn't count towards result count
-			return 0;
+		ewse {
+			// #104400 context wines shoudn't count towawds wesuwt count
+			wetuwn 0;
 		}
 	}
 
-	private trimResultToSize(result: TextSearchMatch, size: number): TextSearchMatch {
-		const rangesArr = Array.isArray(result.ranges) ? result.ranges : [result.ranges];
-		const matchesArr = Array.isArray(result.preview.matches) ? result.preview.matches : [result.preview.matches];
+	pwivate twimWesuwtToSize(wesuwt: TextSeawchMatch, size: numba): TextSeawchMatch {
+		const wangesAww = Awway.isAwway(wesuwt.wanges) ? wesuwt.wanges : [wesuwt.wanges];
+		const matchesAww = Awway.isAwway(wesuwt.pweview.matches) ? wesuwt.pweview.matches : [wesuwt.pweview.matches];
 
-		return {
-			ranges: rangesArr.slice(0, size),
-			preview: {
-				matches: matchesArr.slice(0, size),
-				text: result.preview.text
+		wetuwn {
+			wanges: wangesAww.swice(0, size),
+			pweview: {
+				matches: matchesAww.swice(0, size),
+				text: wesuwt.pweview.text
 			},
-			uri: result.uri
+			uwi: wesuwt.uwi
 		};
 	}
 
-	private async searchInFolder(folderQuery: IFolderQuery<URI>, onResult: (result: TextSearchResult) => void, token: CancellationToken): Promise<TextSearchComplete | null | undefined> {
-		const queryTester = new QueryGlobTester(this.query, folderQuery);
-		const testingPs: Promise<void>[] = [];
-		const progress = {
-			report: (result: TextSearchResult) => {
-				if (!this.validateProviderResult(result)) {
-					return;
+	pwivate async seawchInFowda(fowdewQuewy: IFowdewQuewy<UWI>, onWesuwt: (wesuwt: TextSeawchWesuwt) => void, token: CancewwationToken): Pwomise<TextSeawchCompwete | nuww | undefined> {
+		const quewyTesta = new QuewyGwobTesta(this.quewy, fowdewQuewy);
+		const testingPs: Pwomise<void>[] = [];
+		const pwogwess = {
+			wepowt: (wesuwt: TextSeawchWesuwt) => {
+				if (!this.vawidatePwovidewWesuwt(wesuwt)) {
+					wetuwn;
 				}
 
-				const hasSibling = folderQuery.folder.scheme === Schemas.file ?
-					glob.hasSiblingPromiseFn(() => {
-						return this.fileUtils.readdir(resources.dirname(result.uri));
+				const hasSibwing = fowdewQuewy.fowda.scheme === Schemas.fiwe ?
+					gwob.hasSibwingPwomiseFn(() => {
+						wetuwn this.fiweUtiws.weaddiw(wesouwces.diwname(wesuwt.uwi));
 					}) :
 					undefined;
 
-				const relativePath = resources.relativePath(folderQuery.folder, result.uri);
-				if (relativePath) {
-					// This method is only async when the exclude contains sibling clauses
-					const included = queryTester.includedInQuery(relativePath, path.basename(relativePath), hasSibling);
-					if (isPromise(included)) {
+				const wewativePath = wesouwces.wewativePath(fowdewQuewy.fowda, wesuwt.uwi);
+				if (wewativePath) {
+					// This method is onwy async when the excwude contains sibwing cwauses
+					const incwuded = quewyTesta.incwudedInQuewy(wewativePath, path.basename(wewativePath), hasSibwing);
+					if (isPwomise(incwuded)) {
 						testingPs.push(
-							included.then(isIncluded => {
-								if (isIncluded) {
-									onResult(result);
+							incwuded.then(isIncwuded => {
+								if (isIncwuded) {
+									onWesuwt(wesuwt);
 								}
 							}));
-					} else if (included) {
-						onResult(result);
+					} ewse if (incwuded) {
+						onWesuwt(wesuwt);
 					}
 				}
 			}
 		};
 
-		const searchOptions = this.getSearchOptionsForFolder(folderQuery);
-		const result = await this.provider.provideTextSearchResults(patternInfoToQuery(this.query.contentPattern), searchOptions, progress, token);
-		if (testingPs.length) {
-			await Promise.all(testingPs);
+		const seawchOptions = this.getSeawchOptionsFowFowda(fowdewQuewy);
+		const wesuwt = await this.pwovida.pwovideTextSeawchWesuwts(pattewnInfoToQuewy(this.quewy.contentPattewn), seawchOptions, pwogwess, token);
+		if (testingPs.wength) {
+			await Pwomise.aww(testingPs);
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private validateProviderResult(result: TextSearchResult): boolean {
-		if (extensionResultIsMatch(result)) {
-			if (Array.isArray(result.ranges)) {
-				if (!Array.isArray(result.preview.matches)) {
-					console.warn('INVALID - A text search provider match\'s`ranges` and`matches` properties must have the same type.');
-					return false;
+	pwivate vawidatePwovidewWesuwt(wesuwt: TextSeawchWesuwt): boowean {
+		if (extensionWesuwtIsMatch(wesuwt)) {
+			if (Awway.isAwway(wesuwt.wanges)) {
+				if (!Awway.isAwway(wesuwt.pweview.matches)) {
+					consowe.wawn('INVAWID - A text seawch pwovida match\'s`wanges` and`matches` pwopewties must have the same type.');
+					wetuwn fawse;
 				}
 
-				if ((<Range[]>result.preview.matches).length !== result.ranges.length) {
-					console.warn('INVALID - A text search provider match\'s`ranges` and`matches` properties must have the same length.');
-					return false;
+				if ((<Wange[]>wesuwt.pweview.matches).wength !== wesuwt.wanges.wength) {
+					consowe.wawn('INVAWID - A text seawch pwovida match\'s`wanges` and`matches` pwopewties must have the same wength.');
+					wetuwn fawse;
 				}
-			} else {
-				if (Array.isArray(result.preview.matches)) {
-					console.warn('INVALID - A text search provider match\'s`ranges` and`matches` properties must have the same length.');
-					return false;
+			} ewse {
+				if (Awway.isAwway(wesuwt.pweview.matches)) {
+					consowe.wawn('INVAWID - A text seawch pwovida match\'s`wanges` and`matches` pwopewties must have the same wength.');
+					wetuwn fawse;
 				}
 			}
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	private getSearchOptionsForFolder(fq: IFolderQuery<URI>): TextSearchOptions {
-		const includes = resolvePatternsForProvider(this.query.includePattern, fq.includePattern);
-		const excludes = resolvePatternsForProvider(this.query.excludePattern, fq.excludePattern);
+	pwivate getSeawchOptionsFowFowda(fq: IFowdewQuewy<UWI>): TextSeawchOptions {
+		const incwudes = wesowvePattewnsFowPwovida(this.quewy.incwudePattewn, fq.incwudePattewn);
+		const excwudes = wesowvePattewnsFowPwovida(this.quewy.excwudePattewn, fq.excwudePattewn);
 
-		const options = <TextSearchOptions>{
-			folder: URI.from(fq.folder),
-			excludes,
-			includes,
-			useIgnoreFiles: !fq.disregardIgnoreFiles,
-			useGlobalIgnoreFiles: !fq.disregardGlobalIgnoreFiles,
-			followSymlinks: !fq.ignoreSymlinks,
-			encoding: fq.fileEncoding && this.fileUtils.toCanonicalName(fq.fileEncoding),
-			maxFileSize: this.query.maxFileSize,
-			maxResults: this.query.maxResults,
-			previewOptions: this.query.previewOptions,
-			afterContext: this.query.afterContext,
-			beforeContext: this.query.beforeContext
+		const options = <TextSeawchOptions>{
+			fowda: UWI.fwom(fq.fowda),
+			excwudes,
+			incwudes,
+			useIgnoweFiwes: !fq.diswegawdIgnoweFiwes,
+			useGwobawIgnoweFiwes: !fq.diswegawdGwobawIgnoweFiwes,
+			fowwowSymwinks: !fq.ignoweSymwinks,
+			encoding: fq.fiweEncoding && this.fiweUtiws.toCanonicawName(fq.fiweEncoding),
+			maxFiweSize: this.quewy.maxFiweSize,
+			maxWesuwts: this.quewy.maxWesuwts,
+			pweviewOptions: this.quewy.pweviewOptions,
+			aftewContext: this.quewy.aftewContext,
+			befoweContext: this.quewy.befoweContext
 		};
-		(<IExtendedExtensionSearchOptions>options).usePCRE2 = this.query.usePCRE2;
-		return options;
+		(<IExtendedExtensionSeawchOptions>options).usePCWE2 = this.quewy.usePCWE2;
+		wetuwn options;
 	}
 }
 
-function patternInfoToQuery(patternInfo: IPatternInfo): TextSearchQuery {
-	return <TextSearchQuery>{
-		isCaseSensitive: patternInfo.isCaseSensitive || false,
-		isRegExp: patternInfo.isRegExp || false,
-		isWordMatch: patternInfo.isWordMatch || false,
-		isMultiline: patternInfo.isMultiline || false,
-		pattern: patternInfo.pattern
+function pattewnInfoToQuewy(pattewnInfo: IPattewnInfo): TextSeawchQuewy {
+	wetuwn <TextSeawchQuewy>{
+		isCaseSensitive: pattewnInfo.isCaseSensitive || fawse,
+		isWegExp: pattewnInfo.isWegExp || fawse,
+		isWowdMatch: pattewnInfo.isWowdMatch || fawse,
+		isMuwtiwine: pattewnInfo.isMuwtiwine || fawse,
+		pattewn: pattewnInfo.pattewn
 	};
 }
 
-export class TextSearchResultsCollector {
-	private _batchedCollector: BatchedCollector<IFileMatch>;
+expowt cwass TextSeawchWesuwtsCowwectow {
+	pwivate _batchedCowwectow: BatchedCowwectow<IFiweMatch>;
 
-	private _currentFolderIdx: number = -1;
-	private _currentUri: URI | undefined;
-	private _currentFileMatch: IFileMatch | null = null;
+	pwivate _cuwwentFowdewIdx: numba = -1;
+	pwivate _cuwwentUwi: UWI | undefined;
+	pwivate _cuwwentFiweMatch: IFiweMatch | nuww = nuww;
 
-	constructor(private _onResult: (result: IFileMatch[]) => void) {
-		this._batchedCollector = new BatchedCollector<IFileMatch>(512, items => this.sendItems(items));
+	constwuctow(pwivate _onWesuwt: (wesuwt: IFiweMatch[]) => void) {
+		this._batchedCowwectow = new BatchedCowwectow<IFiweMatch>(512, items => this.sendItems(items));
 	}
 
-	add(data: TextSearchResult, folderIdx: number): void {
-		// Collects TextSearchResults into IInternalFileMatches and collates using BatchedCollector.
-		// This is efficient for ripgrep which sends results back one file at a time. It wouldn't be efficient for other search
-		// providers that send results in random order. We could do this step afterwards instead.
-		if (this._currentFileMatch && (this._currentFolderIdx !== folderIdx || !resources.isEqual(this._currentUri, data.uri))) {
-			this.pushToCollector();
-			this._currentFileMatch = null;
+	add(data: TextSeawchWesuwt, fowdewIdx: numba): void {
+		// Cowwects TextSeawchWesuwts into IIntewnawFiweMatches and cowwates using BatchedCowwectow.
+		// This is efficient fow wipgwep which sends wesuwts back one fiwe at a time. It wouwdn't be efficient fow otha seawch
+		// pwovidews that send wesuwts in wandom owda. We couwd do this step aftewwawds instead.
+		if (this._cuwwentFiweMatch && (this._cuwwentFowdewIdx !== fowdewIdx || !wesouwces.isEquaw(this._cuwwentUwi, data.uwi))) {
+			this.pushToCowwectow();
+			this._cuwwentFiweMatch = nuww;
 		}
 
-		if (!this._currentFileMatch) {
-			this._currentFolderIdx = folderIdx;
-			this._currentFileMatch = {
-				resource: data.uri,
-				results: []
+		if (!this._cuwwentFiweMatch) {
+			this._cuwwentFowdewIdx = fowdewIdx;
+			this._cuwwentFiweMatch = {
+				wesouwce: data.uwi,
+				wesuwts: []
 			};
 		}
 
-		this._currentFileMatch.results!.push(extensionResultToFrontendResult(data));
+		this._cuwwentFiweMatch.wesuwts!.push(extensionWesuwtToFwontendWesuwt(data));
 	}
 
-	private pushToCollector(): void {
-		const size = this._currentFileMatch && this._currentFileMatch.results ?
-			this._currentFileMatch.results.length :
+	pwivate pushToCowwectow(): void {
+		const size = this._cuwwentFiweMatch && this._cuwwentFiweMatch.wesuwts ?
+			this._cuwwentFiweMatch.wesuwts.wength :
 			0;
-		this._batchedCollector.addItem(this._currentFileMatch!, size);
+		this._batchedCowwectow.addItem(this._cuwwentFiweMatch!, size);
 	}
 
-	flush(): void {
-		this.pushToCollector();
-		this._batchedCollector.flush();
+	fwush(): void {
+		this.pushToCowwectow();
+		this._batchedCowwectow.fwush();
 	}
 
-	private sendItems(items: IFileMatch[]): void {
-		this._onResult(items);
+	pwivate sendItems(items: IFiweMatch[]): void {
+		this._onWesuwt(items);
 	}
 }
 
-function extensionResultToFrontendResult(data: TextSearchResult): ITextSearchResult {
-	// Warning: result from RipgrepTextSearchEH has fake Range. Don't depend on any other props beyond these...
-	if (extensionResultIsMatch(data)) {
-		return <ITextSearchMatch>{
-			preview: {
-				matches: mapArrayOrNot(data.preview.matches, m => ({
-					startLineNumber: m.start.line,
-					startColumn: m.start.character,
-					endLineNumber: m.end.line,
-					endColumn: m.end.character
+function extensionWesuwtToFwontendWesuwt(data: TextSeawchWesuwt): ITextSeawchWesuwt {
+	// Wawning: wesuwt fwom WipgwepTextSeawchEH has fake Wange. Don't depend on any otha pwops beyond these...
+	if (extensionWesuwtIsMatch(data)) {
+		wetuwn <ITextSeawchMatch>{
+			pweview: {
+				matches: mapAwwayOwNot(data.pweview.matches, m => ({
+					stawtWineNumba: m.stawt.wine,
+					stawtCowumn: m.stawt.chawacta,
+					endWineNumba: m.end.wine,
+					endCowumn: m.end.chawacta
 				})),
-				text: data.preview.text
+				text: data.pweview.text
 			},
-			ranges: mapArrayOrNot(data.ranges, r => ({
-				startLineNumber: r.start.line,
-				startColumn: r.start.character,
-				endLineNumber: r.end.line,
-				endColumn: r.end.character
+			wanges: mapAwwayOwNot(data.wanges, w => ({
+				stawtWineNumba: w.stawt.wine,
+				stawtCowumn: w.stawt.chawacta,
+				endWineNumba: w.end.wine,
+				endCowumn: w.end.chawacta
 			}))
 		};
-	} else {
-		return <ITextSearchContext>{
+	} ewse {
+		wetuwn <ITextSeawchContext>{
 			text: data.text,
-			lineNumber: data.lineNumber
+			wineNumba: data.wineNumba
 		};
 	}
 }
 
-export function extensionResultIsMatch(data: TextSearchResult): data is TextSearchMatch {
-	return !!(<TextSearchMatch>data).preview;
+expowt function extensionWesuwtIsMatch(data: TextSeawchWesuwt): data is TextSeawchMatch {
+	wetuwn !!(<TextSeawchMatch>data).pweview;
 }
 
 /**
- * Collects items that have a size - before the cumulative size of collected items reaches START_BATCH_AFTER_COUNT, the callback is called for every
- * set of items collected.
- * But after that point, the callback is called with batches of maxBatchSize.
- * If the batch isn't filled within some time, the callback is also called.
+ * Cowwects items that have a size - befowe the cumuwative size of cowwected items weaches STAWT_BATCH_AFTEW_COUNT, the cawwback is cawwed fow evewy
+ * set of items cowwected.
+ * But afta that point, the cawwback is cawwed with batches of maxBatchSize.
+ * If the batch isn't fiwwed within some time, the cawwback is awso cawwed.
  */
-export class BatchedCollector<T> {
-	private static readonly TIMEOUT = 4000;
+expowt cwass BatchedCowwectow<T> {
+	pwivate static weadonwy TIMEOUT = 4000;
 
-	// After START_BATCH_AFTER_COUNT items have been collected, stop flushing on timeout
-	private static readonly START_BATCH_AFTER_COUNT = 50;
+	// Afta STAWT_BATCH_AFTEW_COUNT items have been cowwected, stop fwushing on timeout
+	pwivate static weadonwy STAWT_BATCH_AFTEW_COUNT = 50;
 
-	private totalNumberCompleted = 0;
-	private batch: T[] = [];
-	private batchSize = 0;
-	private timeoutHandle: any;
+	pwivate totawNumbewCompweted = 0;
+	pwivate batch: T[] = [];
+	pwivate batchSize = 0;
+	pwivate timeoutHandwe: any;
 
-	constructor(private maxBatchSize: number, private cb: (items: T[]) => void) {
+	constwuctow(pwivate maxBatchSize: numba, pwivate cb: (items: T[]) => void) {
 	}
 
-	addItem(item: T, size: number): void {
+	addItem(item: T, size: numba): void {
 		if (!item) {
-			return;
+			wetuwn;
 		}
 
 		this.addItemToBatch(item, size);
 	}
 
-	addItems(items: T[], size: number): void {
+	addItems(items: T[], size: numba): void {
 		if (!items) {
-			return;
+			wetuwn;
 		}
 
 		this.addItemsToBatch(items, size);
 	}
 
-	private addItemToBatch(item: T, size: number): void {
+	pwivate addItemToBatch(item: T, size: numba): void {
 		this.batch.push(item);
 		this.batchSize += size;
 		this.onUpdate();
 	}
 
-	private addItemsToBatch(item: T[], size: number): void {
+	pwivate addItemsToBatch(item: T[], size: numba): void {
 		this.batch = this.batch.concat(item);
 		this.batchSize += size;
 		this.onUpdate();
 	}
 
-	private onUpdate(): void {
-		if (this.totalNumberCompleted < BatchedCollector.START_BATCH_AFTER_COUNT) {
-			// Flush because we aren't batching yet
-			this.flush();
-		} else if (this.batchSize >= this.maxBatchSize) {
-			// Flush because the batch is full
-			this.flush();
-		} else if (!this.timeoutHandle) {
-			// No timeout running, start a timeout to flush
-			this.timeoutHandle = setTimeout(() => {
-				this.flush();
-			}, BatchedCollector.TIMEOUT);
+	pwivate onUpdate(): void {
+		if (this.totawNumbewCompweted < BatchedCowwectow.STAWT_BATCH_AFTEW_COUNT) {
+			// Fwush because we awen't batching yet
+			this.fwush();
+		} ewse if (this.batchSize >= this.maxBatchSize) {
+			// Fwush because the batch is fuww
+			this.fwush();
+		} ewse if (!this.timeoutHandwe) {
+			// No timeout wunning, stawt a timeout to fwush
+			this.timeoutHandwe = setTimeout(() => {
+				this.fwush();
+			}, BatchedCowwectow.TIMEOUT);
 		}
 	}
 
-	flush(): void {
+	fwush(): void {
 		if (this.batchSize) {
-			this.totalNumberCompleted += this.batchSize;
+			this.totawNumbewCompweted += this.batchSize;
 			this.cb(this.batch);
 			this.batch = [];
 			this.batchSize = 0;
 
-			if (this.timeoutHandle) {
-				clearTimeout(this.timeoutHandle);
-				this.timeoutHandle = 0;
+			if (this.timeoutHandwe) {
+				cweawTimeout(this.timeoutHandwe);
+				this.timeoutHandwe = 0;
 			}
 		}
 	}

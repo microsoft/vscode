@@ -1,556 +1,556 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import * as browser from 'vs/base/browser/browser';
-import { Selection } from 'vs/editor/common/core/selection';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
-import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
-import { ITextAreaHandlerHelper, TextAreaHandler } from 'vs/editor/browser/controller/textAreaHandler';
-import { IContentWidget, IContentWidgetPosition, IOverlayWidget, IOverlayWidgetPosition, IMouseTarget, IViewZoneChangeAccessor, IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
-import { ICommandDelegate, ViewController } from 'vs/editor/browser/view/viewController';
-import { ViewUserInputEvents } from 'vs/editor/browser/view/viewUserInputEvents';
-import { ContentViewOverlays, MarginViewOverlays } from 'vs/editor/browser/view/viewOverlays';
-import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
-import { ViewContentWidgets } from 'vs/editor/browser/viewParts/contentWidgets/contentWidgets';
-import { CurrentLineHighlightOverlay, CurrentLineMarginHighlightOverlay } from 'vs/editor/browser/viewParts/currentLineHighlight/currentLineHighlight';
-import { DecorationsOverlay } from 'vs/editor/browser/viewParts/decorations/decorations';
-import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
-import { GlyphMarginOverlay } from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
-import { IndentGuidesOverlay } from 'vs/editor/browser/viewParts/indentGuides/indentGuides';
-import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
-import { ViewLines } from 'vs/editor/browser/viewParts/lines/viewLines';
-import { LinesDecorationsOverlay } from 'vs/editor/browser/viewParts/linesDecorations/linesDecorations';
-import { Margin } from 'vs/editor/browser/viewParts/margin/margin';
-import { MarginViewLineDecorationsOverlay } from 'vs/editor/browser/viewParts/marginDecorations/marginDecorations';
-import { Minimap } from 'vs/editor/browser/viewParts/minimap/minimap';
-import { ViewOverlayWidgets } from 'vs/editor/browser/viewParts/overlayWidgets/overlayWidgets';
-import { DecorationsOverviewRuler } from 'vs/editor/browser/viewParts/overviewRuler/decorationsOverviewRuler';
-import { OverviewRuler } from 'vs/editor/browser/viewParts/overviewRuler/overviewRuler';
-import { Rulers } from 'vs/editor/browser/viewParts/rulers/rulers';
-import { ScrollDecorationViewPart } from 'vs/editor/browser/viewParts/scrollDecoration/scrollDecoration';
-import { SelectionsOverlay } from 'vs/editor/browser/viewParts/selections/selections';
-import { ViewCursors } from 'vs/editor/browser/viewParts/viewCursors/viewCursors';
-import { ViewZones } from 'vs/editor/browser/viewParts/viewZones/viewZones';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IConfiguration, ScrollType } from 'vs/editor/common/editorCommon';
-import { RenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
-import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
-import { IThemeService, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouseTarget';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt * as bwowsa fwom 'vs/base/bwowsa/bwowsa';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { FastDomNode, cweateFastDomNode } fwom 'vs/base/bwowsa/fastDomNode';
+impowt { IMouseEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IPointewHandwewHewpa } fwom 'vs/editow/bwowsa/contwowwa/mouseHandwa';
+impowt { PointewHandwa } fwom 'vs/editow/bwowsa/contwowwa/pointewHandwa';
+impowt { ITextAweaHandwewHewpa, TextAweaHandwa } fwom 'vs/editow/bwowsa/contwowwa/textAweaHandwa';
+impowt { IContentWidget, IContentWidgetPosition, IOvewwayWidget, IOvewwayWidgetPosition, IMouseTawget, IViewZoneChangeAccessow, IEditowAwiaOptions } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { ICommandDewegate, ViewContwowwa } fwom 'vs/editow/bwowsa/view/viewContwowwa';
+impowt { ViewUsewInputEvents } fwom 'vs/editow/bwowsa/view/viewUsewInputEvents';
+impowt { ContentViewOvewways, MawginViewOvewways } fwom 'vs/editow/bwowsa/view/viewOvewways';
+impowt { PawtFingewpwint, PawtFingewpwints, ViewPawt } fwom 'vs/editow/bwowsa/view/viewPawt';
+impowt { ViewContentWidgets } fwom 'vs/editow/bwowsa/viewPawts/contentWidgets/contentWidgets';
+impowt { CuwwentWineHighwightOvewway, CuwwentWineMawginHighwightOvewway } fwom 'vs/editow/bwowsa/viewPawts/cuwwentWineHighwight/cuwwentWineHighwight';
+impowt { DecowationsOvewway } fwom 'vs/editow/bwowsa/viewPawts/decowations/decowations';
+impowt { EditowScwowwbaw } fwom 'vs/editow/bwowsa/viewPawts/editowScwowwbaw/editowScwowwbaw';
+impowt { GwyphMawginOvewway } fwom 'vs/editow/bwowsa/viewPawts/gwyphMawgin/gwyphMawgin';
+impowt { IndentGuidesOvewway } fwom 'vs/editow/bwowsa/viewPawts/indentGuides/indentGuides';
+impowt { WineNumbewsOvewway } fwom 'vs/editow/bwowsa/viewPawts/wineNumbews/wineNumbews';
+impowt { ViewWines } fwom 'vs/editow/bwowsa/viewPawts/wines/viewWines';
+impowt { WinesDecowationsOvewway } fwom 'vs/editow/bwowsa/viewPawts/winesDecowations/winesDecowations';
+impowt { Mawgin } fwom 'vs/editow/bwowsa/viewPawts/mawgin/mawgin';
+impowt { MawginViewWineDecowationsOvewway } fwom 'vs/editow/bwowsa/viewPawts/mawginDecowations/mawginDecowations';
+impowt { Minimap } fwom 'vs/editow/bwowsa/viewPawts/minimap/minimap';
+impowt { ViewOvewwayWidgets } fwom 'vs/editow/bwowsa/viewPawts/ovewwayWidgets/ovewwayWidgets';
+impowt { DecowationsOvewviewWuwa } fwom 'vs/editow/bwowsa/viewPawts/ovewviewWuwa/decowationsOvewviewWuwa';
+impowt { OvewviewWuwa } fwom 'vs/editow/bwowsa/viewPawts/ovewviewWuwa/ovewviewWuwa';
+impowt { Wuwews } fwom 'vs/editow/bwowsa/viewPawts/wuwews/wuwews';
+impowt { ScwowwDecowationViewPawt } fwom 'vs/editow/bwowsa/viewPawts/scwowwDecowation/scwowwDecowation';
+impowt { SewectionsOvewway } fwom 'vs/editow/bwowsa/viewPawts/sewections/sewections';
+impowt { ViewCuwsows } fwom 'vs/editow/bwowsa/viewPawts/viewCuwsows/viewCuwsows';
+impowt { ViewZones } fwom 'vs/editow/bwowsa/viewPawts/viewZones/viewZones';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IConfiguwation, ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { WendewingContext } fwom 'vs/editow/common/view/wendewingContext';
+impowt { ViewContext } fwom 'vs/editow/common/view/viewContext';
+impowt * as viewEvents fwom 'vs/editow/common/view/viewEvents';
+impowt { ViewpowtData } fwom 'vs/editow/common/viewWayout/viewWinesViewpowtData';
+impowt { ViewEventHandwa } fwom 'vs/editow/common/viewModew/viewEventHandwa';
+impowt { IViewModew } fwom 'vs/editow/common/viewModew/viewModew';
+impowt { IThemeSewvice, getThemeTypeSewectow } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { PointewHandwewWastWendewData } fwom 'vs/editow/bwowsa/contwowwa/mouseTawget';
 
 
-export interface IContentWidgetData {
+expowt intewface IContentWidgetData {
 	widget: IContentWidget;
-	position: IContentWidgetPosition | null;
+	position: IContentWidgetPosition | nuww;
 }
 
-export interface IOverlayWidgetData {
-	widget: IOverlayWidget;
-	position: IOverlayWidgetPosition | null;
+expowt intewface IOvewwayWidgetData {
+	widget: IOvewwayWidget;
+	position: IOvewwayWidgetPosition | nuww;
 }
 
-export class View extends ViewEventHandler {
+expowt cwass View extends ViewEventHandwa {
 
-	private readonly _scrollbar: EditorScrollbar;
-	private readonly _context: ViewContext;
-	private _configPixelRatio: number;
-	private _selections: Selection[];
+	pwivate weadonwy _scwowwbaw: EditowScwowwbaw;
+	pwivate weadonwy _context: ViewContext;
+	pwivate _configPixewWatio: numba;
+	pwivate _sewections: Sewection[];
 
-	// The view lines
-	private readonly _viewLines: ViewLines;
+	// The view wines
+	pwivate weadonwy _viewWines: ViewWines;
 
-	// These are parts, but we must do some API related calls on them, so we keep a reference
-	private readonly _viewZones: ViewZones;
-	private readonly _contentWidgets: ViewContentWidgets;
-	private readonly _overlayWidgets: ViewOverlayWidgets;
-	private readonly _viewCursors: ViewCursors;
-	private readonly _viewParts: ViewPart[];
+	// These awe pawts, but we must do some API wewated cawws on them, so we keep a wefewence
+	pwivate weadonwy _viewZones: ViewZones;
+	pwivate weadonwy _contentWidgets: ViewContentWidgets;
+	pwivate weadonwy _ovewwayWidgets: ViewOvewwayWidgets;
+	pwivate weadonwy _viewCuwsows: ViewCuwsows;
+	pwivate weadonwy _viewPawts: ViewPawt[];
 
-	private readonly _textAreaHandler: TextAreaHandler;
-	private readonly _pointerHandler: PointerHandler;
+	pwivate weadonwy _textAweaHandwa: TextAweaHandwa;
+	pwivate weadonwy _pointewHandwa: PointewHandwa;
 
 	// Dom nodes
-	private readonly _linesContent: FastDomNode<HTMLElement>;
-	public readonly domNode: FastDomNode<HTMLElement>;
-	private readonly _overflowGuardContainer: FastDomNode<HTMLElement>;
+	pwivate weadonwy _winesContent: FastDomNode<HTMWEwement>;
+	pubwic weadonwy domNode: FastDomNode<HTMWEwement>;
+	pwivate weadonwy _ovewfwowGuawdContaina: FastDomNode<HTMWEwement>;
 
-	// Actual mutable state
-	private _renderAnimationFrame: IDisposable | null;
+	// Actuaw mutabwe state
+	pwivate _wendewAnimationFwame: IDisposabwe | nuww;
 
-	constructor(
-		commandDelegate: ICommandDelegate,
-		configuration: IConfiguration,
-		themeService: IThemeService,
-		model: IViewModel,
-		userInputEvents: ViewUserInputEvents,
-		overflowWidgetsDomNode: HTMLElement | undefined
+	constwuctow(
+		commandDewegate: ICommandDewegate,
+		configuwation: IConfiguwation,
+		themeSewvice: IThemeSewvice,
+		modew: IViewModew,
+		usewInputEvents: ViewUsewInputEvents,
+		ovewfwowWidgetsDomNode: HTMWEwement | undefined
 	) {
-		super();
-		this._selections = [new Selection(1, 1, 1, 1)];
-		this._renderAnimationFrame = null;
+		supa();
+		this._sewections = [new Sewection(1, 1, 1, 1)];
+		this._wendewAnimationFwame = nuww;
 
-		const viewController = new ViewController(configuration, model, userInputEvents, commandDelegate);
+		const viewContwowwa = new ViewContwowwa(configuwation, modew, usewInputEvents, commandDewegate);
 
-		// The view context is passed on to most classes (basically to reduce param. counts in ctors)
-		this._context = new ViewContext(configuration, themeService.getColorTheme(), model);
-		this._configPixelRatio = this._context.configuration.options.get(EditorOption.pixelRatio);
+		// The view context is passed on to most cwasses (basicawwy to weduce pawam. counts in ctows)
+		this._context = new ViewContext(configuwation, themeSewvice.getCowowTheme(), modew);
+		this._configPixewWatio = this._context.configuwation.options.get(EditowOption.pixewWatio);
 
-		// Ensure the view is the first event handler in order to update the layout
-		this._context.addEventHandler(this);
+		// Ensuwe the view is the fiwst event handwa in owda to update the wayout
+		this._context.addEventHandwa(this);
 
-		this._register(themeService.onDidColorThemeChange(theme => {
+		this._wegista(themeSewvice.onDidCowowThemeChange(theme => {
 			this._context.theme.update(theme);
-			this._context.model.onDidColorThemeChange();
-			this.render(true, false);
+			this._context.modew.onDidCowowThemeChange();
+			this.wenda(twue, fawse);
 		}));
 
-		this._viewParts = [];
+		this._viewPawts = [];
 
-		// Keyboard handler
-		this._textAreaHandler = new TextAreaHandler(this._context, viewController, this._createTextAreaHandlerHelper());
-		this._viewParts.push(this._textAreaHandler);
+		// Keyboawd handwa
+		this._textAweaHandwa = new TextAweaHandwa(this._context, viewContwowwa, this._cweateTextAweaHandwewHewpa());
+		this._viewPawts.push(this._textAweaHandwa);
 
-		// These two dom nodes must be constructed up front, since references are needed in the layout provider (scrolling & co.)
-		this._linesContent = createFastDomNode(document.createElement('div'));
-		this._linesContent.setClassName('lines-content' + ' monaco-editor-background');
-		this._linesContent.setPosition('absolute');
+		// These two dom nodes must be constwucted up fwont, since wefewences awe needed in the wayout pwovida (scwowwing & co.)
+		this._winesContent = cweateFastDomNode(document.cweateEwement('div'));
+		this._winesContent.setCwassName('wines-content' + ' monaco-editow-backgwound');
+		this._winesContent.setPosition('absowute');
 
-		this.domNode = createFastDomNode(document.createElement('div'));
-		this.domNode.setClassName(this._getEditorClassName());
-		// Set role 'code' for better screen reader support https://github.com/microsoft/vscode/issues/93438
-		this.domNode.setAttribute('role', 'code');
+		this.domNode = cweateFastDomNode(document.cweateEwement('div'));
+		this.domNode.setCwassName(this._getEditowCwassName());
+		// Set wowe 'code' fow betta scween weada suppowt https://github.com/micwosoft/vscode/issues/93438
+		this.domNode.setAttwibute('wowe', 'code');
 
-		this._overflowGuardContainer = createFastDomNode(document.createElement('div'));
-		PartFingerprints.write(this._overflowGuardContainer, PartFingerprint.OverflowGuard);
-		this._overflowGuardContainer.setClassName('overflow-guard');
+		this._ovewfwowGuawdContaina = cweateFastDomNode(document.cweateEwement('div'));
+		PawtFingewpwints.wwite(this._ovewfwowGuawdContaina, PawtFingewpwint.OvewfwowGuawd);
+		this._ovewfwowGuawdContaina.setCwassName('ovewfwow-guawd');
 
-		this._scrollbar = new EditorScrollbar(this._context, this._linesContent, this.domNode, this._overflowGuardContainer);
-		this._viewParts.push(this._scrollbar);
+		this._scwowwbaw = new EditowScwowwbaw(this._context, this._winesContent, this.domNode, this._ovewfwowGuawdContaina);
+		this._viewPawts.push(this._scwowwbaw);
 
-		// View Lines
-		this._viewLines = new ViewLines(this._context, this._linesContent);
+		// View Wines
+		this._viewWines = new ViewWines(this._context, this._winesContent);
 
 		// View Zones
 		this._viewZones = new ViewZones(this._context);
-		this._viewParts.push(this._viewZones);
+		this._viewPawts.push(this._viewZones);
 
-		// Decorations overview ruler
-		const decorationsOverviewRuler = new DecorationsOverviewRuler(this._context);
-		this._viewParts.push(decorationsOverviewRuler);
+		// Decowations ovewview wuwa
+		const decowationsOvewviewWuwa = new DecowationsOvewviewWuwa(this._context);
+		this._viewPawts.push(decowationsOvewviewWuwa);
 
 
-		const scrollDecoration = new ScrollDecorationViewPart(this._context);
-		this._viewParts.push(scrollDecoration);
+		const scwowwDecowation = new ScwowwDecowationViewPawt(this._context);
+		this._viewPawts.push(scwowwDecowation);
 
-		const contentViewOverlays = new ContentViewOverlays(this._context);
-		this._viewParts.push(contentViewOverlays);
-		contentViewOverlays.addDynamicOverlay(new CurrentLineHighlightOverlay(this._context));
-		contentViewOverlays.addDynamicOverlay(new SelectionsOverlay(this._context));
-		contentViewOverlays.addDynamicOverlay(new IndentGuidesOverlay(this._context));
-		contentViewOverlays.addDynamicOverlay(new DecorationsOverlay(this._context));
+		const contentViewOvewways = new ContentViewOvewways(this._context);
+		this._viewPawts.push(contentViewOvewways);
+		contentViewOvewways.addDynamicOvewway(new CuwwentWineHighwightOvewway(this._context));
+		contentViewOvewways.addDynamicOvewway(new SewectionsOvewway(this._context));
+		contentViewOvewways.addDynamicOvewway(new IndentGuidesOvewway(this._context));
+		contentViewOvewways.addDynamicOvewway(new DecowationsOvewway(this._context));
 
-		const marginViewOverlays = new MarginViewOverlays(this._context);
-		this._viewParts.push(marginViewOverlays);
-		marginViewOverlays.addDynamicOverlay(new CurrentLineMarginHighlightOverlay(this._context));
-		marginViewOverlays.addDynamicOverlay(new GlyphMarginOverlay(this._context));
-		marginViewOverlays.addDynamicOverlay(new MarginViewLineDecorationsOverlay(this._context));
-		marginViewOverlays.addDynamicOverlay(new LinesDecorationsOverlay(this._context));
-		marginViewOverlays.addDynamicOverlay(new LineNumbersOverlay(this._context));
+		const mawginViewOvewways = new MawginViewOvewways(this._context);
+		this._viewPawts.push(mawginViewOvewways);
+		mawginViewOvewways.addDynamicOvewway(new CuwwentWineMawginHighwightOvewway(this._context));
+		mawginViewOvewways.addDynamicOvewway(new GwyphMawginOvewway(this._context));
+		mawginViewOvewways.addDynamicOvewway(new MawginViewWineDecowationsOvewway(this._context));
+		mawginViewOvewways.addDynamicOvewway(new WinesDecowationsOvewway(this._context));
+		mawginViewOvewways.addDynamicOvewway(new WineNumbewsOvewway(this._context));
 
-		const margin = new Margin(this._context);
-		margin.getDomNode().appendChild(this._viewZones.marginDomNode);
-		margin.getDomNode().appendChild(marginViewOverlays.getDomNode());
-		this._viewParts.push(margin);
+		const mawgin = new Mawgin(this._context);
+		mawgin.getDomNode().appendChiwd(this._viewZones.mawginDomNode);
+		mawgin.getDomNode().appendChiwd(mawginViewOvewways.getDomNode());
+		this._viewPawts.push(mawgin);
 
 		// Content widgets
 		this._contentWidgets = new ViewContentWidgets(this._context, this.domNode);
-		this._viewParts.push(this._contentWidgets);
+		this._viewPawts.push(this._contentWidgets);
 
-		this._viewCursors = new ViewCursors(this._context);
-		this._viewParts.push(this._viewCursors);
+		this._viewCuwsows = new ViewCuwsows(this._context);
+		this._viewPawts.push(this._viewCuwsows);
 
-		// Overlay widgets
-		this._overlayWidgets = new ViewOverlayWidgets(this._context);
-		this._viewParts.push(this._overlayWidgets);
+		// Ovewway widgets
+		this._ovewwayWidgets = new ViewOvewwayWidgets(this._context);
+		this._viewPawts.push(this._ovewwayWidgets);
 
-		const rulers = new Rulers(this._context);
-		this._viewParts.push(rulers);
+		const wuwews = new Wuwews(this._context);
+		this._viewPawts.push(wuwews);
 
 		const minimap = new Minimap(this._context);
-		this._viewParts.push(minimap);
+		this._viewPawts.push(minimap);
 
-		// -------------- Wire dom nodes up
+		// -------------- Wiwe dom nodes up
 
-		if (decorationsOverviewRuler) {
-			const overviewRulerData = this._scrollbar.getOverviewRulerLayoutInfo();
-			overviewRulerData.parent.insertBefore(decorationsOverviewRuler.getDomNode(), overviewRulerData.insertBefore);
+		if (decowationsOvewviewWuwa) {
+			const ovewviewWuwewData = this._scwowwbaw.getOvewviewWuwewWayoutInfo();
+			ovewviewWuwewData.pawent.insewtBefowe(decowationsOvewviewWuwa.getDomNode(), ovewviewWuwewData.insewtBefowe);
 		}
 
-		this._linesContent.appendChild(contentViewOverlays.getDomNode());
-		this._linesContent.appendChild(rulers.domNode);
-		this._linesContent.appendChild(this._viewZones.domNode);
-		this._linesContent.appendChild(this._viewLines.getDomNode());
-		this._linesContent.appendChild(this._contentWidgets.domNode);
-		this._linesContent.appendChild(this._viewCursors.getDomNode());
-		this._overflowGuardContainer.appendChild(margin.getDomNode());
-		this._overflowGuardContainer.appendChild(this._scrollbar.getDomNode());
-		this._overflowGuardContainer.appendChild(scrollDecoration.getDomNode());
-		this._overflowGuardContainer.appendChild(this._textAreaHandler.textArea);
-		this._overflowGuardContainer.appendChild(this._textAreaHandler.textAreaCover);
-		this._overflowGuardContainer.appendChild(this._overlayWidgets.getDomNode());
-		this._overflowGuardContainer.appendChild(minimap.getDomNode());
-		this.domNode.appendChild(this._overflowGuardContainer);
+		this._winesContent.appendChiwd(contentViewOvewways.getDomNode());
+		this._winesContent.appendChiwd(wuwews.domNode);
+		this._winesContent.appendChiwd(this._viewZones.domNode);
+		this._winesContent.appendChiwd(this._viewWines.getDomNode());
+		this._winesContent.appendChiwd(this._contentWidgets.domNode);
+		this._winesContent.appendChiwd(this._viewCuwsows.getDomNode());
+		this._ovewfwowGuawdContaina.appendChiwd(mawgin.getDomNode());
+		this._ovewfwowGuawdContaina.appendChiwd(this._scwowwbaw.getDomNode());
+		this._ovewfwowGuawdContaina.appendChiwd(scwowwDecowation.getDomNode());
+		this._ovewfwowGuawdContaina.appendChiwd(this._textAweaHandwa.textAwea);
+		this._ovewfwowGuawdContaina.appendChiwd(this._textAweaHandwa.textAweaCova);
+		this._ovewfwowGuawdContaina.appendChiwd(this._ovewwayWidgets.getDomNode());
+		this._ovewfwowGuawdContaina.appendChiwd(minimap.getDomNode());
+		this.domNode.appendChiwd(this._ovewfwowGuawdContaina);
 
-		if (overflowWidgetsDomNode) {
-			overflowWidgetsDomNode.appendChild(this._contentWidgets.overflowingContentWidgetsDomNode.domNode);
-		} else {
-			this.domNode.appendChild(this._contentWidgets.overflowingContentWidgetsDomNode);
+		if (ovewfwowWidgetsDomNode) {
+			ovewfwowWidgetsDomNode.appendChiwd(this._contentWidgets.ovewfwowingContentWidgetsDomNode.domNode);
+		} ewse {
+			this.domNode.appendChiwd(this._contentWidgets.ovewfwowingContentWidgetsDomNode);
 		}
 
-		this._applyLayout();
+		this._appwyWayout();
 
-		// Pointer handler
-		this._pointerHandler = this._register(new PointerHandler(this._context, viewController, this._createPointerHandlerHelper()));
+		// Pointa handwa
+		this._pointewHandwa = this._wegista(new PointewHandwa(this._context, viewContwowwa, this._cweatePointewHandwewHewpa()));
 	}
 
-	private _flushAccumulatedAndRenderNow(): void {
-		this._renderNow();
+	pwivate _fwushAccumuwatedAndWendewNow(): void {
+		this._wendewNow();
 	}
 
-	private _createPointerHandlerHelper(): IPointerHandlerHelper {
-		return {
+	pwivate _cweatePointewHandwewHewpa(): IPointewHandwewHewpa {
+		wetuwn {
 			viewDomNode: this.domNode.domNode,
-			linesContentDomNode: this._linesContent.domNode,
+			winesContentDomNode: this._winesContent.domNode,
 
-			focusTextArea: () => {
+			focusTextAwea: () => {
 				this.focus();
 			},
 
-			dispatchTextAreaEvent: (event: CustomEvent) => {
-				this._textAreaHandler.textArea.domNode.dispatchEvent(event);
+			dispatchTextAweaEvent: (event: CustomEvent) => {
+				this._textAweaHandwa.textAwea.domNode.dispatchEvent(event);
 			},
 
-			getLastRenderData: (): PointerHandlerLastRenderData => {
-				const lastViewCursorsRenderData = this._viewCursors.getLastRenderData() || [];
-				const lastTextareaPosition = this._textAreaHandler.getLastRenderData();
-				return new PointerHandlerLastRenderData(lastViewCursorsRenderData, lastTextareaPosition);
+			getWastWendewData: (): PointewHandwewWastWendewData => {
+				const wastViewCuwsowsWendewData = this._viewCuwsows.getWastWendewData() || [];
+				const wastTextaweaPosition = this._textAweaHandwa.getWastWendewData();
+				wetuwn new PointewHandwewWastWendewData(wastViewCuwsowsWendewData, wastTextaweaPosition);
 			},
-			shouldSuppressMouseDownOnViewZone: (viewZoneId: string) => {
-				return this._viewZones.shouldSuppressMouseDownOnViewZone(viewZoneId);
+			shouwdSuppwessMouseDownOnViewZone: (viewZoneId: stwing) => {
+				wetuwn this._viewZones.shouwdSuppwessMouseDownOnViewZone(viewZoneId);
 			},
-			shouldSuppressMouseDownOnWidget: (widgetId: string) => {
-				return this._contentWidgets.shouldSuppressMouseDownOnWidget(widgetId);
+			shouwdSuppwessMouseDownOnWidget: (widgetId: stwing) => {
+				wetuwn this._contentWidgets.shouwdSuppwessMouseDownOnWidget(widgetId);
 			},
-			getPositionFromDOMInfo: (spanNode: HTMLElement, offset: number) => {
-				this._flushAccumulatedAndRenderNow();
-				return this._viewLines.getPositionFromDOMInfo(spanNode, offset);
-			},
-
-			visibleRangeForPosition: (lineNumber: number, column: number) => {
-				this._flushAccumulatedAndRenderNow();
-				return this._viewLines.visibleRangeForPosition(new Position(lineNumber, column));
+			getPositionFwomDOMInfo: (spanNode: HTMWEwement, offset: numba) => {
+				this._fwushAccumuwatedAndWendewNow();
+				wetuwn this._viewWines.getPositionFwomDOMInfo(spanNode, offset);
 			},
 
-			getLineWidth: (lineNumber: number) => {
-				this._flushAccumulatedAndRenderNow();
-				return this._viewLines.getLineWidth(lineNumber);
+			visibweWangeFowPosition: (wineNumba: numba, cowumn: numba) => {
+				this._fwushAccumuwatedAndWendewNow();
+				wetuwn this._viewWines.visibweWangeFowPosition(new Position(wineNumba, cowumn));
+			},
+
+			getWineWidth: (wineNumba: numba) => {
+				this._fwushAccumuwatedAndWendewNow();
+				wetuwn this._viewWines.getWineWidth(wineNumba);
 			}
 		};
 	}
 
-	private _createTextAreaHandlerHelper(): ITextAreaHandlerHelper {
-		return {
-			visibleRangeForPositionRelativeToEditor: (lineNumber: number, column: number) => {
-				this._flushAccumulatedAndRenderNow();
-				return this._viewLines.visibleRangeForPosition(new Position(lineNumber, column));
+	pwivate _cweateTextAweaHandwewHewpa(): ITextAweaHandwewHewpa {
+		wetuwn {
+			visibweWangeFowPositionWewativeToEditow: (wineNumba: numba, cowumn: numba) => {
+				this._fwushAccumuwatedAndWendewNow();
+				wetuwn this._viewWines.visibweWangeFowPosition(new Position(wineNumba, cowumn));
 			}
 		};
 	}
 
-	private _applyLayout(): void {
-		const options = this._context.configuration.options;
-		const layoutInfo = options.get(EditorOption.layoutInfo);
+	pwivate _appwyWayout(): void {
+		const options = this._context.configuwation.options;
+		const wayoutInfo = options.get(EditowOption.wayoutInfo);
 
-		this.domNode.setWidth(layoutInfo.width);
-		this.domNode.setHeight(layoutInfo.height);
+		this.domNode.setWidth(wayoutInfo.width);
+		this.domNode.setHeight(wayoutInfo.height);
 
-		this._overflowGuardContainer.setWidth(layoutInfo.width);
-		this._overflowGuardContainer.setHeight(layoutInfo.height);
+		this._ovewfwowGuawdContaina.setWidth(wayoutInfo.width);
+		this._ovewfwowGuawdContaina.setHeight(wayoutInfo.height);
 
-		this._linesContent.setWidth(1000000);
-		this._linesContent.setHeight(1000000);
+		this._winesContent.setWidth(1000000);
+		this._winesContent.setHeight(1000000);
 	}
 
-	private _getEditorClassName() {
-		const focused = this._textAreaHandler.isFocused() ? ' focused' : '';
-		return this._context.configuration.options.get(EditorOption.editorClassName) + ' ' + getThemeTypeSelector(this._context.theme.type) + focused;
+	pwivate _getEditowCwassName() {
+		const focused = this._textAweaHandwa.isFocused() ? ' focused' : '';
+		wetuwn this._context.configuwation.options.get(EditowOption.editowCwassName) + ' ' + getThemeTypeSewectow(this._context.theme.type) + focused;
 	}
 
-	// --- begin event handlers
-	public override handleEvents(events: viewEvents.ViewEvent[]): void {
-		super.handleEvents(events);
-		this._scheduleRender();
+	// --- begin event handwews
+	pubwic ovewwide handweEvents(events: viewEvents.ViewEvent[]): void {
+		supa.handweEvents(events);
+		this._scheduweWenda();
 	}
-	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		this._configPixelRatio = this._context.configuration.options.get(EditorOption.pixelRatio);
-		this.domNode.setClassName(this._getEditorClassName());
-		this._applyLayout();
-		return false;
+	pubwic ovewwide onConfiguwationChanged(e: viewEvents.ViewConfiguwationChangedEvent): boowean {
+		this._configPixewWatio = this._context.configuwation.options.get(EditowOption.pixewWatio);
+		this.domNode.setCwassName(this._getEditowCwassName());
+		this._appwyWayout();
+		wetuwn fawse;
 	}
-	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
-		this._selections = e.selections;
-		return false;
+	pubwic ovewwide onCuwsowStateChanged(e: viewEvents.ViewCuwsowStateChangedEvent): boowean {
+		this._sewections = e.sewections;
+		wetuwn fawse;
 	}
-	public override onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
-		this.domNode.setClassName(this._getEditorClassName());
-		return false;
+	pubwic ovewwide onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boowean {
+		this.domNode.setCwassName(this._getEditowCwassName());
+		wetuwn fawse;
 	}
-	public override onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
-		this.domNode.setClassName(this._getEditorClassName());
-		return false;
+	pubwic ovewwide onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boowean {
+		this.domNode.setCwassName(this._getEditowCwassName());
+		wetuwn fawse;
 	}
 
-	// --- end event handlers
+	// --- end event handwews
 
-	public override dispose(): void {
-		if (this._renderAnimationFrame !== null) {
-			this._renderAnimationFrame.dispose();
-			this._renderAnimationFrame = null;
+	pubwic ovewwide dispose(): void {
+		if (this._wendewAnimationFwame !== nuww) {
+			this._wendewAnimationFwame.dispose();
+			this._wendewAnimationFwame = nuww;
 		}
 
-		this._contentWidgets.overflowingContentWidgetsDomNode.domNode.remove();
+		this._contentWidgets.ovewfwowingContentWidgetsDomNode.domNode.wemove();
 
-		this._context.removeEventHandler(this);
+		this._context.wemoveEventHandwa(this);
 
-		this._viewLines.dispose();
+		this._viewWines.dispose();
 
-		// Destroy view parts
-		for (const viewPart of this._viewParts) {
-			viewPart.dispose();
+		// Destwoy view pawts
+		fow (const viewPawt of this._viewPawts) {
+			viewPawt.dispose();
 		}
 
-		super.dispose();
+		supa.dispose();
 	}
 
-	private _scheduleRender(): void {
-		if (this._renderAnimationFrame === null) {
-			this._renderAnimationFrame = dom.runAtThisOrScheduleAtNextAnimationFrame(this._onRenderScheduled.bind(this), 100);
+	pwivate _scheduweWenda(): void {
+		if (this._wendewAnimationFwame === nuww) {
+			this._wendewAnimationFwame = dom.wunAtThisOwScheduweAtNextAnimationFwame(this._onWendewScheduwed.bind(this), 100);
 		}
 	}
 
-	private _onRenderScheduled(): void {
-		this._renderAnimationFrame = null;
-		this._flushAccumulatedAndRenderNow();
+	pwivate _onWendewScheduwed(): void {
+		this._wendewAnimationFwame = nuww;
+		this._fwushAccumuwatedAndWendewNow();
 	}
 
-	private _renderNow(): void {
-		safeInvokeNoArg(() => this._actualRender());
+	pwivate _wendewNow(): void {
+		safeInvokeNoAwg(() => this._actuawWenda());
 	}
 
-	private _getViewPartsToRender(): ViewPart[] {
-		let result: ViewPart[] = [], resultLen = 0;
-		for (const viewPart of this._viewParts) {
-			if (viewPart.shouldRender()) {
-				result[resultLen++] = viewPart;
+	pwivate _getViewPawtsToWenda(): ViewPawt[] {
+		wet wesuwt: ViewPawt[] = [], wesuwtWen = 0;
+		fow (const viewPawt of this._viewPawts) {
+			if (viewPawt.shouwdWenda()) {
+				wesuwt[wesuwtWen++] = viewPawt;
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private _actualRender(): void {
+	pwivate _actuawWenda(): void {
 		if (!dom.isInDOM(this.domNode.domNode)) {
-			return;
+			wetuwn;
 		}
 
-		let viewPartsToRender = this._getViewPartsToRender();
+		wet viewPawtsToWenda = this._getViewPawtsToWenda();
 
-		if (!this._viewLines.shouldRender() && viewPartsToRender.length === 0) {
-			// Nothing to render
-			return;
+		if (!this._viewWines.shouwdWenda() && viewPawtsToWenda.wength === 0) {
+			// Nothing to wenda
+			wetuwn;
 		}
 
-		const partialViewportData = this._context.viewLayout.getLinesViewportData();
-		this._context.model.setViewport(partialViewportData.startLineNumber, partialViewportData.endLineNumber, partialViewportData.centeredLineNumber);
+		const pawtiawViewpowtData = this._context.viewWayout.getWinesViewpowtData();
+		this._context.modew.setViewpowt(pawtiawViewpowtData.stawtWineNumba, pawtiawViewpowtData.endWineNumba, pawtiawViewpowtData.centewedWineNumba);
 
-		const viewportData = new ViewportData(
-			this._selections,
-			partialViewportData,
-			this._context.viewLayout.getWhitespaceViewportData(),
-			this._context.model
+		const viewpowtData = new ViewpowtData(
+			this._sewections,
+			pawtiawViewpowtData,
+			this._context.viewWayout.getWhitespaceViewpowtData(),
+			this._context.modew
 		);
 
-		if (this._contentWidgets.shouldRender()) {
-			// Give the content widgets a chance to set their max width before a possible synchronous layout
-			this._contentWidgets.onBeforeRender(viewportData);
+		if (this._contentWidgets.shouwdWenda()) {
+			// Give the content widgets a chance to set theiw max width befowe a possibwe synchwonous wayout
+			this._contentWidgets.onBefoweWenda(viewpowtData);
 		}
 
-		if (this._viewLines.shouldRender()) {
-			this._viewLines.renderText(viewportData);
-			this._viewLines.onDidRender();
+		if (this._viewWines.shouwdWenda()) {
+			this._viewWines.wendewText(viewpowtData);
+			this._viewWines.onDidWenda();
 
-			// Rendering of viewLines might cause scroll events to occur, so collect view parts to render again
-			viewPartsToRender = this._getViewPartsToRender();
+			// Wendewing of viewWines might cause scwoww events to occuw, so cowwect view pawts to wenda again
+			viewPawtsToWenda = this._getViewPawtsToWenda();
 		}
 
-		const renderingContext = new RenderingContext(this._context.viewLayout, viewportData, this._viewLines);
+		const wendewingContext = new WendewingContext(this._context.viewWayout, viewpowtData, this._viewWines);
 
-		// Render the rest of the parts
-		for (const viewPart of viewPartsToRender) {
-			viewPart.prepareRender(renderingContext);
+		// Wenda the west of the pawts
+		fow (const viewPawt of viewPawtsToWenda) {
+			viewPawt.pwepaweWenda(wendewingContext);
 		}
 
-		for (const viewPart of viewPartsToRender) {
-			viewPart.render(renderingContext);
-			viewPart.onDidRender();
+		fow (const viewPawt of viewPawtsToWenda) {
+			viewPawt.wenda(wendewingContext);
+			viewPawt.onDidWenda();
 		}
 
-		// Try to detect browser zooming and paint again if necessary
-		if (Math.abs(browser.getPixelRatio() - this._configPixelRatio) > 0.001) {
-			// looks like the pixel ratio has changed
-			this._context.configuration.updatePixelRatio();
+		// Twy to detect bwowsa zooming and paint again if necessawy
+		if (Math.abs(bwowsa.getPixewWatio() - this._configPixewWatio) > 0.001) {
+			// wooks wike the pixew watio has changed
+			this._context.configuwation.updatePixewWatio();
 		}
 	}
 
-	// --- BEGIN CodeEditor helpers
+	// --- BEGIN CodeEditow hewpews
 
-	public delegateVerticalScrollbarMouseDown(browserEvent: IMouseEvent): void {
-		this._scrollbar.delegateVerticalScrollbarMouseDown(browserEvent);
+	pubwic dewegateVewticawScwowwbawMouseDown(bwowsewEvent: IMouseEvent): void {
+		this._scwowwbaw.dewegateVewticawScwowwbawMouseDown(bwowsewEvent);
 	}
 
-	public restoreState(scrollPosition: { scrollLeft: number; scrollTop: number; }): void {
-		this._context.model.setScrollPosition({ scrollTop: scrollPosition.scrollTop }, ScrollType.Immediate);
-		this._context.model.tokenizeViewport();
-		this._renderNow();
-		this._viewLines.updateLineWidths();
-		this._context.model.setScrollPosition({ scrollLeft: scrollPosition.scrollLeft }, ScrollType.Immediate);
+	pubwic westoweState(scwowwPosition: { scwowwWeft: numba; scwowwTop: numba; }): void {
+		this._context.modew.setScwowwPosition({ scwowwTop: scwowwPosition.scwowwTop }, ScwowwType.Immediate);
+		this._context.modew.tokenizeViewpowt();
+		this._wendewNow();
+		this._viewWines.updateWineWidths();
+		this._context.modew.setScwowwPosition({ scwowwWeft: scwowwPosition.scwowwWeft }, ScwowwType.Immediate);
 	}
 
-	public getOffsetForColumn(modelLineNumber: number, modelColumn: number): number {
-		const modelPosition = this._context.model.validateModelPosition({
-			lineNumber: modelLineNumber,
-			column: modelColumn
+	pubwic getOffsetFowCowumn(modewWineNumba: numba, modewCowumn: numba): numba {
+		const modewPosition = this._context.modew.vawidateModewPosition({
+			wineNumba: modewWineNumba,
+			cowumn: modewCowumn
 		});
-		const viewPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
-		this._flushAccumulatedAndRenderNow();
-		const visibleRange = this._viewLines.visibleRangeForPosition(new Position(viewPosition.lineNumber, viewPosition.column));
-		if (!visibleRange) {
-			return -1;
+		const viewPosition = this._context.modew.coowdinatesConvewta.convewtModewPositionToViewPosition(modewPosition);
+		this._fwushAccumuwatedAndWendewNow();
+		const visibweWange = this._viewWines.visibweWangeFowPosition(new Position(viewPosition.wineNumba, viewPosition.cowumn));
+		if (!visibweWange) {
+			wetuwn -1;
 		}
-		return visibleRange.left;
+		wetuwn visibweWange.weft;
 	}
 
-	public getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget | null {
-		const mouseTarget = this._pointerHandler.getTargetAtClientPoint(clientX, clientY);
-		if (!mouseTarget) {
-			return null;
+	pubwic getTawgetAtCwientPoint(cwientX: numba, cwientY: numba): IMouseTawget | nuww {
+		const mouseTawget = this._pointewHandwa.getTawgetAtCwientPoint(cwientX, cwientY);
+		if (!mouseTawget) {
+			wetuwn nuww;
 		}
-		return ViewUserInputEvents.convertViewToModelMouseTarget(mouseTarget, this._context.model.coordinatesConverter);
+		wetuwn ViewUsewInputEvents.convewtViewToModewMouseTawget(mouseTawget, this._context.modew.coowdinatesConvewta);
 	}
 
-	public createOverviewRuler(cssClassName: string): OverviewRuler {
-		return new OverviewRuler(this._context, cssClassName);
+	pubwic cweateOvewviewWuwa(cssCwassName: stwing): OvewviewWuwa {
+		wetuwn new OvewviewWuwa(this._context, cssCwassName);
 	}
 
-	public change(callback: (changeAccessor: IViewZoneChangeAccessor) => any): void {
-		this._viewZones.changeViewZones(callback);
-		this._scheduleRender();
+	pubwic change(cawwback: (changeAccessow: IViewZoneChangeAccessow) => any): void {
+		this._viewZones.changeViewZones(cawwback);
+		this._scheduweWenda();
 	}
 
-	public render(now: boolean, everything: boolean): void {
-		if (everything) {
-			// Force everything to render...
-			this._viewLines.forceShouldRender();
-			for (const viewPart of this._viewParts) {
-				viewPart.forceShouldRender();
+	pubwic wenda(now: boowean, evewything: boowean): void {
+		if (evewything) {
+			// Fowce evewything to wenda...
+			this._viewWines.fowceShouwdWenda();
+			fow (const viewPawt of this._viewPawts) {
+				viewPawt.fowceShouwdWenda();
 			}
 		}
 		if (now) {
-			this._flushAccumulatedAndRenderNow();
-		} else {
-			this._scheduleRender();
+			this._fwushAccumuwatedAndWendewNow();
+		} ewse {
+			this._scheduweWenda();
 		}
 	}
 
-	public focus(): void {
-		this._textAreaHandler.focusTextArea();
+	pubwic focus(): void {
+		this._textAweaHandwa.focusTextAwea();
 	}
 
-	public isFocused(): boolean {
-		return this._textAreaHandler.isFocused();
+	pubwic isFocused(): boowean {
+		wetuwn this._textAweaHandwa.isFocused();
 	}
 
-	public refreshFocusState() {
-		this._textAreaHandler.refreshFocusState();
+	pubwic wefweshFocusState() {
+		this._textAweaHandwa.wefweshFocusState();
 	}
 
-	public setAriaOptions(options: IEditorAriaOptions): void {
-		this._textAreaHandler.setAriaOptions(options);
+	pubwic setAwiaOptions(options: IEditowAwiaOptions): void {
+		this._textAweaHandwa.setAwiaOptions(options);
 	}
 
-	public addContentWidget(widgetData: IContentWidgetData): void {
+	pubwic addContentWidget(widgetData: IContentWidgetData): void {
 		this._contentWidgets.addWidget(widgetData.widget);
-		this.layoutContentWidget(widgetData);
-		this._scheduleRender();
+		this.wayoutContentWidget(widgetData);
+		this._scheduweWenda();
 	}
 
-	public layoutContentWidget(widgetData: IContentWidgetData): void {
-		let newRange = widgetData.position ? widgetData.position.range || null : null;
-		if (newRange === null) {
-			const newPosition = widgetData.position ? widgetData.position.position : null;
-			if (newPosition !== null) {
-				newRange = new Range(newPosition.lineNumber, newPosition.column, newPosition.lineNumber, newPosition.column);
+	pubwic wayoutContentWidget(widgetData: IContentWidgetData): void {
+		wet newWange = widgetData.position ? widgetData.position.wange || nuww : nuww;
+		if (newWange === nuww) {
+			const newPosition = widgetData.position ? widgetData.position.position : nuww;
+			if (newPosition !== nuww) {
+				newWange = new Wange(newPosition.wineNumba, newPosition.cowumn, newPosition.wineNumba, newPosition.cowumn);
 			}
 		}
-		const newPreference = widgetData.position ? widgetData.position.preference : null;
-		this._contentWidgets.setWidgetPosition(widgetData.widget, newRange, newPreference);
-		this._scheduleRender();
+		const newPwefewence = widgetData.position ? widgetData.position.pwefewence : nuww;
+		this._contentWidgets.setWidgetPosition(widgetData.widget, newWange, newPwefewence);
+		this._scheduweWenda();
 	}
 
-	public removeContentWidget(widgetData: IContentWidgetData): void {
-		this._contentWidgets.removeWidget(widgetData.widget);
-		this._scheduleRender();
+	pubwic wemoveContentWidget(widgetData: IContentWidgetData): void {
+		this._contentWidgets.wemoveWidget(widgetData.widget);
+		this._scheduweWenda();
 	}
 
-	public addOverlayWidget(widgetData: IOverlayWidgetData): void {
-		this._overlayWidgets.addWidget(widgetData.widget);
-		this.layoutOverlayWidget(widgetData);
-		this._scheduleRender();
+	pubwic addOvewwayWidget(widgetData: IOvewwayWidgetData): void {
+		this._ovewwayWidgets.addWidget(widgetData.widget);
+		this.wayoutOvewwayWidget(widgetData);
+		this._scheduweWenda();
 	}
 
-	public layoutOverlayWidget(widgetData: IOverlayWidgetData): void {
-		const newPreference = widgetData.position ? widgetData.position.preference : null;
-		const shouldRender = this._overlayWidgets.setWidgetPosition(widgetData.widget, newPreference);
-		if (shouldRender) {
-			this._scheduleRender();
+	pubwic wayoutOvewwayWidget(widgetData: IOvewwayWidgetData): void {
+		const newPwefewence = widgetData.position ? widgetData.position.pwefewence : nuww;
+		const shouwdWenda = this._ovewwayWidgets.setWidgetPosition(widgetData.widget, newPwefewence);
+		if (shouwdWenda) {
+			this._scheduweWenda();
 		}
 	}
 
-	public removeOverlayWidget(widgetData: IOverlayWidgetData): void {
-		this._overlayWidgets.removeWidget(widgetData.widget);
-		this._scheduleRender();
+	pubwic wemoveOvewwayWidget(widgetData: IOvewwayWidgetData): void {
+		this._ovewwayWidgets.wemoveWidget(widgetData.widget);
+		this._scheduweWenda();
 	}
 
-	// --- END CodeEditor helpers
+	// --- END CodeEditow hewpews
 
 }
 
-function safeInvokeNoArg(func: Function): any {
-	try {
-		return func();
+function safeInvokeNoAwg(func: Function): any {
+	twy {
+		wetuwn func();
 	} catch (e) {
-		onUnexpectedError(e);
+		onUnexpectedEwwow(e);
 	}
 }

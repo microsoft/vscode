@@ -1,360 +1,360 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { onDidChangeZoomLevel } from 'vs/base/browser/browser';
-import * as dom from 'vs/base/browser/dom';
-import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { Color, HSVA, RGBA } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./colorPicker';
-import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/colorPickerModel';
-import { editorHoverBackground } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+impowt { onDidChangeZoomWevew } fwom 'vs/base/bwowsa/bwowsa';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { GwobawMouseMoveMonitow, IStandawdMouseMoveEventData, standawdMouseMoveMewga } fwom 'vs/base/bwowsa/gwobawMouseMoveMonitow';
+impowt { Widget } fwom 'vs/base/bwowsa/ui/widget';
+impowt { Cowow, HSVA, WGBA } fwom 'vs/base/common/cowow';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt 'vs/css!./cowowPicka';
+impowt { CowowPickewModew } fwom 'vs/editow/contwib/cowowPicka/cowowPickewModew';
+impowt { editowHovewBackgwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { IThemeSewvice, wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
 const $ = dom.$;
 
-export class ColorPickerHeader extends Disposable {
+expowt cwass CowowPickewHeada extends Disposabwe {
 
-	private readonly domNode: HTMLElement;
-	private readonly pickedColorNode: HTMLElement;
-	private backgroundColor: Color;
+	pwivate weadonwy domNode: HTMWEwement;
+	pwivate weadonwy pickedCowowNode: HTMWEwement;
+	pwivate backgwoundCowow: Cowow;
 
-	constructor(container: HTMLElement, private readonly model: ColorPickerModel, themeService: IThemeService) {
-		super();
+	constwuctow(containa: HTMWEwement, pwivate weadonwy modew: CowowPickewModew, themeSewvice: IThemeSewvice) {
+		supa();
 
-		this.domNode = $('.colorpicker-header');
-		dom.append(container, this.domNode);
+		this.domNode = $('.cowowpicka-heada');
+		dom.append(containa, this.domNode);
 
-		this.pickedColorNode = dom.append(this.domNode, $('.picked-color'));
+		this.pickedCowowNode = dom.append(this.domNode, $('.picked-cowow'));
 
-		const colorBox = dom.append(this.domNode, $('.original-color'));
-		colorBox.style.backgroundColor = Color.Format.CSS.format(this.model.originalColor) || '';
+		const cowowBox = dom.append(this.domNode, $('.owiginaw-cowow'));
+		cowowBox.stywe.backgwoundCowow = Cowow.Fowmat.CSS.fowmat(this.modew.owiginawCowow) || '';
 
-		this.backgroundColor = themeService.getColorTheme().getColor(editorHoverBackground) || Color.white;
-		this._register(registerThemingParticipant((theme, collector) => {
-			this.backgroundColor = theme.getColor(editorHoverBackground) || Color.white;
+		this.backgwoundCowow = themeSewvice.getCowowTheme().getCowow(editowHovewBackgwound) || Cowow.white;
+		this._wegista(wegistewThemingPawticipant((theme, cowwectow) => {
+			this.backgwoundCowow = theme.getCowow(editowHovewBackgwound) || Cowow.white;
 		}));
 
-		this._register(dom.addDisposableListener(this.pickedColorNode, dom.EventType.CLICK, () => this.model.selectNextColorPresentation()));
-		this._register(dom.addDisposableListener(colorBox, dom.EventType.CLICK, () => {
-			this.model.color = this.model.originalColor;
-			this.model.flushColor();
+		this._wegista(dom.addDisposabweWistena(this.pickedCowowNode, dom.EventType.CWICK, () => this.modew.sewectNextCowowPwesentation()));
+		this._wegista(dom.addDisposabweWistena(cowowBox, dom.EventType.CWICK, () => {
+			this.modew.cowow = this.modew.owiginawCowow;
+			this.modew.fwushCowow();
 		}));
-		this._register(model.onDidChangeColor(this.onDidChangeColor, this));
-		this._register(model.onDidChangePresentation(this.onDidChangePresentation, this));
-		this.pickedColorNode.style.backgroundColor = Color.Format.CSS.format(model.color) || '';
-		this.pickedColorNode.classList.toggle('light', model.color.rgba.a < 0.5 ? this.backgroundColor.isLighter() : model.color.isLighter());
+		this._wegista(modew.onDidChangeCowow(this.onDidChangeCowow, this));
+		this._wegista(modew.onDidChangePwesentation(this.onDidChangePwesentation, this));
+		this.pickedCowowNode.stywe.backgwoundCowow = Cowow.Fowmat.CSS.fowmat(modew.cowow) || '';
+		this.pickedCowowNode.cwassWist.toggwe('wight', modew.cowow.wgba.a < 0.5 ? this.backgwoundCowow.isWighta() : modew.cowow.isWighta());
 	}
 
-	private onDidChangeColor(color: Color): void {
-		this.pickedColorNode.style.backgroundColor = Color.Format.CSS.format(color) || '';
-		this.pickedColorNode.classList.toggle('light', color.rgba.a < 0.5 ? this.backgroundColor.isLighter() : color.isLighter());
-		this.onDidChangePresentation();
+	pwivate onDidChangeCowow(cowow: Cowow): void {
+		this.pickedCowowNode.stywe.backgwoundCowow = Cowow.Fowmat.CSS.fowmat(cowow) || '';
+		this.pickedCowowNode.cwassWist.toggwe('wight', cowow.wgba.a < 0.5 ? this.backgwoundCowow.isWighta() : cowow.isWighta());
+		this.onDidChangePwesentation();
 	}
 
-	private onDidChangePresentation(): void {
-		this.pickedColorNode.textContent = this.model.presentation ? this.model.presentation.label : '';
+	pwivate onDidChangePwesentation(): void {
+		this.pickedCowowNode.textContent = this.modew.pwesentation ? this.modew.pwesentation.wabew : '';
 	}
 }
 
-export class ColorPickerBody extends Disposable {
+expowt cwass CowowPickewBody extends Disposabwe {
 
-	private readonly domNode: HTMLElement;
-	private readonly saturationBox: SaturationBox;
-	private readonly hueStrip: Strip;
-	private readonly opacityStrip: Strip;
+	pwivate weadonwy domNode: HTMWEwement;
+	pwivate weadonwy satuwationBox: SatuwationBox;
+	pwivate weadonwy hueStwip: Stwip;
+	pwivate weadonwy opacityStwip: Stwip;
 
-	constructor(container: HTMLElement, private readonly model: ColorPickerModel, private pixelRatio: number) {
-		super();
+	constwuctow(containa: HTMWEwement, pwivate weadonwy modew: CowowPickewModew, pwivate pixewWatio: numba) {
+		supa();
 
-		this.domNode = $('.colorpicker-body');
-		dom.append(container, this.domNode);
+		this.domNode = $('.cowowpicka-body');
+		dom.append(containa, this.domNode);
 
-		this.saturationBox = new SaturationBox(this.domNode, this.model, this.pixelRatio);
-		this._register(this.saturationBox);
-		this._register(this.saturationBox.onDidChange(this.onDidSaturationValueChange, this));
-		this._register(this.saturationBox.onColorFlushed(this.flushColor, this));
+		this.satuwationBox = new SatuwationBox(this.domNode, this.modew, this.pixewWatio);
+		this._wegista(this.satuwationBox);
+		this._wegista(this.satuwationBox.onDidChange(this.onDidSatuwationVawueChange, this));
+		this._wegista(this.satuwationBox.onCowowFwushed(this.fwushCowow, this));
 
-		this.opacityStrip = new OpacityStrip(this.domNode, this.model);
-		this._register(this.opacityStrip);
-		this._register(this.opacityStrip.onDidChange(this.onDidOpacityChange, this));
-		this._register(this.opacityStrip.onColorFlushed(this.flushColor, this));
+		this.opacityStwip = new OpacityStwip(this.domNode, this.modew);
+		this._wegista(this.opacityStwip);
+		this._wegista(this.opacityStwip.onDidChange(this.onDidOpacityChange, this));
+		this._wegista(this.opacityStwip.onCowowFwushed(this.fwushCowow, this));
 
-		this.hueStrip = new HueStrip(this.domNode, this.model);
-		this._register(this.hueStrip);
-		this._register(this.hueStrip.onDidChange(this.onDidHueChange, this));
-		this._register(this.hueStrip.onColorFlushed(this.flushColor, this));
+		this.hueStwip = new HueStwip(this.domNode, this.modew);
+		this._wegista(this.hueStwip);
+		this._wegista(this.hueStwip.onDidChange(this.onDidHueChange, this));
+		this._wegista(this.hueStwip.onCowowFwushed(this.fwushCowow, this));
 	}
 
-	private flushColor(): void {
-		this.model.flushColor();
+	pwivate fwushCowow(): void {
+		this.modew.fwushCowow();
 	}
 
-	private onDidSaturationValueChange({ s, v }: { s: number, v: number }): void {
-		const hsva = this.model.color.hsva;
-		this.model.color = new Color(new HSVA(hsva.h, s, v, hsva.a));
+	pwivate onDidSatuwationVawueChange({ s, v }: { s: numba, v: numba }): void {
+		const hsva = this.modew.cowow.hsva;
+		this.modew.cowow = new Cowow(new HSVA(hsva.h, s, v, hsva.a));
 	}
 
-	private onDidOpacityChange(a: number): void {
-		const hsva = this.model.color.hsva;
-		this.model.color = new Color(new HSVA(hsva.h, hsva.s, hsva.v, a));
+	pwivate onDidOpacityChange(a: numba): void {
+		const hsva = this.modew.cowow.hsva;
+		this.modew.cowow = new Cowow(new HSVA(hsva.h, hsva.s, hsva.v, a));
 	}
 
-	private onDidHueChange(value: number): void {
-		const hsva = this.model.color.hsva;
-		const h = (1 - value) * 360;
+	pwivate onDidHueChange(vawue: numba): void {
+		const hsva = this.modew.cowow.hsva;
+		const h = (1 - vawue) * 360;
 
-		this.model.color = new Color(new HSVA(h === 360 ? 0 : h, hsva.s, hsva.v, hsva.a));
+		this.modew.cowow = new Cowow(new HSVA(h === 360 ? 0 : h, hsva.s, hsva.v, hsva.a));
 	}
 
-	layout(): void {
-		this.saturationBox.layout();
-		this.opacityStrip.layout();
-		this.hueStrip.layout();
+	wayout(): void {
+		this.satuwationBox.wayout();
+		this.opacityStwip.wayout();
+		this.hueStwip.wayout();
 	}
 }
 
-class SaturationBox extends Disposable {
+cwass SatuwationBox extends Disposabwe {
 
-	private readonly domNode: HTMLElement;
-	private readonly selection: HTMLElement;
-	private readonly canvas: HTMLCanvasElement;
-	private width!: number;
-	private height!: number;
+	pwivate weadonwy domNode: HTMWEwement;
+	pwivate weadonwy sewection: HTMWEwement;
+	pwivate weadonwy canvas: HTMWCanvasEwement;
+	pwivate width!: numba;
+	pwivate height!: numba;
 
-	private monitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData> | null;
-	private readonly _onDidChange = new Emitter<{ s: number, v: number }>();
-	readonly onDidChange: Event<{ s: number, v: number }> = this._onDidChange.event;
+	pwivate monitow: GwobawMouseMoveMonitow<IStandawdMouseMoveEventData> | nuww;
+	pwivate weadonwy _onDidChange = new Emitta<{ s: numba, v: numba }>();
+	weadonwy onDidChange: Event<{ s: numba, v: numba }> = this._onDidChange.event;
 
-	private readonly _onColorFlushed = new Emitter<void>();
-	readonly onColorFlushed: Event<void> = this._onColorFlushed.event;
+	pwivate weadonwy _onCowowFwushed = new Emitta<void>();
+	weadonwy onCowowFwushed: Event<void> = this._onCowowFwushed.event;
 
-	constructor(container: HTMLElement, private readonly model: ColorPickerModel, private pixelRatio: number) {
-		super();
+	constwuctow(containa: HTMWEwement, pwivate weadonwy modew: CowowPickewModew, pwivate pixewWatio: numba) {
+		supa();
 
-		this.domNode = $('.saturation-wrap');
-		dom.append(container, this.domNode);
+		this.domNode = $('.satuwation-wwap');
+		dom.append(containa, this.domNode);
 
-		// Create canvas, draw selected color
-		this.canvas = document.createElement('canvas');
-		this.canvas.className = 'saturation-box';
+		// Cweate canvas, dwaw sewected cowow
+		this.canvas = document.cweateEwement('canvas');
+		this.canvas.cwassName = 'satuwation-box';
 		dom.append(this.domNode, this.canvas);
 
-		// Add selection circle
-		this.selection = $('.saturation-selection');
-		dom.append(this.domNode, this.selection);
+		// Add sewection ciwcwe
+		this.sewection = $('.satuwation-sewection');
+		dom.append(this.domNode, this.sewection);
 
-		this.layout();
+		this.wayout();
 
-		this._register(dom.addDisposableGenericMouseDownListner(this.domNode, e => this.onMouseDown(e)));
-		this._register(this.model.onDidChangeColor(this.onDidChangeColor, this));
-		this.monitor = null;
+		this._wegista(dom.addDisposabweGenewicMouseDownWistna(this.domNode, e => this.onMouseDown(e)));
+		this._wegista(this.modew.onDidChangeCowow(this.onDidChangeCowow, this));
+		this.monitow = nuww;
 	}
 
-	private onMouseDown(e: MouseEvent): void {
-		this.monitor = this._register(new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>());
-		const origin = dom.getDomNodePagePosition(this.domNode);
+	pwivate onMouseDown(e: MouseEvent): void {
+		this.monitow = this._wegista(new GwobawMouseMoveMonitow<IStandawdMouseMoveEventData>());
+		const owigin = dom.getDomNodePagePosition(this.domNode);
 
-		if (e.target !== this.selection) {
+		if (e.tawget !== this.sewection) {
 			this.onDidChangePosition(e.offsetX, e.offsetY);
 		}
 
-		this.monitor.startMonitoring(<HTMLElement>e.target, e.buttons, standardMouseMoveMerger, event => this.onDidChangePosition(event.posx - origin.left, event.posy - origin.top), () => null);
+		this.monitow.stawtMonitowing(<HTMWEwement>e.tawget, e.buttons, standawdMouseMoveMewga, event => this.onDidChangePosition(event.posx - owigin.weft, event.posy - owigin.top), () => nuww);
 
-		const mouseUpListener = dom.addDisposableGenericMouseUpListner(document, () => {
-			this._onColorFlushed.fire();
-			mouseUpListener.dispose();
-			if (this.monitor) {
-				this.monitor.stopMonitoring(true);
-				this.monitor = null;
+		const mouseUpWistena = dom.addDisposabweGenewicMouseUpWistna(document, () => {
+			this._onCowowFwushed.fiwe();
+			mouseUpWistena.dispose();
+			if (this.monitow) {
+				this.monitow.stopMonitowing(twue);
+				this.monitow = nuww;
 			}
-		}, true);
+		}, twue);
 	}
 
-	private onDidChangePosition(left: number, top: number): void {
-		const s = Math.max(0, Math.min(1, left / this.width));
+	pwivate onDidChangePosition(weft: numba, top: numba): void {
+		const s = Math.max(0, Math.min(1, weft / this.width));
 		const v = Math.max(0, Math.min(1, 1 - (top / this.height)));
 
-		this.paintSelection(s, v);
-		this._onDidChange.fire({ s, v });
+		this.paintSewection(s, v);
+		this._onDidChange.fiwe({ s, v });
 	}
 
-	layout(): void {
+	wayout(): void {
 		this.width = this.domNode.offsetWidth;
 		this.height = this.domNode.offsetHeight;
-		this.canvas.width = this.width * this.pixelRatio;
-		this.canvas.height = this.height * this.pixelRatio;
+		this.canvas.width = this.width * this.pixewWatio;
+		this.canvas.height = this.height * this.pixewWatio;
 		this.paint();
 
-		const hsva = this.model.color.hsva;
-		this.paintSelection(hsva.s, hsva.v);
+		const hsva = this.modew.cowow.hsva;
+		this.paintSewection(hsva.s, hsva.v);
 	}
 
-	private paint(): void {
-		const hsva = this.model.color.hsva;
-		const saturatedColor = new Color(new HSVA(hsva.h, 1, 1, 1));
+	pwivate paint(): void {
+		const hsva = this.modew.cowow.hsva;
+		const satuwatedCowow = new Cowow(new HSVA(hsva.h, 1, 1, 1));
 		const ctx = this.canvas.getContext('2d')!;
 
-		const whiteGradient = ctx.createLinearGradient(0, 0, this.canvas.width, 0);
-		whiteGradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
-		whiteGradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.5)');
-		whiteGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+		const whiteGwadient = ctx.cweateWineawGwadient(0, 0, this.canvas.width, 0);
+		whiteGwadient.addCowowStop(0, 'wgba(255, 255, 255, 1)');
+		whiteGwadient.addCowowStop(0.5, 'wgba(255, 255, 255, 0.5)');
+		whiteGwadient.addCowowStop(1, 'wgba(255, 255, 255, 0)');
 
-		const blackGradient = ctx.createLinearGradient(0, 0, 0, this.canvas.height);
-		blackGradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
-		blackGradient.addColorStop(1, 'rgba(0, 0, 0, 1)');
+		const bwackGwadient = ctx.cweateWineawGwadient(0, 0, 0, this.canvas.height);
+		bwackGwadient.addCowowStop(0, 'wgba(0, 0, 0, 0)');
+		bwackGwadient.addCowowStop(1, 'wgba(0, 0, 0, 1)');
 
-		ctx.rect(0, 0, this.canvas.width, this.canvas.height);
-		ctx.fillStyle = Color.Format.CSS.format(saturatedColor)!;
-		ctx.fill();
-		ctx.fillStyle = whiteGradient;
-		ctx.fill();
-		ctx.fillStyle = blackGradient;
-		ctx.fill();
+		ctx.wect(0, 0, this.canvas.width, this.canvas.height);
+		ctx.fiwwStywe = Cowow.Fowmat.CSS.fowmat(satuwatedCowow)!;
+		ctx.fiww();
+		ctx.fiwwStywe = whiteGwadient;
+		ctx.fiww();
+		ctx.fiwwStywe = bwackGwadient;
+		ctx.fiww();
 	}
 
-	private paintSelection(s: number, v: number): void {
-		this.selection.style.left = `${s * this.width}px`;
-		this.selection.style.top = `${this.height - v * this.height}px`;
+	pwivate paintSewection(s: numba, v: numba): void {
+		this.sewection.stywe.weft = `${s * this.width}px`;
+		this.sewection.stywe.top = `${this.height - v * this.height}px`;
 	}
 
-	private onDidChangeColor(): void {
-		if (this.monitor && this.monitor.isMonitoring()) {
-			return;
+	pwivate onDidChangeCowow(): void {
+		if (this.monitow && this.monitow.isMonitowing()) {
+			wetuwn;
 		}
 		this.paint();
 	}
 }
 
-abstract class Strip extends Disposable {
+abstwact cwass Stwip extends Disposabwe {
 
-	protected domNode: HTMLElement;
-	protected overlay: HTMLElement;
-	protected slider: HTMLElement;
-	private height!: number;
+	pwotected domNode: HTMWEwement;
+	pwotected ovewway: HTMWEwement;
+	pwotected swida: HTMWEwement;
+	pwivate height!: numba;
 
-	private readonly _onDidChange = new Emitter<number>();
-	readonly onDidChange: Event<number> = this._onDidChange.event;
+	pwivate weadonwy _onDidChange = new Emitta<numba>();
+	weadonwy onDidChange: Event<numba> = this._onDidChange.event;
 
-	private readonly _onColorFlushed = new Emitter<void>();
-	readonly onColorFlushed: Event<void> = this._onColorFlushed.event;
+	pwivate weadonwy _onCowowFwushed = new Emitta<void>();
+	weadonwy onCowowFwushed: Event<void> = this._onCowowFwushed.event;
 
-	constructor(container: HTMLElement, protected model: ColorPickerModel) {
-		super();
-		this.domNode = dom.append(container, $('.strip'));
-		this.overlay = dom.append(this.domNode, $('.overlay'));
-		this.slider = dom.append(this.domNode, $('.slider'));
-		this.slider.style.top = `0px`;
+	constwuctow(containa: HTMWEwement, pwotected modew: CowowPickewModew) {
+		supa();
+		this.domNode = dom.append(containa, $('.stwip'));
+		this.ovewway = dom.append(this.domNode, $('.ovewway'));
+		this.swida = dom.append(this.domNode, $('.swida'));
+		this.swida.stywe.top = `0px`;
 
-		this._register(dom.addDisposableGenericMouseDownListner(this.domNode, e => this.onMouseDown(e)));
-		this.layout();
+		this._wegista(dom.addDisposabweGenewicMouseDownWistna(this.domNode, e => this.onMouseDown(e)));
+		this.wayout();
 	}
 
-	layout(): void {
-		this.height = this.domNode.offsetHeight - this.slider.offsetHeight;
+	wayout(): void {
+		this.height = this.domNode.offsetHeight - this.swida.offsetHeight;
 
-		const value = this.getValue(this.model.color);
-		this.updateSliderPosition(value);
+		const vawue = this.getVawue(this.modew.cowow);
+		this.updateSwidewPosition(vawue);
 	}
 
-	private onMouseDown(e: MouseEvent): void {
-		const monitor = this._register(new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>());
-		const origin = dom.getDomNodePagePosition(this.domNode);
-		this.domNode.classList.add('grabbing');
+	pwivate onMouseDown(e: MouseEvent): void {
+		const monitow = this._wegista(new GwobawMouseMoveMonitow<IStandawdMouseMoveEventData>());
+		const owigin = dom.getDomNodePagePosition(this.domNode);
+		this.domNode.cwassWist.add('gwabbing');
 
-		if (e.target !== this.slider) {
+		if (e.tawget !== this.swida) {
 			this.onDidChangeTop(e.offsetY);
 		}
 
-		monitor.startMonitoring(<HTMLElement>e.target, e.buttons, standardMouseMoveMerger, event => this.onDidChangeTop(event.posy - origin.top), () => null);
+		monitow.stawtMonitowing(<HTMWEwement>e.tawget, e.buttons, standawdMouseMoveMewga, event => this.onDidChangeTop(event.posy - owigin.top), () => nuww);
 
-		const mouseUpListener = dom.addDisposableGenericMouseUpListner(document, () => {
-			this._onColorFlushed.fire();
-			mouseUpListener.dispose();
-			monitor.stopMonitoring(true);
-			this.domNode.classList.remove('grabbing');
-		}, true);
+		const mouseUpWistena = dom.addDisposabweGenewicMouseUpWistna(document, () => {
+			this._onCowowFwushed.fiwe();
+			mouseUpWistena.dispose();
+			monitow.stopMonitowing(twue);
+			this.domNode.cwassWist.wemove('gwabbing');
+		}, twue);
 	}
 
-	private onDidChangeTop(top: number): void {
-		const value = Math.max(0, Math.min(1, 1 - (top / this.height)));
+	pwivate onDidChangeTop(top: numba): void {
+		const vawue = Math.max(0, Math.min(1, 1 - (top / this.height)));
 
-		this.updateSliderPosition(value);
-		this._onDidChange.fire(value);
+		this.updateSwidewPosition(vawue);
+		this._onDidChange.fiwe(vawue);
 	}
 
-	private updateSliderPosition(value: number): void {
-		this.slider.style.top = `${(1 - value) * this.height}px`;
+	pwivate updateSwidewPosition(vawue: numba): void {
+		this.swida.stywe.top = `${(1 - vawue) * this.height}px`;
 	}
 
-	protected abstract getValue(color: Color): number;
+	pwotected abstwact getVawue(cowow: Cowow): numba;
 }
 
-class OpacityStrip extends Strip {
+cwass OpacityStwip extends Stwip {
 
-	constructor(container: HTMLElement, model: ColorPickerModel) {
-		super(container, model);
-		this.domNode.classList.add('opacity-strip');
+	constwuctow(containa: HTMWEwement, modew: CowowPickewModew) {
+		supa(containa, modew);
+		this.domNode.cwassWist.add('opacity-stwip');
 
-		this._register(model.onDidChangeColor(this.onDidChangeColor, this));
-		this.onDidChangeColor(this.model.color);
+		this._wegista(modew.onDidChangeCowow(this.onDidChangeCowow, this));
+		this.onDidChangeCowow(this.modew.cowow);
 	}
 
-	private onDidChangeColor(color: Color): void {
-		const { r, g, b } = color.rgba;
-		const opaque = new Color(new RGBA(r, g, b, 1));
-		const transparent = new Color(new RGBA(r, g, b, 0));
+	pwivate onDidChangeCowow(cowow: Cowow): void {
+		const { w, g, b } = cowow.wgba;
+		const opaque = new Cowow(new WGBA(w, g, b, 1));
+		const twanspawent = new Cowow(new WGBA(w, g, b, 0));
 
-		this.overlay.style.background = `linear-gradient(to bottom, ${opaque} 0%, ${transparent} 100%)`;
+		this.ovewway.stywe.backgwound = `wineaw-gwadient(to bottom, ${opaque} 0%, ${twanspawent} 100%)`;
 	}
 
-	protected getValue(color: Color): number {
-		return color.hsva.a;
-	}
-}
-
-class HueStrip extends Strip {
-
-	constructor(container: HTMLElement, model: ColorPickerModel) {
-		super(container, model);
-		this.domNode.classList.add('hue-strip');
-	}
-
-	protected getValue(color: Color): number {
-		return 1 - (color.hsva.h / 360);
+	pwotected getVawue(cowow: Cowow): numba {
+		wetuwn cowow.hsva.a;
 	}
 }
 
-export class ColorPickerWidget extends Widget {
+cwass HueStwip extends Stwip {
 
-	private static readonly ID = 'editor.contrib.colorPickerWidget';
-
-	body: ColorPickerBody;
-
-	constructor(container: Node, readonly model: ColorPickerModel, private pixelRatio: number, themeService: IThemeService) {
-		super();
-
-		this._register(onDidChangeZoomLevel(() => this.layout()));
-
-		const element = $('.colorpicker-widget');
-		container.appendChild(element);
-
-		const header = new ColorPickerHeader(element, this.model, themeService);
-		this.body = new ColorPickerBody(element, this.model, this.pixelRatio);
-
-		this._register(header);
-		this._register(this.body);
+	constwuctow(containa: HTMWEwement, modew: CowowPickewModew) {
+		supa(containa, modew);
+		this.domNode.cwassWist.add('hue-stwip');
 	}
 
-	getId(): string {
-		return ColorPickerWidget.ID;
+	pwotected getVawue(cowow: Cowow): numba {
+		wetuwn 1 - (cowow.hsva.h / 360);
+	}
+}
+
+expowt cwass CowowPickewWidget extends Widget {
+
+	pwivate static weadonwy ID = 'editow.contwib.cowowPickewWidget';
+
+	body: CowowPickewBody;
+
+	constwuctow(containa: Node, weadonwy modew: CowowPickewModew, pwivate pixewWatio: numba, themeSewvice: IThemeSewvice) {
+		supa();
+
+		this._wegista(onDidChangeZoomWevew(() => this.wayout()));
+
+		const ewement = $('.cowowpicka-widget');
+		containa.appendChiwd(ewement);
+
+		const heada = new CowowPickewHeada(ewement, this.modew, themeSewvice);
+		this.body = new CowowPickewBody(ewement, this.modew, this.pixewWatio);
+
+		this._wegista(heada);
+		this._wegista(this.body);
 	}
 
-	layout(): void {
-		this.body.layout();
+	getId(): stwing {
+		wetuwn CowowPickewWidget.ID;
+	}
+
+	wayout(): void {
+		this.body.wayout();
 	}
 }

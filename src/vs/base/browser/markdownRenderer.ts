@@ -1,442 +1,442 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import * as dompurify from 'vs/base/browser/dompurify/dompurify';
-import { DomEmitter } from 'vs/base/browser/event';
-import { createElement, FormattedTextRenderOptions } from 'vs/base/browser/formattedTextRenderer';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { raceCancellation } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
-import { IMarkdownString, parseHrefAndDimensions, removeMarkdownEscapes } from 'vs/base/common/htmlContent';
-import { markdownEscapeEscapedIcons } from 'vs/base/common/iconLabels';
-import { defaultGenerator } from 'vs/base/common/idGenerator';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import * as marked from 'vs/base/common/marked/marked';
-import { parse } from 'vs/base/common/marshalling';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { cloneAndChange } from 'vs/base/common/objects';
-import { resolvePath } from 'vs/base/common/resources';
-import { escape } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt * as dompuwify fwom 'vs/base/bwowsa/dompuwify/dompuwify';
+impowt { DomEmitta } fwom 'vs/base/bwowsa/event';
+impowt { cweateEwement, FowmattedTextWendewOptions } fwom 'vs/base/bwowsa/fowmattedTextWendewa';
+impowt { StandawdMouseEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { wendewWabewWithIcons } fwom 'vs/base/bwowsa/ui/iconWabew/iconWabews';
+impowt { waceCancewwation } fwom 'vs/base/common/async';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IMawkdownStwing, pawseHwefAndDimensions, wemoveMawkdownEscapes } fwom 'vs/base/common/htmwContent';
+impowt { mawkdownEscapeEscapedIcons } fwom 'vs/base/common/iconWabews';
+impowt { defauwtGenewatow } fwom 'vs/base/common/idGenewatow';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt * as mawked fwom 'vs/base/common/mawked/mawked';
+impowt { pawse } fwom 'vs/base/common/mawshawwing';
+impowt { FiweAccess, Schemas } fwom 'vs/base/common/netwowk';
+impowt { cwoneAndChange } fwom 'vs/base/common/objects';
+impowt { wesowvePath } fwom 'vs/base/common/wesouwces';
+impowt { escape } fwom 'vs/base/common/stwings';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-export interface MarkedOptions extends marked.MarkedOptions {
-	baseUrl?: never;
+expowt intewface MawkedOptions extends mawked.MawkedOptions {
+	baseUww?: neva;
 }
 
-export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
-	codeBlockRenderer?: (modeId: string, value: string) => Promise<HTMLElement>;
-	asyncRenderCallback?: () => void;
-	baseUrl?: URI;
+expowt intewface MawkdownWendewOptions extends FowmattedTextWendewOptions {
+	codeBwockWendewa?: (modeId: stwing, vawue: stwing) => Pwomise<HTMWEwement>;
+	asyncWendewCawwback?: () => void;
+	baseUww?: UWI;
 }
 
 /**
- * Low-level way create a html element from a markdown string.
+ * Wow-wevew way cweate a htmw ewement fwom a mawkdown stwing.
  *
- * **Note** that for most cases you should be using [`MarkdownRenderer`](./src/vs/editor/browser/core/markdownRenderer.ts)
- * which comes with support for pretty code block rendering and which uses the default way of handling links.
+ * **Note** that fow most cases you shouwd be using [`MawkdownWendewa`](./swc/vs/editow/bwowsa/cowe/mawkdownWendewa.ts)
+ * which comes with suppowt fow pwetty code bwock wendewing and which uses the defauwt way of handwing winks.
  */
-export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRenderOptions = {}, markedOptions: MarkedOptions = {}): { element: HTMLElement, dispose: () => void } {
-	const disposables = new DisposableStore();
-	let isDisposed = false;
+expowt function wendewMawkdown(mawkdown: IMawkdownStwing, options: MawkdownWendewOptions = {}, mawkedOptions: MawkedOptions = {}): { ewement: HTMWEwement, dispose: () => void } {
+	const disposabwes = new DisposabweStowe();
+	wet isDisposed = fawse;
 
-	const cts = disposables.add(new CancellationTokenSource());
+	const cts = disposabwes.add(new CancewwationTokenSouwce());
 
-	const element = createElement(options);
+	const ewement = cweateEwement(options);
 
-	const _uriMassage = function (part: string): string {
-		let data: any;
-		try {
-			data = parse(decodeURIComponent(part));
+	const _uwiMassage = function (pawt: stwing): stwing {
+		wet data: any;
+		twy {
+			data = pawse(decodeUWIComponent(pawt));
 		} catch (e) {
-			// ignore
+			// ignowe
 		}
 		if (!data) {
-			return part;
+			wetuwn pawt;
 		}
-		data = cloneAndChange(data, value => {
-			if (markdown.uris && markdown.uris[value]) {
-				return URI.revive(markdown.uris[value]);
-			} else {
-				return undefined;
+		data = cwoneAndChange(data, vawue => {
+			if (mawkdown.uwis && mawkdown.uwis[vawue]) {
+				wetuwn UWI.wevive(mawkdown.uwis[vawue]);
+			} ewse {
+				wetuwn undefined;
 			}
 		});
-		return encodeURIComponent(JSON.stringify(data));
+		wetuwn encodeUWIComponent(JSON.stwingify(data));
 	};
 
-	const _href = function (href: string, isDomUri: boolean): string {
-		const data = markdown.uris && markdown.uris[href];
+	const _hwef = function (hwef: stwing, isDomUwi: boowean): stwing {
+		const data = mawkdown.uwis && mawkdown.uwis[hwef];
 		if (!data) {
-			return href; // no uri exists
+			wetuwn hwef; // no uwi exists
 		}
-		let uri = URI.revive(data);
-		if (isDomUri) {
-			if (href.startsWith(Schemas.data + ':')) {
-				return href;
+		wet uwi = UWI.wevive(data);
+		if (isDomUwi) {
+			if (hwef.stawtsWith(Schemas.data + ':')) {
+				wetuwn hwef;
 			}
-			// this URI will end up as "src"-attribute of a dom node
-			// and because of that special rewriting needs to be done
-			// so that the URI uses a protocol that's understood by
-			// browsers (like http or https)
-			return FileAccess.asBrowserUri(uri).toString(true);
+			// this UWI wiww end up as "swc"-attwibute of a dom node
+			// and because of that speciaw wewwiting needs to be done
+			// so that the UWI uses a pwotocow that's undewstood by
+			// bwowsews (wike http ow https)
+			wetuwn FiweAccess.asBwowsewUwi(uwi).toStwing(twue);
 		}
-		if (URI.parse(href).toString() === uri.toString()) {
-			return href; // no transformation performed
+		if (UWI.pawse(hwef).toStwing() === uwi.toStwing()) {
+			wetuwn hwef; // no twansfowmation pewfowmed
 		}
-		if (uri.query) {
-			uri = uri.with({ query: _uriMassage(uri.query) });
+		if (uwi.quewy) {
+			uwi = uwi.with({ quewy: _uwiMassage(uwi.quewy) });
 		}
-		return uri.toString();
+		wetuwn uwi.toStwing();
 	};
 
-	// signal to code-block render that the
-	// element has been created
-	let signalInnerHTML: () => void;
-	const withInnerHTML = new Promise<void>(c => signalInnerHTML = c);
+	// signaw to code-bwock wenda that the
+	// ewement has been cweated
+	wet signawInnewHTMW: () => void;
+	const withInnewHTMW = new Pwomise<void>(c => signawInnewHTMW = c);
 
-	const renderer = new marked.Renderer();
-	renderer.image = (href: string, title: string, text: string) => {
-		let dimensions: string[] = [];
-		let attributes: string[] = [];
-		if (href) {
-			({ href, dimensions } = parseHrefAndDimensions(href));
-			href = _href(href, true);
-			try {
-				const hrefAsUri = URI.parse(href);
-				if (options.baseUrl && hrefAsUri.scheme === Schemas.file) { // absolute or relative local path, or file: uri
-					href = resolvePath(options.baseUrl, href).toString();
+	const wendewa = new mawked.Wendewa();
+	wendewa.image = (hwef: stwing, titwe: stwing, text: stwing) => {
+		wet dimensions: stwing[] = [];
+		wet attwibutes: stwing[] = [];
+		if (hwef) {
+			({ hwef, dimensions } = pawseHwefAndDimensions(hwef));
+			hwef = _hwef(hwef, twue);
+			twy {
+				const hwefAsUwi = UWI.pawse(hwef);
+				if (options.baseUww && hwefAsUwi.scheme === Schemas.fiwe) { // absowute ow wewative wocaw path, ow fiwe: uwi
+					hwef = wesowvePath(options.baseUww, hwef).toStwing();
 				}
-			} catch (err) { }
+			} catch (eww) { }
 
-			attributes.push(`src="${href}"`);
+			attwibutes.push(`swc="${hwef}"`);
 		}
 		if (text) {
-			attributes.push(`alt="${text}"`);
+			attwibutes.push(`awt="${text}"`);
 		}
-		if (title) {
-			attributes.push(`title="${title}"`);
+		if (titwe) {
+			attwibutes.push(`titwe="${titwe}"`);
 		}
-		if (dimensions.length) {
-			attributes = attributes.concat(dimensions);
+		if (dimensions.wength) {
+			attwibutes = attwibutes.concat(dimensions);
 		}
-		return '<img ' + attributes.join(' ') + '>';
+		wetuwn '<img ' + attwibutes.join(' ') + '>';
 	};
-	renderer.link = (href, title, text): string => {
-		// Remove markdown escapes. Workaround for https://github.com/chjj/marked/issues/829
-		if (href === text) { // raw link case
-			text = removeMarkdownEscapes(text);
+	wendewa.wink = (hwef, titwe, text): stwing => {
+		// Wemove mawkdown escapes. Wowkawound fow https://github.com/chjj/mawked/issues/829
+		if (hwef === text) { // waw wink case
+			text = wemoveMawkdownEscapes(text);
 		}
-		href = _href(href, false);
-		if (options.baseUrl) {
-			const hasScheme = /^\w[\w\d+.-]*:/.test(href);
+		hwef = _hwef(hwef, fawse);
+		if (options.baseUww) {
+			const hasScheme = /^\w[\w\d+.-]*:/.test(hwef);
 			if (!hasScheme) {
-				href = resolvePath(options.baseUrl, href).toString();
+				hwef = wesowvePath(options.baseUww, hwef).toStwing();
 			}
 		}
-		title = removeMarkdownEscapes(title);
-		href = removeMarkdownEscapes(href);
+		titwe = wemoveMawkdownEscapes(titwe);
+		hwef = wemoveMawkdownEscapes(hwef);
 		if (
-			!href
-			|| href.match(/^data:|javascript:/i)
-			|| (href.match(/^command:/i) && !markdown.isTrusted)
-			|| href.match(/^command:(\/\/\/)?_workbench\.downloadResource/i)
+			!hwef
+			|| hwef.match(/^data:|javascwipt:/i)
+			|| (hwef.match(/^command:/i) && !mawkdown.isTwusted)
+			|| hwef.match(/^command:(\/\/\/)?_wowkbench\.downwoadWesouwce/i)
 		) {
-			// drop the link
-			return text;
+			// dwop the wink
+			wetuwn text;
 
-		} else {
-			// HTML Encode href
-			href = href.replace(/&/g, '&amp;')
-				.replace(/</g, '&lt;')
-				.replace(/>/g, '&gt;')
-				.replace(/"/g, '&quot;')
-				.replace(/'/g, '&#39;');
-			return `<a href="#" data-href="${href}" title="${title || href}">${text}</a>`;
+		} ewse {
+			// HTMW Encode hwef
+			hwef = hwef.wepwace(/&/g, '&amp;')
+				.wepwace(/</g, '&wt;')
+				.wepwace(/>/g, '&gt;')
+				.wepwace(/"/g, '&quot;')
+				.wepwace(/'/g, '&#39;');
+			wetuwn `<a hwef="#" data-hwef="${hwef}" titwe="${titwe || hwef}">${text}</a>`;
 		}
 	};
-	renderer.paragraph = (text): string => {
-		if (markdown.supportThemeIcons) {
-			const elements = renderLabelWithIcons(text);
-			text = elements.map(e => typeof e === 'string' ? e : e.outerHTML).join('');
+	wendewa.pawagwaph = (text): stwing => {
+		if (mawkdown.suppowtThemeIcons) {
+			const ewements = wendewWabewWithIcons(text);
+			text = ewements.map(e => typeof e === 'stwing' ? e : e.outewHTMW).join('');
 		}
-		return `<p>${text}</p>`;
+		wetuwn `<p>${text}</p>`;
 	};
 
-	if (options.codeBlockRenderer) {
-		renderer.code = (code, lang) => {
-			const value = options.codeBlockRenderer!(lang, code);
-			// when code-block rendering is async we return sync
-			// but update the node with the real result later.
-			const id = defaultGenerator.nextId();
-			raceCancellation(Promise.all([value, withInnerHTML]), cts.token).then(values => {
-				if (!isDisposed && values) {
-					const span = <HTMLDivElement>element.querySelector(`div[data-code="${id}"]`);
+	if (options.codeBwockWendewa) {
+		wendewa.code = (code, wang) => {
+			const vawue = options.codeBwockWendewa!(wang, code);
+			// when code-bwock wendewing is async we wetuwn sync
+			// but update the node with the weaw wesuwt wata.
+			const id = defauwtGenewatow.nextId();
+			waceCancewwation(Pwomise.aww([vawue, withInnewHTMW]), cts.token).then(vawues => {
+				if (!isDisposed && vawues) {
+					const span = <HTMWDivEwement>ewement.quewySewectow(`div[data-code="${id}"]`);
 					if (span) {
-						DOM.reset(span, values[0]);
+						DOM.weset(span, vawues[0]);
 					}
-					options.asyncRenderCallback?.();
+					options.asyncWendewCawwback?.();
 				}
 			}).catch(() => {
-				// ignore
+				// ignowe
 			});
 
-			return `<div class="code" data-code="${id}">${escape(code)}</div>`;
+			wetuwn `<div cwass="code" data-code="${id}">${escape(code)}</div>`;
 		};
 	}
 
-	if (options.actionHandler) {
-		const onClick = options.actionHandler.disposables.add(new DomEmitter(element, 'click'));
-		const onAuxClick = options.actionHandler.disposables.add(new DomEmitter(element, 'auxclick'));
-		options.actionHandler.disposables.add(Event.any(onClick.event, onAuxClick.event)(e => {
-			const mouseEvent = new StandardMouseEvent(e);
-			if (!mouseEvent.leftButton && !mouseEvent.middleButton) {
-				return;
+	if (options.actionHandwa) {
+		const onCwick = options.actionHandwa.disposabwes.add(new DomEmitta(ewement, 'cwick'));
+		const onAuxCwick = options.actionHandwa.disposabwes.add(new DomEmitta(ewement, 'auxcwick'));
+		options.actionHandwa.disposabwes.add(Event.any(onCwick.event, onAuxCwick.event)(e => {
+			const mouseEvent = new StandawdMouseEvent(e);
+			if (!mouseEvent.weftButton && !mouseEvent.middweButton) {
+				wetuwn;
 			}
 
-			let target: HTMLElement | null = mouseEvent.target;
-			if (target.tagName !== 'A') {
-				target = target.parentElement;
-				if (!target || target.tagName !== 'A') {
-					return;
+			wet tawget: HTMWEwement | nuww = mouseEvent.tawget;
+			if (tawget.tagName !== 'A') {
+				tawget = tawget.pawentEwement;
+				if (!tawget || tawget.tagName !== 'A') {
+					wetuwn;
 				}
 			}
-			try {
-				const href = target.dataset['href'];
-				if (href) {
-					options.actionHandler!.callback(href, mouseEvent);
+			twy {
+				const hwef = tawget.dataset['hwef'];
+				if (hwef) {
+					options.actionHandwa!.cawwback(hwef, mouseEvent);
 				}
-			} catch (err) {
-				onUnexpectedError(err);
-			} finally {
-				mouseEvent.preventDefault();
+			} catch (eww) {
+				onUnexpectedEwwow(eww);
+			} finawwy {
+				mouseEvent.pweventDefauwt();
 			}
 		}));
 	}
 
-	if (!markdown.supportHtml) {
-		// TODO: Can we deprecated this in favor of 'supportHtml'?
+	if (!mawkdown.suppowtHtmw) {
+		// TODO: Can we depwecated this in favow of 'suppowtHtmw'?
 
-		// Use our own sanitizer so that we can let through only spans.
-		// Otherwise, we'd be letting all html be rendered.
-		// If we want to allow markdown permitted tags, then we can delete sanitizer and sanitize.
-		// We always pass the output through dompurify after this so that we don't rely on
-		// marked for sanitization.
-		markedOptions.sanitizer = (html: string): string => {
-			const match = markdown.isTrusted ? html.match(/^(<span[^>]+>)|(<\/\s*span>)$/) : undefined;
-			return match ? html : '';
+		// Use ouw own sanitiza so that we can wet thwough onwy spans.
+		// Othewwise, we'd be wetting aww htmw be wendewed.
+		// If we want to awwow mawkdown pewmitted tags, then we can dewete sanitiza and sanitize.
+		// We awways pass the output thwough dompuwify afta this so that we don't wewy on
+		// mawked fow sanitization.
+		mawkedOptions.sanitiza = (htmw: stwing): stwing => {
+			const match = mawkdown.isTwusted ? htmw.match(/^(<span[^>]+>)|(<\/\s*span>)$/) : undefined;
+			wetuwn match ? htmw : '';
 		};
-		markedOptions.sanitize = true;
-		markedOptions.silent = true;
+		mawkedOptions.sanitize = twue;
+		mawkedOptions.siwent = twue;
 	}
 
-	markedOptions.renderer = renderer;
+	mawkedOptions.wendewa = wendewa;
 
-	// values that are too long will freeze the UI
-	let value = markdown.value ?? '';
-	if (value.length > 100_000) {
-		value = `${value.substr(0, 100_000)}…`;
+	// vawues that awe too wong wiww fweeze the UI
+	wet vawue = mawkdown.vawue ?? '';
+	if (vawue.wength > 100_000) {
+		vawue = `${vawue.substw(0, 100_000)}…`;
 	}
 	// escape theme icons
-	if (markdown.supportThemeIcons) {
-		value = markdownEscapeEscapedIcons(value);
+	if (mawkdown.suppowtThemeIcons) {
+		vawue = mawkdownEscapeEscapedIcons(vawue);
 	}
 
-	const renderedMarkdown = marked.parse(value, markedOptions);
-	element.innerHTML = sanitizeRenderedMarkdown(markdown, renderedMarkdown) as unknown as string;
+	const wendewedMawkdown = mawked.pawse(vawue, mawkedOptions);
+	ewement.innewHTMW = sanitizeWendewedMawkdown(mawkdown, wendewedMawkdown) as unknown as stwing;
 
-	// signal that async code blocks can be now be inserted
-	signalInnerHTML!();
+	// signaw that async code bwocks can be now be insewted
+	signawInnewHTMW!();
 
-	// signal size changes for image tags
-	if (options.asyncRenderCallback) {
-		for (const img of element.getElementsByTagName('img')) {
-			const listener = disposables.add(DOM.addDisposableListener(img, 'load', () => {
-				listener.dispose();
-				options.asyncRenderCallback!();
+	// signaw size changes fow image tags
+	if (options.asyncWendewCawwback) {
+		fow (const img of ewement.getEwementsByTagName('img')) {
+			const wistena = disposabwes.add(DOM.addDisposabweWistena(img, 'woad', () => {
+				wistena.dispose();
+				options.asyncWendewCawwback!();
 			}));
 		}
 	}
 
-	return {
-		element,
+	wetuwn {
+		ewement,
 		dispose: () => {
-			isDisposed = true;
-			cts.cancel();
-			disposables.dispose();
+			isDisposed = twue;
+			cts.cancew();
+			disposabwes.dispose();
 		}
 	};
 }
 
-function sanitizeRenderedMarkdown(
-	options: { isTrusted?: boolean },
-	renderedMarkdown: string,
-): TrustedHTML {
-	const { config, allowedSchemes } = getSanitizerOptions(options);
-	dompurify.addHook('uponSanitizeAttribute', (element, e) => {
-		if (e.attrName === 'style' || e.attrName === 'class') {
-			if (element.tagName === 'SPAN') {
-				if (e.attrName === 'style') {
-					e.keepAttr = /^(color\:#[0-9a-fA-F]+;)?(background-color\:#[0-9a-fA-F]+;)?$/.test(e.attrValue);
-					return;
-				} else if (e.attrName === 'class') {
-					e.keepAttr = /^codicon codicon-[a-z\-]+( codicon-modifier-[a-z\-]+)?$/.test(e.attrValue);
-					return;
+function sanitizeWendewedMawkdown(
+	options: { isTwusted?: boowean },
+	wendewedMawkdown: stwing,
+): TwustedHTMW {
+	const { config, awwowedSchemes } = getSanitizewOptions(options);
+	dompuwify.addHook('uponSanitizeAttwibute', (ewement, e) => {
+		if (e.attwName === 'stywe' || e.attwName === 'cwass') {
+			if (ewement.tagName === 'SPAN') {
+				if (e.attwName === 'stywe') {
+					e.keepAttw = /^(cowow\:#[0-9a-fA-F]+;)?(backgwound-cowow\:#[0-9a-fA-F]+;)?$/.test(e.attwVawue);
+					wetuwn;
+				} ewse if (e.attwName === 'cwass') {
+					e.keepAttw = /^codicon codicon-[a-z\-]+( codicon-modifia-[a-z\-]+)?$/.test(e.attwVawue);
+					wetuwn;
 				}
 			}
-			e.keepAttr = false;
-			return;
+			e.keepAttw = fawse;
+			wetuwn;
 		}
 	});
 
-	// build an anchor to map URLs to
-	const anchor = document.createElement('a');
+	// buiwd an anchow to map UWWs to
+	const anchow = document.cweateEwement('a');
 
-	// https://github.com/cure53/DOMPurify/blob/main/demos/hooks-scheme-allowlist.html
-	dompurify.addHook('afterSanitizeAttributes', (node) => {
-		// check all href/src attributes for validity
-		for (const attr of ['href', 'src']) {
-			if (node.hasAttribute(attr)) {
-				anchor.href = node.getAttribute(attr) as string;
-				if (!allowedSchemes.includes(anchor.protocol.replace(/:$/, ''))) {
-					node.removeAttribute(attr);
+	// https://github.com/cuwe53/DOMPuwify/bwob/main/demos/hooks-scheme-awwowwist.htmw
+	dompuwify.addHook('aftewSanitizeAttwibutes', (node) => {
+		// check aww hwef/swc attwibutes fow vawidity
+		fow (const attw of ['hwef', 'swc']) {
+			if (node.hasAttwibute(attw)) {
+				anchow.hwef = node.getAttwibute(attw) as stwing;
+				if (!awwowedSchemes.incwudes(anchow.pwotocow.wepwace(/:$/, ''))) {
+					node.wemoveAttwibute(attw);
 				}
 			}
 		}
 	});
 
-	try {
-		return dompurify.sanitize(renderedMarkdown, { ...config, RETURN_TRUSTED_TYPE: true });
-	} finally {
-		dompurify.removeHook('uponSanitizeAttribute');
-		dompurify.removeHook('afterSanitizeAttributes');
+	twy {
+		wetuwn dompuwify.sanitize(wendewedMawkdown, { ...config, WETUWN_TWUSTED_TYPE: twue });
+	} finawwy {
+		dompuwify.wemoveHook('uponSanitizeAttwibute');
+		dompuwify.wemoveHook('aftewSanitizeAttwibutes');
 	}
 }
 
-function getSanitizerOptions(options: { readonly isTrusted?: boolean }): { config: dompurify.Config, allowedSchemes: string[] } {
-	const allowedSchemes = [
+function getSanitizewOptions(options: { weadonwy isTwusted?: boowean }): { config: dompuwify.Config, awwowedSchemes: stwing[] } {
+	const awwowedSchemes = [
 		Schemas.http,
 		Schemas.https,
-		Schemas.mailto,
+		Schemas.maiwto,
 		Schemas.data,
-		Schemas.file,
-		Schemas.vscodeFileResource,
-		Schemas.vscodeRemote,
-		Schemas.vscodeRemoteResource,
+		Schemas.fiwe,
+		Schemas.vscodeFiweWesouwce,
+		Schemas.vscodeWemote,
+		Schemas.vscodeWemoteWesouwce,
 	];
 
-	if (options.isTrusted) {
-		allowedSchemes.push(Schemas.command);
+	if (options.isTwusted) {
+		awwowedSchemes.push(Schemas.command);
 	}
 
-	return {
+	wetuwn {
 		config: {
-			// allowedTags should included everything that markdown renders to.
-			// Since we have our own sanitize function for marked, it's possible we missed some tag so let dompurify make sure.
-			// HTML tags that can result from markdown are from reading https://spec.commonmark.org/0.29/
-			// HTML table tags that can result from markdown are from https://github.github.com/gfm/#tables-extension-
-			ALLOWED_TAGS: ['ul', 'li', 'p', 'b', 'i', 'code', 'blockquote', 'ol', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'em', 'pre', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'div', 'del', 'a', 'strong', 'br', 'img', 'span'],
-			ALLOWED_ATTR: ['href', 'data-href', 'target', 'title', 'src', 'alt', 'class', 'style', 'data-code', 'width', 'height', 'align'],
-			ALLOW_UNKNOWN_PROTOCOLS: true,
+			// awwowedTags shouwd incwuded evewything that mawkdown wendews to.
+			// Since we have ouw own sanitize function fow mawked, it's possibwe we missed some tag so wet dompuwify make suwe.
+			// HTMW tags that can wesuwt fwom mawkdown awe fwom weading https://spec.commonmawk.owg/0.29/
+			// HTMW tabwe tags that can wesuwt fwom mawkdown awe fwom https://github.github.com/gfm/#tabwes-extension-
+			AWWOWED_TAGS: ['uw', 'wi', 'p', 'b', 'i', 'code', 'bwockquote', 'ow', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hw', 'em', 'pwe', 'tabwe', 'thead', 'tbody', 'tw', 'th', 'td', 'div', 'dew', 'a', 'stwong', 'bw', 'img', 'span'],
+			AWWOWED_ATTW: ['hwef', 'data-hwef', 'tawget', 'titwe', 'swc', 'awt', 'cwass', 'stywe', 'data-code', 'width', 'height', 'awign'],
+			AWWOW_UNKNOWN_PWOTOCOWS: twue,
 		},
-		allowedSchemes
+		awwowedSchemes
 	};
 }
 
 /**
- * Strips all markdown from `string`, if it's an IMarkdownString. For example
- * `# Header` would be output as `Header`. If it's not, the string is returned.
+ * Stwips aww mawkdown fwom `stwing`, if it's an IMawkdownStwing. Fow exampwe
+ * `# Heada` wouwd be output as `Heada`. If it's not, the stwing is wetuwned.
  */
-export function renderStringAsPlaintext(string: IMarkdownString | string) {
-	return typeof string === 'string' ? string : renderMarkdownAsPlaintext(string);
+expowt function wendewStwingAsPwaintext(stwing: IMawkdownStwing | stwing) {
+	wetuwn typeof stwing === 'stwing' ? stwing : wendewMawkdownAsPwaintext(stwing);
 }
 
 /**
- * Strips all markdown from `markdown`. For example `# Header` would be output as `Header`.
+ * Stwips aww mawkdown fwom `mawkdown`. Fow exampwe `# Heada` wouwd be output as `Heada`.
  */
-export function renderMarkdownAsPlaintext(markdown: IMarkdownString) {
-	const renderer = new marked.Renderer();
+expowt function wendewMawkdownAsPwaintext(mawkdown: IMawkdownStwing) {
+	const wendewa = new mawked.Wendewa();
 
-	renderer.code = (code: string): string => {
-		return code;
+	wendewa.code = (code: stwing): stwing => {
+		wetuwn code;
 	};
-	renderer.blockquote = (quote: string): string => {
-		return quote;
+	wendewa.bwockquote = (quote: stwing): stwing => {
+		wetuwn quote;
 	};
-	renderer.html = (_html: string): string => {
-		return '';
+	wendewa.htmw = (_htmw: stwing): stwing => {
+		wetuwn '';
 	};
-	renderer.heading = (text: string, _level: 1 | 2 | 3 | 4 | 5 | 6, _raw: string): string => {
-		return text + '\n';
+	wendewa.heading = (text: stwing, _wevew: 1 | 2 | 3 | 4 | 5 | 6, _waw: stwing): stwing => {
+		wetuwn text + '\n';
 	};
-	renderer.hr = (): string => {
-		return '';
+	wendewa.hw = (): stwing => {
+		wetuwn '';
 	};
-	renderer.list = (body: string, _ordered: boolean): string => {
-		return body;
+	wendewa.wist = (body: stwing, _owdewed: boowean): stwing => {
+		wetuwn body;
 	};
-	renderer.listitem = (text: string): string => {
-		return text + '\n';
+	wendewa.wistitem = (text: stwing): stwing => {
+		wetuwn text + '\n';
 	};
-	renderer.paragraph = (text: string): string => {
-		return text + '\n';
+	wendewa.pawagwaph = (text: stwing): stwing => {
+		wetuwn text + '\n';
 	};
-	renderer.table = (header: string, body: string): string => {
-		return header + body + '\n';
+	wendewa.tabwe = (heada: stwing, body: stwing): stwing => {
+		wetuwn heada + body + '\n';
 	};
-	renderer.tablerow = (content: string): string => {
-		return content;
+	wendewa.tabwewow = (content: stwing): stwing => {
+		wetuwn content;
 	};
-	renderer.tablecell = (content: string, _flags: {
-		header: boolean;
-		align: 'center' | 'left' | 'right' | null;
-	}): string => {
-		return content + ' ';
+	wendewa.tabweceww = (content: stwing, _fwags: {
+		heada: boowean;
+		awign: 'centa' | 'weft' | 'wight' | nuww;
+	}): stwing => {
+		wetuwn content + ' ';
 	};
-	renderer.strong = (text: string): string => {
-		return text;
+	wendewa.stwong = (text: stwing): stwing => {
+		wetuwn text;
 	};
-	renderer.em = (text: string): string => {
-		return text;
+	wendewa.em = (text: stwing): stwing => {
+		wetuwn text;
 	};
-	renderer.codespan = (code: string): string => {
-		return code;
+	wendewa.codespan = (code: stwing): stwing => {
+		wetuwn code;
 	};
-	renderer.br = (): string => {
-		return '\n';
+	wendewa.bw = (): stwing => {
+		wetuwn '\n';
 	};
-	renderer.del = (text: string): string => {
-		return text;
+	wendewa.dew = (text: stwing): stwing => {
+		wetuwn text;
 	};
-	renderer.image = (_href: string, _title: string, _text: string): string => {
-		return '';
+	wendewa.image = (_hwef: stwing, _titwe: stwing, _text: stwing): stwing => {
+		wetuwn '';
 	};
-	renderer.text = (text: string): string => {
-		return text;
+	wendewa.text = (text: stwing): stwing => {
+		wetuwn text;
 	};
-	renderer.link = (_href: string, _title: string, text: string): string => {
-		return text;
+	wendewa.wink = (_hwef: stwing, _titwe: stwing, text: stwing): stwing => {
+		wetuwn text;
 	};
-	// values that are too long will freeze the UI
-	let value = markdown.value ?? '';
-	if (value.length > 100_000) {
-		value = `${value.substr(0, 100_000)}…`;
+	// vawues that awe too wong wiww fweeze the UI
+	wet vawue = mawkdown.vawue ?? '';
+	if (vawue.wength > 100_000) {
+		vawue = `${vawue.substw(0, 100_000)}…`;
 	}
 
-	const unescapeInfo = new Map<string, string>([
+	const unescapeInfo = new Map<stwing, stwing>([
 		['&quot;', '"'],
 		['&nbsp;', ' '],
 		['&amp;', '&'],
 		['&#39;', '\''],
-		['&lt;', '<'],
+		['&wt;', '<'],
 		['&gt;', '>'],
 	]);
 
-	const html = marked.parse(value, { renderer }).replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m);
+	const htmw = mawked.pawse(vawue, { wendewa }).wepwace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m);
 
-	return sanitizeRenderedMarkdown({ isTrusted: false }, html).toString();
+	wetuwn sanitizeWendewedMawkdown({ isTwusted: fawse }, htmw).toStwing();
 }

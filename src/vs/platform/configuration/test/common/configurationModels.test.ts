@@ -1,966 +1,966 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { join } from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { AllKeysConfigurationChangeEvent, Configuration, ConfigurationChangeEvent, ConfigurationModel, ConfigurationModelParser, DefaultConfigurationModel, mergeChanges } from 'vs/platform/configuration/common/configurationModels';
-import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
+impowt * as assewt fwom 'assewt';
+impowt { join } fwom 'vs/base/common/path';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ConfiguwationTawget } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { AwwKeysConfiguwationChangeEvent, Configuwation, ConfiguwationChangeEvent, ConfiguwationModew, ConfiguwationModewPawsa, DefauwtConfiguwationModew, mewgeChanges } fwom 'vs/pwatfowm/configuwation/common/configuwationModews';
+impowt { Extensions, IConfiguwationWegistwy } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { WowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { Wowkspace } fwom 'vs/pwatfowm/wowkspace/test/common/testWowkspace';
 
-suite('ConfigurationModel', () => {
+suite('ConfiguwationModew', () => {
 
-	test('setValue for a key that has no sections and not defined', () => {
-		let testObject = new ConfigurationModel({ 'a': { 'b': 1 } }, ['a.b']);
+	test('setVawue fow a key that has no sections and not defined', () => {
+		wet testObject = new ConfiguwationModew({ 'a': { 'b': 1 } }, ['a.b']);
 
-		testObject.setValue('f', 1);
+		testObject.setVawue('f', 1);
 
-		assert.deepStrictEqual(testObject.contents, { 'a': { 'b': 1 }, 'f': 1 });
-		assert.deepStrictEqual(testObject.keys, ['a.b', 'f']);
+		assewt.deepStwictEquaw(testObject.contents, { 'a': { 'b': 1 }, 'f': 1 });
+		assewt.deepStwictEquaw(testObject.keys, ['a.b', 'f']);
 	});
 
-	test('setValue for a key that has no sections and defined', () => {
-		let testObject = new ConfigurationModel({ 'a': { 'b': 1 }, 'f': 1 }, ['a.b', 'f']);
+	test('setVawue fow a key that has no sections and defined', () => {
+		wet testObject = new ConfiguwationModew({ 'a': { 'b': 1 }, 'f': 1 }, ['a.b', 'f']);
 
-		testObject.setValue('f', 3);
+		testObject.setVawue('f', 3);
 
-		assert.deepStrictEqual(testObject.contents, { 'a': { 'b': 1 }, 'f': 3 });
-		assert.deepStrictEqual(testObject.keys, ['a.b', 'f']);
+		assewt.deepStwictEquaw(testObject.contents, { 'a': { 'b': 1 }, 'f': 3 });
+		assewt.deepStwictEquaw(testObject.keys, ['a.b', 'f']);
 	});
 
-	test('setValue for a key that has sections and not defined', () => {
-		let testObject = new ConfigurationModel({ 'a': { 'b': 1 }, 'f': 1 }, ['a.b', 'f']);
+	test('setVawue fow a key that has sections and not defined', () => {
+		wet testObject = new ConfiguwationModew({ 'a': { 'b': 1 }, 'f': 1 }, ['a.b', 'f']);
 
-		testObject.setValue('b.c', 1);
+		testObject.setVawue('b.c', 1);
 
 		const expected: any = {};
 		expected['a'] = { 'b': 1 };
 		expected['f'] = 1;
-		expected['b'] = Object.create(null);
+		expected['b'] = Object.cweate(nuww);
 		expected['b']['c'] = 1;
-		assert.deepStrictEqual(testObject.contents, expected);
-		assert.deepStrictEqual(testObject.keys, ['a.b', 'f', 'b.c']);
+		assewt.deepStwictEquaw(testObject.contents, expected);
+		assewt.deepStwictEquaw(testObject.keys, ['a.b', 'f', 'b.c']);
 	});
 
-	test('setValue for a key that has sections and defined', () => {
-		let testObject = new ConfigurationModel({ 'a': { 'b': 1 }, 'b': { 'c': 1 }, 'f': 1 }, ['a.b', 'b.c', 'f']);
+	test('setVawue fow a key that has sections and defined', () => {
+		wet testObject = new ConfiguwationModew({ 'a': { 'b': 1 }, 'b': { 'c': 1 }, 'f': 1 }, ['a.b', 'b.c', 'f']);
 
-		testObject.setValue('b.c', 3);
+		testObject.setVawue('b.c', 3);
 
-		assert.deepStrictEqual(testObject.contents, { 'a': { 'b': 1 }, 'b': { 'c': 3 }, 'f': 1 });
-		assert.deepStrictEqual(testObject.keys, ['a.b', 'b.c', 'f']);
+		assewt.deepStwictEquaw(testObject.contents, { 'a': { 'b': 1 }, 'b': { 'c': 3 }, 'f': 1 });
+		assewt.deepStwictEquaw(testObject.keys, ['a.b', 'b.c', 'f']);
 	});
 
-	test('setValue for a key that has sections and sub section not defined', () => {
-		let testObject = new ConfigurationModel({ 'a': { 'b': 1 }, 'f': 1 }, ['a.b', 'f']);
+	test('setVawue fow a key that has sections and sub section not defined', () => {
+		wet testObject = new ConfiguwationModew({ 'a': { 'b': 1 }, 'f': 1 }, ['a.b', 'f']);
 
-		testObject.setValue('a.c', 1);
+		testObject.setVawue('a.c', 1);
 
-		assert.deepStrictEqual(testObject.contents, { 'a': { 'b': 1, 'c': 1 }, 'f': 1 });
-		assert.deepStrictEqual(testObject.keys, ['a.b', 'f', 'a.c']);
+		assewt.deepStwictEquaw(testObject.contents, { 'a': { 'b': 1, 'c': 1 }, 'f': 1 });
+		assewt.deepStwictEquaw(testObject.keys, ['a.b', 'f', 'a.c']);
 	});
 
-	test('setValue for a key that has sections and sub section defined', () => {
-		let testObject = new ConfigurationModel({ 'a': { 'b': 1, 'c': 1 }, 'f': 1 }, ['a.b', 'a.c', 'f']);
+	test('setVawue fow a key that has sections and sub section defined', () => {
+		wet testObject = new ConfiguwationModew({ 'a': { 'b': 1, 'c': 1 }, 'f': 1 }, ['a.b', 'a.c', 'f']);
 
-		testObject.setValue('a.c', 3);
+		testObject.setVawue('a.c', 3);
 
-		assert.deepStrictEqual(testObject.contents, { 'a': { 'b': 1, 'c': 3 }, 'f': 1 });
-		assert.deepStrictEqual(testObject.keys, ['a.b', 'a.c', 'f']);
+		assewt.deepStwictEquaw(testObject.contents, { 'a': { 'b': 1, 'c': 3 }, 'f': 1 });
+		assewt.deepStwictEquaw(testObject.keys, ['a.b', 'a.c', 'f']);
 	});
 
-	test('setValue for a key that has sections and last section is added', () => {
-		let testObject = new ConfigurationModel({ 'a': { 'b': {} }, 'f': 1 }, ['a.b', 'f']);
+	test('setVawue fow a key that has sections and wast section is added', () => {
+		wet testObject = new ConfiguwationModew({ 'a': { 'b': {} }, 'f': 1 }, ['a.b', 'f']);
 
-		testObject.setValue('a.b.c', 1);
+		testObject.setVawue('a.b.c', 1);
 
-		assert.deepStrictEqual(testObject.contents, { 'a': { 'b': { 'c': 1 } }, 'f': 1 });
-		assert.deepStrictEqual(testObject.keys, ['a.b.c', 'f']);
+		assewt.deepStwictEquaw(testObject.contents, { 'a': { 'b': { 'c': 1 } }, 'f': 1 });
+		assewt.deepStwictEquaw(testObject.keys, ['a.b.c', 'f']);
 	});
 
-	test('removeValue: remove a non existing key', () => {
-		let testObject = new ConfigurationModel({ 'a': { 'b': 2 } }, ['a.b']);
+	test('wemoveVawue: wemove a non existing key', () => {
+		wet testObject = new ConfiguwationModew({ 'a': { 'b': 2 } }, ['a.b']);
 
-		testObject.removeValue('a.b.c');
+		testObject.wemoveVawue('a.b.c');
 
-		assert.deepStrictEqual(testObject.contents, { 'a': { 'b': 2 } });
-		assert.deepStrictEqual(testObject.keys, ['a.b']);
+		assewt.deepStwictEquaw(testObject.contents, { 'a': { 'b': 2 } });
+		assewt.deepStwictEquaw(testObject.keys, ['a.b']);
 	});
 
-	test('removeValue: remove a single segmented key', () => {
-		let testObject = new ConfigurationModel({ 'a': 1 }, ['a']);
+	test('wemoveVawue: wemove a singwe segmented key', () => {
+		wet testObject = new ConfiguwationModew({ 'a': 1 }, ['a']);
 
-		testObject.removeValue('a');
+		testObject.wemoveVawue('a');
 
-		assert.deepStrictEqual(testObject.contents, {});
-		assert.deepStrictEqual(testObject.keys, []);
+		assewt.deepStwictEquaw(testObject.contents, {});
+		assewt.deepStwictEquaw(testObject.keys, []);
 	});
 
-	test('removeValue: remove a multi segmented key', () => {
-		let testObject = new ConfigurationModel({ 'a': { 'b': 1 } }, ['a.b']);
+	test('wemoveVawue: wemove a muwti segmented key', () => {
+		wet testObject = new ConfiguwationModew({ 'a': { 'b': 1 } }, ['a.b']);
 
-		testObject.removeValue('a.b');
+		testObject.wemoveVawue('a.b');
 
-		assert.deepStrictEqual(testObject.contents, {});
-		assert.deepStrictEqual(testObject.keys, []);
+		assewt.deepStwictEquaw(testObject.contents, {});
+		assewt.deepStwictEquaw(testObject.keys, []);
 	});
 
-	test('get overriding configuration model for an existing identifier', () => {
-		let testObject = new ConfigurationModel(
+	test('get ovewwiding configuwation modew fow an existing identifia', () => {
+		wet testObject = new ConfiguwationModew(
 			{ 'a': { 'b': 1 }, 'f': 1 }, [],
-			[{ identifiers: ['c'], contents: { 'a': { 'd': 1 } }, keys: ['a'] }]);
+			[{ identifiews: ['c'], contents: { 'a': { 'd': 1 } }, keys: ['a'] }]);
 
-		assert.deepStrictEqual(testObject.override('c').contents, { 'a': { 'b': 1, 'd': 1 }, 'f': 1 });
+		assewt.deepStwictEquaw(testObject.ovewwide('c').contents, { 'a': { 'b': 1, 'd': 1 }, 'f': 1 });
 	});
 
-	test('get overriding configuration model for an identifier that does not exist', () => {
-		let testObject = new ConfigurationModel(
+	test('get ovewwiding configuwation modew fow an identifia that does not exist', () => {
+		wet testObject = new ConfiguwationModew(
 			{ 'a': { 'b': 1 }, 'f': 1 }, [],
-			[{ identifiers: ['c'], contents: { 'a': { 'd': 1 } }, keys: ['a'] }]);
+			[{ identifiews: ['c'], contents: { 'a': { 'd': 1 } }, keys: ['a'] }]);
 
-		assert.deepStrictEqual(testObject.override('xyz').contents, { 'a': { 'b': 1 }, 'f': 1 });
+		assewt.deepStwictEquaw(testObject.ovewwide('xyz').contents, { 'a': { 'b': 1 }, 'f': 1 });
 	});
 
-	test('get overriding configuration when one of the keys does not exist in base', () => {
-		let testObject = new ConfigurationModel(
+	test('get ovewwiding configuwation when one of the keys does not exist in base', () => {
+		wet testObject = new ConfiguwationModew(
 			{ 'a': { 'b': 1 }, 'f': 1 }, [],
-			[{ identifiers: ['c'], contents: { 'a': { 'd': 1 }, 'g': 1 }, keys: ['a', 'g'] }]);
+			[{ identifiews: ['c'], contents: { 'a': { 'd': 1 }, 'g': 1 }, keys: ['a', 'g'] }]);
 
-		assert.deepStrictEqual(testObject.override('c').contents, { 'a': { 'b': 1, 'd': 1 }, 'f': 1, 'g': 1 });
+		assewt.deepStwictEquaw(testObject.ovewwide('c').contents, { 'a': { 'b': 1, 'd': 1 }, 'f': 1, 'g': 1 });
 	});
 
-	test('get overriding configuration when one of the key in base is not of object type', () => {
-		let testObject = new ConfigurationModel(
+	test('get ovewwiding configuwation when one of the key in base is not of object type', () => {
+		wet testObject = new ConfiguwationModew(
 			{ 'a': { 'b': 1 }, 'f': 1 }, [],
-			[{ identifiers: ['c'], contents: { 'a': { 'd': 1 }, 'f': { 'g': 1 } }, keys: ['a', 'f'] }]);
+			[{ identifiews: ['c'], contents: { 'a': { 'd': 1 }, 'f': { 'g': 1 } }, keys: ['a', 'f'] }]);
 
-		assert.deepStrictEqual(testObject.override('c').contents, { 'a': { 'b': 1, 'd': 1 }, 'f': { 'g': 1 } });
+		assewt.deepStwictEquaw(testObject.ovewwide('c').contents, { 'a': { 'b': 1, 'd': 1 }, 'f': { 'g': 1 } });
 	});
 
-	test('get overriding configuration when one of the key in overriding contents is not of object type', () => {
-		let testObject = new ConfigurationModel(
+	test('get ovewwiding configuwation when one of the key in ovewwiding contents is not of object type', () => {
+		wet testObject = new ConfiguwationModew(
 			{ 'a': { 'b': 1 }, 'f': { 'g': 1 } }, [],
-			[{ identifiers: ['c'], contents: { 'a': { 'd': 1 }, 'f': 1 }, keys: ['a', 'f'] }]);
+			[{ identifiews: ['c'], contents: { 'a': { 'd': 1 }, 'f': 1 }, keys: ['a', 'f'] }]);
 
-		assert.deepStrictEqual(testObject.override('c').contents, { 'a': { 'b': 1, 'd': 1 }, 'f': 1 });
+		assewt.deepStwictEquaw(testObject.ovewwide('c').contents, { 'a': { 'b': 1, 'd': 1 }, 'f': 1 });
 	});
 
-	test('get overriding configuration if the value of overriding identifier is not object', () => {
-		let testObject = new ConfigurationModel(
+	test('get ovewwiding configuwation if the vawue of ovewwiding identifia is not object', () => {
+		wet testObject = new ConfiguwationModew(
 			{ 'a': { 'b': 1 }, 'f': { 'g': 1 } }, [],
-			[{ identifiers: ['c'], contents: 'abc', keys: [] }]);
+			[{ identifiews: ['c'], contents: 'abc', keys: [] }]);
 
-		assert.deepStrictEqual(testObject.override('c').contents, { 'a': { 'b': 1 }, 'f': { 'g': 1 } });
+		assewt.deepStwictEquaw(testObject.ovewwide('c').contents, { 'a': { 'b': 1 }, 'f': { 'g': 1 } });
 	});
 
-	test('get overriding configuration if the value of overriding identifier is an empty object', () => {
-		let testObject = new ConfigurationModel(
+	test('get ovewwiding configuwation if the vawue of ovewwiding identifia is an empty object', () => {
+		wet testObject = new ConfiguwationModew(
 			{ 'a': { 'b': 1 }, 'f': { 'g': 1 } }, [],
-			[{ identifiers: ['c'], contents: {}, keys: [] }]);
+			[{ identifiews: ['c'], contents: {}, keys: [] }]);
 
-		assert.deepStrictEqual(testObject.override('c').contents, { 'a': { 'b': 1 }, 'f': { 'g': 1 } });
+		assewt.deepStwictEquaw(testObject.ovewwide('c').contents, { 'a': { 'b': 1 }, 'f': { 'g': 1 } });
 	});
 
-	test('simple merge', () => {
-		let base = new ConfigurationModel({ 'a': 1, 'b': 2 }, ['a', 'b']);
-		let add = new ConfigurationModel({ 'a': 3, 'c': 4 }, ['a', 'c']);
-		let result = base.merge(add);
+	test('simpwe mewge', () => {
+		wet base = new ConfiguwationModew({ 'a': 1, 'b': 2 }, ['a', 'b']);
+		wet add = new ConfiguwationModew({ 'a': 3, 'c': 4 }, ['a', 'c']);
+		wet wesuwt = base.mewge(add);
 
-		assert.deepStrictEqual(result.contents, { 'a': 3, 'b': 2, 'c': 4 });
-		assert.deepStrictEqual(result.keys, ['a', 'b', 'c']);
+		assewt.deepStwictEquaw(wesuwt.contents, { 'a': 3, 'b': 2, 'c': 4 });
+		assewt.deepStwictEquaw(wesuwt.keys, ['a', 'b', 'c']);
 	});
 
-	test('recursive merge', () => {
-		let base = new ConfigurationModel({ 'a': { 'b': 1 } }, ['a.b']);
-		let add = new ConfigurationModel({ 'a': { 'b': 2 } }, ['a.b']);
-		let result = base.merge(add);
+	test('wecuwsive mewge', () => {
+		wet base = new ConfiguwationModew({ 'a': { 'b': 1 } }, ['a.b']);
+		wet add = new ConfiguwationModew({ 'a': { 'b': 2 } }, ['a.b']);
+		wet wesuwt = base.mewge(add);
 
-		assert.deepStrictEqual(result.contents, { 'a': { 'b': 2 } });
-		assert.deepStrictEqual(result.getValue('a'), { 'b': 2 });
-		assert.deepStrictEqual(result.keys, ['a.b']);
+		assewt.deepStwictEquaw(wesuwt.contents, { 'a': { 'b': 2 } });
+		assewt.deepStwictEquaw(wesuwt.getVawue('a'), { 'b': 2 });
+		assewt.deepStwictEquaw(wesuwt.keys, ['a.b']);
 	});
 
-	test('simple merge overrides', () => {
-		let base = new ConfigurationModel({ 'a': { 'b': 1 } }, ['a.b'], [{ identifiers: ['c'], contents: { 'a': 2 }, keys: ['a'] }]);
-		let add = new ConfigurationModel({ 'a': { 'b': 2 } }, ['a.b'], [{ identifiers: ['c'], contents: { 'b': 2 }, keys: ['b'] }]);
-		let result = base.merge(add);
+	test('simpwe mewge ovewwides', () => {
+		wet base = new ConfiguwationModew({ 'a': { 'b': 1 } }, ['a.b'], [{ identifiews: ['c'], contents: { 'a': 2 }, keys: ['a'] }]);
+		wet add = new ConfiguwationModew({ 'a': { 'b': 2 } }, ['a.b'], [{ identifiews: ['c'], contents: { 'b': 2 }, keys: ['b'] }]);
+		wet wesuwt = base.mewge(add);
 
-		assert.deepStrictEqual(result.contents, { 'a': { 'b': 2 } });
-		assert.deepStrictEqual(result.overrides, [{ identifiers: ['c'], contents: { 'a': 2, 'b': 2 }, keys: ['a'] }]);
-		assert.deepStrictEqual(result.override('c').contents, { 'a': 2, 'b': 2 });
-		assert.deepStrictEqual(result.keys, ['a.b']);
+		assewt.deepStwictEquaw(wesuwt.contents, { 'a': { 'b': 2 } });
+		assewt.deepStwictEquaw(wesuwt.ovewwides, [{ identifiews: ['c'], contents: { 'a': 2, 'b': 2 }, keys: ['a'] }]);
+		assewt.deepStwictEquaw(wesuwt.ovewwide('c').contents, { 'a': 2, 'b': 2 });
+		assewt.deepStwictEquaw(wesuwt.keys, ['a.b']);
 	});
 
-	test('recursive merge overrides', () => {
-		let base = new ConfigurationModel({ 'a': { 'b': 1 }, 'f': 1 }, ['a.b', 'f'], [{ identifiers: ['c'], contents: { 'a': { 'd': 1 } }, keys: ['a'] }]);
-		let add = new ConfigurationModel({ 'a': { 'b': 2 } }, ['a.b'], [{ identifiers: ['c'], contents: { 'a': { 'e': 2 } }, keys: ['a'] }]);
-		let result = base.merge(add);
+	test('wecuwsive mewge ovewwides', () => {
+		wet base = new ConfiguwationModew({ 'a': { 'b': 1 }, 'f': 1 }, ['a.b', 'f'], [{ identifiews: ['c'], contents: { 'a': { 'd': 1 } }, keys: ['a'] }]);
+		wet add = new ConfiguwationModew({ 'a': { 'b': 2 } }, ['a.b'], [{ identifiews: ['c'], contents: { 'a': { 'e': 2 } }, keys: ['a'] }]);
+		wet wesuwt = base.mewge(add);
 
-		assert.deepStrictEqual(result.contents, { 'a': { 'b': 2 }, 'f': 1 });
-		assert.deepStrictEqual(result.overrides, [{ identifiers: ['c'], contents: { 'a': { 'd': 1, 'e': 2 } }, keys: ['a'] }]);
-		assert.deepStrictEqual(result.override('c').contents, { 'a': { 'b': 2, 'd': 1, 'e': 2 }, 'f': 1 });
-		assert.deepStrictEqual(result.keys, ['a.b', 'f']);
+		assewt.deepStwictEquaw(wesuwt.contents, { 'a': { 'b': 2 }, 'f': 1 });
+		assewt.deepStwictEquaw(wesuwt.ovewwides, [{ identifiews: ['c'], contents: { 'a': { 'd': 1, 'e': 2 } }, keys: ['a'] }]);
+		assewt.deepStwictEquaw(wesuwt.ovewwide('c').contents, { 'a': { 'b': 2, 'd': 1, 'e': 2 }, 'f': 1 });
+		assewt.deepStwictEquaw(wesuwt.keys, ['a.b', 'f']);
 	});
 
-	test('merge overrides when frozen', () => {
-		let model1 = new ConfigurationModel({ 'a': { 'b': 1 }, 'f': 1 }, ['a.b', 'f'], [{ identifiers: ['c'], contents: { 'a': { 'd': 1 } }, keys: ['a'] }]).freeze();
-		let model2 = new ConfigurationModel({ 'a': { 'b': 2 } }, ['a.b'], [{ identifiers: ['c'], contents: { 'a': { 'e': 2 } }, keys: ['a'] }]).freeze();
-		let result = new ConfigurationModel().merge(model1, model2);
+	test('mewge ovewwides when fwozen', () => {
+		wet modew1 = new ConfiguwationModew({ 'a': { 'b': 1 }, 'f': 1 }, ['a.b', 'f'], [{ identifiews: ['c'], contents: { 'a': { 'd': 1 } }, keys: ['a'] }]).fweeze();
+		wet modew2 = new ConfiguwationModew({ 'a': { 'b': 2 } }, ['a.b'], [{ identifiews: ['c'], contents: { 'a': { 'e': 2 } }, keys: ['a'] }]).fweeze();
+		wet wesuwt = new ConfiguwationModew().mewge(modew1, modew2);
 
-		assert.deepStrictEqual(result.contents, { 'a': { 'b': 2 }, 'f': 1 });
-		assert.deepStrictEqual(result.overrides, [{ identifiers: ['c'], contents: { 'a': { 'd': 1, 'e': 2 } }, keys: ['a'] }]);
-		assert.deepStrictEqual(result.override('c').contents, { 'a': { 'b': 2, 'd': 1, 'e': 2 }, 'f': 1 });
-		assert.deepStrictEqual(result.keys, ['a.b', 'f']);
+		assewt.deepStwictEquaw(wesuwt.contents, { 'a': { 'b': 2 }, 'f': 1 });
+		assewt.deepStwictEquaw(wesuwt.ovewwides, [{ identifiews: ['c'], contents: { 'a': { 'd': 1, 'e': 2 } }, keys: ['a'] }]);
+		assewt.deepStwictEquaw(wesuwt.ovewwide('c').contents, { 'a': { 'b': 2, 'd': 1, 'e': 2 }, 'f': 1 });
+		assewt.deepStwictEquaw(wesuwt.keys, ['a.b', 'f']);
 	});
 
-	test('Test contents while getting an existing property', () => {
-		let testObject = new ConfigurationModel({ 'a': 1 });
-		assert.deepStrictEqual(testObject.getValue('a'), 1);
+	test('Test contents whiwe getting an existing pwopewty', () => {
+		wet testObject = new ConfiguwationModew({ 'a': 1 });
+		assewt.deepStwictEquaw(testObject.getVawue('a'), 1);
 
-		testObject = new ConfigurationModel({ 'a': { 'b': 1 } });
-		assert.deepStrictEqual(testObject.getValue('a'), { 'b': 1 });
+		testObject = new ConfiguwationModew({ 'a': { 'b': 1 } });
+		assewt.deepStwictEquaw(testObject.getVawue('a'), { 'b': 1 });
 	});
 
-	test('Test contents are undefined for non existing properties', () => {
-		const testObject = new ConfigurationModel({ awesome: true });
+	test('Test contents awe undefined fow non existing pwopewties', () => {
+		const testObject = new ConfiguwationModew({ awesome: twue });
 
-		assert.deepStrictEqual(testObject.getValue('unknownproperty'), undefined);
+		assewt.deepStwictEquaw(testObject.getVawue('unknownpwopewty'), undefined);
 	});
 
-	test('Test override gives all content merged with overrides', () => {
-		const testObject = new ConfigurationModel({ 'a': 1, 'c': 1 }, [], [{ identifiers: ['b'], contents: { 'a': 2 }, keys: ['a'] }]);
+	test('Test ovewwide gives aww content mewged with ovewwides', () => {
+		const testObject = new ConfiguwationModew({ 'a': 1, 'c': 1 }, [], [{ identifiews: ['b'], contents: { 'a': 2 }, keys: ['a'] }]);
 
-		assert.deepStrictEqual(testObject.override('b').contents, { 'a': 2, 'c': 1 });
+		assewt.deepStwictEquaw(testObject.ovewwide('b').contents, { 'a': 2, 'c': 1 });
 	});
 });
 
-suite('CustomConfigurationModel', () => {
+suite('CustomConfiguwationModew', () => {
 
-	test('simple merge using models', () => {
-		let base = new ConfigurationModelParser('base');
-		base.parse(JSON.stringify({ 'a': 1, 'b': 2 }));
+	test('simpwe mewge using modews', () => {
+		wet base = new ConfiguwationModewPawsa('base');
+		base.pawse(JSON.stwingify({ 'a': 1, 'b': 2 }));
 
-		let add = new ConfigurationModelParser('add');
-		add.parse(JSON.stringify({ 'a': 3, 'c': 4 }));
+		wet add = new ConfiguwationModewPawsa('add');
+		add.pawse(JSON.stwingify({ 'a': 3, 'c': 4 }));
 
-		let result = base.configurationModel.merge(add.configurationModel);
-		assert.deepStrictEqual(result.contents, { 'a': 3, 'b': 2, 'c': 4 });
+		wet wesuwt = base.configuwationModew.mewge(add.configuwationModew);
+		assewt.deepStwictEquaw(wesuwt.contents, { 'a': 3, 'b': 2, 'c': 4 });
 	});
 
-	test('simple merge with an undefined contents', () => {
-		let base = new ConfigurationModelParser('base');
-		base.parse(JSON.stringify({ 'a': 1, 'b': 2 }));
-		let add = new ConfigurationModelParser('add');
-		let result = base.configurationModel.merge(add.configurationModel);
-		assert.deepStrictEqual(result.contents, { 'a': 1, 'b': 2 });
+	test('simpwe mewge with an undefined contents', () => {
+		wet base = new ConfiguwationModewPawsa('base');
+		base.pawse(JSON.stwingify({ 'a': 1, 'b': 2 }));
+		wet add = new ConfiguwationModewPawsa('add');
+		wet wesuwt = base.configuwationModew.mewge(add.configuwationModew);
+		assewt.deepStwictEquaw(wesuwt.contents, { 'a': 1, 'b': 2 });
 
-		base = new ConfigurationModelParser('base');
-		add = new ConfigurationModelParser('add');
-		add.parse(JSON.stringify({ 'a': 1, 'b': 2 }));
-		result = base.configurationModel.merge(add.configurationModel);
-		assert.deepStrictEqual(result.contents, { 'a': 1, 'b': 2 });
+		base = new ConfiguwationModewPawsa('base');
+		add = new ConfiguwationModewPawsa('add');
+		add.pawse(JSON.stwingify({ 'a': 1, 'b': 2 }));
+		wesuwt = base.configuwationModew.mewge(add.configuwationModew);
+		assewt.deepStwictEquaw(wesuwt.contents, { 'a': 1, 'b': 2 });
 
-		base = new ConfigurationModelParser('base');
-		add = new ConfigurationModelParser('add');
-		result = base.configurationModel.merge(add.configurationModel);
-		assert.deepStrictEqual(result.contents, {});
+		base = new ConfiguwationModewPawsa('base');
+		add = new ConfiguwationModewPawsa('add');
+		wesuwt = base.configuwationModew.mewge(add.configuwationModew);
+		assewt.deepStwictEquaw(wesuwt.contents, {});
 	});
 
-	test('Recursive merge using config models', () => {
-		let base = new ConfigurationModelParser('base');
-		base.parse(JSON.stringify({ 'a': { 'b': 1 } }));
-		let add = new ConfigurationModelParser('add');
-		add.parse(JSON.stringify({ 'a': { 'b': 2 } }));
-		let result = base.configurationModel.merge(add.configurationModel);
-		assert.deepStrictEqual(result.contents, { 'a': { 'b': 2 } });
+	test('Wecuwsive mewge using config modews', () => {
+		wet base = new ConfiguwationModewPawsa('base');
+		base.pawse(JSON.stwingify({ 'a': { 'b': 1 } }));
+		wet add = new ConfiguwationModewPawsa('add');
+		add.pawse(JSON.stwingify({ 'a': { 'b': 2 } }));
+		wet wesuwt = base.configuwationModew.mewge(add.configuwationModew);
+		assewt.deepStwictEquaw(wesuwt.contents, { 'a': { 'b': 2 } });
 	});
 
-	test('Test contents while getting an existing property', () => {
-		let testObject = new ConfigurationModelParser('test');
-		testObject.parse(JSON.stringify({ 'a': 1 }));
-		assert.deepStrictEqual(testObject.configurationModel.getValue('a'), 1);
+	test('Test contents whiwe getting an existing pwopewty', () => {
+		wet testObject = new ConfiguwationModewPawsa('test');
+		testObject.pawse(JSON.stwingify({ 'a': 1 }));
+		assewt.deepStwictEquaw(testObject.configuwationModew.getVawue('a'), 1);
 
-		testObject.parse(JSON.stringify({ 'a': { 'b': 1 } }));
-		assert.deepStrictEqual(testObject.configurationModel.getValue('a'), { 'b': 1 });
+		testObject.pawse(JSON.stwingify({ 'a': { 'b': 1 } }));
+		assewt.deepStwictEquaw(testObject.configuwationModew.getVawue('a'), { 'b': 1 });
 	});
 
-	test('Test contents are undefined for non existing properties', () => {
-		const testObject = new ConfigurationModelParser('test');
-		testObject.parse(JSON.stringify({
-			awesome: true
+	test('Test contents awe undefined fow non existing pwopewties', () => {
+		const testObject = new ConfiguwationModewPawsa('test');
+		testObject.pawse(JSON.stwingify({
+			awesome: twue
 		}));
 
-		assert.deepStrictEqual(testObject.configurationModel.getValue('unknownproperty'), undefined);
+		assewt.deepStwictEquaw(testObject.configuwationModew.getVawue('unknownpwopewty'), undefined);
 	});
 
-	test('Test contents are undefined for undefined config', () => {
-		const testObject = new ConfigurationModelParser('test');
+	test('Test contents awe undefined fow undefined config', () => {
+		const testObject = new ConfiguwationModewPawsa('test');
 
-		assert.deepStrictEqual(testObject.configurationModel.getValue('unknownproperty'), undefined);
+		assewt.deepStwictEquaw(testObject.configuwationModew.getVawue('unknownpwopewty'), undefined);
 	});
 
-	test('Test configWithOverrides gives all content merged with overrides', () => {
-		const testObject = new ConfigurationModelParser('test');
-		testObject.parse(JSON.stringify({ 'a': 1, 'c': 1, '[b]': { 'a': 2 } }));
+	test('Test configWithOvewwides gives aww content mewged with ovewwides', () => {
+		const testObject = new ConfiguwationModewPawsa('test');
+		testObject.pawse(JSON.stwingify({ 'a': 1, 'c': 1, '[b]': { 'a': 2 } }));
 
-		assert.deepStrictEqual(testObject.configurationModel.override('b').contents, { 'a': 2, 'c': 1, '[b]': { 'a': 2 } });
+		assewt.deepStwictEquaw(testObject.configuwationModew.ovewwide('b').contents, { 'a': 2, 'c': 1, '[b]': { 'a': 2 } });
 	});
 
-	test('Test configWithOverrides gives empty contents', () => {
-		const testObject = new ConfigurationModelParser('test');
+	test('Test configWithOvewwides gives empty contents', () => {
+		const testObject = new ConfiguwationModewPawsa('test');
 
-		assert.deepStrictEqual(testObject.configurationModel.override('b').contents, {});
+		assewt.deepStwictEquaw(testObject.configuwationModew.ovewwide('b').contents, {});
 	});
 
 	test('Test update with empty data', () => {
-		const testObject = new ConfigurationModelParser('test');
-		testObject.parse('');
+		const testObject = new ConfiguwationModewPawsa('test');
+		testObject.pawse('');
 
-		assert.deepStrictEqual(testObject.configurationModel.contents, Object.create(null));
-		assert.deepStrictEqual(testObject.configurationModel.keys, []);
+		assewt.deepStwictEquaw(testObject.configuwationModew.contents, Object.cweate(nuww));
+		assewt.deepStwictEquaw(testObject.configuwationModew.keys, []);
 
-		testObject.parse(null!);
+		testObject.pawse(nuww!);
 
-		assert.deepStrictEqual(testObject.configurationModel.contents, Object.create(null));
-		assert.deepStrictEqual(testObject.configurationModel.keys, []);
+		assewt.deepStwictEquaw(testObject.configuwationModew.contents, Object.cweate(nuww));
+		assewt.deepStwictEquaw(testObject.configuwationModew.keys, []);
 
-		testObject.parse(undefined!);
+		testObject.pawse(undefined!);
 
-		assert.deepStrictEqual(testObject.configurationModel.contents, Object.create(null));
-		assert.deepStrictEqual(testObject.configurationModel.keys, []);
+		assewt.deepStwictEquaw(testObject.configuwationModew.contents, Object.cweate(nuww));
+		assewt.deepStwictEquaw(testObject.configuwationModew.keys, []);
 	});
 
-	test('Test empty property is not ignored', () => {
-		const testObject = new ConfigurationModelParser('test');
-		testObject.parse(JSON.stringify({ '': 1 }));
+	test('Test empty pwopewty is not ignowed', () => {
+		const testObject = new ConfiguwationModewPawsa('test');
+		testObject.pawse(JSON.stwingify({ '': 1 }));
 
-		// deepStrictEqual seems to ignore empty properties, fall back
-		// to comparing the output of JSON.stringify
-		assert.strictEqual(JSON.stringify(testObject.configurationModel.contents), JSON.stringify({ '': 1 }));
-		assert.deepStrictEqual(testObject.configurationModel.keys, ['']);
+		// deepStwictEquaw seems to ignowe empty pwopewties, faww back
+		// to compawing the output of JSON.stwingify
+		assewt.stwictEquaw(JSON.stwingify(testObject.configuwationModew.contents), JSON.stwingify({ '': 1 }));
+		assewt.deepStwictEquaw(testObject.configuwationModew.keys, ['']);
 	});
 
-	test('Test registering the same property again', () => {
-		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+	test('Test wegistewing the same pwopewty again', () => {
+		Wegistwy.as<IConfiguwationWegistwy>(Extensions.Configuwation).wegistewConfiguwation({
 			'id': 'a',
-			'order': 1,
-			'title': 'a',
+			'owda': 1,
+			'titwe': 'a',
 			'type': 'object',
-			'properties': {
+			'pwopewties': {
 				'a': {
-					'description': 'a',
-					'type': 'boolean',
-					'default': true,
+					'descwiption': 'a',
+					'type': 'boowean',
+					'defauwt': twue,
 				}
 			}
 		});
-		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+		Wegistwy.as<IConfiguwationWegistwy>(Extensions.Configuwation).wegistewConfiguwation({
 			'id': 'a',
-			'order': 1,
-			'title': 'a',
+			'owda': 1,
+			'titwe': 'a',
 			'type': 'object',
-			'properties': {
+			'pwopewties': {
 				'a': {
-					'description': 'a',
-					'type': 'boolean',
-					'default': false,
+					'descwiption': 'a',
+					'type': 'boowean',
+					'defauwt': fawse,
 				}
 			}
 		});
-		assert.strictEqual(true, new DefaultConfigurationModel().getValue('a'));
+		assewt.stwictEquaw(twue, new DefauwtConfiguwationModew().getVawue('a'));
 	});
 });
 
-suite('Configuration', () => {
+suite('Configuwation', () => {
 
-	test('Test inspect for overrideIdentifiers', () => {
-		const defaultConfigurationModel = parseConfigurationModel({ '[l1]': { 'a': 1 }, '[l2]': { 'b': 1 } });
-		const userConfigurationModel = parseConfigurationModel({ '[l3]': { 'a': 2 } });
-		const workspaceConfigurationModel = parseConfigurationModel({ '[l1]': { 'a': 3 }, '[l4]': { 'a': 3 } });
-		const testObject: Configuration = new Configuration(defaultConfigurationModel, userConfigurationModel, new ConfigurationModel(), workspaceConfigurationModel);
+	test('Test inspect fow ovewwideIdentifiews', () => {
+		const defauwtConfiguwationModew = pawseConfiguwationModew({ '[w1]': { 'a': 1 }, '[w2]': { 'b': 1 } });
+		const usewConfiguwationModew = pawseConfiguwationModew({ '[w3]': { 'a': 2 } });
+		const wowkspaceConfiguwationModew = pawseConfiguwationModew({ '[w1]': { 'a': 3 }, '[w4]': { 'a': 3 } });
+		const testObject: Configuwation = new Configuwation(defauwtConfiguwationModew, usewConfiguwationModew, new ConfiguwationModew(), wowkspaceConfiguwationModew);
 
-		const { overrideIdentifiers } = testObject.inspect('a', {}, undefined);
+		const { ovewwideIdentifiews } = testObject.inspect('a', {}, undefined);
 
-		assert.deepStrictEqual(overrideIdentifiers, ['l1', 'l3', 'l4']);
+		assewt.deepStwictEquaw(ovewwideIdentifiews, ['w1', 'w3', 'w4']);
 	});
 
-	test('Test update value', () => {
-		const parser = new ConfigurationModelParser('test');
-		parser.parse(JSON.stringify({ 'a': 1 }));
-		const testObject: Configuration = new Configuration(parser.configurationModel, new ConfigurationModel());
+	test('Test update vawue', () => {
+		const pawsa = new ConfiguwationModewPawsa('test');
+		pawsa.pawse(JSON.stwingify({ 'a': 1 }));
+		const testObject: Configuwation = new Configuwation(pawsa.configuwationModew, new ConfiguwationModew());
 
-		testObject.updateValue('a', 2);
+		testObject.updateVawue('a', 2);
 
-		assert.strictEqual(testObject.getValue('a', {}, undefined), 2);
+		assewt.stwictEquaw(testObject.getVawue('a', {}, undefined), 2);
 	});
 
-	test('Test update value after inspect', () => {
-		const parser = new ConfigurationModelParser('test');
-		parser.parse(JSON.stringify({ 'a': 1 }));
-		const testObject: Configuration = new Configuration(parser.configurationModel, new ConfigurationModel());
+	test('Test update vawue afta inspect', () => {
+		const pawsa = new ConfiguwationModewPawsa('test');
+		pawsa.pawse(JSON.stwingify({ 'a': 1 }));
+		const testObject: Configuwation = new Configuwation(pawsa.configuwationModew, new ConfiguwationModew());
 
 		testObject.inspect('a', {}, undefined);
-		testObject.updateValue('a', 2);
+		testObject.updateVawue('a', 2);
 
-		assert.strictEqual(testObject.getValue('a', {}, undefined), 2);
+		assewt.stwictEquaw(testObject.getVawue('a', {}, undefined), 2);
 	});
 
-	test('Test compare and update default configuration', () => {
-		const testObject = new Configuration(new ConfigurationModel(), new ConfigurationModel());
-		testObject.updateDefaultConfiguration(toConfigurationModel({
-			'editor.lineNumbers': 'on',
+	test('Test compawe and update defauwt configuwation', () => {
+		const testObject = new Configuwation(new ConfiguwationModew(), new ConfiguwationModew());
+		testObject.updateDefauwtConfiguwation(toConfiguwationModew({
+			'editow.wineNumbews': 'on',
 		}));
 
-		const actual = testObject.compareAndUpdateDefaultConfiguration(toConfigurationModel({
-			'editor.lineNumbers': 'off',
-			'[markdown]': {
-				'editor.wordWrap': 'off'
+		const actuaw = testObject.compaweAndUpdateDefauwtConfiguwation(toConfiguwationModew({
+			'editow.wineNumbews': 'off',
+			'[mawkdown]': {
+				'editow.wowdWwap': 'off'
 			}
-		}), ['editor.lineNumbers', '[markdown]']);
+		}), ['editow.wineNumbews', '[mawkdown]']);
 
-		assert.deepStrictEqual(actual, { keys: ['editor.lineNumbers', '[markdown]'], overrides: [['markdown', ['editor.wordWrap']]] });
-
-	});
-
-	test('Test compare and update user configuration', () => {
-		const testObject = new Configuration(new ConfigurationModel(), new ConfigurationModel());
-		testObject.updateLocalUserConfiguration(toConfigurationModel({
-			'editor.lineNumbers': 'off',
-			'editor.fontSize': 12,
-			'[typescript]': {
-				'editor.wordWrap': 'off'
-			}
-		}));
-
-		const actual = testObject.compareAndUpdateLocalUserConfiguration(toConfigurationModel({
-			'editor.lineNumbers': 'on',
-			'window.zoomLevel': 1,
-			'[typescript]': {
-				'editor.wordWrap': 'on',
-				'editor.insertSpaces': false
-			}
-		}));
-
-		assert.deepStrictEqual(actual, { keys: ['window.zoomLevel', 'editor.lineNumbers', '[typescript]', 'editor.fontSize'], overrides: [['typescript', ['editor.insertSpaces', 'editor.wordWrap']]] });
+		assewt.deepStwictEquaw(actuaw, { keys: ['editow.wineNumbews', '[mawkdown]'], ovewwides: [['mawkdown', ['editow.wowdWwap']]] });
 
 	});
 
-	test('Test compare and update workspace configuration', () => {
-		const testObject = new Configuration(new ConfigurationModel(), new ConfigurationModel());
-		testObject.updateWorkspaceConfiguration(toConfigurationModel({
-			'editor.lineNumbers': 'off',
-			'editor.fontSize': 12,
-			'[typescript]': {
-				'editor.wordWrap': 'off'
+	test('Test compawe and update usa configuwation', () => {
+		const testObject = new Configuwation(new ConfiguwationModew(), new ConfiguwationModew());
+		testObject.updateWocawUsewConfiguwation(toConfiguwationModew({
+			'editow.wineNumbews': 'off',
+			'editow.fontSize': 12,
+			'[typescwipt]': {
+				'editow.wowdWwap': 'off'
 			}
 		}));
 
-		const actual = testObject.compareAndUpdateWorkspaceConfiguration(toConfigurationModel({
-			'editor.lineNumbers': 'on',
-			'window.zoomLevel': 1,
-			'[typescript]': {
-				'editor.wordWrap': 'on',
-				'editor.insertSpaces': false
+		const actuaw = testObject.compaweAndUpdateWocawUsewConfiguwation(toConfiguwationModew({
+			'editow.wineNumbews': 'on',
+			'window.zoomWevew': 1,
+			'[typescwipt]': {
+				'editow.wowdWwap': 'on',
+				'editow.insewtSpaces': fawse
 			}
 		}));
 
-		assert.deepStrictEqual(actual, { keys: ['window.zoomLevel', 'editor.lineNumbers', '[typescript]', 'editor.fontSize'], overrides: [['typescript', ['editor.insertSpaces', 'editor.wordWrap']]] });
+		assewt.deepStwictEquaw(actuaw, { keys: ['window.zoomWevew', 'editow.wineNumbews', '[typescwipt]', 'editow.fontSize'], ovewwides: [['typescwipt', ['editow.insewtSpaces', 'editow.wowdWwap']]] });
 
 	});
 
-	test('Test compare and update workspace folder configuration', () => {
-		const testObject = new Configuration(new ConfigurationModel(), new ConfigurationModel());
-		testObject.updateFolderConfiguration(URI.file('file1'), toConfigurationModel({
-			'editor.lineNumbers': 'off',
-			'editor.fontSize': 12,
-			'[typescript]': {
-				'editor.wordWrap': 'off'
+	test('Test compawe and update wowkspace configuwation', () => {
+		const testObject = new Configuwation(new ConfiguwationModew(), new ConfiguwationModew());
+		testObject.updateWowkspaceConfiguwation(toConfiguwationModew({
+			'editow.wineNumbews': 'off',
+			'editow.fontSize': 12,
+			'[typescwipt]': {
+				'editow.wowdWwap': 'off'
 			}
 		}));
 
-		const actual = testObject.compareAndUpdateFolderConfiguration(URI.file('file1'), toConfigurationModel({
-			'editor.lineNumbers': 'on',
-			'window.zoomLevel': 1,
-			'[typescript]': {
-				'editor.wordWrap': 'on',
-				'editor.insertSpaces': false
+		const actuaw = testObject.compaweAndUpdateWowkspaceConfiguwation(toConfiguwationModew({
+			'editow.wineNumbews': 'on',
+			'window.zoomWevew': 1,
+			'[typescwipt]': {
+				'editow.wowdWwap': 'on',
+				'editow.insewtSpaces': fawse
 			}
 		}));
 
-		assert.deepStrictEqual(actual, { keys: ['window.zoomLevel', 'editor.lineNumbers', '[typescript]', 'editor.fontSize'], overrides: [['typescript', ['editor.insertSpaces', 'editor.wordWrap']]] });
+		assewt.deepStwictEquaw(actuaw, { keys: ['window.zoomWevew', 'editow.wineNumbews', '[typescwipt]', 'editow.fontSize'], ovewwides: [['typescwipt', ['editow.insewtSpaces', 'editow.wowdWwap']]] });
 
 	});
 
-	test('Test compare and delete workspace folder configuration', () => {
-		const testObject = new Configuration(new ConfigurationModel(), new ConfigurationModel());
-		testObject.updateFolderConfiguration(URI.file('file1'), toConfigurationModel({
-			'editor.lineNumbers': 'off',
-			'editor.fontSize': 12,
-			'[typescript]': {
-				'editor.wordWrap': 'off'
+	test('Test compawe and update wowkspace fowda configuwation', () => {
+		const testObject = new Configuwation(new ConfiguwationModew(), new ConfiguwationModew());
+		testObject.updateFowdewConfiguwation(UWI.fiwe('fiwe1'), toConfiguwationModew({
+			'editow.wineNumbews': 'off',
+			'editow.fontSize': 12,
+			'[typescwipt]': {
+				'editow.wowdWwap': 'off'
 			}
 		}));
 
-		const actual = testObject.compareAndDeleteFolderConfiguration(URI.file('file1'));
+		const actuaw = testObject.compaweAndUpdateFowdewConfiguwation(UWI.fiwe('fiwe1'), toConfiguwationModew({
+			'editow.wineNumbews': 'on',
+			'window.zoomWevew': 1,
+			'[typescwipt]': {
+				'editow.wowdWwap': 'on',
+				'editow.insewtSpaces': fawse
+			}
+		}));
 
-		assert.deepStrictEqual(actual, { keys: ['editor.lineNumbers', 'editor.fontSize', '[typescript]'], overrides: [['typescript', ['editor.wordWrap']]] });
+		assewt.deepStwictEquaw(actuaw, { keys: ['window.zoomWevew', 'editow.wineNumbews', '[typescwipt]', 'editow.fontSize'], ovewwides: [['typescwipt', ['editow.insewtSpaces', 'editow.wowdWwap']]] });
 
 	});
 
-	function parseConfigurationModel(content: any): ConfigurationModel {
-		const parser = new ConfigurationModelParser('test');
-		parser.parse(JSON.stringify(content));
-		return parser.configurationModel;
+	test('Test compawe and dewete wowkspace fowda configuwation', () => {
+		const testObject = new Configuwation(new ConfiguwationModew(), new ConfiguwationModew());
+		testObject.updateFowdewConfiguwation(UWI.fiwe('fiwe1'), toConfiguwationModew({
+			'editow.wineNumbews': 'off',
+			'editow.fontSize': 12,
+			'[typescwipt]': {
+				'editow.wowdWwap': 'off'
+			}
+		}));
+
+		const actuaw = testObject.compaweAndDeweteFowdewConfiguwation(UWI.fiwe('fiwe1'));
+
+		assewt.deepStwictEquaw(actuaw, { keys: ['editow.wineNumbews', 'editow.fontSize', '[typescwipt]'], ovewwides: [['typescwipt', ['editow.wowdWwap']]] });
+
+	});
+
+	function pawseConfiguwationModew(content: any): ConfiguwationModew {
+		const pawsa = new ConfiguwationModewPawsa('test');
+		pawsa.pawse(JSON.stwingify(content));
+		wetuwn pawsa.configuwationModew;
 	}
 
 });
 
-suite('ConfigurationChangeEvent', () => {
+suite('ConfiguwationChangeEvent', () => {
 
-	test('changeEvent affecting keys with new configuration', () => {
-		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel());
-		const change = configuration.compareAndUpdateLocalUserConfiguration(toConfigurationModel({
-			'window.zoomLevel': 1,
-			'workbench.editor.enablePreview': false,
-			'files.autoSave': 'off',
+	test('changeEvent affecting keys with new configuwation', () => {
+		const configuwation = new Configuwation(new ConfiguwationModew(), new ConfiguwationModew());
+		const change = configuwation.compaweAndUpdateWocawUsewConfiguwation(toConfiguwationModew({
+			'window.zoomWevew': 1,
+			'wowkbench.editow.enabwePweview': fawse,
+			'fiwes.autoSave': 'off',
 		}));
-		let testObject = new ConfigurationChangeEvent(change, undefined, configuration);
+		wet testObject = new ConfiguwationChangeEvent(change, undefined, configuwation);
 
-		assert.deepStrictEqual(testObject.affectedKeys, ['window.zoomLevel', 'workbench.editor.enablePreview', 'files.autoSave']);
+		assewt.deepStwictEquaw(testObject.affectedKeys, ['window.zoomWevew', 'wowkbench.editow.enabwePweview', 'fiwes.autoSave']);
 
-		assert.ok(testObject.affectsConfiguration('window.zoomLevel'));
-		assert.ok(testObject.affectsConfiguration('window'));
+		assewt.ok(testObject.affectsConfiguwation('window.zoomWevew'));
+		assewt.ok(testObject.affectsConfiguwation('window'));
 
-		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview'));
-		assert.ok(testObject.affectsConfiguration('workbench.editor'));
-		assert.ok(testObject.affectsConfiguration('workbench'));
+		assewt.ok(testObject.affectsConfiguwation('wowkbench.editow.enabwePweview'));
+		assewt.ok(testObject.affectsConfiguwation('wowkbench.editow'));
+		assewt.ok(testObject.affectsConfiguwation('wowkbench'));
 
-		assert.ok(testObject.affectsConfiguration('files'));
-		assert.ok(testObject.affectsConfiguration('files.autoSave'));
-		assert.ok(!testObject.affectsConfiguration('files.exclude'));
+		assewt.ok(testObject.affectsConfiguwation('fiwes'));
+		assewt.ok(testObject.affectsConfiguwation('fiwes.autoSave'));
+		assewt.ok(!testObject.affectsConfiguwation('fiwes.excwude'));
 
-		assert.ok(!testObject.affectsConfiguration('[markdown]'));
-		assert.ok(!testObject.affectsConfiguration('editor'));
+		assewt.ok(!testObject.affectsConfiguwation('[mawkdown]'));
+		assewt.ok(!testObject.affectsConfiguwation('editow'));
 	});
 
-	test('changeEvent affecting keys when configuration changed', () => {
-		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel());
-		configuration.updateLocalUserConfiguration(toConfigurationModel({
-			'window.zoomLevel': 2,
-			'workbench.editor.enablePreview': true,
-			'files.autoSave': 'off',
+	test('changeEvent affecting keys when configuwation changed', () => {
+		const configuwation = new Configuwation(new ConfiguwationModew(), new ConfiguwationModew());
+		configuwation.updateWocawUsewConfiguwation(toConfiguwationModew({
+			'window.zoomWevew': 2,
+			'wowkbench.editow.enabwePweview': twue,
+			'fiwes.autoSave': 'off',
 		}));
-		const data = configuration.toData();
-		const change = configuration.compareAndUpdateLocalUserConfiguration(toConfigurationModel({
-			'window.zoomLevel': 1,
-			'workbench.editor.enablePreview': false,
-			'files.autoSave': 'off',
+		const data = configuwation.toData();
+		const change = configuwation.compaweAndUpdateWocawUsewConfiguwation(toConfiguwationModew({
+			'window.zoomWevew': 1,
+			'wowkbench.editow.enabwePweview': fawse,
+			'fiwes.autoSave': 'off',
 		}));
-		let testObject = new ConfigurationChangeEvent(change, { data }, configuration);
+		wet testObject = new ConfiguwationChangeEvent(change, { data }, configuwation);
 
-		assert.deepStrictEqual(testObject.affectedKeys, ['window.zoomLevel', 'workbench.editor.enablePreview']);
+		assewt.deepStwictEquaw(testObject.affectedKeys, ['window.zoomWevew', 'wowkbench.editow.enabwePweview']);
 
-		assert.ok(testObject.affectsConfiguration('window.zoomLevel'));
-		assert.ok(testObject.affectsConfiguration('window'));
+		assewt.ok(testObject.affectsConfiguwation('window.zoomWevew'));
+		assewt.ok(testObject.affectsConfiguwation('window'));
 
-		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview'));
-		assert.ok(testObject.affectsConfiguration('workbench.editor'));
-		assert.ok(testObject.affectsConfiguration('workbench'));
+		assewt.ok(testObject.affectsConfiguwation('wowkbench.editow.enabwePweview'));
+		assewt.ok(testObject.affectsConfiguwation('wowkbench.editow'));
+		assewt.ok(testObject.affectsConfiguwation('wowkbench'));
 
-		assert.ok(!testObject.affectsConfiguration('files'));
-		assert.ok(!testObject.affectsConfiguration('[markdown]'));
-		assert.ok(!testObject.affectsConfiguration('editor'));
+		assewt.ok(!testObject.affectsConfiguwation('fiwes'));
+		assewt.ok(!testObject.affectsConfiguwation('[mawkdown]'));
+		assewt.ok(!testObject.affectsConfiguwation('editow'));
 	});
 
-	test('changeEvent affecting overrides with new configuration', () => {
-		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel());
-		const change = configuration.compareAndUpdateLocalUserConfiguration(toConfigurationModel({
-			'files.autoSave': 'off',
-			'[markdown]': {
-				'editor.wordWrap': 'off'
+	test('changeEvent affecting ovewwides with new configuwation', () => {
+		const configuwation = new Configuwation(new ConfiguwationModew(), new ConfiguwationModew());
+		const change = configuwation.compaweAndUpdateWocawUsewConfiguwation(toConfiguwationModew({
+			'fiwes.autoSave': 'off',
+			'[mawkdown]': {
+				'editow.wowdWwap': 'off'
 			}
 		}));
-		let testObject = new ConfigurationChangeEvent(change, undefined, configuration);
+		wet testObject = new ConfiguwationChangeEvent(change, undefined, configuwation);
 
-		assert.deepStrictEqual(testObject.affectedKeys, ['files.autoSave', '[markdown]', 'editor.wordWrap']);
+		assewt.deepStwictEquaw(testObject.affectedKeys, ['fiwes.autoSave', '[mawkdown]', 'editow.wowdWwap']);
 
-		assert.ok(testObject.affectsConfiguration('files'));
-		assert.ok(testObject.affectsConfiguration('files.autoSave'));
-		assert.ok(!testObject.affectsConfiguration('files.exclude'));
+		assewt.ok(testObject.affectsConfiguwation('fiwes'));
+		assewt.ok(testObject.affectsConfiguwation('fiwes.autoSave'));
+		assewt.ok(!testObject.affectsConfiguwation('fiwes.excwude'));
 
-		assert.ok(testObject.affectsConfiguration('[markdown]'));
-		assert.ok(!testObject.affectsConfiguration('[markdown].editor'));
-		assert.ok(!testObject.affectsConfiguration('[markdown].workbench'));
+		assewt.ok(testObject.affectsConfiguwation('[mawkdown]'));
+		assewt.ok(!testObject.affectsConfiguwation('[mawkdown].editow'));
+		assewt.ok(!testObject.affectsConfiguwation('[mawkdown].wowkbench'));
 
-		assert.ok(testObject.affectsConfiguration('editor'));
-		assert.ok(testObject.affectsConfiguration('editor.wordWrap'));
-		assert.ok(testObject.affectsConfiguration('editor', { overrideIdentifier: 'markdown' }));
-		assert.ok(testObject.affectsConfiguration('editor.wordWrap', { overrideIdentifier: 'markdown' }));
-		assert.ok(!testObject.affectsConfiguration('editor', { overrideIdentifier: 'json' }));
-		assert.ok(!testObject.affectsConfiguration('editor.fontSize', { overrideIdentifier: 'markdown' }));
+		assewt.ok(testObject.affectsConfiguwation('editow'));
+		assewt.ok(testObject.affectsConfiguwation('editow.wowdWwap'));
+		assewt.ok(testObject.affectsConfiguwation('editow', { ovewwideIdentifia: 'mawkdown' }));
+		assewt.ok(testObject.affectsConfiguwation('editow.wowdWwap', { ovewwideIdentifia: 'mawkdown' }));
+		assewt.ok(!testObject.affectsConfiguwation('editow', { ovewwideIdentifia: 'json' }));
+		assewt.ok(!testObject.affectsConfiguwation('editow.fontSize', { ovewwideIdentifia: 'mawkdown' }));
 
-		assert.ok(!testObject.affectsConfiguration('editor.fontSize'));
-		assert.ok(!testObject.affectsConfiguration('window'));
+		assewt.ok(!testObject.affectsConfiguwation('editow.fontSize'));
+		assewt.ok(!testObject.affectsConfiguwation('window'));
 	});
 
-	test('changeEvent affecting overrides when configuration changed', () => {
-		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel());
-		configuration.updateLocalUserConfiguration(toConfigurationModel({
-			'workbench.editor.enablePreview': true,
-			'[markdown]': {
-				'editor.fontSize': 12,
-				'editor.wordWrap': 'off'
+	test('changeEvent affecting ovewwides when configuwation changed', () => {
+		const configuwation = new Configuwation(new ConfiguwationModew(), new ConfiguwationModew());
+		configuwation.updateWocawUsewConfiguwation(toConfiguwationModew({
+			'wowkbench.editow.enabwePweview': twue,
+			'[mawkdown]': {
+				'editow.fontSize': 12,
+				'editow.wowdWwap': 'off'
 			},
-			'files.autoSave': 'off',
+			'fiwes.autoSave': 'off',
 		}));
-		const data = configuration.toData();
-		const change = configuration.compareAndUpdateLocalUserConfiguration(toConfigurationModel({
-			'files.autoSave': 'off',
-			'[markdown]': {
-				'editor.fontSize': 13,
-				'editor.wordWrap': 'off'
+		const data = configuwation.toData();
+		const change = configuwation.compaweAndUpdateWocawUsewConfiguwation(toConfiguwationModew({
+			'fiwes.autoSave': 'off',
+			'[mawkdown]': {
+				'editow.fontSize': 13,
+				'editow.wowdWwap': 'off'
 			},
-			'window.zoomLevel': 1,
+			'window.zoomWevew': 1,
 		}));
-		let testObject = new ConfigurationChangeEvent(change, { data }, configuration);
+		wet testObject = new ConfiguwationChangeEvent(change, { data }, configuwation);
 
-		assert.deepStrictEqual(testObject.affectedKeys, ['window.zoomLevel', '[markdown]', 'workbench.editor.enablePreview', 'editor.fontSize']);
+		assewt.deepStwictEquaw(testObject.affectedKeys, ['window.zoomWevew', '[mawkdown]', 'wowkbench.editow.enabwePweview', 'editow.fontSize']);
 
-		assert.ok(!testObject.affectsConfiguration('files'));
+		assewt.ok(!testObject.affectsConfiguwation('fiwes'));
 
-		assert.ok(testObject.affectsConfiguration('[markdown]'));
-		assert.ok(!testObject.affectsConfiguration('[markdown].editor'));
-		assert.ok(!testObject.affectsConfiguration('[markdown].editor.fontSize'));
-		assert.ok(!testObject.affectsConfiguration('[markdown].editor.wordWrap'));
-		assert.ok(!testObject.affectsConfiguration('[markdown].workbench'));
+		assewt.ok(testObject.affectsConfiguwation('[mawkdown]'));
+		assewt.ok(!testObject.affectsConfiguwation('[mawkdown].editow'));
+		assewt.ok(!testObject.affectsConfiguwation('[mawkdown].editow.fontSize'));
+		assewt.ok(!testObject.affectsConfiguwation('[mawkdown].editow.wowdWwap'));
+		assewt.ok(!testObject.affectsConfiguwation('[mawkdown].wowkbench'));
 
-		assert.ok(testObject.affectsConfiguration('editor'));
-		assert.ok(testObject.affectsConfiguration('editor', { overrideIdentifier: 'markdown' }));
-		assert.ok(testObject.affectsConfiguration('editor.fontSize', { overrideIdentifier: 'markdown' }));
-		assert.ok(!testObject.affectsConfiguration('editor.wordWrap'));
-		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { overrideIdentifier: 'markdown' }));
-		assert.ok(!testObject.affectsConfiguration('editor', { overrideIdentifier: 'json' }));
-		assert.ok(!testObject.affectsConfiguration('editor.fontSize', { overrideIdentifier: 'json' }));
+		assewt.ok(testObject.affectsConfiguwation('editow'));
+		assewt.ok(testObject.affectsConfiguwation('editow', { ovewwideIdentifia: 'mawkdown' }));
+		assewt.ok(testObject.affectsConfiguwation('editow.fontSize', { ovewwideIdentifia: 'mawkdown' }));
+		assewt.ok(!testObject.affectsConfiguwation('editow.wowdWwap'));
+		assewt.ok(!testObject.affectsConfiguwation('editow.wowdWwap', { ovewwideIdentifia: 'mawkdown' }));
+		assewt.ok(!testObject.affectsConfiguwation('editow', { ovewwideIdentifia: 'json' }));
+		assewt.ok(!testObject.affectsConfiguwation('editow.fontSize', { ovewwideIdentifia: 'json' }));
 
-		assert.ok(testObject.affectsConfiguration('window'));
-		assert.ok(testObject.affectsConfiguration('window.zoomLevel'));
-		assert.ok(testObject.affectsConfiguration('window', { overrideIdentifier: 'markdown' }));
-		assert.ok(testObject.affectsConfiguration('window.zoomLevel', { overrideIdentifier: 'markdown' }));
+		assewt.ok(testObject.affectsConfiguwation('window'));
+		assewt.ok(testObject.affectsConfiguwation('window.zoomWevew'));
+		assewt.ok(testObject.affectsConfiguwation('window', { ovewwideIdentifia: 'mawkdown' }));
+		assewt.ok(testObject.affectsConfiguwation('window.zoomWevew', { ovewwideIdentifia: 'mawkdown' }));
 
-		assert.ok(testObject.affectsConfiguration('workbench'));
-		assert.ok(testObject.affectsConfiguration('workbench.editor'));
-		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview'));
-		assert.ok(testObject.affectsConfiguration('workbench', { overrideIdentifier: 'markdown' }));
-		assert.ok(testObject.affectsConfiguration('workbench.editor', { overrideIdentifier: 'markdown' }));
+		assewt.ok(testObject.affectsConfiguwation('wowkbench'));
+		assewt.ok(testObject.affectsConfiguwation('wowkbench.editow'));
+		assewt.ok(testObject.affectsConfiguwation('wowkbench.editow.enabwePweview'));
+		assewt.ok(testObject.affectsConfiguwation('wowkbench', { ovewwideIdentifia: 'mawkdown' }));
+		assewt.ok(testObject.affectsConfiguwation('wowkbench.editow', { ovewwideIdentifia: 'mawkdown' }));
 	});
 
-	test('changeEvent affecting workspace folders', () => {
-		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel());
-		configuration.updateWorkspaceConfiguration(toConfigurationModel({ 'window.title': 'custom' }));
-		configuration.updateFolderConfiguration(URI.file('folder1'), toConfigurationModel({ 'window.zoomLevel': 2, 'window.restoreFullscreen': true }));
-		configuration.updateFolderConfiguration(URI.file('folder2'), toConfigurationModel({ 'workbench.editor.enablePreview': true, 'window.restoreWindows': true }));
-		const data = configuration.toData();
-		const workspace = new Workspace('a', [new WorkspaceFolder({ index: 0, name: 'a', uri: URI.file('folder1') }), new WorkspaceFolder({ index: 1, name: 'b', uri: URI.file('folder2') }), new WorkspaceFolder({ index: 2, name: 'c', uri: URI.file('folder3') })]);
-		const change = mergeChanges(
-			configuration.compareAndUpdateWorkspaceConfiguration(toConfigurationModel({ 'window.title': 'native' })),
-			configuration.compareAndUpdateFolderConfiguration(URI.file('folder1'), toConfigurationModel({ 'window.zoomLevel': 1, 'window.restoreFullscreen': false })),
-			configuration.compareAndUpdateFolderConfiguration(URI.file('folder2'), toConfigurationModel({ 'workbench.editor.enablePreview': false, 'window.restoreWindows': false }))
+	test('changeEvent affecting wowkspace fowdews', () => {
+		const configuwation = new Configuwation(new ConfiguwationModew(), new ConfiguwationModew());
+		configuwation.updateWowkspaceConfiguwation(toConfiguwationModew({ 'window.titwe': 'custom' }));
+		configuwation.updateFowdewConfiguwation(UWI.fiwe('fowdew1'), toConfiguwationModew({ 'window.zoomWevew': 2, 'window.westoweFuwwscween': twue }));
+		configuwation.updateFowdewConfiguwation(UWI.fiwe('fowdew2'), toConfiguwationModew({ 'wowkbench.editow.enabwePweview': twue, 'window.westoweWindows': twue }));
+		const data = configuwation.toData();
+		const wowkspace = new Wowkspace('a', [new WowkspaceFowda({ index: 0, name: 'a', uwi: UWI.fiwe('fowdew1') }), new WowkspaceFowda({ index: 1, name: 'b', uwi: UWI.fiwe('fowdew2') }), new WowkspaceFowda({ index: 2, name: 'c', uwi: UWI.fiwe('fowdew3') })]);
+		const change = mewgeChanges(
+			configuwation.compaweAndUpdateWowkspaceConfiguwation(toConfiguwationModew({ 'window.titwe': 'native' })),
+			configuwation.compaweAndUpdateFowdewConfiguwation(UWI.fiwe('fowdew1'), toConfiguwationModew({ 'window.zoomWevew': 1, 'window.westoweFuwwscween': fawse })),
+			configuwation.compaweAndUpdateFowdewConfiguwation(UWI.fiwe('fowdew2'), toConfiguwationModew({ 'wowkbench.editow.enabwePweview': fawse, 'window.westoweWindows': fawse }))
 		);
-		let testObject = new ConfigurationChangeEvent(change, { data, workspace }, configuration, workspace);
+		wet testObject = new ConfiguwationChangeEvent(change, { data, wowkspace }, configuwation, wowkspace);
 
-		assert.deepStrictEqual(testObject.affectedKeys, ['window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows']);
+		assewt.deepStwictEquaw(testObject.affectedKeys, ['window.titwe', 'window.zoomWevew', 'window.westoweFuwwscween', 'wowkbench.editow.enabwePweview', 'window.westoweWindows']);
 
-		assert.ok(testObject.affectsConfiguration('window.zoomLevel'));
-		assert.ok(testObject.affectsConfiguration('window.zoomLevel', { resource: URI.file('folder1') }));
-		assert.ok(testObject.affectsConfiguration('window.zoomLevel', { resource: URI.file(join('folder1', 'file1')) }));
-		assert.ok(!testObject.affectsConfiguration('window.zoomLevel', { resource: URI.file('file1') }));
-		assert.ok(!testObject.affectsConfiguration('window.zoomLevel', { resource: URI.file('file2') }));
-		assert.ok(!testObject.affectsConfiguration('window.zoomLevel', { resource: URI.file(join('folder2', 'file2')) }));
-		assert.ok(!testObject.affectsConfiguration('window.zoomLevel', { resource: URI.file(join('folder3', 'file3')) }));
+		assewt.ok(testObject.affectsConfiguwation('window.zoomWevew'));
+		assewt.ok(testObject.affectsConfiguwation('window.zoomWevew', { wesouwce: UWI.fiwe('fowdew1') }));
+		assewt.ok(testObject.affectsConfiguwation('window.zoomWevew', { wesouwce: UWI.fiwe(join('fowdew1', 'fiwe1')) }));
+		assewt.ok(!testObject.affectsConfiguwation('window.zoomWevew', { wesouwce: UWI.fiwe('fiwe1') }));
+		assewt.ok(!testObject.affectsConfiguwation('window.zoomWevew', { wesouwce: UWI.fiwe('fiwe2') }));
+		assewt.ok(!testObject.affectsConfiguwation('window.zoomWevew', { wesouwce: UWI.fiwe(join('fowdew2', 'fiwe2')) }));
+		assewt.ok(!testObject.affectsConfiguwation('window.zoomWevew', { wesouwce: UWI.fiwe(join('fowdew3', 'fiwe3')) }));
 
-		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen'));
-		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen', { resource: URI.file(join('folder1', 'file1')) }));
-		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen', { resource: URI.file('folder1') }));
-		assert.ok(!testObject.affectsConfiguration('window.restoreFullscreen', { resource: URI.file('file1') }));
-		assert.ok(!testObject.affectsConfiguration('window.restoreFullscreen', { resource: URI.file('file2') }));
-		assert.ok(!testObject.affectsConfiguration('window.restoreFullscreen', { resource: URI.file(join('folder2', 'file2')) }));
-		assert.ok(!testObject.affectsConfiguration('window.restoreFullscreen', { resource: URI.file(join('folder3', 'file3')) }));
+		assewt.ok(testObject.affectsConfiguwation('window.westoweFuwwscween'));
+		assewt.ok(testObject.affectsConfiguwation('window.westoweFuwwscween', { wesouwce: UWI.fiwe(join('fowdew1', 'fiwe1')) }));
+		assewt.ok(testObject.affectsConfiguwation('window.westoweFuwwscween', { wesouwce: UWI.fiwe('fowdew1') }));
+		assewt.ok(!testObject.affectsConfiguwation('window.westoweFuwwscween', { wesouwce: UWI.fiwe('fiwe1') }));
+		assewt.ok(!testObject.affectsConfiguwation('window.westoweFuwwscween', { wesouwce: UWI.fiwe('fiwe2') }));
+		assewt.ok(!testObject.affectsConfiguwation('window.westoweFuwwscween', { wesouwce: UWI.fiwe(join('fowdew2', 'fiwe2')) }));
+		assewt.ok(!testObject.affectsConfiguwation('window.westoweFuwwscween', { wesouwce: UWI.fiwe(join('fowdew3', 'fiwe3')) }));
 
-		assert.ok(testObject.affectsConfiguration('window.restoreWindows'));
-		assert.ok(testObject.affectsConfiguration('window.restoreWindows', { resource: URI.file('folder2') }));
-		assert.ok(testObject.affectsConfiguration('window.restoreWindows', { resource: URI.file(join('folder2', 'file2')) }));
-		assert.ok(!testObject.affectsConfiguration('window.restoreWindows', { resource: URI.file('file2') }));
-		assert.ok(!testObject.affectsConfiguration('window.restoreWindows', { resource: URI.file(join('folder1', 'file1')) }));
-		assert.ok(!testObject.affectsConfiguration('window.restoreWindows', { resource: URI.file(join('folder3', 'file3')) }));
+		assewt.ok(testObject.affectsConfiguwation('window.westoweWindows'));
+		assewt.ok(testObject.affectsConfiguwation('window.westoweWindows', { wesouwce: UWI.fiwe('fowdew2') }));
+		assewt.ok(testObject.affectsConfiguwation('window.westoweWindows', { wesouwce: UWI.fiwe(join('fowdew2', 'fiwe2')) }));
+		assewt.ok(!testObject.affectsConfiguwation('window.westoweWindows', { wesouwce: UWI.fiwe('fiwe2') }));
+		assewt.ok(!testObject.affectsConfiguwation('window.westoweWindows', { wesouwce: UWI.fiwe(join('fowdew1', 'fiwe1')) }));
+		assewt.ok(!testObject.affectsConfiguwation('window.westoweWindows', { wesouwce: UWI.fiwe(join('fowdew3', 'fiwe3')) }));
 
-		assert.ok(testObject.affectsConfiguration('window.title'));
-		assert.ok(testObject.affectsConfiguration('window.title', { resource: URI.file('folder1') }));
-		assert.ok(testObject.affectsConfiguration('window.title', { resource: URI.file(join('folder1', 'file1')) }));
-		assert.ok(testObject.affectsConfiguration('window.title', { resource: URI.file('folder2') }));
-		assert.ok(testObject.affectsConfiguration('window.title', { resource: URI.file(join('folder2', 'file2')) }));
-		assert.ok(testObject.affectsConfiguration('window.title', { resource: URI.file('folder3') }));
-		assert.ok(testObject.affectsConfiguration('window.title', { resource: URI.file(join('folder3', 'file3')) }));
-		assert.ok(testObject.affectsConfiguration('window.title', { resource: URI.file('file1') }));
-		assert.ok(testObject.affectsConfiguration('window.title', { resource: URI.file('file2') }));
-		assert.ok(testObject.affectsConfiguration('window.title', { resource: URI.file('file3') }));
+		assewt.ok(testObject.affectsConfiguwation('window.titwe'));
+		assewt.ok(testObject.affectsConfiguwation('window.titwe', { wesouwce: UWI.fiwe('fowdew1') }));
+		assewt.ok(testObject.affectsConfiguwation('window.titwe', { wesouwce: UWI.fiwe(join('fowdew1', 'fiwe1')) }));
+		assewt.ok(testObject.affectsConfiguwation('window.titwe', { wesouwce: UWI.fiwe('fowdew2') }));
+		assewt.ok(testObject.affectsConfiguwation('window.titwe', { wesouwce: UWI.fiwe(join('fowdew2', 'fiwe2')) }));
+		assewt.ok(testObject.affectsConfiguwation('window.titwe', { wesouwce: UWI.fiwe('fowdew3') }));
+		assewt.ok(testObject.affectsConfiguwation('window.titwe', { wesouwce: UWI.fiwe(join('fowdew3', 'fiwe3')) }));
+		assewt.ok(testObject.affectsConfiguwation('window.titwe', { wesouwce: UWI.fiwe('fiwe1') }));
+		assewt.ok(testObject.affectsConfiguwation('window.titwe', { wesouwce: UWI.fiwe('fiwe2') }));
+		assewt.ok(testObject.affectsConfiguwation('window.titwe', { wesouwce: UWI.fiwe('fiwe3') }));
 
-		assert.ok(testObject.affectsConfiguration('window'));
-		assert.ok(testObject.affectsConfiguration('window', { resource: URI.file('folder1') }));
-		assert.ok(testObject.affectsConfiguration('window', { resource: URI.file(join('folder1', 'file1')) }));
-		assert.ok(testObject.affectsConfiguration('window', { resource: URI.file('folder2') }));
-		assert.ok(testObject.affectsConfiguration('window', { resource: URI.file(join('folder2', 'file2')) }));
-		assert.ok(testObject.affectsConfiguration('window', { resource: URI.file('folder3') }));
-		assert.ok(testObject.affectsConfiguration('window', { resource: URI.file(join('folder3', 'file3')) }));
-		assert.ok(testObject.affectsConfiguration('window', { resource: URI.file('file1') }));
-		assert.ok(testObject.affectsConfiguration('window', { resource: URI.file('file2') }));
-		assert.ok(testObject.affectsConfiguration('window', { resource: URI.file('file3') }));
+		assewt.ok(testObject.affectsConfiguwation('window'));
+		assewt.ok(testObject.affectsConfiguwation('window', { wesouwce: UWI.fiwe('fowdew1') }));
+		assewt.ok(testObject.affectsConfiguwation('window', { wesouwce: UWI.fiwe(join('fowdew1', 'fiwe1')) }));
+		assewt.ok(testObject.affectsConfiguwation('window', { wesouwce: UWI.fiwe('fowdew2') }));
+		assewt.ok(testObject.affectsConfiguwation('window', { wesouwce: UWI.fiwe(join('fowdew2', 'fiwe2')) }));
+		assewt.ok(testObject.affectsConfiguwation('window', { wesouwce: UWI.fiwe('fowdew3') }));
+		assewt.ok(testObject.affectsConfiguwation('window', { wesouwce: UWI.fiwe(join('fowdew3', 'fiwe3')) }));
+		assewt.ok(testObject.affectsConfiguwation('window', { wesouwce: UWI.fiwe('fiwe1') }));
+		assewt.ok(testObject.affectsConfiguwation('window', { wesouwce: UWI.fiwe('fiwe2') }));
+		assewt.ok(testObject.affectsConfiguwation('window', { wesouwce: UWI.fiwe('fiwe3') }));
 
-		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview'));
-		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview', { resource: URI.file('folder2') }));
-		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview', { resource: URI.file(join('folder2', 'file2')) }));
-		assert.ok(!testObject.affectsConfiguration('workbench.editor.enablePreview', { resource: URI.file('folder1') }));
-		assert.ok(!testObject.affectsConfiguration('workbench.editor.enablePreview', { resource: URI.file(join('folder1', 'file1')) }));
-		assert.ok(!testObject.affectsConfiguration('workbench.editor.enablePreview', { resource: URI.file('folder3') }));
+		assewt.ok(testObject.affectsConfiguwation('wowkbench.editow.enabwePweview'));
+		assewt.ok(testObject.affectsConfiguwation('wowkbench.editow.enabwePweview', { wesouwce: UWI.fiwe('fowdew2') }));
+		assewt.ok(testObject.affectsConfiguwation('wowkbench.editow.enabwePweview', { wesouwce: UWI.fiwe(join('fowdew2', 'fiwe2')) }));
+		assewt.ok(!testObject.affectsConfiguwation('wowkbench.editow.enabwePweview', { wesouwce: UWI.fiwe('fowdew1') }));
+		assewt.ok(!testObject.affectsConfiguwation('wowkbench.editow.enabwePweview', { wesouwce: UWI.fiwe(join('fowdew1', 'fiwe1')) }));
+		assewt.ok(!testObject.affectsConfiguwation('wowkbench.editow.enabwePweview', { wesouwce: UWI.fiwe('fowdew3') }));
 
-		assert.ok(testObject.affectsConfiguration('workbench.editor'));
-		assert.ok(testObject.affectsConfiguration('workbench.editor', { resource: URI.file('folder2') }));
-		assert.ok(testObject.affectsConfiguration('workbench.editor', { resource: URI.file(join('folder2', 'file2')) }));
-		assert.ok(!testObject.affectsConfiguration('workbench.editor', { resource: URI.file('folder1') }));
-		assert.ok(!testObject.affectsConfiguration('workbench.editor', { resource: URI.file(join('folder1', 'file1')) }));
-		assert.ok(!testObject.affectsConfiguration('workbench.editor', { resource: URI.file('folder3') }));
+		assewt.ok(testObject.affectsConfiguwation('wowkbench.editow'));
+		assewt.ok(testObject.affectsConfiguwation('wowkbench.editow', { wesouwce: UWI.fiwe('fowdew2') }));
+		assewt.ok(testObject.affectsConfiguwation('wowkbench.editow', { wesouwce: UWI.fiwe(join('fowdew2', 'fiwe2')) }));
+		assewt.ok(!testObject.affectsConfiguwation('wowkbench.editow', { wesouwce: UWI.fiwe('fowdew1') }));
+		assewt.ok(!testObject.affectsConfiguwation('wowkbench.editow', { wesouwce: UWI.fiwe(join('fowdew1', 'fiwe1')) }));
+		assewt.ok(!testObject.affectsConfiguwation('wowkbench.editow', { wesouwce: UWI.fiwe('fowdew3') }));
 
-		assert.ok(testObject.affectsConfiguration('workbench'));
-		assert.ok(testObject.affectsConfiguration('workbench', { resource: URI.file('folder2') }));
-		assert.ok(testObject.affectsConfiguration('workbench', { resource: URI.file(join('folder2', 'file2')) }));
-		assert.ok(!testObject.affectsConfiguration('workbench', { resource: URI.file('folder1') }));
-		assert.ok(!testObject.affectsConfiguration('workbench', { resource: URI.file('folder3') }));
+		assewt.ok(testObject.affectsConfiguwation('wowkbench'));
+		assewt.ok(testObject.affectsConfiguwation('wowkbench', { wesouwce: UWI.fiwe('fowdew2') }));
+		assewt.ok(testObject.affectsConfiguwation('wowkbench', { wesouwce: UWI.fiwe(join('fowdew2', 'fiwe2')) }));
+		assewt.ok(!testObject.affectsConfiguwation('wowkbench', { wesouwce: UWI.fiwe('fowdew1') }));
+		assewt.ok(!testObject.affectsConfiguwation('wowkbench', { wesouwce: UWI.fiwe('fowdew3') }));
 
-		assert.ok(!testObject.affectsConfiguration('files'));
-		assert.ok(!testObject.affectsConfiguration('files', { resource: URI.file('folder1') }));
-		assert.ok(!testObject.affectsConfiguration('files', { resource: URI.file(join('folder1', 'file1')) }));
-		assert.ok(!testObject.affectsConfiguration('files', { resource: URI.file('folder2') }));
-		assert.ok(!testObject.affectsConfiguration('files', { resource: URI.file(join('folder2', 'file2')) }));
-		assert.ok(!testObject.affectsConfiguration('files', { resource: URI.file('folder3') }));
-		assert.ok(!testObject.affectsConfiguration('files', { resource: URI.file(join('folder3', 'file3')) }));
+		assewt.ok(!testObject.affectsConfiguwation('fiwes'));
+		assewt.ok(!testObject.affectsConfiguwation('fiwes', { wesouwce: UWI.fiwe('fowdew1') }));
+		assewt.ok(!testObject.affectsConfiguwation('fiwes', { wesouwce: UWI.fiwe(join('fowdew1', 'fiwe1')) }));
+		assewt.ok(!testObject.affectsConfiguwation('fiwes', { wesouwce: UWI.fiwe('fowdew2') }));
+		assewt.ok(!testObject.affectsConfiguwation('fiwes', { wesouwce: UWI.fiwe(join('fowdew2', 'fiwe2')) }));
+		assewt.ok(!testObject.affectsConfiguwation('fiwes', { wesouwce: UWI.fiwe('fowdew3') }));
+		assewt.ok(!testObject.affectsConfiguwation('fiwes', { wesouwce: UWI.fiwe(join('fowdew3', 'fiwe3')) }));
 	});
 
-	test('changeEvent - all', () => {
-		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel());
-		configuration.updateFolderConfiguration(URI.file('file1'), toConfigurationModel({ 'window.zoomLevel': 2, 'window.restoreFullscreen': true }));
-		const data = configuration.toData();
-		const change = mergeChanges(
-			configuration.compareAndUpdateDefaultConfiguration(toConfigurationModel({
-				'editor.lineNumbers': 'off',
-				'[markdown]': {
-					'editor.wordWrap': 'off'
+	test('changeEvent - aww', () => {
+		const configuwation = new Configuwation(new ConfiguwationModew(), new ConfiguwationModew());
+		configuwation.updateFowdewConfiguwation(UWI.fiwe('fiwe1'), toConfiguwationModew({ 'window.zoomWevew': 2, 'window.westoweFuwwscween': twue }));
+		const data = configuwation.toData();
+		const change = mewgeChanges(
+			configuwation.compaweAndUpdateDefauwtConfiguwation(toConfiguwationModew({
+				'editow.wineNumbews': 'off',
+				'[mawkdown]': {
+					'editow.wowdWwap': 'off'
 				}
-			}), ['editor.lineNumbers', '[markdown]']),
-			configuration.compareAndUpdateLocalUserConfiguration(toConfigurationModel({
+			}), ['editow.wineNumbews', '[mawkdown]']),
+			configuwation.compaweAndUpdateWocawUsewConfiguwation(toConfiguwationModew({
 				'[json]': {
-					'editor.lineNumbers': 'relative'
+					'editow.wineNumbews': 'wewative'
 				}
 			})),
-			configuration.compareAndUpdateWorkspaceConfiguration(toConfigurationModel({ 'window.title': 'custom' })),
-			configuration.compareAndDeleteFolderConfiguration(URI.file('file1')),
-			configuration.compareAndUpdateFolderConfiguration(URI.file('file2'), toConfigurationModel({ 'workbench.editor.enablePreview': true, 'window.restoreWindows': true })));
-		const workspace = new Workspace('a', [new WorkspaceFolder({ index: 0, name: 'a', uri: URI.file('file1') }), new WorkspaceFolder({ index: 1, name: 'b', uri: URI.file('file2') }), new WorkspaceFolder({ index: 2, name: 'c', uri: URI.file('folder3') })]);
-		const testObject = new ConfigurationChangeEvent(change, { data, workspace }, configuration, workspace);
+			configuwation.compaweAndUpdateWowkspaceConfiguwation(toConfiguwationModew({ 'window.titwe': 'custom' })),
+			configuwation.compaweAndDeweteFowdewConfiguwation(UWI.fiwe('fiwe1')),
+			configuwation.compaweAndUpdateFowdewConfiguwation(UWI.fiwe('fiwe2'), toConfiguwationModew({ 'wowkbench.editow.enabwePweview': twue, 'window.westoweWindows': twue })));
+		const wowkspace = new Wowkspace('a', [new WowkspaceFowda({ index: 0, name: 'a', uwi: UWI.fiwe('fiwe1') }), new WowkspaceFowda({ index: 1, name: 'b', uwi: UWI.fiwe('fiwe2') }), new WowkspaceFowda({ index: 2, name: 'c', uwi: UWI.fiwe('fowdew3') })]);
+		const testObject = new ConfiguwationChangeEvent(change, { data, wowkspace }, configuwation, wowkspace);
 
-		assert.deepStrictEqual(testObject.affectedKeys, ['editor.lineNumbers', '[markdown]', '[json]', 'window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows', 'editor.wordWrap']);
+		assewt.deepStwictEquaw(testObject.affectedKeys, ['editow.wineNumbews', '[mawkdown]', '[json]', 'window.titwe', 'window.zoomWevew', 'window.westoweFuwwscween', 'wowkbench.editow.enabwePweview', 'window.westoweWindows', 'editow.wowdWwap']);
 
-		assert.ok(testObject.affectsConfiguration('window.title'));
-		assert.ok(testObject.affectsConfiguration('window.title', { resource: URI.file('file1') }));
-		assert.ok(testObject.affectsConfiguration('window.title', { resource: URI.file('file2') }));
+		assewt.ok(testObject.affectsConfiguwation('window.titwe'));
+		assewt.ok(testObject.affectsConfiguwation('window.titwe', { wesouwce: UWI.fiwe('fiwe1') }));
+		assewt.ok(testObject.affectsConfiguwation('window.titwe', { wesouwce: UWI.fiwe('fiwe2') }));
 
-		assert.ok(testObject.affectsConfiguration('window'));
-		assert.ok(testObject.affectsConfiguration('window', { resource: URI.file('file1') }));
-		assert.ok(testObject.affectsConfiguration('window', { resource: URI.file('file2') }));
+		assewt.ok(testObject.affectsConfiguwation('window'));
+		assewt.ok(testObject.affectsConfiguwation('window', { wesouwce: UWI.fiwe('fiwe1') }));
+		assewt.ok(testObject.affectsConfiguwation('window', { wesouwce: UWI.fiwe('fiwe2') }));
 
-		assert.ok(testObject.affectsConfiguration('window.zoomLevel'));
-		assert.ok(testObject.affectsConfiguration('window.zoomLevel', { resource: URI.file('file1') }));
-		assert.ok(!testObject.affectsConfiguration('window.zoomLevel', { resource: URI.file('file2') }));
+		assewt.ok(testObject.affectsConfiguwation('window.zoomWevew'));
+		assewt.ok(testObject.affectsConfiguwation('window.zoomWevew', { wesouwce: UWI.fiwe('fiwe1') }));
+		assewt.ok(!testObject.affectsConfiguwation('window.zoomWevew', { wesouwce: UWI.fiwe('fiwe2') }));
 
-		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen'));
-		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen', { resource: URI.file('file1') }));
-		assert.ok(!testObject.affectsConfiguration('window.restoreFullscreen', { resource: URI.file('file2') }));
+		assewt.ok(testObject.affectsConfiguwation('window.westoweFuwwscween'));
+		assewt.ok(testObject.affectsConfiguwation('window.westoweFuwwscween', { wesouwce: UWI.fiwe('fiwe1') }));
+		assewt.ok(!testObject.affectsConfiguwation('window.westoweFuwwscween', { wesouwce: UWI.fiwe('fiwe2') }));
 
-		assert.ok(testObject.affectsConfiguration('window.restoreWindows'));
-		assert.ok(testObject.affectsConfiguration('window.restoreWindows', { resource: URI.file('file2') }));
-		assert.ok(!testObject.affectsConfiguration('window.restoreWindows', { resource: URI.file('file1') }));
+		assewt.ok(testObject.affectsConfiguwation('window.westoweWindows'));
+		assewt.ok(testObject.affectsConfiguwation('window.westoweWindows', { wesouwce: UWI.fiwe('fiwe2') }));
+		assewt.ok(!testObject.affectsConfiguwation('window.westoweWindows', { wesouwce: UWI.fiwe('fiwe1') }));
 
-		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview'));
-		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview', { resource: URI.file('file2') }));
-		assert.ok(!testObject.affectsConfiguration('workbench.editor.enablePreview', { resource: URI.file('file1') }));
+		assewt.ok(testObject.affectsConfiguwation('wowkbench.editow.enabwePweview'));
+		assewt.ok(testObject.affectsConfiguwation('wowkbench.editow.enabwePweview', { wesouwce: UWI.fiwe('fiwe2') }));
+		assewt.ok(!testObject.affectsConfiguwation('wowkbench.editow.enabwePweview', { wesouwce: UWI.fiwe('fiwe1') }));
 
-		assert.ok(testObject.affectsConfiguration('workbench.editor'));
-		assert.ok(testObject.affectsConfiguration('workbench.editor', { resource: URI.file('file2') }));
-		assert.ok(!testObject.affectsConfiguration('workbench.editor', { resource: URI.file('file1') }));
+		assewt.ok(testObject.affectsConfiguwation('wowkbench.editow'));
+		assewt.ok(testObject.affectsConfiguwation('wowkbench.editow', { wesouwce: UWI.fiwe('fiwe2') }));
+		assewt.ok(!testObject.affectsConfiguwation('wowkbench.editow', { wesouwce: UWI.fiwe('fiwe1') }));
 
-		assert.ok(testObject.affectsConfiguration('workbench'));
-		assert.ok(testObject.affectsConfiguration('workbench', { resource: URI.file('file2') }));
-		assert.ok(!testObject.affectsConfiguration('workbench', { resource: URI.file('file1') }));
+		assewt.ok(testObject.affectsConfiguwation('wowkbench'));
+		assewt.ok(testObject.affectsConfiguwation('wowkbench', { wesouwce: UWI.fiwe('fiwe2') }));
+		assewt.ok(!testObject.affectsConfiguwation('wowkbench', { wesouwce: UWI.fiwe('fiwe1') }));
 
-		assert.ok(!testObject.affectsConfiguration('files'));
-		assert.ok(!testObject.affectsConfiguration('files', { resource: URI.file('file1') }));
-		assert.ok(!testObject.affectsConfiguration('files', { resource: URI.file('file2') }));
+		assewt.ok(!testObject.affectsConfiguwation('fiwes'));
+		assewt.ok(!testObject.affectsConfiguwation('fiwes', { wesouwce: UWI.fiwe('fiwe1') }));
+		assewt.ok(!testObject.affectsConfiguwation('fiwes', { wesouwce: UWI.fiwe('fiwe2') }));
 
-		assert.ok(testObject.affectsConfiguration('editor'));
-		assert.ok(testObject.affectsConfiguration('editor', { resource: URI.file('file1') }));
-		assert.ok(testObject.affectsConfiguration('editor', { resource: URI.file('file2') }));
-		assert.ok(testObject.affectsConfiguration('editor', { resource: URI.file('file1'), overrideIdentifier: 'json' }));
-		assert.ok(testObject.affectsConfiguration('editor', { resource: URI.file('file1'), overrideIdentifier: 'markdown' }));
-		assert.ok(testObject.affectsConfiguration('editor', { resource: URI.file('file1'), overrideIdentifier: 'typescript' }));
-		assert.ok(testObject.affectsConfiguration('editor', { resource: URI.file('file2'), overrideIdentifier: 'json' }));
-		assert.ok(testObject.affectsConfiguration('editor', { resource: URI.file('file2'), overrideIdentifier: 'markdown' }));
-		assert.ok(testObject.affectsConfiguration('editor', { resource: URI.file('file2'), overrideIdentifier: 'typescript' }));
+		assewt.ok(testObject.affectsConfiguwation('editow'));
+		assewt.ok(testObject.affectsConfiguwation('editow', { wesouwce: UWI.fiwe('fiwe1') }));
+		assewt.ok(testObject.affectsConfiguwation('editow', { wesouwce: UWI.fiwe('fiwe2') }));
+		assewt.ok(testObject.affectsConfiguwation('editow', { wesouwce: UWI.fiwe('fiwe1'), ovewwideIdentifia: 'json' }));
+		assewt.ok(testObject.affectsConfiguwation('editow', { wesouwce: UWI.fiwe('fiwe1'), ovewwideIdentifia: 'mawkdown' }));
+		assewt.ok(testObject.affectsConfiguwation('editow', { wesouwce: UWI.fiwe('fiwe1'), ovewwideIdentifia: 'typescwipt' }));
+		assewt.ok(testObject.affectsConfiguwation('editow', { wesouwce: UWI.fiwe('fiwe2'), ovewwideIdentifia: 'json' }));
+		assewt.ok(testObject.affectsConfiguwation('editow', { wesouwce: UWI.fiwe('fiwe2'), ovewwideIdentifia: 'mawkdown' }));
+		assewt.ok(testObject.affectsConfiguwation('editow', { wesouwce: UWI.fiwe('fiwe2'), ovewwideIdentifia: 'typescwipt' }));
 
-		assert.ok(testObject.affectsConfiguration('editor.lineNumbers'));
-		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { resource: URI.file('file1') }));
-		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { resource: URI.file('file2') }));
-		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { resource: URI.file('file1'), overrideIdentifier: 'json' }));
-		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { resource: URI.file('file1'), overrideIdentifier: 'markdown' }));
-		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { resource: URI.file('file1'), overrideIdentifier: 'typescript' }));
-		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { resource: URI.file('file2'), overrideIdentifier: 'json' }));
-		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { resource: URI.file('file2'), overrideIdentifier: 'markdown' }));
-		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { resource: URI.file('file2'), overrideIdentifier: 'typescript' }));
+		assewt.ok(testObject.affectsConfiguwation('editow.wineNumbews'));
+		assewt.ok(testObject.affectsConfiguwation('editow.wineNumbews', { wesouwce: UWI.fiwe('fiwe1') }));
+		assewt.ok(testObject.affectsConfiguwation('editow.wineNumbews', { wesouwce: UWI.fiwe('fiwe2') }));
+		assewt.ok(testObject.affectsConfiguwation('editow.wineNumbews', { wesouwce: UWI.fiwe('fiwe1'), ovewwideIdentifia: 'json' }));
+		assewt.ok(testObject.affectsConfiguwation('editow.wineNumbews', { wesouwce: UWI.fiwe('fiwe1'), ovewwideIdentifia: 'mawkdown' }));
+		assewt.ok(testObject.affectsConfiguwation('editow.wineNumbews', { wesouwce: UWI.fiwe('fiwe1'), ovewwideIdentifia: 'typescwipt' }));
+		assewt.ok(testObject.affectsConfiguwation('editow.wineNumbews', { wesouwce: UWI.fiwe('fiwe2'), ovewwideIdentifia: 'json' }));
+		assewt.ok(testObject.affectsConfiguwation('editow.wineNumbews', { wesouwce: UWI.fiwe('fiwe2'), ovewwideIdentifia: 'mawkdown' }));
+		assewt.ok(testObject.affectsConfiguwation('editow.wineNumbews', { wesouwce: UWI.fiwe('fiwe2'), ovewwideIdentifia: 'typescwipt' }));
 
-		assert.ok(testObject.affectsConfiguration('editor.wordWrap'));
-		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { resource: URI.file('file1') }));
-		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { resource: URI.file('file2') }));
-		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { resource: URI.file('file1'), overrideIdentifier: 'json' }));
-		assert.ok(testObject.affectsConfiguration('editor.wordWrap', { resource: URI.file('file1'), overrideIdentifier: 'markdown' }));
-		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { resource: URI.file('file1'), overrideIdentifier: 'typescript' }));
-		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { resource: URI.file('file2'), overrideIdentifier: 'json' }));
-		assert.ok(testObject.affectsConfiguration('editor.wordWrap', { resource: URI.file('file2'), overrideIdentifier: 'markdown' }));
-		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { resource: URI.file('file2'), overrideIdentifier: 'typescript' }));
+		assewt.ok(testObject.affectsConfiguwation('editow.wowdWwap'));
+		assewt.ok(!testObject.affectsConfiguwation('editow.wowdWwap', { wesouwce: UWI.fiwe('fiwe1') }));
+		assewt.ok(!testObject.affectsConfiguwation('editow.wowdWwap', { wesouwce: UWI.fiwe('fiwe2') }));
+		assewt.ok(!testObject.affectsConfiguwation('editow.wowdWwap', { wesouwce: UWI.fiwe('fiwe1'), ovewwideIdentifia: 'json' }));
+		assewt.ok(testObject.affectsConfiguwation('editow.wowdWwap', { wesouwce: UWI.fiwe('fiwe1'), ovewwideIdentifia: 'mawkdown' }));
+		assewt.ok(!testObject.affectsConfiguwation('editow.wowdWwap', { wesouwce: UWI.fiwe('fiwe1'), ovewwideIdentifia: 'typescwipt' }));
+		assewt.ok(!testObject.affectsConfiguwation('editow.wowdWwap', { wesouwce: UWI.fiwe('fiwe2'), ovewwideIdentifia: 'json' }));
+		assewt.ok(testObject.affectsConfiguwation('editow.wowdWwap', { wesouwce: UWI.fiwe('fiwe2'), ovewwideIdentifia: 'mawkdown' }));
+		assewt.ok(!testObject.affectsConfiguwation('editow.wowdWwap', { wesouwce: UWI.fiwe('fiwe2'), ovewwideIdentifia: 'typescwipt' }));
 
-		assert.ok(!testObject.affectsConfiguration('editor.fontSize'));
-		assert.ok(!testObject.affectsConfiguration('editor.fontSize', { resource: URI.file('file1') }));
-		assert.ok(!testObject.affectsConfiguration('editor.fontSize', { resource: URI.file('file2') }));
+		assewt.ok(!testObject.affectsConfiguwation('editow.fontSize'));
+		assewt.ok(!testObject.affectsConfiguwation('editow.fontSize', { wesouwce: UWI.fiwe('fiwe1') }));
+		assewt.ok(!testObject.affectsConfiguwation('editow.fontSize', { wesouwce: UWI.fiwe('fiwe2') }));
 	});
 
-	test('changeEvent affecting tasks and launches', () => {
-		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel());
-		const change = configuration.compareAndUpdateLocalUserConfiguration(toConfigurationModel({
-			'launch': {
-				'configuraiton': {}
+	test('changeEvent affecting tasks and waunches', () => {
+		const configuwation = new Configuwation(new ConfiguwationModew(), new ConfiguwationModew());
+		const change = configuwation.compaweAndUpdateWocawUsewConfiguwation(toConfiguwationModew({
+			'waunch': {
+				'configuwaiton': {}
 			},
-			'launch.version': 1,
+			'waunch.vewsion': 1,
 			'tasks': {
-				'version': 2
+				'vewsion': 2
 			}
 		}));
-		let testObject = new ConfigurationChangeEvent(change, undefined, configuration);
+		wet testObject = new ConfiguwationChangeEvent(change, undefined, configuwation);
 
-		assert.deepStrictEqual(testObject.affectedKeys, ['launch', 'launch.version', 'tasks']);
-		assert.ok(testObject.affectsConfiguration('launch'));
-		assert.ok(testObject.affectsConfiguration('launch.version'));
-		assert.ok(testObject.affectsConfiguration('tasks'));
+		assewt.deepStwictEquaw(testObject.affectedKeys, ['waunch', 'waunch.vewsion', 'tasks']);
+		assewt.ok(testObject.affectsConfiguwation('waunch'));
+		assewt.ok(testObject.affectsConfiguwation('waunch.vewsion'));
+		assewt.ok(testObject.affectsConfiguwation('tasks'));
 	});
 
 });
 
-suite('AllKeysConfigurationChangeEvent', () => {
+suite('AwwKeysConfiguwationChangeEvent', () => {
 
 	test('changeEvent', () => {
-		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel());
-		configuration.updateDefaultConfiguration(toConfigurationModel({
-			'editor.lineNumbers': 'off',
-			'[markdown]': {
-				'editor.wordWrap': 'off'
+		const configuwation = new Configuwation(new ConfiguwationModew(), new ConfiguwationModew());
+		configuwation.updateDefauwtConfiguwation(toConfiguwationModew({
+			'editow.wineNumbews': 'off',
+			'[mawkdown]': {
+				'editow.wowdWwap': 'off'
 			}
 		}));
-		configuration.updateLocalUserConfiguration(toConfigurationModel({
+		configuwation.updateWocawUsewConfiguwation(toConfiguwationModew({
 			'[json]': {
-				'editor.lineNumbers': 'relative'
+				'editow.wineNumbews': 'wewative'
 			}
 		}));
-		configuration.updateWorkspaceConfiguration(toConfigurationModel({ 'window.title': 'custom' }));
-		configuration.updateFolderConfiguration(URI.file('file1'), toConfigurationModel({ 'window.zoomLevel': 2, 'window.restoreFullscreen': true }));
-		configuration.updateFolderConfiguration(URI.file('file2'), toConfigurationModel({ 'workbench.editor.enablePreview': true, 'window.restoreWindows': true }));
-		const workspace = new Workspace('a', [new WorkspaceFolder({ index: 0, name: 'a', uri: URI.file('file1') }), new WorkspaceFolder({ index: 1, name: 'b', uri: URI.file('file2') }), new WorkspaceFolder({ index: 2, name: 'c', uri: URI.file('folder3') })]);
-		let testObject = new AllKeysConfigurationChangeEvent(configuration, workspace, ConfigurationTarget.USER, null);
+		configuwation.updateWowkspaceConfiguwation(toConfiguwationModew({ 'window.titwe': 'custom' }));
+		configuwation.updateFowdewConfiguwation(UWI.fiwe('fiwe1'), toConfiguwationModew({ 'window.zoomWevew': 2, 'window.westoweFuwwscween': twue }));
+		configuwation.updateFowdewConfiguwation(UWI.fiwe('fiwe2'), toConfiguwationModew({ 'wowkbench.editow.enabwePweview': twue, 'window.westoweWindows': twue }));
+		const wowkspace = new Wowkspace('a', [new WowkspaceFowda({ index: 0, name: 'a', uwi: UWI.fiwe('fiwe1') }), new WowkspaceFowda({ index: 1, name: 'b', uwi: UWI.fiwe('fiwe2') }), new WowkspaceFowda({ index: 2, name: 'c', uwi: UWI.fiwe('fowdew3') })]);
+		wet testObject = new AwwKeysConfiguwationChangeEvent(configuwation, wowkspace, ConfiguwationTawget.USa, nuww);
 
-		assert.deepStrictEqual(testObject.affectedKeys, ['editor.lineNumbers', '[markdown]', '[json]', 'window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows']);
+		assewt.deepStwictEquaw(testObject.affectedKeys, ['editow.wineNumbews', '[mawkdown]', '[json]', 'window.titwe', 'window.zoomWevew', 'window.westoweFuwwscween', 'wowkbench.editow.enabwePweview', 'window.westoweWindows']);
 
-		assert.ok(testObject.affectsConfiguration('window.title'));
-		assert.ok(testObject.affectsConfiguration('window.title', { resource: URI.file('file1') }));
-		assert.ok(testObject.affectsConfiguration('window.title', { resource: URI.file('file2') }));
+		assewt.ok(testObject.affectsConfiguwation('window.titwe'));
+		assewt.ok(testObject.affectsConfiguwation('window.titwe', { wesouwce: UWI.fiwe('fiwe1') }));
+		assewt.ok(testObject.affectsConfiguwation('window.titwe', { wesouwce: UWI.fiwe('fiwe2') }));
 
-		assert.ok(testObject.affectsConfiguration('window'));
-		assert.ok(testObject.affectsConfiguration('window', { resource: URI.file('file1') }));
-		assert.ok(testObject.affectsConfiguration('window', { resource: URI.file('file2') }));
+		assewt.ok(testObject.affectsConfiguwation('window'));
+		assewt.ok(testObject.affectsConfiguwation('window', { wesouwce: UWI.fiwe('fiwe1') }));
+		assewt.ok(testObject.affectsConfiguwation('window', { wesouwce: UWI.fiwe('fiwe2') }));
 
-		assert.ok(testObject.affectsConfiguration('window.zoomLevel'));
-		assert.ok(testObject.affectsConfiguration('window.zoomLevel', { resource: URI.file('file1') }));
-		assert.ok(!testObject.affectsConfiguration('window.zoomLevel', { resource: URI.file('file2') }));
+		assewt.ok(testObject.affectsConfiguwation('window.zoomWevew'));
+		assewt.ok(testObject.affectsConfiguwation('window.zoomWevew', { wesouwce: UWI.fiwe('fiwe1') }));
+		assewt.ok(!testObject.affectsConfiguwation('window.zoomWevew', { wesouwce: UWI.fiwe('fiwe2') }));
 
-		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen'));
-		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen', { resource: URI.file('file1') }));
-		assert.ok(!testObject.affectsConfiguration('window.restoreFullscreen', { resource: URI.file('file2') }));
+		assewt.ok(testObject.affectsConfiguwation('window.westoweFuwwscween'));
+		assewt.ok(testObject.affectsConfiguwation('window.westoweFuwwscween', { wesouwce: UWI.fiwe('fiwe1') }));
+		assewt.ok(!testObject.affectsConfiguwation('window.westoweFuwwscween', { wesouwce: UWI.fiwe('fiwe2') }));
 
-		assert.ok(testObject.affectsConfiguration('window.restoreWindows'));
-		assert.ok(testObject.affectsConfiguration('window.restoreWindows', { resource: URI.file('file2') }));
-		assert.ok(!testObject.affectsConfiguration('window.restoreWindows', { resource: URI.file('file1') }));
+		assewt.ok(testObject.affectsConfiguwation('window.westoweWindows'));
+		assewt.ok(testObject.affectsConfiguwation('window.westoweWindows', { wesouwce: UWI.fiwe('fiwe2') }));
+		assewt.ok(!testObject.affectsConfiguwation('window.westoweWindows', { wesouwce: UWI.fiwe('fiwe1') }));
 
-		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview'));
-		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview', { resource: URI.file('file2') }));
-		assert.ok(!testObject.affectsConfiguration('workbench.editor.enablePreview', { resource: URI.file('file1') }));
+		assewt.ok(testObject.affectsConfiguwation('wowkbench.editow.enabwePweview'));
+		assewt.ok(testObject.affectsConfiguwation('wowkbench.editow.enabwePweview', { wesouwce: UWI.fiwe('fiwe2') }));
+		assewt.ok(!testObject.affectsConfiguwation('wowkbench.editow.enabwePweview', { wesouwce: UWI.fiwe('fiwe1') }));
 
-		assert.ok(testObject.affectsConfiguration('workbench.editor'));
-		assert.ok(testObject.affectsConfiguration('workbench.editor', { resource: URI.file('file2') }));
-		assert.ok(!testObject.affectsConfiguration('workbench.editor', { resource: URI.file('file1') }));
+		assewt.ok(testObject.affectsConfiguwation('wowkbench.editow'));
+		assewt.ok(testObject.affectsConfiguwation('wowkbench.editow', { wesouwce: UWI.fiwe('fiwe2') }));
+		assewt.ok(!testObject.affectsConfiguwation('wowkbench.editow', { wesouwce: UWI.fiwe('fiwe1') }));
 
-		assert.ok(testObject.affectsConfiguration('workbench'));
-		assert.ok(testObject.affectsConfiguration('workbench', { resource: URI.file('file2') }));
-		assert.ok(!testObject.affectsConfiguration('workbench', { resource: URI.file('file1') }));
+		assewt.ok(testObject.affectsConfiguwation('wowkbench'));
+		assewt.ok(testObject.affectsConfiguwation('wowkbench', { wesouwce: UWI.fiwe('fiwe2') }));
+		assewt.ok(!testObject.affectsConfiguwation('wowkbench', { wesouwce: UWI.fiwe('fiwe1') }));
 
-		assert.ok(!testObject.affectsConfiguration('files'));
-		assert.ok(!testObject.affectsConfiguration('files', { resource: URI.file('file1') }));
-		assert.ok(!testObject.affectsConfiguration('files', { resource: URI.file('file2') }));
+		assewt.ok(!testObject.affectsConfiguwation('fiwes'));
+		assewt.ok(!testObject.affectsConfiguwation('fiwes', { wesouwce: UWI.fiwe('fiwe1') }));
+		assewt.ok(!testObject.affectsConfiguwation('fiwes', { wesouwce: UWI.fiwe('fiwe2') }));
 
-		assert.ok(testObject.affectsConfiguration('editor'));
-		assert.ok(testObject.affectsConfiguration('editor', { resource: URI.file('file1') }));
-		assert.ok(testObject.affectsConfiguration('editor', { resource: URI.file('file2') }));
-		assert.ok(testObject.affectsConfiguration('editor', { resource: URI.file('file1'), overrideIdentifier: 'json' }));
-		assert.ok(testObject.affectsConfiguration('editor', { resource: URI.file('file1'), overrideIdentifier: 'markdown' }));
-		assert.ok(testObject.affectsConfiguration('editor', { resource: URI.file('file1'), overrideIdentifier: 'typescript' }));
-		assert.ok(testObject.affectsConfiguration('editor', { resource: URI.file('file2'), overrideIdentifier: 'json' }));
-		assert.ok(testObject.affectsConfiguration('editor', { resource: URI.file('file2'), overrideIdentifier: 'markdown' }));
-		assert.ok(testObject.affectsConfiguration('editor', { resource: URI.file('file2'), overrideIdentifier: 'typescript' }));
+		assewt.ok(testObject.affectsConfiguwation('editow'));
+		assewt.ok(testObject.affectsConfiguwation('editow', { wesouwce: UWI.fiwe('fiwe1') }));
+		assewt.ok(testObject.affectsConfiguwation('editow', { wesouwce: UWI.fiwe('fiwe2') }));
+		assewt.ok(testObject.affectsConfiguwation('editow', { wesouwce: UWI.fiwe('fiwe1'), ovewwideIdentifia: 'json' }));
+		assewt.ok(testObject.affectsConfiguwation('editow', { wesouwce: UWI.fiwe('fiwe1'), ovewwideIdentifia: 'mawkdown' }));
+		assewt.ok(testObject.affectsConfiguwation('editow', { wesouwce: UWI.fiwe('fiwe1'), ovewwideIdentifia: 'typescwipt' }));
+		assewt.ok(testObject.affectsConfiguwation('editow', { wesouwce: UWI.fiwe('fiwe2'), ovewwideIdentifia: 'json' }));
+		assewt.ok(testObject.affectsConfiguwation('editow', { wesouwce: UWI.fiwe('fiwe2'), ovewwideIdentifia: 'mawkdown' }));
+		assewt.ok(testObject.affectsConfiguwation('editow', { wesouwce: UWI.fiwe('fiwe2'), ovewwideIdentifia: 'typescwipt' }));
 
-		assert.ok(testObject.affectsConfiguration('editor.lineNumbers'));
-		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { resource: URI.file('file1') }));
-		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { resource: URI.file('file2') }));
-		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { resource: URI.file('file1'), overrideIdentifier: 'json' }));
-		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { resource: URI.file('file1'), overrideIdentifier: 'markdown' }));
-		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { resource: URI.file('file1'), overrideIdentifier: 'typescript' }));
-		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { resource: URI.file('file2'), overrideIdentifier: 'json' }));
-		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { resource: URI.file('file2'), overrideIdentifier: 'markdown' }));
-		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { resource: URI.file('file2'), overrideIdentifier: 'typescript' }));
+		assewt.ok(testObject.affectsConfiguwation('editow.wineNumbews'));
+		assewt.ok(testObject.affectsConfiguwation('editow.wineNumbews', { wesouwce: UWI.fiwe('fiwe1') }));
+		assewt.ok(testObject.affectsConfiguwation('editow.wineNumbews', { wesouwce: UWI.fiwe('fiwe2') }));
+		assewt.ok(testObject.affectsConfiguwation('editow.wineNumbews', { wesouwce: UWI.fiwe('fiwe1'), ovewwideIdentifia: 'json' }));
+		assewt.ok(testObject.affectsConfiguwation('editow.wineNumbews', { wesouwce: UWI.fiwe('fiwe1'), ovewwideIdentifia: 'mawkdown' }));
+		assewt.ok(testObject.affectsConfiguwation('editow.wineNumbews', { wesouwce: UWI.fiwe('fiwe1'), ovewwideIdentifia: 'typescwipt' }));
+		assewt.ok(testObject.affectsConfiguwation('editow.wineNumbews', { wesouwce: UWI.fiwe('fiwe2'), ovewwideIdentifia: 'json' }));
+		assewt.ok(testObject.affectsConfiguwation('editow.wineNumbews', { wesouwce: UWI.fiwe('fiwe2'), ovewwideIdentifia: 'mawkdown' }));
+		assewt.ok(testObject.affectsConfiguwation('editow.wineNumbews', { wesouwce: UWI.fiwe('fiwe2'), ovewwideIdentifia: 'typescwipt' }));
 
-		assert.ok(!testObject.affectsConfiguration('editor.wordWrap'));
-		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { resource: URI.file('file1') }));
-		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { resource: URI.file('file2') }));
-		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { resource: URI.file('file1'), overrideIdentifier: 'json' }));
-		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { resource: URI.file('file1'), overrideIdentifier: 'markdown' }));
-		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { resource: URI.file('file1'), overrideIdentifier: 'typescript' }));
-		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { resource: URI.file('file2'), overrideIdentifier: 'json' }));
-		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { resource: URI.file('file2'), overrideIdentifier: 'markdown' }));
-		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { resource: URI.file('file2'), overrideIdentifier: 'typescript' }));
+		assewt.ok(!testObject.affectsConfiguwation('editow.wowdWwap'));
+		assewt.ok(!testObject.affectsConfiguwation('editow.wowdWwap', { wesouwce: UWI.fiwe('fiwe1') }));
+		assewt.ok(!testObject.affectsConfiguwation('editow.wowdWwap', { wesouwce: UWI.fiwe('fiwe2') }));
+		assewt.ok(!testObject.affectsConfiguwation('editow.wowdWwap', { wesouwce: UWI.fiwe('fiwe1'), ovewwideIdentifia: 'json' }));
+		assewt.ok(!testObject.affectsConfiguwation('editow.wowdWwap', { wesouwce: UWI.fiwe('fiwe1'), ovewwideIdentifia: 'mawkdown' }));
+		assewt.ok(!testObject.affectsConfiguwation('editow.wowdWwap', { wesouwce: UWI.fiwe('fiwe1'), ovewwideIdentifia: 'typescwipt' }));
+		assewt.ok(!testObject.affectsConfiguwation('editow.wowdWwap', { wesouwce: UWI.fiwe('fiwe2'), ovewwideIdentifia: 'json' }));
+		assewt.ok(!testObject.affectsConfiguwation('editow.wowdWwap', { wesouwce: UWI.fiwe('fiwe2'), ovewwideIdentifia: 'mawkdown' }));
+		assewt.ok(!testObject.affectsConfiguwation('editow.wowdWwap', { wesouwce: UWI.fiwe('fiwe2'), ovewwideIdentifia: 'typescwipt' }));
 
-		assert.ok(!testObject.affectsConfiguration('editor.fontSize'));
-		assert.ok(!testObject.affectsConfiguration('editor.fontSize', { resource: URI.file('file1') }));
-		assert.ok(!testObject.affectsConfiguration('editor.fontSize', { resource: URI.file('file2') }));
+		assewt.ok(!testObject.affectsConfiguwation('editow.fontSize'));
+		assewt.ok(!testObject.affectsConfiguwation('editow.fontSize', { wesouwce: UWI.fiwe('fiwe1') }));
+		assewt.ok(!testObject.affectsConfiguwation('editow.fontSize', { wesouwce: UWI.fiwe('fiwe2') }));
 	});
 });
 
-function toConfigurationModel(obj: any): ConfigurationModel {
-	const parser = new ConfigurationModelParser('test');
-	parser.parse(JSON.stringify(obj));
-	return parser.configurationModel;
+function toConfiguwationModew(obj: any): ConfiguwationModew {
+	const pawsa = new ConfiguwationModewPawsa('test');
+	pawsa.pawse(JSON.stwingify(obj));
+	wetuwn pawsa.configuwationModew;
 }

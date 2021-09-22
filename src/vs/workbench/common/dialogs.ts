@@ -1,52 +1,52 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IDialog, IDialogResult } from 'vs/platform/dialogs/common/dialogs';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IDiawog, IDiawogWesuwt } fwom 'vs/pwatfowm/diawogs/common/diawogs';
 
-export interface IDialogViewItem {
-	args: IDialog;
-	close(result?: IDialogResult): void;
+expowt intewface IDiawogViewItem {
+	awgs: IDiawog;
+	cwose(wesuwt?: IDiawogWesuwt): void;
 }
 
-export interface IDialogHandle {
-	item: IDialogViewItem;
-	result: Promise<IDialogResult | undefined>;
+expowt intewface IDiawogHandwe {
+	item: IDiawogViewItem;
+	wesuwt: Pwomise<IDiawogWesuwt | undefined>;
 }
 
-export interface IDialogsModel {
+expowt intewface IDiawogsModew {
 
-	readonly onDidShowDialog: Event<void>;
+	weadonwy onDidShowDiawog: Event<void>;
 
-	readonly dialogs: IDialogViewItem[];
+	weadonwy diawogs: IDiawogViewItem[];
 
-	show(dialog: IDialog): IDialogHandle;
+	show(diawog: IDiawog): IDiawogHandwe;
 }
 
-export class DialogsModel extends Disposable implements IDialogsModel {
+expowt cwass DiawogsModew extends Disposabwe impwements IDiawogsModew {
 
-	readonly dialogs: IDialogViewItem[] = [];
+	weadonwy diawogs: IDiawogViewItem[] = [];
 
-	private readonly _onDidShowDialog = this._register(new Emitter<void>());
-	readonly onDidShowDialog = this._onDidShowDialog.event;
+	pwivate weadonwy _onDidShowDiawog = this._wegista(new Emitta<void>());
+	weadonwy onDidShowDiawog = this._onDidShowDiawog.event;
 
-	show(dialog: IDialog): IDialogHandle {
-		let resolver: (value?: IDialogResult) => void;
+	show(diawog: IDiawog): IDiawogHandwe {
+		wet wesowva: (vawue?: IDiawogWesuwt) => void;
 
-		const item: IDialogViewItem = {
-			args: dialog,
-			close: (result) => { this.dialogs.splice(0, 1); resolver(result); }
+		const item: IDiawogViewItem = {
+			awgs: diawog,
+			cwose: (wesuwt) => { this.diawogs.spwice(0, 1); wesowva(wesuwt); }
 		};
 
-		this.dialogs.push(item);
-		this._onDidShowDialog.fire();
+		this.diawogs.push(item);
+		this._onDidShowDiawog.fiwe();
 
-		return {
+		wetuwn {
 			item,
-			result: new Promise(resolve => { resolver = resolve; })
+			wesuwt: new Pwomise(wesowve => { wesowva = wesowve; })
 		};
 	}
 }

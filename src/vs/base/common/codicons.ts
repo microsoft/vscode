@@ -1,594 +1,594 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
 
-export interface IIconRegistry {
-	readonly all: IterableIterator<Codicon>;
-	readonly onDidRegister: Event<Codicon>;
-	get(id: string): Codicon | undefined;
+expowt intewface IIconWegistwy {
+	weadonwy aww: ItewabweItewatow<Codicon>;
+	weadonwy onDidWegista: Event<Codicon>;
+	get(id: stwing): Codicon | undefined;
 }
 
-class Registry implements IIconRegistry {
+cwass Wegistwy impwements IIconWegistwy {
 
-	private readonly _icons = new Map<string, Codicon>();
-	private readonly _onDidRegister = new Emitter<Codicon>();
+	pwivate weadonwy _icons = new Map<stwing, Codicon>();
+	pwivate weadonwy _onDidWegista = new Emitta<Codicon>();
 
-	public add(icon: Codicon) {
+	pubwic add(icon: Codicon) {
 		const existing = this._icons.get(icon.id);
 		if (!existing) {
 			this._icons.set(icon.id, icon);
-			this._onDidRegister.fire(icon);
-		} else if (icon.description) {
-			existing.description = icon.description;
-		} else {
-			console.error(`Duplicate registration of codicon ${icon.id}`);
+			this._onDidWegista.fiwe(icon);
+		} ewse if (icon.descwiption) {
+			existing.descwiption = icon.descwiption;
+		} ewse {
+			consowe.ewwow(`Dupwicate wegistwation of codicon ${icon.id}`);
 		}
 	}
 
-	public get(id: string): Codicon | undefined {
-		return this._icons.get(id);
+	pubwic get(id: stwing): Codicon | undefined {
+		wetuwn this._icons.get(id);
 	}
 
-	public get all(): IterableIterator<Codicon> {
-		return this._icons.values();
+	pubwic get aww(): ItewabweItewatow<Codicon> {
+		wetuwn this._icons.vawues();
 	}
 
-	public get onDidRegister(): Event<Codicon> {
-		return this._onDidRegister.event;
+	pubwic get onDidWegista(): Event<Codicon> {
+		wetuwn this._onDidWegista.event;
 	}
 }
 
-const _registry = new Registry();
+const _wegistwy = new Wegistwy();
 
-export const iconRegistry: IIconRegistry = _registry;
+expowt const iconWegistwy: IIconWegistwy = _wegistwy;
 
-export function registerCodicon(id: string, def: Codicon): Codicon {
-	return new Codicon(id, def);
+expowt function wegistewCodicon(id: stwing, def: Codicon): Codicon {
+	wetuwn new Codicon(id, def);
 }
 
-// Selects all codicon names encapsulated in the `$()` syntax and wraps the
-// results with spaces so that screen readers can read the text better.
-export function getCodiconAriaLabel(text: string | undefined) {
+// Sewects aww codicon names encapsuwated in the `$()` syntax and wwaps the
+// wesuwts with spaces so that scween weadews can wead the text betta.
+expowt function getCodiconAwiaWabew(text: stwing | undefined) {
 	if (!text) {
-		return '';
+		wetuwn '';
 	}
 
-	return text.replace(/\$\((.*?)\)/g, (_match, codiconName) => ` ${codiconName} `).trim();
+	wetuwn text.wepwace(/\$\((.*?)\)/g, (_match, codiconName) => ` ${codiconName} `).twim();
 }
 
-export class Codicon implements CSSIcon {
-	constructor(public readonly id: string, public readonly definition: Codicon | IconDefinition, public description?: string) {
-		_registry.add(this);
+expowt cwass Codicon impwements CSSIcon {
+	constwuctow(pubwic weadonwy id: stwing, pubwic weadonwy definition: Codicon | IconDefinition, pubwic descwiption?: stwing) {
+		_wegistwy.add(this);
 	}
-	public get classNames() { return 'codicon codicon-' + this.id; }
-	// classNamesArray is useful for migrating to ES6 classlist
-	public get classNamesArray() { return ['codicon', 'codicon-' + this.id]; }
-	public get cssSelector() { return '.codicon.codicon-' + this.id; }
+	pubwic get cwassNames() { wetuwn 'codicon codicon-' + this.id; }
+	// cwassNamesAwway is usefuw fow migwating to ES6 cwasswist
+	pubwic get cwassNamesAwway() { wetuwn ['codicon', 'codicon-' + this.id]; }
+	pubwic get cssSewectow() { wetuwn '.codicon.codicon-' + this.id; }
 }
 
-export function getClassNamesArray(id: string, modifier?: string) {
-	const classNames = ['codicon', 'codicon-' + id];
-	if (modifier) {
-		classNames.push('codicon-modifier-' + modifier);
+expowt function getCwassNamesAwway(id: stwing, modifia?: stwing) {
+	const cwassNames = ['codicon', 'codicon-' + id];
+	if (modifia) {
+		cwassNames.push('codicon-modifia-' + modifia);
 	}
-	return classNames;
+	wetuwn cwassNames;
 }
 
-export interface CSSIcon {
-	readonly id: string;
+expowt intewface CSSIcon {
+	weadonwy id: stwing;
 }
 
 
-export namespace CSSIcon {
-	export const iconNameSegment = '[A-Za-z0-9]+';
-	export const iconNameExpression = '[A-Za-z0-9\\-]+';
-	export const iconModifierExpression = '~[A-Za-z]+';
+expowt namespace CSSIcon {
+	expowt const iconNameSegment = '[A-Za-z0-9]+';
+	expowt const iconNameExpwession = '[A-Za-z0-9\\-]+';
+	expowt const iconModifiewExpwession = '~[A-Za-z]+';
 
-	const cssIconIdRegex = new RegExp(`^(${iconNameExpression})(${iconModifierExpression})?$`);
+	const cssIconIdWegex = new WegExp(`^(${iconNameExpwession})(${iconModifiewExpwession})?$`);
 
-	export function asClassNameArray(icon: CSSIcon): string[] {
+	expowt function asCwassNameAwway(icon: CSSIcon): stwing[] {
 		if (icon instanceof Codicon) {
-			return ['codicon', 'codicon-' + icon.id];
+			wetuwn ['codicon', 'codicon-' + icon.id];
 		}
-		const match = cssIconIdRegex.exec(icon.id);
+		const match = cssIconIdWegex.exec(icon.id);
 		if (!match) {
-			return asClassNameArray(Codicon.error);
+			wetuwn asCwassNameAwway(Codicon.ewwow);
 		}
-		let [, id, modifier] = match;
-		const classNames = ['codicon', 'codicon-' + id];
-		if (modifier) {
-			classNames.push('codicon-modifier-' + modifier.substr(1));
+		wet [, id, modifia] = match;
+		const cwassNames = ['codicon', 'codicon-' + id];
+		if (modifia) {
+			cwassNames.push('codicon-modifia-' + modifia.substw(1));
 		}
-		return classNames;
+		wetuwn cwassNames;
 	}
 
-	export function asClassName(icon: CSSIcon): string {
-		return asClassNameArray(icon).join(' ');
+	expowt function asCwassName(icon: CSSIcon): stwing {
+		wetuwn asCwassNameAwway(icon).join(' ');
 	}
 
-	export function asCSSSelector(icon: CSSIcon): string {
-		return '.' + asClassNameArray(icon).join('.');
+	expowt function asCSSSewectow(icon: CSSIcon): stwing {
+		wetuwn '.' + asCwassNameAwway(icon).join('.');
 	}
 }
 
 
 
-interface IconDefinition {
-	fontCharacter: string;
+intewface IconDefinition {
+	fontChawacta: stwing;
 }
 
-export namespace Codicon {
+expowt namespace Codicon {
 
-	// built-in icons, with image name
-	export const add = new Codicon('add', { fontCharacter: '\\ea60' });
-	export const plus = new Codicon('plus', { fontCharacter: '\\ea60' });
-	export const gistNew = new Codicon('gist-new', { fontCharacter: '\\ea60' });
-	export const repoCreate = new Codicon('repo-create', { fontCharacter: '\\ea60' });
-	export const lightbulb = new Codicon('lightbulb', { fontCharacter: '\\ea61' });
-	export const lightBulb = new Codicon('light-bulb', { fontCharacter: '\\ea61' });
-	export const repo = new Codicon('repo', { fontCharacter: '\\ea62' });
-	export const repoDelete = new Codicon('repo-delete', { fontCharacter: '\\ea62' });
-	export const gistFork = new Codicon('gist-fork', { fontCharacter: '\\ea63' });
-	export const repoForked = new Codicon('repo-forked', { fontCharacter: '\\ea63' });
-	export const gitPullRequest = new Codicon('git-pull-request', { fontCharacter: '\\ea64' });
-	export const gitPullRequestAbandoned = new Codicon('git-pull-request-abandoned', { fontCharacter: '\\ea64' });
-	export const recordKeys = new Codicon('record-keys', { fontCharacter: '\\ea65' });
-	export const keyboard = new Codicon('keyboard', { fontCharacter: '\\ea65' });
-	export const tag = new Codicon('tag', { fontCharacter: '\\ea66' });
-	export const tagAdd = new Codicon('tag-add', { fontCharacter: '\\ea66' });
-	export const tagRemove = new Codicon('tag-remove', { fontCharacter: '\\ea66' });
-	export const person = new Codicon('person', { fontCharacter: '\\ea67' });
-	export const personFollow = new Codicon('person-follow', { fontCharacter: '\\ea67' });
-	export const personOutline = new Codicon('person-outline', { fontCharacter: '\\ea67' });
-	export const personFilled = new Codicon('person-filled', { fontCharacter: '\\ea67' });
-	export const gitBranch = new Codicon('git-branch', { fontCharacter: '\\ea68' });
-	export const gitBranchCreate = new Codicon('git-branch-create', { fontCharacter: '\\ea68' });
-	export const gitBranchDelete = new Codicon('git-branch-delete', { fontCharacter: '\\ea68' });
-	export const sourceControl = new Codicon('source-control', { fontCharacter: '\\ea68' });
-	export const mirror = new Codicon('mirror', { fontCharacter: '\\ea69' });
-	export const mirrorPublic = new Codicon('mirror-public', { fontCharacter: '\\ea69' });
-	export const star = new Codicon('star', { fontCharacter: '\\ea6a' });
-	export const starAdd = new Codicon('star-add', { fontCharacter: '\\ea6a' });
-	export const starDelete = new Codicon('star-delete', { fontCharacter: '\\ea6a' });
-	export const starEmpty = new Codicon('star-empty', { fontCharacter: '\\ea6a' });
-	export const comment = new Codicon('comment', { fontCharacter: '\\ea6b' });
-	export const commentAdd = new Codicon('comment-add', { fontCharacter: '\\ea6b' });
-	export const alert = new Codicon('alert', { fontCharacter: '\\ea6c' });
-	export const warning = new Codicon('warning', { fontCharacter: '\\ea6c' });
-	export const search = new Codicon('search', { fontCharacter: '\\ea6d' });
-	export const searchSave = new Codicon('search-save', { fontCharacter: '\\ea6d' });
-	export const logOut = new Codicon('log-out', { fontCharacter: '\\ea6e' });
-	export const signOut = new Codicon('sign-out', { fontCharacter: '\\ea6e' });
-	export const logIn = new Codicon('log-in', { fontCharacter: '\\ea6f' });
-	export const signIn = new Codicon('sign-in', { fontCharacter: '\\ea6f' });
-	export const eye = new Codicon('eye', { fontCharacter: '\\ea70' });
-	export const eyeUnwatch = new Codicon('eye-unwatch', { fontCharacter: '\\ea70' });
-	export const eyeWatch = new Codicon('eye-watch', { fontCharacter: '\\ea70' });
-	export const circleFilled = new Codicon('circle-filled', { fontCharacter: '\\ea71' });
-	export const primitiveDot = new Codicon('primitive-dot', { fontCharacter: '\\ea71' });
-	export const closeDirty = new Codicon('close-dirty', { fontCharacter: '\\ea71' });
-	export const debugBreakpoint = new Codicon('debug-breakpoint', { fontCharacter: '\\ea71' });
-	export const debugBreakpointDisabled = new Codicon('debug-breakpoint-disabled', { fontCharacter: '\\ea71' });
-	export const debugHint = new Codicon('debug-hint', { fontCharacter: '\\ea71' });
-	export const primitiveSquare = new Codicon('primitive-square', { fontCharacter: '\\ea72' });
-	export const edit = new Codicon('edit', { fontCharacter: '\\ea73' });
-	export const pencil = new Codicon('pencil', { fontCharacter: '\\ea73' });
-	export const info = new Codicon('info', { fontCharacter: '\\ea74' });
-	export const issueOpened = new Codicon('issue-opened', { fontCharacter: '\\ea74' });
-	export const gistPrivate = new Codicon('gist-private', { fontCharacter: '\\ea75' });
-	export const gitForkPrivate = new Codicon('git-fork-private', { fontCharacter: '\\ea75' });
-	export const lock = new Codicon('lock', { fontCharacter: '\\ea75' });
-	export const mirrorPrivate = new Codicon('mirror-private', { fontCharacter: '\\ea75' });
-	export const close = new Codicon('close', { fontCharacter: '\\ea76' });
-	export const removeClose = new Codicon('remove-close', { fontCharacter: '\\ea76' });
-	export const x = new Codicon('x', { fontCharacter: '\\ea76' });
-	export const repoSync = new Codicon('repo-sync', { fontCharacter: '\\ea77' });
-	export const sync = new Codicon('sync', { fontCharacter: '\\ea77' });
-	export const clone = new Codicon('clone', { fontCharacter: '\\ea78' });
-	export const desktopDownload = new Codicon('desktop-download', { fontCharacter: '\\ea78' });
-	export const beaker = new Codicon('beaker', { fontCharacter: '\\ea79' });
-	export const microscope = new Codicon('microscope', { fontCharacter: '\\ea79' });
-	export const vm = new Codicon('vm', { fontCharacter: '\\ea7a' });
-	export const deviceDesktop = new Codicon('device-desktop', { fontCharacter: '\\ea7a' });
-	export const file = new Codicon('file', { fontCharacter: '\\ea7b' });
-	export const fileText = new Codicon('file-text', { fontCharacter: '\\ea7b' });
-	export const more = new Codicon('more', { fontCharacter: '\\ea7c' });
-	export const ellipsis = new Codicon('ellipsis', { fontCharacter: '\\ea7c' });
-	export const kebabHorizontal = new Codicon('kebab-horizontal', { fontCharacter: '\\ea7c' });
-	export const mailReply = new Codicon('mail-reply', { fontCharacter: '\\ea7d' });
-	export const reply = new Codicon('reply', { fontCharacter: '\\ea7d' });
-	export const organization = new Codicon('organization', { fontCharacter: '\\ea7e' });
-	export const organizationFilled = new Codicon('organization-filled', { fontCharacter: '\\ea7e' });
-	export const organizationOutline = new Codicon('organization-outline', { fontCharacter: '\\ea7e' });
-	export const newFile = new Codicon('new-file', { fontCharacter: '\\ea7f' });
-	export const fileAdd = new Codicon('file-add', { fontCharacter: '\\ea7f' });
-	export const newFolder = new Codicon('new-folder', { fontCharacter: '\\ea80' });
-	export const fileDirectoryCreate = new Codicon('file-directory-create', { fontCharacter: '\\ea80' });
-	export const trash = new Codicon('trash', { fontCharacter: '\\ea81' });
-	export const trashcan = new Codicon('trashcan', { fontCharacter: '\\ea81' });
-	export const history = new Codicon('history', { fontCharacter: '\\ea82' });
-	export const clock = new Codicon('clock', { fontCharacter: '\\ea82' });
-	export const folder = new Codicon('folder', { fontCharacter: '\\ea83' });
-	export const fileDirectory = new Codicon('file-directory', { fontCharacter: '\\ea83' });
-	export const symbolFolder = new Codicon('symbol-folder', { fontCharacter: '\\ea83' });
-	export const logoGithub = new Codicon('logo-github', { fontCharacter: '\\ea84' });
-	export const markGithub = new Codicon('mark-github', { fontCharacter: '\\ea84' });
-	export const github = new Codicon('github', { fontCharacter: '\\ea84' });
-	export const terminal = new Codicon('terminal', { fontCharacter: '\\ea85' });
-	export const console = new Codicon('console', { fontCharacter: '\\ea85' });
-	export const repl = new Codicon('repl', { fontCharacter: '\\ea85' });
-	export const zap = new Codicon('zap', { fontCharacter: '\\ea86' });
-	export const symbolEvent = new Codicon('symbol-event', { fontCharacter: '\\ea86' });
-	export const error = new Codicon('error', { fontCharacter: '\\ea87' });
-	export const stop = new Codicon('stop', { fontCharacter: '\\ea87' });
-	export const variable = new Codicon('variable', { fontCharacter: '\\ea88' });
-	export const symbolVariable = new Codicon('symbol-variable', { fontCharacter: '\\ea88' });
-	export const array = new Codicon('array', { fontCharacter: '\\ea8a' });
-	export const symbolArray = new Codicon('symbol-array', { fontCharacter: '\\ea8a' });
-	export const symbolModule = new Codicon('symbol-module', { fontCharacter: '\\ea8b' });
-	export const symbolPackage = new Codicon('symbol-package', { fontCharacter: '\\ea8b' });
-	export const symbolNamespace = new Codicon('symbol-namespace', { fontCharacter: '\\ea8b' });
-	export const symbolObject = new Codicon('symbol-object', { fontCharacter: '\\ea8b' });
-	export const symbolMethod = new Codicon('symbol-method', { fontCharacter: '\\ea8c' });
-	export const symbolFunction = new Codicon('symbol-function', { fontCharacter: '\\ea8c' });
-	export const symbolConstructor = new Codicon('symbol-constructor', { fontCharacter: '\\ea8c' });
-	export const symbolBoolean = new Codicon('symbol-boolean', { fontCharacter: '\\ea8f' });
-	export const symbolNull = new Codicon('symbol-null', { fontCharacter: '\\ea8f' });
-	export const symbolNumeric = new Codicon('symbol-numeric', { fontCharacter: '\\ea90' });
-	export const symbolNumber = new Codicon('symbol-number', { fontCharacter: '\\ea90' });
-	export const symbolStructure = new Codicon('symbol-structure', { fontCharacter: '\\ea91' });
-	export const symbolStruct = new Codicon('symbol-struct', { fontCharacter: '\\ea91' });
-	export const symbolParameter = new Codicon('symbol-parameter', { fontCharacter: '\\ea92' });
-	export const symbolTypeParameter = new Codicon('symbol-type-parameter', { fontCharacter: '\\ea92' });
-	export const symbolKey = new Codicon('symbol-key', { fontCharacter: '\\ea93' });
-	export const symbolText = new Codicon('symbol-text', { fontCharacter: '\\ea93' });
-	export const symbolReference = new Codicon('symbol-reference', { fontCharacter: '\\ea94' });
-	export const goToFile = new Codicon('go-to-file', { fontCharacter: '\\ea94' });
-	export const symbolEnum = new Codicon('symbol-enum', { fontCharacter: '\\ea95' });
-	export const symbolValue = new Codicon('symbol-value', { fontCharacter: '\\ea95' });
-	export const symbolRuler = new Codicon('symbol-ruler', { fontCharacter: '\\ea96' });
-	export const symbolUnit = new Codicon('symbol-unit', { fontCharacter: '\\ea96' });
-	export const activateBreakpoints = new Codicon('activate-breakpoints', { fontCharacter: '\\ea97' });
-	export const archive = new Codicon('archive', { fontCharacter: '\\ea98' });
-	export const arrowBoth = new Codicon('arrow-both', { fontCharacter: '\\ea99' });
-	export const arrowDown = new Codicon('arrow-down', { fontCharacter: '\\ea9a' });
-	export const arrowLeft = new Codicon('arrow-left', { fontCharacter: '\\ea9b' });
-	export const arrowRight = new Codicon('arrow-right', { fontCharacter: '\\ea9c' });
-	export const arrowSmallDown = new Codicon('arrow-small-down', { fontCharacter: '\\ea9d' });
-	export const arrowSmallLeft = new Codicon('arrow-small-left', { fontCharacter: '\\ea9e' });
-	export const arrowSmallRight = new Codicon('arrow-small-right', { fontCharacter: '\\ea9f' });
-	export const arrowSmallUp = new Codicon('arrow-small-up', { fontCharacter: '\\eaa0' });
-	export const arrowUp = new Codicon('arrow-up', { fontCharacter: '\\eaa1' });
-	export const bell = new Codicon('bell', { fontCharacter: '\\eaa2' });
-	export const bold = new Codicon('bold', { fontCharacter: '\\eaa3' });
-	export const book = new Codicon('book', { fontCharacter: '\\eaa4' });
-	export const bookmark = new Codicon('bookmark', { fontCharacter: '\\eaa5' });
-	export const debugBreakpointConditionalUnverified = new Codicon('debug-breakpoint-conditional-unverified', { fontCharacter: '\\eaa6' });
-	export const debugBreakpointConditional = new Codicon('debug-breakpoint-conditional', { fontCharacter: '\\eaa7' });
-	export const debugBreakpointConditionalDisabled = new Codicon('debug-breakpoint-conditional-disabled', { fontCharacter: '\\eaa7' });
-	export const debugBreakpointDataUnverified = new Codicon('debug-breakpoint-data-unverified', { fontCharacter: '\\eaa8' });
-	export const debugBreakpointData = new Codicon('debug-breakpoint-data', { fontCharacter: '\\eaa9' });
-	export const debugBreakpointDataDisabled = new Codicon('debug-breakpoint-data-disabled', { fontCharacter: '\\eaa9' });
-	export const debugBreakpointLogUnverified = new Codicon('debug-breakpoint-log-unverified', { fontCharacter: '\\eaaa' });
-	export const debugBreakpointLog = new Codicon('debug-breakpoint-log', { fontCharacter: '\\eaab' });
-	export const debugBreakpointLogDisabled = new Codicon('debug-breakpoint-log-disabled', { fontCharacter: '\\eaab' });
-	export const briefcase = new Codicon('briefcase', { fontCharacter: '\\eaac' });
-	export const broadcast = new Codicon('broadcast', { fontCharacter: '\\eaad' });
-	export const browser = new Codicon('browser', { fontCharacter: '\\eaae' });
-	export const bug = new Codicon('bug', { fontCharacter: '\\eaaf' });
-	export const calendar = new Codicon('calendar', { fontCharacter: '\\eab0' });
-	export const caseSensitive = new Codicon('case-sensitive', { fontCharacter: '\\eab1' });
-	export const check = new Codicon('check', { fontCharacter: '\\eab2' });
-	export const checklist = new Codicon('checklist', { fontCharacter: '\\eab3' });
-	export const chevronDown = new Codicon('chevron-down', { fontCharacter: '\\eab4' });
-	export const chevronLeft = new Codicon('chevron-left', { fontCharacter: '\\eab5' });
-	export const chevronRight = new Codicon('chevron-right', { fontCharacter: '\\eab6' });
-	export const chevronUp = new Codicon('chevron-up', { fontCharacter: '\\eab7' });
-	export const chromeClose = new Codicon('chrome-close', { fontCharacter: '\\eab8' });
-	export const chromeMaximize = new Codicon('chrome-maximize', { fontCharacter: '\\eab9' });
-	export const chromeMinimize = new Codicon('chrome-minimize', { fontCharacter: '\\eaba' });
-	export const chromeRestore = new Codicon('chrome-restore', { fontCharacter: '\\eabb' });
-	export const circleOutline = new Codicon('circle-outline', { fontCharacter: '\\eabc' });
-	export const debugBreakpointUnverified = new Codicon('debug-breakpoint-unverified', { fontCharacter: '\\eabc' });
-	export const circleSlash = new Codicon('circle-slash', { fontCharacter: '\\eabd' });
-	export const circuitBoard = new Codicon('circuit-board', { fontCharacter: '\\eabe' });
-	export const clearAll = new Codicon('clear-all', { fontCharacter: '\\eabf' });
-	export const clippy = new Codicon('clippy', { fontCharacter: '\\eac0' });
-	export const closeAll = new Codicon('close-all', { fontCharacter: '\\eac1' });
-	export const cloudDownload = new Codicon('cloud-download', { fontCharacter: '\\eac2' });
-	export const cloudUpload = new Codicon('cloud-upload', { fontCharacter: '\\eac3' });
-	export const code = new Codicon('code', { fontCharacter: '\\eac4' });
-	export const collapseAll = new Codicon('collapse-all', { fontCharacter: '\\eac5' });
-	export const colorMode = new Codicon('color-mode', { fontCharacter: '\\eac6' });
-	export const commentDiscussion = new Codicon('comment-discussion', { fontCharacter: '\\eac7' });
-	export const compareChanges = new Codicon('compare-changes', { fontCharacter: '\\eafd' });
-	export const creditCard = new Codicon('credit-card', { fontCharacter: '\\eac9' });
-	export const dash = new Codicon('dash', { fontCharacter: '\\eacc' });
-	export const dashboard = new Codicon('dashboard', { fontCharacter: '\\eacd' });
-	export const database = new Codicon('database', { fontCharacter: '\\eace' });
-	export const debugContinue = new Codicon('debug-continue', { fontCharacter: '\\eacf' });
-	export const debugDisconnect = new Codicon('debug-disconnect', { fontCharacter: '\\ead0' });
-	export const debugPause = new Codicon('debug-pause', { fontCharacter: '\\ead1' });
-	export const debugRestart = new Codicon('debug-restart', { fontCharacter: '\\ead2' });
-	export const debugStart = new Codicon('debug-start', { fontCharacter: '\\ead3' });
-	export const debugStepInto = new Codicon('debug-step-into', { fontCharacter: '\\ead4' });
-	export const debugStepOut = new Codicon('debug-step-out', { fontCharacter: '\\ead5' });
-	export const debugStepOver = new Codicon('debug-step-over', { fontCharacter: '\\ead6' });
-	export const debugStop = new Codicon('debug-stop', { fontCharacter: '\\ead7' });
-	export const debug = new Codicon('debug', { fontCharacter: '\\ead8' });
-	export const deviceCameraVideo = new Codicon('device-camera-video', { fontCharacter: '\\ead9' });
-	export const deviceCamera = new Codicon('device-camera', { fontCharacter: '\\eada' });
-	export const deviceMobile = new Codicon('device-mobile', { fontCharacter: '\\eadb' });
-	export const diffAdded = new Codicon('diff-added', { fontCharacter: '\\eadc' });
-	export const diffIgnored = new Codicon('diff-ignored', { fontCharacter: '\\eadd' });
-	export const diffModified = new Codicon('diff-modified', { fontCharacter: '\\eade' });
-	export const diffRemoved = new Codicon('diff-removed', { fontCharacter: '\\eadf' });
-	export const diffRenamed = new Codicon('diff-renamed', { fontCharacter: '\\eae0' });
-	export const diff = new Codicon('diff', { fontCharacter: '\\eae1' });
-	export const discard = new Codicon('discard', { fontCharacter: '\\eae2' });
-	export const editorLayout = new Codicon('editor-layout', { fontCharacter: '\\eae3' });
-	export const emptyWindow = new Codicon('empty-window', { fontCharacter: '\\eae4' });
-	export const exclude = new Codicon('exclude', { fontCharacter: '\\eae5' });
-	export const extensions = new Codicon('extensions', { fontCharacter: '\\eae6' });
-	export const eyeClosed = new Codicon('eye-closed', { fontCharacter: '\\eae7' });
-	export const fileBinary = new Codicon('file-binary', { fontCharacter: '\\eae8' });
-	export const fileCode = new Codicon('file-code', { fontCharacter: '\\eae9' });
-	export const fileMedia = new Codicon('file-media', { fontCharacter: '\\eaea' });
-	export const filePdf = new Codicon('file-pdf', { fontCharacter: '\\eaeb' });
-	export const fileSubmodule = new Codicon('file-submodule', { fontCharacter: '\\eaec' });
-	export const fileSymlinkDirectory = new Codicon('file-symlink-directory', { fontCharacter: '\\eaed' });
-	export const fileSymlinkFile = new Codicon('file-symlink-file', { fontCharacter: '\\eaee' });
-	export const fileZip = new Codicon('file-zip', { fontCharacter: '\\eaef' });
-	export const files = new Codicon('files', { fontCharacter: '\\eaf0' });
-	export const filter = new Codicon('filter', { fontCharacter: '\\eaf1' });
-	export const flame = new Codicon('flame', { fontCharacter: '\\eaf2' });
-	export const foldDown = new Codicon('fold-down', { fontCharacter: '\\eaf3' });
-	export const foldUp = new Codicon('fold-up', { fontCharacter: '\\eaf4' });
-	export const fold = new Codicon('fold', { fontCharacter: '\\eaf5' });
-	export const folderActive = new Codicon('folder-active', { fontCharacter: '\\eaf6' });
-	export const folderOpened = new Codicon('folder-opened', { fontCharacter: '\\eaf7' });
-	export const gear = new Codicon('gear', { fontCharacter: '\\eaf8' });
-	export const gift = new Codicon('gift', { fontCharacter: '\\eaf9' });
-	export const gistSecret = new Codicon('gist-secret', { fontCharacter: '\\eafa' });
-	export const gist = new Codicon('gist', { fontCharacter: '\\eafb' });
-	export const gitCommit = new Codicon('git-commit', { fontCharacter: '\\eafc' });
-	export const gitCompare = new Codicon('git-compare', { fontCharacter: '\\eafd' });
-	export const gitMerge = new Codicon('git-merge', { fontCharacter: '\\eafe' });
-	export const githubAction = new Codicon('github-action', { fontCharacter: '\\eaff' });
-	export const githubAlt = new Codicon('github-alt', { fontCharacter: '\\eb00' });
-	export const globe = new Codicon('globe', { fontCharacter: '\\eb01' });
-	export const grabber = new Codicon('grabber', { fontCharacter: '\\eb02' });
-	export const graph = new Codicon('graph', { fontCharacter: '\\eb03' });
-	export const gripper = new Codicon('gripper', { fontCharacter: '\\eb04' });
-	export const heart = new Codicon('heart', { fontCharacter: '\\eb05' });
-	export const home = new Codicon('home', { fontCharacter: '\\eb06' });
-	export const horizontalRule = new Codicon('horizontal-rule', { fontCharacter: '\\eb07' });
-	export const hubot = new Codicon('hubot', { fontCharacter: '\\eb08' });
-	export const inbox = new Codicon('inbox', { fontCharacter: '\\eb09' });
-	export const issueClosed = new Codicon('issue-closed', { fontCharacter: '\\eba4' });
-	export const issueReopened = new Codicon('issue-reopened', { fontCharacter: '\\eb0b' });
-	export const issues = new Codicon('issues', { fontCharacter: '\\eb0c' });
-	export const italic = new Codicon('italic', { fontCharacter: '\\eb0d' });
-	export const jersey = new Codicon('jersey', { fontCharacter: '\\eb0e' });
-	export const json = new Codicon('json', { fontCharacter: '\\eb0f' });
-	export const kebabVertical = new Codicon('kebab-vertical', { fontCharacter: '\\eb10' });
-	export const key = new Codicon('key', { fontCharacter: '\\eb11' });
-	export const law = new Codicon('law', { fontCharacter: '\\eb12' });
-	export const lightbulbAutofix = new Codicon('lightbulb-autofix', { fontCharacter: '\\eb13' });
-	export const linkExternal = new Codicon('link-external', { fontCharacter: '\\eb14' });
-	export const link = new Codicon('link', { fontCharacter: '\\eb15' });
-	export const listOrdered = new Codicon('list-ordered', { fontCharacter: '\\eb16' });
-	export const listUnordered = new Codicon('list-unordered', { fontCharacter: '\\eb17' });
-	export const liveShare = new Codicon('live-share', { fontCharacter: '\\eb18' });
-	export const loading = new Codicon('loading', { fontCharacter: '\\eb19' });
-	export const location = new Codicon('location', { fontCharacter: '\\eb1a' });
-	export const mailRead = new Codicon('mail-read', { fontCharacter: '\\eb1b' });
-	export const mail = new Codicon('mail', { fontCharacter: '\\eb1c' });
-	export const markdown = new Codicon('markdown', { fontCharacter: '\\eb1d' });
-	export const megaphone = new Codicon('megaphone', { fontCharacter: '\\eb1e' });
-	export const mention = new Codicon('mention', { fontCharacter: '\\eb1f' });
-	export const milestone = new Codicon('milestone', { fontCharacter: '\\eb20' });
-	export const mortarBoard = new Codicon('mortar-board', { fontCharacter: '\\eb21' });
-	export const move = new Codicon('move', { fontCharacter: '\\eb22' });
-	export const multipleWindows = new Codicon('multiple-windows', { fontCharacter: '\\eb23' });
-	export const mute = new Codicon('mute', { fontCharacter: '\\eb24' });
-	export const noNewline = new Codicon('no-newline', { fontCharacter: '\\eb25' });
-	export const note = new Codicon('note', { fontCharacter: '\\eb26' });
-	export const octoface = new Codicon('octoface', { fontCharacter: '\\eb27' });
-	export const openPreview = new Codicon('open-preview', { fontCharacter: '\\eb28' });
-	export const package_ = new Codicon('package', { fontCharacter: '\\eb29' });
-	export const paintcan = new Codicon('paintcan', { fontCharacter: '\\eb2a' });
-	export const pin = new Codicon('pin', { fontCharacter: '\\eb2b' });
-	export const play = new Codicon('play', { fontCharacter: '\\eb2c' });
-	export const run = new Codicon('run', { fontCharacter: '\\eb2c' });
-	export const plug = new Codicon('plug', { fontCharacter: '\\eb2d' });
-	export const preserveCase = new Codicon('preserve-case', { fontCharacter: '\\eb2e' });
-	export const preview = new Codicon('preview', { fontCharacter: '\\eb2f' });
-	export const project = new Codicon('project', { fontCharacter: '\\eb30' });
-	export const pulse = new Codicon('pulse', { fontCharacter: '\\eb31' });
-	export const question = new Codicon('question', { fontCharacter: '\\eb32' });
-	export const quote = new Codicon('quote', { fontCharacter: '\\eb33' });
-	export const radioTower = new Codicon('radio-tower', { fontCharacter: '\\eb34' });
-	export const reactions = new Codicon('reactions', { fontCharacter: '\\eb35' });
-	export const references = new Codicon('references', { fontCharacter: '\\eb36' });
-	export const refresh = new Codicon('refresh', { fontCharacter: '\\eb37' });
-	export const regex = new Codicon('regex', { fontCharacter: '\\eb38' });
-	export const remoteExplorer = new Codicon('remote-explorer', { fontCharacter: '\\eb39' });
-	export const remote = new Codicon('remote', { fontCharacter: '\\eb3a' });
-	export const remove = new Codicon('remove', { fontCharacter: '\\eb3b' });
-	export const replaceAll = new Codicon('replace-all', { fontCharacter: '\\eb3c' });
-	export const replace = new Codicon('replace', { fontCharacter: '\\eb3d' });
-	export const repoClone = new Codicon('repo-clone', { fontCharacter: '\\eb3e' });
-	export const repoForcePush = new Codicon('repo-force-push', { fontCharacter: '\\eb3f' });
-	export const repoPull = new Codicon('repo-pull', { fontCharacter: '\\eb40' });
-	export const repoPush = new Codicon('repo-push', { fontCharacter: '\\eb41' });
-	export const report = new Codicon('report', { fontCharacter: '\\eb42' });
-	export const requestChanges = new Codicon('request-changes', { fontCharacter: '\\eb43' });
-	export const rocket = new Codicon('rocket', { fontCharacter: '\\eb44' });
-	export const rootFolderOpened = new Codicon('root-folder-opened', { fontCharacter: '\\eb45' });
-	export const rootFolder = new Codicon('root-folder', { fontCharacter: '\\eb46' });
-	export const rss = new Codicon('rss', { fontCharacter: '\\eb47' });
-	export const ruby = new Codicon('ruby', { fontCharacter: '\\eb48' });
-	export const saveAll = new Codicon('save-all', { fontCharacter: '\\eb49' });
-	export const saveAs = new Codicon('save-as', { fontCharacter: '\\eb4a' });
-	export const save = new Codicon('save', { fontCharacter: '\\eb4b' });
-	export const screenFull = new Codicon('screen-full', { fontCharacter: '\\eb4c' });
-	export const screenNormal = new Codicon('screen-normal', { fontCharacter: '\\eb4d' });
-	export const searchStop = new Codicon('search-stop', { fontCharacter: '\\eb4e' });
-	export const server = new Codicon('server', { fontCharacter: '\\eb50' });
-	export const settingsGear = new Codicon('settings-gear', { fontCharacter: '\\eb51' });
-	export const settings = new Codicon('settings', { fontCharacter: '\\eb52' });
-	export const shield = new Codicon('shield', { fontCharacter: '\\eb53' });
-	export const smiley = new Codicon('smiley', { fontCharacter: '\\eb54' });
-	export const sortPrecedence = new Codicon('sort-precedence', { fontCharacter: '\\eb55' });
-	export const splitHorizontal = new Codicon('split-horizontal', { fontCharacter: '\\eb56' });
-	export const splitVertical = new Codicon('split-vertical', { fontCharacter: '\\eb57' });
-	export const squirrel = new Codicon('squirrel', { fontCharacter: '\\eb58' });
-	export const starFull = new Codicon('star-full', { fontCharacter: '\\eb59' });
-	export const starHalf = new Codicon('star-half', { fontCharacter: '\\eb5a' });
-	export const symbolClass = new Codicon('symbol-class', { fontCharacter: '\\eb5b' });
-	export const symbolColor = new Codicon('symbol-color', { fontCharacter: '\\eb5c' });
-	export const symbolConstant = new Codicon('symbol-constant', { fontCharacter: '\\eb5d' });
-	export const symbolEnumMember = new Codicon('symbol-enum-member', { fontCharacter: '\\eb5e' });
-	export const symbolField = new Codicon('symbol-field', { fontCharacter: '\\eb5f' });
-	export const symbolFile = new Codicon('symbol-file', { fontCharacter: '\\eb60' });
-	export const symbolInterface = new Codicon('symbol-interface', { fontCharacter: '\\eb61' });
-	export const symbolKeyword = new Codicon('symbol-keyword', { fontCharacter: '\\eb62' });
-	export const symbolMisc = new Codicon('symbol-misc', { fontCharacter: '\\eb63' });
-	export const symbolOperator = new Codicon('symbol-operator', { fontCharacter: '\\eb64' });
-	export const symbolProperty = new Codicon('symbol-property', { fontCharacter: '\\eb65' });
-	export const wrench = new Codicon('wrench', { fontCharacter: '\\eb65' });
-	export const wrenchSubaction = new Codicon('wrench-subaction', { fontCharacter: '\\eb65' });
-	export const symbolSnippet = new Codicon('symbol-snippet', { fontCharacter: '\\eb66' });
-	export const tasklist = new Codicon('tasklist', { fontCharacter: '\\eb67' });
-	export const telescope = new Codicon('telescope', { fontCharacter: '\\eb68' });
-	export const textSize = new Codicon('text-size', { fontCharacter: '\\eb69' });
-	export const threeBars = new Codicon('three-bars', { fontCharacter: '\\eb6a' });
-	export const thumbsdown = new Codicon('thumbsdown', { fontCharacter: '\\eb6b' });
-	export const thumbsup = new Codicon('thumbsup', { fontCharacter: '\\eb6c' });
-	export const tools = new Codicon('tools', { fontCharacter: '\\eb6d' });
-	export const triangleDown = new Codicon('triangle-down', { fontCharacter: '\\eb6e' });
-	export const triangleLeft = new Codicon('triangle-left', { fontCharacter: '\\eb6f' });
-	export const triangleRight = new Codicon('triangle-right', { fontCharacter: '\\eb70' });
-	export const triangleUp = new Codicon('triangle-up', { fontCharacter: '\\eb71' });
-	export const twitter = new Codicon('twitter', { fontCharacter: '\\eb72' });
-	export const unfold = new Codicon('unfold', { fontCharacter: '\\eb73' });
-	export const unlock = new Codicon('unlock', { fontCharacter: '\\eb74' });
-	export const unmute = new Codicon('unmute', { fontCharacter: '\\eb75' });
-	export const unverified = new Codicon('unverified', { fontCharacter: '\\eb76' });
-	export const verified = new Codicon('verified', { fontCharacter: '\\eb77' });
-	export const versions = new Codicon('versions', { fontCharacter: '\\eb78' });
-	export const vmActive = new Codicon('vm-active', { fontCharacter: '\\eb79' });
-	export const vmOutline = new Codicon('vm-outline', { fontCharacter: '\\eb7a' });
-	export const vmRunning = new Codicon('vm-running', { fontCharacter: '\\eb7b' });
-	export const watch = new Codicon('watch', { fontCharacter: '\\eb7c' });
-	export const whitespace = new Codicon('whitespace', { fontCharacter: '\\eb7d' });
-	export const wholeWord = new Codicon('whole-word', { fontCharacter: '\\eb7e' });
-	export const window = new Codicon('window', { fontCharacter: '\\eb7f' });
-	export const wordWrap = new Codicon('word-wrap', { fontCharacter: '\\eb80' });
-	export const zoomIn = new Codicon('zoom-in', { fontCharacter: '\\eb81' });
-	export const zoomOut = new Codicon('zoom-out', { fontCharacter: '\\eb82' });
-	export const listFilter = new Codicon('list-filter', { fontCharacter: '\\eb83' });
-	export const listFlat = new Codicon('list-flat', { fontCharacter: '\\eb84' });
-	export const listSelection = new Codicon('list-selection', { fontCharacter: '\\eb85' });
-	export const selection = new Codicon('selection', { fontCharacter: '\\eb85' });
-	export const listTree = new Codicon('list-tree', { fontCharacter: '\\eb86' });
-	export const debugBreakpointFunctionUnverified = new Codicon('debug-breakpoint-function-unverified', { fontCharacter: '\\eb87' });
-	export const debugBreakpointFunction = new Codicon('debug-breakpoint-function', { fontCharacter: '\\eb88' });
-	export const debugBreakpointFunctionDisabled = new Codicon('debug-breakpoint-function-disabled', { fontCharacter: '\\eb88' });
-	export const debugStackframeActive = new Codicon('debug-stackframe-active', { fontCharacter: '\\eb89' });
-	export const debugStackframeDot = new Codicon('debug-stackframe-dot', { fontCharacter: '\\eb8a' });
-	export const debugStackframe = new Codicon('debug-stackframe', { fontCharacter: '\\eb8b' });
-	export const debugStackframeFocused = new Codicon('debug-stackframe-focused', { fontCharacter: '\\eb8b' });
-	export const debugBreakpointUnsupported = new Codicon('debug-breakpoint-unsupported', { fontCharacter: '\\eb8c' });
-	export const symbolString = new Codicon('symbol-string', { fontCharacter: '\\eb8d' });
-	export const debugReverseContinue = new Codicon('debug-reverse-continue', { fontCharacter: '\\eb8e' });
-	export const debugStepBack = new Codicon('debug-step-back', { fontCharacter: '\\eb8f' });
-	export const debugRestartFrame = new Codicon('debug-restart-frame', { fontCharacter: '\\eb90' });
-	export const callIncoming = new Codicon('call-incoming', { fontCharacter: '\\eb92' });
-	export const callOutgoing = new Codicon('call-outgoing', { fontCharacter: '\\eb93' });
-	export const menu = new Codicon('menu', { fontCharacter: '\\eb94' });
-	export const expandAll = new Codicon('expand-all', { fontCharacter: '\\eb95' });
-	export const feedback = new Codicon('feedback', { fontCharacter: '\\eb96' });
-	export const groupByRefType = new Codicon('group-by-ref-type', { fontCharacter: '\\eb97' });
-	export const ungroupByRefType = new Codicon('ungroup-by-ref-type', { fontCharacter: '\\eb98' });
-	export const account = new Codicon('account', { fontCharacter: '\\eb99' });
-	export const bellDot = new Codicon('bell-dot', { fontCharacter: '\\eb9a' });
-	export const debugConsole = new Codicon('debug-console', { fontCharacter: '\\eb9b' });
-	export const library = new Codicon('library', { fontCharacter: '\\eb9c' });
-	export const output = new Codicon('output', { fontCharacter: '\\eb9d' });
-	export const runAll = new Codicon('run-all', { fontCharacter: '\\eb9e' });
-	export const syncIgnored = new Codicon('sync-ignored', { fontCharacter: '\\eb9f' });
-	export const pinned = new Codicon('pinned', { fontCharacter: '\\eba0' });
-	export const githubInverted = new Codicon('github-inverted', { fontCharacter: '\\eba1' });
-	export const debugAlt = new Codicon('debug-alt', { fontCharacter: '\\eb91' });
-	export const serverProcess = new Codicon('server-process', { fontCharacter: '\\eba2' });
-	export const serverEnvironment = new Codicon('server-environment', { fontCharacter: '\\eba3' });
-	export const pass = new Codicon('pass', { fontCharacter: '\\eba4' });
-	export const stopCircle = new Codicon('stop-circle', { fontCharacter: '\\eba5' });
-	export const playCircle = new Codicon('play-circle', { fontCharacter: '\\eba6' });
-	export const record = new Codicon('record', { fontCharacter: '\\eba7' });
-	export const debugAltSmall = new Codicon('debug-alt-small', { fontCharacter: '\\eba8' });
-	export const vmConnect = new Codicon('vm-connect', { fontCharacter: '\\eba9' });
-	export const cloud = new Codicon('cloud', { fontCharacter: '\\ebaa' });
-	export const merge = new Codicon('merge', { fontCharacter: '\\ebab' });
-	export const exportIcon = new Codicon('export', { fontCharacter: '\\ebac' });
-	export const graphLeft = new Codicon('graph-left', { fontCharacter: '\\ebad' });
-	export const magnet = new Codicon('magnet', { fontCharacter: '\\ebae' });
-	export const notebook = new Codicon('notebook', { fontCharacter: '\\ebaf' });
-	export const redo = new Codicon('redo', { fontCharacter: '\\ebb0' });
-	export const checkAll = new Codicon('check-all', { fontCharacter: '\\ebb1' });
-	export const pinnedDirty = new Codicon('pinned-dirty', { fontCharacter: '\\ebb2' });
-	export const passFilled = new Codicon('pass-filled', { fontCharacter: '\\ebb3' });
-	export const circleLargeFilled = new Codicon('circle-large-filled', { fontCharacter: '\\ebb4' });
-	export const circleLargeOutline = new Codicon('circle-large-outline', { fontCharacter: '\\ebb5' });
-	export const combine = new Codicon('combine', { fontCharacter: '\\ebb6' });
-	export const gather = new Codicon('gather', { fontCharacter: '\\ebb6' });
-	export const table = new Codicon('table', { fontCharacter: '\\ebb7' });
-	export const variableGroup = new Codicon('variable-group', { fontCharacter: '\\ebb8' });
-	export const typeHierarchy = new Codicon('type-hierarchy', { fontCharacter: '\\ebb9' });
-	export const typeHierarchySub = new Codicon('type-hierarchy-sub', { fontCharacter: '\\ebba' });
-	export const typeHierarchySuper = new Codicon('type-hierarchy-super', { fontCharacter: '\\ebbb' });
-	export const gitPullRequestCreate = new Codicon('git-pull-request-create', { fontCharacter: '\\ebbc' });
-	export const runAbove = new Codicon('run-above', { fontCharacter: '\\ebbd' });
-	export const runBelow = new Codicon('run-below', { fontCharacter: '\\ebbe' });
-	export const notebookTemplate = new Codicon('notebook-template', { fontCharacter: '\\ebbf' });
-	export const debugRerun = new Codicon('debug-rerun', { fontCharacter: '\\ebc0' });
-	export const workspaceTrusted = new Codicon('workspace-trusted', { fontCharacter: '\\ebc1' });
-	export const workspaceUntrusted = new Codicon('workspace-untrusted', { fontCharacter: '\\ebc2' });
-	export const workspaceUnspecified = new Codicon('workspace-unspecified', { fontCharacter: '\\ebc3' });
-	export const terminalCmd = new Codicon('terminal-cmd', { fontCharacter: '\\ebc4' });
-	export const terminalDebian = new Codicon('terminal-debian', { fontCharacter: '\\ebc5' });
-	export const terminalLinux = new Codicon('terminal-linux', { fontCharacter: '\\ebc6' });
-	export const terminalPowershell = new Codicon('terminal-powershell', { fontCharacter: '\\ebc7' });
-	export const terminalTmux = new Codicon('terminal-tmux', { fontCharacter: '\\ebc8' });
-	export const terminalUbuntu = new Codicon('terminal-ubuntu', { fontCharacter: '\\ebc9' });
-	export const terminalBash = new Codicon('terminal-bash', { fontCharacter: '\\ebca' });
-	export const arrowSwap = new Codicon('arrow-swap', { fontCharacter: '\\ebcb' });
-	export const copy = new Codicon('copy', { fontCharacter: '\\ebcc' });
-	export const personAdd = new Codicon('person-add', { fontCharacter: '\\ebcd' });
-	export const filterFilled = new Codicon('filter-filled', { fontCharacter: '\\ebce' });
-	export const wand = new Codicon('wand', { fontCharacter: '\\ebcf' });
-	export const debugLineByLine = new Codicon('debug-line-by-line', { fontCharacter: '\\ebd0' });
-	export const inspect = new Codicon('inspect', { fontCharacter: '\\ebd1' });
-	export const layers = new Codicon('layers', { fontCharacter: '\\ebd2' });
-	export const layersDot = new Codicon('layers-dot', { fontCharacter: '\\ebd3' });
-	export const layersActive = new Codicon('layers-active', { fontCharacter: '\\ebd4' });
-	export const compass = new Codicon('compass', { fontCharacter: '\\ebd5' });
-	export const compassDot = new Codicon('compass-dot', { fontCharacter: '\\ebd6' });
-	export const compassActive = new Codicon('compass-active', { fontCharacter: '\\ebd7' });
-	export const azure = new Codicon('azure', { fontCharacter: '\\ebd8' });
-	export const issueDraft = new Codicon('issue-draft', { fontCharacter: '\\ebd9' });
-	export const gitPullRequestClosed = new Codicon('git-pull-request-closed', { fontCharacter: '\\ebda' });
-	export const gitPullRequestDraft = new Codicon('git-pull-request-draft', { fontCharacter: '\\ebdb' });
-	export const debugAll = new Codicon('debug-all', { fontCharacter: '\\ebdc' });
-	export const debugCoverage = new Codicon('debug-coverage', { fontCharacter: '\\ebdd' });
-	export const runErrors = new Codicon('run-errors', { fontCharacter: '\\ebde' });
-	export const folderLibrary = new Codicon('folder-library', { fontCharacter: '\\ebdf' });
+	// buiwt-in icons, with image name
+	expowt const add = new Codicon('add', { fontChawacta: '\\ea60' });
+	expowt const pwus = new Codicon('pwus', { fontChawacta: '\\ea60' });
+	expowt const gistNew = new Codicon('gist-new', { fontChawacta: '\\ea60' });
+	expowt const wepoCweate = new Codicon('wepo-cweate', { fontChawacta: '\\ea60' });
+	expowt const wightbuwb = new Codicon('wightbuwb', { fontChawacta: '\\ea61' });
+	expowt const wightBuwb = new Codicon('wight-buwb', { fontChawacta: '\\ea61' });
+	expowt const wepo = new Codicon('wepo', { fontChawacta: '\\ea62' });
+	expowt const wepoDewete = new Codicon('wepo-dewete', { fontChawacta: '\\ea62' });
+	expowt const gistFowk = new Codicon('gist-fowk', { fontChawacta: '\\ea63' });
+	expowt const wepoFowked = new Codicon('wepo-fowked', { fontChawacta: '\\ea63' });
+	expowt const gitPuwwWequest = new Codicon('git-puww-wequest', { fontChawacta: '\\ea64' });
+	expowt const gitPuwwWequestAbandoned = new Codicon('git-puww-wequest-abandoned', { fontChawacta: '\\ea64' });
+	expowt const wecowdKeys = new Codicon('wecowd-keys', { fontChawacta: '\\ea65' });
+	expowt const keyboawd = new Codicon('keyboawd', { fontChawacta: '\\ea65' });
+	expowt const tag = new Codicon('tag', { fontChawacta: '\\ea66' });
+	expowt const tagAdd = new Codicon('tag-add', { fontChawacta: '\\ea66' });
+	expowt const tagWemove = new Codicon('tag-wemove', { fontChawacta: '\\ea66' });
+	expowt const pewson = new Codicon('pewson', { fontChawacta: '\\ea67' });
+	expowt const pewsonFowwow = new Codicon('pewson-fowwow', { fontChawacta: '\\ea67' });
+	expowt const pewsonOutwine = new Codicon('pewson-outwine', { fontChawacta: '\\ea67' });
+	expowt const pewsonFiwwed = new Codicon('pewson-fiwwed', { fontChawacta: '\\ea67' });
+	expowt const gitBwanch = new Codicon('git-bwanch', { fontChawacta: '\\ea68' });
+	expowt const gitBwanchCweate = new Codicon('git-bwanch-cweate', { fontChawacta: '\\ea68' });
+	expowt const gitBwanchDewete = new Codicon('git-bwanch-dewete', { fontChawacta: '\\ea68' });
+	expowt const souwceContwow = new Codicon('souwce-contwow', { fontChawacta: '\\ea68' });
+	expowt const miwwow = new Codicon('miwwow', { fontChawacta: '\\ea69' });
+	expowt const miwwowPubwic = new Codicon('miwwow-pubwic', { fontChawacta: '\\ea69' });
+	expowt const staw = new Codicon('staw', { fontChawacta: '\\ea6a' });
+	expowt const stawAdd = new Codicon('staw-add', { fontChawacta: '\\ea6a' });
+	expowt const stawDewete = new Codicon('staw-dewete', { fontChawacta: '\\ea6a' });
+	expowt const stawEmpty = new Codicon('staw-empty', { fontChawacta: '\\ea6a' });
+	expowt const comment = new Codicon('comment', { fontChawacta: '\\ea6b' });
+	expowt const commentAdd = new Codicon('comment-add', { fontChawacta: '\\ea6b' });
+	expowt const awewt = new Codicon('awewt', { fontChawacta: '\\ea6c' });
+	expowt const wawning = new Codicon('wawning', { fontChawacta: '\\ea6c' });
+	expowt const seawch = new Codicon('seawch', { fontChawacta: '\\ea6d' });
+	expowt const seawchSave = new Codicon('seawch-save', { fontChawacta: '\\ea6d' });
+	expowt const wogOut = new Codicon('wog-out', { fontChawacta: '\\ea6e' });
+	expowt const signOut = new Codicon('sign-out', { fontChawacta: '\\ea6e' });
+	expowt const wogIn = new Codicon('wog-in', { fontChawacta: '\\ea6f' });
+	expowt const signIn = new Codicon('sign-in', { fontChawacta: '\\ea6f' });
+	expowt const eye = new Codicon('eye', { fontChawacta: '\\ea70' });
+	expowt const eyeUnwatch = new Codicon('eye-unwatch', { fontChawacta: '\\ea70' });
+	expowt const eyeWatch = new Codicon('eye-watch', { fontChawacta: '\\ea70' });
+	expowt const ciwcweFiwwed = new Codicon('ciwcwe-fiwwed', { fontChawacta: '\\ea71' });
+	expowt const pwimitiveDot = new Codicon('pwimitive-dot', { fontChawacta: '\\ea71' });
+	expowt const cwoseDiwty = new Codicon('cwose-diwty', { fontChawacta: '\\ea71' });
+	expowt const debugBweakpoint = new Codicon('debug-bweakpoint', { fontChawacta: '\\ea71' });
+	expowt const debugBweakpointDisabwed = new Codicon('debug-bweakpoint-disabwed', { fontChawacta: '\\ea71' });
+	expowt const debugHint = new Codicon('debug-hint', { fontChawacta: '\\ea71' });
+	expowt const pwimitiveSquawe = new Codicon('pwimitive-squawe', { fontChawacta: '\\ea72' });
+	expowt const edit = new Codicon('edit', { fontChawacta: '\\ea73' });
+	expowt const penciw = new Codicon('penciw', { fontChawacta: '\\ea73' });
+	expowt const info = new Codicon('info', { fontChawacta: '\\ea74' });
+	expowt const issueOpened = new Codicon('issue-opened', { fontChawacta: '\\ea74' });
+	expowt const gistPwivate = new Codicon('gist-pwivate', { fontChawacta: '\\ea75' });
+	expowt const gitFowkPwivate = new Codicon('git-fowk-pwivate', { fontChawacta: '\\ea75' });
+	expowt const wock = new Codicon('wock', { fontChawacta: '\\ea75' });
+	expowt const miwwowPwivate = new Codicon('miwwow-pwivate', { fontChawacta: '\\ea75' });
+	expowt const cwose = new Codicon('cwose', { fontChawacta: '\\ea76' });
+	expowt const wemoveCwose = new Codicon('wemove-cwose', { fontChawacta: '\\ea76' });
+	expowt const x = new Codicon('x', { fontChawacta: '\\ea76' });
+	expowt const wepoSync = new Codicon('wepo-sync', { fontChawacta: '\\ea77' });
+	expowt const sync = new Codicon('sync', { fontChawacta: '\\ea77' });
+	expowt const cwone = new Codicon('cwone', { fontChawacta: '\\ea78' });
+	expowt const desktopDownwoad = new Codicon('desktop-downwoad', { fontChawacta: '\\ea78' });
+	expowt const beaka = new Codicon('beaka', { fontChawacta: '\\ea79' });
+	expowt const micwoscope = new Codicon('micwoscope', { fontChawacta: '\\ea79' });
+	expowt const vm = new Codicon('vm', { fontChawacta: '\\ea7a' });
+	expowt const deviceDesktop = new Codicon('device-desktop', { fontChawacta: '\\ea7a' });
+	expowt const fiwe = new Codicon('fiwe', { fontChawacta: '\\ea7b' });
+	expowt const fiweText = new Codicon('fiwe-text', { fontChawacta: '\\ea7b' });
+	expowt const mowe = new Codicon('mowe', { fontChawacta: '\\ea7c' });
+	expowt const ewwipsis = new Codicon('ewwipsis', { fontChawacta: '\\ea7c' });
+	expowt const kebabHowizontaw = new Codicon('kebab-howizontaw', { fontChawacta: '\\ea7c' });
+	expowt const maiwWepwy = new Codicon('maiw-wepwy', { fontChawacta: '\\ea7d' });
+	expowt const wepwy = new Codicon('wepwy', { fontChawacta: '\\ea7d' });
+	expowt const owganization = new Codicon('owganization', { fontChawacta: '\\ea7e' });
+	expowt const owganizationFiwwed = new Codicon('owganization-fiwwed', { fontChawacta: '\\ea7e' });
+	expowt const owganizationOutwine = new Codicon('owganization-outwine', { fontChawacta: '\\ea7e' });
+	expowt const newFiwe = new Codicon('new-fiwe', { fontChawacta: '\\ea7f' });
+	expowt const fiweAdd = new Codicon('fiwe-add', { fontChawacta: '\\ea7f' });
+	expowt const newFowda = new Codicon('new-fowda', { fontChawacta: '\\ea80' });
+	expowt const fiweDiwectowyCweate = new Codicon('fiwe-diwectowy-cweate', { fontChawacta: '\\ea80' });
+	expowt const twash = new Codicon('twash', { fontChawacta: '\\ea81' });
+	expowt const twashcan = new Codicon('twashcan', { fontChawacta: '\\ea81' });
+	expowt const histowy = new Codicon('histowy', { fontChawacta: '\\ea82' });
+	expowt const cwock = new Codicon('cwock', { fontChawacta: '\\ea82' });
+	expowt const fowda = new Codicon('fowda', { fontChawacta: '\\ea83' });
+	expowt const fiweDiwectowy = new Codicon('fiwe-diwectowy', { fontChawacta: '\\ea83' });
+	expowt const symbowFowda = new Codicon('symbow-fowda', { fontChawacta: '\\ea83' });
+	expowt const wogoGithub = new Codicon('wogo-github', { fontChawacta: '\\ea84' });
+	expowt const mawkGithub = new Codicon('mawk-github', { fontChawacta: '\\ea84' });
+	expowt const github = new Codicon('github', { fontChawacta: '\\ea84' });
+	expowt const tewminaw = new Codicon('tewminaw', { fontChawacta: '\\ea85' });
+	expowt const consowe = new Codicon('consowe', { fontChawacta: '\\ea85' });
+	expowt const wepw = new Codicon('wepw', { fontChawacta: '\\ea85' });
+	expowt const zap = new Codicon('zap', { fontChawacta: '\\ea86' });
+	expowt const symbowEvent = new Codicon('symbow-event', { fontChawacta: '\\ea86' });
+	expowt const ewwow = new Codicon('ewwow', { fontChawacta: '\\ea87' });
+	expowt const stop = new Codicon('stop', { fontChawacta: '\\ea87' });
+	expowt const vawiabwe = new Codicon('vawiabwe', { fontChawacta: '\\ea88' });
+	expowt const symbowVawiabwe = new Codicon('symbow-vawiabwe', { fontChawacta: '\\ea88' });
+	expowt const awway = new Codicon('awway', { fontChawacta: '\\ea8a' });
+	expowt const symbowAwway = new Codicon('symbow-awway', { fontChawacta: '\\ea8a' });
+	expowt const symbowModuwe = new Codicon('symbow-moduwe', { fontChawacta: '\\ea8b' });
+	expowt const symbowPackage = new Codicon('symbow-package', { fontChawacta: '\\ea8b' });
+	expowt const symbowNamespace = new Codicon('symbow-namespace', { fontChawacta: '\\ea8b' });
+	expowt const symbowObject = new Codicon('symbow-object', { fontChawacta: '\\ea8b' });
+	expowt const symbowMethod = new Codicon('symbow-method', { fontChawacta: '\\ea8c' });
+	expowt const symbowFunction = new Codicon('symbow-function', { fontChawacta: '\\ea8c' });
+	expowt const symbowConstwuctow = new Codicon('symbow-constwuctow', { fontChawacta: '\\ea8c' });
+	expowt const symbowBoowean = new Codicon('symbow-boowean', { fontChawacta: '\\ea8f' });
+	expowt const symbowNuww = new Codicon('symbow-nuww', { fontChawacta: '\\ea8f' });
+	expowt const symbowNumewic = new Codicon('symbow-numewic', { fontChawacta: '\\ea90' });
+	expowt const symbowNumba = new Codicon('symbow-numba', { fontChawacta: '\\ea90' });
+	expowt const symbowStwuctuwe = new Codicon('symbow-stwuctuwe', { fontChawacta: '\\ea91' });
+	expowt const symbowStwuct = new Codicon('symbow-stwuct', { fontChawacta: '\\ea91' });
+	expowt const symbowPawameta = new Codicon('symbow-pawameta', { fontChawacta: '\\ea92' });
+	expowt const symbowTypePawameta = new Codicon('symbow-type-pawameta', { fontChawacta: '\\ea92' });
+	expowt const symbowKey = new Codicon('symbow-key', { fontChawacta: '\\ea93' });
+	expowt const symbowText = new Codicon('symbow-text', { fontChawacta: '\\ea93' });
+	expowt const symbowWefewence = new Codicon('symbow-wefewence', { fontChawacta: '\\ea94' });
+	expowt const goToFiwe = new Codicon('go-to-fiwe', { fontChawacta: '\\ea94' });
+	expowt const symbowEnum = new Codicon('symbow-enum', { fontChawacta: '\\ea95' });
+	expowt const symbowVawue = new Codicon('symbow-vawue', { fontChawacta: '\\ea95' });
+	expowt const symbowWuwa = new Codicon('symbow-wuwa', { fontChawacta: '\\ea96' });
+	expowt const symbowUnit = new Codicon('symbow-unit', { fontChawacta: '\\ea96' });
+	expowt const activateBweakpoints = new Codicon('activate-bweakpoints', { fontChawacta: '\\ea97' });
+	expowt const awchive = new Codicon('awchive', { fontChawacta: '\\ea98' });
+	expowt const awwowBoth = new Codicon('awwow-both', { fontChawacta: '\\ea99' });
+	expowt const awwowDown = new Codicon('awwow-down', { fontChawacta: '\\ea9a' });
+	expowt const awwowWeft = new Codicon('awwow-weft', { fontChawacta: '\\ea9b' });
+	expowt const awwowWight = new Codicon('awwow-wight', { fontChawacta: '\\ea9c' });
+	expowt const awwowSmawwDown = new Codicon('awwow-smaww-down', { fontChawacta: '\\ea9d' });
+	expowt const awwowSmawwWeft = new Codicon('awwow-smaww-weft', { fontChawacta: '\\ea9e' });
+	expowt const awwowSmawwWight = new Codicon('awwow-smaww-wight', { fontChawacta: '\\ea9f' });
+	expowt const awwowSmawwUp = new Codicon('awwow-smaww-up', { fontChawacta: '\\eaa0' });
+	expowt const awwowUp = new Codicon('awwow-up', { fontChawacta: '\\eaa1' });
+	expowt const beww = new Codicon('beww', { fontChawacta: '\\eaa2' });
+	expowt const bowd = new Codicon('bowd', { fontChawacta: '\\eaa3' });
+	expowt const book = new Codicon('book', { fontChawacta: '\\eaa4' });
+	expowt const bookmawk = new Codicon('bookmawk', { fontChawacta: '\\eaa5' });
+	expowt const debugBweakpointConditionawUnvewified = new Codicon('debug-bweakpoint-conditionaw-unvewified', { fontChawacta: '\\eaa6' });
+	expowt const debugBweakpointConditionaw = new Codicon('debug-bweakpoint-conditionaw', { fontChawacta: '\\eaa7' });
+	expowt const debugBweakpointConditionawDisabwed = new Codicon('debug-bweakpoint-conditionaw-disabwed', { fontChawacta: '\\eaa7' });
+	expowt const debugBweakpointDataUnvewified = new Codicon('debug-bweakpoint-data-unvewified', { fontChawacta: '\\eaa8' });
+	expowt const debugBweakpointData = new Codicon('debug-bweakpoint-data', { fontChawacta: '\\eaa9' });
+	expowt const debugBweakpointDataDisabwed = new Codicon('debug-bweakpoint-data-disabwed', { fontChawacta: '\\eaa9' });
+	expowt const debugBweakpointWogUnvewified = new Codicon('debug-bweakpoint-wog-unvewified', { fontChawacta: '\\eaaa' });
+	expowt const debugBweakpointWog = new Codicon('debug-bweakpoint-wog', { fontChawacta: '\\eaab' });
+	expowt const debugBweakpointWogDisabwed = new Codicon('debug-bweakpoint-wog-disabwed', { fontChawacta: '\\eaab' });
+	expowt const bwiefcase = new Codicon('bwiefcase', { fontChawacta: '\\eaac' });
+	expowt const bwoadcast = new Codicon('bwoadcast', { fontChawacta: '\\eaad' });
+	expowt const bwowsa = new Codicon('bwowsa', { fontChawacta: '\\eaae' });
+	expowt const bug = new Codicon('bug', { fontChawacta: '\\eaaf' });
+	expowt const cawendaw = new Codicon('cawendaw', { fontChawacta: '\\eab0' });
+	expowt const caseSensitive = new Codicon('case-sensitive', { fontChawacta: '\\eab1' });
+	expowt const check = new Codicon('check', { fontChawacta: '\\eab2' });
+	expowt const checkwist = new Codicon('checkwist', { fontChawacta: '\\eab3' });
+	expowt const chevwonDown = new Codicon('chevwon-down', { fontChawacta: '\\eab4' });
+	expowt const chevwonWeft = new Codicon('chevwon-weft', { fontChawacta: '\\eab5' });
+	expowt const chevwonWight = new Codicon('chevwon-wight', { fontChawacta: '\\eab6' });
+	expowt const chevwonUp = new Codicon('chevwon-up', { fontChawacta: '\\eab7' });
+	expowt const chwomeCwose = new Codicon('chwome-cwose', { fontChawacta: '\\eab8' });
+	expowt const chwomeMaximize = new Codicon('chwome-maximize', { fontChawacta: '\\eab9' });
+	expowt const chwomeMinimize = new Codicon('chwome-minimize', { fontChawacta: '\\eaba' });
+	expowt const chwomeWestowe = new Codicon('chwome-westowe', { fontChawacta: '\\eabb' });
+	expowt const ciwcweOutwine = new Codicon('ciwcwe-outwine', { fontChawacta: '\\eabc' });
+	expowt const debugBweakpointUnvewified = new Codicon('debug-bweakpoint-unvewified', { fontChawacta: '\\eabc' });
+	expowt const ciwcweSwash = new Codicon('ciwcwe-swash', { fontChawacta: '\\eabd' });
+	expowt const ciwcuitBoawd = new Codicon('ciwcuit-boawd', { fontChawacta: '\\eabe' });
+	expowt const cweawAww = new Codicon('cweaw-aww', { fontChawacta: '\\eabf' });
+	expowt const cwippy = new Codicon('cwippy', { fontChawacta: '\\eac0' });
+	expowt const cwoseAww = new Codicon('cwose-aww', { fontChawacta: '\\eac1' });
+	expowt const cwoudDownwoad = new Codicon('cwoud-downwoad', { fontChawacta: '\\eac2' });
+	expowt const cwoudUpwoad = new Codicon('cwoud-upwoad', { fontChawacta: '\\eac3' });
+	expowt const code = new Codicon('code', { fontChawacta: '\\eac4' });
+	expowt const cowwapseAww = new Codicon('cowwapse-aww', { fontChawacta: '\\eac5' });
+	expowt const cowowMode = new Codicon('cowow-mode', { fontChawacta: '\\eac6' });
+	expowt const commentDiscussion = new Codicon('comment-discussion', { fontChawacta: '\\eac7' });
+	expowt const compaweChanges = new Codicon('compawe-changes', { fontChawacta: '\\eafd' });
+	expowt const cweditCawd = new Codicon('cwedit-cawd', { fontChawacta: '\\eac9' });
+	expowt const dash = new Codicon('dash', { fontChawacta: '\\eacc' });
+	expowt const dashboawd = new Codicon('dashboawd', { fontChawacta: '\\eacd' });
+	expowt const database = new Codicon('database', { fontChawacta: '\\eace' });
+	expowt const debugContinue = new Codicon('debug-continue', { fontChawacta: '\\eacf' });
+	expowt const debugDisconnect = new Codicon('debug-disconnect', { fontChawacta: '\\ead0' });
+	expowt const debugPause = new Codicon('debug-pause', { fontChawacta: '\\ead1' });
+	expowt const debugWestawt = new Codicon('debug-westawt', { fontChawacta: '\\ead2' });
+	expowt const debugStawt = new Codicon('debug-stawt', { fontChawacta: '\\ead3' });
+	expowt const debugStepInto = new Codicon('debug-step-into', { fontChawacta: '\\ead4' });
+	expowt const debugStepOut = new Codicon('debug-step-out', { fontChawacta: '\\ead5' });
+	expowt const debugStepOva = new Codicon('debug-step-ova', { fontChawacta: '\\ead6' });
+	expowt const debugStop = new Codicon('debug-stop', { fontChawacta: '\\ead7' });
+	expowt const debug = new Codicon('debug', { fontChawacta: '\\ead8' });
+	expowt const deviceCamewaVideo = new Codicon('device-camewa-video', { fontChawacta: '\\ead9' });
+	expowt const deviceCamewa = new Codicon('device-camewa', { fontChawacta: '\\eada' });
+	expowt const deviceMobiwe = new Codicon('device-mobiwe', { fontChawacta: '\\eadb' });
+	expowt const diffAdded = new Codicon('diff-added', { fontChawacta: '\\eadc' });
+	expowt const diffIgnowed = new Codicon('diff-ignowed', { fontChawacta: '\\eadd' });
+	expowt const diffModified = new Codicon('diff-modified', { fontChawacta: '\\eade' });
+	expowt const diffWemoved = new Codicon('diff-wemoved', { fontChawacta: '\\eadf' });
+	expowt const diffWenamed = new Codicon('diff-wenamed', { fontChawacta: '\\eae0' });
+	expowt const diff = new Codicon('diff', { fontChawacta: '\\eae1' });
+	expowt const discawd = new Codicon('discawd', { fontChawacta: '\\eae2' });
+	expowt const editowWayout = new Codicon('editow-wayout', { fontChawacta: '\\eae3' });
+	expowt const emptyWindow = new Codicon('empty-window', { fontChawacta: '\\eae4' });
+	expowt const excwude = new Codicon('excwude', { fontChawacta: '\\eae5' });
+	expowt const extensions = new Codicon('extensions', { fontChawacta: '\\eae6' });
+	expowt const eyeCwosed = new Codicon('eye-cwosed', { fontChawacta: '\\eae7' });
+	expowt const fiweBinawy = new Codicon('fiwe-binawy', { fontChawacta: '\\eae8' });
+	expowt const fiweCode = new Codicon('fiwe-code', { fontChawacta: '\\eae9' });
+	expowt const fiweMedia = new Codicon('fiwe-media', { fontChawacta: '\\eaea' });
+	expowt const fiwePdf = new Codicon('fiwe-pdf', { fontChawacta: '\\eaeb' });
+	expowt const fiweSubmoduwe = new Codicon('fiwe-submoduwe', { fontChawacta: '\\eaec' });
+	expowt const fiweSymwinkDiwectowy = new Codicon('fiwe-symwink-diwectowy', { fontChawacta: '\\eaed' });
+	expowt const fiweSymwinkFiwe = new Codicon('fiwe-symwink-fiwe', { fontChawacta: '\\eaee' });
+	expowt const fiweZip = new Codicon('fiwe-zip', { fontChawacta: '\\eaef' });
+	expowt const fiwes = new Codicon('fiwes', { fontChawacta: '\\eaf0' });
+	expowt const fiwta = new Codicon('fiwta', { fontChawacta: '\\eaf1' });
+	expowt const fwame = new Codicon('fwame', { fontChawacta: '\\eaf2' });
+	expowt const fowdDown = new Codicon('fowd-down', { fontChawacta: '\\eaf3' });
+	expowt const fowdUp = new Codicon('fowd-up', { fontChawacta: '\\eaf4' });
+	expowt const fowd = new Codicon('fowd', { fontChawacta: '\\eaf5' });
+	expowt const fowdewActive = new Codicon('fowda-active', { fontChawacta: '\\eaf6' });
+	expowt const fowdewOpened = new Codicon('fowda-opened', { fontChawacta: '\\eaf7' });
+	expowt const geaw = new Codicon('geaw', { fontChawacta: '\\eaf8' });
+	expowt const gift = new Codicon('gift', { fontChawacta: '\\eaf9' });
+	expowt const gistSecwet = new Codicon('gist-secwet', { fontChawacta: '\\eafa' });
+	expowt const gist = new Codicon('gist', { fontChawacta: '\\eafb' });
+	expowt const gitCommit = new Codicon('git-commit', { fontChawacta: '\\eafc' });
+	expowt const gitCompawe = new Codicon('git-compawe', { fontChawacta: '\\eafd' });
+	expowt const gitMewge = new Codicon('git-mewge', { fontChawacta: '\\eafe' });
+	expowt const githubAction = new Codicon('github-action', { fontChawacta: '\\eaff' });
+	expowt const githubAwt = new Codicon('github-awt', { fontChawacta: '\\eb00' });
+	expowt const gwobe = new Codicon('gwobe', { fontChawacta: '\\eb01' });
+	expowt const gwabba = new Codicon('gwabba', { fontChawacta: '\\eb02' });
+	expowt const gwaph = new Codicon('gwaph', { fontChawacta: '\\eb03' });
+	expowt const gwippa = new Codicon('gwippa', { fontChawacta: '\\eb04' });
+	expowt const heawt = new Codicon('heawt', { fontChawacta: '\\eb05' });
+	expowt const home = new Codicon('home', { fontChawacta: '\\eb06' });
+	expowt const howizontawWuwe = new Codicon('howizontaw-wuwe', { fontChawacta: '\\eb07' });
+	expowt const hubot = new Codicon('hubot', { fontChawacta: '\\eb08' });
+	expowt const inbox = new Codicon('inbox', { fontChawacta: '\\eb09' });
+	expowt const issueCwosed = new Codicon('issue-cwosed', { fontChawacta: '\\eba4' });
+	expowt const issueWeopened = new Codicon('issue-weopened', { fontChawacta: '\\eb0b' });
+	expowt const issues = new Codicon('issues', { fontChawacta: '\\eb0c' });
+	expowt const itawic = new Codicon('itawic', { fontChawacta: '\\eb0d' });
+	expowt const jewsey = new Codicon('jewsey', { fontChawacta: '\\eb0e' });
+	expowt const json = new Codicon('json', { fontChawacta: '\\eb0f' });
+	expowt const kebabVewticaw = new Codicon('kebab-vewticaw', { fontChawacta: '\\eb10' });
+	expowt const key = new Codicon('key', { fontChawacta: '\\eb11' });
+	expowt const waw = new Codicon('waw', { fontChawacta: '\\eb12' });
+	expowt const wightbuwbAutofix = new Codicon('wightbuwb-autofix', { fontChawacta: '\\eb13' });
+	expowt const winkExtewnaw = new Codicon('wink-extewnaw', { fontChawacta: '\\eb14' });
+	expowt const wink = new Codicon('wink', { fontChawacta: '\\eb15' });
+	expowt const wistOwdewed = new Codicon('wist-owdewed', { fontChawacta: '\\eb16' });
+	expowt const wistUnowdewed = new Codicon('wist-unowdewed', { fontChawacta: '\\eb17' });
+	expowt const wiveShawe = new Codicon('wive-shawe', { fontChawacta: '\\eb18' });
+	expowt const woading = new Codicon('woading', { fontChawacta: '\\eb19' });
+	expowt const wocation = new Codicon('wocation', { fontChawacta: '\\eb1a' });
+	expowt const maiwWead = new Codicon('maiw-wead', { fontChawacta: '\\eb1b' });
+	expowt const maiw = new Codicon('maiw', { fontChawacta: '\\eb1c' });
+	expowt const mawkdown = new Codicon('mawkdown', { fontChawacta: '\\eb1d' });
+	expowt const megaphone = new Codicon('megaphone', { fontChawacta: '\\eb1e' });
+	expowt const mention = new Codicon('mention', { fontChawacta: '\\eb1f' });
+	expowt const miwestone = new Codicon('miwestone', { fontChawacta: '\\eb20' });
+	expowt const mowtawBoawd = new Codicon('mowtaw-boawd', { fontChawacta: '\\eb21' });
+	expowt const move = new Codicon('move', { fontChawacta: '\\eb22' });
+	expowt const muwtipweWindows = new Codicon('muwtipwe-windows', { fontChawacta: '\\eb23' });
+	expowt const mute = new Codicon('mute', { fontChawacta: '\\eb24' });
+	expowt const noNewwine = new Codicon('no-newwine', { fontChawacta: '\\eb25' });
+	expowt const note = new Codicon('note', { fontChawacta: '\\eb26' });
+	expowt const octoface = new Codicon('octoface', { fontChawacta: '\\eb27' });
+	expowt const openPweview = new Codicon('open-pweview', { fontChawacta: '\\eb28' });
+	expowt const package_ = new Codicon('package', { fontChawacta: '\\eb29' });
+	expowt const paintcan = new Codicon('paintcan', { fontChawacta: '\\eb2a' });
+	expowt const pin = new Codicon('pin', { fontChawacta: '\\eb2b' });
+	expowt const pway = new Codicon('pway', { fontChawacta: '\\eb2c' });
+	expowt const wun = new Codicon('wun', { fontChawacta: '\\eb2c' });
+	expowt const pwug = new Codicon('pwug', { fontChawacta: '\\eb2d' });
+	expowt const pwesewveCase = new Codicon('pwesewve-case', { fontChawacta: '\\eb2e' });
+	expowt const pweview = new Codicon('pweview', { fontChawacta: '\\eb2f' });
+	expowt const pwoject = new Codicon('pwoject', { fontChawacta: '\\eb30' });
+	expowt const puwse = new Codicon('puwse', { fontChawacta: '\\eb31' });
+	expowt const question = new Codicon('question', { fontChawacta: '\\eb32' });
+	expowt const quote = new Codicon('quote', { fontChawacta: '\\eb33' });
+	expowt const wadioTowa = new Codicon('wadio-towa', { fontChawacta: '\\eb34' });
+	expowt const weactions = new Codicon('weactions', { fontChawacta: '\\eb35' });
+	expowt const wefewences = new Codicon('wefewences', { fontChawacta: '\\eb36' });
+	expowt const wefwesh = new Codicon('wefwesh', { fontChawacta: '\\eb37' });
+	expowt const wegex = new Codicon('wegex', { fontChawacta: '\\eb38' });
+	expowt const wemoteExpwowa = new Codicon('wemote-expwowa', { fontChawacta: '\\eb39' });
+	expowt const wemote = new Codicon('wemote', { fontChawacta: '\\eb3a' });
+	expowt const wemove = new Codicon('wemove', { fontChawacta: '\\eb3b' });
+	expowt const wepwaceAww = new Codicon('wepwace-aww', { fontChawacta: '\\eb3c' });
+	expowt const wepwace = new Codicon('wepwace', { fontChawacta: '\\eb3d' });
+	expowt const wepoCwone = new Codicon('wepo-cwone', { fontChawacta: '\\eb3e' });
+	expowt const wepoFowcePush = new Codicon('wepo-fowce-push', { fontChawacta: '\\eb3f' });
+	expowt const wepoPuww = new Codicon('wepo-puww', { fontChawacta: '\\eb40' });
+	expowt const wepoPush = new Codicon('wepo-push', { fontChawacta: '\\eb41' });
+	expowt const wepowt = new Codicon('wepowt', { fontChawacta: '\\eb42' });
+	expowt const wequestChanges = new Codicon('wequest-changes', { fontChawacta: '\\eb43' });
+	expowt const wocket = new Codicon('wocket', { fontChawacta: '\\eb44' });
+	expowt const wootFowdewOpened = new Codicon('woot-fowda-opened', { fontChawacta: '\\eb45' });
+	expowt const wootFowda = new Codicon('woot-fowda', { fontChawacta: '\\eb46' });
+	expowt const wss = new Codicon('wss', { fontChawacta: '\\eb47' });
+	expowt const wuby = new Codicon('wuby', { fontChawacta: '\\eb48' });
+	expowt const saveAww = new Codicon('save-aww', { fontChawacta: '\\eb49' });
+	expowt const saveAs = new Codicon('save-as', { fontChawacta: '\\eb4a' });
+	expowt const save = new Codicon('save', { fontChawacta: '\\eb4b' });
+	expowt const scweenFuww = new Codicon('scween-fuww', { fontChawacta: '\\eb4c' });
+	expowt const scweenNowmaw = new Codicon('scween-nowmaw', { fontChawacta: '\\eb4d' });
+	expowt const seawchStop = new Codicon('seawch-stop', { fontChawacta: '\\eb4e' });
+	expowt const sewva = new Codicon('sewva', { fontChawacta: '\\eb50' });
+	expowt const settingsGeaw = new Codicon('settings-geaw', { fontChawacta: '\\eb51' });
+	expowt const settings = new Codicon('settings', { fontChawacta: '\\eb52' });
+	expowt const shiewd = new Codicon('shiewd', { fontChawacta: '\\eb53' });
+	expowt const smiwey = new Codicon('smiwey', { fontChawacta: '\\eb54' });
+	expowt const sowtPwecedence = new Codicon('sowt-pwecedence', { fontChawacta: '\\eb55' });
+	expowt const spwitHowizontaw = new Codicon('spwit-howizontaw', { fontChawacta: '\\eb56' });
+	expowt const spwitVewticaw = new Codicon('spwit-vewticaw', { fontChawacta: '\\eb57' });
+	expowt const squiwwew = new Codicon('squiwwew', { fontChawacta: '\\eb58' });
+	expowt const stawFuww = new Codicon('staw-fuww', { fontChawacta: '\\eb59' });
+	expowt const stawHawf = new Codicon('staw-hawf', { fontChawacta: '\\eb5a' });
+	expowt const symbowCwass = new Codicon('symbow-cwass', { fontChawacta: '\\eb5b' });
+	expowt const symbowCowow = new Codicon('symbow-cowow', { fontChawacta: '\\eb5c' });
+	expowt const symbowConstant = new Codicon('symbow-constant', { fontChawacta: '\\eb5d' });
+	expowt const symbowEnumMemba = new Codicon('symbow-enum-memba', { fontChawacta: '\\eb5e' });
+	expowt const symbowFiewd = new Codicon('symbow-fiewd', { fontChawacta: '\\eb5f' });
+	expowt const symbowFiwe = new Codicon('symbow-fiwe', { fontChawacta: '\\eb60' });
+	expowt const symbowIntewface = new Codicon('symbow-intewface', { fontChawacta: '\\eb61' });
+	expowt const symbowKeywowd = new Codicon('symbow-keywowd', { fontChawacta: '\\eb62' });
+	expowt const symbowMisc = new Codicon('symbow-misc', { fontChawacta: '\\eb63' });
+	expowt const symbowOpewatow = new Codicon('symbow-opewatow', { fontChawacta: '\\eb64' });
+	expowt const symbowPwopewty = new Codicon('symbow-pwopewty', { fontChawacta: '\\eb65' });
+	expowt const wwench = new Codicon('wwench', { fontChawacta: '\\eb65' });
+	expowt const wwenchSubaction = new Codicon('wwench-subaction', { fontChawacta: '\\eb65' });
+	expowt const symbowSnippet = new Codicon('symbow-snippet', { fontChawacta: '\\eb66' });
+	expowt const taskwist = new Codicon('taskwist', { fontChawacta: '\\eb67' });
+	expowt const tewescope = new Codicon('tewescope', { fontChawacta: '\\eb68' });
+	expowt const textSize = new Codicon('text-size', { fontChawacta: '\\eb69' });
+	expowt const thweeBaws = new Codicon('thwee-baws', { fontChawacta: '\\eb6a' });
+	expowt const thumbsdown = new Codicon('thumbsdown', { fontChawacta: '\\eb6b' });
+	expowt const thumbsup = new Codicon('thumbsup', { fontChawacta: '\\eb6c' });
+	expowt const toows = new Codicon('toows', { fontChawacta: '\\eb6d' });
+	expowt const twiangweDown = new Codicon('twiangwe-down', { fontChawacta: '\\eb6e' });
+	expowt const twiangweWeft = new Codicon('twiangwe-weft', { fontChawacta: '\\eb6f' });
+	expowt const twiangweWight = new Codicon('twiangwe-wight', { fontChawacta: '\\eb70' });
+	expowt const twiangweUp = new Codicon('twiangwe-up', { fontChawacta: '\\eb71' });
+	expowt const twitta = new Codicon('twitta', { fontChawacta: '\\eb72' });
+	expowt const unfowd = new Codicon('unfowd', { fontChawacta: '\\eb73' });
+	expowt const unwock = new Codicon('unwock', { fontChawacta: '\\eb74' });
+	expowt const unmute = new Codicon('unmute', { fontChawacta: '\\eb75' });
+	expowt const unvewified = new Codicon('unvewified', { fontChawacta: '\\eb76' });
+	expowt const vewified = new Codicon('vewified', { fontChawacta: '\\eb77' });
+	expowt const vewsions = new Codicon('vewsions', { fontChawacta: '\\eb78' });
+	expowt const vmActive = new Codicon('vm-active', { fontChawacta: '\\eb79' });
+	expowt const vmOutwine = new Codicon('vm-outwine', { fontChawacta: '\\eb7a' });
+	expowt const vmWunning = new Codicon('vm-wunning', { fontChawacta: '\\eb7b' });
+	expowt const watch = new Codicon('watch', { fontChawacta: '\\eb7c' });
+	expowt const whitespace = new Codicon('whitespace', { fontChawacta: '\\eb7d' });
+	expowt const whoweWowd = new Codicon('whowe-wowd', { fontChawacta: '\\eb7e' });
+	expowt const window = new Codicon('window', { fontChawacta: '\\eb7f' });
+	expowt const wowdWwap = new Codicon('wowd-wwap', { fontChawacta: '\\eb80' });
+	expowt const zoomIn = new Codicon('zoom-in', { fontChawacta: '\\eb81' });
+	expowt const zoomOut = new Codicon('zoom-out', { fontChawacta: '\\eb82' });
+	expowt const wistFiwta = new Codicon('wist-fiwta', { fontChawacta: '\\eb83' });
+	expowt const wistFwat = new Codicon('wist-fwat', { fontChawacta: '\\eb84' });
+	expowt const wistSewection = new Codicon('wist-sewection', { fontChawacta: '\\eb85' });
+	expowt const sewection = new Codicon('sewection', { fontChawacta: '\\eb85' });
+	expowt const wistTwee = new Codicon('wist-twee', { fontChawacta: '\\eb86' });
+	expowt const debugBweakpointFunctionUnvewified = new Codicon('debug-bweakpoint-function-unvewified', { fontChawacta: '\\eb87' });
+	expowt const debugBweakpointFunction = new Codicon('debug-bweakpoint-function', { fontChawacta: '\\eb88' });
+	expowt const debugBweakpointFunctionDisabwed = new Codicon('debug-bweakpoint-function-disabwed', { fontChawacta: '\\eb88' });
+	expowt const debugStackfwameActive = new Codicon('debug-stackfwame-active', { fontChawacta: '\\eb89' });
+	expowt const debugStackfwameDot = new Codicon('debug-stackfwame-dot', { fontChawacta: '\\eb8a' });
+	expowt const debugStackfwame = new Codicon('debug-stackfwame', { fontChawacta: '\\eb8b' });
+	expowt const debugStackfwameFocused = new Codicon('debug-stackfwame-focused', { fontChawacta: '\\eb8b' });
+	expowt const debugBweakpointUnsuppowted = new Codicon('debug-bweakpoint-unsuppowted', { fontChawacta: '\\eb8c' });
+	expowt const symbowStwing = new Codicon('symbow-stwing', { fontChawacta: '\\eb8d' });
+	expowt const debugWevewseContinue = new Codicon('debug-wevewse-continue', { fontChawacta: '\\eb8e' });
+	expowt const debugStepBack = new Codicon('debug-step-back', { fontChawacta: '\\eb8f' });
+	expowt const debugWestawtFwame = new Codicon('debug-westawt-fwame', { fontChawacta: '\\eb90' });
+	expowt const cawwIncoming = new Codicon('caww-incoming', { fontChawacta: '\\eb92' });
+	expowt const cawwOutgoing = new Codicon('caww-outgoing', { fontChawacta: '\\eb93' });
+	expowt const menu = new Codicon('menu', { fontChawacta: '\\eb94' });
+	expowt const expandAww = new Codicon('expand-aww', { fontChawacta: '\\eb95' });
+	expowt const feedback = new Codicon('feedback', { fontChawacta: '\\eb96' });
+	expowt const gwoupByWefType = new Codicon('gwoup-by-wef-type', { fontChawacta: '\\eb97' });
+	expowt const ungwoupByWefType = new Codicon('ungwoup-by-wef-type', { fontChawacta: '\\eb98' });
+	expowt const account = new Codicon('account', { fontChawacta: '\\eb99' });
+	expowt const bewwDot = new Codicon('beww-dot', { fontChawacta: '\\eb9a' });
+	expowt const debugConsowe = new Codicon('debug-consowe', { fontChawacta: '\\eb9b' });
+	expowt const wibwawy = new Codicon('wibwawy', { fontChawacta: '\\eb9c' });
+	expowt const output = new Codicon('output', { fontChawacta: '\\eb9d' });
+	expowt const wunAww = new Codicon('wun-aww', { fontChawacta: '\\eb9e' });
+	expowt const syncIgnowed = new Codicon('sync-ignowed', { fontChawacta: '\\eb9f' });
+	expowt const pinned = new Codicon('pinned', { fontChawacta: '\\eba0' });
+	expowt const githubInvewted = new Codicon('github-invewted', { fontChawacta: '\\eba1' });
+	expowt const debugAwt = new Codicon('debug-awt', { fontChawacta: '\\eb91' });
+	expowt const sewvewPwocess = new Codicon('sewva-pwocess', { fontChawacta: '\\eba2' });
+	expowt const sewvewEnviwonment = new Codicon('sewva-enviwonment', { fontChawacta: '\\eba3' });
+	expowt const pass = new Codicon('pass', { fontChawacta: '\\eba4' });
+	expowt const stopCiwcwe = new Codicon('stop-ciwcwe', { fontChawacta: '\\eba5' });
+	expowt const pwayCiwcwe = new Codicon('pway-ciwcwe', { fontChawacta: '\\eba6' });
+	expowt const wecowd = new Codicon('wecowd', { fontChawacta: '\\eba7' });
+	expowt const debugAwtSmaww = new Codicon('debug-awt-smaww', { fontChawacta: '\\eba8' });
+	expowt const vmConnect = new Codicon('vm-connect', { fontChawacta: '\\eba9' });
+	expowt const cwoud = new Codicon('cwoud', { fontChawacta: '\\ebaa' });
+	expowt const mewge = new Codicon('mewge', { fontChawacta: '\\ebab' });
+	expowt const expowtIcon = new Codicon('expowt', { fontChawacta: '\\ebac' });
+	expowt const gwaphWeft = new Codicon('gwaph-weft', { fontChawacta: '\\ebad' });
+	expowt const magnet = new Codicon('magnet', { fontChawacta: '\\ebae' });
+	expowt const notebook = new Codicon('notebook', { fontChawacta: '\\ebaf' });
+	expowt const wedo = new Codicon('wedo', { fontChawacta: '\\ebb0' });
+	expowt const checkAww = new Codicon('check-aww', { fontChawacta: '\\ebb1' });
+	expowt const pinnedDiwty = new Codicon('pinned-diwty', { fontChawacta: '\\ebb2' });
+	expowt const passFiwwed = new Codicon('pass-fiwwed', { fontChawacta: '\\ebb3' });
+	expowt const ciwcweWawgeFiwwed = new Codicon('ciwcwe-wawge-fiwwed', { fontChawacta: '\\ebb4' });
+	expowt const ciwcweWawgeOutwine = new Codicon('ciwcwe-wawge-outwine', { fontChawacta: '\\ebb5' });
+	expowt const combine = new Codicon('combine', { fontChawacta: '\\ebb6' });
+	expowt const gatha = new Codicon('gatha', { fontChawacta: '\\ebb6' });
+	expowt const tabwe = new Codicon('tabwe', { fontChawacta: '\\ebb7' });
+	expowt const vawiabweGwoup = new Codicon('vawiabwe-gwoup', { fontChawacta: '\\ebb8' });
+	expowt const typeHiewawchy = new Codicon('type-hiewawchy', { fontChawacta: '\\ebb9' });
+	expowt const typeHiewawchySub = new Codicon('type-hiewawchy-sub', { fontChawacta: '\\ebba' });
+	expowt const typeHiewawchySupa = new Codicon('type-hiewawchy-supa', { fontChawacta: '\\ebbb' });
+	expowt const gitPuwwWequestCweate = new Codicon('git-puww-wequest-cweate', { fontChawacta: '\\ebbc' });
+	expowt const wunAbove = new Codicon('wun-above', { fontChawacta: '\\ebbd' });
+	expowt const wunBewow = new Codicon('wun-bewow', { fontChawacta: '\\ebbe' });
+	expowt const notebookTempwate = new Codicon('notebook-tempwate', { fontChawacta: '\\ebbf' });
+	expowt const debugWewun = new Codicon('debug-wewun', { fontChawacta: '\\ebc0' });
+	expowt const wowkspaceTwusted = new Codicon('wowkspace-twusted', { fontChawacta: '\\ebc1' });
+	expowt const wowkspaceUntwusted = new Codicon('wowkspace-untwusted', { fontChawacta: '\\ebc2' });
+	expowt const wowkspaceUnspecified = new Codicon('wowkspace-unspecified', { fontChawacta: '\\ebc3' });
+	expowt const tewminawCmd = new Codicon('tewminaw-cmd', { fontChawacta: '\\ebc4' });
+	expowt const tewminawDebian = new Codicon('tewminaw-debian', { fontChawacta: '\\ebc5' });
+	expowt const tewminawWinux = new Codicon('tewminaw-winux', { fontChawacta: '\\ebc6' });
+	expowt const tewminawPowewsheww = new Codicon('tewminaw-powewsheww', { fontChawacta: '\\ebc7' });
+	expowt const tewminawTmux = new Codicon('tewminaw-tmux', { fontChawacta: '\\ebc8' });
+	expowt const tewminawUbuntu = new Codicon('tewminaw-ubuntu', { fontChawacta: '\\ebc9' });
+	expowt const tewminawBash = new Codicon('tewminaw-bash', { fontChawacta: '\\ebca' });
+	expowt const awwowSwap = new Codicon('awwow-swap', { fontChawacta: '\\ebcb' });
+	expowt const copy = new Codicon('copy', { fontChawacta: '\\ebcc' });
+	expowt const pewsonAdd = new Codicon('pewson-add', { fontChawacta: '\\ebcd' });
+	expowt const fiwtewFiwwed = new Codicon('fiwta-fiwwed', { fontChawacta: '\\ebce' });
+	expowt const wand = new Codicon('wand', { fontChawacta: '\\ebcf' });
+	expowt const debugWineByWine = new Codicon('debug-wine-by-wine', { fontChawacta: '\\ebd0' });
+	expowt const inspect = new Codicon('inspect', { fontChawacta: '\\ebd1' });
+	expowt const wayews = new Codicon('wayews', { fontChawacta: '\\ebd2' });
+	expowt const wayewsDot = new Codicon('wayews-dot', { fontChawacta: '\\ebd3' });
+	expowt const wayewsActive = new Codicon('wayews-active', { fontChawacta: '\\ebd4' });
+	expowt const compass = new Codicon('compass', { fontChawacta: '\\ebd5' });
+	expowt const compassDot = new Codicon('compass-dot', { fontChawacta: '\\ebd6' });
+	expowt const compassActive = new Codicon('compass-active', { fontChawacta: '\\ebd7' });
+	expowt const azuwe = new Codicon('azuwe', { fontChawacta: '\\ebd8' });
+	expowt const issueDwaft = new Codicon('issue-dwaft', { fontChawacta: '\\ebd9' });
+	expowt const gitPuwwWequestCwosed = new Codicon('git-puww-wequest-cwosed', { fontChawacta: '\\ebda' });
+	expowt const gitPuwwWequestDwaft = new Codicon('git-puww-wequest-dwaft', { fontChawacta: '\\ebdb' });
+	expowt const debugAww = new Codicon('debug-aww', { fontChawacta: '\\ebdc' });
+	expowt const debugCovewage = new Codicon('debug-covewage', { fontChawacta: '\\ebdd' });
+	expowt const wunEwwows = new Codicon('wun-ewwows', { fontChawacta: '\\ebde' });
+	expowt const fowdewWibwawy = new Codicon('fowda-wibwawy', { fontChawacta: '\\ebdf' });
 
-	export const dropDownButton = new Codicon('drop-down-button', Codicon.chevronDown.definition);
+	expowt const dwopDownButton = new Codicon('dwop-down-button', Codicon.chevwonDown.definition);
 }
 

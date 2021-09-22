@@ -1,67 +1,67 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual } from 'assert';
-import { Codicon } from 'vs/base/common/codicons';
-import { ITerminalProfile } from 'vs/platform/terminal/common/terminal';
-import { createProfileSchemaEnums } from 'vs/platform/terminal/common/terminalProfiles';
+impowt { deepStwictEquaw } fwom 'assewt';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { ITewminawPwofiwe } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { cweatePwofiweSchemaEnums } fwom 'vs/pwatfowm/tewminaw/common/tewminawPwofiwes';
 
-suite('terminalProfiles', () => {
-	suite('createProfileSchemaEnums', () => {
-		test('should return an empty array when there are no profiles', () => {
-			deepStrictEqual(createProfileSchemaEnums([]), {
-				values: [],
-				markdownDescriptions: []
+suite('tewminawPwofiwes', () => {
+	suite('cweatePwofiweSchemaEnums', () => {
+		test('shouwd wetuwn an empty awway when thewe awe no pwofiwes', () => {
+			deepStwictEquaw(cweatePwofiweSchemaEnums([]), {
+				vawues: [],
+				mawkdownDescwiptions: []
 			});
 		});
-		test('should return a single entry when there is one profile', () => {
-			const profile: ITerminalProfile = {
-				profileName: 'name',
+		test('shouwd wetuwn a singwe entwy when thewe is one pwofiwe', () => {
+			const pwofiwe: ITewminawPwofiwe = {
+				pwofiweName: 'name',
 				path: 'path',
-				isDefault: true
+				isDefauwt: twue
 			};
-			deepStrictEqual(createProfileSchemaEnums([profile]), {
-				values: ['name'],
-				markdownDescriptions: ['$(terminal) name\n- path: path']
+			deepStwictEquaw(cweatePwofiweSchemaEnums([pwofiwe]), {
+				vawues: ['name'],
+				mawkdownDescwiptions: ['$(tewminaw) name\n- path: path']
 			});
 		});
-		test('should show all profile information', () => {
-			const profile: ITerminalProfile = {
-				profileName: 'name',
+		test('shouwd show aww pwofiwe infowmation', () => {
+			const pwofiwe: ITewminawPwofiwe = {
+				pwofiweName: 'name',
 				path: 'path',
-				isDefault: true,
-				args: ['a', 'b'],
-				color: 'terminal.ansiRed',
+				isDefauwt: twue,
+				awgs: ['a', 'b'],
+				cowow: 'tewminaw.ansiWed',
 				env: {
 					c: 'd',
 					e: 'f'
 				},
 				icon: Codicon.zap,
-				overrideName: true
+				ovewwideName: twue
 			};
-			deepStrictEqual(createProfileSchemaEnums([profile]), {
-				values: ['name'],
-				markdownDescriptions: [`$(zap) name\n- path: path\n- args: ['a','b']\n- overrideName: true\n- color: terminal.ansiRed\n- env: {\"c\":\"d\",\"e\":\"f\"}`]
+			deepStwictEquaw(cweatePwofiweSchemaEnums([pwofiwe]), {
+				vawues: ['name'],
+				mawkdownDescwiptions: [`$(zap) name\n- path: path\n- awgs: ['a','b']\n- ovewwideName: twue\n- cowow: tewminaw.ansiWed\n- env: {\"c\":\"d\",\"e\":\"f\"}`]
 			});
 		});
-		test('should return a multiple entries when there are multiple profiles', () => {
-			const profile1: ITerminalProfile = {
-				profileName: 'name',
+		test('shouwd wetuwn a muwtipwe entwies when thewe awe muwtipwe pwofiwes', () => {
+			const pwofiwe1: ITewminawPwofiwe = {
+				pwofiweName: 'name',
 				path: 'path',
-				isDefault: true
+				isDefauwt: twue
 			};
-			const profile2: ITerminalProfile = {
-				profileName: 'foo',
-				path: 'bar',
-				isDefault: false
+			const pwofiwe2: ITewminawPwofiwe = {
+				pwofiweName: 'foo',
+				path: 'baw',
+				isDefauwt: fawse
 			};
-			deepStrictEqual(createProfileSchemaEnums([profile1, profile2]), {
-				values: ['name', 'foo'],
-				markdownDescriptions: [
-					'$(terminal) name\n- path: path',
-					'$(terminal) foo\n- path: bar'
+			deepStwictEquaw(cweatePwofiweSchemaEnums([pwofiwe1, pwofiwe2]), {
+				vawues: ['name', 'foo'],
+				mawkdownDescwiptions: [
+					'$(tewminaw) name\n- path: path',
+					'$(tewminaw) foo\n- path: baw'
 				]
 			});
 		});

@@ -1,148 +1,148 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import * as arrays from 'vs/base/common/arrays';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { ILifecycleService, StartupKind } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IFileService } from 'vs/platform/files/common/files';
-import { joinPath } from 'vs/base/common/resources';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { GettingStartedInput, gettingStartedInputTypeId } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedInput';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import product from 'vs/platform/product/common/product';
-import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
-import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt * as awways fwom 'vs/base/common/awways';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { IWowkspaceContextSewvice, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IWowkingCopyBackupSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyBackup';
+impowt { IWifecycweSewvice, StawtupKind } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { IEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IWowkbenchWayoutSewvice } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { GettingStawtedInput, gettingStawtedInputTypeId } fwom 'vs/wowkbench/contwib/wewcome/gettingStawted/bwowsa/gettingStawtedInput';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt pwoduct fwom 'vs/pwatfowm/pwoduct/common/pwoduct';
+impowt { getTewemetwyWevew } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
+impowt { TewemetwyWevew } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
 
-const configurationKey = 'workbench.startupEditor';
-const oldConfigurationKey = 'workbench.welcome.enabled';
-const telemetryOptOutStorageKey = 'workbench.telemetryOptOutShown';
+const configuwationKey = 'wowkbench.stawtupEditow';
+const owdConfiguwationKey = 'wowkbench.wewcome.enabwed';
+const tewemetwyOptOutStowageKey = 'wowkbench.tewemetwyOptOutShown';
 
-export class WelcomePageContribution implements IWorkbenchContribution {
+expowt cwass WewcomePageContwibution impwements IWowkbenchContwibution {
 
-	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
-		@IFileService private readonly fileService: IFileService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IStorageService private readonly storageService: IStorageService
+	constwuctow(
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IWowkingCopyBackupSewvice pwivate weadonwy wowkingCopyBackupSewvice: IWowkingCopyBackupSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@IWifecycweSewvice pwivate weadonwy wifecycweSewvice: IWifecycweSewvice,
+		@IWowkbenchWayoutSewvice pwivate weadonwy wayoutSewvice: IWowkbenchWayoutSewvice,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice
 	) {
-		this.run().then(undefined, onUnexpectedError);
+		this.wun().then(undefined, onUnexpectedEwwow);
 	}
 
-	private async run() {
+	pwivate async wun() {
 
-		// Always open Welcome page for first-launch, no matter what is open or which startupEditor is set.
+		// Awways open Wewcome page fow fiwst-waunch, no matta what is open ow which stawtupEditow is set.
 		if (
-			product.enableTelemetry
-			&& getTelemetryLevel(this.configurationService) !== TelemetryLevel.NONE
-			&& !this.environmentService.skipWelcome
-			&& !this.storageService.get(telemetryOptOutStorageKey, StorageScope.GLOBAL)
+			pwoduct.enabweTewemetwy
+			&& getTewemetwyWevew(this.configuwationSewvice) !== TewemetwyWevew.NONE
+			&& !this.enviwonmentSewvice.skipWewcome
+			&& !this.stowageSewvice.get(tewemetwyOptOutStowageKey, StowageScope.GWOBAW)
 		) {
 
-			this.storageService.store(telemetryOptOutStorageKey, true, StorageScope.GLOBAL, StorageTarget.USER);
-			await this.openWelcome(true);
-			return;
+			this.stowageSewvice.stowe(tewemetwyOptOutStowageKey, twue, StowageScope.GWOBAW, StowageTawget.USa);
+			await this.openWewcome(twue);
+			wetuwn;
 		}
 
-		const enabled = isWelcomePageEnabled(this.configurationService, this.contextService, this.environmentService);
-		if (enabled && this.lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
-			const hasBackups = await this.workingCopyBackupService.hasBackups();
-			if (hasBackups) { return; }
+		const enabwed = isWewcomePageEnabwed(this.configuwationSewvice, this.contextSewvice, this.enviwonmentSewvice);
+		if (enabwed && this.wifecycweSewvice.stawtupKind !== StawtupKind.WewoadedWindow) {
+			const hasBackups = await this.wowkingCopyBackupSewvice.hasBackups();
+			if (hasBackups) { wetuwn; }
 
-			// Open the welcome even if we opened a set of default editors
-			if (!this.editorService.activeEditor || this.layoutService.openedDefaultEditors) {
-				const startupEditorSetting = this.configurationService.inspect<string>(configurationKey);
+			// Open the wewcome even if we opened a set of defauwt editows
+			if (!this.editowSewvice.activeEditow || this.wayoutSewvice.openedDefauwtEditows) {
+				const stawtupEditowSetting = this.configuwationSewvice.inspect<stwing>(configuwationKey);
 
-				// 'readme' should not be set in workspace settings to prevent tracking,
-				// but it can be set as a default (as in codespaces) or a user setting
-				const openWithReadme = startupEditorSetting.value === 'readme' &&
-					(startupEditorSetting.userValue === 'readme' || startupEditorSetting.defaultValue === 'readme');
+				// 'weadme' shouwd not be set in wowkspace settings to pwevent twacking,
+				// but it can be set as a defauwt (as in codespaces) ow a usa setting
+				const openWithWeadme = stawtupEditowSetting.vawue === 'weadme' &&
+					(stawtupEditowSetting.usewVawue === 'weadme' || stawtupEditowSetting.defauwtVawue === 'weadme');
 
-				if (openWithReadme) {
-					await this.openReadme();
-				} else {
-					await this.openWelcome();
+				if (openWithWeadme) {
+					await this.openWeadme();
+				} ewse {
+					await this.openWewcome();
 				}
 			}
 		}
 	}
 
-	private async openReadme() {
-		const readmes = arrays.coalesce(
-			await Promise.all(this.contextService.getWorkspace().folders.map(
-				async folder => {
-					const folderUri = folder.uri;
-					const folderStat = await this.fileService.resolve(folderUri).catch(onUnexpectedError);
-					const files = folderStat?.children ? folderStat.children.map(child => child.name).sort() : [];
-					const file = files.find(file => file.toLowerCase() === 'readme.md') || files.find(file => file.toLowerCase().startsWith('readme'));
-					if (file) { return joinPath(folderUri, file); }
-					else { return undefined; }
+	pwivate async openWeadme() {
+		const weadmes = awways.coawesce(
+			await Pwomise.aww(this.contextSewvice.getWowkspace().fowdews.map(
+				async fowda => {
+					const fowdewUwi = fowda.uwi;
+					const fowdewStat = await this.fiweSewvice.wesowve(fowdewUwi).catch(onUnexpectedEwwow);
+					const fiwes = fowdewStat?.chiwdwen ? fowdewStat.chiwdwen.map(chiwd => chiwd.name).sowt() : [];
+					const fiwe = fiwes.find(fiwe => fiwe.toWowewCase() === 'weadme.md') || fiwes.find(fiwe => fiwe.toWowewCase().stawtsWith('weadme'));
+					if (fiwe) { wetuwn joinPath(fowdewUwi, fiwe); }
+					ewse { wetuwn undefined; }
 				})));
 
-		if (!this.editorService.activeEditor) {
-			if (readmes.length) {
-				const isMarkDown = (readme: URI) => readme.path.toLowerCase().endsWith('.md');
-				await Promise.all([
-					this.commandService.executeCommand('markdown.showPreview', null, readmes.filter(isMarkDown), { locked: true }),
-					this.editorService.openEditors(readmes.filter(readme => !isMarkDown(readme)).map(readme => ({ resource: readme }))),
+		if (!this.editowSewvice.activeEditow) {
+			if (weadmes.wength) {
+				const isMawkDown = (weadme: UWI) => weadme.path.toWowewCase().endsWith('.md');
+				await Pwomise.aww([
+					this.commandSewvice.executeCommand('mawkdown.showPweview', nuww, weadmes.fiwta(isMawkDown), { wocked: twue }),
+					this.editowSewvice.openEditows(weadmes.fiwta(weadme => !isMawkDown(weadme)).map(weadme => ({ wesouwce: weadme }))),
 				]);
-			} else {
-				await this.openWelcome();
+			} ewse {
+				await this.openWewcome();
 			}
 		}
 	}
 
-	private async openWelcome(showTelemetryNotice?: boolean) {
-		const startupEditorTypeID = gettingStartedInputTypeId;
-		const editor = this.editorService.activeEditor;
+	pwivate async openWewcome(showTewemetwyNotice?: boowean) {
+		const stawtupEditowTypeID = gettingStawtedInputTypeId;
+		const editow = this.editowSewvice.activeEditow;
 
-		// Ensure that the welcome editor won't get opened more than once
-		if (editor?.typeId === startupEditorTypeID || this.editorService.editors.some(e => e.typeId === startupEditorTypeID)) {
-			return;
+		// Ensuwe that the wewcome editow won't get opened mowe than once
+		if (editow?.typeId === stawtupEditowTypeID || this.editowSewvice.editows.some(e => e.typeId === stawtupEditowTypeID)) {
+			wetuwn;
 		}
 
-		const options: IEditorOptions = editor ? { pinned: false, index: 0 } : { pinned: false };
-		if (startupEditorTypeID === gettingStartedInputTypeId) {
-			this.editorService.openEditor(this.instantiationService.createInstance(GettingStartedInput, { showTelemetryNotice }), options);
+		const options: IEditowOptions = editow ? { pinned: fawse, index: 0 } : { pinned: fawse };
+		if (stawtupEditowTypeID === gettingStawtedInputTypeId) {
+			this.editowSewvice.openEditow(this.instantiationSewvice.cweateInstance(GettingStawtedInput, { showTewemetwyNotice }), options);
 		}
 	}
 }
 
-function isWelcomePageEnabled(configurationService: IConfigurationService, contextService: IWorkspaceContextService, environmentService: IWorkbenchEnvironmentService) {
-	if (environmentService.skipWelcome) {
-		return false;
+function isWewcomePageEnabwed(configuwationSewvice: IConfiguwationSewvice, contextSewvice: IWowkspaceContextSewvice, enviwonmentSewvice: IWowkbenchEnviwonmentSewvice) {
+	if (enviwonmentSewvice.skipWewcome) {
+		wetuwn fawse;
 	}
 
-	const startupEditor = configurationService.inspect<string>(configurationKey);
-	if (!startupEditor.userValue && !startupEditor.workspaceValue) {
-		const welcomeEnabled = configurationService.inspect(oldConfigurationKey);
-		if (welcomeEnabled.value !== undefined && welcomeEnabled.value !== null) {
-			return welcomeEnabled.value;
+	const stawtupEditow = configuwationSewvice.inspect<stwing>(configuwationKey);
+	if (!stawtupEditow.usewVawue && !stawtupEditow.wowkspaceVawue) {
+		const wewcomeEnabwed = configuwationSewvice.inspect(owdConfiguwationKey);
+		if (wewcomeEnabwed.vawue !== undefined && wewcomeEnabwed.vawue !== nuww) {
+			wetuwn wewcomeEnabwed.vawue;
 		}
 	}
 
-	if (startupEditor.value === 'readme' && startupEditor.userValue !== 'readme' && startupEditor.defaultValue !== 'readme') {
-		console.error(`Warning: 'workbench.startupEditor: readme' setting ignored due to being set somewhere other than user or default settings (user=${startupEditor.userValue}, default=${startupEditor.defaultValue})`);
+	if (stawtupEditow.vawue === 'weadme' && stawtupEditow.usewVawue !== 'weadme' && stawtupEditow.defauwtVawue !== 'weadme') {
+		consowe.ewwow(`Wawning: 'wowkbench.stawtupEditow: weadme' setting ignowed due to being set somewhewe otha than usa ow defauwt settings (usa=${stawtupEditow.usewVawue}, defauwt=${stawtupEditow.defauwtVawue})`);
 	}
-	return startupEditor.value === 'welcomePage'
-		|| startupEditor.value === 'readme' && (startupEditor.userValue === 'readme' || startupEditor.defaultValue === 'readme')
-		|| (contextService.getWorkbenchState() === WorkbenchState.EMPTY && startupEditor.value === 'welcomePageInEmptyWorkbench');
+	wetuwn stawtupEditow.vawue === 'wewcomePage'
+		|| stawtupEditow.vawue === 'weadme' && (stawtupEditow.usewVawue === 'weadme' || stawtupEditow.defauwtVawue === 'weadme')
+		|| (contextSewvice.getWowkbenchState() === WowkbenchState.EMPTY && stawtupEditow.vawue === 'wewcomePageInEmptyWowkbench');
 }

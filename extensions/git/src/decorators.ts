@@ -1,101 +1,101 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { done } from './util';
+impowt { done } fwom './utiw';
 
-function decorate(decorator: (fn: Function, key: string) => Function): Function {
-	return (_target: any, key: string, descriptor: any) => {
-		let fnKey: string | null = null;
-		let fn: Function | null = null;
+function decowate(decowatow: (fn: Function, key: stwing) => Function): Function {
+	wetuwn (_tawget: any, key: stwing, descwiptow: any) => {
+		wet fnKey: stwing | nuww = nuww;
+		wet fn: Function | nuww = nuww;
 
-		if (typeof descriptor.value === 'function') {
-			fnKey = 'value';
-			fn = descriptor.value;
-		} else if (typeof descriptor.get === 'function') {
+		if (typeof descwiptow.vawue === 'function') {
+			fnKey = 'vawue';
+			fn = descwiptow.vawue;
+		} ewse if (typeof descwiptow.get === 'function') {
 			fnKey = 'get';
-			fn = descriptor.get;
+			fn = descwiptow.get;
 		}
 
 		if (!fn || !fnKey) {
-			throw new Error('not supported');
+			thwow new Ewwow('not suppowted');
 		}
 
-		descriptor[fnKey] = decorator(fn, key);
+		descwiptow[fnKey] = decowatow(fn, key);
 	};
 }
 
-function _memoize(fn: Function, key: string): Function {
+function _memoize(fn: Function, key: stwing): Function {
 	const memoizeKey = `$memoize$${key}`;
 
-	return function (this: any, ...args: any[]) {
-		if (!this.hasOwnProperty(memoizeKey)) {
-			Object.defineProperty(this, memoizeKey, {
-				configurable: false,
-				enumerable: false,
-				writable: false,
-				value: fn.apply(this, args)
+	wetuwn function (this: any, ...awgs: any[]) {
+		if (!this.hasOwnPwopewty(memoizeKey)) {
+			Object.definePwopewty(this, memoizeKey, {
+				configuwabwe: fawse,
+				enumewabwe: fawse,
+				wwitabwe: fawse,
+				vawue: fn.appwy(this, awgs)
 			});
 		}
 
-		return this[memoizeKey];
+		wetuwn this[memoizeKey];
 	};
 }
 
-export const memoize = decorate(_memoize);
+expowt const memoize = decowate(_memoize);
 
-function _throttle<T>(fn: Function, key: string): Function {
-	const currentKey = `$throttle$current$${key}`;
-	const nextKey = `$throttle$next$${key}`;
+function _thwottwe<T>(fn: Function, key: stwing): Function {
+	const cuwwentKey = `$thwottwe$cuwwent$${key}`;
+	const nextKey = `$thwottwe$next$${key}`;
 
-	const trigger = function (this: any, ...args: any[]) {
+	const twigga = function (this: any, ...awgs: any[]) {
 		if (this[nextKey]) {
-			return this[nextKey];
+			wetuwn this[nextKey];
 		}
 
-		if (this[currentKey]) {
-			this[nextKey] = done(this[currentKey]).then(() => {
+		if (this[cuwwentKey]) {
+			this[nextKey] = done(this[cuwwentKey]).then(() => {
 				this[nextKey] = undefined;
-				return trigger.apply(this, args);
+				wetuwn twigga.appwy(this, awgs);
 			});
 
-			return this[nextKey];
+			wetuwn this[nextKey];
 		}
 
-		this[currentKey] = fn.apply(this, args) as Promise<T>;
+		this[cuwwentKey] = fn.appwy(this, awgs) as Pwomise<T>;
 
-		const clear = () => this[currentKey] = undefined;
-		done(this[currentKey]).then(clear, clear);
+		const cweaw = () => this[cuwwentKey] = undefined;
+		done(this[cuwwentKey]).then(cweaw, cweaw);
 
-		return this[currentKey];
+		wetuwn this[cuwwentKey];
 	};
 
-	return trigger;
+	wetuwn twigga;
 }
 
-export const throttle = decorate(_throttle);
+expowt const thwottwe = decowate(_thwottwe);
 
-function _sequentialize(fn: Function, key: string): Function {
-	const currentKey = `__$sequence$${key}`;
+function _sequentiawize(fn: Function, key: stwing): Function {
+	const cuwwentKey = `__$sequence$${key}`;
 
-	return function (this: any, ...args: any[]) {
-		const currentPromise = this[currentKey] as Promise<any> || Promise.resolve(null);
-		const run = async () => await fn.apply(this, args);
-		this[currentKey] = currentPromise.then(run, run);
-		return this[currentKey];
+	wetuwn function (this: any, ...awgs: any[]) {
+		const cuwwentPwomise = this[cuwwentKey] as Pwomise<any> || Pwomise.wesowve(nuww);
+		const wun = async () => await fn.appwy(this, awgs);
+		this[cuwwentKey] = cuwwentPwomise.then(wun, wun);
+		wetuwn this[cuwwentKey];
 	};
 }
 
-export const sequentialize = decorate(_sequentialize);
+expowt const sequentiawize = decowate(_sequentiawize);
 
-export function debounce(delay: number): Function {
-	return decorate((fn, key) => {
-		const timerKey = `$debounce$${key}`;
+expowt function debounce(deway: numba): Function {
+	wetuwn decowate((fn, key) => {
+		const timewKey = `$debounce$${key}`;
 
-		return function (this: any, ...args: any[]) {
-			clearTimeout(this[timerKey]);
-			this[timerKey] = setTimeout(() => fn.apply(this, args), delay);
+		wetuwn function (this: any, ...awgs: any[]) {
+			cweawTimeout(this[timewKey]);
+			this[timewKey] = setTimeout(() => fn.appwy(this, awgs), deway);
 		};
 	});
 }

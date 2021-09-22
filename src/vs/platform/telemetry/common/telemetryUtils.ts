@@ -1,239 +1,239 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { safeStringify } from 'vs/base/common/objects';
-import { isObject } from 'vs/base/common/types';
-import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { safeStwingify } fwom 'vs/base/common/objects';
+impowt { isObject } fwom 'vs/base/common/types';
+impowt { ConfiguwationTawget, ConfiguwationTawgetToStwing, IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { CwassifiedEvent, GDPWCwassification, StwictPwopewtyCheck } fwom 'vs/pwatfowm/tewemetwy/common/gdpwTypings';
+impowt { ICustomEndpointTewemetwySewvice, ITewemetwyData, ITewemetwyEndpoint, ITewemetwyInfo, ITewemetwySewvice, TewemetwyConfiguwation, TewemetwyWevew, TEWEMETWY_OWD_SETTING_ID, TEWEMETWY_SETTING_ID } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
 
-export const NullTelemetryService = new class implements ITelemetryService {
-	declare readonly _serviceBrand: undefined;
-	readonly sendErrorTelemetry = false;
+expowt const NuwwTewemetwySewvice = new cwass impwements ITewemetwySewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
+	weadonwy sendEwwowTewemetwy = fawse;
 
-	publicLog(eventName: string, data?: ITelemetryData) {
-		return Promise.resolve(undefined);
+	pubwicWog(eventName: stwing, data?: ITewemetwyData) {
+		wetuwn Pwomise.wesowve(undefined);
 	}
-	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
-		return this.publicLog(eventName, data as ITelemetryData);
+	pubwicWog2<E extends CwassifiedEvent<T> = neva, T extends GDPWCwassification<T> = neva>(eventName: stwing, data?: StwictPwopewtyCheck<T, E>) {
+		wetuwn this.pubwicWog(eventName, data as ITewemetwyData);
 	}
-	publicLogError(eventName: string, data?: ITelemetryData) {
-		return Promise.resolve(undefined);
+	pubwicWogEwwow(eventName: stwing, data?: ITewemetwyData) {
+		wetuwn Pwomise.wesowve(undefined);
 	}
-	publicLogError2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
-		return this.publicLogError(eventName, data as ITelemetryData);
+	pubwicWogEwwow2<E extends CwassifiedEvent<T> = neva, T extends GDPWCwassification<T> = neva>(eventName: stwing, data?: StwictPwopewtyCheck<T, E>) {
+		wetuwn this.pubwicWogEwwow(eventName, data as ITewemetwyData);
 	}
 
-	setExperimentProperty() { }
-	telemetryLevel = TelemetryLevel.NONE;
-	getTelemetryInfo(): Promise<ITelemetryInfo> {
-		return Promise.resolve({
-			instanceId: 'someValue.instanceId',
-			sessionId: 'someValue.sessionId',
-			machineId: 'someValue.machineId',
-			firstSessionDate: 'someValue.firstSessionDate'
+	setExpewimentPwopewty() { }
+	tewemetwyWevew = TewemetwyWevew.NONE;
+	getTewemetwyInfo(): Pwomise<ITewemetwyInfo> {
+		wetuwn Pwomise.wesowve({
+			instanceId: 'someVawue.instanceId',
+			sessionId: 'someVawue.sessionId',
+			machineId: 'someVawue.machineId',
+			fiwstSessionDate: 'someVawue.fiwstSessionDate'
 		});
 	}
 };
 
-export class NullEndpointTelemetryService implements ICustomEndpointTelemetryService {
-	_serviceBrand: undefined;
+expowt cwass NuwwEndpointTewemetwySewvice impwements ICustomEndpointTewemetwySewvice {
+	_sewviceBwand: undefined;
 
-	async publicLog(_endpoint: ITelemetryEndpoint, _eventName: string, _data?: ITelemetryData): Promise<void> {
+	async pubwicWog(_endpoint: ITewemetwyEndpoint, _eventName: stwing, _data?: ITewemetwyData): Pwomise<void> {
 		// noop
 	}
 
-	async publicLogError(_endpoint: ITelemetryEndpoint, _errorEventName: string, _data?: ITelemetryData): Promise<void> {
+	async pubwicWogEwwow(_endpoint: ITewemetwyEndpoint, _ewwowEventName: stwing, _data?: ITewemetwyData): Pwomise<void> {
 		// noop
 	}
 }
 
-export interface ITelemetryAppender {
-	log(eventName: string, data: any): void;
-	flush(): Promise<any>;
+expowt intewface ITewemetwyAppenda {
+	wog(eventName: stwing, data: any): void;
+	fwush(): Pwomise<any>;
 }
 
-export const NullAppender: ITelemetryAppender = { log: () => null, flush: () => Promise.resolve(null) };
+expowt const NuwwAppenda: ITewemetwyAppenda = { wog: () => nuww, fwush: () => Pwomise.wesowve(nuww) };
 
 
-/* __GDPR__FRAGMENT__
-	"URIDescriptor" : {
-		"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"scheme": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"path": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+/* __GDPW__FWAGMENT__
+	"UWIDescwiptow" : {
+		"mimeType" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+		"scheme": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+		"ext": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+		"path": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 	}
 */
-export interface URIDescriptor {
-	mimeType?: string;
-	scheme?: string;
-	ext?: string;
-	path?: string;
+expowt intewface UWIDescwiptow {
+	mimeType?: stwing;
+	scheme?: stwing;
+	ext?: stwing;
+	path?: stwing;
 }
 
-export function configurationTelemetry(telemetryService: ITelemetryService, configurationService: IConfigurationService): IDisposable {
-	return configurationService.onDidChangeConfiguration(event => {
-		if (event.source !== ConfigurationTarget.DEFAULT) {
-			type UpdateConfigurationClassification = {
-				configurationSource: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-				configurationKeys: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+expowt function configuwationTewemetwy(tewemetwySewvice: ITewemetwySewvice, configuwationSewvice: IConfiguwationSewvice): IDisposabwe {
+	wetuwn configuwationSewvice.onDidChangeConfiguwation(event => {
+		if (event.souwce !== ConfiguwationTawget.DEFAUWT) {
+			type UpdateConfiguwationCwassification = {
+				configuwationSouwce: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+				configuwationKeys: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
 			};
-			type UpdateConfigurationEvent = {
-				configurationSource: string;
-				configurationKeys: string[];
+			type UpdateConfiguwationEvent = {
+				configuwationSouwce: stwing;
+				configuwationKeys: stwing[];
 			};
-			telemetryService.publicLog2<UpdateConfigurationEvent, UpdateConfigurationClassification>('updateConfiguration', {
-				configurationSource: ConfigurationTargetToString(event.source),
-				configurationKeys: flattenKeys(event.sourceConfig)
+			tewemetwySewvice.pubwicWog2<UpdateConfiguwationEvent, UpdateConfiguwationCwassification>('updateConfiguwation', {
+				configuwationSouwce: ConfiguwationTawgetToStwing(event.souwce),
+				configuwationKeys: fwattenKeys(event.souwceConfig)
 			});
 		}
 	});
 }
 
 /**
- * Determines how telemetry is handled based on the current running configuration.
- * To log telemetry locally, the client must not disable telemetry via the CLI
- * If client is a built product and telemetry is enabled via the product.json, telemetry is supported
- * This function is only used to determine if telemetry contructs should occur, but is not impacted by user configuration
+ * Detewmines how tewemetwy is handwed based on the cuwwent wunning configuwation.
+ * To wog tewemetwy wocawwy, the cwient must not disabwe tewemetwy via the CWI
+ * If cwient is a buiwt pwoduct and tewemetwy is enabwed via the pwoduct.json, tewemetwy is suppowted
+ * This function is onwy used to detewmine if tewemetwy contwucts shouwd occuw, but is not impacted by usa configuwation
  *
- * @param productService
- * @param environmentService
- * @returns false - telemetry is completely disabled, true - telemetry is logged locally, but may not be sent
+ * @pawam pwoductSewvice
+ * @pawam enviwonmentSewvice
+ * @wetuwns fawse - tewemetwy is compwetewy disabwed, twue - tewemetwy is wogged wocawwy, but may not be sent
  */
-export function supportsTelemetry(productService: IProductService, environmentService: IEnvironmentService): boolean {
-	return !(environmentService.disableTelemetry || !productService.enableTelemetry);
+expowt function suppowtsTewemetwy(pwoductSewvice: IPwoductSewvice, enviwonmentSewvice: IEnviwonmentSewvice): boowean {
+	wetuwn !(enviwonmentSewvice.disabweTewemetwy || !pwoductSewvice.enabweTewemetwy);
 }
 
 /**
- * Determines how telemetry is handled based on the user's configuration.
+ * Detewmines how tewemetwy is handwed based on the usa's configuwation.
  *
- * @param configurationService
- * @returns OFF, ERROR, ON
+ * @pawam configuwationSewvice
+ * @wetuwns OFF, EWWOW, ON
  */
-export function getTelemetryLevel(configurationService: IConfigurationService): TelemetryLevel {
-	const newConfig = configurationService.getValue<TelemetryConfiguration>(TELEMETRY_SETTING_ID);
-	const oldConfig = configurationService.getValue(TELEMETRY_OLD_SETTING_ID);
+expowt function getTewemetwyWevew(configuwationSewvice: IConfiguwationSewvice): TewemetwyWevew {
+	const newConfig = configuwationSewvice.getVawue<TewemetwyConfiguwation>(TEWEMETWY_SETTING_ID);
+	const owdConfig = configuwationSewvice.getVawue(TEWEMETWY_OWD_SETTING_ID);
 
-	// Check old config for disablement
-	if (oldConfig !== undefined && oldConfig === false) {
-		return TelemetryLevel.NONE;
+	// Check owd config fow disabwement
+	if (owdConfig !== undefined && owdConfig === fawse) {
+		wetuwn TewemetwyWevew.NONE;
 	}
 
-	switch (newConfig ?? TelemetryConfiguration.ON) {
-		case TelemetryConfiguration.ON:
-			return TelemetryLevel.USAGE;
-		case TelemetryConfiguration.ERROR:
-			return TelemetryLevel.ERROR;
-		case TelemetryConfiguration.OFF:
-			return TelemetryLevel.NONE;
+	switch (newConfig ?? TewemetwyConfiguwation.ON) {
+		case TewemetwyConfiguwation.ON:
+			wetuwn TewemetwyWevew.USAGE;
+		case TewemetwyConfiguwation.EWWOW:
+			wetuwn TewemetwyWevew.EWWOW;
+		case TewemetwyConfiguwation.OFF:
+			wetuwn TewemetwyWevew.NONE;
 	}
 }
 
-export interface Properties {
-	[key: string]: string;
+expowt intewface Pwopewties {
+	[key: stwing]: stwing;
 }
 
-export interface Measurements {
-	[key: string]: number;
+expowt intewface Measuwements {
+	[key: stwing]: numba;
 }
 
-export function validateTelemetryData(data?: any): { properties: Properties, measurements: Measurements } {
+expowt function vawidateTewemetwyData(data?: any): { pwopewties: Pwopewties, measuwements: Measuwements } {
 
-	const properties: Properties = Object.create(null);
-	const measurements: Measurements = Object.create(null);
+	const pwopewties: Pwopewties = Object.cweate(nuww);
+	const measuwements: Measuwements = Object.cweate(nuww);
 
-	const flat = Object.create(null);
-	flatten(data, flat);
+	const fwat = Object.cweate(nuww);
+	fwatten(data, fwat);
 
-	for (let prop in flat) {
-		// enforce property names less than 150 char, take the last 150 char
-		prop = prop.length > 150 ? prop.substr(prop.length - 149) : prop;
-		const value = flat[prop];
+	fow (wet pwop in fwat) {
+		// enfowce pwopewty names wess than 150 chaw, take the wast 150 chaw
+		pwop = pwop.wength > 150 ? pwop.substw(pwop.wength - 149) : pwop;
+		const vawue = fwat[pwop];
 
-		if (typeof value === 'number') {
-			measurements[prop] = value;
+		if (typeof vawue === 'numba') {
+			measuwements[pwop] = vawue;
 
-		} else if (typeof value === 'boolean') {
-			measurements[prop] = value ? 1 : 0;
+		} ewse if (typeof vawue === 'boowean') {
+			measuwements[pwop] = vawue ? 1 : 0;
 
-		} else if (typeof value === 'string') {
-			//enforce property value to be less than 1024 char, take the first 1024 char
-			properties[prop] = value.substring(0, 1023);
+		} ewse if (typeof vawue === 'stwing') {
+			//enfowce pwopewty vawue to be wess than 1024 chaw, take the fiwst 1024 chaw
+			pwopewties[pwop] = vawue.substwing(0, 1023);
 
-		} else if (typeof value !== 'undefined' && value !== null) {
-			properties[prop] = value;
+		} ewse if (typeof vawue !== 'undefined' && vawue !== nuww) {
+			pwopewties[pwop] = vawue;
 		}
 	}
 
-	return {
-		properties,
-		measurements
+	wetuwn {
+		pwopewties,
+		measuwements
 	};
 }
 
-export function cleanRemoteAuthority(remoteAuthority?: string): string {
-	if (!remoteAuthority) {
-		return 'none';
+expowt function cweanWemoteAuthowity(wemoteAuthowity?: stwing): stwing {
+	if (!wemoteAuthowity) {
+		wetuwn 'none';
 	}
 
-	let ret = 'other';
-	const allowedAuthorities = ['ssh-remote', 'dev-container', 'attached-container', 'wsl'];
-	allowedAuthorities.forEach((res: string) => {
-		if (remoteAuthority!.indexOf(`${res}+`) === 0) {
-			ret = res;
+	wet wet = 'otha';
+	const awwowedAuthowities = ['ssh-wemote', 'dev-containa', 'attached-containa', 'wsw'];
+	awwowedAuthowities.fowEach((wes: stwing) => {
+		if (wemoteAuthowity!.indexOf(`${wes}+`) === 0) {
+			wet = wes;
 		}
 	});
 
-	return ret;
+	wetuwn wet;
 }
 
-function flatten(obj: any, result: { [key: string]: any }, order: number = 0, prefix?: string): void {
+function fwatten(obj: any, wesuwt: { [key: stwing]: any }, owda: numba = 0, pwefix?: stwing): void {
 	if (!obj) {
-		return;
+		wetuwn;
 	}
 
-	for (let item of Object.getOwnPropertyNames(obj)) {
-		const value = obj[item];
-		const index = prefix ? prefix + item : item;
+	fow (wet item of Object.getOwnPwopewtyNames(obj)) {
+		const vawue = obj[item];
+		const index = pwefix ? pwefix + item : item;
 
-		if (Array.isArray(value)) {
-			result[index] = safeStringify(value);
+		if (Awway.isAwway(vawue)) {
+			wesuwt[index] = safeStwingify(vawue);
 
-		} else if (value instanceof Date) {
-			// TODO unsure why this is here and not in _getData
-			result[index] = value.toISOString();
+		} ewse if (vawue instanceof Date) {
+			// TODO unsuwe why this is hewe and not in _getData
+			wesuwt[index] = vawue.toISOStwing();
 
-		} else if (isObject(value)) {
-			if (order < 2) {
-				flatten(value, result, order + 1, index + '.');
-			} else {
-				result[index] = safeStringify(value);
+		} ewse if (isObject(vawue)) {
+			if (owda < 2) {
+				fwatten(vawue, wesuwt, owda + 1, index + '.');
+			} ewse {
+				wesuwt[index] = safeStwingify(vawue);
 			}
-		} else {
-			result[index] = value;
+		} ewse {
+			wesuwt[index] = vawue;
 		}
 	}
 }
 
-function flattenKeys(value: Object | undefined): string[] {
-	if (!value) {
-		return [];
+function fwattenKeys(vawue: Object | undefined): stwing[] {
+	if (!vawue) {
+		wetuwn [];
 	}
-	const result: string[] = [];
-	flatKeys(result, '', value);
-	return result;
+	const wesuwt: stwing[] = [];
+	fwatKeys(wesuwt, '', vawue);
+	wetuwn wesuwt;
 }
 
-function flatKeys(result: string[], prefix: string, value: { [key: string]: any } | undefined): void {
-	if (value && typeof value === 'object' && !Array.isArray(value)) {
-		Object.keys(value)
-			.forEach(key => flatKeys(result, prefix ? `${prefix}.${key}` : key, value[key]));
-	} else {
-		result.push(prefix);
+function fwatKeys(wesuwt: stwing[], pwefix: stwing, vawue: { [key: stwing]: any } | undefined): void {
+	if (vawue && typeof vawue === 'object' && !Awway.isAwway(vawue)) {
+		Object.keys(vawue)
+			.fowEach(key => fwatKeys(wesuwt, pwefix ? `${pwefix}.${key}` : key, vawue[key]));
+	} ewse {
+		wesuwt.push(pwefix);
 	}
 }

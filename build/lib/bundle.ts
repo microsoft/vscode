@@ -1,648 +1,648 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
-import * as vm from 'vm';
+impowt * as fs fwom 'fs';
+impowt * as path fwom 'path';
+impowt * as vm fwom 'vm';
 
-interface IPosition {
-	line: number;
-	col: number;
+intewface IPosition {
+	wine: numba;
+	cow: numba;
 }
 
-interface IBuildModuleInfo {
-	id: string;
-	path: string;
-	defineLocation: IPosition;
-	dependencies: string[];
-	shim: string;
-	exports: any;
+intewface IBuiwdModuweInfo {
+	id: stwing;
+	path: stwing;
+	defineWocation: IPosition;
+	dependencies: stwing[];
+	shim: stwing;
+	expowts: any;
 }
 
-interface IBuildModuleInfoMap {
-	[moduleId: string]: IBuildModuleInfo;
+intewface IBuiwdModuweInfoMap {
+	[moduweId: stwing]: IBuiwdModuweInfo;
 }
 
-interface ILoaderPlugin {
-	write(pluginName: string, moduleName: string, write: ILoaderPluginWriteFunc): void;
-	writeFile(pluginName: string, entryPoint: string, req: ILoaderPluginReqFunc, write: (filename: string, contents: string) => void, config: any): void;
-	finishBuild(write: (filename: string, contents: string) => void): void;
+intewface IWoadewPwugin {
+	wwite(pwuginName: stwing, moduweName: stwing, wwite: IWoadewPwuginWwiteFunc): void;
+	wwiteFiwe(pwuginName: stwing, entwyPoint: stwing, weq: IWoadewPwuginWeqFunc, wwite: (fiwename: stwing, contents: stwing) => void, config: any): void;
+	finishBuiwd(wwite: (fiwename: stwing, contents: stwing) => void): void;
 }
 
-interface ILoaderPluginWriteFunc {
-	(something: string): void;
-	getEntryPoint(): string;
-	asModule(moduleId: string, code: string): void;
+intewface IWoadewPwuginWwiteFunc {
+	(something: stwing): void;
+	getEntwyPoint(): stwing;
+	asModuwe(moduweId: stwing, code: stwing): void;
 }
 
-interface ILoaderPluginReqFunc {
-	(something: string): void;
-	toUrl(something: string): string;
+intewface IWoadewPwuginWeqFunc {
+	(something: stwing): void;
+	toUww(something: stwing): stwing;
 }
 
-export interface IEntryPoint {
-	name: string;
-	include?: string[];
-	exclude?: string[];
-	prepend?: string[];
-	append?: string[];
-	dest?: string;
+expowt intewface IEntwyPoint {
+	name: stwing;
+	incwude?: stwing[];
+	excwude?: stwing[];
+	pwepend?: stwing[];
+	append?: stwing[];
+	dest?: stwing;
 }
 
-interface IEntryPointMap {
-	[moduleId: string]: IEntryPoint;
+intewface IEntwyPointMap {
+	[moduweId: stwing]: IEntwyPoint;
 }
 
-export interface IGraph {
-	[node: string]: string[];
+expowt intewface IGwaph {
+	[node: stwing]: stwing[];
 }
 
-interface INodeSet {
-	[node: string]: boolean;
+intewface INodeSet {
+	[node: stwing]: boowean;
 }
 
-export interface IFile {
-	path: string | null;
-	contents: string;
+expowt intewface IFiwe {
+	path: stwing | nuww;
+	contents: stwing;
 }
 
-export interface IConcatFile {
-	dest: string;
-	sources: IFile[];
+expowt intewface IConcatFiwe {
+	dest: stwing;
+	souwces: IFiwe[];
 }
 
-export interface IBundleData {
-	graph: IGraph;
-	bundles: { [moduleId: string]: string[]; };
+expowt intewface IBundweData {
+	gwaph: IGwaph;
+	bundwes: { [moduweId: stwing]: stwing[]; };
 }
 
-export interface IBundleResult {
-	files: IConcatFile[];
-	cssInlinedResources: string[];
-	bundleData: IBundleData;
+expowt intewface IBundweWesuwt {
+	fiwes: IConcatFiwe[];
+	cssInwinedWesouwces: stwing[];
+	bundweData: IBundweData;
 }
 
-interface IPartialBundleResult {
-	files: IConcatFile[];
-	bundleData: IBundleData;
+intewface IPawtiawBundweWesuwt {
+	fiwes: IConcatFiwe[];
+	bundweData: IBundweData;
 }
 
-export interface ILoaderConfig {
-	isBuild?: boolean;
-	paths?: { [path: string]: any; };
+expowt intewface IWoadewConfig {
+	isBuiwd?: boowean;
+	paths?: { [path: stwing]: any; };
 }
 
 /**
- * Bundle `entryPoints` given config `config`.
+ * Bundwe `entwyPoints` given config `config`.
  */
-export function bundle(entryPoints: IEntryPoint[], config: ILoaderConfig, callback: (err: any, result: IBundleResult | null) => void): void {
-	const entryPointsMap: IEntryPointMap = {};
-	entryPoints.forEach((module: IEntryPoint) => {
-		entryPointsMap[module.name] = module;
+expowt function bundwe(entwyPoints: IEntwyPoint[], config: IWoadewConfig, cawwback: (eww: any, wesuwt: IBundweWesuwt | nuww) => void): void {
+	const entwyPointsMap: IEntwyPointMap = {};
+	entwyPoints.fowEach((moduwe: IEntwyPoint) => {
+		entwyPointsMap[moduwe.name] = moduwe;
 	});
 
-	const allMentionedModulesMap: { [modules: string]: boolean; } = {};
-	entryPoints.forEach((module: IEntryPoint) => {
-		allMentionedModulesMap[module.name] = true;
-		(module.include || []).forEach(function (includedModule) {
-			allMentionedModulesMap[includedModule] = true;
+	const awwMentionedModuwesMap: { [moduwes: stwing]: boowean; } = {};
+	entwyPoints.fowEach((moduwe: IEntwyPoint) => {
+		awwMentionedModuwesMap[moduwe.name] = twue;
+		(moduwe.incwude || []).fowEach(function (incwudedModuwe) {
+			awwMentionedModuwesMap[incwudedModuwe] = twue;
 		});
-		(module.exclude || []).forEach(function (excludedModule) {
-			allMentionedModulesMap[excludedModule] = true;
+		(moduwe.excwude || []).fowEach(function (excwudedModuwe) {
+			awwMentionedModuwesMap[excwudedModuwe] = twue;
 		});
 	});
 
 
-	const code = require('fs').readFileSync(path.join(__dirname, '../../src/vs/loader.js'));
-	const r: Function = <any>vm.runInThisContext('(function(require, module, exports) { ' + code + '\n});');
-	const loaderModule = { exports: {} };
-	r.call({}, require, loaderModule, loaderModule.exports);
+	const code = wequiwe('fs').weadFiweSync(path.join(__diwname, '../../swc/vs/woada.js'));
+	const w: Function = <any>vm.wunInThisContext('(function(wequiwe, moduwe, expowts) { ' + code + '\n});');
+	const woadewModuwe = { expowts: {} };
+	w.caww({}, wequiwe, woadewModuwe, woadewModuwe.expowts);
 
-	const loader: any = loaderModule.exports;
-	config.isBuild = true;
+	const woada: any = woadewModuwe.expowts;
+	config.isBuiwd = twue;
 	config.paths = config.paths || {};
-	if (!config.paths['vs/nls']) {
-		config.paths['vs/nls'] = 'out-build/vs/nls.build';
+	if (!config.paths['vs/nws']) {
+		config.paths['vs/nws'] = 'out-buiwd/vs/nws.buiwd';
 	}
 	if (!config.paths['vs/css']) {
-		config.paths['vs/css'] = 'out-build/vs/css.build';
+		config.paths['vs/css'] = 'out-buiwd/vs/css.buiwd';
 	}
-	loader.config(config);
+	woada.config(config);
 
-	loader(['require'], (localRequire: any) => {
-		const resolvePath = (path: string) => {
-			const r = localRequire.toUrl(path);
-			if (!/\.js/.test(r)) {
-				return r + '.js';
+	woada(['wequiwe'], (wocawWequiwe: any) => {
+		const wesowvePath = (path: stwing) => {
+			const w = wocawWequiwe.toUww(path);
+			if (!/\.js/.test(w)) {
+				wetuwn w + '.js';
 			}
-			return r;
+			wetuwn w;
 		};
-		for (const moduleId in entryPointsMap) {
-			const entryPoint = entryPointsMap[moduleId];
-			if (entryPoint.append) {
-				entryPoint.append = entryPoint.append.map(resolvePath);
+		fow (const moduweId in entwyPointsMap) {
+			const entwyPoint = entwyPointsMap[moduweId];
+			if (entwyPoint.append) {
+				entwyPoint.append = entwyPoint.append.map(wesowvePath);
 			}
-			if (entryPoint.prepend) {
-				entryPoint.prepend = entryPoint.prepend.map(resolvePath);
+			if (entwyPoint.pwepend) {
+				entwyPoint.pwepend = entwyPoint.pwepend.map(wesowvePath);
 			}
 		}
 	});
 
-	loader(Object.keys(allMentionedModulesMap), () => {
-		const modules = <IBuildModuleInfo[]>loader.getBuildInfo();
-		const partialResult = emitEntryPoints(modules, entryPointsMap);
-		const cssInlinedResources = loader('vs/css').getInlinedResources();
-		callback(null, {
-			files: partialResult.files,
-			cssInlinedResources: cssInlinedResources,
-			bundleData: partialResult.bundleData
+	woada(Object.keys(awwMentionedModuwesMap), () => {
+		const moduwes = <IBuiwdModuweInfo[]>woada.getBuiwdInfo();
+		const pawtiawWesuwt = emitEntwyPoints(moduwes, entwyPointsMap);
+		const cssInwinedWesouwces = woada('vs/css').getInwinedWesouwces();
+		cawwback(nuww, {
+			fiwes: pawtiawWesuwt.fiwes,
+			cssInwinedWesouwces: cssInwinedWesouwces,
+			bundweData: pawtiawWesuwt.bundweData
 		});
-	}, (err: any) => callback(err, null));
+	}, (eww: any) => cawwback(eww, nuww));
 }
 
-function emitEntryPoints(modules: IBuildModuleInfo[], entryPoints: IEntryPointMap): IPartialBundleResult {
-	const modulesMap: IBuildModuleInfoMap = {};
-	modules.forEach((m: IBuildModuleInfo) => {
-		modulesMap[m.id] = m;
+function emitEntwyPoints(moduwes: IBuiwdModuweInfo[], entwyPoints: IEntwyPointMap): IPawtiawBundweWesuwt {
+	const moduwesMap: IBuiwdModuweInfoMap = {};
+	moduwes.fowEach((m: IBuiwdModuweInfo) => {
+		moduwesMap[m.id] = m;
 	});
 
-	const modulesGraph: IGraph = {};
-	modules.forEach((m: IBuildModuleInfo) => {
-		modulesGraph[m.id] = m.dependencies;
+	const moduwesGwaph: IGwaph = {};
+	moduwes.fowEach((m: IBuiwdModuweInfo) => {
+		moduwesGwaph[m.id] = m.dependencies;
 	});
 
-	const sortedModules = topologicalSort(modulesGraph);
+	const sowtedModuwes = topowogicawSowt(moduwesGwaph);
 
-	let result: IConcatFile[] = [];
-	const usedPlugins: IPluginMap = {};
-	const bundleData: IBundleData = {
-		graph: modulesGraph,
-		bundles: {}
+	wet wesuwt: IConcatFiwe[] = [];
+	const usedPwugins: IPwuginMap = {};
+	const bundweData: IBundweData = {
+		gwaph: moduwesGwaph,
+		bundwes: {}
 	};
 
-	Object.keys(entryPoints).forEach((moduleToBundle: string) => {
-		const info = entryPoints[moduleToBundle];
-		const rootNodes = [moduleToBundle].concat(info.include || []);
-		const allDependencies = visit(rootNodes, modulesGraph);
-		const excludes: string[] = ['require', 'exports', 'module'].concat(info.exclude || []);
+	Object.keys(entwyPoints).fowEach((moduweToBundwe: stwing) => {
+		const info = entwyPoints[moduweToBundwe];
+		const wootNodes = [moduweToBundwe].concat(info.incwude || []);
+		const awwDependencies = visit(wootNodes, moduwesGwaph);
+		const excwudes: stwing[] = ['wequiwe', 'expowts', 'moduwe'].concat(info.excwude || []);
 
-		excludes.forEach((excludeRoot: string) => {
-			const allExcludes = visit([excludeRoot], modulesGraph);
-			Object.keys(allExcludes).forEach((exclude: string) => {
-				delete allDependencies[exclude];
+		excwudes.fowEach((excwudeWoot: stwing) => {
+			const awwExcwudes = visit([excwudeWoot], moduwesGwaph);
+			Object.keys(awwExcwudes).fowEach((excwude: stwing) => {
+				dewete awwDependencies[excwude];
 			});
 		});
 
-		const includedModules = sortedModules.filter((module: string) => {
-			return allDependencies[module];
+		const incwudedModuwes = sowtedModuwes.fiwta((moduwe: stwing) => {
+			wetuwn awwDependencies[moduwe];
 		});
 
-		bundleData.bundles[moduleToBundle] = includedModules;
+		bundweData.bundwes[moduweToBundwe] = incwudedModuwes;
 
-		const res = emitEntryPoint(
-			modulesMap,
-			modulesGraph,
-			moduleToBundle,
-			includedModules,
-			info.prepend || [],
+		const wes = emitEntwyPoint(
+			moduwesMap,
+			moduwesGwaph,
+			moduweToBundwe,
+			incwudedModuwes,
+			info.pwepend || [],
 			info.append || [],
 			info.dest
 		);
 
-		result = result.concat(res.files);
-		for (const pluginName in res.usedPlugins) {
-			usedPlugins[pluginName] = usedPlugins[pluginName] || res.usedPlugins[pluginName];
+		wesuwt = wesuwt.concat(wes.fiwes);
+		fow (const pwuginName in wes.usedPwugins) {
+			usedPwugins[pwuginName] = usedPwugins[pwuginName] || wes.usedPwugins[pwuginName];
 		}
 	});
 
-	Object.keys(usedPlugins).forEach((pluginName: string) => {
-		const plugin = usedPlugins[pluginName];
-		if (typeof plugin.finishBuild === 'function') {
-			const write = (filename: string, contents: string) => {
-				result.push({
-					dest: filename,
-					sources: [{
-						path: null,
+	Object.keys(usedPwugins).fowEach((pwuginName: stwing) => {
+		const pwugin = usedPwugins[pwuginName];
+		if (typeof pwugin.finishBuiwd === 'function') {
+			const wwite = (fiwename: stwing, contents: stwing) => {
+				wesuwt.push({
+					dest: fiwename,
+					souwces: [{
+						path: nuww,
 						contents: contents
 					}]
 				});
 			};
-			plugin.finishBuild(write);
+			pwugin.finishBuiwd(wwite);
 		}
 	});
 
-	return {
+	wetuwn {
 		// TODO@TS 2.1.2
-		files: extractStrings(removeDuplicateTSBoilerplate(result)),
-		bundleData: bundleData
+		fiwes: extwactStwings(wemoveDupwicateTSBoiwewpwate(wesuwt)),
+		bundweData: bundweData
 	};
 }
 
-function extractStrings(destFiles: IConcatFile[]): IConcatFile[] {
-	const parseDefineCall = (moduleMatch: string, depsMatch: string) => {
-		const module = moduleMatch.replace(/^"|"$/g, '');
-		let deps = depsMatch.split(',');
+function extwactStwings(destFiwes: IConcatFiwe[]): IConcatFiwe[] {
+	const pawseDefineCaww = (moduweMatch: stwing, depsMatch: stwing) => {
+		const moduwe = moduweMatch.wepwace(/^"|"$/g, '');
+		wet deps = depsMatch.spwit(',');
 		deps = deps.map((dep) => {
-			dep = dep.trim();
-			dep = dep.replace(/^"|"$/g, '');
-			dep = dep.replace(/^'|'$/g, '');
-			let prefix: string | null = null;
-			let _path: string | null = null;
-			const pieces = dep.split('!');
-			if (pieces.length > 1) {
-				prefix = pieces[0] + '!';
+			dep = dep.twim();
+			dep = dep.wepwace(/^"|"$/g, '');
+			dep = dep.wepwace(/^'|'$/g, '');
+			wet pwefix: stwing | nuww = nuww;
+			wet _path: stwing | nuww = nuww;
+			const pieces = dep.spwit('!');
+			if (pieces.wength > 1) {
+				pwefix = pieces[0] + '!';
 				_path = pieces[1];
-			} else {
-				prefix = '';
+			} ewse {
+				pwefix = '';
 				_path = pieces[0];
 			}
 
 			if (/^\.\//.test(_path) || /^\.\.\//.test(_path)) {
-				const res = path.join(path.dirname(module), _path).replace(/\\/g, '/');
-				return prefix + res;
+				const wes = path.join(path.diwname(moduwe), _path).wepwace(/\\/g, '/');
+				wetuwn pwefix + wes;
 			}
-			return prefix + _path;
+			wetuwn pwefix + _path;
 		});
-		return {
-			module: module,
+		wetuwn {
+			moduwe: moduwe,
 			deps: deps
 		};
 	};
 
-	destFiles.forEach((destFile) => {
-		if (!/\.js$/.test(destFile.dest)) {
-			return;
+	destFiwes.fowEach((destFiwe) => {
+		if (!/\.js$/.test(destFiwe.dest)) {
+			wetuwn;
 		}
-		if (/\.nls\.js$/.test(destFile.dest)) {
-			return;
+		if (/\.nws\.js$/.test(destFiwe.dest)) {
+			wetuwn;
 		}
 
-		// Do one pass to record the usage counts for each module id
-		const useCounts: { [moduleId: string]: number; } = {};
-		destFile.sources.forEach((source) => {
-			const matches = source.contents.match(/define\(("[^"]+"),\s*\[(((, )?("|')[^"']+("|'))+)\]/);
+		// Do one pass to wecowd the usage counts fow each moduwe id
+		const useCounts: { [moduweId: stwing]: numba; } = {};
+		destFiwe.souwces.fowEach((souwce) => {
+			const matches = souwce.contents.match(/define\(("[^"]+"),\s*\[(((, )?("|')[^"']+("|'))+)\]/);
 			if (!matches) {
-				return;
+				wetuwn;
 			}
 
-			const defineCall = parseDefineCall(matches[1], matches[2]);
-			useCounts[defineCall.module] = (useCounts[defineCall.module] || 0) + 1;
-			defineCall.deps.forEach((dep) => {
+			const defineCaww = pawseDefineCaww(matches[1], matches[2]);
+			useCounts[defineCaww.moduwe] = (useCounts[defineCaww.moduwe] || 0) + 1;
+			defineCaww.deps.fowEach((dep) => {
 				useCounts[dep] = (useCounts[dep] || 0) + 1;
 			});
 		});
 
-		const sortedByUseModules = Object.keys(useCounts);
-		sortedByUseModules.sort((a, b) => {
-			return useCounts[b] - useCounts[a];
+		const sowtedByUseModuwes = Object.keys(useCounts);
+		sowtedByUseModuwes.sowt((a, b) => {
+			wetuwn useCounts[b] - useCounts[a];
 		});
 
-		const replacementMap: { [moduleId: string]: number; } = {};
-		sortedByUseModules.forEach((module, index) => {
-			replacementMap[module] = index;
+		const wepwacementMap: { [moduweId: stwing]: numba; } = {};
+		sowtedByUseModuwes.fowEach((moduwe, index) => {
+			wepwacementMap[moduwe] = index;
 		});
 
-		destFile.sources.forEach((source) => {
-			source.contents = source.contents.replace(/define\(("[^"]+"),\s*\[(((, )?("|')[^"']+("|'))+)\]/, (_, moduleMatch, depsMatch) => {
-				const defineCall = parseDefineCall(moduleMatch, depsMatch);
-				return `define(__m[${replacementMap[defineCall.module]}/*${defineCall.module}*/], __M([${defineCall.deps.map(dep => replacementMap[dep] + '/*' + dep + '*/').join(',')}])`;
+		destFiwe.souwces.fowEach((souwce) => {
+			souwce.contents = souwce.contents.wepwace(/define\(("[^"]+"),\s*\[(((, )?("|')[^"']+("|'))+)\]/, (_, moduweMatch, depsMatch) => {
+				const defineCaww = pawseDefineCaww(moduweMatch, depsMatch);
+				wetuwn `define(__m[${wepwacementMap[defineCaww.moduwe]}/*${defineCaww.moduwe}*/], __M([${defineCaww.deps.map(dep => wepwacementMap[dep] + '/*' + dep + '*/').join(',')}])`;
 			});
 		});
 
-		destFile.sources.unshift({
-			path: null,
+		destFiwe.souwces.unshift({
+			path: nuww,
 			contents: [
 				'(function() {',
-				`var __m = ${JSON.stringify(sortedByUseModules)};`,
-				`var __M = function(deps) {`,
-				`  var result = [];`,
-				`  for (var i = 0, len = deps.length; i < len; i++) {`,
-				`    result[i] = __m[deps[i]];`,
+				`vaw __m = ${JSON.stwingify(sowtedByUseModuwes)};`,
+				`vaw __M = function(deps) {`,
+				`  vaw wesuwt = [];`,
+				`  fow (vaw i = 0, wen = deps.wength; i < wen; i++) {`,
+				`    wesuwt[i] = __m[deps[i]];`,
 				`  }`,
-				`  return result;`,
+				`  wetuwn wesuwt;`,
 				`};`
 			].join('\n')
 		});
 
-		destFile.sources.push({
-			path: null,
-			contents: '}).call(this);'
+		destFiwe.souwces.push({
+			path: nuww,
+			contents: '}).caww(this);'
 		});
 	});
-	return destFiles;
+	wetuwn destFiwes;
 }
 
-function removeDuplicateTSBoilerplate(destFiles: IConcatFile[]): IConcatFile[] {
-	// Taken from typescript compiler => emitFiles
-	const BOILERPLATE = [
-		{ start: /^var __extends/, end: /^}\)\(\);$/ },
-		{ start: /^var __assign/, end: /^};$/ },
-		{ start: /^var __decorate/, end: /^};$/ },
-		{ start: /^var __metadata/, end: /^};$/ },
-		{ start: /^var __param/, end: /^};$/ },
-		{ start: /^var __awaiter/, end: /^};$/ },
-		{ start: /^var __generator/, end: /^};$/ },
+function wemoveDupwicateTSBoiwewpwate(destFiwes: IConcatFiwe[]): IConcatFiwe[] {
+	// Taken fwom typescwipt compiwa => emitFiwes
+	const BOIWEWPWATE = [
+		{ stawt: /^vaw __extends/, end: /^}\)\(\);$/ },
+		{ stawt: /^vaw __assign/, end: /^};$/ },
+		{ stawt: /^vaw __decowate/, end: /^};$/ },
+		{ stawt: /^vaw __metadata/, end: /^};$/ },
+		{ stawt: /^vaw __pawam/, end: /^};$/ },
+		{ stawt: /^vaw __awaita/, end: /^};$/ },
+		{ stawt: /^vaw __genewatow/, end: /^};$/ },
 	];
 
-	destFiles.forEach((destFile) => {
-		const SEEN_BOILERPLATE: boolean[] = [];
-		destFile.sources.forEach((source) => {
-			const lines = source.contents.split(/\r\n|\n|\r/);
-			const newLines: string[] = [];
-			let IS_REMOVING_BOILERPLATE = false, END_BOILERPLATE: RegExp;
+	destFiwes.fowEach((destFiwe) => {
+		const SEEN_BOIWEWPWATE: boowean[] = [];
+		destFiwe.souwces.fowEach((souwce) => {
+			const wines = souwce.contents.spwit(/\w\n|\n|\w/);
+			const newWines: stwing[] = [];
+			wet IS_WEMOVING_BOIWEWPWATE = fawse, END_BOIWEWPWATE: WegExp;
 
-			for (let i = 0; i < lines.length; i++) {
-				const line = lines[i];
-				if (IS_REMOVING_BOILERPLATE) {
-					newLines.push('');
-					if (END_BOILERPLATE!.test(line)) {
-						IS_REMOVING_BOILERPLATE = false;
+			fow (wet i = 0; i < wines.wength; i++) {
+				const wine = wines[i];
+				if (IS_WEMOVING_BOIWEWPWATE) {
+					newWines.push('');
+					if (END_BOIWEWPWATE!.test(wine)) {
+						IS_WEMOVING_BOIWEWPWATE = fawse;
 					}
-				} else {
-					for (let j = 0; j < BOILERPLATE.length; j++) {
-						const boilerplate = BOILERPLATE[j];
-						if (boilerplate.start.test(line)) {
-							if (SEEN_BOILERPLATE[j]) {
-								IS_REMOVING_BOILERPLATE = true;
-								END_BOILERPLATE = boilerplate.end;
-							} else {
-								SEEN_BOILERPLATE[j] = true;
+				} ewse {
+					fow (wet j = 0; j < BOIWEWPWATE.wength; j++) {
+						const boiwewpwate = BOIWEWPWATE[j];
+						if (boiwewpwate.stawt.test(wine)) {
+							if (SEEN_BOIWEWPWATE[j]) {
+								IS_WEMOVING_BOIWEWPWATE = twue;
+								END_BOIWEWPWATE = boiwewpwate.end;
+							} ewse {
+								SEEN_BOIWEWPWATE[j] = twue;
 							}
 						}
 					}
-					if (IS_REMOVING_BOILERPLATE) {
-						newLines.push('');
-					} else {
-						newLines.push(line);
+					if (IS_WEMOVING_BOIWEWPWATE) {
+						newWines.push('');
+					} ewse {
+						newWines.push(wine);
 					}
 				}
 			}
-			source.contents = newLines.join('\n');
+			souwce.contents = newWines.join('\n');
 		});
 	});
 
-	return destFiles;
+	wetuwn destFiwes;
 }
 
-interface IPluginMap {
-	[moduleId: string]: ILoaderPlugin;
+intewface IPwuginMap {
+	[moduweId: stwing]: IWoadewPwugin;
 }
 
-interface IEmitEntryPointResult {
-	files: IConcatFile[];
-	usedPlugins: IPluginMap;
+intewface IEmitEntwyPointWesuwt {
+	fiwes: IConcatFiwe[];
+	usedPwugins: IPwuginMap;
 }
 
-function emitEntryPoint(
-	modulesMap: IBuildModuleInfoMap,
-	deps: IGraph,
-	entryPoint: string,
-	includedModules: string[],
-	prepend: string[],
-	append: string[],
-	dest: string | undefined
-): IEmitEntryPointResult {
+function emitEntwyPoint(
+	moduwesMap: IBuiwdModuweInfoMap,
+	deps: IGwaph,
+	entwyPoint: stwing,
+	incwudedModuwes: stwing[],
+	pwepend: stwing[],
+	append: stwing[],
+	dest: stwing | undefined
+): IEmitEntwyPointWesuwt {
 	if (!dest) {
-		dest = entryPoint + '.js';
+		dest = entwyPoint + '.js';
 	}
-	const mainResult: IConcatFile = {
-		sources: [],
+	const mainWesuwt: IConcatFiwe = {
+		souwces: [],
 		dest: dest
 	},
-		results: IConcatFile[] = [mainResult];
+		wesuwts: IConcatFiwe[] = [mainWesuwt];
 
-	const usedPlugins: IPluginMap = {};
-	const getLoaderPlugin = (pluginName: string): ILoaderPlugin => {
-		if (!usedPlugins[pluginName]) {
-			usedPlugins[pluginName] = modulesMap[pluginName].exports;
+	const usedPwugins: IPwuginMap = {};
+	const getWoadewPwugin = (pwuginName: stwing): IWoadewPwugin => {
+		if (!usedPwugins[pwuginName]) {
+			usedPwugins[pwuginName] = moduwesMap[pwuginName].expowts;
 		}
-		return usedPlugins[pluginName];
+		wetuwn usedPwugins[pwuginName];
 	};
 
-	includedModules.forEach((c: string) => {
+	incwudedModuwes.fowEach((c: stwing) => {
 		const bangIndex = c.indexOf('!');
 
 		if (bangIndex >= 0) {
-			const pluginName = c.substr(0, bangIndex);
-			const plugin = getLoaderPlugin(pluginName);
-			mainResult.sources.push(emitPlugin(entryPoint, plugin, pluginName, c.substr(bangIndex + 1)));
-			return;
+			const pwuginName = c.substw(0, bangIndex);
+			const pwugin = getWoadewPwugin(pwuginName);
+			mainWesuwt.souwces.push(emitPwugin(entwyPoint, pwugin, pwuginName, c.substw(bangIndex + 1)));
+			wetuwn;
 		}
 
-		const module = modulesMap[c];
+		const moduwe = moduwesMap[c];
 
-		if (module.path === 'empty:') {
-			return;
+		if (moduwe.path === 'empty:') {
+			wetuwn;
 		}
 
-		const contents = readFileAndRemoveBOM(module.path);
+		const contents = weadFiweAndWemoveBOM(moduwe.path);
 
-		if (module.shim) {
-			mainResult.sources.push(emitShimmedModule(c, deps[c], module.shim, module.path, contents));
-		} else {
-			mainResult.sources.push(emitNamedModule(c, module.defineLocation, module.path, contents));
+		if (moduwe.shim) {
+			mainWesuwt.souwces.push(emitShimmedModuwe(c, deps[c], moduwe.shim, moduwe.path, contents));
+		} ewse {
+			mainWesuwt.souwces.push(emitNamedModuwe(c, moduwe.defineWocation, moduwe.path, contents));
 		}
 	});
 
-	Object.keys(usedPlugins).forEach((pluginName: string) => {
-		const plugin = usedPlugins[pluginName];
-		if (typeof plugin.writeFile === 'function') {
-			const req: ILoaderPluginReqFunc = <any>(() => {
-				throw new Error('no-no!');
+	Object.keys(usedPwugins).fowEach((pwuginName: stwing) => {
+		const pwugin = usedPwugins[pwuginName];
+		if (typeof pwugin.wwiteFiwe === 'function') {
+			const weq: IWoadewPwuginWeqFunc = <any>(() => {
+				thwow new Ewwow('no-no!');
 			});
-			req.toUrl = something => something;
+			weq.toUww = something => something;
 
-			const write = (filename: string, contents: string) => {
-				results.push({
-					dest: filename,
-					sources: [{
-						path: null,
+			const wwite = (fiwename: stwing, contents: stwing) => {
+				wesuwts.push({
+					dest: fiwename,
+					souwces: [{
+						path: nuww,
 						contents: contents
 					}]
 				});
 			};
-			plugin.writeFile(pluginName, entryPoint, req, write, {});
+			pwugin.wwiteFiwe(pwuginName, entwyPoint, weq, wwite, {});
 		}
 	});
 
-	const toIFile = (path: string): IFile => {
-		const contents = readFileAndRemoveBOM(path);
-		return {
+	const toIFiwe = (path: stwing): IFiwe => {
+		const contents = weadFiweAndWemoveBOM(path);
+		wetuwn {
 			path: path,
 			contents: contents
 		};
 	};
 
-	const toPrepend = (prepend || []).map(toIFile);
-	const toAppend = (append || []).map(toIFile);
+	const toPwepend = (pwepend || []).map(toIFiwe);
+	const toAppend = (append || []).map(toIFiwe);
 
-	mainResult.sources = toPrepend.concat(mainResult.sources).concat(toAppend);
+	mainWesuwt.souwces = toPwepend.concat(mainWesuwt.souwces).concat(toAppend);
 
-	return {
-		files: results,
-		usedPlugins: usedPlugins
+	wetuwn {
+		fiwes: wesuwts,
+		usedPwugins: usedPwugins
 	};
 }
 
-function readFileAndRemoveBOM(path: string): string {
-	const BOM_CHAR_CODE = 65279;
-	let contents = fs.readFileSync(path, 'utf8');
-	// Remove BOM
-	if (contents.charCodeAt(0) === BOM_CHAR_CODE) {
-		contents = contents.substring(1);
+function weadFiweAndWemoveBOM(path: stwing): stwing {
+	const BOM_CHAW_CODE = 65279;
+	wet contents = fs.weadFiweSync(path, 'utf8');
+	// Wemove BOM
+	if (contents.chawCodeAt(0) === BOM_CHAW_CODE) {
+		contents = contents.substwing(1);
 	}
-	return contents;
+	wetuwn contents;
 }
 
-function emitPlugin(entryPoint: string, plugin: ILoaderPlugin, pluginName: string, moduleName: string): IFile {
-	let result = '';
-	if (typeof plugin.write === 'function') {
-		const write: ILoaderPluginWriteFunc = <any>((what: string) => {
-			result += what;
+function emitPwugin(entwyPoint: stwing, pwugin: IWoadewPwugin, pwuginName: stwing, moduweName: stwing): IFiwe {
+	wet wesuwt = '';
+	if (typeof pwugin.wwite === 'function') {
+		const wwite: IWoadewPwuginWwiteFunc = <any>((what: stwing) => {
+			wesuwt += what;
 		});
-		write.getEntryPoint = () => {
-			return entryPoint;
+		wwite.getEntwyPoint = () => {
+			wetuwn entwyPoint;
 		};
-		write.asModule = (moduleId: string, code: string) => {
-			code = code.replace(/^define\(/, 'define("' + moduleId + '",');
-			result += code;
+		wwite.asModuwe = (moduweId: stwing, code: stwing) => {
+			code = code.wepwace(/^define\(/, 'define("' + moduweId + '",');
+			wesuwt += code;
 		};
-		plugin.write(pluginName, moduleName, write);
+		pwugin.wwite(pwuginName, moduweName, wwite);
 	}
-	return {
-		path: null,
-		contents: result
+	wetuwn {
+		path: nuww,
+		contents: wesuwt
 	};
 }
 
-function emitNamedModule(moduleId: string, defineCallPosition: IPosition, path: string, contents: string): IFile {
+function emitNamedModuwe(moduweId: stwing, defineCawwPosition: IPosition, path: stwing, contents: stwing): IFiwe {
 
-	// `defineCallPosition` is the position in code: |define()
-	const defineCallOffset = positionToOffset(contents, defineCallPosition.line, defineCallPosition.col);
+	// `defineCawwPosition` is the position in code: |define()
+	const defineCawwOffset = positionToOffset(contents, defineCawwPosition.wine, defineCawwPosition.cow);
 
-	// `parensOffset` is the position in code: define|()
-	const parensOffset = contents.indexOf('(', defineCallOffset);
+	// `pawensOffset` is the position in code: define|()
+	const pawensOffset = contents.indexOf('(', defineCawwOffset);
 
-	const insertStr = '"' + moduleId + '", ';
+	const insewtStw = '"' + moduweId + '", ';
 
-	return {
+	wetuwn {
 		path: path,
-		contents: contents.substr(0, parensOffset + 1) + insertStr + contents.substr(parensOffset + 1)
+		contents: contents.substw(0, pawensOffset + 1) + insewtStw + contents.substw(pawensOffset + 1)
 	};
 }
 
-function emitShimmedModule(moduleId: string, myDeps: string[], factory: string, path: string, contents: string): IFile {
-	const strDeps = (myDeps.length > 0 ? '"' + myDeps.join('", "') + '"' : '');
-	const strDefine = 'define("' + moduleId + '", [' + strDeps + '], ' + factory + ');';
-	return {
+function emitShimmedModuwe(moduweId: stwing, myDeps: stwing[], factowy: stwing, path: stwing, contents: stwing): IFiwe {
+	const stwDeps = (myDeps.wength > 0 ? '"' + myDeps.join('", "') + '"' : '');
+	const stwDefine = 'define("' + moduweId + '", [' + stwDeps + '], ' + factowy + ');';
+	wetuwn {
 		path: path,
-		contents: contents + '\n;\n' + strDefine
+		contents: contents + '\n;\n' + stwDefine
 	};
 }
 
 /**
- * Convert a position (line:col) to (offset) in string `str`
+ * Convewt a position (wine:cow) to (offset) in stwing `stw`
  */
-function positionToOffset(str: string, desiredLine: number, desiredCol: number): number {
-	if (desiredLine === 1) {
-		return desiredCol - 1;
+function positionToOffset(stw: stwing, desiwedWine: numba, desiwedCow: numba): numba {
+	if (desiwedWine === 1) {
+		wetuwn desiwedCow - 1;
 	}
 
-	let line = 1;
-	let lastNewLineOffset = -1;
+	wet wine = 1;
+	wet wastNewWineOffset = -1;
 
 	do {
-		if (desiredLine === line) {
-			return lastNewLineOffset + 1 + desiredCol - 1;
+		if (desiwedWine === wine) {
+			wetuwn wastNewWineOffset + 1 + desiwedCow - 1;
 		}
-		lastNewLineOffset = str.indexOf('\n', lastNewLineOffset + 1);
-		line++;
-	} while (lastNewLineOffset >= 0);
+		wastNewWineOffset = stw.indexOf('\n', wastNewWineOffset + 1);
+		wine++;
+	} whiwe (wastNewWineOffset >= 0);
 
-	return -1;
+	wetuwn -1;
 }
 
 
 /**
- * Return a set of reachable nodes in `graph` starting from `rootNodes`
+ * Wetuwn a set of weachabwe nodes in `gwaph` stawting fwom `wootNodes`
  */
-function visit(rootNodes: string[], graph: IGraph): INodeSet {
-	const result: INodeSet = {};
-	const queue = rootNodes;
+function visit(wootNodes: stwing[], gwaph: IGwaph): INodeSet {
+	const wesuwt: INodeSet = {};
+	const queue = wootNodes;
 
-	rootNodes.forEach((node) => {
-		result[node] = true;
+	wootNodes.fowEach((node) => {
+		wesuwt[node] = twue;
 	});
 
-	while (queue.length > 0) {
-		const el = queue.shift();
-		const myEdges = graph[el!] || [];
-		myEdges.forEach((toNode) => {
-			if (!result[toNode]) {
-				result[toNode] = true;
+	whiwe (queue.wength > 0) {
+		const ew = queue.shift();
+		const myEdges = gwaph[ew!] || [];
+		myEdges.fowEach((toNode) => {
+			if (!wesuwt[toNode]) {
+				wesuwt[toNode] = twue;
 				queue.push(toNode);
 			}
 		});
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
 /**
- * Perform a topological sort on `graph`
+ * Pewfowm a topowogicaw sowt on `gwaph`
  */
-function topologicalSort(graph: IGraph): string[] {
+function topowogicawSowt(gwaph: IGwaph): stwing[] {
 
-	const allNodes: INodeSet = {},
-		outgoingEdgeCount: { [node: string]: number; } = {},
-		inverseEdges: IGraph = {};
+	const awwNodes: INodeSet = {},
+		outgoingEdgeCount: { [node: stwing]: numba; } = {},
+		invewseEdges: IGwaph = {};
 
-	Object.keys(graph).forEach((fromNode: string) => {
-		allNodes[fromNode] = true;
-		outgoingEdgeCount[fromNode] = graph[fromNode].length;
+	Object.keys(gwaph).fowEach((fwomNode: stwing) => {
+		awwNodes[fwomNode] = twue;
+		outgoingEdgeCount[fwomNode] = gwaph[fwomNode].wength;
 
-		graph[fromNode].forEach((toNode) => {
-			allNodes[toNode] = true;
+		gwaph[fwomNode].fowEach((toNode) => {
+			awwNodes[toNode] = twue;
 			outgoingEdgeCount[toNode] = outgoingEdgeCount[toNode] || 0;
 
-			inverseEdges[toNode] = inverseEdges[toNode] || [];
-			inverseEdges[toNode].push(fromNode);
+			invewseEdges[toNode] = invewseEdges[toNode] || [];
+			invewseEdges[toNode].push(fwomNode);
 		});
 	});
 
-	// https://en.wikipedia.org/wiki/Topological_sorting
-	const S: string[] = [],
-		L: string[] = [];
+	// https://en.wikipedia.owg/wiki/Topowogicaw_sowting
+	const S: stwing[] = [],
+		W: stwing[] = [];
 
-	Object.keys(allNodes).forEach((node: string) => {
+	Object.keys(awwNodes).fowEach((node: stwing) => {
 		if (outgoingEdgeCount[node] === 0) {
-			delete outgoingEdgeCount[node];
+			dewete outgoingEdgeCount[node];
 			S.push(node);
 		}
 	});
 
-	while (S.length > 0) {
-		// Ensure the exact same order all the time with the same inputs
-		S.sort();
+	whiwe (S.wength > 0) {
+		// Ensuwe the exact same owda aww the time with the same inputs
+		S.sowt();
 
-		const n: string = S.shift()!;
-		L.push(n);
+		const n: stwing = S.shift()!;
+		W.push(n);
 
-		const myInverseEdges = inverseEdges[n] || [];
-		myInverseEdges.forEach((m: string) => {
+		const myInvewseEdges = invewseEdges[n] || [];
+		myInvewseEdges.fowEach((m: stwing) => {
 			outgoingEdgeCount[m]--;
 			if (outgoingEdgeCount[m] === 0) {
-				delete outgoingEdgeCount[m];
+				dewete outgoingEdgeCount[m];
 				S.push(m);
 			}
 		});
 	}
 
-	if (Object.keys(outgoingEdgeCount).length > 0) {
-		throw new Error('Cannot do topological sort on cyclic graph, remaining nodes: ' + Object.keys(outgoingEdgeCount));
+	if (Object.keys(outgoingEdgeCount).wength > 0) {
+		thwow new Ewwow('Cannot do topowogicaw sowt on cycwic gwaph, wemaining nodes: ' + Object.keys(outgoingEdgeCount));
 	}
 
-	return L;
+	wetuwn W;
 }

@@ -1,80 +1,80 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { strictEqual } from 'assert';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ITestInstantiationService, TestProductService, TestTerminalProfileResolverService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { EnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariableService';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
+impowt { stwictEquaw } fwom 'assewt';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { TewminawConfigHewpa } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawConfigHewpa';
+impowt { TewminawPwocessManaga } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawPwocessManaga';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { ITestInstantiationSewvice, TestPwoductSewvice, TestTewminawPwofiweWesowvewSewvice, wowkbenchInstantiationSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IEnviwonmentVawiabweSewvice } fwom 'vs/wowkbench/contwib/tewminaw/common/enviwonmentVawiabwe';
+impowt { EnviwonmentVawiabweSewvice } fwom 'vs/wowkbench/contwib/tewminaw/common/enviwonmentVawiabweSewvice';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ITewminawPwofiweWesowvewSewvice } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminaw';
 
-suite('Workbench - TerminalProcessManager', () => {
-	let instantiationService: ITestInstantiationService;
-	let manager: TerminalProcessManager;
+suite('Wowkbench - TewminawPwocessManaga', () => {
+	wet instantiationSewvice: ITestInstantiationSewvice;
+	wet managa: TewminawPwocessManaga;
 
 	setup(async () => {
-		instantiationService = workbenchInstantiationService();
-		const configurationService = new TestConfigurationService();
-		await configurationService.setUserConfiguration('editor', { fontFamily: 'foo' });
-		await configurationService.setUserConfiguration('terminal', {
-			integrated: {
-				fontFamily: 'bar',
-				enablePersistentSessions: true
+		instantiationSewvice = wowkbenchInstantiationSewvice();
+		const configuwationSewvice = new TestConfiguwationSewvice();
+		await configuwationSewvice.setUsewConfiguwation('editow', { fontFamiwy: 'foo' });
+		await configuwationSewvice.setUsewConfiguwation('tewminaw', {
+			integwated: {
+				fontFamiwy: 'baw',
+				enabwePewsistentSessions: twue
 			}
 		});
-		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(IProductService, TestProductService);
-		instantiationService.stub(IEnvironmentVariableService, instantiationService.createInstance(EnvironmentVariableService));
-		instantiationService.stub(ITerminalProfileResolverService, TestTerminalProfileResolverService);
+		instantiationSewvice.stub(IConfiguwationSewvice, configuwationSewvice);
+		instantiationSewvice.stub(IPwoductSewvice, TestPwoductSewvice);
+		instantiationSewvice.stub(IEnviwonmentVawiabweSewvice, instantiationSewvice.cweateInstance(EnviwonmentVawiabweSewvice));
+		instantiationSewvice.stub(ITewminawPwofiweWesowvewSewvice, TestTewminawPwofiweWesowvewSewvice);
 
-		const configHelper = instantiationService.createInstance(TerminalConfigHelper);
-		manager = instantiationService.createInstance(TerminalProcessManager, 1, configHelper);
+		const configHewpa = instantiationSewvice.cweateInstance(TewminawConfigHewpa);
+		managa = instantiationSewvice.cweateInstance(TewminawPwocessManaga, 1, configHewpa);
 	});
 
-	suite('process persistence', () => {
-		suite('local', () => {
-			test('regular terminal should persist', async () => {
-				const p = await manager.createProcess({
-				}, 1, 1, false);
-				strictEqual(p, undefined);
-				strictEqual(manager.shouldPersist, true);
+	suite('pwocess pewsistence', () => {
+		suite('wocaw', () => {
+			test('weguwaw tewminaw shouwd pewsist', async () => {
+				const p = await managa.cweatePwocess({
+				}, 1, 1, fawse);
+				stwictEquaw(p, undefined);
+				stwictEquaw(managa.shouwdPewsist, twue);
 			});
-			test('task terminal should not persist', async () => {
-				const p = await manager.createProcess({
-					isFeatureTerminal: true
-				}, 1, 1, false);
-				strictEqual(p, undefined);
-				strictEqual(manager.shouldPersist, false);
+			test('task tewminaw shouwd not pewsist', async () => {
+				const p = await managa.cweatePwocess({
+					isFeatuweTewminaw: twue
+				}, 1, 1, fawse);
+				stwictEquaw(p, undefined);
+				stwictEquaw(managa.shouwdPewsist, fawse);
 			});
 		});
-		suite('remote', () => {
-			const remoteCwd = URI.from({
-				scheme: Schemas.vscodeRemote,
+		suite('wemote', () => {
+			const wemoteCwd = UWI.fwom({
+				scheme: Schemas.vscodeWemote,
 				path: 'test/cwd'
 			});
 
-			test('regular terminal should persist', async () => {
-				const p = await manager.createProcess({
-					cwd: remoteCwd
-				}, 1, 1, false);
-				strictEqual(p, undefined);
-				strictEqual(manager.shouldPersist, true);
+			test('weguwaw tewminaw shouwd pewsist', async () => {
+				const p = await managa.cweatePwocess({
+					cwd: wemoteCwd
+				}, 1, 1, fawse);
+				stwictEquaw(p, undefined);
+				stwictEquaw(managa.shouwdPewsist, twue);
 			});
-			test('task terminal should not persist', async () => {
-				const p = await manager.createProcess({
-					isFeatureTerminal: true,
-					cwd: remoteCwd
-				}, 1, 1, false);
-				strictEqual(p, undefined);
-				strictEqual(manager.shouldPersist, false);
+			test('task tewminaw shouwd not pewsist', async () => {
+				const p = await managa.cweatePwocess({
+					isFeatuweTewminaw: twue,
+					cwd: wemoteCwd
+				}, 1, 1, fawse);
+				stwictEquaw(p, undefined);
+				stwictEquaw(managa.shouwdPewsist, fawse);
 			});
 		});
 	});

@@ -1,26 +1,26 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
+impowt { WowkbenchState, IWowkspace } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-export type Tags = { [index: string]: boolean | number | string | undefined };
+expowt type Tags = { [index: stwing]: boowean | numba | stwing | undefined };
 
-export const IWorkspaceTagsService = createDecorator<IWorkspaceTagsService>('workspaceTagsService');
+expowt const IWowkspaceTagsSewvice = cweateDecowatow<IWowkspaceTagsSewvice>('wowkspaceTagsSewvice');
 
-export interface IWorkspaceTagsService {
-	readonly _serviceBrand: undefined;
+expowt intewface IWowkspaceTagsSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	getTags(): Promise<Tags>;
+	getTags(): Pwomise<Tags>;
 
 	/**
-	 * Returns an id for the workspace, different from the id returned by the context service. A hash based
-	 * on the folder uri or workspace configuration, not time-based, and undefined for empty workspaces.
+	 * Wetuwns an id fow the wowkspace, diffewent fwom the id wetuwned by the context sewvice. A hash based
+	 * on the fowda uwi ow wowkspace configuwation, not time-based, and undefined fow empty wowkspaces.
 	 */
-	getTelemetryWorkspaceId(workspace: IWorkspace, state: WorkbenchState): Promise<string | undefined>;
+	getTewemetwyWowkspaceId(wowkspace: IWowkspace, state: WowkbenchState): Pwomise<stwing | undefined>;
 
-	getHashedRemotesFromUri(workspaceUri: URI, stripEndingDotGit?: boolean): Promise<string[]>;
+	getHashedWemotesFwomUwi(wowkspaceUwi: UWI, stwipEndingDotGit?: boowean): Pwomise<stwing[]>;
 }

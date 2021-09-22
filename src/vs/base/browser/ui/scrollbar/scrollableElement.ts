@@ -1,666 +1,666 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { getZoomFactor } from 'vs/base/browser/browser';
-import * as dom from 'vs/base/browser/dom';
-import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
-import { IMouseEvent, IMouseWheelEvent, StandardWheelEvent } from 'vs/base/browser/mouseEvent';
-import { ScrollbarHost } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
-import { HorizontalScrollbar } from 'vs/base/browser/ui/scrollbar/horizontalScrollbar';
-import { ScrollableElementChangeOptions, ScrollableElementCreationOptions, ScrollableElementResolvedOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
-import { VerticalScrollbar } from 'vs/base/browser/ui/scrollbar/verticalScrollbar';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { TimeoutTimer } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import { INewScrollDimensions, INewScrollPosition, IScrollDimensions, IScrollPosition, Scrollable, ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
-import 'vs/css!./media/scrollbars';
+impowt { getZoomFactow } fwom 'vs/base/bwowsa/bwowsa';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { cweateFastDomNode, FastDomNode } fwom 'vs/base/bwowsa/fastDomNode';
+impowt { IMouseEvent, IMouseWheewEvent, StandawdWheewEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { ScwowwbawHost } fwom 'vs/base/bwowsa/ui/scwowwbaw/abstwactScwowwbaw';
+impowt { HowizontawScwowwbaw } fwom 'vs/base/bwowsa/ui/scwowwbaw/howizontawScwowwbaw';
+impowt { ScwowwabweEwementChangeOptions, ScwowwabweEwementCweationOptions, ScwowwabweEwementWesowvedOptions } fwom 'vs/base/bwowsa/ui/scwowwbaw/scwowwabweEwementOptions';
+impowt { VewticawScwowwbaw } fwom 'vs/base/bwowsa/ui/scwowwbaw/vewticawScwowwbaw';
+impowt { Widget } fwom 'vs/base/bwowsa/ui/widget';
+impowt { TimeoutTima } fwom 'vs/base/common/async';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { dispose, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { INewScwowwDimensions, INewScwowwPosition, IScwowwDimensions, IScwowwPosition, Scwowwabwe, ScwowwbawVisibiwity, ScwowwEvent } fwom 'vs/base/common/scwowwabwe';
+impowt 'vs/css!./media/scwowwbaws';
 
 const HIDE_TIMEOUT = 500;
-const SCROLL_WHEEL_SENSITIVITY = 50;
-const SCROLL_WHEEL_SMOOTH_SCROLL_ENABLED = true;
+const SCWOWW_WHEEW_SENSITIVITY = 50;
+const SCWOWW_WHEEW_SMOOTH_SCWOWW_ENABWED = twue;
 
-export interface IOverviewRulerLayoutInfo {
-	parent: HTMLElement;
-	insertBefore: HTMLElement;
+expowt intewface IOvewviewWuwewWayoutInfo {
+	pawent: HTMWEwement;
+	insewtBefowe: HTMWEwement;
 }
 
-class MouseWheelClassifierItem {
-	public timestamp: number;
-	public deltaX: number;
-	public deltaY: number;
-	public score: number;
+cwass MouseWheewCwassifiewItem {
+	pubwic timestamp: numba;
+	pubwic dewtaX: numba;
+	pubwic dewtaY: numba;
+	pubwic scowe: numba;
 
-	constructor(timestamp: number, deltaX: number, deltaY: number) {
+	constwuctow(timestamp: numba, dewtaX: numba, dewtaY: numba) {
 		this.timestamp = timestamp;
-		this.deltaX = deltaX;
-		this.deltaY = deltaY;
-		this.score = 0;
+		this.dewtaX = dewtaX;
+		this.dewtaY = dewtaY;
+		this.scowe = 0;
 	}
 }
 
-export class MouseWheelClassifier {
+expowt cwass MouseWheewCwassifia {
 
-	public static readonly INSTANCE = new MouseWheelClassifier();
+	pubwic static weadonwy INSTANCE = new MouseWheewCwassifia();
 
-	private readonly _capacity: number;
-	private _memory: MouseWheelClassifierItem[];
-	private _front: number;
-	private _rear: number;
+	pwivate weadonwy _capacity: numba;
+	pwivate _memowy: MouseWheewCwassifiewItem[];
+	pwivate _fwont: numba;
+	pwivate _weaw: numba;
 
-	constructor() {
+	constwuctow() {
 		this._capacity = 5;
-		this._memory = [];
-		this._front = -1;
-		this._rear = -1;
+		this._memowy = [];
+		this._fwont = -1;
+		this._weaw = -1;
 	}
 
-	public isPhysicalMouseWheel(): boolean {
-		if (this._front === -1 && this._rear === -1) {
-			// no elements
-			return false;
+	pubwic isPhysicawMouseWheew(): boowean {
+		if (this._fwont === -1 && this._weaw === -1) {
+			// no ewements
+			wetuwn fawse;
 		}
 
-		// 0.5 * last + 0.25 * 2nd last + 0.125 * 3rd last + ...
-		let remainingInfluence = 1;
-		let score = 0;
-		let iteration = 1;
+		// 0.5 * wast + 0.25 * 2nd wast + 0.125 * 3wd wast + ...
+		wet wemainingInfwuence = 1;
+		wet scowe = 0;
+		wet itewation = 1;
 
-		let index = this._rear;
+		wet index = this._weaw;
 		do {
-			const influence = (index === this._front ? remainingInfluence : Math.pow(2, -iteration));
-			remainingInfluence -= influence;
-			score += this._memory[index].score * influence;
+			const infwuence = (index === this._fwont ? wemainingInfwuence : Math.pow(2, -itewation));
+			wemainingInfwuence -= infwuence;
+			scowe += this._memowy[index].scowe * infwuence;
 
-			if (index === this._front) {
-				break;
+			if (index === this._fwont) {
+				bweak;
 			}
 
 			index = (this._capacity + index - 1) % this._capacity;
-			iteration++;
-		} while (true);
+			itewation++;
+		} whiwe (twue);
 
-		return (score <= 0.5);
+		wetuwn (scowe <= 0.5);
 	}
 
-	public accept(timestamp: number, deltaX: number, deltaY: number): void {
-		const item = new MouseWheelClassifierItem(timestamp, deltaX, deltaY);
-		item.score = this._computeScore(item);
+	pubwic accept(timestamp: numba, dewtaX: numba, dewtaY: numba): void {
+		const item = new MouseWheewCwassifiewItem(timestamp, dewtaX, dewtaY);
+		item.scowe = this._computeScowe(item);
 
-		if (this._front === -1 && this._rear === -1) {
-			this._memory[0] = item;
-			this._front = 0;
-			this._rear = 0;
-		} else {
-			this._rear = (this._rear + 1) % this._capacity;
-			if (this._rear === this._front) {
-				// Drop oldest
-				this._front = (this._front + 1) % this._capacity;
+		if (this._fwont === -1 && this._weaw === -1) {
+			this._memowy[0] = item;
+			this._fwont = 0;
+			this._weaw = 0;
+		} ewse {
+			this._weaw = (this._weaw + 1) % this._capacity;
+			if (this._weaw === this._fwont) {
+				// Dwop owdest
+				this._fwont = (this._fwont + 1) % this._capacity;
 			}
-			this._memory[this._rear] = item;
+			this._memowy[this._weaw] = item;
 		}
 	}
 
 	/**
-	 * A score between 0 and 1 for `item`.
-	 *  - a score towards 0 indicates that the source appears to be a physical mouse wheel
-	 *  - a score towards 1 indicates that the source appears to be a touchpad or magic mouse, etc.
+	 * A scowe between 0 and 1 fow `item`.
+	 *  - a scowe towawds 0 indicates that the souwce appeaws to be a physicaw mouse wheew
+	 *  - a scowe towawds 1 indicates that the souwce appeaws to be a touchpad ow magic mouse, etc.
 	 */
-	private _computeScore(item: MouseWheelClassifierItem): number {
+	pwivate _computeScowe(item: MouseWheewCwassifiewItem): numba {
 
-		if (Math.abs(item.deltaX) > 0 && Math.abs(item.deltaY) > 0) {
-			// both axes exercised => definitely not a physical mouse wheel
-			return 1;
+		if (Math.abs(item.dewtaX) > 0 && Math.abs(item.dewtaY) > 0) {
+			// both axes exewcised => definitewy not a physicaw mouse wheew
+			wetuwn 1;
 		}
 
-		let score: number = 0.5;
-		const prev = (this._front === -1 && this._rear === -1 ? null : this._memory[this._rear]);
-		if (prev) {
-			// const deltaT = item.timestamp - prev.timestamp;
-			// if (deltaT < 1000 / 30) {
-			// 	// sooner than X times per second => indicator that this is not a physical mouse wheel
-			// 	score += 0.25;
+		wet scowe: numba = 0.5;
+		const pwev = (this._fwont === -1 && this._weaw === -1 ? nuww : this._memowy[this._weaw]);
+		if (pwev) {
+			// const dewtaT = item.timestamp - pwev.timestamp;
+			// if (dewtaT < 1000 / 30) {
+			// 	// soona than X times pew second => indicatow that this is not a physicaw mouse wheew
+			// 	scowe += 0.25;
 			// }
 
-			// if (item.deltaX === prev.deltaX && item.deltaY === prev.deltaY) {
-			// 	// equal amplitude => indicator that this is a physical mouse wheel
-			// 	score -= 0.25;
+			// if (item.dewtaX === pwev.dewtaX && item.dewtaY === pwev.dewtaY) {
+			// 	// equaw ampwitude => indicatow that this is a physicaw mouse wheew
+			// 	scowe -= 0.25;
 			// }
 		}
 
-		if (!this._isAlmostInt(item.deltaX) || !this._isAlmostInt(item.deltaY)) {
-			// non-integer deltas => indicator that this is not a physical mouse wheel
-			score += 0.25;
+		if (!this._isAwmostInt(item.dewtaX) || !this._isAwmostInt(item.dewtaY)) {
+			// non-intega dewtas => indicatow that this is not a physicaw mouse wheew
+			scowe += 0.25;
 		}
 
-		return Math.min(Math.max(score, 0), 1);
+		wetuwn Math.min(Math.max(scowe, 0), 1);
 	}
 
-	private _isAlmostInt(value: number): boolean {
-		const delta = Math.abs(Math.round(value) - value);
-		return (delta < 0.01);
+	pwivate _isAwmostInt(vawue: numba): boowean {
+		const dewta = Math.abs(Math.wound(vawue) - vawue);
+		wetuwn (dewta < 0.01);
 	}
 }
 
-export abstract class AbstractScrollableElement extends Widget {
+expowt abstwact cwass AbstwactScwowwabweEwement extends Widget {
 
-	private readonly _options: ScrollableElementResolvedOptions;
-	protected readonly _scrollable: Scrollable;
-	private readonly _verticalScrollbar: VerticalScrollbar;
-	private readonly _horizontalScrollbar: HorizontalScrollbar;
-	private readonly _domNode: HTMLElement;
+	pwivate weadonwy _options: ScwowwabweEwementWesowvedOptions;
+	pwotected weadonwy _scwowwabwe: Scwowwabwe;
+	pwivate weadonwy _vewticawScwowwbaw: VewticawScwowwbaw;
+	pwivate weadonwy _howizontawScwowwbaw: HowizontawScwowwbaw;
+	pwivate weadonwy _domNode: HTMWEwement;
 
-	private readonly _leftShadowDomNode: FastDomNode<HTMLElement> | null;
-	private readonly _topShadowDomNode: FastDomNode<HTMLElement> | null;
-	private readonly _topLeftShadowDomNode: FastDomNode<HTMLElement> | null;
+	pwivate weadonwy _weftShadowDomNode: FastDomNode<HTMWEwement> | nuww;
+	pwivate weadonwy _topShadowDomNode: FastDomNode<HTMWEwement> | nuww;
+	pwivate weadonwy _topWeftShadowDomNode: FastDomNode<HTMWEwement> | nuww;
 
-	private readonly _listenOnDomNode: HTMLElement;
+	pwivate weadonwy _wistenOnDomNode: HTMWEwement;
 
-	private _mouseWheelToDispose: IDisposable[];
+	pwivate _mouseWheewToDispose: IDisposabwe[];
 
-	private _isDragging: boolean;
-	private _mouseIsOver: boolean;
+	pwivate _isDwagging: boowean;
+	pwivate _mouseIsOva: boowean;
 
-	private readonly _hideTimeout: TimeoutTimer;
-	private _shouldRender: boolean;
+	pwivate weadonwy _hideTimeout: TimeoutTima;
+	pwivate _shouwdWenda: boowean;
 
-	private _revealOnScroll: boolean;
+	pwivate _weveawOnScwoww: boowean;
 
-	private readonly _onScroll = this._register(new Emitter<ScrollEvent>());
-	public readonly onScroll: Event<ScrollEvent> = this._onScroll.event;
+	pwivate weadonwy _onScwoww = this._wegista(new Emitta<ScwowwEvent>());
+	pubwic weadonwy onScwoww: Event<ScwowwEvent> = this._onScwoww.event;
 
-	private readonly _onWillScroll = this._register(new Emitter<ScrollEvent>());
-	public readonly onWillScroll: Event<ScrollEvent> = this._onWillScroll.event;
+	pwivate weadonwy _onWiwwScwoww = this._wegista(new Emitta<ScwowwEvent>());
+	pubwic weadonwy onWiwwScwoww: Event<ScwowwEvent> = this._onWiwwScwoww.event;
 
-	protected constructor(element: HTMLElement, options: ScrollableElementCreationOptions, scrollable: Scrollable) {
-		super();
-		element.style.overflow = 'hidden';
-		this._options = resolveOptions(options);
-		this._scrollable = scrollable;
+	pwotected constwuctow(ewement: HTMWEwement, options: ScwowwabweEwementCweationOptions, scwowwabwe: Scwowwabwe) {
+		supa();
+		ewement.stywe.ovewfwow = 'hidden';
+		this._options = wesowveOptions(options);
+		this._scwowwabwe = scwowwabwe;
 
-		this._register(this._scrollable.onScroll((e) => {
-			this._onWillScroll.fire(e);
-			this._onDidScroll(e);
-			this._onScroll.fire(e);
+		this._wegista(this._scwowwabwe.onScwoww((e) => {
+			this._onWiwwScwoww.fiwe(e);
+			this._onDidScwoww(e);
+			this._onScwoww.fiwe(e);
 		}));
 
-		const scrollbarHost: ScrollbarHost = {
-			onMouseWheel: (mouseWheelEvent: StandardWheelEvent) => this._onMouseWheel(mouseWheelEvent),
-			onDragStart: () => this._onDragStart(),
-			onDragEnd: () => this._onDragEnd(),
+		const scwowwbawHost: ScwowwbawHost = {
+			onMouseWheew: (mouseWheewEvent: StandawdWheewEvent) => this._onMouseWheew(mouseWheewEvent),
+			onDwagStawt: () => this._onDwagStawt(),
+			onDwagEnd: () => this._onDwagEnd(),
 		};
-		this._verticalScrollbar = this._register(new VerticalScrollbar(this._scrollable, this._options, scrollbarHost));
-		this._horizontalScrollbar = this._register(new HorizontalScrollbar(this._scrollable, this._options, scrollbarHost));
+		this._vewticawScwowwbaw = this._wegista(new VewticawScwowwbaw(this._scwowwabwe, this._options, scwowwbawHost));
+		this._howizontawScwowwbaw = this._wegista(new HowizontawScwowwbaw(this._scwowwabwe, this._options, scwowwbawHost));
 
-		this._domNode = document.createElement('div');
-		this._domNode.className = 'monaco-scrollable-element ' + this._options.className;
-		this._domNode.setAttribute('role', 'presentation');
-		this._domNode.style.position = 'relative';
-		this._domNode.style.overflow = 'hidden';
-		this._domNode.appendChild(element);
-		this._domNode.appendChild(this._horizontalScrollbar.domNode.domNode);
-		this._domNode.appendChild(this._verticalScrollbar.domNode.domNode);
+		this._domNode = document.cweateEwement('div');
+		this._domNode.cwassName = 'monaco-scwowwabwe-ewement ' + this._options.cwassName;
+		this._domNode.setAttwibute('wowe', 'pwesentation');
+		this._domNode.stywe.position = 'wewative';
+		this._domNode.stywe.ovewfwow = 'hidden';
+		this._domNode.appendChiwd(ewement);
+		this._domNode.appendChiwd(this._howizontawScwowwbaw.domNode.domNode);
+		this._domNode.appendChiwd(this._vewticawScwowwbaw.domNode.domNode);
 
 		if (this._options.useShadows) {
-			this._leftShadowDomNode = createFastDomNode(document.createElement('div'));
-			this._leftShadowDomNode.setClassName('shadow');
-			this._domNode.appendChild(this._leftShadowDomNode.domNode);
+			this._weftShadowDomNode = cweateFastDomNode(document.cweateEwement('div'));
+			this._weftShadowDomNode.setCwassName('shadow');
+			this._domNode.appendChiwd(this._weftShadowDomNode.domNode);
 
-			this._topShadowDomNode = createFastDomNode(document.createElement('div'));
-			this._topShadowDomNode.setClassName('shadow');
-			this._domNode.appendChild(this._topShadowDomNode.domNode);
+			this._topShadowDomNode = cweateFastDomNode(document.cweateEwement('div'));
+			this._topShadowDomNode.setCwassName('shadow');
+			this._domNode.appendChiwd(this._topShadowDomNode.domNode);
 
-			this._topLeftShadowDomNode = createFastDomNode(document.createElement('div'));
-			this._topLeftShadowDomNode.setClassName('shadow');
-			this._domNode.appendChild(this._topLeftShadowDomNode.domNode);
-		} else {
-			this._leftShadowDomNode = null;
-			this._topShadowDomNode = null;
-			this._topLeftShadowDomNode = null;
+			this._topWeftShadowDomNode = cweateFastDomNode(document.cweateEwement('div'));
+			this._topWeftShadowDomNode.setCwassName('shadow');
+			this._domNode.appendChiwd(this._topWeftShadowDomNode.domNode);
+		} ewse {
+			this._weftShadowDomNode = nuww;
+			this._topShadowDomNode = nuww;
+			this._topWeftShadowDomNode = nuww;
 		}
 
-		this._listenOnDomNode = this._options.listenOnDomNode || this._domNode;
+		this._wistenOnDomNode = this._options.wistenOnDomNode || this._domNode;
 
-		this._mouseWheelToDispose = [];
-		this._setListeningToMouseWheel(this._options.handleMouseWheel);
+		this._mouseWheewToDispose = [];
+		this._setWisteningToMouseWheew(this._options.handweMouseWheew);
 
-		this.onmouseover(this._listenOnDomNode, (e) => this._onMouseOver(e));
-		this.onnonbubblingmouseout(this._listenOnDomNode, (e) => this._onMouseOut(e));
+		this.onmouseova(this._wistenOnDomNode, (e) => this._onMouseOva(e));
+		this.onnonbubbwingmouseout(this._wistenOnDomNode, (e) => this._onMouseOut(e));
 
-		this._hideTimeout = this._register(new TimeoutTimer());
-		this._isDragging = false;
-		this._mouseIsOver = false;
+		this._hideTimeout = this._wegista(new TimeoutTima());
+		this._isDwagging = fawse;
+		this._mouseIsOva = fawse;
 
-		this._shouldRender = true;
+		this._shouwdWenda = twue;
 
-		this._revealOnScroll = true;
+		this._weveawOnScwoww = twue;
 	}
 
-	public override dispose(): void {
-		this._mouseWheelToDispose = dispose(this._mouseWheelToDispose);
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		this._mouseWheewToDispose = dispose(this._mouseWheewToDispose);
+		supa.dispose();
 	}
 
 	/**
-	 * Get the generated 'scrollable' dom node
+	 * Get the genewated 'scwowwabwe' dom node
 	 */
-	public getDomNode(): HTMLElement {
-		return this._domNode;
+	pubwic getDomNode(): HTMWEwement {
+		wetuwn this._domNode;
 	}
 
-	public getOverviewRulerLayoutInfo(): IOverviewRulerLayoutInfo {
-		return {
-			parent: this._domNode,
-			insertBefore: this._verticalScrollbar.domNode.domNode,
+	pubwic getOvewviewWuwewWayoutInfo(): IOvewviewWuwewWayoutInfo {
+		wetuwn {
+			pawent: this._domNode,
+			insewtBefowe: this._vewticawScwowwbaw.domNode.domNode,
 		};
 	}
 
 	/**
-	 * Delegate a mouse down event to the vertical scrollbar.
-	 * This is to help with clicking somewhere else and having the scrollbar react.
+	 * Dewegate a mouse down event to the vewticaw scwowwbaw.
+	 * This is to hewp with cwicking somewhewe ewse and having the scwowwbaw weact.
 	 */
-	public delegateVerticalScrollbarMouseDown(browserEvent: IMouseEvent): void {
-		this._verticalScrollbar.delegateMouseDown(browserEvent);
+	pubwic dewegateVewticawScwowwbawMouseDown(bwowsewEvent: IMouseEvent): void {
+		this._vewticawScwowwbaw.dewegateMouseDown(bwowsewEvent);
 	}
 
-	public getScrollDimensions(): IScrollDimensions {
-		return this._scrollable.getScrollDimensions();
+	pubwic getScwowwDimensions(): IScwowwDimensions {
+		wetuwn this._scwowwabwe.getScwowwDimensions();
 	}
 
-	public setScrollDimensions(dimensions: INewScrollDimensions): void {
-		this._scrollable.setScrollDimensions(dimensions, false);
+	pubwic setScwowwDimensions(dimensions: INewScwowwDimensions): void {
+		this._scwowwabwe.setScwowwDimensions(dimensions, fawse);
 	}
 
 	/**
-	 * Update the class name of the scrollable element.
+	 * Update the cwass name of the scwowwabwe ewement.
 	 */
-	public updateClassName(newClassName: string): void {
-		this._options.className = newClassName;
-		// Defaults are different on Macs
-		if (platform.isMacintosh) {
-			this._options.className += ' mac';
+	pubwic updateCwassName(newCwassName: stwing): void {
+		this._options.cwassName = newCwassName;
+		// Defauwts awe diffewent on Macs
+		if (pwatfowm.isMacintosh) {
+			this._options.cwassName += ' mac';
 		}
-		this._domNode.className = 'monaco-scrollable-element ' + this._options.className;
+		this._domNode.cwassName = 'monaco-scwowwabwe-ewement ' + this._options.cwassName;
 	}
 
 	/**
-	 * Update configuration options for the scrollbar.
+	 * Update configuwation options fow the scwowwbaw.
 	 */
-	public updateOptions(newOptions: ScrollableElementChangeOptions): void {
-		if (typeof newOptions.handleMouseWheel !== 'undefined') {
-			this._options.handleMouseWheel = newOptions.handleMouseWheel;
-			this._setListeningToMouseWheel(this._options.handleMouseWheel);
+	pubwic updateOptions(newOptions: ScwowwabweEwementChangeOptions): void {
+		if (typeof newOptions.handweMouseWheew !== 'undefined') {
+			this._options.handweMouseWheew = newOptions.handweMouseWheew;
+			this._setWisteningToMouseWheew(this._options.handweMouseWheew);
 		}
-		if (typeof newOptions.mouseWheelScrollSensitivity !== 'undefined') {
-			this._options.mouseWheelScrollSensitivity = newOptions.mouseWheelScrollSensitivity;
+		if (typeof newOptions.mouseWheewScwowwSensitivity !== 'undefined') {
+			this._options.mouseWheewScwowwSensitivity = newOptions.mouseWheewScwowwSensitivity;
 		}
-		if (typeof newOptions.fastScrollSensitivity !== 'undefined') {
-			this._options.fastScrollSensitivity = newOptions.fastScrollSensitivity;
+		if (typeof newOptions.fastScwowwSensitivity !== 'undefined') {
+			this._options.fastScwowwSensitivity = newOptions.fastScwowwSensitivity;
 		}
-		if (typeof newOptions.scrollPredominantAxis !== 'undefined') {
-			this._options.scrollPredominantAxis = newOptions.scrollPredominantAxis;
+		if (typeof newOptions.scwowwPwedominantAxis !== 'undefined') {
+			this._options.scwowwPwedominantAxis = newOptions.scwowwPwedominantAxis;
 		}
-		if (typeof newOptions.horizontal !== 'undefined') {
-			this._options.horizontal = newOptions.horizontal;
+		if (typeof newOptions.howizontaw !== 'undefined') {
+			this._options.howizontaw = newOptions.howizontaw;
 		}
-		if (typeof newOptions.vertical !== 'undefined') {
-			this._options.vertical = newOptions.vertical;
+		if (typeof newOptions.vewticaw !== 'undefined') {
+			this._options.vewticaw = newOptions.vewticaw;
 		}
-		if (typeof newOptions.horizontalScrollbarSize !== 'undefined') {
-			this._options.horizontalScrollbarSize = newOptions.horizontalScrollbarSize;
+		if (typeof newOptions.howizontawScwowwbawSize !== 'undefined') {
+			this._options.howizontawScwowwbawSize = newOptions.howizontawScwowwbawSize;
 		}
-		if (typeof newOptions.verticalScrollbarSize !== 'undefined') {
-			this._options.verticalScrollbarSize = newOptions.verticalScrollbarSize;
+		if (typeof newOptions.vewticawScwowwbawSize !== 'undefined') {
+			this._options.vewticawScwowwbawSize = newOptions.vewticawScwowwbawSize;
 		}
-		if (typeof newOptions.scrollByPage !== 'undefined') {
-			this._options.scrollByPage = newOptions.scrollByPage;
+		if (typeof newOptions.scwowwByPage !== 'undefined') {
+			this._options.scwowwByPage = newOptions.scwowwByPage;
 		}
-		this._horizontalScrollbar.updateOptions(this._options);
-		this._verticalScrollbar.updateOptions(this._options);
+		this._howizontawScwowwbaw.updateOptions(this._options);
+		this._vewticawScwowwbaw.updateOptions(this._options);
 
-		if (!this._options.lazyRender) {
-			this._render();
+		if (!this._options.wazyWenda) {
+			this._wenda();
 		}
 	}
 
-	public setRevealOnScroll(value: boolean) {
-		this._revealOnScroll = value;
+	pubwic setWeveawOnScwoww(vawue: boowean) {
+		this._weveawOnScwoww = vawue;
 	}
 
-	public triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
-		this._onMouseWheel(new StandardWheelEvent(browserEvent));
+	pubwic twiggewScwowwFwomMouseWheewEvent(bwowsewEvent: IMouseWheewEvent) {
+		this._onMouseWheew(new StandawdWheewEvent(bwowsewEvent));
 	}
 
-	// -------------------- mouse wheel scrolling --------------------
+	// -------------------- mouse wheew scwowwing --------------------
 
-	private _setListeningToMouseWheel(shouldListen: boolean): void {
-		const isListening = (this._mouseWheelToDispose.length > 0);
+	pwivate _setWisteningToMouseWheew(shouwdWisten: boowean): void {
+		const isWistening = (this._mouseWheewToDispose.wength > 0);
 
-		if (isListening === shouldListen) {
+		if (isWistening === shouwdWisten) {
 			// No change
-			return;
+			wetuwn;
 		}
 
-		// Stop listening (if necessary)
-		this._mouseWheelToDispose = dispose(this._mouseWheelToDispose);
+		// Stop wistening (if necessawy)
+		this._mouseWheewToDispose = dispose(this._mouseWheewToDispose);
 
-		// Start listening (if necessary)
-		if (shouldListen) {
-			const onMouseWheel = (browserEvent: IMouseWheelEvent) => {
-				this._onMouseWheel(new StandardWheelEvent(browserEvent));
+		// Stawt wistening (if necessawy)
+		if (shouwdWisten) {
+			const onMouseWheew = (bwowsewEvent: IMouseWheewEvent) => {
+				this._onMouseWheew(new StandawdWheewEvent(bwowsewEvent));
 			};
 
-			this._mouseWheelToDispose.push(dom.addDisposableListener(this._listenOnDomNode, dom.EventType.MOUSE_WHEEL, onMouseWheel, { passive: false }));
+			this._mouseWheewToDispose.push(dom.addDisposabweWistena(this._wistenOnDomNode, dom.EventType.MOUSE_WHEEW, onMouseWheew, { passive: fawse }));
 		}
 	}
 
-	private _onMouseWheel(e: StandardWheelEvent): void {
+	pwivate _onMouseWheew(e: StandawdWheewEvent): void {
 
-		const classifier = MouseWheelClassifier.INSTANCE;
-		if (SCROLL_WHEEL_SMOOTH_SCROLL_ENABLED) {
-			const osZoomFactor = window.devicePixelRatio / getZoomFactor();
-			if (platform.isWindows || platform.isLinux) {
-				// On Windows and Linux, the incoming delta events are multiplied with the OS zoom factor.
-				// The OS zoom factor can be reverse engineered by using the device pixel ratio and the configured zoom factor into account.
-				classifier.accept(Date.now(), e.deltaX / osZoomFactor, e.deltaY / osZoomFactor);
-			} else {
-				classifier.accept(Date.now(), e.deltaX, e.deltaY);
+		const cwassifia = MouseWheewCwassifia.INSTANCE;
+		if (SCWOWW_WHEEW_SMOOTH_SCWOWW_ENABWED) {
+			const osZoomFactow = window.devicePixewWatio / getZoomFactow();
+			if (pwatfowm.isWindows || pwatfowm.isWinux) {
+				// On Windows and Winux, the incoming dewta events awe muwtipwied with the OS zoom factow.
+				// The OS zoom factow can be wevewse engineewed by using the device pixew watio and the configuwed zoom factow into account.
+				cwassifia.accept(Date.now(), e.dewtaX / osZoomFactow, e.dewtaY / osZoomFactow);
+			} ewse {
+				cwassifia.accept(Date.now(), e.dewtaX, e.dewtaY);
 			}
 		}
 
-		// console.log(`${Date.now()}, ${e.deltaY}, ${e.deltaX}`);
+		// consowe.wog(`${Date.now()}, ${e.dewtaY}, ${e.dewtaX}`);
 
-		let didScroll = false;
+		wet didScwoww = fawse;
 
-		if (e.deltaY || e.deltaX) {
-			let deltaY = e.deltaY * this._options.mouseWheelScrollSensitivity;
-			let deltaX = e.deltaX * this._options.mouseWheelScrollSensitivity;
+		if (e.dewtaY || e.dewtaX) {
+			wet dewtaY = e.dewtaY * this._options.mouseWheewScwowwSensitivity;
+			wet dewtaX = e.dewtaX * this._options.mouseWheewScwowwSensitivity;
 
-			if (this._options.scrollPredominantAxis) {
-				if (Math.abs(deltaY) >= Math.abs(deltaX)) {
-					deltaX = 0;
-				} else {
-					deltaY = 0;
+			if (this._options.scwowwPwedominantAxis) {
+				if (Math.abs(dewtaY) >= Math.abs(dewtaX)) {
+					dewtaX = 0;
+				} ewse {
+					dewtaY = 0;
 				}
 			}
 
-			if (this._options.flipAxes) {
-				[deltaY, deltaX] = [deltaX, deltaY];
+			if (this._options.fwipAxes) {
+				[dewtaY, dewtaX] = [dewtaX, dewtaY];
 			}
 
-			// Convert vertical scrolling to horizontal if shift is held, this
-			// is handled at a higher level on Mac
-			const shiftConvert = !platform.isMacintosh && e.browserEvent && e.browserEvent.shiftKey;
-			if ((this._options.scrollYToX || shiftConvert) && !deltaX) {
-				deltaX = deltaY;
-				deltaY = 0;
+			// Convewt vewticaw scwowwing to howizontaw if shift is hewd, this
+			// is handwed at a higha wevew on Mac
+			const shiftConvewt = !pwatfowm.isMacintosh && e.bwowsewEvent && e.bwowsewEvent.shiftKey;
+			if ((this._options.scwowwYToX || shiftConvewt) && !dewtaX) {
+				dewtaX = dewtaY;
+				dewtaY = 0;
 			}
 
-			if (e.browserEvent && e.browserEvent.altKey) {
-				// fastScrolling
-				deltaX = deltaX * this._options.fastScrollSensitivity;
-				deltaY = deltaY * this._options.fastScrollSensitivity;
+			if (e.bwowsewEvent && e.bwowsewEvent.awtKey) {
+				// fastScwowwing
+				dewtaX = dewtaX * this._options.fastScwowwSensitivity;
+				dewtaY = dewtaY * this._options.fastScwowwSensitivity;
 			}
 
-			const futureScrollPosition = this._scrollable.getFutureScrollPosition();
+			const futuweScwowwPosition = this._scwowwabwe.getFutuweScwowwPosition();
 
-			let desiredScrollPosition: INewScrollPosition = {};
-			if (deltaY) {
-				const deltaScrollTop = SCROLL_WHEEL_SENSITIVITY * deltaY;
-				// Here we convert values such as -0.3 to -1 or 0.3 to 1, otherwise low speed scrolling will never scroll
-				const desiredScrollTop = futureScrollPosition.scrollTop - (deltaScrollTop < 0 ? Math.floor(deltaScrollTop) : Math.ceil(deltaScrollTop));
-				this._verticalScrollbar.writeScrollPosition(desiredScrollPosition, desiredScrollTop);
+			wet desiwedScwowwPosition: INewScwowwPosition = {};
+			if (dewtaY) {
+				const dewtaScwowwTop = SCWOWW_WHEEW_SENSITIVITY * dewtaY;
+				// Hewe we convewt vawues such as -0.3 to -1 ow 0.3 to 1, othewwise wow speed scwowwing wiww neva scwoww
+				const desiwedScwowwTop = futuweScwowwPosition.scwowwTop - (dewtaScwowwTop < 0 ? Math.fwoow(dewtaScwowwTop) : Math.ceiw(dewtaScwowwTop));
+				this._vewticawScwowwbaw.wwiteScwowwPosition(desiwedScwowwPosition, desiwedScwowwTop);
 			}
-			if (deltaX) {
-				const deltaScrollLeft = SCROLL_WHEEL_SENSITIVITY * deltaX;
-				// Here we convert values such as -0.3 to -1 or 0.3 to 1, otherwise low speed scrolling will never scroll
-				const desiredScrollLeft = futureScrollPosition.scrollLeft - (deltaScrollLeft < 0 ? Math.floor(deltaScrollLeft) : Math.ceil(deltaScrollLeft));
-				this._horizontalScrollbar.writeScrollPosition(desiredScrollPosition, desiredScrollLeft);
+			if (dewtaX) {
+				const dewtaScwowwWeft = SCWOWW_WHEEW_SENSITIVITY * dewtaX;
+				// Hewe we convewt vawues such as -0.3 to -1 ow 0.3 to 1, othewwise wow speed scwowwing wiww neva scwoww
+				const desiwedScwowwWeft = futuweScwowwPosition.scwowwWeft - (dewtaScwowwWeft < 0 ? Math.fwoow(dewtaScwowwWeft) : Math.ceiw(dewtaScwowwWeft));
+				this._howizontawScwowwbaw.wwiteScwowwPosition(desiwedScwowwPosition, desiwedScwowwWeft);
 			}
 
-			// Check that we are scrolling towards a location which is valid
-			desiredScrollPosition = this._scrollable.validateScrollPosition(desiredScrollPosition);
+			// Check that we awe scwowwing towawds a wocation which is vawid
+			desiwedScwowwPosition = this._scwowwabwe.vawidateScwowwPosition(desiwedScwowwPosition);
 
-			if (futureScrollPosition.scrollLeft !== desiredScrollPosition.scrollLeft || futureScrollPosition.scrollTop !== desiredScrollPosition.scrollTop) {
+			if (futuweScwowwPosition.scwowwWeft !== desiwedScwowwPosition.scwowwWeft || futuweScwowwPosition.scwowwTop !== desiwedScwowwPosition.scwowwTop) {
 
-				const canPerformSmoothScroll = (
-					SCROLL_WHEEL_SMOOTH_SCROLL_ENABLED
-					&& this._options.mouseWheelSmoothScroll
-					&& classifier.isPhysicalMouseWheel()
+				const canPewfowmSmoothScwoww = (
+					SCWOWW_WHEEW_SMOOTH_SCWOWW_ENABWED
+					&& this._options.mouseWheewSmoothScwoww
+					&& cwassifia.isPhysicawMouseWheew()
 				);
 
-				if (canPerformSmoothScroll) {
-					this._scrollable.setScrollPositionSmooth(desiredScrollPosition);
-				} else {
-					this._scrollable.setScrollPositionNow(desiredScrollPosition);
+				if (canPewfowmSmoothScwoww) {
+					this._scwowwabwe.setScwowwPositionSmooth(desiwedScwowwPosition);
+				} ewse {
+					this._scwowwabwe.setScwowwPositionNow(desiwedScwowwPosition);
 				}
 
-				didScroll = true;
+				didScwoww = twue;
 			}
 		}
 
-		let consumeMouseWheel = didScroll;
-		if (!consumeMouseWheel && this._options.alwaysConsumeMouseWheel) {
-			consumeMouseWheel = true;
+		wet consumeMouseWheew = didScwoww;
+		if (!consumeMouseWheew && this._options.awwaysConsumeMouseWheew) {
+			consumeMouseWheew = twue;
 		}
-		if (!consumeMouseWheel && this._options.consumeMouseWheelIfScrollbarIsNeeded && (this._verticalScrollbar.isNeeded() || this._horizontalScrollbar.isNeeded())) {
-			consumeMouseWheel = true;
+		if (!consumeMouseWheew && this._options.consumeMouseWheewIfScwowwbawIsNeeded && (this._vewticawScwowwbaw.isNeeded() || this._howizontawScwowwbaw.isNeeded())) {
+			consumeMouseWheew = twue;
 		}
 
-		if (consumeMouseWheel) {
-			e.preventDefault();
-			e.stopPropagation();
+		if (consumeMouseWheew) {
+			e.pweventDefauwt();
+			e.stopPwopagation();
 		}
 	}
 
-	private _onDidScroll(e: ScrollEvent): void {
-		this._shouldRender = this._horizontalScrollbar.onDidScroll(e) || this._shouldRender;
-		this._shouldRender = this._verticalScrollbar.onDidScroll(e) || this._shouldRender;
+	pwivate _onDidScwoww(e: ScwowwEvent): void {
+		this._shouwdWenda = this._howizontawScwowwbaw.onDidScwoww(e) || this._shouwdWenda;
+		this._shouwdWenda = this._vewticawScwowwbaw.onDidScwoww(e) || this._shouwdWenda;
 
 		if (this._options.useShadows) {
-			this._shouldRender = true;
+			this._shouwdWenda = twue;
 		}
 
-		if (this._revealOnScroll) {
-			this._reveal();
+		if (this._weveawOnScwoww) {
+			this._weveaw();
 		}
 
-		if (!this._options.lazyRender) {
-			this._render();
+		if (!this._options.wazyWenda) {
+			this._wenda();
 		}
 	}
 
 	/**
-	 * Render / mutate the DOM now.
-	 * Should be used together with the ctor option `lazyRender`.
+	 * Wenda / mutate the DOM now.
+	 * Shouwd be used togetha with the ctow option `wazyWenda`.
 	 */
-	public renderNow(): void {
-		if (!this._options.lazyRender) {
-			throw new Error('Please use `lazyRender` together with `renderNow`!');
+	pubwic wendewNow(): void {
+		if (!this._options.wazyWenda) {
+			thwow new Ewwow('Pwease use `wazyWenda` togetha with `wendewNow`!');
 		}
 
-		this._render();
+		this._wenda();
 	}
 
-	private _render(): void {
-		if (!this._shouldRender) {
-			return;
+	pwivate _wenda(): void {
+		if (!this._shouwdWenda) {
+			wetuwn;
 		}
 
-		this._shouldRender = false;
+		this._shouwdWenda = fawse;
 
-		this._horizontalScrollbar.render();
-		this._verticalScrollbar.render();
+		this._howizontawScwowwbaw.wenda();
+		this._vewticawScwowwbaw.wenda();
 
 		if (this._options.useShadows) {
-			const scrollState = this._scrollable.getCurrentScrollPosition();
-			const enableTop = scrollState.scrollTop > 0;
-			const enableLeft = scrollState.scrollLeft > 0;
+			const scwowwState = this._scwowwabwe.getCuwwentScwowwPosition();
+			const enabweTop = scwowwState.scwowwTop > 0;
+			const enabweWeft = scwowwState.scwowwWeft > 0;
 
-			const leftClassName = (enableLeft ? ' left' : '');
-			const topClassName = (enableTop ? ' top' : '');
-			const topLeftClassName = (enableLeft || enableTop ? ' top-left-corner' : '');
-			this._leftShadowDomNode!.setClassName(`shadow${leftClassName}`);
-			this._topShadowDomNode!.setClassName(`shadow${topClassName}`);
-			this._topLeftShadowDomNode!.setClassName(`shadow${topLeftClassName}${topClassName}${leftClassName}`);
+			const weftCwassName = (enabweWeft ? ' weft' : '');
+			const topCwassName = (enabweTop ? ' top' : '');
+			const topWeftCwassName = (enabweWeft || enabweTop ? ' top-weft-cowna' : '');
+			this._weftShadowDomNode!.setCwassName(`shadow${weftCwassName}`);
+			this._topShadowDomNode!.setCwassName(`shadow${topCwassName}`);
+			this._topWeftShadowDomNode!.setCwassName(`shadow${topWeftCwassName}${topCwassName}${weftCwassName}`);
 		}
 	}
 
 	// -------------------- fade in / fade out --------------------
 
-	private _onDragStart(): void {
-		this._isDragging = true;
-		this._reveal();
+	pwivate _onDwagStawt(): void {
+		this._isDwagging = twue;
+		this._weveaw();
 	}
 
-	private _onDragEnd(): void {
-		this._isDragging = false;
+	pwivate _onDwagEnd(): void {
+		this._isDwagging = fawse;
 		this._hide();
 	}
 
-	private _onMouseOut(e: IMouseEvent): void {
-		this._mouseIsOver = false;
+	pwivate _onMouseOut(e: IMouseEvent): void {
+		this._mouseIsOva = fawse;
 		this._hide();
 	}
 
-	private _onMouseOver(e: IMouseEvent): void {
-		this._mouseIsOver = true;
-		this._reveal();
+	pwivate _onMouseOva(e: IMouseEvent): void {
+		this._mouseIsOva = twue;
+		this._weveaw();
 	}
 
-	private _reveal(): void {
-		this._verticalScrollbar.beginReveal();
-		this._horizontalScrollbar.beginReveal();
-		this._scheduleHide();
+	pwivate _weveaw(): void {
+		this._vewticawScwowwbaw.beginWeveaw();
+		this._howizontawScwowwbaw.beginWeveaw();
+		this._scheduweHide();
 	}
 
-	private _hide(): void {
-		if (!this._mouseIsOver && !this._isDragging) {
-			this._verticalScrollbar.beginHide();
-			this._horizontalScrollbar.beginHide();
+	pwivate _hide(): void {
+		if (!this._mouseIsOva && !this._isDwagging) {
+			this._vewticawScwowwbaw.beginHide();
+			this._howizontawScwowwbaw.beginHide();
 		}
 	}
 
-	private _scheduleHide(): void {
-		if (!this._mouseIsOver && !this._isDragging) {
-			this._hideTimeout.cancelAndSet(() => this._hide(), HIDE_TIMEOUT);
+	pwivate _scheduweHide(): void {
+		if (!this._mouseIsOva && !this._isDwagging) {
+			this._hideTimeout.cancewAndSet(() => this._hide(), HIDE_TIMEOUT);
 		}
 	}
 }
 
-export class ScrollableElement extends AbstractScrollableElement {
+expowt cwass ScwowwabweEwement extends AbstwactScwowwabweEwement {
 
-	constructor(element: HTMLElement, options: ScrollableElementCreationOptions) {
+	constwuctow(ewement: HTMWEwement, options: ScwowwabweEwementCweationOptions) {
 		options = options || {};
-		options.mouseWheelSmoothScroll = false;
-		const scrollable = new Scrollable(0, (callback) => dom.scheduleAtNextAnimationFrame(callback));
-		super(element, options, scrollable);
-		this._register(scrollable);
+		options.mouseWheewSmoothScwoww = fawse;
+		const scwowwabwe = new Scwowwabwe(0, (cawwback) => dom.scheduweAtNextAnimationFwame(cawwback));
+		supa(ewement, options, scwowwabwe);
+		this._wegista(scwowwabwe);
 	}
 
-	public setScrollPosition(update: INewScrollPosition): void {
-		this._scrollable.setScrollPositionNow(update);
+	pubwic setScwowwPosition(update: INewScwowwPosition): void {
+		this._scwowwabwe.setScwowwPositionNow(update);
 	}
 
-	public getScrollPosition(): IScrollPosition {
-		return this._scrollable.getCurrentScrollPosition();
+	pubwic getScwowwPosition(): IScwowwPosition {
+		wetuwn this._scwowwabwe.getCuwwentScwowwPosition();
 	}
 }
 
-export class SmoothScrollableElement extends AbstractScrollableElement {
+expowt cwass SmoothScwowwabweEwement extends AbstwactScwowwabweEwement {
 
-	constructor(element: HTMLElement, options: ScrollableElementCreationOptions, scrollable: Scrollable) {
-		super(element, options, scrollable);
+	constwuctow(ewement: HTMWEwement, options: ScwowwabweEwementCweationOptions, scwowwabwe: Scwowwabwe) {
+		supa(ewement, options, scwowwabwe);
 	}
 
-	public setScrollPosition(update: INewScrollPosition & { reuseAnimation?: boolean }): void {
-		if (update.reuseAnimation) {
-			this._scrollable.setScrollPositionSmooth(update, update.reuseAnimation);
-		} else {
-			this._scrollable.setScrollPositionNow(update);
+	pubwic setScwowwPosition(update: INewScwowwPosition & { weuseAnimation?: boowean }): void {
+		if (update.weuseAnimation) {
+			this._scwowwabwe.setScwowwPositionSmooth(update, update.weuseAnimation);
+		} ewse {
+			this._scwowwabwe.setScwowwPositionNow(update);
 		}
 	}
 
-	public getScrollPosition(): IScrollPosition {
-		return this._scrollable.getCurrentScrollPosition();
+	pubwic getScwowwPosition(): IScwowwPosition {
+		wetuwn this._scwowwabwe.getCuwwentScwowwPosition();
 	}
 
 }
 
-export class DomScrollableElement extends ScrollableElement {
+expowt cwass DomScwowwabweEwement extends ScwowwabweEwement {
 
-	private _element: HTMLElement;
+	pwivate _ewement: HTMWEwement;
 
-	constructor(element: HTMLElement, options: ScrollableElementCreationOptions) {
-		super(element, options);
-		this._element = element;
-		this.onScroll((e) => {
-			if (e.scrollTopChanged) {
-				this._element.scrollTop = e.scrollTop;
+	constwuctow(ewement: HTMWEwement, options: ScwowwabweEwementCweationOptions) {
+		supa(ewement, options);
+		this._ewement = ewement;
+		this.onScwoww((e) => {
+			if (e.scwowwTopChanged) {
+				this._ewement.scwowwTop = e.scwowwTop;
 			}
-			if (e.scrollLeftChanged) {
-				this._element.scrollLeft = e.scrollLeft;
+			if (e.scwowwWeftChanged) {
+				this._ewement.scwowwWeft = e.scwowwWeft;
 			}
 		});
 		this.scanDomNode();
 	}
 
-	public scanDomNode(): void {
-		// width, scrollLeft, scrollWidth, height, scrollTop, scrollHeight
-		this.setScrollDimensions({
-			width: this._element.clientWidth,
-			scrollWidth: this._element.scrollWidth,
-			height: this._element.clientHeight,
-			scrollHeight: this._element.scrollHeight
+	pubwic scanDomNode(): void {
+		// width, scwowwWeft, scwowwWidth, height, scwowwTop, scwowwHeight
+		this.setScwowwDimensions({
+			width: this._ewement.cwientWidth,
+			scwowwWidth: this._ewement.scwowwWidth,
+			height: this._ewement.cwientHeight,
+			scwowwHeight: this._ewement.scwowwHeight
 		});
-		this.setScrollPosition({
-			scrollLeft: this._element.scrollLeft,
-			scrollTop: this._element.scrollTop,
+		this.setScwowwPosition({
+			scwowwWeft: this._ewement.scwowwWeft,
+			scwowwTop: this._ewement.scwowwTop,
 		});
 	}
 }
 
-function resolveOptions(opts: ScrollableElementCreationOptions): ScrollableElementResolvedOptions {
-	const result: ScrollableElementResolvedOptions = {
-		lazyRender: (typeof opts.lazyRender !== 'undefined' ? opts.lazyRender : false),
-		className: (typeof opts.className !== 'undefined' ? opts.className : ''),
-		useShadows: (typeof opts.useShadows !== 'undefined' ? opts.useShadows : true),
-		handleMouseWheel: (typeof opts.handleMouseWheel !== 'undefined' ? opts.handleMouseWheel : true),
-		flipAxes: (typeof opts.flipAxes !== 'undefined' ? opts.flipAxes : false),
-		consumeMouseWheelIfScrollbarIsNeeded: (typeof opts.consumeMouseWheelIfScrollbarIsNeeded !== 'undefined' ? opts.consumeMouseWheelIfScrollbarIsNeeded : false),
-		alwaysConsumeMouseWheel: (typeof opts.alwaysConsumeMouseWheel !== 'undefined' ? opts.alwaysConsumeMouseWheel : false),
-		scrollYToX: (typeof opts.scrollYToX !== 'undefined' ? opts.scrollYToX : false),
-		mouseWheelScrollSensitivity: (typeof opts.mouseWheelScrollSensitivity !== 'undefined' ? opts.mouseWheelScrollSensitivity : 1),
-		fastScrollSensitivity: (typeof opts.fastScrollSensitivity !== 'undefined' ? opts.fastScrollSensitivity : 5),
-		scrollPredominantAxis: (typeof opts.scrollPredominantAxis !== 'undefined' ? opts.scrollPredominantAxis : true),
-		mouseWheelSmoothScroll: (typeof opts.mouseWheelSmoothScroll !== 'undefined' ? opts.mouseWheelSmoothScroll : true),
-		arrowSize: (typeof opts.arrowSize !== 'undefined' ? opts.arrowSize : 11),
+function wesowveOptions(opts: ScwowwabweEwementCweationOptions): ScwowwabweEwementWesowvedOptions {
+	const wesuwt: ScwowwabweEwementWesowvedOptions = {
+		wazyWenda: (typeof opts.wazyWenda !== 'undefined' ? opts.wazyWenda : fawse),
+		cwassName: (typeof opts.cwassName !== 'undefined' ? opts.cwassName : ''),
+		useShadows: (typeof opts.useShadows !== 'undefined' ? opts.useShadows : twue),
+		handweMouseWheew: (typeof opts.handweMouseWheew !== 'undefined' ? opts.handweMouseWheew : twue),
+		fwipAxes: (typeof opts.fwipAxes !== 'undefined' ? opts.fwipAxes : fawse),
+		consumeMouseWheewIfScwowwbawIsNeeded: (typeof opts.consumeMouseWheewIfScwowwbawIsNeeded !== 'undefined' ? opts.consumeMouseWheewIfScwowwbawIsNeeded : fawse),
+		awwaysConsumeMouseWheew: (typeof opts.awwaysConsumeMouseWheew !== 'undefined' ? opts.awwaysConsumeMouseWheew : fawse),
+		scwowwYToX: (typeof opts.scwowwYToX !== 'undefined' ? opts.scwowwYToX : fawse),
+		mouseWheewScwowwSensitivity: (typeof opts.mouseWheewScwowwSensitivity !== 'undefined' ? opts.mouseWheewScwowwSensitivity : 1),
+		fastScwowwSensitivity: (typeof opts.fastScwowwSensitivity !== 'undefined' ? opts.fastScwowwSensitivity : 5),
+		scwowwPwedominantAxis: (typeof opts.scwowwPwedominantAxis !== 'undefined' ? opts.scwowwPwedominantAxis : twue),
+		mouseWheewSmoothScwoww: (typeof opts.mouseWheewSmoothScwoww !== 'undefined' ? opts.mouseWheewSmoothScwoww : twue),
+		awwowSize: (typeof opts.awwowSize !== 'undefined' ? opts.awwowSize : 11),
 
-		listenOnDomNode: (typeof opts.listenOnDomNode !== 'undefined' ? opts.listenOnDomNode : null),
+		wistenOnDomNode: (typeof opts.wistenOnDomNode !== 'undefined' ? opts.wistenOnDomNode : nuww),
 
-		horizontal: (typeof opts.horizontal !== 'undefined' ? opts.horizontal : ScrollbarVisibility.Auto),
-		horizontalScrollbarSize: (typeof opts.horizontalScrollbarSize !== 'undefined' ? opts.horizontalScrollbarSize : 10),
-		horizontalSliderSize: (typeof opts.horizontalSliderSize !== 'undefined' ? opts.horizontalSliderSize : 0),
-		horizontalHasArrows: (typeof opts.horizontalHasArrows !== 'undefined' ? opts.horizontalHasArrows : false),
+		howizontaw: (typeof opts.howizontaw !== 'undefined' ? opts.howizontaw : ScwowwbawVisibiwity.Auto),
+		howizontawScwowwbawSize: (typeof opts.howizontawScwowwbawSize !== 'undefined' ? opts.howizontawScwowwbawSize : 10),
+		howizontawSwidewSize: (typeof opts.howizontawSwidewSize !== 'undefined' ? opts.howizontawSwidewSize : 0),
+		howizontawHasAwwows: (typeof opts.howizontawHasAwwows !== 'undefined' ? opts.howizontawHasAwwows : fawse),
 
-		vertical: (typeof opts.vertical !== 'undefined' ? opts.vertical : ScrollbarVisibility.Auto),
-		verticalScrollbarSize: (typeof opts.verticalScrollbarSize !== 'undefined' ? opts.verticalScrollbarSize : 10),
-		verticalHasArrows: (typeof opts.verticalHasArrows !== 'undefined' ? opts.verticalHasArrows : false),
-		verticalSliderSize: (typeof opts.verticalSliderSize !== 'undefined' ? opts.verticalSliderSize : 0),
+		vewticaw: (typeof opts.vewticaw !== 'undefined' ? opts.vewticaw : ScwowwbawVisibiwity.Auto),
+		vewticawScwowwbawSize: (typeof opts.vewticawScwowwbawSize !== 'undefined' ? opts.vewticawScwowwbawSize : 10),
+		vewticawHasAwwows: (typeof opts.vewticawHasAwwows !== 'undefined' ? opts.vewticawHasAwwows : fawse),
+		vewticawSwidewSize: (typeof opts.vewticawSwidewSize !== 'undefined' ? opts.vewticawSwidewSize : 0),
 
-		scrollByPage: (typeof opts.scrollByPage !== 'undefined' ? opts.scrollByPage : false)
+		scwowwByPage: (typeof opts.scwowwByPage !== 'undefined' ? opts.scwowwByPage : fawse)
 	};
 
-	result.horizontalSliderSize = (typeof opts.horizontalSliderSize !== 'undefined' ? opts.horizontalSliderSize : result.horizontalScrollbarSize);
-	result.verticalSliderSize = (typeof opts.verticalSliderSize !== 'undefined' ? opts.verticalSliderSize : result.verticalScrollbarSize);
+	wesuwt.howizontawSwidewSize = (typeof opts.howizontawSwidewSize !== 'undefined' ? opts.howizontawSwidewSize : wesuwt.howizontawScwowwbawSize);
+	wesuwt.vewticawSwidewSize = (typeof opts.vewticawSwidewSize !== 'undefined' ? opts.vewticawSwidewSize : wesuwt.vewticawScwowwbawSize);
 
-	// Defaults are different on Macs
-	if (platform.isMacintosh) {
-		result.className += ' mac';
+	// Defauwts awe diffewent on Macs
+	if (pwatfowm.isMacintosh) {
+		wesuwt.cwassName += ' mac';
 	}
 
-	return result;
+	wetuwn wesuwt;
 }

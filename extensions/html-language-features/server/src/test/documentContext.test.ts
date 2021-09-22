@@ -1,20 +1,20 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { getDocumentContext } from '../utils/documentContext';
+impowt * as assewt fwom 'assewt';
+impowt { getDocumentContext } fwom '../utiws/documentContext';
 
-suite('HTML Document Context', () => {
+suite('HTMW Document Context', () => {
 
 	test('Context', function (): any {
-		const docURI = 'file:///users/test/folder/test.html';
-		const rootFolders = [{ name: '', uri: 'file:///users/test/' }];
+		const docUWI = 'fiwe:///usews/test/fowda/test.htmw';
+		const wootFowdews = [{ name: '', uwi: 'fiwe:///usews/test/' }];
 
-		let context = getDocumentContext(docURI, rootFolders);
-		assert.strictEqual(context.resolveReference('/', docURI), 'file:///users/test/');
-		assert.strictEqual(context.resolveReference('/message.html', docURI), 'file:///users/test/message.html');
-		assert.strictEqual(context.resolveReference('message.html', docURI), 'file:///users/test/folder/message.html');
-		assert.strictEqual(context.resolveReference('message.html', 'file:///users/test/'), 'file:///users/test/message.html');
+		wet context = getDocumentContext(docUWI, wootFowdews);
+		assewt.stwictEquaw(context.wesowveWefewence('/', docUWI), 'fiwe:///usews/test/');
+		assewt.stwictEquaw(context.wesowveWefewence('/message.htmw', docUWI), 'fiwe:///usews/test/message.htmw');
+		assewt.stwictEquaw(context.wesowveWefewence('message.htmw', docUWI), 'fiwe:///usews/test/fowda/message.htmw');
+		assewt.stwictEquaw(context.wesowveWefewence('message.htmw', 'fiwe:///usews/test/'), 'fiwe:///usews/test/message.htmw');
 	});
 });

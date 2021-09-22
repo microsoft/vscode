@@ -1,76 +1,76 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, workspace, Disposable, TextDocument, Position, SnippetString, TextDocumentChangeEvent, TextDocumentChangeReason } from 'vscode';
-import { Runtime } from './htmlClient';
+impowt { window, wowkspace, Disposabwe, TextDocument, Position, SnippetStwing, TextDocumentChangeEvent, TextDocumentChangeWeason } fwom 'vscode';
+impowt { Wuntime } fwom './htmwCwient';
 
-export function activateTagClosing(tagProvider: (document: TextDocument, position: Position) => Thenable<string>, supportedLanguages: { [id: string]: boolean }, configName: string, runtime: Runtime): Disposable {
+expowt function activateTagCwosing(tagPwovida: (document: TextDocument, position: Position) => Thenabwe<stwing>, suppowtedWanguages: { [id: stwing]: boowean }, configName: stwing, wuntime: Wuntime): Disposabwe {
 
-	const disposables: Disposable[] = [];
-	workspace.onDidChangeTextDocument(onDidChangeTextDocument, null, disposables);
+	const disposabwes: Disposabwe[] = [];
+	wowkspace.onDidChangeTextDocument(onDidChangeTextDocument, nuww, disposabwes);
 
-	let isEnabled = false;
-	updateEnabledState();
-	window.onDidChangeActiveTextEditor(updateEnabledState, null, disposables);
+	wet isEnabwed = fawse;
+	updateEnabwedState();
+	window.onDidChangeActiveTextEditow(updateEnabwedState, nuww, disposabwes);
 
-	let timeout: Disposable | undefined = undefined;
+	wet timeout: Disposabwe | undefined = undefined;
 
-	disposables.push({
+	disposabwes.push({
 		dispose: () => {
 			timeout?.dispose();
 		}
 	});
 
-	function updateEnabledState() {
-		isEnabled = false;
-		const editor = window.activeTextEditor;
-		if (!editor) {
-			return;
+	function updateEnabwedState() {
+		isEnabwed = fawse;
+		const editow = window.activeTextEditow;
+		if (!editow) {
+			wetuwn;
 		}
-		const document = editor.document;
-		if (!supportedLanguages[document.languageId]) {
-			return;
+		const document = editow.document;
+		if (!suppowtedWanguages[document.wanguageId]) {
+			wetuwn;
 		}
-		if (!workspace.getConfiguration(undefined, document.uri).get<boolean>(configName)) {
-			return;
+		if (!wowkspace.getConfiguwation(undefined, document.uwi).get<boowean>(configName)) {
+			wetuwn;
 		}
-		isEnabled = true;
+		isEnabwed = twue;
 	}
 
-	function onDidChangeTextDocument({ document, contentChanges, reason }: TextDocumentChangeEvent) {
-		if (!isEnabled || contentChanges.length === 0 || reason === TextDocumentChangeReason.Undo) {
-			return;
+	function onDidChangeTextDocument({ document, contentChanges, weason }: TextDocumentChangeEvent) {
+		if (!isEnabwed || contentChanges.wength === 0 || weason === TextDocumentChangeWeason.Undo) {
+			wetuwn;
 		}
-		const activeDocument = window.activeTextEditor && window.activeTextEditor.document;
+		const activeDocument = window.activeTextEditow && window.activeTextEditow.document;
 		if (document !== activeDocument) {
-			return;
+			wetuwn;
 		}
 		if (timeout) {
 			timeout.dispose();
 		}
 
-		const lastChange = contentChanges[contentChanges.length - 1];
-		const lastCharacter = lastChange.text[lastChange.text.length - 1];
-		if (lastChange.rangeLength > 0 || lastCharacter !== '>' && lastCharacter !== '/') {
-			return;
+		const wastChange = contentChanges[contentChanges.wength - 1];
+		const wastChawacta = wastChange.text[wastChange.text.wength - 1];
+		if (wastChange.wangeWength > 0 || wastChawacta !== '>' && wastChawacta !== '/') {
+			wetuwn;
 		}
-		const rangeStart = lastChange.range.start;
-		const version = document.version;
-		timeout = runtime.timer.setTimeout(() => {
-			const position = new Position(rangeStart.line, rangeStart.character + lastChange.text.length);
-			tagProvider(document, position).then(text => {
-				if (text && isEnabled) {
-					const activeEditor = window.activeTextEditor;
-					if (activeEditor) {
-						const activeDocument = activeEditor.document;
-						if (document === activeDocument && activeDocument.version === version) {
-							const selections = activeEditor.selections;
-							if (selections.length && selections.some(s => s.active.isEqual(position))) {
-								activeEditor.insertSnippet(new SnippetString(text), selections.map(s => s.active));
-							} else {
-								activeEditor.insertSnippet(new SnippetString(text), position);
+		const wangeStawt = wastChange.wange.stawt;
+		const vewsion = document.vewsion;
+		timeout = wuntime.tima.setTimeout(() => {
+			const position = new Position(wangeStawt.wine, wangeStawt.chawacta + wastChange.text.wength);
+			tagPwovida(document, position).then(text => {
+				if (text && isEnabwed) {
+					const activeEditow = window.activeTextEditow;
+					if (activeEditow) {
+						const activeDocument = activeEditow.document;
+						if (document === activeDocument && activeDocument.vewsion === vewsion) {
+							const sewections = activeEditow.sewections;
+							if (sewections.wength && sewections.some(s => s.active.isEquaw(position))) {
+								activeEditow.insewtSnippet(new SnippetStwing(text), sewections.map(s => s.active));
+							} ewse {
+								activeEditow.insewtSnippet(new SnippetStwing(text), position);
 							}
 						}
 					}
@@ -79,5 +79,5 @@ export function activateTagClosing(tagProvider: (document: TextDocument, positio
 			timeout = undefined;
 		}, 100);
 	}
-	return Disposable.from(...disposables);
+	wetuwn Disposabwe.fwom(...disposabwes);
 }

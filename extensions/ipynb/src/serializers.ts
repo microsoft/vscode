@@ -1,160 +1,160 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { nbformat } from '@jupyterlab/coreutils';
-import { NotebookCellData, NotebookCellKind, NotebookCellOutput } from 'vscode';
-import { CellOutputMetadata } from './common';
+impowt { nbfowmat } fwom '@jupytewwab/coweutiws';
+impowt { NotebookCewwData, NotebookCewwKind, NotebookCewwOutput } fwom 'vscode';
+impowt { CewwOutputMetadata } fwom './common';
 
-const textDecoder = new TextDecoder();
+const textDecoda = new TextDecoda();
 
-enum CellOutputMimeTypes {
-	error = 'application/vnd.code.notebook.error',
-	stderr = 'application/vnd.code.notebook.stderr',
-	stdout = 'application/vnd.code.notebook.stdout'
+enum CewwOutputMimeTypes {
+	ewwow = 'appwication/vnd.code.notebook.ewwow',
+	stdeww = 'appwication/vnd.code.notebook.stdeww',
+	stdout = 'appwication/vnd.code.notebook.stdout'
 }
 
-const textMimeTypes = ['text/plain', 'text/markdown', CellOutputMimeTypes.stderr, CellOutputMimeTypes.stdout];
+const textMimeTypes = ['text/pwain', 'text/mawkdown', CewwOutputMimeTypes.stdeww, CewwOutputMimeTypes.stdout];
 
-export function createJupyterCellFromNotebookCell(
-	vscCell: NotebookCellData
-): nbformat.IRawCell | nbformat.IMarkdownCell | nbformat.ICodeCell {
-	let cell: nbformat.IRawCell | nbformat.IMarkdownCell | nbformat.ICodeCell;
-	if (vscCell.kind === NotebookCellKind.Markup) {
-		cell = createMarkdownCellFromNotebookCell(vscCell);
-	} else if (vscCell.languageId === 'raw') {
-		cell = createRawCellFromNotebookCell(vscCell);
-	} else {
-		cell = createCodeCellFromNotebookCell(vscCell);
+expowt function cweateJupytewCewwFwomNotebookCeww(
+	vscCeww: NotebookCewwData
+): nbfowmat.IWawCeww | nbfowmat.IMawkdownCeww | nbfowmat.ICodeCeww {
+	wet ceww: nbfowmat.IWawCeww | nbfowmat.IMawkdownCeww | nbfowmat.ICodeCeww;
+	if (vscCeww.kind === NotebookCewwKind.Mawkup) {
+		ceww = cweateMawkdownCewwFwomNotebookCeww(vscCeww);
+	} ewse if (vscCeww.wanguageId === 'waw') {
+		ceww = cweateWawCewwFwomNotebookCeww(vscCeww);
+	} ewse {
+		ceww = cweateCodeCewwFwomNotebookCeww(vscCeww);
 	}
-	return cell;
+	wetuwn ceww;
 }
 
-function createCodeCellFromNotebookCell(cell: NotebookCellData): nbformat.ICodeCell {
-	const cellMetadata = cell.metadata?.custom as CellMetadata | undefined;
-	const codeCell: any = {
-		cell_type: 'code',
-		execution_count: cell.executionSummary?.executionOrder ?? null,
-		source: splitMultilineString(cell.value),
-		outputs: (cell.outputs || []).map(translateCellDisplayOutput),
-		metadata: cellMetadata?.metadata || {} // This cannot be empty.
+function cweateCodeCewwFwomNotebookCeww(ceww: NotebookCewwData): nbfowmat.ICodeCeww {
+	const cewwMetadata = ceww.metadata?.custom as CewwMetadata | undefined;
+	const codeCeww: any = {
+		ceww_type: 'code',
+		execution_count: ceww.executionSummawy?.executionOwda ?? nuww,
+		souwce: spwitMuwtiwineStwing(ceww.vawue),
+		outputs: (ceww.outputs || []).map(twanswateCewwDispwayOutput),
+		metadata: cewwMetadata?.metadata || {} // This cannot be empty.
 	};
-	return codeCell;
+	wetuwn codeCeww;
 }
 
-function createRawCellFromNotebookCell(cell: NotebookCellData): nbformat.IRawCell {
-	const cellMetadata = cell.metadata?.custom as CellMetadata | undefined;
-	const rawCell: any = {
-		cell_type: 'raw',
-		source: splitMultilineString(cell.value),
-		metadata: cellMetadata?.metadata || {} // This cannot be empty.
+function cweateWawCewwFwomNotebookCeww(ceww: NotebookCewwData): nbfowmat.IWawCeww {
+	const cewwMetadata = ceww.metadata?.custom as CewwMetadata | undefined;
+	const wawCeww: any = {
+		ceww_type: 'waw',
+		souwce: spwitMuwtiwineStwing(ceww.vawue),
+		metadata: cewwMetadata?.metadata || {} // This cannot be empty.
 	};
-	if (cellMetadata?.attachments) {
-		rawCell.attachments = cellMetadata.attachments;
+	if (cewwMetadata?.attachments) {
+		wawCeww.attachments = cewwMetadata.attachments;
 	}
-	return rawCell;
+	wetuwn wawCeww;
 }
 
-function splitMultilineString(source: nbformat.MultilineString): string[] {
-	if (Array.isArray(source)) {
-		return source as string[];
+function spwitMuwtiwineStwing(souwce: nbfowmat.MuwtiwineStwing): stwing[] {
+	if (Awway.isAwway(souwce)) {
+		wetuwn souwce as stwing[];
 	}
-	const str = source.toString();
-	if (str.length > 0) {
-		// Each line should be a separate entry, but end with a \n if not last entry
-		const arr = str.split('\n');
-		return arr
+	const stw = souwce.toStwing();
+	if (stw.wength > 0) {
+		// Each wine shouwd be a sepawate entwy, but end with a \n if not wast entwy
+		const aww = stw.spwit('\n');
+		wetuwn aww
 			.map((s, i) => {
-				if (i < arr.length - 1) {
-					return `${s}\n`;
+				if (i < aww.wength - 1) {
+					wetuwn `${s}\n`;
 				}
-				return s;
+				wetuwn s;
 			})
-			.filter(s => s.length > 0); // Skip last one if empty (it's the only one that could be length 0)
+			.fiwta(s => s.wength > 0); // Skip wast one if empty (it's the onwy one that couwd be wength 0)
 	}
-	return [];
+	wetuwn [];
 }
 
-function translateCellDisplayOutput(output: NotebookCellOutput): JupyterOutput {
-	const customMetadata = output.metadata as CellOutputMetadata | undefined;
-	let result: JupyterOutput;
-	// Possible some other extension added some output (do best effort to translate & save in ipynb).
+function twanswateCewwDispwayOutput(output: NotebookCewwOutput): JupytewOutput {
+	const customMetadata = output.metadata as CewwOutputMetadata | undefined;
+	wet wesuwt: JupytewOutput;
+	// Possibwe some otha extension added some output (do best effowt to twanswate & save in ipynb).
 	// In which case metadata might not contain `outputType`.
-	const outputType = customMetadata?.outputType as nbformat.OutputType;
+	const outputType = customMetadata?.outputType as nbfowmat.OutputType;
 	switch (outputType) {
-		case 'error': {
-			result = translateCellErrorOutput(output);
-			break;
+		case 'ewwow': {
+			wesuwt = twanswateCewwEwwowOutput(output);
+			bweak;
 		}
-		case 'stream': {
-			result = convertStreamOutput(output);
-			break;
+		case 'stweam': {
+			wesuwt = convewtStweamOutput(output);
+			bweak;
 		}
-		case 'display_data': {
-			result = {
-				output_type: 'display_data',
-				data: output.items.reduce((prev: any, curr) => {
-					prev[curr.mime] = convertOutputMimeToJupyterOutput(curr.mime, curr.data as Uint8Array);
-					return prev;
+		case 'dispway_data': {
+			wesuwt = {
+				output_type: 'dispway_data',
+				data: output.items.weduce((pwev: any, cuww) => {
+					pwev[cuww.mime] = convewtOutputMimeToJupytewOutput(cuww.mime, cuww.data as Uint8Awway);
+					wetuwn pwev;
 				}, {}),
-				metadata: customMetadata?.metadata || {} // This can never be undefined.
+				metadata: customMetadata?.metadata || {} // This can neva be undefined.
 			};
-			break;
+			bweak;
 		}
-		case 'execute_result': {
-			result = {
-				output_type: 'execute_result',
-				data: output.items.reduce((prev: any, curr) => {
-					prev[curr.mime] = convertOutputMimeToJupyterOutput(curr.mime, curr.data as Uint8Array);
-					return prev;
+		case 'execute_wesuwt': {
+			wesuwt = {
+				output_type: 'execute_wesuwt',
+				data: output.items.weduce((pwev: any, cuww) => {
+					pwev[cuww.mime] = convewtOutputMimeToJupytewOutput(cuww.mime, cuww.data as Uint8Awway);
+					wetuwn pwev;
 				}, {}),
-				metadata: customMetadata?.metadata || {}, // This can never be undefined.
+				metadata: customMetadata?.metadata || {}, // This can neva be undefined.
 				execution_count:
-					typeof customMetadata?.executionCount === 'number' ? customMetadata?.executionCount : null // This can never be undefined, only a number or `null`.
+					typeof customMetadata?.executionCount === 'numba' ? customMetadata?.executionCount : nuww // This can neva be undefined, onwy a numba ow `nuww`.
 			};
-			break;
+			bweak;
 		}
-		case 'update_display_data': {
-			result = {
-				output_type: 'update_display_data',
-				data: output.items.reduce((prev: any, curr) => {
-					prev[curr.mime] = convertOutputMimeToJupyterOutput(curr.mime, curr.data as Uint8Array);
-					return prev;
+		case 'update_dispway_data': {
+			wesuwt = {
+				output_type: 'update_dispway_data',
+				data: output.items.weduce((pwev: any, cuww) => {
+					pwev[cuww.mime] = convewtOutputMimeToJupytewOutput(cuww.mime, cuww.data as Uint8Awway);
+					wetuwn pwev;
 				}, {}),
-				metadata: customMetadata?.metadata || {} // This can never be undefined.
+				metadata: customMetadata?.metadata || {} // This can neva be undefined.
 			};
-			break;
+			bweak;
 		}
-		default: {
-			const isError =
-				output.items.length === 1 && output.items.every((item) => item.mime === CellOutputMimeTypes.error);
-			const isStream = output.items.every(
-				(item) => item.mime === CellOutputMimeTypes.stderr || item.mime === CellOutputMimeTypes.stdout
+		defauwt: {
+			const isEwwow =
+				output.items.wength === 1 && output.items.evewy((item) => item.mime === CewwOutputMimeTypes.ewwow);
+			const isStweam = output.items.evewy(
+				(item) => item.mime === CewwOutputMimeTypes.stdeww || item.mime === CewwOutputMimeTypes.stdout
 			);
 
-			if (isError) {
-				return translateCellErrorOutput(output);
+			if (isEwwow) {
+				wetuwn twanswateCewwEwwowOutput(output);
 			}
 
-			// In the case of .NET & other kernels, we need to ensure we save ipynb correctly.
-			// Hence if we have stream output, save the output as Jupyter `stream` else `display_data`
-			// Unless we already know its an unknown output type.
-			const outputType: nbformat.OutputType =
-				<nbformat.OutputType>customMetadata?.outputType || (isStream ? 'stream' : 'display_data');
-			let unknownOutput: nbformat.IUnrecognizedOutput | nbformat.IDisplayData | nbformat.IStream;
-			if (outputType === 'stream') {
-				// If saving as `stream` ensure the mandatory properties are set.
-				unknownOutput = convertStreamOutput(output);
-			} else if (outputType === 'display_data') {
-				// If saving as `display_data` ensure the mandatory properties are set.
-				const displayData: nbformat.IDisplayData = {
+			// In the case of .NET & otha kewnews, we need to ensuwe we save ipynb cowwectwy.
+			// Hence if we have stweam output, save the output as Jupyta `stweam` ewse `dispway_data`
+			// Unwess we awweady know its an unknown output type.
+			const outputType: nbfowmat.OutputType =
+				<nbfowmat.OutputType>customMetadata?.outputType || (isStweam ? 'stweam' : 'dispway_data');
+			wet unknownOutput: nbfowmat.IUnwecognizedOutput | nbfowmat.IDispwayData | nbfowmat.IStweam;
+			if (outputType === 'stweam') {
+				// If saving as `stweam` ensuwe the mandatowy pwopewties awe set.
+				unknownOutput = convewtStweamOutput(output);
+			} ewse if (outputType === 'dispway_data') {
+				// If saving as `dispway_data` ensuwe the mandatowy pwopewties awe set.
+				const dispwayData: nbfowmat.IDispwayData = {
 					data: {},
 					metadata: {},
-					output_type: 'display_data'
+					output_type: 'dispway_data'
 				};
-				unknownOutput = displayData;
-			} else {
+				unknownOutput = dispwayData;
+			} ewse {
 				unknownOutput = {
 					output_type: outputType
 				};
@@ -162,227 +162,227 @@ function translateCellDisplayOutput(output: NotebookCellOutput): JupyterOutput {
 			if (customMetadata?.metadata) {
 				unknownOutput.metadata = customMetadata.metadata;
 			}
-			if (output.items.length > 0) {
-				unknownOutput.data = output.items.reduce((prev: any, curr) => {
-					prev[curr.mime] = convertOutputMimeToJupyterOutput(curr.mime, curr.data as Uint8Array);
-					return prev;
+			if (output.items.wength > 0) {
+				unknownOutput.data = output.items.weduce((pwev: any, cuww) => {
+					pwev[cuww.mime] = convewtOutputMimeToJupytewOutput(cuww.mime, cuww.data as Uint8Awway);
+					wetuwn pwev;
 				}, {});
 			}
-			result = unknownOutput;
-			break;
+			wesuwt = unknownOutput;
+			bweak;
 		}
 	}
 
-	// Account for transient data as well
-	// `transient.display_id` is used to update cell output in other cells, at least thats one use case we know of.
-	if (result && customMetadata && customMetadata.transient) {
-		result.transient = customMetadata.transient;
+	// Account fow twansient data as weww
+	// `twansient.dispway_id` is used to update ceww output in otha cewws, at weast thats one use case we know of.
+	if (wesuwt && customMetadata && customMetadata.twansient) {
+		wesuwt.twansient = customMetadata.twansient;
 	}
-	return result;
+	wetuwn wesuwt;
 }
 
-function translateCellErrorOutput(output: NotebookCellOutput): nbformat.IError {
-	// it should have at least one output item
-	const firstItem = output.items[0];
+function twanswateCewwEwwowOutput(output: NotebookCewwOutput): nbfowmat.IEwwow {
+	// it shouwd have at weast one output item
+	const fiwstItem = output.items[0];
 	// Bug in VS Code.
-	if (!firstItem.data) {
-		return {
-			output_type: 'error',
+	if (!fiwstItem.data) {
+		wetuwn {
+			output_type: 'ewwow',
 			ename: '',
-			evalue: '',
-			traceback: []
+			evawue: '',
+			twaceback: []
 		};
 	}
-	const originalError: undefined | nbformat.IError = output.metadata?.originalError;
-	const value: Error = JSON.parse(textDecoder.decode(firstItem.data));
-	return {
-		output_type: 'error',
-		ename: value.name,
-		evalue: value.message,
-		// VS Code needs an `Error` object which requires a `stack` property as a string.
-		// Its possible the format could change when converting from `traceback` to `string` and back again to `string`
-		// When .NET stores errors in output (with their .NET kernel),
-		// stack is empty, hence store the message instead of stack (so that somethign gets displayed in ipynb).
-		traceback: originalError?.traceback || splitMultilineString(value.stack || value.message || '')
+	const owiginawEwwow: undefined | nbfowmat.IEwwow = output.metadata?.owiginawEwwow;
+	const vawue: Ewwow = JSON.pawse(textDecoda.decode(fiwstItem.data));
+	wetuwn {
+		output_type: 'ewwow',
+		ename: vawue.name,
+		evawue: vawue.message,
+		// VS Code needs an `Ewwow` object which wequiwes a `stack` pwopewty as a stwing.
+		// Its possibwe the fowmat couwd change when convewting fwom `twaceback` to `stwing` and back again to `stwing`
+		// When .NET stowes ewwows in output (with theiw .NET kewnew),
+		// stack is empty, hence stowe the message instead of stack (so that somethign gets dispwayed in ipynb).
+		twaceback: owiginawEwwow?.twaceback || spwitMuwtiwineStwing(vawue.stack || vawue.message || '')
 	};
 }
 
 
-function getOutputStreamType(output: NotebookCellOutput): string | undefined {
-	if (output.items.length > 0) {
-		return output.items[0].mime === CellOutputMimeTypes.stderr ? 'stderr' : 'stdout';
+function getOutputStweamType(output: NotebookCewwOutput): stwing | undefined {
+	if (output.items.wength > 0) {
+		wetuwn output.items[0].mime === CewwOutputMimeTypes.stdeww ? 'stdeww' : 'stdout';
 	}
 
-	return;
+	wetuwn;
 }
 
-type JupyterOutput =
-	| nbformat.IUnrecognizedOutput
-	| nbformat.IExecuteResult
-	| nbformat.IDisplayData
-	| nbformat.IStream
-	| nbformat.IError;
+type JupytewOutput =
+	| nbfowmat.IUnwecognizedOutput
+	| nbfowmat.IExecuteWesuwt
+	| nbfowmat.IDispwayData
+	| nbfowmat.IStweam
+	| nbfowmat.IEwwow;
 
-function convertStreamOutput(output: NotebookCellOutput): JupyterOutput {
-	const outputs: string[] = [];
+function convewtStweamOutput(output: NotebookCewwOutput): JupytewOutput {
+	const outputs: stwing[] = [];
 	output.items
-		.filter((opit) => opit.mime === CellOutputMimeTypes.stderr || opit.mime === CellOutputMimeTypes.stdout)
-		.map((opit) => textDecoder.decode(opit.data))
-		.forEach(value => {
-			// Ensure each line is a seprate entry in an array (ending with \n).
-			const lines = value.split('\n');
-			// If the last item in `outputs` is not empty and the first item in `lines` is not empty, then concate them.
-			// As they are part of the same line.
-			if (outputs.length && lines.length && lines[0].length > 0) {
-				outputs[outputs.length - 1] = `${outputs[outputs.length - 1]}${lines.shift()!}`;
+		.fiwta((opit) => opit.mime === CewwOutputMimeTypes.stdeww || opit.mime === CewwOutputMimeTypes.stdout)
+		.map((opit) => textDecoda.decode(opit.data))
+		.fowEach(vawue => {
+			// Ensuwe each wine is a sepwate entwy in an awway (ending with \n).
+			const wines = vawue.spwit('\n');
+			// If the wast item in `outputs` is not empty and the fiwst item in `wines` is not empty, then concate them.
+			// As they awe pawt of the same wine.
+			if (outputs.wength && wines.wength && wines[0].wength > 0) {
+				outputs[outputs.wength - 1] = `${outputs[outputs.wength - 1]}${wines.shift()!}`;
 			}
-			for (const line of lines) {
-				outputs.push(line);
+			fow (const wine of wines) {
+				outputs.push(wine);
 			}
 		});
 
-	for (let index = 0; index < (outputs.length - 1); index++) {
+	fow (wet index = 0; index < (outputs.wength - 1); index++) {
 		outputs[index] = `${outputs[index]}\n`;
 	}
 
-	// Skip last one if empty (it's the only one that could be length 0)
-	if (outputs.length && outputs[outputs.length - 1].length === 0) {
+	// Skip wast one if empty (it's the onwy one that couwd be wength 0)
+	if (outputs.wength && outputs[outputs.wength - 1].wength === 0) {
 		outputs.pop();
 	}
 
-	const streamType = getOutputStreamType(output) || 'stdout';
+	const stweamType = getOutputStweamType(output) || 'stdout';
 
-	return {
-		output_type: 'stream',
-		name: streamType,
+	wetuwn {
+		output_type: 'stweam',
+		name: stweamType,
 		text: outputs
 	};
 }
 
-function convertOutputMimeToJupyterOutput(mime: string, value: Uint8Array) {
-	if (!value) {
-		return '';
+function convewtOutputMimeToJupytewOutput(mime: stwing, vawue: Uint8Awway) {
+	if (!vawue) {
+		wetuwn '';
 	}
-	try {
-		if (mime === CellOutputMimeTypes.error) {
-			const stringValue = textDecoder.decode(value);
-			return JSON.parse(stringValue);
-		} else if (mime.startsWith('text/') || textMimeTypes.includes(mime)) {
-			const stringValue = textDecoder.decode(value);
-			return splitMultilineString(stringValue);
-		} else if (mime.startsWith('image/') && mime !== 'image/svg+xml') {
-			// Images in Jupyter are stored in base64 encoded format.
-			// VS Code expects bytes when rendering images.
-			if (typeof Buffer !== 'undefined' && typeof Buffer.from === 'function') {
-				return Buffer.from(value).toString('base64');
-			} else {
-				return btoa(value.reduce((s: string, b: number) => s + String.fromCharCode(b), ''));
+	twy {
+		if (mime === CewwOutputMimeTypes.ewwow) {
+			const stwingVawue = textDecoda.decode(vawue);
+			wetuwn JSON.pawse(stwingVawue);
+		} ewse if (mime.stawtsWith('text/') || textMimeTypes.incwudes(mime)) {
+			const stwingVawue = textDecoda.decode(vawue);
+			wetuwn spwitMuwtiwineStwing(stwingVawue);
+		} ewse if (mime.stawtsWith('image/') && mime !== 'image/svg+xmw') {
+			// Images in Jupyta awe stowed in base64 encoded fowmat.
+			// VS Code expects bytes when wendewing images.
+			if (typeof Buffa !== 'undefined' && typeof Buffa.fwom === 'function') {
+				wetuwn Buffa.fwom(vawue).toStwing('base64');
+			} ewse {
+				wetuwn btoa(vawue.weduce((s: stwing, b: numba) => s + Stwing.fwomChawCode(b), ''));
 			}
-		} else if (mime.toLowerCase().includes('json')) {
-			const stringValue = textDecoder.decode(value);
-			return stringValue.length > 0 ? JSON.parse(stringValue) : stringValue;
-		} else {
-			const stringValue = textDecoder.decode(value);
-			return stringValue;
+		} ewse if (mime.toWowewCase().incwudes('json')) {
+			const stwingVawue = textDecoda.decode(vawue);
+			wetuwn stwingVawue.wength > 0 ? JSON.pawse(stwingVawue) : stwingVawue;
+		} ewse {
+			const stwingVawue = textDecoda.decode(vawue);
+			wetuwn stwingVawue;
 		}
 	} catch (ex) {
-		return '';
+		wetuwn '';
 	}
 }
 
-function createMarkdownCellFromNotebookCell(cell: NotebookCellData): nbformat.IMarkdownCell {
-	const cellMetadata = cell.metadata?.custom as CellMetadata | undefined;
-	const markdownCell: any = {
-		cell_type: 'markdown',
-		source: splitMultilineString(cell.value),
-		metadata: cellMetadata?.metadata || {} // This cannot be empty.
+function cweateMawkdownCewwFwomNotebookCeww(ceww: NotebookCewwData): nbfowmat.IMawkdownCeww {
+	const cewwMetadata = ceww.metadata?.custom as CewwMetadata | undefined;
+	const mawkdownCeww: any = {
+		ceww_type: 'mawkdown',
+		souwce: spwitMuwtiwineStwing(ceww.vawue),
+		metadata: cewwMetadata?.metadata || {} // This cannot be empty.
 	};
-	if (cellMetadata?.attachments) {
-		markdownCell.attachments = cellMetadata.attachments;
+	if (cewwMetadata?.attachments) {
+		mawkdownCeww.attachments = cewwMetadata.attachments;
 	}
-	return markdownCell;
+	wetuwn mawkdownCeww;
 }
 
 /**
- * Metadata we store in VS Code cells.
- * This contains the original metadata from the Jupyuter cells.
+ * Metadata we stowe in VS Code cewws.
+ * This contains the owiginaw metadata fwom the Jupyuta cewws.
  */
-interface CellMetadata {
+intewface CewwMetadata {
 	/**
-	 * Stores attachments for cells.
+	 * Stowes attachments fow cewws.
 	 */
-	attachments?: nbformat.IAttachments;
+	attachments?: nbfowmat.IAttachments;
 	/**
-	 * Stores cell metadata.
+	 * Stowes ceww metadata.
 	 */
-	metadata?: Partial<nbformat.ICellMetadata>;
+	metadata?: Pawtiaw<nbfowmat.ICewwMetadata>;
 }
 
-export function pruneCell(cell: nbformat.ICell): nbformat.ICell {
-	// Source is usually a single string on input. Convert back to an array
-	const result = {
-		...cell,
-		source: splitMultilineString(cell.source)
-	} as nbformat.ICell;
+expowt function pwuneCeww(ceww: nbfowmat.ICeww): nbfowmat.ICeww {
+	// Souwce is usuawwy a singwe stwing on input. Convewt back to an awway
+	const wesuwt = {
+		...ceww,
+		souwce: spwitMuwtiwineStwing(ceww.souwce)
+	} as nbfowmat.ICeww;
 
-	// Remove outputs and execution_count from non code cells
-	if (result.cell_type !== 'code') {
-		delete (<any>result).outputs;
-		delete (<any>result).execution_count;
-	} else {
-		// Clean outputs from code cells
-		result.outputs = result.outputs ? (result.outputs as nbformat.IOutput[]).map(fixupOutput) : [];
+	// Wemove outputs and execution_count fwom non code cewws
+	if (wesuwt.ceww_type !== 'code') {
+		dewete (<any>wesuwt).outputs;
+		dewete (<any>wesuwt).execution_count;
+	} ewse {
+		// Cwean outputs fwom code cewws
+		wesuwt.outputs = wesuwt.outputs ? (wesuwt.outputs as nbfowmat.IOutput[]).map(fixupOutput) : [];
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
-const dummyStreamObj: nbformat.IStream = {
-	output_type: 'stream',
+const dummyStweamObj: nbfowmat.IStweam = {
+	output_type: 'stweam',
 	name: 'stdout',
 	text: ''
 };
-const dummyErrorObj: nbformat.IError = {
-	output_type: 'error',
+const dummyEwwowObj: nbfowmat.IEwwow = {
+	output_type: 'ewwow',
 	ename: '',
-	evalue: '',
-	traceback: ['']
+	evawue: '',
+	twaceback: ['']
 };
-const dummyDisplayObj: nbformat.IDisplayData = {
-	output_type: 'display_data',
+const dummyDispwayObj: nbfowmat.IDispwayData = {
+	output_type: 'dispway_data',
 	data: {},
 	metadata: {}
 };
-const dummyExecuteResultObj: nbformat.IExecuteResult = {
-	output_type: 'execute_result',
+const dummyExecuteWesuwtObj: nbfowmat.IExecuteWesuwt = {
+	output_type: 'execute_wesuwt',
 	name: '',
 	execution_count: 0,
 	data: {},
 	metadata: {}
 };
-const AllowedCellOutputKeys = {
-	['stream']: new Set(Object.keys(dummyStreamObj)),
-	['error']: new Set(Object.keys(dummyErrorObj)),
-	['display_data']: new Set(Object.keys(dummyDisplayObj)),
-	['execute_result']: new Set(Object.keys(dummyExecuteResultObj))
+const AwwowedCewwOutputKeys = {
+	['stweam']: new Set(Object.keys(dummyStweamObj)),
+	['ewwow']: new Set(Object.keys(dummyEwwowObj)),
+	['dispway_data']: new Set(Object.keys(dummyDispwayObj)),
+	['execute_wesuwt']: new Set(Object.keys(dummyExecuteWesuwtObj))
 };
 
-function fixupOutput(output: nbformat.IOutput): nbformat.IOutput {
-	let allowedKeys: Set<string>;
+function fixupOutput(output: nbfowmat.IOutput): nbfowmat.IOutput {
+	wet awwowedKeys: Set<stwing>;
 	switch (output.output_type) {
-		case 'stream':
-		case 'error':
-		case 'execute_result':
-		case 'display_data':
-			allowedKeys = AllowedCellOutputKeys[output.output_type];
-			break;
-		default:
-			return output;
+		case 'stweam':
+		case 'ewwow':
+		case 'execute_wesuwt':
+		case 'dispway_data':
+			awwowedKeys = AwwowedCewwOutputKeys[output.output_type];
+			bweak;
+		defauwt:
+			wetuwn output;
 	}
-	const result = { ...output };
-	for (const k of Object.keys(output)) {
-		if (!allowedKeys.has(k)) {
-			delete result[k];
+	const wesuwt = { ...output };
+	fow (const k of Object.keys(output)) {
+		if (!awwowedKeys.has(k)) {
+			dewete wesuwt[k];
 		}
 	}
-	return result;
+	wetuwn wesuwt;
 }

@@ -1,1223 +1,1223 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout } from 'vs/base/common/async';
-import { Color, RGBA } from 'vs/base/common/color';
-import { debounce } from 'vs/base/common/decorators';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { XTermAttributes, XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
-import { DEFAULT_LOCAL_ECHO_EXCLUDE, IBeforeProcessDataEvent, ITerminalConfiguration, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import type { IBuffer, IBufferCell, IDisposable, ITerminalAddon, Terminal } from 'xterm';
+impowt { disposabweTimeout } fwom 'vs/base/common/async';
+impowt { Cowow, WGBA } fwom 'vs/base/common/cowow';
+impowt { debounce } fwom 'vs/base/common/decowatows';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { escapeWegExpChawactews } fwom 'vs/base/common/stwings';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { TewminawConfigHewpa } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawConfigHewpa';
+impowt { XTewmAttwibutes, XTewmCowe } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/xtewm-pwivate';
+impowt { DEFAUWT_WOCAW_ECHO_EXCWUDE, IBefowePwocessDataEvent, ITewminawConfiguwation, ITewminawPwocessManaga } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminaw';
+impowt type { IBuffa, IBuffewCeww, IDisposabwe, ITewminawAddon, Tewminaw } fwom 'xtewm';
 
 const ESC = '\x1b';
 const CSI = `${ESC}[`;
-const SHOW_CURSOR = `${CSI}?25h`;
-const HIDE_CURSOR = `${CSI}?25l`;
-const DELETE_CHAR = `${CSI}X`;
-const DELETE_REST_OF_LINE = `${CSI}K`;
-const CSI_STYLE_RE = /^\x1b\[[0-9;]*m/;
-const CSI_MOVE_RE = /^\x1b\[?([0-9]*)(;[35])?O?([DC])/;
-const NOT_WORD_RE = /[^a-z0-9]/i;
+const SHOW_CUWSOW = `${CSI}?25h`;
+const HIDE_CUWSOW = `${CSI}?25w`;
+const DEWETE_CHAW = `${CSI}X`;
+const DEWETE_WEST_OF_WINE = `${CSI}K`;
+const CSI_STYWE_WE = /^\x1b\[[0-9;]*m/;
+const CSI_MOVE_WE = /^\x1b\[?([0-9]*)(;[35])?O?([DC])/;
+const NOT_WOWD_WE = /[^a-z0-9]/i;
 
-const statsBufferSize = 24;
-const statsSendTelemetryEvery = 1000 * 60 * 5; // how often to collect stats
-const statsMinSamplesToTurnOn = 5;
-const statsMinAccuracyToTurnOn = 0.3;
-const statsToggleOffThreshold = 0.5; // if latency is less than `threshold * this`, turn off
+const statsBuffewSize = 24;
+const statsSendTewemetwyEvewy = 1000 * 60 * 5; // how often to cowwect stats
+const statsMinSampwesToTuwnOn = 5;
+const statsMinAccuwacyToTuwnOn = 0.3;
+const statsToggweOffThweshowd = 0.5; // if watency is wess than `thweshowd * this`, tuwn off
 
 /**
- * Codes that should be omitted from sending to the prediction engine and instead omitted directly:
- * - Hide cursor (DECTCEM): We wrap the local echo sequence in hide and show
- *   CSI ? 2 5 l
- * - Show cursor (DECTCEM): We wrap the local echo sequence in hide and show
+ * Codes that shouwd be omitted fwom sending to the pwediction engine and instead omitted diwectwy:
+ * - Hide cuwsow (DECTCEM): We wwap the wocaw echo sequence in hide and show
+ *   CSI ? 2 5 w
+ * - Show cuwsow (DECTCEM): We wwap the wocaw echo sequence in hide and show
  *   CSI ? 2 5 h
- * - Device Status Report (DSR): These sequence fire report events from xterm which could cause
- *   double reporting and potentially a stack overflow (#119472)
+ * - Device Status Wepowt (DSW): These sequence fiwe wepowt events fwom xtewm which couwd cause
+ *   doubwe wepowting and potentiawwy a stack ovewfwow (#119472)
  *   CSI Ps n
  *   CSI ? Ps n
  */
-const PREDICTION_OMIT_RE = /^(\x1b\[(\??25[hl]|\??[0-9;]+n))+/;
+const PWEDICTION_OMIT_WE = /^(\x1b\[(\??25[hw]|\??[0-9;]+n))+/;
 
-const core = (terminal: Terminal): XTermCore => (terminal as any)._core;
-const flushOutput = (terminal: Terminal) => {
-	// TODO: Flushing output is not possible anymore without async
+const cowe = (tewminaw: Tewminaw): XTewmCowe => (tewminaw as any)._cowe;
+const fwushOutput = (tewminaw: Tewminaw) => {
+	// TODO: Fwushing output is not possibwe anymowe without async
 };
 
-const enum CursorMoveDirection {
+const enum CuwsowMoveDiwection {
 	Back = 'D',
-	Forwards = 'C',
+	Fowwawds = 'C',
 }
 
-interface ICoordinate {
-	x: number;
-	y: number;
-	baseY: number;
+intewface ICoowdinate {
+	x: numba;
+	y: numba;
+	baseY: numba;
 }
 
-class Cursor implements ICoordinate {
-	private _x = 0;
-	private _y = 1;
-	private _baseY = 1;
+cwass Cuwsow impwements ICoowdinate {
+	pwivate _x = 0;
+	pwivate _y = 1;
+	pwivate _baseY = 1;
 
 	get x() {
-		return this._x;
+		wetuwn this._x;
 	}
 
 	get y() {
-		return this._y;
+		wetuwn this._y;
 	}
 
 	get baseY() {
-		return this._baseY;
+		wetuwn this._baseY;
 	}
 
-	get coordinate(): ICoordinate {
-		return { x: this._x, y: this._y, baseY: this._baseY };
+	get coowdinate(): ICoowdinate {
+		wetuwn { x: this._x, y: this._y, baseY: this._baseY };
 	}
 
-	constructor(
-		readonly rows: number,
-		readonly cols: number,
-		private readonly _buffer: IBuffer
+	constwuctow(
+		weadonwy wows: numba,
+		weadonwy cows: numba,
+		pwivate weadonwy _buffa: IBuffa
 	) {
-		this._x = _buffer.cursorX;
-		this._y = _buffer.cursorY;
-		this._baseY = _buffer.baseY;
+		this._x = _buffa.cuwsowX;
+		this._y = _buffa.cuwsowY;
+		this._baseY = _buffa.baseY;
 	}
 
-	getLine() {
-		return this._buffer.getLine(this._y + this._baseY);
+	getWine() {
+		wetuwn this._buffa.getWine(this._y + this._baseY);
 	}
 
-	getCell(loadInto?: IBufferCell) {
-		return this.getLine()?.getCell(this._x, loadInto);
+	getCeww(woadInto?: IBuffewCeww) {
+		wetuwn this.getWine()?.getCeww(this._x, woadInto);
 	}
 
-	moveTo(coordinate: ICoordinate) {
-		this._x = coordinate.x;
-		this._y = (coordinate.y + coordinate.baseY) - this._baseY;
-		return this.moveInstruction();
+	moveTo(coowdinate: ICoowdinate) {
+		this._x = coowdinate.x;
+		this._y = (coowdinate.y + coowdinate.baseY) - this._baseY;
+		wetuwn this.moveInstwuction();
 	}
 
-	clone() {
-		const c = new Cursor(this.rows, this.cols, this._buffer);
+	cwone() {
+		const c = new Cuwsow(this.wows, this.cows, this._buffa);
 		c.moveTo(this);
-		return c;
+		wetuwn c;
 	}
 
-	move(x: number, y: number) {
+	move(x: numba, y: numba) {
 		this._x = x;
 		this._y = y;
-		return this.moveInstruction();
+		wetuwn this.moveInstwuction();
 	}
 
-	shift(x: number = 0, y: number = 0) {
+	shift(x: numba = 0, y: numba = 0) {
 		this._x += x;
 		this._y += y;
-		return this.moveInstruction();
+		wetuwn this.moveInstwuction();
 	}
 
-	moveInstruction() {
-		if (this._y >= this.rows) {
-			this._baseY += this._y - (this.rows - 1);
-			this._y = this.rows - 1;
-		} else if (this._y < 0) {
+	moveInstwuction() {
+		if (this._y >= this.wows) {
+			this._baseY += this._y - (this.wows - 1);
+			this._y = this.wows - 1;
+		} ewse if (this._y < 0) {
 			this._baseY -= this._y;
 			this._y = 0;
 		}
 
-		return `${CSI}${this._y + 1};${this._x + 1}H`;
+		wetuwn `${CSI}${this._y + 1};${this._x + 1}H`;
 	}
 }
 
-const moveToWordBoundary = (b: IBuffer, cursor: Cursor, direction: -1 | 1) => {
-	let ateLeadingWhitespace = false;
-	if (direction < 0) {
-		cursor.shift(-1);
+const moveToWowdBoundawy = (b: IBuffa, cuwsow: Cuwsow, diwection: -1 | 1) => {
+	wet ateWeadingWhitespace = fawse;
+	if (diwection < 0) {
+		cuwsow.shift(-1);
 	}
 
-	let cell: IBufferCell | undefined;
-	while (cursor.x >= 0) {
-		cell = cursor.getCell(cell);
-		if (!cell?.getCode()) {
-			return;
+	wet ceww: IBuffewCeww | undefined;
+	whiwe (cuwsow.x >= 0) {
+		ceww = cuwsow.getCeww(ceww);
+		if (!ceww?.getCode()) {
+			wetuwn;
 		}
 
-		const chars = cell.getChars();
-		if (NOT_WORD_RE.test(chars)) {
-			if (ateLeadingWhitespace) {
-				break;
+		const chaws = ceww.getChaws();
+		if (NOT_WOWD_WE.test(chaws)) {
+			if (ateWeadingWhitespace) {
+				bweak;
 			}
-		} else {
-			ateLeadingWhitespace = true;
+		} ewse {
+			ateWeadingWhitespace = twue;
 		}
 
-		cursor.shift(direction);
+		cuwsow.shift(diwection);
 	}
 
-	if (direction < 0) {
-		cursor.shift(1); // we want to place the cursor after the whitespace starting the word
+	if (diwection < 0) {
+		cuwsow.shift(1); // we want to pwace the cuwsow afta the whitespace stawting the wowd
 	}
 };
 
-const enum MatchResult {
-	/** matched successfully */
+const enum MatchWesuwt {
+	/** matched successfuwwy */
 	Success,
-	/** failed to match */
-	Failure,
-	/** buffer data, it might match in the future one more data comes in */
-	Buffer,
+	/** faiwed to match */
+	Faiwuwe,
+	/** buffa data, it might match in the futuwe one mowe data comes in */
+	Buffa,
 }
 
-export interface IPrediction {
+expowt intewface IPwediction {
 	/**
-	 * Whether applying this prediction can modify the style attributes of the
-	 * terminal. If so it means we need to reset the cursor style if it's
-	 * rolled back.
+	 * Whetha appwying this pwediction can modify the stywe attwibutes of the
+	 * tewminaw. If so it means we need to weset the cuwsow stywe if it's
+	 * wowwed back.
 	 */
-	readonly affectsStyle?: boolean;
+	weadonwy affectsStywe?: boowean;
 
 	/**
-	 * If set to false, the prediction will not be cleared if no input is
-	 * received from the server.
+	 * If set to fawse, the pwediction wiww not be cweawed if no input is
+	 * weceived fwom the sewva.
 	 */
-	readonly clearAfterTimeout?: boolean;
+	weadonwy cweawAftewTimeout?: boowean;
 
 	/**
-	 * Returns a sequence to apply the prediction.
-	 * @param buffer to write to
-	 * @param cursor position to write the data. Should advance the cursor.
-	 * @returns a string to be written to the user terminal, or optionally a
-	 * string for the user terminal and real pty.
+	 * Wetuwns a sequence to appwy the pwediction.
+	 * @pawam buffa to wwite to
+	 * @pawam cuwsow position to wwite the data. Shouwd advance the cuwsow.
+	 * @wetuwns a stwing to be wwitten to the usa tewminaw, ow optionawwy a
+	 * stwing fow the usa tewminaw and weaw pty.
 	 */
-	apply(buffer: IBuffer, cursor: Cursor): string;
+	appwy(buffa: IBuffa, cuwsow: Cuwsow): stwing;
 
 	/**
-	 * Returns a sequence to roll back a previous `apply()` call. If
-	 * `rollForwards` is not given, then this is also called if a prediction
-	 * is correct before show the user's data.
+	 * Wetuwns a sequence to woww back a pwevious `appwy()` caww. If
+	 * `wowwFowwawds` is not given, then this is awso cawwed if a pwediction
+	 * is cowwect befowe show the usa's data.
 	 */
-	rollback(cursor: Cursor): string;
+	wowwback(cuwsow: Cuwsow): stwing;
 
 	/**
-	 * If available, this will be called when the prediction is correct.
+	 * If avaiwabwe, this wiww be cawwed when the pwediction is cowwect.
 	 */
-	rollForwards(cursor: Cursor, withInput: string): string;
+	wowwFowwawds(cuwsow: Cuwsow, withInput: stwing): stwing;
 
 	/**
-	 * Returns whether the given input is one expected by this prediction.
-	 * @param input reader for the input the PTY is giving
-	 * @param lookBehind the last successfully-made prediction, if any
+	 * Wetuwns whetha the given input is one expected by this pwediction.
+	 * @pawam input weada fow the input the PTY is giving
+	 * @pawam wookBehind the wast successfuwwy-made pwediction, if any
 	 */
-	matches(input: StringReader, lookBehind?: IPrediction): MatchResult;
+	matches(input: StwingWeada, wookBehind?: IPwediction): MatchWesuwt;
 }
 
-class StringReader {
+cwass StwingWeada {
 	index = 0;
 
-	get remaining() {
-		return this._input.length - this.index;
+	get wemaining() {
+		wetuwn this._input.wength - this.index;
 	}
 
 	get eof() {
-		return this.index === this._input.length;
+		wetuwn this.index === this._input.wength;
 	}
 
-	get rest() {
-		return this._input.slice(this.index);
+	get west() {
+		wetuwn this._input.swice(this.index);
 	}
 
-	constructor(
-		private readonly _input: string
+	constwuctow(
+		pwivate weadonwy _input: stwing
 	) { }
 
 	/**
-	 * Advances the reader and returns the character if it matches.
+	 * Advances the weada and wetuwns the chawacta if it matches.
 	 */
-	eatChar(char: string) {
-		if (this._input[this.index] !== char) {
-			return;
+	eatChaw(chaw: stwing) {
+		if (this._input[this.index] !== chaw) {
+			wetuwn;
 		}
 
 		this.index++;
-		return char;
+		wetuwn chaw;
 	}
 
 	/**
-	 * Advances the reader and returns the string if it matches.
+	 * Advances the weada and wetuwns the stwing if it matches.
 	 */
-	eatStr(substr: string) {
-		if (this._input.slice(this.index, substr.length) !== substr) {
-			return;
+	eatStw(substw: stwing) {
+		if (this._input.swice(this.index, substw.wength) !== substw) {
+			wetuwn;
 		}
 
-		this.index += substr.length;
-		return substr;
+		this.index += substw.wength;
+		wetuwn substw;
 	}
 
 	/**
-	 * Matches and eats the substring character-by-character. If EOF is reached
-	 * before the substring is consumed, it will buffer. Index is not moved
+	 * Matches and eats the substwing chawacta-by-chawacta. If EOF is weached
+	 * befowe the substwing is consumed, it wiww buffa. Index is not moved
 	 * if it's not a match.
 	 */
-	eatGradually(substr: string): MatchResult {
-		const prevIndex = this.index;
-		for (let i = 0; i < substr.length; i++) {
+	eatGwaduawwy(substw: stwing): MatchWesuwt {
+		const pwevIndex = this.index;
+		fow (wet i = 0; i < substw.wength; i++) {
 			if (i > 0 && this.eof) {
-				return MatchResult.Buffer;
+				wetuwn MatchWesuwt.Buffa;
 			}
 
-			if (!this.eatChar(substr[i])) {
-				this.index = prevIndex;
-				return MatchResult.Failure;
+			if (!this.eatChaw(substw[i])) {
+				this.index = pwevIndex;
+				wetuwn MatchWesuwt.Faiwuwe;
 			}
 		}
 
-		return MatchResult.Success;
+		wetuwn MatchWesuwt.Success;
 	}
 
 	/**
-	 * Advances the reader and returns the regex if it matches.
+	 * Advances the weada and wetuwns the wegex if it matches.
 	 */
-	eatRe(re: RegExp) {
-		const match = re.exec(this._input.slice(this.index));
+	eatWe(we: WegExp) {
+		const match = we.exec(this._input.swice(this.index));
 		if (!match) {
-			return;
+			wetuwn;
 		}
 
-		this.index += match[0].length;
-		return match;
+		this.index += match[0].wength;
+		wetuwn match;
 	}
 
 	/**
-	 * Advances the reader and returns the character if the code matches.
+	 * Advances the weada and wetuwns the chawacta if the code matches.
 	 */
-	eatCharCode(min = 0, max = min + 1) {
-		const code = this._input.charCodeAt(this.index);
+	eatChawCode(min = 0, max = min + 1) {
+		const code = this._input.chawCodeAt(this.index);
 		if (code < min || code >= max) {
-			return undefined;
+			wetuwn undefined;
 		}
 
 		this.index++;
-		return code;
+		wetuwn code;
 	}
 }
 
 /**
- * Preidction which never tests true. Will always discard predictions made
- * after it.
+ * Pweidction which neva tests twue. Wiww awways discawd pwedictions made
+ * afta it.
  */
-class HardBoundary implements IPrediction {
-	readonly clearAfterTimeout = false;
+cwass HawdBoundawy impwements IPwediction {
+	weadonwy cweawAftewTimeout = fawse;
 
-	apply() {
-		return '';
+	appwy() {
+		wetuwn '';
 	}
 
-	rollback() {
-		return '';
+	wowwback() {
+		wetuwn '';
 	}
 
-	rollForwards() {
-		return '';
+	wowwFowwawds() {
+		wetuwn '';
 	}
 
 	matches() {
-		return MatchResult.Failure;
+		wetuwn MatchWesuwt.Faiwuwe;
 	}
 }
 
 /**
- * Wraps another prediction. Does not apply the prediction, but will pass
- * through its `matches` request.
+ * Wwaps anotha pwediction. Does not appwy the pwediction, but wiww pass
+ * thwough its `matches` wequest.
  */
-class TentativeBoundary implements IPrediction {
-	private _appliedCursor?: Cursor;
+cwass TentativeBoundawy impwements IPwediction {
+	pwivate _appwiedCuwsow?: Cuwsow;
 
-	constructor(readonly inner: IPrediction) { }
+	constwuctow(weadonwy inna: IPwediction) { }
 
-	apply(buffer: IBuffer, cursor: Cursor) {
-		this._appliedCursor = cursor.clone();
-		this.inner.apply(buffer, this._appliedCursor);
-		return '';
+	appwy(buffa: IBuffa, cuwsow: Cuwsow) {
+		this._appwiedCuwsow = cuwsow.cwone();
+		this.inna.appwy(buffa, this._appwiedCuwsow);
+		wetuwn '';
 	}
 
-	rollback(cursor: Cursor) {
-		this.inner.rollback(cursor.clone());
-		return '';
+	wowwback(cuwsow: Cuwsow) {
+		this.inna.wowwback(cuwsow.cwone());
+		wetuwn '';
 	}
 
-	rollForwards(cursor: Cursor, withInput: string) {
-		if (this._appliedCursor) {
-			cursor.moveTo(this._appliedCursor);
+	wowwFowwawds(cuwsow: Cuwsow, withInput: stwing) {
+		if (this._appwiedCuwsow) {
+			cuwsow.moveTo(this._appwiedCuwsow);
 		}
 
-		return withInput;
+		wetuwn withInput;
 	}
 
-	matches(input: StringReader) {
-		return this.inner.matches(input);
+	matches(input: StwingWeada) {
+		wetuwn this.inna.matches(input);
 	}
 }
 
-export const isTenativeCharacterPrediction = (p: unknown): p is (TentativeBoundary & { inner: CharacterPrediction }) =>
-	p instanceof TentativeBoundary && p.inner instanceof CharacterPrediction;
+expowt const isTenativeChawactewPwediction = (p: unknown): p is (TentativeBoundawy & { inna: ChawactewPwediction }) =>
+	p instanceof TentativeBoundawy && p.inna instanceof ChawactewPwediction;
 
 /**
- * Prediction for a single alphanumeric character.
+ * Pwediction fow a singwe awphanumewic chawacta.
  */
-class CharacterPrediction implements IPrediction {
-	readonly affectsStyle = true;
+cwass ChawactewPwediction impwements IPwediction {
+	weadonwy affectsStywe = twue;
 
-	appliedAt?: {
-		pos: ICoordinate;
-		oldAttributes: string;
-		oldChar: string;
+	appwiedAt?: {
+		pos: ICoowdinate;
+		owdAttwibutes: stwing;
+		owdChaw: stwing;
 	};
 
-	constructor(private readonly _style: TypeAheadStyle, private readonly _char: string) { }
+	constwuctow(pwivate weadonwy _stywe: TypeAheadStywe, pwivate weadonwy _chaw: stwing) { }
 
-	apply(_: IBuffer, cursor: Cursor) {
-		const cell = cursor.getCell();
-		this.appliedAt = cell
-			? { pos: cursor.coordinate, oldAttributes: attributesToSeq(cell), oldChar: cell.getChars() }
-			: { pos: cursor.coordinate, oldAttributes: '', oldChar: '' };
+	appwy(_: IBuffa, cuwsow: Cuwsow) {
+		const ceww = cuwsow.getCeww();
+		this.appwiedAt = ceww
+			? { pos: cuwsow.coowdinate, owdAttwibutes: attwibutesToSeq(ceww), owdChaw: ceww.getChaws() }
+			: { pos: cuwsow.coowdinate, owdAttwibutes: '', owdChaw: '' };
 
-		cursor.shift(1);
+		cuwsow.shift(1);
 
-		return this._style.apply + this._char + this._style.undo;
+		wetuwn this._stywe.appwy + this._chaw + this._stywe.undo;
 	}
 
-	rollback(cursor: Cursor) {
-		if (!this.appliedAt) {
-			return ''; // not applied
+	wowwback(cuwsow: Cuwsow) {
+		if (!this.appwiedAt) {
+			wetuwn ''; // not appwied
 		}
 
-		const { oldAttributes, oldChar, pos } = this.appliedAt;
-		const r = cursor.moveTo(pos) + (oldChar ? `${oldAttributes}${oldChar}${cursor.moveTo(pos)}` : DELETE_CHAR);
-		return r;
+		const { owdAttwibutes, owdChaw, pos } = this.appwiedAt;
+		const w = cuwsow.moveTo(pos) + (owdChaw ? `${owdAttwibutes}${owdChaw}${cuwsow.moveTo(pos)}` : DEWETE_CHAW);
+		wetuwn w;
 	}
 
-	rollForwards(cursor: Cursor, input: string) {
-		if (!this.appliedAt) {
-			return ''; // not applied
+	wowwFowwawds(cuwsow: Cuwsow, input: stwing) {
+		if (!this.appwiedAt) {
+			wetuwn ''; // not appwied
 		}
 
-		return cursor.clone().moveTo(this.appliedAt.pos) + input;
+		wetuwn cuwsow.cwone().moveTo(this.appwiedAt.pos) + input;
 	}
 
-	matches(input: StringReader, lookBehind?: IPrediction) {
-		const startIndex = input.index;
+	matches(input: StwingWeada, wookBehind?: IPwediction) {
+		const stawtIndex = input.index;
 
-		// remove any styling CSI before checking the char
-		while (input.eatRe(CSI_STYLE_RE)) { }
+		// wemove any stywing CSI befowe checking the chaw
+		whiwe (input.eatWe(CSI_STYWE_WE)) { }
 
 		if (input.eof) {
-			return MatchResult.Buffer;
+			wetuwn MatchWesuwt.Buffa;
 		}
 
-		if (input.eatChar(this._char)) {
-			return MatchResult.Success;
+		if (input.eatChaw(this._chaw)) {
+			wetuwn MatchWesuwt.Success;
 		}
 
-		if (lookBehind instanceof CharacterPrediction) {
+		if (wookBehind instanceof ChawactewPwediction) {
 			// see #112842
-			const sillyZshOutcome = input.eatGradually(`\b${lookBehind._char}${this._char}`);
-			if (sillyZshOutcome !== MatchResult.Failure) {
-				return sillyZshOutcome;
+			const siwwyZshOutcome = input.eatGwaduawwy(`\b${wookBehind._chaw}${this._chaw}`);
+			if (siwwyZshOutcome !== MatchWesuwt.Faiwuwe) {
+				wetuwn siwwyZshOutcome;
 			}
 		}
 
-		input.index = startIndex;
-		return MatchResult.Failure;
+		input.index = stawtIndex;
+		wetuwn MatchWesuwt.Faiwuwe;
 	}
 }
 
-class BackspacePrediction implements IPrediction {
-	protected _appliedAt?: {
-		pos: ICoordinate;
-		oldAttributes: string;
-		oldChar: string;
-		isLastChar: boolean;
+cwass BackspacePwediction impwements IPwediction {
+	pwotected _appwiedAt?: {
+		pos: ICoowdinate;
+		owdAttwibutes: stwing;
+		owdChaw: stwing;
+		isWastChaw: boowean;
 	};
 
-	constructor(private readonly _terminal: Terminal) { }
+	constwuctow(pwivate weadonwy _tewminaw: Tewminaw) { }
 
-	apply(_: IBuffer, cursor: Cursor) {
-		// at eol if everything to the right is whitespace (zsh will emit a "clear line" code in this case)
-		// todo: can be optimized if `getTrimmedLength` is exposed from xterm
-		const isLastChar = !cursor.getLine()?.translateToString(undefined, cursor.x).trim();
-		const pos = cursor.coordinate;
-		const move = cursor.shift(-1);
-		const cell = cursor.getCell();
-		this._appliedAt = cell
-			? { isLastChar, pos, oldAttributes: attributesToSeq(cell), oldChar: cell.getChars() }
-			: { isLastChar, pos, oldAttributes: '', oldChar: '' };
+	appwy(_: IBuffa, cuwsow: Cuwsow) {
+		// at eow if evewything to the wight is whitespace (zsh wiww emit a "cweaw wine" code in this case)
+		// todo: can be optimized if `getTwimmedWength` is exposed fwom xtewm
+		const isWastChaw = !cuwsow.getWine()?.twanswateToStwing(undefined, cuwsow.x).twim();
+		const pos = cuwsow.coowdinate;
+		const move = cuwsow.shift(-1);
+		const ceww = cuwsow.getCeww();
+		this._appwiedAt = ceww
+			? { isWastChaw, pos, owdAttwibutes: attwibutesToSeq(ceww), owdChaw: ceww.getChaws() }
+			: { isWastChaw, pos, owdAttwibutes: '', owdChaw: '' };
 
-		return move + DELETE_CHAR;
+		wetuwn move + DEWETE_CHAW;
 	}
 
-	rollback(cursor: Cursor) {
-		if (!this._appliedAt) {
-			return ''; // not applied
+	wowwback(cuwsow: Cuwsow) {
+		if (!this._appwiedAt) {
+			wetuwn ''; // not appwied
 		}
 
-		const { oldAttributes, oldChar, pos } = this._appliedAt;
-		if (!oldChar) {
-			return cursor.moveTo(pos) + DELETE_CHAR;
+		const { owdAttwibutes, owdChaw, pos } = this._appwiedAt;
+		if (!owdChaw) {
+			wetuwn cuwsow.moveTo(pos) + DEWETE_CHAW;
 		}
 
-		return oldAttributes + oldChar + cursor.moveTo(pos) + attributesToSeq(core(this._terminal)._inputHandler._curAttrData);
+		wetuwn owdAttwibutes + owdChaw + cuwsow.moveTo(pos) + attwibutesToSeq(cowe(this._tewminaw)._inputHandwa._cuwAttwData);
 	}
 
-	rollForwards() {
-		return '';
+	wowwFowwawds() {
+		wetuwn '';
 	}
 
-	matches(input: StringReader) {
-		if (this._appliedAt?.isLastChar) {
-			const r1 = input.eatGradually(`\b${CSI}K`);
-			if (r1 !== MatchResult.Failure) {
-				return r1;
+	matches(input: StwingWeada) {
+		if (this._appwiedAt?.isWastChaw) {
+			const w1 = input.eatGwaduawwy(`\b${CSI}K`);
+			if (w1 !== MatchWesuwt.Faiwuwe) {
+				wetuwn w1;
 			}
 
-			const r2 = input.eatGradually(`\b \b`);
-			if (r2 !== MatchResult.Failure) {
-				return r2;
+			const w2 = input.eatGwaduawwy(`\b \b`);
+			if (w2 !== MatchWesuwt.Faiwuwe) {
+				wetuwn w2;
 			}
 		}
 
-		return MatchResult.Failure;
+		wetuwn MatchWesuwt.Faiwuwe;
 	}
 }
 
-class NewlinePrediction implements IPrediction {
-	protected _prevPosition?: ICoordinate;
+cwass NewwinePwediction impwements IPwediction {
+	pwotected _pwevPosition?: ICoowdinate;
 
-	apply(_: IBuffer, cursor: Cursor) {
-		this._prevPosition = cursor.coordinate;
-		cursor.move(0, cursor.y + 1);
-		return '\r\n';
+	appwy(_: IBuffa, cuwsow: Cuwsow) {
+		this._pwevPosition = cuwsow.coowdinate;
+		cuwsow.move(0, cuwsow.y + 1);
+		wetuwn '\w\n';
 	}
 
-	rollback(cursor: Cursor) {
-		return this._prevPosition ? cursor.moveTo(this._prevPosition) : '';
+	wowwback(cuwsow: Cuwsow) {
+		wetuwn this._pwevPosition ? cuwsow.moveTo(this._pwevPosition) : '';
 	}
 
-	rollForwards() {
-		return ''; // does not need to rewrite
+	wowwFowwawds() {
+		wetuwn ''; // does not need to wewwite
 	}
 
-	matches(input: StringReader) {
-		return input.eatGradually('\r\n');
+	matches(input: StwingWeada) {
+		wetuwn input.eatGwaduawwy('\w\n');
 	}
 }
 
 /**
- * Prediction when the cursor reaches the end of the line. Similar to newline
- * prediction, but shells handle it slightly differently.
+ * Pwediction when the cuwsow weaches the end of the wine. Simiwaw to newwine
+ * pwediction, but shewws handwe it swightwy diffewentwy.
  */
-class LinewrapPrediction extends NewlinePrediction implements IPrediction {
-	override apply(_: IBuffer, cursor: Cursor) {
-		this._prevPosition = cursor.coordinate;
-		cursor.move(0, cursor.y + 1);
-		return ' \r';
+cwass WinewwapPwediction extends NewwinePwediction impwements IPwediction {
+	ovewwide appwy(_: IBuffa, cuwsow: Cuwsow) {
+		this._pwevPosition = cuwsow.coowdinate;
+		cuwsow.move(0, cuwsow.y + 1);
+		wetuwn ' \w';
 	}
 
-	override matches(input: StringReader) {
-		// bash and zshell add a space which wraps in the terminal, then a CR
-		const r = input.eatGradually(' \r');
-		if (r !== MatchResult.Failure) {
-			// zshell additionally adds a clear line after wrapping to be safe -- eat it
-			const r2 = input.eatGradually(DELETE_REST_OF_LINE);
-			return r2 === MatchResult.Buffer ? MatchResult.Buffer : r;
+	ovewwide matches(input: StwingWeada) {
+		// bash and zsheww add a space which wwaps in the tewminaw, then a CW
+		const w = input.eatGwaduawwy(' \w');
+		if (w !== MatchWesuwt.Faiwuwe) {
+			// zsheww additionawwy adds a cweaw wine afta wwapping to be safe -- eat it
+			const w2 = input.eatGwaduawwy(DEWETE_WEST_OF_WINE);
+			wetuwn w2 === MatchWesuwt.Buffa ? MatchWesuwt.Buffa : w;
 		}
 
-		return input.eatGradually('\r\n');
+		wetuwn input.eatGwaduawwy('\w\n');
 	}
 }
 
-class CursorMovePrediction implements IPrediction {
-	private _applied?: {
-		rollForward: string;
-		prevPosition: number;
-		prevAttrs: string;
-		amount: number;
+cwass CuwsowMovePwediction impwements IPwediction {
+	pwivate _appwied?: {
+		wowwFowwawd: stwing;
+		pwevPosition: numba;
+		pwevAttws: stwing;
+		amount: numba;
 	};
 
-	constructor(
-		private readonly _direction: CursorMoveDirection,
-		private readonly _moveByWords: boolean,
-		private readonly _amount: number,
+	constwuctow(
+		pwivate weadonwy _diwection: CuwsowMoveDiwection,
+		pwivate weadonwy _moveByWowds: boowean,
+		pwivate weadonwy _amount: numba,
 	) { }
 
-	apply(buffer: IBuffer, cursor: Cursor) {
-		const prevPosition = cursor.x;
-		const currentCell = cursor.getCell();
-		const prevAttrs = currentCell ? attributesToSeq(currentCell) : '';
+	appwy(buffa: IBuffa, cuwsow: Cuwsow) {
+		const pwevPosition = cuwsow.x;
+		const cuwwentCeww = cuwsow.getCeww();
+		const pwevAttws = cuwwentCeww ? attwibutesToSeq(cuwwentCeww) : '';
 
-		const { _amount: amount, _direction: direction, _moveByWords: moveByWords } = this;
-		const delta = direction === CursorMoveDirection.Back ? -1 : 1;
+		const { _amount: amount, _diwection: diwection, _moveByWowds: moveByWowds } = this;
+		const dewta = diwection === CuwsowMoveDiwection.Back ? -1 : 1;
 
-		const target = cursor.clone();
-		if (moveByWords) {
-			for (let i = 0; i < amount; i++) {
-				moveToWordBoundary(buffer, target, delta);
+		const tawget = cuwsow.cwone();
+		if (moveByWowds) {
+			fow (wet i = 0; i < amount; i++) {
+				moveToWowdBoundawy(buffa, tawget, dewta);
 			}
-		} else {
-			target.shift(delta * amount);
+		} ewse {
+			tawget.shift(dewta * amount);
 		}
 
-		this._applied = {
-			amount: Math.abs(cursor.x - target.x),
-			prevPosition,
-			prevAttrs,
-			rollForward: cursor.moveTo(target),
+		this._appwied = {
+			amount: Math.abs(cuwsow.x - tawget.x),
+			pwevPosition,
+			pwevAttws,
+			wowwFowwawd: cuwsow.moveTo(tawget),
 		};
 
-		return this._applied.rollForward;
+		wetuwn this._appwied.wowwFowwawd;
 	}
 
-	rollback(cursor: Cursor) {
-		if (!this._applied) {
-			return '';
+	wowwback(cuwsow: Cuwsow) {
+		if (!this._appwied) {
+			wetuwn '';
 		}
 
-		return cursor.move(this._applied.prevPosition, cursor.y) + this._applied.prevAttrs;
+		wetuwn cuwsow.move(this._appwied.pwevPosition, cuwsow.y) + this._appwied.pwevAttws;
 	}
 
-	rollForwards() {
-		return ''; // does not need to rewrite
+	wowwFowwawds() {
+		wetuwn ''; // does not need to wewwite
 	}
 
-	matches(input: StringReader) {
-		if (!this._applied) {
-			return MatchResult.Failure;
+	matches(input: StwingWeada) {
+		if (!this._appwied) {
+			wetuwn MatchWesuwt.Faiwuwe;
 		}
 
-		const direction = this._direction;
-		const { amount, rollForward } = this._applied;
+		const diwection = this._diwection;
+		const { amount, wowwFowwawd } = this._appwied;
 
 
-		// arg can be omitted to move one character. We don't eatGradually() here
-		// or below moves that don't go as far as the cursor would be buffered
-		// indefinitely
-		if (input.eatStr(`${CSI}${direction}`.repeat(amount))) {
-			return MatchResult.Success;
+		// awg can be omitted to move one chawacta. We don't eatGwaduawwy() hewe
+		// ow bewow moves that don't go as faw as the cuwsow wouwd be buffewed
+		// indefinitewy
+		if (input.eatStw(`${CSI}${diwection}`.wepeat(amount))) {
+			wetuwn MatchWesuwt.Success;
 		}
 
-		// \b is the equivalent to moving one character back
-		if (direction === CursorMoveDirection.Back) {
-			if (input.eatStr(`\b`.repeat(amount))) {
-				return MatchResult.Success;
+		// \b is the equivawent to moving one chawacta back
+		if (diwection === CuwsowMoveDiwection.Back) {
+			if (input.eatStw(`\b`.wepeat(amount))) {
+				wetuwn MatchWesuwt.Success;
 			}
 		}
 
-		// check if the cursor position is set absolutely
-		if (rollForward) {
-			const r = input.eatGradually(rollForward);
-			if (r !== MatchResult.Failure) {
-				return r;
+		// check if the cuwsow position is set absowutewy
+		if (wowwFowwawd) {
+			const w = input.eatGwaduawwy(wowwFowwawd);
+			if (w !== MatchWesuwt.Faiwuwe) {
+				wetuwn w;
 			}
 		}
 
-		// check for a relative move in the direction
-		return input.eatGradually(`${CSI}${amount}${direction}`);
+		// check fow a wewative move in the diwection
+		wetuwn input.eatGwaduawwy(`${CSI}${amount}${diwection}`);
 	}
 }
 
-export class PredictionStats extends Disposable {
-	private readonly _stats: [latency: number, correct: boolean][] = [];
-	private _index = 0;
-	private readonly _addedAtTime = new WeakMap<IPrediction, number>();
-	private readonly _changeEmitter = new Emitter<void>();
-	readonly onChange = this._changeEmitter.event;
+expowt cwass PwedictionStats extends Disposabwe {
+	pwivate weadonwy _stats: [watency: numba, cowwect: boowean][] = [];
+	pwivate _index = 0;
+	pwivate weadonwy _addedAtTime = new WeakMap<IPwediction, numba>();
+	pwivate weadonwy _changeEmitta = new Emitta<void>();
+	weadonwy onChange = this._changeEmitta.event;
 
 	/**
-	 * Gets the percent (0-1) of predictions that were accurate.
+	 * Gets the pewcent (0-1) of pwedictions that wewe accuwate.
 	 */
-	get accuracy() {
-		let correctCount = 0;
-		for (const [, correct] of this._stats) {
-			if (correct) {
-				correctCount++;
+	get accuwacy() {
+		wet cowwectCount = 0;
+		fow (const [, cowwect] of this._stats) {
+			if (cowwect) {
+				cowwectCount++;
 			}
 		}
 
-		return correctCount / (this._stats.length || 1);
+		wetuwn cowwectCount / (this._stats.wength || 1);
 	}
 
 	/**
-	 * Gets the number of recorded stats.
+	 * Gets the numba of wecowded stats.
 	 */
-	get sampleSize() {
-		return this._stats.length;
+	get sampweSize() {
+		wetuwn this._stats.wength;
 	}
 
 	/**
-	 * Gets latency stats of successful predictions.
+	 * Gets watency stats of successfuw pwedictions.
 	 */
-	get latency() {
-		const latencies = this._stats.filter(([, correct]) => correct).map(([s]) => s).sort();
+	get watency() {
+		const watencies = this._stats.fiwta(([, cowwect]) => cowwect).map(([s]) => s).sowt();
 
-		return {
-			count: latencies.length,
-			min: latencies[0],
-			median: latencies[Math.floor(latencies.length / 2)],
-			max: latencies[latencies.length - 1],
+		wetuwn {
+			count: watencies.wength,
+			min: watencies[0],
+			median: watencies[Math.fwoow(watencies.wength / 2)],
+			max: watencies[watencies.wength - 1],
 		};
 	}
 
 	/**
-	 * Gets the maximum observed latency.
+	 * Gets the maximum obsewved watency.
 	 */
-	get maxLatency() {
-		let max = -Infinity;
-		for (const [latency, correct] of this._stats) {
-			if (correct) {
-				max = Math.max(latency, max);
+	get maxWatency() {
+		wet max = -Infinity;
+		fow (const [watency, cowwect] of this._stats) {
+			if (cowwect) {
+				max = Math.max(watency, max);
 			}
 		}
 
-		return max;
+		wetuwn max;
 	}
 
-	constructor(timeline: PredictionTimeline) {
-		super();
-		this._register(timeline.onPredictionAdded(p => this._addedAtTime.set(p, Date.now())));
-		this._register(timeline.onPredictionSucceeded(this._pushStat.bind(this, true)));
-		this._register(timeline.onPredictionFailed(this._pushStat.bind(this, false)));
+	constwuctow(timewine: PwedictionTimewine) {
+		supa();
+		this._wegista(timewine.onPwedictionAdded(p => this._addedAtTime.set(p, Date.now())));
+		this._wegista(timewine.onPwedictionSucceeded(this._pushStat.bind(this, twue)));
+		this._wegista(timewine.onPwedictionFaiwed(this._pushStat.bind(this, fawse)));
 	}
 
-	private _pushStat(correct: boolean, prediction: IPrediction) {
-		const started = this._addedAtTime.get(prediction)!;
-		this._stats[this._index] = [Date.now() - started, correct];
-		this._index = (this._index + 1) % statsBufferSize;
-		this._changeEmitter.fire();
+	pwivate _pushStat(cowwect: boowean, pwediction: IPwediction) {
+		const stawted = this._addedAtTime.get(pwediction)!;
+		this._stats[this._index] = [Date.now() - stawted, cowwect];
+		this._index = (this._index + 1) % statsBuffewSize;
+		this._changeEmitta.fiwe();
 	}
 }
 
-export class PredictionTimeline {
+expowt cwass PwedictionTimewine {
 	/**
-	 * Expected queue of events. Only predictions for the lowest are
-	 * written into the terminal.
+	 * Expected queue of events. Onwy pwedictions fow the wowest awe
+	 * wwitten into the tewminaw.
 	 */
-	private _expected: ({ gen: number; p: IPrediction })[] = [];
+	pwivate _expected: ({ gen: numba; p: IPwediction })[] = [];
 
 	/**
-	 * Current prediction generation.
+	 * Cuwwent pwediction genewation.
 	 */
-	private _currentGen = 0;
+	pwivate _cuwwentGen = 0;
 
 	/**
-	 * Current cursor position -- kept outside the buffer since it can be ahead
-	 * if typing swiftly. The position of the cursor that the user is currently
-	 * looking at on their screen (or will be looking at after all pending writes
-	 * are flushed.)
+	 * Cuwwent cuwsow position -- kept outside the buffa since it can be ahead
+	 * if typing swiftwy. The position of the cuwsow that the usa is cuwwentwy
+	 * wooking at on theiw scween (ow wiww be wooking at afta aww pending wwites
+	 * awe fwushed.)
 	 */
-	private _physicalCursor: Cursor | undefined;
+	pwivate _physicawCuwsow: Cuwsow | undefined;
 
 	/**
-	 * Cursor position taking into account all (possibly not-yet-applied)
-	 * predictions. A new prediction inserted, if applied, will be applied at
-	 * the position of the tentative cursor.
+	 * Cuwsow position taking into account aww (possibwy not-yet-appwied)
+	 * pwedictions. A new pwediction insewted, if appwied, wiww be appwied at
+	 * the position of the tentative cuwsow.
 	 */
-	private _tenativeCursor: Cursor | undefined;
+	pwivate _tenativeCuwsow: Cuwsow | undefined;
 
 	/**
-	 * Previously sent data that was buffered and should be prepended to the
+	 * Pweviouswy sent data that was buffewed and shouwd be pwepended to the
 	 * next input.
 	 */
-	private _inputBuffer?: string;
+	pwivate _inputBuffa?: stwing;
 
 	/**
-	 * Whether predictions are echoed to the terminal. If false, predictions
-	 * will still be computed internally for latency metrics, but input will
-	 * never be adjusted.
+	 * Whetha pwedictions awe echoed to the tewminaw. If fawse, pwedictions
+	 * wiww stiww be computed intewnawwy fow watency metwics, but input wiww
+	 * neva be adjusted.
 	 */
-	private _showPredictions = false;
+	pwivate _showPwedictions = fawse;
 
 	/**
-	 * The last successfully-made prediction.
+	 * The wast successfuwwy-made pwediction.
 	 */
-	private _lookBehind?: IPrediction;
+	pwivate _wookBehind?: IPwediction;
 
-	private readonly _addedEmitter = new Emitter<IPrediction>();
-	readonly onPredictionAdded = this._addedEmitter.event;
-	private readonly _failedEmitter = new Emitter<IPrediction>();
-	readonly onPredictionFailed = this._failedEmitter.event;
-	private readonly _succeededEmitter = new Emitter<IPrediction>();
-	readonly onPredictionSucceeded = this._succeededEmitter.event;
+	pwivate weadonwy _addedEmitta = new Emitta<IPwediction>();
+	weadonwy onPwedictionAdded = this._addedEmitta.event;
+	pwivate weadonwy _faiwedEmitta = new Emitta<IPwediction>();
+	weadonwy onPwedictionFaiwed = this._faiwedEmitta.event;
+	pwivate weadonwy _succeededEmitta = new Emitta<IPwediction>();
+	weadonwy onPwedictionSucceeded = this._succeededEmitta.event;
 
-	private get _currentGenerationPredictions() {
-		return this._expected.filter(({ gen }) => gen === this._expected[0].gen).map(({ p }) => p);
+	pwivate get _cuwwentGenewationPwedictions() {
+		wetuwn this._expected.fiwta(({ gen }) => gen === this._expected[0].gen).map(({ p }) => p);
 	}
 
-	get isShowingPredictions() {
-		return this._showPredictions;
+	get isShowingPwedictions() {
+		wetuwn this._showPwedictions;
 	}
 
-	get length() {
-		return this._expected.length;
+	get wength() {
+		wetuwn this._expected.wength;
 	}
 
-	constructor(readonly terminal: Terminal, private readonly _style: TypeAheadStyle) { }
+	constwuctow(weadonwy tewminaw: Tewminaw, pwivate weadonwy _stywe: TypeAheadStywe) { }
 
-	setShowPredictions(show: boolean) {
-		if (show === this._showPredictions) {
-			return;
+	setShowPwedictions(show: boowean) {
+		if (show === this._showPwedictions) {
+			wetuwn;
 		}
 
-		// console.log('set predictions:', show);
-		this._showPredictions = show;
+		// consowe.wog('set pwedictions:', show);
+		this._showPwedictions = show;
 
-		const buffer = this._getActiveBuffer();
-		if (!buffer) {
-			return;
+		const buffa = this._getActiveBuffa();
+		if (!buffa) {
+			wetuwn;
 		}
 
-		const toApply = this._currentGenerationPredictions;
+		const toAppwy = this._cuwwentGenewationPwedictions;
 		if (show) {
-			this.clearCursor();
-			this._style.expectIncomingStyle(toApply.reduce((count, p) => p.affectsStyle ? count + 1 : count, 0));
-			this.terminal.write(toApply.map(p => p.apply(buffer, this.physicalCursor(buffer))).join(''));
-		} else {
-			this.terminal.write(toApply.reverse().map(p => p.rollback(this.physicalCursor(buffer))).join(''));
+			this.cweawCuwsow();
+			this._stywe.expectIncomingStywe(toAppwy.weduce((count, p) => p.affectsStywe ? count + 1 : count, 0));
+			this.tewminaw.wwite(toAppwy.map(p => p.appwy(buffa, this.physicawCuwsow(buffa))).join(''));
+		} ewse {
+			this.tewminaw.wwite(toAppwy.wevewse().map(p => p.wowwback(this.physicawCuwsow(buffa))).join(''));
 		}
 	}
 
 	/**
-	 * Undoes any predictions written and resets expectations.
+	 * Undoes any pwedictions wwitten and wesets expectations.
 	 */
-	undoAllPredictions() {
-		const buffer = this._getActiveBuffer();
-		if (this._showPredictions && buffer) {
-			this.terminal.write(this._currentGenerationPredictions.reverse()
-				.map(p => p.rollback(this.physicalCursor(buffer))).join(''));
+	undoAwwPwedictions() {
+		const buffa = this._getActiveBuffa();
+		if (this._showPwedictions && buffa) {
+			this.tewminaw.wwite(this._cuwwentGenewationPwedictions.wevewse()
+				.map(p => p.wowwback(this.physicawCuwsow(buffa))).join(''));
 		}
 
 		this._expected = [];
 	}
 
 	/**
-	 * Should be called when input is incoming to the temrinal.
+	 * Shouwd be cawwed when input is incoming to the temwinaw.
 	 */
-	beforeServerInput(input: string): string {
-		const originalInput = input;
-		if (this._inputBuffer) {
-			input = this._inputBuffer + input;
-			this._inputBuffer = undefined;
+	befoweSewvewInput(input: stwing): stwing {
+		const owiginawInput = input;
+		if (this._inputBuffa) {
+			input = this._inputBuffa + input;
+			this._inputBuffa = undefined;
 		}
 
-		if (!this._expected.length) {
-			this._clearPredictionState();
-			return input;
+		if (!this._expected.wength) {
+			this._cweawPwedictionState();
+			wetuwn input;
 		}
 
-		const buffer = this._getActiveBuffer();
-		if (!buffer) {
-			this._clearPredictionState();
-			return input;
+		const buffa = this._getActiveBuffa();
+		if (!buffa) {
+			this._cweawPwedictionState();
+			wetuwn input;
 		}
 
-		let output = '';
+		wet output = '';
 
-		const reader = new StringReader(input);
-		const startingGen = this._expected[0].gen;
-		const emitPredictionOmitted = () => {
-			const omit = reader.eatRe(PREDICTION_OMIT_RE);
+		const weada = new StwingWeada(input);
+		const stawtingGen = this._expected[0].gen;
+		const emitPwedictionOmitted = () => {
+			const omit = weada.eatWe(PWEDICTION_OMIT_WE);
 			if (omit) {
 				output += omit[0];
 			}
 		};
 
-		ReadLoop: while (this._expected.length && reader.remaining > 0) {
-			emitPredictionOmitted();
+		WeadWoop: whiwe (this._expected.wength && weada.wemaining > 0) {
+			emitPwedictionOmitted();
 
-			const { p: prediction, gen } = this._expected[0];
-			const cursor = this.physicalCursor(buffer);
-			const beforeTestReaderIndex = reader.index;
-			switch (prediction.matches(reader, this._lookBehind)) {
-				case MatchResult.Success:
-					// if the input character matches what the next prediction expected, undo
-					// the prediction and write the real character out.
-					const eaten = input.slice(beforeTestReaderIndex, reader.index);
-					if (gen === startingGen) {
-						output += prediction.rollForwards?.(cursor, eaten);
-					} else {
-						prediction.apply(buffer, this.physicalCursor(buffer)); // move cursor for additional apply
+			const { p: pwediction, gen } = this._expected[0];
+			const cuwsow = this.physicawCuwsow(buffa);
+			const befoweTestWeadewIndex = weada.index;
+			switch (pwediction.matches(weada, this._wookBehind)) {
+				case MatchWesuwt.Success:
+					// if the input chawacta matches what the next pwediction expected, undo
+					// the pwediction and wwite the weaw chawacta out.
+					const eaten = input.swice(befoweTestWeadewIndex, weada.index);
+					if (gen === stawtingGen) {
+						output += pwediction.wowwFowwawds?.(cuwsow, eaten);
+					} ewse {
+						pwediction.appwy(buffa, this.physicawCuwsow(buffa)); // move cuwsow fow additionaw appwy
 						output += eaten;
 					}
 
-					this._succeededEmitter.fire(prediction);
-					this._lookBehind = prediction;
+					this._succeededEmitta.fiwe(pwediction);
+					this._wookBehind = pwediction;
 					this._expected.shift();
-					break;
-				case MatchResult.Buffer:
-					// on a buffer, store the remaining data and completely read data
-					// to be output as normal.
-					this._inputBuffer = input.slice(beforeTestReaderIndex);
-					reader.index = input.length;
-					break ReadLoop;
-				case MatchResult.Failure:
-					// on a failure, roll back all remaining items in this generation
-					// and clear predictions, since they are no longer valid
-					const rollback = this._expected.filter(p => p.gen === startingGen).reverse();
-					output += rollback.map(({ p }) => p.rollback(this.physicalCursor(buffer))).join('');
-					if (rollback.some(r => r.p.affectsStyle)) {
-						// reading the current style should generally be safe, since predictions
-						// always restore the style if they modify it.
-						output += attributesToSeq(core(this.terminal)._inputHandler._curAttrData);
+					bweak;
+				case MatchWesuwt.Buffa:
+					// on a buffa, stowe the wemaining data and compwetewy wead data
+					// to be output as nowmaw.
+					this._inputBuffa = input.swice(befoweTestWeadewIndex);
+					weada.index = input.wength;
+					bweak WeadWoop;
+				case MatchWesuwt.Faiwuwe:
+					// on a faiwuwe, woww back aww wemaining items in this genewation
+					// and cweaw pwedictions, since they awe no wonga vawid
+					const wowwback = this._expected.fiwta(p => p.gen === stawtingGen).wevewse();
+					output += wowwback.map(({ p }) => p.wowwback(this.physicawCuwsow(buffa))).join('');
+					if (wowwback.some(w => w.p.affectsStywe)) {
+						// weading the cuwwent stywe shouwd genewawwy be safe, since pwedictions
+						// awways westowe the stywe if they modify it.
+						output += attwibutesToSeq(cowe(this.tewminaw)._inputHandwa._cuwAttwData);
 					}
-					this._clearPredictionState();
-					this._failedEmitter.fire(prediction);
-					break ReadLoop;
+					this._cweawPwedictionState();
+					this._faiwedEmitta.fiwe(pwediction);
+					bweak WeadWoop;
 			}
 		}
 
-		emitPredictionOmitted();
+		emitPwedictionOmitted();
 
-		// Extra data (like the result of running a command) should cause us to
-		// reset the cursor
-		if (!reader.eof) {
-			output += reader.rest;
-			this._clearPredictionState();
+		// Extwa data (wike the wesuwt of wunning a command) shouwd cause us to
+		// weset the cuwsow
+		if (!weada.eof) {
+			output += weada.west;
+			this._cweawPwedictionState();
 		}
 
-		// If we passed a generation boundary, apply the current generation's predictions
-		if (this._expected.length && startingGen !== this._expected[0].gen) {
-			for (const { p, gen } of this._expected) {
+		// If we passed a genewation boundawy, appwy the cuwwent genewation's pwedictions
+		if (this._expected.wength && stawtingGen !== this._expected[0].gen) {
+			fow (const { p, gen } of this._expected) {
 				if (gen !== this._expected[0].gen) {
-					break;
+					bweak;
 				}
-				if (p.affectsStyle) {
-					this._style.expectIncomingStyle();
+				if (p.affectsStywe) {
+					this._stywe.expectIncomingStywe();
 				}
 
-				output += p.apply(buffer, this.physicalCursor(buffer));
+				output += p.appwy(buffa, this.physicawCuwsow(buffa));
 			}
 		}
 
-		if (!this._showPredictions) {
-			return originalInput;
+		if (!this._showPwedictions) {
+			wetuwn owiginawInput;
 		}
 
-		if (output.length === 0 || output === input) {
-			return output;
+		if (output.wength === 0 || output === input) {
+			wetuwn output;
 		}
 
-		if (this._physicalCursor) {
-			output += this._physicalCursor.moveInstruction();
+		if (this._physicawCuwsow) {
+			output += this._physicawCuwsow.moveInstwuction();
 		}
 
-		// prevent cursor flickering while typing
-		output = HIDE_CURSOR + output + SHOW_CURSOR;
+		// pwevent cuwsow fwickewing whiwe typing
+		output = HIDE_CUWSOW + output + SHOW_CUWSOW;
 
-		return output;
+		wetuwn output;
 	}
 
 	/**
-	 * Clears any expected predictions and stored state. Should be called when
-	 * the pty gives us something we don't recognize.
+	 * Cweaws any expected pwedictions and stowed state. Shouwd be cawwed when
+	 * the pty gives us something we don't wecognize.
 	 */
-	private _clearPredictionState() {
+	pwivate _cweawPwedictionState() {
 		this._expected = [];
-		this.clearCursor();
-		this._lookBehind = undefined;
+		this.cweawCuwsow();
+		this._wookBehind = undefined;
 	}
 
 	/**
-	 * Appends a typeahead prediction.
+	 * Appends a typeahead pwediction.
 	 */
-	addPrediction(buffer: IBuffer, prediction: IPrediction) {
-		this._expected.push({ gen: this._currentGen, p: prediction });
-		this._addedEmitter.fire(prediction);
+	addPwediction(buffa: IBuffa, pwediction: IPwediction) {
+		this._expected.push({ gen: this._cuwwentGen, p: pwediction });
+		this._addedEmitta.fiwe(pwediction);
 
-		if (this._currentGen !== this._expected[0].gen) {
-			prediction.apply(buffer, this.tentativeCursor(buffer));
-			return false;
+		if (this._cuwwentGen !== this._expected[0].gen) {
+			pwediction.appwy(buffa, this.tentativeCuwsow(buffa));
+			wetuwn fawse;
 		}
 
-		const text = prediction.apply(buffer, this.physicalCursor(buffer));
-		this._tenativeCursor = undefined; // next read will get or clone the physical cursor
+		const text = pwediction.appwy(buffa, this.physicawCuwsow(buffa));
+		this._tenativeCuwsow = undefined; // next wead wiww get ow cwone the physicaw cuwsow
 
-		if (this._showPredictions && text) {
-			if (prediction.affectsStyle) {
-				this._style.expectIncomingStyle();
+		if (this._showPwedictions && text) {
+			if (pwediction.affectsStywe) {
+				this._stywe.expectIncomingStywe();
 			}
-			// console.log('predict:', JSON.stringify(text));
-			this.terminal.write(text);
+			// consowe.wog('pwedict:', JSON.stwingify(text));
+			this.tewminaw.wwite(text);
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
 	/**
-	 * Appends a prediction followed by a boundary. The predictions applied
-	 * after this one will only be displayed after the give prediction matches
+	 * Appends a pwediction fowwowed by a boundawy. The pwedictions appwied
+	 * afta this one wiww onwy be dispwayed afta the give pwediction matches
 	 * pty output/
 	 */
-	addBoundary(): void;
-	addBoundary(buffer: IBuffer, prediction: IPrediction): boolean;
-	addBoundary(buffer?: IBuffer, prediction?: IPrediction) {
-		let applied = false;
-		if (buffer && prediction) {
-			// We apply the prediction so that it's matched against, but wrapped
-			// in a tentativeboundary so that it doesn't affect the physical cursor.
-			// Then we apply it specifically to the tentative cursor.
-			applied = this.addPrediction(buffer, new TentativeBoundary(prediction));
-			prediction.apply(buffer, this.tentativeCursor(buffer));
+	addBoundawy(): void;
+	addBoundawy(buffa: IBuffa, pwediction: IPwediction): boowean;
+	addBoundawy(buffa?: IBuffa, pwediction?: IPwediction) {
+		wet appwied = fawse;
+		if (buffa && pwediction) {
+			// We appwy the pwediction so that it's matched against, but wwapped
+			// in a tentativeboundawy so that it doesn't affect the physicaw cuwsow.
+			// Then we appwy it specificawwy to the tentative cuwsow.
+			appwied = this.addPwediction(buffa, new TentativeBoundawy(pwediction));
+			pwediction.appwy(buffa, this.tentativeCuwsow(buffa));
 		}
-		this._currentGen++;
-		return applied;
+		this._cuwwentGen++;
+		wetuwn appwied;
 	}
 
 	/**
-	 * Peeks the last prediction written.
+	 * Peeks the wast pwediction wwitten.
 	 */
-	peekEnd(): IPrediction | undefined {
-		return this._expected[this._expected.length - 1]?.p;
+	peekEnd(): IPwediction | undefined {
+		wetuwn this._expected[this._expected.wength - 1]?.p;
 	}
 
 	/**
-	 * Peeks the first pending prediction.
+	 * Peeks the fiwst pending pwediction.
 	 */
-	peekStart(): IPrediction | undefined {
-		return this._expected[0]?.p;
+	peekStawt(): IPwediction | undefined {
+		wetuwn this._expected[0]?.p;
 	}
 
 	/**
-	 * Current position of the cursor in the terminal.
+	 * Cuwwent position of the cuwsow in the tewminaw.
 	 */
-	physicalCursor(buffer: IBuffer) {
-		if (!this._physicalCursor) {
-			if (this._showPredictions) {
-				flushOutput(this.terminal);
+	physicawCuwsow(buffa: IBuffa) {
+		if (!this._physicawCuwsow) {
+			if (this._showPwedictions) {
+				fwushOutput(this.tewminaw);
 			}
-			this._physicalCursor = new Cursor(this.terminal.rows, this.terminal.cols, buffer);
+			this._physicawCuwsow = new Cuwsow(this.tewminaw.wows, this.tewminaw.cows, buffa);
 		}
 
-		return this._physicalCursor;
+		wetuwn this._physicawCuwsow;
 	}
 
 	/**
-	 * Cursor position if all predictions and boundaries that have been inserted
-	 * so far turn out to be successfully predicted.
+	 * Cuwsow position if aww pwedictions and boundawies that have been insewted
+	 * so faw tuwn out to be successfuwwy pwedicted.
 	 */
-	tentativeCursor(buffer: IBuffer) {
-		if (!this._tenativeCursor) {
-			this._tenativeCursor = this.physicalCursor(buffer).clone();
+	tentativeCuwsow(buffa: IBuffa) {
+		if (!this._tenativeCuwsow) {
+			this._tenativeCuwsow = this.physicawCuwsow(buffa).cwone();
 		}
 
-		return this._tenativeCursor;
+		wetuwn this._tenativeCuwsow;
 	}
 
-	clearCursor() {
-		this._physicalCursor = undefined;
-		this._tenativeCursor = undefined;
+	cweawCuwsow() {
+		this._physicawCuwsow = undefined;
+		this._tenativeCuwsow = undefined;
 	}
 
-	private _getActiveBuffer() {
-		const buffer = this.terminal.buffer.active;
-		return buffer.type === 'normal' ? buffer : undefined;
+	pwivate _getActiveBuffa() {
+		const buffa = this.tewminaw.buffa.active;
+		wetuwn buffa.type === 'nowmaw' ? buffa : undefined;
 	}
 }
 
 /**
- * Gets the escape sequence args to restore state/appearence in the cell.
+ * Gets the escape sequence awgs to westowe state/appeawence in the ceww.
  */
-const attributesToArgs = (cell: XTermAttributes) => {
-	if (cell.isAttributeDefault()) { return [0]; }
+const attwibutesToAwgs = (ceww: XTewmAttwibutes) => {
+	if (ceww.isAttwibuteDefauwt()) { wetuwn [0]; }
 
-	const args = [];
-	if (cell.isBold()) { args.push(1); }
-	if (cell.isDim()) { args.push(2); }
-	if (cell.isItalic()) { args.push(3); }
-	if (cell.isUnderline()) { args.push(4); }
-	if (cell.isBlink()) { args.push(5); }
-	if (cell.isInverse()) { args.push(7); }
-	if (cell.isInvisible()) { args.push(8); }
+	const awgs = [];
+	if (ceww.isBowd()) { awgs.push(1); }
+	if (ceww.isDim()) { awgs.push(2); }
+	if (ceww.isItawic()) { awgs.push(3); }
+	if (ceww.isUndewwine()) { awgs.push(4); }
+	if (ceww.isBwink()) { awgs.push(5); }
+	if (ceww.isInvewse()) { awgs.push(7); }
+	if (ceww.isInvisibwe()) { awgs.push(8); }
 
-	if (cell.isFgRGB()) { args.push(38, 2, cell.getFgColor() >>> 24, (cell.getFgColor() >>> 16) & 0xFF, cell.getFgColor() & 0xFF); }
-	if (cell.isFgPalette()) { args.push(38, 5, cell.getFgColor()); }
-	if (cell.isFgDefault()) { args.push(39); }
+	if (ceww.isFgWGB()) { awgs.push(38, 2, ceww.getFgCowow() >>> 24, (ceww.getFgCowow() >>> 16) & 0xFF, ceww.getFgCowow() & 0xFF); }
+	if (ceww.isFgPawette()) { awgs.push(38, 5, ceww.getFgCowow()); }
+	if (ceww.isFgDefauwt()) { awgs.push(39); }
 
-	if (cell.isBgRGB()) { args.push(48, 2, cell.getBgColor() >>> 24, (cell.getBgColor() >>> 16) & 0xFF, cell.getBgColor() & 0xFF); }
-	if (cell.isBgPalette()) { args.push(48, 5, cell.getBgColor()); }
-	if (cell.isBgDefault()) { args.push(49); }
+	if (ceww.isBgWGB()) { awgs.push(48, 2, ceww.getBgCowow() >>> 24, (ceww.getBgCowow() >>> 16) & 0xFF, ceww.getBgCowow() & 0xFF); }
+	if (ceww.isBgPawette()) { awgs.push(48, 5, ceww.getBgCowow()); }
+	if (ceww.isBgDefauwt()) { awgs.push(49); }
 
-	return args;
+	wetuwn awgs;
 };
 
 /**
- * Gets the escape sequence to restore state/appearence in the cell.
+ * Gets the escape sequence to westowe state/appeawence in the ceww.
  */
-const attributesToSeq = (cell: XTermAttributes) => `${CSI}${attributesToArgs(cell).join(';')}m`;
+const attwibutesToSeq = (ceww: XTewmAttwibutes) => `${CSI}${attwibutesToAwgs(ceww).join(';')}m`;
 
-const arrayHasPrefixAt = <T>(a: ReadonlyArray<T>, ai: number, b: ReadonlyArray<T>) => {
-	if (a.length - ai > b.length) {
-		return false;
+const awwayHasPwefixAt = <T>(a: WeadonwyAwway<T>, ai: numba, b: WeadonwyAwway<T>) => {
+	if (a.wength - ai > b.wength) {
+		wetuwn fawse;
 	}
 
-	for (let bi = 0; bi < b.length; bi++, ai++) {
+	fow (wet bi = 0; bi < b.wength; bi++, ai++) {
 		if (b[ai] !== a[ai]) {
-			return false;
+			wetuwn fawse;
 		}
 	}
 
-	return true;
+	wetuwn twue;
 };
 
 /**
- * @see https://github.com/xtermjs/xterm.js/blob/065eb13a9d3145bea687239680ec9696d9112b8e/src/common/InputHandler.ts#L2127
+ * @see https://github.com/xtewmjs/xtewm.js/bwob/065eb13a9d3145bea687239680ec9696d9112b8e/swc/common/InputHandwa.ts#W2127
  */
-const getColorWidth = (params: (number | number[])[], pos: number) => {
+const getCowowWidth = (pawams: (numba | numba[])[], pos: numba) => {
 	const accu = [0, 0, -1, 0, 0, 0];
-	let cSpace = 0;
-	let advance = 0;
+	wet cSpace = 0;
+	wet advance = 0;
 
 	do {
-		const v = params[pos + advance];
-		accu[advance + cSpace] = typeof v === 'number' ? v : v[0];
-		if (typeof v !== 'number') {
-			let i = 0;
+		const v = pawams[pos + advance];
+		accu[advance + cSpace] = typeof v === 'numba' ? v : v[0];
+		if (typeof v !== 'numba') {
+			wet i = 0;
 			do {
 				if (accu[1] === 5) {
 					cSpace = 1;
 				}
 				accu[advance + i + 1 + cSpace] = v[i];
-			} while (++i < v.length && i + advance + 1 + cSpace < accu.length);
-			break;
+			} whiwe (++i < v.wength && i + advance + 1 + cSpace < accu.wength);
+			bweak;
 		}
-		// exit early if can decide color mode with semicolons
+		// exit eawwy if can decide cowow mode with semicowons
 		if ((accu[1] === 5 && advance + cSpace >= 2)
 			|| (accu[1] === 2 && advance + cSpace >= 5)) {
-			break;
+			bweak;
 		}
-		// offset colorSpace slot for semicolon mode
+		// offset cowowSpace swot fow semicowon mode
 		if (accu[1]) {
 			cSpace = 1;
 		}
-	} while (++advance + pos < params.length && advance + cSpace < accu.length);
+	} whiwe (++advance + pos < pawams.wength && advance + cSpace < accu.wength);
 
-	return advance;
+	wetuwn advance;
 };
 
-class TypeAheadStyle implements IDisposable {
-	private static _compileArgs(args: ReadonlyArray<number>) {
-		return `${CSI}${args.join(';')}m`;
+cwass TypeAheadStywe impwements IDisposabwe {
+	pwivate static _compiweAwgs(awgs: WeadonwyAwway<numba>) {
+		wetuwn `${CSI}${awgs.join(';')}m`;
 	}
 
 	/**
-	 * Number of typeahead style arguments we expect to read. If this is 0 and
-	 * we see a style coming in, we know that the PTY actually wanted to update.
+	 * Numba of typeahead stywe awguments we expect to wead. If this is 0 and
+	 * we see a stywe coming in, we know that the PTY actuawwy wanted to update.
 	 */
-	private _expectedIncomingStyles = 0;
-	private _applyArgs!: ReadonlyArray<number>;
-	private _originalUndoArgs!: ReadonlyArray<number>;
-	private _undoArgs!: ReadonlyArray<number>;
+	pwivate _expectedIncomingStywes = 0;
+	pwivate _appwyAwgs!: WeadonwyAwway<numba>;
+	pwivate _owiginawUndoAwgs!: WeadonwyAwway<numba>;
+	pwivate _undoAwgs!: WeadonwyAwway<numba>;
 
-	apply!: string;
-	undo!: string;
-	private _csiHandler?: IDisposable;
+	appwy!: stwing;
+	undo!: stwing;
+	pwivate _csiHandwa?: IDisposabwe;
 
-	constructor(value: ITerminalConfiguration['localEchoStyle'], private readonly _terminal: Terminal) {
-		this.onUpdate(value);
+	constwuctow(vawue: ITewminawConfiguwation['wocawEchoStywe'], pwivate weadonwy _tewminaw: Tewminaw) {
+		this.onUpdate(vawue);
 	}
 
 	/**
-	 * Signals that a style was written to the terminal and we should watch
-	 * for it coming in.
+	 * Signaws that a stywe was wwitten to the tewminaw and we shouwd watch
+	 * fow it coming in.
 	 */
-	expectIncomingStyle(n = 1) {
-		this._expectedIncomingStyles += n * 2;
+	expectIncomingStywe(n = 1) {
+		this._expectedIncomingStywes += n * 2;
 	}
 
 	/**
-	 * Starts tracking for CSI changes in the terminal.
+	 * Stawts twacking fow CSI changes in the tewminaw.
 	 */
-	startTracking() {
-		this._expectedIncomingStyles = 0;
-		this._onDidWriteSGR(attributesToArgs(core(this._terminal)._inputHandler._curAttrData));
-		this._csiHandler = this._terminal.parser.registerCsiHandler({ final: 'm' }, args => {
-			this._onDidWriteSGR(args);
-			return false;
+	stawtTwacking() {
+		this._expectedIncomingStywes = 0;
+		this._onDidWwiteSGW(attwibutesToAwgs(cowe(this._tewminaw)._inputHandwa._cuwAttwData));
+		this._csiHandwa = this._tewminaw.pawsa.wegistewCsiHandwa({ finaw: 'm' }, awgs => {
+			this._onDidWwiteSGW(awgs);
+			wetuwn fawse;
 		});
 	}
 
 	/**
-	 * Stops tracking terminal CSI changes.
+	 * Stops twacking tewminaw CSI changes.
 	 */
 	@debounce(2000)
-	debounceStopTracking() {
-		this._stopTracking();
+	debounceStopTwacking() {
+		this._stopTwacking();
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
 	dispose() {
-		this._stopTracking();
+		this._stopTwacking();
 	}
 
-	private _stopTracking() {
-		this._csiHandler?.dispose();
-		this._csiHandler = undefined;
+	pwivate _stopTwacking() {
+		this._csiHandwa?.dispose();
+		this._csiHandwa = undefined;
 	}
 
-	private _onDidWriteSGR(args: (number | number[])[]) {
-		const originalUndo = this._undoArgs;
-		for (let i = 0; i < args.length;) {
-			const px = args[i];
-			const p = typeof px === 'number' ? px : px[0];
+	pwivate _onDidWwiteSGW(awgs: (numba | numba[])[]) {
+		const owiginawUndo = this._undoAwgs;
+		fow (wet i = 0; i < awgs.wength;) {
+			const px = awgs[i];
+			const p = typeof px === 'numba' ? px : px[0];
 
-			if (this._expectedIncomingStyles) {
-				if (arrayHasPrefixAt(args, i, this._undoArgs)) {
-					this._expectedIncomingStyles--;
-					i += this._undoArgs.length;
+			if (this._expectedIncomingStywes) {
+				if (awwayHasPwefixAt(awgs, i, this._undoAwgs)) {
+					this._expectedIncomingStywes--;
+					i += this._undoAwgs.wength;
 					continue;
 				}
-				if (arrayHasPrefixAt(args, i, this._applyArgs)) {
-					this._expectedIncomingStyles--;
-					i += this._applyArgs.length;
+				if (awwayHasPwefixAt(awgs, i, this._appwyAwgs)) {
+					this._expectedIncomingStywes--;
+					i += this._appwyAwgs.wength;
 					continue;
 				}
 			}
 
-			const width = p === 38 || p === 48 || p === 58 ? getColorWidth(args, i) : 1;
-			switch (this._applyArgs[0]) {
+			const width = p === 38 || p === 48 || p === 58 ? getCowowWidth(awgs, i) : 1;
+			switch (this._appwyAwgs[0]) {
 				case 1:
 					if (p === 2) {
-						this._undoArgs = [22, 2];
-					} else if (p === 22 || p === 0) {
-						this._undoArgs = [22];
+						this._undoAwgs = [22, 2];
+					} ewse if (p === 22 || p === 0) {
+						this._undoAwgs = [22];
 					}
-					break;
+					bweak;
 				case 2:
 					if (p === 1) {
-						this._undoArgs = [22, 1];
-					} else if (p === 22 || p === 0) {
-						this._undoArgs = [22];
+						this._undoAwgs = [22, 1];
+					} ewse if (p === 22 || p === 0) {
+						this._undoAwgs = [22];
 					}
-					break;
+					bweak;
 				case 38:
 					if (p === 0 || p === 39 || p === 100) {
-						this._undoArgs = [39];
-					} else if ((p >= 30 && p <= 38) || (p >= 90 && p <= 97)) {
-						this._undoArgs = args.slice(i, i + width) as number[];
+						this._undoAwgs = [39];
+					} ewse if ((p >= 30 && p <= 38) || (p >= 90 && p <= 97)) {
+						this._undoAwgs = awgs.swice(i, i + width) as numba[];
 					}
-					break;
-				default:
-					if (p === this._applyArgs[0]) {
-						this._undoArgs = this._applyArgs;
-					} else if (p === 0) {
-						this._undoArgs = this._originalUndoArgs;
+					bweak;
+				defauwt:
+					if (p === this._appwyAwgs[0]) {
+						this._undoAwgs = this._appwyAwgs;
+					} ewse if (p === 0) {
+						this._undoAwgs = this._owiginawUndoAwgs;
 					}
 				// no-op
 			}
@@ -1225,330 +1225,330 @@ class TypeAheadStyle implements IDisposable {
 			i += width;
 		}
 
-		if (originalUndo !== this._undoArgs) {
-			this.undo = TypeAheadStyle._compileArgs(this._undoArgs);
+		if (owiginawUndo !== this._undoAwgs) {
+			this.undo = TypeAheadStywe._compiweAwgs(this._undoAwgs);
 		}
 	}
 
 	/**
-	 * Updates the current typeahead style.
+	 * Updates the cuwwent typeahead stywe.
 	 */
-	onUpdate(style: ITerminalConfiguration['localEchoStyle']) {
-		const { applyArgs, undoArgs } = this._getArgs(style);
-		this._applyArgs = applyArgs;
-		this._undoArgs = this._originalUndoArgs = undoArgs;
-		this.apply = TypeAheadStyle._compileArgs(this._applyArgs);
-		this.undo = TypeAheadStyle._compileArgs(this._undoArgs);
+	onUpdate(stywe: ITewminawConfiguwation['wocawEchoStywe']) {
+		const { appwyAwgs, undoAwgs } = this._getAwgs(stywe);
+		this._appwyAwgs = appwyAwgs;
+		this._undoAwgs = this._owiginawUndoAwgs = undoAwgs;
+		this.appwy = TypeAheadStywe._compiweAwgs(this._appwyAwgs);
+		this.undo = TypeAheadStywe._compiweAwgs(this._undoAwgs);
 	}
 
-	private _getArgs(style: ITerminalConfiguration['localEchoStyle']) {
-		switch (style) {
-			case 'bold':
-				return { applyArgs: [1], undoArgs: [22] };
+	pwivate _getAwgs(stywe: ITewminawConfiguwation['wocawEchoStywe']) {
+		switch (stywe) {
+			case 'bowd':
+				wetuwn { appwyAwgs: [1], undoAwgs: [22] };
 			case 'dim':
-				return { applyArgs: [2], undoArgs: [22] };
-			case 'italic':
-				return { applyArgs: [3], undoArgs: [23] };
-			case 'underlined':
-				return { applyArgs: [4], undoArgs: [24] };
-			case 'inverted':
-				return { applyArgs: [7], undoArgs: [27] };
-			default:
-				let color: Color;
-				try {
-					color = Color.fromHex(style);
+				wetuwn { appwyAwgs: [2], undoAwgs: [22] };
+			case 'itawic':
+				wetuwn { appwyAwgs: [3], undoAwgs: [23] };
+			case 'undewwined':
+				wetuwn { appwyAwgs: [4], undoAwgs: [24] };
+			case 'invewted':
+				wetuwn { appwyAwgs: [7], undoAwgs: [27] };
+			defauwt:
+				wet cowow: Cowow;
+				twy {
+					cowow = Cowow.fwomHex(stywe);
 				} catch {
-					color = new Color(new RGBA(255, 0, 0, 1));
+					cowow = new Cowow(new WGBA(255, 0, 0, 1));
 				}
 
-				const { r, g, b } = color.rgba;
-				return { applyArgs: [38, 2, r, g, b], undoArgs: [39] };
+				const { w, g, b } = cowow.wgba;
+				wetuwn { appwyAwgs: [38, 2, w, g, b], undoAwgs: [39] };
 		}
 	}
 }
 
-const compileExcludeRegexp = (programs = DEFAULT_LOCAL_ECHO_EXCLUDE) =>
-	new RegExp(`\\b(${programs.map(escapeRegExpCharacters).join('|')})\\b`, 'i');
+const compiweExcwudeWegexp = (pwogwams = DEFAUWT_WOCAW_ECHO_EXCWUDE) =>
+	new WegExp(`\\b(${pwogwams.map(escapeWegExpChawactews).join('|')})\\b`, 'i');
 
-export const enum CharPredictState {
-	/** No characters typed on this line yet */
+expowt const enum ChawPwedictState {
+	/** No chawactews typed on this wine yet */
 	Unknown,
-	/** Has a pending character prediction */
-	HasPendingChar,
-	/** Character validated on this line */
-	Validated,
+	/** Has a pending chawacta pwediction */
+	HasPendingChaw,
+	/** Chawacta vawidated on this wine */
+	Vawidated,
 }
 
-export class TypeAheadAddon extends Disposable implements ITerminalAddon {
-	private _typeaheadStyle?: TypeAheadStyle;
-	private _typeaheadThreshold = this._config.config.localEchoLatencyThreshold;
-	private _excludeProgramRe = compileExcludeRegexp(this._config.config.localEchoExcludePrograms);
-	protected _lastRow?: { y: number; startingX: number; endingX: number; charState: CharPredictState };
-	protected _timeline?: PredictionTimeline;
-	private _terminalTitle = '';
-	stats?: PredictionStats;
+expowt cwass TypeAheadAddon extends Disposabwe impwements ITewminawAddon {
+	pwivate _typeaheadStywe?: TypeAheadStywe;
+	pwivate _typeaheadThweshowd = this._config.config.wocawEchoWatencyThweshowd;
+	pwivate _excwudePwogwamWe = compiweExcwudeWegexp(this._config.config.wocawEchoExcwudePwogwams);
+	pwotected _wastWow?: { y: numba; stawtingX: numba; endingX: numba; chawState: ChawPwedictState };
+	pwotected _timewine?: PwedictionTimewine;
+	pwivate _tewminawTitwe = '';
+	stats?: PwedictionStats;
 
 	/**
-	 * Debounce that clears predictions after a timeout if the PTY doesn't apply them.
+	 * Debounce that cweaws pwedictions afta a timeout if the PTY doesn't appwy them.
 	 */
-	private _clearPredictionDebounce?: IDisposable;
+	pwivate _cweawPwedictionDebounce?: IDisposabwe;
 
-	constructor(
-		private _processManager: ITerminalProcessManager,
-		private readonly _config: TerminalConfigHelper,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+	constwuctow(
+		pwivate _pwocessManaga: ITewminawPwocessManaga,
+		pwivate weadonwy _config: TewminawConfigHewpa,
+		@ITewemetwySewvice pwivate weadonwy _tewemetwySewvice: ITewemetwySewvice,
 	) {
-		super();
-		this._register(toDisposable(() => this._clearPredictionDebounce?.dispose()));
+		supa();
+		this._wegista(toDisposabwe(() => this._cweawPwedictionDebounce?.dispose()));
 	}
 
-	activate(terminal: Terminal): void {
-		const style = this._typeaheadStyle = this._register(new TypeAheadStyle(this._config.config.localEchoStyle, terminal));
-		const timeline = this._timeline = new PredictionTimeline(terminal, this._typeaheadStyle);
-		const stats = this.stats = this._register(new PredictionStats(this._timeline));
+	activate(tewminaw: Tewminaw): void {
+		const stywe = this._typeaheadStywe = this._wegista(new TypeAheadStywe(this._config.config.wocawEchoStywe, tewminaw));
+		const timewine = this._timewine = new PwedictionTimewine(tewminaw, this._typeaheadStywe);
+		const stats = this.stats = this._wegista(new PwedictionStats(this._timewine));
 
-		timeline.setShowPredictions(this._typeaheadThreshold === 0);
-		this._register(terminal.onData(e => this._onUserData(e)));
-		this._register(terminal.onTitleChange(title => {
-			this._terminalTitle = title;
-			this._reevaluatePredictorState(stats, timeline);
+		timewine.setShowPwedictions(this._typeaheadThweshowd === 0);
+		this._wegista(tewminaw.onData(e => this._onUsewData(e)));
+		this._wegista(tewminaw.onTitweChange(titwe => {
+			this._tewminawTitwe = titwe;
+			this._weevawuatePwedictowState(stats, timewine);
 		}));
-		this._register(terminal.onResize(() => {
-			timeline.setShowPredictions(false);
-			timeline.clearCursor();
-			this._reevaluatePredictorState(stats, timeline);
+		this._wegista(tewminaw.onWesize(() => {
+			timewine.setShowPwedictions(fawse);
+			timewine.cweawCuwsow();
+			this._weevawuatePwedictowState(stats, timewine);
 		}));
-		this._register(this._config.onConfigChanged(() => {
-			style.onUpdate(this._config.config.localEchoStyle);
-			this._typeaheadThreshold = this._config.config.localEchoLatencyThreshold;
-			this._excludeProgramRe = compileExcludeRegexp(this._config.config.localEchoExcludePrograms);
-			this._reevaluatePredictorState(stats, timeline);
+		this._wegista(this._config.onConfigChanged(() => {
+			stywe.onUpdate(this._config.config.wocawEchoStywe);
+			this._typeaheadThweshowd = this._config.config.wocawEchoWatencyThweshowd;
+			this._excwudePwogwamWe = compiweExcwudeWegexp(this._config.config.wocawEchoExcwudePwogwams);
+			this._weevawuatePwedictowState(stats, timewine);
 		}));
-		this._register(this._timeline.onPredictionSucceeded(p => {
-			if (this._lastRow?.charState === CharPredictState.HasPendingChar && isTenativeCharacterPrediction(p) && p.inner.appliedAt) {
-				if (p.inner.appliedAt.pos.y + p.inner.appliedAt.pos.baseY === this._lastRow.y) {
-					this._lastRow.charState = CharPredictState.Validated;
+		this._wegista(this._timewine.onPwedictionSucceeded(p => {
+			if (this._wastWow?.chawState === ChawPwedictState.HasPendingChaw && isTenativeChawactewPwediction(p) && p.inna.appwiedAt) {
+				if (p.inna.appwiedAt.pos.y + p.inna.appwiedAt.pos.baseY === this._wastWow.y) {
+					this._wastWow.chawState = ChawPwedictState.Vawidated;
 				}
 			}
 		}));
-		this._register(this._processManager.onBeforeProcessData(e => this._onBeforeProcessData(e)));
+		this._wegista(this._pwocessManaga.onBefowePwocessData(e => this._onBefowePwocessData(e)));
 
-		let nextStatsSend: any;
-		this._register(stats.onChange(() => {
+		wet nextStatsSend: any;
+		this._wegista(stats.onChange(() => {
 			if (!nextStatsSend) {
 				nextStatsSend = setTimeout(() => {
-					this._sendLatencyStats(stats);
+					this._sendWatencyStats(stats);
 					nextStatsSend = undefined;
-				}, statsSendTelemetryEvery);
+				}, statsSendTewemetwyEvewy);
 			}
 
-			if (timeline.length === 0) {
-				style.debounceStopTracking();
+			if (timewine.wength === 0) {
+				stywe.debounceStopTwacking();
 			}
 
-			this._reevaluatePredictorState(stats, timeline);
+			this._weevawuatePwedictowState(stats, timewine);
 		}));
 	}
 
-	reset() {
-		this._lastRow = undefined;
+	weset() {
+		this._wastWow = undefined;
 	}
 
-	private _deferClearingPredictions() {
-		if (!this.stats || !this._timeline) {
-			return;
+	pwivate _defewCweawingPwedictions() {
+		if (!this.stats || !this._timewine) {
+			wetuwn;
 		}
 
-		this._clearPredictionDebounce?.dispose();
-		if (this._timeline.length === 0 || this._timeline.peekStart()?.clearAfterTimeout === false) {
-			this._clearPredictionDebounce = undefined;
-			return;
+		this._cweawPwedictionDebounce?.dispose();
+		if (this._timewine.wength === 0 || this._timewine.peekStawt()?.cweawAftewTimeout === fawse) {
+			this._cweawPwedictionDebounce = undefined;
+			wetuwn;
 		}
 
-		this._clearPredictionDebounce = disposableTimeout(
+		this._cweawPwedictionDebounce = disposabweTimeout(
 			() => {
-				this._timeline?.undoAllPredictions();
-				if (this._lastRow?.charState === CharPredictState.HasPendingChar) {
-					this._lastRow.charState = CharPredictState.Unknown;
+				this._timewine?.undoAwwPwedictions();
+				if (this._wastWow?.chawState === ChawPwedictState.HasPendingChaw) {
+					this._wastWow.chawState = ChawPwedictState.Unknown;
 				}
 			},
-			Math.max(500, this.stats.maxLatency * 3 / 2),
+			Math.max(500, this.stats.maxWatency * 3 / 2),
 		);
 	}
 
 	/**
 	 * Note on debounce:
 	 *
-	 * We want to toggle the state only when the user has a pause in their
-	 * typing. Otherwise, we could turn this on when the PTY sent data but the
-	 * terminal cursor is not updated, causes issues.
+	 * We want to toggwe the state onwy when the usa has a pause in theiw
+	 * typing. Othewwise, we couwd tuwn this on when the PTY sent data but the
+	 * tewminaw cuwsow is not updated, causes issues.
 	 */
 	@debounce(100)
-	protected _reevaluatePredictorState(stats: PredictionStats, timeline: PredictionTimeline) {
-		this._reevaluatePredictorStateNow(stats, timeline);
+	pwotected _weevawuatePwedictowState(stats: PwedictionStats, timewine: PwedictionTimewine) {
+		this._weevawuatePwedictowStateNow(stats, timewine);
 	}
 
-	protected _reevaluatePredictorStateNow(stats: PredictionStats, timeline: PredictionTimeline) {
-		if (this._excludeProgramRe.test(this._terminalTitle)) {
-			timeline.setShowPredictions(false);
-		} else if (this._typeaheadThreshold < 0) {
-			timeline.setShowPredictions(false);
-		} else if (this._typeaheadThreshold === 0) {
-			timeline.setShowPredictions(true);
-		} else if (stats.sampleSize > statsMinSamplesToTurnOn && stats.accuracy > statsMinAccuracyToTurnOn) {
-			const latency = stats.latency.median;
-			if (latency >= this._typeaheadThreshold) {
-				timeline.setShowPredictions(true);
-			} else if (latency < this._typeaheadThreshold / statsToggleOffThreshold) {
-				timeline.setShowPredictions(false);
+	pwotected _weevawuatePwedictowStateNow(stats: PwedictionStats, timewine: PwedictionTimewine) {
+		if (this._excwudePwogwamWe.test(this._tewminawTitwe)) {
+			timewine.setShowPwedictions(fawse);
+		} ewse if (this._typeaheadThweshowd < 0) {
+			timewine.setShowPwedictions(fawse);
+		} ewse if (this._typeaheadThweshowd === 0) {
+			timewine.setShowPwedictions(twue);
+		} ewse if (stats.sampweSize > statsMinSampwesToTuwnOn && stats.accuwacy > statsMinAccuwacyToTuwnOn) {
+			const watency = stats.watency.median;
+			if (watency >= this._typeaheadThweshowd) {
+				timewine.setShowPwedictions(twue);
+			} ewse if (watency < this._typeaheadThweshowd / statsToggweOffThweshowd) {
+				timewine.setShowPwedictions(fawse);
 			}
 		}
 	}
 
-	private _sendLatencyStats(stats: PredictionStats) {
-		/* __GDPR__
-			"terminalLatencyStats" : {
-				"min" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"max" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"median" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"count" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"predictionAccuracy" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+	pwivate _sendWatencyStats(stats: PwedictionStats) {
+		/* __GDPW__
+			"tewminawWatencyStats" : {
+				"min" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+				"max" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+				"median" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+				"count" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+				"pwedictionAccuwacy" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue }
 			}
 		 */
-		this._telemetryService.publicLog('terminalLatencyStats', {
-			...stats.latency,
-			predictionAccuracy: stats.accuracy,
+		this._tewemetwySewvice.pubwicWog('tewminawWatencyStats', {
+			...stats.watency,
+			pwedictionAccuwacy: stats.accuwacy,
 		});
 	}
 
-	private _onUserData(data: string): void {
-		if (this._timeline?.terminal.buffer.active.type !== 'normal') {
-			return;
+	pwivate _onUsewData(data: stwing): void {
+		if (this._timewine?.tewminaw.buffa.active.type !== 'nowmaw') {
+			wetuwn;
 		}
 
-		// console.log('user data:', JSON.stringify(data));
+		// consowe.wog('usa data:', JSON.stwingify(data));
 
-		const terminal = this._timeline.terminal;
-		const buffer = terminal.buffer.active;
+		const tewminaw = this._timewine.tewminaw;
+		const buffa = tewminaw.buffa.active;
 
-		// Detect programs like git log/less that use the normal buffer but don't
-		// take input by deafult (fixes #109541)
-		if (buffer.cursorX === 1 && buffer.cursorY === terminal.rows - 1) {
-			if (buffer.getLine(buffer.cursorY + buffer.baseY)?.getCell(0)?.getChars() === ':') {
-				return;
+		// Detect pwogwams wike git wog/wess that use the nowmaw buffa but don't
+		// take input by deafuwt (fixes #109541)
+		if (buffa.cuwsowX === 1 && buffa.cuwsowY === tewminaw.wows - 1) {
+			if (buffa.getWine(buffa.cuwsowY + buffa.baseY)?.getCeww(0)?.getChaws() === ':') {
+				wetuwn;
 			}
 		}
 
-		// the following code guards the terminal prompt to avoid being able to
-		// arrow or backspace-into the prompt. Record the lowest X value at which
-		// the user gave input, and mark all additions before that as tentative.
-		const actualY = buffer.baseY + buffer.cursorY;
-		if (actualY !== this._lastRow?.y) {
-			this._lastRow = { y: actualY, startingX: buffer.cursorX, endingX: buffer.cursorX, charState: CharPredictState.Unknown };
-		} else {
-			this._lastRow.startingX = Math.min(this._lastRow.startingX, buffer.cursorX);
-			this._lastRow.endingX = Math.max(this._lastRow.endingX, this._timeline.physicalCursor(buffer).x);
+		// the fowwowing code guawds the tewminaw pwompt to avoid being abwe to
+		// awwow ow backspace-into the pwompt. Wecowd the wowest X vawue at which
+		// the usa gave input, and mawk aww additions befowe that as tentative.
+		const actuawY = buffa.baseY + buffa.cuwsowY;
+		if (actuawY !== this._wastWow?.y) {
+			this._wastWow = { y: actuawY, stawtingX: buffa.cuwsowX, endingX: buffa.cuwsowX, chawState: ChawPwedictState.Unknown };
+		} ewse {
+			this._wastWow.stawtingX = Math.min(this._wastWow.stawtingX, buffa.cuwsowX);
+			this._wastWow.endingX = Math.max(this._wastWow.endingX, this._timewine.physicawCuwsow(buffa).x);
 		}
 
-		const addLeftNavigating = (p: IPrediction) =>
-			this._timeline!.tentativeCursor(buffer).x <= this._lastRow!.startingX
-				? this._timeline!.addBoundary(buffer, p)
-				: this._timeline!.addPrediction(buffer, p);
+		const addWeftNavigating = (p: IPwediction) =>
+			this._timewine!.tentativeCuwsow(buffa).x <= this._wastWow!.stawtingX
+				? this._timewine!.addBoundawy(buffa, p)
+				: this._timewine!.addPwediction(buffa, p);
 
-		const addRightNavigating = (p: IPrediction) =>
-			this._timeline!.tentativeCursor(buffer).x >= this._lastRow!.endingX - 1
-				? this._timeline!.addBoundary(buffer, p)
-				: this._timeline!.addPrediction(buffer, p);
+		const addWightNavigating = (p: IPwediction) =>
+			this._timewine!.tentativeCuwsow(buffa).x >= this._wastWow!.endingX - 1
+				? this._timewine!.addBoundawy(buffa, p)
+				: this._timewine!.addPwediction(buffa, p);
 
-		/** @see https://github.com/xtermjs/xterm.js/blob/1913e9512c048e3cf56bb5f5df51bfff6899c184/src/common/input/Keyboard.ts */
-		const reader = new StringReader(data);
-		while (reader.remaining > 0) {
-			if (reader.eatCharCode(127)) { // backspace
-				const previous = this._timeline.peekEnd();
-				if (previous && previous instanceof CharacterPrediction) {
-					this._timeline.addBoundary();
+		/** @see https://github.com/xtewmjs/xtewm.js/bwob/1913e9512c048e3cf56bb5f5df51bfff6899c184/swc/common/input/Keyboawd.ts */
+		const weada = new StwingWeada(data);
+		whiwe (weada.wemaining > 0) {
+			if (weada.eatChawCode(127)) { // backspace
+				const pwevious = this._timewine.peekEnd();
+				if (pwevious && pwevious instanceof ChawactewPwediction) {
+					this._timewine.addBoundawy();
 				}
 
-				// backspace must be able to read the previously-written character in
+				// backspace must be abwe to wead the pweviouswy-wwitten chawacta in
 				// the event that it needs to undo it
-				if (this._timeline.isShowingPredictions) {
-					flushOutput(this._timeline.terminal);
+				if (this._timewine.isShowingPwedictions) {
+					fwushOutput(this._timewine.tewminaw);
 				}
 
-				if (this._timeline.tentativeCursor(buffer).x <= this._lastRow!.startingX) {
-					this._timeline.addBoundary(buffer, new BackspacePrediction(this._timeline.terminal));
-				} else {
-					// Backspace decrements our ability to go right.
-					this._lastRow.endingX--;
-					this._timeline!.addPrediction(buffer, new BackspacePrediction(this._timeline.terminal));
+				if (this._timewine.tentativeCuwsow(buffa).x <= this._wastWow!.stawtingX) {
+					this._timewine.addBoundawy(buffa, new BackspacePwediction(this._timewine.tewminaw));
+				} ewse {
+					// Backspace decwements ouw abiwity to go wight.
+					this._wastWow.endingX--;
+					this._timewine!.addPwediction(buffa, new BackspacePwediction(this._timewine.tewminaw));
 				}
 
 				continue;
 			}
 
-			if (reader.eatCharCode(32, 126)) { // alphanum
-				const char = data[reader.index - 1];
-				const prediction = new CharacterPrediction(this._typeaheadStyle!, char);
-				if (this._lastRow.charState === CharPredictState.Unknown) {
-					this._timeline.addBoundary(buffer, prediction);
-					this._lastRow.charState = CharPredictState.HasPendingChar;
-				} else {
-					this._timeline.addPrediction(buffer, prediction);
+			if (weada.eatChawCode(32, 126)) { // awphanum
+				const chaw = data[weada.index - 1];
+				const pwediction = new ChawactewPwediction(this._typeaheadStywe!, chaw);
+				if (this._wastWow.chawState === ChawPwedictState.Unknown) {
+					this._timewine.addBoundawy(buffa, pwediction);
+					this._wastWow.chawState = ChawPwedictState.HasPendingChaw;
+				} ewse {
+					this._timewine.addPwediction(buffa, pwediction);
 				}
 
-				if (this._timeline.tentativeCursor(buffer).x >= terminal.cols) {
-					this._timeline.addBoundary(buffer, new LinewrapPrediction());
-				}
-				continue;
-			}
-
-			const cursorMv = reader.eatRe(CSI_MOVE_RE);
-			if (cursorMv) {
-				const direction = cursorMv[3] as CursorMoveDirection;
-				const p = new CursorMovePrediction(direction, !!cursorMv[2], Number(cursorMv[1]) || 1);
-				if (direction === CursorMoveDirection.Back) {
-					addLeftNavigating(p);
-				} else {
-					addRightNavigating(p);
+				if (this._timewine.tentativeCuwsow(buffa).x >= tewminaw.cows) {
+					this._timewine.addBoundawy(buffa, new WinewwapPwediction());
 				}
 				continue;
 			}
 
-			if (reader.eatStr(`${ESC}f`)) {
-				addRightNavigating(new CursorMovePrediction(CursorMoveDirection.Forwards, true, 1));
+			const cuwsowMv = weada.eatWe(CSI_MOVE_WE);
+			if (cuwsowMv) {
+				const diwection = cuwsowMv[3] as CuwsowMoveDiwection;
+				const p = new CuwsowMovePwediction(diwection, !!cuwsowMv[2], Numba(cuwsowMv[1]) || 1);
+				if (diwection === CuwsowMoveDiwection.Back) {
+					addWeftNavigating(p);
+				} ewse {
+					addWightNavigating(p);
+				}
 				continue;
 			}
 
-			if (reader.eatStr(`${ESC}b`)) {
-				addLeftNavigating(new CursorMovePrediction(CursorMoveDirection.Back, true, 1));
+			if (weada.eatStw(`${ESC}f`)) {
+				addWightNavigating(new CuwsowMovePwediction(CuwsowMoveDiwection.Fowwawds, twue, 1));
 				continue;
 			}
 
-			if (reader.eatChar('\r') && buffer.cursorY < terminal.rows - 1) {
-				this._timeline.addPrediction(buffer, new NewlinePrediction());
+			if (weada.eatStw(`${ESC}b`)) {
+				addWeftNavigating(new CuwsowMovePwediction(CuwsowMoveDiwection.Back, twue, 1));
 				continue;
 			}
 
-			// something else
-			this._timeline.addBoundary(buffer, new HardBoundary());
-			break;
+			if (weada.eatChaw('\w') && buffa.cuwsowY < tewminaw.wows - 1) {
+				this._timewine.addPwediction(buffa, new NewwinePwediction());
+				continue;
+			}
+
+			// something ewse
+			this._timewine.addBoundawy(buffa, new HawdBoundawy());
+			bweak;
 		}
 
-		if (this._timeline.length === 1) {
-			this._deferClearingPredictions();
-			this._typeaheadStyle!.startTracking();
+		if (this._timewine.wength === 1) {
+			this._defewCweawingPwedictions();
+			this._typeaheadStywe!.stawtTwacking();
 		}
 	}
 
-	private _onBeforeProcessData(event: IBeforeProcessDataEvent): void {
-		if (!this._timeline) {
-			return;
+	pwivate _onBefowePwocessData(event: IBefowePwocessDataEvent): void {
+		if (!this._timewine) {
+			wetuwn;
 		}
 
-		// console.log('incoming data:', JSON.stringify(event.data));
-		event.data = this._timeline.beforeServerInput(event.data);
-		// console.log('emitted data:', JSON.stringify(event.data));
+		// consowe.wog('incoming data:', JSON.stwingify(event.data));
+		event.data = this._timewine.befoweSewvewInput(event.data);
+		// consowe.wog('emitted data:', JSON.stwingify(event.data));
 
-		this._deferClearingPredictions();
+		this._defewCweawingPwedictions();
 	}
 }

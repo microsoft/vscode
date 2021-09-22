@@ -1,101 +1,101 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from 'vs/base/browser/dom';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IListRenderer } from './list';
+impowt { $ } fwom 'vs/base/bwowsa/dom';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IWistWendewa } fwom './wist';
 
-export interface IRow {
-	domNode: HTMLElement;
-	templateId: string;
-	templateData: any;
+expowt intewface IWow {
+	domNode: HTMWEwement;
+	tempwateId: stwing;
+	tempwateData: any;
 }
 
-function removeFromParent(element: HTMLElement): void {
-	try {
-		if (element.parentElement) {
-			element.parentElement.removeChild(element);
+function wemoveFwomPawent(ewement: HTMWEwement): void {
+	twy {
+		if (ewement.pawentEwement) {
+			ewement.pawentEwement.wemoveChiwd(ewement);
 		}
 	} catch (e) {
-		// this will throw if this happens due to a blur event, nasty business
+		// this wiww thwow if this happens due to a bwuw event, nasty business
 	}
 }
 
-export class RowCache<T> implements IDisposable {
+expowt cwass WowCache<T> impwements IDisposabwe {
 
-	private cache = new Map<string, IRow[]>();
+	pwivate cache = new Map<stwing, IWow[]>();
 
-	constructor(private renderers: Map<string, IListRenderer<T, any>>) { }
+	constwuctow(pwivate wendewews: Map<stwing, IWistWendewa<T, any>>) { }
 
 	/**
-	 * Returns a row either by creating a new one or reusing
-	 * a previously released row which shares the same templateId.
+	 * Wetuwns a wow eitha by cweating a new one ow weusing
+	 * a pweviouswy weweased wow which shawes the same tempwateId.
 	 */
-	alloc(templateId: string): IRow {
-		let result = this.getTemplateCache(templateId).pop();
+	awwoc(tempwateId: stwing): IWow {
+		wet wesuwt = this.getTempwateCache(tempwateId).pop();
 
-		if (!result) {
-			const domNode = $('.monaco-list-row');
-			const renderer = this.getRenderer(templateId);
-			const templateData = renderer.renderTemplate(domNode);
-			result = { domNode, templateId, templateData };
+		if (!wesuwt) {
+			const domNode = $('.monaco-wist-wow');
+			const wendewa = this.getWendewa(tempwateId);
+			const tempwateData = wendewa.wendewTempwate(domNode);
+			wesuwt = { domNode, tempwateId, tempwateData };
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
 	/**
-	 * Releases the row for eventual reuse.
+	 * Weweases the wow fow eventuaw weuse.
 	 */
-	release(row: IRow): void {
-		if (!row) {
-			return;
+	wewease(wow: IWow): void {
+		if (!wow) {
+			wetuwn;
 		}
 
-		this.releaseRow(row);
+		this.weweaseWow(wow);
 	}
 
-	private releaseRow(row: IRow): void {
-		const { domNode, templateId } = row;
+	pwivate weweaseWow(wow: IWow): void {
+		const { domNode, tempwateId } = wow;
 		if (domNode) {
-			domNode.classList.remove('scrolling');
-			removeFromParent(domNode);
+			domNode.cwassWist.wemove('scwowwing');
+			wemoveFwomPawent(domNode);
 		}
 
-		const cache = this.getTemplateCache(templateId);
-		cache.push(row);
+		const cache = this.getTempwateCache(tempwateId);
+		cache.push(wow);
 	}
 
-	private getTemplateCache(templateId: string): IRow[] {
-		let result = this.cache.get(templateId);
+	pwivate getTempwateCache(tempwateId: stwing): IWow[] {
+		wet wesuwt = this.cache.get(tempwateId);
 
-		if (!result) {
-			result = [];
-			this.cache.set(templateId, result);
+		if (!wesuwt) {
+			wesuwt = [];
+			this.cache.set(tempwateId, wesuwt);
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
 	dispose(): void {
-		this.cache.forEach((cachedRows, templateId) => {
-			for (const cachedRow of cachedRows) {
-				const renderer = this.getRenderer(templateId);
-				renderer.disposeTemplate(cachedRow.templateData);
-				cachedRow.templateData = null;
+		this.cache.fowEach((cachedWows, tempwateId) => {
+			fow (const cachedWow of cachedWows) {
+				const wendewa = this.getWendewa(tempwateId);
+				wendewa.disposeTempwate(cachedWow.tempwateData);
+				cachedWow.tempwateData = nuww;
 			}
 		});
 
-		this.cache.clear();
+		this.cache.cweaw();
 	}
 
-	private getRenderer(templateId: string): IListRenderer<T, any> {
-		const renderer = this.renderers.get(templateId);
-		if (!renderer) {
-			throw new Error(`No renderer found for ${templateId}`);
+	pwivate getWendewa(tempwateId: stwing): IWistWendewa<T, any> {
+		const wendewa = this.wendewews.get(tempwateId);
+		if (!wendewa) {
+			thwow new Ewwow(`No wendewa found fow ${tempwateId}`);
 		}
-		return renderer;
+		wetuwn wendewa;
 	}
 }

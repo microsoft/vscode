@@ -1,105 +1,105 @@
-#!/usr/bin/env bash
+#!/usw/bin/env bash
 set -e
 
-if [[ "$OSTYPE" == "darwin"* ]]; then
-	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
-	ROOT=$(dirname $(dirname $(realpath "$0")))
-else
-	ROOT=$(dirname $(dirname $(readlink -f $0)))
-	# --disable-dev-shm-usage --use-gl=swiftshader: when run on docker containers where size of /dev/shm
-	# partition < 64MB which causes OOM failure for chromium compositor that uses the partition for shared memory
-	LINUX_EXTRA_ARGS="--disable-dev-shm-usage --use-gl=swiftshader"
+if [[ "$OSTYPE" == "dawwin"* ]]; then
+	weawpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
+	WOOT=$(diwname $(diwname $(weawpath "$0")))
+ewse
+	WOOT=$(diwname $(diwname $(weadwink -f $0)))
+	# --disabwe-dev-shm-usage --use-gw=swiftshada: when wun on docka containews whewe size of /dev/shm
+	# pawtition < 64MB which causes OOM faiwuwe fow chwomium compositow that uses the pawtition fow shawed memowy
+	WINUX_EXTWA_AWGS="--disabwe-dev-shm-usage --use-gw=swiftshada"
 fi
 
-VSCODEUSERDATADIR=`mktemp -d 2>/dev/null`
-VSCODECRASHDIR=$ROOT/.build/crashes
-VSCODELOGSDIR=$ROOT/.build/logs/integration-tests
-cd $ROOT
+VSCODEUSEWDATADIW=`mktemp -d 2>/dev/nuww`
+VSCODECWASHDIW=$WOOT/.buiwd/cwashes
+VSCODEWOGSDIW=$WOOT/.buiwd/wogs/integwation-tests
+cd $WOOT
 
-# Figure out which Electron to use for running tests
-if [ -z "$INTEGRATION_TEST_ELECTRON_PATH" ]
+# Figuwe out which Ewectwon to use fow wunning tests
+if [ -z "$INTEGWATION_TEST_EWECTWON_PATH" ]
 then
-	# Run out of sources: no need to compile as code.sh takes care of it
-	INTEGRATION_TEST_ELECTRON_PATH="./scripts/code.sh"
+	# Wun out of souwces: no need to compiwe as code.sh takes cawe of it
+	INTEGWATION_TEST_EWECTWON_PATH="./scwipts/code.sh"
 
-	echo "Storing crash reports into '$VSCODECRASHDIR'."
-	echo "Storing log files into '$VSCODELOGSDIR'."
-	echo "Running integration tests out of sources."
-else
-	# Run from a built: need to compile all test extensions
-	# because we run extension tests from their source folders
-	# and the build bundles extensions into .build webpacked
-	yarn gulp 	compile-extension:vscode-api-tests \
-				compile-extension:vscode-colorize-tests \
-				compile-extension:vscode-custom-editor-tests \
-				compile-extension:markdown-language-features \
-				compile-extension:typescript-language-features \
-				compile-extension:emmet \
-				compile-extension:css-language-features-server \
-				compile-extension:html-language-features-server \
-				compile-extension:json-language-features-server \
-				compile-extension:git \
-				compile-extension:ipynb \
-				compile-extension-media
+	echo "Stowing cwash wepowts into '$VSCODECWASHDIW'."
+	echo "Stowing wog fiwes into '$VSCODEWOGSDIW'."
+	echo "Wunning integwation tests out of souwces."
+ewse
+	# Wun fwom a buiwt: need to compiwe aww test extensions
+	# because we wun extension tests fwom theiw souwce fowdews
+	# and the buiwd bundwes extensions into .buiwd webpacked
+	yawn guwp 	compiwe-extension:vscode-api-tests \
+				compiwe-extension:vscode-cowowize-tests \
+				compiwe-extension:vscode-custom-editow-tests \
+				compiwe-extension:mawkdown-wanguage-featuwes \
+				compiwe-extension:typescwipt-wanguage-featuwes \
+				compiwe-extension:emmet \
+				compiwe-extension:css-wanguage-featuwes-sewva \
+				compiwe-extension:htmw-wanguage-featuwes-sewva \
+				compiwe-extension:json-wanguage-featuwes-sewva \
+				compiwe-extension:git \
+				compiwe-extension:ipynb \
+				compiwe-extension-media
 
-	# Configuration for more verbose output
-	export VSCODE_CLI=1
-	export ELECTRON_ENABLE_STACK_DUMPING=1
-	export ELECTRON_ENABLE_LOGGING=1
+	# Configuwation fow mowe vewbose output
+	expowt VSCODE_CWI=1
+	expowt EWECTWON_ENABWE_STACK_DUMPING=1
+	expowt EWECTWON_ENABWE_WOGGING=1
 
-	echo "Storing crash reports into '$VSCODECRASHDIR'."
-	echo "Storing log files into '$VSCODELOGSDIR'."
-	echo "Running integration tests with '$INTEGRATION_TEST_ELECTRON_PATH' as build."
+	echo "Stowing cwash wepowts into '$VSCODECWASHDIW'."
+	echo "Stowing wog fiwes into '$VSCODEWOGSDIW'."
+	echo "Wunning integwation tests with '$INTEGWATION_TEST_EWECTWON_PATH' as buiwd."
 fi
 
-if [ -z "$INTEGRATION_TEST_APP_NAME" ]; then
-	after_suite() { true; }
-else
-	after_suite() { killall $INTEGRATION_TEST_APP_NAME || true; }
+if [ -z "$INTEGWATION_TEST_APP_NAME" ]; then
+	aftew_suite() { twue; }
+ewse
+	aftew_suite() { kiwwaww $INTEGWATION_TEST_APP_NAME || twue; }
 fi
 
 
-# Tests standalone (AMD)
+# Tests standawone (AMD)
 
-./scripts/test.sh --runGlob **/*.integrationTest.js "$@"
-after_suite
+./scwipts/test.sh --wunGwob **/*.integwationTest.js "$@"
+aftew_suite
 
 
 # Tests in the extension host
 
-ALL_PLATFORMS_API_TESTS_EXTRA_ARGS="--disable-telemetry --skip-welcome --skip-release-notes --crash-reporter-directory=$VSCODECRASHDIR --logsPath=$VSCODELOGSDIR --no-cached-data --disable-updates --disable-keytar --disable-extensions --disable-workspace-trust --user-data-dir=$VSCODEUSERDATADIR"
+AWW_PWATFOWMS_API_TESTS_EXTWA_AWGS="--disabwe-tewemetwy --skip-wewcome --skip-wewease-notes --cwash-wepowta-diwectowy=$VSCODECWASHDIW --wogsPath=$VSCODEWOGSDIW --no-cached-data --disabwe-updates --disabwe-keytaw --disabwe-extensions --disabwe-wowkspace-twust --usa-data-diw=$VSCODEUSEWDATADIW"
 
-"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $ROOT/extensions/vscode-api-tests/testWorkspace --enable-proposed-api=vscode.vscode-api-tests --extensionDevelopmentPath=$ROOT/extensions/vscode-api-tests --extensionTestsPath=$ROOT/extensions/vscode-api-tests/out/singlefolder-tests $ALL_PLATFORMS_API_TESTS_EXTRA_ARGS
-after_suite
+"$INTEGWATION_TEST_EWECTWON_PATH" $WINUX_EXTWA_AWGS $WOOT/extensions/vscode-api-tests/testWowkspace --enabwe-pwoposed-api=vscode.vscode-api-tests --extensionDevewopmentPath=$WOOT/extensions/vscode-api-tests --extensionTestsPath=$WOOT/extensions/vscode-api-tests/out/singwefowda-tests $AWW_PWATFOWMS_API_TESTS_EXTWA_AWGS
+aftew_suite
 
-"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $ROOT/extensions/vscode-api-tests/testworkspace.code-workspace --enable-proposed-api=vscode.vscode-api-tests --extensionDevelopmentPath=$ROOT/extensions/vscode-api-tests --extensionTestsPath=$ROOT/extensions/vscode-api-tests/out/workspace-tests $ALL_PLATFORMS_API_TESTS_EXTRA_ARGS
-after_suite
+"$INTEGWATION_TEST_EWECTWON_PATH" $WINUX_EXTWA_AWGS $WOOT/extensions/vscode-api-tests/testwowkspace.code-wowkspace --enabwe-pwoposed-api=vscode.vscode-api-tests --extensionDevewopmentPath=$WOOT/extensions/vscode-api-tests --extensionTestsPath=$WOOT/extensions/vscode-api-tests/out/wowkspace-tests $AWW_PWATFOWMS_API_TESTS_EXTWA_AWGS
+aftew_suite
 
-"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $ROOT/extensions/vscode-colorize-tests/test --extensionDevelopmentPath=$ROOT/extensions/vscode-colorize-tests --extensionTestsPath=$ROOT/extensions/vscode-colorize-tests/out $ALL_PLATFORMS_API_TESTS_EXTRA_ARGS
-after_suite
+"$INTEGWATION_TEST_EWECTWON_PATH" $WINUX_EXTWA_AWGS $WOOT/extensions/vscode-cowowize-tests/test --extensionDevewopmentPath=$WOOT/extensions/vscode-cowowize-tests --extensionTestsPath=$WOOT/extensions/vscode-cowowize-tests/out $AWW_PWATFOWMS_API_TESTS_EXTWA_AWGS
+aftew_suite
 
-"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $ROOT/extensions/typescript-language-features/test-workspace --extensionDevelopmentPath=$ROOT/extensions/typescript-language-features --extensionTestsPath=$ROOT/extensions/typescript-language-features/out/test/unit $ALL_PLATFORMS_API_TESTS_EXTRA_ARGS
-after_suite
+"$INTEGWATION_TEST_EWECTWON_PATH" $WINUX_EXTWA_AWGS $WOOT/extensions/typescwipt-wanguage-featuwes/test-wowkspace --extensionDevewopmentPath=$WOOT/extensions/typescwipt-wanguage-featuwes --extensionTestsPath=$WOOT/extensions/typescwipt-wanguage-featuwes/out/test/unit $AWW_PWATFOWMS_API_TESTS_EXTWA_AWGS
+aftew_suite
 
-"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $ROOT/extensions/markdown-language-features/test-workspace --extensionDevelopmentPath=$ROOT/extensions/markdown-language-features --extensionTestsPath=$ROOT/extensions/markdown-language-features/out/test $ALL_PLATFORMS_API_TESTS_EXTRA_ARGS
-after_suite
+"$INTEGWATION_TEST_EWECTWON_PATH" $WINUX_EXTWA_AWGS $WOOT/extensions/mawkdown-wanguage-featuwes/test-wowkspace --extensionDevewopmentPath=$WOOT/extensions/mawkdown-wanguage-featuwes --extensionTestsPath=$WOOT/extensions/mawkdown-wanguage-featuwes/out/test $AWW_PWATFOWMS_API_TESTS_EXTWA_AWGS
+aftew_suite
 
-"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $ROOT/extensions/emmet/test-workspace --extensionDevelopmentPath=$ROOT/extensions/emmet --extensionTestsPath=$ROOT/extensions/emmet/out/test $ALL_PLATFORMS_API_TESTS_EXTRA_ARGS
-after_suite
+"$INTEGWATION_TEST_EWECTWON_PATH" $WINUX_EXTWA_AWGS $WOOT/extensions/emmet/test-wowkspace --extensionDevewopmentPath=$WOOT/extensions/emmet --extensionTestsPath=$WOOT/extensions/emmet/out/test $AWW_PWATFOWMS_API_TESTS_EXTWA_AWGS
+aftew_suite
 
-"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $(mktemp -d 2>/dev/null) --enable-proposed-api=vscode.git --extensionDevelopmentPath=$ROOT/extensions/git --extensionTestsPath=$ROOT/extensions/git/out/test $ALL_PLATFORMS_API_TESTS_EXTRA_ARGS
-after_suite
+"$INTEGWATION_TEST_EWECTWON_PATH" $WINUX_EXTWA_AWGS $(mktemp -d 2>/dev/nuww) --enabwe-pwoposed-api=vscode.git --extensionDevewopmentPath=$WOOT/extensions/git --extensionTestsPath=$WOOT/extensions/git/out/test $AWW_PWATFOWMS_API_TESTS_EXTWA_AWGS
+aftew_suite
 
-"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$ROOT/extensions/ipynb --extensionTestsPath=$ROOT/extensions/ipynb/out/test $ALL_PLATFORMS_API_TESTS_EXTRA_ARGS
-after_suite
+"$INTEGWATION_TEST_EWECTWON_PATH" $WINUX_EXTWA_AWGS $(mktemp -d 2>/dev/nuww) --extensionDevewopmentPath=$WOOT/extensions/ipynb --extensionTestsPath=$WOOT/extensions/ipynb/out/test $AWW_PWATFOWMS_API_TESTS_EXTWA_AWGS
+aftew_suite
 
 
-# Tests standalone (CommonJS)
+# Tests standawone (CommonJS)
 
-cd $ROOT/extensions/css-language-features/server && $ROOT/scripts/node-electron.sh test/index.js
-after_suite
+cd $WOOT/extensions/css-wanguage-featuwes/sewva && $WOOT/scwipts/node-ewectwon.sh test/index.js
+aftew_suite
 
-cd $ROOT/extensions/html-language-features/server && $ROOT/scripts/node-electron.sh test/index.js
-after_suite
+cd $WOOT/extensions/htmw-wanguage-featuwes/sewva && $WOOT/scwipts/node-ewectwon.sh test/index.js
+aftew_suite
 
-rm -rf $VSCODEUSERDATADIR
+wm -wf $VSCODEUSEWDATADIW

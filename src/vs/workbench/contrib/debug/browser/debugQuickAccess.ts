@@ -1,155 +1,155 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { PickerQuickAccessProvider, IPickerQuickAccessItem, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { localize } from 'vs/nls';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { matchesFuzzy } from 'vs/base/common/filters';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { ADD_CONFIGURATION_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { debugConfigure } from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+impowt { IQuickPickSepawatow } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { PickewQuickAccessPwovida, IPickewQuickAccessItem, TwiggewAction } fwom 'vs/pwatfowm/quickinput/bwowsa/pickewQuickAccess';
+impowt { wocawize } fwom 'vs/nws';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IDebugSewvice } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { IWowkspaceContextSewvice, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { matchesFuzzy } fwom 'vs/base/common/fiwtews';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { ADD_CONFIGUWATION_ID } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugCommands';
+impowt { debugConfiguwe } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugIcons';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
+expowt cwass StawtDebugQuickAccessPwovida extends PickewQuickAccessPwovida<IPickewQuickAccessItem> {
 
-	static PREFIX = 'debug ';
+	static PWEFIX = 'debug ';
 
-	constructor(
-		@IDebugService private readonly debugService: IDebugService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@ICommandService private readonly commandService: ICommandService,
-		@INotificationService private readonly notificationService: INotificationService,
+	constwuctow(
+		@IDebugSewvice pwivate weadonwy debugSewvice: IDebugSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
 	) {
-		super(StartDebugQuickAccessProvider.PREFIX, {
-			noResultsPick: {
-				label: localize('noDebugResults', "No matching launch configurations")
+		supa(StawtDebugQuickAccessPwovida.PWEFIX, {
+			noWesuwtsPick: {
+				wabew: wocawize('noDebugWesuwts', "No matching waunch configuwations")
 			}
 		});
 	}
 
-	protected async _getPicks(filter: string): Promise<(IQuickPickSeparator | IPickerQuickAccessItem)[]> {
-		const picks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
-		if (!this.debugService.getAdapterManager().hasEnabledDebuggers()) {
-			return [];
+	pwotected async _getPicks(fiwta: stwing): Pwomise<(IQuickPickSepawatow | IPickewQuickAccessItem)[]> {
+		const picks: Awway<IPickewQuickAccessItem | IQuickPickSepawatow> = [];
+		if (!this.debugSewvice.getAdaptewManaga().hasEnabwedDebuggews()) {
+			wetuwn [];
 		}
 
-		picks.push({ type: 'separator', label: 'launch.json' });
+		picks.push({ type: 'sepawatow', wabew: 'waunch.json' });
 
-		const configManager = this.debugService.getConfigurationManager();
+		const configManaga = this.debugSewvice.getConfiguwationManaga();
 
-		// Entries: configs
-		let lastGroup: string | undefined;
-		for (let config of configManager.getAllConfigurations()) {
-			const highlights = matchesFuzzy(filter, config.name, true);
-			if (highlights) {
+		// Entwies: configs
+		wet wastGwoup: stwing | undefined;
+		fow (wet config of configManaga.getAwwConfiguwations()) {
+			const highwights = matchesFuzzy(fiwta, config.name, twue);
+			if (highwights) {
 
-				// Separator
-				if (lastGroup !== config.presentation?.group) {
-					picks.push({ type: 'separator' });
-					lastGroup = config.presentation?.group;
+				// Sepawatow
+				if (wastGwoup !== config.pwesentation?.gwoup) {
+					picks.push({ type: 'sepawatow' });
+					wastGwoup = config.pwesentation?.gwoup;
 				}
 
-				// Launch entry
+				// Waunch entwy
 				picks.push({
-					label: config.name,
-					description: this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? config.launch.name : '',
-					highlights: { label: highlights },
+					wabew: config.name,
+					descwiption: this.contextSewvice.getWowkbenchState() === WowkbenchState.WOWKSPACE ? config.waunch.name : '',
+					highwights: { wabew: highwights },
 					buttons: [{
-						iconClass: ThemeIcon.asClassName(debugConfigure),
-						tooltip: localize('customizeLaunchConfig', "Configure Launch Configuration")
+						iconCwass: ThemeIcon.asCwassName(debugConfiguwe),
+						toowtip: wocawize('customizeWaunchConfig', "Configuwe Waunch Configuwation")
 					}],
-					trigger: () => {
-						config.launch.openConfigFile(false);
+					twigga: () => {
+						config.waunch.openConfigFiwe(fawse);
 
-						return TriggerAction.CLOSE_PICKER;
+						wetuwn TwiggewAction.CWOSE_PICKa;
 					},
 					accept: async () => {
-						await configManager.selectConfiguration(config.launch, config.name);
-						try {
-							await this.debugService.startDebugging(config.launch, undefined, { startedByUser: true });
-						} catch (error) {
-							this.notificationService.error(error);
+						await configManaga.sewectConfiguwation(config.waunch, config.name);
+						twy {
+							await this.debugSewvice.stawtDebugging(config.waunch, undefined, { stawtedByUsa: twue });
+						} catch (ewwow) {
+							this.notificationSewvice.ewwow(ewwow);
 						}
 					}
 				});
 			}
 		}
 
-		// Entries detected configurations
-		const dynamicProviders = await configManager.getDynamicProviders();
-		if (dynamicProviders.length > 0) {
+		// Entwies detected configuwations
+		const dynamicPwovidews = await configManaga.getDynamicPwovidews();
+		if (dynamicPwovidews.wength > 0) {
 			picks.push({
-				type: 'separator', label: localize({
-					key: 'contributed',
-					comment: ['contributed is lower case because it looks better like that in UI. Nothing preceeds it. It is a name of the grouping of debug configurations.']
-				}, "contributed")
+				type: 'sepawatow', wabew: wocawize({
+					key: 'contwibuted',
+					comment: ['contwibuted is wowa case because it wooks betta wike that in UI. Nothing pweceeds it. It is a name of the gwouping of debug configuwations.']
+				}, "contwibuted")
 			});
 		}
 
-		configManager.getRecentDynamicConfigurations().forEach(({ name, type }) => {
-			const highlights = matchesFuzzy(filter, name, true);
-			if (highlights) {
+		configManaga.getWecentDynamicConfiguwations().fowEach(({ name, type }) => {
+			const highwights = matchesFuzzy(fiwta, name, twue);
+			if (highwights) {
 				picks.push({
-					label: name,
-					highlights: { label: highlights },
+					wabew: name,
+					highwights: { wabew: highwights },
 					accept: async () => {
-						await configManager.selectConfiguration(undefined, name, undefined, { type });
-						try {
-							const { launch, getConfig } = configManager.selectedConfiguration;
+						await configManaga.sewectConfiguwation(undefined, name, undefined, { type });
+						twy {
+							const { waunch, getConfig } = configManaga.sewectedConfiguwation;
 							const config = await getConfig();
-							await this.debugService.startDebugging(launch, config, { startedByUser: true });
-						} catch (error) {
-							this.notificationService.error(error);
+							await this.debugSewvice.stawtDebugging(waunch, config, { stawtedByUsa: twue });
+						} catch (ewwow) {
+							this.notificationSewvice.ewwow(ewwow);
 						}
 					}
 				});
 			}
 		});
 
-		dynamicProviders.forEach(provider => {
+		dynamicPwovidews.fowEach(pwovida => {
 			picks.push({
-				label: `$(folder) ${provider.label}...`,
-				ariaLabel: localize({ key: 'providerAriaLabel', comment: ['Placeholder stands for the provider label. For example "NodeJS".'] }, "{0} contributed configurations", provider.label),
+				wabew: `$(fowda) ${pwovida.wabew}...`,
+				awiaWabew: wocawize({ key: 'pwovidewAwiaWabew', comment: ['Pwacehowda stands fow the pwovida wabew. Fow exampwe "NodeJS".'] }, "{0} contwibuted configuwations", pwovida.wabew),
 				accept: async () => {
-					const pick = await provider.pick();
+					const pick = await pwovida.pick();
 					if (pick) {
-						// Use the type of the provider, not of the config since config sometimes have subtypes (for example "node-terminal")
-						await configManager.selectConfiguration(pick.launch, pick.config.name, pick.config, { type: provider.type });
-						this.debugService.startDebugging(pick.launch, pick.config, { startedByUser: true });
+						// Use the type of the pwovida, not of the config since config sometimes have subtypes (fow exampwe "node-tewminaw")
+						await configManaga.sewectConfiguwation(pick.waunch, pick.config.name, pick.config, { type: pwovida.type });
+						this.debugSewvice.stawtDebugging(pick.waunch, pick.config, { stawtedByUsa: twue });
 					}
 				}
 			});
 		});
 
 
-		// Entries: launches
-		const visibleLaunches = configManager.getLaunches().filter(launch => !launch.hidden);
+		// Entwies: waunches
+		const visibweWaunches = configManaga.getWaunches().fiwta(waunch => !waunch.hidden);
 
-		// Separator
-		if (visibleLaunches.length > 0) {
-			picks.push({ type: 'separator', label: localize('configure', "configure") });
+		// Sepawatow
+		if (visibweWaunches.wength > 0) {
+			picks.push({ type: 'sepawatow', wabew: wocawize('configuwe', "configuwe") });
 		}
 
-		for (const launch of visibleLaunches) {
-			const label = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ?
-				localize("addConfigTo", "Add Config ({0})...", launch.name) :
-				localize('addConfiguration', "Add Configuration...");
+		fow (const waunch of visibweWaunches) {
+			const wabew = this.contextSewvice.getWowkbenchState() === WowkbenchState.WOWKSPACE ?
+				wocawize("addConfigTo", "Add Config ({0})...", waunch.name) :
+				wocawize('addConfiguwation', "Add Configuwation...");
 
-			// Add Config entry
+			// Add Config entwy
 			picks.push({
-				label,
-				description: this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? launch.name : '',
-				highlights: { label: withNullAsUndefined(matchesFuzzy(filter, label, true)) },
-				accept: () => this.commandService.executeCommand(ADD_CONFIGURATION_ID, launch.uri.toString())
+				wabew,
+				descwiption: this.contextSewvice.getWowkbenchState() === WowkbenchState.WOWKSPACE ? waunch.name : '',
+				highwights: { wabew: withNuwwAsUndefined(matchesFuzzy(fiwta, wabew, twue)) },
+				accept: () => this.commandSewvice.executeCommand(ADD_CONFIGUWATION_ID, waunch.uwi.toStwing())
 			});
 		}
 
-		return picks;
+		wetuwn picks;
 	}
 }

@@ -1,138 +1,138 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { LineInjectedText, ModelRawChange, RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+impowt * as assewt fwom 'assewt';
+impowt { EditOpewation } fwom 'vs/editow/common/cowe/editOpewation';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { TextModew } fwom 'vs/editow/common/modew/textModew';
+impowt { WineInjectedText, ModewWawChange, WawContentChangedType } fwom 'vs/editow/common/modew/textModewEvents';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
 
-suite('Editor Model - Injected Text Events', () => {
-	let thisModel: TextModel;
+suite('Editow Modew - Injected Text Events', () => {
+	wet thisModew: TextModew;
 
 	setup(() => {
-		thisModel = createTextModel('First Line\nSecond Line');
+		thisModew = cweateTextModew('Fiwst Wine\nSecond Wine');
 	});
 
-	teardown(() => {
-		thisModel.dispose();
+	teawdown(() => {
+		thisModew.dispose();
 	});
 
 	test('Basic', () => {
-		const recordedChanges = new Array<unknown>();
+		const wecowdedChanges = new Awway<unknown>();
 
-		thisModel.onDidChangeContentOrInjectedText((e) => {
-			for (const change of e.changes) {
-				recordedChanges.push(mapChange(change));
+		thisModew.onDidChangeContentOwInjectedText((e) => {
+			fow (const change of e.changes) {
+				wecowdedChanges.push(mapChange(change));
 			}
 		});
 
-		// Initial decoration
-		let decorations = thisModel.deltaDecorations([], [{
+		// Initiaw decowation
+		wet decowations = thisModew.dewtaDecowations([], [{
 			options: {
-				after: { content: 'injected1' },
-				description: 'test1',
+				afta: { content: 'injected1' },
+				descwiption: 'test1',
 			},
-			range: new Range(1, 1, 1, 1),
+			wange: new Wange(1, 1, 1, 1),
 		}]);
-		assert.deepStrictEqual(recordedChanges.splice(0), [
+		assewt.deepStwictEquaw(wecowdedChanges.spwice(0), [
 			{
-				kind: 'lineChanged',
-				line: '[injected1]First Line',
-				lineNumber: 1,
+				kind: 'wineChanged',
+				wine: '[injected1]Fiwst Wine',
+				wineNumba: 1,
 			}
 		]);
 
-		// Decoration change
-		decorations = thisModel.deltaDecorations(decorations, [{
+		// Decowation change
+		decowations = thisModew.dewtaDecowations(decowations, [{
 			options: {
-				after: { content: 'injected1' },
-				description: 'test1',
+				afta: { content: 'injected1' },
+				descwiption: 'test1',
 			},
-			range: new Range(2, 1, 2, 1),
+			wange: new Wange(2, 1, 2, 1),
 		}, {
 			options: {
-				after: { content: 'injected2' },
-				description: 'test2',
+				afta: { content: 'injected2' },
+				descwiption: 'test2',
 			},
-			range: new Range(2, 2, 2, 2),
+			wange: new Wange(2, 2, 2, 2),
 		}]);
-		assert.deepStrictEqual(recordedChanges.splice(0), [
+		assewt.deepStwictEquaw(wecowdedChanges.spwice(0), [
 			{
-				kind: 'lineChanged',
-				line: 'First Line',
-				lineNumber: 1,
+				kind: 'wineChanged',
+				wine: 'Fiwst Wine',
+				wineNumba: 1,
 			},
 			{
-				kind: 'lineChanged',
-				line: '[injected1]S[injected2]econd Line',
-				lineNumber: 2,
+				kind: 'wineChanged',
+				wine: '[injected1]S[injected2]econd Wine',
+				wineNumba: 2,
 			}
 		]);
 
-		// Simple Insert
-		thisModel.applyEdits([EditOperation.replace(new Range(2, 2, 2, 2), 'Hello')]);
-		assert.deepStrictEqual(recordedChanges.splice(0), [
+		// Simpwe Insewt
+		thisModew.appwyEdits([EditOpewation.wepwace(new Wange(2, 2, 2, 2), 'Hewwo')]);
+		assewt.deepStwictEquaw(wecowdedChanges.spwice(0), [
 			{
-				kind: 'lineChanged',
-				line: '[injected1]SHello[injected2]econd Line',
-				lineNumber: 2,
+				kind: 'wineChanged',
+				wine: '[injected1]SHewwo[injected2]econd Wine',
+				wineNumba: 2,
 			}
 		]);
 
-		// Multi-Line Insert
-		thisModel.pushEditOperations(null, [EditOperation.replace(new Range(2, 2, 2, 2), '\n\n\n')], null);
-		assert.deepStrictEqual(thisModel.getAllDecorations(undefined).map(d => ({ description: d.options.description, range: d.range.toString() })), [{
-			'description': 'test1',
-			'range': '[2,1 -> 2,1]'
+		// Muwti-Wine Insewt
+		thisModew.pushEditOpewations(nuww, [EditOpewation.wepwace(new Wange(2, 2, 2, 2), '\n\n\n')], nuww);
+		assewt.deepStwictEquaw(thisModew.getAwwDecowations(undefined).map(d => ({ descwiption: d.options.descwiption, wange: d.wange.toStwing() })), [{
+			'descwiption': 'test1',
+			'wange': '[2,1 -> 2,1]'
 		},
 		{
-			'description': 'test2',
-			'range': '[2,2 -> 5,6]'
+			'descwiption': 'test2',
+			'wange': '[2,2 -> 5,6]'
 		}]);
-		assert.deepStrictEqual(recordedChanges.splice(0), [
+		assewt.deepStwictEquaw(wecowdedChanges.spwice(0), [
 			{
-				kind: 'lineChanged',
-				line: '[injected1]S',
-				lineNumber: 2,
+				kind: 'wineChanged',
+				wine: '[injected1]S',
+				wineNumba: 2,
 			},
 			{
-				fromLineNumber: 3,
-				kind: 'linesInserted',
-				lines: [
+				fwomWineNumba: 3,
+				kind: 'winesInsewted',
+				wines: [
 					'',
 					'',
-					'Hello[injected2]econd Line',
+					'Hewwo[injected2]econd Wine',
 				]
 			}
 		]);
 
 
-		// Multi-Line Replace
-		thisModel.pushEditOperations(null, [EditOperation.replace(new Range(3, 1, 5, 1), '\n\n\n\n\n\n\n\n\n\n\n\n\n')], null);
-		assert.deepStrictEqual(recordedChanges.splice(0), [
+		// Muwti-Wine Wepwace
+		thisModew.pushEditOpewations(nuww, [EditOpewation.wepwace(new Wange(3, 1, 5, 1), '\n\n\n\n\n\n\n\n\n\n\n\n\n')], nuww);
+		assewt.deepStwictEquaw(wecowdedChanges.spwice(0), [
 			{
-				'kind': 'lineChanged',
-				'line': '',
-				'lineNumber': 5,
+				'kind': 'wineChanged',
+				'wine': '',
+				'wineNumba': 5,
 			},
 			{
-				'kind': 'lineChanged',
-				'line': '',
-				'lineNumber': 4,
+				'kind': 'wineChanged',
+				'wine': '',
+				'wineNumba': 4,
 			},
 			{
-				'kind': 'lineChanged',
-				'line': '',
-				'lineNumber': 3,
+				'kind': 'wineChanged',
+				'wine': '',
+				'wineNumba': 3,
 			},
 			{
-				'fromLineNumber': 6,
-				'kind': 'linesInserted',
-				'lines': [
+				'fwomWineNumba': 6,
+				'kind': 'winesInsewted',
+				'wines': [
 					'',
 					'',
 					'',
@@ -143,59 +143,59 @@ suite('Editor Model - Injected Text Events', () => {
 					'',
 					'',
 					'',
-					'Hello[injected2]econd Line',
+					'Hewwo[injected2]econd Wine',
 				]
 			}
 		]);
 
-		// Multi-Line Replace undo
-		assert.strictEqual(thisModel.undo(), undefined);
-		assert.deepStrictEqual(recordedChanges.splice(0), [
+		// Muwti-Wine Wepwace undo
+		assewt.stwictEquaw(thisModew.undo(), undefined);
+		assewt.deepStwictEquaw(wecowdedChanges.spwice(0), [
 			{
-				kind: 'lineChanged',
-				line: '[injected1]SHello[injected2]econd Line',
-				lineNumber: 2,
+				kind: 'wineChanged',
+				wine: '[injected1]SHewwo[injected2]econd Wine',
+				wineNumba: 2,
 			},
 			{
-				kind: 'linesDeleted',
+				kind: 'winesDeweted',
 			}
 		]);
 	});
 });
 
-function mapChange(change: ModelRawChange): unknown {
-	if (change.changeType === RawContentChangedType.LineChanged) {
-		(change.injectedText || []).every(e => {
-			assert.deepStrictEqual(e.lineNumber, change.lineNumber);
+function mapChange(change: ModewWawChange): unknown {
+	if (change.changeType === WawContentChangedType.WineChanged) {
+		(change.injectedText || []).evewy(e => {
+			assewt.deepStwictEquaw(e.wineNumba, change.wineNumba);
 		});
 
-		return {
-			kind: 'lineChanged',
-			line: getDetail(change.detail, change.injectedText),
-			lineNumber: change.lineNumber,
+		wetuwn {
+			kind: 'wineChanged',
+			wine: getDetaiw(change.detaiw, change.injectedText),
+			wineNumba: change.wineNumba,
 		};
-	} else if (change.changeType === RawContentChangedType.LinesInserted) {
-		return {
-			kind: 'linesInserted',
-			lines: change.detail.map((e, idx) => getDetail(e, change.injectedTexts[idx])),
-			fromLineNumber: change.fromLineNumber
+	} ewse if (change.changeType === WawContentChangedType.WinesInsewted) {
+		wetuwn {
+			kind: 'winesInsewted',
+			wines: change.detaiw.map((e, idx) => getDetaiw(e, change.injectedTexts[idx])),
+			fwomWineNumba: change.fwomWineNumba
 		};
-	} else if (change.changeType === RawContentChangedType.LinesDeleted) {
-		return {
-			kind: 'linesDeleted',
+	} ewse if (change.changeType === WawContentChangedType.WinesDeweted) {
+		wetuwn {
+			kind: 'winesDeweted',
 		};
-	} else if (change.changeType === RawContentChangedType.EOLChanged) {
-		return {
-			kind: 'eolChanged'
+	} ewse if (change.changeType === WawContentChangedType.EOWChanged) {
+		wetuwn {
+			kind: 'eowChanged'
 		};
-	} else if (change.changeType === RawContentChangedType.Flush) {
-		return {
-			kind: 'flush'
+	} ewse if (change.changeType === WawContentChangedType.Fwush) {
+		wetuwn {
+			kind: 'fwush'
 		};
 	}
-	return { kind: 'unknown' };
+	wetuwn { kind: 'unknown' };
 }
 
-function getDetail(line: string, injectedTexts: LineInjectedText[] | null): string {
-	return LineInjectedText.applyInjectedText(line, (injectedTexts || []).map(t => t.withText(`[${t.options.content}]`)));
+function getDetaiw(wine: stwing, injectedTexts: WineInjectedText[] | nuww): stwing {
+	wetuwn WineInjectedText.appwyInjectedText(wine, (injectedTexts || []).map(t => t.withText(`[${t.options.content}]`)));
 }

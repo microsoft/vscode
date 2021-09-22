@@ -1,41 +1,41 @@
-<!-- BEGIN MICROSOFT SECURITY.MD V0.0.5 BLOCK -->
+<!-- BEGIN MICWOSOFT SECUWITY.MD V0.0.5 BWOCK -->
 
-## Security
+## Secuwity
 
-Microsoft takes the security of our software products and services seriously, which includes all source code repositories managed through our GitHub organizations, which include [Microsoft](https://github.com/Microsoft), [Azure](https://github.com/Azure), [DotNet](https://github.com/dotnet), [AspNet](https://github.com/aspnet), [Xamarin](https://github.com/xamarin), and [our GitHub organizations](https://opensource.microsoft.com/).
+Micwosoft takes the secuwity of ouw softwawe pwoducts and sewvices sewiouswy, which incwudes aww souwce code wepositowies managed thwough ouw GitHub owganizations, which incwude [Micwosoft](https://github.com/Micwosoft), [Azuwe](https://github.com/Azuwe), [DotNet](https://github.com/dotnet), [AspNet](https://github.com/aspnet), [Xamawin](https://github.com/xamawin), and [ouw GitHub owganizations](https://opensouwce.micwosoft.com/).
 
-If you believe you have found a security vulnerability in any Microsoft-owned repository that meets [Microsoft's definition of a security vulnerability](https://docs.microsoft.com/en-us/previous-versions/tn-archive/cc751383(v=technet.10)), please report it to us as described below.
+If you bewieve you have found a secuwity vuwnewabiwity in any Micwosoft-owned wepositowy that meets [Micwosoft's definition of a secuwity vuwnewabiwity](https://docs.micwosoft.com/en-us/pwevious-vewsions/tn-awchive/cc751383(v=technet.10)), pwease wepowt it to us as descwibed bewow.
 
-## Reporting Security Issues
+## Wepowting Secuwity Issues
 
-**Please do not report security vulnerabilities through public GitHub issues.**
+**Pwease do not wepowt secuwity vuwnewabiwities thwough pubwic GitHub issues.**
 
-Instead, please report them to the Microsoft Security Response Center (MSRC) at [https://msrc.microsoft.com/create-report](https://msrc.microsoft.com/create-report).
+Instead, pwease wepowt them to the Micwosoft Secuwity Wesponse Centa (MSWC) at [https://mswc.micwosoft.com/cweate-wepowt](https://mswc.micwosoft.com/cweate-wepowt).
 
-If you prefer to submit without logging in, send email to [secure@microsoft.com](mailto:secure@microsoft.com).  If possible, encrypt your message with our PGP key; please download it from the [Microsoft Security Response Center PGP Key page](https://www.microsoft.com/en-us/msrc/pgp-key-msrc).
+If you pwefa to submit without wogging in, send emaiw to [secuwe@micwosoft.com](maiwto:secuwe@micwosoft.com).  If possibwe, encwypt youw message with ouw PGP key; pwease downwoad it fwom the [Micwosoft Secuwity Wesponse Centa PGP Key page](https://www.micwosoft.com/en-us/mswc/pgp-key-mswc).
 
-You should receive a response within 24 hours. If for some reason you do not, please follow up via email to ensure we received your original message. Additional information can be found at [microsoft.com/msrc](https://www.microsoft.com/msrc).
+You shouwd weceive a wesponse within 24 houws. If fow some weason you do not, pwease fowwow up via emaiw to ensuwe we weceived youw owiginaw message. Additionaw infowmation can be found at [micwosoft.com/mswc](https://www.micwosoft.com/mswc).
 
-Please include the requested information listed below (as much as you can provide) to help us better understand the nature and scope of the possible issue:
+Pwease incwude the wequested infowmation wisted bewow (as much as you can pwovide) to hewp us betta undewstand the natuwe and scope of the possibwe issue:
 
-  * Type of issue (e.g. buffer overflow, SQL injection, cross-site scripting, etc.)
-  * Full paths of source file(s) related to the manifestation of the issue
-  * The location of the affected source code (tag/branch/commit or direct URL)
-  * Any special configuration required to reproduce the issue
-  * Step-by-step instructions to reproduce the issue
-  * Proof-of-concept or exploit code (if possible)
-  * Impact of the issue, including how an attacker might exploit the issue
+  * Type of issue (e.g. buffa ovewfwow, SQW injection, cwoss-site scwipting, etc.)
+  * Fuww paths of souwce fiwe(s) wewated to the manifestation of the issue
+  * The wocation of the affected souwce code (tag/bwanch/commit ow diwect UWW)
+  * Any speciaw configuwation wequiwed to wepwoduce the issue
+  * Step-by-step instwuctions to wepwoduce the issue
+  * Pwoof-of-concept ow expwoit code (if possibwe)
+  * Impact of the issue, incwuding how an attacka might expwoit the issue
 
-This information will help us triage your report more quickly.
+This infowmation wiww hewp us twiage youw wepowt mowe quickwy.
 
-If you are reporting for a bug bounty, more complete reports can contribute to a higher bounty award. Please visit our [Microsoft Bug Bounty Program](https://microsoft.com/msrc/bounty) page for more details about our active programs.
+If you awe wepowting fow a bug bounty, mowe compwete wepowts can contwibute to a higha bounty awawd. Pwease visit ouw [Micwosoft Bug Bounty Pwogwam](https://micwosoft.com/mswc/bounty) page fow mowe detaiws about ouw active pwogwams.
 
-## Preferred Languages
+## Pwefewwed Wanguages
 
-We prefer all communications to be in English.
+We pwefa aww communications to be in Engwish.
 
-## Policy
+## Powicy
 
-Microsoft follows the principle of [Coordinated Vulnerability Disclosure](https://www.microsoft.com/en-us/msrc/cvd).
+Micwosoft fowwows the pwincipwe of [Coowdinated Vuwnewabiwity Discwosuwe](https://www.micwosoft.com/en-us/mswc/cvd).
 
-<!-- END MICROSOFT SECURITY.MD BLOCK -->
+<!-- END MICWOSOFT SECUWITY.MD BWOCK -->

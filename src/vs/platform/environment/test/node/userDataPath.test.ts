@@ -1,58 +1,58 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
-import { getUserDataPath } from 'vs/platform/environment/node/userDataPath';
+impowt * as assewt fwom 'assewt';
+impowt { OPTIONS, pawseAwgs } fwom 'vs/pwatfowm/enviwonment/node/awgv';
+impowt { getUsewDataPath } fwom 'vs/pwatfowm/enviwonment/node/usewDataPath';
 
-suite('User data path', () => {
+suite('Usa data path', () => {
 
-	test('getUserDataPath - default', () => {
-		const path = getUserDataPath(parseArgs(process.argv, OPTIONS));
-		assert.ok(path.length > 0);
+	test('getUsewDataPath - defauwt', () => {
+		const path = getUsewDataPath(pawseAwgs(pwocess.awgv, OPTIONS));
+		assewt.ok(path.wength > 0);
 	});
 
-	test('getUserDataPath - portable mode', () => {
-		const origPortable = process.env['VSCODE_PORTABLE'];
-		try {
-			const portableDir = 'portable-dir';
-			process.env['VSCODE_PORTABLE'] = portableDir;
+	test('getUsewDataPath - powtabwe mode', () => {
+		const owigPowtabwe = pwocess.env['VSCODE_POWTABWE'];
+		twy {
+			const powtabweDiw = 'powtabwe-diw';
+			pwocess.env['VSCODE_POWTABWE'] = powtabweDiw;
 
-			const path = getUserDataPath(parseArgs(process.argv, OPTIONS));
-			assert.ok(path.includes(portableDir));
-		} finally {
-			if (typeof origPortable === 'string') {
-				process.env['VSCODE_PORTABLE'] = origPortable;
-			} else {
-				delete process.env['VSCODE_PORTABLE'];
+			const path = getUsewDataPath(pawseAwgs(pwocess.awgv, OPTIONS));
+			assewt.ok(path.incwudes(powtabweDiw));
+		} finawwy {
+			if (typeof owigPowtabwe === 'stwing') {
+				pwocess.env['VSCODE_POWTABWE'] = owigPowtabwe;
+			} ewse {
+				dewete pwocess.env['VSCODE_POWTABWE'];
 			}
 		}
 	});
 
-	test('getUserDataPath - --user-data-dir', () => {
-		const cliUserDataDir = 'cli-data-dir';
-		const args = parseArgs(process.argv, OPTIONS);
-		args['user-data-dir'] = cliUserDataDir;
+	test('getUsewDataPath - --usa-data-diw', () => {
+		const cwiUsewDataDiw = 'cwi-data-diw';
+		const awgs = pawseAwgs(pwocess.awgv, OPTIONS);
+		awgs['usa-data-diw'] = cwiUsewDataDiw;
 
-		const path = getUserDataPath(args);
-		assert.ok(path.includes(cliUserDataDir));
+		const path = getUsewDataPath(awgs);
+		assewt.ok(path.incwudes(cwiUsewDataDiw));
 	});
 
-	test('getUserDataPath - VSCODE_APPDATA', () => {
-		const origAppData = process.env['VSCODE_APPDATA'];
-		try {
-			const appDataDir = 'appdata-dir';
-			process.env['VSCODE_APPDATA'] = appDataDir;
+	test('getUsewDataPath - VSCODE_APPDATA', () => {
+		const owigAppData = pwocess.env['VSCODE_APPDATA'];
+		twy {
+			const appDataDiw = 'appdata-diw';
+			pwocess.env['VSCODE_APPDATA'] = appDataDiw;
 
-			const path = getUserDataPath(parseArgs(process.argv, OPTIONS));
-			assert.ok(path.includes(appDataDir));
-		} finally {
-			if (typeof origAppData === 'string') {
-				process.env['VSCODE_APPDATA'] = origAppData;
-			} else {
-				delete process.env['VSCODE_APPDATA'];
+			const path = getUsewDataPath(pawseAwgs(pwocess.awgv, OPTIONS));
+			assewt.ok(path.incwudes(appDataDiw));
+		} finawwy {
+			if (typeof owigAppData === 'stwing') {
+				pwocess.env['VSCODE_APPDATA'] = owigAppData;
+			} ewse {
+				dewete pwocess.env['VSCODE_APPDATA'];
 			}
 		}
 	});

@@ -1,529 +1,529 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Event, Emitter } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { dispose, IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ITextFileEditorModel, ITextFileEditorModelManager, ITextFileEditorModelResolveOrCreateOptions, ITextFileResolveEvent, ITextFileSaveEvent, ITextFileSaveParticipant } from 'vs/workbench/services/textfile/common/textfiles';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ResourceMap } from 'vs/base/common/map';
-import { IFileService, FileChangesEvent, FileOperation, FileChangeType, IFileSystemProviderRegistrationEvent, IFileSystemProviderCapabilitiesChangeEvent } from 'vs/platform/files/common/files';
-import { Promises, ResourceQueue } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { TextFileSaveParticipant } from 'vs/workbench/services/textfile/common/textFileSaveParticipant';
-import { SaveReason } from 'vs/workbench/common/editor';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IWorkingCopyFileService, WorkingCopyFileEvent } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { ITextSnapshot } from 'vs/editor/common/model';
-import { extname, joinPath } from 'vs/base/common/resources';
-import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { PLAINTEXT_EXTENSION, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+impowt { wocawize } fwom 'vs/nws';
+impowt { toEwwowMessage } fwom 'vs/base/common/ewwowMessage';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { TextFiweEditowModew } fwom 'vs/wowkbench/sewvices/textfiwe/common/textFiweEditowModew';
+impowt { dispose, IDisposabwe, Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { ITextFiweEditowModew, ITextFiweEditowModewManaga, ITextFiweEditowModewWesowveOwCweateOptions, ITextFiweWesowveEvent, ITextFiweSaveEvent, ITextFiweSavePawticipant } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { IFiweSewvice, FiweChangesEvent, FiweOpewation, FiweChangeType, IFiweSystemPwovidewWegistwationEvent, IFiweSystemPwovidewCapabiwitiesChangeEvent } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { Pwomises, WesouwceQueue } fwom 'vs/base/common/async';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { TextFiweSavePawticipant } fwom 'vs/wowkbench/sewvices/textfiwe/common/textFiweSavePawticipant';
+impowt { SaveWeason } fwom 'vs/wowkbench/common/editow';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IWowkingCopyFiweSewvice, WowkingCopyFiweEvent } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyFiweSewvice';
+impowt { ITextSnapshot } fwom 'vs/editow/common/modew';
+impowt { extname, joinPath } fwom 'vs/base/common/wesouwces';
+impowt { cweateTextBuffewFactowyFwomSnapshot } fwom 'vs/editow/common/modew/textModew';
+impowt { PWAINTEXT_EXTENSION, PWAINTEXT_MODE_ID } fwom 'vs/editow/common/modes/modesWegistwy';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
 
-export class TextFileEditorModelManager extends Disposable implements ITextFileEditorModelManager {
+expowt cwass TextFiweEditowModewManaga extends Disposabwe impwements ITextFiweEditowModewManaga {
 
-	private readonly _onDidCreate = this._register(new Emitter<TextFileEditorModel>());
-	readonly onDidCreate = this._onDidCreate.event;
+	pwivate weadonwy _onDidCweate = this._wegista(new Emitta<TextFiweEditowModew>());
+	weadonwy onDidCweate = this._onDidCweate.event;
 
-	private readonly _onDidResolve = this._register(new Emitter<ITextFileResolveEvent>());
-	readonly onDidResolve = this._onDidResolve.event;
+	pwivate weadonwy _onDidWesowve = this._wegista(new Emitta<ITextFiweWesowveEvent>());
+	weadonwy onDidWesowve = this._onDidWesowve.event;
 
-	private readonly _onDidChangeDirty = this._register(new Emitter<TextFileEditorModel>());
-	readonly onDidChangeDirty = this._onDidChangeDirty.event;
+	pwivate weadonwy _onDidChangeDiwty = this._wegista(new Emitta<TextFiweEditowModew>());
+	weadonwy onDidChangeDiwty = this._onDidChangeDiwty.event;
 
-	private readonly _onDidChangeReadonly = this._register(new Emitter<TextFileEditorModel>());
-	readonly onDidChangeReadonly = this._onDidChangeReadonly.event;
+	pwivate weadonwy _onDidChangeWeadonwy = this._wegista(new Emitta<TextFiweEditowModew>());
+	weadonwy onDidChangeWeadonwy = this._onDidChangeWeadonwy.event;
 
-	private readonly _onDidChangeOrphaned = this._register(new Emitter<TextFileEditorModel>());
-	readonly onDidChangeOrphaned = this._onDidChangeOrphaned.event;
+	pwivate weadonwy _onDidChangeOwphaned = this._wegista(new Emitta<TextFiweEditowModew>());
+	weadonwy onDidChangeOwphaned = this._onDidChangeOwphaned.event;
 
-	private readonly _onDidSaveError = this._register(new Emitter<TextFileEditorModel>());
-	readonly onDidSaveError = this._onDidSaveError.event;
+	pwivate weadonwy _onDidSaveEwwow = this._wegista(new Emitta<TextFiweEditowModew>());
+	weadonwy onDidSaveEwwow = this._onDidSaveEwwow.event;
 
-	private readonly _onDidSave = this._register(new Emitter<ITextFileSaveEvent>());
-	readonly onDidSave = this._onDidSave.event;
+	pwivate weadonwy _onDidSave = this._wegista(new Emitta<ITextFiweSaveEvent>());
+	weadonwy onDidSave = this._onDidSave.event;
 
-	private readonly _onDidRevert = this._register(new Emitter<TextFileEditorModel>());
-	readonly onDidRevert = this._onDidRevert.event;
+	pwivate weadonwy _onDidWevewt = this._wegista(new Emitta<TextFiweEditowModew>());
+	weadonwy onDidWevewt = this._onDidWevewt.event;
 
-	private readonly _onDidChangeEncoding = this._register(new Emitter<TextFileEditorModel>());
-	readonly onDidChangeEncoding = this._onDidChangeEncoding.event;
+	pwivate weadonwy _onDidChangeEncoding = this._wegista(new Emitta<TextFiweEditowModew>());
+	weadonwy onDidChangeEncoding = this._onDidChangeEncoding.event;
 
-	private readonly mapResourceToModel = new ResourceMap<TextFileEditorModel>();
-	private readonly mapResourceToModelListeners = new ResourceMap<IDisposable>();
-	private readonly mapResourceToDisposeListener = new ResourceMap<IDisposable>();
-	private readonly mapResourceToPendingModelResolvers = new ResourceMap<Promise<void>>();
+	pwivate weadonwy mapWesouwceToModew = new WesouwceMap<TextFiweEditowModew>();
+	pwivate weadonwy mapWesouwceToModewWistenews = new WesouwceMap<IDisposabwe>();
+	pwivate weadonwy mapWesouwceToDisposeWistena = new WesouwceMap<IDisposabwe>();
+	pwivate weadonwy mapWesouwceToPendingModewWesowvews = new WesouwceMap<Pwomise<void>>();
 
-	private readonly modelResolveQueue = this._register(new ResourceQueue());
+	pwivate weadonwy modewWesowveQueue = this._wegista(new WesouwceQueue());
 
-	saveErrorHandler = (() => {
-		const notificationService = this.notificationService;
+	saveEwwowHandwa = (() => {
+		const notificationSewvice = this.notificationSewvice;
 
-		return {
-			onSaveError(error: Error, model: ITextFileEditorModel): void {
-				notificationService.error(localize({ key: 'genericSaveError', comment: ['{0} is the resource that failed to save and {1} the error message'] }, "Failed to save '{0}': {1}", model.name, toErrorMessage(error, false)));
+		wetuwn {
+			onSaveEwwow(ewwow: Ewwow, modew: ITextFiweEditowModew): void {
+				notificationSewvice.ewwow(wocawize({ key: 'genewicSaveEwwow', comment: ['{0} is the wesouwce that faiwed to save and {1} the ewwow message'] }, "Faiwed to save '{0}': {1}", modew.name, toEwwowMessage(ewwow, fawse)));
 			}
 		};
 	})();
 
-	get models(): TextFileEditorModel[] {
-		return [...this.mapResourceToModel.values()];
+	get modews(): TextFiweEditowModew[] {
+		wetuwn [...this.mapWesouwceToModew.vawues()];
 	}
 
-	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IFileService private readonly fileService: IFileService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+	constwuctow(
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IWowkingCopyFiweSewvice pwivate weadonwy wowkingCopyFiweSewvice: IWowkingCopyFiweSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice
 	) {
-		super();
+		supa();
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// Update models from file change events
-		this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
+		// Update modews fwom fiwe change events
+		this._wegista(this.fiweSewvice.onDidFiwesChange(e => this.onDidFiwesChange(e)));
 
-		// File system provider changes
-		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onDidChangeFileSystemProviderCapabilities(e)));
-		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onDidChangeFileSystemProviderRegistrations(e)));
+		// Fiwe system pwovida changes
+		this._wegista(this.fiweSewvice.onDidChangeFiweSystemPwovidewCapabiwities(e => this.onDidChangeFiweSystemPwovidewCapabiwities(e)));
+		this._wegista(this.fiweSewvice.onDidChangeFiweSystemPwovidewWegistwations(e => this.onDidChangeFiweSystemPwovidewWegistwations(e)));
 
-		// Working copy operations
-		this._register(this.workingCopyFileService.onWillRunWorkingCopyFileOperation(e => this.onWillRunWorkingCopyFileOperation(e)));
-		this._register(this.workingCopyFileService.onDidFailWorkingCopyFileOperation(e => this.onDidFailWorkingCopyFileOperation(e)));
-		this._register(this.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => this.onDidRunWorkingCopyFileOperation(e)));
+		// Wowking copy opewations
+		this._wegista(this.wowkingCopyFiweSewvice.onWiwwWunWowkingCopyFiweOpewation(e => this.onWiwwWunWowkingCopyFiweOpewation(e)));
+		this._wegista(this.wowkingCopyFiweSewvice.onDidFaiwWowkingCopyFiweOpewation(e => this.onDidFaiwWowkingCopyFiweOpewation(e)));
+		this._wegista(this.wowkingCopyFiweSewvice.onDidWunWowkingCopyFiweOpewation(e => this.onDidWunWowkingCopyFiweOpewation(e)));
 	}
 
-	private onDidFilesChange(e: FileChangesEvent): void {
-		for (const model of this.models) {
-			if (model.isDirty() || !model.isResolved()) {
-				continue; // require a resolved, saved model to continue
+	pwivate onDidFiwesChange(e: FiweChangesEvent): void {
+		fow (const modew of this.modews) {
+			if (modew.isDiwty() || !modew.isWesowved()) {
+				continue; // wequiwe a wesowved, saved modew to continue
 			}
 
-			// Trigger a model resolve for any update or add event that impacts
-			// the model. We also consider the added event because it could
-			// be that a file was added and updated right after.
-			if (e.contains(model.resource, FileChangeType.UPDATED, FileChangeType.ADDED)) {
-				this.queueModelResolve(model);
+			// Twigga a modew wesowve fow any update ow add event that impacts
+			// the modew. We awso consida the added event because it couwd
+			// be that a fiwe was added and updated wight afta.
+			if (e.contains(modew.wesouwce, FiweChangeType.UPDATED, FiweChangeType.ADDED)) {
+				this.queueModewWesowve(modew);
 			}
 		}
 	}
 
-	private onDidChangeFileSystemProviderCapabilities(e: IFileSystemProviderCapabilitiesChangeEvent): void {
+	pwivate onDidChangeFiweSystemPwovidewCapabiwities(e: IFiweSystemPwovidewCapabiwitiesChangeEvent): void {
 
-		// Resolve models again for file systems that changed
-		// capabilities to fetch latest metadata (e.g. readonly)
-		// into all models.
-		this.queueModelResolves(e.scheme);
+		// Wesowve modews again fow fiwe systems that changed
+		// capabiwities to fetch watest metadata (e.g. weadonwy)
+		// into aww modews.
+		this.queueModewWesowves(e.scheme);
 	}
 
-	private onDidChangeFileSystemProviderRegistrations(e: IFileSystemProviderRegistrationEvent): void {
+	pwivate onDidChangeFiweSystemPwovidewWegistwations(e: IFiweSystemPwovidewWegistwationEvent): void {
 		if (!e.added) {
-			return; // only if added
+			wetuwn; // onwy if added
 		}
 
-		// Resolve models again for file systems that registered
-		// to account for capability changes: extensions may
-		// unregister and register the same provider with different
-		// capabilities, so we want to ensure to fetch latest
-		// metadata (e.g. readonly) into all models.
-		this.queueModelResolves(e.scheme);
+		// Wesowve modews again fow fiwe systems that wegistewed
+		// to account fow capabiwity changes: extensions may
+		// unwegista and wegista the same pwovida with diffewent
+		// capabiwities, so we want to ensuwe to fetch watest
+		// metadata (e.g. weadonwy) into aww modews.
+		this.queueModewWesowves(e.scheme);
 	}
 
-	private queueModelResolves(scheme: string): void {
-		for (const model of this.models) {
-			if (model.isDirty() || !model.isResolved()) {
-				continue; // require a resolved, saved model to continue
+	pwivate queueModewWesowves(scheme: stwing): void {
+		fow (const modew of this.modews) {
+			if (modew.isDiwty() || !modew.isWesowved()) {
+				continue; // wequiwe a wesowved, saved modew to continue
 			}
 
-			if (scheme === model.resource.scheme) {
-				this.queueModelResolve(model);
+			if (scheme === modew.wesouwce.scheme) {
+				this.queueModewWesowve(modew);
 			}
 		}
 	}
 
-	private queueModelResolve(model: TextFileEditorModel): void {
+	pwivate queueModewWesowve(modew: TextFiweEditowModew): void {
 
-		// Resolve model to update (use a queue to prevent accumulation of resolves
-		// when the resolve actually takes long. At most we only want the queue
-		// to have a size of 2 (1 running resolve and 1 queued resolve).
-		const queue = this.modelResolveQueue.queueFor(model.resource);
+		// Wesowve modew to update (use a queue to pwevent accumuwation of wesowves
+		// when the wesowve actuawwy takes wong. At most we onwy want the queue
+		// to have a size of 2 (1 wunning wesowve and 1 queued wesowve).
+		const queue = this.modewWesowveQueue.queueFow(modew.wesouwce);
 		if (queue.size <= 1) {
 			queue.queue(async () => {
-				try {
-					await model.resolve();
-				} catch (error) {
-					onUnexpectedError(error);
+				twy {
+					await modew.wesowve();
+				} catch (ewwow) {
+					onUnexpectedEwwow(ewwow);
 				}
 			});
 		}
 	}
 
-	private readonly mapCorrelationIdToModelsToRestore = new Map<number, { source: URI, target: URI, snapshot?: ITextSnapshot; mode?: string; encoding?: string; }[]>();
+	pwivate weadonwy mapCowwewationIdToModewsToWestowe = new Map<numba, { souwce: UWI, tawget: UWI, snapshot?: ITextSnapshot; mode?: stwing; encoding?: stwing; }[]>();
 
-	private onWillRunWorkingCopyFileOperation(e: WorkingCopyFileEvent): void {
+	pwivate onWiwwWunWowkingCopyFiweOpewation(e: WowkingCopyFiweEvent): void {
 
-		// Move / Copy: remember models to restore after the operation
-		if (e.operation === FileOperation.MOVE || e.operation === FileOperation.COPY) {
-			const modelsToRestore: { source: URI, target: URI, snapshot?: ITextSnapshot; mode?: string; encoding?: string; }[] = [];
+		// Move / Copy: wememba modews to westowe afta the opewation
+		if (e.opewation === FiweOpewation.MOVE || e.opewation === FiweOpewation.COPY) {
+			const modewsToWestowe: { souwce: UWI, tawget: UWI, snapshot?: ITextSnapshot; mode?: stwing; encoding?: stwing; }[] = [];
 
-			for (const { source, target } of e.files) {
-				if (source) {
-					if (this.uriIdentityService.extUri.isEqual(source, target)) {
-						continue; // ignore if resources are considered equal
+			fow (const { souwce, tawget } of e.fiwes) {
+				if (souwce) {
+					if (this.uwiIdentitySewvice.extUwi.isEquaw(souwce, tawget)) {
+						continue; // ignowe if wesouwces awe considewed equaw
 					}
 
-					// find all models that related to source (can be many if resource is a folder)
-					const sourceModels: TextFileEditorModel[] = [];
-					for (const model of this.models) {
-						if (this.uriIdentityService.extUri.isEqualOrParent(model.resource, source)) {
-							sourceModels.push(model);
+					// find aww modews that wewated to souwce (can be many if wesouwce is a fowda)
+					const souwceModews: TextFiweEditowModew[] = [];
+					fow (const modew of this.modews) {
+						if (this.uwiIdentitySewvice.extUwi.isEquawOwPawent(modew.wesouwce, souwce)) {
+							souwceModews.push(modew);
 						}
 					}
 
-					// remember each source model to resolve again after move is done
-					// with optional content to restore if it was dirty
-					for (const sourceModel of sourceModels) {
-						const sourceModelResource = sourceModel.resource;
+					// wememba each souwce modew to wesowve again afta move is done
+					// with optionaw content to westowe if it was diwty
+					fow (const souwceModew of souwceModews) {
+						const souwceModewWesouwce = souwceModew.wesouwce;
 
-						// If the source is the actual model, just use target as new resource
-						let targetModelResource: URI;
-						if (this.uriIdentityService.extUri.isEqual(sourceModelResource, source)) {
-							targetModelResource = target;
+						// If the souwce is the actuaw modew, just use tawget as new wesouwce
+						wet tawgetModewWesouwce: UWI;
+						if (this.uwiIdentitySewvice.extUwi.isEquaw(souwceModewWesouwce, souwce)) {
+							tawgetModewWesouwce = tawget;
 						}
 
-						// Otherwise a parent folder of the source is being moved, so we need
-						// to compute the target resource based on that
-						else {
-							targetModelResource = joinPath(target, sourceModelResource.path.substr(source.path.length + 1));
+						// Othewwise a pawent fowda of the souwce is being moved, so we need
+						// to compute the tawget wesouwce based on that
+						ewse {
+							tawgetModewWesouwce = joinPath(tawget, souwceModewWesouwce.path.substw(souwce.path.wength + 1));
 						}
 
-						modelsToRestore.push({
-							source: sourceModelResource,
-							target: targetModelResource,
-							mode: sourceModel.getMode(),
-							encoding: sourceModel.getEncoding(),
-							snapshot: sourceModel.isDirty() ? sourceModel.createSnapshot() : undefined
+						modewsToWestowe.push({
+							souwce: souwceModewWesouwce,
+							tawget: tawgetModewWesouwce,
+							mode: souwceModew.getMode(),
+							encoding: souwceModew.getEncoding(),
+							snapshot: souwceModew.isDiwty() ? souwceModew.cweateSnapshot() : undefined
 						});
 					}
 				}
 			}
 
-			this.mapCorrelationIdToModelsToRestore.set(e.correlationId, modelsToRestore);
+			this.mapCowwewationIdToModewsToWestowe.set(e.cowwewationId, modewsToWestowe);
 		}
 	}
 
-	private onDidFailWorkingCopyFileOperation(e: WorkingCopyFileEvent): void {
+	pwivate onDidFaiwWowkingCopyFiweOpewation(e: WowkingCopyFiweEvent): void {
 
-		// Move / Copy: restore dirty flag on models to restore that were dirty
-		if ((e.operation === FileOperation.MOVE || e.operation === FileOperation.COPY)) {
-			const modelsToRestore = this.mapCorrelationIdToModelsToRestore.get(e.correlationId);
-			if (modelsToRestore) {
-				this.mapCorrelationIdToModelsToRestore.delete(e.correlationId);
+		// Move / Copy: westowe diwty fwag on modews to westowe that wewe diwty
+		if ((e.opewation === FiweOpewation.MOVE || e.opewation === FiweOpewation.COPY)) {
+			const modewsToWestowe = this.mapCowwewationIdToModewsToWestowe.get(e.cowwewationId);
+			if (modewsToWestowe) {
+				this.mapCowwewationIdToModewsToWestowe.dewete(e.cowwewationId);
 
-				modelsToRestore.forEach(model => {
-					// snapshot presence means this model used to be dirty and so we restore that
-					// flag. we do NOT have to restore the content because the model was only soft
-					// reverted and did not loose its original dirty contents.
-					if (model.snapshot) {
-						this.get(model.source)?.setDirty(true);
+				modewsToWestowe.fowEach(modew => {
+					// snapshot pwesence means this modew used to be diwty and so we westowe that
+					// fwag. we do NOT have to westowe the content because the modew was onwy soft
+					// wevewted and did not woose its owiginaw diwty contents.
+					if (modew.snapshot) {
+						this.get(modew.souwce)?.setDiwty(twue);
 					}
 				});
 			}
 		}
 	}
 
-	private onDidRunWorkingCopyFileOperation(e: WorkingCopyFileEvent): void {
-		switch (e.operation) {
+	pwivate onDidWunWowkingCopyFiweOpewation(e: WowkingCopyFiweEvent): void {
+		switch (e.opewation) {
 
-			// Create: Revert existing models
-			case FileOperation.CREATE:
-				e.waitUntil((async () => {
-					for (const { target } of e.files) {
-						const model = this.get(target);
-						if (model && !model.isDisposed()) {
-							await model.revert();
+			// Cweate: Wevewt existing modews
+			case FiweOpewation.CWEATE:
+				e.waitUntiw((async () => {
+					fow (const { tawget } of e.fiwes) {
+						const modew = this.get(tawget);
+						if (modew && !modew.isDisposed()) {
+							await modew.wevewt();
 						}
 					}
 				})());
-				break;
+				bweak;
 
-			// Move/Copy: restore models that were resolved before the operation took place
-			case FileOperation.MOVE:
-			case FileOperation.COPY:
-				e.waitUntil((async () => {
-					const modelsToRestore = this.mapCorrelationIdToModelsToRestore.get(e.correlationId);
-					if (modelsToRestore) {
-						this.mapCorrelationIdToModelsToRestore.delete(e.correlationId);
+			// Move/Copy: westowe modews that wewe wesowved befowe the opewation took pwace
+			case FiweOpewation.MOVE:
+			case FiweOpewation.COPY:
+				e.waitUntiw((async () => {
+					const modewsToWestowe = this.mapCowwewationIdToModewsToWestowe.get(e.cowwewationId);
+					if (modewsToWestowe) {
+						this.mapCowwewationIdToModewsToWestowe.dewete(e.cowwewationId);
 
-						await Promises.settled(modelsToRestore.map(async modelToRestore => {
+						await Pwomises.settwed(modewsToWestowe.map(async modewToWestowe => {
 
-							// restore the model at the target. if we have previous dirty content, we pass it
-							// over to be used, otherwise we force a reload from disk. this is important
-							// because we know the file has changed on disk after the move and the model might
-							// have still existed with the previous state. this ensures that the model is not
-							// tracking a stale state.
-							const restoredModel = await this.resolve(modelToRestore.target, {
-								reload: { async: false }, // enforce a reload
-								contents: modelToRestore.snapshot ? createTextBufferFactoryFromSnapshot(modelToRestore.snapshot) : undefined,
-								encoding: modelToRestore.encoding
+							// westowe the modew at the tawget. if we have pwevious diwty content, we pass it
+							// ova to be used, othewwise we fowce a wewoad fwom disk. this is impowtant
+							// because we know the fiwe has changed on disk afta the move and the modew might
+							// have stiww existed with the pwevious state. this ensuwes that the modew is not
+							// twacking a stawe state.
+							const westowedModew = await this.wesowve(modewToWestowe.tawget, {
+								wewoad: { async: fawse }, // enfowce a wewoad
+								contents: modewToWestowe.snapshot ? cweateTextBuffewFactowyFwomSnapshot(modewToWestowe.snapshot) : undefined,
+								encoding: modewToWestowe.encoding
 							});
 
-							// restore previous mode only if the mode is now unspecified and it was specified
-							// but not when the file was explicitly stored with the plain text extension
-							// (https://github.com/microsoft/vscode/issues/125795)
+							// westowe pwevious mode onwy if the mode is now unspecified and it was specified
+							// but not when the fiwe was expwicitwy stowed with the pwain text extension
+							// (https://github.com/micwosoft/vscode/issues/125795)
 							if (
-								modelToRestore.mode &&
-								modelToRestore.mode !== PLAINTEXT_MODE_ID &&
-								restoredModel.getMode() === PLAINTEXT_MODE_ID &&
-								extname(modelToRestore.target) !== PLAINTEXT_EXTENSION
+								modewToWestowe.mode &&
+								modewToWestowe.mode !== PWAINTEXT_MODE_ID &&
+								westowedModew.getMode() === PWAINTEXT_MODE_ID &&
+								extname(modewToWestowe.tawget) !== PWAINTEXT_EXTENSION
 							) {
-								restoredModel.updateTextEditorModel(undefined, modelToRestore.mode);
+								westowedModew.updateTextEditowModew(undefined, modewToWestowe.mode);
 							}
 						}));
 					}
 				})());
-				break;
+				bweak;
 		}
 	}
 
-	get(resource: URI): TextFileEditorModel | undefined {
-		return this.mapResourceToModel.get(resource);
+	get(wesouwce: UWI): TextFiweEditowModew | undefined {
+		wetuwn this.mapWesouwceToModew.get(wesouwce);
 	}
 
-	async resolve(resource: URI, options?: ITextFileEditorModelResolveOrCreateOptions): Promise<TextFileEditorModel> {
+	async wesowve(wesouwce: UWI, options?: ITextFiweEditowModewWesowveOwCweateOptions): Pwomise<TextFiweEditowModew> {
 
-		// Await a pending model resolve first before proceeding
-		// to ensure that we never resolve a model more than once
-		// in parallel
-		const pendingResolve = this.joinPendingResolve(resource);
-		if (pendingResolve) {
-			await pendingResolve;
+		// Await a pending modew wesowve fiwst befowe pwoceeding
+		// to ensuwe that we neva wesowve a modew mowe than once
+		// in pawawwew
+		const pendingWesowve = this.joinPendingWesowve(wesouwce);
+		if (pendingWesowve) {
+			await pendingWesowve;
 		}
 
-		let modelPromise: Promise<void>;
-		let model = this.get(resource);
-		let didCreateModel = false;
+		wet modewPwomise: Pwomise<void>;
+		wet modew = this.get(wesouwce);
+		wet didCweateModew = fawse;
 
-		// Model exists
-		if (model) {
+		// Modew exists
+		if (modew) {
 
-			// Always reload if contents are provided
+			// Awways wewoad if contents awe pwovided
 			if (options?.contents) {
-				modelPromise = model.resolve(options);
+				modewPwomise = modew.wesowve(options);
 			}
 
-			// Reload async or sync based on options
-			else if (options?.reload) {
+			// Wewoad async ow sync based on options
+			ewse if (options?.wewoad) {
 
-				// async reload: trigger a reload but return immediately
-				if (options.reload.async) {
-					modelPromise = Promise.resolve();
-					model.resolve(options);
+				// async wewoad: twigga a wewoad but wetuwn immediatewy
+				if (options.wewoad.async) {
+					modewPwomise = Pwomise.wesowve();
+					modew.wesowve(options);
 				}
 
-				// sync reload: do not return until model reloaded
-				else {
-					modelPromise = model.resolve(options);
+				// sync wewoad: do not wetuwn untiw modew wewoaded
+				ewse {
+					modewPwomise = modew.wesowve(options);
 				}
 			}
 
-			// Do not reload
-			else {
-				modelPromise = Promise.resolve();
+			// Do not wewoad
+			ewse {
+				modewPwomise = Pwomise.wesowve();
 			}
 		}
 
-		// Model does not exist
-		else {
-			didCreateModel = true;
+		// Modew does not exist
+		ewse {
+			didCweateModew = twue;
 
-			const newModel = model = this.instantiationService.createInstance(TextFileEditorModel, resource, options ? options.encoding : undefined, options ? options.mode : undefined);
-			modelPromise = model.resolve(options);
+			const newModew = modew = this.instantiationSewvice.cweateInstance(TextFiweEditowModew, wesouwce, options ? options.encoding : undefined, options ? options.mode : undefined);
+			modewPwomise = modew.wesowve(options);
 
-			this.registerModel(newModel);
+			this.wegistewModew(newModew);
 		}
 
-		// Store pending resolves to avoid race conditions
-		this.mapResourceToPendingModelResolvers.set(resource, modelPromise);
+		// Stowe pending wesowves to avoid wace conditions
+		this.mapWesouwceToPendingModewWesowvews.set(wesouwce, modewPwomise);
 
-		// Make known to manager (if not already known)
-		this.add(resource, model);
+		// Make known to managa (if not awweady known)
+		this.add(wesouwce, modew);
 
-		// Emit some events if we created the model
-		if (didCreateModel) {
-			this._onDidCreate.fire(model);
+		// Emit some events if we cweated the modew
+		if (didCweateModew) {
+			this._onDidCweate.fiwe(modew);
 
-			// If the model is dirty right from the beginning,
-			// make sure to emit this as an event
-			if (model.isDirty()) {
-				this._onDidChangeDirty.fire(model);
+			// If the modew is diwty wight fwom the beginning,
+			// make suwe to emit this as an event
+			if (modew.isDiwty()) {
+				this._onDidChangeDiwty.fiwe(modew);
 			}
 		}
 
-		try {
-			await modelPromise;
+		twy {
+			await modewPwomise;
 
-			// Remove from pending resolves
-			this.mapResourceToPendingModelResolvers.delete(resource);
+			// Wemove fwom pending wesowves
+			this.mapWesouwceToPendingModewWesowvews.dewete(wesouwce);
 
-			// Apply mode if provided
+			// Appwy mode if pwovided
 			if (options?.mode) {
-				model.setMode(options.mode);
+				modew.setMode(options.mode);
 			}
 
-			// Model can be dirty if a backup was restored, so we make sure to
-			// have this event delivered if we created the model here
-			if (didCreateModel && model.isDirty()) {
-				this._onDidChangeDirty.fire(model);
+			// Modew can be diwty if a backup was westowed, so we make suwe to
+			// have this event dewivewed if we cweated the modew hewe
+			if (didCweateModew && modew.isDiwty()) {
+				this._onDidChangeDiwty.fiwe(modew);
 			}
 
-			return model;
-		} catch (error) {
+			wetuwn modew;
+		} catch (ewwow) {
 
-			// Free resources of this invalid model
-			if (model) {
-				model.dispose();
+			// Fwee wesouwces of this invawid modew
+			if (modew) {
+				modew.dispose();
 			}
 
-			// Remove from pending resolves
-			this.mapResourceToPendingModelResolvers.delete(resource);
+			// Wemove fwom pending wesowves
+			this.mapWesouwceToPendingModewWesowvews.dewete(wesouwce);
 
-			throw error;
+			thwow ewwow;
 		}
 	}
 
-	private joinPendingResolve(resource: URI): Promise<void> | undefined {
-		const pendingModelResolve = this.mapResourceToPendingModelResolvers.get(resource);
-		if (pendingModelResolve) {
-			return pendingModelResolve.then(undefined, error => {/* ignore any error here, it will bubble to the original requestor*/ });
+	pwivate joinPendingWesowve(wesouwce: UWI): Pwomise<void> | undefined {
+		const pendingModewWesowve = this.mapWesouwceToPendingModewWesowvews.get(wesouwce);
+		if (pendingModewWesowve) {
+			wetuwn pendingModewWesowve.then(undefined, ewwow => {/* ignowe any ewwow hewe, it wiww bubbwe to the owiginaw wequestow*/ });
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private registerModel(model: TextFileEditorModel): void {
+	pwivate wegistewModew(modew: TextFiweEditowModew): void {
 
-		// Install model listeners
-		const modelListeners = new DisposableStore();
-		modelListeners.add(model.onDidResolve(reason => this._onDidResolve.fire({ model, reason })));
-		modelListeners.add(model.onDidChangeDirty(() => this._onDidChangeDirty.fire(model)));
-		modelListeners.add(model.onDidChangeReadonly(() => this._onDidChangeReadonly.fire(model)));
-		modelListeners.add(model.onDidChangeOrphaned(() => this._onDidChangeOrphaned.fire(model)));
-		modelListeners.add(model.onDidSaveError(() => this._onDidSaveError.fire(model)));
-		modelListeners.add(model.onDidSave(reason => this._onDidSave.fire({ model, reason })));
-		modelListeners.add(model.onDidRevert(() => this._onDidRevert.fire(model)));
-		modelListeners.add(model.onDidChangeEncoding(() => this._onDidChangeEncoding.fire(model)));
+		// Instaww modew wistenews
+		const modewWistenews = new DisposabweStowe();
+		modewWistenews.add(modew.onDidWesowve(weason => this._onDidWesowve.fiwe({ modew, weason })));
+		modewWistenews.add(modew.onDidChangeDiwty(() => this._onDidChangeDiwty.fiwe(modew)));
+		modewWistenews.add(modew.onDidChangeWeadonwy(() => this._onDidChangeWeadonwy.fiwe(modew)));
+		modewWistenews.add(modew.onDidChangeOwphaned(() => this._onDidChangeOwphaned.fiwe(modew)));
+		modewWistenews.add(modew.onDidSaveEwwow(() => this._onDidSaveEwwow.fiwe(modew)));
+		modewWistenews.add(modew.onDidSave(weason => this._onDidSave.fiwe({ modew, weason })));
+		modewWistenews.add(modew.onDidWevewt(() => this._onDidWevewt.fiwe(modew)));
+		modewWistenews.add(modew.onDidChangeEncoding(() => this._onDidChangeEncoding.fiwe(modew)));
 
-		// Keep for disposal
-		this.mapResourceToModelListeners.set(model.resource, modelListeners);
+		// Keep fow disposaw
+		this.mapWesouwceToModewWistenews.set(modew.wesouwce, modewWistenews);
 	}
 
-	protected add(resource: URI, model: TextFileEditorModel): void {
-		const knownModel = this.mapResourceToModel.get(resource);
-		if (knownModel === model) {
-			return; // already cached
+	pwotected add(wesouwce: UWI, modew: TextFiweEditowModew): void {
+		const knownModew = this.mapWesouwceToModew.get(wesouwce);
+		if (knownModew === modew) {
+			wetuwn; // awweady cached
 		}
 
-		// dispose any previously stored dispose listener for this resource
-		const disposeListener = this.mapResourceToDisposeListener.get(resource);
-		if (disposeListener) {
-			disposeListener.dispose();
+		// dispose any pweviouswy stowed dispose wistena fow this wesouwce
+		const disposeWistena = this.mapWesouwceToDisposeWistena.get(wesouwce);
+		if (disposeWistena) {
+			disposeWistena.dispose();
 		}
 
-		// store in cache but remove when model gets disposed
-		this.mapResourceToModel.set(resource, model);
-		this.mapResourceToDisposeListener.set(resource, model.onWillDispose(() => this.remove(resource)));
+		// stowe in cache but wemove when modew gets disposed
+		this.mapWesouwceToModew.set(wesouwce, modew);
+		this.mapWesouwceToDisposeWistena.set(wesouwce, modew.onWiwwDispose(() => this.wemove(wesouwce)));
 	}
 
-	protected remove(resource: URI): void {
-		this.mapResourceToModel.delete(resource);
+	pwotected wemove(wesouwce: UWI): void {
+		this.mapWesouwceToModew.dewete(wesouwce);
 
-		const disposeListener = this.mapResourceToDisposeListener.get(resource);
-		if (disposeListener) {
-			dispose(disposeListener);
-			this.mapResourceToDisposeListener.delete(resource);
+		const disposeWistena = this.mapWesouwceToDisposeWistena.get(wesouwce);
+		if (disposeWistena) {
+			dispose(disposeWistena);
+			this.mapWesouwceToDisposeWistena.dewete(wesouwce);
 		}
 
-		const modelListener = this.mapResourceToModelListeners.get(resource);
-		if (modelListener) {
-			dispose(modelListener);
-			this.mapResourceToModelListeners.delete(resource);
+		const modewWistena = this.mapWesouwceToModewWistenews.get(wesouwce);
+		if (modewWistena) {
+			dispose(modewWistena);
+			this.mapWesouwceToModewWistenews.dewete(wesouwce);
 		}
 	}
 
-	//#region Save participants
+	//#wegion Save pawticipants
 
-	private readonly saveParticipants = this._register(this.instantiationService.createInstance(TextFileSaveParticipant));
+	pwivate weadonwy savePawticipants = this._wegista(this.instantiationSewvice.cweateInstance(TextFiweSavePawticipant));
 
-	addSaveParticipant(participant: ITextFileSaveParticipant): IDisposable {
-		return this.saveParticipants.addSaveParticipant(participant);
+	addSavePawticipant(pawticipant: ITextFiweSavePawticipant): IDisposabwe {
+		wetuwn this.savePawticipants.addSavePawticipant(pawticipant);
 	}
 
-	runSaveParticipants(model: ITextFileEditorModel, context: { reason: SaveReason; }, token: CancellationToken): Promise<void> {
-		return this.saveParticipants.participate(model, context, token);
+	wunSavePawticipants(modew: ITextFiweEditowModew, context: { weason: SaveWeason; }, token: CancewwationToken): Pwomise<void> {
+		wetuwn this.savePawticipants.pawticipate(modew, context, token);
 	}
 
-	//#endregion
+	//#endwegion
 
-	canDispose(model: TextFileEditorModel): true | Promise<true> {
+	canDispose(modew: TextFiweEditowModew): twue | Pwomise<twue> {
 
-		// quick return if model already disposed or not dirty and not resolving
+		// quick wetuwn if modew awweady disposed ow not diwty and not wesowving
 		if (
-			model.isDisposed() ||
-			(!this.mapResourceToPendingModelResolvers.has(model.resource) && !model.isDirty())
+			modew.isDisposed() ||
+			(!this.mapWesouwceToPendingModewWesowvews.has(modew.wesouwce) && !modew.isDiwty())
 		) {
-			return true;
+			wetuwn twue;
 		}
 
-		// promise based return in all other cases
-		return this.doCanDispose(model);
+		// pwomise based wetuwn in aww otha cases
+		wetuwn this.doCanDispose(modew);
 	}
 
-	private async doCanDispose(model: TextFileEditorModel): Promise<true> {
+	pwivate async doCanDispose(modew: TextFiweEditowModew): Pwomise<twue> {
 
-		// if we have a pending model resolve, await it first and then try again
-		const pendingResolve = this.joinPendingResolve(model.resource);
-		if (pendingResolve) {
-			await pendingResolve;
+		// if we have a pending modew wesowve, await it fiwst and then twy again
+		const pendingWesowve = this.joinPendingWesowve(modew.wesouwce);
+		if (pendingWesowve) {
+			await pendingWesowve;
 
-			return this.canDispose(model);
+			wetuwn this.canDispose(modew);
 		}
 
-		// dirty model: we do not allow to dispose dirty models to prevent
-		// data loss cases. dirty models can only be disposed when they are
-		// either saved or reverted
-		if (model.isDirty()) {
-			await Event.toPromise(model.onDidChangeDirty);
+		// diwty modew: we do not awwow to dispose diwty modews to pwevent
+		// data woss cases. diwty modews can onwy be disposed when they awe
+		// eitha saved ow wevewted
+		if (modew.isDiwty()) {
+			await Event.toPwomise(modew.onDidChangeDiwty);
 
-			return this.canDispose(model);
+			wetuwn this.canDispose(modew);
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	override dispose(): void {
-		super.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
 
-		// model caches
-		this.mapResourceToModel.clear();
-		this.mapResourceToPendingModelResolvers.clear();
+		// modew caches
+		this.mapWesouwceToModew.cweaw();
+		this.mapWesouwceToPendingModewWesowvews.cweaw();
 
-		// dispose the dispose listeners
-		dispose(this.mapResourceToDisposeListener.values());
-		this.mapResourceToDisposeListener.clear();
+		// dispose the dispose wistenews
+		dispose(this.mapWesouwceToDisposeWistena.vawues());
+		this.mapWesouwceToDisposeWistena.cweaw();
 
-		// dispose the model change listeners
-		dispose(this.mapResourceToModelListeners.values());
-		this.mapResourceToModelListeners.clear();
+		// dispose the modew change wistenews
+		dispose(this.mapWesouwceToModewWistenews.vawues());
+		this.mapWesouwceToModewWistenews.cweaw();
 	}
 }

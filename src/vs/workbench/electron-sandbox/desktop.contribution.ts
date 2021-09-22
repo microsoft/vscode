@@ -1,333 +1,333 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Registry } from 'vs/platform/registry/common/platform';
-import { localize } from 'vs/nls';
-import { MenuRegistry, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
-import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ToggleSharedProcessAction, ReloadWindowWithExtensionsDisabledAction } from 'vs/workbench/electron-sandbox/actions/developerActions';
-import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler } from 'vs/workbench/electron-sandbox/actions/windowActions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IsMacContext } from 'vs/platform/contextkey/common/contextkeys';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { PartsSplash } from 'vs/workbench/electron-sandbox/splash';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { InstallShellScriptAction, UninstallShellScriptAction } from 'vs/workbench/electron-sandbox/actions/installActions';
-import { EditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
-import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { wocawize } fwom 'vs/nws';
+impowt { MenuWegistwy, MenuId, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IConfiguwationWegistwy, Extensions as ConfiguwationExtensions, ConfiguwationScope } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { KeyMod, KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { isWinux, isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { ConfiguweWuntimeAwgumentsAction, ToggweDevToowsAction, ToggweShawedPwocessAction, WewoadWindowWithExtensionsDisabwedAction } fwom 'vs/wowkbench/ewectwon-sandbox/actions/devewopewActions';
+impowt { ZoomWesetAction, ZoomOutAction, ZoomInAction, CwoseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, NewWindowTabHandwa, ShowPweviousWindowTabHandwa, ShowNextWindowTabHandwa, MoveWindowTabToNewWindowHandwa, MewgeWindowTabsHandwewHandwa, ToggweWindowTabsBawHandwa } fwom 'vs/wowkbench/ewectwon-sandbox/actions/windowActions';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { KeybindingsWegistwy, KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IsMacContext } fwom 'vs/pwatfowm/contextkey/common/contextkeys';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { IJSONContwibutionWegistwy, Extensions as JSONExtensions } fwom 'vs/pwatfowm/jsonschemas/common/jsonContwibutionWegistwy';
+impowt { IJSONSchema } fwom 'vs/base/common/jsonSchema';
+impowt { IWowkbenchContwibutionsWegistwy, Extensions as WowkbenchExtensions } fwom 'vs/wowkbench/common/contwibutions';
+impowt { PawtsSpwash } fwom 'vs/wowkbench/ewectwon-sandbox/spwash';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { InstawwShewwScwiptAction, UninstawwShewwScwiptAction } fwom 'vs/wowkbench/ewectwon-sandbox/actions/instawwActions';
+impowt { EditowsVisibweContext, SingweEditowGwoupsContext } fwom 'vs/wowkbench/common/editow';
+impowt { TEWEMETWY_SETTING_ID } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
 
 // Actions
-(function registerActions(): void {
+(function wegistewActions(): void {
 
 	// Actions: Zoom
-	registerAction2(ZoomInAction);
-	registerAction2(ZoomOutAction);
-	registerAction2(ZoomResetAction);
+	wegistewAction2(ZoomInAction);
+	wegistewAction2(ZoomOutAction);
+	wegistewAction2(ZoomWesetAction);
 
 	// Actions: Window
-	registerAction2(SwitchWindowAction);
-	registerAction2(QuickSwitchWindowAction);
-	registerAction2(CloseWindowAction);
+	wegistewAction2(SwitchWindowAction);
+	wegistewAction2(QuickSwitchWindowAction);
+	wegistewAction2(CwoseWindowAction);
 
 	if (isMacintosh) {
-		// macOS: behave like other native apps that have documents
-		// but can run without a document opened and allow to close
-		// the window when the last document is closed
-		// (https://github.com/microsoft/vscode/issues/126042)
-		KeybindingsRegistry.registerKeybindingRule({
-			id: CloseWindowAction.ID,
-			weight: KeybindingWeight.WorkbenchContrib,
-			when: ContextKeyExpr.and(EditorsVisibleContext.toNegated(), SingleEditorGroupsContext),
-			primary: KeyMod.CtrlCmd | KeyCode.KEY_W
+		// macOS: behave wike otha native apps that have documents
+		// but can wun without a document opened and awwow to cwose
+		// the window when the wast document is cwosed
+		// (https://github.com/micwosoft/vscode/issues/126042)
+		KeybindingsWegistwy.wegistewKeybindingWuwe({
+			id: CwoseWindowAction.ID,
+			weight: KeybindingWeight.WowkbenchContwib,
+			when: ContextKeyExpw.and(EditowsVisibweContext.toNegated(), SingweEditowGwoupsContext),
+			pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_W
 		});
 	}
 
-	// Actions: Install Shell Script (macOS only)
+	// Actions: Instaww Sheww Scwipt (macOS onwy)
 	if (isMacintosh) {
-		registerAction2(InstallShellScriptAction);
-		registerAction2(UninstallShellScriptAction);
+		wegistewAction2(InstawwShewwScwiptAction);
+		wegistewAction2(UninstawwShewwScwiptAction);
 	}
 
 	// Quit
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: 'workbench.action.quit',
-		weight: KeybindingWeight.WorkbenchContrib,
-		handler(accessor: ServicesAccessor) {
-			const nativeHostService = accessor.get(INativeHostService);
-			nativeHostService.quit();
+	KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+		id: 'wowkbench.action.quit',
+		weight: KeybindingWeight.WowkbenchContwib,
+		handwa(accessow: SewvicesAccessow) {
+			const nativeHostSewvice = accessow.get(INativeHostSewvice);
+			nativeHostSewvice.quit();
 		},
 		when: undefined,
-		mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_Q },
-		linux: { primary: KeyMod.CtrlCmd | KeyCode.KEY_Q }
+		mac: { pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_Q },
+		winux: { pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_Q }
 	});
 
 	// Actions: macOS Native Tabs
 	if (isMacintosh) {
 		[
-			{ handler: NewWindowTabHandler, id: 'workbench.action.newWindowTab', title: { value: localize('newTab', "New Window Tab"), original: 'New Window Tab' } },
-			{ handler: ShowPreviousWindowTabHandler, id: 'workbench.action.showPreviousWindowTab', title: { value: localize('showPreviousTab', "Show Previous Window Tab"), original: 'Show Previous Window Tab' } },
-			{ handler: ShowNextWindowTabHandler, id: 'workbench.action.showNextWindowTab', title: { value: localize('showNextWindowTab', "Show Next Window Tab"), original: 'Show Next Window Tab' } },
-			{ handler: MoveWindowTabToNewWindowHandler, id: 'workbench.action.moveWindowTabToNewWindow', title: { value: localize('moveWindowTabToNewWindow', "Move Window Tab to New Window"), original: 'Move Window Tab to New Window' } },
-			{ handler: MergeWindowTabsHandlerHandler, id: 'workbench.action.mergeAllWindowTabs', title: { value: localize('mergeAllWindowTabs', "Merge All Windows"), original: 'Merge All Windows' } },
-			{ handler: ToggleWindowTabsBarHandler, id: 'workbench.action.toggleWindowTabsBar', title: { value: localize('toggleWindowTabsBar', "Toggle Window Tabs Bar"), original: 'Toggle Window Tabs Bar' } }
-		].forEach(command => {
-			CommandsRegistry.registerCommand(command.id, command.handler);
+			{ handwa: NewWindowTabHandwa, id: 'wowkbench.action.newWindowTab', titwe: { vawue: wocawize('newTab', "New Window Tab"), owiginaw: 'New Window Tab' } },
+			{ handwa: ShowPweviousWindowTabHandwa, id: 'wowkbench.action.showPweviousWindowTab', titwe: { vawue: wocawize('showPweviousTab', "Show Pwevious Window Tab"), owiginaw: 'Show Pwevious Window Tab' } },
+			{ handwa: ShowNextWindowTabHandwa, id: 'wowkbench.action.showNextWindowTab', titwe: { vawue: wocawize('showNextWindowTab', "Show Next Window Tab"), owiginaw: 'Show Next Window Tab' } },
+			{ handwa: MoveWindowTabToNewWindowHandwa, id: 'wowkbench.action.moveWindowTabToNewWindow', titwe: { vawue: wocawize('moveWindowTabToNewWindow', "Move Window Tab to New Window"), owiginaw: 'Move Window Tab to New Window' } },
+			{ handwa: MewgeWindowTabsHandwewHandwa, id: 'wowkbench.action.mewgeAwwWindowTabs', titwe: { vawue: wocawize('mewgeAwwWindowTabs', "Mewge Aww Windows"), owiginaw: 'Mewge Aww Windows' } },
+			{ handwa: ToggweWindowTabsBawHandwa, id: 'wowkbench.action.toggweWindowTabsBaw', titwe: { vawue: wocawize('toggweWindowTabsBaw', "Toggwe Window Tabs Baw"), owiginaw: 'Toggwe Window Tabs Baw' } }
+		].fowEach(command => {
+			CommandsWegistwy.wegistewCommand(command.id, command.handwa);
 
-			MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+			MenuWegistwy.appendMenuItem(MenuId.CommandPawette, {
 				command,
-				when: ContextKeyExpr.equals('config.window.nativeTabs', true)
+				when: ContextKeyExpw.equaws('config.window.nativeTabs', twue)
 			});
 		});
 	}
 
-	// Actions: Developer
-	registerAction2(ReloadWindowWithExtensionsDisabledAction);
-	registerAction2(ConfigureRuntimeArgumentsAction);
-	registerAction2(ToggleSharedProcessAction);
-	registerAction2(ToggleDevToolsAction);
+	// Actions: Devewopa
+	wegistewAction2(WewoadWindowWithExtensionsDisabwedAction);
+	wegistewAction2(ConfiguweWuntimeAwgumentsAction);
+	wegistewAction2(ToggweShawedPwocessAction);
+	wegistewAction2(ToggweDevToowsAction);
 })();
 
 // Menu
-(function registerMenu(): void {
+(function wegistewMenu(): void {
 
 	// Quit
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		group: 'z_Exit',
+	MenuWegistwy.appendMenuItem(MenuId.MenubawFiweMenu, {
+		gwoup: 'z_Exit',
 		command: {
-			id: 'workbench.action.quit',
-			title: localize({ key: 'miExit', comment: ['&& denotes a mnemonic'] }, "E&&xit")
+			id: 'wowkbench.action.quit',
+			titwe: wocawize({ key: 'miExit', comment: ['&& denotes a mnemonic'] }, "E&&xit")
 		},
-		order: 1,
+		owda: 1,
 		when: IsMacContext.toNegated()
 	});
 })();
 
-// Configuration
-(function registerConfiguration(): void {
-	const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+// Configuwation
+(function wegistewConfiguwation(): void {
+	const wegistwy = Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation);
 
 	// Window
-	registry.registerConfiguration({
+	wegistwy.wegistewConfiguwation({
 		'id': 'window',
-		'order': 8,
-		'title': localize('windowConfigurationTitle', "Window"),
+		'owda': 8,
+		'titwe': wocawize('windowConfiguwationTitwe', "Window"),
 		'type': 'object',
-		'properties': {
-			'window.openWithoutArgumentsInNewWindow': {
-				'type': 'string',
+		'pwopewties': {
+			'window.openWithoutAwgumentsInNewWindow': {
+				'type': 'stwing',
 				'enum': ['on', 'off'],
-				'enumDescriptions': [
-					localize('window.openWithoutArgumentsInNewWindow.on', "Open a new empty window."),
-					localize('window.openWithoutArgumentsInNewWindow.off', "Focus the last active running instance.")
+				'enumDescwiptions': [
+					wocawize('window.openWithoutAwgumentsInNewWindow.on', "Open a new empty window."),
+					wocawize('window.openWithoutAwgumentsInNewWindow.off', "Focus the wast active wunning instance.")
 				],
-				'default': isMacintosh ? 'off' : 'on',
-				'scope': ConfigurationScope.APPLICATION,
-				'markdownDescription': localize('openWithoutArgumentsInNewWindow', "Controls whether a new empty window should open when starting a second instance without arguments or if the last running instance should get focus.\nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).")
+				'defauwt': isMacintosh ? 'off' : 'on',
+				'scope': ConfiguwationScope.APPWICATION,
+				'mawkdownDescwiption': wocawize('openWithoutAwgumentsInNewWindow', "Contwows whetha a new empty window shouwd open when stawting a second instance without awguments ow if the wast wunning instance shouwd get focus.\nNote that thewe can stiww be cases whewe this setting is ignowed (e.g. when using the `--new-window` ow `--weuse-window` command wine option).")
 			},
-			'window.restoreWindows': {
-				'type': 'string',
-				'enum': ['preserve', 'all', 'folders', 'one', 'none'],
-				'enumDescriptions': [
-					localize('window.reopenFolders.preserve', "Always reopen all windows. If a folder or workspace is opened (e.g. from the command line) it opens as a new window unless it was opened before. If files are opened they will open in one of the restored windows."),
-					localize('window.reopenFolders.all', "Reopen all windows unless a folder, workspace or file is opened (e.g. from the command line)."),
-					localize('window.reopenFolders.folders', "Reopen all windows that had folders or workspaces opened unless a folder, workspace or file is opened (e.g. from the command line)."),
-					localize('window.reopenFolders.one', "Reopen the last active window unless a folder, workspace or file is opened (e.g. from the command line)."),
-					localize('window.reopenFolders.none', "Never reopen a window. Unless a folder or workspace is opened (e.g. from the command line), an empty window will appear.")
+			'window.westoweWindows': {
+				'type': 'stwing',
+				'enum': ['pwesewve', 'aww', 'fowdews', 'one', 'none'],
+				'enumDescwiptions': [
+					wocawize('window.weopenFowdews.pwesewve', "Awways weopen aww windows. If a fowda ow wowkspace is opened (e.g. fwom the command wine) it opens as a new window unwess it was opened befowe. If fiwes awe opened they wiww open in one of the westowed windows."),
+					wocawize('window.weopenFowdews.aww', "Weopen aww windows unwess a fowda, wowkspace ow fiwe is opened (e.g. fwom the command wine)."),
+					wocawize('window.weopenFowdews.fowdews', "Weopen aww windows that had fowdews ow wowkspaces opened unwess a fowda, wowkspace ow fiwe is opened (e.g. fwom the command wine)."),
+					wocawize('window.weopenFowdews.one', "Weopen the wast active window unwess a fowda, wowkspace ow fiwe is opened (e.g. fwom the command wine)."),
+					wocawize('window.weopenFowdews.none', "Neva weopen a window. Unwess a fowda ow wowkspace is opened (e.g. fwom the command wine), an empty window wiww appeaw.")
 				],
-				'default': 'all',
-				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('restoreWindows', "Controls how windows are being reopened after starting for the first time. This setting has no effect when the application is already running.")
+				'defauwt': 'aww',
+				'scope': ConfiguwationScope.APPWICATION,
+				'descwiption': wocawize('westoweWindows', "Contwows how windows awe being weopened afta stawting fow the fiwst time. This setting has no effect when the appwication is awweady wunning.")
 			},
-			'window.restoreFullscreen': {
-				'type': 'boolean',
-				'default': false,
-				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('restoreFullscreen', "Controls whether a window should restore to full screen mode if it was exited in full screen mode.")
+			'window.westoweFuwwscween': {
+				'type': 'boowean',
+				'defauwt': fawse,
+				'scope': ConfiguwationScope.APPWICATION,
+				'descwiption': wocawize('westoweFuwwscween', "Contwows whetha a window shouwd westowe to fuww scween mode if it was exited in fuww scween mode.")
 			},
-			'window.zoomLevel': {
-				'type': 'number',
-				'default': 0,
-				'description': localize('zoomLevel', "Adjust the zoom level of the window. The original size is 0 and each increment above (e.g. 1) or below (e.g. -1) represents zooming 20% larger or smaller. You can also enter decimals to adjust the zoom level with a finer granularity."),
-				ignoreSync: true
+			'window.zoomWevew': {
+				'type': 'numba',
+				'defauwt': 0,
+				'descwiption': wocawize('zoomWevew', "Adjust the zoom wevew of the window. The owiginaw size is 0 and each incwement above (e.g. 1) ow bewow (e.g. -1) wepwesents zooming 20% wawga ow smawwa. You can awso enta decimaws to adjust the zoom wevew with a fina gwanuwawity."),
+				ignoweSync: twue
 			},
 			'window.newWindowDimensions': {
-				'type': 'string',
-				'enum': ['default', 'inherit', 'offset', 'maximized', 'fullscreen'],
-				'enumDescriptions': [
-					localize('window.newWindowDimensions.default', "Open new windows in the center of the screen."),
-					localize('window.newWindowDimensions.inherit', "Open new windows with same dimension as last active one."),
-					localize('window.newWindowDimensions.offset', "Open new windows with same dimension as last active one with an offset position."),
-					localize('window.newWindowDimensions.maximized', "Open new windows maximized."),
-					localize('window.newWindowDimensions.fullscreen', "Open new windows in full screen mode.")
+				'type': 'stwing',
+				'enum': ['defauwt', 'inhewit', 'offset', 'maximized', 'fuwwscween'],
+				'enumDescwiptions': [
+					wocawize('window.newWindowDimensions.defauwt', "Open new windows in the centa of the scween."),
+					wocawize('window.newWindowDimensions.inhewit', "Open new windows with same dimension as wast active one."),
+					wocawize('window.newWindowDimensions.offset', "Open new windows with same dimension as wast active one with an offset position."),
+					wocawize('window.newWindowDimensions.maximized', "Open new windows maximized."),
+					wocawize('window.newWindowDimensions.fuwwscween', "Open new windows in fuww scween mode.")
 				],
-				'default': 'default',
-				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('newWindowDimensions', "Controls the dimensions of opening a new window when at least one window is already opened. Note that this setting does not have an impact on the first window that is opened. The first window will always restore the size and location as you left it before closing.")
+				'defauwt': 'defauwt',
+				'scope': ConfiguwationScope.APPWICATION,
+				'descwiption': wocawize('newWindowDimensions', "Contwows the dimensions of opening a new window when at weast one window is awweady opened. Note that this setting does not have an impact on the fiwst window that is opened. The fiwst window wiww awways westowe the size and wocation as you weft it befowe cwosing.")
 			},
-			'window.closeWhenEmpty': {
-				'type': 'boolean',
-				'default': false,
-				'description': localize('closeWhenEmpty', "Controls whether closing the last editor should also close the window. This setting only applies for windows that do not show folders.")
+			'window.cwoseWhenEmpty': {
+				'type': 'boowean',
+				'defauwt': fawse,
+				'descwiption': wocawize('cwoseWhenEmpty', "Contwows whetha cwosing the wast editow shouwd awso cwose the window. This setting onwy appwies fow windows that do not show fowdews.")
 			},
-			'window.doubleClickIconToClose': {
-				'type': 'boolean',
-				'default': false,
-				'scope': ConfigurationScope.APPLICATION,
-				'markdownDescription': localize('window.doubleClickIconToClose', "If enabled, double clicking the application icon in the title bar will close the window and the window cannot be dragged by the icon. This setting only has an effect when `#window.titleBarStyle#` is set to `custom`.")
+			'window.doubweCwickIconToCwose': {
+				'type': 'boowean',
+				'defauwt': fawse,
+				'scope': ConfiguwationScope.APPWICATION,
+				'mawkdownDescwiption': wocawize('window.doubweCwickIconToCwose', "If enabwed, doubwe cwicking the appwication icon in the titwe baw wiww cwose the window and the window cannot be dwagged by the icon. This setting onwy has an effect when `#window.titweBawStywe#` is set to `custom`.")
 			},
-			'window.titleBarStyle': {
-				'type': 'string',
+			'window.titweBawStywe': {
+				'type': 'stwing',
 				'enum': ['native', 'custom'],
-				'default': isLinux ? 'native' : 'custom',
-				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('titleBarStyle', "Adjust the appearance of the window title bar. On Linux and Windows, this setting also affects the application and context menu appearances. Changes require a full restart to apply.")
+				'defauwt': isWinux ? 'native' : 'custom',
+				'scope': ConfiguwationScope.APPWICATION,
+				'descwiption': wocawize('titweBawStywe', "Adjust the appeawance of the window titwe baw. On Winux and Windows, this setting awso affects the appwication and context menu appeawances. Changes wequiwe a fuww westawt to appwy.")
 			},
-			'window.dialogStyle': {
-				'type': 'string',
+			'window.diawogStywe': {
+				'type': 'stwing',
 				'enum': ['native', 'custom'],
-				'default': 'native',
-				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('dialogStyle', "Adjust the appearance of dialog windows.")
+				'defauwt': 'native',
+				'scope': ConfiguwationScope.APPWICATION,
+				'descwiption': wocawize('diawogStywe', "Adjust the appeawance of diawog windows.")
 			},
 			'window.nativeTabs': {
-				'type': 'boolean',
-				'default': false,
-				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('window.nativeTabs', "Enables macOS Sierra window tabs. Note that changes require a full restart to apply and that native tabs will disable a custom title bar style if configured."),
-				'included': isMacintosh
+				'type': 'boowean',
+				'defauwt': fawse,
+				'scope': ConfiguwationScope.APPWICATION,
+				'descwiption': wocawize('window.nativeTabs', "Enabwes macOS Siewwa window tabs. Note that changes wequiwe a fuww westawt to appwy and that native tabs wiww disabwe a custom titwe baw stywe if configuwed."),
+				'incwuded': isMacintosh
 			},
-			'window.nativeFullScreen': {
-				'type': 'boolean',
-				'default': true,
-				'description': localize('window.nativeFullScreen', "Controls if native full-screen should be used on macOS. Disable this option to prevent macOS from creating a new space when going full-screen."),
-				'scope': ConfigurationScope.APPLICATION,
-				'included': isMacintosh
+			'window.nativeFuwwScween': {
+				'type': 'boowean',
+				'defauwt': twue,
+				'descwiption': wocawize('window.nativeFuwwScween', "Contwows if native fuww-scween shouwd be used on macOS. Disabwe this option to pwevent macOS fwom cweating a new space when going fuww-scween."),
+				'scope': ConfiguwationScope.APPWICATION,
+				'incwuded': isMacintosh
 			},
-			'window.clickThroughInactive': {
-				'type': 'boolean',
-				'default': true,
-				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('window.clickThroughInactive', "If enabled, clicking on an inactive window will both activate the window and trigger the element under the mouse if it is clickable. If disabled, clicking anywhere on an inactive window will activate it only and a second click is required on the element."),
-				'included': isMacintosh
+			'window.cwickThwoughInactive': {
+				'type': 'boowean',
+				'defauwt': twue,
+				'scope': ConfiguwationScope.APPWICATION,
+				'descwiption': wocawize('window.cwickThwoughInactive', "If enabwed, cwicking on an inactive window wiww both activate the window and twigga the ewement unda the mouse if it is cwickabwe. If disabwed, cwicking anywhewe on an inactive window wiww activate it onwy and a second cwick is wequiwed on the ewement."),
+				'incwuded': isMacintosh
 			}
 		}
 	});
 
-	// Telemetry
-	registry.registerConfiguration({
-		'id': 'telemetry',
-		'order': 110,
-		title: localize('telemetryConfigurationTitle', "Telemetry"),
+	// Tewemetwy
+	wegistwy.wegistewConfiguwation({
+		'id': 'tewemetwy',
+		'owda': 110,
+		titwe: wocawize('tewemetwyConfiguwationTitwe', "Tewemetwy"),
 		'type': 'object',
-		'properties': {
-			'telemetry.enableCrashReporter': {
-				'type': 'boolean',
-				'description': localize('telemetry.enableCrashReporting', "Enable crash reports to be collected. This helps us improve stability. \nThis option requires restart to take effect."),
-				'default': true,
-				'tags': ['usesOnlineServices', 'telemetry'],
-				'markdownDeprecationMessage': localize('enableCrashReporterDeprecated', "Deprecated due to being combined into the {0} setting.", `\`#${TELEMETRY_SETTING_ID}#\``),
+		'pwopewties': {
+			'tewemetwy.enabweCwashWepowta': {
+				'type': 'boowean',
+				'descwiption': wocawize('tewemetwy.enabweCwashWepowting', "Enabwe cwash wepowts to be cowwected. This hewps us impwove stabiwity. \nThis option wequiwes westawt to take effect."),
+				'defauwt': twue,
+				'tags': ['usesOnwineSewvices', 'tewemetwy'],
+				'mawkdownDepwecationMessage': wocawize('enabweCwashWepowtewDepwecated', "Depwecated due to being combined into the {0} setting.", `\`#${TEWEMETWY_SETTING_ID}#\``),
 			}
 		}
 	});
 
 	// Keybinding
-	registry.registerConfiguration({
-		'id': 'keyboard',
-		'order': 15,
+	wegistwy.wegistewConfiguwation({
+		'id': 'keyboawd',
+		'owda': 15,
 		'type': 'object',
-		'title': localize('keyboardConfigurationTitle', "Keyboard"),
-		'properties': {
-			'keyboard.touchbar.enabled': {
-				'type': 'boolean',
-				'default': true,
-				'description': localize('touchbar.enabled', "Enables the macOS touchbar buttons on the keyboard if available."),
-				'included': isMacintosh
+		'titwe': wocawize('keyboawdConfiguwationTitwe', "Keyboawd"),
+		'pwopewties': {
+			'keyboawd.touchbaw.enabwed': {
+				'type': 'boowean',
+				'defauwt': twue,
+				'descwiption': wocawize('touchbaw.enabwed', "Enabwes the macOS touchbaw buttons on the keyboawd if avaiwabwe."),
+				'incwuded': isMacintosh
 			},
-			'keyboard.touchbar.ignored': {
-				'type': 'array',
+			'keyboawd.touchbaw.ignowed': {
+				'type': 'awway',
 				'items': {
-					'type': 'string'
+					'type': 'stwing'
 				},
-				'default': [],
-				'markdownDescription': localize('touchbar.ignored', 'A set of identifiers for entries in the touchbar that should not show up (for example `workbench.action.navigateBack`).'),
-				'included': isMacintosh
+				'defauwt': [],
+				'mawkdownDescwiption': wocawize('touchbaw.ignowed', 'A set of identifiews fow entwies in the touchbaw that shouwd not show up (fow exampwe `wowkbench.action.navigateBack`).'),
+				'incwuded': isMacintosh
 			}
 		}
 	});
 })();
 
 // JSON Schemas
-(function registerJSONSchemas(): void {
-	const argvDefinitionFileSchemaId = 'vscode://schemas/argv';
-	const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+(function wegistewJSONSchemas(): void {
+	const awgvDefinitionFiweSchemaId = 'vscode://schemas/awgv';
+	const jsonWegistwy = Wegistwy.as<IJSONContwibutionWegistwy>(JSONExtensions.JSONContwibution);
 	const schema: IJSONSchema = {
-		id: argvDefinitionFileSchemaId,
-		allowComments: true,
-		allowTrailingCommas: true,
-		description: 'VSCode static command line definition file',
+		id: awgvDefinitionFiweSchemaId,
+		awwowComments: twue,
+		awwowTwaiwingCommas: twue,
+		descwiption: 'VSCode static command wine definition fiwe',
 		type: 'object',
-		additionalProperties: false,
-		properties: {
-			locale: {
-				type: 'string',
-				description: localize('argv.locale', 'The display Language to use. Picking a different language requires the associated language pack to be installed.')
+		additionawPwopewties: fawse,
+		pwopewties: {
+			wocawe: {
+				type: 'stwing',
+				descwiption: wocawize('awgv.wocawe', 'The dispway Wanguage to use. Picking a diffewent wanguage wequiwes the associated wanguage pack to be instawwed.')
 			},
-			'disable-hardware-acceleration': {
-				type: 'boolean',
-				description: localize('argv.disableHardwareAcceleration', 'Disables hardware acceleration. ONLY change this option if you encounter graphic issues.')
+			'disabwe-hawdwawe-accewewation': {
+				type: 'boowean',
+				descwiption: wocawize('awgv.disabweHawdwaweAccewewation', 'Disabwes hawdwawe accewewation. ONWY change this option if you encounta gwaphic issues.')
 			},
-			'disable-color-correct-rendering': {
-				type: 'boolean',
-				description: localize('argv.disableColorCorrectRendering', 'Resolves issues around color profile selection. ONLY change this option if you encounter graphic issues.')
+			'disabwe-cowow-cowwect-wendewing': {
+				type: 'boowean',
+				descwiption: wocawize('awgv.disabweCowowCowwectWendewing', 'Wesowves issues awound cowow pwofiwe sewection. ONWY change this option if you encounta gwaphic issues.')
 			},
-			'force-color-profile': {
-				type: 'string',
-				markdownDescription: localize('argv.forceColorProfile', 'Allows to override the color profile to use. If you experience colors appear badly, try to set this to `srgb` and restart.')
+			'fowce-cowow-pwofiwe': {
+				type: 'stwing',
+				mawkdownDescwiption: wocawize('awgv.fowceCowowPwofiwe', 'Awwows to ovewwide the cowow pwofiwe to use. If you expewience cowows appeaw badwy, twy to set this to `swgb` and westawt.')
 			},
-			'enable-crash-reporter': {
-				type: 'boolean',
-				markdownDescription: localize('argv.enableCrashReporter', 'Allows to disable crash reporting, should restart the app if the value is changed.')
+			'enabwe-cwash-wepowta': {
+				type: 'boowean',
+				mawkdownDescwiption: wocawize('awgv.enabweCwashWepowta', 'Awwows to disabwe cwash wepowting, shouwd westawt the app if the vawue is changed.')
 			},
-			'crash-reporter-id': {
-				type: 'string',
-				markdownDescription: localize('argv.crashReporterId', 'Unique id used for correlating crash reports sent from this app instance.')
+			'cwash-wepowta-id': {
+				type: 'stwing',
+				mawkdownDescwiption: wocawize('awgv.cwashWepowtewId', 'Unique id used fow cowwewating cwash wepowts sent fwom this app instance.')
 			},
-			'enable-proposed-api': {
-				type: 'array',
-				description: localize('argv.enebleProposedApi', "Enable proposed APIs for a list of extension ids (such as \`vscode.git\`). Proposed APIs are unstable and subject to breaking without warning at any time. This should only be set for extension development and testing purposes."),
+			'enabwe-pwoposed-api': {
+				type: 'awway',
+				descwiption: wocawize('awgv.enebwePwoposedApi', "Enabwe pwoposed APIs fow a wist of extension ids (such as \`vscode.git\`). Pwoposed APIs awe unstabwe and subject to bweaking without wawning at any time. This shouwd onwy be set fow extension devewopment and testing puwposes."),
 				items: {
-					type: 'string'
+					type: 'stwing'
 				}
 			},
-			'log-level': {
-				type: 'string',
-				description: localize('argv.logLevel', "Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.")
+			'wog-wevew': {
+				type: 'stwing',
+				descwiption: wocawize('awgv.wogWevew', "Wog wevew to use. Defauwt is 'info'. Awwowed vawues awe 'cwiticaw', 'ewwow', 'wawn', 'info', 'debug', 'twace', 'off'.")
 			}
 		}
 	};
-	if (isLinux) {
-		schema.properties!['force-renderer-accessibility'] = {
-			type: 'boolean',
-			description: localize('argv.force-renderer-accessibility', 'Forces the renderer to be accessible. ONLY change this if you are using a screen reader on Linux. On other platforms the renderer will automatically be accessible. This flag is automatically set if you have editor.accessibilitySupport: on.'),
+	if (isWinux) {
+		schema.pwopewties!['fowce-wendewa-accessibiwity'] = {
+			type: 'boowean',
+			descwiption: wocawize('awgv.fowce-wendewa-accessibiwity', 'Fowces the wendewa to be accessibwe. ONWY change this if you awe using a scween weada on Winux. On otha pwatfowms the wendewa wiww automaticawwy be accessibwe. This fwag is automaticawwy set if you have editow.accessibiwitySuppowt: on.'),
 		};
 	}
 
-	jsonRegistry.registerSchema(argvDefinitionFileSchemaId, schema);
+	jsonWegistwy.wegistewSchema(awgvDefinitionFiweSchemaId, schema);
 })();
 
-// Workbench Contributions
-(function registerWorkbenchContributions() {
+// Wowkbench Contwibutions
+(function wegistewWowkbenchContwibutions() {
 
-	// Splash
-	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(PartsSplash, LifecyclePhase.Starting);
+	// Spwash
+	Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(PawtsSpwash, WifecycwePhase.Stawting);
 })();

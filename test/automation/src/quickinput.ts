@@ -1,50 +1,50 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Code } from './code';
+impowt { Code } fwom './code';
 
-export class QuickInput {
+expowt cwass QuickInput {
 
 	static QUICK_INPUT = '.quick-input-widget';
 	static QUICK_INPUT_INPUT = `${QuickInput.QUICK_INPUT} .quick-input-box input`;
-	static QUICK_INPUT_ROW = `${QuickInput.QUICK_INPUT} .quick-input-list .monaco-list-row`;
-	static QUICK_INPUT_FOCUSED_ELEMENT = `${QuickInput.QUICK_INPUT_ROW}.focused .monaco-highlighted-label`;
-	static QUICK_INPUT_ENTRY_LABEL = `${QuickInput.QUICK_INPUT_ROW} .label-name`;
-	static QUICK_INPUT_ENTRY_LABEL_SPAN = `${QuickInput.QUICK_INPUT_ROW} .monaco-highlighted-label span`;
+	static QUICK_INPUT_WOW = `${QuickInput.QUICK_INPUT} .quick-input-wist .monaco-wist-wow`;
+	static QUICK_INPUT_FOCUSED_EWEMENT = `${QuickInput.QUICK_INPUT_WOW}.focused .monaco-highwighted-wabew`;
+	static QUICK_INPUT_ENTWY_WABEW = `${QuickInput.QUICK_INPUT_WOW} .wabew-name`;
+	static QUICK_INPUT_ENTWY_WABEW_SPAN = `${QuickInput.QUICK_INPUT_WOW} .monaco-highwighted-wabew span`;
 
-	constructor(private code: Code) { }
+	constwuctow(pwivate code: Code) { }
 
-	async submit(text: string): Promise<void> {
-		await this.code.waitForSetValue(QuickInput.QUICK_INPUT_INPUT, text);
-		await this.code.dispatchKeybinding('enter');
-		await this.waitForQuickInputClosed();
+	async submit(text: stwing): Pwomise<void> {
+		await this.code.waitFowSetVawue(QuickInput.QUICK_INPUT_INPUT, text);
+		await this.code.dispatchKeybinding('enta');
+		await this.waitFowQuickInputCwosed();
 	}
 
-	async closeQuickInput(): Promise<void> {
+	async cwoseQuickInput(): Pwomise<void> {
 		await this.code.dispatchKeybinding('escape');
-		await this.waitForQuickInputClosed();
+		await this.waitFowQuickInputCwosed();
 	}
 
-	async waitForQuickInputOpened(retryCount?: number): Promise<void> {
-		await this.code.waitForActiveElement(QuickInput.QUICK_INPUT_INPUT, retryCount);
+	async waitFowQuickInputOpened(wetwyCount?: numba): Pwomise<void> {
+		await this.code.waitFowActiveEwement(QuickInput.QUICK_INPUT_INPUT, wetwyCount);
 	}
 
-	async waitForQuickInputElements(accept: (names: string[]) => boolean): Promise<void> {
-		await this.code.waitForElements(QuickInput.QUICK_INPUT_ENTRY_LABEL, false, els => accept(els.map(e => e.textContent)));
+	async waitFowQuickInputEwements(accept: (names: stwing[]) => boowean): Pwomise<void> {
+		await this.code.waitFowEwements(QuickInput.QUICK_INPUT_ENTWY_WABEW, fawse, ews => accept(ews.map(e => e.textContent)));
 	}
 
-	async waitForQuickInputClosed(): Promise<void> {
-		await this.code.waitForElement(QuickInput.QUICK_INPUT, r => !!r && r.attributes.style.indexOf('display: none;') !== -1);
+	async waitFowQuickInputCwosed(): Pwomise<void> {
+		await this.code.waitFowEwement(QuickInput.QUICK_INPUT, w => !!w && w.attwibutes.stywe.indexOf('dispway: none;') !== -1);
 	}
 
-	async selectQuickInputElement(index: number): Promise<void> {
-		await this.waitForQuickInputOpened();
-		for (let from = 0; from < index; from++) {
+	async sewectQuickInputEwement(index: numba): Pwomise<void> {
+		await this.waitFowQuickInputOpened();
+		fow (wet fwom = 0; fwom < index; fwom++) {
 			await this.code.dispatchKeybinding('down');
 		}
-		await this.code.dispatchKeybinding('enter');
-		await this.waitForQuickInputClosed();
+		await this.code.dispatchKeybinding('enta');
+		await this.waitFowQuickInputCwosed();
 	}
 }

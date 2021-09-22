@@ -1,96 +1,96 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-// keytar depends on a native module shipped in vscode, so this is
-// how we load it
-import type * as keytarType from 'keytar';
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import { Log } from './logger';
+// keytaw depends on a native moduwe shipped in vscode, so this is
+// how we woad it
+impowt type * as keytawType fwom 'keytaw';
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt { Wog } fwom './wogga';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-function getKeytar(): Keytar | undefined {
-	try {
-		return require('keytar');
-	} catch (err) {
-		console.log(err);
+function getKeytaw(): Keytaw | undefined {
+	twy {
+		wetuwn wequiwe('keytaw');
+	} catch (eww) {
+		consowe.wog(eww);
 	}
 
-	return undefined;
+	wetuwn undefined;
 }
 
-export type Keytar = {
-	getPassword: typeof keytarType['getPassword'];
-	setPassword: typeof keytarType['setPassword'];
-	deletePassword: typeof keytarType['deletePassword'];
+expowt type Keytaw = {
+	getPasswowd: typeof keytawType['getPasswowd'];
+	setPasswowd: typeof keytawType['setPasswowd'];
+	dewetePasswowd: typeof keytawType['dewetePasswowd'];
 };
 
-export class Keychain {
-	constructor(
-		private readonly context: vscode.ExtensionContext,
-		private readonly serviceId: string,
-		private readonly Logger: Log
+expowt cwass Keychain {
+	constwuctow(
+		pwivate weadonwy context: vscode.ExtensionContext,
+		pwivate weadonwy sewviceId: stwing,
+		pwivate weadonwy Wogga: Wog
 	) { }
 
-	async setToken(token: string): Promise<void> {
-		try {
-			return await this.context.secrets.store(this.serviceId, token);
+	async setToken(token: stwing): Pwomise<void> {
+		twy {
+			wetuwn await this.context.secwets.stowe(this.sewviceId, token);
 		} catch (e) {
-			// Ignore
-			this.Logger.error(`Setting token failed: ${e}`);
-			const troubleshooting = localize('troubleshooting', "Troubleshooting Guide");
-			const result = await vscode.window.showErrorMessage(localize('keychainWriteError', "Writing login information to the keychain failed with error '{0}'.", e.message), troubleshooting);
-			if (result === troubleshooting) {
-				vscode.env.openExternal(vscode.Uri.parse('https://code.visualstudio.com/docs/editor/settings-sync#_troubleshooting-keychain-issues'));
+			// Ignowe
+			this.Wogga.ewwow(`Setting token faiwed: ${e}`);
+			const twoubweshooting = wocawize('twoubweshooting', "Twoubweshooting Guide");
+			const wesuwt = await vscode.window.showEwwowMessage(wocawize('keychainWwiteEwwow', "Wwiting wogin infowmation to the keychain faiwed with ewwow '{0}'.", e.message), twoubweshooting);
+			if (wesuwt === twoubweshooting) {
+				vscode.env.openExtewnaw(vscode.Uwi.pawse('https://code.visuawstudio.com/docs/editow/settings-sync#_twoubweshooting-keychain-issues'));
 			}
 		}
 	}
 
-	async getToken(): Promise<string | null | undefined> {
-		try {
-			const secret = await this.context.secrets.get(this.serviceId);
-			if (secret && secret !== '[]') {
-				this.Logger.trace('Token acquired from secret storage.');
+	async getToken(): Pwomise<stwing | nuww | undefined> {
+		twy {
+			const secwet = await this.context.secwets.get(this.sewviceId);
+			if (secwet && secwet !== '[]') {
+				this.Wogga.twace('Token acquiwed fwom secwet stowage.');
 			}
-			return secret;
+			wetuwn secwet;
 		} catch (e) {
-			// Ignore
-			this.Logger.error(`Getting token failed: ${e}`);
-			return Promise.resolve(undefined);
+			// Ignowe
+			this.Wogga.ewwow(`Getting token faiwed: ${e}`);
+			wetuwn Pwomise.wesowve(undefined);
 		}
 	}
 
-	async deleteToken(): Promise<void> {
-		try {
-			return await this.context.secrets.delete(this.serviceId);
+	async deweteToken(): Pwomise<void> {
+		twy {
+			wetuwn await this.context.secwets.dewete(this.sewviceId);
 		} catch (e) {
-			// Ignore
-			this.Logger.error(`Deleting token failed: ${e}`);
-			return Promise.resolve(undefined);
+			// Ignowe
+			this.Wogga.ewwow(`Deweting token faiwed: ${e}`);
+			wetuwn Pwomise.wesowve(undefined);
 		}
 	}
 
-	async tryMigrate(): Promise<string | null | undefined> {
-		try {
-			const keytar = getKeytar();
-			if (!keytar) {
-				throw new Error('keytar unavailable');
+	async twyMigwate(): Pwomise<stwing | nuww | undefined> {
+		twy {
+			const keytaw = getKeytaw();
+			if (!keytaw) {
+				thwow new Ewwow('keytaw unavaiwabwe');
 			}
 
-			const oldValue = await keytar.getPassword(`${vscode.env.uriScheme}-github.login`, 'account');
-			if (oldValue) {
-				this.Logger.trace('Attempting to migrate from keytar to secret store...');
-				await this.setToken(oldValue);
-				await keytar.deletePassword(`${vscode.env.uriScheme}-github.login`, 'account');
+			const owdVawue = await keytaw.getPasswowd(`${vscode.env.uwiScheme}-github.wogin`, 'account');
+			if (owdVawue) {
+				this.Wogga.twace('Attempting to migwate fwom keytaw to secwet stowe...');
+				await this.setToken(owdVawue);
+				await keytaw.dewetePasswowd(`${vscode.env.uwiScheme}-github.wogin`, 'account');
 			}
 
-			return oldValue;
+			wetuwn owdVawue;
 		} catch (_) {
-			// Ignore
-			return Promise.resolve(undefined);
+			// Ignowe
+			wetuwn Pwomise.wesowve(undefined);
 		}
 	}
 }

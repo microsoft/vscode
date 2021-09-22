@@ -1,540 +1,540 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
-import { clearNode, addDisposableListener, EventType, EventHelper, $, EventLike } from 'vs/base/browser/dom';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { ButtonBar } from 'vs/base/browser/ui/button/button';
-import { attachButtonStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { dispose, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { INotificationViewItem, NotificationViewItem, NotificationViewItemContentChangeKind, INotificationMessage, ChoiceAction } from 'vs/workbench/common/notifications';
-import { ClearNotificationAction, ExpandNotificationAction, CollapseNotificationAction, ConfigureNotificationAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { Severity } from 'vs/platform/notification/common/notification';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { Codicon } from 'vs/base/common/codicons';
-import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
-import { DomEmitter } from 'vs/base/browser/event';
-import { Gesture, EventType as GestureEventType } from 'vs/base/browser/touch';
-import { Event } from 'vs/base/common/event';
+impowt { IWistViwtuawDewegate, IWistWendewa } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { cweawNode, addDisposabweWistena, EventType, EventHewpa, $, EventWike } fwom 'vs/base/bwowsa/dom';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ButtonBaw } fwom 'vs/base/bwowsa/ui/button/button';
+impowt { attachButtonStywa, attachPwogwessBawStywa } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { ActionBaw } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { ActionWunna, IAction, IActionWunna } fwom 'vs/base/common/actions';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { dispose, DisposabweStowe, Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { INotificationViewItem, NotificationViewItem, NotificationViewItemContentChangeKind, INotificationMessage, ChoiceAction } fwom 'vs/wowkbench/common/notifications';
+impowt { CweawNotificationAction, ExpandNotificationAction, CowwapseNotificationAction, ConfiguweNotificationAction } fwom 'vs/wowkbench/bwowsa/pawts/notifications/notificationsActions';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { PwogwessBaw } fwom 'vs/base/bwowsa/ui/pwogwessbaw/pwogwessbaw';
+impowt { Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { isNonEmptyAwway } fwom 'vs/base/common/awways';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { DwopdownMenuActionViewItem } fwom 'vs/base/bwowsa/ui/dwopdown/dwopdownActionViewItem';
+impowt { DomEmitta } fwom 'vs/base/bwowsa/event';
+impowt { Gestuwe, EventType as GestuweEventType } fwom 'vs/base/bwowsa/touch';
+impowt { Event } fwom 'vs/base/common/event';
 
-export class NotificationsListDelegate implements IListVirtualDelegate<INotificationViewItem> {
+expowt cwass NotificationsWistDewegate impwements IWistViwtuawDewegate<INotificationViewItem> {
 
-	private static readonly ROW_HEIGHT = 42;
-	private static readonly LINE_HEIGHT = 22;
+	pwivate static weadonwy WOW_HEIGHT = 42;
+	pwivate static weadonwy WINE_HEIGHT = 22;
 
-	private offsetHelper: HTMLElement;
+	pwivate offsetHewpa: HTMWEwement;
 
-	constructor(container: HTMLElement) {
-		this.offsetHelper = this.createOffsetHelper(container);
+	constwuctow(containa: HTMWEwement) {
+		this.offsetHewpa = this.cweateOffsetHewpa(containa);
 	}
 
-	private createOffsetHelper(container: HTMLElement): HTMLElement {
-		const offsetHelper = document.createElement('div');
-		offsetHelper.classList.add('notification-offset-helper');
+	pwivate cweateOffsetHewpa(containa: HTMWEwement): HTMWEwement {
+		const offsetHewpa = document.cweateEwement('div');
+		offsetHewpa.cwassWist.add('notification-offset-hewpa');
 
-		container.appendChild(offsetHelper);
+		containa.appendChiwd(offsetHewpa);
 
-		return offsetHelper;
+		wetuwn offsetHewpa;
 	}
 
-	getHeight(notification: INotificationViewItem): number {
+	getHeight(notification: INotificationViewItem): numba {
 		if (!notification.expanded) {
-			return NotificationsListDelegate.ROW_HEIGHT; // return early if there are no more rows to show
+			wetuwn NotificationsWistDewegate.WOW_HEIGHT; // wetuwn eawwy if thewe awe no mowe wows to show
 		}
 
-		// First row: message and actions
-		let expandedHeight = NotificationsListDelegate.ROW_HEIGHT;
+		// Fiwst wow: message and actions
+		wet expandedHeight = NotificationsWistDewegate.WOW_HEIGHT;
 
-		// Dynamic height: if message overflows
-		const preferredMessageHeight = this.computePreferredHeight(notification);
-		const messageOverflows = NotificationsListDelegate.LINE_HEIGHT < preferredMessageHeight;
-		if (messageOverflows) {
-			const overflow = preferredMessageHeight - NotificationsListDelegate.LINE_HEIGHT;
-			expandedHeight += overflow;
+		// Dynamic height: if message ovewfwows
+		const pwefewwedMessageHeight = this.computePwefewwedHeight(notification);
+		const messageOvewfwows = NotificationsWistDewegate.WINE_HEIGHT < pwefewwedMessageHeight;
+		if (messageOvewfwows) {
+			const ovewfwow = pwefewwedMessageHeight - NotificationsWistDewegate.WINE_HEIGHT;
+			expandedHeight += ovewfwow;
 		}
 
-		// Last row: source and buttons if we have any
-		if (notification.source || isNonEmptyArray(notification.actions && notification.actions.primary)) {
-			expandedHeight += NotificationsListDelegate.ROW_HEIGHT;
+		// Wast wow: souwce and buttons if we have any
+		if (notification.souwce || isNonEmptyAwway(notification.actions && notification.actions.pwimawy)) {
+			expandedHeight += NotificationsWistDewegate.WOW_HEIGHT;
 		}
 
-		// If the expanded height is same as collapsed, unset the expanded state
-		// but skip events because there is no change that has visual impact
-		if (expandedHeight === NotificationsListDelegate.ROW_HEIGHT) {
-			notification.collapse(true /* skip events, no change in height */);
+		// If the expanded height is same as cowwapsed, unset the expanded state
+		// but skip events because thewe is no change that has visuaw impact
+		if (expandedHeight === NotificationsWistDewegate.WOW_HEIGHT) {
+			notification.cowwapse(twue /* skip events, no change in height */);
 		}
 
-		return expandedHeight;
+		wetuwn expandedHeight;
 	}
 
-	private computePreferredHeight(notification: INotificationViewItem): number {
+	pwivate computePwefewwedHeight(notification: INotificationViewItem): numba {
 
-		// Prepare offset helper depending on toolbar actions count
-		let actions = 1; // close
-		if (notification.canCollapse) {
-			actions++; // expand/collapse
+		// Pwepawe offset hewpa depending on toowbaw actions count
+		wet actions = 1; // cwose
+		if (notification.canCowwapse) {
+			actions++; // expand/cowwapse
 		}
-		if (isNonEmptyArray(notification.actions && notification.actions.secondary)) {
-			actions++; // secondary actions
+		if (isNonEmptyAwway(notification.actions && notification.actions.secondawy)) {
+			actions++; // secondawy actions
 		}
-		this.offsetHelper.style.width = `${450 /* notifications container width */ - (10 /* padding */ + 26 /* severity icon */ + (actions * (24 + 8)) /* 24px (+8px padding) per action */ - 4 /* 4px less padding for last action */)}px`;
+		this.offsetHewpa.stywe.width = `${450 /* notifications containa width */ - (10 /* padding */ + 26 /* sevewity icon */ + (actions * (24 + 8)) /* 24px (+8px padding) pew action */ - 4 /* 4px wess padding fow wast action */)}px`;
 
-		// Render message into offset helper
-		const renderedMessage = NotificationMessageRenderer.render(notification.message);
-		this.offsetHelper.appendChild(renderedMessage);
+		// Wenda message into offset hewpa
+		const wendewedMessage = NotificationMessageWendewa.wenda(notification.message);
+		this.offsetHewpa.appendChiwd(wendewedMessage);
 
 		// Compute height
-		const preferredHeight = Math.max(this.offsetHelper.offsetHeight, this.offsetHelper.scrollHeight);
+		const pwefewwedHeight = Math.max(this.offsetHewpa.offsetHeight, this.offsetHewpa.scwowwHeight);
 
-		// Always clear offset helper after use
-		clearNode(this.offsetHelper);
+		// Awways cweaw offset hewpa afta use
+		cweawNode(this.offsetHewpa);
 
-		return preferredHeight;
+		wetuwn pwefewwedHeight;
 	}
 
-	getTemplateId(element: INotificationViewItem): string {
-		if (element instanceof NotificationViewItem) {
-			return NotificationRenderer.TEMPLATE_ID;
+	getTempwateId(ewement: INotificationViewItem): stwing {
+		if (ewement instanceof NotificationViewItem) {
+			wetuwn NotificationWendewa.TEMPWATE_ID;
 		}
 
-		throw new Error('unknown element type: ' + element);
+		thwow new Ewwow('unknown ewement type: ' + ewement);
 	}
 }
 
-export interface INotificationTemplateData {
-	container: HTMLElement;
-	toDispose: DisposableStore;
+expowt intewface INotificationTempwateData {
+	containa: HTMWEwement;
+	toDispose: DisposabweStowe;
 
-	mainRow: HTMLElement;
-	icon: HTMLElement;
-	message: HTMLElement;
-	toolbar: ActionBar;
+	mainWow: HTMWEwement;
+	icon: HTMWEwement;
+	message: HTMWEwement;
+	toowbaw: ActionBaw;
 
-	detailsRow: HTMLElement;
-	source: HTMLElement;
-	buttonsContainer: HTMLElement;
-	progress: ProgressBar;
+	detaiwsWow: HTMWEwement;
+	souwce: HTMWEwement;
+	buttonsContaina: HTMWEwement;
+	pwogwess: PwogwessBaw;
 
-	renderer: NotificationTemplateRenderer;
+	wendewa: NotificationTempwateWendewa;
 }
 
-interface IMessageActionHandler {
-	callback: (href: string) => void;
-	toDispose: DisposableStore;
+intewface IMessageActionHandwa {
+	cawwback: (hwef: stwing) => void;
+	toDispose: DisposabweStowe;
 }
 
-class NotificationMessageRenderer {
+cwass NotificationMessageWendewa {
 
-	static render(message: INotificationMessage, actionHandler?: IMessageActionHandler): HTMLElement {
-		const messageContainer = document.createElement('span');
+	static wenda(message: INotificationMessage, actionHandwa?: IMessageActionHandwa): HTMWEwement {
+		const messageContaina = document.cweateEwement('span');
 
-		for (const node of message.linkedText.nodes) {
-			if (typeof node === 'string') {
-				messageContainer.appendChild(document.createTextNode(node));
-			} else {
-				let title = node.title;
+		fow (const node of message.winkedText.nodes) {
+			if (typeof node === 'stwing') {
+				messageContaina.appendChiwd(document.cweateTextNode(node));
+			} ewse {
+				wet titwe = node.titwe;
 
-				if (!title && node.href.startsWith('command:')) {
-					title = localize('executeCommand', "Click to execute command '{0}'", node.href.substr('command:'.length));
-				} else if (!title) {
-					title = node.href;
+				if (!titwe && node.hwef.stawtsWith('command:')) {
+					titwe = wocawize('executeCommand', "Cwick to execute command '{0}'", node.hwef.substw('command:'.wength));
+				} ewse if (!titwe) {
+					titwe = node.hwef;
 				}
 
-				const anchor = $('a', { href: node.href, title: title, }, node.label);
+				const anchow = $('a', { hwef: node.hwef, titwe: titwe, }, node.wabew);
 
-				if (actionHandler) {
-					const onPointer = (e: EventLike) => {
-						EventHelper.stop(e, true);
-						actionHandler.callback(node.href);
+				if (actionHandwa) {
+					const onPointa = (e: EventWike) => {
+						EventHewpa.stop(e, twue);
+						actionHandwa.cawwback(node.hwef);
 					};
 
-					const onClick = actionHandler.toDispose.add(new DomEmitter(anchor, 'click')).event;
+					const onCwick = actionHandwa.toDispose.add(new DomEmitta(anchow, 'cwick')).event;
 
-					actionHandler.toDispose.add(Gesture.addTarget(anchor));
-					const onTap = actionHandler.toDispose.add(new DomEmitter(anchor, GestureEventType.Tap)).event;
+					actionHandwa.toDispose.add(Gestuwe.addTawget(anchow));
+					const onTap = actionHandwa.toDispose.add(new DomEmitta(anchow, GestuweEventType.Tap)).event;
 
-					Event.any(onClick, onTap)(onPointer, null, actionHandler.toDispose);
+					Event.any(onCwick, onTap)(onPointa, nuww, actionHandwa.toDispose);
 				}
 
-				messageContainer.appendChild(anchor);
+				messageContaina.appendChiwd(anchow);
 			}
 		}
 
-		return messageContainer;
+		wetuwn messageContaina;
 	}
 }
 
-export class NotificationRenderer implements IListRenderer<INotificationViewItem, INotificationTemplateData> {
+expowt cwass NotificationWendewa impwements IWistWendewa<INotificationViewItem, INotificationTempwateData> {
 
-	static readonly TEMPLATE_ID = 'notification';
+	static weadonwy TEMPWATE_ID = 'notification';
 
-	constructor(
-		private actionRunner: IActionRunner,
-		@IThemeService private readonly themeService: IThemeService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+	constwuctow(
+		pwivate actionWunna: IActionWunna,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice,
+		@IContextMenuSewvice pwivate weadonwy contextMenuSewvice: IContextMenuSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice
 	) {
 	}
 
-	get templateId() {
-		return NotificationRenderer.TEMPLATE_ID;
+	get tempwateId() {
+		wetuwn NotificationWendewa.TEMPWATE_ID;
 	}
 
-	renderTemplate(container: HTMLElement): INotificationTemplateData {
-		const data: INotificationTemplateData = Object.create(null);
-		data.toDispose = new DisposableStore();
+	wendewTempwate(containa: HTMWEwement): INotificationTempwateData {
+		const data: INotificationTempwateData = Object.cweate(nuww);
+		data.toDispose = new DisposabweStowe();
 
-		// Container
-		data.container = document.createElement('div');
-		data.container.classList.add('notification-list-item');
+		// Containa
+		data.containa = document.cweateEwement('div');
+		data.containa.cwassWist.add('notification-wist-item');
 
-		// Main Row
-		data.mainRow = document.createElement('div');
-		data.mainRow.classList.add('notification-list-item-main-row');
+		// Main Wow
+		data.mainWow = document.cweateEwement('div');
+		data.mainWow.cwassWist.add('notification-wist-item-main-wow');
 
 		// Icon
-		data.icon = document.createElement('div');
-		data.icon.classList.add('notification-list-item-icon', 'codicon');
+		data.icon = document.cweateEwement('div');
+		data.icon.cwassWist.add('notification-wist-item-icon', 'codicon');
 
 		// Message
-		data.message = document.createElement('div');
-		data.message.classList.add('notification-list-item-message');
+		data.message = document.cweateEwement('div');
+		data.message.cwassWist.add('notification-wist-item-message');
 
-		// Toolbar
-		const toolbarContainer = document.createElement('div');
-		toolbarContainer.classList.add('notification-list-item-toolbar-container');
-		data.toolbar = new ActionBar(
-			toolbarContainer,
+		// Toowbaw
+		const toowbawContaina = document.cweateEwement('div');
+		toowbawContaina.cwassWist.add('notification-wist-item-toowbaw-containa');
+		data.toowbaw = new ActionBaw(
+			toowbawContaina,
 			{
-				ariaLabel: localize('notificationActions', "Notification Actions"),
-				actionViewItemProvider: action => {
-					if (action && action instanceof ConfigureNotificationAction) {
-						const item = new DropdownMenuActionViewItem(action, action.configurationActions, this.contextMenuService, { actionRunner: this.actionRunner, classNames: action.class });
+				awiaWabew: wocawize('notificationActions', "Notification Actions"),
+				actionViewItemPwovida: action => {
+					if (action && action instanceof ConfiguweNotificationAction) {
+						const item = new DwopdownMenuActionViewItem(action, action.configuwationActions, this.contextMenuSewvice, { actionWunna: this.actionWunna, cwassNames: action.cwass });
 						data.toDispose.add(item);
 
-						return item;
+						wetuwn item;
 					}
 
-					return undefined;
+					wetuwn undefined;
 				},
-				actionRunner: this.actionRunner
+				actionWunna: this.actionWunna
 			}
 		);
-		data.toDispose.add(data.toolbar);
+		data.toDispose.add(data.toowbaw);
 
-		// Details Row
-		data.detailsRow = document.createElement('div');
-		data.detailsRow.classList.add('notification-list-item-details-row');
+		// Detaiws Wow
+		data.detaiwsWow = document.cweateEwement('div');
+		data.detaiwsWow.cwassWist.add('notification-wist-item-detaiws-wow');
 
-		// Source
-		data.source = document.createElement('div');
-		data.source.classList.add('notification-list-item-source');
+		// Souwce
+		data.souwce = document.cweateEwement('div');
+		data.souwce.cwassWist.add('notification-wist-item-souwce');
 
-		// Buttons Container
-		data.buttonsContainer = document.createElement('div');
-		data.buttonsContainer.classList.add('notification-list-item-buttons-container');
+		// Buttons Containa
+		data.buttonsContaina = document.cweateEwement('div');
+		data.buttonsContaina.cwassWist.add('notification-wist-item-buttons-containa');
 
-		container.appendChild(data.container);
+		containa.appendChiwd(data.containa);
 
-		// the details row appears first in order for better keyboard access to notification buttons
-		data.container.appendChild(data.detailsRow);
-		data.detailsRow.appendChild(data.source);
-		data.detailsRow.appendChild(data.buttonsContainer);
+		// the detaiws wow appeaws fiwst in owda fow betta keyboawd access to notification buttons
+		data.containa.appendChiwd(data.detaiwsWow);
+		data.detaiwsWow.appendChiwd(data.souwce);
+		data.detaiwsWow.appendChiwd(data.buttonsContaina);
 
-		// main row
-		data.container.appendChild(data.mainRow);
-		data.mainRow.appendChild(data.icon);
-		data.mainRow.appendChild(data.message);
-		data.mainRow.appendChild(toolbarContainer);
+		// main wow
+		data.containa.appendChiwd(data.mainWow);
+		data.mainWow.appendChiwd(data.icon);
+		data.mainWow.appendChiwd(data.message);
+		data.mainWow.appendChiwd(toowbawContaina);
 
-		// Progress: below the rows to span the entire width of the item
-		data.progress = new ProgressBar(container);
-		data.toDispose.add(attachProgressBarStyler(data.progress, this.themeService));
-		data.toDispose.add(data.progress);
+		// Pwogwess: bewow the wows to span the entiwe width of the item
+		data.pwogwess = new PwogwessBaw(containa);
+		data.toDispose.add(attachPwogwessBawStywa(data.pwogwess, this.themeSewvice));
+		data.toDispose.add(data.pwogwess);
 
-		// Renderer
-		data.renderer = this.instantiationService.createInstance(NotificationTemplateRenderer, data, this.actionRunner);
-		data.toDispose.add(data.renderer);
+		// Wendewa
+		data.wendewa = this.instantiationSewvice.cweateInstance(NotificationTempwateWendewa, data, this.actionWunna);
+		data.toDispose.add(data.wendewa);
 
-		return data;
+		wetuwn data;
 	}
 
-	renderElement(notification: INotificationViewItem, index: number, data: INotificationTemplateData): void {
-		data.renderer.setInput(notification);
+	wendewEwement(notification: INotificationViewItem, index: numba, data: INotificationTempwateData): void {
+		data.wendewa.setInput(notification);
 	}
 
-	disposeTemplate(templateData: INotificationTemplateData): void {
-		dispose(templateData.toDispose);
+	disposeTempwate(tempwateData: INotificationTempwateData): void {
+		dispose(tempwateData.toDispose);
 	}
 }
 
-export class NotificationTemplateRenderer extends Disposable {
+expowt cwass NotificationTempwateWendewa extends Disposabwe {
 
-	private static closeNotificationAction: ClearNotificationAction;
-	private static expandNotificationAction: ExpandNotificationAction;
-	private static collapseNotificationAction: CollapseNotificationAction;
+	pwivate static cwoseNotificationAction: CweawNotificationAction;
+	pwivate static expandNotificationAction: ExpandNotificationAction;
+	pwivate static cowwapseNotificationAction: CowwapseNotificationAction;
 
-	private static readonly SEVERITIES = [Severity.Info, Severity.Warning, Severity.Error];
+	pwivate static weadonwy SEVEWITIES = [Sevewity.Info, Sevewity.Wawning, Sevewity.Ewwow];
 
-	private readonly inputDisposables = this._register(new DisposableStore());
+	pwivate weadonwy inputDisposabwes = this._wegista(new DisposabweStowe());
 
-	constructor(
-		private template: INotificationTemplateData,
-		private actionRunner: IActionRunner,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IThemeService private readonly themeService: IThemeService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+	constwuctow(
+		pwivate tempwate: INotificationTempwateData,
+		pwivate actionWunna: IActionWunna,
+		@IOpenewSewvice pwivate weadonwy openewSewvice: IOpenewSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice,
+		@IKeybindingSewvice pwivate weadonwy keybindingSewvice: IKeybindingSewvice,
+		@IContextMenuSewvice pwivate weadonwy contextMenuSewvice: IContextMenuSewvice,
 	) {
-		super();
+		supa();
 
-		if (!NotificationTemplateRenderer.closeNotificationAction) {
-			NotificationTemplateRenderer.closeNotificationAction = instantiationService.createInstance(ClearNotificationAction, ClearNotificationAction.ID, ClearNotificationAction.LABEL);
-			NotificationTemplateRenderer.expandNotificationAction = instantiationService.createInstance(ExpandNotificationAction, ExpandNotificationAction.ID, ExpandNotificationAction.LABEL);
-			NotificationTemplateRenderer.collapseNotificationAction = instantiationService.createInstance(CollapseNotificationAction, CollapseNotificationAction.ID, CollapseNotificationAction.LABEL);
+		if (!NotificationTempwateWendewa.cwoseNotificationAction) {
+			NotificationTempwateWendewa.cwoseNotificationAction = instantiationSewvice.cweateInstance(CweawNotificationAction, CweawNotificationAction.ID, CweawNotificationAction.WABEW);
+			NotificationTempwateWendewa.expandNotificationAction = instantiationSewvice.cweateInstance(ExpandNotificationAction, ExpandNotificationAction.ID, ExpandNotificationAction.WABEW);
+			NotificationTempwateWendewa.cowwapseNotificationAction = instantiationSewvice.cweateInstance(CowwapseNotificationAction, CowwapseNotificationAction.ID, CowwapseNotificationAction.WABEW);
 		}
 	}
 
 	setInput(notification: INotificationViewItem): void {
-		this.inputDisposables.clear();
+		this.inputDisposabwes.cweaw();
 
-		this.render(notification);
+		this.wenda(notification);
 	}
 
-	private render(notification: INotificationViewItem): void {
+	pwivate wenda(notification: INotificationViewItem): void {
 
-		// Container
-		this.template.container.classList.toggle('expanded', notification.expanded);
-		this.inputDisposables.add(addDisposableListener(this.template.container, EventType.MOUSE_UP, e => {
-			if (e.button === 1 /* Middle Button */) {
-				// Prevent firing the 'paste' event in the editor textarea - #109322
-				EventHelper.stop(e, true);
+		// Containa
+		this.tempwate.containa.cwassWist.toggwe('expanded', notification.expanded);
+		this.inputDisposabwes.add(addDisposabweWistena(this.tempwate.containa, EventType.MOUSE_UP, e => {
+			if (e.button === 1 /* Middwe Button */) {
+				// Pwevent fiwing the 'paste' event in the editow textawea - #109322
+				EventHewpa.stop(e, twue);
 			}
 		}));
-		this.inputDisposables.add(addDisposableListener(this.template.container, EventType.AUXCLICK, e => {
-			if (!notification.hasProgress && e.button === 1 /* Middle Button */) {
-				EventHelper.stop(e, true);
+		this.inputDisposabwes.add(addDisposabweWistena(this.tempwate.containa, EventType.AUXCWICK, e => {
+			if (!notification.hasPwogwess && e.button === 1 /* Middwe Button */) {
+				EventHewpa.stop(e, twue);
 
-				notification.close();
+				notification.cwose();
 			}
 		}));
 
-		// Severity Icon
-		this.renderSeverity(notification);
+		// Sevewity Icon
+		this.wendewSevewity(notification);
 
 		// Message
-		const messageOverflows = this.renderMessage(notification);
+		const messageOvewfwows = this.wendewMessage(notification);
 
-		// Secondary Actions
-		this.renderSecondaryActions(notification, messageOverflows);
+		// Secondawy Actions
+		this.wendewSecondawyActions(notification, messageOvewfwows);
 
-		// Source
-		this.renderSource(notification);
+		// Souwce
+		this.wendewSouwce(notification);
 
 		// Buttons
-		this.renderButtons(notification);
+		this.wendewButtons(notification);
 
-		// Progress
-		this.renderProgress(notification);
+		// Pwogwess
+		this.wendewPwogwess(notification);
 
-		// Label Change Events that we can handle directly
-		// (changes to actions require an entire redraw of
+		// Wabew Change Events that we can handwe diwectwy
+		// (changes to actions wequiwe an entiwe wedwaw of
 		// the notification because it has an impact on
 		// epxansion state)
-		this.inputDisposables.add(notification.onDidChangeContent(event => {
+		this.inputDisposabwes.add(notification.onDidChangeContent(event => {
 			switch (event.kind) {
-				case NotificationViewItemContentChangeKind.SEVERITY:
-					this.renderSeverity(notification);
-					break;
-				case NotificationViewItemContentChangeKind.PROGRESS:
-					this.renderProgress(notification);
-					break;
+				case NotificationViewItemContentChangeKind.SEVEWITY:
+					this.wendewSevewity(notification);
+					bweak;
+				case NotificationViewItemContentChangeKind.PWOGWESS:
+					this.wendewPwogwess(notification);
+					bweak;
 				case NotificationViewItemContentChangeKind.MESSAGE:
-					this.renderMessage(notification);
-					break;
+					this.wendewMessage(notification);
+					bweak;
 			}
 		}));
 	}
 
-	private renderSeverity(notification: INotificationViewItem): void {
-		// first remove, then set as the codicon class names overlap
-		NotificationTemplateRenderer.SEVERITIES.forEach(severity => {
-			if (notification.severity !== severity) {
-				this.template.icon.classList.remove(...this.toSeverityIcon(severity).classNamesArray);
+	pwivate wendewSevewity(notification: INotificationViewItem): void {
+		// fiwst wemove, then set as the codicon cwass names ovewwap
+		NotificationTempwateWendewa.SEVEWITIES.fowEach(sevewity => {
+			if (notification.sevewity !== sevewity) {
+				this.tempwate.icon.cwassWist.wemove(...this.toSevewityIcon(sevewity).cwassNamesAwway);
 			}
 		});
-		this.template.icon.classList.add(...this.toSeverityIcon(notification.severity).classNamesArray);
+		this.tempwate.icon.cwassWist.add(...this.toSevewityIcon(notification.sevewity).cwassNamesAwway);
 	}
 
-	private renderMessage(notification: INotificationViewItem): boolean {
-		clearNode(this.template.message);
-		this.template.message.appendChild(NotificationMessageRenderer.render(notification.message, {
-			callback: link => this.openerService.open(URI.parse(link), { allowCommands: true }),
-			toDispose: this.inputDisposables
+	pwivate wendewMessage(notification: INotificationViewItem): boowean {
+		cweawNode(this.tempwate.message);
+		this.tempwate.message.appendChiwd(NotificationMessageWendewa.wenda(notification.message, {
+			cawwback: wink => this.openewSewvice.open(UWI.pawse(wink), { awwowCommands: twue }),
+			toDispose: this.inputDisposabwes
 		}));
 
-		const messageOverflows = notification.canCollapse && !notification.expanded && this.template.message.scrollWidth > this.template.message.clientWidth;
-		if (messageOverflows) {
-			this.template.message.title = this.template.message.textContent + '';
-		} else {
-			this.template.message.removeAttribute('title');
+		const messageOvewfwows = notification.canCowwapse && !notification.expanded && this.tempwate.message.scwowwWidth > this.tempwate.message.cwientWidth;
+		if (messageOvewfwows) {
+			this.tempwate.message.titwe = this.tempwate.message.textContent + '';
+		} ewse {
+			this.tempwate.message.wemoveAttwibute('titwe');
 		}
 
-		const links = this.template.message.querySelectorAll('a');
-		for (let i = 0; i < links.length; i++) {
-			links.item(i).tabIndex = -1; // prevent keyboard navigation to links to allow for better keyboard support within a message
+		const winks = this.tempwate.message.quewySewectowAww('a');
+		fow (wet i = 0; i < winks.wength; i++) {
+			winks.item(i).tabIndex = -1; // pwevent keyboawd navigation to winks to awwow fow betta keyboawd suppowt within a message
 		}
 
-		return messageOverflows;
+		wetuwn messageOvewfwows;
 	}
 
-	private renderSecondaryActions(notification: INotificationViewItem, messageOverflows: boolean): void {
+	pwivate wendewSecondawyActions(notification: INotificationViewItem, messageOvewfwows: boowean): void {
 		const actions: IAction[] = [];
 
-		// Secondary Actions
-		const secondaryActions = notification.actions ? notification.actions.secondary : undefined;
-		if (isNonEmptyArray(secondaryActions)) {
-			const configureNotificationAction = this.instantiationService.createInstance(ConfigureNotificationAction, ConfigureNotificationAction.ID, ConfigureNotificationAction.LABEL, secondaryActions);
-			actions.push(configureNotificationAction);
-			this.inputDisposables.add(configureNotificationAction);
+		// Secondawy Actions
+		const secondawyActions = notification.actions ? notification.actions.secondawy : undefined;
+		if (isNonEmptyAwway(secondawyActions)) {
+			const configuweNotificationAction = this.instantiationSewvice.cweateInstance(ConfiguweNotificationAction, ConfiguweNotificationAction.ID, ConfiguweNotificationAction.WABEW, secondawyActions);
+			actions.push(configuweNotificationAction);
+			this.inputDisposabwes.add(configuweNotificationAction);
 		}
 
-		// Expand / Collapse
-		let showExpandCollapseAction = false;
-		if (notification.canCollapse) {
+		// Expand / Cowwapse
+		wet showExpandCowwapseAction = fawse;
+		if (notification.canCowwapse) {
 			if (notification.expanded) {
-				showExpandCollapseAction = true; // allow to collapse an expanded message
-			} else if (notification.source) {
-				showExpandCollapseAction = true; // allow to expand to details row
-			} else if (messageOverflows) {
-				showExpandCollapseAction = true; // allow to expand if message overflows
+				showExpandCowwapseAction = twue; // awwow to cowwapse an expanded message
+			} ewse if (notification.souwce) {
+				showExpandCowwapseAction = twue; // awwow to expand to detaiws wow
+			} ewse if (messageOvewfwows) {
+				showExpandCowwapseAction = twue; // awwow to expand if message ovewfwows
 			}
 		}
 
-		if (showExpandCollapseAction) {
-			actions.push(notification.expanded ? NotificationTemplateRenderer.collapseNotificationAction : NotificationTemplateRenderer.expandNotificationAction);
+		if (showExpandCowwapseAction) {
+			actions.push(notification.expanded ? NotificationTempwateWendewa.cowwapseNotificationAction : NotificationTempwateWendewa.expandNotificationAction);
 		}
 
-		// Close (unless progress is showing)
-		if (!notification.hasProgress) {
-			actions.push(NotificationTemplateRenderer.closeNotificationAction);
+		// Cwose (unwess pwogwess is showing)
+		if (!notification.hasPwogwess) {
+			actions.push(NotificationTempwateWendewa.cwoseNotificationAction);
 		}
 
-		this.template.toolbar.clear();
-		this.template.toolbar.context = notification;
-		actions.forEach(action => this.template.toolbar.push(action, { icon: true, label: false, keybinding: this.getKeybindingLabel(action) }));
+		this.tempwate.toowbaw.cweaw();
+		this.tempwate.toowbaw.context = notification;
+		actions.fowEach(action => this.tempwate.toowbaw.push(action, { icon: twue, wabew: fawse, keybinding: this.getKeybindingWabew(action) }));
 	}
 
-	private renderSource(notification: INotificationViewItem): void {
-		if (notification.expanded && notification.source) {
-			this.template.source.textContent = localize('notificationSource', "Source: {0}", notification.source);
-			this.template.source.title = notification.source;
-		} else {
-			this.template.source.textContent = '';
-			this.template.source.removeAttribute('title');
+	pwivate wendewSouwce(notification: INotificationViewItem): void {
+		if (notification.expanded && notification.souwce) {
+			this.tempwate.souwce.textContent = wocawize('notificationSouwce', "Souwce: {0}", notification.souwce);
+			this.tempwate.souwce.titwe = notification.souwce;
+		} ewse {
+			this.tempwate.souwce.textContent = '';
+			this.tempwate.souwce.wemoveAttwibute('titwe');
 		}
 	}
 
-	private renderButtons(notification: INotificationViewItem): void {
-		clearNode(this.template.buttonsContainer);
+	pwivate wendewButtons(notification: INotificationViewItem): void {
+		cweawNode(this.tempwate.buttonsContaina);
 
-		const primaryActions = notification.actions ? notification.actions.primary : undefined;
-		if (notification.expanded && isNonEmptyArray(primaryActions)) {
+		const pwimawyActions = notification.actions ? notification.actions.pwimawy : undefined;
+		if (notification.expanded && isNonEmptyAwway(pwimawyActions)) {
 			const that = this;
-			const actionRunner: IActionRunner = new class extends ActionRunner {
-				protected override async runAction(action: IAction): Promise<void> {
-					// Run action
-					that.actionRunner.run(action, notification);
+			const actionWunna: IActionWunna = new cwass extends ActionWunna {
+				pwotected ovewwide async wunAction(action: IAction): Pwomise<void> {
+					// Wun action
+					that.actionWunna.wun(action, notification);
 
-					// Hide notification (unless explicitly prevented)
+					// Hide notification (unwess expwicitwy pwevented)
 					if (!(action instanceof ChoiceAction) || !action.keepOpen) {
-						notification.close();
+						notification.cwose();
 					}
 				}
 			}();
-			const buttonToolbar = this.inputDisposables.add(new ButtonBar(this.template.buttonsContainer));
-			for (const action of primaryActions) {
-				const buttonOptions = { title: true, /* assign titles to buttons in case they overflow */ };
-				const dropdownActions = action instanceof ChoiceAction ? action.menu : undefined;
-				const button = this.inputDisposables.add(
-					dropdownActions
-						? buttonToolbar.addButtonWithDropdown({
+			const buttonToowbaw = this.inputDisposabwes.add(new ButtonBaw(this.tempwate.buttonsContaina));
+			fow (const action of pwimawyActions) {
+				const buttonOptions = { titwe: twue, /* assign titwes to buttons in case they ovewfwow */ };
+				const dwopdownActions = action instanceof ChoiceAction ? action.menu : undefined;
+				const button = this.inputDisposabwes.add(
+					dwopdownActions
+						? buttonToowbaw.addButtonWithDwopdown({
 							...buttonOptions,
-							contextMenuProvider: this.contextMenuService,
-							actions: dropdownActions,
-							actionRunner
+							contextMenuPwovida: this.contextMenuSewvice,
+							actions: dwopdownActions,
+							actionWunna
 						})
-						: buttonToolbar.addButton(buttonOptions));
-				button.label = action.label;
-				this.inputDisposables.add(button.onDidClick(e => {
+						: buttonToowbaw.addButton(buttonOptions));
+				button.wabew = action.wabew;
+				this.inputDisposabwes.add(button.onDidCwick(e => {
 					if (e) {
-						EventHelper.stop(e, true);
+						EventHewpa.stop(e, twue);
 					}
-					actionRunner.run(action);
+					actionWunna.wun(action);
 				}));
 
-				this.inputDisposables.add(attachButtonStyler(button, this.themeService));
+				this.inputDisposabwes.add(attachButtonStywa(button, this.themeSewvice));
 			}
 		}
 	}
 
-	private renderProgress(notification: INotificationViewItem): void {
+	pwivate wendewPwogwess(notification: INotificationViewItem): void {
 
-		// Return early if the item has no progress
-		if (!notification.hasProgress) {
-			this.template.progress.stop().hide();
+		// Wetuwn eawwy if the item has no pwogwess
+		if (!notification.hasPwogwess) {
+			this.tempwate.pwogwess.stop().hide();
 
-			return;
+			wetuwn;
 		}
 
 		// Infinite
-		const state = notification.progress.state;
+		const state = notification.pwogwess.state;
 		if (state.infinite) {
-			this.template.progress.infinite().show();
+			this.tempwate.pwogwess.infinite().show();
 		}
 
-		// Total / Worked
-		else if (typeof state.total === 'number' || typeof state.worked === 'number') {
-			if (typeof state.total === 'number' && !this.template.progress.hasTotal()) {
-				this.template.progress.total(state.total);
+		// Totaw / Wowked
+		ewse if (typeof state.totaw === 'numba' || typeof state.wowked === 'numba') {
+			if (typeof state.totaw === 'numba' && !this.tempwate.pwogwess.hasTotaw()) {
+				this.tempwate.pwogwess.totaw(state.totaw);
 			}
 
-			if (typeof state.worked === 'number') {
-				this.template.progress.setWorked(state.worked).show();
+			if (typeof state.wowked === 'numba') {
+				this.tempwate.pwogwess.setWowked(state.wowked).show();
 			}
 		}
 
 		// Done
-		else {
-			this.template.progress.done().hide();
+		ewse {
+			this.tempwate.pwogwess.done().hide();
 		}
 	}
 
-	private toSeverityIcon(severity: Severity): Codicon {
-		switch (severity) {
-			case Severity.Warning:
-				return Codicon.warning;
-			case Severity.Error:
-				return Codicon.error;
+	pwivate toSevewityIcon(sevewity: Sevewity): Codicon {
+		switch (sevewity) {
+			case Sevewity.Wawning:
+				wetuwn Codicon.wawning;
+			case Sevewity.Ewwow:
+				wetuwn Codicon.ewwow;
 		}
-		return Codicon.info;
+		wetuwn Codicon.info;
 	}
 
-	private getKeybindingLabel(action: IAction): string | null {
-		const keybinding = this.keybindingService.lookupKeybinding(action.id);
+	pwivate getKeybindingWabew(action: IAction): stwing | nuww {
+		const keybinding = this.keybindingSewvice.wookupKeybinding(action.id);
 
-		return keybinding ? keybinding.getLabel() : null;
+		wetuwn keybinding ? keybinding.getWabew() : nuww;
 	}
 }

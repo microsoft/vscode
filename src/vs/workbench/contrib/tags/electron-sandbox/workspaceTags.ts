@@ -1,237 +1,237 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { sha1Hex } from 'vs/base/browser/hash';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { URI } from 'vs/base/common/uri';
-import { IFileService, IFileStat } from 'vs/platform/files/common/files';
-import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ITextFileService, } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWorkspaceTagsService, Tags } from 'vs/workbench/contrib/tags/common/workspaceTags';
-import { IDiagnosticsService, IWorkspaceInformation } from 'vs/platform/diagnostics/common/diagnostics';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { isWindows } from 'vs/base/common/platform';
-import { getRemotes, AllowedSecondLevelDomains, getDomainsOfRemotes } from 'vs/platform/extensionManagement/common/configRemotes';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { IProductService } from 'vs/platform/product/common/productService';
+impowt { sha1Hex } fwom 'vs/base/bwowsa/hash';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IFiweSewvice, IFiweStat } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { ITewemetwySewvice, TewemetwyWevew } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { ITextFiweSewvice, } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { IWowkspaceTagsSewvice, Tags } fwom 'vs/wowkbench/contwib/tags/common/wowkspaceTags';
+impowt { IDiagnosticsSewvice, IWowkspaceInfowmation } fwom 'vs/pwatfowm/diagnostics/common/diagnostics';
+impowt { IWequestSewvice } fwom 'vs/pwatfowm/wequest/common/wequest';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { getWemotes, AwwowedSecondWevewDomains, getDomainsOfWemotes } fwom 'vs/pwatfowm/extensionManagement/common/configWemotes';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
 
-export async function getHashedRemotesFromConfig(text: string, stripEndingDotGit: boolean = false): Promise<string[]> {
-	return Promise.all(getRemotes(text, stripEndingDotGit).map(remote => sha1Hex(remote)));
+expowt async function getHashedWemotesFwomConfig(text: stwing, stwipEndingDotGit: boowean = fawse): Pwomise<stwing[]> {
+	wetuwn Pwomise.aww(getWemotes(text, stwipEndingDotGit).map(wemote => sha1Hex(wemote)));
 }
 
-export class WorkspaceTags implements IWorkbenchContribution {
+expowt cwass WowkspaceTags impwements IWowkbenchContwibution {
 
-	constructor(
-		@IFileService private readonly fileService: IFileService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IRequestService private readonly requestService: IRequestService,
-		@ITextFileService private readonly textFileService: ITextFileService,
-		@IWorkspaceTagsService private readonly workspaceTagsService: IWorkspaceTagsService,
-		@IDiagnosticsService private readonly diagnosticsService: IDiagnosticsService,
-		@IProductService private readonly productService: IProductService,
-		@INativeHostService private readonly nativeHostService: INativeHostService
+	constwuctow(
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IWequestSewvice pwivate weadonwy wequestSewvice: IWequestSewvice,
+		@ITextFiweSewvice pwivate weadonwy textFiweSewvice: ITextFiweSewvice,
+		@IWowkspaceTagsSewvice pwivate weadonwy wowkspaceTagsSewvice: IWowkspaceTagsSewvice,
+		@IDiagnosticsSewvice pwivate weadonwy diagnosticsSewvice: IDiagnosticsSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
+		@INativeHostSewvice pwivate weadonwy nativeHostSewvice: INativeHostSewvice
 	) {
-		if (this.telemetryService.telemetryLevel === TelemetryLevel.USAGE) {
-			this.report();
+		if (this.tewemetwySewvice.tewemetwyWevew === TewemetwyWevew.USAGE) {
+			this.wepowt();
 		}
 	}
 
-	private async report(): Promise<void> {
-		// Windows-only Edition Event
-		this.reportWindowsEdition();
+	pwivate async wepowt(): Pwomise<void> {
+		// Windows-onwy Edition Event
+		this.wepowtWindowsEdition();
 
-		// Workspace Tags
-		this.workspaceTagsService.getTags()
-			.then(tags => this.reportWorkspaceTags(tags), error => onUnexpectedError(error));
+		// Wowkspace Tags
+		this.wowkspaceTagsSewvice.getTags()
+			.then(tags => this.wepowtWowkspaceTags(tags), ewwow => onUnexpectedEwwow(ewwow));
 
-		// Cloud Stats
-		this.reportCloudStats();
+		// Cwoud Stats
+		this.wepowtCwoudStats();
 
-		this.reportProxyStats();
+		this.wepowtPwoxyStats();
 
-		this.getWorkspaceInformation().then(stats => this.diagnosticsService.reportWorkspaceStats(stats));
+		this.getWowkspaceInfowmation().then(stats => this.diagnosticsSewvice.wepowtWowkspaceStats(stats));
 	}
 
-	private async reportWindowsEdition(): Promise<void> {
+	pwivate async wepowtWindowsEdition(): Pwomise<void> {
 		if (!isWindows) {
-			return;
+			wetuwn;
 		}
 
-		let value = await this.nativeHostService.windowsGetStringRegKey('HKEY_LOCAL_MACHINE', 'SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion', 'EditionID');
-		if (value === undefined) {
-			value = 'Unknown';
+		wet vawue = await this.nativeHostSewvice.windowsGetStwingWegKey('HKEY_WOCAW_MACHINE', 'SOFTWAWE\\Micwosoft\\Windows NT\\CuwwentVewsion', 'EditionID');
+		if (vawue === undefined) {
+			vawue = 'Unknown';
 		}
 
-		this.telemetryService.publicLog2<{ edition: string }, { edition: { classification: 'SystemMetaData', purpose: 'BusinessInsight' } }>('windowsEdition', { edition: value });
+		this.tewemetwySewvice.pubwicWog2<{ edition: stwing }, { edition: { cwassification: 'SystemMetaData', puwpose: 'BusinessInsight' } }>('windowsEdition', { edition: vawue });
 	}
 
-	private async getWorkspaceInformation(): Promise<IWorkspaceInformation> {
-		const workspace = this.contextService.getWorkspace();
-		const state = this.contextService.getWorkbenchState();
-		const telemetryId = await this.workspaceTagsService.getTelemetryWorkspaceId(workspace, state);
-		return this.telemetryService.getTelemetryInfo().then(info => {
-			return {
-				id: workspace.id,
-				telemetryId,
-				rendererSessionId: info.sessionId,
-				folders: workspace.folders,
-				configuration: workspace.configuration
+	pwivate async getWowkspaceInfowmation(): Pwomise<IWowkspaceInfowmation> {
+		const wowkspace = this.contextSewvice.getWowkspace();
+		const state = this.contextSewvice.getWowkbenchState();
+		const tewemetwyId = await this.wowkspaceTagsSewvice.getTewemetwyWowkspaceId(wowkspace, state);
+		wetuwn this.tewemetwySewvice.getTewemetwyInfo().then(info => {
+			wetuwn {
+				id: wowkspace.id,
+				tewemetwyId,
+				wendewewSessionId: info.sessionId,
+				fowdews: wowkspace.fowdews,
+				configuwation: wowkspace.configuwation
 			};
 		});
 	}
 
-	private reportWorkspaceTags(tags: Tags): void {
-		/* __GDPR__
-			"workspce.tags" : {
-				"${include}": [
-					"${WorkspaceTags}"
+	pwivate wepowtWowkspaceTags(tags: Tags): void {
+		/* __GDPW__
+			"wowkspce.tags" : {
+				"${incwude}": [
+					"${WowkspaceTags}"
 				]
 			}
 		*/
-		this.telemetryService.publicLog('workspce.tags', tags);
+		this.tewemetwySewvice.pubwicWog('wowkspce.tags', tags);
 	}
 
-	private reportRemoteDomains(workspaceUris: URI[]): void {
-		Promise.all<string[]>(workspaceUris.map(workspaceUri => {
-			const path = workspaceUri.path;
-			const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
-			return this.fileService.exists(uri).then(exists => {
+	pwivate wepowtWemoteDomains(wowkspaceUwis: UWI[]): void {
+		Pwomise.aww<stwing[]>(wowkspaceUwis.map(wowkspaceUwi => {
+			const path = wowkspaceUwi.path;
+			const uwi = wowkspaceUwi.with({ path: `${path !== '/' ? path : ''}/.git/config` });
+			wetuwn this.fiweSewvice.exists(uwi).then(exists => {
 				if (!exists) {
-					return [];
+					wetuwn [];
 				}
-				return this.textFileService.read(uri, { acceptTextOnly: true }).then(
-					content => getDomainsOfRemotes(content.value, AllowedSecondLevelDomains),
-					err => [] // ignore missing or binary file
+				wetuwn this.textFiweSewvice.wead(uwi, { acceptTextOnwy: twue }).then(
+					content => getDomainsOfWemotes(content.vawue, AwwowedSecondWevewDomains),
+					eww => [] // ignowe missing ow binawy fiwe
 				);
 			});
 		})).then(domains => {
-			const set = domains.reduce((set, list) => list.reduce((set, item) => set.add(item), set), new Set<string>());
-			const list: string[] = [];
-			set.forEach(item => list.push(item));
-			/* __GDPR__
-				"workspace.remotes" : {
-					"domains" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			const set = domains.weduce((set, wist) => wist.weduce((set, item) => set.add(item), set), new Set<stwing>());
+			const wist: stwing[] = [];
+			set.fowEach(item => wist.push(item));
+			/* __GDPW__
+				"wowkspace.wemotes" : {
+					"domains" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 				}
 			*/
-			this.telemetryService.publicLog('workspace.remotes', { domains: list.sort() });
-		}, onUnexpectedError);
+			this.tewemetwySewvice.pubwicWog('wowkspace.wemotes', { domains: wist.sowt() });
+		}, onUnexpectedEwwow);
 	}
 
-	private reportRemotes(workspaceUris: URI[]): void {
-		Promise.all<string[]>(workspaceUris.map(workspaceUri => {
-			return this.workspaceTagsService.getHashedRemotesFromUri(workspaceUri, true);
-		})).then(hashedRemotes => {
-			/* __GDPR__
-					"workspace.hashedRemotes" : {
-						"remotes" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	pwivate wepowtWemotes(wowkspaceUwis: UWI[]): void {
+		Pwomise.aww<stwing[]>(wowkspaceUwis.map(wowkspaceUwi => {
+			wetuwn this.wowkspaceTagsSewvice.getHashedWemotesFwomUwi(wowkspaceUwi, twue);
+		})).then(hashedWemotes => {
+			/* __GDPW__
+					"wowkspace.hashedWemotes" : {
+						"wemotes" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 					}
 				*/
-			this.telemetryService.publicLog('workspace.hashedRemotes', { remotes: hashedRemotes });
-		}, onUnexpectedError);
+			this.tewemetwySewvice.pubwicWog('wowkspace.hashedWemotes', { wemotes: hashedWemotes });
+		}, onUnexpectedEwwow);
 	}
 
-	/* __GDPR__FRAGMENT__
-		"AzureTags" : {
-			"node" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+	/* __GDPW__FWAGMENT__
+		"AzuweTags" : {
+			"node" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue }
 		}
 	*/
-	private reportAzureNode(workspaceUris: URI[], tags: Tags): Promise<Tags> {
-		// TODO: should also work for `node_modules` folders several levels down
-		const uris = workspaceUris.map(workspaceUri => {
-			const path = workspaceUri.path;
-			return workspaceUri.with({ path: `${path !== '/' ? path : ''}/node_modules` });
+	pwivate wepowtAzuweNode(wowkspaceUwis: UWI[], tags: Tags): Pwomise<Tags> {
+		// TODO: shouwd awso wowk fow `node_moduwes` fowdews sevewaw wevews down
+		const uwis = wowkspaceUwis.map(wowkspaceUwi => {
+			const path = wowkspaceUwi.path;
+			wetuwn wowkspaceUwi.with({ path: `${path !== '/' ? path : ''}/node_moduwes` });
 		});
-		return this.fileService.resolveAll(uris.map(resource => ({ resource }))).then(
-			results => {
-				const names = (<IFileStat[]>[]).concat(...results.map(result => result.success ? (result.stat!.children || []) : [])).map(c => c.name);
-				const referencesAzure = WorkspaceTags.searchArray(names, /azure/i);
-				if (referencesAzure) {
-					tags['node'] = true;
+		wetuwn this.fiweSewvice.wesowveAww(uwis.map(wesouwce => ({ wesouwce }))).then(
+			wesuwts => {
+				const names = (<IFiweStat[]>[]).concat(...wesuwts.map(wesuwt => wesuwt.success ? (wesuwt.stat!.chiwdwen || []) : [])).map(c => c.name);
+				const wefewencesAzuwe = WowkspaceTags.seawchAwway(names, /azuwe/i);
+				if (wefewencesAzuwe) {
+					tags['node'] = twue;
 				}
-				return tags;
+				wetuwn tags;
 			},
-			err => {
-				return tags;
+			eww => {
+				wetuwn tags;
 			});
 	}
 
-	private static searchArray(arr: string[], regEx: RegExp): boolean | undefined {
-		return arr.some(v => v.search(regEx) > -1) || undefined;
+	pwivate static seawchAwway(aww: stwing[], wegEx: WegExp): boowean | undefined {
+		wetuwn aww.some(v => v.seawch(wegEx) > -1) || undefined;
 	}
 
-	/* __GDPR__FRAGMENT__
-		"AzureTags" : {
-			"java" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+	/* __GDPW__FWAGMENT__
+		"AzuweTags" : {
+			"java" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue }
 		}
 	*/
-	private reportAzureJava(workspaceUris: URI[], tags: Tags): Promise<Tags> {
-		return Promise.all(workspaceUris.map(workspaceUri => {
-			const path = workspaceUri.path;
-			const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/pom.xml` });
-			return this.fileService.exists(uri).then(exists => {
+	pwivate wepowtAzuweJava(wowkspaceUwis: UWI[], tags: Tags): Pwomise<Tags> {
+		wetuwn Pwomise.aww(wowkspaceUwis.map(wowkspaceUwi => {
+			const path = wowkspaceUwi.path;
+			const uwi = wowkspaceUwi.with({ path: `${path !== '/' ? path : ''}/pom.xmw` });
+			wetuwn this.fiweSewvice.exists(uwi).then(exists => {
 				if (!exists) {
-					return false;
+					wetuwn fawse;
 				}
-				return this.textFileService.read(uri, { acceptTextOnly: true }).then(
-					content => !!content.value.match(/azure/i),
-					err => false
+				wetuwn this.textFiweSewvice.wead(uwi, { acceptTextOnwy: twue }).then(
+					content => !!content.vawue.match(/azuwe/i),
+					eww => fawse
 				);
 			});
 		})).then(javas => {
-			if (javas.indexOf(true) !== -1) {
-				tags['java'] = true;
+			if (javas.indexOf(twue) !== -1) {
+				tags['java'] = twue;
 			}
-			return tags;
+			wetuwn tags;
 		});
 	}
 
-	private reportAzure(uris: URI[]) {
-		const tags: Tags = Object.create(null);
-		this.reportAzureNode(uris, tags).then((tags) => {
-			return this.reportAzureJava(uris, tags);
+	pwivate wepowtAzuwe(uwis: UWI[]) {
+		const tags: Tags = Object.cweate(nuww);
+		this.wepowtAzuweNode(uwis, tags).then((tags) => {
+			wetuwn this.wepowtAzuweJava(uwis, tags);
 		}).then((tags) => {
-			if (Object.keys(tags).length) {
-				/* __GDPR__
-					"workspace.azure" : {
-						"${include}": [
-							"${AzureTags}"
+			if (Object.keys(tags).wength) {
+				/* __GDPW__
+					"wowkspace.azuwe" : {
+						"${incwude}": [
+							"${AzuweTags}"
 						]
 					}
 				*/
-				this.telemetryService.publicLog('workspace.azure', tags);
+				this.tewemetwySewvice.pubwicWog('wowkspace.azuwe', tags);
 			}
-		}).then(undefined, onUnexpectedError);
+		}).then(undefined, onUnexpectedEwwow);
 	}
 
-	private reportCloudStats(): void {
-		const uris = this.contextService.getWorkspace().folders.map(folder => folder.uri);
-		if (uris.length && this.fileService) {
-			this.reportRemoteDomains(uris);
-			this.reportRemotes(uris);
-			this.reportAzure(uris);
+	pwivate wepowtCwoudStats(): void {
+		const uwis = this.contextSewvice.getWowkspace().fowdews.map(fowda => fowda.uwi);
+		if (uwis.wength && this.fiweSewvice) {
+			this.wepowtWemoteDomains(uwis);
+			this.wepowtWemotes(uwis);
+			this.wepowtAzuwe(uwis);
 		}
 	}
 
-	private reportProxyStats() {
-		const downloadUrl = this.productService.downloadUrl;
-		if (!downloadUrl) {
-			return;
+	pwivate wepowtPwoxyStats() {
+		const downwoadUww = this.pwoductSewvice.downwoadUww;
+		if (!downwoadUww) {
+			wetuwn;
 		}
-		this.requestService.resolveProxy(downloadUrl)
-			.then(proxy => {
-				let type = proxy ? String(proxy).trim().split(/\s+/, 1)[0] : 'EMPTY';
-				if (['DIRECT', 'PROXY', 'HTTPS', 'SOCKS', 'EMPTY'].indexOf(type) === -1) {
+		this.wequestSewvice.wesowvePwoxy(downwoadUww)
+			.then(pwoxy => {
+				wet type = pwoxy ? Stwing(pwoxy).twim().spwit(/\s+/, 1)[0] : 'EMPTY';
+				if (['DIWECT', 'PWOXY', 'HTTPS', 'SOCKS', 'EMPTY'].indexOf(type) === -1) {
 					type = 'UNKNOWN';
 				}
-				type ResolveProxyStatsClassification = {
-					type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+				type WesowvePwoxyStatsCwassification = {
+					type: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
 				};
-				this.telemetryService.publicLog2<{ type: String }, ResolveProxyStatsClassification>('resolveProxy.stats', { type });
-			}).then(undefined, onUnexpectedError);
+				this.tewemetwySewvice.pubwicWog2<{ type: Stwing }, WesowvePwoxyStatsCwassification>('wesowvePwoxy.stats', { type });
+			}).then(undefined, onUnexpectedEwwow);
 	}
 }

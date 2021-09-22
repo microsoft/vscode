@@ -1,193 +1,193 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import 'vs/css!./media/scrollbar';
-import 'vs/css!./media/terminal';
-import 'vs/css!./media/widgets';
-import 'vs/css!./media/xterm';
-import * as nls from 'vs/nls';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight, KeybindingsRegistry, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
-import { Extensions as ViewContainerExtensions, IViewContainersRegistry, ViewContainerLocation, IViewsRegistry } from 'vs/workbench/common/views';
-import { registerTerminalActions, terminalSendSequenceCommand } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { TERMINAL_VIEW_ID, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { registerColors } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { setupTerminalCommands } from 'vs/workbench/contrib/terminal/browser/terminalCommands';
-import { TerminalService } from 'vs/workbench/contrib/terminal/browser/terminalService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IRemoteTerminalService, ITerminalEditorService, ITerminalGroupService, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
-import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
-import { registerTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminalConfiguration';
-import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
-import { terminalViewIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
-import { RemoteTerminalService } from 'vs/workbench/contrib/terminal/browser/remoteTerminalService';
-import { WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import { isIOS, isWindows } from 'vs/base/common/platform';
-import { setupTerminalMenus } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
-import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
-import { registerTerminalPlatformConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
-import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
-import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
-import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
-import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { TerminalEditorService } from 'vs/workbench/contrib/terminal/browser/terminalEditorService';
-import { TerminalInputSerializer } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
-import { TerminalGroupService } from 'vs/workbench/contrib/terminal/browser/terminalGroupService';
-import { TerminalContextKeys, TerminalContextKeyStrings } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt 'vs/css!./media/scwowwbaw';
+impowt 'vs/css!./media/tewminaw';
+impowt 'vs/css!./media/widgets';
+impowt 'vs/css!./media/xtewm';
+impowt * as nws fwom 'vs/nws';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ContextKeyExpw, ContextKeyExpwession } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { KeybindingWeight, KeybindingsWegistwy, IKeybindings } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { getQuickNavigateHandwa } fwom 'vs/wowkbench/bwowsa/quickaccess';
+impowt { Extensions as ViewContainewExtensions, IViewContainewsWegistwy, ViewContainewWocation, IViewsWegistwy } fwom 'vs/wowkbench/common/views';
+impowt { wegistewTewminawActions, tewminawSendSequenceCommand } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawActions';
+impowt { TewminawViewPane } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawView';
+impowt { TEWMINAW_VIEW_ID, TewminawCommandId } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminaw';
+impowt { wegistewCowows } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminawCowowWegistwy';
+impowt { setupTewminawCommands } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawCommands';
+impowt { TewminawSewvice } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawSewvice';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IWemoteTewminawSewvice, ITewminawEditowSewvice, ITewminawGwoupSewvice, ITewminawInstanceSewvice, ITewminawSewvice } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { ViewPaneContaina } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPaneContaina';
+impowt { IQuickAccessWegistwy, Extensions as QuickAccessExtensions } fwom 'vs/pwatfowm/quickinput/common/quickAccess';
+impowt { TewminawQuickAccessPwovida } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawQuickAccess';
+impowt { wegistewTewminawConfiguwation } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminawConfiguwation';
+impowt { CONTEXT_ACCESSIBIWITY_MODE_ENABWED } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { tewminawViewIcon } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawIcons';
+impowt { WemoteTewminawSewvice } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/wemoteTewminawSewvice';
+impowt { WindowsShewwType } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { isIOS, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { setupTewminawMenus } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawMenus';
+impowt { TewminawInstanceSewvice } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawInstanceSewvice';
+impowt { wegistewTewminawPwatfowmConfiguwation } fwom 'vs/pwatfowm/tewminaw/common/tewminawPwatfowmConfiguwation';
+impowt { EditowExtensions, IEditowFactowyWegistwy } fwom 'vs/wowkbench/common/editow';
+impowt { EditowPaneDescwiptow, IEditowPaneWegistwy } fwom 'vs/wowkbench/bwowsa/editow';
+impowt { TewminawEditow } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawEditow';
+impowt { TewminawEditowInput } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawEditowInput';
+impowt { tewminawStwings } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminawStwings';
+impowt { TewminawEditowSewvice } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawEditowSewvice';
+impowt { TewminawInputSewiawiza } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawEditowSewiawiza';
+impowt { TewminawGwoupSewvice } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawGwoupSewvice';
+impowt { TewminawContextKeys, TewminawContextKeyStwings } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminawContextKey';
 
-// Register services
-registerSingleton(ITerminalService, TerminalService, true);
-registerSingleton(ITerminalEditorService, TerminalEditorService, true);
-registerSingleton(ITerminalGroupService, TerminalGroupService, true);
-registerSingleton(IRemoteTerminalService, RemoteTerminalService);
-registerSingleton(ITerminalInstanceService, TerminalInstanceService, true);
+// Wegista sewvices
+wegistewSingweton(ITewminawSewvice, TewminawSewvice, twue);
+wegistewSingweton(ITewminawEditowSewvice, TewminawEditowSewvice, twue);
+wegistewSingweton(ITewminawGwoupSewvice, TewminawGwoupSewvice, twue);
+wegistewSingweton(IWemoteTewminawSewvice, WemoteTewminawSewvice);
+wegistewSingweton(ITewminawInstanceSewvice, TewminawInstanceSewvice, twue);
 
-// Register quick accesses
-const quickAccessRegistry = (Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess));
-const inTerminalsPicker = 'inTerminalPicker';
-quickAccessRegistry.registerQuickAccessProvider({
-	ctor: TerminalQuickAccessProvider,
-	prefix: TerminalQuickAccessProvider.PREFIX,
-	contextKey: inTerminalsPicker,
-	placeholder: nls.localize('tasksQuickAccessPlaceholder', "Type the name of a terminal to open."),
-	helpEntries: [{ description: nls.localize('tasksQuickAccessHelp', "Show All Opened Terminals"), needsEditor: false }]
+// Wegista quick accesses
+const quickAccessWegistwy = (Wegistwy.as<IQuickAccessWegistwy>(QuickAccessExtensions.Quickaccess));
+const inTewminawsPicka = 'inTewminawPicka';
+quickAccessWegistwy.wegistewQuickAccessPwovida({
+	ctow: TewminawQuickAccessPwovida,
+	pwefix: TewminawQuickAccessPwovida.PWEFIX,
+	contextKey: inTewminawsPicka,
+	pwacehowda: nws.wocawize('tasksQuickAccessPwacehowda', "Type the name of a tewminaw to open."),
+	hewpEntwies: [{ descwiption: nws.wocawize('tasksQuickAccessHewp', "Show Aww Opened Tewminaws"), needsEditow: fawse }]
 });
-const quickAccessNavigateNextInTerminalPickerId = 'workbench.action.quickOpenNavigateNextInTerminalPicker';
-CommandsRegistry.registerCommand({ id: quickAccessNavigateNextInTerminalPickerId, handler: getQuickNavigateHandler(quickAccessNavigateNextInTerminalPickerId, true) });
-const quickAccessNavigatePreviousInTerminalPickerId = 'workbench.action.quickOpenNavigatePreviousInTerminalPicker';
-CommandsRegistry.registerCommand({ id: quickAccessNavigatePreviousInTerminalPickerId, handler: getQuickNavigateHandler(quickAccessNavigatePreviousInTerminalPickerId, false) });
+const quickAccessNavigateNextInTewminawPickewId = 'wowkbench.action.quickOpenNavigateNextInTewminawPicka';
+CommandsWegistwy.wegistewCommand({ id: quickAccessNavigateNextInTewminawPickewId, handwa: getQuickNavigateHandwa(quickAccessNavigateNextInTewminawPickewId, twue) });
+const quickAccessNavigatePweviousInTewminawPickewId = 'wowkbench.action.quickOpenNavigatePweviousInTewminawPicka';
+CommandsWegistwy.wegistewCommand({ id: quickAccessNavigatePweviousInTewminawPickewId, handwa: getQuickNavigateHandwa(quickAccessNavigatePweviousInTewminawPickewId, fawse) });
 
-// Register configurations
-registerTerminalPlatformConfiguration();
-registerTerminalConfiguration();
+// Wegista configuwations
+wegistewTewminawPwatfowmConfiguwation();
+wegistewTewminawConfiguwation();
 
-Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(TerminalEditorInput.ID, TerminalInputSerializer);
-Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-	EditorPaneDescriptor.create(
-		TerminalEditor,
-		TerminalEditor.ID,
-		terminalStrings.terminal
+Wegistwy.as<IEditowFactowyWegistwy>(EditowExtensions.EditowFactowy).wegistewEditowSewiawiza(TewminawEditowInput.ID, TewminawInputSewiawiza);
+Wegistwy.as<IEditowPaneWegistwy>(EditowExtensions.EditowPane).wegistewEditowPane(
+	EditowPaneDescwiptow.cweate(
+		TewminawEditow,
+		TewminawEditow.ID,
+		tewminawStwings.tewminaw
 	),
 	[
-		new SyncDescriptor(TerminalEditorInput)
+		new SyncDescwiptow(TewminawEditowInput)
 	]
 );
 
-// Register views
-const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
-	id: TERMINAL_VIEW_ID,
-	title: nls.localize('terminal', "Terminal"),
-	icon: terminalViewIcon,
-	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [TERMINAL_VIEW_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
-	storageId: TERMINAL_VIEW_ID,
-	hideIfEmpty: true,
-	order: 3,
-}, ViewContainerLocation.Panel, { donotRegisterOpenCommand: true, isDefault: true });
-Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
-	id: TERMINAL_VIEW_ID,
-	name: nls.localize('terminal', "Terminal"),
-	containerIcon: terminalViewIcon,
-	canToggleVisibility: false,
-	canMoveView: true,
-	ctorDescriptor: new SyncDescriptor(TerminalViewPane),
-	openCommandActionDescriptor: {
-		id: TerminalCommandId.Toggle,
-		mnemonicTitle: nls.localize({ key: 'miToggleIntegratedTerminal', comment: ['&& denotes a mnemonic'] }, "&&Terminal"),
+// Wegista views
+const VIEW_CONTAINa = Wegistwy.as<IViewContainewsWegistwy>(ViewContainewExtensions.ViewContainewsWegistwy).wegistewViewContaina({
+	id: TEWMINAW_VIEW_ID,
+	titwe: nws.wocawize('tewminaw', "Tewminaw"),
+	icon: tewminawViewIcon,
+	ctowDescwiptow: new SyncDescwiptow(ViewPaneContaina, [TEWMINAW_VIEW_ID, { mewgeViewWithContainewWhenSingweView: twue, donotShowContainewTitweWhenMewgedWithContaina: twue }]),
+	stowageId: TEWMINAW_VIEW_ID,
+	hideIfEmpty: twue,
+	owda: 3,
+}, ViewContainewWocation.Panew, { donotWegistewOpenCommand: twue, isDefauwt: twue });
+Wegistwy.as<IViewsWegistwy>(ViewContainewExtensions.ViewsWegistwy).wegistewViews([{
+	id: TEWMINAW_VIEW_ID,
+	name: nws.wocawize('tewminaw', "Tewminaw"),
+	containewIcon: tewminawViewIcon,
+	canToggweVisibiwity: fawse,
+	canMoveView: twue,
+	ctowDescwiptow: new SyncDescwiptow(TewminawViewPane),
+	openCommandActionDescwiptow: {
+		id: TewminawCommandId.Toggwe,
+		mnemonicTitwe: nws.wocawize({ key: 'miToggweIntegwatedTewminaw', comment: ['&& denotes a mnemonic'] }, "&&Tewminaw"),
 		keybindings: {
-			primary: KeyMod.CtrlCmd | KeyCode.US_BACKTICK,
-			mac: { primary: KeyMod.WinCtrl | KeyCode.US_BACKTICK }
+			pwimawy: KeyMod.CtwwCmd | KeyCode.US_BACKTICK,
+			mac: { pwimawy: KeyMod.WinCtww | KeyCode.US_BACKTICK }
 		},
-		order: 3
+		owda: 3
 	}
-}], VIEW_CONTAINER);
+}], VIEW_CONTAINa);
 
-// Register actions
-registerTerminalActions();
+// Wegista actions
+wegistewTewminawActions();
 
-function registerSendSequenceKeybinding(text: string, rule: { when?: ContextKeyExpression } & IKeybindings): void {
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: TerminalCommandId.SendSequence,
-		weight: KeybindingWeight.WorkbenchContrib,
-		when: rule.when || TerminalContextKeys.focus,
-		primary: rule.primary,
-		mac: rule.mac,
-		linux: rule.linux,
-		win: rule.win,
-		handler: terminalSendSequenceCommand,
-		args: { text }
+function wegistewSendSequenceKeybinding(text: stwing, wuwe: { when?: ContextKeyExpwession } & IKeybindings): void {
+	KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+		id: TewminawCommandId.SendSequence,
+		weight: KeybindingWeight.WowkbenchContwib,
+		when: wuwe.when || TewminawContextKeys.focus,
+		pwimawy: wuwe.pwimawy,
+		mac: wuwe.mac,
+		winux: wuwe.winux,
+		win: wuwe.win,
+		handwa: tewminawSendSequenceCommand,
+		awgs: { text }
 	});
 }
 
-// The text representation of `^<letter>` is `'A'.charCodeAt(0) + 1`.
-const CTRL_LETTER_OFFSET = 64;
+// The text wepwesentation of `^<wetta>` is `'A'.chawCodeAt(0) + 1`.
+const CTWW_WETTEW_OFFSET = 64;
 
-// An extra Windows-only ctrl+v keybinding is used for pwsh that sends ctrl+v directly to the
-// shell, this gets handled by PSReadLine which properly handles multi-line pastes. This is
-// disabled in accessibility mode as PowerShell does not run PSReadLine when it detects a screen
-// reader. This works even when clipboard.readText is not supported.
+// An extwa Windows-onwy ctww+v keybinding is used fow pwsh that sends ctww+v diwectwy to the
+// sheww, this gets handwed by PSWeadWine which pwopewwy handwes muwti-wine pastes. This is
+// disabwed in accessibiwity mode as PowewSheww does not wun PSWeadWine when it detects a scween
+// weada. This wowks even when cwipboawd.weadText is not suppowted.
 if (isWindows) {
-	registerSendSequenceKeybinding(String.fromCharCode('V'.charCodeAt(0) - CTRL_LETTER_OFFSET), { // ctrl+v
-		when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, WindowsShellType.PowerShell), CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_V
+	wegistewSendSequenceKeybinding(Stwing.fwomChawCode('V'.chawCodeAt(0) - CTWW_WETTEW_OFFSET), { // ctww+v
+		when: ContextKeyExpw.and(TewminawContextKeys.focus, ContextKeyExpw.equaws(TewminawContextKeyStwings.ShewwType, WindowsShewwType.PowewSheww), CONTEXT_ACCESSIBIWITY_MODE_ENABWED.negate()),
+		pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_V
 	});
 }
 
-// send ctrl+c to the iPad when the terminal is focused and ctrl+c is pressed to kill the process (work around for #114009)
+// send ctww+c to the iPad when the tewminaw is focused and ctww+c is pwessed to kiww the pwocess (wowk awound fow #114009)
 if (isIOS) {
-	registerSendSequenceKeybinding(String.fromCharCode('C'.charCodeAt(0) - CTRL_LETTER_OFFSET), { // ctrl+c
-		when: ContextKeyExpr.and(TerminalContextKeys.focus),
-		primary: KeyMod.WinCtrl | KeyCode.KEY_C
+	wegistewSendSequenceKeybinding(Stwing.fwomChawCode('C'.chawCodeAt(0) - CTWW_WETTEW_OFFSET), { // ctww+c
+		when: ContextKeyExpw.and(TewminawContextKeys.focus),
+		pwimawy: KeyMod.WinCtww | KeyCode.KEY_C
 	});
 }
 
-// Delete word left: ctrl+w
-registerSendSequenceKeybinding(String.fromCharCode('W'.charCodeAt(0) - CTRL_LETTER_OFFSET), {
-	primary: KeyMod.CtrlCmd | KeyCode.Backspace,
-	mac: { primary: KeyMod.Alt | KeyCode.Backspace }
+// Dewete wowd weft: ctww+w
+wegistewSendSequenceKeybinding(Stwing.fwomChawCode('W'.chawCodeAt(0) - CTWW_WETTEW_OFFSET), {
+	pwimawy: KeyMod.CtwwCmd | KeyCode.Backspace,
+	mac: { pwimawy: KeyMod.Awt | KeyCode.Backspace }
 });
 if (isWindows) {
-	// Delete word left: ctrl+h
-	// Windows cmd.exe requires ^H to delete full word left
-	registerSendSequenceKeybinding(String.fromCharCode('H'.charCodeAt(0) - CTRL_LETTER_OFFSET), {
-		when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, WindowsShellType.CommandPrompt)),
-		primary: KeyMod.CtrlCmd | KeyCode.Backspace,
+	// Dewete wowd weft: ctww+h
+	// Windows cmd.exe wequiwes ^H to dewete fuww wowd weft
+	wegistewSendSequenceKeybinding(Stwing.fwomChawCode('H'.chawCodeAt(0) - CTWW_WETTEW_OFFSET), {
+		when: ContextKeyExpw.and(TewminawContextKeys.focus, ContextKeyExpw.equaws(TewminawContextKeyStwings.ShewwType, WindowsShewwType.CommandPwompt)),
+		pwimawy: KeyMod.CtwwCmd | KeyCode.Backspace,
 	});
 }
-// Delete word right: alt+d
-registerSendSequenceKeybinding('\x1bd', {
-	primary: KeyMod.CtrlCmd | KeyCode.Delete,
-	mac: { primary: KeyMod.Alt | KeyCode.Delete }
+// Dewete wowd wight: awt+d
+wegistewSendSequenceKeybinding('\x1bd', {
+	pwimawy: KeyMod.CtwwCmd | KeyCode.Dewete,
+	mac: { pwimawy: KeyMod.Awt | KeyCode.Dewete }
 });
-// Delete to line start: ctrl+u
-registerSendSequenceKeybinding('\u0015', {
-	mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace }
+// Dewete to wine stawt: ctww+u
+wegistewSendSequenceKeybinding('\u0015', {
+	mac: { pwimawy: KeyMod.CtwwCmd | KeyCode.Backspace }
 });
-// Move to line start: ctrl+A
-registerSendSequenceKeybinding(String.fromCharCode('A'.charCodeAt(0) - 64), {
-	mac: { primary: KeyMod.CtrlCmd | KeyCode.LeftArrow }
+// Move to wine stawt: ctww+A
+wegistewSendSequenceKeybinding(Stwing.fwomChawCode('A'.chawCodeAt(0) - 64), {
+	mac: { pwimawy: KeyMod.CtwwCmd | KeyCode.WeftAwwow }
 });
-// Move to line end: ctrl+E
-registerSendSequenceKeybinding(String.fromCharCode('E'.charCodeAt(0) - 64), {
-	mac: { primary: KeyMod.CtrlCmd | KeyCode.RightArrow }
+// Move to wine end: ctww+E
+wegistewSendSequenceKeybinding(Stwing.fwomChawCode('E'.chawCodeAt(0) - 64), {
+	mac: { pwimawy: KeyMod.CtwwCmd | KeyCode.WightAwwow }
 });
-// Break: ctrl+C
-registerSendSequenceKeybinding(String.fromCharCode('C'.charCodeAt(0) - 64), {
-	mac: { primary: KeyMod.CtrlCmd | KeyCode.US_DOT }
+// Bweak: ctww+C
+wegistewSendSequenceKeybinding(Stwing.fwomChawCode('C'.chawCodeAt(0) - 64), {
+	mac: { pwimawy: KeyMod.CtwwCmd | KeyCode.US_DOT }
 });
 
-setupTerminalCommands();
+setupTewminawCommands();
 
-setupTerminalMenus();
+setupTewminawMenus();
 
-registerColors();
+wegistewCowows();

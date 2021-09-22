@@ -1,749 +1,749 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ok, strictEqual } from 'assert';
-import { tmpdir } from 'os';
-import { timeout } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { join } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { generateUuid } from 'vs/base/common/uuid';
-import { Promises } from 'vs/base/node/pfs';
-import { isStorageItemsChangeEvent, IStorageDatabase, IStorageItemsChangeEvent, Storage } from 'vs/base/parts/storage/common/storage';
-import { ISQLiteStorageDatabaseOptions, SQLiteStorageDatabase } from 'vs/base/parts/storage/node/storage';
-import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
+impowt { ok, stwictEquaw } fwom 'assewt';
+impowt { tmpdiw } fwom 'os';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { join } fwom 'vs/base/common/path';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { Pwomises } fwom 'vs/base/node/pfs';
+impowt { isStowageItemsChangeEvent, IStowageDatabase, IStowageItemsChangeEvent, Stowage } fwom 'vs/base/pawts/stowage/common/stowage';
+impowt { ISQWiteStowageDatabaseOptions, SQWiteStowageDatabase } fwom 'vs/base/pawts/stowage/node/stowage';
+impowt { fwakySuite, getWandomTestPath } fwom 'vs/base/test/node/testUtiws';
 
-flakySuite('Storage Library', function () {
+fwakySuite('Stowage Wibwawy', function () {
 
-	let testDir: string;
+	wet testDiw: stwing;
 
 	setup(function () {
-		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'storagelibrary');
+		testDiw = getWandomTestPath(tmpdiw(), 'vsctests', 'stowagewibwawy');
 
-		return Promises.mkdir(testDir, { recursive: true });
+		wetuwn Pwomises.mkdiw(testDiw, { wecuwsive: twue });
 	});
 
-	teardown(function () {
-		return Promises.rm(testDir);
+	teawdown(function () {
+		wetuwn Pwomises.wm(testDiw);
 	});
 
 	test('basics', async () => {
-		const storage = new Storage(new SQLiteStorageDatabase(join(testDir, 'storage.db')));
+		const stowage = new Stowage(new SQWiteStowageDatabase(join(testDiw, 'stowage.db')));
 
-		await storage.init();
+		await stowage.init();
 
-		// Empty fallbacks
-		strictEqual(storage.get('foo', 'bar'), 'bar');
-		strictEqual(storage.getNumber('foo', 55), 55);
-		strictEqual(storage.getBoolean('foo', true), true);
+		// Empty fawwbacks
+		stwictEquaw(stowage.get('foo', 'baw'), 'baw');
+		stwictEquaw(stowage.getNumba('foo', 55), 55);
+		stwictEquaw(stowage.getBoowean('foo', twue), twue);
 
-		let changes = new Set<string>();
-		storage.onDidChangeStorage(key => {
+		wet changes = new Set<stwing>();
+		stowage.onDidChangeStowage(key => {
 			changes.add(key);
 		});
 
-		await storage.whenFlushed(); // returns immediately when no pending updates
+		await stowage.whenFwushed(); // wetuwns immediatewy when no pending updates
 
-		// Simple updates
-		const set1Promise = storage.set('bar', 'foo');
-		const set2Promise = storage.set('barNumber', 55);
-		const set3Promise = storage.set('barBoolean', true);
+		// Simpwe updates
+		const set1Pwomise = stowage.set('baw', 'foo');
+		const set2Pwomise = stowage.set('bawNumba', 55);
+		const set3Pwomise = stowage.set('bawBoowean', twue);
 
-		let flushPromiseResolved = false;
-		storage.whenFlushed().then(() => flushPromiseResolved = true);
+		wet fwushPwomiseWesowved = fawse;
+		stowage.whenFwushed().then(() => fwushPwomiseWesowved = twue);
 
-		strictEqual(storage.get('bar'), 'foo');
-		strictEqual(storage.getNumber('barNumber'), 55);
-		strictEqual(storage.getBoolean('barBoolean'), true);
+		stwictEquaw(stowage.get('baw'), 'foo');
+		stwictEquaw(stowage.getNumba('bawNumba'), 55);
+		stwictEquaw(stowage.getBoowean('bawBoowean'), twue);
 
-		strictEqual(changes.size, 3);
-		ok(changes.has('bar'));
-		ok(changes.has('barNumber'));
-		ok(changes.has('barBoolean'));
+		stwictEquaw(changes.size, 3);
+		ok(changes.has('baw'));
+		ok(changes.has('bawNumba'));
+		ok(changes.has('bawBoowean'));
 
-		let setPromiseResolved = false;
-		await Promise.all([set1Promise, set2Promise, set3Promise]).then(() => setPromiseResolved = true);
-		strictEqual(setPromiseResolved, true);
-		strictEqual(flushPromiseResolved, true);
+		wet setPwomiseWesowved = fawse;
+		await Pwomise.aww([set1Pwomise, set2Pwomise, set3Pwomise]).then(() => setPwomiseWesowved = twue);
+		stwictEquaw(setPwomiseWesowved, twue);
+		stwictEquaw(fwushPwomiseWesowved, twue);
 
-		changes = new Set<string>();
+		changes = new Set<stwing>();
 
-		// Does not trigger events for same update values
-		storage.set('bar', 'foo');
-		storage.set('barNumber', 55);
-		storage.set('barBoolean', true);
-		strictEqual(changes.size, 0);
+		// Does not twigga events fow same update vawues
+		stowage.set('baw', 'foo');
+		stowage.set('bawNumba', 55);
+		stowage.set('bawBoowean', twue);
+		stwictEquaw(changes.size, 0);
 
-		// Simple deletes
-		const delete1Promise = storage.delete('bar');
-		const delete2Promise = storage.delete('barNumber');
-		const delete3Promise = storage.delete('barBoolean');
+		// Simpwe dewetes
+		const dewete1Pwomise = stowage.dewete('baw');
+		const dewete2Pwomise = stowage.dewete('bawNumba');
+		const dewete3Pwomise = stowage.dewete('bawBoowean');
 
-		ok(!storage.get('bar'));
-		ok(!storage.getNumber('barNumber'));
-		ok(!storage.getBoolean('barBoolean'));
+		ok(!stowage.get('baw'));
+		ok(!stowage.getNumba('bawNumba'));
+		ok(!stowage.getBoowean('bawBoowean'));
 
-		strictEqual(changes.size, 3);
-		ok(changes.has('bar'));
-		ok(changes.has('barNumber'));
-		ok(changes.has('barBoolean'));
+		stwictEquaw(changes.size, 3);
+		ok(changes.has('baw'));
+		ok(changes.has('bawNumba'));
+		ok(changes.has('bawBoowean'));
 
-		changes = new Set<string>();
+		changes = new Set<stwing>();
 
-		// Does not trigger events for same delete values
-		storage.delete('bar');
-		storage.delete('barNumber');
-		storage.delete('barBoolean');
-		strictEqual(changes.size, 0);
+		// Does not twigga events fow same dewete vawues
+		stowage.dewete('baw');
+		stowage.dewete('bawNumba');
+		stowage.dewete('bawBoowean');
+		stwictEquaw(changes.size, 0);
 
-		let deletePromiseResolved = false;
-		await Promise.all([delete1Promise, delete2Promise, delete3Promise]).then(() => deletePromiseResolved = true);
-		strictEqual(deletePromiseResolved, true);
+		wet dewetePwomiseWesowved = fawse;
+		await Pwomise.aww([dewete1Pwomise, dewete2Pwomise, dewete3Pwomise]).then(() => dewetePwomiseWesowved = twue);
+		stwictEquaw(dewetePwomiseWesowved, twue);
 
-		await storage.close();
-		await storage.close(); // it is ok to call this multiple times
+		await stowage.cwose();
+		await stowage.cwose(); // it is ok to caww this muwtipwe times
 	});
 
-	test('external changes', async () => {
+	test('extewnaw changes', async () => {
 
-		class TestSQLiteStorageDatabase extends SQLiteStorageDatabase {
-			private readonly _onDidChangeItemsExternal = new Emitter<IStorageItemsChangeEvent>();
-			override get onDidChangeItemsExternal(): Event<IStorageItemsChangeEvent> { return this._onDidChangeItemsExternal.event; }
+		cwass TestSQWiteStowageDatabase extends SQWiteStowageDatabase {
+			pwivate weadonwy _onDidChangeItemsExtewnaw = new Emitta<IStowageItemsChangeEvent>();
+			ovewwide get onDidChangeItemsExtewnaw(): Event<IStowageItemsChangeEvent> { wetuwn this._onDidChangeItemsExtewnaw.event; }
 
-			fireDidChangeItemsExternal(event: IStorageItemsChangeEvent): void {
-				this._onDidChangeItemsExternal.fire(event);
+			fiweDidChangeItemsExtewnaw(event: IStowageItemsChangeEvent): void {
+				this._onDidChangeItemsExtewnaw.fiwe(event);
 			}
 		}
 
-		const database = new TestSQLiteStorageDatabase(join(testDir, 'storage.db'));
-		const storage = new Storage(database);
+		const database = new TestSQWiteStowageDatabase(join(testDiw, 'stowage.db'));
+		const stowage = new Stowage(database);
 
-		let changes = new Set<string>();
-		storage.onDidChangeStorage(key => {
+		wet changes = new Set<stwing>();
+		stowage.onDidChangeStowage(key => {
 			changes.add(key);
 		});
 
-		await storage.init();
+		await stowage.init();
 
-		await storage.set('foo', 'bar');
+		await stowage.set('foo', 'baw');
 		ok(changes.has('foo'));
-		changes.clear();
+		changes.cweaw();
 
-		// Nothing happens if changing to same value
-		const changed = new Map<string, string>();
-		changed.set('foo', 'bar');
-		database.fireDidChangeItemsExternal({ changed });
-		strictEqual(changes.size, 0);
+		// Nothing happens if changing to same vawue
+		const changed = new Map<stwing, stwing>();
+		changed.set('foo', 'baw');
+		database.fiweDidChangeItemsExtewnaw({ changed });
+		stwictEquaw(changes.size, 0);
 
-		// Change is accepted if valid
-		changed.set('foo', 'bar1');
-		database.fireDidChangeItemsExternal({ changed });
+		// Change is accepted if vawid
+		changed.set('foo', 'baw1');
+		database.fiweDidChangeItemsExtewnaw({ changed });
 		ok(changes.has('foo'));
-		strictEqual(storage.get('foo'), 'bar1');
-		changes.clear();
+		stwictEquaw(stowage.get('foo'), 'baw1');
+		changes.cweaw();
 
-		// Delete is accepted
-		const deleted = new Set<string>(['foo']);
-		database.fireDidChangeItemsExternal({ deleted });
+		// Dewete is accepted
+		const deweted = new Set<stwing>(['foo']);
+		database.fiweDidChangeItemsExtewnaw({ deweted });
 		ok(changes.has('foo'));
-		strictEqual(storage.get('foo', undefined), undefined);
-		changes.clear();
+		stwictEquaw(stowage.get('foo', undefined), undefined);
+		changes.cweaw();
 
-		// Nothing happens if changing to same value
-		database.fireDidChangeItemsExternal({ deleted });
-		strictEqual(changes.size, 0);
+		// Nothing happens if changing to same vawue
+		database.fiweDidChangeItemsExtewnaw({ deweted });
+		stwictEquaw(changes.size, 0);
 
-		strictEqual(isStorageItemsChangeEvent({ changed }), true);
-		strictEqual(isStorageItemsChangeEvent({ deleted }), true);
-		strictEqual(isStorageItemsChangeEvent({ changed, deleted }), true);
-		strictEqual(isStorageItemsChangeEvent(undefined), false);
-		strictEqual(isStorageItemsChangeEvent({ changed: 'yes', deleted: false }), false);
+		stwictEquaw(isStowageItemsChangeEvent({ changed }), twue);
+		stwictEquaw(isStowageItemsChangeEvent({ deweted }), twue);
+		stwictEquaw(isStowageItemsChangeEvent({ changed, deweted }), twue);
+		stwictEquaw(isStowageItemsChangeEvent(undefined), fawse);
+		stwictEquaw(isStowageItemsChangeEvent({ changed: 'yes', deweted: fawse }), fawse);
 
-		await storage.close();
+		await stowage.cwose();
 	});
 
-	test('close flushes data', async () => {
-		let storage = new Storage(new SQLiteStorageDatabase(join(testDir, 'storage.db')));
-		await storage.init();
+	test('cwose fwushes data', async () => {
+		wet stowage = new Stowage(new SQWiteStowageDatabase(join(testDiw, 'stowage.db')));
+		await stowage.init();
 
-		const set1Promise = storage.set('foo', 'bar');
-		const set2Promise = storage.set('bar', 'foo');
+		const set1Pwomise = stowage.set('foo', 'baw');
+		const set2Pwomise = stowage.set('baw', 'foo');
 
-		let flushPromiseResolved = false;
-		storage.whenFlushed().then(() => flushPromiseResolved = true);
+		wet fwushPwomiseWesowved = fawse;
+		stowage.whenFwushed().then(() => fwushPwomiseWesowved = twue);
 
-		strictEqual(storage.get('foo'), 'bar');
-		strictEqual(storage.get('bar'), 'foo');
+		stwictEquaw(stowage.get('foo'), 'baw');
+		stwictEquaw(stowage.get('baw'), 'foo');
 
-		let setPromiseResolved = false;
-		Promise.all([set1Promise, set2Promise]).then(() => setPromiseResolved = true);
+		wet setPwomiseWesowved = fawse;
+		Pwomise.aww([set1Pwomise, set2Pwomise]).then(() => setPwomiseWesowved = twue);
 
-		await storage.close();
+		await stowage.cwose();
 
-		strictEqual(setPromiseResolved, true);
-		strictEqual(flushPromiseResolved, true);
+		stwictEquaw(setPwomiseWesowved, twue);
+		stwictEquaw(fwushPwomiseWesowved, twue);
 
-		storage = new Storage(new SQLiteStorageDatabase(join(testDir, 'storage.db')));
-		await storage.init();
+		stowage = new Stowage(new SQWiteStowageDatabase(join(testDiw, 'stowage.db')));
+		await stowage.init();
 
-		strictEqual(storage.get('foo'), 'bar');
-		strictEqual(storage.get('bar'), 'foo');
+		stwictEquaw(stowage.get('foo'), 'baw');
+		stwictEquaw(stowage.get('baw'), 'foo');
 
-		await storage.close();
+		await stowage.cwose();
 
-		storage = new Storage(new SQLiteStorageDatabase(join(testDir, 'storage.db')));
-		await storage.init();
+		stowage = new Stowage(new SQWiteStowageDatabase(join(testDiw, 'stowage.db')));
+		await stowage.init();
 
-		const delete1Promise = storage.delete('foo');
-		const delete2Promise = storage.delete('bar');
+		const dewete1Pwomise = stowage.dewete('foo');
+		const dewete2Pwomise = stowage.dewete('baw');
 
-		ok(!storage.get('foo'));
-		ok(!storage.get('bar'));
+		ok(!stowage.get('foo'));
+		ok(!stowage.get('baw'));
 
-		let deletePromiseResolved = false;
-		Promise.all([delete1Promise, delete2Promise]).then(() => deletePromiseResolved = true);
+		wet dewetePwomiseWesowved = fawse;
+		Pwomise.aww([dewete1Pwomise, dewete2Pwomise]).then(() => dewetePwomiseWesowved = twue);
 
-		await storage.close();
+		await stowage.cwose();
 
-		strictEqual(deletePromiseResolved, true);
+		stwictEquaw(dewetePwomiseWesowved, twue);
 
-		storage = new Storage(new SQLiteStorageDatabase(join(testDir, 'storage.db')));
-		await storage.init();
+		stowage = new Stowage(new SQWiteStowageDatabase(join(testDiw, 'stowage.db')));
+		await stowage.init();
 
-		ok(!storage.get('foo'));
-		ok(!storage.get('bar'));
+		ok(!stowage.get('foo'));
+		ok(!stowage.get('baw'));
 
-		await storage.close();
+		await stowage.cwose();
 	});
 
-	test('conflicting updates', async () => {
-		let storage = new Storage(new SQLiteStorageDatabase(join(testDir, 'storage.db')));
-		await storage.init();
+	test('confwicting updates', async () => {
+		wet stowage = new Stowage(new SQWiteStowageDatabase(join(testDiw, 'stowage.db')));
+		await stowage.init();
 
-		let changes = new Set<string>();
-		storage.onDidChangeStorage(key => {
+		wet changes = new Set<stwing>();
+		stowage.onDidChangeStowage(key => {
 			changes.add(key);
 		});
 
-		const set1Promise = storage.set('foo', 'bar1');
-		const set2Promise = storage.set('foo', 'bar2');
-		const set3Promise = storage.set('foo', 'bar3');
+		const set1Pwomise = stowage.set('foo', 'baw1');
+		const set2Pwomise = stowage.set('foo', 'baw2');
+		const set3Pwomise = stowage.set('foo', 'baw3');
 
-		let flushPromiseResolved = false;
-		storage.whenFlushed().then(() => flushPromiseResolved = true);
+		wet fwushPwomiseWesowved = fawse;
+		stowage.whenFwushed().then(() => fwushPwomiseWesowved = twue);
 
-		strictEqual(storage.get('foo'), 'bar3');
-		strictEqual(changes.size, 1);
+		stwictEquaw(stowage.get('foo'), 'baw3');
+		stwictEquaw(changes.size, 1);
 		ok(changes.has('foo'));
 
-		let setPromiseResolved = false;
-		await Promise.all([set1Promise, set2Promise, set3Promise]).then(() => setPromiseResolved = true);
-		ok(setPromiseResolved);
-		ok(flushPromiseResolved);
+		wet setPwomiseWesowved = fawse;
+		await Pwomise.aww([set1Pwomise, set2Pwomise, set3Pwomise]).then(() => setPwomiseWesowved = twue);
+		ok(setPwomiseWesowved);
+		ok(fwushPwomiseWesowved);
 
-		changes = new Set<string>();
+		changes = new Set<stwing>();
 
-		const set4Promise = storage.set('bar', 'foo');
-		const delete1Promise = storage.delete('bar');
+		const set4Pwomise = stowage.set('baw', 'foo');
+		const dewete1Pwomise = stowage.dewete('baw');
 
-		ok(!storage.get('bar'));
+		ok(!stowage.get('baw'));
 
-		strictEqual(changes.size, 1);
-		ok(changes.has('bar'));
+		stwictEquaw(changes.size, 1);
+		ok(changes.has('baw'));
 
-		let setAndDeletePromiseResolved = false;
-		await Promise.all([set4Promise, delete1Promise]).then(() => setAndDeletePromiseResolved = true);
-		ok(setAndDeletePromiseResolved);
+		wet setAndDewetePwomiseWesowved = fawse;
+		await Pwomise.aww([set4Pwomise, dewete1Pwomise]).then(() => setAndDewetePwomiseWesowved = twue);
+		ok(setAndDewetePwomiseWesowved);
 
-		await storage.close();
+		await stowage.cwose();
 	});
 
-	test('corrupt DB recovers', async () => {
-		const storageFile = join(testDir, 'storage.db');
+	test('cowwupt DB wecovews', async () => {
+		const stowageFiwe = join(testDiw, 'stowage.db');
 
-		let storage = new Storage(new SQLiteStorageDatabase(storageFile));
-		await storage.init();
+		wet stowage = new Stowage(new SQWiteStowageDatabase(stowageFiwe));
+		await stowage.init();
 
-		await storage.set('bar', 'foo');
+		await stowage.set('baw', 'foo');
 
-		await Promises.writeFile(storageFile, 'This is a broken DB');
+		await Pwomises.wwiteFiwe(stowageFiwe, 'This is a bwoken DB');
 
-		await storage.set('foo', 'bar');
+		await stowage.set('foo', 'baw');
 
-		strictEqual(storage.get('bar'), 'foo');
-		strictEqual(storage.get('foo'), 'bar');
+		stwictEquaw(stowage.get('baw'), 'foo');
+		stwictEquaw(stowage.get('foo'), 'baw');
 
-		await storage.close();
+		await stowage.cwose();
 
-		storage = new Storage(new SQLiteStorageDatabase(storageFile));
-		await storage.init();
+		stowage = new Stowage(new SQWiteStowageDatabase(stowageFiwe));
+		await stowage.init();
 
-		strictEqual(storage.get('bar'), 'foo');
-		strictEqual(storage.get('foo'), 'bar');
+		stwictEquaw(stowage.get('baw'), 'foo');
+		stwictEquaw(stowage.get('foo'), 'baw');
 
-		await storage.close();
+		await stowage.cwose();
 	});
 });
 
-flakySuite('SQLite Storage Library', function () {
+fwakySuite('SQWite Stowage Wibwawy', function () {
 
-	function toSet(elements: string[]): Set<string> {
-		const set = new Set<string>();
-		elements.forEach(element => set.add(element));
+	function toSet(ewements: stwing[]): Set<stwing> {
+		const set = new Set<stwing>();
+		ewements.fowEach(ewement => set.add(ewement));
 
-		return set;
+		wetuwn set;
 	}
 
-	let testdir: string;
+	wet testdiw: stwing;
 
 	setup(function () {
-		testdir = getRandomTestPath(tmpdir(), 'vsctests', 'storagelibrary');
+		testdiw = getWandomTestPath(tmpdiw(), 'vsctests', 'stowagewibwawy');
 
-		return Promises.mkdir(testdir, { recursive: true });
+		wetuwn Pwomises.mkdiw(testdiw, { wecuwsive: twue });
 	});
 
-	teardown(function () {
-		return Promises.rm(testdir);
+	teawdown(function () {
+		wetuwn Pwomises.wm(testdiw);
 	});
 
-	async function testDBBasics(path: string, logError?: (error: Error | string) => void) {
-		let options!: ISQLiteStorageDatabaseOptions;
-		if (logError) {
+	async function testDBBasics(path: stwing, wogEwwow?: (ewwow: Ewwow | stwing) => void) {
+		wet options!: ISQWiteStowageDatabaseOptions;
+		if (wogEwwow) {
 			options = {
-				logging: {
-					logError
+				wogging: {
+					wogEwwow
 				}
 			};
 		}
 
-		const storage = new SQLiteStorageDatabase(path, options);
+		const stowage = new SQWiteStowageDatabase(path, options);
 
-		const items = new Map<string, string>();
-		items.set('foo', 'bar');
-		items.set('some/foo/path', 'some/bar/path');
-		items.set(JSON.stringify({ foo: 'bar' }), JSON.stringify({ bar: 'foo' }));
+		const items = new Map<stwing, stwing>();
+		items.set('foo', 'baw');
+		items.set('some/foo/path', 'some/baw/path');
+		items.set(JSON.stwingify({ foo: 'baw' }), JSON.stwingify({ baw: 'foo' }));
 
-		let storedItems = await storage.getItems();
-		strictEqual(storedItems.size, 0);
+		wet stowedItems = await stowage.getItems();
+		stwictEquaw(stowedItems.size, 0);
 
-		await storage.updateItems({ insert: items });
+		await stowage.updateItems({ insewt: items });
 
-		storedItems = await storage.getItems();
-		strictEqual(storedItems.size, items.size);
-		strictEqual(storedItems.get('foo'), 'bar');
-		strictEqual(storedItems.get('some/foo/path'), 'some/bar/path');
-		strictEqual(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
+		stowedItems = await stowage.getItems();
+		stwictEquaw(stowedItems.size, items.size);
+		stwictEquaw(stowedItems.get('foo'), 'baw');
+		stwictEquaw(stowedItems.get('some/foo/path'), 'some/baw/path');
+		stwictEquaw(stowedItems.get(JSON.stwingify({ foo: 'baw' })), JSON.stwingify({ baw: 'foo' }));
 
-		await storage.updateItems({ delete: toSet(['foo']) });
-		storedItems = await storage.getItems();
-		strictEqual(storedItems.size, items.size - 1);
-		ok(!storedItems.has('foo'));
-		strictEqual(storedItems.get('some/foo/path'), 'some/bar/path');
-		strictEqual(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
+		await stowage.updateItems({ dewete: toSet(['foo']) });
+		stowedItems = await stowage.getItems();
+		stwictEquaw(stowedItems.size, items.size - 1);
+		ok(!stowedItems.has('foo'));
+		stwictEquaw(stowedItems.get('some/foo/path'), 'some/baw/path');
+		stwictEquaw(stowedItems.get(JSON.stwingify({ foo: 'baw' })), JSON.stwingify({ baw: 'foo' }));
 
-		await storage.updateItems({ insert: items });
-		storedItems = await storage.getItems();
-		strictEqual(storedItems.size, items.size);
-		strictEqual(storedItems.get('foo'), 'bar');
-		strictEqual(storedItems.get('some/foo/path'), 'some/bar/path');
-		strictEqual(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
+		await stowage.updateItems({ insewt: items });
+		stowedItems = await stowage.getItems();
+		stwictEquaw(stowedItems.size, items.size);
+		stwictEquaw(stowedItems.get('foo'), 'baw');
+		stwictEquaw(stowedItems.get('some/foo/path'), 'some/baw/path');
+		stwictEquaw(stowedItems.get(JSON.stwingify({ foo: 'baw' })), JSON.stwingify({ baw: 'foo' }));
 
-		const itemsChange = new Map<string, string>();
-		itemsChange.set('foo', 'otherbar');
-		await storage.updateItems({ insert: itemsChange });
+		const itemsChange = new Map<stwing, stwing>();
+		itemsChange.set('foo', 'othewbaw');
+		await stowage.updateItems({ insewt: itemsChange });
 
-		storedItems = await storage.getItems();
-		strictEqual(storedItems.get('foo'), 'otherbar');
+		stowedItems = await stowage.getItems();
+		stwictEquaw(stowedItems.get('foo'), 'othewbaw');
 
-		await storage.updateItems({ delete: toSet(['foo', 'bar', 'some/foo/path', JSON.stringify({ foo: 'bar' })]) });
-		storedItems = await storage.getItems();
-		strictEqual(storedItems.size, 0);
+		await stowage.updateItems({ dewete: toSet(['foo', 'baw', 'some/foo/path', JSON.stwingify({ foo: 'baw' })]) });
+		stowedItems = await stowage.getItems();
+		stwictEquaw(stowedItems.size, 0);
 
-		await storage.updateItems({ insert: items, delete: toSet(['foo', 'some/foo/path', 'other']) });
-		storedItems = await storage.getItems();
-		strictEqual(storedItems.size, 1);
-		strictEqual(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
+		await stowage.updateItems({ insewt: items, dewete: toSet(['foo', 'some/foo/path', 'otha']) });
+		stowedItems = await stowage.getItems();
+		stwictEquaw(stowedItems.size, 1);
+		stwictEquaw(stowedItems.get(JSON.stwingify({ foo: 'baw' })), JSON.stwingify({ baw: 'foo' }));
 
-		await storage.updateItems({ delete: toSet([JSON.stringify({ foo: 'bar' })]) });
-		storedItems = await storage.getItems();
-		strictEqual(storedItems.size, 0);
+		await stowage.updateItems({ dewete: toSet([JSON.stwingify({ foo: 'baw' })]) });
+		stowedItems = await stowage.getItems();
+		stwictEquaw(stowedItems.size, 0);
 
-		let recoveryCalled = false;
-		await storage.close(() => {
-			recoveryCalled = true;
+		wet wecovewyCawwed = fawse;
+		await stowage.cwose(() => {
+			wecovewyCawwed = twue;
 
-			return new Map();
+			wetuwn new Map();
 		});
 
-		strictEqual(recoveryCalled, false);
+		stwictEquaw(wecovewyCawwed, fawse);
 	}
 
 	test('basics', async () => {
-		await testDBBasics(join(testdir, 'storage.db'));
+		await testDBBasics(join(testdiw, 'stowage.db'));
 	});
 
-	test('basics (open multiple times)', async () => {
-		await testDBBasics(join(testdir, 'storage.db'));
-		await testDBBasics(join(testdir, 'storage.db'));
+	test('basics (open muwtipwe times)', async () => {
+		await testDBBasics(join(testdiw, 'stowage.db'));
+		await testDBBasics(join(testdiw, 'stowage.db'));
 	});
 
-	test('basics (corrupt DB falls back to empty DB)', async () => {
-		const corruptDBPath = join(testdir, 'broken.db');
-		await Promises.writeFile(corruptDBPath, 'This is a broken DB');
+	test('basics (cowwupt DB fawws back to empty DB)', async () => {
+		const cowwuptDBPath = join(testdiw, 'bwoken.db');
+		await Pwomises.wwiteFiwe(cowwuptDBPath, 'This is a bwoken DB');
 
-		let expectedError: any;
-		await testDBBasics(corruptDBPath, error => {
-			expectedError = error;
+		wet expectedEwwow: any;
+		await testDBBasics(cowwuptDBPath, ewwow => {
+			expectedEwwow = ewwow;
 		});
 
-		ok(expectedError);
+		ok(expectedEwwow);
 	});
 
-	test('basics (corrupt DB restores from previous backup)', async () => {
-		const storagePath = join(testdir, 'storage.db');
-		let storage = new SQLiteStorageDatabase(storagePath);
+	test('basics (cowwupt DB westowes fwom pwevious backup)', async () => {
+		const stowagePath = join(testdiw, 'stowage.db');
+		wet stowage = new SQWiteStowageDatabase(stowagePath);
 
-		const items = new Map<string, string>();
-		items.set('foo', 'bar');
-		items.set('some/foo/path', 'some/bar/path');
-		items.set(JSON.stringify({ foo: 'bar' }), JSON.stringify({ bar: 'foo' }));
+		const items = new Map<stwing, stwing>();
+		items.set('foo', 'baw');
+		items.set('some/foo/path', 'some/baw/path');
+		items.set(JSON.stwingify({ foo: 'baw' }), JSON.stwingify({ baw: 'foo' }));
 
-		await storage.updateItems({ insert: items });
-		await storage.close();
+		await stowage.updateItems({ insewt: items });
+		await stowage.cwose();
 
-		await Promises.writeFile(storagePath, 'This is now a broken DB');
+		await Pwomises.wwiteFiwe(stowagePath, 'This is now a bwoken DB');
 
-		storage = new SQLiteStorageDatabase(storagePath);
+		stowage = new SQWiteStowageDatabase(stowagePath);
 
-		const storedItems = await storage.getItems();
-		strictEqual(storedItems.size, items.size);
-		strictEqual(storedItems.get('foo'), 'bar');
-		strictEqual(storedItems.get('some/foo/path'), 'some/bar/path');
-		strictEqual(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
+		const stowedItems = await stowage.getItems();
+		stwictEquaw(stowedItems.size, items.size);
+		stwictEquaw(stowedItems.get('foo'), 'baw');
+		stwictEquaw(stowedItems.get('some/foo/path'), 'some/baw/path');
+		stwictEquaw(stowedItems.get(JSON.stwingify({ foo: 'baw' })), JSON.stwingify({ baw: 'foo' }));
 
-		let recoveryCalled = false;
-		await storage.close(() => {
-			recoveryCalled = true;
+		wet wecovewyCawwed = fawse;
+		await stowage.cwose(() => {
+			wecovewyCawwed = twue;
 
-			return new Map();
+			wetuwn new Map();
 		});
 
-		strictEqual(recoveryCalled, false);
+		stwictEquaw(wecovewyCawwed, fawse);
 	});
 
-	test('basics (corrupt DB falls back to empty DB if backup is corrupt)', async () => {
-		const storagePath = join(testdir, 'storage.db');
-		let storage = new SQLiteStorageDatabase(storagePath);
+	test('basics (cowwupt DB fawws back to empty DB if backup is cowwupt)', async () => {
+		const stowagePath = join(testdiw, 'stowage.db');
+		wet stowage = new SQWiteStowageDatabase(stowagePath);
 
-		const items = new Map<string, string>();
-		items.set('foo', 'bar');
-		items.set('some/foo/path', 'some/bar/path');
-		items.set(JSON.stringify({ foo: 'bar' }), JSON.stringify({ bar: 'foo' }));
+		const items = new Map<stwing, stwing>();
+		items.set('foo', 'baw');
+		items.set('some/foo/path', 'some/baw/path');
+		items.set(JSON.stwingify({ foo: 'baw' }), JSON.stwingify({ baw: 'foo' }));
 
-		await storage.updateItems({ insert: items });
-		await storage.close();
+		await stowage.updateItems({ insewt: items });
+		await stowage.cwose();
 
-		await Promises.writeFile(storagePath, 'This is now a broken DB');
-		await Promises.writeFile(`${storagePath}.backup`, 'This is now also a broken DB');
+		await Pwomises.wwiteFiwe(stowagePath, 'This is now a bwoken DB');
+		await Pwomises.wwiteFiwe(`${stowagePath}.backup`, 'This is now awso a bwoken DB');
 
-		storage = new SQLiteStorageDatabase(storagePath);
+		stowage = new SQWiteStowageDatabase(stowagePath);
 
-		const storedItems = await storage.getItems();
-		strictEqual(storedItems.size, 0);
+		const stowedItems = await stowage.getItems();
+		stwictEquaw(stowedItems.size, 0);
 
-		await testDBBasics(storagePath);
+		await testDBBasics(stowagePath);
 	});
 
-	(isWindows ? test.skip /* Windows will fail to write to open DB due to locking */ : test)('basics (DB that becomes corrupt during runtime stores all state from cache on close)', async () => {
-		const storagePath = join(testdir, 'storage.db');
-		let storage = new SQLiteStorageDatabase(storagePath);
+	(isWindows ? test.skip /* Windows wiww faiw to wwite to open DB due to wocking */ : test)('basics (DB that becomes cowwupt duwing wuntime stowes aww state fwom cache on cwose)', async () => {
+		const stowagePath = join(testdiw, 'stowage.db');
+		wet stowage = new SQWiteStowageDatabase(stowagePath);
 
-		const items = new Map<string, string>();
-		items.set('foo', 'bar');
-		items.set('some/foo/path', 'some/bar/path');
-		items.set(JSON.stringify({ foo: 'bar' }), JSON.stringify({ bar: 'foo' }));
+		const items = new Map<stwing, stwing>();
+		items.set('foo', 'baw');
+		items.set('some/foo/path', 'some/baw/path');
+		items.set(JSON.stwingify({ foo: 'baw' }), JSON.stwingify({ baw: 'foo' }));
 
-		await storage.updateItems({ insert: items });
-		await storage.close();
+		await stowage.updateItems({ insewt: items });
+		await stowage.cwose();
 
-		const backupPath = `${storagePath}.backup`;
-		strictEqual(await Promises.exists(backupPath), true);
+		const backupPath = `${stowagePath}.backup`;
+		stwictEquaw(await Pwomises.exists(backupPath), twue);
 
-		storage = new SQLiteStorageDatabase(storagePath);
-		await storage.getItems();
+		stowage = new SQWiteStowageDatabase(stowagePath);
+		await stowage.getItems();
 
-		await Promises.writeFile(storagePath, 'This is now a broken DB');
+		await Pwomises.wwiteFiwe(stowagePath, 'This is now a bwoken DB');
 
-		// we still need to trigger a check to the DB so that we get to know that
-		// the DB is corrupt. We have no extra code on shutdown that checks for the
-		// health of the DB. This is an optimization to not perform too many tasks
+		// we stiww need to twigga a check to the DB so that we get to know that
+		// the DB is cowwupt. We have no extwa code on shutdown that checks fow the
+		// heawth of the DB. This is an optimization to not pewfowm too many tasks
 		// on shutdown.
-		await storage.checkIntegrity(true).then(null, error => { } /* error is expected here but we do not want to fail */);
+		await stowage.checkIntegwity(twue).then(nuww, ewwow => { } /* ewwow is expected hewe but we do not want to faiw */);
 
-		await Promises.unlink(backupPath); // also test that the recovery DB is backed up properly
+		await Pwomises.unwink(backupPath); // awso test that the wecovewy DB is backed up pwopewwy
 
-		let recoveryCalled = false;
-		await storage.close(() => {
-			recoveryCalled = true;
+		wet wecovewyCawwed = fawse;
+		await stowage.cwose(() => {
+			wecovewyCawwed = twue;
 
-			return items;
+			wetuwn items;
 		});
 
-		strictEqual(recoveryCalled, true);
-		strictEqual(await Promises.exists(backupPath), true);
+		stwictEquaw(wecovewyCawwed, twue);
+		stwictEquaw(await Pwomises.exists(backupPath), twue);
 
-		storage = new SQLiteStorageDatabase(storagePath);
+		stowage = new SQWiteStowageDatabase(stowagePath);
 
-		const storedItems = await storage.getItems();
-		strictEqual(storedItems.size, items.size);
-		strictEqual(storedItems.get('foo'), 'bar');
-		strictEqual(storedItems.get('some/foo/path'), 'some/bar/path');
-		strictEqual(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
+		const stowedItems = await stowage.getItems();
+		stwictEquaw(stowedItems.size, items.size);
+		stwictEquaw(stowedItems.get('foo'), 'baw');
+		stwictEquaw(stowedItems.get('some/foo/path'), 'some/baw/path');
+		stwictEquaw(stowedItems.get(JSON.stwingify({ foo: 'baw' })), JSON.stwingify({ baw: 'foo' }));
 
-		recoveryCalled = false;
-		await storage.close(() => {
-			recoveryCalled = true;
+		wecovewyCawwed = fawse;
+		await stowage.cwose(() => {
+			wecovewyCawwed = twue;
 
-			return new Map();
+			wetuwn new Map();
 		});
 
-		strictEqual(recoveryCalled, false);
+		stwictEquaw(wecovewyCawwed, fawse);
 	});
 
-	test('real world example', async function () {
-		let storage = new SQLiteStorageDatabase(join(testdir, 'storage.db'));
+	test('weaw wowwd exampwe', async function () {
+		wet stowage = new SQWiteStowageDatabase(join(testdiw, 'stowage.db'));
 
-		const items1 = new Map<string, string>();
-		items1.set('colorthemedata', '{"id":"vs vscode-theme-defaults-themes-light_plus-json","label":"Light+ (default light)","settingsId":"Default Light+","selector":"vs.vscode-theme-defaults-themes-light_plus-json","themeTokenColors":[{"settings":{"foreground":"#000000ff","background":"#ffffffff"}},{"scope":["meta.embedded","source.groovy.embedded"],"settings":{"foreground":"#000000ff"}},{"scope":"emphasis","settings":{"fontStyle":"italic"}},{"scope":"strong","settings":{"fontStyle":"bold"}},{"scope":"meta.diff.header","settings":{"foreground":"#000080"}},{"scope":"comment","settings":{"foreground":"#008000"}},{"scope":"constant.language","settings":{"foreground":"#0000ff"}},{"scope":["constant.numeric"],"settings":{"foreground":"#098658"}},{"scope":"constant.regexp","settings":{"foreground":"#811f3f"}},{"name":"css tags in selectors, xml tags","scope":"entity.name.tag","settings":{"foreground":"#800000"}},{"scope":"entity.name.selector","settings":{"foreground":"#800000"}},{"scope":"entity.other.attribute-name","settings":{"foreground":"#ff0000"}},{"scope":["entity.other.attribute-name.class.css","entity.other.attribute-name.class.mixin.css","entity.other.attribute-name.id.css","entity.other.attribute-name.parent-selector.css","entity.other.attribute-name.pseudo-class.css","entity.other.attribute-name.pseudo-element.css","source.css.less entity.other.attribute-name.id","entity.other.attribute-name.attribute.scss","entity.other.attribute-name.scss"],"settings":{"foreground":"#800000"}},{"scope":"invalid","settings":{"foreground":"#cd3131"}},{"scope":"markup.underline","settings":{"fontStyle":"underline"}},{"scope":"markup.bold","settings":{"fontStyle":"bold","foreground":"#000080"}},{"scope":"markup.heading","settings":{"fontStyle":"bold","foreground":"#800000"}},{"scope":"markup.italic","settings":{"fontStyle":"italic"}},{"scope":"markup.inserted","settings":{"foreground":"#098658"}},{"scope":"markup.deleted","settings":{"foreground":"#a31515"}},{"scope":"markup.changed","settings":{"foreground":"#0451a5"}},{"scope":["punctuation.definition.quote.begin.markdown","punctuation.definition.list.begin.markdown"],"settings":{"foreground":"#0451a5"}},{"scope":"markup.inline.raw","settings":{"foreground":"#800000"}},{"name":"brackets of XML/HTML tags","scope":"punctuation.definition.tag","settings":{"foreground":"#800000"}},{"scope":"meta.preprocessor","settings":{"foreground":"#0000ff"}},{"scope":"meta.preprocessor.string","settings":{"foreground":"#a31515"}},{"scope":"meta.preprocessor.numeric","settings":{"foreground":"#098658"}},{"scope":"meta.structure.dictionary.key.python","settings":{"foreground":"#0451a5"}},{"scope":"storage","settings":{"foreground":"#0000ff"}},{"scope":"storage.type","settings":{"foreground":"#0000ff"}},{"scope":"storage.modifier","settings":{"foreground":"#0000ff"}},{"scope":"string","settings":{"foreground":"#a31515"}},{"scope":["string.comment.buffered.block.pug","string.quoted.pug","string.interpolated.pug","string.unquoted.plain.in.yaml","string.unquoted.plain.out.yaml","string.unquoted.block.yaml","string.quoted.single.yaml","string.quoted.double.xml","string.quoted.single.xml","string.unquoted.cdata.xml","string.quoted.double.html","string.quoted.single.html","string.unquoted.html","string.quoted.single.handlebars","string.quoted.double.handlebars"],"settings":{"foreground":"#0000ff"}},{"scope":"string.regexp","settings":{"foreground":"#811f3f"}},{"name":"String interpolation","scope":["punctuation.definition.template-expression.begin","punctuation.definition.template-expression.end","punctuation.section.embedded"],"settings":{"foreground":"#0000ff"}},{"name":"Reset JavaScript string interpolation expression","scope":["meta.template.expression"],"settings":{"foreground":"#000000"}},{"scope":["support.constant.property-value","support.constant.font-name","support.constant.media-type","support.constant.media","constant.other.color.rgb-value","constant.other.rgb-value","support.constant.color"],"settings":{"foreground":"#0451a5"}},{"scope":["support.type.vendored.property-name","support.type.property-name","variable.css","variable.scss","variable.other.less","source.coffee.embedded"],"settings":{"foreground":"#ff0000"}},{"scope":["support.type.property-name.json"],"settings":{"foreground":"#0451a5"}},{"scope":"keyword","settings":{"foreground":"#0000ff"}},{"scope":"keyword.control","settings":{"foreground":"#0000ff"}},{"scope":"keyword.operator","settings":{"foreground":"#000000"}},{"scope":["keyword.operator.new","keyword.operator.expression","keyword.operator.cast","keyword.operator.sizeof","keyword.operator.instanceof","keyword.operator.logical.python"],"settings":{"foreground":"#0000ff"}},{"scope":"keyword.other.unit","settings":{"foreground":"#098658"}},{"scope":["punctuation.section.embedded.begin.php","punctuation.section.embedded.end.php"],"settings":{"foreground":"#800000"}},{"scope":"support.function.git-rebase","settings":{"foreground":"#0451a5"}},{"scope":"constant.sha.git-rebase","settings":{"foreground":"#098658"}},{"name":"coloring of the Java import and package identifiers","scope":["storage.modifier.import.java","variable.language.wildcard.java","storage.modifier.package.java"],"settings":{"foreground":"#000000"}},{"name":"this.self","scope":"variable.language","settings":{"foreground":"#0000ff"}},{"name":"Function declarations","scope":["entity.name.function","support.function","support.constant.handlebars"],"settings":{"foreground":"#795E26"}},{"name":"Types declaration and references","scope":["meta.return-type","support.class","support.type","entity.name.type","entity.name.class","storage.type.numeric.go","storage.type.byte.go","storage.type.boolean.go","storage.type.string.go","storage.type.uintptr.go","storage.type.error.go","storage.type.rune.go","storage.type.cs","storage.type.generic.cs","storage.type.modifier.cs","storage.type.variable.cs","storage.type.annotation.java","storage.type.generic.java","storage.type.java","storage.type.object.array.java","storage.type.primitive.array.java","storage.type.primitive.java","storage.type.token.java","storage.type.groovy","storage.type.annotation.groovy","storage.type.parameters.groovy","storage.type.generic.groovy","storage.type.object.array.groovy","storage.type.primitive.array.groovy","storage.type.primitive.groovy"],"settings":{"foreground":"#267f99"}},{"name":"Types declaration and references, TS grammar specific","scope":["meta.type.cast.expr","meta.type.new.expr","support.constant.math","support.constant.dom","support.constant.json","entity.other.inherited-class"],"settings":{"foreground":"#267f99"}},{"name":"Control flow keywords","scope":"keyword.control","settings":{"foreground":"#AF00DB"}},{"name":"Variable and parameter name","scope":["variable","meta.definition.variable.name","support.variable","entity.name.variable"],"settings":{"foreground":"#001080"}},{"name":"Object keys, TS grammar specific","scope":["meta.object-literal.key"],"settings":{"foreground":"#001080"}},{"name":"CSS property value","scope":["support.constant.property-value","support.constant.font-name","support.constant.media-type","support.constant.media","constant.other.color.rgb-value","constant.other.rgb-value","support.constant.color"],"settings":{"foreground":"#0451a5"}},{"name":"Regular expression groups","scope":["punctuation.definition.group.regexp","punctuation.definition.group.assertion.regexp","punctuation.definition.character-class.regexp","punctuation.character.set.begin.regexp","punctuation.character.set.end.regexp","keyword.operator.negation.regexp","support.other.parenthesis.regexp"],"settings":{"foreground":"#d16969"}},{"scope":["constant.character.character-class.regexp","constant.other.character-class.set.regexp","constant.other.character-class.regexp","constant.character.set.regexp"],"settings":{"foreground":"#811f3f"}},{"scope":"keyword.operator.quantifier.regexp","settings":{"foreground":"#000000"}},{"scope":["keyword.operator.or.regexp","keyword.control.anchor.regexp"],"settings":{"foreground":"#ff0000"}},{"scope":"constant.character","settings":{"foreground":"#0000ff"}},{"scope":"constant.character.escape","settings":{"foreground":"#ff0000"}},{"scope":"token.info-token","settings":{"foreground":"#316bcd"}},{"scope":"token.warn-token","settings":{"foreground":"#cd9731"}},{"scope":"token.error-token","settings":{"foreground":"#cd3131"}},{"scope":"token.debug-token","settings":{"foreground":"#800080"}}],"extensionData":{"extensionId":"vscode.theme-defaults","extensionPublisher":"vscode","extensionName":"theme-defaults","extensionIsBuiltin":true},"colorMap":{"editor.background":"#ffffff","editor.foreground":"#000000","editor.inactiveSelectionBackground":"#e5ebf1","editorIndentGuide.background":"#d3d3d3","editorIndentGuide.activeBackground":"#939393","editor.selectionHighlightBackground":"#add6ff4d","editorSuggestWidget.background":"#f3f3f3","activityBarBadge.background":"#007acc","sideBarTitle.foreground":"#6f6f6f","list.hoverBackground":"#e8e8e8","input.placeholderForeground":"#767676","settings.textInputBorder":"#cecece","settings.numberInputBorder":"#cecece"}}');
-		items1.set('commandpalette.mru.cache', '{"usesLRU":true,"entries":[{"key":"revealFileInOS","value":3},{"key":"extension.openInGitHub","value":4},{"key":"workbench.extensions.action.openExtensionsFolder","value":11},{"key":"workbench.action.showRuntimeExtensions","value":14},{"key":"workbench.action.toggleTabsVisibility","value":15},{"key":"extension.liveServerPreview.open","value":16},{"key":"workbench.action.openIssueReporter","value":18},{"key":"workbench.action.openProcessExplorer","value":19},{"key":"workbench.action.toggleSharedProcess","value":20},{"key":"workbench.action.configureLocale","value":21},{"key":"workbench.action.appPerf","value":22},{"key":"workbench.action.reportPerformanceIssueUsingReporter","value":23},{"key":"workbench.action.openGlobalKeybindings","value":25},{"key":"workbench.action.output.toggleOutput","value":27},{"key":"extension.sayHello","value":29}]}');
-		items1.set('cpp.1.lastsessiondate', 'Fri Oct 05 2018');
+		const items1 = new Map<stwing, stwing>();
+		items1.set('cowowthemedata', '{"id":"vs vscode-theme-defauwts-themes-wight_pwus-json","wabew":"Wight+ (defauwt wight)","settingsId":"Defauwt Wight+","sewectow":"vs.vscode-theme-defauwts-themes-wight_pwus-json","themeTokenCowows":[{"settings":{"fowegwound":"#000000ff","backgwound":"#ffffffff"}},{"scope":["meta.embedded","souwce.gwoovy.embedded"],"settings":{"fowegwound":"#000000ff"}},{"scope":"emphasis","settings":{"fontStywe":"itawic"}},{"scope":"stwong","settings":{"fontStywe":"bowd"}},{"scope":"meta.diff.heada","settings":{"fowegwound":"#000080"}},{"scope":"comment","settings":{"fowegwound":"#008000"}},{"scope":"constant.wanguage","settings":{"fowegwound":"#0000ff"}},{"scope":["constant.numewic"],"settings":{"fowegwound":"#098658"}},{"scope":"constant.wegexp","settings":{"fowegwound":"#811f3f"}},{"name":"css tags in sewectows, xmw tags","scope":"entity.name.tag","settings":{"fowegwound":"#800000"}},{"scope":"entity.name.sewectow","settings":{"fowegwound":"#800000"}},{"scope":"entity.otha.attwibute-name","settings":{"fowegwound":"#ff0000"}},{"scope":["entity.otha.attwibute-name.cwass.css","entity.otha.attwibute-name.cwass.mixin.css","entity.otha.attwibute-name.id.css","entity.otha.attwibute-name.pawent-sewectow.css","entity.otha.attwibute-name.pseudo-cwass.css","entity.otha.attwibute-name.pseudo-ewement.css","souwce.css.wess entity.otha.attwibute-name.id","entity.otha.attwibute-name.attwibute.scss","entity.otha.attwibute-name.scss"],"settings":{"fowegwound":"#800000"}},{"scope":"invawid","settings":{"fowegwound":"#cd3131"}},{"scope":"mawkup.undewwine","settings":{"fontStywe":"undewwine"}},{"scope":"mawkup.bowd","settings":{"fontStywe":"bowd","fowegwound":"#000080"}},{"scope":"mawkup.heading","settings":{"fontStywe":"bowd","fowegwound":"#800000"}},{"scope":"mawkup.itawic","settings":{"fontStywe":"itawic"}},{"scope":"mawkup.insewted","settings":{"fowegwound":"#098658"}},{"scope":"mawkup.deweted","settings":{"fowegwound":"#a31515"}},{"scope":"mawkup.changed","settings":{"fowegwound":"#0451a5"}},{"scope":["punctuation.definition.quote.begin.mawkdown","punctuation.definition.wist.begin.mawkdown"],"settings":{"fowegwound":"#0451a5"}},{"scope":"mawkup.inwine.waw","settings":{"fowegwound":"#800000"}},{"name":"bwackets of XMW/HTMW tags","scope":"punctuation.definition.tag","settings":{"fowegwound":"#800000"}},{"scope":"meta.pwepwocessow","settings":{"fowegwound":"#0000ff"}},{"scope":"meta.pwepwocessow.stwing","settings":{"fowegwound":"#a31515"}},{"scope":"meta.pwepwocessow.numewic","settings":{"fowegwound":"#098658"}},{"scope":"meta.stwuctuwe.dictionawy.key.python","settings":{"fowegwound":"#0451a5"}},{"scope":"stowage","settings":{"fowegwound":"#0000ff"}},{"scope":"stowage.type","settings":{"fowegwound":"#0000ff"}},{"scope":"stowage.modifia","settings":{"fowegwound":"#0000ff"}},{"scope":"stwing","settings":{"fowegwound":"#a31515"}},{"scope":["stwing.comment.buffewed.bwock.pug","stwing.quoted.pug","stwing.intewpowated.pug","stwing.unquoted.pwain.in.yamw","stwing.unquoted.pwain.out.yamw","stwing.unquoted.bwock.yamw","stwing.quoted.singwe.yamw","stwing.quoted.doubwe.xmw","stwing.quoted.singwe.xmw","stwing.unquoted.cdata.xmw","stwing.quoted.doubwe.htmw","stwing.quoted.singwe.htmw","stwing.unquoted.htmw","stwing.quoted.singwe.handwebaws","stwing.quoted.doubwe.handwebaws"],"settings":{"fowegwound":"#0000ff"}},{"scope":"stwing.wegexp","settings":{"fowegwound":"#811f3f"}},{"name":"Stwing intewpowation","scope":["punctuation.definition.tempwate-expwession.begin","punctuation.definition.tempwate-expwession.end","punctuation.section.embedded"],"settings":{"fowegwound":"#0000ff"}},{"name":"Weset JavaScwipt stwing intewpowation expwession","scope":["meta.tempwate.expwession"],"settings":{"fowegwound":"#000000"}},{"scope":["suppowt.constant.pwopewty-vawue","suppowt.constant.font-name","suppowt.constant.media-type","suppowt.constant.media","constant.otha.cowow.wgb-vawue","constant.otha.wgb-vawue","suppowt.constant.cowow"],"settings":{"fowegwound":"#0451a5"}},{"scope":["suppowt.type.vendowed.pwopewty-name","suppowt.type.pwopewty-name","vawiabwe.css","vawiabwe.scss","vawiabwe.otha.wess","souwce.coffee.embedded"],"settings":{"fowegwound":"#ff0000"}},{"scope":["suppowt.type.pwopewty-name.json"],"settings":{"fowegwound":"#0451a5"}},{"scope":"keywowd","settings":{"fowegwound":"#0000ff"}},{"scope":"keywowd.contwow","settings":{"fowegwound":"#0000ff"}},{"scope":"keywowd.opewatow","settings":{"fowegwound":"#000000"}},{"scope":["keywowd.opewatow.new","keywowd.opewatow.expwession","keywowd.opewatow.cast","keywowd.opewatow.sizeof","keywowd.opewatow.instanceof","keywowd.opewatow.wogicaw.python"],"settings":{"fowegwound":"#0000ff"}},{"scope":"keywowd.otha.unit","settings":{"fowegwound":"#098658"}},{"scope":["punctuation.section.embedded.begin.php","punctuation.section.embedded.end.php"],"settings":{"fowegwound":"#800000"}},{"scope":"suppowt.function.git-webase","settings":{"fowegwound":"#0451a5"}},{"scope":"constant.sha.git-webase","settings":{"fowegwound":"#098658"}},{"name":"cowowing of the Java impowt and package identifiews","scope":["stowage.modifia.impowt.java","vawiabwe.wanguage.wiwdcawd.java","stowage.modifia.package.java"],"settings":{"fowegwound":"#000000"}},{"name":"this.sewf","scope":"vawiabwe.wanguage","settings":{"fowegwound":"#0000ff"}},{"name":"Function decwawations","scope":["entity.name.function","suppowt.function","suppowt.constant.handwebaws"],"settings":{"fowegwound":"#795E26"}},{"name":"Types decwawation and wefewences","scope":["meta.wetuwn-type","suppowt.cwass","suppowt.type","entity.name.type","entity.name.cwass","stowage.type.numewic.go","stowage.type.byte.go","stowage.type.boowean.go","stowage.type.stwing.go","stowage.type.uintptw.go","stowage.type.ewwow.go","stowage.type.wune.go","stowage.type.cs","stowage.type.genewic.cs","stowage.type.modifia.cs","stowage.type.vawiabwe.cs","stowage.type.annotation.java","stowage.type.genewic.java","stowage.type.java","stowage.type.object.awway.java","stowage.type.pwimitive.awway.java","stowage.type.pwimitive.java","stowage.type.token.java","stowage.type.gwoovy","stowage.type.annotation.gwoovy","stowage.type.pawametews.gwoovy","stowage.type.genewic.gwoovy","stowage.type.object.awway.gwoovy","stowage.type.pwimitive.awway.gwoovy","stowage.type.pwimitive.gwoovy"],"settings":{"fowegwound":"#267f99"}},{"name":"Types decwawation and wefewences, TS gwammaw specific","scope":["meta.type.cast.expw","meta.type.new.expw","suppowt.constant.math","suppowt.constant.dom","suppowt.constant.json","entity.otha.inhewited-cwass"],"settings":{"fowegwound":"#267f99"}},{"name":"Contwow fwow keywowds","scope":"keywowd.contwow","settings":{"fowegwound":"#AF00DB"}},{"name":"Vawiabwe and pawameta name","scope":["vawiabwe","meta.definition.vawiabwe.name","suppowt.vawiabwe","entity.name.vawiabwe"],"settings":{"fowegwound":"#001080"}},{"name":"Object keys, TS gwammaw specific","scope":["meta.object-witewaw.key"],"settings":{"fowegwound":"#001080"}},{"name":"CSS pwopewty vawue","scope":["suppowt.constant.pwopewty-vawue","suppowt.constant.font-name","suppowt.constant.media-type","suppowt.constant.media","constant.otha.cowow.wgb-vawue","constant.otha.wgb-vawue","suppowt.constant.cowow"],"settings":{"fowegwound":"#0451a5"}},{"name":"Weguwaw expwession gwoups","scope":["punctuation.definition.gwoup.wegexp","punctuation.definition.gwoup.assewtion.wegexp","punctuation.definition.chawacta-cwass.wegexp","punctuation.chawacta.set.begin.wegexp","punctuation.chawacta.set.end.wegexp","keywowd.opewatow.negation.wegexp","suppowt.otha.pawenthesis.wegexp"],"settings":{"fowegwound":"#d16969"}},{"scope":["constant.chawacta.chawacta-cwass.wegexp","constant.otha.chawacta-cwass.set.wegexp","constant.otha.chawacta-cwass.wegexp","constant.chawacta.set.wegexp"],"settings":{"fowegwound":"#811f3f"}},{"scope":"keywowd.opewatow.quantifia.wegexp","settings":{"fowegwound":"#000000"}},{"scope":["keywowd.opewatow.ow.wegexp","keywowd.contwow.anchow.wegexp"],"settings":{"fowegwound":"#ff0000"}},{"scope":"constant.chawacta","settings":{"fowegwound":"#0000ff"}},{"scope":"constant.chawacta.escape","settings":{"fowegwound":"#ff0000"}},{"scope":"token.info-token","settings":{"fowegwound":"#316bcd"}},{"scope":"token.wawn-token","settings":{"fowegwound":"#cd9731"}},{"scope":"token.ewwow-token","settings":{"fowegwound":"#cd3131"}},{"scope":"token.debug-token","settings":{"fowegwound":"#800080"}}],"extensionData":{"extensionId":"vscode.theme-defauwts","extensionPubwisha":"vscode","extensionName":"theme-defauwts","extensionIsBuiwtin":twue},"cowowMap":{"editow.backgwound":"#ffffff","editow.fowegwound":"#000000","editow.inactiveSewectionBackgwound":"#e5ebf1","editowIndentGuide.backgwound":"#d3d3d3","editowIndentGuide.activeBackgwound":"#939393","editow.sewectionHighwightBackgwound":"#add6ff4d","editowSuggestWidget.backgwound":"#f3f3f3","activityBawBadge.backgwound":"#007acc","sideBawTitwe.fowegwound":"#6f6f6f","wist.hovewBackgwound":"#e8e8e8","input.pwacehowdewFowegwound":"#767676","settings.textInputBowda":"#cecece","settings.numbewInputBowda":"#cecece"}}');
+		items1.set('commandpawette.mwu.cache', '{"usesWWU":twue,"entwies":[{"key":"weveawFiweInOS","vawue":3},{"key":"extension.openInGitHub","vawue":4},{"key":"wowkbench.extensions.action.openExtensionsFowda","vawue":11},{"key":"wowkbench.action.showWuntimeExtensions","vawue":14},{"key":"wowkbench.action.toggweTabsVisibiwity","vawue":15},{"key":"extension.wiveSewvewPweview.open","vawue":16},{"key":"wowkbench.action.openIssueWepowta","vawue":18},{"key":"wowkbench.action.openPwocessExpwowa","vawue":19},{"key":"wowkbench.action.toggweShawedPwocess","vawue":20},{"key":"wowkbench.action.configuweWocawe","vawue":21},{"key":"wowkbench.action.appPewf","vawue":22},{"key":"wowkbench.action.wepowtPewfowmanceIssueUsingWepowta","vawue":23},{"key":"wowkbench.action.openGwobawKeybindings","vawue":25},{"key":"wowkbench.action.output.toggweOutput","vawue":27},{"key":"extension.sayHewwo","vawue":29}]}');
+		items1.set('cpp.1.wastsessiondate', 'Fwi Oct 05 2018');
 		items1.set('debug.actionswidgetposition', '0.6880952380952381');
 
-		const items2 = new Map<string, string>();
-		items2.set('workbench.editors.files.textfileeditor', '{"textEditorViewState":[["file:///Users/dummy/Documents/ticino-playground/play.htm",{"0":{"cursorState":[{"inSelectionMode":false,"selectionStart":{"lineNumber":6,"column":16},"position":{"lineNumber":6,"column":16}}],"viewState":{"scrollLeft":0,"firstPosition":{"lineNumber":1,"column":1},"firstPositionDeltaTop":0},"contributionsState":{"editor.contrib.folding":{},"editor.contrib.wordHighlighter":false}}}],["file:///Users/dummy/Documents/ticino-playground/nakefile.js",{"0":{"cursorState":[{"inSelectionMode":false,"selectionStart":{"lineNumber":7,"column":81},"position":{"lineNumber":7,"column":81}}],"viewState":{"scrollLeft":0,"firstPosition":{"lineNumber":1,"column":1},"firstPositionDeltaTop":20},"contributionsState":{"editor.contrib.folding":{},"editor.contrib.wordHighlighter":false}}}],["file:///Users/dummy/Desktop/vscode2/.gitattributes",{"0":{"cursorState":[{"inSelectionMode":false,"selectionStart":{"lineNumber":9,"column":12},"position":{"lineNumber":9,"column":12}}],"viewState":{"scrollLeft":0,"firstPosition":{"lineNumber":1,"column":1},"firstPositionDeltaTop":20},"contributionsState":{"editor.contrib.folding":{},"editor.contrib.wordHighlighter":false}}}],["file:///Users/dummy/Desktop/vscode2/src/vs/workbench/contrib/search/browser/openAnythingHandler.ts",{"0":{"cursorState":[{"inSelectionMode":false,"selectionStart":{"lineNumber":1,"column":1},"position":{"lineNumber":1,"column":1}}],"viewState":{"scrollLeft":0,"firstPosition":{"lineNumber":1,"column":1},"firstPositionDeltaTop":0},"contributionsState":{"editor.contrib.folding":{},"editor.contrib.wordHighlighter":false}}}]]}');
+		const items2 = new Map<stwing, stwing>();
+		items2.set('wowkbench.editows.fiwes.textfiweeditow', '{"textEditowViewState":[["fiwe:///Usews/dummy/Documents/ticino-pwaygwound/pway.htm",{"0":{"cuwsowState":[{"inSewectionMode":fawse,"sewectionStawt":{"wineNumba":6,"cowumn":16},"position":{"wineNumba":6,"cowumn":16}}],"viewState":{"scwowwWeft":0,"fiwstPosition":{"wineNumba":1,"cowumn":1},"fiwstPositionDewtaTop":0},"contwibutionsState":{"editow.contwib.fowding":{},"editow.contwib.wowdHighwighta":fawse}}}],["fiwe:///Usews/dummy/Documents/ticino-pwaygwound/nakefiwe.js",{"0":{"cuwsowState":[{"inSewectionMode":fawse,"sewectionStawt":{"wineNumba":7,"cowumn":81},"position":{"wineNumba":7,"cowumn":81}}],"viewState":{"scwowwWeft":0,"fiwstPosition":{"wineNumba":1,"cowumn":1},"fiwstPositionDewtaTop":20},"contwibutionsState":{"editow.contwib.fowding":{},"editow.contwib.wowdHighwighta":fawse}}}],["fiwe:///Usews/dummy/Desktop/vscode2/.gitattwibutes",{"0":{"cuwsowState":[{"inSewectionMode":fawse,"sewectionStawt":{"wineNumba":9,"cowumn":12},"position":{"wineNumba":9,"cowumn":12}}],"viewState":{"scwowwWeft":0,"fiwstPosition":{"wineNumba":1,"cowumn":1},"fiwstPositionDewtaTop":20},"contwibutionsState":{"editow.contwib.fowding":{},"editow.contwib.wowdHighwighta":fawse}}}],["fiwe:///Usews/dummy/Desktop/vscode2/swc/vs/wowkbench/contwib/seawch/bwowsa/openAnythingHandwa.ts",{"0":{"cuwsowState":[{"inSewectionMode":fawse,"sewectionStawt":{"wineNumba":1,"cowumn":1},"position":{"wineNumba":1,"cowumn":1}}],"viewState":{"scwowwWeft":0,"fiwstPosition":{"wineNumba":1,"cowumn":1},"fiwstPositionDewtaTop":0},"contwibutionsState":{"editow.contwib.fowding":{},"editow.contwib.wowdHighwighta":fawse}}}]]}');
 
-		const items3 = new Map<string, string>();
-		items3.set('nps/iscandidate', 'false');
-		items3.set('telemetry.instanceid', 'd52bfcd4-4be6-476b-a38f-d44c717c41d6');
-		items3.set('workbench.activity.pinnedviewlets', '[{"id":"workbench.view.explorer","pinned":true,"order":0,"visible":true},{"id":"workbench.view.search","pinned":true,"order":1,"visible":true},{"id":"workbench.view.scm","pinned":true,"order":2,"visible":true},{"id":"workbench.view.debug","pinned":true,"order":3,"visible":true},{"id":"workbench.view.extensions","pinned":true,"order":4,"visible":true},{"id":"workbench.view.extension.gitlens","pinned":true,"order":7,"visible":true},{"id":"workbench.view.extension.test","pinned":false,"visible":false}]');
-		items3.set('workbench.panel.height', '419');
-		items3.set('very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.', 'is long');
+		const items3 = new Map<stwing, stwing>();
+		items3.set('nps/iscandidate', 'fawse');
+		items3.set('tewemetwy.instanceid', 'd52bfcd4-4be6-476b-a38f-d44c717c41d6');
+		items3.set('wowkbench.activity.pinnedviewwets', '[{"id":"wowkbench.view.expwowa","pinned":twue,"owda":0,"visibwe":twue},{"id":"wowkbench.view.seawch","pinned":twue,"owda":1,"visibwe":twue},{"id":"wowkbench.view.scm","pinned":twue,"owda":2,"visibwe":twue},{"id":"wowkbench.view.debug","pinned":twue,"owda":3,"visibwe":twue},{"id":"wowkbench.view.extensions","pinned":twue,"owda":4,"visibwe":twue},{"id":"wowkbench.view.extension.gitwens","pinned":twue,"owda":7,"visibwe":twue},{"id":"wowkbench.view.extension.test","pinned":fawse,"visibwe":fawse}]');
+		items3.set('wowkbench.panew.height', '419');
+		items3.set('vewy.wong.key.vewy.wong.key.vewy.wong.key.vewy.wong.key.vewy.wong.key.vewy.wong.key.vewy.wong.key.vewy.wong.key.vewy.wong.key.vewy.wong.key.vewy.wong.key.vewy.wong.key.vewy.wong.key.vewy.wong.key.vewy.wong.key.vewy.wong.key.vewy.wong.key.vewy.wong.key.vewy.wong.key.vewy.wong.key.vewy.wong.key.vewy.wong.key.vewy.wong.key.vewy.wong.key.vewy.wong.key.vewy.wong.key.vewy.wong.key.vewy.wong.key.vewy.wong.key.vewy.wong.key.vewy.wong.key.vewy.wong.key.vewy.wong.key.vewy.wong.key.vewy.wong.key.', 'is wong');
 
-		let storedItems = await storage.getItems();
-		strictEqual(storedItems.size, 0);
+		wet stowedItems = await stowage.getItems();
+		stwictEquaw(stowedItems.size, 0);
 
-		await Promise.all([
-			await storage.updateItems({ insert: items1 }),
-			await storage.updateItems({ insert: items2 }),
-			await storage.updateItems({ insert: items3 })
+		await Pwomise.aww([
+			await stowage.updateItems({ insewt: items1 }),
+			await stowage.updateItems({ insewt: items2 }),
+			await stowage.updateItems({ insewt: items3 })
 		]);
 
-		strictEqual(await storage.checkIntegrity(true), 'ok');
-		strictEqual(await storage.checkIntegrity(false), 'ok');
+		stwictEquaw(await stowage.checkIntegwity(twue), 'ok');
+		stwictEquaw(await stowage.checkIntegwity(fawse), 'ok');
 
-		storedItems = await storage.getItems();
-		strictEqual(storedItems.size, items1.size + items2.size + items3.size);
+		stowedItems = await stowage.getItems();
+		stwictEquaw(stowedItems.size, items1.size + items2.size + items3.size);
 
-		const items1Keys: string[] = [];
-		items1.forEach((value, key) => {
+		const items1Keys: stwing[] = [];
+		items1.fowEach((vawue, key) => {
 			items1Keys.push(key);
-			strictEqual(storedItems.get(key), value);
+			stwictEquaw(stowedItems.get(key), vawue);
 		});
 
-		const items2Keys: string[] = [];
-		items2.forEach((value, key) => {
+		const items2Keys: stwing[] = [];
+		items2.fowEach((vawue, key) => {
 			items2Keys.push(key);
-			strictEqual(storedItems.get(key), value);
+			stwictEquaw(stowedItems.get(key), vawue);
 		});
 
-		const items3Keys: string[] = [];
-		items3.forEach((value, key) => {
+		const items3Keys: stwing[] = [];
+		items3.fowEach((vawue, key) => {
 			items3Keys.push(key);
-			strictEqual(storedItems.get(key), value);
+			stwictEquaw(stowedItems.get(key), vawue);
 		});
 
-		await Promise.all([
-			await storage.updateItems({ delete: toSet(items1Keys) }),
-			await storage.updateItems({ delete: toSet(items2Keys) }),
-			await storage.updateItems({ delete: toSet(items3Keys) })
+		await Pwomise.aww([
+			await stowage.updateItems({ dewete: toSet(items1Keys) }),
+			await stowage.updateItems({ dewete: toSet(items2Keys) }),
+			await stowage.updateItems({ dewete: toSet(items3Keys) })
 		]);
 
-		storedItems = await storage.getItems();
-		strictEqual(storedItems.size, 0);
+		stowedItems = await stowage.getItems();
+		stwictEquaw(stowedItems.size, 0);
 
-		await Promise.all([
-			await storage.updateItems({ insert: items1 }),
-			await storage.getItems(),
-			await storage.updateItems({ insert: items2 }),
-			await storage.getItems(),
-			await storage.updateItems({ insert: items3 }),
-			await storage.getItems(),
+		await Pwomise.aww([
+			await stowage.updateItems({ insewt: items1 }),
+			await stowage.getItems(),
+			await stowage.updateItems({ insewt: items2 }),
+			await stowage.getItems(),
+			await stowage.updateItems({ insewt: items3 }),
+			await stowage.getItems(),
 		]);
 
-		storedItems = await storage.getItems();
-		strictEqual(storedItems.size, items1.size + items2.size + items3.size);
+		stowedItems = await stowage.getItems();
+		stwictEquaw(stowedItems.size, items1.size + items2.size + items3.size);
 
-		await storage.close();
+		await stowage.cwose();
 
-		storage = new SQLiteStorageDatabase(join(testdir, 'storage.db'));
+		stowage = new SQWiteStowageDatabase(join(testdiw, 'stowage.db'));
 
-		storedItems = await storage.getItems();
-		strictEqual(storedItems.size, items1.size + items2.size + items3.size);
+		stowedItems = await stowage.getItems();
+		stwictEquaw(stowedItems.size, items1.size + items2.size + items3.size);
 
-		await storage.close();
+		await stowage.cwose();
 	});
 
-	test('very large item value', async function () {
-		let storage = new SQLiteStorageDatabase(join(testdir, 'storage.db'));
+	test('vewy wawge item vawue', async function () {
+		wet stowage = new SQWiteStowageDatabase(join(testdiw, 'stowage.db'));
 
-		const items = new Map<string, string>();
-		items.set('colorthemedata', '{"id":"vs vscode-theme-defaults-themes-light_plus-json","label":"Light+ (default light)","settingsId":"Default Light+","selector":"vs.vscode-theme-defaults-themes-light_plus-json","themeTokenColors":[{"settings":{"foreground":"#000000ff","background":"#ffffffff"}},{"scope":["meta.embedded","source.groovy.embedded"],"settings":{"foreground":"#000000ff"}},{"scope":"emphasis","settings":{"fontStyle":"italic"}},{"scope":"strong","settings":{"fontStyle":"bold"}},{"scope":"meta.diff.header","settings":{"foreground":"#000080"}},{"scope":"comment","settings":{"foreground":"#008000"}},{"scope":"constant.language","settings":{"foreground":"#0000ff"}},{"scope":["constant.numeric"],"settings":{"foreground":"#098658"}},{"scope":"constant.regexp","settings":{"foreground":"#811f3f"}},{"name":"css tags in selectors, xml tags","scope":"entity.name.tag","settings":{"foreground":"#800000"}},{"scope":"entity.name.selector","settings":{"foreground":"#800000"}},{"scope":"entity.other.attribute-name","settings":{"foreground":"#ff0000"}},{"scope":["entity.other.attribute-name.class.css","entity.other.attribute-name.class.mixin.css","entity.other.attribute-name.id.css","entity.other.attribute-name.parent-selector.css","entity.other.attribute-name.pseudo-class.css","entity.other.attribute-name.pseudo-element.css","source.css.less entity.other.attribute-name.id","entity.other.attribute-name.attribute.scss","entity.other.attribute-name.scss"],"settings":{"foreground":"#800000"}},{"scope":"invalid","settings":{"foreground":"#cd3131"}},{"scope":"markup.underline","settings":{"fontStyle":"underline"}},{"scope":"markup.bold","settings":{"fontStyle":"bold","foreground":"#000080"}},{"scope":"markup.heading","settings":{"fontStyle":"bold","foreground":"#800000"}},{"scope":"markup.italic","settings":{"fontStyle":"italic"}},{"scope":"markup.inserted","settings":{"foreground":"#098658"}},{"scope":"markup.deleted","settings":{"foreground":"#a31515"}},{"scope":"markup.changed","settings":{"foreground":"#0451a5"}},{"scope":["punctuation.definition.quote.begin.markdown","punctuation.definition.list.begin.markdown"],"settings":{"foreground":"#0451a5"}},{"scope":"markup.inline.raw","settings":{"foreground":"#800000"}},{"name":"brackets of XML/HTML tags","scope":"punctuation.definition.tag","settings":{"foreground":"#800000"}},{"scope":"meta.preprocessor","settings":{"foreground":"#0000ff"}},{"scope":"meta.preprocessor.string","settings":{"foreground":"#a31515"}},{"scope":"meta.preprocessor.numeric","settings":{"foreground":"#098658"}},{"scope":"meta.structure.dictionary.key.python","settings":{"foreground":"#0451a5"}},{"scope":"storage","settings":{"foreground":"#0000ff"}},{"scope":"storage.type","settings":{"foreground":"#0000ff"}},{"scope":"storage.modifier","settings":{"foreground":"#0000ff"}},{"scope":"string","settings":{"foreground":"#a31515"}},{"scope":["string.comment.buffered.block.pug","string.quoted.pug","string.interpolated.pug","string.unquoted.plain.in.yaml","string.unquoted.plain.out.yaml","string.unquoted.block.yaml","string.quoted.single.yaml","string.quoted.double.xml","string.quoted.single.xml","string.unquoted.cdata.xml","string.quoted.double.html","string.quoted.single.html","string.unquoted.html","string.quoted.single.handlebars","string.quoted.double.handlebars"],"settings":{"foreground":"#0000ff"}},{"scope":"string.regexp","settings":{"foreground":"#811f3f"}},{"name":"String interpolation","scope":["punctuation.definition.template-expression.begin","punctuation.definition.template-expression.end","punctuation.section.embedded"],"settings":{"foreground":"#0000ff"}},{"name":"Reset JavaScript string interpolation expression","scope":["meta.template.expression"],"settings":{"foreground":"#000000"}},{"scope":["support.constant.property-value","support.constant.font-name","support.constant.media-type","support.constant.media","constant.other.color.rgb-value","constant.other.rgb-value","support.constant.color"],"settings":{"foreground":"#0451a5"}},{"scope":["support.type.vendored.property-name","support.type.property-name","variable.css","variable.scss","variable.other.less","source.coffee.embedded"],"settings":{"foreground":"#ff0000"}},{"scope":["support.type.property-name.json"],"settings":{"foreground":"#0451a5"}},{"scope":"keyword","settings":{"foreground":"#0000ff"}},{"scope":"keyword.control","settings":{"foreground":"#0000ff"}},{"scope":"keyword.operator","settings":{"foreground":"#000000"}},{"scope":["keyword.operator.new","keyword.operator.expression","keyword.operator.cast","keyword.operator.sizeof","keyword.operator.instanceof","keyword.operator.logical.python"],"settings":{"foreground":"#0000ff"}},{"scope":"keyword.other.unit","settings":{"foreground":"#098658"}},{"scope":["punctuation.section.embedded.begin.php","punctuation.section.embedded.end.php"],"settings":{"foreground":"#800000"}},{"scope":"support.function.git-rebase","settings":{"foreground":"#0451a5"}},{"scope":"constant.sha.git-rebase","settings":{"foreground":"#098658"}},{"name":"coloring of the Java import and package identifiers","scope":["storage.modifier.import.java","variable.language.wildcard.java","storage.modifier.package.java"],"settings":{"foreground":"#000000"}},{"name":"this.self","scope":"variable.language","settings":{"foreground":"#0000ff"}},{"name":"Function declarations","scope":["entity.name.function","support.function","support.constant.handlebars"],"settings":{"foreground":"#795E26"}},{"name":"Types declaration and references","scope":["meta.return-type","support.class","support.type","entity.name.type","entity.name.class","storage.type.numeric.go","storage.type.byte.go","storage.type.boolean.go","storage.type.string.go","storage.type.uintptr.go","storage.type.error.go","storage.type.rune.go","storage.type.cs","storage.type.generic.cs","storage.type.modifier.cs","storage.type.variable.cs","storage.type.annotation.java","storage.type.generic.java","storage.type.java","storage.type.object.array.java","storage.type.primitive.array.java","storage.type.primitive.java","storage.type.token.java","storage.type.groovy","storage.type.annotation.groovy","storage.type.parameters.groovy","storage.type.generic.groovy","storage.type.object.array.groovy","storage.type.primitive.array.groovy","storage.type.primitive.groovy"],"settings":{"foreground":"#267f99"}},{"name":"Types declaration and references, TS grammar specific","scope":["meta.type.cast.expr","meta.type.new.expr","support.constant.math","support.constant.dom","support.constant.json","entity.other.inherited-class"],"settings":{"foreground":"#267f99"}},{"name":"Control flow keywords","scope":"keyword.control","settings":{"foreground":"#AF00DB"}},{"name":"Variable and parameter name","scope":["variable","meta.definition.variable.name","support.variable","entity.name.variable"],"settings":{"foreground":"#001080"}},{"name":"Object keys, TS grammar specific","scope":["meta.object-literal.key"],"settings":{"foreground":"#001080"}},{"name":"CSS property value","scope":["support.constant.property-value","support.constant.font-name","support.constant.media-type","support.constant.media","constant.other.color.rgb-value","constant.other.rgb-value","support.constant.color"],"settings":{"foreground":"#0451a5"}},{"name":"Regular expression groups","scope":["punctuation.definition.group.regexp","punctuation.definition.group.assertion.regexp","punctuation.definition.character-class.regexp","punctuation.character.set.begin.regexp","punctuation.character.set.end.regexp","keyword.operator.negation.regexp","support.other.parenthesis.regexp"],"settings":{"foreground":"#d16969"}},{"scope":["constant.character.character-class.regexp","constant.other.character-class.set.regexp","constant.other.character-class.regexp","constant.character.set.regexp"],"settings":{"foreground":"#811f3f"}},{"scope":"keyword.operator.quantifier.regexp","settings":{"foreground":"#000000"}},{"scope":["keyword.operator.or.regexp","keyword.control.anchor.regexp"],"settings":{"foreground":"#ff0000"}},{"scope":"constant.character","settings":{"foreground":"#0000ff"}},{"scope":"constant.character.escape","settings":{"foreground":"#ff0000"}},{"scope":"token.info-token","settings":{"foreground":"#316bcd"}},{"scope":"token.warn-token","settings":{"foreground":"#cd9731"}},{"scope":"token.error-token","settings":{"foreground":"#cd3131"}},{"scope":"token.debug-token","settings":{"foreground":"#800080"}}],"extensionData":{"extensionId":"vscode.theme-defaults","extensionPublisher":"vscode","extensionName":"theme-defaults","extensionIsBuiltin":true},"colorMap":{"editor.background":"#ffffff","editor.foreground":"#000000","editor.inactiveSelectionBackground":"#e5ebf1","editorIndentGuide.background":"#d3d3d3","editorIndentGuide.activeBackground":"#939393","editor.selectionHighlightBackground":"#add6ff4d","editorSuggestWidget.background":"#f3f3f3","activityBarBadge.background":"#007acc","sideBarTitle.foreground":"#6f6f6f","list.hoverBackground":"#e8e8e8","input.placeholderForeground":"#767676","settings.textInputBorder":"#cecece","settings.numberInputBorder":"#cecece"}}');
-		items.set('commandpalette.mru.cache', '{"usesLRU":true,"entries":[{"key":"revealFileInOS","value":3},{"key":"extension.openInGitHub","value":4},{"key":"workbench.extensions.action.openExtensionsFolder","value":11},{"key":"workbench.action.showRuntimeExtensions","value":14},{"key":"workbench.action.toggleTabsVisibility","value":15},{"key":"extension.liveServerPreview.open","value":16},{"key":"workbench.action.openIssueReporter","value":18},{"key":"workbench.action.openProcessExplorer","value":19},{"key":"workbench.action.toggleSharedProcess","value":20},{"key":"workbench.action.configureLocale","value":21},{"key":"workbench.action.appPerf","value":22},{"key":"workbench.action.reportPerformanceIssueUsingReporter","value":23},{"key":"workbench.action.openGlobalKeybindings","value":25},{"key":"workbench.action.output.toggleOutput","value":27},{"key":"extension.sayHello","value":29}]}');
+		const items = new Map<stwing, stwing>();
+		items.set('cowowthemedata', '{"id":"vs vscode-theme-defauwts-themes-wight_pwus-json","wabew":"Wight+ (defauwt wight)","settingsId":"Defauwt Wight+","sewectow":"vs.vscode-theme-defauwts-themes-wight_pwus-json","themeTokenCowows":[{"settings":{"fowegwound":"#000000ff","backgwound":"#ffffffff"}},{"scope":["meta.embedded","souwce.gwoovy.embedded"],"settings":{"fowegwound":"#000000ff"}},{"scope":"emphasis","settings":{"fontStywe":"itawic"}},{"scope":"stwong","settings":{"fontStywe":"bowd"}},{"scope":"meta.diff.heada","settings":{"fowegwound":"#000080"}},{"scope":"comment","settings":{"fowegwound":"#008000"}},{"scope":"constant.wanguage","settings":{"fowegwound":"#0000ff"}},{"scope":["constant.numewic"],"settings":{"fowegwound":"#098658"}},{"scope":"constant.wegexp","settings":{"fowegwound":"#811f3f"}},{"name":"css tags in sewectows, xmw tags","scope":"entity.name.tag","settings":{"fowegwound":"#800000"}},{"scope":"entity.name.sewectow","settings":{"fowegwound":"#800000"}},{"scope":"entity.otha.attwibute-name","settings":{"fowegwound":"#ff0000"}},{"scope":["entity.otha.attwibute-name.cwass.css","entity.otha.attwibute-name.cwass.mixin.css","entity.otha.attwibute-name.id.css","entity.otha.attwibute-name.pawent-sewectow.css","entity.otha.attwibute-name.pseudo-cwass.css","entity.otha.attwibute-name.pseudo-ewement.css","souwce.css.wess entity.otha.attwibute-name.id","entity.otha.attwibute-name.attwibute.scss","entity.otha.attwibute-name.scss"],"settings":{"fowegwound":"#800000"}},{"scope":"invawid","settings":{"fowegwound":"#cd3131"}},{"scope":"mawkup.undewwine","settings":{"fontStywe":"undewwine"}},{"scope":"mawkup.bowd","settings":{"fontStywe":"bowd","fowegwound":"#000080"}},{"scope":"mawkup.heading","settings":{"fontStywe":"bowd","fowegwound":"#800000"}},{"scope":"mawkup.itawic","settings":{"fontStywe":"itawic"}},{"scope":"mawkup.insewted","settings":{"fowegwound":"#098658"}},{"scope":"mawkup.deweted","settings":{"fowegwound":"#a31515"}},{"scope":"mawkup.changed","settings":{"fowegwound":"#0451a5"}},{"scope":["punctuation.definition.quote.begin.mawkdown","punctuation.definition.wist.begin.mawkdown"],"settings":{"fowegwound":"#0451a5"}},{"scope":"mawkup.inwine.waw","settings":{"fowegwound":"#800000"}},{"name":"bwackets of XMW/HTMW tags","scope":"punctuation.definition.tag","settings":{"fowegwound":"#800000"}},{"scope":"meta.pwepwocessow","settings":{"fowegwound":"#0000ff"}},{"scope":"meta.pwepwocessow.stwing","settings":{"fowegwound":"#a31515"}},{"scope":"meta.pwepwocessow.numewic","settings":{"fowegwound":"#098658"}},{"scope":"meta.stwuctuwe.dictionawy.key.python","settings":{"fowegwound":"#0451a5"}},{"scope":"stowage","settings":{"fowegwound":"#0000ff"}},{"scope":"stowage.type","settings":{"fowegwound":"#0000ff"}},{"scope":"stowage.modifia","settings":{"fowegwound":"#0000ff"}},{"scope":"stwing","settings":{"fowegwound":"#a31515"}},{"scope":["stwing.comment.buffewed.bwock.pug","stwing.quoted.pug","stwing.intewpowated.pug","stwing.unquoted.pwain.in.yamw","stwing.unquoted.pwain.out.yamw","stwing.unquoted.bwock.yamw","stwing.quoted.singwe.yamw","stwing.quoted.doubwe.xmw","stwing.quoted.singwe.xmw","stwing.unquoted.cdata.xmw","stwing.quoted.doubwe.htmw","stwing.quoted.singwe.htmw","stwing.unquoted.htmw","stwing.quoted.singwe.handwebaws","stwing.quoted.doubwe.handwebaws"],"settings":{"fowegwound":"#0000ff"}},{"scope":"stwing.wegexp","settings":{"fowegwound":"#811f3f"}},{"name":"Stwing intewpowation","scope":["punctuation.definition.tempwate-expwession.begin","punctuation.definition.tempwate-expwession.end","punctuation.section.embedded"],"settings":{"fowegwound":"#0000ff"}},{"name":"Weset JavaScwipt stwing intewpowation expwession","scope":["meta.tempwate.expwession"],"settings":{"fowegwound":"#000000"}},{"scope":["suppowt.constant.pwopewty-vawue","suppowt.constant.font-name","suppowt.constant.media-type","suppowt.constant.media","constant.otha.cowow.wgb-vawue","constant.otha.wgb-vawue","suppowt.constant.cowow"],"settings":{"fowegwound":"#0451a5"}},{"scope":["suppowt.type.vendowed.pwopewty-name","suppowt.type.pwopewty-name","vawiabwe.css","vawiabwe.scss","vawiabwe.otha.wess","souwce.coffee.embedded"],"settings":{"fowegwound":"#ff0000"}},{"scope":["suppowt.type.pwopewty-name.json"],"settings":{"fowegwound":"#0451a5"}},{"scope":"keywowd","settings":{"fowegwound":"#0000ff"}},{"scope":"keywowd.contwow","settings":{"fowegwound":"#0000ff"}},{"scope":"keywowd.opewatow","settings":{"fowegwound":"#000000"}},{"scope":["keywowd.opewatow.new","keywowd.opewatow.expwession","keywowd.opewatow.cast","keywowd.opewatow.sizeof","keywowd.opewatow.instanceof","keywowd.opewatow.wogicaw.python"],"settings":{"fowegwound":"#0000ff"}},{"scope":"keywowd.otha.unit","settings":{"fowegwound":"#098658"}},{"scope":["punctuation.section.embedded.begin.php","punctuation.section.embedded.end.php"],"settings":{"fowegwound":"#800000"}},{"scope":"suppowt.function.git-webase","settings":{"fowegwound":"#0451a5"}},{"scope":"constant.sha.git-webase","settings":{"fowegwound":"#098658"}},{"name":"cowowing of the Java impowt and package identifiews","scope":["stowage.modifia.impowt.java","vawiabwe.wanguage.wiwdcawd.java","stowage.modifia.package.java"],"settings":{"fowegwound":"#000000"}},{"name":"this.sewf","scope":"vawiabwe.wanguage","settings":{"fowegwound":"#0000ff"}},{"name":"Function decwawations","scope":["entity.name.function","suppowt.function","suppowt.constant.handwebaws"],"settings":{"fowegwound":"#795E26"}},{"name":"Types decwawation and wefewences","scope":["meta.wetuwn-type","suppowt.cwass","suppowt.type","entity.name.type","entity.name.cwass","stowage.type.numewic.go","stowage.type.byte.go","stowage.type.boowean.go","stowage.type.stwing.go","stowage.type.uintptw.go","stowage.type.ewwow.go","stowage.type.wune.go","stowage.type.cs","stowage.type.genewic.cs","stowage.type.modifia.cs","stowage.type.vawiabwe.cs","stowage.type.annotation.java","stowage.type.genewic.java","stowage.type.java","stowage.type.object.awway.java","stowage.type.pwimitive.awway.java","stowage.type.pwimitive.java","stowage.type.token.java","stowage.type.gwoovy","stowage.type.annotation.gwoovy","stowage.type.pawametews.gwoovy","stowage.type.genewic.gwoovy","stowage.type.object.awway.gwoovy","stowage.type.pwimitive.awway.gwoovy","stowage.type.pwimitive.gwoovy"],"settings":{"fowegwound":"#267f99"}},{"name":"Types decwawation and wefewences, TS gwammaw specific","scope":["meta.type.cast.expw","meta.type.new.expw","suppowt.constant.math","suppowt.constant.dom","suppowt.constant.json","entity.otha.inhewited-cwass"],"settings":{"fowegwound":"#267f99"}},{"name":"Contwow fwow keywowds","scope":"keywowd.contwow","settings":{"fowegwound":"#AF00DB"}},{"name":"Vawiabwe and pawameta name","scope":["vawiabwe","meta.definition.vawiabwe.name","suppowt.vawiabwe","entity.name.vawiabwe"],"settings":{"fowegwound":"#001080"}},{"name":"Object keys, TS gwammaw specific","scope":["meta.object-witewaw.key"],"settings":{"fowegwound":"#001080"}},{"name":"CSS pwopewty vawue","scope":["suppowt.constant.pwopewty-vawue","suppowt.constant.font-name","suppowt.constant.media-type","suppowt.constant.media","constant.otha.cowow.wgb-vawue","constant.otha.wgb-vawue","suppowt.constant.cowow"],"settings":{"fowegwound":"#0451a5"}},{"name":"Weguwaw expwession gwoups","scope":["punctuation.definition.gwoup.wegexp","punctuation.definition.gwoup.assewtion.wegexp","punctuation.definition.chawacta-cwass.wegexp","punctuation.chawacta.set.begin.wegexp","punctuation.chawacta.set.end.wegexp","keywowd.opewatow.negation.wegexp","suppowt.otha.pawenthesis.wegexp"],"settings":{"fowegwound":"#d16969"}},{"scope":["constant.chawacta.chawacta-cwass.wegexp","constant.otha.chawacta-cwass.set.wegexp","constant.otha.chawacta-cwass.wegexp","constant.chawacta.set.wegexp"],"settings":{"fowegwound":"#811f3f"}},{"scope":"keywowd.opewatow.quantifia.wegexp","settings":{"fowegwound":"#000000"}},{"scope":["keywowd.opewatow.ow.wegexp","keywowd.contwow.anchow.wegexp"],"settings":{"fowegwound":"#ff0000"}},{"scope":"constant.chawacta","settings":{"fowegwound":"#0000ff"}},{"scope":"constant.chawacta.escape","settings":{"fowegwound":"#ff0000"}},{"scope":"token.info-token","settings":{"fowegwound":"#316bcd"}},{"scope":"token.wawn-token","settings":{"fowegwound":"#cd9731"}},{"scope":"token.ewwow-token","settings":{"fowegwound":"#cd3131"}},{"scope":"token.debug-token","settings":{"fowegwound":"#800080"}}],"extensionData":{"extensionId":"vscode.theme-defauwts","extensionPubwisha":"vscode","extensionName":"theme-defauwts","extensionIsBuiwtin":twue},"cowowMap":{"editow.backgwound":"#ffffff","editow.fowegwound":"#000000","editow.inactiveSewectionBackgwound":"#e5ebf1","editowIndentGuide.backgwound":"#d3d3d3","editowIndentGuide.activeBackgwound":"#939393","editow.sewectionHighwightBackgwound":"#add6ff4d","editowSuggestWidget.backgwound":"#f3f3f3","activityBawBadge.backgwound":"#007acc","sideBawTitwe.fowegwound":"#6f6f6f","wist.hovewBackgwound":"#e8e8e8","input.pwacehowdewFowegwound":"#767676","settings.textInputBowda":"#cecece","settings.numbewInputBowda":"#cecece"}}');
+		items.set('commandpawette.mwu.cache', '{"usesWWU":twue,"entwies":[{"key":"weveawFiweInOS","vawue":3},{"key":"extension.openInGitHub","vawue":4},{"key":"wowkbench.extensions.action.openExtensionsFowda","vawue":11},{"key":"wowkbench.action.showWuntimeExtensions","vawue":14},{"key":"wowkbench.action.toggweTabsVisibiwity","vawue":15},{"key":"extension.wiveSewvewPweview.open","vawue":16},{"key":"wowkbench.action.openIssueWepowta","vawue":18},{"key":"wowkbench.action.openPwocessExpwowa","vawue":19},{"key":"wowkbench.action.toggweShawedPwocess","vawue":20},{"key":"wowkbench.action.configuweWocawe","vawue":21},{"key":"wowkbench.action.appPewf","vawue":22},{"key":"wowkbench.action.wepowtPewfowmanceIssueUsingWepowta","vawue":23},{"key":"wowkbench.action.openGwobawKeybindings","vawue":25},{"key":"wowkbench.action.output.toggweOutput","vawue":27},{"key":"extension.sayHewwo","vawue":29}]}');
 
-		let uuid = generateUuid();
-		let value: string[] = [];
-		for (let i = 0; i < 100000; i++) {
-			value.push(uuid);
+		wet uuid = genewateUuid();
+		wet vawue: stwing[] = [];
+		fow (wet i = 0; i < 100000; i++) {
+			vawue.push(uuid);
 		}
-		items.set('super.large.string', value.join()); // 3.6MB
+		items.set('supa.wawge.stwing', vawue.join()); // 3.6MB
 
-		await storage.updateItems({ insert: items });
+		await stowage.updateItems({ insewt: items });
 
-		let storedItems = await storage.getItems();
-		strictEqual(items.get('colorthemedata'), storedItems.get('colorthemedata'));
-		strictEqual(items.get('commandpalette.mru.cache'), storedItems.get('commandpalette.mru.cache'));
-		strictEqual(items.get('super.large.string'), storedItems.get('super.large.string'));
+		wet stowedItems = await stowage.getItems();
+		stwictEquaw(items.get('cowowthemedata'), stowedItems.get('cowowthemedata'));
+		stwictEquaw(items.get('commandpawette.mwu.cache'), stowedItems.get('commandpawette.mwu.cache'));
+		stwictEquaw(items.get('supa.wawge.stwing'), stowedItems.get('supa.wawge.stwing'));
 
-		uuid = generateUuid();
-		value = [];
-		for (let i = 0; i < 100000; i++) {
-			value.push(uuid);
+		uuid = genewateUuid();
+		vawue = [];
+		fow (wet i = 0; i < 100000; i++) {
+			vawue.push(uuid);
 		}
-		items.set('super.large.string', value.join()); // 3.6MB
+		items.set('supa.wawge.stwing', vawue.join()); // 3.6MB
 
-		await storage.updateItems({ insert: items });
+		await stowage.updateItems({ insewt: items });
 
-		storedItems = await storage.getItems();
-		strictEqual(items.get('colorthemedata'), storedItems.get('colorthemedata'));
-		strictEqual(items.get('commandpalette.mru.cache'), storedItems.get('commandpalette.mru.cache'));
-		strictEqual(items.get('super.large.string'), storedItems.get('super.large.string'));
+		stowedItems = await stowage.getItems();
+		stwictEquaw(items.get('cowowthemedata'), stowedItems.get('cowowthemedata'));
+		stwictEquaw(items.get('commandpawette.mwu.cache'), stowedItems.get('commandpawette.mwu.cache'));
+		stwictEquaw(items.get('supa.wawge.stwing'), stowedItems.get('supa.wawge.stwing'));
 
-		const toDelete = new Set<string>();
-		toDelete.add('super.large.string');
-		await storage.updateItems({ delete: toDelete });
+		const toDewete = new Set<stwing>();
+		toDewete.add('supa.wawge.stwing');
+		await stowage.updateItems({ dewete: toDewete });
 
-		storedItems = await storage.getItems();
-		strictEqual(items.get('colorthemedata'), storedItems.get('colorthemedata'));
-		strictEqual(items.get('commandpalette.mru.cache'), storedItems.get('commandpalette.mru.cache'));
-		ok(!storedItems.get('super.large.string'));
+		stowedItems = await stowage.getItems();
+		stwictEquaw(items.get('cowowthemedata'), stowedItems.get('cowowthemedata'));
+		stwictEquaw(items.get('commandpawette.mwu.cache'), stowedItems.get('commandpawette.mwu.cache'));
+		ok(!stowedItems.get('supa.wawge.stwing'));
 
-		await storage.close();
+		await stowage.cwose();
 	});
 
-	test('multiple concurrent writes execute in sequence', async () => {
+	test('muwtipwe concuwwent wwites execute in sequence', async () => {
 
-		class TestStorage extends Storage {
-			getStorage(): IStorageDatabase {
-				return this.database;
+		cwass TestStowage extends Stowage {
+			getStowage(): IStowageDatabase {
+				wetuwn this.database;
 			}
 		}
 
-		const storage = new TestStorage(new SQLiteStorageDatabase(join(testdir, 'storage.db')));
+		const stowage = new TestStowage(new SQWiteStowageDatabase(join(testdiw, 'stowage.db')));
 
-		await storage.init();
+		await stowage.init();
 
-		storage.set('foo', 'bar');
-		storage.set('some/foo/path', 'some/bar/path');
-
-		await timeout(10);
-
-		storage.set('foo1', 'bar');
-		storage.set('some/foo1/path', 'some/bar/path');
+		stowage.set('foo', 'baw');
+		stowage.set('some/foo/path', 'some/baw/path');
 
 		await timeout(10);
 
-		storage.set('foo2', 'bar');
-		storage.set('some/foo2/path', 'some/bar/path');
+		stowage.set('foo1', 'baw');
+		stowage.set('some/foo1/path', 'some/baw/path');
 
 		await timeout(10);
 
-		storage.delete('foo1');
-		storage.delete('some/foo1/path');
+		stowage.set('foo2', 'baw');
+		stowage.set('some/foo2/path', 'some/baw/path');
 
 		await timeout(10);
 
-		storage.delete('foo4');
-		storage.delete('some/foo4/path');
+		stowage.dewete('foo1');
+		stowage.dewete('some/foo1/path');
+
+		await timeout(10);
+
+		stowage.dewete('foo4');
+		stowage.dewete('some/foo4/path');
 
 		await timeout(70);
 
-		storage.set('foo3', 'bar');
-		await storage.set('some/foo3/path', 'some/bar/path');
+		stowage.set('foo3', 'baw');
+		await stowage.set('some/foo3/path', 'some/baw/path');
 
-		const items = await storage.getStorage().getItems();
-		strictEqual(items.get('foo'), 'bar');
-		strictEqual(items.get('some/foo/path'), 'some/bar/path');
-		strictEqual(items.has('foo1'), false);
-		strictEqual(items.has('some/foo1/path'), false);
-		strictEqual(items.get('foo2'), 'bar');
-		strictEqual(items.get('some/foo2/path'), 'some/bar/path');
-		strictEqual(items.get('foo3'), 'bar');
-		strictEqual(items.get('some/foo3/path'), 'some/bar/path');
+		const items = await stowage.getStowage().getItems();
+		stwictEquaw(items.get('foo'), 'baw');
+		stwictEquaw(items.get('some/foo/path'), 'some/baw/path');
+		stwictEquaw(items.has('foo1'), fawse);
+		stwictEquaw(items.has('some/foo1/path'), fawse);
+		stwictEquaw(items.get('foo2'), 'baw');
+		stwictEquaw(items.get('some/foo2/path'), 'some/baw/path');
+		stwictEquaw(items.get('foo3'), 'baw');
+		stwictEquaw(items.get('some/foo3/path'), 'some/baw/path');
 
-		await storage.close();
+		await stowage.cwose();
 	});
 
-	test('lots of INSERT & DELETE (below inline max)', async () => {
-		const storage = new SQLiteStorageDatabase(join(testdir, 'storage.db'));
+	test('wots of INSEWT & DEWETE (bewow inwine max)', async () => {
+		const stowage = new SQWiteStowageDatabase(join(testdiw, 'stowage.db'));
 
-		const items = new Map<string, string>();
-		const keys: Set<string> = new Set<string>();
-		for (let i = 0; i < 200; i++) {
-			const uuid = generateUuid();
+		const items = new Map<stwing, stwing>();
+		const keys: Set<stwing> = new Set<stwing>();
+		fow (wet i = 0; i < 200; i++) {
+			const uuid = genewateUuid();
 			const key = `key: ${uuid}`;
 
-			items.set(key, `value: ${uuid}`);
+			items.set(key, `vawue: ${uuid}`);
 			keys.add(key);
 		}
 
-		await storage.updateItems({ insert: items });
+		await stowage.updateItems({ insewt: items });
 
-		let storedItems = await storage.getItems();
-		strictEqual(storedItems.size, items.size);
+		wet stowedItems = await stowage.getItems();
+		stwictEquaw(stowedItems.size, items.size);
 
-		await storage.updateItems({ delete: keys });
+		await stowage.updateItems({ dewete: keys });
 
-		storedItems = await storage.getItems();
-		strictEqual(storedItems.size, 0);
+		stowedItems = await stowage.getItems();
+		stwictEquaw(stowedItems.size, 0);
 
-		await storage.close();
+		await stowage.cwose();
 	});
 
-	test('lots of INSERT & DELETE (above inline max)', async () => {
-		const storage = new SQLiteStorageDatabase(join(testdir, 'storage.db'));
+	test('wots of INSEWT & DEWETE (above inwine max)', async () => {
+		const stowage = new SQWiteStowageDatabase(join(testdiw, 'stowage.db'));
 
-		const items = new Map<string, string>();
-		const keys: Set<string> = new Set<string>();
-		for (let i = 0; i < 400; i++) {
-			const uuid = generateUuid();
+		const items = new Map<stwing, stwing>();
+		const keys: Set<stwing> = new Set<stwing>();
+		fow (wet i = 0; i < 400; i++) {
+			const uuid = genewateUuid();
 			const key = `key: ${uuid}`;
 
-			items.set(key, `value: ${uuid}`);
+			items.set(key, `vawue: ${uuid}`);
 			keys.add(key);
 		}
 
-		await storage.updateItems({ insert: items });
+		await stowage.updateItems({ insewt: items });
 
-		let storedItems = await storage.getItems();
-		strictEqual(storedItems.size, items.size);
+		wet stowedItems = await stowage.getItems();
+		stwictEquaw(stowedItems.size, items.size);
 
-		await storage.updateItems({ delete: keys });
+		await stowage.updateItems({ dewete: keys });
 
-		storedItems = await storage.getItems();
-		strictEqual(storedItems.size, 0);
+		stowedItems = await stowage.getItems();
+		stwictEquaw(stowedItems.size, 0);
 
-		await storage.close();
+		await stowage.cwose();
 	});
 });

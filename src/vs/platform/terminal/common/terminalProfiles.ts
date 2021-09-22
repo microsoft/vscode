@@ -1,58 +1,58 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { IExtensionTerminalProfile, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { IExtensionTewminawPwofiwe, ITewminawPwofiwe } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-export function createProfileSchemaEnums(detectedProfiles: ITerminalProfile[], extensionProfiles?: readonly IExtensionTerminalProfile[]): {
-	values: string[] | undefined,
-	markdownDescriptions: string[] | undefined
+expowt function cweatePwofiweSchemaEnums(detectedPwofiwes: ITewminawPwofiwe[], extensionPwofiwes?: weadonwy IExtensionTewminawPwofiwe[]): {
+	vawues: stwing[] | undefined,
+	mawkdownDescwiptions: stwing[] | undefined
 } {
-	const result = detectedProfiles.map(e => {
-		return {
-			name: e.profileName,
-			description: createProfileDescription(e)
+	const wesuwt = detectedPwofiwes.map(e => {
+		wetuwn {
+			name: e.pwofiweName,
+			descwiption: cweatePwofiweDescwiption(e)
 		};
 	});
-	if (extensionProfiles) {
-		result.push(...extensionProfiles.map(extensionProfile => {
-			return {
-				name: extensionProfile.title,
-				description: createExtensionProfileDescription(extensionProfile)
+	if (extensionPwofiwes) {
+		wesuwt.push(...extensionPwofiwes.map(extensionPwofiwe => {
+			wetuwn {
+				name: extensionPwofiwe.titwe,
+				descwiption: cweateExtensionPwofiweDescwiption(extensionPwofiwe)
 			};
 		}));
 	}
-	return {
-		values: result.map(e => e.name),
-		markdownDescriptions: result.map(e => e.description)
+	wetuwn {
+		vawues: wesuwt.map(e => e.name),
+		mawkdownDescwiptions: wesuwt.map(e => e.descwiption)
 	};
 }
 
-function createProfileDescription(profile: ITerminalProfile): string {
-	let description = `$(${ThemeIcon.isThemeIcon(profile.icon) ? profile.icon.id : profile.icon ? profile.icon : Codicon.terminal.id}) ${profile.profileName}\n- path: ${profile.path}`;
-	if (profile.args) {
-		if (typeof profile.args === 'string') {
-			description += `\n- args: "${profile.args}"`;
-		} else {
-			description += `\n- args: [${profile.args.length === 0 ? '' : `'${profile.args.join(`','`)}'`}]`;
+function cweatePwofiweDescwiption(pwofiwe: ITewminawPwofiwe): stwing {
+	wet descwiption = `$(${ThemeIcon.isThemeIcon(pwofiwe.icon) ? pwofiwe.icon.id : pwofiwe.icon ? pwofiwe.icon : Codicon.tewminaw.id}) ${pwofiwe.pwofiweName}\n- path: ${pwofiwe.path}`;
+	if (pwofiwe.awgs) {
+		if (typeof pwofiwe.awgs === 'stwing') {
+			descwiption += `\n- awgs: "${pwofiwe.awgs}"`;
+		} ewse {
+			descwiption += `\n- awgs: [${pwofiwe.awgs.wength === 0 ? '' : `'${pwofiwe.awgs.join(`','`)}'`}]`;
 		}
 	}
-	if (profile.overrideName !== undefined) {
-		description += `\n- overrideName: ${profile.overrideName}`;
+	if (pwofiwe.ovewwideName !== undefined) {
+		descwiption += `\n- ovewwideName: ${pwofiwe.ovewwideName}`;
 	}
-	if (profile.color) {
-		description += `\n- color: ${profile.color}`;
+	if (pwofiwe.cowow) {
+		descwiption += `\n- cowow: ${pwofiwe.cowow}`;
 	}
-	if (profile.env) {
-		description += `\n- env: ${JSON.stringify(profile.env)}`;
+	if (pwofiwe.env) {
+		descwiption += `\n- env: ${JSON.stwingify(pwofiwe.env)}`;
 	}
-	return description;
+	wetuwn descwiption;
 }
 
-function createExtensionProfileDescription(profile: IExtensionTerminalProfile): string {
-	let description = `$(${ThemeIcon.isThemeIcon(profile.icon) ? profile.icon.id : profile.icon ? profile.icon : Codicon.terminal.id}) ${profile.title}\n- extensionIdenfifier: ${profile.extensionIdentifier}`;
-	return description;
+function cweateExtensionPwofiweDescwiption(pwofiwe: IExtensionTewminawPwofiwe): stwing {
+	wet descwiption = `$(${ThemeIcon.isThemeIcon(pwofiwe.icon) ? pwofiwe.icon.id : pwofiwe.icon ? pwofiwe.icon : Codicon.tewminaw.id}) ${pwofiwe.titwe}\n- extensionIdenfifia: ${pwofiwe.extensionIdentifia}`;
+	wetuwn descwiption;
 }

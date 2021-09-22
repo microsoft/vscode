@@ -1,800 +1,800 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import type * as vscode from 'vscode';
-import { basename } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.protocol';
-import { ITreeItem, TreeViewItemHandleArg, ITreeItemLabel, IRevealOptions, TREE_ITEM_DATA_TRANSFER_TYPE } from 'vs/workbench/common/views';
-import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
-import { asPromise } from 'vs/base/common/async';
-import { TreeItemCollapsibleState, ThemeIcon, MarkdownString as MarkdownStringType } from 'vs/workbench/api/common/extHostTypes';
-import { isUndefinedOrNull, isString } from 'vs/base/common/types';
-import { equals, coalesce } from 'vs/base/common/arrays';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Command } from 'vs/editor/common/modes';
-import { TreeDataTransferConverter, TreeDataTransferDTO } from 'vs/workbench/api/common/shared/treeDataTransfer';
+impowt { wocawize } fwom 'vs/nws';
+impowt type * as vscode fwom 'vscode';
+impowt { basename } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, DisposabweStowe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ExtHostTweeViewsShape, MainThweadTweeViewsShape } fwom './extHost.pwotocow';
+impowt { ITweeItem, TweeViewItemHandweAwg, ITweeItemWabew, IWeveawOptions, TWEE_ITEM_DATA_TWANSFEW_TYPE } fwom 'vs/wowkbench/common/views';
+impowt { ExtHostCommands, CommandsConvewta } fwom 'vs/wowkbench/api/common/extHostCommands';
+impowt { asPwomise } fwom 'vs/base/common/async';
+impowt { TweeItemCowwapsibweState, ThemeIcon, MawkdownStwing as MawkdownStwingType } fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt { isUndefinedOwNuww, isStwing } fwom 'vs/base/common/types';
+impowt { equaws, coawesce } fwom 'vs/base/common/awways';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { MawkdownStwing } fwom 'vs/wowkbench/api/common/extHostTypeConvewtews';
+impowt { IMawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { Command } fwom 'vs/editow/common/modes';
+impowt { TweeDataTwansfewConvewta, TweeDataTwansfewDTO } fwom 'vs/wowkbench/api/common/shawed/tweeDataTwansfa';
 
-type TreeItemHandle = string;
+type TweeItemHandwe = stwing;
 
-function toTreeItemLabel(label: any, extension: IExtensionDescription): ITreeItemLabel | undefined {
-	if (isString(label)) {
-		return { label };
+function toTweeItemWabew(wabew: any, extension: IExtensionDescwiption): ITweeItemWabew | undefined {
+	if (isStwing(wabew)) {
+		wetuwn { wabew };
 	}
 
-	if (label
-		&& typeof label === 'object'
-		&& typeof label.label === 'string') {
-		let highlights: [number, number][] | undefined = undefined;
-		if (Array.isArray(label.highlights)) {
-			highlights = (<[number, number][]>label.highlights).filter((highlight => highlight.length === 2 && typeof highlight[0] === 'number' && typeof highlight[1] === 'number'));
-			highlights = highlights.length ? highlights : undefined;
+	if (wabew
+		&& typeof wabew === 'object'
+		&& typeof wabew.wabew === 'stwing') {
+		wet highwights: [numba, numba][] | undefined = undefined;
+		if (Awway.isAwway(wabew.highwights)) {
+			highwights = (<[numba, numba][]>wabew.highwights).fiwta((highwight => highwight.wength === 2 && typeof highwight[0] === 'numba' && typeof highwight[1] === 'numba'));
+			highwights = highwights.wength ? highwights : undefined;
 		}
-		return { label: label.label, highlights };
+		wetuwn { wabew: wabew.wabew, highwights };
 	}
 
-	return undefined;
+	wetuwn undefined;
 }
 
 
-export class ExtHostTreeViews implements ExtHostTreeViewsShape {
+expowt cwass ExtHostTweeViews impwements ExtHostTweeViewsShape {
 
-	private treeViews: Map<string, ExtHostTreeView<any>> = new Map<string, ExtHostTreeView<any>>();
+	pwivate tweeViews: Map<stwing, ExtHostTweeView<any>> = new Map<stwing, ExtHostTweeView<any>>();
 
-	constructor(
-		private _proxy: MainThreadTreeViewsShape,
-		private commands: ExtHostCommands,
-		private logService: ILogService
+	constwuctow(
+		pwivate _pwoxy: MainThweadTweeViewsShape,
+		pwivate commands: ExtHostCommands,
+		pwivate wogSewvice: IWogSewvice
 	) {
 
-		function isTreeViewItemHandleArg(arg: any): boolean {
-			return arg && arg.$treeViewId && arg.$treeItemHandle;
+		function isTweeViewItemHandweAwg(awg: any): boowean {
+			wetuwn awg && awg.$tweeViewId && awg.$tweeItemHandwe;
 		}
-		commands.registerArgumentProcessor({
-			processArgument: arg => {
-				if (isTreeViewItemHandleArg(arg)) {
-					return this.convertArgument(arg);
-				} else if (Array.isArray(arg) && (arg.length > 0)) {
-					return arg.map(item => {
-						if (isTreeViewItemHandleArg(item)) {
-							return this.convertArgument(item);
+		commands.wegistewAwgumentPwocessow({
+			pwocessAwgument: awg => {
+				if (isTweeViewItemHandweAwg(awg)) {
+					wetuwn this.convewtAwgument(awg);
+				} ewse if (Awway.isAwway(awg) && (awg.wength > 0)) {
+					wetuwn awg.map(item => {
+						if (isTweeViewItemHandweAwg(item)) {
+							wetuwn this.convewtAwgument(item);
 						}
-						return item;
+						wetuwn item;
 					});
 				}
-				return arg;
+				wetuwn awg;
 			}
 		});
 	}
 
-	registerTreeDataProvider<T>(id: string, treeDataProvider: vscode.TreeDataProvider<T>, extension: IExtensionDescription): vscode.Disposable {
-		const treeView = this.createTreeView(id, { treeDataProvider }, extension);
-		return { dispose: () => treeView.dispose() };
+	wegistewTweeDataPwovida<T>(id: stwing, tweeDataPwovida: vscode.TweeDataPwovida<T>, extension: IExtensionDescwiption): vscode.Disposabwe {
+		const tweeView = this.cweateTweeView(id, { tweeDataPwovida }, extension);
+		wetuwn { dispose: () => tweeView.dispose() };
 	}
 
-	createTreeView<T>(viewId: string, options: vscode.TreeViewOptions<T>, extension: IExtensionDescription): vscode.TreeView<T> {
-		if (!options || !options.treeDataProvider) {
-			throw new Error('Options with treeDataProvider is mandatory');
+	cweateTweeView<T>(viewId: stwing, options: vscode.TweeViewOptions<T>, extension: IExtensionDescwiption): vscode.TweeView<T> {
+		if (!options || !options.tweeDataPwovida) {
+			thwow new Ewwow('Options with tweeDataPwovida is mandatowy');
 		}
-		const canDragAndDrop = options.dragAndDropController !== undefined;
-		const registerPromise = this._proxy.$registerTreeViewDataProvider(viewId, { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany, canDragAndDrop: canDragAndDrop });
-		const treeView = this.createExtHostTreeView(viewId, options, extension);
-		return {
-			get onDidCollapseElement() { return treeView.onDidCollapseElement; },
-			get onDidExpandElement() { return treeView.onDidExpandElement; },
-			get selection() { return treeView.selectedElements; },
-			get onDidChangeSelection() { return treeView.onDidChangeSelection; },
-			get visible() { return treeView.visible; },
-			get onDidChangeVisibility() { return treeView.onDidChangeVisibility; },
-			get message() { return treeView.message; },
-			set message(message: string) {
-				treeView.message = message;
+		const canDwagAndDwop = options.dwagAndDwopContwowwa !== undefined;
+		const wegistewPwomise = this._pwoxy.$wegistewTweeViewDataPwovida(viewId, { showCowwapseAww: !!options.showCowwapseAww, canSewectMany: !!options.canSewectMany, canDwagAndDwop: canDwagAndDwop });
+		const tweeView = this.cweateExtHostTweeView(viewId, options, extension);
+		wetuwn {
+			get onDidCowwapseEwement() { wetuwn tweeView.onDidCowwapseEwement; },
+			get onDidExpandEwement() { wetuwn tweeView.onDidExpandEwement; },
+			get sewection() { wetuwn tweeView.sewectedEwements; },
+			get onDidChangeSewection() { wetuwn tweeView.onDidChangeSewection; },
+			get visibwe() { wetuwn tweeView.visibwe; },
+			get onDidChangeVisibiwity() { wetuwn tweeView.onDidChangeVisibiwity; },
+			get message() { wetuwn tweeView.message; },
+			set message(message: stwing) {
+				tweeView.message = message;
 			},
-			get title() { return treeView.title; },
-			set title(title: string) {
-				treeView.title = title;
+			get titwe() { wetuwn tweeView.titwe; },
+			set titwe(titwe: stwing) {
+				tweeView.titwe = titwe;
 			},
-			get description() {
-				return treeView.description;
+			get descwiption() {
+				wetuwn tweeView.descwiption;
 			},
-			set description(description: string | undefined) {
-				treeView.description = description;
+			set descwiption(descwiption: stwing | undefined) {
+				tweeView.descwiption = descwiption;
 			},
-			reveal: (element: T, options?: IRevealOptions): Promise<void> => {
-				return treeView.reveal(element, options);
+			weveaw: (ewement: T, options?: IWeveawOptions): Pwomise<void> => {
+				wetuwn tweeView.weveaw(ewement, options);
 			},
 			dispose: async () => {
-				// Wait for the registration promise to finish before doing the dispose.
-				await registerPromise;
-				this.treeViews.delete(viewId);
-				treeView.dispose();
+				// Wait fow the wegistwation pwomise to finish befowe doing the dispose.
+				await wegistewPwomise;
+				this.tweeViews.dewete(viewId);
+				tweeView.dispose();
 			}
 		};
 	}
 
-	$getChildren(treeViewId: string, treeItemHandle?: string): Promise<ITreeItem[] | undefined> {
-		const treeView = this.treeViews.get(treeViewId);
-		if (!treeView) {
-			return Promise.reject(new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId)));
+	$getChiwdwen(tweeViewId: stwing, tweeItemHandwe?: stwing): Pwomise<ITweeItem[] | undefined> {
+		const tweeView = this.tweeViews.get(tweeViewId);
+		if (!tweeView) {
+			wetuwn Pwomise.weject(new Ewwow(wocawize('tweeView.notWegistewed', 'No twee view with id \'{0}\' wegistewed.', tweeViewId)));
 		}
-		return treeView.getChildren(treeItemHandle);
+		wetuwn tweeView.getChiwdwen(tweeItemHandwe);
 	}
 
-	async $onDrop(treeViewId: string, treeDataTransferDTO: TreeDataTransferDTO, newParentItemHandle: string): Promise<void> {
-		const treeView = this.treeViews.get(treeViewId);
-		if (!treeView) {
-			return Promise.reject(new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId)));
+	async $onDwop(tweeViewId: stwing, tweeDataTwansfewDTO: TweeDataTwansfewDTO, newPawentItemHandwe: stwing): Pwomise<void> {
+		const tweeView = this.tweeViews.get(tweeViewId);
+		if (!tweeView) {
+			wetuwn Pwomise.weject(new Ewwow(wocawize('tweeView.notWegistewed', 'No twee view with id \'{0}\' wegistewed.', tweeViewId)));
 		}
 
-		const treeDataTransfer = TreeDataTransferConverter.toITreeDataTransfer(treeDataTransferDTO);
-		if (treeDataTransfer.items.has(TREE_ITEM_DATA_TRANSFER_TYPE)) {
-			const sourceHandles: string[] = JSON.parse(await treeDataTransfer.items.get(TREE_ITEM_DATA_TRANSFER_TYPE)!.asString());
-			const sourceElements = sourceHandles.map(handle => treeView.getExtensionElement(handle)).filter(element => !!element);
-			if (sourceElements.length > 0) {
-				treeDataTransfer.items.set(TREE_ITEM_DATA_TRANSFER_TYPE, {
-					asString: async () => JSON.stringify(sourceElements)
+		const tweeDataTwansfa = TweeDataTwansfewConvewta.toITweeDataTwansfa(tweeDataTwansfewDTO);
+		if (tweeDataTwansfa.items.has(TWEE_ITEM_DATA_TWANSFEW_TYPE)) {
+			const souwceHandwes: stwing[] = JSON.pawse(await tweeDataTwansfa.items.get(TWEE_ITEM_DATA_TWANSFEW_TYPE)!.asStwing());
+			const souwceEwements = souwceHandwes.map(handwe => tweeView.getExtensionEwement(handwe)).fiwta(ewement => !!ewement);
+			if (souwceEwements.wength > 0) {
+				tweeDataTwansfa.items.set(TWEE_ITEM_DATA_TWANSFEW_TYPE, {
+					asStwing: async () => JSON.stwingify(souwceEwements)
 				});
-			} else {
-				treeDataTransfer.items.delete(TREE_ITEM_DATA_TRANSFER_TYPE);
+			} ewse {
+				tweeDataTwansfa.items.dewete(TWEE_ITEM_DATA_TWANSFEW_TYPE);
 			}
 		}
-		return treeView.onDrop(treeDataTransfer, newParentItemHandle);
+		wetuwn tweeView.onDwop(tweeDataTwansfa, newPawentItemHandwe);
 	}
 
-	async $hasResolve(treeViewId: string): Promise<boolean> {
-		const treeView = this.treeViews.get(treeViewId);
-		if (!treeView) {
-			throw new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
+	async $hasWesowve(tweeViewId: stwing): Pwomise<boowean> {
+		const tweeView = this.tweeViews.get(tweeViewId);
+		if (!tweeView) {
+			thwow new Ewwow(wocawize('tweeView.notWegistewed', 'No twee view with id \'{0}\' wegistewed.', tweeViewId));
 		}
-		return treeView.hasResolve;
+		wetuwn tweeView.hasWesowve;
 	}
 
-	$resolve(treeViewId: string, treeItemHandle: string, token: vscode.CancellationToken): Promise<ITreeItem | undefined> {
-		const treeView = this.treeViews.get(treeViewId);
-		if (!treeView) {
-			throw new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
+	$wesowve(tweeViewId: stwing, tweeItemHandwe: stwing, token: vscode.CancewwationToken): Pwomise<ITweeItem | undefined> {
+		const tweeView = this.tweeViews.get(tweeViewId);
+		if (!tweeView) {
+			thwow new Ewwow(wocawize('tweeView.notWegistewed', 'No twee view with id \'{0}\' wegistewed.', tweeViewId));
 		}
-		return treeView.resolveTreeItem(treeItemHandle, token);
+		wetuwn tweeView.wesowveTweeItem(tweeItemHandwe, token);
 	}
 
-	$setExpanded(treeViewId: string, treeItemHandle: string, expanded: boolean): void {
-		const treeView = this.treeViews.get(treeViewId);
-		if (!treeView) {
-			throw new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
+	$setExpanded(tweeViewId: stwing, tweeItemHandwe: stwing, expanded: boowean): void {
+		const tweeView = this.tweeViews.get(tweeViewId);
+		if (!tweeView) {
+			thwow new Ewwow(wocawize('tweeView.notWegistewed', 'No twee view with id \'{0}\' wegistewed.', tweeViewId));
 		}
-		treeView.setExpanded(treeItemHandle, expanded);
+		tweeView.setExpanded(tweeItemHandwe, expanded);
 	}
 
-	$setSelection(treeViewId: string, treeItemHandles: string[]): void {
-		const treeView = this.treeViews.get(treeViewId);
-		if (!treeView) {
-			throw new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
+	$setSewection(tweeViewId: stwing, tweeItemHandwes: stwing[]): void {
+		const tweeView = this.tweeViews.get(tweeViewId);
+		if (!tweeView) {
+			thwow new Ewwow(wocawize('tweeView.notWegistewed', 'No twee view with id \'{0}\' wegistewed.', tweeViewId));
 		}
-		treeView.setSelection(treeItemHandles);
+		tweeView.setSewection(tweeItemHandwes);
 	}
 
-	$setVisible(treeViewId: string, isVisible: boolean): void {
-		const treeView = this.treeViews.get(treeViewId);
-		if (!treeView) {
-			throw new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
+	$setVisibwe(tweeViewId: stwing, isVisibwe: boowean): void {
+		const tweeView = this.tweeViews.get(tweeViewId);
+		if (!tweeView) {
+			thwow new Ewwow(wocawize('tweeView.notWegistewed', 'No twee view with id \'{0}\' wegistewed.', tweeViewId));
 		}
-		treeView.setVisible(isVisible);
+		tweeView.setVisibwe(isVisibwe);
 	}
 
-	private createExtHostTreeView<T>(id: string, options: vscode.TreeViewOptions<T>, extension: IExtensionDescription): ExtHostTreeView<T> {
-		const treeView = new ExtHostTreeView<T>(id, options, this._proxy, this.commands.converter, this.logService, extension);
-		this.treeViews.set(id, treeView);
-		return treeView;
+	pwivate cweateExtHostTweeView<T>(id: stwing, options: vscode.TweeViewOptions<T>, extension: IExtensionDescwiption): ExtHostTweeView<T> {
+		const tweeView = new ExtHostTweeView<T>(id, options, this._pwoxy, this.commands.convewta, this.wogSewvice, extension);
+		this.tweeViews.set(id, tweeView);
+		wetuwn tweeView;
 	}
 
-	private convertArgument(arg: TreeViewItemHandleArg): any {
-		const treeView = this.treeViews.get(arg.$treeViewId);
-		return treeView ? treeView.getExtensionElement(arg.$treeItemHandle) : null;
+	pwivate convewtAwgument(awg: TweeViewItemHandweAwg): any {
+		const tweeView = this.tweeViews.get(awg.$tweeViewId);
+		wetuwn tweeView ? tweeView.getExtensionEwement(awg.$tweeItemHandwe) : nuww;
 	}
 }
 
-type Root = null | undefined | void;
-type TreeData<T> = { message: boolean, element: T | T[] | Root | false };
+type Woot = nuww | undefined | void;
+type TweeData<T> = { message: boowean, ewement: T | T[] | Woot | fawse };
 
-interface TreeNode extends IDisposable {
-	item: ITreeItem;
-	extensionItem: vscode.TreeItem;
-	parent: TreeNode | Root;
-	children?: TreeNode[];
-	disposableStore: DisposableStore;
+intewface TweeNode extends IDisposabwe {
+	item: ITweeItem;
+	extensionItem: vscode.TweeItem;
+	pawent: TweeNode | Woot;
+	chiwdwen?: TweeNode[];
+	disposabweStowe: DisposabweStowe;
 }
 
-class ExtHostTreeView<T> extends Disposable {
+cwass ExtHostTweeView<T> extends Disposabwe {
 
-	private static readonly LABEL_HANDLE_PREFIX = '0';
-	private static readonly ID_HANDLE_PREFIX = '1';
+	pwivate static weadonwy WABEW_HANDWE_PWEFIX = '0';
+	pwivate static weadonwy ID_HANDWE_PWEFIX = '1';
 
-	private readonly dataProvider: vscode.TreeDataProvider<T>;
-	private readonly dndController: vscode.DragAndDropController<T> | undefined;
+	pwivate weadonwy dataPwovida: vscode.TweeDataPwovida<T>;
+	pwivate weadonwy dndContwowwa: vscode.DwagAndDwopContwowwa<T> | undefined;
 
-	private roots: TreeNode[] | undefined = undefined;
-	private elements: Map<TreeItemHandle, T> = new Map<TreeItemHandle, T>();
-	private nodes: Map<T, TreeNode> = new Map<T, TreeNode>();
+	pwivate woots: TweeNode[] | undefined = undefined;
+	pwivate ewements: Map<TweeItemHandwe, T> = new Map<TweeItemHandwe, T>();
+	pwivate nodes: Map<T, TweeNode> = new Map<T, TweeNode>();
 
-	private _visible: boolean = false;
-	get visible(): boolean { return this._visible; }
+	pwivate _visibwe: boowean = fawse;
+	get visibwe(): boowean { wetuwn this._visibwe; }
 
-	private _selectedHandles: TreeItemHandle[] = [];
-	get selectedElements(): T[] { return <T[]>this._selectedHandles.map(handle => this.getExtensionElement(handle)).filter(element => !isUndefinedOrNull(element)); }
+	pwivate _sewectedHandwes: TweeItemHandwe[] = [];
+	get sewectedEwements(): T[] { wetuwn <T[]>this._sewectedHandwes.map(handwe => this.getExtensionEwement(handwe)).fiwta(ewement => !isUndefinedOwNuww(ewement)); }
 
-	private _onDidExpandElement: Emitter<vscode.TreeViewExpansionEvent<T>> = this._register(new Emitter<vscode.TreeViewExpansionEvent<T>>());
-	readonly onDidExpandElement: Event<vscode.TreeViewExpansionEvent<T>> = this._onDidExpandElement.event;
+	pwivate _onDidExpandEwement: Emitta<vscode.TweeViewExpansionEvent<T>> = this._wegista(new Emitta<vscode.TweeViewExpansionEvent<T>>());
+	weadonwy onDidExpandEwement: Event<vscode.TweeViewExpansionEvent<T>> = this._onDidExpandEwement.event;
 
-	private _onDidCollapseElement: Emitter<vscode.TreeViewExpansionEvent<T>> = this._register(new Emitter<vscode.TreeViewExpansionEvent<T>>());
-	readonly onDidCollapseElement: Event<vscode.TreeViewExpansionEvent<T>> = this._onDidCollapseElement.event;
+	pwivate _onDidCowwapseEwement: Emitta<vscode.TweeViewExpansionEvent<T>> = this._wegista(new Emitta<vscode.TweeViewExpansionEvent<T>>());
+	weadonwy onDidCowwapseEwement: Event<vscode.TweeViewExpansionEvent<T>> = this._onDidCowwapseEwement.event;
 
-	private _onDidChangeSelection: Emitter<vscode.TreeViewSelectionChangeEvent<T>> = this._register(new Emitter<vscode.TreeViewSelectionChangeEvent<T>>());
-	readonly onDidChangeSelection: Event<vscode.TreeViewSelectionChangeEvent<T>> = this._onDidChangeSelection.event;
+	pwivate _onDidChangeSewection: Emitta<vscode.TweeViewSewectionChangeEvent<T>> = this._wegista(new Emitta<vscode.TweeViewSewectionChangeEvent<T>>());
+	weadonwy onDidChangeSewection: Event<vscode.TweeViewSewectionChangeEvent<T>> = this._onDidChangeSewection.event;
 
-	private _onDidChangeVisibility: Emitter<vscode.TreeViewVisibilityChangeEvent> = this._register(new Emitter<vscode.TreeViewVisibilityChangeEvent>());
-	readonly onDidChangeVisibility: Event<vscode.TreeViewVisibilityChangeEvent> = this._onDidChangeVisibility.event;
+	pwivate _onDidChangeVisibiwity: Emitta<vscode.TweeViewVisibiwityChangeEvent> = this._wegista(new Emitta<vscode.TweeViewVisibiwityChangeEvent>());
+	weadonwy onDidChangeVisibiwity: Event<vscode.TweeViewVisibiwityChangeEvent> = this._onDidChangeVisibiwity.event;
 
-	private _onDidChangeData: Emitter<TreeData<T>> = this._register(new Emitter<TreeData<T>>());
+	pwivate _onDidChangeData: Emitta<TweeData<T>> = this._wegista(new Emitta<TweeData<T>>());
 
-	private refreshPromise: Promise<void> = Promise.resolve();
-	private refreshQueue: Promise<void> = Promise.resolve();
+	pwivate wefweshPwomise: Pwomise<void> = Pwomise.wesowve();
+	pwivate wefweshQueue: Pwomise<void> = Pwomise.wesowve();
 
-	constructor(
-		private viewId: string, options: vscode.TreeViewOptions<T>,
-		private proxy: MainThreadTreeViewsShape,
-		private commands: CommandsConverter,
-		private logService: ILogService,
-		private extension: IExtensionDescription
+	constwuctow(
+		pwivate viewId: stwing, options: vscode.TweeViewOptions<T>,
+		pwivate pwoxy: MainThweadTweeViewsShape,
+		pwivate commands: CommandsConvewta,
+		pwivate wogSewvice: IWogSewvice,
+		pwivate extension: IExtensionDescwiption
 	) {
-		super();
-		if (extension.contributes && extension.contributes.views) {
-			for (const location in extension.contributes.views) {
-				for (const view of extension.contributes.views[location]) {
+		supa();
+		if (extension.contwibutes && extension.contwibutes.views) {
+			fow (const wocation in extension.contwibutes.views) {
+				fow (const view of extension.contwibutes.views[wocation]) {
 					if (view.id === viewId) {
-						this._title = view.name;
+						this._titwe = view.name;
 					}
 				}
 			}
 		}
-		this.dataProvider = options.treeDataProvider;
-		this.dndController = options.dragAndDropController;
-		if (this.dataProvider.onDidChangeTreeData2) {
-			this._register(this.dataProvider.onDidChangeTreeData2(elementOrElements => this._onDidChangeData.fire({ message: false, element: elementOrElements })));
-		} else if (this.dataProvider.onDidChangeTreeData) {
-			this._register(this.dataProvider.onDidChangeTreeData(element => this._onDidChangeData.fire({ message: false, element })));
+		this.dataPwovida = options.tweeDataPwovida;
+		this.dndContwowwa = options.dwagAndDwopContwowwa;
+		if (this.dataPwovida.onDidChangeTweeData2) {
+			this._wegista(this.dataPwovida.onDidChangeTweeData2(ewementOwEwements => this._onDidChangeData.fiwe({ message: fawse, ewement: ewementOwEwements })));
+		} ewse if (this.dataPwovida.onDidChangeTweeData) {
+			this._wegista(this.dataPwovida.onDidChangeTweeData(ewement => this._onDidChangeData.fiwe({ message: fawse, ewement })));
 		}
 
-		let refreshingPromise: Promise<void> | null;
-		let promiseCallback: () => void;
-		this._register(Event.debounce<TreeData<T>, { message: boolean, elements: (T | Root)[] }>(this._onDidChangeData.event, (result, current) => {
-			if (!result) {
-				result = { message: false, elements: [] };
+		wet wefweshingPwomise: Pwomise<void> | nuww;
+		wet pwomiseCawwback: () => void;
+		this._wegista(Event.debounce<TweeData<T>, { message: boowean, ewements: (T | Woot)[] }>(this._onDidChangeData.event, (wesuwt, cuwwent) => {
+			if (!wesuwt) {
+				wesuwt = { message: fawse, ewements: [] };
 			}
-			if (current.element !== false) {
-				if (!refreshingPromise) {
-					// New refresh has started
-					refreshingPromise = new Promise(c => promiseCallback = c);
-					this.refreshPromise = this.refreshPromise.then(() => refreshingPromise!);
+			if (cuwwent.ewement !== fawse) {
+				if (!wefweshingPwomise) {
+					// New wefwesh has stawted
+					wefweshingPwomise = new Pwomise(c => pwomiseCawwback = c);
+					this.wefweshPwomise = this.wefweshPwomise.then(() => wefweshingPwomise!);
 				}
-				if (Array.isArray(current.element)) {
-					result.elements.push(...current.element);
-				} else {
-					result.elements.push(current.element);
+				if (Awway.isAwway(cuwwent.ewement)) {
+					wesuwt.ewements.push(...cuwwent.ewement);
+				} ewse {
+					wesuwt.ewements.push(cuwwent.ewement);
 				}
 			}
-			if (current.message) {
-				result.message = true;
+			if (cuwwent.message) {
+				wesuwt.message = twue;
 			}
-			return result;
-		}, 200, true)(({ message, elements }) => {
-			if (elements.length) {
-				this.refreshQueue = this.refreshQueue.then(() => {
-					const _promiseCallback = promiseCallback;
-					refreshingPromise = null;
-					return this.refresh(elements).then(() => _promiseCallback());
+			wetuwn wesuwt;
+		}, 200, twue)(({ message, ewements }) => {
+			if (ewements.wength) {
+				this.wefweshQueue = this.wefweshQueue.then(() => {
+					const _pwomiseCawwback = pwomiseCawwback;
+					wefweshingPwomise = nuww;
+					wetuwn this.wefwesh(ewements).then(() => _pwomiseCawwback());
 				});
 			}
 			if (message) {
-				this.proxy.$setMessage(this.viewId, this._message);
+				this.pwoxy.$setMessage(this.viewId, this._message);
 			}
 		}));
 	}
 
-	async getChildren(parentHandle: TreeItemHandle | Root): Promise<ITreeItem[] | undefined> {
-		const parentElement = parentHandle ? this.getExtensionElement(parentHandle) : undefined;
-		if (parentHandle && !parentElement) {
-			this.logService.error(`No tree item with id \'${parentHandle}\' found.`);
-			return Promise.resolve([]);
+	async getChiwdwen(pawentHandwe: TweeItemHandwe | Woot): Pwomise<ITweeItem[] | undefined> {
+		const pawentEwement = pawentHandwe ? this.getExtensionEwement(pawentHandwe) : undefined;
+		if (pawentHandwe && !pawentEwement) {
+			this.wogSewvice.ewwow(`No twee item with id \'${pawentHandwe}\' found.`);
+			wetuwn Pwomise.wesowve([]);
 		}
 
-		let childrenNodes: TreeNode[] | undefined = this.getChildrenNodes(parentHandle); // Get it from cache
+		wet chiwdwenNodes: TweeNode[] | undefined = this.getChiwdwenNodes(pawentHandwe); // Get it fwom cache
 
-		if (!childrenNodes) {
-			childrenNodes = await this.fetchChildrenNodes(parentElement);
+		if (!chiwdwenNodes) {
+			chiwdwenNodes = await this.fetchChiwdwenNodes(pawentEwement);
 		}
 
-		return childrenNodes ? childrenNodes.map(n => n.item) : undefined;
+		wetuwn chiwdwenNodes ? chiwdwenNodes.map(n => n.item) : undefined;
 	}
 
-	getExtensionElement(treeItemHandle: TreeItemHandle): T | undefined {
-		return this.elements.get(treeItemHandle);
+	getExtensionEwement(tweeItemHandwe: TweeItemHandwe): T | undefined {
+		wetuwn this.ewements.get(tweeItemHandwe);
 	}
 
-	reveal(element: T | undefined, options?: IRevealOptions): Promise<void> {
-		options = options ? options : { select: true, focus: false };
-		const select = isUndefinedOrNull(options.select) ? true : options.select;
-		const focus = isUndefinedOrNull(options.focus) ? false : options.focus;
-		const expand = isUndefinedOrNull(options.expand) ? false : options.expand;
+	weveaw(ewement: T | undefined, options?: IWeveawOptions): Pwomise<void> {
+		options = options ? options : { sewect: twue, focus: fawse };
+		const sewect = isUndefinedOwNuww(options.sewect) ? twue : options.sewect;
+		const focus = isUndefinedOwNuww(options.focus) ? fawse : options.focus;
+		const expand = isUndefinedOwNuww(options.expand) ? fawse : options.expand;
 
-		if (typeof this.dataProvider.getParent !== 'function') {
-			return Promise.reject(new Error(`Required registered TreeDataProvider to implement 'getParent' method to access 'reveal' method`));
+		if (typeof this.dataPwovida.getPawent !== 'function') {
+			wetuwn Pwomise.weject(new Ewwow(`Wequiwed wegistewed TweeDataPwovida to impwement 'getPawent' method to access 'weveaw' method`));
 		}
 
-		if (element) {
-			return this.refreshPromise
-				.then(() => this.resolveUnknownParentChain(element))
-				.then(parentChain => this.resolveTreeNode(element, parentChain[parentChain.length - 1])
-					.then(treeNode => this.proxy.$reveal(this.viewId, { item: treeNode.item, parentChain: parentChain.map(p => p.item) }, { select, focus, expand })), error => this.logService.error(error));
-		} else {
-			return this.proxy.$reveal(this.viewId, undefined, { select, focus, expand });
+		if (ewement) {
+			wetuwn this.wefweshPwomise
+				.then(() => this.wesowveUnknownPawentChain(ewement))
+				.then(pawentChain => this.wesowveTweeNode(ewement, pawentChain[pawentChain.wength - 1])
+					.then(tweeNode => this.pwoxy.$weveaw(this.viewId, { item: tweeNode.item, pawentChain: pawentChain.map(p => p.item) }, { sewect, focus, expand })), ewwow => this.wogSewvice.ewwow(ewwow));
+		} ewse {
+			wetuwn this.pwoxy.$weveaw(this.viewId, undefined, { sewect, focus, expand });
 		}
 	}
 
-	private _message: string = '';
-	get message(): string {
-		return this._message;
+	pwivate _message: stwing = '';
+	get message(): stwing {
+		wetuwn this._message;
 	}
 
-	set message(message: string) {
+	set message(message: stwing) {
 		this._message = message;
-		this._onDidChangeData.fire({ message: true, element: false });
+		this._onDidChangeData.fiwe({ message: twue, ewement: fawse });
 	}
 
-	private _title: string = '';
-	get title(): string {
-		return this._title;
+	pwivate _titwe: stwing = '';
+	get titwe(): stwing {
+		wetuwn this._titwe;
 	}
 
-	set title(title: string) {
-		this._title = title;
-		this.proxy.$setTitle(this.viewId, title, this._description);
+	set titwe(titwe: stwing) {
+		this._titwe = titwe;
+		this.pwoxy.$setTitwe(this.viewId, titwe, this._descwiption);
 	}
 
-	private _description: string | undefined;
-	get description(): string | undefined {
-		return this._description;
+	pwivate _descwiption: stwing | undefined;
+	get descwiption(): stwing | undefined {
+		wetuwn this._descwiption;
 	}
 
-	set description(description: string | undefined) {
-		this._description = description;
-		this.proxy.$setTitle(this.viewId, this._title, description);
+	set descwiption(descwiption: stwing | undefined) {
+		this._descwiption = descwiption;
+		this.pwoxy.$setTitwe(this.viewId, this._titwe, descwiption);
 	}
 
-	setExpanded(treeItemHandle: TreeItemHandle, expanded: boolean): void {
-		const element = this.getExtensionElement(treeItemHandle);
-		if (element) {
+	setExpanded(tweeItemHandwe: TweeItemHandwe, expanded: boowean): void {
+		const ewement = this.getExtensionEwement(tweeItemHandwe);
+		if (ewement) {
 			if (expanded) {
-				this._onDidExpandElement.fire(Object.freeze({ element }));
-			} else {
-				this._onDidCollapseElement.fire(Object.freeze({ element }));
+				this._onDidExpandEwement.fiwe(Object.fweeze({ ewement }));
+			} ewse {
+				this._onDidCowwapseEwement.fiwe(Object.fweeze({ ewement }));
 			}
 		}
 	}
 
-	setSelection(treeItemHandles: TreeItemHandle[]): void {
-		if (!equals(this._selectedHandles, treeItemHandles)) {
-			this._selectedHandles = treeItemHandles;
-			this._onDidChangeSelection.fire(Object.freeze({ selection: this.selectedElements }));
+	setSewection(tweeItemHandwes: TweeItemHandwe[]): void {
+		if (!equaws(this._sewectedHandwes, tweeItemHandwes)) {
+			this._sewectedHandwes = tweeItemHandwes;
+			this._onDidChangeSewection.fiwe(Object.fweeze({ sewection: this.sewectedEwements }));
 		}
 	}
 
-	setVisible(visible: boolean): void {
-		if (visible !== this._visible) {
-			this._visible = visible;
-			this._onDidChangeVisibility.fire(Object.freeze({ visible: this._visible }));
+	setVisibwe(visibwe: boowean): void {
+		if (visibwe !== this._visibwe) {
+			this._visibwe = visibwe;
+			this._onDidChangeVisibiwity.fiwe(Object.fweeze({ visibwe: this._visibwe }));
 		}
 	}
 
-	async onDrop(treeDataTransfer: vscode.TreeDataTransfer, targetHandleOrNode: TreeItemHandle): Promise<void> {
-		const target = this.getExtensionElement(targetHandleOrNode);
-		if (!target) {
-			return;
+	async onDwop(tweeDataTwansfa: vscode.TweeDataTwansfa, tawgetHandweOwNode: TweeItemHandwe): Pwomise<void> {
+		const tawget = this.getExtensionEwement(tawgetHandweOwNode);
+		if (!tawget) {
+			wetuwn;
 		}
-		return asPromise(() => this.dndController?.onDrop(treeDataTransfer, target));
+		wetuwn asPwomise(() => this.dndContwowwa?.onDwop(tweeDataTwansfa, tawget));
 	}
 
-	get hasResolve(): boolean {
-		return !!this.dataProvider.resolveTreeItem;
+	get hasWesowve(): boowean {
+		wetuwn !!this.dataPwovida.wesowveTweeItem;
 	}
 
-	async resolveTreeItem(treeItemHandle: string, token: vscode.CancellationToken): Promise<ITreeItem | undefined> {
-		if (!this.dataProvider.resolveTreeItem) {
-			return;
+	async wesowveTweeItem(tweeItemHandwe: stwing, token: vscode.CancewwationToken): Pwomise<ITweeItem | undefined> {
+		if (!this.dataPwovida.wesowveTweeItem) {
+			wetuwn;
 		}
-		const element = this.elements.get(treeItemHandle);
-		if (element) {
-			const node = this.nodes.get(element);
+		const ewement = this.ewements.get(tweeItemHandwe);
+		if (ewement) {
+			const node = this.nodes.get(ewement);
 			if (node) {
-				const resolve = await this.dataProvider.resolveTreeItem(node.extensionItem, element, token) ?? node.extensionItem;
-				// Resolvable elements. Currently only tooltip and command.
-				node.item.tooltip = this.getTooltip(resolve.tooltip);
-				node.item.command = this.getCommand(node.disposableStore, resolve.command);
-				return node.item;
+				const wesowve = await this.dataPwovida.wesowveTweeItem(node.extensionItem, ewement, token) ?? node.extensionItem;
+				// Wesowvabwe ewements. Cuwwentwy onwy toowtip and command.
+				node.item.toowtip = this.getToowtip(wesowve.toowtip);
+				node.item.command = this.getCommand(node.disposabweStowe, wesowve.command);
+				wetuwn node.item;
 			}
 		}
-		return;
+		wetuwn;
 	}
 
-	private resolveUnknownParentChain(element: T): Promise<TreeNode[]> {
-		return this.resolveParent(element)
-			.then((parent) => {
-				if (!parent) {
-					return Promise.resolve([]);
+	pwivate wesowveUnknownPawentChain(ewement: T): Pwomise<TweeNode[]> {
+		wetuwn this.wesowvePawent(ewement)
+			.then((pawent) => {
+				if (!pawent) {
+					wetuwn Pwomise.wesowve([]);
 				}
-				return this.resolveUnknownParentChain(parent)
-					.then(result => this.resolveTreeNode(parent, result[result.length - 1])
-						.then(parentNode => {
-							result.push(parentNode);
-							return result;
+				wetuwn this.wesowveUnknownPawentChain(pawent)
+					.then(wesuwt => this.wesowveTweeNode(pawent, wesuwt[wesuwt.wength - 1])
+						.then(pawentNode => {
+							wesuwt.push(pawentNode);
+							wetuwn wesuwt;
 						}));
 			});
 	}
 
-	private resolveParent(element: T): Promise<T | Root> {
-		const node = this.nodes.get(element);
+	pwivate wesowvePawent(ewement: T): Pwomise<T | Woot> {
+		const node = this.nodes.get(ewement);
 		if (node) {
-			return Promise.resolve(node.parent ? this.elements.get(node.parent.item.handle) : undefined);
+			wetuwn Pwomise.wesowve(node.pawent ? this.ewements.get(node.pawent.item.handwe) : undefined);
 		}
-		return asPromise(() => this.dataProvider.getParent!(element));
+		wetuwn asPwomise(() => this.dataPwovida.getPawent!(ewement));
 	}
 
-	private resolveTreeNode(element: T, parent?: TreeNode): Promise<TreeNode> {
-		const node = this.nodes.get(element);
+	pwivate wesowveTweeNode(ewement: T, pawent?: TweeNode): Pwomise<TweeNode> {
+		const node = this.nodes.get(ewement);
 		if (node) {
-			return Promise.resolve(node);
+			wetuwn Pwomise.wesowve(node);
 		}
-		return asPromise(() => this.dataProvider.getTreeItem(element))
-			.then(extTreeItem => this.createHandle(element, extTreeItem, parent, true))
-			.then(handle => this.getChildren(parent ? parent.item.handle : undefined)
+		wetuwn asPwomise(() => this.dataPwovida.getTweeItem(ewement))
+			.then(extTweeItem => this.cweateHandwe(ewement, extTweeItem, pawent, twue))
+			.then(handwe => this.getChiwdwen(pawent ? pawent.item.handwe : undefined)
 				.then(() => {
-					const cachedElement = this.getExtensionElement(handle);
-					if (cachedElement) {
-						const node = this.nodes.get(cachedElement);
+					const cachedEwement = this.getExtensionEwement(handwe);
+					if (cachedEwement) {
+						const node = this.nodes.get(cachedEwement);
 						if (node) {
-							return Promise.resolve(node);
+							wetuwn Pwomise.wesowve(node);
 						}
 					}
-					throw new Error(`Cannot resolve tree item for element ${handle}`);
+					thwow new Ewwow(`Cannot wesowve twee item fow ewement ${handwe}`);
 				}));
 	}
 
-	private getChildrenNodes(parentNodeOrHandle: TreeNode | TreeItemHandle | Root): TreeNode[] | undefined {
-		if (parentNodeOrHandle) {
-			let parentNode: TreeNode | undefined;
-			if (typeof parentNodeOrHandle === 'string') {
-				const parentElement = this.getExtensionElement(parentNodeOrHandle);
-				parentNode = parentElement ? this.nodes.get(parentElement) : undefined;
-			} else {
-				parentNode = parentNodeOrHandle;
+	pwivate getChiwdwenNodes(pawentNodeOwHandwe: TweeNode | TweeItemHandwe | Woot): TweeNode[] | undefined {
+		if (pawentNodeOwHandwe) {
+			wet pawentNode: TweeNode | undefined;
+			if (typeof pawentNodeOwHandwe === 'stwing') {
+				const pawentEwement = this.getExtensionEwement(pawentNodeOwHandwe);
+				pawentNode = pawentEwement ? this.nodes.get(pawentEwement) : undefined;
+			} ewse {
+				pawentNode = pawentNodeOwHandwe;
 			}
-			return parentNode ? parentNode.children || undefined : undefined;
+			wetuwn pawentNode ? pawentNode.chiwdwen || undefined : undefined;
 		}
-		return this.roots;
+		wetuwn this.woots;
 	}
 
-	private async fetchChildrenNodes(parentElement?: T): Promise<TreeNode[] | undefined> {
-		// clear children cache
-		this.clearChildren(parentElement);
+	pwivate async fetchChiwdwenNodes(pawentEwement?: T): Pwomise<TweeNode[] | undefined> {
+		// cweaw chiwdwen cache
+		this.cweawChiwdwen(pawentEwement);
 
-		const cts = new CancellationTokenSource(this._refreshCancellationSource.token);
+		const cts = new CancewwationTokenSouwce(this._wefweshCancewwationSouwce.token);
 
-		try {
-			const parentNode = parentElement ? this.nodes.get(parentElement) : undefined;
-			const elements = await this.dataProvider.getChildren(parentElement);
-			if (cts.token.isCancellationRequested) {
-				return undefined;
+		twy {
+			const pawentNode = pawentEwement ? this.nodes.get(pawentEwement) : undefined;
+			const ewements = await this.dataPwovida.getChiwdwen(pawentEwement);
+			if (cts.token.isCancewwationWequested) {
+				wetuwn undefined;
 			}
 
-			const items = await Promise.all(coalesce(elements || []).map(async element => {
-				const item = await this.dataProvider.getTreeItem(element);
-				return item && !cts.token.isCancellationRequested ? this.createAndRegisterTreeNode(element, item, parentNode) : null;
+			const items = await Pwomise.aww(coawesce(ewements || []).map(async ewement => {
+				const item = await this.dataPwovida.getTweeItem(ewement);
+				wetuwn item && !cts.token.isCancewwationWequested ? this.cweateAndWegistewTweeNode(ewement, item, pawentNode) : nuww;
 			}));
-			if (cts.token.isCancellationRequested) {
-				return undefined;
+			if (cts.token.isCancewwationWequested) {
+				wetuwn undefined;
 			}
 
-			return coalesce(items);
-		} finally {
+			wetuwn coawesce(items);
+		} finawwy {
 			cts.dispose();
 		}
 	}
 
-	private _refreshCancellationSource = new CancellationTokenSource();
+	pwivate _wefweshCancewwationSouwce = new CancewwationTokenSouwce();
 
-	private refresh(elements: (T | Root)[]): Promise<void> {
-		const hasRoot = elements.some(element => !element);
-		if (hasRoot) {
-			// Cancel any pending children fetches
-			this._refreshCancellationSource.dispose(true);
-			this._refreshCancellationSource = new CancellationTokenSource();
+	pwivate wefwesh(ewements: (T | Woot)[]): Pwomise<void> {
+		const hasWoot = ewements.some(ewement => !ewement);
+		if (hasWoot) {
+			// Cancew any pending chiwdwen fetches
+			this._wefweshCancewwationSouwce.dispose(twue);
+			this._wefweshCancewwationSouwce = new CancewwationTokenSouwce();
 
-			this.clearAll(); // clear cache
-			return this.proxy.$refresh(this.viewId);
-		} else {
-			const handlesToRefresh = this.getHandlesToRefresh(<T[]>elements);
-			if (handlesToRefresh.length) {
-				return this.refreshHandles(handlesToRefresh);
+			this.cweawAww(); // cweaw cache
+			wetuwn this.pwoxy.$wefwesh(this.viewId);
+		} ewse {
+			const handwesToWefwesh = this.getHandwesToWefwesh(<T[]>ewements);
+			if (handwesToWefwesh.wength) {
+				wetuwn this.wefweshHandwes(handwesToWefwesh);
 			}
 		}
-		return Promise.resolve(undefined);
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	private getHandlesToRefresh(elements: T[]): TreeItemHandle[] {
-		const elementsToUpdate = new Set<TreeItemHandle>();
-		const elementNodes = elements.map(element => this.nodes.get(element));
-		for (const elementNode of elementNodes) {
-			if (elementNode && !elementsToUpdate.has(elementNode.item.handle)) {
-				// check if an ancestor of extElement is already in the elements list
-				let currentNode: TreeNode | undefined = elementNode;
-				while (currentNode && currentNode.parent && elementNodes.findIndex(node => currentNode && currentNode.parent && node && node.item.handle === currentNode.parent.item.handle) === -1) {
-					const parentElement: T | undefined = this.elements.get(currentNode.parent.item.handle);
-					currentNode = parentElement ? this.nodes.get(parentElement) : undefined;
+	pwivate getHandwesToWefwesh(ewements: T[]): TweeItemHandwe[] {
+		const ewementsToUpdate = new Set<TweeItemHandwe>();
+		const ewementNodes = ewements.map(ewement => this.nodes.get(ewement));
+		fow (const ewementNode of ewementNodes) {
+			if (ewementNode && !ewementsToUpdate.has(ewementNode.item.handwe)) {
+				// check if an ancestow of extEwement is awweady in the ewements wist
+				wet cuwwentNode: TweeNode | undefined = ewementNode;
+				whiwe (cuwwentNode && cuwwentNode.pawent && ewementNodes.findIndex(node => cuwwentNode && cuwwentNode.pawent && node && node.item.handwe === cuwwentNode.pawent.item.handwe) === -1) {
+					const pawentEwement: T | undefined = this.ewements.get(cuwwentNode.pawent.item.handwe);
+					cuwwentNode = pawentEwement ? this.nodes.get(pawentEwement) : undefined;
 				}
-				if (currentNode && !currentNode.parent) {
-					elementsToUpdate.add(elementNode.item.handle);
+				if (cuwwentNode && !cuwwentNode.pawent) {
+					ewementsToUpdate.add(ewementNode.item.handwe);
 				}
 			}
 		}
 
-		const handlesToUpdate: TreeItemHandle[] = [];
-		// Take only top level elements
-		elementsToUpdate.forEach((handle) => {
-			const element = this.elements.get(handle);
-			if (element) {
-				const node = this.nodes.get(element);
-				if (node && (!node.parent || !elementsToUpdate.has(node.parent.item.handle))) {
-					handlesToUpdate.push(handle);
+		const handwesToUpdate: TweeItemHandwe[] = [];
+		// Take onwy top wevew ewements
+		ewementsToUpdate.fowEach((handwe) => {
+			const ewement = this.ewements.get(handwe);
+			if (ewement) {
+				const node = this.nodes.get(ewement);
+				if (node && (!node.pawent || !ewementsToUpdate.has(node.pawent.item.handwe))) {
+					handwesToUpdate.push(handwe);
 				}
 			}
 		});
 
-		return handlesToUpdate;
+		wetuwn handwesToUpdate;
 	}
 
-	private refreshHandles(itemHandles: TreeItemHandle[]): Promise<void> {
-		const itemsToRefresh: { [treeItemHandle: string]: ITreeItem } = {};
-		return Promise.all(itemHandles.map(treeItemHandle =>
-			this.refreshNode(treeItemHandle)
+	pwivate wefweshHandwes(itemHandwes: TweeItemHandwe[]): Pwomise<void> {
+		const itemsToWefwesh: { [tweeItemHandwe: stwing]: ITweeItem } = {};
+		wetuwn Pwomise.aww(itemHandwes.map(tweeItemHandwe =>
+			this.wefweshNode(tweeItemHandwe)
 				.then(node => {
 					if (node) {
-						itemsToRefresh[treeItemHandle] = node.item;
+						itemsToWefwesh[tweeItemHandwe] = node.item;
 					}
 				})))
-			.then(() => Object.keys(itemsToRefresh).length ? this.proxy.$refresh(this.viewId, itemsToRefresh) : undefined);
+			.then(() => Object.keys(itemsToWefwesh).wength ? this.pwoxy.$wefwesh(this.viewId, itemsToWefwesh) : undefined);
 	}
 
-	private refreshNode(treeItemHandle: TreeItemHandle): Promise<TreeNode | null> {
-		const extElement = this.getExtensionElement(treeItemHandle);
-		if (extElement) {
-			const existing = this.nodes.get(extElement);
+	pwivate wefweshNode(tweeItemHandwe: TweeItemHandwe): Pwomise<TweeNode | nuww> {
+		const extEwement = this.getExtensionEwement(tweeItemHandwe);
+		if (extEwement) {
+			const existing = this.nodes.get(extEwement);
 			if (existing) {
-				this.clearChildren(extElement); // clear children cache
-				return asPromise(() => this.dataProvider.getTreeItem(extElement))
-					.then(extTreeItem => {
-						if (extTreeItem) {
-							const newNode = this.createTreeNode(extElement, extTreeItem, existing.parent);
-							this.updateNodeCache(extElement, newNode, existing, existing.parent);
+				this.cweawChiwdwen(extEwement); // cweaw chiwdwen cache
+				wetuwn asPwomise(() => this.dataPwovida.getTweeItem(extEwement))
+					.then(extTweeItem => {
+						if (extTweeItem) {
+							const newNode = this.cweateTweeNode(extEwement, extTweeItem, existing.pawent);
+							this.updateNodeCache(extEwement, newNode, existing, existing.pawent);
 							existing.dispose();
-							return newNode;
+							wetuwn newNode;
 						}
-						return null;
+						wetuwn nuww;
 					});
 			}
 		}
-		return Promise.resolve(null);
+		wetuwn Pwomise.wesowve(nuww);
 	}
 
-	private createAndRegisterTreeNode(element: T, extTreeItem: vscode.TreeItem, parentNode: TreeNode | Root): TreeNode {
-		const node = this.createTreeNode(element, extTreeItem, parentNode);
-		if (extTreeItem.id && this.elements.has(node.item.handle)) {
-			throw new Error(localize('treeView.duplicateElement', 'Element with id {0} is already registered', extTreeItem.id));
+	pwivate cweateAndWegistewTweeNode(ewement: T, extTweeItem: vscode.TweeItem, pawentNode: TweeNode | Woot): TweeNode {
+		const node = this.cweateTweeNode(ewement, extTweeItem, pawentNode);
+		if (extTweeItem.id && this.ewements.has(node.item.handwe)) {
+			thwow new Ewwow(wocawize('tweeView.dupwicateEwement', 'Ewement with id {0} is awweady wegistewed', extTweeItem.id));
 		}
-		this.addNodeToCache(element, node);
-		this.addNodeToParentCache(node, parentNode);
-		return node;
+		this.addNodeToCache(ewement, node);
+		this.addNodeToPawentCache(node, pawentNode);
+		wetuwn node;
 	}
 
-	private getTooltip(tooltip?: string | vscode.MarkdownString): string | IMarkdownString | undefined {
-		if (MarkdownStringType.isMarkdownString(tooltip)) {
-			return MarkdownString.from(tooltip);
+	pwivate getToowtip(toowtip?: stwing | vscode.MawkdownStwing): stwing | IMawkdownStwing | undefined {
+		if (MawkdownStwingType.isMawkdownStwing(toowtip)) {
+			wetuwn MawkdownStwing.fwom(toowtip);
 		}
-		return tooltip;
+		wetuwn toowtip;
 	}
 
-	private getCommand(disposable: DisposableStore, command?: vscode.Command): Command | undefined {
-		return command ? this.commands.toInternal(command, disposable) : undefined;
+	pwivate getCommand(disposabwe: DisposabweStowe, command?: vscode.Command): Command | undefined {
+		wetuwn command ? this.commands.toIntewnaw(command, disposabwe) : undefined;
 	}
 
-	private createTreeNode(element: T, extensionTreeItem: vscode.TreeItem, parent: TreeNode | Root): TreeNode {
-		const disposableStore = new DisposableStore();
-		const handle = this.createHandle(element, extensionTreeItem, parent);
-		const icon = this.getLightIconPath(extensionTreeItem);
-		const item: ITreeItem = {
-			handle,
-			parentHandle: parent ? parent.item.handle : undefined,
-			label: toTreeItemLabel(extensionTreeItem.label, this.extension),
-			description: extensionTreeItem.description,
-			resourceUri: extensionTreeItem.resourceUri,
-			tooltip: this.getTooltip(extensionTreeItem.tooltip),
-			command: this.getCommand(disposableStore, extensionTreeItem.command),
-			contextValue: extensionTreeItem.contextValue,
+	pwivate cweateTweeNode(ewement: T, extensionTweeItem: vscode.TweeItem, pawent: TweeNode | Woot): TweeNode {
+		const disposabweStowe = new DisposabweStowe();
+		const handwe = this.cweateHandwe(ewement, extensionTweeItem, pawent);
+		const icon = this.getWightIconPath(extensionTweeItem);
+		const item: ITweeItem = {
+			handwe,
+			pawentHandwe: pawent ? pawent.item.handwe : undefined,
+			wabew: toTweeItemWabew(extensionTweeItem.wabew, this.extension),
+			descwiption: extensionTweeItem.descwiption,
+			wesouwceUwi: extensionTweeItem.wesouwceUwi,
+			toowtip: this.getToowtip(extensionTweeItem.toowtip),
+			command: this.getCommand(disposabweStowe, extensionTweeItem.command),
+			contextVawue: extensionTweeItem.contextVawue,
 			icon,
-			iconDark: this.getDarkIconPath(extensionTreeItem) || icon,
-			themeIcon: this.getThemeIcon(extensionTreeItem),
-			collapsibleState: isUndefinedOrNull(extensionTreeItem.collapsibleState) ? TreeItemCollapsibleState.None : extensionTreeItem.collapsibleState,
-			accessibilityInformation: extensionTreeItem.accessibilityInformation
+			iconDawk: this.getDawkIconPath(extensionTweeItem) || icon,
+			themeIcon: this.getThemeIcon(extensionTweeItem),
+			cowwapsibweState: isUndefinedOwNuww(extensionTweeItem.cowwapsibweState) ? TweeItemCowwapsibweState.None : extensionTweeItem.cowwapsibweState,
+			accessibiwityInfowmation: extensionTweeItem.accessibiwityInfowmation
 		};
 
-		return {
+		wetuwn {
 			item,
-			extensionItem: extensionTreeItem,
-			parent,
-			children: undefined,
-			disposableStore,
-			dispose(): void { disposableStore.dispose(); }
+			extensionItem: extensionTweeItem,
+			pawent,
+			chiwdwen: undefined,
+			disposabweStowe,
+			dispose(): void { disposabweStowe.dispose(); }
 		};
 	}
 
-	private getThemeIcon(extensionTreeItem: vscode.TreeItem): ThemeIcon | undefined {
-		return extensionTreeItem.iconPath instanceof ThemeIcon ? extensionTreeItem.iconPath : undefined;
+	pwivate getThemeIcon(extensionTweeItem: vscode.TweeItem): ThemeIcon | undefined {
+		wetuwn extensionTweeItem.iconPath instanceof ThemeIcon ? extensionTweeItem.iconPath : undefined;
 	}
 
-	private createHandle(element: T, { id, label, resourceUri }: vscode.TreeItem, parent: TreeNode | Root, returnFirst?: boolean): TreeItemHandle {
+	pwivate cweateHandwe(ewement: T, { id, wabew, wesouwceUwi }: vscode.TweeItem, pawent: TweeNode | Woot, wetuwnFiwst?: boowean): TweeItemHandwe {
 		if (id) {
-			return `${ExtHostTreeView.ID_HANDLE_PREFIX}/${id}`;
+			wetuwn `${ExtHostTweeView.ID_HANDWE_PWEFIX}/${id}`;
 		}
 
-		const treeItemLabel = toTreeItemLabel(label, this.extension);
-		const prefix: string = parent ? parent.item.handle : ExtHostTreeView.LABEL_HANDLE_PREFIX;
-		let elementId = treeItemLabel ? treeItemLabel.label : resourceUri ? basename(resourceUri) : '';
-		elementId = elementId.indexOf('/') !== -1 ? elementId.replace('/', '//') : elementId;
-		const existingHandle = this.nodes.has(element) ? this.nodes.get(element)!.item.handle : undefined;
-		const childrenNodes = (this.getChildrenNodes(parent) || []);
+		const tweeItemWabew = toTweeItemWabew(wabew, this.extension);
+		const pwefix: stwing = pawent ? pawent.item.handwe : ExtHostTweeView.WABEW_HANDWE_PWEFIX;
+		wet ewementId = tweeItemWabew ? tweeItemWabew.wabew : wesouwceUwi ? basename(wesouwceUwi) : '';
+		ewementId = ewementId.indexOf('/') !== -1 ? ewementId.wepwace('/', '//') : ewementId;
+		const existingHandwe = this.nodes.has(ewement) ? this.nodes.get(ewement)!.item.handwe : undefined;
+		const chiwdwenNodes = (this.getChiwdwenNodes(pawent) || []);
 
-		let handle: TreeItemHandle;
-		let counter = 0;
+		wet handwe: TweeItemHandwe;
+		wet counta = 0;
 		do {
-			handle = `${prefix}/${counter}:${elementId}`;
-			if (returnFirst || !this.elements.has(handle) || existingHandle === handle) {
-				// Return first if asked for or
-				// Return if handle does not exist or
-				// Return if handle is being reused
-				break;
+			handwe = `${pwefix}/${counta}:${ewementId}`;
+			if (wetuwnFiwst || !this.ewements.has(handwe) || existingHandwe === handwe) {
+				// Wetuwn fiwst if asked fow ow
+				// Wetuwn if handwe does not exist ow
+				// Wetuwn if handwe is being weused
+				bweak;
 			}
-			counter++;
-		} while (counter <= childrenNodes.length);
+			counta++;
+		} whiwe (counta <= chiwdwenNodes.wength);
 
-		return handle;
+		wetuwn handwe;
 	}
 
-	private getLightIconPath(extensionTreeItem: vscode.TreeItem): URI | undefined {
-		if (extensionTreeItem.iconPath && !(extensionTreeItem.iconPath instanceof ThemeIcon)) {
-			if (typeof extensionTreeItem.iconPath === 'string'
-				|| URI.isUri(extensionTreeItem.iconPath)) {
-				return this.getIconPath(extensionTreeItem.iconPath);
+	pwivate getWightIconPath(extensionTweeItem: vscode.TweeItem): UWI | undefined {
+		if (extensionTweeItem.iconPath && !(extensionTweeItem.iconPath instanceof ThemeIcon)) {
+			if (typeof extensionTweeItem.iconPath === 'stwing'
+				|| UWI.isUwi(extensionTweeItem.iconPath)) {
+				wetuwn this.getIconPath(extensionTweeItem.iconPath);
 			}
-			return this.getIconPath((<{ light: string | URI; dark: string | URI }>extensionTreeItem.iconPath).light);
+			wetuwn this.getIconPath((<{ wight: stwing | UWI; dawk: stwing | UWI }>extensionTweeItem.iconPath).wight);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private getDarkIconPath(extensionTreeItem: vscode.TreeItem): URI | undefined {
-		if (extensionTreeItem.iconPath && !(extensionTreeItem.iconPath instanceof ThemeIcon) && (<{ light: string | URI; dark: string | URI }>extensionTreeItem.iconPath).dark) {
-			return this.getIconPath((<{ light: string | URI; dark: string | URI }>extensionTreeItem.iconPath).dark);
+	pwivate getDawkIconPath(extensionTweeItem: vscode.TweeItem): UWI | undefined {
+		if (extensionTweeItem.iconPath && !(extensionTweeItem.iconPath instanceof ThemeIcon) && (<{ wight: stwing | UWI; dawk: stwing | UWI }>extensionTweeItem.iconPath).dawk) {
+			wetuwn this.getIconPath((<{ wight: stwing | UWI; dawk: stwing | UWI }>extensionTweeItem.iconPath).dawk);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private getIconPath(iconPath: string | URI): URI {
-		if (URI.isUri(iconPath)) {
-			return iconPath;
+	pwivate getIconPath(iconPath: stwing | UWI): UWI {
+		if (UWI.isUwi(iconPath)) {
+			wetuwn iconPath;
 		}
-		return URI.file(iconPath);
+		wetuwn UWI.fiwe(iconPath);
 	}
 
-	private addNodeToCache(element: T, node: TreeNode): void {
-		this.elements.set(node.item.handle, element);
-		this.nodes.set(element, node);
+	pwivate addNodeToCache(ewement: T, node: TweeNode): void {
+		this.ewements.set(node.item.handwe, ewement);
+		this.nodes.set(ewement, node);
 	}
 
-	private updateNodeCache(element: T, newNode: TreeNode, existing: TreeNode, parentNode: TreeNode | Root): void {
-		// Remove from the cache
-		this.elements.delete(newNode.item.handle);
-		this.nodes.delete(element);
-		if (newNode.item.handle !== existing.item.handle) {
-			this.elements.delete(existing.item.handle);
+	pwivate updateNodeCache(ewement: T, newNode: TweeNode, existing: TweeNode, pawentNode: TweeNode | Woot): void {
+		// Wemove fwom the cache
+		this.ewements.dewete(newNode.item.handwe);
+		this.nodes.dewete(ewement);
+		if (newNode.item.handwe !== existing.item.handwe) {
+			this.ewements.dewete(existing.item.handwe);
 		}
 
 		// Add the new node to the cache
-		this.addNodeToCache(element, newNode);
+		this.addNodeToCache(ewement, newNode);
 
-		// Replace the node in parent's children nodes
-		const childrenNodes = (this.getChildrenNodes(parentNode) || []);
-		const childNode = childrenNodes.filter(c => c.item.handle === existing.item.handle)[0];
-		if (childNode) {
-			childrenNodes.splice(childrenNodes.indexOf(childNode), 1, newNode);
+		// Wepwace the node in pawent's chiwdwen nodes
+		const chiwdwenNodes = (this.getChiwdwenNodes(pawentNode) || []);
+		const chiwdNode = chiwdwenNodes.fiwta(c => c.item.handwe === existing.item.handwe)[0];
+		if (chiwdNode) {
+			chiwdwenNodes.spwice(chiwdwenNodes.indexOf(chiwdNode), 1, newNode);
 		}
 	}
 
-	private addNodeToParentCache(node: TreeNode, parentNode: TreeNode | Root): void {
-		if (parentNode) {
-			if (!parentNode.children) {
-				parentNode.children = [];
+	pwivate addNodeToPawentCache(node: TweeNode, pawentNode: TweeNode | Woot): void {
+		if (pawentNode) {
+			if (!pawentNode.chiwdwen) {
+				pawentNode.chiwdwen = [];
 			}
-			parentNode.children.push(node);
-		} else {
-			if (!this.roots) {
-				this.roots = [];
+			pawentNode.chiwdwen.push(node);
+		} ewse {
+			if (!this.woots) {
+				this.woots = [];
 			}
-			this.roots.push(node);
+			this.woots.push(node);
 		}
 	}
 
-	private clearChildren(parentElement?: T): void {
-		if (parentElement) {
-			const node = this.nodes.get(parentElement);
+	pwivate cweawChiwdwen(pawentEwement?: T): void {
+		if (pawentEwement) {
+			const node = this.nodes.get(pawentEwement);
 			if (node) {
-				if (node.children) {
-					for (const child of node.children) {
-						const childElement = this.elements.get(child.item.handle);
-						if (childElement) {
-							this.clear(childElement);
+				if (node.chiwdwen) {
+					fow (const chiwd of node.chiwdwen) {
+						const chiwdEwement = this.ewements.get(chiwd.item.handwe);
+						if (chiwdEwement) {
+							this.cweaw(chiwdEwement);
 						}
 					}
 				}
-				node.children = undefined;
+				node.chiwdwen = undefined;
 			}
-		} else {
-			this.clearAll();
+		} ewse {
+			this.cweawAww();
 		}
 	}
 
-	private clear(element: T): void {
-		const node = this.nodes.get(element);
+	pwivate cweaw(ewement: T): void {
+		const node = this.nodes.get(ewement);
 		if (node) {
-			if (node.children) {
-				for (const child of node.children) {
-					const childElement = this.elements.get(child.item.handle);
-					if (childElement) {
-						this.clear(childElement);
+			if (node.chiwdwen) {
+				fow (const chiwd of node.chiwdwen) {
+					const chiwdEwement = this.ewements.get(chiwd.item.handwe);
+					if (chiwdEwement) {
+						this.cweaw(chiwdEwement);
 					}
 				}
 			}
-			this.nodes.delete(element);
-			this.elements.delete(node.item.handle);
+			this.nodes.dewete(ewement);
+			this.ewements.dewete(node.item.handwe);
 			node.dispose();
 		}
 	}
 
-	private clearAll(): void {
-		this.roots = undefined;
-		this.elements.clear();
-		this.nodes.forEach(node => node.dispose());
-		this.nodes.clear();
+	pwivate cweawAww(): void {
+		this.woots = undefined;
+		this.ewements.cweaw();
+		this.nodes.fowEach(node => node.dispose());
+		this.nodes.cweaw();
 	}
 
-	override dispose() {
-		this._refreshCancellationSource.dispose();
+	ovewwide dispose() {
+		this._wefweshCancewwationSouwce.dispose();
 
-		this.clearAll();
+		this.cweawAww();
 	}
 }

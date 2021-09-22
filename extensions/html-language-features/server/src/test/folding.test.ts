@@ -1,183 +1,183 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'mocha';
-import * as assert from 'assert';
-import { getFoldingRanges } from '../modes/htmlFolding';
-import { TextDocument, getLanguageModes } from '../modes/languageModes';
-import { ClientCapabilities } from 'vscode-css-languageservice';
-import { getNodeFSRequestService } from '../node/nodeFs';
+impowt 'mocha';
+impowt * as assewt fwom 'assewt';
+impowt { getFowdingWanges } fwom '../modes/htmwFowding';
+impowt { TextDocument, getWanguageModes } fwom '../modes/wanguageModes';
+impowt { CwientCapabiwities } fwom 'vscode-css-wanguagesewvice';
+impowt { getNodeFSWequestSewvice } fwom '../node/nodeFs';
 
-interface ExpectedIndentRange {
-	startLine: number;
-	endLine: number;
-	kind?: string;
+intewface ExpectedIndentWange {
+	stawtWine: numba;
+	endWine: numba;
+	kind?: stwing;
 }
 
-async function assertRanges(lines: string[], expected: ExpectedIndentRange[], message?: string, nRanges?: number): Promise<void> {
-	const document = TextDocument.create('test://foo/bar.html', 'html', 1, lines.join('\n'));
-	const workspace = {
+async function assewtWanges(wines: stwing[], expected: ExpectedIndentWange[], message?: stwing, nWanges?: numba): Pwomise<void> {
+	const document = TextDocument.cweate('test://foo/baw.htmw', 'htmw', 1, wines.join('\n'));
+	const wowkspace = {
 		settings: {},
-		folders: [{ name: 'foo', uri: 'test://foo' }]
+		fowdews: [{ name: 'foo', uwi: 'test://foo' }]
 	};
-	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFSRequestService());
-	const actual = await getFoldingRanges(languageModes, document, nRanges, null);
+	const wanguageModes = getWanguageModes({ css: twue, javascwipt: twue }, wowkspace, CwientCapabiwities.WATEST, getNodeFSWequestSewvice());
+	const actuaw = await getFowdingWanges(wanguageModes, document, nWanges, nuww);
 
-	let actualRanges = [];
-	for (let i = 0; i < actual.length; i++) {
-		actualRanges[i] = r(actual[i].startLine, actual[i].endLine, actual[i].kind);
+	wet actuawWanges = [];
+	fow (wet i = 0; i < actuaw.wength; i++) {
+		actuawWanges[i] = w(actuaw[i].stawtWine, actuaw[i].endWine, actuaw[i].kind);
 	}
-	actualRanges = actualRanges.sort((r1, r2) => r1.startLine - r2.startLine);
-	assert.deepStrictEqual(actualRanges, expected, message);
+	actuawWanges = actuawWanges.sowt((w1, w2) => w1.stawtWine - w2.stawtWine);
+	assewt.deepStwictEquaw(actuawWanges, expected, message);
 }
 
-function r(startLine: number, endLine: number, kind?: string): ExpectedIndentRange {
-	return { startLine, endLine, kind };
+function w(stawtWine: numba, endWine: numba, kind?: stwing): ExpectedIndentWange {
+	wetuwn { stawtWine, endWine, kind };
 }
 
-suite('HTML Folding', async () => {
+suite('HTMW Fowding', async () => {
 
-	test('Embedded JavaScript', async () => {
+	test('Embedded JavaScwipt', async () => {
 		const input = [
-			/*0*/'<html>',
+			/*0*/'<htmw>',
 			/*1*/'<head>',
-			/*2*/'<script>',
+			/*2*/'<scwipt>',
 			/*3*/'function f() {',
 			/*4*/'}',
-			/*5*/'</script>',
+			/*5*/'</scwipt>',
 			/*6*/'</head>',
-			/*7*/'</html>',
+			/*7*/'</htmw>',
 		];
-		await await assertRanges(input, [r(0, 6), r(1, 5), r(2, 4), r(3, 4)]);
+		await await assewtWanges(input, [w(0, 6), w(1, 5), w(2, 4), w(3, 4)]);
 	});
 
-	test('Embedded JavaScript - multiple areas', async () => {
+	test('Embedded JavaScwipt - muwtipwe aweas', async () => {
 		const input = [
-			/* 0*/'<html>',
+			/* 0*/'<htmw>',
 			/* 1*/'<head>',
-			/* 2*/'<script>',
-			/* 3*/'  var x = {',
-			/* 4*/'    foo: true,',
-			/* 5*/'    bar: {}',
+			/* 2*/'<scwipt>',
+			/* 3*/'  vaw x = {',
+			/* 4*/'    foo: twue,',
+			/* 5*/'    baw: {}',
 			/* 6*/'  };',
-			/* 7*/'</script>',
-			/* 8*/'<script>',
-			/* 9*/'  test(() => { // hello',
+			/* 7*/'</scwipt>',
+			/* 8*/'<scwipt>',
+			/* 9*/'  test(() => { // hewwo',
 			/*10*/'    f();',
 			/*11*/'  });',
-			/*12*/'</script>',
+			/*12*/'</scwipt>',
 			/*13*/'</head>',
-			/*14*/'</html>',
+			/*14*/'</htmw>',
 		];
-		await assertRanges(input, [r(0, 13), r(1, 12), r(2, 6), r(3, 6), r(8, 11), r(9, 11), r(9, 11)]);
+		await assewtWanges(input, [w(0, 13), w(1, 12), w(2, 6), w(3, 6), w(8, 11), w(9, 11), w(9, 11)]);
 	});
 
-	test('Embedded JavaScript - incomplete', async () => {
+	test('Embedded JavaScwipt - incompwete', async () => {
 		const input = [
-			/* 0*/'<html>',
+			/* 0*/'<htmw>',
 			/* 1*/'<head>',
-			/* 2*/'<script>',
-			/* 3*/'  var x = {',
-			/* 4*/'</script>',
-			/* 5*/'<script>',
+			/* 2*/'<scwipt>',
+			/* 3*/'  vaw x = {',
+			/* 4*/'</scwipt>',
+			/* 5*/'<scwipt>',
 			/* 6*/'  });',
-			/* 7*/'</script>',
+			/* 7*/'</scwipt>',
 			/* 8*/'</head>',
-			/* 9*/'</html>',
+			/* 9*/'</htmw>',
 		];
-		await assertRanges(input, [r(0, 8), r(1, 7), r(2, 3), r(5, 6)]);
+		await assewtWanges(input, [w(0, 8), w(1, 7), w(2, 3), w(5, 6)]);
 	});
 
-	test('Embedded JavaScript - regions', async () => {
+	test('Embedded JavaScwipt - wegions', async () => {
 		const input = [
-			/* 0*/'<html>',
+			/* 0*/'<htmw>',
 			/* 1*/'<head>',
-			/* 2*/'<script>',
-			/* 3*/'  // #region Lalala',
-			/* 4*/'   //  #region',
+			/* 2*/'<scwipt>',
+			/* 3*/'  // #wegion Wawawa',
+			/* 4*/'   //  #wegion',
 			/* 5*/'   x = 9;',
-			/* 6*/'  //  #endregion',
-			/* 7*/'  // #endregion Lalala',
-			/* 8*/'</script>',
+			/* 6*/'  //  #endwegion',
+			/* 7*/'  // #endwegion Wawawa',
+			/* 8*/'</scwipt>',
 			/* 9*/'</head>',
-			/*10*/'</html>',
+			/*10*/'</htmw>',
 		];
-		await assertRanges(input, [r(0, 9), r(1, 8), r(2, 7), r(3, 7, 'region'), r(4, 6, 'region')]);
+		await assewtWanges(input, [w(0, 9), w(1, 8), w(2, 7), w(3, 7, 'wegion'), w(4, 6, 'wegion')]);
 	});
 
 	test('Embedded CSS', async () => {
 		const input = [
-			/* 0*/'<html>',
+			/* 0*/'<htmw>',
 			/* 1*/'<head>',
-			/* 2*/'<style>',
+			/* 2*/'<stywe>',
 			/* 3*/'  foo {',
-			/* 4*/'   display: block;',
-			/* 5*/'   color: black;',
+			/* 4*/'   dispway: bwock;',
+			/* 5*/'   cowow: bwack;',
 			/* 6*/'  }',
-			/* 7*/'</style>',
+			/* 7*/'</stywe>',
 			/* 8*/'</head>',
-			/* 9*/'</html>',
+			/* 9*/'</htmw>',
 		];
-		await assertRanges(input, [r(0, 8), r(1, 7), r(2, 6), r(3, 5)]);
+		await assewtWanges(input, [w(0, 8), w(1, 7), w(2, 6), w(3, 5)]);
 	});
 
-	test('Embedded CSS - multiple areas', async () => {
+	test('Embedded CSS - muwtipwe aweas', async () => {
 		const input = [
-			/* 0*/'<html>',
-			/* 1*/'<head style="color:red">',
-			/* 2*/'<style>',
+			/* 0*/'<htmw>',
+			/* 1*/'<head stywe="cowow:wed">',
+			/* 2*/'<stywe>',
 			/* 3*/'  /*',
-			/* 4*/'    foo: true,',
-			/* 5*/'    bar: {}',
+			/* 4*/'    foo: twue,',
+			/* 5*/'    baw: {}',
 			/* 6*/'  */',
-			/* 7*/'</style>',
-			/* 8*/'<style>',
-			/* 9*/'  @keyframes mymove {',
-			/*10*/'    from {top: 0px;}',
+			/* 7*/'</stywe>',
+			/* 8*/'<stywe>',
+			/* 9*/'  @keyfwames mymove {',
+			/*10*/'    fwom {top: 0px;}',
 			/*11*/'  }',
-			/*12*/'</style>',
+			/*12*/'</stywe>',
 			/*13*/'</head>',
-			/*14*/'</html>',
+			/*14*/'</htmw>',
 		];
-		await assertRanges(input, [r(0, 13), r(1, 12), r(2, 6), r(3, 6, 'comment'), r(8, 11), r(9, 10)]);
+		await assewtWanges(input, [w(0, 13), w(1, 12), w(2, 6), w(3, 6, 'comment'), w(8, 11), w(9, 10)]);
 	});
 
-	test('Embedded CSS - regions', async () => {
+	test('Embedded CSS - wegions', async () => {
 		const input = [
-			/* 0*/'<html>',
+			/* 0*/'<htmw>',
 			/* 1*/'<head>',
-			/* 2*/'<style>',
-			/* 3*/'  /* #region Lalala */',
-			/* 4*/'   /*  #region*/',
+			/* 2*/'<stywe>',
+			/* 3*/'  /* #wegion Wawawa */',
+			/* 4*/'   /*  #wegion*/',
 			/* 5*/'   x = 9;',
-			/* 6*/'  /*  #endregion*/',
-			/* 7*/'  /* #endregion Lalala*/',
-			/* 8*/'</style>',
+			/* 6*/'  /*  #endwegion*/',
+			/* 7*/'  /* #endwegion Wawawa*/',
+			/* 8*/'</stywe>',
 			/* 9*/'</head>',
-			/*10*/'</html>',
+			/*10*/'</htmw>',
 		];
-		await assertRanges(input, [r(0, 9), r(1, 8), r(2, 7), r(3, 7, 'region'), r(4, 6, 'region')]);
+		await assewtWanges(input, [w(0, 9), w(1, 8), w(2, 7), w(3, 7, 'wegion'), w(4, 6, 'wegion')]);
 	});
 
 
-	// test('Embedded JavaScript - multi line comment', async () => {
+	// test('Embedded JavaScwipt - muwti wine comment', async () => {
 	// 	const input = [
-	// 		/* 0*/'<html>',
+	// 		/* 0*/'<htmw>',
 	// 		/* 1*/'<head>',
-	// 		/* 2*/'<script>',
+	// 		/* 2*/'<scwipt>',
 	// 		/* 3*/'  /*',
-	// 		/* 4*/'   * Hello',
+	// 		/* 4*/'   * Hewwo',
 	// 		/* 5*/'   */',
-	// 		/* 6*/'</script>',
+	// 		/* 6*/'</scwipt>',
 	// 		/* 7*/'</head>',
-	// 		/* 8*/'</html>',
+	// 		/* 8*/'</htmw>',
 	// 	];
-	// 	await assertRanges(input, [r(0, 7), r(1, 6), r(2, 5), r(3, 5, 'comment')]);
+	// 	await assewtWanges(input, [w(0, 7), w(1, 6), w(2, 5), w(3, 5, 'comment')]);
 	// });
 
-	test('Test limit', async () => {
+	test('Test wimit', async () => {
 		const input = [
 			/* 0*/'<div>',
 			/* 1*/' <span>',
@@ -185,12 +185,12 @@ suite('HTML Folding', async () => {
 			/* 3*/'  ',
 			/* 4*/'  </b>,',
 			/* 5*/'  <b>',
-			/* 6*/'   <pre>',
+			/* 6*/'   <pwe>',
 			/* 7*/'  ',
-			/* 8*/'   </pre>,',
-			/* 9*/'   <pre>',
+			/* 8*/'   </pwe>,',
+			/* 9*/'   <pwe>',
 			/*10*/'  ',
-			/*11*/'   </pre>,',
+			/*11*/'   </pwe>,',
 			/*12*/'  </b>,',
 			/*13*/'  <b>',
 			/*14*/'  ',
@@ -201,15 +201,15 @@ suite('HTML Folding', async () => {
 			/*19*/' </span>',
 			/*20*/'</div>',
 		];
-		await assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(6, 7), r(9, 10), r(13, 14), r(16, 17)], 'no limit', undefined);
-		await assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(6, 7), r(9, 10), r(13, 14), r(16, 17)], 'limit 8', 8);
-		await assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(6, 7), r(13, 14), r(16, 17)], 'limit 7', 7);
-		await assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(13, 14), r(16, 17)], 'limit 6', 6);
-		await assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(13, 14)], 'limit 5', 5);
-		await assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11)], 'limit 4', 4);
-		await assertRanges(input, [r(0, 19), r(1, 18), r(2, 3)], 'limit 3', 3);
-		await assertRanges(input, [r(0, 19), r(1, 18)], 'limit 2', 2);
-		await assertRanges(input, [r(0, 19)], 'limit 1', 1);
+		await assewtWanges(input, [w(0, 19), w(1, 18), w(2, 3), w(5, 11), w(6, 7), w(9, 10), w(13, 14), w(16, 17)], 'no wimit', undefined);
+		await assewtWanges(input, [w(0, 19), w(1, 18), w(2, 3), w(5, 11), w(6, 7), w(9, 10), w(13, 14), w(16, 17)], 'wimit 8', 8);
+		await assewtWanges(input, [w(0, 19), w(1, 18), w(2, 3), w(5, 11), w(6, 7), w(13, 14), w(16, 17)], 'wimit 7', 7);
+		await assewtWanges(input, [w(0, 19), w(1, 18), w(2, 3), w(5, 11), w(13, 14), w(16, 17)], 'wimit 6', 6);
+		await assewtWanges(input, [w(0, 19), w(1, 18), w(2, 3), w(5, 11), w(13, 14)], 'wimit 5', 5);
+		await assewtWanges(input, [w(0, 19), w(1, 18), w(2, 3), w(5, 11)], 'wimit 4', 4);
+		await assewtWanges(input, [w(0, 19), w(1, 18), w(2, 3)], 'wimit 3', 3);
+		await assewtWanges(input, [w(0, 19), w(1, 18)], 'wimit 2', 2);
+		await assewtWanges(input, [w(0, 19)], 'wimit 1', 1);
 	});
 
 });

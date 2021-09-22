@@ -1,433 +1,433 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { merge } from 'vs/platform/userDataSync/common/snippetsMerge';
+impowt * as assewt fwom 'assewt';
+impowt { mewge } fwom 'vs/pwatfowm/usewDataSync/common/snippetsMewge';
 
 const tsSnippet1 = `{
 
-	// Place your snippets for TypeScript here. Each snippet is defined under a snippet name and has a prefix, body and
-	// description. The prefix is what is used to trigger the snippet and the body will be expanded and inserted. Possible variables are:
-	// $1, $2 for tab stops, $0 for the final cursor position, Placeholders with the
-	// same ids are connected.
-	"Print to console": {
-	// Example:
-	"prefix": "log",
+	// Pwace youw snippets fow TypeScwipt hewe. Each snippet is defined unda a snippet name and has a pwefix, body and
+	// descwiption. The pwefix is what is used to twigga the snippet and the body wiww be expanded and insewted. Possibwe vawiabwes awe:
+	// $1, $2 fow tab stops, $0 fow the finaw cuwsow position, Pwacehowdews with the
+	// same ids awe connected.
+	"Pwint to consowe": {
+	// Exampwe:
+	"pwefix": "wog",
 		"body": [
-			"console.log('$1');",
+			"consowe.wog('$1');",
 			"$2"
 		],
-			"description": "Log output to console",
+			"descwiption": "Wog output to consowe",
 	}
 
 }`;
 
 const tsSnippet2 = `{
 
-	// Place your snippets for TypeScript here. Each snippet is defined under a snippet name and has a prefix, body and
-	// description. The prefix is what is used to trigger the snippet and the body will be expanded and inserted. Possible variables are:
-	// $1, $2 for tab stops, $0 for the final cursor position, Placeholders with the
-	// same ids are connected.
-	"Print to console": {
-	// Example:
-	"prefix": "log",
+	// Pwace youw snippets fow TypeScwipt hewe. Each snippet is defined unda a snippet name and has a pwefix, body and
+	// descwiption. The pwefix is what is used to twigga the snippet and the body wiww be expanded and insewted. Possibwe vawiabwes awe:
+	// $1, $2 fow tab stops, $0 fow the finaw cuwsow position, Pwacehowdews with the
+	// same ids awe connected.
+	"Pwint to consowe": {
+	// Exampwe:
+	"pwefix": "wog",
 		"body": [
-			"console.log('$1');",
+			"consowe.wog('$1');",
 			"$2"
 		],
-			"description": "Log output to console always",
+			"descwiption": "Wog output to consowe awways",
 	}
 
 }`;
 
-const htmlSnippet1 = `{
+const htmwSnippet1 = `{
 /*
-	// Place your snippets for HTML here. Each snippet is defined under a snippet name and has a prefix, body and
-	// description. The prefix is what is used to trigger the snippet and the body will be expanded and inserted.
-	// Example:
-	"Print to console": {
-	"prefix": "log",
+	// Pwace youw snippets fow HTMW hewe. Each snippet is defined unda a snippet name and has a pwefix, body and
+	// descwiption. The pwefix is what is used to twigga the snippet and the body wiww be expanded and insewted.
+	// Exampwe:
+	"Pwint to consowe": {
+	"pwefix": "wog",
 		"body": [
-			"console.log('$1');",
+			"consowe.wog('$1');",
 			"$2"
 		],
-			"description": "Log output to console"
+			"descwiption": "Wog output to consowe"
 	}
 */
 "Div": {
-	"prefix": "div",
+	"pwefix": "div",
 		"body": [
 			"<div>",
 			"",
 			"</div>"
 		],
-			"description": "New div"
+			"descwiption": "New div"
 	}
 }`;
 
-const htmlSnippet2 = `{
+const htmwSnippet2 = `{
 /*
-	// Place your snippets for HTML here. Each snippet is defined under a snippet name and has a prefix, body and
-	// description. The prefix is what is used to trigger the snippet and the body will be expanded and inserted.
-	// Example:
-	"Print to console": {
-	"prefix": "log",
+	// Pwace youw snippets fow HTMW hewe. Each snippet is defined unda a snippet name and has a pwefix, body and
+	// descwiption. The pwefix is what is used to twigga the snippet and the body wiww be expanded and insewted.
+	// Exampwe:
+	"Pwint to consowe": {
+	"pwefix": "wog",
 		"body": [
-			"console.log('$1');",
+			"consowe.wog('$1');",
 			"$2"
 		],
-			"description": "Log output to console"
+			"descwiption": "Wog output to consowe"
 	}
 */
 "Div": {
-	"prefix": "div",
+	"pwefix": "div",
 		"body": [
 			"<div>",
 			"",
 			"</div>"
 		],
-			"description": "New div changed"
+			"descwiption": "New div changed"
 	}
 }`;
 
 const cSnippet = `{
-	// Place your snippets for c here. Each snippet is defined under a snippet name and has a prefix, body and
-	// description. The prefix is what is used to trigger the snippet and the body will be expanded and inserted. Possible variables are:
-	// $1, $2 for tab stops, $0 for the final cursor position.Placeholders with the
-	// same ids are connected.
-	// Example:
-	"Print to console": {
-	"prefix": "log",
+	// Pwace youw snippets fow c hewe. Each snippet is defined unda a snippet name and has a pwefix, body and
+	// descwiption. The pwefix is what is used to twigga the snippet and the body wiww be expanded and insewted. Possibwe vawiabwes awe:
+	// $1, $2 fow tab stops, $0 fow the finaw cuwsow position.Pwacehowdews with the
+	// same ids awe connected.
+	// Exampwe:
+	"Pwint to consowe": {
+	"pwefix": "wog",
 		"body": [
-			"console.log('$1');",
+			"consowe.wog('$1');",
 			"$2"
 		],
-			"description": "Log output to console"
+			"descwiption": "Wog output to consowe"
 	}
 }`;
 
-suite('SnippetsMerge', () => {
+suite('SnippetsMewge', () => {
 
-	test('merge when local and remote are same with one snippet', async () => {
-		const local = { 'html.json': htmlSnippet1 };
-		const remote = { 'html.json': htmlSnippet1 };
+	test('mewge when wocaw and wemote awe same with one snippet', async () => {
+		const wocaw = { 'htmw.json': htmwSnippet1 };
+		const wemote = { 'htmw.json': htmwSnippet1 };
 
-		const actual = merge(local, remote, null);
+		const actuaw = mewge(wocaw, wemote, nuww);
 
-		assert.deepStrictEqual(actual.local.added, {});
-		assert.deepStrictEqual(actual.local.updated, {});
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.conflicts, []);
-		assert.deepStrictEqual(actual.remote.added, {});
-		assert.deepStrictEqual(actual.remote.updated, {});
-		assert.deepStrictEqual(actual.remote.removed, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, {});
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, {});
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.confwicts, []);
+		assewt.deepStwictEquaw(actuaw.wemote.added, {});
+		assewt.deepStwictEquaw(actuaw.wemote.updated, {});
+		assewt.deepStwictEquaw(actuaw.wemote.wemoved, []);
 	});
 
-	test('merge when local and remote are same with multiple entries', async () => {
-		const local = { 'html.json': htmlSnippet1, 'typescript.json': tsSnippet1 };
-		const remote = { 'html.json': htmlSnippet1, 'typescript.json': tsSnippet1 };
+	test('mewge when wocaw and wemote awe same with muwtipwe entwies', async () => {
+		const wocaw = { 'htmw.json': htmwSnippet1, 'typescwipt.json': tsSnippet1 };
+		const wemote = { 'htmw.json': htmwSnippet1, 'typescwipt.json': tsSnippet1 };
 
-		const actual = merge(local, remote, null);
+		const actuaw = mewge(wocaw, wemote, nuww);
 
-		assert.deepStrictEqual(actual.local.added, {});
-		assert.deepStrictEqual(actual.local.updated, {});
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.conflicts, []);
-		assert.deepStrictEqual(actual.remote.added, {});
-		assert.deepStrictEqual(actual.remote.updated, {});
-		assert.deepStrictEqual(actual.remote.removed, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, {});
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, {});
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.confwicts, []);
+		assewt.deepStwictEquaw(actuaw.wemote.added, {});
+		assewt.deepStwictEquaw(actuaw.wemote.updated, {});
+		assewt.deepStwictEquaw(actuaw.wemote.wemoved, []);
 	});
 
-	test('merge when local and remote are same with multiple entries in different order', async () => {
-		const local = { 'typescript.json': tsSnippet1, 'html.json': htmlSnippet1 };
-		const remote = { 'html.json': htmlSnippet1, 'typescript.json': tsSnippet1 };
+	test('mewge when wocaw and wemote awe same with muwtipwe entwies in diffewent owda', async () => {
+		const wocaw = { 'typescwipt.json': tsSnippet1, 'htmw.json': htmwSnippet1 };
+		const wemote = { 'htmw.json': htmwSnippet1, 'typescwipt.json': tsSnippet1 };
 
-		const actual = merge(local, remote, null);
+		const actuaw = mewge(wocaw, wemote, nuww);
 
-		assert.deepStrictEqual(actual.local.added, {});
-		assert.deepStrictEqual(actual.local.updated, {});
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.conflicts, []);
-		assert.deepStrictEqual(actual.remote.added, {});
-		assert.deepStrictEqual(actual.remote.updated, {});
-		assert.deepStrictEqual(actual.remote.removed, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, {});
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, {});
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.confwicts, []);
+		assewt.deepStwictEquaw(actuaw.wemote.added, {});
+		assewt.deepStwictEquaw(actuaw.wemote.updated, {});
+		assewt.deepStwictEquaw(actuaw.wemote.wemoved, []);
 	});
 
-	test('merge when local and remote are same with different base content', async () => {
-		const local = { 'html.json': htmlSnippet1, 'typescript.json': tsSnippet1 };
-		const remote = { 'html.json': htmlSnippet1, 'typescript.json': tsSnippet1 };
-		const base = { 'html.json': htmlSnippet2, 'typescript.json': tsSnippet2 };
+	test('mewge when wocaw and wemote awe same with diffewent base content', async () => {
+		const wocaw = { 'htmw.json': htmwSnippet1, 'typescwipt.json': tsSnippet1 };
+		const wemote = { 'htmw.json': htmwSnippet1, 'typescwipt.json': tsSnippet1 };
+		const base = { 'htmw.json': htmwSnippet2, 'typescwipt.json': tsSnippet2 };
 
-		const actual = merge(local, remote, base);
+		const actuaw = mewge(wocaw, wemote, base);
 
-		assert.deepStrictEqual(actual.local.added, {});
-		assert.deepStrictEqual(actual.local.updated, {});
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.conflicts, []);
-		assert.deepStrictEqual(actual.remote.added, {});
-		assert.deepStrictEqual(actual.remote.updated, {});
-		assert.deepStrictEqual(actual.remote.removed, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, {});
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, {});
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.confwicts, []);
+		assewt.deepStwictEquaw(actuaw.wemote.added, {});
+		assewt.deepStwictEquaw(actuaw.wemote.updated, {});
+		assewt.deepStwictEquaw(actuaw.wemote.wemoved, []);
 	});
 
-	test('merge when a new entry is added to remote', async () => {
-		const local = { 'html.json': htmlSnippet1 };
-		const remote = { 'html.json': htmlSnippet1, 'typescript.json': tsSnippet1 };
+	test('mewge when a new entwy is added to wemote', async () => {
+		const wocaw = { 'htmw.json': htmwSnippet1 };
+		const wemote = { 'htmw.json': htmwSnippet1, 'typescwipt.json': tsSnippet1 };
 
-		const actual = merge(local, remote, null);
+		const actuaw = mewge(wocaw, wemote, nuww);
 
-		assert.deepStrictEqual(actual.local.added, { 'typescript.json': tsSnippet1 });
-		assert.deepStrictEqual(actual.local.updated, {});
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.conflicts, []);
-		assert.deepStrictEqual(actual.remote.added, {});
-		assert.deepStrictEqual(actual.remote.updated, {});
-		assert.deepStrictEqual(actual.remote.removed, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, { 'typescwipt.json': tsSnippet1 });
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, {});
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.confwicts, []);
+		assewt.deepStwictEquaw(actuaw.wemote.added, {});
+		assewt.deepStwictEquaw(actuaw.wemote.updated, {});
+		assewt.deepStwictEquaw(actuaw.wemote.wemoved, []);
 	});
 
-	test('merge when multiple new entries are added to remote', async () => {
-		const local = {};
-		const remote = { 'html.json': htmlSnippet1, 'typescript.json': tsSnippet1 };
+	test('mewge when muwtipwe new entwies awe added to wemote', async () => {
+		const wocaw = {};
+		const wemote = { 'htmw.json': htmwSnippet1, 'typescwipt.json': tsSnippet1 };
 
-		const actual = merge(local, remote, null);
+		const actuaw = mewge(wocaw, wemote, nuww);
 
-		assert.deepStrictEqual(actual.local.added, remote);
-		assert.deepStrictEqual(actual.local.updated, {});
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.conflicts, []);
-		assert.deepStrictEqual(actual.remote.added, {});
-		assert.deepStrictEqual(actual.remote.updated, {});
-		assert.deepStrictEqual(actual.remote.removed, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, wemote);
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, {});
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.confwicts, []);
+		assewt.deepStwictEquaw(actuaw.wemote.added, {});
+		assewt.deepStwictEquaw(actuaw.wemote.updated, {});
+		assewt.deepStwictEquaw(actuaw.wemote.wemoved, []);
 	});
 
-	test('merge when new entry is added to remote from base and local has not changed', async () => {
-		const local = { 'html.json': htmlSnippet1 };
-		const remote = { 'html.json': htmlSnippet1, 'typescript.json': tsSnippet1 };
+	test('mewge when new entwy is added to wemote fwom base and wocaw has not changed', async () => {
+		const wocaw = { 'htmw.json': htmwSnippet1 };
+		const wemote = { 'htmw.json': htmwSnippet1, 'typescwipt.json': tsSnippet1 };
 
-		const actual = merge(local, remote, local);
+		const actuaw = mewge(wocaw, wemote, wocaw);
 
-		assert.deepStrictEqual(actual.local.added, { 'typescript.json': tsSnippet1 });
-		assert.deepStrictEqual(actual.local.updated, {});
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.conflicts, []);
-		assert.deepStrictEqual(actual.remote.added, {});
-		assert.deepStrictEqual(actual.remote.updated, {});
-		assert.deepStrictEqual(actual.remote.removed, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, { 'typescwipt.json': tsSnippet1 });
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, {});
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.confwicts, []);
+		assewt.deepStwictEquaw(actuaw.wemote.added, {});
+		assewt.deepStwictEquaw(actuaw.wemote.updated, {});
+		assewt.deepStwictEquaw(actuaw.wemote.wemoved, []);
 	});
 
-	test('merge when an entry is removed from remote from base and local has not changed', async () => {
-		const local = { 'html.json': htmlSnippet1, 'typescript.json': tsSnippet1 };
-		const remote = { 'html.json': htmlSnippet1 };
+	test('mewge when an entwy is wemoved fwom wemote fwom base and wocaw has not changed', async () => {
+		const wocaw = { 'htmw.json': htmwSnippet1, 'typescwipt.json': tsSnippet1 };
+		const wemote = { 'htmw.json': htmwSnippet1 };
 
-		const actual = merge(local, remote, local);
+		const actuaw = mewge(wocaw, wemote, wocaw);
 
-		assert.deepStrictEqual(actual.local.added, {});
-		assert.deepStrictEqual(actual.local.updated, {});
-		assert.deepStrictEqual(actual.local.removed, ['typescript.json']);
-		assert.deepStrictEqual(actual.conflicts, []);
-		assert.deepStrictEqual(actual.remote.added, {});
-		assert.deepStrictEqual(actual.remote.updated, {});
-		assert.deepStrictEqual(actual.remote.removed, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, {});
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, {});
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, ['typescwipt.json']);
+		assewt.deepStwictEquaw(actuaw.confwicts, []);
+		assewt.deepStwictEquaw(actuaw.wemote.added, {});
+		assewt.deepStwictEquaw(actuaw.wemote.updated, {});
+		assewt.deepStwictEquaw(actuaw.wemote.wemoved, []);
 	});
 
-	test('merge when all entries are removed from base and local has not changed', async () => {
-		const local = { 'html.json': htmlSnippet1, 'typescript.json': tsSnippet1 };
-		const remote = {};
+	test('mewge when aww entwies awe wemoved fwom base and wocaw has not changed', async () => {
+		const wocaw = { 'htmw.json': htmwSnippet1, 'typescwipt.json': tsSnippet1 };
+		const wemote = {};
 
-		const actual = merge(local, remote, local);
+		const actuaw = mewge(wocaw, wemote, wocaw);
 
-		assert.deepStrictEqual(actual.local.added, {});
-		assert.deepStrictEqual(actual.local.updated, {});
-		assert.deepStrictEqual(actual.local.removed, ['html.json', 'typescript.json']);
-		assert.deepStrictEqual(actual.conflicts, []);
-		assert.deepStrictEqual(actual.remote.added, {});
-		assert.deepStrictEqual(actual.remote.updated, {});
-		assert.deepStrictEqual(actual.remote.removed, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, {});
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, {});
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, ['htmw.json', 'typescwipt.json']);
+		assewt.deepStwictEquaw(actuaw.confwicts, []);
+		assewt.deepStwictEquaw(actuaw.wemote.added, {});
+		assewt.deepStwictEquaw(actuaw.wemote.updated, {});
+		assewt.deepStwictEquaw(actuaw.wemote.wemoved, []);
 	});
 
-	test('merge when an entry is updated in remote from base and local has not changed', async () => {
-		const local = { 'html.json': htmlSnippet1 };
-		const remote = { 'html.json': htmlSnippet2 };
+	test('mewge when an entwy is updated in wemote fwom base and wocaw has not changed', async () => {
+		const wocaw = { 'htmw.json': htmwSnippet1 };
+		const wemote = { 'htmw.json': htmwSnippet2 };
 
-		const actual = merge(local, remote, local);
+		const actuaw = mewge(wocaw, wemote, wocaw);
 
-		assert.deepStrictEqual(actual.local.added, {});
-		assert.deepStrictEqual(actual.local.updated, { 'html.json': htmlSnippet2 });
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.conflicts, []);
-		assert.deepStrictEqual(actual.remote.added, {});
-		assert.deepStrictEqual(actual.remote.updated, {});
-		assert.deepStrictEqual(actual.remote.removed, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, {});
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, { 'htmw.json': htmwSnippet2 });
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.confwicts, []);
+		assewt.deepStwictEquaw(actuaw.wemote.added, {});
+		assewt.deepStwictEquaw(actuaw.wemote.updated, {});
+		assewt.deepStwictEquaw(actuaw.wemote.wemoved, []);
 	});
 
-	test('merge when remote has moved forwarded with multiple changes and local stays with base', async () => {
-		const local = { 'html.json': htmlSnippet1, 'typescript.json': tsSnippet1 };
-		const remote = { 'html.json': htmlSnippet2, 'c.json': cSnippet };
+	test('mewge when wemote has moved fowwawded with muwtipwe changes and wocaw stays with base', async () => {
+		const wocaw = { 'htmw.json': htmwSnippet1, 'typescwipt.json': tsSnippet1 };
+		const wemote = { 'htmw.json': htmwSnippet2, 'c.json': cSnippet };
 
-		const actual = merge(local, remote, local);
+		const actuaw = mewge(wocaw, wemote, wocaw);
 
-		assert.deepStrictEqual(actual.local.added, { 'c.json': cSnippet });
-		assert.deepStrictEqual(actual.local.updated, { 'html.json': htmlSnippet2 });
-		assert.deepStrictEqual(actual.local.removed, ['typescript.json']);
-		assert.deepStrictEqual(actual.conflicts, []);
-		assert.deepStrictEqual(actual.remote.added, {});
-		assert.deepStrictEqual(actual.remote.updated, {});
-		assert.deepStrictEqual(actual.remote.removed, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, { 'c.json': cSnippet });
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, { 'htmw.json': htmwSnippet2 });
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, ['typescwipt.json']);
+		assewt.deepStwictEquaw(actuaw.confwicts, []);
+		assewt.deepStwictEquaw(actuaw.wemote.added, {});
+		assewt.deepStwictEquaw(actuaw.wemote.updated, {});
+		assewt.deepStwictEquaw(actuaw.wemote.wemoved, []);
 	});
 
-	test('merge when a new entries are added to local', async () => {
-		const local = { 'html.json': htmlSnippet1, 'typescript.json': tsSnippet1, 'c.json': cSnippet };
-		const remote = { 'html.json': htmlSnippet1, 'typescript.json': tsSnippet1 };
+	test('mewge when a new entwies awe added to wocaw', async () => {
+		const wocaw = { 'htmw.json': htmwSnippet1, 'typescwipt.json': tsSnippet1, 'c.json': cSnippet };
+		const wemote = { 'htmw.json': htmwSnippet1, 'typescwipt.json': tsSnippet1 };
 
-		const actual = merge(local, remote, null);
+		const actuaw = mewge(wocaw, wemote, nuww);
 
-		assert.deepStrictEqual(actual.local.added, {});
-		assert.deepStrictEqual(actual.local.updated, {});
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.conflicts, []);
-		assert.deepStrictEqual(actual.remote.added, { 'c.json': cSnippet });
-		assert.deepStrictEqual(actual.remote.updated, {});
-		assert.deepStrictEqual(actual.remote.removed, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, {});
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, {});
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.confwicts, []);
+		assewt.deepStwictEquaw(actuaw.wemote.added, { 'c.json': cSnippet });
+		assewt.deepStwictEquaw(actuaw.wemote.updated, {});
+		assewt.deepStwictEquaw(actuaw.wemote.wemoved, []);
 	});
 
-	test('merge when multiple new entries are added to local from base and remote is not changed', async () => {
-		const local = { 'html.json': htmlSnippet1, 'typescript.json': tsSnippet1, 'c.json': cSnippet };
-		const remote = { 'typescript.json': tsSnippet1 };
+	test('mewge when muwtipwe new entwies awe added to wocaw fwom base and wemote is not changed', async () => {
+		const wocaw = { 'htmw.json': htmwSnippet1, 'typescwipt.json': tsSnippet1, 'c.json': cSnippet };
+		const wemote = { 'typescwipt.json': tsSnippet1 };
 
-		const actual = merge(local, remote, remote);
+		const actuaw = mewge(wocaw, wemote, wemote);
 
-		assert.deepStrictEqual(actual.local.added, {});
-		assert.deepStrictEqual(actual.local.updated, {});
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.conflicts, []);
-		assert.deepStrictEqual(actual.remote.added, { 'html.json': htmlSnippet1, 'c.json': cSnippet });
-		assert.deepStrictEqual(actual.remote.updated, {});
-		assert.deepStrictEqual(actual.remote.removed, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, {});
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, {});
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.confwicts, []);
+		assewt.deepStwictEquaw(actuaw.wemote.added, { 'htmw.json': htmwSnippet1, 'c.json': cSnippet });
+		assewt.deepStwictEquaw(actuaw.wemote.updated, {});
+		assewt.deepStwictEquaw(actuaw.wemote.wemoved, []);
 	});
 
-	test('merge when an entry is removed from local from base and remote has not changed', async () => {
-		const local = { 'html.json': htmlSnippet1 };
-		const remote = { 'html.json': htmlSnippet1, 'typescript.json': tsSnippet1 };
+	test('mewge when an entwy is wemoved fwom wocaw fwom base and wemote has not changed', async () => {
+		const wocaw = { 'htmw.json': htmwSnippet1 };
+		const wemote = { 'htmw.json': htmwSnippet1, 'typescwipt.json': tsSnippet1 };
 
-		const actual = merge(local, remote, remote);
+		const actuaw = mewge(wocaw, wemote, wemote);
 
-		assert.deepStrictEqual(actual.local.added, {});
-		assert.deepStrictEqual(actual.local.updated, {});
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.conflicts, []);
-		assert.deepStrictEqual(actual.remote.added, {});
-		assert.deepStrictEqual(actual.remote.updated, {});
-		assert.deepStrictEqual(actual.remote.removed, ['typescript.json']);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, {});
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, {});
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.confwicts, []);
+		assewt.deepStwictEquaw(actuaw.wemote.added, {});
+		assewt.deepStwictEquaw(actuaw.wemote.updated, {});
+		assewt.deepStwictEquaw(actuaw.wemote.wemoved, ['typescwipt.json']);
 	});
 
-	test('merge when an entry is updated in local from base and remote has not changed', async () => {
-		const local = { 'html.json': htmlSnippet2, 'typescript.json': tsSnippet1 };
-		const remote = { 'html.json': htmlSnippet1, 'typescript.json': tsSnippet1 };
+	test('mewge when an entwy is updated in wocaw fwom base and wemote has not changed', async () => {
+		const wocaw = { 'htmw.json': htmwSnippet2, 'typescwipt.json': tsSnippet1 };
+		const wemote = { 'htmw.json': htmwSnippet1, 'typescwipt.json': tsSnippet1 };
 
-		const actual = merge(local, remote, remote);
+		const actuaw = mewge(wocaw, wemote, wemote);
 
-		assert.deepStrictEqual(actual.local.added, {});
-		assert.deepStrictEqual(actual.local.updated, {});
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.conflicts, []);
-		assert.deepStrictEqual(actual.remote.added, {});
-		assert.deepStrictEqual(actual.remote.updated, { 'html.json': htmlSnippet2 });
-		assert.deepStrictEqual(actual.remote.removed, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, {});
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, {});
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.confwicts, []);
+		assewt.deepStwictEquaw(actuaw.wemote.added, {});
+		assewt.deepStwictEquaw(actuaw.wemote.updated, { 'htmw.json': htmwSnippet2 });
+		assewt.deepStwictEquaw(actuaw.wemote.wemoved, []);
 	});
 
-	test('merge when local has moved forwarded with multiple changes and remote stays with base', async () => {
-		const local = { 'html.json': htmlSnippet2, 'c.json': cSnippet };
-		const remote = { 'html.json': htmlSnippet1, 'typescript.json': tsSnippet1 };
+	test('mewge when wocaw has moved fowwawded with muwtipwe changes and wemote stays with base', async () => {
+		const wocaw = { 'htmw.json': htmwSnippet2, 'c.json': cSnippet };
+		const wemote = { 'htmw.json': htmwSnippet1, 'typescwipt.json': tsSnippet1 };
 
-		const actual = merge(local, remote, remote);
+		const actuaw = mewge(wocaw, wemote, wemote);
 
-		assert.deepStrictEqual(actual.local.added, {});
-		assert.deepStrictEqual(actual.local.updated, {});
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.conflicts, []);
-		assert.deepStrictEqual(actual.remote.added, { 'c.json': cSnippet });
-		assert.deepStrictEqual(actual.remote.updated, { 'html.json': htmlSnippet2 });
-		assert.deepStrictEqual(actual.remote.removed, ['typescript.json']);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, {});
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, {});
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.confwicts, []);
+		assewt.deepStwictEquaw(actuaw.wemote.added, { 'c.json': cSnippet });
+		assewt.deepStwictEquaw(actuaw.wemote.updated, { 'htmw.json': htmwSnippet2 });
+		assewt.deepStwictEquaw(actuaw.wemote.wemoved, ['typescwipt.json']);
 	});
 
-	test('merge when local and remote with one entry but different value', async () => {
-		const local = { 'html.json': htmlSnippet1 };
-		const remote = { 'html.json': htmlSnippet2 };
+	test('mewge when wocaw and wemote with one entwy but diffewent vawue', async () => {
+		const wocaw = { 'htmw.json': htmwSnippet1 };
+		const wemote = { 'htmw.json': htmwSnippet2 };
 
-		const actual = merge(local, remote, null);
+		const actuaw = mewge(wocaw, wemote, nuww);
 
-		assert.deepStrictEqual(actual.local.added, {});
-		assert.deepStrictEqual(actual.local.updated, {});
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.conflicts, ['html.json']);
-		assert.deepStrictEqual(actual.remote.added, {});
-		assert.deepStrictEqual(actual.remote.updated, {});
-		assert.deepStrictEqual(actual.remote.removed, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, {});
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, {});
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.confwicts, ['htmw.json']);
+		assewt.deepStwictEquaw(actuaw.wemote.added, {});
+		assewt.deepStwictEquaw(actuaw.wemote.updated, {});
+		assewt.deepStwictEquaw(actuaw.wemote.wemoved, []);
 	});
 
-	test('merge when the entry is removed in remote but updated in local and a new entry is added in remote', async () => {
-		const base = { 'html.json': htmlSnippet1 };
-		const local = { 'html.json': htmlSnippet2 };
-		const remote = { 'typescript.json': tsSnippet1 };
+	test('mewge when the entwy is wemoved in wemote but updated in wocaw and a new entwy is added in wemote', async () => {
+		const base = { 'htmw.json': htmwSnippet1 };
+		const wocaw = { 'htmw.json': htmwSnippet2 };
+		const wemote = { 'typescwipt.json': tsSnippet1 };
 
-		const actual = merge(local, remote, base);
+		const actuaw = mewge(wocaw, wemote, base);
 
-		assert.deepStrictEqual(actual.local.added, { 'typescript.json': tsSnippet1 });
-		assert.deepStrictEqual(actual.local.updated, {});
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.conflicts, ['html.json']);
-		assert.deepStrictEqual(actual.remote.added, {});
-		assert.deepStrictEqual(actual.remote.updated, {});
-		assert.deepStrictEqual(actual.remote.removed, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, { 'typescwipt.json': tsSnippet1 });
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, {});
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.confwicts, ['htmw.json']);
+		assewt.deepStwictEquaw(actuaw.wemote.added, {});
+		assewt.deepStwictEquaw(actuaw.wemote.updated, {});
+		assewt.deepStwictEquaw(actuaw.wemote.wemoved, []);
 	});
 
-	test('merge with single entry and local is empty', async () => {
-		const base = { 'html.json': htmlSnippet1 };
-		const local = {};
-		const remote = { 'html.json': htmlSnippet2 };
+	test('mewge with singwe entwy and wocaw is empty', async () => {
+		const base = { 'htmw.json': htmwSnippet1 };
+		const wocaw = {};
+		const wemote = { 'htmw.json': htmwSnippet2 };
 
-		const actual = merge(local, remote, base);
+		const actuaw = mewge(wocaw, wemote, base);
 
-		assert.deepStrictEqual(actual.local.added, { 'html.json': htmlSnippet2 });
-		assert.deepStrictEqual(actual.local.updated, {});
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.conflicts, []);
-		assert.deepStrictEqual(actual.remote.added, {});
-		assert.deepStrictEqual(actual.remote.updated, {});
-		assert.deepStrictEqual(actual.remote.removed, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, { 'htmw.json': htmwSnippet2 });
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, {});
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.confwicts, []);
+		assewt.deepStwictEquaw(actuaw.wemote.added, {});
+		assewt.deepStwictEquaw(actuaw.wemote.updated, {});
+		assewt.deepStwictEquaw(actuaw.wemote.wemoved, []);
 	});
 
-	test('merge when local and remote has moved forwareded with conflicts', async () => {
-		const base = { 'html.json': htmlSnippet1, 'typescript.json': tsSnippet1 };
-		const local = { 'html.json': htmlSnippet2, 'c.json': cSnippet };
-		const remote = { 'typescript.json': tsSnippet2 };
+	test('mewge when wocaw and wemote has moved fowwaweded with confwicts', async () => {
+		const base = { 'htmw.json': htmwSnippet1, 'typescwipt.json': tsSnippet1 };
+		const wocaw = { 'htmw.json': htmwSnippet2, 'c.json': cSnippet };
+		const wemote = { 'typescwipt.json': tsSnippet2 };
 
-		const actual = merge(local, remote, base);
+		const actuaw = mewge(wocaw, wemote, base);
 
-		assert.deepStrictEqual(actual.local.added, { 'typescript.json': tsSnippet2 });
-		assert.deepStrictEqual(actual.local.updated, {});
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.conflicts, ['html.json']);
-		assert.deepStrictEqual(actual.remote.added, { 'c.json': cSnippet });
-		assert.deepStrictEqual(actual.remote.updated, {});
-		assert.deepStrictEqual(actual.remote.removed, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, { 'typescwipt.json': tsSnippet2 });
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, {});
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.confwicts, ['htmw.json']);
+		assewt.deepStwictEquaw(actuaw.wemote.added, { 'c.json': cSnippet });
+		assewt.deepStwictEquaw(actuaw.wemote.updated, {});
+		assewt.deepStwictEquaw(actuaw.wemote.wemoved, []);
 	});
 
-	test('merge when local and remote has moved forwareded with multiple conflicts', async () => {
-		const base = { 'html.json': htmlSnippet1, 'typescript.json': tsSnippet1 };
-		const local = { 'html.json': htmlSnippet2, 'typescript.json': tsSnippet2, 'c.json': cSnippet };
-		const remote = { 'c.json': cSnippet };
+	test('mewge when wocaw and wemote has moved fowwaweded with muwtipwe confwicts', async () => {
+		const base = { 'htmw.json': htmwSnippet1, 'typescwipt.json': tsSnippet1 };
+		const wocaw = { 'htmw.json': htmwSnippet2, 'typescwipt.json': tsSnippet2, 'c.json': cSnippet };
+		const wemote = { 'c.json': cSnippet };
 
-		const actual = merge(local, remote, base);
+		const actuaw = mewge(wocaw, wemote, base);
 
-		assert.deepStrictEqual(actual.local.added, {});
-		assert.deepStrictEqual(actual.local.updated, {});
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.conflicts, ['html.json', 'typescript.json']);
-		assert.deepStrictEqual(actual.remote.added, {});
-		assert.deepStrictEqual(actual.remote.updated, {});
-		assert.deepStrictEqual(actual.remote.removed, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, {});
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, {});
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.confwicts, ['htmw.json', 'typescwipt.json']);
+		assewt.deepStwictEquaw(actuaw.wemote.added, {});
+		assewt.deepStwictEquaw(actuaw.wemote.updated, {});
+		assewt.deepStwictEquaw(actuaw.wemote.wemoved, []);
 	});
 
 });

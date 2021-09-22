@@ -1,98 +1,98 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IUserDataSyncUtilService, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { UserDataSycnUtilServiceChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
-import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { localize } from 'vs/nls';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { Action } from 'vs/base/common/actions';
-import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { CONTEXT_SYNC_STATE, SHOW_SYNC_LOG_COMMAND_ID, SYNC_TITLE } from 'vs/workbench/services/userDataSync/common/userDataSync';
+impowt { IWowkbenchContwibutionsWegistwy, Extensions as WowkbenchExtensions, IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IUsewDataSyncUtiwSewvice, SyncStatus, UsewDataSyncEwwow, UsewDataSyncEwwowCode, IUsewDataAutoSyncSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IShawedPwocessSewvice } fwom 'vs/pwatfowm/ipc/ewectwon-sandbox/sewvices';
+impowt { UsewDataSycnUtiwSewviceChannew } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSyncIpc';
+impowt { wegistewAction2, Action2, MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { wocawize } fwom 'vs/nws';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { IWowkbenchIssueSewvice } fwom 'vs/wowkbench/sewvices/issue/common/issue';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { CONTEXT_SYNC_STATE, SHOW_SYNC_WOG_COMMAND_ID, SYNC_TITWE } fwom 'vs/wowkbench/sewvices/usewDataSync/common/usewDataSync';
 
-class UserDataSyncServicesContribution implements IWorkbenchContribution {
+cwass UsewDataSyncSewvicesContwibution impwements IWowkbenchContwibution {
 
-	constructor(
-		@IUserDataSyncUtilService userDataSyncUtilService: IUserDataSyncUtilService,
-		@ISharedProcessService sharedProcessService: ISharedProcessService,
+	constwuctow(
+		@IUsewDataSyncUtiwSewvice usewDataSyncUtiwSewvice: IUsewDataSyncUtiwSewvice,
+		@IShawedPwocessSewvice shawedPwocessSewvice: IShawedPwocessSewvice,
 	) {
-		sharedProcessService.registerChannel('userDataSyncUtil', new UserDataSycnUtilServiceChannel(userDataSyncUtilService));
+		shawedPwocessSewvice.wegistewChannew('usewDataSyncUtiw', new UsewDataSycnUtiwSewviceChannew(usewDataSyncUtiwSewvice));
 	}
 }
 
-class UserDataSyncReportIssueContribution extends Disposable implements IWorkbenchContribution {
+cwass UsewDataSyncWepowtIssueContwibution extends Disposabwe impwements IWowkbenchContwibution {
 
-	constructor(
-		@IUserDataAutoSyncService userDataAutoSyncService: IUserDataAutoSyncService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IWorkbenchIssueService private readonly workbenchIssueService: IWorkbenchIssueService,
-		@ICommandService private readonly commandService: ICommandService,
+	constwuctow(
+		@IUsewDataAutoSyncSewvice usewDataAutoSyncSewvice: IUsewDataAutoSyncSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IWowkbenchIssueSewvice pwivate weadonwy wowkbenchIssueSewvice: IWowkbenchIssueSewvice,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice,
 	) {
-		super();
-		this._register(userDataAutoSyncService.onError(error => this.onAutoSyncError(error)));
+		supa();
+		this._wegista(usewDataAutoSyncSewvice.onEwwow(ewwow => this.onAutoSyncEwwow(ewwow)));
 	}
 
-	private onAutoSyncError(error: UserDataSyncError): void {
-		switch (error.code) {
-			case UserDataSyncErrorCode.LocalTooManyRequests:
-			case UserDataSyncErrorCode.TooManyRequests:
-				const operationId = error.operationId ? localize('operationId', "Operation Id: {0}", error.operationId) : undefined;
-				const message = localize({ key: 'too many requests', comment: ['Settings Sync is the name of the feature'] }, "Settings sync is disabled because the current device is making too many requests. Please report an issue by providing the sync logs.");
-				this.notificationService.notify({
-					severity: Severity.Error,
-					message: operationId ? `${message} ${operationId}` : message,
-					source: error.operationId ? localize('settings sync', "Settings Sync. Operation Id: {0}", error.operationId) : undefined,
+	pwivate onAutoSyncEwwow(ewwow: UsewDataSyncEwwow): void {
+		switch (ewwow.code) {
+			case UsewDataSyncEwwowCode.WocawTooManyWequests:
+			case UsewDataSyncEwwowCode.TooManyWequests:
+				const opewationId = ewwow.opewationId ? wocawize('opewationId', "Opewation Id: {0}", ewwow.opewationId) : undefined;
+				const message = wocawize({ key: 'too many wequests', comment: ['Settings Sync is the name of the featuwe'] }, "Settings sync is disabwed because the cuwwent device is making too many wequests. Pwease wepowt an issue by pwoviding the sync wogs.");
+				this.notificationSewvice.notify({
+					sevewity: Sevewity.Ewwow,
+					message: opewationId ? `${message} ${opewationId}` : message,
+					souwce: ewwow.opewationId ? wocawize('settings sync', "Settings Sync. Opewation Id: {0}", ewwow.opewationId) : undefined,
 					actions: {
-						primary: [
-							new Action('Show Sync Logs', localize('show sync logs', "Show Log"), undefined, true, () => this.commandService.executeCommand(SHOW_SYNC_LOG_COMMAND_ID)),
-							new Action('Report Issue', localize('report issue', "Report Issue"), undefined, true, () => this.workbenchIssueService.openReporter())
+						pwimawy: [
+							new Action('Show Sync Wogs', wocawize('show sync wogs', "Show Wog"), undefined, twue, () => this.commandSewvice.executeCommand(SHOW_SYNC_WOG_COMMAND_ID)),
+							new Action('Wepowt Issue', wocawize('wepowt issue', "Wepowt Issue"), undefined, twue, () => this.wowkbenchIssueSewvice.openWepowta())
 						]
 					}
 				});
-				return;
+				wetuwn;
 		}
 	}
 }
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(UserDataSyncServicesContribution, LifecyclePhase.Starting);
-workbenchRegistry.registerWorkbenchContribution(UserDataSyncReportIssueContribution, LifecyclePhase.Restored);
+const wowkbenchWegistwy = Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench);
+wowkbenchWegistwy.wegistewWowkbenchContwibution(UsewDataSyncSewvicesContwibution, WifecycwePhase.Stawting);
+wowkbenchWegistwy.wegistewWowkbenchContwibution(UsewDataSyncWepowtIssueContwibution, WifecycwePhase.Westowed);
 
-registerAction2(class OpenSyncBackupsFolder extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.userData.actions.openSyncBackupsFolder',
-			title: { value: localize('Open Backup folder', "Open Local Backups Folder"), original: 'Open Local Backups Folder' },
-			category: { value: SYNC_TITLE, original: `Settings Sync` },
+wegistewAction2(cwass OpenSyncBackupsFowda extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'wowkbench.usewData.actions.openSyncBackupsFowda',
+			titwe: { vawue: wocawize('Open Backup fowda', "Open Wocaw Backups Fowda"), owiginaw: 'Open Wocaw Backups Fowda' },
+			categowy: { vawue: SYNC_TITWE, owiginaw: `Settings Sync` },
 			menu: {
-				id: MenuId.CommandPalette,
-				when: CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized),
+				id: MenuId.CommandPawette,
+				when: CONTEXT_SYNC_STATE.notEquawsTo(SyncStatus.Uninitiawized),
 			}
 		});
 	}
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const syncHome = accessor.get(IEnvironmentService).userDataSyncHome;
-		const nativeHostService = accessor.get(INativeHostService);
-		const fileService = accessor.get(IFileService);
-		const notificationService = accessor.get(INotificationService);
-		if (await fileService.exists(syncHome)) {
-			const folderStat = await fileService.resolve(syncHome);
-			const item = folderStat.children && folderStat.children[0] ? folderStat.children[0].resource : syncHome;
-			return nativeHostService.showItemInFolder(item.fsPath);
-		} else {
-			notificationService.info(localize('no backups', "Local backups folder does not exist"));
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const syncHome = accessow.get(IEnviwonmentSewvice).usewDataSyncHome;
+		const nativeHostSewvice = accessow.get(INativeHostSewvice);
+		const fiweSewvice = accessow.get(IFiweSewvice);
+		const notificationSewvice = accessow.get(INotificationSewvice);
+		if (await fiweSewvice.exists(syncHome)) {
+			const fowdewStat = await fiweSewvice.wesowve(syncHome);
+			const item = fowdewStat.chiwdwen && fowdewStat.chiwdwen[0] ? fowdewStat.chiwdwen[0].wesouwce : syncHome;
+			wetuwn nativeHostSewvice.showItemInFowda(item.fsPath);
+		} ewse {
+			notificationSewvice.info(wocawize('no backups', "Wocaw backups fowda does not exist"));
 		}
 	}
 });

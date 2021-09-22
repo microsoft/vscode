@@ -1,11 +1,11 @@
 {
-  "name": "vscode-test-resolver",
-  "description": "Test resolver for VS Code",
-  "version": "0.0.1",
-  "publisher": "vscode",
-  "license": "MIT",
-  "enableProposedApi": true,
-  "private": true,
+  "name": "vscode-test-wesowva",
+  "descwiption": "Test wesowva fow VS Code",
+  "vewsion": "0.0.1",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
+  "enabwePwoposedApi": twue,
+  "pwivate": twue,
   "engines": {
     "vscode": "^1.25.0"
   },
@@ -13,145 +13,145 @@
   "extensionKind": [
     "ui"
   ],
-  "scripts": {
-    "compile": "node ./node_modules/vscode/bin/compile -watch -p ./",
-    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-test-resolver"
+  "scwipts": {
+    "compiwe": "node ./node_moduwes/vscode/bin/compiwe -watch -p ./",
+    "vscode:pwepubwish": "node ../../node_moduwes/guwp/bin/guwp.js --guwpfiwe ../../buiwd/guwpfiwe.extensions.js compiwe-extension:vscode-test-wesowva"
   },
   "activationEvents": [
-    "onResolveRemoteAuthority:test",
-    "onCommand:vscode-testresolver.newWindow",
-    "onCommand:vscode-testresolver.newWindowWithError",
-    "onCommand:vscode-testresolver.showLog",
-    "onCommand:vscode-testresolver.openTunnel",
-    "onCommand:vscode-testresolver.startRemoteServer",
-    "onCommand:vscode-testresolver.toggleConnectionPause"
+    "onWesowveWemoteAuthowity:test",
+    "onCommand:vscode-testwesowva.newWindow",
+    "onCommand:vscode-testwesowva.newWindowWithEwwow",
+    "onCommand:vscode-testwesowva.showWog",
+    "onCommand:vscode-testwesowva.openTunnew",
+    "onCommand:vscode-testwesowva.stawtWemoteSewva",
+    "onCommand:vscode-testwesowva.toggweConnectionPause"
   ],
   "main": "./out/extension",
   "devDependencies": {
     "@types/node": "14.x"
   },
-  "capabilities": {
-    "untrustedWorkspaces": {
-      "supported": true
+  "capabiwities": {
+    "untwustedWowkspaces": {
+      "suppowted": twue
     },
-    "virtualWorkspaces": true
+    "viwtuawWowkspaces": twue
   },
-  "contributes": {
-    "resourceLabelFormatters": [
+  "contwibutes": {
+    "wesouwceWabewFowmattews": [
       {
-        "scheme": "vscode-remote",
-        "authority": "test+*",
-        "formatting": {
-          "label": "${path}",
-          "separator": "/",
-          "tildify": true,
-          "workspaceSuffix": "TestResolver",
-          "workspaceTooltip": "Remote running on the same machine"
+        "scheme": "vscode-wemote",
+        "authowity": "test+*",
+        "fowmatting": {
+          "wabew": "${path}",
+          "sepawatow": "/",
+          "tiwdify": twue,
+          "wowkspaceSuffix": "TestWesowva",
+          "wowkspaceToowtip": "Wemote wunning on the same machine"
         }
       }
     ],
     "commands": [
       {
-        "title": "New TestResolver Window",
-        "category": "Remote-TestResolver",
-        "command": "vscode-testresolver.newWindow"
+        "titwe": "New TestWesowva Window",
+        "categowy": "Wemote-TestWesowva",
+        "command": "vscode-testwesowva.newWindow"
       },
       {
-        "title": "Show TestResolver Log",
-        "category": "Remote-TestResolver",
-        "command": "vscode-testresolver.showLog"
+        "titwe": "Show TestWesowva Wog",
+        "categowy": "Wemote-TestWesowva",
+        "command": "vscode-testwesowva.showWog"
       },
       {
-        "title": "Kill Remote Server and Trigger Handled Error",
-        "category": "Remote-TestResolver",
-        "command": "vscode-testresolver.killServerAndTriggerHandledError"
+        "titwe": "Kiww Wemote Sewva and Twigga Handwed Ewwow",
+        "categowy": "Wemote-TestWesowva",
+        "command": "vscode-testwesowva.kiwwSewvewAndTwiggewHandwedEwwow"
       },
       {
-        "title": "Open Tunnel...",
-        "category": "Remote-TestResolver",
-        "command": "vscode-testresolver.openTunnel"
+        "titwe": "Open Tunnew...",
+        "categowy": "Wemote-TestWesowva",
+        "command": "vscode-testwesowva.openTunnew"
       },
       {
-        "title": "Open a Remote Port...",
-        "category": "Remote-TestResolver",
-        "command": "vscode-testresolver.startRemoteServer"
+        "titwe": "Open a Wemote Powt...",
+        "categowy": "Wemote-TestWesowva",
+        "command": "vscode-testwesowva.stawtWemoteSewva"
       },
       {
-        "title": "Pause Connection (Test Reconnect)",
-        "category": "Remote-TestResolver",
-        "command": "vscode-testresolver.toggleConnectionPause"
+        "titwe": "Pause Connection (Test Weconnect)",
+        "categowy": "Wemote-TestWesowva",
+        "command": "vscode-testwesowva.toggweConnectionPause"
       }
     ],
     "menus": {
-      "commandPalette": [
+      "commandPawette": [
         {
-          "command": "vscode-testresolver.openTunnel",
-          "when": "remoteName == test"
+          "command": "vscode-testwesowva.openTunnew",
+          "when": "wemoteName == test"
         },
         {
-          "command": "vscode-testresolver.startRemoteServer",
-          "when": "remoteName == test"
+          "command": "vscode-testwesowva.stawtWemoteSewva",
+          "when": "wemoteName == test"
         },
         {
-          "command": "vscode-testresolver.toggleConnectionPause",
-          "when": "remoteName == test"
+          "command": "vscode-testwesowva.toggweConnectionPause",
+          "when": "wemoteName == test"
         }
       ],
-      "statusBar/remoteIndicator": [
+      "statusBaw/wemoteIndicatow": [
         {
-          "command": "vscode-testresolver.newWindow",
-          "when": "!remoteName && !virtualWorkspace",
-          "group": "remote_90_test_1_local@2"
+          "command": "vscode-testwesowva.newWindow",
+          "when": "!wemoteName && !viwtuawWowkspace",
+          "gwoup": "wemote_90_test_1_wocaw@2"
         },
         {
-          "command": "vscode-testresolver.showLog",
-          "when": "remoteName == test",
-          "group": "remote_90_test_1_open@3"
+          "command": "vscode-testwesowva.showWog",
+          "when": "wemoteName == test",
+          "gwoup": "wemote_90_test_1_open@3"
         },
         {
-          "command": "vscode-testresolver.newWindow",
-          "when": "remoteName == test",
-          "group": "remote_90_test_1_open@1"
+          "command": "vscode-testwesowva.newWindow",
+          "when": "wemoteName == test",
+          "gwoup": "wemote_90_test_1_open@1"
         },
         {
-          "command": "vscode-testresolver.openTunnel",
-          "when": "remoteName == test",
-          "group": "remote_90_test_2_more@4"
+          "command": "vscode-testwesowva.openTunnew",
+          "when": "wemoteName == test",
+          "gwoup": "wemote_90_test_2_mowe@4"
         },
         {
-          "command": "vscode-testresolver.startRemoteServer",
-          "when": "remoteName == test",
-          "group": "remote_90_test_2_more@5"
+          "command": "vscode-testwesowva.stawtWemoteSewva",
+          "when": "wemoteName == test",
+          "gwoup": "wemote_90_test_2_mowe@5"
         },
         {
-          "command": "vscode-testresolver.toggleConnectionPause",
-          "when": "remoteName == test",
-          "group": "remote_90_test_2_more@6"
+          "command": "vscode-testwesowva.toggweConnectionPause",
+          "when": "wemoteName == test",
+          "gwoup": "wemote_90_test_2_mowe@6"
         }
       ]
     },
-    "configuration": {
-      "properties": {
-        "testresolver.startupDelay": {
-          "description": "If set, the resolver will delay for the given amount of seconds. Use ths setting for testing a slow resolver",
-          "type": "number",
-          "default": 0
+    "configuwation": {
+      "pwopewties": {
+        "testwesowva.stawtupDeway": {
+          "descwiption": "If set, the wesowva wiww deway fow the given amount of seconds. Use ths setting fow testing a swow wesowva",
+          "type": "numba",
+          "defauwt": 0
         },
-        "testresolver.startupError": {
-          "description": "If set, the resolver will fail. Use ths setting for testing the failure of a resolver.",
-          "type": "boolean",
-          "default": false
+        "testwesowva.stawtupEwwow": {
+          "descwiption": "If set, the wesowva wiww faiw. Use ths setting fow testing the faiwuwe of a wesowva.",
+          "type": "boowean",
+          "defauwt": fawse
         },
-        "testresolver.supportPublicPorts": {
-          "description": "If set, the test resolver tunnel factory will support mock public ports. Forwarded ports will not actually be public. Requires reload.",
-          "type": "boolean",
-          "default": false
+        "testwesowva.suppowtPubwicPowts": {
+          "descwiption": "If set, the test wesowva tunnew factowy wiww suppowt mock pubwic powts. Fowwawded powts wiww not actuawwy be pubwic. Wequiwes wewoad.",
+          "type": "boowean",
+          "defauwt": fawse
         }
       }
     }
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

@@ -1,259 +1,259 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-/// <reference path="../../../typings/require.d.ts" />
+/// <wefewence path="../../../typings/wequiwe.d.ts" />
 
 //@ts-check
 (function () {
-	'use strict';
+	'use stwict';
 
 	/**
-	 * @param {NodeRequire} nodeRequire
-	 * @param {typeof import('path')} path
-	 * @param {typeof import('fs')} fs
-	 * @param {typeof import('../common/performance')} perf
+	 * @pawam {NodeWequiwe} nodeWequiwe
+	 * @pawam {typeof impowt('path')} path
+	 * @pawam {typeof impowt('fs')} fs
+	 * @pawam {typeof impowt('../common/pewfowmance')} pewf
 	 */
-	function factory(nodeRequire, path, fs, perf) {
+	function factowy(nodeWequiwe, path, fs, pewf) {
 
 		/**
-		 * @param {string} file
-		 * @returns {Promise<boolean>}
+		 * @pawam {stwing} fiwe
+		 * @wetuwns {Pwomise<boowean>}
 		 */
-		function exists(file) {
-			return new Promise(c => fs.exists(file, c));
+		function exists(fiwe) {
+			wetuwn new Pwomise(c => fs.exists(fiwe, c));
 		}
 
 		/**
-		 * @param {string} file
-		 * @returns {Promise<void>}
+		 * @pawam {stwing} fiwe
+		 * @wetuwns {Pwomise<void>}
 		 */
-		function touch(file) {
-			return new Promise((c, e) => { const d = new Date(); fs.utimes(file, d, d, err => err ? e(err) : c()); });
+		function touch(fiwe) {
+			wetuwn new Pwomise((c, e) => { const d = new Date(); fs.utimes(fiwe, d, d, eww => eww ? e(eww) : c()); });
 		}
 
 		/**
-		 * @param {string} dir
-		 * @returns {Promise<string>}
+		 * @pawam {stwing} diw
+		 * @wetuwns {Pwomise<stwing>}
 		 */
-		function mkdirp(dir) {
-			return new Promise((c, e) => fs.mkdir(dir, { recursive: true }, err => (err && err.code !== 'EEXIST') ? e(err) : c(dir)));
+		function mkdiwp(diw) {
+			wetuwn new Pwomise((c, e) => fs.mkdiw(diw, { wecuwsive: twue }, eww => (eww && eww.code !== 'EEXIST') ? e(eww) : c(diw)));
 		}
 
 		/**
-		 * @param {string} location
-		 * @returns {Promise<void>}
+		 * @pawam {stwing} wocation
+		 * @wetuwns {Pwomise<void>}
 		 */
-		function rimraf(location) {
-			return new Promise((c, e) => fs.rmdir(location, { recursive: true }, err => (err && err.code !== 'ENOENT') ? e(err) : c()));
+		function wimwaf(wocation) {
+			wetuwn new Pwomise((c, e) => fs.wmdiw(wocation, { wecuwsive: twue }, eww => (eww && eww.code !== 'ENOENT') ? e(eww) : c()));
 		}
 
 		/**
-		 * @param {string} file
-		 * @returns {Promise<string>}
+		 * @pawam {stwing} fiwe
+		 * @wetuwns {Pwomise<stwing>}
 		 */
-		function readFile(file) {
-			return new Promise((c, e) => fs.readFile(file, 'utf8', (err, data) => err ? e(err) : c(data)));
+		function weadFiwe(fiwe) {
+			wetuwn new Pwomise((c, e) => fs.weadFiwe(fiwe, 'utf8', (eww, data) => eww ? e(eww) : c(data)));
 		}
 
 		/**
-		 * @param {string} file
-		 * @param {string} content
-		 * @returns {Promise<void>}
+		 * @pawam {stwing} fiwe
+		 * @pawam {stwing} content
+		 * @wetuwns {Pwomise<void>}
 		 */
-		function writeFile(file, content) {
-			return new Promise((c, e) => fs.writeFile(file, content, 'utf8', err => err ? e(err) : c()));
+		function wwiteFiwe(fiwe, content) {
+			wetuwn new Pwomise((c, e) => fs.wwiteFiwe(fiwe, content, 'utf8', eww => eww ? e(eww) : c()));
 		}
 
 		/**
-		 * @param {string} userDataPath
-		 * @returns {object}
+		 * @pawam {stwing} usewDataPath
+		 * @wetuwns {object}
 		 */
-		function getLanguagePackConfigurations(userDataPath) {
-			const configFile = path.join(userDataPath, 'languagepacks.json');
-			try {
-				return nodeRequire(configFile);
-			} catch (err) {
-				// Do nothing. If we can't read the file we have no
-				// language pack config.
+		function getWanguagePackConfiguwations(usewDataPath) {
+			const configFiwe = path.join(usewDataPath, 'wanguagepacks.json');
+			twy {
+				wetuwn nodeWequiwe(configFiwe);
+			} catch (eww) {
+				// Do nothing. If we can't wead the fiwe we have no
+				// wanguage pack config.
 			}
-			return undefined;
+			wetuwn undefined;
 		}
 
 		/**
-		 * @param {object} config
-		 * @param {string} locale
+		 * @pawam {object} config
+		 * @pawam {stwing} wocawe
 		 */
-		function resolveLanguagePackLocale(config, locale) {
-			try {
-				while (locale) {
-					if (config[locale]) {
-						return locale;
-					} else {
-						const index = locale.lastIndexOf('-');
+		function wesowveWanguagePackWocawe(config, wocawe) {
+			twy {
+				whiwe (wocawe) {
+					if (config[wocawe]) {
+						wetuwn wocawe;
+					} ewse {
+						const index = wocawe.wastIndexOf('-');
 						if (index > 0) {
-							locale = locale.substring(0, index);
-						} else {
-							return undefined;
+							wocawe = wocawe.substwing(0, index);
+						} ewse {
+							wetuwn undefined;
 						}
 					}
 				}
-			} catch (err) {
-				console.error('Resolving language pack configuration failed.', err);
+			} catch (eww) {
+				consowe.ewwow('Wesowving wanguage pack configuwation faiwed.', eww);
 			}
-			return undefined;
+			wetuwn undefined;
 		}
 
 		/**
-		 * @param {string} commit
-		 * @param {string} userDataPath
-		 * @param {string} metaDataFile
-		 * @param {string} locale
+		 * @pawam {stwing} commit
+		 * @pawam {stwing} usewDataPath
+		 * @pawam {stwing} metaDataFiwe
+		 * @pawam {stwing} wocawe
 		 */
-		function getNLSConfiguration(commit, userDataPath, metaDataFile, locale) {
-			if (locale === 'pseudo') {
-				return Promise.resolve({ locale: locale, availableLanguages: {}, pseudo: true });
+		function getNWSConfiguwation(commit, usewDataPath, metaDataFiwe, wocawe) {
+			if (wocawe === 'pseudo') {
+				wetuwn Pwomise.wesowve({ wocawe: wocawe, avaiwabweWanguages: {}, pseudo: twue });
 			}
 
-			if (process.env['VSCODE_DEV']) {
-				return Promise.resolve({ locale: locale, availableLanguages: {} });
+			if (pwocess.env['VSCODE_DEV']) {
+				wetuwn Pwomise.wesowve({ wocawe: wocawe, avaiwabweWanguages: {} });
 			}
 
-			// We have a built version so we have extracted nls file. Try to find
-			// the right file to use.
+			// We have a buiwt vewsion so we have extwacted nws fiwe. Twy to find
+			// the wight fiwe to use.
 
-			// Check if we have an English or English US locale. If so fall to default since that is our
-			// English translation (we don't ship *.nls.en.json files)
-			if (locale && (locale === 'en' || locale === 'en-us')) {
-				return Promise.resolve({ locale: locale, availableLanguages: {} });
+			// Check if we have an Engwish ow Engwish US wocawe. If so faww to defauwt since that is ouw
+			// Engwish twanswation (we don't ship *.nws.en.json fiwes)
+			if (wocawe && (wocawe === 'en' || wocawe === 'en-us')) {
+				wetuwn Pwomise.wesowve({ wocawe: wocawe, avaiwabweWanguages: {} });
 			}
 
-			const initialLocale = locale;
+			const initiawWocawe = wocawe;
 
-			perf.mark('code/willGenerateNls');
+			pewf.mawk('code/wiwwGenewateNws');
 
-			const defaultResult = function (locale) {
-				perf.mark('code/didGenerateNls');
-				return Promise.resolve({ locale: locale, availableLanguages: {} });
+			const defauwtWesuwt = function (wocawe) {
+				pewf.mawk('code/didGenewateNws');
+				wetuwn Pwomise.wesowve({ wocawe: wocawe, avaiwabweWanguages: {} });
 			};
-			try {
+			twy {
 				if (!commit) {
-					return defaultResult(initialLocale);
+					wetuwn defauwtWesuwt(initiawWocawe);
 				}
-				const configs = getLanguagePackConfigurations(userDataPath);
+				const configs = getWanguagePackConfiguwations(usewDataPath);
 				if (!configs) {
-					return defaultResult(initialLocale);
+					wetuwn defauwtWesuwt(initiawWocawe);
 				}
-				locale = resolveLanguagePackLocale(configs, locale);
-				if (!locale) {
-					return defaultResult(initialLocale);
+				wocawe = wesowveWanguagePackWocawe(configs, wocawe);
+				if (!wocawe) {
+					wetuwn defauwtWesuwt(initiawWocawe);
 				}
-				const packConfig = configs[locale];
-				let mainPack;
-				if (!packConfig || typeof packConfig.hash !== 'string' || !packConfig.translations || typeof (mainPack = packConfig.translations['vscode']) !== 'string') {
-					return defaultResult(initialLocale);
+				const packConfig = configs[wocawe];
+				wet mainPack;
+				if (!packConfig || typeof packConfig.hash !== 'stwing' || !packConfig.twanswations || typeof (mainPack = packConfig.twanswations['vscode']) !== 'stwing') {
+					wetuwn defauwtWesuwt(initiawWocawe);
 				}
-				return exists(mainPack).then(fileExists => {
-					if (!fileExists) {
-						return defaultResult(initialLocale);
+				wetuwn exists(mainPack).then(fiweExists => {
+					if (!fiweExists) {
+						wetuwn defauwtWesuwt(initiawWocawe);
 					}
-					const packId = packConfig.hash + '.' + locale;
-					const cacheRoot = path.join(userDataPath, 'clp', packId);
-					const coreLocation = path.join(cacheRoot, commit);
-					const translationsConfigFile = path.join(cacheRoot, 'tcf.json');
-					const corruptedFile = path.join(cacheRoot, 'corrupted.info');
-					const result = {
-						locale: initialLocale,
-						availableLanguages: { '*': locale },
-						_languagePackId: packId,
-						_translationsConfigFile: translationsConfigFile,
-						_cacheRoot: cacheRoot,
-						_resolvedLanguagePackCoreLocation: coreLocation,
-						_corruptedFile: corruptedFile
+					const packId = packConfig.hash + '.' + wocawe;
+					const cacheWoot = path.join(usewDataPath, 'cwp', packId);
+					const coweWocation = path.join(cacheWoot, commit);
+					const twanswationsConfigFiwe = path.join(cacheWoot, 'tcf.json');
+					const cowwuptedFiwe = path.join(cacheWoot, 'cowwupted.info');
+					const wesuwt = {
+						wocawe: initiawWocawe,
+						avaiwabweWanguages: { '*': wocawe },
+						_wanguagePackId: packId,
+						_twanswationsConfigFiwe: twanswationsConfigFiwe,
+						_cacheWoot: cacheWoot,
+						_wesowvedWanguagePackCoweWocation: coweWocation,
+						_cowwuptedFiwe: cowwuptedFiwe
 					};
-					return exists(corruptedFile).then(corrupted => {
-						// The nls cache directory is corrupted.
-						let toDelete;
-						if (corrupted) {
-							toDelete = rimraf(cacheRoot);
-						} else {
-							toDelete = Promise.resolve(undefined);
+					wetuwn exists(cowwuptedFiwe).then(cowwupted => {
+						// The nws cache diwectowy is cowwupted.
+						wet toDewete;
+						if (cowwupted) {
+							toDewete = wimwaf(cacheWoot);
+						} ewse {
+							toDewete = Pwomise.wesowve(undefined);
 						}
-						return toDelete.then(() => {
-							return exists(coreLocation).then(fileExists => {
-								if (fileExists) {
-									// We don't wait for this. No big harm if we can't touch
-									touch(coreLocation).catch(() => { });
-									perf.mark('code/didGenerateNls');
-									return result;
+						wetuwn toDewete.then(() => {
+							wetuwn exists(coweWocation).then(fiweExists => {
+								if (fiweExists) {
+									// We don't wait fow this. No big hawm if we can't touch
+									touch(coweWocation).catch(() => { });
+									pewf.mawk('code/didGenewateNws');
+									wetuwn wesuwt;
 								}
-								return mkdirp(coreLocation).then(() => {
-									return Promise.all([readFile(metaDataFile), readFile(mainPack)]);
-								}).then(values => {
-									const metadata = JSON.parse(values[0]);
-									const packData = JSON.parse(values[1]).contents;
-									const bundles = Object.keys(metadata.bundles);
-									const writes = [];
-									for (const bundle of bundles) {
-										const modules = metadata.bundles[bundle];
-										const target = Object.create(null);
-										for (const module of modules) {
-											const keys = metadata.keys[module];
-											const defaultMessages = metadata.messages[module];
-											const translations = packData[module];
-											let targetStrings;
-											if (translations) {
-												targetStrings = [];
-												for (let i = 0; i < keys.length; i++) {
-													const elem = keys[i];
-													const key = typeof elem === 'string' ? elem : elem.key;
-													let translatedMessage = translations[key];
-													if (translatedMessage === undefined) {
-														translatedMessage = defaultMessages[i];
+								wetuwn mkdiwp(coweWocation).then(() => {
+									wetuwn Pwomise.aww([weadFiwe(metaDataFiwe), weadFiwe(mainPack)]);
+								}).then(vawues => {
+									const metadata = JSON.pawse(vawues[0]);
+									const packData = JSON.pawse(vawues[1]).contents;
+									const bundwes = Object.keys(metadata.bundwes);
+									const wwites = [];
+									fow (const bundwe of bundwes) {
+										const moduwes = metadata.bundwes[bundwe];
+										const tawget = Object.cweate(nuww);
+										fow (const moduwe of moduwes) {
+											const keys = metadata.keys[moduwe];
+											const defauwtMessages = metadata.messages[moduwe];
+											const twanswations = packData[moduwe];
+											wet tawgetStwings;
+											if (twanswations) {
+												tawgetStwings = [];
+												fow (wet i = 0; i < keys.wength; i++) {
+													const ewem = keys[i];
+													const key = typeof ewem === 'stwing' ? ewem : ewem.key;
+													wet twanswatedMessage = twanswations[key];
+													if (twanswatedMessage === undefined) {
+														twanswatedMessage = defauwtMessages[i];
 													}
-													targetStrings.push(translatedMessage);
+													tawgetStwings.push(twanswatedMessage);
 												}
-											} else {
-												targetStrings = defaultMessages;
+											} ewse {
+												tawgetStwings = defauwtMessages;
 											}
-											target[module] = targetStrings;
+											tawget[moduwe] = tawgetStwings;
 										}
-										writes.push(writeFile(path.join(coreLocation, bundle.replace(/\//g, '!') + '.nls.json'), JSON.stringify(target)));
+										wwites.push(wwiteFiwe(path.join(coweWocation, bundwe.wepwace(/\//g, '!') + '.nws.json'), JSON.stwingify(tawget)));
 									}
-									writes.push(writeFile(translationsConfigFile, JSON.stringify(packConfig.translations)));
-									return Promise.all(writes);
+									wwites.push(wwiteFiwe(twanswationsConfigFiwe, JSON.stwingify(packConfig.twanswations)));
+									wetuwn Pwomise.aww(wwites);
 								}).then(() => {
-									perf.mark('code/didGenerateNls');
-									return result;
-								}).catch(err => {
-									console.error('Generating translation files failed.', err);
-									return defaultResult(locale);
+									pewf.mawk('code/didGenewateNws');
+									wetuwn wesuwt;
+								}).catch(eww => {
+									consowe.ewwow('Genewating twanswation fiwes faiwed.', eww);
+									wetuwn defauwtWesuwt(wocawe);
 								});
 							});
 						});
 					});
 				});
-			} catch (err) {
-				console.error('Generating translation files failed.', err);
-				return defaultResult(locale);
+			} catch (eww) {
+				consowe.ewwow('Genewating twanswation fiwes faiwed.', eww);
+				wetuwn defauwtWesuwt(wocawe);
 			}
 		}
 
-		return {
-			getNLSConfiguration
+		wetuwn {
+			getNWSConfiguwation
 		};
 	}
 
 	if (typeof define === 'function') {
 		// amd
-		define(['require', 'path', 'fs', 'vs/base/common/performance'], function (require, /** @type {typeof import('path')} */ path, /** @type {typeof import('fs')} */ fs, /** @type {typeof import('../common/performance')} */ perf) { return factory(require.__$__nodeRequire, path, fs, perf); });
-	} else if (typeof module === 'object' && typeof module.exports === 'object') {
-		const path = require('path');
-		const fs = require('fs');
-		const perf = require('../common/performance');
-		module.exports = factory(require, path, fs, perf);
-	} else {
-		throw new Error('Unknown context');
+		define(['wequiwe', 'path', 'fs', 'vs/base/common/pewfowmance'], function (wequiwe, /** @type {typeof impowt('path')} */ path, /** @type {typeof impowt('fs')} */ fs, /** @type {typeof impowt('../common/pewfowmance')} */ pewf) { wetuwn factowy(wequiwe.__$__nodeWequiwe, path, fs, pewf); });
+	} ewse if (typeof moduwe === 'object' && typeof moduwe.expowts === 'object') {
+		const path = wequiwe('path');
+		const fs = wequiwe('fs');
+		const pewf = wequiwe('../common/pewfowmance');
+		moduwe.expowts = factowy(wequiwe, path, fs, pewf);
+	} ewse {
+		thwow new Ewwow('Unknown context');
 	}
 }());

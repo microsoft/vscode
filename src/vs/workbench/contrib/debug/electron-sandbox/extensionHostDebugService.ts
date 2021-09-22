@@ -1,10 +1,10 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
-import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
-import { ExtensionHostDebugChannelClient, ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
+impowt { IExtensionHostDebugSewvice } fwom 'vs/pwatfowm/debug/common/extensionHostDebug';
+impowt { wegistewMainPwocessWemoteSewvice } fwom 'vs/pwatfowm/ipc/ewectwon-sandbox/sewvices';
+impowt { ExtensionHostDebugChannewCwient, ExtensionHostDebugBwoadcastChannew } fwom 'vs/pwatfowm/debug/common/extensionHostDebugIpc';
 
-registerMainProcessRemoteService(IExtensionHostDebugService, ExtensionHostDebugBroadcastChannel.ChannelName, { supportsDelayedInstantiation: true, channelClientCtor: ExtensionHostDebugChannelClient });
+wegistewMainPwocessWemoteSewvice(IExtensionHostDebugSewvice, ExtensionHostDebugBwoadcastChannew.ChannewName, { suppowtsDewayedInstantiation: twue, channewCwientCtow: ExtensionHostDebugChannewCwient });

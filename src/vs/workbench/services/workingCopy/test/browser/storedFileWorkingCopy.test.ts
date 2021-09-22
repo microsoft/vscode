@@ -1,769 +1,769 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Event, Emitter } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { StoredFileWorkingCopy, StoredFileWorkingCopyState, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
-import { bufferToStream, newWriteableBufferStream, streamToBuffer, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { basename } from 'vs/base/common/resources';
-import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
-import { SaveReason } from 'vs/workbench/common/editor';
-import { Promises } from 'vs/base/common/async';
-import { consumeReadable, consumeStream, isReadableStream } from 'vs/base/common/stream';
+impowt * as assewt fwom 'assewt';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { StowedFiweWowkingCopy, StowedFiweWowkingCopyState, IStowedFiweWowkingCopyModew, IStowedFiweWowkingCopyModewContentChangedEvent, IStowedFiweWowkingCopyModewFactowy } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/stowedFiweWowkingCopy';
+impowt { buffewToStweam, newWwiteabweBuffewStweam, stweamToBuffa, VSBuffa, VSBuffewWeadabweStweam } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { TestSewviceAccessow, wowkbenchInstantiationSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { basename } fwom 'vs/base/common/wesouwces';
+impowt { FiweChangesEvent, FiweChangeType, FiweOpewationEwwow, FiweOpewationWesuwt, NotModifiedSinceFiweOpewationEwwow } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { SaveWeason } fwom 'vs/wowkbench/common/editow';
+impowt { Pwomises } fwom 'vs/base/common/async';
+impowt { consumeWeadabwe, consumeStweam, isWeadabweStweam } fwom 'vs/base/common/stweam';
 
-export class TestStoredFileWorkingCopyModel extends Disposable implements IStoredFileWorkingCopyModel {
+expowt cwass TestStowedFiweWowkingCopyModew extends Disposabwe impwements IStowedFiweWowkingCopyModew {
 
-	private readonly _onDidChangeContent = this._register(new Emitter<IStoredFileWorkingCopyModelContentChangedEvent>());
-	readonly onDidChangeContent = this._onDidChangeContent.event;
+	pwivate weadonwy _onDidChangeContent = this._wegista(new Emitta<IStowedFiweWowkingCopyModewContentChangedEvent>());
+	weadonwy onDidChangeContent = this._onDidChangeContent.event;
 
-	private readonly _onWillDispose = this._register(new Emitter<void>());
-	readonly onWillDispose = this._onWillDispose.event;
+	pwivate weadonwy _onWiwwDispose = this._wegista(new Emitta<void>());
+	weadonwy onWiwwDispose = this._onWiwwDispose.event;
 
-	constructor(readonly resource: URI, public contents: string) {
-		super();
+	constwuctow(weadonwy wesouwce: UWI, pubwic contents: stwing) {
+		supa();
 	}
 
-	fireContentChangeEvent(event: IStoredFileWorkingCopyModelContentChangedEvent): void {
-		this._onDidChangeContent.fire(event);
+	fiweContentChangeEvent(event: IStowedFiweWowkingCopyModewContentChangedEvent): void {
+		this._onDidChangeContent.fiwe(event);
 	}
 
-	updateContents(newContents: string): void {
+	updateContents(newContents: stwing): void {
 		this.doUpdate(newContents);
 	}
 
-	private throwOnSnapshot = false;
-	setThrowOnSnapshot(): void {
-		this.throwOnSnapshot = true;
+	pwivate thwowOnSnapshot = fawse;
+	setThwowOnSnapshot(): void {
+		this.thwowOnSnapshot = twue;
 	}
 
-	async snapshot(token: CancellationToken): Promise<VSBufferReadableStream> {
-		if (this.throwOnSnapshot) {
-			throw new Error('Fail');
+	async snapshot(token: CancewwationToken): Pwomise<VSBuffewWeadabweStweam> {
+		if (this.thwowOnSnapshot) {
+			thwow new Ewwow('Faiw');
 		}
 
-		const stream = newWriteableBufferStream();
-		stream.end(VSBuffer.fromString(this.contents));
+		const stweam = newWwiteabweBuffewStweam();
+		stweam.end(VSBuffa.fwomStwing(this.contents));
 
-		return stream;
+		wetuwn stweam;
 	}
 
-	async update(contents: VSBufferReadableStream, token: CancellationToken): Promise<void> {
-		this.doUpdate((await streamToBuffer(contents)).toString());
+	async update(contents: VSBuffewWeadabweStweam, token: CancewwationToken): Pwomise<void> {
+		this.doUpdate((await stweamToBuffa(contents)).toStwing());
 	}
 
-	private doUpdate(newContents: string): void {
+	pwivate doUpdate(newContents: stwing): void {
 		this.contents = newContents;
 
-		this.versionId++;
+		this.vewsionId++;
 
-		this._onDidChangeContent.fire({ isRedoing: false, isUndoing: false });
+		this._onDidChangeContent.fiwe({ isWedoing: fawse, isUndoing: fawse });
 	}
 
-	versionId = 0;
+	vewsionId = 0;
 
-	pushedStackElement = false;
+	pushedStackEwement = fawse;
 
-	pushStackElement(): void {
-		this.pushedStackElement = true;
+	pushStackEwement(): void {
+		this.pushedStackEwement = twue;
 	}
 
-	override dispose(): void {
-		this._onWillDispose.fire();
+	ovewwide dispose(): void {
+		this._onWiwwDispose.fiwe();
 
-		super.dispose();
-	}
-}
-
-export class TestStoredFileWorkingCopyModelFactory implements IStoredFileWorkingCopyModelFactory<TestStoredFileWorkingCopyModel> {
-
-	async createModel(resource: URI, contents: VSBufferReadableStream, token: CancellationToken): Promise<TestStoredFileWorkingCopyModel> {
-		return new TestStoredFileWorkingCopyModel(resource, (await streamToBuffer(contents)).toString());
+		supa.dispose();
 	}
 }
 
-suite('StoredFileWorkingCopy', function () {
+expowt cwass TestStowedFiweWowkingCopyModewFactowy impwements IStowedFiweWowkingCopyModewFactowy<TestStowedFiweWowkingCopyModew> {
 
-	const factory = new TestStoredFileWorkingCopyModelFactory();
+	async cweateModew(wesouwce: UWI, contents: VSBuffewWeadabweStweam, token: CancewwationToken): Pwomise<TestStowedFiweWowkingCopyModew> {
+		wetuwn new TestStowedFiweWowkingCopyModew(wesouwce, (await stweamToBuffa(contents)).toStwing());
+	}
+}
 
-	let resource = URI.file('test/resource');
-	let instantiationService: IInstantiationService;
-	let accessor: TestServiceAccessor;
-	let workingCopy: StoredFileWorkingCopy<TestStoredFileWorkingCopyModel>;
+suite('StowedFiweWowkingCopy', function () {
 
-	function createWorkingCopy(uri: URI = resource) {
-		return new StoredFileWorkingCopy<TestStoredFileWorkingCopyModel>('testStoredFileWorkingCopyType', uri, basename(uri), factory, accessor.fileService, accessor.logService, accessor.workingCopyFileService, accessor.filesConfigurationService, accessor.workingCopyBackupService, accessor.workingCopyService, accessor.notificationService, accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService);
+	const factowy = new TestStowedFiweWowkingCopyModewFactowy();
+
+	wet wesouwce = UWI.fiwe('test/wesouwce');
+	wet instantiationSewvice: IInstantiationSewvice;
+	wet accessow: TestSewviceAccessow;
+	wet wowkingCopy: StowedFiweWowkingCopy<TestStowedFiweWowkingCopyModew>;
+
+	function cweateWowkingCopy(uwi: UWI = wesouwce) {
+		wetuwn new StowedFiweWowkingCopy<TestStowedFiweWowkingCopyModew>('testStowedFiweWowkingCopyType', uwi, basename(uwi), factowy, accessow.fiweSewvice, accessow.wogSewvice, accessow.wowkingCopyFiweSewvice, accessow.fiwesConfiguwationSewvice, accessow.wowkingCopyBackupSewvice, accessow.wowkingCopySewvice, accessow.notificationSewvice, accessow.wowkingCopyEditowSewvice, accessow.editowSewvice, accessow.ewevatedFiweSewvice);
 	}
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
-		accessor = instantiationService.createInstance(TestServiceAccessor);
+		instantiationSewvice = wowkbenchInstantiationSewvice();
+		accessow = instantiationSewvice.cweateInstance(TestSewviceAccessow);
 
-		workingCopy = createWorkingCopy();
+		wowkingCopy = cweateWowkingCopy();
 	});
 
-	teardown(() => {
-		workingCopy.dispose();
+	teawdown(() => {
+		wowkingCopy.dispose();
 	});
 
-	test('registers with working copy service', async () => {
-		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 1);
+	test('wegistews with wowking copy sewvice', async () => {
+		assewt.stwictEquaw(accessow.wowkingCopySewvice.wowkingCopies.wength, 1);
 
-		workingCopy.dispose();
+		wowkingCopy.dispose();
 
-		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 0);
+		assewt.stwictEquaw(accessow.wowkingCopySewvice.wowkingCopies.wength, 0);
 	});
 
-	test('orphaned tracking', async () => {
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.ORPHAN), false);
+	test('owphaned twacking', async () => {
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.OWPHAN), fawse);
 
-		let onDidChangeOrphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
-		accessor.fileService.notExistsSet.set(resource, true);
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.DELETED }], false));
+		wet onDidChangeOwphanedPwomise = Event.toPwomise(wowkingCopy.onDidChangeOwphaned);
+		accessow.fiweSewvice.notExistsSet.set(wesouwce, twue);
+		accessow.fiweSewvice.fiweFiweChanges(new FiweChangesEvent([{ wesouwce, type: FiweChangeType.DEWETED }], fawse));
 
-		await onDidChangeOrphanedPromise;
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.ORPHAN), true);
+		await onDidChangeOwphanedPwomise;
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.OWPHAN), twue);
 
-		onDidChangeOrphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
-		accessor.fileService.notExistsSet.delete(resource);
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.ADDED }], false));
+		onDidChangeOwphanedPwomise = Event.toPwomise(wowkingCopy.onDidChangeOwphaned);
+		accessow.fiweSewvice.notExistsSet.dewete(wesouwce);
+		accessow.fiweSewvice.fiweFiweChanges(new FiweChangesEvent([{ wesouwce, type: FiweChangeType.ADDED }], fawse));
 
-		await onDidChangeOrphanedPromise;
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.ORPHAN), false);
+		await onDidChangeOwphanedPwomise;
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.OWPHAN), fawse);
 	});
 
-	test('dirty', async () => {
-		assert.strictEqual(workingCopy.isDirty(), false);
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.DIRTY), false);
+	test('diwty', async () => {
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), fawse);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.DIWTY), fawse);
 
-		await workingCopy.resolve();
-		assert.strictEqual(workingCopy.isResolved(), true);
+		await wowkingCopy.wesowve();
+		assewt.stwictEquaw(wowkingCopy.isWesowved(), twue);
 
-		let changeDirtyCounter = 0;
-		workingCopy.onDidChangeDirty(() => {
-			changeDirtyCounter++;
+		wet changeDiwtyCounta = 0;
+		wowkingCopy.onDidChangeDiwty(() => {
+			changeDiwtyCounta++;
 		});
 
-		let contentChangeCounter = 0;
-		workingCopy.onDidChangeContent(() => {
-			contentChangeCounter++;
+		wet contentChangeCounta = 0;
+		wowkingCopy.onDidChangeContent(() => {
+			contentChangeCounta++;
 		});
 
-		// Dirty from: Model content change
-		workingCopy.model?.updateContents('hello dirty');
-		assert.strictEqual(contentChangeCounter, 1);
+		// Diwty fwom: Modew content change
+		wowkingCopy.modew?.updateContents('hewwo diwty');
+		assewt.stwictEquaw(contentChangeCounta, 1);
 
-		assert.strictEqual(workingCopy.isDirty(), true);
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.DIRTY), true);
-		assert.strictEqual(changeDirtyCounter, 1);
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), twue);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.DIWTY), twue);
+		assewt.stwictEquaw(changeDiwtyCounta, 1);
 
-		await workingCopy.save();
+		await wowkingCopy.save();
 
-		assert.strictEqual(workingCopy.isDirty(), false);
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.DIRTY), false);
-		assert.strictEqual(changeDirtyCounter, 2);
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), fawse);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.DIWTY), fawse);
+		assewt.stwictEquaw(changeDiwtyCounta, 2);
 
-		// Dirty from: Initial contents
-		await workingCopy.resolve({ contents: bufferToStream(VSBuffer.fromString('hello dirty stream')) });
+		// Diwty fwom: Initiaw contents
+		await wowkingCopy.wesowve({ contents: buffewToStweam(VSBuffa.fwomStwing('hewwo diwty stweam')) });
 
-		assert.strictEqual(contentChangeCounter, 2); // content of model did not change
-		assert.strictEqual(workingCopy.isDirty(), true);
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.DIRTY), true);
-		assert.strictEqual(changeDirtyCounter, 3);
+		assewt.stwictEquaw(contentChangeCounta, 2); // content of modew did not change
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), twue);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.DIWTY), twue);
+		assewt.stwictEquaw(changeDiwtyCounta, 3);
 
-		await workingCopy.revert({ soft: true });
+		await wowkingCopy.wevewt({ soft: twue });
 
-		assert.strictEqual(workingCopy.isDirty(), false);
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.DIRTY), false);
-		assert.strictEqual(changeDirtyCounter, 4);
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), fawse);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.DIWTY), fawse);
+		assewt.stwictEquaw(changeDiwtyCounta, 4);
 
-		// Dirty from: API
-		workingCopy.markDirty();
+		// Diwty fwom: API
+		wowkingCopy.mawkDiwty();
 
-		assert.strictEqual(workingCopy.isDirty(), true);
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.DIRTY), true);
-		assert.strictEqual(changeDirtyCounter, 5);
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), twue);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.DIWTY), twue);
+		assewt.stwictEquaw(changeDiwtyCounta, 5);
 
-		await workingCopy.revert();
+		await wowkingCopy.wevewt();
 
-		assert.strictEqual(workingCopy.isDirty(), false);
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.DIRTY), false);
-		assert.strictEqual(changeDirtyCounter, 6);
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), fawse);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.DIWTY), fawse);
+		assewt.stwictEquaw(changeDiwtyCounta, 6);
 	});
 
-	test('dirty - working copy marks non-dirty when undo reaches saved version ID', async () => {
-		await workingCopy.resolve();
+	test('diwty - wowking copy mawks non-diwty when undo weaches saved vewsion ID', async () => {
+		await wowkingCopy.wesowve();
 
-		workingCopy.model?.updateContents('hello saved state');
-		await workingCopy.save();
-		assert.strictEqual(workingCopy.isDirty(), false);
+		wowkingCopy.modew?.updateContents('hewwo saved state');
+		await wowkingCopy.save();
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), fawse);
 
-		workingCopy.model?.updateContents('changing content once');
-		assert.strictEqual(workingCopy.isDirty(), true);
+		wowkingCopy.modew?.updateContents('changing content once');
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), twue);
 
-		// Simulate an undo that goes back to the last (saved) version ID
-		workingCopy.model!.versionId--;
+		// Simuwate an undo that goes back to the wast (saved) vewsion ID
+		wowkingCopy.modew!.vewsionId--;
 
-		workingCopy.model?.fireContentChangeEvent({ isRedoing: false, isUndoing: true });
-		assert.strictEqual(workingCopy.isDirty(), false);
+		wowkingCopy.modew?.fiweContentChangeEvent({ isWedoing: fawse, isUndoing: twue });
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), fawse);
 	});
 
-	test('resolve (without backup)', async () => {
-		let onDidResolveCounter = 0;
-		workingCopy.onDidResolve(() => {
-			onDidResolveCounter++;
+	test('wesowve (without backup)', async () => {
+		wet onDidWesowveCounta = 0;
+		wowkingCopy.onDidWesowve(() => {
+			onDidWesowveCounta++;
 		});
 
-		// resolve from file
-		await workingCopy.resolve();
-		assert.strictEqual(workingCopy.isResolved(), true);
-		assert.strictEqual(onDidResolveCounter, 1);
-		assert.strictEqual(workingCopy.model?.contents, 'Hello Html');
+		// wesowve fwom fiwe
+		await wowkingCopy.wesowve();
+		assewt.stwictEquaw(wowkingCopy.isWesowved(), twue);
+		assewt.stwictEquaw(onDidWesowveCounta, 1);
+		assewt.stwictEquaw(wowkingCopy.modew?.contents, 'Hewwo Htmw');
 
-		// dirty resolve returns early
-		workingCopy.model?.updateContents('hello resolve');
-		assert.strictEqual(workingCopy.isDirty(), true);
-		await workingCopy.resolve();
-		assert.strictEqual(onDidResolveCounter, 1);
-		assert.strictEqual(workingCopy.model?.contents, 'hello resolve');
+		// diwty wesowve wetuwns eawwy
+		wowkingCopy.modew?.updateContents('hewwo wesowve');
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), twue);
+		await wowkingCopy.wesowve();
+		assewt.stwictEquaw(onDidWesowveCounta, 1);
+		assewt.stwictEquaw(wowkingCopy.modew?.contents, 'hewwo wesowve');
 
-		// dirty resolve with contents updates contents
-		await workingCopy.resolve({ contents: bufferToStream(VSBuffer.fromString('hello initial contents')) });
-		assert.strictEqual(workingCopy.isDirty(), true);
-		assert.strictEqual(workingCopy.model?.contents, 'hello initial contents');
-		assert.strictEqual(onDidResolveCounter, 2);
+		// diwty wesowve with contents updates contents
+		await wowkingCopy.wesowve({ contents: buffewToStweam(VSBuffa.fwomStwing('hewwo initiaw contents')) });
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), twue);
+		assewt.stwictEquaw(wowkingCopy.modew?.contents, 'hewwo initiaw contents');
+		assewt.stwictEquaw(onDidWesowveCounta, 2);
 
-		// resolve with pending save returns directly
-		const pendingSave = workingCopy.save();
-		await workingCopy.resolve();
+		// wesowve with pending save wetuwns diwectwy
+		const pendingSave = wowkingCopy.save();
+		await wowkingCopy.wesowve();
 		await pendingSave;
-		assert.strictEqual(workingCopy.isDirty(), false);
-		assert.strictEqual(workingCopy.model?.contents, 'hello initial contents');
-		assert.strictEqual(onDidResolveCounter, 2);
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), fawse);
+		assewt.stwictEquaw(wowkingCopy.modew?.contents, 'hewwo initiaw contents');
+		assewt.stwictEquaw(onDidWesowveCounta, 2);
 
-		// disposed resolve is not throwing an error
-		workingCopy.dispose();
-		await workingCopy.resolve();
-		assert.strictEqual(workingCopy.isDisposed(), true);
-		assert.strictEqual(onDidResolveCounter, 2);
+		// disposed wesowve is not thwowing an ewwow
+		wowkingCopy.dispose();
+		await wowkingCopy.wesowve();
+		assewt.stwictEquaw(wowkingCopy.isDisposed(), twue);
+		assewt.stwictEquaw(onDidWesowveCounta, 2);
 	});
 
-	test('resolve (with backup)', async () => {
-		await workingCopy.resolve({ contents: bufferToStream(VSBuffer.fromString('hello backup')) });
+	test('wesowve (with backup)', async () => {
+		await wowkingCopy.wesowve({ contents: buffewToStweam(VSBuffa.fwomStwing('hewwo backup')) });
 
-		const backup = await workingCopy.backup(CancellationToken.None);
-		await accessor.workingCopyBackupService.backup(workingCopy, backup.content, undefined, backup.meta);
+		const backup = await wowkingCopy.backup(CancewwationToken.None);
+		await accessow.wowkingCopyBackupSewvice.backup(wowkingCopy, backup.content, undefined, backup.meta);
 
-		assert.strictEqual(accessor.workingCopyBackupService.hasBackupSync(workingCopy), true);
+		assewt.stwictEquaw(accessow.wowkingCopyBackupSewvice.hasBackupSync(wowkingCopy), twue);
 
-		workingCopy.dispose();
+		wowkingCopy.dispose();
 
-		// first resolve loads from backup
-		workingCopy = createWorkingCopy();
-		await workingCopy.resolve();
+		// fiwst wesowve woads fwom backup
+		wowkingCopy = cweateWowkingCopy();
+		await wowkingCopy.wesowve();
 
-		assert.strictEqual(workingCopy.isDirty(), true);
-		assert.strictEqual(workingCopy.isReadonly(), false);
-		assert.strictEqual(workingCopy.model?.contents, 'hello backup');
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), twue);
+		assewt.stwictEquaw(wowkingCopy.isWeadonwy(), fawse);
+		assewt.stwictEquaw(wowkingCopy.modew?.contents, 'hewwo backup');
 
-		workingCopy.model.updateContents('hello updated');
-		await workingCopy.save();
+		wowkingCopy.modew.updateContents('hewwo updated');
+		await wowkingCopy.save();
 
-		// subsequent resolve ignores any backups
-		await workingCopy.resolve();
+		// subsequent wesowve ignowes any backups
+		await wowkingCopy.wesowve();
 
-		assert.strictEqual(workingCopy.isDirty(), false);
-		assert.strictEqual(workingCopy.model?.contents, 'Hello Html');
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), fawse);
+		assewt.stwictEquaw(wowkingCopy.modew?.contents, 'Hewwo Htmw');
 	});
 
-	test('resolve (with backup, preserves metadata and orphaned state)', async () => {
-		await workingCopy.resolve({ contents: bufferToStream(VSBuffer.fromString('hello backup')) });
+	test('wesowve (with backup, pwesewves metadata and owphaned state)', async () => {
+		await wowkingCopy.wesowve({ contents: buffewToStweam(VSBuffa.fwomStwing('hewwo backup')) });
 
-		const orphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
+		const owphanedPwomise = Event.toPwomise(wowkingCopy.onDidChangeOwphaned);
 
-		accessor.fileService.notExistsSet.set(resource, true);
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.DELETED }], false));
+		accessow.fiweSewvice.notExistsSet.set(wesouwce, twue);
+		accessow.fiweSewvice.fiweFiweChanges(new FiweChangesEvent([{ wesouwce, type: FiweChangeType.DEWETED }], fawse));
 
-		await orphanedPromise;
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.ORPHAN), true);
+		await owphanedPwomise;
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.OWPHAN), twue);
 
-		const backup = await workingCopy.backup(CancellationToken.None);
-		await accessor.workingCopyBackupService.backup(workingCopy, backup.content, undefined, backup.meta);
+		const backup = await wowkingCopy.backup(CancewwationToken.None);
+		await accessow.wowkingCopyBackupSewvice.backup(wowkingCopy, backup.content, undefined, backup.meta);
 
-		assert.strictEqual(accessor.workingCopyBackupService.hasBackupSync(workingCopy), true);
+		assewt.stwictEquaw(accessow.wowkingCopyBackupSewvice.hasBackupSync(wowkingCopy), twue);
 
-		workingCopy.dispose();
+		wowkingCopy.dispose();
 
-		workingCopy = createWorkingCopy();
-		await workingCopy.resolve();
+		wowkingCopy = cweateWowkingCopy();
+		await wowkingCopy.wesowve();
 
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.ORPHAN), true);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.OWPHAN), twue);
 
-		const backup2 = await workingCopy.backup(CancellationToken.None);
-		assert.deepStrictEqual(backup.meta, backup2.meta);
+		const backup2 = await wowkingCopy.backup(CancewwationToken.None);
+		assewt.deepStwictEquaw(backup.meta, backup2.meta);
 	});
 
-	test('resolve (updates orphaned state accordingly)', async () => {
-		await workingCopy.resolve();
+	test('wesowve (updates owphaned state accowdingwy)', async () => {
+		await wowkingCopy.wesowve();
 
-		const orphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
+		const owphanedPwomise = Event.toPwomise(wowkingCopy.onDidChangeOwphaned);
 
-		accessor.fileService.notExistsSet.set(resource, true);
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.DELETED }], false));
+		accessow.fiweSewvice.notExistsSet.set(wesouwce, twue);
+		accessow.fiweSewvice.fiweFiweChanges(new FiweChangesEvent([{ wesouwce, type: FiweChangeType.DEWETED }], fawse));
 
-		await orphanedPromise;
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.ORPHAN), true);
+		await owphanedPwomise;
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.OWPHAN), twue);
 
-		// resolving clears orphaned state when successful
-		accessor.fileService.notExistsSet.delete(resource);
-		await workingCopy.resolve({ forceReadFromFile: true });
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.ORPHAN), false);
+		// wesowving cweaws owphaned state when successfuw
+		accessow.fiweSewvice.notExistsSet.dewete(wesouwce);
+		await wowkingCopy.wesowve({ fowceWeadFwomFiwe: twue });
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.OWPHAN), fawse);
 
-		// resolving adds orphaned state when fail to read
-		try {
-			accessor.fileService.readShouldThrowError = new FileOperationError('file not found', FileOperationResult.FILE_NOT_FOUND);
-			await workingCopy.resolve();
-			assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.ORPHAN), true);
-		} finally {
-			accessor.fileService.readShouldThrowError = undefined;
+		// wesowving adds owphaned state when faiw to wead
+		twy {
+			accessow.fiweSewvice.weadShouwdThwowEwwow = new FiweOpewationEwwow('fiwe not found', FiweOpewationWesuwt.FIWE_NOT_FOUND);
+			await wowkingCopy.wesowve();
+			assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.OWPHAN), twue);
+		} finawwy {
+			accessow.fiweSewvice.weadShouwdThwowEwwow = undefined;
 		}
 	});
 
-	test('resolve (FILE_NOT_MODIFIED_SINCE can be handled for resolved working copies)', async () => {
-		await workingCopy.resolve();
+	test('wesowve (FIWE_NOT_MODIFIED_SINCE can be handwed fow wesowved wowking copies)', async () => {
+		await wowkingCopy.wesowve();
 
-		try {
-			accessor.fileService.readShouldThrowError = new FileOperationError('file not modified since', FileOperationResult.FILE_NOT_MODIFIED_SINCE);
-			await workingCopy.resolve();
-		} finally {
-			accessor.fileService.readShouldThrowError = undefined;
+		twy {
+			accessow.fiweSewvice.weadShouwdThwowEwwow = new FiweOpewationEwwow('fiwe not modified since', FiweOpewationWesuwt.FIWE_NOT_MODIFIED_SINCE);
+			await wowkingCopy.wesowve();
+		} finawwy {
+			accessow.fiweSewvice.weadShouwdThwowEwwow = undefined;
 		}
 
-		assert.strictEqual(workingCopy.model?.contents, 'Hello Html');
+		assewt.stwictEquaw(wowkingCopy.modew?.contents, 'Hewwo Htmw');
 	});
 
-	test('resolve (FILE_NOT_MODIFIED_SINCE still updates readonly state)', async () => {
-		let readonlyChangeCounter = 0;
-		workingCopy.onDidChangeReadonly(() => readonlyChangeCounter++);
+	test('wesowve (FIWE_NOT_MODIFIED_SINCE stiww updates weadonwy state)', async () => {
+		wet weadonwyChangeCounta = 0;
+		wowkingCopy.onDidChangeWeadonwy(() => weadonwyChangeCounta++);
 
-		await workingCopy.resolve();
+		await wowkingCopy.wesowve();
 
-		assert.strictEqual(workingCopy.isReadonly(), false);
+		assewt.stwictEquaw(wowkingCopy.isWeadonwy(), fawse);
 
-		const stat = await accessor.fileService.resolve(workingCopy.resource, { resolveMetadata: true });
+		const stat = await accessow.fiweSewvice.wesowve(wowkingCopy.wesouwce, { wesowveMetadata: twue });
 
-		try {
-			accessor.fileService.readShouldThrowError = new NotModifiedSinceFileOperationError('file not modified since', { ...stat, readonly: true });
-			await workingCopy.resolve();
-		} finally {
-			accessor.fileService.readShouldThrowError = undefined;
+		twy {
+			accessow.fiweSewvice.weadShouwdThwowEwwow = new NotModifiedSinceFiweOpewationEwwow('fiwe not modified since', { ...stat, weadonwy: twue });
+			await wowkingCopy.wesowve();
+		} finawwy {
+			accessow.fiweSewvice.weadShouwdThwowEwwow = undefined;
 		}
 
-		assert.strictEqual(workingCopy.isReadonly(), true);
-		assert.strictEqual(readonlyChangeCounter, 1);
+		assewt.stwictEquaw(wowkingCopy.isWeadonwy(), twue);
+		assewt.stwictEquaw(weadonwyChangeCounta, 1);
 
-		try {
-			accessor.fileService.readShouldThrowError = new NotModifiedSinceFileOperationError('file not modified since', { ...stat, readonly: false });
-			await workingCopy.resolve();
-		} finally {
-			accessor.fileService.readShouldThrowError = undefined;
+		twy {
+			accessow.fiweSewvice.weadShouwdThwowEwwow = new NotModifiedSinceFiweOpewationEwwow('fiwe not modified since', { ...stat, weadonwy: fawse });
+			await wowkingCopy.wesowve();
+		} finawwy {
+			accessow.fiweSewvice.weadShouwdThwowEwwow = undefined;
 		}
 
-		assert.strictEqual(workingCopy.isReadonly(), false);
-		assert.strictEqual(readonlyChangeCounter, 2);
+		assewt.stwictEquaw(wowkingCopy.isWeadonwy(), fawse);
+		assewt.stwictEquaw(weadonwyChangeCounta, 2);
 	});
 
-	test('resolve does not alter content when model content changed in parallel', async () => {
-		await workingCopy.resolve();
+	test('wesowve does not awta content when modew content changed in pawawwew', async () => {
+		await wowkingCopy.wesowve();
 
-		const resolvePromise = workingCopy.resolve();
+		const wesowvePwomise = wowkingCopy.wesowve();
 
-		workingCopy.model?.updateContents('changed content');
+		wowkingCopy.modew?.updateContents('changed content');
 
-		await resolvePromise;
+		await wesowvePwomise;
 
-		assert.strictEqual(workingCopy.isDirty(), true);
-		assert.strictEqual(workingCopy.model?.contents, 'changed content');
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), twue);
+		assewt.stwictEquaw(wowkingCopy.modew?.contents, 'changed content');
 	});
 
 	test('backup', async () => {
-		await workingCopy.resolve();
-		workingCopy.model?.updateContents('hello backup');
+		await wowkingCopy.wesowve();
+		wowkingCopy.modew?.updateContents('hewwo backup');
 
-		const backup = await workingCopy.backup(CancellationToken.None);
+		const backup = await wowkingCopy.backup(CancewwationToken.None);
 
-		assert.ok(backup.meta);
+		assewt.ok(backup.meta);
 
-		let backupContents: string | undefined = undefined;
-		if (backup.content instanceof VSBuffer) {
-			backupContents = backup.content.toString();
-		} else if (isReadableStream(backup.content)) {
-			backupContents = (await consumeStream(backup.content, chunks => VSBuffer.concat(chunks))).toString();
-		} else if (backup.content) {
-			backupContents = consumeReadable(backup.content, chunks => VSBuffer.concat(chunks)).toString();
+		wet backupContents: stwing | undefined = undefined;
+		if (backup.content instanceof VSBuffa) {
+			backupContents = backup.content.toStwing();
+		} ewse if (isWeadabweStweam(backup.content)) {
+			backupContents = (await consumeStweam(backup.content, chunks => VSBuffa.concat(chunks))).toStwing();
+		} ewse if (backup.content) {
+			backupContents = consumeWeadabwe(backup.content, chunks => VSBuffa.concat(chunks)).toStwing();
 		}
 
-		assert.strictEqual(backupContents, 'hello backup');
+		assewt.stwictEquaw(backupContents, 'hewwo backup');
 	});
 
-	test('save (no errors)', async () => {
-		let savedCounter = 0;
-		let lastSavedReason: SaveReason | undefined = undefined;
-		workingCopy.onDidSave(reason => {
-			savedCounter++;
-			lastSavedReason = reason;
+	test('save (no ewwows)', async () => {
+		wet savedCounta = 0;
+		wet wastSavedWeason: SaveWeason | undefined = undefined;
+		wowkingCopy.onDidSave(weason => {
+			savedCounta++;
+			wastSavedWeason = weason;
 		});
 
-		let saveErrorCounter = 0;
-		workingCopy.onDidSaveError(() => {
-			saveErrorCounter++;
+		wet saveEwwowCounta = 0;
+		wowkingCopy.onDidSaveEwwow(() => {
+			saveEwwowCounta++;
 		});
 
-		// unresolved
-		await workingCopy.save();
-		assert.strictEqual(savedCounter, 0);
-		assert.strictEqual(saveErrorCounter, 0);
+		// unwesowved
+		await wowkingCopy.save();
+		assewt.stwictEquaw(savedCounta, 0);
+		assewt.stwictEquaw(saveEwwowCounta, 0);
 
-		// simple
-		await workingCopy.resolve();
-		workingCopy.model?.updateContents('hello save');
-		await workingCopy.save();
+		// simpwe
+		await wowkingCopy.wesowve();
+		wowkingCopy.modew?.updateContents('hewwo save');
+		await wowkingCopy.save();
 
-		assert.strictEqual(savedCounter, 1);
-		assert.strictEqual(saveErrorCounter, 0);
-		assert.strictEqual(workingCopy.isDirty(), false);
-		assert.strictEqual(lastSavedReason, SaveReason.EXPLICIT);
-		assert.strictEqual(workingCopy.model?.pushedStackElement, true);
+		assewt.stwictEquaw(savedCounta, 1);
+		assewt.stwictEquaw(saveEwwowCounta, 0);
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), fawse);
+		assewt.stwictEquaw(wastSavedWeason, SaveWeason.EXPWICIT);
+		assewt.stwictEquaw(wowkingCopy.modew?.pushedStackEwement, twue);
 
-		// save reason
-		workingCopy.model?.updateContents('hello save');
-		await workingCopy.save({ reason: SaveReason.AUTO });
+		// save weason
+		wowkingCopy.modew?.updateContents('hewwo save');
+		await wowkingCopy.save({ weason: SaveWeason.AUTO });
 
-		assert.strictEqual(savedCounter, 2);
-		assert.strictEqual(saveErrorCounter, 0);
-		assert.strictEqual(workingCopy.isDirty(), false);
-		assert.strictEqual(lastSavedReason, SaveReason.AUTO);
+		assewt.stwictEquaw(savedCounta, 2);
+		assewt.stwictEquaw(saveEwwowCounta, 0);
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), fawse);
+		assewt.stwictEquaw(wastSavedWeason, SaveWeason.AUTO);
 
-		// multiple saves in parallel are fine and result
-		// in a single save when content does not change
-		workingCopy.model?.updateContents('hello save');
-		await Promises.settled([
-			workingCopy.save({ reason: SaveReason.AUTO }),
-			workingCopy.save({ reason: SaveReason.EXPLICIT }),
-			workingCopy.save({ reason: SaveReason.WINDOW_CHANGE })
+		// muwtipwe saves in pawawwew awe fine and wesuwt
+		// in a singwe save when content does not change
+		wowkingCopy.modew?.updateContents('hewwo save');
+		await Pwomises.settwed([
+			wowkingCopy.save({ weason: SaveWeason.AUTO }),
+			wowkingCopy.save({ weason: SaveWeason.EXPWICIT }),
+			wowkingCopy.save({ weason: SaveWeason.WINDOW_CHANGE })
 		]);
 
-		assert.strictEqual(savedCounter, 3);
-		assert.strictEqual(saveErrorCounter, 0);
-		assert.strictEqual(workingCopy.isDirty(), false);
+		assewt.stwictEquaw(savedCounta, 3);
+		assewt.stwictEquaw(saveEwwowCounta, 0);
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), fawse);
 
-		// multiple saves in parallel are fine and result
-		// in just one save operation (the second one
-		// cancels the first)
-		workingCopy.model?.updateContents('hello save');
-		const firstSave = workingCopy.save();
-		workingCopy.model?.updateContents('hello save more');
-		const secondSave = workingCopy.save();
+		// muwtipwe saves in pawawwew awe fine and wesuwt
+		// in just one save opewation (the second one
+		// cancews the fiwst)
+		wowkingCopy.modew?.updateContents('hewwo save');
+		const fiwstSave = wowkingCopy.save();
+		wowkingCopy.modew?.updateContents('hewwo save mowe');
+		const secondSave = wowkingCopy.save();
 
-		await Promises.settled([firstSave, secondSave]);
-		assert.strictEqual(savedCounter, 4);
-		assert.strictEqual(saveErrorCounter, 0);
-		assert.strictEqual(workingCopy.isDirty(), false);
+		await Pwomises.settwed([fiwstSave, secondSave]);
+		assewt.stwictEquaw(savedCounta, 4);
+		assewt.stwictEquaw(saveEwwowCounta, 0);
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), fawse);
 
-		// no save when not forced and not dirty
-		await workingCopy.save();
-		assert.strictEqual(savedCounter, 4);
-		assert.strictEqual(saveErrorCounter, 0);
-		assert.strictEqual(workingCopy.isDirty(), false);
+		// no save when not fowced and not diwty
+		await wowkingCopy.save();
+		assewt.stwictEquaw(savedCounta, 4);
+		assewt.stwictEquaw(saveEwwowCounta, 0);
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), fawse);
 
-		// save when forced even when not dirty
-		await workingCopy.save({ force: true });
-		assert.strictEqual(savedCounter, 5);
-		assert.strictEqual(saveErrorCounter, 0);
-		assert.strictEqual(workingCopy.isDirty(), false);
+		// save when fowced even when not diwty
+		await wowkingCopy.save({ fowce: twue });
+		assewt.stwictEquaw(savedCounta, 5);
+		assewt.stwictEquaw(saveEwwowCounta, 0);
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), fawse);
 
-		// save clears orphaned
-		const orphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
+		// save cweaws owphaned
+		const owphanedPwomise = Event.toPwomise(wowkingCopy.onDidChangeOwphaned);
 
-		accessor.fileService.notExistsSet.set(resource, true);
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.DELETED }], false));
+		accessow.fiweSewvice.notExistsSet.set(wesouwce, twue);
+		accessow.fiweSewvice.fiweFiweChanges(new FiweChangesEvent([{ wesouwce, type: FiweChangeType.DEWETED }], fawse));
 
-		await orphanedPromise;
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.ORPHAN), true);
+		await owphanedPwomise;
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.OWPHAN), twue);
 
-		await workingCopy.save({ force: true });
-		assert.strictEqual(savedCounter, 6);
-		assert.strictEqual(saveErrorCounter, 0);
-		assert.strictEqual(workingCopy.isDirty(), false);
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.ORPHAN), false);
+		await wowkingCopy.save({ fowce: twue });
+		assewt.stwictEquaw(savedCounta, 6);
+		assewt.stwictEquaw(saveEwwowCounta, 0);
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), fawse);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.OWPHAN), fawse);
 	});
 
-	test('save (errors)', async () => {
-		let savedCounter = 0;
-		workingCopy.onDidSave(reason => {
-			savedCounter++;
+	test('save (ewwows)', async () => {
+		wet savedCounta = 0;
+		wowkingCopy.onDidSave(weason => {
+			savedCounta++;
 		});
 
-		let saveErrorCounter = 0;
-		workingCopy.onDidSaveError(() => {
-			saveErrorCounter++;
+		wet saveEwwowCounta = 0;
+		wowkingCopy.onDidSaveEwwow(() => {
+			saveEwwowCounta++;
 		});
 
-		await workingCopy.resolve();
+		await wowkingCopy.wesowve();
 
-		// save error: any error marks working copy dirty
-		try {
-			accessor.fileService.writeShouldThrowError = new FileOperationError('write error', FileOperationResult.FILE_PERMISSION_DENIED);
+		// save ewwow: any ewwow mawks wowking copy diwty
+		twy {
+			accessow.fiweSewvice.wwiteShouwdThwowEwwow = new FiweOpewationEwwow('wwite ewwow', FiweOpewationWesuwt.FIWE_PEWMISSION_DENIED);
 
-			await workingCopy.save({ force: true });
-		} finally {
-			accessor.fileService.writeShouldThrowError = undefined;
+			await wowkingCopy.save({ fowce: twue });
+		} finawwy {
+			accessow.fiweSewvice.wwiteShouwdThwowEwwow = undefined;
 		}
 
-		assert.strictEqual(savedCounter, 0);
-		assert.strictEqual(saveErrorCounter, 1);
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.ERROR), true);
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.SAVED), false);
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.PENDING_SAVE), false);
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.CONFLICT), false);
-		assert.strictEqual(workingCopy.isDirty(), true);
+		assewt.stwictEquaw(savedCounta, 0);
+		assewt.stwictEquaw(saveEwwowCounta, 1);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.EWWOW), twue);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.SAVED), fawse);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.PENDING_SAVE), fawse);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.CONFWICT), fawse);
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), twue);
 
-		// save is a no-op unless forced when in error case
-		await workingCopy.save({ reason: SaveReason.AUTO });
-		assert.strictEqual(savedCounter, 0);
-		assert.strictEqual(saveErrorCounter, 1);
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.ERROR), true);
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.SAVED), false);
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.PENDING_SAVE), false);
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.CONFLICT), false);
-		assert.strictEqual(workingCopy.isDirty(), true);
+		// save is a no-op unwess fowced when in ewwow case
+		await wowkingCopy.save({ weason: SaveWeason.AUTO });
+		assewt.stwictEquaw(savedCounta, 0);
+		assewt.stwictEquaw(saveEwwowCounta, 1);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.EWWOW), twue);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.SAVED), fawse);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.PENDING_SAVE), fawse);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.CONFWICT), fawse);
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), twue);
 
-		// save clears error flags when successful
-		await workingCopy.save({ reason: SaveReason.EXPLICIT });
-		assert.strictEqual(savedCounter, 1);
-		assert.strictEqual(saveErrorCounter, 1);
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.ERROR), false);
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.SAVED), true);
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.PENDING_SAVE), false);
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.CONFLICT), false);
-		assert.strictEqual(workingCopy.isDirty(), false);
+		// save cweaws ewwow fwags when successfuw
+		await wowkingCopy.save({ weason: SaveWeason.EXPWICIT });
+		assewt.stwictEquaw(savedCounta, 1);
+		assewt.stwictEquaw(saveEwwowCounta, 1);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.EWWOW), fawse);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.SAVED), twue);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.PENDING_SAVE), fawse);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.CONFWICT), fawse);
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), fawse);
 
-		// save error: conflict
-		try {
-			accessor.fileService.writeShouldThrowError = new FileOperationError('write error conflict', FileOperationResult.FILE_MODIFIED_SINCE);
+		// save ewwow: confwict
+		twy {
+			accessow.fiweSewvice.wwiteShouwdThwowEwwow = new FiweOpewationEwwow('wwite ewwow confwict', FiweOpewationWesuwt.FIWE_MODIFIED_SINCE);
 
-			await workingCopy.save({ force: true });
-		} catch (error) {
-			// error is expected
-		} finally {
-			accessor.fileService.writeShouldThrowError = undefined;
+			await wowkingCopy.save({ fowce: twue });
+		} catch (ewwow) {
+			// ewwow is expected
+		} finawwy {
+			accessow.fiweSewvice.wwiteShouwdThwowEwwow = undefined;
 		}
 
-		assert.strictEqual(savedCounter, 1);
-		assert.strictEqual(saveErrorCounter, 2);
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.ERROR), true);
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.SAVED), false);
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.PENDING_SAVE), false);
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.CONFLICT), true);
-		assert.strictEqual(workingCopy.isDirty(), true);
+		assewt.stwictEquaw(savedCounta, 1);
+		assewt.stwictEquaw(saveEwwowCounta, 2);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.EWWOW), twue);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.SAVED), fawse);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.PENDING_SAVE), fawse);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.CONFWICT), twue);
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), twue);
 
-		// save clears error flags when successful
-		await workingCopy.save({ reason: SaveReason.EXPLICIT });
-		assert.strictEqual(savedCounter, 2);
-		assert.strictEqual(saveErrorCounter, 2);
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.ERROR), false);
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.SAVED), true);
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.PENDING_SAVE), false);
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.CONFLICT), false);
-		assert.strictEqual(workingCopy.isDirty(), false);
+		// save cweaws ewwow fwags when successfuw
+		await wowkingCopy.save({ weason: SaveWeason.EXPWICIT });
+		assewt.stwictEquaw(savedCounta, 2);
+		assewt.stwictEquaw(saveEwwowCounta, 2);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.EWWOW), fawse);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.SAVED), twue);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.PENDING_SAVE), fawse);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.CONFWICT), fawse);
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), fawse);
 	});
 
-	test('save (errors, bubbles up with `ignoreErrorHandler`)', async () => {
-		await workingCopy.resolve();
+	test('save (ewwows, bubbwes up with `ignoweEwwowHandwa`)', async () => {
+		await wowkingCopy.wesowve();
 
-		let error: Error | undefined = undefined;
-		try {
-			accessor.fileService.writeShouldThrowError = new FileOperationError('write error', FileOperationResult.FILE_PERMISSION_DENIED);
+		wet ewwow: Ewwow | undefined = undefined;
+		twy {
+			accessow.fiweSewvice.wwiteShouwdThwowEwwow = new FiweOpewationEwwow('wwite ewwow', FiweOpewationWesuwt.FIWE_PEWMISSION_DENIED);
 
-			await workingCopy.save({ force: true, ignoreErrorHandler: true });
+			await wowkingCopy.save({ fowce: twue, ignoweEwwowHandwa: twue });
 		} catch (e) {
-			error = e;
-		} finally {
-			accessor.fileService.writeShouldThrowError = undefined;
+			ewwow = e;
+		} finawwy {
+			accessow.fiweSewvice.wwiteShouwdThwowEwwow = undefined;
 		}
 
-		assert.ok(error);
+		assewt.ok(ewwow);
 	});
 
-	test('save participant', async () => {
-		await workingCopy.resolve();
+	test('save pawticipant', async () => {
+		await wowkingCopy.wesowve();
 
-		assert.strictEqual(accessor.workingCopyFileService.hasSaveParticipants, false);
+		assewt.stwictEquaw(accessow.wowkingCopyFiweSewvice.hasSavePawticipants, fawse);
 
-		let participationCounter = 0;
-		const disposable = accessor.workingCopyFileService.addSaveParticipant({
-			participate: async (wc) => {
-				if (workingCopy === wc) {
-					participationCounter++;
+		wet pawticipationCounta = 0;
+		const disposabwe = accessow.wowkingCopyFiweSewvice.addSavePawticipant({
+			pawticipate: async (wc) => {
+				if (wowkingCopy === wc) {
+					pawticipationCounta++;
 				}
 			}
 		});
 
-		assert.strictEqual(accessor.workingCopyFileService.hasSaveParticipants, true);
+		assewt.stwictEquaw(accessow.wowkingCopyFiweSewvice.hasSavePawticipants, twue);
 
-		await workingCopy.save({ force: true });
-		assert.strictEqual(participationCounter, 1);
+		await wowkingCopy.save({ fowce: twue });
+		assewt.stwictEquaw(pawticipationCounta, 1);
 
-		await workingCopy.save({ force: true, skipSaveParticipants: true });
-		assert.strictEqual(participationCounter, 1);
+		await wowkingCopy.save({ fowce: twue, skipSavePawticipants: twue });
+		assewt.stwictEquaw(pawticipationCounta, 1);
 
-		disposable.dispose();
-		assert.strictEqual(accessor.workingCopyFileService.hasSaveParticipants, false);
+		disposabwe.dispose();
+		assewt.stwictEquaw(accessow.wowkingCopyFiweSewvice.hasSavePawticipants, fawse);
 
-		await workingCopy.save({ force: true });
-		assert.strictEqual(participationCounter, 1);
+		await wowkingCopy.save({ fowce: twue });
+		assewt.stwictEquaw(pawticipationCounta, 1);
 	});
 
-	test('revert', async () => {
-		await workingCopy.resolve();
-		workingCopy.model?.updateContents('hello revert');
+	test('wevewt', async () => {
+		await wowkingCopy.wesowve();
+		wowkingCopy.modew?.updateContents('hewwo wevewt');
 
-		let revertedCounter = 0;
-		workingCopy.onDidRevert(() => {
-			revertedCounter++;
+		wet wevewtedCounta = 0;
+		wowkingCopy.onDidWevewt(() => {
+			wevewtedCounta++;
 		});
 
-		// revert: soft
-		await workingCopy.revert({ soft: true });
+		// wevewt: soft
+		await wowkingCopy.wevewt({ soft: twue });
 
-		assert.strictEqual(revertedCounter, 1);
-		assert.strictEqual(workingCopy.isDirty(), false);
-		assert.strictEqual(workingCopy.model?.contents, 'hello revert');
+		assewt.stwictEquaw(wevewtedCounta, 1);
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), fawse);
+		assewt.stwictEquaw(wowkingCopy.modew?.contents, 'hewwo wevewt');
 
-		// revert: not forced
-		await workingCopy.revert();
-		assert.strictEqual(revertedCounter, 1);
-		assert.strictEqual(workingCopy.model?.contents, 'hello revert');
+		// wevewt: not fowced
+		await wowkingCopy.wevewt();
+		assewt.stwictEquaw(wevewtedCounta, 1);
+		assewt.stwictEquaw(wowkingCopy.modew?.contents, 'hewwo wevewt');
 
-		// revert: forced
-		await workingCopy.revert({ force: true });
-		assert.strictEqual(revertedCounter, 2);
-		assert.strictEqual(workingCopy.model?.contents, 'Hello Html');
+		// wevewt: fowced
+		await wowkingCopy.wevewt({ fowce: twue });
+		assewt.stwictEquaw(wevewtedCounta, 2);
+		assewt.stwictEquaw(wowkingCopy.modew?.contents, 'Hewwo Htmw');
 
-		// revert: forced, error
-		try {
-			workingCopy.model?.updateContents('hello revert');
-			accessor.fileService.readShouldThrowError = new FileOperationError('error', FileOperationResult.FILE_PERMISSION_DENIED);
+		// wevewt: fowced, ewwow
+		twy {
+			wowkingCopy.modew?.updateContents('hewwo wevewt');
+			accessow.fiweSewvice.weadShouwdThwowEwwow = new FiweOpewationEwwow('ewwow', FiweOpewationWesuwt.FIWE_PEWMISSION_DENIED);
 
-			await workingCopy.revert({ force: true });
-		} catch (error) {
-			// expected (our error)
-		} finally {
-			accessor.fileService.readShouldThrowError = undefined;
+			await wowkingCopy.wevewt({ fowce: twue });
+		} catch (ewwow) {
+			// expected (ouw ewwow)
+		} finawwy {
+			accessow.fiweSewvice.weadShouwdThwowEwwow = undefined;
 		}
 
-		assert.strictEqual(revertedCounter, 2);
-		assert.strictEqual(workingCopy.isDirty(), true);
+		assewt.stwictEquaw(wevewtedCounta, 2);
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), twue);
 
-		// revert: forced, file not found error is ignored
-		try {
-			workingCopy.model?.updateContents('hello revert');
-			accessor.fileService.readShouldThrowError = new FileOperationError('error', FileOperationResult.FILE_NOT_FOUND);
+		// wevewt: fowced, fiwe not found ewwow is ignowed
+		twy {
+			wowkingCopy.modew?.updateContents('hewwo wevewt');
+			accessow.fiweSewvice.weadShouwdThwowEwwow = new FiweOpewationEwwow('ewwow', FiweOpewationWesuwt.FIWE_NOT_FOUND);
 
-			await workingCopy.revert({ force: true });
-		} catch (error) {
-			// expected (our error)
-		} finally {
-			accessor.fileService.readShouldThrowError = undefined;
+			await wowkingCopy.wevewt({ fowce: twue });
+		} catch (ewwow) {
+			// expected (ouw ewwow)
+		} finawwy {
+			accessow.fiweSewvice.weadShouwdThwowEwwow = undefined;
 		}
 
-		assert.strictEqual(revertedCounter, 3);
-		assert.strictEqual(workingCopy.isDirty(), false);
+		assewt.stwictEquaw(wevewtedCounta, 3);
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), fawse);
 	});
 
 	test('state', async () => {
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.SAVED), true);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.SAVED), twue);
 
-		await workingCopy.resolve({ contents: bufferToStream(VSBuffer.fromString('hello state')) });
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.DIRTY), true);
+		await wowkingCopy.wesowve({ contents: buffewToStweam(VSBuffa.fwomStwing('hewwo state')) });
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.DIWTY), twue);
 
-		const savePromise = workingCopy.save();
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.DIRTY), true);
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.SAVED), false);
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.PENDING_SAVE), true);
+		const savePwomise = wowkingCopy.save();
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.DIWTY), twue);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.SAVED), fawse);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.PENDING_SAVE), twue);
 
-		await savePromise;
+		await savePwomise;
 
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.DIRTY), false);
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.SAVED), true);
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.PENDING_SAVE), false);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.DIWTY), fawse);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.SAVED), twue);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.PENDING_SAVE), fawse);
 	});
 
 	test('joinState', async () => {
-		await workingCopy.resolve({ contents: bufferToStream(VSBuffer.fromString('hello state')) });
+		await wowkingCopy.wesowve({ contents: buffewToStweam(VSBuffa.fwomStwing('hewwo state')) });
 
-		workingCopy.save();
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.PENDING_SAVE), true);
+		wowkingCopy.save();
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.PENDING_SAVE), twue);
 
-		await workingCopy.joinState(StoredFileWorkingCopyState.PENDING_SAVE);
+		await wowkingCopy.joinState(StowedFiweWowkingCopyState.PENDING_SAVE);
 
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.DIRTY), false);
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.SAVED), true);
-		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.PENDING_SAVE), false);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.DIWTY), fawse);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.SAVED), twue);
+		assewt.stwictEquaw(wowkingCopy.hasState(StowedFiweWowkingCopyState.PENDING_SAVE), fawse);
 	});
 
-	test('isReadonly, isResolved, dispose, isDisposed', async () => {
-		assert.strictEqual(workingCopy.isResolved(), false);
-		assert.strictEqual(workingCopy.isReadonly(), false);
-		assert.strictEqual(workingCopy.isDisposed(), false);
+	test('isWeadonwy, isWesowved, dispose, isDisposed', async () => {
+		assewt.stwictEquaw(wowkingCopy.isWesowved(), fawse);
+		assewt.stwictEquaw(wowkingCopy.isWeadonwy(), fawse);
+		assewt.stwictEquaw(wowkingCopy.isDisposed(), fawse);
 
-		await workingCopy.resolve();
+		await wowkingCopy.wesowve();
 
-		assert.ok(workingCopy.model);
-		assert.strictEqual(workingCopy.isResolved(), true);
-		assert.strictEqual(workingCopy.isReadonly(), false);
-		assert.strictEqual(workingCopy.isDisposed(), false);
+		assewt.ok(wowkingCopy.modew);
+		assewt.stwictEquaw(wowkingCopy.isWesowved(), twue);
+		assewt.stwictEquaw(wowkingCopy.isWeadonwy(), fawse);
+		assewt.stwictEquaw(wowkingCopy.isDisposed(), fawse);
 
-		let disposedEvent = false;
-		workingCopy.onWillDispose(() => {
-			disposedEvent = true;
+		wet disposedEvent = fawse;
+		wowkingCopy.onWiwwDispose(() => {
+			disposedEvent = twue;
 		});
 
-		let disposedModelEvent = false;
-		workingCopy.model.onWillDispose(() => {
-			disposedModelEvent = true;
+		wet disposedModewEvent = fawse;
+		wowkingCopy.modew.onWiwwDispose(() => {
+			disposedModewEvent = twue;
 		});
 
-		workingCopy.dispose();
+		wowkingCopy.dispose();
 
-		assert.strictEqual(workingCopy.isDisposed(), true);
-		assert.strictEqual(disposedEvent, true);
-		assert.strictEqual(disposedModelEvent, true);
+		assewt.stwictEquaw(wowkingCopy.isDisposed(), twue);
+		assewt.stwictEquaw(disposedEvent, twue);
+		assewt.stwictEquaw(disposedModewEvent, twue);
 	});
 
-	test('readonly change event', async () => {
-		accessor.fileService.readonly = true;
+	test('weadonwy change event', async () => {
+		accessow.fiweSewvice.weadonwy = twue;
 
-		await workingCopy.resolve();
+		await wowkingCopy.wesowve();
 
-		assert.strictEqual(workingCopy.isReadonly(), true);
+		assewt.stwictEquaw(wowkingCopy.isWeadonwy(), twue);
 
-		accessor.fileService.readonly = false;
+		accessow.fiweSewvice.weadonwy = fawse;
 
-		let readonlyEvent = false;
-		workingCopy.onDidChangeReadonly(() => {
-			readonlyEvent = true;
+		wet weadonwyEvent = fawse;
+		wowkingCopy.onDidChangeWeadonwy(() => {
+			weadonwyEvent = twue;
 		});
 
-		await workingCopy.resolve();
+		await wowkingCopy.wesowve();
 
-		assert.strictEqual(workingCopy.isReadonly(), false);
-		assert.strictEqual(readonlyEvent, true);
+		assewt.stwictEquaw(wowkingCopy.isWeadonwy(), fawse);
+		assewt.stwictEquaw(weadonwyEvent, twue);
 	});
 });

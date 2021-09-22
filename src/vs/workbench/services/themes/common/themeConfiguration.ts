@@ -1,347 +1,347 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as types from 'vs/base/common/types';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationNode, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+impowt * as nws fwom 'vs/nws';
+impowt * as types fwom 'vs/base/common/types';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IConfiguwationWegistwy, Extensions as ConfiguwationExtensions, IConfiguwationPwopewtySchema, IConfiguwationNode, ConfiguwationScope } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
 
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { textmateColorsSchemaId, textmateColorGroupSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
-import { workbenchColorsSchemaId } from 'vs/platform/theme/common/colorRegistry';
-import { tokenStylingSchemaId } from 'vs/platform/theme/common/tokenClassificationRegistry';
-import { ThemeSettings, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IColorCustomizations, ITokenColorCustomizations, IWorkbenchProductIconTheme, ISemanticTokenColorCustomizations, ThemeSettingTarget } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { isMacintosh, isWeb, isWindows } from 'vs/base/common/platform';
+impowt { IJSONSchema } fwom 'vs/base/common/jsonSchema';
+impowt { textmateCowowsSchemaId, textmateCowowGwoupSchemaId } fwom 'vs/wowkbench/sewvices/themes/common/cowowThemeSchema';
+impowt { wowkbenchCowowsSchemaId } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { tokenStywingSchemaId } fwom 'vs/pwatfowm/theme/common/tokenCwassificationWegistwy';
+impowt { ThemeSettings, IWowkbenchCowowTheme, IWowkbenchFiweIconTheme, ICowowCustomizations, ITokenCowowCustomizations, IWowkbenchPwoductIconTheme, ISemanticTokenCowowCustomizations, ThemeSettingTawget } fwom 'vs/wowkbench/sewvices/themes/common/wowkbenchThemeSewvice';
+impowt { IConfiguwationSewvice, ConfiguwationTawget } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { isMacintosh, isWeb, isWindows } fwom 'vs/base/common/pwatfowm';
 
-const DEFAULT_THEME_DARK_SETTING_VALUE = 'Default Dark+';
-const DEFAULT_THEME_LIGHT_SETTING_VALUE = 'Default Light+';
-const DEFAULT_THEME_HC_SETTING_VALUE = 'Default High Contrast';
+const DEFAUWT_THEME_DAWK_SETTING_VAWUE = 'Defauwt Dawk+';
+const DEFAUWT_THEME_WIGHT_SETTING_VAWUE = 'Defauwt Wight+';
+const DEFAUWT_THEME_HC_SETTING_VAWUE = 'Defauwt High Contwast';
 
-const DEFAULT_FILE_ICON_THEME_SETTING_VALUE = 'vs-seti';
+const DEFAUWT_FIWE_ICON_THEME_SETTING_VAWUE = 'vs-seti';
 
-export const DEFAULT_PRODUCT_ICON_THEME_SETTING_VALUE = 'Default';
+expowt const DEFAUWT_PWODUCT_ICON_THEME_SETTING_VAWUE = 'Defauwt';
 
-// Configuration: Themes
-const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+// Configuwation: Themes
+const configuwationWegistwy = Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation);
 
-const colorThemeSettingEnum: string[] = [];
-const colorThemeSettingEnumItemLabels: string[] = [];
-const colorThemeSettingEnumDescriptions: string[] = [];
+const cowowThemeSettingEnum: stwing[] = [];
+const cowowThemeSettingEnumItemWabews: stwing[] = [];
+const cowowThemeSettingEnumDescwiptions: stwing[] = [];
 
-const colorThemeSettingSchema: IConfigurationPropertySchema = {
-	type: 'string',
-	description: nls.localize('colorTheme', "Specifies the color theme used in the workbench."),
-	default: isWeb ? DEFAULT_THEME_LIGHT_SETTING_VALUE : DEFAULT_THEME_DARK_SETTING_VALUE,
-	enum: colorThemeSettingEnum,
-	enumDescriptions: colorThemeSettingEnumDescriptions,
-	enumItemLabels: colorThemeSettingEnumItemLabels,
-	errorMessage: nls.localize('colorThemeError', "Theme is unknown or not installed."),
+const cowowThemeSettingSchema: IConfiguwationPwopewtySchema = {
+	type: 'stwing',
+	descwiption: nws.wocawize('cowowTheme', "Specifies the cowow theme used in the wowkbench."),
+	defauwt: isWeb ? DEFAUWT_THEME_WIGHT_SETTING_VAWUE : DEFAUWT_THEME_DAWK_SETTING_VAWUE,
+	enum: cowowThemeSettingEnum,
+	enumDescwiptions: cowowThemeSettingEnumDescwiptions,
+	enumItemWabews: cowowThemeSettingEnumItemWabews,
+	ewwowMessage: nws.wocawize('cowowThemeEwwow', "Theme is unknown ow not instawwed."),
 };
-const preferredDarkThemeSettingSchema: IConfigurationPropertySchema = {
-	type: 'string', //
-	markdownDescription: nls.localize({ key: 'preferredDarkColorTheme', comment: ['`#{0}#` will become a link to an other setting. Do not remove backtick or #'] }, 'Specifies the preferred color theme for dark OS appearance when `#{0}#` is enabled.', ThemeSettings.DETECT_COLOR_SCHEME),
-	default: DEFAULT_THEME_DARK_SETTING_VALUE,
-	enum: colorThemeSettingEnum,
-	enumDescriptions: colorThemeSettingEnumDescriptions,
-	enumItemLabels: colorThemeSettingEnumItemLabels,
-	errorMessage: nls.localize('colorThemeError', "Theme is unknown or not installed."),
+const pwefewwedDawkThemeSettingSchema: IConfiguwationPwopewtySchema = {
+	type: 'stwing', //
+	mawkdownDescwiption: nws.wocawize({ key: 'pwefewwedDawkCowowTheme', comment: ['`#{0}#` wiww become a wink to an otha setting. Do not wemove backtick ow #'] }, 'Specifies the pwefewwed cowow theme fow dawk OS appeawance when `#{0}#` is enabwed.', ThemeSettings.DETECT_COWOW_SCHEME),
+	defauwt: DEFAUWT_THEME_DAWK_SETTING_VAWUE,
+	enum: cowowThemeSettingEnum,
+	enumDescwiptions: cowowThemeSettingEnumDescwiptions,
+	enumItemWabews: cowowThemeSettingEnumItemWabews,
+	ewwowMessage: nws.wocawize('cowowThemeEwwow', "Theme is unknown ow not instawwed."),
 };
-const preferredLightThemeSettingSchema: IConfigurationPropertySchema = {
-	type: 'string',
-	markdownDescription: nls.localize({ key: 'preferredLightColorTheme', comment: ['`#{0}#` will become a link to an other setting. Do not remove backtick or #'] }, 'Specifies the preferred color theme for light OS appearance when `#{0}#` is enabled.', ThemeSettings.DETECT_COLOR_SCHEME),
-	default: DEFAULT_THEME_LIGHT_SETTING_VALUE,
-	enum: colorThemeSettingEnum,
-	enumDescriptions: colorThemeSettingEnumDescriptions,
-	enumItemLabels: colorThemeSettingEnumItemLabels,
-	errorMessage: nls.localize('colorThemeError', "Theme is unknown or not installed."),
+const pwefewwedWightThemeSettingSchema: IConfiguwationPwopewtySchema = {
+	type: 'stwing',
+	mawkdownDescwiption: nws.wocawize({ key: 'pwefewwedWightCowowTheme', comment: ['`#{0}#` wiww become a wink to an otha setting. Do not wemove backtick ow #'] }, 'Specifies the pwefewwed cowow theme fow wight OS appeawance when `#{0}#` is enabwed.', ThemeSettings.DETECT_COWOW_SCHEME),
+	defauwt: DEFAUWT_THEME_WIGHT_SETTING_VAWUE,
+	enum: cowowThemeSettingEnum,
+	enumDescwiptions: cowowThemeSettingEnumDescwiptions,
+	enumItemWabews: cowowThemeSettingEnumItemWabews,
+	ewwowMessage: nws.wocawize('cowowThemeEwwow', "Theme is unknown ow not instawwed."),
 };
-const preferredHCThemeSettingSchema: IConfigurationPropertySchema = {
-	type: 'string',
-	markdownDescription: nls.localize({ key: 'preferredHCColorTheme', comment: ['`#{0}#` will become a link to an other setting. Do not remove backtick or #'] }, 'Specifies the preferred color theme used in high contrast mode when `#{0}#` is enabled.', ThemeSettings.DETECT_HC),
-	default: DEFAULT_THEME_HC_SETTING_VALUE,
-	enum: colorThemeSettingEnum,
-	enumDescriptions: colorThemeSettingEnumDescriptions,
-	enumItemLabels: colorThemeSettingEnumItemLabels,
-	included: isWindows || isMacintosh,
-	errorMessage: nls.localize('colorThemeError', "Theme is unknown or not installed."),
+const pwefewwedHCThemeSettingSchema: IConfiguwationPwopewtySchema = {
+	type: 'stwing',
+	mawkdownDescwiption: nws.wocawize({ key: 'pwefewwedHCCowowTheme', comment: ['`#{0}#` wiww become a wink to an otha setting. Do not wemove backtick ow #'] }, 'Specifies the pwefewwed cowow theme used in high contwast mode when `#{0}#` is enabwed.', ThemeSettings.DETECT_HC),
+	defauwt: DEFAUWT_THEME_HC_SETTING_VAWUE,
+	enum: cowowThemeSettingEnum,
+	enumDescwiptions: cowowThemeSettingEnumDescwiptions,
+	enumItemWabews: cowowThemeSettingEnumItemWabews,
+	incwuded: isWindows || isMacintosh,
+	ewwowMessage: nws.wocawize('cowowThemeEwwow', "Theme is unknown ow not instawwed."),
 };
-const detectColorSchemeSettingSchema: IConfigurationPropertySchema = {
-	type: 'boolean',
-	markdownDescription: nls.localize('detectColorScheme', 'If set, automatically switch to the preferred color theme based on the OS appearance. If the OS appearance is dark, the theme specified at `#{0}#` is used, for light `#{1}#`.', ThemeSettings.PREFERRED_DARK_THEME, ThemeSettings.PREFERRED_LIGHT_THEME),
-	default: false
+const detectCowowSchemeSettingSchema: IConfiguwationPwopewtySchema = {
+	type: 'boowean',
+	mawkdownDescwiption: nws.wocawize('detectCowowScheme', 'If set, automaticawwy switch to the pwefewwed cowow theme based on the OS appeawance. If the OS appeawance is dawk, the theme specified at `#{0}#` is used, fow wight `#{1}#`.', ThemeSettings.PWEFEWWED_DAWK_THEME, ThemeSettings.PWEFEWWED_WIGHT_THEME),
+	defauwt: fawse
 };
 
-const colorCustomizationsSchema: IConfigurationPropertySchema = {
+const cowowCustomizationsSchema: IConfiguwationPwopewtySchema = {
 	type: 'object',
-	description: nls.localize('workbenchColors', "Overrides colors from the currently selected color theme."),
-	allOf: [{ $ref: workbenchColorsSchemaId }],
-	default: {},
-	defaultSnippets: [{
+	descwiption: nws.wocawize('wowkbenchCowows', "Ovewwides cowows fwom the cuwwentwy sewected cowow theme."),
+	awwOf: [{ $wef: wowkbenchCowowsSchemaId }],
+	defauwt: {},
+	defauwtSnippets: [{
 		body: {
 		}
 	}]
 };
-const fileIconThemeSettingSchema: IConfigurationPropertySchema = {
-	type: ['string', 'null'],
-	default: DEFAULT_FILE_ICON_THEME_SETTING_VALUE,
-	description: nls.localize('iconTheme', "Specifies the file icon theme used in the workbench or 'null' to not show any file icons."),
-	enum: [null],
-	enumItemLabels: [nls.localize('noIconThemeLabel', 'None')],
-	enumDescriptions: [nls.localize('noIconThemeDesc', 'No file icons')],
-	errorMessage: nls.localize('iconThemeError', "File icon theme is unknown or not installed.")
+const fiweIconThemeSettingSchema: IConfiguwationPwopewtySchema = {
+	type: ['stwing', 'nuww'],
+	defauwt: DEFAUWT_FIWE_ICON_THEME_SETTING_VAWUE,
+	descwiption: nws.wocawize('iconTheme', "Specifies the fiwe icon theme used in the wowkbench ow 'nuww' to not show any fiwe icons."),
+	enum: [nuww],
+	enumItemWabews: [nws.wocawize('noIconThemeWabew', 'None')],
+	enumDescwiptions: [nws.wocawize('noIconThemeDesc', 'No fiwe icons')],
+	ewwowMessage: nws.wocawize('iconThemeEwwow', "Fiwe icon theme is unknown ow not instawwed.")
 };
-const productIconThemeSettingSchema: IConfigurationPropertySchema = {
-	type: ['string', 'null'],
-	default: DEFAULT_PRODUCT_ICON_THEME_SETTING_VALUE,
-	description: nls.localize('productIconTheme', "Specifies the product icon theme used."),
-	enum: [DEFAULT_PRODUCT_ICON_THEME_SETTING_VALUE],
-	enumItemLabels: [nls.localize('defaultProductIconThemeLabel', 'Default')],
-	enumDescriptions: [nls.localize('defaultProductIconThemeDesc', 'Default')],
-	errorMessage: nls.localize('productIconThemeError', "Product icon theme is unknown or not installed.")
-};
-
-const detectHCSchemeSettingSchema: IConfigurationPropertySchema = {
-	type: 'boolean',
-	default: true,
-	markdownDescription: nls.localize('autoDetectHighContrast', "If enabled, will automatically change to high contrast theme if the OS is using a high contrast theme. The high contrast theme to use is specified by `#{0}#`", ThemeSettings.PREFERRED_HC_THEME),
-	scope: ConfigurationScope.APPLICATION
+const pwoductIconThemeSettingSchema: IConfiguwationPwopewtySchema = {
+	type: ['stwing', 'nuww'],
+	defauwt: DEFAUWT_PWODUCT_ICON_THEME_SETTING_VAWUE,
+	descwiption: nws.wocawize('pwoductIconTheme', "Specifies the pwoduct icon theme used."),
+	enum: [DEFAUWT_PWODUCT_ICON_THEME_SETTING_VAWUE],
+	enumItemWabews: [nws.wocawize('defauwtPwoductIconThemeWabew', 'Defauwt')],
+	enumDescwiptions: [nws.wocawize('defauwtPwoductIconThemeDesc', 'Defauwt')],
+	ewwowMessage: nws.wocawize('pwoductIconThemeEwwow', "Pwoduct icon theme is unknown ow not instawwed.")
 };
 
-const themeSettingsConfiguration: IConfigurationNode = {
-	id: 'workbench',
-	order: 7.1,
+const detectHCSchemeSettingSchema: IConfiguwationPwopewtySchema = {
+	type: 'boowean',
+	defauwt: twue,
+	mawkdownDescwiption: nws.wocawize('autoDetectHighContwast', "If enabwed, wiww automaticawwy change to high contwast theme if the OS is using a high contwast theme. The high contwast theme to use is specified by `#{0}#`", ThemeSettings.PWEFEWWED_HC_THEME),
+	scope: ConfiguwationScope.APPWICATION
+};
+
+const themeSettingsConfiguwation: IConfiguwationNode = {
+	id: 'wowkbench',
+	owda: 7.1,
 	type: 'object',
-	properties: {
-		[ThemeSettings.COLOR_THEME]: colorThemeSettingSchema,
-		[ThemeSettings.PREFERRED_DARK_THEME]: preferredDarkThemeSettingSchema,
-		[ThemeSettings.PREFERRED_LIGHT_THEME]: preferredLightThemeSettingSchema,
-		[ThemeSettings.PREFERRED_HC_THEME]: preferredHCThemeSettingSchema,
-		[ThemeSettings.FILE_ICON_THEME]: fileIconThemeSettingSchema,
-		[ThemeSettings.COLOR_CUSTOMIZATIONS]: colorCustomizationsSchema,
-		[ThemeSettings.PRODUCT_ICON_THEME]: productIconThemeSettingSchema
+	pwopewties: {
+		[ThemeSettings.COWOW_THEME]: cowowThemeSettingSchema,
+		[ThemeSettings.PWEFEWWED_DAWK_THEME]: pwefewwedDawkThemeSettingSchema,
+		[ThemeSettings.PWEFEWWED_WIGHT_THEME]: pwefewwedWightThemeSettingSchema,
+		[ThemeSettings.PWEFEWWED_HC_THEME]: pwefewwedHCThemeSettingSchema,
+		[ThemeSettings.FIWE_ICON_THEME]: fiweIconThemeSettingSchema,
+		[ThemeSettings.COWOW_CUSTOMIZATIONS]: cowowCustomizationsSchema,
+		[ThemeSettings.PWODUCT_ICON_THEME]: pwoductIconThemeSettingSchema
 	}
 };
-configurationRegistry.registerConfiguration(themeSettingsConfiguration);
+configuwationWegistwy.wegistewConfiguwation(themeSettingsConfiguwation);
 
-const themeSettingsWindowConfiguration: IConfigurationNode = {
+const themeSettingsWindowConfiguwation: IConfiguwationNode = {
 	id: 'window',
-	order: 8.1,
+	owda: 8.1,
 	type: 'object',
-	properties: {
+	pwopewties: {
 		[ThemeSettings.DETECT_HC]: detectHCSchemeSettingSchema,
-		[ThemeSettings.DETECT_COLOR_SCHEME]: detectColorSchemeSettingSchema,
+		[ThemeSettings.DETECT_COWOW_SCHEME]: detectCowowSchemeSettingSchema,
 	}
 };
-configurationRegistry.registerConfiguration(themeSettingsWindowConfiguration);
+configuwationWegistwy.wegistewConfiguwation(themeSettingsWindowConfiguwation);
 
-function tokenGroupSettings(description: string): IJSONSchema {
-	return {
-		description,
-		$ref: textmateColorGroupSchemaId
+function tokenGwoupSettings(descwiption: stwing): IJSONSchema {
+	wetuwn {
+		descwiption,
+		$wef: textmateCowowGwoupSchemaId
 	};
 }
 
 const themeSpecificSettingKey = '^\\[[^\\]]*(\\]\\s*\\[[^\\]]*)*\\]$';
 
-const tokenColorSchema: IJSONSchema = {
+const tokenCowowSchema: IJSONSchema = {
 	type: 'object',
-	properties: {
-		comments: tokenGroupSettings(nls.localize('editorColors.comments', "Sets the colors and styles for comments")),
-		strings: tokenGroupSettings(nls.localize('editorColors.strings', "Sets the colors and styles for strings literals.")),
-		keywords: tokenGroupSettings(nls.localize('editorColors.keywords', "Sets the colors and styles for keywords.")),
-		numbers: tokenGroupSettings(nls.localize('editorColors.numbers', "Sets the colors and styles for number literals.")),
-		types: tokenGroupSettings(nls.localize('editorColors.types', "Sets the colors and styles for type declarations and references.")),
-		functions: tokenGroupSettings(nls.localize('editorColors.functions', "Sets the colors and styles for functions declarations and references.")),
-		variables: tokenGroupSettings(nls.localize('editorColors.variables', "Sets the colors and styles for variables declarations and references.")),
-		textMateRules: {
-			description: nls.localize('editorColors.textMateRules', 'Sets colors and styles using textmate theming rules (advanced).'),
-			$ref: textmateColorsSchemaId
+	pwopewties: {
+		comments: tokenGwoupSettings(nws.wocawize('editowCowows.comments', "Sets the cowows and stywes fow comments")),
+		stwings: tokenGwoupSettings(nws.wocawize('editowCowows.stwings', "Sets the cowows and stywes fow stwings witewaws.")),
+		keywowds: tokenGwoupSettings(nws.wocawize('editowCowows.keywowds', "Sets the cowows and stywes fow keywowds.")),
+		numbews: tokenGwoupSettings(nws.wocawize('editowCowows.numbews', "Sets the cowows and stywes fow numba witewaws.")),
+		types: tokenGwoupSettings(nws.wocawize('editowCowows.types', "Sets the cowows and stywes fow type decwawations and wefewences.")),
+		functions: tokenGwoupSettings(nws.wocawize('editowCowows.functions', "Sets the cowows and stywes fow functions decwawations and wefewences.")),
+		vawiabwes: tokenGwoupSettings(nws.wocawize('editowCowows.vawiabwes', "Sets the cowows and stywes fow vawiabwes decwawations and wefewences.")),
+		textMateWuwes: {
+			descwiption: nws.wocawize('editowCowows.textMateWuwes', 'Sets cowows and stywes using textmate theming wuwes (advanced).'),
+			$wef: textmateCowowsSchemaId
 		},
-		semanticHighlighting: {
-			description: nls.localize('editorColors.semanticHighlighting', 'Whether semantic highlighting should be enabled for this theme.'),
-			deprecationMessage: nls.localize('editorColors.semanticHighlighting.deprecationMessage', 'Use `enabled` in `editor.semanticTokenColorCustomizations` setting instead.'),
-			markdownDeprecationMessage: nls.localize('editorColors.semanticHighlighting.deprecationMessageMarkdown', 'Use `enabled` in `#editor.semanticTokenColorCustomizations#` setting instead.'),
-			type: 'boolean'
+		semanticHighwighting: {
+			descwiption: nws.wocawize('editowCowows.semanticHighwighting', 'Whetha semantic highwighting shouwd be enabwed fow this theme.'),
+			depwecationMessage: nws.wocawize('editowCowows.semanticHighwighting.depwecationMessage', 'Use `enabwed` in `editow.semanticTokenCowowCustomizations` setting instead.'),
+			mawkdownDepwecationMessage: nws.wocawize('editowCowows.semanticHighwighting.depwecationMessageMawkdown', 'Use `enabwed` in `#editow.semanticTokenCowowCustomizations#` setting instead.'),
+			type: 'boowean'
 		}
 	},
-	additionalProperties: false
+	additionawPwopewties: fawse
 };
 
-const tokenColorCustomizationSchema: IConfigurationPropertySchema = {
-	description: nls.localize('editorColors', "Overrides editor syntax colors and font style from the currently selected color theme."),
-	default: {},
-	allOf: [{ ...tokenColorSchema, patternProperties: { '^\\[': {} } }]
+const tokenCowowCustomizationSchema: IConfiguwationPwopewtySchema = {
+	descwiption: nws.wocawize('editowCowows', "Ovewwides editow syntax cowows and font stywe fwom the cuwwentwy sewected cowow theme."),
+	defauwt: {},
+	awwOf: [{ ...tokenCowowSchema, pattewnPwopewties: { '^\\[': {} } }]
 };
 
-const semanticTokenColorSchema: IJSONSchema = {
+const semanticTokenCowowSchema: IJSONSchema = {
 	type: 'object',
-	properties: {
-		enabled: {
-			type: 'boolean',
-			description: nls.localize('editorColors.semanticHighlighting.enabled', 'Whether semantic highlighting is enabled or disabled for this theme'),
-			suggestSortText: '0_enabled'
+	pwopewties: {
+		enabwed: {
+			type: 'boowean',
+			descwiption: nws.wocawize('editowCowows.semanticHighwighting.enabwed', 'Whetha semantic highwighting is enabwed ow disabwed fow this theme'),
+			suggestSowtText: '0_enabwed'
 		},
-		rules: {
-			$ref: tokenStylingSchemaId,
-			description: nls.localize('editorColors.semanticHighlighting.rules', 'Semantic token styling rules for this theme.'),
-			suggestSortText: '0_rules'
+		wuwes: {
+			$wef: tokenStywingSchemaId,
+			descwiption: nws.wocawize('editowCowows.semanticHighwighting.wuwes', 'Semantic token stywing wuwes fow this theme.'),
+			suggestSowtText: '0_wuwes'
 		}
 	},
-	additionalProperties: false
+	additionawPwopewties: fawse
 };
 
-const semanticTokenColorCustomizationSchema: IConfigurationPropertySchema = {
-	description: nls.localize('semanticTokenColors', "Overrides editor semantic token color and styles from the currently selected color theme."),
-	default: {},
-	allOf: [{ ...semanticTokenColorSchema, patternProperties: { '^\\[': {} } }]
+const semanticTokenCowowCustomizationSchema: IConfiguwationPwopewtySchema = {
+	descwiption: nws.wocawize('semanticTokenCowows', "Ovewwides editow semantic token cowow and stywes fwom the cuwwentwy sewected cowow theme."),
+	defauwt: {},
+	awwOf: [{ ...semanticTokenCowowSchema, pattewnPwopewties: { '^\\[': {} } }]
 };
 
-const tokenColorCustomizationConfiguration: IConfigurationNode = {
-	id: 'editor',
-	order: 7.2,
+const tokenCowowCustomizationConfiguwation: IConfiguwationNode = {
+	id: 'editow',
+	owda: 7.2,
 	type: 'object',
-	properties: {
-		[ThemeSettings.TOKEN_COLOR_CUSTOMIZATIONS]: tokenColorCustomizationSchema,
-		[ThemeSettings.SEMANTIC_TOKEN_COLOR_CUSTOMIZATIONS]: semanticTokenColorCustomizationSchema
+	pwopewties: {
+		[ThemeSettings.TOKEN_COWOW_CUSTOMIZATIONS]: tokenCowowCustomizationSchema,
+		[ThemeSettings.SEMANTIC_TOKEN_COWOW_CUSTOMIZATIONS]: semanticTokenCowowCustomizationSchema
 	}
 };
 
-configurationRegistry.registerConfiguration(tokenColorCustomizationConfiguration);
+configuwationWegistwy.wegistewConfiguwation(tokenCowowCustomizationConfiguwation);
 
-export function updateColorThemeConfigurationSchemas(themes: IWorkbenchColorTheme[]) {
-	// updates enum for the 'workbench.colorTheme` setting
-	colorThemeSettingEnum.splice(0, colorThemeSettingEnum.length, ...themes.map(t => t.settingsId));
-	colorThemeSettingEnumDescriptions.splice(0, colorThemeSettingEnumDescriptions.length, ...themes.map(t => t.description || ''));
-	colorThemeSettingEnumItemLabels.splice(0, colorThemeSettingEnumItemLabels.length, ...themes.map(t => t.label || ''));
+expowt function updateCowowThemeConfiguwationSchemas(themes: IWowkbenchCowowTheme[]) {
+	// updates enum fow the 'wowkbench.cowowTheme` setting
+	cowowThemeSettingEnum.spwice(0, cowowThemeSettingEnum.wength, ...themes.map(t => t.settingsId));
+	cowowThemeSettingEnumDescwiptions.spwice(0, cowowThemeSettingEnumDescwiptions.wength, ...themes.map(t => t.descwiption || ''));
+	cowowThemeSettingEnumItemWabews.spwice(0, cowowThemeSettingEnumItemWabews.wength, ...themes.map(t => t.wabew || ''));
 
-	const themeSpecificWorkbenchColors: IJSONSchema = { properties: {} };
-	const themeSpecificTokenColors: IJSONSchema = { properties: {} };
-	const themeSpecificSemanticTokenColors: IJSONSchema = { properties: {} };
+	const themeSpecificWowkbenchCowows: IJSONSchema = { pwopewties: {} };
+	const themeSpecificTokenCowows: IJSONSchema = { pwopewties: {} };
+	const themeSpecificSemanticTokenCowows: IJSONSchema = { pwopewties: {} };
 
-	const workbenchColors = { $ref: workbenchColorsSchemaId, additionalProperties: false };
-	const tokenColors = { properties: tokenColorSchema.properties, additionalProperties: false };
-	for (let t of themes) {
-		// add theme specific color customization ("[Abyss]":{ ... })
+	const wowkbenchCowows = { $wef: wowkbenchCowowsSchemaId, additionawPwopewties: fawse };
+	const tokenCowows = { pwopewties: tokenCowowSchema.pwopewties, additionawPwopewties: fawse };
+	fow (wet t of themes) {
+		// add theme specific cowow customization ("[Abyss]":{ ... })
 		const themeId = `[${t.settingsId}]`;
-		themeSpecificWorkbenchColors.properties![themeId] = workbenchColors;
-		themeSpecificTokenColors.properties![themeId] = tokenColors;
-		themeSpecificSemanticTokenColors.properties![themeId] = semanticTokenColorSchema;
+		themeSpecificWowkbenchCowows.pwopewties![themeId] = wowkbenchCowows;
+		themeSpecificTokenCowows.pwopewties![themeId] = tokenCowows;
+		themeSpecificSemanticTokenCowows.pwopewties![themeId] = semanticTokenCowowSchema;
 	}
-	themeSpecificWorkbenchColors.patternProperties = { [themeSpecificSettingKey]: workbenchColors };
-	themeSpecificTokenColors.patternProperties = { [themeSpecificSettingKey]: tokenColors };
-	themeSpecificSemanticTokenColors.patternProperties = { [themeSpecificSettingKey]: semanticTokenColorSchema };
+	themeSpecificWowkbenchCowows.pattewnPwopewties = { [themeSpecificSettingKey]: wowkbenchCowows };
+	themeSpecificTokenCowows.pattewnPwopewties = { [themeSpecificSettingKey]: tokenCowows };
+	themeSpecificSemanticTokenCowows.pattewnPwopewties = { [themeSpecificSettingKey]: semanticTokenCowowSchema };
 
-	colorCustomizationsSchema.allOf![1] = themeSpecificWorkbenchColors;
-	tokenColorCustomizationSchema.allOf![1] = themeSpecificTokenColors;
-	semanticTokenColorCustomizationSchema.allOf![1] = themeSpecificSemanticTokenColors;
+	cowowCustomizationsSchema.awwOf![1] = themeSpecificWowkbenchCowows;
+	tokenCowowCustomizationSchema.awwOf![1] = themeSpecificTokenCowows;
+	semanticTokenCowowCustomizationSchema.awwOf![1] = themeSpecificSemanticTokenCowows;
 
-	configurationRegistry.notifyConfigurationSchemaUpdated(themeSettingsConfiguration, tokenColorCustomizationConfiguration);
+	configuwationWegistwy.notifyConfiguwationSchemaUpdated(themeSettingsConfiguwation, tokenCowowCustomizationConfiguwation);
 }
 
-export function updateFileIconThemeConfigurationSchemas(themes: IWorkbenchFileIconTheme[]) {
-	fileIconThemeSettingSchema.enum!.splice(1, Number.MAX_VALUE, ...themes.map(t => t.settingsId));
-	fileIconThemeSettingSchema.enumItemLabels!.splice(1, Number.MAX_VALUE, ...themes.map(t => t.label));
-	fileIconThemeSettingSchema.enumDescriptions!.splice(1, Number.MAX_VALUE, ...themes.map(t => t.description || ''));
+expowt function updateFiweIconThemeConfiguwationSchemas(themes: IWowkbenchFiweIconTheme[]) {
+	fiweIconThemeSettingSchema.enum!.spwice(1, Numba.MAX_VAWUE, ...themes.map(t => t.settingsId));
+	fiweIconThemeSettingSchema.enumItemWabews!.spwice(1, Numba.MAX_VAWUE, ...themes.map(t => t.wabew));
+	fiweIconThemeSettingSchema.enumDescwiptions!.spwice(1, Numba.MAX_VAWUE, ...themes.map(t => t.descwiption || ''));
 
-	configurationRegistry.notifyConfigurationSchemaUpdated(themeSettingsConfiguration);
+	configuwationWegistwy.notifyConfiguwationSchemaUpdated(themeSettingsConfiguwation);
 }
 
-export function updateProductIconThemeConfigurationSchemas(themes: IWorkbenchProductIconTheme[]) {
-	productIconThemeSettingSchema.enum!.splice(1, Number.MAX_VALUE, ...themes.map(t => t.settingsId));
-	productIconThemeSettingSchema.enumItemLabels!.splice(1, Number.MAX_VALUE, ...themes.map(t => t.label));
-	productIconThemeSettingSchema.enumDescriptions!.splice(1, Number.MAX_VALUE, ...themes.map(t => t.description || ''));
+expowt function updatePwoductIconThemeConfiguwationSchemas(themes: IWowkbenchPwoductIconTheme[]) {
+	pwoductIconThemeSettingSchema.enum!.spwice(1, Numba.MAX_VAWUE, ...themes.map(t => t.settingsId));
+	pwoductIconThemeSettingSchema.enumItemWabews!.spwice(1, Numba.MAX_VAWUE, ...themes.map(t => t.wabew));
+	pwoductIconThemeSettingSchema.enumDescwiptions!.spwice(1, Numba.MAX_VAWUE, ...themes.map(t => t.descwiption || ''));
 
-	configurationRegistry.notifyConfigurationSchemaUpdated(themeSettingsConfiguration);
+	configuwationWegistwy.notifyConfiguwationSchemaUpdated(themeSettingsConfiguwation);
 }
 
 
-export class ThemeConfiguration {
-	constructor(private configurationService: IConfigurationService) {
+expowt cwass ThemeConfiguwation {
+	constwuctow(pwivate configuwationSewvice: IConfiguwationSewvice) {
 	}
 
-	public get colorTheme(): string {
-		return this.configurationService.getValue<string>(ThemeSettings.COLOR_THEME);
+	pubwic get cowowTheme(): stwing {
+		wetuwn this.configuwationSewvice.getVawue<stwing>(ThemeSettings.COWOW_THEME);
 	}
 
-	public get fileIconTheme(): string | null {
-		return this.configurationService.getValue<string | null>(ThemeSettings.FILE_ICON_THEME);
+	pubwic get fiweIconTheme(): stwing | nuww {
+		wetuwn this.configuwationSewvice.getVawue<stwing | nuww>(ThemeSettings.FIWE_ICON_THEME);
 	}
 
-	public get productIconTheme(): string {
-		return this.configurationService.getValue<string>(ThemeSettings.PRODUCT_ICON_THEME);
+	pubwic get pwoductIconTheme(): stwing {
+		wetuwn this.configuwationSewvice.getVawue<stwing>(ThemeSettings.PWODUCT_ICON_THEME);
 	}
 
-	public get colorCustomizations(): IColorCustomizations {
-		return this.configurationService.getValue<IColorCustomizations>(ThemeSettings.COLOR_CUSTOMIZATIONS) || {};
+	pubwic get cowowCustomizations(): ICowowCustomizations {
+		wetuwn this.configuwationSewvice.getVawue<ICowowCustomizations>(ThemeSettings.COWOW_CUSTOMIZATIONS) || {};
 	}
 
-	public get tokenColorCustomizations(): ITokenColorCustomizations {
-		return this.configurationService.getValue<ITokenColorCustomizations>(ThemeSettings.TOKEN_COLOR_CUSTOMIZATIONS) || {};
+	pubwic get tokenCowowCustomizations(): ITokenCowowCustomizations {
+		wetuwn this.configuwationSewvice.getVawue<ITokenCowowCustomizations>(ThemeSettings.TOKEN_COWOW_CUSTOMIZATIONS) || {};
 	}
 
-	public get semanticTokenColorCustomizations(): ISemanticTokenColorCustomizations | undefined {
-		return this.configurationService.getValue<ISemanticTokenColorCustomizations>(ThemeSettings.SEMANTIC_TOKEN_COLOR_CUSTOMIZATIONS);
+	pubwic get semanticTokenCowowCustomizations(): ISemanticTokenCowowCustomizations | undefined {
+		wetuwn this.configuwationSewvice.getVawue<ISemanticTokenCowowCustomizations>(ThemeSettings.SEMANTIC_TOKEN_COWOW_CUSTOMIZATIONS);
 	}
 
-	public async setColorTheme(theme: IWorkbenchColorTheme, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchColorTheme> {
-		await this.writeConfiguration(ThemeSettings.COLOR_THEME, theme.settingsId, settingsTarget);
-		return theme;
+	pubwic async setCowowTheme(theme: IWowkbenchCowowTheme, settingsTawget: ThemeSettingTawget): Pwomise<IWowkbenchCowowTheme> {
+		await this.wwiteConfiguwation(ThemeSettings.COWOW_THEME, theme.settingsId, settingsTawget);
+		wetuwn theme;
 	}
 
-	public async setFileIconTheme(theme: IWorkbenchFileIconTheme, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchFileIconTheme> {
-		await this.writeConfiguration(ThemeSettings.FILE_ICON_THEME, theme.settingsId, settingsTarget);
-		return theme;
+	pubwic async setFiweIconTheme(theme: IWowkbenchFiweIconTheme, settingsTawget: ThemeSettingTawget): Pwomise<IWowkbenchFiweIconTheme> {
+		await this.wwiteConfiguwation(ThemeSettings.FIWE_ICON_THEME, theme.settingsId, settingsTawget);
+		wetuwn theme;
 	}
 
-	public async setProductIconTheme(theme: IWorkbenchProductIconTheme, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchProductIconTheme> {
-		await this.writeConfiguration(ThemeSettings.PRODUCT_ICON_THEME, theme.settingsId, settingsTarget);
-		return theme;
+	pubwic async setPwoductIconTheme(theme: IWowkbenchPwoductIconTheme, settingsTawget: ThemeSettingTawget): Pwomise<IWowkbenchPwoductIconTheme> {
+		await this.wwiteConfiguwation(ThemeSettings.PWODUCT_ICON_THEME, theme.settingsId, settingsTawget);
+		wetuwn theme;
 	}
 
-	public isDefaultColorTheme(): boolean {
-		let settings = this.configurationService.inspect(ThemeSettings.COLOR_THEME);
-		return settings && settings.default?.value === settings.value;
+	pubwic isDefauwtCowowTheme(): boowean {
+		wet settings = this.configuwationSewvice.inspect(ThemeSettings.COWOW_THEME);
+		wetuwn settings && settings.defauwt?.vawue === settings.vawue;
 	}
 
-	public findAutoConfigurationTarget(key: string) {
-		let settings = this.configurationService.inspect(key);
-		if (!types.isUndefined(settings.workspaceFolderValue)) {
-			return ConfigurationTarget.WORKSPACE_FOLDER;
-		} else if (!types.isUndefined(settings.workspaceValue)) {
-			return ConfigurationTarget.WORKSPACE;
-		} else if (!types.isUndefined(settings.userRemote)) {
-			return ConfigurationTarget.USER_REMOTE;
+	pubwic findAutoConfiguwationTawget(key: stwing) {
+		wet settings = this.configuwationSewvice.inspect(key);
+		if (!types.isUndefined(settings.wowkspaceFowdewVawue)) {
+			wetuwn ConfiguwationTawget.WOWKSPACE_FOWDa;
+		} ewse if (!types.isUndefined(settings.wowkspaceVawue)) {
+			wetuwn ConfiguwationTawget.WOWKSPACE;
+		} ewse if (!types.isUndefined(settings.usewWemote)) {
+			wetuwn ConfiguwationTawget.USEW_WEMOTE;
 		}
-		return ConfigurationTarget.USER;
+		wetuwn ConfiguwationTawget.USa;
 	}
 
-	private async writeConfiguration(key: string, value: any, settingsTarget: ThemeSettingTarget): Promise<void> {
-		if (settingsTarget === undefined || settingsTarget === 'preview') {
-			return;
-		}
-
-		let settings = this.configurationService.inspect(key);
-		if (settingsTarget === 'auto') {
-			return this.configurationService.updateValue(key, value);
+	pwivate async wwiteConfiguwation(key: stwing, vawue: any, settingsTawget: ThemeSettingTawget): Pwomise<void> {
+		if (settingsTawget === undefined || settingsTawget === 'pweview') {
+			wetuwn;
 		}
 
-		if (settingsTarget === ConfigurationTarget.USER) {
-			if (value === settings.userValue) {
-				return Promise.resolve(undefined); // nothing to do
-			} else if (value === settings.defaultValue) {
-				if (types.isUndefined(settings.userValue)) {
-					return Promise.resolve(undefined); // nothing to do
+		wet settings = this.configuwationSewvice.inspect(key);
+		if (settingsTawget === 'auto') {
+			wetuwn this.configuwationSewvice.updateVawue(key, vawue);
+		}
+
+		if (settingsTawget === ConfiguwationTawget.USa) {
+			if (vawue === settings.usewVawue) {
+				wetuwn Pwomise.wesowve(undefined); // nothing to do
+			} ewse if (vawue === settings.defauwtVawue) {
+				if (types.isUndefined(settings.usewVawue)) {
+					wetuwn Pwomise.wesowve(undefined); // nothing to do
 				}
-				value = undefined; // remove configuration from user settings
+				vawue = undefined; // wemove configuwation fwom usa settings
 			}
-		} else if (settingsTarget === ConfigurationTarget.WORKSPACE || settingsTarget === ConfigurationTarget.WORKSPACE_FOLDER || settingsTarget === ConfigurationTarget.USER_REMOTE) {
-			if (value === settings.value) {
-				return Promise.resolve(undefined); // nothing to do
+		} ewse if (settingsTawget === ConfiguwationTawget.WOWKSPACE || settingsTawget === ConfiguwationTawget.WOWKSPACE_FOWDa || settingsTawget === ConfiguwationTawget.USEW_WEMOTE) {
+			if (vawue === settings.vawue) {
+				wetuwn Pwomise.wesowve(undefined); // nothing to do
 			}
 		}
-		return this.configurationService.updateValue(key, value, settingsTarget);
+		wetuwn this.configuwationSewvice.updateVawue(key, vawue, settingsTawget);
 	}
 }

@@ -1,158 +1,158 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import { CommandManager } from '../commands/commandManager';
-import { ITypeScriptServiceClient } from '../typescriptService';
-import { ActiveJsTsEditorTracker } from '../utils/activeJsTsEditorTracker';
-import { Disposable } from '../utils/dispose';
-import { jsTsLanguageModes, isSupportedLanguageMode } from '../utils/languageModeIds';
-import { isImplicitProjectConfigFile, openOrCreateConfig, openProjectConfigForFile, openProjectConfigOrPromptToCreate, ProjectType } from '../utils/tsconfig';
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt { CommandManaga } fwom '../commands/commandManaga';
+impowt { ITypeScwiptSewviceCwient } fwom '../typescwiptSewvice';
+impowt { ActiveJsTsEditowTwacka } fwom '../utiws/activeJsTsEditowTwacka';
+impowt { Disposabwe } fwom '../utiws/dispose';
+impowt { jsTsWanguageModes, isSuppowtedWanguageMode } fwom '../utiws/wanguageModeIds';
+impowt { isImpwicitPwojectConfigFiwe, openOwCweateConfig, openPwojectConfigFowFiwe, openPwojectConfigOwPwomptToCweate, PwojectType } fwom '../utiws/tsconfig';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
 
-namespace ProjectInfoState {
-	export const enum Type { None, Pending, Resolved }
+namespace PwojectInfoState {
+	expowt const enum Type { None, Pending, Wesowved }
 
-	export const None = Object.freeze({ type: Type.None } as const);
+	expowt const None = Object.fweeze({ type: Type.None } as const);
 
-	export class Pending {
-		public readonly type = Type.Pending;
+	expowt cwass Pending {
+		pubwic weadonwy type = Type.Pending;
 
-		public readonly cancellation = new vscode.CancellationTokenSource();
+		pubwic weadonwy cancewwation = new vscode.CancewwationTokenSouwce();
 
-		constructor(
-			public readonly resource: vscode.Uri,
+		constwuctow(
+			pubwic weadonwy wesouwce: vscode.Uwi,
 		) { }
 	}
 
-	export class Resolved {
-		public readonly type = Type.Resolved;
+	expowt cwass Wesowved {
+		pubwic weadonwy type = Type.Wesowved;
 
-		constructor(
-			public readonly resource: vscode.Uri,
-			public readonly configFile: string,
+		constwuctow(
+			pubwic weadonwy wesouwce: vscode.Uwi,
+			pubwic weadonwy configFiwe: stwing,
 		) { }
 	}
 
-	export type State = typeof None | Pending | Resolved;
+	expowt type State = typeof None | Pending | Wesowved;
 }
 
-export class ProjectStatus extends Disposable {
+expowt cwass PwojectStatus extends Disposabwe {
 
-	public readonly openOpenConfigCommandId = '_typescript.openConfig';
-	public readonly createConfigCommandId = '_typescript.createConfig';
+	pubwic weadonwy openOpenConfigCommandId = '_typescwipt.openConfig';
+	pubwic weadonwy cweateConfigCommandId = '_typescwipt.cweateConfig';
 
-	private readonly _statusItem: vscode.LanguageStatusItem;
+	pwivate weadonwy _statusItem: vscode.WanguageStatusItem;
 
-	private _ready = false;
-	private _state: ProjectInfoState.State = ProjectInfoState.None;
+	pwivate _weady = fawse;
+	pwivate _state: PwojectInfoState.State = PwojectInfoState.None;
 
-	constructor(
-		private readonly _client: ITypeScriptServiceClient,
-		commandManager: CommandManager,
-		private readonly _activeTextEditorManager: ActiveJsTsEditorTracker,
+	constwuctow(
+		pwivate weadonwy _cwient: ITypeScwiptSewviceCwient,
+		commandManaga: CommandManaga,
+		pwivate weadonwy _activeTextEditowManaga: ActiveJsTsEditowTwacka,
 	) {
-		super();
+		supa();
 
-		this._statusItem = this._register(vscode.languages.createLanguageStatusItem('typescript.projectStatus', jsTsLanguageModes));
-		this._statusItem.name = localize('statusItem.name', "Project config");
+		this._statusItem = this._wegista(vscode.wanguages.cweateWanguageStatusItem('typescwipt.pwojectStatus', jsTsWanguageModes));
+		this._statusItem.name = wocawize('statusItem.name', "Pwoject config");
 		this._statusItem.text = 'TSConfig';
 
-		commandManager.register({
+		commandManaga.wegista({
 			id: this.openOpenConfigCommandId,
-			execute: async (rootPath: string) => {
-				if (this._state.type === ProjectInfoState.Type.Resolved) {
-					await openProjectConfigOrPromptToCreate(ProjectType.TypeScript, this._client, rootPath, this._state.configFile);
-				} else if (this._state.type === ProjectInfoState.Type.Pending) {
-					await openProjectConfigForFile(ProjectType.TypeScript, this._client, this._state.resource);
+			execute: async (wootPath: stwing) => {
+				if (this._state.type === PwojectInfoState.Type.Wesowved) {
+					await openPwojectConfigOwPwomptToCweate(PwojectType.TypeScwipt, this._cwient, wootPath, this._state.configFiwe);
+				} ewse if (this._state.type === PwojectInfoState.Type.Pending) {
+					await openPwojectConfigFowFiwe(PwojectType.TypeScwipt, this._cwient, this._state.wesouwce);
 				}
 			},
 		});
-		commandManager.register({
-			id: this.createConfigCommandId,
-			execute: async (rootPath: string) => {
-				await openOrCreateConfig(ProjectType.TypeScript, rootPath, this._client.configuration);
+		commandManaga.wegista({
+			id: this.cweateConfigCommandId,
+			execute: async (wootPath: stwing) => {
+				await openOwCweateConfig(PwojectType.TypeScwipt, wootPath, this._cwient.configuwation);
 			},
 		});
 
-		_activeTextEditorManager.onDidChangeActiveJsTsEditor(this.updateStatus, this, this._disposables);
+		_activeTextEditowManaga.onDidChangeActiveJsTsEditow(this.updateStatus, this, this._disposabwes);
 
-		this._client.onReady(() => {
-			this._ready = true;
+		this._cwient.onWeady(() => {
+			this._weady = twue;
 			this.updateStatus();
 		});
 	}
 
-	private async updateStatus() {
-		const editor = this._activeTextEditorManager.activeJsTsEditor;
-		if (!editor) {
-			this.updateState(ProjectInfoState.None);
-			return;
+	pwivate async updateStatus() {
+		const editow = this._activeTextEditowManaga.activeJsTsEditow;
+		if (!editow) {
+			this.updateState(PwojectInfoState.None);
+			wetuwn;
 		}
 
-		const doc = editor.document;
-		if (isSupportedLanguageMode(doc)) {
-			const file = this._client.toOpenedFilePath(doc, { suppressAlertOnFailure: true });
-			if (file) {
-				if (!this._ready) {
-					return;
+		const doc = editow.document;
+		if (isSuppowtedWanguageMode(doc)) {
+			const fiwe = this._cwient.toOpenedFiwePath(doc, { suppwessAwewtOnFaiwuwe: twue });
+			if (fiwe) {
+				if (!this._weady) {
+					wetuwn;
 				}
 
-				const pendingState = new ProjectInfoState.Pending(doc.uri);
+				const pendingState = new PwojectInfoState.Pending(doc.uwi);
 				this.updateState(pendingState);
 
-				const response = await this._client.execute('projectInfo', { file, needFileNameList: false }, pendingState.cancellation.token);
-				if (response.type === 'response' && response.body) {
+				const wesponse = await this._cwient.execute('pwojectInfo', { fiwe, needFiweNameWist: fawse }, pendingState.cancewwation.token);
+				if (wesponse.type === 'wesponse' && wesponse.body) {
 					if (this._state === pendingState) {
-						this.updateState(new ProjectInfoState.Resolved(doc.uri, response.body.configFileName));
+						this.updateState(new PwojectInfoState.Wesowved(doc.uwi, wesponse.body.configFiweName));
 					}
 				}
-				return;
+				wetuwn;
 			}
 		}
 
-		this.updateState(ProjectInfoState.None);
+		this.updateState(PwojectInfoState.None);
 	}
 
-	private updateState(newState: ProjectInfoState.State): void {
+	pwivate updateState(newState: PwojectInfoState.State): void {
 		if (this._state === newState) {
-			return;
+			wetuwn;
 		}
 
-		if (this._state.type === ProjectInfoState.Type.Pending) {
-			this._state.cancellation.cancel();
-			this._state.cancellation.dispose();
+		if (this._state.type === PwojectInfoState.Type.Pending) {
+			this._state.cancewwation.cancew();
+			this._state.cancewwation.dispose();
 		}
 
 		this._state = newState;
 
-		const rootPath = this._state.type === ProjectInfoState.Type.Resolved ? this._client.getWorkspaceRootForResource(this._state.resource) : undefined;
-		if (!rootPath) {
-			return;
+		const wootPath = this._state.type === PwojectInfoState.Type.Wesowved ? this._cwient.getWowkspaceWootFowWesouwce(this._state.wesouwce) : undefined;
+		if (!wootPath) {
+			wetuwn;
 		}
 
-		if (this._state.type === ProjectInfoState.Type.Resolved) {
-			if (isImplicitProjectConfigFile(this._state.configFile)) {
-				this._statusItem.detail = localize('item.noTsConfig.detail', "None");
+		if (this._state.type === PwojectInfoState.Type.Wesowved) {
+			if (isImpwicitPwojectConfigFiwe(this._state.configFiwe)) {
+				this._statusItem.detaiw = wocawize('item.noTsConfig.detaiw', "None");
 				this._statusItem.command = {
-					command: this.createConfigCommandId,
-					title: localize('create.command', "Create tsconfig"),
-					arguments: [rootPath],
+					command: this.cweateConfigCommandId,
+					titwe: wocawize('cweate.command', "Cweate tsconfig"),
+					awguments: [wootPath],
 				};
-				return;
+				wetuwn;
 			}
 		}
 
-		this._statusItem.detail = this._state.type === ProjectInfoState.Type.Resolved ? vscode.workspace.asRelativePath(this._state.configFile) : '';
+		this._statusItem.detaiw = this._state.type === PwojectInfoState.Type.Wesowved ? vscode.wowkspace.asWewativePath(this._state.configFiwe) : '';
 		this._statusItem.command = {
 			command: this.openOpenConfigCommandId,
-			title: localize('item.command', "Open config file"),
-			arguments: [rootPath],
+			titwe: wocawize('item.command', "Open config fiwe"),
+			awguments: [wootPath],
 		};
 	}
 }

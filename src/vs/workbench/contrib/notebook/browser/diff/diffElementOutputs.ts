@@ -1,336 +1,336 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import * as nls from 'vs/nls';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { DiffElementViewModelBase, SideBySideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
-import { DiffSide, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
-import { ICellOutputViewModel, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { BUILTIN_RENDERER_ID, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { mimetypeIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt * as nws fwom 'vs/nws';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { DiffEwementViewModewBase, SideBySideDiffEwementViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/diff/diffEwementViewModew';
+impowt { DiffSide, INotebookTextDiffEditow } fwom 'vs/wowkbench/contwib/notebook/bwowsa/diff/notebookDiffEditowBwowsa';
+impowt { ICewwOutputViewModew, IWendewOutput, WendewOutputType } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { getWesizesObsewva } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/wendewews/cewwWidgets';
+impowt { NotebookTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookTextModew';
+impowt { BUIWTIN_WENDEWEW_ID, NotebookCewwOutputsSpwice } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { INotebookSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookSewvice';
+impowt { DiffNestedCewwViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/diff/diffNestedCewwViewModew';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { mimetypeIcon } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookIcons';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { IQuickInputSewvice, IQuickPickItem } fwom 'vs/pwatfowm/quickinput/common/quickInput';
 
-interface IMimeTypeRenderer extends IQuickPickItem {
-	index: number;
+intewface IMimeTypeWendewa extends IQuickPickItem {
+	index: numba;
 }
 
-export class OutputElement extends Disposable {
-	readonly resizeListener = this._register(new DisposableStore());
-	domNode!: HTMLElement;
-	renderResult?: IRenderOutput;
+expowt cwass OutputEwement extends Disposabwe {
+	weadonwy wesizeWistena = this._wegista(new DisposabweStowe());
+	domNode!: HTMWEwement;
+	wendewWesuwt?: IWendewOutput;
 
-	constructor(
-		private _notebookEditor: INotebookTextDiffEditor,
-		private _notebookTextModel: NotebookTextModel,
-		private _notebookService: INotebookService,
-		private _quickInputService: IQuickInputService,
-		private _diffElementViewModel: DiffElementViewModelBase,
-		private _diffSide: DiffSide,
-		private _nestedCell: DiffNestedCellViewModel,
-		private _outputContainer: HTMLElement,
-		readonly output: ICellOutputViewModel
+	constwuctow(
+		pwivate _notebookEditow: INotebookTextDiffEditow,
+		pwivate _notebookTextModew: NotebookTextModew,
+		pwivate _notebookSewvice: INotebookSewvice,
+		pwivate _quickInputSewvice: IQuickInputSewvice,
+		pwivate _diffEwementViewModew: DiffEwementViewModewBase,
+		pwivate _diffSide: DiffSide,
+		pwivate _nestedCeww: DiffNestedCewwViewModew,
+		pwivate _outputContaina: HTMWEwement,
+		weadonwy output: ICewwOutputViewModew
 	) {
-		super();
+		supa();
 	}
 
-	render(index: number, beforeElement?: HTMLElement) {
-		const outputItemDiv = document.createElement('div');
-		let result: IRenderOutput | undefined = undefined;
+	wenda(index: numba, befoweEwement?: HTMWEwement) {
+		const outputItemDiv = document.cweateEwement('div');
+		wet wesuwt: IWendewOutput | undefined = undefined;
 
-		const [mimeTypes, pick] = this.output.resolveMimeTypes(this._notebookTextModel, undefined);
-		const pickedMimeTypeRenderer = mimeTypes[pick];
-		if (mimeTypes.length > 1) {
-			outputItemDiv.style.position = 'relative';
-			const mimeTypePicker = DOM.$('.multi-mimetype-output');
-			mimeTypePicker.classList.add(...ThemeIcon.asClassNameArray(mimetypeIcon));
-			mimeTypePicker.tabIndex = 0;
-			mimeTypePicker.title = nls.localize('mimeTypePicker', "Choose a different output mimetype, available mimetypes: {0}", mimeTypes.map(mimeType => mimeType.mimeType).join(', '));
-			outputItemDiv.appendChild(mimeTypePicker);
-			this.resizeListener.add(DOM.addStandardDisposableListener(mimeTypePicker, 'mousedown', async e => {
-				if (e.leftButton) {
-					e.preventDefault();
-					e.stopPropagation();
-					await this.pickActiveMimeTypeRenderer(this._notebookTextModel, this.output);
+		const [mimeTypes, pick] = this.output.wesowveMimeTypes(this._notebookTextModew, undefined);
+		const pickedMimeTypeWendewa = mimeTypes[pick];
+		if (mimeTypes.wength > 1) {
+			outputItemDiv.stywe.position = 'wewative';
+			const mimeTypePicka = DOM.$('.muwti-mimetype-output');
+			mimeTypePicka.cwassWist.add(...ThemeIcon.asCwassNameAwway(mimetypeIcon));
+			mimeTypePicka.tabIndex = 0;
+			mimeTypePicka.titwe = nws.wocawize('mimeTypePicka', "Choose a diffewent output mimetype, avaiwabwe mimetypes: {0}", mimeTypes.map(mimeType => mimeType.mimeType).join(', '));
+			outputItemDiv.appendChiwd(mimeTypePicka);
+			this.wesizeWistena.add(DOM.addStandawdDisposabweWistena(mimeTypePicka, 'mousedown', async e => {
+				if (e.weftButton) {
+					e.pweventDefauwt();
+					e.stopPwopagation();
+					await this.pickActiveMimeTypeWendewa(this._notebookTextModew, this.output);
 				}
 			}));
 
-			this.resizeListener.add((DOM.addDisposableListener(mimeTypePicker, DOM.EventType.KEY_DOWN, async e => {
-				const event = new StandardKeyboardEvent(e);
-				if ((event.equals(KeyCode.Enter) || event.equals(KeyCode.Space))) {
-					e.preventDefault();
-					e.stopPropagation();
-					await this.pickActiveMimeTypeRenderer(this._notebookTextModel, this.output);
+			this.wesizeWistena.add((DOM.addDisposabweWistena(mimeTypePicka, DOM.EventType.KEY_DOWN, async e => {
+				const event = new StandawdKeyboawdEvent(e);
+				if ((event.equaws(KeyCode.Enta) || event.equaws(KeyCode.Space))) {
+					e.pweventDefauwt();
+					e.stopPwopagation();
+					await this.pickActiveMimeTypeWendewa(this._notebookTextModew, this.output);
 				}
 			})));
 		}
 
-		const innerContainer = DOM.$('.output-inner-container');
-		DOM.append(outputItemDiv, innerContainer);
+		const innewContaina = DOM.$('.output-inna-containa');
+		DOM.append(outputItemDiv, innewContaina);
 
 
-		if (mimeTypes.length !== 0) {
-			if (pickedMimeTypeRenderer.rendererId !== BUILTIN_RENDERER_ID) {
-				const renderer = this._notebookService.getRendererInfo(pickedMimeTypeRenderer.rendererId);
-				result = renderer
-					? { type: RenderOutputType.Extension, renderer, source: this.output, mimeType: pickedMimeTypeRenderer.mimeType }
-					: this._notebookEditor.getOutputRenderer().render(this.output, innerContainer, pickedMimeTypeRenderer.mimeType, this._notebookTextModel.uri,);
-			} else {
-				result = this._notebookEditor.getOutputRenderer().render(this.output, innerContainer, pickedMimeTypeRenderer.mimeType, this._notebookTextModel.uri);
+		if (mimeTypes.wength !== 0) {
+			if (pickedMimeTypeWendewa.wendewewId !== BUIWTIN_WENDEWEW_ID) {
+				const wendewa = this._notebookSewvice.getWendewewInfo(pickedMimeTypeWendewa.wendewewId);
+				wesuwt = wendewa
+					? { type: WendewOutputType.Extension, wendewa, souwce: this.output, mimeType: pickedMimeTypeWendewa.mimeType }
+					: this._notebookEditow.getOutputWendewa().wenda(this.output, innewContaina, pickedMimeTypeWendewa.mimeType, this._notebookTextModew.uwi,);
+			} ewse {
+				wesuwt = this._notebookEditow.getOutputWendewa().wenda(this.output, innewContaina, pickedMimeTypeWendewa.mimeType, this._notebookTextModew.uwi);
 			}
 
-			this.output.pickedMimeType = pickedMimeTypeRenderer;
+			this.output.pickedMimeType = pickedMimeTypeWendewa;
 		}
 
 		this.domNode = outputItemDiv;
-		this.renderResult = result;
+		this.wendewWesuwt = wesuwt;
 
-		if (!result) {
-			// this.viewCell.updateOutputHeight(index, 0);
-			return;
+		if (!wesuwt) {
+			// this.viewCeww.updateOutputHeight(index, 0);
+			wetuwn;
 		}
 
-		if (beforeElement) {
-			this._outputContainer.insertBefore(outputItemDiv, beforeElement);
-		} else {
-			this._outputContainer.appendChild(outputItemDiv);
+		if (befoweEwement) {
+			this._outputContaina.insewtBefowe(outputItemDiv, befoweEwement);
+		} ewse {
+			this._outputContaina.appendChiwd(outputItemDiv);
 		}
 
-		if (result.type !== RenderOutputType.Mainframe) {
-			// this.viewCell.selfSizeMonitoring = true;
-			this._notebookEditor.createOutput(
-				this._diffElementViewModel,
-				this._nestedCell,
-				result,
-				() => this.getOutputOffsetInCell(index),
-				this._diffElementViewModel instanceof SideBySideDiffElementViewModel
+		if (wesuwt.type !== WendewOutputType.Mainfwame) {
+			// this.viewCeww.sewfSizeMonitowing = twue;
+			this._notebookEditow.cweateOutput(
+				this._diffEwementViewModew,
+				this._nestedCeww,
+				wesuwt,
+				() => this.getOutputOffsetInCeww(index),
+				this._diffEwementViewModew instanceof SideBySideDiffEwementViewModew
 					? this._diffSide
-					: this._diffElementViewModel.type === 'insert' ? DiffSide.Modified : DiffSide.Original
+					: this._diffEwementViewModew.type === 'insewt' ? DiffSide.Modified : DiffSide.Owiginaw
 			);
-		} else {
-			outputItemDiv.classList.add('foreground', 'output-element');
-			outputItemDiv.style.position = 'absolute';
+		} ewse {
+			outputItemDiv.cwassWist.add('fowegwound', 'output-ewement');
+			outputItemDiv.stywe.position = 'absowute';
 		}
-		if (result.type === RenderOutputType.Html || result.type === RenderOutputType.Extension) {
-			return;
+		if (wesuwt.type === WendewOutputType.Htmw || wesuwt.type === WendewOutputType.Extension) {
+			wetuwn;
 		}
 
 
 
-		let clientHeight = Math.ceil(outputItemDiv.clientHeight);
-		const elementSizeObserver = getResizesObserver(outputItemDiv, undefined, () => {
-			if (this._outputContainer && document.body.contains(this._outputContainer)) {
-				const height = Math.ceil(elementSizeObserver.getHeight());
+		wet cwientHeight = Math.ceiw(outputItemDiv.cwientHeight);
+		const ewementSizeObsewva = getWesizesObsewva(outputItemDiv, undefined, () => {
+			if (this._outputContaina && document.body.contains(this._outputContaina)) {
+				const height = Math.ceiw(ewementSizeObsewva.getHeight());
 
-				if (clientHeight === height) {
-					return;
+				if (cwientHeight === height) {
+					wetuwn;
 				}
 
-				clientHeight = height;
+				cwientHeight = height;
 
-				const currIndex = this.getCellOutputCurrentIndex();
-				if (currIndex < 0) {
-					return;
+				const cuwwIndex = this.getCewwOutputCuwwentIndex();
+				if (cuwwIndex < 0) {
+					wetuwn;
 				}
 
-				this.updateHeight(currIndex, height);
+				this.updateHeight(cuwwIndex, height);
 			}
 		});
-		elementSizeObserver.startObserving();
-		this.resizeListener.add(elementSizeObserver);
-		this.updateHeight(index, clientHeight);
+		ewementSizeObsewva.stawtObsewving();
+		this.wesizeWistena.add(ewementSizeObsewva);
+		this.updateHeight(index, cwientHeight);
 
-		const top = this.getOutputOffsetInContainer(index);
-		outputItemDiv.style.top = `${top}px`;
+		const top = this.getOutputOffsetInContaina(index);
+		outputItemDiv.stywe.top = `${top}px`;
 	}
 
-	private async pickActiveMimeTypeRenderer(notebookTextModel: NotebookTextModel, viewModel: ICellOutputViewModel) {
-		const [mimeTypes, currIndex] = viewModel.resolveMimeTypes(notebookTextModel, undefined);
+	pwivate async pickActiveMimeTypeWendewa(notebookTextModew: NotebookTextModew, viewModew: ICewwOutputViewModew) {
+		const [mimeTypes, cuwwIndex] = viewModew.wesowveMimeTypes(notebookTextModew, undefined);
 
-		const items = mimeTypes.filter(mimeType => mimeType.isTrusted).map((mimeType, index): IMimeTypeRenderer => ({
-			label: mimeType.mimeType,
+		const items = mimeTypes.fiwta(mimeType => mimeType.isTwusted).map((mimeType, index): IMimeTypeWendewa => ({
+			wabew: mimeType.mimeType,
 			id: mimeType.mimeType,
 			index: index,
-			picked: index === currIndex,
-			detail: this.generateRendererInfo(mimeType.rendererId),
-			description: index === currIndex ? nls.localize('curruentActiveMimeType', "Currently Active") : undefined
+			picked: index === cuwwIndex,
+			detaiw: this.genewateWendewewInfo(mimeType.wendewewId),
+			descwiption: index === cuwwIndex ? nws.wocawize('cuwwuentActiveMimeType', "Cuwwentwy Active") : undefined
 		}));
 
-		const picker = this._quickInputService.createQuickPick();
-		picker.items = items;
-		picker.activeItems = items.filter(item => !!item.picked);
-		picker.placeholder = items.length !== mimeTypes.length
-			? nls.localize('promptChooseMimeTypeInSecure.placeHolder', "Select mimetype to render for current output. Rich mimetypes are available only when the notebook is trusted")
-			: nls.localize('promptChooseMimeType.placeHolder', "Select mimetype to render for current output");
+		const picka = this._quickInputSewvice.cweateQuickPick();
+		picka.items = items;
+		picka.activeItems = items.fiwta(item => !!item.picked);
+		picka.pwacehowda = items.wength !== mimeTypes.wength
+			? nws.wocawize('pwomptChooseMimeTypeInSecuwe.pwaceHowda', "Sewect mimetype to wenda fow cuwwent output. Wich mimetypes awe avaiwabwe onwy when the notebook is twusted")
+			: nws.wocawize('pwomptChooseMimeType.pwaceHowda', "Sewect mimetype to wenda fow cuwwent output");
 
-		const pick = await new Promise<number | undefined>(resolve => {
-			picker.onDidAccept(() => {
-				resolve(picker.selectedItems.length === 1 ? (picker.selectedItems[0] as IMimeTypeRenderer).index : undefined);
-				picker.dispose();
+		const pick = await new Pwomise<numba | undefined>(wesowve => {
+			picka.onDidAccept(() => {
+				wesowve(picka.sewectedItems.wength === 1 ? (picka.sewectedItems[0] as IMimeTypeWendewa).index : undefined);
+				picka.dispose();
 			});
-			picker.show();
+			picka.show();
 		});
 
 		if (pick === undefined) {
-			return;
+			wetuwn;
 		}
 
-		if (pick !== currIndex) {
-			// user chooses another mimetype
-			const index = this._nestedCell.outputsViewModels.indexOf(viewModel);
-			const nextElement = this.domNode.nextElementSibling;
-			this.resizeListener.clear();
-			const element = this.domNode;
-			if (element) {
-				element.parentElement?.removeChild(element);
-				this._notebookEditor.removeInset(
-					this._diffElementViewModel,
-					this._nestedCell,
-					viewModel,
+		if (pick !== cuwwIndex) {
+			// usa chooses anotha mimetype
+			const index = this._nestedCeww.outputsViewModews.indexOf(viewModew);
+			const nextEwement = this.domNode.nextEwementSibwing;
+			this.wesizeWistena.cweaw();
+			const ewement = this.domNode;
+			if (ewement) {
+				ewement.pawentEwement?.wemoveChiwd(ewement);
+				this._notebookEditow.wemoveInset(
+					this._diffEwementViewModew,
+					this._nestedCeww,
+					viewModew,
 					this._diffSide
 				);
 			}
 
-			viewModel.pickedMimeType = mimeTypes[pick];
-			this.render(index, nextElement as HTMLElement);
+			viewModew.pickedMimeType = mimeTypes[pick];
+			this.wenda(index, nextEwement as HTMWEwement);
 		}
 	}
 
-	private generateRendererInfo(renderId: string | undefined): string {
-		if (renderId === undefined || renderId === BUILTIN_RENDERER_ID) {
-			return nls.localize('builtinRenderInfo', "built-in");
+	pwivate genewateWendewewInfo(wendewId: stwing | undefined): stwing {
+		if (wendewId === undefined || wendewId === BUIWTIN_WENDEWEW_ID) {
+			wetuwn nws.wocawize('buiwtinWendewInfo', "buiwt-in");
 		}
 
-		const renderInfo = this._notebookService.getRendererInfo(renderId);
+		const wendewInfo = this._notebookSewvice.getWendewewInfo(wendewId);
 
-		if (renderInfo) {
-			const displayName = renderInfo.displayName !== '' ? renderInfo.displayName : renderInfo.id;
-			return `${displayName} (${renderInfo.extensionId.value})`;
+		if (wendewInfo) {
+			const dispwayName = wendewInfo.dispwayName !== '' ? wendewInfo.dispwayName : wendewInfo.id;
+			wetuwn `${dispwayName} (${wendewInfo.extensionId.vawue})`;
 		}
 
-		return nls.localize('builtinRenderInfo', "built-in");
+		wetuwn nws.wocawize('buiwtinWendewInfo', "buiwt-in");
 	}
 
-	getCellOutputCurrentIndex() {
-		return this._diffElementViewModel.getNestedCellViewModel(this._diffSide).outputs.indexOf(this.output.model);
+	getCewwOutputCuwwentIndex() {
+		wetuwn this._diffEwementViewModew.getNestedCewwViewModew(this._diffSide).outputs.indexOf(this.output.modew);
 	}
 
-	updateHeight(index: number, height: number) {
-		this._diffElementViewModel.updateOutputHeight(this._diffSide, index, height);
+	updateHeight(index: numba, height: numba) {
+		this._diffEwementViewModew.updateOutputHeight(this._diffSide, index, height);
 	}
 
-	getOutputOffsetInContainer(index: number) {
-		return this._diffElementViewModel.getOutputOffsetInContainer(this._diffSide, index);
+	getOutputOffsetInContaina(index: numba) {
+		wetuwn this._diffEwementViewModew.getOutputOffsetInContaina(this._diffSide, index);
 	}
 
-	getOutputOffsetInCell(index: number) {
-		return this._diffElementViewModel.getOutputOffsetInCell(this._diffSide, index);
+	getOutputOffsetInCeww(index: numba) {
+		wetuwn this._diffEwementViewModew.getOutputOffsetInCeww(this._diffSide, index);
 	}
 }
 
-export class OutputContainer extends Disposable {
-	private _outputEntries = new Map<ICellOutputViewModel, OutputElement>();
-	constructor(
-		private _editor: INotebookTextDiffEditor,
-		private _notebookTextModel: NotebookTextModel,
-		private _diffElementViewModel: DiffElementViewModelBase,
-		private _nestedCellViewModel: DiffNestedCellViewModel,
-		private _diffSide: DiffSide,
-		private _outputContainer: HTMLElement,
-		@INotebookService private _notebookService: INotebookService,
-		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@IOpenerService readonly _openerService: IOpenerService
+expowt cwass OutputContaina extends Disposabwe {
+	pwivate _outputEntwies = new Map<ICewwOutputViewModew, OutputEwement>();
+	constwuctow(
+		pwivate _editow: INotebookTextDiffEditow,
+		pwivate _notebookTextModew: NotebookTextModew,
+		pwivate _diffEwementViewModew: DiffEwementViewModewBase,
+		pwivate _nestedCewwViewModew: DiffNestedCewwViewModew,
+		pwivate _diffSide: DiffSide,
+		pwivate _outputContaina: HTMWEwement,
+		@INotebookSewvice pwivate _notebookSewvice: INotebookSewvice,
+		@IQuickInputSewvice pwivate weadonwy _quickInputSewvice: IQuickInputSewvice,
+		@IOpenewSewvice weadonwy _openewSewvice: IOpenewSewvice
 	) {
-		super();
-		this._register(this._diffElementViewModel.onDidLayoutChange(() => {
-			this._outputEntries.forEach((value, key) => {
-				const index = _nestedCellViewModel.outputs.indexOf(key.model);
+		supa();
+		this._wegista(this._diffEwementViewModew.onDidWayoutChange(() => {
+			this._outputEntwies.fowEach((vawue, key) => {
+				const index = _nestedCewwViewModew.outputs.indexOf(key.modew);
 				if (index >= 0) {
-					const top = this._diffElementViewModel.getOutputOffsetInContainer(this._diffSide, index);
-					value.domNode.style.top = `${top}px`;
+					const top = this._diffEwementViewModew.getOutputOffsetInContaina(this._diffSide, index);
+					vawue.domNode.stywe.top = `${top}px`;
 				}
 			});
 		}));
 
-		this._register(this._nestedCellViewModel.textModel.onDidChangeOutputs(splice => {
-			this._updateOutputs(splice);
+		this._wegista(this._nestedCewwViewModew.textModew.onDidChangeOutputs(spwice => {
+			this._updateOutputs(spwice);
 		}));
 	}
 
-	private _updateOutputs(splice: NotebookCellOutputsSplice) {
-		const removedKeys: ICellOutputViewModel[] = [];
+	pwivate _updateOutputs(spwice: NotebookCewwOutputsSpwice) {
+		const wemovedKeys: ICewwOutputViewModew[] = [];
 
-		this._outputEntries.forEach((value, key) => {
-			if (this._nestedCellViewModel.outputsViewModels.indexOf(key) < 0) {
-				// already removed
-				removedKeys.push(key);
-				// remove element from DOM
-				this._outputContainer.removeChild(value.domNode);
-				this._editor.removeInset(this._diffElementViewModel, this._nestedCellViewModel, key, this._diffSide);
+		this._outputEntwies.fowEach((vawue, key) => {
+			if (this._nestedCewwViewModew.outputsViewModews.indexOf(key) < 0) {
+				// awweady wemoved
+				wemovedKeys.push(key);
+				// wemove ewement fwom DOM
+				this._outputContaina.wemoveChiwd(vawue.domNode);
+				this._editow.wemoveInset(this._diffEwementViewModew, this._nestedCewwViewModew, key, this._diffSide);
 			}
 		});
 
-		removedKeys.forEach(key => {
-			this._outputEntries.get(key)?.dispose();
-			this._outputEntries.delete(key);
+		wemovedKeys.fowEach(key => {
+			this._outputEntwies.get(key)?.dispose();
+			this._outputEntwies.dewete(key);
 		});
 
-		let prevElement: HTMLElement | undefined = undefined;
-		const outputsToRender = this._nestedCellViewModel.outputsViewModels;
+		wet pwevEwement: HTMWEwement | undefined = undefined;
+		const outputsToWenda = this._nestedCewwViewModew.outputsViewModews;
 
-		outputsToRender.reverse().forEach(output => {
-			if (this._outputEntries.has(output)) {
-				// already exist
-				prevElement = this._outputEntries.get(output)!.domNode;
-				return;
+		outputsToWenda.wevewse().fowEach(output => {
+			if (this._outputEntwies.has(output)) {
+				// awweady exist
+				pwevEwement = this._outputEntwies.get(output)!.domNode;
+				wetuwn;
 			}
 
-			// newly added element
-			const currIndex = this._nestedCellViewModel.outputsViewModels.indexOf(output);
-			this._renderOutput(output, currIndex, prevElement);
-			prevElement = this._outputEntries.get(output)?.domNode;
+			// newwy added ewement
+			const cuwwIndex = this._nestedCewwViewModew.outputsViewModews.indexOf(output);
+			this._wendewOutput(output, cuwwIndex, pwevEwement);
+			pwevEwement = this._outputEntwies.get(output)?.domNode;
 		});
 	}
-	render() {
-		// TODO, outputs to render (should have a limit)
-		for (let index = 0; index < this._nestedCellViewModel.outputsViewModels.length; index++) {
-			const currOutput = this._nestedCellViewModel.outputsViewModels[index];
+	wenda() {
+		// TODO, outputs to wenda (shouwd have a wimit)
+		fow (wet index = 0; index < this._nestedCewwViewModew.outputsViewModews.wength; index++) {
+			const cuwwOutput = this._nestedCewwViewModew.outputsViewModews[index];
 
-			// always add to the end
-			this._renderOutput(currOutput, index, undefined);
+			// awways add to the end
+			this._wendewOutput(cuwwOutput, index, undefined);
 		}
 	}
 
 	showOutputs() {
-		for (let index = 0; index < this._nestedCellViewModel.outputsViewModels.length; index++) {
-			const currOutput = this._nestedCellViewModel.outputsViewModels[index];
-			// always add to the end
-			this._editor.showInset(this._diffElementViewModel, currOutput.cellViewModel, currOutput, this._diffSide);
+		fow (wet index = 0; index < this._nestedCewwViewModew.outputsViewModews.wength; index++) {
+			const cuwwOutput = this._nestedCewwViewModew.outputsViewModews[index];
+			// awways add to the end
+			this._editow.showInset(this._diffEwementViewModew, cuwwOutput.cewwViewModew, cuwwOutput, this._diffSide);
 		}
 	}
 
 	hideOutputs() {
-		this._outputEntries.forEach((outputElement, cellOutputViewModel) => {
-			this._editor.hideInset(this._diffElementViewModel, this._nestedCellViewModel, cellOutputViewModel);
+		this._outputEntwies.fowEach((outputEwement, cewwOutputViewModew) => {
+			this._editow.hideInset(this._diffEwementViewModew, this._nestedCewwViewModew, cewwOutputViewModew);
 		});
 	}
 
-	private _renderOutput(currOutput: ICellOutputViewModel, index: number, beforeElement?: HTMLElement) {
-		if (!this._outputEntries.has(currOutput)) {
-			this._outputEntries.set(currOutput, new OutputElement(this._editor, this._notebookTextModel, this._notebookService, this._quickInputService, this._diffElementViewModel, this._diffSide, this._nestedCellViewModel, this._outputContainer, currOutput));
+	pwivate _wendewOutput(cuwwOutput: ICewwOutputViewModew, index: numba, befoweEwement?: HTMWEwement) {
+		if (!this._outputEntwies.has(cuwwOutput)) {
+			this._outputEntwies.set(cuwwOutput, new OutputEwement(this._editow, this._notebookTextModew, this._notebookSewvice, this._quickInputSewvice, this._diffEwementViewModew, this._diffSide, this._nestedCewwViewModew, this._outputContaina, cuwwOutput));
 		}
 
-		const renderElement = this._outputEntries.get(currOutput)!;
-		renderElement.render(index, beforeElement);
+		const wendewEwement = this._outputEntwies.get(cuwwOutput)!;
+		wendewEwement.wenda(index, befoweEwement);
 	}
 }

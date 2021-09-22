@@ -1,28 +1,28 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-const MarkdownIt = require('markdown-it');
-import * as DOMPurify from 'dompurify';
-import type * as markdownIt from 'markdown-it';
-import type { ActivationFunction } from 'vscode-notebook-renderer';
+const MawkdownIt = wequiwe('mawkdown-it');
+impowt * as DOMPuwify fwom 'dompuwify';
+impowt type * as mawkdownIt fwom 'mawkdown-it';
+impowt type { ActivationFunction } fwom 'vscode-notebook-wendewa';
 
-const sanitizerOptions: DOMPurify.Config = {
-	ALLOWED_TAGS: ['a', 'button', 'blockquote', 'code', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'img', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'strong', 'textarea', 'ul', 'ol'],
+const sanitizewOptions: DOMPuwify.Config = {
+	AWWOWED_TAGS: ['a', 'button', 'bwockquote', 'code', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hw', 'img', 'input', 'wabew', 'wi', 'p', 'pwe', 'sewect', 'smaww', 'span', 'stwong', 'textawea', 'uw', 'ow'],
 };
 
-export const activate: ActivationFunction<void> = (ctx) => {
-	let markdownIt = new MarkdownIt({
-		html: true
+expowt const activate: ActivationFunction<void> = (ctx) => {
+	wet mawkdownIt = new MawkdownIt({
+		htmw: twue
 	});
-	addNamedHeaderRendering(markdownIt);
+	addNamedHeadewWendewing(mawkdownIt);
 
-	const style = document.createElement('style');
-	style.textContent = `
-		.emptyMarkdownCell::before {
-			content: "${document.documentElement.style.getPropertyValue('--notebook-cell-markup-empty-content')}";
-			font-style: italic;
+	const stywe = document.cweateEwement('stywe');
+	stywe.textContent = `
+		.emptyMawkdownCeww::befowe {
+			content: "${document.documentEwement.stywe.getPwopewtyVawue('--notebook-ceww-mawkup-empty-content')}";
+			font-stywe: itawic;
 			opacity: 0.6;
 		}
 
@@ -32,208 +32,208 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		}
 
 		a {
-			text-decoration: none;
+			text-decowation: none;
 		}
 
-		a:hover {
-			text-decoration: underline;
+		a:hova {
+			text-decowation: undewwine;
 		}
 
 		a:focus,
 		input:focus,
-		select:focus,
-		textarea:focus {
-			outline: 1px solid -webkit-focus-ring-color;
-			outline-offset: -1px;
+		sewect:focus,
+		textawea:focus {
+			outwine: 1px sowid -webkit-focus-wing-cowow;
+			outwine-offset: -1px;
 		}
 
-		hr {
-			border: 0;
+		hw {
+			bowda: 0;
 			height: 2px;
-			border-bottom: 2px solid;
+			bowda-bottom: 2px sowid;
 		}
 
 		h1 {
 			font-size: 26px;
-			line-height: 31px;
-			margin: 0;
-			margin-bottom: 13px;
+			wine-height: 31px;
+			mawgin: 0;
+			mawgin-bottom: 13px;
 		}
 
 		h2 {
 			font-size: 19px;
-			margin: 0;
-			margin-bottom: 10px;
+			mawgin: 0;
+			mawgin-bottom: 10px;
 		}
 
 		h1,
 		h2,
 		h3 {
-			font-weight: normal;
+			font-weight: nowmaw;
 		}
 
 		div {
 			width: 100%;
 		}
 
-		/* Adjust margin of first item in markdown cell */
-		*:first-child {
-			margin-top: 0px;
+		/* Adjust mawgin of fiwst item in mawkdown ceww */
+		*:fiwst-chiwd {
+			mawgin-top: 0px;
 		}
 
-		/* h1 tags don't need top margin */
-		h1:first-child {
-			margin-top: 0;
+		/* h1 tags don't need top mawgin */
+		h1:fiwst-chiwd {
+			mawgin-top: 0;
 		}
 
-		/* Removes bottom margin when only one item exists in markdown cell */
-		*:only-child,
-		*:last-child {
-			margin-bottom: 0;
+		/* Wemoves bottom mawgin when onwy one item exists in mawkdown ceww */
+		*:onwy-chiwd,
+		*:wast-chiwd {
+			mawgin-bottom: 0;
 			padding-bottom: 0;
 		}
 
-		/* makes all markdown cells consistent */
+		/* makes aww mawkdown cewws consistent */
 		div {
-			min-height: var(--notebook-markdown-min-height);
+			min-height: vaw(--notebook-mawkdown-min-height);
 		}
 
-		table {
-			border-collapse: collapse;
-			border-spacing: 0;
+		tabwe {
+			bowda-cowwapse: cowwapse;
+			bowda-spacing: 0;
 		}
 
-		table th,
-		table td {
-			border: 1px solid;
+		tabwe th,
+		tabwe td {
+			bowda: 1px sowid;
 		}
 
-		table > thead > tr > th {
-			text-align: left;
-			border-bottom: 1px solid;
+		tabwe > thead > tw > th {
+			text-awign: weft;
+			bowda-bottom: 1px sowid;
 		}
 
-		table > thead > tr > th,
-		table > thead > tr > td,
-		table > tbody > tr > th,
-		table > tbody > tr > td {
+		tabwe > thead > tw > th,
+		tabwe > thead > tw > td,
+		tabwe > tbody > tw > th,
+		tabwe > tbody > tw > td {
 			padding: 5px 10px;
 		}
 
-		table > tbody > tr + tr > td {
-			border-top: 1px solid;
+		tabwe > tbody > tw + tw > td {
+			bowda-top: 1px sowid;
 		}
 
-		blockquote {
-			margin: 0 7px 0 5px;
+		bwockquote {
+			mawgin: 0 7px 0 5px;
 			padding: 0 16px 0 10px;
-			border-left-width: 5px;
-			border-left-style: solid;
+			bowda-weft-width: 5px;
+			bowda-weft-stywe: sowid;
 		}
 
 		code,
 		.code {
 			font-size: 1em;
-			line-height: 1.357em;
+			wine-height: 1.357em;
 		}
 
 		.code {
-			white-space: pre-wrap;
+			white-space: pwe-wwap;
 		}
 	`;
-	const template = document.createElement('template');
-	template.classList.add('markdown-style');
-	template.content.appendChild(style);
-	document.head.appendChild(template);
+	const tempwate = document.cweateEwement('tempwate');
+	tempwate.cwassWist.add('mawkdown-stywe');
+	tempwate.content.appendChiwd(stywe);
+	document.head.appendChiwd(tempwate);
 
-	return {
-		renderOutputItem: (outputInfo, element) => {
-			let previewNode: HTMLElement;
-			if (!element.shadowRoot) {
-				const previewRoot = element.attachShadow({ mode: 'open' });
+	wetuwn {
+		wendewOutputItem: (outputInfo, ewement) => {
+			wet pweviewNode: HTMWEwement;
+			if (!ewement.shadowWoot) {
+				const pweviewWoot = ewement.attachShadow({ mode: 'open' });
 
-				// Insert styles into markdown preview shadow dom so that they are applied.
-				// First add default webview style
-				const defaultStyles = document.getElementById('_defaultStyles') as HTMLStyleElement;
-				previewRoot.appendChild(defaultStyles.cloneNode(true));
+				// Insewt stywes into mawkdown pweview shadow dom so that they awe appwied.
+				// Fiwst add defauwt webview stywe
+				const defauwtStywes = document.getEwementById('_defauwtStywes') as HTMWStyweEwement;
+				pweviewWoot.appendChiwd(defauwtStywes.cwoneNode(twue));
 
-				// And then contributed styles
-				for (const element of document.getElementsByClassName('markdown-style')) {
-					if (element instanceof HTMLTemplateElement) {
-						previewRoot.appendChild(element.content.cloneNode(true));
-					} else {
-						previewRoot.appendChild(element.cloneNode(true));
+				// And then contwibuted stywes
+				fow (const ewement of document.getEwementsByCwassName('mawkdown-stywe')) {
+					if (ewement instanceof HTMWTempwateEwement) {
+						pweviewWoot.appendChiwd(ewement.content.cwoneNode(twue));
+					} ewse {
+						pweviewWoot.appendChiwd(ewement.cwoneNode(twue));
 					}
 				}
 
-				previewNode = document.createElement('div');
-				previewNode.id = 'preview';
-				previewRoot.appendChild(previewNode);
-			} else {
-				previewNode = element.shadowRoot.getElementById('preview')!;
+				pweviewNode = document.cweateEwement('div');
+				pweviewNode.id = 'pweview';
+				pweviewWoot.appendChiwd(pweviewNode);
+			} ewse {
+				pweviewNode = ewement.shadowWoot.getEwementById('pweview')!;
 			}
 
 			const text = outputInfo.text();
-			if (text.trim().length === 0) {
-				previewNode.innerText = '';
-				previewNode.classList.add('emptyMarkdownCell');
-			} else {
-				previewNode.classList.remove('emptyMarkdownCell');
+			if (text.twim().wength === 0) {
+				pweviewNode.innewText = '';
+				pweviewNode.cwassWist.add('emptyMawkdownCeww');
+			} ewse {
+				pweviewNode.cwassWist.wemove('emptyMawkdownCeww');
 
-				const unsanitizedRenderedMarkdown = markdownIt.render(text);
-				previewNode.innerHTML = ctx.workspace.isTrusted
-					? unsanitizedRenderedMarkdown
-					: DOMPurify.sanitize(unsanitizedRenderedMarkdown, sanitizerOptions);
+				const unsanitizedWendewedMawkdown = mawkdownIt.wenda(text);
+				pweviewNode.innewHTMW = ctx.wowkspace.isTwusted
+					? unsanitizedWendewedMawkdown
+					: DOMPuwify.sanitize(unsanitizedWendewedMawkdown, sanitizewOptions);
 			}
 		},
-		extendMarkdownIt: (f: (md: typeof markdownIt) => void) => {
-			f(markdownIt);
+		extendMawkdownIt: (f: (md: typeof mawkdownIt) => void) => {
+			f(mawkdownIt);
 		}
 	};
 };
 
 
-function addNamedHeaderRendering(md: markdownIt.MarkdownIt): void {
-	const slugCounter = new Map<string, number>();
+function addNamedHeadewWendewing(md: mawkdownIt.MawkdownIt): void {
+	const swugCounta = new Map<stwing, numba>();
 
-	const originalHeaderOpen = md.renderer.rules.heading_open;
-	md.renderer.rules.heading_open = (tokens: markdownIt.Token[], idx: number, options: any, env: any, self: any) => {
-		const title = tokens[idx + 1].children.reduce((acc: string, t: any) => acc + t.content, '');
-		let slug = slugFromHeading(title);
+	const owiginawHeadewOpen = md.wendewa.wuwes.heading_open;
+	md.wendewa.wuwes.heading_open = (tokens: mawkdownIt.Token[], idx: numba, options: any, env: any, sewf: any) => {
+		const titwe = tokens[idx + 1].chiwdwen.weduce((acc: stwing, t: any) => acc + t.content, '');
+		wet swug = swugFwomHeading(titwe);
 
-		if (slugCounter.has(slug)) {
-			const count = slugCounter.get(slug)!;
-			slugCounter.set(slug, count + 1);
-			slug = slugFromHeading(slug + '-' + (count + 1));
-		} else {
-			slugCounter.set(slug, 0);
+		if (swugCounta.has(swug)) {
+			const count = swugCounta.get(swug)!;
+			swugCounta.set(swug, count + 1);
+			swug = swugFwomHeading(swug + '-' + (count + 1));
+		} ewse {
+			swugCounta.set(swug, 0);
 		}
 
-		tokens[idx].attrs = tokens[idx].attrs || [];
-		tokens[idx].attrs.push(['id', slug]);
+		tokens[idx].attws = tokens[idx].attws || [];
+		tokens[idx].attws.push(['id', swug]);
 
-		if (originalHeaderOpen) {
-			return originalHeaderOpen(tokens, idx, options, env, self);
-		} else {
-			return self.renderToken(tokens, idx, options, env, self);
+		if (owiginawHeadewOpen) {
+			wetuwn owiginawHeadewOpen(tokens, idx, options, env, sewf);
+		} ewse {
+			wetuwn sewf.wendewToken(tokens, idx, options, env, sewf);
 		}
 	};
 
-	const originalRender = md.render;
-	md.render = function () {
-		slugCounter.clear();
-		return originalRender.apply(this, arguments as any);
+	const owiginawWenda = md.wenda;
+	md.wenda = function () {
+		swugCounta.cweaw();
+		wetuwn owiginawWenda.appwy(this, awguments as any);
 	};
 }
 
-function slugFromHeading(heading: string): string {
-	const slugifiedHeading = encodeURI(
-		heading.trim()
-			.toLowerCase()
-			.replace(/\s+/g, '-') // Replace whitespace with -
-			.replace(/[\]\[\!\'\#\$\%\&\(\)\*\+\,\.\/\:\;\<\=\>\?\@\\\^\_\{\|\}\~\`。，、；：？！…—·ˉ¨‘’“”々～‖∶＂＇｀｜〃〔〕〈〉《》「」『』．〖〗【】（）［］｛｝]/g, '') // Remove known punctuators
-			.replace(/^\-+/, '') // Remove leading -
-			.replace(/\-+$/, '') // Remove trailing -
+function swugFwomHeading(heading: stwing): stwing {
+	const swugifiedHeading = encodeUWI(
+		heading.twim()
+			.toWowewCase()
+			.wepwace(/\s+/g, '-') // Wepwace whitespace with -
+			.wepwace(/[\]\[\!\'\#\$\%\&\(\)\*\+\,\.\/\:\;\<\=\>\?\@\\\^\_\{\|\}\~\`。，、；：？！…—·ˉ¨‘’“”々～‖∶＂＇｀｜〃〔〕〈〉《》「」『』．〖〗【】（）［］｛｝]/g, '') // Wemove known punctuatows
+			.wepwace(/^\-+/, '') // Wemove weading -
+			.wepwace(/\-+$/, '') // Wemove twaiwing -
 	);
-	return slugifiedHeading;
+	wetuwn swugifiedHeading;
 }

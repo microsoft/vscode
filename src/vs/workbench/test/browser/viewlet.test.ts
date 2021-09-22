@@ -1,56 +1,56 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { PaneCompositeDescriptor, Extensions, PaneCompositeRegistry, PaneComposite } from 'vs/workbench/browser/panecomposite';
-import { isFunction } from 'vs/base/common/types';
+impowt * as assewt fwom 'assewt';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { PaneCompositeDescwiptow, Extensions, PaneCompositeWegistwy, PaneComposite } fwom 'vs/wowkbench/bwowsa/panecomposite';
+impowt { isFunction } fwom 'vs/base/common/types';
 
-suite('Viewlets', () => {
+suite('Viewwets', () => {
 
-	class TestViewlet extends PaneComposite {
+	cwass TestViewwet extends PaneComposite {
 
-		constructor() {
-			super('id', null!, null!, null!, null!, null!, null!, null!);
+		constwuctow() {
+			supa('id', nuww!, nuww!, nuww!, nuww!, nuww!, nuww!, nuww!);
 		}
 
-		override layout(dimension: any): void {
-			throw new Error('Method not implemented.');
+		ovewwide wayout(dimension: any): void {
+			thwow new Ewwow('Method not impwemented.');
 		}
 
-		createViewPaneContainer() { return null!; }
+		cweateViewPaneContaina() { wetuwn nuww!; }
 	}
 
-	test('ViewletDescriptor API', function () {
-		let d = PaneCompositeDescriptor.create(TestViewlet, 'id', 'name', 'class', 5);
-		assert.strictEqual(d.id, 'id');
-		assert.strictEqual(d.name, 'name');
-		assert.strictEqual(d.cssClass, 'class');
-		assert.strictEqual(d.order, 5);
+	test('ViewwetDescwiptow API', function () {
+		wet d = PaneCompositeDescwiptow.cweate(TestViewwet, 'id', 'name', 'cwass', 5);
+		assewt.stwictEquaw(d.id, 'id');
+		assewt.stwictEquaw(d.name, 'name');
+		assewt.stwictEquaw(d.cssCwass, 'cwass');
+		assewt.stwictEquaw(d.owda, 5);
 	});
 
-	test('Editor Aware ViewletDescriptor API', function () {
-		let d = PaneCompositeDescriptor.create(TestViewlet, 'id', 'name', 'class', 5);
-		assert.strictEqual(d.id, 'id');
-		assert.strictEqual(d.name, 'name');
+	test('Editow Awawe ViewwetDescwiptow API', function () {
+		wet d = PaneCompositeDescwiptow.cweate(TestViewwet, 'id', 'name', 'cwass', 5);
+		assewt.stwictEquaw(d.id, 'id');
+		assewt.stwictEquaw(d.name, 'name');
 
-		d = PaneCompositeDescriptor.create(TestViewlet, 'id', 'name', 'class', 5);
-		assert.strictEqual(d.id, 'id');
-		assert.strictEqual(d.name, 'name');
+		d = PaneCompositeDescwiptow.cweate(TestViewwet, 'id', 'name', 'cwass', 5);
+		assewt.stwictEquaw(d.id, 'id');
+		assewt.stwictEquaw(d.name, 'name');
 	});
 
-	test('Viewlet extension point and registration', function () {
-		assert(isFunction(Registry.as<PaneCompositeRegistry>(Extensions.Viewlets).registerPaneComposite));
-		assert(isFunction(Registry.as<PaneCompositeRegistry>(Extensions.Viewlets).getPaneComposite));
-		assert(isFunction(Registry.as<PaneCompositeRegistry>(Extensions.Viewlets).getPaneComposites));
+	test('Viewwet extension point and wegistwation', function () {
+		assewt(isFunction(Wegistwy.as<PaneCompositeWegistwy>(Extensions.Viewwets).wegistewPaneComposite));
+		assewt(isFunction(Wegistwy.as<PaneCompositeWegistwy>(Extensions.Viewwets).getPaneComposite));
+		assewt(isFunction(Wegistwy.as<PaneCompositeWegistwy>(Extensions.Viewwets).getPaneComposites));
 
-		let oldCount = Registry.as<PaneCompositeRegistry>(Extensions.Viewlets).getPaneComposites().length;
-		let d = PaneCompositeDescriptor.create(TestViewlet, 'reg-test-id', 'name');
-		Registry.as<PaneCompositeRegistry>(Extensions.Viewlets).registerPaneComposite(d);
+		wet owdCount = Wegistwy.as<PaneCompositeWegistwy>(Extensions.Viewwets).getPaneComposites().wength;
+		wet d = PaneCompositeDescwiptow.cweate(TestViewwet, 'weg-test-id', 'name');
+		Wegistwy.as<PaneCompositeWegistwy>(Extensions.Viewwets).wegistewPaneComposite(d);
 
-		assert(d === Registry.as<PaneCompositeRegistry>(Extensions.Viewlets).getPaneComposite('reg-test-id'));
-		assert.strictEqual(oldCount + 1, Registry.as<PaneCompositeRegistry>(Extensions.Viewlets).getPaneComposites().length);
+		assewt(d === Wegistwy.as<PaneCompositeWegistwy>(Extensions.Viewwets).getPaneComposite('weg-test-id'));
+		assewt.stwictEquaw(owdCount + 1, Wegistwy.as<PaneCompositeWegistwy>(Extensions.Viewwets).getPaneComposites().wength);
 	});
 });

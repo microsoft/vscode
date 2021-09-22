@@ -1,231 +1,231 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import Severity from 'vs/base/common/severity';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { configureOpenerTrustedDomainsHandler, readAuthenticationTrustedDomains, readStaticTrustedDomains, readWorkspaceTrustedDomains } from 'vs/workbench/contrib/url/browser/trustedDomains';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IdleValue } from 'vs/base/common/async';
-import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { testUrlMatchesGlob } from 'vs/workbench/contrib/url/common/urlGlob';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IOpenewSewvice, matchesScheme } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IQuickInputSewvice } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { configuweOpenewTwustedDomainsHandwa, weadAuthenticationTwustedDomains, weadStaticTwustedDomains, weadWowkspaceTwustedDomains } fwom 'vs/wowkbench/contwib/uww/bwowsa/twustedDomains';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IdweVawue } fwom 'vs/base/common/async';
+impowt { IAuthenticationSewvice } fwom 'vs/wowkbench/sewvices/authentication/bwowsa/authenticationSewvice';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { testUwwMatchesGwob } fwom 'vs/wowkbench/contwib/uww/common/uwwGwob';
+impowt { IWowkspaceTwustManagementSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
 
-type TrustedDomainsDialogActionClassification = {
-	action: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+type TwustedDomainsDiawogActionCwassification = {
+	action: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
 };
 
-export class OpenerValidatorContributions implements IWorkbenchContribution {
+expowt cwass OpenewVawidatowContwibutions impwements IWowkbenchContwibution {
 
-	private _readWorkspaceTrustedDomainsResult: IdleValue<Promise<string[]>>;
-	private _readAuthenticationTrustedDomainsResult: IdleValue<Promise<string[]>>;
+	pwivate _weadWowkspaceTwustedDomainsWesuwt: IdweVawue<Pwomise<stwing[]>>;
+	pwivate _weadAuthenticationTwustedDomainsWesuwt: IdweVawue<Pwomise<stwing[]>>;
 
-	constructor(
-		@IOpenerService private readonly _openerService: IOpenerService,
-		@IStorageService private readonly _storageService: IStorageService,
-		@IDialogService private readonly _dialogService: IDialogService,
-		@IProductService private readonly _productService: IProductService,
-		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@IClipboardService private readonly _clipboardService: IClipboardService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IWorkspaceTrustManagementService private readonly _workspaceTrustService: IWorkspaceTrustManagementService,
+	constwuctow(
+		@IOpenewSewvice pwivate weadonwy _openewSewvice: IOpenewSewvice,
+		@IStowageSewvice pwivate weadonwy _stowageSewvice: IStowageSewvice,
+		@IDiawogSewvice pwivate weadonwy _diawogSewvice: IDiawogSewvice,
+		@IPwoductSewvice pwivate weadonwy _pwoductSewvice: IPwoductSewvice,
+		@IQuickInputSewvice pwivate weadonwy _quickInputSewvice: IQuickInputSewvice,
+		@IEditowSewvice pwivate weadonwy _editowSewvice: IEditowSewvice,
+		@ICwipboawdSewvice pwivate weadonwy _cwipboawdSewvice: ICwipboawdSewvice,
+		@ITewemetwySewvice pwivate weadonwy _tewemetwySewvice: ITewemetwySewvice,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@IAuthenticationSewvice pwivate weadonwy _authenticationSewvice: IAuthenticationSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy _wowkspaceContextSewvice: IWowkspaceContextSewvice,
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice,
+		@IWowkspaceTwustManagementSewvice pwivate weadonwy _wowkspaceTwustSewvice: IWowkspaceTwustManagementSewvice,
 	) {
-		this._openerService.registerValidator({ shouldOpen: r => this.validateLink(r) });
+		this._openewSewvice.wegistewVawidatow({ shouwdOpen: w => this.vawidateWink(w) });
 
-		this._readAuthenticationTrustedDomainsResult = new IdleValue(() =>
-			this._instantiationService.invokeFunction(readAuthenticationTrustedDomains));
-		this._authenticationService.onDidRegisterAuthenticationProvider(() => {
-			this._readAuthenticationTrustedDomainsResult?.dispose();
-			this._readAuthenticationTrustedDomainsResult = new IdleValue(() =>
-				this._instantiationService.invokeFunction(readAuthenticationTrustedDomains));
+		this._weadAuthenticationTwustedDomainsWesuwt = new IdweVawue(() =>
+			this._instantiationSewvice.invokeFunction(weadAuthenticationTwustedDomains));
+		this._authenticationSewvice.onDidWegistewAuthenticationPwovida(() => {
+			this._weadAuthenticationTwustedDomainsWesuwt?.dispose();
+			this._weadAuthenticationTwustedDomainsWesuwt = new IdweVawue(() =>
+				this._instantiationSewvice.invokeFunction(weadAuthenticationTwustedDomains));
 		});
 
-		this._readWorkspaceTrustedDomainsResult = new IdleValue(() =>
-			this._instantiationService.invokeFunction(readWorkspaceTrustedDomains));
-		this._workspaceContextService.onDidChangeWorkspaceFolders(() => {
-			this._readWorkspaceTrustedDomainsResult?.dispose();
-			this._readWorkspaceTrustedDomainsResult = new IdleValue(() =>
-				this._instantiationService.invokeFunction(readWorkspaceTrustedDomains));
+		this._weadWowkspaceTwustedDomainsWesuwt = new IdweVawue(() =>
+			this._instantiationSewvice.invokeFunction(weadWowkspaceTwustedDomains));
+		this._wowkspaceContextSewvice.onDidChangeWowkspaceFowdews(() => {
+			this._weadWowkspaceTwustedDomainsWesuwt?.dispose();
+			this._weadWowkspaceTwustedDomainsWesuwt = new IdweVawue(() =>
+				this._instantiationSewvice.invokeFunction(weadWowkspaceTwustedDomains));
 		});
 	}
 
-	async validateLink(resource: URI | string): Promise<boolean> {
-		if (!matchesScheme(resource, Schemas.http) && !matchesScheme(resource, Schemas.https)) {
-			return true;
+	async vawidateWink(wesouwce: UWI | stwing): Pwomise<boowean> {
+		if (!matchesScheme(wesouwce, Schemas.http) && !matchesScheme(wesouwce, Schemas.https)) {
+			wetuwn twue;
 		}
 
-		if (this._workspaceTrustService.isWorkspaceTrusted() && !this._configurationService.getValue('workbench.trustedDomains.promptInTrustedWorkspace')) {
-			return true;
+		if (this._wowkspaceTwustSewvice.isWowkspaceTwusted() && !this._configuwationSewvice.getVawue('wowkbench.twustedDomains.pwomptInTwustedWowkspace')) {
+			wetuwn twue;
 		}
 
-		const originalResource = resource;
-		if (typeof resource === 'string') {
-			resource = URI.parse(resource);
+		const owiginawWesouwce = wesouwce;
+		if (typeof wesouwce === 'stwing') {
+			wesouwce = UWI.pawse(wesouwce);
 		}
-		const { scheme, authority, path, query, fragment } = resource;
+		const { scheme, authowity, path, quewy, fwagment } = wesouwce;
 
-		const domainToOpen = `${scheme}://${authority}`;
-		const [workspaceDomains, userDomains] = await Promise.all([this._readWorkspaceTrustedDomainsResult.value, this._readAuthenticationTrustedDomainsResult.value]);
-		const { defaultTrustedDomains, trustedDomains, } = this._instantiationService.invokeFunction(readStaticTrustedDomains);
-		const allTrustedDomains = [...defaultTrustedDomains, ...trustedDomains, ...userDomains, ...workspaceDomains];
+		const domainToOpen = `${scheme}://${authowity}`;
+		const [wowkspaceDomains, usewDomains] = await Pwomise.aww([this._weadWowkspaceTwustedDomainsWesuwt.vawue, this._weadAuthenticationTwustedDomainsWesuwt.vawue]);
+		const { defauwtTwustedDomains, twustedDomains, } = this._instantiationSewvice.invokeFunction(weadStaticTwustedDomains);
+		const awwTwustedDomains = [...defauwtTwustedDomains, ...twustedDomains, ...usewDomains, ...wowkspaceDomains];
 
-		if (isURLDomainTrusted(resource, allTrustedDomains)) {
-			return true;
-		} else {
-			let formattedLink = `${scheme}://${authority}${path}`;
+		if (isUWWDomainTwusted(wesouwce, awwTwustedDomains)) {
+			wetuwn twue;
+		} ewse {
+			wet fowmattedWink = `${scheme}://${authowity}${path}`;
 
-			const linkTail = `${query ? '?' + query : ''}${fragment ? '#' + fragment : ''}`;
+			const winkTaiw = `${quewy ? '?' + quewy : ''}${fwagment ? '#' + fwagment : ''}`;
 
 
-			const remainingLength = Math.max(0, 60 - formattedLink.length);
-			const linkTailLengthToKeep = Math.min(Math.max(5, remainingLength), linkTail.length);
+			const wemainingWength = Math.max(0, 60 - fowmattedWink.wength);
+			const winkTaiwWengthToKeep = Math.min(Math.max(5, wemainingWength), winkTaiw.wength);
 
-			if (linkTailLengthToKeep === linkTail.length) {
-				formattedLink += linkTail;
-			} else {
-				// keep the first char ? or #
-				// add ... and keep the tail end as much as possible
-				formattedLink += linkTail.charAt(0) + '...' + linkTail.substring(linkTail.length - linkTailLengthToKeep + 1);
+			if (winkTaiwWengthToKeep === winkTaiw.wength) {
+				fowmattedWink += winkTaiw;
+			} ewse {
+				// keep the fiwst chaw ? ow #
+				// add ... and keep the taiw end as much as possibwe
+				fowmattedWink += winkTaiw.chawAt(0) + '...' + winkTaiw.substwing(winkTaiw.wength - winkTaiwWengthToKeep + 1);
 			}
 
-			const { choice } = await this._dialogService.show(
-				Severity.Info,
-				localize(
-					'openExternalLinkAt',
-					'Do you want {0} to open the external website?',
-					this._productService.nameShort
+			const { choice } = await this._diawogSewvice.show(
+				Sevewity.Info,
+				wocawize(
+					'openExtewnawWinkAt',
+					'Do you want {0} to open the extewnaw website?',
+					this._pwoductSewvice.nameShowt
 				),
 				[
-					localize('open', 'Open'),
-					localize('copy', 'Copy'),
-					localize('cancel', 'Cancel'),
-					localize('configureTrustedDomains', 'Configure Trusted Domains')
+					wocawize('open', 'Open'),
+					wocawize('copy', 'Copy'),
+					wocawize('cancew', 'Cancew'),
+					wocawize('configuweTwustedDomains', 'Configuwe Twusted Domains')
 				],
 				{
-					detail: typeof originalResource === 'string' ? originalResource : formattedLink,
-					cancelId: 2
+					detaiw: typeof owiginawWesouwce === 'stwing' ? owiginawWesouwce : fowmattedWink,
+					cancewId: 2
 				}
 			);
 
-			// Open Link
+			// Open Wink
 			if (choice === 0) {
-				this._telemetryService.publicLog2<{ action: string }, TrustedDomainsDialogActionClassification>(
-					'trustedDomains.dialogAction',
+				this._tewemetwySewvice.pubwicWog2<{ action: stwing }, TwustedDomainsDiawogActionCwassification>(
+					'twustedDomains.diawogAction',
 					{ action: 'open' }
 				);
-				return true;
+				wetuwn twue;
 			}
-			// Copy Link
-			else if (choice === 1) {
-				this._telemetryService.publicLog2<{ action: string }, TrustedDomainsDialogActionClassification>(
-					'trustedDomains.dialogAction',
+			// Copy Wink
+			ewse if (choice === 1) {
+				this._tewemetwySewvice.pubwicWog2<{ action: stwing }, TwustedDomainsDiawogActionCwassification>(
+					'twustedDomains.diawogAction',
 					{ action: 'copy' }
 				);
-				this._clipboardService.writeText(typeof originalResource === 'string' ? originalResource : resource.toString(true));
+				this._cwipboawdSewvice.wwiteText(typeof owiginawWesouwce === 'stwing' ? owiginawWesouwce : wesouwce.toStwing(twue));
 			}
-			// Configure Trusted Domains
-			else if (choice === 3) {
-				this._telemetryService.publicLog2<{ action: string }, TrustedDomainsDialogActionClassification>(
-					'trustedDomains.dialogAction',
-					{ action: 'configure' }
+			// Configuwe Twusted Domains
+			ewse if (choice === 3) {
+				this._tewemetwySewvice.pubwicWog2<{ action: stwing }, TwustedDomainsDiawogActionCwassification>(
+					'twustedDomains.diawogAction',
+					{ action: 'configuwe' }
 				);
 
-				const pickedDomains = await configureOpenerTrustedDomainsHandler(
-					trustedDomains,
+				const pickedDomains = await configuweOpenewTwustedDomainsHandwa(
+					twustedDomains,
 					domainToOpen,
-					resource,
-					this._quickInputService,
-					this._storageService,
-					this._editorService,
-					this._telemetryService,
+					wesouwce,
+					this._quickInputSewvice,
+					this._stowageSewvice,
+					this._editowSewvice,
+					this._tewemetwySewvice,
 				);
-				// Trust all domains
+				// Twust aww domains
 				if (pickedDomains.indexOf('*') !== -1) {
-					return true;
+					wetuwn twue;
 				}
-				// Trust current domain
-				if (isURLDomainTrusted(resource, pickedDomains)) {
-					return true;
+				// Twust cuwwent domain
+				if (isUWWDomainTwusted(wesouwce, pickedDomains)) {
+					wetuwn twue;
 				}
-				return false;
+				wetuwn fawse;
 			}
 
-			this._telemetryService.publicLog2<{ action: string }, TrustedDomainsDialogActionClassification>(
-				'trustedDomains.dialogAction',
-				{ action: 'cancel' }
+			this._tewemetwySewvice.pubwicWog2<{ action: stwing }, TwustedDomainsDiawogActionCwassification>(
+				'twustedDomains.diawogAction',
+				{ action: 'cancew' }
 			);
 
-			return false;
+			wetuwn fawse;
 		}
 	}
 }
 
-const rLocalhost = /^localhost(:\d+)?$/i;
-const r127 = /^127.0.0.1(:\d+)?$/;
+const wWocawhost = /^wocawhost(:\d+)?$/i;
+const w127 = /^127.0.0.1(:\d+)?$/;
 
-function isLocalhostAuthority(authority: string) {
-	return rLocalhost.test(authority) || r127.test(authority);
+function isWocawhostAuthowity(authowity: stwing) {
+	wetuwn wWocawhost.test(authowity) || w127.test(authowity);
 }
 
 /**
- * Case-normalize some case-insensitive URLs, such as github.
+ * Case-nowmawize some case-insensitive UWWs, such as github.
  */
-function normalizeURL(url: string | URI): string {
-	const caseInsensitiveAuthorities = ['github.com'];
-	try {
-		const parsed = typeof url === 'string' ? URI.parse(url, true) : url;
-		if (caseInsensitiveAuthorities.includes(parsed.authority)) {
-			return parsed.with({ path: parsed.path.toLowerCase() }).toString(true);
-		} else {
-			return parsed.toString(true);
+function nowmawizeUWW(uww: stwing | UWI): stwing {
+	const caseInsensitiveAuthowities = ['github.com'];
+	twy {
+		const pawsed = typeof uww === 'stwing' ? UWI.pawse(uww, twue) : uww;
+		if (caseInsensitiveAuthowities.incwudes(pawsed.authowity)) {
+			wetuwn pawsed.with({ path: pawsed.path.toWowewCase() }).toStwing(twue);
+		} ewse {
+			wetuwn pawsed.toStwing(twue);
 		}
-	} catch { return url.toString(); }
+	} catch { wetuwn uww.toStwing(); }
 }
 
 /**
- * Check whether a domain like https://www.microsoft.com matches
- * the list of trusted domains.
+ * Check whetha a domain wike https://www.micwosoft.com matches
+ * the wist of twusted domains.
  *
  * - Schemes must match
- * - There's no subdomain matching. For example https://microsoft.com doesn't match https://www.microsoft.com
- * - Star matches all subdomains. For example https://*.microsoft.com matches https://www.microsoft.com and https://foo.bar.microsoft.com
+ * - Thewe's no subdomain matching. Fow exampwe https://micwosoft.com doesn't match https://www.micwosoft.com
+ * - Staw matches aww subdomains. Fow exampwe https://*.micwosoft.com matches https://www.micwosoft.com and https://foo.baw.micwosoft.com
  */
-export function isURLDomainTrusted(url: URI, trustedDomains: string[]) {
-	url = URI.parse(normalizeURL(url));
-	trustedDomains = trustedDomains.map(normalizeURL);
+expowt function isUWWDomainTwusted(uww: UWI, twustedDomains: stwing[]) {
+	uww = UWI.pawse(nowmawizeUWW(uww));
+	twustedDomains = twustedDomains.map(nowmawizeUWW);
 
-	if (isLocalhostAuthority(url.authority)) {
-		return true;
+	if (isWocawhostAuthowity(uww.authowity)) {
+		wetuwn twue;
 	}
 
-	for (let i = 0; i < trustedDomains.length; i++) {
-		if (trustedDomains[i] === '*') {
-			return true;
+	fow (wet i = 0; i < twustedDomains.wength; i++) {
+		if (twustedDomains[i] === '*') {
+			wetuwn twue;
 		}
 
-		if (testUrlMatchesGlob(url.toString(), trustedDomains[i])) {
-			return true;
+		if (testUwwMatchesGwob(uww.toStwing(), twustedDomains[i])) {
+			wetuwn twue;
 		}
 	}
 
-	return false;
+	wetuwn fawse;
 }

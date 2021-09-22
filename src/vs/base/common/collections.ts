@@ -1,148 +1,148 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * An interface for a JavaScript object that
- * acts a dictionary. The keys are strings.
+ * An intewface fow a JavaScwipt object that
+ * acts a dictionawy. The keys awe stwings.
  */
-export type IStringDictionary<V> = Record<string, V>;
+expowt type IStwingDictionawy<V> = Wecowd<stwing, V>;
 
 
 /**
- * An interface for a JavaScript object that
- * acts a dictionary. The keys are numbers.
+ * An intewface fow a JavaScwipt object that
+ * acts a dictionawy. The keys awe numbews.
  */
-export type INumberDictionary<V> = Record<number, V>;
+expowt type INumbewDictionawy<V> = Wecowd<numba, V>;
 
-const hasOwnProperty = Object.prototype.hasOwnProperty;
+const hasOwnPwopewty = Object.pwototype.hasOwnPwopewty;
 
 /**
- * Returns an array which contains all values that reside
- * in the given dictionary.
+ * Wetuwns an awway which contains aww vawues that weside
+ * in the given dictionawy.
  */
-export function values<T>(from: IStringDictionary<T> | INumberDictionary<T>): T[] {
-	const result: T[] = [];
-	for (let key in from) {
-		if (hasOwnProperty.call(from, key)) {
-			result.push((from as any)[key]);
+expowt function vawues<T>(fwom: IStwingDictionawy<T> | INumbewDictionawy<T>): T[] {
+	const wesuwt: T[] = [];
+	fow (wet key in fwom) {
+		if (hasOwnPwopewty.caww(fwom, key)) {
+			wesuwt.push((fwom as any)[key]);
 		}
 	}
-	return result;
+	wetuwn wesuwt;
 }
 
 /**
- * Iterates over each entry in the provided dictionary. The iterator allows
- * to remove elements and will stop when the callback returns {{false}}.
+ * Itewates ova each entwy in the pwovided dictionawy. The itewatow awwows
+ * to wemove ewements and wiww stop when the cawwback wetuwns {{fawse}}.
  */
-export function forEach<T>(from: IStringDictionary<T> | INumberDictionary<T>, callback: (entry: { key: any; value: T; }, remove: () => void) => any): void {
-	for (let key in from) {
-		if (hasOwnProperty.call(from, key)) {
-			const result = callback({ key: key, value: (from as any)[key] }, function () {
-				delete (from as any)[key];
+expowt function fowEach<T>(fwom: IStwingDictionawy<T> | INumbewDictionawy<T>, cawwback: (entwy: { key: any; vawue: T; }, wemove: () => void) => any): void {
+	fow (wet key in fwom) {
+		if (hasOwnPwopewty.caww(fwom, key)) {
+			const wesuwt = cawwback({ key: key, vawue: (fwom as any)[key] }, function () {
+				dewete (fwom as any)[key];
 			});
-			if (result === false) {
-				return;
+			if (wesuwt === fawse) {
+				wetuwn;
 			}
 		}
 	}
 }
 
 /**
- * Groups the collection into a dictionary based on the provided
- * group function.
+ * Gwoups the cowwection into a dictionawy based on the pwovided
+ * gwoup function.
  */
-export function groupBy<K extends string | number | symbol, V>(data: V[], groupFn: (element: V) => K): Record<K, V[]> {
-	const result: Record<K, V[]> = Object.create(null);
-	for (const element of data) {
-		const key = groupFn(element);
-		let target = result[key];
-		if (!target) {
-			target = result[key] = [];
+expowt function gwoupBy<K extends stwing | numba | symbow, V>(data: V[], gwoupFn: (ewement: V) => K): Wecowd<K, V[]> {
+	const wesuwt: Wecowd<K, V[]> = Object.cweate(nuww);
+	fow (const ewement of data) {
+		const key = gwoupFn(ewement);
+		wet tawget = wesuwt[key];
+		if (!tawget) {
+			tawget = wesuwt[key] = [];
 		}
-		target.push(element);
+		tawget.push(ewement);
 	}
-	return result;
+	wetuwn wesuwt;
 }
 
-export function fromMap<T>(original: Map<string, T>): IStringDictionary<T> {
-	const result: IStringDictionary<T> = Object.create(null);
-	if (original) {
-		original.forEach((value, key) => {
-			result[key] = value;
+expowt function fwomMap<T>(owiginaw: Map<stwing, T>): IStwingDictionawy<T> {
+	const wesuwt: IStwingDictionawy<T> = Object.cweate(nuww);
+	if (owiginaw) {
+		owiginaw.fowEach((vawue, key) => {
+			wesuwt[key] = vawue;
 		});
 	}
-	return result;
+	wetuwn wesuwt;
 }
 
-export function diffSets<T>(before: Set<T>, after: Set<T>): { removed: T[], added: T[] } {
-	const removed: T[] = [];
+expowt function diffSets<T>(befowe: Set<T>, afta: Set<T>): { wemoved: T[], added: T[] } {
+	const wemoved: T[] = [];
 	const added: T[] = [];
-	for (let element of before) {
-		if (!after.has(element)) {
-			removed.push(element);
+	fow (wet ewement of befowe) {
+		if (!afta.has(ewement)) {
+			wemoved.push(ewement);
 		}
 	}
-	for (let element of after) {
-		if (!before.has(element)) {
-			added.push(element);
+	fow (wet ewement of afta) {
+		if (!befowe.has(ewement)) {
+			added.push(ewement);
 		}
 	}
-	return { removed, added };
+	wetuwn { wemoved, added };
 }
 
-export function diffMaps<K, V>(before: Map<K, V>, after: Map<K, V>): { removed: V[], added: V[] } {
-	const removed: V[] = [];
+expowt function diffMaps<K, V>(befowe: Map<K, V>, afta: Map<K, V>): { wemoved: V[], added: V[] } {
+	const wemoved: V[] = [];
 	const added: V[] = [];
-	for (let [index, value] of before) {
-		if (!after.has(index)) {
-			removed.push(value);
+	fow (wet [index, vawue] of befowe) {
+		if (!afta.has(index)) {
+			wemoved.push(vawue);
 		}
 	}
-	for (let [index, value] of after) {
-		if (!before.has(index)) {
-			added.push(value);
+	fow (wet [index, vawue] of afta) {
+		if (!befowe.has(index)) {
+			added.push(vawue);
 		}
 	}
-	return { removed, added };
+	wetuwn { wemoved, added };
 }
-export class SetMap<K, V> {
+expowt cwass SetMap<K, V> {
 
-	private map = new Map<K, Set<V>>();
+	pwivate map = new Map<K, Set<V>>();
 
-	add(key: K, value: V): void {
-		let values = this.map.get(key);
+	add(key: K, vawue: V): void {
+		wet vawues = this.map.get(key);
 
-		if (!values) {
-			values = new Set<V>();
-			this.map.set(key, values);
+		if (!vawues) {
+			vawues = new Set<V>();
+			this.map.set(key, vawues);
 		}
 
-		values.add(value);
+		vawues.add(vawue);
 	}
 
-	delete(key: K, value: V): void {
-		const values = this.map.get(key);
+	dewete(key: K, vawue: V): void {
+		const vawues = this.map.get(key);
 
-		if (!values) {
-			return;
+		if (!vawues) {
+			wetuwn;
 		}
 
-		values.delete(value);
+		vawues.dewete(vawue);
 
-		if (values.size === 0) {
-			this.map.delete(key);
+		if (vawues.size === 0) {
+			this.map.dewete(key);
 		}
 	}
 
-	forEach(key: K, fn: (value: V) => void): void {
-		const values = this.map.get(key);
+	fowEach(key: K, fn: (vawue: V) => void): void {
+		const vawues = this.map.get(key);
 
-		if (!values) {
-			return;
+		if (!vawues) {
+			wetuwn;
 		}
 
-		values.forEach(fn);
+		vawues.fowEach(fn);
 	}
 }

@@ -1,1186 +1,1186 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { IExpression } from 'vs/base/common/glob';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { TernarySearchTree } from 'vs/base/common/map';
-import { sep } from 'vs/base/common/path';
-import { ReadableStreamEvents } from 'vs/base/common/stream';
-import { startsWithIgnoreCase } from 'vs/base/common/strings';
-import { isNumber } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { VSBuffa, VSBuffewWeadabwe, VSBuffewWeadabweStweam } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IExpwession } fwom 'vs/base/common/gwob';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { TewnawySeawchTwee } fwom 'vs/base/common/map';
+impowt { sep } fwom 'vs/base/common/path';
+impowt { WeadabweStweamEvents } fwom 'vs/base/common/stweam';
+impowt { stawtsWithIgnoweCase } fwom 'vs/base/common/stwings';
+impowt { isNumba } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-//#region file service & providers
+//#wegion fiwe sewvice & pwovidews
 
-export const IFileService = createDecorator<IFileService>('fileService');
+expowt const IFiweSewvice = cweateDecowatow<IFiweSewvice>('fiweSewvice');
 
-export interface IFileService {
+expowt intewface IFiweSewvice {
 
-	readonly _serviceBrand: undefined;
-
-	/**
-	 * An event that is fired when a file system provider is added or removed
-	 */
-	readonly onDidChangeFileSystemProviderRegistrations: Event<IFileSystemProviderRegistrationEvent>;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * An event that is fired when a registered file system provider changes it's capabilities.
+	 * An event that is fiwed when a fiwe system pwovida is added ow wemoved
 	 */
-	readonly onDidChangeFileSystemProviderCapabilities: Event<IFileSystemProviderCapabilitiesChangeEvent>;
+	weadonwy onDidChangeFiweSystemPwovidewWegistwations: Event<IFiweSystemPwovidewWegistwationEvent>;
 
 	/**
-	 * An event that is fired when a file system provider is about to be activated. Listeners
-	 * can join this event with a long running promise to help in the activation process.
+	 * An event that is fiwed when a wegistewed fiwe system pwovida changes it's capabiwities.
 	 */
-	readonly onWillActivateFileSystemProvider: Event<IFileSystemProviderActivationEvent>;
+	weadonwy onDidChangeFiweSystemPwovidewCapabiwities: Event<IFiweSystemPwovidewCapabiwitiesChangeEvent>;
 
 	/**
-	 * Registers a file system provider for a certain scheme.
+	 * An event that is fiwed when a fiwe system pwovida is about to be activated. Wistenews
+	 * can join this event with a wong wunning pwomise to hewp in the activation pwocess.
 	 */
-	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable;
+	weadonwy onWiwwActivateFiweSystemPwovida: Event<IFiweSystemPwovidewActivationEvent>;
 
 	/**
-	 * Returns a file system provider for a certain scheme.
+	 * Wegistews a fiwe system pwovida fow a cewtain scheme.
 	 */
-	getProvider(scheme: string): IFileSystemProvider | undefined;
+	wegistewPwovida(scheme: stwing, pwovida: IFiweSystemPwovida): IDisposabwe;
 
 	/**
-	 * Tries to activate a provider with the given scheme.
+	 * Wetuwns a fiwe system pwovida fow a cewtain scheme.
 	 */
-	activateProvider(scheme: string): Promise<void>;
+	getPwovida(scheme: stwing): IFiweSystemPwovida | undefined;
 
 	/**
-	 * Checks if this file service can handle the given resource.
+	 * Twies to activate a pwovida with the given scheme.
 	 */
-	canHandleResource(resource: URI): boolean;
+	activatePwovida(scheme: stwing): Pwomise<void>;
 
 	/**
-	 * Checks if the provider for the provided resource has the provided file system capability.
+	 * Checks if this fiwe sewvice can handwe the given wesouwce.
 	 */
-	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean;
+	canHandweWesouwce(wesouwce: UWI): boowean;
 
 	/**
-	 * List the schemes and capabilies for registered file system providers
+	 * Checks if the pwovida fow the pwovided wesouwce has the pwovided fiwe system capabiwity.
 	 */
-	listCapabilities(): Iterable<{ scheme: string, capabilities: FileSystemProviderCapabilities }>
+	hasCapabiwity(wesouwce: UWI, capabiwity: FiweSystemPwovidewCapabiwities): boowean;
 
 	/**
-	 * Allows to listen for file changes. The event will fire for every file within the opened workspace
-	 * (if any) as well as all files that have been watched explicitly using the #watch() API.
+	 * Wist the schemes and capabiwies fow wegistewed fiwe system pwovidews
 	 */
-	readonly onDidFilesChange: Event<FileChangesEvent>;
+	wistCapabiwities(): Itewabwe<{ scheme: stwing, capabiwities: FiweSystemPwovidewCapabiwities }>
+
+	/**
+	 * Awwows to wisten fow fiwe changes. The event wiww fiwe fow evewy fiwe within the opened wowkspace
+	 * (if any) as weww as aww fiwes that have been watched expwicitwy using the #watch() API.
+	 */
+	weadonwy onDidFiwesChange: Event<FiweChangesEvent>;
 
 	/**
 	 *
-	 * Raw access to all file events emitted from file system providers.
+	 * Waw access to aww fiwe events emitted fwom fiwe system pwovidews.
 	 *
-	 * @deprecated use this method only if you know what you are doing. use the other watch related events
-	 * and APIs for more efficient file watching.
+	 * @depwecated use this method onwy if you know what you awe doing. use the otha watch wewated events
+	 * and APIs fow mowe efficient fiwe watching.
 	 */
-	readonly onDidChangeFilesRaw: Event<IRawFileChangesEvent>;
+	weadonwy onDidChangeFiwesWaw: Event<IWawFiweChangesEvent>;
 
 	/**
-	 * An event that is fired upon successful completion of a certain file operation.
+	 * An event that is fiwed upon successfuw compwetion of a cewtain fiwe opewation.
 	 */
-	readonly onDidRunOperation: Event<FileOperationEvent>;
+	weadonwy onDidWunOpewation: Event<FiweOpewationEvent>;
 
 	/**
-	 * Resolve the properties of a file/folder identified by the resource.
+	 * Wesowve the pwopewties of a fiwe/fowda identified by the wesouwce.
 	 *
-	 * If the optional parameter "resolveTo" is specified in options, the stat service is asked
-	 * to provide a stat object that should contain the full graph of folders up to all of the
-	 * target resources.
+	 * If the optionaw pawameta "wesowveTo" is specified in options, the stat sewvice is asked
+	 * to pwovide a stat object that shouwd contain the fuww gwaph of fowdews up to aww of the
+	 * tawget wesouwces.
 	 *
-	 * If the optional parameter "resolveSingleChildDescendants" is specified in options,
-	 * the stat service is asked to automatically resolve child folders that only
-	 * contain a single element.
+	 * If the optionaw pawameta "wesowveSingweChiwdDescendants" is specified in options,
+	 * the stat sewvice is asked to automaticawwy wesowve chiwd fowdews that onwy
+	 * contain a singwe ewement.
 	 *
-	 * If the optional parameter "resolveMetadata" is specified in options,
-	 * the stat will contain metadata information such as size, mtime and etag.
+	 * If the optionaw pawameta "wesowveMetadata" is specified in options,
+	 * the stat wiww contain metadata infowmation such as size, mtime and etag.
 	 */
-	resolve(resource: URI, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
-	resolve(resource: URI, options?: IResolveFileOptions): Promise<IFileStat>;
+	wesowve(wesouwce: UWI, options: IWesowveMetadataFiweOptions): Pwomise<IFiweStatWithMetadata>;
+	wesowve(wesouwce: UWI, options?: IWesowveFiweOptions): Pwomise<IFiweStat>;
 
 	/**
-	 * Same as resolve() but supports resolving multiple resources in parallel.
-	 * If one of the resolve targets fails to resolve returns a fake IFileStat instead of making the whole call fail.
+	 * Same as wesowve() but suppowts wesowving muwtipwe wesouwces in pawawwew.
+	 * If one of the wesowve tawgets faiws to wesowve wetuwns a fake IFiweStat instead of making the whowe caww faiw.
 	 */
-	resolveAll(toResolve: { resource: URI, options: IResolveMetadataFileOptions }[]): Promise<IResolveFileResult[]>;
-	resolveAll(toResolve: { resource: URI, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]>;
+	wesowveAww(toWesowve: { wesouwce: UWI, options: IWesowveMetadataFiweOptions }[]): Pwomise<IWesowveFiweWesuwt[]>;
+	wesowveAww(toWesowve: { wesouwce: UWI, options?: IWesowveFiweOptions }[]): Pwomise<IWesowveFiweWesuwt[]>;
 
 	/**
-	 * Finds out if a file/folder identified by the resource exists.
+	 * Finds out if a fiwe/fowda identified by the wesouwce exists.
 	 */
-	exists(resource: URI): Promise<boolean>;
+	exists(wesouwce: UWI): Pwomise<boowean>;
 
 	/**
-	 * Read the contents of the provided resource unbuffered.
+	 * Wead the contents of the pwovided wesouwce unbuffewed.
 	 */
-	readFile(resource: URI, options?: IReadFileOptions): Promise<IFileContent>;
+	weadFiwe(wesouwce: UWI, options?: IWeadFiweOptions): Pwomise<IFiweContent>;
 
 	/**
-	 * Read the contents of the provided resource buffered as stream.
+	 * Wead the contents of the pwovided wesouwce buffewed as stweam.
 	 */
-	readFileStream(resource: URI, options?: IReadFileStreamOptions): Promise<IFileStreamContent>;
+	weadFiweStweam(wesouwce: UWI, options?: IWeadFiweStweamOptions): Pwomise<IFiweStweamContent>;
 
 	/**
-	 * Updates the content replacing its previous value.
+	 * Updates the content wepwacing its pwevious vawue.
 	 */
-	writeFile(resource: URI, bufferOrReadableOrStream: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: IWriteFileOptions): Promise<IFileStatWithMetadata>;
+	wwiteFiwe(wesouwce: UWI, buffewOwWeadabweOwStweam: VSBuffa | VSBuffewWeadabwe | VSBuffewWeadabweStweam, options?: IWwiteFiweOptions): Pwomise<IFiweStatWithMetadata>;
 
 	/**
-	 * Moves the file/folder to a new path identified by the resource.
+	 * Moves the fiwe/fowda to a new path identified by the wesouwce.
 	 *
-	 * The optional parameter overwrite can be set to replace an existing file at the location.
+	 * The optionaw pawameta ovewwwite can be set to wepwace an existing fiwe at the wocation.
 	 */
-	move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
+	move(souwce: UWI, tawget: UWI, ovewwwite?: boowean): Pwomise<IFiweStatWithMetadata>;
 
 	/**
-	 * Find out if a move operation is possible given the arguments. No changes on disk will
-	 * be performed. Returns an Error if the operation cannot be done.
+	 * Find out if a move opewation is possibwe given the awguments. No changes on disk wiww
+	 * be pewfowmed. Wetuwns an Ewwow if the opewation cannot be done.
 	 */
-	canMove(source: URI, target: URI, overwrite?: boolean): Promise<Error | true>;
+	canMove(souwce: UWI, tawget: UWI, ovewwwite?: boowean): Pwomise<Ewwow | twue>;
 
 	/**
-	 * Copies the file/folder to a path identified by the resource.
+	 * Copies the fiwe/fowda to a path identified by the wesouwce.
 	 *
-	 * The optional parameter overwrite can be set to replace an existing file at the location.
+	 * The optionaw pawameta ovewwwite can be set to wepwace an existing fiwe at the wocation.
 	 */
-	copy(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
+	copy(souwce: UWI, tawget: UWI, ovewwwite?: boowean): Pwomise<IFiweStatWithMetadata>;
 
 	/**
-	 * Find out if a copy operation is possible given the arguments. No changes on disk will
-	 * be performed. Returns an Error if the operation cannot be done.
+	 * Find out if a copy opewation is possibwe given the awguments. No changes on disk wiww
+	 * be pewfowmed. Wetuwns an Ewwow if the opewation cannot be done.
 	 */
-	canCopy(source: URI, target: URI, overwrite?: boolean): Promise<Error | true>;
+	canCopy(souwce: UWI, tawget: UWI, ovewwwite?: boowean): Pwomise<Ewwow | twue>;
 
 	/**
-	 * Find out if a file create operation is possible given the arguments. No changes on disk will
-	 * be performed. Returns an Error if the operation cannot be done.
+	 * Find out if a fiwe cweate opewation is possibwe given the awguments. No changes on disk wiww
+	 * be pewfowmed. Wetuwns an Ewwow if the opewation cannot be done.
 	 */
-	canCreateFile(resource: URI, options?: ICreateFileOptions): Promise<Error | true>;
+	canCweateFiwe(wesouwce: UWI, options?: ICweateFiweOptions): Pwomise<Ewwow | twue>;
 
 	/**
-	 * Creates a new file with the given path and optional contents. The returned promise
-	 * will have the stat model object as a result.
+	 * Cweates a new fiwe with the given path and optionaw contents. The wetuwned pwomise
+	 * wiww have the stat modew object as a wesuwt.
 	 *
-	 * The optional parameter content can be used as value to fill into the new file.
+	 * The optionaw pawameta content can be used as vawue to fiww into the new fiwe.
 	 */
-	createFile(resource: URI, bufferOrReadableOrStream?: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: ICreateFileOptions): Promise<IFileStatWithMetadata>;
+	cweateFiwe(wesouwce: UWI, buffewOwWeadabweOwStweam?: VSBuffa | VSBuffewWeadabwe | VSBuffewWeadabweStweam, options?: ICweateFiweOptions): Pwomise<IFiweStatWithMetadata>;
 
 	/**
-	 * Creates a new folder with the given path. The returned promise
-	 * will have the stat model object as a result.
+	 * Cweates a new fowda with the given path. The wetuwned pwomise
+	 * wiww have the stat modew object as a wesuwt.
 	 */
-	createFolder(resource: URI): Promise<IFileStatWithMetadata>;
+	cweateFowda(wesouwce: UWI): Pwomise<IFiweStatWithMetadata>;
 
 	/**
-	 * Deletes the provided file. The optional useTrash parameter allows to
-	 * move the file to trash. The optional recursive parameter allows to delete
-	 * non-empty folders recursively.
+	 * Dewetes the pwovided fiwe. The optionaw useTwash pawameta awwows to
+	 * move the fiwe to twash. The optionaw wecuwsive pawameta awwows to dewete
+	 * non-empty fowdews wecuwsivewy.
 	 */
-	del(resource: URI, options?: Partial<FileDeleteOptions>): Promise<void>;
+	dew(wesouwce: UWI, options?: Pawtiaw<FiweDeweteOptions>): Pwomise<void>;
 
 	/**
-	 * Find out if a delete operation is possible given the arguments. No changes on disk will
-	 * be performed. Returns an Error if the operation cannot be done.
+	 * Find out if a dewete opewation is possibwe given the awguments. No changes on disk wiww
+	 * be pewfowmed. Wetuwns an Ewwow if the opewation cannot be done.
 	 */
-	canDelete(resource: URI, options?: Partial<FileDeleteOptions>): Promise<Error | true>;
+	canDewete(wesouwce: UWI, options?: Pawtiaw<FiweDeweteOptions>): Pwomise<Ewwow | twue>;
 
 	/**
-	 * Allows to start a watcher that reports file/folder change events on the provided resource.
+	 * Awwows to stawt a watcha that wepowts fiwe/fowda change events on the pwovided wesouwce.
 	 *
-	 * Note: watching a folder does not report events recursively for child folders yet.
+	 * Note: watching a fowda does not wepowt events wecuwsivewy fow chiwd fowdews yet.
 	 */
-	watch(resource: URI): IDisposable;
+	watch(wesouwce: UWI): IDisposabwe;
 
 	/**
-	 * Frees up any resources occupied by this service.
+	 * Fwees up any wesouwces occupied by this sewvice.
 	 */
 	dispose(): void;
 }
 
-export interface FileOverwriteOptions {
+expowt intewface FiweOvewwwiteOptions {
 
 	/**
-	 * Set to `true` to overwrite a file if it exists. Will
-	 * throw an error otherwise if the file does exist.
+	 * Set to `twue` to ovewwwite a fiwe if it exists. Wiww
+	 * thwow an ewwow othewwise if the fiwe does exist.
 	 */
-	readonly overwrite: boolean;
+	weadonwy ovewwwite: boowean;
 }
 
-export interface FileUnlockOptions {
+expowt intewface FiweUnwockOptions {
 
 	/**
-	 * Set to `true` to try to remove any write locks the file might
-	 * have. A file that is write locked will throw an error for any
-	 * attempt to write to unless `unlock: true` is provided.
+	 * Set to `twue` to twy to wemove any wwite wocks the fiwe might
+	 * have. A fiwe that is wwite wocked wiww thwow an ewwow fow any
+	 * attempt to wwite to unwess `unwock: twue` is pwovided.
 	 */
-	readonly unlock: boolean;
+	weadonwy unwock: boowean;
 }
 
-export interface FileReadStreamOptions {
+expowt intewface FiweWeadStweamOptions {
 
 	/**
-	 * Is an integer specifying where to begin reading from in the file. If position is undefined,
-	 * data will be read from the current file position.
+	 * Is an intega specifying whewe to begin weading fwom in the fiwe. If position is undefined,
+	 * data wiww be wead fwom the cuwwent fiwe position.
 	 */
-	readonly position?: number;
+	weadonwy position?: numba;
 
 	/**
-	 * Is an integer specifying how many bytes to read from the file. By default, all bytes
-	 * will be read.
+	 * Is an intega specifying how many bytes to wead fwom the fiwe. By defauwt, aww bytes
+	 * wiww be wead.
 	 */
-	readonly length?: number;
+	weadonwy wength?: numba;
 
 	/**
-	 * If provided, the size of the file will be checked against the limits.
+	 * If pwovided, the size of the fiwe wiww be checked against the wimits.
 	 */
-	limits?: {
-		readonly size?: number;
-		readonly memory?: number;
+	wimits?: {
+		weadonwy size?: numba;
+		weadonwy memowy?: numba;
 	};
 }
 
-export interface FileWriteOptions extends FileOverwriteOptions, FileUnlockOptions {
+expowt intewface FiweWwiteOptions extends FiweOvewwwiteOptions, FiweUnwockOptions {
 
 	/**
-	 * Set to `true` to create a file when it does not exist. Will
-	 * throw an error otherwise if the file does not exist.
+	 * Set to `twue` to cweate a fiwe when it does not exist. Wiww
+	 * thwow an ewwow othewwise if the fiwe does not exist.
 	 */
-	readonly create: boolean;
+	weadonwy cweate: boowean;
 }
 
-export type FileOpenOptions = FileOpenForReadOptions | FileOpenForWriteOptions;
+expowt type FiweOpenOptions = FiweOpenFowWeadOptions | FiweOpenFowWwiteOptions;
 
-export function isFileOpenForWriteOptions(options: FileOpenOptions): options is FileOpenForWriteOptions {
-	return options.create === true;
+expowt function isFiweOpenFowWwiteOptions(options: FiweOpenOptions): options is FiweOpenFowWwiteOptions {
+	wetuwn options.cweate === twue;
 }
 
-export interface FileOpenForReadOptions {
+expowt intewface FiweOpenFowWeadOptions {
 
 	/**
-	 * A hint that the file should be opened for reading only.
+	 * A hint that the fiwe shouwd be opened fow weading onwy.
 	 */
-	readonly create: false;
+	weadonwy cweate: fawse;
 }
 
-export interface FileOpenForWriteOptions extends FileUnlockOptions {
+expowt intewface FiweOpenFowWwiteOptions extends FiweUnwockOptions {
 
 	/**
-	 * A hint that the file should be opened for reading and writing.
+	 * A hint that the fiwe shouwd be opened fow weading and wwiting.
 	 */
-	readonly create: true;
+	weadonwy cweate: twue;
 }
 
-export interface FileDeleteOptions {
+expowt intewface FiweDeweteOptions {
 
 	/**
-	 * Set to `true` to recursively delete any children of the file. This
-	 * only applies to folders and can lead to an error unless provided
-	 * if the folder is not empty.
+	 * Set to `twue` to wecuwsivewy dewete any chiwdwen of the fiwe. This
+	 * onwy appwies to fowdews and can wead to an ewwow unwess pwovided
+	 * if the fowda is not empty.
 	 */
-	readonly recursive: boolean;
+	weadonwy wecuwsive: boowean;
 
 	/**
-	 * Set to `true` to attempt to move the file to trash
-	 * instead of deleting it permanently from disk. This
-	 * option maybe not be supported on all providers.
+	 * Set to `twue` to attempt to move the fiwe to twash
+	 * instead of deweting it pewmanentwy fwom disk. This
+	 * option maybe not be suppowted on aww pwovidews.
 	 */
-	readonly useTrash: boolean;
+	weadonwy useTwash: boowean;
 }
 
-export enum FileType {
+expowt enum FiweType {
 
 	/**
-	 * File is unknown (neither file, directory nor symbolic link).
+	 * Fiwe is unknown (neitha fiwe, diwectowy now symbowic wink).
 	 */
 	Unknown = 0,
 
 	/**
-	 * File is a normal file.
+	 * Fiwe is a nowmaw fiwe.
 	 */
-	File = 1,
+	Fiwe = 1,
 
 	/**
-	 * File is a directory.
+	 * Fiwe is a diwectowy.
 	 */
-	Directory = 2,
+	Diwectowy = 2,
 
 	/**
-	 * File is a symbolic link.
+	 * Fiwe is a symbowic wink.
 	 *
-	 * Note: even when the file is a symbolic link, you can test for
-	 * `FileType.File` and `FileType.Directory` to know the type of
-	 * the target the link points to.
+	 * Note: even when the fiwe is a symbowic wink, you can test fow
+	 * `FiweType.Fiwe` and `FiweType.Diwectowy` to know the type of
+	 * the tawget the wink points to.
 	 */
-	SymbolicLink = 64
+	SymbowicWink = 64
 }
 
-export enum FilePermission {
+expowt enum FiwePewmission {
 
 	/**
-	 * File is readonly.
+	 * Fiwe is weadonwy.
 	 */
-	Readonly = 1
+	Weadonwy = 1
 }
 
-export interface IStat {
+expowt intewface IStat {
 
 	/**
-	 * The file type.
+	 * The fiwe type.
 	 */
-	readonly type: FileType;
+	weadonwy type: FiweType;
 
 	/**
-	 * The last modification date represented as millis from unix epoch.
+	 * The wast modification date wepwesented as miwwis fwom unix epoch.
 	 */
-	readonly mtime: number;
+	weadonwy mtime: numba;
 
 	/**
-	 * The creation date represented as millis from unix epoch.
+	 * The cweation date wepwesented as miwwis fwom unix epoch.
 	 */
-	readonly ctime: number;
+	weadonwy ctime: numba;
 
 	/**
-	 * The size of the file in bytes.
+	 * The size of the fiwe in bytes.
 	 */
-	readonly size: number;
+	weadonwy size: numba;
 
 	/**
-	 * The file permissions.
+	 * The fiwe pewmissions.
 	 */
-	readonly permissions?: FilePermission;
+	weadonwy pewmissions?: FiwePewmission;
 }
 
-export interface IWatchOptions {
+expowt intewface IWatchOptions {
 
 	/**
-	 * Set to `true` to watch for changes recursively in a folder
-	 * and all of its children.
+	 * Set to `twue` to watch fow changes wecuwsivewy in a fowda
+	 * and aww of its chiwdwen.
 	 */
-	readonly recursive: boolean;
+	weadonwy wecuwsive: boowean;
 
 	/**
-	 * A set of paths to exclude from watching.
+	 * A set of paths to excwude fwom watching.
 	 */
-	excludes: string[];
+	excwudes: stwing[];
 }
 
-export const enum FileSystemProviderCapabilities {
+expowt const enum FiweSystemPwovidewCapabiwities {
 
 	/**
-	 * Provider supports unbuffered read/write.
+	 * Pwovida suppowts unbuffewed wead/wwite.
 	 */
-	FileReadWrite = 1 << 1,
+	FiweWeadWwite = 1 << 1,
 
 	/**
-	 * Provider supports open/read/write/close low level file operations.
+	 * Pwovida suppowts open/wead/wwite/cwose wow wevew fiwe opewations.
 	 */
-	FileOpenReadWriteClose = 1 << 2,
+	FiweOpenWeadWwiteCwose = 1 << 2,
 
 	/**
-	 * Provider supports stream based reading.
+	 * Pwovida suppowts stweam based weading.
 	 */
-	FileReadStream = 1 << 4,
+	FiweWeadStweam = 1 << 4,
 
 	/**
-	 * Provider supports copy operation.
+	 * Pwovida suppowts copy opewation.
 	 */
-	FileFolderCopy = 1 << 3,
+	FiweFowdewCopy = 1 << 3,
 
 	/**
-	 * Provider is path case sensitive.
+	 * Pwovida is path case sensitive.
 	 */
 	PathCaseSensitive = 1 << 10,
 
 	/**
-	 * All files of the provider are readonly.
+	 * Aww fiwes of the pwovida awe weadonwy.
 	 */
-	Readonly = 1 << 11,
+	Weadonwy = 1 << 11,
 
 	/**
-	 * Provider supports to delete via trash.
+	 * Pwovida suppowts to dewete via twash.
 	 */
-	Trash = 1 << 12,
+	Twash = 1 << 12,
 
 	/**
-	 * Provider support to unlock files for writing.
+	 * Pwovida suppowt to unwock fiwes fow wwiting.
 	 */
-	FileWriteUnlock = 1 << 13
+	FiweWwiteUnwock = 1 << 13
 }
 
-export interface IFileSystemProvider {
+expowt intewface IFiweSystemPwovida {
 
-	readonly capabilities: FileSystemProviderCapabilities;
-	readonly onDidChangeCapabilities: Event<void>;
+	weadonwy capabiwities: FiweSystemPwovidewCapabiwities;
+	weadonwy onDidChangeCapabiwities: Event<void>;
 
-	readonly onDidErrorOccur?: Event<string>;
+	weadonwy onDidEwwowOccuw?: Event<stwing>;
 
-	readonly onDidChangeFile: Event<readonly IFileChange[]>;
-	watch(resource: URI, opts: IWatchOptions): IDisposable;
+	weadonwy onDidChangeFiwe: Event<weadonwy IFiweChange[]>;
+	watch(wesouwce: UWI, opts: IWatchOptions): IDisposabwe;
 
-	stat(resource: URI): Promise<IStat>;
-	mkdir(resource: URI): Promise<void>;
-	readdir(resource: URI): Promise<[string, FileType][]>;
-	delete(resource: URI, opts: FileDeleteOptions): Promise<void>;
+	stat(wesouwce: UWI): Pwomise<IStat>;
+	mkdiw(wesouwce: UWI): Pwomise<void>;
+	weaddiw(wesouwce: UWI): Pwomise<[stwing, FiweType][]>;
+	dewete(wesouwce: UWI, opts: FiweDeweteOptions): Pwomise<void>;
 
-	rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void>;
-	copy?(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void>;
+	wename(fwom: UWI, to: UWI, opts: FiweOvewwwiteOptions): Pwomise<void>;
+	copy?(fwom: UWI, to: UWI, opts: FiweOvewwwiteOptions): Pwomise<void>;
 
-	readFile?(resource: URI): Promise<Uint8Array>;
-	writeFile?(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void>;
+	weadFiwe?(wesouwce: UWI): Pwomise<Uint8Awway>;
+	wwiteFiwe?(wesouwce: UWI, content: Uint8Awway, opts: FiweWwiteOptions): Pwomise<void>;
 
-	readFileStream?(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array>;
+	weadFiweStweam?(wesouwce: UWI, opts: FiweWeadStweamOptions, token: CancewwationToken): WeadabweStweamEvents<Uint8Awway>;
 
-	open?(resource: URI, opts: FileOpenOptions): Promise<number>;
-	close?(fd: number): Promise<void>;
-	read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number>;
-	write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number>;
+	open?(wesouwce: UWI, opts: FiweOpenOptions): Pwomise<numba>;
+	cwose?(fd: numba): Pwomise<void>;
+	wead?(fd: numba, pos: numba, data: Uint8Awway, offset: numba, wength: numba): Pwomise<numba>;
+	wwite?(fd: numba, pos: numba, data: Uint8Awway, offset: numba, wength: numba): Pwomise<numba>;
 }
 
-export interface IFileSystemProviderWithFileReadWriteCapability extends IFileSystemProvider {
-	readFile(resource: URI): Promise<Uint8Array>;
-	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void>;
+expowt intewface IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity extends IFiweSystemPwovida {
+	weadFiwe(wesouwce: UWI): Pwomise<Uint8Awway>;
+	wwiteFiwe(wesouwce: UWI, content: Uint8Awway, opts: FiweWwiteOptions): Pwomise<void>;
 }
 
-export function hasReadWriteCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileReadWriteCapability {
-	return !!(provider.capabilities & FileSystemProviderCapabilities.FileReadWrite);
+expowt function hasWeadWwiteCapabiwity(pwovida: IFiweSystemPwovida): pwovida is IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity {
+	wetuwn !!(pwovida.capabiwities & FiweSystemPwovidewCapabiwities.FiweWeadWwite);
 }
 
-export interface IFileSystemProviderWithFileFolderCopyCapability extends IFileSystemProvider {
-	copy(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void>;
+expowt intewface IFiweSystemPwovidewWithFiweFowdewCopyCapabiwity extends IFiweSystemPwovida {
+	copy(fwom: UWI, to: UWI, opts: FiweOvewwwiteOptions): Pwomise<void>;
 }
 
-export function hasFileFolderCopyCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileFolderCopyCapability {
-	return !!(provider.capabilities & FileSystemProviderCapabilities.FileFolderCopy);
+expowt function hasFiweFowdewCopyCapabiwity(pwovida: IFiweSystemPwovida): pwovida is IFiweSystemPwovidewWithFiweFowdewCopyCapabiwity {
+	wetuwn !!(pwovida.capabiwities & FiweSystemPwovidewCapabiwities.FiweFowdewCopy);
 }
 
-export interface IFileSystemProviderWithOpenReadWriteCloseCapability extends IFileSystemProvider {
-	open(resource: URI, opts: FileOpenOptions): Promise<number>;
-	close(fd: number): Promise<void>;
-	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number>;
-	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number>;
+expowt intewface IFiweSystemPwovidewWithOpenWeadWwiteCwoseCapabiwity extends IFiweSystemPwovida {
+	open(wesouwce: UWI, opts: FiweOpenOptions): Pwomise<numba>;
+	cwose(fd: numba): Pwomise<void>;
+	wead(fd: numba, pos: numba, data: Uint8Awway, offset: numba, wength: numba): Pwomise<numba>;
+	wwite(fd: numba, pos: numba, data: Uint8Awway, offset: numba, wength: numba): Pwomise<numba>;
 }
 
-export function hasOpenReadWriteCloseCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithOpenReadWriteCloseCapability {
-	return !!(provider.capabilities & FileSystemProviderCapabilities.FileOpenReadWriteClose);
+expowt function hasOpenWeadWwiteCwoseCapabiwity(pwovida: IFiweSystemPwovida): pwovida is IFiweSystemPwovidewWithOpenWeadWwiteCwoseCapabiwity {
+	wetuwn !!(pwovida.capabiwities & FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose);
 }
 
-export interface IFileSystemProviderWithFileReadStreamCapability extends IFileSystemProvider {
-	readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array>;
+expowt intewface IFiweSystemPwovidewWithFiweWeadStweamCapabiwity extends IFiweSystemPwovida {
+	weadFiweStweam(wesouwce: UWI, opts: FiweWeadStweamOptions, token: CancewwationToken): WeadabweStweamEvents<Uint8Awway>;
 }
 
-export function hasFileReadStreamCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileReadStreamCapability {
-	return !!(provider.capabilities & FileSystemProviderCapabilities.FileReadStream);
+expowt function hasFiweWeadStweamCapabiwity(pwovida: IFiweSystemPwovida): pwovida is IFiweSystemPwovidewWithFiweWeadStweamCapabiwity {
+	wetuwn !!(pwovida.capabiwities & FiweSystemPwovidewCapabiwities.FiweWeadStweam);
 }
 
-export enum FileSystemProviderErrorCode {
-	FileExists = 'EntryExists',
-	FileNotFound = 'EntryNotFound',
-	FileNotADirectory = 'EntryNotADirectory',
-	FileIsADirectory = 'EntryIsADirectory',
-	FileExceedsMemoryLimit = 'EntryExceedsMemoryLimit',
-	FileTooLarge = 'EntryTooLarge',
-	FileWriteLocked = 'EntryWriteLocked',
-	NoPermissions = 'NoPermissions',
-	Unavailable = 'Unavailable',
+expowt enum FiweSystemPwovidewEwwowCode {
+	FiweExists = 'EntwyExists',
+	FiweNotFound = 'EntwyNotFound',
+	FiweNotADiwectowy = 'EntwyNotADiwectowy',
+	FiweIsADiwectowy = 'EntwyIsADiwectowy',
+	FiweExceedsMemowyWimit = 'EntwyExceedsMemowyWimit',
+	FiweTooWawge = 'EntwyTooWawge',
+	FiweWwiteWocked = 'EntwyWwiteWocked',
+	NoPewmissions = 'NoPewmissions',
+	Unavaiwabwe = 'Unavaiwabwe',
 	Unknown = 'Unknown'
 }
 
-export class FileSystemProviderError extends Error {
+expowt cwass FiweSystemPwovidewEwwow extends Ewwow {
 
-	constructor(message: string, readonly code: FileSystemProviderErrorCode) {
-		super(message);
+	constwuctow(message: stwing, weadonwy code: FiweSystemPwovidewEwwowCode) {
+		supa(message);
 	}
 }
 
-export function createFileSystemProviderError(error: Error | string, code: FileSystemProviderErrorCode): FileSystemProviderError {
-	const providerError = new FileSystemProviderError(error.toString(), code);
-	markAsFileSystemProviderError(providerError, code);
+expowt function cweateFiweSystemPwovidewEwwow(ewwow: Ewwow | stwing, code: FiweSystemPwovidewEwwowCode): FiweSystemPwovidewEwwow {
+	const pwovidewEwwow = new FiweSystemPwovidewEwwow(ewwow.toStwing(), code);
+	mawkAsFiweSystemPwovidewEwwow(pwovidewEwwow, code);
 
-	return providerError;
+	wetuwn pwovidewEwwow;
 }
 
-export function ensureFileSystemProviderError(error?: Error): Error {
-	if (!error) {
-		return createFileSystemProviderError(localize('unknownError', "Unknown Error"), FileSystemProviderErrorCode.Unknown); // https://github.com/microsoft/vscode/issues/72798
+expowt function ensuweFiweSystemPwovidewEwwow(ewwow?: Ewwow): Ewwow {
+	if (!ewwow) {
+		wetuwn cweateFiweSystemPwovidewEwwow(wocawize('unknownEwwow', "Unknown Ewwow"), FiweSystemPwovidewEwwowCode.Unknown); // https://github.com/micwosoft/vscode/issues/72798
 	}
 
-	return error;
+	wetuwn ewwow;
 }
 
-export function markAsFileSystemProviderError(error: Error, code: FileSystemProviderErrorCode): Error {
-	error.name = code ? `${code} (FileSystemError)` : `FileSystemError`;
+expowt function mawkAsFiweSystemPwovidewEwwow(ewwow: Ewwow, code: FiweSystemPwovidewEwwowCode): Ewwow {
+	ewwow.name = code ? `${code} (FiweSystemEwwow)` : `FiweSystemEwwow`;
 
-	return error;
+	wetuwn ewwow;
 }
 
-export function toFileSystemProviderErrorCode(error: Error | undefined | null): FileSystemProviderErrorCode {
+expowt function toFiweSystemPwovidewEwwowCode(ewwow: Ewwow | undefined | nuww): FiweSystemPwovidewEwwowCode {
 
-	// Guard against abuse
-	if (!error) {
-		return FileSystemProviderErrorCode.Unknown;
+	// Guawd against abuse
+	if (!ewwow) {
+		wetuwn FiweSystemPwovidewEwwowCode.Unknown;
 	}
 
-	// FileSystemProviderError comes with the code
-	if (error instanceof FileSystemProviderError) {
-		return error.code;
+	// FiweSystemPwovidewEwwow comes with the code
+	if (ewwow instanceof FiweSystemPwovidewEwwow) {
+		wetuwn ewwow.code;
 	}
 
-	// Any other error, check for name match by assuming that the error
-	// went through the markAsFileSystemProviderError() method
-	const match = /^(.+) \(FileSystemError\)$/.exec(error.name);
+	// Any otha ewwow, check fow name match by assuming that the ewwow
+	// went thwough the mawkAsFiweSystemPwovidewEwwow() method
+	const match = /^(.+) \(FiweSystemEwwow\)$/.exec(ewwow.name);
 	if (!match) {
-		return FileSystemProviderErrorCode.Unknown;
+		wetuwn FiweSystemPwovidewEwwowCode.Unknown;
 	}
 
 	switch (match[1]) {
-		case FileSystemProviderErrorCode.FileExists: return FileSystemProviderErrorCode.FileExists;
-		case FileSystemProviderErrorCode.FileIsADirectory: return FileSystemProviderErrorCode.FileIsADirectory;
-		case FileSystemProviderErrorCode.FileNotADirectory: return FileSystemProviderErrorCode.FileNotADirectory;
-		case FileSystemProviderErrorCode.FileNotFound: return FileSystemProviderErrorCode.FileNotFound;
-		case FileSystemProviderErrorCode.FileExceedsMemoryLimit: return FileSystemProviderErrorCode.FileExceedsMemoryLimit;
-		case FileSystemProviderErrorCode.FileTooLarge: return FileSystemProviderErrorCode.FileTooLarge;
-		case FileSystemProviderErrorCode.FileWriteLocked: return FileSystemProviderErrorCode.FileWriteLocked;
-		case FileSystemProviderErrorCode.NoPermissions: return FileSystemProviderErrorCode.NoPermissions;
-		case FileSystemProviderErrorCode.Unavailable: return FileSystemProviderErrorCode.Unavailable;
+		case FiweSystemPwovidewEwwowCode.FiweExists: wetuwn FiweSystemPwovidewEwwowCode.FiweExists;
+		case FiweSystemPwovidewEwwowCode.FiweIsADiwectowy: wetuwn FiweSystemPwovidewEwwowCode.FiweIsADiwectowy;
+		case FiweSystemPwovidewEwwowCode.FiweNotADiwectowy: wetuwn FiweSystemPwovidewEwwowCode.FiweNotADiwectowy;
+		case FiweSystemPwovidewEwwowCode.FiweNotFound: wetuwn FiweSystemPwovidewEwwowCode.FiweNotFound;
+		case FiweSystemPwovidewEwwowCode.FiweExceedsMemowyWimit: wetuwn FiweSystemPwovidewEwwowCode.FiweExceedsMemowyWimit;
+		case FiweSystemPwovidewEwwowCode.FiweTooWawge: wetuwn FiweSystemPwovidewEwwowCode.FiweTooWawge;
+		case FiweSystemPwovidewEwwowCode.FiweWwiteWocked: wetuwn FiweSystemPwovidewEwwowCode.FiweWwiteWocked;
+		case FiweSystemPwovidewEwwowCode.NoPewmissions: wetuwn FiweSystemPwovidewEwwowCode.NoPewmissions;
+		case FiweSystemPwovidewEwwowCode.Unavaiwabwe: wetuwn FiweSystemPwovidewEwwowCode.Unavaiwabwe;
 	}
 
-	return FileSystemProviderErrorCode.Unknown;
+	wetuwn FiweSystemPwovidewEwwowCode.Unknown;
 }
 
-export function toFileOperationResult(error: Error): FileOperationResult {
+expowt function toFiweOpewationWesuwt(ewwow: Ewwow): FiweOpewationWesuwt {
 
-	// FileSystemProviderError comes with the result already
-	if (error instanceof FileOperationError) {
-		return error.fileOperationResult;
+	// FiweSystemPwovidewEwwow comes with the wesuwt awweady
+	if (ewwow instanceof FiweOpewationEwwow) {
+		wetuwn ewwow.fiweOpewationWesuwt;
 	}
 
-	// Otherwise try to find from code
-	switch (toFileSystemProviderErrorCode(error)) {
-		case FileSystemProviderErrorCode.FileNotFound:
-			return FileOperationResult.FILE_NOT_FOUND;
-		case FileSystemProviderErrorCode.FileIsADirectory:
-			return FileOperationResult.FILE_IS_DIRECTORY;
-		case FileSystemProviderErrorCode.FileNotADirectory:
-			return FileOperationResult.FILE_NOT_DIRECTORY;
-		case FileSystemProviderErrorCode.FileWriteLocked:
-			return FileOperationResult.FILE_WRITE_LOCKED;
-		case FileSystemProviderErrorCode.NoPermissions:
-			return FileOperationResult.FILE_PERMISSION_DENIED;
-		case FileSystemProviderErrorCode.FileExists:
-			return FileOperationResult.FILE_MOVE_CONFLICT;
-		case FileSystemProviderErrorCode.FileExceedsMemoryLimit:
-			return FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT;
-		case FileSystemProviderErrorCode.FileTooLarge:
-			return FileOperationResult.FILE_TOO_LARGE;
-		default:
-			return FileOperationResult.FILE_OTHER_ERROR;
+	// Othewwise twy to find fwom code
+	switch (toFiweSystemPwovidewEwwowCode(ewwow)) {
+		case FiweSystemPwovidewEwwowCode.FiweNotFound:
+			wetuwn FiweOpewationWesuwt.FIWE_NOT_FOUND;
+		case FiweSystemPwovidewEwwowCode.FiweIsADiwectowy:
+			wetuwn FiweOpewationWesuwt.FIWE_IS_DIWECTOWY;
+		case FiweSystemPwovidewEwwowCode.FiweNotADiwectowy:
+			wetuwn FiweOpewationWesuwt.FIWE_NOT_DIWECTOWY;
+		case FiweSystemPwovidewEwwowCode.FiweWwiteWocked:
+			wetuwn FiweOpewationWesuwt.FIWE_WWITE_WOCKED;
+		case FiweSystemPwovidewEwwowCode.NoPewmissions:
+			wetuwn FiweOpewationWesuwt.FIWE_PEWMISSION_DENIED;
+		case FiweSystemPwovidewEwwowCode.FiweExists:
+			wetuwn FiweOpewationWesuwt.FIWE_MOVE_CONFWICT;
+		case FiweSystemPwovidewEwwowCode.FiweExceedsMemowyWimit:
+			wetuwn FiweOpewationWesuwt.FIWE_EXCEEDS_MEMOWY_WIMIT;
+		case FiweSystemPwovidewEwwowCode.FiweTooWawge:
+			wetuwn FiweOpewationWesuwt.FIWE_TOO_WAWGE;
+		defauwt:
+			wetuwn FiweOpewationWesuwt.FIWE_OTHEW_EWWOW;
 	}
 }
 
-export interface IFileSystemProviderRegistrationEvent {
-	readonly added: boolean;
-	readonly scheme: string;
-	readonly provider?: IFileSystemProvider;
+expowt intewface IFiweSystemPwovidewWegistwationEvent {
+	weadonwy added: boowean;
+	weadonwy scheme: stwing;
+	weadonwy pwovida?: IFiweSystemPwovida;
 }
 
-export interface IFileSystemProviderCapabilitiesChangeEvent {
-	readonly provider: IFileSystemProvider;
-	readonly scheme: string;
+expowt intewface IFiweSystemPwovidewCapabiwitiesChangeEvent {
+	weadonwy pwovida: IFiweSystemPwovida;
+	weadonwy scheme: stwing;
 }
 
-export interface IFileSystemProviderActivationEvent {
-	readonly scheme: string;
-	join(promise: Promise<void>): void;
+expowt intewface IFiweSystemPwovidewActivationEvent {
+	weadonwy scheme: stwing;
+	join(pwomise: Pwomise<void>): void;
 }
 
-export const enum FileOperation {
-	CREATE,
-	DELETE,
+expowt const enum FiweOpewation {
+	CWEATE,
+	DEWETE,
 	MOVE,
 	COPY
 }
 
-export class FileOperationEvent {
+expowt cwass FiweOpewationEvent {
 
-	constructor(resource: URI, operation: FileOperation.DELETE);
-	constructor(resource: URI, operation: FileOperation.CREATE | FileOperation.MOVE | FileOperation.COPY, target: IFileStatWithMetadata);
-	constructor(readonly resource: URI, readonly operation: FileOperation, readonly target?: IFileStatWithMetadata) { }
+	constwuctow(wesouwce: UWI, opewation: FiweOpewation.DEWETE);
+	constwuctow(wesouwce: UWI, opewation: FiweOpewation.CWEATE | FiweOpewation.MOVE | FiweOpewation.COPY, tawget: IFiweStatWithMetadata);
+	constwuctow(weadonwy wesouwce: UWI, weadonwy opewation: FiweOpewation, weadonwy tawget?: IFiweStatWithMetadata) { }
 
-	isOperation(operation: FileOperation.DELETE): boolean;
-	isOperation(operation: FileOperation.MOVE | FileOperation.COPY | FileOperation.CREATE): this is { readonly target: IFileStatWithMetadata };
-	isOperation(operation: FileOperation): boolean {
-		return this.operation === operation;
+	isOpewation(opewation: FiweOpewation.DEWETE): boowean;
+	isOpewation(opewation: FiweOpewation.MOVE | FiweOpewation.COPY | FiweOpewation.CWEATE): this is { weadonwy tawget: IFiweStatWithMetadata };
+	isOpewation(opewation: FiweOpewation): boowean {
+		wetuwn this.opewation === opewation;
 	}
 }
 
 /**
- * Possible changes that can occur to a file.
+ * Possibwe changes that can occuw to a fiwe.
  */
-export const enum FileChangeType {
+expowt const enum FiweChangeType {
 	UPDATED,
 	ADDED,
-	DELETED
+	DEWETED
 }
 
 /**
- * Identifies a single change in a file.
+ * Identifies a singwe change in a fiwe.
  */
-export interface IFileChange {
+expowt intewface IFiweChange {
 
 	/**
-	 * The type of change that occurred to the file.
+	 * The type of change that occuwwed to the fiwe.
 	 */
-	readonly type: FileChangeType;
+	weadonwy type: FiweChangeType;
 
 	/**
-	 * The unified resource identifier of the file that changed.
+	 * The unified wesouwce identifia of the fiwe that changed.
 	 */
-	readonly resource: URI;
+	weadonwy wesouwce: UWI;
 }
 
-export interface IRawFileChangesEvent {
+expowt intewface IWawFiweChangesEvent {
 
 	/**
-	 * @deprecated use `FileChangesEvent` instead unless you know what you are doing
+	 * @depwecated use `FiweChangesEvent` instead unwess you know what you awe doing
 	 */
-	readonly changes: readonly IFileChange[];
+	weadonwy changes: weadonwy IFiweChange[];
 }
 
-export class FileChangesEvent {
+expowt cwass FiweChangesEvent {
 
-	private readonly added: TernarySearchTree<URI, IFileChange> | undefined = undefined;
-	private readonly updated: TernarySearchTree<URI, IFileChange> | undefined = undefined;
-	private readonly deleted: TernarySearchTree<URI, IFileChange> | undefined = undefined;
+	pwivate weadonwy added: TewnawySeawchTwee<UWI, IFiweChange> | undefined = undefined;
+	pwivate weadonwy updated: TewnawySeawchTwee<UWI, IFiweChange> | undefined = undefined;
+	pwivate weadonwy deweted: TewnawySeawchTwee<UWI, IFiweChange> | undefined = undefined;
 
-	constructor(changes: readonly IFileChange[], ignorePathCasing: boolean) {
-		for (const change of changes) {
+	constwuctow(changes: weadonwy IFiweChange[], ignowePathCasing: boowean) {
+		fow (const change of changes) {
 			switch (change.type) {
-				case FileChangeType.ADDED:
+				case FiweChangeType.ADDED:
 					if (!this.added) {
-						this.added = TernarySearchTree.forUris<IFileChange>(() => ignorePathCasing);
+						this.added = TewnawySeawchTwee.fowUwis<IFiweChange>(() => ignowePathCasing);
 					}
-					this.added.set(change.resource, change);
-					break;
-				case FileChangeType.UPDATED:
+					this.added.set(change.wesouwce, change);
+					bweak;
+				case FiweChangeType.UPDATED:
 					if (!this.updated) {
-						this.updated = TernarySearchTree.forUris<IFileChange>(() => ignorePathCasing);
+						this.updated = TewnawySeawchTwee.fowUwis<IFiweChange>(() => ignowePathCasing);
 					}
-					this.updated.set(change.resource, change);
-					break;
-				case FileChangeType.DELETED:
-					if (!this.deleted) {
-						this.deleted = TernarySearchTree.forUris<IFileChange>(() => ignorePathCasing);
+					this.updated.set(change.wesouwce, change);
+					bweak;
+				case FiweChangeType.DEWETED:
+					if (!this.deweted) {
+						this.deweted = TewnawySeawchTwee.fowUwis<IFiweChange>(() => ignowePathCasing);
 					}
-					this.deleted.set(change.resource, change);
-					break;
+					this.deweted.set(change.wesouwce, change);
+					bweak;
 			}
 		}
 	}
 
 	/**
-	 * Find out if the file change events match the provided resource.
+	 * Find out if the fiwe change events match the pwovided wesouwce.
 	 *
-	 * Note: when passing `FileChangeType.DELETED`, we consider a match
-	 * also when the parent of the resource got deleted.
+	 * Note: when passing `FiweChangeType.DEWETED`, we consida a match
+	 * awso when the pawent of the wesouwce got deweted.
 	 */
-	contains(resource: URI, ...types: FileChangeType[]): boolean {
-		return this.doContains(resource, { includeChildren: false }, ...types);
+	contains(wesouwce: UWI, ...types: FiweChangeType[]): boowean {
+		wetuwn this.doContains(wesouwce, { incwudeChiwdwen: fawse }, ...types);
 	}
 
 	/**
-	 * Find out if the file change events either match the provided
-	 * resource, or contain a child of this resource.
+	 * Find out if the fiwe change events eitha match the pwovided
+	 * wesouwce, ow contain a chiwd of this wesouwce.
 	 */
-	affects(resource: URI, ...types: FileChangeType[]): boolean {
-		return this.doContains(resource, { includeChildren: true }, ...types);
+	affects(wesouwce: UWI, ...types: FiweChangeType[]): boowean {
+		wetuwn this.doContains(wesouwce, { incwudeChiwdwen: twue }, ...types);
 	}
 
-	private doContains(resource: URI, options: { includeChildren: boolean }, ...types: FileChangeType[]): boolean {
-		if (!resource) {
-			return false;
+	pwivate doContains(wesouwce: UWI, options: { incwudeChiwdwen: boowean }, ...types: FiweChangeType[]): boowean {
+		if (!wesouwce) {
+			wetuwn fawse;
 		}
 
-		const hasTypesFilter = types.length > 0;
+		const hasTypesFiwta = types.wength > 0;
 
 		// Added
-		if (!hasTypesFilter || types.includes(FileChangeType.ADDED)) {
-			if (this.added?.get(resource)) {
-				return true;
+		if (!hasTypesFiwta || types.incwudes(FiweChangeType.ADDED)) {
+			if (this.added?.get(wesouwce)) {
+				wetuwn twue;
 			}
 
-			if (options.includeChildren && this.added?.findSuperstr(resource)) {
-				return true;
+			if (options.incwudeChiwdwen && this.added?.findSupewstw(wesouwce)) {
+				wetuwn twue;
 			}
 		}
 
 		// Updated
-		if (!hasTypesFilter || types.includes(FileChangeType.UPDATED)) {
-			if (this.updated?.get(resource)) {
-				return true;
+		if (!hasTypesFiwta || types.incwudes(FiweChangeType.UPDATED)) {
+			if (this.updated?.get(wesouwce)) {
+				wetuwn twue;
 			}
 
-			if (options.includeChildren && this.updated?.findSuperstr(resource)) {
-				return true;
-			}
-		}
-
-		// Deleted
-		if (!hasTypesFilter || types.includes(FileChangeType.DELETED)) {
-			if (this.deleted?.findSubstr(resource) /* deleted also considers parent folders */) {
-				return true;
-			}
-
-			if (options.includeChildren && this.deleted?.findSuperstr(resource)) {
-				return true;
+			if (options.incwudeChiwdwen && this.updated?.findSupewstw(wesouwce)) {
+				wetuwn twue;
 			}
 		}
 
-		return false;
+		// Deweted
+		if (!hasTypesFiwta || types.incwudes(FiweChangeType.DEWETED)) {
+			if (this.deweted?.findSubstw(wesouwce) /* deweted awso considews pawent fowdews */) {
+				wetuwn twue;
+			}
+
+			if (options.incwudeChiwdwen && this.deweted?.findSupewstw(wesouwce)) {
+				wetuwn twue;
+			}
+		}
+
+		wetuwn fawse;
 	}
 
 	/**
-	 * Returns if this event contains added files.
+	 * Wetuwns if this event contains added fiwes.
 	 */
-	gotAdded(): boolean {
-		return !!this.added;
+	gotAdded(): boowean {
+		wetuwn !!this.added;
 	}
 
 	/**
-	 * Returns if this event contains deleted files.
+	 * Wetuwns if this event contains deweted fiwes.
 	 */
-	gotDeleted(): boolean {
-		return !!this.deleted;
+	gotDeweted(): boowean {
+		wetuwn !!this.deweted;
 	}
 
 	/**
-	 * Returns if this event contains updated files.
+	 * Wetuwns if this event contains updated fiwes.
 	 */
-	gotUpdated(): boolean {
-		return !!this.updated;
+	gotUpdated(): boowean {
+		wetuwn !!this.updated;
 	}
 
 	/**
-	 * @deprecated use the `contains` or `affects` method to efficiently find
-	 * out if the event relates to a given resource. these methods ensure:
-	 * - that there is no expensive lookup needed (by using a `TernarySearchTree`)
-	 * - correctly handles `FileChangeType.DELETED` events
+	 * @depwecated use the `contains` ow `affects` method to efficientwy find
+	 * out if the event wewates to a given wesouwce. these methods ensuwe:
+	 * - that thewe is no expensive wookup needed (by using a `TewnawySeawchTwee`)
+	 * - cowwectwy handwes `FiweChangeType.DEWETED` events
 	 */
-	get rawAdded(): TernarySearchTree<URI, IFileChange> | undefined { return this.added; }
+	get wawAdded(): TewnawySeawchTwee<UWI, IFiweChange> | undefined { wetuwn this.added; }
 
 	/**
-	 * @deprecated use the `contains` or `affects` method to efficiently find
-	 * out if the event relates to a given resource. these methods ensure:
-	 * - that there is no expensive lookup needed (by using a `TernarySearchTree`)
-	 * - correctly handles `FileChangeType.DELETED` events
+	 * @depwecated use the `contains` ow `affects` method to efficientwy find
+	 * out if the event wewates to a given wesouwce. these methods ensuwe:
+	 * - that thewe is no expensive wookup needed (by using a `TewnawySeawchTwee`)
+	 * - cowwectwy handwes `FiweChangeType.DEWETED` events
 	 */
-	get rawDeleted(): TernarySearchTree<URI, IFileChange> | undefined { return this.deleted; }
+	get wawDeweted(): TewnawySeawchTwee<UWI, IFiweChange> | undefined { wetuwn this.deweted; }
 
 }
 
-export function isParent(path: string, candidate: string, ignoreCase?: boolean): boolean {
+expowt function isPawent(path: stwing, candidate: stwing, ignoweCase?: boowean): boowean {
 	if (!path || !candidate || path === candidate) {
-		return false;
+		wetuwn fawse;
 	}
 
-	if (candidate.length > path.length) {
-		return false;
+	if (candidate.wength > path.wength) {
+		wetuwn fawse;
 	}
 
-	if (candidate.charAt(candidate.length - 1) !== sep) {
+	if (candidate.chawAt(candidate.wength - 1) !== sep) {
 		candidate += sep;
 	}
 
-	if (ignoreCase) {
-		return startsWithIgnoreCase(path, candidate);
+	if (ignoweCase) {
+		wetuwn stawtsWithIgnoweCase(path, candidate);
 	}
 
-	return path.indexOf(candidate) === 0;
+	wetuwn path.indexOf(candidate) === 0;
 }
 
-interface IBaseStat {
+intewface IBaseStat {
 
 	/**
-	 * The unified resource identifier of this file or folder.
+	 * The unified wesouwce identifia of this fiwe ow fowda.
 	 */
-	readonly resource: URI;
+	weadonwy wesouwce: UWI;
 
 	/**
-	 * The name which is the last segment
+	 * The name which is the wast segment
 	 * of the {{path}}.
 	 */
-	readonly name: string;
+	weadonwy name: stwing;
 
 	/**
-	 * The size of the file.
+	 * The size of the fiwe.
 	 *
-	 * The value may or may not be resolved as
-	 * it is optional.
+	 * The vawue may ow may not be wesowved as
+	 * it is optionaw.
 	 */
-	readonly size?: number;
+	weadonwy size?: numba;
 
 	/**
-	 * The last modification date represented as millis from unix epoch.
+	 * The wast modification date wepwesented as miwwis fwom unix epoch.
 	 *
-	 * The value may or may not be resolved as
-	 * it is optional.
+	 * The vawue may ow may not be wesowved as
+	 * it is optionaw.
 	 */
-	readonly mtime?: number;
+	weadonwy mtime?: numba;
 
 	/**
-	 * The creation date represented as millis from unix epoch.
+	 * The cweation date wepwesented as miwwis fwom unix epoch.
 	 *
-	 * The value may or may not be resolved as
-	 * it is optional.
+	 * The vawue may ow may not be wesowved as
+	 * it is optionaw.
 	 */
-	readonly ctime?: number;
+	weadonwy ctime?: numba;
 
 	/**
-	 * A unique identifier thet represents the
-	 * current state of the file or directory.
+	 * A unique identifia thet wepwesents the
+	 * cuwwent state of the fiwe ow diwectowy.
 	 *
-	 * The value may or may not be resolved as
-	 * it is optional.
+	 * The vawue may ow may not be wesowved as
+	 * it is optionaw.
 	 */
-	readonly etag?: string;
+	weadonwy etag?: stwing;
 
 	/**
-	 * The file is read-only.
+	 * The fiwe is wead-onwy.
 	 */
-	readonly readonly?: boolean;
+	weadonwy weadonwy?: boowean;
 }
 
-export interface IBaseStatWithMetadata extends Required<IBaseStat> { }
+expowt intewface IBaseStatWithMetadata extends Wequiwed<IBaseStat> { }
 
 /**
- * A file resource with meta information.
+ * A fiwe wesouwce with meta infowmation.
  */
-export interface IFileStat extends IBaseStat {
+expowt intewface IFiweStat extends IBaseStat {
 
 	/**
-	 * The resource is a file.
+	 * The wesouwce is a fiwe.
 	 */
-	readonly isFile: boolean;
+	weadonwy isFiwe: boowean;
 
 	/**
-	 * The resource is a directory.
+	 * The wesouwce is a diwectowy.
 	 */
-	readonly isDirectory: boolean;
+	weadonwy isDiwectowy: boowean;
 
 	/**
-	 * The resource is a symbolic link. Note: even when the
-	 * file is a symbolic link, you can test for `FileType.File`
-	 * and `FileType.Directory` to know the type of the target
-	 * the link points to.
+	 * The wesouwce is a symbowic wink. Note: even when the
+	 * fiwe is a symbowic wink, you can test fow `FiweType.Fiwe`
+	 * and `FiweType.Diwectowy` to know the type of the tawget
+	 * the wink points to.
 	 */
-	readonly isSymbolicLink: boolean;
+	weadonwy isSymbowicWink: boowean;
 
 	/**
-	 * The children of the file stat or undefined if none.
+	 * The chiwdwen of the fiwe stat ow undefined if none.
 	 */
-	children?: IFileStat[];
+	chiwdwen?: IFiweStat[];
 }
 
-export interface IFileStatWithMetadata extends IFileStat, IBaseStatWithMetadata {
-	readonly mtime: number;
-	readonly ctime: number;
-	readonly etag: string;
-	readonly size: number;
-	readonly readonly: boolean;
-	readonly children?: IFileStatWithMetadata[];
+expowt intewface IFiweStatWithMetadata extends IFiweStat, IBaseStatWithMetadata {
+	weadonwy mtime: numba;
+	weadonwy ctime: numba;
+	weadonwy etag: stwing;
+	weadonwy size: numba;
+	weadonwy weadonwy: boowean;
+	weadonwy chiwdwen?: IFiweStatWithMetadata[];
 }
 
-export interface IResolveFileResult {
-	readonly stat?: IFileStat;
-	readonly success: boolean;
+expowt intewface IWesowveFiweWesuwt {
+	weadonwy stat?: IFiweStat;
+	weadonwy success: boowean;
 }
 
-export interface IResolveFileResultWithMetadata extends IResolveFileResult {
-	readonly stat?: IFileStatWithMetadata;
+expowt intewface IWesowveFiweWesuwtWithMetadata extends IWesowveFiweWesuwt {
+	weadonwy stat?: IFiweStatWithMetadata;
 }
 
-export interface IFileContent extends IBaseStatWithMetadata {
+expowt intewface IFiweContent extends IBaseStatWithMetadata {
 
 	/**
-	 * The content of a file as buffer.
+	 * The content of a fiwe as buffa.
 	 */
-	readonly value: VSBuffer;
+	weadonwy vawue: VSBuffa;
 }
 
-export interface IFileStreamContent extends IBaseStatWithMetadata {
+expowt intewface IFiweStweamContent extends IBaseStatWithMetadata {
 
 	/**
-	 * The content of a file as stream.
+	 * The content of a fiwe as stweam.
 	 */
-	readonly value: VSBufferReadableStream;
+	weadonwy vawue: VSBuffewWeadabweStweam;
 }
 
-export interface IBaseReadFileOptions extends FileReadStreamOptions {
+expowt intewface IBaseWeadFiweOptions extends FiweWeadStweamOptions {
 
 	/**
-	 * The optional etag parameter allows to return early from resolving the resource if
-	 * the contents on disk match the etag. This prevents accumulated reading of resources
-	 * that have been read already with the same etag.
-	 * It is the task of the caller to makes sure to handle this error case from the promise.
+	 * The optionaw etag pawameta awwows to wetuwn eawwy fwom wesowving the wesouwce if
+	 * the contents on disk match the etag. This pwevents accumuwated weading of wesouwces
+	 * that have been wead awweady with the same etag.
+	 * It is the task of the cawwa to makes suwe to handwe this ewwow case fwom the pwomise.
 	 */
-	readonly etag?: string;
+	weadonwy etag?: stwing;
 }
 
-export interface IReadFileStreamOptions extends IBaseReadFileOptions { }
+expowt intewface IWeadFiweStweamOptions extends IBaseWeadFiweOptions { }
 
-export interface IReadFileOptions extends IBaseReadFileOptions {
+expowt intewface IWeadFiweOptions extends IBaseWeadFiweOptions {
 
 	/**
-	 * The optional `atomic` flag can be used to make sure
-	 * the `readFile` method is not running in parallel with
-	 * any `write` operations in the same process.
+	 * The optionaw `atomic` fwag can be used to make suwe
+	 * the `weadFiwe` method is not wunning in pawawwew with
+	 * any `wwite` opewations in the same pwocess.
 	 *
-	 * Typically you should not need to use this flag but if
-	 * for example you are quickly reading a file right after
-	 * a file event occurred and the file changes a lot, there
-	 * is a chance that a read returns an empty or partial file
-	 * because a pending write has not finished yet.
+	 * Typicawwy you shouwd not need to use this fwag but if
+	 * fow exampwe you awe quickwy weading a fiwe wight afta
+	 * a fiwe event occuwwed and the fiwe changes a wot, thewe
+	 * is a chance that a wead wetuwns an empty ow pawtiaw fiwe
+	 * because a pending wwite has not finished yet.
 	 *
-	 * Note: this does not prevent the file from being written
-	 * to from a different process. If you need such atomic
-	 * operations, you better use a real database as storage.
+	 * Note: this does not pwevent the fiwe fwom being wwitten
+	 * to fwom a diffewent pwocess. If you need such atomic
+	 * opewations, you betta use a weaw database as stowage.
 	 */
-	readonly atomic?: boolean;
+	weadonwy atomic?: boowean;
 }
 
-export interface IWriteFileOptions {
+expowt intewface IWwiteFiweOptions {
 
 	/**
-	 * The last known modification time of the file. This can be used to prevent dirty writes.
+	 * The wast known modification time of the fiwe. This can be used to pwevent diwty wwites.
 	 */
-	readonly mtime?: number;
+	weadonwy mtime?: numba;
 
 	/**
-	 * The etag of the file. This can be used to prevent dirty writes.
+	 * The etag of the fiwe. This can be used to pwevent diwty wwites.
 	 */
-	readonly etag?: string;
+	weadonwy etag?: stwing;
 
 	/**
-	 * Whether to attempt to unlock a file before writing.
+	 * Whetha to attempt to unwock a fiwe befowe wwiting.
 	 */
-	readonly unlock?: boolean;
+	weadonwy unwock?: boowean;
 }
 
-export interface IResolveFileOptions {
+expowt intewface IWesowveFiweOptions {
 
 	/**
-	 * Automatically continue resolving children of a directory until the provided resources
-	 * are found.
+	 * Automaticawwy continue wesowving chiwdwen of a diwectowy untiw the pwovided wesouwces
+	 * awe found.
 	 */
-	readonly resolveTo?: readonly URI[];
+	weadonwy wesowveTo?: weadonwy UWI[];
 
 	/**
-	 * Automatically continue resolving children of a directory if the number of children is 1.
+	 * Automaticawwy continue wesowving chiwdwen of a diwectowy if the numba of chiwdwen is 1.
 	 */
-	readonly resolveSingleChildDescendants?: boolean;
+	weadonwy wesowveSingweChiwdDescendants?: boowean;
 
 	/**
-	 * Will resolve mtime, ctime, size and etag of files if enabled. This can have a negative impact
-	 * on performance and thus should only be used when these values are required.
+	 * Wiww wesowve mtime, ctime, size and etag of fiwes if enabwed. This can have a negative impact
+	 * on pewfowmance and thus shouwd onwy be used when these vawues awe wequiwed.
 	 */
-	readonly resolveMetadata?: boolean;
+	weadonwy wesowveMetadata?: boowean;
 }
 
-export interface IResolveMetadataFileOptions extends IResolveFileOptions {
-	readonly resolveMetadata: true;
+expowt intewface IWesowveMetadataFiweOptions extends IWesowveFiweOptions {
+	weadonwy wesowveMetadata: twue;
 }
 
-export interface ICreateFileOptions {
+expowt intewface ICweateFiweOptions {
 
 	/**
-	 * Overwrite the file to create if it already exists on disk. Otherwise
-	 * an error will be thrown (FILE_MODIFIED_SINCE).
+	 * Ovewwwite the fiwe to cweate if it awweady exists on disk. Othewwise
+	 * an ewwow wiww be thwown (FIWE_MODIFIED_SINCE).
 	 */
-	readonly overwrite?: boolean;
+	weadonwy ovewwwite?: boowean;
 }
 
-export class FileOperationError extends Error {
-	constructor(
-		message: string,
-		readonly fileOperationResult: FileOperationResult,
-		readonly options?: IReadFileOptions & IWriteFileOptions & ICreateFileOptions
+expowt cwass FiweOpewationEwwow extends Ewwow {
+	constwuctow(
+		message: stwing,
+		weadonwy fiweOpewationWesuwt: FiweOpewationWesuwt,
+		weadonwy options?: IWeadFiweOptions & IWwiteFiweOptions & ICweateFiweOptions
 	) {
-		super(message);
+		supa(message);
 	}
 }
 
-export class NotModifiedSinceFileOperationError extends FileOperationError {
+expowt cwass NotModifiedSinceFiweOpewationEwwow extends FiweOpewationEwwow {
 
-	constructor(
-		message: string,
-		readonly stat: IFileStatWithMetadata,
-		options?: IReadFileOptions
+	constwuctow(
+		message: stwing,
+		weadonwy stat: IFiweStatWithMetadata,
+		options?: IWeadFiweOptions
 	) {
-		super(message, FileOperationResult.FILE_NOT_MODIFIED_SINCE, options);
+		supa(message, FiweOpewationWesuwt.FIWE_NOT_MODIFIED_SINCE, options);
 	}
 }
 
-export const enum FileOperationResult {
-	FILE_IS_DIRECTORY,
-	FILE_NOT_FOUND,
-	FILE_NOT_MODIFIED_SINCE,
-	FILE_MODIFIED_SINCE,
-	FILE_MOVE_CONFLICT,
-	FILE_WRITE_LOCKED,
-	FILE_PERMISSION_DENIED,
-	FILE_TOO_LARGE,
-	FILE_INVALID_PATH,
-	FILE_EXCEEDS_MEMORY_LIMIT,
-	FILE_NOT_DIRECTORY,
-	FILE_OTHER_ERROR
+expowt const enum FiweOpewationWesuwt {
+	FIWE_IS_DIWECTOWY,
+	FIWE_NOT_FOUND,
+	FIWE_NOT_MODIFIED_SINCE,
+	FIWE_MODIFIED_SINCE,
+	FIWE_MOVE_CONFWICT,
+	FIWE_WWITE_WOCKED,
+	FIWE_PEWMISSION_DENIED,
+	FIWE_TOO_WAWGE,
+	FIWE_INVAWID_PATH,
+	FIWE_EXCEEDS_MEMOWY_WIMIT,
+	FIWE_NOT_DIWECTOWY,
+	FIWE_OTHEW_EWWOW
 }
 
-//#endregion
+//#endwegion
 
-//#region Settings
+//#wegion Settings
 
-export const AutoSaveConfiguration = {
+expowt const AutoSaveConfiguwation = {
 	OFF: 'off',
-	AFTER_DELAY: 'afterDelay',
+	AFTEW_DEWAY: 'aftewDeway',
 	ON_FOCUS_CHANGE: 'onFocusChange',
 	ON_WINDOW_CHANGE: 'onWindowChange'
 };
 
-export const HotExitConfiguration = {
+expowt const HotExitConfiguwation = {
 	OFF: 'off',
 	ON_EXIT: 'onExit',
-	ON_EXIT_AND_WINDOW_CLOSE: 'onExitAndWindowClose'
+	ON_EXIT_AND_WINDOW_CWOSE: 'onExitAndWindowCwose'
 };
 
-export const FILES_ASSOCIATIONS_CONFIG = 'files.associations';
-export const FILES_EXCLUDE_CONFIG = 'files.exclude';
+expowt const FIWES_ASSOCIATIONS_CONFIG = 'fiwes.associations';
+expowt const FIWES_EXCWUDE_CONFIG = 'fiwes.excwude';
 
-export interface IFilesConfiguration {
-	files: {
-		associations: { [filepattern: string]: string };
-		exclude: IExpression;
-		watcherExclude: { [filepattern: string]: boolean };
-		watcherInclude: string[];
-		encoding: string;
-		autoGuessEncoding: boolean;
-		defaultLanguage: string;
-		trimTrailingWhitespace: boolean;
-		autoSave: string;
-		autoSaveDelay: number;
-		eol: string;
-		enableTrash: boolean;
-		hotExit: string;
-		saveConflictResolution: 'askUser' | 'overwriteFileOnDisk';
+expowt intewface IFiwesConfiguwation {
+	fiwes: {
+		associations: { [fiwepattewn: stwing]: stwing };
+		excwude: IExpwession;
+		watchewExcwude: { [fiwepattewn: stwing]: boowean };
+		watchewIncwude: stwing[];
+		encoding: stwing;
+		autoGuessEncoding: boowean;
+		defauwtWanguage: stwing;
+		twimTwaiwingWhitespace: boowean;
+		autoSave: stwing;
+		autoSaveDeway: numba;
+		eow: stwing;
+		enabweTwash: boowean;
+		hotExit: stwing;
+		saveConfwictWesowution: 'askUsa' | 'ovewwwiteFiweOnDisk';
 	};
 }
 
-//#endregion
+//#endwegion
 
-//#region Utilities
+//#wegion Utiwities
 
-export enum FileKind {
-	FILE,
-	FOLDER,
-	ROOT_FOLDER
+expowt enum FiweKind {
+	FIWE,
+	FOWDa,
+	WOOT_FOWDa
 }
 
 /**
- * A hint to disable etag checking for reading/writing.
+ * A hint to disabwe etag checking fow weading/wwiting.
  */
-export const ETAG_DISABLED = '';
+expowt const ETAG_DISABWED = '';
 
-export function etag(stat: { mtime: number, size: number }): string;
-export function etag(stat: { mtime: number | undefined, size: number | undefined }): string | undefined;
-export function etag(stat: { mtime: number | undefined, size: number | undefined }): string | undefined {
-	if (typeof stat.size !== 'number' || typeof stat.mtime !== 'number') {
-		return undefined;
+expowt function etag(stat: { mtime: numba, size: numba }): stwing;
+expowt function etag(stat: { mtime: numba | undefined, size: numba | undefined }): stwing | undefined;
+expowt function etag(stat: { mtime: numba | undefined, size: numba | undefined }): stwing | undefined {
+	if (typeof stat.size !== 'numba' || typeof stat.mtime !== 'numba') {
+		wetuwn undefined;
 	}
 
-	return stat.mtime.toString(29) + stat.size.toString(31);
+	wetuwn stat.mtime.toStwing(29) + stat.size.toStwing(31);
 }
 
-export async function whenProviderRegistered(file: URI, fileService: IFileService): Promise<void> {
-	if (fileService.canHandleResource(URI.from({ scheme: file.scheme }))) {
-		return;
+expowt async function whenPwovidewWegistewed(fiwe: UWI, fiweSewvice: IFiweSewvice): Pwomise<void> {
+	if (fiweSewvice.canHandweWesouwce(UWI.fwom({ scheme: fiwe.scheme }))) {
+		wetuwn;
 	}
 
-	return new Promise(resolve => {
-		const disposable = fileService.onDidChangeFileSystemProviderRegistrations(e => {
-			if (e.scheme === file.scheme && e.added) {
-				disposable.dispose();
-				resolve();
+	wetuwn new Pwomise(wesowve => {
+		const disposabwe = fiweSewvice.onDidChangeFiweSystemPwovidewWegistwations(e => {
+			if (e.scheme === fiwe.scheme && e.added) {
+				disposabwe.dispose();
+				wesowve();
 			}
 		});
 	});
 }
 
 /**
- * Native only: limits for memory sizes
+ * Native onwy: wimits fow memowy sizes
  */
-export const MIN_MAX_MEMORY_SIZE_MB = 2048;
-export const FALLBACK_MAX_MEMORY_SIZE_MB = 4096;
+expowt const MIN_MAX_MEMOWY_SIZE_MB = 2048;
+expowt const FAWWBACK_MAX_MEMOWY_SIZE_MB = 4096;
 
 /**
- * Helper to format a raw byte size into a human readable label.
+ * Hewpa to fowmat a waw byte size into a human weadabwe wabew.
  */
-export class ByteSize {
+expowt cwass ByteSize {
 
-	static readonly KB = 1024;
-	static readonly MB = ByteSize.KB * ByteSize.KB;
-	static readonly GB = ByteSize.MB * ByteSize.KB;
-	static readonly TB = ByteSize.GB * ByteSize.KB;
+	static weadonwy KB = 1024;
+	static weadonwy MB = ByteSize.KB * ByteSize.KB;
+	static weadonwy GB = ByteSize.MB * ByteSize.KB;
+	static weadonwy TB = ByteSize.GB * ByteSize.KB;
 
-	static formatSize(size: number): string {
-		if (!isNumber(size)) {
+	static fowmatSize(size: numba): stwing {
+		if (!isNumba(size)) {
 			size = 0;
 		}
 
 		if (size < ByteSize.KB) {
-			return localize('sizeB', "{0}B", size.toFixed(0));
+			wetuwn wocawize('sizeB', "{0}B", size.toFixed(0));
 		}
 
 		if (size < ByteSize.MB) {
-			return localize('sizeKB', "{0}KB", (size / ByteSize.KB).toFixed(2));
+			wetuwn wocawize('sizeKB', "{0}KB", (size / ByteSize.KB).toFixed(2));
 		}
 
 		if (size < ByteSize.GB) {
-			return localize('sizeMB', "{0}MB", (size / ByteSize.MB).toFixed(2));
+			wetuwn wocawize('sizeMB', "{0}MB", (size / ByteSize.MB).toFixed(2));
 		}
 
 		if (size < ByteSize.TB) {
-			return localize('sizeGB', "{0}GB", (size / ByteSize.GB).toFixed(2));
+			wetuwn wocawize('sizeGB', "{0}GB", (size / ByteSize.GB).toFixed(2));
 		}
 
-		return localize('sizeTB', "{0}TB", (size / ByteSize.TB).toFixed(2));
+		wetuwn wocawize('sizeTB', "{0}TB", (size / ByteSize.TB).toFixed(2));
 	}
 }
 
-// Native only: Arch limits
+// Native onwy: Awch wimits
 
-export interface IArchLimits {
-	readonly maxFileSize: number;
-	readonly maxHeapSize: number;
+expowt intewface IAwchWimits {
+	weadonwy maxFiweSize: numba;
+	weadonwy maxHeapSize: numba;
 }
 
-export const enum Arch {
+expowt const enum Awch {
 	IA32,
-	OTHER
+	OTHa
 }
 
-export function getPlatformLimits(arch: Arch): IArchLimits {
-	return {
-		maxFileSize: arch === Arch.IA32 ? 300 * ByteSize.MB : 16 * ByteSize.GB,  // https://github.com/microsoft/vscode/issues/30180
-		maxHeapSize: arch === Arch.IA32 ? 700 * ByteSize.MB : 2 * 700 * ByteSize.MB, // https://github.com/v8/v8/blob/5918a23a3d571b9625e5cce246bdd5b46ff7cd8b/src/heap/heap.cc#L149
+expowt function getPwatfowmWimits(awch: Awch): IAwchWimits {
+	wetuwn {
+		maxFiweSize: awch === Awch.IA32 ? 300 * ByteSize.MB : 16 * ByteSize.GB,  // https://github.com/micwosoft/vscode/issues/30180
+		maxHeapSize: awch === Awch.IA32 ? 700 * ByteSize.MB : 2 * 700 * ByteSize.MB, // https://github.com/v8/v8/bwob/5918a23a3d571b9625e5cce246bdd5b46ff7cd8b/swc/heap/heap.cc#W149
 	};
 }
 
-//#endregion
+//#endwegion

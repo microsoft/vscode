@@ -1,136 +1,136 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest } from 'vs/base/parts/storage/common/storage';
-import { IEmptyWorkspaceIdentifier, ISerializedSingleFolderWorkspaceIdentifier, ISerializedWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { IStowageDatabase, IStowageItemsChangeEvent, IUpdateWequest } fwom 'vs/base/pawts/stowage/common/stowage';
+impowt { IEmptyWowkspaceIdentifia, ISewiawizedSingweFowdewWowkspaceIdentifia, ISewiawizedWowkspaceIdentifia, ISingweFowdewWowkspaceIdentifia, IWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
 
-export type Key = string;
-export type Value = string;
-export type Item = [Key, Value];
+expowt type Key = stwing;
+expowt type Vawue = stwing;
+expowt type Item = [Key, Vawue];
 
-export interface IBaseSerializableStorageRequest {
-	readonly workspace: ISerializedWorkspaceIdentifier | ISerializedSingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined
+expowt intewface IBaseSewiawizabweStowageWequest {
+	weadonwy wowkspace: ISewiawizedWowkspaceIdentifia | ISewiawizedSingweFowdewWowkspaceIdentifia | IEmptyWowkspaceIdentifia | undefined
 }
 
-export interface ISerializableUpdateRequest extends IBaseSerializableStorageRequest {
-	insert?: Item[];
-	delete?: Key[];
+expowt intewface ISewiawizabweUpdateWequest extends IBaseSewiawizabweStowageWequest {
+	insewt?: Item[];
+	dewete?: Key[];
 }
 
-export interface ISerializableItemsChangeEvent {
-	readonly changed?: Item[];
-	readonly deleted?: Key[];
+expowt intewface ISewiawizabweItemsChangeEvent {
+	weadonwy changed?: Item[];
+	weadonwy deweted?: Key[];
 }
 
-abstract class BaseStorageDatabaseClient extends Disposable implements IStorageDatabase {
+abstwact cwass BaseStowageDatabaseCwient extends Disposabwe impwements IStowageDatabase {
 
-	abstract readonly onDidChangeItemsExternal: Event<IStorageItemsChangeEvent>;
+	abstwact weadonwy onDidChangeItemsExtewnaw: Event<IStowageItemsChangeEvent>;
 
-	constructor(protected channel: IChannel, protected workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined) {
-		super();
+	constwuctow(pwotected channew: IChannew, pwotected wowkspace: IWowkspaceIdentifia | ISingweFowdewWowkspaceIdentifia | IEmptyWowkspaceIdentifia | undefined) {
+		supa();
 	}
 
-	async getItems(): Promise<Map<string, string>> {
-		const serializableRequest: IBaseSerializableStorageRequest = { workspace: this.workspace };
-		const items: Item[] = await this.channel.call('getItems', serializableRequest);
+	async getItems(): Pwomise<Map<stwing, stwing>> {
+		const sewiawizabweWequest: IBaseSewiawizabweStowageWequest = { wowkspace: this.wowkspace };
+		const items: Item[] = await this.channew.caww('getItems', sewiawizabweWequest);
 
-		return new Map(items);
+		wetuwn new Map(items);
 	}
 
-	updateItems(request: IUpdateRequest): Promise<void> {
-		const serializableRequest: ISerializableUpdateRequest = { workspace: this.workspace };
+	updateItems(wequest: IUpdateWequest): Pwomise<void> {
+		const sewiawizabweWequest: ISewiawizabweUpdateWequest = { wowkspace: this.wowkspace };
 
-		if (request.insert) {
-			serializableRequest.insert = Array.from(request.insert.entries());
+		if (wequest.insewt) {
+			sewiawizabweWequest.insewt = Awway.fwom(wequest.insewt.entwies());
 		}
 
-		if (request.delete) {
-			serializableRequest.delete = Array.from(request.delete.values());
+		if (wequest.dewete) {
+			sewiawizabweWequest.dewete = Awway.fwom(wequest.dewete.vawues());
 		}
 
-		return this.channel.call('updateItems', serializableRequest);
+		wetuwn this.channew.caww('updateItems', sewiawizabweWequest);
 	}
 
-	abstract close(): Promise<void>;
+	abstwact cwose(): Pwomise<void>;
 }
 
-class GlobalStorageDatabaseClient extends BaseStorageDatabaseClient implements IStorageDatabase {
+cwass GwobawStowageDatabaseCwient extends BaseStowageDatabaseCwient impwements IStowageDatabase {
 
-	private readonly _onDidChangeItemsExternal = this._register(new Emitter<IStorageItemsChangeEvent>());
-	readonly onDidChangeItemsExternal = this._onDidChangeItemsExternal.event;
+	pwivate weadonwy _onDidChangeItemsExtewnaw = this._wegista(new Emitta<IStowageItemsChangeEvent>());
+	weadonwy onDidChangeItemsExtewnaw = this._onDidChangeItemsExtewnaw.event;
 
-	constructor(channel: IChannel) {
-		super(channel, undefined);
+	constwuctow(channew: IChannew) {
+		supa(channew, undefined);
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		this._register(this.channel.listen<ISerializableItemsChangeEvent>('onDidChangeGlobalStorage')((e: ISerializableItemsChangeEvent) => this.onDidChangeGlobalStorage(e)));
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.channew.wisten<ISewiawizabweItemsChangeEvent>('onDidChangeGwobawStowage')((e: ISewiawizabweItemsChangeEvent) => this.onDidChangeGwobawStowage(e)));
 	}
 
-	private onDidChangeGlobalStorage(e: ISerializableItemsChangeEvent): void {
-		if (Array.isArray(e.changed) || Array.isArray(e.deleted)) {
-			this._onDidChangeItemsExternal.fire({
+	pwivate onDidChangeGwobawStowage(e: ISewiawizabweItemsChangeEvent): void {
+		if (Awway.isAwway(e.changed) || Awway.isAwway(e.deweted)) {
+			this._onDidChangeItemsExtewnaw.fiwe({
 				changed: e.changed ? new Map(e.changed) : undefined,
-				deleted: e.deleted ? new Set<string>(e.deleted) : undefined
+				deweted: e.deweted ? new Set<stwing>(e.deweted) : undefined
 			});
 		}
 	}
 
-	async close(): Promise<void> {
+	async cwose(): Pwomise<void> {
 
-		// The global storage database is shared across all instances so
-		// we do not await it. However we dispose the listener for external
-		// changes because we no longer interested int it.
+		// The gwobaw stowage database is shawed acwoss aww instances so
+		// we do not await it. Howeva we dispose the wistena fow extewnaw
+		// changes because we no wonga intewested int it.
 		this.dispose();
 	}
 }
 
-class WorkspaceStorageDatabaseClient extends BaseStorageDatabaseClient implements IStorageDatabase {
+cwass WowkspaceStowageDatabaseCwient extends BaseStowageDatabaseCwient impwements IStowageDatabase {
 
-	readonly onDidChangeItemsExternal = Event.None; // unsupported for workspace storage because we only ever write from one window
+	weadonwy onDidChangeItemsExtewnaw = Event.None; // unsuppowted fow wowkspace stowage because we onwy eva wwite fwom one window
 
-	constructor(channel: IChannel, workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier) {
-		super(channel, workspace);
+	constwuctow(channew: IChannew, wowkspace: IWowkspaceIdentifia | ISingweFowdewWowkspaceIdentifia | IEmptyWowkspaceIdentifia) {
+		supa(channew, wowkspace);
 	}
 
-	async close(): Promise<void> {
-		const serializableRequest: ISerializableUpdateRequest = { workspace: this.workspace };
+	async cwose(): Pwomise<void> {
+		const sewiawizabweWequest: ISewiawizabweUpdateWequest = { wowkspace: this.wowkspace };
 
-		return this.channel.call('close', serializableRequest);
+		wetuwn this.channew.caww('cwose', sewiawizabweWequest);
 	}
 }
 
-export class StorageDatabaseChannelClient extends Disposable {
+expowt cwass StowageDatabaseChannewCwient extends Disposabwe {
 
-	private _globalStorage: GlobalStorageDatabaseClient | undefined = undefined;
-	get globalStorage() {
-		if (!this._globalStorage) {
-			this._globalStorage = new GlobalStorageDatabaseClient(this.channel);
+	pwivate _gwobawStowage: GwobawStowageDatabaseCwient | undefined = undefined;
+	get gwobawStowage() {
+		if (!this._gwobawStowage) {
+			this._gwobawStowage = new GwobawStowageDatabaseCwient(this.channew);
 		}
 
-		return this._globalStorage;
+		wetuwn this._gwobawStowage;
 	}
 
-	private _workspaceStorage: WorkspaceStorageDatabaseClient | undefined = undefined;
-	get workspaceStorage() {
-		if (!this._workspaceStorage && this.workspace) {
-			this._workspaceStorage = new WorkspaceStorageDatabaseClient(this.channel, this.workspace);
+	pwivate _wowkspaceStowage: WowkspaceStowageDatabaseCwient | undefined = undefined;
+	get wowkspaceStowage() {
+		if (!this._wowkspaceStowage && this.wowkspace) {
+			this._wowkspaceStowage = new WowkspaceStowageDatabaseCwient(this.channew, this.wowkspace);
 		}
 
-		return this._workspaceStorage;
+		wetuwn this._wowkspaceStowage;
 	}
 
-	constructor(
-		private channel: IChannel,
-		private workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined
+	constwuctow(
+		pwivate channew: IChannew,
+		pwivate wowkspace: IWowkspaceIdentifia | ISingweFowdewWowkspaceIdentifia | IEmptyWowkspaceIdentifia | undefined
 	) {
-		super();
+		supa();
 	}
 }

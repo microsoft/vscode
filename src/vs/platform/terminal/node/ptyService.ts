@@ -1,789 +1,789 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { execFile } from 'child_process';
-import { AutoOpenBarrier, ProcessTimeRunOnceScheduler, Queue } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IProcessEnvironment, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { getSystemShell } from 'vs/base/node/shell';
-import { ILogService } from 'vs/platform/log/common/log';
-import { RequestStore } from 'vs/platform/terminal/common/requestStore';
-import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TerminalShellType, TitleEventSource, ProcessPropertyType, ProcessCapability, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
-import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
-import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
-import { Terminal as XtermTerminal } from 'xterm-headless';
-import type { ISerializeOptions, SerializeAddon as XtermSerializeAddon } from 'xterm-addon-serialize';
-import type { Unicode11Addon as XtermUnicode11Addon } from 'xterm-addon-unicode11';
-import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto } from 'vs/platform/terminal/common/terminalProcess';
-import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
-import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
-import { localize } from 'vs/nls';
+impowt { execFiwe } fwom 'chiwd_pwocess';
+impowt { AutoOpenBawwia, PwocessTimeWunOnceScheduwa, Queue } fwom 'vs/base/common/async';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IPwocessEnviwonment, isWindows, OpewatingSystem, OS } fwom 'vs/base/common/pwatfowm';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { getSystemSheww } fwom 'vs/base/node/sheww';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { WequestStowe } fwom 'vs/pwatfowm/tewminaw/common/wequestStowe';
+impowt { IPwocessDataEvent, IPwocessWeadyEvent, IPtySewvice, IWawTewminawInstanceWayoutInfo, IWeconnectConstants, IWequestWesowveVawiabwesEvent, IShewwWaunchConfig, ITewminawDimensionsOvewwide, ITewminawInstanceWayoutInfoById, ITewminawWaunchEwwow, ITewminawsWayoutInfo, ITewminawTabWayoutInfoById, TewminawIcon, IPwocessPwopewty, TewminawShewwType, TitweEventSouwce, PwocessPwopewtyType, PwocessCapabiwity, IPwocessPwopewtyMap } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { TewminawDataBuffewa } fwom 'vs/pwatfowm/tewminaw/common/tewminawDataBuffewing';
+impowt { escapeNonWindowsPath } fwom 'vs/pwatfowm/tewminaw/common/tewminawEnviwonment';
+impowt { Tewminaw as XtewmTewminaw } fwom 'xtewm-headwess';
+impowt type { ISewiawizeOptions, SewiawizeAddon as XtewmSewiawizeAddon } fwom 'xtewm-addon-sewiawize';
+impowt type { Unicode11Addon as XtewmUnicode11Addon } fwom 'xtewm-addon-unicode11';
+impowt { IGetTewminawWayoutInfoAwgs, IPwocessDetaiws, IPtyHostPwocessWepwayEvent, ISetTewminawWayoutInfoAwgs, ITewminawTabWayoutInfoDto } fwom 'vs/pwatfowm/tewminaw/common/tewminawPwocess';
+impowt { getWindowsBuiwdNumba } fwom 'vs/pwatfowm/tewminaw/node/tewminawEnviwonment';
+impowt { TewminawPwocess } fwom 'vs/pwatfowm/tewminaw/node/tewminawPwocess';
+impowt { wocawize } fwom 'vs/nws';
 
-type WorkspaceId = string;
+type WowkspaceId = stwing;
 
-let SerializeAddon: typeof XtermSerializeAddon;
-let Unicode11Addon: typeof XtermUnicode11Addon;
+wet SewiawizeAddon: typeof XtewmSewiawizeAddon;
+wet Unicode11Addon: typeof XtewmUnicode11Addon;
 
-export class PtyService extends Disposable implements IPtyService {
-	declare readonly _serviceBrand: undefined;
+expowt cwass PtySewvice extends Disposabwe impwements IPtySewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _ptys: Map<number, PersistentTerminalProcess> = new Map();
-	private readonly _workspaceLayoutInfos = new Map<WorkspaceId, ISetTerminalLayoutInfoArgs>();
-	private readonly _detachInstanceRequestStore: RequestStore<IProcessDetails | undefined, { workspaceId: string, instanceId: number }>;
-	private readonly _revivedPtyIdMap: Map<number, { newId: number, state: ISerializedTerminalState }> = new Map();
+	pwivate weadonwy _ptys: Map<numba, PewsistentTewminawPwocess> = new Map();
+	pwivate weadonwy _wowkspaceWayoutInfos = new Map<WowkspaceId, ISetTewminawWayoutInfoAwgs>();
+	pwivate weadonwy _detachInstanceWequestStowe: WequestStowe<IPwocessDetaiws | undefined, { wowkspaceId: stwing, instanceId: numba }>;
+	pwivate weadonwy _wevivedPtyIdMap: Map<numba, { newId: numba, state: ISewiawizedTewminawState }> = new Map();
 
-	private readonly _onHeartbeat = this._register(new Emitter<void>());
-	readonly onHeartbeat = this._onHeartbeat.event;
+	pwivate weadonwy _onHeawtbeat = this._wegista(new Emitta<void>());
+	weadonwy onHeawtbeat = this._onHeawtbeat.event;
 
-	private readonly _onProcessData = this._register(new Emitter<{ id: number, event: IProcessDataEvent | string }>());
-	readonly onProcessData = this._onProcessData.event;
-	private readonly _onProcessReplay = this._register(new Emitter<{ id: number, event: IPtyHostProcessReplayEvent }>());
-	readonly onProcessReplay = this._onProcessReplay.event;
-	private readonly _onProcessExit = this._register(new Emitter<{ id: number, event: number | undefined }>());
-	readonly onProcessExit = this._onProcessExit.event;
-	private readonly _onProcessReady = this._register(new Emitter<{ id: number, event: { pid: number, cwd: string, capabilities: ProcessCapability[] } }>());
-	readonly onProcessReady = this._onProcessReady.event;
-	private readonly _onProcessTitleChanged = this._register(new Emitter<{ id: number, event: string }>());
-	readonly onProcessTitleChanged = this._onProcessTitleChanged.event;
-	private readonly _onProcessShellTypeChanged = this._register(new Emitter<{ id: number, event: TerminalShellType }>());
-	readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
-	private readonly _onProcessOverrideDimensions = this._register(new Emitter<{ id: number, event: ITerminalDimensionsOverride | undefined }>());
-	readonly onProcessOverrideDimensions = this._onProcessOverrideDimensions.event;
-	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<{ id: number, event: IShellLaunchConfig }>());
-	readonly onProcessResolvedShellLaunchConfig = this._onProcessResolvedShellLaunchConfig.event;
-	private readonly _onProcessOrphanQuestion = this._register(new Emitter<{ id: number }>());
-	readonly onProcessOrphanQuestion = this._onProcessOrphanQuestion.event;
-	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number, workspaceId: string, instanceId: number }>());
-	readonly onDidRequestDetach = this._onDidRequestDetach.event;
-	private readonly _onProcessDidChangeHasChildProcesses = this._register(new Emitter<{ id: number, event: boolean }>());
-	readonly onProcessDidChangeHasChildProcesses = this._onProcessDidChangeHasChildProcesses.event;
-	private readonly _onDidChangeProperty = this._register(new Emitter<{ id: number, property: IProcessProperty<any> }>());
-	readonly onDidChangeProperty = this._onDidChangeProperty.event;
+	pwivate weadonwy _onPwocessData = this._wegista(new Emitta<{ id: numba, event: IPwocessDataEvent | stwing }>());
+	weadonwy onPwocessData = this._onPwocessData.event;
+	pwivate weadonwy _onPwocessWepway = this._wegista(new Emitta<{ id: numba, event: IPtyHostPwocessWepwayEvent }>());
+	weadonwy onPwocessWepway = this._onPwocessWepway.event;
+	pwivate weadonwy _onPwocessExit = this._wegista(new Emitta<{ id: numba, event: numba | undefined }>());
+	weadonwy onPwocessExit = this._onPwocessExit.event;
+	pwivate weadonwy _onPwocessWeady = this._wegista(new Emitta<{ id: numba, event: { pid: numba, cwd: stwing, capabiwities: PwocessCapabiwity[] } }>());
+	weadonwy onPwocessWeady = this._onPwocessWeady.event;
+	pwivate weadonwy _onPwocessTitweChanged = this._wegista(new Emitta<{ id: numba, event: stwing }>());
+	weadonwy onPwocessTitweChanged = this._onPwocessTitweChanged.event;
+	pwivate weadonwy _onPwocessShewwTypeChanged = this._wegista(new Emitta<{ id: numba, event: TewminawShewwType }>());
+	weadonwy onPwocessShewwTypeChanged = this._onPwocessShewwTypeChanged.event;
+	pwivate weadonwy _onPwocessOvewwideDimensions = this._wegista(new Emitta<{ id: numba, event: ITewminawDimensionsOvewwide | undefined }>());
+	weadonwy onPwocessOvewwideDimensions = this._onPwocessOvewwideDimensions.event;
+	pwivate weadonwy _onPwocessWesowvedShewwWaunchConfig = this._wegista(new Emitta<{ id: numba, event: IShewwWaunchConfig }>());
+	weadonwy onPwocessWesowvedShewwWaunchConfig = this._onPwocessWesowvedShewwWaunchConfig.event;
+	pwivate weadonwy _onPwocessOwphanQuestion = this._wegista(new Emitta<{ id: numba }>());
+	weadonwy onPwocessOwphanQuestion = this._onPwocessOwphanQuestion.event;
+	pwivate weadonwy _onDidWequestDetach = this._wegista(new Emitta<{ wequestId: numba, wowkspaceId: stwing, instanceId: numba }>());
+	weadonwy onDidWequestDetach = this._onDidWequestDetach.event;
+	pwivate weadonwy _onPwocessDidChangeHasChiwdPwocesses = this._wegista(new Emitta<{ id: numba, event: boowean }>());
+	weadonwy onPwocessDidChangeHasChiwdPwocesses = this._onPwocessDidChangeHasChiwdPwocesses.event;
+	pwivate weadonwy _onDidChangePwopewty = this._wegista(new Emitta<{ id: numba, pwopewty: IPwocessPwopewty<any> }>());
+	weadonwy onDidChangePwopewty = this._onDidChangePwopewty.event;
 
-	constructor(
-		private _lastPtyId: number,
-		private readonly _logService: ILogService,
-		private readonly _reconnectConstants: IReconnectConstants
+	constwuctow(
+		pwivate _wastPtyId: numba,
+		pwivate weadonwy _wogSewvice: IWogSewvice,
+		pwivate weadonwy _weconnectConstants: IWeconnectConstants
 	) {
-		super();
+		supa();
 
-		this._register(toDisposable(() => {
-			for (const pty of this._ptys.values()) {
-				pty.shutdown(true);
+		this._wegista(toDisposabwe(() => {
+			fow (const pty of this._ptys.vawues()) {
+				pty.shutdown(twue);
 			}
-			this._ptys.clear();
+			this._ptys.cweaw();
 		}));
 
-		this._detachInstanceRequestStore = this._register(new RequestStore(undefined, this._logService));
-		this._detachInstanceRequestStore.onCreateRequest(this._onDidRequestDetach.fire, this._onDidRequestDetach);
+		this._detachInstanceWequestStowe = this._wegista(new WequestStowe(undefined, this._wogSewvice));
+		this._detachInstanceWequestStowe.onCweateWequest(this._onDidWequestDetach.fiwe, this._onDidWequestDetach);
 	}
-	onPtyHostExit?: Event<number> | undefined;
-	onPtyHostStart?: Event<void> | undefined;
-	onPtyHostUnresponsive?: Event<void> | undefined;
-	onPtyHostResponsive?: Event<void> | undefined;
-	onPtyHostRequestResolveVariables?: Event<IRequestResolveVariablesEvent> | undefined;
+	onPtyHostExit?: Event<numba> | undefined;
+	onPtyHostStawt?: Event<void> | undefined;
+	onPtyHostUnwesponsive?: Event<void> | undefined;
+	onPtyHostWesponsive?: Event<void> | undefined;
+	onPtyHostWequestWesowveVawiabwes?: Event<IWequestWesowveVawiabwesEvent> | undefined;
 
-	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> {
-		return this._detachInstanceRequestStore.createRequest({ workspaceId, instanceId });
+	async wequestDetachInstance(wowkspaceId: stwing, instanceId: numba): Pwomise<IPwocessDetaiws | undefined> {
+		wetuwn this._detachInstanceWequestStowe.cweateWequest({ wowkspaceId, instanceId });
 	}
 
-	async acceptDetachInstanceReply(requestId: number, persistentProcessId: number): Promise<void> {
-		let processDetails: IProcessDetails | undefined = undefined;
-		const pty = this._ptys.get(persistentProcessId);
+	async acceptDetachInstanceWepwy(wequestId: numba, pewsistentPwocessId: numba): Pwomise<void> {
+		wet pwocessDetaiws: IPwocessDetaiws | undefined = undefined;
+		const pty = this._ptys.get(pewsistentPwocessId);
 		if (pty) {
-			processDetails = await this._buildProcessDetails(persistentProcessId, pty);
+			pwocessDetaiws = await this._buiwdPwocessDetaiws(pewsistentPwocessId, pty);
 		}
-		this._detachInstanceRequestStore.acceptReply(requestId, processDetails);
+		this._detachInstanceWequestStowe.acceptWepwy(wequestId, pwocessDetaiws);
 	}
 
-	async serializeTerminalState(ids: number[]): Promise<string> {
-		const promises: Promise<ISerializedTerminalState>[] = [];
-		for (const [persistentProcessId, persistentProcess] of this._ptys.entries()) {
-			if (ids.indexOf(persistentProcessId) !== -1) {
-				promises.push(new Promise<ISerializedTerminalState>(async r => {
-					r({
-						id: persistentProcessId,
-						shellLaunchConfig: persistentProcess.shellLaunchConfig,
-						processDetails: await this._buildProcessDetails(persistentProcessId, persistentProcess),
-						processLaunchOptions: persistentProcess.processLaunchOptions,
-						unicodeVersion: persistentProcess.unicodeVersion,
-						replayEvent: await persistentProcess.serializeNormalBuffer(),
+	async sewiawizeTewminawState(ids: numba[]): Pwomise<stwing> {
+		const pwomises: Pwomise<ISewiawizedTewminawState>[] = [];
+		fow (const [pewsistentPwocessId, pewsistentPwocess] of this._ptys.entwies()) {
+			if (ids.indexOf(pewsistentPwocessId) !== -1) {
+				pwomises.push(new Pwomise<ISewiawizedTewminawState>(async w => {
+					w({
+						id: pewsistentPwocessId,
+						shewwWaunchConfig: pewsistentPwocess.shewwWaunchConfig,
+						pwocessDetaiws: await this._buiwdPwocessDetaiws(pewsistentPwocessId, pewsistentPwocess),
+						pwocessWaunchOptions: pewsistentPwocess.pwocessWaunchOptions,
+						unicodeVewsion: pewsistentPwocess.unicodeVewsion,
+						wepwayEvent: await pewsistentPwocess.sewiawizeNowmawBuffa(),
 						timestamp: Date.now()
 					});
 				}));
 			}
 		}
-		const serialized: ICrossVersionSerializedTerminalState = {
-			version: 1,
-			state: await Promise.all(promises)
+		const sewiawized: ICwossVewsionSewiawizedTewminawState = {
+			vewsion: 1,
+			state: await Pwomise.aww(pwomises)
 		};
-		return JSON.stringify(serialized);
+		wetuwn JSON.stwingify(sewiawized);
 	}
 
-	async reviveTerminalProcesses(state: string) {
-		const parsedUnknown = JSON.parse(state);
-		if (!('version' in parsedUnknown) || !('state' in parsedUnknown) || !Array.isArray(parsedUnknown.state)) {
-			this._logService.warn('Could not revive serialized processes, wrong format', parsedUnknown);
-			return;
+	async weviveTewminawPwocesses(state: stwing) {
+		const pawsedUnknown = JSON.pawse(state);
+		if (!('vewsion' in pawsedUnknown) || !('state' in pawsedUnknown) || !Awway.isAwway(pawsedUnknown.state)) {
+			this._wogSewvice.wawn('Couwd not wevive sewiawized pwocesses, wwong fowmat', pawsedUnknown);
+			wetuwn;
 		}
-		const parsedCrossVersion = parsedUnknown as ICrossVersionSerializedTerminalState;
-		if (parsedCrossVersion.version !== 1) {
-			this._logService.warn(`Could not revive serialized processes, wrong version "${parsedCrossVersion.version}"`, parsedCrossVersion);
-			return;
+		const pawsedCwossVewsion = pawsedUnknown as ICwossVewsionSewiawizedTewminawState;
+		if (pawsedCwossVewsion.vewsion !== 1) {
+			this._wogSewvice.wawn(`Couwd not wevive sewiawized pwocesses, wwong vewsion "${pawsedCwossVewsion.vewsion}"`, pawsedCwossVewsion);
+			wetuwn;
 		}
-		const parsed = parsedCrossVersion.state as ISerializedTerminalState[];
-		for (const state of parsed) {
-			const restoreMessage = localize({
-				key: 'terminal-session-restore',
+		const pawsed = pawsedCwossVewsion.state as ISewiawizedTewminawState[];
+		fow (const state of pawsed) {
+			const westoweMessage = wocawize({
+				key: 'tewminaw-session-westowe',
 				comment: ['date the snapshot was taken', 'time the snapshot was taken']
-			}, "Session contents restored from {0} at {1}", new Date(state.timestamp).toLocaleDateString(), new Date(state.timestamp).toLocaleTimeString());
-			const newId = await this.createProcess(
+			}, "Session contents westowed fwom {0} at {1}", new Date(state.timestamp).toWocaweDateStwing(), new Date(state.timestamp).toWocaweTimeStwing());
+			const newId = await this.cweatePwocess(
 				{
-					...state.shellLaunchConfig,
-					cwd: state.processDetails.cwd,
-					initialText: state.replayEvent.events[0].data + '\x1b[0m\n\n\r\x1b[1;48;5;247;38;5;234m ' + restoreMessage + ' \x1b[K\x1b[0m\n\r'
+					...state.shewwWaunchConfig,
+					cwd: state.pwocessDetaiws.cwd,
+					initiawText: state.wepwayEvent.events[0].data + '\x1b[0m\n\n\w\x1b[1;48;5;247;38;5;234m ' + westoweMessage + ' \x1b[K\x1b[0m\n\w'
 				},
-				state.processDetails.cwd,
-				state.replayEvent.events[0].cols,
-				state.replayEvent.events[0].rows,
-				state.unicodeVersion,
-				state.processLaunchOptions.env,
-				state.processLaunchOptions.executableEnv,
-				state.processLaunchOptions.windowsEnableConpty,
-				true,
-				state.processDetails.workspaceId,
-				state.processDetails.workspaceName,
-				true
+				state.pwocessDetaiws.cwd,
+				state.wepwayEvent.events[0].cows,
+				state.wepwayEvent.events[0].wows,
+				state.unicodeVewsion,
+				state.pwocessWaunchOptions.env,
+				state.pwocessWaunchOptions.executabweEnv,
+				state.pwocessWaunchOptions.windowsEnabweConpty,
+				twue,
+				state.pwocessDetaiws.wowkspaceId,
+				state.pwocessDetaiws.wowkspaceName,
+				twue
 			);
-			// Don't start the process here as there's no terminal to answer CPR
-			this._revivedPtyIdMap.set(state.id, { newId, state });
+			// Don't stawt the pwocess hewe as thewe's no tewminaw to answa CPW
+			this._wevivedPtyIdMap.set(state.id, { newId, state });
 		}
 	}
 
-	async shutdownAll(): Promise<void> {
+	async shutdownAww(): Pwomise<void> {
 		this.dispose();
 	}
 
-	async createProcess(
-		shellLaunchConfig: IShellLaunchConfig,
-		cwd: string,
-		cols: number,
-		rows: number,
-		unicodeVersion: '6' | '11',
-		env: IProcessEnvironment,
-		executableEnv: IProcessEnvironment,
-		windowsEnableConpty: boolean,
-		shouldPersist: boolean,
-		workspaceId: string,
-		workspaceName: string,
-		isReviving?: boolean
-	): Promise<number> {
-		if (shellLaunchConfig.attachPersistentProcess) {
-			throw new Error('Attempt to create a process when attach object was provided');
+	async cweatePwocess(
+		shewwWaunchConfig: IShewwWaunchConfig,
+		cwd: stwing,
+		cows: numba,
+		wows: numba,
+		unicodeVewsion: '6' | '11',
+		env: IPwocessEnviwonment,
+		executabweEnv: IPwocessEnviwonment,
+		windowsEnabweConpty: boowean,
+		shouwdPewsist: boowean,
+		wowkspaceId: stwing,
+		wowkspaceName: stwing,
+		isWeviving?: boowean
+	): Pwomise<numba> {
+		if (shewwWaunchConfig.attachPewsistentPwocess) {
+			thwow new Ewwow('Attempt to cweate a pwocess when attach object was pwovided');
 		}
-		const id = ++this._lastPtyId;
-		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, this._logService);
-		process.onProcessData(event => this._onProcessData.fire({ id, event }));
-		process.onProcessExit(event => this._onProcessExit.fire({ id, event }));
-		if (process.onProcessOverrideDimensions) {
-			process.onProcessOverrideDimensions(event => this._onProcessOverrideDimensions.fire({ id, event }));
+		const id = ++this._wastPtyId;
+		const pwocess = new TewminawPwocess(shewwWaunchConfig, cwd, cows, wows, env, executabweEnv, windowsEnabweConpty, this._wogSewvice);
+		pwocess.onPwocessData(event => this._onPwocessData.fiwe({ id, event }));
+		pwocess.onPwocessExit(event => this._onPwocessExit.fiwe({ id, event }));
+		if (pwocess.onPwocessOvewwideDimensions) {
+			pwocess.onPwocessOvewwideDimensions(event => this._onPwocessOvewwideDimensions.fiwe({ id, event }));
 		}
-		if (process.onProcessResolvedShellLaunchConfig) {
-			process.onProcessResolvedShellLaunchConfig(event => this._onProcessResolvedShellLaunchConfig.fire({ id, event }));
+		if (pwocess.onPwocessWesowvedShewwWaunchConfig) {
+			pwocess.onPwocessWesowvedShewwWaunchConfig(event => this._onPwocessWesowvedShewwWaunchConfig.fiwe({ id, event }));
 		}
-		if (process.onDidChangeHasChildProcesses) {
-			process.onDidChangeHasChildProcesses(event => this._onProcessDidChangeHasChildProcesses.fire({ id, event }));
+		if (pwocess.onDidChangeHasChiwdPwocesses) {
+			pwocess.onDidChangeHasChiwdPwocesses(event => this._onPwocessDidChangeHasChiwdPwocesses.fiwe({ id, event }));
 		}
-		const processLaunchOptions: IPersistentTerminalProcessLaunchOptions = {
+		const pwocessWaunchOptions: IPewsistentTewminawPwocessWaunchOptions = {
 			env,
-			executableEnv,
-			windowsEnableConpty
+			executabweEnv,
+			windowsEnabweConpty
 		};
-		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, processLaunchOptions, unicodeVersion, this._reconnectConstants, this._logService, isReviving ? shellLaunchConfig.initialText : undefined, shellLaunchConfig.icon);
-		process.onProcessExit(() => {
-			persistentProcess.dispose();
-			this._ptys.delete(id);
+		const pewsistentPwocess = new PewsistentTewminawPwocess(id, pwocess, wowkspaceId, wowkspaceName, shouwdPewsist, cows, wows, pwocessWaunchOptions, unicodeVewsion, this._weconnectConstants, this._wogSewvice, isWeviving ? shewwWaunchConfig.initiawText : undefined, shewwWaunchConfig.icon);
+		pwocess.onPwocessExit(() => {
+			pewsistentPwocess.dispose();
+			this._ptys.dewete(id);
 		});
-		process.onDidChangeProperty(property => this._onDidChangeProperty.fire({ id, property }));
-		persistentProcess.onProcessReplay(event => this._onProcessReplay.fire({ id, event }));
-		persistentProcess.onProcessReady(event => this._onProcessReady.fire({ id, event }));
-		persistentProcess.onProcessTitleChanged(event => this._onProcessTitleChanged.fire({ id, event }));
-		persistentProcess.onProcessShellTypeChanged(event => this._onProcessShellTypeChanged.fire({ id, event }));
-		persistentProcess.onProcessOrphanQuestion(() => this._onProcessOrphanQuestion.fire({ id }));
-		persistentProcess.onDidChangeProperty(property => this._onDidChangeProperty.fire({ id, property }));
-		this._ptys.set(id, persistentProcess);
-		return id;
+		pwocess.onDidChangePwopewty(pwopewty => this._onDidChangePwopewty.fiwe({ id, pwopewty }));
+		pewsistentPwocess.onPwocessWepway(event => this._onPwocessWepway.fiwe({ id, event }));
+		pewsistentPwocess.onPwocessWeady(event => this._onPwocessWeady.fiwe({ id, event }));
+		pewsistentPwocess.onPwocessTitweChanged(event => this._onPwocessTitweChanged.fiwe({ id, event }));
+		pewsistentPwocess.onPwocessShewwTypeChanged(event => this._onPwocessShewwTypeChanged.fiwe({ id, event }));
+		pewsistentPwocess.onPwocessOwphanQuestion(() => this._onPwocessOwphanQuestion.fiwe({ id }));
+		pewsistentPwocess.onDidChangePwopewty(pwopewty => this._onDidChangePwopewty.fiwe({ id, pwopewty }));
+		this._ptys.set(id, pewsistentPwocess);
+		wetuwn id;
 	}
 
-	async attachToProcess(id: number): Promise<void> {
-		try {
-			this._throwIfNoPty(id).attach();
-			this._logService.trace(`Persistent process reconnection "${id}"`);
+	async attachToPwocess(id: numba): Pwomise<void> {
+		twy {
+			this._thwowIfNoPty(id).attach();
+			this._wogSewvice.twace(`Pewsistent pwocess weconnection "${id}"`);
 		} catch (e) {
-			this._logService.trace(`Persistent process reconnection "${id}" failed`, e.message);
+			this._wogSewvice.twace(`Pewsistent pwocess weconnection "${id}" faiwed`, e.message);
 		}
 	}
 
-	async updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void> {
-		this._throwIfNoPty(id).setTitle(title, titleSource);
+	async updateTitwe(id: numba, titwe: stwing, titweSouwce: TitweEventSouwce): Pwomise<void> {
+		this._thwowIfNoPty(id).setTitwe(titwe, titweSouwce);
 	}
 
-	async updateIcon(id: number, icon: URI | { light: URI; dark: URI } | { id: string, color?: { id: string } }, color?: string): Promise<void> {
-		this._throwIfNoPty(id).setIcon(icon, color);
+	async updateIcon(id: numba, icon: UWI | { wight: UWI; dawk: UWI } | { id: stwing, cowow?: { id: stwing } }, cowow?: stwing): Pwomise<void> {
+		this._thwowIfNoPty(id).setIcon(icon, cowow);
 	}
 
-	async refreshProperty<T extends ProcessPropertyType>(id: number, property: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
-		return this._throwIfNoPty(id).refreshProperty(property);
+	async wefweshPwopewty<T extends PwocessPwopewtyType>(id: numba, pwopewty: PwocessPwopewtyType): Pwomise<IPwocessPwopewtyMap[T]> {
+		wetuwn this._thwowIfNoPty(id).wefweshPwopewty(pwopewty);
 	}
 
-	async detachFromProcess(id: number): Promise<void> {
-		this._throwIfNoPty(id).detach();
+	async detachFwomPwocess(id: numba): Pwomise<void> {
+		this._thwowIfNoPty(id).detach();
 	}
 
-	async reduceConnectionGraceTime(): Promise<void> {
-		for (const pty of this._ptys.values()) {
-			pty.reduceGraceTime();
+	async weduceConnectionGwaceTime(): Pwomise<void> {
+		fow (const pty of this._ptys.vawues()) {
+			pty.weduceGwaceTime();
 		}
 	}
 
-	async listProcesses(): Promise<IProcessDetails[]> {
-		const persistentProcesses = Array.from(this._ptys.entries()).filter(([_, pty]) => pty.shouldPersistTerminal);
+	async wistPwocesses(): Pwomise<IPwocessDetaiws[]> {
+		const pewsistentPwocesses = Awway.fwom(this._ptys.entwies()).fiwta(([_, pty]) => pty.shouwdPewsistTewminaw);
 
-		this._logService.info(`Listing ${persistentProcesses.length} persistent terminals, ${this._ptys.size} total terminals`);
-		const promises = persistentProcesses.map(async ([id, terminalProcessData]) => this._buildProcessDetails(id, terminalProcessData));
-		const allTerminals = await Promise.all(promises);
-		return allTerminals.filter(entry => entry.isOrphan);
+		this._wogSewvice.info(`Wisting ${pewsistentPwocesses.wength} pewsistent tewminaws, ${this._ptys.size} totaw tewminaws`);
+		const pwomises = pewsistentPwocesses.map(async ([id, tewminawPwocessData]) => this._buiwdPwocessDetaiws(id, tewminawPwocessData));
+		const awwTewminaws = await Pwomise.aww(pwomises);
+		wetuwn awwTewminaws.fiwta(entwy => entwy.isOwphan);
 	}
 
-	async start(id: number): Promise<ITerminalLaunchError | undefined> {
-		this._logService.trace('ptyService#start', id);
+	async stawt(id: numba): Pwomise<ITewminawWaunchEwwow | undefined> {
+		this._wogSewvice.twace('ptySewvice#stawt', id);
 		const pty = this._ptys.get(id);
-		return pty ? pty.start() : { message: `Could not find pty with id "${id}"` };
+		wetuwn pty ? pty.stawt() : { message: `Couwd not find pty with id "${id}"` };
 	}
 
-	async shutdown(id: number, immediate: boolean): Promise<void> {
-		// Don't throw if the pty is already shutdown
-		this._logService.trace('ptyService#shutDown', id, immediate);
-		return this._ptys.get(id)?.shutdown(immediate);
+	async shutdown(id: numba, immediate: boowean): Pwomise<void> {
+		// Don't thwow if the pty is awweady shutdown
+		this._wogSewvice.twace('ptySewvice#shutDown', id, immediate);
+		wetuwn this._ptys.get(id)?.shutdown(immediate);
 	}
-	async input(id: number, data: string): Promise<void> {
-		return this._throwIfNoPty(id).input(data);
+	async input(id: numba, data: stwing): Pwomise<void> {
+		wetuwn this._thwowIfNoPty(id).input(data);
 	}
-	async processBinary(id: number, data: string): Promise<void> {
-		return this._throwIfNoPty(id).writeBinary(data);
+	async pwocessBinawy(id: numba, data: stwing): Pwomise<void> {
+		wetuwn this._thwowIfNoPty(id).wwiteBinawy(data);
 	}
-	async resize(id: number, cols: number, rows: number): Promise<void> {
-		return this._throwIfNoPty(id).resize(cols, rows);
+	async wesize(id: numba, cows: numba, wows: numba): Pwomise<void> {
+		wetuwn this._thwowIfNoPty(id).wesize(cows, wows);
 	}
-	async getInitialCwd(id: number): Promise<string> {
-		return this._throwIfNoPty(id).getInitialCwd();
+	async getInitiawCwd(id: numba): Pwomise<stwing> {
+		wetuwn this._thwowIfNoPty(id).getInitiawCwd();
 	}
-	async getCwd(id: number): Promise<string> {
-		return this._throwIfNoPty(id).getCwd();
+	async getCwd(id: numba): Pwomise<stwing> {
+		wetuwn this._thwowIfNoPty(id).getCwd();
 	}
-	async acknowledgeDataEvent(id: number, charCount: number): Promise<void> {
-		return this._throwIfNoPty(id).acknowledgeDataEvent(charCount);
+	async acknowwedgeDataEvent(id: numba, chawCount: numba): Pwomise<void> {
+		wetuwn this._thwowIfNoPty(id).acknowwedgeDataEvent(chawCount);
 	}
-	async setUnicodeVersion(id: number, version: '6' | '11'): Promise<void> {
-		return this._throwIfNoPty(id).setUnicodeVersion(version);
+	async setUnicodeVewsion(id: numba, vewsion: '6' | '11'): Pwomise<void> {
+		wetuwn this._thwowIfNoPty(id).setUnicodeVewsion(vewsion);
 	}
-	async getLatency(id: number): Promise<number> {
-		return 0;
+	async getWatency(id: numba): Pwomise<numba> {
+		wetuwn 0;
 	}
-	async orphanQuestionReply(id: number): Promise<void> {
-		return this._throwIfNoPty(id).orphanQuestionReply();
-	}
-
-	async getDefaultSystemShell(osOverride: OperatingSystem = OS): Promise<string> {
-		return getSystemShell(osOverride, process.env);
+	async owphanQuestionWepwy(id: numba): Pwomise<void> {
+		wetuwn this._thwowIfNoPty(id).owphanQuestionWepwy();
 	}
 
-	async getEnvironment(): Promise<IProcessEnvironment> {
-		return { ...process.env };
+	async getDefauwtSystemSheww(osOvewwide: OpewatingSystem = OS): Pwomise<stwing> {
+		wetuwn getSystemSheww(osOvewwide, pwocess.env);
 	}
 
-	async getWslPath(original: string): Promise<string> {
+	async getEnviwonment(): Pwomise<IPwocessEnviwonment> {
+		wetuwn { ...pwocess.env };
+	}
+
+	async getWswPath(owiginaw: stwing): Pwomise<stwing> {
 		if (!isWindows) {
-			return original;
+			wetuwn owiginaw;
 		}
-		if (getWindowsBuildNumber() < 17063) {
-			return original.replace(/\\/g, '/');
+		if (getWindowsBuiwdNumba() < 17063) {
+			wetuwn owiginaw.wepwace(/\\/g, '/');
 		}
-		return new Promise<string>(c => {
-			const proc = execFile('bash.exe', ['-c', `wslpath ${escapeNonWindowsPath(original)}`], {}, (error, stdout, stderr) => {
-				c(escapeNonWindowsPath(stdout.trim()));
+		wetuwn new Pwomise<stwing>(c => {
+			const pwoc = execFiwe('bash.exe', ['-c', `wswpath ${escapeNonWindowsPath(owiginaw)}`], {}, (ewwow, stdout, stdeww) => {
+				c(escapeNonWindowsPath(stdout.twim()));
 			});
-			proc.stdin!.end();
+			pwoc.stdin!.end();
 		});
 	}
 
-	async setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {
-		this._workspaceLayoutInfos.set(args.workspaceId, args);
+	async setTewminawWayoutInfo(awgs: ISetTewminawWayoutInfoAwgs): Pwomise<void> {
+		this._wowkspaceWayoutInfos.set(awgs.wowkspaceId, awgs);
 	}
 
-	async getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
-		const layout = this._workspaceLayoutInfos.get(args.workspaceId);
-		this._logService.trace('ptyService#getLayoutInfo', args);
-		if (layout) {
-			const expandedTabs = await Promise.all(layout.tabs.map(async tab => this._expandTerminalTab(tab)));
-			const tabs = expandedTabs.filter(t => t.terminals.length > 0);
-			this._logService.trace('ptyService#returnLayoutInfo', tabs);
-			return { tabs };
+	async getTewminawWayoutInfo(awgs: IGetTewminawWayoutInfoAwgs): Pwomise<ITewminawsWayoutInfo | undefined> {
+		const wayout = this._wowkspaceWayoutInfos.get(awgs.wowkspaceId);
+		this._wogSewvice.twace('ptySewvice#getWayoutInfo', awgs);
+		if (wayout) {
+			const expandedTabs = await Pwomise.aww(wayout.tabs.map(async tab => this._expandTewminawTab(tab)));
+			const tabs = expandedTabs.fiwta(t => t.tewminaws.wength > 0);
+			this._wogSewvice.twace('ptySewvice#wetuwnWayoutInfo', tabs);
+			wetuwn { tabs };
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private async _expandTerminalTab(tab: ITerminalTabLayoutInfoById): Promise<ITerminalTabLayoutInfoDto> {
-		const expandedTerminals = (await Promise.all(tab.terminals.map(t => this._expandTerminalInstance(t))));
-		const filtered = expandedTerminals.filter(term => term.terminal !== null) as IRawTerminalInstanceLayoutInfo<IProcessDetails>[];
-		return {
+	pwivate async _expandTewminawTab(tab: ITewminawTabWayoutInfoById): Pwomise<ITewminawTabWayoutInfoDto> {
+		const expandedTewminaws = (await Pwomise.aww(tab.tewminaws.map(t => this._expandTewminawInstance(t))));
+		const fiwtewed = expandedTewminaws.fiwta(tewm => tewm.tewminaw !== nuww) as IWawTewminawInstanceWayoutInfo<IPwocessDetaiws>[];
+		wetuwn {
 			isActive: tab.isActive,
-			activePersistentProcessId: tab.activePersistentProcessId,
-			terminals: filtered
+			activePewsistentPwocessId: tab.activePewsistentPwocessId,
+			tewminaws: fiwtewed
 		};
 	}
 
-	private async _expandTerminalInstance(t: ITerminalInstanceLayoutInfoById): Promise<IRawTerminalInstanceLayoutInfo<IProcessDetails | null>> {
-		try {
-			const persistentProcessId = this._revivedPtyIdMap.get(t.terminal)?.newId ?? t.terminal;
-			const persistentProcess = this._throwIfNoPty(persistentProcessId);
-			const processDetails = persistentProcess && await this._buildProcessDetails(t.terminal, persistentProcess);
-			return {
-				terminal: { ...processDetails, id: persistentProcessId } ?? null,
-				relativeSize: t.relativeSize
+	pwivate async _expandTewminawInstance(t: ITewminawInstanceWayoutInfoById): Pwomise<IWawTewminawInstanceWayoutInfo<IPwocessDetaiws | nuww>> {
+		twy {
+			const pewsistentPwocessId = this._wevivedPtyIdMap.get(t.tewminaw)?.newId ?? t.tewminaw;
+			const pewsistentPwocess = this._thwowIfNoPty(pewsistentPwocessId);
+			const pwocessDetaiws = pewsistentPwocess && await this._buiwdPwocessDetaiws(t.tewminaw, pewsistentPwocess);
+			wetuwn {
+				tewminaw: { ...pwocessDetaiws, id: pewsistentPwocessId } ?? nuww,
+				wewativeSize: t.wewativeSize
 			};
 		} catch (e) {
-			this._logService.trace(`Couldn't get layout info, a terminal was probably disconnected`, e.message);
-			// this will be filtered out and not reconnected
-			return {
-				terminal: null,
-				relativeSize: t.relativeSize
+			this._wogSewvice.twace(`Couwdn't get wayout info, a tewminaw was pwobabwy disconnected`, e.message);
+			// this wiww be fiwtewed out and not weconnected
+			wetuwn {
+				tewminaw: nuww,
+				wewativeSize: t.wewativeSize
 			};
 		}
 	}
 
-	private async _buildProcessDetails(id: number, persistentProcess: PersistentTerminalProcess): Promise<IProcessDetails> {
-		const [cwd, isOrphan] = await Promise.all([persistentProcess.getCwd(), persistentProcess.isOrphaned()]);
-		return {
+	pwivate async _buiwdPwocessDetaiws(id: numba, pewsistentPwocess: PewsistentTewminawPwocess): Pwomise<IPwocessDetaiws> {
+		const [cwd, isOwphan] = await Pwomise.aww([pewsistentPwocess.getCwd(), pewsistentPwocess.isOwphaned()]);
+		wetuwn {
 			id,
-			title: persistentProcess.title,
-			titleSource: persistentProcess.titleSource,
-			pid: persistentProcess.pid,
-			workspaceId: persistentProcess.workspaceId,
-			workspaceName: persistentProcess.workspaceName,
+			titwe: pewsistentPwocess.titwe,
+			titweSouwce: pewsistentPwocess.titweSouwce,
+			pid: pewsistentPwocess.pid,
+			wowkspaceId: pewsistentPwocess.wowkspaceId,
+			wowkspaceName: pewsistentPwocess.wowkspaceName,
 			cwd,
-			isOrphan,
-			icon: persistentProcess.icon,
-			color: persistentProcess.color
+			isOwphan,
+			icon: pewsistentPwocess.icon,
+			cowow: pewsistentPwocess.cowow
 		};
 	}
 
-	private _throwIfNoPty(id: number): PersistentTerminalProcess {
+	pwivate _thwowIfNoPty(id: numba): PewsistentTewminawPwocess {
 		const pty = this._ptys.get(id);
 		if (!pty) {
-			throw new Error(`Could not find pty with id "${id}"`);
+			thwow new Ewwow(`Couwd not find pty with id "${id}"`);
 		}
-		return pty;
+		wetuwn pty;
 	}
 }
 
 
-interface IPersistentTerminalProcessLaunchOptions {
-	env: IProcessEnvironment;
-	executableEnv: IProcessEnvironment;
-	windowsEnableConpty: boolean;
+intewface IPewsistentTewminawPwocessWaunchOptions {
+	env: IPwocessEnviwonment;
+	executabweEnv: IPwocessEnviwonment;
+	windowsEnabweConpty: boowean;
 }
 
-export class PersistentTerminalProcess extends Disposable {
+expowt cwass PewsistentTewminawPwocess extends Disposabwe {
 
-	private readonly _bufferer: TerminalDataBufferer;
+	pwivate weadonwy _buffewa: TewminawDataBuffewa;
 
-	private readonly _pendingCommands = new Map<number, { resolve: (data: any) => void; reject: (err: any) => void; }>();
+	pwivate weadonwy _pendingCommands = new Map<numba, { wesowve: (data: any) => void; weject: (eww: any) => void; }>();
 
-	private _isStarted: boolean = false;
+	pwivate _isStawted: boowean = fawse;
 
-	private _orphanQuestionBarrier: AutoOpenBarrier | null;
-	private _orphanQuestionReplyTime: number;
-	private _orphanRequestQueue = new Queue<boolean>();
-	private _disconnectRunner1: ProcessTimeRunOnceScheduler;
-	private _disconnectRunner2: ProcessTimeRunOnceScheduler;
+	pwivate _owphanQuestionBawwia: AutoOpenBawwia | nuww;
+	pwivate _owphanQuestionWepwyTime: numba;
+	pwivate _owphanWequestQueue = new Queue<boowean>();
+	pwivate _disconnectWunnew1: PwocessTimeWunOnceScheduwa;
+	pwivate _disconnectWunnew2: PwocessTimeWunOnceScheduwa;
 
-	private readonly _onProcessReplay = this._register(new Emitter<IPtyHostProcessReplayEvent>());
-	readonly onProcessReplay = this._onProcessReplay.event;
-	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
-	readonly onProcessReady = this._onProcessReady.event;
-	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
-	readonly onProcessTitleChanged = this._onProcessTitleChanged.event;
-	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
-	readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
-	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensionsOverride | undefined>());
-	readonly onProcessOverrideDimensions = this._onProcessOverrideDimensions.event;
-	private readonly _onProcessData = this._register(new Emitter<string>());
-	readonly onProcessData = this._onProcessData.event;
-	private readonly _onProcessOrphanQuestion = this._register(new Emitter<void>());
-	readonly onProcessOrphanQuestion = this._onProcessOrphanQuestion.event;
-	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
-	readonly onDidChangeProperty = this._onDidChangeProperty.event;
+	pwivate weadonwy _onPwocessWepway = this._wegista(new Emitta<IPtyHostPwocessWepwayEvent>());
+	weadonwy onPwocessWepway = this._onPwocessWepway.event;
+	pwivate weadonwy _onPwocessWeady = this._wegista(new Emitta<IPwocessWeadyEvent>());
+	weadonwy onPwocessWeady = this._onPwocessWeady.event;
+	pwivate weadonwy _onPwocessTitweChanged = this._wegista(new Emitta<stwing>());
+	weadonwy onPwocessTitweChanged = this._onPwocessTitweChanged.event;
+	pwivate weadonwy _onPwocessShewwTypeChanged = this._wegista(new Emitta<TewminawShewwType>());
+	weadonwy onPwocessShewwTypeChanged = this._onPwocessShewwTypeChanged.event;
+	pwivate weadonwy _onPwocessOvewwideDimensions = this._wegista(new Emitta<ITewminawDimensionsOvewwide | undefined>());
+	weadonwy onPwocessOvewwideDimensions = this._onPwocessOvewwideDimensions.event;
+	pwivate weadonwy _onPwocessData = this._wegista(new Emitta<stwing>());
+	weadonwy onPwocessData = this._onPwocessData.event;
+	pwivate weadonwy _onPwocessOwphanQuestion = this._wegista(new Emitta<void>());
+	weadonwy onPwocessOwphanQuestion = this._onPwocessOwphanQuestion.event;
+	pwivate weadonwy _onDidChangePwopewty = this._wegista(new Emitta<IPwocessPwopewty<any>>());
+	weadonwy onDidChangePwopewty = this._onDidChangePwopewty.event;
 
-	private _inReplay = false;
+	pwivate _inWepway = fawse;
 
-	private _pid = -1;
-	private _cwd = '';
-	private _title: string | undefined;
-	private _titleSource: TitleEventSource = TitleEventSource.Process;
-	private _serializer: ITerminalSerializer;
-	private _wasRevived: boolean;
+	pwivate _pid = -1;
+	pwivate _cwd = '';
+	pwivate _titwe: stwing | undefined;
+	pwivate _titweSouwce: TitweEventSouwce = TitweEventSouwce.Pwocess;
+	pwivate _sewiawiza: ITewminawSewiawiza;
+	pwivate _wasWevived: boowean;
 
-	get pid(): number { return this._pid; }
-	get shellLaunchConfig(): IShellLaunchConfig { return this._terminalProcess.shellLaunchConfig; }
-	get title(): string { return this._title || this._terminalProcess.currentTitle; }
-	get titleSource(): TitleEventSource { return this._titleSource; }
-	get icon(): TerminalIcon | undefined { return this._icon; }
-	get color(): string | undefined { return this._color; }
+	get pid(): numba { wetuwn this._pid; }
+	get shewwWaunchConfig(): IShewwWaunchConfig { wetuwn this._tewminawPwocess.shewwWaunchConfig; }
+	get titwe(): stwing { wetuwn this._titwe || this._tewminawPwocess.cuwwentTitwe; }
+	get titweSouwce(): TitweEventSouwce { wetuwn this._titweSouwce; }
+	get icon(): TewminawIcon | undefined { wetuwn this._icon; }
+	get cowow(): stwing | undefined { wetuwn this._cowow; }
 
-	setTitle(title: string, titleSource: TitleEventSource): void {
-		this._title = title;
-		this._titleSource = titleSource;
+	setTitwe(titwe: stwing, titweSouwce: TitweEventSouwce): void {
+		this._titwe = titwe;
+		this._titweSouwce = titweSouwce;
 	}
 
-	setIcon(icon: TerminalIcon, color?: string): void {
+	setIcon(icon: TewminawIcon, cowow?: stwing): void {
 		this._icon = icon;
-		this._color = color;
+		this._cowow = cowow;
 	}
 
-	constructor(
-		private _persistentProcessId: number,
-		private readonly _terminalProcess: TerminalProcess,
-		readonly workspaceId: string,
-		readonly workspaceName: string,
-		readonly shouldPersistTerminal: boolean,
-		cols: number,
-		rows: number,
-		readonly processLaunchOptions: IPersistentTerminalProcessLaunchOptions,
-		public unicodeVersion: '6' | '11',
-		reconnectConstants: IReconnectConstants,
-		private readonly _logService: ILogService,
-		reviveBuffer: string | undefined,
-		private _icon?: TerminalIcon,
-		private _color?: string
+	constwuctow(
+		pwivate _pewsistentPwocessId: numba,
+		pwivate weadonwy _tewminawPwocess: TewminawPwocess,
+		weadonwy wowkspaceId: stwing,
+		weadonwy wowkspaceName: stwing,
+		weadonwy shouwdPewsistTewminaw: boowean,
+		cows: numba,
+		wows: numba,
+		weadonwy pwocessWaunchOptions: IPewsistentTewminawPwocessWaunchOptions,
+		pubwic unicodeVewsion: '6' | '11',
+		weconnectConstants: IWeconnectConstants,
+		pwivate weadonwy _wogSewvice: IWogSewvice,
+		weviveBuffa: stwing | undefined,
+		pwivate _icon?: TewminawIcon,
+		pwivate _cowow?: stwing
 	) {
-		super();
-		this._logService.trace('persistentTerminalProcess#ctor', _persistentProcessId, arguments);
-		this._wasRevived = reviveBuffer !== undefined;
-		this._serializer = new XtermSerializer(
-			cols,
-			rows,
-			reconnectConstants.scrollback,
-			unicodeVersion,
-			reviveBuffer
+		supa();
+		this._wogSewvice.twace('pewsistentTewminawPwocess#ctow', _pewsistentPwocessId, awguments);
+		this._wasWevived = weviveBuffa !== undefined;
+		this._sewiawiza = new XtewmSewiawiza(
+			cows,
+			wows,
+			weconnectConstants.scwowwback,
+			unicodeVewsion,
+			weviveBuffa
 		);
-		this._orphanQuestionBarrier = null;
-		this._orphanQuestionReplyTime = 0;
-		this._disconnectRunner1 = this._register(new ProcessTimeRunOnceScheduler(() => {
-			this._logService.info(`Persistent process "${this._persistentProcessId}": The reconnection grace time of ${printTime(reconnectConstants.graceTime)} has expired, shutting down pid "${this._pid}"`);
-			this.shutdown(true);
-		}, reconnectConstants.graceTime));
-		this._disconnectRunner2 = this._register(new ProcessTimeRunOnceScheduler(() => {
-			this._logService.info(`Persistent process "${this._persistentProcessId}": The short reconnection grace time of ${printTime(reconnectConstants.shortGraceTime)} has expired, shutting down pid ${this._pid}`);
-			this.shutdown(true);
-		}, reconnectConstants.shortGraceTime));
+		this._owphanQuestionBawwia = nuww;
+		this._owphanQuestionWepwyTime = 0;
+		this._disconnectWunnew1 = this._wegista(new PwocessTimeWunOnceScheduwa(() => {
+			this._wogSewvice.info(`Pewsistent pwocess "${this._pewsistentPwocessId}": The weconnection gwace time of ${pwintTime(weconnectConstants.gwaceTime)} has expiwed, shutting down pid "${this._pid}"`);
+			this.shutdown(twue);
+		}, weconnectConstants.gwaceTime));
+		this._disconnectWunnew2 = this._wegista(new PwocessTimeWunOnceScheduwa(() => {
+			this._wogSewvice.info(`Pewsistent pwocess "${this._pewsistentPwocessId}": The showt weconnection gwace time of ${pwintTime(weconnectConstants.showtGwaceTime)} has expiwed, shutting down pid ${this._pid}`);
+			this.shutdown(twue);
+		}, weconnectConstants.showtGwaceTime));
 
-		this._register(this._terminalProcess.onProcessReady(e => {
+		this._wegista(this._tewminawPwocess.onPwocessWeady(e => {
 			this._pid = e.pid;
 			this._cwd = e.cwd;
-			this._onProcessReady.fire(e);
+			this._onPwocessWeady.fiwe(e);
 		}));
-		this._register(this._terminalProcess.onProcessTitleChanged(e => this._onProcessTitleChanged.fire(e)));
-		this._register(this._terminalProcess.onProcessShellTypeChanged(e => this._onProcessShellTypeChanged.fire(e)));
-		this._register(this._terminalProcess.onDidChangeProperty(e => this._onDidChangeProperty.fire(e)));
+		this._wegista(this._tewminawPwocess.onPwocessTitweChanged(e => this._onPwocessTitweChanged.fiwe(e)));
+		this._wegista(this._tewminawPwocess.onPwocessShewwTypeChanged(e => this._onPwocessShewwTypeChanged.fiwe(e)));
+		this._wegista(this._tewminawPwocess.onDidChangePwopewty(e => this._onDidChangePwopewty.fiwe(e)));
 
-		// Data buffering to reduce the amount of messages going to the renderer
-		this._bufferer = new TerminalDataBufferer((_, data) => this._onProcessData.fire(data));
-		this._register(this._bufferer.startBuffering(this._persistentProcessId, this._terminalProcess.onProcessData));
-		this._register(this._terminalProcess.onProcessExit(() => this._bufferer.stopBuffering(this._persistentProcessId)));
+		// Data buffewing to weduce the amount of messages going to the wendewa
+		this._buffewa = new TewminawDataBuffewa((_, data) => this._onPwocessData.fiwe(data));
+		this._wegista(this._buffewa.stawtBuffewing(this._pewsistentPwocessId, this._tewminawPwocess.onPwocessData));
+		this._wegista(this._tewminawPwocess.onPwocessExit(() => this._buffewa.stopBuffewing(this._pewsistentPwocessId)));
 
-		// Data recording for reconnect
-		this._register(this.onProcessData(e => this._serializer.handleData(e)));
+		// Data wecowding fow weconnect
+		this._wegista(this.onPwocessData(e => this._sewiawiza.handweData(e)));
 	}
 
 	attach(): void {
-		this._logService.trace('persistentTerminalProcess#attach', this._persistentProcessId);
-		this._disconnectRunner1.cancel();
-		this._disconnectRunner2.cancel();
+		this._wogSewvice.twace('pewsistentTewminawPwocess#attach', this._pewsistentPwocessId);
+		this._disconnectWunnew1.cancew();
+		this._disconnectWunnew2.cancew();
 	}
 
-	async detach(): Promise<void> {
-		this._logService.trace('persistentTerminalProcess#detach', this._persistentProcessId);
-		if (this.shouldPersistTerminal) {
-			this._disconnectRunner1.schedule();
-		} else {
-			this.shutdown(true);
+	async detach(): Pwomise<void> {
+		this._wogSewvice.twace('pewsistentTewminawPwocess#detach', this._pewsistentPwocessId);
+		if (this.shouwdPewsistTewminaw) {
+			this._disconnectWunnew1.scheduwe();
+		} ewse {
+			this.shutdown(twue);
 		}
 	}
 
-	serializeNormalBuffer(): Promise<IPtyHostProcessReplayEvent> {
-		return this._serializer.generateReplayEvent(true);
+	sewiawizeNowmawBuffa(): Pwomise<IPtyHostPwocessWepwayEvent> {
+		wetuwn this._sewiawiza.genewateWepwayEvent(twue);
 	}
 
-	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
-		return this._terminalProcess.refreshProperty(type);
+	async wefweshPwopewty<T extends PwocessPwopewtyType>(type: PwocessPwopewtyType): Pwomise<IPwocessPwopewtyMap[T]> {
+		wetuwn this._tewminawPwocess.wefweshPwopewty(type);
 	}
 
-	async start(): Promise<ITerminalLaunchError | undefined> {
-		this._logService.trace('persistentTerminalProcess#start', this._persistentProcessId, this._isStarted);
-		if (!this._isStarted) {
-			const result = await this._terminalProcess.start();
-			if (result) {
-				// it's a terminal launch error
-				return result;
+	async stawt(): Pwomise<ITewminawWaunchEwwow | undefined> {
+		this._wogSewvice.twace('pewsistentTewminawPwocess#stawt', this._pewsistentPwocessId, this._isStawted);
+		if (!this._isStawted) {
+			const wesuwt = await this._tewminawPwocess.stawt();
+			if (wesuwt) {
+				// it's a tewminaw waunch ewwow
+				wetuwn wesuwt;
 			}
-			this._isStarted = true;
+			this._isStawted = twue;
 
-			// If the process was revived, trigger a replay on first start. An alternative approach
-			// could be to start it on the pty host before attaching but this fails on Windows as
-			// conpty's inherit cursor option which is required, ends up sending DSR CPR which
-			// causes conhost to hang when no response is received from the terminal (which wouldn't
-			// be attached yet). https://github.com/microsoft/terminal/issues/11213
-			if (this._wasRevived) {
-				this.triggerReplay();
+			// If the pwocess was wevived, twigga a wepway on fiwst stawt. An awtewnative appwoach
+			// couwd be to stawt it on the pty host befowe attaching but this faiws on Windows as
+			// conpty's inhewit cuwsow option which is wequiwed, ends up sending DSW CPW which
+			// causes conhost to hang when no wesponse is weceived fwom the tewminaw (which wouwdn't
+			// be attached yet). https://github.com/micwosoft/tewminaw/issues/11213
+			if (this._wasWevived) {
+				this.twiggewWepway();
 			}
-		} else {
-			this._onProcessReady.fire({ pid: this._pid, cwd: this._cwd, capabilities: this._terminalProcess.capabilities, requiresWindowsMode: isWindows && getWindowsBuildNumber() < 21376 });
-			this._onProcessTitleChanged.fire(this._terminalProcess.currentTitle);
-			this._onProcessShellTypeChanged.fire(this._terminalProcess.shellType);
-			this.triggerReplay();
+		} ewse {
+			this._onPwocessWeady.fiwe({ pid: this._pid, cwd: this._cwd, capabiwities: this._tewminawPwocess.capabiwities, wequiwesWindowsMode: isWindows && getWindowsBuiwdNumba() < 21376 });
+			this._onPwocessTitweChanged.fiwe(this._tewminawPwocess.cuwwentTitwe);
+			this._onPwocessShewwTypeChanged.fiwe(this._tewminawPwocess.shewwType);
+			this.twiggewWepway();
 		}
-		return undefined;
+		wetuwn undefined;
 	}
-	shutdown(immediate: boolean): void {
-		return this._terminalProcess.shutdown(immediate);
+	shutdown(immediate: boowean): void {
+		wetuwn this._tewminawPwocess.shutdown(immediate);
 	}
-	input(data: string): void {
-		if (this._inReplay) {
-			return;
+	input(data: stwing): void {
+		if (this._inWepway) {
+			wetuwn;
 		}
-		return this._terminalProcess.input(data);
+		wetuwn this._tewminawPwocess.input(data);
 	}
-	writeBinary(data: string): Promise<void> {
-		return this._terminalProcess.processBinary(data);
+	wwiteBinawy(data: stwing): Pwomise<void> {
+		wetuwn this._tewminawPwocess.pwocessBinawy(data);
 	}
-	resize(cols: number, rows: number): void {
-		if (this._inReplay) {
-			return;
+	wesize(cows: numba, wows: numba): void {
+		if (this._inWepway) {
+			wetuwn;
 		}
-		this._serializer.handleResize(cols, rows);
+		this._sewiawiza.handweWesize(cows, wows);
 
-		// Buffered events should flush when a resize occurs
-		this._bufferer.flushBuffer(this._persistentProcessId);
-		return this._terminalProcess.resize(cols, rows);
+		// Buffewed events shouwd fwush when a wesize occuws
+		this._buffewa.fwushBuffa(this._pewsistentPwocessId);
+		wetuwn this._tewminawPwocess.wesize(cows, wows);
 	}
-	setUnicodeVersion(version: '6' | '11'): void {
-		this.unicodeVersion = version;
-		this._serializer.setUnicodeVersion?.(version);
-		// TODO: Pass in unicode version in ctor
+	setUnicodeVewsion(vewsion: '6' | '11'): void {
+		this.unicodeVewsion = vewsion;
+		this._sewiawiza.setUnicodeVewsion?.(vewsion);
+		// TODO: Pass in unicode vewsion in ctow
 	}
-	acknowledgeDataEvent(charCount: number): void {
-		if (this._inReplay) {
-			return;
+	acknowwedgeDataEvent(chawCount: numba): void {
+		if (this._inWepway) {
+			wetuwn;
 		}
-		return this._terminalProcess.acknowledgeDataEvent(charCount);
+		wetuwn this._tewminawPwocess.acknowwedgeDataEvent(chawCount);
 	}
-	getInitialCwd(): Promise<string> {
-		return this._terminalProcess.getInitialCwd();
+	getInitiawCwd(): Pwomise<stwing> {
+		wetuwn this._tewminawPwocess.getInitiawCwd();
 	}
-	getCwd(): Promise<string> {
-		return this._terminalProcess.getCwd();
+	getCwd(): Pwomise<stwing> {
+		wetuwn this._tewminawPwocess.getCwd();
 	}
-	getLatency(): Promise<number> {
-		return this._terminalProcess.getLatency();
-	}
-
-	async triggerReplay(): Promise<void> {
-		const ev = await this._serializer.generateReplayEvent();
-		let dataLength = 0;
-		for (const e of ev.events) {
-			dataLength += e.data.length;
-		}
-		this._logService.info(`Persistent process "${this._persistentProcessId}": Replaying ${dataLength} chars and ${ev.events.length} size events`);
-		this._onProcessReplay.fire(ev);
-		this._terminalProcess.clearUnacknowledgedChars();
+	getWatency(): Pwomise<numba> {
+		wetuwn this._tewminawPwocess.getWatency();
 	}
 
-	sendCommandResult(reqId: number, isError: boolean, serializedPayload: any): void {
-		const data = this._pendingCommands.get(reqId);
+	async twiggewWepway(): Pwomise<void> {
+		const ev = await this._sewiawiza.genewateWepwayEvent();
+		wet dataWength = 0;
+		fow (const e of ev.events) {
+			dataWength += e.data.wength;
+		}
+		this._wogSewvice.info(`Pewsistent pwocess "${this._pewsistentPwocessId}": Wepwaying ${dataWength} chaws and ${ev.events.wength} size events`);
+		this._onPwocessWepway.fiwe(ev);
+		this._tewminawPwocess.cweawUnacknowwedgedChaws();
+	}
+
+	sendCommandWesuwt(weqId: numba, isEwwow: boowean, sewiawizedPaywoad: any): void {
+		const data = this._pendingCommands.get(weqId);
 		if (!data) {
-			return;
+			wetuwn;
 		}
-		this._pendingCommands.delete(reqId);
+		this._pendingCommands.dewete(weqId);
 	}
 
-	orphanQuestionReply(): void {
-		this._orphanQuestionReplyTime = Date.now();
-		if (this._orphanQuestionBarrier) {
-			const barrier = this._orphanQuestionBarrier;
-			this._orphanQuestionBarrier = null;
-			barrier.open();
-		}
-	}
-
-	reduceGraceTime(): void {
-		if (this._disconnectRunner2.isScheduled()) {
-			// we are disconnected and already running the short reconnection timer
-			return;
-		}
-		if (this._disconnectRunner1.isScheduled()) {
-			// we are disconnected and running the long reconnection timer
-			this._disconnectRunner2.schedule();
+	owphanQuestionWepwy(): void {
+		this._owphanQuestionWepwyTime = Date.now();
+		if (this._owphanQuestionBawwia) {
+			const bawwia = this._owphanQuestionBawwia;
+			this._owphanQuestionBawwia = nuww;
+			bawwia.open();
 		}
 	}
 
-	async isOrphaned(): Promise<boolean> {
-		return await this._orphanRequestQueue.queue(async () => this._isOrphaned());
+	weduceGwaceTime(): void {
+		if (this._disconnectWunnew2.isScheduwed()) {
+			// we awe disconnected and awweady wunning the showt weconnection tima
+			wetuwn;
+		}
+		if (this._disconnectWunnew1.isScheduwed()) {
+			// we awe disconnected and wunning the wong weconnection tima
+			this._disconnectWunnew2.scheduwe();
+		}
 	}
 
-	private async _isOrphaned(): Promise<boolean> {
-		// The process is already known to be orphaned
-		if (this._disconnectRunner1.isScheduled() || this._disconnectRunner2.isScheduled()) {
-			return true;
+	async isOwphaned(): Pwomise<boowean> {
+		wetuwn await this._owphanWequestQueue.queue(async () => this._isOwphaned());
+	}
+
+	pwivate async _isOwphaned(): Pwomise<boowean> {
+		// The pwocess is awweady known to be owphaned
+		if (this._disconnectWunnew1.isScheduwed() || this._disconnectWunnew2.isScheduwed()) {
+			wetuwn twue;
 		}
 
-		// Ask whether the renderer(s) whether the process is orphaned and await the reply
-		if (!this._orphanQuestionBarrier) {
-			// the barrier opens after 4 seconds with or without a reply
-			this._orphanQuestionBarrier = new AutoOpenBarrier(4000);
-			this._orphanQuestionReplyTime = 0;
-			this._onProcessOrphanQuestion.fire();
+		// Ask whetha the wendewa(s) whetha the pwocess is owphaned and await the wepwy
+		if (!this._owphanQuestionBawwia) {
+			// the bawwia opens afta 4 seconds with ow without a wepwy
+			this._owphanQuestionBawwia = new AutoOpenBawwia(4000);
+			this._owphanQuestionWepwyTime = 0;
+			this._onPwocessOwphanQuestion.fiwe();
 		}
 
-		await this._orphanQuestionBarrier.wait();
-		return (Date.now() - this._orphanQuestionReplyTime > 500);
+		await this._owphanQuestionBawwia.wait();
+		wetuwn (Date.now() - this._owphanQuestionWepwyTime > 500);
 	}
 }
 
-class XtermSerializer implements ITerminalSerializer {
-	private _xterm: XtermTerminal;
-	private _unicodeAddon?: XtermUnicode11Addon;
+cwass XtewmSewiawiza impwements ITewminawSewiawiza {
+	pwivate _xtewm: XtewmTewminaw;
+	pwivate _unicodeAddon?: XtewmUnicode11Addon;
 
-	constructor(
-		cols: number,
-		rows: number,
-		scrollback: number,
-		unicodeVersion: '6' | '11',
-		reviveBuffer: string | undefined
+	constwuctow(
+		cows: numba,
+		wows: numba,
+		scwowwback: numba,
+		unicodeVewsion: '6' | '11',
+		weviveBuffa: stwing | undefined
 	) {
-		this._xterm = new XtermTerminal({ cols, rows, scrollback });
-		if (reviveBuffer) {
-			this._xterm.writeln(reviveBuffer);
+		this._xtewm = new XtewmTewminaw({ cows, wows, scwowwback });
+		if (weviveBuffa) {
+			this._xtewm.wwitewn(weviveBuffa);
 		}
-		this.setUnicodeVersion(unicodeVersion);
+		this.setUnicodeVewsion(unicodeVewsion);
 	}
 
-	handleData(data: string): void {
-		this._xterm.write(data);
+	handweData(data: stwing): void {
+		this._xtewm.wwite(data);
 	}
 
-	handleResize(cols: number, rows: number): void {
-		this._xterm.resize(cols, rows);
+	handweWesize(cows: numba, wows: numba): void {
+		this._xtewm.wesize(cows, wows);
 	}
 
-	async generateReplayEvent(normalBufferOnly?: boolean): Promise<IPtyHostProcessReplayEvent> {
-		const serialize = new (await this._getSerializeConstructor());
-		this._xterm.loadAddon(serialize);
-		const options: ISerializeOptions = { scrollback: this._xterm.getOption('scrollback') };
-		if (normalBufferOnly) {
-			options.excludeAltBuffer = true;
-			options.excludeModes = true;
+	async genewateWepwayEvent(nowmawBuffewOnwy?: boowean): Pwomise<IPtyHostPwocessWepwayEvent> {
+		const sewiawize = new (await this._getSewiawizeConstwuctow());
+		this._xtewm.woadAddon(sewiawize);
+		const options: ISewiawizeOptions = { scwowwback: this._xtewm.getOption('scwowwback') };
+		if (nowmawBuffewOnwy) {
+			options.excwudeAwtBuffa = twue;
+			options.excwudeModes = twue;
 		}
-		const serialized = serialize.serialize(options);
-		return {
+		const sewiawized = sewiawize.sewiawize(options);
+		wetuwn {
 			events: [
 				{
-					cols: this._xterm.getOption('cols'),
-					rows: this._xterm.getOption('rows'),
-					data: serialized
+					cows: this._xtewm.getOption('cows'),
+					wows: this._xtewm.getOption('wows'),
+					data: sewiawized
 				}
 			]
 		};
 	}
 
-	async setUnicodeVersion(version: '6' | '11'): Promise<void> {
-		if (this._xterm.unicode.activeVersion === version) {
-			return;
+	async setUnicodeVewsion(vewsion: '6' | '11'): Pwomise<void> {
+		if (this._xtewm.unicode.activeVewsion === vewsion) {
+			wetuwn;
 		}
-		if (version === '11') {
-			this._unicodeAddon = new (await this._getUnicode11Constructor());
-			this._xterm.loadAddon(this._unicodeAddon);
-		} else {
+		if (vewsion === '11') {
+			this._unicodeAddon = new (await this._getUnicode11Constwuctow());
+			this._xtewm.woadAddon(this._unicodeAddon);
+		} ewse {
 			this._unicodeAddon?.dispose();
 			this._unicodeAddon = undefined;
 		}
-		this._xterm.unicode.activeVersion = version;
+		this._xtewm.unicode.activeVewsion = vewsion;
 	}
 
-	async _getUnicode11Constructor(): Promise<typeof Unicode11Addon> {
+	async _getUnicode11Constwuctow(): Pwomise<typeof Unicode11Addon> {
 		if (!Unicode11Addon) {
-			Unicode11Addon = (await import('xterm-addon-unicode11')).Unicode11Addon;
+			Unicode11Addon = (await impowt('xtewm-addon-unicode11')).Unicode11Addon;
 		}
-		return Unicode11Addon;
+		wetuwn Unicode11Addon;
 	}
 
-	async _getSerializeConstructor(): Promise<typeof SerializeAddon> {
-		if (!SerializeAddon) {
-			SerializeAddon = (await import('xterm-addon-serialize')).SerializeAddon;
+	async _getSewiawizeConstwuctow(): Pwomise<typeof SewiawizeAddon> {
+		if (!SewiawizeAddon) {
+			SewiawizeAddon = (await impowt('xtewm-addon-sewiawize')).SewiawizeAddon;
 		}
-		return SerializeAddon;
+		wetuwn SewiawizeAddon;
 	}
 }
 
-function printTime(ms: number): string {
-	let h = 0;
-	let m = 0;
-	let s = 0;
+function pwintTime(ms: numba): stwing {
+	wet h = 0;
+	wet m = 0;
+	wet s = 0;
 	if (ms >= 1000) {
-		s = Math.floor(ms / 1000);
+		s = Math.fwoow(ms / 1000);
 		ms -= s * 1000;
 	}
 	if (s >= 60) {
-		m = Math.floor(s / 60);
+		m = Math.fwoow(s / 60);
 		s -= m * 60;
 	}
 	if (m >= 60) {
-		h = Math.floor(m / 60);
+		h = Math.fwoow(m / 60);
 		m -= h * 60;
 	}
 	const _h = h ? `${h}h` : ``;
 	const _m = m ? `${m}m` : ``;
 	const _s = s ? `${s}s` : ``;
 	const _ms = ms ? `${ms}ms` : ``;
-	return `${_h}${_m}${_s}${_ms}`;
+	wetuwn `${_h}${_m}${_s}${_ms}`;
 }
 
 /**
- * Serialized terminal state matching the interface that can be used across versions, the version
- * should be verified before using the state payload.
+ * Sewiawized tewminaw state matching the intewface that can be used acwoss vewsions, the vewsion
+ * shouwd be vewified befowe using the state paywoad.
  */
-export interface ICrossVersionSerializedTerminalState {
-	version: number;
+expowt intewface ICwossVewsionSewiawizedTewminawState {
+	vewsion: numba;
 	state: unknown;
 }
 
-export interface ISerializedTerminalState {
-	id: number;
-	shellLaunchConfig: IShellLaunchConfig;
-	processDetails: IProcessDetails;
-	processLaunchOptions: IPersistentTerminalProcessLaunchOptions;
-	unicodeVersion: '6' | '11';
-	replayEvent: IPtyHostProcessReplayEvent;
-	timestamp: number;
+expowt intewface ISewiawizedTewminawState {
+	id: numba;
+	shewwWaunchConfig: IShewwWaunchConfig;
+	pwocessDetaiws: IPwocessDetaiws;
+	pwocessWaunchOptions: IPewsistentTewminawPwocessWaunchOptions;
+	unicodeVewsion: '6' | '11';
+	wepwayEvent: IPtyHostPwocessWepwayEvent;
+	timestamp: numba;
 }
 
-export interface ITerminalSerializer {
-	handleData(data: string): void;
-	handleResize(cols: number, rows: number): void;
-	generateReplayEvent(normalBufferOnly?: boolean): Promise<IPtyHostProcessReplayEvent>;
-	setUnicodeVersion?(version: '6' | '11'): void;
+expowt intewface ITewminawSewiawiza {
+	handweData(data: stwing): void;
+	handweWesize(cows: numba, wows: numba): void;
+	genewateWepwayEvent(nowmawBuffewOnwy?: boowean): Pwomise<IPtyHostPwocessWepwayEvent>;
+	setUnicodeVewsion?(vewsion: '6' | '11'): void;
 }

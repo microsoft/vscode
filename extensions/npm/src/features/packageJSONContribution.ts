@@ -1,384 +1,384 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CompletionItemKind, CompletionItem, DocumentSelector, SnippetString, workspace, MarkdownString, Uri } from 'vscode';
-import { IJSONContribution, ISuggestionsCollector } from './jsonContributions';
-import { XHRRequest } from 'request-light';
-import { Location } from 'jsonc-parser';
+impowt { CompwetionItemKind, CompwetionItem, DocumentSewectow, SnippetStwing, wowkspace, MawkdownStwing, Uwi } fwom 'vscode';
+impowt { IJSONContwibution, ISuggestionsCowwectow } fwom './jsonContwibutions';
+impowt { XHWWequest } fwom 'wequest-wight';
+impowt { Wocation } fwom 'jsonc-pawsa';
 
-import * as cp from 'child_process';
-import * as nls from 'vscode-nls';
-import { dirname } from 'path';
-const localize = nls.loadMessageBundle();
+impowt * as cp fwom 'chiwd_pwocess';
+impowt * as nws fwom 'vscode-nws';
+impowt { diwname } fwom 'path';
+const wocawize = nws.woadMessageBundwe();
 
-const LIMIT = 40;
+const WIMIT = 40;
 
-const USER_AGENT = 'Visual Studio Code';
+const USEW_AGENT = 'Visuaw Studio Code';
 
-export class PackageJSONContribution implements IJSONContribution {
+expowt cwass PackageJSONContwibution impwements IJSONContwibution {
 
-	private mostDependedOn = ['lodash', 'async', 'underscore', 'request', 'commander', 'express', 'debug', 'chalk', 'colors', 'q', 'coffee-script',
-		'mkdirp', 'optimist', 'through2', 'yeoman-generator', 'moment', 'bluebird', 'glob', 'gulp-util', 'minimist', 'cheerio', 'pug', 'redis', 'node-uuid',
-		'socket', 'io', 'uglify-js', 'winston', 'through', 'fs-extra', 'handlebars', 'body-parser', 'rimraf', 'mime', 'semver', 'mongodb', 'jquery',
-		'grunt', 'connect', 'yosay', 'underscore', 'string', 'xml2js', 'ejs', 'mongoose', 'marked', 'extend', 'mocha', 'superagent', 'js-yaml', 'xtend',
-		'shelljs', 'gulp', 'yargs', 'browserify', 'minimatch', 'react', 'less', 'prompt', 'inquirer', 'ws', 'event-stream', 'inherits', 'mysql', 'esprima',
-		'jsdom', 'stylus', 'when', 'readable-stream', 'aws-sdk', 'concat-stream', 'chai', 'Thenable', 'wrench'];
+	pwivate mostDependedOn = ['wodash', 'async', 'undewscowe', 'wequest', 'commanda', 'expwess', 'debug', 'chawk', 'cowows', 'q', 'coffee-scwipt',
+		'mkdiwp', 'optimist', 'thwough2', 'yeoman-genewatow', 'moment', 'bwuebiwd', 'gwob', 'guwp-utiw', 'minimist', 'cheewio', 'pug', 'wedis', 'node-uuid',
+		'socket', 'io', 'ugwify-js', 'winston', 'thwough', 'fs-extwa', 'handwebaws', 'body-pawsa', 'wimwaf', 'mime', 'semva', 'mongodb', 'jquewy',
+		'gwunt', 'connect', 'yosay', 'undewscowe', 'stwing', 'xmw2js', 'ejs', 'mongoose', 'mawked', 'extend', 'mocha', 'supewagent', 'js-yamw', 'xtend',
+		'shewwjs', 'guwp', 'yawgs', 'bwowsewify', 'minimatch', 'weact', 'wess', 'pwompt', 'inquiwa', 'ws', 'event-stweam', 'inhewits', 'mysqw', 'espwima',
+		'jsdom', 'stywus', 'when', 'weadabwe-stweam', 'aws-sdk', 'concat-stweam', 'chai', 'Thenabwe', 'wwench'];
 
-	private knownScopes = ['@types', '@angular', '@babel', '@nuxtjs', '@vue', '@bazel'];
+	pwivate knownScopes = ['@types', '@anguwaw', '@babew', '@nuxtjs', '@vue', '@bazew'];
 
-	public getDocumentSelector(): DocumentSelector {
-		return [{ language: 'json', scheme: '*', pattern: '**/package.json' }];
+	pubwic getDocumentSewectow(): DocumentSewectow {
+		wetuwn [{ wanguage: 'json', scheme: '*', pattewn: '**/package.json' }];
 	}
 
-	public constructor(private xhr: XHRRequest, private npmCommandPath: string | undefined) {
+	pubwic constwuctow(pwivate xhw: XHWWequest, pwivate npmCommandPath: stwing | undefined) {
 	}
 
-	public collectDefaultSuggestions(_resource: Uri, result: ISuggestionsCollector): Thenable<any> {
-		const defaultValue = {
+	pubwic cowwectDefauwtSuggestions(_wesouwce: Uwi, wesuwt: ISuggestionsCowwectow): Thenabwe<any> {
+		const defauwtVawue = {
 			'name': '${1:name}',
-			'description': '${2:description}',
-			'authors': '${3:author}',
-			'version': '${4:1.0.0}',
+			'descwiption': '${2:descwiption}',
+			'authows': '${3:authow}',
+			'vewsion': '${4:1.0.0}',
 			'main': '${5:pathToMain}',
 			'dependencies': {}
 		};
-		const proposal = new CompletionItem(localize('json.package.default', 'Default package.json'));
-		proposal.kind = CompletionItemKind.Module;
-		proposal.insertText = new SnippetString(JSON.stringify(defaultValue, null, '\t'));
-		result.add(proposal);
-		return Promise.resolve(null);
+		const pwoposaw = new CompwetionItem(wocawize('json.package.defauwt', 'Defauwt package.json'));
+		pwoposaw.kind = CompwetionItemKind.Moduwe;
+		pwoposaw.insewtText = new SnippetStwing(JSON.stwingify(defauwtVawue, nuww, '\t'));
+		wesuwt.add(pwoposaw);
+		wetuwn Pwomise.wesowve(nuww);
 	}
 
-	private isEnabled() {
-		return this.npmCommandPath || this.onlineEnabled();
+	pwivate isEnabwed() {
+		wetuwn this.npmCommandPath || this.onwineEnabwed();
 	}
 
-	private onlineEnabled() {
-		return !!workspace.getConfiguration('npm').get('fetchOnlinePackageInfo');
+	pwivate onwineEnabwed() {
+		wetuwn !!wowkspace.getConfiguwation('npm').get('fetchOnwinePackageInfo');
 	}
 
-	public collectPropertySuggestions(
-		_resource: Uri,
-		location: Location,
-		currentWord: string,
-		addValue: boolean,
-		isLast: boolean,
-		collector: ISuggestionsCollector
-	): Thenable<any> | null {
-		if (!this.isEnabled()) {
-			return null;
+	pubwic cowwectPwopewtySuggestions(
+		_wesouwce: Uwi,
+		wocation: Wocation,
+		cuwwentWowd: stwing,
+		addVawue: boowean,
+		isWast: boowean,
+		cowwectow: ISuggestionsCowwectow
+	): Thenabwe<any> | nuww {
+		if (!this.isEnabwed()) {
+			wetuwn nuww;
 		}
 
-		if ((location.matches(['dependencies']) || location.matches(['devDependencies']) || location.matches(['optionalDependencies']) || location.matches(['peerDependencies']))) {
-			let queryUrl: string;
-			if (currentWord.length > 0) {
-				if (currentWord[0] === '@') {
-					if (currentWord.indexOf('/') !== -1) {
-						return this.collectScopedPackages(currentWord, addValue, isLast, collector);
+		if ((wocation.matches(['dependencies']) || wocation.matches(['devDependencies']) || wocation.matches(['optionawDependencies']) || wocation.matches(['peewDependencies']))) {
+			wet quewyUww: stwing;
+			if (cuwwentWowd.wength > 0) {
+				if (cuwwentWowd[0] === '@') {
+					if (cuwwentWowd.indexOf('/') !== -1) {
+						wetuwn this.cowwectScopedPackages(cuwwentWowd, addVawue, isWast, cowwectow);
 					}
-					for (let scope of this.knownScopes) {
-						const proposal = new CompletionItem(scope);
-						proposal.kind = CompletionItemKind.Property;
-						proposal.insertText = new SnippetString().appendText(`"${scope}/`).appendTabstop().appendText('"');
-						proposal.filterText = JSON.stringify(scope);
-						proposal.documentation = '';
-						proposal.command = {
-							title: '',
-							command: 'editor.action.triggerSuggest'
+					fow (wet scope of this.knownScopes) {
+						const pwoposaw = new CompwetionItem(scope);
+						pwoposaw.kind = CompwetionItemKind.Pwopewty;
+						pwoposaw.insewtText = new SnippetStwing().appendText(`"${scope}/`).appendTabstop().appendText('"');
+						pwoposaw.fiwtewText = JSON.stwingify(scope);
+						pwoposaw.documentation = '';
+						pwoposaw.command = {
+							titwe: '',
+							command: 'editow.action.twiggewSuggest'
 						};
-						collector.add(proposal);
+						cowwectow.add(pwoposaw);
 					}
-					collector.setAsIncomplete();
+					cowwectow.setAsIncompwete();
 				}
 
-				queryUrl = `https://registry.npmjs.org/-/v1/search?size=${LIMIT}&text=${encodeURIComponent(currentWord)}`;
-				return this.xhr({
-					url: queryUrl,
-					headers: { agent: USER_AGENT }
+				quewyUww = `https://wegistwy.npmjs.owg/-/v1/seawch?size=${WIMIT}&text=${encodeUWIComponent(cuwwentWowd)}`;
+				wetuwn this.xhw({
+					uww: quewyUww,
+					headews: { agent: USEW_AGENT }
 				}).then((success) => {
 					if (success.status === 200) {
-						try {
-							const obj = JSON.parse(success.responseText);
-							if (obj && obj.objects && Array.isArray(obj.objects)) {
-								const results = <{ package: SearchPackageInfo; }[]>obj.objects;
-								for (const result of results) {
-									this.processPackage(result.package, addValue, isLast, collector);
+						twy {
+							const obj = JSON.pawse(success.wesponseText);
+							if (obj && obj.objects && Awway.isAwway(obj.objects)) {
+								const wesuwts = <{ package: SeawchPackageInfo; }[]>obj.objects;
+								fow (const wesuwt of wesuwts) {
+									this.pwocessPackage(wesuwt.package, addVawue, isWast, cowwectow);
 								}
 
 							}
 						} catch (e) {
-							// ignore
+							// ignowe
 						}
-						collector.setAsIncomplete();
-					} else {
-						collector.error(localize('json.npm.error.repoaccess', 'Request to the NPM repository failed: {0}', success.responseText));
-						return 0;
+						cowwectow.setAsIncompwete();
+					} ewse {
+						cowwectow.ewwow(wocawize('json.npm.ewwow.wepoaccess', 'Wequest to the NPM wepositowy faiwed: {0}', success.wesponseText));
+						wetuwn 0;
 					}
-					return undefined;
-				}, (error) => {
-					collector.error(localize('json.npm.error.repoaccess', 'Request to the NPM repository failed: {0}', error.responseText));
-					return 0;
+					wetuwn undefined;
+				}, (ewwow) => {
+					cowwectow.ewwow(wocawize('json.npm.ewwow.wepoaccess', 'Wequest to the NPM wepositowy faiwed: {0}', ewwow.wesponseText));
+					wetuwn 0;
 				});
-			} else {
-				this.mostDependedOn.forEach((name) => {
-					const insertText = new SnippetString().appendText(JSON.stringify(name));
-					if (addValue) {
-						insertText.appendText(': "').appendTabstop().appendText('"');
-						if (!isLast) {
-							insertText.appendText(',');
+			} ewse {
+				this.mostDependedOn.fowEach((name) => {
+					const insewtText = new SnippetStwing().appendText(JSON.stwingify(name));
+					if (addVawue) {
+						insewtText.appendText(': "').appendTabstop().appendText('"');
+						if (!isWast) {
+							insewtText.appendText(',');
 						}
 					}
-					const proposal = new CompletionItem(name);
-					proposal.kind = CompletionItemKind.Property;
-					proposal.insertText = insertText;
-					proposal.filterText = JSON.stringify(name);
-					proposal.documentation = '';
-					collector.add(proposal);
+					const pwoposaw = new CompwetionItem(name);
+					pwoposaw.kind = CompwetionItemKind.Pwopewty;
+					pwoposaw.insewtText = insewtText;
+					pwoposaw.fiwtewText = JSON.stwingify(name);
+					pwoposaw.documentation = '';
+					cowwectow.add(pwoposaw);
 				});
-				this.collectScopedPackages(currentWord, addValue, isLast, collector);
-				collector.setAsIncomplete();
-				return Promise.resolve(null);
+				this.cowwectScopedPackages(cuwwentWowd, addVawue, isWast, cowwectow);
+				cowwectow.setAsIncompwete();
+				wetuwn Pwomise.wesowve(nuww);
 			}
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	private collectScopedPackages(currentWord: string, addValue: boolean, isLast: boolean, collector: ISuggestionsCollector): Thenable<any> {
-		let segments = currentWord.split('/');
-		if (segments.length === 2 && segments[0].length > 1) {
-			let scope = segments[0].substr(1);
-			let name = segments[1];
-			if (name.length < 4) {
+	pwivate cowwectScopedPackages(cuwwentWowd: stwing, addVawue: boowean, isWast: boowean, cowwectow: ISuggestionsCowwectow): Thenabwe<any> {
+		wet segments = cuwwentWowd.spwit('/');
+		if (segments.wength === 2 && segments[0].wength > 1) {
+			wet scope = segments[0].substw(1);
+			wet name = segments[1];
+			if (name.wength < 4) {
 				name = '';
 			}
-			let queryUrl = `https://registry.npmjs.com/-/v1/search?text=scope:${scope}%20${name}&size=250`;
-			return this.xhr({
-				url: queryUrl,
-				headers: { agent: USER_AGENT }
+			wet quewyUww = `https://wegistwy.npmjs.com/-/v1/seawch?text=scope:${scope}%20${name}&size=250`;
+			wetuwn this.xhw({
+				uww: quewyUww,
+				headews: { agent: USEW_AGENT }
 			}).then((success) => {
 				if (success.status === 200) {
-					try {
-						const obj = JSON.parse(success.responseText);
-						if (obj && Array.isArray(obj.objects)) {
-							const objects = <{ package: SearchPackageInfo; }[]>obj.objects;
-							for (let object of objects) {
-								this.processPackage(object.package, addValue, isLast, collector);
+					twy {
+						const obj = JSON.pawse(success.wesponseText);
+						if (obj && Awway.isAwway(obj.objects)) {
+							const objects = <{ package: SeawchPackageInfo; }[]>obj.objects;
+							fow (wet object of objects) {
+								this.pwocessPackage(object.package, addVawue, isWast, cowwectow);
 							}
 						}
 					} catch (e) {
-						// ignore
+						// ignowe
 					}
-					collector.setAsIncomplete();
-				} else {
-					collector.error(localize('json.npm.error.repoaccess', 'Request to the NPM repository failed: {0}', success.responseText));
+					cowwectow.setAsIncompwete();
+				} ewse {
+					cowwectow.ewwow(wocawize('json.npm.ewwow.wepoaccess', 'Wequest to the NPM wepositowy faiwed: {0}', success.wesponseText));
 				}
-				return null;
+				wetuwn nuww;
 			});
 		}
-		return Promise.resolve(null);
+		wetuwn Pwomise.wesowve(nuww);
 	}
 
-	public async collectValueSuggestions(resource: Uri, location: Location, result: ISuggestionsCollector): Promise<any> {
-		if (!this.isEnabled()) {
-			return null;
+	pubwic async cowwectVawueSuggestions(wesouwce: Uwi, wocation: Wocation, wesuwt: ISuggestionsCowwectow): Pwomise<any> {
+		if (!this.isEnabwed()) {
+			wetuwn nuww;
 		}
 
-		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']))) {
-			const currentKey = location.path[location.path.length - 1];
-			if (typeof currentKey === 'string') {
-				const info = await this.fetchPackageInfo(currentKey, resource);
-				if (info && info.version) {
+		if ((wocation.matches(['dependencies', '*']) || wocation.matches(['devDependencies', '*']) || wocation.matches(['optionawDependencies', '*']) || wocation.matches(['peewDependencies', '*']))) {
+			const cuwwentKey = wocation.path[wocation.path.wength - 1];
+			if (typeof cuwwentKey === 'stwing') {
+				const info = await this.fetchPackageInfo(cuwwentKey, wesouwce);
+				if (info && info.vewsion) {
 
-					let name = JSON.stringify(info.version);
-					let proposal = new CompletionItem(name);
-					proposal.kind = CompletionItemKind.Property;
-					proposal.insertText = name;
-					proposal.documentation = localize('json.npm.latestversion', 'The currently latest version of the package');
-					result.add(proposal);
+					wet name = JSON.stwingify(info.vewsion);
+					wet pwoposaw = new CompwetionItem(name);
+					pwoposaw.kind = CompwetionItemKind.Pwopewty;
+					pwoposaw.insewtText = name;
+					pwoposaw.documentation = wocawize('json.npm.watestvewsion', 'The cuwwentwy watest vewsion of the package');
+					wesuwt.add(pwoposaw);
 
-					name = JSON.stringify('^' + info.version);
-					proposal = new CompletionItem(name);
-					proposal.kind = CompletionItemKind.Property;
-					proposal.insertText = name;
-					proposal.documentation = localize('json.npm.majorversion', 'Matches the most recent major version (1.x.x)');
-					result.add(proposal);
+					name = JSON.stwingify('^' + info.vewsion);
+					pwoposaw = new CompwetionItem(name);
+					pwoposaw.kind = CompwetionItemKind.Pwopewty;
+					pwoposaw.insewtText = name;
+					pwoposaw.documentation = wocawize('json.npm.majowvewsion', 'Matches the most wecent majow vewsion (1.x.x)');
+					wesuwt.add(pwoposaw);
 
-					name = JSON.stringify('~' + info.version);
-					proposal = new CompletionItem(name);
-					proposal.kind = CompletionItemKind.Property;
-					proposal.insertText = name;
-					proposal.documentation = localize('json.npm.minorversion', 'Matches the most recent minor version (1.2.x)');
-					result.add(proposal);
+					name = JSON.stwingify('~' + info.vewsion);
+					pwoposaw = new CompwetionItem(name);
+					pwoposaw.kind = CompwetionItemKind.Pwopewty;
+					pwoposaw.insewtText = name;
+					pwoposaw.documentation = wocawize('json.npm.minowvewsion', 'Matches the most wecent minow vewsion (1.2.x)');
+					wesuwt.add(pwoposaw);
 				}
 			}
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	private getDocumentation(description: string | undefined, version: string | undefined, homepage: string | undefined): MarkdownString {
-		const str = new MarkdownString();
-		if (description) {
-			str.appendText(description);
+	pwivate getDocumentation(descwiption: stwing | undefined, vewsion: stwing | undefined, homepage: stwing | undefined): MawkdownStwing {
+		const stw = new MawkdownStwing();
+		if (descwiption) {
+			stw.appendText(descwiption);
 		}
-		if (version) {
-			str.appendText('\n\n');
-			str.appendText(localize('json.npm.version.hover', 'Latest version: {0}', version));
+		if (vewsion) {
+			stw.appendText('\n\n');
+			stw.appendText(wocawize('json.npm.vewsion.hova', 'Watest vewsion: {0}', vewsion));
 		}
 		if (homepage) {
-			str.appendText('\n\n');
-			str.appendText(homepage);
+			stw.appendText('\n\n');
+			stw.appendText(homepage);
 		}
-		return str;
+		wetuwn stw;
 	}
 
-	public resolveSuggestion(resource: Uri | undefined, item: CompletionItem): Thenable<CompletionItem | null> | null {
-		if (item.kind === CompletionItemKind.Property && !item.documentation) {
+	pubwic wesowveSuggestion(wesouwce: Uwi | undefined, item: CompwetionItem): Thenabwe<CompwetionItem | nuww> | nuww {
+		if (item.kind === CompwetionItemKind.Pwopewty && !item.documentation) {
 
-			let name = item.label;
-			if (typeof name !== 'string') {
-				name = name.label;
+			wet name = item.wabew;
+			if (typeof name !== 'stwing') {
+				name = name.wabew;
 			}
 
-			return this.fetchPackageInfo(name, resource).then(info => {
+			wetuwn this.fetchPackageInfo(name, wesouwce).then(info => {
 				if (info) {
-					item.documentation = this.getDocumentation(info.description, info.version, info.homepage);
-					return item;
+					item.documentation = this.getDocumentation(info.descwiption, info.vewsion, info.homepage);
+					wetuwn item;
 				}
-				return null;
+				wetuwn nuww;
 			});
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	private isValidNPMName(name: string): boolean {
-		// following rules from https://github.com/npm/validate-npm-package-name
-		if (!name || name.length > 214 || name.match(/^[_.]/)) {
-			return false;
+	pwivate isVawidNPMName(name: stwing): boowean {
+		// fowwowing wuwes fwom https://github.com/npm/vawidate-npm-package-name
+		if (!name || name.wength > 214 || name.match(/^[_.]/)) {
+			wetuwn fawse;
 		}
 		const match = name.match(/^(?:@([^/]+?)[/])?([^/]+?)$/);
 		if (match) {
 			const scope = match[1];
-			if (scope && encodeURIComponent(scope) !== scope) {
-				return false;
+			if (scope && encodeUWIComponent(scope) !== scope) {
+				wetuwn fawse;
 			}
 			const name = match[2];
-			return encodeURIComponent(name) === name;
+			wetuwn encodeUWIComponent(name) === name;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private async fetchPackageInfo(pack: string, resource: Uri | undefined): Promise<ViewPackageInfo | undefined> {
-		if (!this.isValidNPMName(pack)) {
-			return undefined; // avoid unnecessary lookups
+	pwivate async fetchPackageInfo(pack: stwing, wesouwce: Uwi | undefined): Pwomise<ViewPackageInfo | undefined> {
+		if (!this.isVawidNPMName(pack)) {
+			wetuwn undefined; // avoid unnecessawy wookups
 		}
-		let info: ViewPackageInfo | undefined;
+		wet info: ViewPackageInfo | undefined;
 		if (this.npmCommandPath) {
-			info = await this.npmView(this.npmCommandPath, pack, resource);
+			info = await this.npmView(this.npmCommandPath, pack, wesouwce);
 		}
-		if (!info && this.onlineEnabled()) {
+		if (!info && this.onwineEnabwed()) {
 			info = await this.npmjsView(pack);
 		}
-		return info;
+		wetuwn info;
 	}
 
-	private npmView(npmCommandPath: string, pack: string, resource: Uri | undefined): Promise<ViewPackageInfo | undefined> {
-		return new Promise((resolve, _reject) => {
-			const args = ['view', '--json', pack, 'description', 'dist-tags.latest', 'homepage', 'version'];
-			let cwd = resource && resource.scheme === 'file' ? dirname(resource.fsPath) : undefined;
-			cp.execFile(npmCommandPath, args, { cwd }, (error, stdout) => {
-				if (!error) {
-					try {
-						const content = JSON.parse(stdout);
-						resolve({
-							description: content['description'],
-							version: content['dist-tags.latest'] || content['version'],
+	pwivate npmView(npmCommandPath: stwing, pack: stwing, wesouwce: Uwi | undefined): Pwomise<ViewPackageInfo | undefined> {
+		wetuwn new Pwomise((wesowve, _weject) => {
+			const awgs = ['view', '--json', pack, 'descwiption', 'dist-tags.watest', 'homepage', 'vewsion'];
+			wet cwd = wesouwce && wesouwce.scheme === 'fiwe' ? diwname(wesouwce.fsPath) : undefined;
+			cp.execFiwe(npmCommandPath, awgs, { cwd }, (ewwow, stdout) => {
+				if (!ewwow) {
+					twy {
+						const content = JSON.pawse(stdout);
+						wesowve({
+							descwiption: content['descwiption'],
+							vewsion: content['dist-tags.watest'] || content['vewsion'],
 							homepage: content['homepage']
 						});
-						return;
+						wetuwn;
 					} catch (e) {
-						// ignore
+						// ignowe
 					}
 				}
-				resolve(undefined);
+				wesowve(undefined);
 			});
 		});
 	}
 
-	private async npmjsView(pack: string): Promise<ViewPackageInfo | undefined> {
-		const queryUrl = 'https://registry.npmjs.org/' + encodeURIComponent(pack);
-		try {
-			const success = await this.xhr({
-				url: queryUrl,
-				headers: { agent: USER_AGENT }
+	pwivate async npmjsView(pack: stwing): Pwomise<ViewPackageInfo | undefined> {
+		const quewyUww = 'https://wegistwy.npmjs.owg/' + encodeUWIComponent(pack);
+		twy {
+			const success = await this.xhw({
+				uww: quewyUww,
+				headews: { agent: USEW_AGENT }
 			});
-			const obj = JSON.parse(success.responseText);
-			return {
-				description: obj.description || '',
-				version: Object.keys(obj.versions).pop(),
+			const obj = JSON.pawse(success.wesponseText);
+			wetuwn {
+				descwiption: obj.descwiption || '',
+				vewsion: Object.keys(obj.vewsions).pop(),
 				homepage: obj.homepage || ''
 			};
 		}
 		catch (e) {
-			//ignore
+			//ignowe
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	public getInfoContribution(resource: Uri, location: Location): Thenable<MarkdownString[] | null> | null {
-		if (!this.isEnabled()) {
-			return null;
+	pubwic getInfoContwibution(wesouwce: Uwi, wocation: Wocation): Thenabwe<MawkdownStwing[] | nuww> | nuww {
+		if (!this.isEnabwed()) {
+			wetuwn nuww;
 		}
-		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']))) {
-			const pack = location.path[location.path.length - 1];
-			if (typeof pack === 'string') {
-				return this.fetchPackageInfo(pack, resource).then(info => {
+		if ((wocation.matches(['dependencies', '*']) || wocation.matches(['devDependencies', '*']) || wocation.matches(['optionawDependencies', '*']) || wocation.matches(['peewDependencies', '*']))) {
+			const pack = wocation.path[wocation.path.wength - 1];
+			if (typeof pack === 'stwing') {
+				wetuwn this.fetchPackageInfo(pack, wesouwce).then(info => {
 					if (info) {
-						return [this.getDocumentation(info.description, info.version, info.homepage)];
+						wetuwn [this.getDocumentation(info.descwiption, info.vewsion, info.homepage)];
 					}
-					return null;
+					wetuwn nuww;
 				});
 			}
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	private processPackage(pack: SearchPackageInfo, addValue: boolean, isLast: boolean, collector: ISuggestionsCollector) {
+	pwivate pwocessPackage(pack: SeawchPackageInfo, addVawue: boowean, isWast: boowean, cowwectow: ISuggestionsCowwectow) {
 		if (pack && pack.name) {
 			const name = pack.name;
-			const insertText = new SnippetString().appendText(JSON.stringify(name));
-			if (addValue) {
-				insertText.appendText(': "');
-				if (pack.version) {
-					insertText.appendVariable('version', pack.version);
-				} else {
-					insertText.appendTabstop();
+			const insewtText = new SnippetStwing().appendText(JSON.stwingify(name));
+			if (addVawue) {
+				insewtText.appendText(': "');
+				if (pack.vewsion) {
+					insewtText.appendVawiabwe('vewsion', pack.vewsion);
+				} ewse {
+					insewtText.appendTabstop();
 				}
-				insertText.appendText('"');
-				if (!isLast) {
-					insertText.appendText(',');
+				insewtText.appendText('"');
+				if (!isWast) {
+					insewtText.appendText(',');
 				}
 			}
-			const proposal = new CompletionItem(name);
-			proposal.kind = CompletionItemKind.Property;
-			proposal.insertText = insertText;
-			proposal.filterText = JSON.stringify(name);
-			proposal.documentation = this.getDocumentation(pack.description, pack.version, pack?.links?.homepage);
-			collector.add(proposal);
+			const pwoposaw = new CompwetionItem(name);
+			pwoposaw.kind = CompwetionItemKind.Pwopewty;
+			pwoposaw.insewtText = insewtText;
+			pwoposaw.fiwtewText = JSON.stwingify(name);
+			pwoposaw.documentation = this.getDocumentation(pack.descwiption, pack.vewsion, pack?.winks?.homepage);
+			cowwectow.add(pwoposaw);
 		}
 	}
 }
 
-interface SearchPackageInfo {
-	name: string;
-	description?: string;
-	version?: string;
-	links?: { homepage?: string; };
+intewface SeawchPackageInfo {
+	name: stwing;
+	descwiption?: stwing;
+	vewsion?: stwing;
+	winks?: { homepage?: stwing; };
 }
 
-interface ViewPackageInfo {
-	description: string;
-	version?: string;
-	homepage?: string;
+intewface ViewPackageInfo {
+	descwiption: stwing;
+	vewsion?: stwing;
+	homepage?: stwing;
 }

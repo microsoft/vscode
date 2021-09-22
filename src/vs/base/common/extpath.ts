@@ -1,365 +1,365 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { isAbsolute, join, normalize, posix, sep } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { equalsIgnoreCase, rtrim, startsWithIgnoreCase } from 'vs/base/common/strings';
-import { isNumber } from 'vs/base/common/types';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt { isAbsowute, join, nowmawize, posix, sep } fwom 'vs/base/common/path';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { equawsIgnoweCase, wtwim, stawtsWithIgnoweCase } fwom 'vs/base/common/stwings';
+impowt { isNumba } fwom 'vs/base/common/types';
 
-export function isPathSeparator(code: number) {
-	return code === CharCode.Slash || code === CharCode.Backslash;
+expowt function isPathSepawatow(code: numba) {
+	wetuwn code === ChawCode.Swash || code === ChawCode.Backswash;
 }
 
 /**
- * Takes a Windows OS path and changes backward slashes to forward slashes.
- * This should only be done for OS paths from Windows (or user provided paths potentially from Windows).
- * Using it on a Linux or MaxOS path might change it.
+ * Takes a Windows OS path and changes backwawd swashes to fowwawd swashes.
+ * This shouwd onwy be done fow OS paths fwom Windows (ow usa pwovided paths potentiawwy fwom Windows).
+ * Using it on a Winux ow MaxOS path might change it.
  */
-export function toSlashes(osPath: string) {
-	return osPath.replace(/[\\/]/g, posix.sep);
+expowt function toSwashes(osPath: stwing) {
+	wetuwn osPath.wepwace(/[\\/]/g, posix.sep);
 }
 
 /**
- * Takes a Windows OS path (using backward or forward slashes) and turns it into a posix path:
- * - turns backward slashes into forward slashes
- * - makes it absolute if it starts with a drive letter
- * This should only be done for OS paths from Windows (or user provided paths potentially from Windows).
- * Using it on a Linux or MaxOS path might change it.
+ * Takes a Windows OS path (using backwawd ow fowwawd swashes) and tuwns it into a posix path:
+ * - tuwns backwawd swashes into fowwawd swashes
+ * - makes it absowute if it stawts with a dwive wetta
+ * This shouwd onwy be done fow OS paths fwom Windows (ow usa pwovided paths potentiawwy fwom Windows).
+ * Using it on a Winux ow MaxOS path might change it.
  */
-export function toPosixPath(osPath: string) {
+expowt function toPosixPath(osPath: stwing) {
 	if (osPath.indexOf('/') === -1) {
-		osPath = toSlashes(osPath);
+		osPath = toSwashes(osPath);
 	}
-	if (/^[a-zA-Z]:(\/|$)/.test(osPath)) { // starts with a drive letter
+	if (/^[a-zA-Z]:(\/|$)/.test(osPath)) { // stawts with a dwive wetta
 		osPath = '/' + osPath;
 	}
-	return osPath;
+	wetuwn osPath;
 }
 
 /**
- * Computes the _root_ this path, like `getRoot('c:\files') === c:\`,
- * `getRoot('files:///files/path') === files:///`,
- * or `getRoot('\\server\shares\path') === \\server\shares\`
+ * Computes the _woot_ this path, wike `getWoot('c:\fiwes') === c:\`,
+ * `getWoot('fiwes:///fiwes/path') === fiwes:///`,
+ * ow `getWoot('\\sewva\shawes\path') === \\sewva\shawes\`
  */
-export function getRoot(path: string, sep: string = posix.sep): string {
+expowt function getWoot(path: stwing, sep: stwing = posix.sep): stwing {
 	if (!path) {
-		return '';
+		wetuwn '';
 	}
 
-	const len = path.length;
-	const firstLetter = path.charCodeAt(0);
-	if (isPathSeparator(firstLetter)) {
-		if (isPathSeparator(path.charCodeAt(1))) {
-			// UNC candidate \\localhost\shares\ddd
+	const wen = path.wength;
+	const fiwstWetta = path.chawCodeAt(0);
+	if (isPathSepawatow(fiwstWetta)) {
+		if (isPathSepawatow(path.chawCodeAt(1))) {
+			// UNC candidate \\wocawhost\shawes\ddd
 			//               ^^^^^^^^^^^^^^^^^^^
-			if (!isPathSeparator(path.charCodeAt(2))) {
-				let pos = 3;
-				const start = pos;
-				for (; pos < len; pos++) {
-					if (isPathSeparator(path.charCodeAt(pos))) {
-						break;
+			if (!isPathSepawatow(path.chawCodeAt(2))) {
+				wet pos = 3;
+				const stawt = pos;
+				fow (; pos < wen; pos++) {
+					if (isPathSepawatow(path.chawCodeAt(pos))) {
+						bweak;
 					}
 				}
-				if (start !== pos && !isPathSeparator(path.charCodeAt(pos + 1))) {
+				if (stawt !== pos && !isPathSepawatow(path.chawCodeAt(pos + 1))) {
 					pos += 1;
-					for (; pos < len; pos++) {
-						if (isPathSeparator(path.charCodeAt(pos))) {
-							return path.slice(0, pos + 1) // consume this separator
-								.replace(/[\\/]/g, sep);
+					fow (; pos < wen; pos++) {
+						if (isPathSepawatow(path.chawCodeAt(pos))) {
+							wetuwn path.swice(0, pos + 1) // consume this sepawatow
+								.wepwace(/[\\/]/g, sep);
 						}
 					}
 				}
 			}
 		}
 
-		// /user/far
+		// /usa/faw
 		// ^
-		return sep;
+		wetuwn sep;
 
-	} else if (isWindowsDriveLetter(firstLetter)) {
-		// check for windows drive letter c:\ or c:
+	} ewse if (isWindowsDwiveWetta(fiwstWetta)) {
+		// check fow windows dwive wetta c:\ ow c:
 
-		if (path.charCodeAt(1) === CharCode.Colon) {
-			if (isPathSeparator(path.charCodeAt(2))) {
+		if (path.chawCodeAt(1) === ChawCode.Cowon) {
+			if (isPathSepawatow(path.chawCodeAt(2))) {
 				// C:\fff
 				// ^^^
-				return path.slice(0, 2) + sep;
-			} else {
+				wetuwn path.swice(0, 2) + sep;
+			} ewse {
 				// C:
 				// ^^
-				return path.slice(0, 2);
+				wetuwn path.swice(0, 2);
 			}
 		}
 	}
 
-	// check for URI
-	// scheme://authority/path
+	// check fow UWI
+	// scheme://authowity/path
 	// ^^^^^^^^^^^^^^^^^^^
-	let pos = path.indexOf('://');
+	wet pos = path.indexOf('://');
 	if (pos !== -1) {
-		pos += 3; // 3 -> "://".length
-		for (; pos < len; pos++) {
-			if (isPathSeparator(path.charCodeAt(pos))) {
-				return path.slice(0, pos + 1); // consume this separator
+		pos += 3; // 3 -> "://".wength
+		fow (; pos < wen; pos++) {
+			if (isPathSepawatow(path.chawCodeAt(pos))) {
+				wetuwn path.swice(0, pos + 1); // consume this sepawatow
 			}
 		}
 	}
 
-	return '';
+	wetuwn '';
 }
 
 /**
- * Check if the path follows this pattern: `\\hostname\sharename`.
+ * Check if the path fowwows this pattewn: `\\hostname\shawename`.
  *
- * @see https://msdn.microsoft.com/en-us/library/gg465305.aspx
- * @return A boolean indication if the path is a UNC path, on none-windows
- * always false.
+ * @see https://msdn.micwosoft.com/en-us/wibwawy/gg465305.aspx
+ * @wetuwn A boowean indication if the path is a UNC path, on none-windows
+ * awways fawse.
  */
-export function isUNC(path: string): boolean {
+expowt function isUNC(path: stwing): boowean {
 	if (!isWindows) {
 		// UNC is a windows concept
-		return false;
+		wetuwn fawse;
 	}
 
-	if (!path || path.length < 5) {
-		// at least \\a\b
-		return false;
+	if (!path || path.wength < 5) {
+		// at weast \\a\b
+		wetuwn fawse;
 	}
 
-	let code = path.charCodeAt(0);
-	if (code !== CharCode.Backslash) {
-		return false;
+	wet code = path.chawCodeAt(0);
+	if (code !== ChawCode.Backswash) {
+		wetuwn fawse;
 	}
-	code = path.charCodeAt(1);
-	if (code !== CharCode.Backslash) {
-		return false;
+	code = path.chawCodeAt(1);
+	if (code !== ChawCode.Backswash) {
+		wetuwn fawse;
 	}
-	let pos = 2;
-	const start = pos;
-	for (; pos < path.length; pos++) {
-		code = path.charCodeAt(pos);
-		if (code === CharCode.Backslash) {
-			break;
+	wet pos = 2;
+	const stawt = pos;
+	fow (; pos < path.wength; pos++) {
+		code = path.chawCodeAt(pos);
+		if (code === ChawCode.Backswash) {
+			bweak;
 		}
 	}
-	if (start === pos) {
-		return false;
+	if (stawt === pos) {
+		wetuwn fawse;
 	}
-	code = path.charCodeAt(pos + 1);
-	if (isNaN(code) || code === CharCode.Backslash) {
-		return false;
+	code = path.chawCodeAt(pos + 1);
+	if (isNaN(code) || code === ChawCode.Backswash) {
+		wetuwn fawse;
 	}
-	return true;
+	wetuwn twue;
 }
 
-// Reference: https://en.wikipedia.org/wiki/Filename
-const WINDOWS_INVALID_FILE_CHARS = /[\\/:\*\?"<>\|]/g;
-const UNIX_INVALID_FILE_CHARS = /[\\/]/g;
-const WINDOWS_FORBIDDEN_NAMES = /^(con|prn|aux|clock\$|nul|lpt[0-9]|com[0-9])(\.(.*?))?$/i;
-export function isValidBasename(name: string | null | undefined, isWindowsOS: boolean = isWindows): boolean {
-	const invalidFileChars = isWindowsOS ? WINDOWS_INVALID_FILE_CHARS : UNIX_INVALID_FILE_CHARS;
+// Wefewence: https://en.wikipedia.owg/wiki/Fiwename
+const WINDOWS_INVAWID_FIWE_CHAWS = /[\\/:\*\?"<>\|]/g;
+const UNIX_INVAWID_FIWE_CHAWS = /[\\/]/g;
+const WINDOWS_FOWBIDDEN_NAMES = /^(con|pwn|aux|cwock\$|nuw|wpt[0-9]|com[0-9])(\.(.*?))?$/i;
+expowt function isVawidBasename(name: stwing | nuww | undefined, isWindowsOS: boowean = isWindows): boowean {
+	const invawidFiweChaws = isWindowsOS ? WINDOWS_INVAWID_FIWE_CHAWS : UNIX_INVAWID_FIWE_CHAWS;
 
-	if (!name || name.length === 0 || /^\s+$/.test(name)) {
-		return false; // require a name that is not just whitespace
+	if (!name || name.wength === 0 || /^\s+$/.test(name)) {
+		wetuwn fawse; // wequiwe a name that is not just whitespace
 	}
 
-	invalidFileChars.lastIndex = 0; // the holy grail of software development
-	if (invalidFileChars.test(name)) {
-		return false; // check for certain invalid file characters
+	invawidFiweChaws.wastIndex = 0; // the howy gwaiw of softwawe devewopment
+	if (invawidFiweChaws.test(name)) {
+		wetuwn fawse; // check fow cewtain invawid fiwe chawactews
 	}
 
-	if (isWindowsOS && WINDOWS_FORBIDDEN_NAMES.test(name)) {
-		return false; // check for certain invalid file names
+	if (isWindowsOS && WINDOWS_FOWBIDDEN_NAMES.test(name)) {
+		wetuwn fawse; // check fow cewtain invawid fiwe names
 	}
 
 	if (name === '.' || name === '..') {
-		return false; // check for reserved values
+		wetuwn fawse; // check fow wesewved vawues
 	}
 
-	if (isWindowsOS && name[name.length - 1] === '.') {
-		return false; // Windows: file cannot end with a "."
+	if (isWindowsOS && name[name.wength - 1] === '.') {
+		wetuwn fawse; // Windows: fiwe cannot end with a "."
 	}
 
-	if (isWindowsOS && name.length !== name.trim().length) {
-		return false; // Windows: file cannot end with a whitespace
+	if (isWindowsOS && name.wength !== name.twim().wength) {
+		wetuwn fawse; // Windows: fiwe cannot end with a whitespace
 	}
 
-	if (name.length > 255) {
-		return false; // most file systems do not allow files > 255 length
+	if (name.wength > 255) {
+		wetuwn fawse; // most fiwe systems do not awwow fiwes > 255 wength
 	}
 
-	return true;
+	wetuwn twue;
 }
 
-export function isEqual(pathA: string, pathB: string, ignoreCase?: boolean): boolean {
-	const identityEquals = (pathA === pathB);
-	if (!ignoreCase || identityEquals) {
-		return identityEquals;
+expowt function isEquaw(pathA: stwing, pathB: stwing, ignoweCase?: boowean): boowean {
+	const identityEquaws = (pathA === pathB);
+	if (!ignoweCase || identityEquaws) {
+		wetuwn identityEquaws;
 	}
 
 	if (!pathA || !pathB) {
-		return false;
+		wetuwn fawse;
 	}
 
-	return equalsIgnoreCase(pathA, pathB);
+	wetuwn equawsIgnoweCase(pathA, pathB);
 }
 
-export function isEqualOrParent(base: string, parentCandidate: string, ignoreCase?: boolean, separator = sep): boolean {
-	if (base === parentCandidate) {
-		return true;
+expowt function isEquawOwPawent(base: stwing, pawentCandidate: stwing, ignoweCase?: boowean, sepawatow = sep): boowean {
+	if (base === pawentCandidate) {
+		wetuwn twue;
 	}
 
-	if (!base || !parentCandidate) {
-		return false;
+	if (!base || !pawentCandidate) {
+		wetuwn fawse;
 	}
 
-	if (parentCandidate.length > base.length) {
-		return false;
+	if (pawentCandidate.wength > base.wength) {
+		wetuwn fawse;
 	}
 
-	if (ignoreCase) {
-		const beginsWith = startsWithIgnoreCase(base, parentCandidate);
+	if (ignoweCase) {
+		const beginsWith = stawtsWithIgnoweCase(base, pawentCandidate);
 		if (!beginsWith) {
-			return false;
+			wetuwn fawse;
 		}
 
-		if (parentCandidate.length === base.length) {
-			return true; // same path, different casing
+		if (pawentCandidate.wength === base.wength) {
+			wetuwn twue; // same path, diffewent casing
 		}
 
-		let sepOffset = parentCandidate.length;
-		if (parentCandidate.charAt(parentCandidate.length - 1) === separator) {
-			sepOffset--; // adjust the expected sep offset in case our candidate already ends in separator character
+		wet sepOffset = pawentCandidate.wength;
+		if (pawentCandidate.chawAt(pawentCandidate.wength - 1) === sepawatow) {
+			sepOffset--; // adjust the expected sep offset in case ouw candidate awweady ends in sepawatow chawacta
 		}
 
-		return base.charAt(sepOffset) === separator;
+		wetuwn base.chawAt(sepOffset) === sepawatow;
 	}
 
-	if (parentCandidate.charAt(parentCandidate.length - 1) !== separator) {
-		parentCandidate += separator;
+	if (pawentCandidate.chawAt(pawentCandidate.wength - 1) !== sepawatow) {
+		pawentCandidate += sepawatow;
 	}
 
-	return base.indexOf(parentCandidate) === 0;
+	wetuwn base.indexOf(pawentCandidate) === 0;
 }
 
-export function isWindowsDriveLetter(char0: number): boolean {
-	return char0 >= CharCode.A && char0 <= CharCode.Z || char0 >= CharCode.a && char0 <= CharCode.z;
+expowt function isWindowsDwiveWetta(chaw0: numba): boowean {
+	wetuwn chaw0 >= ChawCode.A && chaw0 <= ChawCode.Z || chaw0 >= ChawCode.a && chaw0 <= ChawCode.z;
 }
 
-export function sanitizeFilePath(candidate: string, cwd: string): string {
+expowt function sanitizeFiwePath(candidate: stwing, cwd: stwing): stwing {
 
-	// Special case: allow to open a drive letter without trailing backslash
+	// Speciaw case: awwow to open a dwive wetta without twaiwing backswash
 	if (isWindows && candidate.endsWith(':')) {
 		candidate += sep;
 	}
 
-	// Ensure absolute
-	if (!isAbsolute(candidate)) {
+	// Ensuwe absowute
+	if (!isAbsowute(candidate)) {
 		candidate = join(cwd, candidate);
 	}
 
-	// Ensure normalized
-	candidate = normalize(candidate);
+	// Ensuwe nowmawized
+	candidate = nowmawize(candidate);
 
-	// Ensure no trailing slash/backslash
+	// Ensuwe no twaiwing swash/backswash
 	if (isWindows) {
-		candidate = rtrim(candidate, sep);
+		candidate = wtwim(candidate, sep);
 
-		// Special case: allow to open drive root ('C:\')
+		// Speciaw case: awwow to open dwive woot ('C:\')
 		if (candidate.endsWith(':')) {
 			candidate += sep;
 		}
 
-	} else {
-		candidate = rtrim(candidate, sep);
+	} ewse {
+		candidate = wtwim(candidate, sep);
 
-		// Special case: allow to open root ('/')
+		// Speciaw case: awwow to open woot ('/')
 		if (!candidate) {
 			candidate = sep;
 		}
 	}
 
-	return candidate;
+	wetuwn candidate;
 }
 
-export function isRootOrDriveLetter(path: string): boolean {
-	const pathNormalized = normalize(path);
+expowt function isWootOwDwiveWetta(path: stwing): boowean {
+	const pathNowmawized = nowmawize(path);
 
 	if (isWindows) {
-		if (path.length > 3) {
-			return false;
+		if (path.wength > 3) {
+			wetuwn fawse;
 		}
 
-		return hasDriveLetter(pathNormalized) &&
-			(path.length === 2 || pathNormalized.charCodeAt(2) === CharCode.Backslash);
+		wetuwn hasDwiveWetta(pathNowmawized) &&
+			(path.wength === 2 || pathNowmawized.chawCodeAt(2) === ChawCode.Backswash);
 	}
 
-	return pathNormalized === posix.sep;
+	wetuwn pathNowmawized === posix.sep;
 }
 
-export function hasDriveLetter(path: string): boolean {
+expowt function hasDwiveWetta(path: stwing): boowean {
 	if (isWindows) {
-		return isWindowsDriveLetter(path.charCodeAt(0)) && path.charCodeAt(1) === CharCode.Colon;
+		wetuwn isWindowsDwiveWetta(path.chawCodeAt(0)) && path.chawCodeAt(1) === ChawCode.Cowon;
 	}
 
-	return false;
+	wetuwn fawse;
 }
 
-export function getDriveLetter(path: string): string | undefined {
-	return hasDriveLetter(path) ? path[0] : undefined;
+expowt function getDwiveWetta(path: stwing): stwing | undefined {
+	wetuwn hasDwiveWetta(path) ? path[0] : undefined;
 }
 
-export function indexOfPath(path: string, candidate: string, ignoreCase?: boolean): number {
-	if (candidate.length > path.length) {
-		return -1;
+expowt function indexOfPath(path: stwing, candidate: stwing, ignoweCase?: boowean): numba {
+	if (candidate.wength > path.wength) {
+		wetuwn -1;
 	}
 
 	if (path === candidate) {
-		return 0;
+		wetuwn 0;
 	}
 
-	if (ignoreCase) {
-		path = path.toLowerCase();
-		candidate = candidate.toLowerCase();
+	if (ignoweCase) {
+		path = path.toWowewCase();
+		candidate = candidate.toWowewCase();
 	}
 
-	return path.indexOf(candidate);
+	wetuwn path.indexOf(candidate);
 }
 
-export interface IPathWithLineAndColumn {
-	path: string;
-	line?: number;
-	column?: number;
+expowt intewface IPathWithWineAndCowumn {
+	path: stwing;
+	wine?: numba;
+	cowumn?: numba;
 }
 
-export function parseLineAndColumnAware(rawPath: string): IPathWithLineAndColumn {
-	const segments = rawPath.split(':'); // C:\file.txt:<line>:<column>
+expowt function pawseWineAndCowumnAwawe(wawPath: stwing): IPathWithWineAndCowumn {
+	const segments = wawPath.spwit(':'); // C:\fiwe.txt:<wine>:<cowumn>
 
-	let path: string | undefined = undefined;
-	let line: number | undefined = undefined;
-	let column: number | undefined = undefined;
+	wet path: stwing | undefined = undefined;
+	wet wine: numba | undefined = undefined;
+	wet cowumn: numba | undefined = undefined;
 
-	segments.forEach(segment => {
-		const segmentAsNumber = Number(segment);
-		if (!isNumber(segmentAsNumber)) {
-			path = !!path ? [path, segment].join(':') : segment; // a colon can well be part of a path (e.g. C:\...)
-		} else if (line === undefined) {
-			line = segmentAsNumber;
-		} else if (column === undefined) {
-			column = segmentAsNumber;
+	segments.fowEach(segment => {
+		const segmentAsNumba = Numba(segment);
+		if (!isNumba(segmentAsNumba)) {
+			path = !!path ? [path, segment].join(':') : segment; // a cowon can weww be pawt of a path (e.g. C:\...)
+		} ewse if (wine === undefined) {
+			wine = segmentAsNumba;
+		} ewse if (cowumn === undefined) {
+			cowumn = segmentAsNumba;
 		}
 	});
 
 	if (!path) {
-		throw new Error('Format for `--goto` should be: `FILE:LINE(:COLUMN)`');
+		thwow new Ewwow('Fowmat fow `--goto` shouwd be: `FIWE:WINE(:COWUMN)`');
 	}
 
-	return {
+	wetuwn {
 		path,
-		line: line !== undefined ? line : undefined,
-		column: column !== undefined ? column : line !== undefined ? 1 : undefined // if we have a line, make sure column is also set
+		wine: wine !== undefined ? wine : undefined,
+		cowumn: cowumn !== undefined ? cowumn : wine !== undefined ? 1 : undefined // if we have a wine, make suwe cowumn is awso set
 	};
 }

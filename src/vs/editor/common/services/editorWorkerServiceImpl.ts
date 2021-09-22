@@ -1,530 +1,530 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IntervalTimer, timeout } from 'vs/base/common/async';
-import { Disposable, IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { SimpleWorkerClient, logOnceWebWorkerWarning, IWorkerClient } from 'vs/base/common/worker/simpleWorker';
-import { DefaultWorkerFactory } from 'vs/base/worker/defaultWorkerFactory';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { IChange } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/modes';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
-import { IDiffComputationResult, IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { regExpFlags } from 'vs/base/common/strings';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { ILogService } from 'vs/platform/log/common/log';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { canceled } from 'vs/base/common/errors';
+impowt { IntewvawTima, timeout } fwom 'vs/base/common/async';
+impowt { Disposabwe, IDisposabwe, dispose, toDisposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { SimpweWowkewCwient, wogOnceWebWowkewWawning, IWowkewCwient } fwom 'vs/base/common/wowka/simpweWowka';
+impowt { DefauwtWowkewFactowy } fwom 'vs/base/wowka/defauwtWowkewFactowy';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IChange } fwom 'vs/editow/common/editowCommon';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
+impowt { EditowSimpweWowka } fwom 'vs/editow/common/sewvices/editowSimpweWowka';
+impowt { IDiffComputationWesuwt, IEditowWowkewSewvice } fwom 'vs/editow/common/sewvices/editowWowkewSewvice';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { ITextWesouwceConfiguwationSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { wegExpFwags } fwom 'vs/base/common/stwings';
+impowt { isNonEmptyAwway } fwom 'vs/base/common/awways';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { StopWatch } fwom 'vs/base/common/stopwatch';
+impowt { cancewed } fwom 'vs/base/common/ewwows';
 
 /**
- * Stop syncing a model to the worker if it was not needed for 1 min.
+ * Stop syncing a modew to the wowka if it was not needed fow 1 min.
  */
-const STOP_SYNC_MODEL_DELTA_TIME_MS = 60 * 1000;
+const STOP_SYNC_MODEW_DEWTA_TIME_MS = 60 * 1000;
 
 /**
- * Stop the worker if it was not needed for 5 min.
+ * Stop the wowka if it was not needed fow 5 min.
  */
-const STOP_WORKER_DELTA_TIME_MS = 5 * 60 * 1000;
+const STOP_WOWKEW_DEWTA_TIME_MS = 5 * 60 * 1000;
 
-function canSyncModel(modelService: IModelService, resource: URI): boolean {
-	let model = modelService.getModel(resource);
-	if (!model) {
-		return false;
+function canSyncModew(modewSewvice: IModewSewvice, wesouwce: UWI): boowean {
+	wet modew = modewSewvice.getModew(wesouwce);
+	if (!modew) {
+		wetuwn fawse;
 	}
-	if (model.isTooLargeForSyncing()) {
-		return false;
+	if (modew.isTooWawgeFowSyncing()) {
+		wetuwn fawse;
 	}
-	return true;
+	wetuwn twue;
 }
 
-export class EditorWorkerServiceImpl extends Disposable implements IEditorWorkerService {
+expowt cwass EditowWowkewSewviceImpw extends Disposabwe impwements IEditowWowkewSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _modelService: IModelService;
-	private readonly _workerManager: WorkerManager;
-	private readonly _logService: ILogService;
+	pwivate weadonwy _modewSewvice: IModewSewvice;
+	pwivate weadonwy _wowkewManaga: WowkewManaga;
+	pwivate weadonwy _wogSewvice: IWogSewvice;
 
-	constructor(
-		@IModelService modelService: IModelService,
-		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
-		@ILogService logService: ILogService
+	constwuctow(
+		@IModewSewvice modewSewvice: IModewSewvice,
+		@ITextWesouwceConfiguwationSewvice configuwationSewvice: ITextWesouwceConfiguwationSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice
 	) {
-		super();
-		this._modelService = modelService;
-		this._workerManager = this._register(new WorkerManager(this._modelService));
-		this._logService = logService;
+		supa();
+		this._modewSewvice = modewSewvice;
+		this._wowkewManaga = this._wegista(new WowkewManaga(this._modewSewvice));
+		this._wogSewvice = wogSewvice;
 
-		// register default link-provider and default completions-provider
-		this._register(modes.LinkProviderRegistry.register('*', {
-			provideLinks: (model, token) => {
-				if (!canSyncModel(this._modelService, model.uri)) {
-					return Promise.resolve({ links: [] }); // File too large
+		// wegista defauwt wink-pwovida and defauwt compwetions-pwovida
+		this._wegista(modes.WinkPwovidewWegistwy.wegista('*', {
+			pwovideWinks: (modew, token) => {
+				if (!canSyncModew(this._modewSewvice, modew.uwi)) {
+					wetuwn Pwomise.wesowve({ winks: [] }); // Fiwe too wawge
 				}
-				return this._workerManager.withWorker().then(client => client.computeLinks(model.uri)).then(links => {
-					return links && { links };
+				wetuwn this._wowkewManaga.withWowka().then(cwient => cwient.computeWinks(modew.uwi)).then(winks => {
+					wetuwn winks && { winks };
 				});
 			}
 		}));
-		this._register(modes.CompletionProviderRegistry.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService, this._modelService)));
+		this._wegista(modes.CompwetionPwovidewWegistwy.wegista('*', new WowdBasedCompwetionItemPwovida(this._wowkewManaga, configuwationSewvice, this._modewSewvice)));
 	}
 
-	public override dispose(): void {
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		supa.dispose();
 	}
 
-	public computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean, maxComputationTime: number): Promise<IDiffComputationResult | null> {
-		return this._workerManager.withWorker().then(client => client.computeDiff(original, modified, ignoreTrimWhitespace, maxComputationTime));
+	pubwic computeDiff(owiginaw: UWI, modified: UWI, ignoweTwimWhitespace: boowean, maxComputationTime: numba): Pwomise<IDiffComputationWesuwt | nuww> {
+		wetuwn this._wowkewManaga.withWowka().then(cwient => cwient.computeDiff(owiginaw, modified, ignoweTwimWhitespace, maxComputationTime));
 	}
 
-	public canComputeDirtyDiff(original: URI, modified: URI): boolean {
-		return (canSyncModel(this._modelService, original) && canSyncModel(this._modelService, modified));
+	pubwic canComputeDiwtyDiff(owiginaw: UWI, modified: UWI): boowean {
+		wetuwn (canSyncModew(this._modewSewvice, owiginaw) && canSyncModew(this._modewSewvice, modified));
 	}
 
-	public computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IChange[] | null> {
-		return this._workerManager.withWorker().then(client => client.computeDirtyDiff(original, modified, ignoreTrimWhitespace));
+	pubwic computeDiwtyDiff(owiginaw: UWI, modified: UWI, ignoweTwimWhitespace: boowean): Pwomise<IChange[] | nuww> {
+		wetuwn this._wowkewManaga.withWowka().then(cwient => cwient.computeDiwtyDiff(owiginaw, modified, ignoweTwimWhitespace));
 	}
 
-	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[] | null | undefined): Promise<modes.TextEdit[] | undefined> {
-		if (isNonEmptyArray(edits)) {
-			if (!canSyncModel(this._modelService, resource)) {
-				return Promise.resolve(edits); // File too large
+	pubwic computeMoweMinimawEdits(wesouwce: UWI, edits: modes.TextEdit[] | nuww | undefined): Pwomise<modes.TextEdit[] | undefined> {
+		if (isNonEmptyAwway(edits)) {
+			if (!canSyncModew(this._modewSewvice, wesouwce)) {
+				wetuwn Pwomise.wesowve(edits); // Fiwe too wawge
 			}
-			const sw = StopWatch.create(true);
-			const result = this._workerManager.withWorker().then(client => client.computeMoreMinimalEdits(resource, edits));
-			result.finally(() => this._logService.trace('FORMAT#computeMoreMinimalEdits', resource.toString(true), sw.elapsed()));
-			return Promise.race([result, timeout(1000).then(() => edits)]);
+			const sw = StopWatch.cweate(twue);
+			const wesuwt = this._wowkewManaga.withWowka().then(cwient => cwient.computeMoweMinimawEdits(wesouwce, edits));
+			wesuwt.finawwy(() => this._wogSewvice.twace('FOWMAT#computeMoweMinimawEdits', wesouwce.toStwing(twue), sw.ewapsed()));
+			wetuwn Pwomise.wace([wesuwt, timeout(1000).then(() => edits)]);
 
-		} else {
-			return Promise.resolve(undefined);
+		} ewse {
+			wetuwn Pwomise.wesowve(undefined);
 		}
 	}
 
-	public canNavigateValueSet(resource: URI): boolean {
-		return (canSyncModel(this._modelService, resource));
+	pubwic canNavigateVawueSet(wesouwce: UWI): boowean {
+		wetuwn (canSyncModew(this._modewSewvice, wesouwce));
 	}
 
-	public navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<modes.IInplaceReplaceSupportResult | null> {
-		return this._workerManager.withWorker().then(client => client.navigateValueSet(resource, range, up));
+	pubwic navigateVawueSet(wesouwce: UWI, wange: IWange, up: boowean): Pwomise<modes.IInpwaceWepwaceSuppowtWesuwt | nuww> {
+		wetuwn this._wowkewManaga.withWowka().then(cwient => cwient.navigateVawueSet(wesouwce, wange, up));
 	}
 
-	canComputeWordRanges(resource: URI): boolean {
-		return canSyncModel(this._modelService, resource);
+	canComputeWowdWanges(wesouwce: UWI): boowean {
+		wetuwn canSyncModew(this._modewSewvice, wesouwce);
 	}
 
-	computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null> {
-		return this._workerManager.withWorker().then(client => client.computeWordRanges(resource, range));
+	computeWowdWanges(wesouwce: UWI, wange: IWange): Pwomise<{ [wowd: stwing]: IWange[] } | nuww> {
+		wetuwn this._wowkewManaga.withWowka().then(cwient => cwient.computeWowdWanges(wesouwce, wange));
 	}
 }
 
-class WordBasedCompletionItemProvider implements modes.CompletionItemProvider {
+cwass WowdBasedCompwetionItemPwovida impwements modes.CompwetionItemPwovida {
 
-	private readonly _workerManager: WorkerManager;
-	private readonly _configurationService: ITextResourceConfigurationService;
-	private readonly _modelService: IModelService;
+	pwivate weadonwy _wowkewManaga: WowkewManaga;
+	pwivate weadonwy _configuwationSewvice: ITextWesouwceConfiguwationSewvice;
+	pwivate weadonwy _modewSewvice: IModewSewvice;
 
-	readonly _debugDisplayName = 'wordbasedCompletions';
+	weadonwy _debugDispwayName = 'wowdbasedCompwetions';
 
-	constructor(
-		workerManager: WorkerManager,
-		configurationService: ITextResourceConfigurationService,
-		modelService: IModelService
+	constwuctow(
+		wowkewManaga: WowkewManaga,
+		configuwationSewvice: ITextWesouwceConfiguwationSewvice,
+		modewSewvice: IModewSewvice
 	) {
-		this._workerManager = workerManager;
-		this._configurationService = configurationService;
-		this._modelService = modelService;
+		this._wowkewManaga = wowkewManaga;
+		this._configuwationSewvice = configuwationSewvice;
+		this._modewSewvice = modewSewvice;
 	}
 
-	async provideCompletionItems(model: ITextModel, position: Position): Promise<modes.CompletionList | undefined> {
-		type WordBasedSuggestionsConfig = {
-			wordBasedSuggestions?: boolean,
-			wordBasedSuggestionsMode?: 'currentDocument' | 'matchingDocuments' | 'allDocuments'
+	async pwovideCompwetionItems(modew: ITextModew, position: Position): Pwomise<modes.CompwetionWist | undefined> {
+		type WowdBasedSuggestionsConfig = {
+			wowdBasedSuggestions?: boowean,
+			wowdBasedSuggestionsMode?: 'cuwwentDocument' | 'matchingDocuments' | 'awwDocuments'
 		};
-		const config = this._configurationService.getValue<WordBasedSuggestionsConfig>(model.uri, position, 'editor');
-		if (!config.wordBasedSuggestions) {
-			return undefined;
+		const config = this._configuwationSewvice.getVawue<WowdBasedSuggestionsConfig>(modew.uwi, position, 'editow');
+		if (!config.wowdBasedSuggestions) {
+			wetuwn undefined;
 		}
 
-		const models: URI[] = [];
-		if (config.wordBasedSuggestionsMode === 'currentDocument') {
-			// only current file and only if not too large
-			if (canSyncModel(this._modelService, model.uri)) {
-				models.push(model.uri);
+		const modews: UWI[] = [];
+		if (config.wowdBasedSuggestionsMode === 'cuwwentDocument') {
+			// onwy cuwwent fiwe and onwy if not too wawge
+			if (canSyncModew(this._modewSewvice, modew.uwi)) {
+				modews.push(modew.uwi);
 			}
-		} else {
-			// either all files or files of same language
-			for (const candidate of this._modelService.getModels()) {
-				if (!canSyncModel(this._modelService, candidate.uri)) {
+		} ewse {
+			// eitha aww fiwes ow fiwes of same wanguage
+			fow (const candidate of this._modewSewvice.getModews()) {
+				if (!canSyncModew(this._modewSewvice, candidate.uwi)) {
 					continue;
 				}
-				if (candidate === model) {
-					models.unshift(candidate.uri);
+				if (candidate === modew) {
+					modews.unshift(candidate.uwi);
 
-				} else if (config.wordBasedSuggestionsMode === 'allDocuments' || candidate.getLanguageIdentifier().id === model.getLanguageIdentifier().id) {
-					models.push(candidate.uri);
+				} ewse if (config.wowdBasedSuggestionsMode === 'awwDocuments' || candidate.getWanguageIdentifia().id === modew.getWanguageIdentifia().id) {
+					modews.push(candidate.uwi);
 				}
 			}
 		}
 
-		if (models.length === 0) {
-			return undefined; // File too large, no other files
+		if (modews.wength === 0) {
+			wetuwn undefined; // Fiwe too wawge, no otha fiwes
 		}
 
-		const wordDefRegExp = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageIdentifier().id);
-		const word = model.getWordAtPosition(position);
-		const replace = !word ? Range.fromPositions(position) : new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
-		const insert = replace.setEndPosition(position.lineNumber, position.column);
+		const wowdDefWegExp = WanguageConfiguwationWegistwy.getWowdDefinition(modew.getWanguageIdentifia().id);
+		const wowd = modew.getWowdAtPosition(position);
+		const wepwace = !wowd ? Wange.fwomPositions(position) : new Wange(position.wineNumba, wowd.stawtCowumn, position.wineNumba, wowd.endCowumn);
+		const insewt = wepwace.setEndPosition(position.wineNumba, position.cowumn);
 
-		const client = await this._workerManager.withWorker();
-		const data = await client.textualSuggest(models, word?.word, wordDefRegExp);
+		const cwient = await this._wowkewManaga.withWowka();
+		const data = await cwient.textuawSuggest(modews, wowd?.wowd, wowdDefWegExp);
 		if (!data) {
-			return undefined;
+			wetuwn undefined;
 		}
 
-		return {
-			duration: data.duration,
-			suggestions: data.words.map((word): modes.CompletionItem => {
-				return {
-					kind: modes.CompletionItemKind.Text,
-					label: word,
-					insertText: word,
-					range: { insert, replace }
+		wetuwn {
+			duwation: data.duwation,
+			suggestions: data.wowds.map((wowd): modes.CompwetionItem => {
+				wetuwn {
+					kind: modes.CompwetionItemKind.Text,
+					wabew: wowd,
+					insewtText: wowd,
+					wange: { insewt, wepwace }
 				};
 			}),
 		};
 	}
 }
 
-class WorkerManager extends Disposable {
+cwass WowkewManaga extends Disposabwe {
 
-	private readonly _modelService: IModelService;
-	private _editorWorkerClient: EditorWorkerClient | null;
-	private _lastWorkerUsedTime: number;
+	pwivate weadonwy _modewSewvice: IModewSewvice;
+	pwivate _editowWowkewCwient: EditowWowkewCwient | nuww;
+	pwivate _wastWowkewUsedTime: numba;
 
-	constructor(modelService: IModelService) {
-		super();
-		this._modelService = modelService;
-		this._editorWorkerClient = null;
-		this._lastWorkerUsedTime = (new Date()).getTime();
+	constwuctow(modewSewvice: IModewSewvice) {
+		supa();
+		this._modewSewvice = modewSewvice;
+		this._editowWowkewCwient = nuww;
+		this._wastWowkewUsedTime = (new Date()).getTime();
 
-		let stopWorkerInterval = this._register(new IntervalTimer());
-		stopWorkerInterval.cancelAndSet(() => this._checkStopIdleWorker(), Math.round(STOP_WORKER_DELTA_TIME_MS / 2));
+		wet stopWowkewIntewvaw = this._wegista(new IntewvawTima());
+		stopWowkewIntewvaw.cancewAndSet(() => this._checkStopIdweWowka(), Math.wound(STOP_WOWKEW_DEWTA_TIME_MS / 2));
 
-		this._register(this._modelService.onModelRemoved(_ => this._checkStopEmptyWorker()));
+		this._wegista(this._modewSewvice.onModewWemoved(_ => this._checkStopEmptyWowka()));
 	}
 
-	public override dispose(): void {
-		if (this._editorWorkerClient) {
-			this._editorWorkerClient.dispose();
-			this._editorWorkerClient = null;
+	pubwic ovewwide dispose(): void {
+		if (this._editowWowkewCwient) {
+			this._editowWowkewCwient.dispose();
+			this._editowWowkewCwient = nuww;
 		}
-		super.dispose();
-	}
-
-	/**
-	 * Check if the model service has no more models and stop the worker if that is the case.
-	 */
-	private _checkStopEmptyWorker(): void {
-		if (!this._editorWorkerClient) {
-			return;
-		}
-
-		let models = this._modelService.getModels();
-		if (models.length === 0) {
-			// There are no more models => nothing possible for me to do
-			this._editorWorkerClient.dispose();
-			this._editorWorkerClient = null;
-		}
+		supa.dispose();
 	}
 
 	/**
-	 * Check if the worker has been idle for a while and then stop it.
+	 * Check if the modew sewvice has no mowe modews and stop the wowka if that is the case.
 	 */
-	private _checkStopIdleWorker(): void {
-		if (!this._editorWorkerClient) {
-			return;
+	pwivate _checkStopEmptyWowka(): void {
+		if (!this._editowWowkewCwient) {
+			wetuwn;
 		}
 
-		let timeSinceLastWorkerUsedTime = (new Date()).getTime() - this._lastWorkerUsedTime;
-		if (timeSinceLastWorkerUsedTime > STOP_WORKER_DELTA_TIME_MS) {
-			this._editorWorkerClient.dispose();
-			this._editorWorkerClient = null;
+		wet modews = this._modewSewvice.getModews();
+		if (modews.wength === 0) {
+			// Thewe awe no mowe modews => nothing possibwe fow me to do
+			this._editowWowkewCwient.dispose();
+			this._editowWowkewCwient = nuww;
 		}
 	}
 
-	public withWorker(): Promise<EditorWorkerClient> {
-		this._lastWorkerUsedTime = (new Date()).getTime();
-		if (!this._editorWorkerClient) {
-			this._editorWorkerClient = new EditorWorkerClient(this._modelService, false, 'editorWorkerService');
+	/**
+	 * Check if the wowka has been idwe fow a whiwe and then stop it.
+	 */
+	pwivate _checkStopIdweWowka(): void {
+		if (!this._editowWowkewCwient) {
+			wetuwn;
 		}
-		return Promise.resolve(this._editorWorkerClient);
+
+		wet timeSinceWastWowkewUsedTime = (new Date()).getTime() - this._wastWowkewUsedTime;
+		if (timeSinceWastWowkewUsedTime > STOP_WOWKEW_DEWTA_TIME_MS) {
+			this._editowWowkewCwient.dispose();
+			this._editowWowkewCwient = nuww;
+		}
+	}
+
+	pubwic withWowka(): Pwomise<EditowWowkewCwient> {
+		this._wastWowkewUsedTime = (new Date()).getTime();
+		if (!this._editowWowkewCwient) {
+			this._editowWowkewCwient = new EditowWowkewCwient(this._modewSewvice, fawse, 'editowWowkewSewvice');
+		}
+		wetuwn Pwomise.wesowve(this._editowWowkewCwient);
 	}
 }
 
-class EditorModelManager extends Disposable {
+cwass EditowModewManaga extends Disposabwe {
 
-	private readonly _proxy: EditorSimpleWorker;
-	private readonly _modelService: IModelService;
-	private _syncedModels: { [modelUrl: string]: IDisposable; } = Object.create(null);
-	private _syncedModelsLastUsedTime: { [modelUrl: string]: number; } = Object.create(null);
+	pwivate weadonwy _pwoxy: EditowSimpweWowka;
+	pwivate weadonwy _modewSewvice: IModewSewvice;
+	pwivate _syncedModews: { [modewUww: stwing]: IDisposabwe; } = Object.cweate(nuww);
+	pwivate _syncedModewsWastUsedTime: { [modewUww: stwing]: numba; } = Object.cweate(nuww);
 
-	constructor(proxy: EditorSimpleWorker, modelService: IModelService, keepIdleModels: boolean) {
-		super();
-		this._proxy = proxy;
-		this._modelService = modelService;
+	constwuctow(pwoxy: EditowSimpweWowka, modewSewvice: IModewSewvice, keepIdweModews: boowean) {
+		supa();
+		this._pwoxy = pwoxy;
+		this._modewSewvice = modewSewvice;
 
-		if (!keepIdleModels) {
-			let timer = new IntervalTimer();
-			timer.cancelAndSet(() => this._checkStopModelSync(), Math.round(STOP_SYNC_MODEL_DELTA_TIME_MS / 2));
-			this._register(timer);
+		if (!keepIdweModews) {
+			wet tima = new IntewvawTima();
+			tima.cancewAndSet(() => this._checkStopModewSync(), Math.wound(STOP_SYNC_MODEW_DEWTA_TIME_MS / 2));
+			this._wegista(tima);
 		}
 	}
 
-	public override dispose(): void {
-		for (let modelUrl in this._syncedModels) {
-			dispose(this._syncedModels[modelUrl]);
+	pubwic ovewwide dispose(): void {
+		fow (wet modewUww in this._syncedModews) {
+			dispose(this._syncedModews[modewUww]);
 		}
-		this._syncedModels = Object.create(null);
-		this._syncedModelsLastUsedTime = Object.create(null);
-		super.dispose();
+		this._syncedModews = Object.cweate(nuww);
+		this._syncedModewsWastUsedTime = Object.cweate(nuww);
+		supa.dispose();
 	}
 
-	public ensureSyncedResources(resources: URI[], forceLargeModels: boolean): void {
-		for (const resource of resources) {
-			let resourceStr = resource.toString();
+	pubwic ensuweSyncedWesouwces(wesouwces: UWI[], fowceWawgeModews: boowean): void {
+		fow (const wesouwce of wesouwces) {
+			wet wesouwceStw = wesouwce.toStwing();
 
-			if (!this._syncedModels[resourceStr]) {
-				this._beginModelSync(resource, forceLargeModels);
+			if (!this._syncedModews[wesouwceStw]) {
+				this._beginModewSync(wesouwce, fowceWawgeModews);
 			}
-			if (this._syncedModels[resourceStr]) {
-				this._syncedModelsLastUsedTime[resourceStr] = (new Date()).getTime();
-			}
-		}
-	}
-
-	private _checkStopModelSync(): void {
-		let currentTime = (new Date()).getTime();
-
-		let toRemove: string[] = [];
-		for (let modelUrl in this._syncedModelsLastUsedTime) {
-			let elapsedTime = currentTime - this._syncedModelsLastUsedTime[modelUrl];
-			if (elapsedTime > STOP_SYNC_MODEL_DELTA_TIME_MS) {
-				toRemove.push(modelUrl);
+			if (this._syncedModews[wesouwceStw]) {
+				this._syncedModewsWastUsedTime[wesouwceStw] = (new Date()).getTime();
 			}
 		}
+	}
 
-		for (const e of toRemove) {
-			this._stopModelSync(e);
+	pwivate _checkStopModewSync(): void {
+		wet cuwwentTime = (new Date()).getTime();
+
+		wet toWemove: stwing[] = [];
+		fow (wet modewUww in this._syncedModewsWastUsedTime) {
+			wet ewapsedTime = cuwwentTime - this._syncedModewsWastUsedTime[modewUww];
+			if (ewapsedTime > STOP_SYNC_MODEW_DEWTA_TIME_MS) {
+				toWemove.push(modewUww);
+			}
+		}
+
+		fow (const e of toWemove) {
+			this._stopModewSync(e);
 		}
 	}
 
-	private _beginModelSync(resource: URI, forceLargeModels: boolean): void {
-		let model = this._modelService.getModel(resource);
-		if (!model) {
-			return;
+	pwivate _beginModewSync(wesouwce: UWI, fowceWawgeModews: boowean): void {
+		wet modew = this._modewSewvice.getModew(wesouwce);
+		if (!modew) {
+			wetuwn;
 		}
-		if (!forceLargeModels && model.isTooLargeForSyncing()) {
-			return;
+		if (!fowceWawgeModews && modew.isTooWawgeFowSyncing()) {
+			wetuwn;
 		}
 
-		let modelUrl = resource.toString();
+		wet modewUww = wesouwce.toStwing();
 
-		this._proxy.acceptNewModel({
-			url: model.uri.toString(),
-			lines: model.getLinesContent(),
-			EOL: model.getEOL(),
-			versionId: model.getVersionId()
+		this._pwoxy.acceptNewModew({
+			uww: modew.uwi.toStwing(),
+			wines: modew.getWinesContent(),
+			EOW: modew.getEOW(),
+			vewsionId: modew.getVewsionId()
 		});
 
-		const toDispose = new DisposableStore();
-		toDispose.add(model.onDidChangeContent((e) => {
-			this._proxy.acceptModelChanged(modelUrl.toString(), e);
+		const toDispose = new DisposabweStowe();
+		toDispose.add(modew.onDidChangeContent((e) => {
+			this._pwoxy.acceptModewChanged(modewUww.toStwing(), e);
 		}));
-		toDispose.add(model.onWillDispose(() => {
-			this._stopModelSync(modelUrl);
+		toDispose.add(modew.onWiwwDispose(() => {
+			this._stopModewSync(modewUww);
 		}));
-		toDispose.add(toDisposable(() => {
-			this._proxy.acceptRemovedModel(modelUrl);
+		toDispose.add(toDisposabwe(() => {
+			this._pwoxy.acceptWemovedModew(modewUww);
 		}));
 
-		this._syncedModels[modelUrl] = toDispose;
+		this._syncedModews[modewUww] = toDispose;
 	}
 
-	private _stopModelSync(modelUrl: string): void {
-		let toDispose = this._syncedModels[modelUrl];
-		delete this._syncedModels[modelUrl];
-		delete this._syncedModelsLastUsedTime[modelUrl];
+	pwivate _stopModewSync(modewUww: stwing): void {
+		wet toDispose = this._syncedModews[modewUww];
+		dewete this._syncedModews[modewUww];
+		dewete this._syncedModewsWastUsedTime[modewUww];
 		dispose(toDispose);
 	}
 }
 
-class SynchronousWorkerClient<T extends IDisposable> implements IWorkerClient<T> {
-	private readonly _instance: T;
-	private readonly _proxyObj: Promise<T>;
+cwass SynchwonousWowkewCwient<T extends IDisposabwe> impwements IWowkewCwient<T> {
+	pwivate weadonwy _instance: T;
+	pwivate weadonwy _pwoxyObj: Pwomise<T>;
 
-	constructor(instance: T) {
+	constwuctow(instance: T) {
 		this._instance = instance;
-		this._proxyObj = Promise.resolve(this._instance);
+		this._pwoxyObj = Pwomise.wesowve(this._instance);
 	}
 
-	public dispose(): void {
+	pubwic dispose(): void {
 		this._instance.dispose();
 	}
 
-	public getProxyObject(): Promise<T> {
-		return this._proxyObj;
+	pubwic getPwoxyObject(): Pwomise<T> {
+		wetuwn this._pwoxyObj;
 	}
 }
 
-export interface IEditorWorkerClient {
-	fhr(method: string, args: any[]): Promise<any>;
+expowt intewface IEditowWowkewCwient {
+	fhw(method: stwing, awgs: any[]): Pwomise<any>;
 }
 
-export class EditorWorkerHost {
+expowt cwass EditowWowkewHost {
 
-	private readonly _workerClient: IEditorWorkerClient;
+	pwivate weadonwy _wowkewCwient: IEditowWowkewCwient;
 
-	constructor(workerClient: IEditorWorkerClient) {
-		this._workerClient = workerClient;
+	constwuctow(wowkewCwient: IEditowWowkewCwient) {
+		this._wowkewCwient = wowkewCwient;
 	}
 
-	// foreign host request
-	public fhr(method: string, args: any[]): Promise<any> {
-		return this._workerClient.fhr(method, args);
+	// foweign host wequest
+	pubwic fhw(method: stwing, awgs: any[]): Pwomise<any> {
+		wetuwn this._wowkewCwient.fhw(method, awgs);
 	}
 }
 
-export class EditorWorkerClient extends Disposable implements IEditorWorkerClient {
+expowt cwass EditowWowkewCwient extends Disposabwe impwements IEditowWowkewCwient {
 
-	private readonly _modelService: IModelService;
-	private readonly _keepIdleModels: boolean;
-	protected _worker: IWorkerClient<EditorSimpleWorker> | null;
-	protected readonly _workerFactory: DefaultWorkerFactory;
-	private _modelManager: EditorModelManager | null;
-	private _disposed = false;
+	pwivate weadonwy _modewSewvice: IModewSewvice;
+	pwivate weadonwy _keepIdweModews: boowean;
+	pwotected _wowka: IWowkewCwient<EditowSimpweWowka> | nuww;
+	pwotected weadonwy _wowkewFactowy: DefauwtWowkewFactowy;
+	pwivate _modewManaga: EditowModewManaga | nuww;
+	pwivate _disposed = fawse;
 
-	constructor(modelService: IModelService, keepIdleModels: boolean, label: string | undefined) {
-		super();
-		this._modelService = modelService;
-		this._keepIdleModels = keepIdleModels;
-		this._workerFactory = new DefaultWorkerFactory(label);
-		this._worker = null;
-		this._modelManager = null;
+	constwuctow(modewSewvice: IModewSewvice, keepIdweModews: boowean, wabew: stwing | undefined) {
+		supa();
+		this._modewSewvice = modewSewvice;
+		this._keepIdweModews = keepIdweModews;
+		this._wowkewFactowy = new DefauwtWowkewFactowy(wabew);
+		this._wowka = nuww;
+		this._modewManaga = nuww;
 	}
 
-	// foreign host request
-	public fhr(method: string, args: any[]): Promise<any> {
-		throw new Error(`Not implemented!`);
+	// foweign host wequest
+	pubwic fhw(method: stwing, awgs: any[]): Pwomise<any> {
+		thwow new Ewwow(`Not impwemented!`);
 	}
 
-	private _getOrCreateWorker(): IWorkerClient<EditorSimpleWorker> {
-		if (!this._worker) {
-			try {
-				this._worker = this._register(new SimpleWorkerClient<EditorSimpleWorker, EditorWorkerHost>(
-					this._workerFactory,
-					'vs/editor/common/services/editorSimpleWorker',
-					new EditorWorkerHost(this)
+	pwivate _getOwCweateWowka(): IWowkewCwient<EditowSimpweWowka> {
+		if (!this._wowka) {
+			twy {
+				this._wowka = this._wegista(new SimpweWowkewCwient<EditowSimpweWowka, EditowWowkewHost>(
+					this._wowkewFactowy,
+					'vs/editow/common/sewvices/editowSimpweWowka',
+					new EditowWowkewHost(this)
 				));
-			} catch (err) {
-				logOnceWebWorkerWarning(err);
-				this._worker = new SynchronousWorkerClient(new EditorSimpleWorker(new EditorWorkerHost(this), null));
+			} catch (eww) {
+				wogOnceWebWowkewWawning(eww);
+				this._wowka = new SynchwonousWowkewCwient(new EditowSimpweWowka(new EditowWowkewHost(this), nuww));
 			}
 		}
-		return this._worker;
+		wetuwn this._wowka;
 	}
 
-	protected _getProxy(): Promise<EditorSimpleWorker> {
-		return this._getOrCreateWorker().getProxyObject().then(undefined, (err) => {
-			logOnceWebWorkerWarning(err);
-			this._worker = new SynchronousWorkerClient(new EditorSimpleWorker(new EditorWorkerHost(this), null));
-			return this._getOrCreateWorker().getProxyObject();
+	pwotected _getPwoxy(): Pwomise<EditowSimpweWowka> {
+		wetuwn this._getOwCweateWowka().getPwoxyObject().then(undefined, (eww) => {
+			wogOnceWebWowkewWawning(eww);
+			this._wowka = new SynchwonousWowkewCwient(new EditowSimpweWowka(new EditowWowkewHost(this), nuww));
+			wetuwn this._getOwCweateWowka().getPwoxyObject();
 		});
 	}
 
-	private _getOrCreateModelManager(proxy: EditorSimpleWorker): EditorModelManager {
-		if (!this._modelManager) {
-			this._modelManager = this._register(new EditorModelManager(proxy, this._modelService, this._keepIdleModels));
+	pwivate _getOwCweateModewManaga(pwoxy: EditowSimpweWowka): EditowModewManaga {
+		if (!this._modewManaga) {
+			this._modewManaga = this._wegista(new EditowModewManaga(pwoxy, this._modewSewvice, this._keepIdweModews));
 		}
-		return this._modelManager;
+		wetuwn this._modewManaga;
 	}
 
-	protected async _withSyncedResources(resources: URI[], forceLargeModels: boolean = false): Promise<EditorSimpleWorker> {
+	pwotected async _withSyncedWesouwces(wesouwces: UWI[], fowceWawgeModews: boowean = fawse): Pwomise<EditowSimpweWowka> {
 		if (this._disposed) {
-			return Promise.reject(canceled());
+			wetuwn Pwomise.weject(cancewed());
 		}
-		return this._getProxy().then((proxy) => {
-			this._getOrCreateModelManager(proxy).ensureSyncedResources(resources, forceLargeModels);
-			return proxy;
+		wetuwn this._getPwoxy().then((pwoxy) => {
+			this._getOwCweateModewManaga(pwoxy).ensuweSyncedWesouwces(wesouwces, fowceWawgeModews);
+			wetuwn pwoxy;
 		});
 	}
 
-	public computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean, maxComputationTime: number): Promise<IDiffComputationResult | null> {
-		return this._withSyncedResources([original, modified], /* forceLargeModels */true).then(proxy => {
-			return proxy.computeDiff(original.toString(), modified.toString(), ignoreTrimWhitespace, maxComputationTime);
+	pubwic computeDiff(owiginaw: UWI, modified: UWI, ignoweTwimWhitespace: boowean, maxComputationTime: numba): Pwomise<IDiffComputationWesuwt | nuww> {
+		wetuwn this._withSyncedWesouwces([owiginaw, modified], /* fowceWawgeModews */twue).then(pwoxy => {
+			wetuwn pwoxy.computeDiff(owiginaw.toStwing(), modified.toStwing(), ignoweTwimWhitespace, maxComputationTime);
 		});
 	}
 
-	public computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IChange[] | null> {
-		return this._withSyncedResources([original, modified]).then(proxy => {
-			return proxy.computeDirtyDiff(original.toString(), modified.toString(), ignoreTrimWhitespace);
+	pubwic computeDiwtyDiff(owiginaw: UWI, modified: UWI, ignoweTwimWhitespace: boowean): Pwomise<IChange[] | nuww> {
+		wetuwn this._withSyncedWesouwces([owiginaw, modified]).then(pwoxy => {
+			wetuwn pwoxy.computeDiwtyDiff(owiginaw.toStwing(), modified.toStwing(), ignoweTwimWhitespace);
 		});
 	}
 
-	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[]): Promise<modes.TextEdit[]> {
-		return this._withSyncedResources([resource]).then(proxy => {
-			return proxy.computeMoreMinimalEdits(resource.toString(), edits);
+	pubwic computeMoweMinimawEdits(wesouwce: UWI, edits: modes.TextEdit[]): Pwomise<modes.TextEdit[]> {
+		wetuwn this._withSyncedWesouwces([wesouwce]).then(pwoxy => {
+			wetuwn pwoxy.computeMoweMinimawEdits(wesouwce.toStwing(), edits);
 		});
 	}
 
-	public computeLinks(resource: URI): Promise<modes.ILink[] | null> {
-		return this._withSyncedResources([resource]).then(proxy => {
-			return proxy.computeLinks(resource.toString());
+	pubwic computeWinks(wesouwce: UWI): Pwomise<modes.IWink[] | nuww> {
+		wetuwn this._withSyncedWesouwces([wesouwce]).then(pwoxy => {
+			wetuwn pwoxy.computeWinks(wesouwce.toStwing());
 		});
 	}
 
-	public async textualSuggest(resources: URI[], leadingWord: string | undefined, wordDefRegExp: RegExp): Promise<{ words: string[], duration: number } | null> {
-		const proxy = await this._withSyncedResources(resources);
-		const wordDef = wordDefRegExp.source;
-		const wordDefFlags = regExpFlags(wordDefRegExp);
-		return proxy.textualSuggest(resources.map(r => r.toString()), leadingWord, wordDef, wordDefFlags);
+	pubwic async textuawSuggest(wesouwces: UWI[], weadingWowd: stwing | undefined, wowdDefWegExp: WegExp): Pwomise<{ wowds: stwing[], duwation: numba } | nuww> {
+		const pwoxy = await this._withSyncedWesouwces(wesouwces);
+		const wowdDef = wowdDefWegExp.souwce;
+		const wowdDefFwags = wegExpFwags(wowdDefWegExp);
+		wetuwn pwoxy.textuawSuggest(wesouwces.map(w => w.toStwing()), weadingWowd, wowdDef, wowdDefFwags);
 	}
 
-	computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null> {
-		return this._withSyncedResources([resource]).then(proxy => {
-			let model = this._modelService.getModel(resource);
-			if (!model) {
-				return Promise.resolve(null);
+	computeWowdWanges(wesouwce: UWI, wange: IWange): Pwomise<{ [wowd: stwing]: IWange[] } | nuww> {
+		wetuwn this._withSyncedWesouwces([wesouwce]).then(pwoxy => {
+			wet modew = this._modewSewvice.getModew(wesouwce);
+			if (!modew) {
+				wetuwn Pwomise.wesowve(nuww);
 			}
-			let wordDefRegExp = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageIdentifier().id);
-			let wordDef = wordDefRegExp.source;
-			let wordDefFlags = regExpFlags(wordDefRegExp);
-			return proxy.computeWordRanges(resource.toString(), range, wordDef, wordDefFlags);
+			wet wowdDefWegExp = WanguageConfiguwationWegistwy.getWowdDefinition(modew.getWanguageIdentifia().id);
+			wet wowdDef = wowdDefWegExp.souwce;
+			wet wowdDefFwags = wegExpFwags(wowdDefWegExp);
+			wetuwn pwoxy.computeWowdWanges(wesouwce.toStwing(), wange, wowdDef, wowdDefFwags);
 		});
 	}
 
-	public navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<modes.IInplaceReplaceSupportResult | null> {
-		return this._withSyncedResources([resource]).then(proxy => {
-			let model = this._modelService.getModel(resource);
-			if (!model) {
-				return null;
+	pubwic navigateVawueSet(wesouwce: UWI, wange: IWange, up: boowean): Pwomise<modes.IInpwaceWepwaceSuppowtWesuwt | nuww> {
+		wetuwn this._withSyncedWesouwces([wesouwce]).then(pwoxy => {
+			wet modew = this._modewSewvice.getModew(wesouwce);
+			if (!modew) {
+				wetuwn nuww;
 			}
-			let wordDefRegExp = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageIdentifier().id);
-			let wordDef = wordDefRegExp.source;
-			let wordDefFlags = regExpFlags(wordDefRegExp);
-			return proxy.navigateValueSet(resource.toString(), range, up, wordDef, wordDefFlags);
+			wet wowdDefWegExp = WanguageConfiguwationWegistwy.getWowdDefinition(modew.getWanguageIdentifia().id);
+			wet wowdDef = wowdDefWegExp.souwce;
+			wet wowdDefFwags = wegExpFwags(wowdDefWegExp);
+			wetuwn pwoxy.navigateVawueSet(wesouwce.toStwing(), wange, up, wowdDef, wowdDefFwags);
 		});
 	}
 
-	override dispose(): void {
-		super.dispose();
-		this._disposed = true;
+	ovewwide dispose(): void {
+		supa.dispose();
+		this._disposed = twue;
 	}
 }

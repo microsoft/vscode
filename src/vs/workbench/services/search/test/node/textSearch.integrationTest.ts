@@ -1,441 +1,441 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as path from 'vs/base/common/path';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import * as glob from 'vs/base/common/glob';
-import { URI } from 'vs/base/common/uri';
-import { deserializeSearchError, IFolderQuery, ISearchRange, ITextQuery, ITextSearchContext, ITextSearchMatch, QueryType, SearchErrorCode, ISerializedFileMatch } from 'vs/workbench/services/search/common/search';
-import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
-import { flakySuite, getPathFromAmdModule } from 'vs/base/test/node/testUtils';
+impowt * as assewt fwom 'assewt';
+impowt * as path fwom 'vs/base/common/path';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt * as gwob fwom 'vs/base/common/gwob';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { desewiawizeSeawchEwwow, IFowdewQuewy, ISeawchWange, ITextQuewy, ITextSeawchContext, ITextSeawchMatch, QuewyType, SeawchEwwowCode, ISewiawizedFiweMatch } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { TextSeawchEngineAdapta } fwom 'vs/wowkbench/sewvices/seawch/node/textSeawchAdapta';
+impowt { fwakySuite, getPathFwomAmdModuwe } fwom 'vs/base/test/node/testUtiws';
 
-const TEST_FIXTURES = path.normalize(getPathFromAmdModule(require, './fixtures'));
-const EXAMPLES_FIXTURES = path.join(TEST_FIXTURES, 'examples');
-const MORE_FIXTURES = path.join(TEST_FIXTURES, 'more');
-const TEST_ROOT_FOLDER: IFolderQuery = { folder: URI.file(TEST_FIXTURES) };
-const ROOT_FOLDER_QUERY: IFolderQuery[] = [
-	TEST_ROOT_FOLDER
+const TEST_FIXTUWES = path.nowmawize(getPathFwomAmdModuwe(wequiwe, './fixtuwes'));
+const EXAMPWES_FIXTUWES = path.join(TEST_FIXTUWES, 'exampwes');
+const MOWE_FIXTUWES = path.join(TEST_FIXTUWES, 'mowe');
+const TEST_WOOT_FOWDa: IFowdewQuewy = { fowda: UWI.fiwe(TEST_FIXTUWES) };
+const WOOT_FOWDEW_QUEWY: IFowdewQuewy[] = [
+	TEST_WOOT_FOWDa
 ];
 
-const MULTIROOT_QUERIES: IFolderQuery[] = [
-	{ folder: URI.file(EXAMPLES_FIXTURES) },
-	{ folder: URI.file(MORE_FIXTURES) }
+const MUWTIWOOT_QUEWIES: IFowdewQuewy[] = [
+	{ fowda: UWI.fiwe(EXAMPWES_FIXTUWES) },
+	{ fowda: UWI.fiwe(MOWE_FIXTUWES) }
 ];
 
-function doSearchTest(query: ITextQuery, expectedResultCount: number | Function): Promise<ISerializedFileMatch[]> {
-	const engine = new TextSearchEngineAdapter(query);
+function doSeawchTest(quewy: ITextQuewy, expectedWesuwtCount: numba | Function): Pwomise<ISewiawizedFiweMatch[]> {
+	const engine = new TextSeawchEngineAdapta(quewy);
 
-	let c = 0;
-	const results: ISerializedFileMatch[] = [];
-	return engine.search(new CancellationTokenSource().token, _results => {
-		if (_results) {
-			c += _results.reduce((acc, cur) => acc + cur.numMatches!, 0);
-			results.push(..._results);
+	wet c = 0;
+	const wesuwts: ISewiawizedFiweMatch[] = [];
+	wetuwn engine.seawch(new CancewwationTokenSouwce().token, _wesuwts => {
+		if (_wesuwts) {
+			c += _wesuwts.weduce((acc, cuw) => acc + cuw.numMatches!, 0);
+			wesuwts.push(..._wesuwts);
 		}
 	}, () => { }).then(() => {
-		if (typeof expectedResultCount === 'function') {
-			assert(expectedResultCount(c));
-		} else {
-			assert.strictEqual(c, expectedResultCount, `rg ${c} !== ${expectedResultCount}`);
+		if (typeof expectedWesuwtCount === 'function') {
+			assewt(expectedWesuwtCount(c));
+		} ewse {
+			assewt.stwictEquaw(c, expectedWesuwtCount, `wg ${c} !== ${expectedWesuwtCount}`);
 		}
 
-		return results;
+		wetuwn wesuwts;
 	});
 }
 
-flakySuite('TextSearch-integration', function () {
+fwakySuite('TextSeawch-integwation', function () {
 
-	test('Text: GameOfLife', () => {
-		const config: ITextQuery = {
-			type: QueryType.Text,
-			folderQueries: ROOT_FOLDER_QUERY,
-			contentPattern: { pattern: 'GameOfLife' },
+	test('Text: GameOfWife', () => {
+		const config: ITextQuewy = {
+			type: QuewyType.Text,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			contentPattewn: { pattewn: 'GameOfWife' },
 		};
 
-		return doSearchTest(config, 4);
+		wetuwn doSeawchTest(config, 4);
 	});
 
-	test('Text: GameOfLife (RegExp)', () => {
-		const config: ITextQuery = {
-			type: QueryType.Text,
-			folderQueries: ROOT_FOLDER_QUERY,
-			contentPattern: { pattern: 'Game.?fL\\w?fe', isRegExp: true }
+	test('Text: GameOfWife (WegExp)', () => {
+		const config: ITextQuewy = {
+			type: QuewyType.Text,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			contentPattewn: { pattewn: 'Game.?fW\\w?fe', isWegExp: twue }
 		};
 
-		return doSearchTest(config, 4);
+		wetuwn doSeawchTest(config, 4);
 	});
 
-	test('Text: GameOfLife (unicode escape sequences)', () => {
-		const config: ITextQuery = {
-			type: QueryType.Text,
-			folderQueries: ROOT_FOLDER_QUERY,
-			contentPattern: { pattern: 'G\\u{0061}m\\u0065OfLife', isRegExp: true }
+	test('Text: GameOfWife (unicode escape sequences)', () => {
+		const config: ITextQuewy = {
+			type: QuewyType.Text,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			contentPattewn: { pattewn: 'G\\u{0061}m\\u0065OfWife', isWegExp: twue }
 		};
 
-		return doSearchTest(config, 4);
+		wetuwn doSeawchTest(config, 4);
 	});
 
-	test('Text: GameOfLife (unicode escape sequences, force PCRE2)', () => {
-		const config: ITextQuery = {
-			type: QueryType.Text,
-			folderQueries: ROOT_FOLDER_QUERY,
-			contentPattern: { pattern: '(?<!a)G\\u{0061}m\\u0065OfLife', isRegExp: true }
+	test('Text: GameOfWife (unicode escape sequences, fowce PCWE2)', () => {
+		const config: ITextQuewy = {
+			type: QuewyType.Text,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			contentPattewn: { pattewn: '(?<!a)G\\u{0061}m\\u0065OfWife', isWegExp: twue }
 		};
 
-		return doSearchTest(config, 4);
+		wetuwn doSeawchTest(config, 4);
 	});
 
-	test('Text: GameOfLife (PCRE2 RegExp)', () => {
-		const config: ITextQuery = {
-			type: QueryType.Text,
-			folderQueries: ROOT_FOLDER_QUERY,
-			usePCRE2: true,
-			contentPattern: { pattern: 'Life(?!P)', isRegExp: true }
+	test('Text: GameOfWife (PCWE2 WegExp)', () => {
+		const config: ITextQuewy = {
+			type: QuewyType.Text,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			usePCWE2: twue,
+			contentPattewn: { pattewn: 'Wife(?!P)', isWegExp: twue }
 		};
 
-		return doSearchTest(config, 8);
+		wetuwn doSeawchTest(config, 8);
 	});
 
-	test('Text: GameOfLife (RegExp to EOL)', () => {
-		const config: ITextQuery = {
-			type: QueryType.Text,
-			folderQueries: ROOT_FOLDER_QUERY,
-			contentPattern: { pattern: 'GameOfLife.*', isRegExp: true }
+	test('Text: GameOfWife (WegExp to EOW)', () => {
+		const config: ITextQuewy = {
+			type: QuewyType.Text,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			contentPattewn: { pattewn: 'GameOfWife.*', isWegExp: twue }
 		};
 
-		return doSearchTest(config, 4);
+		wetuwn doSeawchTest(config, 4);
 	});
 
-	test('Text: GameOfLife (Word Match, Case Sensitive)', () => {
-		const config: ITextQuery = {
-			type: QueryType.Text,
-			folderQueries: ROOT_FOLDER_QUERY,
-			contentPattern: { pattern: 'GameOfLife', isWordMatch: true, isCaseSensitive: true }
+	test('Text: GameOfWife (Wowd Match, Case Sensitive)', () => {
+		const config: ITextQuewy = {
+			type: QuewyType.Text,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			contentPattewn: { pattewn: 'GameOfWife', isWowdMatch: twue, isCaseSensitive: twue }
 		};
 
-		return doSearchTest(config, 4);
+		wetuwn doSeawchTest(config, 4);
 	});
 
-	test('Text: GameOfLife (Word Match, Spaces)', () => {
-		const config: ITextQuery = {
-			type: QueryType.Text,
-			folderQueries: ROOT_FOLDER_QUERY,
-			contentPattern: { pattern: ' GameOfLife ', isWordMatch: true }
+	test('Text: GameOfWife (Wowd Match, Spaces)', () => {
+		const config: ITextQuewy = {
+			type: QuewyType.Text,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			contentPattewn: { pattewn: ' GameOfWife ', isWowdMatch: twue }
 		};
 
-		return doSearchTest(config, 1);
+		wetuwn doSeawchTest(config, 1);
 	});
 
-	test('Text: GameOfLife (Word Match, Punctuation and Spaces)', () => {
-		const config: ITextQuery = {
-			type: QueryType.Text,
-			folderQueries: ROOT_FOLDER_QUERY,
-			contentPattern: { pattern: ', as =', isWordMatch: true }
+	test('Text: GameOfWife (Wowd Match, Punctuation and Spaces)', () => {
+		const config: ITextQuewy = {
+			type: QuewyType.Text,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			contentPattewn: { pattewn: ', as =', isWowdMatch: twue }
 		};
 
-		return doSearchTest(config, 1);
+		wetuwn doSeawchTest(config, 1);
 	});
 
-	test('Text: Helvetica (UTF 16)', () => {
-		const config: ITextQuery = {
-			type: QueryType.Text,
-			folderQueries: ROOT_FOLDER_QUERY,
-			contentPattern: { pattern: 'Helvetica' }
+	test('Text: Hewvetica (UTF 16)', () => {
+		const config: ITextQuewy = {
+			type: QuewyType.Text,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			contentPattewn: { pattewn: 'Hewvetica' }
 		};
 
-		return doSearchTest(config, 3);
+		wetuwn doSeawchTest(config, 3);
 	});
 
 	test('Text: e', () => {
-		const config: ITextQuery = {
-			type: QueryType.Text,
-			folderQueries: ROOT_FOLDER_QUERY,
-			contentPattern: { pattern: 'e' }
+		const config: ITextQuewy = {
+			type: QuewyType.Text,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			contentPattewn: { pattewn: 'e' }
 		};
 
-		return doSearchTest(config, 788);
+		wetuwn doSeawchTest(config, 788);
 	});
 
-	test('Text: e (with excludes)', () => {
+	test('Text: e (with excwudes)', () => {
 		const config: any = {
-			folderQueries: ROOT_FOLDER_QUERY,
-			contentPattern: { pattern: 'e' },
-			excludePattern: { '**/examples': true }
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			contentPattewn: { pattewn: 'e' },
+			excwudePattewn: { '**/exampwes': twue }
 		};
 
-		return doSearchTest(config, 394);
+		wetuwn doSeawchTest(config, 394);
 	});
 
-	test('Text: e (with includes)', () => {
+	test('Text: e (with incwudes)', () => {
 		const config: any = {
-			folderQueries: ROOT_FOLDER_QUERY,
-			contentPattern: { pattern: 'e' },
-			includePattern: { '**/examples/**': true }
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			contentPattewn: { pattewn: 'e' },
+			incwudePattewn: { '**/exampwes/**': twue }
 		};
 
-		return doSearchTest(config, 394);
+		wetuwn doSeawchTest(config, 394);
 	});
 
 	// TODO
-	// test('Text: e (with absolute path excludes)', () => {
+	// test('Text: e (with absowute path excwudes)', () => {
 	// 	const config: any = {
-	// 		folderQueries: ROOT_FOLDER_QUERY,
-	// 		contentPattern: { pattern: 'e' },
-	// 		excludePattern: makeExpression(path.join(TEST_FIXTURES, '**/examples'))
+	// 		fowdewQuewies: WOOT_FOWDEW_QUEWY,
+	// 		contentPattewn: { pattewn: 'e' },
+	// 		excwudePattewn: makeExpwession(path.join(TEST_FIXTUWES, '**/exampwes'))
 	// 	};
 
-	// 	return doSearchTest(config, 394);
+	// 	wetuwn doSeawchTest(config, 394);
 	// });
 
-	// test('Text: e (with mixed absolute/relative path excludes)', () => {
+	// test('Text: e (with mixed absowute/wewative path excwudes)', () => {
 	// 	const config: any = {
-	// 		folderQueries: ROOT_FOLDER_QUERY,
-	// 		contentPattern: { pattern: 'e' },
-	// 		excludePattern: makeExpression(path.join(TEST_FIXTURES, '**/examples'), '*.css')
+	// 		fowdewQuewies: WOOT_FOWDEW_QUEWY,
+	// 		contentPattewn: { pattewn: 'e' },
+	// 		excwudePattewn: makeExpwession(path.join(TEST_FIXTUWES, '**/exampwes'), '*.css')
 	// 	};
 
-	// 	return doSearchTest(config, 310);
+	// 	wetuwn doSeawchTest(config, 310);
 	// });
 
-	test('Text: sibling exclude', () => {
+	test('Text: sibwing excwude', () => {
 		const config: any = {
-			folderQueries: ROOT_FOLDER_QUERY,
-			contentPattern: { pattern: 'm' },
-			includePattern: makeExpression('**/site*'),
-			excludePattern: { '*.css': { when: '$(basename).less' } }
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			contentPattewn: { pattewn: 'm' },
+			incwudePattewn: makeExpwession('**/site*'),
+			excwudePattewn: { '*.css': { when: '$(basename).wess' } }
 		};
 
-		return doSearchTest(config, 1);
+		wetuwn doSeawchTest(config, 1);
 	});
 
-	test('Text: e (with includes and exclude)', () => {
+	test('Text: e (with incwudes and excwude)', () => {
 		const config: any = {
-			folderQueries: ROOT_FOLDER_QUERY,
-			contentPattern: { pattern: 'e' },
-			includePattern: { '**/examples/**': true },
-			excludePattern: { '**/examples/small.js': true }
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			contentPattewn: { pattewn: 'e' },
+			incwudePattewn: { '**/exampwes/**': twue },
+			excwudePattewn: { '**/exampwes/smaww.js': twue }
 		};
 
-		return doSearchTest(config, 371);
+		wetuwn doSeawchTest(config, 371);
 	});
 
 	test('Text: a (capped)', () => {
-		const maxResults = 520;
-		const config: ITextQuery = {
-			type: QueryType.Text,
-			folderQueries: ROOT_FOLDER_QUERY,
-			contentPattern: { pattern: 'a' },
-			maxResults
+		const maxWesuwts = 520;
+		const config: ITextQuewy = {
+			type: QuewyType.Text,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			contentPattewn: { pattewn: 'a' },
+			maxWesuwts
 		};
 
-		return doSearchTest(config, maxResults);
+		wetuwn doSeawchTest(config, maxWesuwts);
 	});
 
-	test('Text: a (no results)', () => {
-		const config: ITextQuery = {
-			type: QueryType.Text,
-			folderQueries: ROOT_FOLDER_QUERY,
-			contentPattern: { pattern: 'ahsogehtdas' }
+	test('Text: a (no wesuwts)', () => {
+		const config: ITextQuewy = {
+			type: QuewyType.Text,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			contentPattewn: { pattewn: 'ahsogehtdas' }
 		};
 
-		return doSearchTest(config, 0);
+		wetuwn doSeawchTest(config, 0);
 	});
 
 	test('Text: -size', () => {
-		const config: ITextQuery = {
-			type: QueryType.Text,
-			folderQueries: ROOT_FOLDER_QUERY,
-			contentPattern: { pattern: '-size' }
+		const config: ITextQuewy = {
+			type: QuewyType.Text,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			contentPattewn: { pattewn: '-size' }
 		};
 
-		return doSearchTest(config, 9);
+		wetuwn doSeawchTest(config, 9);
 	});
 
-	test('Multiroot: Conway', () => {
-		const config: ITextQuery = {
-			type: QueryType.Text,
-			folderQueries: MULTIROOT_QUERIES,
-			contentPattern: { pattern: 'conway' }
+	test('Muwtiwoot: Conway', () => {
+		const config: ITextQuewy = {
+			type: QuewyType.Text,
+			fowdewQuewies: MUWTIWOOT_QUEWIES,
+			contentPattewn: { pattewn: 'conway' }
 		};
 
-		return doSearchTest(config, 8);
+		wetuwn doSeawchTest(config, 8);
 	});
 
-	test('Multiroot: e with partial global exclude', () => {
-		const config: ITextQuery = {
-			type: QueryType.Text,
-			folderQueries: MULTIROOT_QUERIES,
-			contentPattern: { pattern: 'e' },
-			excludePattern: makeExpression('**/*.txt')
+	test('Muwtiwoot: e with pawtiaw gwobaw excwude', () => {
+		const config: ITextQuewy = {
+			type: QuewyType.Text,
+			fowdewQuewies: MUWTIWOOT_QUEWIES,
+			contentPattewn: { pattewn: 'e' },
+			excwudePattewn: makeExpwession('**/*.txt')
 		};
 
-		return doSearchTest(config, 394);
+		wetuwn doSeawchTest(config, 394);
 	});
 
-	test('Multiroot: e with global excludes', () => {
-		const config: ITextQuery = {
-			type: QueryType.Text,
-			folderQueries: MULTIROOT_QUERIES,
-			contentPattern: { pattern: 'e' },
-			excludePattern: makeExpression('**/*.txt', '**/*.js')
+	test('Muwtiwoot: e with gwobaw excwudes', () => {
+		const config: ITextQuewy = {
+			type: QuewyType.Text,
+			fowdewQuewies: MUWTIWOOT_QUEWIES,
+			contentPattewn: { pattewn: 'e' },
+			excwudePattewn: makeExpwession('**/*.txt', '**/*.js')
 		};
 
-		return doSearchTest(config, 0);
+		wetuwn doSeawchTest(config, 0);
 	});
 
-	test('Multiroot: e with folder exclude', () => {
-		const config: ITextQuery = {
-			type: QueryType.Text,
-			folderQueries: [
-				{ folder: URI.file(EXAMPLES_FIXTURES), excludePattern: makeExpression('**/e*.js') },
-				{ folder: URI.file(MORE_FIXTURES) }
+	test('Muwtiwoot: e with fowda excwude', () => {
+		const config: ITextQuewy = {
+			type: QuewyType.Text,
+			fowdewQuewies: [
+				{ fowda: UWI.fiwe(EXAMPWES_FIXTUWES), excwudePattewn: makeExpwession('**/e*.js') },
+				{ fowda: UWI.fiwe(MOWE_FIXTUWES) }
 			],
-			contentPattern: { pattern: 'e' }
+			contentPattewn: { pattewn: 'e' }
 		};
 
-		return doSearchTest(config, 298);
+		wetuwn doSeawchTest(config, 298);
 	});
 
 	test('Text: 语', () => {
-		const config: ITextQuery = {
-			type: QueryType.Text,
-			folderQueries: ROOT_FOLDER_QUERY,
-			contentPattern: { pattern: '语' }
+		const config: ITextQuewy = {
+			type: QuewyType.Text,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			contentPattewn: { pattewn: '语' }
 		};
 
-		return doSearchTest(config, 1).then(results => {
-			const matchRange = (<ITextSearchMatch>results[0].results![0]).ranges;
-			assert.deepStrictEqual(matchRange, [{
-				startLineNumber: 0,
-				startColumn: 1,
-				endLineNumber: 0,
-				endColumn: 2
+		wetuwn doSeawchTest(config, 1).then(wesuwts => {
+			const matchWange = (<ITextSeawchMatch>wesuwts[0].wesuwts![0]).wanges;
+			assewt.deepStwictEquaw(matchWange, [{
+				stawtWineNumba: 0,
+				stawtCowumn: 1,
+				endWineNumba: 0,
+				endCowumn: 2
 			}]);
 		});
 	});
 
-	test('Multiple matches on line: h\\d,', () => {
-		const config: ITextQuery = {
-			type: QueryType.Text,
-			folderQueries: ROOT_FOLDER_QUERY,
-			contentPattern: { pattern: 'h\\d,', isRegExp: true }
+	test('Muwtipwe matches on wine: h\\d,', () => {
+		const config: ITextQuewy = {
+			type: QuewyType.Text,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			contentPattewn: { pattewn: 'h\\d,', isWegExp: twue }
 		};
 
-		return doSearchTest(config, 15).then(results => {
-			assert.strictEqual(results.length, 3);
-			assert.strictEqual(results[0].results!.length, 1);
-			const match = <ITextSearchMatch>results[0].results![0];
-			assert.strictEqual((<ISearchRange[]>match.ranges).length, 5);
+		wetuwn doSeawchTest(config, 15).then(wesuwts => {
+			assewt.stwictEquaw(wesuwts.wength, 3);
+			assewt.stwictEquaw(wesuwts[0].wesuwts!.wength, 1);
+			const match = <ITextSeawchMatch>wesuwts[0].wesuwts![0];
+			assewt.stwictEquaw((<ISeawchWange[]>match.wanges).wength, 5);
 		});
 	});
 
-	test('Search with context matches', () => {
-		const config: ITextQuery = {
-			type: QueryType.Text,
-			folderQueries: ROOT_FOLDER_QUERY,
-			contentPattern: { pattern: 'compiler.typeCheck();' },
-			beforeContext: 1,
-			afterContext: 2
+	test('Seawch with context matches', () => {
+		const config: ITextQuewy = {
+			type: QuewyType.Text,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			contentPattewn: { pattewn: 'compiwa.typeCheck();' },
+			befoweContext: 1,
+			aftewContext: 2
 		};
 
-		return doSearchTest(config, 4).then(results => {
-			assert.strictEqual(results.length, 4);
-			assert.strictEqual((<ITextSearchContext>results[0].results![0]).lineNumber, 25);
-			assert.strictEqual((<ITextSearchContext>results[0].results![0]).text, '        compiler.addUnit(prog,"input.ts");');
-			// assert.strictEqual((<ITextSearchMatch>results[1].results[0]).preview.text, '        compiler.typeCheck();\n'); // See https://github.com/BurntSushi/ripgrep/issues/1095
-			assert.strictEqual((<ITextSearchContext>results[2].results![0]).lineNumber, 27);
-			assert.strictEqual((<ITextSearchContext>results[2].results![0]).text, '        compiler.emit();');
-			assert.strictEqual((<ITextSearchContext>results[3].results![0]).lineNumber, 28);
-			assert.strictEqual((<ITextSearchContext>results[3].results![0]).text, '');
+		wetuwn doSeawchTest(config, 4).then(wesuwts => {
+			assewt.stwictEquaw(wesuwts.wength, 4);
+			assewt.stwictEquaw((<ITextSeawchContext>wesuwts[0].wesuwts![0]).wineNumba, 25);
+			assewt.stwictEquaw((<ITextSeawchContext>wesuwts[0].wesuwts![0]).text, '        compiwa.addUnit(pwog,"input.ts");');
+			// assewt.stwictEquaw((<ITextSeawchMatch>wesuwts[1].wesuwts[0]).pweview.text, '        compiwa.typeCheck();\n'); // See https://github.com/BuwntSushi/wipgwep/issues/1095
+			assewt.stwictEquaw((<ITextSeawchContext>wesuwts[2].wesuwts![0]).wineNumba, 27);
+			assewt.stwictEquaw((<ITextSeawchContext>wesuwts[2].wesuwts![0]).text, '        compiwa.emit();');
+			assewt.stwictEquaw((<ITextSeawchContext>wesuwts[3].wesuwts![0]).wineNumba, 28);
+			assewt.stwictEquaw((<ITextSeawchContext>wesuwts[3].wesuwts![0]).text, '');
 		});
 	});
 
-	suite('error messages', () => {
-		test('invalid encoding', () => {
-			const config: ITextQuery = {
-				type: QueryType.Text,
-				folderQueries: [
+	suite('ewwow messages', () => {
+		test('invawid encoding', () => {
+			const config: ITextQuewy = {
+				type: QuewyType.Text,
+				fowdewQuewies: [
 					{
-						...TEST_ROOT_FOLDER,
-						fileEncoding: 'invalidEncoding'
+						...TEST_WOOT_FOWDa,
+						fiweEncoding: 'invawidEncoding'
 					}
 				],
-				contentPattern: { pattern: 'test' },
+				contentPattewn: { pattewn: 'test' },
 			};
 
-			return doSearchTest(config, 0).then(() => {
-				throw new Error('expected fail');
-			}, err => {
-				const searchError = deserializeSearchError(err);
-				assert.strictEqual(searchError.message, 'Unknown encoding: invalidEncoding');
-				assert.strictEqual(searchError.code, SearchErrorCode.unknownEncoding);
+			wetuwn doSeawchTest(config, 0).then(() => {
+				thwow new Ewwow('expected faiw');
+			}, eww => {
+				const seawchEwwow = desewiawizeSeawchEwwow(eww);
+				assewt.stwictEquaw(seawchEwwow.message, 'Unknown encoding: invawidEncoding');
+				assewt.stwictEquaw(seawchEwwow.code, SeawchEwwowCode.unknownEncoding);
 			});
 		});
 
-		test('invalid regex case 1', () => {
-			const config: ITextQuery = {
-				type: QueryType.Text,
-				folderQueries: ROOT_FOLDER_QUERY,
-				contentPattern: { pattern: ')', isRegExp: true },
+		test('invawid wegex case 1', () => {
+			const config: ITextQuewy = {
+				type: QuewyType.Text,
+				fowdewQuewies: WOOT_FOWDEW_QUEWY,
+				contentPattewn: { pattewn: ')', isWegExp: twue },
 			};
 
-			return doSearchTest(config, 0).then(() => {
-				throw new Error('expected fail');
-			}, err => {
-				const searchError = deserializeSearchError(err);
-				const regexParseErrorForUnclosedParenthesis = 'Regex parse error: unmatched closing parenthesis';
-				assert.strictEqual(searchError.message, regexParseErrorForUnclosedParenthesis);
-				assert.strictEqual(searchError.code, SearchErrorCode.regexParseError);
+			wetuwn doSeawchTest(config, 0).then(() => {
+				thwow new Ewwow('expected faiw');
+			}, eww => {
+				const seawchEwwow = desewiawizeSeawchEwwow(eww);
+				const wegexPawseEwwowFowUncwosedPawenthesis = 'Wegex pawse ewwow: unmatched cwosing pawenthesis';
+				assewt.stwictEquaw(seawchEwwow.message, wegexPawseEwwowFowUncwosedPawenthesis);
+				assewt.stwictEquaw(seawchEwwow.code, SeawchEwwowCode.wegexPawseEwwow);
 			});
 		});
 
-		test('invalid regex case 2', () => {
-			const config: ITextQuery = {
-				type: QueryType.Text,
-				folderQueries: ROOT_FOLDER_QUERY,
-				contentPattern: { pattern: '(?<!a.*)', isRegExp: true },
+		test('invawid wegex case 2', () => {
+			const config: ITextQuewy = {
+				type: QuewyType.Text,
+				fowdewQuewies: WOOT_FOWDEW_QUEWY,
+				contentPattewn: { pattewn: '(?<!a.*)', isWegExp: twue },
 			};
 
-			return doSearchTest(config, 0).then(() => {
-				throw new Error('expected fail');
-			}, err => {
-				const searchError = deserializeSearchError(err);
-				const regexParseErrorForLookAround = 'Regex parse error: lookbehind assertion is not fixed length';
-				assert.strictEqual(searchError.message, regexParseErrorForLookAround);
-				assert.strictEqual(searchError.code, SearchErrorCode.regexParseError);
+			wetuwn doSeawchTest(config, 0).then(() => {
+				thwow new Ewwow('expected faiw');
+			}, eww => {
+				const seawchEwwow = desewiawizeSeawchEwwow(eww);
+				const wegexPawseEwwowFowWookAwound = 'Wegex pawse ewwow: wookbehind assewtion is not fixed wength';
+				assewt.stwictEquaw(seawchEwwow.message, wegexPawseEwwowFowWookAwound);
+				assewt.stwictEquaw(seawchEwwow.code, SeawchEwwowCode.wegexPawseEwwow);
 			});
 		});
 
 
-		test('invalid glob', () => {
-			const config: ITextQuery = {
-				type: QueryType.Text,
-				folderQueries: ROOT_FOLDER_QUERY,
-				contentPattern: { pattern: 'foo' },
-				includePattern: {
-					'{{}': true
+		test('invawid gwob', () => {
+			const config: ITextQuewy = {
+				type: QuewyType.Text,
+				fowdewQuewies: WOOT_FOWDEW_QUEWY,
+				contentPattewn: { pattewn: 'foo' },
+				incwudePattewn: {
+					'{{}': twue
 				}
 			};
 
-			return doSearchTest(config, 0).then(() => {
-				throw new Error('expected fail');
-			}, err => {
-				const searchError = deserializeSearchError(err);
-				assert.strictEqual(searchError.message, 'Error parsing glob \'/{{}\': nested alternate groups are not allowed');
-				assert.strictEqual(searchError.code, SearchErrorCode.globParseError);
+			wetuwn doSeawchTest(config, 0).then(() => {
+				thwow new Ewwow('expected faiw');
+			}, eww => {
+				const seawchEwwow = desewiawizeSeawchEwwow(eww);
+				assewt.stwictEquaw(seawchEwwow.message, 'Ewwow pawsing gwob \'/{{}\': nested awtewnate gwoups awe not awwowed');
+				assewt.stwictEquaw(seawchEwwow.code, SeawchEwwowCode.gwobPawseEwwow);
 			});
 		});
 	});
 });
 
-function makeExpression(...patterns: string[]): glob.IExpression {
-	return patterns.reduce((glob, pattern) => {
-		// glob.ts needs forward slashes
-		pattern = pattern.replace(/\\/g, '/');
-		glob[pattern] = true;
-		return glob;
-	}, Object.create(null));
+function makeExpwession(...pattewns: stwing[]): gwob.IExpwession {
+	wetuwn pattewns.weduce((gwob, pattewn) => {
+		// gwob.ts needs fowwawd swashes
+		pattewn = pattewn.wepwace(/\\/g, '/');
+		gwob[pattewn] = twue;
+		wetuwn gwob;
+	}, Object.cweate(nuww));
 }

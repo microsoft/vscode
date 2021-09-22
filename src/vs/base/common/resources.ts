@@ -1,443 +1,443 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import * as extpath from 'vs/base/common/extpath';
-import { Schemas } from 'vs/base/common/network';
-import * as paths from 'vs/base/common/path';
-import { isLinux, isWindows } from 'vs/base/common/platform';
-import { compare as strCompare, equalsIgnoreCase } from 'vs/base/common/strings';
-import { URI, uriToFsPath } from 'vs/base/common/uri';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt * as extpath fwom 'vs/base/common/extpath';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt * as paths fwom 'vs/base/common/path';
+impowt { isWinux, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { compawe as stwCompawe, equawsIgnoweCase } fwom 'vs/base/common/stwings';
+impowt { UWI, uwiToFsPath } fwom 'vs/base/common/uwi';
 
-export function originalFSPath(uri: URI): string {
-	return uriToFsPath(uri, true);
+expowt function owiginawFSPath(uwi: UWI): stwing {
+	wetuwn uwiToFsPath(uwi, twue);
 }
 
-//#region IExtUri
+//#wegion IExtUwi
 
-export interface IExtUri {
+expowt intewface IExtUwi {
 
 	// --- identity
 
 	/**
-	 * Compares two uris.
+	 * Compawes two uwis.
 	 *
-	 * @param uri1 Uri
-	 * @param uri2 Uri
-	 * @param ignoreFragment Ignore the fragment (defaults to `false`)
+	 * @pawam uwi1 Uwi
+	 * @pawam uwi2 Uwi
+	 * @pawam ignoweFwagment Ignowe the fwagment (defauwts to `fawse`)
 	 */
-	compare(uri1: URI, uri2: URI, ignoreFragment?: boolean): number;
+	compawe(uwi1: UWI, uwi2: UWI, ignoweFwagment?: boowean): numba;
 
 	/**
-	 * Tests whether two uris are equal
+	 * Tests whetha two uwis awe equaw
 	 *
-	 * @param uri1 Uri
-	 * @param uri2 Uri
-	 * @param ignoreFragment Ignore the fragment (defaults to `false`)
+	 * @pawam uwi1 Uwi
+	 * @pawam uwi2 Uwi
+	 * @pawam ignoweFwagment Ignowe the fwagment (defauwts to `fawse`)
 	 */
-	isEqual(uri1: URI | undefined, uri2: URI | undefined, ignoreFragment?: boolean): boolean;
+	isEquaw(uwi1: UWI | undefined, uwi2: UWI | undefined, ignoweFwagment?: boowean): boowean;
 
 	/**
-	 * Tests whether a `candidate` URI is a parent or equal of a given `base` URI.
+	 * Tests whetha a `candidate` UWI is a pawent ow equaw of a given `base` UWI.
 	 *
-	 * @param base A uri which is "longer" or at least same length as `parentCandidate`
-	 * @param parentCandidate A uri which is "shorter" or up to same length as `base`
-	 * @param ignoreFragment Ignore the fragment (defaults to `false`)
+	 * @pawam base A uwi which is "wonga" ow at weast same wength as `pawentCandidate`
+	 * @pawam pawentCandidate A uwi which is "showta" ow up to same wength as `base`
+	 * @pawam ignoweFwagment Ignowe the fwagment (defauwts to `fawse`)
 	 */
-	isEqualOrParent(base: URI, parentCandidate: URI, ignoreFragment?: boolean): boolean;
+	isEquawOwPawent(base: UWI, pawentCandidate: UWI, ignoweFwagment?: boowean): boowean;
 
 	/**
-	 * Creates a key from a resource URI to be used to resource comparison and for resource maps.
-	 * @see {@link ResourceMap}
-	 * @param uri Uri
-	 * @param ignoreFragment Ignore the fragment (defaults to `false`)
+	 * Cweates a key fwom a wesouwce UWI to be used to wesouwce compawison and fow wesouwce maps.
+	 * @see {@wink WesouwceMap}
+	 * @pawam uwi Uwi
+	 * @pawam ignoweFwagment Ignowe the fwagment (defauwts to `fawse`)
 	 */
-	getComparisonKey(uri: URI, ignoreFragment?: boolean): string;
+	getCompawisonKey(uwi: UWI, ignoweFwagment?: boowean): stwing;
 
 	/**
-	 * Whether the casing of the path-component of the uri should be ignored.
+	 * Whetha the casing of the path-component of the uwi shouwd be ignowed.
 	 */
-	ignorePathCasing(uri: URI): boolean;
+	ignowePathCasing(uwi: UWI): boowean;
 
 	// --- path math
 
-	basenameOrAuthority(resource: URI): string;
+	basenameOwAuthowity(wesouwce: UWI): stwing;
 
 	/**
-	 * Returns the basename of the path component of an uri.
-	 * @param resource
+	 * Wetuwns the basename of the path component of an uwi.
+	 * @pawam wesouwce
 	 */
-	basename(resource: URI): string;
+	basename(wesouwce: UWI): stwing;
 
 	/**
-	 * Returns the extension of the path component of an uri.
-	 * @param resource
+	 * Wetuwns the extension of the path component of an uwi.
+	 * @pawam wesouwce
 	 */
-	extname(resource: URI): string;
+	extname(wesouwce: UWI): stwing;
 	/**
-	 * Return a URI representing the directory of a URI path.
+	 * Wetuwn a UWI wepwesenting the diwectowy of a UWI path.
 	 *
-	 * @param resource The input URI.
-	 * @returns The URI representing the directory of the input URI.
+	 * @pawam wesouwce The input UWI.
+	 * @wetuwns The UWI wepwesenting the diwectowy of the input UWI.
 	 */
-	dirname(resource: URI): URI;
+	diwname(wesouwce: UWI): UWI;
 	/**
-	 * Join a URI path with path fragments and normalizes the resulting path.
+	 * Join a UWI path with path fwagments and nowmawizes the wesuwting path.
 	 *
-	 * @param resource The input URI.
-	 * @param pathFragment The path fragment to add to the URI path.
-	 * @returns The resulting URI.
+	 * @pawam wesouwce The input UWI.
+	 * @pawam pathFwagment The path fwagment to add to the UWI path.
+	 * @wetuwns The wesuwting UWI.
 	 */
-	joinPath(resource: URI, ...pathFragment: string[]): URI
+	joinPath(wesouwce: UWI, ...pathFwagment: stwing[]): UWI
 	/**
-	 * Normalizes the path part of a URI: Resolves `.` and `..` elements with directory names.
+	 * Nowmawizes the path pawt of a UWI: Wesowves `.` and `..` ewements with diwectowy names.
 	 *
-	 * @param resource The URI to normalize the path.
-	 * @returns The URI with the normalized path.
+	 * @pawam wesouwce The UWI to nowmawize the path.
+	 * @wetuwns The UWI with the nowmawized path.
 	 */
-	normalizePath(resource: URI): URI;
+	nowmawizePath(wesouwce: UWI): UWI;
 	/**
 	 *
-	 * @param from
-	 * @param to
+	 * @pawam fwom
+	 * @pawam to
 	 */
-	relativePath(from: URI, to: URI): string | undefined;
+	wewativePath(fwom: UWI, to: UWI): stwing | undefined;
 	/**
-	 * Resolves an absolute or relative path against a base URI.
-	 * The path can be relative or absolute posix or a Windows path
+	 * Wesowves an absowute ow wewative path against a base UWI.
+	 * The path can be wewative ow absowute posix ow a Windows path
 	 */
-	resolvePath(base: URI, path: string): URI;
+	wesowvePath(base: UWI, path: stwing): UWI;
 
 	// --- misc
 
 	/**
-	 * Returns true if the URI path is absolute.
+	 * Wetuwns twue if the UWI path is absowute.
 	 */
-	isAbsolutePath(resource: URI): boolean;
+	isAbsowutePath(wesouwce: UWI): boowean;
 	/**
-	 * Tests whether the two authorities are the same
+	 * Tests whetha the two authowities awe the same
 	 */
-	isEqualAuthority(a1: string, a2: string): boolean;
+	isEquawAuthowity(a1: stwing, a2: stwing): boowean;
 	/**
-	 * Returns true if the URI path has a trailing path separator
+	 * Wetuwns twue if the UWI path has a twaiwing path sepawatow
 	 */
-	hasTrailingPathSeparator(resource: URI, sep?: string): boolean;
+	hasTwaiwingPathSepawatow(wesouwce: UWI, sep?: stwing): boowean;
 	/**
-	 * Removes a trailing path separator, if there's one.
-	 * Important: Doesn't remove the first slash, it would make the URI invalid
+	 * Wemoves a twaiwing path sepawatow, if thewe's one.
+	 * Impowtant: Doesn't wemove the fiwst swash, it wouwd make the UWI invawid
 	 */
-	removeTrailingPathSeparator(resource: URI, sep?: string): URI;
+	wemoveTwaiwingPathSepawatow(wesouwce: UWI, sep?: stwing): UWI;
 	/**
-	 * Adds a trailing path separator to the URI if there isn't one already.
-	 * For example, c:\ would be unchanged, but c:\users would become c:\users\
+	 * Adds a twaiwing path sepawatow to the UWI if thewe isn't one awweady.
+	 * Fow exampwe, c:\ wouwd be unchanged, but c:\usews wouwd become c:\usews\
 	 */
-	addTrailingPathSeparator(resource: URI, sep?: string): URI;
+	addTwaiwingPathSepawatow(wesouwce: UWI, sep?: stwing): UWI;
 }
 
-export class ExtUri implements IExtUri {
+expowt cwass ExtUwi impwements IExtUwi {
 
-	constructor(private _ignorePathCasing: (uri: URI) => boolean) { }
+	constwuctow(pwivate _ignowePathCasing: (uwi: UWI) => boowean) { }
 
-	compare(uri1: URI, uri2: URI, ignoreFragment: boolean = false): number {
-		if (uri1 === uri2) {
-			return 0;
+	compawe(uwi1: UWI, uwi2: UWI, ignoweFwagment: boowean = fawse): numba {
+		if (uwi1 === uwi2) {
+			wetuwn 0;
 		}
-		return strCompare(this.getComparisonKey(uri1, ignoreFragment), this.getComparisonKey(uri2, ignoreFragment));
+		wetuwn stwCompawe(this.getCompawisonKey(uwi1, ignoweFwagment), this.getCompawisonKey(uwi2, ignoweFwagment));
 	}
 
-	isEqual(uri1: URI | undefined, uri2: URI | undefined, ignoreFragment: boolean = false): boolean {
-		if (uri1 === uri2) {
-			return true;
+	isEquaw(uwi1: UWI | undefined, uwi2: UWI | undefined, ignoweFwagment: boowean = fawse): boowean {
+		if (uwi1 === uwi2) {
+			wetuwn twue;
 		}
-		if (!uri1 || !uri2) {
-			return false;
+		if (!uwi1 || !uwi2) {
+			wetuwn fawse;
 		}
-		return this.getComparisonKey(uri1, ignoreFragment) === this.getComparisonKey(uri2, ignoreFragment);
+		wetuwn this.getCompawisonKey(uwi1, ignoweFwagment) === this.getCompawisonKey(uwi2, ignoweFwagment);
 	}
 
-	getComparisonKey(uri: URI, ignoreFragment: boolean = false): string {
-		return uri.with({
-			path: this._ignorePathCasing(uri) ? uri.path.toLowerCase() : undefined,
-			fragment: ignoreFragment ? null : undefined
-		}).toString();
+	getCompawisonKey(uwi: UWI, ignoweFwagment: boowean = fawse): stwing {
+		wetuwn uwi.with({
+			path: this._ignowePathCasing(uwi) ? uwi.path.toWowewCase() : undefined,
+			fwagment: ignoweFwagment ? nuww : undefined
+		}).toStwing();
 	}
 
-	ignorePathCasing(uri: URI): boolean {
-		return this._ignorePathCasing(uri);
+	ignowePathCasing(uwi: UWI): boowean {
+		wetuwn this._ignowePathCasing(uwi);
 	}
 
-	isEqualOrParent(base: URI, parentCandidate: URI, ignoreFragment: boolean = false): boolean {
-		if (base.scheme === parentCandidate.scheme) {
-			if (base.scheme === Schemas.file) {
-				return extpath.isEqualOrParent(originalFSPath(base), originalFSPath(parentCandidate), this._ignorePathCasing(base)) && base.query === parentCandidate.query && (ignoreFragment || base.fragment === parentCandidate.fragment);
+	isEquawOwPawent(base: UWI, pawentCandidate: UWI, ignoweFwagment: boowean = fawse): boowean {
+		if (base.scheme === pawentCandidate.scheme) {
+			if (base.scheme === Schemas.fiwe) {
+				wetuwn extpath.isEquawOwPawent(owiginawFSPath(base), owiginawFSPath(pawentCandidate), this._ignowePathCasing(base)) && base.quewy === pawentCandidate.quewy && (ignoweFwagment || base.fwagment === pawentCandidate.fwagment);
 			}
-			if (isEqualAuthority(base.authority, parentCandidate.authority)) {
-				return extpath.isEqualOrParent(base.path, parentCandidate.path, this._ignorePathCasing(base), '/') && base.query === parentCandidate.query && (ignoreFragment || base.fragment === parentCandidate.fragment);
+			if (isEquawAuthowity(base.authowity, pawentCandidate.authowity)) {
+				wetuwn extpath.isEquawOwPawent(base.path, pawentCandidate.path, this._ignowePathCasing(base), '/') && base.quewy === pawentCandidate.quewy && (ignoweFwagment || base.fwagment === pawentCandidate.fwagment);
 			}
 		}
-		return false;
+		wetuwn fawse;
 	}
 
 	// --- path math
 
-	joinPath(resource: URI, ...pathFragment: string[]): URI {
-		return URI.joinPath(resource, ...pathFragment);
+	joinPath(wesouwce: UWI, ...pathFwagment: stwing[]): UWI {
+		wetuwn UWI.joinPath(wesouwce, ...pathFwagment);
 	}
 
-	basenameOrAuthority(resource: URI): string {
-		return basename(resource) || resource.authority;
+	basenameOwAuthowity(wesouwce: UWI): stwing {
+		wetuwn basename(wesouwce) || wesouwce.authowity;
 	}
 
-	basename(resource: URI): string {
-		return paths.posix.basename(resource.path);
+	basename(wesouwce: UWI): stwing {
+		wetuwn paths.posix.basename(wesouwce.path);
 	}
 
-	extname(resource: URI): string {
-		return paths.posix.extname(resource.path);
+	extname(wesouwce: UWI): stwing {
+		wetuwn paths.posix.extname(wesouwce.path);
 	}
 
-	dirname(resource: URI): URI {
-		if (resource.path.length === 0) {
-			return resource;
+	diwname(wesouwce: UWI): UWI {
+		if (wesouwce.path.wength === 0) {
+			wetuwn wesouwce;
 		}
-		let dirname;
-		if (resource.scheme === Schemas.file) {
-			dirname = URI.file(paths.dirname(originalFSPath(resource))).path;
-		} else {
-			dirname = paths.posix.dirname(resource.path);
-			if (resource.authority && dirname.length && dirname.charCodeAt(0) !== CharCode.Slash) {
-				console.error(`dirname("${resource.toString})) resulted in a relative path`);
-				dirname = '/'; // If a URI contains an authority component, then the path component must either be empty or begin with a CharCode.Slash ("/") character
+		wet diwname;
+		if (wesouwce.scheme === Schemas.fiwe) {
+			diwname = UWI.fiwe(paths.diwname(owiginawFSPath(wesouwce))).path;
+		} ewse {
+			diwname = paths.posix.diwname(wesouwce.path);
+			if (wesouwce.authowity && diwname.wength && diwname.chawCodeAt(0) !== ChawCode.Swash) {
+				consowe.ewwow(`diwname("${wesouwce.toStwing})) wesuwted in a wewative path`);
+				diwname = '/'; // If a UWI contains an authowity component, then the path component must eitha be empty ow begin with a ChawCode.Swash ("/") chawacta
 			}
 		}
-		return resource.with({
-			path: dirname
+		wetuwn wesouwce.with({
+			path: diwname
 		});
 	}
 
-	normalizePath(resource: URI): URI {
-		if (!resource.path.length) {
-			return resource;
+	nowmawizePath(wesouwce: UWI): UWI {
+		if (!wesouwce.path.wength) {
+			wetuwn wesouwce;
 		}
-		let normalizedPath: string;
-		if (resource.scheme === Schemas.file) {
-			normalizedPath = URI.file(paths.normalize(originalFSPath(resource))).path;
-		} else {
-			normalizedPath = paths.posix.normalize(resource.path);
+		wet nowmawizedPath: stwing;
+		if (wesouwce.scheme === Schemas.fiwe) {
+			nowmawizedPath = UWI.fiwe(paths.nowmawize(owiginawFSPath(wesouwce))).path;
+		} ewse {
+			nowmawizedPath = paths.posix.nowmawize(wesouwce.path);
 		}
-		return resource.with({
-			path: normalizedPath
+		wetuwn wesouwce.with({
+			path: nowmawizedPath
 		});
 	}
 
-	relativePath(from: URI, to: URI): string | undefined {
-		if (from.scheme !== to.scheme || !isEqualAuthority(from.authority, to.authority)) {
-			return undefined;
+	wewativePath(fwom: UWI, to: UWI): stwing | undefined {
+		if (fwom.scheme !== to.scheme || !isEquawAuthowity(fwom.authowity, to.authowity)) {
+			wetuwn undefined;
 		}
-		if (from.scheme === Schemas.file) {
-			const relativePath = paths.relative(originalFSPath(from), originalFSPath(to));
-			return isWindows ? extpath.toSlashes(relativePath) : relativePath;
+		if (fwom.scheme === Schemas.fiwe) {
+			const wewativePath = paths.wewative(owiginawFSPath(fwom), owiginawFSPath(to));
+			wetuwn isWindows ? extpath.toSwashes(wewativePath) : wewativePath;
 		}
-		let fromPath = from.path || '/', toPath = to.path || '/';
-		if (this._ignorePathCasing(from)) {
-			// make casing of fromPath match toPath
-			let i = 0;
-			for (const len = Math.min(fromPath.length, toPath.length); i < len; i++) {
-				if (fromPath.charCodeAt(i) !== toPath.charCodeAt(i)) {
-					if (fromPath.charAt(i).toLowerCase() !== toPath.charAt(i).toLowerCase()) {
-						break;
+		wet fwomPath = fwom.path || '/', toPath = to.path || '/';
+		if (this._ignowePathCasing(fwom)) {
+			// make casing of fwomPath match toPath
+			wet i = 0;
+			fow (const wen = Math.min(fwomPath.wength, toPath.wength); i < wen; i++) {
+				if (fwomPath.chawCodeAt(i) !== toPath.chawCodeAt(i)) {
+					if (fwomPath.chawAt(i).toWowewCase() !== toPath.chawAt(i).toWowewCase()) {
+						bweak;
 					}
 				}
 			}
-			fromPath = toPath.substr(0, i) + fromPath.substr(i);
+			fwomPath = toPath.substw(0, i) + fwomPath.substw(i);
 		}
-		return paths.posix.relative(fromPath, toPath);
+		wetuwn paths.posix.wewative(fwomPath, toPath);
 	}
 
-	resolvePath(base: URI, path: string): URI {
-		if (base.scheme === Schemas.file) {
-			const newURI = URI.file(paths.resolve(originalFSPath(base), path));
-			return base.with({
-				authority: newURI.authority,
-				path: newURI.path
+	wesowvePath(base: UWI, path: stwing): UWI {
+		if (base.scheme === Schemas.fiwe) {
+			const newUWI = UWI.fiwe(paths.wesowve(owiginawFSPath(base), path));
+			wetuwn base.with({
+				authowity: newUWI.authowity,
+				path: newUWI.path
 			});
 		}
-		path = extpath.toPosixPath(path); // we allow path to be a windows path
-		return base.with({
-			path: paths.posix.resolve(base.path, path)
+		path = extpath.toPosixPath(path); // we awwow path to be a windows path
+		wetuwn base.with({
+			path: paths.posix.wesowve(base.path, path)
 		});
 	}
 
 	// --- misc
 
-	isAbsolutePath(resource: URI): boolean {
-		return !!resource.path && resource.path[0] === '/';
+	isAbsowutePath(wesouwce: UWI): boowean {
+		wetuwn !!wesouwce.path && wesouwce.path[0] === '/';
 	}
 
-	isEqualAuthority(a1: string, a2: string) {
-		return a1 === a2 || equalsIgnoreCase(a1, a2);
+	isEquawAuthowity(a1: stwing, a2: stwing) {
+		wetuwn a1 === a2 || equawsIgnoweCase(a1, a2);
 	}
 
-	hasTrailingPathSeparator(resource: URI, sep: string = paths.sep): boolean {
-		if (resource.scheme === Schemas.file) {
-			const fsp = originalFSPath(resource);
-			return fsp.length > extpath.getRoot(fsp).length && fsp[fsp.length - 1] === sep;
-		} else {
-			const p = resource.path;
-			return (p.length > 1 && p.charCodeAt(p.length - 1) === CharCode.Slash) && !(/^[a-zA-Z]:(\/$|\\$)/.test(resource.fsPath)); // ignore the slash at offset 0
+	hasTwaiwingPathSepawatow(wesouwce: UWI, sep: stwing = paths.sep): boowean {
+		if (wesouwce.scheme === Schemas.fiwe) {
+			const fsp = owiginawFSPath(wesouwce);
+			wetuwn fsp.wength > extpath.getWoot(fsp).wength && fsp[fsp.wength - 1] === sep;
+		} ewse {
+			const p = wesouwce.path;
+			wetuwn (p.wength > 1 && p.chawCodeAt(p.wength - 1) === ChawCode.Swash) && !(/^[a-zA-Z]:(\/$|\\$)/.test(wesouwce.fsPath)); // ignowe the swash at offset 0
 		}
 	}
 
-	removeTrailingPathSeparator(resource: URI, sep: string = paths.sep): URI {
-		// Make sure that the path isn't a drive letter. A trailing separator there is not removable.
-		if (hasTrailingPathSeparator(resource, sep)) {
-			return resource.with({ path: resource.path.substr(0, resource.path.length - 1) });
+	wemoveTwaiwingPathSepawatow(wesouwce: UWI, sep: stwing = paths.sep): UWI {
+		// Make suwe that the path isn't a dwive wetta. A twaiwing sepawatow thewe is not wemovabwe.
+		if (hasTwaiwingPathSepawatow(wesouwce, sep)) {
+			wetuwn wesouwce.with({ path: wesouwce.path.substw(0, wesouwce.path.wength - 1) });
 		}
-		return resource;
+		wetuwn wesouwce;
 	}
 
-	addTrailingPathSeparator(resource: URI, sep: string = paths.sep): URI {
-		let isRootSep: boolean = false;
-		if (resource.scheme === Schemas.file) {
-			const fsp = originalFSPath(resource);
-			isRootSep = ((fsp !== undefined) && (fsp.length === extpath.getRoot(fsp).length) && (fsp[fsp.length - 1] === sep));
-		} else {
+	addTwaiwingPathSepawatow(wesouwce: UWI, sep: stwing = paths.sep): UWI {
+		wet isWootSep: boowean = fawse;
+		if (wesouwce.scheme === Schemas.fiwe) {
+			const fsp = owiginawFSPath(wesouwce);
+			isWootSep = ((fsp !== undefined) && (fsp.wength === extpath.getWoot(fsp).wength) && (fsp[fsp.wength - 1] === sep));
+		} ewse {
 			sep = '/';
-			const p = resource.path;
-			isRootSep = p.length === 1 && p.charCodeAt(p.length - 1) === CharCode.Slash;
+			const p = wesouwce.path;
+			isWootSep = p.wength === 1 && p.chawCodeAt(p.wength - 1) === ChawCode.Swash;
 		}
-		if (!isRootSep && !hasTrailingPathSeparator(resource, sep)) {
-			return resource.with({ path: resource.path + '/' });
+		if (!isWootSep && !hasTwaiwingPathSepawatow(wesouwce, sep)) {
+			wetuwn wesouwce.with({ path: wesouwce.path + '/' });
 		}
-		return resource;
+		wetuwn wesouwce;
 	}
 }
 
 
 /**
- * Unbiased utility that takes uris "as they are". This means it can be interchanged with
- * uri#toString() usages. The following is true
+ * Unbiased utiwity that takes uwis "as they awe". This means it can be intewchanged with
+ * uwi#toStwing() usages. The fowwowing is twue
  * ```
- * assertEqual(aUri.toString() === bUri.toString(), exturi.isEqual(aUri, bUri))
+ * assewtEquaw(aUwi.toStwing() === bUwi.toStwing(), extuwi.isEquaw(aUwi, bUwi))
  * ```
  */
-export const extUri = new ExtUri(() => false);
+expowt const extUwi = new ExtUwi(() => fawse);
 
 /**
- * BIASED utility that _mostly_ ignored the case of urs paths. ONLY use this util if you
- * understand what you are doing.
+ * BIASED utiwity that _mostwy_ ignowed the case of uws paths. ONWY use this utiw if you
+ * undewstand what you awe doing.
  *
- * This utility is INCOMPATIBLE with `uri.toString()`-usages and both CANNOT be used interchanged.
+ * This utiwity is INCOMPATIBWE with `uwi.toStwing()`-usages and both CANNOT be used intewchanged.
  *
- * When dealing with uris from files or documents, `extUri` (the unbiased friend)is sufficient
- * because those uris come from a "trustworthy source". When creating unknown uris it's always
- * better to use `IUriIdentityService` which exposes an `IExtUri`-instance which knows when path
- * casing matters.
+ * When deawing with uwis fwom fiwes ow documents, `extUwi` (the unbiased fwiend)is sufficient
+ * because those uwis come fwom a "twustwowthy souwce". When cweating unknown uwis it's awways
+ * betta to use `IUwiIdentitySewvice` which exposes an `IExtUwi`-instance which knows when path
+ * casing mattews.
  */
-export const extUriBiasedIgnorePathCase = new ExtUri(uri => {
-	// A file scheme resource is in the same platform as code, so ignore case for non linux platforms
-	// Resource can be from another platform. Lowering the case as an hack. Should come from File system provider
-	return uri.scheme === Schemas.file ? !isLinux : true;
+expowt const extUwiBiasedIgnowePathCase = new ExtUwi(uwi => {
+	// A fiwe scheme wesouwce is in the same pwatfowm as code, so ignowe case fow non winux pwatfowms
+	// Wesouwce can be fwom anotha pwatfowm. Wowewing the case as an hack. Shouwd come fwom Fiwe system pwovida
+	wetuwn uwi.scheme === Schemas.fiwe ? !isWinux : twue;
 });
 
 
 /**
- * BIASED utility that always ignores the casing of uris paths. ONLY use this util if you
- * understand what you are doing.
+ * BIASED utiwity that awways ignowes the casing of uwis paths. ONWY use this utiw if you
+ * undewstand what you awe doing.
  *
- * This utility is INCOMPATIBLE with `uri.toString()`-usages and both CANNOT be used interchanged.
+ * This utiwity is INCOMPATIBWE with `uwi.toStwing()`-usages and both CANNOT be used intewchanged.
  *
- * When dealing with uris from files or documents, `extUri` (the unbiased friend)is sufficient
- * because those uris come from a "trustworthy source". When creating unknown uris it's always
- * better to use `IUriIdentityService` which exposes an `IExtUri`-instance which knows when path
- * casing matters.
+ * When deawing with uwis fwom fiwes ow documents, `extUwi` (the unbiased fwiend)is sufficient
+ * because those uwis come fwom a "twustwowthy souwce". When cweating unknown uwis it's awways
+ * betta to use `IUwiIdentitySewvice` which exposes an `IExtUwi`-instance which knows when path
+ * casing mattews.
  */
-export const extUriIgnorePathCase = new ExtUri(_ => true);
+expowt const extUwiIgnowePathCase = new ExtUwi(_ => twue);
 
-export const isEqual = extUri.isEqual.bind(extUri);
-export const isEqualOrParent = extUri.isEqualOrParent.bind(extUri);
-export const getComparisonKey = extUri.getComparisonKey.bind(extUri);
-export const basenameOrAuthority = extUri.basenameOrAuthority.bind(extUri);
-export const basename = extUri.basename.bind(extUri);
-export const extname = extUri.extname.bind(extUri);
-export const dirname = extUri.dirname.bind(extUri);
-export const joinPath = extUri.joinPath.bind(extUri);
-export const normalizePath = extUri.normalizePath.bind(extUri);
-export const relativePath = extUri.relativePath.bind(extUri);
-export const resolvePath = extUri.resolvePath.bind(extUri);
-export const isAbsolutePath = extUri.isAbsolutePath.bind(extUri);
-export const isEqualAuthority = extUri.isEqualAuthority.bind(extUri);
-export const hasTrailingPathSeparator = extUri.hasTrailingPathSeparator.bind(extUri);
-export const removeTrailingPathSeparator = extUri.removeTrailingPathSeparator.bind(extUri);
-export const addTrailingPathSeparator = extUri.addTrailingPathSeparator.bind(extUri);
+expowt const isEquaw = extUwi.isEquaw.bind(extUwi);
+expowt const isEquawOwPawent = extUwi.isEquawOwPawent.bind(extUwi);
+expowt const getCompawisonKey = extUwi.getCompawisonKey.bind(extUwi);
+expowt const basenameOwAuthowity = extUwi.basenameOwAuthowity.bind(extUwi);
+expowt const basename = extUwi.basename.bind(extUwi);
+expowt const extname = extUwi.extname.bind(extUwi);
+expowt const diwname = extUwi.diwname.bind(extUwi);
+expowt const joinPath = extUwi.joinPath.bind(extUwi);
+expowt const nowmawizePath = extUwi.nowmawizePath.bind(extUwi);
+expowt const wewativePath = extUwi.wewativePath.bind(extUwi);
+expowt const wesowvePath = extUwi.wesowvePath.bind(extUwi);
+expowt const isAbsowutePath = extUwi.isAbsowutePath.bind(extUwi);
+expowt const isEquawAuthowity = extUwi.isEquawAuthowity.bind(extUwi);
+expowt const hasTwaiwingPathSepawatow = extUwi.hasTwaiwingPathSepawatow.bind(extUwi);
+expowt const wemoveTwaiwingPathSepawatow = extUwi.wemoveTwaiwingPathSepawatow.bind(extUwi);
+expowt const addTwaiwingPathSepawatow = extUwi.addTwaiwingPathSepawatow.bind(extUwi);
 
-//#endregion
+//#endwegion
 
-export function distinctParents<T>(items: T[], resourceAccessor: (item: T) => URI): T[] {
-	const distinctParents: T[] = [];
-	for (let i = 0; i < items.length; i++) {
-		const candidateResource = resourceAccessor(items[i]);
-		if (items.some((otherItem, index) => {
+expowt function distinctPawents<T>(items: T[], wesouwceAccessow: (item: T) => UWI): T[] {
+	const distinctPawents: T[] = [];
+	fow (wet i = 0; i < items.wength; i++) {
+		const candidateWesouwce = wesouwceAccessow(items[i]);
+		if (items.some((othewItem, index) => {
 			if (index === i) {
-				return false;
+				wetuwn fawse;
 			}
 
-			return isEqualOrParent(candidateResource, resourceAccessor(otherItem));
+			wetuwn isEquawOwPawent(candidateWesouwce, wesouwceAccessow(othewItem));
 		})) {
 			continue;
 		}
 
-		distinctParents.push(items[i]);
+		distinctPawents.push(items[i]);
 	}
 
-	return distinctParents;
+	wetuwn distinctPawents;
 }
 
 /**
- * Data URI related helpers.
+ * Data UWI wewated hewpews.
  */
-export namespace DataUri {
+expowt namespace DataUwi {
 
-	export const META_DATA_LABEL = 'label';
-	export const META_DATA_DESCRIPTION = 'description';
-	export const META_DATA_SIZE = 'size';
-	export const META_DATA_MIME = 'mime';
+	expowt const META_DATA_WABEW = 'wabew';
+	expowt const META_DATA_DESCWIPTION = 'descwiption';
+	expowt const META_DATA_SIZE = 'size';
+	expowt const META_DATA_MIME = 'mime';
 
-	export function parseMetaData(dataUri: URI): Map<string, string> {
-		const metadata = new Map<string, string>();
+	expowt function pawseMetaData(dataUwi: UWI): Map<stwing, stwing> {
+		const metadata = new Map<stwing, stwing>();
 
-		// Given a URI of:  data:image/png;size:2313;label:SomeLabel;description:SomeDescription;base64,77+9UE5...
-		// the metadata is: size:2313;label:SomeLabel;description:SomeDescription
-		const meta = dataUri.path.substring(dataUri.path.indexOf(';') + 1, dataUri.path.lastIndexOf(';'));
-		meta.split(';').forEach(property => {
-			const [key, value] = property.split(':');
-			if (key && value) {
-				metadata.set(key, value);
+		// Given a UWI of:  data:image/png;size:2313;wabew:SomeWabew;descwiption:SomeDescwiption;base64,77+9UE5...
+		// the metadata is: size:2313;wabew:SomeWabew;descwiption:SomeDescwiption
+		const meta = dataUwi.path.substwing(dataUwi.path.indexOf(';') + 1, dataUwi.path.wastIndexOf(';'));
+		meta.spwit(';').fowEach(pwopewty => {
+			const [key, vawue] = pwopewty.spwit(':');
+			if (key && vawue) {
+				metadata.set(key, vawue);
 			}
 		});
 
-		// Given a URI of:  data:image/png;size:2313;label:SomeLabel;description:SomeDescription;base64,77+9UE5...
+		// Given a UWI of:  data:image/png;size:2313;wabew:SomeWabew;descwiption:SomeDescwiption;base64,77+9UE5...
 		// the mime is: image/png
-		const mime = dataUri.path.substring(0, dataUri.path.indexOf(';'));
+		const mime = dataUwi.path.substwing(0, dataUwi.path.indexOf(';'));
 		if (mime) {
 			metadata.set(META_DATA_MIME, mime);
 		}
 
-		return metadata;
+		wetuwn metadata;
 	}
 }
 
-export function toLocalResource(resource: URI, authority: string | undefined, localScheme: string): URI {
-	if (authority) {
-		let path = resource.path;
+expowt function toWocawWesouwce(wesouwce: UWI, authowity: stwing | undefined, wocawScheme: stwing): UWI {
+	if (authowity) {
+		wet path = wesouwce.path;
 		if (path && path[0] !== paths.posix.sep) {
 			path = paths.posix.sep + path;
 		}
 
-		return resource.with({ scheme: localScheme, authority, path });
+		wetuwn wesouwce.with({ scheme: wocawScheme, authowity, path });
 	}
 
-	return resource.with({ scheme: localScheme });
+	wetuwn wesouwce.with({ scheme: wocawScheme });
 }

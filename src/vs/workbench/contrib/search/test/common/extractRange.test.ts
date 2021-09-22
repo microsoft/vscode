@@ -1,51 +1,51 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { extractRangeFromFilter } from 'vs/workbench/contrib/search/common/search';
+impowt * as assewt fwom 'assewt';
+impowt { extwactWangeFwomFiwta } fwom 'vs/wowkbench/contwib/seawch/common/seawch';
 
-suite('extractRangeFromFilter', () => {
+suite('extwactWangeFwomFiwta', () => {
 
 	test('basics', async function () {
-		assert.ok(!extractRangeFromFilter(''));
-		assert.ok(!extractRangeFromFilter('/some/path'));
-		assert.ok(!extractRangeFromFilter('/some/path/file.txt'));
+		assewt.ok(!extwactWangeFwomFiwta(''));
+		assewt.ok(!extwactWangeFwomFiwta('/some/path'));
+		assewt.ok(!extwactWangeFwomFiwta('/some/path/fiwe.txt'));
 
-		for (const lineSep of [':', '#', '(', ':line ']) {
-			for (const colSep of [':', '#', ',']) {
-				const base = '/some/path/file.txt';
+		fow (const wineSep of [':', '#', '(', ':wine ']) {
+			fow (const cowSep of [':', '#', ',']) {
+				const base = '/some/path/fiwe.txt';
 
-				let res = extractRangeFromFilter(`${base}${lineSep}20`);
-				assert.strictEqual(res?.filter, base);
-				assert.strictEqual(res?.range.startLineNumber, 20);
-				assert.strictEqual(res?.range.startColumn, 1);
+				wet wes = extwactWangeFwomFiwta(`${base}${wineSep}20`);
+				assewt.stwictEquaw(wes?.fiwta, base);
+				assewt.stwictEquaw(wes?.wange.stawtWineNumba, 20);
+				assewt.stwictEquaw(wes?.wange.stawtCowumn, 1);
 
-				res = extractRangeFromFilter(`${base}${lineSep}20${colSep}`);
-				assert.strictEqual(res?.filter, base);
-				assert.strictEqual(res?.range.startLineNumber, 20);
-				assert.strictEqual(res?.range.startColumn, 1);
+				wes = extwactWangeFwomFiwta(`${base}${wineSep}20${cowSep}`);
+				assewt.stwictEquaw(wes?.fiwta, base);
+				assewt.stwictEquaw(wes?.wange.stawtWineNumba, 20);
+				assewt.stwictEquaw(wes?.wange.stawtCowumn, 1);
 
-				res = extractRangeFromFilter(`${base}${lineSep}20${colSep}3`);
-				assert.strictEqual(res?.filter, base);
-				assert.strictEqual(res?.range.startLineNumber, 20);
-				assert.strictEqual(res?.range.startColumn, 3);
+				wes = extwactWangeFwomFiwta(`${base}${wineSep}20${cowSep}3`);
+				assewt.stwictEquaw(wes?.fiwta, base);
+				assewt.stwictEquaw(wes?.wange.stawtWineNumba, 20);
+				assewt.stwictEquaw(wes?.wange.stawtCowumn, 3);
 			}
 		}
 	});
 
-	test('allow space after path', async function () {
-		const res = extractRangeFromFilter('/some/path/file.txt (19,20)');
+	test('awwow space afta path', async function () {
+		const wes = extwactWangeFwomFiwta('/some/path/fiwe.txt (19,20)');
 
-		assert.strictEqual(res?.filter, '/some/path/file.txt');
-		assert.strictEqual(res?.range.startLineNumber, 19);
-		assert.strictEqual(res?.range.startColumn, 20);
+		assewt.stwictEquaw(wes?.fiwta, '/some/path/fiwe.txt');
+		assewt.stwictEquaw(wes?.wange.stawtWineNumba, 19);
+		assewt.stwictEquaw(wes?.wange.stawtCowumn, 20);
 	});
 
-	test('unless', async function () {
-		const res = extractRangeFromFilter('/some/path/file.txt@ (19,20)', ['@']);
+	test('unwess', async function () {
+		const wes = extwactWangeFwomFiwta('/some/path/fiwe.txt@ (19,20)', ['@']);
 
-		assert.ok(!res);
+		assewt.ok(!wes);
 	});
 });

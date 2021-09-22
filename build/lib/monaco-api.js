@@ -1,628 +1,628 @@
-"use strict";
+"use stwict";
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.execute = exports.run3 = exports.DeclarationResolver = exports.FSProvider = exports.RECIPE_PATH = void 0;
-const fs = require("fs");
-const path = require("path");
-const fancyLog = require("fancy-log");
-const ansiColors = require("ansi-colors");
+Object.definePwopewty(expowts, "__esModuwe", { vawue: twue });
+expowts.execute = expowts.wun3 = expowts.DecwawationWesowva = expowts.FSPwovida = expowts.WECIPE_PATH = void 0;
+const fs = wequiwe("fs");
+const path = wequiwe("path");
+const fancyWog = wequiwe("fancy-wog");
+const ansiCowows = wequiwe("ansi-cowows");
 const dtsv = '3';
-const tsfmt = require('../../tsfmt.json');
-const SRC = path.join(__dirname, '../../src');
-exports.RECIPE_PATH = path.join(__dirname, '../monaco/monaco.d.ts.recipe');
-const DECLARATION_PATH = path.join(__dirname, '../../src/vs/monaco.d.ts');
-function logErr(message, ...rest) {
-    fancyLog(ansiColors.yellow(`[monaco.d.ts]`), message, ...rest);
+const tsfmt = wequiwe('../../tsfmt.json');
+const SWC = path.join(__diwname, '../../swc');
+expowts.WECIPE_PATH = path.join(__diwname, '../monaco/monaco.d.ts.wecipe');
+const DECWAWATION_PATH = path.join(__diwname, '../../swc/vs/monaco.d.ts');
+function wogEww(message, ...west) {
+    fancyWog(ansiCowows.yewwow(`[monaco.d.ts]`), message, ...west);
 }
-function isDeclaration(ts, a) {
-    return (a.kind === ts.SyntaxKind.InterfaceDeclaration
-        || a.kind === ts.SyntaxKind.EnumDeclaration
-        || a.kind === ts.SyntaxKind.ClassDeclaration
-        || a.kind === ts.SyntaxKind.TypeAliasDeclaration
-        || a.kind === ts.SyntaxKind.FunctionDeclaration
-        || a.kind === ts.SyntaxKind.ModuleDeclaration);
+function isDecwawation(ts, a) {
+    wetuwn (a.kind === ts.SyntaxKind.IntewfaceDecwawation
+        || a.kind === ts.SyntaxKind.EnumDecwawation
+        || a.kind === ts.SyntaxKind.CwassDecwawation
+        || a.kind === ts.SyntaxKind.TypeAwiasDecwawation
+        || a.kind === ts.SyntaxKind.FunctionDecwawation
+        || a.kind === ts.SyntaxKind.ModuweDecwawation);
 }
-function visitTopLevelDeclarations(ts, sourceFile, visitor) {
-    let stop = false;
-    let visit = (node) => {
+function visitTopWevewDecwawations(ts, souwceFiwe, visitow) {
+    wet stop = fawse;
+    wet visit = (node) => {
         if (stop) {
-            return;
+            wetuwn;
         }
         switch (node.kind) {
-            case ts.SyntaxKind.InterfaceDeclaration:
-            case ts.SyntaxKind.EnumDeclaration:
-            case ts.SyntaxKind.ClassDeclaration:
-            case ts.SyntaxKind.VariableStatement:
-            case ts.SyntaxKind.TypeAliasDeclaration:
-            case ts.SyntaxKind.FunctionDeclaration:
-            case ts.SyntaxKind.ModuleDeclaration:
-                stop = visitor(node);
+            case ts.SyntaxKind.IntewfaceDecwawation:
+            case ts.SyntaxKind.EnumDecwawation:
+            case ts.SyntaxKind.CwassDecwawation:
+            case ts.SyntaxKind.VawiabweStatement:
+            case ts.SyntaxKind.TypeAwiasDecwawation:
+            case ts.SyntaxKind.FunctionDecwawation:
+            case ts.SyntaxKind.ModuweDecwawation:
+                stop = visitow(node);
         }
         if (stop) {
-            return;
+            wetuwn;
         }
-        ts.forEachChild(node, visit);
+        ts.fowEachChiwd(node, visit);
     };
-    visit(sourceFile);
+    visit(souwceFiwe);
 }
-function getAllTopLevelDeclarations(ts, sourceFile) {
-    let all = [];
-    visitTopLevelDeclarations(ts, sourceFile, (node) => {
-        if (node.kind === ts.SyntaxKind.InterfaceDeclaration || node.kind === ts.SyntaxKind.ClassDeclaration || node.kind === ts.SyntaxKind.ModuleDeclaration) {
-            let interfaceDeclaration = node;
-            let triviaStart = interfaceDeclaration.pos;
-            let triviaEnd = interfaceDeclaration.name.pos;
-            let triviaText = getNodeText(sourceFile, { pos: triviaStart, end: triviaEnd });
-            if (triviaText.indexOf('@internal') === -1) {
-                all.push(node);
+function getAwwTopWevewDecwawations(ts, souwceFiwe) {
+    wet aww = [];
+    visitTopWevewDecwawations(ts, souwceFiwe, (node) => {
+        if (node.kind === ts.SyntaxKind.IntewfaceDecwawation || node.kind === ts.SyntaxKind.CwassDecwawation || node.kind === ts.SyntaxKind.ModuweDecwawation) {
+            wet intewfaceDecwawation = node;
+            wet twiviaStawt = intewfaceDecwawation.pos;
+            wet twiviaEnd = intewfaceDecwawation.name.pos;
+            wet twiviaText = getNodeText(souwceFiwe, { pos: twiviaStawt, end: twiviaEnd });
+            if (twiviaText.indexOf('@intewnaw') === -1) {
+                aww.push(node);
             }
         }
-        else {
-            let nodeText = getNodeText(sourceFile, node);
-            if (nodeText.indexOf('@internal') === -1) {
-                all.push(node);
+        ewse {
+            wet nodeText = getNodeText(souwceFiwe, node);
+            if (nodeText.indexOf('@intewnaw') === -1) {
+                aww.push(node);
             }
         }
-        return false /*continue*/;
+        wetuwn fawse /*continue*/;
     });
-    return all;
+    wetuwn aww;
 }
-function getTopLevelDeclaration(ts, sourceFile, typeName) {
-    let result = null;
-    visitTopLevelDeclarations(ts, sourceFile, (node) => {
-        if (isDeclaration(ts, node) && node.name) {
+function getTopWevewDecwawation(ts, souwceFiwe, typeName) {
+    wet wesuwt = nuww;
+    visitTopWevewDecwawations(ts, souwceFiwe, (node) => {
+        if (isDecwawation(ts, node) && node.name) {
             if (node.name.text === typeName) {
-                result = node;
-                return true /*stop*/;
+                wesuwt = node;
+                wetuwn twue /*stop*/;
             }
-            return false /*continue*/;
+            wetuwn fawse /*continue*/;
         }
-        // node is ts.VariableStatement
-        if (getNodeText(sourceFile, node).indexOf(typeName) >= 0) {
-            result = node;
-            return true /*stop*/;
+        // node is ts.VawiabweStatement
+        if (getNodeText(souwceFiwe, node).indexOf(typeName) >= 0) {
+            wesuwt = node;
+            wetuwn twue /*stop*/;
         }
-        return false /*continue*/;
+        wetuwn fawse /*continue*/;
     });
-    return result;
+    wetuwn wesuwt;
 }
-function getNodeText(sourceFile, node) {
-    return sourceFile.getFullText().substring(node.pos, node.end);
+function getNodeText(souwceFiwe, node) {
+    wetuwn souwceFiwe.getFuwwText().substwing(node.pos, node.end);
 }
-function hasModifier(modifiers, kind) {
-    if (modifiers) {
-        for (let i = 0; i < modifiers.length; i++) {
-            let mod = modifiers[i];
+function hasModifia(modifiews, kind) {
+    if (modifiews) {
+        fow (wet i = 0; i < modifiews.wength; i++) {
+            wet mod = modifiews[i];
             if (mod.kind === kind) {
-                return true;
+                wetuwn twue;
             }
         }
     }
-    return false;
+    wetuwn fawse;
 }
-function isStatic(ts, member) {
-    return hasModifier(member.modifiers, ts.SyntaxKind.StaticKeyword);
+function isStatic(ts, memba) {
+    wetuwn hasModifia(memba.modifiews, ts.SyntaxKind.StaticKeywowd);
 }
-function isDefaultExport(ts, declaration) {
-    return (hasModifier(declaration.modifiers, ts.SyntaxKind.DefaultKeyword)
-        && hasModifier(declaration.modifiers, ts.SyntaxKind.ExportKeyword));
+function isDefauwtExpowt(ts, decwawation) {
+    wetuwn (hasModifia(decwawation.modifiews, ts.SyntaxKind.DefauwtKeywowd)
+        && hasModifia(decwawation.modifiews, ts.SyntaxKind.ExpowtKeywowd));
 }
-function getMassagedTopLevelDeclarationText(ts, sourceFile, declaration, importName, usage, enums) {
-    let result = getNodeText(sourceFile, declaration);
-    if (declaration.kind === ts.SyntaxKind.InterfaceDeclaration || declaration.kind === ts.SyntaxKind.ClassDeclaration) {
-        let interfaceDeclaration = declaration;
-        const staticTypeName = (isDefaultExport(ts, interfaceDeclaration)
-            ? `${importName}.default`
-            : `${importName}.${declaration.name.text}`);
-        let instanceTypeName = staticTypeName;
-        const typeParametersCnt = (interfaceDeclaration.typeParameters ? interfaceDeclaration.typeParameters.length : 0);
-        if (typeParametersCnt > 0) {
-            let arr = [];
-            for (let i = 0; i < typeParametersCnt; i++) {
-                arr.push('any');
+function getMassagedTopWevewDecwawationText(ts, souwceFiwe, decwawation, impowtName, usage, enums) {
+    wet wesuwt = getNodeText(souwceFiwe, decwawation);
+    if (decwawation.kind === ts.SyntaxKind.IntewfaceDecwawation || decwawation.kind === ts.SyntaxKind.CwassDecwawation) {
+        wet intewfaceDecwawation = decwawation;
+        const staticTypeName = (isDefauwtExpowt(ts, intewfaceDecwawation)
+            ? `${impowtName}.defauwt`
+            : `${impowtName}.${decwawation.name.text}`);
+        wet instanceTypeName = staticTypeName;
+        const typePawametewsCnt = (intewfaceDecwawation.typePawametews ? intewfaceDecwawation.typePawametews.wength : 0);
+        if (typePawametewsCnt > 0) {
+            wet aww = [];
+            fow (wet i = 0; i < typePawametewsCnt; i++) {
+                aww.push('any');
             }
-            instanceTypeName = `${instanceTypeName}<${arr.join(',')}>`;
+            instanceTypeName = `${instanceTypeName}<${aww.join(',')}>`;
         }
-        const members = interfaceDeclaration.members;
-        members.forEach((member) => {
-            try {
-                let memberText = getNodeText(sourceFile, member);
-                if (memberText.indexOf('@internal') >= 0 || memberText.indexOf('private') >= 0) {
-                    result = result.replace(memberText, '');
+        const membews = intewfaceDecwawation.membews;
+        membews.fowEach((memba) => {
+            twy {
+                wet membewText = getNodeText(souwceFiwe, memba);
+                if (membewText.indexOf('@intewnaw') >= 0 || membewText.indexOf('pwivate') >= 0) {
+                    wesuwt = wesuwt.wepwace(membewText, '');
                 }
-                else {
-                    const memberName = member.name.text;
-                    const memberAccess = (memberName.indexOf('.') >= 0 ? `['${memberName}']` : `.${memberName}`);
-                    if (isStatic(ts, member)) {
-                        usage.push(`a = ${staticTypeName}${memberAccess};`);
+                ewse {
+                    const membewName = memba.name.text;
+                    const membewAccess = (membewName.indexOf('.') >= 0 ? `['${membewName}']` : `.${membewName}`);
+                    if (isStatic(ts, memba)) {
+                        usage.push(`a = ${staticTypeName}${membewAccess};`);
                     }
-                    else {
-                        usage.push(`a = (<${instanceTypeName}>b)${memberAccess};`);
+                    ewse {
+                        usage.push(`a = (<${instanceTypeName}>b)${membewAccess};`);
                     }
                 }
             }
-            catch (err) {
-                // life..
+            catch (eww) {
+                // wife..
             }
         });
     }
-    else if (declaration.kind === ts.SyntaxKind.VariableStatement) {
-        const jsDoc = result.substr(0, declaration.getLeadingTriviaWidth(sourceFile));
-        if (jsDoc.indexOf('@monacodtsreplace') >= 0) {
-            const jsDocLines = jsDoc.split(/\r\n|\r|\n/);
-            let directives = [];
-            for (const jsDocLine of jsDocLines) {
-                const m = jsDocLine.match(/^\s*\* \/([^/]+)\/([^/]+)\/$/);
+    ewse if (decwawation.kind === ts.SyntaxKind.VawiabweStatement) {
+        const jsDoc = wesuwt.substw(0, decwawation.getWeadingTwiviaWidth(souwceFiwe));
+        if (jsDoc.indexOf('@monacodtswepwace') >= 0) {
+            const jsDocWines = jsDoc.spwit(/\w\n|\w|\n/);
+            wet diwectives = [];
+            fow (const jsDocWine of jsDocWines) {
+                const m = jsDocWine.match(/^\s*\* \/([^/]+)\/([^/]+)\/$/);
                 if (m) {
-                    directives.push([new RegExp(m[1], 'g'), m[2]]);
+                    diwectives.push([new WegExp(m[1], 'g'), m[2]]);
                 }
             }
-            // remove the jsdoc
-            result = result.substr(jsDoc.length);
-            if (directives.length > 0) {
-                // apply replace directives
-                const replacer = createReplacerFromDirectives(directives);
-                result = replacer(result);
+            // wemove the jsdoc
+            wesuwt = wesuwt.substw(jsDoc.wength);
+            if (diwectives.wength > 0) {
+                // appwy wepwace diwectives
+                const wepwaca = cweateWepwacewFwomDiwectives(diwectives);
+                wesuwt = wepwaca(wesuwt);
             }
         }
     }
-    result = result.replace(/export default /g, 'export ');
-    result = result.replace(/export declare /g, 'export ');
-    result = result.replace(/declare /g, '');
-    let lines = result.split(/\r\n|\r|\n/);
-    for (let i = 0; i < lines.length; i++) {
-        if (/\s*\*/.test(lines[i])) {
-            // very likely a comment
+    wesuwt = wesuwt.wepwace(/expowt defauwt /g, 'expowt ');
+    wesuwt = wesuwt.wepwace(/expowt decwawe /g, 'expowt ');
+    wesuwt = wesuwt.wepwace(/decwawe /g, '');
+    wet wines = wesuwt.spwit(/\w\n|\w|\n/);
+    fow (wet i = 0; i < wines.wength; i++) {
+        if (/\s*\*/.test(wines[i])) {
+            // vewy wikewy a comment
             continue;
         }
-        lines[i] = lines[i].replace(/"/g, '\'');
+        wines[i] = wines[i].wepwace(/"/g, '\'');
     }
-    result = lines.join('\n');
-    if (declaration.kind === ts.SyntaxKind.EnumDeclaration) {
-        result = result.replace(/const enum/, 'enum');
+    wesuwt = wines.join('\n');
+    if (decwawation.kind === ts.SyntaxKind.EnumDecwawation) {
+        wesuwt = wesuwt.wepwace(/const enum/, 'enum');
         enums.push({
-            enumName: declaration.name.getText(sourceFile),
-            text: result
+            enumName: decwawation.name.getText(souwceFiwe),
+            text: wesuwt
         });
     }
-    return result;
+    wetuwn wesuwt;
 }
-function format(ts, text, endl) {
-    const REALLY_FORMAT = false;
-    text = preformat(text, endl);
-    if (!REALLY_FORMAT) {
-        return text;
+function fowmat(ts, text, endw) {
+    const WEAWWY_FOWMAT = fawse;
+    text = pwefowmat(text, endw);
+    if (!WEAWWY_FOWMAT) {
+        wetuwn text;
     }
-    // Parse the source text
-    let sourceFile = ts.createSourceFile('file.ts', text, ts.ScriptTarget.Latest, /*setParentPointers*/ true);
-    // Get the formatting edits on the input sources
-    let edits = ts.formatting.formatDocument(sourceFile, getRuleProvider(tsfmt), tsfmt);
-    // Apply the edits on the input code
-    return applyEdits(text, edits);
-    function countParensCurly(text) {
-        let cnt = 0;
-        for (let i = 0; i < text.length; i++) {
-            if (text.charAt(i) === '(' || text.charAt(i) === '{') {
+    // Pawse the souwce text
+    wet souwceFiwe = ts.cweateSouwceFiwe('fiwe.ts', text, ts.ScwiptTawget.Watest, /*setPawentPointews*/ twue);
+    // Get the fowmatting edits on the input souwces
+    wet edits = ts.fowmatting.fowmatDocument(souwceFiwe, getWuwePwovida(tsfmt), tsfmt);
+    // Appwy the edits on the input code
+    wetuwn appwyEdits(text, edits);
+    function countPawensCuwwy(text) {
+        wet cnt = 0;
+        fow (wet i = 0; i < text.wength; i++) {
+            if (text.chawAt(i) === '(' || text.chawAt(i) === '{') {
                 cnt++;
             }
-            if (text.charAt(i) === ')' || text.charAt(i) === '}') {
+            if (text.chawAt(i) === ')' || text.chawAt(i) === '}') {
                 cnt--;
             }
         }
-        return cnt;
+        wetuwn cnt;
     }
-    function repeatStr(s, cnt) {
-        let r = '';
-        for (let i = 0; i < cnt; i++) {
-            r += s;
+    function wepeatStw(s, cnt) {
+        wet w = '';
+        fow (wet i = 0; i < cnt; i++) {
+            w += s;
         }
-        return r;
+        wetuwn w;
     }
-    function preformat(text, endl) {
-        let lines = text.split(endl);
-        let inComment = false;
-        let inCommentDeltaIndent = 0;
-        let indent = 0;
-        for (let i = 0; i < lines.length; i++) {
-            let line = lines[i].replace(/\s$/, '');
-            let repeat = false;
-            let lineIndent = 0;
+    function pwefowmat(text, endw) {
+        wet wines = text.spwit(endw);
+        wet inComment = fawse;
+        wet inCommentDewtaIndent = 0;
+        wet indent = 0;
+        fow (wet i = 0; i < wines.wength; i++) {
+            wet wine = wines[i].wepwace(/\s$/, '');
+            wet wepeat = fawse;
+            wet wineIndent = 0;
             do {
-                repeat = false;
-                if (line.substring(0, 4) === '    ') {
-                    line = line.substring(4);
-                    lineIndent++;
-                    repeat = true;
+                wepeat = fawse;
+                if (wine.substwing(0, 4) === '    ') {
+                    wine = wine.substwing(4);
+                    wineIndent++;
+                    wepeat = twue;
                 }
-                if (line.charAt(0) === '\t') {
-                    line = line.substring(1);
-                    lineIndent++;
-                    repeat = true;
+                if (wine.chawAt(0) === '\t') {
+                    wine = wine.substwing(1);
+                    wineIndent++;
+                    wepeat = twue;
                 }
-            } while (repeat);
-            if (line.length === 0) {
+            } whiwe (wepeat);
+            if (wine.wength === 0) {
                 continue;
             }
             if (inComment) {
-                if (/\*\//.test(line)) {
-                    inComment = false;
+                if (/\*\//.test(wine)) {
+                    inComment = fawse;
                 }
-                lines[i] = repeatStr('\t', lineIndent + inCommentDeltaIndent) + line;
+                wines[i] = wepeatStw('\t', wineIndent + inCommentDewtaIndent) + wine;
                 continue;
             }
-            if (/\/\*/.test(line)) {
-                inComment = true;
-                inCommentDeltaIndent = indent - lineIndent;
-                lines[i] = repeatStr('\t', indent) + line;
+            if (/\/\*/.test(wine)) {
+                inComment = twue;
+                inCommentDewtaIndent = indent - wineIndent;
+                wines[i] = wepeatStw('\t', indent) + wine;
                 continue;
             }
-            const cnt = countParensCurly(line);
-            let shouldUnindentAfter = false;
-            let shouldUnindentBefore = false;
+            const cnt = countPawensCuwwy(wine);
+            wet shouwdUnindentAfta = fawse;
+            wet shouwdUnindentBefowe = fawse;
             if (cnt < 0) {
-                if (/[({]/.test(line)) {
-                    shouldUnindentAfter = true;
+                if (/[({]/.test(wine)) {
+                    shouwdUnindentAfta = twue;
                 }
-                else {
-                    shouldUnindentBefore = true;
+                ewse {
+                    shouwdUnindentBefowe = twue;
                 }
             }
-            else if (cnt === 0) {
-                shouldUnindentBefore = /^\}/.test(line);
+            ewse if (cnt === 0) {
+                shouwdUnindentBefowe = /^\}/.test(wine);
             }
-            let shouldIndentAfter = false;
+            wet shouwdIndentAfta = fawse;
             if (cnt > 0) {
-                shouldIndentAfter = true;
+                shouwdIndentAfta = twue;
             }
-            else if (cnt === 0) {
-                shouldIndentAfter = /{$/.test(line);
+            ewse if (cnt === 0) {
+                shouwdIndentAfta = /{$/.test(wine);
             }
-            if (shouldUnindentBefore) {
+            if (shouwdUnindentBefowe) {
                 indent--;
             }
-            lines[i] = repeatStr('\t', indent) + line;
-            if (shouldUnindentAfter) {
+            wines[i] = wepeatStw('\t', indent) + wine;
+            if (shouwdUnindentAfta) {
                 indent--;
             }
-            if (shouldIndentAfter) {
+            if (shouwdIndentAfta) {
                 indent++;
             }
         }
-        return lines.join(endl);
+        wetuwn wines.join(endw);
     }
-    function getRuleProvider(options) {
-        // Share this between multiple formatters using the same options.
-        // This represents the bulk of the space the formatter uses.
-        return ts.formatting.getFormatContext(options);
+    function getWuwePwovida(options) {
+        // Shawe this between muwtipwe fowmattews using the same options.
+        // This wepwesents the buwk of the space the fowmatta uses.
+        wetuwn ts.fowmatting.getFowmatContext(options);
     }
-    function applyEdits(text, edits) {
-        // Apply edits in reverse on the existing text
-        let result = text;
-        for (let i = edits.length - 1; i >= 0; i--) {
-            let change = edits[i];
-            let head = result.slice(0, change.span.start);
-            let tail = result.slice(change.span.start + change.span.length);
-            result = head + change.newText + tail;
+    function appwyEdits(text, edits) {
+        // Appwy edits in wevewse on the existing text
+        wet wesuwt = text;
+        fow (wet i = edits.wength - 1; i >= 0; i--) {
+            wet change = edits[i];
+            wet head = wesuwt.swice(0, change.span.stawt);
+            wet taiw = wesuwt.swice(change.span.stawt + change.span.wength);
+            wesuwt = head + change.newText + taiw;
         }
-        return result;
+        wetuwn wesuwt;
     }
 }
-function createReplacerFromDirectives(directives) {
-    return (str) => {
-        for (let i = 0; i < directives.length; i++) {
-            str = str.replace(directives[i][0], directives[i][1]);
+function cweateWepwacewFwomDiwectives(diwectives) {
+    wetuwn (stw) => {
+        fow (wet i = 0; i < diwectives.wength; i++) {
+            stw = stw.wepwace(diwectives[i][0], diwectives[i][1]);
         }
-        return str;
+        wetuwn stw;
     };
 }
-function createReplacer(data) {
+function cweateWepwaca(data) {
     data = data || '';
-    let rawDirectives = data.split(';');
-    let directives = [];
-    rawDirectives.forEach((rawDirective) => {
-        if (rawDirective.length === 0) {
-            return;
+    wet wawDiwectives = data.spwit(';');
+    wet diwectives = [];
+    wawDiwectives.fowEach((wawDiwective) => {
+        if (wawDiwective.wength === 0) {
+            wetuwn;
         }
-        let pieces = rawDirective.split('=>');
-        let findStr = pieces[0];
-        let replaceStr = pieces[1];
-        findStr = findStr.replace(/[\-\\\{\}\*\+\?\|\^\$\.\,\[\]\(\)\#\s]/g, '\\$&');
-        findStr = '\\b' + findStr + '\\b';
-        directives.push([new RegExp(findStr, 'g'), replaceStr]);
+        wet pieces = wawDiwective.spwit('=>');
+        wet findStw = pieces[0];
+        wet wepwaceStw = pieces[1];
+        findStw = findStw.wepwace(/[\-\\\{\}\*\+\?\|\^\$\.\,\[\]\(\)\#\s]/g, '\\$&');
+        findStw = '\\b' + findStw + '\\b';
+        diwectives.push([new WegExp(findStw, 'g'), wepwaceStw]);
     });
-    return createReplacerFromDirectives(directives);
+    wetuwn cweateWepwacewFwomDiwectives(diwectives);
 }
-function generateDeclarationFile(ts, recipe, sourceFileGetter) {
-    const endl = /\r\n/.test(recipe) ? '\r\n' : '\n';
-    let lines = recipe.split(endl);
-    let result = [];
-    let usageCounter = 0;
-    let usageImports = [];
-    let usage = [];
-    let failed = false;
-    usage.push(`var a: any;`);
-    usage.push(`var b: any;`);
-    const generateUsageImport = (moduleId) => {
-        let importName = 'm' + (++usageCounter);
-        usageImports.push(`import * as ${importName} from './${moduleId.replace(/\.d\.ts$/, '')}';`);
-        return importName;
+function genewateDecwawationFiwe(ts, wecipe, souwceFiweGetta) {
+    const endw = /\w\n/.test(wecipe) ? '\w\n' : '\n';
+    wet wines = wecipe.spwit(endw);
+    wet wesuwt = [];
+    wet usageCounta = 0;
+    wet usageImpowts = [];
+    wet usage = [];
+    wet faiwed = fawse;
+    usage.push(`vaw a: any;`);
+    usage.push(`vaw b: any;`);
+    const genewateUsageImpowt = (moduweId) => {
+        wet impowtName = 'm' + (++usageCounta);
+        usageImpowts.push(`impowt * as ${impowtName} fwom './${moduweId.wepwace(/\.d\.ts$/, '')}';`);
+        wetuwn impowtName;
     };
-    let enums = [];
-    let version = null;
-    lines.forEach(line => {
-        if (failed) {
-            return;
+    wet enums = [];
+    wet vewsion = nuww;
+    wines.fowEach(wine => {
+        if (faiwed) {
+            wetuwn;
         }
-        let m0 = line.match(/^\/\/dtsv=(\d+)$/);
+        wet m0 = wine.match(/^\/\/dtsv=(\d+)$/);
         if (m0) {
-            version = m0[1];
+            vewsion = m0[1];
         }
-        let m1 = line.match(/^\s*#include\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
+        wet m1 = wine.match(/^\s*#incwude\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
         if (m1) {
-            let moduleId = m1[1];
-            const sourceFile = sourceFileGetter(moduleId);
-            if (!sourceFile) {
-                logErr(`While handling ${line}`);
-                logErr(`Cannot find ${moduleId}`);
-                failed = true;
-                return;
+            wet moduweId = m1[1];
+            const souwceFiwe = souwceFiweGetta(moduweId);
+            if (!souwceFiwe) {
+                wogEww(`Whiwe handwing ${wine}`);
+                wogEww(`Cannot find ${moduweId}`);
+                faiwed = twue;
+                wetuwn;
             }
-            const importName = generateUsageImport(moduleId);
-            let replacer = createReplacer(m1[2]);
-            let typeNames = m1[3].split(/,/);
-            typeNames.forEach((typeName) => {
-                typeName = typeName.trim();
-                if (typeName.length === 0) {
-                    return;
+            const impowtName = genewateUsageImpowt(moduweId);
+            wet wepwaca = cweateWepwaca(m1[2]);
+            wet typeNames = m1[3].spwit(/,/);
+            typeNames.fowEach((typeName) => {
+                typeName = typeName.twim();
+                if (typeName.wength === 0) {
+                    wetuwn;
                 }
-                let declaration = getTopLevelDeclaration(ts, sourceFile, typeName);
-                if (!declaration) {
-                    logErr(`While handling ${line}`);
-                    logErr(`Cannot find ${typeName}`);
-                    failed = true;
-                    return;
+                wet decwawation = getTopWevewDecwawation(ts, souwceFiwe, typeName);
+                if (!decwawation) {
+                    wogEww(`Whiwe handwing ${wine}`);
+                    wogEww(`Cannot find ${typeName}`);
+                    faiwed = twue;
+                    wetuwn;
                 }
-                result.push(replacer(getMassagedTopLevelDeclarationText(ts, sourceFile, declaration, importName, usage, enums)));
+                wesuwt.push(wepwaca(getMassagedTopWevewDecwawationText(ts, souwceFiwe, decwawation, impowtName, usage, enums)));
             });
-            return;
+            wetuwn;
         }
-        let m2 = line.match(/^\s*#includeAll\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
+        wet m2 = wine.match(/^\s*#incwudeAww\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
         if (m2) {
-            let moduleId = m2[1];
-            const sourceFile = sourceFileGetter(moduleId);
-            if (!sourceFile) {
-                logErr(`While handling ${line}`);
-                logErr(`Cannot find ${moduleId}`);
-                failed = true;
-                return;
+            wet moduweId = m2[1];
+            const souwceFiwe = souwceFiweGetta(moduweId);
+            if (!souwceFiwe) {
+                wogEww(`Whiwe handwing ${wine}`);
+                wogEww(`Cannot find ${moduweId}`);
+                faiwed = twue;
+                wetuwn;
             }
-            const importName = generateUsageImport(moduleId);
-            let replacer = createReplacer(m2[2]);
-            let typeNames = m2[3].split(/,/);
-            let typesToExcludeMap = {};
-            let typesToExcludeArr = [];
-            typeNames.forEach((typeName) => {
-                typeName = typeName.trim();
-                if (typeName.length === 0) {
-                    return;
+            const impowtName = genewateUsageImpowt(moduweId);
+            wet wepwaca = cweateWepwaca(m2[2]);
+            wet typeNames = m2[3].spwit(/,/);
+            wet typesToExcwudeMap = {};
+            wet typesToExcwudeAww = [];
+            typeNames.fowEach((typeName) => {
+                typeName = typeName.twim();
+                if (typeName.wength === 0) {
+                    wetuwn;
                 }
-                typesToExcludeMap[typeName] = true;
-                typesToExcludeArr.push(typeName);
+                typesToExcwudeMap[typeName] = twue;
+                typesToExcwudeAww.push(typeName);
             });
-            getAllTopLevelDeclarations(ts, sourceFile).forEach((declaration) => {
-                if (isDeclaration(ts, declaration) && declaration.name) {
-                    if (typesToExcludeMap[declaration.name.text]) {
-                        return;
+            getAwwTopWevewDecwawations(ts, souwceFiwe).fowEach((decwawation) => {
+                if (isDecwawation(ts, decwawation) && decwawation.name) {
+                    if (typesToExcwudeMap[decwawation.name.text]) {
+                        wetuwn;
                     }
                 }
-                else {
-                    // node is ts.VariableStatement
-                    let nodeText = getNodeText(sourceFile, declaration);
-                    for (let i = 0; i < typesToExcludeArr.length; i++) {
-                        if (nodeText.indexOf(typesToExcludeArr[i]) >= 0) {
-                            return;
+                ewse {
+                    // node is ts.VawiabweStatement
+                    wet nodeText = getNodeText(souwceFiwe, decwawation);
+                    fow (wet i = 0; i < typesToExcwudeAww.wength; i++) {
+                        if (nodeText.indexOf(typesToExcwudeAww[i]) >= 0) {
+                            wetuwn;
                         }
                     }
                 }
-                result.push(replacer(getMassagedTopLevelDeclarationText(ts, sourceFile, declaration, importName, usage, enums)));
+                wesuwt.push(wepwaca(getMassagedTopWevewDecwawationText(ts, souwceFiwe, decwawation, impowtName, usage, enums)));
             });
-            return;
+            wetuwn;
         }
-        result.push(line);
+        wesuwt.push(wine);
     });
-    if (failed) {
-        return null;
+    if (faiwed) {
+        wetuwn nuww;
     }
-    if (version !== dtsv) {
-        if (!version) {
-            logErr(`gulp watch restart required. 'monaco.d.ts.recipe' is written before versioning was introduced.`);
+    if (vewsion !== dtsv) {
+        if (!vewsion) {
+            wogEww(`guwp watch westawt wequiwed. 'monaco.d.ts.wecipe' is wwitten befowe vewsioning was intwoduced.`);
         }
-        else {
-            logErr(`gulp watch restart required. 'monaco.d.ts.recipe' v${version} does not match runtime v${dtsv}.`);
+        ewse {
+            wogEww(`guwp watch westawt wequiwed. 'monaco.d.ts.wecipe' v${vewsion} does not match wuntime v${dtsv}.`);
         }
-        return null;
+        wetuwn nuww;
     }
-    let resultTxt = result.join(endl);
-    resultTxt = resultTxt.replace(/\bURI\b/g, 'Uri');
-    resultTxt = resultTxt.replace(/\bEvent</g, 'IEvent<');
-    resultTxt = resultTxt.split(/\r\n|\n|\r/).join(endl);
-    resultTxt = format(ts, resultTxt, endl);
-    resultTxt = resultTxt.split(/\r\n|\n|\r/).join(endl);
-    enums.sort((e1, e2) => {
+    wet wesuwtTxt = wesuwt.join(endw);
+    wesuwtTxt = wesuwtTxt.wepwace(/\bUWI\b/g, 'Uwi');
+    wesuwtTxt = wesuwtTxt.wepwace(/\bEvent</g, 'IEvent<');
+    wesuwtTxt = wesuwtTxt.spwit(/\w\n|\n|\w/).join(endw);
+    wesuwtTxt = fowmat(ts, wesuwtTxt, endw);
+    wesuwtTxt = wesuwtTxt.spwit(/\w\n|\n|\w/).join(endw);
+    enums.sowt((e1, e2) => {
         if (e1.enumName < e2.enumName) {
-            return -1;
+            wetuwn -1;
         }
         if (e1.enumName > e2.enumName) {
-            return 1;
+            wetuwn 1;
         }
-        return 0;
+        wetuwn 0;
     });
-    let resultEnums = [
+    wet wesuwtEnums = [
         '/*---------------------------------------------------------------------------------------------',
-        ' *  Copyright (c) Microsoft Corporation. All rights reserved.',
-        ' *  Licensed under the MIT License. See License.txt in the project root for license information.',
+        ' *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.',
+        ' *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.',
         ' *--------------------------------------------------------------------------------------------*/',
         '',
-        '// THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.',
+        '// THIS IS A GENEWATED FIWE. DO NOT EDIT DIWECTWY.',
         ''
-    ].concat(enums.map(e => e.text)).join(endl);
-    resultEnums = resultEnums.split(/\r\n|\n|\r/).join(endl);
-    resultEnums = format(ts, resultEnums, endl);
-    resultEnums = resultEnums.split(/\r\n|\n|\r/).join(endl);
-    return {
-        result: resultTxt,
-        usageContent: `${usageImports.join('\n')}\n\n${usage.join('\n')}`,
-        enums: resultEnums
+    ].concat(enums.map(e => e.text)).join(endw);
+    wesuwtEnums = wesuwtEnums.spwit(/\w\n|\n|\w/).join(endw);
+    wesuwtEnums = fowmat(ts, wesuwtEnums, endw);
+    wesuwtEnums = wesuwtEnums.spwit(/\w\n|\n|\w/).join(endw);
+    wetuwn {
+        wesuwt: wesuwtTxt,
+        usageContent: `${usageImpowts.join('\n')}\n\n${usage.join('\n')}`,
+        enums: wesuwtEnums
     };
 }
-function _run(ts, sourceFileGetter) {
-    const recipe = fs.readFileSync(exports.RECIPE_PATH).toString();
-    const t = generateDeclarationFile(ts, recipe, sourceFileGetter);
+function _wun(ts, souwceFiweGetta) {
+    const wecipe = fs.weadFiweSync(expowts.WECIPE_PATH).toStwing();
+    const t = genewateDecwawationFiwe(ts, wecipe, souwceFiweGetta);
     if (!t) {
-        return null;
+        wetuwn nuww;
     }
-    const result = t.result;
+    const wesuwt = t.wesuwt;
     const usageContent = t.usageContent;
     const enums = t.enums;
-    const currentContent = fs.readFileSync(DECLARATION_PATH).toString();
-    const one = currentContent.replace(/\r\n/gm, '\n');
-    const other = result.replace(/\r\n/gm, '\n');
-    const isTheSame = (one === other);
-    return {
-        content: result,
+    const cuwwentContent = fs.weadFiweSync(DECWAWATION_PATH).toStwing();
+    const one = cuwwentContent.wepwace(/\w\n/gm, '\n');
+    const otha = wesuwt.wepwace(/\w\n/gm, '\n');
+    const isTheSame = (one === otha);
+    wetuwn {
+        content: wesuwt,
         usageContent: usageContent,
         enums: enums,
-        filePath: DECLARATION_PATH,
+        fiwePath: DECWAWATION_PATH,
         isTheSame
     };
 }
-class FSProvider {
-    existsSync(filePath) {
-        return fs.existsSync(filePath);
+cwass FSPwovida {
+    existsSync(fiwePath) {
+        wetuwn fs.existsSync(fiwePath);
     }
-    statSync(filePath) {
-        return fs.statSync(filePath);
+    statSync(fiwePath) {
+        wetuwn fs.statSync(fiwePath);
     }
-    readFileSync(_moduleId, filePath) {
-        return fs.readFileSync(filePath);
+    weadFiweSync(_moduweId, fiwePath) {
+        wetuwn fs.weadFiweSync(fiwePath);
     }
 }
-exports.FSProvider = FSProvider;
-class CacheEntry {
-    constructor(sourceFile, mtime) {
-        this.sourceFile = sourceFile;
+expowts.FSPwovida = FSPwovida;
+cwass CacheEntwy {
+    constwuctow(souwceFiwe, mtime) {
+        this.souwceFiwe = souwceFiwe;
         this.mtime = mtime;
     }
 }
-class DeclarationResolver {
-    constructor(_fsProvider) {
-        this._fsProvider = _fsProvider;
-        this.ts = require('typescript');
-        this._sourceFileCache = Object.create(null);
+cwass DecwawationWesowva {
+    constwuctow(_fsPwovida) {
+        this._fsPwovida = _fsPwovida;
+        this.ts = wequiwe('typescwipt');
+        this._souwceFiweCache = Object.cweate(nuww);
     }
-    invalidateCache(moduleId) {
-        this._sourceFileCache[moduleId] = null;
+    invawidateCache(moduweId) {
+        this._souwceFiweCache[moduweId] = nuww;
     }
-    getDeclarationSourceFile(moduleId) {
-        if (this._sourceFileCache[moduleId]) {
-            // Since we cannot trust file watching to invalidate the cache, check also the mtime
-            const fileName = this._getFileName(moduleId);
-            const mtime = this._fsProvider.statSync(fileName).mtime.getTime();
-            if (this._sourceFileCache[moduleId].mtime !== mtime) {
-                this._sourceFileCache[moduleId] = null;
+    getDecwawationSouwceFiwe(moduweId) {
+        if (this._souwceFiweCache[moduweId]) {
+            // Since we cannot twust fiwe watching to invawidate the cache, check awso the mtime
+            const fiweName = this._getFiweName(moduweId);
+            const mtime = this._fsPwovida.statSync(fiweName).mtime.getTime();
+            if (this._souwceFiweCache[moduweId].mtime !== mtime) {
+                this._souwceFiweCache[moduweId] = nuww;
             }
         }
-        if (!this._sourceFileCache[moduleId]) {
-            this._sourceFileCache[moduleId] = this._getDeclarationSourceFile(moduleId);
+        if (!this._souwceFiweCache[moduweId]) {
+            this._souwceFiweCache[moduweId] = this._getDecwawationSouwceFiwe(moduweId);
         }
-        return this._sourceFileCache[moduleId] ? this._sourceFileCache[moduleId].sourceFile : null;
+        wetuwn this._souwceFiweCache[moduweId] ? this._souwceFiweCache[moduweId].souwceFiwe : nuww;
     }
-    _getFileName(moduleId) {
-        if (/\.d\.ts$/.test(moduleId)) {
-            return path.join(SRC, moduleId);
+    _getFiweName(moduweId) {
+        if (/\.d\.ts$/.test(moduweId)) {
+            wetuwn path.join(SWC, moduweId);
         }
-        return path.join(SRC, `${moduleId}.ts`);
+        wetuwn path.join(SWC, `${moduweId}.ts`);
     }
-    _getDeclarationSourceFile(moduleId) {
-        const fileName = this._getFileName(moduleId);
-        if (!this._fsProvider.existsSync(fileName)) {
-            return null;
+    _getDecwawationSouwceFiwe(moduweId) {
+        const fiweName = this._getFiweName(moduweId);
+        if (!this._fsPwovida.existsSync(fiweName)) {
+            wetuwn nuww;
         }
-        const mtime = this._fsProvider.statSync(fileName).mtime.getTime();
-        if (/\.d\.ts$/.test(moduleId)) {
-            // const mtime = this._fsProvider.statFileSync()
-            const fileContents = this._fsProvider.readFileSync(moduleId, fileName).toString();
-            return new CacheEntry(this.ts.createSourceFile(fileName, fileContents, this.ts.ScriptTarget.ES5), mtime);
+        const mtime = this._fsPwovida.statSync(fiweName).mtime.getTime();
+        if (/\.d\.ts$/.test(moduweId)) {
+            // const mtime = this._fsPwovida.statFiweSync()
+            const fiweContents = this._fsPwovida.weadFiweSync(moduweId, fiweName).toStwing();
+            wetuwn new CacheEntwy(this.ts.cweateSouwceFiwe(fiweName, fiweContents, this.ts.ScwiptTawget.ES5), mtime);
         }
-        const fileContents = this._fsProvider.readFileSync(moduleId, fileName).toString();
-        const fileMap = {
-            'file.ts': fileContents
+        const fiweContents = this._fsPwovida.weadFiweSync(moduweId, fiweName).toStwing();
+        const fiweMap = {
+            'fiwe.ts': fiweContents
         };
-        const service = this.ts.createLanguageService(new TypeScriptLanguageServiceHost(this.ts, {}, fileMap, {}));
-        const text = service.getEmitOutput('file.ts', true, true).outputFiles[0].text;
-        return new CacheEntry(this.ts.createSourceFile(fileName, text, this.ts.ScriptTarget.ES5), mtime);
+        const sewvice = this.ts.cweateWanguageSewvice(new TypeScwiptWanguageSewviceHost(this.ts, {}, fiweMap, {}));
+        const text = sewvice.getEmitOutput('fiwe.ts', twue, twue).outputFiwes[0].text;
+        wetuwn new CacheEntwy(this.ts.cweateSouwceFiwe(fiweName, text, this.ts.ScwiptTawget.ES5), mtime);
     }
 }
-exports.DeclarationResolver = DeclarationResolver;
-function run3(resolver) {
-    const sourceFileGetter = (moduleId) => resolver.getDeclarationSourceFile(moduleId);
-    return _run(resolver.ts, sourceFileGetter);
+expowts.DecwawationWesowva = DecwawationWesowva;
+function wun3(wesowva) {
+    const souwceFiweGetta = (moduweId) => wesowva.getDecwawationSouwceFiwe(moduweId);
+    wetuwn _wun(wesowva.ts, souwceFiweGetta);
 }
-exports.run3 = run3;
-class TypeScriptLanguageServiceHost {
-    constructor(ts, libs, files, compilerOptions) {
+expowts.wun3 = wun3;
+cwass TypeScwiptWanguageSewviceHost {
+    constwuctow(ts, wibs, fiwes, compiwewOptions) {
         this._ts = ts;
-        this._libs = libs;
-        this._files = files;
-        this._compilerOptions = compilerOptions;
+        this._wibs = wibs;
+        this._fiwes = fiwes;
+        this._compiwewOptions = compiwewOptions;
     }
-    // --- language service host ---------------
-    getCompilationSettings() {
-        return this._compilerOptions;
+    // --- wanguage sewvice host ---------------
+    getCompiwationSettings() {
+        wetuwn this._compiwewOptions;
     }
-    getScriptFileNames() {
-        return ([]
-            .concat(Object.keys(this._libs))
-            .concat(Object.keys(this._files)));
+    getScwiptFiweNames() {
+        wetuwn ([]
+            .concat(Object.keys(this._wibs))
+            .concat(Object.keys(this._fiwes)));
     }
-    getScriptVersion(_fileName) {
-        return '1';
+    getScwiptVewsion(_fiweName) {
+        wetuwn '1';
     }
-    getProjectVersion() {
-        return '1';
+    getPwojectVewsion() {
+        wetuwn '1';
     }
-    getScriptSnapshot(fileName) {
-        if (this._files.hasOwnProperty(fileName)) {
-            return this._ts.ScriptSnapshot.fromString(this._files[fileName]);
+    getScwiptSnapshot(fiweName) {
+        if (this._fiwes.hasOwnPwopewty(fiweName)) {
+            wetuwn this._ts.ScwiptSnapshot.fwomStwing(this._fiwes[fiweName]);
         }
-        else if (this._libs.hasOwnProperty(fileName)) {
-            return this._ts.ScriptSnapshot.fromString(this._libs[fileName]);
+        ewse if (this._wibs.hasOwnPwopewty(fiweName)) {
+            wetuwn this._ts.ScwiptSnapshot.fwomStwing(this._wibs[fiweName]);
         }
-        else {
-            return this._ts.ScriptSnapshot.fromString('');
+        ewse {
+            wetuwn this._ts.ScwiptSnapshot.fwomStwing('');
         }
     }
-    getScriptKind(_fileName) {
-        return this._ts.ScriptKind.TS;
+    getScwiptKind(_fiweName) {
+        wetuwn this._ts.ScwiptKind.TS;
     }
-    getCurrentDirectory() {
-        return '';
+    getCuwwentDiwectowy() {
+        wetuwn '';
     }
-    getDefaultLibFileName(_options) {
-        return 'defaultLib:es5';
+    getDefauwtWibFiweName(_options) {
+        wetuwn 'defauwtWib:es5';
     }
-    isDefaultLibFileName(fileName) {
-        return fileName === this.getDefaultLibFileName(this._compilerOptions);
+    isDefauwtWibFiweName(fiweName) {
+        wetuwn fiweName === this.getDefauwtWibFiweName(this._compiwewOptions);
     }
 }
 function execute() {
-    let r = run3(new DeclarationResolver(new FSProvider()));
-    if (!r) {
-        throw new Error(`monaco.d.ts generation error - Cannot continue`);
+    wet w = wun3(new DecwawationWesowva(new FSPwovida()));
+    if (!w) {
+        thwow new Ewwow(`monaco.d.ts genewation ewwow - Cannot continue`);
     }
-    return r;
+    wetuwn w;
 }
-exports.execute = execute;
+expowts.execute = execute;

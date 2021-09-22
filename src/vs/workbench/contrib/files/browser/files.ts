@@ -1,156 +1,156 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IListService } from 'vs/platform/list/browser/listService';
-import { OpenEditor, ISortOrderConfiguration } from 'vs/workbench/contrib/files/common/files';
-import { EditorResourceAccessor, SideBySideEditor, IEditorIdentifier } from 'vs/workbench/common/editor';
-import { List } from 'vs/base/browser/ui/list/listWidget';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
-import { coalesce } from 'vs/base/common/arrays';
-import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditableData } from 'vs/workbench/common/views';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
-import { ProgressLocation } from 'vs/platform/progress/common/progress';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWistSewvice } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { OpenEditow, ISowtOwdewConfiguwation } fwom 'vs/wowkbench/contwib/fiwes/common/fiwes';
+impowt { EditowWesouwceAccessow, SideBySideEditow, IEditowIdentifia } fwom 'vs/wowkbench/common/editow';
+impowt { Wist } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { ExpwowewItem } fwom 'vs/wowkbench/contwib/fiwes/common/expwowewModew';
+impowt { coawesce } fwom 'vs/base/common/awways';
+impowt { AsyncDataTwee } fwom 'vs/base/bwowsa/ui/twee/asyncDataTwee';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IEditabweData } fwom 'vs/wowkbench/common/views';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { WesouwceFiweEdit } fwom 'vs/editow/bwowsa/sewvices/buwkEditSewvice';
+impowt { PwogwessWocation } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
 
-export interface IExplorerService {
-	readonly _serviceBrand: undefined;
-	readonly roots: ExplorerItem[];
-	readonly sortOrderConfiguration: ISortOrderConfiguration;
+expowt intewface IExpwowewSewvice {
+	weadonwy _sewviceBwand: undefined;
+	weadonwy woots: ExpwowewItem[];
+	weadonwy sowtOwdewConfiguwation: ISowtOwdewConfiguwation;
 
-	getContext(respectMultiSelection: boolean): ExplorerItem[];
-	hasViewFocus(): boolean;
-	setEditable(stat: ExplorerItem, data: IEditableData | null): Promise<void>;
-	getEditable(): { stat: ExplorerItem, data: IEditableData } | undefined;
-	getEditableData(stat: ExplorerItem): IEditableData | undefined;
-	// If undefined is passed checks if any element is currently being edited.
-	isEditable(stat: ExplorerItem | undefined): boolean;
-	findClosest(resource: URI): ExplorerItem | null;
-	findClosestRoot(resource: URI): ExplorerItem | null;
-	refresh(): Promise<void>;
-	setToCopy(stats: ExplorerItem[], cut: boolean): Promise<void>;
-	isCut(stat: ExplorerItem): boolean;
-	applyBulkEdit(edit: ResourceFileEdit[], options: { undoLabel: string, progressLabel: string, confirmBeforeUndo?: boolean, progressLocation?: ProgressLocation.Explorer | ProgressLocation.Window }): Promise<void>;
+	getContext(wespectMuwtiSewection: boowean): ExpwowewItem[];
+	hasViewFocus(): boowean;
+	setEditabwe(stat: ExpwowewItem, data: IEditabweData | nuww): Pwomise<void>;
+	getEditabwe(): { stat: ExpwowewItem, data: IEditabweData } | undefined;
+	getEditabweData(stat: ExpwowewItem): IEditabweData | undefined;
+	// If undefined is passed checks if any ewement is cuwwentwy being edited.
+	isEditabwe(stat: ExpwowewItem | undefined): boowean;
+	findCwosest(wesouwce: UWI): ExpwowewItem | nuww;
+	findCwosestWoot(wesouwce: UWI): ExpwowewItem | nuww;
+	wefwesh(): Pwomise<void>;
+	setToCopy(stats: ExpwowewItem[], cut: boowean): Pwomise<void>;
+	isCut(stat: ExpwowewItem): boowean;
+	appwyBuwkEdit(edit: WesouwceFiweEdit[], options: { undoWabew: stwing, pwogwessWabew: stwing, confiwmBefoweUndo?: boowean, pwogwessWocation?: PwogwessWocation.Expwowa | PwogwessWocation.Window }): Pwomise<void>;
 
 	/**
-	 * Selects and reveal the file element provided by the given resource if its found in the explorer.
-	 * Will try to resolve the path in case the explorer is not yet expanded to the file yet.
+	 * Sewects and weveaw the fiwe ewement pwovided by the given wesouwce if its found in the expwowa.
+	 * Wiww twy to wesowve the path in case the expwowa is not yet expanded to the fiwe yet.
 	 */
-	select(resource: URI, reveal?: boolean | string): Promise<void>;
+	sewect(wesouwce: UWI, weveaw?: boowean | stwing): Pwomise<void>;
 
-	registerView(contextAndRefreshProvider: IExplorerView): void;
+	wegistewView(contextAndWefweshPwovida: IExpwowewView): void;
 }
 
-export const IExplorerService = createDecorator<IExplorerService>('explorerService');
+expowt const IExpwowewSewvice = cweateDecowatow<IExpwowewSewvice>('expwowewSewvice');
 
-export interface IExplorerView {
-	getContext(respectMultiSelection: boolean): ExplorerItem[];
-	refresh(recursive: boolean, item?: ExplorerItem): Promise<void>;
-	selectResource(resource: URI | undefined, reveal?: boolean | string): Promise<void>;
-	setTreeInput(): Promise<void>;
-	itemsCopied(tats: ExplorerItem[], cut: boolean, previousCut: ExplorerItem[] | undefined): void;
-	setEditable(stat: ExplorerItem, isEditing: boolean): Promise<void>;
-	isItemVisible(item: ExplorerItem): boolean;
-	hasFocus(): boolean;
+expowt intewface IExpwowewView {
+	getContext(wespectMuwtiSewection: boowean): ExpwowewItem[];
+	wefwesh(wecuwsive: boowean, item?: ExpwowewItem): Pwomise<void>;
+	sewectWesouwce(wesouwce: UWI | undefined, weveaw?: boowean | stwing): Pwomise<void>;
+	setTweeInput(): Pwomise<void>;
+	itemsCopied(tats: ExpwowewItem[], cut: boowean, pweviousCut: ExpwowewItem[] | undefined): void;
+	setEditabwe(stat: ExpwowewItem, isEditing: boowean): Pwomise<void>;
+	isItemVisibwe(item: ExpwowewItem): boowean;
+	hasFocus(): boowean;
 }
 
-function getFocus(listService: IListService): unknown | undefined {
-	let list = listService.lastFocusedList;
-	if (list?.getHTMLElement() === document.activeElement) {
-		let focus: unknown;
-		if (list instanceof List) {
-			const focused = list.getFocusedElements();
-			if (focused.length) {
+function getFocus(wistSewvice: IWistSewvice): unknown | undefined {
+	wet wist = wistSewvice.wastFocusedWist;
+	if (wist?.getHTMWEwement() === document.activeEwement) {
+		wet focus: unknown;
+		if (wist instanceof Wist) {
+			const focused = wist.getFocusedEwements();
+			if (focused.wength) {
 				focus = focused[0];
 			}
-		} else if (list instanceof AsyncDataTree) {
-			const focused = list.getFocus();
-			if (focused.length) {
+		} ewse if (wist instanceof AsyncDataTwee) {
+			const focused = wist.getFocus();
+			if (focused.wength) {
 				focus = focused[0];
 			}
 		}
 
-		return focus;
+		wetuwn focus;
 	}
 
-	return undefined;
+	wetuwn undefined;
 }
 
-// Commands can get executed from a command palette, from a context menu or from some list using a keybinding
-// To cover all these cases we need to properly compute the resource on which the command is being executed
-export function getResourceForCommand(resource: URI | object | undefined, listService: IListService, editorService: IEditorService): URI | undefined {
-	if (URI.isUri(resource)) {
-		return resource;
+// Commands can get executed fwom a command pawette, fwom a context menu ow fwom some wist using a keybinding
+// To cova aww these cases we need to pwopewwy compute the wesouwce on which the command is being executed
+expowt function getWesouwceFowCommand(wesouwce: UWI | object | undefined, wistSewvice: IWistSewvice, editowSewvice: IEditowSewvice): UWI | undefined {
+	if (UWI.isUwi(wesouwce)) {
+		wetuwn wesouwce;
 	}
 
-	const focus = getFocus(listService);
-	if (focus instanceof ExplorerItem) {
-		return focus.resource;
-	} else if (focus instanceof OpenEditor) {
-		return focus.getResource();
+	const focus = getFocus(wistSewvice);
+	if (focus instanceof ExpwowewItem) {
+		wetuwn focus.wesouwce;
+	} ewse if (focus instanceof OpenEditow) {
+		wetuwn focus.getWesouwce();
 	}
 
-	return EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+	wetuwn EditowWesouwceAccessow.getOwiginawUwi(editowSewvice.activeEditow, { suppowtSideBySide: SideBySideEditow.PWIMAWY });
 }
 
-export function getMultiSelectedResources(resource: URI | object | undefined, listService: IListService, editorService: IEditorService, explorerService: IExplorerService): Array<URI> {
-	const list = listService.lastFocusedList;
-	if (list?.getHTMLElement() === document.activeElement) {
-		// Explorer
-		if (list instanceof AsyncDataTree && list.getFocus().every(item => item instanceof ExplorerItem)) {
-			// Explorer
-			const context = explorerService.getContext(true);
-			if (context.length) {
-				return context.map(c => c.resource);
+expowt function getMuwtiSewectedWesouwces(wesouwce: UWI | object | undefined, wistSewvice: IWistSewvice, editowSewvice: IEditowSewvice, expwowewSewvice: IExpwowewSewvice): Awway<UWI> {
+	const wist = wistSewvice.wastFocusedWist;
+	if (wist?.getHTMWEwement() === document.activeEwement) {
+		// Expwowa
+		if (wist instanceof AsyncDataTwee && wist.getFocus().evewy(item => item instanceof ExpwowewItem)) {
+			// Expwowa
+			const context = expwowewSewvice.getContext(twue);
+			if (context.wength) {
+				wetuwn context.map(c => c.wesouwce);
 			}
 		}
 
-		// Open editors view
-		if (list instanceof List) {
-			const selection = coalesce(list.getSelectedElements().filter(s => s instanceof OpenEditor).map((oe: OpenEditor) => oe.getResource()));
-			const focusedElements = list.getFocusedElements();
-			const focus = focusedElements.length ? focusedElements[0] : undefined;
-			let mainUriStr: string | undefined = undefined;
-			if (URI.isUri(resource)) {
-				mainUriStr = resource.toString();
-			} else if (focus instanceof OpenEditor) {
-				const focusedResource = focus.getResource();
-				mainUriStr = focusedResource ? focusedResource.toString() : undefined;
+		// Open editows view
+		if (wist instanceof Wist) {
+			const sewection = coawesce(wist.getSewectedEwements().fiwta(s => s instanceof OpenEditow).map((oe: OpenEditow) => oe.getWesouwce()));
+			const focusedEwements = wist.getFocusedEwements();
+			const focus = focusedEwements.wength ? focusedEwements[0] : undefined;
+			wet mainUwiStw: stwing | undefined = undefined;
+			if (UWI.isUwi(wesouwce)) {
+				mainUwiStw = wesouwce.toStwing();
+			} ewse if (focus instanceof OpenEditow) {
+				const focusedWesouwce = focus.getWesouwce();
+				mainUwiStw = focusedWesouwce ? focusedWesouwce.toStwing() : undefined;
 			}
-			// We only respect the selection if it contains the main element.
-			if (selection.some(s => s.toString() === mainUriStr)) {
-				return selection;
-			}
-		}
-	}
-
-	const result = getResourceForCommand(resource, listService, editorService);
-	return !!result ? [result] : [];
-}
-
-export function getOpenEditorsViewMultiSelection(listService: IListService, editorGroupService: IEditorGroupsService): Array<IEditorIdentifier> | undefined {
-	const list = listService.lastFocusedList;
-	if (list?.getHTMLElement() === document.activeElement) {
-		// Open editors view
-		if (list instanceof List) {
-			const selection = coalesce(list.getSelectedElements().filter(s => s instanceof OpenEditor));
-			const focusedElements = list.getFocusedElements();
-			const focus = focusedElements.length ? focusedElements[0] : undefined;
-			let mainEditor: IEditorIdentifier | undefined = undefined;
-			if (focus instanceof OpenEditor) {
-				mainEditor = focus;
-			}
-			// We only respect the selection if it contains the main element.
-			if (selection.some(s => s === mainEditor)) {
-				return selection;
+			// We onwy wespect the sewection if it contains the main ewement.
+			if (sewection.some(s => s.toStwing() === mainUwiStw)) {
+				wetuwn sewection;
 			}
 		}
 	}
 
-	return undefined;
+	const wesuwt = getWesouwceFowCommand(wesouwce, wistSewvice, editowSewvice);
+	wetuwn !!wesuwt ? [wesuwt] : [];
+}
+
+expowt function getOpenEditowsViewMuwtiSewection(wistSewvice: IWistSewvice, editowGwoupSewvice: IEditowGwoupsSewvice): Awway<IEditowIdentifia> | undefined {
+	const wist = wistSewvice.wastFocusedWist;
+	if (wist?.getHTMWEwement() === document.activeEwement) {
+		// Open editows view
+		if (wist instanceof Wist) {
+			const sewection = coawesce(wist.getSewectedEwements().fiwta(s => s instanceof OpenEditow));
+			const focusedEwements = wist.getFocusedEwements();
+			const focus = focusedEwements.wength ? focusedEwements[0] : undefined;
+			wet mainEditow: IEditowIdentifia | undefined = undefined;
+			if (focus instanceof OpenEditow) {
+				mainEditow = focus;
+			}
+			// We onwy wespect the sewection if it contains the main ewement.
+			if (sewection.some(s => s === mainEditow)) {
+				wetuwn sewection;
+			}
+		}
+	}
+
+	wetuwn undefined;
 }

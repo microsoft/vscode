@@ -1,71 +1,71 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt * as extHostPwotocow fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { IExtHostWpcSewvice } fwom 'vs/wowkbench/api/common/extHostWpcSewvice';
 
-export interface IExtHostApiDeprecationService {
-	readonly _serviceBrand: undefined;
+expowt intewface IExtHostApiDepwecationSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	report(apiId: string, extension: IExtensionDescription, migrationSuggestion: string): void;
+	wepowt(apiId: stwing, extension: IExtensionDescwiption, migwationSuggestion: stwing): void;
 }
 
-export const IExtHostApiDeprecationService = createDecorator<IExtHostApiDeprecationService>('IExtHostApiDeprecationService');
+expowt const IExtHostApiDepwecationSewvice = cweateDecowatow<IExtHostApiDepwecationSewvice>('IExtHostApiDepwecationSewvice');
 
-export class ExtHostApiDeprecationService implements IExtHostApiDeprecationService {
+expowt cwass ExtHostApiDepwecationSewvice impwements IExtHostApiDepwecationSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _reportedUsages = new Set<string>();
-	private readonly _telemetryShape: extHostProtocol.MainThreadTelemetryShape;
+	pwivate weadonwy _wepowtedUsages = new Set<stwing>();
+	pwivate weadonwy _tewemetwyShape: extHostPwotocow.MainThweadTewemetwyShape;
 
-	constructor(
-		@IExtHostRpcService rpc: IExtHostRpcService,
-		@ILogService private readonly _extHostLogService: ILogService,
+	constwuctow(
+		@IExtHostWpcSewvice wpc: IExtHostWpcSewvice,
+		@IWogSewvice pwivate weadonwy _extHostWogSewvice: IWogSewvice,
 	) {
-		this._telemetryShape = rpc.getProxy(extHostProtocol.MainContext.MainThreadTelemetry);
+		this._tewemetwyShape = wpc.getPwoxy(extHostPwotocow.MainContext.MainThweadTewemetwy);
 	}
 
-	public report(apiId: string, extension: IExtensionDescription, migrationSuggestion: string): void {
+	pubwic wepowt(apiId: stwing, extension: IExtensionDescwiption, migwationSuggestion: stwing): void {
 		const key = this.getUsageKey(apiId, extension);
-		if (this._reportedUsages.has(key)) {
-			return;
+		if (this._wepowtedUsages.has(key)) {
+			wetuwn;
 		}
-		this._reportedUsages.add(key);
+		this._wepowtedUsages.add(key);
 
-		if (extension.isUnderDevelopment) {
-			this._extHostLogService.warn(`[Deprecation Warning] '${apiId}' is deprecated. ${migrationSuggestion}`);
+		if (extension.isUndewDevewopment) {
+			this._extHostWogSewvice.wawn(`[Depwecation Wawning] '${apiId}' is depwecated. ${migwationSuggestion}`);
 		}
 
-		type DeprecationTelemetry = {
-			extensionId: string;
-			apiId: string;
+		type DepwecationTewemetwy = {
+			extensionId: stwing;
+			apiId: stwing;
 		};
-		type DeprecationTelemetryMeta = {
-			extensionId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-			apiId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+		type DepwecationTewemetwyMeta = {
+			extensionId: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+			apiId: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
 		};
-		this._telemetryShape.$publicLog2<DeprecationTelemetry, DeprecationTelemetryMeta>('extHostDeprecatedApiUsage', {
-			extensionId: extension.identifier.value,
+		this._tewemetwyShape.$pubwicWog2<DepwecationTewemetwy, DepwecationTewemetwyMeta>('extHostDepwecatedApiUsage', {
+			extensionId: extension.identifia.vawue,
 			apiId: apiId,
 		});
 	}
 
-	private getUsageKey(apiId: string, extension: IExtensionDescription): string {
-		return `${apiId}-${extension.identifier.value}`;
+	pwivate getUsageKey(apiId: stwing, extension: IExtensionDescwiption): stwing {
+		wetuwn `${apiId}-${extension.identifia.vawue}`;
 	}
 }
 
 
-export const NullApiDeprecationService = Object.freeze(new class implements IExtHostApiDeprecationService {
-	declare readonly _serviceBrand: undefined;
+expowt const NuwwApiDepwecationSewvice = Object.fweeze(new cwass impwements IExtHostApiDepwecationSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	public report(_apiId: string, _extension: IExtensionDescription, _warningMessage: string): void {
+	pubwic wepowt(_apiId: stwing, _extension: IExtensionDescwiption, _wawningMessage: stwing): void {
 		// noop
 	}
 }());

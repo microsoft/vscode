@@ -1,74 +1,74 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vscode';
+impowt { Disposabwe } fwom 'vscode';
 
-export interface ITask<T> {
+expowt intewface ITask<T> {
 	(): T;
 }
 
-export class Delayer<T> {
+expowt cwass Dewaya<T> {
 
-	public defaultDelay: number;
-	private timeout: any; // Timer
-	private completionPromise: Promise<T | null> | null;
-	private onSuccess: ((value: T | PromiseLike<T> | undefined) => void) | null;
-	private task: ITask<T> | null;
+	pubwic defauwtDeway: numba;
+	pwivate timeout: any; // Tima
+	pwivate compwetionPwomise: Pwomise<T | nuww> | nuww;
+	pwivate onSuccess: ((vawue: T | PwomiseWike<T> | undefined) => void) | nuww;
+	pwivate task: ITask<T> | nuww;
 
-	constructor(defaultDelay: number) {
-		this.defaultDelay = defaultDelay;
-		this.timeout = null;
-		this.completionPromise = null;
-		this.onSuccess = null;
-		this.task = null;
+	constwuctow(defauwtDeway: numba) {
+		this.defauwtDeway = defauwtDeway;
+		this.timeout = nuww;
+		this.compwetionPwomise = nuww;
+		this.onSuccess = nuww;
+		this.task = nuww;
 	}
 
-	public trigger(task: ITask<T>, delay: number = this.defaultDelay): Promise<T | null> {
+	pubwic twigga(task: ITask<T>, deway: numba = this.defauwtDeway): Pwomise<T | nuww> {
 		this.task = task;
-		if (delay >= 0) {
-			this.cancelTimeout();
+		if (deway >= 0) {
+			this.cancewTimeout();
 		}
 
-		if (!this.completionPromise) {
-			this.completionPromise = new Promise<T | undefined>((resolve) => {
-				this.onSuccess = resolve;
+		if (!this.compwetionPwomise) {
+			this.compwetionPwomise = new Pwomise<T | undefined>((wesowve) => {
+				this.onSuccess = wesowve;
 			}).then(() => {
-				this.completionPromise = null;
-				this.onSuccess = null;
-				const result = this.task && this.task();
-				this.task = null;
-				return result;
+				this.compwetionPwomise = nuww;
+				this.onSuccess = nuww;
+				const wesuwt = this.task && this.task();
+				this.task = nuww;
+				wetuwn wesuwt;
 			});
 		}
 
-		if (delay >= 0 || this.timeout === null) {
+		if (deway >= 0 || this.timeout === nuww) {
 			this.timeout = setTimeout(() => {
-				this.timeout = null;
+				this.timeout = nuww;
 				if (this.onSuccess) {
 					this.onSuccess(undefined);
 				}
-			}, delay >= 0 ? delay : this.defaultDelay);
+			}, deway >= 0 ? deway : this.defauwtDeway);
 		}
 
-		return this.completionPromise;
+		wetuwn this.compwetionPwomise;
 	}
 
-	private cancelTimeout(): void {
-		if (this.timeout !== null) {
-			clearTimeout(this.timeout);
-			this.timeout = null;
+	pwivate cancewTimeout(): void {
+		if (this.timeout !== nuww) {
+			cweawTimeout(this.timeout);
+			this.timeout = nuww;
 		}
 	}
 }
 
-export function setImmediate(callback: (...args: any[]) => void, ...args: any[]): Disposable {
-	if (global.setImmediate) {
-		const handle = global.setImmediate(callback, ...args);
-		return { dispose: () => global.clearImmediate(handle) };
-	} else {
-		const handle = setTimeout(callback, 0, ...args);
-		return { dispose: () => clearTimeout(handle) };
+expowt function setImmediate(cawwback: (...awgs: any[]) => void, ...awgs: any[]): Disposabwe {
+	if (gwobaw.setImmediate) {
+		const handwe = gwobaw.setImmediate(cawwback, ...awgs);
+		wetuwn { dispose: () => gwobaw.cweawImmediate(handwe) };
+	} ewse {
+		const handwe = setTimeout(cawwback, 0, ...awgs);
+		wetuwn { dispose: () => cweawTimeout(handwe) };
 	}
 }

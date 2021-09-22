@@ -1,29 +1,29 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createConnection, BrowserMessageReader, BrowserMessageWriter, Disposable } from 'vscode-languageserver/browser';
-import { RuntimeEnvironment, startServer } from '../cssServer';
+impowt { cweateConnection, BwowsewMessageWeada, BwowsewMessageWwita, Disposabwe } fwom 'vscode-wanguagesewva/bwowsa';
+impowt { WuntimeEnviwonment, stawtSewva } fwom '../cssSewva';
 
-declare let self: any;
+decwawe wet sewf: any;
 
-const messageReader = new BrowserMessageReader(self);
-const messageWriter = new BrowserMessageWriter(self);
+const messageWeada = new BwowsewMessageWeada(sewf);
+const messageWwita = new BwowsewMessageWwita(sewf);
 
-const connection = createConnection(messageReader, messageWriter);
+const connection = cweateConnection(messageWeada, messageWwita);
 
-const runtime: RuntimeEnvironment = {
-	timer: {
-		setImmediate(callback: (...args: any[]) => void, ...args: any[]): Disposable {
-			const handle = setTimeout(callback, 0, ...args);
-			return { dispose: () => clearTimeout(handle) };
+const wuntime: WuntimeEnviwonment = {
+	tima: {
+		setImmediate(cawwback: (...awgs: any[]) => void, ...awgs: any[]): Disposabwe {
+			const handwe = setTimeout(cawwback, 0, ...awgs);
+			wetuwn { dispose: () => cweawTimeout(handwe) };
 		},
-		setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): Disposable {
-			const handle = setTimeout(callback, ms, ...args);
-			return { dispose: () => clearTimeout(handle) };
+		setTimeout(cawwback: (...awgs: any[]) => void, ms: numba, ...awgs: any[]): Disposabwe {
+			const handwe = setTimeout(cawwback, ms, ...awgs);
+			wetuwn { dispose: () => cweawTimeout(handwe) };
 		}
 	}
 };
 
-startServer(connection, runtime);
+stawtSewva(connection, wuntime);

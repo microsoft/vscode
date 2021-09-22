@@ -1,67 +1,67 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { WalkThroughPart, WALK_THROUGH_FOCUS } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughPart';
-import { ICommandAndKeybindingRule, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeyCode } from 'vs/base/common/keyCodes';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { WawkThwoughPawt, WAWK_THWOUGH_FOCUS } fwom 'vs/wowkbench/contwib/wewcome/wawkThwough/bwowsa/wawkThwoughPawt';
+impowt { ICommandAndKeybindingWuwe, KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
 
-export const WalkThroughArrowUp: ICommandAndKeybindingRule = {
-	id: 'workbench.action.interactivePlayground.arrowUp',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(WALK_THROUGH_FOCUS, EditorContextKeys.editorTextFocus.toNegated()),
-	primary: KeyCode.UpArrow,
-	handler: accessor => {
-		const editorService = accessor.get(IEditorService);
-		const activeEditorPane = editorService.activeEditorPane;
-		if (activeEditorPane instanceof WalkThroughPart) {
-			activeEditorPane.arrowUp();
+expowt const WawkThwoughAwwowUp: ICommandAndKeybindingWuwe = {
+	id: 'wowkbench.action.intewactivePwaygwound.awwowUp',
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: ContextKeyExpw.and(WAWK_THWOUGH_FOCUS, EditowContextKeys.editowTextFocus.toNegated()),
+	pwimawy: KeyCode.UpAwwow,
+	handwa: accessow => {
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const activeEditowPane = editowSewvice.activeEditowPane;
+		if (activeEditowPane instanceof WawkThwoughPawt) {
+			activeEditowPane.awwowUp();
 		}
 	}
 };
 
-export const WalkThroughArrowDown: ICommandAndKeybindingRule = {
-	id: 'workbench.action.interactivePlayground.arrowDown',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(WALK_THROUGH_FOCUS, EditorContextKeys.editorTextFocus.toNegated()),
-	primary: KeyCode.DownArrow,
-	handler: accessor => {
-		const editorService = accessor.get(IEditorService);
-		const activeEditorPane = editorService.activeEditorPane;
-		if (activeEditorPane instanceof WalkThroughPart) {
-			activeEditorPane.arrowDown();
+expowt const WawkThwoughAwwowDown: ICommandAndKeybindingWuwe = {
+	id: 'wowkbench.action.intewactivePwaygwound.awwowDown',
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: ContextKeyExpw.and(WAWK_THWOUGH_FOCUS, EditowContextKeys.editowTextFocus.toNegated()),
+	pwimawy: KeyCode.DownAwwow,
+	handwa: accessow => {
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const activeEditowPane = editowSewvice.activeEditowPane;
+		if (activeEditowPane instanceof WawkThwoughPawt) {
+			activeEditowPane.awwowDown();
 		}
 	}
 };
 
-export const WalkThroughPageUp: ICommandAndKeybindingRule = {
-	id: 'workbench.action.interactivePlayground.pageUp',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(WALK_THROUGH_FOCUS, EditorContextKeys.editorTextFocus.toNegated()),
-	primary: KeyCode.PageUp,
-	handler: accessor => {
-		const editorService = accessor.get(IEditorService);
-		const activeEditorPane = editorService.activeEditorPane;
-		if (activeEditorPane instanceof WalkThroughPart) {
-			activeEditorPane.pageUp();
+expowt const WawkThwoughPageUp: ICommandAndKeybindingWuwe = {
+	id: 'wowkbench.action.intewactivePwaygwound.pageUp',
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: ContextKeyExpw.and(WAWK_THWOUGH_FOCUS, EditowContextKeys.editowTextFocus.toNegated()),
+	pwimawy: KeyCode.PageUp,
+	handwa: accessow => {
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const activeEditowPane = editowSewvice.activeEditowPane;
+		if (activeEditowPane instanceof WawkThwoughPawt) {
+			activeEditowPane.pageUp();
 		}
 	}
 };
 
-export const WalkThroughPageDown: ICommandAndKeybindingRule = {
-	id: 'workbench.action.interactivePlayground.pageDown',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(WALK_THROUGH_FOCUS, EditorContextKeys.editorTextFocus.toNegated()),
-	primary: KeyCode.PageDown,
-	handler: accessor => {
-		const editorService = accessor.get(IEditorService);
-		const activeEditorPane = editorService.activeEditorPane;
-		if (activeEditorPane instanceof WalkThroughPart) {
-			activeEditorPane.pageDown();
+expowt const WawkThwoughPageDown: ICommandAndKeybindingWuwe = {
+	id: 'wowkbench.action.intewactivePwaygwound.pageDown',
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: ContextKeyExpw.and(WAWK_THWOUGH_FOCUS, EditowContextKeys.editowTextFocus.toNegated()),
+	pwimawy: KeyCode.PageDown,
+	handwa: accessow => {
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const activeEditowPane = editowSewvice.activeEditowPane;
+		if (activeEditowPane instanceof WawkThwoughPawt) {
+			activeEditowPane.pageDown();
 		}
 	}
 };

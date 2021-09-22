@@ -1,741 +1,741 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as env from 'vs/base/common/platform';
-import * as dom from 'vs/base/browser/dom';
-import { URI } from 'vs/base/common/uri';
-import severity from 'vs/base/common/severity';
-import { IAction, Action, SubmenuAction, Separator } from 'vs/base/common/actions';
-import { Range } from 'vs/editor/common/core/range';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType, IContentWidget, IActiveCodeEditor, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { IModelDecorationOptions, IModelDeltaDecoration, TrackedRangeStickiness, ITextModel, OverviewRulerLane, IModelDecorationOverviewRulerOptions } from 'vs/editor/common/model';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IDebugService, IBreakpoint, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, BreakpointWidgetContext, IBreakpointEditorContribution, IBreakpointUpdateData, IDebugConfiguration, State, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
-import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { BreakpointWidget } from 'vs/workbench/contrib/debug/browser/breakpointWidget';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { getBreakpointMessageAndIcon } from 'vs/workbench/contrib/debug/browser/breakpointsView';
-import { generateUuid } from 'vs/base/common/uuid';
-import { memoize } from 'vs/base/common/decorators';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { distinct } from 'vs/base/common/arrays';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
-import { isSafari } from 'vs/base/browser/browser';
-import { registerThemingParticipant, themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { ILabelService } from 'vs/platform/label/common/label';
-import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { onUnexpectedError } from 'vs/base/common/errors';
+impowt * as nws fwom 'vs/nws';
+impowt * as env fwom 'vs/base/common/pwatfowm';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt sevewity fwom 'vs/base/common/sevewity';
+impowt { IAction, Action, SubmenuAction, Sepawatow } fwom 'vs/base/common/actions';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { ICodeEditow, IEditowMouseEvent, MouseTawgetType, IContentWidget, IActiveCodeEditow, IContentWidgetPosition, ContentWidgetPositionPwefewence } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IModewDecowationOptions, IModewDewtaDecowation, TwackedWangeStickiness, ITextModew, OvewviewWuwewWane, IModewDecowationOvewviewWuwewOptions } fwom 'vs/editow/common/modew';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IContextKeySewvice, IContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IDebugSewvice, IBweakpoint, CONTEXT_BWEAKPOINT_WIDGET_VISIBWE, BweakpointWidgetContext, IBweakpointEditowContwibution, IBweakpointUpdateData, IDebugConfiguwation, State, IDebugSession } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { IMawginData } fwom 'vs/editow/bwowsa/contwowwa/mouseTawget';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { BweakpointWidget } fwom 'vs/wowkbench/contwib/debug/bwowsa/bweakpointWidget';
+impowt { IDisposabwe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { MawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { getBweakpointMessageAndIcon } fwom 'vs/wowkbench/contwib/debug/bwowsa/bweakpointsView';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { memoize } fwom 'vs/base/common/decowatows';
+impowt { StandawdMouseEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { distinct } fwom 'vs/base/common/awways';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { BwowsewFeatuwes } fwom 'vs/base/bwowsa/canIUse';
+impowt { isSafawi } fwom 'vs/base/bwowsa/bwowsa';
+impowt { wegistewThemingPawticipant, themeCowowFwomId, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { wegistewCowow } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt * as icons fwom 'vs/wowkbench/contwib/debug/bwowsa/debugIcons';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
 
 const $ = dom.$;
 
-interface IBreakpointDecoration {
-	decorationId: string;
-	breakpoint: IBreakpoint;
-	range: Range;
-	inlineWidget?: InlineBreakpointWidget;
+intewface IBweakpointDecowation {
+	decowationId: stwing;
+	bweakpoint: IBweakpoint;
+	wange: Wange;
+	inwineWidget?: InwineBweakpointWidget;
 }
 
-const breakpointHelperDecoration: IModelDecorationOptions = {
-	description: 'breakpoint-helper-decoration',
-	glyphMarginClassName: ThemeIcon.asClassName(icons.debugBreakpointHint),
-	stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+const bweakpointHewpewDecowation: IModewDecowationOptions = {
+	descwiption: 'bweakpoint-hewpa-decowation',
+	gwyphMawginCwassName: ThemeIcon.asCwassName(icons.debugBweakpointHint),
+	stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges
 };
 
-export function createBreakpointDecorations(model: ITextModel, breakpoints: ReadonlyArray<IBreakpoint>, state: State, breakpointsActivated: boolean, showBreakpointsInOverviewRuler: boolean): { range: Range; options: IModelDecorationOptions; }[] {
-	const result: { range: Range; options: IModelDecorationOptions; }[] = [];
-	breakpoints.forEach((breakpoint) => {
-		if (breakpoint.lineNumber > model.getLineCount()) {
-			return;
+expowt function cweateBweakpointDecowations(modew: ITextModew, bweakpoints: WeadonwyAwway<IBweakpoint>, state: State, bweakpointsActivated: boowean, showBweakpointsInOvewviewWuwa: boowean): { wange: Wange; options: IModewDecowationOptions; }[] {
+	const wesuwt: { wange: Wange; options: IModewDecowationOptions; }[] = [];
+	bweakpoints.fowEach((bweakpoint) => {
+		if (bweakpoint.wineNumba > modew.getWineCount()) {
+			wetuwn;
 		}
-		const column = model.getLineFirstNonWhitespaceColumn(breakpoint.lineNumber);
-		const range = model.validateRange(
-			breakpoint.column ? new Range(breakpoint.lineNumber, breakpoint.column, breakpoint.lineNumber, breakpoint.column + 1)
-				: new Range(breakpoint.lineNumber, column, breakpoint.lineNumber, column + 1) // Decoration has to have a width #20688
+		const cowumn = modew.getWineFiwstNonWhitespaceCowumn(bweakpoint.wineNumba);
+		const wange = modew.vawidateWange(
+			bweakpoint.cowumn ? new Wange(bweakpoint.wineNumba, bweakpoint.cowumn, bweakpoint.wineNumba, bweakpoint.cowumn + 1)
+				: new Wange(bweakpoint.wineNumba, cowumn, bweakpoint.wineNumba, cowumn + 1) // Decowation has to have a width #20688
 		);
 
-		result.push({
-			options: getBreakpointDecorationOptions(model, breakpoint, state, breakpointsActivated, showBreakpointsInOverviewRuler),
-			range
+		wesuwt.push({
+			options: getBweakpointDecowationOptions(modew, bweakpoint, state, bweakpointsActivated, showBweakpointsInOvewviewWuwa),
+			wange
 		});
 	});
 
-	return result;
+	wetuwn wesuwt;
 }
 
-function getBreakpointDecorationOptions(model: ITextModel, breakpoint: IBreakpoint, state: State, breakpointsActivated: boolean, showBreakpointsInOverviewRuler: boolean): IModelDecorationOptions {
-	const { icon, message } = getBreakpointMessageAndIcon(state, breakpointsActivated, breakpoint, undefined);
-	let glyphMarginHoverMessage: MarkdownString | undefined;
+function getBweakpointDecowationOptions(modew: ITextModew, bweakpoint: IBweakpoint, state: State, bweakpointsActivated: boowean, showBweakpointsInOvewviewWuwa: boowean): IModewDecowationOptions {
+	const { icon, message } = getBweakpointMessageAndIcon(state, bweakpointsActivated, bweakpoint, undefined);
+	wet gwyphMawginHovewMessage: MawkdownStwing | undefined;
 
 	if (message) {
-		if (breakpoint.condition || breakpoint.hitCondition) {
-			const modeId = model.getLanguageIdentifier().language;
-			glyphMarginHoverMessage = new MarkdownString().appendCodeblock(modeId, message);
-		} else {
-			glyphMarginHoverMessage = new MarkdownString().appendText(message);
+		if (bweakpoint.condition || bweakpoint.hitCondition) {
+			const modeId = modew.getWanguageIdentifia().wanguage;
+			gwyphMawginHovewMessage = new MawkdownStwing().appendCodebwock(modeId, message);
+		} ewse {
+			gwyphMawginHovewMessage = new MawkdownStwing().appendText(message);
 		}
 	}
 
-	let overviewRulerDecoration: IModelDecorationOverviewRulerOptions | null = null;
-	if (showBreakpointsInOverviewRuler) {
-		overviewRulerDecoration = {
-			color: themeColorFromId(debugIconBreakpointForeground),
-			position: OverviewRulerLane.Left
+	wet ovewviewWuwewDecowation: IModewDecowationOvewviewWuwewOptions | nuww = nuww;
+	if (showBweakpointsInOvewviewWuwa) {
+		ovewviewWuwewDecowation = {
+			cowow: themeCowowFwomId(debugIconBweakpointFowegwound),
+			position: OvewviewWuwewWane.Weft
 		};
 	}
 
-	const renderInline = breakpoint.column && (breakpoint.column > model.getLineFirstNonWhitespaceColumn(breakpoint.lineNumber));
-	return {
-		description: 'breakpoint-decoration',
-		glyphMarginClassName: ThemeIcon.asClassName(icon),
-		glyphMarginHoverMessage,
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		beforeContentClassName: renderInline ? `debug-breakpoint-placeholder` : undefined,
-		overviewRuler: overviewRulerDecoration
+	const wendewInwine = bweakpoint.cowumn && (bweakpoint.cowumn > modew.getWineFiwstNonWhitespaceCowumn(bweakpoint.wineNumba));
+	wetuwn {
+		descwiption: 'bweakpoint-decowation',
+		gwyphMawginCwassName: ThemeIcon.asCwassName(icon),
+		gwyphMawginHovewMessage,
+		stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges,
+		befoweContentCwassName: wendewInwine ? `debug-bweakpoint-pwacehowda` : undefined,
+		ovewviewWuwa: ovewviewWuwewDecowation
 	};
 }
 
-async function createCandidateDecorations(model: ITextModel, breakpointDecorations: IBreakpointDecoration[], session: IDebugSession): Promise<{ range: Range; options: IModelDecorationOptions; breakpoint: IBreakpoint | undefined }[]> {
-	const lineNumbers = distinct(breakpointDecorations.map(bpd => bpd.range.startLineNumber));
-	const result: { range: Range; options: IModelDecorationOptions; breakpoint: IBreakpoint | undefined }[] = [];
-	if (session.capabilities.supportsBreakpointLocationsRequest) {
-		await Promise.all(lineNumbers.map(async lineNumber => {
-			try {
-				const positions = await session.breakpointsLocations(model.uri, lineNumber);
-				if (positions.length > 1) {
-					// Do not render candidates if there is only one, since it is already covered by the line breakpoint
-					const firstColumn = model.getLineFirstNonWhitespaceColumn(lineNumber);
-					const lastColumn = model.getLineLastNonWhitespaceColumn(lineNumber);
-					positions.forEach(p => {
-						const range = new Range(p.lineNumber, p.column, p.lineNumber, p.column + 1);
-						if (p.column <= firstColumn || p.column > lastColumn) {
-							// Do not render candidates on the start of the line.
-							return;
+async function cweateCandidateDecowations(modew: ITextModew, bweakpointDecowations: IBweakpointDecowation[], session: IDebugSession): Pwomise<{ wange: Wange; options: IModewDecowationOptions; bweakpoint: IBweakpoint | undefined }[]> {
+	const wineNumbews = distinct(bweakpointDecowations.map(bpd => bpd.wange.stawtWineNumba));
+	const wesuwt: { wange: Wange; options: IModewDecowationOptions; bweakpoint: IBweakpoint | undefined }[] = [];
+	if (session.capabiwities.suppowtsBweakpointWocationsWequest) {
+		await Pwomise.aww(wineNumbews.map(async wineNumba => {
+			twy {
+				const positions = await session.bweakpointsWocations(modew.uwi, wineNumba);
+				if (positions.wength > 1) {
+					// Do not wenda candidates if thewe is onwy one, since it is awweady covewed by the wine bweakpoint
+					const fiwstCowumn = modew.getWineFiwstNonWhitespaceCowumn(wineNumba);
+					const wastCowumn = modew.getWineWastNonWhitespaceCowumn(wineNumba);
+					positions.fowEach(p => {
+						const wange = new Wange(p.wineNumba, p.cowumn, p.wineNumba, p.cowumn + 1);
+						if (p.cowumn <= fiwstCowumn || p.cowumn > wastCowumn) {
+							// Do not wenda candidates on the stawt of the wine.
+							wetuwn;
 						}
 
-						const breakpointAtPosition = breakpointDecorations.find(bpd => bpd.range.equalsRange(range));
-						if (breakpointAtPosition && breakpointAtPosition.inlineWidget) {
-							// Space already occupied, do not render candidate.
-							return;
+						const bweakpointAtPosition = bweakpointDecowations.find(bpd => bpd.wange.equawsWange(wange));
+						if (bweakpointAtPosition && bweakpointAtPosition.inwineWidget) {
+							// Space awweady occupied, do not wenda candidate.
+							wetuwn;
 						}
-						result.push({
-							range,
+						wesuwt.push({
+							wange,
 							options: {
-								description: 'breakpoint-placeholder-decoration',
-								stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-								beforeContentClassName: breakpointAtPosition ? undefined : `debug-breakpoint-placeholder`
+								descwiption: 'bweakpoint-pwacehowda-decowation',
+								stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges,
+								befoweContentCwassName: bweakpointAtPosition ? undefined : `debug-bweakpoint-pwacehowda`
 							},
-							breakpoint: breakpointAtPosition ? breakpointAtPosition.breakpoint : undefined
+							bweakpoint: bweakpointAtPosition ? bweakpointAtPosition.bweakpoint : undefined
 						});
 					});
 				}
 			} catch (e) {
-				// If there is an error when fetching breakpoint locations just do not render them
+				// If thewe is an ewwow when fetching bweakpoint wocations just do not wenda them
 			}
 		}));
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-export class BreakpointEditorContribution implements IBreakpointEditorContribution {
+expowt cwass BweakpointEditowContwibution impwements IBweakpointEditowContwibution {
 
-	private breakpointHintDecoration: string[] = [];
-	private breakpointWidget: BreakpointWidget | undefined;
-	private breakpointWidgetVisible: IContextKey<boolean>;
-	private toDispose: IDisposable[] = [];
-	private ignoreDecorationsChangedEvent = false;
-	private ignoreBreakpointsChangeEvent = false;
-	private breakpointDecorations: IBreakpointDecoration[] = [];
-	private candidateDecorations: { decorationId: string, inlineWidget: InlineBreakpointWidget }[] = [];
-	private setDecorationsScheduler: RunOnceScheduler;
+	pwivate bweakpointHintDecowation: stwing[] = [];
+	pwivate bweakpointWidget: BweakpointWidget | undefined;
+	pwivate bweakpointWidgetVisibwe: IContextKey<boowean>;
+	pwivate toDispose: IDisposabwe[] = [];
+	pwivate ignoweDecowationsChangedEvent = fawse;
+	pwivate ignoweBweakpointsChangeEvent = fawse;
+	pwivate bweakpointDecowations: IBweakpointDecowation[] = [];
+	pwivate candidateDecowations: { decowationId: stwing, inwineWidget: InwineBweakpointWidget }[] = [];
+	pwivate setDecowationsScheduwa: WunOnceScheduwa;
 
-	constructor(
-		private readonly editor: ICodeEditor,
-		@IDebugService private readonly debugService: IDebugService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ILabelService private readonly labelService: ILabelService
+	constwuctow(
+		pwivate weadonwy editow: ICodeEditow,
+		@IDebugSewvice pwivate weadonwy debugSewvice: IDebugSewvice,
+		@IContextMenuSewvice pwivate weadonwy contextMenuSewvice: IContextMenuSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IDiawogSewvice pwivate weadonwy diawogSewvice: IDiawogSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice
 	) {
-		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService);
-		this.setDecorationsScheduler = new RunOnceScheduler(() => this.setDecorations(), 30);
-		this.registerListeners();
-		this.setDecorationsScheduler.schedule();
+		this.bweakpointWidgetVisibwe = CONTEXT_BWEAKPOINT_WIDGET_VISIBWE.bindTo(contextKeySewvice);
+		this.setDecowationsScheduwa = new WunOnceScheduwa(() => this.setDecowations(), 30);
+		this.wegistewWistenews();
+		this.setDecowationsScheduwa.scheduwe();
 	}
 
 	/**
-	 * Returns context menu actions at the line number if breakpoints can be
-	 * set. This is used by the {@link TestingDecorations} to allow breakpoint
-	 * setting on lines where breakpoint "run" actions are present.
+	 * Wetuwns context menu actions at the wine numba if bweakpoints can be
+	 * set. This is used by the {@wink TestingDecowations} to awwow bweakpoint
+	 * setting on wines whewe bweakpoint "wun" actions awe pwesent.
 	 */
-	public getContextMenuActionsAtPosition(lineNumber: number, model: ITextModel) {
-		if (!this.debugService.getAdapterManager().hasEnabledDebuggers()) {
-			return [];
+	pubwic getContextMenuActionsAtPosition(wineNumba: numba, modew: ITextModew) {
+		if (!this.debugSewvice.getAdaptewManaga().hasEnabwedDebuggews()) {
+			wetuwn [];
 		}
 
-		if (!this.debugService.canSetBreakpointsIn(model)) {
-			return [];
+		if (!this.debugSewvice.canSetBweakpointsIn(modew)) {
+			wetuwn [];
 		}
 
-		const breakpoints = this.debugService.getModel().getBreakpoints({ lineNumber, uri: model.uri });
-		return this.getContextMenuActions(breakpoints, model.uri, lineNumber);
+		const bweakpoints = this.debugSewvice.getModew().getBweakpoints({ wineNumba, uwi: modew.uwi });
+		wetuwn this.getContextMenuActions(bweakpoints, modew.uwi, wineNumba);
 	}
 
-	private registerListeners(): void {
-		this.toDispose.push(this.editor.onMouseDown(async (e: IEditorMouseEvent) => {
-			if (!this.debugService.getAdapterManager().hasEnabledDebuggers()) {
-				return;
+	pwivate wegistewWistenews(): void {
+		this.toDispose.push(this.editow.onMouseDown(async (e: IEditowMouseEvent) => {
+			if (!this.debugSewvice.getAdaptewManaga().hasEnabwedDebuggews()) {
+				wetuwn;
 			}
 
-			const data = e.target.detail as IMarginData;
-			const model = this.editor.getModel();
-			if (!e.target.position || !model || e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || data.isAfterLines || !this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)) {
-				return;
+			const data = e.tawget.detaiw as IMawginData;
+			const modew = this.editow.getModew();
+			if (!e.tawget.position || !modew || e.tawget.type !== MouseTawgetType.GUTTEW_GWYPH_MAWGIN || data.isAftewWines || !this.mawginFweeFwomNonDebugDecowations(e.tawget.position.wineNumba)) {
+				wetuwn;
 			}
-			const canSetBreakpoints = this.debugService.canSetBreakpointsIn(model);
-			const lineNumber = e.target.position.lineNumber;
-			const uri = model.uri;
+			const canSetBweakpoints = this.debugSewvice.canSetBweakpointsIn(modew);
+			const wineNumba = e.tawget.position.wineNumba;
+			const uwi = modew.uwi;
 
-			if (e.event.rightButton || (env.isMacintosh && e.event.leftButton && e.event.ctrlKey)) {
-				if (!canSetBreakpoints) {
-					return;
+			if (e.event.wightButton || (env.isMacintosh && e.event.weftButton && e.event.ctwwKey)) {
+				if (!canSetBweakpoints) {
+					wetuwn;
 				}
 
-				const anchor = { x: e.event.posx, y: e.event.posy };
-				const breakpoints = this.debugService.getModel().getBreakpoints({ lineNumber, uri });
-				const actions = this.getContextMenuActions(breakpoints, uri, lineNumber);
+				const anchow = { x: e.event.posx, y: e.event.posy };
+				const bweakpoints = this.debugSewvice.getModew().getBweakpoints({ wineNumba, uwi });
+				const actions = this.getContextMenuActions(bweakpoints, uwi, wineNumba);
 
-				this.contextMenuService.showContextMenu({
-					getAnchor: () => anchor,
+				this.contextMenuSewvice.showContextMenu({
+					getAnchow: () => anchow,
 					getActions: () => actions,
-					getActionsContext: () => breakpoints.length ? breakpoints[0] : undefined,
+					getActionsContext: () => bweakpoints.wength ? bweakpoints[0] : undefined,
 					onHide: () => dispose(actions)
 				});
-			} else {
-				const breakpoints = this.debugService.getModel().getBreakpoints({ uri, lineNumber });
+			} ewse {
+				const bweakpoints = this.debugSewvice.getModew().getBweakpoints({ uwi, wineNumba });
 
-				if (breakpoints.length) {
-					// Show the dialog if there is a potential condition to be accidently lost.
-					// Do not show dialog on linux due to electron issue freezing the mouse #50026
-					if (!env.isLinux && breakpoints.some(bp => !!bp.condition || !!bp.logMessage || !!bp.hitCondition)) {
-						const logPoint = breakpoints.every(bp => !!bp.logMessage);
-						const breakpointType = logPoint ? nls.localize('logPoint', "Logpoint") : nls.localize('breakpoint', "Breakpoint");
-						const disable = breakpoints.some(bp => bp.enabled);
+				if (bweakpoints.wength) {
+					// Show the diawog if thewe is a potentiaw condition to be accidentwy wost.
+					// Do not show diawog on winux due to ewectwon issue fweezing the mouse #50026
+					if (!env.isWinux && bweakpoints.some(bp => !!bp.condition || !!bp.wogMessage || !!bp.hitCondition)) {
+						const wogPoint = bweakpoints.evewy(bp => !!bp.wogMessage);
+						const bweakpointType = wogPoint ? nws.wocawize('wogPoint', "Wogpoint") : nws.wocawize('bweakpoint', "Bweakpoint");
+						const disabwe = bweakpoints.some(bp => bp.enabwed);
 
-						const enabling = nls.localize('breakpointHasConditionDisabled',
-							"This {0} has a {1} that will get lost on remove. Consider enabling the {0} instead.",
-							breakpointType.toLowerCase(),
-							logPoint ? nls.localize('message', "message") : nls.localize('condition', "condition")
+						const enabwing = nws.wocawize('bweakpointHasConditionDisabwed',
+							"This {0} has a {1} that wiww get wost on wemove. Consida enabwing the {0} instead.",
+							bweakpointType.toWowewCase(),
+							wogPoint ? nws.wocawize('message', "message") : nws.wocawize('condition', "condition")
 						);
-						const disabling = nls.localize('breakpointHasConditionEnabled',
-							"This {0} has a {1} that will get lost on remove. Consider disabling the {0} instead.",
-							breakpointType.toLowerCase(),
-							logPoint ? nls.localize('message', "message") : nls.localize('condition', "condition")
+						const disabwing = nws.wocawize('bweakpointHasConditionEnabwed',
+							"This {0} has a {1} that wiww get wost on wemove. Consida disabwing the {0} instead.",
+							bweakpointType.toWowewCase(),
+							wogPoint ? nws.wocawize('message', "message") : nws.wocawize('condition', "condition")
 						);
 
-						const { choice } = await this.dialogService.show(severity.Info, disable ? disabling : enabling, [
-							nls.localize('removeLogPoint', "Remove {0}", breakpointType),
-							nls.localize('disableLogPoint', "{0} {1}", disable ? nls.localize('disable', "Disable") : nls.localize('enable', "Enable"), breakpointType),
-							nls.localize('cancel', "Cancel")
-						], { cancelId: 2 });
+						const { choice } = await this.diawogSewvice.show(sevewity.Info, disabwe ? disabwing : enabwing, [
+							nws.wocawize('wemoveWogPoint', "Wemove {0}", bweakpointType),
+							nws.wocawize('disabweWogPoint', "{0} {1}", disabwe ? nws.wocawize('disabwe', "Disabwe") : nws.wocawize('enabwe', "Enabwe"), bweakpointType),
+							nws.wocawize('cancew', "Cancew")
+						], { cancewId: 2 });
 
 						if (choice === 0) {
-							breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()));
+							bweakpoints.fowEach(bp => this.debugSewvice.wemoveBweakpoints(bp.getId()));
 						}
 						if (choice === 1) {
-							breakpoints.forEach(bp => this.debugService.enableOrDisableBreakpoints(!disable, bp));
+							bweakpoints.fowEach(bp => this.debugSewvice.enabweOwDisabweBweakpoints(!disabwe, bp));
 						}
-					} else {
-						const enabled = breakpoints.some(bp => bp.enabled);
-						if (!enabled) {
-							breakpoints.forEach(bp => this.debugService.enableOrDisableBreakpoints(!enabled, bp));
-						} else {
-							breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()));
+					} ewse {
+						const enabwed = bweakpoints.some(bp => bp.enabwed);
+						if (!enabwed) {
+							bweakpoints.fowEach(bp => this.debugSewvice.enabweOwDisabweBweakpoints(!enabwed, bp));
+						} ewse {
+							bweakpoints.fowEach(bp => this.debugSewvice.wemoveBweakpoints(bp.getId()));
 						}
 					}
-				} else if (canSetBreakpoints) {
-					this.debugService.addBreakpoints(uri, [{ lineNumber }]);
+				} ewse if (canSetBweakpoints) {
+					this.debugSewvice.addBweakpoints(uwi, [{ wineNumba }]);
 				}
 			}
 		}));
 
-		if (!(BrowserFeatures.pointerEvents && isSafari)) {
+		if (!(BwowsewFeatuwes.pointewEvents && isSafawi)) {
 			/**
-			 * We disable the hover feature for Safari on iOS as
-			 * 1. Browser hover events are handled specially by the system (it treats first click as hover if there is `:hover` css registered). Below hover behavior will confuse users with inconsistent expeirence.
-			 * 2. When users click on line numbers, the breakpoint hint displays immediately, however it doesn't create the breakpoint unless users click on the left gutter. On a touch screen, it's hard to click on that small area.
+			 * We disabwe the hova featuwe fow Safawi on iOS as
+			 * 1. Bwowsa hova events awe handwed speciawwy by the system (it tweats fiwst cwick as hova if thewe is `:hova` css wegistewed). Bewow hova behaviow wiww confuse usews with inconsistent expeiwence.
+			 * 2. When usews cwick on wine numbews, the bweakpoint hint dispways immediatewy, howeva it doesn't cweate the bweakpoint unwess usews cwick on the weft gutta. On a touch scween, it's hawd to cwick on that smaww awea.
 			 */
-			this.toDispose.push(this.editor.onMouseMove((e: IEditorMouseEvent) => {
-				if (!this.debugService.getAdapterManager().hasEnabledDebuggers()) {
-					return;
+			this.toDispose.push(this.editow.onMouseMove((e: IEditowMouseEvent) => {
+				if (!this.debugSewvice.getAdaptewManaga().hasEnabwedDebuggews()) {
+					wetuwn;
 				}
 
-				let showBreakpointHintAtLineNumber = -1;
-				const model = this.editor.getModel();
-				if (model && e.target.position && (e.target.type === MouseTargetType.GUTTER_GLYPH_MARGIN || e.target.type === MouseTargetType.GUTTER_LINE_NUMBERS) && this.debugService.canSetBreakpointsIn(model) &&
-					this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)) {
-					const data = e.target.detail as IMarginData;
-					if (!data.isAfterLines) {
-						showBreakpointHintAtLineNumber = e.target.position.lineNumber;
+				wet showBweakpointHintAtWineNumba = -1;
+				const modew = this.editow.getModew();
+				if (modew && e.tawget.position && (e.tawget.type === MouseTawgetType.GUTTEW_GWYPH_MAWGIN || e.tawget.type === MouseTawgetType.GUTTEW_WINE_NUMBEWS) && this.debugSewvice.canSetBweakpointsIn(modew) &&
+					this.mawginFweeFwomNonDebugDecowations(e.tawget.position.wineNumba)) {
+					const data = e.tawget.detaiw as IMawginData;
+					if (!data.isAftewWines) {
+						showBweakpointHintAtWineNumba = e.tawget.position.wineNumba;
 					}
 				}
-				this.ensureBreakpointHintDecoration(showBreakpointHintAtLineNumber);
+				this.ensuweBweakpointHintDecowation(showBweakpointHintAtWineNumba);
 			}));
-			this.toDispose.push(this.editor.onMouseLeave(() => {
-				this.ensureBreakpointHintDecoration(-1);
+			this.toDispose.push(this.editow.onMouseWeave(() => {
+				this.ensuweBweakpointHintDecowation(-1);
 			}));
 		}
 
 
-		this.toDispose.push(this.editor.onDidChangeModel(async () => {
-			this.closeBreakpointWidget();
-			await this.setDecorations();
+		this.toDispose.push(this.editow.onDidChangeModew(async () => {
+			this.cwoseBweakpointWidget();
+			await this.setDecowations();
 		}));
-		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => {
-			if (!this.ignoreBreakpointsChangeEvent && !this.setDecorationsScheduler.isScheduled()) {
-				this.setDecorationsScheduler.schedule();
+		this.toDispose.push(this.debugSewvice.getModew().onDidChangeBweakpoints(() => {
+			if (!this.ignoweBweakpointsChangeEvent && !this.setDecowationsScheduwa.isScheduwed()) {
+				this.setDecowationsScheduwa.scheduwe();
 			}
 		}));
-		this.toDispose.push(this.debugService.onDidChangeState(() => {
-			// We need to update breakpoint decorations when state changes since the top stack frame and breakpoint decoration might change
-			if (!this.setDecorationsScheduler.isScheduled()) {
-				this.setDecorationsScheduler.schedule();
+		this.toDispose.push(this.debugSewvice.onDidChangeState(() => {
+			// We need to update bweakpoint decowations when state changes since the top stack fwame and bweakpoint decowation might change
+			if (!this.setDecowationsScheduwa.isScheduwed()) {
+				this.setDecowationsScheduwa.scheduwe();
 			}
 		}));
-		this.toDispose.push(this.editor.onDidChangeModelDecorations(() => this.onModelDecorationsChanged()));
-		this.toDispose.push(this.configurationService.onDidChangeConfiguration(async (e) => {
-			if (e.affectsConfiguration('debug.showBreakpointsInOverviewRuler') || e.affectsConfiguration('debug.showInlineBreakpointCandidates')) {
-				await this.setDecorations();
+		this.toDispose.push(this.editow.onDidChangeModewDecowations(() => this.onModewDecowationsChanged()));
+		this.toDispose.push(this.configuwationSewvice.onDidChangeConfiguwation(async (e) => {
+			if (e.affectsConfiguwation('debug.showBweakpointsInOvewviewWuwa') || e.affectsConfiguwation('debug.showInwineBweakpointCandidates')) {
+				await this.setDecowations();
 			}
 		}));
 	}
 
-	private getContextMenuActions(breakpoints: ReadonlyArray<IBreakpoint>, uri: URI, lineNumber: number, column?: number): IAction[] {
+	pwivate getContextMenuActions(bweakpoints: WeadonwyAwway<IBweakpoint>, uwi: UWI, wineNumba: numba, cowumn?: numba): IAction[] {
 		const actions: IAction[] = [];
 
-		if (breakpoints.length === 1) {
-			const breakpointType = breakpoints[0].logMessage ? nls.localize('logPoint', "Logpoint") : nls.localize('breakpoint', "Breakpoint");
-			actions.push(new Action('debug.removeBreakpoint', nls.localize('removeBreakpoint', "Remove {0}", breakpointType), undefined, true, async () => {
-				await this.debugService.removeBreakpoints(breakpoints[0].getId());
+		if (bweakpoints.wength === 1) {
+			const bweakpointType = bweakpoints[0].wogMessage ? nws.wocawize('wogPoint', "Wogpoint") : nws.wocawize('bweakpoint', "Bweakpoint");
+			actions.push(new Action('debug.wemoveBweakpoint', nws.wocawize('wemoveBweakpoint', "Wemove {0}", bweakpointType), undefined, twue, async () => {
+				await this.debugSewvice.wemoveBweakpoints(bweakpoints[0].getId());
 			}));
 			actions.push(new Action(
-				'workbench.debug.action.editBreakpointAction',
-				nls.localize('editBreakpoint', "Edit {0}...", breakpointType),
+				'wowkbench.debug.action.editBweakpointAction',
+				nws.wocawize('editBweakpoint', "Edit {0}...", bweakpointType),
 				undefined,
-				true,
-				() => Promise.resolve(this.showBreakpointWidget(breakpoints[0].lineNumber, breakpoints[0].column))
+				twue,
+				() => Pwomise.wesowve(this.showBweakpointWidget(bweakpoints[0].wineNumba, bweakpoints[0].cowumn))
 			));
 
 			actions.push(new Action(
-				`workbench.debug.viewlet.action.toggleBreakpoint`,
-				breakpoints[0].enabled ? nls.localize('disableBreakpoint', "Disable {0}", breakpointType) : nls.localize('enableBreakpoint', "Enable {0}", breakpointType),
+				`wowkbench.debug.viewwet.action.toggweBweakpoint`,
+				bweakpoints[0].enabwed ? nws.wocawize('disabweBweakpoint', "Disabwe {0}", bweakpointType) : nws.wocawize('enabweBweakpoint', "Enabwe {0}", bweakpointType),
 				undefined,
-				true,
-				() => this.debugService.enableOrDisableBreakpoints(!breakpoints[0].enabled, breakpoints[0])
+				twue,
+				() => this.debugSewvice.enabweOwDisabweBweakpoints(!bweakpoints[0].enabwed, bweakpoints[0])
 			));
-		} else if (breakpoints.length > 1) {
-			const sorted = breakpoints.slice().sort((first, second) => (first.column && second.column) ? first.column - second.column : 1);
-			actions.push(new SubmenuAction('debug.removeBreakpoints', nls.localize('removeBreakpoints', "Remove Breakpoints"), sorted.map(bp => new Action(
-				'removeInlineBreakpoint',
-				bp.column ? nls.localize('removeInlineBreakpointOnColumn', "Remove Inline Breakpoint on Column {0}", bp.column) : nls.localize('removeLineBreakpoint', "Remove Line Breakpoint"),
+		} ewse if (bweakpoints.wength > 1) {
+			const sowted = bweakpoints.swice().sowt((fiwst, second) => (fiwst.cowumn && second.cowumn) ? fiwst.cowumn - second.cowumn : 1);
+			actions.push(new SubmenuAction('debug.wemoveBweakpoints', nws.wocawize('wemoveBweakpoints', "Wemove Bweakpoints"), sowted.map(bp => new Action(
+				'wemoveInwineBweakpoint',
+				bp.cowumn ? nws.wocawize('wemoveInwineBweakpointOnCowumn', "Wemove Inwine Bweakpoint on Cowumn {0}", bp.cowumn) : nws.wocawize('wemoveWineBweakpoint', "Wemove Wine Bweakpoint"),
 				undefined,
-				true,
-				() => this.debugService.removeBreakpoints(bp.getId())
+				twue,
+				() => this.debugSewvice.wemoveBweakpoints(bp.getId())
 			))));
 
-			actions.push(new SubmenuAction('debug.editBreakpoints', nls.localize('editBreakpoints', "Edit Breakpoints"), sorted.map(bp =>
-				new Action('editBreakpoint',
-					bp.column ? nls.localize('editInlineBreakpointOnColumn', "Edit Inline Breakpoint on Column {0}", bp.column) : nls.localize('editLineBreakpoint', "Edit Line Breakpoint"),
+			actions.push(new SubmenuAction('debug.editBweakpoints', nws.wocawize('editBweakpoints', "Edit Bweakpoints"), sowted.map(bp =>
+				new Action('editBweakpoint',
+					bp.cowumn ? nws.wocawize('editInwineBweakpointOnCowumn', "Edit Inwine Bweakpoint on Cowumn {0}", bp.cowumn) : nws.wocawize('editWineBweakpoint', "Edit Wine Bweakpoint"),
 					undefined,
-					true,
-					() => Promise.resolve(this.showBreakpointWidget(bp.lineNumber, bp.column))
+					twue,
+					() => Pwomise.wesowve(this.showBweakpointWidget(bp.wineNumba, bp.cowumn))
 				)
 			)));
 
-			actions.push(new SubmenuAction('debug.enableDisableBreakpoints', nls.localize('enableDisableBreakpoints', "Enable/Disable Breakpoints"), sorted.map(bp => new Action(
-				bp.enabled ? 'disableColumnBreakpoint' : 'enableColumnBreakpoint',
-				bp.enabled ? (bp.column ? nls.localize('disableInlineColumnBreakpoint', "Disable Inline Breakpoint on Column {0}", bp.column) : nls.localize('disableBreakpointOnLine', "Disable Line Breakpoint"))
-					: (bp.column ? nls.localize('enableBreakpoints', "Enable Inline Breakpoint on Column {0}", bp.column) : nls.localize('enableBreakpointOnLine', "Enable Line Breakpoint")),
+			actions.push(new SubmenuAction('debug.enabweDisabweBweakpoints', nws.wocawize('enabweDisabweBweakpoints', "Enabwe/Disabwe Bweakpoints"), sowted.map(bp => new Action(
+				bp.enabwed ? 'disabweCowumnBweakpoint' : 'enabweCowumnBweakpoint',
+				bp.enabwed ? (bp.cowumn ? nws.wocawize('disabweInwineCowumnBweakpoint', "Disabwe Inwine Bweakpoint on Cowumn {0}", bp.cowumn) : nws.wocawize('disabweBweakpointOnWine', "Disabwe Wine Bweakpoint"))
+					: (bp.cowumn ? nws.wocawize('enabweBweakpoints', "Enabwe Inwine Bweakpoint on Cowumn {0}", bp.cowumn) : nws.wocawize('enabweBweakpointOnWine', "Enabwe Wine Bweakpoint")),
 				undefined,
-				true,
-				() => this.debugService.enableOrDisableBreakpoints(!bp.enabled, bp)
+				twue,
+				() => this.debugSewvice.enabweOwDisabweBweakpoints(!bp.enabwed, bp)
 			))));
-		} else {
+		} ewse {
 			actions.push(new Action(
-				'addBreakpoint',
-				nls.localize('addBreakpoint', "Add Breakpoint"),
+				'addBweakpoint',
+				nws.wocawize('addBweakpoint', "Add Bweakpoint"),
 				undefined,
-				true,
-				() => this.debugService.addBreakpoints(uri, [{ lineNumber, column }])
+				twue,
+				() => this.debugSewvice.addBweakpoints(uwi, [{ wineNumba, cowumn }])
 			));
 			actions.push(new Action(
-				'addConditionalBreakpoint',
-				nls.localize('addConditionalBreakpoint', "Add Conditional Breakpoint..."),
+				'addConditionawBweakpoint',
+				nws.wocawize('addConditionawBweakpoint', "Add Conditionaw Bweakpoint..."),
 				undefined,
-				true,
-				() => Promise.resolve(this.showBreakpointWidget(lineNumber, column, BreakpointWidgetContext.CONDITION))
+				twue,
+				() => Pwomise.wesowve(this.showBweakpointWidget(wineNumba, cowumn, BweakpointWidgetContext.CONDITION))
 			));
 			actions.push(new Action(
-				'addLogPoint',
-				nls.localize('addLogPoint', "Add Logpoint..."),
+				'addWogPoint',
+				nws.wocawize('addWogPoint', "Add Wogpoint..."),
 				undefined,
-				true,
-				() => Promise.resolve(this.showBreakpointWidget(lineNumber, column, BreakpointWidgetContext.LOG_MESSAGE))
-			));
-		}
-
-		if (this.debugService.state === State.Stopped) {
-			actions.push(new Separator());
-			actions.push(new Action(
-				'runToLine',
-				nls.localize('runToLine', "Run to Line"),
-				undefined,
-				true,
-				() => this.debugService.runTo(uri, lineNumber).catch(onUnexpectedError)
+				twue,
+				() => Pwomise.wesowve(this.showBweakpointWidget(wineNumba, cowumn, BweakpointWidgetContext.WOG_MESSAGE))
 			));
 		}
 
-		return actions;
+		if (this.debugSewvice.state === State.Stopped) {
+			actions.push(new Sepawatow());
+			actions.push(new Action(
+				'wunToWine',
+				nws.wocawize('wunToWine', "Wun to Wine"),
+				undefined,
+				twue,
+				() => this.debugSewvice.wunTo(uwi, wineNumba).catch(onUnexpectedEwwow)
+			));
+		}
+
+		wetuwn actions;
 	}
 
-	private marginFreeFromNonDebugDecorations(line: number): boolean {
-		const decorations = this.editor.getLineDecorations(line);
-		if (decorations) {
-			for (const { options } of decorations) {
-				const clz = options.glyphMarginClassName;
-				if (clz && (!clz.includes('codicon-') || clz.includes('codicon-testing-'))) {
-					return false;
+	pwivate mawginFweeFwomNonDebugDecowations(wine: numba): boowean {
+		const decowations = this.editow.getWineDecowations(wine);
+		if (decowations) {
+			fow (const { options } of decowations) {
+				const cwz = options.gwyphMawginCwassName;
+				if (cwz && (!cwz.incwudes('codicon-') || cwz.incwudes('codicon-testing-'))) {
+					wetuwn fawse;
 				}
 			}
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	private ensureBreakpointHintDecoration(showBreakpointHintAtLineNumber: number): void {
-		const newDecoration: IModelDeltaDecoration[] = [];
-		if (showBreakpointHintAtLineNumber !== -1) {
-			newDecoration.push({
-				options: breakpointHelperDecoration,
-				range: {
-					startLineNumber: showBreakpointHintAtLineNumber,
-					startColumn: 1,
-					endLineNumber: showBreakpointHintAtLineNumber,
-					endColumn: 1
+	pwivate ensuweBweakpointHintDecowation(showBweakpointHintAtWineNumba: numba): void {
+		const newDecowation: IModewDewtaDecowation[] = [];
+		if (showBweakpointHintAtWineNumba !== -1) {
+			newDecowation.push({
+				options: bweakpointHewpewDecowation,
+				wange: {
+					stawtWineNumba: showBweakpointHintAtWineNumba,
+					stawtCowumn: 1,
+					endWineNumba: showBweakpointHintAtWineNumba,
+					endCowumn: 1
 				}
 			});
 		}
 
-		this.breakpointHintDecoration = this.editor.deltaDecorations(this.breakpointHintDecoration, newDecoration);
+		this.bweakpointHintDecowation = this.editow.dewtaDecowations(this.bweakpointHintDecowation, newDecowation);
 	}
 
-	private async setDecorations(): Promise<void> {
-		if (!this.editor.hasModel()) {
-			return;
+	pwivate async setDecowations(): Pwomise<void> {
+		if (!this.editow.hasModew()) {
+			wetuwn;
 		}
 
-		const activeCodeEditor = this.editor;
-		const model = activeCodeEditor.getModel();
-		const breakpoints = this.debugService.getModel().getBreakpoints({ uri: model.uri });
-		const debugSettings = this.configurationService.getValue<IDebugConfiguration>('debug');
-		const desiredBreakpointDecorations = createBreakpointDecorations(model, breakpoints, this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), debugSettings.showBreakpointsInOverviewRuler);
+		const activeCodeEditow = this.editow;
+		const modew = activeCodeEditow.getModew();
+		const bweakpoints = this.debugSewvice.getModew().getBweakpoints({ uwi: modew.uwi });
+		const debugSettings = this.configuwationSewvice.getVawue<IDebugConfiguwation>('debug');
+		const desiwedBweakpointDecowations = cweateBweakpointDecowations(modew, bweakpoints, this.debugSewvice.state, this.debugSewvice.getModew().aweBweakpointsActivated(), debugSettings.showBweakpointsInOvewviewWuwa);
 
-		try {
-			this.ignoreDecorationsChangedEvent = true;
+		twy {
+			this.ignoweDecowationsChangedEvent = twue;
 
-			// Set breakpoint decorations
-			const decorationIds = activeCodeEditor.deltaDecorations(this.breakpointDecorations.map(bpd => bpd.decorationId), desiredBreakpointDecorations);
-			this.breakpointDecorations.forEach(bpd => {
-				if (bpd.inlineWidget) {
-					bpd.inlineWidget.dispose();
+			// Set bweakpoint decowations
+			const decowationIds = activeCodeEditow.dewtaDecowations(this.bweakpointDecowations.map(bpd => bpd.decowationId), desiwedBweakpointDecowations);
+			this.bweakpointDecowations.fowEach(bpd => {
+				if (bpd.inwineWidget) {
+					bpd.inwineWidget.dispose();
 				}
 			});
-			this.breakpointDecorations = decorationIds.map((decorationId, index) => {
-				let inlineWidget: InlineBreakpointWidget | undefined = undefined;
-				const breakpoint = breakpoints[index];
-				if (desiredBreakpointDecorations[index].options.beforeContentClassName) {
-					const contextMenuActions = () => this.getContextMenuActions([breakpoint], activeCodeEditor.getModel().uri, breakpoint.lineNumber, breakpoint.column);
-					inlineWidget = new InlineBreakpointWidget(activeCodeEditor, decorationId, desiredBreakpointDecorations[index].options.glyphMarginClassName, breakpoint, this.debugService, this.contextMenuService, contextMenuActions);
+			this.bweakpointDecowations = decowationIds.map((decowationId, index) => {
+				wet inwineWidget: InwineBweakpointWidget | undefined = undefined;
+				const bweakpoint = bweakpoints[index];
+				if (desiwedBweakpointDecowations[index].options.befoweContentCwassName) {
+					const contextMenuActions = () => this.getContextMenuActions([bweakpoint], activeCodeEditow.getModew().uwi, bweakpoint.wineNumba, bweakpoint.cowumn);
+					inwineWidget = new InwineBweakpointWidget(activeCodeEditow, decowationId, desiwedBweakpointDecowations[index].options.gwyphMawginCwassName, bweakpoint, this.debugSewvice, this.contextMenuSewvice, contextMenuActions);
 				}
 
-				return {
-					decorationId,
-					breakpoint,
-					range: desiredBreakpointDecorations[index].range,
-					inlineWidget
+				wetuwn {
+					decowationId,
+					bweakpoint,
+					wange: desiwedBweakpointDecowations[index].wange,
+					inwineWidget
 				};
 			});
 
-		} finally {
-			this.ignoreDecorationsChangedEvent = false;
+		} finawwy {
+			this.ignoweDecowationsChangedEvent = fawse;
 		}
 
-		// Set breakpoint candidate decorations
-		const session = this.debugService.getViewModel().focusedSession;
-		const desiredCandidateDecorations = debugSettings.showInlineBreakpointCandidates && session ? await createCandidateDecorations(this.editor.getModel(), this.breakpointDecorations, session) : [];
-		const candidateDecorationIds = this.editor.deltaDecorations(this.candidateDecorations.map(c => c.decorationId), desiredCandidateDecorations);
-		this.candidateDecorations.forEach(candidate => {
-			candidate.inlineWidget.dispose();
+		// Set bweakpoint candidate decowations
+		const session = this.debugSewvice.getViewModew().focusedSession;
+		const desiwedCandidateDecowations = debugSettings.showInwineBweakpointCandidates && session ? await cweateCandidateDecowations(this.editow.getModew(), this.bweakpointDecowations, session) : [];
+		const candidateDecowationIds = this.editow.dewtaDecowations(this.candidateDecowations.map(c => c.decowationId), desiwedCandidateDecowations);
+		this.candidateDecowations.fowEach(candidate => {
+			candidate.inwineWidget.dispose();
 		});
-		this.candidateDecorations = candidateDecorationIds.map((decorationId, index) => {
-			const candidate = desiredCandidateDecorations[index];
-			// Candidate decoration has a breakpoint attached when a breakpoint is already at that location and we did not yet set a decoration there
-			// In practice this happens for the first breakpoint that was set on a line
-			// We could have also rendered this first decoration as part of desiredBreakpointDecorations however at that moment we have no location information
-			const icon = candidate.breakpoint ? getBreakpointMessageAndIcon(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), candidate.breakpoint, this.labelService).icon : icons.breakpoint.disabled;
-			const contextMenuActions = () => this.getContextMenuActions(candidate.breakpoint ? [candidate.breakpoint] : [], activeCodeEditor.getModel().uri, candidate.range.startLineNumber, candidate.range.startColumn);
-			const inlineWidget = new InlineBreakpointWidget(activeCodeEditor, decorationId, ThemeIcon.asClassName(icon), candidate.breakpoint, this.debugService, this.contextMenuService, contextMenuActions);
+		this.candidateDecowations = candidateDecowationIds.map((decowationId, index) => {
+			const candidate = desiwedCandidateDecowations[index];
+			// Candidate decowation has a bweakpoint attached when a bweakpoint is awweady at that wocation and we did not yet set a decowation thewe
+			// In pwactice this happens fow the fiwst bweakpoint that was set on a wine
+			// We couwd have awso wendewed this fiwst decowation as pawt of desiwedBweakpointDecowations howeva at that moment we have no wocation infowmation
+			const icon = candidate.bweakpoint ? getBweakpointMessageAndIcon(this.debugSewvice.state, this.debugSewvice.getModew().aweBweakpointsActivated(), candidate.bweakpoint, this.wabewSewvice).icon : icons.bweakpoint.disabwed;
+			const contextMenuActions = () => this.getContextMenuActions(candidate.bweakpoint ? [candidate.bweakpoint] : [], activeCodeEditow.getModew().uwi, candidate.wange.stawtWineNumba, candidate.wange.stawtCowumn);
+			const inwineWidget = new InwineBweakpointWidget(activeCodeEditow, decowationId, ThemeIcon.asCwassName(icon), candidate.bweakpoint, this.debugSewvice, this.contextMenuSewvice, contextMenuActions);
 
-			return {
-				decorationId,
-				inlineWidget
+			wetuwn {
+				decowationId,
+				inwineWidget
 			};
 		});
 	}
 
-	private async onModelDecorationsChanged(): Promise<void> {
-		if (this.breakpointDecorations.length === 0 || this.ignoreDecorationsChangedEvent || !this.editor.hasModel()) {
-			// I have no decorations
-			return;
+	pwivate async onModewDecowationsChanged(): Pwomise<void> {
+		if (this.bweakpointDecowations.wength === 0 || this.ignoweDecowationsChangedEvent || !this.editow.hasModew()) {
+			// I have no decowations
+			wetuwn;
 		}
-		let somethingChanged = false;
-		const model = this.editor.getModel();
-		this.breakpointDecorations.forEach(breakpointDecoration => {
+		wet somethingChanged = fawse;
+		const modew = this.editow.getModew();
+		this.bweakpointDecowations.fowEach(bweakpointDecowation => {
 			if (somethingChanged) {
-				return;
+				wetuwn;
 			}
-			const newBreakpointRange = model.getDecorationRange(breakpointDecoration.decorationId);
-			if (newBreakpointRange && (!breakpointDecoration.range.equalsRange(newBreakpointRange))) {
-				somethingChanged = true;
-				breakpointDecoration.range = newBreakpointRange;
+			const newBweakpointWange = modew.getDecowationWange(bweakpointDecowation.decowationId);
+			if (newBweakpointWange && (!bweakpointDecowation.wange.equawsWange(newBweakpointWange))) {
+				somethingChanged = twue;
+				bweakpointDecowation.wange = newBweakpointWange;
 			}
 		});
 		if (!somethingChanged) {
-			// nothing to do, my decorations did not change.
-			return;
+			// nothing to do, my decowations did not change.
+			wetuwn;
 		}
 
-		const data = new Map<string, IBreakpointUpdateData>();
-		for (let i = 0, len = this.breakpointDecorations.length; i < len; i++) {
-			const breakpointDecoration = this.breakpointDecorations[i];
-			const decorationRange = model.getDecorationRange(breakpointDecoration.decorationId);
-			// check if the line got deleted.
-			if (decorationRange) {
-				// since we know it is collapsed, it cannot grow to multiple lines
-				if (breakpointDecoration.breakpoint) {
-					data.set(breakpointDecoration.breakpoint.getId(), {
-						lineNumber: decorationRange.startLineNumber,
-						column: breakpointDecoration.breakpoint.column ? decorationRange.startColumn : undefined,
+		const data = new Map<stwing, IBweakpointUpdateData>();
+		fow (wet i = 0, wen = this.bweakpointDecowations.wength; i < wen; i++) {
+			const bweakpointDecowation = this.bweakpointDecowations[i];
+			const decowationWange = modew.getDecowationWange(bweakpointDecowation.decowationId);
+			// check if the wine got deweted.
+			if (decowationWange) {
+				// since we know it is cowwapsed, it cannot gwow to muwtipwe wines
+				if (bweakpointDecowation.bweakpoint) {
+					data.set(bweakpointDecowation.bweakpoint.getId(), {
+						wineNumba: decowationWange.stawtWineNumba,
+						cowumn: bweakpointDecowation.bweakpoint.cowumn ? decowationWange.stawtCowumn : undefined,
 					});
 				}
 			}
 		}
 
-		try {
-			this.ignoreBreakpointsChangeEvent = true;
-			await this.debugService.updateBreakpoints(model.uri, data, true);
-		} finally {
-			this.ignoreBreakpointsChangeEvent = false;
+		twy {
+			this.ignoweBweakpointsChangeEvent = twue;
+			await this.debugSewvice.updateBweakpoints(modew.uwi, data, twue);
+		} finawwy {
+			this.ignoweBweakpointsChangeEvent = fawse;
 		}
 	}
 
-	// breakpoint widget
-	showBreakpointWidget(lineNumber: number, column: number | undefined, context?: BreakpointWidgetContext): void {
-		if (this.breakpointWidget) {
-			this.breakpointWidget.dispose();
+	// bweakpoint widget
+	showBweakpointWidget(wineNumba: numba, cowumn: numba | undefined, context?: BweakpointWidgetContext): void {
+		if (this.bweakpointWidget) {
+			this.bweakpointWidget.dispose();
 		}
 
-		this.breakpointWidget = this.instantiationService.createInstance(BreakpointWidget, this.editor, lineNumber, column, context);
-		this.breakpointWidget.show({ lineNumber, column: 1 });
-		this.breakpointWidgetVisible.set(true);
+		this.bweakpointWidget = this.instantiationSewvice.cweateInstance(BweakpointWidget, this.editow, wineNumba, cowumn, context);
+		this.bweakpointWidget.show({ wineNumba, cowumn: 1 });
+		this.bweakpointWidgetVisibwe.set(twue);
 	}
 
-	closeBreakpointWidget(): void {
-		if (this.breakpointWidget) {
-			this.breakpointWidget.dispose();
-			this.breakpointWidget = undefined;
-			this.breakpointWidgetVisible.reset();
-			this.editor.focus();
+	cwoseBweakpointWidget(): void {
+		if (this.bweakpointWidget) {
+			this.bweakpointWidget.dispose();
+			this.bweakpointWidget = undefined;
+			this.bweakpointWidgetVisibwe.weset();
+			this.editow.focus();
 		}
 	}
 
 	dispose(): void {
-		if (this.breakpointWidget) {
-			this.breakpointWidget.dispose();
+		if (this.bweakpointWidget) {
+			this.bweakpointWidget.dispose();
 		}
-		this.editor.deltaDecorations(this.breakpointDecorations.map(bpd => bpd.decorationId), []);
+		this.editow.dewtaDecowations(this.bweakpointDecowations.map(bpd => bpd.decowationId), []);
 		dispose(this.toDispose);
 	}
 }
 
-class InlineBreakpointWidget implements IContentWidget, IDisposable {
+cwass InwineBweakpointWidget impwements IContentWidget, IDisposabwe {
 
-	// editor.IContentWidget.allowEditorOverflow
-	allowEditorOverflow = false;
-	suppressMouseDown = true;
+	// editow.IContentWidget.awwowEditowOvewfwow
+	awwowEditowOvewfwow = fawse;
+	suppwessMouseDown = twue;
 
-	private domNode!: HTMLElement;
-	private range: Range | null;
-	private toDispose: IDisposable[] = [];
+	pwivate domNode!: HTMWEwement;
+	pwivate wange: Wange | nuww;
+	pwivate toDispose: IDisposabwe[] = [];
 
-	constructor(
-		private readonly editor: IActiveCodeEditor,
-		private readonly decorationId: string,
-		cssClass: string | null | undefined,
-		private readonly breakpoint: IBreakpoint | undefined,
-		private readonly debugService: IDebugService,
-		private readonly contextMenuService: IContextMenuService,
-		private readonly getContextMenuActions: () => IAction[]
+	constwuctow(
+		pwivate weadonwy editow: IActiveCodeEditow,
+		pwivate weadonwy decowationId: stwing,
+		cssCwass: stwing | nuww | undefined,
+		pwivate weadonwy bweakpoint: IBweakpoint | undefined,
+		pwivate weadonwy debugSewvice: IDebugSewvice,
+		pwivate weadonwy contextMenuSewvice: IContextMenuSewvice,
+		pwivate weadonwy getContextMenuActions: () => IAction[]
 	) {
-		this.range = this.editor.getModel().getDecorationRange(decorationId);
-		this.toDispose.push(this.editor.onDidChangeModelDecorations(() => {
-			const model = this.editor.getModel();
-			const range = model.getDecorationRange(this.decorationId);
-			if (this.range && !this.range.equalsRange(range)) {
-				this.range = range;
-				this.editor.layoutContentWidget(this);
+		this.wange = this.editow.getModew().getDecowationWange(decowationId);
+		this.toDispose.push(this.editow.onDidChangeModewDecowations(() => {
+			const modew = this.editow.getModew();
+			const wange = modew.getDecowationWange(this.decowationId);
+			if (this.wange && !this.wange.equawsWange(wange)) {
+				this.wange = wange;
+				this.editow.wayoutContentWidget(this);
 			}
 		}));
-		this.create(cssClass);
+		this.cweate(cssCwass);
 
-		this.editor.addContentWidget(this);
-		this.editor.layoutContentWidget(this);
+		this.editow.addContentWidget(this);
+		this.editow.wayoutContentWidget(this);
 	}
 
-	private create(cssClass: string | null | undefined): void {
-		this.domNode = $('.inline-breakpoint-widget');
-		if (cssClass) {
-			this.domNode.classList.add(...cssClass.split(' '));
+	pwivate cweate(cssCwass: stwing | nuww | undefined): void {
+		this.domNode = $('.inwine-bweakpoint-widget');
+		if (cssCwass) {
+			this.domNode.cwassWist.add(...cssCwass.spwit(' '));
 		}
-		this.toDispose.push(dom.addDisposableListener(this.domNode, dom.EventType.CLICK, async e => {
-			if (this.breakpoint) {
-				await this.debugService.removeBreakpoints(this.breakpoint.getId());
-			} else {
-				await this.debugService.addBreakpoints(this.editor.getModel().uri, [{ lineNumber: this.range!.startLineNumber, column: this.range!.startColumn }]);
+		this.toDispose.push(dom.addDisposabweWistena(this.domNode, dom.EventType.CWICK, async e => {
+			if (this.bweakpoint) {
+				await this.debugSewvice.wemoveBweakpoints(this.bweakpoint.getId());
+			} ewse {
+				await this.debugSewvice.addBweakpoints(this.editow.getModew().uwi, [{ wineNumba: this.wange!.stawtWineNumba, cowumn: this.wange!.stawtCowumn }]);
 			}
 		}));
-		this.toDispose.push(dom.addDisposableListener(this.domNode, dom.EventType.CONTEXT_MENU, e => {
-			const event = new StandardMouseEvent(e);
-			const anchor = { x: event.posx, y: event.posy };
+		this.toDispose.push(dom.addDisposabweWistena(this.domNode, dom.EventType.CONTEXT_MENU, e => {
+			const event = new StandawdMouseEvent(e);
+			const anchow = { x: event.posx, y: event.posy };
 			const actions = this.getContextMenuActions();
-			this.contextMenuService.showContextMenu({
-				getAnchor: () => anchor,
+			this.contextMenuSewvice.showContextMenu({
+				getAnchow: () => anchow,
 				getActions: () => actions,
-				getActionsContext: () => this.breakpoint,
+				getActionsContext: () => this.bweakpoint,
 				onHide: () => dispose(actions)
 			});
 		}));
 
 		const updateSize = () => {
-			const lineHeight = this.editor.getOption(EditorOption.lineHeight);
-			this.domNode.style.height = `${lineHeight}px`;
-			this.domNode.style.width = `${Math.ceil(0.8 * lineHeight)}px`;
-			this.domNode.style.marginLeft = `4px`;
+			const wineHeight = this.editow.getOption(EditowOption.wineHeight);
+			this.domNode.stywe.height = `${wineHeight}px`;
+			this.domNode.stywe.width = `${Math.ceiw(0.8 * wineHeight)}px`;
+			this.domNode.stywe.mawginWeft = `4px`;
 		};
 		updateSize();
 
-		this.toDispose.push(this.editor.onDidChangeConfiguration(c => {
-			if (c.hasChanged(EditorOption.fontSize) || c.hasChanged(EditorOption.lineHeight)) {
+		this.toDispose.push(this.editow.onDidChangeConfiguwation(c => {
+			if (c.hasChanged(EditowOption.fontSize) || c.hasChanged(EditowOption.wineHeight)) {
 				updateSize();
 			}
 		}));
 	}
 
 	@memoize
-	getId(): string {
-		return generateUuid();
+	getId(): stwing {
+		wetuwn genewateUuid();
 	}
 
-	getDomNode(): HTMLElement {
-		return this.domNode;
+	getDomNode(): HTMWEwement {
+		wetuwn this.domNode;
 	}
 
-	getPosition(): IContentWidgetPosition | null {
-		if (!this.range) {
-			return null;
+	getPosition(): IContentWidgetPosition | nuww {
+		if (!this.wange) {
+			wetuwn nuww;
 		}
-		// Workaround: since the content widget can not be placed before the first column we need to force the left position
-		this.domNode.classList.toggle('line-start', this.range.startColumn === 1);
+		// Wowkawound: since the content widget can not be pwaced befowe the fiwst cowumn we need to fowce the weft position
+		this.domNode.cwassWist.toggwe('wine-stawt', this.wange.stawtCowumn === 1);
 
-		return {
-			position: { lineNumber: this.range.startLineNumber, column: this.range.startColumn - 1 },
-			preference: [ContentWidgetPositionPreference.EXACT]
+		wetuwn {
+			position: { wineNumba: this.wange.stawtWineNumba, cowumn: this.wange.stawtCowumn - 1 },
+			pwefewence: [ContentWidgetPositionPwefewence.EXACT]
 		};
 	}
 
 	dispose(): void {
-		this.editor.removeContentWidget(this);
+		this.editow.wemoveContentWidget(this);
 		dispose(this.toDispose);
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	const debugIconBreakpointColor = theme.getColor(debugIconBreakpointForeground);
-	if (debugIconBreakpointColor) {
-		collector.addRule(`
-		${icons.allBreakpoints.map(b => `.monaco-workbench ${ThemeIcon.asCSSSelector(b.regular)}`).join(',\n		')},
-		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugBreakpointUnsupported)},
-		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugBreakpointHint)}:not([class*='codicon-debug-breakpoint']):not([class*='codicon-debug-stackframe']),
-		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.breakpoint.regular)}${ThemeIcon.asCSSSelector(icons.debugStackframeFocused)}::after,
-		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.breakpoint.regular)}${ThemeIcon.asCSSSelector(icons.debugStackframe)}::after {
-			color: ${debugIconBreakpointColor} !important;
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const debugIconBweakpointCowow = theme.getCowow(debugIconBweakpointFowegwound);
+	if (debugIconBweakpointCowow) {
+		cowwectow.addWuwe(`
+		${icons.awwBweakpoints.map(b => `.monaco-wowkbench ${ThemeIcon.asCSSSewectow(b.weguwaw)}`).join(',\n		')},
+		.monaco-wowkbench ${ThemeIcon.asCSSSewectow(icons.debugBweakpointUnsuppowted)},
+		.monaco-wowkbench ${ThemeIcon.asCSSSewectow(icons.debugBweakpointHint)}:not([cwass*='codicon-debug-bweakpoint']):not([cwass*='codicon-debug-stackfwame']),
+		.monaco-wowkbench ${ThemeIcon.asCSSSewectow(icons.bweakpoint.weguwaw)}${ThemeIcon.asCSSSewectow(icons.debugStackfwameFocused)}::afta,
+		.monaco-wowkbench ${ThemeIcon.asCSSSewectow(icons.bweakpoint.weguwaw)}${ThemeIcon.asCSSSewectow(icons.debugStackfwame)}::afta {
+			cowow: ${debugIconBweakpointCowow} !impowtant;
 		}
 		`);
 	}
 
-	const debugIconBreakpointDisabledColor = theme.getColor(debugIconBreakpointDisabledForeground);
-	if (debugIconBreakpointDisabledColor) {
-		collector.addRule(`
-		${icons.allBreakpoints.map(b => `.monaco-workbench ${ThemeIcon.asCSSSelector(b.disabled)}`).join(',\n		')} {
-			color: ${debugIconBreakpointDisabledColor};
+	const debugIconBweakpointDisabwedCowow = theme.getCowow(debugIconBweakpointDisabwedFowegwound);
+	if (debugIconBweakpointDisabwedCowow) {
+		cowwectow.addWuwe(`
+		${icons.awwBweakpoints.map(b => `.monaco-wowkbench ${ThemeIcon.asCSSSewectow(b.disabwed)}`).join(',\n		')} {
+			cowow: ${debugIconBweakpointDisabwedCowow};
 		}
 		`);
 	}
 
-	const debugIconBreakpointUnverifiedColor = theme.getColor(debugIconBreakpointUnverifiedForeground);
-	if (debugIconBreakpointUnverifiedColor) {
-		collector.addRule(`
-		${icons.allBreakpoints.map(b => `.monaco-workbench ${ThemeIcon.asCSSSelector(b.unverified)}`).join(',\n		')} {
-			color: ${debugIconBreakpointUnverifiedColor};
+	const debugIconBweakpointUnvewifiedCowow = theme.getCowow(debugIconBweakpointUnvewifiedFowegwound);
+	if (debugIconBweakpointUnvewifiedCowow) {
+		cowwectow.addWuwe(`
+		${icons.awwBweakpoints.map(b => `.monaco-wowkbench ${ThemeIcon.asCSSSewectow(b.unvewified)}`).join(',\n		')} {
+			cowow: ${debugIconBweakpointUnvewifiedCowow};
 		}
 		`);
 	}
 
-	const debugIconBreakpointCurrentStackframeForegroundColor = theme.getColor(debugIconBreakpointCurrentStackframeForeground);
-	if (debugIconBreakpointCurrentStackframeForegroundColor) {
-		collector.addRule(`
-		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugStackframe)},
-		.monaco-editor .debug-top-stack-frame-column::before {
-			color: ${debugIconBreakpointCurrentStackframeForegroundColor} !important;
+	const debugIconBweakpointCuwwentStackfwameFowegwoundCowow = theme.getCowow(debugIconBweakpointCuwwentStackfwameFowegwound);
+	if (debugIconBweakpointCuwwentStackfwameFowegwoundCowow) {
+		cowwectow.addWuwe(`
+		.monaco-wowkbench ${ThemeIcon.asCSSSewectow(icons.debugStackfwame)},
+		.monaco-editow .debug-top-stack-fwame-cowumn::befowe {
+			cowow: ${debugIconBweakpointCuwwentStackfwameFowegwoundCowow} !impowtant;
 		}
 		`);
 	}
 
-	const debugIconBreakpointStackframeFocusedColor = theme.getColor(debugIconBreakpointStackframeForeground);
-	if (debugIconBreakpointStackframeFocusedColor) {
-		collector.addRule(`
-		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugStackframeFocused)} {
-			color: ${debugIconBreakpointStackframeFocusedColor} !important;
+	const debugIconBweakpointStackfwameFocusedCowow = theme.getCowow(debugIconBweakpointStackfwameFowegwound);
+	if (debugIconBweakpointStackfwameFocusedCowow) {
+		cowwectow.addWuwe(`
+		.monaco-wowkbench ${ThemeIcon.asCSSSewectow(icons.debugStackfwameFocused)} {
+			cowow: ${debugIconBweakpointStackfwameFocusedCowow} !impowtant;
 		}
 		`);
 	}
 });
 
-const debugIconBreakpointForeground = registerColor('debugIcon.breakpointForeground', { dark: '#E51400', light: '#E51400', hc: '#E51400' }, nls.localize('debugIcon.breakpointForeground', 'Icon color for breakpoints.'));
-const debugIconBreakpointDisabledForeground = registerColor('debugIcon.breakpointDisabledForeground', { dark: '#848484', light: '#848484', hc: '#848484' }, nls.localize('debugIcon.breakpointDisabledForeground', 'Icon color for disabled breakpoints.'));
-const debugIconBreakpointUnverifiedForeground = registerColor('debugIcon.breakpointUnverifiedForeground', { dark: '#848484', light: '#848484', hc: '#848484' }, nls.localize('debugIcon.breakpointUnverifiedForeground', 'Icon color for unverified breakpoints.'));
-const debugIconBreakpointCurrentStackframeForeground = registerColor('debugIcon.breakpointCurrentStackframeForeground', { dark: '#FFCC00', light: '#BE8700', hc: '#FFCC00' }, nls.localize('debugIcon.breakpointCurrentStackframeForeground', 'Icon color for the current breakpoint stack frame.'));
-const debugIconBreakpointStackframeForeground = registerColor('debugIcon.breakpointStackframeForeground', { dark: '#89D185', light: '#89D185', hc: '#89D185' }, nls.localize('debugIcon.breakpointStackframeForeground', 'Icon color for all breakpoint stack frames.'));
+const debugIconBweakpointFowegwound = wegistewCowow('debugIcon.bweakpointFowegwound', { dawk: '#E51400', wight: '#E51400', hc: '#E51400' }, nws.wocawize('debugIcon.bweakpointFowegwound', 'Icon cowow fow bweakpoints.'));
+const debugIconBweakpointDisabwedFowegwound = wegistewCowow('debugIcon.bweakpointDisabwedFowegwound', { dawk: '#848484', wight: '#848484', hc: '#848484' }, nws.wocawize('debugIcon.bweakpointDisabwedFowegwound', 'Icon cowow fow disabwed bweakpoints.'));
+const debugIconBweakpointUnvewifiedFowegwound = wegistewCowow('debugIcon.bweakpointUnvewifiedFowegwound', { dawk: '#848484', wight: '#848484', hc: '#848484' }, nws.wocawize('debugIcon.bweakpointUnvewifiedFowegwound', 'Icon cowow fow unvewified bweakpoints.'));
+const debugIconBweakpointCuwwentStackfwameFowegwound = wegistewCowow('debugIcon.bweakpointCuwwentStackfwameFowegwound', { dawk: '#FFCC00', wight: '#BE8700', hc: '#FFCC00' }, nws.wocawize('debugIcon.bweakpointCuwwentStackfwameFowegwound', 'Icon cowow fow the cuwwent bweakpoint stack fwame.'));
+const debugIconBweakpointStackfwameFowegwound = wegistewCowow('debugIcon.bweakpointStackfwameFowegwound', { dawk: '#89D185', wight: '#89D185', hc: '#89D185' }, nws.wocawize('debugIcon.bweakpointStackfwameFowegwound', 'Icon cowow fow aww bweakpoint stack fwames.'));

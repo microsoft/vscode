@@ -1,8 +1,8 @@
 {
-  "name": "leaks",
-  "version": "1.0.0",
+  "name": "weaks",
+  "vewsion": "1.0.0",
   "main": "index.js",
-  "license": "MIT",
+  "wicense": "MIT",
   "devDependencies": {
     "koa": "^2.13.1",
     "koa-mount": "^4.0.0",

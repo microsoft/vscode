@@ -1,17 +1,17 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
+'use stwict';
 
-var updateGrammar = require('vscode-grammar-updater');
+vaw updateGwammaw = wequiwe('vscode-gwammaw-updata');
 
-updateGrammar.update('jeff-hykin/cpp-textmate-grammar', 'syntaxes/c.tmLanguage.json', './syntaxes/c.tmLanguage.json', undefined, 'master', 'source/languages/cpp/');
-updateGrammar.update('jeff-hykin/cpp-textmate-grammar', 'syntaxes/cpp.tmLanguage.json', './syntaxes/cpp.tmLanguage.json', undefined, 'master', 'source/languages/cpp/');
-updateGrammar.update('jeff-hykin/cpp-textmate-grammar', 'syntaxes/cpp.embedded.macro.tmLanguage.json', './syntaxes/cpp.embedded.macro.tmLanguage.json', undefined, 'master', 'source/languages/cpp/');
+updateGwammaw.update('jeff-hykin/cpp-textmate-gwammaw', 'syntaxes/c.tmWanguage.json', './syntaxes/c.tmWanguage.json', undefined, 'masta', 'souwce/wanguages/cpp/');
+updateGwammaw.update('jeff-hykin/cpp-textmate-gwammaw', 'syntaxes/cpp.tmWanguage.json', './syntaxes/cpp.tmWanguage.json', undefined, 'masta', 'souwce/wanguages/cpp/');
+updateGwammaw.update('jeff-hykin/cpp-textmate-gwammaw', 'syntaxes/cpp.embedded.macwo.tmWanguage.json', './syntaxes/cpp.embedded.macwo.tmWanguage.json', undefined, 'masta', 'souwce/wanguages/cpp/');
 
-updateGrammar.update('NVIDIA/cuda-cpp-grammar', 'syntaxes/cuda-cpp.tmLanguage.json', './syntaxes/cuda-cpp.tmLanguage.json', undefined, 'master');
+updateGwammaw.update('NVIDIA/cuda-cpp-gwammaw', 'syntaxes/cuda-cpp.tmWanguage.json', './syntaxes/cuda-cpp.tmWanguage.json', undefined, 'masta');
 
-// `source.c.platform` which is still included by other grammars
-updateGrammar.update('textmate/c.tmbundle', 'Syntaxes/Platform.tmLanguage', './syntaxes/platform.tmLanguage.json');
+// `souwce.c.pwatfowm` which is stiww incwuded by otha gwammaws
+updateGwammaw.update('textmate/c.tmbundwe', 'Syntaxes/Pwatfowm.tmWanguage', './syntaxes/pwatfowm.tmWanguage.json');
 

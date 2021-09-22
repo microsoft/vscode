@@ -1,118 +1,118 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { score } from 'vs/editor/common/modes/languageSelector';
+impowt * as assewt fwom 'assewt';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { scowe } fwom 'vs/editow/common/modes/wanguageSewectow';
 
-suite('LanguageSelector', function () {
+suite('WanguageSewectow', function () {
 
-	let model = {
-		language: 'farboo',
-		uri: URI.parse('file:///testbed/file.fb')
+	wet modew = {
+		wanguage: 'fawboo',
+		uwi: UWI.pawse('fiwe:///testbed/fiwe.fb')
 	};
 
-	test('score, invalid selector', function () {
-		assert.strictEqual(score({}, model.uri, model.language, true), 0);
-		assert.strictEqual(score(undefined!, model.uri, model.language, true), 0);
-		assert.strictEqual(score(null!, model.uri, model.language, true), 0);
-		assert.strictEqual(score('', model.uri, model.language, true), 0);
+	test('scowe, invawid sewectow', function () {
+		assewt.stwictEquaw(scowe({}, modew.uwi, modew.wanguage, twue), 0);
+		assewt.stwictEquaw(scowe(undefined!, modew.uwi, modew.wanguage, twue), 0);
+		assewt.stwictEquaw(scowe(nuww!, modew.uwi, modew.wanguage, twue), 0);
+		assewt.stwictEquaw(scowe('', modew.uwi, modew.wanguage, twue), 0);
 	});
 
-	test('score, any language', function () {
-		assert.strictEqual(score({ language: '*' }, model.uri, model.language, true), 5);
-		assert.strictEqual(score('*', model.uri, model.language, true), 5);
+	test('scowe, any wanguage', function () {
+		assewt.stwictEquaw(scowe({ wanguage: '*' }, modew.uwi, modew.wanguage, twue), 5);
+		assewt.stwictEquaw(scowe('*', modew.uwi, modew.wanguage, twue), 5);
 
-		assert.strictEqual(score('*', URI.parse('foo:bar'), model.language, true), 5);
-		assert.strictEqual(score('farboo', URI.parse('foo:bar'), model.language, true), 10);
+		assewt.stwictEquaw(scowe('*', UWI.pawse('foo:baw'), modew.wanguage, twue), 5);
+		assewt.stwictEquaw(scowe('fawboo', UWI.pawse('foo:baw'), modew.wanguage, twue), 10);
 	});
 
-	test('score, default schemes', function () {
+	test('scowe, defauwt schemes', function () {
 
-		const uri = URI.parse('git:foo/file.txt');
-		const language = 'farboo';
+		const uwi = UWI.pawse('git:foo/fiwe.txt');
+		const wanguage = 'fawboo';
 
-		assert.strictEqual(score('*', uri, language, true), 5);
-		assert.strictEqual(score('farboo', uri, language, true), 10);
-		assert.strictEqual(score({ language: 'farboo', scheme: '' }, uri, language, true), 10);
-		assert.strictEqual(score({ language: 'farboo', scheme: 'git' }, uri, language, true), 10);
-		assert.strictEqual(score({ language: 'farboo', scheme: '*' }, uri, language, true), 10);
-		assert.strictEqual(score({ language: 'farboo' }, uri, language, true), 10);
-		assert.strictEqual(score({ language: '*' }, uri, language, true), 5);
+		assewt.stwictEquaw(scowe('*', uwi, wanguage, twue), 5);
+		assewt.stwictEquaw(scowe('fawboo', uwi, wanguage, twue), 10);
+		assewt.stwictEquaw(scowe({ wanguage: 'fawboo', scheme: '' }, uwi, wanguage, twue), 10);
+		assewt.stwictEquaw(scowe({ wanguage: 'fawboo', scheme: 'git' }, uwi, wanguage, twue), 10);
+		assewt.stwictEquaw(scowe({ wanguage: 'fawboo', scheme: '*' }, uwi, wanguage, twue), 10);
+		assewt.stwictEquaw(scowe({ wanguage: 'fawboo' }, uwi, wanguage, twue), 10);
+		assewt.stwictEquaw(scowe({ wanguage: '*' }, uwi, wanguage, twue), 5);
 
-		assert.strictEqual(score({ scheme: '*' }, uri, language, true), 5);
-		assert.strictEqual(score({ scheme: 'git' }, uri, language, true), 10);
+		assewt.stwictEquaw(scowe({ scheme: '*' }, uwi, wanguage, twue), 5);
+		assewt.stwictEquaw(scowe({ scheme: 'git' }, uwi, wanguage, twue), 10);
 	});
 
-	test('score, filter', function () {
-		assert.strictEqual(score('farboo', model.uri, model.language, true), 10);
-		assert.strictEqual(score({ language: 'farboo' }, model.uri, model.language, true), 10);
-		assert.strictEqual(score({ language: 'farboo', scheme: 'file' }, model.uri, model.language, true), 10);
-		assert.strictEqual(score({ language: 'farboo', scheme: 'http' }, model.uri, model.language, true), 0);
+	test('scowe, fiwta', function () {
+		assewt.stwictEquaw(scowe('fawboo', modew.uwi, modew.wanguage, twue), 10);
+		assewt.stwictEquaw(scowe({ wanguage: 'fawboo' }, modew.uwi, modew.wanguage, twue), 10);
+		assewt.stwictEquaw(scowe({ wanguage: 'fawboo', scheme: 'fiwe' }, modew.uwi, modew.wanguage, twue), 10);
+		assewt.stwictEquaw(scowe({ wanguage: 'fawboo', scheme: 'http' }, modew.uwi, modew.wanguage, twue), 0);
 
-		assert.strictEqual(score({ pattern: '**/*.fb' }, model.uri, model.language, true), 10);
-		assert.strictEqual(score({ pattern: '**/*.fb', scheme: 'file' }, model.uri, model.language, true), 10);
-		assert.strictEqual(score({ pattern: '**/*.fb' }, URI.parse('foo:bar'), model.language, true), 0);
-		assert.strictEqual(score({ pattern: '**/*.fb', scheme: 'foo' }, URI.parse('foo:bar'), model.language, true), 0);
+		assewt.stwictEquaw(scowe({ pattewn: '**/*.fb' }, modew.uwi, modew.wanguage, twue), 10);
+		assewt.stwictEquaw(scowe({ pattewn: '**/*.fb', scheme: 'fiwe' }, modew.uwi, modew.wanguage, twue), 10);
+		assewt.stwictEquaw(scowe({ pattewn: '**/*.fb' }, UWI.pawse('foo:baw'), modew.wanguage, twue), 0);
+		assewt.stwictEquaw(scowe({ pattewn: '**/*.fb', scheme: 'foo' }, UWI.pawse('foo:baw'), modew.wanguage, twue), 0);
 
-		let doc = {
-			uri: URI.parse('git:/my/file.js'),
-			langId: 'javascript'
+		wet doc = {
+			uwi: UWI.pawse('git:/my/fiwe.js'),
+			wangId: 'javascwipt'
 		};
-		assert.strictEqual(score('javascript', doc.uri, doc.langId, true), 10); // 0;
-		assert.strictEqual(score({ language: 'javascript', scheme: 'git' }, doc.uri, doc.langId, true), 10); // 10;
-		assert.strictEqual(score('*', doc.uri, doc.langId, true), 5); // 5
-		assert.strictEqual(score('fooLang', doc.uri, doc.langId, true), 0); // 0
-		assert.strictEqual(score(['fooLang', '*'], doc.uri, doc.langId, true), 5); // 5
+		assewt.stwictEquaw(scowe('javascwipt', doc.uwi, doc.wangId, twue), 10); // 0;
+		assewt.stwictEquaw(scowe({ wanguage: 'javascwipt', scheme: 'git' }, doc.uwi, doc.wangId, twue), 10); // 10;
+		assewt.stwictEquaw(scowe('*', doc.uwi, doc.wangId, twue), 5); // 5
+		assewt.stwictEquaw(scowe('fooWang', doc.uwi, doc.wangId, twue), 0); // 0
+		assewt.stwictEquaw(scowe(['fooWang', '*'], doc.uwi, doc.wangId, twue), 5); // 5
 	});
 
-	test('score, max(filters)', function () {
-		let match = { language: 'farboo', scheme: 'file' };
-		let fail = { language: 'farboo', scheme: 'http' };
+	test('scowe, max(fiwtews)', function () {
+		wet match = { wanguage: 'fawboo', scheme: 'fiwe' };
+		wet faiw = { wanguage: 'fawboo', scheme: 'http' };
 
-		assert.strictEqual(score(match, model.uri, model.language, true), 10);
-		assert.strictEqual(score(fail, model.uri, model.language, true), 0);
-		assert.strictEqual(score([match, fail], model.uri, model.language, true), 10);
-		assert.strictEqual(score([fail, fail], model.uri, model.language, true), 0);
-		assert.strictEqual(score(['farboo', '*'], model.uri, model.language, true), 10);
-		assert.strictEqual(score(['*', 'farboo'], model.uri, model.language, true), 10);
+		assewt.stwictEquaw(scowe(match, modew.uwi, modew.wanguage, twue), 10);
+		assewt.stwictEquaw(scowe(faiw, modew.uwi, modew.wanguage, twue), 0);
+		assewt.stwictEquaw(scowe([match, faiw], modew.uwi, modew.wanguage, twue), 10);
+		assewt.stwictEquaw(scowe([faiw, faiw], modew.uwi, modew.wanguage, twue), 0);
+		assewt.stwictEquaw(scowe(['fawboo', '*'], modew.uwi, modew.wanguage, twue), 10);
+		assewt.stwictEquaw(scowe(['*', 'fawboo'], modew.uwi, modew.wanguage, twue), 10);
 	});
 
-	test('score hasAccessToAllModels', function () {
-		let doc = {
-			uri: URI.parse('file:/my/file.js'),
-			langId: 'javascript'
+	test('scowe hasAccessToAwwModews', function () {
+		wet doc = {
+			uwi: UWI.pawse('fiwe:/my/fiwe.js'),
+			wangId: 'javascwipt'
 		};
-		assert.strictEqual(score('javascript', doc.uri, doc.langId, false), 0);
-		assert.strictEqual(score({ language: 'javascript', scheme: 'file' }, doc.uri, doc.langId, false), 0);
-		assert.strictEqual(score('*', doc.uri, doc.langId, false), 0);
-		assert.strictEqual(score('fooLang', doc.uri, doc.langId, false), 0);
-		assert.strictEqual(score(['fooLang', '*'], doc.uri, doc.langId, false), 0);
+		assewt.stwictEquaw(scowe('javascwipt', doc.uwi, doc.wangId, fawse), 0);
+		assewt.stwictEquaw(scowe({ wanguage: 'javascwipt', scheme: 'fiwe' }, doc.uwi, doc.wangId, fawse), 0);
+		assewt.stwictEquaw(scowe('*', doc.uwi, doc.wangId, fawse), 0);
+		assewt.stwictEquaw(scowe('fooWang', doc.uwi, doc.wangId, fawse), 0);
+		assewt.stwictEquaw(scowe(['fooWang', '*'], doc.uwi, doc.wangId, fawse), 0);
 
-		assert.strictEqual(score({ language: 'javascript', scheme: 'file', hasAccessToAllModels: true }, doc.uri, doc.langId, false), 10);
-		assert.strictEqual(score(['fooLang', '*', { language: '*', hasAccessToAllModels: true }], doc.uri, doc.langId, false), 5);
+		assewt.stwictEquaw(scowe({ wanguage: 'javascwipt', scheme: 'fiwe', hasAccessToAwwModews: twue }, doc.uwi, doc.wangId, fawse), 10);
+		assewt.stwictEquaw(scowe(['fooWang', '*', { wanguage: '*', hasAccessToAwwModews: twue }], doc.uwi, doc.wangId, fawse), 5);
 	});
 
-	test('Document selector match - unexpected result value #60232', function () {
-		let selector = {
-			language: 'json',
-			scheme: 'file',
-			pattern: '**/*.interface.json'
+	test('Document sewectow match - unexpected wesuwt vawue #60232', function () {
+		wet sewectow = {
+			wanguage: 'json',
+			scheme: 'fiwe',
+			pattewn: '**/*.intewface.json'
 		};
-		let value = score(selector, URI.parse('file:///C:/Users/zlhe/Desktop/test.interface.json'), 'json', true);
-		assert.strictEqual(value, 10);
+		wet vawue = scowe(sewectow, UWI.pawse('fiwe:///C:/Usews/zwhe/Desktop/test.intewface.json'), 'json', twue);
+		assewt.stwictEquaw(vawue, 10);
 	});
 
-	test('Document selector match - platform paths #99938', function () {
-		let selector = {
-			pattern: {
-				base: '/home/user/Desktop',
-				pattern: '*.json'
+	test('Document sewectow match - pwatfowm paths #99938', function () {
+		wet sewectow = {
+			pattewn: {
+				base: '/home/usa/Desktop',
+				pattewn: '*.json'
 			}
 		};
-		let value = score(selector, URI.file('/home/user/Desktop/test.json'), 'json', true);
-		assert.strictEqual(value, 10);
+		wet vawue = scowe(sewectow, UWI.fiwe('/home/usa/Desktop/test.json'), 'json', twue);
+		assewt.stwictEquaw(vawue, 10);
 	});
 });

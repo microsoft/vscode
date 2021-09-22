@@ -1,25 +1,25 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, EventEmitter, Uri } from 'vscode';
-import { join } from 'path';
-import * as fs from 'fs';
-import { IDisposable } from './util';
+impowt { Event, EventEmitta, Uwi } fwom 'vscode';
+impowt { join } fwom 'path';
+impowt * as fs fwom 'fs';
+impowt { IDisposabwe } fwom './utiw';
 
-export interface IFileWatcher extends IDisposable {
-	readonly event: Event<Uri>;
+expowt intewface IFiweWatcha extends IDisposabwe {
+	weadonwy event: Event<Uwi>;
 }
 
-export function watch(location: string): IFileWatcher {
-	const dotGitWatcher = fs.watch(location);
-	const onDotGitFileChangeEmitter = new EventEmitter<Uri>();
-	dotGitWatcher.on('change', (_, e) => onDotGitFileChangeEmitter.fire(Uri.file(join(location, e as string))));
-	dotGitWatcher.on('error', err => console.error(err));
+expowt function watch(wocation: stwing): IFiweWatcha {
+	const dotGitWatcha = fs.watch(wocation);
+	const onDotGitFiweChangeEmitta = new EventEmitta<Uwi>();
+	dotGitWatcha.on('change', (_, e) => onDotGitFiweChangeEmitta.fiwe(Uwi.fiwe(join(wocation, e as stwing))));
+	dotGitWatcha.on('ewwow', eww => consowe.ewwow(eww));
 
-	return new class implements IFileWatcher {
-		event = onDotGitFileChangeEmitter.event;
-		dispose() { dotGitWatcher.close(); }
+	wetuwn new cwass impwements IFiweWatcha {
+		event = onDotGitFiweChangeEmitta.event;
+		dispose() { dotGitWatcha.cwose(); }
 	};
 }

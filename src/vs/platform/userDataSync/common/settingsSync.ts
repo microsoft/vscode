@@ -1,414 +1,414 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { applyEdits, setProperty } from 'vs/base/common/jsonEdit';
-import { Edit } from 'vs/base/common/jsonFormatter';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { AbstractInitializer, AbstractJsonFileSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
-import { edit } from 'vs/platform/userDataSync/common/content';
-import { getIgnoredSettings, isEmpty, merge, updateIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
-import { Change, CONFIGURATION_SYNC_STORE_KEY, IRemoteUserData, ISyncData, ISyncResourceHandle, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncResourceEnablementService, IUserDataSyncStoreService, IUserDataSyncUtilService, SyncResource, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { appwyEdits, setPwopewty } fwom 'vs/base/common/jsonEdit';
+impowt { Edit } fwom 'vs/base/common/jsonFowmatta';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ConfiguwationTawget, IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IExtensionManagementSewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { FiweOpewationEwwow, FiweOpewationWesuwt, IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { AbstwactInitiawiza, AbstwactJsonFiweSynchwonisa, IAcceptWesuwt, IFiweWesouwcePweview, IMewgeWesuwt } fwom 'vs/pwatfowm/usewDataSync/common/abstwactSynchwoniza';
+impowt { edit } fwom 'vs/pwatfowm/usewDataSync/common/content';
+impowt { getIgnowedSettings, isEmpty, mewge, updateIgnowedSettings } fwom 'vs/pwatfowm/usewDataSync/common/settingsMewge';
+impowt { Change, CONFIGUWATION_SYNC_STOWE_KEY, IWemoteUsewData, ISyncData, ISyncWesouwceHandwe, IUsewDataSyncBackupStoweSewvice, IUsewDataSynchwonisa, IUsewDataSyncWogSewvice, IUsewDataSyncWesouwceEnabwementSewvice, IUsewDataSyncStoweSewvice, IUsewDataSyncUtiwSewvice, SyncWesouwce, UsewDataSyncEwwow, UsewDataSyncEwwowCode, USEW_DATA_SYNC_SCHEME } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
 
-interface ISettingsResourcePreview extends IFileResourcePreview {
-	previewResult: IMergeResult;
+intewface ISettingsWesouwcePweview extends IFiweWesouwcePweview {
+	pweviewWesuwt: IMewgeWesuwt;
 }
 
-export interface ISettingsSyncContent {
-	settings: string;
+expowt intewface ISettingsSyncContent {
+	settings: stwing;
 }
 
 function isSettingsSyncContent(thing: any): thing is ISettingsSyncContent {
-	return thing
-		&& (thing.settings && typeof thing.settings === 'string')
-		&& Object.keys(thing).length === 1;
+	wetuwn thing
+		&& (thing.settings && typeof thing.settings === 'stwing')
+		&& Object.keys(thing).wength === 1;
 }
 
-export function parseSettingsSyncContent(syncContent: string): ISettingsSyncContent {
-	const parsed = <ISettingsSyncContent>JSON.parse(syncContent);
-	return isSettingsSyncContent(parsed) ? parsed : /* migrate */ { settings: syncContent };
+expowt function pawseSettingsSyncContent(syncContent: stwing): ISettingsSyncContent {
+	const pawsed = <ISettingsSyncContent>JSON.pawse(syncContent);
+	wetuwn isSettingsSyncContent(pawsed) ? pawsed : /* migwate */ { settings: syncContent };
 }
 
-export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implements IUserDataSynchroniser {
+expowt cwass SettingsSynchwonisa extends AbstwactJsonFiweSynchwonisa impwements IUsewDataSynchwonisa {
 
-	/* Version 2: Change settings from `sync.${setting}` to `settingsSync.{setting}` */
-	protected readonly version: number = 2;
-	readonly previewResource: URI = this.extUri.joinPath(this.syncPreviewFolder, 'settings.json');
-	readonly localResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' });
-	readonly remoteResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' });
-	readonly acceptedResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' });
+	/* Vewsion 2: Change settings fwom `sync.${setting}` to `settingsSync.{setting}` */
+	pwotected weadonwy vewsion: numba = 2;
+	weadonwy pweviewWesouwce: UWI = this.extUwi.joinPath(this.syncPweviewFowda, 'settings.json');
+	weadonwy wocawWesouwce: UWI = this.pweviewWesouwce.with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'wocaw' });
+	weadonwy wemoteWesouwce: UWI = this.pweviewWesouwce.with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'wemote' });
+	weadonwy acceptedWesouwce: UWI = this.pweviewWesouwce.with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'accepted' });
 
-	constructor(
-		@IFileService fileService: IFileService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IStorageService storageService: IStorageService,
-		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
-		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
-		@IUserDataSyncLogService logService: IUserDataSyncLogService,
-		@IUserDataSyncUtilService userDataSyncUtilService: IUserDataSyncUtilService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IUserDataSyncResourceEnablementService userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+	constwuctow(
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IEnviwonmentSewvice enviwonmentSewvice: IEnviwonmentSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IUsewDataSyncStoweSewvice usewDataSyncStoweSewvice: IUsewDataSyncStoweSewvice,
+		@IUsewDataSyncBackupStoweSewvice usewDataSyncBackupStoweSewvice: IUsewDataSyncBackupStoweSewvice,
+		@IUsewDataSyncWogSewvice wogSewvice: IUsewDataSyncWogSewvice,
+		@IUsewDataSyncUtiwSewvice usewDataSyncUtiwSewvice: IUsewDataSyncUtiwSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IUsewDataSyncWesouwceEnabwementSewvice usewDataSyncWesouwceEnabwementSewvice: IUsewDataSyncWesouwceEnabwementSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IExtensionManagementSewvice pwivate weadonwy extensionManagementSewvice: IExtensionManagementSewvice,
 	) {
-		super(environmentService.settingsResource, SyncResource.Settings, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncResourceEnablementService, telemetryService, logService, userDataSyncUtilService, configurationService);
+		supa(enviwonmentSewvice.settingsWesouwce, SyncWesouwce.Settings, fiweSewvice, enviwonmentSewvice, stowageSewvice, usewDataSyncStoweSewvice, usewDataSyncBackupStoweSewvice, usewDataSyncWesouwceEnabwementSewvice, tewemetwySewvice, wogSewvice, usewDataSyncUtiwSewvice, configuwationSewvice);
 	}
 
-	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, isRemoteDataFromCurrentMachine: boolean, token: CancellationToken): Promise<ISettingsResourcePreview[]> {
-		const fileContent = await this.getLocalFileContent();
-		const formattingOptions = await this.getFormattingOptions();
-		const remoteSettingsSyncContent = this.getSettingsSyncContent(remoteUserData);
+	pwotected async genewateSyncPweview(wemoteUsewData: IWemoteUsewData, wastSyncUsewData: IWemoteUsewData | nuww, isWemoteDataFwomCuwwentMachine: boowean, token: CancewwationToken): Pwomise<ISettingsWesouwcePweview[]> {
+		const fiweContent = await this.getWocawFiweContent();
+		const fowmattingOptions = await this.getFowmattingOptions();
+		const wemoteSettingsSyncContent = this.getSettingsSyncContent(wemoteUsewData);
 
-		// Use remote data as last sync data if last sync data does not exist and remote data is from same machine
-		lastSyncUserData = lastSyncUserData === null && isRemoteDataFromCurrentMachine ? remoteUserData : lastSyncUserData;
-		const lastSettingsSyncContent: ISettingsSyncContent | null = lastSyncUserData ? this.getSettingsSyncContent(lastSyncUserData) : null;
-		const ignoredSettings = await this.getIgnoredSettings();
+		// Use wemote data as wast sync data if wast sync data does not exist and wemote data is fwom same machine
+		wastSyncUsewData = wastSyncUsewData === nuww && isWemoteDataFwomCuwwentMachine ? wemoteUsewData : wastSyncUsewData;
+		const wastSettingsSyncContent: ISettingsSyncContent | nuww = wastSyncUsewData ? this.getSettingsSyncContent(wastSyncUsewData) : nuww;
+		const ignowedSettings = await this.getIgnowedSettings();
 
-		let mergedContent: string | null = null;
-		let hasLocalChanged: boolean = false;
-		let hasRemoteChanged: boolean = false;
-		let hasConflicts: boolean = false;
+		wet mewgedContent: stwing | nuww = nuww;
+		wet hasWocawChanged: boowean = fawse;
+		wet hasWemoteChanged: boowean = fawse;
+		wet hasConfwicts: boowean = fawse;
 
-		if (remoteSettingsSyncContent) {
-			let localContent: string = fileContent ? fileContent.value.toString().trim() : '{}';
-			localContent = localContent || '{}';
-			this.validateContent(localContent);
-			this.logService.trace(`${this.syncResourceLogLabel}: Merging remote settings with local settings...`);
-			const result = merge(localContent, remoteSettingsSyncContent.settings, lastSettingsSyncContent ? lastSettingsSyncContent.settings : null, ignoredSettings, [], formattingOptions);
-			mergedContent = result.localContent || result.remoteContent;
-			hasLocalChanged = result.localContent !== null;
-			hasRemoteChanged = result.remoteContent !== null;
-			hasConflicts = result.hasConflicts;
+		if (wemoteSettingsSyncContent) {
+			wet wocawContent: stwing = fiweContent ? fiweContent.vawue.toStwing().twim() : '{}';
+			wocawContent = wocawContent || '{}';
+			this.vawidateContent(wocawContent);
+			this.wogSewvice.twace(`${this.syncWesouwceWogWabew}: Mewging wemote settings with wocaw settings...`);
+			const wesuwt = mewge(wocawContent, wemoteSettingsSyncContent.settings, wastSettingsSyncContent ? wastSettingsSyncContent.settings : nuww, ignowedSettings, [], fowmattingOptions);
+			mewgedContent = wesuwt.wocawContent || wesuwt.wemoteContent;
+			hasWocawChanged = wesuwt.wocawContent !== nuww;
+			hasWemoteChanged = wesuwt.wemoteContent !== nuww;
+			hasConfwicts = wesuwt.hasConfwicts;
 		}
 
-		// First time syncing to remote
-		else if (fileContent) {
-			this.logService.trace(`${this.syncResourceLogLabel}: Remote settings does not exist. Synchronizing settings for the first time.`);
-			mergedContent = fileContent.value.toString();
-			hasRemoteChanged = true;
+		// Fiwst time syncing to wemote
+		ewse if (fiweContent) {
+			this.wogSewvice.twace(`${this.syncWesouwceWogWabew}: Wemote settings does not exist. Synchwonizing settings fow the fiwst time.`);
+			mewgedContent = fiweContent.vawue.toStwing();
+			hasWemoteChanged = twue;
 		}
 
-		const previewResult = {
-			content: mergedContent,
-			localChange: hasLocalChanged ? Change.Modified : Change.None,
-			remoteChange: hasRemoteChanged ? Change.Modified : Change.None,
-			hasConflicts
+		const pweviewWesuwt = {
+			content: mewgedContent,
+			wocawChange: hasWocawChanged ? Change.Modified : Change.None,
+			wemoteChange: hasWemoteChanged ? Change.Modified : Change.None,
+			hasConfwicts
 		};
 
-		return [{
-			fileContent,
-			localResource: this.localResource,
-			localContent: fileContent ? fileContent.value.toString() : null,
-			localChange: previewResult.localChange,
+		wetuwn [{
+			fiweContent,
+			wocawWesouwce: this.wocawWesouwce,
+			wocawContent: fiweContent ? fiweContent.vawue.toStwing() : nuww,
+			wocawChange: pweviewWesuwt.wocawChange,
 
-			remoteResource: this.remoteResource,
-			remoteContent: remoteSettingsSyncContent ? remoteSettingsSyncContent.settings : null,
-			remoteChange: previewResult.remoteChange,
+			wemoteWesouwce: this.wemoteWesouwce,
+			wemoteContent: wemoteSettingsSyncContent ? wemoteSettingsSyncContent.settings : nuww,
+			wemoteChange: pweviewWesuwt.wemoteChange,
 
-			previewResource: this.previewResource,
-			previewResult,
-			acceptedResource: this.acceptedResource,
+			pweviewWesouwce: this.pweviewWesouwce,
+			pweviewWesuwt,
+			acceptedWesouwce: this.acceptedWesouwce,
 		}];
 	}
 
-	protected async getMergeResult(resourcePreview: ISettingsResourcePreview, token: CancellationToken): Promise<IMergeResult> {
-		const formatUtils = await this.getFormattingOptions();
-		const ignoredSettings = await this.getIgnoredSettings();
-		return {
-			...resourcePreview.previewResult,
+	pwotected async getMewgeWesuwt(wesouwcePweview: ISettingsWesouwcePweview, token: CancewwationToken): Pwomise<IMewgeWesuwt> {
+		const fowmatUtiws = await this.getFowmattingOptions();
+		const ignowedSettings = await this.getIgnowedSettings();
+		wetuwn {
+			...wesouwcePweview.pweviewWesuwt,
 
-			// remove ignored settings from the preview content
-			content: resourcePreview.previewResult.content ? updateIgnoredSettings(resourcePreview.previewResult.content, '{}', ignoredSettings, formatUtils) : null
+			// wemove ignowed settings fwom the pweview content
+			content: wesouwcePweview.pweviewWesuwt.content ? updateIgnowedSettings(wesouwcePweview.pweviewWesuwt.content, '{}', ignowedSettings, fowmatUtiws) : nuww
 		};
 	}
 
-	protected async getAcceptResult(resourcePreview: ISettingsResourcePreview, resource: URI, content: string | null | undefined, token: CancellationToken): Promise<IAcceptResult> {
+	pwotected async getAcceptWesuwt(wesouwcePweview: ISettingsWesouwcePweview, wesouwce: UWI, content: stwing | nuww | undefined, token: CancewwationToken): Pwomise<IAcceptWesuwt> {
 
-		const formattingOptions = await this.getFormattingOptions();
-		const ignoredSettings = await this.getIgnoredSettings();
+		const fowmattingOptions = await this.getFowmattingOptions();
+		const ignowedSettings = await this.getIgnowedSettings();
 
-		/* Accept local resource */
-		if (this.extUri.isEqual(resource, this.localResource)) {
-			return {
-				/* Remove ignored settings */
-				content: resourcePreview.fileContent ? updateIgnoredSettings(resourcePreview.fileContent.value.toString(), '{}', ignoredSettings, formattingOptions) : null,
-				localChange: Change.None,
-				remoteChange: Change.Modified,
+		/* Accept wocaw wesouwce */
+		if (this.extUwi.isEquaw(wesouwce, this.wocawWesouwce)) {
+			wetuwn {
+				/* Wemove ignowed settings */
+				content: wesouwcePweview.fiweContent ? updateIgnowedSettings(wesouwcePweview.fiweContent.vawue.toStwing(), '{}', ignowedSettings, fowmattingOptions) : nuww,
+				wocawChange: Change.None,
+				wemoteChange: Change.Modified,
 			};
 		}
 
-		/* Accept remote resource */
-		if (this.extUri.isEqual(resource, this.remoteResource)) {
-			return {
-				/* Update ignored settings from local file content */
-				content: resourcePreview.remoteContent !== null ? updateIgnoredSettings(resourcePreview.remoteContent, resourcePreview.fileContent ? resourcePreview.fileContent.value.toString() : '{}', ignoredSettings, formattingOptions) : null,
-				localChange: Change.Modified,
-				remoteChange: Change.None,
+		/* Accept wemote wesouwce */
+		if (this.extUwi.isEquaw(wesouwce, this.wemoteWesouwce)) {
+			wetuwn {
+				/* Update ignowed settings fwom wocaw fiwe content */
+				content: wesouwcePweview.wemoteContent !== nuww ? updateIgnowedSettings(wesouwcePweview.wemoteContent, wesouwcePweview.fiweContent ? wesouwcePweview.fiweContent.vawue.toStwing() : '{}', ignowedSettings, fowmattingOptions) : nuww,
+				wocawChange: Change.Modified,
+				wemoteChange: Change.None,
 			};
 		}
 
-		/* Accept preview resource */
-		if (this.extUri.isEqual(resource, this.previewResource)) {
+		/* Accept pweview wesouwce */
+		if (this.extUwi.isEquaw(wesouwce, this.pweviewWesouwce)) {
 			if (content === undefined) {
-				return {
-					content: resourcePreview.previewResult.content,
-					localChange: resourcePreview.previewResult.localChange,
-					remoteChange: resourcePreview.previewResult.remoteChange,
+				wetuwn {
+					content: wesouwcePweview.pweviewWesuwt.content,
+					wocawChange: wesouwcePweview.pweviewWesuwt.wocawChange,
+					wemoteChange: wesouwcePweview.pweviewWesuwt.wemoteChange,
 				};
-			} else {
-				return {
-					/* Add ignored settings from local file content */
-					content: content !== null ? updateIgnoredSettings(content, resourcePreview.fileContent ? resourcePreview.fileContent.value.toString() : '{}', ignoredSettings, formattingOptions) : null,
-					localChange: Change.Modified,
-					remoteChange: Change.Modified,
+			} ewse {
+				wetuwn {
+					/* Add ignowed settings fwom wocaw fiwe content */
+					content: content !== nuww ? updateIgnowedSettings(content, wesouwcePweview.fiweContent ? wesouwcePweview.fiweContent.vawue.toStwing() : '{}', ignowedSettings, fowmattingOptions) : nuww,
+					wocawChange: Change.Modified,
+					wemoteChange: Change.Modified,
 				};
 			}
 		}
 
-		throw new Error(`Invalid Resource: ${resource.toString()}`);
+		thwow new Ewwow(`Invawid Wesouwce: ${wesouwce.toStwing()}`);
 	}
 
-	protected async applyResult(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, resourcePreviews: [ISettingsResourcePreview, IAcceptResult][], force: boolean): Promise<void> {
-		const { fileContent } = resourcePreviews[0][0];
-		let { content, localChange, remoteChange } = resourcePreviews[0][1];
+	pwotected async appwyWesuwt(wemoteUsewData: IWemoteUsewData, wastSyncUsewData: IWemoteUsewData | nuww, wesouwcePweviews: [ISettingsWesouwcePweview, IAcceptWesuwt][], fowce: boowean): Pwomise<void> {
+		const { fiweContent } = wesouwcePweviews[0][0];
+		wet { content, wocawChange, wemoteChange } = wesouwcePweviews[0][1];
 
-		if (localChange === Change.None && remoteChange === Change.None) {
-			this.logService.info(`${this.syncResourceLogLabel}: No changes found during synchronizing settings.`);
+		if (wocawChange === Change.None && wemoteChange === Change.None) {
+			this.wogSewvice.info(`${this.syncWesouwceWogWabew}: No changes found duwing synchwonizing settings.`);
 		}
 
-		content = content ? content.trim() : '{}';
+		content = content ? content.twim() : '{}';
 		content = content || '{}';
-		this.validateContent(content);
+		this.vawidateContent(content);
 
-		if (localChange !== Change.None) {
-			this.logService.trace(`${this.syncResourceLogLabel}: Updating local settings...`);
-			if (fileContent) {
-				await this.backupLocal(JSON.stringify(this.toSettingsSyncContent(fileContent.value.toString())));
+		if (wocawChange !== Change.None) {
+			this.wogSewvice.twace(`${this.syncWesouwceWogWabew}: Updating wocaw settings...`);
+			if (fiweContent) {
+				await this.backupWocaw(JSON.stwingify(this.toSettingsSyncContent(fiweContent.vawue.toStwing())));
 			}
-			await this.updateLocalFileContent(content, fileContent, force);
-			await this.configurationService.reloadConfiguration(ConfigurationTarget.USER_LOCAL);
-			this.logService.info(`${this.syncResourceLogLabel}: Updated local settings`);
+			await this.updateWocawFiweContent(content, fiweContent, fowce);
+			await this.configuwationSewvice.wewoadConfiguwation(ConfiguwationTawget.USEW_WOCAW);
+			this.wogSewvice.info(`${this.syncWesouwceWogWabew}: Updated wocaw settings`);
 		}
 
-		if (remoteChange !== Change.None) {
-			const formatUtils = await this.getFormattingOptions();
-			// Update ignored settings from remote
-			const remoteSettingsSyncContent = this.getSettingsSyncContent(remoteUserData);
-			const ignoredSettings = await this.getIgnoredSettings(content);
-			content = updateIgnoredSettings(content, remoteSettingsSyncContent ? remoteSettingsSyncContent.settings : '{}', ignoredSettings, formatUtils);
-			this.logService.trace(`${this.syncResourceLogLabel}: Updating remote settings...`);
-			remoteUserData = await this.updateRemoteUserData(JSON.stringify(this.toSettingsSyncContent(content)), force ? null : remoteUserData.ref);
-			this.logService.info(`${this.syncResourceLogLabel}: Updated remote settings`);
+		if (wemoteChange !== Change.None) {
+			const fowmatUtiws = await this.getFowmattingOptions();
+			// Update ignowed settings fwom wemote
+			const wemoteSettingsSyncContent = this.getSettingsSyncContent(wemoteUsewData);
+			const ignowedSettings = await this.getIgnowedSettings(content);
+			content = updateIgnowedSettings(content, wemoteSettingsSyncContent ? wemoteSettingsSyncContent.settings : '{}', ignowedSettings, fowmatUtiws);
+			this.wogSewvice.twace(`${this.syncWesouwceWogWabew}: Updating wemote settings...`);
+			wemoteUsewData = await this.updateWemoteUsewData(JSON.stwingify(this.toSettingsSyncContent(content)), fowce ? nuww : wemoteUsewData.wef);
+			this.wogSewvice.info(`${this.syncWesouwceWogWabew}: Updated wemote settings`);
 		}
 
-		// Delete the preview
-		try {
-			await this.fileService.del(this.previewResource);
-		} catch (e) { /* ignore */ }
+		// Dewete the pweview
+		twy {
+			await this.fiweSewvice.dew(this.pweviewWesouwce);
+		} catch (e) { /* ignowe */ }
 
-		if (lastSyncUserData?.ref !== remoteUserData.ref) {
-			this.logService.trace(`${this.syncResourceLogLabel}: Updating last synchronized settings...`);
-			await this.updateLastSyncUserData(remoteUserData);
-			this.logService.info(`${this.syncResourceLogLabel}: Updated last synchronized settings`);
+		if (wastSyncUsewData?.wef !== wemoteUsewData.wef) {
+			this.wogSewvice.twace(`${this.syncWesouwceWogWabew}: Updating wast synchwonized settings...`);
+			await this.updateWastSyncUsewData(wemoteUsewData);
+			this.wogSewvice.info(`${this.syncWesouwceWogWabew}: Updated wast synchwonized settings`);
 		}
 
 	}
 
-	async hasLocalData(): Promise<boolean> {
-		try {
-			const localFileContent = await this.getLocalFileContent();
-			if (localFileContent) {
-				const formatUtils = await this.getFormattingOptions();
-				const content = edit(localFileContent.value.toString(), [CONFIGURATION_SYNC_STORE_KEY], undefined, formatUtils);
-				return !isEmpty(content);
+	async hasWocawData(): Pwomise<boowean> {
+		twy {
+			const wocawFiweContent = await this.getWocawFiweContent();
+			if (wocawFiweContent) {
+				const fowmatUtiws = await this.getFowmattingOptions();
+				const content = edit(wocawFiweContent.vawue.toStwing(), [CONFIGUWATION_SYNC_STOWE_KEY], undefined, fowmatUtiws);
+				wetuwn !isEmpty(content);
 			}
-		} catch (error) {
-			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
-				return true;
+		} catch (ewwow) {
+			if ((<FiweOpewationEwwow>ewwow).fiweOpewationWesuwt !== FiweOpewationWesuwt.FIWE_NOT_FOUND) {
+				wetuwn twue;
 			}
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI, comparableResource: URI }[]> {
-		const comparableResource = (await this.fileService.exists(this.file)) ? this.file : this.localResource;
-		return [{ resource: this.extUri.joinPath(uri, 'settings.json'), comparableResource }];
+	async getAssociatedWesouwces({ uwi }: ISyncWesouwceHandwe): Pwomise<{ wesouwce: UWI, compawabweWesouwce: UWI }[]> {
+		const compawabweWesouwce = (await this.fiweSewvice.exists(this.fiwe)) ? this.fiwe : this.wocawWesouwce;
+		wetuwn [{ wesouwce: this.extUwi.joinPath(uwi, 'settings.json'), compawabweWesouwce }];
 	}
 
-	override async resolveContent(uri: URI): Promise<string | null> {
-		if (this.extUri.isEqual(this.remoteResource, uri) || this.extUri.isEqual(this.localResource, uri) || this.extUri.isEqual(this.acceptedResource, uri)) {
-			return this.resolvePreviewContent(uri);
+	ovewwide async wesowveContent(uwi: UWI): Pwomise<stwing | nuww> {
+		if (this.extUwi.isEquaw(this.wemoteWesouwce, uwi) || this.extUwi.isEquaw(this.wocawWesouwce, uwi) || this.extUwi.isEquaw(this.acceptedWesouwce, uwi)) {
+			wetuwn this.wesowvePweviewContent(uwi);
 		}
-		let content = await super.resolveContent(uri);
+		wet content = await supa.wesowveContent(uwi);
 		if (content) {
-			return content;
+			wetuwn content;
 		}
-		content = await super.resolveContent(this.extUri.dirname(uri));
+		content = await supa.wesowveContent(this.extUwi.diwname(uwi));
 		if (content) {
-			const syncData = this.parseSyncData(content);
+			const syncData = this.pawseSyncData(content);
 			if (syncData) {
-				const settingsSyncContent = this.parseSettingsSyncContent(syncData.content);
+				const settingsSyncContent = this.pawseSettingsSyncContent(syncData.content);
 				if (settingsSyncContent) {
-					switch (this.extUri.basename(uri)) {
+					switch (this.extUwi.basename(uwi)) {
 						case 'settings.json':
-							return settingsSyncContent.settings;
+							wetuwn settingsSyncContent.settings;
 					}
 				}
 			}
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	protected override async resolvePreviewContent(resource: URI): Promise<string | null> {
-		let content = await super.resolvePreviewContent(resource);
+	pwotected ovewwide async wesowvePweviewContent(wesouwce: UWI): Pwomise<stwing | nuww> {
+		wet content = await supa.wesowvePweviewContent(wesouwce);
 		if (content) {
-			const formatUtils = await this.getFormattingOptions();
-			// remove ignored settings from the preview content
-			const ignoredSettings = await this.getIgnoredSettings();
-			content = updateIgnoredSettings(content, '{}', ignoredSettings, formatUtils);
+			const fowmatUtiws = await this.getFowmattingOptions();
+			// wemove ignowed settings fwom the pweview content
+			const ignowedSettings = await this.getIgnowedSettings();
+			content = updateIgnowedSettings(content, '{}', ignowedSettings, fowmatUtiws);
 		}
-		return content;
+		wetuwn content;
 	}
 
-	private getSettingsSyncContent(remoteUserData: IRemoteUserData): ISettingsSyncContent | null {
-		return remoteUserData.syncData ? this.parseSettingsSyncContent(remoteUserData.syncData.content) : null;
+	pwivate getSettingsSyncContent(wemoteUsewData: IWemoteUsewData): ISettingsSyncContent | nuww {
+		wetuwn wemoteUsewData.syncData ? this.pawseSettingsSyncContent(wemoteUsewData.syncData.content) : nuww;
 	}
 
-	private parseSettingsSyncContent(syncContent: string): ISettingsSyncContent | null {
-		try {
-			return parseSettingsSyncContent(syncContent);
+	pwivate pawseSettingsSyncContent(syncContent: stwing): ISettingsSyncContent | nuww {
+		twy {
+			wetuwn pawseSettingsSyncContent(syncContent);
 		} catch (e) {
-			this.logService.error(e);
+			this.wogSewvice.ewwow(e);
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	private toSettingsSyncContent(settings: string): ISettingsSyncContent {
-		return { settings };
+	pwivate toSettingsSyncContent(settings: stwing): ISettingsSyncContent {
+		wetuwn { settings };
 	}
 
-	private _defaultIgnoredSettings: Promise<string[]> | undefined = undefined;
-	private async getIgnoredSettings(content?: string): Promise<string[]> {
-		if (!this._defaultIgnoredSettings) {
-			this._defaultIgnoredSettings = this.userDataSyncUtilService.resolveDefaultIgnoredSettings();
-			const disposable = Event.any<any>(
-				Event.filter(this.extensionManagementService.onDidInstallExtensions, (e => e.some(({ local }) => !!local))),
-				Event.filter(this.extensionManagementService.onDidUninstallExtension, (e => !e.error)))(() => {
-					disposable.dispose();
-					this._defaultIgnoredSettings = undefined;
+	pwivate _defauwtIgnowedSettings: Pwomise<stwing[]> | undefined = undefined;
+	pwivate async getIgnowedSettings(content?: stwing): Pwomise<stwing[]> {
+		if (!this._defauwtIgnowedSettings) {
+			this._defauwtIgnowedSettings = this.usewDataSyncUtiwSewvice.wesowveDefauwtIgnowedSettings();
+			const disposabwe = Event.any<any>(
+				Event.fiwta(this.extensionManagementSewvice.onDidInstawwExtensions, (e => e.some(({ wocaw }) => !!wocaw))),
+				Event.fiwta(this.extensionManagementSewvice.onDidUninstawwExtension, (e => !e.ewwow)))(() => {
+					disposabwe.dispose();
+					this._defauwtIgnowedSettings = undefined;
 				});
 		}
-		const defaultIgnoredSettings = await this._defaultIgnoredSettings;
-		return getIgnoredSettings(defaultIgnoredSettings, this.configurationService, content);
+		const defauwtIgnowedSettings = await this._defauwtIgnowedSettings;
+		wetuwn getIgnowedSettings(defauwtIgnowedSettings, this.configuwationSewvice, content);
 	}
 
-	private validateContent(content: string): void {
-		if (this.hasErrors(content)) {
-			throw new UserDataSyncError(localize('errorInvalidSettings', "Unable to sync settings as there are errors/warning in settings file."), UserDataSyncErrorCode.LocalInvalidContent, this.resource);
+	pwivate vawidateContent(content: stwing): void {
+		if (this.hasEwwows(content)) {
+			thwow new UsewDataSyncEwwow(wocawize('ewwowInvawidSettings', "Unabwe to sync settings as thewe awe ewwows/wawning in settings fiwe."), UsewDataSyncEwwowCode.WocawInvawidContent, this.wesouwce);
 		}
 	}
 
-	async recoverSettings(): Promise<void> {
-		try {
-			const fileContent = await this.getLocalFileContent();
-			if (!fileContent) {
-				return;
+	async wecovewSettings(): Pwomise<void> {
+		twy {
+			const fiweContent = await this.getWocawFiweContent();
+			if (!fiweContent) {
+				wetuwn;
 			}
 
-			const syncData: ISyncData = JSON.parse(fileContent.value.toString());
+			const syncData: ISyncData = JSON.pawse(fiweContent.vawue.toStwing());
 			if (!isSyncData(syncData)) {
-				return;
+				wetuwn;
 			}
 
-			this.telemetryService.publicLog2('sync/settingsCorrupted');
-			const settingsSyncContent = this.parseSettingsSyncContent(syncData.content);
+			this.tewemetwySewvice.pubwicWog2('sync/settingsCowwupted');
+			const settingsSyncContent = this.pawseSettingsSyncContent(syncData.content);
 			if (!settingsSyncContent || !settingsSyncContent.settings) {
-				return;
+				wetuwn;
 			}
 
-			let settings = settingsSyncContent.settings;
-			const formattingOptions = await this.getFormattingOptions();
-			for (const key in syncData) {
-				if (['version', 'content', 'machineId'].indexOf(key) === -1 && (syncData as any)[key] !== undefined) {
-					const edits: Edit[] = setProperty(settings, [key], (syncData as any)[key], formattingOptions);
-					if (edits.length) {
-						settings = applyEdits(settings, edits);
+			wet settings = settingsSyncContent.settings;
+			const fowmattingOptions = await this.getFowmattingOptions();
+			fow (const key in syncData) {
+				if (['vewsion', 'content', 'machineId'].indexOf(key) === -1 && (syncData as any)[key] !== undefined) {
+					const edits: Edit[] = setPwopewty(settings, [key], (syncData as any)[key], fowmattingOptions);
+					if (edits.wength) {
+						settings = appwyEdits(settings, edits);
 					}
 				}
 			}
 
-			await this.fileService.writeFile(this.file, VSBuffer.fromString(settings));
-		} catch (e) {/* ignore */ }
+			await this.fiweSewvice.wwiteFiwe(this.fiwe, VSBuffa.fwomStwing(settings));
+		} catch (e) {/* ignowe */ }
 	}
 }
 
-export class SettingsInitializer extends AbstractInitializer {
+expowt cwass SettingsInitiawiza extends AbstwactInitiawiza {
 
-	constructor(
-		@IFileService fileService: IFileService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IUserDataSyncLogService logService: IUserDataSyncLogService,
+	constwuctow(
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IEnviwonmentSewvice enviwonmentSewvice: IEnviwonmentSewvice,
+		@IUsewDataSyncWogSewvice wogSewvice: IUsewDataSyncWogSewvice,
 	) {
-		super(SyncResource.Settings, environmentService, logService, fileService);
+		supa(SyncWesouwce.Settings, enviwonmentSewvice, wogSewvice, fiweSewvice);
 	}
 
-	async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {
-		const settingsSyncContent = remoteUserData.syncData ? this.parseSettingsSyncContent(remoteUserData.syncData.content) : null;
+	async doInitiawize(wemoteUsewData: IWemoteUsewData): Pwomise<void> {
+		const settingsSyncContent = wemoteUsewData.syncData ? this.pawseSettingsSyncContent(wemoteUsewData.syncData.content) : nuww;
 		if (!settingsSyncContent) {
-			this.logService.info('Skipping initializing settings because remote settings does not exist.');
-			return;
+			this.wogSewvice.info('Skipping initiawizing settings because wemote settings does not exist.');
+			wetuwn;
 		}
 
 		const isEmpty = await this.isEmpty();
 		if (!isEmpty) {
-			this.logService.info('Skipping initializing settings because local settings exist.');
-			return;
+			this.wogSewvice.info('Skipping initiawizing settings because wocaw settings exist.');
+			wetuwn;
 		}
 
-		await this.fileService.writeFile(this.environmentService.settingsResource, VSBuffer.fromString(settingsSyncContent.settings));
+		await this.fiweSewvice.wwiteFiwe(this.enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing(settingsSyncContent.settings));
 
-		await this.updateLastSyncUserData(remoteUserData);
+		await this.updateWastSyncUsewData(wemoteUsewData);
 	}
 
-	private async isEmpty(): Promise<boolean> {
-		try {
-			const fileContent = await this.fileService.readFile(this.environmentService.settingsResource);
-			return isEmpty(fileContent.value.toString().trim());
-		} catch (error) {
-			return (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND;
+	pwivate async isEmpty(): Pwomise<boowean> {
+		twy {
+			const fiweContent = await this.fiweSewvice.weadFiwe(this.enviwonmentSewvice.settingsWesouwce);
+			wetuwn isEmpty(fiweContent.vawue.toStwing().twim());
+		} catch (ewwow) {
+			wetuwn (<FiweOpewationEwwow>ewwow).fiweOpewationWesuwt === FiweOpewationWesuwt.FIWE_NOT_FOUND;
 		}
 	}
 
-	private parseSettingsSyncContent(syncContent: string): ISettingsSyncContent | null {
-		try {
-			return parseSettingsSyncContent(syncContent);
+	pwivate pawseSettingsSyncContent(syncContent: stwing): ISettingsSyncContent | nuww {
+		twy {
+			wetuwn pawseSettingsSyncContent(syncContent);
 		} catch (e) {
-			this.logService.error(e);
+			this.wogSewvice.ewwow(e);
 		}
-		return null;
+		wetuwn nuww;
 	}
 
 }
 
 function isSyncData(thing: any): thing is ISyncData {
 	if (thing
-		&& (thing.version !== undefined && typeof thing.version === 'number')
-		&& (thing.content !== undefined && typeof thing.content === 'string')
-		&& (thing.machineId !== undefined && typeof thing.machineId === 'string')
+		&& (thing.vewsion !== undefined && typeof thing.vewsion === 'numba')
+		&& (thing.content !== undefined && typeof thing.content === 'stwing')
+		&& (thing.machineId !== undefined && typeof thing.machineId === 'stwing')
 	) {
-		return true;
+		wetuwn twue;
 	}
 
-	return false;
+	wetuwn fawse;
 }

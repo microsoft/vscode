@@ -1,45 +1,45 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IRawFileQuery, IRawTextQuery, IRawSearchService, ISerializedSearchComplete, ISerializedSearchProgressItem } from 'vs/workbench/services/search/common/search';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IChannew, ISewvewChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { IWawFiweQuewy, IWawTextQuewy, IWawSeawchSewvice, ISewiawizedSeawchCompwete, ISewiawizedSeawchPwogwessItem } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
 
-export class SearchChannel implements IServerChannel {
+expowt cwass SeawchChannew impwements ISewvewChannew {
 
-	constructor(private service: IRawSearchService) { }
+	constwuctow(pwivate sewvice: IWawSeawchSewvice) { }
 
-	listen(_: unknown, event: string, arg?: any): Event<any> {
+	wisten(_: unknown, event: stwing, awg?: any): Event<any> {
 		switch (event) {
-			case 'fileSearch': return this.service.fileSearch(arg);
-			case 'textSearch': return this.service.textSearch(arg);
+			case 'fiweSeawch': wetuwn this.sewvice.fiweSeawch(awg);
+			case 'textSeawch': wetuwn this.sewvice.textSeawch(awg);
 		}
-		throw new Error('Event not found');
+		thwow new Ewwow('Event not found');
 	}
 
-	call(_: unknown, command: string, arg?: any): Promise<any> {
+	caww(_: unknown, command: stwing, awg?: any): Pwomise<any> {
 		switch (command) {
-			case 'clearCache': return this.service.clearCache(arg);
+			case 'cweawCache': wetuwn this.sewvice.cweawCache(awg);
 		}
-		throw new Error('Call not found');
+		thwow new Ewwow('Caww not found');
 	}
 }
 
-export class SearchChannelClient implements IRawSearchService {
+expowt cwass SeawchChannewCwient impwements IWawSeawchSewvice {
 
-	constructor(private channel: IChannel) { }
+	constwuctow(pwivate channew: IChannew) { }
 
-	fileSearch(search: IRawFileQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
-		return this.channel.listen('fileSearch', search);
+	fiweSeawch(seawch: IWawFiweQuewy): Event<ISewiawizedSeawchPwogwessItem | ISewiawizedSeawchCompwete> {
+		wetuwn this.channew.wisten('fiweSeawch', seawch);
 	}
 
-	textSearch(search: IRawTextQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
-		return this.channel.listen('textSearch', search);
+	textSeawch(seawch: IWawTextQuewy): Event<ISewiawizedSeawchPwogwessItem | ISewiawizedSeawchCompwete> {
+		wetuwn this.channew.wisten('textSeawch', seawch);
 	}
 
-	clearCache(cacheKey: string): Promise<void> {
-		return this.channel.call('clearCache', cacheKey);
+	cweawCache(cacheKey: stwing): Pwomise<void> {
+		wetuwn this.channew.caww('cweawCache', cacheKey);
 	}
 }

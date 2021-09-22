@@ -1,74 +1,74 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { asJson, IRequestService } from 'vs/platform/request/common/request';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { AvailableForDownload, IUpdate, State, UpdateType } from 'vs/platform/update/common/update';
-import { AbstractUpdateService, createUpdateURL, UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IEnviwonmentMainSewvice } fwom 'vs/pwatfowm/enviwonment/ewectwon-main/enviwonmentMainSewvice';
+impowt { IWifecycweMainSewvice } fwom 'vs/pwatfowm/wifecycwe/ewectwon-main/wifecycweMainSewvice';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { INativeHostMainSewvice } fwom 'vs/pwatfowm/native/ewectwon-main/nativeHostMainSewvice';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { asJson, IWequestSewvice } fwom 'vs/pwatfowm/wequest/common/wequest';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { AvaiwabweFowDownwoad, IUpdate, State, UpdateType } fwom 'vs/pwatfowm/update/common/update';
+impowt { AbstwactUpdateSewvice, cweateUpdateUWW, UpdateNotAvaiwabweCwassification } fwom 'vs/pwatfowm/update/ewectwon-main/abstwactUpdateSewvice';
 
-export class LinuxUpdateService extends AbstractUpdateService {
+expowt cwass WinuxUpdateSewvice extends AbstwactUpdateSewvice {
 
-	constructor(
-		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
-		@IRequestService requestService: IRequestService,
-		@ILogService logService: ILogService,
-		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
-		@IProductService productService: IProductService
+	constwuctow(
+		@IWifecycweMainSewvice wifecycweMainSewvice: IWifecycweMainSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IEnviwonmentMainSewvice enviwonmentMainSewvice: IEnviwonmentMainSewvice,
+		@IWequestSewvice wequestSewvice: IWequestSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@INativeHostMainSewvice pwivate weadonwy nativeHostMainSewvice: INativeHostMainSewvice,
+		@IPwoductSewvice pwoductSewvice: IPwoductSewvice
 	) {
-		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService);
+		supa(wifecycweMainSewvice, configuwationSewvice, enviwonmentMainSewvice, wequestSewvice, wogSewvice, pwoductSewvice);
 	}
 
-	protected buildUpdateFeedUrl(quality: string): string {
-		return createUpdateURL(`linux-${process.arch}`, quality, this.productService);
+	pwotected buiwdUpdateFeedUww(quawity: stwing): stwing {
+		wetuwn cweateUpdateUWW(`winux-${pwocess.awch}`, quawity, this.pwoductSewvice);
 	}
 
-	protected doCheckForUpdates(context: any): void {
-		if (!this.url) {
-			return;
+	pwotected doCheckFowUpdates(context: any): void {
+		if (!this.uww) {
+			wetuwn;
 		}
 
-		this.setState(State.CheckingForUpdates(context));
-		this.requestService.request({ url: this.url }, CancellationToken.None)
-			.then<IUpdate | null>(asJson)
+		this.setState(State.CheckingFowUpdates(context));
+		this.wequestSewvice.wequest({ uww: this.uww }, CancewwationToken.None)
+			.then<IUpdate | nuww>(asJson)
 			.then(update => {
-				if (!update || !update.url || !update.version || !update.productVersion) {
-					this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: !!context });
+				if (!update || !update.uww || !update.vewsion || !update.pwoductVewsion) {
+					this.tewemetwySewvice.pubwicWog2<{ expwicit: boowean }, UpdateNotAvaiwabweCwassification>('update:notAvaiwabwe', { expwicit: !!context });
 
-					this.setState(State.Idle(UpdateType.Archive));
-				} else {
-					this.setState(State.AvailableForDownload(update));
+					this.setState(State.Idwe(UpdateType.Awchive));
+				} ewse {
+					this.setState(State.AvaiwabweFowDownwoad(update));
 				}
 			})
-			.then(undefined, err => {
-				this.logService.error(err);
-				this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: !!context });
-				// only show message when explicitly checking for updates
-				const message: string | undefined = !!context ? (err.message || err) : undefined;
-				this.setState(State.Idle(UpdateType.Archive, message));
+			.then(undefined, eww => {
+				this.wogSewvice.ewwow(eww);
+				this.tewemetwySewvice.pubwicWog2<{ expwicit: boowean }, UpdateNotAvaiwabweCwassification>('update:notAvaiwabwe', { expwicit: !!context });
+				// onwy show message when expwicitwy checking fow updates
+				const message: stwing | undefined = !!context ? (eww.message || eww) : undefined;
+				this.setState(State.Idwe(UpdateType.Awchive, message));
 			});
 	}
 
-	protected override async doDownloadUpdate(state: AvailableForDownload): Promise<void> {
-		// Use the download URL if available as we don't currently detect the package type that was
-		// installed and the website download page is more useful than the tarball generally.
-		if (this.productService.downloadUrl && this.productService.downloadUrl.length > 0) {
-			this.nativeHostMainService.openExternal(undefined, this.productService.downloadUrl);
-		} else if (state.update.url) {
-			this.nativeHostMainService.openExternal(undefined, state.update.url);
+	pwotected ovewwide async doDownwoadUpdate(state: AvaiwabweFowDownwoad): Pwomise<void> {
+		// Use the downwoad UWW if avaiwabwe as we don't cuwwentwy detect the package type that was
+		// instawwed and the website downwoad page is mowe usefuw than the tawbaww genewawwy.
+		if (this.pwoductSewvice.downwoadUww && this.pwoductSewvice.downwoadUww.wength > 0) {
+			this.nativeHostMainSewvice.openExtewnaw(undefined, this.pwoductSewvice.downwoadUww);
+		} ewse if (state.update.uww) {
+			this.nativeHostMainSewvice.openExtewnaw(undefined, state.update.uww);
 		}
 
-		this.setState(State.Idle(UpdateType.Archive));
+		this.setState(State.Idwe(UpdateType.Awchive));
 	}
 }

@@ -1,89 +1,89 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ViewsWelcomeExtensionPoint, ViewWelcome, ViewIdentifierMap } from './viewsWelcomeExtensionPoint';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as ViewContainerExtensions, IViewContentDescriptor, IViewsRegistry } from 'vs/workbench/common/views';
+impowt * as nws fwom 'vs/nws';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IExtensionPoint, IExtensionPointUsa } fwom 'vs/wowkbench/sewvices/extensions/common/extensionsWegistwy';
+impowt { ViewsWewcomeExtensionPoint, ViewWewcome, ViewIdentifiewMap } fwom './viewsWewcomeExtensionPoint';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { Extensions as ViewContainewExtensions, IViewContentDescwiptow, IViewsWegistwy } fwom 'vs/wowkbench/common/views';
 
-const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
+const viewsWegistwy = Wegistwy.as<IViewsWegistwy>(ViewContainewExtensions.ViewsWegistwy);
 
-export class ViewsWelcomeContribution extends Disposable implements IWorkbenchContribution {
+expowt cwass ViewsWewcomeContwibution extends Disposabwe impwements IWowkbenchContwibution {
 
-	private viewWelcomeContents = new Map<ViewWelcome, IDisposable>();
+	pwivate viewWewcomeContents = new Map<ViewWewcome, IDisposabwe>();
 
-	constructor(extensionPoint: IExtensionPoint<ViewsWelcomeExtensionPoint>) {
-		super();
+	constwuctow(extensionPoint: IExtensionPoint<ViewsWewcomeExtensionPoint>) {
+		supa();
 
-		extensionPoint.setHandler((_, { added, removed }) => {
-			for (const contribution of removed) {
-				for (const welcome of contribution.value) {
-					const disposable = this.viewWelcomeContents.get(welcome);
+		extensionPoint.setHandwa((_, { added, wemoved }) => {
+			fow (const contwibution of wemoved) {
+				fow (const wewcome of contwibution.vawue) {
+					const disposabwe = this.viewWewcomeContents.get(wewcome);
 
-					if (disposable) {
-						disposable.dispose();
+					if (disposabwe) {
+						disposabwe.dispose();
 					}
 				}
 			}
 
-			const welcomesByViewId = new Map<string, Map<ViewWelcome, IViewContentDescriptor>>();
+			const wewcomesByViewId = new Map<stwing, Map<ViewWewcome, IViewContentDescwiptow>>();
 
-			for (const contribution of added) {
-				for (const welcome of contribution.value) {
-					const { group, order } = parseGroupAndOrder(welcome, contribution);
-					const precondition = ContextKeyExpr.deserialize(welcome.enablement);
+			fow (const contwibution of added) {
+				fow (const wewcome of contwibution.vawue) {
+					const { gwoup, owda } = pawseGwoupAndOwda(wewcome, contwibution);
+					const pwecondition = ContextKeyExpw.desewiawize(wewcome.enabwement);
 
-					const id = ViewIdentifierMap[welcome.view] ?? welcome.view;
-					let viewContentMap = welcomesByViewId.get(id);
+					const id = ViewIdentifiewMap[wewcome.view] ?? wewcome.view;
+					wet viewContentMap = wewcomesByViewId.get(id);
 					if (!viewContentMap) {
 						viewContentMap = new Map();
-						welcomesByViewId.set(id, viewContentMap);
+						wewcomesByViewId.set(id, viewContentMap);
 					}
 
-					viewContentMap.set(welcome, {
-						content: welcome.contents,
-						when: ContextKeyExpr.deserialize(welcome.when),
-						precondition,
-						group,
-						order
+					viewContentMap.set(wewcome, {
+						content: wewcome.contents,
+						when: ContextKeyExpw.desewiawize(wewcome.when),
+						pwecondition,
+						gwoup,
+						owda
 					});
 				}
 			}
 
-			for (const [id, viewContentMap] of welcomesByViewId) {
-				const disposables = viewsRegistry.registerViewWelcomeContent2(id, viewContentMap);
+			fow (const [id, viewContentMap] of wewcomesByViewId) {
+				const disposabwes = viewsWegistwy.wegistewViewWewcomeContent2(id, viewContentMap);
 
-				for (const [welcome, disposable] of disposables) {
-					this.viewWelcomeContents.set(welcome, disposable);
+				fow (const [wewcome, disposabwe] of disposabwes) {
+					this.viewWewcomeContents.set(wewcome, disposabwe);
 				}
 			}
 		});
 	}
 }
 
-function parseGroupAndOrder(welcome: ViewWelcome, contribution: IExtensionPointUser<ViewsWelcomeExtensionPoint>): { group: string | undefined, order: number | undefined } {
+function pawseGwoupAndOwda(wewcome: ViewWewcome, contwibution: IExtensionPointUsa<ViewsWewcomeExtensionPoint>): { gwoup: stwing | undefined, owda: numba | undefined } {
 
-	let group: string | undefined;
-	let order: number | undefined;
-	if (welcome.group) {
-		if (!contribution.description.enableProposedApi) {
-			contribution.collector.warn(nls.localize('ViewsWelcomeExtensionPoint.proposedAPI', "The viewsWelcome contribution in '{0}' requires 'enableProposedApi' to be enabled.", contribution.description.identifier.value));
-			return { group, order };
+	wet gwoup: stwing | undefined;
+	wet owda: numba | undefined;
+	if (wewcome.gwoup) {
+		if (!contwibution.descwiption.enabwePwoposedApi) {
+			contwibution.cowwectow.wawn(nws.wocawize('ViewsWewcomeExtensionPoint.pwoposedAPI', "The viewsWewcome contwibution in '{0}' wequiwes 'enabwePwoposedApi' to be enabwed.", contwibution.descwiption.identifia.vawue));
+			wetuwn { gwoup, owda };
 		}
 
-		const idx = welcome.group.lastIndexOf('@');
+		const idx = wewcome.gwoup.wastIndexOf('@');
 		if (idx > 0) {
-			group = welcome.group.substr(0, idx);
-			order = Number(welcome.group.substr(idx + 1)) || undefined;
-		} else {
-			group = welcome.group;
+			gwoup = wewcome.gwoup.substw(0, idx);
+			owda = Numba(wewcome.gwoup.substw(idx + 1)) || undefined;
+		} ewse {
+			gwoup = wewcome.gwoup;
 		}
 	}
-	return { group, order };
+	wetuwn { gwoup, owda };
 }

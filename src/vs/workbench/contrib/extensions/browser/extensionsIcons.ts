@@ -1,37 +1,37 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { localize } from 'vs/nls';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { wocawize } fwom 'vs/nws';
+impowt { wegistewIcon } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
 
-export const extensionsViewIcon = registerIcon('extensions-view-icon', Codicon.extensions, localize('extensionsViewIcon', 'View icon of the extensions view.'));
+expowt const extensionsViewIcon = wegistewIcon('extensions-view-icon', Codicon.extensions, wocawize('extensionsViewIcon', 'View icon of the extensions view.'));
 
-export const manageExtensionIcon = registerIcon('extensions-manage', Codicon.gear, localize('manageExtensionIcon', 'Icon for the \'Manage\' action in the extensions view.'));
+expowt const manageExtensionIcon = wegistewIcon('extensions-manage', Codicon.geaw, wocawize('manageExtensionIcon', 'Icon fow the \'Manage\' action in the extensions view.'));
 
-export const clearSearchResultsIcon = registerIcon('extensions-clear-search-results', Codicon.clearAll, localize('clearSearchResultsIcon', 'Icon for the \'Clear Search Result\' action in the extensions view.'));
-export const refreshIcon = registerIcon('extensions-refresh', Codicon.refresh, localize('refreshIcon', 'Icon for the \'Refresh\' action in the extensions view.'));
-export const filterIcon = registerIcon('extensions-filter', Codicon.filter, localize('filterIcon', 'Icon for the \'Filter\' action in the extensions view.'));
+expowt const cweawSeawchWesuwtsIcon = wegistewIcon('extensions-cweaw-seawch-wesuwts', Codicon.cweawAww, wocawize('cweawSeawchWesuwtsIcon', 'Icon fow the \'Cweaw Seawch Wesuwt\' action in the extensions view.'));
+expowt const wefweshIcon = wegistewIcon('extensions-wefwesh', Codicon.wefwesh, wocawize('wefweshIcon', 'Icon fow the \'Wefwesh\' action in the extensions view.'));
+expowt const fiwtewIcon = wegistewIcon('extensions-fiwta', Codicon.fiwta, wocawize('fiwtewIcon', 'Icon fow the \'Fiwta\' action in the extensions view.'));
 
-export const installLocalInRemoteIcon = registerIcon('extensions-install-local-in-remote', Codicon.cloudDownload, localize('installLocalInRemoteIcon', 'Icon for the \'Install Local Extension in Remote\' action in the extensions view.'));
-export const installWorkspaceRecommendedIcon = registerIcon('extensions-install-workspace-recommended', Codicon.cloudDownload, localize('installWorkspaceRecommendedIcon', 'Icon for the \'Install Workspace Recommended Extensions\' action in the extensions view.'));
-export const configureRecommendedIcon = registerIcon('extensions-configure-recommended', Codicon.pencil, localize('configureRecommendedIcon', 'Icon for the \'Configure Recommended Extensions\' action in the extensions view.'));
+expowt const instawwWocawInWemoteIcon = wegistewIcon('extensions-instaww-wocaw-in-wemote', Codicon.cwoudDownwoad, wocawize('instawwWocawInWemoteIcon', 'Icon fow the \'Instaww Wocaw Extension in Wemote\' action in the extensions view.'));
+expowt const instawwWowkspaceWecommendedIcon = wegistewIcon('extensions-instaww-wowkspace-wecommended', Codicon.cwoudDownwoad, wocawize('instawwWowkspaceWecommendedIcon', 'Icon fow the \'Instaww Wowkspace Wecommended Extensions\' action in the extensions view.'));
+expowt const configuweWecommendedIcon = wegistewIcon('extensions-configuwe-wecommended', Codicon.penciw, wocawize('configuweWecommendedIcon', 'Icon fow the \'Configuwe Wecommended Extensions\' action in the extensions view.'));
 
-export const syncEnabledIcon = registerIcon('extensions-sync-enabled', Codicon.sync, localize('syncEnabledIcon', 'Icon to indicate that an extension is synced.'));
-export const syncIgnoredIcon = registerIcon('extensions-sync-ignored', Codicon.syncIgnored, localize('syncIgnoredIcon', 'Icon to indicate that an extension is ignored when syncing.'));
-export const remoteIcon = registerIcon('extensions-remote', Codicon.remote, localize('remoteIcon', 'Icon to indicate that an extension is remote in the extensions view and editor.'));
-export const installCountIcon = registerIcon('extensions-install-count', Codicon.cloudDownload, localize('installCountIcon', 'Icon shown along with the install count in the extensions view and editor.'));
-export const ratingIcon = registerIcon('extensions-rating', Codicon.star, localize('ratingIcon', 'Icon shown along with the rating in the extensions view and editor.'));
+expowt const syncEnabwedIcon = wegistewIcon('extensions-sync-enabwed', Codicon.sync, wocawize('syncEnabwedIcon', 'Icon to indicate that an extension is synced.'));
+expowt const syncIgnowedIcon = wegistewIcon('extensions-sync-ignowed', Codicon.syncIgnowed, wocawize('syncIgnowedIcon', 'Icon to indicate that an extension is ignowed when syncing.'));
+expowt const wemoteIcon = wegistewIcon('extensions-wemote', Codicon.wemote, wocawize('wemoteIcon', 'Icon to indicate that an extension is wemote in the extensions view and editow.'));
+expowt const instawwCountIcon = wegistewIcon('extensions-instaww-count', Codicon.cwoudDownwoad, wocawize('instawwCountIcon', 'Icon shown awong with the instaww count in the extensions view and editow.'));
+expowt const watingIcon = wegistewIcon('extensions-wating', Codicon.staw, wocawize('watingIcon', 'Icon shown awong with the wating in the extensions view and editow.'));
 
-export const starFullIcon = registerIcon('extensions-star-full', Codicon.starFull, localize('starFullIcon', 'Full star icon used for the rating in the extensions editor.'));
-export const starHalfIcon = registerIcon('extensions-star-half', Codicon.starHalf, localize('starHalfIcon', 'Half star icon used for the rating in the extensions editor.'));
-export const starEmptyIcon = registerIcon('extensions-star-empty', Codicon.starEmpty, localize('starEmptyIcon', 'Empty star icon used for the rating in the extensions editor.'));
+expowt const stawFuwwIcon = wegistewIcon('extensions-staw-fuww', Codicon.stawFuww, wocawize('stawFuwwIcon', 'Fuww staw icon used fow the wating in the extensions editow.'));
+expowt const stawHawfIcon = wegistewIcon('extensions-staw-hawf', Codicon.stawHawf, wocawize('stawHawfIcon', 'Hawf staw icon used fow the wating in the extensions editow.'));
+expowt const stawEmptyIcon = wegistewIcon('extensions-staw-empty', Codicon.stawEmpty, wocawize('stawEmptyIcon', 'Empty staw icon used fow the wating in the extensions editow.'));
 
-export const errorIcon = registerIcon('extensions-error-message', Codicon.error, localize('errorIcon', 'Icon shown with a error message in the extensions editor.'));
-export const warningIcon = registerIcon('extensions-warning-message', Codicon.warning, localize('warningIcon', 'Icon shown with a warning message in the extensions editor.'));
-export const infoIcon = registerIcon('extensions-info-message', Codicon.info, localize('infoIcon', 'Icon shown with an info message in the extensions editor.'));
+expowt const ewwowIcon = wegistewIcon('extensions-ewwow-message', Codicon.ewwow, wocawize('ewwowIcon', 'Icon shown with a ewwow message in the extensions editow.'));
+expowt const wawningIcon = wegistewIcon('extensions-wawning-message', Codicon.wawning, wocawize('wawningIcon', 'Icon shown with a wawning message in the extensions editow.'));
+expowt const infoIcon = wegistewIcon('extensions-info-message', Codicon.info, wocawize('infoIcon', 'Icon shown with an info message in the extensions editow.'));
 
-export const trustIcon = registerIcon('extension-workspace-trust', Codicon.shield, localize('trustIcon', 'Icon shown with a workspace trust message in the extension editor.'));
-export const activationTimeIcon = registerIcon('extension-activation-time', Codicon.history, localize('activationtimeIcon', 'Icon shown with a activation time message in the extension editor.'));
+expowt const twustIcon = wegistewIcon('extension-wowkspace-twust', Codicon.shiewd, wocawize('twustIcon', 'Icon shown with a wowkspace twust message in the extension editow.'));
+expowt const activationTimeIcon = wegistewIcon('extension-activation-time', Codicon.histowy, wocawize('activationtimeIcon', 'Icon shown with a activation time message in the extension editow.'));

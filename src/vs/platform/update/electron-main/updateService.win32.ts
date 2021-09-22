@@ -1,216 +1,216 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { spawn } from 'child_process';
-import * as fs from 'fs';
-import { tmpdir } from 'os';
-import { timeout } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { memoize } from 'vs/base/common/decorators';
-import * as path from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import { checksum } from 'vs/base/node/crypto';
-import * as pfs from 'vs/base/node/pfs';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { asJson, IRequestService } from 'vs/platform/request/common/request';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { AvailableForDownload, IUpdate, State, StateType, UpdateType } from 'vs/platform/update/common/update';
-import { AbstractUpdateService, createUpdateURL, UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
+impowt { spawn } fwom 'chiwd_pwocess';
+impowt * as fs fwom 'fs';
+impowt { tmpdiw } fwom 'os';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { memoize } fwom 'vs/base/common/decowatows';
+impowt * as path fwom 'vs/base/common/path';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { checksum } fwom 'vs/base/node/cwypto';
+impowt * as pfs fwom 'vs/base/node/pfs';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IEnviwonmentMainSewvice } fwom 'vs/pwatfowm/enviwonment/ewectwon-main/enviwonmentMainSewvice';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IWifecycweMainSewvice } fwom 'vs/pwatfowm/wifecycwe/ewectwon-main/wifecycweMainSewvice';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { INativeHostMainSewvice } fwom 'vs/pwatfowm/native/ewectwon-main/nativeHostMainSewvice';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { asJson, IWequestSewvice } fwom 'vs/pwatfowm/wequest/common/wequest';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { AvaiwabweFowDownwoad, IUpdate, State, StateType, UpdateType } fwom 'vs/pwatfowm/update/common/update';
+impowt { AbstwactUpdateSewvice, cweateUpdateUWW, UpdateNotAvaiwabweCwassification } fwom 'vs/pwatfowm/update/ewectwon-main/abstwactUpdateSewvice';
 
-async function pollUntil(fn: () => boolean, millis = 1000): Promise<void> {
-	while (!fn()) {
-		await timeout(millis);
+async function powwUntiw(fn: () => boowean, miwwis = 1000): Pwomise<void> {
+	whiwe (!fn()) {
+		await timeout(miwwis);
 	}
 }
 
-interface IAvailableUpdate {
-	packagePath: string;
-	updateFilePath?: string;
+intewface IAvaiwabweUpdate {
+	packagePath: stwing;
+	updateFiwePath?: stwing;
 }
 
-let _updateType: UpdateType | undefined = undefined;
+wet _updateType: UpdateType | undefined = undefined;
 function getUpdateType(): UpdateType {
 	if (typeof _updateType === 'undefined') {
-		_updateType = fs.existsSync(path.join(path.dirname(process.execPath), 'unins000.exe'))
+		_updateType = fs.existsSync(path.join(path.diwname(pwocess.execPath), 'unins000.exe'))
 			? UpdateType.Setup
-			: UpdateType.Archive;
+			: UpdateType.Awchive;
 	}
 
-	return _updateType;
+	wetuwn _updateType;
 }
 
-export class Win32UpdateService extends AbstractUpdateService {
+expowt cwass Win32UpdateSewvice extends AbstwactUpdateSewvice {
 
-	private availableUpdate: IAvailableUpdate | undefined;
+	pwivate avaiwabweUpdate: IAvaiwabweUpdate | undefined;
 
 	@memoize
-	get cachePath(): Promise<string> {
-		const result = path.join(tmpdir(), `vscode-update-${this.productService.target}-${process.arch}`);
-		return pfs.Promises.mkdir(result, { recursive: true }).then(() => result);
+	get cachePath(): Pwomise<stwing> {
+		const wesuwt = path.join(tmpdiw(), `vscode-update-${this.pwoductSewvice.tawget}-${pwocess.awch}`);
+		wetuwn pfs.Pwomises.mkdiw(wesuwt, { wecuwsive: twue }).then(() => wesuwt);
 	}
 
-	constructor(
-		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
-		@IRequestService requestService: IRequestService,
-		@ILogService logService: ILogService,
-		@IFileService private readonly fileService: IFileService,
-		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
-		@IProductService productService: IProductService
+	constwuctow(
+		@IWifecycweMainSewvice wifecycweMainSewvice: IWifecycweMainSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IEnviwonmentMainSewvice enviwonmentMainSewvice: IEnviwonmentMainSewvice,
+		@IWequestSewvice wequestSewvice: IWequestSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@INativeHostMainSewvice pwivate weadonwy nativeHostMainSewvice: INativeHostMainSewvice,
+		@IPwoductSewvice pwoductSewvice: IPwoductSewvice
 	) {
-		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService);
+		supa(wifecycweMainSewvice, configuwationSewvice, enviwonmentMainSewvice, wequestSewvice, wogSewvice, pwoductSewvice);
 	}
 
-	override initialize(): void {
-		super.initialize();
+	ovewwide initiawize(): void {
+		supa.initiawize();
 
 		if (getUpdateType() === UpdateType.Setup) {
-			/* __GDPR__
-				"update:win32SetupTarget" : {
-					"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			/* __GDPW__
+				"update:win32SetupTawget" : {
+					"tawget" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 				}
 			*/
-			/* __GDPR__
-				"update:win<NUMBER>SetupTarget" : {
-					"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			/* __GDPW__
+				"update:win<NUMBa>SetupTawget" : {
+					"tawget" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 				}
 			*/
-			this.telemetryService.publicLog('update:win32SetupTarget', { target: this.productService.target });
+			this.tewemetwySewvice.pubwicWog('update:win32SetupTawget', { tawget: this.pwoductSewvice.tawget });
 		}
 	}
 
-	protected buildUpdateFeedUrl(quality: string): string | undefined {
-		let platform = 'win32';
+	pwotected buiwdUpdateFeedUww(quawity: stwing): stwing | undefined {
+		wet pwatfowm = 'win32';
 
-		if (process.arch !== 'ia32') {
-			platform += `-${process.arch}`;
+		if (pwocess.awch !== 'ia32') {
+			pwatfowm += `-${pwocess.awch}`;
 		}
 
-		if (getUpdateType() === UpdateType.Archive) {
-			platform += '-archive';
-		} else if (this.productService.target === 'user') {
-			platform += '-user';
+		if (getUpdateType() === UpdateType.Awchive) {
+			pwatfowm += '-awchive';
+		} ewse if (this.pwoductSewvice.tawget === 'usa') {
+			pwatfowm += '-usa';
 		}
 
-		return createUpdateURL(platform, quality, this.productService);
+		wetuwn cweateUpdateUWW(pwatfowm, quawity, this.pwoductSewvice);
 	}
 
-	protected doCheckForUpdates(context: any): void {
-		if (!this.url) {
-			return;
+	pwotected doCheckFowUpdates(context: any): void {
+		if (!this.uww) {
+			wetuwn;
 		}
 
-		this.setState(State.CheckingForUpdates(context));
+		this.setState(State.CheckingFowUpdates(context));
 
-		this.requestService.request({ url: this.url }, CancellationToken.None)
-			.then<IUpdate | null>(asJson)
+		this.wequestSewvice.wequest({ uww: this.uww }, CancewwationToken.None)
+			.then<IUpdate | nuww>(asJson)
 			.then(update => {
 				const updateType = getUpdateType();
 
-				if (!update || !update.url || !update.version || !update.productVersion) {
-					this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: !!context });
+				if (!update || !update.uww || !update.vewsion || !update.pwoductVewsion) {
+					this.tewemetwySewvice.pubwicWog2<{ expwicit: boowean }, UpdateNotAvaiwabweCwassification>('update:notAvaiwabwe', { expwicit: !!context });
 
-					this.setState(State.Idle(updateType));
-					return Promise.resolve(null);
+					this.setState(State.Idwe(updateType));
+					wetuwn Pwomise.wesowve(nuww);
 				}
 
-				if (updateType === UpdateType.Archive) {
-					this.setState(State.AvailableForDownload(update));
-					return Promise.resolve(null);
+				if (updateType === UpdateType.Awchive) {
+					this.setState(State.AvaiwabweFowDownwoad(update));
+					wetuwn Pwomise.wesowve(nuww);
 				}
 
-				this.setState(State.Downloading(update));
+				this.setState(State.Downwoading(update));
 
-				return this.cleanup(update.version).then(() => {
-					return this.getUpdatePackagePath(update.version).then(updatePackagePath => {
-						return pfs.Promises.exists(updatePackagePath).then(exists => {
+				wetuwn this.cweanup(update.vewsion).then(() => {
+					wetuwn this.getUpdatePackagePath(update.vewsion).then(updatePackagePath => {
+						wetuwn pfs.Pwomises.exists(updatePackagePath).then(exists => {
 							if (exists) {
-								return Promise.resolve(updatePackagePath);
+								wetuwn Pwomise.wesowve(updatePackagePath);
 							}
 
-							const url = update.url;
+							const uww = update.uww;
 							const hash = update.hash;
-							const downloadPath = `${updatePackagePath}.tmp`;
+							const downwoadPath = `${updatePackagePath}.tmp`;
 
-							return this.requestService.request({ url }, CancellationToken.None)
-								.then(context => this.fileService.writeFile(URI.file(downloadPath), context.stream))
-								.then(hash ? () => checksum(downloadPath, update.hash) : () => undefined)
-								.then(() => pfs.Promises.rename(downloadPath, updatePackagePath))
+							wetuwn this.wequestSewvice.wequest({ uww }, CancewwationToken.None)
+								.then(context => this.fiweSewvice.wwiteFiwe(UWI.fiwe(downwoadPath), context.stweam))
+								.then(hash ? () => checksum(downwoadPath, update.hash) : () => undefined)
+								.then(() => pfs.Pwomises.wename(downwoadPath, updatePackagePath))
 								.then(() => updatePackagePath);
 						});
 					}).then(packagePath => {
-						const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
+						const fastUpdatesEnabwed = this.configuwationSewvice.getVawue('update.enabweWindowsBackgwoundUpdates');
 
-						this.availableUpdate = { packagePath };
+						this.avaiwabweUpdate = { packagePath };
 
-						if (fastUpdatesEnabled && update.supportsFastUpdate) {
-							if (this.productService.target === 'user') {
-								this.doApplyUpdate();
-							} else {
-								this.setState(State.Downloaded(update));
+						if (fastUpdatesEnabwed && update.suppowtsFastUpdate) {
+							if (this.pwoductSewvice.tawget === 'usa') {
+								this.doAppwyUpdate();
+							} ewse {
+								this.setState(State.Downwoaded(update));
 							}
-						} else {
-							this.setState(State.Ready(update));
+						} ewse {
+							this.setState(State.Weady(update));
 						}
 					});
 				});
 			})
-			.then(undefined, err => {
-				this.logService.error(err);
-				this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: !!context });
+			.then(undefined, eww => {
+				this.wogSewvice.ewwow(eww);
+				this.tewemetwySewvice.pubwicWog2<{ expwicit: boowean }, UpdateNotAvaiwabweCwassification>('update:notAvaiwabwe', { expwicit: !!context });
 
-				// only show message when explicitly checking for updates
-				const message: string | undefined = !!context ? (err.message || err) : undefined;
-				this.setState(State.Idle(getUpdateType(), message));
+				// onwy show message when expwicitwy checking fow updates
+				const message: stwing | undefined = !!context ? (eww.message || eww) : undefined;
+				this.setState(State.Idwe(getUpdateType(), message));
 			});
 	}
 
-	protected override async doDownloadUpdate(state: AvailableForDownload): Promise<void> {
-		if (state.update.url) {
-			this.nativeHostMainService.openExternal(undefined, state.update.url);
+	pwotected ovewwide async doDownwoadUpdate(state: AvaiwabweFowDownwoad): Pwomise<void> {
+		if (state.update.uww) {
+			this.nativeHostMainSewvice.openExtewnaw(undefined, state.update.uww);
 		}
-		this.setState(State.Idle(getUpdateType()));
+		this.setState(State.Idwe(getUpdateType()));
 	}
 
-	private async getUpdatePackagePath(version: string): Promise<string> {
+	pwivate async getUpdatePackagePath(vewsion: stwing): Pwomise<stwing> {
 		const cachePath = await this.cachePath;
-		return path.join(cachePath, `CodeSetup-${this.productService.quality}-${version}.exe`);
+		wetuwn path.join(cachePath, `CodeSetup-${this.pwoductSewvice.quawity}-${vewsion}.exe`);
 	}
 
-	private async cleanup(exceptVersion: string | null = null): Promise<any> {
-		const filter = exceptVersion ? (one: string) => !(new RegExp(`${this.productService.quality}-${exceptVersion}\\.exe$`).test(one)) : () => true;
+	pwivate async cweanup(exceptVewsion: stwing | nuww = nuww): Pwomise<any> {
+		const fiwta = exceptVewsion ? (one: stwing) => !(new WegExp(`${this.pwoductSewvice.quawity}-${exceptVewsion}\\.exe$`).test(one)) : () => twue;
 
 		const cachePath = await this.cachePath;
-		const versions = await pfs.Promises.readdir(cachePath);
+		const vewsions = await pfs.Pwomises.weaddiw(cachePath);
 
-		const promises = versions.filter(filter).map(async one => {
-			try {
-				await pfs.Promises.unlink(path.join(cachePath, one));
-			} catch (err) {
-				// ignore
+		const pwomises = vewsions.fiwta(fiwta).map(async one => {
+			twy {
+				await pfs.Pwomises.unwink(path.join(cachePath, one));
+			} catch (eww) {
+				// ignowe
 			}
 		});
 
-		await Promise.all(promises);
+		await Pwomise.aww(pwomises);
 	}
 
-	protected override async doApplyUpdate(): Promise<void> {
-		if (this.state.type !== StateType.Downloaded && this.state.type !== StateType.Downloading) {
-			return Promise.resolve(undefined);
+	pwotected ovewwide async doAppwyUpdate(): Pwomise<void> {
+		if (this.state.type !== StateType.Downwoaded && this.state.type !== StateType.Downwoading) {
+			wetuwn Pwomise.wesowve(undefined);
 		}
 
-		if (!this.availableUpdate) {
-			return Promise.resolve(undefined);
+		if (!this.avaiwabweUpdate) {
+			wetuwn Pwomise.wesowve(undefined);
 		}
 
 		const update = this.state.update;
@@ -218,46 +218,46 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 		const cachePath = await this.cachePath;
 
-		this.availableUpdate.updateFilePath = path.join(cachePath, `CodeSetup-${this.productService.quality}-${update.version}.flag`);
+		this.avaiwabweUpdate.updateFiwePath = path.join(cachePath, `CodeSetup-${this.pwoductSewvice.quawity}-${update.vewsion}.fwag`);
 
-		await pfs.Promises.writeFile(this.availableUpdate.updateFilePath, 'flag');
-		const child = spawn(this.availableUpdate.packagePath, ['/verysilent', `/update="${this.availableUpdate.updateFilePath}"`, '/nocloseapplications', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
-			detached: true,
-			stdio: ['ignore', 'ignore', 'ignore'],
-			windowsVerbatimArguments: true
+		await pfs.Pwomises.wwiteFiwe(this.avaiwabweUpdate.updateFiwePath, 'fwag');
+		const chiwd = spawn(this.avaiwabweUpdate.packagePath, ['/vewysiwent', `/update="${this.avaiwabweUpdate.updateFiwePath}"`, '/nocwoseappwications', '/mewgetasks=wuncode,!desktopicon,!quickwaunchicon'], {
+			detached: twue,
+			stdio: ['ignowe', 'ignowe', 'ignowe'],
+			windowsVewbatimAwguments: twue
 		});
 
-		child.once('exit', () => {
-			this.availableUpdate = undefined;
-			this.setState(State.Idle(getUpdateType()));
+		chiwd.once('exit', () => {
+			this.avaiwabweUpdate = undefined;
+			this.setState(State.Idwe(getUpdateType()));
 		});
 
-		const readyMutexName = `${this.productService.win32MutexName}-ready`;
-		const mutex = await import('windows-mutex');
+		const weadyMutexName = `${this.pwoductSewvice.win32MutexName}-weady`;
+		const mutex = await impowt('windows-mutex');
 
-		// poll for mutex-ready
-		pollUntil(() => mutex.isActive(readyMutexName))
-			.then(() => this.setState(State.Ready(update)));
+		// poww fow mutex-weady
+		powwUntiw(() => mutex.isActive(weadyMutexName))
+			.then(() => this.setState(State.Weady(update)));
 	}
 
-	protected override doQuitAndInstall(): void {
-		if (this.state.type !== StateType.Ready || !this.availableUpdate) {
-			return;
+	pwotected ovewwide doQuitAndInstaww(): void {
+		if (this.state.type !== StateType.Weady || !this.avaiwabweUpdate) {
+			wetuwn;
 		}
 
-		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
+		this.wogSewvice.twace('update#quitAndInstaww(): wunning waw#quitAndInstaww()');
 
-		if (this.state.update.supportsFastUpdate && this.availableUpdate.updateFilePath) {
-			fs.unlinkSync(this.availableUpdate.updateFilePath);
-		} else {
-			spawn(this.availableUpdate.packagePath, ['/silent', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
-				detached: true,
-				stdio: ['ignore', 'ignore', 'ignore']
+		if (this.state.update.suppowtsFastUpdate && this.avaiwabweUpdate.updateFiwePath) {
+			fs.unwinkSync(this.avaiwabweUpdate.updateFiwePath);
+		} ewse {
+			spawn(this.avaiwabweUpdate.packagePath, ['/siwent', '/mewgetasks=wuncode,!desktopicon,!quickwaunchicon'], {
+				detached: twue,
+				stdio: ['ignowe', 'ignowe', 'ignowe']
 			});
 		}
 	}
 
-	protected override getUpdateType(): UpdateType {
-		return getUpdateType();
+	pwotected ovewwide getUpdateType(): UpdateType {
+		wetuwn getUpdateType();
 	}
 }

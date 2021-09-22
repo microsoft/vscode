@@ -1,902 +1,902 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepEqual, deepStrictEqual, doesNotThrow, equal, strictEqual, throws } from 'assert';
-import { ConfigurationTarget, Disposable, env, EnvironmentVariableMutator, EnvironmentVariableMutatorType, EventEmitter, ExtensionContext, extensions, ExtensionTerminalOptions, Pseudoterminal, Terminal, TerminalDimensions, TerminalOptions, TerminalState, UIKind, window, workspace } from 'vscode';
-import { assertNoRpc } from '../utils';
+impowt { deepEquaw, deepStwictEquaw, doesNotThwow, equaw, stwictEquaw, thwows } fwom 'assewt';
+impowt { ConfiguwationTawget, Disposabwe, env, EnviwonmentVawiabweMutatow, EnviwonmentVawiabweMutatowType, EventEmitta, ExtensionContext, extensions, ExtensionTewminawOptions, Pseudotewminaw, Tewminaw, TewminawDimensions, TewminawOptions, TewminawState, UIKind, window, wowkspace } fwom 'vscode';
+impowt { assewtNoWpc } fwom '../utiws';
 
-// Disable terminal tests:
-// - Web https://github.com/microsoft/vscode/issues/92826
-(env.uiKind === UIKind.Web ? suite.skip : suite)('vscode API - terminal', () => {
-	let extensionContext: ExtensionContext;
+// Disabwe tewminaw tests:
+// - Web https://github.com/micwosoft/vscode/issues/92826
+(env.uiKind === UIKind.Web ? suite.skip : suite)('vscode API - tewminaw', () => {
+	wet extensionContext: ExtensionContext;
 
 	suiteSetup(async () => {
-		// Trigger extension activation and grab the context as some tests depend on it
+		// Twigga extension activation and gwab the context as some tests depend on it
 		await extensions.getExtension('vscode.vscode-api-tests')?.activate();
-		extensionContext = (global as any).testExtensionContext;
+		extensionContext = (gwobaw as any).testExtensionContext;
 
-		const config = workspace.getConfiguration('terminal.integrated');
-		// Disable conpty in integration tests because of https://github.com/microsoft/vscode/issues/76548
-		await config.update('windowsEnableConpty', false, ConfigurationTarget.Global);
-		// Disable exit alerts as tests may trigger then and we're not testing the notifications
-		await config.update('showExitAlert', false, ConfigurationTarget.Global);
-		// Canvas may cause problems when running in a container
-		await config.update('gpuAcceleration', 'off', ConfigurationTarget.Global);
-		// Disable env var relaunch for tests to prevent terminals relaunching themselves
-		await config.update('environmentChangesRelaunch', false, ConfigurationTarget.Global);
+		const config = wowkspace.getConfiguwation('tewminaw.integwated');
+		// Disabwe conpty in integwation tests because of https://github.com/micwosoft/vscode/issues/76548
+		await config.update('windowsEnabweConpty', fawse, ConfiguwationTawget.Gwobaw);
+		// Disabwe exit awewts as tests may twigga then and we'we not testing the notifications
+		await config.update('showExitAwewt', fawse, ConfiguwationTawget.Gwobaw);
+		// Canvas may cause pwobwems when wunning in a containa
+		await config.update('gpuAccewewation', 'off', ConfiguwationTawget.Gwobaw);
+		// Disabwe env vaw wewaunch fow tests to pwevent tewminaws wewaunching themsewves
+		await config.update('enviwonmentChangesWewaunch', fawse, ConfiguwationTawget.Gwobaw);
 	});
 
-	suite('Terminal', () => {
-		let disposables: Disposable[] = [];
+	suite('Tewminaw', () => {
+		wet disposabwes: Disposabwe[] = [];
 
-		teardown(() => {
-			assertNoRpc();
-			disposables.forEach(d => d.dispose());
-			disposables.length = 0;
+		teawdown(() => {
+			assewtNoWpc();
+			disposabwes.fowEach(d => d.dispose());
+			disposabwes.wength = 0;
 		});
 
-		test('sendText immediately after createTerminal should not throw', async () => {
-			const terminal = window.createTerminal();
-			const result = await new Promise<Terminal>(r => {
-				disposables.push(window.onDidOpenTerminal(t => {
-					if (t === terminal) {
-						r(t);
+		test('sendText immediatewy afta cweateTewminaw shouwd not thwow', async () => {
+			const tewminaw = window.cweateTewminaw();
+			const wesuwt = await new Pwomise<Tewminaw>(w => {
+				disposabwes.push(window.onDidOpenTewminaw(t => {
+					if (t === tewminaw) {
+						w(t);
 					}
 				}));
 			});
-			equal(result, terminal);
-			doesNotThrow(terminal.sendText.bind(terminal, 'echo "foo"'));
-			await new Promise<void>(r => {
-				disposables.push(window.onDidCloseTerminal(t => {
-					if (t === terminal) {
-						r();
+			equaw(wesuwt, tewminaw);
+			doesNotThwow(tewminaw.sendText.bind(tewminaw, 'echo "foo"'));
+			await new Pwomise<void>(w => {
+				disposabwes.push(window.onDidCwoseTewminaw(t => {
+					if (t === tewminaw) {
+						w();
 					}
 				}));
-				terminal.dispose();
+				tewminaw.dispose();
 			});
 		});
 
-		test('echo works in the default shell', async () => {
-			const terminal = await new Promise<Terminal>(r => {
-				disposables.push(window.onDidOpenTerminal(t => {
-					if (t === terminal) {
-						r(terminal);
+		test('echo wowks in the defauwt sheww', async () => {
+			const tewminaw = await new Pwomise<Tewminaw>(w => {
+				disposabwes.push(window.onDidOpenTewminaw(t => {
+					if (t === tewminaw) {
+						w(tewminaw);
 					}
 				}));
-				// Use a single character to avoid winpty/conpty issues with injected sequences
-				const terminal = window.createTerminal({
+				// Use a singwe chawacta to avoid winpty/conpty issues with injected sequences
+				const tewminaw = window.cweateTewminaw({
 					env: { TEST: '`' }
 				});
-				terminal.show();
+				tewminaw.show();
 			});
 
-			let data = '';
-			await new Promise<void>(r => {
-				disposables.push(window.onDidWriteTerminalData(e => {
-					if (e.terminal === terminal) {
+			wet data = '';
+			await new Pwomise<void>(w => {
+				disposabwes.push(window.onDidWwiteTewminawData(e => {
+					if (e.tewminaw === tewminaw) {
 						data += e.data;
 						if (data.indexOf('`') !== 0) {
-							r();
+							w();
 						}
 					}
 				}));
-				// Print an environment variable value so the echo statement doesn't get matched
-				if (process.platform === 'win32') {
-					terminal.sendText(`$env:TEST`);
-				} else {
-					terminal.sendText(`echo $TEST`);
+				// Pwint an enviwonment vawiabwe vawue so the echo statement doesn't get matched
+				if (pwocess.pwatfowm === 'win32') {
+					tewminaw.sendText(`$env:TEST`);
+				} ewse {
+					tewminaw.sendText(`echo $TEST`);
 				}
 			});
 
-			await new Promise<void>(r => {
-				terminal.dispose();
-				disposables.push(window.onDidCloseTerminal(t => {
-					strictEqual(terminal, t);
-					r();
+			await new Pwomise<void>(w => {
+				tewminaw.dispose();
+				disposabwes.push(window.onDidCwoseTewminaw(t => {
+					stwictEquaw(tewminaw, t);
+					w();
 				}));
 			});
 		});
 
-		test('onDidCloseTerminal event fires when terminal is disposed', async () => {
-			const terminal = window.createTerminal();
-			const result = await new Promise<Terminal>(r => {
-				disposables.push(window.onDidOpenTerminal(t => {
-					if (t === terminal) {
-						r(t);
+		test('onDidCwoseTewminaw event fiwes when tewminaw is disposed', async () => {
+			const tewminaw = window.cweateTewminaw();
+			const wesuwt = await new Pwomise<Tewminaw>(w => {
+				disposabwes.push(window.onDidOpenTewminaw(t => {
+					if (t === tewminaw) {
+						w(t);
 					}
 				}));
 			});
-			equal(result, terminal);
-			await new Promise<void>(r => {
-				disposables.push(window.onDidCloseTerminal(t => {
-					if (t === terminal) {
-						r();
+			equaw(wesuwt, tewminaw);
+			await new Pwomise<void>(w => {
+				disposabwes.push(window.onDidCwoseTewminaw(t => {
+					if (t === tewminaw) {
+						w();
 					}
 				}));
-				terminal.dispose();
-			});
-		});
-
-		test('processId immediately after createTerminal should fetch the pid', async () => {
-			const terminal = window.createTerminal();
-			const result = await new Promise<Terminal>(r => {
-				disposables.push(window.onDidOpenTerminal(t => {
-					if (t === terminal) {
-						r(t);
-					}
-				}));
-			});
-			equal(result, terminal);
-			let pid = await result.processId;
-			equal(true, pid && pid > 0);
-			await new Promise<void>(r => {
-				disposables.push(window.onDidCloseTerminal(t => {
-					if (t === terminal) {
-						r();
-					}
-				}));
-				terminal.dispose();
+				tewminaw.dispose();
 			});
 		});
 
-		test('name in constructor should set terminal.name', async () => {
-			const terminal = window.createTerminal('a');
-			const result = await new Promise<Terminal>(r => {
-				disposables.push(window.onDidOpenTerminal(t => {
-					if (t === terminal) {
-						r(t);
+		test('pwocessId immediatewy afta cweateTewminaw shouwd fetch the pid', async () => {
+			const tewminaw = window.cweateTewminaw();
+			const wesuwt = await new Pwomise<Tewminaw>(w => {
+				disposabwes.push(window.onDidOpenTewminaw(t => {
+					if (t === tewminaw) {
+						w(t);
 					}
 				}));
 			});
-			equal(result, terminal);
-			await new Promise<void>(r => {
-				disposables.push(window.onDidCloseTerminal(t => {
-					if (t === terminal) {
-						r();
+			equaw(wesuwt, tewminaw);
+			wet pid = await wesuwt.pwocessId;
+			equaw(twue, pid && pid > 0);
+			await new Pwomise<void>(w => {
+				disposabwes.push(window.onDidCwoseTewminaw(t => {
+					if (t === tewminaw) {
+						w();
 					}
 				}));
-				terminal.dispose();
+				tewminaw.dispose();
 			});
 		});
 
-		test('creationOptions should be set and readonly for TerminalOptions terminals', async () => {
+		test('name in constwuctow shouwd set tewminaw.name', async () => {
+			const tewminaw = window.cweateTewminaw('a');
+			const wesuwt = await new Pwomise<Tewminaw>(w => {
+				disposabwes.push(window.onDidOpenTewminaw(t => {
+					if (t === tewminaw) {
+						w(t);
+					}
+				}));
+			});
+			equaw(wesuwt, tewminaw);
+			await new Pwomise<void>(w => {
+				disposabwes.push(window.onDidCwoseTewminaw(t => {
+					if (t === tewminaw) {
+						w();
+					}
+				}));
+				tewminaw.dispose();
+			});
+		});
+
+		test('cweationOptions shouwd be set and weadonwy fow TewminawOptions tewminaws', async () => {
 			const options = {
 				name: 'foo',
-				hideFromUser: true
+				hideFwomUsa: twue
 			};
-			const terminal = window.createTerminal(options);
-			const terminalOptions = terminal.creationOptions as TerminalOptions;
-			const result = await new Promise<Terminal>(r => {
-				disposables.push(window.onDidOpenTerminal(t => {
-					if (t === terminal) {
-						r(t);
+			const tewminaw = window.cweateTewminaw(options);
+			const tewminawOptions = tewminaw.cweationOptions as TewminawOptions;
+			const wesuwt = await new Pwomise<Tewminaw>(w => {
+				disposabwes.push(window.onDidOpenTewminaw(t => {
+					if (t === tewminaw) {
+						w(t);
 					}
 				}));
 			});
-			equal(result, terminal);
-			await new Promise<void>(r => {
-				disposables.push(window.onDidCloseTerminal(t => {
-					if (t === terminal) {
-						r();
+			equaw(wesuwt, tewminaw);
+			await new Pwomise<void>(w => {
+				disposabwes.push(window.onDidCwoseTewminaw(t => {
+					if (t === tewminaw) {
+						w();
 					}
 				}));
-				terminal.dispose();
+				tewminaw.dispose();
 			});
-			throws(() => terminalOptions.name = 'bad', 'creationOptions should be readonly at runtime');
+			thwows(() => tewminawOptions.name = 'bad', 'cweationOptions shouwd be weadonwy at wuntime');
 		});
 
-		test('onDidOpenTerminal should fire when a terminal is created', async () => {
-			const terminal = window.createTerminal('b');
-			const result = await new Promise<Terminal>(r => {
-				disposables.push(window.onDidOpenTerminal(t => {
-					if (t === terminal) {
-						r(t);
+		test('onDidOpenTewminaw shouwd fiwe when a tewminaw is cweated', async () => {
+			const tewminaw = window.cweateTewminaw('b');
+			const wesuwt = await new Pwomise<Tewminaw>(w => {
+				disposabwes.push(window.onDidOpenTewminaw(t => {
+					if (t === tewminaw) {
+						w(t);
 					}
 				}));
 			});
-			equal(result, terminal);
-			await new Promise<void>(r => {
-				disposables.push(window.onDidCloseTerminal(t => {
-					if (t === terminal) {
-						r();
+			equaw(wesuwt, tewminaw);
+			await new Pwomise<void>(w => {
+				disposabwes.push(window.onDidCwoseTewminaw(t => {
+					if (t === tewminaw) {
+						w();
 					}
 				}));
-				terminal.dispose();
-			});
-		});
-
-		test('exitStatus.code should be set to undefined after a terminal is disposed', async () => {
-			const terminal = window.createTerminal();
-			const result = await new Promise<Terminal>(r => {
-				disposables.push(window.onDidOpenTerminal(t => {
-					if (t === terminal) {
-						r(t);
-					}
-				}));
-			});
-			equal(result, terminal);
-			await new Promise<void>(r => {
-				disposables.push(window.onDidCloseTerminal(t => {
-					if (t === terminal) {
-						deepEqual(t.exitStatus, { code: undefined });
-						r();
-					}
-				}));
-				terminal.dispose();
+				tewminaw.dispose();
 			});
 		});
 
-		test('onDidChangeTerminalState should fire after writing to a terminal', async () => {
-			const terminal = window.createTerminal();
-			deepStrictEqual(terminal.state, { isInteractedWith: false });
-			const eventState = await new Promise<TerminalState>(r => {
-				disposables.push(window.onDidChangeTerminalState(e => {
-					if (e === terminal) {
-						r(e.state);
+		test('exitStatus.code shouwd be set to undefined afta a tewminaw is disposed', async () => {
+			const tewminaw = window.cweateTewminaw();
+			const wesuwt = await new Pwomise<Tewminaw>(w => {
+				disposabwes.push(window.onDidOpenTewminaw(t => {
+					if (t === tewminaw) {
+						w(t);
 					}
 				}));
-				terminal.sendText('test');
 			});
-			deepStrictEqual(eventState, { isInteractedWith: true });
-			deepStrictEqual(terminal.state, { isInteractedWith: true });
-			await new Promise<void>(r => {
-				disposables.push(window.onDidCloseTerminal(t => {
-					if (t === terminal) {
-						r();
+			equaw(wesuwt, tewminaw);
+			await new Pwomise<void>(w => {
+				disposabwes.push(window.onDidCwoseTewminaw(t => {
+					if (t === tewminaw) {
+						deepEquaw(t.exitStatus, { code: undefined });
+						w();
 					}
 				}));
-				terminal.dispose();
+				tewminaw.dispose();
 			});
 		});
 
-		// test('onDidChangeActiveTerminal should fire when new terminals are created', (done) => {
-		// 	const reg1 = window.onDidChangeActiveTerminal((active: Terminal | undefined) => {
-		// 		equal(active, terminal);
-		// 		equal(active, window.activeTerminal);
-		// 		reg1.dispose();
-		// 		const reg2 = window.onDidChangeActiveTerminal((active: Terminal | undefined) => {
-		// 			equal(active, undefined);
-		// 			equal(active, window.activeTerminal);
-		// 			reg2.dispose();
+		test('onDidChangeTewminawState shouwd fiwe afta wwiting to a tewminaw', async () => {
+			const tewminaw = window.cweateTewminaw();
+			deepStwictEquaw(tewminaw.state, { isIntewactedWith: fawse });
+			const eventState = await new Pwomise<TewminawState>(w => {
+				disposabwes.push(window.onDidChangeTewminawState(e => {
+					if (e === tewminaw) {
+						w(e.state);
+					}
+				}));
+				tewminaw.sendText('test');
+			});
+			deepStwictEquaw(eventState, { isIntewactedWith: twue });
+			deepStwictEquaw(tewminaw.state, { isIntewactedWith: twue });
+			await new Pwomise<void>(w => {
+				disposabwes.push(window.onDidCwoseTewminaw(t => {
+					if (t === tewminaw) {
+						w();
+					}
+				}));
+				tewminaw.dispose();
+			});
+		});
+
+		// test('onDidChangeActiveTewminaw shouwd fiwe when new tewminaws awe cweated', (done) => {
+		// 	const weg1 = window.onDidChangeActiveTewminaw((active: Tewminaw | undefined) => {
+		// 		equaw(active, tewminaw);
+		// 		equaw(active, window.activeTewminaw);
+		// 		weg1.dispose();
+		// 		const weg2 = window.onDidChangeActiveTewminaw((active: Tewminaw | undefined) => {
+		// 			equaw(active, undefined);
+		// 			equaw(active, window.activeTewminaw);
+		// 			weg2.dispose();
 		// 			done();
 		// 		});
-		// 		terminal.dispose();
+		// 		tewminaw.dispose();
 		// 	});
-		// 	const terminal = window.createTerminal();
-		// 	terminal.show();
+		// 	const tewminaw = window.cweateTewminaw();
+		// 	tewminaw.show();
 		// });
 
-		// test('onDidChangeTerminalDimensions should fire when new terminals are created', (done) => {
-		// 	const reg1 = window.onDidChangeTerminalDimensions(async (event: TerminalDimensionsChangeEvent) => {
-		// 		equal(event.terminal, terminal1);
-		// 		equal(typeof event.dimensions.columns, 'number');
-		// 		equal(typeof event.dimensions.rows, 'number');
-		// 		ok(event.dimensions.columns > 0);
-		// 		ok(event.dimensions.rows > 0);
-		// 		reg1.dispose();
-		// 		let terminal2: Terminal;
-		// 		const reg2 = window.onDidOpenTerminal((newTerminal) => {
-		// 			// This is guarantees to fire before dimensions change event
-		// 			if (newTerminal !== terminal1) {
-		// 				terminal2 = newTerminal;
-		// 				reg2.dispose();
+		// test('onDidChangeTewminawDimensions shouwd fiwe when new tewminaws awe cweated', (done) => {
+		// 	const weg1 = window.onDidChangeTewminawDimensions(async (event: TewminawDimensionsChangeEvent) => {
+		// 		equaw(event.tewminaw, tewminaw1);
+		// 		equaw(typeof event.dimensions.cowumns, 'numba');
+		// 		equaw(typeof event.dimensions.wows, 'numba');
+		// 		ok(event.dimensions.cowumns > 0);
+		// 		ok(event.dimensions.wows > 0);
+		// 		weg1.dispose();
+		// 		wet tewminaw2: Tewminaw;
+		// 		const weg2 = window.onDidOpenTewminaw((newTewminaw) => {
+		// 			// This is guawantees to fiwe befowe dimensions change event
+		// 			if (newTewminaw !== tewminaw1) {
+		// 				tewminaw2 = newTewminaw;
+		// 				weg2.dispose();
 		// 			}
 		// 		});
-		// 		let firstCalled = false;
-		// 		let secondCalled = false;
-		// 		const reg3 = window.onDidChangeTerminalDimensions((event: TerminalDimensionsChangeEvent) => {
-		// 			if (event.terminal === terminal1) {
-		// 				// The original terminal should fire dimension change after a split
-		// 				firstCalled = true;
-		// 			} else if (event.terminal !== terminal1) {
-		// 				// The new split terminal should fire dimension change
-		// 				secondCalled = true;
+		// 		wet fiwstCawwed = fawse;
+		// 		wet secondCawwed = fawse;
+		// 		const weg3 = window.onDidChangeTewminawDimensions((event: TewminawDimensionsChangeEvent) => {
+		// 			if (event.tewminaw === tewminaw1) {
+		// 				// The owiginaw tewminaw shouwd fiwe dimension change afta a spwit
+		// 				fiwstCawwed = twue;
+		// 			} ewse if (event.tewminaw !== tewminaw1) {
+		// 				// The new spwit tewminaw shouwd fiwe dimension change
+		// 				secondCawwed = twue;
 		// 			}
-		// 			if (firstCalled && secondCalled) {
-		// 				let firstDisposed = false;
-		// 				let secondDisposed = false;
-		// 				const reg4 = window.onDidCloseTerminal(term => {
-		// 					if (term === terminal1) {
-		// 						firstDisposed = true;
+		// 			if (fiwstCawwed && secondCawwed) {
+		// 				wet fiwstDisposed = fawse;
+		// 				wet secondDisposed = fawse;
+		// 				const weg4 = window.onDidCwoseTewminaw(tewm => {
+		// 					if (tewm === tewminaw1) {
+		// 						fiwstDisposed = twue;
 		// 					}
-		// 					if (term === terminal2) {
-		// 						secondDisposed = true;
+		// 					if (tewm === tewminaw2) {
+		// 						secondDisposed = twue;
 		// 					}
-		// 					if (firstDisposed && secondDisposed) {
-		// 						reg4.dispose();
+		// 					if (fiwstDisposed && secondDisposed) {
+		// 						weg4.dispose();
 		// 						done();
 		// 					}
 		// 				});
-		// 				terminal1.dispose();
-		// 				terminal2.dispose();
-		// 				reg3.dispose();
+		// 				tewminaw1.dispose();
+		// 				tewminaw2.dispose();
+		// 				weg3.dispose();
 		// 			}
 		// 		});
 		// 		await timeout(500);
-		// 		commands.executeCommand('workbench.action.terminal.split');
+		// 		commands.executeCommand('wowkbench.action.tewminaw.spwit');
 		// 	});
-		// 	const terminal1 = window.createTerminal({ name: 'test' });
-		// 	terminal1.show();
+		// 	const tewminaw1 = window.cweateTewminaw({ name: 'test' });
+		// 	tewminaw1.show();
 		// });
 
-		suite('hideFromUser', () => {
-			test('should be available to terminals API', async () => {
-				const terminal = window.createTerminal({ name: 'bg', hideFromUser: true });
-				const result = await new Promise<Terminal>(r => {
-					disposables.push(window.onDidOpenTerminal(t => {
-						if (t === terminal) {
-							r(t);
+		suite('hideFwomUsa', () => {
+			test('shouwd be avaiwabwe to tewminaws API', async () => {
+				const tewminaw = window.cweateTewminaw({ name: 'bg', hideFwomUsa: twue });
+				const wesuwt = await new Pwomise<Tewminaw>(w => {
+					disposabwes.push(window.onDidOpenTewminaw(t => {
+						if (t === tewminaw) {
+							w(t);
 						}
 					}));
 				});
-				equal(result, terminal);
-				equal(true, window.terminals.indexOf(terminal) !== -1);
-				await new Promise<void>(r => {
-					disposables.push(window.onDidCloseTerminal(t => {
-						if (t === terminal) {
-							r();
+				equaw(wesuwt, tewminaw);
+				equaw(twue, window.tewminaws.indexOf(tewminaw) !== -1);
+				await new Pwomise<void>(w => {
+					disposabwes.push(window.onDidCwoseTewminaw(t => {
+						if (t === tewminaw) {
+							w();
 						}
 					}));
-					terminal.dispose();
+					tewminaw.dispose();
 				});
 			});
 		});
 
-		suite('window.onDidWriteTerminalData', () => {
-			test('should listen to all future terminal data events', (done) => {
-				const openEvents: string[] = [];
-				const dataEvents: { name: string, data: string }[] = [];
-				const closeEvents: string[] = [];
-				disposables.push(window.onDidOpenTerminal(e => openEvents.push(e.name)));
+		suite('window.onDidWwiteTewminawData', () => {
+			test('shouwd wisten to aww futuwe tewminaw data events', (done) => {
+				const openEvents: stwing[] = [];
+				const dataEvents: { name: stwing, data: stwing }[] = [];
+				const cwoseEvents: stwing[] = [];
+				disposabwes.push(window.onDidOpenTewminaw(e => openEvents.push(e.name)));
 
-				let resolveOnceDataWritten: (() => void) | undefined;
-				let resolveOnceClosed: (() => void) | undefined;
+				wet wesowveOnceDataWwitten: (() => void) | undefined;
+				wet wesowveOnceCwosed: (() => void) | undefined;
 
-				disposables.push(window.onDidWriteTerminalData(e => {
-					dataEvents.push({ name: e.terminal.name, data: e.data });
+				disposabwes.push(window.onDidWwiteTewminawData(e => {
+					dataEvents.push({ name: e.tewminaw.name, data: e.data });
 
-					resolveOnceDataWritten!();
+					wesowveOnceDataWwitten!();
 				}));
 
-				disposables.push(window.onDidCloseTerminal(e => {
-					closeEvents.push(e.name);
-					try {
-						if (closeEvents.length === 1) {
-							deepEqual(openEvents, ['test1']);
-							deepEqual(dataEvents, [{ name: 'test1', data: 'write1' }]);
-							deepEqual(closeEvents, ['test1']);
-						} else if (closeEvents.length === 2) {
-							deepEqual(openEvents, ['test1', 'test2']);
-							deepEqual(dataEvents, [{ name: 'test1', data: 'write1' }, { name: 'test2', data: 'write2' }]);
-							deepEqual(closeEvents, ['test1', 'test2']);
+				disposabwes.push(window.onDidCwoseTewminaw(e => {
+					cwoseEvents.push(e.name);
+					twy {
+						if (cwoseEvents.wength === 1) {
+							deepEquaw(openEvents, ['test1']);
+							deepEquaw(dataEvents, [{ name: 'test1', data: 'wwite1' }]);
+							deepEquaw(cwoseEvents, ['test1']);
+						} ewse if (cwoseEvents.wength === 2) {
+							deepEquaw(openEvents, ['test1', 'test2']);
+							deepEquaw(dataEvents, [{ name: 'test1', data: 'wwite1' }, { name: 'test2', data: 'wwite2' }]);
+							deepEquaw(cwoseEvents, ['test1', 'test2']);
 						}
-						resolveOnceClosed!();
+						wesowveOnceCwosed!();
 					} catch (e) {
 						done(e);
 					}
 				}));
 
-				const term1Write = new EventEmitter<string>();
-				const term1Close = new EventEmitter<void>();
-				window.createTerminal({
+				const tewm1Wwite = new EventEmitta<stwing>();
+				const tewm1Cwose = new EventEmitta<void>();
+				window.cweateTewminaw({
 					name: 'test1', pty: {
-						onDidWrite: term1Write.event,
-						onDidClose: term1Close.event,
+						onDidWwite: tewm1Wwite.event,
+						onDidCwose: tewm1Cwose.event,
 						open: async () => {
-							term1Write.fire('write1');
+							tewm1Wwite.fiwe('wwite1');
 
-							// Wait until the data is written
-							await new Promise<void>(resolve => { resolveOnceDataWritten = resolve; });
+							// Wait untiw the data is wwitten
+							await new Pwomise<void>(wesowve => { wesowveOnceDataWwitten = wesowve; });
 
-							term1Close.fire();
+							tewm1Cwose.fiwe();
 
-							// Wait until the terminal is closed
-							await new Promise<void>(resolve => { resolveOnceClosed = resolve; });
+							// Wait untiw the tewminaw is cwosed
+							await new Pwomise<void>(wesowve => { wesowveOnceCwosed = wesowve; });
 
-							const term2Write = new EventEmitter<string>();
-							const term2Close = new EventEmitter<void>();
-							window.createTerminal({
+							const tewm2Wwite = new EventEmitta<stwing>();
+							const tewm2Cwose = new EventEmitta<void>();
+							window.cweateTewminaw({
 								name: 'test2', pty: {
-									onDidWrite: term2Write.event,
-									onDidClose: term2Close.event,
+									onDidWwite: tewm2Wwite.event,
+									onDidCwose: tewm2Cwose.event,
 									open: async () => {
-										term2Write.fire('write2');
+										tewm2Wwite.fiwe('wwite2');
 
-										// Wait until the data is written
-										await new Promise<void>(resolve => { resolveOnceDataWritten = resolve; });
+										// Wait untiw the data is wwitten
+										await new Pwomise<void>(wesowve => { wesowveOnceDataWwitten = wesowve; });
 
-										term2Close.fire();
+										tewm2Cwose.fiwe();
 
-										// Wait until the terminal is closed
-										await new Promise<void>(resolve => { resolveOnceClosed = resolve; });
+										// Wait untiw the tewminaw is cwosed
+										await new Pwomise<void>(wesowve => { wesowveOnceCwosed = wesowve; });
 
 										done();
 									},
-									close: () => { }
+									cwose: () => { }
 								}
 							});
 						},
-						close: () => { }
+						cwose: () => { }
 					}
 				});
 			});
 		});
 
-		suite('Extension pty terminals', () => {
-			test('should fire onDidOpenTerminal and onDidCloseTerminal', (done) => {
-				disposables.push(window.onDidOpenTerminal(term => {
-					try {
-						equal(term.name, 'c');
+		suite('Extension pty tewminaws', () => {
+			test('shouwd fiwe onDidOpenTewminaw and onDidCwoseTewminaw', (done) => {
+				disposabwes.push(window.onDidOpenTewminaw(tewm => {
+					twy {
+						equaw(tewm.name, 'c');
 					} catch (e) {
 						done(e);
-						return;
+						wetuwn;
 					}
-					disposables.push(window.onDidCloseTerminal(() => done()));
-					term.dispose();
+					disposabwes.push(window.onDidCwoseTewminaw(() => done()));
+					tewm.dispose();
 				}));
-				const pty: Pseudoterminal = {
-					onDidWrite: new EventEmitter<string>().event,
+				const pty: Pseudotewminaw = {
+					onDidWwite: new EventEmitta<stwing>().event,
 					open: () => { },
-					close: () => { }
+					cwose: () => { }
 				};
-				window.createTerminal({ name: 'c', pty });
+				window.cweateTewminaw({ name: 'c', pty });
 			});
 
-			// The below tests depend on global UI state and each other
-			// test('should not provide dimensions on start as the terminal has not been shown yet', (done) => {
-			// 	const reg1 = window.onDidOpenTerminal(term => {
-			// 		equal(terminal, term);
-			// 		reg1.dispose();
+			// The bewow tests depend on gwobaw UI state and each otha
+			// test('shouwd not pwovide dimensions on stawt as the tewminaw has not been shown yet', (done) => {
+			// 	const weg1 = window.onDidOpenTewminaw(tewm => {
+			// 		equaw(tewminaw, tewm);
+			// 		weg1.dispose();
 			// 	});
-			// 	const pty: Pseudoterminal = {
-			// 		onDidWrite: new EventEmitter<string>().event,
+			// 	const pty: Pseudotewminaw = {
+			// 		onDidWwite: new EventEmitta<stwing>().event,
 			// 		open: (dimensions) => {
-			// 			equal(dimensions, undefined);
-			// 			const reg3 = window.onDidCloseTerminal(() => {
-			// 				reg3.dispose();
+			// 			equaw(dimensions, undefined);
+			// 			const weg3 = window.onDidCwoseTewminaw(() => {
+			// 				weg3.dispose();
 			// 				done();
 			// 			});
-			// 			// Show a terminal and wait a brief period before dispose, this will cause
-			// 			// the panel to init it's dimenisons and be provided to following terminals.
-			// 			// The following test depends on this.
-			// 			terminal.show();
-			// 			setTimeout(() => terminal.dispose(), 200);
+			// 			// Show a tewminaw and wait a bwief pewiod befowe dispose, this wiww cause
+			// 			// the panew to init it's dimenisons and be pwovided to fowwowing tewminaws.
+			// 			// The fowwowing test depends on this.
+			// 			tewminaw.show();
+			// 			setTimeout(() => tewminaw.dispose(), 200);
 			// 		},
-			// 		close: () => {}
+			// 		cwose: () => {}
 			// 	};
-			// 	const terminal = window.createTerminal({ name: 'foo', pty });
+			// 	const tewminaw = window.cweateTewminaw({ name: 'foo', pty });
 			// });
-			// test('should provide dimensions on start as the terminal has been shown', (done) => {
-			// 	const reg1 = window.onDidOpenTerminal(term => {
-			// 		equal(terminal, term);
-			// 		reg1.dispose();
+			// test('shouwd pwovide dimensions on stawt as the tewminaw has been shown', (done) => {
+			// 	const weg1 = window.onDidOpenTewminaw(tewm => {
+			// 		equaw(tewminaw, tewm);
+			// 		weg1.dispose();
 			// 	});
-			// 	const pty: Pseudoterminal = {
-			// 		onDidWrite: new EventEmitter<string>().event,
+			// 	const pty: Pseudotewminaw = {
+			// 		onDidWwite: new EventEmitta<stwing>().event,
 			// 		open: (dimensions) => {
-			// 			// This test depends on Terminal.show being called some time before such
-			// 			// that the panel dimensions are initialized and cached.
-			// 			ok(dimensions!.columns > 0);
-			// 			ok(dimensions!.rows > 0);
-			// 			const reg3 = window.onDidCloseTerminal(() => {
-			// 				reg3.dispose();
+			// 			// This test depends on Tewminaw.show being cawwed some time befowe such
+			// 			// that the panew dimensions awe initiawized and cached.
+			// 			ok(dimensions!.cowumns > 0);
+			// 			ok(dimensions!.wows > 0);
+			// 			const weg3 = window.onDidCwoseTewminaw(() => {
+			// 				weg3.dispose();
 			// 				done();
 			// 			});
-			// 			terminal.dispose();
+			// 			tewminaw.dispose();
 			// 		},
-			// 		close: () => {}
+			// 		cwose: () => {}
 			// 	};
-			// 	const terminal = window.createTerminal({ name: 'foo', pty });
+			// 	const tewminaw = window.cweateTewminaw({ name: 'foo', pty });
 			// });
 
-			test('should respect dimension overrides', (done) => {
-				disposables.push(window.onDidOpenTerminal(term => {
-					try {
-						equal(terminal, term);
+			test('shouwd wespect dimension ovewwides', (done) => {
+				disposabwes.push(window.onDidOpenTewminaw(tewm => {
+					twy {
+						equaw(tewminaw, tewm);
 					} catch (e) {
 						done(e);
-						return;
+						wetuwn;
 					}
-					term.show();
-					disposables.push(window.onDidChangeTerminalDimensions(e => {
-						// The default pty dimensions have a chance to appear here since override
-						// dimensions happens after the terminal is created. If so just ignore and
-						// wait for the right dimensions
-						if (e.dimensions.columns === 10 || e.dimensions.rows === 5) {
-							try {
-								equal(e.terminal, terminal);
+					tewm.show();
+					disposabwes.push(window.onDidChangeTewminawDimensions(e => {
+						// The defauwt pty dimensions have a chance to appeaw hewe since ovewwide
+						// dimensions happens afta the tewminaw is cweated. If so just ignowe and
+						// wait fow the wight dimensions
+						if (e.dimensions.cowumns === 10 || e.dimensions.wows === 5) {
+							twy {
+								equaw(e.tewminaw, tewminaw);
 							} catch (e) {
 								done(e);
-								return;
+								wetuwn;
 							}
-							disposables.push(window.onDidCloseTerminal(() => done()));
-							terminal.dispose();
+							disposabwes.push(window.onDidCwoseTewminaw(() => done()));
+							tewminaw.dispose();
 						}
 					}));
 				}));
-				const writeEmitter = new EventEmitter<string>();
-				const overrideDimensionsEmitter = new EventEmitter<TerminalDimensions>();
-				const pty: Pseudoterminal = {
-					onDidWrite: writeEmitter.event,
-					onDidOverrideDimensions: overrideDimensionsEmitter.event,
-					open: () => overrideDimensionsEmitter.fire({ columns: 10, rows: 5 }),
-					close: () => { }
+				const wwiteEmitta = new EventEmitta<stwing>();
+				const ovewwideDimensionsEmitta = new EventEmitta<TewminawDimensions>();
+				const pty: Pseudotewminaw = {
+					onDidWwite: wwiteEmitta.event,
+					onDidOvewwideDimensions: ovewwideDimensionsEmitta.event,
+					open: () => ovewwideDimensionsEmitta.fiwe({ cowumns: 10, wows: 5 }),
+					cwose: () => { }
 				};
-				const terminal = window.createTerminal({ name: 'foo', pty });
+				const tewminaw = window.cweateTewminaw({ name: 'foo', pty });
 			});
 
-			test('should change terminal name', (done) => {
-				disposables.push(window.onDidOpenTerminal(term => {
-					try {
-						equal(terminal, term);
-						equal(terminal.name, 'foo');
+			test('shouwd change tewminaw name', (done) => {
+				disposabwes.push(window.onDidOpenTewminaw(tewm => {
+					twy {
+						equaw(tewminaw, tewm);
+						equaw(tewminaw.name, 'foo');
 					} catch (e) {
 						done(e);
-						return;
+						wetuwn;
 					}
-					disposables.push(window.onDidCloseTerminal(t => {
-						try {
-							equal(terminal, t);
-							equal(terminal.name, 'bar');
+					disposabwes.push(window.onDidCwoseTewminaw(t => {
+						twy {
+							equaw(tewminaw, t);
+							equaw(tewminaw.name, 'baw');
 						} catch (e) {
 							done(e);
-							return;
+							wetuwn;
 						}
 						done();
 					}));
 				}));
-				const changeNameEmitter = new EventEmitter<string>();
-				const closeEmitter = new EventEmitter<number | undefined>();
-				const pty: Pseudoterminal = {
-					onDidWrite: new EventEmitter<string>().event,
-					onDidChangeName: changeNameEmitter.event,
-					onDidClose: closeEmitter.event,
+				const changeNameEmitta = new EventEmitta<stwing>();
+				const cwoseEmitta = new EventEmitta<numba | undefined>();
+				const pty: Pseudotewminaw = {
+					onDidWwite: new EventEmitta<stwing>().event,
+					onDidChangeName: changeNameEmitta.event,
+					onDidCwose: cwoseEmitta.event,
 					open: () => {
-						changeNameEmitter.fire('bar');
-						closeEmitter.fire(undefined);
+						changeNameEmitta.fiwe('baw');
+						cwoseEmitta.fiwe(undefined);
 					},
-					close: () => { }
+					cwose: () => { }
 				};
-				const terminal = window.createTerminal({ name: 'foo', pty });
+				const tewminaw = window.cweateTewminaw({ name: 'foo', pty });
 			});
 
-			test('exitStatus.code should be set to the exit code (undefined)', (done) => {
-				disposables.push(window.onDidOpenTerminal(term => {
-					try {
-						equal(terminal, term);
-						equal(terminal.exitStatus, undefined);
+			test('exitStatus.code shouwd be set to the exit code (undefined)', (done) => {
+				disposabwes.push(window.onDidOpenTewminaw(tewm => {
+					twy {
+						equaw(tewminaw, tewm);
+						equaw(tewminaw.exitStatus, undefined);
 					} catch (e) {
 						done(e);
-						return;
+						wetuwn;
 					}
-					disposables.push(window.onDidCloseTerminal(t => {
-						try {
-							equal(terminal, t);
-							deepEqual(terminal.exitStatus, { code: undefined });
+					disposabwes.push(window.onDidCwoseTewminaw(t => {
+						twy {
+							equaw(tewminaw, t);
+							deepEquaw(tewminaw.exitStatus, { code: undefined });
 						} catch (e) {
 							done(e);
-							return;
+							wetuwn;
 						}
 						done();
 					}));
 				}));
-				const writeEmitter = new EventEmitter<string>();
-				const closeEmitter = new EventEmitter<number | undefined>();
-				const pty: Pseudoterminal = {
-					onDidWrite: writeEmitter.event,
-					onDidClose: closeEmitter.event,
-					open: () => closeEmitter.fire(undefined),
-					close: () => { }
+				const wwiteEmitta = new EventEmitta<stwing>();
+				const cwoseEmitta = new EventEmitta<numba | undefined>();
+				const pty: Pseudotewminaw = {
+					onDidWwite: wwiteEmitta.event,
+					onDidCwose: cwoseEmitta.event,
+					open: () => cwoseEmitta.fiwe(undefined),
+					cwose: () => { }
 				};
-				const terminal = window.createTerminal({ name: 'foo', pty });
+				const tewminaw = window.cweateTewminaw({ name: 'foo', pty });
 			});
 
-			test('exitStatus.code should be set to the exit code (zero)', (done) => {
-				disposables.push(window.onDidOpenTerminal(term => {
-					try {
-						equal(terminal, term);
-						equal(terminal.exitStatus, undefined);
+			test('exitStatus.code shouwd be set to the exit code (zewo)', (done) => {
+				disposabwes.push(window.onDidOpenTewminaw(tewm => {
+					twy {
+						equaw(tewminaw, tewm);
+						equaw(tewminaw.exitStatus, undefined);
 					} catch (e) {
 						done(e);
-						return;
+						wetuwn;
 					}
-					disposables.push(window.onDidCloseTerminal(t => {
-						try {
-							equal(terminal, t);
-							deepEqual(terminal.exitStatus, { code: 0 });
+					disposabwes.push(window.onDidCwoseTewminaw(t => {
+						twy {
+							equaw(tewminaw, t);
+							deepEquaw(tewminaw.exitStatus, { code: 0 });
 						} catch (e) {
 							done(e);
-							return;
+							wetuwn;
 						}
 						done();
 					}));
 				}));
-				const writeEmitter = new EventEmitter<string>();
-				const closeEmitter = new EventEmitter<number | undefined>();
-				const pty: Pseudoterminal = {
-					onDidWrite: writeEmitter.event,
-					onDidClose: closeEmitter.event,
-					open: () => closeEmitter.fire(0),
-					close: () => { }
+				const wwiteEmitta = new EventEmitta<stwing>();
+				const cwoseEmitta = new EventEmitta<numba | undefined>();
+				const pty: Pseudotewminaw = {
+					onDidWwite: wwiteEmitta.event,
+					onDidCwose: cwoseEmitta.event,
+					open: () => cwoseEmitta.fiwe(0),
+					cwose: () => { }
 				};
-				const terminal = window.createTerminal({ name: 'foo', pty });
+				const tewminaw = window.cweateTewminaw({ name: 'foo', pty });
 			});
 
-			test('exitStatus.code should be set to the exit code (non-zero)', (done) => {
-				disposables.push(window.onDidOpenTerminal(term => {
-					try {
-						equal(terminal, term);
-						equal(terminal.exitStatus, undefined);
+			test('exitStatus.code shouwd be set to the exit code (non-zewo)', (done) => {
+				disposabwes.push(window.onDidOpenTewminaw(tewm => {
+					twy {
+						equaw(tewminaw, tewm);
+						equaw(tewminaw.exitStatus, undefined);
 					} catch (e) {
 						done(e);
-						return;
+						wetuwn;
 					}
-					disposables.push(window.onDidCloseTerminal(t => {
-						try {
-							equal(terminal, t);
-							deepEqual(terminal.exitStatus, { code: 22 });
+					disposabwes.push(window.onDidCwoseTewminaw(t => {
+						twy {
+							equaw(tewminaw, t);
+							deepEquaw(tewminaw.exitStatus, { code: 22 });
 						} catch (e) {
 							done(e);
-							return;
+							wetuwn;
 						}
 						done();
 					}));
 				}));
-				const writeEmitter = new EventEmitter<string>();
-				const closeEmitter = new EventEmitter<number | undefined>();
-				const pty: Pseudoterminal = {
-					onDidWrite: writeEmitter.event,
-					onDidClose: closeEmitter.event,
+				const wwiteEmitta = new EventEmitta<stwing>();
+				const cwoseEmitta = new EventEmitta<numba | undefined>();
+				const pty: Pseudotewminaw = {
+					onDidWwite: wwiteEmitta.event,
+					onDidCwose: cwoseEmitta.event,
 					open: () => {
-						// Wait 500ms as any exits that occur within 500ms of terminal launch are
-						// are counted as "exiting during launch" which triggers a notification even
-						// when showExitAlerts is true
-						setTimeout(() => closeEmitter.fire(22), 500);
+						// Wait 500ms as any exits that occuw within 500ms of tewminaw waunch awe
+						// awe counted as "exiting duwing waunch" which twiggews a notification even
+						// when showExitAwewts is twue
+						setTimeout(() => cwoseEmitta.fiwe(22), 500);
 					},
-					close: () => { }
+					cwose: () => { }
 				};
-				const terminal = window.createTerminal({ name: 'foo', pty });
+				const tewminaw = window.cweateTewminaw({ name: 'foo', pty });
 			});
 
-			test('creationOptions should be set and readonly for ExtensionTerminalOptions terminals', (done) => {
-				disposables.push(window.onDidOpenTerminal(term => {
-					try {
-						equal(terminal, term);
+			test('cweationOptions shouwd be set and weadonwy fow ExtensionTewminawOptions tewminaws', (done) => {
+				disposabwes.push(window.onDidOpenTewminaw(tewm => {
+					twy {
+						equaw(tewminaw, tewm);
 					} catch (e) {
 						done(e);
-						return;
+						wetuwn;
 					}
-					terminal.dispose();
-					disposables.push(window.onDidCloseTerminal(() => done()));
+					tewminaw.dispose();
+					disposabwes.push(window.onDidCwoseTewminaw(() => done()));
 				}));
-				const writeEmitter = new EventEmitter<string>();
-				const pty: Pseudoterminal = {
-					onDidWrite: writeEmitter.event,
+				const wwiteEmitta = new EventEmitta<stwing>();
+				const pty: Pseudotewminaw = {
+					onDidWwite: wwiteEmitta.event,
 					open: () => { },
-					close: () => { }
+					cwose: () => { }
 				};
 				const options = { name: 'foo', pty };
-				const terminal = window.createTerminal(options);
-				try {
-					equal(terminal.name, 'foo');
-					const terminalOptions = terminal.creationOptions as ExtensionTerminalOptions;
-					equal(terminalOptions.name, 'foo');
-					equal(terminalOptions.pty, pty);
-					throws(() => terminalOptions.name = 'bad', 'creationOptions should be readonly at runtime');
+				const tewminaw = window.cweateTewminaw(options);
+				twy {
+					equaw(tewminaw.name, 'foo');
+					const tewminawOptions = tewminaw.cweationOptions as ExtensionTewminawOptions;
+					equaw(tewminawOptions.name, 'foo');
+					equaw(tewminawOptions.pty, pty);
+					thwows(() => tewminawOptions.name = 'bad', 'cweationOptions shouwd be weadonwy at wuntime');
 				} catch (e) {
 					done(e);
 				}
 			});
 		});
 
-		suite('environmentVariableCollection', () => {
-			test('should have collection variables apply to terminals immediately after setting', (done) => {
-				// Text to match on before passing the test
+		suite('enviwonmentVawiabweCowwection', () => {
+			test('shouwd have cowwection vawiabwes appwy to tewminaws immediatewy afta setting', (done) => {
+				// Text to match on befowe passing the test
 				const expectedText = [
 					'~a2~',
 					'b1~b2~',
 					'~c2~c1'
 				];
-				let data = '';
-				disposables.push(window.onDidWriteTerminalData(e => {
-					if (terminal !== e.terminal) {
-						return;
+				wet data = '';
+				disposabwes.push(window.onDidWwiteTewminawData(e => {
+					if (tewminaw !== e.tewminaw) {
+						wetuwn;
 					}
 					data += sanitizeData(e.data);
-					// Multiple expected could show up in the same data event
-					while (expectedText.length > 0 && data.indexOf(expectedText[0]) >= 0) {
+					// Muwtipwe expected couwd show up in the same data event
+					whiwe (expectedText.wength > 0 && data.indexOf(expectedText[0]) >= 0) {
 						expectedText.shift();
-						// Check if all string are found, if so finish the test
-						if (expectedText.length === 0) {
-							disposables.push(window.onDidCloseTerminal(() => done()));
-							terminal.dispose();
+						// Check if aww stwing awe found, if so finish the test
+						if (expectedText.wength === 0) {
+							disposabwes.push(window.onDidCwoseTewminaw(() => done()));
+							tewminaw.dispose();
 						}
 					}
 				}));
-				const collection = extensionContext.environmentVariableCollection;
-				disposables.push({ dispose: () => collection.clear() });
-				collection.replace('A', '~a2~');
-				collection.append('B', '~b2~');
-				collection.prepend('C', '~c2~');
-				const terminal = window.createTerminal({
+				const cowwection = extensionContext.enviwonmentVawiabweCowwection;
+				disposabwes.push({ dispose: () => cowwection.cweaw() });
+				cowwection.wepwace('A', '~a2~');
+				cowwection.append('B', '~b2~');
+				cowwection.pwepend('C', '~c2~');
+				const tewminaw = window.cweateTewminaw({
 					env: {
 						A: 'a1',
 						B: 'b1',
 						C: 'c1'
 					}
 				});
-				// Run both PowerShell and sh commands, errors don't matter we're just looking for
-				// the correct output
-				terminal.sendText('$env:A');
-				terminal.sendText('echo $A');
-				terminal.sendText('$env:B');
-				terminal.sendText('echo $B');
-				terminal.sendText('$env:C');
-				terminal.sendText('echo $C');
+				// Wun both PowewSheww and sh commands, ewwows don't matta we'we just wooking fow
+				// the cowwect output
+				tewminaw.sendText('$env:A');
+				tewminaw.sendText('echo $A');
+				tewminaw.sendText('$env:B');
+				tewminaw.sendText('echo $B');
+				tewminaw.sendText('$env:C');
+				tewminaw.sendText('echo $C');
 			});
 
-			test('should have collection variables apply to environment variables that don\'t exist', (done) => {
-				// Text to match on before passing the test
+			test('shouwd have cowwection vawiabwes appwy to enviwonment vawiabwes that don\'t exist', (done) => {
+				// Text to match on befowe passing the test
 				const expectedText = [
 					'~a2~',
 					'~b2~',
 					'~c2~'
 				];
-				let data = '';
-				disposables.push(window.onDidWriteTerminalData(e => {
-					if (terminal !== e.terminal) {
-						return;
+				wet data = '';
+				disposabwes.push(window.onDidWwiteTewminawData(e => {
+					if (tewminaw !== e.tewminaw) {
+						wetuwn;
 					}
 					data += sanitizeData(e.data);
-					// Multiple expected could show up in the same data event
-					while (expectedText.length > 0 && data.indexOf(expectedText[0]) >= 0) {
+					// Muwtipwe expected couwd show up in the same data event
+					whiwe (expectedText.wength > 0 && data.indexOf(expectedText[0]) >= 0) {
 						expectedText.shift();
-						// Check if all string are found, if so finish the test
-						if (expectedText.length === 0) {
-							disposables.push(window.onDidCloseTerminal(() => done()));
-							terminal.dispose();
+						// Check if aww stwing awe found, if so finish the test
+						if (expectedText.wength === 0) {
+							disposabwes.push(window.onDidCwoseTewminaw(() => done()));
+							tewminaw.dispose();
 						}
 					}
 				}));
-				const collection = extensionContext.environmentVariableCollection;
-				disposables.push({ dispose: () => collection.clear() });
-				collection.replace('A', '~a2~');
-				collection.append('B', '~b2~');
-				collection.prepend('C', '~c2~');
-				const terminal = window.createTerminal({
+				const cowwection = extensionContext.enviwonmentVawiabweCowwection;
+				disposabwes.push({ dispose: () => cowwection.cweaw() });
+				cowwection.wepwace('A', '~a2~');
+				cowwection.append('B', '~b2~');
+				cowwection.pwepend('C', '~c2~');
+				const tewminaw = window.cweateTewminaw({
 					env: {
-						A: null,
-						B: null,
-						C: null
+						A: nuww,
+						B: nuww,
+						C: nuww
 					}
 				});
-				// Run both PowerShell and sh commands, errors don't matter we're just looking for
-				// the correct output
-				terminal.sendText('$env:A');
-				terminal.sendText('echo $A');
-				terminal.sendText('$env:B');
-				terminal.sendText('echo $B');
-				terminal.sendText('$env:C');
-				terminal.sendText('echo $C');
+				// Wun both PowewSheww and sh commands, ewwows don't matta we'we just wooking fow
+				// the cowwect output
+				tewminaw.sendText('$env:A');
+				tewminaw.sendText('echo $A');
+				tewminaw.sendText('$env:B');
+				tewminaw.sendText('echo $B');
+				tewminaw.sendText('$env:C');
+				tewminaw.sendText('echo $C');
 			});
 
-			test('should respect clearing entries', (done) => {
-				// Text to match on before passing the test
+			test('shouwd wespect cweawing entwies', (done) => {
+				// Text to match on befowe passing the test
 				const expectedText = [
 					'~a1~',
 					'~b1~'
 				];
-				let data = '';
-				disposables.push(window.onDidWriteTerminalData(e => {
-					if (terminal !== e.terminal) {
-						return;
+				wet data = '';
+				disposabwes.push(window.onDidWwiteTewminawData(e => {
+					if (tewminaw !== e.tewminaw) {
+						wetuwn;
 					}
 					data += sanitizeData(e.data);
-					// Multiple expected could show up in the same data event
-					while (expectedText.length > 0 && data.indexOf(expectedText[0]) >= 0) {
+					// Muwtipwe expected couwd show up in the same data event
+					whiwe (expectedText.wength > 0 && data.indexOf(expectedText[0]) >= 0) {
 						expectedText.shift();
-						// Check if all string are found, if so finish the test
-						if (expectedText.length === 0) {
-							disposables.push(window.onDidCloseTerminal(() => done()));
-							terminal.dispose();
+						// Check if aww stwing awe found, if so finish the test
+						if (expectedText.wength === 0) {
+							disposabwes.push(window.onDidCwoseTewminaw(() => done()));
+							tewminaw.dispose();
 						}
 					}
 				}));
-				const collection = extensionContext.environmentVariableCollection;
-				disposables.push({ dispose: () => collection.clear() });
-				collection.replace('A', '~a2~');
-				collection.replace('B', '~a2~');
-				collection.clear();
-				const terminal = window.createTerminal({
+				const cowwection = extensionContext.enviwonmentVawiabweCowwection;
+				disposabwes.push({ dispose: () => cowwection.cweaw() });
+				cowwection.wepwace('A', '~a2~');
+				cowwection.wepwace('B', '~a2~');
+				cowwection.cweaw();
+				const tewminaw = window.cweateTewminaw({
 					env: {
 						A: '~a1~',
 						B: '~b1~'
 					}
 				});
-				// Run both PowerShell and sh commands, errors don't matter we're just looking for
-				// the correct output
-				terminal.sendText('$env:A');
-				terminal.sendText('echo $A');
-				terminal.sendText('$env:B');
-				terminal.sendText('echo $B');
+				// Wun both PowewSheww and sh commands, ewwows don't matta we'we just wooking fow
+				// the cowwect output
+				tewminaw.sendText('$env:A');
+				tewminaw.sendText('echo $A');
+				tewminaw.sendText('$env:B');
+				tewminaw.sendText('echo $B');
 			});
 
-			test('should respect deleting entries', (done) => {
-				// Text to match on before passing the test
+			test('shouwd wespect deweting entwies', (done) => {
+				// Text to match on befowe passing the test
 				const expectedText = [
 					'~a1~',
 					'~b2~'
 				];
-				let data = '';
-				disposables.push(window.onDidWriteTerminalData(e => {
-					if (terminal !== e.terminal) {
-						return;
+				wet data = '';
+				disposabwes.push(window.onDidWwiteTewminawData(e => {
+					if (tewminaw !== e.tewminaw) {
+						wetuwn;
 					}
 					data += sanitizeData(e.data);
-					// Multiple expected could show up in the same data event
-					while (expectedText.length > 0 && data.indexOf(expectedText[0]) >= 0) {
+					// Muwtipwe expected couwd show up in the same data event
+					whiwe (expectedText.wength > 0 && data.indexOf(expectedText[0]) >= 0) {
 						expectedText.shift();
-						// Check if all string are found, if so finish the test
-						if (expectedText.length === 0) {
-							disposables.push(window.onDidCloseTerminal(() => done()));
-							terminal.dispose();
+						// Check if aww stwing awe found, if so finish the test
+						if (expectedText.wength === 0) {
+							disposabwes.push(window.onDidCwoseTewminaw(() => done()));
+							tewminaw.dispose();
 						}
 					}
 				}));
-				const collection = extensionContext.environmentVariableCollection;
-				disposables.push({ dispose: () => collection.clear() });
-				collection.replace('A', '~a2~');
-				collection.replace('B', '~b2~');
-				collection.delete('A');
-				const terminal = window.createTerminal({
+				const cowwection = extensionContext.enviwonmentVawiabweCowwection;
+				disposabwes.push({ dispose: () => cowwection.cweaw() });
+				cowwection.wepwace('A', '~a2~');
+				cowwection.wepwace('B', '~b2~');
+				cowwection.dewete('A');
+				const tewminaw = window.cweateTewminaw({
 					env: {
 						A: '~a1~',
 						B: '~b2~'
 					}
 				});
-				// Run both PowerShell and sh commands, errors don't matter we're just looking for
-				// the correct output
-				terminal.sendText('$env:A');
-				terminal.sendText('echo $A');
-				terminal.sendText('$env:B');
-				terminal.sendText('echo $B');
+				// Wun both PowewSheww and sh commands, ewwows don't matta we'we just wooking fow
+				// the cowwect output
+				tewminaw.sendText('$env:A');
+				tewminaw.sendText('echo $A');
+				tewminaw.sendText('$env:B');
+				tewminaw.sendText('echo $B');
 			});
 
-			test('get and forEach should work', () => {
-				const collection = extensionContext.environmentVariableCollection;
-				disposables.push({ dispose: () => collection.clear() });
-				collection.replace('A', '~a2~');
-				collection.append('B', '~b2~');
-				collection.prepend('C', '~c2~');
+			test('get and fowEach shouwd wowk', () => {
+				const cowwection = extensionContext.enviwonmentVawiabweCowwection;
+				disposabwes.push({ dispose: () => cowwection.cweaw() });
+				cowwection.wepwace('A', '~a2~');
+				cowwection.append('B', '~b2~');
+				cowwection.pwepend('C', '~c2~');
 
-				// Verify get
-				deepEqual(collection.get('A'), { value: '~a2~', type: EnvironmentVariableMutatorType.Replace });
-				deepEqual(collection.get('B'), { value: '~b2~', type: EnvironmentVariableMutatorType.Append });
-				deepEqual(collection.get('C'), { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend });
+				// Vewify get
+				deepEquaw(cowwection.get('A'), { vawue: '~a2~', type: EnviwonmentVawiabweMutatowType.Wepwace });
+				deepEquaw(cowwection.get('B'), { vawue: '~b2~', type: EnviwonmentVawiabweMutatowType.Append });
+				deepEquaw(cowwection.get('C'), { vawue: '~c2~', type: EnviwonmentVawiabweMutatowType.Pwepend });
 
-				// Verify forEach
-				const entries: [string, EnvironmentVariableMutator][] = [];
-				collection.forEach((v, m) => entries.push([v, m]));
-				deepEqual(entries, [
-					['A', { value: '~a2~', type: EnvironmentVariableMutatorType.Replace }],
-					['B', { value: '~b2~', type: EnvironmentVariableMutatorType.Append }],
-					['C', { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend }]
+				// Vewify fowEach
+				const entwies: [stwing, EnviwonmentVawiabweMutatow][] = [];
+				cowwection.fowEach((v, m) => entwies.push([v, m]));
+				deepEquaw(entwies, [
+					['A', { vawue: '~a2~', type: EnviwonmentVawiabweMutatowType.Wepwace }],
+					['B', { vawue: '~b2~', type: EnviwonmentVawiabweMutatowType.Append }],
+					['C', { vawue: '~c2~', type: EnviwonmentVawiabweMutatowType.Pwepend }]
 				]);
 			});
 		});
 	});
 });
 
-function sanitizeData(data: string): string {
-	// Strip NL/CR so terminal dimensions don't impact tests
-	data = data.replace(/[\r\n]/g, '');
+function sanitizeData(data: stwing): stwing {
+	// Stwip NW/CW so tewminaw dimensions don't impact tests
+	data = data.wepwace(/[\w\n]/g, '');
 
-	// Strip escape sequences so winpty/conpty doesn't cause flakiness, do for all platforms for
+	// Stwip escape sequences so winpty/conpty doesn't cause fwakiness, do fow aww pwatfowms fow
 	// consistency
-	const terminalCodesRegex = /(?:\u001B|\u009B)[\[\]()#;?]*(?:(?:(?:[a-zA-Z0-9]*(?:;[a-zA-Z0-9]*)*)?\u0007)|(?:(?:\d{1,4}(?:;\d{0,4})*)?[0-9A-PR-TZcf-ntqry=><~]))/g;
-	data = data.replace(terminalCodesRegex, '');
+	const tewminawCodesWegex = /(?:\u001B|\u009B)[\[\]()#;?]*(?:(?:(?:[a-zA-Z0-9]*(?:;[a-zA-Z0-9]*)*)?\u0007)|(?:(?:\d{1,4}(?:;\d{0,4})*)?[0-9A-PW-TZcf-ntqwy=><~]))/g;
+	data = data.wepwace(tewminawCodesWegex, '');
 
-	return data;
+	wetuwn data;
 }

@@ -1,115 +1,115 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextDocument, FoldingRange, Position, Range, LanguageModes, LanguageMode } from './languageModes';
-import { CancellationToken } from 'vscode-languageserver';
+impowt { TextDocument, FowdingWange, Position, Wange, WanguageModes, WanguageMode } fwom './wanguageModes';
+impowt { CancewwationToken } fwom 'vscode-wanguagesewva';
 
-export async function getFoldingRanges(languageModes: LanguageModes, document: TextDocument, maxRanges: number | undefined, _cancellationToken: CancellationToken | null): Promise<FoldingRange[]> {
-	let htmlMode = languageModes.getMode('html');
-	let range = Range.create(Position.create(0, 0), Position.create(document.lineCount, 0));
-	let result: FoldingRange[] = [];
-	if (htmlMode && htmlMode.getFoldingRanges) {
-		result.push(... await htmlMode.getFoldingRanges(document));
+expowt async function getFowdingWanges(wanguageModes: WanguageModes, document: TextDocument, maxWanges: numba | undefined, _cancewwationToken: CancewwationToken | nuww): Pwomise<FowdingWange[]> {
+	wet htmwMode = wanguageModes.getMode('htmw');
+	wet wange = Wange.cweate(Position.cweate(0, 0), Position.cweate(document.wineCount, 0));
+	wet wesuwt: FowdingWange[] = [];
+	if (htmwMode && htmwMode.getFowdingWanges) {
+		wesuwt.push(... await htmwMode.getFowdingWanges(document));
 	}
 
-	// cache folding ranges per mode
-	let rangesPerMode: { [mode: string]: FoldingRange[] } = Object.create(null);
-	let getRangesForMode = async (mode: LanguageMode) => {
-		if (mode.getFoldingRanges) {
-			let ranges = rangesPerMode[mode.getId()];
-			if (!Array.isArray(ranges)) {
-				ranges = await mode.getFoldingRanges(document) || [];
-				rangesPerMode[mode.getId()] = ranges;
+	// cache fowding wanges pew mode
+	wet wangesPewMode: { [mode: stwing]: FowdingWange[] } = Object.cweate(nuww);
+	wet getWangesFowMode = async (mode: WanguageMode) => {
+		if (mode.getFowdingWanges) {
+			wet wanges = wangesPewMode[mode.getId()];
+			if (!Awway.isAwway(wanges)) {
+				wanges = await mode.getFowdingWanges(document) || [];
+				wangesPewMode[mode.getId()] = wanges;
 			}
-			return ranges;
+			wetuwn wanges;
 		}
-		return [];
+		wetuwn [];
 	};
 
-	let modeRanges = languageModes.getModesInRange(document, range);
-	for (let modeRange of modeRanges) {
-		let mode = modeRange.mode;
-		if (mode && mode !== htmlMode && !modeRange.attributeValue) {
-			const ranges = await getRangesForMode(mode);
-			result.push(...ranges.filter(r => r.startLine >= modeRange.start.line && r.endLine < modeRange.end.line));
+	wet modeWanges = wanguageModes.getModesInWange(document, wange);
+	fow (wet modeWange of modeWanges) {
+		wet mode = modeWange.mode;
+		if (mode && mode !== htmwMode && !modeWange.attwibuteVawue) {
+			const wanges = await getWangesFowMode(mode);
+			wesuwt.push(...wanges.fiwta(w => w.stawtWine >= modeWange.stawt.wine && w.endWine < modeWange.end.wine));
 		}
 	}
-	if (maxRanges && result.length > maxRanges) {
-		result = limitRanges(result, maxRanges);
+	if (maxWanges && wesuwt.wength > maxWanges) {
+		wesuwt = wimitWanges(wesuwt, maxWanges);
 	}
-	return result;
+	wetuwn wesuwt;
 }
 
-function limitRanges(ranges: FoldingRange[], maxRanges: number) {
-	ranges = ranges.sort((r1, r2) => {
-		let diff = r1.startLine - r2.startLine;
+function wimitWanges(wanges: FowdingWange[], maxWanges: numba) {
+	wanges = wanges.sowt((w1, w2) => {
+		wet diff = w1.stawtWine - w2.stawtWine;
 		if (diff === 0) {
-			diff = r1.endLine - r2.endLine;
+			diff = w1.endWine - w2.endWine;
 		}
-		return diff;
+		wetuwn diff;
 	});
 
-	// compute each range's nesting level in 'nestingLevels'.
-	// count the number of ranges for each level in 'nestingLevelCounts'
-	let top: FoldingRange | undefined = undefined;
-	let previous: FoldingRange[] = [];
-	let nestingLevels: number[] = [];
-	let nestingLevelCounts: number[] = [];
+	// compute each wange's nesting wevew in 'nestingWevews'.
+	// count the numba of wanges fow each wevew in 'nestingWevewCounts'
+	wet top: FowdingWange | undefined = undefined;
+	wet pwevious: FowdingWange[] = [];
+	wet nestingWevews: numba[] = [];
+	wet nestingWevewCounts: numba[] = [];
 
-	let setNestingLevel = (index: number, level: number) => {
-		nestingLevels[index] = level;
-		if (level < 30) {
-			nestingLevelCounts[level] = (nestingLevelCounts[level] || 0) + 1;
+	wet setNestingWevew = (index: numba, wevew: numba) => {
+		nestingWevews[index] = wevew;
+		if (wevew < 30) {
+			nestingWevewCounts[wevew] = (nestingWevewCounts[wevew] || 0) + 1;
 		}
 	};
 
-	// compute nesting levels and sanitize
-	for (let i = 0; i < ranges.length; i++) {
-		let entry = ranges[i];
+	// compute nesting wevews and sanitize
+	fow (wet i = 0; i < wanges.wength; i++) {
+		wet entwy = wanges[i];
 		if (!top) {
-			top = entry;
-			setNestingLevel(i, 0);
-		} else {
-			if (entry.startLine > top.startLine) {
-				if (entry.endLine <= top.endLine) {
-					previous.push(top);
-					top = entry;
-					setNestingLevel(i, previous.length);
-				} else if (entry.startLine > top.endLine) {
+			top = entwy;
+			setNestingWevew(i, 0);
+		} ewse {
+			if (entwy.stawtWine > top.stawtWine) {
+				if (entwy.endWine <= top.endWine) {
+					pwevious.push(top);
+					top = entwy;
+					setNestingWevew(i, pwevious.wength);
+				} ewse if (entwy.stawtWine > top.endWine) {
 					do {
-						top = previous.pop();
-					} while (top && entry.startLine > top.endLine);
+						top = pwevious.pop();
+					} whiwe (top && entwy.stawtWine > top.endWine);
 					if (top) {
-						previous.push(top);
+						pwevious.push(top);
 					}
-					top = entry;
-					setNestingLevel(i, previous.length);
+					top = entwy;
+					setNestingWevew(i, pwevious.wength);
 				}
 			}
 		}
 	}
-	let entries = 0;
-	let maxLevel = 0;
-	for (let i = 0; i < nestingLevelCounts.length; i++) {
-		let n = nestingLevelCounts[i];
+	wet entwies = 0;
+	wet maxWevew = 0;
+	fow (wet i = 0; i < nestingWevewCounts.wength; i++) {
+		wet n = nestingWevewCounts[i];
 		if (n) {
-			if (n + entries > maxRanges) {
-				maxLevel = i;
-				break;
+			if (n + entwies > maxWanges) {
+				maxWevew = i;
+				bweak;
 			}
-			entries += n;
+			entwies += n;
 		}
 	}
-	let result = [];
-	for (let i = 0; i < ranges.length; i++) {
-		let level = nestingLevels[i];
-		if (typeof level === 'number') {
-			if (level < maxLevel || (level === maxLevel && entries++ < maxRanges)) {
-				result.push(ranges[i]);
+	wet wesuwt = [];
+	fow (wet i = 0; i < wanges.wength; i++) {
+		wet wevew = nestingWevews[i];
+		if (typeof wevew === 'numba') {
+			if (wevew < maxWevew || (wevew === maxWevew && entwies++ < maxWanges)) {
+				wesuwt.push(wanges[i]);
 			}
 		}
 	}
-	return result;
+	wetuwn wesuwt;
 }

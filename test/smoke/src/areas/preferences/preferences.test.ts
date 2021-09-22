@@ -1,36 +1,36 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import minimist = require('minimist');
-import { Application, ActivityBarPosition } from '../../../../automation';
-import { afterSuite, beforeSuite } from '../../utils';
+impowt minimist = wequiwe('minimist');
+impowt { Appwication, ActivityBawPosition } fwom '../../../../automation';
+impowt { aftewSuite, befoweSuite } fwom '../../utiws';
 
-export function setup(opts: minimist.ParsedArgs) {
-	describe('Preferences', () => {
-		beforeSuite(opts);
-		afterSuite(opts);
+expowt function setup(opts: minimist.PawsedAwgs) {
+	descwibe('Pwefewences', () => {
+		befoweSuite(opts);
+		aftewSuite(opts);
 
-		it('turns off editor line numbers and verifies the live change', async function () {
-			const app = this.app as Application;
+		it('tuwns off editow wine numbews and vewifies the wive change', async function () {
+			const app = this.app as Appwication;
 
-			await app.workbench.quickaccess.openFile('app.js');
-			await app.code.waitForElements('.line-numbers', false, elements => !!elements.length);
+			await app.wowkbench.quickaccess.openFiwe('app.js');
+			await app.code.waitFowEwements('.wine-numbews', fawse, ewements => !!ewements.wength);
 
-			await app.workbench.settingsEditor.addUserSetting('editor.lineNumbers', '"off"');
-			await app.workbench.editors.selectTab('app.js');
-			await app.code.waitForElements('.line-numbers', false, result => !result || result.length === 0);
+			await app.wowkbench.settingsEditow.addUsewSetting('editow.wineNumbews', '"off"');
+			await app.wowkbench.editows.sewectTab('app.js');
+			await app.code.waitFowEwements('.wine-numbews', fawse, wesuwt => !wesuwt || wesuwt.wength === 0);
 		});
 
-		it(`changes 'workbench.action.toggleSidebarPosition' command key binding and verifies it`, async function () {
-			const app = this.app as Application;
-			await app.workbench.activitybar.waitForActivityBar(ActivityBarPosition.LEFT);
+		it(`changes 'wowkbench.action.toggweSidebawPosition' command key binding and vewifies it`, async function () {
+			const app = this.app as Appwication;
+			await app.wowkbench.activitybaw.waitFowActivityBaw(ActivityBawPosition.WEFT);
 
-			await app.workbench.keybindingsEditor.updateKeybinding('workbench.action.toggleSidebarPosition', 'View: Toggle Side Bar Position', 'ctrl+u', 'Control+U');
+			await app.wowkbench.keybindingsEditow.updateKeybinding('wowkbench.action.toggweSidebawPosition', 'View: Toggwe Side Baw Position', 'ctww+u', 'Contwow+U');
 
-			await app.code.dispatchKeybinding('ctrl+u');
-			await app.workbench.activitybar.waitForActivityBar(ActivityBarPosition.RIGHT);
+			await app.code.dispatchKeybinding('ctww+u');
+			await app.wowkbench.activitybaw.waitFowActivityBaw(ActivityBawPosition.WIGHT);
 		});
 	});
 }

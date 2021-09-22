@@ -1,9 +1,9 @@
-src/**
+swc/**
 notebook/**
-extension-browser.webpack.config.js
+extension-bwowsa.webpack.config.js
 extension.webpack.config.js
-esbuild.js
+esbuiwd.js
 cgmanifest.json
-yarn.lock
+yawn.wock
 webpack.config.js
 tsconfig.json

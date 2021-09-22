@@ -1,20 +1,20 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .glyph-margin {
-	position: absolute;
+.monaco-editow .gwyph-mawgin {
+	position: absowute;
 	top: 0;
 }
 
 /*
-	Keeping name short for faster parsing.
-	cgmr = core glyph margin rendering (div)
+	Keeping name showt fow fasta pawsing.
+	cgmw = cowe gwyph mawgin wendewing (div)
 */
-.monaco-editor .margin-view-overlays .cgmr {
-	position: absolute;
-	display: flex;
-	align-items: center;
-	justify-content: center;
+.monaco-editow .mawgin-view-ovewways .cgmw {
+	position: absowute;
+	dispway: fwex;
+	awign-items: centa;
+	justify-content: centa;
 }

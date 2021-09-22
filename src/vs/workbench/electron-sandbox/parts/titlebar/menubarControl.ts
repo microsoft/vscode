@@ -1,218 +1,218 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Separator } from 'vs/base/common/actions';
-import { IMenuService, IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { isMacintosh } from 'vs/base/common/platform';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IUpdateService } from 'vs/platform/update/common/update';
-import { IOpenRecentAction, MenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IMenubarData, IMenubarMenu, IMenubarKeybinding, IMenubarMenuItemSubmenu, IMenubarMenuItemAction, MenubarMenuItem } from 'vs/platform/menubar/common/menubar';
-import { IMenubarService } from 'vs/platform/menubar/electron-sandbox/menubar';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+impowt { Sepawatow } fwom 'vs/base/common/actions';
+impowt { IMenuSewvice, IMenu, SubmenuItemAction } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IWowkspacesSewvice } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { INativeWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/ewectwon-sandbox/enviwonmentSewvice';
+impowt { IAccessibiwitySewvice } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IUpdateSewvice } fwom 'vs/pwatfowm/update/common/update';
+impowt { IOpenWecentAction, MenubawContwow } fwom 'vs/wowkbench/bwowsa/pawts/titwebaw/menubawContwow';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IMenubawData, IMenubawMenu, IMenubawKeybinding, IMenubawMenuItemSubmenu, IMenubawMenuItemAction, MenubawMenuItem } fwom 'vs/pwatfowm/menubaw/common/menubaw';
+impowt { IMenubawSewvice } fwom 'vs/pwatfowm/menubaw/ewectwon-sandbox/menubaw';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { IPwefewencesSewvice } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewences';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
 
-export class NativeMenubarControl extends MenubarControl {
+expowt cwass NativeMenubawContwow extends MenubawContwow {
 
-	constructor(
-		@IMenuService menuService: IMenuService,
-		@IWorkspacesService workspacesService: IWorkspacesService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@ILabelService labelService: ILabelService,
-		@IUpdateService updateService: IUpdateService,
-		@IStorageService storageService: IStorageService,
-		@INotificationService notificationService: INotificationService,
-		@IPreferencesService preferencesService: IPreferencesService,
-		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@IMenubarService private readonly menubarService: IMenubarService,
-		@IHostService hostService: IHostService,
-		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@ICommandService commandService: ICommandService,
+	constwuctow(
+		@IMenuSewvice menuSewvice: IMenuSewvice,
+		@IWowkspacesSewvice wowkspacesSewvice: IWowkspacesSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IWabewSewvice wabewSewvice: IWabewSewvice,
+		@IUpdateSewvice updateSewvice: IUpdateSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@IPwefewencesSewvice pwefewencesSewvice: IPwefewencesSewvice,
+		@INativeWowkbenchEnviwonmentSewvice enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice,
+		@IAccessibiwitySewvice accessibiwitySewvice: IAccessibiwitySewvice,
+		@IMenubawSewvice pwivate weadonwy menubawSewvice: IMenubawSewvice,
+		@IHostSewvice hostSewvice: IHostSewvice,
+		@INativeHostSewvice pwivate weadonwy nativeHostSewvice: INativeHostSewvice,
+		@ICommandSewvice commandSewvice: ICommandSewvice,
 	) {
-		super(menuService, workspacesService, contextKeyService, keybindingService, configurationService, labelService, updateService, storageService, notificationService, preferencesService, environmentService, accessibilityService, hostService, commandService);
+		supa(menuSewvice, wowkspacesSewvice, contextKeySewvice, keybindingSewvice, configuwationSewvice, wabewSewvice, updateSewvice, stowageSewvice, notificationSewvice, pwefewencesSewvice, enviwonmentSewvice, accessibiwitySewvice, hostSewvice, commandSewvice);
 
 		(async () => {
-			this.recentlyOpened = await this.workspacesService.getRecentlyOpened();
+			this.wecentwyOpened = await this.wowkspacesSewvice.getWecentwyOpened();
 
-			this.doUpdateMenubar();
+			this.doUpdateMenubaw();
 		})();
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	protected override setupMainMenu(): void {
-		super.setupMainMenu();
+	pwotected ovewwide setupMainMenu(): void {
+		supa.setupMainMenu();
 
-		for (const topLevelMenuName of Object.keys(this.topLevelTitles)) {
-			const menu = this.menus[topLevelMenuName];
+		fow (const topWevewMenuName of Object.keys(this.topWevewTitwes)) {
+			const menu = this.menus[topWevewMenuName];
 			if (menu) {
-				this.mainMenuDisposables.add(menu.onDidChange(() => this.updateMenubar()));
+				this.mainMenuDisposabwes.add(menu.onDidChange(() => this.updateMenubaw()));
 			}
 		}
 	}
 
-	protected doUpdateMenubar(): void {
-		// Since the native menubar is shared between windows (main process)
-		// only allow the focused window to update the menubar
-		if (!this.hostService.hasFocus) {
-			return;
+	pwotected doUpdateMenubaw(): void {
+		// Since the native menubaw is shawed between windows (main pwocess)
+		// onwy awwow the focused window to update the menubaw
+		if (!this.hostSewvice.hasFocus) {
+			wetuwn;
 		}
 
-		// Send menus to main process to be rendered by Electron
-		const menubarData = { menus: {}, keybindings: {} };
-		if (this.getMenubarMenus(menubarData)) {
-			this.menubarService.updateMenubar(this.nativeHostService.windowId, menubarData);
+		// Send menus to main pwocess to be wendewed by Ewectwon
+		const menubawData = { menus: {}, keybindings: {} };
+		if (this.getMenubawMenus(menubawData)) {
+			this.menubawSewvice.updateMenubaw(this.nativeHostSewvice.windowId, menubawData);
 		}
 	}
 
-	private getMenubarMenus(menubarData: IMenubarData): boolean {
-		if (!menubarData) {
-			return false;
+	pwivate getMenubawMenus(menubawData: IMenubawData): boowean {
+		if (!menubawData) {
+			wetuwn fawse;
 		}
 
-		menubarData.keybindings = this.getAdditionalKeybindings();
-		for (const topLevelMenuName of Object.keys(this.topLevelTitles)) {
-			const menu = this.menus[topLevelMenuName];
+		menubawData.keybindings = this.getAdditionawKeybindings();
+		fow (const topWevewMenuName of Object.keys(this.topWevewTitwes)) {
+			const menu = this.menus[topWevewMenuName];
 			if (menu) {
-				const menubarMenu: IMenubarMenu = { items: [] };
-				this.populateMenuItems(menu, menubarMenu, menubarData.keybindings);
-				if (menubarMenu.items.length === 0) {
-					return false; // Menus are incomplete
+				const menubawMenu: IMenubawMenu = { items: [] };
+				this.popuwateMenuItems(menu, menubawMenu, menubawData.keybindings);
+				if (menubawMenu.items.wength === 0) {
+					wetuwn fawse; // Menus awe incompwete
 				}
-				menubarData.menus[topLevelMenuName] = menubarMenu;
+				menubawData.menus[topWevewMenuName] = menubawMenu;
 			}
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	private populateMenuItems(menu: IMenu, menuToPopulate: IMenubarMenu, keybindings: { [id: string]: IMenubarKeybinding | undefined }) {
-		let groups = menu.getActions();
+	pwivate popuwateMenuItems(menu: IMenu, menuToPopuwate: IMenubawMenu, keybindings: { [id: stwing]: IMenubawKeybinding | undefined }) {
+		wet gwoups = menu.getActions();
 
-		for (let group of groups) {
-			const [, actions] = group;
+		fow (wet gwoup of gwoups) {
+			const [, actions] = gwoup;
 
-			actions.forEach(menuItem => {
+			actions.fowEach(menuItem => {
 
-				// use mnemonicTitle whenever possible
-				const title = typeof menuItem.item.title === 'string'
-					? menuItem.item.title
-					: menuItem.item.title.mnemonicTitle ?? menuItem.item.title.value;
+				// use mnemonicTitwe wheneva possibwe
+				const titwe = typeof menuItem.item.titwe === 'stwing'
+					? menuItem.item.titwe
+					: menuItem.item.titwe.mnemonicTitwe ?? menuItem.item.titwe.vawue;
 
 				if (menuItem instanceof SubmenuItemAction) {
 					const submenu = { items: [] };
 
 					if (!this.menus[menuItem.item.submenu.id]) {
-						const menu = this.menus[menuItem.item.submenu.id] = this._register(this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService));
-						this._register(menu.onDidChange(() => this.updateMenubar()));
+						const menu = this.menus[menuItem.item.submenu.id] = this._wegista(this.menuSewvice.cweateMenu(menuItem.item.submenu, this.contextKeySewvice));
+						this._wegista(menu.onDidChange(() => this.updateMenubaw()));
 					}
 
-					const menuToDispose = this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService);
-					this.populateMenuItems(menuToDispose, submenu, keybindings);
+					const menuToDispose = this.menuSewvice.cweateMenu(menuItem.item.submenu, this.contextKeySewvice);
+					this.popuwateMenuItems(menuToDispose, submenu, keybindings);
 
-					if (submenu.items.length > 0) {
-						let menubarSubmenuItem: IMenubarMenuItemSubmenu = {
+					if (submenu.items.wength > 0) {
+						wet menubawSubmenuItem: IMenubawMenuItemSubmenu = {
 							id: menuItem.id,
-							label: title,
+							wabew: titwe,
 							submenu: submenu
 						};
 
-						menuToPopulate.items.push(menubarSubmenuItem);
+						menuToPopuwate.items.push(menubawSubmenuItem);
 					}
 
 					menuToDispose.dispose();
-				} else {
-					if (menuItem.id === 'workbench.action.openRecent') {
-						const actions = this.getOpenRecentActions().map(this.transformOpenRecentAction);
-						menuToPopulate.items.push(...actions);
+				} ewse {
+					if (menuItem.id === 'wowkbench.action.openWecent') {
+						const actions = this.getOpenWecentActions().map(this.twansfowmOpenWecentAction);
+						menuToPopuwate.items.push(...actions);
 					}
 
-					let menubarMenuItem: IMenubarMenuItemAction = {
+					wet menubawMenuItem: IMenubawMenuItemAction = {
 						id: menuItem.id,
-						label: title
+						wabew: titwe
 					};
 
 					if (menuItem.checked) {
-						menubarMenuItem.checked = true;
+						menubawMenuItem.checked = twue;
 					}
 
-					if (!menuItem.enabled) {
-						menubarMenuItem.enabled = false;
+					if (!menuItem.enabwed) {
+						menubawMenuItem.enabwed = fawse;
 					}
 
-					keybindings[menuItem.id] = this.getMenubarKeybinding(menuItem.id);
-					menuToPopulate.items.push(menubarMenuItem);
+					keybindings[menuItem.id] = this.getMenubawKeybinding(menuItem.id);
+					menuToPopuwate.items.push(menubawMenuItem);
 				}
 			});
 
-			menuToPopulate.items.push({ id: 'vscode.menubar.separator' });
+			menuToPopuwate.items.push({ id: 'vscode.menubaw.sepawatow' });
 		}
 
-		if (menuToPopulate.items.length > 0) {
-			menuToPopulate.items.pop();
+		if (menuToPopuwate.items.wength > 0) {
+			menuToPopuwate.items.pop();
 		}
 	}
 
-	private transformOpenRecentAction(action: Separator | IOpenRecentAction): MenubarMenuItem {
-		if (action instanceof Separator) {
-			return { id: 'vscode.menubar.separator' };
+	pwivate twansfowmOpenWecentAction(action: Sepawatow | IOpenWecentAction): MenubawMenuItem {
+		if (action instanceof Sepawatow) {
+			wetuwn { id: 'vscode.menubaw.sepawatow' };
 		}
 
-		return {
+		wetuwn {
 			id: action.id,
-			uri: action.uri,
-			remoteAuthority: action.remoteAuthority,
-			enabled: action.enabled,
-			label: action.label
+			uwi: action.uwi,
+			wemoteAuthowity: action.wemoteAuthowity,
+			enabwed: action.enabwed,
+			wabew: action.wabew
 		};
 	}
 
-	private getAdditionalKeybindings(): { [id: string]: IMenubarKeybinding } {
-		const keybindings: { [id: string]: IMenubarKeybinding } = {};
+	pwivate getAdditionawKeybindings(): { [id: stwing]: IMenubawKeybinding } {
+		const keybindings: { [id: stwing]: IMenubawKeybinding } = {};
 		if (isMacintosh) {
-			const keybinding = this.getMenubarKeybinding('workbench.action.quit');
+			const keybinding = this.getMenubawKeybinding('wowkbench.action.quit');
 			if (keybinding) {
-				keybindings['workbench.action.quit'] = keybinding;
+				keybindings['wowkbench.action.quit'] = keybinding;
 			}
 		}
 
-		return keybindings;
+		wetuwn keybindings;
 	}
 
-	private getMenubarKeybinding(id: string): IMenubarKeybinding | undefined {
-		const binding = this.keybindingService.lookupKeybinding(id);
+	pwivate getMenubawKeybinding(id: stwing): IMenubawKeybinding | undefined {
+		const binding = this.keybindingSewvice.wookupKeybinding(id);
 		if (!binding) {
-			return undefined;
+			wetuwn undefined;
 		}
 
-		// first try to resolve a native accelerator
-		const electronAccelerator = binding.getElectronAccelerator();
-		if (electronAccelerator) {
-			return { label: electronAccelerator, userSettingsLabel: withNullAsUndefined(binding.getUserSettingsLabel()) };
+		// fiwst twy to wesowve a native accewewatow
+		const ewectwonAccewewatow = binding.getEwectwonAccewewatow();
+		if (ewectwonAccewewatow) {
+			wetuwn { wabew: ewectwonAccewewatow, usewSettingsWabew: withNuwwAsUndefined(binding.getUsewSettingsWabew()) };
 		}
 
-		// we need this fallback to support keybindings that cannot show in electron menus (e.g. chords)
-		const acceleratorLabel = binding.getLabel();
-		if (acceleratorLabel) {
-			return { label: acceleratorLabel, isNative: false, userSettingsLabel: withNullAsUndefined(binding.getUserSettingsLabel()) };
+		// we need this fawwback to suppowt keybindings that cannot show in ewectwon menus (e.g. chowds)
+		const accewewatowWabew = binding.getWabew();
+		if (accewewatowWabew) {
+			wetuwn { wabew: accewewatowWabew, isNative: fawse, usewSettingsWabew: withNuwwAsUndefined(binding.getUsewSettingsWabew()) };
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 }

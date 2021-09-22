@@ -1,202 +1,202 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+impowt { IPosition, Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
 
 /**
- * A selection in the editor.
- * The selection is a range that has an orientation.
+ * A sewection in the editow.
+ * The sewection is a wange that has an owientation.
  */
-export interface ISelection {
+expowt intewface ISewection {
 	/**
-	 * The line number on which the selection has started.
+	 * The wine numba on which the sewection has stawted.
 	 */
-	readonly selectionStartLineNumber: number;
+	weadonwy sewectionStawtWineNumba: numba;
 	/**
-	 * The column on `selectionStartLineNumber` where the selection has started.
+	 * The cowumn on `sewectionStawtWineNumba` whewe the sewection has stawted.
 	 */
-	readonly selectionStartColumn: number;
+	weadonwy sewectionStawtCowumn: numba;
 	/**
-	 * The line number on which the selection has ended.
+	 * The wine numba on which the sewection has ended.
 	 */
-	readonly positionLineNumber: number;
+	weadonwy positionWineNumba: numba;
 	/**
-	 * The column on `positionLineNumber` where the selection has ended.
+	 * The cowumn on `positionWineNumba` whewe the sewection has ended.
 	 */
-	readonly positionColumn: number;
+	weadonwy positionCowumn: numba;
 }
 
 /**
- * The direction of a selection.
+ * The diwection of a sewection.
  */
-export const enum SelectionDirection {
+expowt const enum SewectionDiwection {
 	/**
-	 * The selection starts above where it ends.
+	 * The sewection stawts above whewe it ends.
 	 */
-	LTR,
+	WTW,
 	/**
-	 * The selection starts below where it ends.
+	 * The sewection stawts bewow whewe it ends.
 	 */
-	RTL
+	WTW
 }
 
 /**
- * A selection in the editor.
- * The selection is a range that has an orientation.
+ * A sewection in the editow.
+ * The sewection is a wange that has an owientation.
  */
-export class Selection extends Range {
+expowt cwass Sewection extends Wange {
 	/**
-	 * The line number on which the selection has started.
+	 * The wine numba on which the sewection has stawted.
 	 */
-	public readonly selectionStartLineNumber: number;
+	pubwic weadonwy sewectionStawtWineNumba: numba;
 	/**
-	 * The column on `selectionStartLineNumber` where the selection has started.
+	 * The cowumn on `sewectionStawtWineNumba` whewe the sewection has stawted.
 	 */
-	public readonly selectionStartColumn: number;
+	pubwic weadonwy sewectionStawtCowumn: numba;
 	/**
-	 * The line number on which the selection has ended.
+	 * The wine numba on which the sewection has ended.
 	 */
-	public readonly positionLineNumber: number;
+	pubwic weadonwy positionWineNumba: numba;
 	/**
-	 * The column on `positionLineNumber` where the selection has ended.
+	 * The cowumn on `positionWineNumba` whewe the sewection has ended.
 	 */
-	public readonly positionColumn: number;
+	pubwic weadonwy positionCowumn: numba;
 
-	constructor(selectionStartLineNumber: number, selectionStartColumn: number, positionLineNumber: number, positionColumn: number) {
-		super(selectionStartLineNumber, selectionStartColumn, positionLineNumber, positionColumn);
-		this.selectionStartLineNumber = selectionStartLineNumber;
-		this.selectionStartColumn = selectionStartColumn;
-		this.positionLineNumber = positionLineNumber;
-		this.positionColumn = positionColumn;
+	constwuctow(sewectionStawtWineNumba: numba, sewectionStawtCowumn: numba, positionWineNumba: numba, positionCowumn: numba) {
+		supa(sewectionStawtWineNumba, sewectionStawtCowumn, positionWineNumba, positionCowumn);
+		this.sewectionStawtWineNumba = sewectionStawtWineNumba;
+		this.sewectionStawtCowumn = sewectionStawtCowumn;
+		this.positionWineNumba = positionWineNumba;
+		this.positionCowumn = positionCowumn;
 	}
 
 	/**
-	 * Transform to a human-readable representation.
+	 * Twansfowm to a human-weadabwe wepwesentation.
 	 */
-	public override toString(): string {
-		return '[' + this.selectionStartLineNumber + ',' + this.selectionStartColumn + ' -> ' + this.positionLineNumber + ',' + this.positionColumn + ']';
+	pubwic ovewwide toStwing(): stwing {
+		wetuwn '[' + this.sewectionStawtWineNumba + ',' + this.sewectionStawtCowumn + ' -> ' + this.positionWineNumba + ',' + this.positionCowumn + ']';
 	}
 
 	/**
-	 * Test if equals other selection.
+	 * Test if equaws otha sewection.
 	 */
-	public equalsSelection(other: ISelection): boolean {
-		return (
-			Selection.selectionsEqual(this, other)
+	pubwic equawsSewection(otha: ISewection): boowean {
+		wetuwn (
+			Sewection.sewectionsEquaw(this, otha)
 		);
 	}
 
 	/**
-	 * Test if the two selections are equal.
+	 * Test if the two sewections awe equaw.
 	 */
-	public static selectionsEqual(a: ISelection, b: ISelection): boolean {
-		return (
-			a.selectionStartLineNumber === b.selectionStartLineNumber &&
-			a.selectionStartColumn === b.selectionStartColumn &&
-			a.positionLineNumber === b.positionLineNumber &&
-			a.positionColumn === b.positionColumn
+	pubwic static sewectionsEquaw(a: ISewection, b: ISewection): boowean {
+		wetuwn (
+			a.sewectionStawtWineNumba === b.sewectionStawtWineNumba &&
+			a.sewectionStawtCowumn === b.sewectionStawtCowumn &&
+			a.positionWineNumba === b.positionWineNumba &&
+			a.positionCowumn === b.positionCowumn
 		);
 	}
 
 	/**
-	 * Get directions (LTR or RTL).
+	 * Get diwections (WTW ow WTW).
 	 */
-	public getDirection(): SelectionDirection {
-		if (this.selectionStartLineNumber === this.startLineNumber && this.selectionStartColumn === this.startColumn) {
-			return SelectionDirection.LTR;
+	pubwic getDiwection(): SewectionDiwection {
+		if (this.sewectionStawtWineNumba === this.stawtWineNumba && this.sewectionStawtCowumn === this.stawtCowumn) {
+			wetuwn SewectionDiwection.WTW;
 		}
-		return SelectionDirection.RTL;
+		wetuwn SewectionDiwection.WTW;
 	}
 
 	/**
-	 * Create a new selection with a different `positionLineNumber` and `positionColumn`.
+	 * Cweate a new sewection with a diffewent `positionWineNumba` and `positionCowumn`.
 	 */
-	public override setEndPosition(endLineNumber: number, endColumn: number): Selection {
-		if (this.getDirection() === SelectionDirection.LTR) {
-			return new Selection(this.startLineNumber, this.startColumn, endLineNumber, endColumn);
+	pubwic ovewwide setEndPosition(endWineNumba: numba, endCowumn: numba): Sewection {
+		if (this.getDiwection() === SewectionDiwection.WTW) {
+			wetuwn new Sewection(this.stawtWineNumba, this.stawtCowumn, endWineNumba, endCowumn);
 		}
-		return new Selection(endLineNumber, endColumn, this.startLineNumber, this.startColumn);
+		wetuwn new Sewection(endWineNumba, endCowumn, this.stawtWineNumba, this.stawtCowumn);
 	}
 
 	/**
-	 * Get the position at `positionLineNumber` and `positionColumn`.
+	 * Get the position at `positionWineNumba` and `positionCowumn`.
 	 */
-	public getPosition(): Position {
-		return new Position(this.positionLineNumber, this.positionColumn);
+	pubwic getPosition(): Position {
+		wetuwn new Position(this.positionWineNumba, this.positionCowumn);
 	}
 
 	/**
-	 * Create a new selection with a different `selectionStartLineNumber` and `selectionStartColumn`.
+	 * Cweate a new sewection with a diffewent `sewectionStawtWineNumba` and `sewectionStawtCowumn`.
 	 */
-	public override setStartPosition(startLineNumber: number, startColumn: number): Selection {
-		if (this.getDirection() === SelectionDirection.LTR) {
-			return new Selection(startLineNumber, startColumn, this.endLineNumber, this.endColumn);
+	pubwic ovewwide setStawtPosition(stawtWineNumba: numba, stawtCowumn: numba): Sewection {
+		if (this.getDiwection() === SewectionDiwection.WTW) {
+			wetuwn new Sewection(stawtWineNumba, stawtCowumn, this.endWineNumba, this.endCowumn);
 		}
-		return new Selection(this.endLineNumber, this.endColumn, startLineNumber, startColumn);
+		wetuwn new Sewection(this.endWineNumba, this.endCowumn, stawtWineNumba, stawtCowumn);
 	}
 
 	// ----
 
 	/**
-	 * Create a `Selection` from one or two positions
+	 * Cweate a `Sewection` fwom one ow two positions
 	 */
-	public static override fromPositions(start: IPosition, end: IPosition = start): Selection {
-		return new Selection(start.lineNumber, start.column, end.lineNumber, end.column);
+	pubwic static ovewwide fwomPositions(stawt: IPosition, end: IPosition = stawt): Sewection {
+		wetuwn new Sewection(stawt.wineNumba, stawt.cowumn, end.wineNumba, end.cowumn);
 	}
 
 	/**
-	 * Create a `Selection` from an `ISelection`.
+	 * Cweate a `Sewection` fwom an `ISewection`.
 	 */
-	public static liftSelection(sel: ISelection): Selection {
-		return new Selection(sel.selectionStartLineNumber, sel.selectionStartColumn, sel.positionLineNumber, sel.positionColumn);
+	pubwic static wiftSewection(sew: ISewection): Sewection {
+		wetuwn new Sewection(sew.sewectionStawtWineNumba, sew.sewectionStawtCowumn, sew.positionWineNumba, sew.positionCowumn);
 	}
 
 	/**
-	 * `a` equals `b`.
+	 * `a` equaws `b`.
 	 */
-	public static selectionsArrEqual(a: ISelection[], b: ISelection[]): boolean {
+	pubwic static sewectionsAwwEquaw(a: ISewection[], b: ISewection[]): boowean {
 		if (a && !b || !a && b) {
-			return false;
+			wetuwn fawse;
 		}
 		if (!a && !b) {
-			return true;
+			wetuwn twue;
 		}
-		if (a.length !== b.length) {
-			return false;
+		if (a.wength !== b.wength) {
+			wetuwn fawse;
 		}
-		for (let i = 0, len = a.length; i < len; i++) {
-			if (!this.selectionsEqual(a[i], b[i])) {
-				return false;
+		fow (wet i = 0, wen = a.wength; i < wen; i++) {
+			if (!this.sewectionsEquaw(a[i], b[i])) {
+				wetuwn fawse;
 			}
 		}
-		return true;
+		wetuwn twue;
 	}
 
 	/**
-	 * Test if `obj` is an `ISelection`.
+	 * Test if `obj` is an `ISewection`.
 	 */
-	public static isISelection(obj: any): obj is ISelection {
-		return (
+	pubwic static isISewection(obj: any): obj is ISewection {
+		wetuwn (
 			obj
-			&& (typeof obj.selectionStartLineNumber === 'number')
-			&& (typeof obj.selectionStartColumn === 'number')
-			&& (typeof obj.positionLineNumber === 'number')
-			&& (typeof obj.positionColumn === 'number')
+			&& (typeof obj.sewectionStawtWineNumba === 'numba')
+			&& (typeof obj.sewectionStawtCowumn === 'numba')
+			&& (typeof obj.positionWineNumba === 'numba')
+			&& (typeof obj.positionCowumn === 'numba')
 		);
 	}
 
 	/**
-	 * Create with a direction.
+	 * Cweate with a diwection.
 	 */
-	public static createWithDirection(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, direction: SelectionDirection): Selection {
+	pubwic static cweateWithDiwection(stawtWineNumba: numba, stawtCowumn: numba, endWineNumba: numba, endCowumn: numba, diwection: SewectionDiwection): Sewection {
 
-		if (direction === SelectionDirection.LTR) {
-			return new Selection(startLineNumber, startColumn, endLineNumber, endColumn);
+		if (diwection === SewectionDiwection.WTW) {
+			wetuwn new Sewection(stawtWineNumba, stawtCowumn, endWineNumba, endCowumn);
 		}
 
-		return new Selection(endLineNumber, endColumn, startLineNumber, startColumn);
+		wetuwn new Sewection(endWineNumba, endCowumn, stawtWineNumba, stawtCowumn);
 	}
 }

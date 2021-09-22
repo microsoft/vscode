@@ -1,40 +1,40 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import { Disposable } from '../utils/dispose';
-import { jsTsLanguageModes } from '../utils/languageModeIds';
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt { CwientCapabiwity, ITypeScwiptSewviceCwient } fwom '../typescwiptSewvice';
+impowt { Disposabwe } fwom '../utiws/dispose';
+impowt { jsTsWanguageModes } fwom '../utiws/wanguageModeIds';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-export class CapabilitiesStatus extends Disposable {
+expowt cwass CapabiwitiesStatus extends Disposabwe {
 
-	private readonly _statusItem: vscode.LanguageStatusItem;
+	pwivate weadonwy _statusItem: vscode.WanguageStatusItem;
 
-	constructor(
-		private readonly _client: ITypeScriptServiceClient,
+	constwuctow(
+		pwivate weadonwy _cwient: ITypeScwiptSewviceCwient,
 	) {
-		super();
+		supa();
 
-		this._statusItem = this._register(vscode.languages.createLanguageStatusItem('typescript.capabilities', jsTsLanguageModes));
+		this._statusItem = this._wegista(vscode.wanguages.cweateWanguageStatusItem('typescwipt.capabiwities', jsTsWanguageModes));
 
-		this._statusItem.name = localize('capabilitiesStatus.name', "IntelliSense Status");
+		this._statusItem.name = wocawize('capabiwitiesStatus.name', "IntewwiSense Status");
 
-		this._register(this._client.onTsServerStarted(() => this.update()));
-		this._register(this._client.onDidChangeCapabilities(() => this.update()));
+		this._wegista(this._cwient.onTsSewvewStawted(() => this.update()));
+		this._wegista(this._cwient.onDidChangeCapabiwities(() => this.update()));
 
 		this.update();
 	}
 
-	private update() {
-		if (this._client.capabilities.has(ClientCapability.Semantic)) {
-			this._statusItem.text = localize('capabilitiesStatus.detail.semantic', "Project wide IntelliSense enabled");
-		} else {
-			this._statusItem.text = localize('capabilitiesStatus.detail.syntaxOnly', "Single file IntelliSense");
+	pwivate update() {
+		if (this._cwient.capabiwities.has(CwientCapabiwity.Semantic)) {
+			this._statusItem.text = wocawize('capabiwitiesStatus.detaiw.semantic', "Pwoject wide IntewwiSense enabwed");
+		} ewse {
+			this._statusItem.text = wocawize('capabiwitiesStatus.detaiw.syntaxOnwy', "Singwe fiwe IntewwiSense");
 		}
 	}
 }

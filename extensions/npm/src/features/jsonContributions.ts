@@ -1,175 +1,175 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Location, getLocation, createScanner, SyntaxKind, ScanError, JSONScanner } from 'jsonc-parser';
-import { BowerJSONContribution } from './bowerJSONContribution';
-import { PackageJSONContribution } from './packageJSONContribution';
-import { XHRRequest } from 'request-light';
+impowt { Wocation, getWocation, cweateScanna, SyntaxKind, ScanEwwow, JSONScanna } fwom 'jsonc-pawsa';
+impowt { BowewJSONContwibution } fwom './bowewJSONContwibution';
+impowt { PackageJSONContwibution } fwom './packageJSONContwibution';
+impowt { XHWWequest } fwom 'wequest-wight';
 
-import {
-	CompletionItem, CompletionItemProvider, CompletionList, TextDocument, Position, Hover, HoverProvider,
-	CancellationToken, Range, DocumentSelector, languages, Disposable, Uri, MarkdownString
-} from 'vscode';
+impowt {
+	CompwetionItem, CompwetionItemPwovida, CompwetionWist, TextDocument, Position, Hova, HovewPwovida,
+	CancewwationToken, Wange, DocumentSewectow, wanguages, Disposabwe, Uwi, MawkdownStwing
+} fwom 'vscode';
 
-export interface ISuggestionsCollector {
-	add(suggestion: CompletionItem): void;
-	error(message: string): void;
-	log(message: string): void;
-	setAsIncomplete(): void;
+expowt intewface ISuggestionsCowwectow {
+	add(suggestion: CompwetionItem): void;
+	ewwow(message: stwing): void;
+	wog(message: stwing): void;
+	setAsIncompwete(): void;
 }
 
-export interface IJSONContribution {
-	getDocumentSelector(): DocumentSelector;
-	getInfoContribution(resourceUri: Uri, location: Location): Thenable<MarkdownString[] | null> | null;
-	collectPropertySuggestions(resourceUri: Uri, location: Location, currentWord: string, addValue: boolean, isLast: boolean, result: ISuggestionsCollector): Thenable<any> | null;
-	collectValueSuggestions(resourceUri: Uri, location: Location, result: ISuggestionsCollector): Thenable<any> | null;
-	collectDefaultSuggestions(resourceUri: Uri, result: ISuggestionsCollector): Thenable<any>;
-	resolveSuggestion?(resourceUri: Uri | undefined, item: CompletionItem): Thenable<CompletionItem | null> | null;
+expowt intewface IJSONContwibution {
+	getDocumentSewectow(): DocumentSewectow;
+	getInfoContwibution(wesouwceUwi: Uwi, wocation: Wocation): Thenabwe<MawkdownStwing[] | nuww> | nuww;
+	cowwectPwopewtySuggestions(wesouwceUwi: Uwi, wocation: Wocation, cuwwentWowd: stwing, addVawue: boowean, isWast: boowean, wesuwt: ISuggestionsCowwectow): Thenabwe<any> | nuww;
+	cowwectVawueSuggestions(wesouwceUwi: Uwi, wocation: Wocation, wesuwt: ISuggestionsCowwectow): Thenabwe<any> | nuww;
+	cowwectDefauwtSuggestions(wesouwceUwi: Uwi, wesuwt: ISuggestionsCowwectow): Thenabwe<any>;
+	wesowveSuggestion?(wesouwceUwi: Uwi | undefined, item: CompwetionItem): Thenabwe<CompwetionItem | nuww> | nuww;
 }
 
-export function addJSONProviders(xhr: XHRRequest, npmCommandPath: string | undefined): Disposable {
-	const contributions = [new PackageJSONContribution(xhr, npmCommandPath), new BowerJSONContribution(xhr)];
-	const subscriptions: Disposable[] = [];
-	contributions.forEach(contribution => {
-		const selector = contribution.getDocumentSelector();
-		subscriptions.push(languages.registerCompletionItemProvider(selector, new JSONCompletionItemProvider(contribution), '"', ':'));
-		subscriptions.push(languages.registerHoverProvider(selector, new JSONHoverProvider(contribution)));
+expowt function addJSONPwovidews(xhw: XHWWequest, npmCommandPath: stwing | undefined): Disposabwe {
+	const contwibutions = [new PackageJSONContwibution(xhw, npmCommandPath), new BowewJSONContwibution(xhw)];
+	const subscwiptions: Disposabwe[] = [];
+	contwibutions.fowEach(contwibution => {
+		const sewectow = contwibution.getDocumentSewectow();
+		subscwiptions.push(wanguages.wegistewCompwetionItemPwovida(sewectow, new JSONCompwetionItemPwovida(contwibution), '"', ':'));
+		subscwiptions.push(wanguages.wegistewHovewPwovida(sewectow, new JSONHovewPwovida(contwibution)));
 	});
-	return Disposable.from(...subscriptions);
+	wetuwn Disposabwe.fwom(...subscwiptions);
 }
 
-export class JSONHoverProvider implements HoverProvider {
+expowt cwass JSONHovewPwovida impwements HovewPwovida {
 
-	constructor(private jsonContribution: IJSONContribution) {
+	constwuctow(pwivate jsonContwibution: IJSONContwibution) {
 	}
 
-	public provideHover(document: TextDocument, position: Position, _token: CancellationToken): Thenable<Hover> | null {
+	pubwic pwovideHova(document: TextDocument, position: Position, _token: CancewwationToken): Thenabwe<Hova> | nuww {
 		const offset = document.offsetAt(position);
-		const location = getLocation(document.getText(), offset);
-		if (!location.previousNode) {
-			return null;
+		const wocation = getWocation(document.getText(), offset);
+		if (!wocation.pweviousNode) {
+			wetuwn nuww;
 		}
-		const node = location.previousNode;
-		if (node && node.offset <= offset && offset <= node.offset + node.length) {
-			const promise = this.jsonContribution.getInfoContribution(document.uri, location);
-			if (promise) {
-				return promise.then(htmlContent => {
-					const range = new Range(document.positionAt(node.offset), document.positionAt(node.offset + node.length));
-					const result: Hover = {
-						contents: htmlContent || [],
-						range: range
+		const node = wocation.pweviousNode;
+		if (node && node.offset <= offset && offset <= node.offset + node.wength) {
+			const pwomise = this.jsonContwibution.getInfoContwibution(document.uwi, wocation);
+			if (pwomise) {
+				wetuwn pwomise.then(htmwContent => {
+					const wange = new Wange(document.positionAt(node.offset), document.positionAt(node.offset + node.wength));
+					const wesuwt: Hova = {
+						contents: htmwContent || [],
+						wange: wange
 					};
-					return result;
+					wetuwn wesuwt;
 				});
 			}
 		}
-		return null;
+		wetuwn nuww;
 	}
 }
 
-export class JSONCompletionItemProvider implements CompletionItemProvider {
+expowt cwass JSONCompwetionItemPwovida impwements CompwetionItemPwovida {
 
-	private lastResource: Uri | undefined;
+	pwivate wastWesouwce: Uwi | undefined;
 
-	constructor(private jsonContribution: IJSONContribution) {
+	constwuctow(pwivate jsonContwibution: IJSONContwibution) {
 	}
 
-	public resolveCompletionItem(item: CompletionItem, _token: CancellationToken): Thenable<CompletionItem | null> {
-		if (this.jsonContribution.resolveSuggestion) {
-			const resolver = this.jsonContribution.resolveSuggestion(this.lastResource, item);
-			if (resolver) {
-				return resolver;
+	pubwic wesowveCompwetionItem(item: CompwetionItem, _token: CancewwationToken): Thenabwe<CompwetionItem | nuww> {
+		if (this.jsonContwibution.wesowveSuggestion) {
+			const wesowva = this.jsonContwibution.wesowveSuggestion(this.wastWesouwce, item);
+			if (wesowva) {
+				wetuwn wesowva;
 			}
 		}
-		return Promise.resolve(item);
+		wetuwn Pwomise.wesowve(item);
 	}
 
-	public provideCompletionItems(document: TextDocument, position: Position, _token: CancellationToken): Thenable<CompletionList | null> | null {
-		this.lastResource = document.uri;
+	pubwic pwovideCompwetionItems(document: TextDocument, position: Position, _token: CancewwationToken): Thenabwe<CompwetionWist | nuww> | nuww {
+		this.wastWesouwce = document.uwi;
 
 
-		const currentWord = this.getCurrentWord(document, position);
-		let overwriteRange: Range;
+		const cuwwentWowd = this.getCuwwentWowd(document, position);
+		wet ovewwwiteWange: Wange;
 
-		const items: CompletionItem[] = [];
-		let isIncomplete = false;
+		const items: CompwetionItem[] = [];
+		wet isIncompwete = fawse;
 
 		const offset = document.offsetAt(position);
-		const location = getLocation(document.getText(), offset);
+		const wocation = getWocation(document.getText(), offset);
 
-		const node = location.previousNode;
-		if (node && node.offset <= offset && offset <= node.offset + node.length && (node.type === 'property' || node.type === 'string' || node.type === 'number' || node.type === 'boolean' || node.type === 'null')) {
-			overwriteRange = new Range(document.positionAt(node.offset), document.positionAt(node.offset + node.length));
-		} else {
-			overwriteRange = new Range(document.positionAt(offset - currentWord.length), position);
+		const node = wocation.pweviousNode;
+		if (node && node.offset <= offset && offset <= node.offset + node.wength && (node.type === 'pwopewty' || node.type === 'stwing' || node.type === 'numba' || node.type === 'boowean' || node.type === 'nuww')) {
+			ovewwwiteWange = new Wange(document.positionAt(node.offset), document.positionAt(node.offset + node.wength));
+		} ewse {
+			ovewwwiteWange = new Wange(document.positionAt(offset - cuwwentWowd.wength), position);
 		}
 
-		const proposed: { [key: string]: boolean } = {};
-		const collector: ISuggestionsCollector = {
-			add: (suggestion: CompletionItem) => {
-				const key = typeof suggestion.label === 'string'
-					? suggestion.label
-					: suggestion.label.label;
-				if (!proposed[key]) {
-					proposed[key] = true;
-					suggestion.range = { replacing: overwriteRange, inserting: new Range(overwriteRange.start, overwriteRange.start) };
+		const pwoposed: { [key: stwing]: boowean } = {};
+		const cowwectow: ISuggestionsCowwectow = {
+			add: (suggestion: CompwetionItem) => {
+				const key = typeof suggestion.wabew === 'stwing'
+					? suggestion.wabew
+					: suggestion.wabew.wabew;
+				if (!pwoposed[key]) {
+					pwoposed[key] = twue;
+					suggestion.wange = { wepwacing: ovewwwiteWange, insewting: new Wange(ovewwwiteWange.stawt, ovewwwiteWange.stawt) };
 					items.push(suggestion);
 				}
 			},
-			setAsIncomplete: () => isIncomplete = true,
-			error: (message: string) => console.error(message),
-			log: (message: string) => console.log(message)
+			setAsIncompwete: () => isIncompwete = twue,
+			ewwow: (message: stwing) => consowe.ewwow(message),
+			wog: (message: stwing) => consowe.wog(message)
 		};
 
-		let collectPromise: Thenable<any> | null = null;
+		wet cowwectPwomise: Thenabwe<any> | nuww = nuww;
 
-		if (location.isAtPropertyKey) {
-			const scanner = createScanner(document.getText(), true);
-			const addValue = !location.previousNode || !this.hasColonAfter(scanner, location.previousNode.offset + location.previousNode.length);
-			const isLast = this.isLast(scanner, document.offsetAt(position));
-			collectPromise = this.jsonContribution.collectPropertySuggestions(document.uri, location, currentWord, addValue, isLast, collector);
-		} else {
-			if (location.path.length === 0) {
-				collectPromise = this.jsonContribution.collectDefaultSuggestions(document.uri, collector);
-			} else {
-				collectPromise = this.jsonContribution.collectValueSuggestions(document.uri, location, collector);
+		if (wocation.isAtPwopewtyKey) {
+			const scanna = cweateScanna(document.getText(), twue);
+			const addVawue = !wocation.pweviousNode || !this.hasCowonAfta(scanna, wocation.pweviousNode.offset + wocation.pweviousNode.wength);
+			const isWast = this.isWast(scanna, document.offsetAt(position));
+			cowwectPwomise = this.jsonContwibution.cowwectPwopewtySuggestions(document.uwi, wocation, cuwwentWowd, addVawue, isWast, cowwectow);
+		} ewse {
+			if (wocation.path.wength === 0) {
+				cowwectPwomise = this.jsonContwibution.cowwectDefauwtSuggestions(document.uwi, cowwectow);
+			} ewse {
+				cowwectPwomise = this.jsonContwibution.cowwectVawueSuggestions(document.uwi, wocation, cowwectow);
 			}
 		}
-		if (collectPromise) {
-			return collectPromise.then(() => {
-				if (items.length > 0 || isIncomplete) {
-					return new CompletionList(items, isIncomplete);
+		if (cowwectPwomise) {
+			wetuwn cowwectPwomise.then(() => {
+				if (items.wength > 0 || isIncompwete) {
+					wetuwn new CompwetionWist(items, isIncompwete);
 				}
-				return null;
+				wetuwn nuww;
 			});
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	private getCurrentWord(document: TextDocument, position: Position) {
-		let i = position.character - 1;
-		const text = document.lineAt(position.line).text;
-		while (i >= 0 && ' \t\n\r\v":{[,'.indexOf(text.charAt(i)) === -1) {
+	pwivate getCuwwentWowd(document: TextDocument, position: Position) {
+		wet i = position.chawacta - 1;
+		const text = document.wineAt(position.wine).text;
+		whiwe (i >= 0 && ' \t\n\w\v":{[,'.indexOf(text.chawAt(i)) === -1) {
 			i--;
 		}
-		return text.substring(i + 1, position.character);
+		wetuwn text.substwing(i + 1, position.chawacta);
 	}
 
-	private isLast(scanner: JSONScanner, offset: number): boolean {
-		scanner.setPosition(offset);
-		let nextToken = scanner.scan();
-		if (nextToken === SyntaxKind.StringLiteral && scanner.getTokenError() === ScanError.UnexpectedEndOfString) {
-			nextToken = scanner.scan();
+	pwivate isWast(scanna: JSONScanna, offset: numba): boowean {
+		scanna.setPosition(offset);
+		wet nextToken = scanna.scan();
+		if (nextToken === SyntaxKind.StwingWitewaw && scanna.getTokenEwwow() === ScanEwwow.UnexpectedEndOfStwing) {
+			nextToken = scanna.scan();
 		}
-		return nextToken === SyntaxKind.CloseBraceToken || nextToken === SyntaxKind.EOF;
+		wetuwn nextToken === SyntaxKind.CwoseBwaceToken || nextToken === SyntaxKind.EOF;
 	}
-	private hasColonAfter(scanner: JSONScanner, offset: number): boolean {
-		scanner.setPosition(offset);
-		return scanner.scan() === SyntaxKind.ColonToken;
+	pwivate hasCowonAfta(scanna: JSONScanna, offset: numba): boowean {
+		scanna.setPosition(offset);
+		wetuwn scanna.scan() === SyntaxKind.CowonToken;
 	}
 
 }
 
-export const xhrDisabled = () => Promise.reject({ responseText: 'Use of online resources is disabled.' });
+expowt const xhwDisabwed = () => Pwomise.weject({ wesponseText: 'Use of onwine wesouwces is disabwed.' });

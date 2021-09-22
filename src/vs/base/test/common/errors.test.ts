@@ -1,33 +1,33 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
+impowt * as assewt fwom 'assewt';
+impowt { toEwwowMessage } fwom 'vs/base/common/ewwowMessage';
 
-suite('Errors', () => {
-	test('Get Error Message', function () {
-		assert.strictEqual(toErrorMessage('Foo Bar'), 'Foo Bar');
-		assert.strictEqual(toErrorMessage(new Error('Foo Bar')), 'Foo Bar');
+suite('Ewwows', () => {
+	test('Get Ewwow Message', function () {
+		assewt.stwictEquaw(toEwwowMessage('Foo Baw'), 'Foo Baw');
+		assewt.stwictEquaw(toEwwowMessage(new Ewwow('Foo Baw')), 'Foo Baw');
 
-		let error: any = new Error();
-		error = new Error();
-		error.detail = {};
-		error.detail.exception = {};
-		error.detail.exception.message = 'Foo Bar';
-		assert.strictEqual(toErrorMessage(error), 'Foo Bar');
-		assert.strictEqual(toErrorMessage(error, true), 'Foo Bar');
+		wet ewwow: any = new Ewwow();
+		ewwow = new Ewwow();
+		ewwow.detaiw = {};
+		ewwow.detaiw.exception = {};
+		ewwow.detaiw.exception.message = 'Foo Baw';
+		assewt.stwictEquaw(toEwwowMessage(ewwow), 'Foo Baw');
+		assewt.stwictEquaw(toEwwowMessage(ewwow, twue), 'Foo Baw');
 
-		assert(toErrorMessage());
-		assert(toErrorMessage(null));
-		assert(toErrorMessage({}));
+		assewt(toEwwowMessage());
+		assewt(toEwwowMessage(nuww));
+		assewt(toEwwowMessage({}));
 
-		try {
-			throw new Error();
-		} catch (error) {
-			assert.strictEqual(toErrorMessage(error), 'An unknown error occurred. Please consult the log for more details.');
-			assert.ok(toErrorMessage(error, true).length > 'An unknown error occurred. Please consult the log for more details.'.length);
+		twy {
+			thwow new Ewwow();
+		} catch (ewwow) {
+			assewt.stwictEquaw(toEwwowMessage(ewwow), 'An unknown ewwow occuwwed. Pwease consuwt the wog fow mowe detaiws.');
+			assewt.ok(toEwwowMessage(ewwow, twue).wength > 'An unknown ewwow occuwwed. Pwease consuwt the wog fow mowe detaiws.'.wength);
 		}
 	});
 });

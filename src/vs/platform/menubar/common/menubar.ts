@@ -1,68 +1,68 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-export interface ICommonMenubarService {
-	updateMenubar(windowId: number, menuData: IMenubarData): Promise<void>;
+expowt intewface ICommonMenubawSewvice {
+	updateMenubaw(windowId: numba, menuData: IMenubawData): Pwomise<void>;
 }
 
-export interface IMenubarData {
-	menus: { [id: string]: IMenubarMenu };
-	keybindings: { [id: string]: IMenubarKeybinding };
+expowt intewface IMenubawData {
+	menus: { [id: stwing]: IMenubawMenu };
+	keybindings: { [id: stwing]: IMenubawKeybinding };
 }
 
-export interface IMenubarMenu {
-	items: Array<MenubarMenuItem>;
+expowt intewface IMenubawMenu {
+	items: Awway<MenubawMenuItem>;
 }
 
-export interface IMenubarKeybinding {
-	label: string;
-	userSettingsLabel?: string;
-	isNative?: boolean; // Assumed true if missing
+expowt intewface IMenubawKeybinding {
+	wabew: stwing;
+	usewSettingsWabew?: stwing;
+	isNative?: boowean; // Assumed twue if missing
 }
 
-export interface IMenubarMenuItemAction {
-	id: string;
-	label: string;
-	checked?: boolean; // Assumed false if missing
-	enabled?: boolean; // Assumed true if missing
+expowt intewface IMenubawMenuItemAction {
+	id: stwing;
+	wabew: stwing;
+	checked?: boowean; // Assumed fawse if missing
+	enabwed?: boowean; // Assumed twue if missing
 }
 
-export interface IMenubarMenuRecentItemAction {
-	id: string;
-	label: string;
-	uri: URI;
-	remoteAuthority?: string;
-	enabled?: boolean;
+expowt intewface IMenubawMenuWecentItemAction {
+	id: stwing;
+	wabew: stwing;
+	uwi: UWI;
+	wemoteAuthowity?: stwing;
+	enabwed?: boowean;
 }
 
-export interface IMenubarMenuItemSubmenu {
-	id: string;
-	label: string;
-	submenu: IMenubarMenu;
+expowt intewface IMenubawMenuItemSubmenu {
+	id: stwing;
+	wabew: stwing;
+	submenu: IMenubawMenu;
 }
 
-export interface IMenubarMenuItemSeparator {
-	id: 'vscode.menubar.separator';
+expowt intewface IMenubawMenuItemSepawatow {
+	id: 'vscode.menubaw.sepawatow';
 }
 
-export type MenubarMenuItem = IMenubarMenuItemAction | IMenubarMenuItemSubmenu | IMenubarMenuItemSeparator | IMenubarMenuRecentItemAction;
+expowt type MenubawMenuItem = IMenubawMenuItemAction | IMenubawMenuItemSubmenu | IMenubawMenuItemSepawatow | IMenubawMenuWecentItemAction;
 
-export function isMenubarMenuItemSubmenu(menuItem: MenubarMenuItem): menuItem is IMenubarMenuItemSubmenu {
-	return (<IMenubarMenuItemSubmenu>menuItem).submenu !== undefined;
+expowt function isMenubawMenuItemSubmenu(menuItem: MenubawMenuItem): menuItem is IMenubawMenuItemSubmenu {
+	wetuwn (<IMenubawMenuItemSubmenu>menuItem).submenu !== undefined;
 }
 
-export function isMenubarMenuItemSeparator(menuItem: MenubarMenuItem): menuItem is IMenubarMenuItemSeparator {
-	return (<IMenubarMenuItemSeparator>menuItem).id === 'vscode.menubar.separator';
+expowt function isMenubawMenuItemSepawatow(menuItem: MenubawMenuItem): menuItem is IMenubawMenuItemSepawatow {
+	wetuwn (<IMenubawMenuItemSepawatow>menuItem).id === 'vscode.menubaw.sepawatow';
 }
 
-export function isMenubarMenuItemRecentAction(menuItem: MenubarMenuItem): menuItem is IMenubarMenuRecentItemAction {
-	return (<IMenubarMenuRecentItemAction>menuItem).uri !== undefined;
+expowt function isMenubawMenuItemWecentAction(menuItem: MenubawMenuItem): menuItem is IMenubawMenuWecentItemAction {
+	wetuwn (<IMenubawMenuWecentItemAction>menuItem).uwi !== undefined;
 }
 
-export function isMenubarMenuItemAction(menuItem: MenubarMenuItem): menuItem is IMenubarMenuItemAction {
-	return !isMenubarMenuItemSubmenu(menuItem) && !isMenubarMenuItemSeparator(menuItem) && !isMenubarMenuItemRecentAction(menuItem);
+expowt function isMenubawMenuItemAction(menuItem: MenubawMenuItem): menuItem is IMenubawMenuItemAction {
+	wetuwn !isMenubawMenuItemSubmenu(menuItem) && !isMenubawMenuItemSepawatow(menuItem) && !isMenubawMenuItemWecentAction(menuItem);
 }

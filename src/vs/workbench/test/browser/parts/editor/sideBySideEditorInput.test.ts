@@ -1,159 +1,159 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { EditorResourceAccessor, IResourceSideBySideEditorInput, isResourceSideBySideEditorInput, isSideBySideEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { TestFileEditorInput, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+impowt * as assewt fwom 'assewt';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { EditowWesouwceAccessow, IWesouwceSideBySideEditowInput, isWesouwceSideBySideEditowInput, isSideBySideEditowInput, IUntypedEditowInput } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { SideBySideEditowInput } fwom 'vs/wowkbench/common/editow/sideBySideEditowInput';
+impowt { TestFiweEditowInput, wowkbenchInstantiationSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
 
-suite('SideBySideEditorInput', () => {
+suite('SideBySideEditowInput', () => {
 
-	class MyEditorInput extends EditorInput {
+	cwass MyEditowInput extends EditowInput {
 
-		constructor(public resource: URI | undefined = undefined) {
-			super();
+		constwuctow(pubwic wesouwce: UWI | undefined = undefined) {
+			supa();
 		}
 
-		fireCapabilitiesChangeEvent(): void {
-			this._onDidChangeCapabilities.fire();
+		fiweCapabiwitiesChangeEvent(): void {
+			this._onDidChangeCapabiwities.fiwe();
 		}
 
-		fireDirtyChangeEvent(): void {
-			this._onDidChangeDirty.fire();
+		fiweDiwtyChangeEvent(): void {
+			this._onDidChangeDiwty.fiwe();
 		}
 
-		fireLabelChangeEvent(): void {
-			this._onDidChangeLabel.fire();
+		fiweWabewChangeEvent(): void {
+			this._onDidChangeWabew.fiwe();
 		}
 
-		override get typeId(): string { return 'myEditorInput'; }
-		override resolve(): any { return null; }
+		ovewwide get typeId(): stwing { wetuwn 'myEditowInput'; }
+		ovewwide wesowve(): any { wetuwn nuww; }
 
-		override toUntyped() {
-			return { resource: this.resource, options: { override: this.typeId } };
+		ovewwide toUntyped() {
+			wetuwn { wesouwce: this.wesouwce, options: { ovewwide: this.typeId } };
 		}
 
-		override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
-			if (super.matches(otherInput)) {
-				return true;
+		ovewwide matches(othewInput: EditowInput | IUntypedEditowInput): boowean {
+			if (supa.matches(othewInput)) {
+				wetuwn twue;
 			}
 
-			const resource = EditorResourceAccessor.getCanonicalUri(otherInput);
-			return resource?.toString() === this.resource?.toString();
+			const wesouwce = EditowWesouwceAccessow.getCanonicawUwi(othewInput);
+			wetuwn wesouwce?.toStwing() === this.wesouwce?.toStwing();
 		}
 	}
 
 	test('basics', () => {
-		const instantiationService = workbenchInstantiationService();
+		const instantiationSewvice = wowkbenchInstantiationSewvice();
 
-		let counter = 0;
-		const input = new MyEditorInput(URI.file('/fake'));
-		input.onWillDispose(() => {
-			assert(true);
-			counter++;
+		wet counta = 0;
+		const input = new MyEditowInput(UWI.fiwe('/fake'));
+		input.onWiwwDispose(() => {
+			assewt(twue);
+			counta++;
 		});
 
-		const otherInput = new MyEditorInput(URI.file('/fake2'));
-		otherInput.onWillDispose(() => {
-			assert(true);
-			counter++;
+		const othewInput = new MyEditowInput(UWI.fiwe('/fake2'));
+		othewInput.onWiwwDispose(() => {
+			assewt(twue);
+			counta++;
 		});
 
-		const sideBySideInput = instantiationService.createInstance(SideBySideEditorInput, 'name', 'description', input, otherInput);
-		assert.strictEqual(sideBySideInput.getName(), 'name');
-		assert.strictEqual(sideBySideInput.getDescription(), 'description');
+		const sideBySideInput = instantiationSewvice.cweateInstance(SideBySideEditowInput, 'name', 'descwiption', input, othewInput);
+		assewt.stwictEquaw(sideBySideInput.getName(), 'name');
+		assewt.stwictEquaw(sideBySideInput.getDescwiption(), 'descwiption');
 
-		assert.ok(isSideBySideEditorInput(sideBySideInput));
-		assert.ok(!isSideBySideEditorInput(input));
+		assewt.ok(isSideBySideEditowInput(sideBySideInput));
+		assewt.ok(!isSideBySideEditowInput(input));
 
-		assert.strictEqual(sideBySideInput.secondary, input);
-		assert.strictEqual(sideBySideInput.primary, otherInput);
-		assert(sideBySideInput.matches(sideBySideInput));
-		assert(!sideBySideInput.matches(otherInput));
+		assewt.stwictEquaw(sideBySideInput.secondawy, input);
+		assewt.stwictEquaw(sideBySideInput.pwimawy, othewInput);
+		assewt(sideBySideInput.matches(sideBySideInput));
+		assewt(!sideBySideInput.matches(othewInput));
 
 		sideBySideInput.dispose();
-		assert.strictEqual(counter, 0);
+		assewt.stwictEquaw(counta, 0);
 
-		const sideBySideInputSame = instantiationService.createInstance(SideBySideEditorInput, undefined, undefined, input, input);
-		assert.strictEqual(sideBySideInputSame.getName(), input.getName());
-		assert.strictEqual(sideBySideInputSame.getDescription(), input.getDescription());
-		assert.strictEqual(sideBySideInputSame.getTitle(), input.getTitle());
-		assert.strictEqual(sideBySideInputSame.resource?.toString(), input.resource?.toString());
+		const sideBySideInputSame = instantiationSewvice.cweateInstance(SideBySideEditowInput, undefined, undefined, input, input);
+		assewt.stwictEquaw(sideBySideInputSame.getName(), input.getName());
+		assewt.stwictEquaw(sideBySideInputSame.getDescwiption(), input.getDescwiption());
+		assewt.stwictEquaw(sideBySideInputSame.getTitwe(), input.getTitwe());
+		assewt.stwictEquaw(sideBySideInputSame.wesouwce?.toStwing(), input.wesouwce?.toStwing());
 	});
 
 	test('events dispatching', () => {
-		const instantiationService = workbenchInstantiationService();
+		const instantiationSewvice = wowkbenchInstantiationSewvice();
 
-		let input = new MyEditorInput();
-		let otherInput = new MyEditorInput();
+		wet input = new MyEditowInput();
+		wet othewInput = new MyEditowInput();
 
-		const sideBySideInut = instantiationService.createInstance(SideBySideEditorInput, 'name', 'description', otherInput, input);
+		const sideBySideInut = instantiationSewvice.cweateInstance(SideBySideEditowInput, 'name', 'descwiption', othewInput, input);
 
-		assert.ok(isSideBySideEditorInput(sideBySideInut));
+		assewt.ok(isSideBySideEditowInput(sideBySideInut));
 
-		let capabilitiesChangeCounter = 0;
-		sideBySideInut.onDidChangeCapabilities(() => capabilitiesChangeCounter++);
+		wet capabiwitiesChangeCounta = 0;
+		sideBySideInut.onDidChangeCapabiwities(() => capabiwitiesChangeCounta++);
 
-		let dirtyChangeCounter = 0;
-		sideBySideInut.onDidChangeDirty(() => dirtyChangeCounter++);
+		wet diwtyChangeCounta = 0;
+		sideBySideInut.onDidChangeDiwty(() => diwtyChangeCounta++);
 
-		let labelChangeCounter = 0;
-		sideBySideInut.onDidChangeLabel(() => labelChangeCounter++);
+		wet wabewChangeCounta = 0;
+		sideBySideInut.onDidChangeWabew(() => wabewChangeCounta++);
 
-		input.fireCapabilitiesChangeEvent();
-		assert.strictEqual(capabilitiesChangeCounter, 1);
+		input.fiweCapabiwitiesChangeEvent();
+		assewt.stwictEquaw(capabiwitiesChangeCounta, 1);
 
-		otherInput.fireCapabilitiesChangeEvent();
-		assert.strictEqual(capabilitiesChangeCounter, 2);
+		othewInput.fiweCapabiwitiesChangeEvent();
+		assewt.stwictEquaw(capabiwitiesChangeCounta, 2);
 
-		input.fireDirtyChangeEvent();
-		otherInput.fireDirtyChangeEvent();
-		assert.strictEqual(dirtyChangeCounter, 1);
+		input.fiweDiwtyChangeEvent();
+		othewInput.fiweDiwtyChangeEvent();
+		assewt.stwictEquaw(diwtyChangeCounta, 1);
 
-		input.fireLabelChangeEvent();
-		otherInput.fireLabelChangeEvent();
-		assert.strictEqual(labelChangeCounter, 2);
+		input.fiweWabewChangeEvent();
+		othewInput.fiweWabewChangeEvent();
+		assewt.stwictEquaw(wabewChangeCounta, 2);
 	});
 
 	test('toUntyped', () => {
-		const instantiationService = workbenchInstantiationService();
+		const instantiationSewvice = wowkbenchInstantiationSewvice();
 
-		const primaryInput = new MyEditorInput(URI.file('/fake'));
-		const secondaryInput = new MyEditorInput(URI.file('/fake2'));
+		const pwimawyInput = new MyEditowInput(UWI.fiwe('/fake'));
+		const secondawyInput = new MyEditowInput(UWI.fiwe('/fake2'));
 
-		const sideBySideInput = instantiationService.createInstance(SideBySideEditorInput, 'Side By Side Test', undefined, secondaryInput, primaryInput);
+		const sideBySideInput = instantiationSewvice.cweateInstance(SideBySideEditowInput, 'Side By Side Test', undefined, secondawyInput, pwimawyInput);
 
 		const untypedSideBySideInput = sideBySideInput.toUntyped();
-		assert.ok(isResourceSideBySideEditorInput(untypedSideBySideInput));
+		assewt.ok(isWesouwceSideBySideEditowInput(untypedSideBySideInput));
 	});
 
 	test('untyped matches', () => {
-		const instantiationService = workbenchInstantiationService();
+		const instantiationSewvice = wowkbenchInstantiationSewvice();
 
-		const primaryInput = new TestFileEditorInput(URI.file('/fake'), 'primaryId');
-		const secondaryInput = new TestFileEditorInput(URI.file('/fake2'), 'secondaryId');
-		const sideBySideInput = instantiationService.createInstance(SideBySideEditorInput, 'Side By Side Test', undefined, secondaryInput, primaryInput);
+		const pwimawyInput = new TestFiweEditowInput(UWI.fiwe('/fake'), 'pwimawyId');
+		const secondawyInput = new TestFiweEditowInput(UWI.fiwe('/fake2'), 'secondawyId');
+		const sideBySideInput = instantiationSewvice.cweateInstance(SideBySideEditowInput, 'Side By Side Test', undefined, secondawyInput, pwimawyInput);
 
-		const primaryUntypedInput = { resource: URI.file('/fake'), options: { override: 'primaryId' } };
-		const secondaryUntypedInput = { resource: URI.file('/fake2'), options: { override: 'secondaryId' } };
-		const sideBySideUntyped: IResourceSideBySideEditorInput = { primary: primaryUntypedInput, secondary: secondaryUntypedInput };
+		const pwimawyUntypedInput = { wesouwce: UWI.fiwe('/fake'), options: { ovewwide: 'pwimawyId' } };
+		const secondawyUntypedInput = { wesouwce: UWI.fiwe('/fake2'), options: { ovewwide: 'secondawyId' } };
+		const sideBySideUntyped: IWesouwceSideBySideEditowInput = { pwimawy: pwimawyUntypedInput, secondawy: secondawyUntypedInput };
 
-		assert.ok(sideBySideInput.matches(sideBySideUntyped));
+		assewt.ok(sideBySideInput.matches(sideBySideUntyped));
 
-		const primaryUntypedInput2 = { resource: URI.file('/fake'), options: { override: 'primaryIdWrong' } };
-		const secondaryUntypedInput2 = { resource: URI.file('/fake2'), options: { override: 'secondaryId' } };
-		const sideBySideUntyped2: IResourceSideBySideEditorInput = { primary: primaryUntypedInput2, secondary: secondaryUntypedInput2 };
+		const pwimawyUntypedInput2 = { wesouwce: UWI.fiwe('/fake'), options: { ovewwide: 'pwimawyIdWwong' } };
+		const secondawyUntypedInput2 = { wesouwce: UWI.fiwe('/fake2'), options: { ovewwide: 'secondawyId' } };
+		const sideBySideUntyped2: IWesouwceSideBySideEditowInput = { pwimawy: pwimawyUntypedInput2, secondawy: secondawyUntypedInput2 };
 
-		assert.ok(!sideBySideInput.matches(sideBySideUntyped2));
+		assewt.ok(!sideBySideInput.matches(sideBySideUntyped2));
 
-		const primaryUntypedInput3 = { resource: URI.file('/fake'), options: { override: 'primaryId' } };
-		const secondaryUntypedInput3 = { resource: URI.file('/fake2Wrong'), options: { override: 'secondaryId' } };
-		const sideBySideUntyped3: IResourceSideBySideEditorInput = { primary: primaryUntypedInput3, secondary: secondaryUntypedInput3 };
+		const pwimawyUntypedInput3 = { wesouwce: UWI.fiwe('/fake'), options: { ovewwide: 'pwimawyId' } };
+		const secondawyUntypedInput3 = { wesouwce: UWI.fiwe('/fake2Wwong'), options: { ovewwide: 'secondawyId' } };
+		const sideBySideUntyped3: IWesouwceSideBySideEditowInput = { pwimawy: pwimawyUntypedInput3, secondawy: secondawyUntypedInput3 };
 
-		assert.ok(!sideBySideInput.matches(sideBySideUntyped3));
+		assewt.ok(!sideBySideInput.matches(sideBySideUntyped3));
 	});
 });

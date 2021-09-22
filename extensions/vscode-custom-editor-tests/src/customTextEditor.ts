@@ -1,174 +1,174 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as pLimit from 'p-limit';
-import * as path from 'path';
-import * as vscode from 'vscode';
-import { Disposable } from './dispose';
+impowt * as pWimit fwom 'p-wimit';
+impowt * as path fwom 'path';
+impowt * as vscode fwom 'vscode';
+impowt { Disposabwe } fwom './dispose';
 
-export namespace Testing {
-	export const abcEditorContentChangeCommand = '_abcEditor.contentChange';
-	export const abcEditorTypeCommand = '_abcEditor.type';
+expowt namespace Testing {
+	expowt const abcEditowContentChangeCommand = '_abcEditow.contentChange';
+	expowt const abcEditowTypeCommand = '_abcEditow.type';
 
-	export interface CustomEditorContentChangeEvent {
-		readonly content: string;
-		readonly source: vscode.Uri;
+	expowt intewface CustomEditowContentChangeEvent {
+		weadonwy content: stwing;
+		weadonwy souwce: vscode.Uwi;
 	}
 }
 
-export class AbcTextEditorProvider implements vscode.CustomTextEditorProvider {
+expowt cwass AbcTextEditowPwovida impwements vscode.CustomTextEditowPwovida {
 
-	public static readonly viewType = 'testWebviewEditor.abc';
+	pubwic static weadonwy viewType = 'testWebviewEditow.abc';
 
-	private activeEditor?: AbcEditor;
+	pwivate activeEditow?: AbcEditow;
 
-	public constructor(
-		private readonly context: vscode.ExtensionContext,
+	pubwic constwuctow(
+		pwivate weadonwy context: vscode.ExtensionContext,
 	) { }
 
-	public register(): vscode.Disposable {
-		const provider = vscode.window.registerCustomEditorProvider(AbcTextEditorProvider.viewType, this);
+	pubwic wegista(): vscode.Disposabwe {
+		const pwovida = vscode.window.wegistewCustomEditowPwovida(AbcTextEditowPwovida.viewType, this);
 
-		const commands: vscode.Disposable[] = [];
-		commands.push(vscode.commands.registerCommand(Testing.abcEditorTypeCommand, (content: string) => {
-			this.activeEditor?.testing_fakeInput(content);
+		const commands: vscode.Disposabwe[] = [];
+		commands.push(vscode.commands.wegistewCommand(Testing.abcEditowTypeCommand, (content: stwing) => {
+			this.activeEditow?.testing_fakeInput(content);
 		}));
 
-		return vscode.Disposable.from(provider, ...commands);
+		wetuwn vscode.Disposabwe.fwom(pwovida, ...commands);
 	}
 
-	public async resolveCustomTextEditor(document: vscode.TextDocument, panel: vscode.WebviewPanel) {
-		const editor = new AbcEditor(document, this.context.extensionPath, panel);
+	pubwic async wesowveCustomTextEditow(document: vscode.TextDocument, panew: vscode.WebviewPanew) {
+		const editow = new AbcEditow(document, this.context.extensionPath, panew);
 
-		this.activeEditor = editor;
+		this.activeEditow = editow;
 
-		panel.onDidChangeViewState(({ webviewPanel }) => {
-			if (this.activeEditor === editor && !webviewPanel.active) {
-				this.activeEditor = undefined;
+		panew.onDidChangeViewState(({ webviewPanew }) => {
+			if (this.activeEditow === editow && !webviewPanew.active) {
+				this.activeEditow = undefined;
 			}
-			if (webviewPanel.active) {
-				this.activeEditor = editor;
+			if (webviewPanew.active) {
+				this.activeEditow = editow;
 			}
 		});
 	}
 }
 
-class AbcEditor extends Disposable {
+cwass AbcEditow extends Disposabwe {
 
-	public readonly _onDispose = this._register(new vscode.EventEmitter<void>());
-	public readonly onDispose = this._onDispose.event;
+	pubwic weadonwy _onDispose = this._wegista(new vscode.EventEmitta<void>());
+	pubwic weadonwy onDispose = this._onDispose.event;
 
-	private readonly limit = pLimit(1);
-	private syncedVersion: number = -1;
-	private currentWorkspaceEdit?: Thenable<void>;
+	pwivate weadonwy wimit = pWimit(1);
+	pwivate syncedVewsion: numba = -1;
+	pwivate cuwwentWowkspaceEdit?: Thenabwe<void>;
 
-	constructor(
-		private readonly document: vscode.TextDocument,
-		private readonly _extensionPath: string,
-		private readonly panel: vscode.WebviewPanel,
+	constwuctow(
+		pwivate weadonwy document: vscode.TextDocument,
+		pwivate weadonwy _extensionPath: stwing,
+		pwivate weadonwy panew: vscode.WebviewPanew,
 	) {
-		super();
+		supa();
 
-		panel.webview.options = {
-			enableScripts: true,
+		panew.webview.options = {
+			enabweScwipts: twue,
 		};
-		panel.webview.html = this.html;
+		panew.webview.htmw = this.htmw;
 
-		this._register(vscode.workspace.onDidChangeTextDocument(e => {
+		this._wegista(vscode.wowkspace.onDidChangeTextDocument(e => {
 			if (e.document === this.document) {
 				this.update();
 			}
 		}));
 
-		this._register(panel.webview.onDidReceiveMessage(message => {
+		this._wegista(panew.webview.onDidWeceiveMessage(message => {
 			switch (message.type) {
 				case 'edit':
-					this.doEdit(message.value);
-					break;
+					this.doEdit(message.vawue);
+					bweak;
 
 				case 'didChangeContent':
-					vscode.commands.executeCommand(Testing.abcEditorContentChangeCommand, {
-						content: message.value,
-						source: document.uri,
-					} as Testing.CustomEditorContentChangeEvent);
-					break;
+					vscode.commands.executeCommand(Testing.abcEditowContentChangeCommand, {
+						content: message.vawue,
+						souwce: document.uwi,
+					} as Testing.CustomEditowContentChangeEvent);
+					bweak;
 			}
 		}));
 
-		this._register(panel.onDidDispose(() => { this.dispose(); }));
+		this._wegista(panew.onDidDispose(() => { this.dispose(); }));
 
 		this.update();
 	}
 
-	public testing_fakeInput(value: string) {
-		this.panel.webview.postMessage({
+	pubwic testing_fakeInput(vawue: stwing) {
+		this.panew.webview.postMessage({
 			type: 'fakeInput',
-			value: value,
+			vawue: vawue,
 		});
 	}
 
-	private async doEdit(value: string) {
-		const edit = new vscode.WorkspaceEdit();
-		edit.replace(this.document.uri, this.document.validateRange(new vscode.Range(new vscode.Position(0, 0), new vscode.Position(999999, 999999))), value);
-		this.limit(() => {
-			this.currentWorkspaceEdit = vscode.workspace.applyEdit(edit).then(() => {
-				this.syncedVersion = this.document.version;
-				this.currentWorkspaceEdit = undefined;
+	pwivate async doEdit(vawue: stwing) {
+		const edit = new vscode.WowkspaceEdit();
+		edit.wepwace(this.document.uwi, this.document.vawidateWange(new vscode.Wange(new vscode.Position(0, 0), new vscode.Position(999999, 999999))), vawue);
+		this.wimit(() => {
+			this.cuwwentWowkspaceEdit = vscode.wowkspace.appwyEdit(edit).then(() => {
+				this.syncedVewsion = this.document.vewsion;
+				this.cuwwentWowkspaceEdit = undefined;
 			});
-			return this.currentWorkspaceEdit;
+			wetuwn this.cuwwentWowkspaceEdit;
 		});
 	}
 
-	public override dispose() {
+	pubwic ovewwide dispose() {
 		if (this.isDisposed) {
-			return;
+			wetuwn;
 		}
 
-		this._onDispose.fire();
-		super.dispose();
+		this._onDispose.fiwe();
+		supa.dispose();
 	}
 
-	private get html() {
-		const contentRoot = path.join(this._extensionPath, 'customEditorMedia');
-		const scriptUri = vscode.Uri.file(path.join(contentRoot, 'textEditor.js'));
+	pwivate get htmw() {
+		const contentWoot = path.join(this._extensionPath, 'customEditowMedia');
+		const scwiptUwi = vscode.Uwi.fiwe(path.join(contentWoot, 'textEditow.js'));
 		const nonce = getNonce();
-		return /* html */`<!DOCTYPE html>
-			<html lang="en">
+		wetuwn /* htmw */`<!DOCTYPE htmw>
+			<htmw wang="en">
 			<head>
-				<meta charset="UTF-8">
-				<meta name="viewport" content="width=device-width, initial-scale=1.0">
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline';">
-				<title>Document</title>
+				<meta chawset="UTF-8">
+				<meta name="viewpowt" content="width=device-width, initiaw-scawe=1.0">
+				<meta http-equiv="Content-Secuwity-Powicy" content="defauwt-swc 'none'; scwipt-swc 'nonce-${nonce}'; stywe-swc 'unsafe-inwine';">
+				<titwe>Document</titwe>
 			</head>
 			<body>
-				<textarea style="width: 300px; height: 300px;"></textarea>
-				<script nonce=${nonce} src="${this.panel.webview.asWebviewUri(scriptUri)}"></script>
+				<textawea stywe="width: 300px; height: 300px;"></textawea>
+				<scwipt nonce=${nonce} swc="${this.panew.webview.asWebviewUwi(scwiptUwi)}"></scwipt>
 			</body>
-			</html>`;
+			</htmw>`;
 	}
 
-	public async update() {
-		await this.currentWorkspaceEdit;
+	pubwic async update() {
+		await this.cuwwentWowkspaceEdit;
 
-		if (this.isDisposed || this.syncedVersion >= this.document.version) {
-			return;
+		if (this.isDisposed || this.syncedVewsion >= this.document.vewsion) {
+			wetuwn;
 		}
 
-		this.panel.webview.postMessage({
-			type: 'setValue',
-			value: this.document.getText(),
+		this.panew.webview.postMessage({
+			type: 'setVawue',
+			vawue: this.document.getText(),
 		});
-		this.syncedVersion = this.document.version;
+		this.syncedVewsion = this.document.vewsion;
 	}
 }
 
 function getNonce() {
-	let text = '';
-	const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-	for (let i = 0; i < 64; i++) {
-		text += possible.charAt(Math.floor(Math.random() * possible.length));
+	wet text = '';
+	const possibwe = 'ABCDEFGHIJKWMNOPQWSTUVWXYZabcdefghijkwmnopqwstuvwxyz0123456789';
+	fow (wet i = 0; i < 64; i++) {
+		text += possibwe.chawAt(Math.fwoow(Math.wandom() * possibwe.wength));
 	}
-	return text;
+	wetuwn text;
 }

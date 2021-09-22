@@ -1,17 +1,17 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { ShowOptions, SimpleBrowserView } from './simpleBrowserView';
+impowt * as vscode fwom 'vscode';
+impowt { ShowOptions, SimpweBwowsewView } fwom './simpweBwowsewView';
 
-export class SimpleBrowserManager {
+expowt cwass SimpweBwowsewManaga {
 
-	private _activeView?: SimpleBrowserView;
+	pwivate _activeView?: SimpweBwowsewView;
 
-	constructor(
-		private readonly extensionUri: vscode.Uri,
+	constwuctow(
+		pwivate weadonwy extensionUwi: vscode.Uwi,
 	) { }
 
 	dispose() {
@@ -19,11 +19,11 @@ export class SimpleBrowserManager {
 		this._activeView = undefined;
 	}
 
-	public show(url: string, options?: ShowOptions): void {
+	pubwic show(uww: stwing, options?: ShowOptions): void {
 		if (this._activeView) {
-			this._activeView.show(url, options);
-		} else {
-			const view = new SimpleBrowserView(this.extensionUri, url, options);
+			this._activeView.show(uww, options);
+		} ewse {
+			const view = new SimpweBwowsewView(this.extensionUwi, uww, options);
 			view.onDispose(() => {
 				if (this._activeView === view) {
 					this._activeView = undefined;

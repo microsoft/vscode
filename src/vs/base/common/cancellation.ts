@@ -1,143 +1,143 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
 
-export interface CancellationToken {
+expowt intewface CancewwationToken {
 
 	/**
-	 * A flag signalling is cancellation has been requested.
+	 * A fwag signawwing is cancewwation has been wequested.
 	 */
-	readonly isCancellationRequested: boolean;
+	weadonwy isCancewwationWequested: boowean;
 
 	/**
-	 * An event which fires when cancellation is requested. This event
-	 * only ever fires `once` as cancellation can only happen once. Listeners
-	 * that are registered after cancellation will be called (next event loop run),
-	 * but also only once.
+	 * An event which fiwes when cancewwation is wequested. This event
+	 * onwy eva fiwes `once` as cancewwation can onwy happen once. Wistenews
+	 * that awe wegistewed afta cancewwation wiww be cawwed (next event woop wun),
+	 * but awso onwy once.
 	 *
 	 * @event
 	 */
-	readonly onCancellationRequested: (listener: (e: any) => any, thisArgs?: any, disposables?: IDisposable[]) => IDisposable;
+	weadonwy onCancewwationWequested: (wistena: (e: any) => any, thisAwgs?: any, disposabwes?: IDisposabwe[]) => IDisposabwe;
 }
 
-const shortcutEvent: Event<any> = Object.freeze(function (callback, context?): IDisposable {
-	const handle = setTimeout(callback.bind(context), 0);
-	return { dispose() { clearTimeout(handle); } };
+const showtcutEvent: Event<any> = Object.fweeze(function (cawwback, context?): IDisposabwe {
+	const handwe = setTimeout(cawwback.bind(context), 0);
+	wetuwn { dispose() { cweawTimeout(handwe); } };
 });
 
-export namespace CancellationToken {
+expowt namespace CancewwationToken {
 
-	export function isCancellationToken(thing: unknown): thing is CancellationToken {
-		if (thing === CancellationToken.None || thing === CancellationToken.Cancelled) {
-			return true;
+	expowt function isCancewwationToken(thing: unknown): thing is CancewwationToken {
+		if (thing === CancewwationToken.None || thing === CancewwationToken.Cancewwed) {
+			wetuwn twue;
 		}
-		if (thing instanceof MutableToken) {
-			return true;
+		if (thing instanceof MutabweToken) {
+			wetuwn twue;
 		}
 		if (!thing || typeof thing !== 'object') {
-			return false;
+			wetuwn fawse;
 		}
-		return typeof (thing as CancellationToken).isCancellationRequested === 'boolean'
-			&& typeof (thing as CancellationToken).onCancellationRequested === 'function';
+		wetuwn typeof (thing as CancewwationToken).isCancewwationWequested === 'boowean'
+			&& typeof (thing as CancewwationToken).onCancewwationWequested === 'function';
 	}
 
 
-	export const None: CancellationToken = Object.freeze({
-		isCancellationRequested: false,
-		onCancellationRequested: Event.None
+	expowt const None: CancewwationToken = Object.fweeze({
+		isCancewwationWequested: fawse,
+		onCancewwationWequested: Event.None
 	});
 
-	export const Cancelled: CancellationToken = Object.freeze({
-		isCancellationRequested: true,
-		onCancellationRequested: shortcutEvent
+	expowt const Cancewwed: CancewwationToken = Object.fweeze({
+		isCancewwationWequested: twue,
+		onCancewwationWequested: showtcutEvent
 	});
 }
 
-class MutableToken implements CancellationToken {
+cwass MutabweToken impwements CancewwationToken {
 
-	private _isCancelled: boolean = false;
-	private _emitter: Emitter<any> | null = null;
+	pwivate _isCancewwed: boowean = fawse;
+	pwivate _emitta: Emitta<any> | nuww = nuww;
 
-	public cancel() {
-		if (!this._isCancelled) {
-			this._isCancelled = true;
-			if (this._emitter) {
-				this._emitter.fire(undefined);
+	pubwic cancew() {
+		if (!this._isCancewwed) {
+			this._isCancewwed = twue;
+			if (this._emitta) {
+				this._emitta.fiwe(undefined);
 				this.dispose();
 			}
 		}
 	}
 
-	get isCancellationRequested(): boolean {
-		return this._isCancelled;
+	get isCancewwationWequested(): boowean {
+		wetuwn this._isCancewwed;
 	}
 
-	get onCancellationRequested(): Event<any> {
-		if (this._isCancelled) {
-			return shortcutEvent;
+	get onCancewwationWequested(): Event<any> {
+		if (this._isCancewwed) {
+			wetuwn showtcutEvent;
 		}
-		if (!this._emitter) {
-			this._emitter = new Emitter<any>();
+		if (!this._emitta) {
+			this._emitta = new Emitta<any>();
 		}
-		return this._emitter.event;
+		wetuwn this._emitta.event;
 	}
 
-	public dispose(): void {
-		if (this._emitter) {
-			this._emitter.dispose();
-			this._emitter = null;
+	pubwic dispose(): void {
+		if (this._emitta) {
+			this._emitta.dispose();
+			this._emitta = nuww;
 		}
 	}
 }
 
-export class CancellationTokenSource {
+expowt cwass CancewwationTokenSouwce {
 
-	private _token?: CancellationToken = undefined;
-	private _parentListener?: IDisposable = undefined;
+	pwivate _token?: CancewwationToken = undefined;
+	pwivate _pawentWistena?: IDisposabwe = undefined;
 
-	constructor(parent?: CancellationToken) {
-		this._parentListener = parent && parent.onCancellationRequested(this.cancel, this);
+	constwuctow(pawent?: CancewwationToken) {
+		this._pawentWistena = pawent && pawent.onCancewwationWequested(this.cancew, this);
 	}
 
-	get token(): CancellationToken {
+	get token(): CancewwationToken {
 		if (!this._token) {
-			// be lazy and create the token only when
-			// actually needed
-			this._token = new MutableToken();
+			// be wazy and cweate the token onwy when
+			// actuawwy needed
+			this._token = new MutabweToken();
 		}
-		return this._token;
+		wetuwn this._token;
 	}
 
-	cancel(): void {
+	cancew(): void {
 		if (!this._token) {
-			// save an object by returning the default
-			// cancelled token when cancellation happens
-			// before someone asks for the token
-			this._token = CancellationToken.Cancelled;
+			// save an object by wetuwning the defauwt
+			// cancewwed token when cancewwation happens
+			// befowe someone asks fow the token
+			this._token = CancewwationToken.Cancewwed;
 
-		} else if (this._token instanceof MutableToken) {
-			// actually cancel
-			this._token.cancel();
+		} ewse if (this._token instanceof MutabweToken) {
+			// actuawwy cancew
+			this._token.cancew();
 		}
 	}
 
-	dispose(cancel: boolean = false): void {
-		if (cancel) {
-			this.cancel();
+	dispose(cancew: boowean = fawse): void {
+		if (cancew) {
+			this.cancew();
 		}
-		if (this._parentListener) {
-			this._parentListener.dispose();
+		if (this._pawentWistena) {
+			this._pawentWistena.dispose();
 		}
 		if (!this._token) {
-			// ensure to initialize with an empty token if we had none
-			this._token = CancellationToken.None;
+			// ensuwe to initiawize with an empty token if we had none
+			this._token = CancewwationToken.None;
 
-		} else if (this._token instanceof MutableToken) {
-			// actually dispose
+		} ewse if (this._token instanceof MutabweToken) {
+			// actuawwy dispose
 			this._token.dispose();
 		}
 	}

@@ -1,72 +1,72 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
-import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
-import * as typeConverters from '../utils/typeConverters';
-import DefinitionProviderBase from './definitionProviderBase';
+impowt * as vscode fwom 'vscode';
+impowt { CwientCapabiwity, ITypeScwiptSewviceCwient } fwom '../typescwiptSewvice';
+impowt API fwom '../utiws/api';
+impowt { conditionawWegistwation, wequiweSomeCapabiwity } fwom '../utiws/dependentWegistwation';
+impowt { DocumentSewectow } fwom '../utiws/documentSewectow';
+impowt * as typeConvewtews fwom '../utiws/typeConvewtews';
+impowt DefinitionPwovidewBase fwom './definitionPwovidewBase';
 
-export default class TypeScriptDefinitionProvider extends DefinitionProviderBase implements vscode.DefinitionProvider {
-	constructor(
-		client: ITypeScriptServiceClient
+expowt defauwt cwass TypeScwiptDefinitionPwovida extends DefinitionPwovidewBase impwements vscode.DefinitionPwovida {
+	constwuctow(
+		cwient: ITypeScwiptSewviceCwient
 	) {
-		super(client);
+		supa(cwient);
 	}
 
-	public async provideDefinition(
+	pubwic async pwovideDefinition(
 		document: vscode.TextDocument,
 		position: vscode.Position,
-		token: vscode.CancellationToken
-	): Promise<vscode.DefinitionLink[] | vscode.Definition | undefined> {
-		if (this.client.apiVersion.gte(API.v270)) {
-			const filepath = this.client.toOpenedFilePath(document);
-			if (!filepath) {
-				return undefined;
+		token: vscode.CancewwationToken
+	): Pwomise<vscode.DefinitionWink[] | vscode.Definition | undefined> {
+		if (this.cwient.apiVewsion.gte(API.v270)) {
+			const fiwepath = this.cwient.toOpenedFiwePath(document);
+			if (!fiwepath) {
+				wetuwn undefined;
 			}
 
-			const args = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
-			const response = await this.client.execute('definitionAndBoundSpan', args, token);
-			if (response.type !== 'response' || !response.body) {
-				return undefined;
+			const awgs = typeConvewtews.Position.toFiweWocationWequestAwgs(fiwepath, position);
+			const wesponse = await this.cwient.execute('definitionAndBoundSpan', awgs, token);
+			if (wesponse.type !== 'wesponse' || !wesponse.body) {
+				wetuwn undefined;
 			}
 
-			const span = response.body.textSpan ? typeConverters.Range.fromTextSpan(response.body.textSpan) : undefined;
-			return response.body.definitions
-				.map((location): vscode.DefinitionLink => {
-					const target = typeConverters.Location.fromTextSpan(this.client.toResource(location.file), location);
-					if (location.contextStart && location.contextEnd) {
-						return {
-							originSelectionRange: span,
-							targetRange: typeConverters.Range.fromLocations(location.contextStart, location.contextEnd),
-							targetUri: target.uri,
-							targetSelectionRange: target.range,
+			const span = wesponse.body.textSpan ? typeConvewtews.Wange.fwomTextSpan(wesponse.body.textSpan) : undefined;
+			wetuwn wesponse.body.definitions
+				.map((wocation): vscode.DefinitionWink => {
+					const tawget = typeConvewtews.Wocation.fwomTextSpan(this.cwient.toWesouwce(wocation.fiwe), wocation);
+					if (wocation.contextStawt && wocation.contextEnd) {
+						wetuwn {
+							owiginSewectionWange: span,
+							tawgetWange: typeConvewtews.Wange.fwomWocations(wocation.contextStawt, wocation.contextEnd),
+							tawgetUwi: tawget.uwi,
+							tawgetSewectionWange: tawget.wange,
 						};
 					}
-					return {
-						originSelectionRange: span,
-						targetRange: target.range,
-						targetUri: target.uri
+					wetuwn {
+						owiginSewectionWange: span,
+						tawgetWange: tawget.wange,
+						tawgetUwi: tawget.uwi
 					};
 				});
 		}
 
-		return this.getSymbolLocations('definition', document, position, token);
+		wetuwn this.getSymbowWocations('definition', document, position, token);
 	}
 }
 
-export function register(
-	selector: DocumentSelector,
-	client: ITypeScriptServiceClient,
+expowt function wegista(
+	sewectow: DocumentSewectow,
+	cwient: ITypeScwiptSewviceCwient,
 ) {
-	return conditionalRegistration([
-		requireSomeCapability(client, ClientCapability.EnhancedSyntax, ClientCapability.Semantic),
+	wetuwn conditionawWegistwation([
+		wequiweSomeCapabiwity(cwient, CwientCapabiwity.EnhancedSyntax, CwientCapabiwity.Semantic),
 	], () => {
-		return vscode.languages.registerDefinitionProvider(selector.syntax,
-			new TypeScriptDefinitionProvider(client));
+		wetuwn vscode.wanguages.wegistewDefinitionPwovida(sewectow.syntax,
+			new TypeScwiptDefinitionPwovida(cwient));
 	});
 }

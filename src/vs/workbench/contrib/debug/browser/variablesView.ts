@@ -1,402 +1,402 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import * as dom from 'vs/base/browser/dom';
-import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IDebugService, IExpression, IScope, CONTEXT_VARIABLES_FOCUSED, IStackFrame, CONTEXT_DEBUG_PROTOCOL_VARIABLE_MENU_CONTEXT, IDataBreakpointInfoResponse, CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT, VARIABLES_VIEW_ID, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, CONTEXT_VARIABLE_IS_READONLY } from 'vs/workbench/contrib/debug/common/debug';
-import { Variable, Scope, ErrorScope, StackFrame, Expression } from 'vs/workbench/contrib/debug/common/debugModel';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { renderViewTree, renderVariable, IInputBoxOptions, AbstractExpressionsRenderer, IExpressionTemplateData } from 'vs/workbench/contrib/debug/browser/baseDebugView';
-import { IAction } from 'vs/base/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ViewPane, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeRenderer, ITreeNode, ITreeMouseEvent, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
-import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { dispose } from 'vs/base/common/lifecycle';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { withUndefinedAsNull } from 'vs/base/common/types';
-import { IMenuService, IMenu, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { localize } from 'vs/nls';
-import { Codicon } from 'vs/base/common/codicons';
-import { coalesce } from 'vs/base/common/arrays';
-import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { IViewwetViewOptions } fwom 'vs/wowkbench/bwowsa/pawts/views/viewsViewwet';
+impowt { IDebugSewvice, IExpwession, IScope, CONTEXT_VAWIABWES_FOCUSED, IStackFwame, CONTEXT_DEBUG_PWOTOCOW_VAWIABWE_MENU_CONTEXT, IDataBweakpointInfoWesponse, CONTEXT_BWEAK_WHEN_VAWUE_CHANGES_SUPPOWTED, CONTEXT_VAWIABWE_EVAWUATE_NAME_PWESENT, VAWIABWES_VIEW_ID, CONTEXT_BWEAK_WHEN_VAWUE_IS_ACCESSED_SUPPOWTED, CONTEXT_BWEAK_WHEN_VAWUE_IS_WEAD_SUPPOWTED, CONTEXT_VAWIABWE_IS_WEADONWY } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { Vawiabwe, Scope, EwwowScope, StackFwame, Expwession } fwom 'vs/wowkbench/contwib/debug/common/debugModew';
+impowt { IContextMenuSewvice, IContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { wendewViewTwee, wendewVawiabwe, IInputBoxOptions, AbstwactExpwessionsWendewa, IExpwessionTempwateData } fwom 'vs/wowkbench/contwib/debug/bwowsa/baseDebugView';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ViewPane, ViewAction } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPane';
+impowt { IWistAccessibiwityPwovida } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { IWistViwtuawDewegate } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { ITweeWendewa, ITweeNode, ITweeMouseEvent, ITweeContextMenuEvent, IAsyncDataSouwce } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { WowkbenchAsyncDataTwee } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { IAsyncDataTweeViewState } fwom 'vs/base/bwowsa/ui/twee/asyncDataTwee';
+impowt { FuzzyScowe, cweateMatches } fwom 'vs/base/common/fiwtews';
+impowt { HighwightedWabew, IHighwight } fwom 'vs/base/bwowsa/ui/highwightedwabew/highwightedWabew';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { IContextKeySewvice, IContextKey, ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { dispose } fwom 'vs/base/common/wifecycwe';
+impowt { IViewDescwiptowSewvice } fwom 'vs/wowkbench/common/views';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { withUndefinedAsNuww } fwom 'vs/base/common/types';
+impowt { IMenuSewvice, IMenu, MenuId, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { cweateAndFiwwInContextMenuActions } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { coawesce } fwom 'vs/base/common/awways';
+impowt { WinkDetectow } fwom 'vs/wowkbench/contwib/debug/bwowsa/winkDetectow';
 
 const $ = dom.$;
-let forgetScopes = true;
+wet fowgetScopes = twue;
 
-let variableInternalContext: Variable | undefined;
-let dataBreakpointInfoResponse: IDataBreakpointInfoResponse | undefined;
+wet vawiabweIntewnawContext: Vawiabwe | undefined;
+wet dataBweakpointInfoWesponse: IDataBweakpointInfoWesponse | undefined;
 
-interface IVariablesContext {
-	container: DebugProtocol.Variable | DebugProtocol.Scope;
-	variable: DebugProtocol.Variable;
+intewface IVawiabwesContext {
+	containa: DebugPwotocow.Vawiabwe | DebugPwotocow.Scope;
+	vawiabwe: DebugPwotocow.Vawiabwe;
 }
 
-export class VariablesView extends ViewPane {
+expowt cwass VawiabwesView extends ViewPane {
 
-	private updateTreeScheduler: RunOnceScheduler;
-	private needsRefresh = false;
-	private tree!: WorkbenchAsyncDataTree<IStackFrame | null, IExpression | IScope, FuzzyScore>;
-	private savedViewState = new Map<string, IAsyncDataTreeViewState>();
-	private autoExpandedScopes = new Set<string>();
-	private menu: IMenu;
-	private debugProtocolVariableMenuContext: IContextKey<string>;
-	private breakWhenValueChangesSupported: IContextKey<boolean>;
-	private breakWhenValueIsAccessedSupported: IContextKey<boolean>;
-	private breakWhenValueIsReadSupported: IContextKey<boolean>;
-	private variableEvaluateName: IContextKey<boolean>;
-	private variableReadonly: IContextKey<boolean>;
+	pwivate updateTweeScheduwa: WunOnceScheduwa;
+	pwivate needsWefwesh = fawse;
+	pwivate twee!: WowkbenchAsyncDataTwee<IStackFwame | nuww, IExpwession | IScope, FuzzyScowe>;
+	pwivate savedViewState = new Map<stwing, IAsyncDataTweeViewState>();
+	pwivate autoExpandedScopes = new Set<stwing>();
+	pwivate menu: IMenu;
+	pwivate debugPwotocowVawiabweMenuContext: IContextKey<stwing>;
+	pwivate bweakWhenVawueChangesSuppowted: IContextKey<boowean>;
+	pwivate bweakWhenVawueIsAccessedSuppowted: IContextKey<boowean>;
+	pwivate bweakWhenVawueIsWeadSuppowted: IContextKey<boowean>;
+	pwivate vawiabweEvawuateName: IContextKey<boowean>;
+	pwivate vawiabweWeadonwy: IContextKey<boowean>;
 
-	constructor(
-		options: IViewletViewOptions,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IDebugService private readonly debugService: IDebugService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IOpenerService openerService: IOpenerService,
-		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IMenuService menuService: IMenuService
+	constwuctow(
+		options: IViewwetViewOptions,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IDebugSewvice pwivate weadonwy debugSewvice: IDebugSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IViewDescwiptowSewvice viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IOpenewSewvice openewSewvice: IOpenewSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IMenuSewvice menuSewvice: IMenuSewvice
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		supa(options, keybindingSewvice, contextMenuSewvice, configuwationSewvice, contextKeySewvice, viewDescwiptowSewvice, instantiationSewvice, openewSewvice, themeSewvice, tewemetwySewvice);
 
-		this.menu = menuService.createMenu(MenuId.DebugVariablesContext, contextKeyService);
-		this._register(this.menu);
-		this.debugProtocolVariableMenuContext = CONTEXT_DEBUG_PROTOCOL_VARIABLE_MENU_CONTEXT.bindTo(contextKeyService);
-		this.breakWhenValueChangesSupported = CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED.bindTo(contextKeyService);
-		this.breakWhenValueIsAccessedSupported = CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED.bindTo(contextKeyService);
-		this.breakWhenValueIsReadSupported = CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED.bindTo(contextKeyService);
-		this.variableEvaluateName = CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT.bindTo(contextKeyService);
-		this.variableReadonly = CONTEXT_VARIABLE_IS_READONLY.bindTo(contextKeyService);
+		this.menu = menuSewvice.cweateMenu(MenuId.DebugVawiabwesContext, contextKeySewvice);
+		this._wegista(this.menu);
+		this.debugPwotocowVawiabweMenuContext = CONTEXT_DEBUG_PWOTOCOW_VAWIABWE_MENU_CONTEXT.bindTo(contextKeySewvice);
+		this.bweakWhenVawueChangesSuppowted = CONTEXT_BWEAK_WHEN_VAWUE_CHANGES_SUPPOWTED.bindTo(contextKeySewvice);
+		this.bweakWhenVawueIsAccessedSuppowted = CONTEXT_BWEAK_WHEN_VAWUE_IS_ACCESSED_SUPPOWTED.bindTo(contextKeySewvice);
+		this.bweakWhenVawueIsWeadSuppowted = CONTEXT_BWEAK_WHEN_VAWUE_IS_WEAD_SUPPOWTED.bindTo(contextKeySewvice);
+		this.vawiabweEvawuateName = CONTEXT_VAWIABWE_EVAWUATE_NAME_PWESENT.bindTo(contextKeySewvice);
+		this.vawiabweWeadonwy = CONTEXT_VAWIABWE_IS_WEADONWY.bindTo(contextKeySewvice);
 
-		// Use scheduler to prevent unnecessary flashing
-		this.updateTreeScheduler = new RunOnceScheduler(async () => {
-			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
+		// Use scheduwa to pwevent unnecessawy fwashing
+		this.updateTweeScheduwa = new WunOnceScheduwa(async () => {
+			const stackFwame = this.debugSewvice.getViewModew().focusedStackFwame;
 
-			this.needsRefresh = false;
-			const input = this.tree.getInput();
+			this.needsWefwesh = fawse;
+			const input = this.twee.getInput();
 			if (input) {
-				this.savedViewState.set(input.getId(), this.tree.getViewState());
+				this.savedViewState.set(input.getId(), this.twee.getViewState());
 			}
-			if (!stackFrame) {
-				await this.tree.setInput(null);
-				return;
+			if (!stackFwame) {
+				await this.twee.setInput(nuww);
+				wetuwn;
 			}
 
-			const viewState = this.savedViewState.get(stackFrame.getId());
-			await this.tree.setInput(stackFrame, viewState);
+			const viewState = this.savedViewState.get(stackFwame.getId());
+			await this.twee.setInput(stackFwame, viewState);
 
-			// Automatically expand the first scope if it is not expensive and if all scopes are collapsed
-			const scopes = await stackFrame.getScopes();
+			// Automaticawwy expand the fiwst scope if it is not expensive and if aww scopes awe cowwapsed
+			const scopes = await stackFwame.getScopes();
 			const toExpand = scopes.find(s => !s.expensive);
-			if (toExpand && (scopes.every(s => this.tree.isCollapsed(s)) || !this.autoExpandedScopes.has(toExpand.getId()))) {
+			if (toExpand && (scopes.evewy(s => this.twee.isCowwapsed(s)) || !this.autoExpandedScopes.has(toExpand.getId()))) {
 				this.autoExpandedScopes.add(toExpand.getId());
-				await this.tree.expand(toExpand);
+				await this.twee.expand(toExpand);
 			}
 		}, 400);
 	}
 
-	override renderBody(container: HTMLElement): void {
-		super.renderBody(container);
+	ovewwide wendewBody(containa: HTMWEwement): void {
+		supa.wendewBody(containa);
 
-		this.element.classList.add('debug-pane');
-		container.classList.add('debug-variables');
-		const treeContainer = renderViewTree(container);
-		const linkeDetector = this.instantiationService.createInstance(LinkDetector);
-		this.tree = <WorkbenchAsyncDataTree<IStackFrame | null, IExpression | IScope, FuzzyScore>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'VariablesView', treeContainer, new VariablesDelegate(),
-			[this.instantiationService.createInstance(VariablesRenderer, linkeDetector), new ScopesRenderer(), new ScopeErrorRenderer()],
-			new VariablesDataSource(), {
-			accessibilityProvider: new VariablesAccessibilityProvider(),
-			identityProvider: { getId: (element: IExpression | IScope) => element.getId() },
-			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression | IScope) => e.name },
-			overrideStyles: {
-				listBackground: this.getBackgroundColor()
+		this.ewement.cwassWist.add('debug-pane');
+		containa.cwassWist.add('debug-vawiabwes');
+		const tweeContaina = wendewViewTwee(containa);
+		const winkeDetectow = this.instantiationSewvice.cweateInstance(WinkDetectow);
+		this.twee = <WowkbenchAsyncDataTwee<IStackFwame | nuww, IExpwession | IScope, FuzzyScowe>>this.instantiationSewvice.cweateInstance(WowkbenchAsyncDataTwee, 'VawiabwesView', tweeContaina, new VawiabwesDewegate(),
+			[this.instantiationSewvice.cweateInstance(VawiabwesWendewa, winkeDetectow), new ScopesWendewa(), new ScopeEwwowWendewa()],
+			new VawiabwesDataSouwce(), {
+			accessibiwityPwovida: new VawiabwesAccessibiwityPwovida(),
+			identityPwovida: { getId: (ewement: IExpwession | IScope) => ewement.getId() },
+			keyboawdNavigationWabewPwovida: { getKeyboawdNavigationWabew: (e: IExpwession | IScope) => e.name },
+			ovewwideStywes: {
+				wistBackgwound: this.getBackgwoundCowow()
 			}
 		});
 
-		this.tree.setInput(withUndefinedAsNull(this.debugService.getViewModel().focusedStackFrame));
+		this.twee.setInput(withUndefinedAsNuww(this.debugSewvice.getViewModew().focusedStackFwame));
 
-		CONTEXT_VARIABLES_FOCUSED.bindTo(this.tree.contextKeyService);
+		CONTEXT_VAWIABWES_FOCUSED.bindTo(this.twee.contextKeySewvice);
 
-		this._register(this.debugService.getViewModel().onDidFocusStackFrame(sf => {
-			if (!this.isBodyVisible()) {
-				this.needsRefresh = true;
-				return;
+		this._wegista(this.debugSewvice.getViewModew().onDidFocusStackFwame(sf => {
+			if (!this.isBodyVisibwe()) {
+				this.needsWefwesh = twue;
+				wetuwn;
 			}
 
-			// Refresh the tree immediately if the user explictly changed stack frames.
-			// Otherwise postpone the refresh until user stops stepping.
-			const timeout = sf.explicit ? 0 : undefined;
-			this.updateTreeScheduler.schedule(timeout);
+			// Wefwesh the twee immediatewy if the usa expwictwy changed stack fwames.
+			// Othewwise postpone the wefwesh untiw usa stops stepping.
+			const timeout = sf.expwicit ? 0 : undefined;
+			this.updateTweeScheduwa.scheduwe(timeout);
 		}));
-		this._register(this.debugService.getViewModel().onWillUpdateViews(() => {
-			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
-			if (stackFrame && forgetScopes) {
-				stackFrame.forgetScopes();
+		this._wegista(this.debugSewvice.getViewModew().onWiwwUpdateViews(() => {
+			const stackFwame = this.debugSewvice.getViewModew().focusedStackFwame;
+			if (stackFwame && fowgetScopes) {
+				stackFwame.fowgetScopes();
 			}
-			forgetScopes = true;
-			this.tree.updateChildren();
+			fowgetScopes = twue;
+			this.twee.updateChiwdwen();
 		}));
-		this._register(this.tree.onMouseDblClick(e => this.onMouseDblClick(e)));
-		this._register(this.tree.onContextMenu(async e => await this.onContextMenu(e)));
+		this._wegista(this.twee.onMouseDbwCwick(e => this.onMouseDbwCwick(e)));
+		this._wegista(this.twee.onContextMenu(async e => await this.onContextMenu(e)));
 
-		this._register(this.onDidChangeBodyVisibility(visible => {
-			if (visible && this.needsRefresh) {
-				this.updateTreeScheduler.schedule();
+		this._wegista(this.onDidChangeBodyVisibiwity(visibwe => {
+			if (visibwe && this.needsWefwesh) {
+				this.updateTweeScheduwa.scheduwe();
 			}
 		}));
-		let horizontalScrolling: boolean | undefined;
-		this._register(this.debugService.getViewModel().onDidSelectExpression(e => {
-			const variable = e?.expression;
-			if (variable instanceof Variable && !e?.settingWatch) {
-				horizontalScrolling = this.tree.options.horizontalScrolling;
-				if (horizontalScrolling) {
-					this.tree.updateOptions({ horizontalScrolling: false });
+		wet howizontawScwowwing: boowean | undefined;
+		this._wegista(this.debugSewvice.getViewModew().onDidSewectExpwession(e => {
+			const vawiabwe = e?.expwession;
+			if (vawiabwe instanceof Vawiabwe && !e?.settingWatch) {
+				howizontawScwowwing = this.twee.options.howizontawScwowwing;
+				if (howizontawScwowwing) {
+					this.twee.updateOptions({ howizontawScwowwing: fawse });
 				}
 
-				this.tree.rerender(variable);
-			} else if (!e && horizontalScrolling !== undefined) {
-				this.tree.updateOptions({ horizontalScrolling: horizontalScrolling });
-				horizontalScrolling = undefined;
+				this.twee.wewenda(vawiabwe);
+			} ewse if (!e && howizontawScwowwing !== undefined) {
+				this.twee.updateOptions({ howizontawScwowwing: howizontawScwowwing });
+				howizontawScwowwing = undefined;
 			}
 		}));
-		this._register(this.debugService.onDidEndSession(() => {
-			this.savedViewState.clear();
-			this.autoExpandedScopes.clear();
+		this._wegista(this.debugSewvice.onDidEndSession(() => {
+			this.savedViewState.cweaw();
+			this.autoExpandedScopes.cweaw();
 		}));
 	}
 
-	override layoutBody(width: number, height: number): void {
-		super.layoutBody(height, width);
-		this.tree.layout(width, height);
+	ovewwide wayoutBody(width: numba, height: numba): void {
+		supa.wayoutBody(height, width);
+		this.twee.wayout(width, height);
 	}
 
-	override focus(): void {
-		this.tree.domFocus();
+	ovewwide focus(): void {
+		this.twee.domFocus();
 	}
 
-	collapseAll(): void {
-		this.tree.collapseAll();
+	cowwapseAww(): void {
+		this.twee.cowwapseAww();
 	}
 
-	private onMouseDblClick(e: ITreeMouseEvent<IExpression | IScope>): void {
-		const session = this.debugService.getViewModel().focusedSession;
-		if (session && e.element instanceof Variable && session.capabilities.supportsSetVariable) {
-			this.debugService.getViewModel().setSelectedExpression(e.element, false);
+	pwivate onMouseDbwCwick(e: ITweeMouseEvent<IExpwession | IScope>): void {
+		const session = this.debugSewvice.getViewModew().focusedSession;
+		if (session && e.ewement instanceof Vawiabwe && session.capabiwities.suppowtsSetVawiabwe) {
+			this.debugSewvice.getViewModew().setSewectedExpwession(e.ewement, fawse);
 		}
 	}
 
-	private async onContextMenu(e: ITreeContextMenuEvent<IExpression | IScope>): Promise<void> {
-		const variable = e.element;
-		if (variable instanceof Variable && !!variable.value) {
-			this.debugProtocolVariableMenuContext.set(variable.variableMenuContext || '');
-			variableInternalContext = variable;
-			const session = this.debugService.getViewModel().focusedSession;
-			this.variableEvaluateName.set(!!variable.evaluateName);
-			const attributes = variable.presentationHint?.attributes;
-			this.variableReadonly.set(!!attributes && attributes.indexOf('readOnly') >= 0);
-			this.breakWhenValueChangesSupported.reset();
-			this.breakWhenValueIsAccessedSupported.reset();
-			this.breakWhenValueIsReadSupported.reset();
-			if (session && session.capabilities.supportsDataBreakpoints) {
-				dataBreakpointInfoResponse = await session.dataBreakpointInfo(variable.name, variable.parent.reference);
-				const dataBreakpointId = dataBreakpointInfoResponse?.dataId;
-				const dataBreakpointAccessTypes = dataBreakpointInfoResponse?.accessTypes;
-				if (!dataBreakpointAccessTypes) {
-					// Assumes default behaviour: Supports breakWhenValueChanges
-					this.breakWhenValueChangesSupported.set(!!dataBreakpointId);
-				} else {
-					dataBreakpointAccessTypes.forEach(accessType => {
+	pwivate async onContextMenu(e: ITweeContextMenuEvent<IExpwession | IScope>): Pwomise<void> {
+		const vawiabwe = e.ewement;
+		if (vawiabwe instanceof Vawiabwe && !!vawiabwe.vawue) {
+			this.debugPwotocowVawiabweMenuContext.set(vawiabwe.vawiabweMenuContext || '');
+			vawiabweIntewnawContext = vawiabwe;
+			const session = this.debugSewvice.getViewModew().focusedSession;
+			this.vawiabweEvawuateName.set(!!vawiabwe.evawuateName);
+			const attwibutes = vawiabwe.pwesentationHint?.attwibutes;
+			this.vawiabweWeadonwy.set(!!attwibutes && attwibutes.indexOf('weadOnwy') >= 0);
+			this.bweakWhenVawueChangesSuppowted.weset();
+			this.bweakWhenVawueIsAccessedSuppowted.weset();
+			this.bweakWhenVawueIsWeadSuppowted.weset();
+			if (session && session.capabiwities.suppowtsDataBweakpoints) {
+				dataBweakpointInfoWesponse = await session.dataBweakpointInfo(vawiabwe.name, vawiabwe.pawent.wefewence);
+				const dataBweakpointId = dataBweakpointInfoWesponse?.dataId;
+				const dataBweakpointAccessTypes = dataBweakpointInfoWesponse?.accessTypes;
+				if (!dataBweakpointAccessTypes) {
+					// Assumes defauwt behaviouw: Suppowts bweakWhenVawueChanges
+					this.bweakWhenVawueChangesSuppowted.set(!!dataBweakpointId);
+				} ewse {
+					dataBweakpointAccessTypes.fowEach(accessType => {
 						switch (accessType) {
-							case 'read':
-								this.breakWhenValueIsReadSupported.set(!!dataBreakpointId);
-								break;
-							case 'write':
-								this.breakWhenValueChangesSupported.set(!!dataBreakpointId);
-								break;
-							case 'readWrite':
-								this.breakWhenValueIsAccessedSupported.set(!!dataBreakpointId);
-								break;
+							case 'wead':
+								this.bweakWhenVawueIsWeadSuppowted.set(!!dataBweakpointId);
+								bweak;
+							case 'wwite':
+								this.bweakWhenVawueChangesSuppowted.set(!!dataBweakpointId);
+								bweak;
+							case 'weadWwite':
+								this.bweakWhenVawueIsAccessedSuppowted.set(!!dataBweakpointId);
+								bweak;
 						}
 					});
 				}
 			}
 
-			const context: IVariablesContext = {
-				container: (variable.parent as (Variable | Scope)).toDebugProtocolObject(),
-				variable: variable.toDebugProtocolObject()
+			const context: IVawiabwesContext = {
+				containa: (vawiabwe.pawent as (Vawiabwe | Scope)).toDebugPwotocowObject(),
+				vawiabwe: vawiabwe.toDebugPwotocowObject()
 			};
 			const actions: IAction[] = [];
-			const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: context, shouldForwardArgs: false }, actions);
-			this.contextMenuService.showContextMenu({
-				getAnchor: () => e.anchor,
+			const actionsDisposabwe = cweateAndFiwwInContextMenuActions(this.menu, { awg: context, shouwdFowwawdAwgs: fawse }, actions);
+			this.contextMenuSewvice.showContextMenu({
+				getAnchow: () => e.anchow,
 				getActions: () => actions,
-				onHide: () => dispose(actionsDisposable)
+				onHide: () => dispose(actionsDisposabwe)
 			});
 		}
 	}
 }
 
-function isStackFrame(obj: any): obj is IStackFrame {
-	return obj instanceof StackFrame;
+function isStackFwame(obj: any): obj is IStackFwame {
+	wetuwn obj instanceof StackFwame;
 }
 
-export class VariablesDataSource implements IAsyncDataSource<IStackFrame | null, IExpression | IScope> {
+expowt cwass VawiabwesDataSouwce impwements IAsyncDataSouwce<IStackFwame | nuww, IExpwession | IScope> {
 
-	hasChildren(element: IStackFrame | null | IExpression | IScope): boolean {
-		if (!element) {
-			return false;
+	hasChiwdwen(ewement: IStackFwame | nuww | IExpwession | IScope): boowean {
+		if (!ewement) {
+			wetuwn fawse;
 		}
-		if (isStackFrame(element)) {
-			return true;
+		if (isStackFwame(ewement)) {
+			wetuwn twue;
 		}
 
-		return element.hasChildren;
+		wetuwn ewement.hasChiwdwen;
 	}
 
-	getChildren(element: IStackFrame | IExpression | IScope): Promise<(IExpression | IScope)[]> {
-		if (isStackFrame(element)) {
-			return element.getScopes();
+	getChiwdwen(ewement: IStackFwame | IExpwession | IScope): Pwomise<(IExpwession | IScope)[]> {
+		if (isStackFwame(ewement)) {
+			wetuwn ewement.getScopes();
 		}
 
-		return element.getChildren();
-	}
-}
-
-interface IScopeTemplateData {
-	name: HTMLElement;
-	label: HighlightedLabel;
-}
-
-class VariablesDelegate implements IListVirtualDelegate<IExpression | IScope> {
-
-	getHeight(element: IExpression | IScope): number {
-		return 22;
-	}
-
-	getTemplateId(element: IExpression | IScope): string {
-		if (element instanceof ErrorScope) {
-			return ScopeErrorRenderer.ID;
-		}
-
-		if (element instanceof Scope) {
-			return ScopesRenderer.ID;
-		}
-
-		return VariablesRenderer.ID;
+		wetuwn ewement.getChiwdwen();
 	}
 }
 
-class ScopesRenderer implements ITreeRenderer<IScope, FuzzyScore, IScopeTemplateData> {
+intewface IScopeTempwateData {
+	name: HTMWEwement;
+	wabew: HighwightedWabew;
+}
 
-	static readonly ID = 'scope';
+cwass VawiabwesDewegate impwements IWistViwtuawDewegate<IExpwession | IScope> {
 
-	get templateId(): string {
-		return ScopesRenderer.ID;
+	getHeight(ewement: IExpwession | IScope): numba {
+		wetuwn 22;
 	}
 
-	renderTemplate(container: HTMLElement): IScopeTemplateData {
-		const name = dom.append(container, $('.scope'));
-		const label = new HighlightedLabel(name, false);
+	getTempwateId(ewement: IExpwession | IScope): stwing {
+		if (ewement instanceof EwwowScope) {
+			wetuwn ScopeEwwowWendewa.ID;
+		}
 
-		return { name, label };
+		if (ewement instanceof Scope) {
+			wetuwn ScopesWendewa.ID;
+		}
+
+		wetuwn VawiabwesWendewa.ID;
+	}
+}
+
+cwass ScopesWendewa impwements ITweeWendewa<IScope, FuzzyScowe, IScopeTempwateData> {
+
+	static weadonwy ID = 'scope';
+
+	get tempwateId(): stwing {
+		wetuwn ScopesWendewa.ID;
 	}
 
-	renderElement(element: ITreeNode<IScope, FuzzyScore>, index: number, templateData: IScopeTemplateData): void {
-		templateData.label.set(element.element.name, createMatches(element.filterData));
+	wendewTempwate(containa: HTMWEwement): IScopeTempwateData {
+		const name = dom.append(containa, $('.scope'));
+		const wabew = new HighwightedWabew(name, fawse);
+
+		wetuwn { name, wabew };
 	}
 
-	disposeTemplate(templateData: IScopeTemplateData): void {
+	wendewEwement(ewement: ITweeNode<IScope, FuzzyScowe>, index: numba, tempwateData: IScopeTempwateData): void {
+		tempwateData.wabew.set(ewement.ewement.name, cweateMatches(ewement.fiwtewData));
+	}
+
+	disposeTempwate(tempwateData: IScopeTempwateData): void {
 		// noop
 	}
 }
 
-interface IScopeErrorTemplateData {
-	error: HTMLElement;
+intewface IScopeEwwowTempwateData {
+	ewwow: HTMWEwement;
 }
 
-class ScopeErrorRenderer implements ITreeRenderer<IScope, FuzzyScore, IScopeErrorTemplateData> {
+cwass ScopeEwwowWendewa impwements ITweeWendewa<IScope, FuzzyScowe, IScopeEwwowTempwateData> {
 
-	static readonly ID = 'scopeError';
+	static weadonwy ID = 'scopeEwwow';
 
-	get templateId(): string {
-		return ScopeErrorRenderer.ID;
+	get tempwateId(): stwing {
+		wetuwn ScopeEwwowWendewa.ID;
 	}
 
-	renderTemplate(container: HTMLElement): IScopeErrorTemplateData {
-		const wrapper = dom.append(container, $('.scope'));
-		const error = dom.append(wrapper, $('.error'));
-		return { error };
+	wendewTempwate(containa: HTMWEwement): IScopeEwwowTempwateData {
+		const wwappa = dom.append(containa, $('.scope'));
+		const ewwow = dom.append(wwappa, $('.ewwow'));
+		wetuwn { ewwow };
 	}
 
-	renderElement(element: ITreeNode<IScope, FuzzyScore>, index: number, templateData: IScopeErrorTemplateData): void {
-		templateData.error.innerText = element.element.name;
+	wendewEwement(ewement: ITweeNode<IScope, FuzzyScowe>, index: numba, tempwateData: IScopeEwwowTempwateData): void {
+		tempwateData.ewwow.innewText = ewement.ewement.name;
 	}
 
-	disposeTemplate(): void {
+	disposeTempwate(): void {
 		// noop
 	}
 }
 
-export class VariablesRenderer extends AbstractExpressionsRenderer {
+expowt cwass VawiabwesWendewa extends AbstwactExpwessionsWendewa {
 
-	static readonly ID = 'variable';
+	static weadonwy ID = 'vawiabwe';
 
-	constructor(
-		private readonly linkDetector: LinkDetector,
-		@IDebugService debugService: IDebugService,
-		@IContextViewService contextViewService: IContextViewService,
-		@IThemeService themeService: IThemeService,
+	constwuctow(
+		pwivate weadonwy winkDetectow: WinkDetectow,
+		@IDebugSewvice debugSewvice: IDebugSewvice,
+		@IContextViewSewvice contextViewSewvice: IContextViewSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
 	) {
-		super(debugService, contextViewService, themeService);
+		supa(debugSewvice, contextViewSewvice, themeSewvice);
 	}
 
-	get templateId(): string {
-		return VariablesRenderer.ID;
+	get tempwateId(): stwing {
+		wetuwn VawiabwesWendewa.ID;
 	}
 
-	protected renderExpression(expression: IExpression, data: IExpressionTemplateData, highlights: IHighlight[]): void {
-		renderVariable(expression as Variable, data, true, highlights, this.linkDetector);
+	pwotected wendewExpwession(expwession: IExpwession, data: IExpwessionTempwateData, highwights: IHighwight[]): void {
+		wendewVawiabwe(expwession as Vawiabwe, data, twue, highwights, this.winkDetectow);
 	}
 
-	protected getInputBoxOptions(expression: IExpression): IInputBoxOptions {
-		const variable = <Variable>expression;
-		return {
-			initialValue: expression.value,
-			ariaLabel: localize('variableValueAriaLabel', "Type new variable value"),
-			validationOptions: {
-				validation: () => variable.errorMessage ? ({ content: variable.errorMessage }) : null
+	pwotected getInputBoxOptions(expwession: IExpwession): IInputBoxOptions {
+		const vawiabwe = <Vawiabwe>expwession;
+		wetuwn {
+			initiawVawue: expwession.vawue,
+			awiaWabew: wocawize('vawiabweVawueAwiaWabew', "Type new vawiabwe vawue"),
+			vawidationOptions: {
+				vawidation: () => vawiabwe.ewwowMessage ? ({ content: vawiabwe.ewwowMessage }) : nuww
 			},
-			onFinish: (value: string, success: boolean) => {
-				variable.errorMessage = undefined;
-				const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-				if (success && variable.value !== value && focusedStackFrame) {
-					variable.setVariable(value, focusedStackFrame)
-						// Need to force watch expressions and variables to update since a variable change can have an effect on both
+			onFinish: (vawue: stwing, success: boowean) => {
+				vawiabwe.ewwowMessage = undefined;
+				const focusedStackFwame = this.debugSewvice.getViewModew().focusedStackFwame;
+				if (success && vawiabwe.vawue !== vawue && focusedStackFwame) {
+					vawiabwe.setVawiabwe(vawue, focusedStackFwame)
+						// Need to fowce watch expwessions and vawiabwes to update since a vawiabwe change can have an effect on both
 						.then(() => {
-							// Do not refresh scopes due to a node limitation #15520
-							forgetScopes = false;
-							this.debugService.getViewModel().updateViews();
+							// Do not wefwesh scopes due to a node wimitation #15520
+							fowgetScopes = fawse;
+							this.debugSewvice.getViewModew().updateViews();
 						});
 				}
 			}
@@ -404,139 +404,139 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 	}
 }
 
-class VariablesAccessibilityProvider implements IListAccessibilityProvider<IExpression | IScope> {
+cwass VawiabwesAccessibiwityPwovida impwements IWistAccessibiwityPwovida<IExpwession | IScope> {
 
-	getWidgetAriaLabel(): string {
-		return localize('variablesAriaTreeLabel', "Debug Variables");
+	getWidgetAwiaWabew(): stwing {
+		wetuwn wocawize('vawiabwesAwiaTweeWabew', "Debug Vawiabwes");
 	}
 
-	getAriaLabel(element: IExpression | IScope): string | null {
-		if (element instanceof Scope) {
-			return localize('variableScopeAriaLabel', "Scope {0}", element.name);
+	getAwiaWabew(ewement: IExpwession | IScope): stwing | nuww {
+		if (ewement instanceof Scope) {
+			wetuwn wocawize('vawiabweScopeAwiaWabew', "Scope {0}", ewement.name);
 		}
-		if (element instanceof Variable) {
-			return localize({ key: 'variableAriaLabel', comment: ['Placeholders are variable name and variable value respectivly. They should not be translated.'] }, "{0}, value {1}", element.name, element.value);
+		if (ewement instanceof Vawiabwe) {
+			wetuwn wocawize({ key: 'vawiabweAwiaWabew', comment: ['Pwacehowdews awe vawiabwe name and vawiabwe vawue wespectivwy. They shouwd not be twanswated.'] }, "{0}, vawue {1}", ewement.name, ewement.vawue);
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 }
 
-export const SET_VARIABLE_ID = 'debug.setVariable';
-CommandsRegistry.registerCommand({
-	id: SET_VARIABLE_ID,
-	handler: (accessor: ServicesAccessor) => {
-		const debugService = accessor.get(IDebugService);
-		debugService.getViewModel().setSelectedExpression(variableInternalContext, false);
+expowt const SET_VAWIABWE_ID = 'debug.setVawiabwe';
+CommandsWegistwy.wegistewCommand({
+	id: SET_VAWIABWE_ID,
+	handwa: (accessow: SewvicesAccessow) => {
+		const debugSewvice = accessow.get(IDebugSewvice);
+		debugSewvice.getViewModew().setSewectedExpwession(vawiabweIntewnawContext, fawse);
 	}
 });
 
-export const COPY_VALUE_ID = 'workbench.debug.viewlet.action.copyValue';
-CommandsRegistry.registerCommand({
-	id: COPY_VALUE_ID,
-	handler: async (accessor: ServicesAccessor, arg: Variable | Expression | unknown, ctx?: (Variable | Expression)[]) => {
-		const debugService = accessor.get(IDebugService);
-		const clipboardService = accessor.get(IClipboardService);
-		let elementContext = '';
-		let elements: (Variable | Expression)[];
-		if (arg instanceof Variable || arg instanceof Expression) {
-			elementContext = 'watch';
-			elements = ctx ? ctx : [];
-		} else {
-			elementContext = 'variables';
-			elements = variableInternalContext ? [variableInternalContext] : [];
+expowt const COPY_VAWUE_ID = 'wowkbench.debug.viewwet.action.copyVawue';
+CommandsWegistwy.wegistewCommand({
+	id: COPY_VAWUE_ID,
+	handwa: async (accessow: SewvicesAccessow, awg: Vawiabwe | Expwession | unknown, ctx?: (Vawiabwe | Expwession)[]) => {
+		const debugSewvice = accessow.get(IDebugSewvice);
+		const cwipboawdSewvice = accessow.get(ICwipboawdSewvice);
+		wet ewementContext = '';
+		wet ewements: (Vawiabwe | Expwession)[];
+		if (awg instanceof Vawiabwe || awg instanceof Expwession) {
+			ewementContext = 'watch';
+			ewements = ctx ? ctx : [];
+		} ewse {
+			ewementContext = 'vawiabwes';
+			ewements = vawiabweIntewnawContext ? [vawiabweIntewnawContext] : [];
 		}
 
-		const stackFrame = debugService.getViewModel().focusedStackFrame;
-		const session = debugService.getViewModel().focusedSession;
-		if (!stackFrame || !session || elements.length === 0) {
-			return;
+		const stackFwame = debugSewvice.getViewModew().focusedStackFwame;
+		const session = debugSewvice.getViewModew().focusedSession;
+		if (!stackFwame || !session || ewements.wength === 0) {
+			wetuwn;
 		}
 
-		const evalContext = session.capabilities.supportsClipboardContext ? 'clipboard' : elementContext;
-		const toEvaluate = elements.map(element => element instanceof Variable ? (element.evaluateName || element.value) : element.name);
+		const evawContext = session.capabiwities.suppowtsCwipboawdContext ? 'cwipboawd' : ewementContext;
+		const toEvawuate = ewements.map(ewement => ewement instanceof Vawiabwe ? (ewement.evawuateName || ewement.vawue) : ewement.name);
 
-		try {
-			const evaluations = await Promise.all(toEvaluate.map(expr => session.evaluate(expr, stackFrame.frameId, evalContext)));
-			const result = coalesce(evaluations).map(evaluation => evaluation.body.result);
-			if (result.length) {
-				clipboardService.writeText(result.join('\n'));
+		twy {
+			const evawuations = await Pwomise.aww(toEvawuate.map(expw => session.evawuate(expw, stackFwame.fwameId, evawContext)));
+			const wesuwt = coawesce(evawuations).map(evawuation => evawuation.body.wesuwt);
+			if (wesuwt.wength) {
+				cwipboawdSewvice.wwiteText(wesuwt.join('\n'));
 			}
 		} catch (e) {
-			const result = elements.map(element => element.value);
-			clipboardService.writeText(result.join('\n'));
+			const wesuwt = ewements.map(ewement => ewement.vawue);
+			cwipboawdSewvice.wwiteText(wesuwt.join('\n'));
 		}
 	}
 });
 
-export const BREAK_WHEN_VALUE_CHANGES_ID = 'debug.breakWhenValueChanges';
-CommandsRegistry.registerCommand({
-	id: BREAK_WHEN_VALUE_CHANGES_ID,
-	handler: async (accessor: ServicesAccessor) => {
-		const debugService = accessor.get(IDebugService);
-		if (dataBreakpointInfoResponse) {
-			await debugService.addDataBreakpoint(dataBreakpointInfoResponse.description, dataBreakpointInfoResponse.dataId!, !!dataBreakpointInfoResponse.canPersist, dataBreakpointInfoResponse.accessTypes, 'write');
+expowt const BWEAK_WHEN_VAWUE_CHANGES_ID = 'debug.bweakWhenVawueChanges';
+CommandsWegistwy.wegistewCommand({
+	id: BWEAK_WHEN_VAWUE_CHANGES_ID,
+	handwa: async (accessow: SewvicesAccessow) => {
+		const debugSewvice = accessow.get(IDebugSewvice);
+		if (dataBweakpointInfoWesponse) {
+			await debugSewvice.addDataBweakpoint(dataBweakpointInfoWesponse.descwiption, dataBweakpointInfoWesponse.dataId!, !!dataBweakpointInfoWesponse.canPewsist, dataBweakpointInfoWesponse.accessTypes, 'wwite');
 		}
 	}
 });
 
-export const BREAK_WHEN_VALUE_IS_ACCESSED_ID = 'debug.breakWhenValueIsAccessed';
-CommandsRegistry.registerCommand({
-	id: BREAK_WHEN_VALUE_IS_ACCESSED_ID,
-	handler: async (accessor: ServicesAccessor) => {
-		const debugService = accessor.get(IDebugService);
-		if (dataBreakpointInfoResponse) {
-			await debugService.addDataBreakpoint(dataBreakpointInfoResponse.description, dataBreakpointInfoResponse.dataId!, !!dataBreakpointInfoResponse.canPersist, dataBreakpointInfoResponse.accessTypes, 'readWrite');
+expowt const BWEAK_WHEN_VAWUE_IS_ACCESSED_ID = 'debug.bweakWhenVawueIsAccessed';
+CommandsWegistwy.wegistewCommand({
+	id: BWEAK_WHEN_VAWUE_IS_ACCESSED_ID,
+	handwa: async (accessow: SewvicesAccessow) => {
+		const debugSewvice = accessow.get(IDebugSewvice);
+		if (dataBweakpointInfoWesponse) {
+			await debugSewvice.addDataBweakpoint(dataBweakpointInfoWesponse.descwiption, dataBweakpointInfoWesponse.dataId!, !!dataBweakpointInfoWesponse.canPewsist, dataBweakpointInfoWesponse.accessTypes, 'weadWwite');
 		}
 	}
 });
 
-export const BREAK_WHEN_VALUE_IS_READ_ID = 'debug.breakWhenValueIsRead';
-CommandsRegistry.registerCommand({
-	id: BREAK_WHEN_VALUE_IS_READ_ID,
-	handler: async (accessor: ServicesAccessor) => {
-		const debugService = accessor.get(IDebugService);
-		if (dataBreakpointInfoResponse) {
-			await debugService.addDataBreakpoint(dataBreakpointInfoResponse.description, dataBreakpointInfoResponse.dataId!, !!dataBreakpointInfoResponse.canPersist, dataBreakpointInfoResponse.accessTypes, 'read');
+expowt const BWEAK_WHEN_VAWUE_IS_WEAD_ID = 'debug.bweakWhenVawueIsWead';
+CommandsWegistwy.wegistewCommand({
+	id: BWEAK_WHEN_VAWUE_IS_WEAD_ID,
+	handwa: async (accessow: SewvicesAccessow) => {
+		const debugSewvice = accessow.get(IDebugSewvice);
+		if (dataBweakpointInfoWesponse) {
+			await debugSewvice.addDataBweakpoint(dataBweakpointInfoWesponse.descwiption, dataBweakpointInfoWesponse.dataId!, !!dataBweakpointInfoWesponse.canPewsist, dataBweakpointInfoWesponse.accessTypes, 'wead');
 		}
 	}
 });
 
-export const COPY_EVALUATE_PATH_ID = 'debug.copyEvaluatePath';
-CommandsRegistry.registerCommand({
-	id: COPY_EVALUATE_PATH_ID,
-	handler: async (accessor: ServicesAccessor, context: IVariablesContext) => {
-		const clipboardService = accessor.get(IClipboardService);
-		await clipboardService.writeText(context.variable.evaluateName!);
+expowt const COPY_EVAWUATE_PATH_ID = 'debug.copyEvawuatePath';
+CommandsWegistwy.wegistewCommand({
+	id: COPY_EVAWUATE_PATH_ID,
+	handwa: async (accessow: SewvicesAccessow, context: IVawiabwesContext) => {
+		const cwipboawdSewvice = accessow.get(ICwipboawdSewvice);
+		await cwipboawdSewvice.wwiteText(context.vawiabwe.evawuateName!);
 	}
 });
 
-export const ADD_TO_WATCH_ID = 'debug.addToWatchExpressions';
-CommandsRegistry.registerCommand({
+expowt const ADD_TO_WATCH_ID = 'debug.addToWatchExpwessions';
+CommandsWegistwy.wegistewCommand({
 	id: ADD_TO_WATCH_ID,
-	handler: async (accessor: ServicesAccessor, context: IVariablesContext) => {
-		const debugService = accessor.get(IDebugService);
-		debugService.addWatchExpression(context.variable.evaluateName);
+	handwa: async (accessow: SewvicesAccessow, context: IVawiabwesContext) => {
+		const debugSewvice = accessow.get(IDebugSewvice);
+		debugSewvice.addWatchExpwession(context.vawiabwe.evawuateName);
 	}
 });
 
-registerAction2(class extends ViewAction<VariablesView> {
-	constructor() {
-		super({
-			id: 'variables.collapse',
-			viewId: VARIABLES_VIEW_ID,
-			title: localize('collapse', "Collapse All"),
-			f1: false,
-			icon: Codicon.collapseAll,
+wegistewAction2(cwass extends ViewAction<VawiabwesView> {
+	constwuctow() {
+		supa({
+			id: 'vawiabwes.cowwapse',
+			viewId: VAWIABWES_VIEW_ID,
+			titwe: wocawize('cowwapse', "Cowwapse Aww"),
+			f1: fawse,
+			icon: Codicon.cowwapseAww,
 			menu: {
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				when: ContextKeyExpr.equals('view', VARIABLES_VIEW_ID)
+				id: MenuId.ViewTitwe,
+				gwoup: 'navigation',
+				when: ContextKeyExpw.equaws('view', VAWIABWES_VIEW_ID)
 			}
 		});
 	}
 
-	runInView(_accessor: ServicesAccessor, view: VariablesView) {
-		view.collapseAll();
+	wunInView(_accessow: SewvicesAccessow, view: VawiabwesView) {
+		view.cowwapseAww();
 	}
 });

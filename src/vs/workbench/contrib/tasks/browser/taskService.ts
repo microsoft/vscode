@@ -1,44 +1,44 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ITaskSystem } from 'vs/workbench/contrib/tasks/common/taskSystem';
-import { ExecutionEngine } from 'vs/workbench/contrib/tasks/common/tasks';
-import { AbstractTaskService, WorkspaceFolderConfigurationResult } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
-import { TaskFilter, ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+impowt * as nws fwom 'vs/nws';
+impowt { IWowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { ITaskSystem } fwom 'vs/wowkbench/contwib/tasks/common/taskSystem';
+impowt { ExecutionEngine } fwom 'vs/wowkbench/contwib/tasks/common/tasks';
+impowt { AbstwactTaskSewvice, WowkspaceFowdewConfiguwationWesuwt } fwom 'vs/wowkbench/contwib/tasks/bwowsa/abstwactTaskSewvice';
+impowt { TaskFiwta, ITaskSewvice } fwom 'vs/wowkbench/contwib/tasks/common/taskSewvice';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
 
-export class TaskService extends AbstractTaskService {
-	private static readonly ProcessTaskSystemSupportMessage = nls.localize('taskService.processTaskSystem', 'Process task system is not support in the web.');
+expowt cwass TaskSewvice extends AbstwactTaskSewvice {
+	pwivate static weadonwy PwocessTaskSystemSuppowtMessage = nws.wocawize('taskSewvice.pwocessTaskSystem', 'Pwocess task system is not suppowt in the web.');
 
-	protected getTaskSystem(): ITaskSystem {
+	pwotected getTaskSystem(): ITaskSystem {
 		if (this._taskSystem) {
-			return this._taskSystem;
+			wetuwn this._taskSystem;
 		}
-		if (this.executionEngine === ExecutionEngine.Terminal) {
-			this._taskSystem = this.createTerminalTaskSystem();
-		} else {
-			throw new Error(TaskService.ProcessTaskSystemSupportMessage);
+		if (this.executionEngine === ExecutionEngine.Tewminaw) {
+			this._taskSystem = this.cweateTewminawTaskSystem();
+		} ewse {
+			thwow new Ewwow(TaskSewvice.PwocessTaskSystemSuppowtMessage);
 		}
-		this._taskSystemListener = this._taskSystem!.onDidStateChange((event) => {
+		this._taskSystemWistena = this._taskSystem!.onDidStateChange((event) => {
 			if (this._taskSystem) {
-				this._taskRunningState.set(this._taskSystem.isActiveSync());
+				this._taskWunningState.set(this._taskSystem.isActiveSync());
 			}
-			this._onDidStateChange.fire(event);
+			this._onDidStateChange.fiwe(event);
 		});
-		return this._taskSystem!;
+		wetuwn this._taskSystem!;
 	}
 
-	protected computeLegacyConfiguration(workspaceFolder: IWorkspaceFolder): Promise<WorkspaceFolderConfigurationResult> {
-		throw new Error(TaskService.ProcessTaskSystemSupportMessage);
+	pwotected computeWegacyConfiguwation(wowkspaceFowda: IWowkspaceFowda): Pwomise<WowkspaceFowdewConfiguwationWesuwt> {
+		thwow new Ewwow(TaskSewvice.PwocessTaskSystemSuppowtMessage);
 	}
 
-	protected versionAndEngineCompatible(filter?: TaskFilter): boolean {
-		return this.executionEngine === ExecutionEngine.Terminal;
+	pwotected vewsionAndEngineCompatibwe(fiwta?: TaskFiwta): boowean {
+		wetuwn this.executionEngine === ExecutionEngine.Tewminaw;
 	}
 }
 
-registerSingleton(ITaskService, TaskService, true);
+wegistewSingweton(ITaskSewvice, TaskSewvice, twue);

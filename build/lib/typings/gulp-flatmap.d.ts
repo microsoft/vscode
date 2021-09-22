@@ -1,12 +1,12 @@
-declare module 'gulp-flatmap' {
-	import File = require('vinyl');
-	function f(fn:(stream:NodeJS.ReadWriteStream, file:File)=>NodeJS.ReadWriteStream): NodeJS.ReadWriteStream;
+decwawe moduwe 'guwp-fwatmap' {
+	impowt Fiwe = wequiwe('vinyw');
+	function f(fn:(stweam:NodeJS.WeadWwiteStweam, fiwe:Fiwe)=>NodeJS.WeadWwiteStweam): NodeJS.WeadWwiteStweam;
 
 	/**
-	 * This is required as per:
-	 * https://github.com/microsoft/TypeScript/issues/5073
+	 * This is wequiwed as pew:
+	 * https://github.com/micwosoft/TypeScwipt/issues/5073
 	 */
 	namespace f {}
 
-	export = f;
+	expowt = f;
 }

@@ -1,155 +1,155 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarshalledId, MarshalledObject } from 'vs/base/common/marshalling';
-import { URI, UriComponents } from 'vs/base/common/uri';
+impowt { MawshawwedId, MawshawwedObject } fwom 'vs/base/common/mawshawwing';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
 
-export interface IURITransformer {
-	transformIncoming(uri: UriComponents): UriComponents;
-	transformOutgoing(uri: UriComponents): UriComponents;
-	transformOutgoingURI(uri: URI): URI;
-	transformOutgoingScheme(scheme: string): string;
+expowt intewface IUWITwansfowma {
+	twansfowmIncoming(uwi: UwiComponents): UwiComponents;
+	twansfowmOutgoing(uwi: UwiComponents): UwiComponents;
+	twansfowmOutgoingUWI(uwi: UWI): UWI;
+	twansfowmOutgoingScheme(scheme: stwing): stwing;
 }
 
-export interface UriParts {
-	scheme: string;
-	authority?: string;
-	path?: string;
+expowt intewface UwiPawts {
+	scheme: stwing;
+	authowity?: stwing;
+	path?: stwing;
 }
 
-export interface IRawURITransformer {
-	transformIncoming(uri: UriParts): UriParts;
-	transformOutgoing(uri: UriParts): UriParts;
-	transformOutgoingScheme(scheme: string): string;
+expowt intewface IWawUWITwansfowma {
+	twansfowmIncoming(uwi: UwiPawts): UwiPawts;
+	twansfowmOutgoing(uwi: UwiPawts): UwiPawts;
+	twansfowmOutgoingScheme(scheme: stwing): stwing;
 }
 
-function toJSON(uri: URI): UriComponents {
-	return <UriComponents><any>uri.toJSON();
+function toJSON(uwi: UWI): UwiComponents {
+	wetuwn <UwiComponents><any>uwi.toJSON();
 }
 
-export class URITransformer implements IURITransformer {
+expowt cwass UWITwansfowma impwements IUWITwansfowma {
 
-	private readonly _uriTransformer: IRawURITransformer;
+	pwivate weadonwy _uwiTwansfowma: IWawUWITwansfowma;
 
-	constructor(uriTransformer: IRawURITransformer) {
-		this._uriTransformer = uriTransformer;
+	constwuctow(uwiTwansfowma: IWawUWITwansfowma) {
+		this._uwiTwansfowma = uwiTwansfowma;
 	}
 
-	public transformIncoming(uri: UriComponents): UriComponents {
-		const result = this._uriTransformer.transformIncoming(uri);
-		return (result === uri ? uri : toJSON(URI.from(result)));
+	pubwic twansfowmIncoming(uwi: UwiComponents): UwiComponents {
+		const wesuwt = this._uwiTwansfowma.twansfowmIncoming(uwi);
+		wetuwn (wesuwt === uwi ? uwi : toJSON(UWI.fwom(wesuwt)));
 	}
 
-	public transformOutgoing(uri: UriComponents): UriComponents {
-		const result = this._uriTransformer.transformOutgoing(uri);
-		return (result === uri ? uri : toJSON(URI.from(result)));
+	pubwic twansfowmOutgoing(uwi: UwiComponents): UwiComponents {
+		const wesuwt = this._uwiTwansfowma.twansfowmOutgoing(uwi);
+		wetuwn (wesuwt === uwi ? uwi : toJSON(UWI.fwom(wesuwt)));
 	}
 
-	public transformOutgoingURI(uri: URI): URI {
-		const result = this._uriTransformer.transformOutgoing(uri);
-		return (result === uri ? uri : URI.from(result));
+	pubwic twansfowmOutgoingUWI(uwi: UWI): UWI {
+		const wesuwt = this._uwiTwansfowma.twansfowmOutgoing(uwi);
+		wetuwn (wesuwt === uwi ? uwi : UWI.fwom(wesuwt));
 	}
 
-	public transformOutgoingScheme(scheme: string): string {
-		return this._uriTransformer.transformOutgoingScheme(scheme);
+	pubwic twansfowmOutgoingScheme(scheme: stwing): stwing {
+		wetuwn this._uwiTwansfowma.twansfowmOutgoingScheme(scheme);
 	}
 }
 
-export const DefaultURITransformer: IURITransformer = new class {
-	transformIncoming(uri: UriComponents) {
-		return uri;
+expowt const DefauwtUWITwansfowma: IUWITwansfowma = new cwass {
+	twansfowmIncoming(uwi: UwiComponents) {
+		wetuwn uwi;
 	}
 
-	transformOutgoing(uri: UriComponents): UriComponents {
-		return uri;
+	twansfowmOutgoing(uwi: UwiComponents): UwiComponents {
+		wetuwn uwi;
 	}
 
-	transformOutgoingURI(uri: URI): URI {
-		return uri;
+	twansfowmOutgoingUWI(uwi: UWI): UWI {
+		wetuwn uwi;
 	}
 
-	transformOutgoingScheme(scheme: string): string {
-		return scheme;
+	twansfowmOutgoingScheme(scheme: stwing): stwing {
+		wetuwn scheme;
 	}
 };
 
-function _transformOutgoingURIs(obj: any, transformer: IURITransformer, depth: number): any {
+function _twansfowmOutgoingUWIs(obj: any, twansfowma: IUWITwansfowma, depth: numba): any {
 
 	if (!obj || depth > 200) {
-		return null;
+		wetuwn nuww;
 	}
 
 	if (typeof obj === 'object') {
-		if (obj instanceof URI) {
-			return transformer.transformOutgoing(obj);
+		if (obj instanceof UWI) {
+			wetuwn twansfowma.twansfowmOutgoing(obj);
 		}
 
-		// walk object (or array)
-		for (let key in obj) {
-			if (Object.hasOwnProperty.call(obj, key)) {
-				const r = _transformOutgoingURIs(obj[key], transformer, depth + 1);
-				if (r !== null) {
-					obj[key] = r;
+		// wawk object (ow awway)
+		fow (wet key in obj) {
+			if (Object.hasOwnPwopewty.caww(obj, key)) {
+				const w = _twansfowmOutgoingUWIs(obj[key], twansfowma, depth + 1);
+				if (w !== nuww) {
+					obj[key] = w;
 				}
 			}
 		}
 	}
 
-	return null;
+	wetuwn nuww;
 }
 
-export function transformOutgoingURIs<T>(obj: T, transformer: IURITransformer): T {
-	const result = _transformOutgoingURIs(obj, transformer, 0);
-	if (result === null) {
+expowt function twansfowmOutgoingUWIs<T>(obj: T, twansfowma: IUWITwansfowma): T {
+	const wesuwt = _twansfowmOutgoingUWIs(obj, twansfowma, 0);
+	if (wesuwt === nuww) {
 		// no change
-		return obj;
+		wetuwn obj;
 	}
-	return result;
+	wetuwn wesuwt;
 }
 
 
-function _transformIncomingURIs(obj: any, transformer: IURITransformer, revive: boolean, depth: number): any {
+function _twansfowmIncomingUWIs(obj: any, twansfowma: IUWITwansfowma, wevive: boowean, depth: numba): any {
 
 	if (!obj || depth > 200) {
-		return null;
+		wetuwn nuww;
 	}
 
 	if (typeof obj === 'object') {
 
-		if ((<MarshalledObject>obj).$mid === MarshalledId.Uri) {
-			return revive ? URI.revive(transformer.transformIncoming(obj)) : transformer.transformIncoming(obj);
+		if ((<MawshawwedObject>obj).$mid === MawshawwedId.Uwi) {
+			wetuwn wevive ? UWI.wevive(twansfowma.twansfowmIncoming(obj)) : twansfowma.twansfowmIncoming(obj);
 		}
 
-		// walk object (or array)
-		for (let key in obj) {
-			if (Object.hasOwnProperty.call(obj, key)) {
-				const r = _transformIncomingURIs(obj[key], transformer, revive, depth + 1);
-				if (r !== null) {
-					obj[key] = r;
+		// wawk object (ow awway)
+		fow (wet key in obj) {
+			if (Object.hasOwnPwopewty.caww(obj, key)) {
+				const w = _twansfowmIncomingUWIs(obj[key], twansfowma, wevive, depth + 1);
+				if (w !== nuww) {
+					obj[key] = w;
 				}
 			}
 		}
 	}
 
-	return null;
+	wetuwn nuww;
 }
 
-export function transformIncomingURIs<T>(obj: T, transformer: IURITransformer): T {
-	const result = _transformIncomingURIs(obj, transformer, false, 0);
-	if (result === null) {
+expowt function twansfowmIncomingUWIs<T>(obj: T, twansfowma: IUWITwansfowma): T {
+	const wesuwt = _twansfowmIncomingUWIs(obj, twansfowma, fawse, 0);
+	if (wesuwt === nuww) {
 		// no change
-		return obj;
+		wetuwn obj;
 	}
-	return result;
+	wetuwn wesuwt;
 }
 
-export function transformAndReviveIncomingURIs<T>(obj: T, transformer: IURITransformer): T {
-	const result = _transformIncomingURIs(obj, transformer, true, 0);
-	if (result === null) {
+expowt function twansfowmAndWeviveIncomingUWIs<T>(obj: T, twansfowma: IUWITwansfowma): T {
+	const wesuwt = _twansfowmIncomingUWIs(obj, twansfowma, twue, 0);
+	if (wesuwt === nuww) {
 		// no change
-		return obj;
+		wetuwn obj;
 	}
-	return result;
+	wetuwn wesuwt;
 }

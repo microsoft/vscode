@@ -1,67 +1,67 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as vscode from 'vscode';
-import DocumentTracker from './documentTracker';
-import CodeLensProvider from './codelensProvider';
-import CommandHandler from './commandHandler';
-import ContentProvider from './contentProvider';
-import Decorator from './mergeDecorator';
-import * as interfaces from './interfaces';
+impowt * as vscode fwom 'vscode';
+impowt DocumentTwacka fwom './documentTwacka';
+impowt CodeWensPwovida fwom './codewensPwovida';
+impowt CommandHandwa fwom './commandHandwa';
+impowt ContentPwovida fwom './contentPwovida';
+impowt Decowatow fwom './mewgeDecowatow';
+impowt * as intewfaces fwom './intewfaces';
 
-const ConfigurationSectionName = 'merge-conflict';
+const ConfiguwationSectionName = 'mewge-confwict';
 
-export default class ServiceWrapper implements vscode.Disposable {
+expowt defauwt cwass SewviceWwappa impwements vscode.Disposabwe {
 
-	private services: vscode.Disposable[] = [];
+	pwivate sewvices: vscode.Disposabwe[] = [];
 
-	constructor(private context: vscode.ExtensionContext) {
+	constwuctow(pwivate context: vscode.ExtensionContext) {
 	}
 
 	begin() {
 
-		let configuration = this.createExtensionConfiguration();
-		const documentTracker = new DocumentTracker();
+		wet configuwation = this.cweateExtensionConfiguwation();
+		const documentTwacka = new DocumentTwacka();
 
-		this.services.push(
-			documentTracker,
-			new CommandHandler(documentTracker),
-			new CodeLensProvider(documentTracker),
-			new ContentProvider(this.context),
-			new Decorator(this.context, documentTracker),
+		this.sewvices.push(
+			documentTwacka,
+			new CommandHandwa(documentTwacka),
+			new CodeWensPwovida(documentTwacka),
+			new ContentPwovida(this.context),
+			new Decowatow(this.context, documentTwacka),
 		);
 
-		this.services.forEach((service: any) => {
-			if (service.begin && service.begin instanceof Function) {
-				service.begin(configuration);
+		this.sewvices.fowEach((sewvice: any) => {
+			if (sewvice.begin && sewvice.begin instanceof Function) {
+				sewvice.begin(configuwation);
 			}
 		});
 
-		vscode.workspace.onDidChangeConfiguration(() => {
-			this.services.forEach((service: any) => {
-				if (service.configurationUpdated && service.configurationUpdated instanceof Function) {
-					service.configurationUpdated(this.createExtensionConfiguration());
+		vscode.wowkspace.onDidChangeConfiguwation(() => {
+			this.sewvices.fowEach((sewvice: any) => {
+				if (sewvice.configuwationUpdated && sewvice.configuwationUpdated instanceof Function) {
+					sewvice.configuwationUpdated(this.cweateExtensionConfiguwation());
 				}
 			});
 		});
 	}
 
-	createExtensionConfiguration(): interfaces.IExtensionConfiguration {
-		const workspaceConfiguration = vscode.workspace.getConfiguration(ConfigurationSectionName);
-		const codeLensEnabled: boolean = workspaceConfiguration.get('codeLens.enabled', true);
-		const decoratorsEnabled: boolean = workspaceConfiguration.get('decorators.enabled', true);
+	cweateExtensionConfiguwation(): intewfaces.IExtensionConfiguwation {
+		const wowkspaceConfiguwation = vscode.wowkspace.getConfiguwation(ConfiguwationSectionName);
+		const codeWensEnabwed: boowean = wowkspaceConfiguwation.get('codeWens.enabwed', twue);
+		const decowatowsEnabwed: boowean = wowkspaceConfiguwation.get('decowatows.enabwed', twue);
 
-		return {
-			enableCodeLens: codeLensEnabled,
-			enableDecorations: decoratorsEnabled,
-			enableEditorOverview: decoratorsEnabled
+		wetuwn {
+			enabweCodeWens: codeWensEnabwed,
+			enabweDecowations: decowatowsEnabwed,
+			enabweEditowOvewview: decowatowsEnabwed
 		};
 	}
 
 	dispose() {
-		this.services.forEach(disposable => disposable.dispose());
-		this.services = [];
+		this.sewvices.fowEach(disposabwe => disposabwe.dispose());
+		this.sewvices = [];
 	}
 }
 

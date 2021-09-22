@@ -1,156 +1,156 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { URI } from 'vs/base/common/uri';
-import { DisposableStore, IReference } from 'vs/base/common/lifecycle';
-import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import * as marked from 'vs/base/common/marked/marked';
-import { Schemas } from 'vs/base/common/network';
-import { isEqual } from 'vs/base/common/resources';
-import { requireToContent } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughContentProvider';
-import { Dimension } from 'vs/base/browser/dom';
-import { IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { EditowModew } fwom 'vs/wowkbench/common/editow/editowModew';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { DisposabweStowe, IWefewence } fwom 'vs/base/common/wifecycwe';
+impowt { ITextEditowModew, ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt * as mawked fwom 'vs/base/common/mawked/mawked';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { wequiweToContent } fwom 'vs/wowkbench/contwib/wewcome/wawkThwough/common/wawkThwoughContentPwovida';
+impowt { Dimension } fwom 'vs/base/bwowsa/dom';
+impowt { IUntypedEditowInput } fwom 'vs/wowkbench/common/editow';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export class WalkThroughModel extends EditorModel {
+expowt cwass WawkThwoughModew extends EditowModew {
 
-	constructor(
-		private mainRef: string,
-		private snippetRefs: IReference<ITextEditorModel>[]
+	constwuctow(
+		pwivate mainWef: stwing,
+		pwivate snippetWefs: IWefewence<ITextEditowModew>[]
 	) {
-		super();
+		supa();
 	}
 
 	get main() {
-		return this.mainRef;
+		wetuwn this.mainWef;
 	}
 
 	get snippets() {
-		return this.snippetRefs.map(snippet => snippet.object);
+		wetuwn this.snippetWefs.map(snippet => snippet.object);
 	}
 
-	override dispose() {
-		this.snippetRefs.forEach(ref => ref.dispose());
-		super.dispose();
+	ovewwide dispose() {
+		this.snippetWefs.fowEach(wef => wef.dispose());
+		supa.dispose();
 	}
 }
 
-export interface WalkThroughInputOptions {
-	readonly typeId: string;
-	readonly name: string;
-	readonly description?: string;
-	readonly resource: URI;
-	readonly telemetryFrom: string;
-	readonly onReady?: (container: HTMLElement, contentDisposables: DisposableStore) => void;
-	readonly layout?: (dimension: Dimension) => void;
+expowt intewface WawkThwoughInputOptions {
+	weadonwy typeId: stwing;
+	weadonwy name: stwing;
+	weadonwy descwiption?: stwing;
+	weadonwy wesouwce: UWI;
+	weadonwy tewemetwyFwom: stwing;
+	weadonwy onWeady?: (containa: HTMWEwement, contentDisposabwes: DisposabweStowe) => void;
+	weadonwy wayout?: (dimension: Dimension) => void;
 }
 
-export class WalkThroughInput extends EditorInput {
+expowt cwass WawkThwoughInput extends EditowInput {
 
-	private promise: Promise<WalkThroughModel> | null = null;
+	pwivate pwomise: Pwomise<WawkThwoughModew> | nuww = nuww;
 
-	private maxTopScroll = 0;
-	private maxBottomScroll = 0;
+	pwivate maxTopScwoww = 0;
+	pwivate maxBottomScwoww = 0;
 
-	get resource() { return this.options.resource; }
+	get wesouwce() { wetuwn this.options.wesouwce; }
 
-	constructor(
-		private readonly options: WalkThroughInputOptions,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ITextModelService private readonly textModelResolverService: ITextModelService
+	constwuctow(
+		pwivate weadonwy options: WawkThwoughInputOptions,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@ITextModewSewvice pwivate weadonwy textModewWesowvewSewvice: ITextModewSewvice
 	) {
-		super();
+		supa();
 	}
 
-	override get typeId(): string {
-		return this.options.typeId;
+	ovewwide get typeId(): stwing {
+		wetuwn this.options.typeId;
 	}
 
-	override getName(): string {
-		return this.options.name;
+	ovewwide getName(): stwing {
+		wetuwn this.options.name;
 	}
 
-	override getDescription(): string {
-		return this.options.description || '';
+	ovewwide getDescwiption(): stwing {
+		wetuwn this.options.descwiption || '';
 	}
 
-	getTelemetryFrom(): string {
-		return this.options.telemetryFrom;
+	getTewemetwyFwom(): stwing {
+		wetuwn this.options.tewemetwyFwom;
 	}
 
-	override getTelemetryDescriptor(): { [key: string]: unknown; } {
-		const descriptor = super.getTelemetryDescriptor();
-		descriptor['target'] = this.getTelemetryFrom();
-		/* __GDPR__FRAGMENT__
-			"EditorTelemetryDescriptor" : {
-				"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	ovewwide getTewemetwyDescwiptow(): { [key: stwing]: unknown; } {
+		const descwiptow = supa.getTewemetwyDescwiptow();
+		descwiptow['tawget'] = this.getTewemetwyFwom();
+		/* __GDPW__FWAGMENT__
+			"EditowTewemetwyDescwiptow" : {
+				"tawget" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 			}
 		*/
-		return descriptor;
+		wetuwn descwiptow;
 	}
 
-	get onReady() {
-		return this.options.onReady;
+	get onWeady() {
+		wetuwn this.options.onWeady;
 	}
 
-	get layout() {
-		return this.options.layout;
+	get wayout() {
+		wetuwn this.options.wayout;
 	}
 
-	override resolve(): Promise<WalkThroughModel> {
-		if (!this.promise) {
-			this.promise = requireToContent(this.instantiationService, this.options.resource)
+	ovewwide wesowve(): Pwomise<WawkThwoughModew> {
+		if (!this.pwomise) {
+			this.pwomise = wequiweToContent(this.instantiationSewvice, this.options.wesouwce)
 				.then(content => {
-					if (this.resource.path.endsWith('.html')) {
-						return new WalkThroughModel(content, []);
+					if (this.wesouwce.path.endsWith('.htmw')) {
+						wetuwn new WawkThwoughModew(content, []);
 					}
 
-					const snippets: Promise<IReference<ITextEditorModel>>[] = [];
-					let i = 0;
-					const renderer = new marked.Renderer();
-					renderer.code = (code, lang) => {
+					const snippets: Pwomise<IWefewence<ITextEditowModew>>[] = [];
+					wet i = 0;
+					const wendewa = new mawked.Wendewa();
+					wendewa.code = (code, wang) => {
 						i++;
-						const resource = this.options.resource.with({ scheme: Schemas.walkThroughSnippet, fragment: `${i}.${lang}` });
-						snippets.push(this.textModelResolverService.createModelReference(resource));
-						return `<div id="snippet-${resource.fragment}" class="walkThroughEditorContainer" ></div>`;
+						const wesouwce = this.options.wesouwce.with({ scheme: Schemas.wawkThwoughSnippet, fwagment: `${i}.${wang}` });
+						snippets.push(this.textModewWesowvewSewvice.cweateModewWefewence(wesouwce));
+						wetuwn `<div id="snippet-${wesouwce.fwagment}" cwass="wawkThwoughEditowContaina" ></div>`;
 					};
-					content = marked(content, { renderer });
+					content = mawked(content, { wendewa });
 
-					return Promise.all(snippets)
-						.then(refs => new WalkThroughModel(content, refs));
+					wetuwn Pwomise.aww(snippets)
+						.then(wefs => new WawkThwoughModew(content, wefs));
 				});
 		}
 
-		return this.promise;
+		wetuwn this.pwomise;
 	}
 
-	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
-		if (super.matches(otherInput)) {
-			return true;
+	ovewwide matches(othewInput: EditowInput | IUntypedEditowInput): boowean {
+		if (supa.matches(othewInput)) {
+			wetuwn twue;
 		}
 
-		if (otherInput instanceof WalkThroughInput) {
-			return isEqual(otherInput.options.resource, this.options.resource);
+		if (othewInput instanceof WawkThwoughInput) {
+			wetuwn isEquaw(othewInput.options.wesouwce, this.options.wesouwce);
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	override dispose(): void {
-		if (this.promise) {
-			this.promise.then(model => model.dispose());
-			this.promise = null;
+	ovewwide dispose(): void {
+		if (this.pwomise) {
+			this.pwomise.then(modew => modew.dispose());
+			this.pwomise = nuww;
 		}
 
-		super.dispose();
+		supa.dispose();
 	}
 
-	public relativeScrollPosition(topScroll: number, bottomScroll: number) {
-		this.maxTopScroll = Math.max(this.maxTopScroll, topScroll);
-		this.maxBottomScroll = Math.max(this.maxBottomScroll, bottomScroll);
+	pubwic wewativeScwowwPosition(topScwoww: numba, bottomScwoww: numba) {
+		this.maxTopScwoww = Math.max(this.maxTopScwoww, topScwoww);
+		this.maxBottomScwoww = Math.max(this.maxBottomScwoww, bottomScwoww);
 	}
 }

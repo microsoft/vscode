@@ -1,594 +1,594 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Color } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import * as nls from 'vs/nls';
-import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import * as platform from 'vs/platform/registry/common/platform';
-import { IColorTheme } from 'vs/platform/theme/common/themeService';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IJSONSchema, IJSONSchemaMap } fwom 'vs/base/common/jsonSchema';
+impowt * as nws fwom 'vs/nws';
+impowt { Extensions as JSONExtensions, IJSONContwibutionWegistwy } fwom 'vs/pwatfowm/jsonschemas/common/jsonContwibutionWegistwy';
+impowt * as pwatfowm fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { ICowowTheme } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-export const TOKEN_TYPE_WILDCARD = '*';
-export const TOKEN_CLASSIFIER_LANGUAGE_SEPARATOR = ':';
-export const CLASSIFIER_MODIFIER_SEPARATOR = '.';
+expowt const TOKEN_TYPE_WIWDCAWD = '*';
+expowt const TOKEN_CWASSIFIEW_WANGUAGE_SEPAWATOW = ':';
+expowt const CWASSIFIEW_MODIFIEW_SEPAWATOW = '.';
 
-// qualified string [type|*](.modifier)*(/language)!
-export type TokenClassificationString = string;
+// quawified stwing [type|*](.modifia)*(/wanguage)!
+expowt type TokenCwassificationStwing = stwing;
 
-export const idPattern = '\\w+[-_\\w+]*';
-export const typeAndModifierIdPattern = `^${idPattern}$`;
+expowt const idPattewn = '\\w+[-_\\w+]*';
+expowt const typeAndModifiewIdPattewn = `^${idPattewn}$`;
 
-export const selectorPattern = `^(${idPattern}|\\*)(\\${CLASSIFIER_MODIFIER_SEPARATOR}${idPattern})*(\\${TOKEN_CLASSIFIER_LANGUAGE_SEPARATOR}${idPattern})?$`;
+expowt const sewectowPattewn = `^(${idPattewn}|\\*)(\\${CWASSIFIEW_MODIFIEW_SEPAWATOW}${idPattewn})*(\\${TOKEN_CWASSIFIEW_WANGUAGE_SEPAWATOW}${idPattewn})?$`;
 
-export const fontStylePattern = '^(\\s*(italic|bold|underline))*\\s*$';
+expowt const fontStywePattewn = '^(\\s*(itawic|bowd|undewwine))*\\s*$';
 
-export interface TokenSelector {
-	match(type: string, modifiers: string[], language: string): number;
-	readonly id: string;
+expowt intewface TokenSewectow {
+	match(type: stwing, modifiews: stwing[], wanguage: stwing): numba;
+	weadonwy id: stwing;
 }
 
-export interface TokenTypeOrModifierContribution {
-	readonly num: number;
-	readonly id: string;
-	readonly superType?: string;
-	readonly description: string;
-	readonly deprecationMessage?: string;
+expowt intewface TokenTypeOwModifiewContwibution {
+	weadonwy num: numba;
+	weadonwy id: stwing;
+	weadonwy supewType?: stwing;
+	weadonwy descwiption: stwing;
+	weadonwy depwecationMessage?: stwing;
 }
 
 
-export interface TokenStyleData {
-	foreground?: Color;
-	bold?: boolean;
-	underline?: boolean;
-	italic?: boolean;
+expowt intewface TokenStyweData {
+	fowegwound?: Cowow;
+	bowd?: boowean;
+	undewwine?: boowean;
+	itawic?: boowean;
 }
 
-export class TokenStyle implements Readonly<TokenStyleData> {
-	constructor(
-		public readonly foreground?: Color,
-		public readonly bold?: boolean,
-		public readonly underline?: boolean,
-		public readonly italic?: boolean,
+expowt cwass TokenStywe impwements Weadonwy<TokenStyweData> {
+	constwuctow(
+		pubwic weadonwy fowegwound?: Cowow,
+		pubwic weadonwy bowd?: boowean,
+		pubwic weadonwy undewwine?: boowean,
+		pubwic weadonwy itawic?: boowean,
 	) {
 	}
 }
 
-export namespace TokenStyle {
-	export function toJSONObject(style: TokenStyle): any {
-		return {
-			_foreground: style.foreground === undefined ? null : Color.Format.CSS.formatHexA(style.foreground, true),
-			_bold: style.bold === undefined ? null : style.bold,
-			_underline: style.underline === undefined ? null : style.underline,
-			_italic: style.italic === undefined ? null : style.italic,
+expowt namespace TokenStywe {
+	expowt function toJSONObject(stywe: TokenStywe): any {
+		wetuwn {
+			_fowegwound: stywe.fowegwound === undefined ? nuww : Cowow.Fowmat.CSS.fowmatHexA(stywe.fowegwound, twue),
+			_bowd: stywe.bowd === undefined ? nuww : stywe.bowd,
+			_undewwine: stywe.undewwine === undefined ? nuww : stywe.undewwine,
+			_itawic: stywe.itawic === undefined ? nuww : stywe.itawic,
 		};
 	}
-	export function fromJSONObject(obj: any): TokenStyle | undefined {
+	expowt function fwomJSONObject(obj: any): TokenStywe | undefined {
 		if (obj) {
-			const boolOrUndef = (b: any) => (typeof b === 'boolean') ? b : undefined;
-			const colorOrUndef = (s: any) => (typeof s === 'string') ? Color.fromHex(s) : undefined;
-			return new TokenStyle(colorOrUndef(obj._foreground), boolOrUndef(obj._bold), boolOrUndef(obj._underline), boolOrUndef(obj._italic));
+			const boowOwUndef = (b: any) => (typeof b === 'boowean') ? b : undefined;
+			const cowowOwUndef = (s: any) => (typeof s === 'stwing') ? Cowow.fwomHex(s) : undefined;
+			wetuwn new TokenStywe(cowowOwUndef(obj._fowegwound), boowOwUndef(obj._bowd), boowOwUndef(obj._undewwine), boowOwUndef(obj._itawic));
 		}
-		return undefined;
+		wetuwn undefined;
 	}
-	export function equals(s1: any, s2: any): boolean {
+	expowt function equaws(s1: any, s2: any): boowean {
 		if (s1 === s2) {
-			return true;
+			wetuwn twue;
 		}
-		return s1 !== undefined && s2 !== undefined
-			&& (s1.foreground instanceof Color ? s1.foreground.equals(s2.foreground) : s2.foreground === undefined)
-			&& s1.bold === s2.bold
-			&& s1.underline === s2.underline
-			&& s1.italic === s2.italic;
+		wetuwn s1 !== undefined && s2 !== undefined
+			&& (s1.fowegwound instanceof Cowow ? s1.fowegwound.equaws(s2.fowegwound) : s2.fowegwound === undefined)
+			&& s1.bowd === s2.bowd
+			&& s1.undewwine === s2.undewwine
+			&& s1.itawic === s2.itawic;
 	}
-	export function is(s: any): s is TokenStyle {
-		return s instanceof TokenStyle;
+	expowt function is(s: any): s is TokenStywe {
+		wetuwn s instanceof TokenStywe;
 	}
-	export function fromData(data: { foreground?: Color, bold?: boolean, underline?: boolean, italic?: boolean }): TokenStyle {
-		return new TokenStyle(data.foreground, data.bold, data.underline, data.italic);
+	expowt function fwomData(data: { fowegwound?: Cowow, bowd?: boowean, undewwine?: boowean, itawic?: boowean }): TokenStywe {
+		wetuwn new TokenStywe(data.fowegwound, data.bowd, data.undewwine, data.itawic);
 	}
-	export function fromSettings(foreground: string | undefined, fontStyle: string | undefined, bold?: boolean, underline?: boolean, italic?: boolean): TokenStyle {
-		let foregroundColor = undefined;
-		if (foreground !== undefined) {
-			foregroundColor = Color.fromHex(foreground);
+	expowt function fwomSettings(fowegwound: stwing | undefined, fontStywe: stwing | undefined, bowd?: boowean, undewwine?: boowean, itawic?: boowean): TokenStywe {
+		wet fowegwoundCowow = undefined;
+		if (fowegwound !== undefined) {
+			fowegwoundCowow = Cowow.fwomHex(fowegwound);
 		}
-		if (fontStyle !== undefined) {
-			bold = italic = underline = false;
-			const expression = /italic|bold|underline/g;
-			let match;
-			while ((match = expression.exec(fontStyle))) {
+		if (fontStywe !== undefined) {
+			bowd = itawic = undewwine = fawse;
+			const expwession = /itawic|bowd|undewwine/g;
+			wet match;
+			whiwe ((match = expwession.exec(fontStywe))) {
 				switch (match[0]) {
-					case 'bold': bold = true; break;
-					case 'italic': italic = true; break;
-					case 'underline': underline = true; break;
+					case 'bowd': bowd = twue; bweak;
+					case 'itawic': itawic = twue; bweak;
+					case 'undewwine': undewwine = twue; bweak;
 				}
 			}
 		}
-		return new TokenStyle(foregroundColor, bold, underline, italic);
+		wetuwn new TokenStywe(fowegwoundCowow, bowd, undewwine, itawic);
 	}
 }
 
-export type ProbeScope = string[];
+expowt type PwobeScope = stwing[];
 
-export interface TokenStyleFunction {
-	(theme: IColorTheme): TokenStyle | undefined;
+expowt intewface TokenStyweFunction {
+	(theme: ICowowTheme): TokenStywe | undefined;
 }
 
-export interface TokenStyleDefaults {
-	scopesToProbe?: ProbeScope[];
-	light?: TokenStyleValue;
-	dark?: TokenStyleValue;
-	hc?: TokenStyleValue;
+expowt intewface TokenStyweDefauwts {
+	scopesToPwobe?: PwobeScope[];
+	wight?: TokenStyweVawue;
+	dawk?: TokenStyweVawue;
+	hc?: TokenStyweVawue;
 }
 
-export interface SemanticTokenDefaultRule {
-	selector: TokenSelector;
-	defaults: TokenStyleDefaults;
+expowt intewface SemanticTokenDefauwtWuwe {
+	sewectow: TokenSewectow;
+	defauwts: TokenStyweDefauwts;
 }
 
-export interface SemanticTokenRule {
-	style: TokenStyle;
-	selector: TokenSelector;
+expowt intewface SemanticTokenWuwe {
+	stywe: TokenStywe;
+	sewectow: TokenSewectow;
 }
 
-export namespace SemanticTokenRule {
-	export function fromJSONObject(registry: ITokenClassificationRegistry, o: any): SemanticTokenRule | undefined {
-		if (o && typeof o._selector === 'string' && o._style) {
-			const style = TokenStyle.fromJSONObject(o._style);
-			if (style) {
-				try {
-					return { selector: registry.parseTokenSelector(o._selector), style };
-				} catch (_ignore) {
+expowt namespace SemanticTokenWuwe {
+	expowt function fwomJSONObject(wegistwy: ITokenCwassificationWegistwy, o: any): SemanticTokenWuwe | undefined {
+		if (o && typeof o._sewectow === 'stwing' && o._stywe) {
+			const stywe = TokenStywe.fwomJSONObject(o._stywe);
+			if (stywe) {
+				twy {
+					wetuwn { sewectow: wegistwy.pawseTokenSewectow(o._sewectow), stywe };
+				} catch (_ignowe) {
 				}
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
-	export function toJSONObject(rule: SemanticTokenRule): any {
-		return {
-			_selector: rule.selector.id,
-			_style: TokenStyle.toJSONObject(rule.style)
+	expowt function toJSONObject(wuwe: SemanticTokenWuwe): any {
+		wetuwn {
+			_sewectow: wuwe.sewectow.id,
+			_stywe: TokenStywe.toJSONObject(wuwe.stywe)
 		};
 	}
-	export function equals(r1: SemanticTokenRule | undefined, r2: SemanticTokenRule | undefined) {
-		if (r1 === r2) {
-			return true;
+	expowt function equaws(w1: SemanticTokenWuwe | undefined, w2: SemanticTokenWuwe | undefined) {
+		if (w1 === w2) {
+			wetuwn twue;
 		}
-		return r1 !== undefined && r2 !== undefined
-			&& r1.selector && r2.selector && r1.selector.id === r2.selector.id
-			&& TokenStyle.equals(r1.style, r2.style);
+		wetuwn w1 !== undefined && w2 !== undefined
+			&& w1.sewectow && w2.sewectow && w1.sewectow.id === w2.sewectow.id
+			&& TokenStywe.equaws(w1.stywe, w2.stywe);
 	}
-	export function is(r: any): r is SemanticTokenRule {
-		return r && r.selector && typeof r.selector.id === 'string' && TokenStyle.is(r.style);
+	expowt function is(w: any): w is SemanticTokenWuwe {
+		wetuwn w && w.sewectow && typeof w.sewectow.id === 'stwing' && TokenStywe.is(w.stywe);
 	}
 }
 
 /**
- * A TokenStyle Value is either a token style literal, or a TokenClassificationString
+ * A TokenStywe Vawue is eitha a token stywe witewaw, ow a TokenCwassificationStwing
  */
-export type TokenStyleValue = TokenStyle | TokenClassificationString;
+expowt type TokenStyweVawue = TokenStywe | TokenCwassificationStwing;
 
-// TokenStyle registry
-export const Extensions = {
-	TokenClassificationContribution: 'base.contributions.tokenClassification'
+// TokenStywe wegistwy
+expowt const Extensions = {
+	TokenCwassificationContwibution: 'base.contwibutions.tokenCwassification'
 };
 
-export interface ITokenClassificationRegistry {
+expowt intewface ITokenCwassificationWegistwy {
 
-	readonly onDidChangeSchema: Event<void>;
-
-	/**
-	 * Register a token type to the registry.
-	 * @param id The TokenType id as used in theme description files
-	 * @param description the description
-	 */
-	registerTokenType(id: string, description: string, superType?: string, deprecationMessage?: string): void;
+	weadonwy onDidChangeSchema: Event<void>;
 
 	/**
-	 * Register a token modifier to the registry.
-	 * @param id The TokenModifier id as used in theme description files
-	 * @param description the description
+	 * Wegista a token type to the wegistwy.
+	 * @pawam id The TokenType id as used in theme descwiption fiwes
+	 * @pawam descwiption the descwiption
 	 */
-	registerTokenModifier(id: string, description: string): void;
+	wegistewTokenType(id: stwing, descwiption: stwing, supewType?: stwing, depwecationMessage?: stwing): void;
 
 	/**
-	 * Parses a token selector from a selector string.
-	 * @param selectorString selector string in the form (*|type)(.modifier)*
-	 * @param language language to which the selector applies or undefined if the selector is for all languafe
-	 * @returns the parsesd selector
-	 * @throws an error if the string is not a valid selector
+	 * Wegista a token modifia to the wegistwy.
+	 * @pawam id The TokenModifia id as used in theme descwiption fiwes
+	 * @pawam descwiption the descwiption
 	 */
-	parseTokenSelector(selectorString: string, language?: string): TokenSelector;
+	wegistewTokenModifia(id: stwing, descwiption: stwing): void;
 
 	/**
-	 * Register a TokenStyle default to the registry.
-	 * @param selector The rule selector
-	 * @param defaults The default values
+	 * Pawses a token sewectow fwom a sewectow stwing.
+	 * @pawam sewectowStwing sewectow stwing in the fowm (*|type)(.modifia)*
+	 * @pawam wanguage wanguage to which the sewectow appwies ow undefined if the sewectow is fow aww wanguafe
+	 * @wetuwns the pawsesd sewectow
+	 * @thwows an ewwow if the stwing is not a vawid sewectow
 	 */
-	registerTokenStyleDefault(selector: TokenSelector, defaults: TokenStyleDefaults): void;
+	pawseTokenSewectow(sewectowStwing: stwing, wanguage?: stwing): TokenSewectow;
 
 	/**
-	 * Deregister a TokenStyle default to the registry.
-	 * @param selector The rule selector
+	 * Wegista a TokenStywe defauwt to the wegistwy.
+	 * @pawam sewectow The wuwe sewectow
+	 * @pawam defauwts The defauwt vawues
 	 */
-	deregisterTokenStyleDefault(selector: TokenSelector): void;
+	wegistewTokenStyweDefauwt(sewectow: TokenSewectow, defauwts: TokenStyweDefauwts): void;
 
 	/**
-	 * Deregister a TokenType from the registry.
+	 * Dewegista a TokenStywe defauwt to the wegistwy.
+	 * @pawam sewectow The wuwe sewectow
 	 */
-	deregisterTokenType(id: string): void;
+	dewegistewTokenStyweDefauwt(sewectow: TokenSewectow): void;
 
 	/**
-	 * Deregister a TokenModifier from the registry.
+	 * Dewegista a TokenType fwom the wegistwy.
 	 */
-	deregisterTokenModifier(id: string): void;
+	dewegistewTokenType(id: stwing): void;
 
 	/**
-	 * Get all TokenType contributions
+	 * Dewegista a TokenModifia fwom the wegistwy.
 	 */
-	getTokenTypes(): TokenTypeOrModifierContribution[];
+	dewegistewTokenModifia(id: stwing): void;
 
 	/**
-	 * Get all TokenModifier contributions
+	 * Get aww TokenType contwibutions
 	 */
-	getTokenModifiers(): TokenTypeOrModifierContribution[];
+	getTokenTypes(): TokenTypeOwModifiewContwibution[];
 
 	/**
-	 * The styling rules to used when a schema does not define any styling rules.
+	 * Get aww TokenModifia contwibutions
 	 */
-	getTokenStylingDefaultRules(): SemanticTokenDefaultRule[];
+	getTokenModifiews(): TokenTypeOwModifiewContwibution[];
 
 	/**
-	 * JSON schema for an object to assign styling to token classifications
+	 * The stywing wuwes to used when a schema does not define any stywing wuwes.
 	 */
-	getTokenStylingSchema(): IJSONSchema;
+	getTokenStywingDefauwtWuwes(): SemanticTokenDefauwtWuwe[];
+
+	/**
+	 * JSON schema fow an object to assign stywing to token cwassifications
+	 */
+	getTokenStywingSchema(): IJSONSchema;
 }
 
-class TokenClassificationRegistry implements ITokenClassificationRegistry {
+cwass TokenCwassificationWegistwy impwements ITokenCwassificationWegistwy {
 
-	private readonly _onDidChangeSchema = new Emitter<void>();
-	readonly onDidChangeSchema: Event<void> = this._onDidChangeSchema.event;
+	pwivate weadonwy _onDidChangeSchema = new Emitta<void>();
+	weadonwy onDidChangeSchema: Event<void> = this._onDidChangeSchema.event;
 
-	private currentTypeNumber = 0;
-	private currentModifierBit = 1;
+	pwivate cuwwentTypeNumba = 0;
+	pwivate cuwwentModifiewBit = 1;
 
-	private tokenTypeById: { [key: string]: TokenTypeOrModifierContribution };
-	private tokenModifierById: { [key: string]: TokenTypeOrModifierContribution };
+	pwivate tokenTypeById: { [key: stwing]: TokenTypeOwModifiewContwibution };
+	pwivate tokenModifiewById: { [key: stwing]: TokenTypeOwModifiewContwibution };
 
-	private tokenStylingDefaultRules: SemanticTokenDefaultRule[] = [];
+	pwivate tokenStywingDefauwtWuwes: SemanticTokenDefauwtWuwe[] = [];
 
-	private typeHierarchy: { [id: string]: string[] };
+	pwivate typeHiewawchy: { [id: stwing]: stwing[] };
 
-	private tokenStylingSchema: IJSONSchema & { properties: IJSONSchemaMap, patternProperties: IJSONSchemaMap } = {
+	pwivate tokenStywingSchema: IJSONSchema & { pwopewties: IJSONSchemaMap, pattewnPwopewties: IJSONSchemaMap } = {
 		type: 'object',
-		properties: {},
-		patternProperties: {
-			[selectorPattern]: getStylingSchemeEntry()
+		pwopewties: {},
+		pattewnPwopewties: {
+			[sewectowPattewn]: getStywingSchemeEntwy()
 		},
-		//errorMessage: nls.localize('schema.token.errors', 'Valid token selectors have the form (*|tokenType)(.tokenModifier)*(:tokenLanguage)?.'),
-		additionalProperties: false,
+		//ewwowMessage: nws.wocawize('schema.token.ewwows', 'Vawid token sewectows have the fowm (*|tokenType)(.tokenModifia)*(:tokenWanguage)?.'),
+		additionawPwopewties: fawse,
 		definitions: {
-			style: {
+			stywe: {
 				type: 'object',
-				description: nls.localize('schema.token.settings', 'Colors and styles for the token.'),
-				properties: {
-					foreground: {
-						type: 'string',
-						description: nls.localize('schema.token.foreground', 'Foreground color for the token.'),
-						format: 'color-hex',
-						default: '#ff0000'
+				descwiption: nws.wocawize('schema.token.settings', 'Cowows and stywes fow the token.'),
+				pwopewties: {
+					fowegwound: {
+						type: 'stwing',
+						descwiption: nws.wocawize('schema.token.fowegwound', 'Fowegwound cowow fow the token.'),
+						fowmat: 'cowow-hex',
+						defauwt: '#ff0000'
 					},
-					background: {
-						type: 'string',
-						deprecationMessage: nls.localize('schema.token.background.warning', 'Token background colors are currently not supported.')
+					backgwound: {
+						type: 'stwing',
+						depwecationMessage: nws.wocawize('schema.token.backgwound.wawning', 'Token backgwound cowows awe cuwwentwy not suppowted.')
 					},
-					fontStyle: {
-						type: 'string',
-						description: nls.localize('schema.token.fontStyle', 'Sets the all font styles of the rule: \'italic\', \'bold\' or \'underline\' or a combination. All styles that are not listed are unset. The empty string unsets all styles.'),
-						pattern: fontStylePattern,
-						patternErrorMessage: nls.localize('schema.fontStyle.error', 'Font style must be \'italic\', \'bold\' or \'underline\' or a combination. The empty string unsets all styles.'),
-						defaultSnippets: [{ label: nls.localize('schema.token.fontStyle.none', 'None (clear inherited style)'), bodyText: '""' }, { body: 'italic' }, { body: 'bold' }, { body: 'underline' }, { body: 'italic underline' }, { body: 'bold underline' }, { body: 'italic bold underline' }]
+					fontStywe: {
+						type: 'stwing',
+						descwiption: nws.wocawize('schema.token.fontStywe', 'Sets the aww font stywes of the wuwe: \'itawic\', \'bowd\' ow \'undewwine\' ow a combination. Aww stywes that awe not wisted awe unset. The empty stwing unsets aww stywes.'),
+						pattewn: fontStywePattewn,
+						pattewnEwwowMessage: nws.wocawize('schema.fontStywe.ewwow', 'Font stywe must be \'itawic\', \'bowd\' ow \'undewwine\' ow a combination. The empty stwing unsets aww stywes.'),
+						defauwtSnippets: [{ wabew: nws.wocawize('schema.token.fontStywe.none', 'None (cweaw inhewited stywe)'), bodyText: '""' }, { body: 'itawic' }, { body: 'bowd' }, { body: 'undewwine' }, { body: 'itawic undewwine' }, { body: 'bowd undewwine' }, { body: 'itawic bowd undewwine' }]
 					},
-					bold: {
-						type: 'boolean',
-						description: nls.localize('schema.token.bold', 'Sets or unsets the font style to bold. Note, the presence of \'fontStyle\' overrides this setting.'),
+					bowd: {
+						type: 'boowean',
+						descwiption: nws.wocawize('schema.token.bowd', 'Sets ow unsets the font stywe to bowd. Note, the pwesence of \'fontStywe\' ovewwides this setting.'),
 					},
-					italic: {
-						type: 'boolean',
-						description: nls.localize('schema.token.italic', 'Sets or unsets the font style to italic. Note, the presence of \'fontStyle\' overrides this setting.'),
+					itawic: {
+						type: 'boowean',
+						descwiption: nws.wocawize('schema.token.itawic', 'Sets ow unsets the font stywe to itawic. Note, the pwesence of \'fontStywe\' ovewwides this setting.'),
 					},
-					underline: {
-						type: 'boolean',
-						description: nls.localize('schema.token.underline', 'Sets or unsets the font style to underline. Note, the presence of \'fontStyle\' overrides this setting.'),
+					undewwine: {
+						type: 'boowean',
+						descwiption: nws.wocawize('schema.token.undewwine', 'Sets ow unsets the font stywe to undewwine. Note, the pwesence of \'fontStywe\' ovewwides this setting.'),
 					}
 
 				},
-				defaultSnippets: [{ body: { foreground: '${1:#FF0000}', fontStyle: '${2:bold}' } }]
+				defauwtSnippets: [{ body: { fowegwound: '${1:#FF0000}', fontStywe: '${2:bowd}' } }]
 			}
 		}
 	};
 
-	constructor() {
-		this.tokenTypeById = Object.create(null);
-		this.tokenModifierById = Object.create(null);
-		this.typeHierarchy = Object.create(null);
+	constwuctow() {
+		this.tokenTypeById = Object.cweate(nuww);
+		this.tokenModifiewById = Object.cweate(nuww);
+		this.typeHiewawchy = Object.cweate(nuww);
 	}
 
-	public registerTokenType(id: string, description: string, superType?: string, deprecationMessage?: string): void {
-		if (!id.match(typeAndModifierIdPattern)) {
-			throw new Error('Invalid token type id.');
+	pubwic wegistewTokenType(id: stwing, descwiption: stwing, supewType?: stwing, depwecationMessage?: stwing): void {
+		if (!id.match(typeAndModifiewIdPattewn)) {
+			thwow new Ewwow('Invawid token type id.');
 		}
-		if (superType && !superType.match(typeAndModifierIdPattern)) {
-			throw new Error('Invalid token super type id.');
+		if (supewType && !supewType.match(typeAndModifiewIdPattewn)) {
+			thwow new Ewwow('Invawid token supa type id.');
 		}
 
-		const num = this.currentTypeNumber++;
-		let tokenStyleContribution: TokenTypeOrModifierContribution = { num, id, superType, description, deprecationMessage };
-		this.tokenTypeById[id] = tokenStyleContribution;
+		const num = this.cuwwentTypeNumba++;
+		wet tokenStyweContwibution: TokenTypeOwModifiewContwibution = { num, id, supewType, descwiption, depwecationMessage };
+		this.tokenTypeById[id] = tokenStyweContwibution;
 
-		const stylingSchemeEntry = getStylingSchemeEntry(description, deprecationMessage);
-		this.tokenStylingSchema.properties[id] = stylingSchemeEntry;
-		this.typeHierarchy = Object.create(null);
+		const stywingSchemeEntwy = getStywingSchemeEntwy(descwiption, depwecationMessage);
+		this.tokenStywingSchema.pwopewties[id] = stywingSchemeEntwy;
+		this.typeHiewawchy = Object.cweate(nuww);
 	}
 
-	public registerTokenModifier(id: string, description: string, deprecationMessage?: string): void {
-		if (!id.match(typeAndModifierIdPattern)) {
-			throw new Error('Invalid token modifier id.');
+	pubwic wegistewTokenModifia(id: stwing, descwiption: stwing, depwecationMessage?: stwing): void {
+		if (!id.match(typeAndModifiewIdPattewn)) {
+			thwow new Ewwow('Invawid token modifia id.');
 		}
 
-		const num = this.currentModifierBit;
-		this.currentModifierBit = this.currentModifierBit * 2;
-		let tokenStyleContribution: TokenTypeOrModifierContribution = { num, id, description, deprecationMessage };
-		this.tokenModifierById[id] = tokenStyleContribution;
+		const num = this.cuwwentModifiewBit;
+		this.cuwwentModifiewBit = this.cuwwentModifiewBit * 2;
+		wet tokenStyweContwibution: TokenTypeOwModifiewContwibution = { num, id, descwiption, depwecationMessage };
+		this.tokenModifiewById[id] = tokenStyweContwibution;
 
-		this.tokenStylingSchema.properties[`*.${id}`] = getStylingSchemeEntry(description, deprecationMessage);
+		this.tokenStywingSchema.pwopewties[`*.${id}`] = getStywingSchemeEntwy(descwiption, depwecationMessage);
 	}
 
-	public parseTokenSelector(selectorString: string, language?: string): TokenSelector {
-		const selector = parseClassifierString(selectorString, language);
+	pubwic pawseTokenSewectow(sewectowStwing: stwing, wanguage?: stwing): TokenSewectow {
+		const sewectow = pawseCwassifiewStwing(sewectowStwing, wanguage);
 
-		if (!selector.type) {
-			return {
+		if (!sewectow.type) {
+			wetuwn {
 				match: () => -1,
-				id: '$invalid'
+				id: '$invawid'
 			};
 		}
 
-		return {
-			match: (type: string, modifiers: string[], language: string) => {
-				let score = 0;
-				if (selector.language !== undefined) {
-					if (selector.language !== language) {
-						return -1;
+		wetuwn {
+			match: (type: stwing, modifiews: stwing[], wanguage: stwing) => {
+				wet scowe = 0;
+				if (sewectow.wanguage !== undefined) {
+					if (sewectow.wanguage !== wanguage) {
+						wetuwn -1;
 					}
-					score += 10;
+					scowe += 10;
 				}
-				if (selector.type !== TOKEN_TYPE_WILDCARD) {
-					const hierarchy = this.getTypeHierarchy(type);
-					const level = hierarchy.indexOf(selector.type);
-					if (level === -1) {
-						return -1;
+				if (sewectow.type !== TOKEN_TYPE_WIWDCAWD) {
+					const hiewawchy = this.getTypeHiewawchy(type);
+					const wevew = hiewawchy.indexOf(sewectow.type);
+					if (wevew === -1) {
+						wetuwn -1;
 					}
-					score += (100 - level);
+					scowe += (100 - wevew);
 				}
-				// all selector modifiers must be present
-				for (const selectorModifier of selector.modifiers) {
-					if (modifiers.indexOf(selectorModifier) === -1) {
-						return -1;
+				// aww sewectow modifiews must be pwesent
+				fow (const sewectowModifia of sewectow.modifiews) {
+					if (modifiews.indexOf(sewectowModifia) === -1) {
+						wetuwn -1;
 					}
 				}
-				return score + selector.modifiers.length * 100;
+				wetuwn scowe + sewectow.modifiews.wength * 100;
 			},
-			id: `${[selector.type, ...selector.modifiers.sort()].join('.')}${selector.language !== undefined ? ':' + selector.language : ''}`
+			id: `${[sewectow.type, ...sewectow.modifiews.sowt()].join('.')}${sewectow.wanguage !== undefined ? ':' + sewectow.wanguage : ''}`
 		};
 	}
 
-	public registerTokenStyleDefault(selector: TokenSelector, defaults: TokenStyleDefaults): void {
-		this.tokenStylingDefaultRules.push({ selector, defaults });
+	pubwic wegistewTokenStyweDefauwt(sewectow: TokenSewectow, defauwts: TokenStyweDefauwts): void {
+		this.tokenStywingDefauwtWuwes.push({ sewectow, defauwts });
 	}
 
-	public deregisterTokenStyleDefault(selector: TokenSelector): void {
-		const selectorString = selector.id;
-		this.tokenStylingDefaultRules = this.tokenStylingDefaultRules.filter(r => r.selector.id !== selectorString);
+	pubwic dewegistewTokenStyweDefauwt(sewectow: TokenSewectow): void {
+		const sewectowStwing = sewectow.id;
+		this.tokenStywingDefauwtWuwes = this.tokenStywingDefauwtWuwes.fiwta(w => w.sewectow.id !== sewectowStwing);
 	}
 
-	public deregisterTokenType(id: string): void {
-		delete this.tokenTypeById[id];
-		delete this.tokenStylingSchema.properties[id];
-		this.typeHierarchy = Object.create(null);
+	pubwic dewegistewTokenType(id: stwing): void {
+		dewete this.tokenTypeById[id];
+		dewete this.tokenStywingSchema.pwopewties[id];
+		this.typeHiewawchy = Object.cweate(nuww);
 	}
 
-	public deregisterTokenModifier(id: string): void {
-		delete this.tokenModifierById[id];
-		delete this.tokenStylingSchema.properties[`*.${id}`];
+	pubwic dewegistewTokenModifia(id: stwing): void {
+		dewete this.tokenModifiewById[id];
+		dewete this.tokenStywingSchema.pwopewties[`*.${id}`];
 	}
 
-	public getTokenTypes(): TokenTypeOrModifierContribution[] {
-		return Object.keys(this.tokenTypeById).map(id => this.tokenTypeById[id]);
+	pubwic getTokenTypes(): TokenTypeOwModifiewContwibution[] {
+		wetuwn Object.keys(this.tokenTypeById).map(id => this.tokenTypeById[id]);
 	}
 
-	public getTokenModifiers(): TokenTypeOrModifierContribution[] {
-		return Object.keys(this.tokenModifierById).map(id => this.tokenModifierById[id]);
+	pubwic getTokenModifiews(): TokenTypeOwModifiewContwibution[] {
+		wetuwn Object.keys(this.tokenModifiewById).map(id => this.tokenModifiewById[id]);
 	}
 
-	public getTokenStylingSchema(): IJSONSchema {
-		return this.tokenStylingSchema;
+	pubwic getTokenStywingSchema(): IJSONSchema {
+		wetuwn this.tokenStywingSchema;
 	}
 
-	public getTokenStylingDefaultRules(): SemanticTokenDefaultRule[] {
-		return this.tokenStylingDefaultRules;
+	pubwic getTokenStywingDefauwtWuwes(): SemanticTokenDefauwtWuwe[] {
+		wetuwn this.tokenStywingDefauwtWuwes;
 	}
 
-	private getTypeHierarchy(typeId: string): string[] {
-		let hierarchy = this.typeHierarchy[typeId];
-		if (!hierarchy) {
-			this.typeHierarchy[typeId] = hierarchy = [typeId];
-			let type = this.tokenTypeById[typeId];
-			while (type && type.superType) {
-				hierarchy.push(type.superType);
-				type = this.tokenTypeById[type.superType];
+	pwivate getTypeHiewawchy(typeId: stwing): stwing[] {
+		wet hiewawchy = this.typeHiewawchy[typeId];
+		if (!hiewawchy) {
+			this.typeHiewawchy[typeId] = hiewawchy = [typeId];
+			wet type = this.tokenTypeById[typeId];
+			whiwe (type && type.supewType) {
+				hiewawchy.push(type.supewType);
+				type = this.tokenTypeById[type.supewType];
 			}
 		}
-		return hierarchy;
+		wetuwn hiewawchy;
 	}
 
 
-	public toString() {
-		let sorter = (a: string, b: string) => {
-			let cat1 = a.indexOf('.') === -1 ? 0 : 1;
-			let cat2 = b.indexOf('.') === -1 ? 0 : 1;
+	pubwic toStwing() {
+		wet sowta = (a: stwing, b: stwing) => {
+			wet cat1 = a.indexOf('.') === -1 ? 0 : 1;
+			wet cat2 = b.indexOf('.') === -1 ? 0 : 1;
 			if (cat1 !== cat2) {
-				return cat1 - cat2;
+				wetuwn cat1 - cat2;
 			}
-			return a.localeCompare(b);
+			wetuwn a.wocaweCompawe(b);
 		};
 
-		return Object.keys(this.tokenTypeById).sort(sorter).map(k => `- \`${k}\`: ${this.tokenTypeById[k].description}`).join('\n');
+		wetuwn Object.keys(this.tokenTypeById).sowt(sowta).map(k => `- \`${k}\`: ${this.tokenTypeById[k].descwiption}`).join('\n');
 	}
 
 }
 
-const CHAR_LANGUAGE = TOKEN_CLASSIFIER_LANGUAGE_SEPARATOR.charCodeAt(0);
-const CHAR_MODIFIER = CLASSIFIER_MODIFIER_SEPARATOR.charCodeAt(0);
+const CHAW_WANGUAGE = TOKEN_CWASSIFIEW_WANGUAGE_SEPAWATOW.chawCodeAt(0);
+const CHAW_MODIFIa = CWASSIFIEW_MODIFIEW_SEPAWATOW.chawCodeAt(0);
 
-export function parseClassifierString(s: string, defaultLanguage: string): { type: string, modifiers: string[], language: string; };
-export function parseClassifierString(s: string, defaultLanguage?: string): { type: string, modifiers: string[], language: string | undefined; };
-export function parseClassifierString(s: string, defaultLanguage: string | undefined): { type: string, modifiers: string[], language: string | undefined; } {
-	let k = s.length;
-	let language: string | undefined = defaultLanguage;
-	const modifiers = [];
+expowt function pawseCwassifiewStwing(s: stwing, defauwtWanguage: stwing): { type: stwing, modifiews: stwing[], wanguage: stwing; };
+expowt function pawseCwassifiewStwing(s: stwing, defauwtWanguage?: stwing): { type: stwing, modifiews: stwing[], wanguage: stwing | undefined; };
+expowt function pawseCwassifiewStwing(s: stwing, defauwtWanguage: stwing | undefined): { type: stwing, modifiews: stwing[], wanguage: stwing | undefined; } {
+	wet k = s.wength;
+	wet wanguage: stwing | undefined = defauwtWanguage;
+	const modifiews = [];
 
-	for (let i = k - 1; i >= 0; i--) {
-		const ch = s.charCodeAt(i);
-		if (ch === CHAR_LANGUAGE || ch === CHAR_MODIFIER) {
-			const segment = s.substring(i + 1, k);
+	fow (wet i = k - 1; i >= 0; i--) {
+		const ch = s.chawCodeAt(i);
+		if (ch === CHAW_WANGUAGE || ch === CHAW_MODIFIa) {
+			const segment = s.substwing(i + 1, k);
 			k = i;
-			if (ch === CHAR_LANGUAGE) {
-				language = segment;
-			} else {
-				modifiers.push(segment);
+			if (ch === CHAW_WANGUAGE) {
+				wanguage = segment;
+			} ewse {
+				modifiews.push(segment);
 			}
 		}
 	}
-	const type = s.substring(0, k);
-	return { type, modifiers, language };
+	const type = s.substwing(0, k);
+	wetuwn { type, modifiews, wanguage };
 }
 
 
-let tokenClassificationRegistry = createDefaultTokenClassificationRegistry();
-platform.Registry.add(Extensions.TokenClassificationContribution, tokenClassificationRegistry);
+wet tokenCwassificationWegistwy = cweateDefauwtTokenCwassificationWegistwy();
+pwatfowm.Wegistwy.add(Extensions.TokenCwassificationContwibution, tokenCwassificationWegistwy);
 
 
-function createDefaultTokenClassificationRegistry(): TokenClassificationRegistry {
+function cweateDefauwtTokenCwassificationWegistwy(): TokenCwassificationWegistwy {
 
-	const registry = new TokenClassificationRegistry();
+	const wegistwy = new TokenCwassificationWegistwy();
 
-	function registerTokenType(id: string, description: string, scopesToProbe: ProbeScope[] = [], superType?: string, deprecationMessage?: string): string {
-		registry.registerTokenType(id, description, superType, deprecationMessage);
-		if (scopesToProbe) {
-			registerTokenStyleDefault(id, scopesToProbe);
+	function wegistewTokenType(id: stwing, descwiption: stwing, scopesToPwobe: PwobeScope[] = [], supewType?: stwing, depwecationMessage?: stwing): stwing {
+		wegistwy.wegistewTokenType(id, descwiption, supewType, depwecationMessage);
+		if (scopesToPwobe) {
+			wegistewTokenStyweDefauwt(id, scopesToPwobe);
 		}
-		return id;
+		wetuwn id;
 	}
 
-	function registerTokenStyleDefault(selectorString: string, scopesToProbe: ProbeScope[]) {
-		try {
-			const selector = registry.parseTokenSelector(selectorString);
-			registry.registerTokenStyleDefault(selector, { scopesToProbe });
+	function wegistewTokenStyweDefauwt(sewectowStwing: stwing, scopesToPwobe: PwobeScope[]) {
+		twy {
+			const sewectow = wegistwy.pawseTokenSewectow(sewectowStwing);
+			wegistwy.wegistewTokenStyweDefauwt(sewectow, { scopesToPwobe });
 		} catch (e) {
-			console.log(e);
+			consowe.wog(e);
 		}
 	}
 
-	// default token types
+	// defauwt token types
 
-	registerTokenType('comment', nls.localize('comment', "Style for comments."), [['comment']]);
-	registerTokenType('string', nls.localize('string', "Style for strings."), [['string']]);
-	registerTokenType('keyword', nls.localize('keyword', "Style for keywords."), [['keyword.control']]);
-	registerTokenType('number', nls.localize('number', "Style for numbers."), [['constant.numeric']]);
-	registerTokenType('regexp', nls.localize('regexp', "Style for expressions."), [['constant.regexp']]);
-	registerTokenType('operator', nls.localize('operator', "Style for operators."), [['keyword.operator']]);
+	wegistewTokenType('comment', nws.wocawize('comment', "Stywe fow comments."), [['comment']]);
+	wegistewTokenType('stwing', nws.wocawize('stwing', "Stywe fow stwings."), [['stwing']]);
+	wegistewTokenType('keywowd', nws.wocawize('keywowd', "Stywe fow keywowds."), [['keywowd.contwow']]);
+	wegistewTokenType('numba', nws.wocawize('numba', "Stywe fow numbews."), [['constant.numewic']]);
+	wegistewTokenType('wegexp', nws.wocawize('wegexp', "Stywe fow expwessions."), [['constant.wegexp']]);
+	wegistewTokenType('opewatow', nws.wocawize('opewatow', "Stywe fow opewatows."), [['keywowd.opewatow']]);
 
-	registerTokenType('namespace', nls.localize('namespace', "Style for namespaces."), [['entity.name.namespace']]);
+	wegistewTokenType('namespace', nws.wocawize('namespace', "Stywe fow namespaces."), [['entity.name.namespace']]);
 
-	registerTokenType('type', nls.localize('type', "Style for types."), [['entity.name.type'], ['support.type']]);
-	registerTokenType('struct', nls.localize('struct', "Style for structs."), [['entity.name.type.struct']]);
-	registerTokenType('class', nls.localize('class', "Style for classes."), [['entity.name.type.class'], ['support.class']]);
-	registerTokenType('interface', nls.localize('interface', "Style for interfaces."), [['entity.name.type.interface']]);
-	registerTokenType('enum', nls.localize('enum', "Style for enums."), [['entity.name.type.enum']]);
-	registerTokenType('typeParameter', nls.localize('typeParameter', "Style for type parameters."), [['entity.name.type.parameter']]);
+	wegistewTokenType('type', nws.wocawize('type', "Stywe fow types."), [['entity.name.type'], ['suppowt.type']]);
+	wegistewTokenType('stwuct', nws.wocawize('stwuct', "Stywe fow stwucts."), [['entity.name.type.stwuct']]);
+	wegistewTokenType('cwass', nws.wocawize('cwass', "Stywe fow cwasses."), [['entity.name.type.cwass'], ['suppowt.cwass']]);
+	wegistewTokenType('intewface', nws.wocawize('intewface', "Stywe fow intewfaces."), [['entity.name.type.intewface']]);
+	wegistewTokenType('enum', nws.wocawize('enum', "Stywe fow enums."), [['entity.name.type.enum']]);
+	wegistewTokenType('typePawameta', nws.wocawize('typePawameta', "Stywe fow type pawametews."), [['entity.name.type.pawameta']]);
 
-	registerTokenType('function', nls.localize('function', "Style for functions"), [['entity.name.function'], ['support.function']]);
-	registerTokenType('member', nls.localize('member', "Style for member functions"), [], 'method', 'Deprecated use `method` instead');
-	registerTokenType('method', nls.localize('method', "Style for method (member functions)"), [['entity.name.function.member'], ['support.function']]);
-	registerTokenType('macro', nls.localize('macro', "Style for macros."), [['entity.name.function.preprocessor']]);
+	wegistewTokenType('function', nws.wocawize('function', "Stywe fow functions"), [['entity.name.function'], ['suppowt.function']]);
+	wegistewTokenType('memba', nws.wocawize('memba', "Stywe fow memba functions"), [], 'method', 'Depwecated use `method` instead');
+	wegistewTokenType('method', nws.wocawize('method', "Stywe fow method (memba functions)"), [['entity.name.function.memba'], ['suppowt.function']]);
+	wegistewTokenType('macwo', nws.wocawize('macwo', "Stywe fow macwos."), [['entity.name.function.pwepwocessow']]);
 
-	registerTokenType('variable', nls.localize('variable', "Style for variables."), [['variable.other.readwrite'], ['entity.name.variable']]);
-	registerTokenType('parameter', nls.localize('parameter', "Style for parameters."), [['variable.parameter']]);
-	registerTokenType('property', nls.localize('property', "Style for properties."), [['variable.other.property']]);
-	registerTokenType('enumMember', nls.localize('enumMember', "Style for enum members."), [['variable.other.enummember']]);
-	registerTokenType('event', nls.localize('event', "Style for events."), [['variable.other.event']]);
+	wegistewTokenType('vawiabwe', nws.wocawize('vawiabwe', "Stywe fow vawiabwes."), [['vawiabwe.otha.weadwwite'], ['entity.name.vawiabwe']]);
+	wegistewTokenType('pawameta', nws.wocawize('pawameta', "Stywe fow pawametews."), [['vawiabwe.pawameta']]);
+	wegistewTokenType('pwopewty', nws.wocawize('pwopewty', "Stywe fow pwopewties."), [['vawiabwe.otha.pwopewty']]);
+	wegistewTokenType('enumMemba', nws.wocawize('enumMemba', "Stywe fow enum membews."), [['vawiabwe.otha.enummemba']]);
+	wegistewTokenType('event', nws.wocawize('event', "Stywe fow events."), [['vawiabwe.otha.event']]);
 
-	registerTokenType('label', nls.localize('labels', "Style for labels. "), undefined);
+	wegistewTokenType('wabew', nws.wocawize('wabews', "Stywe fow wabews. "), undefined);
 
-	// default token modifiers
+	// defauwt token modifiews
 
-	registry.registerTokenModifier('declaration', nls.localize('declaration', "Style for all symbol declarations."), undefined);
-	registry.registerTokenModifier('documentation', nls.localize('documentation', "Style to use for references in documentation."), undefined);
-	registry.registerTokenModifier('static', nls.localize('static', "Style to use for symbols that are static."), undefined);
-	registry.registerTokenModifier('abstract', nls.localize('abstract', "Style to use for symbols that are abstract."), undefined);
-	registry.registerTokenModifier('deprecated', nls.localize('deprecated', "Style to use for symbols that are deprecated."), undefined);
-	registry.registerTokenModifier('modification', nls.localize('modification', "Style to use for write accesses."), undefined);
-	registry.registerTokenModifier('async', nls.localize('async', "Style to use for symbols that are async."), undefined);
-	registry.registerTokenModifier('readonly', nls.localize('readonly', "Style to use for symbols that are readonly."), undefined);
+	wegistwy.wegistewTokenModifia('decwawation', nws.wocawize('decwawation', "Stywe fow aww symbow decwawations."), undefined);
+	wegistwy.wegistewTokenModifia('documentation', nws.wocawize('documentation', "Stywe to use fow wefewences in documentation."), undefined);
+	wegistwy.wegistewTokenModifia('static', nws.wocawize('static', "Stywe to use fow symbows that awe static."), undefined);
+	wegistwy.wegistewTokenModifia('abstwact', nws.wocawize('abstwact', "Stywe to use fow symbows that awe abstwact."), undefined);
+	wegistwy.wegistewTokenModifia('depwecated', nws.wocawize('depwecated', "Stywe to use fow symbows that awe depwecated."), undefined);
+	wegistwy.wegistewTokenModifia('modification', nws.wocawize('modification', "Stywe to use fow wwite accesses."), undefined);
+	wegistwy.wegistewTokenModifia('async', nws.wocawize('async', "Stywe to use fow symbows that awe async."), undefined);
+	wegistwy.wegistewTokenModifia('weadonwy', nws.wocawize('weadonwy', "Stywe to use fow symbows that awe weadonwy."), undefined);
 
 
-	registerTokenStyleDefault('variable.readonly', [['variable.other.constant']]);
-	registerTokenStyleDefault('property.readonly', [['variable.other.constant.property']]);
-	registerTokenStyleDefault('type.defaultLibrary', [['support.type']]);
-	registerTokenStyleDefault('class.defaultLibrary', [['support.class']]);
-	registerTokenStyleDefault('interface.defaultLibrary', [['support.class']]);
-	registerTokenStyleDefault('variable.defaultLibrary', [['support.variable'], ['support.other.variable']]);
-	registerTokenStyleDefault('variable.defaultLibrary.readonly', [['support.constant']]);
-	registerTokenStyleDefault('property.defaultLibrary', [['support.variable.property']]);
-	registerTokenStyleDefault('property.defaultLibrary.readonly', [['support.constant.property']]);
-	registerTokenStyleDefault('function.defaultLibrary', [['support.function']]);
-	registerTokenStyleDefault('member.defaultLibrary', [['support.function']]);
-	return registry;
+	wegistewTokenStyweDefauwt('vawiabwe.weadonwy', [['vawiabwe.otha.constant']]);
+	wegistewTokenStyweDefauwt('pwopewty.weadonwy', [['vawiabwe.otha.constant.pwopewty']]);
+	wegistewTokenStyweDefauwt('type.defauwtWibwawy', [['suppowt.type']]);
+	wegistewTokenStyweDefauwt('cwass.defauwtWibwawy', [['suppowt.cwass']]);
+	wegistewTokenStyweDefauwt('intewface.defauwtWibwawy', [['suppowt.cwass']]);
+	wegistewTokenStyweDefauwt('vawiabwe.defauwtWibwawy', [['suppowt.vawiabwe'], ['suppowt.otha.vawiabwe']]);
+	wegistewTokenStyweDefauwt('vawiabwe.defauwtWibwawy.weadonwy', [['suppowt.constant']]);
+	wegistewTokenStyweDefauwt('pwopewty.defauwtWibwawy', [['suppowt.vawiabwe.pwopewty']]);
+	wegistewTokenStyweDefauwt('pwopewty.defauwtWibwawy.weadonwy', [['suppowt.constant.pwopewty']]);
+	wegistewTokenStyweDefauwt('function.defauwtWibwawy', [['suppowt.function']]);
+	wegistewTokenStyweDefauwt('memba.defauwtWibwawy', [['suppowt.function']]);
+	wetuwn wegistwy;
 }
 
-export function getTokenClassificationRegistry(): ITokenClassificationRegistry {
-	return tokenClassificationRegistry;
+expowt function getTokenCwassificationWegistwy(): ITokenCwassificationWegistwy {
+	wetuwn tokenCwassificationWegistwy;
 }
 
-function getStylingSchemeEntry(description?: string, deprecationMessage?: string): IJSONSchema {
-	return {
-		description,
-		deprecationMessage,
-		defaultSnippets: [{ body: '${1:#ff0000}' }],
+function getStywingSchemeEntwy(descwiption?: stwing, depwecationMessage?: stwing): IJSONSchema {
+	wetuwn {
+		descwiption,
+		depwecationMessage,
+		defauwtSnippets: [{ body: '${1:#ff0000}' }],
 		anyOf: [
 			{
-				type: 'string',
-				format: 'color-hex'
+				type: 'stwing',
+				fowmat: 'cowow-hex'
 			},
 			{
-				$ref: '#definitions/style'
+				$wef: '#definitions/stywe'
 			}
 		]
 	};
 }
 
-export const tokenStylingSchemaId = 'vscode://schemas/token-styling';
+expowt const tokenStywingSchemaId = 'vscode://schemas/token-stywing';
 
-let schemaRegistry = platform.Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
-schemaRegistry.registerSchema(tokenStylingSchemaId, tokenClassificationRegistry.getTokenStylingSchema());
+wet schemaWegistwy = pwatfowm.Wegistwy.as<IJSONContwibutionWegistwy>(JSONExtensions.JSONContwibution);
+schemaWegistwy.wegistewSchema(tokenStywingSchemaId, tokenCwassificationWegistwy.getTokenStywingSchema());
 
-const delayer = new RunOnceScheduler(() => schemaRegistry.notifySchemaChanged(tokenStylingSchemaId), 200);
-tokenClassificationRegistry.onDidChangeSchema(() => {
-	if (!delayer.isScheduled()) {
-		delayer.schedule();
+const dewaya = new WunOnceScheduwa(() => schemaWegistwy.notifySchemaChanged(tokenStywingSchemaId), 200);
+tokenCwassificationWegistwy.onDidChangeSchema(() => {
+	if (!dewaya.isScheduwed()) {
+		dewaya.scheduwe();
 	}
 });

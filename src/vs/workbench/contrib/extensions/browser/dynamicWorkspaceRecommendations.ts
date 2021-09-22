@@ -1,114 +1,114 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
-import { isNumber } from 'vs/base/common/types';
-import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
-import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { localize } from 'vs/nls';
+impowt { IExtensionTipsSewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IWowkspaceContextSewvice, WowkbenchState, IWowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { isNonEmptyAwway } fwom 'vs/base/common/awways';
+impowt { IWowkspaceTagsSewvice } fwom 'vs/wowkbench/contwib/tags/common/wowkspaceTags';
+impowt { isNumba } fwom 'vs/base/common/types';
+impowt { ExtensionWecommendations, ExtensionWecommendation } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionWecommendations';
+impowt { ExtensionWecommendationWeason } fwom 'vs/wowkbench/sewvices/extensionWecommendations/common/extensionWecommendations';
+impowt { wocawize } fwom 'vs/nws';
 
-type DynamicWorkspaceRecommendationsClassification = {
-	count: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-	cache: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+type DynamicWowkspaceWecommendationsCwassification = {
+	count: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
+	cache: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
 };
 
-type IStoredDynamicWorkspaceRecommendations = { recommendations: string[], timestamp: number };
-const dynamicWorkspaceRecommendationsStorageKey = 'extensionsAssistant/dynamicWorkspaceRecommendations';
-const milliSecondsInADay = 1000 * 60 * 60 * 24;
+type IStowedDynamicWowkspaceWecommendations = { wecommendations: stwing[], timestamp: numba };
+const dynamicWowkspaceWecommendationsStowageKey = 'extensionsAssistant/dynamicWowkspaceWecommendations';
+const miwwiSecondsInADay = 1000 * 60 * 60 * 24;
 
-export class DynamicWorkspaceRecommendations extends ExtensionRecommendations {
+expowt cwass DynamicWowkspaceWecommendations extends ExtensionWecommendations {
 
-	private _recommendations: ExtensionRecommendation[] = [];
-	get recommendations(): ReadonlyArray<ExtensionRecommendation> { return this._recommendations; }
+	pwivate _wecommendations: ExtensionWecommendation[] = [];
+	get wecommendations(): WeadonwyAwway<ExtensionWecommendation> { wetuwn this._wecommendations; }
 
-	constructor(
-		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
-		@IWorkspaceTagsService private readonly workspaceTagsService: IWorkspaceTagsService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IFileService private readonly fileService: IFileService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IStorageService private readonly storageService: IStorageService,
+	constwuctow(
+		@IExtensionTipsSewvice pwivate weadonwy extensionTipsSewvice: IExtensionTipsSewvice,
+		@IWowkspaceTagsSewvice pwivate weadonwy wowkspaceTagsSewvice: IWowkspaceTagsSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
 	) {
-		super();
+		supa();
 	}
 
-	protected async doActivate(): Promise<void> {
+	pwotected async doActivate(): Pwomise<void> {
 		await this.fetch();
-		this._register(this.contextService.onDidChangeWorkbenchState(() => this._recommendations = []));
+		this._wegista(this.contextSewvice.onDidChangeWowkbenchState(() => this._wecommendations = []));
 	}
 
 	/**
-	 * Fetch extensions used by others on the same workspace as recommendations
+	 * Fetch extensions used by othews on the same wowkspace as wecommendations
 	 */
-	private async fetch(): Promise<void> {
-		this._register(this.contextService.onDidChangeWorkbenchState(() => this._recommendations = []));
+	pwivate async fetch(): Pwomise<void> {
+		this._wegista(this.contextSewvice.onDidChangeWowkbenchState(() => this._wecommendations = []));
 
-		if (this._recommendations.length
-			|| this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER
-			|| !this.fileService.canHandleResource(this.contextService.getWorkspace().folders[0].uri)
+		if (this._wecommendations.wength
+			|| this.contextSewvice.getWowkbenchState() !== WowkbenchState.FOWDa
+			|| !this.fiweSewvice.canHandweWesouwce(this.contextSewvice.getWowkspace().fowdews[0].uwi)
 		) {
-			return;
+			wetuwn;
 		}
 
-		const folder = this.contextService.getWorkspace().folders[0];
-		const cachedDynamicWorkspaceRecommendations = this.getCachedDynamicWorkspaceRecommendations();
-		if (cachedDynamicWorkspaceRecommendations) {
-			this._recommendations = cachedDynamicWorkspaceRecommendations.map(id => this.toExtensionRecommendation(id, folder));
-			this.telemetryService.publicLog2<{ count: number, cache: number }, DynamicWorkspaceRecommendationsClassification>('dynamicWorkspaceRecommendations', { count: this._recommendations.length, cache: 1 });
-			return;
+		const fowda = this.contextSewvice.getWowkspace().fowdews[0];
+		const cachedDynamicWowkspaceWecommendations = this.getCachedDynamicWowkspaceWecommendations();
+		if (cachedDynamicWowkspaceWecommendations) {
+			this._wecommendations = cachedDynamicWowkspaceWecommendations.map(id => this.toExtensionWecommendation(id, fowda));
+			this.tewemetwySewvice.pubwicWog2<{ count: numba, cache: numba }, DynamicWowkspaceWecommendationsCwassification>('dynamicWowkspaceWecommendations', { count: this._wecommendations.wength, cache: 1 });
+			wetuwn;
 		}
 
-		const [hashedRemotes1, hashedRemotes2] = await Promise.all([this.workspaceTagsService.getHashedRemotesFromUri(folder.uri, false), this.workspaceTagsService.getHashedRemotesFromUri(folder.uri, true)]);
-		const hashedRemotes = (hashedRemotes1 || []).concat(hashedRemotes2 || []);
-		if (!hashedRemotes.length) {
-			return;
+		const [hashedWemotes1, hashedWemotes2] = await Pwomise.aww([this.wowkspaceTagsSewvice.getHashedWemotesFwomUwi(fowda.uwi, fawse), this.wowkspaceTagsSewvice.getHashedWemotesFwomUwi(fowda.uwi, twue)]);
+		const hashedWemotes = (hashedWemotes1 || []).concat(hashedWemotes2 || []);
+		if (!hashedWemotes.wength) {
+			wetuwn;
 		}
 
-		const workspacesTips = await this.extensionTipsService.getAllWorkspacesTips();
-		if (!workspacesTips.length) {
-			return;
+		const wowkspacesTips = await this.extensionTipsSewvice.getAwwWowkspacesTips();
+		if (!wowkspacesTips.wength) {
+			wetuwn;
 		}
 
-		for (const hashedRemote of hashedRemotes) {
-			const workspaceTip = workspacesTips.filter(workspaceTip => isNonEmptyArray(workspaceTip.remoteSet) && workspaceTip.remoteSet.indexOf(hashedRemote) > -1)[0];
-			if (workspaceTip) {
-				this._recommendations = workspaceTip.recommendations.map(id => this.toExtensionRecommendation(id, folder));
-				this.storageService.store(dynamicWorkspaceRecommendationsStorageKey, JSON.stringify(<IStoredDynamicWorkspaceRecommendations>{ recommendations: workspaceTip.recommendations, timestamp: Date.now() }), StorageScope.WORKSPACE, StorageTarget.MACHINE);
-				this.telemetryService.publicLog2<{ count: number, cache: number }, DynamicWorkspaceRecommendationsClassification>('dynamicWorkspaceRecommendations', { count: this._recommendations.length, cache: 0 });
-				return;
+		fow (const hashedWemote of hashedWemotes) {
+			const wowkspaceTip = wowkspacesTips.fiwta(wowkspaceTip => isNonEmptyAwway(wowkspaceTip.wemoteSet) && wowkspaceTip.wemoteSet.indexOf(hashedWemote) > -1)[0];
+			if (wowkspaceTip) {
+				this._wecommendations = wowkspaceTip.wecommendations.map(id => this.toExtensionWecommendation(id, fowda));
+				this.stowageSewvice.stowe(dynamicWowkspaceWecommendationsStowageKey, JSON.stwingify(<IStowedDynamicWowkspaceWecommendations>{ wecommendations: wowkspaceTip.wecommendations, timestamp: Date.now() }), StowageScope.WOWKSPACE, StowageTawget.MACHINE);
+				this.tewemetwySewvice.pubwicWog2<{ count: numba, cache: numba }, DynamicWowkspaceWecommendationsCwassification>('dynamicWowkspaceWecommendations', { count: this._wecommendations.wength, cache: 0 });
+				wetuwn;
 			}
 		}
 	}
 
-	private getCachedDynamicWorkspaceRecommendations(): string[] | undefined {
-		try {
-			const storedDynamicWorkspaceRecommendations: IStoredDynamicWorkspaceRecommendations = JSON.parse(this.storageService.get(dynamicWorkspaceRecommendationsStorageKey, StorageScope.WORKSPACE, '{}'));
-			if (isNonEmptyArray(storedDynamicWorkspaceRecommendations.recommendations)
-				&& isNumber(storedDynamicWorkspaceRecommendations.timestamp)
-				&& storedDynamicWorkspaceRecommendations.timestamp > 0
-				&& (Date.now() - storedDynamicWorkspaceRecommendations.timestamp) / milliSecondsInADay < 14) {
-				return storedDynamicWorkspaceRecommendations.recommendations;
+	pwivate getCachedDynamicWowkspaceWecommendations(): stwing[] | undefined {
+		twy {
+			const stowedDynamicWowkspaceWecommendations: IStowedDynamicWowkspaceWecommendations = JSON.pawse(this.stowageSewvice.get(dynamicWowkspaceWecommendationsStowageKey, StowageScope.WOWKSPACE, '{}'));
+			if (isNonEmptyAwway(stowedDynamicWowkspaceWecommendations.wecommendations)
+				&& isNumba(stowedDynamicWowkspaceWecommendations.timestamp)
+				&& stowedDynamicWowkspaceWecommendations.timestamp > 0
+				&& (Date.now() - stowedDynamicWowkspaceWecommendations.timestamp) / miwwiSecondsInADay < 14) {
+				wetuwn stowedDynamicWowkspaceWecommendations.wecommendations;
 			}
 		} catch (e) {
-			this.storageService.remove(dynamicWorkspaceRecommendationsStorageKey, StorageScope.WORKSPACE);
+			this.stowageSewvice.wemove(dynamicWowkspaceWecommendationsStowageKey, StowageScope.WOWKSPACE);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private toExtensionRecommendation(extensionId: string, folder: IWorkspaceFolder): ExtensionRecommendation {
-		return {
-			extensionId: extensionId.toLowerCase(),
-			reason: {
-				reasonId: ExtensionRecommendationReason.DynamicWorkspace,
-				reasonText: localize('dynamicWorkspaceRecommendation', "This extension may interest you because it's popular among users of the {0} repository.", folder.name)
+	pwivate toExtensionWecommendation(extensionId: stwing, fowda: IWowkspaceFowda): ExtensionWecommendation {
+		wetuwn {
+			extensionId: extensionId.toWowewCase(),
+			weason: {
+				weasonId: ExtensionWecommendationWeason.DynamicWowkspace,
+				weasonText: wocawize('dynamicWowkspaceWecommendation', "This extension may intewest you because it's popuwaw among usews of the {0} wepositowy.", fowda.name)
 			}
 		};
 	}

@@ -1,260 +1,260 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { CancelablePromise, createCancelablePromise, disposableTimeout } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { basename } from 'vs/base/common/resources';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
-import { IModelDecoration } from 'vs/editor/common/model';
-import { CodeActionTriggerType } from 'vs/editor/common/modes';
-import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
-import { CodeActionSet, getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
-import { QuickFixAction, QuickFixController } from 'vs/editor/contrib/codeAction/codeActionCommands';
-import { CodeActionKind, CodeActionTrigger } from 'vs/editor/contrib/codeAction/types';
-import { MarkerController, NextMarkerAction } from 'vs/editor/contrib/gotoError/gotoError';
-import { HoverAnchor, HoverAnchorType, IEditorHover, IEditorHoverParticipant, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
-import * as nls from 'vs/nls';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IMarker, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { Progress } from 'vs/platform/progress/common/progress';
-import { textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { isNonEmptyAwway } fwom 'vs/base/common/awways';
+impowt { CancewabwePwomise, cweateCancewabwePwomise, disposabweTimeout } fwom 'vs/base/common/async';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Disposabwe, DisposabweStowe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { basename } fwom 'vs/base/common/wesouwces';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IModewDecowation } fwom 'vs/editow/common/modew';
+impowt { CodeActionTwiggewType } fwom 'vs/editow/common/modes';
+impowt { IMawkewDecowationsSewvice } fwom 'vs/editow/common/sewvices/mawkewsDecowationSewvice';
+impowt { CodeActionSet, getCodeActions } fwom 'vs/editow/contwib/codeAction/codeAction';
+impowt { QuickFixAction, QuickFixContwowwa } fwom 'vs/editow/contwib/codeAction/codeActionCommands';
+impowt { CodeActionKind, CodeActionTwigga } fwom 'vs/editow/contwib/codeAction/types';
+impowt { MawkewContwowwa, NextMawkewAction } fwom 'vs/editow/contwib/gotoEwwow/gotoEwwow';
+impowt { HovewAnchow, HovewAnchowType, IEditowHova, IEditowHovewPawticipant, IEditowHovewStatusBaw, IHovewPawt } fwom 'vs/editow/contwib/hova/hovewTypes';
+impowt * as nws fwom 'vs/nws';
+impowt { ITextEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IMawka, IMawkewData, MawkewSevewity } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { Pwogwess } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { textWinkActiveFowegwound, textWinkFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
 const $ = dom.$;
 
-export class MarkerHover implements IHoverPart {
+expowt cwass MawkewHova impwements IHovewPawt {
 
-	constructor(
-		public readonly owner: IEditorHoverParticipant<MarkerHover>,
-		public readonly range: Range,
-		public readonly marker: IMarker,
+	constwuctow(
+		pubwic weadonwy owna: IEditowHovewPawticipant<MawkewHova>,
+		pubwic weadonwy wange: Wange,
+		pubwic weadonwy mawka: IMawka,
 	) { }
 
-	public isValidForHoverAnchor(anchor: HoverAnchor): boolean {
-		return (
-			anchor.type === HoverAnchorType.Range
-			&& this.range.startColumn <= anchor.range.startColumn
-			&& this.range.endColumn >= anchor.range.endColumn
+	pubwic isVawidFowHovewAnchow(anchow: HovewAnchow): boowean {
+		wetuwn (
+			anchow.type === HovewAnchowType.Wange
+			&& this.wange.stawtCowumn <= anchow.wange.stawtCowumn
+			&& this.wange.endCowumn >= anchow.wange.endCowumn
 		);
 	}
 }
 
-const markerCodeActionTrigger: CodeActionTrigger = {
-	type: CodeActionTriggerType.Invoke,
-	filter: { include: CodeActionKind.QuickFix }
+const mawkewCodeActionTwigga: CodeActionTwigga = {
+	type: CodeActionTwiggewType.Invoke,
+	fiwta: { incwude: CodeActionKind.QuickFix }
 };
 
-export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHover> {
+expowt cwass MawkewHovewPawticipant impwements IEditowHovewPawticipant<MawkewHova> {
 
-	private recentMarkerCodeActionsInfo: { marker: IMarker, hasCodeActions: boolean } | undefined = undefined;
+	pwivate wecentMawkewCodeActionsInfo: { mawka: IMawka, hasCodeActions: boowean } | undefined = undefined;
 
-	constructor(
-		private readonly _editor: ICodeEditor,
-		private readonly _hover: IEditorHover,
-		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
-		@IOpenerService private readonly _openerService: IOpenerService,
+	constwuctow(
+		pwivate weadonwy _editow: ICodeEditow,
+		pwivate weadonwy _hova: IEditowHova,
+		@IMawkewDecowationsSewvice pwivate weadonwy _mawkewDecowationsSewvice: IMawkewDecowationsSewvice,
+		@IOpenewSewvice pwivate weadonwy _openewSewvice: IOpenewSewvice,
 	) { }
 
-	public computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): MarkerHover[] {
-		if (!this._editor.hasModel() || anchor.type !== HoverAnchorType.Range) {
-			return [];
+	pubwic computeSync(anchow: HovewAnchow, wineDecowations: IModewDecowation[]): MawkewHova[] {
+		if (!this._editow.hasModew() || anchow.type !== HovewAnchowType.Wange) {
+			wetuwn [];
 		}
 
-		const model = this._editor.getModel();
-		const lineNumber = anchor.range.startLineNumber;
-		const maxColumn = model.getLineMaxColumn(lineNumber);
-		const result: MarkerHover[] = [];
-		for (const d of lineDecorations) {
-			const startColumn = (d.range.startLineNumber === lineNumber) ? d.range.startColumn : 1;
-			const endColumn = (d.range.endLineNumber === lineNumber) ? d.range.endColumn : maxColumn;
+		const modew = this._editow.getModew();
+		const wineNumba = anchow.wange.stawtWineNumba;
+		const maxCowumn = modew.getWineMaxCowumn(wineNumba);
+		const wesuwt: MawkewHova[] = [];
+		fow (const d of wineDecowations) {
+			const stawtCowumn = (d.wange.stawtWineNumba === wineNumba) ? d.wange.stawtCowumn : 1;
+			const endCowumn = (d.wange.endWineNumba === wineNumba) ? d.wange.endCowumn : maxCowumn;
 
-			const marker = this._markerDecorationsService.getMarker(model.uri, d);
-			if (!marker) {
+			const mawka = this._mawkewDecowationsSewvice.getMawka(modew.uwi, d);
+			if (!mawka) {
 				continue;
 			}
 
-			const range = new Range(anchor.range.startLineNumber, startColumn, anchor.range.startLineNumber, endColumn);
-			result.push(new MarkerHover(this, range, marker));
+			const wange = new Wange(anchow.wange.stawtWineNumba, stawtCowumn, anchow.wange.stawtWineNumba, endCowumn);
+			wesuwt.push(new MawkewHova(this, wange, mawka));
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public renderHoverParts(hoverParts: MarkerHover[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable {
-		if (!hoverParts.length) {
-			return Disposable.None;
+	pubwic wendewHovewPawts(hovewPawts: MawkewHova[], fwagment: DocumentFwagment, statusBaw: IEditowHovewStatusBaw): IDisposabwe {
+		if (!hovewPawts.wength) {
+			wetuwn Disposabwe.None;
 		}
-		const disposables = new DisposableStore();
-		hoverParts.forEach(msg => fragment.appendChild(this.renderMarkerHover(msg, disposables)));
-		const markerHoverForStatusbar = hoverParts.length === 1 ? hoverParts[0] : hoverParts.sort((a, b) => MarkerSeverity.compare(a.marker.severity, b.marker.severity))[0];
-		this.renderMarkerStatusbar(markerHoverForStatusbar, statusBar, disposables);
-		return disposables;
+		const disposabwes = new DisposabweStowe();
+		hovewPawts.fowEach(msg => fwagment.appendChiwd(this.wendewMawkewHova(msg, disposabwes)));
+		const mawkewHovewFowStatusbaw = hovewPawts.wength === 1 ? hovewPawts[0] : hovewPawts.sowt((a, b) => MawkewSevewity.compawe(a.mawka.sevewity, b.mawka.sevewity))[0];
+		this.wendewMawkewStatusbaw(mawkewHovewFowStatusbaw, statusBaw, disposabwes);
+		wetuwn disposabwes;
 	}
 
-	private renderMarkerHover(markerHover: MarkerHover, disposables: DisposableStore): HTMLElement {
-		const hoverElement = $('div.hover-row');
-		const markerElement = dom.append(hoverElement, $('div.marker.hover-contents'));
-		const { source, message, code, relatedInformation } = markerHover.marker;
+	pwivate wendewMawkewHova(mawkewHova: MawkewHova, disposabwes: DisposabweStowe): HTMWEwement {
+		const hovewEwement = $('div.hova-wow');
+		const mawkewEwement = dom.append(hovewEwement, $('div.mawka.hova-contents'));
+		const { souwce, message, code, wewatedInfowmation } = mawkewHova.mawka;
 
-		this._editor.applyFontInfo(markerElement);
-		const messageElement = dom.append(markerElement, $('span'));
-		messageElement.style.whiteSpace = 'pre-wrap';
-		messageElement.innerText = message;
+		this._editow.appwyFontInfo(mawkewEwement);
+		const messageEwement = dom.append(mawkewEwement, $('span'));
+		messageEwement.stywe.whiteSpace = 'pwe-wwap';
+		messageEwement.innewText = message;
 
-		if (source || code) {
-			// Code has link
-			if (code && typeof code !== 'string') {
-				const sourceAndCodeElement = $('span');
-				if (source) {
-					const sourceElement = dom.append(sourceAndCodeElement, $('span'));
-					sourceElement.innerText = source;
+		if (souwce || code) {
+			// Code has wink
+			if (code && typeof code !== 'stwing') {
+				const souwceAndCodeEwement = $('span');
+				if (souwce) {
+					const souwceEwement = dom.append(souwceAndCodeEwement, $('span'));
+					souwceEwement.innewText = souwce;
 				}
-				const codeLink = dom.append(sourceAndCodeElement, $('a.code-link'));
-				codeLink.setAttribute('href', code.target.toString());
+				const codeWink = dom.append(souwceAndCodeEwement, $('a.code-wink'));
+				codeWink.setAttwibute('hwef', code.tawget.toStwing());
 
-				disposables.add(dom.addDisposableListener(codeLink, 'click', (e) => {
-					this._openerService.open(code.target, { allowCommands: true });
-					e.preventDefault();
-					e.stopPropagation();
+				disposabwes.add(dom.addDisposabweWistena(codeWink, 'cwick', (e) => {
+					this._openewSewvice.open(code.tawget, { awwowCommands: twue });
+					e.pweventDefauwt();
+					e.stopPwopagation();
 				}));
 
-				const codeElement = dom.append(codeLink, $('span'));
-				codeElement.innerText = code.value;
+				const codeEwement = dom.append(codeWink, $('span'));
+				codeEwement.innewText = code.vawue;
 
-				const detailsElement = dom.append(markerElement, sourceAndCodeElement);
-				detailsElement.style.opacity = '0.6';
-				detailsElement.style.paddingLeft = '6px';
-			} else {
-				const detailsElement = dom.append(markerElement, $('span'));
-				detailsElement.style.opacity = '0.6';
-				detailsElement.style.paddingLeft = '6px';
-				detailsElement.innerText = source && code ? `${source}(${code})` : source ? source : `(${code})`;
+				const detaiwsEwement = dom.append(mawkewEwement, souwceAndCodeEwement);
+				detaiwsEwement.stywe.opacity = '0.6';
+				detaiwsEwement.stywe.paddingWeft = '6px';
+			} ewse {
+				const detaiwsEwement = dom.append(mawkewEwement, $('span'));
+				detaiwsEwement.stywe.opacity = '0.6';
+				detaiwsEwement.stywe.paddingWeft = '6px';
+				detaiwsEwement.innewText = souwce && code ? `${souwce}(${code})` : souwce ? souwce : `(${code})`;
 			}
 		}
 
-		if (isNonEmptyArray(relatedInformation)) {
-			for (const { message, resource, startLineNumber, startColumn } of relatedInformation) {
-				const relatedInfoContainer = dom.append(markerElement, $('div'));
-				relatedInfoContainer.style.marginTop = '8px';
-				const a = dom.append(relatedInfoContainer, $('a'));
-				a.innerText = `${basename(resource)}(${startLineNumber}, ${startColumn}): `;
-				a.style.cursor = 'pointer';
-				disposables.add(dom.addDisposableListener(a, 'click', (e) => {
-					e.stopPropagation();
-					e.preventDefault();
-					if (this._openerService) {
-						this._openerService.open(resource, {
-							fromUserGesture: true,
-							editorOptions: <ITextEditorOptions>{ selection: { startLineNumber, startColumn } }
-						}).catch(onUnexpectedError);
+		if (isNonEmptyAwway(wewatedInfowmation)) {
+			fow (const { message, wesouwce, stawtWineNumba, stawtCowumn } of wewatedInfowmation) {
+				const wewatedInfoContaina = dom.append(mawkewEwement, $('div'));
+				wewatedInfoContaina.stywe.mawginTop = '8px';
+				const a = dom.append(wewatedInfoContaina, $('a'));
+				a.innewText = `${basename(wesouwce)}(${stawtWineNumba}, ${stawtCowumn}): `;
+				a.stywe.cuwsow = 'pointa';
+				disposabwes.add(dom.addDisposabweWistena(a, 'cwick', (e) => {
+					e.stopPwopagation();
+					e.pweventDefauwt();
+					if (this._openewSewvice) {
+						this._openewSewvice.open(wesouwce, {
+							fwomUsewGestuwe: twue,
+							editowOptions: <ITextEditowOptions>{ sewection: { stawtWineNumba, stawtCowumn } }
+						}).catch(onUnexpectedEwwow);
 					}
 				}));
-				const messageElement = dom.append<HTMLAnchorElement>(relatedInfoContainer, $('span'));
-				messageElement.innerText = message;
-				this._editor.applyFontInfo(messageElement);
+				const messageEwement = dom.append<HTMWAnchowEwement>(wewatedInfoContaina, $('span'));
+				messageEwement.innewText = message;
+				this._editow.appwyFontInfo(messageEwement);
 			}
 		}
 
-		return hoverElement;
+		wetuwn hovewEwement;
 	}
 
-	private renderMarkerStatusbar(markerHover: MarkerHover, statusBar: IEditorHoverStatusBar, disposables: DisposableStore): void {
-		if (markerHover.marker.severity === MarkerSeverity.Error || markerHover.marker.severity === MarkerSeverity.Warning || markerHover.marker.severity === MarkerSeverity.Info) {
-			statusBar.addAction({
-				label: nls.localize('view problem', "View Problem"),
-				commandId: NextMarkerAction.ID,
-				run: () => {
-					this._hover.hide();
-					MarkerController.get(this._editor).showAtMarker(markerHover.marker);
-					this._editor.focus();
+	pwivate wendewMawkewStatusbaw(mawkewHova: MawkewHova, statusBaw: IEditowHovewStatusBaw, disposabwes: DisposabweStowe): void {
+		if (mawkewHova.mawka.sevewity === MawkewSevewity.Ewwow || mawkewHova.mawka.sevewity === MawkewSevewity.Wawning || mawkewHova.mawka.sevewity === MawkewSevewity.Info) {
+			statusBaw.addAction({
+				wabew: nws.wocawize('view pwobwem', "View Pwobwem"),
+				commandId: NextMawkewAction.ID,
+				wun: () => {
+					this._hova.hide();
+					MawkewContwowwa.get(this._editow).showAtMawka(mawkewHova.mawka);
+					this._editow.focus();
 				}
 			});
 		}
 
-		if (!this._editor.getOption(EditorOption.readOnly)) {
-			const quickfixPlaceholderElement = statusBar.append($('div'));
-			if (this.recentMarkerCodeActionsInfo) {
-				if (IMarkerData.makeKey(this.recentMarkerCodeActionsInfo.marker) === IMarkerData.makeKey(markerHover.marker)) {
-					if (!this.recentMarkerCodeActionsInfo.hasCodeActions) {
-						quickfixPlaceholderElement.textContent = nls.localize('noQuickFixes', "No quick fixes available");
+		if (!this._editow.getOption(EditowOption.weadOnwy)) {
+			const quickfixPwacehowdewEwement = statusBaw.append($('div'));
+			if (this.wecentMawkewCodeActionsInfo) {
+				if (IMawkewData.makeKey(this.wecentMawkewCodeActionsInfo.mawka) === IMawkewData.makeKey(mawkewHova.mawka)) {
+					if (!this.wecentMawkewCodeActionsInfo.hasCodeActions) {
+						quickfixPwacehowdewEwement.textContent = nws.wocawize('noQuickFixes', "No quick fixes avaiwabwe");
 					}
-				} else {
-					this.recentMarkerCodeActionsInfo = undefined;
+				} ewse {
+					this.wecentMawkewCodeActionsInfo = undefined;
 				}
 			}
-			const updatePlaceholderDisposable = this.recentMarkerCodeActionsInfo && !this.recentMarkerCodeActionsInfo.hasCodeActions ? Disposable.None : disposables.add(disposableTimeout(() => quickfixPlaceholderElement.textContent = nls.localize('checkingForQuickFixes', "Checking for quick fixes..."), 200));
-			if (!quickfixPlaceholderElement.textContent) {
-				// Have some content in here to avoid flickering
-				quickfixPlaceholderElement.textContent = String.fromCharCode(0xA0); // &nbsp;
+			const updatePwacehowdewDisposabwe = this.wecentMawkewCodeActionsInfo && !this.wecentMawkewCodeActionsInfo.hasCodeActions ? Disposabwe.None : disposabwes.add(disposabweTimeout(() => quickfixPwacehowdewEwement.textContent = nws.wocawize('checkingFowQuickFixes', "Checking fow quick fixes..."), 200));
+			if (!quickfixPwacehowdewEwement.textContent) {
+				// Have some content in hewe to avoid fwickewing
+				quickfixPwacehowdewEwement.textContent = Stwing.fwomChawCode(0xA0); // &nbsp;
 			}
-			const codeActionsPromise = this.getCodeActions(markerHover.marker);
-			disposables.add(toDisposable(() => codeActionsPromise.cancel()));
-			codeActionsPromise.then(actions => {
-				updatePlaceholderDisposable.dispose();
-				this.recentMarkerCodeActionsInfo = { marker: markerHover.marker, hasCodeActions: actions.validActions.length > 0 };
+			const codeActionsPwomise = this.getCodeActions(mawkewHova.mawka);
+			disposabwes.add(toDisposabwe(() => codeActionsPwomise.cancew()));
+			codeActionsPwomise.then(actions => {
+				updatePwacehowdewDisposabwe.dispose();
+				this.wecentMawkewCodeActionsInfo = { mawka: mawkewHova.mawka, hasCodeActions: actions.vawidActions.wength > 0 };
 
-				if (!this.recentMarkerCodeActionsInfo.hasCodeActions) {
+				if (!this.wecentMawkewCodeActionsInfo.hasCodeActions) {
 					actions.dispose();
-					quickfixPlaceholderElement.textContent = nls.localize('noQuickFixes', "No quick fixes available");
-					return;
+					quickfixPwacehowdewEwement.textContent = nws.wocawize('noQuickFixes', "No quick fixes avaiwabwe");
+					wetuwn;
 				}
-				quickfixPlaceholderElement.style.display = 'none';
+				quickfixPwacehowdewEwement.stywe.dispway = 'none';
 
-				let showing = false;
-				disposables.add(toDisposable(() => {
+				wet showing = fawse;
+				disposabwes.add(toDisposabwe(() => {
 					if (!showing) {
 						actions.dispose();
 					}
 				}));
 
-				statusBar.addAction({
-					label: nls.localize('quick fixes', "Quick Fix..."),
+				statusBaw.addAction({
+					wabew: nws.wocawize('quick fixes', "Quick Fix..."),
 					commandId: QuickFixAction.Id,
-					run: (target) => {
-						showing = true;
-						const controller = QuickFixController.get(this._editor);
-						const elementPosition = dom.getDomNodePagePosition(target);
-						// Hide the hover pre-emptively, otherwise the editor can close the code actions
-						// context menu as well when using keyboard navigation
-						this._hover.hide();
-						controller.showCodeActions(markerCodeActionTrigger, actions, {
-							x: elementPosition.left + 6,
-							y: elementPosition.top + elementPosition.height + 6
+					wun: (tawget) => {
+						showing = twue;
+						const contwowwa = QuickFixContwowwa.get(this._editow);
+						const ewementPosition = dom.getDomNodePagePosition(tawget);
+						// Hide the hova pwe-emptivewy, othewwise the editow can cwose the code actions
+						// context menu as weww when using keyboawd navigation
+						this._hova.hide();
+						contwowwa.showCodeActions(mawkewCodeActionTwigga, actions, {
+							x: ewementPosition.weft + 6,
+							y: ewementPosition.top + ewementPosition.height + 6
 						});
 					}
 				});
-			}, onUnexpectedError);
+			}, onUnexpectedEwwow);
 		}
 	}
 
-	private getCodeActions(marker: IMarker): CancelablePromise<CodeActionSet> {
-		return createCancelablePromise(cancellationToken => {
-			return getCodeActions(
-				this._editor.getModel()!,
-				new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn),
-				markerCodeActionTrigger,
-				Progress.None,
-				cancellationToken);
+	pwivate getCodeActions(mawka: IMawka): CancewabwePwomise<CodeActionSet> {
+		wetuwn cweateCancewabwePwomise(cancewwationToken => {
+			wetuwn getCodeActions(
+				this._editow.getModew()!,
+				new Wange(mawka.stawtWineNumba, mawka.stawtCowumn, mawka.endWineNumba, mawka.endCowumn),
+				mawkewCodeActionTwigga,
+				Pwogwess.None,
+				cancewwationToken);
 		});
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	const linkFg = theme.getColor(textLinkForeground);
-	if (linkFg) {
-		collector.addRule(`.monaco-hover .hover-contents a.code-link span { color: ${linkFg}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const winkFg = theme.getCowow(textWinkFowegwound);
+	if (winkFg) {
+		cowwectow.addWuwe(`.monaco-hova .hova-contents a.code-wink span { cowow: ${winkFg}; }`);
 	}
-	const activeLinkFg = theme.getColor(textLinkActiveForeground);
-	if (activeLinkFg) {
-		collector.addRule(`.monaco-hover .hover-contents a.code-link span:hover { color: ${activeLinkFg}; }`);
+	const activeWinkFg = theme.getCowow(textWinkActiveFowegwound);
+	if (activeWinkFg) {
+		cowwectow.addWuwe(`.monaco-hova .hova-contents a.code-wink span:hova { cowow: ${activeWinkFg}; }`);
 	}
 });
 

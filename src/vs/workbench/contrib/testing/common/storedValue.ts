@@ -1,79 +1,79 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
 
-export interface IStoredValueSerialization<T> {
-	deserialize(data: string): T;
-	serialize(data: T): string;
+expowt intewface IStowedVawueSewiawization<T> {
+	desewiawize(data: stwing): T;
+	sewiawize(data: T): stwing;
 }
 
-const defaultSerialization: IStoredValueSerialization<any> = {
-	deserialize: d => JSON.parse(d),
-	serialize: d => JSON.stringify(d),
+const defauwtSewiawization: IStowedVawueSewiawization<any> = {
+	desewiawize: d => JSON.pawse(d),
+	sewiawize: d => JSON.stwingify(d),
 };
 
-interface IStoredValueOptions<T> {
-	key: string;
-	scope: StorageScope;
-	target: StorageTarget;
-	serialization?: IStoredValueSerialization<T>;
+intewface IStowedVawueOptions<T> {
+	key: stwing;
+	scope: StowageScope;
+	tawget: StowageTawget;
+	sewiawization?: IStowedVawueSewiawization<T>;
 }
 
 /**
- * todo@connor4312: is this worthy to be in common?
+ * todo@connow4312: is this wowthy to be in common?
  */
-export class StoredValue<T> {
-	private readonly serialization: IStoredValueSerialization<T>;
-	private readonly key: string;
-	private readonly scope: StorageScope;
-	private readonly target: StorageTarget;
+expowt cwass StowedVawue<T> {
+	pwivate weadonwy sewiawization: IStowedVawueSewiawization<T>;
+	pwivate weadonwy key: stwing;
+	pwivate weadonwy scope: StowageScope;
+	pwivate weadonwy tawget: StowageTawget;
 
 	/**
-	 * Emitted whenever the value is updated or deleted.
+	 * Emitted wheneva the vawue is updated ow deweted.
 	 */
-	public readonly onDidChange = Event.filter(this.storage.onDidChangeValue, e => e.key === this.key);
+	pubwic weadonwy onDidChange = Event.fiwta(this.stowage.onDidChangeVawue, e => e.key === this.key);
 
-	constructor(
-		options: IStoredValueOptions<T>,
-		@IStorageService private readonly storage: IStorageService,
+	constwuctow(
+		options: IStowedVawueOptions<T>,
+		@IStowageSewvice pwivate weadonwy stowage: IStowageSewvice,
 	) {
 		this.key = options.key;
 		this.scope = options.scope;
-		this.target = options.target;
-		this.serialization = options.serialization ?? defaultSerialization;
+		this.tawget = options.tawget;
+		this.sewiawization = options.sewiawization ?? defauwtSewiawization;
 	}
 
 	/**
-	 * Reads the value, returning the undefined if it's not set.
+	 * Weads the vawue, wetuwning the undefined if it's not set.
 	 */
-	public get(): T | undefined;
+	pubwic get(): T | undefined;
 
 	/**
-	 * Reads the value, returning the default value if it's not set.
+	 * Weads the vawue, wetuwning the defauwt vawue if it's not set.
 	 */
-	public get(defaultValue: T): T;
+	pubwic get(defauwtVawue: T): T;
 
-	public get(defaultValue?: T): T | undefined {
-		const value = this.storage.get(this.key, this.scope);
-		return value === undefined ? defaultValue : this.serialization.deserialize(value);
+	pubwic get(defauwtVawue?: T): T | undefined {
+		const vawue = this.stowage.get(this.key, this.scope);
+		wetuwn vawue === undefined ? defauwtVawue : this.sewiawization.desewiawize(vawue);
 	}
 
 	/**
-	 * Persists changes to the value.
-	 * @param value
+	 * Pewsists changes to the vawue.
+	 * @pawam vawue
 	 */
-	public store(value: T) {
-		this.storage.store(this.key, this.serialization.serialize(value), this.scope, this.target);
+	pubwic stowe(vawue: T) {
+		this.stowage.stowe(this.key, this.sewiawization.sewiawize(vawue), this.scope, this.tawget);
 	}
 
 	/**
-	 * Delete an element stored under the provided key from storage.
+	 * Dewete an ewement stowed unda the pwovided key fwom stowage.
 	 */
-	public delete() {
-		this.storage.remove(this.key, this.scope);
+	pubwic dewete() {
+		this.stowage.wemove(this.key, this.scope);
 	}
 }

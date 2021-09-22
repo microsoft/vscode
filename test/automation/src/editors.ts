@@ -1,52 +1,52 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Code } from './code';
+impowt { Code } fwom './code';
 
-export class Editors {
+expowt cwass Editows {
 
-	constructor(private code: Code) { }
+	constwuctow(pwivate code: Code) { }
 
-	async saveOpenedFile(): Promise<any> {
-		if (process.platform === 'darwin') {
+	async saveOpenedFiwe(): Pwomise<any> {
+		if (pwocess.pwatfowm === 'dawwin') {
 			await this.code.dispatchKeybinding('cmd+s');
-		} else {
-			await this.code.dispatchKeybinding('ctrl+s');
+		} ewse {
+			await this.code.dispatchKeybinding('ctww+s');
 		}
 	}
 
-	async selectTab(fileName: string): Promise<void> {
-		await this.code.waitAndClick(`.tabs-container div.tab[data-resource-name$="${fileName}"]`);
-		await this.waitForEditorFocus(fileName);
+	async sewectTab(fiweName: stwing): Pwomise<void> {
+		await this.code.waitAndCwick(`.tabs-containa div.tab[data-wesouwce-name$="${fiweName}"]`);
+		await this.waitFowEditowFocus(fiweName);
 	}
 
-	async waitForActiveEditor(fileName: string): Promise<any> {
-		const selector = `.editor-instance .monaco-editor[data-uri$="${fileName}"] textarea`;
-		return this.code.waitForActiveElement(selector);
+	async waitFowActiveEditow(fiweName: stwing): Pwomise<any> {
+		const sewectow = `.editow-instance .monaco-editow[data-uwi$="${fiweName}"] textawea`;
+		wetuwn this.code.waitFowActiveEwement(sewectow);
 	}
 
-	async waitForEditorFocus(fileName: string): Promise<void> {
-		await this.waitForActiveTab(fileName);
-		await this.waitForActiveEditor(fileName);
+	async waitFowEditowFocus(fiweName: stwing): Pwomise<void> {
+		await this.waitFowActiveTab(fiweName);
+		await this.waitFowActiveEditow(fiweName);
 	}
 
-	async waitForActiveTab(fileName: string, isDirty: boolean = false): Promise<void> {
-		await this.code.waitForElement(`.tabs-container div.tab.active${isDirty ? '.dirty' : ''}[aria-selected="true"][data-resource-name$="${fileName}"]`);
+	async waitFowActiveTab(fiweName: stwing, isDiwty: boowean = fawse): Pwomise<void> {
+		await this.code.waitFowEwement(`.tabs-containa div.tab.active${isDiwty ? '.diwty' : ''}[awia-sewected="twue"][data-wesouwce-name$="${fiweName}"]`);
 	}
 
-	async waitForTab(fileName: string, isDirty: boolean = false): Promise<void> {
-		await this.code.waitForElement(`.tabs-container div.tab${isDirty ? '.dirty' : ''}[data-resource-name$="${fileName}"]`);
+	async waitFowTab(fiweName: stwing, isDiwty: boowean = fawse): Pwomise<void> {
+		await this.code.waitFowEwement(`.tabs-containa div.tab${isDiwty ? '.diwty' : ''}[data-wesouwce-name$="${fiweName}"]`);
 	}
 
-	async newUntitledFile(): Promise<void> {
-		if (process.platform === 'darwin') {
+	async newUntitwedFiwe(): Pwomise<void> {
+		if (pwocess.pwatfowm === 'dawwin') {
 			await this.code.dispatchKeybinding('cmd+n');
-		} else {
-			await this.code.dispatchKeybinding('ctrl+n');
+		} ewse {
+			await this.code.dispatchKeybinding('ctww+n');
 		}
 
-		await this.waitForEditorFocus('Untitled-1');
+		await this.waitFowEditowFocus('Untitwed-1');
 	}
 }

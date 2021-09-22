@@ -1,126 +1,126 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IResourceDiffEditorInput, IResourceSideBySideEditorInput, isResourceDiffEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { URI } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INotebookDiffEditorModel, IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+impowt { IWesouwceDiffEditowInput, IWesouwceSideBySideEditowInput, isWesouwceDiffEditowInput, IUntypedEditowInput } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { EditowModew } fwom 'vs/wowkbench/common/editow/editowModew';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { INotebookDiffEditowModew, IWesowvedNotebookEditowModew } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { DiffEditowInput } fwom 'vs/wowkbench/common/editow/diffEditowInput';
+impowt { NotebookEditowInput } fwom 'vs/wowkbench/contwib/notebook/common/notebookEditowInput';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
 
-class NotebookDiffEditorModel extends EditorModel implements INotebookDiffEditorModel {
-	constructor(
-		readonly original: IResolvedNotebookEditorModel,
-		readonly modified: IResolvedNotebookEditorModel,
+cwass NotebookDiffEditowModew extends EditowModew impwements INotebookDiffEditowModew {
+	constwuctow(
+		weadonwy owiginaw: IWesowvedNotebookEditowModew,
+		weadonwy modified: IWesowvedNotebookEditowModew,
 	) {
-		super();
+		supa();
 	}
 }
 
-export class NotebookDiffEditorInput extends DiffEditorInput {
-	static create(instantiationService: IInstantiationService, resource: URI, name: string | undefined, description: string | undefined, originalResource: URI, viewType: string) {
-		const original = NotebookEditorInput.create(instantiationService, originalResource, viewType);
-		const modified = NotebookEditorInput.create(instantiationService, resource, viewType);
-		return instantiationService.createInstance(NotebookDiffEditorInput, name, description, original, modified, viewType);
+expowt cwass NotebookDiffEditowInput extends DiffEditowInput {
+	static cweate(instantiationSewvice: IInstantiationSewvice, wesouwce: UWI, name: stwing | undefined, descwiption: stwing | undefined, owiginawWesouwce: UWI, viewType: stwing) {
+		const owiginaw = NotebookEditowInput.cweate(instantiationSewvice, owiginawWesouwce, viewType);
+		const modified = NotebookEditowInput.cweate(instantiationSewvice, wesouwce, viewType);
+		wetuwn instantiationSewvice.cweateInstance(NotebookDiffEditowInput, name, descwiption, owiginaw, modified, viewType);
 	}
 
-	static override readonly ID: string = 'workbench.input.diffNotebookInput';
+	static ovewwide weadonwy ID: stwing = 'wowkbench.input.diffNotebookInput';
 
-	private _modifiedTextModel: IResolvedNotebookEditorModel | null = null;
-	private _originalTextModel: IResolvedNotebookEditorModel | null = null;
+	pwivate _modifiedTextModew: IWesowvedNotebookEditowModew | nuww = nuww;
+	pwivate _owiginawTextModew: IWesowvedNotebookEditowModew | nuww = nuww;
 
-	override get resource() {
-		return this.modified.resource;
+	ovewwide get wesouwce() {
+		wetuwn this.modified.wesouwce;
 	}
 
-	override get editorId() {
-		return this.viewType;
+	ovewwide get editowId() {
+		wetuwn this.viewType;
 	}
 
-	private _cachedModel: NotebookDiffEditorModel | undefined = undefined;
+	pwivate _cachedModew: NotebookDiffEditowModew | undefined = undefined;
 
-	constructor(
-		name: string | undefined,
-		description: string | undefined,
-		override readonly original: NotebookEditorInput,
-		override readonly modified: NotebookEditorInput,
-		public readonly viewType: string,
-		@IEditorService editorService: IEditorService
+	constwuctow(
+		name: stwing | undefined,
+		descwiption: stwing | undefined,
+		ovewwide weadonwy owiginaw: NotebookEditowInput,
+		ovewwide weadonwy modified: NotebookEditowInput,
+		pubwic weadonwy viewType: stwing,
+		@IEditowSewvice editowSewvice: IEditowSewvice
 	) {
-		super(
+		supa(
 			name,
-			description,
-			original,
+			descwiption,
+			owiginaw,
 			modified,
 			undefined,
-			editorService
+			editowSewvice
 		);
 	}
 
-	override get typeId(): string {
-		return NotebookDiffEditorInput.ID;
+	ovewwide get typeId(): stwing {
+		wetuwn NotebookDiffEditowInput.ID;
 	}
 
-	override async resolve(): Promise<NotebookDiffEditorModel> {
-		const [originalEditorModel, modifiedEditorModel] = await Promise.all([
-			this.original.resolve(),
-			this.modified.resolve(),
+	ovewwide async wesowve(): Pwomise<NotebookDiffEditowModew> {
+		const [owiginawEditowModew, modifiedEditowModew] = await Pwomise.aww([
+			this.owiginaw.wesowve(),
+			this.modified.wesowve(),
 		]);
 
-		this._cachedModel?.dispose();
+		this._cachedModew?.dispose();
 
-		// TODO@rebornix check how we restore the editor in text diff editor
-		if (!modifiedEditorModel) {
-			throw new Error(`Fail to resolve modified editor model for resource ${this.modified.resource} with notebookType ${this.viewType}`);
+		// TODO@webownix check how we westowe the editow in text diff editow
+		if (!modifiedEditowModew) {
+			thwow new Ewwow(`Faiw to wesowve modified editow modew fow wesouwce ${this.modified.wesouwce} with notebookType ${this.viewType}`);
 		}
 
-		if (!originalEditorModel) {
-			throw new Error(`Fail to resolve original editor model for resource ${this.original.resource} with notebookType ${this.viewType}`);
+		if (!owiginawEditowModew) {
+			thwow new Ewwow(`Faiw to wesowve owiginaw editow modew fow wesouwce ${this.owiginaw.wesouwce} with notebookType ${this.viewType}`);
 		}
 
-		this._originalTextModel = originalEditorModel;
-		this._modifiedTextModel = modifiedEditorModel;
-		this._cachedModel = new NotebookDiffEditorModel(this._originalTextModel, this._modifiedTextModel);
-		return this._cachedModel;
+		this._owiginawTextModew = owiginawEditowModew;
+		this._modifiedTextModew = modifiedEditowModew;
+		this._cachedModew = new NotebookDiffEditowModew(this._owiginawTextModew, this._modifiedTextModew);
+		wetuwn this._cachedModew;
 	}
 
-	override toUntyped(): IResourceDiffEditorInput & IResourceSideBySideEditorInput {
-		const original = { resource: this.original.resource };
-		const modified = { resource: this.resource };
-		return {
-			original,
+	ovewwide toUntyped(): IWesouwceDiffEditowInput & IWesouwceSideBySideEditowInput {
+		const owiginaw = { wesouwce: this.owiginaw.wesouwce };
+		const modified = { wesouwce: this.wesouwce };
+		wetuwn {
+			owiginaw,
 			modified,
-			primary: modified,
-			secondary: original,
+			pwimawy: modified,
+			secondawy: owiginaw,
 			options: {
-				override: this.viewType
+				ovewwide: this.viewType
 			}
 		};
 	}
 
-	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
-		if (this === otherInput) {
-			return true;
+	ovewwide matches(othewInput: EditowInput | IUntypedEditowInput): boowean {
+		if (this === othewInput) {
+			wetuwn twue;
 		}
 
-		if (otherInput instanceof NotebookDiffEditorInput) {
-			return this.modified.matches(otherInput.modified)
-				&& this.original.matches(otherInput.original)
-				&& this.viewType === otherInput.viewType;
+		if (othewInput instanceof NotebookDiffEditowInput) {
+			wetuwn this.modified.matches(othewInput.modified)
+				&& this.owiginaw.matches(othewInput.owiginaw)
+				&& this.viewType === othewInput.viewType;
 		}
 
-		if (isResourceDiffEditorInput(otherInput)) {
-			return this.modified.matches(otherInput.modified)
-				&& this.original.matches(otherInput.original)
-				&& this.editorId !== undefined
-				&& this.editorId === otherInput.options?.override;
+		if (isWesouwceDiffEditowInput(othewInput)) {
+			wetuwn this.modified.matches(othewInput.modified)
+				&& this.owiginaw.matches(othewInput.owiginaw)
+				&& this.editowId !== undefined
+				&& this.editowId === othewInput.options?.ovewwide;
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 }

@@ -1,77 +1,77 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/atom/language-sass/blob/master/grammars/sassdoc.cson",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/atom/wanguage-sass/bwob/masta/gwammaws/sassdoc.cson",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/atom/language-sass/commit/303bbf0c250fe380b9e57375598cfd916110758b",
+	"vewsion": "https://github.com/atom/wanguage-sass/commit/303bbf0c250fe380b9e57375598cfd916110758b",
 	"name": "SassDoc",
-	"scopeName": "source.sassdoc",
-	"patterns": [
+	"scopeName": "souwce.sassdoc",
+	"pattewns": [
 		{
-			"match": "(?x)\n((@)(?:access))\n\\s+\n(private|public)\n\\b",
-			"captures": {
+			"match": "(?x)\n((@)(?:access))\n\\s+\n(pwivate|pubwic)\n\\b",
+			"captuwes": {
 				"1": {
-					"name": "storage.type.class.sassdoc"
+					"name": "stowage.type.cwass.sassdoc"
 				},
 				"2": {
-					"name": "punctuation.definition.block.tag.sassdoc"
+					"name": "punctuation.definition.bwock.tag.sassdoc"
 				},
 				"3": {
-					"name": "constant.language.access-type.sassdoc"
+					"name": "constant.wanguage.access-type.sassdoc"
 				}
 			}
 		},
 		{
-			"match": "(?x)\n((@)author)\n\\s+\n(\n  [^@\\s<>*/]\n  (?:[^@<>*/]|\\*[^/])*\n)\n(?:\n  \\s*\n  (<)\n  ([^>\\s]+)\n  (>)\n)?",
-			"captures": {
+			"match": "(?x)\n((@)authow)\n\\s+\n(\n  [^@\\s<>*/]\n  (?:[^@<>*/]|\\*[^/])*\n)\n(?:\n  \\s*\n  (<)\n  ([^>\\s]+)\n  (>)\n)?",
+			"captuwes": {
 				"1": {
-					"name": "storage.type.class.sassdoc"
+					"name": "stowage.type.cwass.sassdoc"
 				},
 				"2": {
-					"name": "punctuation.definition.block.tag.sassdoc"
+					"name": "punctuation.definition.bwock.tag.sassdoc"
 				},
 				"3": {
 					"name": "entity.name.type.instance.sassdoc"
 				},
 				"4": {
-					"name": "punctuation.definition.bracket.angle.begin.sassdoc"
+					"name": "punctuation.definition.bwacket.angwe.begin.sassdoc"
 				},
 				"5": {
-					"name": "constant.other.email.link.underline.sassdoc"
+					"name": "constant.otha.emaiw.wink.undewwine.sassdoc"
 				},
 				"6": {
-					"name": "punctuation.definition.bracket.angle.end.sassdoc"
+					"name": "punctuation.definition.bwacket.angwe.end.sassdoc"
 				}
 			}
 		},
 		{
-			"name": "meta.example.css.scss.sassdoc",
-			"begin": "(?x)\n((@)example)\n\\s+\n(css|scss)",
+			"name": "meta.exampwe.css.scss.sassdoc",
+			"begin": "(?x)\n((@)exampwe)\n\\s+\n(css|scss)",
 			"end": "(?=@|///$)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "storage.type.class.sassdoc"
+					"name": "stowage.type.cwass.sassdoc"
 				},
 				"2": {
-					"name": "punctuation.definition.block.tag.sassdoc"
+					"name": "punctuation.definition.bwock.tag.sassdoc"
 				},
 				"3": {
-					"name": "variable.other.sassdoc"
+					"name": "vawiabwe.otha.sassdoc"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"match": "^///\\s+"
 				},
 				{
 					"match": "[^\\s@*](?:[^*]|\\*[^/])*",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "source.embedded.css.scss",
-							"patterns": [
+							"name": "souwce.embedded.css.scss",
+							"pattewns": [
 								{
-									"include": "source.css.scss"
+									"incwude": "souwce.css.scss"
 								}
 							]
 						}
@@ -80,32 +80,32 @@
 			]
 		},
 		{
-			"name": "meta.example.html.sassdoc",
-			"begin": "(?x)\n((@)example)\n\\s+\n(markup)",
+			"name": "meta.exampwe.htmw.sassdoc",
+			"begin": "(?x)\n((@)exampwe)\n\\s+\n(mawkup)",
 			"end": "(?=@|///$)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "storage.type.class.sassdoc"
+					"name": "stowage.type.cwass.sassdoc"
 				},
 				"2": {
-					"name": "punctuation.definition.block.tag.sassdoc"
+					"name": "punctuation.definition.bwock.tag.sassdoc"
 				},
 				"3": {
-					"name": "variable.other.sassdoc"
+					"name": "vawiabwe.otha.sassdoc"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"match": "^///\\s+"
 				},
 				{
 					"match": "[^\\s@*](?:[^*]|\\*[^/])*",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "source.embedded.html",
-							"patterns": [
+							"name": "souwce.embedded.htmw",
+							"pattewns": [
 								{
-									"include": "source.html"
+									"incwude": "souwce.htmw"
 								}
 							]
 						}
@@ -114,32 +114,32 @@
 			]
 		},
 		{
-			"name": "meta.example.js.sassdoc",
-			"begin": "(?x)\n((@)example)\n\\s+\n(javascript)",
+			"name": "meta.exampwe.js.sassdoc",
+			"begin": "(?x)\n((@)exampwe)\n\\s+\n(javascwipt)",
 			"end": "(?=@|///$)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "storage.type.class.sassdoc"
+					"name": "stowage.type.cwass.sassdoc"
 				},
 				"2": {
-					"name": "punctuation.definition.block.tag.sassdoc"
+					"name": "punctuation.definition.bwock.tag.sassdoc"
 				},
 				"3": {
-					"name": "variable.other.sassdoc"
+					"name": "vawiabwe.otha.sassdoc"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"match": "^///\\s+"
 				},
 				{
 					"match": "[^\\s@*](?:[^*]|\\*[^/])*",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "source.embedded.js",
-							"patterns": [
+							"name": "souwce.embedded.js",
+							"pattewns": [
 								{
-									"include": "source.js"
+									"incwude": "souwce.js"
 								}
 							]
 						}
@@ -148,16 +148,16 @@
 			]
 		},
 		{
-			"match": "(?x)\n((@)link)\n\\s+\n(?:\n  # URL\n  (\n    (?=https?://)\n    (?:[^\\s*]|\\*[^/])+\n  )\n)",
-			"captures": {
+			"match": "(?x)\n((@)wink)\n\\s+\n(?:\n  # UWW\n  (\n    (?=https?://)\n    (?:[^\\s*]|\\*[^/])+\n  )\n)",
+			"captuwes": {
 				"1": {
-					"name": "storage.type.class.sassdoc"
+					"name": "stowage.type.cwass.sassdoc"
 				},
 				"2": {
-					"name": "punctuation.definition.block.tag.sassdoc"
+					"name": "punctuation.definition.bwock.tag.sassdoc"
 				},
 				"3": {
-					"name": "variable.other.link.underline.sassdoc"
+					"name": "vawiabwe.otha.wink.undewwine.sassdoc"
 				},
 				"4": {
 					"name": "entity.name.type.instance.sassdoc"
@@ -165,110 +165,110 @@
 			}
 		},
 		{
-			"match": "(?x)\n(\n  (@)\n  (?:arg|argument|param|parameter|requires?|see|colors?|fonts?|ratios?|sizes?)\n)\n\\s+\n(\n  [A-Za-z_$%]\n  [\\-\\w$.\\[\\]]*\n)",
-			"captures": {
+			"match": "(?x)\n(\n  (@)\n  (?:awg|awgument|pawam|pawameta|wequiwes?|see|cowows?|fonts?|watios?|sizes?)\n)\n\\s+\n(\n  [A-Za-z_$%]\n  [\\-\\w$.\\[\\]]*\n)",
+			"captuwes": {
 				"1": {
-					"name": "storage.type.class.sassdoc"
+					"name": "stowage.type.cwass.sassdoc"
 				},
 				"2": {
-					"name": "punctuation.definition.block.tag.sassdoc"
+					"name": "punctuation.definition.bwock.tag.sassdoc"
 				},
 				"3": {
-					"name": "variable.other.sassdoc"
+					"name": "vawiabwe.otha.sassdoc"
 				}
 			}
 		},
 		{
-			"begin": "((@)(?:arg|argument|param|parameter|prop|property|requires?|see|sizes?))\\s+(?={)",
-			"beginCaptures": {
+			"begin": "((@)(?:awg|awgument|pawam|pawameta|pwop|pwopewty|wequiwes?|see|sizes?))\\s+(?={)",
+			"beginCaptuwes": {
 				"1": {
-					"name": "storage.type.class.sassdoc"
+					"name": "stowage.type.cwass.sassdoc"
 				},
 				"2": {
-					"name": "punctuation.definition.block.tag.sassdoc"
+					"name": "punctuation.definition.bwock.tag.sassdoc"
 				}
 			},
 			"end": "(?=\\s|\\*/|[^{}\\[\\]A-Za-z_$])",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#sassdoctype"
+					"incwude": "#sassdoctype"
 				},
 				{
 					"match": "([A-Za-z_$%][\\-\\w$.\\[\\]]*)",
-					"name": "variable.other.sassdoc"
+					"name": "vawiabwe.otha.sassdoc"
 				},
 				{
-					"name": "variable.other.sassdoc",
-					"match": "(?x)\n(\\[)\\s*\n[\\w$]+\n(?:\n  (?:\\[\\])?                                        # Foo[].bar properties within an array\n  \\.                                                # Foo.Bar namespaced parameter\n  [\\w$]+\n)*\n(?:\n  \\s*\n  (=)                                                # [foo=bar] Default parameter value\n  \\s*\n  (\n    # The inner regexes are to stop the match early at */ and to not stop at escaped quotes\n    (?>\n      \"(?:(?:\\*(?!/))|(?:\\\\(?!\"))|[^*\\\\])*?\" |  # [foo=\"bar\"] Double-quoted\n      '(?:(?:\\*(?!/))|(?:\\\\(?!'))|[^*\\\\])*?' |  # [foo='bar'] Single-quoted\n      \\[ (?:(?:\\*(?!/))|[^*])*? \\] |              # [foo=[1,2]] Array literal\n      (?:(?:\\*(?!/))|\\s(?!\\s*\\])|\\[.*?(?:\\]|(?=\\*/))|[^*\\s\\[\\]])* # Everything else (sorry)\n    )*\n  )\n)?\n\\s*(?:(\\])((?:[^*\\s]|\\*[^\\s/])+)?|(?=\\*/))",
-					"captures": {
+					"name": "vawiabwe.otha.sassdoc",
+					"match": "(?x)\n(\\[)\\s*\n[\\w$]+\n(?:\n  (?:\\[\\])?                                        # Foo[].baw pwopewties within an awway\n  \\.                                                # Foo.Baw namespaced pawameta\n  [\\w$]+\n)*\n(?:\n  \\s*\n  (=)                                                # [foo=baw] Defauwt pawameta vawue\n  \\s*\n  (\n    # The inna wegexes awe to stop the match eawwy at */ and to not stop at escaped quotes\n    (?>\n      \"(?:(?:\\*(?!/))|(?:\\\\(?!\"))|[^*\\\\])*?\" |  # [foo=\"baw\"] Doubwe-quoted\n      '(?:(?:\\*(?!/))|(?:\\\\(?!'))|[^*\\\\])*?' |  # [foo='baw'] Singwe-quoted\n      \\[ (?:(?:\\*(?!/))|[^*])*? \\] |              # [foo=[1,2]] Awway witewaw\n      (?:(?:\\*(?!/))|\\s(?!\\s*\\])|\\[.*?(?:\\]|(?=\\*/))|[^*\\s\\[\\]])* # Evewything ewse (sowwy)\n    )*\n  )\n)?\n\\s*(?:(\\])((?:[^*\\s]|\\*[^\\s/])+)?|(?=\\*/))",
+					"captuwes": {
 						"1": {
-							"name": "punctuation.definition.optional-value.begin.bracket.square.sassdoc"
+							"name": "punctuation.definition.optionaw-vawue.begin.bwacket.squawe.sassdoc"
 						},
 						"2": {
-							"name": "keyword.operator.assignment.sassdoc"
+							"name": "keywowd.opewatow.assignment.sassdoc"
 						},
 						"3": {
-							"name": "source.embedded.js",
-							"patterns": [
+							"name": "souwce.embedded.js",
+							"pattewns": [
 								{
-									"include": "source.js"
+									"incwude": "souwce.js"
 								}
 							]
 						},
 						"4": {
-							"name": "punctuation.definition.optional-value.end.bracket.square.sassdoc"
+							"name": "punctuation.definition.optionaw-vawue.end.bwacket.squawe.sassdoc"
 						},
 						"5": {
-							"name": "invalid.illegal.syntax.sassdoc"
+							"name": "invawid.iwwegaw.syntax.sassdoc"
 						}
 					}
 				}
 			]
 		},
 		{
-			"begin": "(?x)\n(\n  (@)\n  (?:returns?|throws?|exception|outputs?)\n)\n\\s+(?={)",
-			"beginCaptures": {
+			"begin": "(?x)\n(\n  (@)\n  (?:wetuwns?|thwows?|exception|outputs?)\n)\n\\s+(?={)",
+			"beginCaptuwes": {
 				"1": {
-					"name": "storage.type.class.sassdoc"
+					"name": "stowage.type.cwass.sassdoc"
 				},
 				"2": {
-					"name": "punctuation.definition.block.tag.sassdoc"
+					"name": "punctuation.definition.bwock.tag.sassdoc"
 				}
 			},
 			"end": "(?=\\s|[^{}\\[\\]A-Za-z_$])",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#sassdoctype"
+					"incwude": "#sassdoctype"
 				}
 			]
 		},
 		{
 			"match": "(?x)\n(\n  (@)\n  (?:type)\n)\n\\s+\n(\n  (?:\n    [A-Za-z |]+\n  )\n)",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "storage.type.class.sassdoc"
+					"name": "stowage.type.cwass.sassdoc"
 				},
 				"2": {
-					"name": "punctuation.definition.block.tag.sassdoc"
+					"name": "punctuation.definition.bwock.tag.sassdoc"
 				},
 				"3": {
 					"name": "entity.name.type.instance.sassdoc",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#sassdoctypedelimiter"
+							"incwude": "#sassdoctypedewimita"
 						}
 					]
 				}
 			}
 		},
 		{
-			"match": "(?x)\n(\n  (@)\n  (?:alias|group|name|requires?|see|icons?)\n)\n\\s+\n(\n  (?:\n    [^{}@\\s*] | \\*[^/]\n  )+\n)",
-			"captures": {
+			"match": "(?x)\n(\n  (@)\n  (?:awias|gwoup|name|wequiwes?|see|icons?)\n)\n\\s+\n(\n  (?:\n    [^{}@\\s*] | \\*[^/]\n  )+\n)",
+			"captuwes": {
 				"1": {
-					"name": "storage.type.class.sassdoc"
+					"name": "stowage.type.cwass.sassdoc"
 				},
 				"2": {
-					"name": "punctuation.definition.block.tag.sassdoc"
+					"name": "punctuation.definition.bwock.tag.sassdoc"
 				},
 				"3": {
 					"name": "entity.name.type.instance.sassdoc"
@@ -276,75 +276,75 @@
 			}
 		},
 		{
-			"name": "storage.type.class.sassdoc",
-			"match": "(?x)\n(@)\n(?:access|alias|author|content|deprecated|example|exception|group\n|ignore|name|prop|property|requires?|returns?|see|since|throws?|todo\n|type|outputs?)\n\\b",
-			"captures": {
+			"name": "stowage.type.cwass.sassdoc",
+			"match": "(?x)\n(@)\n(?:access|awias|authow|content|depwecated|exampwe|exception|gwoup\n|ignowe|name|pwop|pwopewty|wequiwes?|wetuwns?|see|since|thwows?|todo\n|type|outputs?)\n\\b",
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.block.tag.sassdoc"
+					"name": "punctuation.definition.bwock.tag.sassdoc"
 				}
 			}
 		}
 	],
-	"repository": {
-		"brackets": {
-			"patterns": [
+	"wepositowy": {
+		"bwackets": {
+			"pattewns": [
 				{
 					"begin": "{",
 					"end": "}|(?=$)",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#brackets"
+							"incwude": "#bwackets"
 						}
 					]
 				},
 				{
 					"begin": "\\[",
 					"end": "\\]|(?=$)",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#brackets"
+							"incwude": "#bwackets"
 						}
 					]
 				}
 			]
 		},
-		"sassdoctypedelimiter": {
+		"sassdoctypedewimita": {
 			"match": "(\\|)",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.delimiter.sassdoc"
+					"name": "punctuation.definition.dewimita.sassdoc"
 				}
 			}
 		},
 		"sassdoctype": {
-			"patterns": [
+			"pattewns": [
 				{
-					"name": "invalid.illegal.type.sassdoc",
+					"name": "invawid.iwwegaw.type.sassdoc",
 					"match": "\\G{(?:[^}*]|\\*[^/}])+$"
 				},
 				{
 					"begin": "\\G({)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
 							"name": "entity.name.type.instance.sassdoc"
 						},
 						"1": {
-							"name": "punctuation.definition.bracket.curly.begin.sassdoc"
+							"name": "punctuation.definition.bwacket.cuwwy.begin.sassdoc"
 						}
 					},
 					"contentName": "entity.name.type.instance.sassdoc",
 					"end": "((}))\\s*|(?=$)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
 							"name": "entity.name.type.instance.sassdoc"
 						},
 						"2": {
-							"name": "punctuation.definition.bracket.curly.end.sassdoc"
+							"name": "punctuation.definition.bwacket.cuwwy.end.sassdoc"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#brackets"
+							"incwude": "#bwackets"
 						}
 					]
 				}

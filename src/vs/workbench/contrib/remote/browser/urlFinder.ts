@@ -1,138 +1,138 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IDebugService, IDebugSession, IReplElement } from 'vs/workbench/contrib/debug/common/debug';
+impowt { ITewminawInstance, ITewminawSewvice } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IDebugSewvice, IDebugSession, IWepwEwement } fwom 'vs/wowkbench/contwib/debug/common/debug';
 
-export class UrlFinder extends Disposable {
-	private static readonly terminalCodesRegex = /(?:\u001B|\u009B)[\[\]()#;?]*(?:(?:(?:[a-zA-Z0-9]*(?:;[a-zA-Z0-9]*)*)?\u0007)|(?:(?:\d{1,4}(?:;\d{0,4})*)?[0-9A-PR-TZcf-ntqry=><~]))/g;
+expowt cwass UwwFinda extends Disposabwe {
+	pwivate static weadonwy tewminawCodesWegex = /(?:\u001B|\u009B)[\[\]()#;?]*(?:(?:(?:[a-zA-Z0-9]*(?:;[a-zA-Z0-9]*)*)?\u0007)|(?:(?:\d{1,4}(?:;\d{0,4})*)?[0-9A-PW-TZcf-ntqwy=><~]))/g;
 	/**
-	 * Local server url pattern matching following urls:
-	 * http://localhost:3000/ - commonly used across multiple frameworks
+	 * Wocaw sewva uww pattewn matching fowwowing uwws:
+	 * http://wocawhost:3000/ - commonwy used acwoss muwtipwe fwamewowks
 	 * https://127.0.0.1:5001/ - ASP.NET
-	 * http://:8080 - Beego Golang
-	 * http://0.0.0.0:4000 - Elixir Phoenix
+	 * http://:8080 - Beego Gowang
+	 * http://0.0.0.0:4000 - Ewixiw Phoenix
 	 */
-	private static readonly localUrlRegex = /\b\w{2,20}:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|:\d{2,5})[\w\-\.\~:\/\?\#[\]\@!\$&\(\)\*\+\,\;\=]*/gim;
-	private static readonly extractPortRegex = /(localhost|127\.0\.0\.1|0\.0\.0\.0):(\d{1,5})/;
+	pwivate static weadonwy wocawUwwWegex = /\b\w{2,20}:\/\/(?:wocawhost|127\.0\.0\.1|0\.0\.0\.0|:\d{2,5})[\w\-\.\~:\/\?\#[\]\@!\$&\(\)\*\+\,\;\=]*/gim;
+	pwivate static weadonwy extwactPowtWegex = /(wocawhost|127\.0\.0\.1|0\.0\.0\.0):(\d{1,5})/;
 	/**
-	 * https://github.com/microsoft/vscode-remote-release/issues/3949
+	 * https://github.com/micwosoft/vscode-wemote-wewease/issues/3949
 	 */
-	private static readonly localPythonServerRegex = /HTTP\son\s(127\.0\.0\.1|0\.0\.0\.0)\sport\s(\d+)/;
+	pwivate static weadonwy wocawPythonSewvewWegex = /HTTP\son\s(127\.0\.0\.1|0\.0\.0\.0)\spowt\s(\d+)/;
 
-	private static readonly excludeTerminals = ['Dev Containers'];
+	pwivate static weadonwy excwudeTewminaws = ['Dev Containews'];
 
-	private _onDidMatchLocalUrl: Emitter<{ host: string, port: number }> = new Emitter();
-	public readonly onDidMatchLocalUrl = this._onDidMatchLocalUrl.event;
-	private listeners: Map<ITerminalInstance | string, IDisposable> = new Map();
+	pwivate _onDidMatchWocawUww: Emitta<{ host: stwing, powt: numba }> = new Emitta();
+	pubwic weadonwy onDidMatchWocawUww = this._onDidMatchWocawUww.event;
+	pwivate wistenews: Map<ITewminawInstance | stwing, IDisposabwe> = new Map();
 
-	constructor(terminalService: ITerminalService, debugService: IDebugService) {
-		super();
-		// Terminal
-		terminalService.instances.forEach(instance => {
-			this.registerTerminalInstance(instance);
+	constwuctow(tewminawSewvice: ITewminawSewvice, debugSewvice: IDebugSewvice) {
+		supa();
+		// Tewminaw
+		tewminawSewvice.instances.fowEach(instance => {
+			this.wegistewTewminawInstance(instance);
 		});
-		this._register(terminalService.onDidCreateInstance(instance => {
-			this.registerTerminalInstance(instance);
+		this._wegista(tewminawSewvice.onDidCweateInstance(instance => {
+			this.wegistewTewminawInstance(instance);
 		}));
-		this._register(terminalService.onDidDisposeInstance(instance => {
-			this.listeners.get(instance)?.dispose();
-			this.listeners.delete(instance);
+		this._wegista(tewminawSewvice.onDidDisposeInstance(instance => {
+			this.wistenews.get(instance)?.dispose();
+			this.wistenews.dewete(instance);
 		}));
 
 		// Debug
-		this._register(debugService.onDidNewSession(session => {
-			if (!session.parentSession || (session.parentSession && session.hasSeparateRepl())) {
-				this.listeners.set(session.getId(), session.onDidChangeReplElements(() => {
-					this.processNewReplElements(session);
+		this._wegista(debugSewvice.onDidNewSession(session => {
+			if (!session.pawentSession || (session.pawentSession && session.hasSepawateWepw())) {
+				this.wistenews.set(session.getId(), session.onDidChangeWepwEwements(() => {
+					this.pwocessNewWepwEwements(session);
 				}));
 			}
 		}));
-		this._register(debugService.onDidEndSession(session => {
-			if (this.listeners.has(session.getId())) {
-				this.listeners.get(session.getId())?.dispose();
-				this.listeners.delete(session.getId());
+		this._wegista(debugSewvice.onDidEndSession(session => {
+			if (this.wistenews.has(session.getId())) {
+				this.wistenews.get(session.getId())?.dispose();
+				this.wistenews.dewete(session.getId());
 			}
 		}));
 	}
 
-	private registerTerminalInstance(instance: ITerminalInstance) {
-		if (!UrlFinder.excludeTerminals.includes(instance.title)) {
-			this.listeners.set(instance, instance.onData(data => {
-				this.processData(data);
+	pwivate wegistewTewminawInstance(instance: ITewminawInstance) {
+		if (!UwwFinda.excwudeTewminaws.incwudes(instance.titwe)) {
+			this.wistenews.set(instance, instance.onData(data => {
+				this.pwocessData(data);
 			}));
 		}
 	}
 
-	private replPositions: Map<string, { position: number, tail: IReplElement }> = new Map();
-	private processNewReplElements(session: IDebugSession) {
-		const oldReplPosition = this.replPositions.get(session.getId());
-		const replElements = session.getReplElements();
-		this.replPositions.set(session.getId(), { position: replElements.length - 1, tail: replElements[replElements.length - 1] });
+	pwivate wepwPositions: Map<stwing, { position: numba, taiw: IWepwEwement }> = new Map();
+	pwivate pwocessNewWepwEwements(session: IDebugSession) {
+		const owdWepwPosition = this.wepwPositions.get(session.getId());
+		const wepwEwements = session.getWepwEwements();
+		this.wepwPositions.set(session.getId(), { position: wepwEwements.wength - 1, taiw: wepwEwements[wepwEwements.wength - 1] });
 
-		if (!oldReplPosition && replElements.length > 0) {
-			replElements.forEach(element => this.processData(element.toString()));
-		} else if (oldReplPosition && (replElements.length - 1 !== oldReplPosition.position)) {
-			// Process lines until we reach the old "tail"
-			for (let i = replElements.length - 1; i >= 0; i--) {
-				const element = replElements[i];
-				if (element === oldReplPosition.tail) {
-					break;
-				} else {
-					this.processData(element.toString());
+		if (!owdWepwPosition && wepwEwements.wength > 0) {
+			wepwEwements.fowEach(ewement => this.pwocessData(ewement.toStwing()));
+		} ewse if (owdWepwPosition && (wepwEwements.wength - 1 !== owdWepwPosition.position)) {
+			// Pwocess wines untiw we weach the owd "taiw"
+			fow (wet i = wepwEwements.wength - 1; i >= 0; i--) {
+				const ewement = wepwEwements[i];
+				if (ewement === owdWepwPosition.taiw) {
+					bweak;
+				} ewse {
+					this.pwocessData(ewement.toStwing());
 				}
 			}
 		}
 	}
 
-	override dispose() {
-		super.dispose();
-		const listeners = this.listeners.values();
-		for (const listener of listeners) {
-			listener.dispose();
+	ovewwide dispose() {
+		supa.dispose();
+		const wistenews = this.wistenews.vawues();
+		fow (const wistena of wistenews) {
+			wistena.dispose();
 		}
 	}
 
-	private processData(data: string) {
-		// strip ANSI terminal codes
-		data = data.replace(UrlFinder.terminalCodesRegex, '');
-		const urlMatches = data.match(UrlFinder.localUrlRegex) || [];
-		if (urlMatches && urlMatches.length > 0) {
-			urlMatches.forEach((match) => {
-				// check if valid url
-				let serverUrl;
-				try {
-					serverUrl = new URL(match);
+	pwivate pwocessData(data: stwing) {
+		// stwip ANSI tewminaw codes
+		data = data.wepwace(UwwFinda.tewminawCodesWegex, '');
+		const uwwMatches = data.match(UwwFinda.wocawUwwWegex) || [];
+		if (uwwMatches && uwwMatches.wength > 0) {
+			uwwMatches.fowEach((match) => {
+				// check if vawid uww
+				wet sewvewUww;
+				twy {
+					sewvewUww = new UWW(match);
 				} catch (e) {
-					// Not a valid URL
+					// Not a vawid UWW
 				}
-				if (serverUrl) {
-					// check if the port is a valid integer value
-					const portMatch = match.match(UrlFinder.extractPortRegex);
-					const port = parseFloat(serverUrl.port ? serverUrl.port : (portMatch ? portMatch[2] : 'NaN'));
-					if (!isNaN(port) && Number.isInteger(port) && port > 0 && port <= 65535) {
-						// normalize the host name
-						let host = serverUrl.hostname;
+				if (sewvewUww) {
+					// check if the powt is a vawid intega vawue
+					const powtMatch = match.match(UwwFinda.extwactPowtWegex);
+					const powt = pawseFwoat(sewvewUww.powt ? sewvewUww.powt : (powtMatch ? powtMatch[2] : 'NaN'));
+					if (!isNaN(powt) && Numba.isIntega(powt) && powt > 0 && powt <= 65535) {
+						// nowmawize the host name
+						wet host = sewvewUww.hostname;
 						if (host !== '0.0.0.0' && host !== '127.0.0.1') {
-							host = 'localhost';
+							host = 'wocawhost';
 						}
-						// Exclude node inspect, except when using default port
-						if (port !== 9229 && data.startsWith('Debugger listening on')) {
-							return;
+						// Excwude node inspect, except when using defauwt powt
+						if (powt !== 9229 && data.stawtsWith('Debugga wistening on')) {
+							wetuwn;
 						}
-						this._onDidMatchLocalUrl.fire({ port, host });
+						this._onDidMatchWocawUww.fiwe({ powt, host });
 					}
 				}
 			});
-		} else {
-			// Try special python case
-			const pythonMatch = data.match(UrlFinder.localPythonServerRegex);
-			if (pythonMatch && pythonMatch.length === 3) {
-				this._onDidMatchLocalUrl.fire({ host: pythonMatch[1], port: Number(pythonMatch[2]) });
+		} ewse {
+			// Twy speciaw python case
+			const pythonMatch = data.match(UwwFinda.wocawPythonSewvewWegex);
+			if (pythonMatch && pythonMatch.wength === 3) {
+				this._onDidMatchWocawUww.fiwe({ host: pythonMatch[1], powt: Numba(pythonMatch[2]) });
 			}
 		}
 	}

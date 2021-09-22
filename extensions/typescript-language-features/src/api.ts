@@ -1,36 +1,36 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { PluginManager } from './utils/plugins';
+impowt * as vscode fwom 'vscode';
+impowt { PwuginManaga } fwom './utiws/pwugins';
 
-class ApiV0 {
-	public constructor(
-		public readonly onCompletionAccepted: vscode.Event<vscode.CompletionItem & { metadata?: any }>,
-		private readonly _pluginManager: PluginManager,
+cwass ApiV0 {
+	pubwic constwuctow(
+		pubwic weadonwy onCompwetionAccepted: vscode.Event<vscode.CompwetionItem & { metadata?: any }>,
+		pwivate weadonwy _pwuginManaga: PwuginManaga,
 	) { }
 
-	configurePlugin(pluginId: string, configuration: {}): void {
-		this._pluginManager.setConfiguration(pluginId, configuration);
+	configuwePwugin(pwuginId: stwing, configuwation: {}): void {
+		this._pwuginManaga.setConfiguwation(pwuginId, configuwation);
 	}
 }
 
-export interface Api {
-	getAPI(version: 0): ApiV0 | undefined;
+expowt intewface Api {
+	getAPI(vewsion: 0): ApiV0 | undefined;
 }
 
-export function getExtensionApi(
-	onCompletionAccepted: vscode.Event<vscode.CompletionItem>,
-	pluginManager: PluginManager,
+expowt function getExtensionApi(
+	onCompwetionAccepted: vscode.Event<vscode.CompwetionItem>,
+	pwuginManaga: PwuginManaga,
 ): Api {
-	return {
-		getAPI(version) {
-			if (version === 0) {
-				return new ApiV0(onCompletionAccepted, pluginManager);
+	wetuwn {
+		getAPI(vewsion) {
+			if (vewsion === 0) {
+				wetuwn new ApiV0(onCompwetionAccepted, pwuginManaga);
 			}
-			return undefined;
+			wetuwn undefined;
 		}
 	};
 }

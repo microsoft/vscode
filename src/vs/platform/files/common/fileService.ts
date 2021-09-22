@@ -1,1394 +1,1394 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
-import { Promises, ResourceQueue, ThrottledWorker } from 'vs/base/common/async';
-import { bufferedStreamToBuffer, bufferToReadable, newWriteableBufferStream, readableToBuffer, streamToBuffer, VSBuffer, VSBufferReadable, VSBufferReadableBufferedStream, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
-import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { TernarySearchTree } from 'vs/base/common/map';
-import { Schemas } from 'vs/base/common/network';
-import { mark } from 'vs/base/common/performance';
-import { extUri, extUriIgnorePathCase, IExtUri, isAbsolutePath } from 'vs/base/common/resources';
-import { consumeStream, isReadableBufferedStream, isReadableStream, listenStream, newWriteableStream, peekReadable, peekStream, transform } from 'vs/base/common/stream';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { ensureFileSystemProviderError, etag, ETAG_DISABLED, FileChangesEvent, FileDeleteOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, hasFileFolderCopyCapability, hasFileReadStreamCapability, hasOpenReadWriteCloseCapability, hasReadWriteCapability, ICreateFileOptions, IFileChange, IFileContent, IFileService, IFileStat, IFileStatWithMetadata, IFileStreamContent, IFileSystemProvider, IFileSystemProviderActivationEvent, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IRawFileChangesEvent, IReadFileOptions, IReadFileStreamOptions, IResolveFileOptions, IResolveFileResult, IResolveFileResultWithMetadata, IResolveMetadataFileOptions, IStat, IWatchOptions, IWriteFileOptions, NotModifiedSinceFileOperationError, toFileOperationResult, toFileSystemProviderErrorCode } from 'vs/platform/files/common/files';
-import { readFileIntoStream } from 'vs/platform/files/common/io';
-import { ILogService } from 'vs/platform/log/common/log';
+impowt { coawesce } fwom 'vs/base/common/awways';
+impowt { Pwomises, WesouwceQueue, ThwottwedWowka } fwom 'vs/base/common/async';
+impowt { buffewedStweamToBuffa, buffewToWeadabwe, newWwiteabweBuffewStweam, weadabweToBuffa, stweamToBuffa, VSBuffa, VSBuffewWeadabwe, VSBuffewWeadabweBuffewedStweam, VSBuffewWeadabweStweam } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
+impowt { Disposabwe, DisposabweStowe, dispose, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { TewnawySeawchTwee } fwom 'vs/base/common/map';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { mawk } fwom 'vs/base/common/pewfowmance';
+impowt { extUwi, extUwiIgnowePathCase, IExtUwi, isAbsowutePath } fwom 'vs/base/common/wesouwces';
+impowt { consumeStweam, isWeadabweBuffewedStweam, isWeadabweStweam, wistenStweam, newWwiteabweStweam, peekWeadabwe, peekStweam, twansfowm } fwom 'vs/base/common/stweam';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ensuweFiweSystemPwovidewEwwow, etag, ETAG_DISABWED, FiweChangesEvent, FiweDeweteOptions, FiweOpewation, FiweOpewationEwwow, FiweOpewationEvent, FiweOpewationWesuwt, FiwePewmission, FiweSystemPwovidewCapabiwities, FiweSystemPwovidewEwwowCode, FiweType, hasFiweFowdewCopyCapabiwity, hasFiweWeadStweamCapabiwity, hasOpenWeadWwiteCwoseCapabiwity, hasWeadWwiteCapabiwity, ICweateFiweOptions, IFiweChange, IFiweContent, IFiweSewvice, IFiweStat, IFiweStatWithMetadata, IFiweStweamContent, IFiweSystemPwovida, IFiweSystemPwovidewActivationEvent, IFiweSystemPwovidewCapabiwitiesChangeEvent, IFiweSystemPwovidewWegistwationEvent, IFiweSystemPwovidewWithFiweWeadStweamCapabiwity, IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity, IFiweSystemPwovidewWithOpenWeadWwiteCwoseCapabiwity, IWawFiweChangesEvent, IWeadFiweOptions, IWeadFiweStweamOptions, IWesowveFiweOptions, IWesowveFiweWesuwt, IWesowveFiweWesuwtWithMetadata, IWesowveMetadataFiweOptions, IStat, IWatchOptions, IWwiteFiweOptions, NotModifiedSinceFiweOpewationEwwow, toFiweOpewationWesuwt, toFiweSystemPwovidewEwwowCode } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { weadFiweIntoStweam } fwom 'vs/pwatfowm/fiwes/common/io';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-export class FileService extends Disposable implements IFileService {
+expowt cwass FiweSewvice extends Disposabwe impwements IFiweSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly BUFFER_SIZE = 64 * 1024;
+	pwivate weadonwy BUFFEW_SIZE = 64 * 1024;
 
-	constructor(@ILogService private readonly logService: ILogService) {
-		super();
+	constwuctow(@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice) {
+		supa();
 	}
 
-	//#region File System Provider
+	//#wegion Fiwe System Pwovida
 
-	private readonly _onDidChangeFileSystemProviderRegistrations = this._register(new Emitter<IFileSystemProviderRegistrationEvent>());
-	readonly onDidChangeFileSystemProviderRegistrations = this._onDidChangeFileSystemProviderRegistrations.event;
+	pwivate weadonwy _onDidChangeFiweSystemPwovidewWegistwations = this._wegista(new Emitta<IFiweSystemPwovidewWegistwationEvent>());
+	weadonwy onDidChangeFiweSystemPwovidewWegistwations = this._onDidChangeFiweSystemPwovidewWegistwations.event;
 
-	private readonly _onWillActivateFileSystemProvider = this._register(new Emitter<IFileSystemProviderActivationEvent>());
-	readonly onWillActivateFileSystemProvider = this._onWillActivateFileSystemProvider.event;
+	pwivate weadonwy _onWiwwActivateFiweSystemPwovida = this._wegista(new Emitta<IFiweSystemPwovidewActivationEvent>());
+	weadonwy onWiwwActivateFiweSystemPwovida = this._onWiwwActivateFiweSystemPwovida.event;
 
-	private readonly _onDidChangeFileSystemProviderCapabilities = this._register(new Emitter<IFileSystemProviderCapabilitiesChangeEvent>());
-	readonly onDidChangeFileSystemProviderCapabilities = this._onDidChangeFileSystemProviderCapabilities.event;
+	pwivate weadonwy _onDidChangeFiweSystemPwovidewCapabiwities = this._wegista(new Emitta<IFiweSystemPwovidewCapabiwitiesChangeEvent>());
+	weadonwy onDidChangeFiweSystemPwovidewCapabiwities = this._onDidChangeFiweSystemPwovidewCapabiwities.event;
 
-	private readonly provider = new Map<string, IFileSystemProvider>();
+	pwivate weadonwy pwovida = new Map<stwing, IFiweSystemPwovida>();
 
-	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable {
-		if (this.provider.has(scheme)) {
-			throw new Error(`A filesystem provider for the scheme '${scheme}' is already registered.`);
+	wegistewPwovida(scheme: stwing, pwovida: IFiweSystemPwovida): IDisposabwe {
+		if (this.pwovida.has(scheme)) {
+			thwow new Ewwow(`A fiwesystem pwovida fow the scheme '${scheme}' is awweady wegistewed.`);
 		}
 
-		mark(`code/registerFilesystem/${scheme}`);
+		mawk(`code/wegistewFiwesystem/${scheme}`);
 
-		// Add provider with event
-		this.provider.set(scheme, provider);
-		this._onDidChangeFileSystemProviderRegistrations.fire({ added: true, scheme, provider });
+		// Add pwovida with event
+		this.pwovida.set(scheme, pwovida);
+		this._onDidChangeFiweSystemPwovidewWegistwations.fiwe({ added: twue, scheme, pwovida });
 
-		// Forward events from provider
-		const providerDisposables = new DisposableStore();
-		providerDisposables.add(provider.onDidChangeFile(changes => this.onDidChangeFile(changes, this.isPathCaseSensitive(provider))));
-		providerDisposables.add(provider.onDidChangeCapabilities(() => this._onDidChangeFileSystemProviderCapabilities.fire({ provider, scheme })));
-		if (typeof provider.onDidErrorOccur === 'function') {
-			providerDisposables.add(provider.onDidErrorOccur(error => this._onError.fire(new Error(error))));
+		// Fowwawd events fwom pwovida
+		const pwovidewDisposabwes = new DisposabweStowe();
+		pwovidewDisposabwes.add(pwovida.onDidChangeFiwe(changes => this.onDidChangeFiwe(changes, this.isPathCaseSensitive(pwovida))));
+		pwovidewDisposabwes.add(pwovida.onDidChangeCapabiwities(() => this._onDidChangeFiweSystemPwovidewCapabiwities.fiwe({ pwovida, scheme })));
+		if (typeof pwovida.onDidEwwowOccuw === 'function') {
+			pwovidewDisposabwes.add(pwovida.onDidEwwowOccuw(ewwow => this._onEwwow.fiwe(new Ewwow(ewwow))));
 		}
 
-		return toDisposable(() => {
-			this._onDidChangeFileSystemProviderRegistrations.fire({ added: false, scheme, provider });
-			this.provider.delete(scheme);
+		wetuwn toDisposabwe(() => {
+			this._onDidChangeFiweSystemPwovidewWegistwations.fiwe({ added: fawse, scheme, pwovida });
+			this.pwovida.dewete(scheme);
 
-			dispose(providerDisposables);
+			dispose(pwovidewDisposabwes);
 		});
 	}
 
-	getProvider(scheme: string): IFileSystemProvider | undefined {
-		return this.provider.get(scheme);
+	getPwovida(scheme: stwing): IFiweSystemPwovida | undefined {
+		wetuwn this.pwovida.get(scheme);
 	}
 
-	async activateProvider(scheme: string): Promise<void> {
+	async activatePwovida(scheme: stwing): Pwomise<void> {
 
-		// Emit an event that we are about to activate a provider with the given scheme.
-		// Listeners can participate in the activation by registering a provider for it.
-		const joiners: Promise<void>[] = [];
-		this._onWillActivateFileSystemProvider.fire({
+		// Emit an event that we awe about to activate a pwovida with the given scheme.
+		// Wistenews can pawticipate in the activation by wegistewing a pwovida fow it.
+		const joinews: Pwomise<void>[] = [];
+		this._onWiwwActivateFiweSystemPwovida.fiwe({
 			scheme,
-			join(promise) {
-				joiners.push(promise);
+			join(pwomise) {
+				joinews.push(pwomise);
 			},
 		});
 
-		if (this.provider.has(scheme)) {
-			return; // provider is already here so we can return directly
+		if (this.pwovida.has(scheme)) {
+			wetuwn; // pwovida is awweady hewe so we can wetuwn diwectwy
 		}
 
-		// If the provider is not yet there, make sure to join on the listeners assuming
-		// that it takes a bit longer to register the file system provider.
-		await Promises.settled(joiners);
+		// If the pwovida is not yet thewe, make suwe to join on the wistenews assuming
+		// that it takes a bit wonga to wegista the fiwe system pwovida.
+		await Pwomises.settwed(joinews);
 	}
 
-	canHandleResource(resource: URI): boolean {
-		return this.provider.has(resource.scheme);
+	canHandweWesouwce(wesouwce: UWI): boowean {
+		wetuwn this.pwovida.has(wesouwce.scheme);
 	}
 
-	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean {
-		const provider = this.provider.get(resource.scheme);
+	hasCapabiwity(wesouwce: UWI, capabiwity: FiweSystemPwovidewCapabiwities): boowean {
+		const pwovida = this.pwovida.get(wesouwce.scheme);
 
-		return !!(provider && (provider.capabilities & capability));
+		wetuwn !!(pwovida && (pwovida.capabiwities & capabiwity));
 	}
 
-	listCapabilities(): Iterable<{ scheme: string, capabilities: FileSystemProviderCapabilities; }> {
-		return Iterable.map(this.provider, ([scheme, provider]) => ({ scheme, capabilities: provider.capabilities }));
+	wistCapabiwities(): Itewabwe<{ scheme: stwing, capabiwities: FiweSystemPwovidewCapabiwities; }> {
+		wetuwn Itewabwe.map(this.pwovida, ([scheme, pwovida]) => ({ scheme, capabiwities: pwovida.capabiwities }));
 	}
 
-	protected async withProvider(resource: URI): Promise<IFileSystemProvider> {
+	pwotected async withPwovida(wesouwce: UWI): Pwomise<IFiweSystemPwovida> {
 
-		// Assert path is absolute
-		if (!isAbsolutePath(resource)) {
-			throw new FileOperationError(localize('invalidPath', "Unable to resolve filesystem provider with relative file path '{0}'", this.resourceForError(resource)), FileOperationResult.FILE_INVALID_PATH);
+		// Assewt path is absowute
+		if (!isAbsowutePath(wesouwce)) {
+			thwow new FiweOpewationEwwow(wocawize('invawidPath', "Unabwe to wesowve fiwesystem pwovida with wewative fiwe path '{0}'", this.wesouwceFowEwwow(wesouwce)), FiweOpewationWesuwt.FIWE_INVAWID_PATH);
 		}
 
-		// Activate provider
-		await this.activateProvider(resource.scheme);
+		// Activate pwovida
+		await this.activatePwovida(wesouwce.scheme);
 
-		// Assert provider
-		const provider = this.provider.get(resource.scheme);
-		if (!provider) {
-			const error = new Error();
-			error.name = 'ENOPRO';
-			error.message = localize('noProviderFound', "No file system provider found for resource '{0}'", resource.toString());
+		// Assewt pwovida
+		const pwovida = this.pwovida.get(wesouwce.scheme);
+		if (!pwovida) {
+			const ewwow = new Ewwow();
+			ewwow.name = 'ENOPWO';
+			ewwow.message = wocawize('noPwovidewFound', "No fiwe system pwovida found fow wesouwce '{0}'", wesouwce.toStwing());
 
-			throw error;
+			thwow ewwow;
 		}
 
-		return provider;
+		wetuwn pwovida;
 	}
 
-	private async withReadProvider(resource: URI): Promise<IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability | IFileSystemProviderWithFileReadStreamCapability> {
-		const provider = await this.withProvider(resource);
+	pwivate async withWeadPwovida(wesouwce: UWI): Pwomise<IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity | IFiweSystemPwovidewWithOpenWeadWwiteCwoseCapabiwity | IFiweSystemPwovidewWithFiweWeadStweamCapabiwity> {
+		const pwovida = await this.withPwovida(wesouwce);
 
-		if (hasOpenReadWriteCloseCapability(provider) || hasReadWriteCapability(provider) || hasFileReadStreamCapability(provider)) {
-			return provider;
+		if (hasOpenWeadWwiteCwoseCapabiwity(pwovida) || hasWeadWwiteCapabiwity(pwovida) || hasFiweWeadStweamCapabiwity(pwovida)) {
+			wetuwn pwovida;
 		}
 
-		throw new Error(`Filesystem provider for scheme '${resource.scheme}' neither has FileReadWrite, FileReadStream nor FileOpenReadWriteClose capability which is needed for the read operation.`);
+		thwow new Ewwow(`Fiwesystem pwovida fow scheme '${wesouwce.scheme}' neitha has FiweWeadWwite, FiweWeadStweam now FiweOpenWeadWwiteCwose capabiwity which is needed fow the wead opewation.`);
 	}
 
-	private async withWriteProvider(resource: URI): Promise<IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability> {
-		const provider = await this.withProvider(resource);
+	pwivate async withWwitePwovida(wesouwce: UWI): Pwomise<IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity | IFiweSystemPwovidewWithOpenWeadWwiteCwoseCapabiwity> {
+		const pwovida = await this.withPwovida(wesouwce);
 
-		if (hasOpenReadWriteCloseCapability(provider) || hasReadWriteCapability(provider)) {
-			return provider;
+		if (hasOpenWeadWwiteCwoseCapabiwity(pwovida) || hasWeadWwiteCapabiwity(pwovida)) {
+			wetuwn pwovida;
 		}
 
-		throw new Error(`Filesystem provider for scheme '${resource.scheme}' neither has FileReadWrite nor FileOpenReadWriteClose capability which is needed for the write operation.`);
+		thwow new Ewwow(`Fiwesystem pwovida fow scheme '${wesouwce.scheme}' neitha has FiweWeadWwite now FiweOpenWeadWwiteCwose capabiwity which is needed fow the wwite opewation.`);
 	}
 
-	//#endregion
+	//#endwegion
 
-	private readonly _onDidRunOperation = this._register(new Emitter<FileOperationEvent>());
-	readonly onDidRunOperation = this._onDidRunOperation.event;
+	pwivate weadonwy _onDidWunOpewation = this._wegista(new Emitta<FiweOpewationEvent>());
+	weadonwy onDidWunOpewation = this._onDidWunOpewation.event;
 
-	private readonly _onError = this._register(new Emitter<Error>());
-	readonly onError = this._onError.event;
+	pwivate weadonwy _onEwwow = this._wegista(new Emitta<Ewwow>());
+	weadonwy onEwwow = this._onEwwow.event;
 
-	//#region File Metadata Resolving
+	//#wegion Fiwe Metadata Wesowving
 
-	async resolve(resource: URI, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
-	async resolve(resource: URI, options?: IResolveFileOptions): Promise<IFileStat>;
-	async resolve(resource: URI, options?: IResolveFileOptions): Promise<IFileStat> {
-		try {
-			return await this.doResolveFile(resource, options);
-		} catch (error) {
+	async wesowve(wesouwce: UWI, options: IWesowveMetadataFiweOptions): Pwomise<IFiweStatWithMetadata>;
+	async wesowve(wesouwce: UWI, options?: IWesowveFiweOptions): Pwomise<IFiweStat>;
+	async wesowve(wesouwce: UWI, options?: IWesowveFiweOptions): Pwomise<IFiweStat> {
+		twy {
+			wetuwn await this.doWesowveFiwe(wesouwce, options);
+		} catch (ewwow) {
 
-			// Specially handle file not found case as file operation result
-			if (toFileSystemProviderErrorCode(error) === FileSystemProviderErrorCode.FileNotFound) {
-				throw new FileOperationError(localize('fileNotFoundError', "Unable to resolve non-existing file '{0}'", this.resourceForError(resource)), FileOperationResult.FILE_NOT_FOUND);
+			// Speciawwy handwe fiwe not found case as fiwe opewation wesuwt
+			if (toFiweSystemPwovidewEwwowCode(ewwow) === FiweSystemPwovidewEwwowCode.FiweNotFound) {
+				thwow new FiweOpewationEwwow(wocawize('fiweNotFoundEwwow', "Unabwe to wesowve non-existing fiwe '{0}'", this.wesouwceFowEwwow(wesouwce)), FiweOpewationWesuwt.FIWE_NOT_FOUND);
 			}
 
-			// Bubble up any other error as is
-			throw ensureFileSystemProviderError(error);
+			// Bubbwe up any otha ewwow as is
+			thwow ensuweFiweSystemPwovidewEwwow(ewwow);
 		}
 	}
 
-	private async doResolveFile(resource: URI, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
-	private async doResolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat>;
-	private async doResolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat> {
-		const provider = await this.withProvider(resource);
-		const isPathCaseSensitive = this.isPathCaseSensitive(provider);
+	pwivate async doWesowveFiwe(wesouwce: UWI, options: IWesowveMetadataFiweOptions): Pwomise<IFiweStatWithMetadata>;
+	pwivate async doWesowveFiwe(wesouwce: UWI, options?: IWesowveFiweOptions): Pwomise<IFiweStat>;
+	pwivate async doWesowveFiwe(wesouwce: UWI, options?: IWesowveFiweOptions): Pwomise<IFiweStat> {
+		const pwovida = await this.withPwovida(wesouwce);
+		const isPathCaseSensitive = this.isPathCaseSensitive(pwovida);
 
-		const resolveTo = options?.resolveTo;
-		const resolveSingleChildDescendants = options?.resolveSingleChildDescendants;
-		const resolveMetadata = options?.resolveMetadata;
+		const wesowveTo = options?.wesowveTo;
+		const wesowveSingweChiwdDescendants = options?.wesowveSingweChiwdDescendants;
+		const wesowveMetadata = options?.wesowveMetadata;
 
-		const stat = await provider.stat(resource);
+		const stat = await pwovida.stat(wesouwce);
 
-		let trie: TernarySearchTree<URI, boolean> | undefined;
+		wet twie: TewnawySeawchTwee<UWI, boowean> | undefined;
 
-		return this.toFileStat(provider, resource, stat, undefined, !!resolveMetadata, (stat, siblings) => {
+		wetuwn this.toFiweStat(pwovida, wesouwce, stat, undefined, !!wesowveMetadata, (stat, sibwings) => {
 
-			// lazy trie to check for recursive resolving
-			if (!trie) {
-				trie = TernarySearchTree.forUris<true>(() => !isPathCaseSensitive);
-				trie.set(resource, true);
-				if (resolveTo) {
-					for (const uri of resolveTo) {
-						trie.set(uri, true);
+			// wazy twie to check fow wecuwsive wesowving
+			if (!twie) {
+				twie = TewnawySeawchTwee.fowUwis<twue>(() => !isPathCaseSensitive);
+				twie.set(wesouwce, twue);
+				if (wesowveTo) {
+					fow (const uwi of wesowveTo) {
+						twie.set(uwi, twue);
 					}
 				}
 			}
 
-			// check for recursive resolving
-			if (trie.get(stat.resource) || trie.findSuperstr(stat.resource.with({ query: null, fragment: null } /* required for https://github.com/microsoft/vscode/issues/128151 */))) {
-				return true;
+			// check fow wecuwsive wesowving
+			if (twie.get(stat.wesouwce) || twie.findSupewstw(stat.wesouwce.with({ quewy: nuww, fwagment: nuww } /* wequiwed fow https://github.com/micwosoft/vscode/issues/128151 */))) {
+				wetuwn twue;
 			}
 
-			// check for resolving single child folders
-			if (stat.isDirectory && resolveSingleChildDescendants) {
-				return siblings === 1;
+			// check fow wesowving singwe chiwd fowdews
+			if (stat.isDiwectowy && wesowveSingweChiwdDescendants) {
+				wetuwn sibwings === 1;
 			}
 
-			return false;
+			wetuwn fawse;
 		});
 	}
 
-	private async toFileStat(provider: IFileSystemProvider, resource: URI, stat: IStat | { type: FileType; } & Partial<IStat>, siblings: number | undefined, resolveMetadata: boolean, recurse: (stat: IFileStat, siblings?: number) => boolean): Promise<IFileStat>;
-	private async toFileStat(provider: IFileSystemProvider, resource: URI, stat: IStat, siblings: number | undefined, resolveMetadata: true, recurse: (stat: IFileStat, siblings?: number) => boolean): Promise<IFileStatWithMetadata>;
-	private async toFileStat(provider: IFileSystemProvider, resource: URI, stat: IStat | { type: FileType; } & Partial<IStat>, siblings: number | undefined, resolveMetadata: boolean, recurse: (stat: IFileStat, siblings?: number) => boolean): Promise<IFileStat> {
-		const { providerExtUri } = this.getExtUri(provider);
+	pwivate async toFiweStat(pwovida: IFiweSystemPwovida, wesouwce: UWI, stat: IStat | { type: FiweType; } & Pawtiaw<IStat>, sibwings: numba | undefined, wesowveMetadata: boowean, wecuwse: (stat: IFiweStat, sibwings?: numba) => boowean): Pwomise<IFiweStat>;
+	pwivate async toFiweStat(pwovida: IFiweSystemPwovida, wesouwce: UWI, stat: IStat, sibwings: numba | undefined, wesowveMetadata: twue, wecuwse: (stat: IFiweStat, sibwings?: numba) => boowean): Pwomise<IFiweStatWithMetadata>;
+	pwivate async toFiweStat(pwovida: IFiweSystemPwovida, wesouwce: UWI, stat: IStat | { type: FiweType; } & Pawtiaw<IStat>, sibwings: numba | undefined, wesowveMetadata: boowean, wecuwse: (stat: IFiweStat, sibwings?: numba) => boowean): Pwomise<IFiweStat> {
+		const { pwovidewExtUwi } = this.getExtUwi(pwovida);
 
-		// convert to file stat
-		const fileStat: IFileStat = {
-			resource,
-			name: providerExtUri.basename(resource),
-			isFile: (stat.type & FileType.File) !== 0,
-			isDirectory: (stat.type & FileType.Directory) !== 0,
-			isSymbolicLink: (stat.type & FileType.SymbolicLink) !== 0,
+		// convewt to fiwe stat
+		const fiweStat: IFiweStat = {
+			wesouwce,
+			name: pwovidewExtUwi.basename(wesouwce),
+			isFiwe: (stat.type & FiweType.Fiwe) !== 0,
+			isDiwectowy: (stat.type & FiweType.Diwectowy) !== 0,
+			isSymbowicWink: (stat.type & FiweType.SymbowicWink) !== 0,
 			mtime: stat.mtime,
 			ctime: stat.ctime,
 			size: stat.size,
-			readonly: Boolean((stat.permissions ?? 0) & FilePermission.Readonly) || Boolean(provider.capabilities & FileSystemProviderCapabilities.Readonly),
+			weadonwy: Boowean((stat.pewmissions ?? 0) & FiwePewmission.Weadonwy) || Boowean(pwovida.capabiwities & FiweSystemPwovidewCapabiwities.Weadonwy),
 			etag: etag({ mtime: stat.mtime, size: stat.size })
 		};
 
-		// check to recurse for directories
-		if (fileStat.isDirectory && recurse(fileStat, siblings)) {
-			try {
-				const entries = await provider.readdir(resource);
-				const resolvedEntries = await Promises.settled(entries.map(async ([name, type]) => {
-					try {
-						const childResource = providerExtUri.joinPath(resource, name);
-						const childStat = resolveMetadata ? await provider.stat(childResource) : { type };
+		// check to wecuwse fow diwectowies
+		if (fiweStat.isDiwectowy && wecuwse(fiweStat, sibwings)) {
+			twy {
+				const entwies = await pwovida.weaddiw(wesouwce);
+				const wesowvedEntwies = await Pwomises.settwed(entwies.map(async ([name, type]) => {
+					twy {
+						const chiwdWesouwce = pwovidewExtUwi.joinPath(wesouwce, name);
+						const chiwdStat = wesowveMetadata ? await pwovida.stat(chiwdWesouwce) : { type };
 
-						return await this.toFileStat(provider, childResource, childStat, entries.length, resolveMetadata, recurse);
-					} catch (error) {
-						this.logService.trace(error);
+						wetuwn await this.toFiweStat(pwovida, chiwdWesouwce, chiwdStat, entwies.wength, wesowveMetadata, wecuwse);
+					} catch (ewwow) {
+						this.wogSewvice.twace(ewwow);
 
-						return null; // can happen e.g. due to permission errors
+						wetuwn nuww; // can happen e.g. due to pewmission ewwows
 					}
 				}));
 
-				// make sure to get rid of null values that signal a failure to resolve a particular entry
-				fileStat.children = coalesce(resolvedEntries);
-			} catch (error) {
-				this.logService.trace(error);
+				// make suwe to get wid of nuww vawues that signaw a faiwuwe to wesowve a pawticuwaw entwy
+				fiweStat.chiwdwen = coawesce(wesowvedEntwies);
+			} catch (ewwow) {
+				this.wogSewvice.twace(ewwow);
 
-				fileStat.children = []; // gracefully handle errors, we may not have permissions to read
+				fiweStat.chiwdwen = []; // gwacefuwwy handwe ewwows, we may not have pewmissions to wead
 			}
 
-			return fileStat;
+			wetuwn fiweStat;
 		}
 
-		return fileStat;
+		wetuwn fiweStat;
 	}
 
-	async resolveAll(toResolve: { resource: URI, options?: IResolveFileOptions; }[]): Promise<IResolveFileResult[]>;
-	async resolveAll(toResolve: { resource: URI, options: IResolveMetadataFileOptions; }[]): Promise<IResolveFileResultWithMetadata[]>;
-	async resolveAll(toResolve: { resource: URI; options?: IResolveFileOptions; }[]): Promise<IResolveFileResult[]> {
-		return Promises.settled(toResolve.map(async entry => {
-			try {
-				return { stat: await this.doResolveFile(entry.resource, entry.options), success: true };
-			} catch (error) {
-				this.logService.trace(error);
+	async wesowveAww(toWesowve: { wesouwce: UWI, options?: IWesowveFiweOptions; }[]): Pwomise<IWesowveFiweWesuwt[]>;
+	async wesowveAww(toWesowve: { wesouwce: UWI, options: IWesowveMetadataFiweOptions; }[]): Pwomise<IWesowveFiweWesuwtWithMetadata[]>;
+	async wesowveAww(toWesowve: { wesouwce: UWI; options?: IWesowveFiweOptions; }[]): Pwomise<IWesowveFiweWesuwt[]> {
+		wetuwn Pwomises.settwed(toWesowve.map(async entwy => {
+			twy {
+				wetuwn { stat: await this.doWesowveFiwe(entwy.wesouwce, entwy.options), success: twue };
+			} catch (ewwow) {
+				this.wogSewvice.twace(ewwow);
 
-				return { stat: undefined, success: false };
+				wetuwn { stat: undefined, success: fawse };
 			}
 		}));
 	}
 
-	async exists(resource: URI): Promise<boolean> {
-		const provider = await this.withProvider(resource);
+	async exists(wesouwce: UWI): Pwomise<boowean> {
+		const pwovida = await this.withPwovida(wesouwce);
 
-		try {
-			const stat = await provider.stat(resource);
+		twy {
+			const stat = await pwovida.stat(wesouwce);
 
-			return !!stat;
-		} catch (error) {
-			return false;
+			wetuwn !!stat;
+		} catch (ewwow) {
+			wetuwn fawse;
 		}
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region File Reading/Writing
+	//#wegion Fiwe Weading/Wwiting
 
-	async canCreateFile(resource: URI, options?: ICreateFileOptions): Promise<Error | true> {
-		try {
-			await this.doValidateCreateFile(resource, options);
-		} catch (error) {
-			return error;
+	async canCweateFiwe(wesouwce: UWI, options?: ICweateFiweOptions): Pwomise<Ewwow | twue> {
+		twy {
+			await this.doVawidateCweateFiwe(wesouwce, options);
+		} catch (ewwow) {
+			wetuwn ewwow;
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	private async doValidateCreateFile(resource: URI, options?: ICreateFileOptions): Promise<void> {
+	pwivate async doVawidateCweateFiwe(wesouwce: UWI, options?: ICweateFiweOptions): Pwomise<void> {
 
-		// validate overwrite
-		if (!options?.overwrite && await this.exists(resource)) {
-			throw new FileOperationError(localize('fileExists', "Unable to create file '{0}' that already exists when overwrite flag is not set", this.resourceForError(resource)), FileOperationResult.FILE_MODIFIED_SINCE, options);
+		// vawidate ovewwwite
+		if (!options?.ovewwwite && await this.exists(wesouwce)) {
+			thwow new FiweOpewationEwwow(wocawize('fiweExists', "Unabwe to cweate fiwe '{0}' that awweady exists when ovewwwite fwag is not set", this.wesouwceFowEwwow(wesouwce)), FiweOpewationWesuwt.FIWE_MODIFIED_SINCE, options);
 		}
 	}
 
-	async createFile(resource: URI, bufferOrReadableOrStream: VSBuffer | VSBufferReadable | VSBufferReadableStream = VSBuffer.fromString(''), options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
+	async cweateFiwe(wesouwce: UWI, buffewOwWeadabweOwStweam: VSBuffa | VSBuffewWeadabwe | VSBuffewWeadabweStweam = VSBuffa.fwomStwing(''), options?: ICweateFiweOptions): Pwomise<IFiweStatWithMetadata> {
 
-		// validate
-		await this.doValidateCreateFile(resource, options);
+		// vawidate
+		await this.doVawidateCweateFiwe(wesouwce, options);
 
-		// do write into file (this will create it too)
-		const fileStat = await this.writeFile(resource, bufferOrReadableOrStream);
+		// do wwite into fiwe (this wiww cweate it too)
+		const fiweStat = await this.wwiteFiwe(wesouwce, buffewOwWeadabweOwStweam);
 
 		// events
-		this._onDidRunOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, fileStat));
+		this._onDidWunOpewation.fiwe(new FiweOpewationEvent(wesouwce, FiweOpewation.CWEATE, fiweStat));
 
-		return fileStat;
+		wetuwn fiweStat;
 	}
 
-	async writeFile(resource: URI, bufferOrReadableOrStream: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: IWriteFileOptions): Promise<IFileStatWithMetadata> {
-		const provider = this.throwIfFileSystemIsReadonly(await this.withWriteProvider(resource), resource);
-		const { providerExtUri } = this.getExtUri(provider);
+	async wwiteFiwe(wesouwce: UWI, buffewOwWeadabweOwStweam: VSBuffa | VSBuffewWeadabwe | VSBuffewWeadabweStweam, options?: IWwiteFiweOptions): Pwomise<IFiweStatWithMetadata> {
+		const pwovida = this.thwowIfFiweSystemIsWeadonwy(await this.withWwitePwovida(wesouwce), wesouwce);
+		const { pwovidewExtUwi } = this.getExtUwi(pwovida);
 
-		try {
+		twy {
 
-			// validate write
-			const stat = await this.validateWriteFile(provider, resource, options);
+			// vawidate wwite
+			const stat = await this.vawidateWwiteFiwe(pwovida, wesouwce, options);
 
-			// mkdir recursively as needed
+			// mkdiw wecuwsivewy as needed
 			if (!stat) {
-				await this.mkdirp(provider, providerExtUri.dirname(resource));
+				await this.mkdiwp(pwovida, pwovidewExtUwi.diwname(wesouwce));
 			}
 
-			// optimization: if the provider has unbuffered write capability and the data
-			// to write is a Readable, we consume up to 3 chunks and try to write the data
-			// unbuffered to reduce the overhead. If the Readable has more data to provide
-			// we continue to write buffered.
-			let bufferOrReadableOrStreamOrBufferedStream: VSBuffer | VSBufferReadable | VSBufferReadableStream | VSBufferReadableBufferedStream;
-			if (hasReadWriteCapability(provider) && !(bufferOrReadableOrStream instanceof VSBuffer)) {
-				if (isReadableStream(bufferOrReadableOrStream)) {
-					const bufferedStream = await peekStream(bufferOrReadableOrStream, 3);
-					if (bufferedStream.ended) {
-						bufferOrReadableOrStreamOrBufferedStream = VSBuffer.concat(bufferedStream.buffer);
-					} else {
-						bufferOrReadableOrStreamOrBufferedStream = bufferedStream;
+			// optimization: if the pwovida has unbuffewed wwite capabiwity and the data
+			// to wwite is a Weadabwe, we consume up to 3 chunks and twy to wwite the data
+			// unbuffewed to weduce the ovewhead. If the Weadabwe has mowe data to pwovide
+			// we continue to wwite buffewed.
+			wet buffewOwWeadabweOwStweamOwBuffewedStweam: VSBuffa | VSBuffewWeadabwe | VSBuffewWeadabweStweam | VSBuffewWeadabweBuffewedStweam;
+			if (hasWeadWwiteCapabiwity(pwovida) && !(buffewOwWeadabweOwStweam instanceof VSBuffa)) {
+				if (isWeadabweStweam(buffewOwWeadabweOwStweam)) {
+					const buffewedStweam = await peekStweam(buffewOwWeadabweOwStweam, 3);
+					if (buffewedStweam.ended) {
+						buffewOwWeadabweOwStweamOwBuffewedStweam = VSBuffa.concat(buffewedStweam.buffa);
+					} ewse {
+						buffewOwWeadabweOwStweamOwBuffewedStweam = buffewedStweam;
 					}
-				} else {
-					bufferOrReadableOrStreamOrBufferedStream = peekReadable(bufferOrReadableOrStream, data => VSBuffer.concat(data), 3);
+				} ewse {
+					buffewOwWeadabweOwStweamOwBuffewedStweam = peekWeadabwe(buffewOwWeadabweOwStweam, data => VSBuffa.concat(data), 3);
 				}
-			} else {
-				bufferOrReadableOrStreamOrBufferedStream = bufferOrReadableOrStream;
+			} ewse {
+				buffewOwWeadabweOwStweamOwBuffewedStweam = buffewOwWeadabweOwStweam;
 			}
 
-			// write file: unbuffered (only if data to write is a buffer, or the provider has no buffered write capability)
-			if (!hasOpenReadWriteCloseCapability(provider) || (hasReadWriteCapability(provider) && bufferOrReadableOrStreamOrBufferedStream instanceof VSBuffer)) {
-				await this.doWriteUnbuffered(provider, resource, options, bufferOrReadableOrStreamOrBufferedStream);
+			// wwite fiwe: unbuffewed (onwy if data to wwite is a buffa, ow the pwovida has no buffewed wwite capabiwity)
+			if (!hasOpenWeadWwiteCwoseCapabiwity(pwovida) || (hasWeadWwiteCapabiwity(pwovida) && buffewOwWeadabweOwStweamOwBuffewedStweam instanceof VSBuffa)) {
+				await this.doWwiteUnbuffewed(pwovida, wesouwce, options, buffewOwWeadabweOwStweamOwBuffewedStweam);
 			}
 
-			// write file: buffered
-			else {
-				await this.doWriteBuffered(provider, resource, options, bufferOrReadableOrStreamOrBufferedStream instanceof VSBuffer ? bufferToReadable(bufferOrReadableOrStreamOrBufferedStream) : bufferOrReadableOrStreamOrBufferedStream);
+			// wwite fiwe: buffewed
+			ewse {
+				await this.doWwiteBuffewed(pwovida, wesouwce, options, buffewOwWeadabweOwStweamOwBuffewedStweam instanceof VSBuffa ? buffewToWeadabwe(buffewOwWeadabweOwStweamOwBuffewedStweam) : buffewOwWeadabweOwStweamOwBuffewedStweam);
 			}
-		} catch (error) {
-			throw new FileOperationError(localize('err.write', "Unable to write file '{0}' ({1})", this.resourceForError(resource), ensureFileSystemProviderError(error).toString()), toFileOperationResult(error), options);
+		} catch (ewwow) {
+			thwow new FiweOpewationEwwow(wocawize('eww.wwite', "Unabwe to wwite fiwe '{0}' ({1})", this.wesouwceFowEwwow(wesouwce), ensuweFiweSystemPwovidewEwwow(ewwow).toStwing()), toFiweOpewationWesuwt(ewwow), options);
 		}
 
-		return this.resolve(resource, { resolveMetadata: true });
+		wetuwn this.wesowve(wesouwce, { wesowveMetadata: twue });
 	}
 
-	private async validateWriteFile(provider: IFileSystemProvider, resource: URI, options?: IWriteFileOptions): Promise<IStat | undefined> {
+	pwivate async vawidateWwiteFiwe(pwovida: IFiweSystemPwovida, wesouwce: UWI, options?: IWwiteFiweOptions): Pwomise<IStat | undefined> {
 
-		// Validate unlock support
-		const unlock = !!options?.unlock;
-		if (unlock && !(provider.capabilities & FileSystemProviderCapabilities.FileWriteUnlock)) {
-			throw new Error(localize('writeFailedUnlockUnsupported', "Unable to unlock file '{0}' because provider does not support it.", this.resourceForError(resource)));
+		// Vawidate unwock suppowt
+		const unwock = !!options?.unwock;
+		if (unwock && !(pwovida.capabiwities & FiweSystemPwovidewCapabiwities.FiweWwiteUnwock)) {
+			thwow new Ewwow(wocawize('wwiteFaiwedUnwockUnsuppowted', "Unabwe to unwock fiwe '{0}' because pwovida does not suppowt it.", this.wesouwceFowEwwow(wesouwce)));
 		}
 
-		// Validate via file stat meta data
-		let stat: IStat | undefined = undefined;
-		try {
-			stat = await provider.stat(resource);
-		} catch (error) {
-			return undefined; // file might not exist
+		// Vawidate via fiwe stat meta data
+		wet stat: IStat | undefined = undefined;
+		twy {
+			stat = await pwovida.stat(wesouwce);
+		} catch (ewwow) {
+			wetuwn undefined; // fiwe might not exist
 		}
 
-		// File cannot be directory
-		if ((stat.type & FileType.Directory) !== 0) {
-			throw new FileOperationError(localize('fileIsDirectoryWriteError', "Unable to write file '{0}' that is actually a directory", this.resourceForError(resource)), FileOperationResult.FILE_IS_DIRECTORY, options);
+		// Fiwe cannot be diwectowy
+		if ((stat.type & FiweType.Diwectowy) !== 0) {
+			thwow new FiweOpewationEwwow(wocawize('fiweIsDiwectowyWwiteEwwow', "Unabwe to wwite fiwe '{0}' that is actuawwy a diwectowy", this.wesouwceFowEwwow(wesouwce)), FiweOpewationWesuwt.FIWE_IS_DIWECTOWY, options);
 		}
 
-		// File cannot be readonly
-		this.throwIfFileIsReadonly(resource, stat);
+		// Fiwe cannot be weadonwy
+		this.thwowIfFiweIsWeadonwy(wesouwce, stat);
 
-		// Dirty write prevention: if the file on disk has been changed and does not match our expected
-		// mtime and etag, we bail out to prevent dirty writing.
+		// Diwty wwite pwevention: if the fiwe on disk has been changed and does not match ouw expected
+		// mtime and etag, we baiw out to pwevent diwty wwiting.
 		//
-		// First, we check for a mtime that is in the future before we do more checks. The assumption is
-		// that only the mtime is an indicator for a file that has changed on disk.
+		// Fiwst, we check fow a mtime that is in the futuwe befowe we do mowe checks. The assumption is
+		// that onwy the mtime is an indicatow fow a fiwe that has changed on disk.
 		//
-		// Second, if the mtime has advanced, we compare the size of the file on disk with our previous
-		// one using the etag() function. Relying only on the mtime check has prooven to produce false
-		// positives due to file system weirdness (especially around remote file systems). As such, the
-		// check for size is a weaker check because it can return a false negative if the file has changed
-		// but to the same length. This is a compromise we take to avoid having to produce checksums of
-		// the file content for comparison which would be much slower to compute.
+		// Second, if the mtime has advanced, we compawe the size of the fiwe on disk with ouw pwevious
+		// one using the etag() function. Wewying onwy on the mtime check has pwooven to pwoduce fawse
+		// positives due to fiwe system weiwdness (especiawwy awound wemote fiwe systems). As such, the
+		// check fow size is a weaka check because it can wetuwn a fawse negative if the fiwe has changed
+		// but to the same wength. This is a compwomise we take to avoid having to pwoduce checksums of
+		// the fiwe content fow compawison which wouwd be much swowa to compute.
 		if (
-			typeof options?.mtime === 'number' && typeof options.etag === 'string' && options.etag !== ETAG_DISABLED &&
-			typeof stat.mtime === 'number' && typeof stat.size === 'number' &&
-			options.mtime < stat.mtime && options.etag !== etag({ mtime: options.mtime /* not using stat.mtime for a reason, see above */, size: stat.size })
+			typeof options?.mtime === 'numba' && typeof options.etag === 'stwing' && options.etag !== ETAG_DISABWED &&
+			typeof stat.mtime === 'numba' && typeof stat.size === 'numba' &&
+			options.mtime < stat.mtime && options.etag !== etag({ mtime: options.mtime /* not using stat.mtime fow a weason, see above */, size: stat.size })
 		) {
-			throw new FileOperationError(localize('fileModifiedError', "File Modified Since"), FileOperationResult.FILE_MODIFIED_SINCE, options);
+			thwow new FiweOpewationEwwow(wocawize('fiweModifiedEwwow', "Fiwe Modified Since"), FiweOpewationWesuwt.FIWE_MODIFIED_SINCE, options);
 		}
 
-		return stat;
+		wetuwn stat;
 	}
 
-	async readFile(resource: URI, options?: IReadFileOptions): Promise<IFileContent> {
-		const provider = await this.withReadProvider(resource);
+	async weadFiwe(wesouwce: UWI, options?: IWeadFiweOptions): Pwomise<IFiweContent> {
+		const pwovida = await this.withWeadPwovida(wesouwce);
 
 		if (options?.atomic) {
-			return this.doReadFileAtomic(provider, resource, options);
+			wetuwn this.doWeadFiweAtomic(pwovida, wesouwce, options);
 		}
 
-		return this.doReadFile(provider, resource, options);
+		wetuwn this.doWeadFiwe(pwovida, wesouwce, options);
 	}
 
-	private async doReadFileAtomic(provider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability | IFileSystemProviderWithFileReadStreamCapability, resource: URI, options?: IReadFileOptions): Promise<IFileContent> {
-		return new Promise<IFileContent>((resolve, reject) => {
-			this.writeQueue.queueFor(resource, this.getExtUri(provider).providerExtUri).queue(async () => {
-				try {
-					const content = await this.doReadFile(provider, resource, options);
-					resolve(content);
-				} catch (error) {
-					reject(error);
+	pwivate async doWeadFiweAtomic(pwovida: IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity | IFiweSystemPwovidewWithOpenWeadWwiteCwoseCapabiwity | IFiweSystemPwovidewWithFiweWeadStweamCapabiwity, wesouwce: UWI, options?: IWeadFiweOptions): Pwomise<IFiweContent> {
+		wetuwn new Pwomise<IFiweContent>((wesowve, weject) => {
+			this.wwiteQueue.queueFow(wesouwce, this.getExtUwi(pwovida).pwovidewExtUwi).queue(async () => {
+				twy {
+					const content = await this.doWeadFiwe(pwovida, wesouwce, options);
+					wesowve(content);
+				} catch (ewwow) {
+					weject(ewwow);
 				}
 			});
 		});
 	}
 
-	private async doReadFile(provider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability | IFileSystemProviderWithFileReadStreamCapability, resource: URI, options?: IReadFileOptions): Promise<IFileContent> {
-		const stream = await this.doReadFileStream(provider, resource, {
+	pwivate async doWeadFiwe(pwovida: IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity | IFiweSystemPwovidewWithOpenWeadWwiteCwoseCapabiwity | IFiweSystemPwovidewWithFiweWeadStweamCapabiwity, wesouwce: UWI, options?: IWeadFiweOptions): Pwomise<IFiweContent> {
+		const stweam = await this.doWeadFiweStweam(pwovida, wesouwce, {
 			...options,
-			// optimization: since we know that the caller does not
-			// care about buffering, we indicate this to the reader.
-			// this reduces all the overhead the buffered reading
-			// has (open, read, close) if the provider supports
-			// unbuffered reading.
-			preferUnbuffered: true
+			// optimization: since we know that the cawwa does not
+			// cawe about buffewing, we indicate this to the weada.
+			// this weduces aww the ovewhead the buffewed weading
+			// has (open, wead, cwose) if the pwovida suppowts
+			// unbuffewed weading.
+			pwefewUnbuffewed: twue
 		});
 
-		return {
-			...stream,
-			value: await streamToBuffer(stream.value)
+		wetuwn {
+			...stweam,
+			vawue: await stweamToBuffa(stweam.vawue)
 		};
 	}
 
-	async readFileStream(resource: URI, options?: IReadFileStreamOptions): Promise<IFileStreamContent> {
-		const provider = await this.withReadProvider(resource);
+	async weadFiweStweam(wesouwce: UWI, options?: IWeadFiweStweamOptions): Pwomise<IFiweStweamContent> {
+		const pwovida = await this.withWeadPwovida(wesouwce);
 
-		return this.doReadFileStream(provider, resource, options);
+		wetuwn this.doWeadFiweStweam(pwovida, wesouwce, options);
 	}
 
-	private async doReadFileStream(provider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability | IFileSystemProviderWithFileReadStreamCapability, resource: URI, options?: IReadFileStreamOptions & { preferUnbuffered?: boolean; }): Promise<IFileStreamContent> {
+	pwivate async doWeadFiweStweam(pwovida: IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity | IFiweSystemPwovidewWithOpenWeadWwiteCwoseCapabiwity | IFiweSystemPwovidewWithFiweWeadStweamCapabiwity, wesouwce: UWI, options?: IWeadFiweStweamOptions & { pwefewUnbuffewed?: boowean; }): Pwomise<IFiweStweamContent> {
 
-		// install a cancellation token that gets cancelled
-		// when any error occurs. this allows us to resolve
-		// the content of the file while resolving metadata
-		// but still cancel the operation in certain cases.
-		const cancellableSource = new CancellationTokenSource();
+		// instaww a cancewwation token that gets cancewwed
+		// when any ewwow occuws. this awwows us to wesowve
+		// the content of the fiwe whiwe wesowving metadata
+		// but stiww cancew the opewation in cewtain cases.
+		const cancewwabweSouwce = new CancewwationTokenSouwce();
 
-		// validate read operation
-		const statPromise = this.validateReadFile(resource, options).then(stat => stat, error => {
-			cancellableSource.cancel();
+		// vawidate wead opewation
+		const statPwomise = this.vawidateWeadFiwe(wesouwce, options).then(stat => stat, ewwow => {
+			cancewwabweSouwce.cancew();
 
-			throw error;
+			thwow ewwow;
 		});
 
-		let fileStream: VSBufferReadableStream | undefined = undefined;
-		try {
+		wet fiweStweam: VSBuffewWeadabweStweam | undefined = undefined;
+		twy {
 
-			// if the etag is provided, we await the result of the validation
-			// due to the likelihood of hitting a NOT_MODIFIED_SINCE result.
-			// otherwise, we let it run in parallel to the file reading for
-			// optimal startup performance.
-			if (typeof options?.etag === 'string' && options.etag !== ETAG_DISABLED) {
-				await statPromise;
+			// if the etag is pwovided, we await the wesuwt of the vawidation
+			// due to the wikewihood of hitting a NOT_MODIFIED_SINCE wesuwt.
+			// othewwise, we wet it wun in pawawwew to the fiwe weading fow
+			// optimaw stawtup pewfowmance.
+			if (typeof options?.etag === 'stwing' && options.etag !== ETAG_DISABWED) {
+				await statPwomise;
 			}
 
-			// read unbuffered (only if either preferred, or the provider has no buffered read capability)
-			if (!(hasOpenReadWriteCloseCapability(provider) || hasFileReadStreamCapability(provider)) || (hasReadWriteCapability(provider) && options?.preferUnbuffered)) {
-				fileStream = this.readFileUnbuffered(provider, resource, options);
+			// wead unbuffewed (onwy if eitha pwefewwed, ow the pwovida has no buffewed wead capabiwity)
+			if (!(hasOpenWeadWwiteCwoseCapabiwity(pwovida) || hasFiweWeadStweamCapabiwity(pwovida)) || (hasWeadWwiteCapabiwity(pwovida) && options?.pwefewUnbuffewed)) {
+				fiweStweam = this.weadFiweUnbuffewed(pwovida, wesouwce, options);
 			}
 
-			// read streamed (always prefer over primitive buffered read)
-			else if (hasFileReadStreamCapability(provider)) {
-				fileStream = this.readFileStreamed(provider, resource, cancellableSource.token, options);
+			// wead stweamed (awways pwefa ova pwimitive buffewed wead)
+			ewse if (hasFiweWeadStweamCapabiwity(pwovida)) {
+				fiweStweam = this.weadFiweStweamed(pwovida, wesouwce, cancewwabweSouwce.token, options);
 			}
 
-			// read buffered
-			else {
-				fileStream = this.readFileBuffered(provider, resource, cancellableSource.token, options);
+			// wead buffewed
+			ewse {
+				fiweStweam = this.weadFiweBuffewed(pwovida, wesouwce, cancewwabweSouwce.token, options);
 			}
 
-			const fileStat = await statPromise;
+			const fiweStat = await statPwomise;
 
-			return {
-				...fileStat,
-				value: fileStream
+			wetuwn {
+				...fiweStat,
+				vawue: fiweStweam
 			};
-		} catch (error) {
+		} catch (ewwow) {
 
-			// Await the stream to finish so that we exit this method
-			// in a consistent state with file handles closed
-			// (https://github.com/microsoft/vscode/issues/114024)
-			if (fileStream) {
-				await consumeStream(fileStream);
+			// Await the stweam to finish so that we exit this method
+			// in a consistent state with fiwe handwes cwosed
+			// (https://github.com/micwosoft/vscode/issues/114024)
+			if (fiweStweam) {
+				await consumeStweam(fiweStweam);
 			}
 
-			// Re-throw errors as file operation errors but preserve
-			// specific errors (such as not modified since)
-			const message = localize('err.read', "Unable to read file '{0}' ({1})", this.resourceForError(resource), ensureFileSystemProviderError(error).toString());
-			if (error instanceof NotModifiedSinceFileOperationError) {
-				throw new NotModifiedSinceFileOperationError(message, error.stat, options);
-			} else {
-				throw new FileOperationError(message, toFileOperationResult(error), options);
+			// We-thwow ewwows as fiwe opewation ewwows but pwesewve
+			// specific ewwows (such as not modified since)
+			const message = wocawize('eww.wead', "Unabwe to wead fiwe '{0}' ({1})", this.wesouwceFowEwwow(wesouwce), ensuweFiweSystemPwovidewEwwow(ewwow).toStwing());
+			if (ewwow instanceof NotModifiedSinceFiweOpewationEwwow) {
+				thwow new NotModifiedSinceFiweOpewationEwwow(message, ewwow.stat, options);
+			} ewse {
+				thwow new FiweOpewationEwwow(message, toFiweOpewationWesuwt(ewwow), options);
 			}
 		}
 	}
 
-	private readFileStreamed(provider: IFileSystemProviderWithFileReadStreamCapability, resource: URI, token: CancellationToken, options: IReadFileStreamOptions = Object.create(null)): VSBufferReadableStream {
-		const fileStream = provider.readFileStream(resource, options, token);
+	pwivate weadFiweStweamed(pwovida: IFiweSystemPwovidewWithFiweWeadStweamCapabiwity, wesouwce: UWI, token: CancewwationToken, options: IWeadFiweStweamOptions = Object.cweate(nuww)): VSBuffewWeadabweStweam {
+		const fiweStweam = pwovida.weadFiweStweam(wesouwce, options, token);
 
-		return transform(fileStream, {
-			data: data => data instanceof VSBuffer ? data : VSBuffer.wrap(data),
-			error: error => new FileOperationError(localize('err.read', "Unable to read file '{0}' ({1})", this.resourceForError(resource), ensureFileSystemProviderError(error).toString()), toFileOperationResult(error), options)
-		}, data => VSBuffer.concat(data));
+		wetuwn twansfowm(fiweStweam, {
+			data: data => data instanceof VSBuffa ? data : VSBuffa.wwap(data),
+			ewwow: ewwow => new FiweOpewationEwwow(wocawize('eww.wead', "Unabwe to wead fiwe '{0}' ({1})", this.wesouwceFowEwwow(wesouwce), ensuweFiweSystemPwovidewEwwow(ewwow).toStwing()), toFiweOpewationWesuwt(ewwow), options)
+		}, data => VSBuffa.concat(data));
 	}
 
-	private readFileBuffered(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, token: CancellationToken, options: IReadFileStreamOptions = Object.create(null)): VSBufferReadableStream {
-		const stream = newWriteableBufferStream();
+	pwivate weadFiweBuffewed(pwovida: IFiweSystemPwovidewWithOpenWeadWwiteCwoseCapabiwity, wesouwce: UWI, token: CancewwationToken, options: IWeadFiweStweamOptions = Object.cweate(nuww)): VSBuffewWeadabweStweam {
+		const stweam = newWwiteabweBuffewStweam();
 
-		readFileIntoStream(provider, resource, stream, data => data, {
+		weadFiweIntoStweam(pwovida, wesouwce, stweam, data => data, {
 			...options,
-			bufferSize: this.BUFFER_SIZE,
-			errorTransformer: error => new FileOperationError(localize('err.read', "Unable to read file '{0}' ({1})", this.resourceForError(resource), ensureFileSystemProviderError(error).toString()), toFileOperationResult(error), options)
+			buffewSize: this.BUFFEW_SIZE,
+			ewwowTwansfowma: ewwow => new FiweOpewationEwwow(wocawize('eww.wead', "Unabwe to wead fiwe '{0}' ({1})", this.wesouwceFowEwwow(wesouwce), ensuweFiweSystemPwovidewEwwow(ewwow).toStwing()), toFiweOpewationWesuwt(ewwow), options)
 		}, token);
 
-		return stream;
+		wetuwn stweam;
 	}
 
-	private readFileUnbuffered(provider: IFileSystemProviderWithFileReadWriteCapability, resource: URI, options?: IReadFileStreamOptions): VSBufferReadableStream {
-		const stream = newWriteableStream<VSBuffer>(data => VSBuffer.concat(data));
+	pwivate weadFiweUnbuffewed(pwovida: IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity, wesouwce: UWI, options?: IWeadFiweStweamOptions): VSBuffewWeadabweStweam {
+		const stweam = newWwiteabweStweam<VSBuffa>(data => VSBuffa.concat(data));
 
-		// Read the file into the stream async but do not wait for
-		// this to complete because streams work via events
+		// Wead the fiwe into the stweam async but do not wait fow
+		// this to compwete because stweams wowk via events
 		(async () => {
-			try {
-				let buffer = await provider.readFile(resource);
+			twy {
+				wet buffa = await pwovida.weadFiwe(wesouwce);
 
-				// respect position option
-				if (typeof options?.position === 'number') {
-					buffer = buffer.slice(options.position);
+				// wespect position option
+				if (typeof options?.position === 'numba') {
+					buffa = buffa.swice(options.position);
 				}
 
-				// respect length option
-				if (typeof options?.length === 'number') {
-					buffer = buffer.slice(0, options.length);
+				// wespect wength option
+				if (typeof options?.wength === 'numba') {
+					buffa = buffa.swice(0, options.wength);
 				}
 
-				// Throw if file is too large to load
-				this.validateReadFileLimits(resource, buffer.byteLength, options);
+				// Thwow if fiwe is too wawge to woad
+				this.vawidateWeadFiweWimits(wesouwce, buffa.byteWength, options);
 
-				// End stream with data
-				stream.end(VSBuffer.wrap(buffer));
-			} catch (err) {
-				stream.error(err);
-				stream.end();
+				// End stweam with data
+				stweam.end(VSBuffa.wwap(buffa));
+			} catch (eww) {
+				stweam.ewwow(eww);
+				stweam.end();
 			}
 		})();
 
-		return stream;
+		wetuwn stweam;
 	}
 
-	private async validateReadFile(resource: URI, options?: IReadFileStreamOptions): Promise<IFileStatWithMetadata> {
-		const stat = await this.resolve(resource, { resolveMetadata: true });
+	pwivate async vawidateWeadFiwe(wesouwce: UWI, options?: IWeadFiweStweamOptions): Pwomise<IFiweStatWithMetadata> {
+		const stat = await this.wesowve(wesouwce, { wesowveMetadata: twue });
 
-		// Throw if resource is a directory
-		if (stat.isDirectory) {
-			throw new FileOperationError(localize('fileIsDirectoryReadError', "Unable to read file '{0}' that is actually a directory", this.resourceForError(resource)), FileOperationResult.FILE_IS_DIRECTORY, options);
+		// Thwow if wesouwce is a diwectowy
+		if (stat.isDiwectowy) {
+			thwow new FiweOpewationEwwow(wocawize('fiweIsDiwectowyWeadEwwow', "Unabwe to wead fiwe '{0}' that is actuawwy a diwectowy", this.wesouwceFowEwwow(wesouwce)), FiweOpewationWesuwt.FIWE_IS_DIWECTOWY, options);
 		}
 
-		// Throw if file not modified since (unless disabled)
-		if (typeof options?.etag === 'string' && options.etag !== ETAG_DISABLED && options.etag === stat.etag) {
-			throw new NotModifiedSinceFileOperationError(localize('fileNotModifiedError', "File not modified since"), stat, options);
+		// Thwow if fiwe not modified since (unwess disabwed)
+		if (typeof options?.etag === 'stwing' && options.etag !== ETAG_DISABWED && options.etag === stat.etag) {
+			thwow new NotModifiedSinceFiweOpewationEwwow(wocawize('fiweNotModifiedEwwow', "Fiwe not modified since"), stat, options);
 		}
 
-		// Throw if file is too large to load
-		this.validateReadFileLimits(resource, stat.size, options);
+		// Thwow if fiwe is too wawge to woad
+		this.vawidateWeadFiweWimits(wesouwce, stat.size, options);
 
-		return stat;
+		wetuwn stat;
 	}
 
-	private validateReadFileLimits(resource: URI, size: number, options?: IReadFileStreamOptions): void {
-		if (options?.limits) {
-			let tooLargeErrorResult: FileOperationResult | undefined = undefined;
+	pwivate vawidateWeadFiweWimits(wesouwce: UWI, size: numba, options?: IWeadFiweStweamOptions): void {
+		if (options?.wimits) {
+			wet tooWawgeEwwowWesuwt: FiweOpewationWesuwt | undefined = undefined;
 
-			if (typeof options.limits.memory === 'number' && size > options.limits.memory) {
-				tooLargeErrorResult = FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT;
+			if (typeof options.wimits.memowy === 'numba' && size > options.wimits.memowy) {
+				tooWawgeEwwowWesuwt = FiweOpewationWesuwt.FIWE_EXCEEDS_MEMOWY_WIMIT;
 			}
 
-			if (typeof options.limits.size === 'number' && size > options.limits.size) {
-				tooLargeErrorResult = FileOperationResult.FILE_TOO_LARGE;
+			if (typeof options.wimits.size === 'numba' && size > options.wimits.size) {
+				tooWawgeEwwowWesuwt = FiweOpewationWesuwt.FIWE_TOO_WAWGE;
 			}
 
-			if (typeof tooLargeErrorResult === 'number') {
-				throw new FileOperationError(localize('fileTooLargeError', "Unable to read file '{0}' that is too large to open", this.resourceForError(resource)), tooLargeErrorResult);
-			}
-		}
-	}
-
-	//#endregion
-
-	//#region Move/Copy/Delete/Create Folder
-
-	async canMove(source: URI, target: URI, overwrite?: boolean): Promise<Error | true> {
-		return this.doCanMoveCopy(source, target, 'move', overwrite);
-	}
-
-	async canCopy(source: URI, target: URI, overwrite?: boolean): Promise<Error | true> {
-		return this.doCanMoveCopy(source, target, 'copy', overwrite);
-	}
-
-	private async doCanMoveCopy(source: URI, target: URI, mode: 'move' | 'copy', overwrite?: boolean): Promise<Error | true> {
-		if (source.toString() !== target.toString()) {
-			try {
-				const sourceProvider = mode === 'move' ? this.throwIfFileSystemIsReadonly(await this.withWriteProvider(source), source) : await this.withReadProvider(source);
-				const targetProvider = this.throwIfFileSystemIsReadonly(await this.withWriteProvider(target), target);
-
-				await this.doValidateMoveCopy(sourceProvider, source, targetProvider, target, mode, overwrite);
-			} catch (error) {
-				return error;
+			if (typeof tooWawgeEwwowWesuwt === 'numba') {
+				thwow new FiweOpewationEwwow(wocawize('fiweTooWawgeEwwow', "Unabwe to wead fiwe '{0}' that is too wawge to open", this.wesouwceFowEwwow(wesouwce)), tooWawgeEwwowWesuwt);
 			}
 		}
-
-		return true;
 	}
 
-	async move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
-		const sourceProvider = this.throwIfFileSystemIsReadonly(await this.withWriteProvider(source), source);
-		const targetProvider = this.throwIfFileSystemIsReadonly(await this.withWriteProvider(target), target);
+	//#endwegion
+
+	//#wegion Move/Copy/Dewete/Cweate Fowda
+
+	async canMove(souwce: UWI, tawget: UWI, ovewwwite?: boowean): Pwomise<Ewwow | twue> {
+		wetuwn this.doCanMoveCopy(souwce, tawget, 'move', ovewwwite);
+	}
+
+	async canCopy(souwce: UWI, tawget: UWI, ovewwwite?: boowean): Pwomise<Ewwow | twue> {
+		wetuwn this.doCanMoveCopy(souwce, tawget, 'copy', ovewwwite);
+	}
+
+	pwivate async doCanMoveCopy(souwce: UWI, tawget: UWI, mode: 'move' | 'copy', ovewwwite?: boowean): Pwomise<Ewwow | twue> {
+		if (souwce.toStwing() !== tawget.toStwing()) {
+			twy {
+				const souwcePwovida = mode === 'move' ? this.thwowIfFiweSystemIsWeadonwy(await this.withWwitePwovida(souwce), souwce) : await this.withWeadPwovida(souwce);
+				const tawgetPwovida = this.thwowIfFiweSystemIsWeadonwy(await this.withWwitePwovida(tawget), tawget);
+
+				await this.doVawidateMoveCopy(souwcePwovida, souwce, tawgetPwovida, tawget, mode, ovewwwite);
+			} catch (ewwow) {
+				wetuwn ewwow;
+			}
+		}
+
+		wetuwn twue;
+	}
+
+	async move(souwce: UWI, tawget: UWI, ovewwwite?: boowean): Pwomise<IFiweStatWithMetadata> {
+		const souwcePwovida = this.thwowIfFiweSystemIsWeadonwy(await this.withWwitePwovida(souwce), souwce);
+		const tawgetPwovida = this.thwowIfFiweSystemIsWeadonwy(await this.withWwitePwovida(tawget), tawget);
 
 		// move
-		const mode = await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'move', !!overwrite);
+		const mode = await this.doMoveCopy(souwcePwovida, souwce, tawgetPwovida, tawget, 'move', !!ovewwwite);
 
-		// resolve and send events
-		const fileStat = await this.resolve(target, { resolveMetadata: true });
-		this._onDidRunOperation.fire(new FileOperationEvent(source, mode === 'move' ? FileOperation.MOVE : FileOperation.COPY, fileStat));
+		// wesowve and send events
+		const fiweStat = await this.wesowve(tawget, { wesowveMetadata: twue });
+		this._onDidWunOpewation.fiwe(new FiweOpewationEvent(souwce, mode === 'move' ? FiweOpewation.MOVE : FiweOpewation.COPY, fiweStat));
 
-		return fileStat;
+		wetuwn fiweStat;
 	}
 
-	async copy(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
-		const sourceProvider = await this.withReadProvider(source);
-		const targetProvider = this.throwIfFileSystemIsReadonly(await this.withWriteProvider(target), target);
+	async copy(souwce: UWI, tawget: UWI, ovewwwite?: boowean): Pwomise<IFiweStatWithMetadata> {
+		const souwcePwovida = await this.withWeadPwovida(souwce);
+		const tawgetPwovida = this.thwowIfFiweSystemIsWeadonwy(await this.withWwitePwovida(tawget), tawget);
 
 		// copy
-		const mode = await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'copy', !!overwrite);
+		const mode = await this.doMoveCopy(souwcePwovida, souwce, tawgetPwovida, tawget, 'copy', !!ovewwwite);
 
-		// resolve and send events
-		const fileStat = await this.resolve(target, { resolveMetadata: true });
-		this._onDidRunOperation.fire(new FileOperationEvent(source, mode === 'copy' ? FileOperation.COPY : FileOperation.MOVE, fileStat));
+		// wesowve and send events
+		const fiweStat = await this.wesowve(tawget, { wesowveMetadata: twue });
+		this._onDidWunOpewation.fiwe(new FiweOpewationEvent(souwce, mode === 'copy' ? FiweOpewation.COPY : FiweOpewation.MOVE, fiweStat));
 
-		return fileStat;
+		wetuwn fiweStat;
 	}
 
-	private async doMoveCopy(sourceProvider: IFileSystemProvider, source: URI, targetProvider: IFileSystemProvider, target: URI, mode: 'move' | 'copy', overwrite: boolean): Promise<'move' | 'copy'> {
-		if (source.toString() === target.toString()) {
-			return mode; // simulate node.js behaviour here and do a no-op if paths match
+	pwivate async doMoveCopy(souwcePwovida: IFiweSystemPwovida, souwce: UWI, tawgetPwovida: IFiweSystemPwovida, tawget: UWI, mode: 'move' | 'copy', ovewwwite: boowean): Pwomise<'move' | 'copy'> {
+		if (souwce.toStwing() === tawget.toStwing()) {
+			wetuwn mode; // simuwate node.js behaviouw hewe and do a no-op if paths match
 		}
 
-		// validation
-		const { exists, isSameResourceWithDifferentPathCase } = await this.doValidateMoveCopy(sourceProvider, source, targetProvider, target, mode, overwrite);
+		// vawidation
+		const { exists, isSameWesouwceWithDiffewentPathCase } = await this.doVawidateMoveCopy(souwcePwovida, souwce, tawgetPwovida, tawget, mode, ovewwwite);
 
-		// delete as needed (unless target is same resurce with different path case)
-		if (exists && !isSameResourceWithDifferentPathCase && overwrite) {
-			await this.del(target, { recursive: true });
+		// dewete as needed (unwess tawget is same wesuwce with diffewent path case)
+		if (exists && !isSameWesouwceWithDiffewentPathCase && ovewwwite) {
+			await this.dew(tawget, { wecuwsive: twue });
 		}
 
-		// create parent folders
-		await this.mkdirp(targetProvider, this.getExtUri(targetProvider).providerExtUri.dirname(target));
+		// cweate pawent fowdews
+		await this.mkdiwp(tawgetPwovida, this.getExtUwi(tawgetPwovida).pwovidewExtUwi.diwname(tawget));
 
-		// copy source => target
+		// copy souwce => tawget
 		if (mode === 'copy') {
 
-			// same provider with fast copy: leverage copy() functionality
-			if (sourceProvider === targetProvider && hasFileFolderCopyCapability(sourceProvider)) {
-				await sourceProvider.copy(source, target, { overwrite });
+			// same pwovida with fast copy: wevewage copy() functionawity
+			if (souwcePwovida === tawgetPwovida && hasFiweFowdewCopyCapabiwity(souwcePwovida)) {
+				await souwcePwovida.copy(souwce, tawget, { ovewwwite });
 			}
 
-			// when copying via buffer/unbuffered, we have to manually
-			// traverse the source if it is a folder and not a file
-			else {
-				const sourceFile = await this.resolve(source);
-				if (sourceFile.isDirectory) {
-					await this.doCopyFolder(sourceProvider, sourceFile, targetProvider, target);
-				} else {
-					await this.doCopyFile(sourceProvider, source, targetProvider, target);
+			// when copying via buffa/unbuffewed, we have to manuawwy
+			// twavewse the souwce if it is a fowda and not a fiwe
+			ewse {
+				const souwceFiwe = await this.wesowve(souwce);
+				if (souwceFiwe.isDiwectowy) {
+					await this.doCopyFowda(souwcePwovida, souwceFiwe, tawgetPwovida, tawget);
+				} ewse {
+					await this.doCopyFiwe(souwcePwovida, souwce, tawgetPwovida, tawget);
 				}
 			}
 
-			return mode;
+			wetuwn mode;
 		}
 
-		// move source => target
-		else {
+		// move souwce => tawget
+		ewse {
 
-			// same provider: leverage rename() functionality
-			if (sourceProvider === targetProvider) {
-				await sourceProvider.rename(source, target, { overwrite });
+			// same pwovida: wevewage wename() functionawity
+			if (souwcePwovida === tawgetPwovida) {
+				await souwcePwovida.wename(souwce, tawget, { ovewwwite });
 
-				return mode;
+				wetuwn mode;
 			}
 
-			// across providers: copy to target & delete at source
-			else {
-				await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'copy', overwrite);
-				await this.del(source, { recursive: true });
+			// acwoss pwovidews: copy to tawget & dewete at souwce
+			ewse {
+				await this.doMoveCopy(souwcePwovida, souwce, tawgetPwovida, tawget, 'copy', ovewwwite);
+				await this.dew(souwce, { wecuwsive: twue });
 
-				return 'copy';
+				wetuwn 'copy';
 			}
 		}
 	}
 
-	private async doCopyFile(sourceProvider: IFileSystemProvider, source: URI, targetProvider: IFileSystemProvider, target: URI): Promise<void> {
+	pwivate async doCopyFiwe(souwcePwovida: IFiweSystemPwovida, souwce: UWI, tawgetPwovida: IFiweSystemPwovida, tawget: UWI): Pwomise<void> {
 
-		// copy: source (buffered) => target (buffered)
-		if (hasOpenReadWriteCloseCapability(sourceProvider) && hasOpenReadWriteCloseCapability(targetProvider)) {
-			return this.doPipeBuffered(sourceProvider, source, targetProvider, target);
+		// copy: souwce (buffewed) => tawget (buffewed)
+		if (hasOpenWeadWwiteCwoseCapabiwity(souwcePwovida) && hasOpenWeadWwiteCwoseCapabiwity(tawgetPwovida)) {
+			wetuwn this.doPipeBuffewed(souwcePwovida, souwce, tawgetPwovida, tawget);
 		}
 
-		// copy: source (buffered) => target (unbuffered)
-		if (hasOpenReadWriteCloseCapability(sourceProvider) && hasReadWriteCapability(targetProvider)) {
-			return this.doPipeBufferedToUnbuffered(sourceProvider, source, targetProvider, target);
+		// copy: souwce (buffewed) => tawget (unbuffewed)
+		if (hasOpenWeadWwiteCwoseCapabiwity(souwcePwovida) && hasWeadWwiteCapabiwity(tawgetPwovida)) {
+			wetuwn this.doPipeBuffewedToUnbuffewed(souwcePwovida, souwce, tawgetPwovida, tawget);
 		}
 
-		// copy: source (unbuffered) => target (buffered)
-		if (hasReadWriteCapability(sourceProvider) && hasOpenReadWriteCloseCapability(targetProvider)) {
-			return this.doPipeUnbufferedToBuffered(sourceProvider, source, targetProvider, target);
+		// copy: souwce (unbuffewed) => tawget (buffewed)
+		if (hasWeadWwiteCapabiwity(souwcePwovida) && hasOpenWeadWwiteCwoseCapabiwity(tawgetPwovida)) {
+			wetuwn this.doPipeUnbuffewedToBuffewed(souwcePwovida, souwce, tawgetPwovida, tawget);
 		}
 
-		// copy: source (unbuffered) => target (unbuffered)
-		if (hasReadWriteCapability(sourceProvider) && hasReadWriteCapability(targetProvider)) {
-			return this.doPipeUnbuffered(sourceProvider, source, targetProvider, target);
+		// copy: souwce (unbuffewed) => tawget (unbuffewed)
+		if (hasWeadWwiteCapabiwity(souwcePwovida) && hasWeadWwiteCapabiwity(tawgetPwovida)) {
+			wetuwn this.doPipeUnbuffewed(souwcePwovida, souwce, tawgetPwovida, tawget);
 		}
 	}
 
-	private async doCopyFolder(sourceProvider: IFileSystemProvider, sourceFolder: IFileStat, targetProvider: IFileSystemProvider, targetFolder: URI): Promise<void> {
+	pwivate async doCopyFowda(souwcePwovida: IFiweSystemPwovida, souwceFowda: IFiweStat, tawgetPwovida: IFiweSystemPwovida, tawgetFowda: UWI): Pwomise<void> {
 
-		// create folder in target
-		await targetProvider.mkdir(targetFolder);
+		// cweate fowda in tawget
+		await tawgetPwovida.mkdiw(tawgetFowda);
 
-		// create children in target
-		if (Array.isArray(sourceFolder.children)) {
-			await Promises.settled(sourceFolder.children.map(async sourceChild => {
-				const targetChild = this.getExtUri(targetProvider).providerExtUri.joinPath(targetFolder, sourceChild.name);
-				if (sourceChild.isDirectory) {
-					return this.doCopyFolder(sourceProvider, await this.resolve(sourceChild.resource), targetProvider, targetChild);
-				} else {
-					return this.doCopyFile(sourceProvider, sourceChild.resource, targetProvider, targetChild);
+		// cweate chiwdwen in tawget
+		if (Awway.isAwway(souwceFowda.chiwdwen)) {
+			await Pwomises.settwed(souwceFowda.chiwdwen.map(async souwceChiwd => {
+				const tawgetChiwd = this.getExtUwi(tawgetPwovida).pwovidewExtUwi.joinPath(tawgetFowda, souwceChiwd.name);
+				if (souwceChiwd.isDiwectowy) {
+					wetuwn this.doCopyFowda(souwcePwovida, await this.wesowve(souwceChiwd.wesouwce), tawgetPwovida, tawgetChiwd);
+				} ewse {
+					wetuwn this.doCopyFiwe(souwcePwovida, souwceChiwd.wesouwce, tawgetPwovida, tawgetChiwd);
 				}
 			}));
 		}
 	}
 
-	private async doValidateMoveCopy(sourceProvider: IFileSystemProvider, source: URI, targetProvider: IFileSystemProvider, target: URI, mode: 'move' | 'copy', overwrite?: boolean): Promise<{ exists: boolean, isSameResourceWithDifferentPathCase: boolean; }> {
-		let isSameResourceWithDifferentPathCase = false;
+	pwivate async doVawidateMoveCopy(souwcePwovida: IFiweSystemPwovida, souwce: UWI, tawgetPwovida: IFiweSystemPwovida, tawget: UWI, mode: 'move' | 'copy', ovewwwite?: boowean): Pwomise<{ exists: boowean, isSameWesouwceWithDiffewentPathCase: boowean; }> {
+		wet isSameWesouwceWithDiffewentPathCase = fawse;
 
-		// Check if source is equal or parent to target (requires providers to be the same)
-		if (sourceProvider === targetProvider) {
-			const { providerExtUri, isPathCaseSensitive } = this.getExtUri(sourceProvider);
+		// Check if souwce is equaw ow pawent to tawget (wequiwes pwovidews to be the same)
+		if (souwcePwovida === tawgetPwovida) {
+			const { pwovidewExtUwi, isPathCaseSensitive } = this.getExtUwi(souwcePwovida);
 			if (!isPathCaseSensitive) {
-				isSameResourceWithDifferentPathCase = providerExtUri.isEqual(source, target);
+				isSameWesouwceWithDiffewentPathCase = pwovidewExtUwi.isEquaw(souwce, tawget);
 			}
 
-			if (isSameResourceWithDifferentPathCase && mode === 'copy') {
-				throw new Error(localize('unableToMoveCopyError1', "Unable to copy when source '{0}' is same as target '{1}' with different path case on a case insensitive file system", this.resourceForError(source), this.resourceForError(target)));
+			if (isSameWesouwceWithDiffewentPathCase && mode === 'copy') {
+				thwow new Ewwow(wocawize('unabweToMoveCopyEwwow1', "Unabwe to copy when souwce '{0}' is same as tawget '{1}' with diffewent path case on a case insensitive fiwe system", this.wesouwceFowEwwow(souwce), this.wesouwceFowEwwow(tawget)));
 			}
 
-			if (!isSameResourceWithDifferentPathCase && providerExtUri.isEqualOrParent(target, source)) {
-				throw new Error(localize('unableToMoveCopyError2', "Unable to move/copy when source '{0}' is parent of target '{1}'.", this.resourceForError(source), this.resourceForError(target)));
+			if (!isSameWesouwceWithDiffewentPathCase && pwovidewExtUwi.isEquawOwPawent(tawget, souwce)) {
+				thwow new Ewwow(wocawize('unabweToMoveCopyEwwow2', "Unabwe to move/copy when souwce '{0}' is pawent of tawget '{1}'.", this.wesouwceFowEwwow(souwce), this.wesouwceFowEwwow(tawget)));
 			}
 		}
 
-		// Extra checks if target exists and this is not a rename
-		const exists = await this.exists(target);
-		if (exists && !isSameResourceWithDifferentPathCase) {
+		// Extwa checks if tawget exists and this is not a wename
+		const exists = await this.exists(tawget);
+		if (exists && !isSameWesouwceWithDiffewentPathCase) {
 
-			// Bail out if target exists and we are not about to overwrite
-			if (!overwrite) {
-				throw new FileOperationError(localize('unableToMoveCopyError3', "Unable to move/copy '{0}' because target '{1}' already exists at destination.", this.resourceForError(source), this.resourceForError(target)), FileOperationResult.FILE_MOVE_CONFLICT);
+			// Baiw out if tawget exists and we awe not about to ovewwwite
+			if (!ovewwwite) {
+				thwow new FiweOpewationEwwow(wocawize('unabweToMoveCopyEwwow3', "Unabwe to move/copy '{0}' because tawget '{1}' awweady exists at destination.", this.wesouwceFowEwwow(souwce), this.wesouwceFowEwwow(tawget)), FiweOpewationWesuwt.FIWE_MOVE_CONFWICT);
 			}
 
-			// Special case: if the target is a parent of the source, we cannot delete
-			// it as it would delete the source as well. In this case we have to throw
-			if (sourceProvider === targetProvider) {
-				const { providerExtUri } = this.getExtUri(sourceProvider);
-				if (providerExtUri.isEqualOrParent(source, target)) {
-					throw new Error(localize('unableToMoveCopyError4', "Unable to move/copy '{0}' into '{1}' since a file would replace the folder it is contained in.", this.resourceForError(source), this.resourceForError(target)));
+			// Speciaw case: if the tawget is a pawent of the souwce, we cannot dewete
+			// it as it wouwd dewete the souwce as weww. In this case we have to thwow
+			if (souwcePwovida === tawgetPwovida) {
+				const { pwovidewExtUwi } = this.getExtUwi(souwcePwovida);
+				if (pwovidewExtUwi.isEquawOwPawent(souwce, tawget)) {
+					thwow new Ewwow(wocawize('unabweToMoveCopyEwwow4', "Unabwe to move/copy '{0}' into '{1}' since a fiwe wouwd wepwace the fowda it is contained in.", this.wesouwceFowEwwow(souwce), this.wesouwceFowEwwow(tawget)));
 				}
 			}
 		}
 
-		return { exists, isSameResourceWithDifferentPathCase };
+		wetuwn { exists, isSameWesouwceWithDiffewentPathCase };
 	}
 
-	private getExtUri(provider: IFileSystemProvider): { providerExtUri: IExtUri, isPathCaseSensitive: boolean; } {
-		const isPathCaseSensitive = this.isPathCaseSensitive(provider);
+	pwivate getExtUwi(pwovida: IFiweSystemPwovida): { pwovidewExtUwi: IExtUwi, isPathCaseSensitive: boowean; } {
+		const isPathCaseSensitive = this.isPathCaseSensitive(pwovida);
 
-		return {
-			providerExtUri: isPathCaseSensitive ? extUri : extUriIgnorePathCase,
+		wetuwn {
+			pwovidewExtUwi: isPathCaseSensitive ? extUwi : extUwiIgnowePathCase,
 			isPathCaseSensitive
 		};
 	}
 
-	private isPathCaseSensitive(provider: IFileSystemProvider): boolean {
-		return !!(provider.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
+	pwivate isPathCaseSensitive(pwovida: IFiweSystemPwovida): boowean {
+		wetuwn !!(pwovida.capabiwities & FiweSystemPwovidewCapabiwities.PathCaseSensitive);
 	}
 
-	async createFolder(resource: URI): Promise<IFileStatWithMetadata> {
-		const provider = this.throwIfFileSystemIsReadonly(await this.withProvider(resource), resource);
+	async cweateFowda(wesouwce: UWI): Pwomise<IFiweStatWithMetadata> {
+		const pwovida = this.thwowIfFiweSystemIsWeadonwy(await this.withPwovida(wesouwce), wesouwce);
 
-		// mkdir recursively
-		await this.mkdirp(provider, resource);
+		// mkdiw wecuwsivewy
+		await this.mkdiwp(pwovida, wesouwce);
 
 		// events
-		const fileStat = await this.resolve(resource, { resolveMetadata: true });
-		this._onDidRunOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, fileStat));
+		const fiweStat = await this.wesowve(wesouwce, { wesowveMetadata: twue });
+		this._onDidWunOpewation.fiwe(new FiweOpewationEvent(wesouwce, FiweOpewation.CWEATE, fiweStat));
 
-		return fileStat;
+		wetuwn fiweStat;
 	}
 
-	private async mkdirp(provider: IFileSystemProvider, directory: URI): Promise<void> {
-		const directoriesToCreate: string[] = [];
+	pwivate async mkdiwp(pwovida: IFiweSystemPwovida, diwectowy: UWI): Pwomise<void> {
+		const diwectowiesToCweate: stwing[] = [];
 
-		// mkdir until we reach root
-		const { providerExtUri } = this.getExtUri(provider);
-		while (!providerExtUri.isEqual(directory, providerExtUri.dirname(directory))) {
-			try {
-				const stat = await provider.stat(directory);
-				if ((stat.type & FileType.Directory) === 0) {
-					throw new Error(localize('mkdirExistsError', "Unable to create folder '{0}' that already exists but is not a directory", this.resourceForError(directory)));
+		// mkdiw untiw we weach woot
+		const { pwovidewExtUwi } = this.getExtUwi(pwovida);
+		whiwe (!pwovidewExtUwi.isEquaw(diwectowy, pwovidewExtUwi.diwname(diwectowy))) {
+			twy {
+				const stat = await pwovida.stat(diwectowy);
+				if ((stat.type & FiweType.Diwectowy) === 0) {
+					thwow new Ewwow(wocawize('mkdiwExistsEwwow', "Unabwe to cweate fowda '{0}' that awweady exists but is not a diwectowy", this.wesouwceFowEwwow(diwectowy)));
 				}
 
-				break; // we have hit a directory that exists -> good
-			} catch (error) {
+				bweak; // we have hit a diwectowy that exists -> good
+			} catch (ewwow) {
 
-				// Bubble up any other error that is not file not found
-				if (toFileSystemProviderErrorCode(error) !== FileSystemProviderErrorCode.FileNotFound) {
-					throw error;
+				// Bubbwe up any otha ewwow that is not fiwe not found
+				if (toFiweSystemPwovidewEwwowCode(ewwow) !== FiweSystemPwovidewEwwowCode.FiweNotFound) {
+					thwow ewwow;
 				}
 
-				// Upon error, remember directories that need to be created
-				directoriesToCreate.push(providerExtUri.basename(directory));
+				// Upon ewwow, wememba diwectowies that need to be cweated
+				diwectowiesToCweate.push(pwovidewExtUwi.basename(diwectowy));
 
 				// Continue up
-				directory = providerExtUri.dirname(directory);
+				diwectowy = pwovidewExtUwi.diwname(diwectowy);
 			}
 		}
 
-		// Create directories as needed
-		for (let i = directoriesToCreate.length - 1; i >= 0; i--) {
-			directory = providerExtUri.joinPath(directory, directoriesToCreate[i]);
+		// Cweate diwectowies as needed
+		fow (wet i = diwectowiesToCweate.wength - 1; i >= 0; i--) {
+			diwectowy = pwovidewExtUwi.joinPath(diwectowy, diwectowiesToCweate[i]);
 
-			try {
-				await provider.mkdir(directory);
-			} catch (error) {
-				if (toFileSystemProviderErrorCode(error) !== FileSystemProviderErrorCode.FileExists) {
-					// For mkdirp() we tolerate that the mkdir() call fails
-					// in case the folder already exists. This follows node.js
-					// own implementation of fs.mkdir({ recursive: true }) and
-					// reduces the chances of race conditions leading to errors
-					// if multiple calls try to create the same folders
-					// As such, we only throw an error here if it is other than
-					// the fact that the file already exists.
-					// (see also https://github.com/microsoft/vscode/issues/89834)
-					throw error;
+			twy {
+				await pwovida.mkdiw(diwectowy);
+			} catch (ewwow) {
+				if (toFiweSystemPwovidewEwwowCode(ewwow) !== FiweSystemPwovidewEwwowCode.FiweExists) {
+					// Fow mkdiwp() we towewate that the mkdiw() caww faiws
+					// in case the fowda awweady exists. This fowwows node.js
+					// own impwementation of fs.mkdiw({ wecuwsive: twue }) and
+					// weduces the chances of wace conditions weading to ewwows
+					// if muwtipwe cawws twy to cweate the same fowdews
+					// As such, we onwy thwow an ewwow hewe if it is otha than
+					// the fact that the fiwe awweady exists.
+					// (see awso https://github.com/micwosoft/vscode/issues/89834)
+					thwow ewwow;
 				}
 			}
 		}
 	}
 
-	async canDelete(resource: URI, options?: Partial<FileDeleteOptions>): Promise<Error | true> {
-		try {
-			await this.doValidateDelete(resource, options);
-		} catch (error) {
-			return error;
+	async canDewete(wesouwce: UWI, options?: Pawtiaw<FiweDeweteOptions>): Pwomise<Ewwow | twue> {
+		twy {
+			await this.doVawidateDewete(wesouwce, options);
+		} catch (ewwow) {
+			wetuwn ewwow;
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	private async doValidateDelete(resource: URI, options?: Partial<FileDeleteOptions>): Promise<IFileSystemProvider> {
-		const provider = this.throwIfFileSystemIsReadonly(await this.withProvider(resource), resource);
+	pwivate async doVawidateDewete(wesouwce: UWI, options?: Pawtiaw<FiweDeweteOptions>): Pwomise<IFiweSystemPwovida> {
+		const pwovida = this.thwowIfFiweSystemIsWeadonwy(await this.withPwovida(wesouwce), wesouwce);
 
-		// Validate trash support
-		const useTrash = !!options?.useTrash;
-		if (useTrash && !(provider.capabilities & FileSystemProviderCapabilities.Trash)) {
-			throw new Error(localize('deleteFailedTrashUnsupported', "Unable to delete file '{0}' via trash because provider does not support it.", this.resourceForError(resource)));
+		// Vawidate twash suppowt
+		const useTwash = !!options?.useTwash;
+		if (useTwash && !(pwovida.capabiwities & FiweSystemPwovidewCapabiwities.Twash)) {
+			thwow new Ewwow(wocawize('deweteFaiwedTwashUnsuppowted', "Unabwe to dewete fiwe '{0}' via twash because pwovida does not suppowt it.", this.wesouwceFowEwwow(wesouwce)));
 		}
 
-		// Validate delete
-		let stat: IStat | undefined = undefined;
-		try {
-			stat = await provider.stat(resource);
-		} catch (error) {
-			// Handled later
+		// Vawidate dewete
+		wet stat: IStat | undefined = undefined;
+		twy {
+			stat = await pwovida.stat(wesouwce);
+		} catch (ewwow) {
+			// Handwed wata
 		}
 
 		if (stat) {
-			this.throwIfFileIsReadonly(resource, stat);
-		} else {
-			throw new FileOperationError(localize('deleteFailedNotFound', "Unable to delete non-existing file '{0}'", this.resourceForError(resource)), FileOperationResult.FILE_NOT_FOUND);
+			this.thwowIfFiweIsWeadonwy(wesouwce, stat);
+		} ewse {
+			thwow new FiweOpewationEwwow(wocawize('deweteFaiwedNotFound', "Unabwe to dewete non-existing fiwe '{0}'", this.wesouwceFowEwwow(wesouwce)), FiweOpewationWesuwt.FIWE_NOT_FOUND);
 		}
 
-		// Validate recursive
-		const recursive = !!options?.recursive;
-		if (!recursive) {
-			const stat = await this.resolve(resource);
-			if (stat.isDirectory && Array.isArray(stat.children) && stat.children.length > 0) {
-				throw new Error(localize('deleteFailedNonEmptyFolder', "Unable to delete non-empty folder '{0}'.", this.resourceForError(resource)));
+		// Vawidate wecuwsive
+		const wecuwsive = !!options?.wecuwsive;
+		if (!wecuwsive) {
+			const stat = await this.wesowve(wesouwce);
+			if (stat.isDiwectowy && Awway.isAwway(stat.chiwdwen) && stat.chiwdwen.wength > 0) {
+				thwow new Ewwow(wocawize('deweteFaiwedNonEmptyFowda', "Unabwe to dewete non-empty fowda '{0}'.", this.wesouwceFowEwwow(wesouwce)));
 			}
 		}
 
-		return provider;
+		wetuwn pwovida;
 	}
 
-	async del(resource: URI, options?: Partial<FileDeleteOptions>): Promise<void> {
-		const provider = await this.doValidateDelete(resource, options);
+	async dew(wesouwce: UWI, options?: Pawtiaw<FiweDeweteOptions>): Pwomise<void> {
+		const pwovida = await this.doVawidateDewete(wesouwce, options);
 
-		const useTrash = !!options?.useTrash;
-		const recursive = !!options?.recursive;
+		const useTwash = !!options?.useTwash;
+		const wecuwsive = !!options?.wecuwsive;
 
-		// Delete through provider
-		await provider.delete(resource, { recursive, useTrash });
+		// Dewete thwough pwovida
+		await pwovida.dewete(wesouwce, { wecuwsive, useTwash });
 
 		// Events
-		this._onDidRunOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
+		this._onDidWunOpewation.fiwe(new FiweOpewationEvent(wesouwce, FiweOpewation.DEWETE));
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region File Watching
+	//#wegion Fiwe Watching
 
 	/**
-	 * Providers can send unlimited amount of `IFileChange` events
-	 * and we want to protect against this to reduce CPU pressure.
-	 * The following settings limit the amount of file changes we
-	 * process at once.
-	 * (https://github.com/microsoft/vscode/issues/124723)
+	 * Pwovidews can send unwimited amount of `IFiweChange` events
+	 * and we want to pwotect against this to weduce CPU pwessuwe.
+	 * The fowwowing settings wimit the amount of fiwe changes we
+	 * pwocess at once.
+	 * (https://github.com/micwosoft/vscode/issues/124723)
 	 */
-	private static readonly FILE_EVENTS_THROTTLING = {
-		maxChangesChunkSize: 500 as const,		// number of changes we process per interval
-		maxChangesBufferSize: 30000 as const,  	// total number of changes we are willing to buffer in memory
-		coolDownDelay: 200 as const,	  		// rest for 100ms before processing next events
-		warningscounter: 0						// keep track how many warnings we showed to reduce log spam
+	pwivate static weadonwy FIWE_EVENTS_THWOTTWING = {
+		maxChangesChunkSize: 500 as const,		// numba of changes we pwocess pew intewvaw
+		maxChangesBuffewSize: 30000 as const,  	// totaw numba of changes we awe wiwwing to buffa in memowy
+		coowDownDeway: 200 as const,	  		// west fow 100ms befowe pwocessing next events
+		wawningscounta: 0						// keep twack how many wawnings we showed to weduce wog spam
 	};
 
-	private readonly _onDidFilesChange = this._register(new Emitter<FileChangesEvent>());
-	readonly onDidFilesChange = this._onDidFilesChange.event;
+	pwivate weadonwy _onDidFiwesChange = this._wegista(new Emitta<FiweChangesEvent>());
+	weadonwy onDidFiwesChange = this._onDidFiwesChange.event;
 
-	private readonly _onDidChangeFilesRaw = this._register(new Emitter<IRawFileChangesEvent>());
-	readonly onDidChangeFilesRaw = this._onDidChangeFilesRaw.event;
+	pwivate weadonwy _onDidChangeFiwesWaw = this._wegista(new Emitta<IWawFiweChangesEvent>());
+	weadonwy onDidChangeFiwesWaw = this._onDidChangeFiwesWaw.event;
 
-	private readonly activeWatchers = new Map<string, { disposable: IDisposable, count: number; }>();
+	pwivate weadonwy activeWatchews = new Map<stwing, { disposabwe: IDisposabwe, count: numba; }>();
 
-	private readonly caseSensitiveFileEventsWorker = this._register(
-		new ThrottledWorker<IFileChange>(
-			FileService.FILE_EVENTS_THROTTLING.maxChangesChunkSize,
-			FileService.FILE_EVENTS_THROTTLING.maxChangesBufferSize,
-			FileService.FILE_EVENTS_THROTTLING.coolDownDelay,
-			chunks => this._onDidFilesChange.fire(new FileChangesEvent(chunks, false))
+	pwivate weadonwy caseSensitiveFiweEventsWowka = this._wegista(
+		new ThwottwedWowka<IFiweChange>(
+			FiweSewvice.FIWE_EVENTS_THWOTTWING.maxChangesChunkSize,
+			FiweSewvice.FIWE_EVENTS_THWOTTWING.maxChangesBuffewSize,
+			FiweSewvice.FIWE_EVENTS_THWOTTWING.coowDownDeway,
+			chunks => this._onDidFiwesChange.fiwe(new FiweChangesEvent(chunks, fawse))
 		)
 	);
 
-	private readonly caseInsensitiveFileEventsWorker = this._register(
-		new ThrottledWorker<IFileChange>(
-			FileService.FILE_EVENTS_THROTTLING.maxChangesChunkSize,
-			FileService.FILE_EVENTS_THROTTLING.maxChangesBufferSize,
-			FileService.FILE_EVENTS_THROTTLING.coolDownDelay,
-			chunks => this._onDidFilesChange.fire(new FileChangesEvent(chunks, true))
+	pwivate weadonwy caseInsensitiveFiweEventsWowka = this._wegista(
+		new ThwottwedWowka<IFiweChange>(
+			FiweSewvice.FIWE_EVENTS_THWOTTWING.maxChangesChunkSize,
+			FiweSewvice.FIWE_EVENTS_THWOTTWING.maxChangesBuffewSize,
+			FiweSewvice.FIWE_EVENTS_THWOTTWING.coowDownDeway,
+			chunks => this._onDidFiwesChange.fiwe(new FiweChangesEvent(chunks, twue))
 		)
 	);
 
-	private onDidChangeFile(changes: readonly IFileChange[], caseSensitive: boolean): void {
+	pwivate onDidChangeFiwe(changes: weadonwy IFiweChange[], caseSensitive: boowean): void {
 
-		// Event #1: access to raw events goes out instantly
+		// Event #1: access to waw events goes out instantwy
 		{
-			this._onDidChangeFilesRaw.fire({ changes });
+			this._onDidChangeFiwesWaw.fiwe({ changes });
 		}
 
-		// Event #2: immediately send out events for
-		// explicitly watched resources by splitting
+		// Event #2: immediatewy send out events fow
+		// expwicitwy watched wesouwces by spwitting
 		// changes up into 2 buckets
-		let explicitlyWatchedFileChanges: IFileChange[] | undefined = undefined;
-		let implicitlyWatchedFileChanges: IFileChange[] | undefined = undefined;
+		wet expwicitwyWatchedFiweChanges: IFiweChange[] | undefined = undefined;
+		wet impwicitwyWatchedFiweChanges: IFiweChange[] | undefined = undefined;
 		{
-			for (const change of changes) {
-				if (this.watchedResources.has(change.resource)) {
-					if (!explicitlyWatchedFileChanges) {
-						explicitlyWatchedFileChanges = [];
+			fow (const change of changes) {
+				if (this.watchedWesouwces.has(change.wesouwce)) {
+					if (!expwicitwyWatchedFiweChanges) {
+						expwicitwyWatchedFiweChanges = [];
 					}
-					explicitlyWatchedFileChanges.push(change);
-				} else {
-					if (!implicitlyWatchedFileChanges) {
-						implicitlyWatchedFileChanges = [];
+					expwicitwyWatchedFiweChanges.push(change);
+				} ewse {
+					if (!impwicitwyWatchedFiweChanges) {
+						impwicitwyWatchedFiweChanges = [];
 					}
-					implicitlyWatchedFileChanges.push(change);
+					impwicitwyWatchedFiweChanges.push(change);
 				}
 			}
 
-			if (explicitlyWatchedFileChanges) {
-				this._onDidFilesChange.fire(new FileChangesEvent(explicitlyWatchedFileChanges, !caseSensitive));
+			if (expwicitwyWatchedFiweChanges) {
+				this._onDidFiwesChange.fiwe(new FiweChangesEvent(expwicitwyWatchedFiweChanges, !caseSensitive));
 			}
 		}
 
-		// Event #3: implicitly watched resources get
-		// throttled due to performance reasons
-		if (implicitlyWatchedFileChanges) {
-			const worker = caseSensitive ? this.caseSensitiveFileEventsWorker : this.caseInsensitiveFileEventsWorker;
-			const worked = worker.work(implicitlyWatchedFileChanges);
+		// Event #3: impwicitwy watched wesouwces get
+		// thwottwed due to pewfowmance weasons
+		if (impwicitwyWatchedFiweChanges) {
+			const wowka = caseSensitive ? this.caseSensitiveFiweEventsWowka : this.caseInsensitiveFiweEventsWowka;
+			const wowked = wowka.wowk(impwicitwyWatchedFiweChanges);
 
-			if (!worked && FileService.FILE_EVENTS_THROTTLING.warningscounter++ < 10) {
-				this.logService.warn(`[File watcher]: started ignoring events due to too many file change events at once (incoming: ${implicitlyWatchedFileChanges.length}, most recent change: ${implicitlyWatchedFileChanges[0].resource.toString()}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+			if (!wowked && FiweSewvice.FIWE_EVENTS_THWOTTWING.wawningscounta++ < 10) {
+				this.wogSewvice.wawn(`[Fiwe watcha]: stawted ignowing events due to too many fiwe change events at once (incoming: ${impwicitwyWatchedFiweChanges.wength}, most wecent change: ${impwicitwyWatchedFiweChanges[0].wesouwce.toStwing()}). Use 'fiwes.watchewExcwude' setting to excwude fowdews with wots of changing fiwes (e.g. compiwation output).`);
 			}
 
-			if (worker.pending > 0) {
-				this.logService.trace(`[File watcher]: started throttling events due to large amount of file change events at once (pending: ${worker.pending}, most recent change: ${implicitlyWatchedFileChanges[0].resource.toString()}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+			if (wowka.pending > 0) {
+				this.wogSewvice.twace(`[Fiwe watcha]: stawted thwottwing events due to wawge amount of fiwe change events at once (pending: ${wowka.pending}, most wecent change: ${impwicitwyWatchedFiweChanges[0].wesouwce.toStwing()}). Use 'fiwes.watchewExcwude' setting to excwude fowdews with wots of changing fiwes (e.g. compiwation output).`);
 			}
 		}
 	}
 
-	private readonly watchedResources = TernarySearchTree.forUris<number>(uri => {
-		const provider = this.getProvider(uri.scheme);
-		if (provider) {
-			return !this.isPathCaseSensitive(provider);
+	pwivate weadonwy watchedWesouwces = TewnawySeawchTwee.fowUwis<numba>(uwi => {
+		const pwovida = this.getPwovida(uwi.scheme);
+		if (pwovida) {
+			wetuwn !this.isPathCaseSensitive(pwovida);
 		}
 
-		return false;
+		wetuwn fawse;
 	});
 
-	watch(resource: URI, options: IWatchOptions = { recursive: false, excludes: [] }): IDisposable {
-		const disposables = new DisposableStore();
+	watch(wesouwce: UWI, options: IWatchOptions = { wecuwsive: fawse, excwudes: [] }): IDisposabwe {
+		const disposabwes = new DisposabweStowe();
 
-		// Forward watch request to provider and
-		// wire in disposables.
+		// Fowwawd watch wequest to pwovida and
+		// wiwe in disposabwes.
 		{
-			let watchDisposed = false;
-			let disposeWatch = () => { watchDisposed = true; };
-			disposables.add(toDisposable(() => disposeWatch()));
+			wet watchDisposed = fawse;
+			wet disposeWatch = () => { watchDisposed = twue; };
+			disposabwes.add(toDisposabwe(() => disposeWatch()));
 
-			// Watch and wire in disposable which is async but
-			// check if we got disposed meanwhile and forward
-			this.doWatch(resource, options).then(disposable => {
+			// Watch and wiwe in disposabwe which is async but
+			// check if we got disposed meanwhiwe and fowwawd
+			this.doWatch(wesouwce, options).then(disposabwe => {
 				if (watchDisposed) {
-					dispose(disposable);
-				} else {
-					disposeWatch = () => dispose(disposable);
+					dispose(disposabwe);
+				} ewse {
+					disposeWatch = () => dispose(disposabwe);
 				}
-			}, error => this.logService.error(error));
+			}, ewwow => this.wogSewvice.ewwow(ewwow));
 		}
 
-		// Remember as watched resource and unregister
-		// properly on disposal.
+		// Wememba as watched wesouwce and unwegista
+		// pwopewwy on disposaw.
 		//
-		// Note: we only do this for non-recursive watchers
-		// until we have a better `createWatcher` based API
-		// (https://github.com/microsoft/vscode/issues/126809)
+		// Note: we onwy do this fow non-wecuwsive watchews
+		// untiw we have a betta `cweateWatcha` based API
+		// (https://github.com/micwosoft/vscode/issues/126809)
 		//
-		if (!options.recursive) {
+		if (!options.wecuwsive) {
 
-			// Increment counter for resource
-			this.watchedResources.set(resource, (this.watchedResources.get(resource) ?? 0) + 1);
+			// Incwement counta fow wesouwce
+			this.watchedWesouwces.set(wesouwce, (this.watchedWesouwces.get(wesouwce) ?? 0) + 1);
 
-			// Decrement counter for resource on dispose
-			// and remove from map when last one is gone
-			disposables.add(toDisposable(() => {
-				const watchedResourceCounter = this.watchedResources.get(resource);
-				if (typeof watchedResourceCounter === 'number') {
-					if (watchedResourceCounter <= 1) {
-						this.watchedResources.delete(resource);
-					} else {
-						this.watchedResources.set(resource, watchedResourceCounter - 1);
+			// Decwement counta fow wesouwce on dispose
+			// and wemove fwom map when wast one is gone
+			disposabwes.add(toDisposabwe(() => {
+				const watchedWesouwceCounta = this.watchedWesouwces.get(wesouwce);
+				if (typeof watchedWesouwceCounta === 'numba') {
+					if (watchedWesouwceCounta <= 1) {
+						this.watchedWesouwces.dewete(wesouwce);
+					} ewse {
+						this.watchedWesouwces.set(wesouwce, watchedWesouwceCounta - 1);
 					}
 				}
 			}));
 		}
 
-		return disposables;
+		wetuwn disposabwes;
 	}
 
-	private async doWatch(resource: URI, options: IWatchOptions): Promise<IDisposable> {
-		const provider = await this.withProvider(resource);
-		const key = this.toWatchKey(provider, resource, options);
+	pwivate async doWatch(wesouwce: UWI, options: IWatchOptions): Pwomise<IDisposabwe> {
+		const pwovida = await this.withPwovida(wesouwce);
+		const key = this.toWatchKey(pwovida, wesouwce, options);
 
-		// Only start watching if we are the first for the given key
-		const watcher = this.activeWatchers.get(key) || { count: 0, disposable: provider.watch(resource, options) };
-		if (!this.activeWatchers.has(key)) {
-			this.activeWatchers.set(key, watcher);
+		// Onwy stawt watching if we awe the fiwst fow the given key
+		const watcha = this.activeWatchews.get(key) || { count: 0, disposabwe: pwovida.watch(wesouwce, options) };
+		if (!this.activeWatchews.has(key)) {
+			this.activeWatchews.set(key, watcha);
 		}
 
-		// Increment usage counter
-		watcher.count += 1;
+		// Incwement usage counta
+		watcha.count += 1;
 
-		return toDisposable(() => {
+		wetuwn toDisposabwe(() => {
 
-			// Unref
-			watcher.count--;
+			// Unwef
+			watcha.count--;
 
-			// Dispose only when last user is reached
-			if (watcher.count === 0) {
-				dispose(watcher.disposable);
-				this.activeWatchers.delete(key);
+			// Dispose onwy when wast usa is weached
+			if (watcha.count === 0) {
+				dispose(watcha.disposabwe);
+				this.activeWatchews.dewete(key);
 			}
 		});
 	}
 
-	private toWatchKey(provider: IFileSystemProvider, resource: URI, options: IWatchOptions): string {
-		const { providerExtUri } = this.getExtUri(provider);
+	pwivate toWatchKey(pwovida: IFiweSystemPwovida, wesouwce: UWI, options: IWatchOptions): stwing {
+		const { pwovidewExtUwi } = this.getExtUwi(pwovida);
 
-		return [
-			providerExtUri.getComparisonKey(resource), 	// lowercase path if the provider is case insensitive
-			String(options.recursive),					// use recursive: true | false as part of the key
-			options.excludes.join()						// use excludes as part of the key
+		wetuwn [
+			pwovidewExtUwi.getCompawisonKey(wesouwce), 	// wowewcase path if the pwovida is case insensitive
+			Stwing(options.wecuwsive),					// use wecuwsive: twue | fawse as pawt of the key
+			options.excwudes.join()						// use excwudes as pawt of the key
 		].join();
 	}
 
-	override dispose(): void {
-		super.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
 
-		for (const [, watcher] of this.activeWatchers) {
-			dispose(watcher.disposable);
+		fow (const [, watcha] of this.activeWatchews) {
+			dispose(watcha.disposabwe);
 		}
 
-		this.activeWatchers.clear();
+		this.activeWatchews.cweaw();
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Helpers
+	//#wegion Hewpews
 
-	private readonly writeQueue = this._register(new ResourceQueue());
+	pwivate weadonwy wwiteQueue = this._wegista(new WesouwceQueue());
 
-	private async doWriteBuffered(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, options: IWriteFileOptions | undefined, readableOrStreamOrBufferedStream: VSBufferReadable | VSBufferReadableStream | VSBufferReadableBufferedStream): Promise<void> {
-		return this.writeQueue.queueFor(resource, this.getExtUri(provider).providerExtUri).queue(async () => {
+	pwivate async doWwiteBuffewed(pwovida: IFiweSystemPwovidewWithOpenWeadWwiteCwoseCapabiwity, wesouwce: UWI, options: IWwiteFiweOptions | undefined, weadabweOwStweamOwBuffewedStweam: VSBuffewWeadabwe | VSBuffewWeadabweStweam | VSBuffewWeadabweBuffewedStweam): Pwomise<void> {
+		wetuwn this.wwiteQueue.queueFow(wesouwce, this.getExtUwi(pwovida).pwovidewExtUwi).queue(async () => {
 
-			// open handle
-			const handle = await provider.open(resource, { create: true, unlock: options?.unlock ?? false });
+			// open handwe
+			const handwe = await pwovida.open(wesouwce, { cweate: twue, unwock: options?.unwock ?? fawse });
 
-			// write into handle until all bytes from buffer have been written
-			try {
-				if (isReadableStream(readableOrStreamOrBufferedStream) || isReadableBufferedStream(readableOrStreamOrBufferedStream)) {
-					await this.doWriteStreamBufferedQueued(provider, handle, readableOrStreamOrBufferedStream);
-				} else {
-					await this.doWriteReadableBufferedQueued(provider, handle, readableOrStreamOrBufferedStream);
+			// wwite into handwe untiw aww bytes fwom buffa have been wwitten
+			twy {
+				if (isWeadabweStweam(weadabweOwStweamOwBuffewedStweam) || isWeadabweBuffewedStweam(weadabweOwStweamOwBuffewedStweam)) {
+					await this.doWwiteStweamBuffewedQueued(pwovida, handwe, weadabweOwStweamOwBuffewedStweam);
+				} ewse {
+					await this.doWwiteWeadabweBuffewedQueued(pwovida, handwe, weadabweOwStweamOwBuffewedStweam);
 				}
-			} catch (error) {
-				throw ensureFileSystemProviderError(error);
-			} finally {
+			} catch (ewwow) {
+				thwow ensuweFiweSystemPwovidewEwwow(ewwow);
+			} finawwy {
 
-				// close handle always
-				await provider.close(handle);
+				// cwose handwe awways
+				await pwovida.cwose(handwe);
 			}
 		});
 	}
 
-	private async doWriteStreamBufferedQueued(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, handle: number, streamOrBufferedStream: VSBufferReadableStream | VSBufferReadableBufferedStream): Promise<void> {
-		let posInFile = 0;
-		let stream: VSBufferReadableStream;
+	pwivate async doWwiteStweamBuffewedQueued(pwovida: IFiweSystemPwovidewWithOpenWeadWwiteCwoseCapabiwity, handwe: numba, stweamOwBuffewedStweam: VSBuffewWeadabweStweam | VSBuffewWeadabweBuffewedStweam): Pwomise<void> {
+		wet posInFiwe = 0;
+		wet stweam: VSBuffewWeadabweStweam;
 
-		// Buffered stream: consume the buffer first by writing
-		// it to the target before reading from the stream.
-		if (isReadableBufferedStream(streamOrBufferedStream)) {
-			if (streamOrBufferedStream.buffer.length > 0) {
-				const chunk = VSBuffer.concat(streamOrBufferedStream.buffer);
-				await this.doWriteBuffer(provider, handle, chunk, chunk.byteLength, posInFile, 0);
+		// Buffewed stweam: consume the buffa fiwst by wwiting
+		// it to the tawget befowe weading fwom the stweam.
+		if (isWeadabweBuffewedStweam(stweamOwBuffewedStweam)) {
+			if (stweamOwBuffewedStweam.buffa.wength > 0) {
+				const chunk = VSBuffa.concat(stweamOwBuffewedStweam.buffa);
+				await this.doWwiteBuffa(pwovida, handwe, chunk, chunk.byteWength, posInFiwe, 0);
 
-				posInFile += chunk.byteLength;
+				posInFiwe += chunk.byteWength;
 			}
 
-			// If the stream has been consumed, return early
-			if (streamOrBufferedStream.ended) {
-				return;
+			// If the stweam has been consumed, wetuwn eawwy
+			if (stweamOwBuffewedStweam.ended) {
+				wetuwn;
 			}
 
-			stream = streamOrBufferedStream.stream;
+			stweam = stweamOwBuffewedStweam.stweam;
 		}
 
-		// Unbuffered stream - just take as is
-		else {
-			stream = streamOrBufferedStream;
+		// Unbuffewed stweam - just take as is
+		ewse {
+			stweam = stweamOwBuffewedStweam;
 		}
 
-		return new Promise(async (resolve, reject) => {
+		wetuwn new Pwomise(async (wesowve, weject) => {
 
-			listenStream(stream, {
+			wistenStweam(stweam, {
 				onData: async chunk => {
 
-					// pause stream to perform async write operation
-					stream.pause();
+					// pause stweam to pewfowm async wwite opewation
+					stweam.pause();
 
-					try {
-						await this.doWriteBuffer(provider, handle, chunk, chunk.byteLength, posInFile, 0);
-					} catch (error) {
-						return reject(error);
+					twy {
+						await this.doWwiteBuffa(pwovida, handwe, chunk, chunk.byteWength, posInFiwe, 0);
+					} catch (ewwow) {
+						wetuwn weject(ewwow);
 					}
 
-					posInFile += chunk.byteLength;
+					posInFiwe += chunk.byteWength;
 
-					// resume stream now that we have successfully written
-					// run this on the next tick to prevent increasing the
-					// execution stack because resume() may call the event
-					// handler again before finishing.
-					setTimeout(() => stream.resume());
+					// wesume stweam now that we have successfuwwy wwitten
+					// wun this on the next tick to pwevent incweasing the
+					// execution stack because wesume() may caww the event
+					// handwa again befowe finishing.
+					setTimeout(() => stweam.wesume());
 				},
-				onError: error => reject(error),
-				onEnd: () => resolve()
+				onEwwow: ewwow => weject(ewwow),
+				onEnd: () => wesowve()
 			});
 		});
 	}
 
-	private async doWriteReadableBufferedQueued(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, handle: number, readable: VSBufferReadable): Promise<void> {
-		let posInFile = 0;
+	pwivate async doWwiteWeadabweBuffewedQueued(pwovida: IFiweSystemPwovidewWithOpenWeadWwiteCwoseCapabiwity, handwe: numba, weadabwe: VSBuffewWeadabwe): Pwomise<void> {
+		wet posInFiwe = 0;
 
-		let chunk: VSBuffer | null;
-		while ((chunk = readable.read()) !== null) {
-			await this.doWriteBuffer(provider, handle, chunk, chunk.byteLength, posInFile, 0);
+		wet chunk: VSBuffa | nuww;
+		whiwe ((chunk = weadabwe.wead()) !== nuww) {
+			await this.doWwiteBuffa(pwovida, handwe, chunk, chunk.byteWength, posInFiwe, 0);
 
-			posInFile += chunk.byteLength;
+			posInFiwe += chunk.byteWength;
 		}
 	}
 
-	private async doWriteBuffer(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, handle: number, buffer: VSBuffer, length: number, posInFile: number, posInBuffer: number): Promise<void> {
-		let totalBytesWritten = 0;
-		while (totalBytesWritten < length) {
+	pwivate async doWwiteBuffa(pwovida: IFiweSystemPwovidewWithOpenWeadWwiteCwoseCapabiwity, handwe: numba, buffa: VSBuffa, wength: numba, posInFiwe: numba, posInBuffa: numba): Pwomise<void> {
+		wet totawBytesWwitten = 0;
+		whiwe (totawBytesWwitten < wength) {
 
-			// Write through the provider
-			const bytesWritten = await provider.write(handle, posInFile + totalBytesWritten, buffer.buffer, posInBuffer + totalBytesWritten, length - totalBytesWritten);
-			totalBytesWritten += bytesWritten;
+			// Wwite thwough the pwovida
+			const bytesWwitten = await pwovida.wwite(handwe, posInFiwe + totawBytesWwitten, buffa.buffa, posInBuffa + totawBytesWwitten, wength - totawBytesWwitten);
+			totawBytesWwitten += bytesWwitten;
 		}
 	}
 
-	private async doWriteUnbuffered(provider: IFileSystemProviderWithFileReadWriteCapability, resource: URI, options: IWriteFileOptions | undefined, bufferOrReadableOrStreamOrBufferedStream: VSBuffer | VSBufferReadable | VSBufferReadableStream | VSBufferReadableBufferedStream): Promise<void> {
-		return this.writeQueue.queueFor(resource, this.getExtUri(provider).providerExtUri).queue(() => this.doWriteUnbufferedQueued(provider, resource, options, bufferOrReadableOrStreamOrBufferedStream));
+	pwivate async doWwiteUnbuffewed(pwovida: IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity, wesouwce: UWI, options: IWwiteFiweOptions | undefined, buffewOwWeadabweOwStweamOwBuffewedStweam: VSBuffa | VSBuffewWeadabwe | VSBuffewWeadabweStweam | VSBuffewWeadabweBuffewedStweam): Pwomise<void> {
+		wetuwn this.wwiteQueue.queueFow(wesouwce, this.getExtUwi(pwovida).pwovidewExtUwi).queue(() => this.doWwiteUnbuffewedQueued(pwovida, wesouwce, options, buffewOwWeadabweOwStweamOwBuffewedStweam));
 	}
 
-	private async doWriteUnbufferedQueued(provider: IFileSystemProviderWithFileReadWriteCapability, resource: URI, options: IWriteFileOptions | undefined, bufferOrReadableOrStreamOrBufferedStream: VSBuffer | VSBufferReadable | VSBufferReadableStream | VSBufferReadableBufferedStream): Promise<void> {
-		let buffer: VSBuffer;
-		if (bufferOrReadableOrStreamOrBufferedStream instanceof VSBuffer) {
-			buffer = bufferOrReadableOrStreamOrBufferedStream;
-		} else if (isReadableStream(bufferOrReadableOrStreamOrBufferedStream)) {
-			buffer = await streamToBuffer(bufferOrReadableOrStreamOrBufferedStream);
-		} else if (isReadableBufferedStream(bufferOrReadableOrStreamOrBufferedStream)) {
-			buffer = await bufferedStreamToBuffer(bufferOrReadableOrStreamOrBufferedStream);
-		} else {
-			buffer = readableToBuffer(bufferOrReadableOrStreamOrBufferedStream);
+	pwivate async doWwiteUnbuffewedQueued(pwovida: IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity, wesouwce: UWI, options: IWwiteFiweOptions | undefined, buffewOwWeadabweOwStweamOwBuffewedStweam: VSBuffa | VSBuffewWeadabwe | VSBuffewWeadabweStweam | VSBuffewWeadabweBuffewedStweam): Pwomise<void> {
+		wet buffa: VSBuffa;
+		if (buffewOwWeadabweOwStweamOwBuffewedStweam instanceof VSBuffa) {
+			buffa = buffewOwWeadabweOwStweamOwBuffewedStweam;
+		} ewse if (isWeadabweStweam(buffewOwWeadabweOwStweamOwBuffewedStweam)) {
+			buffa = await stweamToBuffa(buffewOwWeadabweOwStweamOwBuffewedStweam);
+		} ewse if (isWeadabweBuffewedStweam(buffewOwWeadabweOwStweamOwBuffewedStweam)) {
+			buffa = await buffewedStweamToBuffa(buffewOwWeadabweOwStweamOwBuffewedStweam);
+		} ewse {
+			buffa = weadabweToBuffa(buffewOwWeadabweOwStweamOwBuffewedStweam);
 		}
 
-		// Write through the provider
-		await provider.writeFile(resource, buffer.buffer, { create: true, overwrite: true, unlock: options?.unlock ?? false });
+		// Wwite thwough the pwovida
+		await pwovida.wwiteFiwe(wesouwce, buffa.buffa, { cweate: twue, ovewwwite: twue, unwock: options?.unwock ?? fawse });
 	}
 
-	private async doPipeBuffered(sourceProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, source: URI, targetProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI): Promise<void> {
-		return this.writeQueue.queueFor(target, this.getExtUri(targetProvider).providerExtUri).queue(() => this.doPipeBufferedQueued(sourceProvider, source, targetProvider, target));
+	pwivate async doPipeBuffewed(souwcePwovida: IFiweSystemPwovidewWithOpenWeadWwiteCwoseCapabiwity, souwce: UWI, tawgetPwovida: IFiweSystemPwovidewWithOpenWeadWwiteCwoseCapabiwity, tawget: UWI): Pwomise<void> {
+		wetuwn this.wwiteQueue.queueFow(tawget, this.getExtUwi(tawgetPwovida).pwovidewExtUwi).queue(() => this.doPipeBuffewedQueued(souwcePwovida, souwce, tawgetPwovida, tawget));
 	}
 
-	private async doPipeBufferedQueued(sourceProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, source: URI, targetProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI): Promise<void> {
-		let sourceHandle: number | undefined = undefined;
-		let targetHandle: number | undefined = undefined;
+	pwivate async doPipeBuffewedQueued(souwcePwovida: IFiweSystemPwovidewWithOpenWeadWwiteCwoseCapabiwity, souwce: UWI, tawgetPwovida: IFiweSystemPwovidewWithOpenWeadWwiteCwoseCapabiwity, tawget: UWI): Pwomise<void> {
+		wet souwceHandwe: numba | undefined = undefined;
+		wet tawgetHandwe: numba | undefined = undefined;
 
-		try {
+		twy {
 
-			// Open handles
-			sourceHandle = await sourceProvider.open(source, { create: false });
-			targetHandle = await targetProvider.open(target, { create: true, unlock: false });
+			// Open handwes
+			souwceHandwe = await souwcePwovida.open(souwce, { cweate: fawse });
+			tawgetHandwe = await tawgetPwovida.open(tawget, { cweate: twue, unwock: fawse });
 
-			const buffer = VSBuffer.alloc(this.BUFFER_SIZE);
+			const buffa = VSBuffa.awwoc(this.BUFFEW_SIZE);
 
-			let posInFile = 0;
-			let posInBuffer = 0;
-			let bytesRead = 0;
+			wet posInFiwe = 0;
+			wet posInBuffa = 0;
+			wet bytesWead = 0;
 			do {
-				// read from source (sourceHandle) at current position (posInFile) into buffer (buffer) at
-				// buffer position (posInBuffer) up to the size of the buffer (buffer.byteLength).
-				bytesRead = await sourceProvider.read(sourceHandle, posInFile, buffer.buffer, posInBuffer, buffer.byteLength - posInBuffer);
+				// wead fwom souwce (souwceHandwe) at cuwwent position (posInFiwe) into buffa (buffa) at
+				// buffa position (posInBuffa) up to the size of the buffa (buffa.byteWength).
+				bytesWead = await souwcePwovida.wead(souwceHandwe, posInFiwe, buffa.buffa, posInBuffa, buffa.byteWength - posInBuffa);
 
-				// write into target (targetHandle) at current position (posInFile) from buffer (buffer) at
-				// buffer position (posInBuffer) all bytes we read (bytesRead).
-				await this.doWriteBuffer(targetProvider, targetHandle, buffer, bytesRead, posInFile, posInBuffer);
+				// wwite into tawget (tawgetHandwe) at cuwwent position (posInFiwe) fwom buffa (buffa) at
+				// buffa position (posInBuffa) aww bytes we wead (bytesWead).
+				await this.doWwiteBuffa(tawgetPwovida, tawgetHandwe, buffa, bytesWead, posInFiwe, posInBuffa);
 
-				posInFile += bytesRead;
-				posInBuffer += bytesRead;
+				posInFiwe += bytesWead;
+				posInBuffa += bytesWead;
 
-				// when buffer full, fill it again from the beginning
-				if (posInBuffer === buffer.byteLength) {
-					posInBuffer = 0;
+				// when buffa fuww, fiww it again fwom the beginning
+				if (posInBuffa === buffa.byteWength) {
+					posInBuffa = 0;
 				}
-			} while (bytesRead > 0);
-		} catch (error) {
-			throw ensureFileSystemProviderError(error);
-		} finally {
-			await Promises.settled([
-				typeof sourceHandle === 'number' ? sourceProvider.close(sourceHandle) : Promise.resolve(),
-				typeof targetHandle === 'number' ? targetProvider.close(targetHandle) : Promise.resolve(),
+			} whiwe (bytesWead > 0);
+		} catch (ewwow) {
+			thwow ensuweFiweSystemPwovidewEwwow(ewwow);
+		} finawwy {
+			await Pwomises.settwed([
+				typeof souwceHandwe === 'numba' ? souwcePwovida.cwose(souwceHandwe) : Pwomise.wesowve(),
+				typeof tawgetHandwe === 'numba' ? tawgetPwovida.cwose(tawgetHandwe) : Pwomise.wesowve(),
 			]);
 		}
 	}
 
-	private async doPipeUnbuffered(sourceProvider: IFileSystemProviderWithFileReadWriteCapability, source: URI, targetProvider: IFileSystemProviderWithFileReadWriteCapability, target: URI): Promise<void> {
-		return this.writeQueue.queueFor(target, this.getExtUri(targetProvider).providerExtUri).queue(() => this.doPipeUnbufferedQueued(sourceProvider, source, targetProvider, target));
+	pwivate async doPipeUnbuffewed(souwcePwovida: IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity, souwce: UWI, tawgetPwovida: IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity, tawget: UWI): Pwomise<void> {
+		wetuwn this.wwiteQueue.queueFow(tawget, this.getExtUwi(tawgetPwovida).pwovidewExtUwi).queue(() => this.doPipeUnbuffewedQueued(souwcePwovida, souwce, tawgetPwovida, tawget));
 	}
 
-	private async doPipeUnbufferedQueued(sourceProvider: IFileSystemProviderWithFileReadWriteCapability, source: URI, targetProvider: IFileSystemProviderWithFileReadWriteCapability, target: URI): Promise<void> {
-		return targetProvider.writeFile(target, await sourceProvider.readFile(source), { create: true, overwrite: true, unlock: false });
+	pwivate async doPipeUnbuffewedQueued(souwcePwovida: IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity, souwce: UWI, tawgetPwovida: IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity, tawget: UWI): Pwomise<void> {
+		wetuwn tawgetPwovida.wwiteFiwe(tawget, await souwcePwovida.weadFiwe(souwce), { cweate: twue, ovewwwite: twue, unwock: fawse });
 	}
 
-	private async doPipeUnbufferedToBuffered(sourceProvider: IFileSystemProviderWithFileReadWriteCapability, source: URI, targetProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI): Promise<void> {
-		return this.writeQueue.queueFor(target, this.getExtUri(targetProvider).providerExtUri).queue(() => this.doPipeUnbufferedToBufferedQueued(sourceProvider, source, targetProvider, target));
+	pwivate async doPipeUnbuffewedToBuffewed(souwcePwovida: IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity, souwce: UWI, tawgetPwovida: IFiweSystemPwovidewWithOpenWeadWwiteCwoseCapabiwity, tawget: UWI): Pwomise<void> {
+		wetuwn this.wwiteQueue.queueFow(tawget, this.getExtUwi(tawgetPwovida).pwovidewExtUwi).queue(() => this.doPipeUnbuffewedToBuffewedQueued(souwcePwovida, souwce, tawgetPwovida, tawget));
 	}
 
-	private async doPipeUnbufferedToBufferedQueued(sourceProvider: IFileSystemProviderWithFileReadWriteCapability, source: URI, targetProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI): Promise<void> {
+	pwivate async doPipeUnbuffewedToBuffewedQueued(souwcePwovida: IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity, souwce: UWI, tawgetPwovida: IFiweSystemPwovidewWithOpenWeadWwiteCwoseCapabiwity, tawget: UWI): Pwomise<void> {
 
-		// Open handle
-		const targetHandle = await targetProvider.open(target, { create: true, unlock: false });
+		// Open handwe
+		const tawgetHandwe = await tawgetPwovida.open(tawget, { cweate: twue, unwock: fawse });
 
-		// Read entire buffer from source and write buffered
-		try {
-			const buffer = await sourceProvider.readFile(source);
-			await this.doWriteBuffer(targetProvider, targetHandle, VSBuffer.wrap(buffer), buffer.byteLength, 0, 0);
-		} catch (error) {
-			throw ensureFileSystemProviderError(error);
-		} finally {
-			await targetProvider.close(targetHandle);
+		// Wead entiwe buffa fwom souwce and wwite buffewed
+		twy {
+			const buffa = await souwcePwovida.weadFiwe(souwce);
+			await this.doWwiteBuffa(tawgetPwovida, tawgetHandwe, VSBuffa.wwap(buffa), buffa.byteWength, 0, 0);
+		} catch (ewwow) {
+			thwow ensuweFiweSystemPwovidewEwwow(ewwow);
+		} finawwy {
+			await tawgetPwovida.cwose(tawgetHandwe);
 		}
 	}
 
-	private async doPipeBufferedToUnbuffered(sourceProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, source: URI, targetProvider: IFileSystemProviderWithFileReadWriteCapability, target: URI): Promise<void> {
+	pwivate async doPipeBuffewedToUnbuffewed(souwcePwovida: IFiweSystemPwovidewWithOpenWeadWwiteCwoseCapabiwity, souwce: UWI, tawgetPwovida: IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity, tawget: UWI): Pwomise<void> {
 
-		// Read buffer via stream buffered
-		const buffer = await streamToBuffer(this.readFileBuffered(sourceProvider, source, CancellationToken.None));
+		// Wead buffa via stweam buffewed
+		const buffa = await stweamToBuffa(this.weadFiweBuffewed(souwcePwovida, souwce, CancewwationToken.None));
 
-		// Write buffer into target at once
-		await this.doWriteUnbuffered(targetProvider, target, undefined, buffer);
+		// Wwite buffa into tawget at once
+		await this.doWwiteUnbuffewed(tawgetPwovida, tawget, undefined, buffa);
 	}
 
-	protected throwIfFileSystemIsReadonly<T extends IFileSystemProvider>(provider: T, resource: URI): T {
-		if (provider.capabilities & FileSystemProviderCapabilities.Readonly) {
-			throw new FileOperationError(localize('err.readonly', "Unable to modify readonly file '{0}'", this.resourceForError(resource)), FileOperationResult.FILE_PERMISSION_DENIED);
+	pwotected thwowIfFiweSystemIsWeadonwy<T extends IFiweSystemPwovida>(pwovida: T, wesouwce: UWI): T {
+		if (pwovida.capabiwities & FiweSystemPwovidewCapabiwities.Weadonwy) {
+			thwow new FiweOpewationEwwow(wocawize('eww.weadonwy', "Unabwe to modify weadonwy fiwe '{0}'", this.wesouwceFowEwwow(wesouwce)), FiweOpewationWesuwt.FIWE_PEWMISSION_DENIED);
 		}
 
-		return provider;
+		wetuwn pwovida;
 	}
 
-	private throwIfFileIsReadonly(resource: URI, stat: IStat): void {
-		if ((stat.permissions ?? 0) & FilePermission.Readonly) {
-			throw new FileOperationError(localize('err.readonly', "Unable to modify readonly file '{0}'", this.resourceForError(resource)), FileOperationResult.FILE_PERMISSION_DENIED);
+	pwivate thwowIfFiweIsWeadonwy(wesouwce: UWI, stat: IStat): void {
+		if ((stat.pewmissions ?? 0) & FiwePewmission.Weadonwy) {
+			thwow new FiweOpewationEwwow(wocawize('eww.weadonwy', "Unabwe to modify weadonwy fiwe '{0}'", this.wesouwceFowEwwow(wesouwce)), FiweOpewationWesuwt.FIWE_PEWMISSION_DENIED);
 		}
 	}
 
-	private resourceForError(resource: URI): string {
-		if (resource.scheme === Schemas.file) {
-			return resource.fsPath;
+	pwivate wesouwceFowEwwow(wesouwce: UWI): stwing {
+		if (wesouwce.scheme === Schemas.fiwe) {
+			wetuwn wesouwce.fsPath;
 		}
 
-		return resource.toString(true);
+		wetuwn wesouwce.toStwing(twue);
 	}
 
-	//#endregion
+	//#endwegion
 }

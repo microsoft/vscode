@@ -1,116 +1,116 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction, IActionRunner, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, Separator, SubmenuAction } from 'vs/base/common/actions';
-import * as dom from 'vs/base/browser/dom';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { getZoomFactor } from 'vs/base/browser/browser';
-import { unmnemonicLabel } from 'vs/base/common/labels';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IContextMenuDelegate, IContextMenuEvent } from 'vs/base/browser/contextmenu';
-import { once } from 'vs/base/common/functional';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
-import { popup } from 'vs/base/parts/contextmenu/electron-sandbox/contextmenu';
-import { getTitleBarStyle } from 'vs/platform/windows/common/windows';
-import { isMacintosh } from 'vs/base/common/platform';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ContextMenuService as HTMLContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { stripIcons } from 'vs/base/common/iconLabels';
-import { coalesce } from 'vs/base/common/arrays';
-import { Emitter } from 'vs/base/common/event';
+impowt { IAction, IActionWunna, ActionWunna, WowkbenchActionExecutedEvent, WowkbenchActionExecutedCwassification, Sepawatow, SubmenuAction } fwom 'vs/base/common/actions';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { IContextMenuSewvice, IContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { getZoomFactow } fwom 'vs/base/bwowsa/bwowsa';
+impowt { unmnemonicWabew } fwom 'vs/base/common/wabews';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IContextMenuDewegate, IContextMenuEvent } fwom 'vs/base/bwowsa/contextmenu';
+impowt { once } fwom 'vs/base/common/functionaw';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IContextMenuItem } fwom 'vs/base/pawts/contextmenu/common/contextmenu';
+impowt { popup } fwom 'vs/base/pawts/contextmenu/ewectwon-sandbox/contextmenu';
+impowt { getTitweBawStywe } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { ContextMenuSewvice as HTMWContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextMenuSewvice';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { stwipIcons } fwom 'vs/base/common/iconWabews';
+impowt { coawesce } fwom 'vs/base/common/awways';
+impowt { Emitta } fwom 'vs/base/common/event';
 
-export class ContextMenuService extends Disposable implements IContextMenuService {
+expowt cwass ContextMenuSewvice extends Disposabwe impwements IContextMenuSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private impl: IContextMenuService;
+	pwivate impw: IContextMenuSewvice;
 
-	private readonly _onDidShowContextMenu = this._register(new Emitter<void>());
-	readonly onDidShowContextMenu = this._onDidShowContextMenu.event;
+	pwivate weadonwy _onDidShowContextMenu = this._wegista(new Emitta<void>());
+	weadonwy onDidShowContextMenu = this._onDidShowContextMenu.event;
 
-	constructor(
-		@INotificationService notificationService: INotificationService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IContextViewService contextViewService: IContextViewService,
-		@IThemeService themeService: IThemeService
+	constwuctow(
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IEnviwonmentSewvice enviwonmentSewvice: IEnviwonmentSewvice,
+		@IContextViewSewvice contextViewSewvice: IContextViewSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice
 	) {
-		super();
+		supa();
 
-		// Custom context menu: Linux/Windows if custom title is enabled
-		if (!isMacintosh && getTitleBarStyle(configurationService) === 'custom') {
-			this.impl = new HTMLContextMenuService(telemetryService, notificationService, contextViewService, keybindingService, themeService);
+		// Custom context menu: Winux/Windows if custom titwe is enabwed
+		if (!isMacintosh && getTitweBawStywe(configuwationSewvice) === 'custom') {
+			this.impw = new HTMWContextMenuSewvice(tewemetwySewvice, notificationSewvice, contextViewSewvice, keybindingSewvice, themeSewvice);
 		}
 
-		// Native context menu: otherwise
-		else {
-			this.impl = new NativeContextMenuService(notificationService, telemetryService, keybindingService);
+		// Native context menu: othewwise
+		ewse {
+			this.impw = new NativeContextMenuSewvice(notificationSewvice, tewemetwySewvice, keybindingSewvice);
 		}
 	}
 
-	showContextMenu(delegate: IContextMenuDelegate): void {
-		this.impl.showContextMenu(delegate);
-		this._onDidShowContextMenu.fire();
+	showContextMenu(dewegate: IContextMenuDewegate): void {
+		this.impw.showContextMenu(dewegate);
+		this._onDidShowContextMenu.fiwe();
 	}
 }
 
-class NativeContextMenuService extends Disposable implements IContextMenuService {
+cwass NativeContextMenuSewvice extends Disposabwe impwements IContextMenuSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	readonly onDidShowContextMenu = new Emitter<void>().event;
+	weadonwy onDidShowContextMenu = new Emitta<void>().event;
 
-	constructor(
-		@INotificationService private readonly notificationService: INotificationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+	constwuctow(
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IKeybindingSewvice pwivate weadonwy keybindingSewvice: IKeybindingSewvice
 	) {
-		super();
+		supa();
 	}
 
-	showContextMenu(delegate: IContextMenuDelegate): void {
-		const actions = delegate.getActions();
-		if (actions.length) {
+	showContextMenu(dewegate: IContextMenuDewegate): void {
+		const actions = dewegate.getActions();
+		if (actions.wength) {
 			const onHide = once(() => {
-				if (delegate.onHide) {
-					delegate.onHide(false);
+				if (dewegate.onHide) {
+					dewegate.onHide(fawse);
 				}
 
-				dom.ModifierKeyEmitter.getInstance().resetKeyStatus();
+				dom.ModifiewKeyEmitta.getInstance().wesetKeyStatus();
 			});
 
-			const menu = this.createMenu(delegate, actions, onHide);
-			const anchor = delegate.getAnchor();
+			const menu = this.cweateMenu(dewegate, actions, onHide);
+			const anchow = dewegate.getAnchow();
 
-			let x: number;
-			let y: number;
+			wet x: numba;
+			wet y: numba;
 
-			const zoom = getZoomFactor();
-			if (dom.isHTMLElement(anchor)) {
-				const elementPosition = dom.getDomNodePagePosition(anchor);
+			const zoom = getZoomFactow();
+			if (dom.isHTMWEwement(anchow)) {
+				const ewementPosition = dom.getDomNodePagePosition(anchow);
 
-				x = elementPosition.left;
-				y = elementPosition.top + elementPosition.height;
+				x = ewementPosition.weft;
+				y = ewementPosition.top + ewementPosition.height;
 
-				// Shift macOS menus by a few pixels below elements
-				// to account for extra padding on top of native menu
-				// https://github.com/microsoft/vscode/issues/84231
+				// Shift macOS menus by a few pixews bewow ewements
+				// to account fow extwa padding on top of native menu
+				// https://github.com/micwosoft/vscode/issues/84231
 				if (isMacintosh) {
 					y += 4 / zoom;
 				}
-			} else {
-				const pos: { x: number; y: number; } = anchor;
-				x = pos.x + 1; /* prevent first item from being selected automatically under mouse */
+			} ewse {
+				const pos: { x: numba; y: numba; } = anchow;
+				x = pos.x + 1; /* pwevent fiwst item fwom being sewected automaticawwy unda mouse */
 				y = pos.y;
 			}
 
@@ -118,94 +118,94 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 			y *= zoom;
 
 			popup(menu, {
-				x: Math.floor(x),
-				y: Math.floor(y),
-				positioningItem: delegate.autoSelectFirstItem ? 0 : undefined,
+				x: Math.fwoow(x),
+				y: Math.fwoow(y),
+				positioningItem: dewegate.autoSewectFiwstItem ? 0 : undefined,
 			}, () => onHide());
 		}
 	}
 
-	private createMenu(delegate: IContextMenuDelegate, entries: readonly IAction[], onHide: () => void, submenuIds = new Set<string>()): IContextMenuItem[] {
-		const actionRunner = delegate.actionRunner || new ActionRunner();
-		return coalesce(entries.map(entry => this.createMenuItem(delegate, entry, actionRunner, onHide, submenuIds)));
+	pwivate cweateMenu(dewegate: IContextMenuDewegate, entwies: weadonwy IAction[], onHide: () => void, submenuIds = new Set<stwing>()): IContextMenuItem[] {
+		const actionWunna = dewegate.actionWunna || new ActionWunna();
+		wetuwn coawesce(entwies.map(entwy => this.cweateMenuItem(dewegate, entwy, actionWunna, onHide, submenuIds)));
 	}
 
-	private createMenuItem(delegate: IContextMenuDelegate, entry: IAction, actionRunner: IActionRunner, onHide: () => void, submenuIds: Set<string>): IContextMenuItem | undefined {
-		// Separator
-		if (entry instanceof Separator) {
-			return { type: 'separator' };
+	pwivate cweateMenuItem(dewegate: IContextMenuDewegate, entwy: IAction, actionWunna: IActionWunna, onHide: () => void, submenuIds: Set<stwing>): IContextMenuItem | undefined {
+		// Sepawatow
+		if (entwy instanceof Sepawatow) {
+			wetuwn { type: 'sepawatow' };
 		}
 
 		// Submenu
-		if (entry instanceof SubmenuAction) {
-			if (submenuIds.has(entry.id)) {
-				console.warn(`Found submenu cycle: ${entry.id}`);
-				return undefined;
+		if (entwy instanceof SubmenuAction) {
+			if (submenuIds.has(entwy.id)) {
+				consowe.wawn(`Found submenu cycwe: ${entwy.id}`);
+				wetuwn undefined;
 			}
 
-			return {
-				label: unmnemonicLabel(stripIcons(entry.label)).trim(),
-				submenu: this.createMenu(delegate, entry.actions, onHide, new Set([...submenuIds, entry.id]))
+			wetuwn {
+				wabew: unmnemonicWabew(stwipIcons(entwy.wabew)).twim(),
+				submenu: this.cweateMenu(dewegate, entwy.actions, onHide, new Set([...submenuIds, entwy.id]))
 			};
 		}
 
-		// Normal Menu Item
-		else {
-			let type: 'radio' | 'checkbox' | undefined = undefined;
-			if (!!entry.checked) {
-				if (typeof delegate.getCheckedActionsRepresentation === 'function') {
-					type = delegate.getCheckedActionsRepresentation(entry);
-				} else {
+		// Nowmaw Menu Item
+		ewse {
+			wet type: 'wadio' | 'checkbox' | undefined = undefined;
+			if (!!entwy.checked) {
+				if (typeof dewegate.getCheckedActionsWepwesentation === 'function') {
+					type = dewegate.getCheckedActionsWepwesentation(entwy);
+				} ewse {
 					type = 'checkbox';
 				}
 			}
 
 			const item: IContextMenuItem = {
-				label: unmnemonicLabel(stripIcons(entry.label)).trim(),
-				checked: !!entry.checked,
+				wabew: unmnemonicWabew(stwipIcons(entwy.wabew)).twim(),
+				checked: !!entwy.checked,
 				type,
-				enabled: !!entry.enabled,
-				click: event => {
+				enabwed: !!entwy.enabwed,
+				cwick: event => {
 
-					// To preserve pre-electron-2.x behaviour, we first trigger
-					// the onHide callback and then the action.
-					// Fixes https://github.com/microsoft/vscode/issues/45601
+					// To pwesewve pwe-ewectwon-2.x behaviouw, we fiwst twigga
+					// the onHide cawwback and then the action.
+					// Fixes https://github.com/micwosoft/vscode/issues/45601
 					onHide();
 
-					// Run action which will close the menu
-					this.runAction(actionRunner, entry, delegate, event);
+					// Wun action which wiww cwose the menu
+					this.wunAction(actionWunna, entwy, dewegate, event);
 				}
 			};
 
-			const keybinding = !!delegate.getKeyBinding ? delegate.getKeyBinding(entry) : this.keybindingService.lookupKeybinding(entry.id);
+			const keybinding = !!dewegate.getKeyBinding ? dewegate.getKeyBinding(entwy) : this.keybindingSewvice.wookupKeybinding(entwy.id);
 			if (keybinding) {
-				const electronAccelerator = keybinding.getElectronAccelerator();
-				if (electronAccelerator) {
-					item.accelerator = electronAccelerator;
-				} else {
-					const label = keybinding.getLabel();
-					if (label) {
-						item.label = `${item.label} [${label}]`;
+				const ewectwonAccewewatow = keybinding.getEwectwonAccewewatow();
+				if (ewectwonAccewewatow) {
+					item.accewewatow = ewectwonAccewewatow;
+				} ewse {
+					const wabew = keybinding.getWabew();
+					if (wabew) {
+						item.wabew = `${item.wabew} [${wabew}]`;
 					}
 				}
 			}
 
-			return item;
+			wetuwn item;
 		}
 	}
 
-	private async runAction(actionRunner: IActionRunner, actionToRun: IAction, delegate: IContextMenuDelegate, event: IContextMenuEvent): Promise<void> {
-		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: actionToRun.id, from: 'contextMenu' });
+	pwivate async wunAction(actionWunna: IActionWunna, actionToWun: IAction, dewegate: IContextMenuDewegate, event: IContextMenuEvent): Pwomise<void> {
+		this.tewemetwySewvice.pubwicWog2<WowkbenchActionExecutedEvent, WowkbenchActionExecutedCwassification>('wowkbenchActionExecuted', { id: actionToWun.id, fwom: 'contextMenu' });
 
-		const context = delegate.getActionsContext ? delegate.getActionsContext(event) : undefined;
+		const context = dewegate.getActionsContext ? dewegate.getActionsContext(event) : undefined;
 
-		const runnable = actionRunner.run(actionToRun, context);
-		try {
-			await runnable;
-		} catch (error) {
-			this.notificationService.error(error);
+		const wunnabwe = actionWunna.wun(actionToWun, context);
+		twy {
+			await wunnabwe;
+		} catch (ewwow) {
+			this.notificationSewvice.ewwow(ewwow);
 		}
 	}
 }
 
-registerSingleton(IContextMenuService, ContextMenuService, true);
+wegistewSingweton(IContextMenuSewvice, ContextMenuSewvice, twue);

@@ -1,597 +1,597 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { createDecorator as createServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { toEwwowMessage } fwom 'vs/base/common/ewwowMessage';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { cweateDecowatow as cweateSewviceDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const ILogService = createServiceDecorator<ILogService>('logService');
-export const ILoggerService = createServiceDecorator<ILoggerService>('loggerService');
+expowt const IWogSewvice = cweateSewviceDecowatow<IWogSewvice>('wogSewvice');
+expowt const IWoggewSewvice = cweateSewviceDecowatow<IWoggewSewvice>('woggewSewvice');
 
-function now(): string {
-	return new Date().toISOString();
+function now(): stwing {
+	wetuwn new Date().toISOStwing();
 }
 
-export enum LogLevel {
-	Trace,
+expowt enum WogWevew {
+	Twace,
 	Debug,
 	Info,
-	Warning,
-	Error,
-	Critical,
+	Wawning,
+	Ewwow,
+	Cwiticaw,
 	Off
 }
 
-export const DEFAULT_LOG_LEVEL: LogLevel = LogLevel.Info;
+expowt const DEFAUWT_WOG_WEVEW: WogWevew = WogWevew.Info;
 
-export interface ILogger extends IDisposable {
-	onDidChangeLogLevel: Event<LogLevel>;
-	getLevel(): LogLevel;
-	setLevel(level: LogLevel): void;
+expowt intewface IWogga extends IDisposabwe {
+	onDidChangeWogWevew: Event<WogWevew>;
+	getWevew(): WogWevew;
+	setWevew(wevew: WogWevew): void;
 
-	trace(message: string, ...args: any[]): void;
-	debug(message: string, ...args: any[]): void;
-	info(message: string, ...args: any[]): void;
-	warn(message: string, ...args: any[]): void;
-	error(message: string | Error, ...args: any[]): void;
-	critical(message: string | Error, ...args: any[]): void;
+	twace(message: stwing, ...awgs: any[]): void;
+	debug(message: stwing, ...awgs: any[]): void;
+	info(message: stwing, ...awgs: any[]): void;
+	wawn(message: stwing, ...awgs: any[]): void;
+	ewwow(message: stwing | Ewwow, ...awgs: any[]): void;
+	cwiticaw(message: stwing | Ewwow, ...awgs: any[]): void;
 
 	/**
-	 * An operation to flush the contents. Can be synchronous.
+	 * An opewation to fwush the contents. Can be synchwonous.
 	 */
-	flush(): void;
+	fwush(): void;
 }
 
-export interface ILogService extends ILogger {
-	readonly _serviceBrand: undefined;
+expowt intewface IWogSewvice extends IWogga {
+	weadonwy _sewviceBwand: undefined;
 }
 
-export interface ILoggerOptions {
+expowt intewface IWoggewOptions {
 
 	/**
-	 * Name of the logger.
+	 * Name of the wogga.
 	 */
-	name?: string;
+	name?: stwing;
 
 	/**
-	 * Do not create rotating files if max size exceeds.
+	 * Do not cweate wotating fiwes if max size exceeds.
 	 */
-	donotRotate?: boolean;
+	donotWotate?: boowean;
 
 	/**
-	 * Do not use formatters.
+	 * Do not use fowmattews.
 	 */
-	donotUseFormatters?: boolean;
+	donotUseFowmattews?: boowean;
 
 	/**
-	 * If set, logger logs the message always.
+	 * If set, wogga wogs the message awways.
 	 */
-	always?: boolean;
+	awways?: boowean;
 }
 
-export interface ILoggerService {
-	readonly _serviceBrand: undefined;
+expowt intewface IWoggewSewvice {
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Creates a logger, or gets one if it already exists.
+	 * Cweates a wogga, ow gets one if it awweady exists.
 	 */
-	createLogger(file: URI, options?: ILoggerOptions): ILogger;
+	cweateWogga(fiwe: UWI, options?: IWoggewOptions): IWogga;
 
 	/**
-	 * Gets an existing logger, if any.
+	 * Gets an existing wogga, if any.
 	 */
-	getLogger(file: URI): ILogger | undefined;
+	getWogga(fiwe: UWI): IWogga | undefined;
 }
 
-export abstract class AbstractLogger extends Disposable {
+expowt abstwact cwass AbstwactWogga extends Disposabwe {
 
-	private level: LogLevel = DEFAULT_LOG_LEVEL;
-	private readonly _onDidChangeLogLevel: Emitter<LogLevel> = this._register(new Emitter<LogLevel>());
-	readonly onDidChangeLogLevel: Event<LogLevel> = this._onDidChangeLogLevel.event;
+	pwivate wevew: WogWevew = DEFAUWT_WOG_WEVEW;
+	pwivate weadonwy _onDidChangeWogWevew: Emitta<WogWevew> = this._wegista(new Emitta<WogWevew>());
+	weadonwy onDidChangeWogWevew: Event<WogWevew> = this._onDidChangeWogWevew.event;
 
-	setLevel(level: LogLevel): void {
-		if (this.level !== level) {
-			this.level = level;
-			this._onDidChangeLogLevel.fire(this.level);
+	setWevew(wevew: WogWevew): void {
+		if (this.wevew !== wevew) {
+			this.wevew = wevew;
+			this._onDidChangeWogWevew.fiwe(this.wevew);
 		}
 	}
 
-	getLevel(): LogLevel {
-		return this.level;
+	getWevew(): WogWevew {
+		wetuwn this.wevew;
 	}
 
 }
 
-export abstract class AbstractMessageLogger extends AbstractLogger implements ILogger {
+expowt abstwact cwass AbstwactMessageWogga extends AbstwactWogga impwements IWogga {
 
-	protected abstract log(level: LogLevel, message: string): void;
+	pwotected abstwact wog(wevew: WogWevew, message: stwing): void;
 
-	constructor(private readonly logAlways?: boolean) {
-		super();
+	constwuctow(pwivate weadonwy wogAwways?: boowean) {
+		supa();
 	}
 
-	private checkLogLevel(level: LogLevel): boolean {
-		return this.logAlways || this.getLevel() <= level;
+	pwivate checkWogWevew(wevew: WogWevew): boowean {
+		wetuwn this.wogAwways || this.getWevew() <= wevew;
 	}
 
-	trace(message: string, ...args: any[]): void {
-		if (this.checkLogLevel(LogLevel.Trace)) {
-			this.log(LogLevel.Trace, this.format([message, ...args]));
+	twace(message: stwing, ...awgs: any[]): void {
+		if (this.checkWogWevew(WogWevew.Twace)) {
+			this.wog(WogWevew.Twace, this.fowmat([message, ...awgs]));
 		}
 	}
 
-	debug(message: string, ...args: any[]): void {
-		if (this.checkLogLevel(LogLevel.Debug)) {
-			this.log(LogLevel.Debug, this.format([message, ...args]));
+	debug(message: stwing, ...awgs: any[]): void {
+		if (this.checkWogWevew(WogWevew.Debug)) {
+			this.wog(WogWevew.Debug, this.fowmat([message, ...awgs]));
 		}
 	}
 
-	info(message: string, ...args: any[]): void {
-		if (this.checkLogLevel(LogLevel.Info)) {
-			this.log(LogLevel.Info, this.format([message, ...args]));
+	info(message: stwing, ...awgs: any[]): void {
+		if (this.checkWogWevew(WogWevew.Info)) {
+			this.wog(WogWevew.Info, this.fowmat([message, ...awgs]));
 		}
 	}
 
-	warn(message: string, ...args: any[]): void {
-		if (this.checkLogLevel(LogLevel.Warning)) {
-			this.log(LogLevel.Warning, this.format([message, ...args]));
+	wawn(message: stwing, ...awgs: any[]): void {
+		if (this.checkWogWevew(WogWevew.Wawning)) {
+			this.wog(WogWevew.Wawning, this.fowmat([message, ...awgs]));
 		}
 	}
 
-	error(message: string | Error, ...args: any[]): void {
-		if (this.checkLogLevel(LogLevel.Error)) {
+	ewwow(message: stwing | Ewwow, ...awgs: any[]): void {
+		if (this.checkWogWevew(WogWevew.Ewwow)) {
 
-			if (message instanceof Error) {
-				const array = Array.prototype.slice.call(arguments) as any[];
-				array[0] = message.stack;
-				this.log(LogLevel.Error, this.format(array));
-			} else {
-				this.log(LogLevel.Error, this.format([message, ...args]));
+			if (message instanceof Ewwow) {
+				const awway = Awway.pwototype.swice.caww(awguments) as any[];
+				awway[0] = message.stack;
+				this.wog(WogWevew.Ewwow, this.fowmat(awway));
+			} ewse {
+				this.wog(WogWevew.Ewwow, this.fowmat([message, ...awgs]));
 			}
 		}
 	}
 
-	critical(message: string | Error, ...args: any[]): void {
-		if (this.checkLogLevel(LogLevel.Critical)) {
-			this.log(LogLevel.Critical, this.format([message, ...args]));
+	cwiticaw(message: stwing | Ewwow, ...awgs: any[]): void {
+		if (this.checkWogWevew(WogWevew.Cwiticaw)) {
+			this.wog(WogWevew.Cwiticaw, this.fowmat([message, ...awgs]));
 		}
 	}
 
-	flush(): void { }
+	fwush(): void { }
 
-	private format(args: any): string {
-		let result = '';
+	pwivate fowmat(awgs: any): stwing {
+		wet wesuwt = '';
 
-		for (let i = 0; i < args.length; i++) {
-			let a = args[i];
+		fow (wet i = 0; i < awgs.wength; i++) {
+			wet a = awgs[i];
 
 			if (typeof a === 'object') {
-				try {
-					a = JSON.stringify(a);
+				twy {
+					a = JSON.stwingify(a);
 				} catch (e) { }
 			}
 
-			result += (i > 0 ? ' ' : '') + a;
+			wesuwt += (i > 0 ? ' ' : '') + a;
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 }
 
 
-export class ConsoleMainLogger extends AbstractLogger implements ILogger {
+expowt cwass ConsoweMainWogga extends AbstwactWogga impwements IWogga {
 
-	private useColors: boolean;
+	pwivate useCowows: boowean;
 
-	constructor(logLevel: LogLevel = DEFAULT_LOG_LEVEL) {
-		super();
-		this.setLevel(logLevel);
-		this.useColors = !isWindows;
+	constwuctow(wogWevew: WogWevew = DEFAUWT_WOG_WEVEW) {
+		supa();
+		this.setWevew(wogWevew);
+		this.useCowows = !isWindows;
 	}
 
-	trace(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Trace) {
-			if (this.useColors) {
-				console.log(`\x1b[90m[main ${now()}]\x1b[0m`, message, ...args);
-			} else {
-				console.log(`[main ${now()}]`, message, ...args);
+	twace(message: stwing, ...awgs: any[]): void {
+		if (this.getWevew() <= WogWevew.Twace) {
+			if (this.useCowows) {
+				consowe.wog(`\x1b[90m[main ${now()}]\x1b[0m`, message, ...awgs);
+			} ewse {
+				consowe.wog(`[main ${now()}]`, message, ...awgs);
 			}
 		}
 	}
 
-	debug(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Debug) {
-			if (this.useColors) {
-				console.log(`\x1b[90m[main ${now()}]\x1b[0m`, message, ...args);
-			} else {
-				console.log(`[main ${now()}]`, message, ...args);
+	debug(message: stwing, ...awgs: any[]): void {
+		if (this.getWevew() <= WogWevew.Debug) {
+			if (this.useCowows) {
+				consowe.wog(`\x1b[90m[main ${now()}]\x1b[0m`, message, ...awgs);
+			} ewse {
+				consowe.wog(`[main ${now()}]`, message, ...awgs);
 			}
 		}
 	}
 
-	info(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Info) {
-			if (this.useColors) {
-				console.log(`\x1b[90m[main ${now()}]\x1b[0m`, message, ...args);
-			} else {
-				console.log(`[main ${now()}]`, message, ...args);
+	info(message: stwing, ...awgs: any[]): void {
+		if (this.getWevew() <= WogWevew.Info) {
+			if (this.useCowows) {
+				consowe.wog(`\x1b[90m[main ${now()}]\x1b[0m`, message, ...awgs);
+			} ewse {
+				consowe.wog(`[main ${now()}]`, message, ...awgs);
 			}
 		}
 	}
 
-	warn(message: string | Error, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Warning) {
-			if (this.useColors) {
-				console.warn(`\x1b[93m[main ${now()}]\x1b[0m`, message, ...args);
-			} else {
-				console.warn(`[main ${now()}]`, message, ...args);
+	wawn(message: stwing | Ewwow, ...awgs: any[]): void {
+		if (this.getWevew() <= WogWevew.Wawning) {
+			if (this.useCowows) {
+				consowe.wawn(`\x1b[93m[main ${now()}]\x1b[0m`, message, ...awgs);
+			} ewse {
+				consowe.wawn(`[main ${now()}]`, message, ...awgs);
 			}
 		}
 	}
 
-	error(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Error) {
-			if (this.useColors) {
-				console.error(`\x1b[91m[main ${now()}]\x1b[0m`, message, ...args);
-			} else {
-				console.error(`[main ${now()}]`, message, ...args);
+	ewwow(message: stwing, ...awgs: any[]): void {
+		if (this.getWevew() <= WogWevew.Ewwow) {
+			if (this.useCowows) {
+				consowe.ewwow(`\x1b[91m[main ${now()}]\x1b[0m`, message, ...awgs);
+			} ewse {
+				consowe.ewwow(`[main ${now()}]`, message, ...awgs);
 			}
 		}
 	}
 
-	critical(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Critical) {
-			if (this.useColors) {
-				console.error(`\x1b[90m[main ${now()}]\x1b[0m`, message, ...args);
-			} else {
-				console.error(`[main ${now()}]`, message, ...args);
+	cwiticaw(message: stwing, ...awgs: any[]): void {
+		if (this.getWevew() <= WogWevew.Cwiticaw) {
+			if (this.useCowows) {
+				consowe.ewwow(`\x1b[90m[main ${now()}]\x1b[0m`, message, ...awgs);
+			} ewse {
+				consowe.ewwow(`[main ${now()}]`, message, ...awgs);
 			}
 		}
 	}
 
-	override dispose(): void {
+	ovewwide dispose(): void {
 		// noop
 	}
 
-	flush(): void {
+	fwush(): void {
 		// noop
 	}
 
 }
 
-export class ConsoleLogger extends AbstractLogger implements ILogger {
+expowt cwass ConsoweWogga extends AbstwactWogga impwements IWogga {
 
-	constructor(logLevel: LogLevel = DEFAULT_LOG_LEVEL) {
-		super();
-		this.setLevel(logLevel);
+	constwuctow(wogWevew: WogWevew = DEFAUWT_WOG_WEVEW) {
+		supa();
+		this.setWevew(wogWevew);
 	}
 
-	trace(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Trace) {
-			console.log('%cTRACE', 'color: #888', message, ...args);
+	twace(message: stwing, ...awgs: any[]): void {
+		if (this.getWevew() <= WogWevew.Twace) {
+			consowe.wog('%cTWACE', 'cowow: #888', message, ...awgs);
 		}
 	}
 
-	debug(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Debug) {
-			console.log('%cDEBUG', 'background: #eee; color: #888', message, ...args);
+	debug(message: stwing, ...awgs: any[]): void {
+		if (this.getWevew() <= WogWevew.Debug) {
+			consowe.wog('%cDEBUG', 'backgwound: #eee; cowow: #888', message, ...awgs);
 		}
 	}
 
-	info(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Info) {
-			console.log('%c INFO', 'color: #33f', message, ...args);
+	info(message: stwing, ...awgs: any[]): void {
+		if (this.getWevew() <= WogWevew.Info) {
+			consowe.wog('%c INFO', 'cowow: #33f', message, ...awgs);
 		}
 	}
 
-	warn(message: string | Error, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Warning) {
-			console.log('%c WARN', 'color: #993', message, ...args);
+	wawn(message: stwing | Ewwow, ...awgs: any[]): void {
+		if (this.getWevew() <= WogWevew.Wawning) {
+			consowe.wog('%c WAWN', 'cowow: #993', message, ...awgs);
 		}
 	}
 
-	error(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Error) {
-			console.log('%c  ERR', 'color: #f33', message, ...args);
+	ewwow(message: stwing, ...awgs: any[]): void {
+		if (this.getWevew() <= WogWevew.Ewwow) {
+			consowe.wog('%c  EWW', 'cowow: #f33', message, ...awgs);
 		}
 	}
 
-	critical(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Critical) {
-			console.log('%cCRITI', 'background: #f33; color: white', message, ...args);
+	cwiticaw(message: stwing, ...awgs: any[]): void {
+		if (this.getWevew() <= WogWevew.Cwiticaw) {
+			consowe.wog('%cCWITI', 'backgwound: #f33; cowow: white', message, ...awgs);
 		}
 	}
 
-	override dispose(): void {
+	ovewwide dispose(): void {
 		// noop
 	}
 
-	flush(): void {
-		// noop
-	}
-}
-
-export class AdapterLogger extends AbstractLogger implements ILogger {
-
-	constructor(private readonly adapter: { log: (logLevel: LogLevel, args: any[]) => void }, logLevel: LogLevel = DEFAULT_LOG_LEVEL) {
-		super();
-		this.setLevel(logLevel);
-	}
-
-	trace(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Trace) {
-			this.adapter.log(LogLevel.Trace, [this.extractMessage(message), ...args]);
-		}
-	}
-
-	debug(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Debug) {
-			this.adapter.log(LogLevel.Debug, [this.extractMessage(message), ...args]);
-		}
-	}
-
-	info(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Info) {
-			this.adapter.log(LogLevel.Info, [this.extractMessage(message), ...args]);
-		}
-	}
-
-	warn(message: string | Error, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Warning) {
-			this.adapter.log(LogLevel.Warning, [this.extractMessage(message), ...args]);
-		}
-	}
-
-	error(message: string | Error, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Error) {
-			this.adapter.log(LogLevel.Error, [this.extractMessage(message), ...args]);
-		}
-	}
-
-	critical(message: string | Error, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Critical) {
-			this.adapter.log(LogLevel.Critical, [this.extractMessage(message), ...args]);
-		}
-	}
-
-	private extractMessage(msg: string | Error): string {
-		if (typeof msg === 'string') {
-			return msg;
-		}
-
-		return toErrorMessage(msg, this.getLevel() <= LogLevel.Trace);
-	}
-
-	override dispose(): void {
-		// noop
-	}
-
-	flush(): void {
+	fwush(): void {
 		// noop
 	}
 }
 
-export class MultiplexLogService extends AbstractLogger implements ILogService {
-	declare readonly _serviceBrand: undefined;
+expowt cwass AdaptewWogga extends AbstwactWogga impwements IWogga {
 
-	constructor(private readonly logServices: ReadonlyArray<ILogger>) {
-		super();
-		if (logServices.length) {
-			this.setLevel(logServices[0].getLevel());
+	constwuctow(pwivate weadonwy adapta: { wog: (wogWevew: WogWevew, awgs: any[]) => void }, wogWevew: WogWevew = DEFAUWT_WOG_WEVEW) {
+		supa();
+		this.setWevew(wogWevew);
+	}
+
+	twace(message: stwing, ...awgs: any[]): void {
+		if (this.getWevew() <= WogWevew.Twace) {
+			this.adapta.wog(WogWevew.Twace, [this.extwactMessage(message), ...awgs]);
 		}
 	}
 
-	override setLevel(level: LogLevel): void {
-		for (const logService of this.logServices) {
-			logService.setLevel(level);
-		}
-		super.setLevel(level);
-	}
-
-	trace(message: string, ...args: any[]): void {
-		for (const logService of this.logServices) {
-			logService.trace(message, ...args);
+	debug(message: stwing, ...awgs: any[]): void {
+		if (this.getWevew() <= WogWevew.Debug) {
+			this.adapta.wog(WogWevew.Debug, [this.extwactMessage(message), ...awgs]);
 		}
 	}
 
-	debug(message: string, ...args: any[]): void {
-		for (const logService of this.logServices) {
-			logService.debug(message, ...args);
+	info(message: stwing, ...awgs: any[]): void {
+		if (this.getWevew() <= WogWevew.Info) {
+			this.adapta.wog(WogWevew.Info, [this.extwactMessage(message), ...awgs]);
 		}
 	}
 
-	info(message: string, ...args: any[]): void {
-		for (const logService of this.logServices) {
-			logService.info(message, ...args);
+	wawn(message: stwing | Ewwow, ...awgs: any[]): void {
+		if (this.getWevew() <= WogWevew.Wawning) {
+			this.adapta.wog(WogWevew.Wawning, [this.extwactMessage(message), ...awgs]);
 		}
 	}
 
-	warn(message: string, ...args: any[]): void {
-		for (const logService of this.logServices) {
-			logService.warn(message, ...args);
+	ewwow(message: stwing | Ewwow, ...awgs: any[]): void {
+		if (this.getWevew() <= WogWevew.Ewwow) {
+			this.adapta.wog(WogWevew.Ewwow, [this.extwactMessage(message), ...awgs]);
 		}
 	}
 
-	error(message: string | Error, ...args: any[]): void {
-		for (const logService of this.logServices) {
-			logService.error(message, ...args);
+	cwiticaw(message: stwing | Ewwow, ...awgs: any[]): void {
+		if (this.getWevew() <= WogWevew.Cwiticaw) {
+			this.adapta.wog(WogWevew.Cwiticaw, [this.extwactMessage(message), ...awgs]);
 		}
 	}
 
-	critical(message: string | Error, ...args: any[]): void {
-		for (const logService of this.logServices) {
-			logService.critical(message, ...args);
+	pwivate extwactMessage(msg: stwing | Ewwow): stwing {
+		if (typeof msg === 'stwing') {
+			wetuwn msg;
+		}
+
+		wetuwn toEwwowMessage(msg, this.getWevew() <= WogWevew.Twace);
+	}
+
+	ovewwide dispose(): void {
+		// noop
+	}
+
+	fwush(): void {
+		// noop
+	}
+}
+
+expowt cwass MuwtipwexWogSewvice extends AbstwactWogga impwements IWogSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
+
+	constwuctow(pwivate weadonwy wogSewvices: WeadonwyAwway<IWogga>) {
+		supa();
+		if (wogSewvices.wength) {
+			this.setWevew(wogSewvices[0].getWevew());
 		}
 	}
 
-	flush(): void {
-		for (const logService of this.logServices) {
-			logService.flush();
+	ovewwide setWevew(wevew: WogWevew): void {
+		fow (const wogSewvice of this.wogSewvices) {
+			wogSewvice.setWevew(wevew);
+		}
+		supa.setWevew(wevew);
+	}
+
+	twace(message: stwing, ...awgs: any[]): void {
+		fow (const wogSewvice of this.wogSewvices) {
+			wogSewvice.twace(message, ...awgs);
 		}
 	}
 
-	override dispose(): void {
-		for (const logService of this.logServices) {
-			logService.dispose();
+	debug(message: stwing, ...awgs: any[]): void {
+		fow (const wogSewvice of this.wogSewvices) {
+			wogSewvice.debug(message, ...awgs);
+		}
+	}
+
+	info(message: stwing, ...awgs: any[]): void {
+		fow (const wogSewvice of this.wogSewvices) {
+			wogSewvice.info(message, ...awgs);
+		}
+	}
+
+	wawn(message: stwing, ...awgs: any[]): void {
+		fow (const wogSewvice of this.wogSewvices) {
+			wogSewvice.wawn(message, ...awgs);
+		}
+	}
+
+	ewwow(message: stwing | Ewwow, ...awgs: any[]): void {
+		fow (const wogSewvice of this.wogSewvices) {
+			wogSewvice.ewwow(message, ...awgs);
+		}
+	}
+
+	cwiticaw(message: stwing | Ewwow, ...awgs: any[]): void {
+		fow (const wogSewvice of this.wogSewvices) {
+			wogSewvice.cwiticaw(message, ...awgs);
+		}
+	}
+
+	fwush(): void {
+		fow (const wogSewvice of this.wogSewvices) {
+			wogSewvice.fwush();
+		}
+	}
+
+	ovewwide dispose(): void {
+		fow (const wogSewvice of this.wogSewvices) {
+			wogSewvice.dispose();
 		}
 	}
 }
 
-export class LogService extends Disposable implements ILogService {
-	declare readonly _serviceBrand: undefined;
+expowt cwass WogSewvice extends Disposabwe impwements IWogSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(private logger: ILogger) {
-		super();
-		this._register(logger);
+	constwuctow(pwivate wogga: IWogga) {
+		supa();
+		this._wegista(wogga);
 	}
 
-	get onDidChangeLogLevel(): Event<LogLevel> {
-		return this.logger.onDidChangeLogLevel;
+	get onDidChangeWogWevew(): Event<WogWevew> {
+		wetuwn this.wogga.onDidChangeWogWevew;
 	}
 
-	setLevel(level: LogLevel): void {
-		this.logger.setLevel(level);
+	setWevew(wevew: WogWevew): void {
+		this.wogga.setWevew(wevew);
 	}
 
-	getLevel(): LogLevel {
-		return this.logger.getLevel();
+	getWevew(): WogWevew {
+		wetuwn this.wogga.getWevew();
 	}
 
-	trace(message: string, ...args: any[]): void {
-		this.logger.trace(message, ...args);
+	twace(message: stwing, ...awgs: any[]): void {
+		this.wogga.twace(message, ...awgs);
 	}
 
-	debug(message: string, ...args: any[]): void {
-		this.logger.debug(message, ...args);
+	debug(message: stwing, ...awgs: any[]): void {
+		this.wogga.debug(message, ...awgs);
 	}
 
-	info(message: string, ...args: any[]): void {
-		this.logger.info(message, ...args);
+	info(message: stwing, ...awgs: any[]): void {
+		this.wogga.info(message, ...awgs);
 	}
 
-	warn(message: string, ...args: any[]): void {
-		this.logger.warn(message, ...args);
+	wawn(message: stwing, ...awgs: any[]): void {
+		this.wogga.wawn(message, ...awgs);
 	}
 
-	error(message: string | Error, ...args: any[]): void {
-		this.logger.error(message, ...args);
+	ewwow(message: stwing | Ewwow, ...awgs: any[]): void {
+		this.wogga.ewwow(message, ...awgs);
 	}
 
-	critical(message: string | Error, ...args: any[]): void {
-		this.logger.critical(message, ...args);
+	cwiticaw(message: stwing | Ewwow, ...awgs: any[]): void {
+		this.wogga.cwiticaw(message, ...awgs);
 	}
 
-	flush(): void {
-		this.logger.flush();
+	fwush(): void {
+		this.wogga.fwush();
 	}
 }
 
-export abstract class AbstractLoggerService extends Disposable implements ILoggerService {
+expowt abstwact cwass AbstwactWoggewSewvice extends Disposabwe impwements IWoggewSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly loggers = new Map<string, ILogger>();
-	private readonly logLevelChangeableLoggers: ILogger[] = [];
+	pwivate weadonwy woggews = new Map<stwing, IWogga>();
+	pwivate weadonwy wogWevewChangeabweWoggews: IWogga[] = [];
 
-	constructor(
-		private logLevel: LogLevel,
-		onDidChangeLogLevel: Event<LogLevel>,
+	constwuctow(
+		pwivate wogWevew: WogWevew,
+		onDidChangeWogWevew: Event<WogWevew>,
 	) {
-		super();
-		this._register(onDidChangeLogLevel(logLevel => {
-			this.logLevel = logLevel;
-			this.logLevelChangeableLoggers.forEach(logger => logger.setLevel(logLevel));
+		supa();
+		this._wegista(onDidChangeWogWevew(wogWevew => {
+			this.wogWevew = wogWevew;
+			this.wogWevewChangeabweWoggews.fowEach(wogga => wogga.setWevew(wogWevew));
 		}));
 	}
 
-	getLogger(resource: URI) {
-		return this.loggers.get(resource.toString());
+	getWogga(wesouwce: UWI) {
+		wetuwn this.woggews.get(wesouwce.toStwing());
 	}
 
-	createLogger(resource: URI, options?: ILoggerOptions): ILogger {
-		let logger = this.loggers.get(resource.toString());
-		if (!logger) {
-			logger = this.doCreateLogger(resource, options?.always ? LogLevel.Trace : this.logLevel, options);
-			this.loggers.set(resource.toString(), logger);
-			if (!options?.always) {
-				this.logLevelChangeableLoggers.push(logger);
+	cweateWogga(wesouwce: UWI, options?: IWoggewOptions): IWogga {
+		wet wogga = this.woggews.get(wesouwce.toStwing());
+		if (!wogga) {
+			wogga = this.doCweateWogga(wesouwce, options?.awways ? WogWevew.Twace : this.wogWevew, options);
+			this.woggews.set(wesouwce.toStwing(), wogga);
+			if (!options?.awways) {
+				this.wogWevewChangeabweWoggews.push(wogga);
 			}
 		}
-		return logger;
+		wetuwn wogga;
 	}
 
-	override dispose(): void {
-		this.logLevelChangeableLoggers.splice(0, this.logLevelChangeableLoggers.length);
-		this.loggers.forEach(logger => logger.dispose());
-		this.loggers.clear();
-		super.dispose();
+	ovewwide dispose(): void {
+		this.wogWevewChangeabweWoggews.spwice(0, this.wogWevewChangeabweWoggews.wength);
+		this.woggews.fowEach(wogga => wogga.dispose());
+		this.woggews.cweaw();
+		supa.dispose();
 	}
 
-	protected abstract doCreateLogger(resource: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger;
+	pwotected abstwact doCweateWogga(wesouwce: UWI, wogWevew: WogWevew, options?: IWoggewOptions): IWogga;
 }
 
-export class NullLogService implements ILogService {
-	declare readonly _serviceBrand: undefined;
-	readonly onDidChangeLogLevel: Event<LogLevel> = new Emitter<LogLevel>().event;
-	setLevel(level: LogLevel): void { }
-	getLevel(): LogLevel { return LogLevel.Info; }
-	trace(message: string, ...args: any[]): void { }
-	debug(message: string, ...args: any[]): void { }
-	info(message: string, ...args: any[]): void { }
-	warn(message: string, ...args: any[]): void { }
-	error(message: string | Error, ...args: any[]): void { }
-	critical(message: string | Error, ...args: any[]): void { }
+expowt cwass NuwwWogSewvice impwements IWogSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
+	weadonwy onDidChangeWogWevew: Event<WogWevew> = new Emitta<WogWevew>().event;
+	setWevew(wevew: WogWevew): void { }
+	getWevew(): WogWevew { wetuwn WogWevew.Info; }
+	twace(message: stwing, ...awgs: any[]): void { }
+	debug(message: stwing, ...awgs: any[]): void { }
+	info(message: stwing, ...awgs: any[]): void { }
+	wawn(message: stwing, ...awgs: any[]): void { }
+	ewwow(message: stwing | Ewwow, ...awgs: any[]): void { }
+	cwiticaw(message: stwing | Ewwow, ...awgs: any[]): void { }
 	dispose(): void { }
-	flush(): void { }
+	fwush(): void { }
 }
 
-export function getLogLevel(environmentService: IEnvironmentService): LogLevel {
-	if (environmentService.verbose) {
-		return LogLevel.Trace;
+expowt function getWogWevew(enviwonmentSewvice: IEnviwonmentSewvice): WogWevew {
+	if (enviwonmentSewvice.vewbose) {
+		wetuwn WogWevew.Twace;
 	}
-	if (typeof environmentService.logLevel === 'string') {
-		const logLevel = parseLogLevel(environmentService.logLevel.toLowerCase());
-		if (logLevel !== undefined) {
-			return logLevel;
+	if (typeof enviwonmentSewvice.wogWevew === 'stwing') {
+		const wogWevew = pawseWogWevew(enviwonmentSewvice.wogWevew.toWowewCase());
+		if (wogWevew !== undefined) {
+			wetuwn wogWevew;
 		}
 	}
-	return DEFAULT_LOG_LEVEL;
+	wetuwn DEFAUWT_WOG_WEVEW;
 }
 
-export function parseLogLevel(logLevel: string): LogLevel | undefined {
-	switch (logLevel) {
-		case 'trace':
-			return LogLevel.Trace;
+expowt function pawseWogWevew(wogWevew: stwing): WogWevew | undefined {
+	switch (wogWevew) {
+		case 'twace':
+			wetuwn WogWevew.Twace;
 		case 'debug':
-			return LogLevel.Debug;
+			wetuwn WogWevew.Debug;
 		case 'info':
-			return LogLevel.Info;
-		case 'warn':
-			return LogLevel.Warning;
-		case 'error':
-			return LogLevel.Error;
-		case 'critical':
-			return LogLevel.Critical;
+			wetuwn WogWevew.Info;
+		case 'wawn':
+			wetuwn WogWevew.Wawning;
+		case 'ewwow':
+			wetuwn WogWevew.Ewwow;
+		case 'cwiticaw':
+			wetuwn WogWevew.Cwiticaw;
 		case 'off':
-			return LogLevel.Off;
+			wetuwn WogWevew.Off;
 	}
-	return undefined;
+	wetuwn undefined;
 }
 
-export function LogLevelToString(logLevel: LogLevel): string {
-	switch (logLevel) {
-		case LogLevel.Trace: return 'trace';
-		case LogLevel.Debug: return 'debug';
-		case LogLevel.Info: return 'info';
-		case LogLevel.Warning: return 'warn';
-		case LogLevel.Error: return 'error';
-		case LogLevel.Critical: return 'critical';
-		case LogLevel.Off: return 'off';
+expowt function WogWevewToStwing(wogWevew: WogWevew): stwing {
+	switch (wogWevew) {
+		case WogWevew.Twace: wetuwn 'twace';
+		case WogWevew.Debug: wetuwn 'debug';
+		case WogWevew.Info: wetuwn 'info';
+		case WogWevew.Wawning: wetuwn 'wawn';
+		case WogWevew.Ewwow: wetuwn 'ewwow';
+		case WogWevew.Cwiticaw: wetuwn 'cwiticaw';
+		case WogWevew.Off: wetuwn 'off';
 	}
 }

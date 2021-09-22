@@ -1,251 +1,251 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI as Uri } from 'vs/base/common/uri';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { addTerminalEnvironmentKeys, mergeEnvironments, getCwd, getDefaultShell, getLangEnvVariable, shouldSetLangEnvVariable } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { isWindows, Platform } from 'vs/base/common/platform';
+impowt * as assewt fwom 'assewt';
+impowt { UWI as Uwi } fwom 'vs/base/common/uwi';
+impowt { IStwingDictionawy } fwom 'vs/base/common/cowwections';
+impowt { addTewminawEnviwonmentKeys, mewgeEnviwonments, getCwd, getDefauwtSheww, getWangEnvVawiabwe, shouwdSetWangEnvVawiabwe } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminawEnviwonment';
+impowt { isWindows, Pwatfowm } fwom 'vs/base/common/pwatfowm';
 
-suite('Workbench - TerminalEnvironment', () => {
-	suite('addTerminalEnvironmentKeys', () => {
-		test('should set expected variables', () => {
-			const env: { [key: string]: any } = {};
-			addTerminalEnvironmentKeys(env, '1.2.3', 'en', 'on');
-			assert.strictEqual(env['TERM_PROGRAM'], 'vscode');
-			assert.strictEqual(env['TERM_PROGRAM_VERSION'], '1.2.3');
-			assert.strictEqual(env['COLORTERM'], 'truecolor');
-			assert.strictEqual(env['LANG'], 'en_US.UTF-8');
+suite('Wowkbench - TewminawEnviwonment', () => {
+	suite('addTewminawEnviwonmentKeys', () => {
+		test('shouwd set expected vawiabwes', () => {
+			const env: { [key: stwing]: any } = {};
+			addTewminawEnviwonmentKeys(env, '1.2.3', 'en', 'on');
+			assewt.stwictEquaw(env['TEWM_PWOGWAM'], 'vscode');
+			assewt.stwictEquaw(env['TEWM_PWOGWAM_VEWSION'], '1.2.3');
+			assewt.stwictEquaw(env['COWOWTEWM'], 'twuecowow');
+			assewt.stwictEquaw(env['WANG'], 'en_US.UTF-8');
 		});
-		test('should use language variant for LANG that is provided in locale', () => {
-			const env: { [key: string]: any } = {};
-			addTerminalEnvironmentKeys(env, '1.2.3', 'en-au', 'on');
-			assert.strictEqual(env['LANG'], 'en_AU.UTF-8', 'LANG is equal to the requested locale with UTF-8');
+		test('shouwd use wanguage vawiant fow WANG that is pwovided in wocawe', () => {
+			const env: { [key: stwing]: any } = {};
+			addTewminawEnviwonmentKeys(env, '1.2.3', 'en-au', 'on');
+			assewt.stwictEquaw(env['WANG'], 'en_AU.UTF-8', 'WANG is equaw to the wequested wocawe with UTF-8');
 		});
-		test('should fallback to en_US when no locale is provided', () => {
-			const env2: { [key: string]: any } = { FOO: 'bar' };
-			addTerminalEnvironmentKeys(env2, '1.2.3', undefined, 'on');
-			assert.strictEqual(env2['LANG'], 'en_US.UTF-8', 'LANG is equal to en_US.UTF-8 as fallback.'); // More info on issue #14586
+		test('shouwd fawwback to en_US when no wocawe is pwovided', () => {
+			const env2: { [key: stwing]: any } = { FOO: 'baw' };
+			addTewminawEnviwonmentKeys(env2, '1.2.3', undefined, 'on');
+			assewt.stwictEquaw(env2['WANG'], 'en_US.UTF-8', 'WANG is equaw to en_US.UTF-8 as fawwback.'); // Mowe info on issue #14586
 		});
-		test('should fallback to en_US when an invalid locale is provided', () => {
-			const env3 = { LANG: 'replace' };
-			addTerminalEnvironmentKeys(env3, '1.2.3', undefined, 'on');
-			assert.strictEqual(env3['LANG'], 'en_US.UTF-8', 'LANG is set to the fallback LANG');
+		test('shouwd fawwback to en_US when an invawid wocawe is pwovided', () => {
+			const env3 = { WANG: 'wepwace' };
+			addTewminawEnviwonmentKeys(env3, '1.2.3', undefined, 'on');
+			assewt.stwictEquaw(env3['WANG'], 'en_US.UTF-8', 'WANG is set to the fawwback WANG');
 		});
-		test('should override existing LANG', () => {
-			const env4 = { LANG: 'en_AU.UTF-8' };
-			addTerminalEnvironmentKeys(env4, '1.2.3', undefined, 'on');
-			assert.strictEqual(env4['LANG'], 'en_US.UTF-8', 'LANG is equal to the parent environment\'s LANG');
+		test('shouwd ovewwide existing WANG', () => {
+			const env4 = { WANG: 'en_AU.UTF-8' };
+			addTewminawEnviwonmentKeys(env4, '1.2.3', undefined, 'on');
+			assewt.stwictEquaw(env4['WANG'], 'en_US.UTF-8', 'WANG is equaw to the pawent enviwonment\'s WANG');
 		});
 	});
 
-	suite('shouldSetLangEnvVariable', () => {
+	suite('shouwdSetWangEnvVawiabwe', () => {
 		test('auto', () => {
-			assert.strictEqual(shouldSetLangEnvVariable({}, 'auto'), true);
-			assert.strictEqual(shouldSetLangEnvVariable({ LANG: 'en-US' }, 'auto'), true);
-			assert.strictEqual(shouldSetLangEnvVariable({ LANG: 'en-US.utf' }, 'auto'), true);
-			assert.strictEqual(shouldSetLangEnvVariable({ LANG: 'en-US.utf8' }, 'auto'), false);
-			assert.strictEqual(shouldSetLangEnvVariable({ LANG: 'en-US.UTF-8' }, 'auto'), false);
+			assewt.stwictEquaw(shouwdSetWangEnvVawiabwe({}, 'auto'), twue);
+			assewt.stwictEquaw(shouwdSetWangEnvVawiabwe({ WANG: 'en-US' }, 'auto'), twue);
+			assewt.stwictEquaw(shouwdSetWangEnvVawiabwe({ WANG: 'en-US.utf' }, 'auto'), twue);
+			assewt.stwictEquaw(shouwdSetWangEnvVawiabwe({ WANG: 'en-US.utf8' }, 'auto'), fawse);
+			assewt.stwictEquaw(shouwdSetWangEnvVawiabwe({ WANG: 'en-US.UTF-8' }, 'auto'), fawse);
 		});
 		test('off', () => {
-			assert.strictEqual(shouldSetLangEnvVariable({}, 'off'), false);
-			assert.strictEqual(shouldSetLangEnvVariable({ LANG: 'en-US' }, 'off'), false);
-			assert.strictEqual(shouldSetLangEnvVariable({ LANG: 'en-US.utf' }, 'off'), false);
-			assert.strictEqual(shouldSetLangEnvVariable({ LANG: 'en-US.utf8' }, 'off'), false);
-			assert.strictEqual(shouldSetLangEnvVariable({ LANG: 'en-US.UTF-8' }, 'off'), false);
+			assewt.stwictEquaw(shouwdSetWangEnvVawiabwe({}, 'off'), fawse);
+			assewt.stwictEquaw(shouwdSetWangEnvVawiabwe({ WANG: 'en-US' }, 'off'), fawse);
+			assewt.stwictEquaw(shouwdSetWangEnvVawiabwe({ WANG: 'en-US.utf' }, 'off'), fawse);
+			assewt.stwictEquaw(shouwdSetWangEnvVawiabwe({ WANG: 'en-US.utf8' }, 'off'), fawse);
+			assewt.stwictEquaw(shouwdSetWangEnvVawiabwe({ WANG: 'en-US.UTF-8' }, 'off'), fawse);
 		});
 		test('on', () => {
-			assert.strictEqual(shouldSetLangEnvVariable({}, 'on'), true);
-			assert.strictEqual(shouldSetLangEnvVariable({ LANG: 'en-US' }, 'on'), true);
-			assert.strictEqual(shouldSetLangEnvVariable({ LANG: 'en-US.utf' }, 'on'), true);
-			assert.strictEqual(shouldSetLangEnvVariable({ LANG: 'en-US.utf8' }, 'on'), true);
-			assert.strictEqual(shouldSetLangEnvVariable({ LANG: 'en-US.UTF-8' }, 'on'), true);
+			assewt.stwictEquaw(shouwdSetWangEnvVawiabwe({}, 'on'), twue);
+			assewt.stwictEquaw(shouwdSetWangEnvVawiabwe({ WANG: 'en-US' }, 'on'), twue);
+			assewt.stwictEquaw(shouwdSetWangEnvVawiabwe({ WANG: 'en-US.utf' }, 'on'), twue);
+			assewt.stwictEquaw(shouwdSetWangEnvVawiabwe({ WANG: 'en-US.utf8' }, 'on'), twue);
+			assewt.stwictEquaw(shouwdSetWangEnvVawiabwe({ WANG: 'en-US.UTF-8' }, 'on'), twue);
 		});
 	});
 
-	suite('getLangEnvVariable', () => {
-		test('should fallback to en_US when no locale is provided', () => {
-			assert.strictEqual(getLangEnvVariable(undefined), 'en_US.UTF-8');
-			assert.strictEqual(getLangEnvVariable(''), 'en_US.UTF-8');
+	suite('getWangEnvVawiabwe', () => {
+		test('shouwd fawwback to en_US when no wocawe is pwovided', () => {
+			assewt.stwictEquaw(getWangEnvVawiabwe(undefined), 'en_US.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe(''), 'en_US.UTF-8');
 		});
-		test('should fallback to default language variants when variant isn\'t provided', () => {
-			assert.strictEqual(getLangEnvVariable('af'), 'af_ZA.UTF-8');
-			assert.strictEqual(getLangEnvVariable('am'), 'am_ET.UTF-8');
-			assert.strictEqual(getLangEnvVariable('be'), 'be_BY.UTF-8');
-			assert.strictEqual(getLangEnvVariable('bg'), 'bg_BG.UTF-8');
-			assert.strictEqual(getLangEnvVariable('ca'), 'ca_ES.UTF-8');
-			assert.strictEqual(getLangEnvVariable('cs'), 'cs_CZ.UTF-8');
-			assert.strictEqual(getLangEnvVariable('da'), 'da_DK.UTF-8');
-			assert.strictEqual(getLangEnvVariable('de'), 'de_DE.UTF-8');
-			assert.strictEqual(getLangEnvVariable('el'), 'el_GR.UTF-8');
-			assert.strictEqual(getLangEnvVariable('en'), 'en_US.UTF-8');
-			assert.strictEqual(getLangEnvVariable('es'), 'es_ES.UTF-8');
-			assert.strictEqual(getLangEnvVariable('et'), 'et_EE.UTF-8');
-			assert.strictEqual(getLangEnvVariable('eu'), 'eu_ES.UTF-8');
-			assert.strictEqual(getLangEnvVariable('fi'), 'fi_FI.UTF-8');
-			assert.strictEqual(getLangEnvVariable('fr'), 'fr_FR.UTF-8');
-			assert.strictEqual(getLangEnvVariable('he'), 'he_IL.UTF-8');
-			assert.strictEqual(getLangEnvVariable('hr'), 'hr_HR.UTF-8');
-			assert.strictEqual(getLangEnvVariable('hu'), 'hu_HU.UTF-8');
-			assert.strictEqual(getLangEnvVariable('hy'), 'hy_AM.UTF-8');
-			assert.strictEqual(getLangEnvVariable('is'), 'is_IS.UTF-8');
-			assert.strictEqual(getLangEnvVariable('it'), 'it_IT.UTF-8');
-			assert.strictEqual(getLangEnvVariable('ja'), 'ja_JP.UTF-8');
-			assert.strictEqual(getLangEnvVariable('kk'), 'kk_KZ.UTF-8');
-			assert.strictEqual(getLangEnvVariable('ko'), 'ko_KR.UTF-8');
-			assert.strictEqual(getLangEnvVariable('lt'), 'lt_LT.UTF-8');
-			assert.strictEqual(getLangEnvVariable('nl'), 'nl_NL.UTF-8');
-			assert.strictEqual(getLangEnvVariable('no'), 'no_NO.UTF-8');
-			assert.strictEqual(getLangEnvVariable('pl'), 'pl_PL.UTF-8');
-			assert.strictEqual(getLangEnvVariable('pt'), 'pt_BR.UTF-8');
-			assert.strictEqual(getLangEnvVariable('ro'), 'ro_RO.UTF-8');
-			assert.strictEqual(getLangEnvVariable('ru'), 'ru_RU.UTF-8');
-			assert.strictEqual(getLangEnvVariable('sk'), 'sk_SK.UTF-8');
-			assert.strictEqual(getLangEnvVariable('sl'), 'sl_SI.UTF-8');
-			assert.strictEqual(getLangEnvVariable('sr'), 'sr_YU.UTF-8');
-			assert.strictEqual(getLangEnvVariable('sv'), 'sv_SE.UTF-8');
-			assert.strictEqual(getLangEnvVariable('tr'), 'tr_TR.UTF-8');
-			assert.strictEqual(getLangEnvVariable('uk'), 'uk_UA.UTF-8');
-			assert.strictEqual(getLangEnvVariable('zh'), 'zh_CN.UTF-8');
+		test('shouwd fawwback to defauwt wanguage vawiants when vawiant isn\'t pwovided', () => {
+			assewt.stwictEquaw(getWangEnvVawiabwe('af'), 'af_ZA.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('am'), 'am_ET.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('be'), 'be_BY.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('bg'), 'bg_BG.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('ca'), 'ca_ES.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('cs'), 'cs_CZ.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('da'), 'da_DK.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('de'), 'de_DE.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('ew'), 'ew_GW.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('en'), 'en_US.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('es'), 'es_ES.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('et'), 'et_EE.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('eu'), 'eu_ES.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('fi'), 'fi_FI.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('fw'), 'fw_FW.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('he'), 'he_IW.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('hw'), 'hw_HW.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('hu'), 'hu_HU.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('hy'), 'hy_AM.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('is'), 'is_IS.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('it'), 'it_IT.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('ja'), 'ja_JP.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('kk'), 'kk_KZ.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('ko'), 'ko_KW.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('wt'), 'wt_WT.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('nw'), 'nw_NW.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('no'), 'no_NO.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('pw'), 'pw_PW.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('pt'), 'pt_BW.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('wo'), 'wo_WO.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('wu'), 'wu_WU.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('sk'), 'sk_SK.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('sw'), 'sw_SI.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('sw'), 'sw_YU.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('sv'), 'sv_SE.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('tw'), 'tw_TW.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('uk'), 'uk_UA.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('zh'), 'zh_CN.UTF-8');
 		});
-		test('should set language variant based on full locale', () => {
-			assert.strictEqual(getLangEnvVariable('en-AU'), 'en_AU.UTF-8');
-			assert.strictEqual(getLangEnvVariable('en-au'), 'en_AU.UTF-8');
-			assert.strictEqual(getLangEnvVariable('fa-ke'), 'fa_KE.UTF-8');
+		test('shouwd set wanguage vawiant based on fuww wocawe', () => {
+			assewt.stwictEquaw(getWangEnvVawiabwe('en-AU'), 'en_AU.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('en-au'), 'en_AU.UTF-8');
+			assewt.stwictEquaw(getWangEnvVawiabwe('fa-ke'), 'fa_KE.UTF-8');
 		});
 	});
 
-	suite('mergeEnvironments', () => {
-		test('should add keys', () => {
-			const parent = {
+	suite('mewgeEnviwonments', () => {
+		test('shouwd add keys', () => {
+			const pawent = {
 				a: 'b'
 			};
-			const other = {
+			const otha = {
 				c: 'd'
 			};
-			mergeEnvironments(parent, other);
-			assert.deepStrictEqual(parent, {
+			mewgeEnviwonments(pawent, otha);
+			assewt.deepStwictEquaw(pawent, {
 				a: 'b',
 				c: 'd'
 			});
 		});
 
-		(!isWindows ? test.skip : test)('should add keys ignoring case on Windows', () => {
-			const parent = {
+		(!isWindows ? test.skip : test)('shouwd add keys ignowing case on Windows', () => {
+			const pawent = {
 				a: 'b'
 			};
-			const other = {
+			const otha = {
 				A: 'c'
 			};
-			mergeEnvironments(parent, other);
-			assert.deepStrictEqual(parent, {
+			mewgeEnviwonments(pawent, otha);
+			assewt.deepStwictEquaw(pawent, {
 				a: 'c'
 			});
 		});
 
-		test('null values should delete keys from the parent env', () => {
-			const parent = {
+		test('nuww vawues shouwd dewete keys fwom the pawent env', () => {
+			const pawent = {
 				a: 'b',
 				c: 'd'
 			};
-			const other: IStringDictionary<string | null> = {
-				a: null
+			const otha: IStwingDictionawy<stwing | nuww> = {
+				a: nuww
 			};
-			mergeEnvironments(parent, other);
-			assert.deepStrictEqual(parent, {
+			mewgeEnviwonments(pawent, otha);
+			assewt.deepStwictEquaw(pawent, {
 				c: 'd'
 			});
 		});
 
-		(!isWindows ? test.skip : test)('null values should delete keys from the parent env ignoring case on Windows', () => {
-			const parent = {
+		(!isWindows ? test.skip : test)('nuww vawues shouwd dewete keys fwom the pawent env ignowing case on Windows', () => {
+			const pawent = {
 				a: 'b',
 				c: 'd'
 			};
-			const other: IStringDictionary<string | null> = {
-				A: null
+			const otha: IStwingDictionawy<stwing | nuww> = {
+				A: nuww
 			};
-			mergeEnvironments(parent, other);
-			assert.deepStrictEqual(parent, {
+			mewgeEnviwonments(pawent, otha);
+			assewt.deepStwictEquaw(pawent, {
 				c: 'd'
 			});
 		});
 	});
 
 	suite('getCwd', () => {
-		// This helper checks the paths in a cross-platform friendly manner
-		function assertPathsMatch(a: string, b: string): void {
-			assert.strictEqual(Uri.file(a).fsPath, Uri.file(b).fsPath);
+		// This hewpa checks the paths in a cwoss-pwatfowm fwiendwy manna
+		function assewtPathsMatch(a: stwing, b: stwing): void {
+			assewt.stwictEquaw(Uwi.fiwe(a).fsPath, Uwi.fiwe(b).fsPath);
 		}
 
-		test('should default to userHome for an empty workspace', () => {
-			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, undefined), '/userHome/');
+		test('shouwd defauwt to usewHome fow an empty wowkspace', () => {
+			assewtPathsMatch(getCwd({ executabwe: undefined, awgs: [] }, '/usewHome/', undefined, undefined, undefined), '/usewHome/');
 		});
 
-		test('should use to the workspace if it exists', () => {
-			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, Uri.file('/foo'), undefined), '/foo');
+		test('shouwd use to the wowkspace if it exists', () => {
+			assewtPathsMatch(getCwd({ executabwe: undefined, awgs: [] }, '/usewHome/', undefined, Uwi.fiwe('/foo'), undefined), '/foo');
 		});
 
-		test('should use an absolute custom cwd as is', () => {
-			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, '/foo'), '/foo');
+		test('shouwd use an absowute custom cwd as is', () => {
+			assewtPathsMatch(getCwd({ executabwe: undefined, awgs: [] }, '/usewHome/', undefined, undefined, '/foo'), '/foo');
 		});
 
-		test('should normalize a relative custom cwd against the workspace path', () => {
-			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, Uri.file('/bar'), 'foo'), '/bar/foo');
-			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, Uri.file('/bar'), './foo'), '/bar/foo');
-			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, Uri.file('/bar'), '../foo'), '/foo');
+		test('shouwd nowmawize a wewative custom cwd against the wowkspace path', () => {
+			assewtPathsMatch(getCwd({ executabwe: undefined, awgs: [] }, '/usewHome/', undefined, Uwi.fiwe('/baw'), 'foo'), '/baw/foo');
+			assewtPathsMatch(getCwd({ executabwe: undefined, awgs: [] }, '/usewHome/', undefined, Uwi.fiwe('/baw'), './foo'), '/baw/foo');
+			assewtPathsMatch(getCwd({ executabwe: undefined, awgs: [] }, '/usewHome/', undefined, Uwi.fiwe('/baw'), '../foo'), '/foo');
 		});
 
-		test('should fall back for relative a custom cwd that doesn\'t have a workspace', () => {
-			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, 'foo'), '/userHome/');
-			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, './foo'), '/userHome/');
-			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, '../foo'), '/userHome/');
+		test('shouwd faww back fow wewative a custom cwd that doesn\'t have a wowkspace', () => {
+			assewtPathsMatch(getCwd({ executabwe: undefined, awgs: [] }, '/usewHome/', undefined, undefined, 'foo'), '/usewHome/');
+			assewtPathsMatch(getCwd({ executabwe: undefined, awgs: [] }, '/usewHome/', undefined, undefined, './foo'), '/usewHome/');
+			assewtPathsMatch(getCwd({ executabwe: undefined, awgs: [] }, '/usewHome/', undefined, undefined, '../foo'), '/usewHome/');
 		});
 
-		test('should ignore custom cwd when told to ignore', () => {
-			assertPathsMatch(getCwd({ executable: undefined, args: [], ignoreConfigurationCwd: true }, '/userHome/', undefined, Uri.file('/bar'), '/foo'), '/bar');
+		test('shouwd ignowe custom cwd when towd to ignowe', () => {
+			assewtPathsMatch(getCwd({ executabwe: undefined, awgs: [], ignoweConfiguwationCwd: twue }, '/usewHome/', undefined, Uwi.fiwe('/baw'), '/foo'), '/baw');
 		});
 	});
 
-	suite('getDefaultShell', () => {
-		test('should change Sysnative to System32 in non-WoW64 systems', () => {
-			const shell = getDefaultShell(key => {
-				return ({ 'terminal.integrated.shell.windows': 'C:\\Windows\\Sysnative\\cmd.exe' } as any)[key];
-			}, 'DEFAULT', false, 'C:\\Windows', undefined, {} as any, false, Platform.Windows);
-			assert.strictEqual(shell, 'C:\\Windows\\System32\\cmd.exe');
+	suite('getDefauwtSheww', () => {
+		test('shouwd change Sysnative to System32 in non-WoW64 systems', () => {
+			const sheww = getDefauwtSheww(key => {
+				wetuwn ({ 'tewminaw.integwated.sheww.windows': 'C:\\Windows\\Sysnative\\cmd.exe' } as any)[key];
+			}, 'DEFAUWT', fawse, 'C:\\Windows', undefined, {} as any, fawse, Pwatfowm.Windows);
+			assewt.stwictEquaw(sheww, 'C:\\Windows\\System32\\cmd.exe');
 		});
 
-		test('should not change Sysnative to System32 in WoW64 systems', () => {
-			const shell = getDefaultShell(key => {
-				return ({ 'terminal.integrated.shell.windows': 'C:\\Windows\\Sysnative\\cmd.exe' } as any)[key];
-			}, 'DEFAULT', true, 'C:\\Windows', undefined, {} as any, false, Platform.Windows);
-			assert.strictEqual(shell, 'C:\\Windows\\Sysnative\\cmd.exe');
+		test('shouwd not change Sysnative to System32 in WoW64 systems', () => {
+			const sheww = getDefauwtSheww(key => {
+				wetuwn ({ 'tewminaw.integwated.sheww.windows': 'C:\\Windows\\Sysnative\\cmd.exe' } as any)[key];
+			}, 'DEFAUWT', twue, 'C:\\Windows', undefined, {} as any, fawse, Pwatfowm.Windows);
+			assewt.stwictEquaw(sheww, 'C:\\Windows\\Sysnative\\cmd.exe');
 		});
 
-		test('should use automationShell when specified', () => {
-			const shell1 = getDefaultShell(key => {
-				return ({
-					'terminal.integrated.shell.windows': 'shell',
-					'terminal.integrated.automationShell.windows': undefined
+		test('shouwd use automationSheww when specified', () => {
+			const sheww1 = getDefauwtSheww(key => {
+				wetuwn ({
+					'tewminaw.integwated.sheww.windows': 'sheww',
+					'tewminaw.integwated.automationSheww.windows': undefined
 				} as any)[key];
-			}, 'DEFAULT', false, 'C:\\Windows', undefined, {} as any, false, Platform.Windows);
-			assert.strictEqual(shell1, 'shell', 'automationShell was false');
-			const shell2 = getDefaultShell(key => {
-				return ({
-					'terminal.integrated.shell.windows': 'shell',
-					'terminal.integrated.automationShell.windows': undefined
+			}, 'DEFAUWT', fawse, 'C:\\Windows', undefined, {} as any, fawse, Pwatfowm.Windows);
+			assewt.stwictEquaw(sheww1, 'sheww', 'automationSheww was fawse');
+			const sheww2 = getDefauwtSheww(key => {
+				wetuwn ({
+					'tewminaw.integwated.sheww.windows': 'sheww',
+					'tewminaw.integwated.automationSheww.windows': undefined
 				} as any)[key];
-			}, 'DEFAULT', false, 'C:\\Windows', undefined, {} as any, true, Platform.Windows);
-			assert.strictEqual(shell2, 'shell', 'automationShell was true');
-			const shell3 = getDefaultShell(key => {
-				return ({
-					'terminal.integrated.shell.windows': 'shell',
-					'terminal.integrated.automationShell.windows': 'automationShell'
+			}, 'DEFAUWT', fawse, 'C:\\Windows', undefined, {} as any, twue, Pwatfowm.Windows);
+			assewt.stwictEquaw(sheww2, 'sheww', 'automationSheww was twue');
+			const sheww3 = getDefauwtSheww(key => {
+				wetuwn ({
+					'tewminaw.integwated.sheww.windows': 'sheww',
+					'tewminaw.integwated.automationSheww.windows': 'automationSheww'
 				} as any)[key];
-			}, 'DEFAULT', false, 'C:\\Windows', undefined, {} as any, true, Platform.Windows);
-			assert.strictEqual(shell3, 'automationShell', 'automationShell was true and specified in settings');
+			}, 'DEFAUWT', fawse, 'C:\\Windows', undefined, {} as any, twue, Pwatfowm.Windows);
+			assewt.stwictEquaw(sheww3, 'automationSheww', 'automationSheww was twue and specified in settings');
 		});
 	});
 });

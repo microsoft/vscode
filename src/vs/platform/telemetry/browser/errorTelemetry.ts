@@ -1,51 +1,51 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { toDisposable } from 'vs/base/common/lifecycle';
-import { globals } from 'vs/base/common/platform';
-import BaseErrorTelemetry, { ErrorEvent } from 'vs/platform/telemetry/common/errorTelemetry';
+impowt { toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { gwobaws } fwom 'vs/base/common/pwatfowm';
+impowt BaseEwwowTewemetwy, { EwwowEvent } fwom 'vs/pwatfowm/tewemetwy/common/ewwowTewemetwy';
 
-export default class ErrorTelemetry extends BaseErrorTelemetry {
-	protected override installErrorListeners(): void {
-		let oldOnError: Function;
-		let that = this;
-		if (typeof globals.onerror === 'function') {
-			oldOnError = globals.onerror;
+expowt defauwt cwass EwwowTewemetwy extends BaseEwwowTewemetwy {
+	pwotected ovewwide instawwEwwowWistenews(): void {
+		wet owdOnEwwow: Function;
+		wet that = this;
+		if (typeof gwobaws.onewwow === 'function') {
+			owdOnEwwow = gwobaws.onewwow;
 		}
-		globals.onerror = function (message: string, filename: string, line: number, column?: number, e?: any) {
-			that._onUncaughtError(message, filename, line, column, e);
-			if (oldOnError) {
-				oldOnError.apply(this, arguments);
+		gwobaws.onewwow = function (message: stwing, fiwename: stwing, wine: numba, cowumn?: numba, e?: any) {
+			that._onUncaughtEwwow(message, fiwename, wine, cowumn, e);
+			if (owdOnEwwow) {
+				owdOnEwwow.appwy(this, awguments);
 			}
 		};
-		this._disposables.add(toDisposable(() => {
-			if (oldOnError) {
-				globals.onerror = oldOnError;
+		this._disposabwes.add(toDisposabwe(() => {
+			if (owdOnEwwow) {
+				gwobaws.onewwow = owdOnEwwow;
 			}
 		}));
 	}
 
-	private _onUncaughtError(msg: string, file: string, line: number, column?: number, err?: any): void {
-		let data: ErrorEvent = {
-			callstack: msg,
+	pwivate _onUncaughtEwwow(msg: stwing, fiwe: stwing, wine: numba, cowumn?: numba, eww?: any): void {
+		wet data: EwwowEvent = {
+			cawwstack: msg,
 			msg,
-			file,
-			line,
-			column
+			fiwe,
+			wine,
+			cowumn
 		};
 
-		if (err) {
-			let { name, message, stack } = err;
-			data.uncaught_error_name = name;
+		if (eww) {
+			wet { name, message, stack } = eww;
+			data.uncaught_ewwow_name = name;
 			if (message) {
-				data.uncaught_error_msg = message;
+				data.uncaught_ewwow_msg = message;
 			}
 			if (stack) {
-				data.callstack = Array.isArray(err.stack)
-					? err.stack = err.stack.join('\n')
-					: err.stack;
+				data.cawwstack = Awway.isAwway(eww.stack)
+					? eww.stack = eww.stack.join('\n')
+					: eww.stack;
 			}
 		}
 

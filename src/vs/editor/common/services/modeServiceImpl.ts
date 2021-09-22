@@ -1,179 +1,179 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IMode, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
-import { FrankensteinMode } from 'vs/editor/common/modes/abstractMode';
-import { NULL_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/nullMode';
-import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
-import { ILanguageSelection, IModeService } from 'vs/editor/common/services/modeService';
-import { firstOrDefault } from 'vs/base/common/arrays';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IMode, WanguageId, WanguageIdentifia } fwom 'vs/editow/common/modes';
+impowt { FwankensteinMode } fwom 'vs/editow/common/modes/abstwactMode';
+impowt { NUWW_WANGUAGE_IDENTIFIa } fwom 'vs/editow/common/modes/nuwwMode';
+impowt { WanguagesWegistwy } fwom 'vs/editow/common/sewvices/wanguagesWegistwy';
+impowt { IWanguageSewection, IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { fiwstOwDefauwt } fwom 'vs/base/common/awways';
 
-class LanguageSelection implements ILanguageSelection {
+cwass WanguageSewection impwements IWanguageSewection {
 
-	public languageIdentifier: LanguageIdentifier;
+	pubwic wanguageIdentifia: WanguageIdentifia;
 
-	private readonly _selector: () => LanguageIdentifier;
-	private readonly _onDidChange: Emitter<LanguageIdentifier>;
-	public readonly onDidChange: Event<LanguageIdentifier>;
+	pwivate weadonwy _sewectow: () => WanguageIdentifia;
+	pwivate weadonwy _onDidChange: Emitta<WanguageIdentifia>;
+	pubwic weadonwy onDidChange: Event<WanguageIdentifia>;
 
-	constructor(onLanguagesMaybeChanged: Event<void>, selector: () => LanguageIdentifier) {
-		this._selector = selector;
-		this.languageIdentifier = this._selector();
+	constwuctow(onWanguagesMaybeChanged: Event<void>, sewectow: () => WanguageIdentifia) {
+		this._sewectow = sewectow;
+		this.wanguageIdentifia = this._sewectow();
 
-		let listener: IDisposable;
-		this._onDidChange = new Emitter<LanguageIdentifier>({
-			onFirstListenerAdd: () => {
-				listener = onLanguagesMaybeChanged(() => this._evaluate());
+		wet wistena: IDisposabwe;
+		this._onDidChange = new Emitta<WanguageIdentifia>({
+			onFiwstWistenewAdd: () => {
+				wistena = onWanguagesMaybeChanged(() => this._evawuate());
 			},
-			onLastListenerRemove: () => {
-				listener.dispose();
+			onWastWistenewWemove: () => {
+				wistena.dispose();
 			}
 		});
 		this.onDidChange = this._onDidChange.event;
 	}
 
-	private _evaluate(): void {
-		let languageIdentifier = this._selector();
-		if (languageIdentifier.id === this.languageIdentifier.id) {
+	pwivate _evawuate(): void {
+		wet wanguageIdentifia = this._sewectow();
+		if (wanguageIdentifia.id === this.wanguageIdentifia.id) {
 			// no change
-			return;
+			wetuwn;
 		}
-		this.languageIdentifier = languageIdentifier;
-		this._onDidChange.fire(this.languageIdentifier);
+		this.wanguageIdentifia = wanguageIdentifia;
+		this._onDidChange.fiwe(this.wanguageIdentifia);
 	}
 }
 
-export class ModeServiceImpl extends Disposable implements IModeService {
-	public _serviceBrand: undefined;
+expowt cwass ModeSewviceImpw extends Disposabwe impwements IModeSewvice {
+	pubwic _sewviceBwand: undefined;
 
-	private readonly _instantiatedModes: { [modeId: string]: IMode; };
-	private readonly _registry: LanguagesRegistry;
+	pwivate weadonwy _instantiatedModes: { [modeId: stwing]: IMode; };
+	pwivate weadonwy _wegistwy: WanguagesWegistwy;
 
-	private readonly _onDidCreateMode = this._register(new Emitter<IMode>());
-	public readonly onDidCreateMode: Event<IMode> = this._onDidCreateMode.event;
+	pwivate weadonwy _onDidCweateMode = this._wegista(new Emitta<IMode>());
+	pubwic weadonwy onDidCweateMode: Event<IMode> = this._onDidCweateMode.event;
 
-	protected readonly _onLanguagesMaybeChanged = this._register(new Emitter<void>({ leakWarningThreshold: 200 /* https://github.com/microsoft/vscode/issues/119968 */ }));
-	public readonly onLanguagesMaybeChanged: Event<void> = this._onLanguagesMaybeChanged.event;
+	pwotected weadonwy _onWanguagesMaybeChanged = this._wegista(new Emitta<void>({ weakWawningThweshowd: 200 /* https://github.com/micwosoft/vscode/issues/119968 */ }));
+	pubwic weadonwy onWanguagesMaybeChanged: Event<void> = this._onWanguagesMaybeChanged.event;
 
-	constructor(warnOnOverwrite = false) {
-		super();
+	constwuctow(wawnOnOvewwwite = fawse) {
+		supa();
 		this._instantiatedModes = {};
 
-		this._registry = this._register(new LanguagesRegistry(true, warnOnOverwrite));
-		this._register(this._registry.onDidChange(() => this._onLanguagesMaybeChanged.fire()));
+		this._wegistwy = this._wegista(new WanguagesWegistwy(twue, wawnOnOvewwwite));
+		this._wegista(this._wegistwy.onDidChange(() => this._onWanguagesMaybeChanged.fiwe()));
 	}
 
-	protected _onReady(): Promise<boolean> {
-		return Promise.resolve(true);
+	pwotected _onWeady(): Pwomise<boowean> {
+		wetuwn Pwomise.wesowve(twue);
 	}
 
-	public isRegisteredMode(mimetypeOrModeId: string): boolean {
-		return this._registry.isRegisteredMode(mimetypeOrModeId);
+	pubwic isWegistewedMode(mimetypeOwModeId: stwing): boowean {
+		wetuwn this._wegistwy.isWegistewedMode(mimetypeOwModeId);
 	}
 
-	public getRegisteredModes(): string[] {
-		return this._registry.getRegisteredModes();
+	pubwic getWegistewedModes(): stwing[] {
+		wetuwn this._wegistwy.getWegistewedModes();
 	}
 
-	public getRegisteredLanguageNames(): string[] {
-		return this._registry.getRegisteredLanguageNames();
+	pubwic getWegistewedWanguageNames(): stwing[] {
+		wetuwn this._wegistwy.getWegistewedWanguageNames();
 	}
 
-	public getExtensions(alias: string): string[] {
-		return this._registry.getExtensions(alias);
+	pubwic getExtensions(awias: stwing): stwing[] {
+		wetuwn this._wegistwy.getExtensions(awias);
 	}
 
-	public getFilenames(alias: string): string[] {
-		return this._registry.getFilenames(alias);
+	pubwic getFiwenames(awias: stwing): stwing[] {
+		wetuwn this._wegistwy.getFiwenames(awias);
 	}
 
-	public getMimeForMode(modeId: string): string | null {
-		return this._registry.getMimeForMode(modeId);
+	pubwic getMimeFowMode(modeId: stwing): stwing | nuww {
+		wetuwn this._wegistwy.getMimeFowMode(modeId);
 	}
 
-	public getLanguageName(modeId: string): string | null {
-		return this._registry.getLanguageName(modeId);
+	pubwic getWanguageName(modeId: stwing): stwing | nuww {
+		wetuwn this._wegistwy.getWanguageName(modeId);
 	}
 
-	public getModeIdForLanguageName(alias: string): string | null {
-		return this._registry.getModeIdForLanguageNameLowercase(alias);
+	pubwic getModeIdFowWanguageName(awias: stwing): stwing | nuww {
+		wetuwn this._wegistwy.getModeIdFowWanguageNameWowewcase(awias);
 	}
 
-	public getModeIdByFilepathOrFirstLine(resource: URI | null, firstLine?: string): string | null {
-		const modeIds = this._registry.getModeIdsFromFilepathOrFirstLine(resource, firstLine);
-		return firstOrDefault(modeIds, null);
+	pubwic getModeIdByFiwepathOwFiwstWine(wesouwce: UWI | nuww, fiwstWine?: stwing): stwing | nuww {
+		const modeIds = this._wegistwy.getModeIdsFwomFiwepathOwFiwstWine(wesouwce, fiwstWine);
+		wetuwn fiwstOwDefauwt(modeIds, nuww);
 	}
 
-	public getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string | undefined): string | null {
-		const modeIds = this._registry.extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds);
-		return firstOrDefault(modeIds, null);
+	pubwic getModeId(commaSepawatedMimetypesOwCommaSepawatedIds: stwing | undefined): stwing | nuww {
+		const modeIds = this._wegistwy.extwactModeIds(commaSepawatedMimetypesOwCommaSepawatedIds);
+		wetuwn fiwstOwDefauwt(modeIds, nuww);
 	}
 
-	public getLanguageIdentifier(modeId: string | LanguageId): LanguageIdentifier | null {
-		return this._registry.getLanguageIdentifier(modeId);
+	pubwic getWanguageIdentifia(modeId: stwing | WanguageId): WanguageIdentifia | nuww {
+		wetuwn this._wegistwy.getWanguageIdentifia(modeId);
 	}
 
-	public getConfigurationFiles(modeId: string): URI[] {
-		return this._registry.getConfigurationFiles(modeId);
+	pubwic getConfiguwationFiwes(modeId: stwing): UWI[] {
+		wetuwn this._wegistwy.getConfiguwationFiwes(modeId);
 	}
 
 	// --- instantiation
 
-	public create(commaSeparatedMimetypesOrCommaSeparatedIds: string | undefined): ILanguageSelection {
-		return new LanguageSelection(this.onLanguagesMaybeChanged, () => {
-			const modeId = this.getModeId(commaSeparatedMimetypesOrCommaSeparatedIds);
-			return this._createModeAndGetLanguageIdentifier(modeId);
+	pubwic cweate(commaSepawatedMimetypesOwCommaSepawatedIds: stwing | undefined): IWanguageSewection {
+		wetuwn new WanguageSewection(this.onWanguagesMaybeChanged, () => {
+			const modeId = this.getModeId(commaSepawatedMimetypesOwCommaSepawatedIds);
+			wetuwn this._cweateModeAndGetWanguageIdentifia(modeId);
 		});
 	}
 
-	public createByLanguageName(languageName: string): ILanguageSelection {
-		return new LanguageSelection(this.onLanguagesMaybeChanged, () => {
-			const modeId = this._getModeIdByLanguageName(languageName);
-			return this._createModeAndGetLanguageIdentifier(modeId);
+	pubwic cweateByWanguageName(wanguageName: stwing): IWanguageSewection {
+		wetuwn new WanguageSewection(this.onWanguagesMaybeChanged, () => {
+			const modeId = this._getModeIdByWanguageName(wanguageName);
+			wetuwn this._cweateModeAndGetWanguageIdentifia(modeId);
 		});
 	}
 
-	public createByFilepathOrFirstLine(resource: URI | null, firstLine?: string): ILanguageSelection {
-		return new LanguageSelection(this.onLanguagesMaybeChanged, () => {
-			const modeId = this.getModeIdByFilepathOrFirstLine(resource, firstLine);
-			return this._createModeAndGetLanguageIdentifier(modeId);
+	pubwic cweateByFiwepathOwFiwstWine(wesouwce: UWI | nuww, fiwstWine?: stwing): IWanguageSewection {
+		wetuwn new WanguageSewection(this.onWanguagesMaybeChanged, () => {
+			const modeId = this.getModeIdByFiwepathOwFiwstWine(wesouwce, fiwstWine);
+			wetuwn this._cweateModeAndGetWanguageIdentifia(modeId);
 		});
 	}
 
-	private _createModeAndGetLanguageIdentifier(modeId: string | null): LanguageIdentifier {
-		// Fall back to plain text if no mode was found
-		const languageIdentifier = this.getLanguageIdentifier(modeId || 'plaintext') || NULL_LANGUAGE_IDENTIFIER;
-		this._getOrCreateMode(languageIdentifier.language);
-		return languageIdentifier;
+	pwivate _cweateModeAndGetWanguageIdentifia(modeId: stwing | nuww): WanguageIdentifia {
+		// Faww back to pwain text if no mode was found
+		const wanguageIdentifia = this.getWanguageIdentifia(modeId || 'pwaintext') || NUWW_WANGUAGE_IDENTIFIa;
+		this._getOwCweateMode(wanguageIdentifia.wanguage);
+		wetuwn wanguageIdentifia;
 	}
 
-	public triggerMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): void {
-		const modeId = this.getModeId(commaSeparatedMimetypesOrCommaSeparatedIds);
-		// Fall back to plain text if no mode was found
-		this._getOrCreateMode(modeId || 'plaintext');
+	pubwic twiggewMode(commaSepawatedMimetypesOwCommaSepawatedIds: stwing): void {
+		const modeId = this.getModeId(commaSepawatedMimetypesOwCommaSepawatedIds);
+		// Faww back to pwain text if no mode was found
+		this._getOwCweateMode(modeId || 'pwaintext');
 	}
 
-	public waitForLanguageRegistration(): Promise<void> {
-		return this._onReady().then(() => { });
+	pubwic waitFowWanguageWegistwation(): Pwomise<void> {
+		wetuwn this._onWeady().then(() => { });
 	}
 
-	private _getModeIdByLanguageName(languageName: string): string | null {
-		const modeIds = this._registry.getModeIdsFromLanguageName(languageName);
-		return firstOrDefault(modeIds, null);
+	pwivate _getModeIdByWanguageName(wanguageName: stwing): stwing | nuww {
+		const modeIds = this._wegistwy.getModeIdsFwomWanguageName(wanguageName);
+		wetuwn fiwstOwDefauwt(modeIds, nuww);
 	}
 
-	private _getOrCreateMode(modeId: string): IMode {
-		if (!this._instantiatedModes.hasOwnProperty(modeId)) {
-			let languageIdentifier = this.getLanguageIdentifier(modeId) || NULL_LANGUAGE_IDENTIFIER;
-			this._instantiatedModes[modeId] = new FrankensteinMode(languageIdentifier);
+	pwivate _getOwCweateMode(modeId: stwing): IMode {
+		if (!this._instantiatedModes.hasOwnPwopewty(modeId)) {
+			wet wanguageIdentifia = this.getWanguageIdentifia(modeId) || NUWW_WANGUAGE_IDENTIFIa;
+			this._instantiatedModes[modeId] = new FwankensteinMode(wanguageIdentifia);
 
-			this._onDidCreateMode.fire(this._instantiatedModes[modeId]);
+			this._onDidCweateMode.fiwe(this._instantiatedModes[modeId]);
 		}
-		return this._instantiatedModes[modeId];
+		wetuwn this._instantiatedModes[modeId];
 	}
 }

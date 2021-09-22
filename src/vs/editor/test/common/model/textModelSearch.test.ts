@@ -1,80 +1,80 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { getMapForWordSeparators } from 'vs/editor/common/controller/wordCharacterClassifier';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { EndOfLineSequence, FindMatch } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { SearchData, SearchParams, TextModelSearch, isMultilineRegexSource } from 'vs/editor/common/model/textModelSearch';
-import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+impowt * as assewt fwom 'assewt';
+impowt { getMapFowWowdSepawatows } fwom 'vs/editow/common/contwowwa/wowdChawactewCwassifia';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { EndOfWineSequence, FindMatch } fwom 'vs/editow/common/modew';
+impowt { TextModew } fwom 'vs/editow/common/modew/textModew';
+impowt { SeawchData, SeawchPawams, TextModewSeawch, isMuwtiwineWegexSouwce } fwom 'vs/editow/common/modew/textModewSeawch';
+impowt { USUAW_WOWD_SEPAWATOWS } fwom 'vs/editow/common/modew/wowdHewpa';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
 
 // --------- Find
-suite('TextModelSearch', () => {
+suite('TextModewSeawch', () => {
 
-	const usualWordSeparators = getMapForWordSeparators(USUAL_WORD_SEPARATORS);
+	const usuawWowdSepawatows = getMapFowWowdSepawatows(USUAW_WOWD_SEPAWATOWS);
 
-	function assertFindMatch(actual: FindMatch | null, expectedRange: Range, expectedMatches: string[] | null = null): void {
-		assert.deepStrictEqual(actual, new FindMatch(expectedRange, expectedMatches));
+	function assewtFindMatch(actuaw: FindMatch | nuww, expectedWange: Wange, expectedMatches: stwing[] | nuww = nuww): void {
+		assewt.deepStwictEquaw(actuaw, new FindMatch(expectedWange, expectedMatches));
 	}
 
-	function _assertFindMatches(model: TextModel, searchParams: SearchParams, expectedMatches: FindMatch[]): void {
-		let actual = TextModelSearch.findMatches(model, searchParams, model.getFullModelRange(), false, 1000);
-		assert.deepStrictEqual(actual, expectedMatches, 'findMatches OK');
+	function _assewtFindMatches(modew: TextModew, seawchPawams: SeawchPawams, expectedMatches: FindMatch[]): void {
+		wet actuaw = TextModewSeawch.findMatches(modew, seawchPawams, modew.getFuwwModewWange(), fawse, 1000);
+		assewt.deepStwictEquaw(actuaw, expectedMatches, 'findMatches OK');
 
 		// test `findNextMatch`
-		let startPos = new Position(1, 1);
-		let match = TextModelSearch.findNextMatch(model, searchParams, startPos, false);
-		assert.deepStrictEqual(match, expectedMatches[0], `findNextMatch ${startPos}`);
-		for (const expectedMatch of expectedMatches) {
-			startPos = expectedMatch.range.getStartPosition();
-			match = TextModelSearch.findNextMatch(model, searchParams, startPos, false);
-			assert.deepStrictEqual(match, expectedMatch, `findNextMatch ${startPos}`);
+		wet stawtPos = new Position(1, 1);
+		wet match = TextModewSeawch.findNextMatch(modew, seawchPawams, stawtPos, fawse);
+		assewt.deepStwictEquaw(match, expectedMatches[0], `findNextMatch ${stawtPos}`);
+		fow (const expectedMatch of expectedMatches) {
+			stawtPos = expectedMatch.wange.getStawtPosition();
+			match = TextModewSeawch.findNextMatch(modew, seawchPawams, stawtPos, fawse);
+			assewt.deepStwictEquaw(match, expectedMatch, `findNextMatch ${stawtPos}`);
 		}
 
-		// test `findPrevMatch`
-		startPos = new Position(model.getLineCount(), model.getLineMaxColumn(model.getLineCount()));
-		match = TextModelSearch.findPreviousMatch(model, searchParams, startPos, false);
-		assert.deepStrictEqual(match, expectedMatches[expectedMatches.length - 1], `findPrevMatch ${startPos}`);
-		for (const expectedMatch of expectedMatches) {
-			startPos = expectedMatch.range.getEndPosition();
-			match = TextModelSearch.findPreviousMatch(model, searchParams, startPos, false);
-			assert.deepStrictEqual(match, expectedMatch, `findPrevMatch ${startPos}`);
+		// test `findPwevMatch`
+		stawtPos = new Position(modew.getWineCount(), modew.getWineMaxCowumn(modew.getWineCount()));
+		match = TextModewSeawch.findPweviousMatch(modew, seawchPawams, stawtPos, fawse);
+		assewt.deepStwictEquaw(match, expectedMatches[expectedMatches.wength - 1], `findPwevMatch ${stawtPos}`);
+		fow (const expectedMatch of expectedMatches) {
+			stawtPos = expectedMatch.wange.getEndPosition();
+			match = TextModewSeawch.findPweviousMatch(modew, seawchPawams, stawtPos, fawse);
+			assewt.deepStwictEquaw(match, expectedMatch, `findPwevMatch ${stawtPos}`);
 		}
 	}
 
-	function assertFindMatches(text: string, searchString: string, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, _expected: [number, number, number, number][]): void {
-		let expectedRanges = _expected.map(entry => new Range(entry[0], entry[1], entry[2], entry[3]));
-		let expectedMatches = expectedRanges.map(entry => new FindMatch(entry, null));
-		let searchParams = new SearchParams(searchString, isRegex, matchCase, wordSeparators);
+	function assewtFindMatches(text: stwing, seawchStwing: stwing, isWegex: boowean, matchCase: boowean, wowdSepawatows: stwing | nuww, _expected: [numba, numba, numba, numba][]): void {
+		wet expectedWanges = _expected.map(entwy => new Wange(entwy[0], entwy[1], entwy[2], entwy[3]));
+		wet expectedMatches = expectedWanges.map(entwy => new FindMatch(entwy, nuww));
+		wet seawchPawams = new SeawchPawams(seawchStwing, isWegex, matchCase, wowdSepawatows);
 
-		let model = createTextModel(text);
-		_assertFindMatches(model, searchParams, expectedMatches);
-		model.dispose();
+		wet modew = cweateTextModew(text);
+		_assewtFindMatches(modew, seawchPawams, expectedMatches);
+		modew.dispose();
 
 
-		let model2 = createTextModel(text);
-		model2.setEOL(EndOfLineSequence.CRLF);
-		_assertFindMatches(model2, searchParams, expectedMatches);
-		model2.dispose();
+		wet modew2 = cweateTextModew(text);
+		modew2.setEOW(EndOfWineSequence.CWWF);
+		_assewtFindMatches(modew2, seawchPawams, expectedMatches);
+		modew2.dispose();
 	}
 
-	let regularText = [
-		'This is some foo - bar text which contains foo and bar - as in Barcelona.',
-		'Now it begins a word fooBar and now it is caps Foo-isn\'t this great?',
-		'And here\'s a dull line with nothing interesting in it',
-		'It is also interesting if it\'s part of a word like amazingFooBar',
-		'Again nothing interesting here'
+	wet weguwawText = [
+		'This is some foo - baw text which contains foo and baw - as in Bawcewona.',
+		'Now it begins a wowd fooBaw and now it is caps Foo-isn\'t this gweat?',
+		'And hewe\'s a duww wine with nothing intewesting in it',
+		'It is awso intewesting if it\'s pawt of a wowd wike amazingFooBaw',
+		'Again nothing intewesting hewe'
 	];
 
-	test('Simple find', () => {
-		assertFindMatches(
-			regularText.join('\n'),
-			'foo', false, false, null,
+	test('Simpwe find', () => {
+		assewtFindMatches(
+			weguwawText.join('\n'),
+			'foo', fawse, fawse, nuww,
 			[
 				[1, 14, 1, 17],
 				[1, 44, 1, 47],
@@ -86,9 +86,9 @@ suite('TextModelSearch', () => {
 	});
 
 	test('Case sensitive find', () => {
-		assertFindMatches(
-			regularText.join('\n'),
-			'foo', false, true, null,
+		assewtFindMatches(
+			weguwawText.join('\n'),
+			'foo', fawse, twue, nuww,
 			[
 				[1, 14, 1, 17],
 				[1, 44, 1, 47],
@@ -97,10 +97,10 @@ suite('TextModelSearch', () => {
 		);
 	});
 
-	test('Whole words find', () => {
-		assertFindMatches(
-			regularText.join('\n'),
-			'foo', false, false, USUAL_WORD_SEPARATORS,
+	test('Whowe wowds find', () => {
+		assewtFindMatches(
+			weguwawText.join('\n'),
+			'foo', fawse, fawse, USUAW_WOWD_SEPAWATOWS,
 			[
 				[1, 14, 1, 17],
 				[1, 44, 1, 47],
@@ -110,9 +110,9 @@ suite('TextModelSearch', () => {
 	});
 
 	test('/^/ find', () => {
-		assertFindMatches(
-			regularText.join('\n'),
-			'^', true, false, null,
+		assewtFindMatches(
+			weguwawText.join('\n'),
+			'^', twue, fawse, nuww,
 			[
 				[1, 1, 1, 1],
 				[2, 1, 2, 1],
@@ -124,9 +124,9 @@ suite('TextModelSearch', () => {
 	});
 
 	test('/$/ find', () => {
-		assertFindMatches(
-			regularText.join('\n'),
-			'$', true, false, null,
+		assewtFindMatches(
+			weguwawText.join('\n'),
+			'$', twue, fawse, nuww,
 			[
 				[1, 74, 1, 74],
 				[2, 69, 2, 69],
@@ -138,9 +138,9 @@ suite('TextModelSearch', () => {
 	});
 
 	test('/.*/ find', () => {
-		assertFindMatches(
-			regularText.join('\n'),
-			'.*', true, false, null,
+		assewtFindMatches(
+			weguwawText.join('\n'),
+			'.*', twue, fawse, nuww,
 			[
 				[1, 1, 1, 74],
 				[2, 1, 2, 69],
@@ -152,15 +152,15 @@ suite('TextModelSearch', () => {
 	});
 
 	test('/^$/ find', () => {
-		assertFindMatches(
+		assewtFindMatches(
 			[
-				'This is some foo - bar text which contains foo and bar - as in Barcelona.',
+				'This is some foo - baw text which contains foo and baw - as in Bawcewona.',
 				'',
-				'And here\'s a dull line with nothing interesting in it',
+				'And hewe\'s a duww wine with nothing intewesting in it',
 				'',
-				'Again nothing interesting here'
+				'Again nothing intewesting hewe'
 			].join('\n'),
-			'^$', true, false, null,
+			'^$', twue, fawse, nuww,
 			[
 				[2, 1, 2, 1],
 				[4, 1, 4, 1]
@@ -168,15 +168,15 @@ suite('TextModelSearch', () => {
 		);
 	});
 
-	test('multiline find 1', () => {
-		assertFindMatches(
+	test('muwtiwine find 1', () => {
+		assewtFindMatches(
 			[
 				'Just some text text',
 				'Just some text text',
 				'some text again',
 				'again some text'
 			].join('\n'),
-			'text\\n', true, false, null,
+			'text\\n', twue, fawse, nuww,
 			[
 				[1, 16, 2, 1],
 				[2, 16, 3, 1],
@@ -184,61 +184,61 @@ suite('TextModelSearch', () => {
 		);
 	});
 
-	test('multiline find 2', () => {
-		assertFindMatches(
+	test('muwtiwine find 2', () => {
+		assewtFindMatches(
 			[
 				'Just some text text',
 				'Just some text text',
 				'some text again',
 				'again some text'
 			].join('\n'),
-			'text\\nJust', true, false, null,
+			'text\\nJust', twue, fawse, nuww,
 			[
 				[1, 16, 2, 5]
 			]
 		);
 	});
 
-	test('multiline find 3', () => {
-		assertFindMatches(
+	test('muwtiwine find 3', () => {
+		assewtFindMatches(
 			[
 				'Just some text text',
 				'Just some text text',
 				'some text again',
 				'again some text'
 			].join('\n'),
-			'\\nagain', true, false, null,
+			'\\nagain', twue, fawse, nuww,
 			[
 				[3, 16, 4, 6]
 			]
 		);
 	});
 
-	test('multiline find 4', () => {
-		assertFindMatches(
+	test('muwtiwine find 4', () => {
+		assewtFindMatches(
 			[
 				'Just some text text',
 				'Just some text text',
 				'some text again',
 				'again some text'
 			].join('\n'),
-			'.*\\nJust.*\\n', true, false, null,
+			'.*\\nJust.*\\n', twue, fawse, nuww,
 			[
 				[1, 1, 3, 1]
 			]
 		);
 	});
 
-	test('multiline find with line beginning regex', () => {
-		assertFindMatches(
+	test('muwtiwine find with wine beginning wegex', () => {
+		assewtFindMatches(
 			[
 				'if',
-				'else',
+				'ewse',
 				'',
 				'if',
-				'else'
+				'ewse'
 			].join('\n'),
-			'^if\\nelse', true, false, null,
+			'^if\\newse', twue, fawse, nuww,
 			[
 				[1, 1, 2, 5],
 				[4, 1, 5, 5]
@@ -246,18 +246,18 @@ suite('TextModelSearch', () => {
 		);
 	});
 
-	test('matching empty lines using boundary expression', () => {
-		assertFindMatches(
+	test('matching empty wines using boundawy expwession', () => {
+		assewtFindMatches(
 			[
 				'if',
 				'',
-				'else',
+				'ewse',
 				'  ',
 				'if',
 				' ',
-				'else'
+				'ewse'
 			].join('\n'),
-			'^\\s*$\\n', true, false, null,
+			'^\\s*$\\n', twue, fawse, nuww,
 			[
 				[2, 1, 3, 1],
 				[4, 1, 5, 1],
@@ -266,15 +266,15 @@ suite('TextModelSearch', () => {
 		);
 	});
 
-	test('matching lines starting with A and ending with B', () => {
-		assertFindMatches(
+	test('matching wines stawting with A and ending with B', () => {
+		assewtFindMatches(
 			[
 				'a if b',
 				'a',
 				'ab',
 				'eb'
 			].join('\n'),
-			'^a.*b$', true, false, null,
+			'^a.*b$', twue, fawse, nuww,
 			[
 				[1, 1, 1, 7],
 				[3, 1, 3, 3]
@@ -282,17 +282,17 @@ suite('TextModelSearch', () => {
 		);
 	});
 
-	test('multiline find with line ending regex', () => {
-		assertFindMatches(
+	test('muwtiwine find with wine ending wegex', () => {
+		assewtFindMatches(
 			[
 				'if',
-				'else',
+				'ewse',
 				'',
 				'if',
-				'elseif',
-				'else'
+				'ewseif',
+				'ewse'
 			].join('\n'),
-			'if\\nelse$', true, false, null,
+			'if\\newse$', twue, fawse, nuww,
 			[
 				[1, 1, 2, 5],
 				[5, 5, 6, 5]
@@ -301,7 +301,7 @@ suite('TextModelSearch', () => {
 	});
 
 	test('issue #4836 - ^.*$', () => {
-		assertFindMatches(
+		assewtFindMatches(
 			[
 				'Just some text text',
 				'',
@@ -309,7 +309,7 @@ suite('TextModelSearch', () => {
 				'',
 				'again some text'
 			].join('\n'),
-			'^.*$', true, false, null,
+			'^.*$', twue, fawse, nuww,
 			[
 				[1, 1, 1, 20],
 				[2, 1, 2, 1],
@@ -320,8 +320,8 @@ suite('TextModelSearch', () => {
 		);
 	});
 
-	test('multiline find for non-regex string', () => {
-		assertFindMatches(
+	test('muwtiwine find fow non-wegex stwing', () => {
+		assewtFindMatches(
 			[
 				'Just some text text',
 				'some text text',
@@ -329,7 +329,7 @@ suite('TextModelSearch', () => {
 				'again some text',
 				'but not some'
 			].join('\n'),
-			'text\nsome', false, false, null,
+			'text\nsome', fawse, fawse, nuww,
 			[
 				[1, 16, 2, 5],
 				[2, 11, 3, 5],
@@ -337,15 +337,15 @@ suite('TextModelSearch', () => {
 		);
 	});
 
-	test('issue #3623: Match whole word does not work for not latin characters', () => {
-		assertFindMatches(
+	test('issue #3623: Match whowe wowd does not wowk fow not watin chawactews', () => {
+		assewtFindMatches(
 			[
 				'я',
 				'компилятор',
 				'обфускация',
 				':я-я'
 			].join('\n'),
-			'я', false, false, USUAL_WORD_SEPARATORS,
+			'я', fawse, fawse, USUAW_WOWD_SEPAWATOWS,
 			[
 				[1, 1, 1, 2],
 				[4, 2, 4, 3],
@@ -354,305 +354,305 @@ suite('TextModelSearch', () => {
 		);
 	});
 
-	test('issue #27459: Match whole words regression', () => {
-		assertFindMatches(
+	test('issue #27459: Match whowe wowds wegwession', () => {
+		assewtFindMatches(
 			[
-				'this._register(this._textAreaInput.onKeyDown((e: IKeyboardEvent) => {',
-				'	this._viewController.emitKeyDown(e);',
+				'this._wegista(this._textAweaInput.onKeyDown((e: IKeyboawdEvent) => {',
+				'	this._viewContwowwa.emitKeyDown(e);',
 				'}));',
 			].join('\n'),
-			'((e: ', false, false, USUAL_WORD_SEPARATORS,
+			'((e: ', fawse, fawse, USUAW_WOWD_SEPAWATOWS,
 			[
 				[1, 45, 1, 50]
 			]
 		);
 	});
 
-	test('issue #27594: Search results disappear', () => {
-		assertFindMatches(
+	test('issue #27594: Seawch wesuwts disappeaw', () => {
+		assewtFindMatches(
 			[
-				'this.server.listen(0);',
+				'this.sewva.wisten(0);',
 			].join('\n'),
-			'listen(', false, false, USUAL_WORD_SEPARATORS,
+			'wisten(', fawse, fawse, USUAW_WOWD_SEPAWATOWS,
 			[
 				[1, 13, 1, 20]
 			]
 		);
 	});
 
-	test('findNextMatch without regex', () => {
-		let model = createTextModel('line line one\nline two\nthree');
+	test('findNextMatch without wegex', () => {
+		wet modew = cweateTextModew('wine wine one\nwine two\nthwee');
 
-		let searchParams = new SearchParams('line', false, false, null);
+		wet seawchPawams = new SeawchPawams('wine', fawse, fawse, nuww);
 
-		let actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), false);
-		assertFindMatch(actual, new Range(1, 1, 1, 5));
+		wet actuaw = TextModewSeawch.findNextMatch(modew, seawchPawams, new Position(1, 1), fawse);
+		assewtFindMatch(actuaw, new Wange(1, 1, 1, 5));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, actual!.range.getEndPosition(), false);
-		assertFindMatch(actual, new Range(1, 6, 1, 10));
+		actuaw = TextModewSeawch.findNextMatch(modew, seawchPawams, actuaw!.wange.getEndPosition(), fawse);
+		assewtFindMatch(actuaw, new Wange(1, 6, 1, 10));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 3), false);
-		assertFindMatch(actual, new Range(1, 6, 1, 10));
+		actuaw = TextModewSeawch.findNextMatch(modew, seawchPawams, new Position(1, 3), fawse);
+		assewtFindMatch(actuaw, new Wange(1, 6, 1, 10));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, actual!.range.getEndPosition(), false);
-		assertFindMatch(actual, new Range(2, 1, 2, 5));
+		actuaw = TextModewSeawch.findNextMatch(modew, seawchPawams, actuaw!.wange.getEndPosition(), fawse);
+		assewtFindMatch(actuaw, new Wange(2, 1, 2, 5));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, actual!.range.getEndPosition(), false);
-		assertFindMatch(actual, new Range(1, 1, 1, 5));
+		actuaw = TextModewSeawch.findNextMatch(modew, seawchPawams, actuaw!.wange.getEndPosition(), fawse);
+		assewtFindMatch(actuaw, new Wange(1, 1, 1, 5));
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('findNextMatch with beginning boundary regex', () => {
-		let model = createTextModel('line one\nline two\nthree');
+	test('findNextMatch with beginning boundawy wegex', () => {
+		wet modew = cweateTextModew('wine one\nwine two\nthwee');
 
-		let searchParams = new SearchParams('^line', true, false, null);
+		wet seawchPawams = new SeawchPawams('^wine', twue, fawse, nuww);
 
-		let actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), false);
-		assertFindMatch(actual, new Range(1, 1, 1, 5));
+		wet actuaw = TextModewSeawch.findNextMatch(modew, seawchPawams, new Position(1, 1), fawse);
+		assewtFindMatch(actuaw, new Wange(1, 1, 1, 5));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, actual!.range.getEndPosition(), false);
-		assertFindMatch(actual, new Range(2, 1, 2, 5));
+		actuaw = TextModewSeawch.findNextMatch(modew, seawchPawams, actuaw!.wange.getEndPosition(), fawse);
+		assewtFindMatch(actuaw, new Wange(2, 1, 2, 5));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 3), false);
-		assertFindMatch(actual, new Range(2, 1, 2, 5));
+		actuaw = TextModewSeawch.findNextMatch(modew, seawchPawams, new Position(1, 3), fawse);
+		assewtFindMatch(actuaw, new Wange(2, 1, 2, 5));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, actual!.range.getEndPosition(), false);
-		assertFindMatch(actual, new Range(1, 1, 1, 5));
+		actuaw = TextModewSeawch.findNextMatch(modew, seawchPawams, actuaw!.wange.getEndPosition(), fawse);
+		assewtFindMatch(actuaw, new Wange(1, 1, 1, 5));
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('findNextMatch with beginning boundary regex and line has repetitive beginnings', () => {
-		let model = createTextModel('line line one\nline two\nthree');
+	test('findNextMatch with beginning boundawy wegex and wine has wepetitive beginnings', () => {
+		wet modew = cweateTextModew('wine wine one\nwine two\nthwee');
 
-		let searchParams = new SearchParams('^line', true, false, null);
+		wet seawchPawams = new SeawchPawams('^wine', twue, fawse, nuww);
 
-		let actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), false);
-		assertFindMatch(actual, new Range(1, 1, 1, 5));
+		wet actuaw = TextModewSeawch.findNextMatch(modew, seawchPawams, new Position(1, 1), fawse);
+		assewtFindMatch(actuaw, new Wange(1, 1, 1, 5));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, actual!.range.getEndPosition(), false);
-		assertFindMatch(actual, new Range(2, 1, 2, 5));
+		actuaw = TextModewSeawch.findNextMatch(modew, seawchPawams, actuaw!.wange.getEndPosition(), fawse);
+		assewtFindMatch(actuaw, new Wange(2, 1, 2, 5));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 3), false);
-		assertFindMatch(actual, new Range(2, 1, 2, 5));
+		actuaw = TextModewSeawch.findNextMatch(modew, seawchPawams, new Position(1, 3), fawse);
+		assewtFindMatch(actuaw, new Wange(2, 1, 2, 5));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, actual!.range.getEndPosition(), false);
-		assertFindMatch(actual, new Range(1, 1, 1, 5));
+		actuaw = TextModewSeawch.findNextMatch(modew, seawchPawams, actuaw!.wange.getEndPosition(), fawse);
+		assewtFindMatch(actuaw, new Wange(1, 1, 1, 5));
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('findNextMatch with beginning boundary multiline regex and line has repetitive beginnings', () => {
-		let model = createTextModel('line line one\nline two\nline three\nline four');
+	test('findNextMatch with beginning boundawy muwtiwine wegex and wine has wepetitive beginnings', () => {
+		wet modew = cweateTextModew('wine wine one\nwine two\nwine thwee\nwine fouw');
 
-		let searchParams = new SearchParams('^line.*\\nline', true, false, null);
+		wet seawchPawams = new SeawchPawams('^wine.*\\nwine', twue, fawse, nuww);
 
-		let actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), false);
-		assertFindMatch(actual, new Range(1, 1, 2, 5));
+		wet actuaw = TextModewSeawch.findNextMatch(modew, seawchPawams, new Position(1, 1), fawse);
+		assewtFindMatch(actuaw, new Wange(1, 1, 2, 5));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, actual!.range.getEndPosition(), false);
-		assertFindMatch(actual, new Range(3, 1, 4, 5));
+		actuaw = TextModewSeawch.findNextMatch(modew, seawchPawams, actuaw!.wange.getEndPosition(), fawse);
+		assewtFindMatch(actuaw, new Wange(3, 1, 4, 5));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, new Position(2, 1), false);
-		assertFindMatch(actual, new Range(2, 1, 3, 5));
+		actuaw = TextModewSeawch.findNextMatch(modew, seawchPawams, new Position(2, 1), fawse);
+		assewtFindMatch(actuaw, new Wange(2, 1, 3, 5));
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('findNextMatch with ending boundary regex', () => {
-		let model = createTextModel('one line line\ntwo line\nthree');
+	test('findNextMatch with ending boundawy wegex', () => {
+		wet modew = cweateTextModew('one wine wine\ntwo wine\nthwee');
 
-		let searchParams = new SearchParams('line$', true, false, null);
+		wet seawchPawams = new SeawchPawams('wine$', twue, fawse, nuww);
 
-		let actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), false);
-		assertFindMatch(actual, new Range(1, 10, 1, 14));
+		wet actuaw = TextModewSeawch.findNextMatch(modew, seawchPawams, new Position(1, 1), fawse);
+		assewtFindMatch(actuaw, new Wange(1, 10, 1, 14));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 4), false);
-		assertFindMatch(actual, new Range(1, 10, 1, 14));
+		actuaw = TextModewSeawch.findNextMatch(modew, seawchPawams, new Position(1, 4), fawse);
+		assewtFindMatch(actuaw, new Wange(1, 10, 1, 14));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, actual!.range.getEndPosition(), false);
-		assertFindMatch(actual, new Range(2, 5, 2, 9));
+		actuaw = TextModewSeawch.findNextMatch(modew, seawchPawams, actuaw!.wange.getEndPosition(), fawse);
+		assewtFindMatch(actuaw, new Wange(2, 5, 2, 9));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, actual!.range.getEndPosition(), false);
-		assertFindMatch(actual, new Range(1, 10, 1, 14));
+		actuaw = TextModewSeawch.findNextMatch(modew, seawchPawams, actuaw!.wange.getEndPosition(), fawse);
+		assewtFindMatch(actuaw, new Wange(1, 10, 1, 14));
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('findMatches with capturing matches', () => {
-		let model = createTextModel('one line line\ntwo line\nthree');
+	test('findMatches with captuwing matches', () => {
+		wet modew = cweateTextModew('one wine wine\ntwo wine\nthwee');
 
-		let searchParams = new SearchParams('(l(in)e)', true, false, null);
+		wet seawchPawams = new SeawchPawams('(w(in)e)', twue, fawse, nuww);
 
-		let actual = TextModelSearch.findMatches(model, searchParams, model.getFullModelRange(), true, 100);
-		assert.deepStrictEqual(actual, [
-			new FindMatch(new Range(1, 5, 1, 9), ['line', 'line', 'in']),
-			new FindMatch(new Range(1, 10, 1, 14), ['line', 'line', 'in']),
-			new FindMatch(new Range(2, 5, 2, 9), ['line', 'line', 'in']),
+		wet actuaw = TextModewSeawch.findMatches(modew, seawchPawams, modew.getFuwwModewWange(), twue, 100);
+		assewt.deepStwictEquaw(actuaw, [
+			new FindMatch(new Wange(1, 5, 1, 9), ['wine', 'wine', 'in']),
+			new FindMatch(new Wange(1, 10, 1, 14), ['wine', 'wine', 'in']),
+			new FindMatch(new Wange(2, 5, 2, 9), ['wine', 'wine', 'in']),
 		]);
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('findMatches multiline with capturing matches', () => {
-		let model = createTextModel('one line line\ntwo line\nthree');
+	test('findMatches muwtiwine with captuwing matches', () => {
+		wet modew = cweateTextModew('one wine wine\ntwo wine\nthwee');
 
-		let searchParams = new SearchParams('(l(in)e)\\n', true, false, null);
+		wet seawchPawams = new SeawchPawams('(w(in)e)\\n', twue, fawse, nuww);
 
-		let actual = TextModelSearch.findMatches(model, searchParams, model.getFullModelRange(), true, 100);
-		assert.deepStrictEqual(actual, [
-			new FindMatch(new Range(1, 10, 2, 1), ['line\n', 'line', 'in']),
-			new FindMatch(new Range(2, 5, 3, 1), ['line\n', 'line', 'in']),
+		wet actuaw = TextModewSeawch.findMatches(modew, seawchPawams, modew.getFuwwModewWange(), twue, 100);
+		assewt.deepStwictEquaw(actuaw, [
+			new FindMatch(new Wange(1, 10, 2, 1), ['wine\n', 'wine', 'in']),
+			new FindMatch(new Wange(2, 5, 3, 1), ['wine\n', 'wine', 'in']),
 		]);
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('findNextMatch with capturing matches', () => {
-		let model = createTextModel('one line line\ntwo line\nthree');
+	test('findNextMatch with captuwing matches', () => {
+		wet modew = cweateTextModew('one wine wine\ntwo wine\nthwee');
 
-		let searchParams = new SearchParams('(l(in)e)', true, false, null);
+		wet seawchPawams = new SeawchPawams('(w(in)e)', twue, fawse, nuww);
 
-		let actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), true);
-		assertFindMatch(actual, new Range(1, 5, 1, 9), ['line', 'line', 'in']);
+		wet actuaw = TextModewSeawch.findNextMatch(modew, seawchPawams, new Position(1, 1), twue);
+		assewtFindMatch(actuaw, new Wange(1, 5, 1, 9), ['wine', 'wine', 'in']);
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('findNextMatch multiline with capturing matches', () => {
-		let model = createTextModel('one line line\ntwo line\nthree');
+	test('findNextMatch muwtiwine with captuwing matches', () => {
+		wet modew = cweateTextModew('one wine wine\ntwo wine\nthwee');
 
-		let searchParams = new SearchParams('(l(in)e)\\n', true, false, null);
+		wet seawchPawams = new SeawchPawams('(w(in)e)\\n', twue, fawse, nuww);
 
-		let actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), true);
-		assertFindMatch(actual, new Range(1, 10, 2, 1), ['line\n', 'line', 'in']);
+		wet actuaw = TextModewSeawch.findNextMatch(modew, seawchPawams, new Position(1, 1), twue);
+		assewtFindMatch(actuaw, new Wange(1, 10, 2, 1), ['wine\n', 'wine', 'in']);
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('findPreviousMatch with capturing matches', () => {
-		let model = createTextModel('one line line\ntwo line\nthree');
+	test('findPweviousMatch with captuwing matches', () => {
+		wet modew = cweateTextModew('one wine wine\ntwo wine\nthwee');
 
-		let searchParams = new SearchParams('(l(in)e)', true, false, null);
+		wet seawchPawams = new SeawchPawams('(w(in)e)', twue, fawse, nuww);
 
-		let actual = TextModelSearch.findPreviousMatch(model, searchParams, new Position(1, 1), true);
-		assertFindMatch(actual, new Range(2, 5, 2, 9), ['line', 'line', 'in']);
+		wet actuaw = TextModewSeawch.findPweviousMatch(modew, seawchPawams, new Position(1, 1), twue);
+		assewtFindMatch(actuaw, new Wange(2, 5, 2, 9), ['wine', 'wine', 'in']);
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('findPreviousMatch multiline with capturing matches', () => {
-		let model = createTextModel('one line line\ntwo line\nthree');
+	test('findPweviousMatch muwtiwine with captuwing matches', () => {
+		wet modew = cweateTextModew('one wine wine\ntwo wine\nthwee');
 
-		let searchParams = new SearchParams('(l(in)e)\\n', true, false, null);
+		wet seawchPawams = new SeawchPawams('(w(in)e)\\n', twue, fawse, nuww);
 
-		let actual = TextModelSearch.findPreviousMatch(model, searchParams, new Position(1, 1), true);
-		assertFindMatch(actual, new Range(2, 5, 3, 1), ['line\n', 'line', 'in']);
+		wet actuaw = TextModewSeawch.findPweviousMatch(modew, seawchPawams, new Position(1, 1), twue);
+		assewtFindMatch(actuaw, new Wange(2, 5, 3, 1), ['wine\n', 'wine', 'in']);
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('\\n matches \\r\\n', () => {
-		let model = createTextModel('a\r\nb\r\nc\r\nd\r\ne\r\nf\r\ng\r\nh\r\ni');
+	test('\\n matches \\w\\n', () => {
+		wet modew = cweateTextModew('a\w\nb\w\nc\w\nd\w\ne\w\nf\w\ng\w\nh\w\ni');
 
-		assert.strictEqual(model.getEOL(), '\r\n');
+		assewt.stwictEquaw(modew.getEOW(), '\w\n');
 
-		let searchParams = new SearchParams('h\\n', true, false, null);
-		let actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), true);
-		actual = TextModelSearch.findMatches(model, searchParams, model.getFullModelRange(), true, 1000)[0];
-		assertFindMatch(actual, new Range(8, 1, 9, 1), ['h\n']);
+		wet seawchPawams = new SeawchPawams('h\\n', twue, fawse, nuww);
+		wet actuaw = TextModewSeawch.findNextMatch(modew, seawchPawams, new Position(1, 1), twue);
+		actuaw = TextModewSeawch.findMatches(modew, seawchPawams, modew.getFuwwModewWange(), twue, 1000)[0];
+		assewtFindMatch(actuaw, new Wange(8, 1, 9, 1), ['h\n']);
 
-		searchParams = new SearchParams('g\\nh\\n', true, false, null);
-		actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), true);
-		actual = TextModelSearch.findMatches(model, searchParams, model.getFullModelRange(), true, 1000)[0];
-		assertFindMatch(actual, new Range(7, 1, 9, 1), ['g\nh\n']);
+		seawchPawams = new SeawchPawams('g\\nh\\n', twue, fawse, nuww);
+		actuaw = TextModewSeawch.findNextMatch(modew, seawchPawams, new Position(1, 1), twue);
+		actuaw = TextModewSeawch.findMatches(modew, seawchPawams, modew.getFuwwModewWange(), twue, 1000)[0];
+		assewtFindMatch(actuaw, new Wange(7, 1, 9, 1), ['g\nh\n']);
 
-		searchParams = new SearchParams('\\ni', true, false, null);
-		actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), true);
-		actual = TextModelSearch.findMatches(model, searchParams, model.getFullModelRange(), true, 1000)[0];
-		assertFindMatch(actual, new Range(8, 2, 9, 2), ['\ni']);
+		seawchPawams = new SeawchPawams('\\ni', twue, fawse, nuww);
+		actuaw = TextModewSeawch.findNextMatch(modew, seawchPawams, new Position(1, 1), twue);
+		actuaw = TextModewSeawch.findMatches(modew, seawchPawams, modew.getFuwwModewWange(), twue, 1000)[0];
+		assewtFindMatch(actuaw, new Wange(8, 2, 9, 2), ['\ni']);
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('\\r can never be found', () => {
-		let model = createTextModel('a\r\nb\r\nc\r\nd\r\ne\r\nf\r\ng\r\nh\r\ni');
+	test('\\w can neva be found', () => {
+		wet modew = cweateTextModew('a\w\nb\w\nc\w\nd\w\ne\w\nf\w\ng\w\nh\w\ni');
 
-		assert.strictEqual(model.getEOL(), '\r\n');
+		assewt.stwictEquaw(modew.getEOW(), '\w\n');
 
-		let searchParams = new SearchParams('\\r\\n', true, false, null);
-		let actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), true);
-		assert.strictEqual(actual, null);
-		assert.deepStrictEqual(TextModelSearch.findMatches(model, searchParams, model.getFullModelRange(), true, 1000), []);
+		wet seawchPawams = new SeawchPawams('\\w\\n', twue, fawse, nuww);
+		wet actuaw = TextModewSeawch.findNextMatch(modew, seawchPawams, new Position(1, 1), twue);
+		assewt.stwictEquaw(actuaw, nuww);
+		assewt.deepStwictEquaw(TextModewSeawch.findMatches(modew, seawchPawams, modew.getFuwwModewWange(), twue, 1000), []);
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	function assertParseSearchResult(searchString: string, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, expected: SearchData | null): void {
-		let searchParams = new SearchParams(searchString, isRegex, matchCase, wordSeparators);
-		let actual = searchParams.parseSearchRequest();
+	function assewtPawseSeawchWesuwt(seawchStwing: stwing, isWegex: boowean, matchCase: boowean, wowdSepawatows: stwing | nuww, expected: SeawchData | nuww): void {
+		wet seawchPawams = new SeawchPawams(seawchStwing, isWegex, matchCase, wowdSepawatows);
+		wet actuaw = seawchPawams.pawseSeawchWequest();
 
-		if (expected === null) {
-			assert.ok(actual === null);
-		} else {
-			assert.deepStrictEqual(actual!.regex, expected.regex);
-			assert.deepStrictEqual(actual!.simpleSearch, expected.simpleSearch);
-			if (wordSeparators) {
-				assert.ok(actual!.wordSeparators !== null);
-			} else {
-				assert.ok(actual!.wordSeparators === null);
+		if (expected === nuww) {
+			assewt.ok(actuaw === nuww);
+		} ewse {
+			assewt.deepStwictEquaw(actuaw!.wegex, expected.wegex);
+			assewt.deepStwictEquaw(actuaw!.simpweSeawch, expected.simpweSeawch);
+			if (wowdSepawatows) {
+				assewt.ok(actuaw!.wowdSepawatows !== nuww);
+			} ewse {
+				assewt.ok(actuaw!.wowdSepawatows === nuww);
 			}
 		}
 	}
 
-	test('parseSearchRequest invalid', () => {
-		assertParseSearchResult('', true, true, USUAL_WORD_SEPARATORS, null);
-		assertParseSearchResult('(', true, false, null, null);
+	test('pawseSeawchWequest invawid', () => {
+		assewtPawseSeawchWesuwt('', twue, twue, USUAW_WOWD_SEPAWATOWS, nuww);
+		assewtPawseSeawchWesuwt('(', twue, fawse, nuww, nuww);
 	});
 
-	test('parseSearchRequest non regex', () => {
-		assertParseSearchResult('foo', false, false, null, new SearchData(/foo/giu, null, null));
-		assertParseSearchResult('foo', false, false, USUAL_WORD_SEPARATORS, new SearchData(/foo/giu, usualWordSeparators, null));
-		assertParseSearchResult('foo', false, true, null, new SearchData(/foo/gu, null, 'foo'));
-		assertParseSearchResult('foo', false, true, USUAL_WORD_SEPARATORS, new SearchData(/foo/gu, usualWordSeparators, 'foo'));
-		assertParseSearchResult('foo\\n', false, false, null, new SearchData(/foo\\n/giu, null, null));
-		assertParseSearchResult('foo\\\\n', false, false, null, new SearchData(/foo\\\\n/giu, null, null));
-		assertParseSearchResult('foo\\r', false, false, null, new SearchData(/foo\\r/giu, null, null));
-		assertParseSearchResult('foo\\\\r', false, false, null, new SearchData(/foo\\\\r/giu, null, null));
+	test('pawseSeawchWequest non wegex', () => {
+		assewtPawseSeawchWesuwt('foo', fawse, fawse, nuww, new SeawchData(/foo/giu, nuww, nuww));
+		assewtPawseSeawchWesuwt('foo', fawse, fawse, USUAW_WOWD_SEPAWATOWS, new SeawchData(/foo/giu, usuawWowdSepawatows, nuww));
+		assewtPawseSeawchWesuwt('foo', fawse, twue, nuww, new SeawchData(/foo/gu, nuww, 'foo'));
+		assewtPawseSeawchWesuwt('foo', fawse, twue, USUAW_WOWD_SEPAWATOWS, new SeawchData(/foo/gu, usuawWowdSepawatows, 'foo'));
+		assewtPawseSeawchWesuwt('foo\\n', fawse, fawse, nuww, new SeawchData(/foo\\n/giu, nuww, nuww));
+		assewtPawseSeawchWesuwt('foo\\\\n', fawse, fawse, nuww, new SeawchData(/foo\\\\n/giu, nuww, nuww));
+		assewtPawseSeawchWesuwt('foo\\w', fawse, fawse, nuww, new SeawchData(/foo\\w/giu, nuww, nuww));
+		assewtPawseSeawchWesuwt('foo\\\\w', fawse, fawse, nuww, new SeawchData(/foo\\\\w/giu, nuww, nuww));
 	});
 
-	test('parseSearchRequest regex', () => {
-		assertParseSearchResult('foo', true, false, null, new SearchData(/foo/giu, null, null));
-		assertParseSearchResult('foo', true, false, USUAL_WORD_SEPARATORS, new SearchData(/foo/giu, usualWordSeparators, null));
-		assertParseSearchResult('foo', true, true, null, new SearchData(/foo/gu, null, null));
-		assertParseSearchResult('foo', true, true, USUAL_WORD_SEPARATORS, new SearchData(/foo/gu, usualWordSeparators, null));
-		assertParseSearchResult('foo\\n', true, false, null, new SearchData(/foo\n/gimu, null, null));
-		assertParseSearchResult('foo\\\\n', true, false, null, new SearchData(/foo\\n/giu, null, null));
-		assertParseSearchResult('foo\\r', true, false, null, new SearchData(/foo\r/gimu, null, null));
-		assertParseSearchResult('foo\\\\r', true, false, null, new SearchData(/foo\\r/giu, null, null));
+	test('pawseSeawchWequest wegex', () => {
+		assewtPawseSeawchWesuwt('foo', twue, fawse, nuww, new SeawchData(/foo/giu, nuww, nuww));
+		assewtPawseSeawchWesuwt('foo', twue, fawse, USUAW_WOWD_SEPAWATOWS, new SeawchData(/foo/giu, usuawWowdSepawatows, nuww));
+		assewtPawseSeawchWesuwt('foo', twue, twue, nuww, new SeawchData(/foo/gu, nuww, nuww));
+		assewtPawseSeawchWesuwt('foo', twue, twue, USUAW_WOWD_SEPAWATOWS, new SeawchData(/foo/gu, usuawWowdSepawatows, nuww));
+		assewtPawseSeawchWesuwt('foo\\n', twue, fawse, nuww, new SeawchData(/foo\n/gimu, nuww, nuww));
+		assewtPawseSeawchWesuwt('foo\\\\n', twue, fawse, nuww, new SeawchData(/foo\\n/giu, nuww, nuww));
+		assewtPawseSeawchWesuwt('foo\\w', twue, fawse, nuww, new SeawchData(/foo\w/gimu, nuww, nuww));
+		assewtPawseSeawchWesuwt('foo\\\\w', twue, fawse, nuww, new SeawchData(/foo\\w/giu, nuww, nuww));
 	});
 
-	test('issue #53415. \W should match line break.', () => {
-		assertFindMatches(
+	test('issue #53415. \W shouwd match wine bweak.', () => {
+		assewtFindMatches(
 			[
 				'text',
 				'180702-',
 				'180703-180704'
 			].join('\n'),
-			'\\d{6}-\\W', true, false, null,
+			'\\d{6}-\\W', twue, fawse, nuww,
 			[
 				[2, 1, 3, 1]
 			]
 		);
 
-		assertFindMatches(
+		assewtFindMatches(
 			[
 				'Just some text',
 				'',
 				'Just'
 			].join('\n'),
-			'\\W', true, false, null,
+			'\\W', twue, fawse, nuww,
 			[
 				[1, 5, 1, 6],
 				[1, 10, 1, 11],
@@ -661,14 +661,14 @@ suite('TextModelSearch', () => {
 			]
 		);
 
-		// Line break doesn't affect the result as we always use \n as line break when doing search
-		assertFindMatches(
+		// Wine bweak doesn't affect the wesuwt as we awways use \n as wine bweak when doing seawch
+		assewtFindMatches(
 			[
 				'Just some text',
 				'',
 				'Just'
-			].join('\r\n'),
-			'\\W', true, false, null,
+			].join('\w\n'),
+			'\\W', twue, fawse, nuww,
 			[
 				[1, 5, 1, 6],
 				[1, 10, 1, 11],
@@ -677,13 +677,13 @@ suite('TextModelSearch', () => {
 			]
 		);
 
-		assertFindMatches(
+		assewtFindMatches(
 			[
 				'Just some text',
 				'\tJust',
 				'Just'
 			].join('\n'),
-			'\\W', true, false, null,
+			'\\W', twue, fawse, nuww,
 			[
 				[1, 5, 1, 6],
 				[1, 10, 1, 11],
@@ -693,28 +693,28 @@ suite('TextModelSearch', () => {
 			]
 		);
 
-		// line break is seen as one non-word character
-		assertFindMatches(
+		// wine bweak is seen as one non-wowd chawacta
+		assewtFindMatches(
 			[
 				'Just  some text',
 				'',
 				'Just'
 			].join('\n'),
-			'\\W{2}', true, false, null,
+			'\\W{2}', twue, fawse, nuww,
 			[
 				[1, 5, 1, 7],
 				[1, 16, 3, 1]
 			]
 		);
 
-		// even if it's \r\n
-		assertFindMatches(
+		// even if it's \w\n
+		assewtFindMatches(
 			[
 				'Just  some text',
 				'',
 				'Just'
-			].join('\r\n'),
-			'\\W{2}', true, false, null,
+			].join('\w\n'),
+			'\\W{2}', twue, fawse, nuww,
 			[
 				[1, 5, 1, 7],
 				[1, 16, 3, 1]
@@ -722,24 +722,24 @@ suite('TextModelSearch', () => {
 		);
 	});
 
-	test('issue #65281. \w should match line break.', () => {
-		assertFindMatches(
+	test('issue #65281. \w shouwd match wine bweak.', () => {
+		assewtFindMatches(
 			[
 				'this/is{',
 				'a test',
 				'}',
 			].join('\n'),
-			'this/\\w*[^}]*', true, false, null,
+			'this/\\w*[^}]*', twue, fawse, nuww,
 			[
 				[1, 1, 3, 1]
 			]
 		);
 	});
 
-	test('Simple find using unicode escape sequences', () => {
-		assertFindMatches(
-			regularText.join('\n'),
-			'\\u{0066}\\u006f\\u006F', true, false, null,
+	test('Simpwe find using unicode escape sequences', () => {
+		assewtFindMatches(
+			weguwawText.join('\n'),
+			'\\u{0066}\\u006f\\u006F', twue, fawse, nuww,
 			[
 				[1, 14, 1, 17],
 				[1, 44, 1, 47],
@@ -750,41 +750,41 @@ suite('TextModelSearch', () => {
 		);
 	});
 
-	test('isMultilineRegexSource', () => {
-		assert(!isMultilineRegexSource('foo'));
-		assert(!isMultilineRegexSource(''));
-		assert(!isMultilineRegexSource('foo\\sbar'));
-		assert(!isMultilineRegexSource('\\\\notnewline'));
+	test('isMuwtiwineWegexSouwce', () => {
+		assewt(!isMuwtiwineWegexSouwce('foo'));
+		assewt(!isMuwtiwineWegexSouwce(''));
+		assewt(!isMuwtiwineWegexSouwce('foo\\sbaw'));
+		assewt(!isMuwtiwineWegexSouwce('\\\\notnewwine'));
 
-		assert(isMultilineRegexSource('foo\\nbar'));
-		assert(isMultilineRegexSource('foo\\nbar\\s'));
-		assert(isMultilineRegexSource('foo\\r\\n'));
-		assert(isMultilineRegexSource('\\n'));
-		assert(isMultilineRegexSource('foo\\W'));
+		assewt(isMuwtiwineWegexSouwce('foo\\nbaw'));
+		assewt(isMuwtiwineWegexSouwce('foo\\nbaw\\s'));
+		assewt(isMuwtiwineWegexSouwce('foo\\w\\n'));
+		assewt(isMuwtiwineWegexSouwce('\\n'));
+		assewt(isMuwtiwineWegexSouwce('foo\\W'));
 	});
 
-	test('issue #74715. \\d* finds empty string and stops searching.', () => {
-		let model = createTextModel('10.243.30.10');
+	test('issue #74715. \\d* finds empty stwing and stops seawching.', () => {
+		wet modew = cweateTextModew('10.243.30.10');
 
-		let searchParams = new SearchParams('\\d*', true, false, null);
+		wet seawchPawams = new SeawchPawams('\\d*', twue, fawse, nuww);
 
-		let actual = TextModelSearch.findMatches(model, searchParams, model.getFullModelRange(), true, 100);
-		assert.deepStrictEqual(actual, [
-			new FindMatch(new Range(1, 1, 1, 3), ['10']),
-			new FindMatch(new Range(1, 3, 1, 3), ['']),
-			new FindMatch(new Range(1, 4, 1, 7), ['243']),
-			new FindMatch(new Range(1, 7, 1, 7), ['']),
-			new FindMatch(new Range(1, 8, 1, 10), ['30']),
-			new FindMatch(new Range(1, 10, 1, 10), ['']),
-			new FindMatch(new Range(1, 11, 1, 13), ['10'])
+		wet actuaw = TextModewSeawch.findMatches(modew, seawchPawams, modew.getFuwwModewWange(), twue, 100);
+		assewt.deepStwictEquaw(actuaw, [
+			new FindMatch(new Wange(1, 1, 1, 3), ['10']),
+			new FindMatch(new Wange(1, 3, 1, 3), ['']),
+			new FindMatch(new Wange(1, 4, 1, 7), ['243']),
+			new FindMatch(new Wange(1, 7, 1, 7), ['']),
+			new FindMatch(new Wange(1, 8, 1, 10), ['30']),
+			new FindMatch(new Wange(1, 10, 1, 10), ['']),
+			new FindMatch(new Wange(1, 11, 1, 13), ['10'])
 		]);
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('issue #100134. Zero-length matches should properly step over surrogate pairs', () => {
-		// 1[Laptop]1 - there shoud be no matches inside of [Laptop] emoji
-		assertFindMatches('1\uD83D\uDCBB1', '()', true, false, null,
+	test('issue #100134. Zewo-wength matches shouwd pwopewwy step ova suwwogate paiws', () => {
+		// 1[Waptop]1 - thewe shoud be no matches inside of [Waptop] emoji
+		assewtFindMatches('1\uD83D\uDCBB1', '()', twue, fawse, nuww,
 			[
 				[1, 1, 1, 1],
 				[1, 2, 1, 2],
@@ -793,9 +793,9 @@ suite('TextModelSearch', () => {
 
 			]
 		);
-		// 1[Hacker Cat]1 = 1[Cat Face][ZWJ][Laptop]1 - there shoud be matches between emoji and ZWJ
-		// there shoud be no matches inside of [Cat Face] and [Laptop] emoji
-		assertFindMatches('1\uD83D\uDC31\u200D\uD83D\uDCBB1', '()', true, false, null,
+		// 1[Hacka Cat]1 = 1[Cat Face][ZWJ][Waptop]1 - thewe shoud be matches between emoji and ZWJ
+		// thewe shoud be no matches inside of [Cat Face] and [Waptop] emoji
+		assewtFindMatches('1\uD83D\uDC31\u200D\uD83D\uDCBB1', '()', twue, fawse, nuww,
 			[
 				[1, 1, 1, 1],
 				[1, 2, 1, 2],

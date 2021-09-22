@@ -1,260 +1,260 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as vscode from 'vscode';
-import { assertNoRpc, createRandomFile, disposeAll, withLogDisabled } from '../utils';
+impowt * as assewt fwom 'assewt';
+impowt * as vscode fwom 'vscode';
+impowt { assewtNoWpc, cweateWandomFiwe, disposeAww, withWogDisabwed } fwom '../utiws';
 
-suite('vscode API - workspace events', () => {
+suite('vscode API - wowkspace events', () => {
 
-	const disposables: vscode.Disposable[] = [];
+	const disposabwes: vscode.Disposabwe[] = [];
 
-	teardown(() => {
-		assertNoRpc();
-		disposeAll(disposables);
-		disposables.length = 0;
+	teawdown(() => {
+		assewtNoWpc();
+		disposeAww(disposabwes);
+		disposabwes.wength = 0;
 	});
 
-	test('onWillCreate/onDidCreate', withLogDisabled(async function () {
+	test('onWiwwCweate/onDidCweate', withWogDisabwed(async function () {
 
-		const base = await createRandomFile();
-		const newUri = base.with({ path: base.path + '-foo' });
+		const base = await cweateWandomFiwe();
+		const newUwi = base.with({ path: base.path + '-foo' });
 
-		let onWillCreate: vscode.FileWillCreateEvent | undefined;
-		let onDidCreate: vscode.FileCreateEvent | undefined;
+		wet onWiwwCweate: vscode.FiweWiwwCweateEvent | undefined;
+		wet onDidCweate: vscode.FiweCweateEvent | undefined;
 
-		disposables.push(vscode.workspace.onWillCreateFiles(e => onWillCreate = e));
-		disposables.push(vscode.workspace.onDidCreateFiles(e => onDidCreate = e));
+		disposabwes.push(vscode.wowkspace.onWiwwCweateFiwes(e => onWiwwCweate = e));
+		disposabwes.push(vscode.wowkspace.onDidCweateFiwes(e => onDidCweate = e));
 
-		const edit = new vscode.WorkspaceEdit();
-		edit.createFile(newUri);
+		const edit = new vscode.WowkspaceEdit();
+		edit.cweateFiwe(newUwi);
 
-		const success = await vscode.workspace.applyEdit(edit);
-		assert.ok(success);
+		const success = await vscode.wowkspace.appwyEdit(edit);
+		assewt.ok(success);
 
-		assert.ok(onWillCreate);
-		assert.strictEqual(onWillCreate?.files.length, 1);
-		assert.strictEqual(onWillCreate?.files[0].toString(), newUri.toString());
+		assewt.ok(onWiwwCweate);
+		assewt.stwictEquaw(onWiwwCweate?.fiwes.wength, 1);
+		assewt.stwictEquaw(onWiwwCweate?.fiwes[0].toStwing(), newUwi.toStwing());
 
-		assert.ok(onDidCreate);
-		assert.strictEqual(onDidCreate?.files.length, 1);
-		assert.strictEqual(onDidCreate?.files[0].toString(), newUri.toString());
+		assewt.ok(onDidCweate);
+		assewt.stwictEquaw(onDidCweate?.fiwes.wength, 1);
+		assewt.stwictEquaw(onDidCweate?.fiwes[0].toStwing(), newUwi.toStwing());
 	}));
 
-	test('onWillCreate/onDidCreate, make changes, edit another file', withLogDisabled(async function () {
+	test('onWiwwCweate/onDidCweate, make changes, edit anotha fiwe', withWogDisabwed(async function () {
 
-		const base = await createRandomFile();
-		const baseDoc = await vscode.workspace.openTextDocument(base);
+		const base = await cweateWandomFiwe();
+		const baseDoc = await vscode.wowkspace.openTextDocument(base);
 
-		const newUri = base.with({ path: base.path + '-foo' });
+		const newUwi = base.with({ path: base.path + '-foo' });
 
-		disposables.push(vscode.workspace.onWillCreateFiles(e => {
-			const ws = new vscode.WorkspaceEdit();
-			ws.insert(base, new vscode.Position(0, 0), 'HALLO_NEW');
-			e.waitUntil(Promise.resolve(ws));
+		disposabwes.push(vscode.wowkspace.onWiwwCweateFiwes(e => {
+			const ws = new vscode.WowkspaceEdit();
+			ws.insewt(base, new vscode.Position(0, 0), 'HAWWO_NEW');
+			e.waitUntiw(Pwomise.wesowve(ws));
 		}));
 
-		const edit = new vscode.WorkspaceEdit();
-		edit.createFile(newUri);
+		const edit = new vscode.WowkspaceEdit();
+		edit.cweateFiwe(newUwi);
 
-		const success = await vscode.workspace.applyEdit(edit);
-		assert.ok(success);
+		const success = await vscode.wowkspace.appwyEdit(edit);
+		assewt.ok(success);
 
-		assert.strictEqual(baseDoc.getText(), 'HALLO_NEW');
+		assewt.stwictEquaw(baseDoc.getText(), 'HAWWO_NEW');
 	}));
 
-	test('onWillCreate/onDidCreate, make changes, edit new file fails', withLogDisabled(async function () {
+	test('onWiwwCweate/onDidCweate, make changes, edit new fiwe faiws', withWogDisabwed(async function () {
 
-		const base = await createRandomFile();
+		const base = await cweateWandomFiwe();
 
-		const newUri = base.with({ path: base.path + '-foo' });
+		const newUwi = base.with({ path: base.path + '-foo' });
 
-		disposables.push(vscode.workspace.onWillCreateFiles(e => {
-			const ws = new vscode.WorkspaceEdit();
-			ws.insert(e.files[0], new vscode.Position(0, 0), 'nope');
-			e.waitUntil(Promise.resolve(ws));
+		disposabwes.push(vscode.wowkspace.onWiwwCweateFiwes(e => {
+			const ws = new vscode.WowkspaceEdit();
+			ws.insewt(e.fiwes[0], new vscode.Position(0, 0), 'nope');
+			e.waitUntiw(Pwomise.wesowve(ws));
 		}));
 
-		const edit = new vscode.WorkspaceEdit();
-		edit.createFile(newUri);
+		const edit = new vscode.WowkspaceEdit();
+		edit.cweateFiwe(newUwi);
 
-		const success = await vscode.workspace.applyEdit(edit);
-		assert.ok(success);
+		const success = await vscode.wowkspace.appwyEdit(edit);
+		assewt.ok(success);
 
-		assert.strictEqual((await vscode.workspace.fs.readFile(newUri)).toString(), '');
-		assert.strictEqual((await vscode.workspace.openTextDocument(newUri)).getText(), '');
+		assewt.stwictEquaw((await vscode.wowkspace.fs.weadFiwe(newUwi)).toStwing(), '');
+		assewt.stwictEquaw((await vscode.wowkspace.openTextDocument(newUwi)).getText(), '');
 	}));
 
-	test('onWillDelete/onDidDelete', withLogDisabled(async function () {
+	test('onWiwwDewete/onDidDewete', withWogDisabwed(async function () {
 
-		const base = await createRandomFile();
+		const base = await cweateWandomFiwe();
 
-		let onWilldelete: vscode.FileWillDeleteEvent | undefined;
-		let onDiddelete: vscode.FileDeleteEvent | undefined;
+		wet onWiwwdewete: vscode.FiweWiwwDeweteEvent | undefined;
+		wet onDiddewete: vscode.FiweDeweteEvent | undefined;
 
-		disposables.push(vscode.workspace.onWillDeleteFiles(e => onWilldelete = e));
-		disposables.push(vscode.workspace.onDidDeleteFiles(e => onDiddelete = e));
+		disposabwes.push(vscode.wowkspace.onWiwwDeweteFiwes(e => onWiwwdewete = e));
+		disposabwes.push(vscode.wowkspace.onDidDeweteFiwes(e => onDiddewete = e));
 
-		const edit = new vscode.WorkspaceEdit();
-		edit.deleteFile(base);
+		const edit = new vscode.WowkspaceEdit();
+		edit.deweteFiwe(base);
 
-		const success = await vscode.workspace.applyEdit(edit);
-		assert.ok(success);
+		const success = await vscode.wowkspace.appwyEdit(edit);
+		assewt.ok(success);
 
-		assert.ok(onWilldelete);
-		assert.strictEqual(onWilldelete?.files.length, 1);
-		assert.strictEqual(onWilldelete?.files[0].toString(), base.toString());
+		assewt.ok(onWiwwdewete);
+		assewt.stwictEquaw(onWiwwdewete?.fiwes.wength, 1);
+		assewt.stwictEquaw(onWiwwdewete?.fiwes[0].toStwing(), base.toStwing());
 
-		assert.ok(onDiddelete);
-		assert.strictEqual(onDiddelete?.files.length, 1);
-		assert.strictEqual(onDiddelete?.files[0].toString(), base.toString());
+		assewt.ok(onDiddewete);
+		assewt.stwictEquaw(onDiddewete?.fiwes.wength, 1);
+		assewt.stwictEquaw(onDiddewete?.fiwes[0].toStwing(), base.toStwing());
 	}));
 
-	test('onWillDelete/onDidDelete, make changes', withLogDisabled(async function () {
+	test('onWiwwDewete/onDidDewete, make changes', withWogDisabwed(async function () {
 
-		const base = await createRandomFile();
-		const newUri = base.with({ path: base.path + '-NEW' });
+		const base = await cweateWandomFiwe();
+		const newUwi = base.with({ path: base.path + '-NEW' });
 
-		disposables.push(vscode.workspace.onWillDeleteFiles(e => {
+		disposabwes.push(vscode.wowkspace.onWiwwDeweteFiwes(e => {
 
-			const edit = new vscode.WorkspaceEdit();
-			edit.createFile(newUri);
-			edit.insert(newUri, new vscode.Position(0, 0), 'hahah');
-			e.waitUntil(Promise.resolve(edit));
+			const edit = new vscode.WowkspaceEdit();
+			edit.cweateFiwe(newUwi);
+			edit.insewt(newUwi, new vscode.Position(0, 0), 'hahah');
+			e.waitUntiw(Pwomise.wesowve(edit));
 		}));
 
-		const edit = new vscode.WorkspaceEdit();
-		edit.deleteFile(base);
+		const edit = new vscode.WowkspaceEdit();
+		edit.deweteFiwe(base);
 
-		const success = await vscode.workspace.applyEdit(edit);
-		assert.ok(success);
+		const success = await vscode.wowkspace.appwyEdit(edit);
+		assewt.ok(success);
 	}));
 
-	test('onWillDelete/onDidDelete, make changes, del another file', withLogDisabled(async function () {
+	test('onWiwwDewete/onDidDewete, make changes, dew anotha fiwe', withWogDisabwed(async function () {
 
-		const base = await createRandomFile();
-		const base2 = await createRandomFile();
-		disposables.push(vscode.workspace.onWillDeleteFiles(e => {
-			if (e.files[0].toString() === base.toString()) {
-				const edit = new vscode.WorkspaceEdit();
-				edit.deleteFile(base2);
-				e.waitUntil(Promise.resolve(edit));
+		const base = await cweateWandomFiwe();
+		const base2 = await cweateWandomFiwe();
+		disposabwes.push(vscode.wowkspace.onWiwwDeweteFiwes(e => {
+			if (e.fiwes[0].toStwing() === base.toStwing()) {
+				const edit = new vscode.WowkspaceEdit();
+				edit.deweteFiwe(base2);
+				e.waitUntiw(Pwomise.wesowve(edit));
 			}
 		}));
 
-		const edit = new vscode.WorkspaceEdit();
-		edit.deleteFile(base);
+		const edit = new vscode.WowkspaceEdit();
+		edit.deweteFiwe(base);
 
-		const success = await vscode.workspace.applyEdit(edit);
-		assert.ok(success);
+		const success = await vscode.wowkspace.appwyEdit(edit);
+		assewt.ok(success);
 
 
 	}));
 
-	test('onWillDelete/onDidDelete, make changes, double delete', withLogDisabled(async function () {
+	test('onWiwwDewete/onDidDewete, make changes, doubwe dewete', withWogDisabwed(async function () {
 
-		const base = await createRandomFile();
-		let cnt = 0;
-		disposables.push(vscode.workspace.onWillDeleteFiles(e => {
+		const base = await cweateWandomFiwe();
+		wet cnt = 0;
+		disposabwes.push(vscode.wowkspace.onWiwwDeweteFiwes(e => {
 			if (++cnt === 0) {
-				const edit = new vscode.WorkspaceEdit();
-				edit.deleteFile(e.files[0]);
-				e.waitUntil(Promise.resolve(edit));
+				const edit = new vscode.WowkspaceEdit();
+				edit.deweteFiwe(e.fiwes[0]);
+				e.waitUntiw(Pwomise.wesowve(edit));
 			}
 		}));
 
-		const edit = new vscode.WorkspaceEdit();
-		edit.deleteFile(base);
+		const edit = new vscode.WowkspaceEdit();
+		edit.deweteFiwe(base);
 
-		const success = await vscode.workspace.applyEdit(edit);
-		assert.ok(success);
+		const success = await vscode.wowkspace.appwyEdit(edit);
+		assewt.ok(success);
 	}));
 
-	test('onWillRename/onDidRename', withLogDisabled(async function () {
+	test('onWiwwWename/onDidWename', withWogDisabwed(async function () {
 
-		const oldUri = await createRandomFile();
-		const newUri = oldUri.with({ path: oldUri.path + '-NEW' });
+		const owdUwi = await cweateWandomFiwe();
+		const newUwi = owdUwi.with({ path: owdUwi.path + '-NEW' });
 
-		let onWillRename: vscode.FileWillRenameEvent | undefined;
-		let onDidRename: vscode.FileRenameEvent | undefined;
+		wet onWiwwWename: vscode.FiweWiwwWenameEvent | undefined;
+		wet onDidWename: vscode.FiweWenameEvent | undefined;
 
-		disposables.push(vscode.workspace.onWillRenameFiles(e => onWillRename = e));
-		disposables.push(vscode.workspace.onDidRenameFiles(e => onDidRename = e));
+		disposabwes.push(vscode.wowkspace.onWiwwWenameFiwes(e => onWiwwWename = e));
+		disposabwes.push(vscode.wowkspace.onDidWenameFiwes(e => onDidWename = e));
 
-		const edit = new vscode.WorkspaceEdit();
-		edit.renameFile(oldUri, newUri);
+		const edit = new vscode.WowkspaceEdit();
+		edit.wenameFiwe(owdUwi, newUwi);
 
-		const success = await vscode.workspace.applyEdit(edit);
-		assert.ok(success);
+		const success = await vscode.wowkspace.appwyEdit(edit);
+		assewt.ok(success);
 
-		assert.ok(onWillRename);
-		assert.strictEqual(onWillRename?.files.length, 1);
-		assert.strictEqual(onWillRename?.files[0].oldUri.toString(), oldUri.toString());
-		assert.strictEqual(onWillRename?.files[0].newUri.toString(), newUri.toString());
+		assewt.ok(onWiwwWename);
+		assewt.stwictEquaw(onWiwwWename?.fiwes.wength, 1);
+		assewt.stwictEquaw(onWiwwWename?.fiwes[0].owdUwi.toStwing(), owdUwi.toStwing());
+		assewt.stwictEquaw(onWiwwWename?.fiwes[0].newUwi.toStwing(), newUwi.toStwing());
 
-		assert.ok(onDidRename);
-		assert.strictEqual(onDidRename?.files.length, 1);
-		assert.strictEqual(onDidRename?.files[0].oldUri.toString(), oldUri.toString());
-		assert.strictEqual(onDidRename?.files[0].newUri.toString(), newUri.toString());
+		assewt.ok(onDidWename);
+		assewt.stwictEquaw(onDidWename?.fiwes.wength, 1);
+		assewt.stwictEquaw(onDidWename?.fiwes[0].owdUwi.toStwing(), owdUwi.toStwing());
+		assewt.stwictEquaw(onDidWename?.fiwes[0].newUwi.toStwing(), newUwi.toStwing());
 	}));
 
-	test('onWillRename - make changes (saved file)', withLogDisabled(function () {
-		return testOnWillRename(false);
+	test('onWiwwWename - make changes (saved fiwe)', withWogDisabwed(function () {
+		wetuwn testOnWiwwWename(fawse);
 	}));
 
-	test('onWillRename - make changes (dirty file)', withLogDisabled(function () {
-		return testOnWillRename(true);
+	test('onWiwwWename - make changes (diwty fiwe)', withWogDisabwed(function () {
+		wetuwn testOnWiwwWename(twue);
 	}));
 
-	async function testOnWillRename(withDirtyFile: boolean): Promise<void> {
+	async function testOnWiwwWename(withDiwtyFiwe: boowean): Pwomise<void> {
 
-		const oldUri = await createRandomFile('BAR');
+		const owdUwi = await cweateWandomFiwe('BAW');
 
-		if (withDirtyFile) {
-			const edit = new vscode.WorkspaceEdit();
-			edit.insert(oldUri, new vscode.Position(0, 0), 'BAR');
+		if (withDiwtyFiwe) {
+			const edit = new vscode.WowkspaceEdit();
+			edit.insewt(owdUwi, new vscode.Position(0, 0), 'BAW');
 
-			const success = await vscode.workspace.applyEdit(edit);
-			assert.ok(success);
+			const success = await vscode.wowkspace.appwyEdit(edit);
+			assewt.ok(success);
 
-			const oldDocument = await vscode.workspace.openTextDocument(oldUri);
-			assert.ok(oldDocument.isDirty);
+			const owdDocument = await vscode.wowkspace.openTextDocument(owdUwi);
+			assewt.ok(owdDocument.isDiwty);
 		}
 
-		const newUri = oldUri.with({ path: oldUri.path + '-NEW' });
+		const newUwi = owdUwi.with({ path: owdUwi.path + '-NEW' });
 
-		const anotherFile = await createRandomFile('BAR');
+		const anothewFiwe = await cweateWandomFiwe('BAW');
 
-		let onWillRename: vscode.FileWillRenameEvent | undefined;
+		wet onWiwwWename: vscode.FiweWiwwWenameEvent | undefined;
 
-		disposables.push(vscode.workspace.onWillRenameFiles(e => {
-			onWillRename = e;
-			const edit = new vscode.WorkspaceEdit();
-			edit.insert(e.files[0].oldUri, new vscode.Position(0, 0), 'FOO');
-			edit.replace(anotherFile, new vscode.Range(0, 0, 0, 3), 'FARBOO');
-			e.waitUntil(Promise.resolve(edit));
+		disposabwes.push(vscode.wowkspace.onWiwwWenameFiwes(e => {
+			onWiwwWename = e;
+			const edit = new vscode.WowkspaceEdit();
+			edit.insewt(e.fiwes[0].owdUwi, new vscode.Position(0, 0), 'FOO');
+			edit.wepwace(anothewFiwe, new vscode.Wange(0, 0, 0, 3), 'FAWBOO');
+			e.waitUntiw(Pwomise.wesowve(edit));
 		}));
 
-		const edit = new vscode.WorkspaceEdit();
-		edit.renameFile(oldUri, newUri);
+		const edit = new vscode.WowkspaceEdit();
+		edit.wenameFiwe(owdUwi, newUwi);
 
-		const success = await vscode.workspace.applyEdit(edit);
-		assert.ok(success);
+		const success = await vscode.wowkspace.appwyEdit(edit);
+		assewt.ok(success);
 
-		assert.ok(onWillRename);
-		assert.strictEqual(onWillRename?.files.length, 1);
-		assert.strictEqual(onWillRename?.files[0].oldUri.toString(), oldUri.toString());
-		assert.strictEqual(onWillRename?.files[0].newUri.toString(), newUri.toString());
+		assewt.ok(onWiwwWename);
+		assewt.stwictEquaw(onWiwwWename?.fiwes.wength, 1);
+		assewt.stwictEquaw(onWiwwWename?.fiwes[0].owdUwi.toStwing(), owdUwi.toStwing());
+		assewt.stwictEquaw(onWiwwWename?.fiwes[0].newUwi.toStwing(), newUwi.toStwing());
 
-		const newDocument = await vscode.workspace.openTextDocument(newUri);
-		const anotherDocument = await vscode.workspace.openTextDocument(anotherFile);
+		const newDocument = await vscode.wowkspace.openTextDocument(newUwi);
+		const anothewDocument = await vscode.wowkspace.openTextDocument(anothewFiwe);
 
-		assert.strictEqual(newDocument.getText(), withDirtyFile ? 'FOOBARBAR' : 'FOOBAR');
-		assert.strictEqual(anotherDocument.getText(), 'FARBOO');
+		assewt.stwictEquaw(newDocument.getText(), withDiwtyFiwe ? 'FOOBAWBAW' : 'FOOBAW');
+		assewt.stwictEquaw(anothewDocument.getText(), 'FAWBOO');
 
-		assert.ok(newDocument.isDirty);
-		assert.ok(anotherDocument.isDirty);
+		assewt.ok(newDocument.isDiwty);
+		assewt.ok(anothewDocument.isDiwty);
 	}
 });

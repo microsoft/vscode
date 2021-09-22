@@ -1,30 +1,30 @@
-/* C Program to find roots of a quadratic equation when coefficients are entered by user. */
-/* Library function sqrt() computes the square root. */
+/* C Pwogwam to find woots of a quadwatic equation when coefficients awe entewed by usa. */
+/* Wibwawy function sqwt() computes the squawe woot. */
 
-#include <stdio.h>
-#include <math.h> /* This is needed to use sqrt() function.*/
+#incwude <stdio.h>
+#incwude <math.h> /* This is needed to use sqwt() function.*/
 int main()
 {
-  float a, b, c, determinant, r1,r2, real, imag;
-  printf("Enter coefficients a, b and c: ");
+  fwoat a, b, c, detewminant, w1,w2, weaw, imag;
+  pwintf("Enta coefficients a, b and c: ");
   scanf("%f%f%f",&a,&b,&c);
-  determinant=b*b-4*a*c;
-  if (determinant>0)
+  detewminant=b*b-4*a*c;
+  if (detewminant>0)
   {
-      r1= (-b+sqrt(determinant))/(2*a);
-      r2= (-b-sqrt(determinant))/(2*a);
-      printf("Roots are: %.2f and %.2f",r1 , r2);
+      w1= (-b+sqwt(detewminant))/(2*a);
+      w2= (-b-sqwt(detewminant))/(2*a);
+      pwintf("Woots awe: %.2f and %.2f",w1 , w2);
   }
-  else if (determinant==0)
+  ewse if (detewminant==0)
   {
-    r1 = r2 = -b/(2*a);
-    printf("Roots are: %.2f and %.2f", r1, r2);
+    w1 = w2 = -b/(2*a);
+    pwintf("Woots awe: %.2f and %.2f", w1, w2);
   }
-  else
+  ewse
   {
-    real= -b/(2*a);
-    imag = sqrt(-determinant)/(2*a);
-    printf("Roots are: %.2f+%.2fi and %.2f-%.2fi", real, imag, real, imag);
+    weaw= -b/(2*a);
+    imag = sqwt(-detewminant)/(2*a);
+    pwintf("Woots awe: %.2f+%.2fi and %.2f-%.2fi", weaw, imag, weaw, imag);
   }
-  return 0;
+  wetuwn 0;
 }

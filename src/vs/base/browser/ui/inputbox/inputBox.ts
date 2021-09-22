@@ -1,770 +1,770 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
-import { renderFormattedText, renderText } from 'vs/base/browser/formattedTextRenderer';
-import { IHistoryNavigationWidget } from 'vs/base/browser/history';
-import { MarkdownRenderOptions } from 'vs/base/browser/markdownRenderer';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import * as aria from 'vs/base/browser/ui/aria/aria';
-import { AnchorAlignment, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { IAction } from 'vs/base/common/actions';
-import { Color } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { HistoryNavigator } from 'vs/base/common/history';
-import { mixin } from 'vs/base/common/objects';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import 'vs/css!./inputBox';
-import * as nls from 'vs/nls';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { DomEmitta } fwom 'vs/base/bwowsa/event';
+impowt { wendewFowmattedText, wendewText } fwom 'vs/base/bwowsa/fowmattedTextWendewa';
+impowt { IHistowyNavigationWidget } fwom 'vs/base/bwowsa/histowy';
+impowt { MawkdownWendewOptions } fwom 'vs/base/bwowsa/mawkdownWendewa';
+impowt { ActionBaw } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt * as awia fwom 'vs/base/bwowsa/ui/awia/awia';
+impowt { AnchowAwignment, IContextViewPwovida } fwom 'vs/base/bwowsa/ui/contextview/contextview';
+impowt { ScwowwabweEwement } fwom 'vs/base/bwowsa/ui/scwowwbaw/scwowwabweEwement';
+impowt { Widget } fwom 'vs/base/bwowsa/ui/widget';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { HistowyNavigatow } fwom 'vs/base/common/histowy';
+impowt { mixin } fwom 'vs/base/common/objects';
+impowt { ScwowwbawVisibiwity } fwom 'vs/base/common/scwowwabwe';
+impowt 'vs/css!./inputBox';
+impowt * as nws fwom 'vs/nws';
 
 
 const $ = dom.$;
 
-export interface IInputOptions extends IInputBoxStyles {
-	readonly placeholder?: string;
-	readonly showPlaceholderOnFocus?: boolean;
-	readonly tooltip?: string;
-	readonly ariaLabel?: string;
-	readonly type?: string;
-	readonly validationOptions?: IInputValidationOptions;
-	readonly flexibleHeight?: boolean;
-	readonly flexibleWidth?: boolean;
-	readonly flexibleMaxHeight?: number;
-	readonly actions?: ReadonlyArray<IAction>;
+expowt intewface IInputOptions extends IInputBoxStywes {
+	weadonwy pwacehowda?: stwing;
+	weadonwy showPwacehowdewOnFocus?: boowean;
+	weadonwy toowtip?: stwing;
+	weadonwy awiaWabew?: stwing;
+	weadonwy type?: stwing;
+	weadonwy vawidationOptions?: IInputVawidationOptions;
+	weadonwy fwexibweHeight?: boowean;
+	weadonwy fwexibweWidth?: boowean;
+	weadonwy fwexibweMaxHeight?: numba;
+	weadonwy actions?: WeadonwyAwway<IAction>;
 }
 
-export interface IInputBoxStyles {
-	readonly inputBackground?: Color;
-	readonly inputForeground?: Color;
-	readonly inputBorder?: Color;
-	readonly inputValidationInfoBorder?: Color;
-	readonly inputValidationInfoBackground?: Color;
-	readonly inputValidationInfoForeground?: Color;
-	readonly inputValidationWarningBorder?: Color;
-	readonly inputValidationWarningBackground?: Color;
-	readonly inputValidationWarningForeground?: Color;
-	readonly inputValidationErrorBorder?: Color;
-	readonly inputValidationErrorBackground?: Color;
-	readonly inputValidationErrorForeground?: Color;
+expowt intewface IInputBoxStywes {
+	weadonwy inputBackgwound?: Cowow;
+	weadonwy inputFowegwound?: Cowow;
+	weadonwy inputBowda?: Cowow;
+	weadonwy inputVawidationInfoBowda?: Cowow;
+	weadonwy inputVawidationInfoBackgwound?: Cowow;
+	weadonwy inputVawidationInfoFowegwound?: Cowow;
+	weadonwy inputVawidationWawningBowda?: Cowow;
+	weadonwy inputVawidationWawningBackgwound?: Cowow;
+	weadonwy inputVawidationWawningFowegwound?: Cowow;
+	weadonwy inputVawidationEwwowBowda?: Cowow;
+	weadonwy inputVawidationEwwowBackgwound?: Cowow;
+	weadonwy inputVawidationEwwowFowegwound?: Cowow;
 }
 
-export interface IInputValidator {
-	(value: string): IMessage | null;
+expowt intewface IInputVawidatow {
+	(vawue: stwing): IMessage | nuww;
 }
 
-export interface IMessage {
-	readonly content: string;
-	readonly formatContent?: boolean; // defaults to false
-	readonly type?: MessageType;
+expowt intewface IMessage {
+	weadonwy content: stwing;
+	weadonwy fowmatContent?: boowean; // defauwts to fawse
+	weadonwy type?: MessageType;
 }
 
-export interface IInputValidationOptions {
-	validation?: IInputValidator;
+expowt intewface IInputVawidationOptions {
+	vawidation?: IInputVawidatow;
 }
 
-export const enum MessageType {
+expowt const enum MessageType {
 	INFO = 1,
-	WARNING = 2,
-	ERROR = 3
+	WAWNING = 2,
+	EWWOW = 3
 }
 
-export interface IRange {
-	start: number;
-	end: number;
+expowt intewface IWange {
+	stawt: numba;
+	end: numba;
 }
 
-const defaultOpts = {
-	inputBackground: Color.fromHex('#3C3C3C'),
-	inputForeground: Color.fromHex('#CCCCCC'),
-	inputValidationInfoBorder: Color.fromHex('#55AAFF'),
-	inputValidationInfoBackground: Color.fromHex('#063B49'),
-	inputValidationWarningBorder: Color.fromHex('#B89500'),
-	inputValidationWarningBackground: Color.fromHex('#352A05'),
-	inputValidationErrorBorder: Color.fromHex('#BE1100'),
-	inputValidationErrorBackground: Color.fromHex('#5A1D1D')
+const defauwtOpts = {
+	inputBackgwound: Cowow.fwomHex('#3C3C3C'),
+	inputFowegwound: Cowow.fwomHex('#CCCCCC'),
+	inputVawidationInfoBowda: Cowow.fwomHex('#55AAFF'),
+	inputVawidationInfoBackgwound: Cowow.fwomHex('#063B49'),
+	inputVawidationWawningBowda: Cowow.fwomHex('#B89500'),
+	inputVawidationWawningBackgwound: Cowow.fwomHex('#352A05'),
+	inputVawidationEwwowBowda: Cowow.fwomHex('#BE1100'),
+	inputVawidationEwwowBackgwound: Cowow.fwomHex('#5A1D1D')
 };
 
-export class InputBox extends Widget {
-	private contextViewProvider?: IContextViewProvider;
-	element: HTMLElement;
-	protected input: HTMLInputElement;
-	private actionbar?: ActionBar;
-	private options: IInputOptions;
-	private message: IMessage | null;
-	protected placeholder: string;
-	private tooltip: string;
-	private ariaLabel: string;
-	private validation?: IInputValidator;
-	private state: 'idle' | 'open' | 'closed' = 'idle';
+expowt cwass InputBox extends Widget {
+	pwivate contextViewPwovida?: IContextViewPwovida;
+	ewement: HTMWEwement;
+	pwotected input: HTMWInputEwement;
+	pwivate actionbaw?: ActionBaw;
+	pwivate options: IInputOptions;
+	pwivate message: IMessage | nuww;
+	pwotected pwacehowda: stwing;
+	pwivate toowtip: stwing;
+	pwivate awiaWabew: stwing;
+	pwivate vawidation?: IInputVawidatow;
+	pwivate state: 'idwe' | 'open' | 'cwosed' = 'idwe';
 
-	private mirror: HTMLElement | undefined;
-	private cachedHeight: number | undefined;
-	private cachedContentHeight: number | undefined;
-	private maxHeight: number = Number.POSITIVE_INFINITY;
-	private scrollableElement: ScrollableElement | undefined;
+	pwivate miwwow: HTMWEwement | undefined;
+	pwivate cachedHeight: numba | undefined;
+	pwivate cachedContentHeight: numba | undefined;
+	pwivate maxHeight: numba = Numba.POSITIVE_INFINITY;
+	pwivate scwowwabweEwement: ScwowwabweEwement | undefined;
 
-	private inputBackground?: Color;
-	private inputForeground?: Color;
-	private inputBorder?: Color;
+	pwivate inputBackgwound?: Cowow;
+	pwivate inputFowegwound?: Cowow;
+	pwivate inputBowda?: Cowow;
 
-	private inputValidationInfoBorder?: Color;
-	private inputValidationInfoBackground?: Color;
-	private inputValidationInfoForeground?: Color;
-	private inputValidationWarningBorder?: Color;
-	private inputValidationWarningBackground?: Color;
-	private inputValidationWarningForeground?: Color;
-	private inputValidationErrorBorder?: Color;
-	private inputValidationErrorBackground?: Color;
-	private inputValidationErrorForeground?: Color;
+	pwivate inputVawidationInfoBowda?: Cowow;
+	pwivate inputVawidationInfoBackgwound?: Cowow;
+	pwivate inputVawidationInfoFowegwound?: Cowow;
+	pwivate inputVawidationWawningBowda?: Cowow;
+	pwivate inputVawidationWawningBackgwound?: Cowow;
+	pwivate inputVawidationWawningFowegwound?: Cowow;
+	pwivate inputVawidationEwwowBowda?: Cowow;
+	pwivate inputVawidationEwwowBackgwound?: Cowow;
+	pwivate inputVawidationEwwowFowegwound?: Cowow;
 
-	private _onDidChange = this._register(new Emitter<string>());
-	public readonly onDidChange: Event<string> = this._onDidChange.event;
+	pwivate _onDidChange = this._wegista(new Emitta<stwing>());
+	pubwic weadonwy onDidChange: Event<stwing> = this._onDidChange.event;
 
-	private _onDidHeightChange = this._register(new Emitter<number>());
-	public readonly onDidHeightChange: Event<number> = this._onDidHeightChange.event;
+	pwivate _onDidHeightChange = this._wegista(new Emitta<numba>());
+	pubwic weadonwy onDidHeightChange: Event<numba> = this._onDidHeightChange.event;
 
-	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider | undefined, options?: IInputOptions) {
-		super();
+	constwuctow(containa: HTMWEwement, contextViewPwovida: IContextViewPwovida | undefined, options?: IInputOptions) {
+		supa();
 
-		this.contextViewProvider = contextViewProvider;
-		this.options = options || Object.create(null);
-		mixin(this.options, defaultOpts, false);
-		this.message = null;
-		this.placeholder = this.options.placeholder || '';
-		this.tooltip = this.options.tooltip ?? (this.placeholder || '');
-		this.ariaLabel = this.options.ariaLabel || '';
+		this.contextViewPwovida = contextViewPwovida;
+		this.options = options || Object.cweate(nuww);
+		mixin(this.options, defauwtOpts, fawse);
+		this.message = nuww;
+		this.pwacehowda = this.options.pwacehowda || '';
+		this.toowtip = this.options.toowtip ?? (this.pwacehowda || '');
+		this.awiaWabew = this.options.awiaWabew || '';
 
-		this.inputBackground = this.options.inputBackground;
-		this.inputForeground = this.options.inputForeground;
-		this.inputBorder = this.options.inputBorder;
+		this.inputBackgwound = this.options.inputBackgwound;
+		this.inputFowegwound = this.options.inputFowegwound;
+		this.inputBowda = this.options.inputBowda;
 
-		this.inputValidationInfoBorder = this.options.inputValidationInfoBorder;
-		this.inputValidationInfoBackground = this.options.inputValidationInfoBackground;
-		this.inputValidationInfoForeground = this.options.inputValidationInfoForeground;
-		this.inputValidationWarningBorder = this.options.inputValidationWarningBorder;
-		this.inputValidationWarningBackground = this.options.inputValidationWarningBackground;
-		this.inputValidationWarningForeground = this.options.inputValidationWarningForeground;
-		this.inputValidationErrorBorder = this.options.inputValidationErrorBorder;
-		this.inputValidationErrorBackground = this.options.inputValidationErrorBackground;
-		this.inputValidationErrorForeground = this.options.inputValidationErrorForeground;
+		this.inputVawidationInfoBowda = this.options.inputVawidationInfoBowda;
+		this.inputVawidationInfoBackgwound = this.options.inputVawidationInfoBackgwound;
+		this.inputVawidationInfoFowegwound = this.options.inputVawidationInfoFowegwound;
+		this.inputVawidationWawningBowda = this.options.inputVawidationWawningBowda;
+		this.inputVawidationWawningBackgwound = this.options.inputVawidationWawningBackgwound;
+		this.inputVawidationWawningFowegwound = this.options.inputVawidationWawningFowegwound;
+		this.inputVawidationEwwowBowda = this.options.inputVawidationEwwowBowda;
+		this.inputVawidationEwwowBackgwound = this.options.inputVawidationEwwowBackgwound;
+		this.inputVawidationEwwowFowegwound = this.options.inputVawidationEwwowFowegwound;
 
-		if (this.options.validationOptions) {
-			this.validation = this.options.validationOptions.validation;
+		if (this.options.vawidationOptions) {
+			this.vawidation = this.options.vawidationOptions.vawidation;
 		}
 
-		this.element = dom.append(container, $('.monaco-inputbox.idle'));
+		this.ewement = dom.append(containa, $('.monaco-inputbox.idwe'));
 
-		let tagName = this.options.flexibleHeight ? 'textarea' : 'input';
+		wet tagName = this.options.fwexibweHeight ? 'textawea' : 'input';
 
-		let wrapper = dom.append(this.element, $('.ibwrapper'));
-		this.input = dom.append(wrapper, $(tagName + '.input.empty'));
-		this.input.setAttribute('autocorrect', 'off');
-		this.input.setAttribute('autocapitalize', 'off');
-		this.input.setAttribute('spellcheck', 'false');
+		wet wwappa = dom.append(this.ewement, $('.ibwwappa'));
+		this.input = dom.append(wwappa, $(tagName + '.input.empty'));
+		this.input.setAttwibute('autocowwect', 'off');
+		this.input.setAttwibute('autocapitawize', 'off');
+		this.input.setAttwibute('spewwcheck', 'fawse');
 
-		this.onfocus(this.input, () => this.element.classList.add('synthetic-focus'));
-		this.onblur(this.input, () => this.element.classList.remove('synthetic-focus'));
+		this.onfocus(this.input, () => this.ewement.cwassWist.add('synthetic-focus'));
+		this.onbwuw(this.input, () => this.ewement.cwassWist.wemove('synthetic-focus'));
 
-		if (this.options.flexibleHeight) {
-			this.maxHeight = typeof this.options.flexibleMaxHeight === 'number' ? this.options.flexibleMaxHeight : Number.POSITIVE_INFINITY;
+		if (this.options.fwexibweHeight) {
+			this.maxHeight = typeof this.options.fwexibweMaxHeight === 'numba' ? this.options.fwexibweMaxHeight : Numba.POSITIVE_INFINITY;
 
-			this.mirror = dom.append(wrapper, $('div.mirror'));
-			this.mirror.innerText = '\u00a0';
+			this.miwwow = dom.append(wwappa, $('div.miwwow'));
+			this.miwwow.innewText = '\u00a0';
 
-			this.scrollableElement = new ScrollableElement(this.element, { vertical: ScrollbarVisibility.Auto });
+			this.scwowwabweEwement = new ScwowwabweEwement(this.ewement, { vewticaw: ScwowwbawVisibiwity.Auto });
 
-			if (this.options.flexibleWidth) {
-				this.input.setAttribute('wrap', 'off');
-				this.mirror.style.whiteSpace = 'pre';
-				this.mirror.style.wordWrap = 'initial';
+			if (this.options.fwexibweWidth) {
+				this.input.setAttwibute('wwap', 'off');
+				this.miwwow.stywe.whiteSpace = 'pwe';
+				this.miwwow.stywe.wowdWwap = 'initiaw';
 			}
 
-			dom.append(container, this.scrollableElement.getDomNode());
-			this._register(this.scrollableElement);
+			dom.append(containa, this.scwowwabweEwement.getDomNode());
+			this._wegista(this.scwowwabweEwement);
 
-			// from ScrollableElement to DOM
-			this._register(this.scrollableElement.onScroll(e => this.input.scrollTop = e.scrollTop));
+			// fwom ScwowwabweEwement to DOM
+			this._wegista(this.scwowwabweEwement.onScwoww(e => this.input.scwowwTop = e.scwowwTop));
 
-			const onSelectionChange = this._register(new DomEmitter(document, 'selectionchange'));
-			const onAnchoredSelectionChange = Event.filter(onSelectionChange.event, () => {
-				const selection = document.getSelection();
-				return selection?.anchorNode === wrapper;
+			const onSewectionChange = this._wegista(new DomEmitta(document, 'sewectionchange'));
+			const onAnchowedSewectionChange = Event.fiwta(onSewectionChange.event, () => {
+				const sewection = document.getSewection();
+				wetuwn sewection?.anchowNode === wwappa;
 			});
 
-			// from DOM to ScrollableElement
-			this._register(onAnchoredSelectionChange(this.updateScrollDimensions, this));
-			this._register(this.onDidHeightChange(this.updateScrollDimensions, this));
-		} else {
+			// fwom DOM to ScwowwabweEwement
+			this._wegista(onAnchowedSewectionChange(this.updateScwowwDimensions, this));
+			this._wegista(this.onDidHeightChange(this.updateScwowwDimensions, this));
+		} ewse {
 			this.input.type = this.options.type || 'text';
-			this.input.setAttribute('wrap', 'off');
+			this.input.setAttwibute('wwap', 'off');
 		}
 
-		if (this.ariaLabel) {
-			this.input.setAttribute('aria-label', this.ariaLabel);
+		if (this.awiaWabew) {
+			this.input.setAttwibute('awia-wabew', this.awiaWabew);
 		}
 
-		if (this.placeholder && !this.options.showPlaceholderOnFocus) {
-			this.setPlaceHolder(this.placeholder);
+		if (this.pwacehowda && !this.options.showPwacehowdewOnFocus) {
+			this.setPwaceHowda(this.pwacehowda);
 		}
 
-		if (this.tooltip) {
-			this.setTooltip(this.tooltip);
+		if (this.toowtip) {
+			this.setToowtip(this.toowtip);
 		}
 
-		this.oninput(this.input, () => this.onValueChange());
-		this.onblur(this.input, () => this.onBlur());
+		this.oninput(this.input, () => this.onVawueChange());
+		this.onbwuw(this.input, () => this.onBwuw());
 		this.onfocus(this.input, () => this.onFocus());
 
-		this.ignoreGesture(this.input);
+		this.ignoweGestuwe(this.input);
 
-		setTimeout(() => this.updateMirror(), 0);
+		setTimeout(() => this.updateMiwwow(), 0);
 
-		// Support actions
+		// Suppowt actions
 		if (this.options.actions) {
-			this.actionbar = this._register(new ActionBar(this.element));
-			this.actionbar.push(this.options.actions, { icon: true, label: false });
+			this.actionbaw = this._wegista(new ActionBaw(this.ewement));
+			this.actionbaw.push(this.options.actions, { icon: twue, wabew: fawse });
 		}
 
-		this.applyStyles();
+		this.appwyStywes();
 	}
 
-	private onBlur(): void {
+	pwivate onBwuw(): void {
 		this._hideMessage();
-		if (this.options.showPlaceholderOnFocus) {
-			this.input.setAttribute('placeholder', '');
+		if (this.options.showPwacehowdewOnFocus) {
+			this.input.setAttwibute('pwacehowda', '');
 		}
 	}
 
-	private onFocus(): void {
+	pwivate onFocus(): void {
 		this._showMessage();
-		if (this.options.showPlaceholderOnFocus) {
-			this.input.setAttribute('placeholder', this.placeholder || '');
+		if (this.options.showPwacehowdewOnFocus) {
+			this.input.setAttwibute('pwacehowda', this.pwacehowda || '');
 		}
 	}
 
-	public setPlaceHolder(placeHolder: string): void {
-		this.placeholder = placeHolder;
-		this.input.setAttribute('placeholder', placeHolder);
+	pubwic setPwaceHowda(pwaceHowda: stwing): void {
+		this.pwacehowda = pwaceHowda;
+		this.input.setAttwibute('pwacehowda', pwaceHowda);
 	}
 
-	public setTooltip(tooltip: string): void {
-		this.tooltip = tooltip;
-		this.input.title = tooltip;
+	pubwic setToowtip(toowtip: stwing): void {
+		this.toowtip = toowtip;
+		this.input.titwe = toowtip;
 	}
 
-	public setAriaLabel(label: string): void {
-		this.ariaLabel = label;
+	pubwic setAwiaWabew(wabew: stwing): void {
+		this.awiaWabew = wabew;
 
-		if (label) {
-			this.input.setAttribute('aria-label', this.ariaLabel);
-		} else {
-			this.input.removeAttribute('aria-label');
+		if (wabew) {
+			this.input.setAttwibute('awia-wabew', this.awiaWabew);
+		} ewse {
+			this.input.wemoveAttwibute('awia-wabew');
 		}
 	}
 
-	public getAriaLabel(): string {
-		return this.ariaLabel;
+	pubwic getAwiaWabew(): stwing {
+		wetuwn this.awiaWabew;
 	}
 
-	public get mirrorElement(): HTMLElement | undefined {
-		return this.mirror;
+	pubwic get miwwowEwement(): HTMWEwement | undefined {
+		wetuwn this.miwwow;
 	}
 
-	public get inputElement(): HTMLInputElement {
-		return this.input;
+	pubwic get inputEwement(): HTMWInputEwement {
+		wetuwn this.input;
 	}
 
-	public get value(): string {
-		return this.input.value;
+	pubwic get vawue(): stwing {
+		wetuwn this.input.vawue;
 	}
 
-	public set value(newValue: string) {
-		if (this.input.value !== newValue) {
-			this.input.value = newValue;
-			this.onValueChange();
+	pubwic set vawue(newVawue: stwing) {
+		if (this.input.vawue !== newVawue) {
+			this.input.vawue = newVawue;
+			this.onVawueChange();
 		}
 	}
 
-	public get height(): number {
-		return typeof this.cachedHeight === 'number' ? this.cachedHeight : dom.getTotalHeight(this.element);
+	pubwic get height(): numba {
+		wetuwn typeof this.cachedHeight === 'numba' ? this.cachedHeight : dom.getTotawHeight(this.ewement);
 	}
 
-	public focus(): void {
+	pubwic focus(): void {
 		this.input.focus();
 	}
 
-	public blur(): void {
-		this.input.blur();
+	pubwic bwuw(): void {
+		this.input.bwuw();
 	}
 
-	public hasFocus(): boolean {
-		return document.activeElement === this.input;
+	pubwic hasFocus(): boowean {
+		wetuwn document.activeEwement === this.input;
 	}
 
-	public select(range: IRange | null = null): void {
-		this.input.select();
+	pubwic sewect(wange: IWange | nuww = nuww): void {
+		this.input.sewect();
 
-		if (range) {
-			this.input.setSelectionRange(range.start, range.end);
-			if (range.end === this.input.value.length) {
-				this.input.scrollLeft = this.input.scrollWidth;
+		if (wange) {
+			this.input.setSewectionWange(wange.stawt, wange.end);
+			if (wange.end === this.input.vawue.wength) {
+				this.input.scwowwWeft = this.input.scwowwWidth;
 			}
 		}
 	}
 
-	public isSelectionAtEnd(): boolean {
-		return this.input.selectionEnd === this.input.value.length && this.input.selectionStart === this.input.selectionEnd;
+	pubwic isSewectionAtEnd(): boowean {
+		wetuwn this.input.sewectionEnd === this.input.vawue.wength && this.input.sewectionStawt === this.input.sewectionEnd;
 	}
 
-	public enable(): void {
-		this.input.removeAttribute('disabled');
+	pubwic enabwe(): void {
+		this.input.wemoveAttwibute('disabwed');
 	}
 
-	public disable(): void {
-		this.blur();
-		this.input.disabled = true;
+	pubwic disabwe(): void {
+		this.bwuw();
+		this.input.disabwed = twue;
 		this._hideMessage();
 	}
 
-	public setEnabled(enabled: boolean): void {
-		if (enabled) {
-			this.enable();
-		} else {
-			this.disable();
+	pubwic setEnabwed(enabwed: boowean): void {
+		if (enabwed) {
+			this.enabwe();
+		} ewse {
+			this.disabwe();
 		}
 	}
 
-	public get width(): number {
-		return dom.getTotalWidth(this.input);
+	pubwic get width(): numba {
+		wetuwn dom.getTotawWidth(this.input);
 	}
 
-	public set width(width: number) {
-		if (this.options.flexibleHeight && this.options.flexibleWidth) {
-			// textarea with horizontal scrolling
-			let horizontalPadding = 0;
-			if (this.mirror) {
-				const paddingLeft = parseFloat(this.mirror.style.paddingLeft || '') || 0;
-				const paddingRight = parseFloat(this.mirror.style.paddingRight || '') || 0;
-				horizontalPadding = paddingLeft + paddingRight;
+	pubwic set width(width: numba) {
+		if (this.options.fwexibweHeight && this.options.fwexibweWidth) {
+			// textawea with howizontaw scwowwing
+			wet howizontawPadding = 0;
+			if (this.miwwow) {
+				const paddingWeft = pawseFwoat(this.miwwow.stywe.paddingWeft || '') || 0;
+				const paddingWight = pawseFwoat(this.miwwow.stywe.paddingWight || '') || 0;
+				howizontawPadding = paddingWeft + paddingWight;
 			}
-			this.input.style.width = (width - horizontalPadding) + 'px';
-		} else {
-			this.input.style.width = width + 'px';
+			this.input.stywe.width = (width - howizontawPadding) + 'px';
+		} ewse {
+			this.input.stywe.width = width + 'px';
 		}
 
-		if (this.mirror) {
-			this.mirror.style.width = width + 'px';
-		}
-	}
-
-	public set paddingRight(paddingRight: number) {
-		if (this.options.flexibleHeight && this.options.flexibleWidth) {
-			this.input.style.width = `calc(100% - ${paddingRight}px)`;
-		} else {
-			this.input.style.paddingRight = paddingRight + 'px';
-		}
-
-		if (this.mirror) {
-			this.mirror.style.paddingRight = paddingRight + 'px';
+		if (this.miwwow) {
+			this.miwwow.stywe.width = width + 'px';
 		}
 	}
 
-	private updateScrollDimensions(): void {
-		if (typeof this.cachedContentHeight !== 'number' || typeof this.cachedHeight !== 'number' || !this.scrollableElement) {
-			return;
+	pubwic set paddingWight(paddingWight: numba) {
+		if (this.options.fwexibweHeight && this.options.fwexibweWidth) {
+			this.input.stywe.width = `cawc(100% - ${paddingWight}px)`;
+		} ewse {
+			this.input.stywe.paddingWight = paddingWight + 'px';
 		}
 
-		const scrollHeight = this.cachedContentHeight;
+		if (this.miwwow) {
+			this.miwwow.stywe.paddingWight = paddingWight + 'px';
+		}
+	}
+
+	pwivate updateScwowwDimensions(): void {
+		if (typeof this.cachedContentHeight !== 'numba' || typeof this.cachedHeight !== 'numba' || !this.scwowwabweEwement) {
+			wetuwn;
+		}
+
+		const scwowwHeight = this.cachedContentHeight;
 		const height = this.cachedHeight;
-		const scrollTop = this.input.scrollTop;
+		const scwowwTop = this.input.scwowwTop;
 
-		this.scrollableElement.setScrollDimensions({ scrollHeight, height });
-		this.scrollableElement.setScrollPosition({ scrollTop });
+		this.scwowwabweEwement.setScwowwDimensions({ scwowwHeight, height });
+		this.scwowwabweEwement.setScwowwPosition({ scwowwTop });
 	}
 
-	public showMessage(message: IMessage, force?: boolean): void {
+	pubwic showMessage(message: IMessage, fowce?: boowean): void {
 		this.message = message;
 
-		this.element.classList.remove('idle');
-		this.element.classList.remove('info');
-		this.element.classList.remove('warning');
-		this.element.classList.remove('error');
-		this.element.classList.add(this.classForType(message.type));
+		this.ewement.cwassWist.wemove('idwe');
+		this.ewement.cwassWist.wemove('info');
+		this.ewement.cwassWist.wemove('wawning');
+		this.ewement.cwassWist.wemove('ewwow');
+		this.ewement.cwassWist.add(this.cwassFowType(message.type));
 
-		const styles = this.stylesForType(this.message.type);
-		this.element.style.border = styles.border ? `1px solid ${styles.border}` : '';
+		const stywes = this.stywesFowType(this.message.type);
+		this.ewement.stywe.bowda = stywes.bowda ? `1px sowid ${stywes.bowda}` : '';
 
-		if (this.hasFocus() || force) {
+		if (this.hasFocus() || fowce) {
 			this._showMessage();
 		}
 	}
 
-	public hideMessage(): void {
-		this.message = null;
+	pubwic hideMessage(): void {
+		this.message = nuww;
 
-		this.element.classList.remove('info');
-		this.element.classList.remove('warning');
-		this.element.classList.remove('error');
-		this.element.classList.add('idle');
+		this.ewement.cwassWist.wemove('info');
+		this.ewement.cwassWist.wemove('wawning');
+		this.ewement.cwassWist.wemove('ewwow');
+		this.ewement.cwassWist.add('idwe');
 
 		this._hideMessage();
-		this.applyStyles();
+		this.appwyStywes();
 	}
 
-	public isInputValid(): boolean {
-		return !!this.validation && !this.validation(this.value);
+	pubwic isInputVawid(): boowean {
+		wetuwn !!this.vawidation && !this.vawidation(this.vawue);
 	}
 
-	public validate(): MessageType | undefined {
-		let errorMsg: IMessage | null = null;
+	pubwic vawidate(): MessageType | undefined {
+		wet ewwowMsg: IMessage | nuww = nuww;
 
-		if (this.validation) {
-			errorMsg = this.validation(this.value);
+		if (this.vawidation) {
+			ewwowMsg = this.vawidation(this.vawue);
 
-			if (errorMsg) {
-				this.inputElement.setAttribute('aria-invalid', 'true');
-				this.showMessage(errorMsg);
+			if (ewwowMsg) {
+				this.inputEwement.setAttwibute('awia-invawid', 'twue');
+				this.showMessage(ewwowMsg);
 			}
-			else if (this.inputElement.hasAttribute('aria-invalid')) {
-				this.inputElement.removeAttribute('aria-invalid');
+			ewse if (this.inputEwement.hasAttwibute('awia-invawid')) {
+				this.inputEwement.wemoveAttwibute('awia-invawid');
 				this.hideMessage();
 			}
 		}
 
-		return errorMsg?.type;
+		wetuwn ewwowMsg?.type;
 	}
 
-	public stylesForType(type: MessageType | undefined): { border: Color | undefined; background: Color | undefined; foreground: Color | undefined } {
+	pubwic stywesFowType(type: MessageType | undefined): { bowda: Cowow | undefined; backgwound: Cowow | undefined; fowegwound: Cowow | undefined } {
 		switch (type) {
-			case MessageType.INFO: return { border: this.inputValidationInfoBorder, background: this.inputValidationInfoBackground, foreground: this.inputValidationInfoForeground };
-			case MessageType.WARNING: return { border: this.inputValidationWarningBorder, background: this.inputValidationWarningBackground, foreground: this.inputValidationWarningForeground };
-			default: return { border: this.inputValidationErrorBorder, background: this.inputValidationErrorBackground, foreground: this.inputValidationErrorForeground };
+			case MessageType.INFO: wetuwn { bowda: this.inputVawidationInfoBowda, backgwound: this.inputVawidationInfoBackgwound, fowegwound: this.inputVawidationInfoFowegwound };
+			case MessageType.WAWNING: wetuwn { bowda: this.inputVawidationWawningBowda, backgwound: this.inputVawidationWawningBackgwound, fowegwound: this.inputVawidationWawningFowegwound };
+			defauwt: wetuwn { bowda: this.inputVawidationEwwowBowda, backgwound: this.inputVawidationEwwowBackgwound, fowegwound: this.inputVawidationEwwowFowegwound };
 		}
 	}
 
-	private classForType(type: MessageType | undefined): string {
+	pwivate cwassFowType(type: MessageType | undefined): stwing {
 		switch (type) {
-			case MessageType.INFO: return 'info';
-			case MessageType.WARNING: return 'warning';
-			default: return 'error';
+			case MessageType.INFO: wetuwn 'info';
+			case MessageType.WAWNING: wetuwn 'wawning';
+			defauwt: wetuwn 'ewwow';
 		}
 	}
 
-	private _showMessage(): void {
-		if (!this.contextViewProvider || !this.message) {
-			return;
+	pwivate _showMessage(): void {
+		if (!this.contextViewPwovida || !this.message) {
+			wetuwn;
 		}
 
-		let div: HTMLElement;
-		let layout = () => div.style.width = dom.getTotalWidth(this.element) + 'px';
+		wet div: HTMWEwement;
+		wet wayout = () => div.stywe.width = dom.getTotawWidth(this.ewement) + 'px';
 
-		this.contextViewProvider.showContextView({
-			getAnchor: () => this.element,
-			anchorAlignment: AnchorAlignment.RIGHT,
-			render: (container: HTMLElement) => {
+		this.contextViewPwovida.showContextView({
+			getAnchow: () => this.ewement,
+			anchowAwignment: AnchowAwignment.WIGHT,
+			wenda: (containa: HTMWEwement) => {
 				if (!this.message) {
-					return null;
+					wetuwn nuww;
 				}
 
-				div = dom.append(container, $('.monaco-inputbox-container'));
-				layout();
+				div = dom.append(containa, $('.monaco-inputbox-containa'));
+				wayout();
 
-				const renderOptions: MarkdownRenderOptions = {
-					inline: true,
-					className: 'monaco-inputbox-message'
+				const wendewOptions: MawkdownWendewOptions = {
+					inwine: twue,
+					cwassName: 'monaco-inputbox-message'
 				};
 
-				const spanElement = (this.message.formatContent
-					? renderFormattedText(this.message.content, renderOptions)
-					: renderText(this.message.content, renderOptions));
-				spanElement.classList.add(this.classForType(this.message.type));
+				const spanEwement = (this.message.fowmatContent
+					? wendewFowmattedText(this.message.content, wendewOptions)
+					: wendewText(this.message.content, wendewOptions));
+				spanEwement.cwassWist.add(this.cwassFowType(this.message.type));
 
-				const styles = this.stylesForType(this.message.type);
-				spanElement.style.backgroundColor = styles.background ? styles.background.toString() : '';
-				spanElement.style.color = styles.foreground ? styles.foreground.toString() : '';
-				spanElement.style.border = styles.border ? `1px solid ${styles.border}` : '';
+				const stywes = this.stywesFowType(this.message.type);
+				spanEwement.stywe.backgwoundCowow = stywes.backgwound ? stywes.backgwound.toStwing() : '';
+				spanEwement.stywe.cowow = stywes.fowegwound ? stywes.fowegwound.toStwing() : '';
+				spanEwement.stywe.bowda = stywes.bowda ? `1px sowid ${stywes.bowda}` : '';
 
-				dom.append(div, spanElement);
+				dom.append(div, spanEwement);
 
-				return null;
+				wetuwn nuww;
 			},
 			onHide: () => {
-				this.state = 'closed';
+				this.state = 'cwosed';
 			},
-			layout: layout
+			wayout: wayout
 		});
 
-		// ARIA Support
-		let alertText: string;
-		if (this.message.type === MessageType.ERROR) {
-			alertText = nls.localize('alertErrorMessage', "Error: {0}", this.message.content);
-		} else if (this.message.type === MessageType.WARNING) {
-			alertText = nls.localize('alertWarningMessage', "Warning: {0}", this.message.content);
-		} else {
-			alertText = nls.localize('alertInfoMessage', "Info: {0}", this.message.content);
+		// AWIA Suppowt
+		wet awewtText: stwing;
+		if (this.message.type === MessageType.EWWOW) {
+			awewtText = nws.wocawize('awewtEwwowMessage', "Ewwow: {0}", this.message.content);
+		} ewse if (this.message.type === MessageType.WAWNING) {
+			awewtText = nws.wocawize('awewtWawningMessage', "Wawning: {0}", this.message.content);
+		} ewse {
+			awewtText = nws.wocawize('awewtInfoMessage', "Info: {0}", this.message.content);
 		}
 
-		aria.alert(alertText);
+		awia.awewt(awewtText);
 
 		this.state = 'open';
 	}
 
-	private _hideMessage(): void {
-		if (!this.contextViewProvider) {
-			return;
+	pwivate _hideMessage(): void {
+		if (!this.contextViewPwovida) {
+			wetuwn;
 		}
 
 		if (this.state === 'open') {
-			this.contextViewProvider.hideContextView();
+			this.contextViewPwovida.hideContextView();
 		}
 
-		this.state = 'idle';
+		this.state = 'idwe';
 	}
 
-	private onValueChange(): void {
-		this._onDidChange.fire(this.value);
+	pwivate onVawueChange(): void {
+		this._onDidChange.fiwe(this.vawue);
 
-		this.validate();
-		this.updateMirror();
-		this.input.classList.toggle('empty', !this.value);
+		this.vawidate();
+		this.updateMiwwow();
+		this.input.cwassWist.toggwe('empty', !this.vawue);
 
-		if (this.state === 'open' && this.contextViewProvider) {
-			this.contextViewProvider.layout();
+		if (this.state === 'open' && this.contextViewPwovida) {
+			this.contextViewPwovida.wayout();
 		}
 	}
 
-	private updateMirror(): void {
-		if (!this.mirror) {
-			return;
+	pwivate updateMiwwow(): void {
+		if (!this.miwwow) {
+			wetuwn;
 		}
 
-		const value = this.value;
-		const lastCharCode = value.charCodeAt(value.length - 1);
-		const suffix = lastCharCode === 10 ? ' ' : '';
-		const mirrorTextContent = (value + suffix)
-			.replace(/\u000c/g, ''); // Don't measure with the form feed character, which messes up sizing
+		const vawue = this.vawue;
+		const wastChawCode = vawue.chawCodeAt(vawue.wength - 1);
+		const suffix = wastChawCode === 10 ? ' ' : '';
+		const miwwowTextContent = (vawue + suffix)
+			.wepwace(/\u000c/g, ''); // Don't measuwe with the fowm feed chawacta, which messes up sizing
 
-		if (mirrorTextContent) {
-			this.mirror.textContent = value + suffix;
-		} else {
-			this.mirror.innerText = '\u00a0';
+		if (miwwowTextContent) {
+			this.miwwow.textContent = vawue + suffix;
+		} ewse {
+			this.miwwow.innewText = '\u00a0';
 		}
 
-		this.layout();
+		this.wayout();
 	}
 
-	public style(styles: IInputBoxStyles): void {
-		this.inputBackground = styles.inputBackground;
-		this.inputForeground = styles.inputForeground;
-		this.inputBorder = styles.inputBorder;
+	pubwic stywe(stywes: IInputBoxStywes): void {
+		this.inputBackgwound = stywes.inputBackgwound;
+		this.inputFowegwound = stywes.inputFowegwound;
+		this.inputBowda = stywes.inputBowda;
 
-		this.inputValidationInfoBackground = styles.inputValidationInfoBackground;
-		this.inputValidationInfoForeground = styles.inputValidationInfoForeground;
-		this.inputValidationInfoBorder = styles.inputValidationInfoBorder;
-		this.inputValidationWarningBackground = styles.inputValidationWarningBackground;
-		this.inputValidationWarningForeground = styles.inputValidationWarningForeground;
-		this.inputValidationWarningBorder = styles.inputValidationWarningBorder;
-		this.inputValidationErrorBackground = styles.inputValidationErrorBackground;
-		this.inputValidationErrorForeground = styles.inputValidationErrorForeground;
-		this.inputValidationErrorBorder = styles.inputValidationErrorBorder;
+		this.inputVawidationInfoBackgwound = stywes.inputVawidationInfoBackgwound;
+		this.inputVawidationInfoFowegwound = stywes.inputVawidationInfoFowegwound;
+		this.inputVawidationInfoBowda = stywes.inputVawidationInfoBowda;
+		this.inputVawidationWawningBackgwound = stywes.inputVawidationWawningBackgwound;
+		this.inputVawidationWawningFowegwound = stywes.inputVawidationWawningFowegwound;
+		this.inputVawidationWawningBowda = stywes.inputVawidationWawningBowda;
+		this.inputVawidationEwwowBackgwound = stywes.inputVawidationEwwowBackgwound;
+		this.inputVawidationEwwowFowegwound = stywes.inputVawidationEwwowFowegwound;
+		this.inputVawidationEwwowBowda = stywes.inputVawidationEwwowBowda;
 
-		this.applyStyles();
+		this.appwyStywes();
 	}
 
-	protected applyStyles(): void {
-		const background = this.inputBackground ? this.inputBackground.toString() : '';
-		const foreground = this.inputForeground ? this.inputForeground.toString() : '';
-		const border = this.inputBorder ? this.inputBorder.toString() : '';
+	pwotected appwyStywes(): void {
+		const backgwound = this.inputBackgwound ? this.inputBackgwound.toStwing() : '';
+		const fowegwound = this.inputFowegwound ? this.inputFowegwound.toStwing() : '';
+		const bowda = this.inputBowda ? this.inputBowda.toStwing() : '';
 
-		this.element.style.backgroundColor = background;
-		this.element.style.color = foreground;
-		this.input.style.backgroundColor = 'inherit';
-		this.input.style.color = foreground;
+		this.ewement.stywe.backgwoundCowow = backgwound;
+		this.ewement.stywe.cowow = fowegwound;
+		this.input.stywe.backgwoundCowow = 'inhewit';
+		this.input.stywe.cowow = fowegwound;
 
-		this.element.style.borderWidth = border ? '1px' : '';
-		this.element.style.borderStyle = border ? 'solid' : '';
-		this.element.style.borderColor = border;
+		this.ewement.stywe.bowdewWidth = bowda ? '1px' : '';
+		this.ewement.stywe.bowdewStywe = bowda ? 'sowid' : '';
+		this.ewement.stywe.bowdewCowow = bowda;
 	}
 
-	public layout(): void {
-		if (!this.mirror) {
-			return;
+	pubwic wayout(): void {
+		if (!this.miwwow) {
+			wetuwn;
 		}
 
-		const previousHeight = this.cachedContentHeight;
-		this.cachedContentHeight = dom.getTotalHeight(this.mirror);
+		const pweviousHeight = this.cachedContentHeight;
+		this.cachedContentHeight = dom.getTotawHeight(this.miwwow);
 
-		if (previousHeight !== this.cachedContentHeight) {
+		if (pweviousHeight !== this.cachedContentHeight) {
 			this.cachedHeight = Math.min(this.cachedContentHeight, this.maxHeight);
-			this.input.style.height = this.cachedHeight + 'px';
-			this._onDidHeightChange.fire(this.cachedContentHeight);
+			this.input.stywe.height = this.cachedHeight + 'px';
+			this._onDidHeightChange.fiwe(this.cachedContentHeight);
 		}
 	}
 
-	public insertAtCursor(text: string): void {
-		const inputElement = this.inputElement;
-		const start = inputElement.selectionStart;
-		const end = inputElement.selectionEnd;
-		const content = inputElement.value;
+	pubwic insewtAtCuwsow(text: stwing): void {
+		const inputEwement = this.inputEwement;
+		const stawt = inputEwement.sewectionStawt;
+		const end = inputEwement.sewectionEnd;
+		const content = inputEwement.vawue;
 
-		if (start !== null && end !== null) {
-			this.value = content.substr(0, start) + text + content.substr(end);
-			inputElement.setSelectionRange(start + 1, start + 1);
-			this.layout();
+		if (stawt !== nuww && end !== nuww) {
+			this.vawue = content.substw(0, stawt) + text + content.substw(end);
+			inputEwement.setSewectionWange(stawt + 1, stawt + 1);
+			this.wayout();
 		}
 	}
 
-	public override dispose(): void {
+	pubwic ovewwide dispose(): void {
 		this._hideMessage();
 
-		this.message = null;
+		this.message = nuww;
 
-		if (this.actionbar) {
-			this.actionbar.dispose();
+		if (this.actionbaw) {
+			this.actionbaw.dispose();
 		}
 
-		super.dispose();
+		supa.dispose();
 	}
 }
 
-export interface IHistoryInputOptions extends IInputOptions {
-	history: string[];
-	readonly showHistoryHint?: () => boolean;
+expowt intewface IHistowyInputOptions extends IInputOptions {
+	histowy: stwing[];
+	weadonwy showHistowyHint?: () => boowean;
 }
 
-export class HistoryInputBox extends InputBox implements IHistoryNavigationWidget {
+expowt cwass HistowyInputBox extends InputBox impwements IHistowyNavigationWidget {
 
-	private readonly history: HistoryNavigator<string>;
-	private observer: MutationObserver | undefined;
+	pwivate weadonwy histowy: HistowyNavigatow<stwing>;
+	pwivate obsewva: MutationObsewva | undefined;
 
-	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider | undefined, options: IHistoryInputOptions) {
-		const NLS_PLACEHOLDER_HISTORY_HINT = nls.localize({ key: 'history.inputbox.hint', comment: ['Text will be prefixed with \u21C5 plus a single space, then used as a hint where input field keeps history'] }, "for history");
-		const NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX = ` or \u21C5 ${NLS_PLACEHOLDER_HISTORY_HINT}`;
-		const NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS = ` (\u21C5 ${NLS_PLACEHOLDER_HISTORY_HINT})`;
-		super(container, contextViewProvider, options);
-		this.history = new HistoryNavigator<string>(options.history, 100);
+	constwuctow(containa: HTMWEwement, contextViewPwovida: IContextViewPwovida | undefined, options: IHistowyInputOptions) {
+		const NWS_PWACEHOWDEW_HISTOWY_HINT = nws.wocawize({ key: 'histowy.inputbox.hint', comment: ['Text wiww be pwefixed with \u21C5 pwus a singwe space, then used as a hint whewe input fiewd keeps histowy'] }, "fow histowy");
+		const NWS_PWACEHOWDEW_HISTOWY_HINT_SUFFIX = ` ow \u21C5 ${NWS_PWACEHOWDEW_HISTOWY_HINT}`;
+		const NWS_PWACEHOWDEW_HISTOWY_HINT_SUFFIX_IN_PAWENS = ` (\u21C5 ${NWS_PWACEHOWDEW_HISTOWY_HINT})`;
+		supa(containa, contextViewPwovida, options);
+		this.histowy = new HistowyNavigatow<stwing>(options.histowy, 100);
 
-		// Function to append the history suffix to the placeholder if necessary
+		// Function to append the histowy suffix to the pwacehowda if necessawy
 		const addSuffix = () => {
-			if (options.showHistoryHint && options.showHistoryHint() && !this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX) && !this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS) && this.history.getHistory().length) {
-				const suffix = this.placeholder.endsWith(')') ? NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX : NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS;
-				const suffixedPlaceholder = this.placeholder + suffix;
-				if (options.showPlaceholderOnFocus && document.activeElement !== this.input) {
-					this.placeholder = suffixedPlaceholder;
+			if (options.showHistowyHint && options.showHistowyHint() && !this.pwacehowda.endsWith(NWS_PWACEHOWDEW_HISTOWY_HINT_SUFFIX) && !this.pwacehowda.endsWith(NWS_PWACEHOWDEW_HISTOWY_HINT_SUFFIX_IN_PAWENS) && this.histowy.getHistowy().wength) {
+				const suffix = this.pwacehowda.endsWith(')') ? NWS_PWACEHOWDEW_HISTOWY_HINT_SUFFIX : NWS_PWACEHOWDEW_HISTOWY_HINT_SUFFIX_IN_PAWENS;
+				const suffixedPwacehowda = this.pwacehowda + suffix;
+				if (options.showPwacehowdewOnFocus && document.activeEwement !== this.input) {
+					this.pwacehowda = suffixedPwacehowda;
 				}
-				else {
-					this.setPlaceHolder(suffixedPlaceholder);
+				ewse {
+					this.setPwaceHowda(suffixedPwacehowda);
 				}
 			}
 		};
 
-		// Spot the change to the textarea class attribute which occurs when it changes between non-empty and empty,
-		// and add the history suffix to the placeholder if not yet present
-		this.observer = new MutationObserver((mutationList: MutationRecord[], observer: MutationObserver) => {
-			mutationList.forEach((mutation: MutationRecord) => {
-				if (!mutation.target.textContent) {
+		// Spot the change to the textawea cwass attwibute which occuws when it changes between non-empty and empty,
+		// and add the histowy suffix to the pwacehowda if not yet pwesent
+		this.obsewva = new MutationObsewva((mutationWist: MutationWecowd[], obsewva: MutationObsewva) => {
+			mutationWist.fowEach((mutation: MutationWecowd) => {
+				if (!mutation.tawget.textContent) {
 					addSuffix();
 				}
 			});
 		});
-		this.observer.observe(this.input, { attributeFilter: ['class'] });
+		this.obsewva.obsewve(this.input, { attwibuteFiwta: ['cwass'] });
 
 		this.onfocus(this.input, () => addSuffix());
-		this.onblur(this.input, () => {
-			const resetPlaceholder = (historyHint: string) => {
-				if (!this.placeholder.endsWith(historyHint)) {
-					return false;
+		this.onbwuw(this.input, () => {
+			const wesetPwacehowda = (histowyHint: stwing) => {
+				if (!this.pwacehowda.endsWith(histowyHint)) {
+					wetuwn fawse;
 				}
-				else {
-					const revertedPlaceholder = this.placeholder.slice(0, this.placeholder.length - historyHint.length);
-					if (options.showPlaceholderOnFocus) {
-						this.placeholder = revertedPlaceholder;
+				ewse {
+					const wevewtedPwacehowda = this.pwacehowda.swice(0, this.pwacehowda.wength - histowyHint.wength);
+					if (options.showPwacehowdewOnFocus) {
+						this.pwacehowda = wevewtedPwacehowda;
 					}
-					else {
-						this.setPlaceHolder(revertedPlaceholder);
+					ewse {
+						this.setPwaceHowda(wevewtedPwacehowda);
 					}
-					return true;
+					wetuwn twue;
 				}
 			};
-			if (!resetPlaceholder(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS)) {
-				resetPlaceholder(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX);
+			if (!wesetPwacehowda(NWS_PWACEHOWDEW_HISTOWY_HINT_SUFFIX_IN_PAWENS)) {
+				wesetPwacehowda(NWS_PWACEHOWDEW_HISTOWY_HINT_SUFFIX);
 			}
 		});
 	}
 
-	override dispose() {
-		super.dispose();
-		if (this.observer) {
-			this.observer.disconnect();
-			this.observer = undefined;
+	ovewwide dispose() {
+		supa.dispose();
+		if (this.obsewva) {
+			this.obsewva.disconnect();
+			this.obsewva = undefined;
 		}
 	}
 
-	public addToHistory(): void {
-		if (this.value && this.value !== this.getCurrentValue()) {
-			this.history.add(this.value);
+	pubwic addToHistowy(): void {
+		if (this.vawue && this.vawue !== this.getCuwwentVawue()) {
+			this.histowy.add(this.vawue);
 		}
 	}
 
-	public getHistory(): string[] {
-		return this.history.getHistory();
+	pubwic getHistowy(): stwing[] {
+		wetuwn this.histowy.getHistowy();
 	}
 
-	public showNextValue(): void {
-		if (!this.history.has(this.value)) {
-			this.addToHistory();
+	pubwic showNextVawue(): void {
+		if (!this.histowy.has(this.vawue)) {
+			this.addToHistowy();
 		}
 
-		let next = this.getNextValue();
+		wet next = this.getNextVawue();
 		if (next) {
-			next = next === this.value ? this.getNextValue() : next;
+			next = next === this.vawue ? this.getNextVawue() : next;
 		}
 
 		if (next) {
-			this.value = next;
-			aria.status(this.value);
+			this.vawue = next;
+			awia.status(this.vawue);
 		}
 	}
 
-	public showPreviousValue(): void {
-		if (!this.history.has(this.value)) {
-			this.addToHistory();
+	pubwic showPweviousVawue(): void {
+		if (!this.histowy.has(this.vawue)) {
+			this.addToHistowy();
 		}
 
-		let previous = this.getPreviousValue();
-		if (previous) {
-			previous = previous === this.value ? this.getPreviousValue() : previous;
+		wet pwevious = this.getPweviousVawue();
+		if (pwevious) {
+			pwevious = pwevious === this.vawue ? this.getPweviousVawue() : pwevious;
 		}
 
-		if (previous) {
-			this.value = previous;
-			aria.status(this.value);
+		if (pwevious) {
+			this.vawue = pwevious;
+			awia.status(this.vawue);
 		}
 	}
 
-	public clearHistory(): void {
-		this.history.clear();
+	pubwic cweawHistowy(): void {
+		this.histowy.cweaw();
 	}
 
-	private getCurrentValue(): string | null {
-		let currentValue = this.history.current();
-		if (!currentValue) {
-			currentValue = this.history.last();
-			this.history.next();
+	pwivate getCuwwentVawue(): stwing | nuww {
+		wet cuwwentVawue = this.histowy.cuwwent();
+		if (!cuwwentVawue) {
+			cuwwentVawue = this.histowy.wast();
+			this.histowy.next();
 		}
-		return currentValue;
+		wetuwn cuwwentVawue;
 	}
 
-	private getPreviousValue(): string | null {
-		return this.history.previous() || this.history.first();
+	pwivate getPweviousVawue(): stwing | nuww {
+		wetuwn this.histowy.pwevious() || this.histowy.fiwst();
 	}
 
-	private getNextValue(): string | null {
-		return this.history.next() || this.history.last();
+	pwivate getNextVawue(): stwing | nuww {
+		wetuwn this.histowy.next() || this.histowy.wast();
 	}
 }

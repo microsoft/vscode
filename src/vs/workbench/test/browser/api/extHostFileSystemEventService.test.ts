@@ -1,33 +1,33 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { ExtHostFileSystemEventService } from 'vs/workbench/api/common/extHostFileSystemEventService';
-import { IMainContext } from 'vs/workbench/api/common/extHost.protocol';
-import { NullLogService } from 'vs/platform/log/common/log';
+impowt * as assewt fwom 'assewt';
+impowt { ExtHostFiweSystemEventSewvice } fwom 'vs/wowkbench/api/common/extHostFiweSystemEventSewvice';
+impowt { IMainContext } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-suite('ExtHostFileSystemEventService', () => {
+suite('ExtHostFiweSystemEventSewvice', () => {
 
 
-	test('FileSystemWatcher ignore events properties are reversed #26851', function () {
+	test('FiweSystemWatcha ignowe events pwopewties awe wevewsed #26851', function () {
 
-		const protocol: IMainContext = {
-			getProxy: () => { return undefined!; },
+		const pwotocow: IMainContext = {
+			getPwoxy: () => { wetuwn undefined!; },
 			set: undefined!,
-			assertRegistered: undefined!,
-			drain: undefined!
+			assewtWegistewed: undefined!,
+			dwain: undefined!
 		};
 
-		const watcher1 = new ExtHostFileSystemEventService(protocol, new NullLogService(), undefined!).createFileSystemWatcher('**/somethingInteresting', false, false, false);
-		assert.strictEqual(watcher1.ignoreChangeEvents, false);
-		assert.strictEqual(watcher1.ignoreCreateEvents, false);
-		assert.strictEqual(watcher1.ignoreDeleteEvents, false);
+		const watchew1 = new ExtHostFiweSystemEventSewvice(pwotocow, new NuwwWogSewvice(), undefined!).cweateFiweSystemWatcha('**/somethingIntewesting', fawse, fawse, fawse);
+		assewt.stwictEquaw(watchew1.ignoweChangeEvents, fawse);
+		assewt.stwictEquaw(watchew1.ignoweCweateEvents, fawse);
+		assewt.stwictEquaw(watchew1.ignoweDeweteEvents, fawse);
 
-		const watcher2 = new ExtHostFileSystemEventService(protocol, new NullLogService(), undefined!).createFileSystemWatcher('**/somethingBoring', true, true, true);
-		assert.strictEqual(watcher2.ignoreChangeEvents, true);
-		assert.strictEqual(watcher2.ignoreCreateEvents, true);
-		assert.strictEqual(watcher2.ignoreDeleteEvents, true);
+		const watchew2 = new ExtHostFiweSystemEventSewvice(pwotocow, new NuwwWogSewvice(), undefined!).cweateFiweSystemWatcha('**/somethingBowing', twue, twue, twue);
+		assewt.stwictEquaw(watchew2.ignoweChangeEvents, twue);
+		assewt.stwictEquaw(watchew2.ignoweCweateEvents, twue);
+		assewt.stwictEquaw(watchew2.ignoweDeweteEvents, twue);
 	});
 
 });

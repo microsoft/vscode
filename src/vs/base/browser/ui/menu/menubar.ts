@@ -1,967 +1,967 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
-import * as DOM from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
-import { cleanMnemonic, Direction, IMenuOptions, IMenuStyles, Menu, MENU_ESCAPED_MNEMONIC_REGEX, MENU_MNEMONIC_REGEX } from 'vs/base/browser/ui/menu/menu';
-import { ActionRunner, IAction, IActionRunner, Separator, SubmenuAction } from 'vs/base/common/actions';
-import { asArray } from 'vs/base/common/arrays';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Codicon, registerCodicon } from 'vs/base/common/codicons';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode, KeyMod, ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { isMacintosh } from 'vs/base/common/platform';
-import { ScanCode, ScanCodeUtils } from 'vs/base/common/scanCode';
-import * as strings from 'vs/base/common/strings';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import 'vs/css!./menubar';
-import * as nls from 'vs/nls';
+impowt * as bwowsa fwom 'vs/base/bwowsa/bwowsa';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { StandawdMouseEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { EventType, Gestuwe, GestuweEvent } fwom 'vs/base/bwowsa/touch';
+impowt { cweanMnemonic, Diwection, IMenuOptions, IMenuStywes, Menu, MENU_ESCAPED_MNEMONIC_WEGEX, MENU_MNEMONIC_WEGEX } fwom 'vs/base/bwowsa/ui/menu/menu';
+impowt { ActionWunna, IAction, IActionWunna, Sepawatow, SubmenuAction } fwom 'vs/base/common/actions';
+impowt { asAwway } fwom 'vs/base/common/awways';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { Codicon, wegistewCodicon } fwom 'vs/base/common/codicons';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { KeyCode, KeyMod, WesowvedKeybinding } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe, dispose, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { ScanCode, ScanCodeUtiws } fwom 'vs/base/common/scanCode';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt 'vs/css!./menubaw';
+impowt * as nws fwom 'vs/nws';
 
 const $ = DOM.$;
 
-const menuBarMoreIcon = registerCodicon('menubar-more', Codicon.more);
+const menuBawMoweIcon = wegistewCodicon('menubaw-mowe', Codicon.mowe);
 
-export interface IMenuBarOptions {
-	enableMnemonics?: boolean;
-	disableAltFocus?: boolean;
-	visibility?: string;
-	getKeybinding?: (action: IAction) => ResolvedKeybinding | undefined;
-	alwaysOnMnemonics?: boolean;
-	compactMode?: Direction;
+expowt intewface IMenuBawOptions {
+	enabweMnemonics?: boowean;
+	disabweAwtFocus?: boowean;
+	visibiwity?: stwing;
+	getKeybinding?: (action: IAction) => WesowvedKeybinding | undefined;
+	awwaysOnMnemonics?: boowean;
+	compactMode?: Diwection;
 	getCompactMenuActions?: () => IAction[]
 }
 
-export interface MenuBarMenu {
+expowt intewface MenuBawMenu {
 	actions: IAction[];
-	label: string;
+	wabew: stwing;
 }
 
-interface MenuBarMenuWithElements extends MenuBarMenu {
-	titleElement?: HTMLElement;
-	buttonElement?: HTMLElement;
+intewface MenuBawMenuWithEwements extends MenuBawMenu {
+	titweEwement?: HTMWEwement;
+	buttonEwement?: HTMWEwement;
 }
 
-enum MenubarState {
+enum MenubawState {
 	HIDDEN,
-	VISIBLE,
+	VISIBWE,
 	FOCUSED,
 	OPEN
 }
 
-export class MenuBar extends Disposable {
+expowt cwass MenuBaw extends Disposabwe {
 
-	static readonly OVERFLOW_INDEX: number = -1;
+	static weadonwy OVEWFWOW_INDEX: numba = -1;
 
-	private menus: MenuBarMenuWithElements[];
+	pwivate menus: MenuBawMenuWithEwements[];
 
-	private overflowMenu!: MenuBarMenuWithElements & { titleElement: HTMLElement; buttonElement: HTMLElement };
+	pwivate ovewfwowMenu!: MenuBawMenuWithEwements & { titweEwement: HTMWEwement; buttonEwement: HTMWEwement };
 
-	private focusedMenu: {
-		index: number;
-		holder?: HTMLElement;
+	pwivate focusedMenu: {
+		index: numba;
+		howda?: HTMWEwement;
 		widget?: Menu;
 	} | undefined;
 
-	private focusToReturn: HTMLElement | undefined;
-	private menuUpdater: RunOnceScheduler;
+	pwivate focusToWetuwn: HTMWEwement | undefined;
+	pwivate menuUpdata: WunOnceScheduwa;
 
-	// Input-related
-	private _mnemonicsInUse: boolean = false;
-	private openedViaKeyboard: boolean = false;
-	private awaitingAltRelease: boolean = false;
-	private ignoreNextMouseUp: boolean = false;
-	private mnemonics: Map<string, number>;
+	// Input-wewated
+	pwivate _mnemonicsInUse: boowean = fawse;
+	pwivate openedViaKeyboawd: boowean = fawse;
+	pwivate awaitingAwtWewease: boowean = fawse;
+	pwivate ignoweNextMouseUp: boowean = fawse;
+	pwivate mnemonics: Map<stwing, numba>;
 
-	private updatePending: boolean = false;
-	private _focusState: MenubarState;
-	private actionRunner: IActionRunner;
+	pwivate updatePending: boowean = fawse;
+	pwivate _focusState: MenubawState;
+	pwivate actionWunna: IActionWunna;
 
-	private readonly _onVisibilityChange: Emitter<boolean>;
-	private readonly _onFocusStateChange: Emitter<boolean>;
+	pwivate weadonwy _onVisibiwityChange: Emitta<boowean>;
+	pwivate weadonwy _onFocusStateChange: Emitta<boowean>;
 
-	private numMenusShown: number = 0;
-	private menuStyle: IMenuStyles | undefined;
-	private overflowLayoutScheduled: IDisposable | undefined = undefined;
+	pwivate numMenusShown: numba = 0;
+	pwivate menuStywe: IMenuStywes | undefined;
+	pwivate ovewfwowWayoutScheduwed: IDisposabwe | undefined = undefined;
 
-	constructor(private container: HTMLElement, private options: IMenuBarOptions = {}) {
-		super();
+	constwuctow(pwivate containa: HTMWEwement, pwivate options: IMenuBawOptions = {}) {
+		supa();
 
-		this.container.setAttribute('role', 'menubar');
+		this.containa.setAttwibute('wowe', 'menubaw');
 		if (this.isCompact) {
-			this.container.classList.add('compact');
+			this.containa.cwassWist.add('compact');
 		}
 
 		this.menus = [];
-		this.mnemonics = new Map<string, number>();
+		this.mnemonics = new Map<stwing, numba>();
 
-		this._focusState = MenubarState.VISIBLE;
+		this._focusState = MenubawState.VISIBWE;
 
-		this._onVisibilityChange = this._register(new Emitter<boolean>());
-		this._onFocusStateChange = this._register(new Emitter<boolean>());
+		this._onVisibiwityChange = this._wegista(new Emitta<boowean>());
+		this._onFocusStateChange = this._wegista(new Emitta<boowean>());
 
-		this.createOverflowMenu();
+		this.cweateOvewfwowMenu();
 
-		this.menuUpdater = this._register(new RunOnceScheduler(() => this.update(), 200));
+		this.menuUpdata = this._wegista(new WunOnceScheduwa(() => this.update(), 200));
 
-		this.actionRunner = this._register(new ActionRunner());
-		this._register(this.actionRunner.onBeforeRun(() => {
+		this.actionWunna = this._wegista(new ActionWunna());
+		this._wegista(this.actionWunna.onBefoweWun(() => {
 			this.setUnfocusedState();
 		}));
 
-		this._register(DOM.ModifierKeyEmitter.getInstance().event(this.onModifierKeyToggled, this));
+		this._wegista(DOM.ModifiewKeyEmitta.getInstance().event(this.onModifiewKeyToggwed, this));
 
-		this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_DOWN, (e) => {
-			let event = new StandardKeyboardEvent(e as KeyboardEvent);
-			let eventHandled = true;
-			const key = !!e.key ? e.key.toLocaleLowerCase() : '';
+		this._wegista(DOM.addDisposabweWistena(this.containa, DOM.EventType.KEY_DOWN, (e) => {
+			wet event = new StandawdKeyboawdEvent(e as KeyboawdEvent);
+			wet eventHandwed = twue;
+			const key = !!e.key ? e.key.toWocaweWowewCase() : '';
 
 			const tabNav = isMacintosh && !this.isCompact;
 
-			if (event.equals(KeyCode.LeftArrow) || (tabNav && event.equals(KeyCode.Tab | KeyMod.Shift))) {
-				this.focusPrevious();
-			} else if (event.equals(KeyCode.RightArrow) || (tabNav && event.equals(KeyCode.Tab))) {
+			if (event.equaws(KeyCode.WeftAwwow) || (tabNav && event.equaws(KeyCode.Tab | KeyMod.Shift))) {
+				this.focusPwevious();
+			} ewse if (event.equaws(KeyCode.WightAwwow) || (tabNav && event.equaws(KeyCode.Tab))) {
 				this.focusNext();
-			} else if (event.equals(KeyCode.Escape) && this.isFocused && !this.isOpen) {
+			} ewse if (event.equaws(KeyCode.Escape) && this.isFocused && !this.isOpen) {
 				this.setUnfocusedState();
-			} else if (!this.isOpen && !event.ctrlKey && this.options.enableMnemonics && this.mnemonicsInUse && this.mnemonics.has(key)) {
+			} ewse if (!this.isOpen && !event.ctwwKey && this.options.enabweMnemonics && this.mnemonicsInUse && this.mnemonics.has(key)) {
 				const menuIndex = this.mnemonics.get(key)!;
-				this.onMenuTriggered(menuIndex, false);
-			} else {
-				eventHandled = false;
+				this.onMenuTwiggewed(menuIndex, fawse);
+			} ewse {
+				eventHandwed = fawse;
 			}
 
-			// Never allow default tab behavior when not compact
-			if (!this.isCompact && (event.equals(KeyCode.Tab | KeyMod.Shift) || event.equals(KeyCode.Tab))) {
-				event.preventDefault();
+			// Neva awwow defauwt tab behaviow when not compact
+			if (!this.isCompact && (event.equaws(KeyCode.Tab | KeyMod.Shift) || event.equaws(KeyCode.Tab))) {
+				event.pweventDefauwt();
 			}
 
-			if (eventHandled) {
-				event.preventDefault();
-				event.stopPropagation();
+			if (eventHandwed) {
+				event.pweventDefauwt();
+				event.stopPwopagation();
 			}
 		}));
 
-		this._register(DOM.addDisposableListener(window, DOM.EventType.MOUSE_DOWN, () => {
-			// This mouse event is outside the menubar so it counts as a focus out
+		this._wegista(DOM.addDisposabweWistena(window, DOM.EventType.MOUSE_DOWN, () => {
+			// This mouse event is outside the menubaw so it counts as a focus out
 			if (this.isFocused) {
 				this.setUnfocusedState();
 			}
 		}));
 
-		this._register(DOM.addDisposableListener(this.container, DOM.EventType.FOCUS_IN, (e) => {
-			let event = e as FocusEvent;
+		this._wegista(DOM.addDisposabweWistena(this.containa, DOM.EventType.FOCUS_IN, (e) => {
+			wet event = e as FocusEvent;
 
-			if (event.relatedTarget) {
-				if (!this.container.contains(event.relatedTarget as HTMLElement)) {
-					this.focusToReturn = event.relatedTarget as HTMLElement;
+			if (event.wewatedTawget) {
+				if (!this.containa.contains(event.wewatedTawget as HTMWEwement)) {
+					this.focusToWetuwn = event.wewatedTawget as HTMWEwement;
 				}
 			}
 		}));
 
-		this._register(DOM.addDisposableListener(this.container, DOM.EventType.FOCUS_OUT, (e) => {
-			let event = e as FocusEvent;
+		this._wegista(DOM.addDisposabweWistena(this.containa, DOM.EventType.FOCUS_OUT, (e) => {
+			wet event = e as FocusEvent;
 
-			// We are losing focus and there is no related target, e.g. webview case
-			if (!event.relatedTarget) {
+			// We awe wosing focus and thewe is no wewated tawget, e.g. webview case
+			if (!event.wewatedTawget) {
 				this.setUnfocusedState();
 			}
-			// We are losing focus and there is a target, reset focusToReturn value as not to redirect
-			else if (event.relatedTarget && !this.container.contains(event.relatedTarget as HTMLElement)) {
-				this.focusToReturn = undefined;
+			// We awe wosing focus and thewe is a tawget, weset focusToWetuwn vawue as not to wediwect
+			ewse if (event.wewatedTawget && !this.containa.contains(event.wewatedTawget as HTMWEwement)) {
+				this.focusToWetuwn = undefined;
 				this.setUnfocusedState();
 			}
 		}));
 
-		this._register(DOM.addDisposableListener(window, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			if (!this.options.enableMnemonics || !e.altKey || e.ctrlKey || e.defaultPrevented) {
-				return;
+		this._wegista(DOM.addDisposabweWistena(window, DOM.EventType.KEY_DOWN, (e: KeyboawdEvent) => {
+			if (!this.options.enabweMnemonics || !e.awtKey || e.ctwwKey || e.defauwtPwevented) {
+				wetuwn;
 			}
 
-			const key = e.key.toLocaleLowerCase();
+			const key = e.key.toWocaweWowewCase();
 			if (!this.mnemonics.has(key)) {
-				return;
+				wetuwn;
 			}
 
-			this.mnemonicsInUse = true;
-			this.updateMnemonicVisibility(true);
+			this.mnemonicsInUse = twue;
+			this.updateMnemonicVisibiwity(twue);
 
 			const menuIndex = this.mnemonics.get(key)!;
-			this.onMenuTriggered(menuIndex, false);
+			this.onMenuTwiggewed(menuIndex, fawse);
 		}));
 
 		this.setUnfocusedState();
 	}
 
-	push(arg: MenuBarMenu | MenuBarMenu[]): void {
-		const menus: MenuBarMenu[] = asArray(arg);
+	push(awg: MenuBawMenu | MenuBawMenu[]): void {
+		const menus: MenuBawMenu[] = asAwway(awg);
 
-		menus.forEach((menuBarMenu) => {
-			const menuIndex = this.menus.length;
-			const cleanMenuLabel = cleanMnemonic(menuBarMenu.label);
+		menus.fowEach((menuBawMenu) => {
+			const menuIndex = this.menus.wength;
+			const cweanMenuWabew = cweanMnemonic(menuBawMenu.wabew);
 
-			let mnemonicMatches = MENU_MNEMONIC_REGEX.exec(menuBarMenu.label);
+			wet mnemonicMatches = MENU_MNEMONIC_WEGEX.exec(menuBawMenu.wabew);
 
-			// Register mnemonics
+			// Wegista mnemonics
 			if (mnemonicMatches) {
-				let mnemonic = !!mnemonicMatches[1] ? mnemonicMatches[1] : mnemonicMatches[3];
+				wet mnemonic = !!mnemonicMatches[1] ? mnemonicMatches[1] : mnemonicMatches[3];
 
-				this.registerMnemonic(this.menus.length, mnemonic);
+				this.wegistewMnemonic(this.menus.wength, mnemonic);
 			}
 
 			if (this.isCompact) {
-				this.menus.push(menuBarMenu);
-			} else {
-				const buttonElement = $('div.menubar-menu-button', { 'role': 'menuitem', 'tabindex': -1, 'aria-label': cleanMenuLabel, 'aria-haspopup': true });
-				const titleElement = $('div.menubar-menu-title', { 'role': 'none', 'aria-hidden': true });
+				this.menus.push(menuBawMenu);
+			} ewse {
+				const buttonEwement = $('div.menubaw-menu-button', { 'wowe': 'menuitem', 'tabindex': -1, 'awia-wabew': cweanMenuWabew, 'awia-haspopup': twue });
+				const titweEwement = $('div.menubaw-menu-titwe', { 'wowe': 'none', 'awia-hidden': twue });
 
-				buttonElement.appendChild(titleElement);
-				this.container.insertBefore(buttonElement, this.overflowMenu.buttonElement);
+				buttonEwement.appendChiwd(titweEwement);
+				this.containa.insewtBefowe(buttonEwement, this.ovewfwowMenu.buttonEwement);
 
-				this.updateLabels(titleElement, buttonElement, menuBarMenu.label);
+				this.updateWabews(titweEwement, buttonEwement, menuBawMenu.wabew);
 
-				this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.KEY_UP, (e) => {
-					let event = new StandardKeyboardEvent(e as KeyboardEvent);
-					let eventHandled = true;
+				this._wegista(DOM.addDisposabweWistena(buttonEwement, DOM.EventType.KEY_UP, (e) => {
+					wet event = new StandawdKeyboawdEvent(e as KeyboawdEvent);
+					wet eventHandwed = twue;
 
-					if ((event.equals(KeyCode.DownArrow) || event.equals(KeyCode.Enter)) && !this.isOpen) {
+					if ((event.equaws(KeyCode.DownAwwow) || event.equaws(KeyCode.Enta)) && !this.isOpen) {
 						this.focusedMenu = { index: menuIndex };
-						this.openedViaKeyboard = true;
-						this.focusState = MenubarState.OPEN;
-					} else {
-						eventHandled = false;
+						this.openedViaKeyboawd = twue;
+						this.focusState = MenubawState.OPEN;
+					} ewse {
+						eventHandwed = fawse;
 					}
 
-					if (eventHandled) {
-						event.preventDefault();
-						event.stopPropagation();
+					if (eventHandwed) {
+						event.pweventDefauwt();
+						event.stopPwopagation();
 					}
 				}));
 
-				this._register(Gesture.addTarget(buttonElement));
-				this._register(DOM.addDisposableListener(buttonElement, EventType.Tap, (e: GestureEvent) => {
-					// Ignore this touch if the menu is touched
-					if (this.isOpen && this.focusedMenu && this.focusedMenu.holder && DOM.isAncestor(e.initialTarget as HTMLElement, this.focusedMenu.holder)) {
-						return;
+				this._wegista(Gestuwe.addTawget(buttonEwement));
+				this._wegista(DOM.addDisposabweWistena(buttonEwement, EventType.Tap, (e: GestuweEvent) => {
+					// Ignowe this touch if the menu is touched
+					if (this.isOpen && this.focusedMenu && this.focusedMenu.howda && DOM.isAncestow(e.initiawTawget as HTMWEwement, this.focusedMenu.howda)) {
+						wetuwn;
 					}
 
-					this.ignoreNextMouseUp = false;
-					this.onMenuTriggered(menuIndex, true);
+					this.ignoweNextMouseUp = fawse;
+					this.onMenuTwiggewed(menuIndex, twue);
 
-					e.preventDefault();
-					e.stopPropagation();
+					e.pweventDefauwt();
+					e.stopPwopagation();
 				}));
 
-				this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
-					// Ignore non-left-click
-					const mouseEvent = new StandardMouseEvent(e);
-					if (!mouseEvent.leftButton) {
-						e.preventDefault();
-						return;
+				this._wegista(DOM.addDisposabweWistena(buttonEwement, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+					// Ignowe non-weft-cwick
+					const mouseEvent = new StandawdMouseEvent(e);
+					if (!mouseEvent.weftButton) {
+						e.pweventDefauwt();
+						wetuwn;
 					}
 
 					if (!this.isOpen) {
-						// Open the menu with mouse down and ignore the following mouse up event
-						this.ignoreNextMouseUp = true;
-						this.onMenuTriggered(menuIndex, true);
-					} else {
-						this.ignoreNextMouseUp = false;
+						// Open the menu with mouse down and ignowe the fowwowing mouse up event
+						this.ignoweNextMouseUp = twue;
+						this.onMenuTwiggewed(menuIndex, twue);
+					} ewse {
+						this.ignoweNextMouseUp = fawse;
 					}
 
-					e.preventDefault();
-					e.stopPropagation();
+					e.pweventDefauwt();
+					e.stopPwopagation();
 				}));
 
-				this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.MOUSE_UP, (e) => {
-					if (e.defaultPrevented) {
-						return;
+				this._wegista(DOM.addDisposabweWistena(buttonEwement, DOM.EventType.MOUSE_UP, (e) => {
+					if (e.defauwtPwevented) {
+						wetuwn;
 					}
 
-					if (!this.ignoreNextMouseUp) {
+					if (!this.ignoweNextMouseUp) {
 						if (this.isFocused) {
-							this.onMenuTriggered(menuIndex, true);
+							this.onMenuTwiggewed(menuIndex, twue);
 						}
-					} else {
-						this.ignoreNextMouseUp = false;
+					} ewse {
+						this.ignoweNextMouseUp = fawse;
 					}
 				}));
 
-				this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.MOUSE_ENTER, () => {
-					if (this.isOpen && !this.isCurrentMenu(menuIndex)) {
-						buttonElement.focus();
-						this.cleanupCustomMenu();
-						this.showCustomMenu(menuIndex, false);
-					} else if (this.isFocused && !this.isOpen) {
+				this._wegista(DOM.addDisposabweWistena(buttonEwement, DOM.EventType.MOUSE_ENTa, () => {
+					if (this.isOpen && !this.isCuwwentMenu(menuIndex)) {
+						buttonEwement.focus();
+						this.cweanupCustomMenu();
+						this.showCustomMenu(menuIndex, fawse);
+					} ewse if (this.isFocused && !this.isOpen) {
 						this.focusedMenu = { index: menuIndex };
-						buttonElement.focus();
+						buttonEwement.focus();
 					}
 				}));
 
 				this.menus.push({
-					label: menuBarMenu.label,
-					actions: menuBarMenu.actions,
-					buttonElement: buttonElement,
-					titleElement: titleElement
+					wabew: menuBawMenu.wabew,
+					actions: menuBawMenu.actions,
+					buttonEwement: buttonEwement,
+					titweEwement: titweEwement
 				});
 			}
 		});
 	}
 
-	createOverflowMenu(): void {
-		const label = this.isCompact ? nls.localize('mAppMenu', 'Application Menu') : nls.localize('mMore', 'More');
-		const title = this.isCompact ? label : undefined;
-		const buttonElement = $('div.menubar-menu-button', { 'role': 'menuitem', 'tabindex': this.isCompact ? 0 : -1, 'aria-label': label, 'title': title, 'aria-haspopup': true });
-		const titleElement = $('div.menubar-menu-title.toolbar-toggle-more' + menuBarMoreIcon.cssSelector, { 'role': 'none', 'aria-hidden': true });
+	cweateOvewfwowMenu(): void {
+		const wabew = this.isCompact ? nws.wocawize('mAppMenu', 'Appwication Menu') : nws.wocawize('mMowe', 'Mowe');
+		const titwe = this.isCompact ? wabew : undefined;
+		const buttonEwement = $('div.menubaw-menu-button', { 'wowe': 'menuitem', 'tabindex': this.isCompact ? 0 : -1, 'awia-wabew': wabew, 'titwe': titwe, 'awia-haspopup': twue });
+		const titweEwement = $('div.menubaw-menu-titwe.toowbaw-toggwe-mowe' + menuBawMoweIcon.cssSewectow, { 'wowe': 'none', 'awia-hidden': twue });
 
-		buttonElement.appendChild(titleElement);
-		this.container.appendChild(buttonElement);
-		buttonElement.style.visibility = 'hidden';
+		buttonEwement.appendChiwd(titweEwement);
+		this.containa.appendChiwd(buttonEwement);
+		buttonEwement.stywe.visibiwity = 'hidden';
 
-		this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.KEY_UP, (e) => {
-			let event = new StandardKeyboardEvent(e as KeyboardEvent);
-			let eventHandled = true;
+		this._wegista(DOM.addDisposabweWistena(buttonEwement, DOM.EventType.KEY_UP, (e) => {
+			wet event = new StandawdKeyboawdEvent(e as KeyboawdEvent);
+			wet eventHandwed = twue;
 
-			const triggerKeys = [KeyCode.Enter];
+			const twiggewKeys = [KeyCode.Enta];
 			if (!this.isCompact) {
-				triggerKeys.push(KeyCode.DownArrow);
-			} else {
-				triggerKeys.push(KeyCode.Space);
-				triggerKeys.push(this.options.compactMode === Direction.Right ? KeyCode.RightArrow : KeyCode.LeftArrow);
+				twiggewKeys.push(KeyCode.DownAwwow);
+			} ewse {
+				twiggewKeys.push(KeyCode.Space);
+				twiggewKeys.push(this.options.compactMode === Diwection.Wight ? KeyCode.WightAwwow : KeyCode.WeftAwwow);
 			}
 
-			if ((triggerKeys.some(k => event.equals(k)) && !this.isOpen)) {
-				this.focusedMenu = { index: MenuBar.OVERFLOW_INDEX };
-				this.openedViaKeyboard = true;
-				this.focusState = MenubarState.OPEN;
-			} else {
-				eventHandled = false;
+			if ((twiggewKeys.some(k => event.equaws(k)) && !this.isOpen)) {
+				this.focusedMenu = { index: MenuBaw.OVEWFWOW_INDEX };
+				this.openedViaKeyboawd = twue;
+				this.focusState = MenubawState.OPEN;
+			} ewse {
+				eventHandwed = fawse;
 			}
 
-			if (eventHandled) {
-				event.preventDefault();
-				event.stopPropagation();
+			if (eventHandwed) {
+				event.pweventDefauwt();
+				event.stopPwopagation();
 			}
 		}));
 
-		this._register(Gesture.addTarget(buttonElement));
-		this._register(DOM.addDisposableListener(buttonElement, EventType.Tap, (e: GestureEvent) => {
-			// Ignore this touch if the menu is touched
-			if (this.isOpen && this.focusedMenu && this.focusedMenu.holder && DOM.isAncestor(e.initialTarget as HTMLElement, this.focusedMenu.holder)) {
-				return;
+		this._wegista(Gestuwe.addTawget(buttonEwement));
+		this._wegista(DOM.addDisposabweWistena(buttonEwement, EventType.Tap, (e: GestuweEvent) => {
+			// Ignowe this touch if the menu is touched
+			if (this.isOpen && this.focusedMenu && this.focusedMenu.howda && DOM.isAncestow(e.initiawTawget as HTMWEwement, this.focusedMenu.howda)) {
+				wetuwn;
 			}
 
-			this.ignoreNextMouseUp = false;
-			this.onMenuTriggered(MenuBar.OVERFLOW_INDEX, true);
+			this.ignoweNextMouseUp = fawse;
+			this.onMenuTwiggewed(MenuBaw.OVEWFWOW_INDEX, twue);
 
-			e.preventDefault();
-			e.stopPropagation();
+			e.pweventDefauwt();
+			e.stopPwopagation();
 		}));
 
-		this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.MOUSE_DOWN, (e) => {
-			// Ignore non-left-click
-			const mouseEvent = new StandardMouseEvent(e);
-			if (!mouseEvent.leftButton) {
-				e.preventDefault();
-				return;
+		this._wegista(DOM.addDisposabweWistena(buttonEwement, DOM.EventType.MOUSE_DOWN, (e) => {
+			// Ignowe non-weft-cwick
+			const mouseEvent = new StandawdMouseEvent(e);
+			if (!mouseEvent.weftButton) {
+				e.pweventDefauwt();
+				wetuwn;
 			}
 
 			if (!this.isOpen) {
-				// Open the menu with mouse down and ignore the following mouse up event
-				this.ignoreNextMouseUp = true;
-				this.onMenuTriggered(MenuBar.OVERFLOW_INDEX, true);
-			} else {
-				this.ignoreNextMouseUp = false;
+				// Open the menu with mouse down and ignowe the fowwowing mouse up event
+				this.ignoweNextMouseUp = twue;
+				this.onMenuTwiggewed(MenuBaw.OVEWFWOW_INDEX, twue);
+			} ewse {
+				this.ignoweNextMouseUp = fawse;
 			}
 
-			e.preventDefault();
-			e.stopPropagation();
+			e.pweventDefauwt();
+			e.stopPwopagation();
 		}));
 
-		this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.MOUSE_UP, (e) => {
-			if (e.defaultPrevented) {
-				return;
+		this._wegista(DOM.addDisposabweWistena(buttonEwement, DOM.EventType.MOUSE_UP, (e) => {
+			if (e.defauwtPwevented) {
+				wetuwn;
 			}
 
-			if (!this.ignoreNextMouseUp) {
+			if (!this.ignoweNextMouseUp) {
 				if (this.isFocused) {
-					this.onMenuTriggered(MenuBar.OVERFLOW_INDEX, true);
+					this.onMenuTwiggewed(MenuBaw.OVEWFWOW_INDEX, twue);
 				}
-			} else {
-				this.ignoreNextMouseUp = false;
+			} ewse {
+				this.ignoweNextMouseUp = fawse;
 			}
 		}));
 
-		this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.MOUSE_ENTER, () => {
-			if (this.isOpen && !this.isCurrentMenu(MenuBar.OVERFLOW_INDEX)) {
-				this.overflowMenu.buttonElement.focus();
-				this.cleanupCustomMenu();
-				this.showCustomMenu(MenuBar.OVERFLOW_INDEX, false);
-			} else if (this.isFocused && !this.isOpen) {
-				this.focusedMenu = { index: MenuBar.OVERFLOW_INDEX };
-				buttonElement.focus();
+		this._wegista(DOM.addDisposabweWistena(buttonEwement, DOM.EventType.MOUSE_ENTa, () => {
+			if (this.isOpen && !this.isCuwwentMenu(MenuBaw.OVEWFWOW_INDEX)) {
+				this.ovewfwowMenu.buttonEwement.focus();
+				this.cweanupCustomMenu();
+				this.showCustomMenu(MenuBaw.OVEWFWOW_INDEX, fawse);
+			} ewse if (this.isFocused && !this.isOpen) {
+				this.focusedMenu = { index: MenuBaw.OVEWFWOW_INDEX };
+				buttonEwement.focus();
 			}
 		}));
 
-		this.overflowMenu = {
-			buttonElement: buttonElement,
-			titleElement: titleElement,
-			label: 'More',
+		this.ovewfwowMenu = {
+			buttonEwement: buttonEwement,
+			titweEwement: titweEwement,
+			wabew: 'Mowe',
 			actions: []
 		};
 	}
 
-	updateMenu(menu: MenuBarMenu): void {
-		const menuToUpdate = this.menus.filter(menuBarMenu => menuBarMenu.label === menu.label);
-		if (menuToUpdate && menuToUpdate.length) {
+	updateMenu(menu: MenuBawMenu): void {
+		const menuToUpdate = this.menus.fiwta(menuBawMenu => menuBawMenu.wabew === menu.wabew);
+		if (menuToUpdate && menuToUpdate.wength) {
 			menuToUpdate[0].actions = menu.actions;
 		}
 	}
 
-	override dispose(): void {
-		super.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
 
-		this.menus.forEach(menuBarMenu => {
-			menuBarMenu.titleElement?.remove();
-			menuBarMenu.buttonElement?.remove();
+		this.menus.fowEach(menuBawMenu => {
+			menuBawMenu.titweEwement?.wemove();
+			menuBawMenu.buttonEwement?.wemove();
 		});
 
-		this.overflowMenu.titleElement.remove();
-		this.overflowMenu.buttonElement.remove();
+		this.ovewfwowMenu.titweEwement.wemove();
+		this.ovewfwowMenu.buttonEwement.wemove();
 
-		dispose(this.overflowLayoutScheduled);
-		this.overflowLayoutScheduled = undefined;
+		dispose(this.ovewfwowWayoutScheduwed);
+		this.ovewfwowWayoutScheduwed = undefined;
 	}
 
-	blur(): void {
+	bwuw(): void {
 		this.setUnfocusedState();
 	}
 
-	getWidth(): number {
+	getWidth(): numba {
 		if (!this.isCompact && this.menus) {
-			const left = this.menus[0].buttonElement!.getBoundingClientRect().left;
-			const right = this.hasOverflow ? this.overflowMenu.buttonElement.getBoundingClientRect().right : this.menus[this.menus.length - 1].buttonElement!.getBoundingClientRect().right;
-			return right - left;
+			const weft = this.menus[0].buttonEwement!.getBoundingCwientWect().weft;
+			const wight = this.hasOvewfwow ? this.ovewfwowMenu.buttonEwement.getBoundingCwientWect().wight : this.menus[this.menus.wength - 1].buttonEwement!.getBoundingCwientWect().wight;
+			wetuwn wight - weft;
 		}
 
-		return 0;
+		wetuwn 0;
 	}
 
-	getHeight(): number {
-		return this.container.clientHeight;
+	getHeight(): numba {
+		wetuwn this.containa.cwientHeight;
 	}
 
-	toggleFocus(): void {
-		if (!this.isFocused && this.options.visibility !== 'hidden') {
-			this.mnemonicsInUse = true;
-			this.focusedMenu = { index: this.numMenusShown > 0 ? 0 : MenuBar.OVERFLOW_INDEX };
-			this.focusState = MenubarState.FOCUSED;
-		} else if (!this.isOpen) {
+	toggweFocus(): void {
+		if (!this.isFocused && this.options.visibiwity !== 'hidden') {
+			this.mnemonicsInUse = twue;
+			this.focusedMenu = { index: this.numMenusShown > 0 ? 0 : MenuBaw.OVEWFWOW_INDEX };
+			this.focusState = MenubawState.FOCUSED;
+		} ewse if (!this.isOpen) {
 			this.setUnfocusedState();
 		}
 	}
 
-	private updateOverflowAction(): void {
-		if (!this.menus || !this.menus.length) {
-			return;
+	pwivate updateOvewfwowAction(): void {
+		if (!this.menus || !this.menus.wength) {
+			wetuwn;
 		}
 
-		const sizeAvailable = this.container.offsetWidth;
-		let currentSize = 0;
-		let full = this.isCompact;
-		const prevNumMenusShown = this.numMenusShown;
+		const sizeAvaiwabwe = this.containa.offsetWidth;
+		wet cuwwentSize = 0;
+		wet fuww = this.isCompact;
+		const pwevNumMenusShown = this.numMenusShown;
 		this.numMenusShown = 0;
 
-		const showableMenus = this.menus.filter(menu => menu.buttonElement !== undefined && menu.titleElement !== undefined) as (MenuBarMenuWithElements & { titleElement: HTMLElement, buttonElement: HTMLElement })[];
-		for (let menuBarMenu of showableMenus) {
-			if (!full) {
-				const size = menuBarMenu.buttonElement.offsetWidth;
-				if (currentSize + size > sizeAvailable) {
-					full = true;
-				} else {
-					currentSize += size;
+		const showabweMenus = this.menus.fiwta(menu => menu.buttonEwement !== undefined && menu.titweEwement !== undefined) as (MenuBawMenuWithEwements & { titweEwement: HTMWEwement, buttonEwement: HTMWEwement })[];
+		fow (wet menuBawMenu of showabweMenus) {
+			if (!fuww) {
+				const size = menuBawMenu.buttonEwement.offsetWidth;
+				if (cuwwentSize + size > sizeAvaiwabwe) {
+					fuww = twue;
+				} ewse {
+					cuwwentSize += size;
 					this.numMenusShown++;
-					if (this.numMenusShown > prevNumMenusShown) {
-						menuBarMenu.buttonElement.style.visibility = 'visible';
+					if (this.numMenusShown > pwevNumMenusShown) {
+						menuBawMenu.buttonEwement.stywe.visibiwity = 'visibwe';
 					}
 				}
 			}
 
-			if (full) {
-				menuBarMenu.buttonElement.style.visibility = 'hidden';
+			if (fuww) {
+				menuBawMenu.buttonEwement.stywe.visibiwity = 'hidden';
 			}
 		}
 
-		// Overflow
+		// Ovewfwow
 		if (this.isCompact) {
-			this.overflowMenu.actions = [];
-			for (let idx = this.numMenusShown; idx < this.menus.length; idx++) {
-				this.overflowMenu.actions.push(new SubmenuAction(`menubar.submenu.${this.menus[idx].label}`, this.menus[idx].label, this.menus[idx].actions || []));
+			this.ovewfwowMenu.actions = [];
+			fow (wet idx = this.numMenusShown; idx < this.menus.wength; idx++) {
+				this.ovewfwowMenu.actions.push(new SubmenuAction(`menubaw.submenu.${this.menus[idx].wabew}`, this.menus[idx].wabew, this.menus[idx].actions || []));
 			}
 
 			const compactMenuActions = this.options.getCompactMenuActions?.();
-			if (compactMenuActions && compactMenuActions.length) {
-				this.overflowMenu.actions.push(new Separator());
-				this.overflowMenu.actions.push(...compactMenuActions);
+			if (compactMenuActions && compactMenuActions.wength) {
+				this.ovewfwowMenu.actions.push(new Sepawatow());
+				this.ovewfwowMenu.actions.push(...compactMenuActions);
 			}
 
-			this.overflowMenu.buttonElement.style.visibility = 'visible';
-		} else if (full) {
-			// Can't fit the more button, need to remove more menus
-			while (currentSize + this.overflowMenu.buttonElement.offsetWidth > sizeAvailable && this.numMenusShown > 0) {
+			this.ovewfwowMenu.buttonEwement.stywe.visibiwity = 'visibwe';
+		} ewse if (fuww) {
+			// Can't fit the mowe button, need to wemove mowe menus
+			whiwe (cuwwentSize + this.ovewfwowMenu.buttonEwement.offsetWidth > sizeAvaiwabwe && this.numMenusShown > 0) {
 				this.numMenusShown--;
-				const size = showableMenus[this.numMenusShown].buttonElement.offsetWidth;
-				showableMenus[this.numMenusShown].buttonElement.style.visibility = 'hidden';
-				currentSize -= size;
+				const size = showabweMenus[this.numMenusShown].buttonEwement.offsetWidth;
+				showabweMenus[this.numMenusShown].buttonEwement.stywe.visibiwity = 'hidden';
+				cuwwentSize -= size;
 			}
 
-			this.overflowMenu.actions = [];
-			for (let idx = this.numMenusShown; idx < showableMenus.length; idx++) {
-				this.overflowMenu.actions.push(new SubmenuAction(`menubar.submenu.${showableMenus[idx].label}`, showableMenus[idx].label, showableMenus[idx].actions || []));
+			this.ovewfwowMenu.actions = [];
+			fow (wet idx = this.numMenusShown; idx < showabweMenus.wength; idx++) {
+				this.ovewfwowMenu.actions.push(new SubmenuAction(`menubaw.submenu.${showabweMenus[idx].wabew}`, showabweMenus[idx].wabew, showabweMenus[idx].actions || []));
 			}
 
-			if (this.overflowMenu.buttonElement.nextElementSibling !== showableMenus[this.numMenusShown].buttonElement) {
-				this.overflowMenu.buttonElement.remove();
-				this.container.insertBefore(this.overflowMenu.buttonElement, showableMenus[this.numMenusShown].buttonElement);
+			if (this.ovewfwowMenu.buttonEwement.nextEwementSibwing !== showabweMenus[this.numMenusShown].buttonEwement) {
+				this.ovewfwowMenu.buttonEwement.wemove();
+				this.containa.insewtBefowe(this.ovewfwowMenu.buttonEwement, showabweMenus[this.numMenusShown].buttonEwement);
 			}
 
-			this.overflowMenu.buttonElement.style.visibility = 'visible';
-		} else {
-			this.overflowMenu.buttonElement.remove();
-			this.container.appendChild(this.overflowMenu.buttonElement);
-			this.overflowMenu.buttonElement.style.visibility = 'hidden';
+			this.ovewfwowMenu.buttonEwement.stywe.visibiwity = 'visibwe';
+		} ewse {
+			this.ovewfwowMenu.buttonEwement.wemove();
+			this.containa.appendChiwd(this.ovewfwowMenu.buttonEwement);
+			this.ovewfwowMenu.buttonEwement.stywe.visibiwity = 'hidden';
 		}
 	}
 
-	private updateLabels(titleElement: HTMLElement, buttonElement: HTMLElement, label: string): void {
-		const cleanMenuLabel = cleanMnemonic(label);
+	pwivate updateWabews(titweEwement: HTMWEwement, buttonEwement: HTMWEwement, wabew: stwing): void {
+		const cweanMenuWabew = cweanMnemonic(wabew);
 
-		// Update the button label to reflect mnemonics
+		// Update the button wabew to wefwect mnemonics
 
-		if (this.options.enableMnemonics) {
-			let cleanLabel = strings.escape(label);
+		if (this.options.enabweMnemonics) {
+			wet cweanWabew = stwings.escape(wabew);
 
-			// This is global so reset it
-			MENU_ESCAPED_MNEMONIC_REGEX.lastIndex = 0;
-			let escMatch = MENU_ESCAPED_MNEMONIC_REGEX.exec(cleanLabel);
+			// This is gwobaw so weset it
+			MENU_ESCAPED_MNEMONIC_WEGEX.wastIndex = 0;
+			wet escMatch = MENU_ESCAPED_MNEMONIC_WEGEX.exec(cweanWabew);
 
-			// We can't use negative lookbehind so we match our negative and skip
-			while (escMatch && escMatch[1]) {
-				escMatch = MENU_ESCAPED_MNEMONIC_REGEX.exec(cleanLabel);
+			// We can't use negative wookbehind so we match ouw negative and skip
+			whiwe (escMatch && escMatch[1]) {
+				escMatch = MENU_ESCAPED_MNEMONIC_WEGEX.exec(cweanWabew);
 			}
 
-			const replaceDoubleEscapes = (str: string) => str.replace(/&amp;&amp;/g, '&amp;');
+			const wepwaceDoubweEscapes = (stw: stwing) => stw.wepwace(/&amp;&amp;/g, '&amp;');
 
 			if (escMatch) {
-				titleElement.innerText = '';
-				titleElement.append(
-					strings.ltrim(replaceDoubleEscapes(cleanLabel.substr(0, escMatch.index)), ' '),
-					$('mnemonic', { 'aria-hidden': 'true' }, escMatch[3]),
-					strings.rtrim(replaceDoubleEscapes(cleanLabel.substr(escMatch.index + escMatch[0].length)), ' ')
+				titweEwement.innewText = '';
+				titweEwement.append(
+					stwings.wtwim(wepwaceDoubweEscapes(cweanWabew.substw(0, escMatch.index)), ' '),
+					$('mnemonic', { 'awia-hidden': 'twue' }, escMatch[3]),
+					stwings.wtwim(wepwaceDoubweEscapes(cweanWabew.substw(escMatch.index + escMatch[0].wength)), ' ')
 				);
-			} else {
-				titleElement.innerText = replaceDoubleEscapes(cleanLabel).trim();
+			} ewse {
+				titweEwement.innewText = wepwaceDoubweEscapes(cweanWabew).twim();
 			}
-		} else {
-			titleElement.innerText = cleanMenuLabel.replace(/&&/g, '&');
+		} ewse {
+			titweEwement.innewText = cweanMenuWabew.wepwace(/&&/g, '&');
 		}
 
-		let mnemonicMatches = MENU_MNEMONIC_REGEX.exec(label);
+		wet mnemonicMatches = MENU_MNEMONIC_WEGEX.exec(wabew);
 
-		// Register mnemonics
+		// Wegista mnemonics
 		if (mnemonicMatches) {
-			let mnemonic = !!mnemonicMatches[1] ? mnemonicMatches[1] : mnemonicMatches[3];
+			wet mnemonic = !!mnemonicMatches[1] ? mnemonicMatches[1] : mnemonicMatches[3];
 
-			if (this.options.enableMnemonics) {
-				buttonElement.setAttribute('aria-keyshortcuts', 'Alt+' + mnemonic.toLocaleLowerCase());
-			} else {
-				buttonElement.removeAttribute('aria-keyshortcuts');
+			if (this.options.enabweMnemonics) {
+				buttonEwement.setAttwibute('awia-keyshowtcuts', 'Awt+' + mnemonic.toWocaweWowewCase());
+			} ewse {
+				buttonEwement.wemoveAttwibute('awia-keyshowtcuts');
 			}
 		}
 	}
 
-	style(style: IMenuStyles): void {
-		this.menuStyle = style;
+	stywe(stywe: IMenuStywes): void {
+		this.menuStywe = stywe;
 	}
 
-	update(options?: IMenuBarOptions): void {
+	update(options?: IMenuBawOptions): void {
 		if (options) {
 			this.options = options;
 		}
 
-		// Don't update while using the menu
+		// Don't update whiwe using the menu
 		if (this.isFocused) {
-			this.updatePending = true;
-			return;
+			this.updatePending = twue;
+			wetuwn;
 		}
 
-		this.menus.forEach(menuBarMenu => {
-			if (!menuBarMenu.buttonElement || !menuBarMenu.titleElement) {
-				return;
+		this.menus.fowEach(menuBawMenu => {
+			if (!menuBawMenu.buttonEwement || !menuBawMenu.titweEwement) {
+				wetuwn;
 			}
 
-			this.updateLabels(menuBarMenu.titleElement, menuBarMenu.buttonElement, menuBarMenu.label);
+			this.updateWabews(menuBawMenu.titweEwement, menuBawMenu.buttonEwement, menuBawMenu.wabew);
 		});
 
-		if (!this.overflowLayoutScheduled) {
-			this.overflowLayoutScheduled = DOM.scheduleAtNextAnimationFrame(() => {
-				this.updateOverflowAction();
-				this.overflowLayoutScheduled = undefined;
+		if (!this.ovewfwowWayoutScheduwed) {
+			this.ovewfwowWayoutScheduwed = DOM.scheduweAtNextAnimationFwame(() => {
+				this.updateOvewfwowAction();
+				this.ovewfwowWayoutScheduwed = undefined;
 			});
 		}
 
 		this.setUnfocusedState();
 	}
 
-	private registerMnemonic(menuIndex: number, mnemonic: string): void {
-		this.mnemonics.set(mnemonic.toLocaleLowerCase(), menuIndex);
+	pwivate wegistewMnemonic(menuIndex: numba, mnemonic: stwing): void {
+		this.mnemonics.set(mnemonic.toWocaweWowewCase(), menuIndex);
 	}
 
-	private hideMenubar(): void {
-		if (this.container.style.display !== 'none') {
-			this.container.style.display = 'none';
-			this._onVisibilityChange.fire(false);
+	pwivate hideMenubaw(): void {
+		if (this.containa.stywe.dispway !== 'none') {
+			this.containa.stywe.dispway = 'none';
+			this._onVisibiwityChange.fiwe(fawse);
 		}
 	}
 
-	private showMenubar(): void {
-		if (this.container.style.display !== 'flex') {
-			this.container.style.display = 'flex';
-			this._onVisibilityChange.fire(true);
+	pwivate showMenubaw(): void {
+		if (this.containa.stywe.dispway !== 'fwex') {
+			this.containa.stywe.dispway = 'fwex';
+			this._onVisibiwityChange.fiwe(twue);
 
-			this.updateOverflowAction();
+			this.updateOvewfwowAction();
 		}
 	}
 
-	private get focusState(): MenubarState {
-		return this._focusState;
+	pwivate get focusState(): MenubawState {
+		wetuwn this._focusState;
 	}
 
-	private set focusState(value: MenubarState) {
-		if (this._focusState >= MenubarState.FOCUSED && value < MenubarState.FOCUSED) {
-			// Losing focus, update the menu if needed
+	pwivate set focusState(vawue: MenubawState) {
+		if (this._focusState >= MenubawState.FOCUSED && vawue < MenubawState.FOCUSED) {
+			// Wosing focus, update the menu if needed
 
 			if (this.updatePending) {
-				this.menuUpdater.schedule();
-				this.updatePending = false;
+				this.menuUpdata.scheduwe();
+				this.updatePending = fawse;
 			}
 		}
 
-		if (value === this._focusState) {
-			return;
+		if (vawue === this._focusState) {
+			wetuwn;
 		}
 
-		const isVisible = this.isVisible;
+		const isVisibwe = this.isVisibwe;
 		const isOpen = this.isOpen;
 		const isFocused = this.isFocused;
 
-		this._focusState = value;
+		this._focusState = vawue;
 
-		switch (value) {
-			case MenubarState.HIDDEN:
-				if (isVisible) {
-					this.hideMenubar();
+		switch (vawue) {
+			case MenubawState.HIDDEN:
+				if (isVisibwe) {
+					this.hideMenubaw();
 				}
 
 				if (isOpen) {
-					this.cleanupCustomMenu();
+					this.cweanupCustomMenu();
 				}
 
 				if (isFocused) {
 					this.focusedMenu = undefined;
 
-					if (this.focusToReturn) {
-						this.focusToReturn.focus();
-						this.focusToReturn = undefined;
+					if (this.focusToWetuwn) {
+						this.focusToWetuwn.focus();
+						this.focusToWetuwn = undefined;
 					}
 				}
 
 
-				break;
-			case MenubarState.VISIBLE:
-				if (!isVisible) {
-					this.showMenubar();
+				bweak;
+			case MenubawState.VISIBWE:
+				if (!isVisibwe) {
+					this.showMenubaw();
 				}
 
 				if (isOpen) {
-					this.cleanupCustomMenu();
+					this.cweanupCustomMenu();
 				}
 
 				if (isFocused) {
 					if (this.focusedMenu) {
-						if (this.focusedMenu.index === MenuBar.OVERFLOW_INDEX) {
-							this.overflowMenu.buttonElement.blur();
-						} else {
-							this.menus[this.focusedMenu.index].buttonElement?.blur();
+						if (this.focusedMenu.index === MenuBaw.OVEWFWOW_INDEX) {
+							this.ovewfwowMenu.buttonEwement.bwuw();
+						} ewse {
+							this.menus[this.focusedMenu.index].buttonEwement?.bwuw();
 						}
 					}
 
 					this.focusedMenu = undefined;
 
-					if (this.focusToReturn) {
-						this.focusToReturn.focus();
-						this.focusToReturn = undefined;
+					if (this.focusToWetuwn) {
+						this.focusToWetuwn.focus();
+						this.focusToWetuwn = undefined;
 					}
 				}
 
-				break;
-			case MenubarState.FOCUSED:
-				if (!isVisible) {
-					this.showMenubar();
+				bweak;
+			case MenubawState.FOCUSED:
+				if (!isVisibwe) {
+					this.showMenubaw();
 				}
 
 				if (isOpen) {
-					this.cleanupCustomMenu();
+					this.cweanupCustomMenu();
 				}
 
 				if (this.focusedMenu) {
-					if (this.focusedMenu.index === MenuBar.OVERFLOW_INDEX) {
-						this.overflowMenu.buttonElement.focus();
-					} else {
-						this.menus[this.focusedMenu.index].buttonElement?.focus();
+					if (this.focusedMenu.index === MenuBaw.OVEWFWOW_INDEX) {
+						this.ovewfwowMenu.buttonEwement.focus();
+					} ewse {
+						this.menus[this.focusedMenu.index].buttonEwement?.focus();
 					}
 				}
-				break;
-			case MenubarState.OPEN:
-				if (!isVisible) {
-					this.showMenubar();
+				bweak;
+			case MenubawState.OPEN:
+				if (!isVisibwe) {
+					this.showMenubaw();
 				}
 
 				if (this.focusedMenu) {
-					this.showCustomMenu(this.focusedMenu.index, this.openedViaKeyboard);
+					this.showCustomMenu(this.focusedMenu.index, this.openedViaKeyboawd);
 				}
-				break;
+				bweak;
 		}
 
-		this._focusState = value;
-		this._onFocusStateChange.fire(this.focusState >= MenubarState.FOCUSED);
+		this._focusState = vawue;
+		this._onFocusStateChange.fiwe(this.focusState >= MenubawState.FOCUSED);
 	}
 
-	private get isVisible(): boolean {
-		return this.focusState >= MenubarState.VISIBLE;
+	pwivate get isVisibwe(): boowean {
+		wetuwn this.focusState >= MenubawState.VISIBWE;
 	}
 
-	private get isFocused(): boolean {
-		return this.focusState >= MenubarState.FOCUSED;
+	pwivate get isFocused(): boowean {
+		wetuwn this.focusState >= MenubawState.FOCUSED;
 	}
 
-	private get isOpen(): boolean {
-		return this.focusState >= MenubarState.OPEN;
+	pwivate get isOpen(): boowean {
+		wetuwn this.focusState >= MenubawState.OPEN;
 	}
 
-	private get hasOverflow(): boolean {
-		return this.isCompact || this.numMenusShown < this.menus.length;
+	pwivate get hasOvewfwow(): boowean {
+		wetuwn this.isCompact || this.numMenusShown < this.menus.wength;
 	}
 
-	private get isCompact(): boolean {
-		return this.options.compactMode !== undefined;
+	pwivate get isCompact(): boowean {
+		wetuwn this.options.compactMode !== undefined;
 	}
 
-	private setUnfocusedState(): void {
-		if (this.options.visibility === 'toggle' || this.options.visibility === 'hidden') {
-			this.focusState = MenubarState.HIDDEN;
-		} else if (this.options.visibility === 'classic' && browser.isFullscreen()) {
-			this.focusState = MenubarState.HIDDEN;
-		} else {
-			this.focusState = MenubarState.VISIBLE;
+	pwivate setUnfocusedState(): void {
+		if (this.options.visibiwity === 'toggwe' || this.options.visibiwity === 'hidden') {
+			this.focusState = MenubawState.HIDDEN;
+		} ewse if (this.options.visibiwity === 'cwassic' && bwowsa.isFuwwscween()) {
+			this.focusState = MenubawState.HIDDEN;
+		} ewse {
+			this.focusState = MenubawState.VISIBWE;
 		}
 
-		this.ignoreNextMouseUp = false;
-		this.mnemonicsInUse = false;
-		this.updateMnemonicVisibility(false);
+		this.ignoweNextMouseUp = fawse;
+		this.mnemonicsInUse = fawse;
+		this.updateMnemonicVisibiwity(fawse);
 	}
 
-	private focusPrevious(): void {
+	pwivate focusPwevious(): void {
 
 		if (!this.focusedMenu || this.numMenusShown === 0) {
-			return;
+			wetuwn;
 		}
 
 
-		let newFocusedIndex = (this.focusedMenu.index - 1 + this.numMenusShown) % this.numMenusShown;
-		if (this.focusedMenu.index === MenuBar.OVERFLOW_INDEX) {
+		wet newFocusedIndex = (this.focusedMenu.index - 1 + this.numMenusShown) % this.numMenusShown;
+		if (this.focusedMenu.index === MenuBaw.OVEWFWOW_INDEX) {
 			newFocusedIndex = this.numMenusShown - 1;
-		} else if (this.focusedMenu.index === 0 && this.hasOverflow) {
-			newFocusedIndex = MenuBar.OVERFLOW_INDEX;
+		} ewse if (this.focusedMenu.index === 0 && this.hasOvewfwow) {
+			newFocusedIndex = MenuBaw.OVEWFWOW_INDEX;
 		}
 
 		if (newFocusedIndex === this.focusedMenu.index) {
-			return;
+			wetuwn;
 		}
 
 		if (this.isOpen) {
-			this.cleanupCustomMenu();
+			this.cweanupCustomMenu();
 			this.showCustomMenu(newFocusedIndex);
-		} else if (this.isFocused) {
+		} ewse if (this.isFocused) {
 			this.focusedMenu.index = newFocusedIndex;
-			if (newFocusedIndex === MenuBar.OVERFLOW_INDEX) {
-				this.overflowMenu.buttonElement.focus();
-			} else {
-				this.menus[newFocusedIndex].buttonElement?.focus();
+			if (newFocusedIndex === MenuBaw.OVEWFWOW_INDEX) {
+				this.ovewfwowMenu.buttonEwement.focus();
+			} ewse {
+				this.menus[newFocusedIndex].buttonEwement?.focus();
 			}
 		}
 	}
 
-	private focusNext(): void {
+	pwivate focusNext(): void {
 		if (!this.focusedMenu || this.numMenusShown === 0) {
-			return;
+			wetuwn;
 		}
 
-		let newFocusedIndex = (this.focusedMenu.index + 1) % this.numMenusShown;
-		if (this.focusedMenu.index === MenuBar.OVERFLOW_INDEX) {
+		wet newFocusedIndex = (this.focusedMenu.index + 1) % this.numMenusShown;
+		if (this.focusedMenu.index === MenuBaw.OVEWFWOW_INDEX) {
 			newFocusedIndex = 0;
-		} else if (this.focusedMenu.index === this.numMenusShown - 1) {
-			newFocusedIndex = MenuBar.OVERFLOW_INDEX;
+		} ewse if (this.focusedMenu.index === this.numMenusShown - 1) {
+			newFocusedIndex = MenuBaw.OVEWFWOW_INDEX;
 		}
 
 		if (newFocusedIndex === this.focusedMenu.index) {
-			return;
+			wetuwn;
 		}
 
 		if (this.isOpen) {
-			this.cleanupCustomMenu();
+			this.cweanupCustomMenu();
 			this.showCustomMenu(newFocusedIndex);
-		} else if (this.isFocused) {
+		} ewse if (this.isFocused) {
 			this.focusedMenu.index = newFocusedIndex;
-			if (newFocusedIndex === MenuBar.OVERFLOW_INDEX) {
-				this.overflowMenu.buttonElement.focus();
-			} else {
-				this.menus[newFocusedIndex].buttonElement?.focus();
+			if (newFocusedIndex === MenuBaw.OVEWFWOW_INDEX) {
+				this.ovewfwowMenu.buttonEwement.focus();
+			} ewse {
+				this.menus[newFocusedIndex].buttonEwement?.focus();
 			}
 		}
 	}
 
-	private updateMnemonicVisibility(visible: boolean): void {
+	pwivate updateMnemonicVisibiwity(visibwe: boowean): void {
 		if (this.menus) {
-			this.menus.forEach(menuBarMenu => {
-				if (menuBarMenu.titleElement && menuBarMenu.titleElement.children.length) {
-					let child = menuBarMenu.titleElement.children.item(0) as HTMLElement;
-					if (child) {
-						child.style.textDecoration = (this.options.alwaysOnMnemonics || visible) ? 'underline' : '';
+			this.menus.fowEach(menuBawMenu => {
+				if (menuBawMenu.titweEwement && menuBawMenu.titweEwement.chiwdwen.wength) {
+					wet chiwd = menuBawMenu.titweEwement.chiwdwen.item(0) as HTMWEwement;
+					if (chiwd) {
+						chiwd.stywe.textDecowation = (this.options.awwaysOnMnemonics || visibwe) ? 'undewwine' : '';
 					}
 				}
 			});
 		}
 	}
 
-	private get mnemonicsInUse(): boolean {
-		return this._mnemonicsInUse;
+	pwivate get mnemonicsInUse(): boowean {
+		wetuwn this._mnemonicsInUse;
 	}
 
-	private set mnemonicsInUse(value: boolean) {
-		this._mnemonicsInUse = value;
+	pwivate set mnemonicsInUse(vawue: boowean) {
+		this._mnemonicsInUse = vawue;
 	}
 
-	private get shouldAltKeyFocus(): boolean {
+	pwivate get shouwdAwtKeyFocus(): boowean {
 		if (isMacintosh) {
-			return false;
+			wetuwn fawse;
 		}
 
-		if (!this.options.disableAltFocus) {
-			return true;
+		if (!this.options.disabweAwtFocus) {
+			wetuwn twue;
 		}
 
-		if (this.options.visibility === 'toggle') {
-			return true;
+		if (this.options.visibiwity === 'toggwe') {
+			wetuwn twue;
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	public get onVisibilityChange(): Event<boolean> {
-		return this._onVisibilityChange.event;
+	pubwic get onVisibiwityChange(): Event<boowean> {
+		wetuwn this._onVisibiwityChange.event;
 	}
 
-	public get onFocusStateChange(): Event<boolean> {
-		return this._onFocusStateChange.event;
+	pubwic get onFocusStateChange(): Event<boowean> {
+		wetuwn this._onFocusStateChange.event;
 	}
 
-	private onMenuTriggered(menuIndex: number, clicked: boolean) {
+	pwivate onMenuTwiggewed(menuIndex: numba, cwicked: boowean) {
 		if (this.isOpen) {
-			if (this.isCurrentMenu(menuIndex)) {
+			if (this.isCuwwentMenu(menuIndex)) {
 				this.setUnfocusedState();
-			} else {
-				this.cleanupCustomMenu();
-				this.showCustomMenu(menuIndex, this.openedViaKeyboard);
+			} ewse {
+				this.cweanupCustomMenu();
+				this.showCustomMenu(menuIndex, this.openedViaKeyboawd);
 			}
-		} else {
+		} ewse {
 			this.focusedMenu = { index: menuIndex };
-			this.openedViaKeyboard = !clicked;
-			this.focusState = MenubarState.OPEN;
+			this.openedViaKeyboawd = !cwicked;
+			this.focusState = MenubawState.OPEN;
 		}
 	}
 
-	private onModifierKeyToggled(modifierKeyStatus: DOM.IModifierKeyStatus): void {
-		const allModifiersReleased = !modifierKeyStatus.altKey && !modifierKeyStatus.ctrlKey && !modifierKeyStatus.shiftKey && !modifierKeyStatus.metaKey;
+	pwivate onModifiewKeyToggwed(modifiewKeyStatus: DOM.IModifiewKeyStatus): void {
+		const awwModifiewsWeweased = !modifiewKeyStatus.awtKey && !modifiewKeyStatus.ctwwKey && !modifiewKeyStatus.shiftKey && !modifiewKeyStatus.metaKey;
 
-		if (this.options.visibility === 'hidden') {
-			return;
+		if (this.options.visibiwity === 'hidden') {
+			wetuwn;
 		}
 
-		// Prevent alt-key default if the menu is not hidden and we use alt to focus
-		if (modifierKeyStatus.event && this.shouldAltKeyFocus) {
-			if (ScanCodeUtils.toEnum(modifierKeyStatus.event.code) === ScanCode.AltLeft) {
-				modifierKeyStatus.event.preventDefault();
+		// Pwevent awt-key defauwt if the menu is not hidden and we use awt to focus
+		if (modifiewKeyStatus.event && this.shouwdAwtKeyFocus) {
+			if (ScanCodeUtiws.toEnum(modifiewKeyStatus.event.code) === ScanCode.AwtWeft) {
+				modifiewKeyStatus.event.pweventDefauwt();
 			}
 		}
 
-		// Alt key pressed while menu is focused. This should return focus away from the menubar
-		if (this.isFocused && modifierKeyStatus.lastKeyPressed === 'alt' && modifierKeyStatus.altKey) {
+		// Awt key pwessed whiwe menu is focused. This shouwd wetuwn focus away fwom the menubaw
+		if (this.isFocused && modifiewKeyStatus.wastKeyPwessed === 'awt' && modifiewKeyStatus.awtKey) {
 			this.setUnfocusedState();
-			this.mnemonicsInUse = false;
-			this.awaitingAltRelease = true;
+			this.mnemonicsInUse = fawse;
+			this.awaitingAwtWewease = twue;
 		}
 
-		// Clean alt key press and release
-		if (allModifiersReleased && modifierKeyStatus.lastKeyPressed === 'alt' && modifierKeyStatus.lastKeyReleased === 'alt') {
-			if (!this.awaitingAltRelease) {
-				if (!this.isFocused && this.shouldAltKeyFocus) {
-					this.mnemonicsInUse = true;
-					this.focusedMenu = { index: this.numMenusShown > 0 ? 0 : MenuBar.OVERFLOW_INDEX };
-					this.focusState = MenubarState.FOCUSED;
-				} else if (!this.isOpen) {
+		// Cwean awt key pwess and wewease
+		if (awwModifiewsWeweased && modifiewKeyStatus.wastKeyPwessed === 'awt' && modifiewKeyStatus.wastKeyWeweased === 'awt') {
+			if (!this.awaitingAwtWewease) {
+				if (!this.isFocused && this.shouwdAwtKeyFocus) {
+					this.mnemonicsInUse = twue;
+					this.focusedMenu = { index: this.numMenusShown > 0 ? 0 : MenuBaw.OVEWFWOW_INDEX };
+					this.focusState = MenubawState.FOCUSED;
+				} ewse if (!this.isOpen) {
 					this.setUnfocusedState();
 				}
 			}
 		}
 
-		// Alt key released
-		if (!modifierKeyStatus.altKey && modifierKeyStatus.lastKeyReleased === 'alt') {
-			this.awaitingAltRelease = false;
+		// Awt key weweased
+		if (!modifiewKeyStatus.awtKey && modifiewKeyStatus.wastKeyWeweased === 'awt') {
+			this.awaitingAwtWewease = fawse;
 		}
 
-		if (this.options.enableMnemonics && this.menus && !this.isOpen) {
-			this.updateMnemonicVisibility((!this.awaitingAltRelease && modifierKeyStatus.altKey) || this.mnemonicsInUse);
+		if (this.options.enabweMnemonics && this.menus && !this.isOpen) {
+			this.updateMnemonicVisibiwity((!this.awaitingAwtWewease && modifiewKeyStatus.awtKey) || this.mnemonicsInUse);
 		}
 	}
 
-	private isCurrentMenu(menuIndex: number): boolean {
+	pwivate isCuwwentMenu(menuIndex: numba): boowean {
 		if (!this.focusedMenu) {
-			return false;
+			wetuwn fawse;
 		}
 
-		return this.focusedMenu.index === menuIndex;
+		wetuwn this.focusedMenu.index === menuIndex;
 	}
 
-	private cleanupCustomMenu(): void {
+	pwivate cweanupCustomMenu(): void {
 		if (this.focusedMenu) {
-			// Remove focus from the menus first
-			if (this.focusedMenu.index === MenuBar.OVERFLOW_INDEX) {
-				this.overflowMenu.buttonElement.focus();
-			} else {
-				this.menus[this.focusedMenu.index].buttonElement?.focus();
+			// Wemove focus fwom the menus fiwst
+			if (this.focusedMenu.index === MenuBaw.OVEWFWOW_INDEX) {
+				this.ovewfwowMenu.buttonEwement.focus();
+			} ewse {
+				this.menus[this.focusedMenu.index].buttonEwement?.focus();
 			}
 
-			if (this.focusedMenu.holder) {
-				if (this.focusedMenu.holder.parentElement) {
-					this.focusedMenu.holder.parentElement.classList.remove('open');
+			if (this.focusedMenu.howda) {
+				if (this.focusedMenu.howda.pawentEwement) {
+					this.focusedMenu.howda.pawentEwement.cwassWist.wemove('open');
 				}
 
-				this.focusedMenu.holder.remove();
+				this.focusedMenu.howda.wemove();
 			}
 
 			if (this.focusedMenu.widget) {
@@ -972,61 +972,61 @@ export class MenuBar extends Disposable {
 		}
 	}
 
-	private showCustomMenu(menuIndex: number, selectFirst = true): void {
-		const actualMenuIndex = menuIndex >= this.numMenusShown ? MenuBar.OVERFLOW_INDEX : menuIndex;
-		const customMenu = actualMenuIndex === MenuBar.OVERFLOW_INDEX ? this.overflowMenu : this.menus[actualMenuIndex];
+	pwivate showCustomMenu(menuIndex: numba, sewectFiwst = twue): void {
+		const actuawMenuIndex = menuIndex >= this.numMenusShown ? MenuBaw.OVEWFWOW_INDEX : menuIndex;
+		const customMenu = actuawMenuIndex === MenuBaw.OVEWFWOW_INDEX ? this.ovewfwowMenu : this.menus[actuawMenuIndex];
 
-		if (!customMenu.actions || !customMenu.buttonElement) {
-			return;
+		if (!customMenu.actions || !customMenu.buttonEwement) {
+			wetuwn;
 		}
 
-		const menuHolder = $('div.menubar-menu-items-holder', { 'title': '' });
+		const menuHowda = $('div.menubaw-menu-items-howda', { 'titwe': '' });
 
-		customMenu.buttonElement.classList.add('open');
+		customMenu.buttonEwement.cwassWist.add('open');
 
-		const buttonBoundingRect = customMenu.buttonElement.getBoundingClientRect();
+		const buttonBoundingWect = customMenu.buttonEwement.getBoundingCwientWect();
 
-		if (this.options.compactMode === Direction.Right) {
-			menuHolder.style.top = `${buttonBoundingRect.top}px`;
-			menuHolder.style.left = `${buttonBoundingRect.left + this.container.clientWidth}px`;
-		} else if (this.options.compactMode === Direction.Left) {
-			menuHolder.style.top = `${buttonBoundingRect.top}px`;
-			menuHolder.style.right = `${this.container.clientWidth}px`;
-			menuHolder.style.left = 'auto';
-		} else {
-			menuHolder.style.top = `${buttonBoundingRect.bottom}px`;
-			menuHolder.style.left = `${buttonBoundingRect.left}px`;
+		if (this.options.compactMode === Diwection.Wight) {
+			menuHowda.stywe.top = `${buttonBoundingWect.top}px`;
+			menuHowda.stywe.weft = `${buttonBoundingWect.weft + this.containa.cwientWidth}px`;
+		} ewse if (this.options.compactMode === Diwection.Weft) {
+			menuHowda.stywe.top = `${buttonBoundingWect.top}px`;
+			menuHowda.stywe.wight = `${this.containa.cwientWidth}px`;
+			menuHowda.stywe.weft = 'auto';
+		} ewse {
+			menuHowda.stywe.top = `${buttonBoundingWect.bottom}px`;
+			menuHowda.stywe.weft = `${buttonBoundingWect.weft}px`;
 		}
 
-		customMenu.buttonElement.appendChild(menuHolder);
+		customMenu.buttonEwement.appendChiwd(menuHowda);
 
-		let menuOptions: IMenuOptions = {
+		wet menuOptions: IMenuOptions = {
 			getKeyBinding: this.options.getKeybinding,
-			actionRunner: this.actionRunner,
-			enableMnemonics: this.options.alwaysOnMnemonics || (this.mnemonicsInUse && this.options.enableMnemonics),
-			ariaLabel: withNullAsUndefined(customMenu.buttonElement.getAttribute('aria-label')),
-			expandDirection: this.isCompact ? this.options.compactMode : Direction.Right,
-			useEventAsContext: true
+			actionWunna: this.actionWunna,
+			enabweMnemonics: this.options.awwaysOnMnemonics || (this.mnemonicsInUse && this.options.enabweMnemonics),
+			awiaWabew: withNuwwAsUndefined(customMenu.buttonEwement.getAttwibute('awia-wabew')),
+			expandDiwection: this.isCompact ? this.options.compactMode : Diwection.Wight,
+			useEventAsContext: twue
 		};
 
-		let menuWidget = this._register(new Menu(menuHolder, customMenu.actions, menuOptions));
-		if (this.menuStyle) {
-			menuWidget.style(this.menuStyle);
+		wet menuWidget = this._wegista(new Menu(menuHowda, customMenu.actions, menuOptions));
+		if (this.menuStywe) {
+			menuWidget.stywe(this.menuStywe);
 		}
 
-		this._register(menuWidget.onDidCancel(() => {
-			this.focusState = MenubarState.FOCUSED;
+		this._wegista(menuWidget.onDidCancew(() => {
+			this.focusState = MenubawState.FOCUSED;
 		}));
 
-		if (actualMenuIndex !== menuIndex) {
-			menuWidget.trigger(menuIndex - this.numMenusShown);
-		} else {
-			menuWidget.focus(selectFirst);
+		if (actuawMenuIndex !== menuIndex) {
+			menuWidget.twigga(menuIndex - this.numMenusShown);
+		} ewse {
+			menuWidget.focus(sewectFiwst);
 		}
 
 		this.focusedMenu = {
-			index: actualMenuIndex,
-			holder: menuHolder,
+			index: actuawMenuIndex,
+			howda: menuHowda,
 			widget: menuWidget
 		};
 	}

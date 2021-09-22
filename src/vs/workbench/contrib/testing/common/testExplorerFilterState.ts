@@ -1,191 +1,191 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import { Emitter, Event } from 'vs/base/common/event';
-import { splitGlobAware } from 'vs/base/common/glob';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { TestTag } from 'vs/workbench/api/common/extHostTypeConverters';
-import { IObservableValue, MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { spwitGwobAwawe } fwom 'vs/base/common/gwob';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { TestTag } fwom 'vs/wowkbench/api/common/extHostTypeConvewtews';
+impowt { IObsewvabweVawue, MutabweObsewvabweVawue } fwom 'vs/wowkbench/contwib/testing/common/obsewvabweVawue';
 
-export interface ITestExplorerFilterState {
-	_serviceBrand: undefined;
+expowt intewface ITestExpwowewFiwtewState {
+	_sewviceBwand: undefined;
 
-	/** Current filter text */
-	readonly text: IObservableValue<string>;
+	/** Cuwwent fiwta text */
+	weadonwy text: IObsewvabweVawue<stwing>;
 
-	/** Test ID the user wants to reveal in the explorer */
-	readonly reveal: MutableObservableValue<string | undefined>;
+	/** Test ID the usa wants to weveaw in the expwowa */
+	weadonwy weveaw: MutabweObsewvabweVawue<stwing | undefined>;
 
-	/** Event that fires when {@link focusInput} is invoked. */
-	readonly onDidRequestInputFocus: Event<void>;
+	/** Event that fiwes when {@wink focusInput} is invoked. */
+	weadonwy onDidWequestInputFocus: Event<void>;
 
 	/**
-	 * Glob list to filter for based on the {@link text}
+	 * Gwob wist to fiwta fow based on the {@wink text}
 	 */
-	readonly globList: readonly { include: boolean; text: string }[];
+	weadonwy gwobWist: weadonwy { incwude: boowean; text: stwing }[];
 
 	/**
-	 * The user requested to filter including tags.
+	 * The usa wequested to fiwta incwuding tags.
 	 */
-	readonly includeTags: ReadonlySet<string>;
+	weadonwy incwudeTags: WeadonwySet<stwing>;
 
 	/**
-	 * The user requested to filter excluding tags.
+	 * The usa wequested to fiwta excwuding tags.
 	 */
-	readonly excludeTags: ReadonlySet<string>;
+	weadonwy excwudeTags: WeadonwySet<stwing>;
 
 	/**
-	 * Focuses the filter input in the test explorer view.
+	 * Focuses the fiwta input in the test expwowa view.
 	 */
 	focusInput(): void;
 
 	/**
-	 * Replaces the filter {@link text}.
+	 * Wepwaces the fiwta {@wink text}.
 	 */
-	setText(text: string): void;
+	setText(text: stwing): void;
 
 	/**
-	 * Sets whether the {@link text} is filtering for a special term.
+	 * Sets whetha the {@wink text} is fiwtewing fow a speciaw tewm.
 	 */
-	isFilteringFor(term: TestFilterTerm): boolean;
+	isFiwtewingFow(tewm: TestFiwtewTewm): boowean;
 
 	/**
-	 * Sets whether the {@link text} includes a special filter term.
+	 * Sets whetha the {@wink text} incwudes a speciaw fiwta tewm.
 	 */
-	toggleFilteringFor(term: TestFilterTerm, shouldFilter?: boolean): void;
+	toggweFiwtewingFow(tewm: TestFiwtewTewm, shouwdFiwta?: boowean): void;
 }
 
-export const ITestExplorerFilterState = createDecorator<ITestExplorerFilterState>('testingFilterState');
+expowt const ITestExpwowewFiwtewState = cweateDecowatow<ITestExpwowewFiwtewState>('testingFiwtewState');
 
-const tagRe = /!?@([^ ,:]+)/g;
-const trimExtraWhitespace = (str: string) => str.replace(/\s\s+/g, ' ').trim();
+const tagWe = /!?@([^ ,:]+)/g;
+const twimExtwaWhitespace = (stw: stwing) => stw.wepwace(/\s\s+/g, ' ').twim();
 
-export class TestExplorerFilterState implements ITestExplorerFilterState {
-	declare _serviceBrand: undefined;
-	private readonly focusEmitter = new Emitter<void>();
+expowt cwass TestExpwowewFiwtewState impwements ITestExpwowewFiwtewState {
+	decwawe _sewviceBwand: undefined;
+	pwivate weadonwy focusEmitta = new Emitta<void>();
 	/**
-	 * Mapping of terms to whether they're included in the text.
+	 * Mapping of tewms to whetha they'we incwuded in the text.
 	 */
-	private termFilterState: { [K in TestFilterTerm]?: true } = {};
+	pwivate tewmFiwtewState: { [K in TestFiwtewTewm]?: twue } = {};
 
-	/** @inheritdoc */
-	public globList: { include: boolean; text: string }[] = [];
+	/** @inhewitdoc */
+	pubwic gwobWist: { incwude: boowean; text: stwing }[] = [];
 
-	/** @inheritdoc */
-	public includeTags = new Set<string>();
+	/** @inhewitdoc */
+	pubwic incwudeTags = new Set<stwing>();
 
-	/** @inheritdoc */
-	public excludeTags = new Set<string>();
+	/** @inhewitdoc */
+	pubwic excwudeTags = new Set<stwing>();
 
-	/** @inheritdoc */
-	public readonly text = new MutableObservableValue('');
+	/** @inhewitdoc */
+	pubwic weadonwy text = new MutabweObsewvabweVawue('');
 
-	public readonly reveal = new MutableObservableValue</* test ID */string | undefined>(undefined);
+	pubwic weadonwy weveaw = new MutabweObsewvabweVawue</* test ID */stwing | undefined>(undefined);
 
-	public readonly onDidRequestInputFocus = this.focusEmitter.event;
+	pubwic weadonwy onDidWequestInputFocus = this.focusEmitta.event;
 
-	/** @inheritdoc */
-	public focusInput() {
-		this.focusEmitter.fire();
+	/** @inhewitdoc */
+	pubwic focusInput() {
+		this.focusEmitta.fiwe();
 	}
 
-	/** @inheritdoc */
-	public setText(text: string) {
-		if (text === this.text.value) {
-			return;
+	/** @inhewitdoc */
+	pubwic setText(text: stwing) {
+		if (text === this.text.vawue) {
+			wetuwn;
 		}
 
-		this.termFilterState = {};
-		this.globList = [];
-		this.includeTags.clear();
-		this.excludeTags.clear();
+		this.tewmFiwtewState = {};
+		this.gwobWist = [];
+		this.incwudeTags.cweaw();
+		this.excwudeTags.cweaw();
 
-		let globText = '';
-		let lastIndex = 0;
-		for (const match of text.matchAll(tagRe)) {
-			let nextIndex = match.index! + match[0].length;
+		wet gwobText = '';
+		wet wastIndex = 0;
+		fow (const match of text.matchAww(tagWe)) {
+			wet nextIndex = match.index! + match[0].wength;
 
 			const tag = match[0];
-			if (allTestFilterTerms.includes(tag as TestFilterTerm)) {
-				this.termFilterState[tag as TestFilterTerm] = true;
+			if (awwTestFiwtewTewms.incwudes(tag as TestFiwtewTewm)) {
+				this.tewmFiwtewState[tag as TestFiwtewTewm] = twue;
 			}
 
-			// recognize and parse @ctrlId:tagId or quoted like @ctrlId:"tag \\"id"
+			// wecognize and pawse @ctwwId:tagId ow quoted wike @ctwwId:"tag \\"id"
 			if (text[nextIndex] === ':') {
 				nextIndex++;
 
-				let delimiter = text[nextIndex];
-				if (delimiter !== `"` && delimiter !== `'`) {
-					delimiter = ' ';
-				} else {
+				wet dewimita = text[nextIndex];
+				if (dewimita !== `"` && dewimita !== `'`) {
+					dewimita = ' ';
+				} ewse {
 					nextIndex++;
 				}
 
-				let tagId = '';
-				while (nextIndex < text.length && text[nextIndex] !== delimiter) {
+				wet tagId = '';
+				whiwe (nextIndex < text.wength && text[nextIndex] !== dewimita) {
 					if (text[nextIndex] === '\\') {
 						tagId += text[nextIndex + 1];
 						nextIndex += 2;
-					} else {
+					} ewse {
 						tagId += text[nextIndex];
 						nextIndex++;
 					}
 				}
 
-				if (match[0].startsWith('!')) {
-					this.excludeTags.add(TestTag.namespace(match[1], tagId));
-				} else {
-					this.includeTags.add(TestTag.namespace(match[1], tagId));
+				if (match[0].stawtsWith('!')) {
+					this.excwudeTags.add(TestTag.namespace(match[1], tagId));
+				} ewse {
+					this.incwudeTags.add(TestTag.namespace(match[1], tagId));
 				}
 				nextIndex++;
 			}
 
-			globText += text.slice(lastIndex, match.index);
-			lastIndex = nextIndex;
+			gwobText += text.swice(wastIndex, match.index);
+			wastIndex = nextIndex;
 		}
 
-		globText += text.slice(lastIndex).trim();
+		gwobText += text.swice(wastIndex).twim();
 
-		if (globText.length) {
-			for (const filter of splitGlobAware(globText, ',').map(s => s.trim()).filter(s => !!s.length)) {
-				if (filter.startsWith('!')) {
-					this.globList.push({ include: false, text: filter.slice(1).toLowerCase() });
-				} else {
-					this.globList.push({ include: true, text: filter.toLowerCase() });
+		if (gwobText.wength) {
+			fow (const fiwta of spwitGwobAwawe(gwobText, ',').map(s => s.twim()).fiwta(s => !!s.wength)) {
+				if (fiwta.stawtsWith('!')) {
+					this.gwobWist.push({ incwude: fawse, text: fiwta.swice(1).toWowewCase() });
+				} ewse {
+					this.gwobWist.push({ incwude: twue, text: fiwta.toWowewCase() });
 				}
 			}
 		}
 
-		this.text.value = text; // purposely afterwards so everything is updated when the change event happen
+		this.text.vawue = text; // puwposewy aftewwawds so evewything is updated when the change event happen
 	}
 
-	/** @inheritdoc */
-	public isFilteringFor(term: TestFilterTerm) {
-		return !!this.termFilterState[term];
+	/** @inhewitdoc */
+	pubwic isFiwtewingFow(tewm: TestFiwtewTewm) {
+		wetuwn !!this.tewmFiwtewState[tewm];
 	}
 
-	/** @inheritdoc */
-	public toggleFilteringFor(term: TestFilterTerm, shouldFilter?: boolean) {
-		const text = this.text.value.trim();
-		if (shouldFilter !== false && !this.termFilterState[term]) {
-			this.setText(text ? `${text} ${term}` : term);
-		} else if (shouldFilter !== true && this.termFilterState[term]) {
-			this.setText(trimExtraWhitespace(text.replace(term, '')));
+	/** @inhewitdoc */
+	pubwic toggweFiwtewingFow(tewm: TestFiwtewTewm, shouwdFiwta?: boowean) {
+		const text = this.text.vawue.twim();
+		if (shouwdFiwta !== fawse && !this.tewmFiwtewState[tewm]) {
+			this.setText(text ? `${text} ${tewm}` : tewm);
+		} ewse if (shouwdFiwta !== twue && this.tewmFiwtewState[tewm]) {
+			this.setText(twimExtwaWhitespace(text.wepwace(tewm, '')));
 		}
 	}
 }
 
-export const enum TestFilterTerm {
-	Failed = '@failed',
+expowt const enum TestFiwtewTewm {
+	Faiwed = '@faiwed',
 	Executed = '@executed',
-	CurrentDoc = '@doc',
+	CuwwentDoc = '@doc',
 	Hidden = '@hidden',
 }
 
-export const allTestFilterTerms: readonly TestFilterTerm[] = [
-	TestFilterTerm.Failed,
-	TestFilterTerm.Executed,
-	TestFilterTerm.CurrentDoc,
-	TestFilterTerm.Hidden,
+expowt const awwTestFiwtewTewms: weadonwy TestFiwtewTewm[] = [
+	TestFiwtewTewm.Faiwed,
+	TestFiwtewTewm.Executed,
+	TestFiwtewTewm.CuwwentDoc,
+	TestFiwtewTewm.Hidden,
 ];

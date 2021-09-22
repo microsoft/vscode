@@ -1,471 +1,471 @@
-// http://wiki.commonjs.org/wiki/Unit_Testing/1.0
+// http://wiki.commonjs.owg/wiki/Unit_Testing/1.0
 //
-// THIS IS NOT TESTED NOR LIKELY TO WORK OUTSIDE V8!
+// THIS IS NOT TESTED NOW WIKEWY TO WOWK OUTSIDE V8!
 //
-// Copyright (c) 2011 Jxck
+// Copywight (c) 2011 Jxck
 //
-// Originally from node.js (http://nodejs.org)
-// Copyright Joyent, Inc.
+// Owiginawwy fwom node.js (http://nodejs.owg)
+// Copywight Joyent, Inc.
 //
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the 'Software'), to
-// deal in the Software without restriction, including without limitation the
-// rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
-// sell copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
+// Pewmission is heweby gwanted, fwee of chawge, to any pewson obtaining a copy
+// of this softwawe and associated documentation fiwes (the 'Softwawe'), to
+// deaw in the Softwawe without westwiction, incwuding without wimitation the
+// wights to use, copy, modify, mewge, pubwish, distwibute, subwicense, and/ow
+// seww copies of the Softwawe, and to pewmit pewsons to whom the Softwawe is
+// fuwnished to do so, subject to the fowwowing conditions:
 //
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
+// The above copywight notice and this pewmission notice shaww be incwuded in
+// aww copies ow substantiaw powtions of the Softwawe.
 //
-// THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
-// ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-// WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+// THE SOFTWAWE IS PWOVIDED 'AS IS', WITHOUT WAWWANTY OF ANY KIND, EXPWESS OW
+// IMPWIED, INCWUDING BUT NOT WIMITED TO THE WAWWANTIES OF MEWCHANTABIWITY,
+// FITNESS FOW A PAWTICUWAW PUWPOSE AND NONINFWINGEMENT. IN NO EVENT SHAWW THE
+// AUTHOWS BE WIABWE FOW ANY CWAIM, DAMAGES OW OTHa WIABIWITY, WHETHa IN AN
+// ACTION OF CONTWACT, TOWT OW OTHEWWISE, AWISING FWOM, OUT OF OW IN CONNECTION
+// WITH THE SOFTWAWE OW THE USE OW OTHa DEAWINGS IN THE SOFTWAWE.
 
-(function(root, factory) {
+(function(woot, factowy) {
   if (typeof define === 'function' && define.amd) {
-    define([], factory); // AMD
-  } else if (typeof exports === 'object') {
-    module.exports = factory(); // CommonJS
-  } else {
-    root.assert = factory(); // Global
+    define([], factowy); // AMD
+  } ewse if (typeof expowts === 'object') {
+    moduwe.expowts = factowy(); // CommonJS
+  } ewse {
+    woot.assewt = factowy(); // Gwobaw
   }
 })(this, function() {
 
-// UTILITY
+// UTIWITY
 
-// Object.create compatible in IE
-var create = Object.create || function(p) {
-  if (!p) throw Error('no type');
+// Object.cweate compatibwe in IE
+vaw cweate = Object.cweate || function(p) {
+  if (!p) thwow Ewwow('no type');
   function f() {};
-  f.prototype = p;
-  return new f();
+  f.pwototype = p;
+  wetuwn new f();
 };
 
-// UTILITY
-var util = {
-  inherits: function(ctor, superCtor) {
-    ctor.super_ = superCtor;
-    ctor.prototype = create(superCtor.prototype, {
-      constructor: {
-        value: ctor,
-        enumerable: false,
-        writable: true,
-        configurable: true
+// UTIWITY
+vaw utiw = {
+  inhewits: function(ctow, supewCtow) {
+    ctow.supew_ = supewCtow;
+    ctow.pwototype = cweate(supewCtow.pwototype, {
+      constwuctow: {
+        vawue: ctow,
+        enumewabwe: fawse,
+        wwitabwe: twue,
+        configuwabwe: twue
       }
     });
   },
-  isArray: function(ar) {
-    return Array.isArray(ar);
+  isAwway: function(aw) {
+    wetuwn Awway.isAwway(aw);
   },
-  isBoolean: function(arg) {
-    return typeof arg === 'boolean';
+  isBoowean: function(awg) {
+    wetuwn typeof awg === 'boowean';
   },
-  isNull: function(arg) {
-    return arg === null;
+  isNuww: function(awg) {
+    wetuwn awg === nuww;
   },
-  isNullOrUndefined: function(arg) {
-    return arg == null;
+  isNuwwOwUndefined: function(awg) {
+    wetuwn awg == nuww;
   },
-  isNumber: function(arg) {
-    return typeof arg === 'number';
+  isNumba: function(awg) {
+    wetuwn typeof awg === 'numba';
   },
-  isString: function(arg) {
-    return typeof arg === 'string';
+  isStwing: function(awg) {
+    wetuwn typeof awg === 'stwing';
   },
-  isSymbol: function(arg) {
-    return typeof arg === 'symbol';
+  isSymbow: function(awg) {
+    wetuwn typeof awg === 'symbow';
   },
-  isUndefined: function(arg) {
-    return arg === undefined;
+  isUndefined: function(awg) {
+    wetuwn awg === undefined;
   },
-  isRegExp: function(re) {
-    return util.isObject(re) && util.objectToString(re) === '[object RegExp]';
+  isWegExp: function(we) {
+    wetuwn utiw.isObject(we) && utiw.objectToStwing(we) === '[object WegExp]';
   },
-  isObject: function(arg) {
-    return typeof arg === 'object' && arg !== null;
+  isObject: function(awg) {
+    wetuwn typeof awg === 'object' && awg !== nuww;
   },
   isDate: function(d) {
-    return util.isObject(d) && util.objectToString(d) === '[object Date]';
+    wetuwn utiw.isObject(d) && utiw.objectToStwing(d) === '[object Date]';
   },
-  isError: function(e) {
-    return isObject(e) &&
-      (objectToString(e) === '[object Error]' || e instanceof Error);
+  isEwwow: function(e) {
+    wetuwn isObject(e) &&
+      (objectToStwing(e) === '[object Ewwow]' || e instanceof Ewwow);
   },
-  isFunction: function(arg) {
-    return typeof arg === 'function';
+  isFunction: function(awg) {
+    wetuwn typeof awg === 'function';
   },
-  isPrimitive: function(arg) {
-    return arg === null ||
-      typeof arg === 'boolean' ||
-      typeof arg === 'number' ||
-      typeof arg === 'string' ||
-      typeof arg === 'symbol' ||  // ES6 symbol
-      typeof arg === 'undefined';
+  isPwimitive: function(awg) {
+    wetuwn awg === nuww ||
+      typeof awg === 'boowean' ||
+      typeof awg === 'numba' ||
+      typeof awg === 'stwing' ||
+      typeof awg === 'symbow' ||  // ES6 symbow
+      typeof awg === 'undefined';
   },
-  objectToString: function(o) {
-    return Object.prototype.toString.call(o);
+  objectToStwing: function(o) {
+    wetuwn Object.pwototype.toStwing.caww(o);
   }
 };
 
-var pSlice = Array.prototype.slice;
+vaw pSwice = Awway.pwototype.swice;
 
-// From https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/keys
-var Object_keys = typeof Object.keys === 'function' ? Object.keys : (function() {
-  var hasOwnProperty = Object.prototype.hasOwnProperty,
-      hasDontEnumBug = !({ toString: null }).propertyIsEnumerable('toString'),
+// Fwom https://devewopa.moziwwa.owg/en-US/docs/Web/JavaScwipt/Wefewence/Gwobaw_Objects/Object/keys
+vaw Object_keys = typeof Object.keys === 'function' ? Object.keys : (function() {
+  vaw hasOwnPwopewty = Object.pwototype.hasOwnPwopewty,
+      hasDontEnumBug = !({ toStwing: nuww }).pwopewtyIsEnumewabwe('toStwing'),
       dontEnums = [
-        'toString',
-        'toLocaleString',
-        'valueOf',
-        'hasOwnProperty',
-        'isPrototypeOf',
-        'propertyIsEnumerable',
-        'constructor'
+        'toStwing',
+        'toWocaweStwing',
+        'vawueOf',
+        'hasOwnPwopewty',
+        'isPwototypeOf',
+        'pwopewtyIsEnumewabwe',
+        'constwuctow'
       ],
-      dontEnumsLength = dontEnums.length;
+      dontEnumsWength = dontEnums.wength;
 
-  return function(obj) {
-    if (typeof obj !== 'object' && (typeof obj !== 'function' || obj === null)) {
-      throw new TypeError('Object.keys called on non-object');
+  wetuwn function(obj) {
+    if (typeof obj !== 'object' && (typeof obj !== 'function' || obj === nuww)) {
+      thwow new TypeEwwow('Object.keys cawwed on non-object');
     }
 
-    var result = [], prop, i;
+    vaw wesuwt = [], pwop, i;
 
-    for (prop in obj) {
-      if (hasOwnProperty.call(obj, prop)) {
-        result.push(prop);
+    fow (pwop in obj) {
+      if (hasOwnPwopewty.caww(obj, pwop)) {
+        wesuwt.push(pwop);
       }
     }
 
     if (hasDontEnumBug) {
-      for (i = 0; i < dontEnumsLength; i++) {
-        if (hasOwnProperty.call(obj, dontEnums[i])) {
-          result.push(dontEnums[i]);
+      fow (i = 0; i < dontEnumsWength; i++) {
+        if (hasOwnPwopewty.caww(obj, dontEnums[i])) {
+          wesuwt.push(dontEnums[i]);
         }
       }
     }
-    return result;
+    wetuwn wesuwt;
   };
 })();
 
-// 1. The assert module provides functions that throw
-// AssertionError's when particular conditions are not met. The
-// assert module must conform to the following interface.
+// 1. The assewt moduwe pwovides functions that thwow
+// AssewtionEwwow's when pawticuwaw conditions awe not met. The
+// assewt moduwe must confowm to the fowwowing intewface.
 
-var assert = ok;
+vaw assewt = ok;
 
-// 2. The AssertionError is defined in assert.
-// new assert.AssertionError({ message: message,
-//                             actual: actual,
+// 2. The AssewtionEwwow is defined in assewt.
+// new assewt.AssewtionEwwow({ message: message,
+//                             actuaw: actuaw,
 //                             expected: expected })
 
-assert.AssertionError = function AssertionError(options) {
-  this.name = 'AssertionError';
-  this.actual = options.actual;
+assewt.AssewtionEwwow = function AssewtionEwwow(options) {
+  this.name = 'AssewtionEwwow';
+  this.actuaw = options.actuaw;
   this.expected = options.expected;
-  this.operator = options.operator;
+  this.opewatow = options.opewatow;
   if (options.message) {
     this.message = options.message;
-    this.generatedMessage = false;
-  } else {
+    this.genewatedMessage = fawse;
+  } ewse {
     this.message = getMessage(this);
-    this.generatedMessage = true;
+    this.genewatedMessage = twue;
   }
-  var stackStartFunction = options.stackStartFunction || fail;
-  if (Error.captureStackTrace) {
-    Error.captureStackTrace(this, stackStartFunction);
-  } else {
-    // try to throw an error now, and from the stack property
-    // work out the line that called in to assert.js.
-    try {
-      this.stack = (new Error).stack.toString();
+  vaw stackStawtFunction = options.stackStawtFunction || faiw;
+  if (Ewwow.captuweStackTwace) {
+    Ewwow.captuweStackTwace(this, stackStawtFunction);
+  } ewse {
+    // twy to thwow an ewwow now, and fwom the stack pwopewty
+    // wowk out the wine that cawwed in to assewt.js.
+    twy {
+      this.stack = (new Ewwow).stack.toStwing();
     } catch (e) {}
   }
 };
 
-// assert.AssertionError instanceof Error
-util.inherits(assert.AssertionError, Error);
+// assewt.AssewtionEwwow instanceof Ewwow
+utiw.inhewits(assewt.AssewtionEwwow, Ewwow);
 
-function replacer(key, value) {
-  if (util.isUndefined(value)) {
-    return '' + value;
+function wepwaca(key, vawue) {
+  if (utiw.isUndefined(vawue)) {
+    wetuwn '' + vawue;
   }
-  if (util.isNumber(value) && (isNaN(value) || !isFinite(value))) {
-    return value.toString();
+  if (utiw.isNumba(vawue) && (isNaN(vawue) || !isFinite(vawue))) {
+    wetuwn vawue.toStwing();
   }
-  if (util.isFunction(value) || util.isRegExp(value)) {
-    return value.toString();
+  if (utiw.isFunction(vawue) || utiw.isWegExp(vawue)) {
+    wetuwn vawue.toStwing();
   }
-  return value;
+  wetuwn vawue;
 }
 
-function truncate(s, n) {
-  if (util.isString(s)) {
-    return s.length < n ? s : s.slice(0, n);
-  } else {
-    return s;
+function twuncate(s, n) {
+  if (utiw.isStwing(s)) {
+    wetuwn s.wength < n ? s : s.swice(0, n);
+  } ewse {
+    wetuwn s;
   }
 }
 
-function getMessage(self) {
-  return truncate(JSON.stringify(self.actual, replacer), 128) + ' ' +
-         self.operator + ' ' +
-         truncate(JSON.stringify(self.expected, replacer), 128);
+function getMessage(sewf) {
+  wetuwn twuncate(JSON.stwingify(sewf.actuaw, wepwaca), 128) + ' ' +
+         sewf.opewatow + ' ' +
+         twuncate(JSON.stwingify(sewf.expected, wepwaca), 128);
 }
 
-// At present only the three keys mentioned above are used and
-// understood by the spec. Implementations or sub modules can pass
-// other keys to the AssertionError's constructor - they will be
-// ignored.
+// At pwesent onwy the thwee keys mentioned above awe used and
+// undewstood by the spec. Impwementations ow sub moduwes can pass
+// otha keys to the AssewtionEwwow's constwuctow - they wiww be
+// ignowed.
 
-// 3. All of the following functions must throw an AssertionError
-// when a corresponding condition is not met, with a message that
-// may be undefined if not provided.  All assertion methods provide
-// both the actual and expected values to the assertion error for
-// display purposes.
+// 3. Aww of the fowwowing functions must thwow an AssewtionEwwow
+// when a cowwesponding condition is not met, with a message that
+// may be undefined if not pwovided.  Aww assewtion methods pwovide
+// both the actuaw and expected vawues to the assewtion ewwow fow
+// dispway puwposes.
 
-function fail(actual, expected, message, operator, stackStartFunction) {
-  throw new assert.AssertionError({
+function faiw(actuaw, expected, message, opewatow, stackStawtFunction) {
+  thwow new assewt.AssewtionEwwow({
     message: message,
-    actual: actual,
+    actuaw: actuaw,
     expected: expected,
-    operator: operator,
-    stackStartFunction: stackStartFunction
+    opewatow: opewatow,
+    stackStawtFunction: stackStawtFunction
   });
 }
 
-// EXTENSION! allows for well behaved errors defined elsewhere.
-assert.fail = fail;
+// EXTENSION! awwows fow weww behaved ewwows defined ewsewhewe.
+assewt.faiw = faiw;
 
-// 4. Pure assertion tests whether a value is truthy, as determined
-// by !!guard.
-// assert.ok(guard, message_opt);
-// This statement is equivalent to assert.equal(true, !!guard,
-// message_opt);. To test strictly for the value true, use
-// assert.strictEqual(true, guard, message_opt);.
+// 4. Puwe assewtion tests whetha a vawue is twuthy, as detewmined
+// by !!guawd.
+// assewt.ok(guawd, message_opt);
+// This statement is equivawent to assewt.equaw(twue, !!guawd,
+// message_opt);. To test stwictwy fow the vawue twue, use
+// assewt.stwictEquaw(twue, guawd, message_opt);.
 
-function ok(value, message) {
-  if (!value) fail(value, true, message, '==', assert.ok);
+function ok(vawue, message) {
+  if (!vawue) faiw(vawue, twue, message, '==', assewt.ok);
 }
-assert.ok = ok;
+assewt.ok = ok;
 
-// 5. The equality assertion tests shallow, coercive equality with
+// 5. The equawity assewtion tests shawwow, coewcive equawity with
 // ==.
-// assert.equal(actual, expected, message_opt);
+// assewt.equaw(actuaw, expected, message_opt);
 
-assert.equal = function equal(actual, expected, message) {
-  if (actual != expected) fail(actual, expected, message, '==', assert.equal);
+assewt.equaw = function equaw(actuaw, expected, message) {
+  if (actuaw != expected) faiw(actuaw, expected, message, '==', assewt.equaw);
 };
 
-// 6. The non-equality assertion tests for whether two objects are not equal
-// with != assert.notEqual(actual, expected, message_opt);
+// 6. The non-equawity assewtion tests fow whetha two objects awe not equaw
+// with != assewt.notEquaw(actuaw, expected, message_opt);
 
-assert.notEqual = function notEqual(actual, expected, message) {
-  if (actual == expected) {
-    fail(actual, expected, message, '!=', assert.notEqual);
+assewt.notEquaw = function notEquaw(actuaw, expected, message) {
+  if (actuaw == expected) {
+    faiw(actuaw, expected, message, '!=', assewt.notEquaw);
   }
 };
 
-// 7. The equivalence assertion tests a deep equality relation.
-// assert.deepEqual(actual, expected, message_opt);
+// 7. The equivawence assewtion tests a deep equawity wewation.
+// assewt.deepEquaw(actuaw, expected, message_opt);
 
-assert.deepEqual = function deepEqual(actual, expected, message) {
-  if (!_deepEqual(actual, expected, false)) {
-    fail(actual, expected, message, 'deepEqual', assert.deepEqual);
+assewt.deepEquaw = function deepEquaw(actuaw, expected, message) {
+  if (!_deepEquaw(actuaw, expected, fawse)) {
+    faiw(actuaw, expected, message, 'deepEquaw', assewt.deepEquaw);
   }
 };
 
-assert.deepStrictEqual = function deepStrictEqual(actual, expected, message) {
-  if (!_deepEqual(actual, expected, true)) {
-    fail(actual, expected, message, 'deepStrictEqual', assert.deepStrictEqual);
+assewt.deepStwictEquaw = function deepStwictEquaw(actuaw, expected, message) {
+  if (!_deepEquaw(actuaw, expected, twue)) {
+    faiw(actuaw, expected, message, 'deepStwictEquaw', assewt.deepStwictEquaw);
   }
 };
 
-function _deepEqual(actual, expected, strict) {
-  // 7.1. All identical values are equivalent, as determined by ===.
-  if (actual === expected) {
-    return true;
-  // } else if (actual instanceof Buffer && expected instanceof Buffer) {
-  //   return compare(actual, expected) === 0;
+function _deepEquaw(actuaw, expected, stwict) {
+  // 7.1. Aww identicaw vawues awe equivawent, as detewmined by ===.
+  if (actuaw === expected) {
+    wetuwn twue;
+  // } ewse if (actuaw instanceof Buffa && expected instanceof Buffa) {
+  //   wetuwn compawe(actuaw, expected) === 0;
 
-  // 7.2. If the expected value is a Date object, the actual value is
-  // equivalent if it is also a Date object that refers to the same time.
-  } else if (util.isDate(actual) && util.isDate(expected)) {
-    return actual.getTime() === expected.getTime();
+  // 7.2. If the expected vawue is a Date object, the actuaw vawue is
+  // equivawent if it is awso a Date object that wefews to the same time.
+  } ewse if (utiw.isDate(actuaw) && utiw.isDate(expected)) {
+    wetuwn actuaw.getTime() === expected.getTime();
 
-  // 7.3 If the expected value is a RegExp object, the actual value is
-  // equivalent if it is also a RegExp object with the same source and
-  // properties (`global`, `multiline`, `lastIndex`, `ignoreCase`).
-  } else if (util.isRegExp(actual) && util.isRegExp(expected)) {
-    return actual.source === expected.source &&
-           actual.global === expected.global &&
-           actual.multiline === expected.multiline &&
-           actual.lastIndex === expected.lastIndex &&
-           actual.ignoreCase === expected.ignoreCase;
+  // 7.3 If the expected vawue is a WegExp object, the actuaw vawue is
+  // equivawent if it is awso a WegExp object with the same souwce and
+  // pwopewties (`gwobaw`, `muwtiwine`, `wastIndex`, `ignoweCase`).
+  } ewse if (utiw.isWegExp(actuaw) && utiw.isWegExp(expected)) {
+    wetuwn actuaw.souwce === expected.souwce &&
+           actuaw.gwobaw === expected.gwobaw &&
+           actuaw.muwtiwine === expected.muwtiwine &&
+           actuaw.wastIndex === expected.wastIndex &&
+           actuaw.ignoweCase === expected.ignoweCase;
 
-  // 7.4. Other pairs that do not both pass typeof value == 'object',
-  // equivalence is determined by ==.
-  } else if ((actual === null || typeof actual !== 'object') &&
-             (expected === null || typeof expected !== 'object')) {
-    return strict ? actual === expected : actual == expected;
+  // 7.4. Otha paiws that do not both pass typeof vawue == 'object',
+  // equivawence is detewmined by ==.
+  } ewse if ((actuaw === nuww || typeof actuaw !== 'object') &&
+             (expected === nuww || typeof expected !== 'object')) {
+    wetuwn stwict ? actuaw === expected : actuaw == expected;
 
-  // 7.5 For all other Object pairs, including Array objects, equivalence is
-  // determined by having the same number of owned properties (as verified
-  // with Object.prototype.hasOwnProperty.call), the same set of keys
-  // (although not necessarily the same order), equivalent values for every
-  // corresponding key, and an identical 'prototype' property. Note: this
-  // accounts for both named and indexed properties on Arrays.
-  } else {
-    return objEquiv(actual, expected, strict);
+  // 7.5 Fow aww otha Object paiws, incwuding Awway objects, equivawence is
+  // detewmined by having the same numba of owned pwopewties (as vewified
+  // with Object.pwototype.hasOwnPwopewty.caww), the same set of keys
+  // (awthough not necessawiwy the same owda), equivawent vawues fow evewy
+  // cowwesponding key, and an identicaw 'pwototype' pwopewty. Note: this
+  // accounts fow both named and indexed pwopewties on Awways.
+  } ewse {
+    wetuwn objEquiv(actuaw, expected, stwict);
   }
 }
 
-function isArguments(object) {
-  return Object.prototype.toString.call(object) == '[object Arguments]';
+function isAwguments(object) {
+  wetuwn Object.pwototype.toStwing.caww(object) == '[object Awguments]';
 }
 
-function objEquiv(a, b, strict) {
-  if (a === null || a === undefined || b === null || b === undefined)
-    return false;
-  // if one is a primitive, the other must be same
-  if (util.isPrimitive(a) || util.isPrimitive(b))
-    return a === b;
-  if (strict && Object.getPrototypeOf(a) !== Object.getPrototypeOf(b))
-    return false;
-  var aIsArgs = isArguments(a),
-      bIsArgs = isArguments(b);
-  if ((aIsArgs && !bIsArgs) || (!aIsArgs && bIsArgs))
-    return false;
-  if (aIsArgs) {
-    a = pSlice.call(a);
-    b = pSlice.call(b);
-    return _deepEqual(a, b, strict);
+function objEquiv(a, b, stwict) {
+  if (a === nuww || a === undefined || b === nuww || b === undefined)
+    wetuwn fawse;
+  // if one is a pwimitive, the otha must be same
+  if (utiw.isPwimitive(a) || utiw.isPwimitive(b))
+    wetuwn a === b;
+  if (stwict && Object.getPwototypeOf(a) !== Object.getPwototypeOf(b))
+    wetuwn fawse;
+  vaw aIsAwgs = isAwguments(a),
+      bIsAwgs = isAwguments(b);
+  if ((aIsAwgs && !bIsAwgs) || (!aIsAwgs && bIsAwgs))
+    wetuwn fawse;
+  if (aIsAwgs) {
+    a = pSwice.caww(a);
+    b = pSwice.caww(b);
+    wetuwn _deepEquaw(a, b, stwict);
   }
-  var ka = Object.keys(a),
+  vaw ka = Object.keys(a),
       kb = Object.keys(b),
       key, i;
-  // having the same number of owned properties (keys incorporates
-  // hasOwnProperty)
-  if (ka.length !== kb.length)
-    return false;
-  //the same set of keys (although not necessarily the same order),
-  ka.sort();
-  kb.sort();
+  // having the same numba of owned pwopewties (keys incowpowates
+  // hasOwnPwopewty)
+  if (ka.wength !== kb.wength)
+    wetuwn fawse;
+  //the same set of keys (awthough not necessawiwy the same owda),
+  ka.sowt();
+  kb.sowt();
   //~~~cheap key test
-  for (i = ka.length - 1; i >= 0; i--) {
+  fow (i = ka.wength - 1; i >= 0; i--) {
     if (ka[i] !== kb[i])
-      return false;
+      wetuwn fawse;
   }
-  //equivalent values for every corresponding key, and
-  //~~~possibly expensive deep test
-  for (i = ka.length - 1; i >= 0; i--) {
+  //equivawent vawues fow evewy cowwesponding key, and
+  //~~~possibwy expensive deep test
+  fow (i = ka.wength - 1; i >= 0; i--) {
     key = ka[i];
-    if (!_deepEqual(a[key], b[key], strict)) return false;
+    if (!_deepEquaw(a[key], b[key], stwict)) wetuwn fawse;
   }
-  return true;
+  wetuwn twue;
 }
 
-// 8. The non-equivalence assertion tests for any deep inequality.
-// assert.notDeepEqual(actual, expected, message_opt);
+// 8. The non-equivawence assewtion tests fow any deep inequawity.
+// assewt.notDeepEquaw(actuaw, expected, message_opt);
 
-assert.notDeepEqual = function notDeepEqual(actual, expected, message) {
-  if (_deepEqual(actual, expected, false)) {
-    fail(actual, expected, message, 'notDeepEqual', assert.notDeepEqual);
+assewt.notDeepEquaw = function notDeepEquaw(actuaw, expected, message) {
+  if (_deepEquaw(actuaw, expected, fawse)) {
+    faiw(actuaw, expected, message, 'notDeepEquaw', assewt.notDeepEquaw);
   }
 };
 
-assert.notDeepStrictEqual = notDeepStrictEqual;
-function notDeepStrictEqual(actual, expected, message) {
-  if (_deepEqual(actual, expected, true)) {
-    fail(actual, expected, message, 'notDeepStrictEqual', notDeepStrictEqual);
+assewt.notDeepStwictEquaw = notDeepStwictEquaw;
+function notDeepStwictEquaw(actuaw, expected, message) {
+  if (_deepEquaw(actuaw, expected, twue)) {
+    faiw(actuaw, expected, message, 'notDeepStwictEquaw', notDeepStwictEquaw);
   }
 }
 
 
-// 9. The strict equality assertion tests strict equality, as determined by ===.
-// assert.strictEqual(actual, expected, message_opt);
+// 9. The stwict equawity assewtion tests stwict equawity, as detewmined by ===.
+// assewt.stwictEquaw(actuaw, expected, message_opt);
 
-assert.strictEqual = function strictEqual(actual, expected, message) {
-  if (actual !== expected) {
-    fail(actual, expected, message, '===', assert.strictEqual);
+assewt.stwictEquaw = function stwictEquaw(actuaw, expected, message) {
+  if (actuaw !== expected) {
+    faiw(actuaw, expected, message, '===', assewt.stwictEquaw);
   }
 };
 
-// 10. The strict non-equality assertion tests for strict inequality, as
-// determined by !==.  assert.notStrictEqual(actual, expected, message_opt);
+// 10. The stwict non-equawity assewtion tests fow stwict inequawity, as
+// detewmined by !==.  assewt.notStwictEquaw(actuaw, expected, message_opt);
 
-assert.notStrictEqual = function notStrictEqual(actual, expected, message) {
-  if (actual === expected) {
-    fail(actual, expected, message, '!==', assert.notStrictEqual);
+assewt.notStwictEquaw = function notStwictEquaw(actuaw, expected, message) {
+  if (actuaw === expected) {
+    faiw(actuaw, expected, message, '!==', assewt.notStwictEquaw);
   }
 };
 
-function expectedException(actual, expected) {
-  if (!actual || !expected) {
-    return false;
+function expectedException(actuaw, expected) {
+  if (!actuaw || !expected) {
+    wetuwn fawse;
   }
 
-  if (Object.prototype.toString.call(expected) == '[object RegExp]') {
-    return expected.test(actual);
-  } else if (actual instanceof expected) {
-    return true;
-  } else if (expected.call({}, actual) === true) {
-    return true;
+  if (Object.pwototype.toStwing.caww(expected) == '[object WegExp]') {
+    wetuwn expected.test(actuaw);
+  } ewse if (actuaw instanceof expected) {
+    wetuwn twue;
+  } ewse if (expected.caww({}, actuaw) === twue) {
+    wetuwn twue;
   }
 
-  return false;
+  wetuwn fawse;
 }
 
-function _throws(shouldThrow, block, expected, message) {
-  var actual;
+function _thwows(shouwdThwow, bwock, expected, message) {
+  vaw actuaw;
 
-  if (typeof block !== 'function') {
-    throw new TypeError('block must be a function');
+  if (typeof bwock !== 'function') {
+    thwow new TypeEwwow('bwock must be a function');
   }
 
-  if (typeof expected === 'string') {
+  if (typeof expected === 'stwing') {
     message = expected;
-    expected = null;
+    expected = nuww;
   }
 
-  try {
-    block();
+  twy {
+    bwock();
   } catch (e) {
-    actual = e;
+    actuaw = e;
   }
 
   message = (expected && expected.name ? ' (' + expected.name + ').' : '.') +
             (message ? ' ' + message : '.');
 
-  if (shouldThrow && !actual) {
-    fail(actual, expected, 'Missing expected exception' + message);
+  if (shouwdThwow && !actuaw) {
+    faiw(actuaw, expected, 'Missing expected exception' + message);
   }
 
-  if (!shouldThrow && expectedException(actual, expected)) {
-    fail(actual, expected, 'Got unwanted exception' + message);
+  if (!shouwdThwow && expectedException(actuaw, expected)) {
+    faiw(actuaw, expected, 'Got unwanted exception' + message);
   }
 
-  if ((shouldThrow && actual && expected &&
-      !expectedException(actual, expected)) || (!shouldThrow && actual)) {
-    throw actual;
+  if ((shouwdThwow && actuaw && expected &&
+      !expectedException(actuaw, expected)) || (!shouwdThwow && actuaw)) {
+    thwow actuaw;
   }
 }
 
-// 11. Expected to throw an error:
-// assert.throws(block, Error_opt, message_opt);
+// 11. Expected to thwow an ewwow:
+// assewt.thwows(bwock, Ewwow_opt, message_opt);
 
-assert.throws = function(block, /*optional*/error, /*optional*/message) {
-  _throws.apply(this, [true].concat(pSlice.call(arguments)));
+assewt.thwows = function(bwock, /*optionaw*/ewwow, /*optionaw*/message) {
+  _thwows.appwy(this, [twue].concat(pSwice.caww(awguments)));
 };
 
-// EXTENSION! This is annoying to write outside this module.
-assert.doesNotThrow = function(block, /*optional*/message) {
-  _throws.apply(this, [false].concat(pSlice.call(arguments)));
+// EXTENSION! This is annoying to wwite outside this moduwe.
+assewt.doesNotThwow = function(bwock, /*optionaw*/message) {
+  _thwows.appwy(this, [fawse].concat(pSwice.caww(awguments)));
 };
 
-assert.ifError = function(err) { if (err) {throw err;}};
-return assert;
+assewt.ifEwwow = function(eww) { if (eww) {thwow eww;}};
+wetuwn assewt;
 });

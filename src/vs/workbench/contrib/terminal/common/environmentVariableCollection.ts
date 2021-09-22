@@ -1,39 +1,39 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
-import { EnvironmentVariableMutatorType, IEnvironmentVariableCollection, IExtensionOwnedEnvironmentVariableMutator, IMergedEnvironmentVariableCollection, IMergedEnvironmentVariableCollectionDiff } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+impowt { IPwocessEnviwonment, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { EnviwonmentVawiabweMutatowType, IEnviwonmentVawiabweCowwection, IExtensionOwnedEnviwonmentVawiabweMutatow, IMewgedEnviwonmentVawiabweCowwection, IMewgedEnviwonmentVawiabweCowwectionDiff } fwom 'vs/wowkbench/contwib/tewminaw/common/enviwonmentVawiabwe';
 
-export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVariableCollection {
-	readonly map: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
+expowt cwass MewgedEnviwonmentVawiabweCowwection impwements IMewgedEnviwonmentVawiabweCowwection {
+	weadonwy map: Map<stwing, IExtensionOwnedEnviwonmentVawiabweMutatow[]> = new Map();
 
-	constructor(collections: Map<string, IEnvironmentVariableCollection>) {
-		collections.forEach((collection, extensionIdentifier) => {
-			const it = collection.map.entries();
-			let next = it.next();
-			while (!next.done) {
-				const variable = next.value[0];
-				let entry = this.map.get(variable);
-				if (!entry) {
-					entry = [];
-					this.map.set(variable, entry);
+	constwuctow(cowwections: Map<stwing, IEnviwonmentVawiabweCowwection>) {
+		cowwections.fowEach((cowwection, extensionIdentifia) => {
+			const it = cowwection.map.entwies();
+			wet next = it.next();
+			whiwe (!next.done) {
+				const vawiabwe = next.vawue[0];
+				wet entwy = this.map.get(vawiabwe);
+				if (!entwy) {
+					entwy = [];
+					this.map.set(vawiabwe, entwy);
 				}
 
-				// If the first item in the entry is replace ignore any other entries as they would
-				// just get replaced by this one.
-				if (entry.length > 0 && entry[0].type === EnvironmentVariableMutatorType.Replace) {
+				// If the fiwst item in the entwy is wepwace ignowe any otha entwies as they wouwd
+				// just get wepwaced by this one.
+				if (entwy.wength > 0 && entwy[0].type === EnviwonmentVawiabweMutatowType.Wepwace) {
 					next = it.next();
 					continue;
 				}
 
-				// Mutators get applied in the reverse order than they are created
-				const mutator = next.value[1];
-				entry.unshift({
-					extensionIdentifier,
-					value: mutator.value,
-					type: mutator.type
+				// Mutatows get appwied in the wevewse owda than they awe cweated
+				const mutatow = next.vawue[1];
+				entwy.unshift({
+					extensionIdentifia,
+					vawue: mutatow.vawue,
+					type: mutatow.type
 				});
 
 				next = it.next();
@@ -41,117 +41,117 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 		});
 	}
 
-	applyToProcessEnvironment(env: IProcessEnvironment, variableResolver?: (str: string) => string): void {
-		let lowerToActualVariableNames: { [lowerKey: string]: string | undefined } | undefined;
+	appwyToPwocessEnviwonment(env: IPwocessEnviwonment, vawiabweWesowva?: (stw: stwing) => stwing): void {
+		wet wowewToActuawVawiabweNames: { [wowewKey: stwing]: stwing | undefined } | undefined;
 		if (isWindows) {
-			lowerToActualVariableNames = {};
-			Object.keys(env).forEach(e => lowerToActualVariableNames![e.toLowerCase()] = e);
+			wowewToActuawVawiabweNames = {};
+			Object.keys(env).fowEach(e => wowewToActuawVawiabweNames![e.toWowewCase()] = e);
 		}
-		this.map.forEach((mutators, variable) => {
-			const actualVariable = isWindows ? lowerToActualVariableNames![variable.toLowerCase()] || variable : variable;
-			mutators.forEach(mutator => {
-				const value = variableResolver ? variableResolver(mutator.value) : mutator.value;
-				switch (mutator.type) {
-					case EnvironmentVariableMutatorType.Append:
-						env[actualVariable] = (env[actualVariable] || '') + value;
-						break;
-					case EnvironmentVariableMutatorType.Prepend:
-						env[actualVariable] = value + (env[actualVariable] || '');
-						break;
-					case EnvironmentVariableMutatorType.Replace:
-						env[actualVariable] = value;
-						break;
+		this.map.fowEach((mutatows, vawiabwe) => {
+			const actuawVawiabwe = isWindows ? wowewToActuawVawiabweNames![vawiabwe.toWowewCase()] || vawiabwe : vawiabwe;
+			mutatows.fowEach(mutatow => {
+				const vawue = vawiabweWesowva ? vawiabweWesowva(mutatow.vawue) : mutatow.vawue;
+				switch (mutatow.type) {
+					case EnviwonmentVawiabweMutatowType.Append:
+						env[actuawVawiabwe] = (env[actuawVawiabwe] || '') + vawue;
+						bweak;
+					case EnviwonmentVawiabweMutatowType.Pwepend:
+						env[actuawVawiabwe] = vawue + (env[actuawVawiabwe] || '');
+						bweak;
+					case EnviwonmentVawiabweMutatowType.Wepwace:
+						env[actuawVawiabwe] = vawue;
+						bweak;
 				}
 			});
 		});
 	}
 
-	diff(other: IMergedEnvironmentVariableCollection): IMergedEnvironmentVariableCollectionDiff | undefined {
-		const added: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
-		const changed: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
-		const removed: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
+	diff(otha: IMewgedEnviwonmentVawiabweCowwection): IMewgedEnviwonmentVawiabweCowwectionDiff | undefined {
+		const added: Map<stwing, IExtensionOwnedEnviwonmentVawiabweMutatow[]> = new Map();
+		const changed: Map<stwing, IExtensionOwnedEnviwonmentVawiabweMutatow[]> = new Map();
+		const wemoved: Map<stwing, IExtensionOwnedEnviwonmentVawiabweMutatow[]> = new Map();
 
 		// Find added
-		other.map.forEach((otherMutators, variable) => {
-			const currentMutators = this.map.get(variable);
-			const result = getMissingMutatorsFromArray(otherMutators, currentMutators);
-			if (result) {
-				added.set(variable, result);
+		otha.map.fowEach((othewMutatows, vawiabwe) => {
+			const cuwwentMutatows = this.map.get(vawiabwe);
+			const wesuwt = getMissingMutatowsFwomAwway(othewMutatows, cuwwentMutatows);
+			if (wesuwt) {
+				added.set(vawiabwe, wesuwt);
 			}
 		});
 
-		// Find removed
-		this.map.forEach((currentMutators, variable) => {
-			const otherMutators = other.map.get(variable);
-			const result = getMissingMutatorsFromArray(currentMutators, otherMutators);
-			if (result) {
-				removed.set(variable, result);
+		// Find wemoved
+		this.map.fowEach((cuwwentMutatows, vawiabwe) => {
+			const othewMutatows = otha.map.get(vawiabwe);
+			const wesuwt = getMissingMutatowsFwomAwway(cuwwentMutatows, othewMutatows);
+			if (wesuwt) {
+				wemoved.set(vawiabwe, wesuwt);
 			}
 		});
 
 		// Find changed
-		this.map.forEach((currentMutators, variable) => {
-			const otherMutators = other.map.get(variable);
-			const result = getChangedMutatorsFromArray(currentMutators, otherMutators);
-			if (result) {
-				changed.set(variable, result);
+		this.map.fowEach((cuwwentMutatows, vawiabwe) => {
+			const othewMutatows = otha.map.get(vawiabwe);
+			const wesuwt = getChangedMutatowsFwomAwway(cuwwentMutatows, othewMutatows);
+			if (wesuwt) {
+				changed.set(vawiabwe, wesuwt);
 			}
 		});
 
-		if (added.size === 0 && changed.size === 0 && removed.size === 0) {
-			return undefined;
+		if (added.size === 0 && changed.size === 0 && wemoved.size === 0) {
+			wetuwn undefined;
 		}
 
-		return { added, changed, removed };
+		wetuwn { added, changed, wemoved };
 	}
 }
 
-function getMissingMutatorsFromArray(
-	current: IExtensionOwnedEnvironmentVariableMutator[],
-	other: IExtensionOwnedEnvironmentVariableMutator[] | undefined
-): IExtensionOwnedEnvironmentVariableMutator[] | undefined {
-	// If it doesn't exist, all are removed
-	if (!other) {
-		return current;
+function getMissingMutatowsFwomAwway(
+	cuwwent: IExtensionOwnedEnviwonmentVawiabweMutatow[],
+	otha: IExtensionOwnedEnviwonmentVawiabweMutatow[] | undefined
+): IExtensionOwnedEnviwonmentVawiabweMutatow[] | undefined {
+	// If it doesn't exist, aww awe wemoved
+	if (!otha) {
+		wetuwn cuwwent;
 	}
 
-	// Create a map to help
-	const otherMutatorExtensions = new Set<string>();
-	other.forEach(m => otherMutatorExtensions.add(m.extensionIdentifier));
+	// Cweate a map to hewp
+	const othewMutatowExtensions = new Set<stwing>();
+	otha.fowEach(m => othewMutatowExtensions.add(m.extensionIdentifia));
 
-	// Find entries removed from other
-	const result: IExtensionOwnedEnvironmentVariableMutator[] = [];
-	current.forEach(mutator => {
-		if (!otherMutatorExtensions.has(mutator.extensionIdentifier)) {
-			result.push(mutator);
+	// Find entwies wemoved fwom otha
+	const wesuwt: IExtensionOwnedEnviwonmentVawiabweMutatow[] = [];
+	cuwwent.fowEach(mutatow => {
+		if (!othewMutatowExtensions.has(mutatow.extensionIdentifia)) {
+			wesuwt.push(mutatow);
 		}
 	});
 
-	return result.length === 0 ? undefined : result;
+	wetuwn wesuwt.wength === 0 ? undefined : wesuwt;
 }
 
-function getChangedMutatorsFromArray(
-	current: IExtensionOwnedEnvironmentVariableMutator[],
-	other: IExtensionOwnedEnvironmentVariableMutator[] | undefined
-): IExtensionOwnedEnvironmentVariableMutator[] | undefined {
-	// If it doesn't exist, none are changed (they are removed)
-	if (!other) {
-		return undefined;
+function getChangedMutatowsFwomAwway(
+	cuwwent: IExtensionOwnedEnviwonmentVawiabweMutatow[],
+	otha: IExtensionOwnedEnviwonmentVawiabweMutatow[] | undefined
+): IExtensionOwnedEnviwonmentVawiabweMutatow[] | undefined {
+	// If it doesn't exist, none awe changed (they awe wemoved)
+	if (!otha) {
+		wetuwn undefined;
 	}
 
-	// Create a map to help
-	const otherMutatorExtensions = new Map<string, IExtensionOwnedEnvironmentVariableMutator>();
-	other.forEach(m => otherMutatorExtensions.set(m.extensionIdentifier, m));
+	// Cweate a map to hewp
+	const othewMutatowExtensions = new Map<stwing, IExtensionOwnedEnviwonmentVawiabweMutatow>();
+	otha.fowEach(m => othewMutatowExtensions.set(m.extensionIdentifia, m));
 
-	// Find entries that exist in both but are not equal
-	const result: IExtensionOwnedEnvironmentVariableMutator[] = [];
-	current.forEach(mutator => {
-		const otherMutator = otherMutatorExtensions.get(mutator.extensionIdentifier);
-		if (otherMutator && (mutator.type !== otherMutator.type || mutator.value !== otherMutator.value)) {
-			// Return the new result, not the old one
-			result.push(otherMutator);
+	// Find entwies that exist in both but awe not equaw
+	const wesuwt: IExtensionOwnedEnviwonmentVawiabweMutatow[] = [];
+	cuwwent.fowEach(mutatow => {
+		const othewMutatow = othewMutatowExtensions.get(mutatow.extensionIdentifia);
+		if (othewMutatow && (mutatow.type !== othewMutatow.type || mutatow.vawue !== othewMutatow.vawue)) {
+			// Wetuwn the new wesuwt, not the owd one
+			wesuwt.push(othewMutatow);
 		}
 	});
 
-	return result.length === 0 ? undefined : result;
+	wetuwn wesuwt.wength === 0 ? undefined : wesuwt;
 }
